@@ -129,7 +129,7 @@ class DiceGame:
         canvas.delete("all")
         canvas.create_rectangle(
             6, 8, DICE_SIZE - 4, DICE_SIZE - 2,
-            fill="#00000022", outline="",
+            fill="#152030", outline="",
         )
         canvas.create_rectangle(
             4, 4, DICE_SIZE - 6, DICE_SIZE - 6,
