@@ -23,75 +23,99 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);}
-#app{display:grid;grid-template-columns:252px 1fr;min-height:100vh;}
-/* ---------- 左侧边栏 ---------- */
-#side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--toolbar);
-  border-right:1px solid var(--border);padding:10px 10px 30px;}
-#side h1{font-size:15px;margin:2px 0 10px;display:flex;align-items:center;gap:6px}
-#side h1 span{color:var(--muted);font-size:11px;font-weight:normal}
-#side details{border:1px solid var(--border);border-radius:8px;background:var(--panel);
-  margin-bottom:8px;overflow:hidden}
-#side summary{cursor:pointer;padding:7px 10px;font-weight:600;font-size:13px;
-  list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none}
-#side summary::after{content:'▾';color:var(--muted);font-size:11px}
-#side details:not([open]) summary::after{content:'▸'}
-.sec{padding:2px 10px 10px;display:flex;flex-direction:column;gap:6px}
-.rowline{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-.rowline label{color:var(--muted);font-size:11.5px;white-space:nowrap}
+/* ================= 顶部 Ribbon ================= */
+#top{position:sticky;top:0;z-index:20;background:var(--toolbar);
+  border-bottom:1px solid var(--border);}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 14px;}
+.main-bar{border-bottom:1px solid var(--border)}
+.logo{font-weight:700;font-size:15px;margin-right:6px;white-space:nowrap}
+.logo small{color:var(--muted);font-weight:400;font-size:11px}
+.vsep{width:1px;align-self:stretch;background:var(--border);margin:2px 2px}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:6px;padding:3px 8px;font-size:12.5px;cursor:pointer;white-space:nowrap;
+  border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap;
   font-family:var(--font-ui);}
 button:hover{border-color:var(--accent);color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.primary:hover{color:#fff;filter:brightness(1.08)}
 button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
-button.pat{width:100%;text-align:left;font-size:12px;padding:4px 8px;color:var(--text)}
-button.pat:hover{color:var(--accent)}
-button.pat small{color:var(--muted);float:right}
+input,select,textarea{background:var(--panel);color:var(--text);
+  border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;
+  font-family:var(--font-ui);}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+input.short{width:56px} input.mid{width:150px}
+/* 分页标签 */
+.tab-bar{padding:6px 14px 0;gap:2px;border-bottom:1px solid var(--border);background:var(--toolbar)}
+.rtab{border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;
+  background:transparent;padding:6px 16px;font-size:13.5px;color:var(--muted)}
+.rtab:hover{color:var(--accent)}
+.rtab.on{background:var(--panel);border-color:var(--border);color:var(--accent);font-weight:600}
+#mode-tip{margin-left:auto;font-size:12px;color:var(--muted);padding-right:4px}
+/* Ribbon 内容区 */
+#ribbon{display:flex;align-items:stretch;gap:8px;padding:8px 14px;background:var(--panel);
+  overflow-x:auto;border-bottom:1px solid var(--border)}
+.rg{display:flex;flex-direction:column;gap:4px;padding:6px 10px 4px;
+  border:1px solid var(--border);border-radius:10px;background:var(--toolbar);flex:none}
+.rg .rg-title{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-align:center;
+  order:2;margin-top:2px}
+.rg .rg-body{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:560px}
+/* 图标按钮 */
+.ib{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;
+  min-width:40px;border:1px solid transparent;border-radius:8px;background:transparent}
+.ib:hover{border-color:var(--accent);background:var(--panel)}
+.ib.on{border-color:var(--accent);background:var(--accent-soft)}
+.ib svg{display:block}
+.ib span{font-size:10.5px;color:var(--text);line-height:1.1}
+.ib.on span{color:var(--accent)}
 .chip{padding:1px 9px;border:1px solid var(--border);border-radius:10px;cursor:pointer;
   font-size:12px;background:var(--panel);user-select:none}
 .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
-input,select,textarea{background:var(--panel);color:var(--text);
-  border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:12.5px;
-  font-family:var(--font-ui);}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
-input.short{width:52px} input.mid{width:100%}
-#err-list{display:flex;flex-direction:column;gap:3px;font-size:12px}
-#err-list .err{color:var(--danger);cursor:pointer;padding:2px 4px;border-radius:4px}
-#err-list .err:hover{background:var(--accent-soft)}
-#err-list .ok{color:var(--muted)}
-#mode-tip{font-size:12px;color:var(--accent);font-weight:600}
-/* ---------- 主区 ---------- */
-#main{min-width:0}
+/* 状态栏 */
+#statusbar{display:flex;align-items:center;gap:12px;padding:3px 16px;font-size:12px;
+  background:var(--toolbar);position:relative}
+#beat-status{cursor:pointer}
+#beat-status.bad{color:var(--danger);font-weight:600}
+#beat-status.good{color:var(--muted)}
+#err-drop{position:absolute;left:12px;top:100%;z-index:30;background:var(--panel);
+  border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);
+  padding:8px;max-height:40vh;overflow:auto;min-width:280px}
+#err-drop .err{color:var(--danger);cursor:pointer;padding:3px 6px;border-radius:4px;font-size:12.5px}
+#err-drop .err:hover{background:var(--accent-soft)}
+/* ================= 主区 ================= */
 #score-wrap{max-width:1120px;margin:16px auto;padding:0 12px;}
 #paper{background:var(--paper);border:1px solid var(--border);border-radius:10px;
   box-shadow:0 4px 18px rgba(0,0,0,.10);padding:14px 8px;}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
 #hint{max-width:1120px;margin:0 auto 30px;padding:0 16px;color:var(--muted);font-size:12px;}
+/* ================= 弹窗 ================= */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
   display:flex;align-items:center;justify-content:center;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;
-  padding:18px 20px;max-width:620px;width:92%;max-height:82vh;overflow:auto;}
+  padding:18px 20px;max-width:720px;width:94%;max-height:84vh;overflow:auto;}
 .modal h3{margin:0 0 10px;font-size:16px}
+.modal h4{margin:14px 0 6px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:3px}
 .modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .modal textarea{width:100%;height:120px;resize:vertical}
 .modal p{color:var(--muted);font-size:12px;margin:6px 0}
 .modal table{border-collapse:collapse;font-size:13px;width:100%}
 .modal td{padding:3px 8px;border-bottom:1px solid var(--border)}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
-.modal h4{margin:12px 0 4px;font-size:13px;color:var(--muted)}
+.modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.modal label.f span{width:56px;color:var(--muted);text-align:right}
+/* 节奏型库卡片 */
+.pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.pat-card{border:1px solid var(--border);border-radius:10px;padding:6px;cursor:pointer;
+  background:var(--toolbar);display:flex;flex-direction:column;align-items:center;gap:3px}
+.pat-card:hover{border-color:var(--accent);background:var(--accent-soft)}
+.pat-card .nm{font-size:12px;text-align:center;line-height:1.25}
+.pat-card .bt{font-size:10.5px;color:var(--muted)}
+.pat-card svg{background:var(--panel);border-radius:6px}
 #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
   background:var(--text);color:var(--bg);padding:8px 18px;border-radius:20px;
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
-@media (max-width: 920px){
-  #app{grid-template-columns:1fr}
-  #side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}
-}
 @media print{
-  #side,#hint,#toast{display:none!important}
-  #app{display:block}
+  #top,#hint,#toast{display:none!important}
   body{background:#fff}
   #score-wrap{margin:0;max-width:none;padding:0}
   #paper{border:none;box-shadow:none;border-radius:0;padding:0}
@@ -100,129 +124,129 @@ svg text{user-select:none}
 </style>
 </head>
 <body>
-<div id="app">
-<aside id="side">
-  <h1>🎸 MuseTab <span>吉他谱编辑器</span></h1>
-  <div style="margin-bottom:8px"><span id="mode-tip"></span></div>
-
-  <details open><summary>文件</summary><div class="sec">
-    <div class="rowline">
-      <button id="b-new">新建</button><button id="b-open">打开</button>
-      <button id="b-save">保存</button><button id="b-print">打印/PDF</button>
-      <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
-    </div>
-    <div class="rowline">
-      <button id="b-undo" title="Ctrl+Z">撤销</button>
-      <button id="b-redo" title="Ctrl+Y">重做</button>
-      <button id="b-meta">曲谱信息</button>
-    </div>
-  </div></details>
-
-  <details open><summary>播放</summary><div class="sec">
-    <div class="rowline">
-      <button id="b-play" class="primary">▶ 播放</button>
-      <button id="b-stop">■</button>
-      <button id="b-mix-tab" class="on" title="吉他声部发声">弹</button>
-      <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
-    </div>
-    <div class="rowline"><label>速度</label>
-      <input id="i-tempo" class="short" type="number" min="30" max="240"></div>
-  </div></details>
-
-  <details open><summary>吉他谱（六线谱）</summary><div class="sec">
-    <div class="rowline" id="tab-voices"></div>
-    <div class="rowline">
-      <label>时值</label>
-      <button class="b-dur" data-dur="1">全</button><button class="b-dur" data-dur="2">2</button>
-      <button class="b-dur" data-dur="4">4</button><button class="b-dur" data-dur="8">8</button>
-      <button class="b-dur" data-dur="16">16</button><button id="b-dot">附点</button>
-    </div>
-    <div class="rowline">
-      <button id="b-mute">× 切音</button><button id="b-strum-d">扫↓</button>
-      <button id="b-strum-u">扫↑</button><button id="b-arp">琶音</button>
-    </div>
-    <div class="rowline">
-      <label>和弦</label>
-      <input id="i-chord" class="short" list="chord-list" placeholder="C">
-      <datalist id="chord-list"></datalist>
-      <button id="b-diag">图:随行</button>
-    </div>
-    <div class="rowline">
-      <button id="b-inscol-t">插入列</button><button id="b-delcol-t">删除列</button>
-    </div>
-    <label style="font-size:11.5px;color:var(--muted)">常用节奏型（作用于选中小节，可 Shift 多选）</label>
-    <div id="tab-pats"></div>
-  </div></details>
-
-  <details open><summary>简谱（旋律）</summary><div class="sec">
-    <div class="rowline" id="vox-voices"></div>
-    <div class="rowline">
-      <label>时值</label>
-      <button class="b-dur2" data-dur="1">全</button><button class="b-dur2" data-dur="2">2</button>
-      <button class="b-dur2" data-dur="4">4</button><button class="b-dur2" data-dur="8">8</button>
-      <button class="b-dur2" data-dur="16">16</button><button id="b-dot2">附点</button>
-    </div>
-    <div class="rowline">
-      <button id="b-sharp">♯</button><button id="b-flat">♭</button>
-      <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
-      <button id="b-tie">连音线</button>
-    </div>
-    <div class="rowline">
-      <button id="b-inscol-v">插入列</button><button id="b-delcol-v">删除列</button>
-    </div>
-    <label style="font-size:11.5px;color:var(--muted)">常用节奏型（作用于选中小节，可 Shift 多选）</label>
-    <div id="vox-pats"></div>
-  </div></details>
-
-  <details open><summary>歌词</summary><div class="sec">
-    <div class="rowline" id="lyr-lines"></div>
-    <div class="rowline"><label>当前音</label>
-      <input id="i-lyric" class="short" placeholder="字"></div>
-    <div class="rowline">
-      <button id="b-fill">批量填词</button>
-      <button id="b-clearlyr">清空本段</button>
-    </div>
-  </div></details>
-
-  <details open><summary>小节</summary><div class="sec">
-    <div class="rowline">
-      <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
-    </div>
-    <div class="rowline">
-      <button id="b-rep-s" title="反复开始">|:</button>
-      <button id="b-rep-e" title="反复结束">:|</button>
-    </div>
-  </div></details>
-
-  <details open><summary>节拍检查</summary><div class="sec">
-    <div id="err-list"></div>
-  </div></details>
-
-  <details><summary>显示与帮助</summary><div class="sec">
-    <div class="rowline">
-      <button id="b-help">帮助</button>
-      <button id="b-theme">◐ 明暗</button>
-    </div>
-  </div></details>
-
-  <div id="meta-panel" class="hidden" style="display:flex;flex-direction:column;gap:6px;
-    border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:10px">
-    <label>标题<input id="m-title" class="mid"></label>
-    <label>演唱<input id="m-singer" class="mid"></label>
-    <label>作词<input id="m-lyricist" class="mid"></label>
-    <label>作曲<input id="m-composer" class="mid"></label>
-    <label>制谱<input id="m-maker" class="mid"></label>
-    <div class="rowline"><label>1=</label><select id="m-key"></select>
-      <label>拍号</label><input id="m-beats" class="short" type="number" min="1" max="12">/<select id="m-unit"><option>4</option><option>8</option></select></div>
-    <div class="rowline"><label>变调夹</label><input id="m-capo" class="short" type="number" min="0" max="12"></div>
+<header id="top">
+  <div class="bar main-bar">
+    <span class="logo">🎸 MuseTab <small>吉他谱编辑器</small></span>
+    <button id="b-new">新建</button><button id="b-open">打开</button>
+    <button id="b-save">保存</button><button id="b-print">打印/PDF</button>
+    <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
+    <span class="vsep"></span>
+    <button id="b-undo" title="Ctrl+Z">撤销</button>
+    <button id="b-redo" title="Ctrl+Y">重做</button>
+    <span class="vsep"></span>
+    <button id="b-play" class="primary">▶ 播放</button>
+    <button id="b-stop">■</button>
+    <button id="b-mix-tab" class="on" title="吉他声部发声">弹</button>
+    <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
+    <label style="color:var(--muted);font-size:12px">速度</label>
+    <input id="i-tempo" class="short" type="number" min="30" max="240">
+    <span class="vsep"></span>
+    <button id="b-meta">曲谱信息</button>
+    <button id="b-help">帮助</button>
+    <button id="b-theme" title="切换明暗">◐</button>
   </div>
-</aside>
+  <div class="bar tab-bar">
+    <button class="rtab" data-t="tab">吉他谱</button>
+    <button class="rtab" data-t="vox">简谱</button>
+    <button class="rtab" data-t="lyr">歌词</button>
+    <button class="rtab" data-t="mea">小节</button>
+    <span id="mode-tip"></span>
+  </div>
+  <div id="ribbon">
+    <!-- 共用时值组（吉他谱/简谱页显示） -->
+    <div class="rg" id="g-dur">
+      <div class="rg-title">时值 · 共用</div>
+      <div class="rg-body" id="dur-body"></div>
+    </div>
+    <div class="rg" id="g-combo">
+      <div class="rg-title">组合时值 · 拆分当前音</div>
+      <div class="rg-body" id="combo-body"></div>
+    </div>
+    <!-- 吉他谱 -->
+    <div class="rg panel-p" id="panel-tab-voice">
+      <div class="rg-title">吉他声部</div>
+      <div class="rg-body" id="tab-voices"></div>
+    </div>
+    <div class="rg panel-p" id="panel-tab-mark">
+      <div class="rg-title">演奏记号</div>
+      <div class="rg-body">
+        <button id="b-mute">× 切音</button><button id="b-strum-d">扫↓</button>
+        <button id="b-strum-u">扫↑</button><button id="b-arp">琶音</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-tab-chord">
+      <div class="rg-title">和弦</div>
+      <div class="rg-body">
+        <input id="i-chord" class="short" list="chord-list" placeholder="C">
+        <datalist id="chord-list"></datalist>
+        <button id="b-diag">图:随行</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-tab-col">
+      <div class="rg-title">列</div>
+      <div class="rg-body">
+        <button id="b-inscol-t">插入</button><button id="b-delcol-t">删除</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-tab-pat">
+      <div class="rg-title">节奏型 · 可 Shift 多选小节</div>
+      <div class="rg-body" id="tab-quick"></div>
+    </div>
+    <!-- 简谱 -->
+    <div class="rg panel-p" id="panel-vox-voice">
+      <div class="rg-title">旋律声部</div>
+      <div class="rg-body" id="vox-voices"></div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-mark">
+      <div class="rg-title">音符记号</div>
+      <div class="rg-body">
+        <button id="b-sharp">♯</button><button id="b-flat">♭</button>
+        <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
+        <button id="b-tie">连音线</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-col">
+      <div class="rg-title">列</div>
+      <div class="rg-body">
+        <button id="b-inscol-v">插入</button><button id="b-delcol-v">删除</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-pat">
+      <div class="rg-title">节奏型 · 可 Shift 多选小节</div>
+      <div class="rg-body" id="vox-quick"></div>
+    </div>
+    <!-- 歌词 -->
+    <div class="rg panel-p" id="panel-lyr-line">
+      <div class="rg-title">歌词段落（最多5段）</div>
+      <div class="rg-body" id="lyr-lines"></div>
+    </div>
+    <div class="rg panel-p" id="panel-lyr-edit">
+      <div class="rg-title">填词</div>
+      <div class="rg-body">
+        <label style="font-size:12px;color:var(--muted)">当前音</label>
+        <input id="i-lyric" class="short" placeholder="字">
+        <button id="b-fill">批量填词</button>
+        <button id="b-clearlyr">清空本段</button>
+      </div>
+    </div>
+    <!-- 小节 -->
+    <div class="rg panel-p" id="panel-mea-op">
+      <div class="rg-title">小节操作</div>
+      <div class="rg-body">
+        <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
+        <button id="b-rep-s" title="反复开始">|:</button>
+        <button id="b-rep-e" title="反复结束">:|</button>
+      </div>
+    </div>
+  </div>
+  <div id="statusbar">
+    <span id="beat-status" class="good">✓ 所有小节时值正确</span>
+    <div id="err-drop" class="hidden"></div>
+  </div>
+</header>
 
-<div id="main">
-  <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
-  <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击可跨小节多选后套用左栏节奏型；小节时值与拍号不符时该小节自动标红并列入"节拍检查"。详见"帮助"。</div>
-</div>
-</div>
+<div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
+<div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击跨小节多选后，在"节奏型库"中点图示即可批量套用（有和弦时自动按指法生成音符）。小节时值与拍号不符会自动标红并计入上方"节拍检查"。</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -244,34 +268,88 @@ const MIN_W = {1:80, 2:52, 4:34, 8:24, 16:19};
 const PAGE_W = 1060, MARGIN = 40;
 const MAX_VOICES = 5, MAX_LYR = 5;
 
-/* ---- 常用节奏型 ---- */
-/* 吉他谱事件: b=根音 sN=第N弦 c=柱式和声 d/u=扫弦 a=琶音 x=切音 r=休止 ; [类型, 时值, 附点?] */
-const TAB_PATTERNS = [
-  {name:'分解 53231323', hint:'8分×8', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8],['s2',8],['s3',8]]},
-  {name:'分解 慢速 5-32-1-32', hint:'4+8×2 ×2', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
-  {name:'柱式 四分 ×4', hint:'4分×4', ev:[['c',4],['c',4],['c',4],['c',4]]},
-  {name:'根音 四分 ×4', hint:'低音走', ev:[['b',4],['b',4],['b',4],['b',4]]},
-  {name:'民谣扫弦 ↓ ↓↑ ↑↓↑', hint:'经典', ev:[['d',4],['d',8],['u',8],['r',8],['u',8],['d',8],['u',8]]},
-  {name:'八分扫弦 ↓↑ ×4', hint:'8分×8', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
-  {name:'切音律动 ↓ × ↓ ×', hint:'切音', ev:[['d',4],['x',4],['d',4],['x',4]]},
-  {name:'琶音 全音符', hint:'长音', ev:[['a',1]]}
+/* ---- 时值库 ---- */
+const DUR_SINGLE = [
+  {name:'全音符', dur:1},{name:'2分', dur:2},{name:'4分', dur:4},
+  {name:'8分', dur:8},{name:'16分', dur:16}
 ];
-/* 简谱: 时值序列 [dur, dotted?] */
-const VOX_PATTERNS = [
-  {name:'四分 ×4', hint:'♩♩♩♩', durs:[[4],[4],[4],[4]]},
-  {name:'二分 ×2', hint:'𝅗𝅥 𝅗𝅥', durs:[[2],[2]]},
-  {name:'全音符', hint:'𝅝', durs:[[1]]},
-  {name:'八分 ×8', hint:'♪×8', durs:[[8],[8],[8],[8],[8],[8],[8],[8]]},
-  {name:'前八后十六 ×4', hint:'♪♬', durs:[[8],[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16]]},
-  {name:'附点四分+八分 ×2', hint:'♩. ♪', durs:[[4,1],[8],[4,1],[8]]},
-  {name:'大切分', hint:'♪♩♪+♩♩', durs:[[8],[4],[8],[4],[4]]}
+const DUR_COMBOS = [
+  {name:'八分×2', durs:[[8],[8]]},
+  {name:'前八后十六', durs:[[8],[16],[16]]},
+  {name:'前十六后八', durs:[[16],[16],[8]]},
+  {name:'十六分×4', durs:[[16],[16],[16],[16]]},
+  {name:'附点八分+十六', durs:[[8,1],[16]]},
+  {name:'十六+附点八', durs:[[16],[8,1]]},
+  {name:'小切分 ⅙⅛⅙', durs:[[16],[8],[16]]},
+];
+/* ---- 节奏型库（吉他）: b=根音 B=交替低音 sN=第N弦 c=柱式 d/u=扫弦 a=琶音 x=切音 r=休止 ---- */
+const TAB_PATTERN_GROUPS = [
+  {cat:'分解节奏型 · 2/4 4/4', items:[
+    {name:'53231323 经典分解', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8],['s2',8],['s3',8]]},
+    {name:'交替低音 5323 4323', ev:[['b',8],['s3',8],['s2',8],['s3',8],['B',8],['s3',8],['s2',8],['s3',8]]},
+    {name:'慢速 5·32·1·32', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
+    {name:'532123 + 长音', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8],['s1',4]]},
+    {name:'低音+柱式 民歌伴奏', ev:[['b',4],['c',4],['B',4],['c',4]]},
+    {name:'前八后十六 快速分解', ev:[['b',8],['s3',16],['s2',16],['s1',8],['s3',16],['s2',16],['B',8],['s3',16],['s2',16],['s1',8],['s3',16],['s2',16]]},
+    {name:'十六分 流水分解', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16],['B',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
+    {name:'琶音+高音收尾', ev:[['a',2],['s1',4],['s2',4]]},
+  ]},
+  {cat:'分解节奏型 · 3/4 6/8', items:[
+    {name:'532313 华尔兹分解', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8]]},
+    {name:'低音+两柱式 华尔兹', ev:[['b',4],['c',4],['c',4]]},
+    {name:'5·32·13 慢三', ev:[['b',4],['s3',8],['s2',8],['s1',8],['s3',8]]},
+    {name:'632123 六八分解', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8]]},
+  ]},
+  {cat:'扫弦节奏型 · 2/4 4/4', items:[
+    {name:'四分下扫 ×4', ev:[['d',4],['d',4],['d',4],['d',4]]},
+    {name:'↓ ↓↑ ↓ ↓↑', ev:[['d',4],['d',8],['u',8],['d',4],['d',8],['u',8]]},
+    {name:'民谣经典 ↓ ↓↑ ↑↓↑', ev:[['d',4],['d',8],['u',8],['r',8],['u',8],['d',8],['u',8]]},
+    {name:'八分全扫 ↓↑ ×4', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
+    {name:'切音律动 ↓ × ↓ ×', ev:[['d',4],['x',4],['d',4],['x',4]]},
+    {name:'放克切音 ↓↑×↑ ×2', ev:[['d',8],['u',8],['x',8],['u',8],['d',8],['u',8],['x',8],['u',8]]},
+    {name:'慢摇滚 ↓ ↑↓ 空↑ ↓↑', ev:[['d',4],['u',8],['d',8],['r',8],['u',8],['d',8],['u',8]]},
+    {name:'重拍强化 ↓ ↓ ↓↓ ↓', ev:[['d',4],['d',4],['d',8],['d',8],['d',4]]},
+  ]},
+  {cat:'扫弦节奏型 · 3/4', items:[
+    {name:'↓ ↓ ↓ 华尔兹', ev:[['d',4],['d',4],['d',4]]},
+    {name:'↓ ↓↑ ↓↑', ev:[['d',4],['d',8],['u',8],['d',8],['u',8]]},
+    {name:'↓ × ×', ev:[['d',4],['x',4],['x',4]]},
+    {name:'↓ ↓↑ ×', ev:[['d',4],['d',8],['u',8],['x',4]]},
+  ]},
+];
+/* ---- 节奏型库（简谱）: 时值组合 ---- */
+const VOX_PATTERN_GROUPS = [
+  {cat:'基础时值 · 2/4 4/4', items:[
+    {name:'四分 ×4', durs:[[4],[4],[4],[4]]},
+    {name:'二分 ×2', durs:[[2],[2]]},
+    {name:'全音符', durs:[[1]]},
+    {name:'八分 ×8', durs:[[8],[8],[8],[8],[8],[8],[8],[8]]},
+    {name:'二分+四分×2', durs:[[2],[4],[4]]},
+    {name:'四分×2+二分', durs:[[4],[4],[2]]},
+  ]},
+  {cat:'组合节奏 · 2/4 4/4', items:[
+    {name:'前八后十六 ×4', durs:[[8],[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16]]},
+    {name:'前十六后八 ×4', durs:[[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16],[8]]},
+    {name:'附点四分+八分 ×2', durs:[[4,1],[8],[4,1],[8]]},
+    {name:'附点八分+十六 ×4', durs:[[8,1],[16],[8,1],[16],[8,1],[16],[8,1],[16]]},
+    {name:'大切分 ♪♩♪ + ♩♩', durs:[[8],[4],[8],[4],[4]]},
+    {name:'小切分×2 + ♩♩', durs:[[16],[8],[16],[16],[8],[16],[4],[4]]},
+  ]},
+  {cat:'3/4 6/8 拍', items:[
+    {name:'四分 ×3', durs:[[4],[4],[4]]},
+    {name:'附点二分', durs:[[2,1]]},
+    {name:'二分+四分', durs:[[2],[4]]},
+    {name:'四分+二分', durs:[[4],[2]]},
+    {name:'八分 ×6', durs:[[8],[8],[8],[8],[8],[8]]},
+  ]},
 ];
 
 /* ================= 状态 ================= */
 let song = null;
 let sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
-let selRange = null;              // {row, vi, m1, m2} Shift 多选
+let selRange = null;
 let activeLyr = 0;
+let activeTab = 'tab';
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
@@ -296,15 +374,12 @@ function blankSong(){
   song = old;
   return s;
 }
-
-/* ---------- 示例曲 ---------- */
 function demoSong(){
   const T=(s,f,ch,dur)=>({dur:dur||8,dotted:false,chord:ch||'',notes:s?[{s,f}]:[],strum:''});
   const Tm=(pairs,ch,dur,strum)=>({dur:dur||8,dotted:false,chord:ch||'',
     notes:pairs.map(p=>({s:p[0],f:p[1],x:p[2]||false})),strum:strum||''});
   const V=(deg,ly,dur)=>({dur:dur||4,dotted:false,deg,acc:'',oct:0,lyrics:ly?[ly]:[],tie:false});
   const arpC = ch=>[T(5,3,ch),T(3,0),T(2,1),T(3,0),T(1,0),T(3,0),T(2,1),T(3,0)];
-  const arpAm= ch=>[T(5,0,ch),T(3,2),T(2,1),T(3,2),T(1,0),T(3,2),T(2,1),T(3,2)];
   const arpF = ch=>[T(4,3,ch),T(3,2),T(2,1),T(3,2),T(1,1),T(3,2),T(2,1),T(3,2)];
   const arpG = ch=>[T(6,3,ch),T(3,0),T(2,0),T(3,0),T(1,3),T(3,0),T(2,0),T(3,0)];
   const arpG7= ch=>[T(6,3,ch),T(3,0),T(2,0),T(3,0),T(1,1),T(3,0),T(2,0),T(3,0)];
@@ -336,8 +411,6 @@ function demoSong(){
       M(strumC,     [V(1,'星',1)])
     ]};
 }
-
-/* ---------- 旧格式迁移 ---------- */
 function migrate(s){
   if(s.v===3) return s;
   if(s.v===2){
@@ -350,7 +423,6 @@ function migrate(s){
     });
     return s;
   }
-  /* v1 -> v3 */
   const out = {v:3, title:s.title||'未命名曲谱', singer:s.singer||'', lyricist:'',
     composer:'', maker:s.maker||'', key:s.key||'C', beats:s.beats||4,
     unit:s.unit||4, tempo:s.tempo||90, capo:s.capo||0,
@@ -386,13 +458,13 @@ function voxMidi(c){
   if(c.acc==='#') m++; if(c.acc==='b') m--;
   return m;
 }
-function shapeSounded(shape){   // [{s,f}] s=1..6
+function shapeSounded(shape){
   const res=[];
   [...shape].forEach((ch,i)=>{ if(ch!=='x') res.push({s:6-i, f:parseInt(ch,36)}); });
   return res;
 }
 function shapeString(shape, s){ const ch = shape[6-s]; return ch==='x'?null:parseInt(ch,36); }
-function chordBefore(mi, vi){   // 该小节生效的和弦名（本小节内最先出现的；否则向前找最后一个）
+function chordBefore(mi, vi){
   const cols = song.measures[mi].tabs[vi]||[];
   for(const c of cols) if(c.chord) return c.chord;
   for(let m=mi-1;m>=0;m--){
@@ -401,11 +473,8 @@ function chordBefore(mi, vi){   // 该小节生效的和弦名（本小节内最
   }
   return '';
 }
-
-/* ================= 节拍校验 ================= */
 function beatErrors(){
-  const errs=[];
-  const target = song.beats;
+  const errs=[]; const target = song.beats;
   song.measures.forEach((m,mi)=>{
     m.tabs.forEach((cols,vi)=>{
       const b = cols.reduce((a,c)=>a+beatsOf(c),0);
@@ -417,6 +486,107 @@ function beatErrors(){
     });
   });
   return errs;
+}
+
+/* ================= 图示生成（时值/节奏型预览） ================= */
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function evBeatsRaw(dur, dot){ return (4/dur)*(dot?1.5:1); }
+/* 单行节奏图（时值按钮 / 简谱节奏型）：×符头+符干+符杠 */
+function rhythmSVG(durs, W, H){
+  W=W||Math.max(30, durs.length*14+10); H=H||30;
+  const line=9, stem=H-7;
+  const total = durs.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
+  let cum=0; const xs=[];
+  durs.forEach(([d,t])=>{ const b=evBeatsRaw(d,t); xs.push(7+(cum+b/2)/total*(W-16)); cum+=b; });
+  const p=[`<line x1="2" y1="${line}" x2="${W-2}" y2="${line}" stroke="currentColor" stroke-width="0.8" opacity="0.5"/>`];
+  durs.forEach(([d,t],i)=>{
+    const x=xs[i];
+    if(d===1){ p.push(`<circle cx="${x}" cy="${line}" r="3.2" fill="none" stroke="currentColor" stroke-width="1.2"/>`); }
+    else{
+      if(d===2) p.push(`<circle cx="${x}" cy="${line}" r="3" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+      else p.push(`<path d="M ${x-3} ${line-3} L ${x+3} ${line+3} M ${x-3} ${line+3} L ${x+3} ${line-3}" stroke="currentColor" stroke-width="1.4" fill="none"/>`);
+      p.push(`<line x1="${x}" y1="${line+3}" x2="${x}" y2="${stem}" stroke="currentColor" stroke-width="1.1"/>`);
+    }
+    if(t) p.push(`<circle cx="${x+6}" cy="${line-4}" r="1.4" fill="currentColor"/>`);
+  });
+  /* 符杠 */
+  for(let i=0;i<durs.length;i++){
+    const [d]=durs[i];
+    if(d<8) continue;
+    let j=i; let cumb=durs.slice(0,i).reduce((a,[dd,tt])=>a+evBeatsRaw(dd,tt),0);
+    const beat=Math.floor(cumb+1e-4);
+    while(j<durs.length-1){
+      const [d2]=durs[j+1];
+      const c2=durs.slice(0,j+1).reduce((a,[dd,tt])=>a+evBeatsRaw(dd,tt),0);
+      if(d2>=8 && Math.floor(c2+1e-4)===beat) j++; else break;
+    }
+    if(j>i){
+      p.push(`<rect x="${xs[i]-0.5}" y="${stem-1.8}" width="${xs[j]-xs[i]+1}" height="1.8" fill="currentColor"/>`);
+      for(let a=i;a<j;a++)
+        if(durs[a][0]>=16 && durs[a+1][0]>=16)
+          p.push(`<rect x="${xs[a]-0.5}" y="${stem-4.6}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+    }else{
+      p.push(`<path d="M ${xs[i]} ${stem} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+      if(d>=16) p.push(`<path d="M ${xs[i]} ${stem-3.4} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+    }
+    i=j;
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${p.join('')}</svg>`;
+}
+/* 六线节奏型图（吉他节奏型库，教材风格：×在弦上+符干符杠+∧∨方向） */
+function tabPatSVG(pat, W, H){
+  W=W||140; H=H||64;
+  const top=12, gap=5.6, bot=top+5*gap, stemY=H-8;
+  const evs = pat.ev;
+  const total = evs.reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0);
+  let cum=0; const xs=[];
+  evs.forEach(e=>{ const b=evBeatsRaw(e[1],e[2]); xs.push(10+(cum+b/2)/total*(W-20)); cum+=b; });
+  const p=[];
+  for(let i=0;i<6;i++)
+    p.push(`<line x1="4" y1="${top+i*gap}" x2="${W-4}" y2="${top+i*gap}" stroke="currentColor" stroke-width="0.6" opacity="0.65"/>`);
+  const head=(x,row)=>p.push(`<path d="M ${x-2.4} ${top+row*gap-2.4} L ${x+2.4} ${top+row*gap+2.4} M ${x-2.4} ${top+row*gap+2.4} L ${x+2.4} ${top+row*gap-2.4}" stroke="currentColor" stroke-width="1.2" fill="none"/>`);
+  evs.forEach((e,i)=>{
+    const [t,d,dot]=e; const x=xs[i];
+    if(t==='r'){
+      p.push(`<path d="M ${x-2} ${top+gap*1.6} q 3 2 0 4 q -3 2 0 4" fill="none" stroke="currentColor" stroke-width="1.1"/>`);
+      return;
+    }
+    if(t==='b') head(x,4);
+    else if(t==='B') head(x,3);
+    else if(t[0]==='s') head(x,+t[1]-1);
+    else{ head(x,0); head(x,1); head(x,2); if(t==='d'||t==='u'||t==='a'||t==='x') head(x,3); }
+    if(t==='d') p.push(`<text x="${x}" y="${top-4}" font-size="8.5" text-anchor="middle" fill="currentColor">∧</text>`);
+    if(t==='u') p.push(`<text x="${x}" y="${top-4}" font-size="8.5" text-anchor="middle" fill="currentColor">∨</text>`);
+    if(t==='x') p.push(`<text x="${x}" y="${top-4}" font-size="7.5" text-anchor="middle" fill="currentColor">切</text>`);
+    if(t==='a') p.push(`<text x="${x}" y="${top-4}" font-size="8.5" text-anchor="middle" fill="currentColor">≀</text>`);
+    p.push(`<line x1="${x}" y1="${bot+2}" x2="${x}" y2="${stemY}" stroke="currentColor" stroke-width="1"/>`);
+    if(dot) p.push(`<circle cx="${x+4}" cy="${stemY-3}" r="1.3" fill="currentColor"/>`);
+  });
+  /* 符杠 */
+  for(let i=0;i<evs.length;i++){
+    const d=evs[i][1];
+    if(d<8 || evs[i][0]==='r') continue;
+    let j=i;
+    const cumAt=k=>evs.slice(0,k).reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0);
+    const beat=Math.floor(cumAt(i)+1e-4);
+    while(j<evs.length-1 && evs[j+1][1]>=8 && evs[j+1][0]!=='r' &&
+          Math.floor(cumAt(j+1)+1e-4)===beat) j++;
+    if(j>i){
+      p.push(`<rect x="${xs[i]-0.5}" y="${stemY-1.8}" width="${xs[j]-xs[i]+1}" height="1.8" fill="currentColor"/>`);
+      for(let a=i;a<j;a++)
+        if(evs[a][1]>=16 && evs[a+1][1]>=16)
+          p.push(`<rect x="${xs[a]-0.5}" y="${stemY-4.6}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+    }else{
+      p.push(`<path d="M ${xs[i]} ${stemY} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+      if(d>=16) p.push(`<path d="M ${xs[i]} ${stemY-3.4} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+    }
+    i=j;
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${p.join('')}</svg>`;
+}
+function patBeats(pat){
+  const arr = pat.ev? pat.ev.map(e=>[e[1],e[2]]) : pat.durs;
+  return arr.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
 }
 
 /* ================= 布局 ================= */
@@ -446,24 +616,20 @@ function layoutSystems(){
   if(cur.measures.length) systems.push(cur);
   return systems;
 }
-/* 系统纵向：动态按声部数计算 */
 function sysMetrics(){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   const diagH = diagMode==='inline' ? 66 : 16;
   let y = diagH + 10;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ tabTops.push(y); y += 65 + 15 + 20; }   // 六线+符干+间距
+  for(let i=0;i<nT;i++){ tabTops.push(y); y += 65 + 15 + 20; }
   for(let i=0;i<nV;i++){
-    y += 24;                       // 简谱上方空间（八度点/连音线）
-    voxYs.push(y);
-    lyricY0.push(y+26);
+    y += 24; voxYs.push(y); lyricY0.push(y+26);
     y += 26 + nL*20 + 10;
   }
   return {diagH, tabTops, voxYs, lyricY0, h:y+4, gap:26};
 }
 
 /* ================= 渲染 ================= */
-const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function usedChords(){
   const seen=[], have=new Set();
   song.measures.forEach(m=>m.tabs.forEach(cols=>cols.forEach(c=>{
@@ -517,7 +683,6 @@ function render(){
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
   colBoxes = {};
   const p=[];
-  /* ---- 曲头 ---- */
   let headY = 40;
   p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="26" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
   headY += 24;
@@ -551,11 +716,9 @@ function render(){
       top += Math.ceil(chords.length/14)*64 + 12;
     }
   }
-  /* ---- 系统 ---- */
   systems.forEach((sys, sIdx)=>{
     const oy = top + sIdx*(M.h+M.gap);
     const ox = MARGIN;
-    /* == 各吉他声部 == */
     song.tabVoices.forEach((vname, vi)=>{
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+65, stemY = tabBot+15;
       for(let i=0;i<6;i++)
@@ -583,7 +746,6 @@ function render(){
             <text x="${mx+lm.L.w-8}" y="${tabTop-6}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
         if(inRange('tab',vi,lm.mi))
           p.push(`<rect x="${mx+1}" y="${tabTop-4}" width="${lm.L.w-2}" height="${stemY-tabTop+8}" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
-        /* 反复记号（仅第一吉他声部画简谱侧另画） */
         if(mea.repeatStart){
           p.push(`<rect x="${mx+1}" y="${tabTop}" width="2.4" height="65" fill="var(--ink)"/>`);
           p.push(`<line x1="${mx+6}" y1="${tabTop}" x2="${mx+6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -600,7 +762,6 @@ function render(){
         }else{
           p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
         }
-        /* 列 */
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
@@ -625,7 +786,6 @@ function render(){
               p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
             }
           });
-          /* 扫弦/琶音：只跨实际弹奏的弦 */
           if(col.strum){
             const ss = col.notes.map(n=>n.s);
             const sMin = ss.length?Math.min(...ss):1, sMax = ss.length?Math.max(...ss):6;
@@ -653,7 +813,6 @@ function render(){
           for(let s2=1;s2<=6;s2++)
             p.push(`<rect x="${nx-cw/2}" y="${tabTop+(s2-1)*13-6.5}" width="${cw}" height="13" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="${s2}" style="cursor:pointer"/>`);
         });
-        /* 符杠 */
         beamGroups(cols, c=>c.notes.length||c.strum).forEach(g=>{
           const xs = g.idx.map(i=>mx+lay.xs[i]);
           const x1=Math.min(...xs), x2=Math.max(...xs);
@@ -673,7 +832,6 @@ function render(){
         });
       });
     });
-    /* == 各旋律声部 == */
     song.voxVoices.forEach((vname, vi)=>{
       const voxY = oy+M.voxYs[vi], lyr0 = oy+M.lyricY0[vi];
       p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -763,7 +921,7 @@ function render(){
   syncInputs();
 }
 
-/* ================= 选区/同步 ================= */
+/* ================= 选区/Ribbon 同步 ================= */
 function curMea(){ return song.measures[sel.mi]; }
 function curRowCols(){
   const m = curMea(); if(!m) return null;
@@ -783,19 +941,26 @@ function chipHtml(list, activeIdx, cls){
   return list.map((n,i)=>
     `<span class="chip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}">${esc(n)}</span>`).join('')
 }
+function setRibbon(t){
+  activeTab = t;
+  document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+  document.getElementById('g-dur').style.display = (t==='tab'||t==='vox')?'':'none';
+  document.getElementById('g-combo').style.display = (t==='tab'||t==='vox')?'':'none';
+  document.querySelectorAll('.panel-p').forEach(el=>{
+    el.style.display = el.id.startsWith('panel-'+t)?'':'none';
+  });
+}
 function syncInputs(){
   const col = curCol();
   document.getElementById('mode-tip').textContent =
-    (sel.row==='tab' ? '当前：吉他谱 · '+ (song.tabVoices[sel.vi]||'')
-                     : '当前：简谱 · '+ (song.voxVoices[sel.vi]||''))
-    + `　第${sel.mi+1}小节`;
-  /* 声部 chips */
+    (sel.row==='tab' ? '吉他谱 · '+(song.tabVoices[sel.vi]||'') : '简谱 · '+(song.voxVoices[sel.vi]||''))
+    + ` · 第${sel.mi+1}小节` + (selRange?` · 已多选 ${selRange.m1+1}–${selRange.m2+1} 小节`:'');
   document.getElementById('tab-voices').innerHTML =
     chipHtml(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
-    `<span class="chip" data-k="tv+">＋</span><span class="chip" data-k="tv-">−</span>`;
+    `<span class="chip" data-k="tv+" title="添加声部">＋</span><span class="chip" data-k="tv-" title="删除声部">−</span>`;
   document.getElementById('vox-voices').innerHTML =
     chipHtml(song.voxVoices, sel.row==='vox'?sel.vi:-1, 'vv') +
-    `<span class="chip" data-k="vv+">＋</span><span class="chip" data-k="vv-">−</span>`;
+    `<span class="chip" data-k="vv+" title="添加声部">＋</span><span class="chip" data-k="vv-" title="删除声部">−</span>`;
   document.getElementById('lyr-lines').innerHTML =
     chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
     `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
@@ -804,43 +969,36 @@ function syncInputs(){
   if(document.activeElement!==lyr)
     lyr.value = (sel.row==='vox'&&col)?((col.lyrics||[])[activeLyr]||''):'';
   document.getElementById('i-tempo').value = song.tempo;
-  const isTab = sel.row==='tab';
-  document.querySelectorAll('.b-dur').forEach(b=>
-    b.classList.toggle('on', isTab&&col&&+b.dataset.dur===col.dur));
-  document.querySelectorAll('.b-dur2').forEach(b=>
-    b.classList.toggle('on', !isTab&&col&&+b.dataset.dur===col.dur));
-  document.getElementById('b-dot').classList.toggle('on', !!(isTab&&col&&col.dotted));
-  document.getElementById('b-dot2').classList.toggle('on', !!(!isTab&&col&&col.dotted));
-  const mea = curMea();
-  document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
-  document.getElementById('b-rep-e').classList.toggle('on', !!(mea&&mea.repeatEnd));
-  if(col&&isTab){
+  document.querySelectorAll('#dur-body .ib').forEach(b=>{
+    if(b.dataset.dur) b.classList.toggle('on', !!col && +b.dataset.dur===col.dur && !col.dotted===!(+b.dataset.dot));
+    if(b.dataset.dot!==undefined && !b.dataset.dur) b.classList.toggle('on', !!(col&&col.dotted));
+  });
+  if(col&&sel.row==='tab'){
     document.getElementById('b-strum-d').classList.toggle('on', col.strum==='d');
     document.getElementById('b-strum-u').classList.toggle('on', col.strum==='u');
     document.getElementById('b-arp').classList.toggle('on', col.strum==='arp');
   }
-  if(col&&!isTab){
+  if(col&&sel.row==='vox'){
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
     document.getElementById('b-tie').classList.toggle('on', !!col.tie);
   }
-  /* 节拍检查列表 */
+  const mea = curMea();
+  document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
+  document.getElementById('b-rep-e').classList.toggle('on', !!(mea&&mea.repeatEnd));
+  /* 节拍状态栏 */
   const errs = beatErrors();
-  const el = document.getElementById('err-list');
-  if(!errs.length) el.innerHTML = '<div class="ok">✓ 所有小节时值正确</div>';
-  else el.innerHTML = errs.map(e=>{
-    const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
-    return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
-  }).join('');
-  document.getElementById('m-title').value = song.title;
-  document.getElementById('m-singer').value = song.singer;
-  document.getElementById('m-lyricist').value = song.lyricist||'';
-  document.getElementById('m-composer').value = song.composer||'';
-  document.getElementById('m-maker').value = song.maker;
-  document.getElementById('m-key').value = song.key;
-  document.getElementById('m-beats').value = song.beats;
-  document.getElementById('m-unit').value = song.unit;
-  document.getElementById('m-capo').value = song.capo;
+  const bs = document.getElementById('beat-status');
+  if(!errs.length){
+    bs.textContent = '✓ 所有小节时值正确'; bs.className='good';
+    document.getElementById('err-drop').classList.add('hidden');
+  }else{
+    bs.textContent = `⚠ ${errs.length} 处小节时值与拍号不符（点击查看）`; bs.className='bad';
+    document.getElementById('err-drop').innerHTML = errs.map(e=>{
+      const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
+      return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
+    }).join('');
+  }
 }
 
 /* ================= 编辑核心 ================= */
@@ -889,10 +1047,29 @@ function moveCol(dir){
 }
 function switchRow(){
   sel.row = sel.row==='tab'?'vox':'tab';
-  clampSel(); pending.digits=''; render();
+  clampSel(); pending.digits='';
+  setRibbon(sel.row);
+  render();
 }
 
-/* ================= 节奏型套用 ================= */
+/* ================= 时值/组合/节奏型 套用 ================= */
+function setDur(d){ const c=curCol(); if(c) mutate(()=>{ curCol().dur=d; }); }
+function toggleDot(){ const c=curCol(); if(c) mutate(()=>{ curCol().dotted=!curCol().dotted; }); }
+function applyDurCombo(combo){
+  const col = curCol(); if(!col) return;
+  mutate(()=>{
+    const r = curRowCols();
+    const base = JSON.parse(JSON.stringify(r[sel.ci]));
+    const cols = combo.durs.map(([dur,dot],i)=>{
+      let nc = sel.row==='tab'?tcol():vcol();
+      if(i===0) nc = Object.assign(nc, base);
+      nc.dur=dur; nc.dotted=!!dot;
+      return nc;
+    });
+    r.splice(sel.ci, 1, ...cols);
+  });
+  toast('已拆分为：'+combo.name);
+}
 function targetMeasures(row){
   if(selRange && selRange.row===row){
     const a=[]; for(let m=selRange.m1;m<=selRange.m2;m++) a.push(m);
@@ -917,7 +1094,11 @@ function applyTabPattern(pat){
         if(shape){
           const sounded = shapeSounded(shape);
           const bass = sounded.reduce((a,b)=>b.s>a.s?b:a, sounded[0]);
+          const altC = sounded.filter(n=>n.s>=3 && n.s!==bass.s);
+          const alt = altC.length ? altC.reduce((a,b)=>
+            Math.abs(b.s-(bass.s-1))<Math.abs(a.s-(bass.s-1))?b:a) : bass;
           if(t==='b') c.notes=[{s:bass.s, f:bass.f}];
+          else if(t==='B') c.notes=[{s:alt.s, f:alt.f}];
           else if(t[0]==='s'){
             const sn=+t[1]; const f=shapeString(shape, sn);
             if(f!=null) c.notes=[{s:sn, f}];
@@ -958,19 +1139,74 @@ function applyVoxPattern(pat){
   });
   toast('已套用节奏型：'+pat.name);
 }
-/* 节奏型按钮渲染 */
-(function buildPats(){
-  document.getElementById('tab-pats').innerHTML = TAB_PATTERNS.map((p,i)=>
-    `<button class="pat" data-tp="${i}">${esc(p.name)}<small>${esc(p.hint)}</small></button>`).join('');
-  document.getElementById('vox-pats').innerHTML = VOX_PATTERNS.map((p,i)=>
-    `<button class="pat" data-vp="${i}">${esc(p.name)}<small>${esc(p.hint)}</small></button>`).join('');
-  document.getElementById('tab-pats').addEventListener('click', e=>{
-    const b = e.target.closest('[data-tp]'); if(b) applyTabPattern(TAB_PATTERNS[+b.dataset.tp]);
+
+/* ---- 构建 Ribbon 时值/组合/快捷节奏型 ---- */
+(function buildRibbonLibs(){
+  const durBody = document.getElementById('dur-body');
+  durBody.innerHTML = DUR_SINGLE.map(d=>
+    `<button class="ib" data-dur="${d.dur}" data-dot="0" title="${d.name}">${rhythmSVG([[d.dur]],30,28)}<span>${d.name}</span></button>`
+  ).join('') +
+  `<button class="ib" id="b-dot-ib" title="附点">${rhythmSVG([[4,1]],30,28)}<span>附点</span></button>`;
+  durBody.addEventListener('click', e=>{
+    const b = e.target.closest('.ib'); if(!b) return;
+    if(b.id==='b-dot-ib') toggleDot();
+    else setDur(+b.dataset.dur);
   });
-  document.getElementById('vox-pats').addEventListener('click', e=>{
-    const b = e.target.closest('[data-vp]'); if(b) applyVoxPattern(VOX_PATTERNS[+b.dataset.vp]);
+  const comboBody = document.getElementById('combo-body');
+  comboBody.innerHTML = DUR_COMBOS.map((c,i)=>
+    `<button class="ib" data-combo="${i}" title="${c.name}：把当前音拆分为该组合">${rhythmSVG(c.durs,38,28)}<span>${esc(c.name)}</span></button>`
+  ).join('');
+  comboBody.addEventListener('click', e=>{
+    const b = e.target.closest('[data-combo]'); if(!b) return;
+    applyDurCombo(DUR_COMBOS[+b.dataset.combo]);
+  });
+  /* 快捷节奏型（前3个常用 + 库入口） */
+  const tq = document.getElementById('tab-quick');
+  const quickT = [TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2], TAB_PATTERN_GROUPS[2].items[4]];
+  tq.innerHTML = quickT.map((p,i)=>
+    `<button class="ib" data-tq="${i}" title="${esc(p.name)}">${tabPatSVG(p,64,40)}<span>${esc(p.name.slice(0,6))}</span></button>`
+  ).join('') + `<button id="b-tab-lib">节奏型库…</button>`;
+  tq.addEventListener('click', e=>{
+    const b = e.target.closest('[data-tq]');
+    if(b) applyTabPattern(quickT[+b.dataset.tq]);
+    if(e.target.closest('#b-tab-lib')) showPatternLib('tab');
+  });
+  const vq = document.getElementById('vox-quick');
+  const quickV = [VOX_PATTERN_GROUPS[0].items[0], VOX_PATTERN_GROUPS[0].items[3], VOX_PATTERN_GROUPS[1].items[0]];
+  vq.innerHTML = quickV.map((p,i)=>
+    `<button class="ib" data-vq="${i}" title="${esc(p.name)}">${rhythmSVG(p.durs,64,28)}<span>${esc(p.name.slice(0,6))}</span></button>`
+  ).join('') + `<button id="b-vox-lib">节奏型库…</button>`;
+  vq.addEventListener('click', e=>{
+    const b = e.target.closest('[data-vq]');
+    if(b) applyVoxPattern(quickV[+b.dataset.vq]);
+    if(e.target.closest('#b-vox-lib')) showPatternLib('vox');
   });
 })();
+/* ---- 节奏型库弹窗 ---- */
+function showPatternLib(kind){
+  const groups = kind==='tab'?TAB_PATTERN_GROUPS:VOX_PATTERN_GROUPS;
+  const body = groups.map((g,gi)=>
+    `<h4>${esc(g.cat)}</h4><div class="pat-grid">`+
+    g.items.map((p,pi)=>{
+      const svg = kind==='tab'?tabPatSVG(p,140,62):rhythmSVG(p.durs,140,36);
+      return `<div class="pat-card" data-g="${gi}" data-p="${pi}">
+        ${svg}<div class="nm">${esc(p.name)}</div><div class="bt">${+patBeats(p).toFixed(2)} 拍</div></div>`;
+    }).join('')+`</div>`
+  ).join('');
+  const tip = selRange
+    ? `将套用到第 ${selRange.m1+1}–${selRange.m2+1} 小节`
+    : `将套用到第 ${sel.mi+1} 小节（可先 Shift+点击多选）`;
+  showModal(`<h3>${kind==='tab'?'吉他节奏型库':'简谱节奏型库'}</h3>
+    <p>${tip}。吉他节奏型在小节有和弦时按指法自动生成音符；拍数与拍号不符会被"节拍检查"标出。</p>
+    ${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
+  document.getElementById('lib-close').onclick = closeModal;
+  document.querySelector('.modal').addEventListener('click', e=>{
+    const card = e.target.closest('.pat-card'); if(!card) return;
+    const pat = groups[+card.dataset.g].items[+card.dataset.p];
+    closeModal();
+    if(kind==='tab') applyTabPattern(pat); else applyVoxPattern(pat);
+  });
+}
 
 /* ================= 声部/歌词行管理 ================= */
 function addVoice(kind){
@@ -1005,7 +1241,7 @@ function delVoice(kind){
     });
   }
 }
-document.getElementById('side').addEventListener('click', e=>{
+document.getElementById('top').addEventListener('click', e=>{
   const chip = e.target.closest('.chip'); if(!chip) return;
   const k = chip.dataset.k;
   if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
@@ -1030,6 +1266,7 @@ document.getElementById('side').addEventListener('click', e=>{
     });
   }
 });
+document.querySelectorAll('.rtab').forEach(b=>b.onclick = ()=>setRibbon(b.dataset.t));
 
 /* ================= 键盘 ================= */
 window.addEventListener('keydown', e=>{
@@ -1077,7 +1314,7 @@ window.addEventListener('keydown', e=>{
     case 'Delete': e.preventDefault(); delColumn(); break;
     case 'Enter':
       e.preventDefault();
-      if(sel.row==='vox') document.getElementById('i-lyric').focus();
+      if(sel.row==='vox'){ setRibbon('lyr'); document.getElementById('i-lyric').focus(); }
       break;
     case ' ': e.preventDefault(); audio.playing?stopPlay():play(); break;
     case '.': e.preventDefault(); toggleDot(); break;
@@ -1107,13 +1344,13 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(t.dataset.si && +t.dataset.si>0) sel.si=+t.dataset.si;
   if(t.dataset.line!==undefined) activeLyr=+t.dataset.line;
   pending.digits='';
+  if(t.dataset.zone==='lyric') setRibbon('lyr');
+  else setRibbon(row);
   render();
   if(t.dataset.zone==='lyric') document.getElementById('i-lyric').focus();
 });
 
-/* ================= 工具栏动作 ================= */
-function setDur(d){ const c=curCol(); if(c) mutate(()=>{ curCol().dur=d; }); }
-function toggleDot(){ const c=curCol(); if(c) mutate(()=>{ curCol().dotted=!curCol().dotted; }); }
+/* ================= 其余工具动作 ================= */
 function toggleAcc(a){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.acc=c.acc===a?'':a; }); }
 function bumpOct(d){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.oct=Math.max(-2,Math.min(2,(c.oct||0)+d)); }); }
 function toggleTie(){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.tie=!c.tie; }); }
@@ -1150,10 +1387,6 @@ function delMeasure(){
     else song.measures[0]=blankMeasure();
   });
 }
-document.querySelectorAll('.b-dur').forEach(b=>b.onclick=()=>{ if(sel.row==='tab') setDur(+b.dataset.dur); else toast('当前选中在简谱区'); });
-document.querySelectorAll('.b-dur2').forEach(b=>b.onclick=()=>{ if(sel.row==='vox') setDur(+b.dataset.dur); else toast('当前选中在吉他谱区'); });
-document.getElementById('b-dot').onclick = ()=>{ if(sel.row==='tab') toggleDot(); };
-document.getElementById('b-dot2').onclick = ()=>{ if(sel.row==='vox') toggleDot(); };
 document.getElementById('b-inscol-t').onclick = ()=>insColumn('tab');
 document.getElementById('b-delcol-t').onclick = ()=>{ if(sel.row==='tab') delColumn(); };
 document.getElementById('b-inscol-v').onclick = ()=>insColumn('vox');
@@ -1208,38 +1441,61 @@ document.getElementById('i-tempo').addEventListener('change', e=>{
 });
 const dl = document.getElementById('chord-list');
 Object.keys(CHORD_SHAPES).forEach(n=>{ const o=document.createElement('option'); o.value=n; dl.appendChild(o); });
-document.getElementById('b-meta').onclick = ()=>
-  document.getElementById('meta-panel').classList.toggle('hidden');
-const ksel = document.getElementById('m-key');
-KEY_LIST.forEach(k=>{ const o=document.createElement('option'); o.value=o.textContent=k; ksel.appendChild(o); });
-function bindMeta(id, field, num){
-  document.getElementById(id).addEventListener('change', e=>{
-    song[field] = num ? (+e.target.value||0) : e.target.value;
-    persist(); render();
-  });
-}
-bindMeta('m-title','title'); bindMeta('m-singer','singer');
-bindMeta('m-lyricist','lyricist'); bindMeta('m-composer','composer');
-bindMeta('m-maker','maker'); bindMeta('m-key','key');
-bindMeta('m-beats','beats',true); bindMeta('m-unit','unit',true); bindMeta('m-capo','capo',true);
-document.getElementById('err-list').addEventListener('click', e=>{
+document.getElementById('beat-status').onclick = ()=>{
+  if(document.getElementById('beat-status').className==='bad')
+    document.getElementById('err-drop').classList.toggle('hidden');
+};
+document.getElementById('err-drop').addEventListener('click', e=>{
   const d = e.target.closest('.err'); if(!d) return;
   sel.mi=+d.dataset.mi; sel.row=d.dataset.row; sel.vi=+d.dataset.vi; sel.ci=0;
-  selRange=null; clampSel(); render();
+  selRange=null; clampSel(); setRibbon(sel.row); render();
+  document.getElementById('err-drop').classList.add('hidden');
   const b = colBoxes[(sel.row==='tab'?'t':'v')+sel.vi+':'+sel.mi+':0'];
   if(b){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
     const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
-    window.scrollTo({top:y-180, behavior:'smooth'});
+    window.scrollTo({top:y-200, behavior:'smooth'});
   }
 });
 
+/* ================= 曲谱信息弹窗 ================= */
+document.getElementById('b-meta').onclick = ()=>{
+  const keyOpts = KEY_LIST.map(k=>`<option ${k===song.key?'selected':''}>${k}</option>`).join('');
+  showModal(`<h3>曲谱信息</h3>
+    <label class="f"><span>标题</span><input id="mm-title" class="mid" value="${esc(song.title)}"></label>
+    <label class="f"><span>演唱</span><input id="mm-singer" class="mid" value="${esc(song.singer)}"></label>
+    <label class="f"><span>作词</span><input id="mm-lyricist" class="mid" value="${esc(song.lyricist||'')}"></label>
+    <label class="f"><span>作曲</span><input id="mm-composer" class="mid" value="${esc(song.composer||'')}"></label>
+    <label class="f"><span>制谱</span><input id="mm-maker" class="mid" value="${esc(song.maker)}"></label>
+    <label class="f"><span>1=</span><select id="mm-key">${keyOpts}</select>
+      <span>拍号</span><input id="mm-beats" class="short" type="number" min="1" max="12" value="${song.beats}"> /
+      <select id="mm-unit"><option ${song.unit===4?'selected':''}>4</option><option ${song.unit===8?'selected':''}>8</option></select></label>
+    <label class="f"><span>变调夹</span><input id="mm-capo" class="short" type="number" min="0" max="12" value="${song.capo}"> 品</label>
+    <div class="btns"><button id="mm-cancel">取消</button><button id="mm-ok" class="primary">确定</button></div>`);
+  document.getElementById('mm-cancel').onclick = closeModal;
+  document.getElementById('mm-ok').onclick = ()=>{
+    mutate(()=>{
+      song.title = document.getElementById('mm-title').value;
+      song.singer = document.getElementById('mm-singer').value;
+      song.lyricist = document.getElementById('mm-lyricist').value;
+      song.composer = document.getElementById('mm-composer').value;
+      song.maker = document.getElementById('mm-maker').value;
+      song.key = document.getElementById('mm-key').value;
+      song.beats = Math.max(1, Math.min(12, +document.getElementById('mm-beats').value||4));
+      song.unit = +document.getElementById('mm-unit').value||4;
+      song.capo = Math.max(0, Math.min(12, +document.getElementById('mm-capo').value||0));
+    });
+    closeModal();
+  };
+};
+
 /* ================= 批量填词 ================= */
 document.getElementById('b-fill').onclick = ()=>{
-  showModal(`<h3>批量填词（第${activeLyr+1}段）</h3>
-    <p>整段歌词按顺序逐字分配到「${esc(song.voxVoices[sel.row==='vox'?sel.vi:0])}」声部每个有唱名的音上；
-    标点自动跟随前一个字；用短横线 - 跳过一个音；换行与空格忽略。</p>
+  const vi = sel.row==='vox'?sel.vi:0;
+  showModal(`<h3>批量填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
+    <p>整段歌词按顺序逐字分配到每个有唱名的音上；标点自动跟随前一个字；
+    用短横线 - 跳过一个音；换行与空格忽略。</p>
     <textarea id="fill-text" placeholder="一闪一闪亮晶晶，满天都是小星星"></textarea>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   document.getElementById('fill-cancel').onclick = closeModal;
@@ -1249,7 +1505,6 @@ document.getElementById('b-fill').onclick = ()=>{
     if(!text.trim()) return;
     const PUNCT = '，。！？、；：…—（）()!?,.\'"“”‘’';
     const chars = [...text.replace(/\s+/g,'')];
-    const vi = sel.row==='vox'?sel.vi:0;
     mutate(()=>{
       let i=0;
       outer:
@@ -1368,8 +1623,8 @@ function highlight(prefix,mi,ci){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
     const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
-    if(y > window.scrollY+window.innerHeight-280 || y < window.scrollY+90)
-      window.scrollTo({top:y-170, behavior:'smooth'});
+    if(y > window.scrollY+window.innerHeight-280 || y < window.scrollY+150)
+      window.scrollTo({top:y-220, behavior:'smooth'});
   }
 }
 function stopPlay(){
@@ -1445,34 +1700,32 @@ function toast(msg){
 }
 document.getElementById('b-help').onclick = ()=>{
   showModal(`<h3>MuseTab 使用帮助</h3>
-  <p>左侧边栏分为<b>吉他谱 / 简谱 / 歌词</b>三大板块，每个板块最多 5 个声部（歌词最多 5 段）。
-  谱面：上方六线谱 = 吉他伴奏声部，下方简谱 = 人声旋律声部（带多段歌词），按小节自动对齐。</p>
-  <h4>吉他谱板块</h4>
+  <p>顶部工具栏分页组织：<b>吉他谱 / 简谱 / 歌词 / 小节</b>四页，
+  点击谱面会自动切到对应页；「时值」「组合时值」两组在吉他谱与简谱页共用。</p>
+  <h4>吉他谱页</h4>
   <table>
   <tr><td class="k">点击弦位 + 数字</td><td>输入品位 0–24（两位数连续输入）</td></tr>
-  <tr><td class="k">X / 扫↓ 扫↑ / 琶音</td><td>切音、扫弦箭头（只跨实际按弦的弦）、琶音</td></tr>
-  <tr><td class="k">和弦框</td><td>为当前列标和弦名并画指法图（随行/曲首/隐藏可切换）</td></tr>
-  <tr><td class="k">节奏型</td><td>点击即把选中小节改成该节奏型；有和弦时按和弦指法自动生成分解/扫弦音</td></tr>
+  <tr><td class="k">X / 扫↓ 扫↑ / 琶音</td><td>切音、扫弦（只跨实际按弦的弦）、琶音</td></tr>
+  <tr><td class="k">节奏型库</td><td>分解/扫弦 × 2/4·4/4 与 3/4·6/8 分类，图示+文字；点击套用到选中小节，有和弦时按指法自动生成音符</td></tr>
   </table>
-  <h4>简谱板块</h4>
+  <h4>简谱页</h4>
   <table>
-  <tr><td class="k">点击数字位置 + 0–7</td><td>输入唱名（0 休止）；♯ ♭、8度点、附点、连音线见按钮</td></tr>
-  <tr><td class="k">节奏型</td><td>把选中小节改成该时值组合，原有唱名按顺序保留</td></tr>
+  <tr><td class="k">点击数字位置 + 0–7</td><td>输入唱名（0 休止）；♯ ♭、8度点、连音线见按钮</td></tr>
+  <tr><td class="k">节奏型库</td><td>基础时值 / 组合节奏 / 三拍类，图示预览，套用后原唱名按序保留</td></tr>
   </table>
-  <h4>歌词板块</h4>
+  <h4>时值（共用组）</h4>
   <table>
-  <tr><td class="k">段落 chips</td><td>切换第 1–5 段歌词；批量填词填入当前段</td></tr>
-  <tr><td class="k">回车</td><td>为当前音填词；歌词框内回车跳下一音</td></tr>
+  <tr><td class="k">单时值</td><td>点击图标改当前音时值；Q W E R T 快捷键；. 附点</td></tr>
+  <tr><td class="k">组合时值</td><td>把当前一个音就地拆分为组合（前八后十六、十六×4 等），第一个音保留原内容</td></tr>
   </table>
   <h4>多选与校验</h4>
   <table>
-  <tr><td class="k">Shift + 点击</td><td>同声部内跨小节多选（虚线框），再点节奏型即批量套用</td></tr>
-  <tr><td class="k">节拍检查</td><td>小节内时值总和 ≠ 拍号时自动标红并列出，点击条目可跳转</td></tr>
+  <tr><td class="k">Shift + 点击</td><td>同声部内跨小节多选（虚线框），再套节奏型即批量应用</td></tr>
+  <tr><td class="k">节拍检查</td><td>工具栏下方状态条实时显示；小节时值 ≠ 拍号即标红加 ⚠，点状态条展开定位</td></tr>
   </table>
-  <h4>通用快捷键</h4>
+  <h4>通用</h4>
   <table>
-  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换吉他谱·简谱板块</td></tr>
-  <tr><td class="k">Q W E R T / .</td><td>时值 全·2·4·8·16 分 / 附点</td></tr>
+  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换吉他谱·简谱</td></tr>
   <tr><td class="k">空格</td><td>从当前小节播放/停止；「弹」「唱」控制声部发声</td></tr>
   <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出</td></tr>
   </table>
@@ -1488,6 +1741,7 @@ document.getElementById('b-help').onclick = ()=>{
   }catch(_){ song=null; }
   if(!song || !song.measures || !song.measures.length) song = demoSong();
   clampSel();
+  setRibbon('tab');
   render();
 })();
 </script>
