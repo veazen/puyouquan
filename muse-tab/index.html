@@ -8,53 +8,74 @@
 :root{
   --bg:#eef0f3; --panel:#ffffff; --text:#1c2430; --muted:#6b7686;
   --border:#d5dae2; --accent:#1a6fd4; --accent-soft:#e3efff;
-  --paper:#ffffff; --ink:#111111; --toolbar:#f7f8fa;
+  --paper:#ffffff; --ink:#111111; --toolbar:#f7f8fa; --danger:#d43a3a;
   --font-ui:'Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','DejaVu Sans',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#171a20; --panel:#20242c; --text:#e6e9ee; --muted:#98a2b3;
-    --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#262b34; }
+    --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#22262e; --danger:#ff6b6b; }
 }
 :root[data-theme="light"]{ --bg:#eef0f3; --panel:#ffffff; --text:#1c2430; --muted:#6b7686;
-  --border:#d5dae2; --accent:#1a6fd4; --accent-soft:#e3efff; --toolbar:#f7f8fa; }
+  --border:#d5dae2; --accent:#1a6fd4; --accent-soft:#e3efff; --toolbar:#f7f8fa; --danger:#d43a3a; }
 :root[data-theme="dark"]{ --bg:#171a20; --panel:#20242c; --text:#e6e9ee; --muted:#98a2b3;
-  --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#262b34; }
+  --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#22262e; --danger:#ff6b6b; }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);}
-#topbar{position:sticky;top:0;z-index:20;background:var(--toolbar);
-  border-bottom:1px solid var(--border);padding:5px 12px;}
-.bar-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:3px 0;}
-.grp{display:flex;align-items:center;gap:4px;padding:0 8px;border-right:1px solid var(--border);}
-.grp:last-child{border-right:none}
-.grp label{color:var(--muted);font-size:12px;white-space:nowrap}
+#app{display:grid;grid-template-columns:252px 1fr;min-height:100vh;}
+/* ---------- 左侧边栏 ---------- */
+#side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--toolbar);
+  border-right:1px solid var(--border);padding:10px 10px 30px;}
+#side h1{font-size:15px;margin:2px 0 10px;display:flex;align-items:center;gap:6px}
+#side h1 span{color:var(--muted);font-size:11px;font-weight:normal}
+#side details{border:1px solid var(--border);border-radius:8px;background:var(--panel);
+  margin-bottom:8px;overflow:hidden}
+#side summary{cursor:pointer;padding:7px 10px;font-weight:600;font-size:13px;
+  list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none}
+#side summary::after{content:'▾';color:var(--muted);font-size:11px}
+#side details:not([open]) summary::after{content:'▸'}
+.sec{padding:2px 10px 10px;display:flex;flex-direction:column;gap:6px}
+.rowline{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.rowline label{color:var(--muted);font-size:11.5px;white-space:nowrap}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:6px;padding:4px 9px;font-size:13px;cursor:pointer;white-space:nowrap;
+  border-radius:6px;padding:3px 8px;font-size:12.5px;cursor:pointer;white-space:nowrap;
   font-family:var(--font-ui);}
 button:hover{border-color:var(--accent);color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.primary:hover{color:#fff;filter:brightness(1.08)}
 button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+button.pat{width:100%;text-align:left;font-size:12px;padding:4px 8px;color:var(--text)}
+button.pat:hover{color:var(--accent)}
+button.pat small{color:var(--muted);float:right}
+.chip{padding:1px 9px;border:1px solid var(--border);border-radius:10px;cursor:pointer;
+  font-size:12px;background:var(--panel);user-select:none}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
 input,select,textarea{background:var(--panel);color:var(--text);
-  border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;
+  border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:12.5px;
   font-family:var(--font-ui);}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
-input.short{width:56px} input.mid{width:110px}
-#mode-tip{font-size:12px;color:var(--accent);font-weight:600;min-width:120px}
-#score-wrap{max-width:1100px;margin:18px auto;padding:0 10px;}
+input.short{width:52px} input.mid{width:100%}
+#err-list{display:flex;flex-direction:column;gap:3px;font-size:12px}
+#err-list .err{color:var(--danger);cursor:pointer;padding:2px 4px;border-radius:4px}
+#err-list .err:hover{background:var(--accent-soft)}
+#err-list .ok{color:var(--muted)}
+#mode-tip{font-size:12px;color:var(--accent);font-weight:600}
+/* ---------- 主区 ---------- */
+#main{min-width:0}
+#score-wrap{max-width:1120px;margin:16px auto;padding:0 12px;}
 #paper{background:var(--paper);border:1px solid var(--border);border-radius:10px;
   box-shadow:0 4px 18px rgba(0,0,0,.10);padding:14px 8px;}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
-#hint{max-width:1100px;margin:0 auto 30px;padding:0 14px;color:var(--muted);font-size:12px;}
+#hint{max-width:1120px;margin:0 auto 30px;padding:0 16px;color:var(--muted);font-size:12px;}
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
   display:flex;align-items:center;justify-content:center;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;
-  padding:18px 20px;max-width:600px;width:92%;max-height:82vh;overflow:auto;}
+  padding:18px 20px;max-width:620px;width:92%;max-height:82vh;overflow:auto;}
 .modal h3{margin:0 0 10px;font-size:16px}
 .modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-.modal textarea{width:100%;height:130px;resize:vertical}
+.modal textarea{width:100%;height:120px;resize:vertical}
 .modal p{color:var(--muted);font-size:12px;margin:6px 0}
 .modal table{border-collapse:collapse;font-size:13px;width:100%}
 .modal td{padding:3px 8px;border-bottom:1px solid var(--border)}
@@ -63,11 +84,14 @@ svg text{user-select:none}
 #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
   background:var(--text);color:var(--bg);padding:8px 18px;border-radius:20px;
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
-#meta-panel{display:none;background:var(--toolbar);border-bottom:1px solid var(--border);padding:8px 14px;}
-#meta-panel.show{display:block}
 .hidden{display:none!important}
+@media (max-width: 920px){
+  #app{grid-template-columns:1fr}
+  #side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}
+}
 @media print{
-  #topbar,#hint,#meta-panel,#toast{display:none!important}
+  #side,#hint,#toast{display:none!important}
+  #app{display:block}
   body{background:#fff}
   #score-wrap{margin:0;max-width:none;padding:0}
   #paper{border:none;box-shadow:none;border-radius:0;padding:0}
@@ -76,93 +100,129 @@ svg text{user-select:none}
 </style>
 </head>
 <body>
-<div id="topbar">
-  <div class="bar-row">
-    <div class="grp">
-      <button id="b-new">新建</button>
-      <button id="b-open">打开</button>
-      <button id="b-save">保存</button>
-      <button id="b-print">打印/PDF</button>
+<div id="app">
+<aside id="side">
+  <h1>🎸 MuseTab <span>吉他谱编辑器</span></h1>
+  <div style="margin-bottom:8px"><span id="mode-tip"></span></div>
+
+  <details open><summary>文件</summary><div class="sec">
+    <div class="rowline">
+      <button id="b-new">新建</button><button id="b-open">打开</button>
+      <button id="b-save">保存</button><button id="b-print">打印/PDF</button>
       <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     </div>
-    <div class="grp">
+    <div class="rowline">
       <button id="b-undo" title="Ctrl+Z">撤销</button>
       <button id="b-redo" title="Ctrl+Y">重做</button>
+      <button id="b-meta">曲谱信息</button>
     </div>
-    <div class="grp">
+  </div></details>
+
+  <details open><summary>播放</summary><div class="sec">
+    <div class="rowline">
       <button id="b-play" class="primary">▶ 播放</button>
       <button id="b-stop">■</button>
-      <button id="b-mix-tab" class="on" title="播放吉他伴奏声部">弹</button>
-      <button id="b-mix-vox" class="on" title="播放人声旋律声部">唱</button>
-      <label>速度</label><input id="i-tempo" class="short" type="number" min="30" max="240">
+      <button id="b-mix-tab" class="on" title="吉他声部发声">弹</button>
+      <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
     </div>
-    <div class="grp">
-      <button id="b-diag">和弦图:随行</button>
-      <button id="b-meta">曲谱信息</button>
-      <button id="b-help">帮助</button>
-      <button id="b-theme" title="切换明暗">◐</button>
-    </div>
-  </div>
-  <div class="bar-row">
-    <div class="grp"><span id="mode-tip">伴奏区（六线谱）</span></div>
-    <div class="grp">
+    <div class="rowline"><label>速度</label>
+      <input id="i-tempo" class="short" type="number" min="30" max="240"></div>
+  </div></details>
+
+  <details open><summary>吉他谱（六线谱）</summary><div class="sec">
+    <div class="rowline" id="tab-voices"></div>
+    <div class="rowline">
       <label>时值</label>
-      <button class="b-dur" data-dur="1">全</button>
-      <button class="b-dur" data-dur="2">2分</button>
-      <button class="b-dur" data-dur="4">4分</button>
-      <button class="b-dur" data-dur="8">8分</button>
-      <button class="b-dur" data-dur="16">16分</button>
-      <button id="b-dot">附点</button>
+      <button class="b-dur" data-dur="1">全</button><button class="b-dur" data-dur="2">2</button>
+      <button class="b-dur" data-dur="4">4</button><button class="b-dur" data-dur="8">8</button>
+      <button class="b-dur" data-dur="16">16</button><button id="b-dot">附点</button>
     </div>
-    <div class="grp">
-      <button id="b-inscol">插入列</button>
-      <button id="b-delcol">删除列</button>
-      <button id="b-insmea">插入小节</button>
-      <button id="b-delmea">删除小节</button>
+    <div class="rowline">
+      <button id="b-mute">× 切音</button><button id="b-strum-d">扫↓</button>
+      <button id="b-strum-u">扫↑</button><button id="b-arp">琶音</button>
     </div>
-    <div class="grp" id="grp-tab">
-      <button id="b-mute" title="在当前弦位标 ×（切音/闷音）">× 切音</button>
-      <button id="b-strum-d" title="扫弦（六弦向一弦）">扫↓</button>
-      <button id="b-strum-u" title="扫弦（一弦向六弦）">扫↑</button>
-      <button id="b-arp" title="琶音">琶音</button>
+    <div class="rowline">
       <label>和弦</label>
       <input id="i-chord" class="short" list="chord-list" placeholder="C">
       <datalist id="chord-list"></datalist>
+      <button id="b-diag">图:随行</button>
     </div>
-    <div class="grp" id="grp-vox">
-      <button id="b-sharp">♯</button>
-      <button id="b-flat">♭</button>
-      <button id="b-octup" title="高八度点">8度+</button>
-      <button id="b-octdn" title="低八度点">8度−</button>
-      <button id="b-tie" title="与下一音连音线">连音线</button>
-      <label>歌词</label>
-      <input id="i-lyric" class="short" placeholder="字">
+    <div class="rowline">
+      <button id="b-inscol-t">插入列</button><button id="b-delcol-t">删除列</button>
+    </div>
+    <label style="font-size:11.5px;color:var(--muted)">常用节奏型（作用于选中小节，可 Shift 多选）</label>
+    <div id="tab-pats"></div>
+  </div></details>
+
+  <details open><summary>简谱（旋律）</summary><div class="sec">
+    <div class="rowline" id="vox-voices"></div>
+    <div class="rowline">
+      <label>时值</label>
+      <button class="b-dur2" data-dur="1">全</button><button class="b-dur2" data-dur="2">2</button>
+      <button class="b-dur2" data-dur="4">4</button><button class="b-dur2" data-dur="8">8</button>
+      <button class="b-dur2" data-dur="16">16</button><button id="b-dot2">附点</button>
+    </div>
+    <div class="rowline">
+      <button id="b-sharp">♯</button><button id="b-flat">♭</button>
+      <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
+      <button id="b-tie">连音线</button>
+    </div>
+    <div class="rowline">
+      <button id="b-inscol-v">插入列</button><button id="b-delcol-v">删除列</button>
+    </div>
+    <label style="font-size:11.5px;color:var(--muted)">常用节奏型（作用于选中小节，可 Shift 多选）</label>
+    <div id="vox-pats"></div>
+  </div></details>
+
+  <details open><summary>歌词</summary><div class="sec">
+    <div class="rowline" id="lyr-lines"></div>
+    <div class="rowline"><label>当前音</label>
+      <input id="i-lyric" class="short" placeholder="字"></div>
+    <div class="rowline">
       <button id="b-fill">批量填词</button>
+      <button id="b-clearlyr">清空本段</button>
     </div>
-    <div class="grp">
-      <button id="b-rep-s" title="反复记号开始 |:">|:</button>
-      <button id="b-rep-e" title="反复记号结束 :|">:|</button>
+  </div></details>
+
+  <details open><summary>小节</summary><div class="sec">
+    <div class="rowline">
+      <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
     </div>
+    <div class="rowline">
+      <button id="b-rep-s" title="反复开始">|:</button>
+      <button id="b-rep-e" title="反复结束">:|</button>
+    </div>
+  </div></details>
+
+  <details open><summary>节拍检查</summary><div class="sec">
+    <div id="err-list"></div>
+  </div></details>
+
+  <details><summary>显示与帮助</summary><div class="sec">
+    <div class="rowline">
+      <button id="b-help">帮助</button>
+      <button id="b-theme">◐ 明暗</button>
+    </div>
+  </div></details>
+
+  <div id="meta-panel" class="hidden" style="display:flex;flex-direction:column;gap:6px;
+    border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:10px">
+    <label>标题<input id="m-title" class="mid"></label>
+    <label>演唱<input id="m-singer" class="mid"></label>
+    <label>作词<input id="m-lyricist" class="mid"></label>
+    <label>作曲<input id="m-composer" class="mid"></label>
+    <label>制谱<input id="m-maker" class="mid"></label>
+    <div class="rowline"><label>1=</label><select id="m-key"></select>
+      <label>拍号</label><input id="m-beats" class="short" type="number" min="1" max="12">/<select id="m-unit"><option>4</option><option>8</option></select></div>
+    <div class="rowline"><label>变调夹</label><input id="m-capo" class="short" type="number" min="0" max="12"></div>
   </div>
+</aside>
+
+<div id="main">
+  <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
+  <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击可跨小节多选后套用左栏节奏型；小节时值与拍号不符时该小节自动标红并列入"节拍检查"。详见"帮助"。</div>
 </div>
-<div id="meta-panel">
-  <div class="bar-row">
-    <div class="grp"><label>标题</label><input id="m-title" class="mid"></div>
-    <div class="grp"><label>演唱</label><input id="m-singer" class="mid"></div>
-    <div class="grp"><label>作词</label><input id="m-lyricist" class="mid"></div>
-    <div class="grp"><label>作曲</label><input id="m-composer" class="mid"></div>
-    <div class="grp"><label>制谱</label><input id="m-maker" class="mid"></div>
-  </div>
-  <div class="bar-row">
-    <div class="grp"><label>1=</label><select id="m-key"></select></div>
-    <div class="grp"><label>拍号</label>
-      <input id="m-beats" class="short" type="number" min="1" max="12"> /
-      <select id="m-unit"><option>4</option><option>8</option></select></div>
-    <div class="grp"><label>变调夹</label><input id="m-capo" class="short" type="number" min="0" max="12"></div>
-  </div>
 </div>
-<div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
-<div id="hint">上区六线谱=吉他伴奏（点弦位输数字，×/扫弦/琶音见工具栏）；下区简谱=人声旋律（点数字位置输 0–7，0 为休止），歌词跟随简谱。两声部按小节自动对齐。详见"帮助"。</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -170,7 +230,7 @@ svg text{user-select:none}
 const TUNING = [64,59,55,50,45,40];
 const KEY_LIST = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
-const DEG_SEMI = [null,0,2,4,5,7,9,11];   // 1..7 -> 半音
+const DEG_SEMI = [null,0,2,4,5,7,9,11];
 const SEMI_DEG = [[1,''],[1,'#'],[2,''],[2,'#'],[3,''],[4,''],[4,'#'],[5,''],[5,'#'],[6,''],[6,'#'],[7,'']];
 const CHORD_SHAPES = {
   'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cadd9':'x32030',
@@ -181,29 +241,56 @@ const CHORD_SHAPES = {
   'Bm':'x24432','Bm7':'x20202','B7':'x21202','Bb':'x13331','Bdim':'x2323x'
 };
 const MIN_W = {1:80, 2:52, 4:34, 8:24, 16:19};
-const PAGE_W = 1060, MARGIN = 34;
+const PAGE_W = 1060, MARGIN = 40;
+const MAX_VOICES = 5, MAX_LYR = 5;
+
+/* ---- 常用节奏型 ---- */
+/* 吉他谱事件: b=根音 sN=第N弦 c=柱式和声 d/u=扫弦 a=琶音 x=切音 r=休止 ; [类型, 时值, 附点?] */
+const TAB_PATTERNS = [
+  {name:'分解 53231323', hint:'8分×8', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8],['s2',8],['s3',8]]},
+  {name:'分解 慢速 5-32-1-32', hint:'4+8×2 ×2', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
+  {name:'柱式 四分 ×4', hint:'4分×4', ev:[['c',4],['c',4],['c',4],['c',4]]},
+  {name:'根音 四分 ×4', hint:'低音走', ev:[['b',4],['b',4],['b',4],['b',4]]},
+  {name:'民谣扫弦 ↓ ↓↑ ↑↓↑', hint:'经典', ev:[['d',4],['d',8],['u',8],['r',8],['u',8],['d',8],['u',8]]},
+  {name:'八分扫弦 ↓↑ ×4', hint:'8分×8', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
+  {name:'切音律动 ↓ × ↓ ×', hint:'切音', ev:[['d',4],['x',4],['d',4],['x',4]]},
+  {name:'琶音 全音符', hint:'长音', ev:[['a',1]]}
+];
+/* 简谱: 时值序列 [dur, dotted?] */
+const VOX_PATTERNS = [
+  {name:'四分 ×4', hint:'♩♩♩♩', durs:[[4],[4],[4],[4]]},
+  {name:'二分 ×2', hint:'𝅗𝅥 𝅗𝅥', durs:[[2],[2]]},
+  {name:'全音符', hint:'𝅝', durs:[[1]]},
+  {name:'八分 ×8', hint:'♪×8', durs:[[8],[8],[8],[8],[8],[8],[8],[8]]},
+  {name:'前八后十六 ×4', hint:'♪♬', durs:[[8],[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16]]},
+  {name:'附点四分+八分 ×2', hint:'♩. ♪', durs:[[4,1],[8],[4,1],[8]]},
+  {name:'大切分', hint:'♪♩♪+♩♩', durs:[[8],[4],[8],[4],[4]]}
+];
 
 /* ================= 状态 ================= */
 let song = null;
-let sel = {mi:0, row:'tab', ci:0, si:1};
+let sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
+let selRange = null;              // {row, vi, m1, m2} Shift 多选
+let activeLyr = 0;
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
 let audio = {ctx:null, sources:[], timers:[], playing:false};
 let mix = {tab:true, vox:true};
-let diagMode = 'inline';   // inline | top | off
+let diagMode = 'inline';
 
 function tcol(){ return {dur:8, dotted:false, chord:'', notes:[], strum:''}; }
-function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyric:'', tie:false}; }
+function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false}; }
 function blankMeasure(){
-  const tab=[], vox=[];
-  for(let i=0;i<song.beats*2;i++) tab.push(tcol());
-  for(let i=0;i<song.beats;i++) vox.push(vcol());
-  return {tab, vox, repeatStart:false, repeatEnd:false};
+  const m = {tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
+  song.tabVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats*2;i++) a.push(tcol()); m.tabs.push(a); });
+  song.voxVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
+  return m;
 }
 function blankSong(){
-  const s = {v:2, title:'未命名曲谱', singer:'', lyricist:'', composer:'', maker:'',
-    key:'C', beats:4, unit:4, tempo:90, capo:0, measures:[]};
+  const s = {v:3, title:'未命名曲谱', singer:'', lyricist:'', composer:'', maker:'',
+    key:'C', beats:4, unit:4, tempo:90, capo:0,
+    tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1, measures:[]};
   const old = song; song = s;
   for(let i=0;i<8;i++) s.measures.push(blankMeasure());
   song = old;
@@ -212,27 +299,27 @@ function blankSong(){
 
 /* ---------- 示例曲 ---------- */
 function demoSong(){
-  // 伴奏列: T(弦,品,和弦名,时值) ；旋律列: V(唱名,歌词,时值,八度,连音)
   const T=(s,f,ch,dur)=>({dur:dur||8,dotted:false,chord:ch||'',notes:s?[{s,f}]:[],strum:''});
   const Tm=(pairs,ch,dur,strum)=>({dur:dur||8,dotted:false,chord:ch||'',
     notes:pairs.map(p=>({s:p[0],f:p[1],x:p[2]||false})),strum:strum||''});
-  const V=(deg,ly,dur,oct)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyric:ly||'',tie:false});
-  // C 分解: 5-3-2-3 1-3-2-3 ；Am: 5弦0 ；F: 4弦3根音简化 x33211→低音用4弦3品 ；G: 6弦3
+  const V=(deg,ly,dur)=>({dur:dur||4,dotted:false,deg,acc:'',oct:0,lyrics:ly?[ly]:[],tie:false});
   const arpC = ch=>[T(5,3,ch),T(3,0),T(2,1),T(3,0),T(1,0),T(3,0),T(2,1),T(3,0)];
   const arpAm= ch=>[T(5,0,ch),T(3,2),T(2,1),T(3,2),T(1,0),T(3,2),T(2,1),T(3,2)];
   const arpF = ch=>[T(4,3,ch),T(3,2),T(2,1),T(3,2),T(1,1),T(3,2),T(2,1),T(3,2)];
   const arpG = ch=>[T(6,3,ch),T(3,0),T(2,0),T(3,0),T(1,3),T(3,0),T(2,0),T(3,0)];
   const arpG7= ch=>[T(6,3,ch),T(3,0),T(2,0),T(3,0),T(1,1),T(3,0),T(2,0),T(3,0)];
-  const rest4 = ()=>[V(0,'',4),V(0,'',4),V(0,'',4),V(0,'',4)];
+  const rest4 = ()=>[V(0),V(0),V(0),V(0)];
   const strumC = [Tm([[5,3],[4,2],[3,0],[2,1],[1,0]],'C',4,'d'),
                   Tm([[5,3],[4,2],[3,0],[2,1],[1,0]],'',4,'u'),
-                  Tm([[5,0,true],[4,0,true],[3,0,true],[2,0,true],[1,0,true]],'',4),
+                  Tm([[5,0,true],[4,0,true],[3,0,true]],'',4),
                   Tm([[5,3],[4,2],[3,0],[2,1],[1,0]],'',4,'arp')];
-  const M=(tab,vox,ext)=>Object.assign({tab,vox,repeatStart:false,repeatEnd:false},ext||{});
-  return {v:2, title:'小星星（弹唱示例）', singer:'儿歌', lyricist:'', composer:'法国民谣',
+  const M=(tab,vox,ext)=>Object.assign(
+    {tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  return {v:3, title:'小星星（弹唱示例）', singer:'儿歌', lyricist:'', composer:'法国民谣',
     maker:'MuseTab', key:'C', beats:4, unit:4, tempo:92, capo:0,
+    tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
-      M(arpC('C'),  rest4(), {repeatStart:false}),                    // 前奏
+      M(arpC('C'),  rest4()),
       M(arpG7('G7'),rest4()),
       M(arpC('C'),  [V(1,'一'),V(1,'闪'),V(5,'一'),V(5,'闪')], {repeatStart:true}),
       M(arpF('F'),  [V(6,'亮'),V(6,'晶'),V(5,'晶',2)]),
@@ -246,16 +333,28 @@ function demoSong(){
       M(arpF('F'),  [V(6,'亮'),V(6,'晶'),V(5,'晶',2)]),
       M(arpF('F'),  [V(4,'满'),V(4,'天'),V(3,'都'),V(3,'是')]),
       M(arpG7('G7'),[V(2,'小'),V(2,'星'),V(1,'星',2)], {repeatEnd:true}),
-      M(strumC,     [V(1,'星',1)])                                    // 尾声扫弦
+      M(strumC,     [V(1,'星',1)])
     ]};
 }
 
-/* ---------- 旧格式迁移 (v1: measure.columns) ---------- */
+/* ---------- 旧格式迁移 ---------- */
 function migrate(s){
-  if(s.v===2) return s;
-  const out = {v:2, title:s.title||'未命名曲谱', singer:s.singer||'', lyricist:'',
+  if(s.v===3) return s;
+  if(s.v===2){
+    s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
+    s.lyricist=s.lyricist||''; s.composer=s.composer||'';
+    s.measures.forEach(m=>{
+      m.tabs=[m.tab]; delete m.tab;
+      (m.vox||[]).forEach(c=>{ c.lyrics = c.lyric?[c.lyric]:[]; delete c.lyric; });
+      m.voxes=[m.vox]; delete m.vox;
+    });
+    return s;
+  }
+  /* v1 -> v3 */
+  const out = {v:3, title:s.title||'未命名曲谱', singer:s.singer||'', lyricist:'',
     composer:'', maker:s.maker||'', key:s.key||'C', beats:s.beats||4,
-    unit:s.unit||4, tempo:s.tempo||90, capo:s.capo||0, measures:[]};
+    unit:s.unit||4, tempo:s.tempo||90, capo:s.capo||0,
+    tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1, measures:[]};
   const ref = (()=>{ let r=60+(KEY_PC[out.key]||0); if(r>66)r-=12; return r; })();
   (s.measures||[]).forEach(m=>{
     const tab=[], vox=[];
@@ -269,9 +368,10 @@ function migrate(s){
         const pc = ((rel%12)+12)%12;
         deg = SEMI_DEG[pc][0]; acc = SEMI_DEG[pc][1];
       }
-      vox.push({dur:c.dur||4, dotted:!!c.dotted, deg, acc, oct, lyric:c.lyric||'', tie:false});
+      vox.push({dur:c.dur||4, dotted:!!c.dotted, deg, acc, oct,
+        lyrics:c.lyric?[c.lyric]:[], tie:false});
     });
-    out.measures.push({tab, vox, repeatStart:false, repeatEnd:false});
+    out.measures.push({tabs:[tab], voxes:[vox], repeatStart:false, repeatEnd:false});
   });
   if(!out.measures.length){ const t=song; song=out; out.measures.push(blankMeasure()); song=t; }
   return out;
@@ -286,22 +386,54 @@ function voxMidi(c){
   if(c.acc==='#') m++; if(c.acc==='b') m--;
   return m;
 }
+function shapeSounded(shape){   // [{s,f}] s=1..6
+  const res=[];
+  [...shape].forEach((ch,i)=>{ if(ch!=='x') res.push({s:6-i, f:parseInt(ch,36)}); });
+  return res;
+}
+function shapeString(shape, s){ const ch = shape[6-s]; return ch==='x'?null:parseInt(ch,36); }
+function chordBefore(mi, vi){   // 该小节生效的和弦名（本小节内最先出现的；否则向前找最后一个）
+  const cols = song.measures[mi].tabs[vi]||[];
+  for(const c of cols) if(c.chord) return c.chord;
+  for(let m=mi-1;m>=0;m--){
+    const cs = song.measures[m].tabs[vi]||[];
+    for(let i=cs.length-1;i>=0;i--) if(cs[i].chord) return cs[i].chord;
+  }
+  return '';
+}
+
+/* ================= 节拍校验 ================= */
+function beatErrors(){
+  const errs=[];
+  const target = song.beats;
+  song.measures.forEach((m,mi)=>{
+    m.tabs.forEach((cols,vi)=>{
+      const b = cols.reduce((a,c)=>a+beatsOf(c),0);
+      if(Math.abs(b-target)>1e-3) errs.push({mi,row:'tab',vi,b,target});
+    });
+    m.voxes.forEach((cols,vi)=>{
+      const b = cols.reduce((a,c)=>a+beatsOf(c),0);
+      if(Math.abs(b-target)>1e-3) errs.push({mi,row:'vox',vi,b,target});
+    });
+  });
+  return errs;
+}
 
 /* ================= 布局 ================= */
-function rowMinLayout(cols){       // 独立排一行列，返回 {w, xs(中心), ws}
-  let x = 0; const xs=[], ws=[];
-  cols.forEach(c=>{ const w = MIN_W[c.dur]+(c.dotted?6:0); xs.push(x+w/2); ws.push(w); x+=w; });
+function rowMinLayout(cols){
+  let x=0; const xs=[], ws=[];
+  cols.forEach(c=>{ const w=MIN_W[c.dur]+(c.dotted?6:0); xs.push(x+w/2); ws.push(w); x+=w; });
   return {w:x, xs, ws};
 }
 function measureLayout(mea){
-  const t = rowMinLayout(mea.tab), v = rowMinLayout(mea.vox);
   const pad = 15;
-  const inner = Math.max(t.w, v.w, 46);
+  const rowsT = mea.tabs.map(rowMinLayout);
+  const rowsV = mea.voxes.map(rowMinLayout);
+  const inner = Math.max(46, ...rowsT.map(r=>r.w), ...rowsV.map(r=>r.w));
   const w = inner + pad*2;
-  const scaleT = t.w? inner/t.w : 1, scaleV = v.w? inner/v.w : 1;
-  return { w,
-    tabX: t.xs.map(x=>pad+x*scaleT), tabW: t.ws.map(x=>x*scaleT),
-    voxX: v.xs.map(x=>pad+x*scaleV), voxW: v.ws.map(x=>x*scaleV) };
+  const fit = r=>{ const k = r.w? inner/r.w : 1;
+    return {xs:r.xs.map(x=>pad+x*k), ws:r.ws.map(x=>x*k)}; };
+  return {w, tabs:rowsT.map(fit), voxes:rowsV.map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
@@ -314,23 +446,28 @@ function layoutSystems(){
   if(cur.measures.length) systems.push(cur);
   return systems;
 }
-/* 系统内纵向尺寸 */
+/* 系统纵向：动态按声部数计算 */
 function sysMetrics(){
-  const diagH = diagMode==='inline' ? 66 : (diagMode==='top'?18:18);
-  const tabTop = diagH + 10;
-  const tabBot = tabTop + 5*13;
-  const stemY  = tabBot + 15;
-  const voxY   = stemY + 40;
-  const lyricY = voxY + 26;
-  return {diagH, tabTop, tabBot, stemY, voxY, lyricY, h:lyricY+14, gap:26};
+  const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
+  const diagH = diagMode==='inline' ? 66 : 16;
+  let y = diagH + 10;
+  const tabTops=[], voxYs=[], lyricY0=[];
+  for(let i=0;i<nT;i++){ tabTops.push(y); y += 65 + 15 + 20; }   // 六线+符干+间距
+  for(let i=0;i<nV;i++){
+    y += 24;                       // 简谱上方空间（八度点/连音线）
+    voxYs.push(y);
+    lyricY0.push(y+26);
+    y += 26 + nL*20 + 10;
+  }
+  return {diagH, tabTops, voxYs, lyricY0, h:y+4, gap:26};
 }
 
 /* ================= 渲染 ================= */
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function usedChords(){
   const seen=[], have=new Set();
-  song.measures.forEach(m=>m.tab.forEach(c=>{
-    if(c.chord && !have.has(c.chord)){ have.add(c.chord); seen.push(c.chord); }}));
+  song.measures.forEach(m=>m.tabs.forEach(cols=>cols.forEach(c=>{
+    if(c.chord && !have.has(c.chord)){ have.add(c.chord); seen.push(c.chord); }})));
   return seen;
 }
 function chordDiagramSVG(name, x, y, scale){
@@ -353,29 +490,34 @@ function chordDiagramSVG(name, x, y, scale){
   });
   return p.join('');
 }
-/* 减时线/符杠分组：同一整拍内连续的 8/16 分列 */
 function beamGroups(cols, playable){
   const groups=[]; let cur=null; let cum=0;
   cols.forEach((c,i)=>{
-    const b = beatsOf(c);
+    const b=beatsOf(c);
     const ok = c.dur>=8 && (!playable || playable(c));
     const beat = Math.floor(cum+1e-4);
     if(ok){
       if(cur && cur.beat===beat) cur.idx.push(i);
-      else { cur={beat, idx:[i]}; groups.push(cur); }
+      else{ cur={beat, idx:[i]}; groups.push(cur); }
     } else cur=null;
     cum += b;
   });
   return groups;
+}
+function inRange(row, vi, mi){
+  return selRange && selRange.row===row && selRange.vi===vi &&
+    mi>=selRange.m1 && mi<=selRange.m2;
 }
 
 function render(){
   const svg = document.getElementById('score');
   const systems = layoutSystems();
   const M = sysMetrics();
+  const errs = beatErrors();
+  const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
   colBoxes = {};
-  const p = [];
-  /* ---- 头部：标题居中，左 1=X 拍号，右 词曲制谱 ---- */
+  const p=[];
+  /* ---- 曲头 ---- */
   let headY = 40;
   p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="26" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
   headY += 24;
@@ -383,13 +525,12 @@ function render(){
     p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="14" text-anchor="middle" fill="var(--ink)">${esc(song.singer)}</text>`);
     headY += 6;
   }
-  const credits = [];
+  const credits=[];
   if(song.lyricist) credits.push('作词：'+song.lyricist);
   if(song.composer) credits.push('作曲：'+song.composer);
   if(song.maker) credits.push('制谱：'+song.maker);
   credits.forEach((t,i)=>
     p.push(`<text x="${PAGE_W-MARGIN}" y="${44+i*17}" font-size="12.5" text-anchor="end" fill="var(--ink)">${esc(t)}</text>`));
-  // 左侧 1=G 4/4
   p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(song.key)}</text>`);
   p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
   p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
@@ -399,7 +540,6 @@ function render(){
   capoBits.push(`♩=${song.tempo}`);
   p.push(`<text x="${MARGIN+78}" y="${headY+22}" font-size="12.5" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
   let top = headY + 40;
-  /* ---- 曲首和弦一览（top 模式） ---- */
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
@@ -411,179 +551,206 @@ function render(){
       top += Math.ceil(chords.length/14)*64 + 12;
     }
   }
-  /* ---- 各系统 ---- */
+  /* ---- 系统 ---- */
   systems.forEach((sys, sIdx)=>{
     const oy = top + sIdx*(M.h+M.gap);
     const ox = MARGIN;
-    const tabTop=oy+M.tabTop, tabBot=oy+M.tabBot, stemY=oy+M.stemY, voxY=oy+M.voxY, lyricY=oy+M.lyricY;
-    // TAB 六线 + TAB 字样
-    for(let i=0;i<6;i++)
-      p.push(`<line x1="${ox}" y1="${tabTop+i*13}" x2="${ox+sys.w}" y2="${tabTop+i*13}" stroke="var(--ink)" stroke-width="0.7"/>`);
-    ['T','A','B'].forEach((ch,i)=>
-      p.push(`<text x="${ox-11}" y="${tabTop+13+i*19.5+4}" font-size="12" font-weight="bold" text-anchor="middle" fill="var(--ink)">${ch}</text>`));
-    if(sIdx===0){
-      p.push(`<text x="${ox+8}" y="${tabTop+26}" font-size="15" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.beats}</text>`);
-      p.push(`<text x="${ox+8}" y="${tabTop+52}" font-size="15" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.unit}</text>`);
-    }
-    p.push(`<line x1="${ox}" y1="${tabTop}" x2="${ox}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-    p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
-
-    sys.measures.forEach(lm=>{
-      const mea = song.measures[lm.mi];
-      const mx = ox + lm.x;
-      const isLast = lm.mi === song.measures.length-1;
-      p.push(`<text x="${mx+3}" y="${tabTop-6}" font-size="9" fill="var(--ink)" opacity="0.45">${lm.mi+1}</text>`);
-      /* 反复记号 */
-      if(mea.repeatStart){
-        p.push(`<rect x="${mx+1}" y="${tabTop}" width="2.4" height="65" fill="var(--ink)"/>`);
-        p.push(`<line x1="${mx+6}" y1="${tabTop}" x2="${mx+6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-        p.push(`<circle cx="${mx+10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${mx+10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
-        p.push(`<text x="${mx+2}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄆</text>`);
+    /* == 各吉他声部 == */
+    song.tabVoices.forEach((vname, vi)=>{
+      const tabTop = oy+M.tabTops[vi], tabBot = tabTop+65, stemY = tabBot+15;
+      for(let i=0;i<6;i++)
+        p.push(`<line x1="${ox}" y1="${tabTop+i*13}" x2="${ox+sys.w}" y2="${tabTop+i*13}" stroke="var(--ink)" stroke-width="0.7"/>`);
+      ['T','A','B'].forEach((ch,i)=>
+        p.push(`<text x="${ox-11}" y="${tabTop+13+i*19.5+4}" font-size="12" font-weight="bold" text-anchor="middle" fill="var(--ink)">${ch}</text>`));
+      if(song.tabVoices.length>1)
+        p.push(`<text x="${ox-24}" y="${tabTop+36}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6" transform="rotate(-90 ${ox-24} ${tabTop+36})">${esc(vname)}</text>`);
+      if(sIdx===0 && vi===0){
+        p.push(`<text x="${ox+8}" y="${tabTop+26}" font-size="15" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.beats}</text>`);
+        p.push(`<text x="${ox+8}" y="${tabTop+52}" font-size="15" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.unit}</text>`);
       }
-      /* 小节线（右） */
-      const bx = mx+lm.L.w;
-      if(mea.repeatEnd){
-        p.push(`<circle cx="${bx-10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${bx-10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
-        p.push(`<line x1="${bx-6}" y1="${tabTop}" x2="${bx-6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-        p.push(`<rect x="${bx-3.5}" y="${tabTop}" width="2.4" height="65" fill="var(--ink)"/>`);
-        p.push(`<text x="${bx-14}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄇</text>`);
-      }else if(isLast){
-        p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-        p.push(`<rect x="${bx-3}" y="${tabTop}" width="2.6" height="65" fill="var(--ink)"/>`);
-        p.push(`<line x1="${bx-5}" y1="${voxY-13}" x2="${bx-5}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
-        p.push(`<rect x="${bx-3}" y="${voxY-13}" width="2.4" height="17" fill="var(--ink)"/>`);
-      }else{
-        p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-        p.push(`<line x1="${bx}" y1="${voxY-13}" x2="${bx}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
-      }
-
-      /* ======== 伴奏声部（TAB） ======== */
-      mea.tab.forEach((col,ci)=>{
-        const nx = mx + lm.L.tabX[ci];
-        const cw = lm.L.tabW[ci];
-        colBoxes['t'+lm.mi+':'+ci] = {x:nx-cw/2, y:oy+M.diagH, w:cw, h:M.stemY-M.diagH+8};
-        const isSel = sel.row==='tab' && sel.mi===lm.mi && sel.ci===ci;
-        if(isSel)
-          p.push(`<rect x="${nx-cw/2}" y="${oy+M.diagH-2}" width="${cw}" height="${M.stemY-M.diagH+12}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
-        /* 和弦名 / 随行和弦图 */
-        if(col.chord){
-          if(diagMode==='inline')
-            p.push(chordDiagramSVG(col.chord, nx-20, oy+2, 0.95));
-          else
-            p.push(`<text x="${nx}" y="${oy+M.diagH-2}" font-size="13" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
+      p.push(`<line x1="${ox}" y1="${tabTop}" x2="${ox}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+      sys.measures.forEach(lm=>{
+        const mea = song.measures[lm.mi];
+        const cols = mea.tabs[vi]||[];
+        const lay = lm.L.tabs[vi];
+        const mx = ox+lm.x;
+        const isLast = lm.mi===song.measures.length-1;
+        const isErr = errSet.has('tab'+vi+':'+lm.mi);
+        if(vi===0)
+          p.push(`<text x="${mx+3}" y="${oy+M.tabTops[0]-6}" font-size="9" fill="${isErr?'var(--danger)':'var(--ink)'}" opacity="0.6">${lm.mi+1}</text>`);
+        if(isErr)
+          p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="var(--danger)" opacity="0.07"/>
+            <text x="${mx+lm.L.w-8}" y="${tabTop-6}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
+        if(inRange('tab',vi,lm.mi))
+          p.push(`<rect x="${mx+1}" y="${tabTop-4}" width="${lm.L.w-2}" height="${stemY-tabTop+8}" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
+        /* 反复记号（仅第一吉他声部画简谱侧另画） */
+        if(mea.repeatStart){
+          p.push(`<rect x="${mx+1}" y="${tabTop}" width="2.4" height="65" fill="var(--ink)"/>`);
+          p.push(`<line x1="${mx+6}" y1="${tabTop}" x2="${mx+6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<circle cx="${mx+10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${mx+10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
         }
-        /* 音符 */
-        col.notes.forEach(n=>{
-          const yy = tabTop + (n.s-1)*13;
-          if(n.x){
-            p.push(`<rect x="${nx-5.5}" y="${yy-5.5}" width="11" height="11" fill="var(--paper)"/>`);
-            p.push(`<text x="${nx}" y="${yy+4}" font-size="11" text-anchor="middle" fill="var(--ink)">×</text>`);
+        const bx = mx+lm.L.w;
+        if(mea.repeatEnd){
+          p.push(`<circle cx="${bx-10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${bx-10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
+          p.push(`<line x1="${bx-6}" y1="${tabTop}" x2="${bx-6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-3.5}" y="${tabTop}" width="2.4" height="65" fill="var(--ink)"/>`);
+        }else if(isLast){
+          p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-3}" y="${tabTop}" width="2.6" height="65" fill="var(--ink)"/>`);
+        }else{
+          p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+        }
+        /* 列 */
+        cols.forEach((col,ci)=>{
+          const nx = mx+lay.xs[ci], cw = lay.ws[ci];
+          const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
+          colBoxes['t'+vi+':'+lm.mi+':'+ci] = {x:nx-cw/2, y:boxTop, w:cw, h:stemY-boxTop+8};
+          const isSel = sel.row==='tab'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          if(isSel)
+            p.push(`<rect x="${nx-cw/2}" y="${tabTop-16}" width="${cw}" height="${stemY-tabTop+26}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
+          if(col.chord){
+            if(diagMode==='inline' && vi===0)
+              p.push(chordDiagramSVG(col.chord, nx-20, oy+2, 0.95));
+            else
+              p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
+          }
+          col.notes.forEach(n=>{
+            const yy = tabTop+(n.s-1)*13;
+            if(n.x){
+              p.push(`<rect x="${nx-5.5}" y="${yy-5.5}" width="11" height="11" fill="var(--paper)"/>`);
+              p.push(`<text x="${nx}" y="${yy+4}" font-size="11" text-anchor="middle" fill="var(--ink)">×</text>`);
+            }else{
+              const wide = n.f>9;
+              p.push(`<rect x="${nx-(wide?8.5:5.5)}" y="${yy-5.5}" width="${wide?17:11}" height="11" fill="var(--paper)"/>`);
+              p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
+            }
+          });
+          /* 扫弦/琶音：只跨实际弹奏的弦 */
+          if(col.strum){
+            const ss = col.notes.map(n=>n.s);
+            const sMin = ss.length?Math.min(...ss):1, sMax = ss.length?Math.max(...ss):6;
+            const y1 = tabTop+(sMin-1)*13-6, y2 = tabTop+(sMax-1)*13+6;
+            const x0 = nx-(col.notes.length?11:0);
+            if(col.strum==='d'||col.strum==='u'){
+              const up = col.strum==='d';
+              p.push(`<line x1="${x0}" y1="${y1+3}" x2="${x0}" y2="${y2-3}" stroke="var(--ink)" stroke-width="1.4"/>`);
+              if(up) p.push(`<path d="M ${x0-3.5} ${y1+8} L ${x0} ${y1+1} L ${x0+3.5} ${y1+8}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
+              else   p.push(`<path d="M ${x0-3.5} ${y2-8} L ${x0} ${y2-1} L ${x0+3.5} ${y2-8}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
+            }else{
+              let d = `M ${x0} ${y1}`;
+              for(let yy=y1; yy<y2-4; yy+=8) d += ` q 3.5 4 0 8`;
+              p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            }
+          }
+          const hasEvt = col.notes.length || col.strum;
+          if(hasEvt && col.dur>=2){
+            p.push(`<line x1="${nx}" y1="${tabBot+3}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="1"/>`);
+            if(col.dotted) p.push(`<circle cx="${nx+4}" cy="${stemY-4}" r="1.6" fill="var(--ink)"/>`);
+          }
+          p.push(`<rect x="${nx-cw/2}" y="${tabTop-18}" width="${cw}" height="18" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`);
+          if(vi===0 && diagMode==='inline')
+            p.push(`<rect x="${nx-cw/2}" y="${oy}" width="${cw}" height="${M.diagH}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="0" data-si="0" style="cursor:pointer"/>`);
+          for(let s2=1;s2<=6;s2++)
+            p.push(`<rect x="${nx-cw/2}" y="${tabTop+(s2-1)*13-6.5}" width="${cw}" height="13" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="${s2}" style="cursor:pointer"/>`);
+        });
+        /* 符杠 */
+        beamGroups(cols, c=>c.notes.length||c.strum).forEach(g=>{
+          const xs = g.idx.map(i=>mx+lay.xs[i]);
+          const x1=Math.min(...xs), x2=Math.max(...xs);
+          if(g.idx.length>1){
+            p.push(`<rect x="${x1-0.5}" y="${stemY-2.2}" width="${x2-x1+1}" height="2.2" fill="var(--ink)"/>`);
+            for(let a=0;a<g.idx.length-1;a++){
+              const i1=g.idx[a], i2=g.idx[a+1];
+              if(cols[i1].dur>=16 && cols[i2].dur>=16)
+                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-5.8}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
+            }
           }else{
-            const wide = n.f>9;
-            p.push(`<rect x="${nx-(wide?8.5:5.5)}" y="${yy-5.5}" width="${wide?17:11}" height="11" fill="var(--paper)"/>`);
-            p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
+            const x=xs[0];
+            p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+            if(cols[g.idx[0]].dur>=16)
+              p.push(`<path d="M ${x} ${stemY-4.5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
-        /* 扫弦 / 琶音 */
-        if(col.strum==='d'||col.strum==='u'){
-          const x0 = nx - (col.notes.length?11:0);
-          const y1 = tabTop-4, y2 = tabBot+4;
-          const up = col.strum==='d';   // 扫向1弦 => 图上箭头向上
-          p.push(`<line x1="${x0}" y1="${y1+4}" x2="${x0}" y2="${y2-4}" stroke="var(--ink)" stroke-width="1.4"/>`);
-          if(up) p.push(`<path d="M ${x0-3.5} ${y1+9} L ${x0} ${y1+2} L ${x0+3.5} ${y1+9}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
-          else   p.push(`<path d="M ${x0-3.5} ${y2-9} L ${x0} ${y2-2} L ${x0+3.5} ${y2-9}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
-        }else if(col.strum==='arp'){
-          const x0 = nx - (col.notes.length?11:0);
-          let d = `M ${x0} ${tabTop-2}`;
-          for(let yy=tabTop-2; yy<tabBot; yy+=8) d += ` q 3.5 4 0 8`;
-          p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
-        }
-        /* 符干 */
-        const hasEvt = col.notes.length || col.strum;
-        if(hasEvt && col.dur>=2){
-          p.push(`<line x1="${nx}" y1="${tabBot+3}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="1"/>`);
-          if(col.dotted) p.push(`<circle cx="${nx+4}" cy="${stemY-4}" r="1.6" fill="var(--ink)"/>`);
-        }
-        /* 热区（含和弦图区域） */
-        p.push(`<rect x="${nx-cw/2}" y="${oy}" width="${cw}" height="${M.stemY-0+10}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-si="0" style="cursor:pointer"/>`);
-        for(let s2=1;s2<=6;s2++)
-          p.push(`<rect x="${nx-cw/2}" y="${tabTop+(s2-1)*13-6.5}" width="${cw}" height="13" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-si="${s2}" style="cursor:pointer"/>`);
       });
-      /* TAB 符杠：同拍 8/16 分组 */
-      beamGroups(mea.tab, c=>c.notes.length||c.strum).forEach(g=>{
-        const xs = g.idx.map(i=>mx+lm.L.tabX[i]);
-        const x1 = Math.min(...xs), x2 = Math.max(...xs);
-        if(g.idx.length>1){
-          p.push(`<rect x="${x1-0.5}" y="${stemY-2.2}" width="${x2-x1+1}" height="2.2" fill="var(--ink)"/>`);
-          // 16分第二杠（仅覆盖相邻的16分对）
-          for(let a=0;a<g.idx.length-1;a++){
-            const i1=g.idx[a], i2=g.idx[a+1];
-            if(mea.tab[i1].dur>=16 && mea.tab[i2].dur>=16)
-              p.push(`<rect x="${mx+lm.L.tabX[i1]-0.5}" y="${stemY-5.8}" width="${mx+lm.L.tabX[i2]-(mx+lm.L.tabX[i1])+1}" height="2.2" fill="var(--ink)"/>`);
+    });
+    /* == 各旋律声部 == */
+    song.voxVoices.forEach((vname, vi)=>{
+      const voxY = oy+M.voxYs[vi], lyr0 = oy+M.lyricY0[vi];
+      p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+      if(song.voxVoices.length>1)
+        p.push(`<text x="${ox-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
+      sys.measures.forEach(lm=>{
+        const mea = song.measures[lm.mi];
+        const cols = mea.voxes[vi]||[];
+        const lay = lm.L.voxes[vi];
+        const mx = ox+lm.x;
+        const isLast = lm.mi===song.measures.length-1;
+        const isErr = errSet.has('vox'+vi+':'+lm.mi);
+        if(isErr)
+          p.push(`<rect x="${mx}" y="${voxY-22}" width="${lm.L.w}" height="34" fill="var(--danger)" opacity="0.07"/>
+            <text x="${mx+lm.L.w-8}" y="${voxY-14}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
+        if(inRange('vox',vi,lm.mi))
+          p.push(`<rect x="${mx+1}" y="${voxY-22}" width="${lm.L.w-2}" height="34" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
+        const bx = mx+lm.L.w;
+        if(mea.repeatStart) p.push(`<text x="${mx+2}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄆</text>`);
+        if(mea.repeatEnd) p.push(`<text x="${bx-14}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄇</text>`);
+        if(isLast){
+          p.push(`<line x1="${bx-5}" y1="${voxY-13}" x2="${bx-5}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-3}" y="${voxY-13}" width="2.4" height="17" fill="var(--ink)"/>`);
+        }else
+          p.push(`<line x1="${bx}" y1="${voxY-13}" x2="${bx}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+        const vGroups = beamGroups(cols, null);
+        const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
+        cols.forEach((col,ci)=>{
+          const nx = mx+lay.xs[ci], cw = lay.ws[ci];
+          colBoxes['v'+vi+':'+lm.mi+':'+ci] = {x:nx-cw/2, y:voxY-24, w:cw, h:26+song.lyricLines*20+8};
+          const isSel = sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          if(isSel)
+            p.push(`<rect x="${nx-cw/2}" y="${voxY-22}" width="${cw}" height="${30+song.lyricLines*20}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
+          const under = col.dur>=8 ? (col.dur===8?1:2) : 0;
+          if(col.acc)
+            p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':'♭'}</text>`);
+          p.push(`<text x="${nx}" y="${voxY}" font-size="17" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+          if(col.deg){
+            for(let d=0; d<Math.min(2,Math.abs(col.oct)); d++){
+              if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-16-d*4.6}" r="1.6" fill="var(--ink)"/>`);
+              else p.push(`<circle cx="${nx}" cy="${voxY+6.5+under*3.4+d*4.6}" r="1.6" fill="var(--ink)"/>`);
+            }
           }
-        }else{
-          const x=xs[0];
-          p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
-          if(mea.tab[g.idx[0]].dur>=16)
-            p.push(`<path d="M ${x} ${stemY-4.5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
-        }
-      });
-
-      /* ======== 人声声部（简谱+歌词） ======== */
-      const vGroups = beamGroups(mea.vox, null);
-      const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
-      mea.vox.forEach((col,ci)=>{
-        const nx = mx + lm.L.voxX[ci];
-        const cw = lm.L.voxW[ci];
-        colBoxes['v'+lm.mi+':'+ci] = {x:nx-cw/2, y:voxY-24, w:cw, h:lyricY-voxY+34};
-        const isSel = sel.row==='vox' && sel.mi===lm.mi && sel.ci===ci;
-        if(isSel)
-          p.push(`<rect x="${nx-cw/2}" y="${voxY-22}" width="${cw}" height="${lyricY-voxY+30}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
-        const under = col.dur>=8 ? (col.dur===8?1:2) : 0;
-        if(col.acc)
-          p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':'♭'}</text>`);
-        p.push(`<text x="${nx}" y="${voxY}" font-size="17" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
-        if(col.deg){
-          for(let d=0; d<Math.min(2,Math.abs(col.oct)); d++){
-            if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-16-d*4.6}" r="1.6" fill="var(--ink)"/>`);
-            else p.push(`<circle cx="${nx}" cy="${voxY+6.5+under*3.4+d*4.6}" r="1.6" fill="var(--ink)"/>`);
+          if(under && !inGroup.has(ci))
+            for(let u=0;u<under;u++)
+              p.push(`<line x1="${nx-6.5}" y1="${voxY+3.4+u*3.2}" x2="${nx+6.5}" y2="${voxY+3.4+u*3.2}" stroke="var(--ink)" stroke-width="1.1"/>`);
+          if(col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+          if(col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" text-anchor="middle" fill="var(--ink)">–</text>`);
+          if(col.dur===1) for(let d=1;d<=3;d++)
+            p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" text-anchor="middle" fill="var(--ink)">–</text>`);
+          if(col.tie){
+            let x2;
+            if(ci<cols.length-1) x2 = mx+lay.xs[ci+1]-6;
+            else x2 = mx+lm.L.w+10;
+            p.push(`<path d="M ${nx+5} ${voxY-13} Q ${(nx+5+x2)/2} ${voxY-22} ${x2} ${voxY-13}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
           }
-        }
-        if(under && !inGroup.has(ci))
-          for(let u=0;u<under;u++)
-            p.push(`<line x1="${nx-6.5}" y1="${voxY+3.4+u*3.2}" x2="${nx+6.5}" y2="${voxY+3.4+u*3.2}" stroke="var(--ink)" stroke-width="1.1"/>`);
-        if(col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
-        if(col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" text-anchor="middle" fill="var(--ink)">–</text>`);
-        if(col.dur===1) for(let d=1;d<=3;d++)
-          p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" text-anchor="middle" fill="var(--ink)">–</text>`);
-        /* 连音线 */
-        if(col.tie){
-          let x2;
-          if(ci<mea.vox.length-1) x2 = mx+lm.L.voxX[ci+1]-6;
-          else x2 = mx+lm.L.w+10;
-          p.push(`<path d="M ${nx+5} ${voxY-13} Q ${(nx+5+x2)/2} ${voxY-22} ${x2} ${voxY-13}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-        }
-        /* 歌词 */
-        if(col.lyric)
-          p.push(`<text x="${nx}" y="${lyricY}" font-size="14" text-anchor="middle" fill="var(--ink)">${esc(col.lyric)}</text>`);
-        /* 热区 */
-        p.push(`<rect x="${nx-cw/2}" y="${voxY-24}" width="${cw}" height="34" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" style="cursor:pointer"/>`);
-        p.push(`<rect x="${nx-cw/2}" y="${lyricY-16}" width="${cw}" height="24" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-zone="lyric" style="cursor:pointer"/>`);
-      });
-      /* 简谱连体减时线 */
-      vGroups.forEach(g=>{
-        if(g.idx.length<2) return;
-        const x1 = mx+lm.L.voxX[g.idx[0]]-6.5, x2 = mx+lm.L.voxX[g.idx[g.idx.length-1]]+6.5;
-        p.push(`<line x1="${x1}" y1="${voxY+3.4}" x2="${x2}" y2="${voxY+3.4}" stroke="var(--ink)" stroke-width="1.1"/>`);
-        for(let a=0;a<g.idx.length;a++){
-          const i1=g.idx[a];
-          if(mea.vox[i1].dur>=16){
-            let b=a; while(b<g.idx.length-1 && mea.vox[g.idx[b+1]].dur>=16) b++;
-            const xa = mx+lm.L.voxX[g.idx[a]]-6.5, xb = mx+lm.L.voxX[g.idx[b]]+6.5;
-            p.push(`<line x1="${xa}" y1="${voxY+6.6}" x2="${xb}" y2="${voxY+6.6}" stroke="var(--ink)" stroke-width="1.1"/>`);
-            a=b;
+          (col.lyrics||[]).forEach((ly,li)=>{
+            if(ly && li<song.lyricLines)
+              p.push(`<text x="${nx}" y="${lyr0+li*20}" font-size="14" text-anchor="middle" fill="var(--ink)">${esc(ly)}</text>`);
+          });
+          p.push(`<rect x="${nx-cw/2}" y="${voxY-24}" width="${cw}" height="34" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
+          for(let li=0;li<song.lyricLines;li++)
+            p.push(`<rect x="${nx-cw/2}" y="${lyr0+li*20-14}" width="${cw}" height="19" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
+        });
+        vGroups.forEach(g=>{
+          if(g.idx.length<2) return;
+          const x1 = mx+lay.xs[g.idx[0]]-6.5, x2 = mx+lay.xs[g.idx[g.idx.length-1]]+6.5;
+          p.push(`<line x1="${x1}" y1="${voxY+3.4}" x2="${x2}" y2="${voxY+3.4}" stroke="var(--ink)" stroke-width="1.1"/>`);
+          for(let a=0;a<g.idx.length;a++){
+            if(cols[g.idx[a]].dur>=16){
+              let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=16) b++;
+              const xa = mx+lay.xs[g.idx[a]]-6.5, xb = mx+lay.xs[g.idx[b]]+6.5;
+              p.push(`<line x1="${xa}" y1="${voxY+6.6}" x2="${xb}" y2="${voxY+6.6}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              a=b;
+            }
           }
-        }
+        });
       });
     });
   });
@@ -596,43 +763,75 @@ function render(){
   syncInputs();
 }
 
-/* ================= 选区 / 输入同步 ================= */
+/* ================= 选区/同步 ================= */
 function curMea(){ return song.measures[sel.mi]; }
-function curRow(){ const m=curMea(); return m ? m[sel.row] : null; }
-function curCol(){ const r=curRow(); return r && r[sel.ci]; }
+function curRowCols(){
+  const m = curMea(); if(!m) return null;
+  return sel.row==='tab' ? m.tabs[sel.vi] : m.voxes[sel.vi];
+}
+function curCol(){ const r=curRowCols(); return r && r[sel.ci]; }
 function clampSel(){
   sel.mi = Math.max(0, Math.min(sel.mi, song.measures.length-1));
-  const r = curRow();
-  if(!r || !r.length){ sel.row = sel.row==='tab'?'vox':'tab'; }
-  sel.ci = Math.max(0, Math.min(sel.ci, Math.max(0,(curRow()||[]).length-1)));
+  if(sel.row==='tab') sel.vi = Math.max(0, Math.min(sel.vi, song.tabVoices.length-1));
+  else sel.vi = Math.max(0, Math.min(sel.vi, song.voxVoices.length-1));
+  const r = curRowCols();
+  sel.ci = Math.max(0, Math.min(sel.ci, Math.max(0,(r||[]).length-1)));
   sel.si = Math.max(1, Math.min(sel.si, 6));
+  activeLyr = Math.max(0, Math.min(activeLyr, song.lyricLines-1));
+}
+function chipHtml(list, activeIdx, cls){
+  return list.map((n,i)=>
+    `<span class="chip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}">${esc(n)}</span>`).join('')
 }
 function syncInputs(){
   const col = curCol();
   document.getElementById('mode-tip').textContent =
-    sel.row==='tab' ? '伴奏区（六线谱）' : '旋律区（简谱/歌词）';
-  document.getElementById('grp-tab').style.opacity = sel.row==='tab'?'1':'0.45';
-  document.getElementById('grp-vox').style.opacity = sel.row==='vox'?'1':'0.45';
-  document.getElementById('i-chord').value = (sel.row==='tab' && col) ? (col.chord||'') : '';
+    (sel.row==='tab' ? '当前：吉他谱 · '+ (song.tabVoices[sel.vi]||'')
+                     : '当前：简谱 · '+ (song.voxVoices[sel.vi]||''))
+    + `　第${sel.mi+1}小节`;
+  /* 声部 chips */
+  document.getElementById('tab-voices').innerHTML =
+    chipHtml(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
+    `<span class="chip" data-k="tv+">＋</span><span class="chip" data-k="tv-">−</span>`;
+  document.getElementById('vox-voices').innerHTML =
+    chipHtml(song.voxVoices, sel.row==='vox'?sel.vi:-1, 'vv') +
+    `<span class="chip" data-k="vv+">＋</span><span class="chip" data-k="vv-">−</span>`;
+  document.getElementById('lyr-lines').innerHTML =
+    chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
+    `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
+  document.getElementById('i-chord').value = (sel.row==='tab'&&col)?(col.chord||''):'';
   const lyr = document.getElementById('i-lyric');
-  if(document.activeElement!==lyr) lyr.value = (sel.row==='vox'&&col)?(col.lyric||''):'';
+  if(document.activeElement!==lyr)
+    lyr.value = (sel.row==='vox'&&col)?((col.lyrics||[])[activeLyr]||''):'';
   document.getElementById('i-tempo').value = song.tempo;
+  const isTab = sel.row==='tab';
   document.querySelectorAll('.b-dur').forEach(b=>
-    b.classList.toggle('on', col && +b.dataset.dur===col.dur));
-  document.getElementById('b-dot').classList.toggle('on', !!(col&&col.dotted));
+    b.classList.toggle('on', isTab&&col&&+b.dataset.dur===col.dur));
+  document.querySelectorAll('.b-dur2').forEach(b=>
+    b.classList.toggle('on', !isTab&&col&&+b.dataset.dur===col.dur));
+  document.getElementById('b-dot').classList.toggle('on', !!(isTab&&col&&col.dotted));
+  document.getElementById('b-dot2').classList.toggle('on', !!(!isTab&&col&&col.dotted));
   const mea = curMea();
   document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
   document.getElementById('b-rep-e').classList.toggle('on', !!(mea&&mea.repeatEnd));
-  if(col && sel.row==='tab'){
+  if(col&&isTab){
     document.getElementById('b-strum-d').classList.toggle('on', col.strum==='d');
     document.getElementById('b-strum-u').classList.toggle('on', col.strum==='u');
     document.getElementById('b-arp').classList.toggle('on', col.strum==='arp');
   }
-  if(col && sel.row==='vox'){
+  if(col&&!isTab){
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
     document.getElementById('b-tie').classList.toggle('on', !!col.tie);
   }
+  /* 节拍检查列表 */
+  const errs = beatErrors();
+  const el = document.getElementById('err-list');
+  if(!errs.length) el.innerHTML = '<div class="ok">✓ 所有小节时值正确</div>';
+  else el.innerHTML = errs.map(e=>{
+    const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
+    return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
+  }).join('');
   document.getElementById('m-title').value = song.title;
   document.getElementById('m-singer').value = song.singer;
   document.getElementById('m-lyricist').value = song.lyricist||'';
@@ -644,7 +843,7 @@ function syncInputs(){
   document.getElementById('m-capo').value = song.capo;
 }
 
-/* ================= 编辑 ================= */
+/* ================= 编辑核心 ================= */
 function pushUndo(){
   undoStack.push(JSON.stringify(song));
   if(undoStack.length>200) undoStack.shift();
@@ -655,18 +854,18 @@ function undo(){
   if(!undoStack.length) return toast('没有可撤销的操作');
   redoStack.push(JSON.stringify(song));
   song = JSON.parse(undoStack.pop());
-  clampSel(); persist(); render();
+  selRange=null; clampSel(); persist(); render();
 }
 function redo(){
   if(!redoStack.length) return toast('没有可重做的操作');
   undoStack.push(JSON.stringify(song));
   song = JSON.parse(redoStack.pop());
-  clampSel(); persist(); render();
+  selRange=null; clampSel(); persist(); render();
 }
 function setFret(f){
   if(sel.row!=='tab') return;
   mutate(()=>{
-    const col = curCol();
+    const col=curCol();
     const i = col.notes.findIndex(n=>n.s===sel.si);
     if(f==null){ if(i>=0) col.notes.splice(i,1); }
     else if(i>=0){ col.notes[i].f=f; col.notes[i].x=false; }
@@ -678,20 +877,159 @@ function setDeg(d){
   mutate(()=>{ const c=curCol(); c.deg=d; if(!d){ c.acc=''; c.oct=0; } });
 }
 function moveCol(dir){
-  const r = curRow();
+  const r = curRowCols();
   if(dir>0){
-    if(sel.ci < r.length-1) sel.ci++;
-    else if(sel.mi < song.measures.length-1){ sel.mi++; sel.ci=0; }
+    if(sel.ci<r.length-1) sel.ci++;
+    else if(sel.mi<song.measures.length-1){ sel.mi++; sel.ci=0; }
   }else{
     if(sel.ci>0) sel.ci--;
-    else if(sel.mi>0){ sel.mi--; sel.ci = curMea()[sel.row].length-1; }
+    else if(sel.mi>0){ sel.mi--; sel.ci=curRowCols().length-1; }
   }
   pending.digits=''; render();
 }
 function switchRow(){
-  sel.row = sel.row==='tab' ? 'vox' : 'tab';
+  sel.row = sel.row==='tab'?'vox':'tab';
   clampSel(); pending.digits=''; render();
 }
+
+/* ================= 节奏型套用 ================= */
+function targetMeasures(row){
+  if(selRange && selRange.row===row){
+    const a=[]; for(let m=selRange.m1;m<=selRange.m2;m++) a.push(m);
+    return {list:a, vi:selRange.vi};
+  }
+  if(sel.row!==row) return null;
+  return {list:[sel.mi], vi:sel.vi};
+}
+function applyTabPattern(pat){
+  const tgt = targetMeasures('tab');
+  if(!tgt) return toast('请先在吉他谱区选中一列或多选小节');
+  mutate(()=>{
+    tgt.list.forEach(mi=>{
+      const old = song.measures[mi].tabs[tgt.vi]||[];
+      const chordName = chordBefore(mi, tgt.vi);
+      const shape = CHORD_SHAPES[chordName];
+      const oldChord = (old.find(c=>c.chord)||{}).chord||'';
+      const oldNotes = old.filter(c=>c.notes.length).map(c=>c.notes);
+      let oi=0;
+      const cols = pat.ev.map(([t,dur,dot])=>{
+        const c = tcol(); c.dur=dur; c.dotted=!!dot;
+        if(shape){
+          const sounded = shapeSounded(shape);
+          const bass = sounded.reduce((a,b)=>b.s>a.s?b:a, sounded[0]);
+          if(t==='b') c.notes=[{s:bass.s, f:bass.f}];
+          else if(t[0]==='s'){
+            const sn=+t[1]; const f=shapeString(shape, sn);
+            if(f!=null) c.notes=[{s:sn, f}];
+          }
+          else if(t==='c') c.notes = sounded.map(n=>({s:n.s,f:n.f}));
+          else if(t==='d'||t==='u'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t; }
+          else if(t==='a'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
+          else if(t==='x') c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true}));
+        }else if(t!=='r'){
+          if(oi<oldNotes.length) c.notes = oldNotes[oi++].map(n=>({...n}));
+          if(t==='d'||t==='u'){ c.strum=t; } else if(t==='a') c.strum='arp';
+        }
+        return c;
+      });
+      if(oldChord && cols.length) cols[0].chord = oldChord;
+      song.measures[mi].tabs[tgt.vi] = cols;
+    });
+  });
+  toast('已套用节奏型：'+pat.name);
+}
+function applyVoxPattern(pat){
+  const tgt = targetMeasures('vox');
+  if(!tgt) return toast('请先在简谱区选中一列或多选小节');
+  mutate(()=>{
+    tgt.list.forEach(mi=>{
+      const old = (song.measures[mi].voxes[tgt.vi]||[]).filter(c=>c.deg>0);
+      let oi=0;
+      const cols = pat.durs.map(([dur,dot])=>{
+        const c = vcol(); c.dur=dur; c.dotted=!!dot;
+        if(oi<old.length){
+          const o = old[oi++];
+          c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); c.tie=o.tie;
+        }
+        return c;
+      });
+      song.measures[mi].voxes[tgt.vi] = cols;
+    });
+  });
+  toast('已套用节奏型：'+pat.name);
+}
+/* 节奏型按钮渲染 */
+(function buildPats(){
+  document.getElementById('tab-pats').innerHTML = TAB_PATTERNS.map((p,i)=>
+    `<button class="pat" data-tp="${i}">${esc(p.name)}<small>${esc(p.hint)}</small></button>`).join('');
+  document.getElementById('vox-pats').innerHTML = VOX_PATTERNS.map((p,i)=>
+    `<button class="pat" data-vp="${i}">${esc(p.name)}<small>${esc(p.hint)}</small></button>`).join('');
+  document.getElementById('tab-pats').addEventListener('click', e=>{
+    const b = e.target.closest('[data-tp]'); if(b) applyTabPattern(TAB_PATTERNS[+b.dataset.tp]);
+  });
+  document.getElementById('vox-pats').addEventListener('click', e=>{
+    const b = e.target.closest('[data-vp]'); if(b) applyVoxPattern(VOX_PATTERNS[+b.dataset.vp]);
+  });
+})();
+
+/* ================= 声部/歌词行管理 ================= */
+function addVoice(kind){
+  if(kind==='tab' && song.tabVoices.length>=MAX_VOICES) return toast('吉他声部最多 5 个');
+  if(kind==='vox' && song.voxVoices.length>=MAX_VOICES) return toast('旋律声部最多 5 个');
+  mutate(()=>{
+    if(kind==='tab'){
+      song.tabVoices.push('吉他'+(song.tabVoices.length+1));
+      song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats*2;i++) a.push(tcol()); m.tabs.push(a); });
+    }else{
+      song.voxVoices.push('旋律'+(song.voxVoices.length+1));
+      song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
+    }
+  });
+}
+function delVoice(kind){
+  if(kind==='tab'){
+    if(song.tabVoices.length<=1) return toast('至少保留一个吉他声部');
+    mutate(()=>{
+      const vi = sel.row==='tab'?sel.vi:song.tabVoices.length-1;
+      song.tabVoices.splice(vi,1);
+      song.measures.forEach(m=>m.tabs.splice(vi,1));
+      if(sel.row==='tab') sel.vi=0;
+    });
+  }else{
+    if(song.voxVoices.length<=1) return toast('至少保留一个旋律声部');
+    mutate(()=>{
+      const vi = sel.row==='vox'?sel.vi:song.voxVoices.length-1;
+      song.voxVoices.splice(vi,1);
+      song.measures.forEach(m=>m.voxes.splice(vi,1));
+      if(sel.row==='vox') sel.vi=0;
+    });
+  }
+}
+document.getElementById('side').addEventListener('click', e=>{
+  const chip = e.target.closest('.chip'); if(!chip) return;
+  const k = chip.dataset.k;
+  if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
+  else if(k==='vv'){ sel.row='vox'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
+  else if(k==='ll'){ activeLyr=+chip.dataset.idx; syncInputs(); }
+  else if(k==='tv+') addVoice('tab');
+  else if(k==='tv-') delVoice('tab');
+  else if(k==='vv+') addVoice('vox');
+  else if(k==='vv-') delVoice('vox');
+  else if(k==='ll+'){
+    if(song.lyricLines>=MAX_LYR) return toast('歌词最多 5 段');
+    mutate(()=>{ song.lyricLines++; activeLyr=song.lyricLines-1; });
+  }
+  else if(k==='ll-'){
+    if(song.lyricLines<=1) return toast('至少保留一段歌词');
+    mutate(()=>{
+      const li = song.lyricLines-1;
+      song.measures.forEach(m=>m.voxes.forEach(cols=>cols.forEach(c=>{
+        if(c.lyrics) c.lyrics.length = Math.min(c.lyrics.length, li);
+      })));
+      song.lyricLines--; activeLyr=Math.min(activeLyr, song.lyricLines-1);
+    });
+  }
+});
 
 /* ================= 键盘 ================= */
 window.addEventListener('keydown', e=>{
@@ -707,17 +1045,15 @@ window.addEventListener('keydown', e=>{
   if(/^[0-9]$/.test(e.key)){
     e.preventDefault();
     if(sel.row==='tab'){
-      const now = Date.now();
-      let d = e.key;
+      const now=Date.now(); let d=e.key;
       if(now-pending.time<700 && pending.digits){
-        const comb = parseInt(pending.digits+d,10);
-        if(comb<=24) d = String(comb);
+        const comb=parseInt(pending.digits+d,10);
+        if(comb<=24) d=String(comb);
       }
-      pending = {digits:d, time:now};
+      pending={digits:d,time:now};
       setFret(parseInt(d,10));
     }else{
-      const n = +e.key;
-      if(n<=7) setDeg(n);
+      const n=+e.key; if(n<=7) setDeg(n);
     }
     return;
   }
@@ -761,39 +1097,48 @@ window.addEventListener('keydown', e=>{
 document.getElementById('score').addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element) || t.dataset.mi===undefined) return;
-  sel.mi = +t.dataset.mi; sel.ci = +t.dataset.ci; sel.row = t.dataset.row;
-  if(t.dataset.si && +t.dataset.si>0) sel.si = +t.dataset.si;
+  const mi=+t.dataset.mi, ci=+t.dataset.ci, row=t.dataset.row, vi=+t.dataset.vi;
+  if(e.shiftKey && sel.row===row && sel.vi===vi){
+    selRange = {row, vi, m1:Math.min(sel.mi,mi), m2:Math.max(sel.mi,mi)};
+    render(); return;
+  }
+  selRange = null;
+  sel.mi=mi; sel.ci=ci; sel.row=row; sel.vi=vi;
+  if(t.dataset.si && +t.dataset.si>0) sel.si=+t.dataset.si;
+  if(t.dataset.line!==undefined) activeLyr=+t.dataset.line;
   pending.digits='';
   render();
   if(t.dataset.zone==='lyric') document.getElementById('i-lyric').focus();
 });
 
-/* ================= 工具栏 ================= */
+/* ================= 工具栏动作 ================= */
 function setDur(d){ const c=curCol(); if(c) mutate(()=>{ curCol().dur=d; }); }
 function toggleDot(){ const c=curCol(); if(c) mutate(()=>{ curCol().dotted=!curCol().dotted; }); }
-function toggleAcc(a){ mutate(()=>{ const c=curCol(); c.acc = c.acc===a?'':a; }); }
-function bumpOct(d){ mutate(()=>{ const c=curCol(); c.oct=Math.max(-2,Math.min(2,(c.oct||0)+d)); }); }
-function toggleTie(){ mutate(()=>{ const c=curCol(); c.tie=!c.tie; }); }
+function toggleAcc(a){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.acc=c.acc===a?'':a; }); }
+function bumpOct(d){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.oct=Math.max(-2,Math.min(2,(c.oct||0)+d)); }); }
+function toggleTie(){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.tie=!c.tie; }); }
 function toggleMute(){
+  if(sel.row!=='tab')return;
   mutate(()=>{
     const col=curCol();
-    const i = col.notes.findIndex(n=>n.s===sel.si);
-    if(i>=0){ col.notes[i].x = !col.notes[i].x; if(col.notes[i].x) col.notes[i].f=0; }
-    else col.notes.push({s:sel.si, f:0, x:true});
+    const i=col.notes.findIndex(n=>n.s===sel.si);
+    if(i>=0){ col.notes[i].x=!col.notes[i].x; if(col.notes[i].x) col.notes[i].f=0; }
+    else col.notes.push({s:sel.si,f:0,x:true});
   });
 }
-function setStrum(v){ mutate(()=>{ const c=curCol(); c.strum = c.strum===v?'':v; }); }
-function insColumn(){
+function setStrum(v){ if(sel.row!=='tab')return; mutate(()=>{ const c=curCol(); c.strum=c.strum===v?'':v; }); }
+function insColumn(row){
+  if(sel.row!==row){ sel.row=row; clampSel(); }
   mutate(()=>{
-    const r = curRow();
-    const c = sel.row==='tab'?tcol():vcol();
-    c.dur = curCol()?curCol().dur:c.dur;
+    const r=curRowCols();
+    const c = row==='tab'?tcol():vcol();
+    if(curCol()) c.dur=curCol().dur;
     r.splice(sel.ci+1,0,c); sel.ci++;
   });
 }
 function delColumn(){
   mutate(()=>{
-    const r = curRow();
+    const r=curRowCols();
     if(r.length>1) r.splice(sel.ci,1);
     else r[0] = sel.row==='tab'?tcol():vcol();
   });
@@ -805,10 +1150,14 @@ function delMeasure(){
     else song.measures[0]=blankMeasure();
   });
 }
-document.querySelectorAll('.b-dur').forEach(b=>b.onclick=()=>setDur(+b.dataset.dur));
-document.getElementById('b-dot').onclick = toggleDot;
-document.getElementById('b-inscol').onclick = insColumn;
-document.getElementById('b-delcol').onclick = delColumn;
+document.querySelectorAll('.b-dur').forEach(b=>b.onclick=()=>{ if(sel.row==='tab') setDur(+b.dataset.dur); else toast('当前选中在简谱区'); });
+document.querySelectorAll('.b-dur2').forEach(b=>b.onclick=()=>{ if(sel.row==='vox') setDur(+b.dataset.dur); else toast('当前选中在吉他谱区'); });
+document.getElementById('b-dot').onclick = ()=>{ if(sel.row==='tab') toggleDot(); };
+document.getElementById('b-dot2').onclick = ()=>{ if(sel.row==='vox') toggleDot(); };
+document.getElementById('b-inscol-t').onclick = ()=>insColumn('tab');
+document.getElementById('b-delcol-t').onclick = ()=>{ if(sel.row==='tab') delColumn(); };
+document.getElementById('b-inscol-v').onclick = ()=>insColumn('vox');
+document.getElementById('b-delcol-v').onclick = ()=>{ if(sel.row==='vox') delColumn(); };
 document.getElementById('b-insmea').onclick = insMeasure;
 document.getElementById('b-delmea').onclick = delMeasure;
 document.getElementById('b-undo').onclick = undo;
@@ -827,31 +1176,40 @@ document.getElementById('b-rep-e').onclick = ()=>mutate(()=>{ const m=curMea(); 
 document.getElementById('b-diag').onclick = ()=>{
   diagMode = diagMode==='inline'?'top':(diagMode==='top'?'off':'inline');
   document.getElementById('b-diag').textContent =
-    '和弦图:'+(diagMode==='inline'?'随行':diagMode==='top'?'曲首':'隐藏');
+    '图:'+(diagMode==='inline'?'随行':diagMode==='top'?'曲首':'隐藏');
   render();
 };
 document.getElementById('i-chord').addEventListener('change', e=>{
   if(sel.row!=='tab') return;
-  mutate(()=>{ curCol().chord = e.target.value.trim(); });
+  mutate(()=>{ curCol().chord=e.target.value.trim(); });
 });
 document.getElementById('i-lyric').addEventListener('input', e=>{
   if(sel.row!=='vox') return;
-  const col = curCol(); if(!col) return;
-  col.lyric = e.target.value; persist(); render(); e.target.focus();
+  const col=curCol(); if(!col) return;
+  col.lyrics = col.lyrics||[];
+  col.lyrics[activeLyr] = e.target.value;
+  persist(); render(); e.target.focus();
 });
 document.getElementById('i-lyric').addEventListener('keydown', e=>{
   if(e.key==='Enter'||e.key==='Tab'){
     e.preventDefault(); moveCol(1); document.getElementById('i-lyric').focus();
   }
 });
+document.getElementById('b-clearlyr').onclick = ()=>{
+  mutate(()=>{
+    song.measures.forEach(m=>m.voxes.forEach(cols=>cols.forEach(c=>{
+      if(c.lyrics) c.lyrics[activeLyr]='';
+    })));
+  });
+  toast('已清空第'+(activeLyr+1)+'段歌词');
+};
 document.getElementById('i-tempo').addEventListener('change', e=>{
   song.tempo = Math.max(30, Math.min(240, +e.target.value||90)); persist(); render();
 });
 const dl = document.getElementById('chord-list');
 Object.keys(CHORD_SHAPES).forEach(n=>{ const o=document.createElement('option'); o.value=n; dl.appendChild(o); });
-
 document.getElementById('b-meta').onclick = ()=>
-  document.getElementById('meta-panel').classList.toggle('show');
+  document.getElementById('meta-panel').classList.toggle('hidden');
 const ksel = document.getElementById('m-key');
 KEY_LIST.forEach(k=>{ const o=document.createElement('option'); o.value=o.textContent=k; ksel.appendChild(o); });
 function bindMeta(id, field, num){
@@ -864,11 +1222,24 @@ bindMeta('m-title','title'); bindMeta('m-singer','singer');
 bindMeta('m-lyricist','lyricist'); bindMeta('m-composer','composer');
 bindMeta('m-maker','maker'); bindMeta('m-key','key');
 bindMeta('m-beats','beats',true); bindMeta('m-unit','unit',true); bindMeta('m-capo','capo',true);
+document.getElementById('err-list').addEventListener('click', e=>{
+  const d = e.target.closest('.err'); if(!d) return;
+  sel.mi=+d.dataset.mi; sel.row=d.dataset.row; sel.vi=+d.dataset.vi; sel.ci=0;
+  selRange=null; clampSel(); render();
+  const b = colBoxes[(sel.row==='tab'?'t':'v')+sel.vi+':'+sel.mi+':0'];
+  if(b){
+    const svg=document.getElementById('score');
+    const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
+    const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
+    window.scrollTo({top:y-180, behavior:'smooth'});
+  }
+});
 
 /* ================= 批量填词 ================= */
 document.getElementById('b-fill').onclick = ()=>{
-  showModal(`<h3>批量填词</h3>
-    <p>把整段歌词粘贴进来，将按顺序逐字分配到简谱声部每个有唱名的音上；标点自动跟随前一个字；用短横线 - 表示跳过一个音；换行与空格忽略。</p>
+  showModal(`<h3>批量填词（第${activeLyr+1}段）</h3>
+    <p>整段歌词按顺序逐字分配到「${esc(song.voxVoices[sel.row==='vox'?sel.vi:0])}」声部每个有唱名的音上；
+    标点自动跟随前一个字；用短横线 - 跳过一个音；换行与空格忽略。</p>
     <textarea id="fill-text" placeholder="一闪一闪亮晶晶，满天都是小星星"></textarea>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   document.getElementById('fill-cancel').onclick = closeModal;
@@ -878,31 +1249,33 @@ document.getElementById('b-fill').onclick = ()=>{
     if(!text.trim()) return;
     const PUNCT = '，。！？、；：…—（）()!?,.\'"“”‘’';
     const chars = [...text.replace(/\s+/g,'')];
+    const vi = sel.row==='vox'?sel.vi:0;
     mutate(()=>{
       let i=0;
       outer:
       for(const mea of song.measures){
-        for(const col of mea.vox){
+        for(const col of (mea.voxes[vi]||[])){
           if(!col.deg) continue;
           if(i>=chars.length) break outer;
-          if(chars[i]==='-'){ col.lyric=''; i++; continue; }
+          col.lyrics = col.lyrics||[];
+          if(chars[i]==='-'){ col.lyrics[activeLyr]=''; i++; continue; }
           let ly = chars[i++];
           while(i<chars.length && PUNCT.includes(chars[i])) ly += chars[i++];
-          col.lyric = ly;
+          col.lyrics[activeLyr] = ly;
         }
       }
     });
-    toast('歌词已填入');
+    toast('第'+(activeLyr+1)+'段歌词已填入');
   };
 };
 
 /* ================= 播放 ================= */
 function pluck(ctx, freq, when, dur, gain){
-  const sr = ctx.sampleRate;
-  const N = Math.max(2, Math.round(sr/freq));
-  const len = Math.floor(sr*Math.min(dur+0.6, 3.5));
-  const buf = ctx.createBuffer(1, len, sr);
-  const d = buf.getChannelData(0);
+  const sr=ctx.sampleRate;
+  const N=Math.max(2, Math.round(sr/freq));
+  const len=Math.floor(sr*Math.min(dur+0.6,3.5));
+  const buf=ctx.createBuffer(1,len,sr);
+  const d=buf.getChannelData(0);
   for(let i=0;i<N;i++) d[i]=(Math.random()*2-1)*0.85;
   for(let i=N;i<len;i++) d[i]=0.9955*0.5*(d[i-N]+d[i-N+1]);
   const src=ctx.createBufferSource(); src.buffer=buf;
@@ -911,7 +1284,7 @@ function pluck(ctx, freq, when, dur, gain){
   src.start(when); src.stop(when+len/sr);
   audio.sources.push(src);
 }
-function chick(ctx, when, gain){        // 切音噪声
+function chick(ctx, when, gain){
   const sr=ctx.sampleRate, len=Math.floor(sr*0.06);
   const buf=ctx.createBuffer(1,len,sr); const d=buf.getChannelData(0);
   for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
@@ -923,10 +1296,10 @@ function chick(ctx, when, gain){        // 切音噪声
 function voice(ctx, freq, when, dur, gain){
   const osc=ctx.createOscillator(); osc.type='triangle'; osc.frequency.value=freq;
   const g=ctx.createGain();
-  g.gain.setValueAtTime(0, when);
-  g.gain.linearRampToValueAtTime(gain, when+0.03);
-  g.gain.setValueAtTime(gain, when+Math.max(0.05,dur-0.08));
-  g.gain.linearRampToValueAtTime(0, when+dur);
+  g.gain.setValueAtTime(0,when);
+  g.gain.linearRampToValueAtTime(gain,when+0.03);
+  g.gain.setValueAtTime(gain,when+Math.max(0.05,dur-0.08));
+  g.gain.linearRampToValueAtTime(0,when+dur);
   osc.connect(g); g.connect(ctx.destination);
   osc.start(when); osc.stop(when+dur+0.05);
   audio.sources.push(osc);
@@ -940,67 +1313,61 @@ function play(){
   audio.playing = true;
   document.getElementById('b-play').textContent='▶ 播放中…';
   const spb = 60/song.tempo;
-  const t = ctx.currentTime + 0.15;
-  const t0 = performance.now() + 150;
+  const t = ctx.currentTime+0.15;
+  const t0 = performance.now()+150;
   const startMi = sel.mi||0;
-  let total = 0;
-  /* 伴奏 */
-  if(mix.tab){
-    let el = 0;
+  let total=0;
+  if(mix.tab) song.tabVoices.forEach((_,vi)=>{
+    let el=0;
     for(let mi=startMi; mi<song.measures.length; mi++){
-      song.measures[mi].tab.forEach((col,ci)=>{
+      (song.measures[mi].tabs[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col)*spb;
         const ns = col.notes.slice().sort((a,b)=>b.s-a.s);
         const stagger = col.strum ? (col.strum==='arp'?0.045:0.022) : 0.012;
         const order = col.strum==='u' ? ns.slice().reverse() : ns;
         order.forEach((n,k)=>{
           if(n.x) chick(ctx, t+el+k*stagger, 0.18);
-          else pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, durSec, 0.26);
+          else pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, durSec, 0.26/Math.sqrt(song.tabVoices.length));
         });
-        audio.timers.push(setTimeout(()=>highlight('t',mi,ci), t0-performance.now()+el*1000));
+        if(vi===0)
+          audio.timers.push(setTimeout(()=>highlight('t0',mi,ci), t0-performance.now()+el*1000));
         el += durSec;
       });
     }
-    total = Math.max(total, el);
-  }
-  /* 旋律（含连音线延长） */
-  if(mix.vox){
-    let el = 0;
-    let hold = null;   // {freq, start, dur}
+    total=Math.max(total,el);
+  });
+  if(mix.vox) song.voxVoices.forEach((_,vi)=>{
+    let el=0, hold=null;
+    const flush=()=>{ if(hold){ voice(ctx,hold.freq,t+hold.start,hold.dur,0.16/Math.sqrt(song.voxVoices.length)); hold=null; } };
     for(let mi=startMi; mi<song.measures.length; mi++){
-      song.measures[mi].vox.forEach(col=>{
+      (song.measures[mi].voxes[vi]||[]).forEach(col=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
         if(m!=null){
-          const f = midiFreq(m);
-          if(hold && Math.abs(hold.freq-f)<0.01){ hold.dur += durSec; }
-          else{
-            if(hold) voice(ctx, hold.freq, t+hold.start, hold.dur, 0.16);
-            hold = {freq:f, start:el, dur:durSec};
-          }
-          if(!col.tie){ voice(ctx, hold.freq, t+hold.start, hold.dur, 0.16); hold=null; }
-        }else{
-          if(hold){ voice(ctx, hold.freq, t+hold.start, hold.dur, 0.16); hold=null; }
-        }
+          const f=midiFreq(m);
+          if(hold && Math.abs(hold.freq-f)<0.01) hold.dur += durSec;
+          else{ flush(); hold={freq:f,start:el,dur:durSec}; }
+          if(!col.tie) flush();
+        }else flush();
         el += durSec;
       });
     }
-    if(hold) voice(ctx, hold.freq, t+hold.start, hold.dur, 0.16);
-    total = Math.max(total, el);
-  }
+    flush();
+    total=Math.max(total,el);
+  });
   audio.timers.push(setTimeout(stopPlay, t0-performance.now()+total*1000+400));
 }
-function highlight(kind,mi,ci){
-  const b = colBoxes[kind+mi+':'+ci];
+function highlight(prefix,mi,ci){
+  const b = colBoxes[prefix+':'+mi+':'+ci];
   const ph = document.getElementById('playhead');
   if(!b||!ph) return;
   ph.setAttribute('x',b.x); ph.setAttribute('y',b.y);
   ph.setAttribute('width',b.w); ph.setAttribute('height',b.h);
   ph.setAttribute('opacity','0.16');
   if(ci===0){
-    const svg = document.getElementById('score');
-    const scale = svg.getBoundingClientRect().height / svg.viewBox.baseVal.height;
-    const y = svg.getBoundingClientRect().top + window.scrollY + b.y*scale;
+    const svg=document.getElementById('score');
+    const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
+    const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
     if(y > window.scrollY+window.innerHeight-280 || y < window.scrollY+90)
       window.scrollTo({top:y-170, behavior:'smooth'});
   }
@@ -1015,10 +1382,8 @@ function stopPlay(){
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
-document.getElementById('b-mix-tab').onclick = e=>{
-  mix.tab=!mix.tab; e.target.classList.toggle('on', mix.tab); };
-document.getElementById('b-mix-vox').onclick = e=>{
-  mix.vox=!mix.vox; e.target.classList.toggle('on', mix.vox); };
+document.getElementById('b-mix-tab').onclick = e=>{ mix.tab=!mix.tab; e.target.classList.toggle('on',mix.tab); };
+document.getElementById('b-mix-vox').onclick = e=>{ mix.vox=!mix.vox; e.target.classList.toggle('on',mix.vox); };
 
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
@@ -1029,20 +1394,20 @@ function exportSong(){
   a.href = URL.createObjectURL(blob);
   a.download = (song.title||'曲谱')+'.mtab.json';
   a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   toast('已导出曲谱文件');
 }
 document.getElementById('b-save').onclick = exportSong;
 document.getElementById('b-open').onclick = ()=>document.getElementById('file-in').click();
 document.getElementById('file-in').addEventListener('change', e=>{
-  const f = e.target.files[0]; if(!f) return;
-  const r = new FileReader();
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
   r.onload = ()=>{
     try{
       let s = JSON.parse(r.result);
       if(!s.measures) throw 0;
       s = migrate(s);
-      pushUndo(); song = s; sel={mi:0,row:'tab',ci:0,si:1};
+      pushUndo(); song=s; sel={mi:0,row:'tab',vi:0,ci:0,si:1}; selRange=null;
       persist(); render(); toast('已打开：'+(s.title||f.name));
     }catch(_){ toast('文件格式无法识别'); }
   };
@@ -1050,23 +1415,23 @@ document.getElementById('file-in').addEventListener('change', e=>{
   e.target.value='';
 });
 document.getElementById('b-new').onclick = ()=>{
-  pushUndo(); song = blankSong(); sel={mi:0,row:'tab',ci:0,si:1};
+  pushUndo(); song=blankSong(); sel={mi:0,row:'tab',vi:0,ci:0,si:1}; selRange=null;
   persist(); render(); toast('已新建空白曲谱（Ctrl+Z 可撤销）');
 };
 document.getElementById('b-print').onclick = ()=>window.print();
 document.getElementById('b-theme').onclick = ()=>{
-  const r = document.documentElement;
+  const r=document.documentElement;
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  r.dataset.theme = isDark ? 'light' : 'dark';
+    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = isDark?'light':'dark';
 };
 
 /* ================= 弹窗/提示 ================= */
 function showModal(html){
   closeModal();
-  const mask = document.createElement('div');
+  const mask=document.createElement('div');
   mask.className='modal-mask'; mask.id='modal-mask';
-  mask.innerHTML = `<div class="modal">${html}</div>`;
+  mask.innerHTML=`<div class="modal">${html}</div>`;
   mask.addEventListener('pointerdown', e=>{ if(e.target===mask) closeModal(); });
   document.body.appendChild(mask);
 }
@@ -1076,37 +1441,41 @@ function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg; t.style.opacity=1;
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.style.opacity=0, 2200);
+  toastTimer=setTimeout(()=>t.style.opacity=0,2200);
 }
 document.getElementById('b-help').onclick = ()=>{
   showModal(`<h3>MuseTab 使用帮助</h3>
-  <p>谱面分两个声部：<b>上区六线谱 = 吉他伴奏</b>，<b>下区简谱 = 人声旋律</b>（带歌词）。
-  两声部节奏各自独立、按小节对齐——与经典 Muse 弹唱谱一致。</p>
-  <h4>伴奏区（六线谱）</h4>
+  <p>左侧边栏分为<b>吉他谱 / 简谱 / 歌词</b>三大板块，每个板块最多 5 个声部（歌词最多 5 段）。
+  谱面：上方六线谱 = 吉他伴奏声部，下方简谱 = 人声旋律声部（带多段歌词），按小节自动对齐。</p>
+  <h4>吉他谱板块</h4>
   <table>
   <tr><td class="k">点击弦位 + 数字</td><td>输入品位 0–24（两位数连续输入）</td></tr>
-  <tr><td class="k">X</td><td>当前弦位标 ×（切音/闷音）</td></tr>
-  <tr><td class="k">扫↓ / 扫↑ / 琶音</td><td>为当前列添加扫弦箭头或琶音记号（先输好各弦品位）</td></tr>
-  <tr><td class="k">和弦框</td><td>为当前列标和弦名，谱上自动画指法图（可切换随行/曲首/隐藏）</td></tr>
+  <tr><td class="k">X / 扫↓ 扫↑ / 琶音</td><td>切音、扫弦箭头（只跨实际按弦的弦）、琶音</td></tr>
+  <tr><td class="k">和弦框</td><td>为当前列标和弦名并画指法图（随行/曲首/隐藏可切换）</td></tr>
+  <tr><td class="k">节奏型</td><td>点击即把选中小节改成该节奏型；有和弦时按和弦指法自动生成分解/扫弦音</td></tr>
   </table>
-  <h4>旋律区（简谱）</h4>
+  <h4>简谱板块</h4>
   <table>
-  <tr><td class="k">点击数字位置 + 0–7</td><td>输入唱名，0 为休止</td></tr>
-  <tr><td class="k"># / B</td><td>升号 / 降号</td></tr>
-  <tr><td class="k">+ / −</td><td>高八度点 / 低八度点</td></tr>
-  <tr><td class="k">~</td><td>与下一音连音线（播放时自动延长）</td></tr>
-  <tr><td class="k">回车</td><td>填当前音歌词；歌词框内回车跳下一音</td></tr>
+  <tr><td class="k">点击数字位置 + 0–7</td><td>输入唱名（0 休止）；♯ ♭、8度点、附点、连音线见按钮</td></tr>
+  <tr><td class="k">节奏型</td><td>把选中小节改成该时值组合，原有唱名按顺序保留</td></tr>
   </table>
-  <h4>通用</h4>
+  <h4>歌词板块</h4>
   <table>
-  <tr><td class="k">← →</td><td>列间移动；<span class="k">↑ ↓</span> 弦间移动 / 跨声部；<span class="k">Tab</span> 切换声部</td></tr>
-  <tr><td class="k">Q W E R T</td><td>时值：全 / 2分 / 4分 / 8分 / 16分；<span class="k">.</span> 附点</td></tr>
-  <tr><td class="k">|: 与 :|</td><td>当前小节加反复记号</td></tr>
-  <tr><td class="k">空格</td><td>从当前小节播放/停止；「弹」「唱」按钮控制两声部是否发声</td></tr>
+  <tr><td class="k">段落 chips</td><td>切换第 1–5 段歌词；批量填词填入当前段</td></tr>
+  <tr><td class="k">回车</td><td>为当前音填词；歌词框内回车跳下一音</td></tr>
+  </table>
+  <h4>多选与校验</h4>
+  <table>
+  <tr><td class="k">Shift + 点击</td><td>同声部内跨小节多选（虚线框），再点节奏型即批量套用</td></tr>
+  <tr><td class="k">节拍检查</td><td>小节内时值总和 ≠ 拍号时自动标红并列出，点击条目可跳转</td></tr>
+  </table>
+  <h4>通用快捷键</h4>
+  <table>
+  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换吉他谱·简谱板块</td></tr>
+  <tr><td class="k">Q W E R T / .</td><td>时值 全·2·4·8·16 分 / 附点</td></tr>
+  <tr><td class="k">空格</td><td>从当前小节播放/停止；「弹」「唱」控制声部发声</td></tr>
   <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出</td></tr>
   </table>
-  <p>同一拍内连续的八分/十六分音符会自动连体减时线（简谱）与符杠（六线谱）。
-  曲谱自动保存在浏览器本地，刷新不丢失。</p>
   <div class="btns"><button id="help-ok" class="primary">知道了</button></div>`);
   document.getElementById('help-ok').onclick = closeModal;
 };
@@ -1116,7 +1485,7 @@ document.getElementById('b-help').onclick = ()=>{
   try{
     const saved = localStorage.getItem(LS_KEY);
     if(saved){ song = migrate(JSON.parse(saved)); }
-  }catch(_){ song = null; }
+  }catch(_){ song=null; }
   if(!song || !song.measures || !song.measures.length) song = demoSong();
   clampSel();
   render();
