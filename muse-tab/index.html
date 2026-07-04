@@ -6,96 +6,124 @@
 <title>MuseTab 吉他谱编辑器</title>
 <style>
 :root{
-  --bg:#eef0f3; --panel:#ffffff; --text:#1c2430; --muted:#6b7686;
-  --border:#d5dae2; --accent:#1a6fd4; --accent-soft:#e3efff;
-  --paper:#ffffff; --ink:#111111; --toolbar:#f7f8fa; --danger:#d43a3a;
+  --bg:#eaedf3; --panel:#ffffff; --text:#1a222e; --muted:#697488;
+  --border:#dbe0ea; --border-soft:#e9edf3; --accent:#3a5ce0; --accent-2:#5b76e8;
+  --accent-soft:#e8ecfd; --accent-ink:#2540b8;
+  --paper:#ffffff; --ink:#141414; --toolbar:#f2f4f9; --danger:#d63b4a; --ok:#1e9e6a;
+  --shadow:0 1px 2px rgba(20,30,60,.05), 0 6px 18px rgba(20,30,60,.06);
+  --radius:9px;
   --font-ui:'Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','DejaVu Sans',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#171a20; --panel:#20242c; --text:#e6e9ee; --muted:#98a2b3;
-    --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#22262e; --danger:#ff6b6b; }
+  :root{ --bg:#12151b; --panel:#1c2029; --text:#e7eaf0; --muted:#98a2b3;
+    --border:#333a47; --border-soft:#2a2f3a; --accent:#6d8bff; --accent-2:#7e97ff;
+    --accent-soft:#232d47; --accent-ink:#9fb4ff; --toolbar:#181c24; --danger:#ff6b78; --ok:#3ecb8f;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35); }
 }
-:root[data-theme="light"]{ --bg:#eef0f3; --panel:#ffffff; --text:#1c2430; --muted:#6b7686;
-  --border:#d5dae2; --accent:#1a6fd4; --accent-soft:#e3efff; --toolbar:#f7f8fa; --danger:#d43a3a; }
-:root[data-theme="dark"]{ --bg:#171a20; --panel:#20242c; --text:#e6e9ee; --muted:#98a2b3;
-  --border:#39404c; --accent:#5aa2f0; --accent-soft:#243a55; --toolbar:#22262e; --danger:#ff6b6b; }
+:root[data-theme="light"]{ --bg:#eaedf3; --panel:#ffffff; --text:#1a222e; --muted:#697488;
+  --border:#dbe0ea; --border-soft:#e9edf3; --accent:#3a5ce0; --accent-2:#5b76e8; --accent-soft:#e8ecfd;
+  --accent-ink:#2540b8; --toolbar:#f2f4f9; --danger:#d63b4a; --ok:#1e9e6a;
+  --shadow:0 1px 2px rgba(20,30,60,.05), 0 6px 18px rgba(20,30,60,.06); }
+:root[data-theme="dark"]{ --bg:#12151b; --panel:#1c2029; --text:#e7eaf0; --muted:#98a2b3;
+  --border:#333a47; --border-soft:#2a2f3a; --accent:#6d8bff; --accent-2:#7e97ff; --accent-soft:#232d47;
+  --accent-ink:#9fb4ff; --toolbar:#181c24; --danger:#ff6b78; --ok:#3ecb8f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35); }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);}
-/* ================= 顶部 Ribbon ================= */
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
+  -webkit-font-smoothing:antialiased;}
+/* ================= 顶部工具栏 ================= */
 #top{position:sticky;top:0;z-index:20;background:var(--toolbar);
-  border-bottom:1px solid var(--border);}
-.bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:5px 14px;}
-.main-bar{border-bottom:1px solid var(--border)}
-.logo{font-weight:700;font-size:15px;margin-right:6px;white-space:nowrap}
+  border-bottom:1px solid var(--border);backdrop-filter:saturate(1.1);}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:7px 16px;}
+.main-bar{gap:7px}
+.logo{font-weight:700;font-size:15px;margin-right:10px;white-space:nowrap;
+  display:flex;align-items:center;gap:7px;letter-spacing:.01em}
+.logo .mark{width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;
+  justify-content:center;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  color:#fff;font-size:14px;box-shadow:0 2px 6px rgba(58,92,224,.35)}
 .logo small{color:var(--muted);font-weight:400;font-size:11px}
-.vsep{width:1px;align-self:stretch;background:var(--border);margin:2px 2px}
+.vsep{width:1px;align-self:stretch;background:var(--border);margin:3px 4px}
+.grow{flex:1}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap;
-  font-family:var(--font-ui);}
-button:hover{border-color:var(--accent);color:var(--accent)}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button.primary:hover{color:#fff;filter:brightness(1.08)}
-button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  border-radius:7px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
+  font-family:var(--font-ui);transition:border-color .12s, background .12s, color .12s, box-shadow .12s;}
+button:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 1px 4px rgba(58,92,224,.12)}
+button:active{transform:translateY(.5px)}
+button.primary{background:linear-gradient(180deg,var(--accent-2),var(--accent));border-color:transparent;
+  color:#fff;box-shadow:0 2px 8px rgba(58,92,224,.32)}
+button.primary:hover{color:#fff;filter:brightness(1.06)}
+button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.ghost{border-color:transparent;background:transparent}
+button.ghost:hover{background:var(--accent-soft)}
 input,select,textarea{background:var(--panel);color:var(--text);
-  border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:13px;
+  border:1px solid var(--border);border-radius:7px;padding:5px 9px;font-size:13px;
   font-family:var(--font-ui);}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
-input.short{width:56px} input.mid{width:150px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+input.short{width:54px} input.mid{width:150px}
 /* 分页标签 */
-.tab-bar{padding:6px 14px 0;gap:2px;border-bottom:1px solid var(--border);background:var(--toolbar)}
-.rtab{border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;
-  background:transparent;padding:6px 16px;font-size:13.5px;color:var(--muted)}
-.rtab:hover{color:var(--accent)}
-.rtab.on{background:var(--panel);border-color:var(--border);color:var(--accent);font-weight:600}
-#mode-tip{margin-left:auto;font-size:12px;color:var(--muted);padding-right:4px}
+.tab-bar{padding:0 16px;gap:4px;background:var(--toolbar);border-bottom:1px solid var(--border)}
+.rtab{border:none;background:transparent;padding:9px 15px 8px;font-size:13.5px;color:var(--muted);
+  border-bottom:2.5px solid transparent;border-radius:0;font-weight:500}
+.rtab:hover{color:var(--text);box-shadow:none}
+.rtab.on{color:var(--accent-ink);border-bottom-color:var(--accent);font-weight:700}
+#mode-tip{margin-left:auto;font-size:12px;color:var(--muted);padding-right:2px;align-self:center}
 /* Ribbon 内容区 */
-#ribbon{display:flex;align-items:stretch;gap:6px;padding:8px 10px;background:var(--panel);
+#ribbon{display:flex;align-items:stretch;gap:6px;padding:9px 12px;background:var(--panel);
   overflow-x:auto;border-bottom:1px solid var(--border)}
-.rg{display:flex;flex-direction:column;gap:4px;padding:6px 10px 4px;
-  border:1px solid var(--border);border-radius:10px;background:var(--toolbar);flex:none}
-.rg .rg-title{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-align:center;
-  order:2;margin-top:2px}
-.rg .rg-body{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:560px}
+.rg{display:flex;flex-direction:column;gap:5px;padding:6px 11px 5px;
+  border:1px solid var(--border-soft);border-radius:11px;background:var(--toolbar);flex:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.rg .rg-title{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
+  text-align:center;order:2;margin-top:1px;font-weight:600}
+.rg .rg-body{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:200px;
+  justify-content:center}
+.rg.wide .rg-body{max-width:280px}
 /* 图标按钮 */
-.ib{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 3px;
-  min-width:34px;border:1px solid transparent;border-radius:8px;background:transparent}
-.ib:hover{border-color:var(--accent);background:var(--panel)}
+.ib{display:flex;flex-direction:column;align-items:center;gap:1px;padding:3px 4px;
+  min-width:36px;border:1px solid transparent;border-radius:8px;background:transparent;
+  cursor:pointer;transition:background .12s, border-color .12s}
+.ib:hover{border-color:var(--border);background:var(--panel)}
 .ib.on{border-color:var(--accent);background:var(--accent-soft)}
 .ib svg{display:block}
 .ib span{font-size:10.5px;color:var(--text);line-height:1.1}
-.ib.on span{color:var(--accent)}
-.chip{padding:1px 9px;border:1px solid var(--border);border-radius:10px;cursor:pointer;
-  font-size:12px;background:var(--panel);user-select:none}
-.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.ib.on span{color:var(--accent-ink)}
+.chip{padding:2px 10px;border:1px solid var(--border);border-radius:20px;cursor:pointer;
+  font-size:12px;background:var(--panel);user-select:none;transition:all .12s}
+.chip:hover{border-color:var(--accent)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 /* 状态栏 */
-#statusbar{display:flex;align-items:center;gap:12px;padding:3px 16px;font-size:12px;
-  background:var(--toolbar);position:relative}
-#beat-status{cursor:pointer}
-#beat-status.bad{color:var(--danger);font-weight:600}
+#statusbar{display:flex;align-items:center;gap:12px;padding:5px 18px;font-size:12px;
+  background:var(--toolbar);position:relative;border-bottom:1px solid var(--border)}
+#beat-status{cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;
+  border-radius:20px}
+#beat-status::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ok)}
+#beat-status.bad{color:var(--danger);font-weight:600;background:color-mix(in srgb,var(--danger) 12%,transparent)}
+#beat-status.bad::before{background:var(--danger)}
 #beat-status.good{color:var(--muted)}
-#err-drop{position:absolute;left:12px;top:100%;z-index:30;background:var(--panel);
-  border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);
+#err-drop{position:absolute;left:14px;top:100%;z-index:30;background:var(--panel);
+  border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
   padding:8px;max-height:40vh;overflow:auto;min-width:280px}
-#err-drop .err{color:var(--danger);cursor:pointer;padding:3px 6px;border-radius:4px;font-size:12.5px}
+#err-drop .err{color:var(--danger);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:12.5px}
 #err-drop .err:hover{background:var(--accent-soft)}
-#suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:5px 16px;
+#suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
 .popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border);
-  border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;font-size:12.5px}
-.popmenu .row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  border-radius:12px;box-shadow:var(--shadow);padding:10px;font-size:12.5px}
+.popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
 /* ================= 主区 ================= */
-#score-wrap{max-width:1120px;margin:16px auto;padding:0 12px;}
-#paper{background:var(--paper);border:1px solid var(--border);border-radius:10px;
-  box-shadow:0 4px 18px rgba(0,0,0,.10);padding:14px 8px;}
+#score-wrap{max-width:1180px;margin:20px auto;padding:0 16px;}
+#paper{background:var(--paper);border:1px solid var(--border);border-radius:14px;
+  box-shadow:var(--shadow);padding:20px 14px;}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
-#hint{max-width:1120px;margin:0 auto 30px;padding:0 16px;color:var(--muted);font-size:12px;}
+#hint{max-width:1180px;margin:2px auto 34px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
 /* ================= 弹窗 ================= */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
   display:flex;align-items:center;justify-content:center;}
@@ -135,7 +163,7 @@ svg text{user-select:none}
 <body>
 <header id="top">
   <div class="bar main-bar">
-    <span class="logo">🎸 MuseTab <small>吉他谱编辑器</small></span>
+    <span class="logo"><span class="mark">🎸</span>MuseTab <small>吉他谱编辑器</small></span>
     <button id="b-new">新建</button><button id="b-open">打开</button>
     <button id="b-save">保存</button><button id="b-print">打印/PDF</button>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
@@ -362,7 +390,7 @@ function slashShape(baseShape, bassPc){
   return baseShape;
 }
 const MIN_W = {1:80, 2:52, 4:34, 8:24, 16:19};
-const PAGE_W = 1060, MARGIN = 40;
+let PAGE_W = 1060; const MARGIN = 34;
 const MAX_VOICES = 5, MAX_LYR = 5;
 
 /* ---- 时值库 ---- */
@@ -733,7 +761,7 @@ function measureLayout(mea){
   const rows = [...mea.tabs, ...mea.voxes];
   /* 基准宽度按拍数（同拍号小节等宽）；密集小节仅小幅加宽，限制在 1.5× 以内 */
   const beats = song.beats || 4;
-  const base = beats * 44;
+  const base = beats * 36;   // 更紧凑
   let need = 46;
   rows.forEach(cols=>{
     const rt = cols.reduce((a,c)=>a+beatsOf(c),0);
@@ -885,6 +913,9 @@ function strumSpan(col){
 
 function render(){
   const svg = document.getElementById('score');
+  /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
+  const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
+  PAGE_W = Math.max(560, Math.min(1320, paperW - 24));
   const systems = layoutSystems();
   const M = sysMetrics();
   const errs = beatErrors();
@@ -1193,18 +1224,22 @@ function chipHtml(list, activeIdx, cls){
   return list.map((n,i)=>
     `<span class="chip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}">${esc(n)}</span>`).join('')
 }
-let durMore = false;
+let comboMore = false;
+const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 function setRibbon(t){
   activeTab = t;
   document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   const showDur = (t==='tab'||t==='vox');
-  /* 共用时值：吉他谱与简谱页都固定显示完整一组（全/2/4/8/16/附点） */
+  /* 共用时值模块：完整固定显示（全/2/4/8/16/附点） */
   document.getElementById('g-dur').style.display = showDur?'':'none';
   [...document.querySelectorAll('#dur-body .ib')].forEach(b=>{ b.style.display=''; });
-  /* 组合时值：默认收起，点"组合▾"展开（两页一致） */
-  document.getElementById('g-combo').style.display = (showDur && durMore)?'':'none';
-  const moreBtn = document.getElementById('b-dur-more');
-  if(moreBtn){ moreBtn.style.display = showDur?'':'none'; moreBtn.textContent = durMore?'组合 ▴':'组合 ▾'; }
+  /* 组合时值模块：独立显示，默认几个常用，其余折叠在"更多▾" */
+  document.getElementById('g-combo').style.display = showDur?'':'none';
+  [...document.querySelectorAll('#combo-body .ib')].forEach((b,i)=>{
+    b.style.display = (i<COMBO_COMMON||comboMore)?'':'none';
+  });
+  const moreBtn = document.getElementById('b-combo-more');
+  if(moreBtn) moreBtn.textContent = comboMore?'收起 ▴':'更多 ▾';
   document.querySelectorAll('.panel-p').forEach(el=>{
     el.style.display = el.id.startsWith('panel-'+t)?'':'none';
   });
@@ -1509,10 +1544,8 @@ function applyVoxPattern(pat){
   durBody.innerHTML = DUR_SINGLE.map(d=>
     `<button class="ib" data-dur="${d.dur}" data-dot="0" title="${d.name}">${rhythmSVG([[d.dur]],30,28)}<span>${d.name}</span></button>`
   ).join('') +
-  `<button class="ib" id="b-dot-ib" title="附点">${rhythmSVG([[4,1]],30,28)}<span>附点</span></button>` +
-  `<button id="b-dur-more" style="display:none">更多 ▾</button>`;
+  `<button class="ib" id="b-dot-ib" title="附点">${rhythmSVG([[4,1]],30,28)}<span>附点</span></button>`;
   durBody.addEventListener('click', e=>{
-    if(e.target.closest('#b-dur-more')){ durMore=!durMore; setRibbon(activeTab); return; }
     const b = e.target.closest('.ib'); if(!b) return;
     if(b.id==='b-dot-ib') toggleDot();
     else setDur(+b.dataset.dur);
@@ -1520,8 +1553,9 @@ function applyVoxPattern(pat){
   const comboBody = document.getElementById('combo-body');
   comboBody.innerHTML = DUR_COMBOS.map((c,i)=>
     `<button class="ib" data-combo="${i}" title="${c.name}：把当前音拆分为该组合">${rhythmSVG(c.durs,38,28)}<span>${esc(c.name)}</span></button>`
-  ).join('');
+  ).join('') + `<button id="b-combo-more">更多 ▾</button>`;
   comboBody.addEventListener('click', e=>{
+    if(e.target.closest('#b-combo-more')){ comboMore=!comboMore; setRibbon(activeTab); return; }
     const b = e.target.closest('[data-combo]'); if(!b) return;
     applyDurCombo(DUR_COMBOS[+b.dataset.combo]);
   });
@@ -2517,6 +2551,9 @@ document.getElementById('b-help').onclick = ()=>{
   document.getElementById('b-notation').textContent = '记谱:'+(tabNotation==='x'?'×':'数字');
   persist();
   render();
+  /* 响应式：窗口尺寸变化时重排谱面（自适配宽度） */
+  let rzTimer=null;
+  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(render, 120); });
 })();
 </script>
 </body>
