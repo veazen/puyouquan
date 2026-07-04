@@ -413,6 +413,19 @@ const TAB_PATTERN_GROUPS = [
     {name:'↓ × ×', ev:[['d',4],['x',4],['x',4]]},
     {name:'↓ ↓↑ ×', ev:[['d',4],['d',8],['u',8],['x',4]]},
   ]},
+  {cat:'一小节两和弦 · 前2拍+后2拍（4/4）', two:true, items:[
+    {name:'分解 + 分解', halves:[[['b',8],['s3',8],['s2',8],['s3',8]],[['b',8],['s3',8],['s2',8],['s3',8]]]},
+    {name:'柱式 + 柱式', halves:[[['c',4],['c',4]],[['c',4],['c',4]]]},
+    {name:'低音+柱式 ×2', halves:[[['b',4],['c',4]],[['b',4],['c',4]]]},
+    {name:'扫弦 ↓↓↑ + ↓↓↑', halves:[[['d',4],['d',8],['u',8]],[['d',4],['d',8],['u',8]]]},
+    {name:'分解 + 扫弦', halves:[[['b',8],['s3',8],['s2',8],['s1',8]],[['d',4],['d',8],['u',8]]]},
+    {name:'琶音 + 琶音', halves:[[['a',2]],[['a',2]]]},
+  ]},
+  {cat:'一小节两和弦 · 前1拍+后1拍（2/4）', two:true, items:[
+    {name:'分解 + 分解', halves:[[['b',8],['s3',8]],[['b',8],['s3',8]]]},
+    {name:'低音+柱式 ×2', halves:[[['b',8],['c',8]],[['b',8],['c',8]]]},
+    {name:'扫弦 ↓↑ + ↓↑', halves:[[['d',8],['u',8]],[['d',8],['u',8]]]},
+  ]},
 ];
 /* ---- 节奏型库（简谱）: 时值组合 ---- */
 const VOX_PATTERN_GROUPS = [
@@ -639,17 +652,22 @@ function rhythmSVG(durs, W, H){
   }
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${p.join('')}</svg>`;
 }
+function patEvs(pat){ return pat.ev || (pat.halves? pat.halves.flat() : []); }
 /* 六线节奏型图（吉他节奏型库，教材风格：×在弦上+符干符杠+∧∨方向） */
 function tabPatSVG(pat, W, H){
   W=W||140; H=H||64;
   const top=12, gap=5.6, bot=top+5*gap, stemY=H-8;
-  const evs = pat.ev;
+  const evs = patEvs(pat);
   const total = evs.reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0);
   let cum=0; const xs=[];
   evs.forEach(e=>{ const b=evBeatsRaw(e[1],e[2]); xs.push(10+(cum+b/2)/total*(W-20)); cum+=b; });
+  /* 两和弦分隔虚线 */
+  let divX=null;
+  if(pat.halves){ const h1=pat.halves[0].reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0); divX=10+h1/total*(W-20); }
   const p=[];
   for(let i=0;i<6;i++)
     p.push(`<line x1="4" y1="${top+i*gap}" x2="${W-4}" y2="${top+i*gap}" stroke="currentColor" stroke-width="0.6" opacity="0.65"/>`);
+  if(divX!=null) p.push(`<line x1="${divX}" y1="${top-3}" x2="${divX}" y2="${bot+3}" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2 2" opacity="0.7"/>`);
   const head=(x,row)=>p.push(`<path d="M ${x-2.4} ${top+row*gap-2.4} L ${x+2.4} ${top+row*gap+2.4} M ${x-2.4} ${top+row*gap+2.4} L ${x+2.4} ${top+row*gap-2.4}" stroke="currentColor" stroke-width="1.2" fill="none"/>`);
   evs.forEach((e,i)=>{
     const [t,d,dot]=e; const x=xs[i];
@@ -701,7 +719,7 @@ function tabPatSVG(pat, W, H){
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${p.join('')}</svg>`;
 }
 function patBeats(pat){
-  const arr = pat.ev? pat.ev.map(e=>[e[1],e[2]]) : pat.durs;
+  const arr = pat.durs || patEvs(pat).map(e=>[e[1],e[2]]);
   return arr.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
 }
 
@@ -1005,21 +1023,21 @@ function render(){
                 p.push(`<rect x="${nx-(wide?8.5:5.5)}" y="${yy-5.5}" width="${wide?17:11}" height="11" fill="var(--paper)"/>`);
                 p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
-              /* 技法连线：从本音符头连到所选的下一个音符头 */
+              /* 技法连线：从本音符头连到所选的下一个音符头（放大标记） */
               if(n.tech){
                 const SYM = {sl:'sl',h:'h',p:'p',b:'b',v:'~'};
                 const sym = SYM[n.tech]||n.tech;
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*13;
-                  const yPk = Math.min(yy,y2)-11;
-                  p.push(`<path d="M ${nx+5} ${yy-4} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+1}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  const yPk = Math.min(yy,y2)-17;
+                  p.push(`<path d="M ${nx+6} ${yy-5} Q ${(nx+x2)/2} ${yPk} ${x2-6} ${y2-5}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
+                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+4}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }else if(tp){
-                  p.push(`<path d="M ${nx+5} ${yy-4} q 10 -9 20 -7" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                  p.push(`<text x="${nx+15}" y="${yy-11}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  p.push(`<path d="M ${nx+6} ${yy-5} q 13 -12 26 -9" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
+                  p.push(`<text x="${nx+19}" y="${yy-16}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }else{
-                  p.push(`<text x="${nx}" y="${yy-10}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  p.push(`<text x="${nx}" y="${yy-14}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }
               }
             });
@@ -1390,42 +1408,59 @@ function targetMeasures(row){
   if(sel.row!==row) return null;
   return {list:[sel.mi], vi:sel.vi};
 }
+/* 单个事件 → 一列（按给定和弦指法生成音符） */
+function evToCol([t,dur,dot], shape, fallback){
+  const c = tcol(); c.dur=dur; c.dotted=!!dot;
+  if(shape){
+    const sounded = shapeSounded(shape);
+    const bass = sounded.reduce((a,b)=>b.s>a.s?b:a, sounded[0]);
+    const altC = sounded.filter(n=>n.s>=3 && n.s!==bass.s);
+    const alt = altC.length ? altC.reduce((a,b)=>
+      Math.abs(b.s-(bass.s-1))<Math.abs(a.s-(bass.s-1))?b:a) : bass;
+    if(t==='b') c.notes=[{s:bass.s, f:bass.f}];
+    else if(t==='B') c.notes=[{s:alt.s, f:alt.f}];
+    else if(t[0]==='s'){ const sn=+t[1]; const f=shapeString(shape, sn); if(f!=null) c.notes=[{s:sn, f}]; }
+    else if(t==='c') c.notes = sounded.map(n=>({s:n.s,f:n.f}));
+    else if(t==='d'||t==='u'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t; }
+    else if(t==='a'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
+    else if(t==='x') c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true}));
+  }else if(t!=='r' && fallback){
+    const fn = fallback();
+    if(fn){
+      c.notes = fn.map(n=>({...n}));
+      if(t==='d'||t==='u') c.strum=t; else if(t==='a') c.strum='arp';
+    }
+  }
+  return c;
+}
 function applyTabPattern(pat){
   const tgt = targetMeasures('tab');
   if(!tgt) return toast('请先在吉他谱区选中一列或多选小节');
   mutate(()=>{
     tgt.list.forEach(mi=>{
       const old = song.measures[mi].tabs[tgt.vi]||[];
-      const chordName = chordBefore(mi, tgt.vi);
-      const shape = chordShape(chordName);
+      const chord1 = chordBefore(mi, tgt.vi);
       const oldChord = (old.find(c=>c.chord)||{}).chord||'';
       const oldNotes = old.filter(c=>c.notes.length).map(c=>c.notes);
       let oi=0;
-      const cols = pat.ev.map(([t,dur,dot])=>{
-        const c = tcol(); c.dur=dur; c.dotted=!!dot;
-        if(shape){
-          const sounded = shapeSounded(shape);
-          const bass = sounded.reduce((a,b)=>b.s>a.s?b:a, sounded[0]);
-          const altC = sounded.filter(n=>n.s>=3 && n.s!==bass.s);
-          const alt = altC.length ? altC.reduce((a,b)=>
-            Math.abs(b.s-(bass.s-1))<Math.abs(a.s-(bass.s-1))?b:a) : bass;
-          if(t==='b') c.notes=[{s:bass.s, f:bass.f}];
-          else if(t==='B') c.notes=[{s:alt.s, f:alt.f}];
-          else if(t[0]==='s'){
-            const sn=+t[1]; const f=shapeString(shape, sn);
-            if(f!=null) c.notes=[{s:sn, f}];
-          }
-          else if(t==='c') c.notes = sounded.map(n=>({s:n.s,f:n.f}));
-          else if(t==='d'||t==='u'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t; }
-          else if(t==='a'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
-          else if(t==='x') c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true}));
-        }else if(t!=='r'){
-          if(oi<oldNotes.length) c.notes = oldNotes[oi++].map(n=>({...n}));
-          if(t==='d'||t==='u'){ c.strum=t; } else if(t==='a') c.strum='arp';
-        }
-        return c;
-      });
-      if(oldChord && cols.length) cols[0].chord = oldChord;
+      const fb = ()=> oi<oldNotes.length? oldNotes[oi++] : null;
+      let cols;
+      if(pat.halves){
+        /* 一小节两和弦：前半用第一个和弦，后半用小节内已设的第二个和弦（无则同前和弦） */
+        const chords = old.filter(c=>c.chord).map(c=>c.chord);
+        const chord2 = chords[1] || chord1;
+        const sh1 = chordShape(chord1), sh2 = chordShape(chord2);
+        const c1 = pat.halves[0].map(ev=>evToCol(ev, sh1, fb));
+        const c2 = pat.halves[1].map(ev=>evToCol(ev, sh2, fb));
+        if(chord1||oldChord) c1[0].chord = oldChord||chord1;
+        if(c2[0]) c2[0].chord = chord2;
+        cols = c1.concat(c2);
+        if(chords.length<2) setTimeout(()=>toast('后半小节和弦默认同前，可点第 '+(c1.length+1)+' 列和弦位改成第二个和弦'),300);
+      }else{
+        const shape = chordShape(chord1);
+        cols = pat.ev.map(ev=>evToCol(ev, shape, fb));
+        if(oldChord && cols.length) cols[0].chord = oldChord;
+      }
       song.measures[mi].tabs[tgt.vi] = cols;
     });
   });
@@ -1979,20 +2014,47 @@ function toggleMute(){
   });
 }
 function setStrum(v){ if(sel.row!=='tab')return; mutate(()=>{ const c=curCol(); c.strum=c.strum===v?'':v; }); }
+/* 从拍数拼出 [dur,dotted]，凑不出返回 null */
+function durForBeats(b){
+  const u = song.unit/4;
+  for(const [d,dot] of [[1,0],[1,1],[2,0],[2,1],[4,0],[4,1],[8,0],[8,1],[16,0],[16,1]]){
+    if(Math.abs((4/d)*(dot?1.5:1)*u - b) < 1e-3) return {dur:d, dotted:!!dot};
+  }
+  return null;
+}
 function insColumn(row){
   if(sel.row!==row){ sel.row=row; clampSel(); }
   mutate(()=>{
     const r=curRowCols();
+    const cur = r[sel.ci];
     const c = row==='tab'?tcol():vcol();
-    if(curCol()) c.dur=curCol().dur;
+    /* 拆分当前音的时值，保持小节总时值不变（8分→两16分等）；已是16分则直接插入 */
+    if(cur && cur.dur<16){
+      const half = durForBeats(beatsOf(cur)/2);
+      if(half){ cur.dur=half.dur; cur.dotted=half.dotted; c.dur=half.dur; c.dotted=half.dotted; }
+      else c.dur=cur.dur;
+    } else if(cur) c.dur=cur.dur;
     r.splice(sel.ci+1,0,c); sel.ci++;
   });
 }
 function delColumn(){
   mutate(()=>{
     const r=curRowCols();
-    if(r.length>1) r.splice(sel.ci,1);
-    else r[0] = sel.row==='tab'?tcol():vcol();
+    if(r.length>1){
+      const removed = beatsOf(r[sel.ci]);
+      r.splice(sel.ci,1);
+      if(sel.ci>=r.length) sel.ci=r.length-1;
+      /* 把删掉的时值并回相邻音，保持小节总时值不变 */
+      const nb = r[sel.ci] || r[sel.ci-1];
+      if(nb){
+        const merged = durForBeats(beatsOf(nb)+removed);
+        if(merged){ nb.dur=merged.dur; nb.dotted=merged.dotted; }
+      }
+    } else {
+      r[0] = sel.row==='tab'?tcol():vcol();
+      r[0].dur=song.beats>=4?4:song.beats; // 单列填满一拍级别，随后 autofix
+      autoFixMeasure(sel.mi, sel.row, sel.vi);
+    }
   });
 }
 function insMeasure(){ mutate(()=>{ song.measures.splice(sel.mi+1,0,blankMeasure()); sel.mi++; sel.ci=0; }); }
