@@ -51,7 +51,7 @@ input.short{width:56px} input.mid{width:150px}
 .rtab.on{background:var(--panel);border-color:var(--border);color:var(--accent);font-weight:600}
 #mode-tip{margin-left:auto;font-size:12px;color:var(--muted);padding-right:4px}
 /* Ribbon 内容区 */
-#ribbon{display:flex;align-items:stretch;gap:8px;padding:8px 14px;background:var(--panel);
+#ribbon{display:flex;align-items:stretch;gap:6px;padding:8px 10px;background:var(--panel);
   overflow-x:auto;border-bottom:1px solid var(--border)}
 .rg{display:flex;flex-direction:column;gap:4px;padding:6px 10px 4px;
   border:1px solid var(--border);border-radius:10px;background:var(--toolbar);flex:none}
@@ -413,18 +413,22 @@ const TAB_PATTERN_GROUPS = [
     {name:'↓ × ×', ev:[['d',4],['x',4],['x',4]]},
     {name:'↓ ↓↑ ×', ev:[['d',4],['d',8],['u',8],['x',4]]},
   ]},
-  {cat:'一小节两和弦 · 前2拍+后2拍（4/4）', two:true, items:[
-    {name:'分解 + 分解', halves:[[['b',8],['s3',8],['s2',8],['s3',8]],[['b',8],['s3',8],['s2',8],['s3',8]]]},
-    {name:'柱式 + 柱式', halves:[[['c',4],['c',4]],[['c',4],['c',4]]]},
-    {name:'低音+柱式 ×2', halves:[[['b',4],['c',4]],[['b',4],['c',4]]]},
-    {name:'扫弦 ↓↓↑ + ↓↓↑', halves:[[['d',4],['d',8],['u',8]],[['d',4],['d',8],['u',8]]]},
-    {name:'分解 + 扫弦', halves:[[['b',8],['s3',8],['s2',8],['s1',8]],[['d',4],['d',8],['u',8]]]},
-    {name:'琶音 + 琶音', halves:[[['a',2]],[['a',2]]]},
+  {cat:'半小节节奏型 · 2拍（填入所选起始半小节，可拼两段不同和弦）', partial:true, items:[
+    {name:'分解 5323', span:2, ev:[['b',8],['s3',8],['s2',8],['s3',8]]},
+    {name:'分解 5321', span:2, ev:[['b',8],['s3',8],['s2',8],['s1',8]]},
+    {name:'低音 + 柱式', span:2, ev:[['b',4],['c',4]]},
+    {name:'柱式 ×2', span:2, ev:[['c',4],['c',4]]},
+    {name:'扫弦 ↓ ↓↑', span:2, ev:[['d',4],['d',8],['u',8]]},
+    {name:'扫弦 ↓↑↓↑', span:2, ev:[['d',8],['u',8],['d',8],['u',8]]},
+    {name:'切音 ↓ ×', span:2, ev:[['d',4],['x',4]]},
+    {name:'琶音（2拍）', span:2, ev:[['a',2]]},
   ]},
-  {cat:'一小节两和弦 · 前1拍+后1拍（2/4）', two:true, items:[
-    {name:'分解 + 分解', halves:[[['b',8],['s3',8]],[['b',8],['s3',8]]]},
-    {name:'低音+柱式 ×2', halves:[[['b',8],['c',8]],[['b',8],['c',8]]]},
-    {name:'扫弦 ↓↑ + ↓↑', halves:[[['d',8],['u',8]],[['d',8],['u',8]]]},
+  {cat:'一拍节奏型 · 1拍（填入所选一拍）', partial:true, items:[
+    {name:'分解 53', span:1, ev:[['b',8],['s3',8]]},
+    {name:'低音 + 高音', span:1, ev:[['b',8],['s1',8]]},
+    {name:'柱式（1拍）', span:1, ev:[['c',4]]},
+    {name:'扫弦 ↓↑', span:1, ev:[['d',8],['u',8]]},
+    {name:'前八后十六', span:1, ev:[['b',8],['s3',16],['s2',16]]},
   ]},
 ];
 /* ---- 节奏型库（简谱）: 时值组合 ---- */
@@ -812,7 +816,7 @@ function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
   const base = fpos.length && Math.max(...fpos)>4 ? Math.min(...fpos) : 1;
   for(let i=0;i<6;i++) p.push(`<line x1="${gx+i*sw}" y1="${gy}" x2="${gx+i*sw}" y2="${gy+4*fh}" stroke="var(--ink)" stroke-width="0.7"/>`);
   for(let i=0;i<=4;i++) p.push(`<line x1="${gx}" y1="${gy+i*fh}" x2="${gx+5*sw}" y2="${gy+i*fh}" stroke="var(--ink)" stroke-width="${i===0&&base===1?1.8:0.7}"/>`);
-  if(base>1) p.push(`<text x="${gx-2}" y="${gy+fh-1}" font-size="8" text-anchor="end" fill="var(--ink)">${base}</text>`);
+  if(base>1) p.push(`<text x="${gx-6*k}" y="${gy+fh*0.6+3}" font-size="${8*k}" text-anchor="end" fill="var(--ink)">${base}</text>`);
   frets.forEach((f,i)=>{
     const sx = gx+i*sw;   // shape[0]=6弦 画在最左；1弦在最右
     if(f===-1) p.push(`<text x="${sx}" y="${gy-2.5}" font-size="7.5" text-anchor="middle" fill="var(--ink)">×</text>`);
@@ -1011,7 +1015,8 @@ function render(){
             /* 分解/单音：和弦内音显示 ×，和弦外音显示品位数字 */
             col.notes.forEach(n=>{
               const yy = tabTop+(n.s-1)*13;
-              const isTone = tabNotation==='x' && shape && !n.x && shapeString(shape, n.s)===n.f;
+              /* ×记谱仅对开放把位(≤4品)的和弦内音用×；高把位显示实际品位数字 */
+              const isTone = tabNotation==='x' && shape && !n.x && n.f<=4 && shapeString(shape, n.s)===n.f;
               const picked = noteSel.some(q=>q.mi===lm.mi&&q.ci===ci&&q.si===n.s&&q.vi===vi);
               if(picked)
                 p.push(`<circle cx="${nx}" cy="${yy}" r="8" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
@@ -1192,18 +1197,14 @@ let durMore = false;
 function setRibbon(t){
   activeTab = t;
   document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
-  document.getElementById('g-dur').style.display = (t==='tab'||t==='vox')?'':'none';
-  /* 组合时值非常用：吉他谱页收起（腾给和弦功能）；简谱页折叠在"更多"里 */
-  document.getElementById('g-combo').style.display = (t==='vox' && durMore)?'':'none';
-  const durBtns = [...document.querySelectorAll('#dur-body .ib')];
+  const showDur = (t==='tab'||t==='vox');
+  /* 共用时值：吉他谱与简谱页都固定显示完整一组（全/2/4/8/16/附点） */
+  document.getElementById('g-dur').style.display = showDur?'':'none';
+  [...document.querySelectorAll('#dur-body .ib')].forEach(b=>{ b.style.display=''; });
+  /* 组合时值：默认收起，点"组合▾"展开（两页一致） */
+  document.getElementById('g-combo').style.display = (showDur && durMore)?'':'none';
   const moreBtn = document.getElementById('b-dur-more');
-  if(t==='vox'){
-    durBtns.forEach((b,i)=>{ b.style.display = (i<4||durMore)?'':'none'; });
-    if(moreBtn){ moreBtn.style.display=''; moreBtn.textContent = durMore?'收起 ▴':'更多 ▾'; }
-  }else{
-    durBtns.forEach(b=>{ b.style.display=''; });
-    if(moreBtn) moreBtn.style.display='none';
-  }
+  if(moreBtn){ moreBtn.style.display = showDur?'':'none'; moreBtn.textContent = durMore?'组合 ▴':'组合 ▾'; }
   document.querySelectorAll('.panel-p').forEach(el=>{
     el.style.display = el.id.startsWith('panel-'+t)?'':'none';
   });
@@ -1433,36 +1434,51 @@ function evToCol([t,dur,dot], shape, fallback){
   }
   return c;
 }
+/* 某列生效的和弦（本小节内该列及之前最后一个，否则向前找） */
+function chordAtCol(mi, vi, ci){
+  const cols = song.measures[mi].tabs[vi]||[];
+  for(let i=Math.min(ci, cols.length-1); i>=0; i--) if(cols[i].chord) return cols[i].chord;
+  return chordPrior(mi, vi);
+}
 function applyTabPattern(pat){
   const tgt = targetMeasures('tab');
   if(!tgt) return toast('请先在吉他谱区选中一列或多选小节');
   mutate(()=>{
-    tgt.list.forEach(mi=>{
-      const old = song.measures[mi].tabs[tgt.vi]||[];
-      const chord1 = chordBefore(mi, tgt.vi);
-      const oldChord = (old.find(c=>c.chord)||{}).chord||'';
-      const oldNotes = old.filter(c=>c.notes.length).map(c=>c.notes);
-      let oi=0;
-      const fb = ()=> oi<oldNotes.length? oldNotes[oi++] : null;
-      let cols;
-      if(pat.halves){
-        /* 一小节两和弦：前半用第一个和弦，后半用小节内已设的第二个和弦（无则同前和弦） */
-        const chords = old.filter(c=>c.chord).map(c=>c.chord);
-        const chord2 = chords[1] || chord1;
-        const sh1 = chordShape(chord1), sh2 = chordShape(chord2);
-        const c1 = pat.halves[0].map(ev=>evToCol(ev, sh1, fb));
-        const c2 = pat.halves[1].map(ev=>evToCol(ev, sh2, fb));
-        if(chord1||oldChord) c1[0].chord = oldChord||chord1;
-        if(c2[0]) c2[0].chord = chord2;
-        cols = c1.concat(c2);
-        if(chords.length<2) setTimeout(()=>toast('后半小节和弦默认同前，可点第 '+(c1.length+1)+' 列和弦位改成第二个和弦'),300);
-      }else{
+    if(pat.span){
+      /* 半小节/一拍节奏型：从选中列起，替换覆盖 span 拍的若干列，保持小节总时值 */
+      const applyAt = (mi, startCi)=>{
+        const cols = song.measures[mi].tabs[tgt.vi];
+        const chord = chordAtCol(mi, tgt.vi, startCi);
+        const shape = chordShape(chord);
+        const oldNotes = cols.slice(startCi).filter(c=>c.notes.length).map(c=>c.notes);
+        let oi=0; const fb=()=> oi<oldNotes.length? oldNotes[oi++]:null;
+        const seg = pat.ev.map(ev=>evToCol(ev, shape, fb));
+        /* 找出从 startCi 起、累计 = span 拍的列范围 */
+        let acc=0, end=startCi;
+        while(end<cols.length && acc < pat.span-1e-3){ acc+=beatsOf(cols[end]); end++; }
+        const removedChord = (cols.slice(startCi,end).find(c=>c.chord)||{}).chord;
+        cols.splice(startCi, end-startCi, ...seg);
+        if(removedChord) seg[0].chord = removedChord;   // 保留该半小节已有和弦
+        autoFixMeasure(mi, 'tab', tgt.vi);
+      };
+      if(selRange && selRange.row==='tab'){
+        tgt.list.forEach(mi=> applyAt(mi, 0));
+      } else applyAt(sel.mi, sel.ci);
+      setTimeout(()=>toast('已填入'+pat.span+'拍节奏型；另一半可选中后再套用（各自和弦独立）'),200);
+    }else{
+      tgt.list.forEach(mi=>{
+        const old = song.measures[mi].tabs[tgt.vi]||[];
+        const chord1 = chordBefore(mi, tgt.vi);
+        const oldChord = (old.find(c=>c.chord)||{}).chord||'';
+        const oldNotes = old.filter(c=>c.notes.length).map(c=>c.notes);
+        let oi=0;
+        const fb = ()=> oi<oldNotes.length? oldNotes[oi++] : null;
         const shape = chordShape(chord1);
-        cols = pat.ev.map(ev=>evToCol(ev, shape, fb));
+        const cols = pat.ev.map(ev=>evToCol(ev, shape, fb));
         if(oldChord && cols.length) cols[0].chord = oldChord;
-      }
-      song.measures[mi].tabs[tgt.vi] = cols;
-    });
+        song.measures[mi].tabs[tgt.vi] = cols;
+      });
+    }
   });
   toast('已套用节奏型：'+pat.name);
 }
@@ -1509,11 +1525,11 @@ function applyVoxPattern(pat){
     const b = e.target.closest('[data-combo]'); if(!b) return;
     applyDurCombo(DUR_COMBOS[+b.dataset.combo]);
   });
-  /* 快捷节奏型（前3个常用 + 库入口） */
+  /* 快捷节奏型：1 个常用图标 + 库入口（收窄，避免功能栏横向滚动） */
   const tq = document.getElementById('tab-quick');
-  const quickT = [TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2]];
+  const quickT = [TAB_PATTERN_GROUPS[0].items[0]];
   tq.innerHTML = quickT.map((p,i)=>
-    `<button class="ib" data-tq="${i}" title="${esc(p.name)}">${tabPatSVG(p,64,40)}<span>${esc(p.name.slice(0,6))}</span></button>`
+    `<button class="ib" data-tq="${i}" title="${esc(p.name)}">${tabPatSVG(p,60,38)}<span>常用</span></button>`
   ).join('') + `<button id="b-tab-lib">节奏型库…</button>`;
   tq.addEventListener('click', e=>{
     const b = e.target.closest('[data-tq]');
@@ -1745,6 +1761,7 @@ function showChordPopup(cx, cy, mi, ci, vi){
 /* 完整和弦编辑器：根音·和弦性质·转位·把位·自定义 */
 let ceState = null;
 function showChordEditor(mi, ci, vi){
+  modalPos=null;
   const existing = song.measures[mi].tabs[vi][ci].chord || chordBefore(mi,vi) || 'C';
   const m = existing.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
   ceState = { mi, ci, vi,
@@ -1810,7 +1827,7 @@ function renderChordEditor(){
         <div style="font-size:13px;margin-top:4px"><b>${esc(ceName())}</b></div>
       </div>
     </div>
-    <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`);
+    <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
   const rerender = ()=>{ closeModal(); renderChordEditor(); };
   document.querySelector('.modal').addEventListener('click', ev=>{
     const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; rerender(); return; }
@@ -2404,13 +2421,42 @@ document.getElementById('b-theme').onclick = ()=>{
 };
 
 /* ================= 弹窗/提示 ================= */
-function showModal(html){
+let modalPos=null;
+function showModal(html, keepPos){
   closeModal();
+  if(!keepPos) modalPos=null;
   const mask=document.createElement('div');
   mask.className='modal-mask'; mask.id='modal-mask';
   mask.innerHTML=`<div class="modal">${html}</div>`;
   mask.addEventListener('pointerdown', e=>{ if(e.target===mask) closeModal(); });
   document.body.appendChild(mask);
+  const modal = mask.querySelector('.modal');
+  const applyPos=(l,t)=>{
+    mask.style.alignItems='flex-start'; mask.style.justifyContent='flex-start';
+    modal.style.margin='0'; modal.style.marginLeft=l+'px'; modal.style.marginTop=t+'px';
+  };
+  if(modalPos) applyPos(modalPos.l, modalPos.t);
+  const handle = modal.querySelector('h3');
+  if(handle){
+    handle.style.cursor='move';
+    handle.title='拖动标题可移动窗口';
+    let drag=null;
+    handle.addEventListener('pointerdown', e=>{
+      const r=modal.getBoundingClientRect();
+      applyPos(r.left, r.top);
+      drag={x:e.clientX, y:e.clientY, l:r.left, t:r.top};
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', e=>{
+      if(!drag) return;
+      const nl=Math.max(0,Math.min(innerWidth-80, drag.l+e.clientX-drag.x));
+      const nt=Math.max(0,Math.min(innerHeight-40, drag.t+e.clientY-drag.y));
+      modal.style.marginLeft=nl+'px'; modal.style.marginTop=nt+'px';
+      modalPos={l:nl, t:nt};
+    });
+    handle.addEventListener('pointerup', ()=>{ drag=null; });
+  }
 }
 function closeModal(){ const m=document.getElementById('modal-mask'); if(m) m.remove(); }
 let toastTimer=null;
