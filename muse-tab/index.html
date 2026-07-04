@@ -108,18 +108,18 @@ input.short{width:54px} input.mid{width:150px}
   font-size:12px;line-height:1;transition:opacity .12s,max-width .12s,margin .12s;margin-left:0}
 .vchip:hover .vdel{opacity:.75;max-width:14px;margin-left:2px}
 .vchip .vdel:hover{color:var(--danger);opacity:1}
-/* 状态栏 */
-#statusbar{display:flex;align-items:center;gap:12px;padding:5px 18px;font-size:12px;
-  background:var(--toolbar);position:relative;border-bottom:1px solid var(--border)}
-#beat-status{cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;
-  border-radius:20px}
-#beat-status::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ok)}
-#beat-status.bad{color:var(--danger);font-weight:600;background:color-mix(in srgb,var(--danger) 12%,transparent)}
+/* 节拍状态（位于右栏“使用帮助”下方） */
+#beat-box{position:relative;font-size:12px;padding:2px}
+#beat-status{cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:5px 11px;
+  border-radius:20px;border:1px solid var(--border);background:var(--panel);width:100%;
+  box-sizing:border-box;font-size:12px;line-height:1.3}
+#beat-status::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+#beat-status.bad{color:var(--danger);font-weight:600;background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:var(--danger)}
 #beat-status.bad::before{background:var(--danger)}
 #beat-status.good{color:var(--muted)}
-#err-drop{position:absolute;left:14px;top:100%;z-index:30;background:var(--panel);
+#err-drop{position:absolute;right:0;top:100%;margin-top:4px;z-index:30;background:var(--panel);
   border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
-  padding:8px;max-height:40vh;overflow:auto;min-width:280px}
+  padding:8px;max-height:40vh;overflow:auto;min-width:260px;max-width:340px}
 #err-drop .err{color:var(--danger);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:12.5px}
 #err-drop .err:hover{background:var(--accent-soft)}
 #suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
@@ -150,7 +150,7 @@ input.short{width:54px} input.mid{width:150px}
 #stage{display:flex;align-items:flex-start;justify-content:center;gap:14px;
   padding:18px 16px 6px;max-width:1560px;margin:0 auto}
 /* 左侧固定标签栏（贴谱面左缘），点击向左展开完整功能面板 */
-#left-dock{display:flex;flex-direction:row;align-items:flex-start;position:sticky;top:86px;
+#left-dock{display:flex;flex-direction:row;align-items:flex-start;position:sticky;top:56px;
   align-self:flex-start;z-index:6}
 #left-rail{display:flex;flex-direction:column;gap:6px;flex:none;padding-top:2px}
 .ltab{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.16em;
@@ -167,7 +167,7 @@ input.short{width:54px} input.mid{width:150px}
 #left-flyout .rg .rg-body{max-width:none}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
-  position:sticky;top:86px;align-self:flex-start;z-index:6}
+  position:sticky;top:56px;align-self:flex-start;z-index:6}
 .rcard{border:1px solid var(--border);border-radius:12px;background:var(--panel);
   box-shadow:0 1px 3px rgba(20,30,60,.06);overflow:hidden}
 .rc-h{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
@@ -209,6 +209,21 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
+/* 会员中心 */
+.mb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+.mb-card{border:1px solid var(--border);border-radius:14px;padding:14px 13px;background:var(--toolbar);
+  display:flex;flex-direction:column;gap:7px;position:relative}
+.mb-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.mb-card.vip{background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 60%,transparent),var(--toolbar))}
+.mb-tag{position:absolute;top:-9px;right:12px;font-size:10.5px;font-weight:700;color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:2px 9px;border-radius:10px}
+.mb-name{font-size:15px;font-weight:800}
+.mb-price{font-size:13px;color:var(--accent-ink);font-weight:700}
+.mb-feats{margin:4px 0 8px;padding-left:16px;font-size:12px;color:var(--text);line-height:1.7;flex:1}
+.mb-feats li{margin:1px 0}
+.mb-card button{width:100%;font-weight:600}
+.mb-card .mb-cur{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+@media(max-width:640px){ .mb-grid{grid-template-columns:1fr} }
 /* 底部悬浮播放条（简易横条，可向上展开音轨） */
 #mixer-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:40;
   width:min(980px,94vw);background:var(--panel);border:1px solid var(--border);
@@ -267,27 +282,25 @@ svg text{user-select:none}
   <div class="bar main-bar">
     <span class="logo"><span class="mark">🎸</span>MuseTab <small>吉他谱编辑器</small></span>
     <span class="seg">
-      <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
-      <button id="b-savemine" title="保存到我的曲谱">存入</button>
       <button id="b-new" title="新建空白曲谱">新建</button>
+      <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
     </span>
     <span class="seg">
-      <button id="b-open" title="从文件导入 .mtab.json">导入</button>
+      <button id="b-savemine" title="保存到我的曲谱">保存</button>
       <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
-      <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
     </span>
-    <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
-    <span class="vsep"></span>
+    <span class="seg">
+      <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
+      <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
+    </span>
     <span class="seg">
       <button id="b-undo" title="Ctrl+Z">撤销</button>
       <button id="b-redo" title="Ctrl+Y">重做</button>
     </span>
+    <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
-    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
-  </div>
-  <div id="statusbar">
-    <span id="beat-status" class="good">✓ 所有小节时值正确</span>
-    <div id="err-drop" class="hidden"></div>
+    <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
+    <button id="b-member" class="seg-accent" title="会员中心">👑 会员中心</button>
   </div>
 </header>
 
@@ -407,6 +420,10 @@ svg text{user-select:none}
     </div>
     <div class="rcard">
       <button class="rc-h rc-btn" id="b-help">使用帮助</button>
+    </div>
+    <div id="beat-box">
+      <span id="beat-status" class="good">✓ 所有小节时值正确</span>
+      <div id="err-drop" class="hidden"></div>
     </div>
   </aside>
 </div>
@@ -2407,7 +2424,7 @@ function showTechSuggest(){
   div.innerHTML=`<span>已选 ${noteSel.length} 个音符，添加技法：</span>`+
     techs.map(([k,l])=>`<button data-tech="${k}">${esc(l)}</button>`).join('')+
     `<button id="tech-x">完成</button>`;
-  document.getElementById('statusbar').after(div);
+  document.getElementById('top').after(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-tech]');
     if(b){ applyTech(b.dataset.tech); }
@@ -2518,7 +2535,7 @@ function showChordSuggest(name){
   div.innerHTML = `<span>为「${esc(name)}」小节插入节奏型：</span>`+
     recs.map((p,i)=>`<button class="ib" data-sg="${i}" title="${esc(p.name)}">${tabPatSVG(p,56,36)}<span>${esc(p.name.slice(0,6))}</span></button>`).join('')+
     `<button id="sg-lib">节奏型库…</button><button id="sg-x">忽略</button>`;
-  document.getElementById('statusbar').after(div);
+  document.getElementById('top').after(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-sg]');
     if(b){ applyTabPattern(recs[+b.dataset.sg]); closeSuggest(); }
@@ -3317,6 +3334,53 @@ document.getElementById('b-theme').onclick = ()=>{
     : window.matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme = isDark?'light':'dark';
 };
+/* ================= 会员中心（为后期付费生态预留） ================= */
+const MEMBER_KEY = 'musetab-member';
+const MEMBER_PLANS = {
+  free: {name:'免费版', price:'￥0', tag:'当前',
+    feats:['基础六线谱/简谱/歌词制谱','4 种基础音色','本地保存与我的曲谱','打印与 PDF 导出']},
+  vip:  {name:'会员', price:'￥18 / 月', tag:'推荐',
+    feats:['全部 10+ 乐器音色与混响','云端曲谱库 · 多设备同步','批量导出高清 PDF · 去水印','曲谱分享链接']},
+  pro:  {name:'专业版', price:'￥48 / 月', tag:'工作室',
+    feats:['多人实时协作编谱','AI 智能编配与和弦推荐','MIDI / MusicXML 导入导出','商用授权与优先支持']},
+};
+function memberPlan(){ try{ return localStorage.getItem(MEMBER_KEY)||'free'; }catch(_){ return 'free'; } }
+function setMemberPlan(p){ try{ localStorage.setItem(MEMBER_KEY, p); }catch(_){} refreshMemberBtn(); }
+function refreshMemberBtn(){
+  const b=document.getElementById('b-member'); if(!b) return;
+  const p=memberPlan();
+  b.textContent = p==='free' ? '👑 会员中心' : '👑 '+MEMBER_PLANS[p].name;
+  b.classList.toggle('seg-accent', p==='free');
+}
+function openMember(){
+  const cur=memberPlan();
+  const cards=Object.entries(MEMBER_PLANS).map(([k,v])=>{
+    const active=k===cur;
+    const feats=v.feats.map(f=>`<li>${esc(f)}</li>`).join('');
+    const btn = active ? `<button class="mb-cur" disabled>当前方案</button>`
+      : (k==='free' ? `<button data-plan="free" class="mb-pick">切回免费版</button>`
+                    : `<button data-plan="${k}" class="mb-pick primary">开通体验</button>`);
+    return `<div class="mb-card ${active?'on':''} ${k}">
+      <div class="mb-tag">${esc(v.tag)}</div>
+      <div class="mb-name">${esc(v.name)}</div>
+      <div class="mb-price">${esc(v.price)}</div>
+      <ul class="mb-feats">${feats}</ul>
+      ${btn}
+    </div>`;
+  }).join('');
+  showModal(`<h3>👑 会员中心</h3>
+    <p>解锁更多音色、云端同步与协作能力，支持 MuseTab 持续更新。（付费与云服务为规划中功能，当前可免费体验各档权益。）</p>
+    <div class="mb-grid">${cards}</div>
+    <div class="btns"><button id="mb-close" class="primary">关闭</button></div>`);
+  document.getElementById('mb-close').onclick = closeModal;
+  document.querySelectorAll('#modal-mask .mb-pick').forEach(b=>b.onclick=()=>{
+    const p=b.dataset.plan; setMemberPlan(p);
+    toast(p==='free'?'已切回免费版':`已开通「${MEMBER_PLANS[p].name}」体验`);
+    openMember();
+  });
+}
+document.getElementById('b-member').onclick = openMember;
+refreshMemberBtn();
 
 /* ================= 弹窗/提示 ================= */
 let modalPos=null;
