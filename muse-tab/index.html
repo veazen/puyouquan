@@ -103,6 +103,11 @@ input.short{width:54px} input.mid{width:150px}
   font-size:12px;background:var(--panel);user-select:none;transition:all .12s}
 .chip:hover{border-color:var(--accent)}
 .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.vchip{display:inline-flex;align-items:center;gap:2px;padding-right:6px;user-select:none}
+.vchip .vdel{opacity:0;max-width:0;overflow:hidden;color:var(--muted);cursor:pointer;
+  font-size:12px;line-height:1;transition:opacity .12s,max-width .12s,margin .12s;margin-left:0}
+.vchip:hover .vdel{opacity:.75;max-width:14px;margin-left:2px}
+.vchip .vdel:hover{color:var(--danger);opacity:1}
 /* 状态栏 */
 #statusbar{display:flex;align-items:center;gap:12px;padding:5px 18px;font-size:12px;
   background:var(--toolbar);position:relative;border-bottom:1px solid var(--border)}
@@ -531,6 +536,9 @@ const VOX_PATTERN_GROUPS = [
 let song = null;
 let sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
 let selRange = null;
+let measureSel = null;   // 选中的整小节 mi
+let clipMeasure = null;  // 复制的小节（深拷贝）
+let blurSel = false;     // 点击页面内容区外 → 隐藏光标
 let activeLyr = 0;
 let activeTab = 'tab';
 let undoStack = [], redoStack = [];
@@ -1120,8 +1128,14 @@ function render(){
         let runChord = chordPrior(lm.mi, vi);
         const isLast = lm.mi===song.measures.length-1;
         const isErr = errSet.has('tab'+vi+':'+lm.mi);
-        if(vi===0)
-          p.push(`<text x="${mx+3}" y="${oy+M.tabTops[0]-6}" font-size="9" fill="${isErr?'var(--danger)':'var(--ink)'}" opacity="0.6">${lm.mi+1}</text>`);
+        if(vi===0){
+          /* 整小节选中高亮（跨所有声部） */
+          if(measureSel===lm.mi)
+            p.push(`<rect x="${mx}" y="${oy+M.tabTops[0]-16}" width="${lm.L.w}" height="${M.h-M.tabTops[0]+6}" rx="6" fill="var(--accent)" opacity="0.09" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="6 3"/>`);
+          const numOn = measureSel===lm.mi;
+          p.push(`<text x="${mx+3}" y="${oy+M.tabTops[0]-6}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'400'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--ink)')}" opacity="${numOn?1:0.6}">${lm.mi+1}</text>`);
+          p.push(`<rect class="measnum" x="${mx}" y="${oy+M.tabTops[0]-17}" width="${Math.max(16,lm.L.w*0.5)}" height="15" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节（可复制/粘贴）</title></rect>`);
+        }
         if(isErr)
           p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="var(--danger)" opacity="0.07"/>
             <text x="${mx+lm.L.w-8}" y="${tabTop-6}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
@@ -1148,7 +1162,7 @@ function render(){
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
           colBoxes['t'+vi+':'+lm.mi+':'+ci] = {x:clx, y:boxTop, w:cw, h:stemY-boxTop+8};
-          const isSel = sel.row==='tab'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          const isSel = !blurSel && sel.row==='tab'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
           if(isSel)
             p.push(`<rect x="${clx}" y="${tabTop-16}" width="${cw}" height="${stemY-tabTop+26}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
           else if(colInRange('tab',vi,lm.mi,ci))
@@ -1302,7 +1316,7 @@ function render(){
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           colBoxes['v'+vi+':'+lm.mi+':'+ci] = {x:clx, y:voxY-24, w:cw, h:26+song.lyricLines*20+8};
-          const isSel = sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          const isSel = !blurSel && sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
           if(isSel)
             p.push(`<rect x="${clx}" y="${voxY-22}" width="${cw}" height="${30+song.lyricLines*20}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
           else if(colInRange('vox',vi,lm.mi,ci))
@@ -1383,6 +1397,14 @@ function chipHtml(list, activeIdx, cls){
   return list.map((n,i)=>
     `<span class="chip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}">${esc(n)}</span>`).join('')
 }
+/* 声部 chip：可双击改名、hover 出现删除× */
+function voiceChips(list, activeIdx, cls){
+  return list.map((n,i)=>
+    `<span class="chip vchip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}" title="单击选中，双击改名">`+
+      `<span class="vname">${esc(n)}</span>`+
+      (list.length>1?`<span class="vdel" data-idx="${i}" data-k="${cls}del" title="删除该声部">×</span>`:'')+
+    `</span>`).join('');
+}
 let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 function setRibbon(t){
@@ -1409,11 +1431,11 @@ function syncInputs(){
     (sel.row==='tab' ? '吉他谱 · '+(song.tabVoices[sel.vi]||'') : '简谱 · '+(song.voxVoices[sel.vi]||''))
     + ` · 第${sel.mi+1}小节` + (selRange?` · 已多选 ${selRange.m1+1}–${selRange.m2+1} 小节`:'');
   document.getElementById('tab-voices').innerHTML =
-    chipHtml(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
-    `<span class="chip" data-k="tv+" title="添加声部">＋</span><span class="chip" data-k="tv-" title="删除声部">−</span>`;
+    voiceChips(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
+    `<span class="chip" data-k="tv+" title="添加声部">＋</span>`;
   document.getElementById('vox-voices').innerHTML =
-    chipHtml(song.voxVoices, sel.row==='vox'?sel.vi:-1, 'vv') +
-    `<span class="chip" data-k="vv+" title="添加声部">＋</span><span class="chip" data-k="vv-" title="删除声部">−</span>`;
+    voiceChips(song.voxVoices, sel.row==='vox'?sel.vi:-1, 'vv') +
+    `<span class="chip" data-k="vv+" title="添加声部">＋</span>`;
   document.getElementById('lyr-lines').innerHTML =
     chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
     `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
@@ -1842,16 +1864,27 @@ function delVoice(kind){
     });
   }
 }
+function delVoiceAt(kind, vi){
+  const names = kind==='tab'?song.tabVoices:song.voxVoices;
+  if(names.length<=1) return toast('至少保留一个'+(kind==='tab'?'吉他':'旋律')+'声部');
+  mutate(()=>{
+    names.splice(vi,1);
+    song.measures.forEach(m=> (kind==='tab'?m.tabs:m.voxes).splice(vi,1));
+    if(sel.row===kind && sel.vi>=names.length) sel.vi=names.length-1;
+  });
+  toast('已删除声部');
+}
 document.getElementById('top').addEventListener('click', e=>{
+  /* 声部删除×（hover 出现） */
+  const del = e.target.closest('.vdel');
+  if(del){ e.stopPropagation(); delVoiceAt(del.dataset.k==='tvdel'?'tab':'vox', +del.dataset.idx); return; }
   const chip = e.target.closest('.chip'); if(!chip) return;
   const k = chip.dataset.k;
   if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
   else if(k==='vv'){ sel.row='vox'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
   else if(k==='ll'){ activeLyr=+chip.dataset.idx; syncInputs(); }
   else if(k==='tv+') addVoice('tab');
-  else if(k==='tv-') delVoice('tab');
   else if(k==='vv+') addVoice('vox');
-  else if(k==='vv-') delVoice('vox');
   else if(k==='ll+'){
     if(song.lyricLines>=MAX_LYR) return toast('歌词最多 5 段');
     mutate(()=>{ song.lyricLines++; activeLyr=song.lyricLines-1; });
@@ -1867,6 +1900,14 @@ document.getElementById('top').addEventListener('click', e=>{
     });
   }
 });
+/* 双击声部 chip → 改名 */
+document.getElementById('top').addEventListener('dblclick', e=>{
+  const chip = e.target.closest('.vchip'); if(!chip) return;
+  const k = chip.dataset.k, i = +chip.dataset.idx;
+  const list = k==='tv'? song.tabVoices : song.voxVoices;
+  const nm = prompt('声部名称', list[i]);
+  if(nm!=null && nm.trim()){ mutate(()=>{ list[i]=nm.trim(); }); }
+});
 document.querySelectorAll('.rtab').forEach(b=>b.onclick = ()=>setRibbon(b.dataset.t));
 
 /* ================= 键盘 ================= */
@@ -1879,7 +1920,10 @@ window.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copyMeasure(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteMeasure(); return; }
   if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(blurSel){ blurSel=false; }   // 任意编辑按键恢复光标
   if(/^[0-9]$/.test(e.key)){
     e.preventDefault();
     if(sel.row==='tab'){
@@ -1934,9 +1978,52 @@ window.addEventListener('keydown', e=>{
 });
 let dragSel = null;
 let noteSel = [];   // Ctrl 多选音符： [{mi,ci,si}]
+/* ---- 整小节复制 / 粘贴 ---- */
+function copyMeasure(){
+  const mi = measureSel!=null? measureSel : sel.mi;
+  clipMeasure = JSON.parse(JSON.stringify(song.measures[mi]));
+  toast('已复制第'+(mi+1)+'小节');
+}
+function pasteMeasure(){
+  if(!clipMeasure) return toast('剪贴板为空，先选中小节号 Ctrl+C 复制');
+  const mi = measureSel!=null? measureSel : sel.mi;
+  mutate(()=>{
+    const src = JSON.parse(JSON.stringify(clipMeasure));
+    const m = {tabs:[], voxes:[], repeatStart:src.repeatStart, repeatEnd:src.repeatEnd};
+    /* 对齐当前声部数量：不足补空、超出截断 */
+    song.tabVoices.forEach((_,vi)=>{
+      m.tabs.push(src.tabs[vi] ? src.tabs[vi] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})());
+    });
+    song.voxVoices.forEach((_,vi)=>{
+      m.voxes.push(src.voxes[vi] ? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})());
+    });
+    song.measures[mi] = m;
+  });
+  toast('已粘贴到第'+(mi+1)+'小节');
+}
+/* ---- 点击页面内容区之外 → 隐藏光标 ---- */
+document.addEventListener('pointerdown', e=>{
+  const t = e.target;
+  if(!(t instanceof Element)) return;
+  const inside = t.closest('#top, #score, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
+  if(!inside){
+    blurSel = true; measureSel=null; selRange=null; noteSel=[]; closeTech();
+    render();
+  }
+}, true);
 document.getElementById('score').addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
+  blurSel = false;   // 点击谱面 → 恢复光标
+  /* 点击小节号 → 选中整小节（可复制/粘贴） */
+  if(t.dataset.measuresel!==undefined){
+    measureSel = +t.dataset.measuresel;
+    sel.mi = measureSel; sel.ci = 0; selRange=null; noteSel=[]; closeTech();
+    clampSel(); render();
+    toast('已选中第'+(measureSel+1)+'小节 · Ctrl+C 复制 / Ctrl+V 粘贴');
+    return;
+  }
+  measureSel = null;
   /* 点击每拍时值区 → 选中整拍（用于组合时值替换） */
   if(t.dataset.beatsel!==undefined){
     const [bmi,bvi,bt]=t.dataset.beatsel.split(':').map(Number);
