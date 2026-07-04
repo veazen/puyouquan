@@ -211,6 +211,14 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
+/* 音轨混音行 */
+.trk{display:grid;grid-template-columns:132px 116px 1fr 42px 32px;align-items:center;gap:9px;margin:6px 0}
+.trk .tk-onl{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;min-width:0}
+.trk .tk-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk .tk-inst{padding:4px 6px;font-size:12.5px}
+.trk .tk-vol{width:100%}
+.trk .tk-vv{font-size:11px;color:var(--muted);text-align:right}
+.trk .tk-prev{padding:3px 0;font-size:12px}
 /* 节奏型库卡片 */
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .pat-card{border:1px solid var(--border);border-radius:10px;padding:6px;cursor:pointer;
@@ -262,8 +270,7 @@ svg text{user-select:none}
     <span class="vsep"></span>
     <button id="b-play" class="primary">▶ 播放</button>
     <button id="b-stop" title="停止">■</button>
-    <button id="b-mix-tab" class="on" title="吉他声部发声">弹</button>
-    <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
+    <button id="b-tracks" title="音轨与音色：每条声部可单独开关、选择乐器音色、调音量">🎚 音轨</button>
     <label style="color:var(--muted);font-size:12px">速度</label>
     <input id="i-tempo" class="short" type="number" min="30" max="240">
   </div>
@@ -608,8 +615,17 @@ let activeTab = 'tab';
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
-let audio = {ctx:null, sources:[], timers:[], playing:false};
+let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false};
 let mix = {tab:true, vox:true};
+/* 每条声部对应一条音轨，配置（开关/音色/音量）随曲谱保存于 song.mixer */
+function trackCfg(kind, vi){
+  if(!song.mixer) song.mixer = {};
+  const id = kind+':'+vi;
+  if(!song.mixer[id]) song.mixer[id] = {on:true, inst: kind==='tab'?'steel':'ah', vol:1};
+  const c = song.mixer[id];
+  if(typeof INSTRUMENTS!=='undefined' && !INSTRUMENTS[c.inst]) c.inst = kind==='tab'?'steel':'ah';
+  return c;
+}
 let diagMode = 'inline';
 let tabNotation = 'x';                 // 'x'=和弦内音记×（教材式） 'num'=全数字
 try{ tabNotation = localStorage.getItem('musetab-notation')||'x'; }catch(_){}
@@ -2717,54 +2733,212 @@ document.getElementById('b-fill').onclick = ()=>{
 };
 
 /* ================= 播放 ================= */
-function pluck(ctx, freq, when, dur, gain){
+/* ---- 乐器音色库（可选音色） ---- */
+const INSTRUMENTS = {
+  steel:   {name:'钢弦吉他', grp:'弹拨', type:'ks',   amp:0.30, damp:0.9965, tone:4200, hp:80},
+  nylon:   {name:'尼龙吉他', grp:'弹拨', type:'ks',   amp:0.33, damp:0.9945, tone:2400, hp:70},
+  electric:{name:'电吉他',   grp:'弹拨', type:'ks',   amp:0.25, damp:0.9976, tone:3400, hp:90, drive:2.4},
+  bass:    {name:'贝斯',     grp:'弹拨', type:'ks',   amp:0.36, damp:0.9962, tone:1000, hp:40, oct:-12},
+  piano:   {name:'钢琴',     grp:'键盘', type:'fm',   amp:0.34, mod:1,   idx:2.4, decay:2.6, atk:0.004},
+  epiano:  {name:'电钢琴',   grp:'键盘', type:'fm',   amp:0.32, mod:1,   idx:1.4, decay:1.9, atk:0.003, tone:3800},
+  musicbox:{name:'八音盒',   grp:'键盘', type:'fm',   amp:0.30, mod:3.0, idx:5,   decay:1.5, atk:0.001, tone:6500},
+  strings: {name:'弦乐',     grp:'持续', type:'saw',  amp:0.15, detune:9, atk:0.16, rel:0.35, tone:2600, vib:5},
+  flute:   {name:'长笛',     grp:'持续', type:'flute',amp:0.20, atk:0.07, rel:0.14, vib:5,  breath:0.06},
+  ah:      {name:'人声“啊”', grp:'持续', type:'voice',amp:0.22, atk:0.06, rel:0.14, vib:5.5},
+};
+function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+/* ---- 母线：混音 + 压缩 + 混响（提升真实感） ---- */
+function makeImpulse(ctx,dur,decay){
+  const sr=ctx.sampleRate, len=Math.max(1,Math.floor(sr*dur));
+  const buf=ctx.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){ const d=buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); }
+  return buf;
+}
+function buildBus(ctx){
+  const comp=ctx.createDynamicsCompressor();
+  comp.threshold.value=-16; comp.knee.value=26; comp.ratio.value=3.2;
+  comp.attack.value=0.003; comp.release.value=0.25;
+  const master=ctx.createGain(); master.gain.value=0.92;
+  master.connect(comp); comp.connect(ctx.destination);
+  const conv=ctx.createConvolver(); conv.buffer=makeImpulse(ctx,1.8,2.4);
+  const wet=ctx.createGain(); wet.gain.value=0.16;
+  conv.connect(wet); wet.connect(comp);
+  return {dry:master, wet:conv};
+}
+function shaperCurve(ctx,k){
+  const n=1024, c=new Float32Array(n);
+  for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=(1+k)*x/(1+k*Math.abs(x)); }
+  const ws=ctx.createWaveShaper(); ws.curve=c; ws.oversample='2x'; return ws;
+}
+/* ---- 弹拨（Karplus-Strong，可调阻尼/音色/激励，尼龙/钢弦/电吉他/贝斯） ---- */
+function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute){
   const sr=ctx.sampleRate;
   const N=Math.max(2, Math.round(sr/freq));
-  const len=Math.floor(sr*Math.min(dur+0.6,3.5));
-  const buf=ctx.createBuffer(1,len,sr);
-  const d=buf.getChannelData(0);
-  for(let i=0;i<N;i++) d[i]=(Math.random()*2-1)*0.85;
-  for(let i=N;i<len;i++) d[i]=0.9955*0.5*(d[i-N]+d[i-N+1]);
+  const ring = mute?0.18: Math.min(dur+1.6, 4.2);
+  const len=Math.max(N+2, Math.floor(sr*ring));
+  const buf=ctx.createBuffer(1,len,sr); const d=buf.getChannelData(0);
+  for(let i=0;i<N;i++) d[i]=(Math.random()*2-1);
+  const damp = mute?0.965: sp.damp;
+  for(let i=N;i<len;i++) d[i]=damp*0.5*(d[i-N]+d[i-N+1]);
   const src=ctx.createBufferSource(); src.buffer=buf;
+  const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=sp.hp||70;
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=sp.tone||3800; lp.Q.value=0.6;
   const g=ctx.createGain(); g.gain.value=gain;
-  src.connect(g); g.connect(ctx.destination);
-  src.start(when); src.stop(when+len/sr);
+  src.connect(hp); hp.connect(lp);
+  let out=lp;
+  if(sp.drive){ const ws=shaperCurve(ctx, sp.drive); lp.connect(ws); out=ws; }
+  out.connect(g); g.connect(bus.dry); g.connect(bus.wet);
+  src.start(when); src.stop(when+ring);
   audio.sources.push(src);
 }
-function chick(ctx, when, gain){
+/* ---- FM 合成（钢琴/电钢/八音盒） ---- */
+function fmTone(ctx,bus,freq,when,dur,gain,sp){
+  const car=ctx.createOscillator(); car.type='sine'; car.frequency.value=freq;
+  const mod=ctx.createOscillator(); mod.type='sine'; mod.frequency.value=freq*(sp.mod||1);
+  const decay=Math.max(0.25,(sp.decay||1.8)*Math.min(1.5,1.6-freq/2200));
+  const idx=freq*(sp.idx||2);
+  const mg=ctx.createGain();
+  mg.gain.setValueAtTime(idx,when);
+  mg.gain.exponentialRampToValueAtTime(Math.max(1,idx*0.04), when+decay*0.6);
+  mod.connect(mg); mg.connect(car.frequency);
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(gain, when+(sp.atk||0.004));
+  g.gain.exponentialRampToValueAtTime(gain*0.0008, when+decay);
+  let out=car;
+  if(sp.tone){ const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=sp.tone; car.connect(lp); out=lp; }
+  out.connect(g); g.connect(bus.dry); g.connect(bus.wet);
+  const end=when+decay+0.1;
+  car.start(when); mod.start(when); car.stop(end); mod.stop(end);
+  audio.sources.push(car,mod);
+}
+/* ---- 锯齿弦乐群（弦乐/弦垫） ---- */
+function sawStrings(ctx,bus,freq,when,dur,gain,sp){
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=sp.tone||2600; lp.Q.value=0.5;
+  const g=ctx.createGain();
+  const a=sp.atk||0.14, r=sp.rel||0.3;
+  g.gain.setValueAtTime(0,when);
+  g.gain.linearRampToValueAtTime(gain,when+a);
+  g.gain.setValueAtTime(gain,when+Math.max(a,dur-r));
+  g.gain.linearRampToValueAtTime(0,when+dur+r);
+  lp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
+  const lfo=ctx.createOscillator(); lfo.frequency.value=sp.vib||5;
+  const la=ctx.createGain(); la.gain.value=freq*0.006; lfo.connect(la);
+  const oscs=[];
+  [-(sp.detune||8),0,(sp.detune||8)].forEach(dt=>{
+    const o=ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=freq; o.detune.value=dt;
+    la.connect(o.frequency); o.connect(lp); oscs.push(o);
+  });
+  const end=when+dur+r+0.05;
+  oscs.forEach(o=>{o.start(when);o.stop(end);}); lfo.start(when); lfo.stop(end);
+  audio.sources.push(lfo,...oscs);
+}
+/* ---- 长笛（正弦+泛音+气声+颤音） ---- */
+function fluteTone(ctx,bus,freq,when,dur,gain,sp){
+  const g=ctx.createGain();
+  const a=sp.atk||0.07, r=sp.rel||0.14;
+  g.gain.setValueAtTime(0,when);
+  g.gain.linearRampToValueAtTime(gain,when+a);
+  g.gain.setValueAtTime(gain,when+Math.max(a,dur-r));
+  g.gain.linearRampToValueAtTime(0,when+dur+r);
+  g.connect(bus.dry); g.connect(bus.wet);
+  const osc=ctx.createOscillator(); osc.type='sine'; osc.frequency.value=freq; osc.connect(g);
+  const h=ctx.createOscillator(); h.type='sine'; h.frequency.value=freq*2;
+  const hg=ctx.createGain(); hg.gain.value=0.12; h.connect(hg); hg.connect(g);
+  const lfo=ctx.createOscillator(); lfo.frequency.value=sp.vib||5;
+  const la=ctx.createGain(); la.gain.value=freq*0.008; lfo.connect(la); la.connect(osc.frequency); la.connect(h.frequency);
+  const sr=ctx.sampleRate, nl=Math.max(1,Math.floor(sr*Math.min(dur+r,3)));
+  const nbuf=ctx.createBuffer(1,nl,sr); const nd=nbuf.getChannelData(0);
+  for(let i=0;i<nl;i++) nd[i]=(Math.random()*2-1);
+  const nsrc=ctx.createBufferSource(); nsrc.buffer=nbuf;
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=freq*2; bp.Q.value=0.8;
+  const ng=ctx.createGain(); ng.gain.value=(sp.breath||0.06)*gain;
+  nsrc.connect(bp); bp.connect(ng); ng.connect(g);
+  const end=when+dur+r+0.05;
+  osc.start(when);osc.stop(end); h.start(when);h.stop(end);
+  lfo.start(when);lfo.stop(end); nsrc.start(when);nsrc.stop(end);
+  audio.sources.push(osc,h,lfo,nsrc);
+}
+/* ---- 人声“啊”（共振峰滤波，元音 /a/） ---- */
+function voiceAh(ctx,bus,freq,when,dur,gain,sp){
+  const src=ctx.createOscillator(); src.type='sawtooth'; src.frequency.value=freq;
+  const lfo=ctx.createOscillator(); lfo.frequency.value=sp.vib||5.5;
+  const la=ctx.createGain(); la.gain.value=freq*0.008; lfo.connect(la); la.connect(src.frequency);
+  const g=ctx.createGain();
+  const a=sp.atk||0.06, r=sp.rel||0.14;
+  g.gain.setValueAtTime(0,when);
+  g.gain.linearRampToValueAtTime(gain,when+a);
+  g.gain.setValueAtTime(gain,when+Math.max(a,dur-r));
+  g.gain.linearRampToValueAtTime(0,when+dur+r);
+  [[730,0.9,9],[1090,0.6,11],[2600,0.32,13]].forEach(([f,amp,q])=>{
+    const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=q;
+    const fg=ctx.createGain(); fg.gain.value=amp;
+    src.connect(bp); bp.connect(fg); fg.connect(g);
+  });
+  g.connect(bus.dry); g.connect(bus.wet);
+  const end=when+dur+r+0.05;
+  src.start(when);src.stop(end); lfo.start(when);lfo.stop(end);
+  audio.sources.push(src,lfo);
+}
+/* ---- 闷音/打板噪声 ---- */
+function chick(ctx,bus,when,gain){
   const sr=ctx.sampleRate, len=Math.floor(sr*0.06);
   const buf=ctx.createBuffer(1,len,sr); const d=buf.getChannelData(0);
   for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
   const src=ctx.createBufferSource(); src.buffer=buf;
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2000; bp.Q.value=0.7;
   const g=ctx.createGain(); g.gain.value=gain;
-  src.connect(g); g.connect(ctx.destination);
+  src.connect(bp); bp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
   src.start(when); audio.sources.push(src);
 }
-function voice(ctx, freq, when, dur, gain){
-  const osc=ctx.createOscillator(); osc.type='triangle'; osc.frequency.value=freq;
-  const g=ctx.createGain();
-  g.gain.setValueAtTime(0,when);
-  g.gain.linearRampToValueAtTime(gain,when+0.03);
-  g.gain.setValueAtTime(gain,when+Math.max(0.05,dur-0.08));
-  g.gain.linearRampToValueAtTime(0,when+dur);
-  osc.connect(g); g.connect(ctx.destination);
-  osc.start(when); osc.stop(when+dur+0.05);
-  audio.sources.push(osc);
+/* ---- 音色分派 ---- */
+function playInst(instKey,ctx,bus,freq,when,dur,gain,mute){
+  const sp=INSTRUMENTS[instKey]||INSTRUMENTS.steel;
+  const f = sp.oct? freq*Math.pow(2,sp.oct/12) : freq;
+  const gg = gain*(sp.amp||0.28);
+  switch(sp.type){
+    case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute); break;
+    case 'fm':    fmTone(ctx,bus,f,when,dur,gg,sp); break;
+    case 'saw':   sawStrings(ctx,bus,f,when,dur,gg,sp); break;
+    case 'flute': fluteTone(ctx,bus,f,when,dur,gg,sp); break;
+    case 'voice': voiceAh(ctx,bus,f,when,dur,gg,sp); break;
+    default:      ksPluck(ctx,bus,f,when,dur,gg,sp,mute);
+  }
 }
-function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+function activeTrackCount(){
+  let n=0;
+  song.tabVoices.forEach((_,vi)=>{ if(trackCfg('tab',vi).on) n++; });
+  song.voxVoices.forEach((_,vi)=>{ if(trackCfg('vox',vi).on) n++; });
+  return Math.max(1,n);
+}
+function previewInst(instKey){
+  if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const ctx=audio.ctx; if(ctx.state==='suspended') ctx.resume();
+  const bus=buildBus(ctx);
+  const t=ctx.currentTime+0.05;
+  [0,4,7,12].forEach((s,i)=>playInst(instKey,ctx,bus,midiFreq(60+s), t+i*0.17, 0.55, 0.9, false));
+}
 function play(){
   stopPlay();
   if(!audio.ctx) audio.ctx = new (window.AudioContext||window.webkitAudioContext)();
   const ctx = audio.ctx;
   if(ctx.state==='suspended') ctx.resume();
+  audio.bus = buildBus(ctx);
+  const bus = audio.bus;
   audio.playing = true;
   document.getElementById('b-play').textContent='▶ 播放中…';
   const spb = 60/song.tempo;
   const t = ctx.currentTime+0.15;
   const t0 = performance.now()+150;
   const startMi = sel.mi||0;
+  const norm = 0.85/Math.sqrt(activeTrackCount());
   let total=0;
-  if(mix.tab) song.tabVoices.forEach((_,vi)=>{
+  /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
+  song.tabVoices.forEach((_,vi)=>{
+    const cfg = trackCfg('tab',vi);
+    if(!cfg.on) return;
+    const vol = (cfg.vol||1)*norm;
     let el=0;
     for(let mi=startMi; mi<song.measures.length; mi++){
       (song.measures[mi].tabs[vi]||[]).forEach((col,ci)=>{
@@ -2775,15 +2949,17 @@ function play(){
           picked = col.notes.filter(n=>n.s>=sp.top && n.s<=sp.bot);
         }
         const ns = picked.slice().sort((a,b)=>b.s-a.s);
-        const stagger = col.strum ? (col.strum==='arp'?0.045:0.022) : 0.012;
+        const stagger = col.strum ? (col.strum==='arp'?0.05:0.024) : 0.012;
         const order = col.strum==='u' ? ns.slice().reverse() : ns;
+        const chordDiv = Math.sqrt(Math.max(1, order.length));
         order.forEach((n,k)=>{
-          if(n.x) chick(ctx, t+el+k*stagger, 0.18);
-          else if(col.mute){   // 切音扫弦：短促闷音
-            pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, 0.12, 0.18/Math.sqrt(song.tabVoices.length));
-            chick(ctx, t+el+k*stagger, 0.08);
+          const when = t+el+k*stagger;
+          if(n.x) chick(ctx, bus, when, 0.3*vol);
+          else{
+            const freq = midiFreq(TUNING[n.s-1]+n.f+song.capo-12);
+            playInst(cfg.inst, ctx, bus, freq, when, col.mute?0.14:durSec, vol/chordDiv, col.mute);
+            if(col.mute) chick(ctx, bus, when, 0.12*vol);
           }
-          else pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, durSec, 0.26/Math.sqrt(song.tabVoices.length));
         });
         if(vi===0)
           audio.timers.push(setTimeout(()=>highlight('t0',mi,ci), t0-performance.now()+el*1000));
@@ -2792,9 +2968,13 @@ function play(){
     }
     total=Math.max(total,el);
   });
-  if(mix.vox) song.voxVoices.forEach((_,vi)=>{
+  /* 简谱（旋律）声部：连音线合并同音，按各自音色发声 */
+  song.voxVoices.forEach((_,vi)=>{
+    const cfg = trackCfg('vox',vi);
+    if(!cfg.on) return;
+    const vol = (cfg.vol||1)*norm;
     let el=0, hold=null;
-    const flush=()=>{ if(hold){ voice(ctx,hold.freq,t+hold.start,hold.dur,0.16/Math.sqrt(song.voxVoices.length)); hold=null; } };
+    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, bus, hold.freq, t+hold.start, hold.dur, vol*0.9, false); hold=null; } };
     for(let mi=startMi; mi<song.measures.length; mi++){
       (song.measures[mi].voxes[vi]||[]).forEach(col=>{
         const durSec = beatsOf(col)*spb;
@@ -2811,7 +2991,7 @@ function play(){
     flush();
     total=Math.max(total,el);
   });
-  audio.timers.push(setTimeout(stopPlay, t0-performance.now()+total*1000+400));
+  audio.timers.push(setTimeout(stopPlay, t0-performance.now()+total*1000+800));
 }
 function highlight(prefix,mi,ci){
   const b = colBoxes[prefix+':'+mi+':'+ci];
@@ -2838,8 +3018,41 @@ function stopPlay(){
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
-document.getElementById('b-mix-tab').onclick = e=>{ mix.tab=!mix.tab; e.target.classList.toggle('on',mix.tab); };
-document.getElementById('b-mix-vox').onclick = e=>{ mix.vox=!mix.vox; e.target.classList.toggle('on',mix.vox); };
+/* ---- 音轨与音色 ---- */
+function openMixer(){
+  const groups=[['tab','吉他谱声部',song.tabVoices],['vox','简谱（旋律）声部',song.voxVoices]];
+  const instOpts=(cur)=>Object.entries(INSTRUMENTS)
+    .map(([k,v])=>`<option value="${k}" ${k===cur?'selected':''}>${v.name}</option>`).join('');
+  let rows='';
+  groups.forEach(([kind,label,arr])=>{
+    if(!arr.length) return;
+    rows+=`<h4>${label}</h4>`;
+    arr.forEach((nm,vi)=>{
+      const cfg=trackCfg(kind,vi);
+      rows+=`<div class="trk" data-kind="${kind}" data-vi="${vi}">
+        <label class="tk-onl"><input type="checkbox" class="tk-on" ${cfg.on?'checked':''}><span class="tk-nm">${esc(nm)}</span></label>
+        <select class="tk-inst">${instOpts(cfg.inst)}</select>
+        <input type="range" class="tk-vol" min="0" max="150" value="${Math.round((cfg.vol||1)*100)}">
+        <span class="tk-vv">${Math.round((cfg.vol||1)*100)}%</span>
+        <button class="tk-prev" title="试听音色">▶</button>
+      </div>`;
+    });
+  });
+  showModal(`<h3>播放音轨与音色</h3>
+    <p>每条声部即一条独立音轨，可单独开关发声、选择乐器音色、调节音量；设置随曲谱一起保存。点 ▶ 可试听音色。</p>
+    ${rows}
+    <div class="btns"><button id="mx-close" class="primary">完成</button></div>`);
+  document.getElementById('mx-close').onclick = closeModal;
+  document.querySelectorAll('#modal-mask .trk').forEach(row=>{
+    const kind=row.dataset.kind, vi=+row.dataset.vi, cfg=trackCfg(kind,vi);
+    row.querySelector('.tk-on').onchange = e=>{ cfg.on=e.target.checked; persist(); };
+    row.querySelector('.tk-inst').onchange = e=>{ cfg.inst=e.target.value; persist(); previewInst(cfg.inst); };
+    const vv=row.querySelector('.tk-vv');
+    row.querySelector('.tk-vol').oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%'; persist(); };
+    row.querySelector('.tk-prev').onclick = ()=>previewInst(cfg.inst);
+  });
+}
+document.getElementById('b-tracks').onclick = openMixer;
 
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
