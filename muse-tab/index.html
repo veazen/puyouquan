@@ -59,8 +59,8 @@ input.short{width:56px} input.mid{width:150px}
   order:2;margin-top:2px}
 .rg .rg-body{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:560px}
 /* 图标按钮 */
-.ib{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 4px;
-  min-width:40px;border:1px solid transparent;border-radius:8px;background:transparent}
+.ib{display:flex;flex-direction:column;align-items:center;gap:1px;padding:2px 3px;
+  min-width:34px;border:1px solid transparent;border-radius:8px;background:transparent}
 .ib:hover{border-color:var(--accent);background:var(--panel)}
 .ib.on{border-color:var(--accent);background:var(--accent-soft)}
 .ib svg{display:block}
@@ -577,10 +577,10 @@ function tabPatSVG(pat, W, H){
     else if(t==='B') head(x,3);
     else if(t[0]==='s') head(x,+t[1]-1);
     else if(t==='d'||t==='u'){
-      /* 扫弦：只画箭头 */
+      /* 扫弦：只画箭头（扫↓箭头向下，扫↑箭头向上） */
       const yT=top-1, yB=top+5*gap+1;
       p.push(`<line x1="${x}" y1="${yT+3}" x2="${x}" y2="${yB-1}" stroke="currentColor" stroke-width="1.3"/>`);
-      if(t==='d') p.push(`<path d="M ${x-2.8} ${yT+8} L ${x} ${yT+2} L ${x+2.8} ${yT+8}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
+      if(t==='u') p.push(`<path d="M ${x-2.8} ${yT+8} L ${x} ${yT+2} L ${x+2.8} ${yT+8}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
       else p.push(`<path d="M ${x-2.8} ${yB-7} L ${x} ${yB-1} L ${x+2.8} ${yB-7}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
     }
     else if(t==='a'){
@@ -660,6 +660,22 @@ function layoutSystems(){
     cur.w += L.w;
   });
   if(cur.measures.length) systems.push(cur);
+  /* 两端对齐：每行拉伸至同一总宽（最后一行不足 55% 时保持自然宽度） */
+  const avail = PAGE_W - 2*MARGIN;
+  systems.forEach((sys, si)=>{
+    if(si===systems.length-1 && sys.w < avail*0.55) return;
+    const k = avail/sys.w;
+    if(Math.abs(k-1)<1e-6) return;
+    sys.measures.forEach(lm=>{
+      lm.x *= k; lm.L.w *= k;
+      [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
+        r.xs = r.xs.map(v=>v*k);
+        r.ws = r.ws.map(v=>v*k);
+        r.ls = r.ls.map(v=>v*k);
+      });
+    });
+    sys.w = avail;
+  });
   return systems;
 }
 function sysMetrics(){
@@ -743,13 +759,20 @@ function rangeCols(){
   }
   return out;
 }
-/* 扫弦箭头跨度（可编辑长短） */
+/* 扫弦箭头跨度（长短可编辑；锚点可选从6弦向上或从1弦向下） */
 function strumSpan(col){
   const ss = col.notes.map(n=>n.s);
-  const bot = ss.length?Math.max(...ss):6;
-  const defN = ss.length? bot-Math.min(...ss)+1 : 6;
-  const n = Math.max(2, Math.min(bot, col.strumN||defN));
-  return {bot, top:Math.max(1, bot-n+1), n};
+  const bot0 = ss.length?Math.max(...ss):6, top0 = ss.length?Math.min(...ss):1;
+  const defN = ss.length? bot0-top0+1 : 6;
+  const n = Math.max(2, Math.min(6, col.strumN||defN));
+  if(col.strumAnchor==='t'){           // 锚定1弦侧，向6弦方向延伸
+    const top = top0;
+    const bot = Math.min(6, top+n-1);
+    return {top, bot, n:bot-top+1};
+  }
+  const bot = bot0;                     // 默认锚定6弦侧（低音），向1弦方向延伸
+  const top = Math.max(1, bot-n+1);
+  return {top, bot, n:bot-top+1};
 }
 
 function render(){
@@ -793,6 +816,15 @@ function render(){
       top += Math.ceil(chords.length/14)*64 + 12;
     }
   }
+  /* 预计算六线谱每列绝对x（技法连线定位用） */
+  const tabPos = {};
+  systems.forEach((sys, si2)=>{
+    sys.measures.forEach(lm=>{
+      lm.L.tabs.forEach((lay, vi)=>{
+        lay.xs.forEach((x, ci)=>{ tabPos[vi+':'+lm.mi+':'+ci] = {x:MARGIN+lm.x+x, sys:si2}; });
+      });
+    });
+  });
   systems.forEach((sys, sIdx)=>{
     const oy = top + sIdx*(M.h+M.gap);
     const ox = MARGIN;
@@ -861,7 +893,7 @@ function render(){
             /* 扫弦：只画箭头，落在需要扫的弦上（长短可编辑） */
             const sp = strumSpan(col);
             const yT = tabTop+(sp.top-1)*13-4, yB = tabTop+(sp.bot-1)*13+4;
-            const up = col.strum==='d';
+            const up = col.strum==='u';   // 所见即所得：扫↑箭头向上，扫↓箭头向下
             p.push(`<line x1="${nx}" y1="${yT+3}" x2="${nx}" y2="${yB-3}" stroke="var(--ink)" stroke-width="1.6"/>`);
             if(up) p.push(`<path d="M ${nx-4} ${yT+9} L ${nx} ${yT+1} L ${nx+4} ${yT+9}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
             else   p.push(`<path d="M ${nx-4} ${yB-9} L ${nx} ${yB-1} L ${nx+4} ${yB-9}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
@@ -887,18 +919,27 @@ function render(){
                 p.push(`<rect x="${nx-(wide?8.5:5.5)}" y="${yy-5.5}" width="${wide?17:11}" height="11" fill="var(--paper)"/>`);
                 p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
+              /* 技法连线：从本音符头连到所选的下一个音符头 */
+              if(n.tech){
+                const SYM = {sl:'sl',h:'h',p:'p',b:'b',v:'~'};
+                const sym = SYM[n.tech]||n.tech;
+                const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                if(tp && tp.sys===sIdx){
+                  const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*13;
+                  const yPk = Math.min(yy,y2)-11;
+                  p.push(`<path d="M ${nx+5} ${yy-4} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+1}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                }else if(tp){
+                  p.push(`<path d="M ${nx+5} ${yy-4} q 10 -9 20 -7" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(`<text x="${nx+15}" y="${yy-11}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                }else{
+                  p.push(`<text x="${nx}" y="${yy-10}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                }
+              }
             });
             /* 空列（无音符/无扫弦）画休止符，让时值可见 */
             if(!col.notes.length)
               p.push(`<text x="${nx}" y="${tabTop+34}" font-size="13" text-anchor="middle" fill="var(--ink)" opacity="0.45">𝄽</text>`);
-          }
-          /* 技法记号（滑/击/勾/推/揉）：连到下一列 */
-          if(col.tech && ci<cols.length-1 && col.notes.length){
-            const sy = tabTop+((col.notes[0].s)-1)*13;
-            const x2 = mx+lay.xs[ci+1];
-            const sym = {sl:'sl',h:'h',p:'p',b:'b',v:'~'}[col.tech]||col.tech;
-            p.push(`<path d="M ${nx+6} ${sy-3} Q ${(nx+x2)/2} ${sy-11} ${x2-6} ${sy-3}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-            p.push(`<text x="${(nx+x2)/2}" y="${sy-11}" font-size="8.5" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
           }
           const hasEvt = col.notes.length || col.strum;
           if(hasEvt && col.dur>=2){
@@ -1043,11 +1084,22 @@ function chipHtml(list, activeIdx, cls){
   return list.map((n,i)=>
     `<span class="chip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}">${esc(n)}</span>`).join('')
 }
+let durMore = false;
 function setRibbon(t){
   activeTab = t;
   document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.getElementById('g-dur').style.display = (t==='tab'||t==='vox')?'':'none';
-  document.getElementById('g-combo').style.display = (t==='tab'||t==='vox')?'':'none';
+  /* 组合时值非常用：吉他谱页收起（腾给和弦功能）；简谱页折叠在"更多"里 */
+  document.getElementById('g-combo').style.display = (t==='vox' && durMore)?'':'none';
+  const durBtns = [...document.querySelectorAll('#dur-body .ib')];
+  const moreBtn = document.getElementById('b-dur-more');
+  if(t==='vox'){
+    durBtns.forEach((b,i)=>{ b.style.display = (i<4||durMore)?'':'none'; });
+    if(moreBtn){ moreBtn.style.display=''; moreBtn.textContent = durMore?'收起 ▴':'更多 ▾'; }
+  }else{
+    durBtns.forEach(b=>{ b.style.display=''; });
+    if(moreBtn) moreBtn.style.display='none';
+  }
   document.querySelectorAll('.panel-p').forEach(el=>{
     el.style.display = el.id.startsWith('panel-'+t)?'':'none';
   });
@@ -1320,8 +1372,10 @@ function applyVoxPattern(pat){
   durBody.innerHTML = DUR_SINGLE.map(d=>
     `<button class="ib" data-dur="${d.dur}" data-dot="0" title="${d.name}">${rhythmSVG([[d.dur]],30,28)}<span>${d.name}</span></button>`
   ).join('') +
-  `<button class="ib" id="b-dot-ib" title="附点">${rhythmSVG([[4,1]],30,28)}<span>附点</span></button>`;
+  `<button class="ib" id="b-dot-ib" title="附点">${rhythmSVG([[4,1]],30,28)}<span>附点</span></button>` +
+  `<button id="b-dur-more" style="display:none">更多 ▾</button>`;
   durBody.addEventListener('click', e=>{
+    if(e.target.closest('#b-dur-more')){ durMore=!durMore; setRibbon(activeTab); return; }
     const b = e.target.closest('.ib'); if(!b) return;
     if(b.id==='b-dot-ib') toggleDot();
     else setDur(+b.dataset.dur);
@@ -1336,7 +1390,7 @@ function applyVoxPattern(pat){
   });
   /* 快捷节奏型（前3个常用 + 库入口） */
   const tq = document.getElementById('tab-quick');
-  const quickT = [TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2], TAB_PATTERN_GROUPS[2].items[4]];
+  const quickT = [TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2]];
   tq.innerHTML = quickT.map((p,i)=>
     `<button class="ib" data-tq="${i}" title="${esc(p.name)}">${tabPatSVG(p,64,40)}<span>${esc(p.name.slice(0,6))}</span></button>`
   ).join('') + `<button id="b-tab-lib">节奏型库…</button>`;
@@ -1548,19 +1602,21 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
 /* 扫弦弦数选择菜单 */
 function showStrumMenu(cx, cy){
   const col = curCol(); if(!col) return;
-  const bot = strumSpan(col).bot;
   closePop();
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
-  div.style.left=Math.min(cx, innerWidth-180)+'px';
+  div.style.left=Math.min(cx, innerWidth-230)+'px';
   div.style.top=cy+'px';
-  let btns='';
-  for(let n=2;n<=6;n++) btns+=`<button data-n="${n}">${n}根</button>`;
-  div.innerHTML=`<div class="t">扫弦覆盖弦数（从${bot}弦向上）</div><div class="row">${btns}</div>`;
+  const btns = a=>{
+    let s=''; for(let n=2;n<=6;n++) s+=`<button data-n="${n}" data-a="${a}">${n}根</button>`;
+    return s;
+  };
+  div.innerHTML=`<div class="t">扫弦覆盖弦数 · 从6弦（低音）向上</div><div class="row">${btns('b')}</div>
+    <div class="t" style="margin-top:6px">从1弦（高音）向下</div><div class="row">${btns('t')}</div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-n]'); if(!b) return;
-    mutate(()=>{ curCol().strumN=+b.dataset.n; });
+    mutate(()=>{ const c=curCol(); c.strumN=+b.dataset.n; c.strumAnchor=b.dataset.a; });
     closePop();
   });
 }
@@ -1587,11 +1643,24 @@ function showTechSuggest(){
 }
 function applyTech(tech){
   if(!noteSel.length) return;
+  const list = noteSel.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
   mutate(()=>{
-    noteSel.forEach(({mi,ci,vi})=>{
-      const cols = song.measures[mi].tabs[vi];
-      if(cols && cols[ci]) cols[ci].tech = tech;
-    });
+    const noteAt = q=>{
+      const cols = song.measures[q.mi].tabs[q.vi];
+      return cols && cols[q.ci] && cols[q.ci].notes.find(n=>n.s===q.si);
+    };
+    if(!tech){
+      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; } });
+      return;
+    }
+    /* 技法连线：连接相邻两个被选中的音符（头对头） */
+    for(let i=0;i<list.length-1;i++){
+      const n = noteAt(list[i]);
+      if(!n) continue;
+      n.tech = tech;
+      n.tk = {mi:list[i+1].mi, ci:list[i+1].ci, si:list[i+1].si};
+    }
+    if(list.length===1){ const n=noteAt(list[0]); if(n){ n.tech=tech; delete n.tk; } }
   });
   toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',v:'揉弦'}[tech])):'已清除技法');
 }
