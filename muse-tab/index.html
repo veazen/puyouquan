@@ -46,6 +46,15 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .logo small{color:var(--muted);font-weight:400;font-size:11px}
 .vsep{width:1px;align-self:stretch;background:var(--border);margin:3px 4px}
 .grow{flex:1}
+/* 分段按钮组：同组按钮拼接为一体，视觉统一 */
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;
+  background:var(--panel);box-shadow:0 1px 2px rgba(20,30,60,.04)}
+.seg button{border:none;border-radius:0;box-shadow:none;background:transparent;
+  border-right:1px solid var(--border-soft)}
+.seg button:last-child{border-right:none}
+.seg button:hover{background:var(--accent-soft);color:var(--accent-ink)}
+.seg button.seg-accent{color:var(--accent-ink);font-weight:600}
+.seg button.seg-accent:hover{background:var(--accent);color:#fff}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
   border-radius:7px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
   font-family:var(--font-ui);transition:border-color .12s, background .12s, color .12s, box-shadow .12s;}
@@ -130,13 +139,15 @@ input.short{width:54px} input.mid{width:150px}
 .sc-desc{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1}
 .sc-act{display:flex;gap:5px;flex-wrap:wrap}
 .sc-act button{font-size:12px;padding:4px 10px}
-/* ================= 主区 ================= */
-#score-wrap{max-width:1180px;margin:20px auto;padding:0 16px;}
-#paper{background:var(--paper);border:1px solid var(--border);border-radius:14px;
-  box-shadow:var(--shadow);padding:20px 14px;}
+/* ================= 主区（默认 A4 纸张） ================= */
+#score-wrap{max-width:900px;margin:20px auto;padding:0 16px;}
+#paper{background:var(--paper);border:1px solid var(--border);border-radius:6px;
+  box-shadow:var(--shadow);padding:32px 30px;min-height:1000px;
+  width:100%;max-width:820px;margin:0 auto;}   /* ≈A4 纵向宽度(96dpi) */
+#paper.wide{max-width:1180px}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
-#hint{max-width:1180px;margin:2px auto 34px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
+#hint{max-width:900px;margin:8px auto 34px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
 /* ================= 弹窗 ================= */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
   display:flex;align-items:center;justify-content:center;}
@@ -165,10 +176,11 @@ svg text{user-select:none}
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
 @media print{
-  #top,#hint,#toast{display:none!important}
+  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask{display:none!important}
   body{background:#fff}
   #score-wrap{margin:0;max-width:none;padding:0}
-  #paper{border:none;box-shadow:none;border-radius:0;padding:0}
+  #paper{border:none;box-shadow:none;border-radius:0;padding:6mm;max-width:none;min-height:0;width:auto}
+  #paper svg{width:100%!important;height:auto!important}
   :root{--paper:#fff;--ink:#000}
 }
 </style>
@@ -177,26 +189,32 @@ svg text{user-select:none}
 <header id="top">
   <div class="bar main-bar">
     <span class="logo"><span class="mark">🎸</span>MuseTab <small>吉他谱编辑器</small></span>
-    <button id="b-new">新建</button>
-    <button id="b-library" class="primary">📚 曲谱库</button>
-    <button id="b-savemine">存入我的曲谱</button>
-    <button id="b-open">导入</button>
-    <button id="b-save">导出</button><button id="b-print">打印/PDF</button>
+    <span class="seg">
+      <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
+      <button id="b-savemine" title="保存到我的曲谱">存入</button>
+      <button id="b-new" title="新建空白曲谱">新建</button>
+    </span>
+    <span class="seg">
+      <button id="b-open" title="从文件导入 .mtab.json">导入</button>
+      <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
+      <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
+    </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
-    <span class="vsep"></span>
-    <button id="b-undo" title="Ctrl+Z">撤销</button>
-    <button id="b-redo" title="Ctrl+Y">重做</button>
+    <span class="seg">
+      <button id="b-undo" title="Ctrl+Z">撤销</button>
+      <button id="b-redo" title="Ctrl+Y">重做</button>
+    </span>
     <span class="vsep"></span>
     <button id="b-play" class="primary">▶ 播放</button>
-    <button id="b-stop">■</button>
+    <button id="b-stop" title="停止">■</button>
     <button id="b-mix-tab" class="on" title="吉他声部发声">弹</button>
     <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
     <label style="color:var(--muted);font-size:12px">速度</label>
     <input id="i-tempo" class="short" type="number" min="30" max="240">
-    <span class="vsep"></span>
-    <button id="b-meta">曲谱信息</button>
-    <button id="b-help">帮助</button>
-    <button id="b-theme" title="切换明暗">◐</button>
+    <span class="grow"></span>
+    <button id="b-meta" class="ghost">曲谱信息</button>
+    <button id="b-help" class="ghost">帮助</button>
+    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
   </div>
   <div class="bar tab-bar">
     <button class="rtab" data-t="tab">吉他谱</button>
@@ -595,14 +613,14 @@ function presetStrum(){
     maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:100, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
-      M('C',[V(3,'啊'),V(3,'朋'),V(4,'友'),V(5,'再')]),
-      M('C',[V(5,'见'),V(4,'吧'),V(3,'再'),V(2,'见')]),
-      M('Am',[V(1,'吧'),V(1,'再'),V(2,'见'),V(3,'吧')]),
-      M('G',[V(3,'我'),V(2,'的',2),V(2,'情',4)], ),
-      M('C',[V(3,'人'),V(3,'当'),V(4,'我'),V(5,'离')]),
-      M('C',[V(5,'开'),V(4,'你'),V(3,'的'),V(2,'时')]),
-      M('Am',[V(1,'候'),V(1,'心'),V(2,'中'),V(3,'多')]),
-      M('G7',[V(2,'么',4),V(1,'悲',2),V(1,'伤',2)], {repeatEnd:true})
+      M('C', [V(3,'欢'),V(3,'乐'),V(4,'女'),V(5,'神')]),
+      M('C', [V(5,'圣'),V(4,'洁'),V(3,'美'),V(2,'丽')]),
+      M('Am',[V(1,'灿'),V(1,'烂'),V(2,'光'),V(3,'芒')]),
+      M('G', [V(3,'照',2),V(2,'大'),V(1,'地')]),          /* 2+1+1=4 */
+      M('C', [V(3,'我'),V(3,'们'),V(4,'心'),V(5,'中')]),
+      M('C', [V(5,'充'),V(4,'满'),V(3,'无'),V(2,'限')]),
+      M('Am',[V(1,'热'),V(1,'情'),V(2,'来'),V(3,'到')]),
+      M('G7',[V(2,'你',2),V(1,'圣'),V(1,'殿')], {repeatEnd:true})   /* 2+1+1=4 */
     ]};
 }
 function presetTech(){
@@ -1028,7 +1046,7 @@ function render(){
   const svg = document.getElementById('score');
   /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
-  PAGE_W = Math.max(560, Math.min(1320, paperW - 24));
+  PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
   const systems = layoutSystems();
   const M = sysMetrics();
   const errs = beatErrors();
@@ -2647,7 +2665,69 @@ document.getElementById('b-new').onclick = ()=>{
   pushUndo(); song=blankSong(); sel={mi:0,row:'tab',vi:0,ci:0,si:1}; selRange=null;
   persist(); render(); toast('已新建空白曲谱（Ctrl+Z 可撤销）');
 };
-document.getElementById('b-print').onclick = ()=>window.print();
+/* ---- 打印 / 导出（纸张尺寸可选 + PNG） ---- */
+function setPrintPage(size){
+  let s = document.getElementById('print-page');
+  if(!s){ s=document.createElement('style'); s.id='print-page'; document.head.appendChild(s); }
+  const rule = { A4:'A4 portrait', A4L:'A4 landscape', Letter:'letter portrait',
+    LetterL:'letter landscape', fit:'auto' }[size] || 'A4 portrait';
+  const wide = (size==='A4L'||size==='LetterL'||size==='fit');
+  document.getElementById('paper').classList.toggle('wide', wide);
+  s.textContent = `@page{ size:${rule}; margin:${size==='fit'?'8mm':'12mm'}; }`;
+  render();   // 重排以适配新纸张宽度
+}
+function exportPNG(scale){
+  const svg = document.getElementById('score');
+  const vb = svg.viewBox.baseVal;
+  let xml = new XMLSerializer().serializeToString(svg);
+  /* 解析 CSS 变量为具体色（脱离页面后 var() 不生效） */
+  const cs = getComputedStyle(document.documentElement);
+  const ink = (cs.getPropertyValue('--ink')||'#141414').trim();
+  xml = xml.replace(/var\(--ink\)/g, ink).replace(/var\(--paper\)/g,'#ffffff')
+           .replace(/var\(--accent\)/g,'#3a5ce0').replace(/var\(--font-num\)/g,'serif');
+  const k = scale||2;
+  const img = new Image();
+  const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+  img.onload = ()=>{
+    const cv = document.createElement('canvas');
+    cv.width = vb.width*k; cv.height = vb.height*k;
+    const g = cv.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+    g.drawImage(img,0,0,cv.width,cv.height);
+    cv.toBlob(b=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(b); a.download=(song.title||'曲谱')+'.png'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+      toast('已导出 PNG 图片');
+    },'image/png');
+  };
+  img.onerror = ()=>toast('图片导出失败，请改用打印');
+  img.src = svg64;
+}
+document.getElementById('b-print').onclick = ()=>{
+  showModal(`<h3>打印 / 导出</h3>
+    <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
+    也可直接导出为高清 PNG 图片。</p>
+    <label class="f"><span>纸张</span>
+      <select id="ex-size">
+        <option value="A4">A4 纵向 (210×297mm)</option>
+        <option value="A4L">A4 横向 (297×210mm)</option>
+        <option value="Letter">信纸 Letter 纵向</option>
+        <option value="fit">自适应内容尺寸</option>
+      </select></label>
+    <div class="btns">
+      <button id="ex-png">导出 PNG 图片</button>
+      <button id="ex-cancel">取消</button>
+      <button id="ex-print" class="primary">打印 / 存 PDF</button>
+    </div>`);
+  document.getElementById('ex-cancel').onclick = closeModal;
+  document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
+  document.getElementById('ex-print').onclick = ()=>{
+    setPrintPage(document.getElementById('ex-size').value);
+    closeModal();
+    setTimeout(()=>window.print(), 120);
+  };
+};
 document.getElementById('b-theme').onclick = ()=>{
   const r=document.documentElement;
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
