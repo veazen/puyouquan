@@ -211,14 +211,33 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
-/* 音轨混音行 */
-.trk{display:grid;grid-template-columns:132px 116px 1fr 42px 32px;align-items:center;gap:9px;margin:6px 0}
-.trk .tk-onl{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;min-width:0}
-.trk .tk-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trk .tk-inst{padding:4px 6px;font-size:12.5px}
-.trk .tk-vol{width:100%}
-.trk .tk-vv{font-size:11px;color:var(--muted);text-align:right}
-.trk .tk-prev{padding:3px 0;font-size:12px}
+/* 底部悬浮音轨面板（紧凑） */
+#mixer-dock{position:fixed;left:0;right:0;bottom:0;z-index:40;transform:translateY(102%);
+  transition:transform .22s ease;background:var(--panel);border-top:1px solid var(--border);
+  box-shadow:0 -6px 24px rgba(20,30,60,.16);padding:7px 14px 9px}
+#mixer-dock.open{transform:translateY(0)}
+.mx-top{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+.mx-title{font-weight:700;font-size:12.5px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+#mx-prog{flex:1;height:15px;border-radius:8px;background:var(--toolbar);border:1px solid var(--border);
+  position:relative;overflow:hidden;cursor:pointer;min-width:120px}
+#mx-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent-soft);
+  border-right:2px solid var(--accent);pointer-events:none}
+#mx-lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10.5px;
+  color:var(--muted);white-space:nowrap;pointer-events:none}
+#mx-close2{padding:2px 9px;font-size:12px}
+.mx-tracks{display:flex;flex-direction:column;gap:3px;max-height:30vh;overflow-y:auto}
+.mx-grp{font-size:10px;color:var(--muted);letter-spacing:.09em;margin:3px 2px 0;font-weight:600}
+.mx-row{display:grid;grid-template-columns:88px 112px 28px 28px minmax(120px,1fr);align-items:center;
+  gap:8px;padding:2px 4px;border-radius:7px}
+.mx-row:hover{background:var(--toolbar)}
+.mx-row .mx-nm{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-row select{padding:3px 5px;font-size:12px}
+.mx-btn{padding:3px 0;font-size:10.5px;font-weight:700;border-radius:6px}
+.mx-btn.solo.on{background:#f5b301;border-color:#f5b301;color:#3a2c00}
+.mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.mx-vol{display:flex;align-items:center;gap:6px}
+.mx-vol input{flex:1;min-width:60px}
+.mx-vol .vv{font-size:10px;color:var(--muted);width:32px;text-align:right}
 /* 节奏型库卡片 */
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .pat-card{border:1px solid var(--border);border-radius:10px;padding:6px;cursor:pointer;
@@ -232,7 +251,7 @@ svg text{user-select:none}
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
 @media print{
-  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock{display:none!important}
+  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock{display:none!important}
   body{background:#fff}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -400,6 +419,14 @@ svg text{user-select:none}
   </aside>
 </div>
 <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击跨小节多选后，在"节奏型库"中点图示即可批量套用（有和弦时自动按指法生成音符）。小节时值与拍号不符会自动标红并计入上方"节拍检查"。</div>
+<div id="mixer-dock">
+  <div class="mx-top">
+    <span class="mx-title">🎚 播放音轨</span>
+    <div id="mx-prog" title="小节进度（点击可定位起始小节）"><div id="mx-fill"></div><div id="mx-lbl">第 1 小节</div></div>
+    <button id="mx-close2">收起</button>
+  </div>
+  <div class="mx-tracks" id="mx-tracks"></div>
+</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -615,16 +642,27 @@ let activeTab = 'tab';
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
-let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false};
+let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, raf:0, prog:null};
 let mix = {tab:true, vox:true};
-/* 每条声部对应一条音轨，配置（开关/音色/音量）随曲谱保存于 song.mixer */
+/* 每条声部对应一条音轨，配置（静音/独奏/音色/音量）随曲谱保存于 song.mixer */
 function trackCfg(kind, vi){
   if(!song.mixer) song.mixer = {};
   const id = kind+':'+vi;
-  if(!song.mixer[id]) song.mixer[id] = {on:true, inst: kind==='tab'?'steel':'ah', vol:1};
+  if(!song.mixer[id]) song.mixer[id] = {on:true, solo:false, inst: kind==='tab'?'steel':'ah', vol:1};
   const c = song.mixer[id];
   if(typeof INSTRUMENTS!=='undefined' && !INSTRUMENTS[c.inst]) c.inst = kind==='tab'?'steel':'ah';
   return c;
+}
+function anySolo(){
+  let s=false;
+  song.tabVoices.forEach((_,vi)=>{ if(trackCfg('tab',vi).solo) s=true; });
+  song.voxVoices.forEach((_,vi)=>{ if(trackCfg('vox',vi).solo) s=true; });
+  return s;
+}
+/* 独奏优先：有任意独奏则仅独奏轨发声，否则未静音轨发声 */
+function trackAudible(kind, vi){
+  const c = trackCfg(kind, vi);
+  return anySolo() ? !!c.solo : c.on!==false;
 }
 let diagMode = 'inline';
 let tabNotation = 'x';                 // 'x'=和弦内音记×（教材式） 'num'=全数字
@@ -1585,6 +1623,7 @@ function syncInputs(){
       return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
     }).join('');
   }
+  if(typeof mixerOpen!=='undefined' && mixerOpen) renderMixerDock();
 }
 
 /* ================= 编辑核心 ================= */
@@ -2132,7 +2171,7 @@ function pasteMeasure(){
 document.addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
-  const inside = t.closest('#top, #score, #left-dock, #right-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
+  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
   if(!inside){
     blurSel = true; measureSel=null; selRange=null; noteSel=[]; closeTech();
     render();
@@ -2908,9 +2947,37 @@ function playInst(instKey,ctx,bus,freq,when,dur,gain,mute){
 }
 function activeTrackCount(){
   let n=0;
-  song.tabVoices.forEach((_,vi)=>{ if(trackCfg('tab',vi).on) n++; });
-  song.voxVoices.forEach((_,vi)=>{ if(trackCfg('vox',vi).on) n++; });
+  song.tabVoices.forEach((_,vi)=>{ if(trackAudible('tab',vi)) n++; });
+  song.voxVoices.forEach((_,vi)=>{ if(trackAudible('vox',vi)) n++; });
   return Math.max(1,n);
+}
+/* 一小节的时长（秒）：取该小节首个有内容声部的时值之和，空小节按拍号 */
+function measureSeconds(mi, spb){
+  const m = song.measures[mi]; if(!m) return song.beats*spb;
+  const cols = (m.tabs&&m.tabs[0]&&m.tabs[0].length?m.tabs[0]:null)
+    || (m.voxes&&m.voxes[0]&&m.voxes[0].length?m.voxes[0]:null);
+  let b = 0; if(cols) cols.forEach(c=>b+=beatsOf(c));
+  if(!b) b = song.beats;
+  return b*spb;
+}
+/* 小节进度条：随播放平滑推进，显示当前小节 */
+function startProgress(t, spb, startMi){
+  const bounds=[]; let el=0;
+  for(let mi=startMi; mi<song.measures.length; mi++){ bounds.push({mi, start:el}); el+=measureSeconds(mi,spb); }
+  audio.prog = {t, dur:el||1, bounds};
+  cancelAnimationFrame(audio.raf);
+  const fill=document.getElementById('mx-fill'), lbl=document.getElementById('mx-lbl');
+  const tick=()=>{
+    if(!audio.playing || !audio.prog){ return; }
+    const e = Math.max(0, audio.ctx.currentTime - audio.prog.t);
+    const frac = Math.min(1, e/audio.prog.dur);
+    if(fill) fill.style.width = (frac*100)+'%';
+    let cur = audio.prog.bounds.length?audio.prog.bounds[0].mi:0;
+    for(const b of audio.prog.bounds){ if(e>=b.start) cur=b.mi; else break; }
+    if(lbl) lbl.textContent = `第 ${cur+1} / ${song.measures.length} 小节`;
+    audio.raf = requestAnimationFrame(tick);
+  };
+  audio.raf = requestAnimationFrame(tick);
 }
 function previewInst(instKey){
   if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
@@ -2937,7 +3004,7 @@ function play(){
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
-    if(!cfg.on) return;
+    if(!trackAudible('tab',vi)) return;
     const vol = (cfg.vol||1)*norm;
     let el=0;
     for(let mi=startMi; mi<song.measures.length; mi++){
@@ -2971,7 +3038,7 @@ function play(){
   /* 简谱（旋律）声部：连音线合并同音，按各自音色发声 */
   song.voxVoices.forEach((_,vi)=>{
     const cfg = trackCfg('vox',vi);
-    if(!cfg.on) return;
+    if(!trackAudible('vox',vi)) return;
     const vol = (cfg.vol||1)*norm;
     let el=0, hold=null;
     const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, bus, hold.freq, t+hold.start, hold.dur, vol*0.9, false); hold=null; } };
@@ -2992,6 +3059,7 @@ function play(){
     total=Math.max(total,el);
   });
   audio.timers.push(setTimeout(stopPlay, t0-performance.now()+total*1000+800));
+  startProgress(t, spb, startMi);
 }
 function highlight(prefix,mi,ci){
   const b = colBoxes[prefix+':'+mi+':'+ci];
@@ -3011,48 +3079,72 @@ function highlight(prefix,mi,ci){
 function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
   audio.sources.forEach(s=>{try{s.stop()}catch(_){}}); audio.sources=[];
-  audio.playing=false;
+  audio.playing=false; audio.prog=null;
+  cancelAnimationFrame(audio.raf);
   document.getElementById('b-play').textContent='▶ 播放';
   const ph=document.getElementById('playhead');
   if(ph) ph.setAttribute('opacity','0');
+  const fill=document.getElementById('mx-fill'), lbl=document.getElementById('mx-lbl');
+  if(fill) fill.style.width='0';
+  if(lbl) lbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
-/* ---- 音轨与音色 ---- */
-function openMixer(){
-  const groups=[['tab','吉他谱声部',song.tabVoices],['vox','简谱（旋律）声部',song.voxVoices]];
+/* ---- 底部悬浮音轨面板 ---- */
+let mixerOpen = false;
+function renderMixerDock(){
+  const wrap = document.getElementById('mx-tracks');
+  if(!wrap) return;
   const instOpts=(cur)=>Object.entries(INSTRUMENTS)
     .map(([k,v])=>`<option value="${k}" ${k===cur?'selected':''}>${v.name}</option>`).join('');
-  let rows='';
+  const groups=[['tab','吉他谱',song.tabVoices],['vox','简谱',song.voxVoices]];
+  let html='';
   groups.forEach(([kind,label,arr])=>{
     if(!arr.length) return;
-    rows+=`<h4>${label}</h4>`;
+    html+=`<div class="mx-grp">${label}</div>`;
     arr.forEach((nm,vi)=>{
       const cfg=trackCfg(kind,vi);
-      rows+=`<div class="trk" data-kind="${kind}" data-vi="${vi}">
-        <label class="tk-onl"><input type="checkbox" class="tk-on" ${cfg.on?'checked':''}><span class="tk-nm">${esc(nm)}</span></label>
-        <select class="tk-inst">${instOpts(cfg.inst)}</select>
-        <input type="range" class="tk-vol" min="0" max="150" value="${Math.round((cfg.vol||1)*100)}">
-        <span class="tk-vv">${Math.round((cfg.vol||1)*100)}%</span>
-        <button class="tk-prev" title="试听音色">▶</button>
+      html+=`<div class="mx-row" data-kind="${kind}" data-vi="${vi}">
+        <span class="mx-nm" title="${esc(nm)}">${esc(nm)}</span>
+        <select class="mx-inst">${instOpts(cfg.inst)}</select>
+        <button class="mx-btn solo ${cfg.solo?'on':''}" title="独奏">S</button>
+        <button class="mx-btn mute ${cfg.on===false?'on':''}" title="静音">M</button>
+        <span class="mx-vol"><input type="range" min="0" max="150" value="${Math.round((cfg.vol||1)*100)}"><span class="vv">${Math.round((cfg.vol||1)*100)}%</span></span>
       </div>`;
     });
   });
-  showModal(`<h3>播放音轨与音色</h3>
-    <p>每条声部即一条独立音轨，可单独开关发声、选择乐器音色、调节音量；设置随曲谱一起保存。点 ▶ 可试听音色。</p>
-    ${rows}
-    <div class="btns"><button id="mx-close" class="primary">完成</button></div>`);
-  document.getElementById('mx-close').onclick = closeModal;
-  document.querySelectorAll('#modal-mask .trk').forEach(row=>{
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.mx-row').forEach(row=>{
     const kind=row.dataset.kind, vi=+row.dataset.vi, cfg=trackCfg(kind,vi);
-    row.querySelector('.tk-on').onchange = e=>{ cfg.on=e.target.checked; persist(); };
-    row.querySelector('.tk-inst').onchange = e=>{ cfg.inst=e.target.value; persist(); previewInst(cfg.inst); };
-    const vv=row.querySelector('.tk-vv');
-    row.querySelector('.tk-vol').oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%'; persist(); };
-    row.querySelector('.tk-prev').onclick = ()=>previewInst(cfg.inst);
+    row.querySelector('.mx-inst').onchange = e=>{ cfg.inst=e.target.value; persist(); previewInst(cfg.inst); };
+    row.querySelector('.mx-btn.solo').onclick = e=>{ cfg.solo=!cfg.solo; e.currentTarget.classList.toggle('on',cfg.solo); persist(); };
+    row.querySelector('.mx-btn.mute').onclick = e=>{ cfg.on=(cfg.on===false); e.currentTarget.classList.toggle('on',cfg.on===false); persist(); };
+    const vin=row.querySelector('.mx-vol input'), vv=row.querySelector('.mx-vol .vv');
+    vin.oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%'; persist(); };
   });
 }
-document.getElementById('b-tracks').onclick = openMixer;
+function setMixerOpen(open){
+  mixerOpen = open;
+  document.getElementById('mixer-dock').classList.toggle('open', open);
+  document.getElementById('b-tracks').classList.toggle('on', open);
+  if(open){ renderMixerDock();
+    const lbl=document.getElementById('mx-lbl');
+    if(lbl && !audio.playing) lbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
+    const h=document.getElementById('mixer-dock').offsetHeight;
+    document.body.style.paddingBottom = (h+12)+'px';
+  } else document.body.style.paddingBottom = '';
+}
+document.getElementById('b-tracks').onclick = ()=>setMixerOpen(!mixerOpen);
+document.getElementById('mx-close2').onclick = ()=>setMixerOpen(false);
+/* 进度条点击定位起始小节（播放中则从该小节重新播放） */
+document.getElementById('mx-prog').onclick = e=>{
+  const r=e.currentTarget.getBoundingClientRect();
+  const frac=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+  const mi=Math.min(song.measures.length-1, Math.floor(frac*song.measures.length));
+  sel.mi=mi; sel.ci=0; clampSel(); render();
+  const lbl=document.getElementById('mx-lbl'); if(lbl) lbl.textContent=`第 ${mi+1} / ${song.measures.length} 小节`;
+  if(audio.playing) play();
+};
 
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
