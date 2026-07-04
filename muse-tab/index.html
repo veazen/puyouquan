@@ -539,15 +539,15 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
-const MIN_W = {1:60, 2:40, 4:27, 8:19, 16:14};
-const STR_GAP = 11, STAFF_H = STR_GAP*5;   // 六线谱弦间距 / 谱表高度
+const MIN_W = {1:60, 2:40, 4:27, 8:19, 16:14, 32:11};
+const STR_GAP = 9, STAFF_H = STR_GAP*5;   // 六线谱弦间距 / 谱表高度
 let PAGE_W = 1060; const MARGIN = 56;
 const MAX_VOICES = 5, MAX_LYR = 5;
 
 /* ---- 时值库 ---- */
 const DUR_SINGLE = [
   {name:'全音符', dur:1},{name:'2分', dur:2},{name:'4分', dur:4},
-  {name:'8分', dur:8},{name:'16分', dur:16}
+  {name:'8分', dur:8},{name:'16分', dur:16},{name:'32分', dur:32}
 ];
 const DUR_COMBOS = [
   {name:'八分×2', durs:[[8],[8]]},
@@ -942,12 +942,16 @@ function rhythmSVG(durs, W, H){
     }
     if(j>i){
       p.push(`<rect x="${xs[i]-0.5}" y="${stem-1.8}" width="${xs[j]-xs[i]+1}" height="1.8" fill="currentColor"/>`);
-      for(let a=i;a<j;a++)
+      for(let a=i;a<j;a++){
         if(durs[a][0]>=16 && durs[a+1][0]>=16)
           p.push(`<rect x="${xs[a]-0.5}" y="${stem-4.6}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+        if(durs[a][0]>=32 && durs[a+1][0]>=32)
+          p.push(`<rect x="${xs[a]-0.5}" y="${stem-7.4}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+      }
     }else{
       p.push(`<path d="M ${xs[i]} ${stem} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
       if(d>=16) p.push(`<path d="M ${xs[i]} ${stem-3.4} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+      if(d>=32) p.push(`<path d="M ${xs[i]} ${stem-6.8} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
     }
     i=j;
   }
@@ -1042,20 +1046,24 @@ function measureLayout(mea){
   });
   const inner = Math.max(base, Math.min(need, base*1.5));
   const NOTE_OFF = 10;   // 音符相对拍点的固定偏移，保证同拍数在各声部对齐
+  /* 拍间额外间隔：让"每拍 4 个十六分"这类密集小节的拍与拍之间清晰可辨 */
+  const BEAT_GAP = 7;
+  const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   const fit = cols=>{
     const rt = cols.reduce((a,c)=>a+beatsOf(c),0)||1;
     let cum=0; const xs=[], ws=[], ls=[];
     cols.forEach(c=>{
       const b=beatsOf(c);
-      const left = pad+(cum/rt)*inner;
-      const w = Math.max(16, b/rt*inner);
+      const bg = BEAT_GAP*Math.min(beats-1, Math.floor(cum+1e-4));   // 已跨过的拍界数×间隔
+      const left = pad+(cum/rt)*inner+bg;
+      const w = Math.max(14, b/rt*inner);
       ls.push(left); ws.push(w);
       xs.push(left + NOTE_OFF);   // 每拍/每音靠拍点左对齐 → 吉他谱与简谱逐拍对齐
       cum+=b;
     });
     return {xs, ws, ls, rt};
   };
-  return {w:inner+pad*2, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  return {w:inner+gapTotal+pad*2, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
@@ -1091,10 +1099,10 @@ function sysMetrics(){
   const tabTops=[], voxYs=[], lyricY0=[];
   for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 8; }
   for(let i=0;i<nV;i++){
-    y += 15; voxYs.push(y); lyricY0.push(y+24);
-    y += 24 + nL*20 + 5;
+    y += 12; voxYs.push(y); lyricY0.push(y+22);
+    y += 22 + (nL-1)*20 + 15;
   }
-  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:16};
+  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:11};
 }
 
 /* ================= 渲染 ================= */
@@ -1356,12 +1364,12 @@ function render(){
               if(picked)
                 p.push(`<circle cx="${nx}" cy="${yy}" r="8" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
               if(n.x || isTone){
-                p.push(`<rect x="${nx-5.5}" y="${yy-5.5}" width="11" height="11" fill="var(--paper)"/>`);
-                p.push(`<text x="${nx}" y="${yy+4}" font-size="11" font-weight="600" text-anchor="middle" fill="var(--ink)">×</text>`);
+                p.push(`<rect x="${nx-5}" y="${yy-4.6}" width="10" height="9.4" fill="var(--paper)"/>`);
+                p.push(`<text x="${nx}" y="${yy+3.4}" font-size="10" font-weight="600" text-anchor="middle" fill="var(--ink)">×</text>`);
               }else{
                 const wide = n.f>9;
-                p.push(`<rect x="${nx-(wide?8.5:5.5)}" y="${yy-5.5}" width="${wide?17:11}" height="11" fill="var(--paper)"/>`);
-                p.push(`<text x="${nx}" y="${yy+4}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
+                p.push(`<rect x="${nx-(wide?8:5)}" y="${yy-4.6}" width="${wide?16:10}" height="9.4" fill="var(--paper)"/>`);
+                p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
               /* 技法连线：从本音符头连到所选的下一个音符头（放大标记） */
               if(n.tech){
@@ -1412,12 +1420,16 @@ function render(){
               const i1=g.idx[a], i2=g.idx[a+1];
               if(cols[i1].dur>=16 && cols[i2].dur>=16)
                 p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-5.8}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
+              if(cols[i1].dur>=32 && cols[i2].dur>=32)
+                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-9.4}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
             }
           }else{
             const x=xs[0];
             p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
             if(cols[g.idx[0]].dur>=16)
               p.push(`<path d="M ${x} ${stemY-4.5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+            if(cols[g.idx[0]].dur>=32)
+              p.push(`<path d="M ${x} ${stemY-9} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
         /* 每拍时值符号区（六线下方整段）可点击：点击时值符号即选中整拍 */
@@ -1483,7 +1495,7 @@ function render(){
             p.push(`<rect x="${clx}" y="${voxY-22}" width="${cw}" height="${30+song.lyricLines*20}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
           else if(colInRange('vox',vi,lm.mi,ci))
             p.push(`<rect x="${clx}" y="${voxY-22}" width="${cw}" height="34" fill="var(--accent)" opacity="0.09"/>`);
-          const under = col.dur>=8 ? (col.dur===8?1:2) : 0;
+          const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':'♭'}</text>`);
           p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
@@ -1523,6 +1535,14 @@ function render(){
               let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=16) b++;
               const xa = mx+lay.xs[g.idx[a]]-6.5, xb = mx+lay.xs[g.idx[b]]+6.5;
               p.push(`<line x1="${xa}" y1="${voxY+6.6}" x2="${xb}" y2="${voxY+6.6}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              a=b;
+            }
+          }
+          for(let a=0;a<g.idx.length;a++){
+            if(cols[g.idx[a]].dur>=32){
+              let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=32) b++;
+              const xa = mx+lay.xs[g.idx[a]]-6.5, xb = mx+lay.xs[g.idx[b]]+6.5;
+              p.push(`<line x1="${xa}" y1="${voxY+9.8}" x2="${xb}" y2="${voxY+9.8}" stroke="var(--ink)" stroke-width="1.1"/>`);
               a=b;
             }
           }
