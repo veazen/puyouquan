@@ -145,8 +145,49 @@ input.short{width:54px} input.mid{width:150px}
 .sc-desc{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1}
 .sc-act{display:flex;gap:5px;flex-wrap:wrap}
 .sc-act button{font-size:12px;padding:4px 10px}
+/* ================= 通用功能行 ================= */
+.util-bar{gap:7px;background:var(--toolbar);border-bottom:1px solid var(--border)}
+.ut-label{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-right:2px;font-weight:600}
+/* ================= 三栏舞台 ================= */
+#stage{display:flex;align-items:flex-start;justify-content:center;gap:14px;
+  padding:18px 16px 6px;max-width:1560px;margin:0 auto}
+/* 左侧固定标签栏（贴谱面左缘），点击向左展开完整功能面板 */
+#left-dock{display:flex;flex-direction:row;align-items:flex-start;position:sticky;top:118px;
+  align-self:flex-start;z-index:6}
+#left-rail{display:flex;flex-direction:column;gap:6px;flex:none;padding-top:2px}
+.ltab{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.16em;
+  border:1px solid var(--border);background:var(--panel);border-radius:9px;
+  padding:12px 7px;font-size:13px;color:var(--muted);font-weight:600;min-width:32px;
+  box-shadow:0 1px 3px rgba(20,30,60,.06);transition:all .12s}
+.ltab:hover{color:var(--accent-ink);background:var(--accent-soft);border-color:var(--accent)}
+.ltab.on{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(58,92,224,.3)}
+#left-flyout{flex:none;width:252px;margin-right:7px;max-height:calc(100vh - 140px);overflow-y:auto;
+  background:var(--panel);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow)}
+#left-flyout #ribbon{display:flex;flex-direction:column;gap:8px;padding:10px;
+  overflow:visible;border-bottom:none;background:transparent}
+#left-flyout .rg{width:100%}
+#left-flyout .rg .rg-body{max-width:none}
+/* 右侧信息栏 */
+#right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
+  position:sticky;top:118px;align-self:flex-start;z-index:6}
+.rcard{border:1px solid var(--border);border-radius:12px;background:var(--panel);
+  box-shadow:0 1px 3px rgba(20,30,60,.06);overflow:hidden}
+.rc-h{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+  border:none;border-radius:0;background:var(--toolbar);font-weight:700;font-size:13px;padding:9px 12px}
+.rc-h:hover{background:var(--accent-soft);color:var(--accent-ink)}
+.rc-h::after{content:'▸';font-size:11px;color:var(--muted);transition:transform .15s}
+.rcard.open .rc-h::after{transform:rotate(90deg)}
+.rc-h.rc-btn::after{content:'…';transform:none}
+.rcard .rc-b{display:none;padding:10px 12px;border-top:1px solid var(--border)}
+.rcard.open .rc-b{display:block}
+.rc-b .rg-body{max-width:none;justify-content:flex-start;gap:5px}
+.rc-b .rg-body button{margin:1px 0}
+#cursor-info{font-size:12.5px;color:var(--text);line-height:1.85}
+#cursor-info .ci-row{display:flex;justify-content:space-between;gap:8px}
+#cursor-info .ci-k{color:var(--muted)}
+#cursor-info b{color:var(--accent-ink);font-weight:600}
 /* ================= 主区（默认 A4 纸张） ================= */
-#score-wrap{max-width:900px;margin:20px auto;padding:0 16px;}
+#score-wrap{flex:0 1 900px;min-width:0;max-width:900px;margin:0;padding:0;}
 #paper{background:transparent;border:none;box-shadow:none;padding:0;
   width:100%;max-width:820px;margin:0 auto;
   filter:drop-shadow(0 4px 14px rgba(20,30,60,.10));}   /* ≈A4 纵向宽度(96dpi) */
@@ -183,9 +224,10 @@ svg text{user-select:none}
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
 @media print{
-  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask{display:none!important}
+  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock{display:none!important}
   body{background:#fff}
-  #score-wrap{margin:0;max-width:none;padding:0}
+  #stage{display:block;padding:0;margin:0;max-width:none}
+  #score-wrap{margin:0;max-width:none;padding:0;flex:none}
   #paper{border:none;box-shadow:none;border-radius:0;padding:0;max-width:none;width:auto;filter:none}
   #paper svg{width:100%!important;height:auto!important}
   #score .pagebg{stroke:none!important} #score .pageno{display:none!important}
@@ -208,6 +250,11 @@ svg text{user-select:none}
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
+    <span class="grow"></span>
+    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
+  </div>
+  <div class="bar util-bar">
+    <span class="ut-label">通用功能</span>
     <span class="seg">
       <button id="b-undo" title="Ctrl+Z">撤销</button>
       <button id="b-redo" title="Ctrl+Y">重做</button>
@@ -219,19 +266,17 @@ svg text{user-select:none}
     <button id="b-mix-vox" class="on" title="旋律声部发声">唱</button>
     <label style="color:var(--muted);font-size:12px">速度</label>
     <input id="i-tempo" class="short" type="number" min="30" max="240">
-    <span class="grow"></span>
-    <button id="b-meta" class="ghost">曲谱信息</button>
-    <button id="b-help" class="ghost">帮助</button>
-    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
   </div>
-  <div class="bar tab-bar">
-    <button class="rtab" data-t="tab">吉他谱</button>
-    <button class="rtab" data-t="vox">简谱</button>
-    <button class="rtab" data-t="lyr">歌词</button>
-    <button class="rtab" data-t="mea">小节</button>
-    <span id="mode-tip"></span>
+  <div id="statusbar">
+    <span id="beat-status" class="good">✓ 所有小节时值正确</span>
+    <div id="err-drop" class="hidden"></div>
   </div>
-  <div id="ribbon">
+</header>
+
+<div id="stage">
+  <aside id="left-dock">
+    <div id="left-flyout">
+      <div id="ribbon">
     <!-- 共用时值组（吉他谱/简谱页显示） -->
     <div class="rg" id="g-dur">
       <div class="rg-title">时值 · 共用</div>
@@ -312,24 +357,41 @@ svg text{user-select:none}
         <button id="b-clearlyr">清空本段</button>
       </div>
     </div>
-    <!-- 小节 -->
-    <div class="rg panel-p" id="panel-mea-op">
-      <div class="rg-title">小节操作</div>
-      <div class="rg-body">
-        <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
-        <button id="b-rep-s" title="反复开始">|:</button>
-        <button id="b-rep-e" title="反复结束">:|</button>
-        <button id="b-autofix" title="按拍号自动补充/删减音符，保持小节时值准确">补齐小节时值</button>
+      </div><!-- /#ribbon -->
+    </div><!-- /#left-flyout -->
+    <div id="left-rail">
+      <button class="ltab on" data-t="tab">吉他谱</button>
+      <button class="ltab" data-t="vox">简谱</button>
+      <button class="ltab" data-t="lyr">歌词</button>
+    </div>
+  </aside>
+
+  <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
+
+  <aside id="right-dock">
+    <div class="rcard">
+      <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
+    </div>
+    <div class="rcard open">
+      <button class="rc-h" type="button">小节操作</button>
+      <div class="rc-b">
+        <div class="rg-body">
+          <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
+          <button id="b-rep-s" title="反复开始">|:</button>
+          <button id="b-rep-e" title="反复结束">:|</button>
+          <button id="b-autofix" title="按拍号自动补充/删减音符，保持小节时值准确">补齐小节时值</button>
+        </div>
       </div>
     </div>
-  </div>
-  <div id="statusbar">
-    <span id="beat-status" class="good">✓ 所有小节时值正确</span>
-    <div id="err-drop" class="hidden"></div>
-  </div>
-</header>
-
-<div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
+    <div class="rcard open">
+      <button class="rc-h" type="button">光标位置</button>
+      <div class="rc-b"><div id="cursor-info">—</div></div>
+    </div>
+    <div class="rcard">
+      <button class="rc-h rc-btn" id="b-help">使用帮助</button>
+    </div>
+  </aside>
+</div>
 <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击跨小节多选后，在"节奏型库"中点图示即可批量套用（有和弦时自动按指法生成音符）。小节时值与拍号不符会自动标红并计入上方"节拍检查"。</div>
 <div id="toast"></div>
 <script>
@@ -1430,7 +1492,7 @@ let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 function setRibbon(t){
   activeTab = t;
-  document.querySelectorAll('.rtab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+  document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   const showDur = (t==='tab'||t==='vox');
   /* 共用时值模块：完整固定显示（全/2/4/8/16/附点） */
   document.getElementById('g-dur').style.display = showDur?'':'none';
@@ -1448,9 +1510,21 @@ function setRibbon(t){
 }
 function syncInputs(){
   const col = curCol();
-  document.getElementById('mode-tip').textContent =
-    (sel.row==='tab' ? '吉他谱 · '+(song.tabVoices[sel.vi]||'') : '简谱 · '+(song.voxVoices[sel.vi]||''))
-    + ` · 第${sel.mi+1}小节` + (selRange?` · 已多选 ${selRange.m1+1}–${selRange.m2+1} 小节`:'');
+  const ci = document.getElementById('cursor-info');
+  if(ci){
+    const cols = curRowCols() || [];
+    const durNm = {1:'全音符',2:'2分',4:'4分',8:'8分',16:'16分',32:'32分'};
+    const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
+    const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
+    let durTxt = '—';
+    if(col){ durTxt = (col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)); }
+    ci.innerHTML =
+      `<div class="ci-row"><span class="ci-k">声部</span><b>${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
+      `<div class="ci-row"><span class="ci-k">小节</span><b>第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
+      `<div class="ci-row"><span class="ci-k">列</span><b>第 ${sel.ci+1} / ${cols.length}</b></div>`+
+      `<div class="ci-row"><span class="ci-k">时值</span><b>${durTxt}</b></div>`+
+      (selRange?`<div class="ci-row"><span class="ci-k">多选</span><b>${selRange.m1+1}–${selRange.m2+1} 小节</b></div>`:'');
+  }
   document.getElementById('tab-voices').innerHTML =
     voiceChips(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
     `<span class="chip" data-k="tv+" title="添加声部">＋</span>`;
@@ -1929,7 +2003,23 @@ document.getElementById('top').addEventListener('dblclick', e=>{
   const nm = prompt('声部名称', list[i]);
   if(nm!=null && nm.trim()){ mutate(()=>{ list[i]=nm.trim(); }); }
 });
-document.querySelectorAll('.rtab').forEach(b=>b.onclick = ()=>setRibbon(b.dataset.t));
+/* 左侧标签：点击向左展开完整功能面板；再次点击当前标签则收起 */
+function openFlyout(t){
+  const fly = document.getElementById('left-flyout');
+  fly.classList.remove('hidden');
+  setRibbon(t);
+}
+function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
+document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
+  const fly = document.getElementById('left-flyout');
+  const isOpen = !fly.classList.contains('hidden');
+  if(isOpen && activeTab===b.dataset.t){ closeFlyout(); }
+  else { openFlyout(b.dataset.t); }
+});
+/* 右侧信息栏折叠卡片（曲谱信息/使用帮助为按钮，直接触发其自身弹窗） */
+document.querySelectorAll('#right-dock .rc-h:not(.rc-btn)').forEach(h=>h.onclick = ()=>{
+  h.closest('.rcard').classList.toggle('open');
+});
 
 /* ================= 键盘 ================= */
 window.addEventListener('keydown', e=>{
@@ -1980,7 +2070,7 @@ window.addEventListener('keydown', e=>{
     case 'Delete': e.preventDefault(); delColumn(); break;
     case 'Enter':
       e.preventDefault();
-      if(sel.row==='vox'){ setRibbon('lyr'); document.getElementById('i-lyric').focus(); }
+      if(sel.row==='vox'){ openFlyout('lyr'); document.getElementById('i-lyric').focus(); }
       break;
     case ' ': e.preventDefault(); audio.playing?stopPlay():play(); break;
     case '.': e.preventDefault(); toggleDot(); break;
@@ -2026,7 +2116,7 @@ function pasteMeasure(){
 document.addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
-  const inside = t.closest('#top, #score, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
+  const inside = t.closest('#top, #score, #left-dock, #right-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
   if(!inside){
     blurSel = true; measureSel=null; selRange=null; noteSel=[]; closeTech();
     render();
