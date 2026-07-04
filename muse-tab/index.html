@@ -117,6 +117,19 @@ input.short{width:54px} input.mid{width:150px}
   border-radius:12px;box-shadow:var(--shadow);padding:10px;font-size:12.5px}
 .popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
+/* 曲谱库 */
+.lib-tabs{display:flex;gap:6px;margin:2px 0 12px;border-bottom:1px solid var(--border);padding-bottom:8px}
+.lib-tab{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:500}
+.lib-tab.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.song-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.song-card{border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--toolbar);
+  display:flex;flex-direction:column;gap:6px}
+.song-card:hover{border-color:var(--accent)}
+.sc-title{font-weight:700;font-size:14px}
+.sc-cur{font-size:10.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 7px;border-radius:10px;font-weight:600;margin-left:4px}
+.sc-desc{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1}
+.sc-act{display:flex;gap:5px;flex-wrap:wrap}
+.sc-act button{font-size:12px;padding:4px 10px}
 /* ================= 主区 ================= */
 #score-wrap{max-width:1180px;margin:20px auto;padding:0 16px;}
 #paper{background:var(--paper);border:1px solid var(--border);border-radius:14px;
@@ -164,8 +177,11 @@ svg text{user-select:none}
 <header id="top">
   <div class="bar main-bar">
     <span class="logo"><span class="mark">🎸</span>MuseTab <small>吉他谱编辑器</small></span>
-    <button id="b-new">新建</button><button id="b-open">打开</button>
-    <button id="b-save">保存</button><button id="b-print">打印/PDF</button>
+    <button id="b-new">新建</button>
+    <button id="b-library" class="primary">📚 曲谱库</button>
+    <button id="b-savemine">存入我的曲谱</button>
+    <button id="b-open">导入</button>
+    <button id="b-save">导出</button><button id="b-print">打印/PDF</button>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="vsep"></span>
     <button id="b-undo" title="Ctrl+Z">撤销</button>
@@ -561,6 +577,95 @@ function demoSong(){
       M(strumC,     [V(1,'星',1)])
     ]};
 }
+/* ================= 预设曲谱（展示各项功能） ================= */
+function presetStrum(){
+  /* 民谣扫弦弹唱：展示扫弦节奏型 + 切音 + 和弦图 + 歌词 —— 欢乐颂 */
+  const V=(deg,ly,dur,oct)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false});
+  const sh={C:'x32010',G:'320003',Am:'x02210',F:'133211',Dm:'xx0231',G7:'320001'};
+  const sounded=s=>{const r=[];[...s].forEach((c,i)=>{if(c!=='x')r.push({s:6-i,f:parseInt(c,36)})});return r;};
+  /* 一小节扫弦：↓ ↓↑ ↓· ↓↑（民谣经典切音版） */
+  const strum=(chord)=>{
+    const S=sh[chord]; const N=sounded(S);
+    const col=(strm,dur,mute)=>({dur,dotted:false,chord:'',notes:N.map(n=>({...n})),strum:strm,mute:!!mute});
+    const c=[col('d',4),col('d',8),col('u',8),col('d',8,true),col('u',8),col('d',8),col('u',8)];
+    c[0].chord=chord; return c;
+  };
+  const M=(chord,vox,ext)=>Object.assign({tabs:[strum(chord)],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  return {v:3, title:'欢乐颂（扫弦弹唱）', singer:'', lyricist:'席勒', composer:'贝多芬',
+    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:100, capo:0, customChords:{},
+    tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
+    measures:[
+      M('C',[V(3,'啊'),V(3,'朋'),V(4,'友'),V(5,'再')]),
+      M('C',[V(5,'见'),V(4,'吧'),V(3,'再'),V(2,'见')]),
+      M('Am',[V(1,'吧'),V(1,'再'),V(2,'见'),V(3,'吧')]),
+      M('G',[V(3,'我'),V(2,'的',2),V(2,'情',4)], ),
+      M('C',[V(3,'人'),V(3,'当'),V(4,'我'),V(5,'离')]),
+      M('C',[V(5,'开'),V(4,'你'),V(3,'的'),V(2,'时')]),
+      M('Am',[V(1,'候'),V(1,'心'),V(2,'中'),V(3,'多')]),
+      M('G7',[V(2,'么',4),V(1,'悲',2),V(1,'伤',2)], {repeatEnd:true})
+    ]};
+}
+function presetTech(){
+  /* 指弹技法示例：滑弦/击弦/勾弦 + 高把位和弦（Cmaj7/Am7 等） */
+  const T=(notes,chord,dur,dot)=>({dur:dur||8,dotted:!!dot,chord:chord||'',
+    notes:notes.map(([s,f,tech,tk])=>({s,f,tech:tech||'',tk:tk||undefined})),strum:''});
+  const V=(deg,ly,dur,oct)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false});
+  const M=(tab,vox,ext)=>Object.assign({tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  const r4=()=>[V(0),V(0),V(0),V(0)];
+  return {v:3, title:'指弹技法示例', singer:'', lyricist:'', composer:'',
+    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:84, capo:0, customChords:{},
+    tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
+    measures:[
+      /* 击弦 h：3弦0→2 ；勾弦 p：2弦3→1 ；滑弦 sl：1弦5→7 */
+      M([ T([[5,3,'',null]],'Cmaj7',8), T([[3,0,'h',{mi:0,ci:2,si:3}]],'',8),
+          T([[3,2,'',null]],'',8), T([[2,3,'p',{mi:0,ci:4,si:2}]],'',8),
+          T([[2,1,'',null]],'',8), T([[1,5,'sl',{mi:0,ci:6,si:1}]],'',8),
+          T([[1,7,'',null]],'',8), T([[1,7,'',null]],'',8) ], r4()),
+      M([ T([[5,0,'']],'Am7',4), T([[3,2,'']],'',8), T([[2,1,'']],'',8),
+          T([[1,0,'b',{mi:1,ci:4,si:1}]],'',8), T([[1,0,'']],'',8),
+          T([[2,1,'v']],'',4) ], r4()),
+      M([ T([[6,3,'']],'G',8), T([[3,0,'h',{mi:2,ci:2,si:3}]],'',8),
+          T([[3,0,'']],'',8), T([[2,0,'']],'',8),
+          T([[1,3,'sl',{mi:2,ci:6,si:1}]],'',4), T([[1,5,'']],'',4) ], r4()),
+      M([ T([[4,3,'']],'F',4), T([[3,2,'']],'',4), T([[2,1,'']],'',4), T([[1,1,'']],'',4) ], r4(), {repeatEnd:true})
+    ]};
+}
+function presetDuet(){
+  /* 双吉他声部 + 两段歌词：展示多声部与多段词 */
+  const V=(deg,ly1,ly2,dur)=>({dur:dur||4,dotted:false,deg,acc:'',oct:0,lyrics:[ly1||'',ly2||''],tie:false});
+  const sh={C:'x32010',G:'320003',Am:'x02210',F:'133211'};
+  const sounded=s=>{const r=[];[...s].forEach((c,i)=>{if(c!=='x')r.push({s:6-i,f:parseInt(c,36)})});return r;};
+  const arp=(chord)=>{const N=sounded(sh[chord]);const bass=N.reduce((a,b)=>b.s>a.s?b:a,N[0]);
+    const pick=s=>{const n=N.find(x=>x.s===s)||bass;return {s:n.s,f:n.f};};
+    const c=[{dur:8,dotted:false,chord:'',notes:[{s:bass.s,f:bass.f}],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(3)],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(2)],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(1)],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(2)],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(3)],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[{s:bass.s,f:bass.f}],strum:''},
+      {dur:8,dotted:false,chord:'',notes:[pick(3)],strum:''}];
+    c[0].chord=chord; return c;};
+  const strum2=(chord)=>{const N=sounded(sh[chord]);
+    const col=(s,d)=>({dur:d,dotted:false,chord:'',notes:N.map(n=>({...n})),strum:s});
+    const c=[col('d',4),col('d',8),col('u',8),col('d',4),col('d',8),col('u',8)];c[0].chord=chord;return c;};
+  const M=(chord,vox)=>({tabs:[arp(chord),strum2(chord)],voxes:[vox],repeatStart:false,repeatEnd:false});
+  return {v:3, title:'两只老虎（双声部）', singer:'', lyricist:'', composer:'法国儿歌',
+    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:108, capo:0, customChords:{},
+    tabVoices:['指弹','扫弦'], voxVoices:['旋律1'], lyricLines:2,
+    measures:[
+      M('C',[V(1,'两','跑'),V(2,'只','得'),V(3,'老','快'),V(1,'虎','跑')]),
+      M('C',[V(1,'两','得'),V(2,'只','快'),V(3,'老','一'),V(1,'虎','只')]),
+      M('F',[V(3,'跑','没'),V(4,'得','有'),V(5,'快','眼',2)]),
+      M('G',[V(3,'跑','睛'),V(4,'得','一'),V(5,'快','只',2)])
+    ]};
+}
+const PRESETS = [
+  {name:'小星星（分解弹唱）', desc:'分解指弹 + 简谱旋律 + 歌词，×记谱与随行和弦图', make:demoSong},
+  {name:'欢乐颂（扫弦弹唱）', desc:'民谣扫弦节奏型 + 切音 + 多和弦 + 歌词', make:presetStrum},
+  {name:'指弹技法示例', desc:'滑弦/击弦/勾弦/推弦/揉弦 + 大七小七和弦', make:presetTech},
+  {name:'两只老虎（双声部）', desc:'指弹+扫弦双吉他声部 + 两段歌词', make:presetDuet},
+];
 function migrate(s){
   if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
   if(s.v===2){
@@ -2436,7 +2541,39 @@ document.getElementById('b-mix-vox').onclick = e=>{ mix.vox=!mix.vox; e.target.c
 
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
-function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(song)); }catch(_){} }
+const LS_LIB = 'musetab-library-v1';
+function persist(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify(song));
+    /* 实时自动保存：若当前曲谱已存入"我的曲谱"，同步更新该条 */
+    if(song && song.id){
+      const lib = libLoad();
+      const i = lib.findIndex(e=>e.id===song.id);
+      if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib); }
+    }
+  }catch(_){}
+}
+function nowStamp(){ try{ return new Date().toLocaleString('zh-CN',{hour12:false}); }catch(_){ return ''; } }
+function libLoad(){ try{ return JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(_){ return []; } }
+function libSave(list){ try{ localStorage.setItem(LS_LIB, JSON.stringify(list)); }catch(_){} }
+function newId(){ return 's'+Math.random().toString(36).slice(2,9)+(libLoad().length); }
+function saveToLibrary(){
+  const lib = libLoad();
+  if(song.id){
+    const i=lib.findIndex(e=>e.id===song.id);
+    if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib);
+      return toast('已更新到我的曲谱：'+song.title); }
+  }
+  song.id = newId();
+  lib.unshift({id:song.id, title:song.title||'未命名曲谱', updatedAt:nowStamp(), data:JSON.parse(JSON.stringify(song))});
+  libSave(lib); persist();
+  toast('已保存到我的曲谱：'+(song.title||'未命名曲谱'));
+}
+function loadSong(s){
+  s = migrate(s);
+  pushUndo(); song=s; sel={mi:0,row:'tab',vi:0,ci:0,si:1}; selRange=null;
+  clampSel(); persist(); render();
+}
 function exportSong(){
   const blob = new Blob([JSON.stringify(song,null,1)], {type:'application/json'});
   const a = document.createElement('a');
@@ -2447,6 +2584,49 @@ function exportSong(){
   toast('已导出曲谱文件');
 }
 document.getElementById('b-save').onclick = exportSong;
+document.getElementById('b-savemine').onclick = saveToLibrary;
+/* ---- 曲谱库管理器（预设曲谱 + 我的曲谱） ---- */
+let libTab = 'preset';
+function showLibrary(){
+  const presetCards = PRESETS.map((p,i)=>
+    `<div class="song-card" data-preset="${i}">
+       <div class="sc-title">${esc(p.name)}</div>
+       <div class="sc-desc">${esc(p.desc)}</div>
+       <div class="sc-act"><button class="primary" data-load-preset="${i}">打开</button></div>
+     </div>`).join('');
+  const lib = libLoad();
+  const mineCards = lib.length ? lib.map(e=>
+    `<div class="song-card" data-mine="${e.id}">
+       <div class="sc-title">${esc(e.title||'未命名曲谱')} ${song.id===e.id?'<span class="sc-cur">编辑中</span>':''}</div>
+       <div class="sc-desc">更新于 ${esc(e.updatedAt||'')}</div>
+       <div class="sc-act"><button class="primary" data-load-mine="${e.id}">打开</button>
+         <button data-rename-mine="${e.id}">重命名</button>
+         <button data-del-mine="${e.id}">删除</button></div>
+     </div>`).join('')
+    : `<p style="grid-column:1/-1">还没有保存的曲谱。制作时点顶部"存入我的曲谱"即可保存，之后编辑会实时自动保存。</p>`;
+  showModal(`<h3>曲谱库</h3>
+    <div class="lib-tabs">
+      <button class="lib-tab ${libTab==='preset'?'on':''}" data-lt="preset">预设曲谱 · 功能展示</button>
+      <button class="lib-tab ${libTab==='mine'?'on':''}" data-lt="mine">我的曲谱（${lib.length}）</button>
+    </div>
+    <div class="song-grid">${libTab==='preset'?presetCards:mineCards}</div>
+    <div class="btns"><button id="lib-close">关闭</button></div>`);
+  const modal=document.querySelector('.modal');
+  modal.querySelectorAll('.lib-tab').forEach(b=>b.onclick=()=>{ libTab=b.dataset.lt; closeModal(); showLibrary(); });
+  modal.addEventListener('click', e=>{
+    const lp=e.target.closest('[data-load-preset]');
+    if(lp){ const s=PRESETS[+lp.dataset.loadPreset].make(); s.id=undefined; closeModal(); loadSong(s); toast('已打开预设：'+s.title); return; }
+    const lm=e.target.closest('[data-load-mine]');
+    if(lm){ const e0=libLoad().find(x=>x.id===lm.dataset.loadMine); if(e0){ closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); } return; }
+    const rn=e.target.closest('[data-rename-mine]');
+    if(rn){ const id=rn.dataset.renameMine; const lib=libLoad(); const en=lib.find(x=>x.id===id);
+      const nm=prompt('重命名曲谱', en.title||''); if(nm!=null){ en.title=nm; en.data.title=nm; if(song.id===id) song.title=nm; libSave(lib); persist(); render(); closeModal(); showLibrary(); } return; }
+    const dl=e.target.closest('[data-del-mine]');
+    if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; closeModal(); showLibrary(); } return; }
+  });
+  document.getElementById('lib-close').onclick = closeModal;
+}
+document.getElementById('b-library').onclick = showLibrary;
 document.getElementById('b-open').onclick = ()=>document.getElementById('file-in').click();
 document.getElementById('file-in').addEventListener('change', e=>{
   const f=e.target.files[0]; if(!f) return;
