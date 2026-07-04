@@ -539,7 +539,7 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
-const MIN_W = {1:60, 2:40, 4:27, 8:19, 16:14, 32:11};
+const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11};
 const STR_GAP = 9, STAFF_H = STR_GAP*5;   // 六线谱弦间距 / 谱表高度
 let PAGE_W = 1060; const MARGIN = 56;
 const MAX_VOICES = 5, MAX_LYR = 5;
@@ -1044,7 +1044,9 @@ function measureLayout(mea){
     const w = cols.reduce((a,c)=>a+MIN_W[c.dur]+(c.dotted?6:0), 0);
     need = Math.max(need, w);
   });
-  const inner = Math.max(base, Math.min(need, base*1.5));
+  /* 上限放宽：密集小节（如整小节十六分）能取得所需宽度，行内按需自适配，
+     稀疏小节保持基准宽度 → 拥挤/空白不再失衡 */
+  const inner = Math.max(base, Math.min(need, base*2.6));
   const NOTE_OFF = 10;   // 音符相对拍点的固定偏移，保证同拍数在各声部对齐
   /* 拍间额外间隔：让"每拍 4 个十六分"这类密集小节的拍与拍之间清晰可辨 */
   const BEAT_GAP = 7;
@@ -1063,7 +1065,7 @@ function measureLayout(mea){
     });
     return {xs, ws, ls, rt};
   };
-  return {w:inner+gapTotal+pad*2, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  return {w:inner+gapTotal+pad*2, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
@@ -1074,19 +1076,28 @@ function layoutSystems(){
     cur.w += L.w;
   });
   if(cur.measures.length) systems.push(cur);
-  /* 两端对齐：每行拉伸至同一总宽（最后一行不足 55% 时保持自然宽度） */
+  /* 两端对齐：把整行的剩余空间按各小节"内容量(weight)"分配——
+     密集小节（如整小节十六分）分得更多、稀疏小节分得更少，
+     以行为单位自动适配，避免"一处拥挤一处空白"。 */
   const avail = PAGE_W - 2*MARGIN;
   systems.forEach((sys, si)=>{
     if(si===systems.length-1 && sys.w < avail*0.55) return;
-    const k = avail/sys.w;
-    if(Math.abs(k-1)<1e-6) return;
+    const free = avail - sys.w;
+    if(Math.abs(free)<1e-6) return;
+    const totalW = sys.measures.reduce((a,lm)=>a+Math.max(1,lm.L.weight), 0);
+    let xoff = 0;
     sys.measures.forEach(lm=>{
-      lm.x *= k; lm.L.w *= k;
+      const add = free * (Math.max(1,lm.L.weight)/totalW);
+      const newW = Math.max(20, lm.L.w + add);
+      const s = newW/lm.L.w;
+      lm.x = xoff;
+      lm.L.w = newW;
       [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
-        r.xs = r.xs.map(v=>v*k);
-        r.ws = r.ws.map(v=>v*k);
-        r.ls = r.ls.map(v=>v*k);
+        r.xs = r.xs.map(v=>v*s);
+        r.ws = r.ws.map(v=>v*s);
+        r.ls = r.ls.map(v=>v*s);
       });
+      xoff += newW;
     });
     sys.w = avail;
   });
@@ -1099,8 +1110,8 @@ function sysMetrics(){
   const tabTops=[], voxYs=[], lyricY0=[];
   for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 8; }
   for(let i=0;i<nV;i++){
-    y += 12; voxYs.push(y); lyricY0.push(y+22);
-    y += 22 + (nL-1)*20 + 15;
+    y += 15; voxYs.push(y); lyricY0.push(y+24);   // 上方留白避开倍高音点、下方避开减时线/低音点
+    y += 24 + (nL-1)*20 + 13;
   }
   return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:11};
 }
@@ -1501,8 +1512,9 @@ function render(){
           p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
           if(col.deg){
             for(let d=0; d<Math.min(2,Math.abs(col.oct)); d++){
-              if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-16-d*4.6}" r="1.6" fill="var(--ink)"/>`);
-              else p.push(`<circle cx="${nx}" cy="${voxY+6.5+under*3.4+d*4.6}" r="1.6" fill="var(--ink)"/>`);
+              /* 倍高音点贴近数字上沿（避开六线谱节奏符杠）；低音点落在减时线下方 */
+              if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-14-d*4.2}" r="1.5" fill="var(--ink)"/>`);
+              else p.push(`<circle cx="${nx}" cy="${voxY+5.5+under*3.1+d*4.2}" r="1.5" fill="var(--ink)"/>`);
             }
           }
           if(under && !inGroup.has(ci))
