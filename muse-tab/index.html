@@ -425,21 +425,27 @@ const TAB_PATTERN_GROUPS = [
     {name:'5·32·13 慢三', ev:[['b',4],['s3',8],['s2',8],['s1',8],['s3',8]]},
     {name:'632123 六八分解', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8]]},
   ]},
-  {cat:'扫弦节奏型 · 2/4 4/4', items:[
-    {name:'四分下扫 ×4', ev:[['d',4],['d',4],['d',4],['d',4]]},
+  {cat:'扫弦节奏型 · 2/4 4/4（无休止，切音=箭头带点）', items:[
+    {name:'四分下扫 ↓↓↓↓', ev:[['d',4],['d',4],['d',4],['d',4]]},
+    {name:'八分下上 ↓↑×4', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
     {name:'↓ ↓↑ ↓ ↓↑', ev:[['d',4],['d',8],['u',8],['d',4],['d',8],['u',8]]},
-    {name:'民谣经典 ↓ ↓↑ ↑↓↑', ev:[['d',4],['d',8],['u',8],['r',8],['u',8],['d',8],['u',8]]},
-    {name:'八分全扫 ↓↑ ×4', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
-    {name:'切音律动 ↓ × ↓ ×', ev:[['d',4],['x',4],['d',4],['x',4]]},
-    {name:'放克切音 ↓↑×↑ ×2', ev:[['d',8],['u',8],['x',8],['u',8],['d',8],['u',8],['x',8],['u',8]]},
-    {name:'慢摇滚 ↓ ↑↓ 空↑ ↓↑', ev:[['d',4],['u',8],['d',8],['r',8],['u',8],['d',8],['u',8]]},
-    {name:'重拍强化 ↓ ↓ ↓↓ ↓', ev:[['d',4],['d',4],['d',8],['d',8],['d',4]]},
+    {name:'民谣经典 ↓ ↓↑ ↓·↑ ↓↑', ev:[['d',4],['d',8],['u',8],['md',8],['u',8],['d',8],['u',8]]},
+    {name:'灵魂乐 ↓↑ ↓↑ ↓·↑ ↓↑', ev:[['d',8],['u',8],['d',8],['u',8],['md',8],['u',8],['d',8],['u',8]]},
+    {name:'切音律动 ↓ ↓· ↓ ↓·', ev:[['d',4],['md',4],['d',4],['md',4]]},
+    {name:'放克 ↓↑↓·↑ ×2', ev:[['d',8],['u',8],['md',8],['u',8],['d',8],['u',8],['md',8],['u',8]]},
+    {name:'慢摇滚 ↓ ↑↓ ↓·↑ ↓↑', ev:[['d',4],['u',8],['d',8],['md',8],['u',8],['d',8],['u',8]]},
+    {name:'重拍 ↓ ↓ ↓↓ ↓', ev:[['d',4],['d',4],['d',8],['d',8],['d',4]]},
+    {name:'伦巴 ↓ ↓↑ ↑↓ ↑', ev:[['d',4],['d',8],['u',8],['u',8],['d',8],['u',4]]},
+    {name:'十六分扫 ↓↑↓↑ ×4', ev:[['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16]]},
+    {name:'切分 ↓· ↓↑ ↓· ↓↑', ev:[['md',8],['d',8],['u',8],['md',8],['d',8],['u',8],['d',8],['u',8]]},
   ]},
-  {cat:'扫弦节奏型 · 3/4', items:[
+  {cat:'扫弦节奏型 · 3/4（无休止）', items:[
     {name:'↓ ↓ ↓ 华尔兹', ev:[['d',4],['d',4],['d',4]]},
     {name:'↓ ↓↑ ↓↑', ev:[['d',4],['d',8],['u',8],['d',8],['u',8]]},
-    {name:'↓ × ×', ev:[['d',4],['x',4],['x',4]]},
-    {name:'↓ ↓↑ ×', ev:[['d',4],['d',8],['u',8],['x',4]]},
+    {name:'↓ ↓· ↓·', ev:[['d',4],['md',4],['md',4]]},
+    {name:'↓ ↓↑ ↓·', ev:[['d',4],['d',8],['u',8],['md',4]]},
+    {name:'↓↑ ↓↑ ↓↑', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
+    {name:'↓ ↑↓ ↑↓', ev:[['d',4],['u',8],['d',8],['u',8],['d',8]]},
   ]},
   {cat:'半小节节奏型 · 2拍（填入所选起始半小节，可拼两段不同和弦）', partial:true, items:[
     {name:'分解 5323', span:2, ev:[['b',8],['s3',8],['s2',8],['s3',8]]},
@@ -709,13 +715,15 @@ function tabPatSVG(pat, W, H){
     }
     if(t==='b') head(x,4);
     else if(t==='B') head(x,3);
-    else if(t[0]==='s') head(x,+t[1]-1);
-    else if(t==='d'||t==='u'){
-      /* 节奏型库教材式：向下扫=∧(箭头朝上)，向上扫=∨(箭头朝下) */
+    else if(t[0]==='s' && t!=='u') head(x,+t[1]-1);
+    else if(t==='d'||t==='u'||t==='md'||t==='mu'){
+      /* 教材式扫弦：向下扫=∧(箭头朝上)、向上扫=∨(箭头朝下)；切音(md/mu)箭头带一个点，细线 */
+      const down = (t==='d'||t==='md');
       const yT=top-1, yB=top+5*gap+1;
-      p.push(`<line x1="${x}" y1="${yT+3}" x2="${x}" y2="${yB-1}" stroke="currentColor" stroke-width="1.3"/>`);
-      if(t==='d') p.push(`<path d="M ${x-2.8} ${yT+8} L ${x} ${yT+2} L ${x+2.8} ${yT+8}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
-      else p.push(`<path d="M ${x-2.8} ${yB-7} L ${x} ${yB-1} L ${x+2.8} ${yB-7}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
+      p.push(`<line x1="${x}" y1="${yT+3}" x2="${x}" y2="${yB-1}" stroke="currentColor" stroke-width="1.05"/>`);
+      if(down) p.push(`<path d="M ${x-2.4} ${yT+7} L ${x} ${yT+2} L ${x+2.4} ${yT+7}" fill="none" stroke="currentColor" stroke-width="1.05"/>`);
+      else p.push(`<path d="M ${x-2.4} ${yB-6} L ${x} ${yB-1} L ${x+2.4} ${yB-6}" fill="none" stroke="currentColor" stroke-width="1.05"/>`);
+      if(t==='md'||t==='mu') p.push(`<circle cx="${x+3.6}" cy="${(yT+yB)/2}" r="1.5" fill="currentColor"/>`);
     }
     else if(t==='a'){
       let dd=`M ${x} ${top}`;
@@ -1029,13 +1037,17 @@ function render(){
           }
           const shape = chordShape(runChord);
           if(col.strum==='d'||col.strum==='u'){
-            /* 扫弦：只画箭头，落在需要扫的弦上（长短可编辑） */
+            /* 扫弦：只画箭头（细线），落在需要扫的弦上；切音=箭头上带一个点 */
             const sp = strumSpan(col);
             const yT = tabTop+(sp.top-1)*13-4, yB = tabTop+(sp.bot-1)*13+4;
             const up = col.strum==='u';   // 所见即所得：扫↑箭头向上，扫↓箭头向下
-            p.push(`<line x1="${nx}" y1="${yT+3}" x2="${nx}" y2="${yB-3}" stroke="var(--ink)" stroke-width="1.6"/>`);
-            if(up) p.push(`<path d="M ${nx-4} ${yT+9} L ${nx} ${yT+1} L ${nx+4} ${yT+9}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
-            else   p.push(`<path d="M ${nx-4} ${yB-9} L ${nx} ${yB-1} L ${nx+4} ${yB-9}" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+            p.push(`<line x1="${nx}" y1="${yT+3}" x2="${nx}" y2="${yB-3}" stroke="var(--ink)" stroke-width="1.1"/>`);
+            if(up) p.push(`<path d="M ${nx-3.2} ${yT+8} L ${nx} ${yT+1} L ${nx+3.2} ${yT+8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            else   p.push(`<path d="M ${nx-3.2} ${yB-8} L ${nx} ${yB-1} L ${nx+3.2} ${yB-8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            if(col.mute){   // 切音点：标在箭头中部一侧
+              const my = (yT+yB)/2;
+              p.push(`<circle cx="${nx+4.5}" cy="${my}" r="1.7" fill="var(--ink)"/>`);
+            }
           }else if(col.strum==='arp'){
             const sp = strumSpan(col);
             const yT = tabTop+(sp.top-1)*13-2, yB = tabTop+(sp.bot-1)*13+2;
@@ -1458,6 +1470,7 @@ function evToCol([t,dur,dot], shape, fallback){
     else if(t[0]==='s'){ const sn=+t[1]; const f=shapeString(shape, sn); if(f!=null) c.notes=[{s:sn, f}]; }
     else if(t==='c') c.notes = sounded.map(n=>({s:n.s,f:n.f}));
     else if(t==='d'||t==='u'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t; }
+    else if(t==='md'||t==='mu'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t==='md'?'d':'u'; c.mute=true; }
     else if(t==='a'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
     else if(t==='x') c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true}));
   }else if(t!=='r' && fallback){
@@ -2057,14 +2070,20 @@ function showChordSuggest(name){
 }
 function toggleMute(){
   if(sel.row!=='tab')return;
+  const col=curCol();
+  /* 扫弦列上切音 = 箭头带点（palm-mute）；非扫弦列 = 单音闷音× */
+  if(col && (col.strum==='d'||col.strum==='u')){
+    mutate(()=>{ curCol().mute=!curCol().mute; });
+    return;
+  }
   mutate(()=>{
-    const col=curCol();
-    const i=col.notes.findIndex(n=>n.s===sel.si);
-    if(i>=0){ col.notes[i].x=!col.notes[i].x; if(col.notes[i].x) col.notes[i].f=0; }
-    else col.notes.push({s:sel.si,f:0,x:true});
+    const c=curCol();
+    const i=c.notes.findIndex(n=>n.s===sel.si);
+    if(i>=0){ c.notes[i].x=!c.notes[i].x; if(c.notes[i].x) c.notes[i].f=0; }
+    else c.notes.push({s:sel.si,f:0,x:true});
   });
 }
-function setStrum(v){ if(sel.row!=='tab')return; mutate(()=>{ const c=curCol(); c.strum=c.strum===v?'':v; }); }
+function setStrum(v){ if(sel.row!=='tab')return; mutate(()=>{ const c=curCol(); if(c.strum===v){ c.strum=''; c.mute=false; } else c.strum=v; }); }
 /* 从拍数拼出 [dur,dotted]，凑不出返回 null */
 function durForBeats(b){
   const u = song.unit/4;
@@ -2355,6 +2374,10 @@ function play(){
         const order = col.strum==='u' ? ns.slice().reverse() : ns;
         order.forEach((n,k)=>{
           if(n.x) chick(ctx, t+el+k*stagger, 0.18);
+          else if(col.mute){   // 切音扫弦：短促闷音
+            pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, 0.12, 0.18/Math.sqrt(song.tabVoices.length));
+            chick(ctx, t+el+k*stagger, 0.08);
+          }
           else pluck(ctx, midiFreq(TUNING[n.s-1]+n.f+song.capo-12), t+el+k*stagger, durSec, 0.26/Math.sqrt(song.tabVoices.length));
         });
         if(vi===0)
