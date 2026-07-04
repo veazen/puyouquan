@@ -539,7 +539,7 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
-const MIN_W = {1:80, 2:52, 4:34, 8:24, 16:19};
+const MIN_W = {1:60, 2:40, 4:27, 8:19, 16:14};
 let PAGE_W = 1060; const MARGIN = 56;
 const MAX_VOICES = 5, MAX_LYR = 5;
 
@@ -1027,12 +1027,12 @@ function patBeats(pat){
 
 /* ================= 布局（按时间网格，吉他谱与简谱逐拍对齐） ================= */
 function measureLayout(mea){
-  const pad = 15;
+  const pad = 11;
   const rows = [...mea.tabs, ...mea.voxes];
   /* 基准宽度按拍数（同拍号小节等宽）；密集小节仅小幅加宽，限制在 1.5× 以内 */
   const beats = song.beats || 4;
-  const base = beats * 36;   // 更紧凑
-  let need = 46;
+  const base = beats * 29;   // 更紧凑：一行容纳更多小节
+  let need = 40;
   rows.forEach(cols=>{
     const rt = cols.reduce((a,c)=>a+beatsOf(c),0);
     if(!rt) return;
@@ -1085,15 +1085,15 @@ function layoutSystems(){
 }
 function sysMetrics(){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
-  const diagH = diagMode==='inline' ? 66 : 16;
-  let y = diagH + 10;
+  const diagH = diagMode==='inline' ? 54 : 14;
+  let y = diagH + 8;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ tabTops.push(y); y += 65 + 15 + 20; }
+  for(let i=0;i<nT;i++){ tabTops.push(y); y += 65 + 13 + 11; }
   for(let i=0;i<nV;i++){
-    y += 24; voxYs.push(y); lyricY0.push(y+26);
-    y += 26 + nL*20 + 10;
+    y += 15; voxYs.push(y); lyricY0.push(y+24);
+    y += 24 + nL*20 + 5;
   }
-  return {diagH, tabTops, voxYs, lyricY0, h:y+4, gap:26};
+  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:16};
 }
 
 /* ================= 渲染 ================= */
@@ -1213,7 +1213,7 @@ function render(){
   if(song.capo>0) capoBits.push(`变调夹 ${song.capo} 品`);
   capoBits.push(`♩=${song.tempo}`);
   p.push(`<text x="${MARGIN+78}" y="${headY+22}" font-size="12.5" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
-  let top = headY + 40;
+  let top = headY + 52;
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
@@ -1236,7 +1236,7 @@ function render(){
   });
   /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
   const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
-  const PG_GAP = 26, PG_PAD_TOP = 30, PG_PAD_BOT = 34;
+  const PG_GAP = 26, PG_PAD_TOP = 46, PG_PAD_BOT = 30;
   const sysY = []; let pageIdx = 0; let cursorY = top;
   systems.forEach((sys, si)=>{
     const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
