@@ -32,7 +32,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
-  -webkit-font-smoothing:antialiased;}
+  -webkit-font-smoothing:antialiased;padding-bottom:78px;}
 /* ================= 顶部工具栏 ================= */
 #top{position:sticky;top:0;z-index:20;background:var(--toolbar);
   border-bottom:1px solid var(--border);backdrop-filter:saturate(1.1);}
@@ -146,13 +146,11 @@ input.short{width:54px} input.mid{width:150px}
 .sc-act{display:flex;gap:5px;flex-wrap:wrap}
 .sc-act button{font-size:12px;padding:4px 10px}
 /* ================= 通用功能行 ================= */
-.util-bar{gap:7px;background:var(--toolbar);border-bottom:1px solid var(--border)}
-.ut-label{font-size:11px;color:var(--muted);letter-spacing:.06em;margin-right:2px;font-weight:600}
 /* ================= 三栏舞台 ================= */
 #stage{display:flex;align-items:flex-start;justify-content:center;gap:14px;
   padding:18px 16px 6px;max-width:1560px;margin:0 auto}
 /* 左侧固定标签栏（贴谱面左缘），点击向左展开完整功能面板 */
-#left-dock{display:flex;flex-direction:row;align-items:flex-start;position:sticky;top:118px;
+#left-dock{display:flex;flex-direction:row;align-items:flex-start;position:sticky;top:86px;
   align-self:flex-start;z-index:6}
 #left-rail{display:flex;flex-direction:column;gap:6px;flex:none;padding-top:2px}
 .ltab{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.16em;
@@ -169,7 +167,7 @@ input.short{width:54px} input.mid{width:150px}
 #left-flyout .rg .rg-body{max-width:none}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
-  position:sticky;top:118px;align-self:flex-start;z-index:6}
+  position:sticky;top:86px;align-self:flex-start;z-index:6}
 .rcard{border:1px solid var(--border);border-radius:12px;background:var(--panel);
   box-shadow:0 1px 3px rgba(20,30,60,.06);overflow:hidden}
 .rc-h{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
@@ -211,21 +209,23 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
-/* 底部悬浮音轨面板（紧凑） */
-#mixer-dock{position:fixed;left:0;right:0;bottom:0;z-index:40;transform:translateY(102%);
-  transition:transform .22s ease;background:var(--panel);border-top:1px solid var(--border);
-  box-shadow:0 -6px 24px rgba(20,30,60,.16);padding:7px 14px 9px}
-#mixer-dock.open{transform:translateY(0)}
-.mx-top{display:flex;align-items:center;gap:10px;margin-bottom:5px}
-.mx-title{font-weight:700;font-size:12.5px;white-space:nowrap;display:flex;align-items:center;gap:6px}
-#mx-prog{flex:1;height:15px;border-radius:8px;background:var(--toolbar);border:1px solid var(--border);
+/* 底部悬浮播放条（简易横条，可向上展开音轨） */
+#mixer-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:40;
+  width:min(980px,94vw);background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;box-shadow:0 10px 34px rgba(20,30,60,.24);overflow:hidden}
+.mx-bar{display:flex;align-items:center;gap:9px;padding:8px 12px}
+.mx-splabel{color:var(--muted);font-size:12px;white-space:nowrap}
+.tempo{width:74px;text-align:center}
+#mx-prog{flex:1;height:18px;border-radius:9px;background:var(--toolbar);border:1px solid var(--border);
   position:relative;overflow:hidden;cursor:pointer;min-width:120px}
 #mx-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent-soft);
   border-right:2px solid var(--accent);pointer-events:none}
 #mx-lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10.5px;
   color:var(--muted);white-space:nowrap;pointer-events:none}
-#mx-close2{padding:2px 9px;font-size:12px}
-.mx-tracks{display:flex;flex-direction:column;gap:3px;max-height:30vh;overflow-y:auto}
+#mx-expand{white-space:nowrap;padding:5px 10px}
+.mx-tracks{display:none;flex-direction:column;gap:3px;max-height:34vh;overflow-y:auto;
+  padding:9px 12px 3px;border-bottom:1px solid var(--border)}
+#mixer-dock.expanded .mx-tracks{display:flex}
 .mx-grp{font-size:10px;color:var(--muted);letter-spacing:.09em;margin:3px 2px 0;font-weight:600}
 .mx-row{display:grid;grid-template-columns:88px 112px 28px 28px minmax(120px,1fr);align-items:center;
   gap:8px;padding:2px 4px;border-radius:7px}
@@ -252,7 +252,7 @@ svg text{user-select:none}
 .hidden{display:none!important}
 @media print{
   #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock{display:none!important}
-  body{background:#fff}
+  body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
   #paper{border:none;box-shadow:none;border-radius:0;padding:0;max-width:none;width:auto;filter:none}
@@ -277,21 +277,13 @@ svg text{user-select:none}
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
-    <span class="grow"></span>
-    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
-  </div>
-  <div class="bar util-bar">
-    <span class="ut-label">通用功能</span>
+    <span class="vsep"></span>
     <span class="seg">
       <button id="b-undo" title="Ctrl+Z">撤销</button>
       <button id="b-redo" title="Ctrl+Y">重做</button>
     </span>
-    <span class="vsep"></span>
-    <button id="b-play" class="primary">▶ 播放</button>
-    <button id="b-stop" title="停止">■</button>
-    <button id="b-tracks" title="音轨与音色：每条声部可单独开关、选择乐器音色、调音量">🎚 音轨</button>
-    <label style="color:var(--muted);font-size:12px">速度</label>
-    <input id="i-tempo" class="short" type="number" min="30" max="240">
+    <span class="grow"></span>
+    <button id="b-theme" class="ghost" title="切换明暗">◐</button>
   </div>
   <div id="statusbar">
     <span id="beat-status" class="good">✓ 所有小节时值正确</span>
@@ -420,12 +412,15 @@ svg text{user-select:none}
 </div>
 <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击跨小节多选后，在"节奏型库"中点图示即可批量套用（有和弦时自动按指法生成音符）。小节时值与拍号不符会自动标红并计入上方"节拍检查"。</div>
 <div id="mixer-dock">
-  <div class="mx-top">
-    <span class="mx-title">🎚 播放音轨</span>
-    <div id="mx-prog" title="小节进度（点击可定位起始小节）"><div id="mx-fill"></div><div id="mx-lbl">第 1 小节</div></div>
-    <button id="mx-close2">收起</button>
-  </div>
   <div class="mx-tracks" id="mx-tracks"></div>
+  <div class="mx-bar">
+    <button id="b-play" class="primary">▶ 播放</button>
+    <button id="b-stop" title="停止">■</button>
+    <div id="mx-prog" title="小节进度（点击可定位起始小节）"><div id="mx-fill"></div><div id="mx-lbl">第 1 小节</div></div>
+    <label class="mx-splabel">速度</label>
+    <input id="i-tempo" class="tempo" type="number" min="30" max="240">
+    <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
+  </div>
 </div>
 <div id="toast"></div>
 <script>
@@ -1623,7 +1618,11 @@ function syncInputs(){
       return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
     }).join('');
   }
-  if(typeof mixerOpen!=='undefined' && mixerOpen) renderMixerDock();
+  if(!audio.playing){
+    const mlbl=document.getElementById('mx-lbl');
+    if(mlbl) mlbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
+  }
+  if(typeof mixerExpanded!=='undefined' && mixerExpanded) renderMixerDock();
 }
 
 /* ================= 编辑核心 ================= */
@@ -3090,8 +3089,8 @@ function stopPlay(){
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
-/* ---- 底部悬浮音轨面板 ---- */
-let mixerOpen = false;
+/* ---- 底部悬浮播放条 / 音轨面板 ---- */
+let mixerExpanded = false;
 function renderMixerDock(){
   const wrap = document.getElementById('mx-tracks');
   if(!wrap) return;
@@ -3123,19 +3122,14 @@ function renderMixerDock(){
     vin.oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%'; persist(); };
   });
 }
-function setMixerOpen(open){
-  mixerOpen = open;
-  document.getElementById('mixer-dock').classList.toggle('open', open);
-  document.getElementById('b-tracks').classList.toggle('on', open);
-  if(open){ renderMixerDock();
-    const lbl=document.getElementById('mx-lbl');
-    if(lbl && !audio.playing) lbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
-    const h=document.getElementById('mixer-dock').offsetHeight;
-    document.body.style.paddingBottom = (h+12)+'px';
-  } else document.body.style.paddingBottom = '';
+function setMixerExpanded(open){
+  mixerExpanded = open;
+  document.getElementById('mixer-dock').classList.toggle('expanded', open);
+  const btn = document.getElementById('mx-expand');
+  if(btn) btn.textContent = open ? '🎚 音轨 ▾' : '🎚 音轨 ▴';
+  if(open) renderMixerDock();
 }
-document.getElementById('b-tracks').onclick = ()=>setMixerOpen(!mixerOpen);
-document.getElementById('mx-close2').onclick = ()=>setMixerOpen(false);
+document.getElementById('mx-expand').onclick = ()=>setMixerExpanded(!mixerExpanded);
 /* 进度条点击定位起始小节（播放中则从该小节重新播放） */
 document.getElementById('mx-prog').onclick = e=>{
   const r=e.currentTarget.getBoundingClientRect();
