@@ -121,6 +121,7 @@ input.short{width:54px} input.mid{width:150px}
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
+#score .beatzone:hover{fill:var(--accent);fill-opacity:.13}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
 .popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border);
   border-radius:12px;box-shadow:var(--shadow);padding:10px;font-size:12.5px}
@@ -1245,6 +1246,19 @@ function render(){
               p.push(`<path d="M ${x} ${stemY-4.5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
+        /* 每拍时值符号下方的可点击区：点击选中整拍 */
+        {
+          let cum=0; const byBeat={};
+          cols.forEach((col,ci)=>{ const bt=Math.floor(cum+1e-4); (byBeat[bt]=byBeat[bt]||[]).push(ci); cum+=beatsOf(col); });
+          Object.keys(byBeat).forEach(bt=>{
+            const ids=byBeat[bt]; const a=ids[0], b=ids[ids.length-1];
+            const x1=mx+lay.ls[a], x2=mx+lay.ls[b]+lay.ws[b];
+            const beatSel = selRange && selRange.row==='tab' && selRange.vi===vi && selRange.m1===lm.mi && selRange.c1===a && selRange.c2===b;
+            if(beatSel)
+              p.push(`<rect x="${x1}" y="${stemY-1}" width="${x2-x1}" height="12" rx="3" fill="var(--accent)" opacity="0.14"/>`);
+            p.push(`<rect class="beatzone" x="${x1}" y="${stemY-1}" width="${x2-x1}" height="13" fill="transparent" data-beatsel="${lm.mi}:${vi}:${bt}" style="cursor:pointer"><title>点击选中第${+bt+1}拍</title></rect>`);
+          });
+        }
       });
     });
     song.voxVoices.forEach((vname, vi)=>{
@@ -1565,21 +1579,67 @@ function toggleDot(){
   }
   const c=curCol(); if(c) mutate(()=>{ curCol().dotted=!curCol().dotted; });
 }
+/* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
+function styleOfTab(oldCols){
+  if(oldCols.some(c=>c.strum==='d'||c.strum==='u')) return 'strum';
+  if(oldCols.some(c=>c.strum==='arp')) return 'arp-wave';
+  if(oldCols.some(c=>c.notes.filter(n=>!n.x).length>=3)) return 'block';
+  return 'arp';
+}
+/* 按和弦指法 + 演奏方式生成一列 */
+function genTabCol(dur, dot, style, shape, idx){
+  const c=tcol(); c.dur=dur; c.dotted=!!dot;
+  if(!shape) return c;
+  const sd=shapeSounded(shape);
+  const bass=sd.reduce((a,b)=>b.s>a.s?b:a, sd[0]);
+  if(style==='strum'){ c.notes=sd.map(n=>({s:n.s,f:n.f})); c.strum=idx%2===0?'d':'u'; }
+  else if(style==='block'){ c.notes=sd.map(n=>({s:n.s,f:n.f})); }
+  else if(style==='arp-wave'){ c.notes=sd.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
+  else{ /* 分解：按常规拨弦顺序取和弦内的弦（低音→3→2→1→2→3…） */
+    const cyc=[bass.s,3,2,1,2,3,1,2];
+    let sN=cyc[idx%cyc.length];
+    let f = sN===bass.s? bass.f : shapeString(shape,sN);
+    if(f==null){ sN=bass.s; f=bass.f; }
+    c.notes=[{s:sN,f}];
+  }
+  return c;
+}
+function comboBeatsOf(combo){ return combo.durs.reduce((a,[d,t])=>a+(4/d)*(t?1.5:1)*(song.unit/4),0); }
+/* 组合时值：替换选中的一拍（或当前音起 comboBeats 拍），按和弦与演奏方式自动补/删音符 */
 function applyDurCombo(combo){
-  const col = curCol(); if(!col) return;
+  const row=sel.row;
+  let mi, vi, startCi;
+  if(selRange && selRange.row===row){ mi=selRange.m1; vi=selRange.vi; startCi=selRange.c1||0; }
+  else { mi=sel.mi; vi=sel.vi; startCi=sel.ci; }
+  const span = comboBeatsOf(combo);
   mutate(()=>{
-    const r = curRowCols();
-    const base = JSON.parse(JSON.stringify(r[sel.ci]));
-    const cols = combo.durs.map(([dur,dot],i)=>{
-      let nc = sel.row==='tab'?tcol():vcol();
-      if(i===0) nc = Object.assign(nc, base);
-      nc.dur=dur; nc.dotted=!!dot;
-      return nc;
-    });
-    r.splice(sel.ci, 1, ...cols);
-    autoFixMeasure(sel.mi, sel.row, sel.vi);
+    const cols = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
+    if(!cols || !cols[startCi]) return;
+    /* 找出从 startCi 起累计 = span 拍的列范围 */
+    let acc=0, end=startCi;
+    while(end<cols.length && acc<span-1e-3){ acc+=beatsOf(cols[end]); end++; }
+    const oldSpan = cols.slice(startCi, end);
+    let seg;
+    if(row==='tab'){
+      const chord = chordAtCol(mi,vi,startCi);
+      const shape = chordShape(chord);
+      const style = styleOfTab(oldSpan);
+      seg = combo.durs.map(([d,t],i)=>genTabCol(d,t,style,shape,i));
+      const oc=(oldSpan.find(c=>c.chord)||{}).chord;
+      if(oc && seg[0]) seg[0].chord=oc;
+    }else{
+      const degs = oldSpan.filter(c=>c.deg>0);
+      let oi=0;
+      seg = combo.durs.map(([d,t])=>{ const c=vcol(); c.dur=d; c.dotted=!!t;
+        if(oi<degs.length){ const o=degs[oi++]; c.deg=o.deg;c.acc=o.acc;c.oct=o.oct;c.lyrics=(o.lyrics||[]).slice();c.tie=o.tie; }
+        return c; });
+    }
+    cols.splice(startCi, end-startCi, ...seg);
+    autoFixMeasure(mi, row, vi);
+    sel.mi=mi; sel.vi=vi; sel.ci=startCi;
   });
-  toast('已拆分为：'+combo.name);
+  selRange=null;
+  toast('已用组合时值替换：'+combo.name);
 }
 function targetMeasures(row){
   if(selRange && selRange.row===row){
@@ -1876,7 +1936,21 @@ let dragSel = null;
 let noteSel = [];   // Ctrl 多选音符： [{mi,ci,si}]
 document.getElementById('score').addEventListener('pointerdown', e=>{
   const t = e.target;
-  if(!(t instanceof Element) || t.dataset.mi===undefined) return;
+  if(!(t instanceof Element)) return;
+  /* 点击每拍时值区 → 选中整拍（用于组合时值替换） */
+  if(t.dataset.beatsel!==undefined){
+    const [bmi,bvi,bt]=t.dataset.beatsel.split(':').map(Number);
+    const cols=song.measures[bmi].tabs[bvi]; let cum=0, ids=[];
+    cols.forEach((c,ci2)=>{ if(Math.floor(cum+1e-4)===bt) ids.push(ci2); cum+=beatsOf(c); });
+    if(ids.length){
+      sel.row='tab'; sel.vi=bvi; sel.mi=bmi; sel.ci=ids[0];
+      selRange={row:'tab', vi:bvi, m1:bmi, c1:ids[0], m2:bmi, c2:ids[ids.length-1]};
+      noteSel=[]; closeTech(); setRibbon('tab'); render();
+      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"即可替换本拍节奏');
+    }
+    return;
+  }
+  if(t.dataset.mi===undefined) return;
   const mi=+t.dataset.mi, ci=+t.dataset.ci, row=t.dataset.row, vi=+t.dataset.vi;
   /* 点扫弦列 → 选择扫几根弦 */
   if(t.dataset.zone==='strum'){
