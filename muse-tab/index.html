@@ -1132,6 +1132,7 @@ function render(){
           p.push(`<circle cx="${mx+10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${mx+10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
         }
         const bx = mx+lm.L.w;
+        const nextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
         if(mea.repeatEnd){
           p.push(`<circle cx="${bx-10.5}" cy="${tabTop+26}" r="1.8" fill="var(--ink)"/><circle cx="${bx-10.5}" cy="${tabTop+39}" r="1.8" fill="var(--ink)"/>`);
           p.push(`<line x1="${bx-6}" y1="${tabTop}" x2="${bx-6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -1139,7 +1140,7 @@ function render(){
         }else if(isLast){
           p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3}" y="${tabTop}" width="2.6" height="65" fill="var(--ink)"/>`);
-        }else{
+        }else if(!nextRep){   // 下一小节有反复号时，改由反复号作分隔，不再画普通小节线
           p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
         }
         cols.forEach((col,ci)=>{
@@ -1264,13 +1265,24 @@ function render(){
         if(inRange('vox',vi,lm.mi))
           p.push(`<rect x="${mx+1}" y="${voxY-22}" width="${lm.L.w-2}" height="34" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
         const bx = mx+lm.L.w;
-        if(mea.repeatStart) p.push(`<text x="${mx+2}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄆</text>`);
-        if(mea.repeatEnd) p.push(`<text x="${bx-14}" y="${voxY}" font-size="13" font-family="var(--font-num)" fill="var(--ink)">𝄇</text>`);
-        if(isLast){
-          p.push(`<line x1="${bx-5}" y1="${voxY-13}" x2="${bx-5}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-3}" y="${voxY-13}" width="2.4" height="17" fill="var(--ink)"/>`);
-        }else
-          p.push(`<line x1="${bx}" y1="${voxY-13}" x2="${bx}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+        const vNextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
+        const yT2=voxY-13, yB2=voxY+4;
+        /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
+        if(mea.repeatStart){
+          p.push(`<rect x="${mx+1}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
+          p.push(`<line x1="${mx+5}" y1="${yT2}" x2="${mx+5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<circle cx="${mx+8.5}" cy="${voxY-6}" r="1.4" fill="var(--ink)"/><circle cx="${mx+8.5}" cy="${voxY-0.5}" r="1.4" fill="var(--ink)"/>`);
+        }
+        if(mea.repeatEnd){
+          p.push(`<circle cx="${bx-9}" cy="${voxY-6}" r="1.4" fill="var(--ink)"/><circle cx="${bx-9}" cy="${voxY-0.5}" r="1.4" fill="var(--ink)"/>`);
+          p.push(`<line x1="${bx-5.5}" y1="${yT2}" x2="${bx-5.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-3}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
+        }else if(isLast){
+          p.push(`<line x1="${bx-5}" y1="${yT2}" x2="${bx-5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-3}" y="${yT2}" width="2.4" height="${yB2-yT2}" fill="var(--ink)"/>`);
+        }else if(!vNextRep){   // 下一小节有反复号则不画普通小节线
+          p.push(`<line x1="${bx}" y1="${yT2}" x2="${bx}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+        }
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
         cols.forEach((col,ci)=>{
