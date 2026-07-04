@@ -191,6 +191,7 @@ svg text{user-select:none}
       <div class="rg-body">
         <input id="i-chord" class="short" list="chord-list" placeholder="C">
         <datalist id="chord-list"></datalist>
+        <button id="b-chord-edit">编辑…</button>
         <button id="b-diag">图:随行</button>
       </div>
     </div>
@@ -270,13 +271,96 @@ const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,A
 const DEG_SEMI = [null,0,2,4,5,7,9,11];
 const SEMI_DEG = [[1,''],[1,'#'],[2,''],[2,'#'],[3,''],[4,''],[4,'#'],[5,''],[5,'#'],[6,''],[6,'#'],[7,'']];
 const CHORD_SHAPES = {
-  'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cadd9':'x32030',
-  'Dm':'xx0231','Dm7':'xx0211','D':'xx0232','D7':'xx0212','Dsus4':'xx0233','Dadd11':'xx0032',
-  'Em':'022000','Em7':'022030','E':'022100','E7':'020100','Esus4':'022200','Em/D':'xx0000',
-  'F':'133211','Fmaj7':'x33210','G':'320003','G7':'320001','Gsus4':'320013',
-  'Am':'x02210','Am7':'x02010','A':'x02220','A7':'x02020','Asus4':'x02230','Am/#F':'2x2210',
-  'Bm':'x24432','Bm7':'x20202','B7':'x21202','Bb':'x13331','Bdim':'x2323x'
+  /* C 系 */
+  'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cm':'x35543','Cm7':'x35343',
+  'Cadd9':'x32030','Csus4':'x33010','Csus2':'x30010','C6':'x32210','Cdim':'x3454x','Caug':'x32110','C9':'x32330',
+  'C/G':'332010','C/E':'032010','C/B':'x22010',
+  /* C#/Db */
+  'C#':'x43121','C#m':'x46654','C#7':'x43424','C#m7':'x42120','Db':'x43121',
+  /* D 系 */
+  'D':'xx0232','Dm':'xx0231','D7':'xx0212','Dmaj7':'xx0222','Dm7':'xx0211',
+  'Dadd9':'xx0230','Dsus4':'xx0233','Dsus2':'xx0230','D6':'xx0202','Ddim':'xx0101','Daug':'xx0332','D9':'x54555',
+  'Dadd11':'xx0032','D/F#':'2x0232','D/A':'x00232',
+  /* D#/Eb */
+  'Eb':'x65343','Ebm':'xx4342','Eb7':'x65646','Ebmaj7':'x65545','D#':'x65343',
+  /* E 系 */
+  'E':'022100','Em':'022000','E7':'020100','Emaj7':'021100','Em7':'022030',
+  'Eadd9':'024100','Esus4':'022200','Esus2':'x99877','E6':'022120','Edim':'012020','Eaug':'032110','E9':'020102',
+  'Em/D':'xx0000','E/G#':'422100','E/B':'x22100',
+  /* F 系 */
+  'F':'133211','Fm':'133111','F7':'131211','Fmaj7':'x33210','Fm7':'131111',
+  'Fadd9':'x03213','Fsus4':'133311','Fsus2':'xx3011','F6':'1x322x','Fdim':'xx3424','Faug':'xx3221','F9':'1x122x',
+  'F/C':'x33211','F/A':'x03211',
+  /* F#/Gb */
+  'F#':'244322','F#m':'244222','F#7':'242322','F#m7':'242222','Gb':'244322','F#dim':'2x121x',
+  /* G 系 */
+  'G':'320003','Gm':'355333','G7':'320001','Gmaj7':'320002','Gm7':'353333',
+  'Gadd9':'300203','Gsus4':'330013','Gsus2':'300033','G6':'320000','Gdim':'3x232x','Gaug':'321003','G9':'3x0201',
+  'G/B':'x20003','G/D':'xx0003','G/F#':'2x0003',
+  /* G#/Ab */
+  'Ab':'466544','Abm':'466444','Ab7':'464544','G#':'466544','G#m':'466444','G#7':'464544',
+  /* A 系 */
+  'A':'x02220','Am':'x02210','A7':'x02020','Amaj7':'x02120','Am7':'x02010',
+  'Aadd9':'x02200','Asus4':'x02230','Asus2':'x02200','A6':'x02222','Adim':'x0121x','Aaug':'x03221','A9':'x02423',
+  'Am/#F':'2x2210','A/C#':'x42220','A/E':'002220','Am/G':'302210',
+  /* A#/Bb */
+  'Bb':'x13331','Bbm':'x13321','Bb7':'x13131','Bbmaj7':'x13231','Bbm7':'x13121','A#':'x13331',
+  /* B 系 */
+  'B':'x24442','Bm':'x24432','B7':'x21202','Bmaj7':'x24342','Bm7':'x20202',
+  'Badd9':'x21102','Bsus4':'x24452','Bdim':'x2323x','Baug':'x21003','B9':'x21222',
+  'Bm/A':'x04432','B/F#':'224442'
 };
+/* 和弦分类（编辑器网格用） */
+const CHORD_ROOTS = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const CHORD_QUALS = [
+  {suf:'', label:'大三'},{suf:'m', label:'小三'},{suf:'7', label:'属七'},
+  {suf:'maj7', label:'大七'},{suf:'m7', label:'小七'},{suf:'6', label:'六'},
+  {suf:'sus4', label:'挂四'},{suf:'sus2', label:'挂二'},{suf:'add9', label:'加九'},
+  {suf:'dim', label:'减'},{suf:'aug', label:'增'},{suf:'9', label:'九'}
+];
+function chordShape(n){
+  if(!n) return null;
+  if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
+  return CHORD_SHAPES[n] || null;
+}
+const NOTE_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+const OPEN_PC = [4,11,7,2,9,4];   // 1..6 弦空弦音高 pc（E B G D A E）
+/* 可移动把位形（E型根音在6弦、A型根音在5弦）——按品格拼字符串 */
+function movableShape(rootPc, qual, form){
+  const f6 = ((rootPc-4)%12+12)%12 || (rootPc===4?0:((rootPc-4)%12+12)%12);
+  const f5 = ((rootPc-9)%12+12)%12;
+  const F = n=> n>9? n.toString(36) : ''+n;   // 10→a...
+  const barre=(base, offs)=> offs.map(o=> o==null?'x':F(base+o)).join('');
+  if(form==='E'){
+    const b = f6===0?12:f6;   // 避免全空弦叠罗
+    const shapes={ '':[0,2,2,1,0,0], m:[0,2,2,0,0,0], '7':[0,2,0,1,0,0],
+      m7:[0,2,0,0,0,0], maj7:[0,1,1,1,0,0], sus4:[0,2,2,2,0,0] };
+    const o = shapes[qual]||shapes[''];
+    return barre(b, [o[0],o[1],o[2],o[3],o[4],o[5]]);   // 6→1 弦
+  }else{
+    const b = f5===0?12:f5;
+    const shapes={ '':[null,0,2,2,2,0], m:[null,0,2,2,1,0], '7':[null,0,2,0,2,0],
+      m7:[null,0,2,0,1,0], maj7:[null,0,2,1,2,0], sus4:[null,0,2,2,3,0] };
+    const o = shapes[qual]||shapes[''];
+    return barre(b, o);
+  }
+}
+/* 转位：把 slash 低音音放到最低弦 */
+function slashShape(baseShape, bassPc){
+  if(!baseShape) return baseShape;
+  const arr=[...baseShape];
+  // 在 6/5/4 弦里找 bassPc 能按到（0-4品）的最低弦，改成该音，其余更低弦静音
+  for(const s of [6,5,4]){
+    const openPc = OPEN_PC[s-1];
+    let fr = ((bassPc-openPc)%12+12)%12;
+    if(fr<=4){
+      arr[6-s] = fr>9?fr.toString(36):''+fr;
+      for(let s2=s+1;s2<=6;s2++) arr[6-s2]='x';
+      return arr.join('');
+    }
+  }
+  return baseShape;
+}
 const MIN_W = {1:80, 2:52, 4:34, 8:24, 16:19};
 const PAGE_W = 1060, MARGIN = 40;
 const MAX_VOICES = 5, MAX_LYR = 5;
@@ -382,7 +466,7 @@ function blankMeasure(){
 }
 function blankSong(){
   const s = {v:3, title:'未命名曲谱', singer:'', lyricist:'', composer:'', maker:'',
-    key:'C', beats:4, unit:4, tempo:90, capo:0,
+    key:'C', beats:4, unit:4, tempo:90, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1, measures:[]};
   const old = song; song = s;
   for(let i=0;i<8;i++) s.measures.push(blankMeasure());
@@ -406,7 +490,7 @@ function demoSong(){
   const M=(tab,vox,ext)=>Object.assign(
     {tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
   return {v:3, title:'小星星（弹唱示例）', singer:'儿歌', lyricist:'', composer:'法国民谣',
-    maker:'MuseTab', key:'C', beats:4, unit:4, tempo:92, capo:0,
+    maker:'MuseTab', key:'C', beats:4, unit:4, tempo:92, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
       M(arpC('C'),  rest4()),
@@ -427,7 +511,7 @@ function demoSong(){
     ]};
 }
 function migrate(s){
-  if(s.v===3) return s;
+  if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
     s.lyricist=s.lyricist||''; s.composer=s.composer||'';
@@ -577,10 +661,10 @@ function tabPatSVG(pat, W, H){
     else if(t==='B') head(x,3);
     else if(t[0]==='s') head(x,+t[1]-1);
     else if(t==='d'||t==='u'){
-      /* 扫弦：只画箭头（扫↓箭头向下，扫↑箭头向上） */
+      /* 节奏型库教材式：向下扫=∧(箭头朝上)，向上扫=∨(箭头朝下) */
       const yT=top-1, yB=top+5*gap+1;
       p.push(`<line x1="${x}" y1="${yT+3}" x2="${x}" y2="${yB-1}" stroke="currentColor" stroke-width="1.3"/>`);
-      if(t==='u') p.push(`<path d="M ${x-2.8} ${yT+8} L ${x} ${yT+2} L ${x+2.8} ${yT+8}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
+      if(t==='d') p.push(`<path d="M ${x-2.8} ${yT+8} L ${x} ${yT+2} L ${x+2.8} ${yT+8}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
       else p.push(`<path d="M ${x-2.8} ${yB-7} L ${x} ${yB-1} L ${x+2.8} ${yB-7}" fill="none" stroke="currentColor" stroke-width="1.3"/>`);
     }
     else if(t==='a'){
@@ -625,16 +709,17 @@ function patBeats(pat){
 function measureLayout(mea){
   const pad = 15;
   const rows = [...mea.tabs, ...mea.voxes];
-  let inner = 46;
+  /* 基准宽度按拍数（同拍号小节等宽）；密集小节仅小幅加宽，限制在 1.5× 以内 */
+  const beats = song.beats || 4;
+  const base = beats * 44;
+  let need = 46;
   rows.forEach(cols=>{
     const rt = cols.reduce((a,c)=>a+beatsOf(c),0);
     if(!rt) return;
-    cols.forEach(c=>{
-      const w = MIN_W[c.dur]+(c.dotted?6:0);
-      inner = Math.max(inner, w*rt/beatsOf(c));
-    });
+    const w = cols.reduce((a,c)=>a+MIN_W[c.dur]+(c.dotted?6:0), 0);
+    need = Math.max(need, w);
   });
-  inner = Math.min(inner, 660);
+  const inner = Math.max(base, Math.min(need, base*1.5));
   const NOTE_OFF = 10;   // 音符相对拍点的固定偏移，保证同拍数在各声部对齐
   const fit = cols=>{
     const rt = cols.reduce((a,c)=>a+beatsOf(c),0)||1;
@@ -698,9 +783,10 @@ function usedChords(){
     if(c.chord && !have.has(c.chord)){ have.add(c.chord); seen.push(c.chord); }})));
   return seen;
 }
-function chordDiagramSVG(name, x, y, scale){
-  const k = scale||1; const shape = CHORD_SHAPES[name]; const p=[];
-  p.push(`<text x="${x+22*k}" y="${y+9}" font-size="${11*k}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(name)}</text>`);
+function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
+  const k = scale||1; const shape = shapeOverride || chordShape(name); const p=[];
+  if(!hideName)
+    p.push(`<text x="${x+22*k}" y="${y+9}" font-size="${11*k}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(name)}</text>`);
   if(!shape) return p.join('');
   const gx=x+4*k, gy=y+19, sw=7.2*k, fh=8.6*k;
   const frets=[...shape].map(ch=>ch==='x'?-1:parseInt(ch,36));
@@ -888,7 +974,7 @@ function render(){
             else
               p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
           }
-          const shape = CHORD_SHAPES[runChord];
+          const shape = chordShape(runChord);
           if(col.strum==='d'||col.strum==='u'){
             /* 扫弦：只画箭头，落在需要扫的弦上（长短可编辑） */
             const sp = strumSpan(col);
@@ -1237,7 +1323,7 @@ function autoFixMeasure(mi, row, vi){
     if(row==='vox'){ c=vcol(); }
     else{
       c=tcol();
-      const shape=CHORD_SHAPES[chordBefore(mi,vi)];
+      const shape=chordShape(chordBefore(mi,vi));
       if(strumStyle && shape){
         lastDir = lastDir==='d'?'u':'d';
         c.strum=lastDir;
@@ -1311,7 +1397,7 @@ function applyTabPattern(pat){
     tgt.list.forEach(mi=>{
       const old = song.measures[mi].tabs[tgt.vi]||[];
       const chordName = chordBefore(mi, tgt.vi);
-      const shape = CHORD_SHAPES[chordName];
+      const shape = chordShape(chordName);
       const oldChord = (old.find(c=>c.chord)||{}).chord||'';
       const oldNotes = old.filter(c=>c.notes.length).map(c=>c.notes);
       let oi=0;
@@ -1595,10 +1681,139 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   render();
   if(t.dataset.zone==='lyric') document.getElementById('i-lyric').focus();
   if(t.dataset.zone==='chord'){
-    const name = chordBefore(mi, vi);
-    if(name) showChordSuggest(name);
+    showChordPopup(e.clientX, e.clientY, mi, ci, vi);
   }
 });
+/* 点击和弦图旁弹出：编辑和弦 + 节奏型推荐 */
+function showChordPopup(cx, cy, mi, ci, vi){
+  const cur = (song.measures[mi].tabs[vi][ci]||{}).chord || chordBefore(mi,vi);
+  closePop();
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-240)+'px';
+  div.style.top=cy+'px';
+  const recs=[TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2]];
+  div.innerHTML=`<div class="t">和弦：<b>${esc(cur||'（未设）')}</b></div>
+    <div class="row"><button id="cp-edit" class="primary">编辑和弦…</button>
+    <button id="cp-clear">清除</button></div>
+    <div class="t" style="margin-top:6px">套用节奏型</div>
+    <div class="row">${recs.map((p,i)=>`<button data-cpp="${i}" title="${esc(p.name)}">${tabPatSVG(p,54,34)}</button>`).join('')}
+    <button id="cp-lib">库…</button></div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    if(ev.target.closest('#cp-edit')){ closePop(); showChordEditor(mi,ci,vi); }
+    else if(ev.target.closest('#cp-clear')){ mutate(()=>{ song.measures[mi].tabs[vi][ci].chord=''; }); closePop(); }
+    else if(ev.target.closest('#cp-lib')){ closePop(); showPatternLib('tab'); }
+    else { const b=ev.target.closest('[data-cpp]'); if(b){ applyTabPattern(recs[+b.dataset.cpp]); closePop(); } }
+  });
+}
+/* 完整和弦编辑器：根音·和弦性质·转位·把位·自定义 */
+let ceState = null;
+function showChordEditor(mi, ci, vi){
+  const existing = song.measures[mi].tabs[vi][ci].chord || chordBefore(mi,vi) || 'C';
+  const m = existing.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
+  ceState = { mi, ci, vi,
+    root: (m&&NOTE_PC[m[1]]!=null)? m[1]:'C',
+    qual: (m&&m[2])||'', bass: (m&&m[3])||'', shape:null, custom:null };
+  renderChordEditor();
+}
+function ceName(){
+  return ceState.root + ceState.qual + (ceState.bass?('/'+ceState.bass):'');
+}
+function ceShape(){
+  if(ceState.custom) return ceState.custom;
+  let base = chordShape(ceState.root+ceState.qual);
+  if(!base){
+    // 库中没有 → 生成可移动把位（默认 E 型）
+    base = movableShape(NOTE_PC[ceState.root], ceState.qual, 'E');
+  }
+  if(ceState.bass && NOTE_PC[ceState.bass]!=null)
+    base = slashShape(base, NOTE_PC[ceState.bass]);
+  return base;
+}
+function positionVariants(){
+  const r = NOTE_PC[ceState.root], q = ceState.qual;
+  const vs=[];
+  const open = chordShape(ceState.root+q);
+  if(open) vs.push({label:'开放', shape:open});
+  vs.push({label:'6弦根音(E型)', shape:movableShape(r,q,'E')});
+  vs.push({label:'5弦根音(A型)', shape:movableShape(r,q,'A')});
+  return vs;
+}
+function renderChordEditor(){
+  const rootBtns = CHORD_ROOTS.map(r=>
+    `<button class="chip ${r===ceState.root?'on':''}" data-cr="${r}">${r}</button>`).join('');
+  const qualBtns = CHORD_QUALS.map(q=>
+    `<button class="chip ${q.suf===ceState.qual?'on':''}" data-cq="${q.suf}" title="${q.label}">${q.suf||'大'}</button>`).join('');
+  const bassOpts = ['<option value="">（原位）</option>']
+    .concat(CHORD_ROOTS.map(b=>`<option value="${b}" ${b===ceState.bass?'selected':''}>/${b}</option>`)).join('');
+  const shape = ceShape();
+  const posVars = positionVariants().map((v,i)=>
+    `<div class="pat-card" data-cpos="${i}" data-shape="${v.shape}">
+      <svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,v.shape,true)}</svg>
+      <div class="bt">${esc(v.label)}</div></div>`).join('');
+  const custom = (ceState.custom||shape||'xxxxxx');
+  const fretInputs = [6,5,4,3,2,1].map(s=>{
+    const ch = custom[6-s]; const val = ch==='x'?'x':ch;
+    return `<label style="display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted)">${s}弦
+      <input class="ce-fret" data-s="${s}" value="${val}" style="width:34px;text-align:center"></label>`;
+  }).join('');
+  showModal(`<h3>编辑和弦</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px">
+        <h4>根音</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${rootBtns}</div>
+        <h4>和弦性质</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
+        <h4>转位 / 低音（Slash）</h4><select id="ce-bass">${bassOpts}</select>
+        <h4>把位</h4><div class="pat-grid" id="ce-pos">${posVars}</div>
+        <h4>自定义指法（每弦品位，x=不弹）</h4>
+        <div style="display:flex;gap:6px;justify-content:center">${fretInputs}</div>
+        <div class="row" style="margin-top:6px"><button id="ce-savecustom">保存为自定义和弦</button></div>
+      </div>
+      <div style="width:150px;text-align:center">
+        <h4>预览</h4>
+        <svg width="120" height="150" viewBox="0 0 120 150">${chordDiagramSVG(ceName(),20,10,1.7,shape)}</svg>
+        <div style="font-size:13px;margin-top:4px"><b>${esc(ceName())}</b></div>
+      </div>
+    </div>
+    <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`);
+  const rerender = ()=>{ closeModal(); renderChordEditor(); };
+  document.querySelector('.modal').addEventListener('click', ev=>{
+    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; rerender(); return; }
+    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; rerender(); return; }
+    const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
+  });
+  document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; rerender(); });
+  document.querySelectorAll('.ce-fret').forEach(inp=>inp.addEventListener('change', ()=>{
+    const arr=[]; for(const s of [6,5,4,3,2,1]){
+      const v=document.querySelector(`.ce-fret[data-s="${s}"]`).value.trim().toLowerCase();
+      arr.push(v==='x'||v===''? 'x' : (parseInt(v,10)||0).toString(36));
+    }
+    ceState.custom=arr.join(''); rerender();
+  }));
+  document.getElementById('ce-savecustom').onclick = ()=>{
+    const nm = ceName();
+    mutate(()=>{ song.customChords[nm]=ceShape(); });
+    toast('已保存自定义和弦：'+nm);
+  };
+  document.getElementById('ce-cancel').onclick = closeModal;
+  document.getElementById('ce-ok').onclick = ()=>{
+    const nm = ceName(), sh = ceShape();
+    const {mi,ci,vi}=ceState;
+    const oldEff = chordBefore(mi,vi);
+    mutate(()=>{
+      if(!CHORD_SHAPES[nm]) song.customChords[nm]=sh;   // 非标准/转位/自定义 → 存入
+      const cols = song.measures[mi].tabs[vi];
+      cols[ci].chord = nm;
+      if(nm!==oldEff){
+        let end=cols.length;
+        for(let i=ci+1;i<cols.length;i++) if(cols[i].chord){ end=i; break; }
+        remapCols(cols, ci, end, chordShape(oldEff), sh);
+      }
+    });
+    closeModal();
+    toast('已应用和弦：'+nm);
+  };
+}
 /* 扫弦弦数选择菜单 */
 function showStrumMenu(cx, cy){
   const col = curCol(); if(!col) return;
@@ -1806,6 +2021,10 @@ document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
 document.getElementById('b-tie').onclick = toggleTie;
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
 document.getElementById('b-rep-e').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatEnd=!m.repeatEnd; });
+document.getElementById('b-chord-edit').onclick = ()=>{
+  if(sel.row!=='tab'){ sel.row='tab'; clampSel(); }
+  showChordEditor(sel.mi, sel.ci, sel.vi);
+};
 document.getElementById('b-diag').onclick = ()=>{
   diagMode = diagMode==='inline'?'top':(diagMode==='top'?'off':'inline');
   document.getElementById('b-diag').textContent =
@@ -1820,14 +2039,14 @@ document.getElementById('i-chord').addEventListener('change', e=>{
   mutate(()=>{
     const cols = curRowCols();
     cols[sel.ci].chord = newName;
-    const newShape = CHORD_SHAPES[newName];
+    const newShape = chordShape(newName);
     if(newShape && newName!==oldEff){
       let end = cols.length;
       for(let i=sel.ci+1;i<cols.length;i++) if(cols[i].chord){ end=i; break; }
-      remapCols(cols, sel.ci, end, CHORD_SHAPES[oldEff], newShape);
+      remapCols(cols, sel.ci, end, chordShape(oldEff), newShape);
     }
   });
-  if(newName && CHORD_SHAPES[newName]){
+  if(newName && chordShape(newName)){
     if(oldEff && newName!==oldEff) toast('已按 '+newName+' 指法适配本小节分解/扫弦音');
     showChordSuggest(newName);
   }
