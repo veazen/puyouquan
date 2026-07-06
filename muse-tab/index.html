@@ -1345,15 +1345,17 @@ function render(){
     cursorY += sysM[si].h + M.gap; cnt++;
   });
   const nPages = pageIdx+1;
-  /* 页内纵向两端对齐：满页把剩余高度均分到行间，使整页纵向铺满、行距均匀；
-     未满的末页保持自然行距 */
+  /* 页内行距适度均分：满页把剩余高度分到行间，但每个行间的"呼吸量"
+     以系统高度的 1/4 封顶——避免行与行之间被撑出大片空档，
+     多余留白归于页底；未满的末页保持自然行距 */
   for(let pg=0; pg<nPages; pg++){
     const list = []; pageOf.forEach((p,si)=>{ if(p===pg) list.push(si); });
     if(list.length<2) continue;
     if(pg===nPages-1 && list.length<pageCap(pg)) continue;
     const pageBottom = pg*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
     const last = list[list.length-1];
-    const extra = (pageBottom - (sysY[last]+sysM[last].h)) / (list.length-1);
+    const avgH = list.reduce((a,si)=>a+sysM[si].h,0)/list.length;
+    const extra = Math.min((pageBottom - (sysY[last]+sysM[last].h))/(list.length-1), avgH*0.25);
     if(extra>0) list.forEach((si,k)=> sysY[si] += extra*k);
   }
   /* 页面白底（衬在内容下方，页间留灰缝） */
