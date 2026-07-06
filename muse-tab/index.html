@@ -3847,6 +3847,19 @@ document.getElementById('b-help').onclick = ()=>{
   document.getElementById('help-ok').onclick = closeModal;
 };
 
+/* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
+   页头右侧信息对齐右侧"曲谱信息"面板右缘——随窗口/面板尺寸变化实时校准 */
+function alignHeader(){
+  const L=document.getElementById('left-dock'), R=document.getElementById('right-dock');
+  if(!L || !R) return;
+  const lr=L.getBoundingClientRect(), rr=R.getBoundingClientRect();
+  const padL = Math.max(10, Math.round(lr.left));
+  const padR = Math.max(10, Math.round(innerWidth - rr.right));
+  document.querySelectorAll('#top .bar').forEach(b=>{
+    b.style.paddingLeft = padL+'px';
+    b.style.paddingRight = padR+'px';
+  });
+}
 /* ================= 启动 ================= */
 (function init(){
   try{
@@ -3859,9 +3872,15 @@ document.getElementById('b-help').onclick = ()=>{
   document.getElementById('b-notation').textContent = '记谱:'+(tabNotation==='x'?'×':'数字');
   persist();
   render();
-  /* 响应式：窗口尺寸变化时重排谱面（自适配宽度） */
+  alignHeader();
+  /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
-  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(render, 120); });
+  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ render(); alignHeader(); }, 120); });
+  if(window.ResizeObserver){
+    const ro = new ResizeObserver(()=>alignHeader());
+    ro.observe(document.getElementById('left-dock'));
+    ro.observe(document.getElementById('stage'));
+  }
 })();
 </script>
 </body>
