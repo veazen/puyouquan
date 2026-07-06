@@ -1442,6 +1442,13 @@ function render(){
             p.push(`<rect class="barzone" x="${bx-2}" y="${tabTop-3}" width="8" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
           }
         }
+        /* 符杠分组预计算：附点圆点需对齐该组由上至下的第一条时值线 */
+        const bGroups = beamGroups(cols, c2=>c2.notes.length||c2.strum);
+        const dotLv = new Map();
+        bGroups.forEach(g=>{
+          const maxD = Math.max(...g.idx.map(i2=>cols[i2].dur));
+          g.idx.forEach(i2=>dotLv.set(i2, maxD));
+        });
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
@@ -1522,7 +1529,12 @@ function render(){
             else if(col.notes.length) sLow = Math.max(...col.notes.map(n=>n.s));
             const stemTop = Math.min(tabBot+2, tabTop+(sLow-1)*STR+6);
             p.push(`<line x1="${nx}" y1="${stemTop}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="1"/>`);
-            if(col.dotted) p.push(`<circle cx="${nx+4}" cy="${stemY-4}" r="1.6" fill="var(--ink)"/>`);
+            if(col.dotted){
+              /* 附点对齐该拍符杠组由上至下的第一条时值线（32分层/16分层/主梁） */
+              const lv = dotLv.get(ci) || col.dur;
+              const dy = lv>=32 ? stemY-9.1 : lv>=16 ? stemY-5.1 : stemY-1.1;
+              p.push(`<circle cx="${nx+4.5}" cy="${dy}" r="1.6" fill="var(--ink)"/>`);
+            }
           }
           p.push(`<rect x="${clx}" y="${tabTop-18}" width="${cw}" height="18" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`);
           if(vi===0 && diagMode==='inline')
@@ -1532,7 +1544,7 @@ function render(){
           else for(let s2=1;s2<=6;s2++)
             p.push(`<rect class="strcell" x="${clx}" y="${tabTop+(s2-1)*STR-STR/2}" width="${cw}" height="${STR}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="${s2}" style="cursor:pointer"/>`);
         });
-        beamGroups(cols, c=>c.notes.length||c.strum).forEach(g=>{
+        bGroups.forEach(g=>{
           const xs = g.idx.map(i=>mx+lay.xs[i]);
           const x1=Math.min(...xs), x2=Math.max(...xs);
           if(g.idx.length>1){
