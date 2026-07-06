@@ -1976,6 +1976,25 @@ function toggleDot(){
     mutate(()=>{
       const cs=rangeCols();
       const allDot = cs.every(x=>x.col.dotted);
+      /* 选中恰为一拍内两个相邻等时值音符（如两个8分）时，设附点=经典
+         "附点+半时值"组合：前者加附点、后者时值减半，总时值不变 */
+      if(!allDot && cs.length===2 && cs[0].mi===cs[1].mi &&
+         cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=32){
+        cs[0].col.dotted=true;
+        cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false;
+        return;
+      }
+      /* 选中单个音符：与单音路径一致——下一个音符自动变为其时值的一半 */
+      if(!allDot && cs.length===1){
+        const {mi,col}=cs[0];
+        col.dotted=true;
+        if(col.dur*2<=32){
+          const cols = selRange.row==='tab'? song.measures[mi].tabs[selRange.vi] : song.measures[mi].voxes[selRange.vi];
+          const nxt = cols && cols[cols.indexOf(col)+1];
+          if(nxt){ nxt.dur=col.dur*2; nxt.dotted=false; }
+        }
+        return;
+      }
       const seen=new Set();
       cs.forEach(({mi,col})=>{ col.dotted=!allDot; seen.add(mi); });
       seen.forEach(mi=>autoFixMeasure(mi, selRange.row, selRange.vi));
