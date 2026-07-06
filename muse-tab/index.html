@@ -1044,6 +1044,12 @@ function measureLayout(mea){
     const w = cols.reduce((a,c)=>a+MIN_W[c.dur]+(c.dotted?6:0), 0);
     need = Math.max(need, w);
   });
+  /* 歌词也占空间：每个带词的音至少留一个字宽，避免密集小节歌词相互挤压 */
+  const LYR_MIN = 17;
+  mea.voxes.forEach(cols=>{
+    const w = cols.reduce((a,c)=>a + ((c.lyrics&&c.lyrics.some(x=>x&&x.trim())) ? LYR_MIN : (MIN_W[c.dur]||14)+(c.dotted?6:0)), 0);
+    need = Math.max(need, w);
+  });
   /* 上限放宽：密集小节（如整小节十六分）能取得所需宽度，行内按需自适配，
      稀疏小节保持基准宽度 → 拥挤/空白不再失衡 */
   const inner = Math.max(base, Math.min(need, base*2.6));
