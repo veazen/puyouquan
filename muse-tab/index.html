@@ -1030,46 +1030,47 @@ function patBeats(pat){
   return arr.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
 }
 
-/* ================= 布局（按时间网格，吉他谱与简谱逐拍对齐） ================= */
+/* ================= 布局（按拍分配宽度，吉他谱与简谱逐拍对齐） ================= */
 function measureLayout(mea){
-  const pad = 11;
-  const rows = [...mea.tabs, ...mea.voxes];
-  /* 基准宽度按拍数（同拍号小节等宽）；密集小节仅小幅加宽，限制在 1.5× 以内 */
+  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7, LYR_MIN = 17;
   const beats = song.beats || 4;
-  const base = beats * 29;   // 更紧凑：一行容纳更多小节
-  let need = 40;
-  rows.forEach(cols=>{
-    const rt = cols.reduce((a,c)=>a+beatsOf(c),0);
-    if(!rt) return;
-    const w = cols.reduce((a,c)=>a+MIN_W[c.dur]+(c.dotted?6:0), 0);
-    need = Math.max(need, w);
-  });
-  /* 歌词也占空间：每个带词的音至少留一个字宽，避免密集小节歌词相互挤压 */
-  const LYR_MIN = 17;
-  mea.voxes.forEach(cols=>{
-    const w = cols.reduce((a,c)=>a + ((c.lyrics&&c.lyrics.some(x=>x&&x.trim())) ? LYR_MIN : (MIN_W[c.dur]||14)+(c.dotted?6:0)), 0);
-    need = Math.max(need, w);
-  });
-  /* 上限放宽：密集小节（如整小节十六分）能取得所需宽度，行内按需自适配，
-     稀疏小节保持基准宽度 → 拥挤/空白不再失衡 */
-  const inner = Math.max(base, Math.min(need, base*2.6));
-  const NOTE_OFF = 10;   // 音符相对拍点的固定偏移，保证同拍数在各声部对齐
-  /* 拍间额外间隔：让"每拍 4 个十六分"这类密集小节的拍与拍之间清晰可辨 */
-  const BEAT_GAP = 7;
+  const baseBeat = 29;                       // 每拍基准宽
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
+  /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
+     使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
+  const beatNoteW = new Array(beats).fill(0);
+  const beatLyrCnt = new Array(beats).fill(0);
+  const scan = (cols, isVox)=>{
+    let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0);
+    cols.forEach(c=>{
+      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0);
+      if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
+      cum+=beatsOf(c);
+    });
+    for(let i=0;i<beats;i++){ beatNoteW[i]=Math.max(beatNoteW[i],wB[i]); if(isVox) beatLyrCnt[i]=Math.max(beatLyrCnt[i],cB[i]); }
+  };
+  mea.tabs.forEach(c=>scan(c,false));
+  mea.voxes.forEach(c=>scan(c,true));
+  let beatW=[], inner=0;
+  for(let i=0;i<beats;i++){ const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN); beatW.push(w); inner+=w; }
+  /* 上限=一整行可用宽度：极密集小节可独占整行，超出则整体压缩 */
+  const rowMax=(PAGE_W-2*MARGIN)-gapTotal-pad*2-4;
+  if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
+  const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
   const fit = cols=>{
-    const rt = cols.reduce((a,c)=>a+beatsOf(c),0)||1;
     let cum=0; const xs=[], ws=[], ls=[];
     cols.forEach(c=>{
       const b=beatsOf(c);
-      const bg = BEAT_GAP*Math.min(beats-1, Math.floor(cum+1e-4));   // 已跨过的拍界数×间隔
-      const left = pad+(cum/rt)*inner+bg;
-      const w = Math.max(14, b/rt*inner);
+      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
+      const inBeat=Math.max(0, cum-bi);          // 该音在本拍内已过的时值(0..1)
+      const left=beatStart[bi]+inBeat*beatW[bi]; // 拍内按时值比例定位（拍首严格对齐）
+      const w=Math.max(14, b*beatW[bi]);
       ls.push(left); ws.push(w);
-      xs.push(left + NOTE_OFF);   // 每拍/每音靠拍点左对齐 → 吉他谱与简谱逐拍对齐
+      xs.push(left+NOTE_OFF);
       cum+=b;
     });
-    return {xs, ws, ls, rt};
+    return {xs, ws, ls, rt:cols.reduce((a,c)=>a+beatsOf(c),0)||1};
   };
   return {w:inner+gapTotal+pad*2, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
