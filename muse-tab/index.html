@@ -1991,6 +1991,7 @@ function toggleDot(){
          cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=32){
         cs[0].col.dotted=true;
         cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false;
+        autoFixMeasure(cs[0].mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
       /* 选中单个音符：与单音路径一致——下一个音符自动变为其时值的一半 */
@@ -2002,6 +2003,7 @@ function toggleDot(){
           const nxt = cols && cols[cols.indexOf(col)+1];
           if(nxt){ nxt.dur=col.dur*2; nxt.dotted=false; }
         }
+        autoFixMeasure(mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
       const seen=new Set();
@@ -2020,6 +2022,8 @@ function toggleDot(){
       const nxt=cols && cols[sel.ci+1];
       if(nxt){ nxt.dur=cur.dur*2; nxt.dotted=false; }
     }
+    /* 兜底：无论联动前后如何，自动补齐/删减保证小节总时值与拍号一致（无错） */
+    if(cur.dotted) autoFixMeasure(sel.mi, sel.row, sel.vi);
   });
 }
 /* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
