@@ -117,11 +117,20 @@ input.short{width:54px} input.mid{width:150px}
 #beat-status.bad{color:var(--danger);font-weight:600;background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:var(--danger)}
 #beat-status.bad::before{background:var(--danger)}
 #beat-status.good{color:var(--muted)}
-#err-drop{position:absolute;right:0;top:100%;margin-top:4px;z-index:30;background:var(--panel);
+#err-drop{position:absolute;right:0;bottom:100%;margin-bottom:6px;z-index:30;background:var(--panel);
   border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
-  padding:8px;max-height:40vh;overflow:auto;min-width:260px;max-width:340px}
-#err-drop .err{color:var(--danger);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:12.5px}
-#err-drop .err:hover{background:var(--accent-soft)}
+  padding:8px;max-height:60vh;overflow:auto;min-width:270px;max-width:340px}
+.err-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:11.5px;color:var(--muted);padding:2px 4px 6px;border-bottom:1px solid var(--border);margin-bottom:5px}
+#err-fixall{font-size:11.5px;padding:3px 9px;font-weight:600;border-color:var(--accent);color:var(--accent-ink)}
+#err-fixall:hover{background:var(--accent);color:#fff}
+#err-drop .err{cursor:pointer;padding:6px 7px;border-radius:7px;font-size:12px;margin:3px 0;
+  border:1px solid var(--border-soft);background:var(--toolbar)}
+#err-drop .err:hover{border-color:var(--accent)}
+#err-drop .err-desc{color:var(--danger);font-weight:600}
+#err-drop .err-sug{color:var(--text);font-size:11.5px;margin:3px 0 5px;line-height:1.4}
+#err-drop .err-fix{font-size:11.5px;padding:3px 10px;font-weight:600}
+#err-drop .err-fix:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 #suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
@@ -1704,10 +1713,17 @@ function syncInputs(){
     document.getElementById('err-drop').classList.add('hidden');
   }else{
     bs.textContent = `⚠ ${errs.length} 处小节时值与拍号不符（点击查看）`; bs.className='bad';
-    document.getElementById('err-drop').innerHTML = errs.map(e=>{
+    const rows = errs.map(e=>{
       const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
-      return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)} 拍（应 ${e.target} 拍）</div>`;
+      const sg = suggestFix(e.mi, e.row, e.vi);
+      return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">
+        <div class="err-desc">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)}/${e.target} 拍</div>
+        ${sg?`<div class="err-sug">💡 ${esc(sg.text)}</div>`:''}
+        <button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>
+      </div>`;
     }).join('');
+    document.getElementById('err-drop').innerHTML =
+      `<div class="err-hd"><span>时值不符 ${errs.length} 处</span><button id="err-fixall">全部采纳</button></div>` + rows;
   }
   if(!audio.playing){
     const mlbl=document.getElementById('mx-lbl');
@@ -1814,6 +1830,32 @@ function autoFixMeasure(mi, row, vi){
     c.dur=dur;
     cols.push(c); sum+=beatsOf(c);
   }
+}
+/* 智能修复建议：按曲谱风格/形式匹配补齐或删减方案，供一键采纳 */
+function fmtBeats(x){ return (+x.toFixed(3)).toString(); }
+function suggestFix(mi, row, vi){
+  const target = song.beats;
+  const cols = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
+  if(!cols) return null;
+  const sum = cols.reduce((a,c)=>a+beatsOf(c),0);
+  const diff = +(target - sum).toFixed(3);
+  if(Math.abs(diff) < 1e-3) return null;
+  if(diff < 0) return { kind:'trim', text:`超出 ${fmtBeats(-diff)} 拍 → 从末尾删减多余音` };
+  /* 欠拍：依风格给出补充方案 */
+  let style;
+  if(row==='vox'){
+    const hasNote = cols.some(c=>c.deg);
+    style = hasNote ? '按旋律走向补休止/延音' : '补休止占位';
+  }else{
+    const hasStrum = cols.some(c=>c.strum==='d'||c.strum==='u');
+    const hasArp = cols.some(c=>c.notes && c.notes.length && !c.strum);
+    const hasChord = !!chordShape(chordBefore(mi,vi));
+    if(hasStrum) style = '延续扫弦型补交替 ↓↑';
+    else if(hasArp && hasChord) style = '按当前和弦补分解音';
+    else if(hasChord) style = '按和弦补分解音';
+    else style = '补 4 分音符（×）';
+  }
+  return { kind:'fill', text:`欠 ${fmtBeats(diff)} 拍 → ${style}` };
 }
 /* ================= 时值/组合/节奏型 套用 ================= */
 function setDur(d){
@@ -2792,6 +2834,22 @@ document.getElementById('beat-status').onclick = ()=>{
     document.getElementById('err-drop').classList.toggle('hidden');
 };
 document.getElementById('err-drop').addEventListener('click', e=>{
+  /* 全部采纳：按智能建议一次性补齐/删减所有不符小节 */
+  if(e.target.closest('#err-fixall')){
+    const errs = beatErrors();
+    mutate(()=>{ errs.forEach(er=>autoFixMeasure(er.mi, er.row, er.vi)); });
+    toast('已按建议采纳全部修复');
+    return;
+  }
+  /* 单条一键采纳 */
+  const fx = e.target.closest('.err-fix');
+  if(fx){
+    const mi=+fx.dataset.mi, row=fx.dataset.row, vi=+fx.dataset.vi;
+    mutate(()=>autoFixMeasure(mi, row, vi));
+    toast(`已修复第 ${mi+1} 小节`);
+    return;
+  }
+  /* 点击说明 → 跳到该小节定位 */
   const d = e.target.closest('.err'); if(!d) return;
   sel.mi=+d.dataset.mi; sel.row=d.dataset.row; sel.vi=+d.dataset.vi; sel.ci=0;
   selRange=null; clampSel(); setRibbon(sel.row); render();
