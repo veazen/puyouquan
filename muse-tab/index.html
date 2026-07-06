@@ -556,7 +556,6 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
-const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11};
 const STR_GAP = 9, STAFF_H = STR_GAP*5;   // 六线谱弦间距 / 谱表高度
 let PAGE_W = 1060; const MARGIN = 56;
 const MAX_VOICES = 5, MAX_LYR = 5;
@@ -1047,61 +1046,78 @@ function patBeats(pat){
   return arr.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
 }
 
-/* ================= 布局（按拍分配宽度，吉他谱与简谱逐拍对齐） ================= */
+/* ================= 布局（参考出版谱的间距逻辑：起音网格 + 时值非线性占宽） =================
+   据《这世界那么多人》《女人花》《传奇》等正式出版谱归纳的间距三原则：
+   ① 音符占宽随时值"非线性"递减——时值减半，宽度约 ×0.67 而非 ×0.5：
+      长音不成倍占宽（二分音符≠2×四分宽）、短音不挤成一团（16/32分仍可读），
+      由此形成出版谱"疏密有致"的不规则间距；附点仅追加一个点位宽；
+   ② 简谱延音线"-"按整拍各占一个标准列位（整数拍点始终计入网格）；
+   ③ 六线谱与简谱在公共"起音点网格"上严格纵向对齐；每列另有字形最低跨度
+     （简谱≥歌词字宽、倚音/附点再预留），不足时仅局部撑开该列覆盖的网格段。 */
 function measureLayout(mea){
-  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7, LYR_MIN = 17;
+  const pad = 11, NOTE_OFF = 10, LYR_MIN = 17, MIN_COL = 13, BEAT_EXTRA = 5;
   const beats = song.beats || 4;
-  const baseBeat = 28;                       // 每拍基准宽（全4分音符时一行可容 6 小节）
-  const gapTotal = BEAT_GAP*Math.max(0, beats-1);
-  /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
-     使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
-  const MIN_COL = 13;                        // 吉他谱每列最低间隔
-  const beatNoteW = new Array(beats).fill(0);
-  const beatLyrCnt = new Array(beats).fill(0);
-  const beatColCnt = new Array(beats).fill(0);
-  const beatVoxCnt = new Array(beats).fill(0);
-  const scan = (cols, isVox)=>{
-    let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
-    cols.forEach(c=>{
-      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0);   // 倚音预留空间
-      nB[bi]++;
-      if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
-      cum+=beatsOf(c);
-    });
-    for(let i=0;i<beats;i++){
-      beatNoteW[i]=Math.max(beatNoteW[i],wB[i]); beatColCnt[i]=Math.max(beatColCnt[i],nB[i]);
-      if(isVox){ beatLyrCnt[i]=Math.max(beatLyrCnt[i],cB[i]); beatVoxCnt[i]=Math.max(beatVoxCnt[i],nB[i]); }
-    }
+  const QW = 28;            // 1 拍（四分音符）基准宽
+  const EXP = 0.58;         // 时值→宽度指数：0.5^0.58≈0.67（出版谱经验比例）
+  const TK = 960;           // 每拍整数刻度（可整除 32 分附点），避免浮点累积误差
+  /* 1. 公共起音网格：全声部起音点 ∪ 整数拍点 */
+  const grid = new Set([0, beats*TK]);
+  const voices = [];
+  const collect = (cols, isVox)=>{
+    let t=0; const on=[];
+    cols.forEach(c=>{ on.push(t); grid.add(t); t+=Math.round(beatsOf(c)*TK); });
+    grid.add(t);
+    voices.push({cols, isVox, on, end:t});
   };
-  mea.tabs.forEach(c=>scan(c,false));
-  mea.voxes.forEach(c=>scan(c,true));
-  let beatW=[], inner=0;
-  for(let i=0;i<beats;i++){
-    /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
-       32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
-    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
-    beatW.push(w); inner+=w;
+  mea.tabs.forEach(c=>collect(c,false));
+  mea.voxes.forEach(c=>collect(c,true));
+  for(let b=1;b<beats;b++) grid.add(b*TK);
+  const g = [...grid].sort((a,b)=>a-b);
+  const idx = new Map(g.map((t,i)=>[t,i]));
+  /* 2. 相邻网格点间的弹性段宽 = QW × 段时值^EXP */
+  const segW = [];
+  for(let i=0;i<g.length-1;i++) segW.push(QW*Math.pow((g[i+1]-g[i])/TK, EXP));
+  /* 3. 列最低跨度约束（本列起音→下一列起音）：简谱≥歌词字宽 LYR_MIN、
+        六线谱≥MIN_COL，附点+6、倚音+10；不足时把该列覆盖的段等比撑开 */
+  const needOf = (c,isVox)=> (isVox?LYR_MIN:MIN_COL) + (c.dotted?6:0) + (isVox&&c.grace?10:0);
+  for(let pass=0; pass<3; pass++){
+    let ok=true;
+    voices.forEach(v=>{
+      v.cols.forEach((c,ci)=>{
+        const a=idx.get(v.on[ci]);
+        const b=idx.get(ci+1<v.on.length ? v.on[ci+1] : v.end);
+        if(b<=a) return;
+        let span=0; for(let k=a;k<b;k++) span+=segW[k];
+        const m=needOf(c,v.isVox);
+        if(span<m-0.01){ ok=false; const s=m/Math.max(span,1e-6); for(let k=a;k<b;k++) segW[k]*=s; }
+      });
+    });
+    if(ok) break;
   }
+  /* 4. 网格 x 坐标：拍界处加少量间隔，保持拍组可辨 */
+  const endTick = Math.max(beats*TK, g[g.length-1]);
+  const gx=new Array(g.length); let acc=pad;
+  for(let i=0;i<g.length;i++){
+    if(i>0) acc+=segW[i-1];
+    if(i>0 && g[i]<endTick && g[i]%TK===0) acc+=BEAT_EXTRA;
+    gx[i]=acc;
+  }
+  let inner = acc-pad;
   /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
-  const rowMax=(PAGE_W-2*MARGIN)*0.66-gapTotal-pad*2;
-  if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
-  const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
-  const fit = cols=>{
-    let cum=0; const xs=[], ws=[], ls=[];
-    cols.forEach(c=>{
-      const b=beatsOf(c);
-      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      const inBeat=Math.max(0, cum-bi);          // 该音在本拍内已过的时值(0..1)
-      const left=beatStart[bi]+inBeat*beatW[bi]; // 拍内按时值比例定位（拍首严格对齐）
-      const w=Math.max(14, b*beatW[bi]);
-      ls.push(left); ws.push(w);
-      xs.push(left+NOTE_OFF);
-      cum+=b;
+  const rowMax=(PAGE_W-2*MARGIN)*0.66-pad*2;
+  if(inner>rowMax){ const k=rowMax/inner; for(let i=0;i<gx.length;i++) gx[i]=pad+(gx[i]-pad)*k; inner=rowMax; }
+  const fit = v=>{
+    const xs=[], ws=[], ls=[];
+    v.cols.forEach((c,ci)=>{
+      const x0=gx[idx.get(v.on[ci])];
+      const x1=gx[idx.get(ci+1<v.on.length ? v.on[ci+1] : v.end)];
+      ls.push(x0); ws.push(Math.max(14,x1-x0)); xs.push(x0+NOTE_OFF);
     });
-    return {xs, ws, ls, rt:cols.reduce((a,c)=>a+beatsOf(c),0)||1};
+    return {xs, ws, ls, rt:v.cols.reduce((a,c)=>a+beatsOf(c),0)||1};
   };
-  return {w:inner+gapTotal+pad*2, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  const nT = mea.tabs.length;
+  return {w:gx[gx.length-1]+pad, weight:inner,
+    tabs:voices.slice(0,nT).map(fit), voxes:voices.slice(nT).map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
