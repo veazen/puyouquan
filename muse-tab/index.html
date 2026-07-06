@@ -151,6 +151,8 @@ input.short{width:54px} input.mid{width:150px}
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
 #score .mnumg:hover .mnum{fill:var(--accent);opacity:1}
+#score .barzone:hover{fill-opacity:.25}
+.popmenu button.on{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
 #score .beatzone:hover{fill:var(--accent);fill-opacity:.13}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
@@ -693,6 +695,8 @@ let sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
 let selRange = null;
 let measureSel = null;   // 选中的整小节 mi
 let clipMeasure = null;  // 复制的小节（深拷贝）
+let clipRow = null;      // 复制的单声部小节 {row, cols}（按住小节线选中后 Ctrl+C）
+let barSel = null;       // 选中的小节线 {L,R}（点击小节线，用于反复/终止设置）
 let blurSel = false;     // 点击页面内容区外 → 隐藏光标
 let activeLyr = 0;
 let activeTab = 'tab';
@@ -1409,11 +1413,20 @@ function render(){
           p.push(`<circle cx="${bx-10.5}" cy="${tabTop+STR*2}" r="1.8" fill="var(--ink)"/><circle cx="${bx-10.5}" cy="${tabTop+STR*3}" r="1.8" fill="var(--ink)"/>`);
           p.push(`<line x1="${bx-6}" y1="${tabTop}" x2="${bx-6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3.5}" y="${tabTop}" width="2.4" height="${STAFF}" fill="var(--ink)"/>`);
-        }else if(isLast){
+        }else if(isLast || mea.finalBar){
           p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3}" y="${tabTop}" width="2.6" height="${STAFF}" fill="var(--ink)"/>`);
         }else if(!nextRep || isRowEnd){   // 行尾始终补小节线；否则下一小节为反复号时由反复号分隔
           p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+        }
+        /* 小节线热区：点击=选中小节线设置反复/终止符号；按住=选中本小节该声部 */
+        {
+          const selL = barSel && barSel.R===lm.mi;
+          p.push(`<rect class="barzone" x="${mx-4}" y="${tabTop-3}" width="9" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+          if(isRowEnd || isLast){
+            const selR = barSel && barSel.L===lm.mi;
+            p.push(`<rect class="barzone" x="${bx-2}" y="${tabTop-3}" width="8" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+          }
         }
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
@@ -1573,11 +1586,20 @@ function render(){
           p.push(`<circle cx="${bx-9}" cy="${voxY-6}" r="1.4" fill="var(--ink)"/><circle cx="${bx-9}" cy="${voxY-0.5}" r="1.4" fill="var(--ink)"/>`);
           p.push(`<line x1="${bx-5.5}" y1="${yT2}" x2="${bx-5.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
-        }else if(isLast){
+        }else if(isLast || mea.finalBar){
           p.push(`<line x1="${bx-5}" y1="${yT2}" x2="${bx-5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3}" y="${yT2}" width="2.4" height="${yB2-yT2}" fill="var(--ink)"/>`);
         }else if(!vNextRep || isRowEnd){   // 行尾始终补小节线
           p.push(`<line x1="${bx}" y1="${yT2}" x2="${bx}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+        }
+        /* 小节线热区：点击=选中小节线设置符号；按住=选中本小节简谱声部 */
+        {
+          const selL = barSel && barSel.R===lm.mi;
+          p.push(`<rect class="barzone" x="${mx-4}" y="${yT2-2}" width="9" height="${yB2-yT2+4}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+          if(isRowEnd || isLast){
+            const selR = barSel && barSel.L===lm.mi;
+            p.push(`<rect class="barzone" x="${bx-2}" y="${yT2-2}" width="8" height="${yB2-yT2+4}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+          }
         }
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
@@ -2402,13 +2424,35 @@ window.addEventListener('keydown', e=>{
 });
 let dragSel = null;
 let noteSel = [];   // Ctrl 多选音符： [{mi,ci,si}]
-/* ---- 整小节复制 / 粘贴 ---- */
+/* ---- 整小节复制 / 粘贴（按住小节线选中时：仅复制该声部，可独立粘贴） ---- */
 function copyMeasure(){
+  if(selRange && selRange.whole && selRange.m1===selRange.m2){
+    const cols = selRange.row==='tab'
+      ? song.measures[selRange.m1].tabs[selRange.vi]
+      : song.measures[selRange.m1].voxes[selRange.vi];
+    if(cols){
+      clipRow = {row:selRange.row, cols:JSON.parse(JSON.stringify(cols))};
+      clipMeasure = null;
+      toast('已复制第'+(selRange.m1+1)+'小节'+(selRange.row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+V 粘贴到光标小节');
+      return;
+    }
+  }
   const mi = measureSel!=null? measureSel : sel.mi;
   clipMeasure = JSON.parse(JSON.stringify(song.measures[mi]));
+  clipRow = null;
   toast('已复制第'+(mi+1)+'小节');
 }
 function pasteMeasure(){
+  if(clipRow){
+    const mi = measureSel!=null? measureSel : sel.mi;
+    mutate(()=>{
+      const arr = clipRow.row==='tab'? song.measures[mi].tabs : song.measures[mi].voxes;
+      const vi = Math.max(0, Math.min(sel.row===clipRow.row? sel.vi : 0, arr.length-1));
+      arr[vi] = JSON.parse(JSON.stringify(clipRow.cols));
+    });
+    toast('已粘贴'+(clipRow.row==='tab'?'吉他谱':'简谱')+'声部到第'+(mi+1)+'小节');
+    return;
+  }
   if(!clipMeasure) return toast('剪贴板为空，先选中小节号 Ctrl+C 复制');
   const mi = measureSel!=null? measureSel : sel.mi;
   mutate(()=>{
@@ -2445,6 +2489,31 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     sel.mi = measureSel; sel.ci = 0; selRange=null; noteSel=[]; closeTech();
     clampSel(); render();
     toast('已选中第'+(measureSel+1)+'小节 · Ctrl+C 复制 / Ctrl+V 粘贴');
+    return;
+  }
+  /* 小节线：按住(≥450ms)=选中该小节的吉他谱/简谱声部（可独立复制粘贴）；
+     点击=选中小节线，弹出反复/终止符号设置 */
+  if(t.dataset.bar!==undefined){
+    const seg = t.dataset.bar.split(':');
+    const L=+seg[0], R=+seg[1], row=seg[2], vi=+seg[3];
+    const sx=e.clientX, sy=e.clientY;
+    let held=false;
+    const tm=setTimeout(()=>{
+      held=true; off();
+      const mi = (R>=0 && song.measures[R]) ? R : L;
+      if(mi<0 || !song.measures[mi]) return;
+      const cols = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
+      if(!cols || !cols.length) return;
+      sel.row=row; sel.vi=vi; sel.mi=mi; sel.ci=0;
+      selRange={row, vi, m1:mi, c1:0, m2:mi, c2:cols.length-1, whole:true};
+      measureSel=null; noteSel=[]; closeTech(); setRibbon(row); render();
+      toast('已选中第'+(mi+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+C 复制 / Ctrl+V 粘贴');
+    }, 450);
+    const off=()=>{ document.removeEventListener('pointerup',up); document.removeEventListener('pointermove',mv); };
+    const up=()=>{ clearTimeout(tm); off(); if(!held) showBarMenu(sx, sy, L, R); };
+    const mv=ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>7){ clearTimeout(tm); off(); } };
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointermove', mv);
     return;
   }
   measureSel = null;
@@ -2652,7 +2721,42 @@ function showStrumMenu(cx, cy){
     closePop();
   });
 }
-function closePop(){ const d=document.getElementById('popmenu'); if(d) d.remove(); }
+/* 小节线设置弹窗：反复开始/反复结束/终止线（L=线左侧小节，R=线右侧小节） */
+function showBarMenu(cx, cy, L, R){
+  closePop();
+  barSel = {L, R}; render();   // 高亮选中的小节线
+  const mL = L>=0? song.measures[L] : null;
+  const mR = (R>=0 && R<song.measures.length)? song.measures[R] : null;
+  if(!mL && !mR) return;
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-250)+'px';
+  div.style.top=(cy+8)+'px';
+  const chk=v=>v?' class="on"':'';
+  let rows='';
+  if(mR) rows+=`<button data-k="rs"${chk(mR.repeatStart)}>𝄆 反复开始 · 第${R+1}小节</button>`;
+  if(mL) rows+=`<button data-k="re"${chk(mL.repeatEnd)}>𝄇 反复结束 · 第${L+1}小节</button>`;
+  if(mL) rows+=`<button data-k="fin"${chk(mL.finalBar)}>𝄂 终止线 · 第${L+1}小节末</button>`;
+  rows+=`<button data-k="clr">清除该线符号</button>`;
+  div.innerHTML=`<div class="t">小节线设置 · 提示：按住小节线可选中本小节声部</div>
+    <div class="row" style="flex-direction:column;align-items:stretch">${rows}</div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const b=ev.target.closest('[data-k]'); if(!b) return;
+    const k=b.dataset.k;
+    mutate(()=>{
+      if(k==='rs' && mR) mR.repeatStart=!mR.repeatStart;
+      if(k==='re' && mL) mL.repeatEnd=!mL.repeatEnd;
+      if(k==='fin' && mL) mL.finalBar=!mL.finalBar;
+      if(k==='clr'){ if(mR) mR.repeatStart=false; if(mL){ mL.repeatEnd=false; mL.finalBar=false; } }
+    });
+    closePop();
+  });
+}
+function closePop(){
+  const d=document.getElementById('popmenu'); if(d) d.remove();
+  if(barSel){ barSel=null; render(); }
+}
 window.addEventListener('pointerdown', e=>{
   if(!e.target.closest('#popmenu') && !e.target.closest('[data-zone="strum"]')) closePop();
 }, true);
