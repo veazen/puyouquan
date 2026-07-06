@@ -2335,12 +2335,28 @@ function delVoiceAt(kind, vi){
   });
   toast('已删除声部');
 }
-document.getElementById('top').addEventListener('click', e=>{
+/* 声部/歌词段 chips 交互：面板位于左侧工具栏（历史上曾在页头，
+   两处都绑定以兼容），修复"＋添加声部"点击无效 */
+let lastChipClick = {k:null, idx:-1, t:0};
+const chipHandler = e=>{
   /* 声部删除×（hover 出现） */
   const del = e.target.closest('.vdel');
   if(del){ e.stopPropagation(); delVoiceAt(del.dataset.k==='tvdel'?'tab':'vox', +del.dataset.idx); return; }
   const chip = e.target.closest('.chip'); if(!chip) return;
   const k = chip.dataset.k;
+  /* 双击改名：单击会重渲染 chips 导致原生 dblclick 失效，
+     改为按"同一声部 400ms 内连击两次"判定 */
+  if(k==='tv' || k==='vv'){
+    const idx = +chip.dataset.idx, now = Date.now();
+    if(lastChipClick.k===k && lastChipClick.idx===idx && now-lastChipClick.t<400){
+      lastChipClick = {k:null, idx:-1, t:0};
+      const list = k==='tv'? song.tabVoices : song.voxVoices;
+      const nm = prompt('声部名称', list[idx]);
+      if(nm!=null && nm.trim()){ mutate(()=>{ list[idx]=nm.trim(); }); }
+      return;
+    }
+    lastChipClick = {k, idx, t:now};
+  }
   if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
   else if(k==='vv'){ sel.row='vox'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
   else if(k==='ll'){ activeLyr=+chip.dataset.idx; syncInputs(); }
@@ -2360,14 +2376,19 @@ document.getElementById('top').addEventListener('click', e=>{
       song.lyricLines--; activeLyr=Math.min(activeLyr, song.lyricLines-1);
     });
   }
-});
+};
 /* 双击声部 chip → 改名 */
-document.getElementById('top').addEventListener('dblclick', e=>{
+const chipRename = e=>{
   const chip = e.target.closest('.vchip'); if(!chip) return;
   const k = chip.dataset.k, i = +chip.dataset.idx;
   const list = k==='tv'? song.tabVoices : song.voxVoices;
   const nm = prompt('声部名称', list[i]);
   if(nm!=null && nm.trim()){ mutate(()=>{ list[i]=nm.trim(); }); }
+};
+['left-dock','top'].forEach(id=>{
+  const el=document.getElementById(id); if(!el) return;
+  el.addEventListener('click', chipHandler);
+  el.addEventListener('dblclick', chipRename);
 });
 /* 左侧标签：点击向左展开完整功能面板；再次点击当前标签则收起 */
 function openFlyout(t){
