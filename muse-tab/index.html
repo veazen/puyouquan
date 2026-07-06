@@ -2199,7 +2199,18 @@ function applyVoxPattern(pat){
   document.getElementById('score-wrap').addEventListener('wheel', e=>{
     if(!e.ctrlKey) return;
     e.preventDefault();
+    /* 以光标位置为中心缩放：先记录光标落在谱面中的比例位置，
+       缩放后调整水平（#paper 内滚动）与垂直（页面滚动）滚动量，
+       使光标下方的内容点保持不动 */
+    const svg = document.getElementById('score');
+    const r = svg.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / Math.max(1, r.width);
+    const fy = (e.clientY - r.top) / Math.max(1, r.height);
     setZoom(viewZoom * (e.deltaY<0 ? 1.1 : 0.9));
+    const r2 = svg.getBoundingClientRect();
+    document.getElementById('paper').scrollLeft += (r2.left + fx*r2.width) - e.clientX;
+    const se = document.scrollingElement || document.documentElement;
+    se.scrollTop += (r2.top + fy*r2.height) - e.clientY;
   }, {passive:false});
 })();
 /* ---- 节奏型库弹窗 ---- */
