@@ -1062,12 +1062,15 @@ function tabPatSVG(pat, W, H){
           Math.floor(cumAt(j+1)+1e-4)===beat) j++;
     if(j>i){
       p.push(`<rect x="${xs[i]-0.5}" y="${stemY-1.8}" width="${xs[j]-xs[i]+1}" height="1.8" fill="currentColor"/>`);
-      for(let a=i;a<j;a++){
-        if(evs[a][1]>=16 && evs[a+1][1]>=16)
-          p.push(`<rect x="${xs[a]-0.5}" y="${stemY-4.6}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
-        if(evs[a][1]>=32 && evs[a+1][1]>=32)
-          p.push(`<rect x="${xs[a]-0.5}" y="${stemY-7.4}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
-      }
+      [[16, stemY-4.6],[32, stemY-7.4]].forEach(([lv,yy])=>{
+        for(let a=i;a<=j;a++){
+          if(evs[a][1]<lv || evs[a][0]==='r') continue;
+          let b2=a; while(b2<j && evs[b2+1][1]>=lv && evs[b2+1][0]!=='r') b2++;
+          if(b2>a) p.push(`<rect x="${xs[a]-0.5}" y="${yy}" width="${xs[b2]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+          else p.push(`<rect x="${a>i? xs[a]-5 : xs[a]-0.5}" y="${yy}" width="5.5" height="1.8" fill="currentColor"/>`);
+          a=b2;
+        }
+      });
     }else{
       p.push(`<path d="M ${xs[i]} ${stemY} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
       if(d>=16) p.push(`<path d="M ${xs[i]} ${stemY-3.4} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
@@ -1534,13 +1537,22 @@ function render(){
           const x1=Math.min(...xs), x2=Math.max(...xs);
           if(g.idx.length>1){
             p.push(`<rect x="${x1-0.5}" y="${stemY-2.2}" width="${x2-x1+1}" height="2.2" fill="var(--ink)"/>`);
-            for(let a=0;a<g.idx.length-1;a++){
-              const i1=g.idx[a], i2=g.idx[a+1];
-              if(cols[i1].dur>=16 && cols[i2].dur>=16)
-                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-6.2}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
-              if(cols[i1].dur>=32 && cols[i2].dur>=32)
-                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-10.2}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
-            }
+            /* 16/32 分层：连续段画整梁；组内孤立的 16/32 分（如附点8+16）
+               画一截短杠（断梁），朝向组内相邻音符 */
+            [[16, stemY-6.2],[32, stemY-10.2]].forEach(([lv,yy])=>{
+              for(let a=0;a<g.idx.length;a++){
+                if(cols[g.idx[a]].dur<lv) continue;
+                let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=lv) b++;
+                if(b>a){
+                  p.push(`<rect x="${mx+lay.xs[g.idx[a]]-0.5}" y="${yy}" width="${lay.xs[g.idx[b]]-lay.xs[g.idx[a]]+1}" height="2.2" fill="var(--ink)"/>`);
+                }else{
+                  const x=mx+lay.xs[g.idx[a]];
+                  const sx = a>0 ? x-7 : x-0.5;   // 短杠：跟在长音后→向左，居组首→向右
+                  p.push(`<rect x="${sx}" y="${yy}" width="7.5" height="2.2" fill="var(--ink)"/>`);
+                }
+                a=b;
+              }
+            });
           }else{
             const x=xs[0];
             p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
