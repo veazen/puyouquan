@@ -2074,6 +2074,24 @@ function setDur(d){
   }
   const c=curCol(); if(c) mutate(()=>{ curCol().dur=d; });
 }
+/* 判断某列是否为"一拍中的最后一个音符"（其结束点恰落在整数拍上） */
+function isBeatLastCol(cols, ci){
+  if(!cols || !cols[ci]) return false;
+  let start=0; for(let i=0;i<ci;i++) start+=beatsOf(cols[i]);
+  const end = start + beatsOf(cols[ci]);
+  return Math.abs(end-Math.round(end))<1e-4 && Math.round(end)>Math.floor(start+1e-4);
+}
+/* 附点联动：常规→下一音变当前的1/2；若当前音是拍尾且时值小于8分（16/32分），
+   则改为"前一个音符"变当前的1/2（如 16,16,16,16 点末尾→16,16,32,附点16） */
+function dotLink(cols, ci, wasBeatLast){
+  const cur=cols[ci];
+  if(cur.dur*2>32) return;
+  if(wasBeatLast && cur.dur>8 && cols[ci-1]){
+    cols[ci-1].dur=cur.dur*2; cols[ci-1].dotted=false;
+  }else if(cols[ci+1]){
+    cols[ci+1].dur=cur.dur*2; cols[ci+1].dotted=false;
+  }
+}
 function toggleDot(){
   if(selRange){
     mutate(()=>{
@@ -2088,15 +2106,14 @@ function toggleDot(){
         autoFixMeasure(cs[0].mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
-      /* 选中单个音符：与单音路径一致——下一个音符自动变为其时值的一半 */
+      /* 选中单个音符：与单音路径一致——联动相邻音符变为其时值的一半 */
       if(!allDot && cs.length===1){
         const {mi,col}=cs[0];
+        const cols = selRange.row==='tab'? song.measures[mi].tabs[selRange.vi] : song.measures[mi].voxes[selRange.vi];
+        const ci = cols? cols.indexOf(col) : -1;
+        const wasBeatLast = ci>=0 && isBeatLastCol(cols, ci);
         col.dotted=true;
-        if(col.dur*2<=32){
-          const cols = selRange.row==='tab'? song.measures[mi].tabs[selRange.vi] : song.measures[mi].voxes[selRange.vi];
-          const nxt = cols && cols[cols.indexOf(col)+1];
-          if(nxt){ nxt.dur=col.dur*2; nxt.dotted=false; }
-        }
+        if(ci>=0) dotLink(cols, ci, wasBeatLast);
         autoFixMeasure(mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
@@ -2108,15 +2125,14 @@ function toggleDot(){
   }
   const c=curCol(); if(c) mutate(()=>{
     const cur=curCol();
+    const cols=curRowCols();
+    /* 拍尾判断须用加附点前的时值 */
+    const wasBeatLast = !cur.dotted && isBeatLastCol(cols, sel.ci);
     cur.dotted=!cur.dotted;
-    /* 设置附点时：下一个音符自动变为当前音符时值的一半（如附点8分→下一个16分），
-       构成标准的"附点+半时值"节奏组合；取消附点不联动 */
-    if(cur.dotted && cur.dur*2<=32){
-      const cols=curRowCols();
-      const nxt=cols && cols[sel.ci+1];
-      if(nxt){ nxt.dur=cur.dur*2; nxt.dotted=false; }
-    }
-    /* 兜底：无论联动前后如何，自动补齐/删减保证小节总时值与拍号一致（无错） */
+    /* 设置附点时：相邻音符自动变为当前时值的一半——常规为下一个音符；
+       拍尾且时值<8分（16/32分）时为前一个音符；取消附点不联动 */
+    if(cur.dotted) dotLink(cols, sel.ci, wasBeatLast);
+    /* 兜底：自动补齐/删减保证小节总时值与拍号一致（无错） */
     if(cur.dotted) autoFixMeasure(sel.mi, sel.row, sel.vi);
   });
 }
