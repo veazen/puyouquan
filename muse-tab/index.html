@@ -117,21 +117,27 @@ input.short{width:54px} input.mid{width:150px}
 #beat-status.bad{color:var(--danger);font-weight:600;background:color-mix(in srgb,var(--danger) 12%,transparent);border-color:var(--danger)}
 #beat-status.bad::before{background:var(--danger)}
 #beat-status.good{color:var(--muted)}
-/* 修复建议：作为独立框显示在“时值不符”状态提示的正下方 */
-#err-drop{margin-top:6px;background:var(--panel);
-  border:1px solid var(--danger);border-radius:10px;box-shadow:0 2px 8px rgba(20,30,60,.08);
-  padding:8px;max-height:46vh;overflow:auto}
+/* 修复建议：现代绿色提示框，显示在“时值不符”状态提示的正下方 */
+#err-drop{margin-top:6px;
+  background:color-mix(in srgb,var(--ok) 6%,var(--panel));
+  border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);
+  border-left:4px solid var(--ok);
+  border-radius:12px;box-shadow:0 4px 14px color-mix(in srgb,var(--ok) 16%,transparent);
+  padding:9px;max-height:46vh;overflow:auto}
 .err-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
-  font-size:11.5px;color:var(--muted);padding:2px 4px 6px;border-bottom:1px solid var(--border);margin-bottom:5px}
-#err-fixall{font-size:11.5px;padding:3px 9px;font-weight:600;border-color:var(--accent);color:var(--accent-ink)}
-#err-fixall:hover{background:var(--accent);color:#fff}
-#err-drop .err{cursor:pointer;padding:6px 7px;border-radius:7px;font-size:12px;margin:3px 0;
-  border:1px solid var(--border-soft);background:var(--toolbar)}
-#err-drop .err:hover{border-color:var(--accent)}
-#err-drop .err-desc{color:var(--danger);font-weight:600}
-#err-drop .err-sug{color:var(--text);font-size:11.5px;margin:3px 0 5px;line-height:1.4}
-#err-drop .err-fix{font-size:11.5px;padding:3px 10px;font-weight:600}
-#err-drop .err-fix:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  font-size:11.5px;font-weight:600;color:var(--ok);padding:2px 4px 7px;
+  border-bottom:1px solid color-mix(in srgb,var(--ok) 22%,transparent);margin-bottom:6px}
+#err-fixall{font-size:11.5px;padding:3px 12px;font-weight:600;border-radius:999px;
+  border:1px solid var(--ok);color:#fff;background:var(--ok)}
+#err-fixall:hover{filter:brightness(1.08)}
+#err-drop .err{cursor:pointer;padding:7px 8px;border-radius:9px;font-size:12px;margin:4px 0;
+  border:1px solid color-mix(in srgb,var(--ok) 20%,var(--border-soft));background:var(--panel)}
+#err-drop .err:hover{border-color:var(--ok);box-shadow:0 1px 6px color-mix(in srgb,var(--ok) 18%,transparent)}
+#err-drop .err-desc{color:var(--text);font-weight:600}
+#err-drop .err-sug{color:color-mix(in srgb,var(--ok) 72%,var(--text));font-size:11.5px;margin:3px 0 6px;line-height:1.4}
+#err-drop .err-fix{font-size:11.5px;padding:3px 13px;font-weight:600;border-radius:999px;
+  border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
+#err-drop .err-fix:hover{background:var(--ok);color:#fff}
 #suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
@@ -1049,10 +1055,11 @@ function measureLayout(mea){
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
      使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
-  const MIN_COL = 13;                        // 每列最低合理间隔（无词时，避免 32 分等挤成一坨）
+  const MIN_COL = 13;                        // 吉他谱每列最低间隔
   const beatNoteW = new Array(beats).fill(0);
   const beatLyrCnt = new Array(beats).fill(0);
   const beatColCnt = new Array(beats).fill(0);
+  const beatVoxCnt = new Array(beats).fill(0);
   const scan = (cols, isVox)=>{
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
@@ -1062,15 +1069,18 @@ function measureLayout(mea){
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
       cum+=beatsOf(c);
     });
-    for(let i=0;i<beats;i++){ beatNoteW[i]=Math.max(beatNoteW[i],wB[i]); beatColCnt[i]=Math.max(beatColCnt[i],nB[i]); if(isVox) beatLyrCnt[i]=Math.max(beatLyrCnt[i],cB[i]); }
+    for(let i=0;i<beats;i++){
+      beatNoteW[i]=Math.max(beatNoteW[i],wB[i]); beatColCnt[i]=Math.max(beatColCnt[i],nB[i]);
+      if(isVox){ beatLyrCnt[i]=Math.max(beatLyrCnt[i],cB[i]); beatVoxCnt[i]=Math.max(beatVoxCnt[i],nB[i]); }
+    }
   };
   mea.tabs.forEach(c=>scan(c,false));
   mea.voxes.forEach(c=>scan(c,true));
   let beatW=[], inner=0;
   for(let i=0;i<beats;i++){
-    /* 该拍每列的最低间隔：有词→字宽(避免歌词重贴)，否则→音符最低间隔 */
-    const perCol = beatLyrCnt[i]>0 ? LYR_MIN : MIN_COL;
-    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatColCnt[i]*perCol);
+    /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
+       32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
+    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
     beatW.push(w); inner+=w;
   }
   /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
@@ -1802,6 +1812,17 @@ function switchRow(){
 }
 
 /* ================= 自动补齐/删减：保持小节时值准确 ================= */
+/* 在可用时值(含附点)中选 ≤rem 的方案：精确吻合优先(含附点)，否则取最大的普通时值 */
+function fitDurTo(rem, allowLong){
+  const durs = allowLong? [1,2,4,8,16,32] : [4,8,16,32];
+  const cand=[];
+  durs.forEach(d=>{ cand.push({dur:d,dotted:true}); cand.push({dur:d,dotted:false}); });
+  cand.sort((a,b)=>beatsOf(b)-beatsOf(a));
+  const exact = cand.find(c=>Math.abs(beatsOf(c)-rem)<1e-4);
+  if(exact) return exact;
+  const plain = cand.find(c=>!c.dotted && beatsOf(c)<=rem+1e-4);
+  return plain || cand.find(c=>beatsOf(c)<=rem+1e-4) || null;
+}
 function autoFixMeasure(mi, row, vi){
   const target = song.beats;
   const cols = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
@@ -1811,6 +1832,13 @@ function autoFixMeasure(mi, row, vi){
   while(cols.length>1 && sum>target+1e-4){
     const lastB = beatsOf(cols[cols.length-1]);
     if(sum-lastB >= target-1e-4){ cols.pop(); sum-=lastB; } else break;
+  }
+  /* 仍超拍（末列删掉会欠拍）：把末列时值缩短到剩余空间内 */
+  if(sum>target+1e-4 && cols.length){
+    const last=cols[cols.length-1];
+    const room = target-(sum-beatsOf(last));
+    const hit = fitDurTo(room, true);
+    if(hit){ last.dur=hit.dur; last.dotted=hit.dotted; sum=cols.reduce((a,c)=>a+beatsOf(c),0); }
   }
   /* 欠拍：按风格自动补充（扫弦补交替箭头，分解补分解音，简谱补休止） */
   let guard=0;
@@ -1823,11 +1851,8 @@ function autoFixMeasure(mi, row, vi){
   const strumStyle = row==='tab'? [...cols].reverse().find(c=>c.strum==='d'||c.strum==='u') : null;
   while(sum<target-1e-4 && guard++<64){
     const rem = target-sum;
-    let dur=null;
-    for(const d of [4,8,16]){
-      if(beatsOf({dur:d,dotted:false})<=rem+1e-4){ dur=d; break; }
-    }
-    if(!dur) break;
+    const hit = fitDurTo(rem, false);   // 含 32 分及附点：碎拍余量也能补齐
+    if(!hit) break;
     let c;
     if(row==='vox'){ c=vcol(); }
     else{
@@ -1845,7 +1870,7 @@ function autoFixMeasure(mi, row, vi){
         if(f!=null) c.notes=[{s:sN,f}];
       }
     }
-    c.dur=dur;
+    c.dur=hit.dur; c.dotted=hit.dotted;
     cols.push(c); sum+=beatsOf(c);
   }
 }
