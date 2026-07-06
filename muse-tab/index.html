@@ -1111,15 +1111,15 @@ function layoutSystems(){
 }
 function sysMetrics(){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
-  const diagH = diagMode==='inline' ? 54 : 14;
-  let y = diagH + 8;
+  const diagH = diagMode==='inline' ? 50 : 12;
+  let y = diagH + 6;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 8; }
+  for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 6; }
   for(let i=0;i<nV;i++){
     y += 15; voxYs.push(y); lyricY0.push(y+24);   // 上方留白避开倍高音点、下方避开减时线/低音点
-    y += 24 + (nL-1)*20 + 13;
+    y += 24 + (nL-1)*20 + 9;
   }
-  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:11};
+  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9};
 }
 
 /* ================= 渲染 ================= */
@@ -1241,7 +1241,7 @@ function render(){
   if(song.capo>0) capoBits.push(`变调夹 ${song.capo} 品`);
   capoBits.push(`♩=${song.tempo}`);
   p.push(`<text x="${MARGIN+78}" y="${headY+22}" font-size="12.5" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
-  let top = headY + 52;
+  let top = headY + 42;
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
@@ -1264,7 +1264,7 @@ function render(){
   });
   /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
   const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
-  const PG_GAP = 26, PG_PAD_TOP = 46, PG_PAD_BOT = 30;
+  const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
   const sysY = []; let pageIdx = 0; let cursorY = top;
   systems.forEach((sys, si)=>{
     const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
