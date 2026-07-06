@@ -362,6 +362,7 @@ svg text{user-select:none}
         <button id="b-sharp">♯</button><button id="b-flat">♭</button>
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
         <button id="b-tie">连音线</button>
+        <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-col">
@@ -1044,7 +1045,7 @@ function measureLayout(mea){
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0);
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0);
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0);   // 倚音预留空间
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
       cum+=beatsOf(c);
     });
@@ -1054,8 +1055,8 @@ function measureLayout(mea){
   mea.voxes.forEach(c=>scan(c,true));
   let beatW=[], inner=0;
   for(let i=0;i<beats;i++){ const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN); beatW.push(w); inner+=w; }
-  /* 上限=一整行可用宽度：极密集小节可独占整行，超出则整体压缩 */
-  const rowMax=(PAGE_W-2*MARGIN)-gapTotal-pad*2-4;
+  /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
+  const rowMax=(PAGE_W-2*MARGIN)*0.66-gapTotal-pad*2;
   if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
   const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
   const fit = cols=>{
@@ -1078,7 +1079,8 @@ function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
   song.measures.forEach((mea,mi)=>{
     const L = measureLayout(mea);
-    if(cur.measures.length && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
+    /* 一行最低两个小节：仅当本行已≥2小节且再加会超宽时才换行 */
+    if(cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
     cur.measures.push({mi, x:cur.w, L});
     cur.w += L.w;
   });
@@ -1112,13 +1114,25 @@ function layoutSystems(){
 }
 function sysMetrics(){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
+  /* 扫描全曲：取简谱最大升/降八度与最密减时线，为倍高音/倍低音/32分
+     预留（模拟）足够纵向空间并自适配，避免与六线节奏符杠、歌词重叠 */
+  let maxUp=0, maxDown=0, maxUnder=0;
+  song.measures.forEach(m=> (m.voxes||[]).forEach(cols=> cols.forEach(c=>{
+    if(!c.deg) return;
+    if(c.oct>0) maxUp=Math.max(maxUp, Math.min(2, c.oct));
+    if(c.oct<0) maxDown=Math.max(maxDown, Math.min(2, -c.oct));
+    maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
+  })));
+  const topExtra = maxUp>=2 ? 9 : maxUp>=1 ? 4 : 0;                 // 倍高音点在数字上方
+  const botExtra = Math.max(maxDown>=2?10 : maxDown>=1?4 : 0,       // 倍低音点在减时线下方
+                            maxUnder>=3?5 : maxUnder>=2?2 : 0);      // 三/二减时线
   const diagH = diagMode==='inline' ? 50 : 12;
   let y = diagH + 6;
   const tabTops=[], voxYs=[], lyricY0=[];
   for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 6; }
   for(let i=0;i<nV;i++){
-    y += 15; voxYs.push(y); lyricY0.push(y+24);   // 上方留白避开倍高音点、下方避开减时线/低音点
-    y += 24 + (nL-1)*20 + 9;
+    y += 15 + topExtra; voxYs.push(y); lyricY0.push(y + 24 + botExtra);
+    y += 24 + botExtra + (nL-1)*20 + 9;
   }
   return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9};
 }
@@ -1517,6 +1531,13 @@ function render(){
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':'♭'}</text>`);
           p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+          /* 倚音：主音左上角的小音符 + 短撇（急倚音）+ 连线到主音 */
+          if(col.grace){
+            const gx=nx-9, gy=voxY-7;
+            p.push(`<text x="${gx}" y="${gy}" font-size="10" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(''+col.grace)}</text>`);
+            p.push(`<line x1="${gx-2.6}" y1="${gy-7}" x2="${gx+3}" y2="${gy-1}" stroke="var(--ink)" stroke-width="0.9"/>`);
+            p.push(`<path d="M ${gx+3} ${gy+1} Q ${(gx+nx)/2} ${voxY-12} ${nx-4} ${voxY-2}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
+          }
           if(col.deg){
             for(let d=0; d<Math.min(2,Math.abs(col.oct)); d++){
               /* 倍高音点贴近数字上沿（避开六线谱节奏符杠）；低音点落在减时线下方 */
@@ -1670,6 +1691,7 @@ function syncInputs(){
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
     document.getElementById('b-tie').classList.toggle('on', !!col.tie);
+    document.getElementById('b-grace').classList.toggle('on', !!col.grace);
   }
   const mea = curMea();
   document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
@@ -2679,6 +2701,15 @@ document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-octup').onclick = ()=>bumpOct(1);
 document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
 document.getElementById('b-tie').onclick = toggleTie;
+document.getElementById('b-grace').onclick = ()=>{
+  if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
+  const col = curCol();
+  if(!col || !col.deg){ toast('倚音需加在有唱名的音上'); return; }
+  const v = prompt('倚音唱名（1–7，留空清除）', col.grace||'');
+  if(v===null) return;
+  const t = (v||'').trim();
+  mutate(()=>{ if(t==='') delete col.grace; else if(/^[1-7]$/.test(t)) col.grace = +t; });
+};
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
 document.getElementById('b-rep-e').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatEnd=!m.repeatEnd; });
 document.getElementById('b-chord-edit').onclick = ()=>{
@@ -3114,6 +3145,13 @@ function play(){
       (song.measures[mi].voxes[vi]||[]).forEach(col=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
+        /* 倚音：主音前一个短促小音符 */
+        if(col.grace && m!=null){
+          const gm = keyRef() + DEG_SEMI[col.grace] + col.oct*12;
+          const gd = Math.min(0.12, durSec*0.35);
+          flush();
+          playInst(cfg.inst, ctx, bus, midiFreq(gm), t+el, gd, vol*0.7, false);
+        }
         if(m!=null){
           const f=midiFreq(m);
           if(hold && Math.abs(hold.freq-f)<0.01) hold.dur += durSec;
