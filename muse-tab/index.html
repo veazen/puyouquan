@@ -1051,7 +1051,7 @@ function patBeats(pat){
 function measureLayout(mea){
   const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7, LYR_MIN = 17;
   const beats = song.beats || 4;
-  const baseBeat = 29;                       // 每拍基准宽
+  const baseBeat = 28;                       // 每拍基准宽（全4分音符时一行可容 6 小节）
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
      使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
@@ -1107,8 +1107,10 @@ function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
   song.measures.forEach((mea,mi)=>{
     const L = measureLayout(mea);
-    /* 一行最低两个小节：仅当本行已≥2小节且再加会超宽时才换行 */
-    if(cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
+    /* 每行 2-6 小节自动适配：全 32 分等密集小节缩至 2 个/行（最低 2 个），
+       全 4 分等稀疏小节最多放大到 6 个/行（上限 6 个） */
+    if(cur.measures.length >= 6 ||
+       (cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN)){ systems.push(cur); cur={measures:[],w:0}; }
     cur.measures.push({mi, x:cur.w, L});
     cur.w += L.w;
   });
@@ -1256,9 +1258,11 @@ function strumSpan(col){
 
 function render(){
   const svg = document.getElementById('score');
-  /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
+  /* 版面按 A4 基准固定排版（与窗口宽度无关，保证"每行2-6小节、首页4行/次页5行"
+     的标准在屏幕与打印上一致），屏幕上再按纸张容器宽度整体等比缩放显示 */
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
-  PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
+  PAGE_W = 1060;
+  const dispW = Math.max(520, Math.min(1320, paperW - 30));
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
   const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra); });
@@ -1311,19 +1315,31 @@ function render(){
       });
     });
   });
-  /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
+  /* ===== 多页 A4：首页(标题页)4大行、第二页起以5行为标准；系统不跨页断裂 ===== */
   const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
   const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
-  const sysY = []; let pageIdx = 0; let cursorY = top;
+  const pageCap = pg => pg===0 ? 4 : 5;        // 每页标准行数（首页含标题信息占位）
+  const sysY = [], pageOf = []; let pageIdx = 0; let cursorY = top; let cnt = 0;
   systems.forEach((sys, si)=>{
     const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
-    if(si>0 && cursorY + sysM[si].h > pageBottom){
-      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP;
+    if(si>0 && (cnt >= pageCap(pageIdx) || cursorY + sysM[si].h > pageBottom)){
+      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP; cnt = 0;
     }
-    sysY[si] = cursorY;
-    cursorY += sysM[si].h + M.gap;
+    sysY[si] = cursorY; pageOf[si] = pageIdx;
+    cursorY += sysM[si].h + M.gap; cnt++;
   });
   const nPages = pageIdx+1;
+  /* 页内纵向两端对齐：满页把剩余高度均分到行间，使整页纵向铺满、行距均匀；
+     未满的末页保持自然行距 */
+  for(let pg=0; pg<nPages; pg++){
+    const list = []; pageOf.forEach((p,si)=>{ if(p===pg) list.push(si); });
+    if(list.length<2) continue;
+    if(pg===nPages-1 && list.length<pageCap(pg)) continue;
+    const pageBottom = pg*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
+    const last = list[list.length-1];
+    const extra = (pageBottom - (sysY[last]+sysM[last].h)) / (list.length-1);
+    if(extra>0) list.forEach((si,k)=> sysY[si] += extra*k);
+  }
   /* 页面白底（衬在内容下方，页间留灰缝） */
   for(let pg=0; pg<nPages; pg++){
     const py = pg*(PG_H+PG_GAP);
@@ -1628,8 +1644,8 @@ function render(){
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--accent)" opacity="0" pointer-events="none"/>`);
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
   svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${totalH}`);
-  svg.setAttribute('width', PAGE_W);
-  svg.setAttribute('height', totalH);
+  svg.setAttribute('width', dispW);
+  svg.setAttribute('height', Math.round(totalH*dispW/PAGE_W));
   svg.innerHTML = p.join('');
   syncInputs();
 }
