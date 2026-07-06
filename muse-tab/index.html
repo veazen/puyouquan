@@ -557,8 +557,9 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
+const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11};
 const STR_GAP = 9, STAFF_H = STR_GAP*5;   // 六线谱弦间距 / 谱表高度
-let PAGE_W = 840; const MARGIN = 56;
+let PAGE_W = 1060; const MARGIN = 56;
 const MAX_VOICES = 5, MAX_LYR = 5;
 
 /* ---- 时值库 ---- */
@@ -1047,87 +1048,68 @@ function patBeats(pat){
   return arr.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
 }
 
-/* ================= 布局（参考出版谱的间距逻辑：起音网格 + 时值非线性占宽） =================
-   据《这世界那么多人》《女人花》《传奇》等正式出版谱归纳的间距三原则：
-   ① 音符占宽随时值"非线性"递减——时值减半，宽度约 ×0.67 而非 ×0.5：
-      长音不成倍占宽（二分音符≠2×四分宽）、短音不挤成一团（16/32分仍可读），
-      由此形成出版谱"疏密有致"的不规则间距；附点仅追加一个点位宽；
-   ② 简谱延音线"-"按整拍各占一个标准列位（整数拍点始终计入网格）；
-   ③ 六线谱与简谱在公共"起音点网格"上严格纵向对齐；每列另有字形最低跨度
-     （简谱≥歌词字宽、倚音/附点再预留），不足时仅局部撑开该列覆盖的网格段。 */
+/* ================= 布局（按拍分配宽度，吉他谱与简谱逐拍对齐） ================= */
 function measureLayout(mea){
-  const pad = 8, NOTE_OFF = 10, LYR_MIN = 17, MIN_COL = 13, BEAT_EXTRA = 3;
+  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7, LYR_MIN = 17;
   const beats = song.beats || 4;
-  const QW = 24;            // 1 拍（四分音符）基准宽（840 版面下全4分可容 6 小节/行）
-  const EXP = 0.58;         // 时值→宽度指数：0.5^0.58≈0.67（出版谱经验比例）
-  const TK = 960;           // 每拍整数刻度（可整除 32 分附点），避免浮点累积误差
-  /* 1. 公共起音网格：全声部起音点 ∪ 整数拍点 */
-  const grid = new Set([0, beats*TK]);
-  const voices = [];
-  const collect = (cols, isVox)=>{
-    let t=0; const on=[];
-    cols.forEach(c=>{ on.push(t); grid.add(t); t+=Math.round(beatsOf(c)*TK); });
-    grid.add(t);
-    voices.push({cols, isVox, on, end:t});
-  };
-  mea.tabs.forEach(c=>collect(c,false));
-  mea.voxes.forEach(c=>collect(c,true));
-  for(let b=1;b<beats;b++) grid.add(b*TK);
-  const g = [...grid].sort((a,b)=>a-b);
-  const idx = new Map(g.map((t,i)=>[t,i]));
-  /* 2. 相邻网格点间的弹性段宽 = QW × 段时值^EXP */
-  const segW = [];
-  for(let i=0;i<g.length-1;i++) segW.push(QW*Math.pow((g[i+1]-g[i])/TK, EXP));
-  /* 3. 列最低跨度约束（本列起音→下一列起音）：简谱≥歌词字宽 LYR_MIN、
-        六线谱≥MIN_COL，附点+6、倚音+10；不足时把该列覆盖的段等比撑开 */
-  const needOf = (c,isVox)=> (isVox?LYR_MIN:MIN_COL) + (c.dotted?6:0) + (isVox&&c.grace?10:0);
-  for(let pass=0; pass<3; pass++){
-    let ok=true;
-    voices.forEach(v=>{
-      v.cols.forEach((c,ci)=>{
-        const a=idx.get(v.on[ci]);
-        const b=idx.get(ci+1<v.on.length ? v.on[ci+1] : v.end);
-        if(b<=a) return;
-        let span=0; for(let k=a;k<b;k++) span+=segW[k];
-        const m=needOf(c,v.isVox);
-        if(span<m-0.01){ ok=false; const s=m/Math.max(span,1e-6); for(let k=a;k<b;k++) segW[k]*=s; }
-      });
+  const baseBeat = 29;                       // 每拍基准宽
+  const gapTotal = BEAT_GAP*Math.max(0, beats-1);
+  /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
+     使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
+  const MIN_COL = 13;                        // 吉他谱每列最低间隔
+  const beatNoteW = new Array(beats).fill(0);
+  const beatLyrCnt = new Array(beats).fill(0);
+  const beatColCnt = new Array(beats).fill(0);
+  const beatVoxCnt = new Array(beats).fill(0);
+  const scan = (cols, isVox)=>{
+    let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
+    cols.forEach(c=>{
+      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0);   // 倚音预留空间
+      nB[bi]++;
+      if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
+      cum+=beatsOf(c);
     });
-    if(ok) break;
+    for(let i=0;i<beats;i++){
+      beatNoteW[i]=Math.max(beatNoteW[i],wB[i]); beatColCnt[i]=Math.max(beatColCnt[i],nB[i]);
+      if(isVox){ beatLyrCnt[i]=Math.max(beatLyrCnt[i],cB[i]); beatVoxCnt[i]=Math.max(beatVoxCnt[i],nB[i]); }
+    }
+  };
+  mea.tabs.forEach(c=>scan(c,false));
+  mea.voxes.forEach(c=>scan(c,true));
+  let beatW=[], inner=0;
+  for(let i=0;i<beats;i++){
+    /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
+       32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
+    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
+    beatW.push(w); inner+=w;
   }
-  /* 4. 网格 x 坐标：拍界处加少量间隔，保持拍组可辨 */
-  const endTick = Math.max(beats*TK, g[g.length-1]);
-  const gx=new Array(g.length); let acc=pad;
-  for(let i=0;i<g.length;i++){
-    if(i>0) acc+=segW[i-1];
-    if(i>0 && g[i]<endTick && g[i]%TK===0) acc+=BEAT_EXTRA;
-    gx[i]=acc;
-  }
-  let inner = acc-pad;
   /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
-  const rowMax=(PAGE_W-2*MARGIN)*0.66-pad*2;
-  if(inner>rowMax){ const k=rowMax/inner; for(let i=0;i<gx.length;i++) gx[i]=pad+(gx[i]-pad)*k; inner=rowMax; }
-  const fit = v=>{
-    const xs=[], ws=[], ls=[];
-    v.cols.forEach((c,ci)=>{
-      const x0=gx[idx.get(v.on[ci])];
-      const x1=gx[idx.get(ci+1<v.on.length ? v.on[ci+1] : v.end)];
-      ls.push(x0); ws.push(Math.max(14,x1-x0)); xs.push(x0+NOTE_OFF);
+  const rowMax=(PAGE_W-2*MARGIN)*0.66-gapTotal-pad*2;
+  if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
+  const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
+  const fit = cols=>{
+    let cum=0; const xs=[], ws=[], ls=[];
+    cols.forEach(c=>{
+      const b=beatsOf(c);
+      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
+      const inBeat=Math.max(0, cum-bi);          // 该音在本拍内已过的时值(0..1)
+      const left=beatStart[bi]+inBeat*beatW[bi]; // 拍内按时值比例定位（拍首严格对齐）
+      const w=Math.max(14, b*beatW[bi]);
+      ls.push(left); ws.push(w);
+      xs.push(left+NOTE_OFF);
+      cum+=b;
     });
-    return {xs, ws, ls, rt:v.cols.reduce((a,c)=>a+beatsOf(c),0)||1};
+    return {xs, ws, ls, rt:cols.reduce((a,c)=>a+beatsOf(c),0)||1};
   };
-  const nT = mea.tabs.length;
-  return {w:gx[gx.length-1]+pad, weight:inner,
-    tabs:voices.slice(0,nT).map(fit), voxes:voices.slice(nT).map(fit)};
+  return {w:inner+gapTotal+pad*2, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
   song.measures.forEach((mea,mi)=>{
     const L = measureLayout(mea);
-    /* 每行 2-6 小节自动适配：全 32 分等密集小节缩至 2 个/行（最低 2 个），
-       全 4 分等稀疏小节最多放大到 6 个/行（上限 6 个） */
-    if(cur.measures.length >= 6 ||
-       (cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN)){ systems.push(cur); cur={measures:[],w:0}; }
+    /* 一行最低两个小节：仅当本行已≥2小节且再加会超宽时才换行 */
+    if(cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
     cur.measures.push({mi, x:cur.w, L});
     cur.w += L.w;
   });
@@ -1275,13 +1257,9 @@ function strumSpan(col){
 
 function render(){
   const svg = document.getElementById('score');
-  /* 版面按 A4 基准固定排版（与窗口宽度无关，保证"每行2-6小节、首页4行/次页5行"
-     的标准在屏幕与打印上一致），屏幕上再按纸张容器宽度整体等比缩放显示 */
+  /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
-  /* 840 单位 = 210mm → 1 单位 ≈ 0.25mm：字号/弦距/和弦图相对页面放大到
-     出版谱比例（简谱数字约4mm、歌词约3.5mm、弦距约2.3mm、行高约45mm） */
-  PAGE_W = 840;
-  const dispW = Math.max(520, Math.min(1320, paperW - 30));
+  PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
   const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra); });
@@ -1334,33 +1312,19 @@ function render(){
       });
     });
   });
-  /* ===== 多页 A4：首页(标题页)4大行、第二页起以5行为标准；系统不跨页断裂 ===== */
+  /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
   const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
   const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
-  const pageCap = pg => pg===0 ? 4 : 5;        // 每页标准行数（首页含标题信息占位）
-  const sysY = [], pageOf = []; let pageIdx = 0; let cursorY = top; let cnt = 0;
+  const sysY = []; let pageIdx = 0; let cursorY = top;
   systems.forEach((sys, si)=>{
     const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
-    if(si>0 && (cnt >= pageCap(pageIdx) || cursorY + sysM[si].h > pageBottom)){
-      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP; cnt = 0;
+    if(si>0 && cursorY + sysM[si].h > pageBottom){
+      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP;
     }
-    sysY[si] = cursorY; pageOf[si] = pageIdx;
-    cursorY += sysM[si].h + M.gap; cnt++;
+    sysY[si] = cursorY;
+    cursorY += sysM[si].h + M.gap;
   });
   const nPages = pageIdx+1;
-  /* 页内行距适度均分：满页把剩余高度分到行间，但每个行间的"呼吸量"
-     以系统高度的 1/4 封顶——避免行与行之间被撑出大片空档，
-     多余留白归于页底；未满的末页保持自然行距 */
-  for(let pg=0; pg<nPages; pg++){
-    const list = []; pageOf.forEach((p,si)=>{ if(p===pg) list.push(si); });
-    if(list.length<2) continue;
-    if(pg===nPages-1 && list.length<pageCap(pg)) continue;
-    const pageBottom = pg*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
-    const last = list[list.length-1];
-    const avgH = list.reduce((a,si)=>a+sysM[si].h,0)/list.length;
-    const extra = Math.min((pageBottom - (sysY[last]+sysM[last].h))/(list.length-1), avgH*0.25);
-    if(extra>0) list.forEach((si,k)=> sysY[si] += extra*k);
-  }
   /* 页面白底（衬在内容下方，页间留灰缝） */
   for(let pg=0; pg<nPages; pg++){
     const py = pg*(PG_H+PG_GAP);
@@ -1399,7 +1363,7 @@ function render(){
           if(measureSel===lm.mi)
             p.push(`<rect x="${mx}" y="${oy+M.tabTops[0]-16}" width="${lm.L.w}" height="${M.h-M.tabTops[0]+6}" rx="6" fill="var(--accent)" opacity="0.09" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="6 3"/>`);
           const numOn = measureSel===lm.mi;
-          /* 小节编号：显示在吉他谱小节线下方，悬停变色（.mnumg:hover） */
+          /* 小节编号：显示在吉他谱小节线正下方，悬停变色（.mnumg:hover） */
           p.push(`<g class="mnumg"><text class="mnum" x="${mx+2.5}" y="${tabBot+11}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'600'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${lm.mi+1}</text>`+
             `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+(''+(lm.mi+1)).length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节（可复制/粘贴）</title></rect></g>`);
         }
@@ -1665,8 +1629,8 @@ function render(){
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--accent)" opacity="0" pointer-events="none"/>`);
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
   svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${totalH}`);
-  svg.setAttribute('width', dispW);
-  svg.setAttribute('height', Math.round(totalH*dispW/PAGE_W));
+  svg.setAttribute('width', PAGE_W);
+  svg.setAttribute('height', totalH);
   svg.innerHTML = p.join('');
   syncInputs();
 }
