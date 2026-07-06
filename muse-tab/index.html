@@ -1062,12 +1062,16 @@ function tabPatSVG(pat, W, H){
           Math.floor(cumAt(j+1)+1e-4)===beat) j++;
     if(j>i){
       p.push(`<rect x="${xs[i]-0.5}" y="${stemY-1.8}" width="${xs[j]-xs[i]+1}" height="1.8" fill="currentColor"/>`);
-      for(let a=i;a<j;a++)
+      for(let a=i;a<j;a++){
         if(evs[a][1]>=16 && evs[a+1][1]>=16)
           p.push(`<rect x="${xs[a]-0.5}" y="${stemY-4.6}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+        if(evs[a][1]>=32 && evs[a+1][1]>=32)
+          p.push(`<rect x="${xs[a]-0.5}" y="${stemY-7.4}" width="${xs[a+1]-xs[a]+1}" height="1.8" fill="currentColor"/>`);
+      }
     }else{
       p.push(`<path d="M ${xs[i]} ${stemY} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
       if(d>=16) p.push(`<path d="M ${xs[i]} ${stemY-3.4} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
+      if(d>=32) p.push(`<path d="M ${xs[i]} ${stemY-6.8} q 4 -2 5.5 -6" fill="none" stroke="currentColor" stroke-width="1.2"/>`);
     }
     i=j;
   }
@@ -1174,30 +1178,35 @@ function layoutSystems(){
 /* 逐系统扫描：仅当该系统的简谱含倍高音/倍低音/16·32分减时线时，才为其预留额外
    纵向空间；不含这些符号的系统保持默认行距 → 按需自适配、不浪费。 */
 function systemExtras(sys){
-  let maxUp=0, maxDown=0, maxUnder=0;
+  let maxUp=0, maxDown=0, maxUnder=0, tab32=false;
   sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach(cols=> cols.forEach(c=>{
     if(!c.deg) return;
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(2, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(2, -c.oct));
     maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
+  /* 六线谱含 32 分时，符干区按需加高，容纳三层横梁/三条符尾 */
+  sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach(cols=> cols.forEach(c=>{
+    if(c.dur>=32) tab32=true;
+  })));
   return {
     topExtra: maxUp>=2 ? 9 : maxUp>=1 ? 4 : 0,
-    botExtra: Math.max(maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0)
+    botExtra: Math.max(maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
+    tabExtra: tab32 ? 5 : 0
   };
 }
-function sysMetrics(topExtra, botExtra){
+function sysMetrics(topExtra, botExtra, tabExtra){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
-  topExtra = topExtra||0; botExtra = botExtra||0;
+  topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0;
   const diagH = diagMode==='inline' ? 50 : 12;
   let y = diagH + 6;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + 6; }
+  for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + tabExtra + 6; }
   for(let i=0;i<nV;i++){
     y += 15 + topExtra; voxYs.push(y); lyricY0.push(y + 24 + botExtra);
     y += 24 + botExtra + (nL-1)*20 + 9;
   }
-  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9};
+  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9, tabExtra};
 }
 
 /* ================= 渲染 ================= */
@@ -1292,7 +1301,7 @@ function render(){
   PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra); });
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
@@ -1369,7 +1378,7 @@ function render(){
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = STAFF_H;
-      const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12;
+      const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
       for(let i=0;i<6;i++)
         p.push(`<line x1="${ox}" y1="${tabTop+i*STR}" x2="${ox+sys.w}" y2="${tabTop+i*STR}" stroke="var(--ink)" stroke-width="0.7"/>`);
       ['T','A','B'].forEach((ch,i)=>
@@ -1528,17 +1537,17 @@ function render(){
             for(let a=0;a<g.idx.length-1;a++){
               const i1=g.idx[a], i2=g.idx[a+1];
               if(cols[i1].dur>=16 && cols[i2].dur>=16)
-                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-5.8}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
+                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-6.2}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
               if(cols[i1].dur>=32 && cols[i2].dur>=32)
-                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-9.4}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
+                p.push(`<rect x="${mx+lay.xs[i1]-0.5}" y="${stemY-10.2}" width="${lay.xs[i2]-lay.xs[i1]+1}" height="2.2" fill="var(--ink)"/>`);
             }
           }else{
             const x=xs[0];
             p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
             if(cols[g.idx[0]].dur>=16)
-              p.push(`<path d="M ${x} ${stemY-4.5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+              p.push(`<path d="M ${x} ${stemY-5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
             if(cols[g.idx[0]].dur>=32)
-              p.push(`<path d="M ${x} ${stemY-9} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+              p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
         /* 每拍时值符号区（六线下方整段）可点击：点击时值符号即选中整拍 */
