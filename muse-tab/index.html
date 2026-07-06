@@ -1982,7 +1982,17 @@ function toggleDot(){
     });
     return;
   }
-  const c=curCol(); if(c) mutate(()=>{ curCol().dotted=!curCol().dotted; });
+  const c=curCol(); if(c) mutate(()=>{
+    const cur=curCol();
+    cur.dotted=!cur.dotted;
+    /* 设置附点时：下一个音符自动变为当前音符时值的一半（如附点8分→下一个16分），
+       构成标准的"附点+半时值"节奏组合；取消附点不联动 */
+    if(cur.dotted && cur.dur*2<=32){
+      const cols=curRowCols();
+      const nxt=cols && cols[sel.ci+1];
+      if(nxt){ nxt.dur=cur.dur*2; nxt.dotted=false; }
+    }
+  });
 }
 /* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
 function styleOfTab(oldCols){
