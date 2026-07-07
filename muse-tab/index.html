@@ -344,15 +344,7 @@ svg text{user-select:none}
     <span class="eb-sep"></span>
     <span class="eb-t">节奏</span>
     <span class="eb-grp" id="eb-combo"></span>
-    <span class="grow"></span>
-    <span class="eb-grp" id="eb-zoom">
-      <button id="z-out" title="缩小（内容区 Ctrl+滚轮 亦可）">−</button>
-      <span id="zoom-lbl" title="点击恢复 100%">100%</span>
-      <button id="z-in" title="放大（内容区 Ctrl+滚轮 亦可）">＋</button>
-    </span>
-  </div>
-  <!-- 常用编辑功能栏第二行：音符增删 + 连音/三连音 + 按声部上下文的技巧/记号 -->
-  <div class="bar" id="editbar2">
+    <span class="eb-sep"></span>
     <span class="eb-t">音符</span>
     <span class="eb-grp">
       <button class="eb" id="eb-add" title="在光标后插入同时值音符，小节自动对齐拍号（快捷键 Insert）">＋后插</button>
@@ -361,7 +353,15 @@ svg text{user-select:none}
       <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
       <button class="eb" id="eb-delcol2" title="删除当前音符，小节自动补齐">删音符</button>
     </span>
-    <span class="eb-sep"></span>
+    <span class="grow"></span>
+    <span class="eb-grp" id="eb-zoom">
+      <button id="z-out" title="缩小（内容区 Ctrl+滚轮 亦可）">−</button>
+      <span id="zoom-lbl" title="点击恢复 100%">100%</span>
+      <button id="z-in" title="放大（内容区 Ctrl+滚轮 亦可）">＋</button>
+    </span>
+  </div>
+  <!-- 常用编辑功能栏第二行：连音/三连音 + 按声部上下文的技巧/记号 -->
+  <div class="bar" id="editbar2">
     <span class="eb-t">记号</span>
     <span class="eb-grp" id="eb-marks"></span>
     <span class="eb-sep"></span>
@@ -991,13 +991,13 @@ function beatErrors(){
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function evBeatsRaw(dur, dot){ return (4/dur)*(dot?1.5:1); }
 /* 单行节奏图（时值按钮 / 简谱节奏型）：×符头+符干+符杠 */
-function rhythmSVG(durs, W, H){
+function rhythmSVG(durs, W, H, noLine){
   W=W||Math.max(30, durs.length*14+10); H=H||30;
   const line=9, stem=H-7;
   const total = durs.reduce((a,[d,t])=>a+evBeatsRaw(d,t),0);
   let cum=0; const xs=[];
   durs.forEach(([d,t])=>{ const b=evBeatsRaw(d,t); xs.push(7+(cum+b/2)/total*(W-16)); cum+=b; });
-  const p=[`<line x1="2" y1="${line}" x2="${W-2}" y2="${line}" stroke="currentColor" stroke-width="0.8" opacity="0.5"/>`];
+  const p=noLine? [] : [`<line x1="2" y1="${line}" x2="${W-2}" y2="${line}" stroke="currentColor" stroke-width="0.8" opacity="0.5"/>`];
   durs.forEach(([d,t],i)=>{
     const x=xs[i];
     if(d===1){ p.push(`<circle cx="${x}" cy="${line}" r="3.2" fill="none" stroke="currentColor" stroke-width="1.2"/>`); }
@@ -1965,6 +1965,32 @@ const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b'
                   ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['clr','清除记号']];
+/* 简谱标识符号小图示（与谱面渲染同款） */
+function ornSVG(kind){
+  const W=26, H=18;
+  let g='';
+  if(kind==='grace'){
+    g=`<text x="6" y="8" font-size="7" text-anchor="middle" fill="currentColor">3</text>
+       <line x1="3" y1="9.5" x2="9" y2="9.5" stroke="currentColor" stroke-width="0.8"/>
+       <path d="M 2 10.5 L 2 12.5 Q 2 14.5 4 14.5 L 11 14.5" fill="none" stroke="currentColor" stroke-width="1"/>
+       <text x="18" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>`;
+  }else if(kind==='gracea'){
+    g=`<text x="8" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>
+       <text x="20" y="8" font-size="7" text-anchor="middle" fill="currentColor">3</text>
+       <line x1="17" y1="9.5" x2="23" y2="9.5" stroke="currentColor" stroke-width="0.8"/>
+       <path d="M 24 10.5 L 24 12.5 Q 24 14.5 22 14.5 L 15 14.5" fill="none" stroke="currentColor" stroke-width="1"/>`;
+  }else if(kind==='up' || kind==='down'){
+    g=`<path d="M 5 11 l 3 -4 l 3 4 l 3 -4 l 3 4" fill="none" stroke="currentColor" stroke-width="1.2"/>`;
+    if(kind==='down') g+=`<line x1="13" y1="4" x2="13" y2="14" stroke="currentColor" stroke-width="1.2"/>`;
+  }else if(kind==='tr'){
+    g=`<text x="13" y="13" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">tr</text>`;
+  }else if(kind==='turn'){
+    g=`<text x="13" y="13.5" font-size="12" text-anchor="middle" fill="currentColor">∽</text>`;
+  }else{
+    g=`<text x="13" y="13" font-size="11" text-anchor="middle" fill="currentColor">—</text>`;
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
+}
 /* n连音小图示：一束符杠上标斜体 n */
 function tupSVG(n){
   let p='';
@@ -1987,7 +2013,7 @@ function setRibbon(t){
       ctx.innerHTML = EB_TECHS.map(([k,l,g])=>`<button class="eb ico" data-tech2="${k}" title="${l}${k?'：作用于当前选中音符（可 Ctrl+多选后批量）':''}"><b class="g">${g}</b><span>${l}</span></button>`).join('');
     }else if(t==='vox'){
       ctxT.textContent='标识符号';
-      ctx.innerHTML = EB_ORNS.map(([k,l])=>`<button class="eb" data-orn="${k}" title="${l}">${l}</button>`).join('');
+      ctx.innerHTML = EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
     }else{
       ctxT.textContent=''; ctx.innerHTML='';
     }
@@ -2491,8 +2517,9 @@ function applyVoxPattern(pat){
   });
   /* 节奏（组合时值）按钮：图示（符杠）在上、名称在下 */
   const ebCombo = document.getElementById('eb-combo');
-  ebCombo.innerHTML = DUR_COMBOS.slice(0,COMBO_COMMON).map((c,i)=>
-    `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${rhythmSVG(c.durs,34,20)}<span>${esc(c.name)}</span></button>`
+  const comboShow = DUR_COMBOS.map((c,i)=>[c,i]).filter(([c])=>c.name==='十六分×4');
+  ebCombo.innerHTML = comboShow.map(([c,i])=>
+    `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${rhythmSVG(c.durs,34,20,true)}<span>${esc(c.name)}</span></button>`
   ).join('')
   + `<button class="eb" id="eb-more" title="全部组合时值">更多 ▾</button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
@@ -2506,13 +2533,16 @@ function applyVoxPattern(pat){
   document.getElementById('eb-marks').innerHTML =
     `<button class="eb" id="eb-tie" title="连音线（简谱）：当前音连到下一音">连音线</button>`+
     [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
-  /* 编辑栏第二行：音符增删 + 连音线/连音 + 上下文（技巧/记号） */
-  document.getElementById('editbar2').addEventListener('click', e=>{
+  /* 编辑栏第一行：音符增删（位于节奏组之后同排） */
+  document.getElementById('editbar').addEventListener('click', e=>{
     if(e.target.closest('#eb-add')){ insertNote(false); return; }
     if(e.target.closest('#eb-addb')){ insertNote(true); return; }
     if(e.target.closest('#eb-split')){ splitNote(); return; }
     if(e.target.closest('#eb-merge')){ mergeNote(); return; }
     if(e.target.closest('#eb-delcol2')){ deleteNote(); return; }
+  });
+  /* 编辑栏第二行：连音线/连音 + 上下文（技巧/记号） */
+  document.getElementById('editbar2').addEventListener('click', e=>{
     if(e.target.closest('#eb-tie')){
       if(sel.row==='vox') toggleTie();
       else toast('连音线用于简谱声部（先切到简谱选中音符）');
@@ -2565,7 +2595,7 @@ function showComboMenu(cx, cy){
   div.style.left=Math.min(cx, innerWidth-320)+'px';
   div.style.top=(cy+6)+'px';
   div.innerHTML=`<div class="t">组合时值 · 拆分当前音</div><div class="row">`+
-    DUR_COMBOS.map((c,i)=>`<button class="eb ico" data-ec2="${i}" title="${c.name}">${rhythmSVG(c.durs,38,22)}<span>${esc(c.name)}</span></button>`).join('')+`</div>`;
+    DUR_COMBOS.map((c,i)=>`<button class="eb ico" data-ec2="${i}" title="${c.name}">${rhythmSVG(c.durs,38,22,true)}<span>${esc(c.name)}</span></button>`).join('')+`</div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-ec2]'); if(!b) return;
