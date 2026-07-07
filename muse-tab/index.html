@@ -1525,24 +1525,29 @@ function render(){
                 p.push(`<rect x="${nx-(wide?8:5)}" y="${yy-4.6}" width="${wide?16:10}" height="9.4" fill="var(--paper)"/>`);
                 p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
-              /* 技法连线：从本音符头连到所选的下一个音符头（放大标记） */
+              /* 技法：符号显示在两音之间连音线上方（比例缩小） */
               if(n.tech==='hm'){
                 /* 泛音：细线菱形（斜方框）框住需要泛音的音符——与拍弦的方框区分 */
                 p.push(`<polygon points="${nx},${yy-8} ${nx+8.5},${yy} ${nx},${yy+8} ${nx-8.5},${yy}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+              }else if(n.tech==='su' || n.tech==='sd'){
+                /* 无头滑音：音符左侧斜杠（上滑/下滑）+ 小 S */
+                const up = n.tech==='su';
+                p.push(`<line x1="${nx-12.5}" y1="${up? yy+4 : yy-4}" x2="${nx-5.5}" y2="${up? yy-3 : yy+3}" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<text x="${nx-9}" y="${yy-6.5}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
               }else if(n.tech){
                 const SYM = {sl:'S',h:'h',p:'p',b:'b',v:'~',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
-                  const yPk = Math.min(yy,y2)-17;
-                  p.push(`<path d="M ${nx+6} ${yy-5} Q ${(nx+x2)/2} ${yPk} ${x2-6} ${y2-5}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
-                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+4}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  const yPk = Math.min(yy,y2)-12;
+                  p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+2.4}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }else if(tp){
-                  p.push(`<path d="M ${nx+6} ${yy-5} q 13 -12 26 -9" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
-                  p.push(`<text x="${nx+19}" y="${yy-16}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(`<text x="${nx+14}" y="${yy-12}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }else{
-                  p.push(`<text x="${nx}" y="${yy-14}" font-size="13" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                  p.push(`<text x="${nx}" y="${yy-10.5}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }
               }
             });
@@ -1859,7 +1864,8 @@ let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 /* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧（带谱面符号图示），编辑简谱=标识符号 */
 const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b'],['v','揉弦','~'],
-                  ['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],['','清除','—']];
+                  ['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],
+                  ['su','上滑音','⟋S'],['sd','下滑音','⟍S'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['clr','清除记号']];
 /* n连音小图示：一束符杠上标斜体 n */
@@ -2464,19 +2470,33 @@ function showComboMenu(cx, cy){
     closePop();
   });
 }
-/* 编辑栏技法：优先作用于 Ctrl 多选的音符；否则作用于当前列选中/首个音符 */
+/* 编辑栏技法：优先作用于 Ctrl 多选的音符（方式二）；否则作用于当前音符（方式一）。
+   方式一下 S/H/P 自动用连音线连接到下一个音符，符号显示在连音线上方 */
 function techFromBar(t){
   if(noteSel.length){ applyTech(t); return; }
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的音符');
   const col=curCol();
   if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
+  let linked=false;
   mutate(()=>{
     const n = col.notes.find(x=>x.s===sel.si) || col.notes[0];
-    if(!t){ delete n.tech; delete n.tk; }
-    else if(n.tech===t){ delete n.tech; delete n.tk; }
-    else { n.tech=t; delete n.tk; }
+    if(!t || n.tech===t){ delete n.tech; delete n.tk; return; }
+    n.tech=t; delete n.tk;
+    if(t==='sl'||t==='h'||t==='p'){
+      /* 自动连到下一个有音符的列（优先同弦音符） */
+      const cols=curRowCols();
+      for(let ci2=sel.ci+1; ci2<cols.length; ci2++){
+        const c2=cols[ci2];
+        if(c2.notes && c2.notes.length){
+          const m2 = c2.notes.find(x=>x.s===n.s) || c2.notes[0];
+          n.tk = {mi:sel.mi, ci:ci2, si:m2.s};
+          linked=true;
+          break;
+        }
+      }
+    }
   });
-  toast(t?'已标记技法（滑弦/击弦等可 Ctrl+多选两个音符做连线）':'已清除技法');
+  toast(t? (linked?'已标记并自动连线到下一个音符':'已标记技法') : '已清除技法');
 }
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){
@@ -2871,7 +2891,8 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     if(idx>=0) noteSel.splice(idx,1); else noteSel.push({mi,ci,si,vi});
     sel.mi=mi; sel.ci=ci; sel.row='tab'; sel.vi=vi; sel.si=si;
     render();
-    if(noteSel.length>=1) showTechSuggest();
+    /* 不再弹出技法提示条：技巧在顶部固定功能栏中选择 */
+    if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · 在顶部"演奏技巧"中选择');
     return;
   }
   noteSel=[]; closeTech();
