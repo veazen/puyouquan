@@ -922,6 +922,12 @@ function migrate(s){
 
 /* ================= 乐理 ================= */
 function keyRef(){ let r = 60 + (KEY_PC[song.key]||0); if(r>66) r-=12; return r; }
+/* 倚音数据：{deg,dur,oct}，默认8分本八度；兼容旧格式（纯数字） */
+function normGrace(g){
+  if(g==null) return null;
+  if(typeof g==='number') return {deg:g, dur:8, oct:0};
+  return {deg:g.deg, dur:g.dur||8, oct:g.oct||0};
+}
 /* 连音：tup=3(或旧数据1)三连音×2/3；tup=5/6/7 → n个音占4个的时值×4/n */
 function beatsOf(c){
   const t = c.tup===1? 3 : c.tup;
@@ -1116,7 +1122,7 @@ function measureLayout(mea){
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0)+(isVox&&c.graceA?10:0)
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?13:0)+(isVox&&c.graceA?13:0)
              +(!isVox&&c.notes&&c.notes.some(nn=>nn.tech==='b'||nn.tech==='bd')?15:0);   // 倚音/推弦圆圈预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
@@ -1203,6 +1209,10 @@ function systemExtras(sys){
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(2, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(2, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
+    {
+      const gg=normGrace(c.grace), ga=normGrace(c.graceA);
+      if((gg&&gg.oct>0)||(ga&&ga.oct>0)) maxUp=Math.max(maxUp, 2);   // 倚音高8度点再加高
+    }
     maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
   /* 六线谱含 32 分/连音括号时，符干区按需加高 */
@@ -1748,20 +1758,29 @@ function render(){
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':'♭'}</text>`);
           p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
-          /* 前倚音：主音左上角的小音符 + 短撇 + 连线到主音 */
-          if(col.grace){
-            const gx=nx-9, gy=voxY-7;
-            p.push(`<text x="${gx}" y="${gy}" font-size="10" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(''+col.grace)}</text>`);
-            p.push(`<line x1="${gx-2.6}" y1="${gy-7}" x2="${gx+3}" y2="${gy-1}" stroke="var(--ink)" stroke-width="0.9"/>`);
-            p.push(`<path d="M ${gx+3} ${gy+1} Q ${(gx+nx)/2} ${voxY-12} ${nx-4} ${voxY-2}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
-          }
-          /* 后倚音：主音右上角的小音符 + 连线（从主音连出） */
-          if(col.graceA){
-            const gx=nx+10, gy=voxY-7;
-            p.push(`<text x="${gx}" y="${gy}" font-size="10" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(''+col.graceA)}</text>`);
-            p.push(`<line x1="${gx+3}" y1="${gy-7}" x2="${gx-2.6}" y2="${gy-1}" stroke="var(--ink)" stroke-width="0.9"/>`);
-            p.push(`<path d="M ${nx+4} ${voxY-2} Q ${(nx+gx)/2} ${voxY-12} ${gx-3} ${gy+1}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
-          }
+          /* 倚音（图式记谱）：小音符+减时线+八度点+连音勾，可点击编辑时值/音高 */
+          const graceZones=[];
+          const drawGrace = (gRaw, kind)=>{
+            const g=normGrace(gRaw);
+            const pre = kind==='pre';
+            const gxc = pre? nx-12 : nx+12;
+            const gyb = voxY-9;
+            p.push(`<text x="${gxc}" y="${gyb}" font-size="10" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${g.deg}</text>`);
+            const gu = g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;   // 减时线
+            for(let u=0;u<gu;u++)
+              p.push(`<line x1="${gxc-4.5}" y1="${gyb+2+u*2.2}" x2="${gxc+4.5}" y2="${gyb+2+u*2.2}" stroke="var(--ink)" stroke-width="0.9"/>`);
+            if(g.oct>0) p.push(`<circle cx="${gxc}" cy="${gyb-10}" r="1.2" fill="var(--ink)"/>`);
+            if(g.oct<0) p.push(`<circle cx="${gxc}" cy="${gyb+3.6+gu*2.2}" r="1.2" fill="var(--ink)"/>`);
+            /* 连音勾：倚音与主音之间的小弧线 */
+            const yHook = gyb+4+gu*2.2;
+            if(pre)
+              p.push(`<path d="M ${gxc-3} ${yHook} Q ${(gxc+nx)/2} ${yHook+5} ${nx-4} ${voxY-4}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
+            else
+              p.push(`<path d="M ${nx+4} ${voxY-4} Q ${(gxc+nx)/2} ${yHook+5} ${gxc+3} ${yHook}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`);
+            graceZones.push(`<rect x="${gxc-7}" y="${gyb-17}" width="14" height="24" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度）</title></rect>`);
+          };
+          if(col.grace) drawGrace(col.grace, 'pre');
+          if(col.graceA) drawGrace(col.graceA, 'post');
           /* 标识符号：上/下波音、颤音 tr、回音 */
           if(col.orn && col.deg){
             const oy2 = voxY - (col.oct>0? 22 : 15);
@@ -1804,6 +1823,7 @@ function render(){
           p.push(`<rect x="${clx}" y="${voxY-24}" width="${cw}" height="34" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*20-14}" width="${cw}" height="19" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
+          graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
         });
         /* 连音标记（简谱）：音符上方连音弧线，中间断开标斜体数字；
            每 n 个音为一组独立标记（同小节多组连音互不关联） */
@@ -2563,12 +2583,17 @@ function ornFromBar(k){
   if(k==='grace' || k==='gracea'){
     if(!col.deg) return toast('倚音需加在有唱名的音上');
     const cur = k==='grace'? col.grace : col.graceA;
-    askText((k==='grace'?'前':'后')+'倚音唱名（1–7，留空清除）', cur||'', v=>{
+    askText((k==='grace'?'前':'后')+'倚音唱名（1–7，留空清除）', cur? normGrace(cur).deg : '', v=>{
       const tv=(v||'').trim();
       mutate(()=>{
         if(tv===''){ if(k==='grace') delete col.grace; else delete col.graceA; }
-        else if(/^[1-7]$/.test(tv)){ if(k==='grace') col.grace=+tv; else col.graceA=+tv; }
+        else if(/^[1-7]$/.test(tv)){
+          const prev=normGrace(k==='grace'? col.grace : col.graceA);
+          const g={deg:+tv, dur:prev?prev.dur:8, oct:prev?prev.oct:0};   // 默认8分
+          if(k==='grace') col.grace=g; else col.graceA=g;
+        }
       });
+      if(tv!=='') toast('已添加倚音（默认8分）· 点击谱面上的倚音可编辑音高/时值/八度');
     });
     return;
   }
@@ -2920,6 +2945,12 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     document.addEventListener('pointermove', mv);
     return;
   }
+  /* 点击倚音 → 弹出编辑（音高/时值/八度） */
+  if(t.dataset.grace!==undefined){
+    const seg=t.dataset.grace.split(':');
+    showGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], e.clientX, e.clientY);
+    return;
+  }
   measureSel = null;
   /* 点击每拍时值区 → 选中整拍（用于组合时值替换） */
   if(t.dataset.beatsel!==undefined){
@@ -3126,6 +3157,49 @@ function showStrumMenu(cx, cy){
     const t=Math.min(...selStrs), bt=Math.max(...selStrs);
     mutate(()=>{ const c=curCol(); c.strumTop=t; c.strumBot=bt; });
     div.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on', +x.dataset.s>=t && +x.dataset.s<=bt));
+  });
+}
+/* 倚音编辑弹窗：像正常音符一样编辑音高/时值/八度 */
+function showGraceMenu(mi, ci, vi, kind, cx, cy){
+  closePop();
+  const col = song.measures[mi] && song.measures[mi].voxes[vi] && song.measures[mi].voxes[vi][ci];
+  if(!col) return;
+  const key = kind==='pre'? 'grace' : 'graceA';
+  if(!col[key]) return;
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-300)+'px';
+  div.style.top=(cy+8)+'px';
+  const rebuild=()=>{
+    const g=normGrace(col[key]);
+    div.innerHTML=`<div class="t">${kind==='pre'?'前':'后'}倚音</div>
+      <div class="t">音高</div>
+      <div class="row">${[1,2,3,4,5,6,7].map(d=>`<button data-gd="${d}" class="${g.deg===d?'on':''}">${d}</button>`).join('')}</div>
+      <div class="t" style="margin-top:5px">时值</div>
+      <div class="row">${[[4,'4分'],[8,'8分'],[16,'16分'],[32,'32分']].map(([d,l])=>`<button data-gt="${d}" class="${g.dur===d?'on':''}">${l}</button>`).join('')}</div>
+      <div class="t" style="margin-top:5px">八度</div>
+      <div class="row">
+        <button data-go="-1" class="${g.oct<0?'on':''}">低8度</button>
+        <button data-go="0" class="${!g.oct?'on':''}">还原</button>
+        <button data-go="1" class="${g.oct>0?'on':''}">高8度</button>
+        <button data-gx="1" style="margin-left:12px">删除倚音</button>
+      </div>`;
+  };
+  rebuild();
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const gd=ev.target.closest('[data-gd]'), gt=ev.target.closest('[data-gt]'),
+          go=ev.target.closest('[data-go]'), gx=ev.target.closest('[data-gx]');
+    if(gx){ mutate(()=>{ delete col[key]; }); closePop(); return; }
+    if(!gd && !gt && !go) return;
+    mutate(()=>{
+      const g=normGrace(col[key]);
+      if(gd) g.deg=+gd.dataset.gd;
+      if(gt) g.dur=+gt.dataset.gt;
+      if(go) g.oct=+go.dataset.go;
+      col[key]=g;
+    });
+    rebuild();
   });
 }
 /* 小节线设置弹窗：反复开始/反复结束/终止线（L=线左侧小节，R=线右侧小节） */
@@ -3421,9 +3495,16 @@ document.getElementById('b-grace').onclick = ()=>{
   if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
   const col = curCol();
   if(!col || !col.deg){ toast('倚音需加在有唱名的音上'); return; }
-  askText('倚音唱名（1–7，留空清除）', col.grace||'', v=>{
+  askText('倚音唱名（1–7，留空清除）', col.grace? normGrace(col.grace).deg : '', v=>{
     const t = (v||'').trim();
-    mutate(()=>{ if(t==='') delete col.grace; else if(/^[1-7]$/.test(t)) col.grace = +t; });
+    mutate(()=>{
+      if(t==='') delete col.grace;
+      else if(/^[1-7]$/.test(t)){
+        const prev=normGrace(col.grace);
+        col.grace = {deg:+t, dur:prev?prev.dur:8, oct:prev?prev.oct:0};
+      }
+    });
+    if(t!=='') toast('已添加倚音（默认8分）· 点击谱面上的倚音可编辑音高/时值/八度');
   });
 };
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
@@ -3880,12 +3961,20 @@ function play(){
       (song.measures[mi].voxes[vi]||[]).forEach(col=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
-        /* 倚音：主音前一个短促小音符 */
+        /* 前倚音：主音前一个短促小音符（时值越小越短促） */
         if(col.grace && m!=null){
-          const gm = keyRef() + DEG_SEMI[col.grace] + col.oct*12;
-          const gd = Math.min(0.12, durSec*0.35);
+          const g = normGrace(col.grace);
+          const gm = keyRef() + DEG_SEMI[g.deg] + (col.oct + g.oct)*12;
+          const gd = Math.min(0.14, durSec*0.35) * (g.dur>=16? 0.6 : 1);
           flush();
           playInst(cfg.inst, ctx, bus, midiFreq(gm), t+el, gd, vol*0.7, false);
+        }
+        /* 后倚音：主音末尾的短促小音符 */
+        if(col.graceA && m!=null){
+          const g = normGrace(col.graceA);
+          const gm2 = keyRef() + DEG_SEMI[g.deg] + (col.oct + g.oct)*12;
+          const gd2 = Math.min(0.12, durSec*0.3) * (g.dur>=16? 0.6 : 1);
+          playInst(cfg.inst, ctx, bus, midiFreq(gm2), t+el+durSec-gd2, gd2, vol*0.65, false);
         }
         if(m!=null){
           const f=midiFreq(m);
