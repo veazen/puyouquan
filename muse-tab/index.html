@@ -1401,8 +1401,6 @@ function render(){
     const oy = sysY[sIdx];
     const ox = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
-    /* 一弦上有技巧标记时，本行行内和弦图自动缩小并上移，避免与技巧符号重叠 */
-    const diagShrink = sys.measures.some(lm=> (song.measures[lm.mi].tabs||[]).some(cols2=>cols2.some(c2=> c2.notes && c2.notes.some(nn=>nn.s===1 && nn.tech))));
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = STAFF_H;
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
@@ -1488,7 +1486,14 @@ function render(){
           if(col.chord){
             runChord = col.chord;
             if(diagMode==='inline' && vi===0)
-              p.push(chordDiagramSVG(col.chord, nx-10, oy+(diagShrink?0:2), diagShrink?0.75:0.95));
+              {
+                /* 仅当"该"和弦图与一弦技巧符号横向重叠（触发重贴）时才缩小，
+                   其他和弦图保持原尺寸 */
+                const clash = cols.some((c2,ci2)=>
+                  c2.notes && c2.notes.some(nn=>nn.s===1 && nn.tech) &&
+                  (mx+lay.xs[ci2]) > nx-32 && (mx+lay.xs[ci2]) < nx+47);
+                p.push(chordDiagramSVG(col.chord, nx-10, oy+(clash?0:2), clash?0.75:0.95));
+              }
             else
               p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
           }
