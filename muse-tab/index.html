@@ -920,7 +920,8 @@ function migrate(s){
 
 /* ================= 乐理 ================= */
 function keyRef(){ let r = 60 + (KEY_PC[song.key]||0); if(r>66) r-=12; return r; }
-function beatsOf(c){ return (4/c.dur)*(c.dotted?1.5:1)*(c.tup?2/3:1)*(song.unit/4); }
+/* 附点：dotted=1 单附点×1.5；dotted=2 双附点（复附点）×1.75（1+1/2+1/4） */
+function beatsOf(c){ return (4/c.dur)*(c.dotted===2?1.75:c.dotted?1.5:1)*(c.tup?2/3:1)*(song.unit/4); }
 function voxMidi(c){
   if(!c.deg) return null;
   let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12;
@@ -1058,6 +1059,7 @@ function tabPatSVG(pat, W, H){
     }
     p.push(`<line x1="${x}" y1="${bot+2}" x2="${x}" y2="${stemY}" stroke="currentColor" stroke-width="1"/>`);
     if(dot) p.push(`<circle cx="${x+4}" cy="${stemY-3}" r="1.3" fill="currentColor"/>`);
+    if(dot===2) p.push(`<circle cx="${x+7.4}" cy="${stemY-3}" r="1.3" fill="currentColor"/>`);
   });
   /* 符杠 */
   for(let i=0;i<evs.length;i++){
@@ -1110,7 +1112,7 @@ function measureLayout(mea){
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0)+(isVox&&c.graceA?10:0);   // 前/后倚音预留空间
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted===2?10:c.dotted?6:0)+(isVox&&c.grace?10:0)+(isVox&&c.graceA?10:0);   // 附点/倚音预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
       cum+=beatsOf(c);
@@ -1546,6 +1548,7 @@ function render(){
               const lv = dotLv.get(ci) || col.dur;
               const dy = lv>=32 ? stemY-9.1 : lv>=16 ? stemY-5.1 : stemY-1.1;
               p.push(`<circle cx="${nx+4.5}" cy="${dy}" r="1.6" fill="var(--ink)"/>`);
+              if(col.dotted===2) p.push(`<circle cx="${nx+8.8}" cy="${dy}" r="1.6" fill="var(--ink)"/>`);
             }
           }
           p.push(`<rect x="${clx}" y="${tabTop-18}" width="${cw}" height="18" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`);
@@ -1718,7 +1721,10 @@ function render(){
           if(under && !inGroup.has(ci))
             for(let u=0;u<under;u++)
               p.push(`<line x1="${nx-6.5}" y1="${voxY+3.4+u*3.2}" x2="${nx+6.5}" y2="${voxY+3.4+u*3.2}" stroke="var(--ink)" stroke-width="1.1"/>`);
-          if(col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+          if(col.dotted){
+            p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+            if(col.dotted===2) p.push(`<circle cx="${nx+15.5}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+          }
           if(col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
           if(col.dur===1) for(let d=1;d<=3;d++)
             p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
@@ -1847,7 +1853,7 @@ function syncInputs(){
     const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
     const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
     let durTxt = '—';
-    if(col){ durTxt = (col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)); }
+    if(col){ durTxt = (col.dotted===2?'双附点':col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?'·三连':''); }
     ci.innerHTML =
       `<div class="ci-row"><span class="ci-k">声部</span><b>${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
       `<div class="ci-row"><span class="ci-k">小节</span><b>第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
@@ -1977,7 +1983,7 @@ function switchRow(){
 function fitDurTo(rem, allowLong){
   const durs = allowLong? [1,2,4,8,16,32] : [4,8,16,32];
   const cand=[];
-  durs.forEach(d=>{ cand.push({dur:d,dotted:true}); cand.push({dur:d,dotted:false}); });
+  durs.forEach(d=>{ cand.push({dur:d,dotted:2}); cand.push({dur:d,dotted:true}); cand.push({dur:d,dotted:false}); });
   cand.sort((a,b)=>beatsOf(b)-beatsOf(a));
   const exact = cand.find(c=>Math.abs(beatsOf(c)-rem)<1e-4);
   if(exact) return exact;
@@ -2083,13 +2089,14 @@ function isBeatLastCol(cols, ci){
 }
 /* 附点联动：常规→下一音变当前的1/2；若当前音是拍尾且时值小于8分（16/32分），
    则改为"前一个音符"变当前的1/2（如 16,16,16,16 点末尾→16,16,32,附点16） */
-function dotLink(cols, ci, wasBeatLast){
+function dotLink(cols, ci, wasBeatLast, factor){
   const cur=cols[ci];
-  if(cur.dur*2>32) return;
+  const nd = cur.dur*(factor||2);      // 单附点→配1/2时值；双附点→配1/4时值
+  if(nd>32) return;
   if(wasBeatLast && cur.dur>8 && cols[ci-1]){
-    cols[ci-1].dur=cur.dur*2; cols[ci-1].dotted=false;
+    cols[ci-1].dur=nd; cols[ci-1].dotted=false;
   }else if(cols[ci+1]){
-    cols[ci+1].dur=cur.dur*2; cols[ci+1].dotted=false;
+    cols[ci+1].dur=nd; cols[ci+1].dotted=false;
   }
 }
 function toggleDot(){
@@ -2126,14 +2133,19 @@ function toggleDot(){
   const c=curCol(); if(c) mutate(()=>{
     const cur=curCol();
     const cols=curRowCols();
-    /* 拍尾判断须用加附点前的时值 */
+    /* 拍尾判断须用变更前的时值 */
     const wasBeatLast = !cur.dotted && isBeatLastCol(cols, sel.ci);
-    cur.dotted=!cur.dotted;
-    /* 设置附点时：相邻音符自动变为当前时值的一半——常规为下一个音符；
-       拍尾且时值<8分（16/32分）时为前一个音符；取消附点不联动 */
-    if(cur.dotted) dotLink(cols, sel.ci, wasBeatLast);
+    /* 循环：无 → 单附点(×1.5) → 双附点(×1.75) → 无 */
+    const d0 = cur.dotted===true?1:(cur.dotted||0);
+    const nd = (d0+1)%3;
+    cur.dotted = nd===0? false : nd;
+    /* 联动：单附点→相邻音符变当前时值的1/2；双附点→变当前时值的1/4；
+       常规为下一个音符，拍尾且时值<8分时为前一个音符 */
+    if(nd) dotLink(cols, sel.ci, wasBeatLast, nd===2?4:2);
+    if(nd===1) toast('已设单附点（×1.5）· 再点一次为双附点');
+    else if(nd===2) toast('已设双附点（×1.75）');
     /* 兜底：自动补齐/删减保证小节总时值与拍号一致（无错） */
-    if(cur.dotted) autoFixMeasure(sel.mi, sel.row, sel.vi);
+    autoFixMeasure(sel.mi, sel.row, sel.vi);
   });
 }
 /* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
@@ -2324,7 +2336,7 @@ function applyVoxPattern(pat){
   const ebDur = document.getElementById('eb-dur');
   ebDur.innerHTML = DUR_SINGLE.map(d=>
     `<button class="eb" data-dur="${d.dur}" title="${d.name}">${d.name}</button>`
-  ).join('') + `<button class="eb" id="eb-dot" title="附点">附点</button>`;
+  ).join('') + `<button class="eb" id="eb-dot" title="附点：点击循环 单附点(×1.5) → 双附点(×1.75) → 取消">附点</button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-dot') toggleDot(); else setDur(+b.dataset.dur);
