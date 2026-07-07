@@ -45,6 +45,7 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .eb.ico{display:inline-flex;flex-direction:column;align-items:center;gap:1px;padding:2px 8px 3px;line-height:1}
 .eb.ico span{font-size:10px;color:var(--muted)}
 .eb.ico svg{display:block;color:var(--text)}
+.eb.ico .g{font-size:12px;font-style:italic;font-weight:700;line-height:1.2;min-height:14px;display:flex;align-items:center}
 .eb-grp{display:flex;align-items:center;gap:4px;flex:none}
 .eb-sep{width:1px;height:18px;background:var(--border);margin:0 8px;flex:none}
 .eb-t{font-size:11.5px;color:var(--muted);margin-right:2px;flex:none}
@@ -353,10 +354,7 @@ svg text{user-select:none}
   <!-- 常用编辑功能栏第二行：连音/三连音 + 按声部上下文的技巧/记号 -->
   <div class="bar" id="editbar2">
     <span class="eb-t">记号</span>
-    <span class="eb-grp">
-      <button class="eb" id="eb-tie" title="连音线（简谱）：当前音连到下一音">连音线</button>
-      <button class="eb" id="eb-tup" title="三连音：当前音拆分为三连音；选中3个等时值音可直接切换">三连音</button>
-    </span>
+    <span class="eb-grp" id="eb-marks"></span>
     <span class="eb-sep"></span>
     <span class="eb-t" id="eb-ctx-t">演奏技巧</span>
     <span class="eb-grp" id="eb-ctx"></span>
@@ -376,11 +374,15 @@ svg text{user-select:none}
     <div class="rg panel-p" id="panel-tab-mark">
       <div class="rg-title">演奏记号</div>
       <div class="rg-body">
-        <button id="b-mute">× 切音</button><button id="b-strum-d">扫↓</button>
-        <button id="b-strum-u">扫↑</button><button id="b-arp">琶音</button>
+        <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button><button id="b-strum-d">扫↓</button>
+        <button id="b-strum-u">扫↑</button>
+        <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
+        <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
+        <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
+        <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-arr-minus" title="扫弦箭头缩短一根弦">箭头−</button>
         <button id="b-arr-plus" title="扫弦箭头加长一根弦">箭头＋</button>
-        <button id="b-notation" title="分解伴奏中和弦内音显示为 ×，仅和弦外音显示品位数字">记谱:×</button>
+        <button id="b-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-chord">
@@ -920,7 +922,11 @@ function migrate(s){
 
 /* ================= 乐理 ================= */
 function keyRef(){ let r = 60 + (KEY_PC[song.key]||0); if(r>66) r-=12; return r; }
-function beatsOf(c){ return (4/c.dur)*(c.dotted?1.5:1)*(c.tup?2/3:1)*(song.unit/4); }
+/* 连音：tup=3(或旧数据1)三连音×2/3；tup=5/6/7 → n个音占4个的时值×4/n */
+function beatsOf(c){
+  const t = c.tup===1? 3 : c.tup;
+  return (4/c.dur)*(c.dotted?1.5:1)*(t? (t===3?2/3:4/t) :1)*(song.unit/4);
+}
 function voxMidi(c){
   if(!c.deg) return null;
   let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12;
@@ -1488,12 +1494,17 @@ function render(){
             else   p.push(`<path d="M ${nx-3.2} ${yB-8} L ${nx} ${yB-1} L ${nx+3.2} ${yB-8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             if(col.mute)   // 切音点：箭头正上方顶端
               p.push(`<circle cx="${nx}" cy="${yT-3}" r="1.7" fill="var(--ink)"/>`);
-          }else if(col.strum==='arp'){
+          }else if(col.strum==='arp' || col.strum==='arpd'){
+            /* 上琶音：波浪线+顶端向上箭头；下琶音：波浪线+底端向下箭头 */
             const sp = strumSpan(col);
             const yT = tabTop+(sp.top-1)*STR-2, yB = tabTop+(sp.bot-1)*STR+2;
             let d = `M ${nx} ${yT}`;
             for(let yy=yT; yy<yB-4; yy+=8) d += ` q 3.5 4 0 8`;
             p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
+            if(col.strum==='arp')
+              p.push(`<path d="M ${nx-2.8} ${yT+5} L ${nx} ${yT-1} L ${nx+2.8} ${yT+5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            else
+              p.push(`<path d="M ${nx-2.8} ${yB-5} L ${nx} ${yB+1} L ${nx+2.8} ${yB-5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
           }else{
             /* 分解/单音：和弦内音显示 ×，和弦外音显示品位数字 */
             col.notes.forEach(n=>{
@@ -1532,6 +1543,12 @@ function render(){
             /* 空列（无音符/无扫弦）画休止符，让时值可见 */
             if(!col.notes.length)
               p.push(`<text x="${nx}" y="${tabTop+STR*3}" font-size="12" text-anchor="middle" fill="var(--ink)" opacity="0.45">𝄽</text>`);
+          }
+          /* 拍弦记号：需拍弦的音符用方框框住 */
+          if(col.slap && col.notes.length){
+            const ss=col.notes.map(n=>n.s);
+            const y1=tabTop+(Math.min(...ss)-1)*STR-6, y2=tabTop+(Math.max(...ss)-1)*STR+6;
+            p.push(`<rect x="${nx-7.5}" y="${y1}" width="15" height="${y2-y1}" rx="2" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
           }
           const hasEvt = col.notes.length || col.strum;
           if(hasEvt && col.dur>=2){
@@ -1586,16 +1603,17 @@ function render(){
               p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
-        /* 三连音标记：连续三连音列在符干区上方居中标小斜体 3 */
+        /* 连音标记：连续同类 n 连音列在符干区上方居中标小斜体 n */
         {
+          const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
-              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup) b3++;
+              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
               const xm=(mx+lay.xs[a2]+mx+lay.xs[b3])/2;
               const maxD=Math.max(...cols.slice(a2,b3+1).map(c2=>c2.dur));
               const ty= stemY-(maxD>=32?12.5 : maxD>=16?8.5 : 4.5);
-              p.push(`<text x="${xm}" y="${ty}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">3</text>`);
+              p.push(`<text x="${xm}" y="${ty}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
               a2=b3+1;
             } else a2++;
           }
@@ -1736,14 +1754,15 @@ function render(){
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*20-14}" width="${cw}" height="19" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
         });
-        /* 三连音标记：连续三连音列上方居中标小斜体 3 */
+        /* 连音标记：连续同类 n 连音列上方居中标小斜体 n */
         {
+          const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
-              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup) b3++;
+              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
               const xm=(mx+lay.xs[a2]+mx+lay.xs[b3])/2;
-              p.push(`<text x="${xm}" y="${voxY-15}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">3</text>`);
+              p.push(`<text x="${xm}" y="${voxY-15}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
               a2=b3+1;
             } else a2++;
           }
@@ -1813,11 +1832,19 @@ function voiceChips(list, activeIdx, cls){
 }
 let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
-/* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧，编辑简谱=标识符号 */
-const EB_TECHS = [['sl','滑弦'],['h','击弦'],['p','勾弦'],['b','推弦'],['v','揉弦'],
-                  ['hm','泛音'],['tp','点弦'],['pm','闷音'],['','清除技法']];
+/* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧（带谱面符号图示），编辑简谱=标识符号 */
+const EB_TECHS = [['sl','滑弦','sl'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b'],['v','揉弦','~'],
+                  ['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['clr','清除记号']];
+/* n连音小图示：一束符杠上标斜体 n */
+function tupSVG(n){
+  let p='';
+  [7,15,23].forEach(x=>p+=`<line x1="${x}" y1="7" x2="${x}" y2="16" stroke="currentColor" stroke-width="1"/>`);
+  p+=`<rect x="6.5" y="15" width="17.5" height="1.8" fill="currentColor"/>`;
+  p+=`<text x="15" y="6" font-size="7.5" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">${n}</text>`;
+  return `<svg width="30" height="19" viewBox="0 0 30 19">${p}</svg>`;
+}
 function setRibbon(t){
   activeTab = t;
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
@@ -1829,7 +1856,7 @@ function setRibbon(t){
   if(ctx){
     if(t==='tab'){
       ctxT.textContent='演奏技巧';
-      ctx.innerHTML = EB_TECHS.map(([k,l])=>`<button class="eb" data-tech2="${k}" title="${l}${k?'：作用于当前选中音符（可 Ctrl+多选后批量）':''}">${l}</button>`).join('');
+      ctx.innerHTML = EB_TECHS.map(([k,l,g])=>`<button class="eb ico" data-tech2="${k}" title="${l}${k?'：作用于当前选中音符（可 Ctrl+多选后批量）':''}"><b class="g">${g}</b><span>${l}</span></button>`).join('');
     }else if(t==='vox'){
       ctxT.textContent='标识符号';
       ctx.innerHTML = EB_ORNS.map(([k,l])=>`<button class="eb" data-orn="${k}" title="${l}">${l}</button>`).join('');
@@ -1847,7 +1874,7 @@ function syncInputs(){
     const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
     const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
     let durTxt = '—';
-    if(col){ durTxt = (col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)); }
+    if(col){ durTxt = (col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?('·'+(col.tup===1?3:col.tup)+'连音'):''); }
     ci.innerHTML =
       `<div class="ci-row"><span class="ci-k">声部</span><b>${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
       `<div class="ci-row"><span class="ci-k">小节</span><b>第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
@@ -1874,14 +1901,18 @@ function syncInputs(){
     if(b.dataset.dur) b.classList.toggle('on', !!col && +b.dataset.dur===col.dur);
     if(b.id==='eb-dot') b.classList.toggle('on', !!(col&&col.dotted));
   });
-  const ebTup=document.getElementById('eb-tup');
-  if(ebTup) ebTup.classList.toggle('on', !!(col&&col.tup));
+  document.querySelectorAll('#eb-marks [data-tup]').forEach(b=>{
+    b.classList.toggle('on', !!col && (col.tup===1?3:col.tup)===+b.dataset.tup);
+  });
   const ebTie=document.getElementById('eb-tie');
   if(ebTie) ebTie.classList.toggle('on', !!(col&&sel.row==='vox'&&col.tie));
   if(col&&sel.row==='tab'){
     document.getElementById('b-strum-d').classList.toggle('on', col.strum==='d');
     document.getElementById('b-strum-u').classList.toggle('on', col.strum==='u');
     document.getElementById('b-arp').classList.toggle('on', col.strum==='arp');
+    document.getElementById('b-arpd').classList.toggle('on', col.strum==='arpd');
+    document.getElementById('b-slap').classList.toggle('on', !!col.slap);
+    document.getElementById('b-smute').classList.toggle('on', !!col.mute && (col.strum==='d'||col.strum==='u'));
   }
   if(col&&sel.row==='vox'){
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
@@ -2139,7 +2170,7 @@ function toggleDot(){
 /* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
 function styleOfTab(oldCols){
   if(oldCols.some(c=>c.strum==='d'||c.strum==='u')) return 'strum';
-  if(oldCols.some(c=>c.strum==='arp')) return 'arp-wave';
+  if(oldCols.some(c=>c.strum==='arp'||c.strum==='arpd')) return 'arp-wave';
   if(oldCols.some(c=>c.notes.filter(n=>!n.x).length>=3)) return 'block';
   return 'arp';
 }
@@ -2342,14 +2373,19 @@ function applyVoxPattern(pat){
     if(b.id==='eb-more'){ const r=b.getBoundingClientRect(); showComboMenu(r.left, r.bottom); return; }
     applyDurCombo(DUR_COMBOS[+b.dataset.ec]);
   });
-  /* 编辑栏第二行：连音线/三连音 + 上下文（技巧/记号） */
+  /* 记号组：连音线 + 3/5/6/7 连音（带图示） */
+  document.getElementById('eb-marks').innerHTML =
+    `<button class="eb" id="eb-tie" title="连音线（简谱）：当前音连到下一音">连音线</button>`+
+    [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
+  /* 编辑栏第二行：连音线/连音 + 上下文（技巧/记号） */
   document.getElementById('editbar2').addEventListener('click', e=>{
     if(e.target.closest('#eb-tie')){
       if(sel.row==='vox') toggleTie();
       else toast('连音线用于简谱声部（先切到简谱选中音符）');
       return;
     }
-    if(e.target.closest('#eb-tup')){ applyTriplet(); return; }
+    const tp=e.target.closest('[data-tup]');
+    if(tp){ applyTuplet(+tp.dataset.tup); return; }
     const tb=e.target.closest('[data-tech2]');
     if(tb){ techFromBar(tb.dataset.tech2); return; }
     const ob=e.target.closest('[data-orn]');
@@ -2437,41 +2473,45 @@ function ornFromBar(k){
   if(!col.deg) return toast('记号需加在有唱名的音上');
   mutate(()=>{ if(col.orn===k) delete col.orn; else col.orn=k; });
 }
-/* 三连音：选中3个等时值音→整体切换；否则把当前音拆分为三连音（时值不变） */
-function applyTriplet(){
+/* n连音（3/5/6/7）：选中n个等时值音→整体切换；否则把当前音拆分为n连音（总时值不变）
+   三连音=3音占2音时值（dur×2）；5/6/7连音=n音占4音时值（dur×4） */
+function applyTuplet(n){
   const row=sel.row;
+  const tupOf = c=> c.tup===1?3:c.tup;
   if(selRange){
     const cs=rangeCols();
-    if(cs && cs.length===3 && cs.every(x=>x.mi===cs[0].mi) &&
+    if(cs && cs.length===n && cs.every(x=>x.mi===cs[0].mi) &&
        cs.every(x=>x.col.dur===cs[0].col.dur && !x.col.dotted)){
       mutate(()=>{
-        const on = !cs.every(x=>x.col.tup);
-        cs.forEach(x=>{ if(on) x.col.tup=1; else delete x.col.tup; });
+        const on = !cs.every(x=>tupOf(x.col)===n);
+        cs.forEach(x=>{ if(on) x.col.tup=n; else delete x.col.tup; });
         autoFixMeasure(cs[0].mi, selRange.row, selRange.vi);
       });
-      toast('已切换三连音'); return;
+      toast('已切换'+n+'连音'); return;
     }
   }
   const col=curCol(); if(!col) return;
   if(col.tup){
     mutate(()=>{ delete col.tup; autoFixMeasure(sel.mi, row, sel.vi); });
-    toast('已取消三连音并补齐小节'); return;
+    toast('已取消连音并补齐小节'); return;
   }
-  if(col.dur>=32) return toast('32分音符不支持再细分三连音');
+  const mul = n===3? 2 : 4;
+  if(col.dur*mul>32) return toast('当前时值过小，无法再细分为'+n+'连音');
   mutate(()=>{
     const cols=curRowCols();
-    const nd=col.dur*2;
-    const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; c1.tup=1;
+    const nd=col.dur*mul;
+    const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; c1.tup=n;
     const mk=()=>{
       const c= row==='tab'? tcol() : vcol();
-      c.dur=nd; c.tup=1;
+      c.dur=nd; c.tup=n;
       if(row==='tab') c.notes=JSON.parse(JSON.stringify(col.notes));
       else c.deg=col.deg;
       return c;
     };
-    cols.splice(sel.ci, 1, c1, mk(), mk());
+    const arr=[c1]; for(let i=1;i<n;i++) arr.push(mk());
+    cols.splice(sel.ci, 1, ...arr);
   });
-  toast('已拆分为三连音（总时值不变）');
+  toast('已拆分为'+n+'连音（总时值不变）');
 }
 /* ---- 节奏型库弹窗 ---- */
 function showPatternLib(kind){
@@ -3153,12 +3193,8 @@ function showChordSuggest(name){
 }
 function toggleMute(){
   if(sel.row!=='tab')return;
-  const col=curCol();
-  /* 扫弦列上切音 = 箭头带点（palm-mute）；非扫弦列 = 单音闷音× */
-  if(col && (col.strum==='d'||col.strum==='u')){
-    mutate(()=>{ curCol().mute=!curCol().mute; });
-    return;
-  }
+  const col=curCol(); if(!col) return;
+  /* ×标记：把当前音记为闷音×（扫弦切音请用"扫弦切音"按钮） */
   mutate(()=>{
     const c=curCol();
     const i=c.notes.findIndex(n=>n.s===sel.si);
@@ -3229,6 +3265,21 @@ document.getElementById('b-mute').onclick = toggleMute;
 document.getElementById('b-strum-d').onclick = ()=>setStrum('d');
 document.getElementById('b-strum-u').onclick = ()=>setStrum('u');
 document.getElementById('b-arp').onclick = ()=>setStrum('arp');
+document.getElementById('b-arpd').onclick = ()=>setStrum('arpd');
+/* 扫弦切音：扫弦箭头上带一个点 */
+document.getElementById('b-smute').onclick = ()=>{
+  if(sel.row!=='tab') return toast('请先在吉他谱选中扫弦列');
+  const col=curCol();
+  if(!col || !(col.strum==='d'||col.strum==='u')) return toast('扫弦切音需先设为扫↓/扫↑');
+  mutate(()=>{ curCol().mute=!curCol().mute; });
+};
+/* 拍弦：分解和弦中需拍弦的音符用方框框住 */
+document.getElementById('b-slap').onclick = ()=>{
+  if(sel.row!=='tab') return toast('请先在吉他谱选中音符列');
+  const col=curCol();
+  if(!col || !col.notes.length) return toast('拍弦标记需加在有音符的列上');
+  mutate(()=>{ const c=curCol(); if(c.slap) delete c.slap; else c.slap=true; });
+};
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
 document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-octup').onclick = ()=>bumpOct(1);
@@ -3280,7 +3331,8 @@ document.getElementById('b-arr-plus').onclick = ()=>bumpStrumN(1);
 document.getElementById('b-notation').onclick = ()=>{
   tabNotation = tabNotation==='x' ? 'num' : 'x';
   try{ localStorage.setItem('musetab-notation', tabNotation); }catch(_){}
-  document.getElementById('b-notation').textContent = '记谱:'+(tabNotation==='x'?'×':'数字');
+  document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
+  toast('记谱风格：'+(tabNotation==='x'?'和弦内音记×':'全数字'));
   render();
 };
 document.getElementById('b-autofix').onclick = ()=>{
@@ -3666,7 +3718,7 @@ function play(){
           picked = col.notes.filter(n=>n.s>=sp.top && n.s<=sp.bot);
         }
         const ns = picked.slice().sort((a,b)=>b.s-a.s);
-        const stagger = col.strum ? (col.strum==='arp'?0.05:0.024) : 0.012;
+        const stagger = col.strum ? ((col.strum==='arp'||col.strum==='arpd')?0.05:0.024) : 0.012;
         const order = col.strum==='u' ? ns.slice().reverse() : ns;
         const chordDiv = Math.sqrt(Math.max(1, order.length));
         order.forEach((n,k)=>{
@@ -4134,7 +4186,7 @@ function alignHeader(){
   if(!song || !song.measures || !song.measures.length) song = demoSong();
   clampSel();
   setRibbon('tab');
-  document.getElementById('b-notation').textContent = '记谱:'+(tabNotation==='x'?'×':'数字');
+  document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
   persist();
   render();
   alignHeader();
