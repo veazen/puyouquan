@@ -1125,8 +1125,8 @@ function measureLayout(mea){
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
       wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)
-             +(isVox&&c.grace? 5+8*normGrace(c.grace).notes.length : 0)
-             +(isVox&&c.graceA? 5+8*normGrace(c.graceA).notes.length : 0)
+             +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
+             +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length : 0)
              +(!isVox&&c.notes&&c.notes.some(nn=>nn.tech==='b'||nn.tech==='bd')?15:0);   // 倚音/推弦圆圈预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
@@ -1215,8 +1215,9 @@ function systemExtras(sys){
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
-      const hi = g2=> g2 && g2.notes.some(n2=>n2.oct>0);
-      if(hi(gg)||hi(ga)) maxUp=Math.max(maxUp, 2);   // 倚音高8度点再加高
+      const hiOct = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct||0)) : 0;
+      const h2 = Math.max(hiOct(gg), hiOct(ga));
+      if(h2>=1) maxUp=Math.max(maxUp, h2>=2? 3 : 2);   // 倚音高8度点按层数加高
     }
     maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
@@ -1770,31 +1771,36 @@ function render(){
             const g=normGrace(gRaw);
             if(!g.notes.length) return;
             const pre = kind==='pre';
-            const STEP=8, gW=(g.notes.length-1)*STEP;
-            const gxc = pre? nx-11-gW : nx+11;      // 组首音符中心
-            const gyb = voxY-9;
+            /* 整体小比例：位于主音左上/右上角，含减时线与八度点也不超过主音大小 */
+            const STEP=6.5, gW=(g.notes.length-1)*STEP;
+            const gxc = pre? nx-10-gW : nx+10;      // 组首音符中心
+            const gyb = voxY-12;
             const gu = g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;
+            const LSP=1.7, DSP=2.6;                 // 减时线距 / 八度点距
+            const maxLow = Math.max(0, ...g.notes.map(gn=>gn.oct<0? Math.min(3,-gn.oct) : 0));
             g.notes.forEach((gn,gi)=>{
               const x=gxc+gi*STEP;
-              p.push(`<text x="${x}" y="${gyb}" font-size="10" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${gn.deg}</text>`);
+              p.push(`<text x="${x}" y="${gyb}" font-size="8.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${gn.deg}</text>`);
               for(let d2=0; d2<Math.min(3, Math.abs(gn.oct||0)); d2++){
-                if(gn.oct>0) p.push(`<circle cx="${x}" cy="${gyb-10-d2*3.2}" r="1.2" fill="var(--ink)"/>`);
-                else p.push(`<circle cx="${x}" cy="${gyb+3.6+gu*2.2+d2*3.2}" r="1.2" fill="var(--ink)"/>`);
+                if(gn.oct>0) p.push(`<circle cx="${x}" cy="${gyb-8-d2*DSP}" r="1" fill="var(--ink)"/>`);
+                else p.push(`<circle cx="${x}" cy="${gyb+2.6+gu*LSP+d2*DSP}" r="1" fill="var(--ink)"/>`);
               }
             });
             /* 共用减时线：横跨整组 */
             for(let u=0;u<gu;u++)
-              p.push(`<line x1="${gxc-4.5}" y1="${gyb+2+u*2.2}" x2="${gxc+gW+4.5}" y2="${gyb+2+u*2.2}" stroke="var(--ink)" stroke-width="0.9"/>`);
-            /* 连音勾：圆角正方形的下角 1/4 */
-            const yH = gyb+3.6+gu*2.2;
+              p.push(`<line x1="${gxc-3.6}" y1="${gyb+1.4+u*LSP}" x2="${gxc+gW+3.6}" y2="${gyb+1.4+u*LSP}" stroke="var(--ink)" stroke-width="0.8"/>`);
+            /* 连音勾（圆角方形下角1/4）：竖边上端紧贴减时线正下方，
+               有低音点时整体自适配下移到点之下 */
+            const yTop = gyb+1.4+gu*LSP + (maxLow? 1.4+maxLow*DSP : 0.8);
+            const yH = yTop+4;
             if(pre){
-              const xv = gxc-6.5;
-              p.push(`<path d="M ${xv} ${yH-5.5} L ${xv} ${yH-2.4} Q ${xv} ${yH} ${xv+2.4} ${yH} L ${xv+11+gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              const xv = gxc-5.5;
+              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2} Q ${xv} ${yH} ${xv+2} ${yH} L ${xv+9+gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             }else{
-              const xv = gxc+gW+6.5;
-              p.push(`<path d="M ${xv} ${yH-5.5} L ${xv} ${yH-2.4} Q ${xv} ${yH} ${xv-2.4} ${yH} L ${xv-11-gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              const xv = gxc+gW+5.5;
+              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2} Q ${xv} ${yH} ${xv-2} ${yH} L ${xv-9-gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             }
-            graceZones.push(`<rect x="${gxc-8}" y="${gyb-19}" width="${gW+16}" height="27" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
+            graceZones.push(`<rect x="${gxc-7}" y="${gyb-17}" width="${gW+14}" height="${yH-(gyb-17)+3}" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
           };
           if(col.grace) drawGrace(col.grace, 'pre');
           if(col.graceA) drawGrace(col.graceA, 'post');
