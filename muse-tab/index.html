@@ -1116,7 +1116,8 @@ function measureLayout(mea){
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0)+(isVox&&c.graceA?10:0);   // 前/后倚音预留空间
+      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)+(isVox&&c.grace?10:0)+(isVox&&c.graceA?10:0)
+             +(!isVox&&c.notes&&c.notes.some(nn=>nn.tech==='b'||nn.tech==='bd')?15:0);   // 倚音/推弦圆圈预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
       cum+=beatsOf(c);
@@ -1301,6 +1302,9 @@ function rangeCols(){
 }
 /* 扫弦箭头跨度（长短可编辑；锚点可选从6弦向上或从1弦向下） */
 function strumSpan(col){
+  /* 显式弦范围（弹窗多选琴弦设置）优先 */
+  if(col.strumTop && col.strumBot)
+    return {top:col.strumTop, bot:col.strumBot, n:col.strumBot-col.strumTop+1};
   const ss = col.notes.map(n=>n.s);
   const bot0 = ss.length?Math.max(...ss):6, top0 = ss.length?Math.min(...ss):1;
   const defN = ss.length? bot0-top0+1 : 6;
@@ -1397,6 +1401,8 @@ function render(){
     const oy = sysY[sIdx];
     const ox = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
+    /* 一弦上有技巧标记时，本行行内和弦图自动缩小并上移，避免与技巧符号重叠 */
+    const diagShrink = sys.measures.some(lm=> (song.measures[lm.mi].tabs||[]).some(cols2=>cols2.some(c2=> c2.notes && c2.notes.some(nn=>nn.s===1 && nn.tech))));
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = STAFF_H;
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
@@ -1482,7 +1488,7 @@ function render(){
           if(col.chord){
             runChord = col.chord;
             if(diagMode==='inline' && vi===0)
-              p.push(chordDiagramSVG(col.chord, nx-10, oy+2, 0.95));
+              p.push(chordDiagramSVG(col.chord, nx-10, oy+(diagShrink?0:2), diagShrink?0.75:0.95));
             else
               p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
           }
@@ -1534,8 +1540,16 @@ function render(){
                 const up = n.tech==='su';
                 p.push(`<line x1="${nx-12.5}" y1="${up? yy+4 : yy-4}" x2="${nx-5.5}" y2="${up? yy-3 : yy+3}" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<text x="${nx-9}" y="${yy-6.5}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
+              }else if(n.tech==='b' || n.tech==='bd'){
+                /* 推弦：右侧圆圈内目标音符 + 连音线相连，b↑/b↓ 在连音线中间上方 */
+                const bt = n.bt!=null? n.bt : n.f;
+                const gx2 = nx+15;
+                p.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
+                p.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
+                p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.tech==='b'?'b↑':'b↓'}</text>`);
               }else if(n.tech){
-                const SYM = {sl:'S',h:'h',p:'p',b:'b',v:'~',tp:'T',pm:'P.M.'};
+                const SYM = {sl:'S',h:'h',p:'p',v:'~',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
@@ -1863,8 +1877,8 @@ function voiceChips(list, activeIdx, cls){
 let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 /* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧（带谱面符号图示），编辑简谱=标识符号 */
-const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b'],['v','揉弦','~'],
-                  ['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],
+const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','上推弦','b↑'],['bd','下推弦','b↓'],
+                  ['v','揉弦','~'],['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','上滑音','⟋S'],['sd','下滑音','⟍S'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['clr','清除记号']];
@@ -2477,12 +2491,23 @@ function techFromBar(t){
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的音符');
   const col=curCol();
   if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
+  /* 推弦：先提示编辑目标音符（圆圈内），再落数据 */
+  let bendTarget=null;
+  if(t==='b'||t==='bd'){
+    const n0 = col.notes.find(x=>x.s===sel.si) || col.notes[0];
+    if(n0.tech!==t){
+      const v = prompt('推弦目标品位（将以圆圈音符显示并连线）', n0.bt!=null? n0.bt : n0.f);
+      if(v===null) return;
+      bendTarget = /^\d{1,2}$/.test((v||'').trim())? +v.trim() : n0.f;
+    }
+  }
   let linked=false;
   mutate(()=>{
     const n = col.notes.find(x=>x.s===sel.si) || col.notes[0];
-    if(!t || n.tech===t){ delete n.tech; delete n.tk; return; }
-    n.tech=t; delete n.tk;
-    if(t==='sl'||t==='h'||t==='p'){
+    if(!t || n.tech===t){ delete n.tech; delete n.tk; delete n.bt; return; }
+    n.tech=t; delete n.tk; delete n.bt;
+    if(t==='b'||t==='bd'){ n.bt=bendTarget; }
+    else if(t==='sl'||t==='h'||t==='p'){
       /* 自动连到下一个有音符的列（优先同弦音符） */
       const cols=curRowCols();
       for(let ci2=sel.ci+1; ci2<cols.length; ci2++){
@@ -2496,7 +2521,8 @@ function techFromBar(t){
       }
     }
   });
-  toast(t? (linked?'已标记并自动连线到下一个音符':'已标记技法') : '已清除技法');
+  toast(t? (t==='b'||t==='bd' ? '已加推弦（可再次点击该技巧重设目标音符）'
+          : linked?'已标记并自动连线到下一个音符':'已标记技法') : '已清除技法');
 }
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){
@@ -3047,23 +3073,25 @@ function renderChordEditor(){
 }
 /* 扫弦弦数选择菜单 */
 function showStrumMenu(cx, cy){
-  const col = curCol(); if(!col) return;
+  const col = curCol(); if(!col || !col.strum) return;
   closePop();
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
-  div.style.left=Math.min(cx, innerWidth-230)+'px';
+  div.style.left=Math.min(cx, innerWidth-280)+'px';
   div.style.top=cy+'px';
-  const btns = a=>{
-    let s=''; for(let n=2;n<=6;n++) s+=`<button data-n="${n}" data-a="${a}">${n}根</button>`;
-    return s;
-  };
-  div.innerHTML=`<div class="t">扫弦覆盖弦数 · 从6弦（低音）向上</div><div class="row">${btns('b')}</div>
-    <div class="t" style="margin-top:6px">从1弦（高音）向下</div><div class="row">${btns('t')}</div>`;
+  const NAME={d:'扫弦 ↓', u:'扫弦 ↑', arp:'上琶音', arpd:'下琶音'};
+  const sp=strumSpan(col);
+  div.innerHTML=`<div class="t">${NAME[col.strum]||col.strum} · 编辑覆盖琴弦（点选，取所选弦的连续范围）</div>
+    <div class="row">${[1,2,3,4,5,6].map(s=>`<button data-s="${s}" class="${(s>=sp.top&&s<=sp.bot)?'on':''}">${s}弦</button>`).join('')}</div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
-    const b=ev.target.closest('[data-n]'); if(!b) return;
-    mutate(()=>{ const c=curCol(); c.strumN=+b.dataset.n; c.strumAnchor=b.dataset.a; });
-    closePop();
+    const b=ev.target.closest('[data-s]'); if(!b) return;
+    b.classList.toggle('on');
+    const selStrs=[...div.querySelectorAll('[data-s].on')].map(x=>+x.dataset.s);
+    if(selStrs.length<2){ toast('至少选择两根弦'); return; }
+    const t=Math.min(...selStrs), bt=Math.max(...selStrs);
+    mutate(()=>{ const c=curCol(); c.strumTop=t; c.strumBot=bt; });
+    div.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on', +x.dataset.s>=t && +x.dataset.s<=bt));
   });
 }
 /* 小节线设置弹窗：反复开始/反复结束/终止线（L=线左侧小节，R=线右侧小节） */
@@ -3133,7 +3161,7 @@ function applyTech(tech){
       return cols && cols[q.ci] && cols[q.ci].notes.find(n=>n.s===q.si);
     };
     if(!tech){
-      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; } });
+      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; } });
       return;
     }
     /* 技法连线：连接相邻两个被选中的音符（头对头） */
@@ -3145,7 +3173,7 @@ function applyTech(tech){
     }
     if(list.length===1){ const n=noteAt(list[0]); if(n){ n.tech=tech; delete n.tk; } }
   });
-  toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音'}[tech]||tech)):'已清除技法');
+  toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'上推弦',bd:'下推弦',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音',su:'上滑音',sd:'下滑音'}[tech]||tech)):'已清除技法');
 }
 /* 按住左键拖动多选（同声部内，可跨小节） */
 document.getElementById('score').addEventListener('pointermove', e=>{
@@ -3187,6 +3215,7 @@ function bumpStrumN(d){
   mutate(()=>{
     const col=curCol();
     const sp=strumSpan(col);
+    delete col.strumTop; delete col.strumBot;   // 显式弦范围让位于快捷伸缩
     col.strumN = Math.max(2, Math.min(sp.bot, sp.n+d));
   });
 }
