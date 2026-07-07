@@ -1219,7 +1219,7 @@ function systemExtras(sys){
 function sysMetrics(topExtra, botExtra, tabExtra){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0;
-  const diagH = diagMode==='inline' ? 50 : 12;
+  const diagH = diagMode==='inline' ? 56 : 12;   // 行内和弦图区加高，避免与一弦数字重叠
   let y = diagH + 6;
   const tabTops=[], voxYs=[], lyricY0=[];
   for(let i=0;i<nT;i++){ tabTops.push(y); y += STAFF_H + 12 + tabExtra + 6; }
@@ -1526,8 +1526,11 @@ function render(){
                 p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
               /* 技法连线：从本音符头连到所选的下一个音符头（放大标记） */
-              if(n.tech){
-                const SYM = {sl:'sl',h:'h',p:'p',b:'b',v:'~',hm:'◇',tp:'T',pm:'P.M.'};
+              if(n.tech==='hm'){
+                /* 泛音：方框框住需要泛音的音符（不在音符上方标记） */
+                p.push(`<rect x="${nx-6.5}" y="${yy-6}" width="13" height="12" rx="1.5" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              }else if(n.tech){
+                const SYM = {sl:'S',h:'h',p:'p',b:'b',v:'~',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
@@ -1606,20 +1609,27 @@ function render(){
               p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
-        /* 连音标记（吉他谱）：时值符号下方刻度线括号，中间断开标斜体数字 */
+        /* 连音标记（吉他谱）：时值符号下方刻度线括号，中间断开标斜体数字；
+           每 n 个音为一组独立标记（同小节多组连音互不关联），
+           括号两端对齐该组时值符号（符杠）的左右两端 */
         {
           const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
               let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
-              const x1=mx+lay.xs[a2]-5, x2=mx+lay.xs[b3]+5, xm=(x1+x2)/2;
-              const yl=stemY+4.5;
-              p.push(`<line x1="${x1}" y1="${yl}" x2="${x1}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<line x1="${x2}" y1="${yl}" x2="${x2}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<line x1="${x1}" y1="${yl}" x2="${xm-5.5}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<line x1="${xm+5.5}" y1="${yl}" x2="${x2}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<text x="${xm}" y="${yl+2.8}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
+              const n=tN(cols[a2]);
+              for(let s=a2; s<=b3; s+=n){
+                const e=Math.min(s+n-1, b3);
+                const x1=mx+lay.xs[s], x2=mx+lay.xs[e], xm=(x1+x2)/2;
+                const half=Math.min(5.5, Math.max(3,(x2-x1)/2-3));
+                const yl=stemY+4.5;
+                p.push(`<line x1="${x1}" y1="${yl}" x2="${x1}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<line x1="${x2}" y1="${yl}" x2="${x2}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<line x1="${x1}" y1="${yl}" x2="${xm-half}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<line x1="${xm+half}" y1="${yl}" x2="${x2}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<text x="${xm}" y="${yl+2.8}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
+              }
               a2=b3+1;
             } else a2++;
           }
@@ -1760,18 +1770,24 @@ function render(){
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*20-14}" width="${cw}" height="19" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
         });
-        /* 连音标记（简谱）：音符上方连音弧线，中间断开标斜体数字 */
+        /* 连音标记（简谱）：音符上方连音弧线，中间断开标斜体数字；
+           每 n 个音为一组独立标记（同小节多组连音互不关联） */
         {
           const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
               let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
-              const x1=mx+lay.xs[a2]-3, x2=mx+lay.xs[b3]+3, xm=(x1+x2)/2;
-              const y0=voxY-13, yp=voxY-19;
-              p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-6} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<path d="M ${xm+6} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-              p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
+              const n=tN(cols[a2]);
+              for(let s=a2; s<=b3; s+=n){
+                const e=Math.min(s+n-1, b3);
+                const x1=mx+lay.xs[s]-3, x2=mx+lay.xs[e]+3, xm=(x1+x2)/2;
+                const half=Math.min(6, Math.max(3.5,(x2-x1)/2-3));
+                const y0=voxY-13, yp=voxY-19;
+                p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-half} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<path d="M ${xm+half} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
+              }
               a2=b3+1;
             } else a2++;
           }
@@ -1842,8 +1858,8 @@ function voiceChips(list, activeIdx, cls){
 let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 /* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧（带谱面符号图示），编辑简谱=标识符号 */
-const EB_TECHS = [['sl','滑弦','sl'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b'],['v','揉弦','~'],
-                  ['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],['','清除','—']];
+const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b'],['v','揉弦','~'],
+                  ['hm','泛音','▢'],['tp','点弦','T'],['pm','闷音','P.M.'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['clr','清除记号']];
 /* n连音小图示：一束符杠上标斜体 n */
