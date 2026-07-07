@@ -244,6 +244,20 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
+/* 使用帮助/特色功能/更新日志 弹窗排版 */
+.modal .steps{display:flex;flex-direction:column;gap:7px;margin:8px 0}
+.modal .step{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.55}
+.modal .step .n{flex:0 0 19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;
+  font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.modal .feat{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0}
+.modal .feat .fc{border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--paper)}
+.modal .feat .fc b{display:block;font-size:13px;margin-bottom:3px}
+.modal .feat .fc span{font-size:12px;color:var(--muted);line-height:1.5}
+.modal .vlog{list-style:none;margin:8px 0;padding:0;font-size:12.5px}
+.modal .vlog li{display:flex;gap:9px;margin:0;padding:6px 0;border-bottom:1px dashed var(--border);line-height:1.5}
+.modal .vlog .v{flex:0 0 62px;color:var(--accent);font-weight:700;font-family:ui-monospace,monospace;white-space:nowrap}
+.modal kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
+  padding:0 5px;font-size:11.5px;font-family:ui-monospace,monospace;background:var(--paper);line-height:1.7}
 /* 会员中心 */
 .mb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
 .mb-card{border:1px solid var(--border);border-radius:14px;padding:14px 13px;background:var(--toolbar);
@@ -483,6 +497,12 @@ svg text{user-select:none}
     </div>
     <div class="rcard">
       <button class="rc-h rc-btn" id="b-help">使用帮助</button>
+    </div>
+    <div class="rcard">
+      <button class="rc-h rc-btn" id="b-feat">特色功能</button>
+    </div>
+    <div class="rcard">
+      <button class="rc-h rc-btn" id="b-changelog">更新日志</button>
     </div>
     <div id="beat-box">
       <span id="beat-status" class="good">✓ 所有小节时值正确</span>
@@ -4575,41 +4595,94 @@ function toast(msg){
 }
 document.getElementById('b-help').onclick = ()=>{
   showModal(`<h3>MuseTab 使用帮助</h3>
-  <p>顶部工具栏分页组织：<b>吉他谱 / 简谱 / 歌词 / 小节</b>四页，
-  点击谱面会自动切到对应页；「时值」「组合时值」两组在吉他谱与简谱页共用。</p>
-  <h4>吉他谱页</h4>
+  <h4>快速上手（3 步做一首谱）</h4>
+  <div class="steps">
+    <div class="step"><span class="n">1</span><div><b>建谱</b>：左侧「曲谱库」选预设改编，或「曲谱信息」填标题/拍号/调号新建；小节不够点右栏「插入小节」。</div></div>
+    <div class="step"><span class="n">2</span><div><b>录入</b>：吉他谱区点弦位直接敲品位数字 0–24（两位数连续输入）；简谱区点数字位置敲 <kbd>0</kbd>–<kbd>7</kbd>（0 为休止）；点歌词行直接打字。有和弦时在左侧「节奏型库」点图示，一键按指法生成整小节音符。</div></div>
+    <div class="step"><span class="n">3</span><div><b>润色</b>：顶部编辑栏改时值/节奏、加连音线/倚音/演奏技巧；<kbd>空格</kbd>试听；「导出/打印」输出 A4 曲谱。所有修改实时自动保存在本机。</div></div>
+  </div>
+  <h4>顶部编辑栏（吸顶常驻）</h4>
   <table>
-  <tr><td class="k">点击弦位 + 数字</td><td>输入品位 0–24（两位数连续输入）</td></tr>
-  <tr><td class="k">X / 扫↓ 扫↑ / 琶音</td><td>切音、扫弦、琶音；扫弦列只画箭头，<b>箭头− / 箭头＋</b>可调箭头长短（覆盖几根弦）</td></tr>
-  <tr><td class="k">记谱:×</td><td>分解伴奏中和弦内音显示为 ×（教材式），仅和弦外音显示品位数字；可切回全数字</td></tr>
-  <tr><td class="k">改和弦</td><td>输入新和弦后自动按新指法重排本小节分解/扫弦音（如 C 根音在5弦3品 → G 根音自动落到6弦3品），并弹出节奏型预提示；点谱面和弦图也会弹出预提示</td></tr>
-  <tr><td class="k">节奏型库</td><td>分解/扫弦 × 2/4·4/4 与 3/4·6/8 分类，图示+文字；点击套用到选中小节，有和弦时按指法自动生成音符</td></tr>
+  <tr><td class="k">时值</td><td>点图标改当前音时值（全/2/4/8/16/32 分）；<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd> 快捷键；「附点」把下一个音自动变为当前音的一半时值</td></tr>
+  <tr><td class="k">节奏</td><td>常用 4 种（八分×2 / 前八后十六 / 前十六后八 / 十六分×4）直接点用，「更多▾」展开全部组合，「节奏型库」按分解/扫弦分类整小节套用</td></tr>
+  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd> / <kbd>Shift+Insert</kbd>）在任意位置加音符；拆分＝一分为二总时值不变；合并＝相邻同时值二合一；删音符。<b>自由编辑优先</b>：不强制适配拍号，出错时下方状态条给出绿色修复建议，按需一键采纳</td></tr>
+  <tr><td class="k">记号</td><td>连音线（见下）；3/5/6/7 连音：当前音原地拆为 n 连音（总时值不变），吉他谱刻度线标记、简谱弧线标记</td></tr>
+  <tr><td class="k">缩放</td><td>−/＋按钮、点百分比复位；谱面上 <kbd>Ctrl</kbd>+滚轮以光标为中心缩放</td></tr>
   </table>
-  <h4>简谱页</h4>
+  <h4>吉他谱（六线谱）</h4>
   <table>
-  <tr><td class="k">点击数字位置 + 0–7</td><td>输入唱名（0 休止）；♯ ♭、8度点、连音线见按钮</td></tr>
-  <tr><td class="k">节奏型库</td><td>基础时值 / 组合节奏 / 三拍类，图示预览，套用后原唱名按序保留</td></tr>
+  <tr><td class="k">品位输入</td><td>点弦位出现光标后敲数字；<kbd>×</kbd> 切音、拍弦（方框住音符）见左侧「吉他谱」面板</td></tr>
+  <tr><td class="k">扫弦/琶音</td><td>扫↓ 扫↑ / 上琶音 下琶音；点谱面上的扫弦箭头可选覆盖哪几根弦</td></tr>
+  <tr><td class="k">演奏技巧</td><td>编辑栏第二行：滑弦S/击勾弦/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音等。选中音符点图标即用；S/H/P 自动连线到下一音，符号在连线上方</td></tr>
+  <tr><td class="k">推弦</td><td><kbd>Ctrl</kbd> 依次选中起始音+目标音再点上/下推弦：目标音加圆圈、连音线相连、b↑/b↓ 在连线上方</td></tr>
+  <tr><td class="k">记谱风格</td><td>「记谱:×」教材式（和弦内音显 ×）与全数字可切换；和弦图与技巧重叠时自动缩小</td></tr>
   </table>
-  <h4>时值（共用组）</h4>
+  <h4>简谱</h4>
   <table>
-  <tr><td class="k">单时值</td><td>点击图标改当前音时值；Q W E R T 快捷键；. 附点</td></tr>
-  <tr><td class="k">组合时值</td><td>把当前一个音就地拆分为组合（前八后十六、十六×4 等），第一个音保留原内容</td></tr>
+  <tr><td class="k">音高</td><td>♯ ♭ ♮ 升降还原号；八度点最高/最低各 3 个（上下箭头按钮）</td></tr>
+  <tr><td class="k">倚音</td><td>编辑栏「前倚音/后倚音」添加（默认 8 分单音）；点谱面上的倚音弹出编辑：音高/时值/八度、最多 3 音；直角连接线自动避让减时线与低音点</td></tr>
+  <tr><td class="k">标识符号</td><td>上波音 / 下波音 / 颤音 tr / 回音 ∽，选中音符点图标切换</td></tr>
   </table>
-  <h4>多选与校验</h4>
+  <h4>连音线（简谱/吉他谱通用）</h4>
   <table>
-  <tr><td class="k">按住左键拖动</td><td>同声部内拖过多个音即多选（可跨小节）；Shift+点击同样可用</td></tr>
-  <tr><td class="k">多选后</td><td>点时值 = 批量替换并<b>自动补充/删减音符保持小节拍数</b>（扫弦小节补交替箭头、分解小节补分解音、简谱补休止）；点连音线 = 整段加连音线；点节奏型 = 批量套用</td></tr>
-  <tr><td class="k">补齐小节时值</td><td>「小节」页按钮：把选中小节所有声部一键补齐/删减到拍号</td></tr>
-  <tr><td class="k">节拍检查</td><td>工具栏下方状态条实时显示；小节时值 ≠ 拍号即标红加 ⚠，点状态条展开定位</td></tr>
+  <tr><td class="k">单选</td><td>选中音符点「连音线」：自动连到相邻下一音（吉他谱优先同弦），再点取消</td></tr>
+  <tr><td class="k">Ctrl 跨选</td><td><kbd>Ctrl</kbd> 选中两个音符再点「连音线」：跨过中间音符直达目标音，中间音符自动相连成一条弧线</td></tr>
   </table>
-  <h4>通用</h4>
+  <h4>小节与小节线</h4>
   <table>
-  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换吉他谱·简谱</td></tr>
-  <tr><td class="k">空格</td><td>从当前小节播放/停止；「弹」「唱」控制声部发声</td></tr>
-  <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出</td></tr>
+  <tr><td class="k">点击小节线</td><td>弹出设置：反复开始 𝄆 / 反复结束 𝄇 / 段落线 / 终止线 / 清除</td></tr>
+  <tr><td class="k">按住小节线</td><td>按住约半秒选中该小节的单个声部（吉他谱或简谱独立），<kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> 复制粘贴到别处</td></tr>
+  <tr><td class="k">小节编号</td><td>显示在小节线正下方，悬停变色；右栏可插入/删除小节、一键补齐小节时值</td></tr>
+  </table>
+  <h4>多选与批量</h4>
+  <table>
+  <tr><td class="k">拖动 / Shift+点击</td><td>同声部内多选（可跨小节）：点时值批量替换、点节奏型批量套用、点连音线整段相连</td></tr>
+  <tr><td class="k">节拍检查</td><td>右栏状态条实时显示 ✓/⚠；不符小节标红，点开有「采纳」按钮逐条或全部修复</td></tr>
+  </table>
+  <h4>播放与导出</h4>
+  <table>
+  <tr><td class="k">空格 / ▶</td><td>从当前小节播放/停止；底部混音器可独立开关「弹」「唱」声部、换音色、调速度</td></tr>
+  <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出；「打印」直接出 A4 分页曲谱</td></tr>
+  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 在吉他谱·简谱之间切换</td></tr>
   </table>
   <div class="btns"><button id="help-ok" class="primary">知道了</button></div>`);
   document.getElementById('help-ok').onclick = closeModal;
+};
+document.getElementById('b-feat').onclick = ()=>{
+  showModal(`<h3>MuseTab 特色功能</h3>
+  <div class="feat">
+    <div class="fc"><b>🎼 三行对齐弹唱谱</b><span>六线谱 TAB + 简谱 + 多行歌词逐列垂直对齐，中文弹唱谱的标准版式，所见即所得。</span></div>
+    <div class="fc"><b>📐 智能排版自适配</b><span>参考出版谱间距逻辑：按音符时值密度自动分配每行 2–6 小节、逐拍对齐，A4 高度自动分页。</span></div>
+    <div class="fc"><b>🎸 节奏型库一键生成</b><span>分解/扫弦节奏型按拍号分类，图示化预览；有和弦时按指法自动生成整小节音符，换和弦自动按新指法重排。</span></div>
+    <div class="fc"><b>✏️ 自由编辑优先</b><span>任意位置插入/拆分/合并/删除音符，不受拍号强制约束；节拍检查实时提示，绿色修复建议按需一键采纳。</span></div>
+    <div class="fc"><b>🎵 出版级记谱符号</b><span>倚音（最多3音+直角连接线）、波音/颤音/回音、3/5/6/7 连音、附点智能配对、反复/段落/终止线。</span></div>
+    <div class="fc"><b>🤘 完整演奏技巧</b><span>滑弦/击勾弦/上下推弦/揉弦/泛音/点弦/闷音/无头无尾滑音/切音/拍弦；Ctrl 跨选两音即可连线（连音线、推弦通用）。</span></div>
+    <div class="fc"><b>▶️ 内置播放混音</b><span>吉他与人声声部独立开关与音色（钢琴/八音盒/弦乐/人声等），倚音/连音/扫弦按记谱如实回放。</span></div>
+    <div class="fc"><b>💾 本地保存与输出</b><span>编辑实时自动保存在浏览器本机；预设曲谱库快速起稿；A4 打印/导出，多页自动续页。</span></div>
+    <div class="fc"><b>🔍 光标中心缩放</b><span>Ctrl+滚轮以光标位置为中心放大缩小，50%–200% 连续可调并记住偏好。</span></div>
+    <div class="fc"><b>🧩 小节线交互</b><span>点击小节线设置反复/段落/终止符号；按住半秒独立选中该小节的吉他谱或简谱声部，跨小节复制粘贴。</span></div>
+  </div>
+  <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
+  document.getElementById('feat-ok').onclick = closeModal;
+};
+document.getElementById('b-changelog').onclick = ()=>{
+  showModal(`<h3>MuseTab 更新日志</h3>
+  <ul class="vlog">
+    <li><span class="v">v34.42</span><div>倚音改直角连接线（自动避让减时线/低音点）；连音线单选自动连相邻音、Ctrl 跨选直达目标音（简谱/吉他谱通用）；使用帮助细化，新增特色功能与更新日志。</div></li>
+    <li><span class="v">v34.40</span><div>自由编辑优先：音符增删拆合不再强制适配拍号，节拍错误改为提示+一键修复；节奏图示精简重绘。</div></li>
+    <li><span class="v">v34.39</span><div>音符编辑功能组：任意位置前插/后插（Insert 键）、拆分、合并、删除。</div></li>
+    <li><span class="v">v34.37</span><div>倚音支持最多 3 音、独立八度点与时值编辑；简谱八度点扩展到 ±3；新增还原号 ♮。</div></li>
+    <li><span class="v">v34.35</span><div>推弦改为 Ctrl 双选：目标音加圆圈+连音线；泛音细线菱形框、拍弦方框区分；无头/无尾上下滑音。</div></li>
+    <li><span class="v">v34.30</span><div>3/5/6/7 连音：吉他谱刻度线标记、简谱断弧数字标记，同小节多组互相独立、端点对齐时值线。</div></li>
+    <li><span class="v">v34.27</span><div>编辑栏第二行：记号组 + 上下文（吉他谱演奏技巧 / 简谱标识符号）全图示化；S/H/P 单选自动连线。</div></li>
+    <li><span class="v">v34.25</span><div>附点智能配对：设附点时相邻音自动变半时值（拍尾小时值向前配对）；附点对齐首条时值线。</div></li>
+    <li><span class="v">v34.20</span><div>小节线交互：点击设置反复/段落/终止线；按住选中单声部复制粘贴；小节编号移到小节线正下方。</div></li>
+    <li><span class="v">v34.15</span><div>页头吸顶编辑栏（时值/节奏/缩放）与页头等宽对齐；Ctrl+滚轮以光标为中心缩放。</div></li>
+    <li><span class="v">v34</span><div>排版引擎定版：按出版谱逻辑逐拍分配宽度、每行 2–6 小节自适配、A4 高度分页。</div></li>
+    <li><span class="v">更早</span><div>三行对齐编辑器、节奏型库与和弦指法生成、和弦图编辑、混音播放、曲谱库与自动保存、打印导出等基础能力。</div></li>
+  </ul>
+  <div class="btns"><button id="log-ok" class="primary">知道了</button></div>`);
+  document.getElementById('log-ok').onclick = closeModal;
 };
 
 /* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
