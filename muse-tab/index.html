@@ -1991,6 +1991,28 @@ function ornSVG(kind){
   }
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
 }
+/* 组合节奏极简图示：仅符干+符杠（主梁/16分层，孤立16分画短杠），简单明了 */
+function comboSVG(durs, W, H){
+  W=W||34; H=H||20;
+  const n=durs.length;
+  const x0=6, x1=W-6;
+  const xs=durs.map((_,i)=> n===1? (x0+x1)/2 : x0+i*(x1-x0)/(n-1));
+  const yT=3, yB=H-3;
+  let g='';
+  xs.forEach((x,i)=>{
+    g+=`<line x1="${x}" y1="${yT}" x2="${x}" y2="${yB}" stroke="currentColor" stroke-width="1.4"/>`;
+    if(durs[i][1]) g+=`<circle cx="${x+3.5}" cy="${yB-6.5}" r="1.2" fill="currentColor"/>`;
+  });
+  g+=`<rect x="${xs[0]-0.7}" y="${yB-1.8}" width="${xs[n-1]-xs[0]+1.4}" height="1.8" fill="currentColor"/>`;
+  for(let i=0;i<n;i++){
+    if(durs[i][0]<16) continue;
+    let j=i; while(j<n-1 && durs[j+1][0]>=16) j++;
+    if(j>i) g+=`<rect x="${xs[i]-0.7}" y="${yB-4.6}" width="${xs[j]-xs[i]+1.4}" height="1.8" fill="currentColor"/>`;
+    else g+=`<rect x="${i>0? xs[i]-5 : xs[i]-0.7}" y="${yB-4.6}" width="5" height="1.8" fill="currentColor"/>`;
+    i=j;
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
+}
 /* n连音小图示：一束符杠上标斜体 n */
 function tupSVG(n){
   let p='';
@@ -2251,11 +2273,9 @@ function suggestFix(mi, row, vi){
 function setDur(d){
   if(selRange){
     mutate(()=>{
-      const seen=new Set();
-      rangeCols().forEach(({mi,col})=>{ col.dur=d; seen.add(mi); });
-      seen.forEach(mi=>autoFixMeasure(mi, selRange.row, selRange.vi));
+      rangeCols().forEach(({mi,col})=>{ col.dur=d; });
     });
-    toast('已批量替换时值并自动补齐小节');
+    toast('已批量替换时值（与拍号不符时会提示，可按需一键修复）');
     return;
   }
   const c=curCol(); if(c) mutate(()=>{ curCol().dur=d; });
@@ -2289,7 +2309,6 @@ function toggleDot(){
          cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=32){
         cs[0].col.dotted=true;
         cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false;
-        autoFixMeasure(cs[0].mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
       /* 选中单个音符：与单音路径一致——联动相邻音符变为其时值的一半 */
@@ -2300,12 +2319,9 @@ function toggleDot(){
         const wasBeatLast = ci>=0 && isBeatLastCol(cols, ci);
         col.dotted=true;
         if(ci>=0) dotLink(cols, ci, wasBeatLast);
-        autoFixMeasure(mi, selRange.row, selRange.vi);   // 兜底保证与拍号一致
         return;
       }
-      const seen=new Set();
-      cs.forEach(({mi,col})=>{ col.dotted=!allDot; seen.add(mi); });
-      seen.forEach(mi=>autoFixMeasure(mi, selRange.row, selRange.vi));
+      cs.forEach(({mi,col})=>{ col.dotted=!allDot; });
     });
     return;
   }
@@ -2318,8 +2334,6 @@ function toggleDot(){
     /* 设置附点时：相邻音符自动变为当前时值的一半——常规为下一个音符；
        拍尾且时值<8分（16/32分）时为前一个音符；取消附点不联动 */
     if(cur.dotted) dotLink(cols, sel.ci, wasBeatLast);
-    /* 兜底：自动补齐/删减保证小节总时值与拍号一致（无错） */
-    if(cur.dotted) autoFixMeasure(sel.mi, sel.row, sel.vi);
   });
 }
 /* 判断一段吉他列的演奏方式：扫弦 / 柱式和声 / 分解 */
@@ -2517,9 +2531,8 @@ function applyVoxPattern(pat){
   });
   /* 节奏（组合时值）按钮：图示（符杠）在上、名称在下 */
   const ebCombo = document.getElementById('eb-combo');
-  const comboShow = DUR_COMBOS.map((c,i)=>[c,i]).filter(([c])=>c.name==='十六分×4');
-  ebCombo.innerHTML = comboShow.map(([c,i])=>
-    `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${rhythmSVG(c.durs,34,20,true)}<span>${esc(c.name)}</span></button>`
+  ebCombo.innerHTML = DUR_COMBOS.slice(0,4).map((c,i)=>
+    `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${comboSVG(c.durs,34,20)}<span>${esc(c.name)}</span></button>`
   ).join('')
   + `<button class="eb" id="eb-more" title="全部组合时值">更多 ▾</button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
@@ -2595,7 +2608,7 @@ function showComboMenu(cx, cy){
   div.style.left=Math.min(cx, innerWidth-320)+'px';
   div.style.top=(cy+6)+'px';
   div.innerHTML=`<div class="t">组合时值 · 拆分当前音</div><div class="row">`+
-    DUR_COMBOS.map((c,i)=>`<button class="eb ico" data-ec2="${i}" title="${c.name}">${rhythmSVG(c.durs,38,22,true)}<span>${esc(c.name)}</span></button>`).join('')+`</div>`;
+    DUR_COMBOS.map((c,i)=>`<button class="eb ico" data-ec2="${i}" title="${c.name}">${comboSVG(c.durs,38,22)}<span>${esc(c.name)}</span></button>`).join('')+`</div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-ec2]'); if(!b) return;
@@ -2642,10 +2655,9 @@ function insertNote(before){
   const at = Math.min(cols.length, sel.ci + (before?0:1));
   mutate(()=>{
     cols.splice(at, 0, c);
-    autoFixMeasure(sel.mi, sel.row, sel.vi);
-    sel.ci = Math.min(at, (sel.row==='tab'? song.measures[sel.mi].tabs[sel.vi] : song.measures[sel.mi].voxes[sel.vi]).length-1);
+    sel.ci = at;
   });
-  toast('已插入音符 · '+(sel.row==='tab'?'点弦格输入品位数字':'输入唱名 1–7')+' · 小节已自动对齐拍号');
+  toast('已插入音符 · '+(sel.row==='tab'?'点弦格输入品位数字':'输入唱名 1–7')+'（与拍号不符时会提示，可按需一键修复）');
 }
 function splitNote(){
   const cols=curRowCols(); const cur=curCol();
@@ -2671,11 +2683,8 @@ function mergeNote(){
 function deleteNote(){
   const cols=curRowCols();
   if(!cols || cols.length<=1) return toast('小节至少保留一个音符');
-  mutate(()=>{
-    cols.splice(sel.ci, 1);
-    autoFixMeasure(sel.mi, sel.row, sel.vi);
-  });
-  toast('已删除音符并自动补齐小节');
+  mutate(()=>{ cols.splice(sel.ci, 1); });
+  toast('已删除音符');
 }
 /* 推弦（上/下）：按住 Ctrl 依次选中两个音符（起始音+目标音），
    目标音符加圆圈、连音线相连、b↑/b↓ 显示在连线中间上方 */
@@ -2739,15 +2748,14 @@ function applyTuplet(n){
       mutate(()=>{
         const on = !cs.every(x=>tupOf(x.col)===n);
         cs.forEach(x=>{ if(on) x.col.tup=n; else delete x.col.tup; });
-        autoFixMeasure(cs[0].mi, selRange.row, selRange.vi);
       });
       toast('已切换'+n+'连音'); return;
     }
   }
   const col=curCol(); if(!col) return;
   if(col.tup){
-    mutate(()=>{ delete col.tup; autoFixMeasure(sel.mi, row, sel.vi); });
-    toast('已取消连音并补齐小节'); return;
+    mutate(()=>{ delete col.tup; });
+    toast('已取消连音'); return;
   }
   const mul = n===3? 2 : 4;
   if(col.dur*mul>32) return toast('当前时值过小，无法再细分为'+n+'连音');
