@@ -2549,12 +2549,12 @@ function bendFromBar(t){
     mutate(()=>{ delete n0.tech; delete n0.tk; delete n0.bt; });
     toast('已取消推弦'); return;
   }
-  const v = prompt('推弦目标品位（将以圆圈音符显示并连线）', n0.bt!=null? n0.bt : n0.f);
-  if(v===null) return;
-  const bt = /^\d{1,2}$/.test((v||'').trim())? +v.trim() : n0.f;
-  mutate(()=>{ n0.tech=t; delete n0.tk; n0.bt=bt; });
-  noteSel=[]; closeTech(); render();
-  toast('已加'+(t==='b'?'上':'下')+'推弦（再次点击该技巧可重设目标音符）');
+  askText('推弦目标品位（将以圆圈音符显示并连线）', n0.bt!=null? n0.bt : n0.f, v=>{
+    const bt = /^\d{1,2}$/.test((v||'').trim())? +v.trim() : n0.f;
+    mutate(()=>{ n0.tech=t; delete n0.tk; n0.bt=bt; });
+    noteSel=[]; closeTech(); render();
+    toast('已加'+(t==='b'?'上':'下')+'推弦（再次点击该技巧可重设目标音符）');
+  });
 }
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){
@@ -2563,12 +2563,12 @@ function ornFromBar(k){
   if(k==='grace' || k==='gracea'){
     if(!col.deg) return toast('倚音需加在有唱名的音上');
     const cur = k==='grace'? col.grace : col.graceA;
-    const v = prompt((k==='grace'?'前':'后')+'倚音唱名（1–7，留空清除）', cur||'');
-    if(v===null) return;
-    const tv=(v||'').trim();
-    mutate(()=>{
-      if(tv===''){ if(k==='grace') delete col.grace; else delete col.graceA; }
-      else if(/^[1-7]$/.test(tv)){ if(k==='grace') col.grace=+tv; else col.graceA=+tv; }
+    askText((k==='grace'?'前':'后')+'倚音唱名（1–7，留空清除）', cur||'', v=>{
+      const tv=(v||'').trim();
+      mutate(()=>{
+        if(tv===''){ if(k==='grace') delete col.grace; else delete col.graceA; }
+        else if(/^[1-7]$/.test(tv)){ if(k==='grace') col.grace=+tv; else col.graceA=+tv; }
+      });
     });
     return;
   }
@@ -2701,8 +2701,9 @@ const chipHandler = e=>{
     if(lastChipClick.k===k && lastChipClick.idx===idx && now-lastChipClick.t<400){
       lastChipClick = {k:null, idx:-1, t:0};
       const list = k==='tv'? song.tabVoices : song.voxVoices;
-      const nm = prompt('声部名称', list[idx]);
-      if(nm!=null && nm.trim()){ mutate(()=>{ list[idx]=nm.trim(); }); }
+      askText('声部名称', list[idx], nm=>{
+        if(nm!=null && nm.trim()){ mutate(()=>{ list[idx]=nm.trim(); }); }
+      });
       return;
     }
     lastChipClick = {k, idx, t:now};
@@ -2732,8 +2733,9 @@ const chipRename = e=>{
   const chip = e.target.closest('.vchip'); if(!chip) return;
   const k = chip.dataset.k, i = +chip.dataset.idx;
   const list = k==='tv'? song.tabVoices : song.voxVoices;
-  const nm = prompt('声部名称', list[i]);
-  if(nm!=null && nm.trim()){ mutate(()=>{ list[i]=nm.trim(); }); }
+  askText('声部名称', list[i], nm=>{
+    if(nm!=null && nm.trim()){ mutate(()=>{ list[i]=nm.trim(); }); }
+  });
 };
 ['left-dock','top'].forEach(id=>{
   const el=document.getElementById(id); if(!el) return;
@@ -3164,6 +3166,29 @@ function closePop(){
   const d=document.getElementById('popmenu'); if(d) d.remove();
   if(barSel){ barSel=null; render(); }
 }
+/* 页面内输入弹窗：替代原生 prompt（在受限环境如沙箱 iframe 中 prompt 会被拦截） */
+function askText(title, def, cb){
+  closePop();
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left='50%'; div.style.top='28%'; div.style.transform='translateX(-50%)';
+  div.innerHTML=`<div class="t">${esc(title)}</div>
+    <div class="row" style="align-items:center">
+      <input id="ask-in" type="text" value="${esc(def==null?'':''+def)}" style="width:90px">
+      <button id="ask-ok" class="primary">确定</button><button id="ask-x">取消</button>
+    </div>`;
+  document.body.appendChild(div);
+  const inp=div.querySelector('#ask-in');
+  setTimeout(()=>{ inp.focus(); inp.select(); }, 0);
+  const ok=()=>{ const v=inp.value; closePop(); cb(v); };
+  div.querySelector('#ask-ok').onclick=ok;
+  div.querySelector('#ask-x').onclick=()=>closePop();
+  inp.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key==='Enter'){ ev.preventDefault(); ok(); }
+    if(ev.key==='Escape'){ ev.preventDefault(); closePop(); }
+  });
+}
 window.addEventListener('pointerdown', e=>{
   if(!e.target.closest('#popmenu') && !e.target.closest('[data-zone="strum"]')) closePop();
 }, true);
@@ -3396,10 +3421,10 @@ document.getElementById('b-grace').onclick = ()=>{
   if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
   const col = curCol();
   if(!col || !col.deg){ toast('倚音需加在有唱名的音上'); return; }
-  const v = prompt('倚音唱名（1–7，留空清除）', col.grace||'');
-  if(v===null) return;
-  const t = (v||'').trim();
-  mutate(()=>{ if(t==='') delete col.grace; else if(/^[1-7]$/.test(t)) col.grace = +t; });
+  askText('倚音唱名（1–7，留空清除）', col.grace||'', v=>{
+    const t = (v||'').trim();
+    mutate(()=>{ if(t==='') delete col.grace; else if(/^[1-7]$/.test(t)) col.grace = +t; });
+  });
 };
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
 document.getElementById('b-rep-e').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatEnd=!m.repeatEnd; });
@@ -4038,7 +4063,7 @@ function showLibrary(){
     if(lm){ const e0=libLoad().find(x=>x.id===lm.dataset.loadMine); if(e0){ closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); } return; }
     const rn=e.target.closest('[data-rename-mine]');
     if(rn){ const id=rn.dataset.renameMine; const lib=libLoad(); const en=lib.find(x=>x.id===id);
-      const nm=prompt('重命名曲谱', en.title||''); if(nm!=null){ en.title=nm; en.data.title=nm; if(song.id===id) song.title=nm; libSave(lib); persist(); render(); closeModal(); showLibrary(); } return; }
+      askText('重命名曲谱', en.title||'', nm=>{ if(nm!=null && nm.trim()){ en.title=nm.trim(); en.data.title=en.title; if(song.id===id) song.title=en.title; libSave(lib); persist(); render(); closeModal(); showLibrary(); } }); return; }
     const dl=e.target.closest('[data-del-mine]');
     if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; closeModal(); showLibrary(); } return; }
   });
