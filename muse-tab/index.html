@@ -1812,16 +1812,16 @@ function render(){
             /* 共用减时线：横跨整组 */
             for(let u=0;u<gu;u++)
               p.push(`<line x1="${gxc-3.6}" y1="${gyb+1.4+u*LSP}" x2="${gxc+gW+3.6}" y2="${gyb+1.4+u*LSP}" stroke="var(--ink)" stroke-width="0.8"/>`);
-            /* 连音勾（圆角方形下角1/4）：竖边上端紧贴减时线正下方，
-               有低音点时整体自适配下移到点之下（留出清晰间隙） */
+            /* 连音勾（参考出版谱）：一笔连续——竖边紧贴减时线正下方落下、
+               底部圆角横行、末端朝主音方向短促上翘；有低音点时整体下移 */
             const yTop = gyb+1.4+gu*LSP + (maxLow? 2.2+maxLow*DSP : 1.0);
             const yH = yTop+4.5;
             if(pre){
-              const xv = gxc-5.5;
-              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2} Q ${xv} ${yH} ${xv+2} ${yH} L ${xv+9+gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+              const xv = gxc-5.5, xe = gxc+gW+7.5;
+              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2.2} Q ${xv} ${yH} ${xv+2.2} ${yH} L ${xe-2.2} ${yH} Q ${xe} ${yH} ${xe} ${yH-2.6}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             }else{
-              const xv = gxc+gW+5.5;
-              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2} Q ${xv} ${yH} ${xv-2} ${yH} L ${xv-9-gW} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+              const xv = gxc+gW+5.5, xe = gxc-7.5;
+              p.push(`<path d="M ${xv} ${yTop} L ${xv} ${yH-2.2} Q ${xv} ${yH} ${xv-2.2} ${yH} L ${xe+2.2} ${yH} Q ${xe} ${yH} ${xe} ${yH-2.6}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             }
             graceZones.push(`<rect x="${gxc-7}" y="${gyb-17}" width="${gW+14}" height="${yH-(gyb-17)+3}" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
           };
