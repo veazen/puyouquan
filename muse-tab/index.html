@@ -351,8 +351,17 @@ svg text{user-select:none}
       <button id="z-in" title="放大（内容区 Ctrl+滚轮 亦可）">＋</button>
     </span>
   </div>
-  <!-- 常用编辑功能栏第二行：连音/三连音 + 按声部上下文的技巧/记号 -->
+  <!-- 常用编辑功能栏第二行：音符增删 + 连音/三连音 + 按声部上下文的技巧/记号 -->
   <div class="bar" id="editbar2">
+    <span class="eb-t">音符</span>
+    <span class="eb-grp">
+      <button class="eb" id="eb-add" title="在光标后插入同时值音符，小节自动对齐拍号（快捷键 Insert）">＋后插</button>
+      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
+      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
+      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
+      <button class="eb" id="eb-delcol2" title="删除当前音符，小节自动补齐">删音符</button>
+    </span>
+    <span class="eb-sep"></span>
     <span class="eb-t">记号</span>
     <span class="eb-grp" id="eb-marks"></span>
     <span class="eb-sep"></span>
@@ -2497,8 +2506,13 @@ function applyVoxPattern(pat){
   document.getElementById('eb-marks').innerHTML =
     `<button class="eb" id="eb-tie" title="连音线（简谱）：当前音连到下一音">连音线</button>`+
     [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
-  /* 编辑栏第二行：连音线/连音 + 上下文（技巧/记号） */
+  /* 编辑栏第二行：音符增删 + 连音线/连音 + 上下文（技巧/记号） */
   document.getElementById('editbar2').addEventListener('click', e=>{
+    if(e.target.closest('#eb-add')){ insertNote(false); return; }
+    if(e.target.closest('#eb-addb')){ insertNote(true); return; }
+    if(e.target.closest('#eb-split')){ splitNote(); return; }
+    if(e.target.closest('#eb-merge')){ mergeNote(); return; }
+    if(e.target.closest('#eb-delcol2')){ deleteNote(); return; }
     if(e.target.closest('#eb-tie')){
       if(sel.row==='vox') toggleTie();
       else toast('连音线用于简谱声部（先切到简谱选中音符）');
@@ -2588,6 +2602,50 @@ function techFromBar(t){
     }
   });
   toast(t? (linked?'已标记并自动连线到下一个音符':'已标记技法') : '已清除技法');
+}
+/* ===== 便捷音符编辑：任意位置添加/拆分/合并/删除，小节自动保持与拍号一致 ===== */
+function insertNote(before){
+  const cols=curRowCols(); if(!cols) return toast('请先选中吉他谱或简谱中的位置');
+  const cur=curCol() || cols[cols.length-1];
+  const c = sel.row==='tab'? tcol() : vcol();
+  if(cur){ c.dur=cur.dur; if(cur.tup) c.tup=cur.tup; }
+  const at = Math.min(cols.length, sel.ci + (before?0:1));
+  mutate(()=>{
+    cols.splice(at, 0, c);
+    autoFixMeasure(sel.mi, sel.row, sel.vi);
+    sel.ci = Math.min(at, (sel.row==='tab'? song.measures[sel.mi].tabs[sel.vi] : song.measures[sel.mi].voxes[sel.vi]).length-1);
+  });
+  toast('已插入音符 · '+(sel.row==='tab'?'点弦格输入品位数字':'输入唱名 1–7')+' · 小节已自动对齐拍号');
+}
+function splitNote(){
+  const cols=curRowCols(); const cur=curCol();
+  if(!cols || !cur) return toast('请先选中要拆分的音符');
+  if(cur.dur*2>32) return toast('32分音符不能再拆分');
+  mutate(()=>{
+    const half=JSON.parse(JSON.stringify(cur));
+    cur.dur*=2; half.dur=cur.dur;      // 附点/连音随克隆保留，总时值不变
+    cols.splice(sel.ci+1, 0, half);
+  });
+  toast('已一分为二（总时值不变），可分别编辑两个音符');
+}
+function mergeNote(){
+  const cols=curRowCols(); const cur=curCol();
+  if(!cols || !cur) return toast('请先选中要合并的音符');
+  const nxt=cols[sel.ci+1];
+  if(!nxt || nxt.dur!==cur.dur || !!nxt.dotted!==!!cur.dotted || (nxt.tup||0)!==(cur.tup||0))
+    return toast('合并需要下一个音符与当前时值完全相同');
+  if(cur.dur<=1) return toast('已是全音符，无法再合并');
+  mutate(()=>{ cur.dur=cur.dur/2; cols.splice(sel.ci+1, 1); });
+  toast('已合并为时值加倍的音符');
+}
+function deleteNote(){
+  const cols=curRowCols();
+  if(!cols || cols.length<=1) return toast('小节至少保留一个音符');
+  mutate(()=>{
+    cols.splice(sel.ci, 1);
+    autoFixMeasure(sel.mi, sel.row, sel.vi);
+  });
+  toast('已删除音符并自动补齐小节');
 }
 /* 推弦（上/下）：按住 Ctrl 依次选中两个音符（起始音+目标音），
    目标音符加圆圈、连音线相连、b↑/b↓ 显示在连线中间上方 */
@@ -2887,6 +2945,7 @@ window.addEventListener('keydown', e=>{
     case 'e': setDur(4); break;
     case 'r': setDur(8); break;
     case 't': setDur(16); break;
+    case 'Insert': insertNote(e.shiftKey); break;
   }
 });
 let dragSel = null;
