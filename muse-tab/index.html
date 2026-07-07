@@ -1127,7 +1127,7 @@ function measureLayout(mea){
       wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)
              +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
              +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length : 0)
-             +(!isVox&&c.notes&&c.notes.some(nn=>nn.tech==='b'||nn.tech==='bd')?15:0);   // 倚音/推弦圆圈预留空间
+             +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
       cum+=beatsOf(c);
@@ -1490,6 +1490,7 @@ function render(){
           const maxD = Math.max(...g.idx.map(i2=>cols[i2].dur));
           g.idx.forEach(i2=>dotLv.set(i2, maxD));
         });
+        const bendDecor=[];   // 推弦圆圈/连线：列绘制完成后再上层绘制
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
@@ -1573,13 +1574,25 @@ function render(){
                 p.push(`<line x1="${nx+5.5}" y1="${up? yy+3 : yy-3}" x2="${nx+12.5}" y2="${up? yy-4 : yy+4}" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<text x="${nx+9}" y="${yy-6.5}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
               }else if(n.tech==='b' || n.tech==='bd'){
-                /* 推弦：右侧圆圈内目标音符 + 连音线相连，b↑/b↓ 在连音线中间上方 */
-                const bt = n.bt!=null? n.bt : n.f;
-                const gx2 = nx+15;
-                p.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
-                p.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
-                p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.tech==='b'?'b↑':'b↓'}</text>`);
+                /* 推弦：Ctrl 选中的目标音符加圆圈 + 连音线相连，b↑/b↓ 在连线中间上方；
+                   圆圈等后绘（bendDecor），避免被目标数字底色遮住 */
+                const sym2 = n.tech==='b'?'b↑':'b↓';
+                const tp2 = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                if(tp2 && tp2.sys===sIdx){
+                  const x2=tp2.x, y2=tabTop+(n.tk.si-1)*STR;
+                  const yPk=Math.min(yy,y2)-12;
+                  bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5.8" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+                  bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-6.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  bendDecor.push(`<text x="${(nx+x2)/2}" y="${yPk+2.4}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                }else{
+                  /* 兼容旧数据（bt 目标品位）：右侧合成圆圈目标音 */
+                  const bt = n.bt!=null? n.bt : n.f;
+                  const gx2 = nx+15;
+                  bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
+                  bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
+                  bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  bendDecor.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                }
               }else if(n.tech){
                 const SYM = {sl:'S',h:'h',p:'p',v:'~',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
@@ -1630,6 +1643,7 @@ function render(){
           else for(let s2=1;s2<=6;s2++)
             p.push(`<rect class="strcell" x="${clx}" y="${tabTop+(s2-1)*STR-STR/2}" width="${cw}" height="${STR}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="${s2}" style="cursor:pointer"/>`);
         });
+        bendDecor.forEach(s=>p.push(s));   // 推弦圆圈/连线置于音符之上
         bGroups.forEach(g=>{
           const xs = g.idx.map(i=>mx+lay.xs[i]);
           const x1=Math.min(...xs), x2=Math.max(...xs);
@@ -2575,30 +2589,26 @@ function techFromBar(t){
   });
   toast(t? (linked?'已标记并自动连线到下一个音符':'已标记技法') : '已清除技法');
 }
-/* 推弦（上/下）：自动在当前选中音符右侧加圆圈目标音符+连音线，提示编辑目标品位 */
+/* 推弦（上/下）：按住 Ctrl 依次选中两个音符（起始音+目标音），
+   目标音符加圆圈、连音线相连、b↑/b↓ 显示在连线中间上方 */
 function bendFromBar(t){
-  let n0=null;
-  if(noteSel.length){
-    const q=noteSel[0];
-    const c0=song.measures[q.mi] && song.measures[q.mi].tabs[q.vi] && song.measures[q.mi].tabs[q.vi][q.ci];
-    n0 = c0 && c0.notes.find(x=>x.s===q.si);
-  }else{
-    if(sel.row!=='tab') return toast('请先在吉他谱选中要推弦的音符');
-    const col=curCol();
-    if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
-    n0 = col.notes.find(x=>x.s===sel.si) || col.notes[0];
+  if(noteSel.length<2){
+    toast('推弦：按住 Ctrl 依次选中两个音符（起始音+目标音），再点上/下推弦');
+    return;
   }
-  if(!n0) return toast('请先选中要推弦的音符');
-  if(n0.tech===t){
+  const list = noteSel.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
+  const q0=list[0], q1=list[1];
+  const c0 = song.measures[q0.mi] && song.measures[q0.mi].tabs[q0.vi] && song.measures[q0.mi].tabs[q0.vi][q0.ci];
+  const n0 = c0 && c0.notes.find(x=>x.s===q0.si);
+  if(!n0) return toast('起始音符无效，请重新 Ctrl 选择');
+  if(n0.tech===t && n0.tk && n0.tk.mi===q1.mi && n0.tk.ci===q1.ci){
     mutate(()=>{ delete n0.tech; delete n0.tk; delete n0.bt; });
+    noteSel=[]; render();
     toast('已取消推弦'); return;
   }
-  askText('推弦目标品位（将以圆圈音符显示并连线）', n0.bt!=null? n0.bt : n0.f, v=>{
-    const bt = /^\d{1,2}$/.test((v||'').trim())? +v.trim() : n0.f;
-    mutate(()=>{ n0.tech=t; delete n0.tk; n0.bt=bt; });
-    noteSel=[]; closeTech(); render();
-    toast('已加'+(t==='b'?'上':'下')+'推弦（再次点击该技巧可重设目标音符）');
-  });
+  mutate(()=>{ n0.tech=t; delete n0.bt; n0.tk={mi:q1.mi, ci:q1.ci, si:q1.si}; });
+  noteSel=[]; closeTech(); render();
+  toast('已加'+(t==='b'?'上':'下')+'推弦（目标音符已加圆圈）');
 }
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){
