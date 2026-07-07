@@ -1197,20 +1197,23 @@ function layoutSystems(){
 function systemExtras(sys){
   let maxUp=0, maxDown=0, maxUnder=0, tab32=false;
   sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach(cols=> cols.forEach(c=>{
+    if(c.tup) maxUp=Math.max(maxUp, 1);                          // 连音弧线需上方空间
     if(!c.deg) return;
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(2, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(2, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
     maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
-  /* 六线谱含 32 分时，符干区按需加高，容纳三层横梁/三条符尾 */
+  /* 六线谱含 32 分/连音括号时，符干区按需加高 */
+  let tabTup=false;
   sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach(cols=> cols.forEach(c=>{
     if(c.dur>=32) tab32=true;
+    if(c.tup) tabTup=true;
   })));
   return {
     topExtra: maxUp>=2 ? 9 : maxUp>=1 ? 4 : 0,
     botExtra: Math.max(maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
-    tabExtra: tab32 ? 5 : 0
+    tabExtra: Math.max(tab32?5:0, tabTup?4:0)
   };
 }
 function sysMetrics(topExtra, botExtra, tabExtra){
@@ -1603,17 +1606,20 @@ function render(){
               p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
           }
         });
-        /* 连音标记：连续同类 n 连音列在符干区上方居中标小斜体 n */
+        /* 连音标记（吉他谱）：时值符号下方刻度线括号，中间断开标斜体数字 */
         {
           const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
               let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
-              const xm=(mx+lay.xs[a2]+mx+lay.xs[b3])/2;
-              const maxD=Math.max(...cols.slice(a2,b3+1).map(c2=>c2.dur));
-              const ty= stemY-(maxD>=32?12.5 : maxD>=16?8.5 : 4.5);
-              p.push(`<text x="${xm}" y="${ty}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
+              const x1=mx+lay.xs[a2]-5, x2=mx+lay.xs[b3]+5, xm=(x1+x2)/2;
+              const yl=stemY+4.5;
+              p.push(`<line x1="${x1}" y1="${yl}" x2="${x1}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<line x1="${x2}" y1="${yl}" x2="${x2}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<line x1="${x1}" y1="${yl}" x2="${xm-5.5}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<line x1="${xm+5.5}" y1="${yl}" x2="${x2}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<text x="${xm}" y="${yl+2.8}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
               a2=b3+1;
             } else a2++;
           }
@@ -1754,15 +1760,18 @@ function render(){
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*20-14}" width="${cw}" height="19" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
         });
-        /* 连音标记：连续同类 n 连音列上方居中标小斜体 n */
+        /* 连音标记（简谱）：音符上方连音弧线，中间断开标斜体数字 */
         {
           const tN=c2=>c2.tup===1?3:c2.tup;
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
               let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
-              const xm=(mx+lay.xs[a2]+mx+lay.xs[b3])/2;
-              p.push(`<text x="${xm}" y="${voxY-15}" font-size="9" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
+              const x1=mx+lay.xs[a2]-3, x2=mx+lay.xs[b3]+3, xm=(x1+x2)/2;
+              const y0=voxY-13, yp=voxY-19;
+              p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-6} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<path d="M ${xm+6} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${tN(cols[a2])}</text>`);
               a2=b3+1;
             } else a2++;
           }
