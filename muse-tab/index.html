@@ -439,6 +439,7 @@ svg text{user-select:none}
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
         <button id="b-tie">连音线</button>
         <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
+        <button id="b-vchord" title="功能谱和弦：输入和弦名（如 C、Am7、G/B），谱面按调号自动显示级数">和弦/级数</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-col">
@@ -593,6 +594,16 @@ const UKU_SHAPES = {
   'Ab':'5343','G#m':'4342','A':'2100','A7':'0100','Am':'2000','Am7':'0000','Amaj7':'1100','Asus2':'2400','Aadd9':'2102',
   'Bb':'3211','Bb7':'1211','Bbm':'3111','B':'4322','B7':'2322','Bm':'4222','Bm7':'2222'
 };
+/* 功能谱级数换算：按 1=song.key 把和弦根音换算为级数（非调内音用 b 前缀），后缀保留 */
+const DEG_OF_SEMI = ['1','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
+function chordDegree(name){
+  const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec((name||'').trim());
+  if(!m || KEY_PC[m[1]]==null) return name;
+  const key=KEY_PC[song.key]||0;
+  let out=DEG_OF_SEMI[((KEY_PC[m[1]]-key)%12+12)%12]+(m[2]||'');
+  if(m[3] && KEY_PC[m[3]]!=null) out+='/'+DEG_OF_SEMI[((KEY_PC[m[3]]-key)%12+12)%12];
+  return out;
+}
 function chordShape(n){
   if(!n) return null;
   if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
@@ -1258,6 +1269,7 @@ function systemExtras(sys){
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(3, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
+    if(c.chord) maxUp=Math.max(maxUp, 2);                        // 功能谱级数标注需上方空间
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
       const hiOct = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct||0)) : 0;
@@ -1845,6 +1857,11 @@ function render(){
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
             p.push(`<circle cx="${nx}" cy="${voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
           const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
+          /* 功能谱：级数和弦标注在音符上方（悬停显示原和弦名） */
+          if(col.chord){
+            const cy2 = voxY-24-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
+            p.push(`<text x="${nx}" y="${cy2}" font-size="12.5" font-weight="700" text-anchor="middle" fill="var(--ink)">${esc(chordDegree(col.chord))}<title>${esc(col.chord)}</title></text>`);
+          }
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
           p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
@@ -2461,7 +2478,7 @@ function applyDurCombo(combo){
       const degs = oldSpan.filter(c=>c.deg>0);
       let oi=0;
       seg = combo.durs.map(([d,t])=>{ const c=vcol(); c.dur=d; c.dotted=!!t;
-        if(oi<degs.length){ const o=degs[oi++]; c.deg=o.deg;c.acc=o.acc;c.oct=o.oct;c.lyrics=(o.lyrics||[]).slice();c.tie=o.tie; }
+        if(oi<degs.length){ const o=degs[oi++]; c.deg=o.deg;c.acc=o.acc;c.oct=o.oct;c.lyrics=(o.lyrics||[]).slice();c.tie=o.tie;if(o.chord)c.chord=o.chord;else delete c.chord; }
         return c; });
     }
     cols.splice(startCi, end-startCi, ...seg);
@@ -2564,7 +2581,7 @@ function applyVoxPattern(pat){
         const c = vcol(); c.dur=dur; c.dotted=!!dot;
         if(oi<old.length){
           const o = old[oi++];
-          c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); c.tie=o.tie;
+          c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); c.tie=o.tie; if(o.chord)c.chord=o.chord;else delete c.chord;
         }
         return c;
       });
@@ -3760,6 +3777,15 @@ document.getElementById('b-slap').onclick = ()=>{
   if(!col || !col.notes.length) return toast('拍弦标记需加在有音符的列上');
   mutate(()=>{ const c=curCol(); if(c.slap) delete c.slap; else c.slap=true; });
 };
+document.getElementById('b-vchord').onclick = ()=>{
+  if(sel.row!=='vox') return toast('请先在简谱选中要标注和弦的音符');
+  const col=curCol(); if(!col) return;
+  askText('和弦名（如 C、Am7、G/B；留空清除）', col.chord||'', v=>{
+    mutate(()=>{ const c=curCol(); const t=(v||'').trim(); if(t) c.chord=t; else delete c.chord; });
+    const t=(v||'').trim();
+    toast(t? '已标注 '+t+'（级数：'+chordDegree(t)+'）' : '已清除和弦标注');
+  });
+};
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
 document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
@@ -4457,10 +4483,11 @@ document.getElementById('file-in').addEventListener('change', e=>{
 });
 /* ---- 新建曲谱向导：先选类型（吉他/尤克里里/简谱），再填曲谱信息 ---- */
 function createSong(type, o){
-  const s = {v:3, title:o.title||'未命名曲谱', singer:o.singer||'', lyricist:'', composer:'', maker:'',
+  const noTab = type==='vox' || type==='func';
+  const s = {v:3, title:o.title||'未命名曲谱', singer:o.singer||'', lyricist:o.lyricist||'', composer:o.composer||'', maker:o.maker||'',
     key:o.key||'C', beats:o.beats||4, unit:o.unit||4, tempo:o.tempo||90, capo:0, customChords:{},
-    inst: type==='uku'?'uku':'guitar',
-    tabVoices: type==='vox'? [] : Array.from({length:o.nTab||1},(_,i)=>(type==='uku'?'尤克里里':'吉他')+(i+1)),
+    inst: type==='uku'?'uku':'guitar', func: type==='func'||undefined,
+    tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(type==='uku'?'尤克里里':'吉他')+(i+1)),
     voxVoices: Array.from({length:o.nVox||0},(_,i)=>'旋律'+(i+1)),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
   const old = song; song = s;
@@ -4470,39 +4497,46 @@ function createSong(type, o){
 }
 function showNewWizard(){
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
-  <div class="feat" style="grid-template-columns:1fr 1fr 1fr">
+  <div class="feat">
     <button class="fc ntype" data-nt="guitar" style="cursor:pointer;text-align:left;font:inherit"><b>🎸 吉他谱</b><span>六线谱 TAB＋简谱＋歌词<br>标准弹唱谱版式</span></button>
     <button class="fc ntype" data-nt="uku" style="cursor:pointer;text-align:left;font:inherit"><b>🎶 尤克里里谱</b><span>四线谱 TAB（GCEA 调弦）＋简谱＋歌词，按吉他谱同样方式编辑</span></button>
     <button class="fc ntype" data-nt="vox" style="cursor:pointer;text-align:left;font:inherit"><b>🎵 简谱</b><span>纯简谱＋歌词<br>不含 TAB 行</span></button>
+    <button class="fc ntype" data-nt="func" style="cursor:pointer;text-align:left;font:inherit"><b>🎹 功能谱</b><span>乐队用：简谱＋级数和弦标注（按 1=调号 自动换算，如 C 调 Am → 6m）</span></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>`);
   document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt));
   document.getElementById('nw-cancel').onclick = closeModal;
 }
 function showNewForm(type){
-  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱'}[type];
+  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', func:'功能谱'}[type];
   const instLabel = type==='uku'?'尤克里里':'吉他';
+  const noTab = type==='vox' || type==='func';
   const sels=(id,arr,def)=>`<select id="${id}">${arr.map(v=>`<option value="${v}"${v===def?' selected':''}>${v}</option>`).join('')}</select>`;
   showModal(`<h3>新建${tName} · 第 2 步：曲谱信息</h3>
   <label class="f"><span>标题</span><input id="nw-title" value="未命名曲谱" style="flex:1"></label>
   <label class="f"><span>演唱</span><input id="nw-singer" placeholder="可留空" style="flex:1"></label>
+  <label class="f"><span>作词</span><input id="nw-lyricist" placeholder="可留空" style="flex:1"></label>
+  <label class="f"><span>作曲</span><input id="nw-composer" placeholder="可留空" style="flex:1"></label>
+  <label class="f"><span>制谱</span><input id="nw-maker" placeholder="可留空" style="flex:1"></label>
   <label class="f"><span>拍号</span>${sels('nw-beats',[2,3,4,6],4)} <b>/</b> ${sels('nw-unit',[4,8],4)}</label>
   <label class="f"><span>调号</span>${sels('nw-key',KEY_LIST,'C')}<span style="width:auto">（1=所选调）</span></label>
   <label class="f"><span>速度</span><input id="nw-tempo" type="number" value="90" min="30" max="240" style="width:70px"> BPM</label>
   <label class="f"><span>小节数</span><input id="nw-mea" type="number" value="8" min="1" max="200" style="width:70px"> 预设小节，后续可增删</label>
-  ${type!=='vox'? `<label class="f"><span>${instLabel}声部</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
-  <label class="f"><span>简谱声部</span>${type==='vox'? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>
-  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],1)}</label>
+  ${!noTab? `<label class="f"><span>${instLabel}声部</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
+  <label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>
+  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],type==='func'?0:1)}</label>
+  ${type==='func'? `<p>功能谱：选中简谱音符后，左侧「简谱」面板点「和弦/级数」输入和弦名（如 C、Am7、G/B），谱面按当前调号自动显示级数标注。</p>` : ''}
   <div class="btns"><button id="nw-back">← 返回选类型</button><button id="nw-create" class="primary">创建曲谱</button></div>`);
   document.getElementById('nw-back').onclick = showNewWizard;
   document.getElementById('nw-create').onclick = ()=>{
     const V=id=>document.getElementById(id).value;
     const o={ title:V('nw-title').trim(), singer:V('nw-singer').trim(),
+      lyricist:V('nw-lyricist').trim(), composer:V('nw-composer').trim(), maker:V('nw-maker').trim(),
       beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:+V('nw-tempo')||90,
       nMea:Math.max(1,Math.min(200,+V('nw-mea')||8)),
-      nTab:type!=='vox'? +V('nw-ntab') : 0, nVox:+V('nw-nvox'), lyr:+V('nw-lyr') };
-    if(type!=='vox' && o.nTab<1) o.nTab=1;
-    if(type==='vox' && o.nVox<1) o.nVox=1;
+      nTab:!noTab? +V('nw-ntab') : 0, nVox:+V('nw-nvox'), lyr:+V('nw-lyr') };
+    if(!noTab && o.nTab<1) o.nTab=1;
+    if(noTab && o.nVox<1) o.nVox=1;
     pushUndo();
     song = createSong(type, o);
     sel = {mi:0, row:song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
@@ -4750,6 +4784,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.45</span><div>新建向导补齐作词/作曲/制谱信息；新增「功能谱」类型（乐队用）：简谱＋级数和弦标注，按调号自动换算（C 调 Am → 6m），支持斜杠低音（G/B → 5/7）。</div></li>
     <li><span class="v">v34.44</span><div>新建曲谱向导：先选类型（吉他谱 / 尤克里里谱 / 简谱）再填曲谱信息，可预设小节数与声部；尤克里里 4 线 TAB（GCEA）与专属和弦图，简谱类型隐藏 TAB 行。</div></li>
     <li><span class="v">v34.42</span><div>倚音改直角连接线（自动避让减时线/低音点）；连音线单选自动连相邻音、Ctrl 跨选直达目标音（简谱/吉他谱通用）；使用帮助细化，新增特色功能与更新日志。</div></li>
     <li><span class="v">v34.40</span><div>自由编辑优先：音符增删拆合不再强制适配拍号，节拍错误改为提示+一键修复；节奏图示精简重绘。</div></li>
