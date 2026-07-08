@@ -258,6 +258,18 @@ svg text{user-select:none}
 .modal .vlog .v{flex:0 0 62px;color:var(--accent);font-weight:700;font-family:ui-monospace,monospace;white-space:nowrap}
 .modal kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
   padding:0 5px;font-size:11.5px;font-family:ui-monospace,monospace;background:var(--paper);line-height:1.7}
+/* 多窗口标签栏 */
+#doc-tabs{display:flex;align-items:flex-end;gap:6px;padding:8px 14px 0;flex-wrap:wrap}
+.dtab{display:inline-flex;align-items:center;gap:7px;padding:5px 8px 5px 11px;border:1px solid var(--border);
+  border-radius:9px 9px 0 0;background:var(--panel);cursor:pointer;font-size:12.5px;color:var(--muted);max-width:230px}
+.dtab.on{background:var(--paper);color:var(--ink);font-weight:600;border-bottom-color:var(--paper);box-shadow:0 -2px 8px rgba(0,0,0,.05)}
+.dtab .dt-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dtab .dt-dot{width:6px;height:6px;border-radius:50%;background:#e8a13a;flex:0 0 6px}
+.dtab .dt-dot.saved{background:#2eaf64}
+.dtab .dt-x{border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);padding:1px 4px;border-radius:4px;line-height:1}
+.dtab .dt-x:hover{color:#fff;background:var(--danger,#d33)}
+#dt-add{border:1px dashed var(--border);background:none;border-radius:8px;padding:5px 11px;cursor:pointer;color:var(--muted);font-size:12.5px;margin-bottom:1px}
+#dt-add:hover{color:var(--accent);border-color:var(--accent)}
 /* 会员中心 */
 .mb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
 .mb-card{border:1px solid var(--border);border-radius:14px;padding:14px 13px;background:var(--toolbar);
@@ -315,7 +327,7 @@ svg text{user-select:none}
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
 @media print{
-  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock{display:none!important}
+  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs{display:none!important}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -384,6 +396,7 @@ svg text{user-select:none}
   </div>
 </header>
 
+<div id="doc-tabs"></div>
 <div id="stage">
   <aside id="left-dock">
     <div id="left-flyout">
@@ -2230,12 +2243,14 @@ function undo(){
   if(!undoStack.length) return toast('没有可撤销的操作');
   redoStack.push(JSON.stringify(song));
   song = JSON.parse(undoStack.pop());
+  if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
   selRange=null; clampSel(); persist(); render();
 }
 function redo(){
   if(!redoStack.length) return toast('没有可重做的操作');
   undoStack.push(JSON.stringify(song));
   song = JSON.parse(redoStack.pop());
+  if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
   selRange=null; clampSel(); persist(); render();
 }
 function setFret(f){
@@ -4380,9 +4395,95 @@ document.getElementById('mx-prog').onclick = e=>{
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
 const LS_LIB = 'musetab-library-v1';
+const LS_DOCS = 'musetab-docs-v1';
+/* ================= 多窗口：同时编辑多个（可不同类型的）曲谱 ================= */
+let docs = [], curDocI = 0;
+function docType(s){ return !s.tabVoices.length ? (s.func?'func':'vox') : (s.inst==='uku'?'uku':'guitar'); }
+function docIcon(s){ return {guitar:'🎸',uku:'🎶',vox:'🎵',func:'🎹'}[docType(s)]; }
+function saveStatusText(s){
+  if(s.id){
+    const e=libLoad().find(x=>x.id===s.id);
+    return {saved:true, text:'已存入「我的曲谱」'+(e&&e.updatedAt?('（最近更新 '+e.updatedAt+'）'):'')+'，编辑实时同步'};
+  }
+  return {saved:false, text:'已实时自动保存到本机浏览器，但尚未存入「我的曲谱」'};
+}
+function renderDocTabs(){
+  const bar=document.getElementById('doc-tabs'); if(!bar) return;
+  bar.innerHTML = docs.map((d,i)=>{
+    const st=saveStatusText(d.song);
+    return `<div class="dtab ${i===curDocI?'on':''}" data-doc="${i}" title="${esc(st.text)}">`+
+      `<span>${docIcon(d.song)}</span><span class="dt-dot ${st.saved?'saved':''}"></span>`+
+      `<span class="dt-t">${esc(d.song.title||'未命名曲谱')}</span>`+
+      `<button class="dt-x" data-doc-x="${i}" title="关闭窗口">✕</button></div>`;
+  }).join('')+`<button id="dt-add" title="在新窗口新建曲谱（当前窗口保留）">＋ 新建窗口</button>`;
+}
+function resetDocState(){
+  selRange=null; noteSel=[]; measureSel=null; undoStack=[]; redoStack=[];
+}
+function switchDoc(i){
+  if(i===curDocI || !docs[i]) return;
+  docs[curDocI].sel = sel; docs[curDocI].song = song;
+  curDocI = i;
+  song = docs[i].song;
+  sel = docs[i].sel || {mi:0, row:song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
+  resetDocState();
+  clampSel(); setRibbon(sel.row==='vox'?'vox':'tab');
+  persist(); render();
+}
+function addDoc(s){
+  if(docs[curDocI]){ docs[curDocI].sel = sel; docs[curDocI].song = song; }
+  docs.push({song:s, sel:null});
+  curDocI = docs.length-1;
+  song = s;
+  sel = {mi:0, row:s.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
+  resetDocState();
+  clampSel(); persist(); render();
+}
+function closeDoc(i){
+  const d=docs[i]; if(!d) return;
+  const st=saveStatusText(d.song);
+  showModal(`<h3>关闭窗口 · ${esc(d.song.title||'未命名曲谱')}</h3>
+  <p style="font-size:13px;color:var(--ink)">${st.saved?'✅':'⚠️'} 保存情况：${st.text}。</p>
+  ${st.saved?'':'<p>关闭后此窗口不再显示；未存入「我的曲谱」的内容将无法从曲谱库找回。</p>'}
+  <div class="btns">
+    <button id="dc-cancel">取消</button>
+    ${st.saved?'':'<button id="dc-save" class="primary">存入我的曲谱并关闭</button>'}
+    <button id="dc-close" ${st.saved?'class="primary"':''}>直接关闭</button>
+  </div>`);
+  document.getElementById('dc-cancel').onclick = closeModal;
+  const doClose=()=>{
+    docs.splice(i,1);
+    if(!docs.length) docs.push({song:blankSong(), sel:null});
+    if(i<curDocI) curDocI--;
+    if(curDocI>=docs.length) curDocI=docs.length-1;
+    song = docs[curDocI].song;
+    sel = docs[curDocI].sel || {mi:0, row:song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
+    resetDocState();
+    clampSel(); closeModal(); persist(); render();
+    toast('已关闭窗口');
+  };
+  document.getElementById('dc-close').onclick = doClose;
+  const sv=document.getElementById('dc-save');
+  if(sv) sv.onclick = ()=>{
+    const keep=song; song=d.song; saveToLibrary(); song=keep;
+    doClose();
+  };
+}
+document.getElementById('doc-tabs').addEventListener('click', e=>{
+  const x=e.target.closest('[data-doc-x]');
+  if(x){ e.stopPropagation(); closeDoc(+x.dataset.docX); return; }
+  if(e.target.closest('#dt-add')){ showNewWizard(); return; }
+  const t=e.target.closest('[data-doc]');
+  if(t) switchDoc(+t.dataset.doc);
+});
 function persist(){
+  try{ renderDocTabs(); }catch(_){}
   try{
     localStorage.setItem(LS_KEY, JSON.stringify(song));
+    if(docs.length){
+      docs[curDocI] && (docs[curDocI].song = song);
+      localStorage.setItem(LS_DOCS, JSON.stringify({cur:curDocI, docs:docs.map(d=>d.song)}));
+    }
     /* 实时自动保存：若当前曲谱已存入"我的曲谱"，同步更新该条 */
     if(song && song.id){
       const lib = libLoad();
@@ -4399,17 +4500,19 @@ function saveToLibrary(){
   const lib = libLoad();
   if(song.id){
     const i=lib.findIndex(e=>e.id===song.id);
-    if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib);
+    if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib); renderDocTabs();
       return toast('已更新到我的曲谱：'+song.title); }
   }
   song.id = newId();
   lib.unshift({id:song.id, title:song.title||'未命名曲谱', updatedAt:nowStamp(), data:JSON.parse(JSON.stringify(song))});
-  libSave(lib); persist();
+  libSave(lib); persist(); renderDocTabs();
   toast('已保存到我的曲谱：'+(song.title||'未命名曲谱'));
 }
 function loadSong(s){
   s = migrate(s);
-  pushUndo(); song=s; sel={mi:0,row:'tab',vi:0,ci:0,si:1}; selRange=null;
+  pushUndo(); song=s;
+  if(docs[curDocI]) docs[curDocI].song = song;
+  sel={mi:0,row:song.tabVoices&&song.tabVoices.length?'tab':'vox',vi:0,ci:0,si:1}; selRange=null;
   clampSel(); persist(); render();
 }
 function exportSong(){
@@ -4496,7 +4599,9 @@ function createSong(type, o){
   return s;
 }
 function showNewWizard(){
+  const st = song? saveStatusText(song) : null;
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
+  ${st? `<p style="font-size:12.5px">${st.saved?'✅':'⚠️'} 当前窗口《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将在<b>新窗口</b>打开，当前窗口保留。</p>` : ''}
   <div class="feat">
     <button class="fc ntype" data-nt="guitar" style="cursor:pointer;text-align:left;font:inherit"><b>🎸 吉他谱</b><span>六线谱 TAB＋简谱＋歌词<br>标准弹唱谱版式</span></button>
     <button class="fc ntype" data-nt="uku" style="cursor:pointer;text-align:left;font:inherit"><b>🎶 尤克里里谱</b><span>四线谱 TAB（GCEA 调弦）＋简谱＋歌词，按吉他谱同样方式编辑</span></button>
@@ -4537,12 +4642,10 @@ function showNewForm(type){
       nTab:!noTab? +V('nw-ntab') : 0, nVox:+V('nw-nvox'), lyr:+V('nw-lyr') };
     if(!noTab && o.nTab<1) o.nTab=1;
     if(noTab && o.nVox<1) o.nVox=1;
-    pushUndo();
-    song = createSong(type, o);
-    sel = {mi:0, row:song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
-    selRange=null; noteSel=[]; measureSel=null;
-    closeModal(); persist(); render(); setRibbon(sel.row);
-    toast('已新建'+tName+'：'+o.nMea+' 小节（Ctrl+Z 可撤销）');
+    closeModal();
+    addDoc(createSong(type, o));
+    setRibbon(sel.row==='vox'?'vox':'tab');
+    toast('已在新窗口新建'+tName+'：'+o.nMea+' 小节');
   };
 }
 document.getElementById('b-new').onclick = showNewWizard;
@@ -4784,6 +4887,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.46</span><div>多窗口：谱面上方窗口标签栏，可同时打开并编辑多个不同类型的曲谱；「＋新建窗口」与关闭窗口时提示当前曲谱保存情况（绿点=已存入我的曲谱），未保存可一键「存入我的曲谱并关闭」；刷新后窗口自动恢复。</div></li>
     <li><span class="v">v34.45</span><div>新建向导补齐作词/作曲/制谱信息；新增「功能谱」类型（乐队用）：简谱＋级数和弦标注，按调号自动换算（C 调 Am → 6m），支持斜杠低音（G/B → 5/7）。</div></li>
     <li><span class="v">v34.44</span><div>新建曲谱向导：先选类型（吉他谱 / 尤克里里谱 / 简谱）再填曲谱信息，可预设小节数与声部；尤克里里 4 线 TAB（GCEA）与专属和弦图，简谱类型隐藏 TAB 行。</div></li>
     <li><span class="v">v34.42</span><div>倚音改直角连接线（自动避让减时线/低音点）；连音线单选自动连相邻音、Ctrl 跨选直达目标音（简谱/吉他谱通用）；使用帮助细化，新增特色功能与更新日志。</div></li>
@@ -4823,10 +4927,22 @@ function alignHeader(){
 /* ================= 启动 ================= */
 (function init(){
   try{
-    const saved = localStorage.getItem(LS_KEY);
-    if(saved){ song = migrate(JSON.parse(saved)); }
-  }catch(_){ song=null; }
-  if(!song || !song.measures || !song.measures.length) song = demoSong();
+    const dd = JSON.parse(localStorage.getItem(LS_DOCS));
+    if(dd && dd.docs && dd.docs.length){
+      docs = dd.docs.map(x=>({song:migrate(x), sel:null}));
+      curDocI = Math.max(0, Math.min(dd.cur||0, docs.length-1));
+      song = docs[curDocI].song;
+    }
+  }catch(_){}
+  if(!docs.length){
+    try{
+      const saved = localStorage.getItem(LS_KEY);
+      if(saved){ song = migrate(JSON.parse(saved)); }
+    }catch(_){ song=null; }
+    if(!song || !song.measures || !song.measures.length) song = demoSong();
+    docs=[{song, sel:null}]; curDocI=0;
+  }
+  if(song.tabVoices && !song.tabVoices.length) sel.row='vox';
   clampSel();
   setRibbon('tab');
   document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
