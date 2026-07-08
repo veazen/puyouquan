@@ -4922,7 +4922,7 @@ function showLibrary(){
     const lp=e.target.closest('[data-load-preset]');
     if(lp){ const s=PRESETS[+lp.dataset.loadPreset].make(); s.id=undefined; closeModal(); loadSong(s); toast('已打开预设：'+s.title); return; }
     const lm=e.target.closest('[data-load-mine]');
-    if(lm){ const e0=libLoad().find(x=>x.id===lm.dataset.loadMine); if(e0){ closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); } return; }
+    if(lm){ const e0=libLoad().find(x=>x.id===lm.dataset.loadMine); if(e0){ bumpViews(e0.id); closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); } return; }
     const rn=e.target.closest('[data-rename-mine]');
     if(rn){ const id=rn.dataset.renameMine; const lib=libLoad(); const en=lib.find(x=>x.id===id);
       askText('重命名曲谱', en.title||'', nm=>{ if(nm!=null && nm.trim()){ en.title=nm.trim(); en.data.title=en.title; if(song.id===id) song.title=en.title; libSave(lib); persist(); render(); closeModal(); showLibrary(); } }); return; }
@@ -5099,6 +5099,28 @@ function setMemberPlan(p){ try{ localStorage.setItem(MEMBER_KEY, p); }catch(_){}
 function refreshMemberBtn(){}
 /* ================= 个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益 ================= */
 const PROFILE_KEY = 'musetab-profile';
+const CREATOR_KEY = 'musetab-creator';
+function creatorLoad(){
+  try{ return Object.assign({cert:'', pricing:{price:0,tipOn:true,subPrice:9}, proofs:[]},
+    JSON.parse(localStorage.getItem(CREATOR_KEY))||{}); }
+  catch(_){ return {cert:'', pricing:{price:0,tipOn:true,subPrice:9}, proofs:[]}; }
+}
+function creatorSave(o){ try{ localStorage.setItem(CREATOR_KEY, JSON.stringify(o)); }catch(_){} }
+function bumpViews(id){
+  const lib=libLoad(); const e=lib.find(x=>x.id===id);
+  if(e){ e.views=(e.views||0)+1; libSave(lib); }
+}
+/* 内容哈希（版权存证）：优先 SHA-256，环境不支持时退化为 djb2 */
+async function contentHash(str){
+  try{
+    const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return 'sha256:'+[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(_){
+    let h1=5381,h2=52711;
+    for(let i=0;i<str.length;i++){ const c=str.charCodeAt(i); h1=(h1*33+c)>>>0; h2=(h2*37+c)>>>0; }
+    return 'djb2:'+h1.toString(16)+h2.toString(16)+':'+str.length;
+  }
+}
 function profileLoad(){ try{ return JSON.parse(localStorage.getItem(PROFILE_KEY))||{}; }catch(_){ return {}; } }
 function profileSave(o){ try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(o)); }catch(_){} }
 const MYPAT_KEY = 'musetab-mypat';
@@ -5108,7 +5130,8 @@ const PC_ICON = {
   profile:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>',
   mine:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h7"/></svg>',
   pat:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-9M22 19V8"/><path d="M2 21h20" opacity=".5"/></svg>',
-  rights:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l3 5 6 1-4.5 4.4 1 6.1L12 16.6 6.5 19.5l1-6.1L3 9l6-1z"/></svg>'
+  rights:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l3 5 6 1-4.5 4.4 1 6.1L12 16.6 6.5 19.5l1-6.1L3 9l6-1z"/></svg>',
+  creator:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M10 20V5M16 20v-7M22 20V9"/><path d="M2 21.5h21" opacity=".45"/></svg>'
 };
 function pcProfileHTML(){
   const p=profileLoad();
@@ -5116,7 +5139,7 @@ function pcProfileHTML(){
   return `<h4>个人资料</h4>
     <div style="display:flex;align-items:center;gap:14px;margin:10px 0 14px">
       <div class="pc-avatar">${esc(initial)}</div>
-      <div style="font-size:12.5px;color:var(--muted)">资料保存在本机浏览器；"默认制谱署名"会自动填入新建曲谱的制谱一栏。</div>
+      <div style="font-size:12.5px;color:var(--muted)">${certBadgeHTML(creatorLoad().cert)} 资料保存在本机浏览器；"默认制谱署名"会自动填入新建曲谱的制谱一栏。</div>
     </div>
     <label class="f"><span>昵称</span><input id="pc-name" value="${esc(p.name||'')}" placeholder="如：阿杜" style="flex:1"></label>
     <label class="f"><span>签名</span><input id="pc-sign" value="${esc(p.sign||'')}" placeholder="一句话介绍自己（可留空）" style="flex:1"></label>
@@ -5150,6 +5173,49 @@ function pcPatHTML(){
       <button id="pc-patsave" class="primary">存当前小节</button>
     </div>`;
 }
+const CERT_NAME={tabber:'认证扒谱人', teacher:'认证教师'};
+function certBadgeHTML(cert, small){
+  if(!cert) return '';
+  const ic = cert==='teacher' ? '🎓' : '✅';
+  return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:${small?10.5:11.5}px;color:var(--accent);
+    border:1px solid var(--accent);border-radius:20px;padding:1px 9px;vertical-align:2px">${ic} ${CERT_NAME[cert]}</span>`;
+}
+function pcCreatorHTML(){
+  const cr=creatorLoad();
+  const lib=libLoad();
+  const views=lib.reduce((a,e)=>a+(e.views||0),0);
+  const tile=(v,label,note)=>`<div class="fc" style="text-align:center;padding:12px 8px">
+    <b style="font-size:19px;letter-spacing:0">${v}</b><span>${label}${note?`<br><i style="font-style:normal;opacity:.7;font-size:11px">${note}</i>`:''}</span></div>`;
+  const proofs=cr.proofs.map((e2,i)=>`<div class="pc-row">
+    <span class="t1" title="${esc(e2.hash)}">${esc(e2.title||'未命名曲谱')}</span>
+    <span class="t2">${esc(e2.at)}</span>
+    <span class="t2" style="font-family:ui-monospace,monospace">${esc(e2.hash.slice(0,18))}…</span>
+    <button data-pf-exp="${i}">导出凭证</button><button data-pf-del="${i}">删除</button></div>`).join('');
+  return `<h4>创作者中心 ${certBadgeHTML(cr.cert)}</h4>
+  <div style="font-size:12px;color:var(--muted);margin:4px 0 8px">认证审核、收藏/收益结算与订阅需云端社区上线后生效（规划中）；以下设置与存证保存在本机、随时可用。</div>
+  <h4>数据看板</h4>
+  <div class="feat" style="grid-template-columns:repeat(4,1fr);margin:8px 0">
+    ${tile(lib.length,'作品数')}
+    ${tile(views,'曲谱浏览','本机打开次数')}
+    ${tile('—','收藏','云端上线后统计')}
+    ${tile('¥ 0.00','收益','云端上线后结算')}
+  </div>
+  <h4>收益设置（付费谱 / 打赏 / 订阅）</h4>
+  <label class="f"><span>付费谱定价</span>¥ <input id="cr-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:80px"> <span style="width:auto">元/份（0＝免费公开）</span></label>
+  <label class="f"><span>打赏</span><input id="cr-tip" type="checkbox" ${cr.pricing.tipOn?'checked':''} style="width:auto"> <span style="width:auto">允许读者打赏支持</span></label>
+  <label class="f"><span>粉丝订阅</span>¥ <input id="cr-sub" type="number" min="0" step="1" value="${cr.pricing.subPrice||0}" style="width:80px"> <span style="width:auto">元/月（订阅可看全部付费谱）</span></label>
+  <div class="btns" style="margin-top:4px;justify-content:flex-start"><button id="cr-save" class="primary">保存收益设置</button></div>
+  <h4>创作者认证</h4>
+  ${cr.cert? `<div class="pc-row"><span class="t1">当前标识：${certBadgeHTML(cr.cert)}（体验认证，云端审核上线后自动转正式）</span><button id="cr-uncert">取消认证</button></div>`
+    : `<div class="row" style="display:flex;gap:8px;margin:6px 0">
+        <button id="cr-cert-tabber">申请认证扒谱人</button>
+        <button id="cr-cert-teacher">申请认证教师</button>
+        <span style="font-size:11.5px;color:var(--muted);align-self:center">当前为免费体验认证，即时生效</span></div>`}
+  <h4>版权登记辅助（原创作品时间戳存证）</h4>
+  <p>对当前曲谱内容生成 SHA-256 指纹并记录时间戳，可导出凭证文件；内容修改后指纹即变化，可证明"此时刻已存在此内容"。（接入公证时间戳/区块链存证为规划功能）</p>
+  <div class="btns" style="justify-content:flex-start;margin:4px 0"><button id="cr-proof" class="primary">为当前曲谱生成存证</button></div>
+  ${proofs || '<p>还没有存证记录。</p>'}`;
+}
 function pcRightsHTML(){
   const cur=memberPlan();
   const cards=Object.entries(MEMBER_PLANS).map(([k,v])=>{
@@ -5172,8 +5238,8 @@ function pcRightsHTML(){
 }
 function openPersonal(tab){
   tab = tab||'profile';
-  const NAV=[['profile','个人资料'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益']];
-  const body={profile:pcProfileHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML}[tab]();
+  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益']];
+  const body={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML}[tab]();
   showModal(`<h3>个人中心</h3>
     <div class="pc-wrap">
       <div class="pc-nav">${NAV.map(([k,n])=>`<button data-pc-nav="${k}" class="${k===tab?'on':''}">${PC_ICON[k]}<span>${n}</span></button>`).join('')}</div>
@@ -5190,11 +5256,48 @@ function openPersonal(tab){
         maker:document.getElementById('pc-maker').value.trim()});
       toast('已保存个人资料'); openPersonal('profile');
     };
+  }else if(tab==='creator'){
+    const cr=creatorLoad();
+    document.getElementById('cr-save').onclick=()=>{
+      cr.pricing={price:+document.getElementById('cr-price').value||0,
+        tipOn:document.getElementById('cr-tip').checked,
+        subPrice:+document.getElementById('cr-sub').value||0};
+      creatorSave(cr); toast('已保存收益设置（云端结算上线后生效）');
+    };
+    const bindCert=(id,kind)=>{ const b2=document.getElementById(id); if(b2) b2.onclick=()=>{
+      cr.cert=kind; creatorSave(cr); toast('已获得「'+CERT_NAME[kind]+'」体验标识'); openPersonal('creator');
+    };};
+    bindCert('cr-cert-tabber','tabber'); bindCert('cr-cert-teacher','teacher');
+    const un=document.getElementById('cr-uncert');
+    if(un) un.onclick=()=>{ cr.cert=''; creatorSave(cr); openPersonal('creator'); };
+    document.getElementById('cr-proof').onclick=async ()=>{
+      const hash=await contentHash(JSON.stringify(song));
+      cr.proofs.unshift({title:song.title||'未命名曲谱', at:nowStamp(), hash});
+      cr.proofs=cr.proofs.slice(0,50);
+      creatorSave(cr); toast('已生成存证：'+hash.slice(0,26)+'…');
+      openPersonal('creator');
+    };
+    M.querySelectorAll('[data-pf-exp]').forEach(b2=>b2.onclick=()=>{
+      const e2=creatorLoad().proofs[+b2.dataset.pfExp]; if(!e2) return;
+      const maker=(profileLoad().name||'')||'MuseTab 用户';
+      const cert={type:'MuseTab 原创作品时间戳存证', title:e2.title, author:maker, time:e2.at, contentHash:e2.hash,
+        note:'内容指纹由曲谱数据计算（SHA-256）。验证方式：对当时的曲谱 JSON 重新计算哈希并比对。'};
+      const blob=new Blob([JSON.stringify(cert,null,2)],{type:'application/json'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=(e2.title||'曲谱')+'-存证凭证.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+      toast('已导出存证凭证文件');
+    });
+    M.querySelectorAll('[data-pf-del]').forEach(b2=>b2.onclick=()=>{
+      const c2=creatorLoad(); c2.proofs.splice(+b2.dataset.pfDel,1); creatorSave(c2);
+      openPersonal('creator');
+    });
   }else if(tab==='mine'){
     document.getElementById('pc-openlib').onclick=()=>{ closeModal(); showLibrary(); };
     M.querySelectorAll('[data-pc-open]').forEach(b=>b.onclick=()=>{
       const e0=libLoad().find(x=>x.id===b.dataset.pcOpen);
-      if(e0){ closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); }
+      if(e0){ bumpViews(e0.id); closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); }
     });
     M.querySelectorAll('[data-pc-del]').forEach(b=>b.onclick=()=>{
       const lib=libLoad(); const i=lib.findIndex(x=>x.id===b.dataset.pcDel);
@@ -5355,6 +5458,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.54</span><div>个人中心新增「创作者中心」：数据看板（作品数/曲谱浏览/收藏/收益）、收益设置（付费谱定价/打赏开关/粉丝订阅），认证扒谱人与认证教师体验标识，版权登记辅助——为当前曲谱生成 SHA-256 内容指纹+时间戳存证并可导出凭证文件。</div></li>
     <li><span class="v">v34.53</span><div>小节数多（格宽不足）时进度条自动转为密集标尺（每10小节悬浮编号），点击标尺或 ▦ 按钮打开多行大格"小节选择面板"精确点击/拖选循环区，面板随播放同步填充进度。</div></li>
     <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续（⏸）与从头播放（⏮）按钮，暂停基于音频时钟精确冻结。</div></li>
     <li><span class="v">v34.51</span><div>播放修正：所有音轨始终同时播放——人声"啊"音色此前在混音中过轻（被吉他掩盖，听感像"只播当前声部"），共振峰增益与旋律权重上调至清晰可闻；纯简谱/功能谱播放补上跟随高亮。</div></li>
