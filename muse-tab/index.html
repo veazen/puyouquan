@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MuseTab 吉他谱编辑器</title>
+<title>谱客 POKKA · 吉他谱编辑器 — pokka.club</title>
 <style>
 :root{
   --bg:#eaedf3; --panel:#ffffff; --text:#1a222e; --muted:#697488;
@@ -386,7 +386,7 @@ svg text{user-select:none}
 <body>
 <header id="top">
   <div class="bar main-bar">
-    <span class="logo"><span class="mark">🎸</span>MuseTab <small>吉他谱编辑器</small></span>
+    <span class="logo"><span class="mark">🎸</span>谱客 <b style="font-weight:800;letter-spacing:.06em">POKKA</b> <small>吉他谱编辑器 · pokka.club</small></span>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
       <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
@@ -891,7 +891,7 @@ function demoSong(){
   const M=(tab,vox,ext)=>Object.assign(
     {tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
   return {v:3, title:'小星星（弹唱示例）', singer:'儿歌', lyricist:'', composer:'法国民谣',
-    maker:'MuseTab', key:'C', beats:4, unit:4, tempo:92, capo:0, customChords:{},
+    maker:'谱客 POKKA', key:'C', beats:4, unit:4, tempo:92, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
       M(arpC('C'),  rest4()),
@@ -926,7 +926,7 @@ function presetStrum(){
   };
   const M=(chord,vox,ext)=>Object.assign({tabs:[strum(chord)],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
   return {v:3, title:'欢乐颂（扫弦弹唱）', singer:'', lyricist:'席勒', composer:'贝多芬',
-    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:100, capo:0, customChords:{},
+    maker:'谱客预设', key:'C', beats:4, unit:4, tempo:100, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
       M('C', [V(3,'欢'),V(3,'乐'),V(4,'女'),V(5,'神')]),
@@ -947,7 +947,7 @@ function presetTech(){
   const M=(tab,vox,ext)=>Object.assign({tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
   const r4=()=>[V(0),V(0),V(0),V(0)];
   return {v:3, title:'指弹技法示例', singer:'', lyricist:'', composer:'',
-    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:84, capo:0, customChords:{},
+    maker:'谱客预设', key:'C', beats:4, unit:4, tempo:84, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
       /* 击弦 h：3弦0→2 ；勾弦 p：2弦3→1 ；滑弦 sl：1弦5→7 */
@@ -985,7 +985,7 @@ function presetDuet(){
     const c=[col('d',4),col('d',8),col('u',8),col('d',4),col('d',8),col('u',8)];c[0].chord=chord;return c;};
   const M=(chord,vox)=>({tabs:[arp(chord),strum2(chord)],voxes:[vox],repeatStart:false,repeatEnd:false});
   return {v:3, title:'两只老虎（双声部）', singer:'', lyricist:'', composer:'法国儿歌',
-    maker:'MuseTab 预设', key:'C', beats:4, unit:4, tempo:108, capo:0, customChords:{},
+    maker:'谱客预设', key:'C', beats:4, unit:4, tempo:108, capo:0, customChords:{},
     tabVoices:['指弹','扫弦'], voxVoices:['旋律1'], lyricLines:2,
     measures:[
       M('C',[V(1,'两','跑'),V(2,'只','得'),V(3,'老','快'),V(1,'虎','跑')]),
@@ -5279,8 +5279,8 @@ function openPersonal(tab){
     };
     M.querySelectorAll('[data-pf-exp]').forEach(b2=>b2.onclick=()=>{
       const e2=creatorLoad().proofs[+b2.dataset.pfExp]; if(!e2) return;
-      const maker=(profileLoad().name||'')||'MuseTab 用户';
-      const cert={type:'MuseTab 原创作品时间戳存证', title:e2.title, author:maker, time:e2.at, contentHash:e2.hash,
+      const maker=(profileLoad().name||'')||'谱客用户';
+      const cert={type:'谱客 POKKA 原创作品时间戳存证', title:e2.title, author:maker, time:e2.at, contentHash:e2.hash,
         note:'内容指纹由曲谱数据计算（SHA-256）。验证方式：对当时的曲谱 JSON 重新计算哈希并比对。'};
       const blob=new Blob([JSON.stringify(cert,null,2)],{type:'application/json'});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -5384,7 +5384,7 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.style.opacity=0,2200);
 }
 document.getElementById('b-help').onclick = ()=>{
-  showModal(`<h3>MuseTab 使用帮助</h3>
+  showModal(`<h3>谱客 POKKA · 使用帮助</h3>
   <h4>快速上手（3 步做一首谱）</h4>
   <div class="steps">
     <div class="step"><span class="n">1</span><div><b>建谱</b>：点「新建」选曲谱类型（吉他谱/尤克里里谱/简谱），填标题、拍号、预设小节数与声部即可；也可在左侧「曲谱库」选预设改编。</div></div>
@@ -5439,7 +5439,7 @@ document.getElementById('b-help').onclick = ()=>{
   document.getElementById('help-ok').onclick = closeModal;
 };
 document.getElementById('b-feat').onclick = ()=>{
-  showModal(`<h3>MuseTab 特色功能</h3>
+  showModal(`<h3>谱客 POKKA · 特色功能</h3>
   <div class="feat">
     <div class="fc"><b>🎼 三行对齐弹唱谱</b><span>六线谱 TAB + 简谱 + 多行歌词逐列垂直对齐，中文弹唱谱的标准版式，所见即所得。</span></div>
     <div class="fc"><b>📐 智能排版自适配</b><span>参考出版谱间距逻辑：按音符时值密度自动分配每行 2–6 小节、逐拍对齐，A4 高度自动分页。</span></div>
@@ -5456,8 +5456,9 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 document.getElementById('b-changelog').onclick = ()=>{
-  showModal(`<h3>MuseTab 更新日志</h3>
+  showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.55</span><div>品牌升级：网站更名「谱客 POKKA」（pokka.club），页头 LOGO、页面标题、帮助/特色/日志弹窗、预设制谱署名与存证凭证全面更新；本机数据完全兼容保留。</div></li>
     <li><span class="v">v34.54</span><div>个人中心新增「创作者中心」：数据看板（作品数/曲谱浏览/收藏/收益）、收益设置（付费谱定价/打赏开关/粉丝订阅），认证扒谱人与认证教师体验标识，版权登记辅助——为当前曲谱生成 SHA-256 内容指纹+时间戳存证并可导出凭证文件。</div></li>
     <li><span class="v">v34.53</span><div>小节数多（格宽不足）时进度条自动转为密集标尺（每10小节悬浮编号），点击标尺或 ▦ 按钮打开多行大格"小节选择面板"精确点击/拖选循环区，面板随播放同步填充进度。</div></li>
     <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续（⏸）与从头播放（⏮）按钮，暂停基于音频时钟精确冻结。</div></li>
