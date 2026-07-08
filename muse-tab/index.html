@@ -317,12 +317,15 @@ svg text{user-select:none}
 .mx-bar{display:flex;align-items:center;gap:9px;padding:8px 12px}
 .mx-splabel{color:var(--muted);font-size:12px;white-space:nowrap}
 .tempo{width:74px;text-align:center}
-#mx-prog{flex:1;height:18px;border-radius:9px;background:var(--toolbar);border:1px solid var(--border);
-  position:relative;overflow:hidden;cursor:pointer;min-width:120px}
-#mx-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent-soft);
-  border-right:2px solid var(--accent);pointer-events:none}
-#mx-lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10.5px;
-  color:var(--muted);white-space:nowrap;pointer-events:none}
+#mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
+  display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
+.mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
+.mxc .f{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent-soft)}
+.mxc.loop{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.mxc span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:var(--muted);pointer-events:none;line-height:1}
+.mxc.cur span{color:var(--accent);font-weight:700}
+#mx-lbl{font-size:10.5px;color:var(--muted);min-width:88px;text-align:center;white-space:nowrap}
 #mx-expand{white-space:nowrap;padding:5px 10px}
 .mx-tracks{display:none;flex-direction:column;gap:3px;max-height:34vh;overflow-y:auto;
   padding:9px 12px 3px;border-bottom:1px solid var(--border)}
@@ -554,8 +557,11 @@ svg text{user-select:none}
   <div class="mx-tracks" id="mx-tracks"></div>
   <div class="mx-bar">
     <button id="b-play" class="primary">▶ 播放</button>
+    <button id="b-pause" title="暂停 / 继续">⏸</button>
+    <button id="b-restart" title="从头播放（有循环选区时从选区头）">⏮</button>
     <button id="b-stop" title="停止">■</button>
-    <div id="mx-prog" title="小节进度（点击可定位起始小节）"><div id="mx-fill"></div><div id="mx-lbl">第 1 小节</div></div>
+    <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
+    <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
     <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
@@ -807,7 +813,7 @@ let activeTab = 'tab';
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
-let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, raf:0, prog:null};
+let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, paused:false, raf:0, prog:null, loop:null, events:[], evIdx:0};
 let mix = {tab:true, vox:true};
 /* 每条声部对应一条音轨，配置（静音/独奏/音色/音量）随曲谱保存于 song.mixer */
 function trackCfg(kind, vi){
@@ -4366,21 +4372,96 @@ function measureSeconds(mi, spb){
   if(!b) b = song.beats;
   return b*spb;
 }
-/* 小节进度条：随播放平滑推进，显示当前小节 */
-function startProgress(t, spb, startMi){
-  const bounds=[]; let el=0;
-  for(let mi=startMi; mi<song.measures.length; mi++){ bounds.push({mi, start:el}); el+=measureSeconds(mi,spb); }
-  audio.prog = {t, dur:el||1, bounds};
+/* 播放顺序：识别反复记号 𝄆 𝄇（每对反复一次）；有循环选区时只播选区 */
+function buildPlayOrder(startMi){
+  if(audio.loop){
+    const o=[];
+    for(let m=audio.loop.a; m<=Math.min(audio.loop.b, song.measures.length-1); m++) o.push(m);
+    return o.length?o:[0];
+  }
+  const o=[]; let m=startMi, lastStart=startMi; const done=new Set(); let guard=0;
+  while(m<song.measures.length && guard++<2000){
+    o.push(m);
+    if(song.measures[m].repeatStart) lastStart=m;
+    if(song.measures[m].repeatEnd && !done.has(m)){ done.add(m); m=lastStart; continue; }
+    m++;
+  }
+  return o.length?o:[0];
+}
+/* 小节格进度条：一格一小节、总长不变自动适配、显示编号；
+   点击=单小节循环，拖动=选区循环，再点取消 */
+function renderProgCells(){
+  const box=document.getElementById('mx-prog'); if(!box || !song) return;
+  const n=song.measures.length;
+  const cw=(box.clientWidth||620)/Math.max(1,n);
+  const every = cw>=16?1 : cw>=8?5 : 10;
+  box.innerHTML = song.measures.map((_,mi)=>{
+    const show = mi===0 || (mi+1)%every===0;
+    const inloop = audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
+    return `<div class="mxc ${inloop?'loop':''}" data-mi="${mi}"><div class="f"></div>${show?`<span>${mi+1}</span>`:''}</div>`;
+  }).join('');
+}
+function setLoop(a,b){
+  if(a==null){ audio.loop=null; toast('已取消循环 · 播放整曲（识别反复记号）'); }
+  else{
+    audio.loop={a:Math.min(a,b), b:Math.max(a,b)};
+    toast(a===b? `循环播放第 ${a+1} 小节` : `循环播放第 ${audio.loop.a+1}–${audio.loop.b+1} 小节`);
+  }
+  renderProgCells();
+  if(audio.playing) play();
+}
+let progDrag=null;
+document.getElementById('mx-prog').addEventListener('pointerdown', e=>{
+  const c=e.target.closest('.mxc'); if(!c) return;
+  progDrag={a:+c.dataset.mi, b:+c.dataset.mi, moved:false};
+  e.preventDefault();
+});
+document.getElementById('mx-prog').addEventListener('pointermove', e=>{
+  if(!progDrag) return;
+  const c=e.target.closest('.mxc'); if(!c) return;
+  const mi=+c.dataset.mi;
+  if(mi!==progDrag.b){
+    progDrag.b=mi; progDrag.moved=true;
+    const a=Math.min(progDrag.a,progDrag.b), b2=Math.max(progDrag.a,progDrag.b);
+    document.querySelectorAll('#mx-prog .mxc').forEach(x=>{
+      const m=+x.dataset.mi; x.classList.toggle('loop', m>=a&&m<=b2);
+    });
+  }
+});
+window.addEventListener('pointerup', ()=>{
+  if(!progDrag) return;
+  const d=progDrag; progDrag=null;
+  if(!d.moved && audio.loop && audio.loop.a===d.a && audio.loop.b===d.a) setLoop(null);
+  else setLoop(d.a, d.b);
+});
+/* 播放进度：事件驱动（高亮/结束都按音频时钟走，暂停时一并冻结） */
+function startProgress(t, dur, order, starts){
+  audio.prog = {t, dur, order, starts};
   cancelAnimationFrame(audio.raf);
-  const fill=document.getElementById('mx-fill'), lbl=document.getElementById('mx-lbl');
+  const lbl=document.getElementById('mx-lbl');
   const tick=()=>{
     if(!audio.playing || !audio.prog){ return; }
     const e = Math.max(0, audio.ctx.currentTime - audio.prog.t);
-    const frac = Math.min(1, e/audio.prog.dur);
-    if(fill) fill.style.width = (frac*100)+'%';
-    let cur = audio.prog.bounds.length?audio.prog.bounds[0].mi:0;
-    for(const b of audio.prog.bounds){ if(e>=b.start) cur=b.mi; else break; }
-    if(lbl) lbl.textContent = `第 ${cur+1} / ${song.measures.length} 小节`;
+    while(audio.evIdx<audio.events.length && e>=audio.events[audio.evIdx].tm){
+      const ev=audio.events[audio.evIdx++]; highlight(ev.pre, ev.mi, ev.ci);
+    }
+    let oi=0;
+    for(let i=0;i<starts.length;i++){ if(e>=starts[i]) oi=i; else break; }
+    const curMi=order[oi]!==undefined?order[oi]:0;
+    const segDur=((oi<starts.length-1? starts[oi+1] : dur)-starts[oi])||1;
+    const frac=Math.min(1,(e-starts[oi])/segDur);
+    const played=new Set(order.slice(0,oi));
+    document.querySelectorAll('#mx-prog .mxc').forEach(c=>{
+      const mi=+c.dataset.mi;
+      const f=c.firstElementChild;
+      c.classList.toggle('cur', mi===curMi);
+      f.style.width = mi===curMi? (frac*100)+'%' : (played.has(mi)?'100%':'0%');
+    });
+    if(lbl) lbl.textContent = `第 ${curMi+1} / ${song.measures.length} 小节`;
+    if(e>=dur+0.45){
+      if(audio.loop){ play(); return; }
+      stopPlay(); return;
+    }
     audio.raf = requestAnimationFrame(tick);
   };
   audio.raf = requestAnimationFrame(tick);
@@ -4403,18 +4484,21 @@ function play(){
   document.getElementById('b-play').textContent='▶ 播放中…';
   const spb = 60/song.tempo;
   const t = ctx.currentTime+0.15;
-  const t0 = performance.now()+150;
-  const startMi = sel.mi||0;
+  const startMi = audio.loop? audio.loop.a : (sel.mi||0);
+  const order = buildPlayOrder(startMi);            // 识别反复记号 / 循环选区
+  const starts=[]; let total=0;
+  order.forEach(mi=>{ starts.push(total); total+=measureSeconds(mi,spb); });
   const norm = 0.85/Math.sqrt(activeTrackCount());
-  let total=0;
+  audio.events=[]; audio.evIdx=0;
+  const hlVox = !song.tabVoices.length;
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
     if(!trackAudible('tab',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.max(-0.4, -0.16 - vi*0.12));
     const vol = (cfg.vol||1)*norm;
-    let el=0;
-    for(let mi=startMi; mi<song.measures.length; mi++){
+    order.forEach((mi,oi)=>{
+      let off=starts[oi];
       (song.measures[mi].tabs[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col)*spb;
         let picked = col.notes;
@@ -4424,10 +4508,10 @@ function play(){
         }
         const ns = picked.slice().sort((a,b)=>b.s-a.s);
         const stagger = col.strum ? ((col.strum==='arp'||col.strum==='arpd')?0.05:0.024) : 0.012;
-        const order = col.strum==='u' ? ns.slice().reverse() : ns;
-        const chordDiv = Math.sqrt(Math.max(1, order.length));
-        order.forEach((n,k)=>{
-          const when = t+el+k*stagger;
+        const ord2 = col.strum==='u' ? ns.slice().reverse() : ns;
+        const chordDiv = Math.sqrt(Math.max(1, ord2.length));
+        ord2.forEach((n,k)=>{
+          const when = t+off+k*stagger;
           if(n.x) chick(ctx, tbus, when, 0.3*vol);
           else{
             const freq = midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12);
@@ -4435,12 +4519,10 @@ function play(){
             if(col.mute) chick(ctx, tbus, when, 0.12*vol);
           }
         });
-        if(vi===0)
-          audio.timers.push(setTimeout(()=>highlight('t0',mi,ci), t0-performance.now()+el*1000));
-        el += durSec;
+        if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
+        off += durSec;
       });
-    }
-    total=Math.max(total,el);
+    });
   });
   /* 简谱（旋律）声部：连音线合并同音，按各自音色发声 */
   song.voxVoices.forEach((_,vi)=>{
@@ -4448,11 +4530,11 @@ function play(){
     if(!trackAudible('vox',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
     const vol = (cfg.vol||1)*norm;
-    let el=0, hold=null;
+    let hold=null;
     const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*1.05, false); hold=null; } };
-    for(let mi=startMi; mi<song.measures.length; mi++){
-      const elMea = el;   // 本小节起始时间（纯简谱高亮用）
-      (song.measures[mi].voxes[vi]||[]).forEach(col=>{
+    order.forEach((mi,oi)=>{
+      let off=starts[oi];
+      (song.measures[mi].voxes[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
         /* 前倚音：主音前的短促小音符序列（最多3音，时值越小越短促） */
@@ -4462,7 +4544,7 @@ function play(){
           flush();
           g.notes.forEach((gn,gi)=>{
             const gm = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+el+gi*per, per, vol*0.7, false);
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false);
           });
         }
         /* 后倚音：主音末尾的短促小音符序列 */
@@ -4471,30 +4553,24 @@ function play(){
           const per = Math.min(0.1, durSec*0.3/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
             const gm2 = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+el+durSec-per*(g.notes.length-gi), per, vol*0.65, false);
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false);
           });
         }
         if(m!=null){
           const f=midiFreq(m);
           if(hold && Math.abs(hold.freq-f)<0.01) hold.dur += durSec;
-          else{ flush(); hold={freq:f,start:el,dur:durSec}; }
+          else{ flush(); hold={freq:f,start:off,dur:durSec}; }
           if(!col.tie) flush();
         }else flush();
-        el += durSec;
+        if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
+        off += durSec;
       });
-      if(vi===0 && !song.tabVoices.length){
-        let el2=elMea;
-        (song.measures[mi].voxes[vi]||[]).forEach((col,ci)=>{
-          audio.timers.push(setTimeout(()=>highlight('v0',mi,ci), t0-performance.now()+el2*1000));
-          el2+=beatsOf(col)*spb;
-        });
-      }
-    }
+    });
     flush();
-    total=Math.max(total,el);
+    total=Math.max(total,starts.length?starts[starts.length-1]+measureSeconds(order[order.length-1],spb):0);
   });
-  audio.timers.push(setTimeout(stopPlay, t0-performance.now()+total*1000+800));
-  startProgress(t, spb, startMi);
+  audio.events.sort((a,b)=>a.tm-b.tm);
+  startProgress(t, total||1, order, starts);
 }
 function highlight(prefix,mi,ci){
   const b = colBoxes[prefix+':'+mi+':'+ci];
@@ -4513,18 +4589,34 @@ function highlight(prefix,mi,ci){
 }
 function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
-  audio.sources.forEach(s=>{try{s.stop()}catch(_){}}); audio.sources=[];
-  audio.playing=false; audio.prog=null;
+  audio.sources.forEach(x=>{try{x.stop()}catch(_){}}); audio.sources=[];
+  audio.playing=false; audio.prog=null; audio.events=[]; audio.evIdx=0;
+  if(audio.paused && audio.ctx){ try{audio.ctx.resume();}catch(_){} }
+  audio.paused=false;
   cancelAnimationFrame(audio.raf);
+  const pb=document.getElementById('b-pause'); if(pb) pb.textContent='⏸';
   document.getElementById('b-play').textContent='▶ 播放';
-  const ph=document.getElementById('playhead');
-  if(ph) ph.setAttribute('opacity','0');
-  const fill=document.getElementById('mx-fill'), lbl=document.getElementById('mx-lbl');
-  if(fill) fill.style.width='0';
-  if(lbl) lbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
+  document.querySelectorAll('#mx-prog .mxc').forEach(c=>{ c.classList.remove('cur'); c.firstElementChild.style.width='0%'; });
+  const ph=document.getElementById('playhead'); if(ph) ph.setAttribute('opacity','0');
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
+document.getElementById('b-pause').onclick = ()=>{
+  if(!audio.playing) return toast('先点「播放」');
+  if(!audio.paused){
+    audio.ctx.suspend(); audio.paused=true;
+    document.getElementById('b-pause').textContent='▶';
+    document.getElementById('b-play').textContent='⏸ 已暂停';
+  }else{
+    audio.ctx.resume(); audio.paused=false;
+    document.getElementById('b-pause').textContent='⏸';
+    document.getElementById('b-play').textContent='▶ 播放中…';
+  }
+};
+document.getElementById('b-restart').onclick = ()=>{
+  sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
+  play();
+};
 /* ---- 底部悬浮播放条 / 音轨面板 ---- */
 let mixerExpanded = false;
 function renderMixerDock(){
@@ -4567,14 +4659,7 @@ function setMixerExpanded(open){
 }
 document.getElementById('mx-expand').onclick = ()=>setMixerExpanded(!mixerExpanded);
 /* 进度条点击定位起始小节（播放中则从该小节重新播放） */
-document.getElementById('mx-prog').onclick = e=>{
-  const r=e.currentTarget.getBoundingClientRect();
-  const frac=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
-  const mi=Math.min(song.measures.length-1, Math.floor(frac*song.measures.length));
-  sel.mi=mi; sel.ci=0; clampSel(); render();
-  const lbl=document.getElementById('mx-lbl'); if(lbl) lbl.textContent=`第 ${mi+1} / ${song.measures.length} 小节`;
-  if(audio.playing) play();
-};
+
 
 /* ================= 存取 ================= */
 const LS_KEY = 'musetab-song-v1';
@@ -4607,6 +4692,7 @@ function renderDocTabs(){
 }
 function resetDocState(){
   selRange=null; noteSel=[]; measureSel=null; undoStack=[]; redoStack=[];
+  stopPlay(); audio.loop=null;
 }
 function switchDoc(i){
   if(i===curDocI || !docs[i]) return;
@@ -4666,6 +4752,7 @@ document.getElementById('doc-tabs').addEventListener('click', e=>{
 });
 function persist(){
   try{ renderDocTabs(); }catch(_){}
+  try{ if(!audio.playing) renderProgCells(); }catch(_){}
   try{
     localStorage.setItem(LS_KEY, JSON.stringify(song));
     if(docs.length){
@@ -5179,6 +5266,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续（⏸）与从头播放（⏮）按钮，暂停基于音频时钟精确冻结。</div></li>
     <li><span class="v">v34.51</span><div>播放修正：所有音轨始终同时播放——人声"啊"音色此前在混音中过轻（被吉他掩盖，听感像"只播当前声部"），共振峰增益与旋律权重上调至清晰可闻；纯简谱/功能谱播放补上跟随高亮。</div></li>
     <li><span class="v">v34.50</span><div>播放音色还原度升级：弹拨乐器物理建模增强（分数延迟精准音高、拨弦位置激励、双弦微失谐厚度、琴体共鸣峰、力度联动亮度），新增尤克里里专属音色（尤克里里谱自动默认），钢琴改专用模型（失谐三弦+泛音层+琴槌噪声+两段衰减），混响加预延时与高频渐暗，吉他/人声声部左右摆位。</div></li>
     <li><span class="v">v34.49</span><div>会员中心升级为「个人中心」（扁平化图标）：个人资料（昵称/签名/默认制谱署名，自动填入新建曲谱）、我的曲谱（打开/删除）、自定义节奏型（存当前小节为模板、一键套用）、我的权益（点击查看各等级权益）。</div></li>
@@ -5246,6 +5334,7 @@ function alignHeader(){
   document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
   persist();
   render();
+  renderProgCells();
   alignHeader();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
