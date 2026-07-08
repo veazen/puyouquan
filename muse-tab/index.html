@@ -4092,7 +4092,7 @@ const INSTRUMENTS = {
   musicbox:{name:'八音盒',   grp:'键盘', type:'fm',   amp:0.30, mod:3.0, idx:5,   decay:1.5, atk:0.001, tone:6500},
   strings: {name:'弦乐',     grp:'持续', type:'saw',  amp:0.15, detune:9, atk:0.16, rel:0.35, tone:2600, vib:5},
   flute:   {name:'长笛',     grp:'持续', type:'flute',amp:0.20, atk:0.07, rel:0.14, vib:5,  breath:0.06},
-  ah:      {name:'人声“啊”', grp:'持续', type:'voice',amp:0.22, atk:0.06, rel:0.14, vib:5.5},
+  ah:      {name:'人声“啊”', grp:'持续', type:'voice',amp:0.27, atk:0.06, rel:0.14, vib:5.5},
 };
 function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 /* ---- 母线：混音 + 压缩 + 混响（提升真实感） ---- */
@@ -4315,7 +4315,7 @@ function voiceAh(ctx,bus,freq,when,dur,gain,sp){
   g.gain.linearRampToValueAtTime(gain,when+a);
   g.gain.setValueAtTime(gain,when+Math.max(a,dur-r));
   g.gain.linearRampToValueAtTime(0,when+dur+r);
-  [[730,0.9,9],[1090,0.6,11],[2600,0.32,13]].forEach(([f,amp,q])=>{
+  [[730,2.1,9],[1090,1.4,11],[2600,0.75,13]].forEach(([f,amp,q])=>{
     const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=f; bp.Q.value=q;
     const fg=ctx.createGain(); fg.gain.value=amp;
     src.connect(bp); bp.connect(fg); fg.connect(g);
@@ -4449,8 +4449,9 @@ function play(){
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
     const vol = (cfg.vol||1)*norm;
     let el=0, hold=null;
-    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*0.9, false); hold=null; } };
+    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*1.05, false); hold=null; } };
     for(let mi=startMi; mi<song.measures.length; mi++){
+      const elMea = el;   // 本小节起始时间（纯简谱高亮用）
       (song.measures[mi].voxes[vi]||[]).forEach(col=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
@@ -4481,6 +4482,13 @@ function play(){
         }else flush();
         el += durSec;
       });
+      if(vi===0 && !song.tabVoices.length){
+        let el2=elMea;
+        (song.measures[mi].voxes[vi]||[]).forEach((col,ci)=>{
+          audio.timers.push(setTimeout(()=>highlight('v0',mi,ci), t0-performance.now()+el2*1000));
+          el2+=beatsOf(col)*spb;
+        });
+      }
     }
     flush();
     total=Math.max(total,el);
@@ -5171,6 +5179,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.51</span><div>播放修正：所有音轨始终同时播放——人声"啊"音色此前在混音中过轻（被吉他掩盖，听感像"只播当前声部"），共振峰增益与旋律权重上调至清晰可闻；纯简谱/功能谱播放补上跟随高亮。</div></li>
     <li><span class="v">v34.50</span><div>播放音色还原度升级：弹拨乐器物理建模增强（分数延迟精准音高、拨弦位置激励、双弦微失谐厚度、琴体共鸣峰、力度联动亮度），新增尤克里里专属音色（尤克里里谱自动默认），钢琴改专用模型（失谐三弦+泛音层+琴槌噪声+两段衰减），混响加预延时与高频渐暗，吉他/人声声部左右摆位。</div></li>
     <li><span class="v">v34.49</span><div>会员中心升级为「个人中心」（扁平化图标）：个人资料（昵称/签名/默认制谱署名，自动填入新建曲谱）、我的曲谱（打开/删除）、自定义节奏型（存当前小节为模板、一键套用）、我的权益（点击查看各等级权益）。</div></li>
     <li><span class="v">v34.47</span><div>新建向导类型卡片重设计（更大气现代、去图标）；窗口标签显示"类型名＋序号＋曲谱名"并与 LOGO 左对齐；吉他/尤克里里新建时可设变调夹；功能谱和弦改为智能弹窗：本调常用库＋常用扩展＋最近使用一键选用，支持自定义，点击谱面级数可再编辑。</div></li>
