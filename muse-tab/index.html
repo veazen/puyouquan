@@ -326,6 +326,23 @@ svg text{user-select:none}
   font-size:9px;color:var(--muted);pointer-events:none;line-height:1}
 .mxc.cur span{color:var(--accent);font-weight:700}
 #mx-lbl{font-size:10.5px;color:var(--muted);min-width:88px;text-align:center;white-space:nowrap}
+/* 小节多时：进度条转为密集标尺（无编号），点击打开小节面板精确选择 */
+#mx-prog{position:relative}
+#mx-prog.dense{gap:0}
+#mx-prog.dense .mxc{border-radius:0;min-width:1px}
+#mx-prog.dense .mxc span{display:none}
+.mxlbl{position:absolute;top:0;bottom:0;display:flex;align-items:center;font-size:8.5px;
+  color:var(--muted);pointer-events:none;transform:translateX(-50%);font-style:normal;z-index:1}
+#b-mxgrid{padding:3px 8px;font-size:12px}
+#mx-panel .mxp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(34px,1fr));gap:4px;
+  width:420px;max-height:230px;overflow-y:auto;padding:6px 2px}
+#mx-panel .mxc{position:relative;height:25px;border:1px solid var(--border);border-radius:6px;
+  background:var(--panel);cursor:pointer;overflow:hidden;flex:none;min-width:0}
+#mx-panel .mxc span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;color:var(--muted);pointer-events:none}
+#mx-panel .mxc .f{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--accent-soft)}
+#mx-panel .mxc.loop{box-shadow:inset 0 0 0 1.5px var(--accent)}
+#mx-panel .mxc.loop span,#mx-panel .mxc.cur span{color:var(--accent);font-weight:700}
 #mx-expand{white-space:nowrap;padding:5px 10px}
 .mx-tracks{display:none;flex-direction:column;gap:3px;max-height:34vh;overflow-y:auto;
   padding:9px 12px 3px;border-bottom:1px solid var(--border)}
@@ -561,6 +578,7 @@ svg text{user-select:none}
     <button id="b-restart" title="从头播放（有循环选区时从选区头）">⏮</button>
     <button id="b-stop" title="停止">■</button>
     <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
+    <button id="b-mxgrid" title="打开小节选择面板（小节多时精确选择循环区）">▦</button>
     <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
@@ -3520,6 +3538,7 @@ function showBarMenu(cx, cy, L, R){
 }
 function closePop(){
   const d=document.getElementById('popmenu'); if(d) d.remove();
+  const mp=document.getElementById('mx-panel'); if(mp) mp.remove();
   if(barSel){ barSel=null; render(); }
 }
 /* 页面内输入弹窗：替代原生 prompt（在受限环境如沙箱 iframe 中 prompt 会被拦截） */
@@ -3546,7 +3565,9 @@ function askText(title, def, cb){
   });
 }
 window.addEventListener('pointerdown', e=>{
-  if(!e.target.closest('#popmenu') && !e.target.closest('[data-zone="strum"]')) closePop();
+  if(!e.target.closest('#popmenu') && !e.target.closest('#mx-panel')
+     && !(document.getElementById('mx-panel') && e.target.closest('#mixer-dock'))
+     && !e.target.closest('[data-zone="strum"]')) closePop();
 }, true);
 /* 技法预提示条（滑弦/击弦/勾弦/推弦/揉弦） */
 function closeTech(){ const d=document.getElementById('techbar'); if(d) d.remove(); }
@@ -4390,17 +4411,84 @@ function buildPlayOrder(startMi){
 }
 /* 小节格进度条：一格一小节、总长不变自动适配、显示编号；
    点击=单小节循环，拖动=选区循环，再点取消 */
+function progDense(){
+  const box=document.getElementById('mx-prog');
+  return song.measures.length > Math.max(10, Math.floor((box&&box.clientWidth||620)/14));
+}
 function renderProgCells(){
   const box=document.getElementById('mx-prog'); if(!box || !song) return;
   const n=song.measures.length;
-  const cw=(box.clientWidth||620)/Math.max(1,n);
-  const every = cw>=16?1 : cw>=8?5 : 10;
-  box.innerHTML = song.measures.map((_,mi)=>{
-    const show = mi===0 || (mi+1)%every===0;
+  const dense=progDense();
+  box.classList.toggle('dense', dense);
+  box.title = dense? '小节标尺：点击打开小节选择面板，精确选择循环区'
+    : '小节格：点击=单小节循环；拖动=多选循环选区；再点取消';
+  let html = song.measures.map((_,mi)=>{
+    const show = !dense && (mi===0 || (mi+1)%( (box.clientWidth||620)/n>=16?1:5 )===0);
     const inloop = audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
     return `<div class="mxc ${inloop?'loop':''}" data-mi="${mi}"><div class="f"></div>${show?`<span>${mi+1}</span>`:''}</div>`;
   }).join('');
+  if(dense){
+    /* 密集标尺：每 10 小节一个悬浮编号 */
+    for(let mi=9; mi<n; mi+=10) html += `<i class="mxlbl" style="left:${(mi+0.5)/n*100}%">${mi+1}</i>`;
+  }
+  box.innerHTML = html;
 }
+/* 小节选择面板：小节多时的精确选择（多行大格、全编号、点击/拖动选循环区） */
+function refreshPanelCells(){
+  const g=document.querySelector('#mx-panel .mxp-grid'); if(!g) return;
+  g.querySelectorAll('.mxc').forEach(c=>{
+    const mi=+c.dataset.mi;
+    c.classList.toggle('loop', !!(audio.loop && mi>=audio.loop.a && mi<=audio.loop.b));
+  });
+}
+function showMeasurePanel(){
+  closePop();
+  const n=song.measures.length;
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='mx-panel';
+  const pr=document.getElementById('mx-prog').getBoundingClientRect();
+  div.style.left=Math.max(8, Math.min(pr.left, innerWidth-460))+'px';
+  div.style.bottom=(innerHeight-pr.top+10)+'px';
+  div.style.top='auto';
+  div.innerHTML=`<div class="t">选择循环播放小节 · 点击=单小节，拖动=选区，再点取消</div>
+    <div class="mxp-grid">${song.measures.map((_,mi)=>{
+      const inloop=audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
+      return `<div class="mxc ${inloop?'loop':''}" data-mi="${mi}"><div class="f"></div><span>${mi+1}</span></div>`;
+    }).join('')}</div>
+    <div class="row" style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">
+      <button id="mxp-clear">取消循环</button><button id="mxp-close" class="primary">关闭</button>
+    </div>`;
+  document.body.appendChild(div);
+  let drag=null;
+  const grid=div.querySelector('.mxp-grid');
+  grid.addEventListener('pointerdown', e=>{
+    const c=e.target.closest('.mxc'); if(!c) return;
+    drag={a:+c.dataset.mi, b:+c.dataset.mi, moved:false};
+    e.preventDefault();
+  });
+  grid.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const c=e.target.closest('.mxc'); if(!c) return;
+    const mi=+c.dataset.mi;
+    if(mi!==drag.b){
+      drag.b=mi; drag.moved=true;
+      const a=Math.min(drag.a,drag.b), b2=Math.max(drag.a,drag.b);
+      grid.querySelectorAll('.mxc').forEach(x=>{
+        const m=+x.dataset.mi; x.classList.toggle('loop', m>=a&&m<=b2);
+      });
+    }
+  });
+  grid.addEventListener('pointerup', ()=>{
+    if(!drag) return;
+    const d=drag; drag=null;
+    if(!d.moved && audio.loop && audio.loop.a===d.a && audio.loop.b===d.a) setLoop(null);
+    else setLoop(d.a, d.b);
+    refreshPanelCells();
+  });
+  document.getElementById('mxp-clear').onclick=()=>{ setLoop(null); refreshPanelCells(); };
+  document.getElementById('mxp-close').onclick=closePop;
+}
+document.getElementById('b-mxgrid').onclick = showMeasurePanel;
 function setLoop(a,b){
   if(a==null){ audio.loop=null; toast('已取消循环 · 播放整曲（识别反复记号）'); }
   else{
@@ -4412,6 +4500,7 @@ function setLoop(a,b){
 }
 let progDrag=null;
 document.getElementById('mx-prog').addEventListener('pointerdown', e=>{
+  if(progDense()){ showMeasurePanel(); return; }
   const c=e.target.closest('.mxc'); if(!c) return;
   progDrag={a:+c.dataset.mi, b:+c.dataset.mi, moved:false};
   e.preventDefault();
@@ -4451,7 +4540,7 @@ function startProgress(t, dur, order, starts){
     const segDur=((oi<starts.length-1? starts[oi+1] : dur)-starts[oi])||1;
     const frac=Math.min(1,(e-starts[oi])/segDur);
     const played=new Set(order.slice(0,oi));
-    document.querySelectorAll('#mx-prog .mxc').forEach(c=>{
+    document.querySelectorAll('#mx-prog .mxc, #mx-panel .mxc').forEach(c=>{
       const mi=+c.dataset.mi;
       const f=c.firstElementChild;
       c.classList.toggle('cur', mi===curMi);
@@ -5266,6 +5355,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.53</span><div>小节数多（格宽不足）时进度条自动转为密集标尺（每10小节悬浮编号），点击标尺或 ▦ 按钮打开多行大格"小节选择面板"精确点击/拖选循环区，面板随播放同步填充进度。</div></li>
     <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续（⏸）与从头播放（⏮）按钮，暂停基于音频时钟精确冻结。</div></li>
     <li><span class="v">v34.51</span><div>播放修正：所有音轨始终同时播放——人声"啊"音色此前在混音中过轻（被吉他掩盖，听感像"只播当前声部"），共振峰增益与旋律权重上调至清晰可闻；纯简谱/功能谱播放补上跟随高亮。</div></li>
     <li><span class="v">v34.50</span><div>播放音色还原度升级：弹拨乐器物理建模增强（分数延迟精准音高、拨弦位置激励、双弦微失谐厚度、琴体共鸣峰、力度联动亮度），新增尤克里里专属音色（尤克里里谱自动默认），钢琴改专用模型（失谐三弦+泛音层+琴槌噪声+两段衰减），混响加预延时与高频渐暗，吉他/人声声部左右摆位。</div></li>
@@ -5338,7 +5428,7 @@ function alignHeader(){
   alignHeader();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
-  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ render(); alignHeader(); }, 120); });
+  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });
   if(window.ResizeObserver){
     const ro = new ResizeObserver(()=>alignHeader());
     ro.observe(document.getElementById('left-dock'));
