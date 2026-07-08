@@ -280,6 +280,21 @@ svg text{user-select:none}
 .dtab .dt-x:hover{color:#fff;background:var(--danger,#d33)}
 #dt-add{border:1px dashed var(--border);background:none;border-radius:8px;padding:5px 11px;cursor:pointer;color:var(--muted);font-size:12.5px;margin-bottom:1px}
 #dt-add:hover{color:var(--accent);border-color:var(--accent)}
+/* 个人中心 */
+.pc-wrap{display:flex;gap:16px;min-height:300px}
+.pc-nav{flex:0 0 132px;display:flex;flex-direction:column;gap:5px;border-right:1px solid var(--border);padding-right:12px}
+.pc-nav button{display:flex;align-items:center;gap:9px;justify-content:flex-start;text-align:left;
+  border:1px solid transparent;background:none;border-radius:9px;padding:9px 11px;font-size:13px;color:var(--muted);box-shadow:none}
+.pc-nav button svg{flex:0 0 15px}
+.pc-nav button.on{background:var(--accent-soft,rgba(58,92,224,.1));color:var(--accent);border-color:var(--accent);font-weight:600}
+.pc-body{flex:1;min-width:0}
+.pc-body h4{margin-top:2px}
+.pc-avatar{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-size:22px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;letter-spacing:0}
+.pc-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px dashed var(--border);font-size:13px}
+.pc-row .t1{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-row .t2{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.pc-row button{padding:3px 10px;font-size:12px}
 /* 会员中心 */
 .mb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
 .mb-card{border:1px solid var(--border);border-radius:14px;padding:14px 13px;background:var(--toolbar);
@@ -371,7 +386,7 @@ svg text{user-select:none}
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
     <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
-    <button id="b-member" class="seg-accent" title="会员中心">👑 会员中心</button>
+    <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
   <!-- 常用编辑功能栏：与页头等宽、随页头一起固定 -->
   <div class="bar" id="editbar">
@@ -4687,7 +4702,7 @@ function showNewForm(type){
   <label class="f"><span>演唱</span><input id="nw-singer" placeholder="可留空" style="flex:1"></label>
   <label class="f"><span>作词</span><input id="nw-lyricist" placeholder="可留空" style="flex:1"></label>
   <label class="f"><span>作曲</span><input id="nw-composer" placeholder="可留空" style="flex:1"></label>
-  <label class="f"><span>制谱</span><input id="nw-maker" placeholder="可留空" style="flex:1"></label>
+  <label class="f"><span>制谱</span><input id="nw-maker" value="${esc((typeof profileLoad==='function'&&profileLoad().maker)||'')}" placeholder="可留空（个人中心可设默认署名）" style="flex:1"></label>
   <label class="f"><span>拍号</span>${sels('nw-beats',[2,3,4,6],4)} <b>/</b> ${sels('nw-unit',[4,8],4)}</label>
   <label class="f"><span>调号</span>${sels('nw-key',KEY_LIST,'C')}<span style="width:auto">（1=所选调）</span></label>
   <label class="f"><span>速度</span><input id="nw-tempo" type="number" value="90" min="30" max="240" style="width:70px"> BPM</label>
@@ -4797,13 +4812,61 @@ const MEMBER_PLANS = {
 };
 function memberPlan(){ try{ return localStorage.getItem(MEMBER_KEY)||'free'; }catch(_){ return 'free'; } }
 function setMemberPlan(p){ try{ localStorage.setItem(MEMBER_KEY, p); }catch(_){} refreshMemberBtn(); }
-function refreshMemberBtn(){
-  const b=document.getElementById('b-member'); if(!b) return;
-  const p=memberPlan();
-  b.textContent = p==='free' ? '👑 会员中心' : '👑 '+MEMBER_PLANS[p].name;
-  b.classList.toggle('seg-accent', p==='free');
+function refreshMemberBtn(){}
+/* ================= 个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益 ================= */
+const PROFILE_KEY = 'musetab-profile';
+function profileLoad(){ try{ return JSON.parse(localStorage.getItem(PROFILE_KEY))||{}; }catch(_){ return {}; } }
+function profileSave(o){ try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(o)); }catch(_){} }
+const MYPAT_KEY = 'musetab-mypat';
+function myPatLoad(){ try{ return JSON.parse(localStorage.getItem(MYPAT_KEY))||[]; }catch(_){ return []; } }
+function myPatSave(l){ try{ localStorage.setItem(MYPAT_KEY, JSON.stringify(l)); }catch(_){} }
+const PC_ICON = {
+  profile:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>',
+  mine:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h7"/></svg>',
+  pat:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-9M22 19V8"/><path d="M2 21h20" opacity=".5"/></svg>',
+  rights:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l3 5 6 1-4.5 4.4 1 6.1L12 16.6 6.5 19.5l1-6.1L3 9l6-1z"/></svg>'
+};
+function pcProfileHTML(){
+  const p=profileLoad();
+  const initial=(p.name||'乐').trim().charAt(0)||'乐';
+  return `<h4>个人资料</h4>
+    <div style="display:flex;align-items:center;gap:14px;margin:10px 0 14px">
+      <div class="pc-avatar">${esc(initial)}</div>
+      <div style="font-size:12.5px;color:var(--muted)">资料保存在本机浏览器；"默认制谱署名"会自动填入新建曲谱的制谱一栏。</div>
+    </div>
+    <label class="f"><span>昵称</span><input id="pc-name" value="${esc(p.name||'')}" placeholder="如：阿杜" style="flex:1"></label>
+    <label class="f"><span>签名</span><input id="pc-sign" value="${esc(p.sign||'')}" placeholder="一句话介绍自己（可留空）" style="flex:1"></label>
+    <label class="f"><span>制谱署名</span><input id="pc-maker" value="${esc(p.maker||'')}" placeholder="新建曲谱时自动填入制谱（可留空）" style="flex:1"></label>
+    <div class="btns"><button id="pc-psave" class="primary">保存资料</button></div>`;
 }
-function openMember(){
+function pcMineHTML(){
+  const lib=libLoad();
+  const rows=lib.map(e=>`<div class="pc-row">
+    <span class="t1">${esc(e.title||'未命名曲谱')}</span>
+    <span class="t2">${esc(e.updatedAt||'')}</span>
+    <button data-pc-open="${e.id}" class="primary">打开</button>
+    <button data-pc-del="${e.id}">删除</button></div>`).join('');
+  return `<h4>我的曲谱（${lib.length}）</h4>
+    ${lib.length? rows : '<p>还没有保存的曲谱。制作时点顶部「保存」即可存入，之后编辑实时同步。</p>'}
+    <div class="btns"><button id="pc-openlib">打开曲谱库</button></div>`;
+}
+function pcPatHTML(){
+  const pats=myPatLoad();
+  const TYPE={tab:'吉他/尤克里里', vox:'简谱'};
+  const rows=pats.map((e,i)=>`<div class="pc-row">
+    <span class="t1">${esc(e.name)}</span>
+    <span class="t2">${TYPE[e.row]||e.row} · ${e.cols.length} 音 · ${esc(e.meter||'')}</span>
+    <button data-pc-apply="${i}" class="primary">应用到当前小节</button>
+    <button data-pc-pdel="${i}">删除</button></div>`).join('');
+  return `<h4>自定义节奏型（${pats.length}）</h4>
+    <p>把当前选中小节的一列列节奏（含时值/扫弦/演奏方式）存为模板，之后一键套用到任意小节。</p>
+    ${pats.length? rows : ''}
+    <div class="row" style="display:flex;gap:8px;margin-top:10px">
+      <input id="pc-patname" placeholder="模板名称，如：慢四分解" style="flex:1">
+      <button id="pc-patsave" class="primary">存当前小节</button>
+    </div>`;
+}
+function pcRightsHTML(){
   const cur=memberPlan();
   const cards=Object.entries(MEMBER_PLANS).map(([k,v])=>{
     const active=k===cur;
@@ -4819,19 +4882,73 @@ function openMember(){
       ${btn}
     </div>`;
   }).join('');
-  showModal(`<h3>👑 会员中心</h3>
-    <p>解锁更多音色、云端同步与协作能力，支持 MuseTab 持续更新。（付费与云服务为规划中功能，当前可免费体验各档权益。）</p>
-    <div class="mb-grid">${cards}</div>
-    <div class="btns"><button id="mb-close" class="primary">关闭</button></div>`);
-  document.getElementById('mb-close').onclick = closeModal;
-  document.querySelectorAll('#modal-mask .mb-pick').forEach(b=>b.onclick=()=>{
-    const p=b.dataset.plan; setMemberPlan(p);
-    toast(p==='free'?'已切回免费版':`已开通「${MEMBER_PLANS[p].name}」体验`);
-    openMember();
-  });
+  return `<h4>我的权益 · 当前：${esc(MEMBER_PLANS[cur].name)}</h4>
+    <p>点击各等级卡片查看对应权益。（付费与云服务为规划中功能，当前可免费体验各档权益。）</p>
+    <div class="mb-grid">${cards}</div>`;
 }
-document.getElementById('b-member').onclick = openMember;
-refreshMemberBtn();
+function openPersonal(tab){
+  tab = tab||'profile';
+  const NAV=[['profile','个人资料'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益']];
+  const body={profile:pcProfileHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML}[tab]();
+  showModal(`<h3>个人中心</h3>
+    <div class="pc-wrap">
+      <div class="pc-nav">${NAV.map(([k,n])=>`<button data-pc-nav="${k}" class="${k===tab?'on':''}">${PC_ICON[k]}<span>${n}</span></button>`).join('')}</div>
+      <div class="pc-body">${body}</div>
+    </div>
+    <div class="btns"><button id="pc-close" class="primary">关闭</button></div>`, true);
+  const M=document.querySelector('.modal');
+  document.getElementById('pc-close').onclick = closeModal;
+  M.querySelectorAll('[data-pc-nav]').forEach(b=>b.onclick=()=>openPersonal(b.dataset.pcNav));
+  if(tab==='profile'){
+    document.getElementById('pc-psave').onclick=()=>{
+      profileSave({name:document.getElementById('pc-name').value.trim(),
+        sign:document.getElementById('pc-sign').value.trim(),
+        maker:document.getElementById('pc-maker').value.trim()});
+      toast('已保存个人资料'); openPersonal('profile');
+    };
+  }else if(tab==='mine'){
+    document.getElementById('pc-openlib').onclick=()=>{ closeModal(); showLibrary(); };
+    M.querySelectorAll('[data-pc-open]').forEach(b=>b.onclick=()=>{
+      const e0=libLoad().find(x=>x.id===b.dataset.pcOpen);
+      if(e0){ closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data))); toast('已打开：'+e0.title); }
+    });
+    M.querySelectorAll('[data-pc-del]').forEach(b=>b.onclick=()=>{
+      const lib=libLoad(); const i=lib.findIndex(x=>x.id===b.dataset.pcDel);
+      if(i>=0){ lib.splice(i,1); libSave(lib); toast('已删除'); openPersonal('mine'); }
+    });
+  }else if(tab==='pat'){
+    document.getElementById('pc-patsave').onclick=()=>{
+      const cols=curRowCols();
+      if(!cols || !cols.length) return toast('请先在谱面选中一个小节的音符');
+      const pats=myPatLoad();
+      const name=document.getElementById('pc-patname').value.trim() || ((sel.row==='tab'?'伴奏':'旋律')+'模板'+(pats.length+1));
+      pats.unshift({name, row:sel.row, meter:song.beats+'/'+song.unit, cols:JSON.parse(JSON.stringify(cols))});
+      myPatSave(pats.slice(0,30));
+      toast('已保存节奏型：'+name); openPersonal('pat');
+    };
+    M.querySelectorAll('[data-pc-apply]').forEach(b=>b.onclick=()=>{
+      const e0=myPatLoad()[+b.dataset.pcApply]; if(!e0) return;
+      const m=song.measures[sel.mi]; if(!m) return;
+      const arr=e0.row==='tab'? m.tabs : m.voxes;
+      const vi=Math.min(sel.vi, arr.length-1);
+      if(vi<0 || !arr[vi]) return toast('当前曲谱没有对应的'+(e0.row==='tab'?'TAB':'简谱')+'声部');
+      mutate(()=>{ arr[vi].splice(0, arr[vi].length, ...JSON.parse(JSON.stringify(e0.cols))); });
+      closeModal();
+      toast('已套用「'+e0.name+'」到第'+(sel.mi+1)+'小节（与拍号不符会提示修复）');
+    });
+    M.querySelectorAll('[data-pc-pdel]').forEach(b=>b.onclick=()=>{
+      const pats=myPatLoad(); pats.splice(+b.dataset.pcPdel,1); myPatSave(pats);
+      toast('已删除'); openPersonal('pat');
+    });
+  }else if(tab==='rights'){
+    M.querySelectorAll('.mb-pick').forEach(b=>b.onclick=()=>{
+      const p2=b.dataset.plan; setMemberPlan(p2);
+      toast(p2==='free'?'已切回免费版':`已开通「${MEMBER_PLANS[p2].name}」体验`);
+      openPersonal('rights');
+    });
+  }
+}
+document.getElementById('b-member').onclick = ()=>openPersonal('profile');
 
 /* ================= 弹窗/提示 ================= */
 let modalPos=null;
@@ -4954,6 +5071,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>MuseTab 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.49</span><div>会员中心升级为「个人中心」（扁平化图标）：个人资料（昵称/签名/默认制谱署名，自动填入新建曲谱）、我的曲谱（打开/删除）、自定义节奏型（存当前小节为模板、一键套用）、我的权益（点击查看各等级权益）。</div></li>
     <li><span class="v">v34.47</span><div>新建向导类型卡片重设计（更大气现代、去图标）；窗口标签显示"类型名＋序号＋曲谱名"并与 LOGO 左对齐；吉他/尤克里里新建时可设变调夹；功能谱和弦改为智能弹窗：本调常用库＋常用扩展＋最近使用一键选用，支持自定义，点击谱面级数可再编辑。</div></li>
     <li><span class="v">v34.46</span><div>多窗口：谱面上方窗口标签栏，可同时打开并编辑多个不同类型的曲谱；「＋新建窗口」与关闭窗口时提示当前曲谱保存情况（绿点=已存入我的曲谱），未保存可一键「存入我的曲谱并关闭」；刷新后窗口自动恢复。</div></li>
     <li><span class="v">v34.45</span><div>新建向导补齐作词/作曲/制谱信息；新增「功能谱」类型（乐队用）：简谱＋级数和弦标注，按调号自动换算（C 调 Am → 6m），支持斜杠低音（G/B → 5/7）。</div></li>
