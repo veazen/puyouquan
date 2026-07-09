@@ -540,13 +540,28 @@ svg text{user-select:none}
       <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
     </div>
     <div class="rcard open">
-      <button class="rc-h" type="button">小节操作</button>
+      <button class="rc-h" type="button">小节与段落</button>
       <div class="rc-b">
         <div class="rg-body">
           <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
-          <button id="b-rep-s" title="反复开始">|:</button>
-          <button id="b-rep-e" title="反复结束">:|</button>
           <button id="b-autofix" title="按拍号自动补充/删减音符，保持小节时值准确">补齐小节时值</button>
+        </div>
+        <div class="rg-title" style="margin-top:7px">反复 · 结尾（作用于当前小节）</div>
+        <div class="rg-body">
+          <button id="b-rep-s" title="𝄆 反复开始：反复一次两标记之间的内容">𝄆 |:</button>
+          <button id="b-rep-e" title="𝄇 反复结束：与 𝄆 配对，之间内容反复一次">:| 𝄇</button>
+          <button id="b-volta1" title="1房：第一次进入 1 房子（反复后跳过）">┌1.┐</button>
+          <button id="b-volta2" title="2房：第二次（反复后）进入 2 房子">┌2.┐</button>
+        </div>
+        <div class="rg-title" style="margin-top:7px">跳转 · 段落</div>
+        <div class="rg-body">
+          <button id="b-dc" title="D.C.：从头开始反复（标于本小节末）">D.C.</button>
+          <button id="b-ds" title="D.S.：从 S 标记（𝄋）处开始反复（标于本小节末）">D.S.</button>
+          <button id="b-segno" title="𝄋 Segno 标记：D.S. 反复的起点（标于本小节头）">Segno</button>
+          <button id="b-fine2" title="Fine：反复至此处结束，配合 D.C. 或 D.S. 使用">Fine</button>
+          <button id="b-coda" title="⊕ Da Coda 与 Coda：成对使用，跳过两记号中间的部分（去往尾声/尾声）">⊕ Coda</button>
+          <button id="b-secline" title="𝄁 段落重复线（双细线），标于本小节末">𝄁 段落</button>
+          <button id="b-finline" title="𝄂 终止线，标于本小节末">𝄂 终止</button>
         </div>
       </div>
     </div>
@@ -2162,7 +2177,9 @@ const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b'
                   ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['dyn','力度/速度'],['clr','清除记号']];
-const DYN_LIST=['ppp','pp','p','mp','mf','f','ff','fp','sfp','cresc.','dim.','<','>','rit.','accel.'];
+const DYN_LIST=[['ppp','极弱'],['pp','很弱'],['p','弱'],['mp','中弱'],['mf','中强'],['f','强'],['ff','很强'],
+  ['fp','强后弱'],['sfp','突强后弱'],['cresc.','渐强'],['dim.','渐弱'],['<','渐强记号'],['>','渐弱记号'],
+  ['rit.','渐慢'],['accel.','渐快']];
 const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18};
 function showDynMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音符');
@@ -2173,7 +2190,7 @@ function showDynMenu(cx, cy){
   div.style.left=Math.min(cx, innerWidth-330)+'px';
   div.style.top=(cy+6)+'px';
   div.innerHTML=`<div class="t">力度 / 速度记号（标在音符下方；力度影响该处起播放音量）</div>
-    <div class="row">${DYN_LIST.map(d=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</button>`).join('')}
+    <div class="row" style="max-width:340px">${DYN_LIST.map(([d,cn])=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</i><span style="font-size:10px;opacity:.65;margin-left:4px">${esc(cn)}</span></button>`).join('')}
     <button data-dy="">清除</button></div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
@@ -2329,6 +2346,13 @@ function syncInputs(){
   const mea = curMea();
   document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
   document.getElementById('b-rep-e').classList.toggle('on', !!(mea&&mea.repeatEnd));
+  [['b-dc','dc'],['b-ds','ds'],['b-segno','segno'],['b-fine2','fine'],['b-coda','coda'],
+   ['b-secline','sectionBar'],['b-finline','finalBar']].forEach(([id,pr])=>{
+    const b2=document.getElementById(id); if(b2) b2.classList.toggle('on', !!(mea&&mea[pr]));
+  });
+  const bv1=document.getElementById('b-volta1'), bv2=document.getElementById('b-volta2');
+  if(bv1) bv1.classList.toggle('on', !!(mea&&mea.volta===1));
+  if(bv2) bv2.classList.toggle('on', !!(mea&&mea.volta===2));
   /* 节拍状态栏 */
   const errs = beatErrors();
   const bs = document.getElementById('beat-status');
@@ -4007,6 +4031,33 @@ document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
 document.getElementById('b-octup').onclick = ()=>bumpOct(1);
 document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
 document.getElementById('b-tie').onclick = toggleTie;
+/* 小节与段落：反复/跳转记号一键作用于当前小节 */
+(function(){
+  const flag=(id, prop, msg)=>{
+    const b2=document.getElementById(id); if(!b2) return;
+    b2.onclick=()=>{
+      const m=curMea(); if(!m) return toast('请先选中一个小节');
+      mutate(()=>{ m[prop]=!m[prop]; });
+      toast((m[prop]?'已添加：':'已取消：')+msg+'（第'+(sel.mi+1)+'小节）');
+    };
+  };
+  flag('b-dc','dc','D.C. 从头反复');
+  flag('b-ds','ds','D.S. 从 𝄋 标记反复');
+  flag('b-segno','segno','𝄋 Segno 标记');
+  flag('b-fine2','fine','Fine 反复结束点');
+  flag('b-coda','coda','⊕ 跳跃记号（需成对：再在目标小节点一次）');
+  flag('b-secline','sectionBar','段落重复线');
+  flag('b-finline','finalBar','终止线');
+  const volta=(id,v)=>{
+    const b2=document.getElementById(id); if(!b2) return;
+    b2.onclick=()=>{
+      const m=curMea(); if(!m) return toast('请先选中一个小节');
+      mutate(()=>{ m.volta = m.volta===v? 0 : v; });
+      toast(m.volta? `已设第${sel.mi+1}小节为 ${v} 房（可连选相邻小节同设）` : '已取消房子标记');
+    };
+  };
+  volta('b-volta1',1); volta('b-volta2',2);
+})();
 document.getElementById('b-grace').onclick = ()=>{
   if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
   const col = curCol();
@@ -5583,6 +5634,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.57</span><div>右栏"小节操作"升级为「小节与段落」：分组提供 𝄆𝄇 反复、1房/2房、D.C./D.S./Segno/Fine/⊕ Coda、段落线/终止线一键作用于当前小节（悬停有含义说明，状态高亮）；力度/速度记号菜单每项加中文说明（极弱/很弱/…/渐慢/渐快）。</div></li>
     <li><span class="v">v34.56</span><div>反复记号体系补全（参考出版谱）：小节线菜单新增 D.C. 从头反复、D.S.＋𝄋 标记反复、Fine 结束点、⊕ 跳跃记号（成对）、1房/2房不同结尾括线，谱面按标准记法绘制，播放导航完整识别七类反复走法；简谱新增力度/速度记号（ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.），力度即时影响播放音量。</div></li>
     <li><span class="v">v34.55</span><div>品牌升级：网站更名「谱客 POKKA」（pokka.club），页头 LOGO、页面标题、帮助/特色/日志弹窗、预设制谱署名与存证凭证全面更新；本机数据完全兼容保留。</div></li>
     <li><span class="v">v34.54</span><div>个人中心新增「创作者中心」：数据看板（作品数/曲谱浏览/收藏/收益）、收益设置（付费谱定价/打赏开关/粉丝订阅），认证扒谱人与认证教师体验标识，版权登记辅助——为当前曲谱生成 SHA-256 内容指纹+时间戳存证并可导出凭证文件。</div></li>
