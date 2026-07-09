@@ -164,6 +164,18 @@ input.short{width:54px} input.mid{width:150px}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
 .popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border);
   border-radius:12px;box-shadow:var(--shadow);padding:10px;font-size:12.5px}
+.popmenu.pm-follow{position:absolute}   /* 谱面锚定弹窗：随页面滚动 */
+/* 小节与段落：模块化分组 */
+.sp-sec{margin:7px 0;border:1px solid var(--border);border-radius:10px;padding:7px 6px;background:var(--paper)}
+.sp-sec:first-child{margin-top:2px}
+.sp-t{font-size:10.5px;color:var(--muted);margin-bottom:7px;letter-spacing:2px}
+.sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.sp-grid button{display:flex;align-items:center;gap:3px;justify-content:flex-start;
+  padding:5px 4px;border-radius:8px;font-size:11px;white-space:nowrap;min-width:0}
+.sp-grid button b{font-size:11.5px;font-weight:700;min-width:16px;text-align:center;
+  font-family:Georgia,'Times New Roman',serif;flex:0 0 auto}
+.sp-grid button span{overflow:hidden;text-overflow:ellipsis}
+.sp-grid button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
 /* 曲谱库 */
@@ -542,26 +554,38 @@ svg text{user-select:none}
     <div class="rcard open">
       <button class="rc-h" type="button">小节与段落</button>
       <div class="rc-b">
-        <div class="rg-body">
-          <button id="b-insmea">插入小节</button><button id="b-delmea">删除小节</button>
-          <button id="b-autofix" title="按拍号自动补充/删减音符，保持小节时值准确">补齐小节时值</button>
+        <div class="sp-sec">
+          <div class="sp-t">小节</div>
+          <div class="sp-grid">
+            <button id="b-insmea" title="在当前小节后插入空白小节"><b>＋</b><span>插入小节</span></button>
+            <button id="b-delmea" title="删除当前小节"><b>－</b><span>删除小节</span></button>
+          </div>
         </div>
-        <div class="rg-title" style="margin-top:7px">反复 · 结尾（作用于当前小节）</div>
-        <div class="rg-body">
-          <button id="b-rep-s" title="𝄆 反复开始：反复一次两标记之间的内容">𝄆 |:</button>
-          <button id="b-rep-e" title="𝄇 反复结束：与 𝄆 配对，之间内容反复一次">:| 𝄇</button>
-          <button id="b-volta1" title="1房：第一次进入 1 房子（反复后跳过）">┌1.┐</button>
-          <button id="b-volta2" title="2房：第二次（反复后）进入 2 房子">┌2.┐</button>
+        <div class="sp-sec">
+          <div class="sp-t">反复 · 段落结尾</div>
+          <div class="sp-grid">
+            <button id="b-rep-s" title="反复开始：反复一次两标记之间的内容"><b>|:</b><span>反复开始</span></button>
+            <button id="b-rep-e" title="反复结束：与反复开始配对"><b>:|</b><span>反复结束</span></button>
+            <button id="b-volta1" title="第一段：第一次进入，反复后跳过"><b>┌1.</b><span>第一段</span></button>
+            <button id="b-volta2" title="第二段：反复后进入"><b>┌2.</b><span>第二段</span></button>
+          </div>
         </div>
-        <div class="rg-title" style="margin-top:7px">跳转 · 段落</div>
-        <div class="rg-body">
-          <button id="b-dc" title="D.C.：从头开始反复（标于本小节末）">D.C.</button>
-          <button id="b-ds" title="D.S.：从 S 标记（𝄋）处开始反复（标于本小节末）">D.S.</button>
-          <button id="b-segno" title="𝄋 Segno 标记：D.S. 反复的起点（标于本小节头）">Segno</button>
-          <button id="b-fine2" title="Fine：反复至此处结束，配合 D.C. 或 D.S. 使用">Fine</button>
-          <button id="b-coda" title="⊕ Da Coda 与 Coda：成对使用，跳过两记号中间的部分（去往尾声/尾声）">⊕ Coda</button>
-          <button id="b-secline" title="𝄁 段落重复线（双细线），标于本小节末">𝄁 段落</button>
-          <button id="b-finline" title="𝄂 终止线，标于本小节末">𝄂 终止</button>
+        <div class="sp-sec">
+          <div class="sp-t">跳转记号</div>
+          <div class="sp-grid">
+            <button id="b-dc" title="D.C.：从头开始反复（标于本小节末）"><b>D.C.</b><span>从头</span></button>
+            <button id="b-ds" title="D.S.：从 𝄋 标记处开始反复（标于本小节末）"><b>D.S.</b><span>从𝄋</span></button>
+            <button id="b-segno" title="Segno 标记：D.S. 反复的起点（标于本小节头）"><b>𝄋</b><span>Segno</span></button>
+            <button id="b-fine2" title="Fine：反复至此处结束，配合 D.C./D.S. 使用"><b>Fine</b><span>终点</span></button>
+            <button id="b-coda" title="Da Coda 与 Coda：成对使用，跳过两记号中间的部分"><b>⊕</b><span>Coda</span></button>
+          </div>
+        </div>
+        <div class="sp-sec">
+          <div class="sp-t">小节线</div>
+          <div class="sp-grid">
+            <button id="b-secline" title="段落重复线（双细线），标于本小节末"><b>𝄁</b><span>段落线</span></button>
+            <button id="b-finline" title="终止线，标于本小节末"><b>𝄂</b><span>终止线</span></button>
+          </div>
         </div>
       </div>
     </div>
@@ -1432,14 +1456,12 @@ function navMarkSVG(p, mea, mx, bx, yTop, yBot){
 function voltaSVG(p, mea, mi, mx, bx, yV){
   if(!mea.volta) return;
   const prevSame = mi>0 && song.measures[mi-1] && song.measures[mi-1].volta===mea.volta;
-  const nextSame = song.measures[mi+1] && song.measures[mi+1].volta===mea.volta;
+  /* 开口式括线：只有开头竖钩＋序号，结尾不收口（参考出版谱记法） */
   p.push(`<line x1="${mx}" y1="${yV}" x2="${bx}" y2="${yV}" stroke="var(--ink)" stroke-width="1"/>`);
   if(!prevSame){
     p.push(`<line x1="${mx}" y1="${yV}" x2="${mx}" y2="${yV+7}" stroke="var(--ink)" stroke-width="1"/>`);
     p.push(`<text x="${mx+4}" y="${yV+9.5}" font-size="9" font-weight="700" fill="var(--ink)">${mea.volta}.</text>`);
   }
-  if(!nextSame)
-    p.push(`<line x1="${bx}" y1="${yV}" x2="${bx}" y2="${yV+7}" stroke="var(--ink)" stroke-width="1"/>`);
 }
 function beamGroups(cols, playable){
   const groups=[]; let cur=null; let cum=0;
@@ -3541,7 +3563,7 @@ function showStrumMenu(cx, cy){
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-280)+'px';
-  div.style.top=cy+'px';
+  div.classList.add('pm-follow'); div.style.top=(cy+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
   const NAME={d:'扫弦 ↓', u:'扫弦 ↑', arp:'上琶音', arpd:'下琶音'};
   const sp=strumSpan(col);
   div.innerHTML=`<div class="t">${NAME[col.strum]||col.strum} · 编辑覆盖琴弦（点选，取所选弦的连续范围）</div>
@@ -3567,7 +3589,7 @@ function showGraceMenu(mi, ci, vi, kind, cx, cy){
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-300)+'px';
-  div.style.top=(cy+8)+'px';
+  div.classList.add('pm-follow'); div.style.top=(cy+8+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
   const rebuild=()=>{
     const g=normGrace(col[key]);
     const noteRows = g.notes.map((gn,gi)=>`
@@ -3614,9 +3636,9 @@ function showBarMenu(cx, cy, L, R){
   const mR = (R>=0 && R<song.measures.length)? song.measures[R] : null;
   if(!mL && !mR) return;
   const div=document.createElement('div');
-  div.className='popmenu'; div.id='popmenu';
-  div.style.left=Math.min(cx, innerWidth-250)+'px';
-  div.style.top=(cy+8)+'px';
+  div.className='popmenu pm-follow'; div.id='popmenu';
+  div.style.left=(Math.min(cx, innerWidth-250)+scrollX)+'px';
+  div.style.top=(cy+8+scrollY)+'px';
   const chk=v=>v?' class="on"':'';
   let rows='';
   if(mR) rows+=`<button data-k="rs"${chk(mR.repeatStart)}>𝄆 反复开始 · 第${R+1}小节</button>`;
@@ -3628,8 +3650,8 @@ function showBarMenu(cx, cy, L, R){
   if(mL) rows+=`<button data-k="fine"${chk(mL.fine)}>Fine 反复段结束点 · 第${L+1}小节末</button>`;
   if(mR) rows+=`<button data-k="segno"${chk(mR.segno)}>𝄋 Segno 标记 · 第${R+1}小节头</button>`;
   if(mR) rows+=`<button data-k="coda"${chk(mR.coda)}>⊕ 跳跃记号（成对使用，跳过两 ⊕ 间内容）· 第${R+1}小节头</button>`;
-  if(mR) rows+=`<button data-k="v1"${mR.volta===1?' class="on"':''}>┌1.┐ 第一结尾（1房）· 第${R+1}小节</button>`;
-  if(mR) rows+=`<button data-k="v2"${mR.volta===2?' class="on"':''}>┌2.┐ 第二结尾（2房）· 第${R+1}小节</button>`;
+  if(mR) rows+=`<button data-k="v1"${mR.volta===1?' class="on"':''}>┌1. 第一段 · 第${R+1}小节</button>`;
+  if(mR) rows+=`<button data-k="v2"${mR.volta===2?' class="on"':''}>┌2. 第二段 · 第${R+1}小节</button>`;
   rows+=`<button data-k="clr">清除该线符号</button>`;
   div.innerHTML=`<div class="t">小节线设置 · 提示：按住小节线可选中本小节声部</div>
     <div class="row" style="flex-direction:column;align-items:stretch">${rows}</div>`;
@@ -3999,7 +4021,7 @@ function showVoxChordMenu(cx, cy){
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-360)+'px';
-  div.style.top=Math.min(cy+8, innerHeight-280)+'px';
+  div.classList.add('pm-follow'); div.style.top=(Math.min(cy+8, innerHeight-280)+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
   div.innerHTML=`<div class="t">功能谱和弦 · 1=${esc(song.key)}（点击应用，谱面显示级数）</div>
     <div class="t" style="margin-top:4px;opacity:.75">本调常用</div>
     <div class="row">${dia.map(btn).join('')}</div>
@@ -4053,7 +4075,7 @@ document.getElementById('b-tie').onclick = toggleTie;
     b2.onclick=()=>{
       const m=curMea(); if(!m) return toast('请先选中一个小节');
       mutate(()=>{ m.volta = m.volta===v? 0 : v; });
-      toast(m.volta? `已设第${sel.mi+1}小节为 ${v} 房（可连选相邻小节同设）` : '已取消房子标记');
+      toast(m.volta? `已设第${sel.mi+1}小节为第${v===1?'一':'二'}段（相邻小节可依次同设）` : '已取消段落结尾标记');
     };
   };
   volta('b-volta1',1); volta('b-volta2',2);
@@ -4116,7 +4138,8 @@ document.getElementById('b-notation').onclick = ()=>{
   toast('记谱风格：'+(tabNotation==='x'?'和弦内音记×':'全数字'));
   render();
 };
-document.getElementById('b-autofix').onclick = ()=>{
+const _bAutofix=document.getElementById('b-autofix');
+if(_bAutofix) _bAutofix.onclick = ()=>{
   const list = selRange
     ? Array.from({length:selRange.m2-selRange.m1+1},(_,i)=>selRange.m1+i)
     : [sel.mi];
@@ -5598,7 +5621,7 @@ document.getElementById('b-help').onclick = ()=>{
   <table>
   <tr><td class="k">点击小节线</td><td>弹出设置：反复开始 𝄆 / 反复结束 𝄇 / 段落线 / 终止线 / 清除</td></tr>
   <tr><td class="k">按住小节线</td><td>按住约半秒选中该小节的单个声部（吉他谱或简谱独立），<kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> 复制粘贴到别处</td></tr>
-  <tr><td class="k">小节编号</td><td>显示在小节线正下方，悬停变色；右栏可插入/删除小节、一键补齐小节时值</td></tr>
+  <tr><td class="k">小节编号</td><td>显示在小节线正下方，悬停变色；右栏「小节与段落」可插入/删除小节、设置反复与跳转记号</td></tr>
   </table>
   <h4>多选与批量</h4>
   <table>
@@ -5634,6 +5657,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.58</span><div>小节线弹窗等谱面锚定弹窗改为随页面滚动；「小节与段落」模块化重设计（符号+名称分组卡片），移除"补齐小节时值"按钮（修复入口保留在节拍状态条）；1房/2房更名"第一段/第二段"，括线改为开口式（只有开头竖钩，结尾不收口）。</div></li>
     <li><span class="v">v34.57</span><div>右栏"小节操作"升级为「小节与段落」：分组提供 𝄆𝄇 反复、1房/2房、D.C./D.S./Segno/Fine/⊕ Coda、段落线/终止线一键作用于当前小节（悬停有含义说明，状态高亮）；力度/速度记号菜单每项加中文说明（极弱/很弱/…/渐慢/渐快）。</div></li>
     <li><span class="v">v34.56</span><div>反复记号体系补全（参考出版谱）：小节线菜单新增 D.C. 从头反复、D.S.＋𝄋 标记反复、Fine 结束点、⊕ 跳跃记号（成对）、1房/2房不同结尾括线，谱面按标准记法绘制，播放导航完整识别七类反复走法；简谱新增力度/速度记号（ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.），力度即时影响播放音量。</div></li>
     <li><span class="v">v34.55</span><div>品牌升级：网站更名「谱客 POKKA」（pokka.club），页头 LOGO、页面标题、帮助/特色/日志弹窗、预设制谱署名与存证凭证全面更新；本机数据完全兼容保留。</div></li>
