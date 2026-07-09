@@ -274,6 +274,14 @@ svg text{user-select:none}
 .modal .vlog .v{flex:0 0 62px;color:var(--accent);font-weight:700;font-family:ui-monospace,monospace;white-space:nowrap}
 .modal kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
   padding:0 5px;font-size:11.5px;font-family:ui-monospace,monospace;background:var(--paper);line-height:1.7}
+/* 和弦编辑器·指板创建 */
+.fb{display:grid;gap:2px;margin:6px 0;justify-content:center}
+.fb-h{font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:center;height:20px}
+.fb-c{width:20px;height:20px;padding:0;border-radius:4px;font-size:11px;line-height:1;
+  display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--paper)}
+.fb-c.mk{background:color-mix(in srgb, var(--accent-soft) 45%, var(--paper))}
+.fb-c.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.fb-c.on.x{background:var(--muted);border-color:var(--muted)}
 /* 新建向导·类型卡片（大气现代，无图标） */
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
 .ntcard{position:relative;min-width:0;white-space:normal;border:1.5px solid var(--border);border-radius:14px;
@@ -714,9 +722,15 @@ function chordDegree(name){
   if(m[3] && KEY_PC[m[3]]!=null) out+='/'+DEG_OF_SEMI[((KEY_PC[m[3]]-key)%12+12)%12];
   return out;
 }
+/* 用户和弦库（全局，跨曲谱可用）：指板自选创建后保存于本机 */
+const USERCH_KEY='musetab-userchords';
+function userChords(){ try{ return JSON.parse(localStorage.getItem(USERCH_KEY))||{}; }catch(_){ return {}; } }
+function userChordsSave(o){ try{ localStorage.setItem(USERCH_KEY, JSON.stringify(o)); }catch(_){} }
 function chordShape(n){
   if(!n) return null;
   if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
+  const uc=userChords();
+  if(uc[n] && uc[n].length===strN()) return uc[n];
   if(instOf()==='uku') return UKU_SHAPES[n] || null;
   return CHORD_SHAPES[n] || null;
 }
@@ -3507,11 +3521,11 @@ function showChordEditor(mi, ci, vi){
   const m = existing.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
   ceState = { mi, ci, vi,
     root: (m&&NOTE_PC[m[1]]!=null)? m[1]:'C',
-    qual: (m&&m[2])||'', bass: (m&&m[3])||'', shape:null, custom:null };
+    qual: (m&&m[2])||'', bass: (m&&m[3])||'', shape:null, custom:null, cname:null };
   renderChordEditor();
 }
 function ceName(){
-  return ceState.root + ceState.qual + (ceState.bass?('/'+ceState.bass):'');
+  return ceState.cname || (ceState.root + ceState.qual + (ceState.bass?('/'+ceState.bass):''));
 }
 function ceShape(){
   if(ceState.custom) return ceState.custom;
@@ -3532,6 +3546,8 @@ function positionVariants(){
   if(open) vs.push({label:'开放', shape:open});
   vs.push({label:'6弦根音(E型)', shape:movableShape(r,q,'E')});
   vs.push({label:'5弦根音(A型)', shape:movableShape(r,q,'A')});
+  const uc=userChords()[ceState.root+q];
+  if(uc && uc.length===strN()) vs.push({label:'用户', shape:uc});
   return vs;
 }
 function renderChordEditor(){
@@ -3546,12 +3562,29 @@ function renderChordEditor(){
     `<div class="pat-card" data-cpos="${i}" data-shape="${v.shape}">
       <svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,v.shape,true)}</svg>
       <div class="bt">${esc(v.label)}</div></div>`).join('');
-  const custom = (ceState.custom||shape||'xxxxxx');
-  const fretInputs = [6,5,4,3,2,1].map(s=>{
-    const ch = custom[6-s]; const val = ch==='x'?'x':ch;
+  const SN=strN();
+  const blank='x'.repeat(SN);
+  const custom = (ceState.custom||shape||blank);
+  const fretInputs = Array.from({length:SN},(_,i)=>SN-i).map(s=>{
+    const ch = custom[SN-s]; const val = (ch==null||ch==='x')?'x':ch;
     return `<label style="display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted)">${s}弦
       <input class="ce-fret" data-s="${s}" value="${val}" style="width:34px;text-align:center"></label>`;
   }).join('');
+  /* 指板创建：模拟指板（行=弦、列=品，含 x/空弦 0），点击自选音符 */
+  const FBF=12;
+  const fbHead = `<span class="fb-h"></span><span class="fb-h">×</span>`+
+    Array.from({length:FBF+1},(_,f)=>`<span class="fb-h">${f}</span>`).join('');
+  const fbRows = Array.from({length:SN},(_,i)=>SN-i).map(s2=>{
+    const ch = custom[SN-s2];
+    const cur = (ch==null||ch==='x')? 'x' : parseInt(ch,36);
+    return `<span class="fb-h">${s2}弦</span>`+
+      `<button class="fb-c ${cur==='x'?'on x':''}" data-fb="${s2}:x" title="${s2}弦不弹">×</button>`+
+      Array.from({length:FBF+1},(_,f)=>
+        `<button class="fb-c ${cur===f?'on':''} ${[3,5,7,9,12].includes(f)?'mk':''}" data-fb="${s2}:${f}" title="${s2}弦 ${f===0?'空弦':f+'品'}">${cur===f?'●':''}</button>`).join('');
+  }).join('');
+  const uc = userChords();
+  const ucChips = Object.keys(uc).filter(k=>uc[k].length===SN).map(k=>
+    `<span class="chip" style="display:inline-flex;align-items:center;gap:4px"><a data-ucl="${esc(k)}" style="cursor:pointer">${esc(k)}</a><a data-ucx="${esc(k)}" title="删除" style="cursor:pointer;opacity:.55">✕</a></span>`).join('') || '<span style="font-size:11.5px;color:var(--muted)">还没有用户和弦——在上方指板自选音符后点「存为用户和弦」</span>';
   showModal(`<h3>编辑和弦</h3>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
@@ -3559,9 +3592,17 @@ function renderChordEditor(){
         <h4>和弦性质</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
         <h4>转位 / 低音（Slash）</h4><select id="ce-bass">${bassOpts}</select>
         <h4>把位</h4><div class="pat-grid" id="ce-pos">${posVars}</div>
+        <h4>指板创建（点击品格自选音符，×=不弹，0=空弦）</h4>
+        <div class="fb" style="grid-template-columns:30px 20px repeat(${FBF+1},20px)">${fbHead}${fbRows}</div>
         <h4>自定义指法（每弦品位，x=不弹）</h4>
         <div style="display:flex;gap:6px;justify-content:center">${fretInputs}</div>
-        <div class="row" style="margin-top:6px"><button id="ce-savecustom">保存为自定义和弦</button></div>
+        <div class="row" style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <input id="ce-name" value="${esc(ceName())}" title="和弦名称（可自定义，如 Cadd9/G 或 我的C）" style="width:110px">
+          <button id="ce-saveuser">存为用户和弦</button>
+          <button id="ce-savecustom" title="仅保存到当前曲谱的随谱指法表">存入本谱</button>
+        </div>
+        <h4>我的和弦（本机通用，点击载入）</h4>
+        <div class="row" style="display:flex;flex-wrap:wrap;gap:5px">${ucChips}</div>
       </div>
       <div style="width:150px;text-align:center">
         <h4>预览</h4>
@@ -3572,9 +3613,30 @@ function renderChordEditor(){
     <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
   const rerender = ()=>{ closeModal(); renderChordEditor(); };
   document.querySelector('.modal').addEventListener('click', ev=>{
-    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; rerender(); return; }
-    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; rerender(); return; }
+    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; rerender(); return; }
+    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; rerender(); return; }
     const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
+    const fb=ev.target.closest('[data-fb]');
+    if(fb){
+      const [s2,f]=fb.dataset.fb.split(':');
+      const SN2=strN();
+      const cur=(ceState.custom||ceShape()||'x'.repeat(SN2)).split('');
+      while(cur.length<SN2) cur.push('x');
+      const idx=SN2-(+s2);
+      const old2=cur[idx];
+      if(f==='x') cur[idx]='x';
+      else{
+        const F=+f;
+        const enc=F>9? F.toString(36) : ''+F;
+        cur[idx] = (old2===enc)? 'x' : enc;   // 点同一格再点=取消该弦
+      }
+      ceState.custom=cur.join('');
+      rerender(); return;
+    }
+    const ul=ev.target.closest('[data-ucl]');
+    if(ul){ const k=ul.dataset.ucl; ceState.custom=userChords()[k]; ceState.cname=k; rerender(); return; }
+    const ux=ev.target.closest('[data-ucx]');
+    if(ux){ const o=userChords(); delete o[ux.dataset.ucx]; userChordsSave(o); toast('已删除用户和弦'); rerender(); return; }
   });
   document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; rerender(); });
   document.querySelectorAll('.ce-fret').forEach(inp=>inp.addEventListener('change', ()=>{
@@ -3584,10 +3646,23 @@ function renderChordEditor(){
     }
     ceState.custom=arr.join(''); rerender();
   }));
+  const nameInp=document.getElementById('ce-name');
+  if(nameInp) nameInp.addEventListener('change', ()=>{
+    ceState.cname = nameInp.value.trim() || null;
+    const pv=document.querySelector('.modal b'); if(pv) pv.textContent=ceName();
+  });
+  document.getElementById('ce-saveuser').onclick = ()=>{
+    ceState.cname = (nameInp&&nameInp.value.trim()) || ceState.cname || null;
+    const nm = ceName(), sh2 = ceShape();
+    if(!sh2 || !/[0-9a-w]/.test(sh2)) return toast('请先在指板上选择至少一个音符');
+    const o=userChords(); o[nm]=sh2; userChordsSave(o);
+    toast('已存为用户和弦：'+nm+'（本机所有曲谱可用）');
+    closeModal(); renderChordEditor();
+  };
   document.getElementById('ce-savecustom').onclick = ()=>{
     const nm = ceName();
     mutate(()=>{ song.customChords[nm]=ceShape(); });
-    toast('已保存自定义和弦：'+nm);
+    toast('已存入本谱指法：'+nm);
   };
   document.getElementById('ce-cancel').onclick = closeModal;
   document.getElementById('ce-ok').onclick = ()=>{
@@ -5728,6 +5803,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.64</span><div>和弦编辑器新增「指板创建」：模拟吉他/尤克里里指板（行=弦、列=0-12品、×不弹、把位点标记），点击自选音符实时生成和弦图；可命名「存为用户和弦」（本机全曲谱通用、可载入/删除），同名用户指法自动出现在把位选项。</div></li>
     <li><span class="v">v34.63</span><div>编辑栏"记号"与"音符"板块互换位置；音符板块强化：新增「休止符」（吉他谱可编辑休止，按时值显示 𝄻𝄼𝄽𝄾𝄿𝅀 且加深明显）与「清单音」（只清当前弦位，简谱自动隐藏），Backspace/Delete 快捷同效。</div></li>
     <li><span class="v">v34.62</span><div>修复：和弦编辑器选择高把位（E型/A型）应用后谱面仍显示开放把位——现在所选指法与标准库不同即随谱保存并显示（含把位数字），选回标准指法自动恢复库图。</div></li>
     <li><span class="v">v34.61</span><div>倚音显示修正：整组（含减时线、低音点、连接线横边）最低不越过主音符腰线——下方延伸超限时整组自动上移，连接线横边固定搭在腰线，行距按需加高；标识符号栏前/后倚音图示与谱面记法统一（主音1＋8分倚音2＋直角连线）。</div></li>
