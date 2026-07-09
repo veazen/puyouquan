@@ -1415,19 +1415,25 @@ function systemExtras(sys){
     if(c.dur>=32) tab32=true;
     if(c.tup) tabTup=true;
   })));
+  /* 第二行及以后的 TAB 声部有和弦名时，行间需为其预留高度（否则压住上一行符杠） */
+  let tabChord2=false;
+  sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach((cols,vi)=>{
+    if(vi>0 && cols.some(c=>c.chord)) tabChord2=true;
+  }));
   return {
+    tabGap2: tabChord2? 22 : 0,
     topExtra: maxUp>=3 ? 14 : maxUp>=2 ? 9 : maxUp>=1 ? 4 : 0,
     botExtra: Math.max(maxDown>=3?16 : maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
     tabExtra: Math.max(tab32?5:0, tabTup?4:0)
   };
 }
-function sysMetrics(topExtra, botExtra, tabExtra){
+function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
-  topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0;
+  topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0;
   const diagH = diagMode==='inline' ? 56 : 12;   // 行内和弦图区加高，避免与一弦数字重叠
   let y = diagH + 6;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ tabTops.push(y); y += staffH() + 12 + tabExtra + 6; }
+  for(let i=0;i<nT;i++){ if(i>0) y += tabGap2; tabTops.push(y); y += staffH() + 12 + tabExtra + 6; }
   for(let i=0;i<nV;i++){
     y += 15 + topExtra; voxYs.push(y); lyricY0.push(y + 24 + botExtra);
     y += 24 + botExtra + (nL-1)*20 + 9;
@@ -1570,7 +1576,7 @@ function render(){
   PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra); });
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
@@ -5803,6 +5809,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.65</span><div>修复：双吉他声部时第二行的简写和弦名与第一行符杠区重叠——第二行及以后存在和弦标注时自动加大 TAB 行间距为其留位。</div></li>
     <li><span class="v">v34.64</span><div>和弦编辑器新增「指板创建」：模拟吉他/尤克里里指板（行=弦、列=0-12品、×不弹、把位点标记），点击自选音符实时生成和弦图；可命名「存为用户和弦」（本机全曲谱通用、可载入/删除），同名用户指法自动出现在把位选项。</div></li>
     <li><span class="v">v34.63</span><div>编辑栏"记号"与"音符"板块互换位置；音符板块强化：新增「休止符」（吉他谱可编辑休止，按时值显示 𝄻𝄼𝄽𝄾𝄿𝅀 且加深明显）与「清单音」（只清当前弦位，简谱自动隐藏），Backspace/Delete 快捷同效。</div></li>
     <li><span class="v">v34.62</span><div>修复：和弦编辑器选择高把位（E型/A型）应用后谱面仍显示开放把位——现在所选指法与标准库不同即随谱保存并显示（含把位数字），选回标准指法自动恢复库图。</div></li>
