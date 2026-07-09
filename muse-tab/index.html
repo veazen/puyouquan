@@ -5514,6 +5514,9 @@ function myPatLoad(){ try{ return JSON.parse(localStorage.getItem(MYPAT_KEY))||[
 function myPatSave(l){ try{ localStorage.setItem(MYPAT_KEY, JSON.stringify(l)); }catch(_){} }
 /* ================= 谱客圈：C端曲谱展示 + 发布 + 付费（本地演示版，云端上线后接真实账号/支付） ================= */
 const CIRCLE_KEY='musetab-circle-pub';
+const ADMIN_KEY='musetab-admin';
+function adminCfg(){ try{ return Object.assign({rate:30, notice:''}, JSON.parse(localStorage.getItem(ADMIN_KEY))||{}); }catch(_){ return {rate:30, notice:''}; } }
+function adminCfgSave(o){ try{ localStorage.setItem(ADMIN_KEY, JSON.stringify(o)); }catch(_){} }
 const OWN_KEY='musetab-circle-own';
 function circlePubs(){ try{ return JSON.parse(localStorage.getItem(CIRCLE_KEY))||[]; }catch(_){ return []; } }
 function circlePubsSave(l){ try{ localStorage.setItem(CIRCLE_KEY, JSON.stringify(l)); }catch(_){} }
@@ -5527,7 +5530,7 @@ function seedCircle(){
     const d=make();
     return {pid:'pub'+Math.random().toString(36).slice(2,9), libId:null, title:d.title,
       author:'谱客官方', type:(!d.tabVoices||d.tabVoices.length? 'guitar':'vox'),
-      price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, data:d};
+      price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'approved', data:d};
   };
   const l=[];
   if(typeof PRESETS!=='undefined' && PRESETS[0]) l.push(mk(PRESETS[0].make, 0, 0));
@@ -5554,10 +5557,10 @@ function showPublishMenu(libEntry, rect){
     const d=JSON.parse(JSON.stringify(libEntry.data));
     const author=(profileLoad().name||d.maker||'佚名');
     l.unshift({pid:'pub'+Math.random().toString(36).slice(2,9), libId:libEntry.id, title:libEntry.title,
-      author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, data:d});
+      author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'pending', data:d});
     circlePubsSave(l);
     closePop();
-    toast('已发布到谱客圈：'+(price>0?('¥'+price+' · 试读'+preview+'小节'):'免费'));
+    toast('已提交发布（'+(price>0?('¥'+price+' · 试读'+preview+'小节'):'免费')+'）· 平台审核通过后在谱客圈上架');
     openPersonal('creator');
   };
 }
@@ -5567,8 +5570,9 @@ function openCircle(){
   let div=document.getElementById('circle');
   if(div) div.remove();
   div=document.createElement('div'); div.id='circle';
-  const pubs=circlePubs();
+  const pubs=circlePubs().filter(pb=>(pb.status||'approved')==='approved');
   const own=circleOwned();
+  const notice=(adminCfg().notice||'').trim();
   const cards=pubs.map(pb=>`
     <div class="cc-card" data-pub="${pb.pid}">
       <div class="cc-price ${pb.price>0?'':'free'}">${pb.price>0? (own[pb.pid]?'已购':'¥'+pb.price) : '免费'}</div>
@@ -5583,7 +5587,8 @@ function openCircle(){
       <span style="flex:1"></span>
       <button id="cc-back" class="primary">返回制谱器</button>
     </div>
-    <div class="cc-grid">${cards || '<p style="grid-column:1/-1;color:var(--muted)">还没有发布的曲谱。</p>'}</div>
+    ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">📢 ${esc(notice)}</div></div>`:''}
+    <div class="cc-grid">${cards || '<p style="grid-column:1/-1;color:var(--muted)">还没有上架的曲谱。</p>'}</div>
     <p style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">
       本地演示版 · 云端账号 / 微信支付 / 小程序上线后自动同步 · pokka.club</p>`;
   document.body.appendChild(div);
@@ -5664,7 +5669,8 @@ const PC_ICON = {
   mine:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h7"/></svg>',
   pat:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-9M22 19V8"/><path d="M2 21h20" opacity=".5"/></svg>',
   rights:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l3 5 6 1-4.5 4.4 1 6.1L12 16.6 6.5 19.5l1-6.1L3 9l6-1z"/></svg>',
-  creator:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M10 20V5M16 20v-7M22 20V9"/><path d="M2 21.5h21" opacity=".45"/></svg>'
+  creator:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V11M10 20V5M16 20v-7M22 20V9"/><path d="M2 21.5h21" opacity=".45"/></svg>',
+  admin:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 7.8-8 9-4.6-1.2-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>'
 };
 function pcProfileHTML(){
   const p=profileLoad();
@@ -5722,15 +5728,17 @@ function pcCreatorHTML(){
   const pubs=circlePubs();
   const pubRows=libLoad().map(e2=>{
     const pb=pubs.find(x=>x.libId===e2.id);
+    const ST={pending:'⏳ 待审核', approved:'✅ 已上架', rejected:'⛔ 已驳回'};
     return `<div class="pc-row">
       <span class="t1">${esc(e2.title||'未命名曲谱')}</span>
-      ${pb? `<span class="t2">${pb.price>0?'¥'+pb.price:'免费'} · 已售${pb.sales||0} · 👁${pb.views||0} · 打赏${pb.tips||0}</span>
-        <button data-pub-upd="${e2.id}" title="用当前库中最新内容更新已发布版本">更新</button>
+      ${pb? `<span class="t2" title="${esc(pb.reason||'')}">${ST[pb.status||'approved']}${pb.status==='rejected'&&pb.reason?('：'+esc(pb.reason)):''} · ${pb.price>0?'¥'+pb.price:'免费'} · 已售${pb.sales||0} · 👁${pb.views||0}</span>
+        <button data-pub-upd="${e2.id}" title="用当前库中最新内容更新（重新进入审核）">更新</button>
         <button data-pub-off="${e2.id}">下架</button>`
       : `<span class="t2">未发布</span><button data-pub-on="${e2.id}" class="primary">发布到谱客圈</button>`}
     </div>`;
   }).join('');
-  const revenue=pubs.reduce((a,x)=>a+(x.price||0)*(x.sales||0),0);
+  const rate=adminCfg().rate||0;
+  const revenue=pubs.reduce((a,x)=>a+(x.price||0)*(x.sales||0),0)*(1-rate/100);
   const proofs=cr.proofs.map((e2,i)=>`<div class="pc-row">
     <span class="t1" title="${esc(e2.hash)}">${esc(e2.title||'未命名曲谱')}</span>
     <span class="t2">${esc(e2.at)}</span>
@@ -5743,7 +5751,7 @@ function pcCreatorHTML(){
     ${tile(lib.length,'作品数')}
     ${tile(views + pubs.reduce((a,x)=>a+(x.views||0),0),'曲谱浏览','本机打开+谱客圈')}
     ${tile('—','收藏','云端上线后统计')}
-    ${tile('¥ '+revenue.toFixed(2),'收益','谱客圈销售（演示）')}
+    ${tile('¥ '+revenue.toFixed(2),'收益','已扣平台抽成 '+rate+'%（演示）')}
   </div>
   <h4>谱客圈 · 发布管理</h4>
   <p>选择哪些曲谱推送到谱客圈；付费谱可设定价与试读小节数，C端购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱客圈 →</a></p>
@@ -5763,6 +5771,41 @@ function pcCreatorHTML(){
   <p>对当前曲谱内容生成 SHA-256 指纹并记录时间戳，可导出凭证文件；内容修改后指纹即变化，可证明"此时刻已存在此内容"。（接入公证时间戳/区块链存证为规划功能）</p>
   <div class="btns" style="justify-content:flex-start;margin:4px 0"><button id="cr-proof" class="primary">为当前曲谱生成存证</button></div>
   ${proofs || '<p>还没有存证记录。</p>'}`;
+}
+/* 平台管理（演示版）：审核队列 / 上架管理 / 平台看板 / 系统配置。
+   云端上线后此界面对接管理员账号与真实 API（admin.pokka.club） */
+function pcAdminHTML(){
+  const cfg=adminCfg();
+  const pubs=circlePubs();
+  const pend=pubs.filter(x=>(x.status||'approved')==='pending');
+  const live=pubs.filter(x=>(x.status||'approved')==='approved');
+  const gmv=pubs.reduce((a,x)=>a+(x.price||0)*(x.sales||0),0);
+  const tile=(v,label,note)=>`<div class="fc" style="text-align:center;padding:12px 8px">
+    <b style="font-size:19px;letter-spacing:0">${v}</b><span>${label}${note?`<br><i style="font-style:normal;opacity:.7;font-size:11px">${note}</i>`:''}</span></div>`;
+  const row=(pb,acts)=>`<div class="pc-row">
+    <span class="t1">${esc(pb.title||'未命名曲谱')}</span>
+    <span class="t2">${esc(pb.author||'佚名')} · ${TYPE_CN[pb.type]||'曲谱'} · ${pb.price>0?'¥'+pb.price:'免费'} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</span>
+    ${acts}</div>`;
+  return `<h4>平台管理 <span style="font-size:10.5px;color:var(--muted);letter-spacing:0">演示版 · 云端上线后为独立管理员后台</span></h4>
+  <h4>平台看板</h4>
+  <div class="feat" style="grid-template-columns:repeat(4,1fr);margin:8px 0">
+    ${tile(live.length,'已上架')}
+    ${tile(pend.length,'待审核')}
+    ${tile(pubs.reduce((a,x)=>a+(x.sales||0),0),'总销量')}
+    ${tile('¥ '+gmv.toFixed(2),'GMV','平台抽成 '+(cfg.rate||0)+'%')}
+  </div>
+  <h4>审核队列（${pend.length}）</h4>
+  ${pend.map(pb=>row(pb, `<button data-adm-view="${pb.pid}">预览</button>
+    <button data-adm-ok="${pb.pid}" class="primary">通过上架</button>
+    <button data-adm-no="${pb.pid}">驳回</button>`)).join('') || '<p>没有待审核的曲谱。</p>'}
+  <h4>已上架内容（${live.length}）</h4>
+  ${live.map(pb=>row(pb, `<span class="t2">售${pb.sales||0} · 👁${pb.views||0}</span>
+    <button data-adm-view="${pb.pid}">查看</button>
+    <button data-adm-down="${pb.pid}">强制下架</button>`)).join('') || '<p>暂无上架内容。</p>'}
+  <h4>系统配置</h4>
+  <label class="f"><span>平台抽成</span><input id="adm-rate" type="number" min="0" max="90" value="${cfg.rate}" style="width:70px"> %（创作者到手 = 售价 ×（1−抽成））</label>
+  <label class="f"><span>圈内公告</span><input id="adm-notice" value="${esc(cfg.notice||'')}" placeholder="显示在谱客圈顶部（留空不显示）" style="flex:1"></label>
+  <div class="btns" style="justify-content:flex-start"><button id="adm-save" class="primary">保存配置</button></div>`;
 }
 function pcRightsHTML(){
   const cur=memberPlan();
@@ -5786,8 +5829,8 @@ function pcRightsHTML(){
 }
 function openPersonal(tab){
   tab = tab||'profile';
-  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益']];
-  const body={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML}[tab]();
+  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益'],['admin','平台管理']];
+  const body={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML, admin:pcAdminHTML}[tab]();
   showModal(`<h3>个人中心</h3>
     <div class="pc-wrap">
       <div class="pc-nav">${NAV.map(([k,n])=>`<button data-pc-nav="${k}" class="${k===tab?'on':''}">${PC_ICON[k]}<span>${n}</span></button>`).join('')}</div>
@@ -5815,8 +5858,9 @@ function openPersonal(tab){
     M.querySelectorAll('[data-pub-upd]').forEach(b2=>b2.onclick=()=>{
       const e0=libLoad().find(x=>x.id===b2.dataset.pubUpd); if(!e0) return;
       const l=circlePubs(); const pb=l.find(x=>x.libId===e0.id);
-      if(pb){ pb.data=JSON.parse(JSON.stringify(e0.data)); pb.title=e0.title; pb.pubAt=nowStamp(); circlePubsSave(l); }
-      toast('已用最新内容更新谱客圈版本');
+      if(pb){ pb.data=JSON.parse(JSON.stringify(e0.data)); pb.title=e0.title; pb.pubAt=nowStamp(); pb.status='pending'; delete pb.reason; circlePubsSave(l); }
+      toast('已更新内容 · 重新进入平台审核');
+      openPersonal('creator');
     });
     M.querySelectorAll('[data-pub-off]').forEach(b2=>b2.onclick=()=>{
       const l=circlePubs().filter(x=>x.libId!==b2.dataset.pubOff);
@@ -5890,6 +5934,33 @@ function openPersonal(tab){
     M.querySelectorAll('[data-pc-pdel]').forEach(b=>b.onclick=()=>{
       const pats=myPatLoad(); pats.splice(+b.dataset.pcPdel,1); myPatSave(pats);
       toast('已删除'); openPersonal('pat');
+    });
+  }else if(tab==='admin'){
+    document.getElementById('adm-save').onclick=()=>{
+      adminCfgSave({rate:Math.max(0,Math.min(90,+document.getElementById('adm-rate').value||0)),
+        notice:document.getElementById('adm-notice').value.trim()});
+      toast('平台配置已保存（抽成即时影响创作者收益显示）');
+      openPersonal('admin');
+    };
+    M.querySelectorAll('[data-adm-ok]').forEach(b2=>b2.onclick=()=>{
+      const l=circlePubs(); const pb=l.find(x=>x.pid===b2.dataset.admOk);
+      if(pb){ pb.status='approved'; delete pb.reason; circlePubsSave(l); }
+      toast('已通过审核并上架'); openPersonal('admin');
+    });
+    M.querySelectorAll('[data-adm-no]').forEach(b2=>b2.onclick=()=>{
+      askText('驳回原因（将展示给创作者）', '内容不符合上架规范', reason=>{
+        const l=circlePubs(); const pb=l.find(x=>x.pid===b2.dataset.admNo);
+        if(pb){ pb.status='rejected'; pb.reason=(reason||'').trim()||'未说明'; circlePubsSave(l); }
+        toast('已驳回'); openPersonal('admin');
+      });
+    });
+    M.querySelectorAll('[data-adm-down]').forEach(b2=>b2.onclick=()=>{
+      const l=circlePubs(); const pb=l.find(x=>x.pid===b2.dataset.admDown);
+      if(pb){ pb.status='rejected'; pb.reason='平台下架'; circlePubsSave(l); }
+      toast('已强制下架'); openPersonal('admin');
+    });
+    M.querySelectorAll('[data-adm-view]').forEach(b2=>b2.onclick=()=>{
+      closeModal(); openPubViewer(b2.dataset.admView);
     });
   }else if(tab==='rights'){
     M.querySelectorAll('.mb-pick').forEach(b=>b.onclick=()=>{
@@ -6026,6 +6097,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.67</span><div>平台管理演示版：个人中心新增「平台管理」——平台看板（上架/待审/销量/GMV）、审核队列（预览/通过上架/驳回附原因）、上架内容强制下架、系统配置（平台抽成%与圈内公告）；发布改为"提交→待审核→上架"状态机，创作者端实时显示审核状态与分成后收益。</div></li>
     <li><span class="v">v34.66</span><div>谱客圈（C端生态）本地演示版上线：顶栏「谱客圈」进入曲谱卡片流（预置官方示例）；详情为只读观看模式（可播放/循环，付费谱试读 N 小节+购买解锁演示，已购/免费可下载长图与打印 PDF，可打赏）；创作者中心新增「发布管理」——选择曲谱发布/更新/下架、设定价与试读，看板接入谱客圈浏览与销售收益（演示）。云端账号/微信支付/小程序上线后无缝切换真实数据。</div></li>
     <li><span class="v">v34.65</span><div>修复：双吉他声部时第二行的简写和弦名与第一行符杠区重叠——第二行及以后存在和弦标注时自动加大 TAB 行间距为其留位。</div></li>
     <li><span class="v">v34.64</span><div>和弦编辑器新增「指板创建」：模拟吉他/尤克里里指板（行=弦、列=0-12品、×不弹、把位点标记），点击自选音符实时生成和弦图；可命名「存为用户和弦」（本机全曲谱通用、可载入/删除），同名用户指法自动出现在把位选项。</div></li>
