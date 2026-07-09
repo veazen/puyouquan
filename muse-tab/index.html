@@ -1332,6 +1332,7 @@ function systemExtras(sys){
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
     if(c.chord) maxUp=Math.max(maxUp, 2);                        // 功能谱级数标注需上方空间
+    if(c.dyn) maxDown=Math.max(maxDown, 2);                      // 力度记号需下方空间
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
       const hiOct = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct||0)) : 0;
@@ -1394,6 +1395,36 @@ function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
       if(r>=1&&r<=4) p.push(`<circle cx="${sx}" cy="${gy+(r-0.5)*fh}" r="${2.8*k}" fill="var(--ink)"/>`); }
   });
   return p.join('');
+}
+/* 反复导航记号绘制：𝄋(小节头上方)、⊕(小节头上方)、D.C./D.S./Fine(小节末下方/上方) */
+function navMarkSVG(p, mea, mx, bx, yTop, yBot){
+  if(mea.segno){
+    p.push(`<text x="${mx+10}" y="${yTop}" font-size="13" font-style="italic" font-weight="800" text-anchor="middle" font-family="Georgia,serif" fill="var(--ink)">S</text>`);
+    p.push(`<line x1="${mx+5}" y1="${yTop+3}" x2="${mx+15}" y2="${yTop-11}" stroke="var(--ink)" stroke-width="1.1"/>`);
+    p.push(`<circle cx="${mx+3.4}" cy="${yTop-6.8}" r="1.15" fill="var(--ink)"/><circle cx="${mx+16.6}" cy="${yTop-1.4}" r="1.15" fill="var(--ink)"/>`);
+  }
+  if(mea.coda){
+    const cx2=mx+(mea.segno?26:10), cy2=yTop-4;
+    p.push(`<ellipse cx="${cx2}" cy="${cy2}" rx="4.4" ry="5.6" fill="none" stroke="var(--ink)" stroke-width="1.25"/>`);
+    p.push(`<line x1="${cx2}" y1="${cy2-8.6}" x2="${cx2}" y2="${cy2+8.6}" stroke="var(--ink)" stroke-width="1.25"/>`);
+    p.push(`<line x1="${cx2-7.4}" y1="${cy2}" x2="${cx2+7.4}" y2="${cy2}" stroke="var(--ink)" stroke-width="1.25"/>`);
+  }
+  const txts=[]; if(mea.dc) txts.push('D.C.'); if(mea.ds) txts.push('D.S.'); if(mea.fine) txts.push('Fine');
+  if(txts.length)
+    p.push(`<text x="${bx-3}" y="${yBot}" font-size="10.5" font-style="italic" font-weight="700" text-anchor="end" font-family="Georgia,serif" fill="var(--ink)">${txts.join('  ')}</text>`);
+}
+/* 1/2房括线：横线+端部竖钩+序号（按同号连续小节成组） */
+function voltaSVG(p, mea, mi, mx, bx, yV){
+  if(!mea.volta) return;
+  const prevSame = mi>0 && song.measures[mi-1] && song.measures[mi-1].volta===mea.volta;
+  const nextSame = song.measures[mi+1] && song.measures[mi+1].volta===mea.volta;
+  p.push(`<line x1="${mx}" y1="${yV}" x2="${bx}" y2="${yV}" stroke="var(--ink)" stroke-width="1"/>`);
+  if(!prevSame){
+    p.push(`<line x1="${mx}" y1="${yV}" x2="${mx}" y2="${yV+7}" stroke="var(--ink)" stroke-width="1"/>`);
+    p.push(`<text x="${mx+4}" y="${yV+9.5}" font-size="9" font-weight="700" fill="var(--ink)">${mea.volta}.</text>`);
+  }
+  if(!nextSame)
+    p.push(`<line x1="${bx}" y1="${yV}" x2="${bx}" y2="${yV+7}" stroke="var(--ink)" stroke-width="1"/>`);
 }
 function beamGroups(cols, playable){
   const groups=[]; let cur=null; let cum=0;
@@ -1614,6 +1645,10 @@ function render(){
             const selR = barSel && barSel.L===lm.mi;
             p.push(`<rect class="barzone" x="${bx-2}" y="${tabTop-3}" width="8" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
           }
+        }
+        if(vi===0){
+          navMarkSVG(p, mea, mx, bx, tabTop-8, stemY+14);
+          voltaSVG(p, mea, lm.mi, mx, bx, tabTop-15);
         }
         /* 符杠分组预计算：附点圆点需对齐该组由上至下的第一条时值线 */
         const bGroups = beamGroups(cols, c2=>c2.notes.length||c2.strum);
@@ -1906,6 +1941,10 @@ function render(){
             p.push(`<rect class="barzone" x="${bx-2}" y="${yT2-2}" width="8" height="${yB2-yT2+4}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
           }
         }
+        if(vi===0 && !song.tabVoices.length){
+          navMarkSVG(p, mea, mx, bx, yT2-8, yB2+13);
+          voltaSVG(p, mea, lm.mi, mx, bx, yT2-15);
+        }
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
         cols.forEach((col,ci)=>{
@@ -1989,6 +2028,19 @@ function render(){
             for(let u=0;u<under;u++)
               p.push(`<line x1="${nx-6.5}" y1="${voxY+3.4+u*3.2}" x2="${nx+6.5}" y2="${voxY+3.4+u*3.2}" stroke="var(--ink)" stroke-width="1.1"/>`);
           if(col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+          /* 力度/速度记号：音符下方（避让减时线与低音点），渐强/渐弱画折线 */
+          if(col.dyn){
+            const dyY = voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
+            if(col.dyn==='<' || col.dyn==='>'){
+              const w2=Math.min(16, cw*0.42);
+              if(col.dyn==='<')
+                p.push(`<path d="M ${nx-w2} ${dyY-3} L ${nx+w2} ${dyY-6} M ${nx-w2} ${dyY-3} L ${nx+w2} ${dyY}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+              else
+                p.push(`<path d="M ${nx-w2} ${dyY-6} L ${nx+w2} ${dyY-3} M ${nx-w2} ${dyY} L ${nx+w2} ${dyY-3}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+            }else{
+              p.push(`<text x="${nx}" y="${dyY}" font-size="10.5" font-style="italic" font-weight="${/^(rit|accel)/.test(col.dyn)?'400':'700'}" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
+            }
+          }
           if(col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
           if(col.dur===1) for(let d=1;d<=3;d++)
             p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
@@ -2109,7 +2161,29 @@ const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b'
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
                   ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],['','清除','—']];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
-                  ['tr','颤音'],['turn','回音'],['clr','清除记号']];
+                  ['tr','颤音'],['turn','回音'],['dyn','力度/速度'],['clr','清除记号']];
+const DYN_LIST=['ppp','pp','p','mp','mf','f','ff','fp','sfp','cresc.','dim.','<','>','rit.','accel.'];
+const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18};
+function showDynMenu(cx, cy){
+  if(sel.row!=='vox') return toast('请先在简谱选中要标记的音符');
+  const col=curCol(); if(!col) return;
+  closePop();
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-330)+'px';
+  div.style.top=(cy+6)+'px';
+  div.innerHTML=`<div class="t">力度 / 速度记号（标在音符下方；力度影响该处起播放音量）</div>
+    <div class="row">${DYN_LIST.map(d=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</button>`).join('')}
+    <button data-dy="">清除</button></div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const b2=ev.target.closest('[data-dy]'); if(!b2) return;
+    mutate(()=>{ const c=curCol(); if(!c) return;
+      if(b2.dataset.dy) c.dyn=b2.dataset.dy; else delete c.dyn; });
+    toast(b2.dataset.dy? '已标记 '+b2.dataset.dy : '已清除力度记号');
+    closePop();
+  });
+}
 /* 简谱标识符号小图示（与谱面渲染同款） */
 function ornSVG(kind){
   const W=26, H=18;
@@ -2131,6 +2205,9 @@ function ornSVG(kind){
     g=`<text x="13" y="13" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">tr</text>`;
   }else if(kind==='turn'){
     g=`<text x="13" y="13.5" font-size="12" text-anchor="middle" fill="currentColor">∽</text>`;
+  }else if(kind==='dyn'){
+    g=`<text x="10" y="13" font-size="12" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="middle" fill="currentColor">f</text>
+       <path d="M 16 6 L 23 9 L 16 12" fill="none" stroke="currentColor" stroke-width="0.9"/>`;
   }else{
     g=`<text x="13" y="13" font-size="11" text-anchor="middle" fill="currentColor">—</text>`;
   }
@@ -2716,7 +2793,10 @@ function applyVoxPattern(pat){
     const tb=e.target.closest('[data-tech2]');
     if(tb){ techFromBar(tb.dataset.tech2); return; }
     const ob=e.target.closest('[data-orn]');
-    if(ob){ ornFromBar(ob.dataset.orn); return; }
+    if(ob){
+      if(ob.dataset.orn==='dyn'){ const r=ob.getBoundingClientRect(); showDynMenu(r.left, r.bottom); return; }
+      ornFromBar(ob.dataset.orn); return;
+    }
   });
   /* ---- 缩放：按钮 ±、点击百分比复位；内容区 Ctrl+滚轮 ---- */
   const setZoom = z=>{
@@ -3519,6 +3599,13 @@ function showBarMenu(cx, cy, L, R){
   if(mL) rows+=`<button data-k="re"${chk(mL.repeatEnd)}>𝄇 反复结束 · 第${L+1}小节</button>`;
   if(mL) rows+=`<button data-k="sec"${chk(mL.sectionBar)}>𝄁 段落重复线（双细线）· 第${L+1}小节末</button>`;
   if(mL) rows+=`<button data-k="fin"${chk(mL.finalBar)}>𝄂 终止线 · 第${L+1}小节末</button>`;
+  if(mL) rows+=`<button data-k="dc"${chk(mL.dc)}>D.C. 从头反复 · 第${L+1}小节末</button>`;
+  if(mL) rows+=`<button data-k="ds"${chk(mL.ds)}>D.S. 从 𝄋 标记反复 · 第${L+1}小节末</button>`;
+  if(mL) rows+=`<button data-k="fine"${chk(mL.fine)}>Fine 反复段结束点 · 第${L+1}小节末</button>`;
+  if(mR) rows+=`<button data-k="segno"${chk(mR.segno)}>𝄋 Segno 标记 · 第${R+1}小节头</button>`;
+  if(mR) rows+=`<button data-k="coda"${chk(mR.coda)}>⊕ 跳跃记号（成对使用，跳过两 ⊕ 间内容）· 第${R+1}小节头</button>`;
+  if(mR) rows+=`<button data-k="v1"${mR.volta===1?' class="on"':''}>┌1.┐ 第一结尾（1房）· 第${R+1}小节</button>`;
+  if(mR) rows+=`<button data-k="v2"${mR.volta===2?' class="on"':''}>┌2.┐ 第二结尾（2房）· 第${R+1}小节</button>`;
   rows+=`<button data-k="clr">清除该线符号</button>`;
   div.innerHTML=`<div class="t">小节线设置 · 提示：按住小节线可选中本小节声部</div>
     <div class="row" style="flex-direction:column;align-items:stretch">${rows}</div>`;
@@ -3531,7 +3618,17 @@ function showBarMenu(cx, cy, L, R){
       if(k==='re' && mL) mL.repeatEnd=!mL.repeatEnd;
       if(k==='sec' && mL) mL.sectionBar=!mL.sectionBar;
       if(k==='fin' && mL) mL.finalBar=!mL.finalBar;
-      if(k==='clr'){ if(mR) mR.repeatStart=false; if(mL){ mL.repeatEnd=false; mL.finalBar=false; mL.sectionBar=false; } }
+      if(k==='dc' && mL) mL.dc=!mL.dc;
+      if(k==='ds' && mL) mL.ds=!mL.ds;
+      if(k==='fine' && mL) mL.fine=!mL.fine;
+      if(k==='segno' && mR) mR.segno=!mR.segno;
+      if(k==='coda' && mR) mR.coda=!mR.coda;
+      if(k==='v1' && mR) mR.volta = mR.volta===1? 0 : 1;
+      if(k==='v2' && mR) mR.volta = mR.volta===2? 0 : 2;
+      if(k==='clr'){
+        if(mR){ mR.repeatStart=false; mR.segno=false; mR.coda=false; mR.volta=0; }
+        if(mL){ mL.repeatEnd=false; mL.finalBar=false; mL.sectionBar=false; mL.dc=false; mL.ds=false; mL.fine=false; }
+      }
     });
     closePop();
   });
@@ -4400,11 +4497,38 @@ function buildPlayOrder(startMi){
     for(let m=audio.loop.a; m<=Math.min(audio.loop.b, song.measures.length-1); m++) o.push(m);
     return o.length?o:[0];
   }
-  const o=[]; let m=startMi, lastStart=startMi; const done=new Set(); let guard=0;
-  while(m<song.measures.length && guard++<2000){
+  const M=song.measures, N=M.length;
+  const o=[];
+  const segnoIdx = M.findIndex(x=>x.segno);
+  const codas = M.map((x,i)=>x.coda?i:-1).filter(i=>i>=0);
+  const hasJump = M.some(x=>x.dc||x.ds);
+  let m=startMi, lastStart=startMi;
+  const repeatDone=new Set();
+  let jumped=false;                 // 处于 D.C./D.S. 的重复段
+  let navUsed=false, codaUsed=false;
+  let guard=0;
+  while(m<N && guard++<4000){
+    const mea=M[m];
+    /* 1房：其配对反复已完成 → 整段跳过直达2房 */
+    if(mea.volta===1){
+      let me=m; while(me<N && !M[me].repeatEnd) me++;
+      if(me<N && repeatDone.has(me)){ m=me+1; continue; }
+    }
+    /* 2房：反复未完成时首次经过跳过（正常应由反复跳回后经1房跳线到达） */
+    if(mea.volta===2 && !jumped){
+      let me=m-1; while(me>=0 && !M[me].repeatEnd) me--;
+      if(me>=0 && !repeatDone.has(me)){ m++; continue; }
+    }
+    /* ⊕ 跳跃：第一个 ⊕ 起跳到第二个 ⊕（有 D.C./D.S. 时仅在重复段生效；无则直接生效） */
+    if(!codaUsed && codas.length>=2 && m===codas[0] && (jumped || !hasJump)){
+      codaUsed=true; m=codas[1]; continue;
+    }
     o.push(m);
-    if(song.measures[m].repeatStart) lastStart=m;
-    if(song.measures[m].repeatEnd && !done.has(m)){ done.add(m); m=lastStart; continue; }
+    if(mea.repeatStart) lastStart=m;
+    if(jumped && mea.fine) break;                       // 重复段中到 Fine 结束
+    if(mea.repeatEnd && !repeatDone.has(m)){ repeatDone.add(m); m=lastStart; continue; }
+    if(!navUsed && mea.dc){ navUsed=true; jumped=true; m=0; lastStart=0; continue; }
+    if(!navUsed && mea.ds){ navUsed=true; jumped=true; m=Math.max(0,segnoIdx); lastStart=m; continue; }
     m++;
   }
   return o.length?o:[0];
@@ -4619,8 +4743,8 @@ function play(){
     if(!trackAudible('vox',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
     const vol = (cfg.vol||1)*norm;
-    let hold=null;
-    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*1.05, false); hold=null; } };
+    let hold=null, dynG=1;
+    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*1.05*hold.g, false); hold=null; } };
     order.forEach((mi,oi)=>{
       let off=starts[oi];
       (song.measures[mi].voxes[vi]||[]).forEach((col,ci)=>{
@@ -4645,10 +4769,11 @@ function play(){
             playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false);
           });
         }
+        if(col.dyn && DYN_GAIN[col.dyn]) dynG=DYN_GAIN[col.dyn];
         if(m!=null){
           const f=midiFreq(m);
           if(hold && Math.abs(hold.freq-f)<0.01) hold.dur += durSec;
-          else{ flush(); hold={freq:f,start:off,dur:durSec}; }
+          else{ flush(); hold={freq:f,start:off,dur:durSec,g:dynG}; }
           if(!col.tie) flush();
         }else flush();
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
@@ -5458,6 +5583,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.56</span><div>反复记号体系补全（参考出版谱）：小节线菜单新增 D.C. 从头反复、D.S.＋𝄋 标记反复、Fine 结束点、⊕ 跳跃记号（成对）、1房/2房不同结尾括线，谱面按标准记法绘制，播放导航完整识别七类反复走法；简谱新增力度/速度记号（ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.），力度即时影响播放音量。</div></li>
     <li><span class="v">v34.55</span><div>品牌升级：网站更名「谱客 POKKA」（pokka.club），页头 LOGO、页面标题、帮助/特色/日志弹窗、预设制谱署名与存证凭证全面更新；本机数据完全兼容保留。</div></li>
     <li><span class="v">v34.54</span><div>个人中心新增「创作者中心」：数据看板（作品数/曲谱浏览/收藏/收益）、收益设置（付费谱定价/打赏开关/粉丝订阅），认证扒谱人与认证教师体验标识，版权登记辅助——为当前曲谱生成 SHA-256 内容指纹+时间戳存证并可导出凭证文件。</div></li>
     <li><span class="v">v34.53</span><div>小节数多（格宽不足）时进度条自动转为密集标尺（每10小节悬浮编号），点击标尺或 ▦ 按钮打开多行大格"小节选择面板"精确点击/拖选循环区，面板随播放同步填充进度。</div></li>
