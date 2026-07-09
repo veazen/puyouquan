@@ -1384,6 +1384,12 @@ function systemExtras(sys){
       const hiOct = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct||0)) : 0;
       const h2 = Math.max(hiOct(gg), hiOct(ga));
       if(h2>=1) maxUp=Math.max(maxUp, h2>=2? 3 : 2);   // 倚音高8度点按层数加高
+      /* 倚音低音点/多减时线 → 整组上移，同样需要上方空间 */
+      const lowN = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct<0? Math.min(3,-n2.oct):0)) : 0;
+      const undN = g2=> g2? (g2.dur>=32?3 : g2.dur>=16?2 : g2.dur>=8?1 : 0) : 0;
+      const lo = Math.max(lowN(gg), lowN(ga)), un = Math.max(undN(gg), undN(ga));
+      if(lo>=2 || (lo>=1 && un>=2)) maxUp=Math.max(maxUp, 3);
+      else if(lo>=1 || un>=2) maxUp=Math.max(maxUp, 2);
     }
     maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
@@ -2021,10 +2027,14 @@ function render(){
             /* 整体小比例：位于主音左上/右上角，含减时线与八度点也不超过主音大小 */
             const STEP=6.5, gW=(g.notes.length-1)*STEP;
             const gxc = pre? nx-10-gW : nx+10;      // 组首音符中心
-            const gyb = voxY-12;
             const gu = g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;
             const LSP=1.7, DSP=2.6;                 // 减时线距 / 八度点距
             const maxLow = Math.max(0, ...g.notes.map(gn=>gn.oct<0? Math.min(3,-gn.oct) : 0));
+            /* 约束：倚音全部元素（减时线/低音点/连接线横边）最低不越过主音符腰线。
+               腰线取主音数字中部；下方延伸超限时整组基线自动上移。 */
+            const waistY = voxY-6;
+            const extBelow = 1.4+gu*LSP + (maxLow? 1.2+maxLow*DSP : 0);
+            const gyb = Math.min(voxY-12, waistY-2.2-extBelow);
             g.notes.forEach((gn,gi)=>{
               const x=gxc+gi*STEP;
               p.push(`<text x="${x}" y="${gyb}" font-size="8.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${gn.deg}</text>`);
@@ -2038,8 +2048,8 @@ function render(){
               p.push(`<line x1="${gxc-3.6}" y1="${gyb+1.4+u*LSP}" x2="${gxc+gW+3.6}" y2="${gyb+1.4+u*LSP}" stroke="var(--ink)" stroke-width="0.8"/>`);
             /* 倚音连接线：一个直角——竖边起点在倚音正下方（自动让过减时线与低音点），
                横边终点搭在主音符腰部；减时线/低音点越多，转角自动下移 */
-            const yTop = gyb+1.4+gu*LSP + (maxLow? 2.2+maxLow*DSP : 1.2);
-            const yH = Math.max(voxY-4.5, yTop+2.5);      // 主音符腰部高度（必要时下移避让）
+            const yTop = gyb+extBelow+(maxLow?1:1.2);
+            const yH = waistY;                             // 横边固定在主音符腰线，不再下移
             const gx = gxc+gW/2;                          // 倚音组正下方
             const xe = pre? nx-6.5 : nx+6.5;              // 主音符腰部（左/右侧）
             p.push(`<path d="M ${gx} ${yTop} L ${gx} ${yH} L ${xe} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
@@ -2237,15 +2247,17 @@ function ornSVG(kind){
   const W=26, H=18;
   let g='';
   if(kind==='grace'){
-    g=`<text x="6" y="8" font-size="7" text-anchor="middle" fill="currentColor">3</text>
-       <line x1="3" y1="9.5" x2="9" y2="9.5" stroke="currentColor" stroke-width="0.8"/>
-       <path d="M 2 10.5 L 2 12.5 Q 2 14.5 4 14.5 L 11 14.5" fill="none" stroke="currentColor" stroke-width="1"/>
+    /* 与谱面记法一致：前倚音 2（8分·一条减时线）＋直角连线搭到主音 1 腰部 */
+    g=`<text x="6" y="7.5" font-size="7" text-anchor="middle" fill="currentColor">2</text>
+       <line x1="3" y1="9" x2="9" y2="9" stroke="currentColor" stroke-width="0.8"/>
+       <path d="M 6 10.2 L 6 11.8 L 13.5 11.8" fill="none" stroke="currentColor" stroke-width="0.9"/>
        <text x="18" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>`;
   }else if(kind==='gracea'){
+    /* 后倚音：主音 1 在左，倚音 2 在右，直角连线向左搭回主音腰部 */
     g=`<text x="8" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>
-       <text x="20" y="8" font-size="7" text-anchor="middle" fill="currentColor">3</text>
-       <line x1="17" y1="9.5" x2="23" y2="9.5" stroke="currentColor" stroke-width="0.8"/>
-       <path d="M 24 10.5 L 24 12.5 Q 24 14.5 22 14.5 L 15 14.5" fill="none" stroke="currentColor" stroke-width="1"/>`;
+       <text x="20" y="7.5" font-size="7" text-anchor="middle" fill="currentColor">2</text>
+       <line x1="17" y1="9" x2="23" y2="9" stroke="currentColor" stroke-width="0.8"/>
+       <path d="M 20 10.2 L 20 11.8 L 12.5 11.8" fill="none" stroke="currentColor" stroke-width="0.9"/>`;
   }else if(kind==='up' || kind==='down'){
     g=`<path d="M 5 11 l 3 -4 l 3 4 l 3 -4 l 3 4" fill="none" stroke="currentColor" stroke-width="1.2"/>`;
     if(kind==='down') g+=`<line x1="13" y1="4" x2="13" y2="14" stroke="currentColor" stroke-width="1.2"/>`;
@@ -5681,6 +5693,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.61</span><div>倚音显示修正：整组（含减时线、低音点、连接线横边）最低不越过主音符腰线——下方延伸超限时整组自动上移，连接线横边固定搭在腰线，行距按需加高；标识符号栏前/后倚音图示与谱面记法统一（主音1＋8分倚音2＋直角连线）。</div></li>
     <li><span class="v">v34.60</span><div>修复：v34.59 加宽置顶的小节线热区盖住贴线音符格，导致点击音符光标不移动——热区回调为 10px 顶层，贴线音符点击与小节线菜单弹出两者实测均 100% 命中。</div></li>
     <li><span class="v">v34.59</span><div>小节线点选热区加宽并置顶层（不再被音符格遮挡，点击更灵敏）；「小节与段落」默认只显示插入/删除小节，反复·跳转记号折叠可展开（记忆状态）；使用帮助与特色功能改为"通用功能＋分谱型"结构全面更新。</div></li>
     <li><span class="v">v34.58</span><div>小节线弹窗等谱面锚定弹窗改为随页面滚动；「小节与段落」模块化重设计（符号+名称分组卡片），移除"补齐小节时值"按钮（修复入口保留在节拍状态条）；1房/2房更名"第一段/第二段"，括线改为开口式（只有开头竖钩，结尾不收口）。</div></li>
