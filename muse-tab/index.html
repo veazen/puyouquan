@@ -3497,7 +3497,8 @@ function ceShape(){
 function positionVariants(){
   const r = NOTE_PC[ceState.root], q = ceState.qual;
   const vs=[];
-  const open = chordShape(ceState.root+q);
+  /* "开放"取标准库原始指法（不经 customChords 覆盖，保证能选回库图） */
+  const open = instOf()==='uku'? UKU_SHAPES[ceState.root+q] : CHORD_SHAPES[ceState.root+q];
   if(open) vs.push({label:'开放', shape:open});
   vs.push({label:'6弦根音(E型)', shape:movableShape(r,q,'E')});
   vs.push({label:'5弦根音(A型)', shape:movableShape(r,q,'A')});
@@ -3564,7 +3565,11 @@ function renderChordEditor(){
     const {mi,ci,vi}=ceState;
     const oldEff = chordBefore(mi,vi);
     mutate(()=>{
-      if(!CHORD_SHAPES[nm]) song.customChords[nm]=sh;   // 非标准/转位/自定义 → 存入
+      /* 所选指法（高把位/转位/自定义）与标准库不同 → 存入随谱指法表；
+         选回标准指法则清除覆盖，恢复库图 */
+      const std = (instOf()==='uku'? UKU_SHAPES[nm] : CHORD_SHAPES[nm]);
+      if(sh && sh!==std) song.customChords[nm]=sh;
+      else if(song.customChords) delete song.customChords[nm];
       const cols = song.measures[mi].tabs[vi];
       cols[ci].chord = nm;
       if(nm!==oldEff){
@@ -5693,6 +5698,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.62</span><div>修复：和弦编辑器选择高把位（E型/A型）应用后谱面仍显示开放把位——现在所选指法与标准库不同即随谱保存并显示（含把位数字），选回标准指法自动恢复库图。</div></li>
     <li><span class="v">v34.61</span><div>倚音显示修正：整组（含减时线、低音点、连接线横边）最低不越过主音符腰线——下方延伸超限时整组自动上移，连接线横边固定搭在腰线，行距按需加高；标识符号栏前/后倚音图示与谱面记法统一（主音1＋8分倚音2＋直角连线）。</div></li>
     <li><span class="v">v34.60</span><div>修复：v34.59 加宽置顶的小节线热区盖住贴线音符格，导致点击音符光标不移动——热区回调为 10px 顶层，贴线音符点击与小节线菜单弹出两者实测均 100% 命中。</div></li>
     <li><span class="v">v34.59</span><div>小节线点选热区加宽并置顶层（不再被音符格遮挡，点击更灵敏）；「小节与段落」默认只显示插入/删除小节，反复·跳转记号折叠可展开（记忆状态）；使用帮助与特色功能改为"通用功能＋分谱型"结构全面更新。</div></li>
