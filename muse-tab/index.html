@@ -176,6 +176,10 @@ input.short{width:54px} input.mid{width:150px}
   font-family:Georgia,'Times New Roman',serif;flex:0 0 auto}
 .sp-grid button span{overflow:hidden;text-overflow:ellipsis}
 .sp-grid button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#sp-toggle{width:100%;margin-top:7px;display:flex;justify-content:space-between;align-items:center;
+  padding:7px 10px;border-radius:9px;font-size:11.5px;color:var(--muted);background:var(--paper)}
+#sp-toggle:hover{color:var(--accent)}
+#sp-more.hidden{display:none}
 .popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
 /* 曲谱库 */
@@ -561,6 +565,8 @@ svg text{user-select:none}
             <button id="b-delmea" title="删除当前小节"><b>－</b><span>删除小节</span></button>
           </div>
         </div>
+        <button id="sp-toggle" title="展开/收起 反复与跳转记号">段落 · 反复 · 跳转记号 <span id="sp-arrow">▾</span></button>
+        <div id="sp-more" class="hidden">
         <div class="sp-sec">
           <div class="sp-t">反复 · 段落结尾</div>
           <div class="sp-grid">
@@ -587,6 +593,7 @@ svg text{user-select:none}
             <button id="b-finline" title="终止线，标于本小节末"><b>𝄂</b><span>终止线</span></button>
           </div>
         </div>
+        </div><!-- /#sp-more -->
       </div>
     </div>
     <div class="rcard open">
@@ -1547,6 +1554,7 @@ function render(){
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
   colBoxes = {};
   const p=[];
+  const barZones=[];   // 小节线热区置顶层绘制，避免被音符格遮挡、加宽更易点中
   const MM = PAGE_W/210;                    // 1mm 对应的 SVG 单位（页宽=210mm）
   const topMargin = Math.round(12*MM);      // 标题上方留 12mm 边距
   let headY = topMargin + 22;
@@ -1677,10 +1685,10 @@ function render(){
         /* 小节线热区：点击=选中小节线设置反复/终止符号；按住=选中本小节该声部 */
         {
           const selL = barSel && barSel.R===lm.mi;
-          p.push(`<rect class="barzone" x="${mx-4}" y="${tabTop-3}" width="9" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+          barZones.push(`<rect class="barzone" x="${mx-7}" y="${tabTop-4}" width="14" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
-            p.push(`<rect class="barzone" x="${bx-2}" y="${tabTop-3}" width="8" height="${STAFF+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+            barZones.push(`<rect class="barzone" x="${bx-6}" y="${tabTop-4}" width="13" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
           }
         }
         if(vi===0){
@@ -1972,10 +1980,10 @@ function render(){
         /* 小节线热区：点击=选中小节线设置符号；按住=选中本小节简谱声部 */
         {
           const selL = barSel && barSel.R===lm.mi;
-          p.push(`<rect class="barzone" x="${mx-4}" y="${yT2-2}" width="9" height="${yB2-yT2+4}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+          barZones.push(`<rect class="barzone" x="${mx-7}" y="${yT2-3}" width="14" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
-            p.push(`<rect class="barzone" x="${bx-2}" y="${yT2-2}" width="8" height="${yB2-yT2+4}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+            barZones.push(`<rect class="barzone" x="${bx-6}" y="${yT2-3}" width="13" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
           }
         }
         if(vi===0 && !song.tabVoices.length){
@@ -2158,6 +2166,7 @@ function render(){
   svg.setAttribute('height', Math.round(totalH*viewZoom));
   const zl = document.getElementById('zoom-lbl');
   if(zl) zl.textContent = Math.round(viewZoom*100)+'%';
+  barZones.forEach(z=>p.push(z));
   svg.innerHTML = p.join('');
   syncInputs();
 }
@@ -3352,7 +3361,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     }, 450);
     const off=()=>{ document.removeEventListener('pointerup',up); document.removeEventListener('pointermove',mv); };
     const up=()=>{ clearTimeout(tm); off(); if(!held) showBarMenu(sx, sy, L, R); };
-    const mv=ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>7){ clearTimeout(tm); off(); } };
+    const mv=ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>11){ clearTimeout(tm); off(); } };
     document.addEventListener('pointerup', up);
     document.addEventListener('pointermove', mv);
     return;
@@ -4063,6 +4072,17 @@ document.getElementById('b-tie').onclick = toggleTie;
       toast((m[prop]?'已添加：':'已取消：')+msg+'（第'+(sel.mi+1)+'小节）');
     };
   };
+  const spT=document.getElementById('sp-toggle'), spM=document.getElementById('sp-more');
+  if(spT && spM){
+    const openSp = localStorage.getItem('musetab-sp-open')==='1';
+    spM.classList.toggle('hidden', !openSp);
+    document.getElementById('sp-arrow').textContent = openSp? '▴':'▾';
+    spT.onclick=()=>{
+      const open = spM.classList.toggle('hidden');
+      document.getElementById('sp-arrow').textContent = open? '▾':'▴';
+      try{ localStorage.setItem('musetab-sp-open', open?'0':'1'); }catch(_){}
+    };
+  }
   flag('b-dc','dc','D.C. 从头反复');
   flag('b-ds','ds','D.S. 从 𝄋 标记反复');
   flag('b-segno','segno','𝄋 Segno 标记');
@@ -5586,70 +5606,74 @@ document.getElementById('b-help').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 使用帮助</h3>
   <h4>快速上手（3 步做一首谱）</h4>
   <div class="steps">
-    <div class="step"><span class="n">1</span><div><b>建谱</b>：点「新建」选曲谱类型（吉他谱/尤克里里谱/简谱），填标题、拍号、预设小节数与声部即可；也可在左侧「曲谱库」选预设改编。</div></div>
-    <div class="step"><span class="n">2</span><div><b>录入</b>：吉他谱区点弦位直接敲品位数字 0–24（两位数连续输入）；简谱区点数字位置敲 <kbd>0</kbd>–<kbd>7</kbd>（0 为休止）；点歌词行直接打字。有和弦时在左侧「节奏型库」点图示，一键按指法生成整小节音符。</div></div>
-    <div class="step"><span class="n">3</span><div><b>润色</b>：顶部编辑栏改时值/节奏、加连音线/倚音/演奏技巧；<kbd>空格</kbd>试听；「导出/打印」输出 A4 曲谱。所有修改实时自动保存在本机。</div></div>
+    <div class="step"><span class="n">1</span><div><b>建谱</b>：点「新建」选曲谱类型——吉他谱 / 尤克里里谱 / 简谱 / 功能谱，填标题、词曲作者、拍号、变调夹、预设小节数与声部即可；也可在「曲谱库」选预设改编。新谱在新窗口打开，多首可同时编辑。</div></div>
+    <div class="step"><span class="n">2</span><div><b>录入</b>：TAB 区点弦位敲品位数字 0–24；简谱区点数字位敲 <kbd>0</kbd>–<kbd>7</kbd>；点歌词行直接打字。有和弦时「节奏型库」一键按指法生成整小节。</div></div>
+    <div class="step"><span class="n">3</span><div><b>润色</b>：编辑栏改时值节奏、加连音线/倚音/技巧/力度记号，右栏设反复段落；<kbd>空格</kbd>试听、小节格选段循环练习；「导出/打印」输出 A4。所有修改实时自动保存。</div></div>
   </div>
-  <h4>顶部编辑栏（吸顶常驻）</h4>
+  <h4>通用 · 顶部编辑栏（吸顶常驻）</h4>
   <table>
-  <tr><td class="k">时值</td><td>点图标改当前音时值（全/2/4/8/16/32 分）；<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd> 快捷键；「附点」把下一个音自动变为当前音的一半时值</td></tr>
-  <tr><td class="k">节奏</td><td>常用 4 种（八分×2 / 前八后十六 / 前十六后八 / 十六分×4）直接点用，「更多▾」展开全部组合，「节奏型库」按分解/扫弦分类整小节套用</td></tr>
-  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd> / <kbd>Shift+Insert</kbd>）在任意位置加音符；拆分＝一分为二总时值不变；合并＝相邻同时值二合一；删音符。<b>自由编辑优先</b>：不强制适配拍号，出错时下方状态条给出绿色修复建议，按需一键采纳</td></tr>
-  <tr><td class="k">记号</td><td>连音线（见下）；3/5/6/7 连音：当前音原地拆为 n 连音（总时值不变），吉他谱刻度线标记、简谱弧线标记</td></tr>
-  <tr><td class="k">缩放</td><td>−/＋按钮、点百分比复位；谱面上 <kbd>Ctrl</kbd>+滚轮以光标为中心缩放</td></tr>
+  <tr><td class="k">时值 / 节奏</td><td>单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」自动把下一音变为一半时值；「节奏型库」整小节套用</td></tr>
+  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd>）在任意位置加音符；拆分 / 合并 / 删音符。自由编辑优先：不强制适配拍号，状态条给绿色修复建议按需采纳</td></tr>
+  <tr><td class="k">记号</td><td>连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨过中间音符相连；3/5/6/7 连音原地拆分总时值不变</td></tr>
+  <tr><td class="k">缩放</td><td>−/＋、点百分比复位；谱面上 <kbd>Ctrl</kbd>+滚轮以光标为中心缩放</td></tr>
   </table>
-  <h4>吉他谱（六线谱）</h4>
+  <h4>通用 · 小节与段落 / 反复记号</h4>
   <table>
-  <tr><td class="k">品位输入</td><td>点弦位出现光标后敲数字；<kbd>×</kbd> 切音、拍弦（方框住音符）见左侧「吉他谱」面板</td></tr>
-  <tr><td class="k">扫弦/琶音</td><td>扫↓ 扫↑ / 上琶音 下琶音；点谱面上的扫弦箭头可选覆盖哪几根弦</td></tr>
-  <tr><td class="k">演奏技巧</td><td>编辑栏第二行：滑弦S/击勾弦/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音等。选中音符点图标即用；S/H/P 自动连线到下一音，符号在连线上方</td></tr>
-  <tr><td class="k">推弦</td><td><kbd>Ctrl</kbd> 依次选中起始音+目标音再点上/下推弦：目标音加圆圈、连音线相连、b↑/b↓ 在连线上方</td></tr>
-  <tr><td class="k">记谱风格</td><td>「记谱:×」教材式（和弦内音显 ×）与全数字可切换；和弦图与技巧重叠时自动缩小</td></tr>
+  <tr><td class="k">右栏面板</td><td>插入/删除小节常驻；展开「段落·反复·跳转记号」设置 |: :| 反复、第一段/第二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落线/终止线，一键作用于当前小节</td></tr>
+  <tr><td class="k">点击小节线</td><td>弹出同款设置菜单（弹窗随页面滚动）；按住小节线约半秒可独立选中该小节的单个声部，<kbd>Ctrl+C</kbd>/<kbd>V</kbd> 复制粘贴</td></tr>
+  <tr><td class="k">播放识别</td><td>整曲播放自动按反复记号走：𝄆𝄇 反复、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段</td></tr>
+  </table>
+  <h4>通用 · 播放与循环</h4>
+  <table>
+  <tr><td class="k">空格 / ▶ ⏸ ⏮ ■</td><td>播放、暂停/继续（音频精确冻结）、从头播放、停止；底部混音器换音色、独奏/静音、调速度</td></tr>
+  <tr><td class="k">小节格进度条</td><td>一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时自动变密集标尺，点击或 ▦ 打开大格选择面板</td></tr>
+  </table>
+  <h4>通用 · 窗口与保存</h4>
+  <table>
+  <tr><td class="k">多窗口</td><td>标签栏同时打开多首（可不同类型），标签显示"类型+序号+曲名"与保存状态点；新建/关闭时提示保存情况</td></tr>
+  <tr><td class="k">保存 / 导出</td><td>实时自动保存本机；「保存」存入我的曲谱；<kbd>Ctrl+S</kbd> 导出文件、「打印」出 A4 分页；个人中心可管理曲谱、节奏型模板、版权存证</td></tr>
+  </table>
+  <h4>吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）</h4>
+  <table>
+  <tr><td class="k">录入与和弦</td><td>点弦位敲品位；「记谱:×」教材式切换；输入和弦自动画和弦图并按指法重排，改和弦智能移调</td></tr>
+  <tr><td class="k">演奏技巧</td><td>滑弦S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音</td></tr>
+  <tr><td class="k">扫弦 / 琶音</td><td>扫↓扫↑/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数</td></tr>
   </table>
   <h4>简谱</h4>
   <table>
-  <tr><td class="k">音高</td><td>♯ ♭ ♮ 升降还原号；八度点最高/最低各 3 个（上下箭头按钮）</td></tr>
-  <tr><td class="k">倚音</td><td>编辑栏「前倚音/后倚音」添加（默认 8 分单音）；点谱面上的倚音弹出编辑：音高/时值/八度、最多 3 音；直角连接线自动避让减时线与低音点</td></tr>
-  <tr><td class="k">标识符号</td><td>上波音 / 下波音 / 颤音 tr / 回音 ∽，选中音符点图标切换</td></tr>
+  <tr><td class="k">音高与记号</td><td>♯♭♮、八度点 ±3；倚音最多3音可点击再编辑；上下波音/颤音tr/回音</td></tr>
+  <tr><td class="k">力度 / 速度</td><td>「力度/速度」弹窗（每项中文说明）：ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.；力度即时影响播放音量</td></tr>
   </table>
-  <h4>连音线（简谱/吉他谱通用）</h4>
+  <h4>功能谱（乐队）</h4>
   <table>
-  <tr><td class="k">单选</td><td>选中音符点「连音线」：自动连到相邻下一音（吉他谱优先同弦），再点取消</td></tr>
-  <tr><td class="k">Ctrl 跨选</td><td><kbd>Ctrl</kbd> 选中两个音符再点「连音线」：跨过中间音符直达目标音，中间音符自动相连成一条弧线</td></tr>
+  <tr><td class="k">级数和弦</td><td>选中音符点「和弦/级数」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；谱面按 1=调号 显示级数，点击级数可再编辑，换调即时跟随</td></tr>
   </table>
-  <h4>小节与小节线</h4>
+  <h4>快捷键</h4>
   <table>
-  <tr><td class="k">点击小节线</td><td>弹出设置：反复开始 𝄆 / 反复结束 𝄇 / 段落线 / 终止线 / 清除</td></tr>
-  <tr><td class="k">按住小节线</td><td>按住约半秒选中该小节的单个声部（吉他谱或简谱独立），<kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> 复制粘贴到别处</td></tr>
-  <tr><td class="k">小节编号</td><td>显示在小节线正下方，悬停变色；右栏「小节与段落」可插入/删除小节、设置反复与跳转记号</td></tr>
-  </table>
-  <h4>多选与批量</h4>
-  <table>
-  <tr><td class="k">拖动 / Shift+点击</td><td>同声部内多选（可跨小节）：点时值批量替换、点节奏型批量套用、点连音线整段相连</td></tr>
-  <tr><td class="k">节拍检查</td><td>右栏状态条实时显示 ✓/⚠；不符小节标红，点开有「采纳」按钮逐条或全部修复</td></tr>
-  </table>
-  <h4>播放与导出</h4>
-  <table>
-  <tr><td class="k">空格 / ▶</td><td>从当前小节播放/停止；底部混音器可独立开关「弹」「唱」声部、换音色、调速度</td></tr>
-  <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出；「打印」直接出 A4 分页曲谱</td></tr>
-  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 在吉他谱·简谱之间切换</td></tr>
+  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换声部</td></tr>
+  <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出</td></tr>
+  <tr><td class="k">空格 / . / Q–T</td><td>播放停止 / 附点 / 时值</td></tr>
   </table>
   <div class="btns"><button id="help-ok" class="primary">知道了</button></div>`);
   document.getElementById('help-ok').onclick = closeModal;
 };
 document.getElementById('b-feat').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 特色功能</h3>
+  <h4>通用能力</h4>
   <div class="feat">
-    <div class="fc"><b>🎼 三行对齐弹唱谱</b><span>六线谱 TAB + 简谱 + 多行歌词逐列垂直对齐，中文弹唱谱的标准版式，所见即所得。</span></div>
-    <div class="fc"><b>📐 智能排版自适配</b><span>参考出版谱间距逻辑：按音符时值密度自动分配每行 2–6 小节、逐拍对齐，A4 高度自动分页。</span></div>
-    <div class="fc"><b>🎸 节奏型库一键生成</b><span>分解/扫弦节奏型按拍号分类，图示化预览；有和弦时按指法自动生成整小节音符，换和弦自动按新指法重排。</span></div>
-    <div class="fc"><b>✏️ 自由编辑优先</b><span>任意位置插入/拆分/合并/删除音符，不受拍号强制约束；节拍检查实时提示，绿色修复建议按需一键采纳。</span></div>
-    <div class="fc"><b>🎵 出版级记谱符号</b><span>倚音（最多3音+直角连接线）、波音/颤音/回音、3/5/6/7 连音、附点智能配对、反复/段落/终止线。</span></div>
-    <div class="fc"><b>🤘 完整演奏技巧</b><span>滑弦/击勾弦/上下推弦/揉弦/泛音/点弦/闷音/无头无尾滑音/切音/拍弦；Ctrl 跨选两音即可连线（连音线、推弦通用）。</span></div>
-    <div class="fc"><b>▶️ 内置播放混音</b><span>吉他与人声声部独立开关与音色（钢琴/八音盒/弦乐/人声等），倚音/连音/扫弦按记谱如实回放。</span></div>
-    <div class="fc"><b>💾 本地保存与输出</b><span>编辑实时自动保存在浏览器本机；预设曲谱库快速起稿；A4 打印/导出，多页自动续页。</span></div>
-    <div class="fc"><b>🔍 光标中心缩放</b><span>Ctrl+滚轮以光标位置为中心放大缩小，50%–200% 连续可调并记住偏好。</span></div>
-    <div class="fc"><b>🧩 小节线交互</b><span>点击小节线设置反复/段落/终止符号；按住半秒独立选中该小节的吉他谱或简谱声部，跨小节复制粘贴。</span></div>
+    <div class="fc"><b>📐 智能排版自适配</b><span>按出版谱逻辑逐拍分配间距、每行 2–6 小节自适应、A4 多页自动分页，打印导出即成品。</span></div>
+    <div class="fc"><b>🗂 多窗口多类型</b><span>标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。</span></div>
+    <div class="fc"><b>✏️ 自由编辑优先</b><span>任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。</span></div>
+    <div class="fc"><b>🔁 完整反复体系</b><span>𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。</span></div>
+    <div class="fc"><b>▶️ 练习级播放</b><span>物理建模音色（吉他双弦失谐+琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。</span></div>
+    <div class="fc"><b>💾 创作者工具</b><span>本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。</span></div>
+  </div>
+  <h4>分谱型特色</h4>
+  <div class="feat">
+    <div class="fc"><b>🎸 吉他谱</b><span>六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。</span></div>
+    <div class="fc"><b>🪕 尤克里里谱</b><span>4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱完全一致，附常用和弦库。</span></div>
+    <div class="fc"><b>🎵 简谱</b><span>纯旋律记谱：±3 八度、倚音（3音+直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。</span></div>
+    <div class="fc"><b>🎹 功能谱</b><span>乐队排练用：级数和弦标注按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。</span></div>
   </div>
   <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
   document.getElementById('feat-ok').onclick = closeModal;
@@ -5657,6 +5681,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.59</span><div>小节线点选热区加宽并置顶层（不再被音符格遮挡，点击更灵敏）；「小节与段落」默认只显示插入/删除小节，反复·跳转记号折叠可展开（记忆状态）；使用帮助与特色功能改为"通用功能＋分谱型"结构全面更新。</div></li>
     <li><span class="v">v34.58</span><div>小节线弹窗等谱面锚定弹窗改为随页面滚动；「小节与段落」模块化重设计（符号+名称分组卡片），移除"补齐小节时值"按钮（修复入口保留在节拍状态条）；1房/2房更名"第一段/第二段"，括线改为开口式（只有开头竖钩，结尾不收口）。</div></li>
     <li><span class="v">v34.57</span><div>右栏"小节操作"升级为「小节与段落」：分组提供 𝄆𝄇 反复、1房/2房、D.C./D.S./Segno/Fine/⊕ Coda、段落线/终止线一键作用于当前小节（悬停有含义说明，状态高亮）；力度/速度记号菜单每项加中文说明（极弱/很弱/…/渐慢/渐快）。</div></li>
     <li><span class="v">v34.56</span><div>反复记号体系补全（参考出版谱）：小节线菜单新增 D.C. 从头反复、D.S.＋𝄋 标记反复、Fine 结束点、⊕ 跳跃记号（成对）、1房/2房不同结尾括线，谱面按标准记法绘制，播放导航完整识别七类反复走法；简谱新增力度/速度记号（ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.），力度即时影响播放音量。</div></li>
