@@ -432,14 +432,8 @@ svg text{user-select:none}
     <span class="eb-t">节奏</span>
     <span class="eb-grp" id="eb-combo"></span>
     <span class="eb-sep"></span>
-    <span class="eb-t">音符</span>
-    <span class="eb-grp">
-      <button class="eb" id="eb-add" title="在光标后插入同时值音符，小节自动对齐拍号（快捷键 Insert）">＋后插</button>
-      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
-      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
-      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
-      <button class="eb" id="eb-delcol2" title="删除当前音符，小节自动补齐">删音符</button>
-    </span>
+    <span class="eb-t">记号</span>
+    <span class="eb-grp" id="eb-marks"></span>
     <span class="grow"></span>
     <span class="eb-grp" id="eb-zoom">
       <button id="z-out" title="缩小（内容区 Ctrl+滚轮 亦可）">−</button>
@@ -449,8 +443,16 @@ svg text{user-select:none}
   </div>
   <!-- 常用编辑功能栏第二行：连音/三连音 + 按声部上下文的技巧/记号 -->
   <div class="bar" id="editbar2">
-    <span class="eb-t">记号</span>
-    <span class="eb-grp" id="eb-marks"></span>
+    <span class="eb-t">音符</span>
+    <span class="eb-grp">
+      <button class="eb" id="eb-add" title="在光标后插入同时值音符（快捷键 Insert）">＋后插</button>
+      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
+      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍">休止符</button>
+      <button class="eb" id="eb-clear" title="清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）">清单音</button>
+      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
+      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
+      <button class="eb" id="eb-delcol2" title="删除当前音符列（时值一并移除）">删音符</button>
+    </span>
     <span class="eb-sep"></span>
     <span class="eb-t" id="eb-ctx-t">演奏技巧</span>
     <span class="eb-grp" id="eb-ctx"></span>
@@ -1840,7 +1842,10 @@ function render(){
             });
             /* 空列（无音符/无扫弦）画休止符，让时值可见 */
             if(!col.notes.length)
-              p.push(`<text x="${nx}" y="${tabTop+STAFF/2+STR}" font-size="12" text-anchor="middle" fill="var(--ink)" opacity="0.45">𝄽</text>`);
+              {
+                const REST={1:'𝄻',2:'𝄼',4:'𝄽',8:'𝄾',16:'𝄿',32:'𝅀'};
+                p.push(`<text x="${nx}" y="${tabTop+STAFF/2+STR*0.8}" font-size="13.5" text-anchor="middle" fill="var(--ink)" opacity="0.88">${REST[col.dur]||'𝄽'}</text>`);
+              }
           }
           /* 拍弦记号：需拍弦的音符用方框框住 */
           if(col.slap && col.notes.length){
@@ -2305,6 +2310,7 @@ function tupSVG(n){
 }
 function setRibbon(t){
   activeTab = t;
+  { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = t==='tab'? '' : 'none'; }
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   document.querySelectorAll('.panel-p').forEach(el=>{
     el.style.display = el.id.startsWith('panel-'+t)?'':'none';
@@ -2844,16 +2850,15 @@ function applyVoxPattern(pat){
   document.getElementById('eb-marks').innerHTML =
     `<button class="eb" id="eb-tie" title="连音线：选中音符自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（简谱/吉他谱通用）">连音线</button>`+
     [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
-  /* 编辑栏第一行：音符增删（位于节奏组之后同排） */
-  document.getElementById('editbar').addEventListener('click', e=>{
+  /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
+  const ebHandler = e=>{
     if(e.target.closest('#eb-add')){ insertNote(false); return; }
     if(e.target.closest('#eb-addb')){ insertNote(true); return; }
+    if(e.target.closest('#eb-rest')){ restNote(); return; }
+    if(e.target.closest('#eb-clear')){ clearPitch(); return; }
     if(e.target.closest('#eb-split')){ splitNote(); return; }
     if(e.target.closest('#eb-merge')){ mergeNote(); return; }
     if(e.target.closest('#eb-delcol2')){ deleteNote(); return; }
-  });
-  /* 编辑栏第二行：连音线/连音 + 上下文（技巧/记号） */
-  document.getElementById('editbar2').addEventListener('click', e=>{
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
     const tp=e.target.closest('[data-tup]');
     if(tp){ applyTuplet(+tp.dataset.tup); return; }
@@ -2864,7 +2869,9 @@ function applyVoxPattern(pat){
       if(ob.dataset.orn==='dyn'){ const r=ob.getBoundingClientRect(); showDynMenu(r.left, r.bottom); return; }
       ornFromBar(ob.dataset.orn); return;
     }
-  });
+  };
+  document.getElementById('editbar').addEventListener('click', ebHandler);
+  document.getElementById('editbar2').addEventListener('click', ebHandler);
   /* ---- 缩放：按钮 ±、点击百分比复位；内容区 Ctrl+滚轮 ---- */
   const setZoom = z=>{
     viewZoom = Math.max(0.5, Math.min(2, Math.round(z*20)/20));
@@ -2976,6 +2983,29 @@ function mergeNote(){
   if(cur.dur<=1) return toast('已是全音符，无法再合并');
   mutate(()=>{ cur.dur=cur.dur/2; cols.splice(sel.ci+1, 1); });
   toast('已合并为时值加倍的音符');
+}
+/* 休止符：当前列变休止（时值保留占拍）。吉他谱清空整列音符/扫弦/切拍，简谱记 0 */
+function restNote(){
+  const cols=curRowCols(); const cur=curCol();
+  if(!cols || !cur) return toast('请先选中要变休止的音符');
+  mutate(()=>{
+    const c=curCol();
+    if(sel.row==='tab'){ c.notes=[]; c.strum=''; delete c.mute; delete c.slap; }
+    else { c.deg=0; c.acc=''; delete c.grace; delete c.graceA; delete c.orn; c.tie=false; }
+  });
+  toast('已变为休止符（时值 '+cur.dur+' 分不变）');
+}
+/* 清单音：仅清除当前弦位的音符（吉他谱多音列保留其他弦；简谱等同休止） */
+function clearPitch(){
+  if(sel.row!=='tab') return restNote();
+  const col=curCol(); if(!col) return;
+  if(!col.notes.length) return toast('当前列已是休止');
+  mutate(()=>{
+    const c=curCol();
+    const i=c.notes.findIndex(n=>n.s===sel.si);
+    if(i>=0) c.notes.splice(i,1); else c.notes.pop();
+  });
+  toast('已清除当前弦位音符（Backspace 同效）');
 }
 function deleteNote(){
   const cols=curRowCols();
@@ -5630,7 +5660,7 @@ document.getElementById('b-help').onclick = ()=>{
   <h4>通用 · 顶部编辑栏（吸顶常驻）</h4>
   <table>
   <tr><td class="k">时值 / 节奏</td><td>单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」自动把下一音变为一半时值；「节奏型库」整小节套用</td></tr>
-  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd>）在任意位置加音符；拆分 / 合并 / 删音符。自由编辑优先：不强制适配拍号，状态条给绿色修复建议按需采纳</td></tr>
+  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd>）在任意位置加音符；<b>休止符</b>整列休止（吉他谱按时值显示 𝄽𝄾𝄿 等符号）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议</td></tr>
   <tr><td class="k">记号</td><td>连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨过中间音符相连；3/5/6/7 连音原地拆分总时值不变</td></tr>
   <tr><td class="k">缩放</td><td>−/＋、点百分比复位；谱面上 <kbd>Ctrl</kbd>+滚轮以光标为中心缩放</td></tr>
   </table>
@@ -5698,6 +5728,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱客 POKKA · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.63</span><div>编辑栏"记号"与"音符"板块互换位置；音符板块强化：新增「休止符」（吉他谱可编辑休止，按时值显示 𝄻𝄼𝄽𝄾𝄿𝅀 且加深明显）与「清单音」（只清当前弦位，简谱自动隐藏），Backspace/Delete 快捷同效。</div></li>
     <li><span class="v">v34.62</span><div>修复：和弦编辑器选择高把位（E型/A型）应用后谱面仍显示开放把位——现在所选指法与标准库不同即随谱保存并显示（含把位数字），选回标准指法自动恢复库图。</div></li>
     <li><span class="v">v34.61</span><div>倚音显示修正：整组（含减时线、低音点、连接线横边）最低不越过主音符腰线——下方延伸超限时整组自动上移，连接线横边固定搭在腰线，行距按需加高；标识符号栏前/后倚音图示与谱面记法统一（主音1＋8分倚音2＋直角连线）。</div></li>
     <li><span class="v">v34.60</span><div>修复：v34.59 加宽置顶的小节线热区盖住贴线音符格，导致点击音符光标不移动——热区回调为 10px 顶层，贴线音符点击与小节线菜单弹出两者实测均 100% 命中。</div></li>
