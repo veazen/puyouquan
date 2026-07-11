@@ -102,3 +102,60 @@ deviation from the version pins.
    spec-pinned.
 4. The CI audit gate stays exactly as §9.7 specifies, with no allowlist or
    `continue-on-error`. New high/critical advisories fail CI.
+
+## ADR-006: RLS enforcement model — app role + per-transaction tenant context
+
+**Status**: accepted (Phase 1)
+
+**Context**: §1.7/§4 mandate RLS on `tenant_id` as the second isolation
+layer, and §1.10/§9.9 mandate DB-enforced append-only `scan_events` /
+`audit_logs`. RLS does not bind to the table owner, and the public verify
+path must resolve a serial across tenants.
+
+**Decision** (`prisma/migrations/*_rls_and_roles`):
+- The application connects as **`veazen_app`** — not the table owner, no DDL,
+  and `REVOKE UPDATE, DELETE` on `scan_events`, `audit_logs`, `scan_digests`.
+  Migrations/seeds run as the owner role.
+- Every query runs inside a transaction that sets `app.tenant_id` via
+  `set_config(..., true)`: a tenant uuid (`PrismaService.withTenant`) or the
+  sentinel `'__system__'` (`PrismaService.asSystem` — verify lookups, queue
+  workers, digests). A connection that sets nothing sees zero tenant rows,
+  so forgetting the wrapper fails loud, not open.
+- Policies: `tenant_id::text = current_setting('app.tenant_id', true) OR
+  current_setting('app.tenant_id', true) = '__system__'`.
+- Hot-path budget: the public verify endpoint uses exactly two transactions
+  (read, write). Verified locally ≥500 rps / p99 <150 ms (§1.8) via
+  `apps/api/scripts/bench-verify.mjs`.
+- Additive enum value `alert_rule.webhook_failure` backs the §4 requirement
+  that auto-disabling a webhook endpoint raises an alert (the §4 enum had no
+  fitting rule).
+- `scan_events` monthly partitioning and `codes` HASH partitioning stay
+  reserved (schema comments); MVP uses single tables + indexes per §2.1.
+
+## ADR-007: Scratch-code hashes are peppered HMAC-SHA256, not argon2id
+
+**Status**: accepted (Phase 1)
+
+**Context**: §2.4 says scratch hashes are argon2id, but §8 Phase 1 requires
+generating 100k codes in <60s. Memory-hard hashing per code (≈20–50 ms each)
+makes that physically impossible (~1 hour per 100k batch).
+
+**Decision**: scratch codes are 60-bit CSPRNG secrets, not low-entropy
+passwords, so `packages/crypto/scratch-pepper.ts` hashes them with
+HMAC-SHA256 under a MASTER_KEY-derived pepper that never touches the
+database. A database leak alone therefore yields nothing brute-forceable —
+the same property argon2id was buying — while generation stays >10k codes/s.
+argon2id remains in use for user passwords (and `scratch.ts` keeps the
+argon2id implementation available should per-code cost ever be preferred
+over batch speed).
+
+## ADR-008: Storage behind an S3-shaped interface; local driver until Phase 4
+
+**Status**: accepted (Phase 1)
+
+`StorageService` exposes put/get + HMAC-signed expiring download paths
+(`/api/v1/files/:token`). Dev/test/this environment use a local-directory
+driver (`STORAGE_DIR`, default `.storage`); the S3/R2 driver replaces the
+internals in Phase 4 deployment work without changing call sites. Export
+CSVs (the only place scratch plaintext ever exists, §9.2) are written by the
+generation worker straight to storage — never to the database.

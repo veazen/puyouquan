@@ -9,9 +9,21 @@ decisions are recorded in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Status
 
-**Phase 0 (scaffolding) — complete.** Monorepo, crypto core with test vectors,
-local infra, CI. Phase 1 (cloud core: Prisma schema, auth, batches, verify
-endpoint, risk rules) is next — see PROJECT_PLAN §8.
+- **Phase 0 (scaffolding) — complete.** Monorepo, crypto core with test
+  vectors, local infra, CI.
+- **Phase 1 (cloud core) — complete.** Full §4 schema with RLS + append-only
+  enforcement (ADR-006), auth (JWT + API keys), batch generation via BullMQ,
+  one-time CSV export, public verify + scratch redemption + state machine,
+  three risk rules with email alerts, webhooks (HMAC, backoff, auto-disable),
+  audit logs, daily Merkle scan digests, OpenAPI (`docs/openapi.json`).
+  Acceptance: 14-test e2e suite (`apps/api$ npm run test:e2e`) and the
+  ≥500 rps verify benchmark (`apps/api$ npm run build && npm run bench`).
+- Next: **Phase 2** (verify page + dashboard + marketing site v1) — §8.
+
+Local services: `docker compose -f infra/docker-compose.yml up -d`, then in
+`apps/api`: `DATABASE_URL=postgres://veazen:veazen@localhost:5432/veazen npx
+prisma migrate deploy` (owner role runs migrations; the app connects as the
+RLS-restricted `veazen_app` role — see `.env.example` and ADR-006).
 
 ## Layout
 

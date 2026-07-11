@@ -37,6 +37,8 @@ export const ALERT_RULES = [
   'geo_velocity',
   'out_of_market',
   'scan_burst',
+  // additive: raised when consecutive failures auto-disable a webhook endpoint
+  'webhook_failure',
 ] as const;
 export type AlertRule = (typeof ALERT_RULES)[number];
 
@@ -67,6 +69,8 @@ export function isValidCodeTransition(from: CodeStatus, to: CodeStatus): boolean
 /** Public verify endpoint response shape (PROJECT_PLAN §5.1). */
 export interface VerifyResponse {
   result: VerifyResult;
+  /** present when result=flagged so the page can vary copy (§5.3: stolen…) */
+  flag_reason?: FlagReason;
   product: {
     name: string;
     images: string[];

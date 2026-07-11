@@ -1,0 +1,559 @@
+// Veazen data model (PROJECT_PLAN §4).
+// Conventions: camelCase Prisma fields mapped to snake_case columns so the
+// database matches the spec's naming exactly. Every table except `tenants`
+// carries tenant_id — the reserved HASH partition key for `codes` and the
+// monthly partition key for `scan_events` (MVP: single tables + indexes;
+// partitioning is applied with raw SQL when volume requires it).
+// RLS policies + the append-only app role live in
+// prisma/migrations/*_rls_and_roles/migration.sql (ADR-006).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantPlan {
+  free
+  starter
+  growth
+  enterprise
+
+  @@map("tenant_plan")
+}
+
+enum UserRole {
+  owner
+  admin
+  viewer
+
+  @@map("user_role")
+}
+
+enum BatchStatus {
+  pending
+  generating
+  ready
+  exported
+
+  @@map("batch_status")
+}
+
+enum BatchKind {
+  bulk
+  on_demand
+
+  @@map("batch_kind")
+}
+
+enum ExportFormat {
+  csv
+  pdf
+
+  @@map("export_format")
+}
+
+enum CodeStatus {
+  inactive
+  active
+  verified
+  flagged
+  voided
+
+  @@map("code_status")
+}
+
+enum FlagReason {
+  risk_rule
+  stolen
+  recalled
+  manual
+
+  @@map("flag_reason")
+}
+
+enum ScanKind {
+  public_scan
+  scratch_verify
+  activation
+  inspector_scan
+
+  @@map("scan_kind")
+}
+
+enum ScanResult {
+  ok
+  already_verified
+  invalid
+  inactive
+  flagged
+
+  @@map("scan_result")
+}
+
+enum SignalType {
+  suspicious_device_fp
+  hot_geo_cell
+  invalid_serial_probe_source
+
+  @@map("signal_type")
+}
+
+enum TraceSubject {
+  batch
+  code
+
+  @@map("trace_subject")
+}
+
+enum TraceEventType {
+  commissioned
+  quality_checked
+  shipped
+  received
+  activated
+  retail_activated
+  custom
+
+  @@map("trace_event_type")
+}
+
+enum TraceSource {
+  api
+  dashboard
+  wp_plugin
+  csv_import
+
+  @@map("trace_source")
+}
+
+enum AlertRule {
+  duplicate_scratch
+  geo_velocity
+  out_of_market
+  scan_burst
+  /// additive to §4: raised when 20 consecutive delivery failures
+  /// auto-disable a webhook endpoint (the §4 note requires an alert but the
+  /// enum lacked a fitting rule — see ARCHITECTURE.md ADR-006 appendix)
+  webhook_failure
+
+  @@map("alert_rule")
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+
+  @@map("alert_severity")
+}
+
+enum SerialProfileMode {
+  platform
+  custom_format
+  byo
+
+  @@map("serial_profile_mode")
+}
+
+enum SerialCharset {
+  crockford32
+  upper_alnum
+  digits
+
+  @@map("serial_charset")
+}
+
+enum SerialProfileStatus {
+  active
+  archived
+
+  @@map("serial_profile_status")
+}
+
+enum HostnameStatus {
+  pending_dns
+  verifying
+  active
+  failed
+
+  @@map("hostname_status")
+}
+
+enum TlsStatus {
+  pending
+  issued
+  renewing
+  failed
+
+  @@map("tls_status")
+}
+
+model Tenant {
+  id                  String     @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String     @unique
+  plan                TenantPlan @default(free)
+  customDomain        String?    @map("custom_domain")
+  publicKey           Bytes      @map("public_key")
+  encryptedPrivateKey Bytes      @map("encrypted_private_key")
+  /// brand colors, logo, verify-page config, settings.mode = standard|lite (§7.5)
+  settings            Json       @default("{}")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  users            User[]
+  apiKeys          ApiKey[]
+  products         Product[]
+  batches          Batch[]
+  codes            Code[]
+  scanEvents       ScanEvent[]
+  auditLogs        AuditLog[]
+  traceEvents      TraceEvent[]
+  alerts           Alert[]
+  wpSites          WpSite[]
+  webhookEndpoints WebhookEndpoint[]
+  webhookDeliveries WebhookDelivery[]
+  serialProfiles   SerialProfile[]
+  customHostnames  CustomHostname[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(owner)
+  locale       String   @default("en")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  /// first 8 chars, stored in plaintext for O(1) lookup
+  keyPrefix  String    @map("key_prefix")
+  keyHash    String    @map("key_hash")
+  label      String
+  scopes     String[]  @default([])
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([keyPrefix])
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+model Product {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String
+  sku             String
+  gtin            String?
+  description     String?
+  images          Json     @default("[]")
+  attributes      Json     @default("{}")
+  traceTemplateId String?  @map("trace_template_id") @db.Uuid
+  /// WooCommerce product_id mapping: {"woo:<site_hash>": 123}
+  externalRefs    Json     @default("{}") @map("external_refs")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  batches Batch[]
+  codes   Code[]
+
+  @@unique([tenantId, sku])
+  @@map("products")
+}
+
+model Batch {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  productId      String       @map("product_id") @db.Uuid
+  quantity       Int
+  status         BatchStatus  @default(pending)
+  /// on_demand = Lite shipping-label pool (§7.5)
+  kind           BatchKind    @default(bulk)
+  /// true → codes are active the moment generation completes (§7.5)
+  autoActivate   Boolean      @default(false) @map("auto_activate")
+  exportFormat   ExportFormat @default(csv) @map("export_format")
+  /// authorized markets, ISO 3166 country codes (out_of_market rule)
+  intendedMarket String[]     @default([]) @map("intended_market")
+  activatedCount Int          @default(0) @map("activated_count")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  codes   Code[]
+
+  @@index([tenantId, status])
+  @@map("batches")
+}
+
+/// Core large table — reserved for HASH(tenant_id) partitioning at scale.
+model Code {
+  id                String      @id @default(uuid()) @db.Uuid
+  tenantId          String      @map("tenant_id") @db.Uuid
+  batchId           String      @map("batch_id") @db.Uuid
+  productId         String      @map("product_id") @db.Uuid
+  /// 20-char Crockford base32, canonical (no separators)
+  serial            String      @unique
+  /// truncated signature carried in the QR URL
+  sig               String
+  /// argon2id hash; scratch plaintext exists only in the one-time export
+  scratchHash       String?     @map("scratch_hash")
+  status            CodeStatus  @default(inactive)
+  flagReason        FlagReason? @map("flag_reason")
+  /// status before entering flagged, for unflag restoration (§5.3)
+  prevStatus        CodeStatus? @map("prev_status")
+  firstVerifiedAt   DateTime?   @map("first_verified_at")
+  scratchRedeemedAt DateTime?   @map("scratch_redeemed_at")
+  /// bound Woo order: {site, order_id, line_item}
+  orderRef          Json?       @map("order_ref")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, batchId])
+  @@index([tenantId, status])
+  @@map("codes")
+}
+
+/// Append-only (ADR-006: app role has no UPDATE/DELETE). Monthly partition
+/// key: created_at (MVP: single table).
+model ScanEvent {
+  id        BigInt     @id @default(autoincrement())
+  tenantId  String     @map("tenant_id") @db.Uuid
+  codeId    String?    @map("code_id") @db.Uuid
+  kind      ScanKind
+  result    ScanResult
+  ip        String?
+  /// {country, region, city} from GeoIP
+  geo       Json?
+  /// sha256(salt + ua + accept_language + ip/24) — salt never logged
+  deviceFp  String?    @map("device_fp")
+  userAgent String?    @map("user_agent")
+  locale    String?
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([codeId, createdAt])
+  @@map("scan_events")
+}
+
+/// Daily Merkle digest chain over scan_events (§1.10).
+model ScanDigest {
+  id             String   @id @default(uuid()) @db.Uuid
+  date           DateTime @unique @db.Date
+  eventCount     BigInt   @map("event_count")
+  merkleRoot     String   @map("merkle_root")
+  prevDigestHash String?  @map("prev_digest_hash")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("scan_digests")
+}
+
+/// Cross-tenant risk intelligence — deliberately NO tenant_id and no field
+/// that can be traced back to a specific tenant or consumer.
+model RiskSignal {
+  id          String     @id @default(uuid()) @db.Uuid
+  signalType  SignalType @map("signal_type")
+  /// device_fp / geohash5 / ip_prefix
+  signalValue String     @map("signal_value")
+  evidenceCount Int      @default(0) @map("evidence_count")
+  /// count of tenants involved — count only, no identities
+  tenantCount Int        @default(0) @map("tenant_count")
+  firstSeenAt DateTime   @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime   @default(now()) @map("last_seen_at")
+  score       Decimal    @default(0)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@unique([signalType, signalValue])
+  @@map("risk_signals")
+}
+
+/// Append-only (ADR-006). SOC 2 evidence base.
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorApiKeyId  String?  @map("actor_api_key_id") @db.Uuid
+  /// e.g. batch.create / code.void / settings.update / user.invite
+  action         String
+  target         Json     @default("{}")
+  ip             String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+model TraceEvent {
+  id         String         @id @default(uuid()) @db.Uuid
+  tenantId   String         @map("tenant_id") @db.Uuid
+  subject    TraceSubject
+  subjectId  String         @map("subject_id") @db.Uuid
+  eventType  TraceEventType @map("event_type")
+  bizStep    String?        @map("biz_step")
+  /// {name, geo, country}
+  location   Json?
+  occurredAt DateTime       @map("occurred_at")
+  data       Json           @default("{}")
+  source     TraceSource    @default(api)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, subject, subjectId])
+  @@map("trace_events")
+}
+
+model Alert {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @map("tenant_id") @db.Uuid
+  rule           AlertRule
+  severity       AlertSeverity
+  codeId         String?       @map("code_id") @db.Uuid
+  batchId        String?       @map("batch_id") @db.Uuid
+  payload        Json          @default("{}")
+  acknowledgedAt DateTime?     @map("acknowledged_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, acknowledgedAt])
+  @@map("alerts")
+}
+
+model WpSite {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  siteUrl       String   @map("site_url")
+  siteHash      String   @map("site_hash")
+  pluginVersion String?  @map("plugin_version")
+  wcVersion     String?  @map("wc_version")
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, siteHash])
+  @@map("wp_sites")
+}
+
+model WebhookEndpoint {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  url             String
+  /// HMAC-SHA256 signing key, envelope-encrypted (base64 of iv|tag|ciphertext)
+  encryptedSecret String   @map("encrypted_secret")
+  /// subscribed event types (§4 MVP set)
+  events          String[] @default([])
+  active          Boolean  @default(true)
+  /// consecutive failures; 20 → auto-disable + alert
+  failureCount    Int      @default(0) @map("failure_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhook_endpoints")
+}
+
+/// Delivery log, retained 30 days (cleanup job).
+model WebhookDelivery {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  endpointId     String    @map("endpoint_id") @db.Uuid
+  eventType      String    @map("event_type")
+  payload        Json
+  responseStatus Int?      @map("response_status")
+  attempts       Int       @default(0)
+  deliveredAt    DateTime? @map("delivered_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("webhook_deliveries")
+}
+
+model SerialProfile {
+  id               String              @id @default(uuid()) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  name             String
+  mode             SerialProfileMode   @default(platform)
+  prefix           String?
+  length           Int
+  charset          SerialCharset       @default(crockford32)
+  /// entropy of the platform-generated random segment; API rejects < 64 (§9.11)
+  randomBits       Int                 @map("random_bits")
+  displayGroupSize Int                 @default(5) @map("display_group_size")
+  status           SerialProfileStatus @default(active)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@map("serial_profiles")
+}
+
+model CustomHostname {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  hostname          String         @unique
+  dnsOwnershipToken String         @map("dns_ownership_token")
+  status            HostnameStatus @default(pending_dns)
+  tlsStatus         TlsStatus      @default(pending) @map("tls_status")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("custom_hostnames")
+}
+
+/// Marketing-site waitlist (written via a public rate-limited endpoint, Phase 2).
+model WaitlistEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  brand        String?
+  website      String?
+  category     String?
+  monthlyUnits String?  @map("monthly_units")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist")
+}

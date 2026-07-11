@@ -28,3 +28,9 @@ export {
   type Ed25519KeyPair,
 } from './signing';
 export { SCRATCH_LENGTH, generateScratchCode, hashScratchCode, verifyScratchCode } from './scratch';
+export {
+  SCRATCH_HMAC_PREFIX,
+  hashScratchCodeHmac,
+  verifyScratchCodeHmac,
+} from './scratch-pepper';
+export { merkleLeafHash, merkleRootHex } from './merkle';
