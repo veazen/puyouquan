@@ -8,6 +8,17 @@
    ```
 3. **防火墙**：云控制台放行 80、443（SSH 22 保持仅密钥登录）
 
+## 音色包自托管（推荐，一次性）
+播放器的"🎧 高保真"采样音色来自开源库 midi-js-soundfonts（MusyngKite）。
+编辑器按 **站点自带 sounds/ → jsDelivr → GitHub Pages** 顺序加载；国内用户访问境外
+CDN 慢或不通，因此建议把音色包下载到服务器自托管（约 20 MB，共 10 个音色）：
+```bash
+# 把 deploy/fetch-soundfonts.sh 传到服务器后执行：
+sudo bash fetch-soundfonts.sh
+```
+下载到 `/var/www/pu8/sounds/MusyngKite/`，失败可重跑续传。未部署音色包时播放器
+自动回落到内置合成音色，功能不受影响。
+
 ## 发布 / 更新版本（每次发版执行）
 本地仓库根目录：
 ```bash

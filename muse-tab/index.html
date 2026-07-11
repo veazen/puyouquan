@@ -670,6 +670,7 @@ body.viewer #viewerbar{display:flex}
     <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
+    <button id="b-hifi" title="高保真采样音色（开源音色库）">🎧 高保真</button>
     <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
   </div>
 </div>
@@ -4479,6 +4480,122 @@ const INSTRUMENTS = {
   ah:      {name:'人声“啊”', grp:'持续', type:'voice',amp:0.27, atk:0.06, rel:0.14, vib:5.5},
 };
 function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+/* ================= 高保真采样音色引擎 =================
+   音色库：midi-js-soundfonts（FluidR3_GM / MusyngKite，自由授权 GM 音色，逐音符 MP3）。
+   加载顺序：站点自托管 sounds/ → jsDelivr → GitHub Pages；
+   未就绪/离线时无缝回落到内置物理建模合成器。 */
+const SF_LIB='MusyngKite';
+const SF_MAP={steel:'acoustic_guitar_steel', nylon:'acoustic_guitar_nylon', uku:'acoustic_guitar_nylon',
+  electric:'electric_guitar_clean', bass:'acoustic_bass', piano:'acoustic_grand_piano',
+  epiano:'electric_piano_1', musicbox:'music_box', strings:'string_ensemble_1',
+  flute:'flute', ah:'choir_aahs'};
+const SF_SUSTAIN=new Set(['string_ensemble_1','flute','choir_aahs']);   // 持续型：随时值收音
+let hifiOn=true;
+try{ hifiOn=(localStorage.getItem('musetab-hifi')??'1')==='1'; }catch(_){}
+const sfBanks={};   // name → {status, notes:{midi:dataURI}, buf:{'rate:midi':AudioBuffer}}
+function noteMidi(nm){
+  const m=/^([A-G])(b|#)?(-?\d)$/.exec(nm); if(!m) return null;
+  const base={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]];
+  return (+m[3]+1)*12+base+(m[2]==='#'?1:m[2]==='b'?-1:0);
+}
+function sfSources(name){
+  return ['sounds/'+SF_LIB+'/'+name+'-mp3.js',
+    'https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/'+SF_LIB+'/'+name+'-mp3.js',
+    'https://gleitz.github.io/midi-js-soundfonts/'+SF_LIB+'/'+name+'-mp3.js'];
+}
+async function sfLoad(instKey){
+  const name=SF_MAP[instKey]; if(!name) return null;
+  if(sfBanks[name]) return sfBanks[name];
+  const bank=sfBanks[name]={status:'loading', notes:null, buf:{}};
+  updateHifiBtn();
+  try{
+    let text=null;
+    if(typeof SF_LOCAL!=='undefined' && SF_LOCAL[name]) text=SF_LOCAL[name];
+    else for(const u of sfSources(name)){
+      try{ const r=await fetch(u); if(r && r.ok){ text=await r.text(); break; } }catch(_){}
+    }
+    if(!text) throw 0;
+    /* 文件头部有 MIDI 命名空间样板代码，音符表从首个 data:audio 前最近的 { 开始 */
+    const a=text.indexOf('"data:audio');
+    const st=a>=0? text.lastIndexOf('{', a) : text.indexOf('{');
+    const map=JSON.parse(text.slice(st, text.lastIndexOf('}')+1)
+      .replace(/,\s*\}\s*$/,'}'));   // 源文件为 JS 对象字面量，末尾多一个逗号
+    bank.notes={};
+    for(const k in map){ const mi=noteMidi(k); if(mi!=null) bank.notes[mi]=map[k]; }
+    bank.status='ready';
+    /* 后台预解码全部音符：之后调度可同步取用 */
+    if(audio.ctx) sfPredecode(audio.ctx, bank);
+  }catch(_){ bank.status='error'; }
+  updateHifiBtn();
+  return bank;
+}
+function sfPredecode(ctx, bank){
+  const mids=Object.keys(bank.notes||{});
+  let i=0;
+  const step=()=>{
+    for(let k=0;k<6 && i<mids.length;k++,i++) sfDecode(ctx, bank, +mids[i]);
+    if(i<mids.length) setTimeout(step, 30);
+  };
+  step();
+}
+function sfDecode(ctx, bank, midi){
+  const key=ctx.sampleRate+':'+midi;
+  if(bank.buf[key] || bank.buf['p'+key] || !bank.notes[midi]) return;
+  bank.buf['p'+key]=1;   // 解码中标记
+  try{
+    const uri=bank.notes[midi];
+    const b64=uri.slice(uri.indexOf(',')+1);
+    const bin=atob(b64); const arr=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+    ctx.decodeAudioData(arr.buffer).then(buf=>{ bank.buf[key]=buf; delete bank.buf['p'+key]; })
+      .catch(()=>{ delete bank.buf['p'+key]; });
+  }catch(_){ delete bank.buf['p'+key]; }
+}
+/* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
+function sfTryPlay(ctx, bus, name, freq, when, dur, gain){
+  const bank=sfBanks[name];
+  if(!bank || bank.status!=='ready') return false;
+  const midi=Math.round(69+12*Math.log2(freq/440));
+  let pick=null;
+  if(bank.notes[midi]) pick=midi;
+  else for(let d=1; d<=6 && pick==null; d++){
+    if(bank.notes[midi-d]) pick=midi-d;
+    else if(bank.notes[midi+d]) pick=midi+d;
+  }
+  if(pick==null) return false;
+  const key=ctx.sampleRate+':'+pick;
+  const buf=bank.buf[key];
+  if(!buf){ sfDecode(ctx, bank, pick); return false; }
+  const src=ctx.createBufferSource(); src.buffer=buf;
+  src.playbackRate.value=freq/midiFreq(pick);
+  const sus=SF_SUSTAIN.has(name);
+  const rel=sus? 0.18 : Math.min(1.2, 0.5+dur*0.4);
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(gain, when+0.004);
+  g.gain.setValueAtTime(gain, when+Math.max(0.01, dur));
+  g.gain.linearRampToValueAtTime(0.0001, when+dur+rel);
+  src.connect(g); g.connect(bus.dry);
+  const ws=ctx.createGain(); ws.gain.value=0.55; g.connect(ws); ws.connect(bus.wet);
+  src.start(when); src.stop(when+dur+rel+0.05);
+  audio.sources.push(src);
+  return true;
+}
+function hifiPreload(){
+  if(!hifiOn || !song) return;
+  const used=new Set();
+  song.tabVoices.forEach((_,vi)=>used.add(trackCfg('tab',vi).inst));
+  song.voxVoices.forEach((_,vi)=>used.add(trackCfg('vox',vi).inst));
+  used.forEach(k=>sfLoad(k));
+}
+function updateHifiBtn(){
+  const b=document.getElementById('b-hifi'); if(!b) return;
+  if(!hifiOn){ b.textContent='🎧 高保真'; b.classList.remove('primary'); b.title='高保真采样音色：关（点击开启，首次需联网或站点自带音色包）'; return; }
+  const sts=Object.values(sfBanks).map(x=>x.status);
+  if(sts.includes('loading')){ b.textContent='🎧 加载中…'; b.classList.remove('primary'); }
+  else if(sts.includes('ready')){ b.textContent='🎧 高保真✓'; b.classList.add('primary'); b.title='高保真采样音色已启用（MusyngKite 开源音色库）'; }
+  else { b.textContent='🎧 高保真'; b.classList.add('primary'); b.title='高保真采样音色：开（播放时自动加载）'; }
+}
 /* ---- 母线：混音 + 压缩 + 混响（提升真实感） ---- */
 function makeImpulse(ctx,dur,decay){
   const sr=ctx.sampleRate, pre=Math.floor(sr*0.012), len=Math.max(1,Math.floor(sr*dur))+pre;
@@ -4725,6 +4842,10 @@ function playInst(instKey,ctx,bus,freq,when,dur,gain,mute){
   const sp=INSTRUMENTS[instKey]||INSTRUMENTS.steel;
   const f = sp.oct? freq*Math.pow(2,sp.oct/12) : freq;
   const gg = gain*(sp.amp||0.28);
+  /* 高保真采样优先（闷音保持合成器的短促质感）；未就绪自动回落 */
+  if(hifiOn && !mute && SF_MAP[instKey]){
+    if(sfTryPlay(ctx, bus, SF_MAP[instKey], f, when, dur, gain*0.5)) return;
+  }
   switch(sp.type){
     case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute); break;
     case 'piano': pianoTone(ctx,bus,f,when,dur,gg,sp); break;
@@ -4941,6 +5062,7 @@ function startProgress(t, dur, order, starts){
 }
 function previewInst(instKey){
   if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
+  if(hifiOn) sfLoad(instKey);
   const ctx=audio.ctx; if(ctx.state==='suspended') ctx.resume();
   const bus=buildBus(ctx);
   const t=ctx.currentTime+0.05;
@@ -4953,6 +5075,7 @@ function play(){
   if(ctx.state==='suspended') ctx.resume();
   audio.bus = buildBus(ctx);
   const bus = audio.bus;
+  if(hifiOn) hifiPreload();
   audio.playing = true;
   document.getElementById('b-play').textContent='▶ 播放中…';
   const spb = 60/song.tempo;
@@ -5075,6 +5198,13 @@ function stopPlay(){
 }
 document.getElementById('b-play').onclick = play;
 document.getElementById('b-stop').onclick = stopPlay;
+document.getElementById('b-hifi').onclick = ()=>{
+  hifiOn=!hifiOn;
+  try{ localStorage.setItem('musetab-hifi', hifiOn?'1':'0'); }catch(_){}
+  if(hifiOn){ if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)(); hifiPreload(); toast('高保真音色已开启：首次播放自动加载开源音色库（站点自带或联网），加载中先用合成音色'); }
+  else toast('已切回内置合成音色');
+  updateHifiBtn();
+};
 document.getElementById('b-pause').onclick = ()=>{
   if(!audio.playing) return toast('先点「播放」');
   if(!audio.paused){
@@ -6097,6 +6227,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱吧 PU8 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「🎧 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
     <li><span class="v">v34.69</span><div>品牌与域名定版：中文名「谱吧」（PU8），域名 pu8.cn——页头/标题/谱吧圈/凭证/格式规范全量更新；配套服务器部署脚本入库。</div></li>
     <li><span class="v">v34.68</span><div>域名更新：pokka.club → pokka.cc（后于 v34.69 定版为 pu8.cn）。</div></li>
     <li><span class="v">v34.67</span><div>平台管理演示版：个人中心新增「平台管理」——平台看板（上架/待审/销量/GMV）、审核队列（预览/通过上架/驳回附原因）、上架内容强制下架、系统配置（平台抽成%与圈内公告）；发布改为"提交→待审核→上架"状态机，创作者端实时显示审核状态与分成后收益。</div></li>
@@ -6183,6 +6314,7 @@ function alignHeader(){
   persist();
   render();
   renderProgCells();
+  updateHifiBtn();
   alignHeader();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
