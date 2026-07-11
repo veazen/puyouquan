@@ -3,41 +3,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>谱吧 PU8 · 吉他谱编辑器 — pu8.cn</title>
+<title>谱吧 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜功能谱</title>
+<meta name="description" content="谱吧——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
 :root{
-  --bg:#eaedf3; --panel:#ffffff; --text:#1a222e; --muted:#697488;
-  --border:#dbe0ea; --border-soft:#e9edf3; --accent:#3a5ce0; --accent-2:#5b76e8;
-  --accent-soft:#e8ecfd; --accent-ink:#2540b8;
-  --paper:#ffffff; --ink:#141414; --toolbar:#f2f4f9; --danger:#d63b4a; --ok:#1e9e6a;
-  --shadow:0 1px 2px rgba(20,30,60,.05), 0 6px 18px rgba(20,30,60,.06);
-  --radius:9px;
-  --font-ui:'Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','DejaVu Sans',sans-serif;
+  --bg:#f5f5f7; --panel:#ffffff; --text:#1d1d1f; --muted:#6e6e73;
+  --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
+  --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
+  --paper:#ffffff; --ink:#141414; --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045);
+  --glass:rgba(251,251,253,.82);
+  --danger:#e8362b; --ok:#1d9a53;
+  --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09);
+  --radius:10px;
+  --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#12151b; --panel:#1c2029; --text:#e7eaf0; --muted:#98a2b3;
-    --border:#333a47; --border-soft:#2a2f3a; --accent:#6d8bff; --accent-2:#7e97ff;
-    --accent-soft:#232d47; --accent-ink:#9fb4ff; --toolbar:#181c24; --danger:#ff6b78; --ok:#3ecb8f;
-    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35); }
+  :root{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
+    --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
+    --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
+    --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
+    --danger:#ff453a; --ok:#30d158;
+    --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
 }
-:root[data-theme="light"]{ --bg:#eaedf3; --panel:#ffffff; --text:#1a222e; --muted:#697488;
-  --border:#dbe0ea; --border-soft:#e9edf3; --accent:#3a5ce0; --accent-2:#5b76e8; --accent-soft:#e8ecfd;
-  --accent-ink:#2540b8; --toolbar:#f2f4f9; --danger:#d63b4a; --ok:#1e9e6a;
-  --shadow:0 1px 2px rgba(20,30,60,.05), 0 6px 18px rgba(20,30,60,.06); }
-:root[data-theme="dark"]{ --bg:#12151b; --panel:#1c2029; --text:#e7eaf0; --muted:#98a2b3;
-  --border:#333a47; --border-soft:#2a2f3a; --accent:#6d8bff; --accent-2:#7e97ff; --accent-soft:#232d47;
-  --accent-ink:#9fb4ff; --toolbar:#181c24; --danger:#ff6b78; --ok:#3ecb8f;
-  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35); }
+:root[data-theme="light"]{ --bg:#f5f5f7; --panel:#ffffff; --text:#1d1d1f; --muted:#6e6e73;
+  --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
+  --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
+  --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045); --glass:rgba(251,251,253,.82);
+  --danger:#e8362b; --ok:#1d9a53;
+  --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09); }
+:root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
+  --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
+  --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
+  --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
+  --danger:#ff453a; --ok:#30d158;
+  --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
   -webkit-font-smoothing:antialiased;padding-bottom:78px;}
 /* ================= 顶部工具栏 ================= */
-#top{position:sticky;top:0;z-index:20;background:var(--toolbar);
-  border-bottom:1px solid var(--border);backdrop-filter:saturate(1.1);}
+#top{position:sticky;top:0;z-index:20;background:var(--glass);
+  border-bottom:1px solid var(--border-soft);
+  -webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8);}
 /* 常用编辑功能栏：置于页头下方、与页头等宽，一起吸顶固定 */
-#editbar{padding:5px 16px;border-top:1px solid var(--border);gap:6px;flex-wrap:nowrap;overflow-x:auto}
+#editbar{padding:5px 16px;border-top:1px solid var(--border-soft);gap:6px;flex-wrap:nowrap;overflow-x:auto}
 #editbar2{padding:4px 16px;border-top:1px solid var(--border-soft);gap:6px;flex-wrap:nowrap;overflow-x:auto}
 #editbar .eb,#editbar2 .eb{font-size:12px;padding:3px 9px;white-space:nowrap}
 #editbar .eb.on,#editbar2 .eb.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -53,36 +63,35 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 #eb-zoom button{width:26px;padding:3px 0;font-size:13px;font-weight:600}
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:7px 16px;}
 .main-bar{gap:7px}
-.logo{font-weight:700;font-size:15px;margin-right:10px;white-space:nowrap;
-  display:flex;align-items:center;gap:7px;letter-spacing:.01em}
-.logo .mark{width:24px;height:24px;border-radius:7px;display:inline-flex;align-items:center;
-  justify-content:center;background:linear-gradient(135deg,var(--accent),var(--accent-2));
-  color:#fff;font-size:14px;box-shadow:0 2px 6px rgba(58,92,224,.35)}
-.logo small{color:var(--muted);font-weight:400;font-size:11px}
+.logo{font-weight:700;font-size:16.5px;margin-right:12px;white-space:nowrap;
+  display:flex;align-items:center;gap:8px;letter-spacing:.04em}
+.logo .mark{width:25px;height:25px;border-radius:8px;display:inline-flex;align-items:center;
+  justify-content:center;background:var(--text);color:var(--panel);font-size:14px}
+.logo small{color:var(--muted);font-weight:400;font-size:11px;letter-spacing:.08em;margin-left:1px}
 .vsep{width:1px;align-self:stretch;background:var(--border);margin:3px 4px}
 .grow{flex:1}
 /* 分段按钮组：同组按钮拼接为一体，视觉统一 */
-.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;
-  background:var(--panel);box-shadow:0 1px 2px rgba(20,30,60,.04)}
+.seg{display:inline-flex;border:1px solid var(--border-soft);border-radius:9px;overflow:hidden;
+  background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .seg button{border:none;border-radius:0;box-shadow:none;background:transparent;
   border-right:1px solid var(--border-soft)}
 .seg button:last-child{border-right:none}
-.seg button:hover{background:var(--accent-soft);color:var(--accent-ink)}
+.seg button:hover{background:var(--hover)}
 .seg button.seg-accent{color:var(--accent-ink);font-weight:600}
 .seg button.seg-accent:hover{background:var(--accent);color:#fff}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:7px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
-  font-family:var(--font-ui);transition:border-color .12s, background .12s, color .12s, box-shadow .12s;}
-button:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 1px 4px rgba(58,92,224,.12)}
-button:active{transform:translateY(.5px)}
-button.primary{background:linear-gradient(180deg,var(--accent-2),var(--accent));border-color:transparent;
-  color:#fff;box-shadow:0 2px 8px rgba(58,92,224,.32)}
-button.primary:hover{color:#fff;filter:brightness(1.06)}
+  border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
+  font-family:var(--font-ui);transition:border-color .15s, background .15s, color .15s, box-shadow .15s;}
+button:hover{background:var(--hover)}
+button:active{transform:scale(.985)}
+button.primary{background:var(--accent);border-color:transparent;border-radius:980px;
+  padding:5px 15px;font-weight:500;color:#fff;box-shadow:0 1px 2.5px rgba(0,0,0,.14)}
+button.primary:hover{background:var(--accent-2);color:#fff}
 button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.ghost{border-color:transparent;background:transparent}
 button.ghost:hover{background:var(--accent-soft)}
 input,select,textarea{background:var(--panel);color:var(--text);
-  border:1px solid var(--border);border-radius:7px;padding:5px 9px;font-size:13px;
+  border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:13px;
   font-family:var(--font-ui);}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft)}
@@ -98,8 +107,7 @@ input.short{width:54px} input.mid{width:150px}
 #ribbon{display:flex;align-items:stretch;gap:6px;padding:9px 12px;background:var(--panel);
   overflow-x:auto;border-bottom:1px solid var(--border)}
 .rg{display:flex;flex-direction:column;gap:5px;padding:6px 11px 5px;
-  border:1px solid var(--border-soft);border-radius:11px;background:var(--toolbar);flex:none;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  border:1px solid var(--border-soft);border-radius:12px;background:var(--toolbar);flex:none}
 .rg .rg-title{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;
   text-align:center;order:2;margin-top:1px;font-weight:600}
 .rg .rg-body{display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:200px;
@@ -162,8 +170,8 @@ input.short{width:54px} input.mid{width:150px}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
 #score .beatzone:hover{fill:var(--accent);fill-opacity:.13}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
-.popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border);
-  border-radius:12px;box-shadow:var(--shadow);padding:10px;font-size:12.5px}
+.popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border-soft);
+  border-radius:13px;box-shadow:0 10px 34px rgba(0,0,0,.16);padding:10px;font-size:12.5px}
 .popmenu.pm-follow{position:absolute}   /* 谱面锚定弹窗：随页面滚动 */
 /* 小节与段落：模块化分组 */
 .sp-sec{margin:7px 0;border:1px solid var(--border);border-radius:10px;padding:7px 6px;background:var(--paper)}
@@ -187,9 +195,10 @@ input.short{width:54px} input.mid{width:150px}
 .lib-tab{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:500}
 .lib-tab.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
 .song-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.song-card{border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--toolbar);
-  display:flex;flex-direction:column;gap:6px}
-.song-card:hover{border-color:var(--accent)}
+.song-card{border:1px solid var(--border-soft);border-radius:13px;padding:13px 14px;background:var(--panel);
+  box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:6px;
+  transition:box-shadow .15s,transform .15s}
+.song-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.10);transform:translateY(-1px)}
 .sc-title{font-weight:700;font-size:14px}
 .sc-cur{font-size:10.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 7px;border-radius:10px;font-weight:600;margin-left:4px}
 .sc-desc{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1}
@@ -204,13 +213,13 @@ input.short{width:54px} input.mid{width:150px}
   align-self:flex-start;z-index:6}
 #left-rail{display:flex;flex-direction:column;gap:6px;flex:none;padding-top:2px}
 .ltab{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:.16em;
-  border:1px solid var(--border);background:var(--panel);border-radius:9px;
+  border:1px solid var(--border-soft);background:var(--panel);border-radius:10px;
   padding:12px 7px;font-size:13px;color:var(--muted);font-weight:600;min-width:32px;
-  box-shadow:0 1px 3px rgba(20,30,60,.06);transition:all .12s}
-.ltab:hover{color:var(--accent-ink);background:var(--accent-soft);border-color:var(--accent)}
-.ltab.on{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(58,92,224,.3)}
+  box-shadow:0 1px 3px rgba(0,0,0,.05);transition:all .15s}
+.ltab:hover{color:var(--text);background:var(--hover)}
+.ltab.on{background:var(--text);color:var(--panel);border-color:transparent}
 #left-flyout{flex:none;width:252px;margin-right:7px;max-height:calc(100vh - 140px);overflow-y:auto;
-  background:var(--panel);border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow)}
+  background:var(--panel);border:1px solid var(--border-soft);border-radius:14px;box-shadow:var(--shadow)}
 #left-flyout #ribbon{display:flex;flex-direction:column;gap:8px;padding:10px;
   overflow:visible;border-bottom:none;background:transparent}
 #left-flyout .rg{width:100%}
@@ -218,11 +227,11 @@ input.short{width:54px} input.mid{width:150px}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
-.rcard{border:1px solid var(--border);border-radius:12px;background:var(--panel);
-  box-shadow:0 1px 3px rgba(20,30,60,.06);overflow:hidden}
+.rcard{border:1px solid var(--border-soft);border-radius:13px;background:var(--panel);
+  box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden}
 .rc-h{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
   border:none;border-radius:0;background:var(--toolbar);font-weight:700;font-size:13px;padding:9px 12px}
-.rc-h:hover{background:var(--accent-soft);color:var(--accent-ink)}
+.rc-h:hover{background:var(--hover)}
 .rc-h::after{content:'▸';font-size:11px;color:var(--muted);transition:transform .15s}
 .rcard.open .rc-h::after{transform:rotate(90deg)}
 .rc-h.rc-btn::after{content:'…';transform:none}
@@ -238,7 +247,7 @@ input.short{width:54px} input.mid{width:150px}
 #score-wrap{flex:0 1 900px;min-width:0;max-width:900px;margin:0;padding:0;}
 #paper{background:transparent;border:none;box-shadow:none;padding:0;
   width:100%;max-width:820px;margin:0 auto;overflow:auto;
-  filter:drop-shadow(0 4px 14px rgba(20,30,60,.10));}   /* ≈A4 纵向宽度(96dpi) */
+  filter:drop-shadow(0 6px 22px rgba(0,0,0,.09));}   /* ≈A4 纵向宽度(96dpi) */
 #paper svg{max-width:none}   /* 放大时允许超出容器，容器内滚动查看 */
 #paper.wide{max-width:1180px}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
@@ -246,10 +255,12 @@ svg text{user-select:none}
 #score .pagebg{stroke:var(--border)}
 #hint{max-width:900px;margin:8px auto 34px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
 /* ================= 弹窗 ================= */
-.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.34);z-index:50;
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
   display:flex;align-items:center;justify-content:center;}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;
-  padding:18px 20px;max-width:720px;width:94%;max-height:84vh;overflow-y:auto;overflow-x:hidden;}
+.modal{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;
+  box-shadow:0 24px 70px rgba(0,0,0,.22);
+  padding:20px 22px;max-width:720px;width:94%;max-height:84vh;overflow-y:auto;overflow-x:hidden;}
 .modal h3{margin:0 0 10px;font-size:16px}
 .modal h4{margin:14px 0 6px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:3px}
 .modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
@@ -282,9 +293,9 @@ svg text{user-select:none}
 .cc-top .cc-sub{font-size:11.5px;color:var(--muted)}
 .cc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;
   max-width:1080px;margin:22px auto;padding:0 26px}
-.cc-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:15px 16px;
-  cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative}
-.cc-card:hover{box-shadow:0 8px 22px rgba(58,92,224,.13);transform:translateY(-2px)}
+.cc-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:16px;padding:16px 17px;
+  cursor:pointer;transition:box-shadow .18s,transform .18s;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.cc-card:hover{box-shadow:0 10px 28px rgba(0,0,0,.12);transform:translateY(-2px)}
 .cc-card .t{font-size:15px;font-weight:700;margin-bottom:4px;color:var(--ink)}
 .cc-card .a{font-size:11.5px;color:var(--muted);margin-bottom:8px}
 .cc-card .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
@@ -317,7 +328,7 @@ body.viewer #viewerbar{display:flex}
 .ntcard{position:relative;min-width:0;white-space:normal;border:1.5px solid var(--border);border-radius:14px;
   padding:20px 18px 17px;background:var(--paper);cursor:pointer;text-align:left;font:inherit;
   transition:border-color .15s,box-shadow .15s,transform .15s}
-.ntcard:hover{border-color:var(--accent);box-shadow:0 8px 22px rgba(58,92,224,.14);transform:translateY(-2px)}
+.ntcard:hover{border-color:var(--accent);box-shadow:0 10px 26px rgba(0,0,0,.10);transform:translateY(-2px)}
 .ntcard b{display:block;font-size:16.5px;letter-spacing:2px;margin-bottom:7px;color:var(--ink);padding-right:64px}
 .ntcard span{font-size:12.5px;color:var(--muted);line-height:1.7;display:block;word-break:break-word}
 .ntcard .nt-tag{position:absolute;top:19px;right:15px;font-size:10.5px;color:var(--accent);
@@ -351,12 +362,12 @@ body.viewer #viewerbar{display:flex}
 .pc-row button{padding:3px 10px;font-size:12px}
 /* 会员中心 */
 .mb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
-.mb-card{border:1px solid var(--border);border-radius:14px;padding:14px 13px;background:var(--toolbar);
-  display:flex;flex-direction:column;gap:7px;position:relative}
+.mb-card{border:1px solid var(--border-soft);border-radius:15px;padding:15px 14px;background:var(--panel);
+  box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:7px;position:relative}
 .mb-card.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .mb-card.vip{background:linear-gradient(180deg,color-mix(in srgb,var(--accent-soft) 60%,transparent),var(--toolbar))}
 .mb-tag{position:absolute;top:-9px;right:12px;font-size:10.5px;font-weight:700;color:#fff;
-  background:linear-gradient(135deg,var(--accent),var(--accent-2));padding:2px 9px;border-radius:10px}
+  background:var(--accent);padding:2px 10px;border-radius:980px}
 .mb-name{font-size:15px;font-weight:800}
 .mb-price{font-size:13px;color:var(--accent-ink);font-weight:700}
 .mb-feats{margin:4px 0 8px;padding-left:16px;font-size:12px;color:var(--text);line-height:1.7;flex:1}
@@ -366,8 +377,9 @@ body.viewer #viewerbar{display:flex}
 @media(max-width:640px){ .mb-grid{grid-template-columns:1fr} }
 /* 底部悬浮播放条（简易横条，可向上展开音轨） */
 #mixer-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:40;
-  width:min(980px,94vw);background:var(--panel);border:1px solid var(--border);
-  border-radius:14px;box-shadow:0 10px 34px rgba(20,30,60,.24);overflow:hidden}
+  width:min(980px,94vw);background:var(--glass);border:1px solid var(--border-soft);
+  -webkit-backdrop-filter:blur(22px) saturate(1.8);backdrop-filter:blur(22px) saturate(1.8);
+  border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.22);overflow:hidden}
 .mx-bar{display:flex;align-items:center;gap:9px;padding:8px 12px}
 .mx-splabel{color:var(--muted);font-size:12px;white-space:nowrap}
 .tempo{width:74px;text-align:center}
@@ -415,9 +427,10 @@ body.viewer #viewerbar{display:flex}
 .mx-vol .vv{font-size:10px;color:var(--muted);width:32px;text-align:right}
 /* 节奏型库卡片 */
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.pat-card{border:1px solid var(--border);border-radius:10px;padding:6px;cursor:pointer;
-  background:var(--toolbar);display:flex;flex-direction:column;align-items:center;gap:3px}
-.pat-card:hover{border-color:var(--accent);background:var(--accent-soft)}
+.pat-card{border:1px solid var(--border-soft);border-radius:11px;padding:6px;cursor:pointer;
+  background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;align-items:center;gap:3px;
+  transition:box-shadow .15s}
+.pat-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.10)}
 .pat-card .nm{font-size:12px;text-align:center;line-height:1.25}
 .pat-card .bt{font-size:10.5px;color:var(--muted)}
 .pat-card svg{background:var(--panel);border-radius:6px}
@@ -440,7 +453,7 @@ body.viewer #viewerbar{display:flex}
 <body>
 <header id="top">
   <div class="bar main-bar">
-    <span class="logo"><span class="mark">🎸</span>谱吧 <b style="font-weight:800;letter-spacing:.06em">PU8</b> <small>吉他谱编辑器 · pu8.cn</small></span>
+    <span class="logo"><span class="mark">🎸</span>谱吧 <small>在线制谱</small></span>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
       <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
@@ -986,7 +999,7 @@ function demoSong(){
   const M=(tab,vox,ext)=>Object.assign(
     {tabs:[tab],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
   return {v:3, title:'小星星（弹唱示例）', singer:'儿歌', lyricist:'', composer:'法国民谣',
-    maker:'谱吧 PU8', key:'C', beats:4, unit:4, tempo:92, capo:0, customChords:{},
+    maker:'谱吧', key:'C', beats:4, unit:4, tempo:92, capo:0, customChords:{},
     tabVoices:['吉他1'], voxVoices:['旋律1'], lyricLines:1,
     measures:[
       M(arpC('C'),  rest4()),
@@ -5720,7 +5733,7 @@ function openCircle(){
     ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">📢 ${esc(notice)}</div></div>`:''}
     <div class="cc-grid">${cards || '<p style="grid-column:1/-1;color:var(--muted)">还没有上架的曲谱。</p>'}</div>
     <p style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">
-      本地演示版 · 云端账号 / 微信支付 / 小程序上线后自动同步 · pu8.cn</p>`;
+      本地演示版 · 云端账号 / 微信支付 / 小程序上线后自动同步</p>`;
   document.body.appendChild(div);
   document.getElementById('cc-back').onclick=()=>div.remove();
   div.addEventListener('click', e=>{
@@ -6018,7 +6031,7 @@ function openPersonal(tab){
     M.querySelectorAll('[data-pf-exp]').forEach(b2=>b2.onclick=()=>{
       const e2=creatorLoad().proofs[+b2.dataset.pfExp]; if(!e2) return;
       const maker=(profileLoad().name||'')||'谱吧用户';
-      const cert={type:'谱吧 PU8 原创作品时间戳存证', title:e2.title, author:maker, time:e2.at, contentHash:e2.hash,
+      const cert={type:'谱吧原创作品时间戳存证', title:e2.title, author:maker, time:e2.at, contentHash:e2.hash,
         note:'内容指纹由曲谱数据计算（SHA-256）。验证方式：对当时的曲谱 JSON 重新计算哈希并比对。'};
       const blob=new Blob([JSON.stringify(cert,null,2)],{type:'application/json'});
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -6149,7 +6162,7 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.style.opacity=0,2200);
 }
 document.getElementById('b-help').onclick = ()=>{
-  showModal(`<h3>谱吧 PU8 · 使用帮助</h3>
+  showModal(`<h3>谱吧 · 使用帮助</h3>
   <h4>快速上手（3 步做一首谱）</h4>
   <div class="steps">
     <div class="step"><span class="n">1</span><div><b>建谱</b>：点「新建」选曲谱类型——吉他谱 / 尤克里里谱 / 简谱 / 功能谱，填标题、词曲作者、拍号、变调夹、预设小节数与声部即可；也可在「曲谱库」选预设改编。新谱在新窗口打开，多首可同时编辑。</div></div>
@@ -6204,7 +6217,7 @@ document.getElementById('b-help').onclick = ()=>{
   document.getElementById('help-ok').onclick = closeModal;
 };
 document.getElementById('b-feat').onclick = ()=>{
-  showModal(`<h3>谱吧 PU8 · 特色功能</h3>
+  showModal(`<h3>谱吧 · 特色功能</h3>
   <h4>通用能力</h4>
   <div class="feat">
     <div class="fc"><b>📐 智能排版自适配</b><span>按出版谱逻辑逐拍分配间距、每行 2–6 小节自适应、A4 多页自动分页，打印导出即成品。</span></div>
@@ -6225,8 +6238,9 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 document.getElementById('b-changelog').onclick = ()=>{
-  showModal(`<h3>谱吧 PU8 · 更新日志</h3>
+  showModal(`<h3>谱吧 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.71</span><div>界面全面升级为极简现代设计语言：中性灰底+白色面板+发丝线边框、系统蓝点缀、毛玻璃顶栏与播放条、胶囊主按钮、柔和大圆角阴影，明暗两套主题同步重调；品牌宣传以中文名「谱吧」为主（页头/标题/弹窗弱化域名与代号）；新增《设计规范与多端规划》文档，为后续桌面/平板/手机/小程序客户端预留统一设计与功能架构。</div></li>
     <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「🎧 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
     <li><span class="v">v34.69</span><div>品牌与域名定版：中文名「谱吧」（PU8），域名 pu8.cn——页头/标题/谱吧圈/凭证/格式规范全量更新；配套服务器部署脚本入库。</div></li>
     <li><span class="v">v34.68</span><div>域名更新：pokka.club → pokka.cc（后于 v34.69 定版为 pu8.cn）。</div></li>
