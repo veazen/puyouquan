@@ -315,6 +315,20 @@ body.viewer #viewerbar{display:flex}
 #paywall{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:45;
   background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;
   padding:12px 20px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);font-size:13px}
+/* 功能谱和弦编辑器（级数为主） */
+.vc-prev{display:flex;align-items:baseline;gap:12px;padding:9px 12px;margin:7px 0 9px;
+  background:var(--toolbar);border-radius:11px}
+.vc-prev b{font-size:20px;letter-spacing:.02em;font-weight:700}
+.vc-prev b sup{font-size:11px;font-weight:600}
+.vc-prev .alt{color:var(--muted);font-size:12.5px}
+.vc-prev .none{color:var(--muted);font-size:13px;font-weight:400}
+.vc-grid{display:flex;flex-wrap:wrap;gap:4px;margin:3px 0 7px}
+.vc-grid button{padding:3px 2px;min-width:38px;text-align:center;font-size:12.5px;border-radius:8px;line-height:1.25}
+.vc-grid button small{display:block;font-size:9px;color:var(--muted);font-weight:400}
+.vc-grid button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.vc-grid button.on small{color:rgba(255,255,255,.75)}
+.vc-grid.sufs button{min-width:44px;padding:4px 6px}
+#vc-names{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:980px}
 /* 和弦编辑器·指板创建 */
 .fb{display:grid;gap:2px;margin:6px 0;justify-content:center}
 .fb-h{font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:center;height:20px}
@@ -568,7 +582,7 @@ body.viewer #viewerbar{display:flex}
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
         <button id="b-tie">连音线</button>
         <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
-        <button id="b-vchord" title="功能谱和弦：输入和弦名（如 C、Am7、G/B），谱面按调号自动显示级数">和弦/级数</button>
+        <button id="b-vchord" title="功能谱和弦：级数为主构建（级数×类型扩展×转位低音），谱面级数/音名一键切换">和弦/级数</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-col">
@@ -2080,10 +2094,16 @@ function render(){
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
             p.push(`<circle cx="${nx}" cy="${voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
           const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
-          /* 功能谱：级数和弦标注在音符上方（悬停显示原和弦名） */
+          /* 功能谱：和弦标注在音符上方——级数/音名一键切换；根音大字、后缀上标、低音随斜杠 */
           if(col.chord){
             const cy2 = voxY-24-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
-            p.push(`<text x="${nx}" y="${cy2}" font-size="12.5" font-weight="700" text-anchor="middle" fill="var(--ink)" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">${esc(chordDegree(col.chord))}<title>${esc(col.chord)}（点击编辑）</title></text>`);
+            const disp = song.funcNames? col.chord : chordDegree(col.chord);
+            const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
+            const pm=/^([A-G](?:#|b)?|[b#]?[1-7])(.*?)(\/.+)?$/.exec(disp);
+            const body = pm
+              ? `${esc(pm[1])}${pm[2]? `<tspan font-size="9" dy="-3.8" font-weight="600">${esc(pm[2])}</tspan>`:''}${pm[3]? `<tspan font-size="10.5" dy="${pm[2]?'3.8':'0'}" font-weight="600">${esc(pm[3])}</tspan>`:''}`
+              : esc(disp);
+            p.push(`<text x="${nx}" y="${cy2}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">${body}<title>${esc(alt)}（点击编辑）</title></text>`);
           }
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
@@ -4185,7 +4205,7 @@ document.getElementById('b-slap').onclick = ()=>{
   mutate(()=>{ const c=curCol(); if(c.slap) delete c.slap; else c.slap=true; });
 };
 /* 功能谱智能和弦选择：本调常用库优先 + 常用扩展 + 最近使用 + 自定义输入 */
-function setVoxChord(name){
+function setVoxChord(name, quiet){
   mutate(()=>{ const c=curCol(); if(!c) return;
     const t=(name||'').trim();
     if(t) c.chord=t; else delete c.chord;
@@ -4195,42 +4215,100 @@ function setVoxChord(name){
     song.chordRecent = [t, ...(song.chordRecent||[]).filter(x=>x!==t)].slice(0,8);
     persist();
   }
-  toast(t? '已标注 '+t+'（级数 '+chordDegree(t)+'）' : '已清除和弦标注');
+  if(!quiet) toast(t? '已标注 '+t+'（级数 '+chordDegree(t)+'）' : '已清除和弦标注');
+}
+/* 功能谱和弦编辑器：级数为主构建（级数 × 类型/扩展 × 转位低音），实时应用到谱面 */
+const VC_SEMI=[0,2,4,5,7,9,11];                       // 大调音级半音
+const VC_DIA =['','m','m','','','m','dim'];           // 各级默认（调内）性质
+const VC_SUFS=[
+  {t:'三和弦', c:[['大',''],['m','m'],['sus2','sus2'],['sus4','sus4'],['dim','dim'],['aug','aug'],['5','5']]},
+  {t:'七和弦', c:[['7','7'],['maj7','maj7'],['m7','m7'],['m7b5','m7b5'],['dim7','dim7'],['mM7','mmaj7']]},
+  {t:'扩展',   c:[['6','6'],['m6','m6'],['9','9'],['add9','add9'],['m9','m9'],['maj9','maj9'],['11','11'],['13','13'],['7sus4','7sus4']]},
+];
+function vcNote(i){ return KEY_LIST[((KEY_PC[song.key]||0)+VC_SEMI[i])%12]; }
+function vcBuild(st){
+  if(st.deg<0) return '';
+  return vcNote(st.deg)+st.suf+(st.bass>=0? '/'+vcNote(st.bass):'');
+}
+function vcParse(name){
+  const m=/^([A-G](?:#|b)?)(.*?)(?:\/([A-G](?:#|b)?))?$/.exec((name||'').trim());
+  if(!m || KEY_PC[m[1]]==null) return null;
+  const pc=KEY_PC[song.key]||0;
+  const di=VC_SEMI.indexOf(((KEY_PC[m[1]]-pc)%12+12)%12);
+  const bi=m[3]!=null? VC_SEMI.indexOf(((KEY_PC[m[3]]-pc)%12+12)%12) : -1;
+  if(di<0 || (m[3] && bi<0)) return null;              // 调外根音/低音 → 走自定义框
+  return {deg:di, suf:m[2]||'', bass:bi};
 }
 function showVoxChordMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标注和弦的音符');
   const col=curCol(); if(!col) return;
   closePop();
-  const pc=KEY_PC[song.key]||0;
-  const nm=k=>KEY_LIST[(pc+k)%12];
-  const dia=[nm(0), nm(2)+'m', nm(4)+'m', nm(5), nm(7), nm(7)+'7', nm(9)+'m'];        // 1 2m 3m 4 5 57 6m
-  const ext=[nm(0)+'maj7', nm(2)+'m7', nm(9)+'m7', nm(5)+'maj7', nm(0)+'7', nm(4)+'7', nm(10), nm(0)+'sus4'];
-  const recent=(song.chordRecent||[]).filter(c=>!dia.includes(c)&&!ext.includes(c)).slice(0,8);
-  const btn=c2=>`<button data-vc="${esc(c2)}" class="${col.chord===c2?'on':''}" title="级数 ${esc(chordDegree(c2))}">${esc(c2)}<span style="opacity:.55;font-size:10px;margin-left:3px">${esc(chordDegree(c2))}</span></button>`;
+  const st = vcParse(col.chord) || {deg:-1, suf:'', bass:-1};
   const div=document.createElement('div');
-  div.className='popmenu'; div.id='popmenu';
-  div.style.left=Math.min(cx, innerWidth-360)+'px';
-  div.classList.add('pm-follow'); div.style.top=(Math.min(cy+8, innerHeight-280)+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
-  div.innerHTML=`<div class="t">功能谱和弦 · 1=${esc(song.key)}（点击应用，谱面显示级数）</div>
-    <div class="t" style="margin-top:4px;opacity:.75">本调常用</div>
-    <div class="row">${dia.map(btn).join('')}</div>
-    <div class="t" style="margin-top:4px;opacity:.75">常用扩展</div>
-    <div class="row">${ext.map(btn).join('')}</div>
-    ${recent.length? `<div class="t" style="margin-top:4px;opacity:.75">最近使用</div><div class="row">${recent.map(btn).join('')}</div>`:''}
-    <div class="row" style="margin-top:6px">
-      <input id="vc-custom" placeholder="自定义：如 F#m7、G/B" value="${esc(col.chord||'')}" style="flex:1;min-width:130px">
-      <button id="vc-ok" class="primary" style="padding:3px 12px">应用</button>
-      <button id="vc-clr" style="padding:3px 10px">清除</button>
-    </div>`;
+  div.className='popmenu pm-follow'; div.id='popmenu';
+  div.style.width='min(420px, 94vw)';
+  div.style.left=(Math.min(cx, innerWidth-440)+scrollX)+'px';
+  div.style.top=(Math.min(cy+8, innerHeight-430)+scrollY)+'px';
+  const supHtml=d=>{                                   // 级数/音名排版：根音大、后缀上标、低音随斜杠
+    const pm=/^([A-G](?:#|b)?|[b#]?[1-7])(.*?)(\/.+)?$/.exec(d);
+    return pm? `${esc(pm[1])}${pm[2]?`<sup>${esc(pm[2])}</sup>`:''}${pm[3]?esc(pm[3]):''}` : esc(d);
+  };
+  const draw=()=>{
+    const cur=vcBuild(st) || col.chord || '';
+    const recent=(song.chordRecent||[]).slice(0,8);
+    div.innerHTML=`<div class="t" style="display:flex;align-items:center;gap:8px">功能谱和弦 · 1=${esc(song.key)}
+        <button id="vc-names" class="${song.funcNames?'on':''}" title="谱面所有和弦标注一键切换：级数 ↔ 音名">谱面显示：${song.funcNames?'音名':'级数'}</button></div>
+      <div class="vc-prev">${cur
+        ? `<b>${supHtml(chordDegree(cur))}</b><span class="alt">音名 ${esc(cur)}</span>`
+        : `<span class="none">未标注 —— 点下方级数开始</span>`}</div>
+      <div class="t" style="opacity:.75">级数（1=${esc(song.key)}，默认调内性质）</div>
+      <div class="vc-grid">${VC_SEMI.map((_,i)=>
+        `<button data-vd="${i}" class="${st.deg===i?'on':''}">${i+1}${VC_DIA[i]?'<b style="font-size:10px">'+VC_DIA[i]+'</b>':''}<small>${esc(vcNote(i))}</small></button>`).join('')}
+        <button data-vd="-1" class="${st.deg<0&&!col.chord?'on':''}" title="清除标注">∅<small>无</small></button></div>
+      <div class="t" style="opacity:.75">类型 / 扩展</div>
+      ${VC_SUFS.map(g=>`<div class="vc-grid sufs">${g.c.map(([lb,sf])=>
+        `<button data-vs="${esc(sf)}" class="${st.suf===sf?'on':''}" title="${esc(g.t)}">${esc(lb)}</button>`).join('')}
+        ${g.t==='扩展'? `<input id="vc-sufin" placeholder="自定义后缀" value="${esc(VC_SUFS.some(g2=>g2.c.some(c2=>c2[1]===st.suf))?'':st.suf)}" style="width:88px;font-size:12px;padding:3px 8px">`:''}</div>`).join('')}
+      <div class="t" style="opacity:.75">转位（斜杠低音）</div>
+      <div class="vc-grid">
+        <button data-vb="-1" class="${st.bass<0?'on':''}">原位</button>
+        ${VC_SEMI.map((_,i)=>`<button data-vb="${i}" class="${st.bass===i?'on':''}">/${i+1}<small>${esc(vcNote(i))}</small></button>`).join('')}</div>
+      ${recent.length? `<div class="t" style="opacity:.75">最近使用</div><div class="row">${recent.map(c2=>
+        `<button data-vc="${esc(c2)}" class="${col.chord===c2?'on':''}">${esc(chordDegree(c2))}<span style="opacity:.55;font-size:10px;margin-left:3px">${esc(c2)}</span></button>`).join('')}</div>`:''}
+      <div class="row" style="margin-top:7px">
+        <input id="vc-custom" placeholder="完整自定义：如 F#m7、Bb/D（调外和弦）" value="${esc(col.chord||'')}" style="flex:1;min-width:150px">
+        <button id="vc-ok" class="primary" style="padding:3px 13px">应用</button>
+        <button id="vc-clr" style="padding:3px 10px">清除</button>
+      </div>`;
+  };
+  const apply=()=>{ setVoxChord(vcBuild(st), true); draw(); };
+  draw();
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
+    const vd=ev.target.closest('[data-vd]');
+    if(vd){ const i=+vd.dataset.vd;
+      if(i<0){ st.deg=-1; st.suf=''; st.bass=-1; setVoxChord('', true); draw(); return; }
+      if(st.deg<0 || st.deg!==i && st.suf===VC_DIA[st.deg]) st.suf=VC_DIA[i];   // 未自选类型时跟随调内性质
+      st.deg=i; apply(); return; }
+    const vs=ev.target.closest('[data-vs]');
+    if(vs){ st.suf=vs.dataset.vs; if(st.deg<0) st.deg=0; apply(); return; }
+    const vb=ev.target.closest('[data-vb]');
+    if(vb){ st.bass=+vb.dataset.vb; if(st.deg<0&&st.bass>=0) st.deg=0; apply(); return; }
     const b2=ev.target.closest('[data-vc]');
     if(b2){ setVoxChord(b2.dataset.vc); closePop(); return; }
-    if(ev.target.closest('#vc-ok')){ setVoxChord(document.getElementById('vc-custom').value); closePop(); return; }
+    if(ev.target.closest('#vc-names')){
+      song.funcNames=!song.funcNames; persist(); render(); draw(); return; }
+    if(ev.target.closest('#vc-ok')){ setVoxChord(div.querySelector('#vc-custom').value); closePop(); return; }
     if(ev.target.closest('#vc-clr')){ setVoxChord(''); closePop(); return; }
   });
-  const inp=document.getElementById('vc-custom');
-  inp.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ setVoxChord(inp.value); closePop(); } ev.stopPropagation(); });
+  div.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.target.id==='vc-custom' && ev.key==='Enter'){ setVoxChord(ev.target.value); closePop(); }
+    if(ev.target.id==='vc-sufin' && ev.key==='Enter'){ st.suf=ev.target.value.trim(); if(st.deg<0) st.deg=0; apply(); }
+  });
+  div.addEventListener('change', ev=>{
+    if(ev.target.id==='vc-sufin'){ st.suf=ev.target.value.trim(); if(st.deg<0) st.deg=0; apply(); }
+  });
 }
 document.getElementById('b-vchord').onclick = e=>{
   const r=e.target.getBoundingClientRect();
@@ -5524,7 +5602,7 @@ function showNewForm(type){
   <label class="f"><span>${instLabel}声部</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
   <label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>
   <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],type==='func'?0:1)}</label>
-  ${type==='func'? `<p>功能谱：选中简谱音符后，左侧「简谱」面板点「和弦/级数」——弹出本调常用和弦库一键选用，也支持自定义输入；谱面按调号显示级数，点击级数标注可再次编辑。</p>` : ''}
+  ${type==='func'? `<p>功能谱：选中简谱音符后，左侧「简谱」面板点「和弦/级数」——级数为主构建（级数×类型扩展×转位低音），支持自定义后缀与调外和弦；谱面级数/音名一键切换，点击标注可再次编辑。</p>` : ''}
   <div class="btns"><button id="nw-back">← 返回选类型</button><button id="nw-create" class="primary">创建曲谱</button></div>`);
   document.getElementById('nw-back').onclick = showNewWizard;
   document.getElementById('nw-create').onclick = ()=>{
@@ -6240,6 +6318,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱吧 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.72</span><div>功能谱和弦全面升级为「级数为主」构建器：级数 1–7（含调内默认性质与各级音名提示）× 丰富类型/扩展（三和弦 / 七和弦 / 6·9·11·13 等 22 种）× 转位斜杠低音 /1–/7，点选即时应用；支持自定义后缀与调外完整自定义；「谱面显示：级数 ↔ 音名」一键切换（随曲谱保存）；谱面标注排版升级——根音大字、后缀上标、斜杠低音，悬停显示另一种形式。</div></li>
     <li><span class="v">v34.71</span><div>界面全面升级为极简现代设计语言：中性灰底+白色面板+发丝线边框、系统蓝点缀、毛玻璃顶栏与播放条、胶囊主按钮、柔和大圆角阴影，明暗两套主题同步重调；品牌宣传以中文名「谱吧」为主（页头/标题/弹窗弱化域名与代号）；新增《设计规范与多端规划》文档，为后续桌面/平板/手机/小程序客户端预留统一设计与功能架构。</div></li>
     <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「🎧 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
     <li><span class="v">v34.69</span><div>品牌与域名定版：中文名「谱吧」（PU8），域名 pu8.cn——页头/标题/谱吧圈/凭证/格式规范全量更新；配套服务器部署脚本入库。</div></li>
