@@ -54,8 +54,10 @@ cd packages/crypto && npm run build && node scripts/generate-vectors.mjs > test-
 
 ## Human TODO (PROJECT_PLAN §12 — cannot be done by code)
 
-- [ ] Register domain `veazen.tech` (+ a 4–6 char short domain for QR redirects)
-- [ ] Cloud provider, Cloudflare, S3, SMTP/SendGrid, Stripe, MaxMind accounts
+- [x] Domain `veazen.app` registered (Namecheap), NS on Cloudflare (Active), SSL Full (Strict), Email Routing (hello@/support@), temp site on Cloudflare Pages project `veazen`
+- [ ] Sender domain SPF/DKIM/DMARC (when wiring Resend); 4–6 char short QR-redirect domain; defensive veazen.net/.io after trademark
+- [ ] Account matrix via hello@veazen.app: WordPress.org (username `veazen`, highest priority), GitHub org `veazen`, Cloudflare R2 bucket `veazen-prod`, Railway/Neon/Upstash/Resend, Sentry + UptimeRobot, MaxMind GeoLite license (.mmdb download)
+- [ ] Demo store: cheap WP host, WooCommerce demo at demo.veazen.app with this plugin installed
 - [ ] Trademark filing (VEAZEN, classes 9 & 42) — see §12 for the attorney search notes
 - [ ] Stripe: legal name VEAZEN LLC, public business name VEAZEN
 - [ ] California foreign qualification + BOI filing check (if operating from CA)

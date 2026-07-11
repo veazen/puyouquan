@@ -1,6 +1,6 @@
 # 项目计划书：Veazen — 云端防伪溯源平台 + WordPress/WooCommerce 接入插件
 
-> **品牌与主体**：品牌名 **Veazen**（法律主体 VEAZEN LLC，美国怀俄明州；品牌名与主体同名，法律页脚统一写 "Veazen™ is a product of VEAZEN LLC"）。主域名 **veazen.tech**（veazen.com 由无关联的中国乐器品牌持有，不可用；SEO 需以 "Veazen + traceability/anti-counterfeit" 组合词建立区隔）。中文产品名：**信磐**。
+> **品牌与主体**：品牌名 **Veazen**（法律主体 VEAZEN LLC，美国怀俄明州；品牌名与主体同名，法律页脚统一写 "Veazen™ is a product of VEAZEN LLC"）。主域名 **veazen.app**（已在 Namecheap 注册；.app 后缀全域 HSTS 预加载、强制 HTTPS，协议层杜绝验证页降级劫持，可作为安全卖点写入白皮书。veazen.com 由无关联的中国乐器品牌持有，不可用；SEO 需以 "Veazen + traceability/anti-counterfeit" 组合词建立区隔）。中文产品名：**信磐**。
 > **Slogan（以"信任基石"为核）**：主用 **"Trust, set in stone."**（双关：基石之石 + set in stone 的"不可篡改"义，呼应 §1.10 证据链）／中文 **"信任，坚如磐石。"** 备选："The bedrock of trust." ／ "信任基石"。营销物料从这两组中取用。
 
 > 本文档面向 Claude Code，作为项目的权威规格说明（Spec）。请按「阶段与任务分解」章节的顺序实施，每个阶段完成后运行对应验收标准中的测试。文中所有代码标识符、API 路径、数据库字段均为约定命名，实施时保持一致。
@@ -23,7 +23,7 @@
 6. **溯源事件模型对齐 GS1 EPCIS 2.0** 的核心语义（what/where/when/why），但 MVP 阶段用简化的内部 schema，字段命名保持可映射。
 7. **多租户 SaaS。** 单实例多租户，租户隔离通过 `tenant_id` 行级隔离 + PostgreSQL RLS（Row Level Security）双保险。
 8. **验证接口是全系统最高并发路径**，设计目标：p99 < 150ms（不含网络），单实例 ≥ 500 rps，可水平扩展。
-9. **验证域名默认由平台控制（战略锁定）。** 所有码默认指向平台域名（`verify.veazen.tech` 或租户子域 `{slug}.veazen.tech`；后续购入超短域名后可作为 QR 专用跳转域，302 至前者）。自定义域名（`custom_domain`）仅企业版开放，且实现上必须 CNAME 到平台边缘节点（域名可换皮，解析和数据始终经过平台）。任何实现不得引入"客户完全自持验证端点"的模式。
+9. **验证域名默认由平台控制（战略锁定）。** 所有码默认指向平台域名（`verify.veazen.app` 或租户子域 `{slug}.veazen.app`；后续购入超短域名后可作为 QR 专用跳转域，302 至前者）。自定义域名（`custom_domain`）仅企业版开放，且实现上必须 CNAME 到平台边缘节点（域名可换皮，解析和数据始终经过平台）。任何实现不得引入"客户完全自持验证端点"的模式。
 10. **证据级日志（中立第三方存证）。** `scan_events` 为追加写（append-only），应用层禁止 UPDATE/DELETE（DB 权限层面对应用账号 REVOKE）；每日生成扫码日志的 Merkle 根摘要存入 `scan_digests` 表，使历史记录可证明未被篡改。这是"平台数据可作为打假/渠道纠纷证据"的技术基础。
 
 ---
@@ -58,6 +58,13 @@
 - 所有随机数用 `crypto.randomBytes`，禁止 Math.random
 - **展示格式化（display format）**：serial 与暗码均定义"存储版本"与"展示版本"两种形态。存储/校验永远使用无分隔符的规范形式；展示（验证页、导出文件、PDF 标签、插件 UI）按 4-5 字符分组插入连字符（如 `A1B2C-D3E4F-...`）。所有验证入口在校验前自动剥离 `-`、`:`、空格等分隔符并统一大小写（crockford base32 天然不区分大小写与易混字符）。`packages/crypto` 提供 `formatForDisplay(serial)` 与 `normalizeInput(raw)` 纯函数，全端复用，测试向量须覆盖含分隔符/混合大小写/易混字符（0/O、1/I/L）的输入。
 
+### 2.5 品牌设计令牌（apps/marketing 与验证页共用，已由临时官网确立）
+- **色板**：basalt `#16191d`（主背景）、basalt-deep `#101317`、limestone `#e9e4d8`（主文字）、limestone-dim `#a9a498`（次级文字）、jade `#3fa37c`（唯一强调色，用于"已验证/正品"语义）、jade-deep `#2c7a5c`、etch `rgba(233,228,216,.07)`（蚀刻线/边框）。验证页三态在此基础上扩展：绿=jade，黄/红另定但饱和度与明度须与该色板协调。
+- **字体**：Marcellus（展示标题，全大写 + 宽字距，罗马碑刻血统呼应 slogan）；Inter（正文）；IBM Plex Mono（序列号、代码、标签类 utility）。
+- **签名元素**：序列号验证条（monospace 分组序列 + 扫描光带 + Verified 徽章的入场动画），作为品牌的视觉母题在官网 hero、验证页、文档中复用；动画须尊重 prefers-reduced-motion。
+- **文案声线**：短句、主动语态、具体不炫技；slogan 主用 "Trust, set in stone."（中文"信任，坚如磐石。"）。
+- **现状**：一个单文件临时官网（同令牌体系）已通过 Cloudflare Pages 直传部署在项目 `veazen` 并绑定 veazen.app。apps/marketing 交付时以 git 集成方式接管该 Pages 项目（或新建项目后重绑自定义域名），临时页退役；等待列表从 mailto 升级为真实表单（写入云端 waitlist 表，见 Phase 2 任务）。
+
 ---
 
 ## 3. Monorepo 目录结构
@@ -67,6 +74,7 @@ veazen/
 ├── apps/
 │   ├── api/                 # NestJS 云端后台
 │   ├── web/                 # Next.js 验证页 + 控制台
+│   ├── marketing/           # 官网营销站（Astro 静态，部署 Cloudflare Pages）
 │   └── wp-plugin/           # WordPress 插件（独立 composer + npm）
 ├── packages/
 │   ├── shared/              # TS 共享类型、常量、API client SDK
@@ -338,6 +346,7 @@ MVP 页面：
 ### Phase 2 — 验证页与控制台（2 周）
 - [ ] 消费者验证页（三态视觉、多语言 5 种、品牌化配置渲染、GS1 路径路由）；Lite 分支：first-scan 锁定文案/视觉 + 产品故事页模板（§7.5）；模板系统按 §7.6 三层结构实现（主题令牌 + 模块编辑器先行，自定义 CSS 留接口 Phase 4 开放）
 - [ ] Dashboard 五个页面（§6）；onboarding 模式分叉（standard/lite）与切换设置
+- [ ] 官网 v1（apps/marketing，Astro 静态）：**视觉与文案严格沿用 §2.5 品牌设计令牌**（临时官网即设计基准，hero 复用序列号验证条母题）；首页（slogan + 三步流程演示）、定价页（四档对照）、功能页、等待列表表单（替换临时页的 mailto，写入云端 waitlist 表：email、brand、website、category、monthly_units、created_at，接口挂 api 的公开限流端点）、隐私政策与 ToS 页面骨架（占位文案，正式版由律师提供后替换）、基础 SEO（sitemap、OG 标签、"Veazen + traceability/anti-counterfeit" 关键词布局）；以 git 集成接管 Cloudflare Pages 项目 `veazen` 并确认 veazen.app / www 自定义域绑定不中断
 - [ ] Lighthouse 移动端验证页 Performance ≥ 90
 - 验收：Playwright e2e：注册租户 → 建产品 → 生成批次 → 下载 CSV → 用其中一条码走完整验证流程（浏览器层面）
 
@@ -398,7 +407,7 @@ REDIS_URL=redis://...
 S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY
 MASTER_KEY=            # 32 bytes hex，信封加密主密钥
 JWT_SECRET=
-PUBLIC_VERIFY_BASE_URL=https://verify.veazen.tech
+PUBLIC_VERIFY_BASE_URL=https://verify.veazen.app
 SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS
 GEOIP_DB_PATH=         # MaxMind GeoLite2-City.mmdb（人工下载放置）
 ANONYMIZE_IP=false
@@ -406,9 +415,11 @@ ANONYMIZE_IP=false
 
 ## 12. 需要人工完成的事项（Claude Code 无法代办，实施中遇到时在 README 的 "Human TODO" 章节追加）
 
-- 注册域名 veazen.tech（用户自行注册；veazen.com 由中国乐器品牌 VEAZEN费森 持有，不可获得）；另购一个 4-6 字符超短域名作 QR 跳转域；云服务商账号、Cloudflare、S3、SMTP/SendGrid、Stripe、MaxMind License
+- ✅ 域名 veazen.app 已注册（Namecheap）；✅ NS 已迁 Cloudflare（Active）、停放页/旧 MX 已清理、SSL Full (Strict)；✅ Email Routing 已启用（hello@ / support@ 转发，建议开 catch-all）；✅ 临时官网已部署（Cloudflare Pages 项目 `veazen`，绑定 veazen.app + www）。待办：发件域 SPF/DKIM/DMARC（接 Resend 时配置）；另购 4-6 字符超短 QR 跳转域；商标下证后防御性收 veazen.net/.io
+- 本周账号矩阵（统一用 hello@veazen.app 注册）：**WordPress.org（最高优先级，审核队列以周计，用户名 veazen）**、GitHub 组织 `veazen`（建后将仓库迁入）、Cloudflare R2 开通并建 bucket `veazen-prod`（Access Key 写入部署环境变量）、Railway/Neon/Upstash/Resend 注册备用（免费层，暂不部署）、Sentry + UptimeRobot、MaxMind GeoLite 许可（下载 .mmdb 供风控模块使用）
 - 商标：以 VEAZEN LLC 为申请人注册 VEAZEN 商标（第 9、42 类）。**律师检索重点**：Justia 上已存在 "VEAZEN LLC" 商标持有人记录——确认其是否为本公司自有申请；核查中国乐器品牌 VEAZEN费森 在美/欧的注册是否越出第 15 类（尤其第 9 类电子乐器相关子类）；确认后按马德里体系扩展 T1/T2 市场
 - Stripe 配置：法律名 VEAZEN LLC，公开业务名与账单描述符设为 VEAZEN（品牌与主体同名，无需 DBA）
+- 演示商店：开通一个廉价 WP 主机（$5-15/月），部署 WooCommerce 示例店 demo.veazen.app，安装本插件作为活演示 + 公开测试环境（销售话术："扫这个真实商品的码"）
 - 若实际运营地在加州：办理加州外州公司登记（foreign qualification）并预算每年 $800 特许经营税；与会计师确认 BOI（FinCEN 受益所有人）申报的最新要求
 - WordPress.org 插件账号注册与提交审核
 - 生产环境 MASTER_KEY 生成与保管（离线备份）

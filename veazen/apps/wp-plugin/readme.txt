@@ -12,7 +12,7 @@ Cloud-powered anti-counterfeit verification and product traceability for WooComm
 
 == Description ==
 
-Veazen connects your WooCommerce store to the Veazen cloud SaaS platform (https://veazen.tech) so every product you ship can carry a cryptographically signed, individually verifiable QR code.
+Veazen connects your WooCommerce store to the Veazen cloud SaaS platform (https://veazen.app) so every product you ship can carry a cryptographically signed, individually verifiable QR code.
 
 The plugin is a shell, the cloud is the brain: serial generation, Ed25519 signing, scan analytics, and risk detection all live in the Veazen cloud. The plugin's job is to wire your store into that brain — syncing products, requesting code batches, binding serials to orders at shipping time, and giving your customers a verification entry point on your storefront.
 

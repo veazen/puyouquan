@@ -1,0 +1,130 @@
+---
+// PHASE 2 PLACEHOLDER — marketing site v1 (PROJECT_PLAN §8 Phase 2) replaces
+// the hand-deployed temp page on the Cloudflare Pages project `veazen`.
+// This skeleton renders the §2.5 token system and the serial-verification-bar
+// motif so the design contract is executable from day one.
+import { COLORS, SLOGAN, tokensToCssVars } from '../tokens';
+
+const demoSerial = 'A1B2C-D3E4F-6H7J8-K9M0N';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Veazen — anti-counterfeit verification and supply-chain traceability for growing brands."
+    />
+    <title>Veazen — Trust, set in stone.</title>
+    <style set:html={`:root {\n${tokensToCssVars()}\n}`}></style>
+  </head>
+  <body>
+    <main>
+      <p class="kicker">Veazen</p>
+      <h1>{SLOGAN.en}</h1>
+      <p class="sub">
+        One code per item. Cryptographically signed, verified in the cloud,
+        traceable end to end.
+      </p>
+      <div class="serial-bar" aria-label={`Example verified serial ${demoSerial}`}>
+        <span class="serial">{demoSerial}</span>
+        <span class="badge">Verified</span>
+        <span class="scanline" aria-hidden="true"></span>
+      </div>
+      <p class="note">Site v1 is under construction — this skeleton ships in Phase 2.</p>
+    </main>
+    <footer>Veazen™ is a product of VEAZEN LLC.</footer>
+  </body>
+</html>
+
+<style define:vars={{ jade: COLORS.jade }}>
+  * {
+    margin: 0;
+    box-sizing: border-box;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    background: var(--color-basalt);
+    color: var(--color-limestone);
+    font-family: var(--font-body);
+    padding: 2rem;
+    text-align: center;
+  }
+  .kicker {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.35em;
+    color: var(--color-limestone-dim);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    letter-spacing: 0.06em;
+    margin-top: 0.75rem;
+  }
+  .sub {
+    color: var(--color-limestone-dim);
+    max-width: 36rem;
+    margin: 1rem auto 0;
+  }
+  .serial-bar {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 0.9rem 1.4rem;
+    border: 1px solid var(--color-etch);
+    border-radius: 6px;
+    background: var(--color-basalt-deep);
+  }
+  .serial {
+    font-family: var(--font-mono);
+    letter-spacing: 0.12em;
+  }
+  .badge {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--jade);
+    border: 1px solid var(--jade);
+    border-radius: 999px;
+    padding: 0.2rem 0.7rem;
+  }
+  .scanline {
+    position: absolute;
+    inset: 0 auto 0 -40%;
+    width: 35%;
+    background: linear-gradient(90deg, transparent, rgba(63, 163, 124, 0.18), transparent);
+    animation: scan 2.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scanline {
+      animation: none;
+      display: none;
+    }
+  }
+  @keyframes scan {
+    to {
+      left: 105%;
+    }
+  }
+  .note {
+    font-size: 0.85rem;
+    color: var(--color-limestone-dim);
+  }
+  footer {
+    padding: 1.5rem;
+    font-size: 0.8rem;
+    color: var(--color-limestone-dim);
+  }
+</style>

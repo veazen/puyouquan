@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name:       Veazen
- * Plugin URI:        https://veazen.tech
+ * Plugin URI:        https://veazen.app
  * Description:       Anti-counterfeit verification and product traceability for WooCommerce, powered by the Veazen cloud.
  * Version:           0.1.0
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Veazen
- * Author URI:        https://veazen.tech
+ * Author URI:        https://veazen.app
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       veazen
