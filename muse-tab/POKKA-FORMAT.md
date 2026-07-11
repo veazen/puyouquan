@@ -1,6 +1,6 @@
 # 谱客格式规范 v1（Pokka Score Format）
 
-谱客 POKKA（pokka.club）的开放曲谱格式。单个曲谱为一个 JSON 对象（文件扩展名 `.mtab.json`，MIME `application/json`），亦是谱客圈发布包的 `data` 字段内容。
+谱客 POKKA（pokka.cc）的开放曲谱格式。单个曲谱为一个 JSON 对象（文件扩展名 `.mtab.json`，MIME `application/json`），亦是谱客圈发布包的 `data` 字段内容。
 
 ## 顶层字段
 
