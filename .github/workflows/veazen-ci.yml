@@ -1,0 +1,61 @@
+name: veazen-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['veazen/**', '.github/workflows/veazen-ci.yml']
+  pull_request:
+    paths: ['veazen/**', '.github/workflows/veazen-ci.yml']
+
+defaults:
+  run:
+    working-directory: veazen
+
+jobs:
+  node:
+    name: lint + typecheck + test (api / web / packages)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: veazen/package-lock.json
+      - run: npm ci
+      # wp-plugin is excluded here: its lint is PHPCS, owned by the php job
+      # below (running it here would need a redundant composer install).
+      - run: npx turbo run lint typecheck test --filter='!@veazen/wp-plugin'
+
+  php:
+    name: PHPCS (wp-plugin)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: veazen/apps/wp-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer
+      - run: composer install --no-interaction --no-progress
+      - run: composer lint
+
+  audit:
+    name: dependency audit (§9.7)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: veazen/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - name: composer audit
+        working-directory: veazen/apps/wp-plugin
+        run: |
+          composer install --no-interaction --no-progress
+          composer audit

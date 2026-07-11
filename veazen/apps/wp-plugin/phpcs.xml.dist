@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<ruleset name="Veazen">
+	<description>WordPress Coding Standards configuration for the Veazen plugin.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>vendor/*</exclude-pattern>
+	<exclude-pattern>node_modules/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<!-- Minimum supported WordPress version for WPCS deprecation checks. -->
+	<config name="minimum_wp_version" value="6.4"/>
+
+	<!-- Full WordPress Coding Standards (Core + Docs + Extra). -->
+	<rule ref="WordPress"/>
+
+	<!-- PHP 8.1+ compatibility, WordPress-aware. -->
+	<config name="testVersion" value="8.1-"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="veazen"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="veazen"/>
+				<element value="Veazen"/>
+				<element value="VEAZEN"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- manage_woocommerce is a WooCommerce capability, unknown to core WordPress. -->
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_woocommerce"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

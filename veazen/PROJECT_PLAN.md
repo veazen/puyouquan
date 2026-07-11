@@ -1,0 +1,421 @@
+# 项目计划书：Veazen — 云端防伪溯源平台 + WordPress/WooCommerce 接入插件
+
+> **品牌与主体**：品牌名 **Veazen**（法律主体 VEAZEN LLC，美国怀俄明州；品牌名与主体同名，法律页脚统一写 "Veazen™ is a product of VEAZEN LLC"）。主域名 **veazen.tech**（veazen.com 由无关联的中国乐器品牌持有，不可用；SEO 需以 "Veazen + traceability/anti-counterfeit" 组合词建立区隔）。中文产品名：**信磐**。
+> **Slogan（以"信任基石"为核）**：主用 **"Trust, set in stone."**（双关：基石之石 + set in stone 的"不可篡改"义，呼应 §1.10 证据链）／中文 **"信任，坚如磐石。"** 备选："The bedrock of trust." ／ "信任基石"。营销物料从这两组中取用。
+
+> 本文档面向 Claude Code，作为项目的权威规格说明（Spec）。请按「阶段与任务分解」章节的顺序实施，每个阶段完成后运行对应验收标准中的测试。文中所有代码标识符、API 路径、数据库字段均为约定命名，实施时保持一致。
+
+---
+
+## 0. 一句话定位
+
+为全球中小品牌提供"一物一码"防伪验证 + 供应链溯源的 SaaS 平台（云端），并以 WordPress/WooCommerce 插件作为首个接入渠道。介于企业级方案（Scantrust 等，太贵太重）与本地小插件（无云端安全性）之间的空档市场。
+
+---
+
+## 1. 核心架构决策（不可更改的前提）
+
+1. **插件是壳，云端是脑。** 所有码的生成、签名、验证、核销、风控逻辑只存在于云端 SaaS。WordPress 插件仅负责：站点注册/鉴权、产品同步、码批次申请、验证组件嵌入、数据看板展示。插件本地数据库不存任何码的明文或密钥。
+2. **一物一码 + 密码学签名。** 每个码是唯一序列号 + 服务端签名，验证必须回源云端。
+3. **明暗双码机制。** 明码（QR，公开可扫，展示溯源+真伪状态）+ 暗码（刮开涂层的一次性核销码）。
+4. **码默认未激活。** 印刷厂拿到的码是 `inactive` 状态，产品出厂扫描激活后才可通过消费者验证。防印刷环节泄露。
+5. **URL 标准采用 GS1 Digital Link 兼容格式**：`https://{tenant-domain}/01/{GTIN}/21/{serial}`；无 GTIN 的客户使用内部替代路径 `https://{tenant-domain}/v/{serial}`。
+6. **溯源事件模型对齐 GS1 EPCIS 2.0** 的核心语义（what/where/when/why），但 MVP 阶段用简化的内部 schema，字段命名保持可映射。
+7. **多租户 SaaS。** 单实例多租户，租户隔离通过 `tenant_id` 行级隔离 + PostgreSQL RLS（Row Level Security）双保险。
+8. **验证接口是全系统最高并发路径**，设计目标：p99 < 150ms（不含网络），单实例 ≥ 500 rps，可水平扩展。
+9. **验证域名默认由平台控制（战略锁定）。** 所有码默认指向平台域名（`verify.veazen.tech` 或租户子域 `{slug}.veazen.tech`；后续购入超短域名后可作为 QR 专用跳转域，302 至前者）。自定义域名（`custom_domain`）仅企业版开放，且实现上必须 CNAME 到平台边缘节点（域名可换皮，解析和数据始终经过平台）。任何实现不得引入"客户完全自持验证端点"的模式。
+10. **证据级日志（中立第三方存证）。** `scan_events` 为追加写（append-only），应用层禁止 UPDATE/DELETE（DB 权限层面对应用账号 REVOKE）；每日生成扫码日志的 Merkle 根摘要存入 `scan_digests` 表，使历史记录可证明未被篡改。这是"平台数据可作为打假/渠道纠纷证据"的技术基础。
+
+---
+
+## 2. 技术栈
+
+### 2.1 云端后台（`apps/api`）
+- 运行时：Node.js 22 LTS + TypeScript 5.x
+- 框架：NestJS 10（模块化、依赖注入、易测试）
+- 数据库：PostgreSQL 16（Prisma ORM；码表按 `tenant_id` HASH 分区预留设计，MVP 单表 + 索引即可，但 schema 注释中标明分区键）
+- 缓存/限流：Redis 7（ioredis）
+- 队列：BullMQ（批量生成码、导出文件、Webhook 投递）
+- 对象存储：S3 兼容接口（本地开发用 MinIO）
+- 鉴权：租户 API Key（HMAC 签名请求）+ 后台用户 JWT（access 15min / refresh 7d）
+- 文档：OpenAPI 3.1 自动生成（@nestjs/swagger），输出到 `docs/openapi.json`
+
+### 2.2 消费者验证页 + 租户控制台（`apps/web`）
+- Next.js 14（App Router）+ TypeScript + Tailwind CSS
+- 验证落地页：SSR，极致轻量（首屏 < 100KB JS），多语言（next-intl，首发 en/zh/es/de/ja）
+- 租户控制台（Dashboard）：SPA 风格路由组，功能见 §6
+
+### 2.3 WordPress 插件（`apps/wp-plugin`，插件 slug: `veazen`）
+- PHP 8.1+，WordPress 6.4+，WooCommerce 8.x+（声明 HPOS 兼容）
+- 遵循 WordPress Coding Standards（PHPCS + WPCS ruleset）
+- 构建：插件内 admin 界面用 React（@wordpress/scripts 打包），前台验证组件提供 shortcode `[veazen_verify]` + Gutenberg block
+- 与云端通信：仅服务端到服务端（wp-cron / admin-ajax 触发），API Key 存 options 表（加密，用 `wp_salt` 派生密钥 AES-256-GCM）
+
+### 2.4 密码学规范
+- 码序列号：`serial = base32(crockford)(96-bit CSPRNG)`，去除易混淆字符，长度 20 字符
+- 签名：每租户一对 Ed25519 密钥（服务端保管私钥，DB 中私钥用 KMS/主密钥信封加密存储）；QR URL 携带 `sig = base64url(Ed25519(serial || tenant_id || batch_id))[:16]` 截断签名，完整验证在服务端做全签名校验 + 查库
+- 暗码（scratch code）：12 位数字+字母（去混淆），DB 只存 `argon2id` 哈希
+- 所有随机数用 `crypto.randomBytes`，禁止 Math.random
+- **展示格式化（display format）**：serial 与暗码均定义"存储版本"与"展示版本"两种形态。存储/校验永远使用无分隔符的规范形式；展示（验证页、导出文件、PDF 标签、插件 UI）按 4-5 字符分组插入连字符（如 `A1B2C-D3E4F-...`）。所有验证入口在校验前自动剥离 `-`、`:`、空格等分隔符并统一大小写（crockford base32 天然不区分大小写与易混字符）。`packages/crypto` 提供 `formatForDisplay(serial)` 与 `normalizeInput(raw)` 纯函数，全端复用，测试向量须覆盖含分隔符/混合大小写/易混字符（0/O、1/I/L）的输入。
+
+---
+
+## 3. Monorepo 目录结构
+
+```
+veazen/
+├── apps/
+│   ├── api/                 # NestJS 云端后台
+│   ├── web/                 # Next.js 验证页 + 控制台
+│   └── wp-plugin/           # WordPress 插件（独立 composer + npm）
+├── packages/
+│   ├── shared/              # TS 共享类型、常量、API client SDK
+│   └── crypto/              # 签名/序列号生成的纯函数库（含测试向量）
+├── infra/
+│   ├── docker-compose.yml   # 本地开发：postgres + redis + minio + mailhog
+│   └── deploy/              # Dockerfile、部署文档
+├── docs/
+│   ├── openapi.json
+│   ├── ARCHITECTURE.md
+│   └── PRINT_VENDOR_GUIDE.md  # 给印刷厂的码文件说明（后期）
+├── turbo.json               # Turborepo
+└── PROJECT_PLAN.md          # 本文档
+```
+
+---
+
+## 4. 数据模型（PostgreSQL / Prisma）
+
+> 全部表含 `created_at`, `updated_at`；除 `tenants` 外全部含 `tenant_id`（分区键预留）。启用 RLS：`tenant_id = current_setting('app.tenant_id')`。
+
+### tenants
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | uuid PK | |
+| name | text | 企业名 |
+| slug | text unique | 子域用 |
+| plan | enum(free, starter, growth, enterprise) | |
+| custom_domain | text nullable | 企业版自定义验证域名 |
+| public_key / encrypted_private_key | bytea | Ed25519 |
+| settings | jsonb | 品牌色、logo、验证页配置 |
+
+### users（租户后台用户）
+id, tenant_id, email unique, password_hash(argon2id), role enum(owner, admin, viewer), locale
+
+### api_keys
+id, tenant_id, key_prefix(8字符明文可查), key_hash, label, scopes text[], last_used_at, revoked_at
+
+### products
+id, tenant_id, name, sku, gtin nullable, description, images jsonb, attributes jsonb, trace_template_id nullable, external_refs jsonb（存 WooCommerce product_id 映射：`{"woo:site_hash": 123}`）
+
+### batches（码批次）
+id, tenant_id, product_id, quantity int, status enum(pending, generating, ready, exported), kind enum(bulk, on_demand) default bulk（on_demand 为 Lite 发货标签池，见 §7.5）, auto_activate bool default false（true 时生成完成即 active，见 §7.5）, export_format enum(csv, pdf), intended_market text nullable（授权销售区域，窜货检测用，ISO 3166 国家码数组）, activated_count int default 0
+
+### codes（核心大表，预留 HASH(tenant_id) 分区）
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | bigserial PK | |
+| tenant_id | uuid | |
+| batch_id | uuid | |
+| product_id | uuid | |
+| serial | text unique | 20字符 crockford base32 |
+| sig | text | 截断签名（进 QR URL） |
+| scratch_hash | text | argon2id(暗码) |
+| status | enum(inactive, active, verified, flagged, voided) | 状态机见 §5.3 |
+| flag_reason | enum(risk_rule, stolen, recalled, manual) nullable | status=flagged 时必填；stolen 由商家标记（商品被盗报备），验证页对 stolen 展示专属警示文案并提示联系品牌方 |
+| first_verified_at | timestamptz nullable | |
+| scratch_redeemed_at | timestamptz nullable | |
+| order_ref | jsonb nullable | 绑定的 Woo 订单 `{site, order_id, line_item}` |
+
+索引：`(serial)` unique、`(tenant_id, batch_id)`、`(tenant_id, status)`
+
+### scan_events（验证/扫码日志，追加写，按月分区，应用账号无 UPDATE/DELETE 权限）
+id, tenant_id, code_id, kind enum(public_scan, scratch_verify, activation, inspector_scan), result enum(ok, already_verified, invalid, inactive, flagged), ip inet, geo jsonb（country, region, city — GeoIP 解析）, device_fp text（sha256(salt + ua + accept_language + ip/24)，跨租户风控信号用，salt 全局固定且不进日志）, user_agent, locale, created_at
+
+### scan_digests（证据级日志的每日摘要）
+id, date date unique, event_count bigint, merkle_root text, prev_digest_hash text（与前一日摘要链接成链）, created_at
+> 每日 UTC 00:10 由 BullMQ 定时任务计算前一日全量 scan_events 的 Merkle 根并落库。
+
+### risk_signals（跨租户风控情报层 — 脱敏聚合，无 tenant_id 归属）
+id, signal_type enum(suspicious_device_fp, hot_geo_cell, invalid_serial_probe_source), signal_value text（device_fp / geohash5 / ip_prefix）, evidence_count int, tenant_count int（涉及的租户数，仅计数不留身份）, first_seen_at, last_seen_at, score numeric
+> 设计约束：本表**不含任何可反查到具体租户或消费者的字段**。写入方为风控 consumer 的聚合任务；读取方为风控规则引擎（对所有租户的验证请求生效）。这是"接入平台=接入全行业风险图谱"的数据基础。
+
+### audit_logs（SOC 2 就绪：后台操作审计，追加写）
+id, tenant_id, actor_user_id nullable, actor_api_key_id nullable, action text（如 batch.create / code.void / settings.update / user.invite）, target jsonb, ip inet, created_at
+
+### trace_events（溯源事件，EPCIS 语义简化版）
+id, tenant_id, subject enum(batch, code), subject_id, event_type enum(commissioned, quality_checked, shipped, received, activated, retail_activated, custom), biz_step text nullable, location jsonb（name, geo, country）, occurred_at timestamptz, data jsonb, source enum(api, dashboard, wp_plugin, csv_import)
+
+### alerts（风控告警）
+id, tenant_id, rule enum(duplicate_scratch, geo_velocity, out_of_market, scan_burst), severity enum(info, warning, critical), code_id nullable, batch_id nullable, payload jsonb, acknowledged_at nullable
+
+### wp_sites（已连接的 WordPress 站点）
+id, tenant_id, site_url, site_hash(sha256(site_url)), plugin_version, wc_version, last_seen_at
+
+### webhook_endpoints（租户出站 Webhook 配置）
+id, tenant_id, url, secret（HMAC-SHA256 签名密钥，信封加密存储）, events text[]（订阅的事件类型）, active bool, failure_count int default 0（连续失败 20 次自动停用并告警）
+
+### webhook_deliveries（投递日志，保留 30 天）
+id, tenant_id, endpoint_id, event_type, payload jsonb, response_status int nullable, attempts int, delivered_at nullable, created_at
+> 投递由 BullMQ 执行：指数退避重试 5 次（1m/5m/30m/2h/12h）；请求头携带 `X-Veazen-Signature: HMAC-SHA256(secret, timestamp + body)` 与 `X-Veazen-Timestamp` 防重放。
+> **事件类型（MVP 集合）**：`code.verified`（暗码核销成功）、`code.duplicate_attempt`（重复核销尝试）、`code.flagged`、`batch.ready`、`alert.created`。事件语义与 §5.3 状态机保持一致。
+
+### serial_profiles（企业自定义编码方案，见 §7.6）
+id, tenant_id, name, mode enum(platform, custom_format, byo), prefix text nullable（如企业内部前缀或 GS1 公司前缀段）, length int, charset enum(crockford32, upper_alnum, digits), random_bits int（平台生成部分的熵，check ≥ 64）, display_group_size int default 5, status enum(active, archived)
+> mode=platform 为默认（§2.4 规范）；custom_format 允许企业定义前缀/长度/字符集但随机段熵值强制 ≥64 bit；byo 为企业导入自有序列号（ERP 既有码段），导入时全租户命名空间去重校验。**三种模式的码一律由云端 Ed25519 签名，sig 参数缺失或不匹配时 byo/低熵码直接返回 invalid（防枚举）。**
+
+### custom_hostnames（企业自定义验证域名，见 §7.6）
+id, tenant_id, hostname unique, dns_ownership_token, status enum(pending_dns, verifying, active, failed), tls_status enum(pending, issued, renewing, failed), created_at
+> 接入流程：企业在 DNS 添加 TXT 所有权记录 + CNAME 至平台边缘 → 平台自动验证并经 ACME 签发证书（Cloudflare for SaaS custom hostnames 或等价方案）。所有权校验不通过绝不激活，防域名劫持。
+
+---
+
+## 5. API 设计（`apps/api`，前缀 `/api/v1`）
+
+### 5.1 公开验证接口（无鉴权，Redis 限流：IP 60 req/min）
+
+```
+GET  /verify/:serial?sig=xxx
+```
+返回：产品公开信息、溯源时间线（脱敏）、码状态语义化结果：
+```json
+{
+  "result": "authentic | already_verified | invalid | inactive | flagged",
+  "product": { "name": "...", "images": [...], "brand": {...} },
+  "trace": [ { "step": "commissioned", "location": "Shenzhen, CN", "date": "..." } ],
+  "first_verified_at": null,
+  "scan_count_hint": "first_scan | scanned_before",
+  "verify_page_config": { ... 租户品牌化配置 ... }
+}
+```
+副作用：写入 `scan_events`，异步触发风控规则评估（BullMQ job）。
+
+```
+POST /verify/:serial/scratch   body: { "scratch_code": "XXXX-XXXX-XXXX" }
+```
+核销暗码。argon2id 校验 → 成功则 `status: active → verified`，记录 `scratch_redeemed_at`；若已核销过，返回 `already_verified` + 首次核销的时间与国家（模糊化到国家级），并创建 `duplicate_scratch` 告警。此接口限流更严：IP 10 req/min + 单 serial 5 次尝试后锁定 1 小时。
+
+### 5.2 租户 API（`Authorization: Bearer <api_key>`，HMAC 请求签名头 `X-Signature` 可选启用）
+
+```
+POST   /products                      # 创建/更新产品（upsert by external_ref 或 sku）
+GET    /products?query=
+POST   /batches                       # { product_id, quantity(≤100000), intended_market?, auto_activate?, kind?, serial_profile_id? }
+GET    /batches/:id                   # 含生成进度
+GET    /batches/:id/export?format=csv|pdf   # 就绪后返回带签名的临时下载 URL
+POST   /batches/:id/activate          # 批量激活（出厂）：{ serials: [...] } 或 { all: true }
+POST   /batches/:id/import-serials    # BYO 模式：上传自有序列号 CSV（≤10 万/批，全租户去重校验，异步任务返回冲突报告）
+POST   /serial-profiles · GET /serial-profiles · PATCH /serial-profiles/:id   # 自定义编码方案 CRUD（§7.6）
+POST   /custom-hostnames · GET /custom-hostnames/:id · DELETE /custom-hostnames/:id   # 白标域名接入与状态轮询（§7.6）
+POST   /orders/shipping-label         # Lite：{ order_ref, product_id, label_format } 从 on_demand 池取码 → 激活 + 绑定订单 + 返回标签 PDF 临时 URL（见 §7.5）
+POST   /codes/:serial/bind-order      # Woo 发货时绑定订单
+POST   /codes/:serial/flag            # { reason: "stolen" | "recalled" | "manual", note? } 商家标记（被盗/召回）
+POST   /codes/:serial/unflag          # 解除标记，回到 flagged 之前的状态
+POST   /trace-events                  # 上报溯源事件（单条或数组，≤500/req）
+GET    /alerts?status=open
+GET    /stats/overview                # 看板聚合：验证量、地理分布、告警数
+GET    /webhooks · POST /webhooks · PATCH /webhooks/:id · DELETE /webhooks/:id   # Webhook 端点 CRUD
+POST   /webhooks/:id/test             # 发送测试事件，返回投递结果
+POST   /wp/handshake                  # 插件首次连接：换取 site 注册 + 能力协商
+```
+> 所有接收 serial 的接口（含 §5.1 公开验证）先经 `normalizeInput()` 处理（剥离分隔符、统一大小写、映射易混字符），见 §2.4 展示格式化。
+
+### 5.3 码状态机（服务端强制，非法迁移返回 409）
+
+```
+inactive ──activate──▶ active ──scratch_verify──▶ verified
+   │                     │                            │
+   └──void──▶ voided ◀───┴────────void───────────────┘
+active/verified ──风控触发──▶ flagged（可由管理员解除回原状态）
+```
+公开扫码（public_scan）不改变状态，只记日志；唯一改变状态的消费者动作是暗码核销。
+进入 flagged 的两个来源共用同一状态：风控规则（flag_reason=risk_rule）与商家主动标记（stolen/recalled/manual，经 `/codes/:serial/flag`）。验证页按 flag_reason 区分文案：stolen 显示"该商品已被品牌方报备为被盗，请联系品牌方"，其余显示通用警示。unflag 恢复到进入 flagged 前的状态（需在 codes 表记录 prev_status）。
+
+### 5.4 风控规则（MVP 三条，跑在 BullMQ consumer）
+
+1. **duplicate_scratch**：同一 serial 第二次暗码核销尝试 → critical 告警。
+2. **geo_velocity**：同一 serial 的 public_scan 在 24h 内出现两个距离 > 2000km 的国家 → warning。
+3. **out_of_market**：批次设置了 `intended_market`，且该批次的扫码国家不在列表内的比例在滚动 7 天窗口 > 20%（且样本 ≥ 10 次）→ warning（窜货嫌疑）。
+4. **cross_tenant_signal**（骨架先行，Phase 4 启用）：验证请求的 `device_fp` 或 IP 前缀命中 `risk_signals` 高分记录（score ≥ 阈值）→ info 级标记进 scan_events.result 旁路字段，不直接告警；同时聚合任务将"同一 device_fp 在 ≥3 个租户产生 invalid/already_verified 结果"写入 risk_signals。
+
+告警产生后：写 `alerts` 表 + 给租户 owner 发邮件（MVP 用 SMTP/mailhog，接口抽象成 NotificationService 以便日后换 SendGrid）+ 向订阅了 `alert.created` 的 webhook_endpoints 投递事件（见 §4 webhook 表定义）。
+
+---
+
+## 6. 租户控制台（`apps/web` 的 /dashboard）
+
+MVP 页面：
+1. **Overview**：近 30 天扫码量曲线、扫码地理分布地图（用 SVG 世界地图 + 国家着色即可，不引入重型地图库）、开放告警列表。
+2. **Products**：产品 CRUD + 溯源页模板配置（可排序的展示模块：产品信息 / 溯源时间线 / 质检报告文件 / 自定义富文本）。
+3. **Batches**：创建批次、查看生成进度、下载 CSV/PDF、批量激活。**单码查询**：输入 serial（自动 normalize）查看状态/扫码历史，提供"标记为被盗/召回"与解除标记操作（调 §5.2 flag/unflag）。
+4. **Alerts**：告警列表、确认处理。
+5. **Settings**：品牌化（logo、主色、验证页文案多语言覆盖）、**白标中心**（自定义验证域名接入向导与状态、编码方案 serial_profiles 管理、角标开关按 plan 显示、Verify Widget 嵌入代码生成，§7.6）、API Keys 管理、**Webhooks 管理**（端点 CRUD、事件订阅勾选、投递日志查看、发送测试事件）、团队成员、站点连接状态。
+
+消费者验证页（/v/[serial] 与 GS1 路径）要求：移动优先、租户品牌化、语言自动检测（Accept-Language）+ 手动切换、明确的三态视觉（绿=正品首验 / 黄=已被验证过请注意 / 红=无效码）。
+
+---
+
+## 7. WordPress 插件规格（`apps/wp-plugin`）
+
+### 7.1 功能清单（MVP）
+1. **连接向导**：输入 API Key → 调 `/wp/handshake` → 保存加密凭据，显示连接状态。
+2. **产品同步**：WooCommerce 产品单向同步到云端（手动全量 + save_post_product 钩子增量）。支持选择哪些产品参与防伪。
+3. **码批次申请**：在产品编辑页侧栏或插件页面发起批次申请，展示进度，提供导出文件下载链接（代理云端 URL）。
+4. **订单绑定**：订单状态变为 `completed`/`shipped` 时（钩子 `woocommerce_order_status_changed`），若商家启用"发货绑定"，弹出/后台记录该订单行项目对应的 serial 录入（扫码枪输入框），调 `bind-order`。
+5. **前台验证组件**：shortcode `[veazen_verify]` + Gutenberg block，渲染一个输入框/相机扫码入口，提交到云端公开验证接口（前端直连云端，不经过 WP 服务器），结果本地化展示。
+6. **看板 Widget**：WP 后台 dashboard widget 显示近 7 天验证量与告警数（服务端拉取，transient 缓存 15 分钟）。
+7. **PDF 发票插件联动（可选集成，Phase 4）**：检测到 "WooCommerce PDF Invoices & Packing Slips"（Ewout Fernhout / WP Overnight，高装机量）已激活时，提供开关：在发票/装箱单上打印该订单已绑定的 serial（展示格式化版本，见 §2.4）。通过该插件的模板钩子（`wpo_wcpdf_after_order_details`）注入，无该插件时功能项隐藏。实现为独立集成类（`integrations/class-pdf-invoices.php`），为日后对接其他发票插件留扩展点。
+
+### 7.2 工程约束
+- 所有远程调用用 `wp_remote_post/get`，超时 5s，失败静默降级 + admin notice
+- 国际化：全部字符串 `__( '...', 'veazen' )`，提供 POT 文件
+- 卸载钩子清理 options；绝不在卸载时调用云端删除数据
+- 兼容性声明：`Requires at least: 6.4`, `WC requires at least: 8.0`, HPOS: `FeaturesUtil::declare_compatibility('custom_order_tables', ...)`
+- 免费版限制逻辑放云端（plan=free 每月 500 码），插件不做本地限制判断
+
+### 7.5 Lite 模式（微型企业机制，横跨云端 / 验证页 / 插件）
+
+**背景**：WooCommerce 用户约六成为小企业主、多为单人/微型团队，无工厂、无印刷厂、无出厂扫描环节。Lite 模式为其提供平行的简化流程；它是免费档与 Starter 档的默认形态，也是漏斗健康度的关键。
+
+**红线（不可简化的部分）**：Lite 的码与标准模式完全同源——云端 Ed25519 签名、同一验证域名、scan_events 全量回流、风控规则照常生效。简化的只是操作流程，不是密码学与数据链路。
+
+**模式选择**：onboarding 首步分叉——"我有工厂/印刷厂（标准模式）" vs "我自己打包发货（简易模式）"，存 `tenants.settings.mode = 'standard' | 'lite'`。可随时切换，数据全部延续；Lite → 标准仅是打开批次激活、暗码、EPCIS 等能力，无迁移动作。
+
+**四个机制**：
+1. **生成即激活**：Lite 下 `POST /batches` 默认 `auto_activate=true`，生成完成即 `active` 状态（状态机不变，等价于系统代做 activate；trace_events 同时写入 commissioned + activated）。威胁模型依据：自打印场景不存在印刷厂泄露风险。
+2. **发货即绑定（核心简化）**：Lite 产品各维护一个 `kind=on_demand` 的码池（低水位自动补充，BullMQ）。WooCommerce 订单完成时，插件在订单页提供"打印防伪发货标签"按钮 → 调 `POST /orders/shipping-label` → 云端取码、激活、绑定订单，一次调用返回含 QR + 展示格式 serial 的标签 PDF。打印贴上即完成激活+订单绑定+消费者关联三件事。
+3. **first-scan 锁定替代暗码**：Lite 码无 scratch。验证页分支：首扫显示绿色"首次验证成功 + 时间地点已记录"；后续任何扫码显示黄色"此码已于 {date} 在 {country} 首次验证"。`GET /verify` 响应已含 `first_verified_at` 与 `scan_count_hint`，仅需文案与视觉分支。
+4. **产品故事页**：trace_template 增加 `story` 模块（富文本 + 图片画廊）。Lite 默认验证页模板 = 验证状态 + 产品信息 + 品牌故事，不渲染 EPCIS 时间线。数据结构复用（trace_events 的 custom 类型），仅模板差异。
+
+**自打印支持**：标签 PDF 提供标准标签纸模板（Avery 5160 / L7160 等，参数化行列与边距），家用打印机 A4/Letter 直接输出；单枚发货标签模板含店铺 logo 位。
+
+**北极星指标**：安装插件 → 贴出第一个可扫描的码 ≤ 10 分钟。onboarding 各步埋点（匿名事件计数即可），Phase 4 验收含一次全流程计时演练。
+
+### 7.6 企业定制化与白标（White-label，横跨云端 / 验证页 / 报告）
+
+**设计原则：白标体验层，保留基建层。** 消费者可见的一切（域名、页面、编码、邮件、报告视觉）可 100% 品牌化；但 DNS 必须 CNAME 经平台边缘、签名私钥永在云端、scan_events 全量回流、scan_digests 照常记账。任何实现不得以"白标"为由让验证流量绕开平台（与 §1.9 一致）。
+
+**1. 自定义编码（serial_profiles，表定义见 §4）**：三种模式——platform（默认）；custom_format（企业自定义前缀/长度/字符集，随机段熵 ≥64 bit 硬约束）；byo（导入 ERP 既有码段）。企业可将码 URL 结构定为 `https://verify.{brand}.com/{custom_path}/{serial}`（路径段可配置）。GS1 模式：企业提供自己的 GS1 公司前缀时按 Digital Link 标准出 URL。安全铁律：无论何种模式，验证必须携带且校验平台签名 `sig`；byo/低熵码缺失 sig 时一律 invalid，且此类租户的验证接口启用更严的枚举限流。
+
+**2. 白标验证域名（custom_hostnames，表定义见 §4）**：企业版在自己的子域（如 `verify.brand.com`）承载全部验证页；接入向导自动化 TXT 所有权验证 + CNAME + ACME 证书签发。营销层面对消费者完全无 Veazen 痕迹。
+
+**3. 落地页深度定制**：验证页模板系统升级为三层——主题令牌（logo、色板、字体、圆角）；模块编辑器（验证状态/产品信息/溯源时间线/故事/富文本/FAQ 的增删排序，多语言内容）；**自定义 CSS**（企业版，服务器端 sanitize：仅允许样式规则，剥离 @import/url(外链)/expression，页面 CSP 禁内联脚本）。"Powered by Veazen" 角标：free/starter 强制显示，growth 可弱化，enterprise 可关闭。
+
+**4. Headless 验证（彻底自建前端的企业）**：公开验证接口本身即无鉴权 JSON API（§5.1），企业可完全自渲染；另提供 `<script>` 嵌入式 **Verify Widget**（约 15KB，无依赖，品牌主题继承宿主页面），一行代码嵌入企业官网任意页面。Widget 请求仍打到平台验证域（数据回流不变）。
+
+**5. 白标邮件与报告**：告警/通知邮件支持企业发件域（SPF/DKIM 引导配置，未配置则用平台域）；导出的看板 PDF、窜货报告使用企业 logo 与配色。**唯一例外——证据存证报告（§Phase 4）保留 Veazen 出具方署名与 merkle 校验说明**：中立第三方身份正是其法律证据力的来源，向客户按"公证书"逻辑销售此特性，而非视作白标缺口。
+
+**6. 分层打包**：custom_format 编码 + 主题令牌 → growth 档起；byo 导入、白标域名、自定义 CSS、白标邮件、去角标、Verify Widget → enterprise 档。定价逻辑：白标即企业版毛利的主要来源。
+
+---
+
+## 8. 阶段与任务分解
+
+> 每阶段结束运行验收命令，全绿再进下一阶段。
+
+### Phase 0 — 脚手架（0.5 周）
+- [ ] Turborepo 初始化，apps/packages 骨架，docker-compose（pg16/redis7/minio/mailhog）
+- [ ] `packages/crypto`：serial 生成、Ed25519 签名/验签、scratch 生成与 argon2id 哈希，**附测试向量文件**
+- [ ] CI：GitHub Actions — lint + typecheck + unit test（api/web/crypto），wp-plugin 跑 PHPCS
+- 验收：`turbo run test lint typecheck` 全绿；crypto 测试向量通过
+
+### Phase 1 — 云端核心（2-3 周）
+- [ ] Prisma schema（§4 全部表）+ RLS 迁移脚本 + seed（demo 租户）；serial_profiles 三模式的生成/签名/校验逻辑（含 byo 导入去重任务与熵值校验）
+- [ ] 鉴权模块：用户注册/登录/JWT、API Key 签发与校验
+- [ ] 产品、批次模块；BullMQ 批量生成码（10 万码 < 60s，事务分块 COPY 插入）；batches 支持 kind/auto_activate（§7.5），on_demand 池低水位自动补充任务
+- [ ] `POST /orders/shipping-label` 端点（取码 → 激活 → 绑定 → 返回标签 PDF URL；PDF 渲染本体在 Phase 4，此处先返回 CSV 占位）
+- [ ] CSV 导出（serial, scratch 明文仅在导出文件中出现一次, qr_url）；PDF 导出后置到 Phase 4
+- [ ] 公开验证接口 + 暗码核销 + 状态机 + scan_events + 限流
+- [ ] 风控三规则 + 邮件通知
+- [ ] Webhook 模块：webhook_endpoints/webhook_deliveries 表、CRUD API、BullMQ 投递（HMAC 签名 + 指数退避重试 + 连续失败自动停用）、MVP 五种事件类型（§4）
+- [ ] 商家标记接口 `/codes/:serial/flag|unflag`（flag_reason 语义 + prev_status 恢复）
+- [ ] audit_logs 中间件（拦截所有写操作型 controller，自动落审计日志）
+- [ ] scan_events 追加写权限约束（迁移脚本中 REVOKE UPDATE/DELETE）+ 每日 Merkle 摘要定时任务（scan_digests）
+- [ ] scan_events 写入含 device_fp 计算；risk_signals 表结构就位（聚合任务 Phase 4 实现）
+- [ ] OpenAPI 文档生成
+- 验收：e2e 测试（supertest）覆盖：生成 1000 码 → 激活 → 明码扫描 → 暗码核销 → 二次核销触发告警 → 状态机非法迁移 409；`autocannon` 压测 verify 接口本地 ≥ 500 rps
+
+### Phase 2 — 验证页与控制台（2 周）
+- [ ] 消费者验证页（三态视觉、多语言 5 种、品牌化配置渲染、GS1 路径路由）；Lite 分支：first-scan 锁定文案/视觉 + 产品故事页模板（§7.5）；模板系统按 §7.6 三层结构实现（主题令牌 + 模块编辑器先行，自定义 CSS 留接口 Phase 4 开放）
+- [ ] Dashboard 五个页面（§6）；onboarding 模式分叉（standard/lite）与切换设置
+- [ ] Lighthouse 移动端验证页 Performance ≥ 90
+- 验收：Playwright e2e：注册租户 → 建产品 → 生成批次 → 下载 CSV → 用其中一条码走完整验证流程（浏览器层面）
+
+### Phase 3 — WordPress 插件（2 周）
+- [ ] §7 功能 1–6（功能 7 PDF 发票联动放 Phase 4）
+- [ ] Lite 流程（§7.5）：插件 onboarding 模式识别、订单页"打印防伪发货标签"按钮（调 shipping-label 端点并打开返回的 PDF）
+- [ ] 本地开发环境：`wp-env`（docker 化 WP + Woo 示例数据）
+- [ ] PHPUnit（wp-plugin 核心类）+ 手动测试清单文档
+- 验收：wp-env 中完成端到端演示流程：连接 → 同步产品 → 申请批次 → 前台 shortcode 验证成功；PHPCS 0 error
+- 交付物：可提交 WordPress.org 的 readme.txt + 截图占位 + 打包脚本 `npm run plugin:zip`
+
+### Phase 4 — 打磨与上线准备（1-2 周）
+- [ ] PDF 码标签导出（每页 N 枚，含 QR + 明文 serial + 刮涂层占位框，用 pdf-lib）；标签纸模板参数化（Avery 5160/L7160 等）+ Lite 单枚发货标签模板（§7.5），shipping-label 端点切换为真实 PDF
+- [ ] Lite 全流程计时演练：全新租户从安装插件到打印出第一张可扫描标签 ≤ 10 分钟（onboarding 埋点数据佐证）
+- [ ] WooCommerce PDF Invoices & Packing Slips 联动（§7.1 功能 7）：wp-env 中安装该插件做集成测试
+- [ ] 溯源事件 CSV 批量导入 + Dashboard 时间线展示
+- [ ] 计费骨架：plan 限额强制（免费 500 码/月）、Stripe 接口抽象层（先 stub，真实接入由人工配置密钥后启用）
+- [ ] 跨租户风控聚合任务（写 risk_signals）+ 规则 4 启用
+- [ ] **证据报告导出**：租户可对指定 code/batch 导出 PDF 存证报告（扫码记录 + 对应日期的 merkle_root + 校验说明），供打假/法务场景使用 — 这是差异化卖点，UI 入口放在 Alerts 详情页
+- [ ] 匿名化行业统计物化视图（按国家×品类的验证量/异常率月度聚合，为日后发布行业报告预留数据管道；输出层严禁含租户身份）
+- [ ] 白标一期（§7.6）：custom_hostnames 接入向导（TXT 验证 + ACME 自动证书）、自定义 CSS 开放（含 sanitizer 与 CSP）、Powered-by 角标按 plan 分级、byo 导入端到端打通
+- [ ] Verify Widget（嵌入式 JS，≤15KB 无依赖，主题继承宿主页），发布到 CDN 并写嵌入文档
+- [ ] 部署产物：Dockerfile ×2（api/web）、`infra/deploy/README.md`（含 Cloudflare 前置、环境变量清单、数据库迁移流程、备份策略）
+- [ ] 安全自查清单执行（§9）
+- 验收：docker compose -f infra/deploy/compose.prod.yml 一键起完整栈并通过冒烟测试脚本
+
+### Phase 5+（本计划书范围外，仅记录方向）
+窜货地图可视化增强、EPCIS 2.0 标准 JSON 导出、NFC（NTAG 424 DNA SUN 验证）、区块链批次哈希锚定（可将 scan_digests 的日摘要锚定上链，与 §1.10 衔接）、DPP 合规导出模板、Shopify App、**印刷厂伙伴门户**（partner 账号角色：接收批次码文件、回传对码/质检结果，为"认证印刷伙伴"生态做技术承接）、行业假货态势报告自动化生成、白标二期（企业发件域 SPF/DKIM 向导、报告全套品牌化模板、验证页 A/B 与转化组件）。
+
+---
+
+## 9. 安全要求（实施时逐条对照）
+
+1. 私钥信封加密：环境变量 `MASTER_KEY`（32B）→ AES-256-GCM 加密租户私钥；`MASTER_KEY` 缺失时 API 拒绝启动。
+2. 暗码明文只出现在：生成时的导出文件流中；DB 永远只有 argon2id 哈希；日志全链路禁止打印 serial 之外的敏感字段。
+3. 所有公开接口：Redis 滑动窗口限流 + 输入 zod/class-validator 校验 + 统一错误响应（不泄露内部信息）。
+4. SQL 全部经 Prisma 参数化；RLS 作为纵深防御第二层。
+5. WP 插件：nonce 校验所有 admin 动作、capability 检查（`manage_woocommerce`）、所有输出 escape、API Key 加密存储。
+6. scan_events 的 IP 存储需支持匿名化开关（GDPR）：`ANONYMIZE_IP=true` 时存 /24 截断。
+7. 依赖审计进 CI：`npm audit --audit-level=high` + `composer audit`。
+8. 上线前人工安排第三方渗透测试（代码内不体现，README 中标注）。
+9. scan_events / audit_logs 的不可变性由 DB 权限强制（应用连接账号 REVOKE UPDATE/DELETE），迁移中固化；任何数据订正走带审计的管理员专用通道。
+10. device_fp 与 risk_signals 全链路不得出现原始 IP、原始 UA 的可逆存储；GDPR 模式（ANONYMIZE_IP=true）下 device_fp 的 ip 分量同样使用截断值。
+11. 白标相关：custom_hostnames 未通过 DNS TXT 所有权验证绝不激活；自定义 CSS 服务器端 sanitize + 验证页 CSP（禁内联/外链脚本）；byo 与 custom_format 低熵码强制 sig 校验 + 独立枚举限流桶；serial_profiles 的 random_bits < 64 在 API 层直接 422。
+
+## 10. 工程约定
+
+- 语言：代码与注释用英文；面向用户的文案走 i18n 资源文件（en 为源语言，zh/es/de/ja 翻译）
+- 提交：Conventional Commits；每个 Phase 一个里程碑分支合入 main
+- 测试底线：packages/crypto 覆盖率 100%；api 核心模块（verify/codes/batches）≥ 85%
+- 任何偏离本文档的架构变更，先在 `docs/ARCHITECTURE.md` 写 ADR（Architecture Decision Record）再实施
+
+## 11. 环境变量清单（apps/api）
+
+```
+DATABASE_URL=postgres://...
+REDIS_URL=redis://...
+S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY
+MASTER_KEY=            # 32 bytes hex，信封加密主密钥
+JWT_SECRET=
+PUBLIC_VERIFY_BASE_URL=https://verify.veazen.tech
+SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS
+GEOIP_DB_PATH=         # MaxMind GeoLite2-City.mmdb（人工下载放置）
+ANONYMIZE_IP=false
+```
+
+## 12. 需要人工完成的事项（Claude Code 无法代办，实施中遇到时在 README 的 "Human TODO" 章节追加）
+
+- 注册域名 veazen.tech（用户自行注册；veazen.com 由中国乐器品牌 VEAZEN费森 持有，不可获得）；另购一个 4-6 字符超短域名作 QR 跳转域；云服务商账号、Cloudflare、S3、SMTP/SendGrid、Stripe、MaxMind License
+- 商标：以 VEAZEN LLC 为申请人注册 VEAZEN 商标（第 9、42 类）。**律师检索重点**：Justia 上已存在 "VEAZEN LLC" 商标持有人记录——确认其是否为本公司自有申请；核查中国乐器品牌 VEAZEN费森 在美/欧的注册是否越出第 15 类（尤其第 9 类电子乐器相关子类）；确认后按马德里体系扩展 T1/T2 市场
+- Stripe 配置：法律名 VEAZEN LLC，公开业务名与账单描述符设为 VEAZEN（品牌与主体同名，无需 DBA）
+- 若实际运营地在加州：办理加州外州公司登记（foreign qualification）并预算每年 $800 特许经营税；与会计师确认 BOI（FinCEN 受益所有人）申报的最新要求
+- WordPress.org 插件账号注册与提交审核
+- 生产环境 MASTER_KEY 生成与保管（离线备份）
+- GDPR 隐私政策与 DPA 法务审核（须覆盖 device_fp 指纹与跨租户风控数据的合法性基础）
+- 第三方渗透测试采购
+- SOC 2 Type II 流程启动（观察期 6-12 个月，越早启动越好；audit_logs 即为其证据基础）
+- GS1 会员注册（获取 GTIN 能力与标准背书）
+- 印刷厂合作认证体系的商务谈判（技术承接见 Phase 5 伙伴门户）
+- 行业报告发布前的法务复核（确保聚合数据无法反识别客户）
+- NFC 芯片供应链（Phase 5）
