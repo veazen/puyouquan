@@ -18,6 +18,10 @@ export class AppConfigService {
   readonly geoipDbPath: string | null;
   readonly anonymizeIp: boolean;
   readonly storageDir: string;
+  readonly s3Endpoint: string | null;
+  readonly s3Bucket: string | null;
+  readonly s3AccessKey: string | null;
+  readonly s3SecretKey: string | null;
   readonly port: number;
   /** benchmark escape hatch only — never set in production */
   readonly rateLimitDisabled: boolean;
@@ -41,9 +45,13 @@ export class AppConfigService {
     this.smtpPass = env.SMTP_PASS ?? null;
     this.geoipDbPath = env.GEOIP_DB_PATH ?? null;
     this.anonymizeIp = env.ANONYMIZE_IP === 'true';
-    // S3-compatible storage lands with deploy (Phase 4); dev/test use a local
-    // directory behind the same StorageService interface (ADR-008).
+    // Storage driver selection (ADR-008): S3-compatible (R2/MinIO) when the
+    // §11 S3_* variables are present, local directory otherwise (dev/test).
     this.storageDir = env.STORAGE_DIR ?? '.storage';
+    this.s3Endpoint = env.S3_ENDPOINT ?? null;
+    this.s3Bucket = env.S3_BUCKET ?? null;
+    this.s3AccessKey = env.S3_ACCESS_KEY ?? null;
+    this.s3SecretKey = env.S3_SECRET_KEY ?? null;
     this.port = env.PORT ? Number(env.PORT) : 4000;
     this.rateLimitDisabled = env.RATE_LIMIT_DISABLED === 'true';
   }

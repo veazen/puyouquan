@@ -1,0 +1,70 @@
+# Self-hosted full stack (PROJECT_PLAN §8 Phase 4 acceptance):
+#   MASTER_KEY=<64 hex> JWT_SECRET=<secret> docker compose -f infra/deploy/compose.prod.yml up --build
+# For managed deploys (Railway + Neon + Upstash + R2) see README.md / the
+# step-by-step guide in docs/DEPLOY_GUIDE_zh.md.
+name: veazen-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: veazen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-veazen}
+      POSTGRES_DB: veazen
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U veazen -d veazen']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      MIGRATE_DATABASE_URL: postgres://veazen:${POSTGRES_PASSWORD:-veazen}@postgres:5432/veazen
+      REDIS_URL: redis://redis:6379
+      MASTER_KEY: ${MASTER_KEY:?set MASTER_KEY (64 hex chars)}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      PUBLIC_VERIFY_BASE_URL: ${PUBLIC_VERIFY_BASE_URL:-https://verify.veazen.app}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      ANONYMIZE_IP: ${ANONYMIZE_IP:-false}
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.veazen.app/api/v1}
+    environment:
+      API_URL_INTERNAL: http://api:4000/api/v1
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
+  redis-data:
