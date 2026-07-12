@@ -786,6 +786,11 @@ function chordDegree(name){
   if(m[3] && KEY_PC[m[3]]!=null) out+='/'+DEG_OF_SEMI[((KEY_PC[m[3]]-key)%12+12)%12];
   return out;
 }
+/* 谱面和弦框宽度（含 20% 放大字号）：随显示模式（级数/音名）变化，排版与渲染共用 */
+function vcDispW(chord){
+  const disp = (song && song.funcNames)? chord : chordDegree(chord);
+  return 13 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?5.5:8),0);
+}
 /* 用户和弦库（全局，跨曲谱可用）：指板自选创建后保存于本机 */
 const USERCH_KEY='musetab-userchords';
 function userChords(){ try{ return JSON.parse(localStorage.getItem(USERCH_KEY))||{}; }catch(_){ return {}; } }
@@ -1371,6 +1376,7 @@ function measureLayout(mea){
       wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)
              +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
              +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length : 0)
+             +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-(MIN_W[c.dur]||14)+4) : 0)
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
@@ -1457,7 +1463,8 @@ function systemExtras(sys){
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(3, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
-    if(c.chord || song.func) maxUp=Math.max(maxUp, 2);           // 功能谱和弦标注/编辑提示需上方空间
+    if(c.chord) maxUp=Math.max(maxUp, 3);                        // 和弦框（放大版）需更多上方空间
+    else if(song.func) maxUp=Math.max(maxUp, 2);                 // 空位编辑提示需上方空间
     if(c.dyn) maxDown=Math.max(maxDown, 2);                      // 力度记号需下方空间
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
@@ -2105,13 +2112,13 @@ function render(){
             const grid8 = song.unit/8;
             const onGrid = Math.abs(startB/grid8 - Math.round(startB/grid8)) < 1e-4;
             if(col.chord){
-              const cy2 = voxY-24-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
+              const cy2 = voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
               const disp = song.funcNames? col.chord : chordDegree(col.chord);
               const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
-              const w = 11 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?4.6:6.6),0);
+              const w = vcDispW(col.chord);
               p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
-                <rect x="${(nx-w/2).toFixed(1)}" y="${cy2-11.5}" width="${w.toFixed(1)}" height="15.5" rx="5" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="0.9"/>
-                <text x="${nx}" y="${cy2}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
+                <rect x="${(nx-w/2).toFixed(1)}" y="${(cy2-13.8).toFixed(1)}" width="${w.toFixed(1)}" height="18.5" rx="6" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="1"/>
+                <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
             }else if(song.func && onGrid){
               const cy2 = voxY-24;
@@ -6344,6 +6351,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱吧 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.74</span><div>功能谱和弦标注排版修复与放大：和弦框宽度计入小节逐拍排版——相邻八分音符的两个和弦自动撑开列宽、不再重叠（级数/音名切换即时重排）；和弦框整体放大 20%（字号 14、框高 18.5、圆角 6），并为和弦行增加纵向预留空间。</div></li>
     <li><span class="v">v34.73</span><div>功能谱和弦标注三项优化：① 音符上方空位（按八分音符网格）悬停出现「＋和弦」编辑提示，点击直接打开级数构建器；② 和弦时值最小单位为八分音符——十六分及更细位置自动就近向前对齐；③ 谱面标注改为常规字号整名显示并用圆角框框住（不再上标缩小），级数/音名切换与点击编辑不变。</div></li>
     <li><span class="v">v34.72</span><div>功能谱和弦全面升级为「级数为主」构建器：级数 1–7（含调内默认性质与各级音名提示）× 丰富类型/扩展（三和弦 / 七和弦 / 6·9·11·13 等 22 种）× 转位斜杠低音 /1–/7，点选即时应用；支持自定义后缀与调外完整自定义；「谱面显示：级数 ↔ 音名」一键切换（随曲谱保存）；谱面标注排版升级——根音大字、后缀上标、斜杠低音，悬停显示另一种形式。</div></li>
     <li><span class="v">v34.71</span><div>界面全面升级为极简现代设计语言：中性灰底+白色面板+发丝线边框、系统蓝点缀、毛玻璃顶栏与播放条、胶囊主按钮、柔和大圆角阴影，明暗两套主题同步重调；品牌宣传以中文名「谱吧」为主（页头/标题/弹窗弱化域名与代号）；新增《设计规范与多端规划》文档，为后续桌面/平板/手机/小程序客户端预留统一设计与功能架构。</div></li>
