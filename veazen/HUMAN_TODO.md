@@ -21,6 +21,9 @@
 ## 账号 / 商务（既有清单）
 
 - [x] 域名 veazen.app 注册 + Cloudflare NS + 官网上线（Workers 静态资产部署）
+- [x] 官网接入 Cloudflare Git 自动部署（2026-07-12）：Workers 项目
+      `veazen-site` 连接 `Veazen-Code` 仓库（根目录 veazen/apps/marketing），
+      推 main 自动构建上线；`veazen.app` 域名已从旧临时页切到新项目
 - [x] GitHub 组织 `veazen` 创建
 - [x] Neon / Upstash / Railway 账号注册
 - [ ] WordPress.org 账号（用户名 `veazen`）——申请中，等批复

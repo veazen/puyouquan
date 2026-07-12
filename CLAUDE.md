@@ -33,6 +33,7 @@ veazen/
 4. Phase 3：WP 插件全套（凭据加密、产品同步、批次申请、订单绑定、前台组件、看板 Widget、i18n POT、打包脚本）
 5. Phase 4a：S3/R2 存储驱动、生产 Dockerfile、boot 迁移、部署手册 v2 + PART2、生产加固
 6. 仓库清理：已删除测试项目 `dice_game/` 及其 CI 工作流，根 README 改为 veazen 项目介绍
+7. 品牌 LOGO 接入官网（`apps/marketing/public/brand/`），官网已改为 Cloudflare Workers Builds 自动部署（推 main 自动上线 veazen.app，Worker 项目名 `veazen-site`）
 
 ## 待办（按优先级）
 
