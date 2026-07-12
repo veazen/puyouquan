@@ -63,7 +63,9 @@ jobs:
       - run: npm run build --workspace @veazen/crypto --workspace @veazen/shared
       - name: migrate (owner role)
         working-directory: veazen/apps/api
-        run: npx prisma migrate deploy && npx prisma generate
+        # the migration gives veazen_app a random throwaway password
+        # (managed platforms reject weak ones) — pin the dev value for e2e
+        run: npx prisma migrate deploy && npx prisma generate && node scripts/pin-dev-app-role.mjs
         env:
           DATABASE_URL: postgres://veazen:veazen@localhost:5432/veazen
       - name: e2e (app role, RLS enforced)

@@ -13,18 +13,17 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'veazen_app') THEN
-    BEGIN
-      -- Dev/CI convenience; production boot rotates this immediately.
-      CREATE ROLE veazen_app LOGIN PASSWORD 'veazen_app';
-    EXCEPTION WHEN OTHERS THEN
-      -- Managed platforms (e.g. Neon) veto weak passwords at CREATE ROLE.
-      -- Fall back to a strong throwaway — deploy-boot rotates it to the
-      -- MASTER_KEY-derived secret before the app ever connects.
-      EXECUTE format(
-        'CREATE ROLE veazen_app LOGIN PASSWORD %L',
-        'Vz1!' || md5(random()::text) || upper(md5(random()::text))
-      );
-    END;
+    -- Always a strong throwaway password: managed platforms (e.g. Neon)
+    -- validate role passwords when the transaction's DDL reaches their
+    -- control plane at COMMIT — a weak dev password fails the whole
+    -- migration there, and no in-transaction fallback can catch it.
+    -- Every environment overwrites it right after: production boot rotates
+    -- to the MASTER_KEY-derived secret (deploy-boot.mjs), dev/CI pin the
+    -- fixed dev password via scripts/pin-dev-app-role.mjs.
+    EXECUTE format(
+      'CREATE ROLE veazen_app LOGIN PASSWORD %L',
+      'Vz1!' || md5(random()::text) || upper(md5(random()::text))
+    );
   END IF;
 END
 $$;
