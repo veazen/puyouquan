@@ -315,6 +315,10 @@ body.viewer #viewerbar{display:flex}
 #paywall{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:45;
   background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;
   padding:12px 20px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);font-size:13px}
+/* 功能谱：谱面空位「＋和弦」编辑提示（悬停出现） */
+#score .vcz text{opacity:0;transition:opacity .12s}
+#score .vcz:hover text{opacity:.8}
+#score .vcz:hover rect{fill:var(--accent);fill-opacity:.07;stroke:var(--accent);stroke-opacity:.5;stroke-width:1;stroke-dasharray:3 2.4}
 /* 功能谱和弦编辑器（级数为主） */
 .vc-prev{display:flex;align-items:baseline;gap:12px;padding:9px 12px;margin:7px 0 9px;
   background:var(--toolbar);border-radius:11px}
@@ -1453,7 +1457,7 @@ function systemExtras(sys){
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(3, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
-    if(c.chord) maxUp=Math.max(maxUp, 2);                        // 功能谱级数标注需上方空间
+    if(c.chord || song.func) maxUp=Math.max(maxUp, 2);           // 功能谱和弦标注/编辑提示需上方空间
     if(c.dyn) maxDown=Math.max(maxDown, 2);                      // 力度记号需下方空间
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
@@ -2094,16 +2098,28 @@ function render(){
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
             p.push(`<circle cx="${nx}" cy="${voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
           const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
-          /* 功能谱：和弦标注在音符上方——级数/音名一键切换；根音大字、后缀上标、低音随斜杠 */
-          if(col.chord){
-            const cy2 = voxY-24-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
-            const disp = song.funcNames? col.chord : chordDegree(col.chord);
-            const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
-            const pm=/^([A-G](?:#|b)?|[b#]?[1-7])(.*?)(\/.+)?$/.exec(disp);
-            const body = pm
-              ? `${esc(pm[1])}${pm[2]? `<tspan font-size="9" dy="-3.8" font-weight="600">${esc(pm[2])}</tspan>`:''}${pm[3]? `<tspan font-size="10.5" dy="${pm[2]?'3.8':'0'}" font-weight="600">${esc(pm[3])}</tspan>`:''}`
-              : esc(disp);
-            p.push(`<text x="${nx}" y="${cy2}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">${body}<title>${esc(alt)}（点击编辑）</title></text>`);
+          /* 功能谱：和弦标注在音符上方——级数/音名一键切换；整名圆角框、常规字号；
+             空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
+          {
+            const startB = cols.slice(0,ci).reduce((a,c2)=>a+beatsOf(c2),0);
+            const grid8 = song.unit/8;
+            const onGrid = Math.abs(startB/grid8 - Math.round(startB/grid8)) < 1e-4;
+            if(col.chord){
+              const cy2 = voxY-24-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
+              const disp = song.funcNames? col.chord : chordDegree(col.chord);
+              const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
+              const w = 11 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?4.6:6.6),0);
+              p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
+                <rect x="${(nx-w/2).toFixed(1)}" y="${cy2-11.5}" width="${w.toFixed(1)}" height="15.5" rx="5" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="0.9"/>
+                <text x="${nx}" y="${cy2}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
+                <title>${esc(alt)}（点击编辑）</title></g>`);
+            }else if(song.func && onGrid){
+              const cy2 = voxY-24;
+              p.push(`<g class="vcz" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
+                <rect x="${clx+1}" y="${cy2-12}" width="${Math.max(cw-2,14)}" height="16" rx="5" fill="transparent"/>
+                <text x="${nx}" y="${cy2}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${cw<34?'＋':'＋和弦'}</text>
+                <title>标注和弦（最小单位：八分音符）</title></g>`);
+            }
           }
           if(col.acc)
             p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
@@ -3500,9 +3516,10 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     document.addEventListener('pointermove', mv);
     return;
   }
-  /* 点击功能谱级数标注 → 弹出智能和弦选择 */
-  if(t.dataset.vchord!==undefined){
-    const seg=t.dataset.vchord.split(':').map(Number);
+  /* 点击功能谱和弦标注/空位提示 → 弹出级数构建器 */
+  const vcEl = t.closest? t.closest('[data-vchord]') : null;
+  if(vcEl){
+    const seg=vcEl.dataset.vchord.split(':').map(Number);
     sel.mi=seg[0]; sel.ci=seg[1]; sel.row='vox'; sel.vi=seg[2];
     selRange=null; render();
     showVoxChordMenu(e.clientX, e.clientY);
@@ -4239,8 +4256,17 @@ function vcParse(name){
   if(di<0 || (m[3] && bi<0)) return null;              // 调外根音/低音 → 走自定义框
   return {deg:di, suf:m[2]||'', bass:bi};
 }
+function vcSnap8(){                                    // 和弦最小单位：八分音符（就近向前对齐）
+  const cols=song.measures[sel.mi] && song.measures[sel.mi].voxes[sel.vi]; if(!cols) return;
+  const grid8=song.unit/8;
+  const startAt=k=>cols.slice(0,k).reduce((a,c2)=>a+beatsOf(c2),0);
+  let ci=sel.ci;
+  while(ci>0 && Math.abs(startAt(ci)/grid8-Math.round(startAt(ci)/grid8))>1e-4) ci--;
+  if(ci!==sel.ci){ sel.ci=ci; render(); toast('和弦最小单位为八分音符，已对齐到就近八分位'); }
+}
 function showVoxChordMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标注和弦的音符');
+  if(song.func) vcSnap8();
   const col=curCol(); if(!col) return;
   closePop();
   const st = vcParse(col.chord) || {deg:-1, suf:'', bass:-1};
@@ -6318,6 +6344,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱吧 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.73</span><div>功能谱和弦标注三项优化：① 音符上方空位（按八分音符网格）悬停出现「＋和弦」编辑提示，点击直接打开级数构建器；② 和弦时值最小单位为八分音符——十六分及更细位置自动就近向前对齐；③ 谱面标注改为常规字号整名显示并用圆角框框住（不再上标缩小），级数/音名切换与点击编辑不变。</div></li>
     <li><span class="v">v34.72</span><div>功能谱和弦全面升级为「级数为主」构建器：级数 1–7（含调内默认性质与各级音名提示）× 丰富类型/扩展（三和弦 / 七和弦 / 6·9·11·13 等 22 种）× 转位斜杠低音 /1–/7，点选即时应用；支持自定义后缀与调外完整自定义；「谱面显示：级数 ↔ 音名」一键切换（随曲谱保存）；谱面标注排版升级——根音大字、后缀上标、斜杠低音，悬停显示另一种形式。</div></li>
     <li><span class="v">v34.71</span><div>界面全面升级为极简现代设计语言：中性灰底+白色面板+发丝线边框、系统蓝点缀、毛玻璃顶栏与播放条、胶囊主按钮、柔和大圆角阴影，明暗两套主题同步重调；品牌宣传以中文名「谱吧」为主（页头/标题/弹窗弱化域名与代号）；新增《设计规范与多端规划》文档，为后续桌面/平板/手机/小程序客户端预留统一设计与功能架构。</div></li>
     <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「🎧 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
