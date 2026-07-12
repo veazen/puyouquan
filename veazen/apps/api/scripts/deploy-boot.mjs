@@ -21,10 +21,13 @@ const masterKey = process.env.MASTER_KEY ?? '';
 
 function derivedAppPassword() {
   // mirrors EnvelopeService.deriveKey('db-app-password')
-  return createHmac('sha256', Buffer.from(masterKey, 'hex'))
+  const hex = createHmac('sha256', Buffer.from(masterKey, 'hex'))
     .update('veazen.derive.v1:db-app-password')
     .digest('hex')
     .slice(0, 32);
+  // 'Vz1!' guarantees upper/lower/digit/special so managed platforms
+  // (e.g. Neon) accept it at ALTER ROLE; entropy comes from the hex part
+  return `Vz1!${hex}`;
 }
 
 function appUrlFrom(ownerUrl, password) {

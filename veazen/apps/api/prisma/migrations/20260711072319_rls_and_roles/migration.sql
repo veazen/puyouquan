@@ -13,8 +13,18 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'veazen_app') THEN
-    -- Dev/CI convenience; production provisions this role with a real secret.
-    CREATE ROLE veazen_app LOGIN PASSWORD 'veazen_app';
+    BEGIN
+      -- Dev/CI convenience; production boot rotates this immediately.
+      CREATE ROLE veazen_app LOGIN PASSWORD 'veazen_app';
+    EXCEPTION WHEN OTHERS THEN
+      -- Managed platforms (e.g. Neon) veto weak passwords at CREATE ROLE.
+      -- Fall back to a strong throwaway — deploy-boot rotates it to the
+      -- MASTER_KEY-derived secret before the app ever connects.
+      EXECUTE format(
+        'CREATE ROLE veazen_app LOGIN PASSWORD %L',
+        'Vz1!' || md5(random()::text) || upper(md5(random()::text))
+      );
+    END;
   END IF;
 END
 $$;
