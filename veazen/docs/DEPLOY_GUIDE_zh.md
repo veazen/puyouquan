@@ -1,4 +1,4 @@
-# Veazen 云端上线手册 v2（零基础版）
+# Veazen 云端上线手册 v2.1（零基础版）
 
 > 目标：把云端 API 部署到 `api.veazen.app`，验证页/控制台部署到
 > `verify.veazen.app`。全程只需要浏览器。做完后官网等待列表自动变成真表单。
@@ -6,13 +6,17 @@
 > **DEPLOY_GUIDE_PART2_zh.md**。
 >
 > 遇到界面对不上的地方，截图发给 Claude。
+>
+> v2.1（2026-07-12）：仓库已改名为 `veazen/Veazen-Code` 并转为**私有**，
+> 手册中的仓库名与授权说明已同步更新。
 
-## ⚠️ 开始前的两个前置条件（必须先完成）
+## ⚠️ 开始前的前置条件
 
-1. **仓库迁移**：把 GitHub 仓库从个人账号转移到组织 `veazen` 并改名为
-   `veazen`（GitHub 仓库页 → Settings → 最底部 Danger Zone → Transfer
-   ownership → 输入组织名 `veazen`；转移后在仓库 Settings 顶部改名为
-   `veazen`）。**先迁移再部署**，否则 Railway 配置要返工。
+1. **仓库迁移（✅ 已完成，2026-07-12）**：仓库已转移到 GitHub 组织
+   `veazen`，改名为 `Veazen-Code`，并设为**私有**。现在的仓库地址是
+   `github.com/veazen/Veazen-Code`（旧地址自动跳转）。
+   ⚠️ 因为仓库是私有的，第 4 步 Railway 授权 GitHub 时**必须选择授权
+   veazen 组织**，否则仓库列表里看不到它。
 2. **生产分支是 `main`**：本手册所有部署一律选 `main` 分支（代码已合并就绪）。
    开发用的临时分支永远不用于生产。
 

@@ -4,11 +4,11 @@
 
 ## 部署相关（当前批次）
 
-- [ ] **仓库迁移**：GitHub 仓库转移到组织 `veazen` 并改名 `veazen`
-      （Settings → Danger Zone → Transfer ownership）。
-      ⚠️ 迁移后必须在 **Railway 重新授权 GitHub**（Railway → Account →
-      Integrations → GitHub → Configure，勾选 veazen 组织）并在服务的
-      Source 里**重连仓库**，否则自动部署会断。
+- [x] **仓库迁移**（2026-07-12）：已转移到组织 `veazen`，改名
+      `Veazen-Code`，并设为**私有**；Claude 的 GitHub 应用已授权 veazen
+      组织（All repositories）。
+      ⚠️ 首次连接 Railway 时需授权 GitHub 访问 veazen 组织——私有仓库
+      授权后才会出现在 Railway 的仓库列表里。
 - [ ] 按 DEPLOY_GUIDE_zh.md v2 完成 API / 验证页部署（分支一律 `main`）
 - [ ] health 通过后在 **UptimeRobot** 添加
       `https://api.veazen.app/api/v1/health` 监控（5 分钟间隔，通知到 hello@）
