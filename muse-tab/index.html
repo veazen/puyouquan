@@ -604,19 +604,6 @@ body.viewer #viewerbar{display:flex}
       <div class="rg-title">歌词段落（最多5段）</div>
       <div class="rg-body" id="lyr-lines"></div>
     </div>
-    <!-- 和弦（功能谱） -->
-    <div class="rg panel-p" id="panel-chord-edit">
-      <div class="rg-title">和弦标注</div>
-      <div class="rg-body">
-        <button id="b-vchord2" title="打开级数构建器：级数 × 类型扩展 × 转位低音">编辑和弦…</button>
-        <button id="b-vcnames" title="谱面所有和弦标注一键切换：级数 ↔ 音名">显示:级数</button>
-        <button id="b-vcclear" title="清除当前音符列的和弦标注">清除标注</button>
-      </div>
-    </div>
-    <div class="rg panel-p" id="panel-chord-quick">
-      <div class="rg-title">本调常用 · 点击应用到当前音</div>
-      <div class="rg-body" id="chord-quick"></div>
-    </div>
     <div class="rg panel-p" id="panel-lyr-edit">
       <div class="rg-title">填词</div>
       <div class="rg-body">
@@ -631,7 +618,6 @@ body.viewer #viewerbar{display:flex}
     <div id="left-rail">
       <button class="ltab on" data-t="tab">吉他谱</button>
       <button class="ltab" data-t="vox">简谱</button>
-      <button class="ltab" data-t="chord" id="ltab-chord">和弦</button>
       <button class="ltab" data-t="lyr">歌词</button>
     </div>
   </aside>
@@ -803,7 +789,7 @@ function chordDegree(name){
 /* 谱面和弦框宽度（含 20% 放大字号）：随显示模式（级数/音名）变化，排版与渲染共用 */
 function vcDispW(chord){
   const disp = (song && song.funcNames)? chord : chordDegree(chord);
-  return 12 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?5:7.2),0);
+  return 13 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?5.5:8),0);
 }
 /* 用户和弦库（全局，跨曲谱可用）：指板自选创建后保存于本机 */
 const USERCH_KEY='musetab-userchords';
@@ -1654,12 +1640,6 @@ function render(){
       tb.textContent = instOf()==='uku'? '尤克里里' : '吉他谱';
       if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
     }
-    const cb2=document.getElementById('ltab-chord');
-    if(cb2){
-      cb2.style.display = song.func? '' : 'none';
-      if(!song.func && activeTab==='chord') setRibbon('vox');
-    }
-    updateChordPanel();
   }
   const svg = document.getElementById('score');
   /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
@@ -2137,8 +2117,8 @@ function render(){
               const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
               const w = vcDispW(col.chord);
               p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
-                <rect x="${(nx-w/2).toFixed(1)}" y="${(cy2-12.4).toFixed(1)}" width="${w.toFixed(1)}" height="16.6" rx="5" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="0.95"/>
-                <text x="${nx}" y="${cy2}" font-size="12.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
+                <rect x="${(nx-w/2).toFixed(1)}" y="${(cy2-13.8).toFixed(1)}" width="${w.toFixed(1)}" height="18.5" rx="6" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="1"/>
+                <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
             }else if(song.func && onGrid){
               const cy2 = voxY-24;
@@ -4367,36 +4347,6 @@ document.getElementById('b-vchord').onclick = e=>{
   const r=e.target.getBoundingClientRect();
   showVoxChordMenu(r.right+8, r.top-10);
 };
-/* 左边栏「和弦」面板 */
-function updateChordPanel(){
-  const el=document.getElementById('chord-quick'); if(!el) return;
-  if(song.func) el.innerHTML = VC_SEMI.map((_,i)=>{
-    const n=vcNote(i)+VC_DIA[i];
-    return `<button class="chip" data-cq="${esc(n)}" title="${esc(chordDegree(n))} · ${esc(n)}">${i+1}${VC_DIA[i]?'<b style="font-size:10px">'+VC_DIA[i]+'</b>':''}<span style="opacity:.6;font-size:10px;margin-left:2px">${esc(vcNote(i))}</span></button>`;
-  }).join('');
-  const vb=document.getElementById('b-vcnames');
-  if(vb) vb.textContent = '显示:'+(song.funcNames?'音名':'级数');
-}
-document.getElementById('b-vchord2').onclick = e=>{
-  if(sel.row!=='vox'){ sel.row='vox'; sel.vi=0; render(); }
-  const r=e.target.getBoundingClientRect();
-  showVoxChordMenu(r.right+8, r.top-10);
-};
-document.getElementById('b-vcnames').onclick = ()=>{
-  song.funcNames=!song.funcNames; persist(); render();
-  toast('谱面和弦已切换为'+(song.funcNames?'音名':'级数')+'显示');
-};
-document.getElementById('b-vcclear').onclick = ()=>{
-  if(sel.row!=='vox') return toast('请先选中简谱音符');
-  const c=curCol(); if(!c || !c.chord) return toast('当前音符列没有和弦标注');
-  setVoxChord('');
-};
-document.getElementById('panel-chord-quick').addEventListener('click', e=>{
-  const b2=e.target.closest('[data-cq]'); if(!b2) return;
-  if(sel.row!=='vox'){ sel.row='vox'; sel.vi=0; render(); }
-  if(song.func) vcSnap8();
-  setVoxChord(b2.dataset.cq);
-});
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
 document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
@@ -6401,7 +6351,6 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱吧 · 更新日志</h3>
   <ul class="vlog">
-    <li><span class="v">v34.75</span><div>和弦标注整体缩小 10%（字号 12.5、框高 16.6，防重叠排版同步收紧）；左边栏新增「和弦」标签页（功能谱显示）：编辑和弦（级数构建器）、谱面级数/音名显示切换、清除标注，以及"本调常用 1–7 级"一键应用到当前音（自动按八分网格对齐）。</div></li>
     <li><span class="v">v34.74</span><div>功能谱和弦标注排版修复与放大：和弦框宽度计入小节逐拍排版——相邻八分音符的两个和弦自动撑开列宽、不再重叠（级数/音名切换即时重排）；和弦框整体放大 20%（字号 14、框高 18.5、圆角 6），并为和弦行增加纵向预留空间。</div></li>
     <li><span class="v">v34.73</span><div>功能谱和弦标注三项优化：① 音符上方空位（按八分音符网格）悬停出现「＋和弦」编辑提示，点击直接打开级数构建器；② 和弦时值最小单位为八分音符——十六分及更细位置自动就近向前对齐；③ 谱面标注改为常规字号整名显示并用圆角框框住（不再上标缩小），级数/音名切换与点击编辑不变。</div></li>
     <li><span class="v">v34.72</span><div>功能谱和弦全面升级为「级数为主」构建器：级数 1–7（含调内默认性质与各级音名提示）× 丰富类型/扩展（三和弦 / 七和弦 / 6·9·11·13 等 22 种）× 转位斜杠低音 /1–/7，点选即时应用；支持自定义后缀与调外完整自定义；「谱面显示：级数 ↔ 音名」一键切换（随曲谱保存）；谱面标注排版升级——根音大字、后缀上标、斜杠低音，悬停显示另一种形式。</div></li>
