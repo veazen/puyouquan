@@ -16,13 +16,18 @@ jobs:
     name: lint + typecheck + test (api / web / packages)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: veazen/package-lock.json
       - run: npm ci
+      # the api's Prisma client is generated from the schema; without this
+      # step typecheck sees only the stub client
+      - name: generate prisma client
+        working-directory: veazen/apps/api
+        run: npx prisma generate
       # wp-plugin is excluded here: its lint is PHPCS, owned by the php job
       # below (running it here would need a redundant composer install).
       - run: npx turbo run lint typecheck test --filter='!@veazen/wp-plugin'
@@ -48,8 +53,8 @@ jobs:
           --health-cmd "redis-cli ping" --health-interval 5s
           --health-timeout 3s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -77,7 +82,7 @@ jobs:
       run:
         working-directory: veazen/apps/wp-plugin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
@@ -89,8 +94,8 @@ jobs:
     name: dependency audit (§9.7)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
