@@ -28,7 +28,17 @@ decisions are recorded in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
   (`apps/web$ npx playwright test`) and Lighthouse mobile performance 97
   on the verify page. Verify-page first-load JS is 104 kB — ~4 kB over the
   §2.2 budget, all framework baseline (see ADR-005 note).
-- Next: **Phase 3** (WordPress plugin features 1–6 + wp-env + PHPUnit) — §8.
+- **Phase 3 (WordPress plugin) — complete.** §7.1 features 1–6 + Lite label
+  flow; PHPCS 0/0, 9 PHPUnit tests, POT (78 strings), wp-env config,
+  TESTING.md checklist, `npm run plugin:zip`. Verified against the live
+  local cloud via the plugin's own client (handshake → sync → batch →
+  label → bind → verify).
+- **Phase 4 (launch prep) — in progress.** Done: Dockerfiles (api/web),
+  boot-time migrations + derived app-role (ADR-010), R2 storage driver,
+  deploy runbooks (`docs/DEPLOY_GUIDE_zh.md` v2 + PART2). Remaining: PDF
+  labels, evidence reports, billing skeleton, cross-tenant risk aggregation,
+  white-label round 1, Verify Widget, **console split to app.veazen.app
+  (ADR-011)**.
 
 Local services: `docker compose -f infra/docker-compose.yml up -d`, then in
 `apps/api`: `DATABASE_URL=postgres://veazen:veazen@localhost:5432/veazen npx
@@ -74,19 +84,7 @@ cd packages/crypto && npm run build && node scripts/generate-vectors.mjs > test-
 - `packages/crypto` keeps 100% test coverage; api core modules ≥ 85% (from Phase 1).
 - Conventional Commits; architecture deviations need an ADR in `docs/ARCHITECTURE.md` first.
 
-## Human TODO (PROJECT_PLAN §12 — cannot be done by code)
+## Human TODO
 
-- [x] Domain `veazen.app` registered (Namecheap), NS on Cloudflare (Active), SSL Full (Strict), Email Routing (hello@/support@), temp site on Cloudflare Pages project `veazen`
-- [ ] Sender domain SPF/DKIM/DMARC (when wiring Resend); 4–6 char short QR-redirect domain; defensive veazen.net/.io after trademark
-- [ ] Account matrix via hello@veazen.app: WordPress.org (username `veazen`, highest priority), GitHub org `veazen`, Cloudflare R2 bucket `veazen-prod`, Railway/Neon/Upstash/Resend, Sentry + UptimeRobot, MaxMind GeoLite license (.mmdb download)
-- [ ] Demo store: cheap WP host, WooCommerce demo at demo.veazen.app with this plugin installed
-- [ ] Trademark filing (VEAZEN, classes 9 & 42) — see §12 for the attorney search notes
-- [ ] Stripe: legal name VEAZEN LLC, public business name VEAZEN
-- [ ] California foreign qualification + BOI filing check (if operating from CA)
-- [ ] WordPress.org plugin account + submission review
-- [ ] Production `MASTER_KEY` generation and offline backup
-- [ ] GDPR privacy policy + DPA legal review (must cover device_fp & cross-tenant risk data)
-- [ ] Third-party penetration test procurement
-- [ ] SOC 2 Type II process kickoff
-- [ ] GS1 membership (GTIN capability)
-- [ ] Print-vendor partnership negotiations; NFC chip supply chain (Phase 5)
+The canonical operator checklist lives in [`HUMAN_TODO.md`](./HUMAN_TODO.md)
+(deploy steps: `docs/DEPLOY_GUIDE_zh.md` + `docs/DEPLOY_GUIDE_PART2_zh.md`).

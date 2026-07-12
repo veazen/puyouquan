@@ -103,6 +103,51 @@ deviation from the version pins.
 4. The CI audit gate stays exactly as §9.7 specifies, with no allowlist or
    `continue-on-error`. New high/critical advisories fail CI.
 
+## ADR-010: Database connection topology in managed deploys
+
+**Status**: accepted (Phase 4)
+
+**Context**: §11 lists a single runtime `DATABASE_URL`, but ADR-006 requires
+the app to run as the non-owner `veazen_app` role while migrations need the
+owner. Neon additionally offers direct and pooled (`-pooler`, PgBouncer)
+connection strings.
+
+**Decision**:
+- The operator configures **one** connection value: `MIGRATE_DATABASE_URL`
+  = Neon's **direct** (non-pooled) owner URL with `sslmode=require`.
+- At boot, `apps/api/scripts/deploy-boot.mjs` runs `prisma migrate deploy`
+  on that URL, rotates `veazen_app`'s password to a MASTER_KEY-derived
+  value, and **derives the runtime `DATABASE_URL`** (same host/db,
+  `veazen_app` credentials). `APP_DATABASE_URL` exists as an explicit
+  override. Local/dev/CI keep setting `DATABASE_URL` directly and skip the
+  boot sequence (no `MIGRATE_DATABASE_URL` set).
+- **Direct, not pooled**: Prisma maintains its own pool
+  (`connection_limit`), a single API instance stays far below Neon's direct
+  connection ceiling, and migrations require a direct connection anyway.
+  When horizontal scaling makes PgBouncer necessary, set `APP_DATABASE_URL`
+  to the `-pooler` URL with `?pgbouncer=true` — an explicit, documented
+  switch rather than a default.
+- Verified locally: migrate → rotate → boot under `veazen_app` → health 200
+  → `DELETE FROM scan_events` still denied.
+
+## ADR-011: Console temporarily co-deployed on verify.veazen.app
+
+**Status**: accepted (Phase 4) — **temporary**
+
+**Context**: apps/web serves both the consumer verify pages and the tenant
+console (`/dashboard`). The domain plan reserves the verify domain for
+consumer-facing pages only, with the console on its own subdomain
+(`app.veazen.app`).
+
+**Decision**: for the first deployment both ship as one Railway service on
+`verify.veazen.app` — one build, one instance, lower cost, and the console
+is only used by us during beta. **Split plan (Phase 4 checklist)**: add
+`app.veazen.app` as a second domain/service, host-based routing (or a
+second Next deployment target) so the verify domain exposes `/v/*` and GS1
+paths only, console moves off entirely; revisit cookie/token scoping at
+that point (dashboard tokens should never be scoped to the consumer
+domain in GA).
+
 ## ADR-009: Plugin admin is server-rendered PHP for the MVP, not React
 
 **Status**: accepted (Phase 3)

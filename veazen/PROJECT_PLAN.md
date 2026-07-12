@@ -402,14 +402,17 @@ MVP 页面：
 ## 11. 环境变量清单（apps/api）
 
 ```
-DATABASE_URL=postgres://...
+DATABASE_URL=postgres://...   # 本地/CI 直接配置；托管部署中由启动脚本从 MIGRATE_DATABASE_URL 派生（ADR-010）
+MIGRATE_DATABASE_URL=         # 托管部署：owner 角色直连串（Neon Direct，含 sslmode=require），用于迁移与派生运行时连接
+APP_DATABASE_URL=             # 可选：显式覆盖运行时连接（如横向扩容时的 -pooler 串 + pgbouncer=true）
 REDIS_URL=redis://...
 S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY / S3_SECRET_KEY
 MASTER_KEY=            # 32 bytes hex，信封加密主密钥
 JWT_SECRET=
 PUBLIC_VERIFY_BASE_URL=https://verify.veazen.app
 SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS
-GEOIP_DB_PATH=         # MaxMind GeoLite2-City.mmdb（人工下载放置）
+GEOIP_DB_PATH=         # MaxMind GeoLite2-City.mmdb（人工下载放置；或配 MAXMIND_LICENSE_KEY 由启动脚本自动下载）
+MAXMIND_LICENSE_KEY=   # 可选：设置后容器启动时自动拉取 GeoLite2-City
 ANONYMIZE_IP=false
 ```
 

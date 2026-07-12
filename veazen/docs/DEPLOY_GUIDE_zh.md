@@ -1,11 +1,23 @@
-# Veazen 云端上线手册（零基础版）
+# Veazen 云端上线手册 v2（零基础版）
 
 > 目标：把云端 API 部署到 `api.veazen.app`，验证页/控制台部署到
-> `verify.veazen.app`。全程只需要浏览器。做完后官网等待列表自动变成真表单，
-> demo 店只差装插件。
+> `verify.veazen.app`。全程只需要浏览器。做完后官网等待列表自动变成真表单。
+> 上线后 30 分钟内的补充配置（邮件/GeoIP/隐私开关）见
+> **DEPLOY_GUIDE_PART2_zh.md**。
 >
-> 用到的账号：Railway（跑程序）、Neon（数据库）、Upstash（Redis）、
-> Cloudflare（域名 + R2 存储）。遇到界面对不上的地方，截图发给 Claude。
+> 遇到界面对不上的地方，截图发给 Claude。
+
+## ⚠️ 开始前的两个前置条件（必须先完成）
+
+1. **仓库迁移**：把 GitHub 仓库从个人账号转移到组织 `veazen` 并改名为
+   `veazen`（GitHub 仓库页 → Settings → 最底部 Danger Zone → Transfer
+   ownership → 输入组织名 `veazen`；转移后在仓库 Settings 顶部改名为
+   `veazen`）。**先迁移再部署**，否则 Railway 配置要返工。
+2. **生产分支是 `main`**：本手册所有部署一律选 `main` 分支（代码已合并就绪）。
+   开发用的临时分支永远不用于生产。
+
+🔐 **安全习惯（贯穿全程）**：下面步骤里所有连接串/密钥，建议存在**密码管理
+器的安全笔记**里而不是记事本；如果用了记事本，粘贴进 Railway 后**立即删除**。
 
 ---
 
@@ -18,106 +30,114 @@
    ```js
    Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b=>b.toString(16).padStart(2,'0')).join('')
    ```
-3. 会输出一串 **64 位的小写字母数字**（形如 `9f2c...`，共 64 个字符）。
-4. **复制并保存到两个地方**：你的密码管理器 + 一个离线位置（如打印出来放抽屉）。
+3. 输出一串 **64 位小写字母数字**。**保存到两个地方**：密码管理器 + 离线一份。
    这就是 `MASTER_KEY`。⚠️ 不要发给任何人，包括 Claude。
 
 ## 第 1 步：Neon — 拿数据库连接串（3 分钟）
 
-1. 登录 **console.neon.tech**，进入你建的 `veazen` 项目。
-2. 首页找到 **Connection string（连接字符串）** 面板，格式类似：
+1. 登录 **console.neon.tech**，进入 `veazen` 项目。
+2. 首页 **Connection string** 面板：如果有 **Pooled connection** 开关/下拉，
+   **选择不带 pooler 的直连（Direct）版本**——主机名里**不应**出现
+   `-pooler` 字样。格式类似：
    `postgresql://neondb_owner:xxxx@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
-3. 点复制按钮，先存到记事本，待会儿粘到 Railway。这是 `MIGRATE_DATABASE_URL`。
-   （如果末尾没有 `?sslmode=require`，手动补上。）
+3. 复制保存（密码管理器安全笔记）。这是 `MIGRATE_DATABASE_URL`。
+   （末尾没有 `?sslmode=require` 就手动补上。）
+
+> **为什么这里没让你配置 DATABASE_URL？** 服务器每次启动会先用这条"管理员
+> 连接"完成数据库升级，然后自动派生出一个权限受限的运行账号（防篡改保护
+> 依赖它），运行时的 DATABASE_URL 由程序自己生成，不需要你配置。
+> （技术细节：docs/ARCHITECTURE.md ADR-010。）
 
 ## 第 2 步：Upstash — 拿 Redis 连接串（2 分钟）
 
-1. 登录 **console.upstash.com**，点进你建的 `veazen` 数据库。
-2. 找到 **Connect / TLS** 区域里以 **`rediss://`** 开头的连接串（注意是两个 s）。
-3. 复制存到记事本。这是 `REDIS_URL`。
+1. 登录 **console.upstash.com**，进入 `veazen` 数据库。
+2. 复制 **`rediss://`** 开头的 TLS 连接串（注意两个 s）。这是 `REDIS_URL`。
 
 ## 第 3 步：Cloudflare R2 — 建存储桶（5 分钟）
 
-导出的码文件（含刮刮码明文，只此一份）必须存在这里，服务器重启才不会丢。
+导出的码文件（含刮刮码明文，只此一份）必须存这里，服务器重启才不会丢。
 
-1. 登录 **dash.cloudflare.com** → 左侧 **R2 对象存储** → 首次使用点开通（免费额度很大，可能要求绑卡但 10GB 内不收费）。
-2. **创建存储桶**：名字 `veazen-prod`，位置自动，点创建。
-3. 回到 R2 首页 → 右侧 **管理 R2 API 令牌（Manage R2 API Tokens）** → **创建 API 令牌**：
-   - 权限选 **对象读和写（Object Read & Write）**；
-   - 指定存储桶：只勾 `veazen-prod`；
-   - 创建后页面会一次性显示三样东西，全部复制存到记事本：
-     - **访问密钥 ID** → 这是 `S3_ACCESS_KEY`
-     - **机密访问密钥** → 这是 `S3_SECRET_KEY`
-     - **终结点（形如 `https://<一串字母>.r2.cloudflarestorage.com`）** → 这是 `S3_ENDPOINT`
+1. **dash.cloudflare.com** → 左侧 **R2 对象存储** → 首次使用点开通
+   （免费额度大，可能要求绑卡但 10GB 内不收费）。
+2. **创建存储桶**：名字 `veazen-prod`，位置自动。
+3. R2 首页 → **管理 R2 API 令牌** → **创建 API 令牌**：
+   - 权限 **对象读和写（Object Read & Write）**；只勾 `veazen-prod`；
+   - 创建后一次性显示三样，全部保存：
+     - **访问密钥 ID** → `S3_ACCESS_KEY`
+     - **机密访问密钥** → `S3_SECRET_KEY`
+     - **终结点**（`https://xxxx.r2.cloudflarestorage.com`）→ `S3_ENDPOINT`
 
 ## 第 4 步：Railway — 部署 API（15 分钟，核心步骤）
 
 1. 登录 **railway.app** → **New Project** → **Deploy from GitHub repo** →
-   选择 **`duyuanping9798/My-claude-code-project`**（首次会让你授权 GitHub，全部允许）。
-2. 创建后先别管构建，点进这个服务 → **Settings** 标签，逐项设置：
-   - **Source → Branch**：选 **`claude/new-session-h4w2ri`**
-   - **Source → Root Directory**：填 **`veazen`**
-   - **Build → Dockerfile Path**：填 **`apps/api/Dockerfile`**
-3. 切到 **Variables** 标签，点 **Raw Editor**（原始编辑器），把下面整段粘进去，
-   然后把 `【】` 里的内容换成你记事本里的值：
+   选择 **`veazen/veazen`**（首次会让你授权 GitHub 访问 veazen 组织，允许）。
+2. 点进服务 → **Settings**：
+   - **Source → Branch**：**`main`**
+   - **Source → Root Directory**：**`veazen`**
+   - **Build → Dockerfile Path**：**`apps/api/Dockerfile`**
+3. **Variables** 标签 → **Raw Editor**，粘贴并替换 `【】`：
 
    ```
-   MIGRATE_DATABASE_URL=【Neon 连接串】
-   REDIS_URL=【Upstash rediss:// 连接串】
-   MASTER_KEY=【第 0 步生成的 64 位密钥】
-   JWT_SECRET=【再用第 0 步的方法生成一串新的，别复用 MASTER_KEY】
+   MIGRATE_DATABASE_URL=【Neon 直连串】
+   REDIS_URL=【Upstash rediss:// 串】
+   MASTER_KEY=【第 0 步的 64 位密钥】
+   JWT_SECRET=【用第 0 步方法再生成一串新的】
    PUBLIC_VERIFY_BASE_URL=https://verify.veazen.app
    S3_ENDPOINT=【R2 终结点】
    S3_BUCKET=veazen-prod
    S3_ACCESS_KEY=【R2 访问密钥 ID】
    S3_SECRET_KEY=【R2 机密访问密钥】
    ```
-4. 保存后 Railway 会自动开始构建（**Deployments** 标签能看进度，首次约 5 分钟）。
-   构建成功的标志：日志最后出现 `[boot] starting API…` 和
-   `Veazen API listening`。失败就把日志最后 30 行截图发 Claude。
-5. **绑定域名**：Settings → **Networking / Public Networking** →
-   **Custom Domain** → 输入 **`api.veazen.app`** → Railway 会显示一条
-   **CNAME 目标值**（形如 `xxx.up.railway.app`），复制它。
-6. 开新标签页进 **Cloudflare** → 你的 `veazen.app` 域 → **DNS** → **添加记录**：
-   - 类型 **CNAME**，名称 **`api`**，目标粘贴刚才那串，代理状态保持**橙色云朵开启**，保存。
-7. 回 Railway 等状态变绿。然后浏览器打开：
-   **`https://api.veazen.app/api/v1/health`**
-   看到 `{"status":"ok","service":"veazen-api"...}` 就成功了 🎉
+   （可选增强项 `SMTP_*`、`MAXMIND_LICENSE_KEY`、`ANONYMIZE_IP` 见 PART2。）
+4. 保存后自动构建（**Deployments** 看进度，首次约 5 分钟）。成功标志：日志
+   出现 `[boot] starting API…` 和 `Veazen API listening`。失败→日志最后
+   30 行截图发 Claude。
+5. **粘贴完成后**，把密码管理器/记事本里的临时明文清理干净（第 0 步的
+   MASTER_KEY 正式副本除外——那个要永久保存）。
+6. **绑定域名**：Settings → **Networking** → **Custom Domain** →
+   `api.veazen.app` → 复制 Railway 给出的 CNAME 目标值。
+7. **Cloudflare** → `veazen.app` 域 → **DNS** → 添加记录：类型 **CNAME**、
+   名称 **`api`**、目标粘贴上一步的值、橙色云朵开启。
+8. 打开 **`https://api.veazen.app/api/v1/health`**，见
+   `{"status":"ok","service":"veazen-api"...}` 即成功 🎉
+9. **立刻加监控**：登录 **uptimerobot.com** → Add New Monitor → 类型
+   HTTP(s) → URL 填 `https://api.veazen.app/api/v1/health` → 间隔 5 分钟 →
+   通知邮箱 hello@veazen.app。以后服务一挂你会第一时间收到邮件。
 
 ## 第 5 步：Railway — 部署验证页/控制台（10 分钟）
 
-1. 在同一个 Railway 项目里点 **+ New** → **GitHub Repo** → 还是选同一个仓库。
-2. 新服务的 Settings：
-   - Branch `claude/new-session-h4w2ri`；Root Directory `veazen`；
-   - Dockerfile Path **`apps/web/Dockerfile`**。
-3. Variables 只需一条：
+1. 同一 Railway 项目 → **+ New** → **GitHub Repo** → 还是 `veazen/veazen`。
+2. Settings：Branch **`main`**；Root Directory **`veazen`**；
+   Dockerfile Path **`apps/web/Dockerfile`**。
+3. Variables 一条：
    ```
    API_URL_INTERNAL=https://api.veazen.app/api/v1
    ```
-4. 等构建完成 → Networking → Custom Domain 输入 **`verify.veazen.app`** →
-   把给出的 CNAME 目标去 Cloudflare DNS 加一条（名称填 `verify`，橙云开启）。
-5. 验证：打开 **`https://verify.veazen.app`** 应看到黑底品牌页；
-   打开 `https://verify.veazen.app/v/TEST` 会显示"无效码"页面——这是正常的，
-   说明整条链路通了。
+4. 构建完 → Networking → Custom Domain **`verify.veazen.app`** →
+   Cloudflare DNS 加 CNAME（名称 `verify`，橙云开启）。
+5. 验证：`https://verify.veazen.app` 显示品牌页；
+   `https://verify.veazen.app/v/TEST` 显示"无效码"页——正常，链路已通。
 
 ## 第 6 步：上线后的三个确认
 
-1. **官网表单变真**：打开 veazen.app 底部的等待列表，填一个你自己的邮箱提交，
-   应显示绿色 "You're on the list"（不再是发邮件链接）。
-2. **注册你自己的品牌账号**：打开 `https://verify.veazen.app/dashboard` →
-   Create account（这是第一个真实租户，slug 建议填 `veazen-demo`）。
+1. **官网表单变真**：veazen.app 底部表单填邮箱提交 → 绿色 "You're on the list"。
+2. **注册第一个品牌账号**：`https://verify.veazen.app/dashboard` →
+   Create account（slug 建议 `veazen-demo`）。
 3. **生成 API Key**：控制台 → Settings → API keys → Create key，
-   把以 `vz_` 开头的完整密钥**保存好**（只显示一次）——装 demo 店插件时要用。
+   `vz_` 开头的完整密钥**只显示一次**，存进密码管理器——装 demo 店插件用。
+
+完成后 → 打开 **DEPLOY_GUIDE_PART2_zh.md** 完成邮件/GeoIP/隐私开关三项收尾。
 
 ## 常见问题
 
 | 现象 | 处理 |
 |---|---|
-| 构建日志报 `MASTER_KEY must be 32 bytes` | 检查第 0 步的值是否完整 64 个字符、没混入空格 |
-| 日志报 `Can't reach database server` | Neon 连接串末尾补 `?sslmode=require`，或 Neon 项目处于休眠，刷新 Neon 控制台再重新部署 |
-| 域名一直 pending | Cloudflare 的 DNS 记录名称只填 `api` 或 `verify`（不要填完整域名），确认橙云开启 |
-| 其它任何红色报错 | 截图 Deployments 日志最后 30 行发 Claude |
+| 构建日志报 `MASTER_KEY must be 32 bytes` | 检查是否完整 64 字符、无空格 |
+| 日志报 `Can't reach database server` | Neon 串补 `?sslmode=require`；或 Neon 免费层休眠了，打开 Neon 控制台唤醒后 Redeploy |
+| 日志报 `could not rotate the veazen_app password` | 把日志截图发 Claude（Neon 默认账号不会出现此错） |
+| 域名一直 pending | Cloudflare DNS 名称只填 `api`/`verify`，橙云开启 |
+| 其它红色报错 | Deployments 日志最后 30 行截图发 Claude |
 
 ## 花费预期
 
-Neon / Upstash / R2 都在免费额度内；Railway 两个服务约 **$5/月**（Hobby 档）。
+Neon / Upstash / R2 免费额度内；Railway 两个服务约 **$5/月**（Hobby 档）。

@@ -11,8 +11,10 @@
  * Behavior without MIGRATE_DATABASE_URL: assumes DATABASE_URL is already the
  * app role (local dev / CI) and just starts the server.
  */
-import { createHmac, } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { spawnSync, spawn } from 'node:child_process';
+import { mkdir, readdir, writeFile, copyFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 const migrateUrl = process.env.MIGRATE_DATABASE_URL;
 const masterKey = process.env.MASTER_KEY ?? '';
@@ -30,6 +32,63 @@ function appUrlFrom(ownerUrl, password) {
   url.username = 'veazen_app';
   url.password = password;
   return url.toString();
+}
+
+/** Find the first *.mmdb file under dir (recursive). */
+async function findMmdb(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await findMmdb(path);
+      if (nested) {
+        return nested;
+      }
+    } else if (entry.name.endsWith('.mmdb')) {
+      return path;
+    }
+  }
+  return null;
+}
+
+/**
+ * GeoLite2 provisioning for ephemeral containers: when MAXMIND_LICENSE_KEY
+ * is set (and no GEOIP_DB_PATH given), download the City database at boot.
+ * Any failure degrades gracefully — the API runs without geo resolution
+ * (geo_velocity / out_of_market rules simply see no country data).
+ */
+async function ensureGeoIp() {
+  if (process.env.GEOIP_DB_PATH || !process.env.MAXMIND_LICENSE_KEY) {
+    return {};
+  }
+  try {
+    console.log('[boot] downloading GeoLite2-City…');
+    const url =
+      'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City' +
+      `&license_key=${encodeURIComponent(process.env.MAXMIND_LICENSE_KEY)}&suffix=tar.gz`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`MaxMind download failed: HTTP ${response.status}`);
+    }
+    const archive = '/tmp/geolite2-city.tar.gz';
+    const extractDir = '/tmp/geolite2-extract';
+    await writeFile(archive, Buffer.from(await response.arrayBuffer()));
+    await mkdir(extractDir, { recursive: true });
+    const tar = spawnSync('tar', ['-xzf', archive, '-C', extractDir], { stdio: 'inherit' });
+    if (tar.status !== 0) {
+      throw new Error('tar extraction failed');
+    }
+    const mmdb = await findMmdb(extractDir);
+    if (!mmdb) {
+      throw new Error('no .mmdb file in archive');
+    }
+    const dest = '/tmp/GeoLite2-City.mmdb';
+    await copyFile(mmdb, dest);
+    console.log('[boot] GeoLite2-City ready');
+    return { GEOIP_DB_PATH: dest };
+  } catch (error) {
+    console.warn(`[boot] GeoIP unavailable (${error.message}) — continuing without geo resolution`);
+    return {};
+  }
 }
 
 async function main() {
@@ -72,10 +131,12 @@ async function main() {
     }
   }
 
+  const geoEnv = await ensureGeoIp();
+
   console.log('[boot] starting API…');
   const api = spawn('node', ['dist/main.js'], {
     stdio: 'inherit',
-    env: { ...process.env, DATABASE_URL: appDatabaseUrl },
+    env: { ...process.env, ...geoEnv, DATABASE_URL: appDatabaseUrl },
   });
   api.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 0)));
   for (const sig of ['SIGTERM', 'SIGINT']) {
