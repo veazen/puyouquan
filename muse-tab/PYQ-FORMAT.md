@@ -1,6 +1,6 @@
-# 谱吧格式规范 v1（Pu8 Score Format）
+# 谱友圈格式规范 v1（Pu8 Score Format）
 
-谱吧 PU8（pu8.cn）的开放曲谱格式。单个曲谱为一个 JSON 对象（文件扩展名 `.mtab.json`，MIME `application/json`），亦是谱吧圈发布包的 `data` 字段内容。
+谱友圈 PYQ（puyouquan.com）的开放曲谱格式。单个曲谱为一个 JSON 对象（文件扩展名 `.mtab.json`，MIME `application/json`），亦是谱友圈发布包的 `data` 字段内容。
 
 ## 顶层字段
 
@@ -65,7 +65,7 @@
 `x`=不弹，`0`=空弦，`1-9`=品位，10 品以上用小写字母（`a`=10, `b`=11, …base36）。
 例：`x32010`=C（吉他），`0003`=C（尤克里里），`8aa988`=C 高把位 E 型。
 
-## 谱吧圈发布包（Circle Publication）
+## 谱友圈发布包（Circle Publication）
 
 ```
 { pid: "pub…",            // 发布唯一 ID
@@ -75,7 +75,7 @@
   preview: number,         // 付费谱免费试读小节数
   pubAt: "YYYY/M/D HH:mm:ss",
   sales, tips, views,      // 销量 / 打赏 / 浏览
-  data: <谱吧格式 v1 对象>  // 发布时的内容快照
+  data: <谱友圈格式 v1 对象>  // 发布时的内容快照
 }
 ```
 

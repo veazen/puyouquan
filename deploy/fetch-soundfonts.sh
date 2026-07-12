@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 谱吧 PU8 · 下载开源采样音色包（midi-js-soundfonts / MusyngKite，MIT 仓库）
+# 谱友圈 PYQ · 下载开源采样音色包（midi-js-soundfonts / MusyngKite，MIT 仓库）
 # 在服务器上执行：sudo bash fetch-soundfonts.sh
-# 下载后站点自托管于 /var/www/pu8/sounds/MusyngKite/ —— 国内用户无需访问境外 CDN
+# 下载后站点自托管于 /var/www/puyouquan/sounds/MusyngKite/ —— 国内用户无需访问境外 CDN
 set -euo pipefail
 
-DEST="${DEST:-/var/www/pu8/sounds/MusyngKite}"
+DEST="${DEST:-/var/www/puyouquan/sounds/MusyngKite}"
 LIB="MusyngKite"
 # 主源用 raw.githubusercontent.com（多数网络可达），失败换 jsDelivr
 SRC1="https://raw.githubusercontent.com/gleitz/midi-js-soundfonts/gh-pages/${LIB}"
