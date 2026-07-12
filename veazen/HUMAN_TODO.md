@@ -9,9 +9,12 @@
       组织（All repositories）。
       ⚠️ 首次连接 Railway 时需授权 GitHub 访问 veazen 组织——私有仓库
       授权后才会出现在 Railway 的仓库列表里。
-- [ ] 按 DEPLOY_GUIDE_zh.md v2 完成 API / 验证页部署（分支一律 `main`）
-- [ ] health 通过后在 **UptimeRobot** 添加
-      `https://api.veazen.app/api/v1/health` 监控（5 分钟间隔，通知到 hello@）
+- [x] API 部署完成（2026-07-12）：`api.veazen.app/api/v1/health` 返回 ok。
+      落地备忘：Neon 用不带 -pooler 的直连串；Railway 需显式设 `PORT=4000`；
+      Cloudflare 的 api 记录保持灰云（DNS only）
+- [ ] 验证页部署（DEPLOY_GUIDE 第 5 步）+ 绑定 verify.veazen.app
+      ⚠️ 需先升级 Railway Hobby 套餐（试用版只能绑 1 个自定义域名）
+- [x] UptimeRobot 已添加 health 监控（2026-07-12，5 分钟间隔）
 - [ ] 按 DEPLOY_GUIDE_PART2_zh.md 完成 Resend（SPF/DKIM/DMARC）、
       MaxMind GeoIP、ANONYMIZE_IP 三项
 - [ ] **ANONYMIZE_IP 决策记录**：选择 `______`（true/false），日期 `______`，
