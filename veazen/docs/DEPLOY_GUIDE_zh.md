@@ -70,7 +70,7 @@
 ## 第 4 步：Railway — 部署 API（15 分钟，核心步骤）
 
 1. 登录 **railway.app** → **New Project** → **Deploy from GitHub repo** →
-   选择 **`veazen/veazen`**（首次会让你授权 GitHub 访问 veazen 组织，允许）。
+   选择 **`veazen/Veazen-Code`**（首次会让你授权 GitHub 访问 veazen 组织，允许；仓库现在是私有的，授权后才看得到）。
 2. 点进服务 → **Settings**：
    - **Source → Branch**：**`main`**
    - **Source → Root Directory**：**`veazen`**
@@ -106,7 +106,7 @@
 
 ## 第 5 步：Railway — 部署验证页/控制台（10 分钟）
 
-1. 同一 Railway 项目 → **+ New** → **GitHub Repo** → 还是 `veazen/veazen`。
+1. 同一 Railway 项目 → **+ New** → **GitHub Repo** → 还是 `veazen/Veazen-Code`。
 2. Settings：Branch **`main`**；Root Directory **`veazen`**；
    Dockerfile Path **`apps/web/Dockerfile`**。
 3. Variables 一条：

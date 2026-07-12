@@ -6,7 +6,7 @@
 
 veazen —— 商品防伪验证 SaaS 平台。消费者扫码/刮码验证真伪，品牌方通过控制台管理产品、批次和防伪码，另有 WordPress/WooCommerce 插件供商家集成。
 
-- 仓库：`veazen/veazen`（2026-07-12 从 `duyuanping9798/My-claude-code-project` 转移并改名而来，旧地址自动跳转）
+- 仓库：`veazen/Veazen-Code`（**私有**；2026-07-12 从 `duyuanping9798/My-claude-code-project` 转移到 veazen 组织，同日改名为 Veazen-Code，旧地址均自动跳转）
 - 主项目代码全部在 `veazen/` 子目录（Turborepo monorepo）
 - 详细规格看 `veazen/PROJECT_PLAN.md`，架构看 `veazen/docs/ARCHITECTURE.md`
 
