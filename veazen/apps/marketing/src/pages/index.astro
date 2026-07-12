@@ -1,130 +1,182 @@
 ---
-// PHASE 2 PLACEHOLDER — marketing site v1 (PROJECT_PLAN §8 Phase 2) replaces
-// the hand-deployed temp page on the Cloudflare Pages project `veazen`.
-// This skeleton renders the §2.5 token system and the serial-verification-bar
-// motif so the design contract is executable from day one.
-import { COLORS, SLOGAN, tokensToCssVars } from '../tokens';
-
-const demoSerial = 'A1B2C-D3E4F-6H7J8-K9M0N';
+import Base from '../layouts/Base.astro';
+import SerialBar from '../components/SerialBar.astro';
+import WaitlistForm from '../components/WaitlistForm.astro';
+import { SLOGAN } from '../tokens';
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Veazen — anti-counterfeit verification and supply-chain traceability for growing brands."
-    />
-    <title>Veazen — Trust, set in stone.</title>
-    <style set:html={`:root {\n${tokensToCssVars()}\n}`}></style>
-  </head>
-  <body>
-    <main>
-      <p class="kicker">Veazen</p>
+<Base
+  title="Veazen — Anti-counterfeit verification & traceability for growing brands"
+  description="One cryptographically signed code per item. Consumers scan, you see every scan. Anti-counterfeit protection and supply-chain traceability that installs in minutes on WooCommerce."
+  path="/"
+>
+  <main>
+    <section class="hero">
+      <p class="kicker">Anti-counterfeit · Traceability</p>
       <h1>{SLOGAN.en}</h1>
-      <p class="sub">
-        One code per item. Cryptographically signed, verified in the cloud,
-        traceable end to end.
+      <p class="sub dim">
+        Every item gets a unique, cryptographically signed code. Consumers scan it;
+        you see every scan on a map. Counterfeits and gray-market diversion stop
+        being invisible.
       </p>
-      <div class="serial-bar" aria-label={`Example verified serial ${demoSerial}`}>
-        <span class="serial">{demoSerial}</span>
-        <span class="badge">Verified</span>
-        <span class="scanline" aria-hidden="true"></span>
+      <SerialBar />
+      <div class="hero-cta">
+        <a class="primary" href="#waitlist">Request early access</a>
+        <a class="secondary" href="/features">See how it works</a>
       </div>
-      <p class="note">Site v1 is under construction — this skeleton ships in Phase 2.</p>
-    </main>
-    <footer>Veazen™ is a product of VEAZEN LLC.</footer>
-  </body>
-</html>
+    </section>
 
-<style define:vars={{ jade: COLORS.jade }}>
-  * {
-    margin: 0;
-    box-sizing: border-box;
-  }
-  body {
-    min-height: 100vh;
+    <section>
+      <p class="kicker">Three steps</p>
+      <h2>From install to first verified scan in minutes</h2>
+      <div class="steps">
+        <div class="card">
+          <p class="step-n">01</p>
+          <h3>Generate</h3>
+          <p class="dim">
+            Connect the WooCommerce plugin, pick a product, and generate signed
+            codes in the cloud — or print-ready label sheets for small batches.
+          </p>
+        </div>
+        <div class="card">
+          <p class="step-n">02</p>
+          <h3>Attach</h3>
+          <p class="dim">
+            Print QR labels yourself or send the batch file to your print shop.
+            Codes stay inactive until you activate them at factory exit.
+          </p>
+        </div>
+        <div class="card">
+          <p class="step-n">03</p>
+          <h3>Scan</h3>
+          <p class="dim">
+            Customers verify with one scan — green, yellow or red. You get scan
+            locations, duplicate alerts and gray-market signals in real time.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">Why Veazen</p>
+      <h2>Enterprise-grade protection without the enterprise contract</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Signed, not just unique</h3>
+          <p class="dim">
+            Every code carries an Ed25519 signature verified server-side.
+            Guessing serial numbers gets counterfeiters nowhere.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Evidence-grade logs</h3>
+          <p class="dim">
+            Scan history is append-only and anchored in a daily Merkle digest
+            chain — usable as evidence in takedowns and channel disputes.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Dark-code confirmation</h3>
+          <p class="dim">
+            A scratch-off hidden code gives buyers a one-time proof of purchase
+            authenticity. Second redemptions raise instant alerts.
+          </p>
+        </div>
+        <div class="card">
+          <h3>HTTPS everywhere, by domain design</h3>
+          <p class="dim">
+            Verification lives on veazen.app — a domain with HSTS preloading
+            enforced at the protocol level, so verify pages can't be downgraded.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="waitlist">
+      <p class="kicker">Early access</p>
+      <h2>Join the waitlist</h2>
+      <p class="dim" style="max-width:34rem; margin-bottom:1.2rem;">
+        We're onboarding a first cohort of brands. Tell us where to reach you and
+        roughly how many units you ship — we'll reserve your spot.
+      </p>
+      <WaitlistForm />
+    </section>
+  </main>
+</Base>
+
+<style>
+  .hero {
+    padding-top: 3rem;
+    text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 2rem;
-    background: var(--color-basalt);
-    color: var(--color-limestone);
-    font-family: var(--font-body);
-    padding: 2rem;
-    text-align: center;
+    gap: 1.4rem;
   }
-  .kicker {
-    font-family: var(--font-display);
-    text-transform: uppercase;
-    letter-spacing: 0.35em;
-    color: var(--color-limestone-dim);
+  .hero h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
   }
-  h1 {
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: clamp(2rem, 6vw, 3.5rem);
-    letter-spacing: 0.06em;
-    margin-top: 0.75rem;
+  .hero .sub {
+    max-width: 38rem;
   }
-  .sub {
-    color: var(--color-limestone-dim);
-    max-width: 36rem;
-    margin: 1rem auto 0;
-  }
-  .serial-bar {
-    position: relative;
-    overflow: hidden;
-    display: inline-flex;
-    align-items: center;
+  .hero-cta {
+    display: flex;
     gap: 1rem;
-    margin-top: 2rem;
-    padding: 0.9rem 1.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .primary {
+    background: var(--color-jade);
+    color: var(--color-basalt);
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 0.8rem 1.4rem;
+  }
+  .primary:hover {
+    background: var(--color-jade-deep);
+  }
+  .secondary {
     border: 1px solid var(--color-etch);
-    border-radius: 6px;
-    background: var(--color-basalt-deep);
+    border-radius: 4px;
+    padding: 0.8rem 1.4rem;
+    color: var(--color-limestone-dim);
   }
-  .serial {
+  .secondary:hover {
+    color: var(--color-limestone);
+  }
+  .steps,
+  .grid2 {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grid2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .step-n {
     font-family: var(--font-mono);
-    letter-spacing: 0.12em;
-  }
-  .badge {
-    font-family: var(--font-body);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: var(--jade);
-    border: 1px solid var(--jade);
-    border-radius: 999px;
-    padding: 0.2rem 0.7rem;
-  }
-  .scanline {
-    position: absolute;
-    inset: 0 auto 0 -40%;
-    width: 35%;
-    background: linear-gradient(90deg, transparent, rgba(63, 163, 124, 0.18), transparent);
-    animation: scan 2.6s ease-in-out infinite;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .scanline {
-      animation: none;
-      display: none;
-    }
-  }
-  @keyframes scan {
-    to {
-      left: 105%;
-    }
-  }
-  .note {
-    font-size: 0.85rem;
-    color: var(--color-limestone-dim);
-  }
-  footer {
-    padding: 1.5rem;
+    color: var(--color-jade);
     font-size: 0.8rem;
-    color: var(--color-limestone-dim);
+    letter-spacing: 0.2em;
+  }
+  h2 {
+    margin-top: 0.4rem;
+    font-size: 1.7rem;
+  }
+  .card h3 {
+    margin: 0.4rem 0 0.5rem;
+    font-size: 1.1rem;
+  }
+  .card p {
+    font-size: 0.9rem;
+  }
+  @media (max-width: 720px) {
+    .steps,
+    .grid2 {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

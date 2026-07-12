@@ -25,6 +25,11 @@ async function bootstrap(): Promise<void> {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   // correct client IPs for rate limiting behind Cloudflare/reverse proxies
   app.set('trust proxy', true);
+  // browser callers: dashboard SPA + marketing waitlist form
+  app.enableCors({
+    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  });
   app.enableShutdownHooks();
 
   const document = buildOpenApiDocument(app);

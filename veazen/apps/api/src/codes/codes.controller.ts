@@ -2,6 +2,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Get,
   NotFoundException,
   Param,
   Post,
@@ -12,7 +13,7 @@ import { IsIn, IsObject, IsOptional, IsString, Length } from 'class-validator';
 
 import { normalizeInput } from '@veazen/crypto';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,12 +38,44 @@ class BindOrderDto {
 @ApiTags('codes')
 @ApiBearerAuth()
 @Controller('codes')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class CodesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhooks: WebhookDispatcher,
   ) {}
+
+  /** Single-code lookup for the dashboard (§6 Batches page). */
+  @Get(':serial')
+  async lookup(@TenantId() tenantId: string, @Param('serial') serialRaw: string) {
+    const serial = normalizeInput(serialRaw);
+    return this.prisma.withTenant(tenantId, async (tx) => {
+      const code = await tx.code.findFirst({
+        where: { serial },
+        include: { product: { select: { name: true, sku: true } } },
+      });
+      if (!code) {
+        throw new NotFoundException('serial not found');
+      }
+      const events = await tx.scanEvent.findMany({
+        where: { codeId: code.id },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { kind: true, result: true, geo: true, locale: true, createdAt: true },
+      });
+      return {
+        serial: code.serial,
+        status: code.status,
+        flag_reason: code.flagReason,
+        first_verified_at: code.firstVerifiedAt,
+        scratch_redeemed_at: code.scratchRedeemedAt,
+        order_ref: code.orderRef,
+        product: code.product,
+        batch_id: code.batchId,
+        scan_events: events,
+      };
+    });
+  }
 
   @Post(':serial/flag')
   @Audit('code.flag')

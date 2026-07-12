@@ -10,7 +10,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
 import { IsIn, IsObject, IsOptional, IsUUID } from 'class-validator';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { BatchesService } from '../batches/batches.service';
@@ -43,7 +43,7 @@ const POOL_REFILL_QUANTITY = 100;
 @ApiTags('orders')
 @ApiBearerAuth()
 @Controller('orders')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class OrdersController {
   constructor(
     private readonly prisma: PrismaService,

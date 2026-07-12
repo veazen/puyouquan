@@ -16,6 +16,8 @@ import {
   TraceEventsController,
   WpController,
 } from './misc/misc.controllers';
+import { TenantController } from './misc/tenant.controller';
+import { WaitlistController } from './misc/waitlist.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsController } from './products/products.controller';
 import { QueuesModule } from './queues/queues.module';
@@ -51,6 +53,8 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     StatsController,
     WpController,
     SerialProfilesController,
+    TenantController,
+    WaitlistController,
   ],
   providers: [
     VerifyService,

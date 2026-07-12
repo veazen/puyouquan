@@ -30,7 +30,7 @@ import {
   Min,
 } from 'class-validator';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -72,7 +72,7 @@ class TraceEventDto {
 @ApiTags('trace-events')
 @ApiBearerAuth()
 @Controller('trace-events')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class TraceEventsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -106,7 +106,7 @@ export class TraceEventsController {
 @ApiTags('alerts')
 @ApiBearerAuth()
 @Controller('alerts')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class AlertsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -139,7 +139,7 @@ export class AlertsController {
 @ApiTags('stats')
 @ApiBearerAuth()
 @Controller('stats')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class StatsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -193,7 +193,7 @@ class HandshakeDto {
 @ApiTags('wp')
 @ApiBearerAuth()
 @Controller('wp')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class WpController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -270,7 +270,7 @@ class CreateSerialProfileDto {
 @ApiTags('serial-profiles')
 @ApiBearerAuth()
 @Controller('serial-profiles')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class SerialProfilesController {
   constructor(private readonly prisma: PrismaService) {}
 

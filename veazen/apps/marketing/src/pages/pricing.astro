@@ -1,0 +1,100 @@
+---
+import Base from '../layouts/Base.astro';
+
+// Four-tier comparison (§8 Phase 2; packaging logic per §7.6.6).
+// Dollar amounts are deliberately absent until pricing is finalized —
+// early-access cohort pricing goes through the waitlist.
+const tiers = [
+  {
+    name: 'Free',
+    tagline: 'Try it on your store',
+    features: ['500 codes / month', 'Lite mode (self-print labels)', 'First-scan lock', 'Scan analytics (30 days)', '"Powered by Veazen" badge'],
+  },
+  {
+    name: 'Starter',
+    tagline: 'For small brands shipping steadily',
+    features: ['Everything in Free', 'Higher code volume', 'Scratch hidden codes', 'Risk alerts (duplicates, geo)', 'Email support'],
+  },
+  {
+    name: 'Growth',
+    tagline: 'Serious anti-counterfeit posture',
+    features: ['Everything in Starter', 'Custom code formats', 'Verify-page theme tokens', 'Webhooks & API access', 'Reduced badge'],
+    highlight: true,
+  },
+  {
+    name: 'Enterprise',
+    tagline: 'White-label everything',
+    features: ['Everything in Growth', 'Your own verify domain', 'BYO serial import', 'Custom CSS + no badge', 'Evidence report exports', 'SLA & priority support'],
+  },
+];
+---
+
+<Base
+  title="Pricing — Veazen"
+  description="Anti-counterfeit verification plans from free self-print labels to fully white-labeled enterprise deployments."
+  path="/pricing"
+>
+  <main>
+    <p class="kicker">Pricing</p>
+    <h1>Start free. Scale to white-label.</h1>
+    <p class="dim" style="max-width:36rem; margin-top:0.6rem;">
+      Early-access cohort pricing is being finalized —
+      <a href="/#waitlist" style="color:var(--color-jade)">join the waitlist</a>
+      and we'll share it first.
+    </p>
+    <div class="tiers">
+      {tiers.map((tier) => (
+        <div class={`card tier ${tier.highlight ? 'highlight' : ''}`}>
+          <h2>{tier.name}</h2>
+          <p class="dim tagline">{tier.tagline}</p>
+          <ul>
+            {tier.features.map((f) => <li>{f}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  </main>
+</Base>
+
+<style>
+  h1 {
+    font-size: 2.2rem;
+    margin-top: 0.4rem;
+  }
+  .tiers {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .tier h2 {
+    font-size: 1.3rem;
+  }
+  .tier.highlight {
+    border-color: var(--color-jade);
+  }
+  .tagline {
+    font-size: 0.85rem;
+    min-height: 2.6em;
+    margin-top: 0.3rem;
+  }
+  ul {
+    margin: 0.8rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+    color: var(--color-limestone-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  @media (max-width: 900px) {
+    .tiers {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 560px) {
+    .tiers {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

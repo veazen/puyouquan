@@ -1,0 +1,154 @@
+---
+// Shared shell for veazen.app (§2.5 tokens; §8 Phase 2 SEO: OG + keywords).
+import '@fontsource/marcellus/400.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/ibm-plex-mono/400.css';
+
+import { tokensToCssVars } from '../tokens';
+
+interface Props {
+  title: string;
+  description: string;
+  path?: string;
+}
+
+const { title, description, path = '/' } = Astro.props;
+const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Veazen" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="theme-color" content="#16191d" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <style set:html={`:root {\n${tokensToCssVars()}\n}`}></style>
+  </head>
+  <body>
+    <nav>
+      <a class="brand" href="/">VEAZEN</a>
+      <div class="links">
+        <a href="/features">Features</a>
+        <a href="/pricing">Pricing</a>
+        <a class="cta" href="/#waitlist">Join the waitlist</a>
+      </div>
+    </nav>
+    <slot />
+    <footer>
+      <p>Veazen™ is a product of VEAZEN LLC.</p>
+      <p class="foot-links">
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
+        <a href="mailto:hello@veazen.app">hello@veazen.app</a>
+      </p>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  * {
+    margin: 0;
+    box-sizing: border-box;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-basalt);
+    color: var(--color-limestone);
+    font-family: var(--font-body);
+    line-height: 1.6;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1.25rem 1.5rem;
+  }
+  nav .brand {
+    font-family: var(--font-display);
+    letter-spacing: 0.35em;
+    font-size: 0.95rem;
+  }
+  nav .links {
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    font-size: 0.85rem;
+    color: var(--color-limestone-dim);
+  }
+  nav .links a:hover {
+    color: var(--color-limestone);
+  }
+  nav .cta {
+    border: 1px solid var(--color-jade);
+    color: var(--color-jade);
+    border-radius: 4px;
+    padding: 0.45rem 0.9rem;
+  }
+  nav .cta:hover {
+    background: var(--color-jade);
+    color: var(--color-basalt);
+  }
+  main {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  section {
+    margin-top: 3.5rem;
+  }
+  .kicker {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    font-size: 0.75rem;
+    color: var(--color-limestone-dim);
+  }
+  .card {
+    border: 1px solid var(--color-etch);
+    background: var(--color-basalt-deep);
+    border-radius: 8px;
+    padding: 1.5rem;
+  }
+  .dim {
+    color: var(--color-limestone-dim);
+  }
+  footer {
+    border-top: 1px solid var(--color-etch);
+    margin-top: 2rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--color-limestone-dim);
+  }
+  .foot-links {
+    margin-top: 0.4rem;
+  }
+  @media (max-width: 640px) {
+    nav .links {
+      gap: 0.8rem;
+    }
+  }
+</style>

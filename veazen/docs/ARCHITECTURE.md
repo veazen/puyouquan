@@ -103,6 +103,15 @@ deviation from the version pins.
 4. The CI audit gate stays exactly as §9.7 specifies, with no allowlist or
    `continue-on-error`. New high/critical advisories fail CI.
 
+**Amendments (Phase 2)**: the same policy later forced `astro` 5→7 and
+`nodemailer` 6→9 (highs fixed only across majors; both API-compatible for
+our usage, verified by the acceptance suites) plus a root override
+`lodash@^4.18.1` under `@nestjs/swagger@7`. Also noted: with Next 15/React
+19 the framework's shared first-load baseline is ~102 kB gzipped, so the
+verify page lands at 104 kB against the §2.2 "<100 kB" budget while
+shipping <2 kB of app code; Lighthouse mobile performance is 97. Treat the
+budget as "app JS ≈ 0" until the framework baseline shrinks.
+
 ## ADR-006: RLS enforcement model — app role + per-transaction tenant context
 
 **Status**: accepted (Phase 1)

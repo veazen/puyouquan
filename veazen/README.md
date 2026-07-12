@@ -18,7 +18,17 @@ decisions are recorded in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
   audit logs, daily Merkle scan digests, OpenAPI (`docs/openapi.json`).
   Acceptance: 14-test e2e suite (`apps/api$ npm run test:e2e`) and the
   ≥500 rps verify benchmark (`apps/api$ npm run build && npm run bench`).
-- Next: **Phase 2** (verify page + dashboard + marketing site v1) — §8.
+- **Phase 2 (verify page + console + marketing v1) — complete.** Consumer
+  verify page (three-state visual, next-intl en/zh/es/de/ja, GS1 route,
+  scratch redemption, Lite first-scan copy + story module), dashboard
+  (login/register with mode fork, Overview, Products, Batches incl.
+  single-code lookup + flag/unflag, Alerts, Settings incl. API keys &
+  webhooks), marketing site v1 (Astro: home/features/pricing/legal skeletons,
+  waitlist form → `POST /waitlist`). Acceptance: Playwright browser e2e
+  (`apps/web$ npx playwright test`) and Lighthouse mobile performance 97
+  on the verify page. Verify-page first-load JS is 104 kB — ~4 kB over the
+  §2.2 budget, all framework baseline (see ADR-005 note).
+- Next: **Phase 3** (WordPress plugin features 1–6 + wp-env + PHPUnit) — §8.
 
 Local services: `docker compose -f infra/docker-compose.yml up -d`, then in
 `apps/api`: `DATABASE_URL=postgres://veazen:veazen@localhost:5432/veazen npx

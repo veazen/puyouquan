@@ -25,7 +25,7 @@ import {
   Min,
 } from 'class-validator';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { BatchesService } from './batches.service';
@@ -68,7 +68,7 @@ class ActivateBatchDto {
 @ApiTags('batches')
 @ApiBearerAuth()
 @Controller('batches')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class BatchesController {
   constructor(private readonly batches: BatchesService) {}
 
@@ -82,6 +82,11 @@ export class BatchesController {
       autoActivate: dto.auto_activate,
       kind: dto.kind ?? 'bulk',
     });
+  }
+
+  @Get()
+  list(@TenantId() tenantId: string) {
+    return this.batches.list(tenantId);
   }
 
   @Get(':id')

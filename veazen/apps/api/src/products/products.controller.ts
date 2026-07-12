@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsObject, IsOptional, IsString, Length } from 'class-validator';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,7 +40,7 @@ class UpsertProductDto {
 @ApiTags('products')
 @ApiBearerAuth()
 @Controller('products')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class ProductsController {
   constructor(private readonly prisma: PrismaService) {}
 

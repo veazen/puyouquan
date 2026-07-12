@@ -53,6 +53,16 @@ export class BatchesService {
     return batch;
   }
 
+  list(tenantId: string) {
+    return this.prisma.withTenant(tenantId, (tx) =>
+      tx.batch.findMany({
+        include: { product: { select: { name: true, sku: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+    );
+  }
+
   async getWithProgress(tenantId: string, batchId: string) {
     return this.prisma.withTenant(tenantId, async (tx) => {
       const batch = await tx.batch.findFirst({ where: { id: batchId } });

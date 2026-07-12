@@ -17,7 +17,7 @@ import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsOptional, IsUrl } from 'clas
 
 import { WEBHOOK_EVENT_TYPES } from '@veazen/shared';
 
-import { ApiKeyGuard } from '../auth/api-key.guard';
+import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { EnvelopeService } from '../crypto/envelope.service';
@@ -62,7 +62,7 @@ const ENDPOINT_SELECT = {
 @ApiTags('webhooks')
 @ApiBearerAuth()
 @Controller('webhooks')
-@UseGuards(ApiKeyGuard)
+@UseGuards(TenantAuthGuard)
 export class WebhooksController {
   constructor(
     private readonly prisma: PrismaService,
