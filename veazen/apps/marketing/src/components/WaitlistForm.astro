@@ -27,6 +27,20 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'https://api.veazen.app/api/v1'
 <script>
   const form = document.getElementById('waitlist-form') as HTMLFormElement;
   const status = form.querySelector('.status') as HTMLParagraphElement;
+
+  // Until the cloud API is live, failures degrade to a prefilled mailto so
+  // no early-access lead is ever lost. Once api.veazen.app deploys, the
+  // form starts writing to the waitlist table with zero changes here.
+  function mailtoFallback(data: Record<string, FormDataEntryValue>): void {
+    status.textContent = 'Our signup service is briefly unreachable — ';
+    const link = document.createElement('a');
+    const body = `email: ${String(data.email ?? '')}\nbrand: ${String(data.brand ?? '')}\nwebsite: ${String(data.website ?? '')}\nunits/month: ${String(data.monthly_units ?? '')}`;
+    link.href = `mailto:hello@veazen.app?subject=${encodeURIComponent('Early access request')}&body=${encodeURIComponent(body)}`;
+    link.textContent = 'send us your request by email instead →';
+    link.style.color = 'var(--color-jade)';
+    status.appendChild(link);
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
@@ -46,10 +60,10 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'https://api.veazen.app/api/v1'
       } else if (res.status === 429) {
         status.textContent = 'Too many attempts — please try again in a minute.';
       } else {
-        status.textContent = 'Something went wrong — email us at hello@veazen.app.';
+        mailtoFallback(data);
       }
     } catch {
-      status.textContent = 'Network error — email us at hello@veazen.app.';
+      mailtoFallback(data);
     }
   });
 </script>
