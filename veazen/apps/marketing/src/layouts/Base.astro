@@ -30,12 +30,17 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta name="theme-color" content="#16191d" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/brand/veazen-mark-tile.svg" />
     <link rel="sitemap" href="/sitemap.xml" />
     <style set:html={`:root {\n${tokensToCssVars()}\n}`}></style>
   </head>
   <body>
     <nav>
-      <a class="brand" href="/">VEAZEN</a>
+      <a class="brand" href="/">
+        <img src="/brand/veazen-mark.svg" alt="" width="26" height="26" />
+        <span>VEAZEN</span>
+      </a>
       <div class="links">
         <a href="/features">Features</a>
         <a href="/pricing">Pricing</a>
@@ -44,6 +49,7 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
     </nav>
     <slot />
     <footer>
+      <img class="foot-mark" src="/brand/veazen-mark.svg" alt="" width="22" height="22" />
       <p>Veazen™ is a product of VEAZEN LLC.</p>
       <p class="foot-links">
         <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
@@ -87,9 +93,15 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
     padding: 1.25rem 1.5rem;
   }
   nav .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
     font-family: var(--font-display);
     letter-spacing: 0.35em;
     font-size: 0.95rem;
+  }
+  nav .brand img {
+    display: block;
   }
   nav .links {
     display: flex;
@@ -145,6 +157,11 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
   }
   .foot-links {
     margin-top: 0.4rem;
+  }
+  .foot-mark {
+    display: block;
+    margin: 0 auto 0.8rem;
+    opacity: 0.8;
   }
   @media (max-width: 640px) {
     nav .links {
