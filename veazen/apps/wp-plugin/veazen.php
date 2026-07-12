@@ -26,6 +26,13 @@ define( 'VEAZEN_VERSION', '0.1.0' );
 define( 'VEAZEN_PLUGIN_FILE', __FILE__ );
 define( 'VEAZEN_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-credentials.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-api-client.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-settings-page.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-product-sync.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-orders.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-verify-widget.php';
+require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-dashboard-widget.php';
 require_once VEAZEN_PLUGIN_DIR . 'includes/class-veazen-plugin.php';
 
 /**

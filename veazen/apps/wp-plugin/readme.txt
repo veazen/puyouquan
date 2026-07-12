@@ -8,44 +8,68 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Cloud-powered anti-counterfeit verification and product traceability for WooCommerce stores.
+One code per item. Cryptographically signed anti-counterfeit verification and traceability for WooCommerce, powered by the Veazen cloud.
 
 == Description ==
 
-Veazen connects your WooCommerce store to the Veazen cloud SaaS platform (https://veazen.app) so every product you ship can carry a cryptographically signed, individually verifiable QR code.
+Veazen gives every product you ship a unique, cryptographically signed
+verification code. Customers scan the QR (or type the code on your site) and
+instantly see whether the item is genuine — while you see every scan,
+duplicate-code alerts and gray-market signals in your Veazen console.
 
-The plugin is a shell, the cloud is the brain: serial generation, Ed25519 signing, scan analytics, and risk detection all live in the Veazen cloud. The plugin's job is to wire your store into that brain — syncing products, requesting code batches, binding serials to orders at shipping time, and giving your customers a verification entry point on your storefront.
+The plugin is a shell; the cloud is the brain. Code generation, signing,
+verification and risk analysis run in the Veazen cloud — this plugin never
+stores code plaintext or signing keys in your WordPress database.
 
-Planned features (arriving in Phase 3):
+**Features**
 
-* Connection wizard — paste an API key, and the plugin securely handshakes with the cloud.
-* Product sync — choose which WooCommerce products participate in anti-counterfeit protection.
-* Code batch requests — request signed QR serial batches and download print-ready export files.
-* Order binding — record which serials shipped with which order, straight from a barcode scanner.
-* Storefront verification — a `[veazen_verify]` shortcode and Gutenberg block for customers to check authenticity.
-* Dashboard widget — verification volume and alerts at a glance in wp-admin.
+* Connection wizard — paste one API key, done (key stored encrypted)
+* One-way product sync from WooCommerce, per-product opt-in
+* Request code batches (factory bulk with scratch codes, or Lite on-demand pools)
+* One-time CSV export with QR URLs for your printer or label sheets
+* Bind serials to orders at shipping; scan-gun friendly
+* Lite mode: one click prints a shipping label that activates and binds a code
+* `[veazen_verify]` shortcode + Gutenberg block for on-site verification
+* Dashboard widget: 7-day verifications and open risk alerts
 
-This release (0.1.0) is the plugin skeleton only: it installs and activates cleanly, declares WooCommerce HPOS compatibility, and registers a placeholder admin page. No data is sent anywhere yet.
+A Veazen account is required (free tier available) — https://veazen.app
 
-Uninstalling the plugin removes only its local WordPress options. Your cloud data — serials, batches, and scan history — is never deleted by the plugin.
+== External services ==
+
+This plugin talks to the Veazen cloud API (api.veazen.app) to sync products,
+request code batches and read statistics, authenticated with your tenant API
+key. The on-site verification widget sends the visitor's entered code
+directly from the visitor's browser to the Veazen verification endpoint.
+See https://veazen.app/privacy for the privacy policy.
 
 == Installation ==
 
-1. Upload the `veazen` folder to `/wp-content/plugins/`, or install through the WordPress Plugins screen.
-2. Activate the plugin through the Plugins screen in WordPress.
-3. Open the Veazen menu in wp-admin. The cloud-connection wizard arrives in a future release.
+1. Install and activate the plugin (WooCommerce 8+ required).
+2. Create an API key in your Veazen console (Settings → API keys).
+3. WP-Admin → Veazen → paste the key → Connect.
+4. Sync products, request a batch, print labels — first scannable code in minutes.
 
 == Frequently Asked Questions ==
 
-= Does this plugin work without WooCommerce? =
+= Do codes keep working if I deactivate the plugin? =
 
-The plugin activates without WooCommerce, but all verification and traceability features are built for WooCommerce stores (8.0 or newer).
+Yes. Verification runs in the Veazen cloud; printed codes keep verifying.
+Uninstalling the plugin never deletes any cloud data.
 
-= Is my verification data deleted when I uninstall? =
+= Does the verify widget slow down my store? =
 
-No. Uninstalling removes only local plugin settings. All cloud data stays in your Veazen account.
+No. Verification requests go straight from the visitor's browser to the
+Veazen cloud and never pass through your server.
+
+== Screenshots ==
+
+1. Connection wizard (placeholder — captured from wp-env before submission)
+2. Batch management screen (placeholder)
+3. Front-end verify widget (placeholder)
 
 == Changelog ==
 
 = 0.1.0 =
-* Initial plugin skeleton: activation-safe main file, HPOS compatibility declaration, placeholder admin page, uninstall cleanup of local options.
+* Initial release: connection wizard, product sync, code batches with CSV
+  export, order binding, Lite shipping labels, verify shortcode/block,
+  dashboard widget.

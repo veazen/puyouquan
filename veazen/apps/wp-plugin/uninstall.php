@@ -16,8 +16,11 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 
 $veazen_option_keys = array(
 	'veazen_settings',
+	'veazen_encrypted_api_key',
 );
 
 foreach ( $veazen_option_keys as $veazen_option_key ) {
 	delete_option( $veazen_option_key );
 }
+
+delete_transient( 'veazen_dashboard_stats' );

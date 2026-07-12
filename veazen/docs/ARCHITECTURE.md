@@ -103,6 +103,19 @@ deviation from the version pins.
 4. The CI audit gate stays exactly as §9.7 specifies, with no allowlist or
    `continue-on-error`. New high/critical advisories fail CI.
 
+## ADR-009: Plugin admin is server-rendered PHP for the MVP, not React
+
+**Status**: accepted (Phase 3)
+
+§2.3 specifies a React admin bundled with @wordpress/scripts. The Phase 3
+admin surface is three small screens (connection wizard, sync trigger, batch
+table) — server-rendered PHP with admin-post handlers covers them with zero
+build tooling, faster WordPress.org review, and fewer moving parts. The
+Gutenberg block registers via the classic `wp.blocks` API (no build step);
+the front-end verify widget is dependency-free vanilla JS. Revisit React +
+@wordpress/scripts when the admin grows interactive (batch progress live
+view, onboarding flow) in Phase 4+.
+
 **Amendments (Phase 2)**: the same policy later forced `astro` 5→7 and
 `nodemailer` 6→9 (highs fixed only across majors; both API-compatible for
 our usage, verified by the acceptance suites) plus a root override

@@ -31,7 +31,7 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'https://api.veazen.app/api/v1'
   // Until the cloud API is live, failures degrade to a prefilled mailto so
   // no early-access lead is ever lost. Once api.veazen.app deploys, the
   // form starts writing to the waitlist table with zero changes here.
-  function mailtoFallback(data: Record<string, FormDataEntryValue>): void {
+  function mailtoFallback(data: Record<string, unknown>): void {
     status.textContent = 'Our signup service is briefly unreachable — ';
     const link = document.createElement('a');
     const body = `email: ${String(data.email ?? '')}\nbrand: ${String(data.brand ?? '')}\nwebsite: ${String(data.website ?? '')}\nunits/month: ${String(data.monthly_units ?? '')}`;
