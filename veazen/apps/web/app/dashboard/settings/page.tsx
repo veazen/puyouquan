@@ -111,24 +111,31 @@ export default function SettingsPage() {
   const [freshSecret, setFreshSecret] = useState('');
   const [message, setMessage] = useState('');
 
+  // allSettled, not all: during a deploy window the API may briefly lack the
+  // newest endpoints (404) — the rest of the page must still render, and the
+  // failure must surface instead of an eternal "Loading…".
   const load = () =>
-    Promise.all([
+    Promise.allSettled([
       api<Me>('/tenant/me'),
       api<ApiKeyRow[]>('/auth/api-keys'),
       api<Webhook[]>('/webhooks'),
       api<Member[]>('/tenant/users'),
       api<Invite[]>('/tenant/invites'),
       api<Array<{ siteUrl: string; pluginVersion: string | null; lastSeenAt: string }>>('/tenant/sites'),
-    ])
-      .then(([m, k, w, u, inv, s]) => {
-        setMe(m);
-        setKeys(k);
-        setWebhooks(w);
-        setTeam(u);
-        setInvites(inv);
-        setSites(s);
-      })
-      .catch((e) => setMessage(friendlyMessage(e)));
+    ]).then(([m, k, w, u, inv, s]) => {
+      if (m.status === 'fulfilled') setMe(m.value);
+      if (k.status === 'fulfilled') setKeys(k.value);
+      if (w.status === 'fulfilled') setWebhooks(w.value);
+      if (u.status === 'fulfilled') setTeam(u.value);
+      if (inv.status === 'fulfilled') setInvites(inv.value);
+      if (s.status === 'fulfilled') setSites(s.value);
+      const failed = [m, k, w, u, inv, s].find(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
+      if (failed) {
+        setMessage(`Some data failed to load: ${friendlyMessage(failed.reason)}`);
+      }
+    });
 
   useEffect(() => {
     void load();
@@ -262,7 +269,26 @@ export default function SettingsPage() {
   }
 
   if (!me) {
-    return <p className="text-sm text-limestone-dim">Loading…</p>;
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-sm text-limestone-dim">{message ? 'Failed to load.' : 'Loading…'}</p>
+        {message && (
+          <>
+            <p className="text-xs text-state-warn">{message}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setMessage('');
+                void load();
+              }}
+              className={btn}
+            >
+              Retry
+            </button>
+          </>
+        )}
+      </div>
+    );
   }
 
   // E1 role gates (UI layer only — the API enforces the real matrix)
