@@ -131,4 +131,10 @@ M2 与 M3 高度重合，**必须合并开发**；M1 可独立排期。
 附带修复：告警邮件改走 Resend HTTP API（Railway 封 SMTP 端口）、
 告警邮件模板人性化（中文说明+序列号+控制台链接）。
 
-**第一批（M2+M3）已开工**（2026-07-13，依批示 D3）。
+**第一批（M2+M3）交付完成**（2026-07-13）：
+- 后端地基：状态机（retired/refurbished）、rma/release/relabel 接口、
+  lite_duplicate_scan 与 geo_velocity 抑制、邮件分级、验证页新状态五语文案
+- 操作界面：控制台 /dashboard/returns 退货核验台 + Settings 显示策略开关；
+  WP 插件「退货核验」区块（中文翻译 107 条）
+- 质量：API e2e 24 项、Playwright 3 条、PHPCS 0 错误、phpunit 13 项全绿
+- 待用户实操验收后关闭；第二批（M1a+工坊生成半区）等首个意向客户触发
