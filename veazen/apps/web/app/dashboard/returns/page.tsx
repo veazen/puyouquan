@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { api } from '../../../lib/dashboard/client';
+import CameraScanner from '../../../components/dashboard/CameraScanner';
+import { api, friendlyMessage, getRole } from '../../../lib/dashboard/client';
+import { extractSerialFromScan } from '../../../lib/scan/parse-serial';
 
 interface CodeDetail {
   serial: string;
@@ -71,6 +73,9 @@ function fmt(iso: string | null): string {
  */
 export default function ReturnsPage() {
   const [detail, setDetail] = useState<CodeDetail | null>(null);
+  const [serialInput, setSerialInput] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const [lookupError, setLookupError] = useState('');
   const [message, setMessage] = useState('');
   const [messageKind, setMessageKind] = useState<'ok' | 'error'>('ok');
@@ -78,14 +83,18 @@ export default function ReturnsPage() {
   const [newSerial, setNewSerial] = useState('');
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setRole(getRole());
+  }, []);
+  // E1: viewers are read-only — the check works, the action buttons don't
+  const canAct = role !== null && role !== 'viewer';
+
   async function refresh(serial: string): Promise<void> {
     setDetail(await api<CodeDetail>(`/codes/${encodeURIComponent(serial)}`));
   }
 
-  async function lookup(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const raw = String(new FormData(event.currentTarget).get('serial') ?? '').trim();
-    if (!raw) {
+  async function runLookup(raw: string) {
+    if (!raw.trim()) {
       return;
     }
     setDetail(null);
@@ -94,10 +103,23 @@ export default function ReturnsPage() {
     setPending(null);
     setNewSerial('');
     try {
-      await refresh(raw);
+      await refresh(raw.trim());
     } catch (e) {
-      setLookupError((e as Error).message);
+      setLookupError(friendlyMessage(e));
     }
+  }
+
+  function lookup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void runLookup(serialInput);
+  }
+
+  /** Camera hit: URL → serial, fill the box, query straight away (D2). */
+  function onScanDetect(text: string) {
+    const serial = extractSerialFromScan(text);
+    setScanning(false);
+    setSerialInput(serial);
+    void runLookup(serial);
   }
 
   async function runAction(action: Action) {
@@ -131,7 +153,7 @@ export default function ReturnsPage() {
       setNewSerial('');
       await refresh(detail.serial);
     } catch (e) {
-      setMessage(`${ACTION_COPY[action].confirm} failed: ${(e as Error).message}`);
+      setMessage(`${ACTION_COPY[action].confirm} failed: ${friendlyMessage(e)}`);
       setMessageKind('error');
       setPending(null);
     } finally {
@@ -149,13 +171,15 @@ export default function ReturnsPage() {
   const locked =
     detail !== null &&
     (detail.status === 'verified' || (detail.status === 'active' && detail.first_verified_at !== null));
-  const canRelease = detail !== null && !detail.has_scratch && locked;
+  const canRelease = canAct && detail !== null && !detail.has_scratch && locked;
   const canRma =
+    canAct &&
     detail !== null &&
     detail.status === 'verified' &&
     detail.has_scratch &&
     detail.scratch_redeemed_at !== null;
-  const canRelabel = detail !== null && (detail.status === 'active' || detail.status === 'verified');
+  const canRelabel =
+    canAct && detail !== null && (detail.status === 'active' || detail.status === 'verified');
   const readOnly = detail !== null && !canRelease && !canRma && !canRelabel;
 
   return (
@@ -169,16 +193,27 @@ export default function ReturnsPage() {
       <form onSubmit={lookup} className="flex gap-2 rounded-lg border border-etch bg-basalt-deep p-4">
         <input
           name="serial"
+          value={serialInput}
+          onChange={(e) => setSerialInput(e.target.value)}
           placeholder="Serial (any format — auto-normalized)"
           autoComplete="off"
           spellCheck={false}
           data-testid="returns-serial-input"
           className={`flex-1 font-mono ${input}`}
         />
+        <button
+          type="button"
+          onClick={() => setScanning(true)}
+          data-testid="returns-scan"
+          className="rounded border border-etch px-4 text-sm hover:border-jade hover:text-jade"
+        >
+          Scan
+        </button>
         <button className="rounded border border-etch px-4 text-sm hover:border-jade hover:text-jade">
           Check
         </button>
       </form>
+      {scanning && <CameraScanner onDetect={onScanDetect} onClose={() => setScanning(false)} />}
       {lookupError && (
         <p data-testid="returns-lookup-error" className="text-xs text-state-alert">
           Lookup failed: {lookupError}
@@ -293,7 +328,9 @@ export default function ReturnsPage() {
             )}
             {readOnly && (
               <p className="text-xs text-limestone-dim" data-testid="returns-read-only">
-                Read-only: no returns action applies to a {detail.status} code.
+                {role === 'viewer'
+                  ? 'Read-only: your viewer role can check codes but not act on them.'
+                  : `Read-only: no returns action applies to a ${detail.status} code.`}
               </p>
             )}
           </div>
