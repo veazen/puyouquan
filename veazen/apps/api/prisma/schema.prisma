@@ -219,6 +219,11 @@ model Tenant {
   name                String
   slug                String     @unique
   plan                TenantPlan @default(free)
+  /// Lemon Squeezy linkage (P1 收款闭环): written only by the billing webhook
+  lsCustomerId        String?    @map("ls_customer_id")
+  lsSubscriptionId    String?    @map("ls_subscription_id")
+  /// next renewal (renews_at) or, after cancellation, the paid-until date
+  planRenewsAt        DateTime?  @map("plan_renews_at")
   customDomain        String?    @map("custom_domain")
   publicKey           Bytes      @map("public_key")
   encryptedPrivateKey Bytes      @map("encrypted_private_key")
