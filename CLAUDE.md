@@ -34,6 +34,9 @@ veazen/
 5. Phase 4a：S3/R2 存储驱动、生产 Dockerfile、boot 迁移、部署手册 v2 + PART2、生产加固
 6. 仓库清理：已删除测试项目 `dice_game/` 及其 CI 工作流，根 README 改为 veazen 项目介绍
 7. 品牌 LOGO 接入官网（`apps/marketing/public/brand/`），官网已改为 Cloudflare Workers Builds 自动部署（推 main 自动上线 veazen.app，Worker 项目名 `veazen-site`）
+8. 官网中英双语（/zh/ + 语言建议条）；WP 插件简体中文翻译（107 条）
+9. 演示商店上线（EasyWP + WooCommerce + 插件），2026-07-13 实弹演习五项全过（扫码/刮码/二次核销警示/告警邮件/GeoIP）；告警邮件走 Resend HTTP API（Railway 封 SMTP）且已中文化
+10. 中小企业套件**第一批（M2+M3 退货全流程）交付**（2026-07-13）：retired/refurbished 状态机、rma/release/relabel 接口、控制台 /dashboard/returns 核验台、Settings 显示策略开关、插件「退货核验」区块、lite_duplicate_scan 规则、邮件分级（仅 critical 发信）——方案与批示见 `veazen/docs/SME_SUITE_PLAN_zh.md`
 
 ## 生产环境（2026-07-12 全量上线）
 
@@ -47,10 +50,13 @@ veazen/
 
 ## 待办（按优先级）
 
-1. 用户吊销聊天截图中泄露的两把 API key 并重新生成（HUMAN_TODO 有记录）
-2. 演示商店：WP 主机 → demo.veazen.app 装 WooCommerce + veazen 插件
-   （给用户保姆级步骤；WordPress.org 账号仍在等批复）
-3. 设置页等控制台 UI 细节精修（用户已提：密钥复制体验等，部分已做）
+1. **第一批实操验收**：用户用真码在控制台 Returns 页走一遍释放/翻新流程
+   （插件需更新到新版 zip：停用删除旧版→上传新包→重连 API key）
+2. **企业版路线图 E1~E6**（PD-004，`veazen/docs/PRODUCT_DECISIONS_zh.md`）：
+   权限体系+仓库账号+摄像头扫码 → 码段工坊 → 分销管理 → 产品批量导入 →
+   自定义域名落地页 → PWA。**等老板批示 E1 开工时机与 E2/E3 先后**
+3. 用户吊销聊天截图中泄露的两把 API key 并重新生成（HUMAN_TODO 有记录）
+4. WordPress.org 账号等批复；设置页等 UI 细节持续精修
 
 ## 工作约定
 
