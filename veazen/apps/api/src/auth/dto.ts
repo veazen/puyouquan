@@ -41,3 +41,15 @@ export class CreateApiKeyDto {
   @Length(1, 80)
   label!: string;
 }
+
+export class AcceptInviteDto {
+  /** 32 random bytes, base64url (43 chars) — generous bounds for safety */
+  @IsString()
+  @Length(20, 128)
+  token!: string;
+
+  /** same policy as registration (§9.3) */
+  @IsString()
+  @MinLength(10)
+  password!: string;
+}

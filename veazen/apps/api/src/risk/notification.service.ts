@@ -63,6 +63,73 @@ export class NotificationService {
     info: '提示',
   };
 
+  /**
+   * Generic transactional mail (E1): Resend HTTP API first (PaaS-safe), SMTP
+   * fallback, JSON transport in dev. Best-effort — delivery failures are
+   * logged and swallowed, never fail the calling request.
+   */
+  async sendMail(to: string, subject: string, text: string): Promise<void> {
+    try {
+      if (this.resendApiKey) {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${this.resendApiKey}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ from: NotificationService.FROM, to, subject, text }),
+        });
+        if (!res.ok) {
+          throw new Error(`Resend API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        }
+        this.logger.log(`email sent (Resend API) to ${to}: ${subject}`);
+        return;
+      }
+      const info = await this.transporter.sendMail({
+        from: NotificationService.FROM,
+        to,
+        subject,
+        text,
+      });
+      if ('message' in info) {
+        this.logger.log(`email (json transport) to ${to}: ${subject}`);
+      }
+    } catch (error) {
+      this.logger.error(`email to ${to} failed: ${(error as Error).message}`);
+    }
+  }
+
+  /** E1 team invite (PD-004) — Chinese-first bilingual copy. */
+  async sendInviteEmail(
+    to: string,
+    invite: { tenantName: string; role: string; acceptUrl: string; expiresAt: Date },
+  ): Promise<void> {
+    const roleZh: Record<string, string> = {
+      admin: '管理员',
+      viewer: '只读成员',
+      warehouse: '仓库账号（退货核验台）',
+    };
+    const subject = `[Veazen] ${invite.tenantName} 邀请你加入团队`;
+    const expires = invite.expiresAt.toISOString().slice(0, 10);
+    const text = [
+      '【Veazen 团队邀请】',
+      '',
+      `${invite.tenantName} 邀请你以「${roleZh[invite.role] ?? invite.role}」角色加入其品牌控制台。`,
+      '',
+      '请打开下面的链接设置密码，即可直接登录：',
+      invite.acceptUrl,
+      '',
+      `链接有效期至 ${expires}（7 天）。如非本人操作，请忽略此邮件。`,
+      '',
+      '——',
+      `[EN] ${invite.tenantName} invited you to join their Veazen console as "${invite.role}".`,
+      `Open the link above to set your password and sign in. The invite expires on ${expires}.`,
+      '',
+      '此邮件由 Veazen 自动发送，请勿回复。',
+    ].join('\n');
+    await this.sendMail(to, subject, text);
+  }
+
   async sendAlertEmail(
     to: string,
     alert: {
@@ -94,33 +161,6 @@ export class NotificationService {
       '',
       '此邮件由 Veazen 自动发送，请勿回复。',
     ].join('\n');
-    try {
-      if (this.resendApiKey) {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            authorization: `Bearer ${this.resendApiKey}`,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({ from: NotificationService.FROM, to, subject, text }),
-        });
-        if (!res.ok) {
-          throw new Error(`Resend API ${res.status}: ${(await res.text()).slice(0, 200)}`);
-        }
-        this.logger.log(`alert email sent (Resend API) to ${to}: ${alert.rule}`);
-        return;
-      }
-      const info = await this.transporter.sendMail({
-        from: NotificationService.FROM,
-        to,
-        subject,
-        text,
-      });
-      if ('message' in info) {
-        this.logger.log(`alert email (json transport) to ${to}: ${alert.rule}`);
-      }
-    } catch (error) {
-      this.logger.error(`alert email to ${to} failed: ${(error as Error).message}`);
-    }
+    await this.sendMail(to, subject, text);
   }
 }

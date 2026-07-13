@@ -101,6 +101,52 @@ export class AuthService {
     return { tenantId: user.tenantId, ...this.issueTokens(user.id, user.tenantId, user.role) };
   }
 
+  /**
+   * E1 team invites: redeem an invite token (public endpoint). Validates the
+   * sha256 against the pending, unexpired invite, creates the user with the
+   * invited role and signs them in. The audit row is written inside the same
+   * transaction (the interceptor cannot attribute a pre-auth request).
+   */
+  async acceptInvite(
+    token: string,
+    password: string,
+  ): Promise<{ tenantId: string; userId: string; role: string } & AuthTokens> {
+    const tokenHash = createHash('sha256').update(token, 'utf8').digest('hex');
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+
+    const created = await this.prisma.asSystem(async (tx) => {
+      const invite = await tx.invite.findUnique({ where: { tokenHash } });
+      if (!invite || invite.acceptedAt !== null || invite.expiresAt <= new Date()) {
+        // one opaque error for absent / used / expired — no probing signal
+        throw new UnauthorizedException('invalid or expired invite');
+      }
+      const existingEmail = await tx.user.findUnique({ where: { email: invite.email } });
+      if (existingEmail) {
+        throw new ConflictException('email already registered');
+      }
+      const user = await tx.user.create({
+        data: {
+          tenantId: invite.tenantId,
+          email: invite.email,
+          passwordHash,
+          role: invite.role,
+        },
+      });
+      await tx.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          tenantId: invite.tenantId,
+          actorUserId: user.id,
+          action: 'user.accept_invite',
+          target: { inviteId: invite.id, role: invite.role },
+        },
+      });
+      return { tenantId: invite.tenantId, userId: user.id, role: invite.role as string };
+    });
+
+    return { ...created, ...this.issueTokens(created.userId, created.tenantId, created.role) };
+  }
+
   async refresh(refreshToken: string): Promise<AuthTokens> {
     let payload: JwtPayload;
     try {
