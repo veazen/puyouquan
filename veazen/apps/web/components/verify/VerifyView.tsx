@@ -6,7 +6,15 @@ import type { VerifyResponse } from '@veazen/shared';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ScratchForm } from './ScratchForm';
 
-type State = 'authentic' | 'already_verified' | 'inactive' | 'flagged' | 'invalid';
+type State =
+  | 'authentic'
+  | 'already_verified'
+  | 'inactive'
+  | 'flagged'
+  | 'invalid'
+  // SME suite M2: relabelled-away old code / brand-QC resale
+  | 'retired'
+  | 'refurbished';
 
 const STATE_STYLES: Record<State, { border: string; text: string; dot: string }> = {
   authentic: { border: 'border-jade', text: 'text-jade', dot: 'bg-jade' },
@@ -18,6 +26,10 @@ const STATE_STYLES: Record<State, { border: string; text: string; dot: string }>
   inactive: { border: 'border-state-warn', text: 'text-state-warn', dot: 'bg-state-warn' },
   flagged: { border: 'border-state-alert', text: 'text-state-alert', dot: 'bg-state-alert' },
   invalid: { border: 'border-state-alert', text: 'text-state-alert', dot: 'bg-state-alert' },
+  // neutral gray — a recalled label is not a warning, just no longer in use
+  retired: { border: 'border-etch', text: 'text-limestone-dim', dot: 'bg-limestone-dim' },
+  // green with an endorsement badge — transparent history, no scary yellow
+  refurbished: { border: 'border-jade', text: 'text-jade', dot: 'bg-jade' },
 };
 
 interface VerifyViewProps {
@@ -77,6 +89,14 @@ export async function VerifyView({ serialRaw, data }: VerifyViewProps) {
       stateBody =
         data?.flag_reason === 'stolen' ? t('states.flagged.stolen') : t('states.flagged.body');
       break;
+    case 'retired':
+      stateTitle = t('states.retired.title');
+      stateBody = t('states.retired.body');
+      break;
+    case 'refurbished':
+      stateTitle = t('states.refurbished.title');
+      stateBody = t('states.refurbished.body', { count: data?.verified_history_count ?? 0 });
+      break;
     default:
       stateTitle = t('states.invalid.title');
       stateBody = t('states.invalid.body');
@@ -108,9 +128,17 @@ export async function VerifyView({ serialRaw, data }: VerifyViewProps) {
         data-result={result}
         className={`rounded-lg border ${style.border} bg-basalt-deep p-5`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
           <h1 className={`font-display text-2xl ${style.text}`}>{stateTitle}</h1>
+          {result === 'refurbished' && (
+            <span
+              data-testid="refurbished-badge"
+              className="rounded-full border border-jade/40 bg-jade/10 px-2.5 py-0.5 text-[11px] uppercase tracking-widest text-jade"
+            >
+              {t('states.refurbished.badge')}
+            </span>
+          )}
         </div>
         <p className="mt-3 text-sm leading-relaxed text-limestone-dim">{stateBody}</p>
         <div className="mt-4 border-t border-etch pt-3">
