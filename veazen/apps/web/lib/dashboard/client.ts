@@ -59,10 +59,14 @@ export function getRole(): string | null {
   }
 }
 
-/** 403s become a human sentence instead of the raw guard message. */
+/** 403/402s become a human sentence instead of the raw guard message. */
 export function friendlyMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 403) {
     return 'Your role has no permission for this — ask the account owner (403).';
+  }
+  if (error instanceof ApiError && error.status === 402) {
+    // P1 plan gates: point at the upgrade path instead of the raw API body
+    return '当前套餐不含此功能，请在 Settings → Plan & Billing 升级 — this feature requires a higher plan (402).';
   }
   return (error as Error).message;
 }

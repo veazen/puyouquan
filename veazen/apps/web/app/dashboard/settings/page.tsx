@@ -43,6 +43,16 @@ interface Member {
   role: string;
 }
 
+/** GET /billing/summary (P1) — plan, usage, upgrade links. */
+interface BillingSummary {
+  plan: string;
+  renews_at: string | null;
+  usage: { codes_this_month: number; codes_quota: number | null };
+  features: Record<string, boolean>;
+  enforcement: boolean;
+  checkout_urls: { starter?: string; growth?: string };
+}
+
 interface Invite {
   id: string;
   email: string;
@@ -107,6 +117,7 @@ export default function SettingsPage() {
   const [inviteUrls, setInviteUrls] = useState<Record<string, string>>({});
   const [copiedInvite, setCopiedInvite] = useState('');
   const [sites, setSites] = useState<Array<{ siteUrl: string; pluginVersion: string | null; lastSeenAt: string }>>([]);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [freshKey, setFreshKey] = useState('');
   const [freshSecret, setFreshSecret] = useState('');
   const [message, setMessage] = useState('');
@@ -122,14 +133,16 @@ export default function SettingsPage() {
       api<Member[]>('/tenant/users'),
       api<Invite[]>('/tenant/invites'),
       api<Array<{ siteUrl: string; pluginVersion: string | null; lastSeenAt: string }>>('/tenant/sites'),
-    ]).then(([m, k, w, u, inv, s]) => {
+      api<BillingSummary>('/billing/summary'),
+    ]).then(([m, k, w, u, inv, s, b]) => {
       if (m.status === 'fulfilled') setMe(m.value);
       if (k.status === 'fulfilled') setKeys(k.value);
       if (w.status === 'fulfilled') setWebhooks(w.value);
       if (u.status === 'fulfilled') setTeam(u.value);
       if (inv.status === 'fulfilled') setInvites(inv.value);
       if (s.status === 'fulfilled') setSites(s.value);
-      const failed = [m, k, w, u, inv, s].find(
+      if (b.status === 'fulfilled') setBilling(b.value);
+      const failed = [m, k, w, u, inv, s, b].find(
         (r): r is PromiseRejectedResult => r.status === 'rejected',
       );
       if (failed) {
@@ -324,6 +337,78 @@ export default function SettingsPage() {
           Tenant: <span className="font-mono">{me.tenant.slug}</span> · plan {me.tenant.plan} · white-label center (custom domains, serial profiles) opens in Phase 4
         </p>
       </section>
+
+      {billing && (
+        <section className="rounded-lg border border-etch bg-basalt-deep p-4" data-testid="billing-section">
+          <h2 className="text-sm text-limestone-dim">Plan &amp; Billing</h2>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span
+              className="rounded border border-jade px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-jade"
+              data-testid="billing-plan"
+            >
+              {billing.plan}
+            </span>
+            {billing.renews_at && (
+              <span className="text-xs text-limestone-dim">
+                renews {billing.renews_at.slice(0, 10)}
+              </span>
+            )}
+          </div>
+          <div className="mt-3" data-testid="billing-usage">
+            <div className="flex justify-between text-xs text-limestone-dim">
+              <span>Codes this month</span>
+              <span>
+                {billing.usage.codes_this_month.toLocaleString()} /{' '}
+                {billing.usage.codes_quota === null
+                  ? 'Unlimited'
+                  : billing.usage.codes_quota.toLocaleString()}
+              </span>
+            </div>
+            {billing.usage.codes_quota !== null && (
+              <div className="mt-1.5 h-2 overflow-hidden rounded border border-etch bg-basalt">
+                <div
+                  className="h-full rounded bg-jade"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (billing.usage.codes_this_month / billing.usage.codes_quota) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          {billing.checkout_urls.starter || billing.checkout_urls.growth ? (
+            <div className="mt-3 flex gap-2">
+              {billing.checkout_urls.starter && billing.plan === 'free' && (
+                <button
+                  type="button"
+                  onClick={() => window.open(billing.checkout_urls.starter, '_blank', 'noopener')}
+                  data-testid="billing-upgrade-starter"
+                  className={btn}
+                >
+                  Upgrade to Starter
+                </button>
+              )}
+              {billing.checkout_urls.growth &&
+                (billing.plan === 'free' || billing.plan === 'starter') && (
+                  <button
+                    type="button"
+                    onClick={() => window.open(billing.checkout_urls.growth, '_blank', 'noopener')}
+                    data-testid="billing-upgrade-growth"
+                    className={btn}
+                  >
+                    Upgrade to Growth
+                  </button>
+                )}
+            </div>
+          ) : (
+            <p className="mt-3 text-[11px] text-limestone-dim/70">
+              Paid plans are in early access — contact us to upgrade.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="rounded-lg border border-etch bg-basalt-deep p-4">
         <h2 className="text-sm text-limestone-dim">Returns display policy</h2>
