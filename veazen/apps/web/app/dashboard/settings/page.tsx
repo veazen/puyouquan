@@ -194,7 +194,13 @@ export default function SettingsPage() {
           <SecretReveal value={freshKey} hint="Copy it now — it is shown only once." testId="fresh-api-key" />
         )}
         <form onSubmit={createKey} className="mt-3 flex gap-2">
-          <input name="label" placeholder="Label (e.g. woocommerce)" className={`flex-1 ${input}`} />
+          <input
+            name="label"
+            placeholder="Label (e.g. woocommerce)"
+            autoComplete="off"
+            spellCheck={false}
+            className={`flex-1 ${input}`}
+          />
           <button className={btn}>Create key</button>
         </form>
         <ul className="mt-3 flex flex-col gap-1.5 text-xs">
@@ -227,7 +233,7 @@ export default function SettingsPage() {
           <SecretReveal value={freshSecret} hint="Webhook signing secret — shown only once." />
         )}
         <form onSubmit={createWebhook} className="mt-3 flex flex-col gap-2">
-          <input name="url" required placeholder="https://example.com/hooks/veazen" className={input} />
+          <input name="url" required placeholder="https://example.com/hooks/veazen" autoComplete="off" spellCheck={false} className={input} />
           <div className="flex flex-wrap gap-3 text-xs text-limestone-dim">
             {WEBHOOK_EVENTS.map((e) => (
               <label key={e} className="flex items-center gap-1.5">
