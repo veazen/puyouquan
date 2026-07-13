@@ -27,6 +27,8 @@ export default defineConfig({
         MASTER_KEY: process.env.MASTER_KEY ?? 'a'.repeat(64),
         JWT_SECRET: process.env.JWT_SECRET ?? 'pw-e2e-secret',
         STORAGE_DIR: '.storage-test',
+        // invite accept URLs must point at the web app under test (E1)
+        PUBLIC_VERIFY_BASE_URL: 'http://localhost:3000',
       },
     },
     {
