@@ -14,6 +14,9 @@ import { IsIn, IsObject, IsOptional, IsString, Length } from 'class-validator';
 
 import { normalizeInput } from '@veazen/crypto';
 
+import { CONSOLE_WRITE, RETURNS_READ, RETURNS_WRITE } from '../auth/permissions';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
@@ -65,7 +68,7 @@ class RelabelDto {
 @ApiTags('codes')
 @ApiBearerAuth()
 @Controller('codes')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class CodesController {
   constructor(
     private readonly prisma: PrismaService,
@@ -75,6 +78,7 @@ export class CodesController {
 
   /** Single-code lookup for the dashboard (§6 Batches page). */
   @Get(':serial')
+  @Roles(...RETURNS_READ)
   async lookup(@TenantId() tenantId: string, @Param('serial') serialRaw: string) {
     const serial = normalizeInput(serialRaw);
     return this.prisma.withTenant(tenantId, async (tx) => {
@@ -120,6 +124,7 @@ export class CodesController {
   }
 
   @Post(':serial/flag')
+  @Roles(...CONSOLE_WRITE)
   @Audit('code.flag')
   async flag(@TenantId() tenantId: string, @Param('serial') serialRaw: string, @Body() dto: FlagDto) {
     const serial = normalizeInput(serialRaw);
@@ -146,6 +151,7 @@ export class CodesController {
   }
 
   @Post(':serial/unflag')
+  @Roles(...CONSOLE_WRITE)
   @Audit('code.unflag')
   async unflag(@TenantId() tenantId: string, @Param('serial') serialRaw: string) {
     const serial = normalizeInput(serialRaw);
@@ -178,6 +184,7 @@ export class CodesController {
    * the scary yellow warning (PD-002).
    */
   @Post(':serial/rma')
+  @Roles(...RETURNS_WRITE)
   @Audit('code.rma')
   async rma(@TenantId() tenantId: string, @Param('serial') serialRaw: string, @Body() dto: RmaDto) {
     const serial = normalizeInput(serialRaw);
@@ -220,6 +227,7 @@ export class CodesController {
    * code goes back to a fresh `active` or shows as `refurbished`.
    */
   @Post(':serial/release')
+  @Roles(...RETURNS_WRITE)
   @Audit('code.release')
   async release(@TenantId() tenantId: string, @Param('serial') serialRaw: string) {
     const serial = normalizeInput(serialRaw);
@@ -310,6 +318,7 @@ export class CodesController {
    * at its successor via replaced_by (trace chain stays intact).
    */
   @Post(':serial/relabel')
+  @Roles(...RETURNS_WRITE)
   @Audit('code.relabel')
   async relabel(
     @TenantId() tenantId: string,
@@ -363,6 +372,7 @@ export class CodesController {
   }
 
   @Post(':serial/bind-order')
+  @Roles(...CONSOLE_WRITE)
   @Audit('code.bind_order')
   async bindOrder(
     @TenantId() tenantId: string,

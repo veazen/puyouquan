@@ -30,6 +30,9 @@ import {
   Min,
 } from 'class-validator';
 
+import { CONSOLE_READ, CONSOLE_WRITE } from '../auth/permissions';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
@@ -72,7 +75,8 @@ class TraceEventDto {
 @ApiTags('trace-events')
 @ApiBearerAuth()
 @Controller('trace-events')
-@UseGuards(TenantAuthGuard)
+@Roles(...CONSOLE_WRITE)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class TraceEventsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -106,11 +110,12 @@ export class TraceEventsController {
 @ApiTags('alerts')
 @ApiBearerAuth()
 @Controller('alerts')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class AlertsController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
+  @Roles(...CONSOLE_READ)
   list(@TenantId() tenantId: string, @Query('status') status?: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.alert.findMany({
@@ -122,6 +127,7 @@ export class AlertsController {
   }
 
   @Post(':id/acknowledge')
+  @Roles(...CONSOLE_WRITE)
   @HttpCode(200)
   @Audit('alert.acknowledge')
   async acknowledge(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
@@ -139,7 +145,8 @@ export class AlertsController {
 @ApiTags('stats')
 @ApiBearerAuth()
 @Controller('stats')
-@UseGuards(TenantAuthGuard)
+@Roles(...CONSOLE_READ)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class StatsController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -193,7 +200,8 @@ class HandshakeDto {
 @ApiTags('wp')
 @ApiBearerAuth()
 @Controller('wp')
-@UseGuards(TenantAuthGuard)
+@Roles(...CONSOLE_WRITE)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class WpController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -270,11 +278,12 @@ class CreateSerialProfileDto {
 @ApiTags('serial-profiles')
 @ApiBearerAuth()
 @Controller('serial-profiles')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class SerialProfilesController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
+  @Roles(...CONSOLE_READ)
   list(@TenantId() tenantId: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.serialProfile.findMany({ orderBy: { createdAt: 'desc' } }),
@@ -282,6 +291,7 @@ export class SerialProfilesController {
   }
 
   @Post()
+  @Roles(...CONSOLE_WRITE)
   @Audit('serial_profile.create')
   create(@TenantId() tenantId: string, @Body() dto: CreateSerialProfileDto) {
     if (dto.random_bits < 64) {
@@ -304,6 +314,7 @@ export class SerialProfilesController {
   }
 
   @Patch(':id')
+  @Roles(...CONSOLE_WRITE)
   @Audit('serial_profile.update')
   async update(
     @TenantId() tenantId: string,

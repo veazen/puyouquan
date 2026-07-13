@@ -17,6 +17,9 @@ import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsOptional, IsUrl } from 'clas
 
 import { WEBHOOK_EVENT_TYPES } from '@veazen/shared';
 
+import { CONSOLE_READ, CONSOLE_WRITE } from '../auth/permissions';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
@@ -62,7 +65,8 @@ const ENDPOINT_SELECT = {
 @ApiTags('webhooks')
 @ApiBearerAuth()
 @Controller('webhooks')
-@UseGuards(TenantAuthGuard)
+@Roles(...CONSOLE_WRITE)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class WebhooksController {
   constructor(
     private readonly prisma: PrismaService,
@@ -71,6 +75,7 @@ export class WebhooksController {
   ) {}
 
   @Get()
+  @Roles(...CONSOLE_READ)
   list(@TenantId() tenantId: string) {
     return this.prisma.withTenant(tenantId, (tx) =>
       tx.webhookEndpoint.findMany({ select: ENDPOINT_SELECT, orderBy: { createdAt: 'desc' } }),

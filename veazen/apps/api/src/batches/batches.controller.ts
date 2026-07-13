@@ -25,6 +25,9 @@ import {
   Min,
 } from 'class-validator';
 
+import { CONSOLE_READ, CONSOLE_WRITE } from '../auth/permissions';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
@@ -68,11 +71,12 @@ class ActivateBatchDto {
 @ApiTags('batches')
 @ApiBearerAuth()
 @Controller('batches')
-@UseGuards(TenantAuthGuard)
+@UseGuards(TenantAuthGuard, RolesGuard)
 export class BatchesController {
   constructor(private readonly batches: BatchesService) {}
 
   @Post()
+  @Roles(...CONSOLE_WRITE)
   @Audit('batch.create')
   create(@TenantId() tenantId: string, @Body() dto: CreateBatchDto) {
     return this.batches.create(tenantId, {
@@ -85,11 +89,13 @@ export class BatchesController {
   }
 
   @Get()
+  @Roles(...CONSOLE_READ)
   list(@TenantId() tenantId: string) {
     return this.batches.list(tenantId);
   }
 
   @Get(':id')
+  @Roles(...CONSOLE_READ)
   async get(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
     const batch = await this.batches.getWithProgress(tenantId, id);
     if (!batch) {
@@ -99,6 +105,7 @@ export class BatchesController {
   }
 
   @Post(':id/activate')
+  @Roles(...CONSOLE_WRITE)
   @Audit('batch.activate')
   activate(
     @TenantId() tenantId: string,
@@ -112,6 +119,7 @@ export class BatchesController {
   }
 
   @Get(':id/export')
+  @Roles(...CONSOLE_READ)
   @Audit('batch.export')
   export(
     @TenantId() tenantId: string,
