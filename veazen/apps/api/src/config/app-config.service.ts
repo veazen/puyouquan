@@ -15,6 +15,8 @@ export class AppConfigService {
   readonly smtpPort: number;
   readonly smtpUser: string | null;
   readonly smtpPass: string | null;
+  /** Resend HTTP API key — hosts like Railway block outbound SMTP ports. */
+  readonly resendApiKey: string | null;
   readonly geoipDbPath: string | null;
   readonly anonymizeIp: boolean;
   readonly storageDir: string;
@@ -43,6 +45,13 @@ export class AppConfigService {
     this.smtpPort = env.SMTP_PORT ? Number(env.SMTP_PORT) : 1025;
     this.smtpUser = env.SMTP_USER ?? null;
     this.smtpPass = env.SMTP_PASS ?? null;
+    // explicit RESEND_API_KEY wins; otherwise reuse the Resend SMTP secret,
+    // which doubles as the HTTP API key (re_…)
+    this.resendApiKey =
+      env.RESEND_API_KEY ??
+      (this.smtpHost === 'smtp.resend.com' && this.smtpPass?.startsWith('re_')
+        ? this.smtpPass
+        : null);
     this.geoipDbPath = env.GEOIP_DB_PATH ?? null;
     this.anonymizeIp = env.ANONYMIZE_IP === 'true';
     // Storage driver selection (ADR-008): S3-compatible (R2/MinIO) when the

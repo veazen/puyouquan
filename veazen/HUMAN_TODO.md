@@ -11,7 +11,9 @@
       授权后才会出现在 Railway 的仓库列表里。
 - [x] API 部署完成（2026-07-12）：`api.veazen.app/api/v1/health` 返回 ok。
       落地备忘：Neon 用不带 -pooler 的直连串；Railway 需显式设 `PORT=4000`；
-      Cloudflare 的 api 记录保持灰云（DNS only）
+      Cloudflare 的 api 记录保持灰云（DNS only）；Railway 封锁出站 SMTP
+      端口（表现为 Connection timeout），告警邮件已改走 Resend HTTP API
+      （复用 SMTP_PASS 里的 re_ 密钥，无需新变量）
 - [x] 验证页部署完成（2026-07-12）：verify.veazen.app 上线，Railway 已升级
       Hobby；web 服务同样显式设 `PORT=3000`
 - [x] 第 6 步三项确认全部通过（2026-07-12）：官网 waitlist 表单真实入库 ✓、

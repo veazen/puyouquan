@@ -101,7 +101,7 @@
 | demo 域名打不开 | Cloudflare 记录云朵要灰色；等 10 分钟；确认主机侧域名已验证 |
 | 扫码显示"未激活" | 回控制台 Batches 点 Activate all |
 | 扫码显示"无效" | 序列号复制不完整；或批次还没 ready |
-| 告警邮件没收到 | 先查垃圾箱；再查 Railway api 日志有无 `alert email ... failed` |
+| 告警邮件没收到 | 先查垃圾箱；再查 Railway api 日志有无 `alert email ... failed`；确认 Cloudflare Email Routing 已把 hello@ 转发到真实邮箱且目标已验证 |
 
 ## 花费预期
 
