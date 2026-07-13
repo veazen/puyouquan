@@ -173,6 +173,43 @@ describe('SME suite batch 1 (M2 RMA + M3 release)', () => {
     expect(stdCodes).toHaveLength(10);
   });
 
+  it('lookup exposes read-only returns-desk fields and never books a scan', async () => {
+    const liteSerial = liteSerials[5] as string;
+    const [stdSerial] = stdCodes[5] as [string, string];
+
+    // scratch presence is the release/RMA fork on the check page
+    const liteLookup = await request(http)
+      .get(`/api/v1/codes/${liteSerial}`)
+      .set(liteAuthed())
+      .expect(200);
+    expect(liteLookup.body.has_scratch).toBe(false);
+    expect(liteLookup.body.scan_count).toBe(0);
+    expect(liteLookup.body.last_scan_at).toBeNull();
+    const stdLookup = await request(http)
+      .get(`/api/v1/codes/${stdSerial}`)
+      .set(stdAuthed())
+      .expect(200);
+    expect(stdLookup.body.has_scratch).toBe(true);
+
+    // one public scan → count 1 with a timestamp …
+    await request(http).get(`/api/v1/verify/${liteSerial}`).expect(200);
+    const after = await request(http)
+      .get(`/api/v1/codes/${liteSerial}`)
+      .set(liteAuthed())
+      .expect(200);
+    expect(after.body.scan_count).toBe(1);
+    expect(after.body.last_scan_at).not.toBeNull();
+
+    // … and repeated merchant lookups stay at 1: the internal check is
+    // side-effect free (M3: no scan events, no risk, no state change)
+    const again = await request(http)
+      .get(`/api/v1/codes/${liteSerial}`)
+      .set(liteAuthed())
+      .expect(200);
+    expect(again.body.scan_count).toBe(1);
+    expect(again.body.status).toBe('active');
+  });
+
   it('① Lite code: first-scan lock → release → next scan is green again', async () => {
     const serial = liteSerials[0] as string;
 

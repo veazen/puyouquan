@@ -94,6 +94,9 @@ export class CodesController {
         take: 50,
         select: { kind: true, result: true, geo: true, locale: true, createdAt: true },
       });
+      // read-only aggregate — this internal lookup never books a scan event
+      // or touches risk (SME plan M3: check page must not alter state)
+      const scanCount = await tx.scanEvent.count({ where: { codeId: code.id } });
       return {
         serial: code.serial,
         status: code.status,
@@ -101,6 +104,11 @@ export class CodesController {
         first_verified_at: code.firstVerifiedAt,
         scratch_redeemed_at: code.scratchRedeemedAt,
         // M3 warehouse check-page fields: resale counter + relabel successor
+        // + the facts the returns desk decides on (scratch presence, scan
+        // recency) — release only ever applies to scratchless codes
+        has_scratch: code.scratchHash !== null,
+        scan_count: scanCount,
+        last_scan_at: events[0]?.createdAt ?? null,
         release_count: code.releaseCount,
         replaced_by: code.replacedBy?.serial ?? null,
         order_ref: code.orderRef,
