@@ -26,7 +26,7 @@ export class DigestService implements OnModuleInit, OnApplicationShutdown {
     private readonly prisma: PrismaService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     this.worker = new Worker(
       'scan-digest',
       async () => {
@@ -35,8 +35,15 @@ export class DigestService implements OnModuleInit, OnApplicationShutdown {
       },
       { connection: this.connection },
     );
-    // §4 scan_digests: daily at 00:10 UTC
-    await this.queue.upsertJobScheduler('daily-digest', { pattern: '10 0 * * *', tz: 'UTC' });
+    // §4 scan_digests: daily at 00:10 UTC. Deliberately NOT awaited — with
+    // Redis unreachable this command sits in ioredis' offline queue and an
+    // await would block Nest bootstrap before app.listen() (2026-07-13
+    // incident). It completes as soon as the connection comes up.
+    void this.queue
+      .upsertJobScheduler('daily-digest', { pattern: '10 0 * * *', tz: 'UTC' })
+      .catch((error: Error) =>
+        this.logger.warn(`digest scheduler registration failed: ${error.message}`),
+      );
   }
 
   async onApplicationShutdown(): Promise<void> {

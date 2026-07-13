@@ -24,8 +24,11 @@ function queueProvider(token: string, name: string) {
   providers: [
     {
       provide: BULLMQ_CONNECTION,
+      // family: 0 — dual-stack DNS; Railway's private network is IPv6-only
+      // and ioredis defaults to IPv4-only (ENOTFOUND). maxRetriesPerRequest
+      // must stay null for BullMQ workers.
       useFactory: (config: AppConfigService) =>
-        new Redis(config.redisUrl, { maxRetriesPerRequest: null }),
+        new Redis(config.redisUrl, { family: 0, maxRetriesPerRequest: null }),
       inject: [AppConfigService],
     },
     queueProvider(GENERATION_QUEUE, 'code-generation'),
