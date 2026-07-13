@@ -35,10 +35,22 @@ veazen/
 6. 仓库清理：已删除测试项目 `dice_game/` 及其 CI 工作流，根 README 改为 veazen 项目介绍
 7. 品牌 LOGO 接入官网（`apps/marketing/public/brand/`），官网已改为 Cloudflare Workers Builds 自动部署（推 main 自动上线 veazen.app，Worker 项目名 `veazen-site`）
 
+## 生产环境（2026-07-12 全量上线）
+
+- 官网 veazen.app：Cloudflare Workers Builds 自动部署（推 main 即上线）
+- API api.veazen.app：Railway（Hobby 套餐），Neon 直连串（无 -pooler）+
+  Upstash Redis + R2；显式 `PORT=4000`；Resend SMTP、MaxMind GeoIP、
+  ANONYMIZE_IP=true 均已配置；UptimeRobot 监控 health
+- 验证页/控制台 verify.veazen.app：Railway，显式 `PORT=3000`
+- Cloudflare DNS：api/verify 两条 CNAME 均为灰云（DNS only），橙云会挡
+  Railway 域名验证；Railway 部署经验教训见 `veazen/HUMAN_TODO.md` 备忘
+
 ## 待办（按优先级）
 
-1. **陪用户走 Railway 部署**：按 `veazen/docs/DEPLOY_GUIDE_zh.md` 手册，用户在 Railway 重新授权 GitHub 时需选择 veazen 组织下的仓库。用户操作遇到界面对不上会发截图求助。
-2. 部署后按手册 PART2 做验收检查。
+1. 用户吊销聊天截图中泄露的两把 API key 并重新生成（HUMAN_TODO 有记录）
+2. 演示商店：WP 主机 → demo.veazen.app 装 WooCommerce + veazen 插件
+   （给用户保姆级步骤；WordPress.org 账号仍在等批复）
+3. 设置页等控制台 UI 细节精修（用户已提：密钥复制体验等，部分已做）
 
 ## 工作约定
 

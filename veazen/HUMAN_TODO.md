@@ -19,11 +19,15 @@
 - [ ] 吊销截图中泄露的 API key（vz_CZSZYYF5…、vz_0VF1RZY4…），重新生成
       并只存密码管理器
 - [x] UptimeRobot 已添加 health 监控（2026-07-12，5 分钟间隔）
-- [ ] 按 DEPLOY_GUIDE_PART2_zh.md 完成 Resend（SPF/DKIM/DMARC）、
-      MaxMind GeoIP、ANONYMIZE_IP 三项
-- [ ] **ANONYMIZE_IP 决策记录**：选择 `______`（true/false），日期 `______`，
-      理由：＿＿＿＿（建议 true，见 PART2 ③）
+- [x] PART2 三项收尾完成（2026-07-12）：Resend 发件域已验证（DKIM/SPF/
+      DMARC 全绿，SMTP 变量已配）、MaxMind GeoIP 已装载（日志
+      `GeoLite2-City ready`）、ANONYMIZE_IP 已开启
+      （告警邮件的实弹验证留到演示商店阶段：同一码刮两次应收到邮件）
+- [x] **ANONYMIZE_IP 决策记录**：选择 `true`，日期 `2026-07-12`，
+      理由：可能被欧盟消费者扫码，GDPR 下最稳妥默认值；国家级定位与
+      风控不受影响，待正式隐私政策法务审核后按律师意见复核
 - [ ] 生产 `MASTER_KEY` 已生成并离线备份两份（丢失不可恢复）
+      ——已抄纸质备份，**请确认两份分开存放后打勾**
 
 ## 账号 / 商务（既有清单）
 
