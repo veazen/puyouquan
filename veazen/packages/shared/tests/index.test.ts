@@ -17,13 +17,30 @@ describe('code state machine (§5.3)', () => {
     expect(isValidCodeTransition('verified', 'voided')).toBe(true);
   });
 
+  it('permits the SME suite M2/M3 transitions (RMA / release / relabel)', () => {
+    // release-for-resale: digital first-scan lock is merchant-reversible
+    expect(isValidCodeTransition('verified', 'active')).toBe(true);
+    // relabel retires the old code from any sellable state
+    expect(isValidCodeTransition('active', 'retired')).toBe(true);
+    expect(isValidCodeTransition('verified', 'retired')).toBe(true);
+    expect(isValidCodeTransition('refurbished', 'retired')).toBe(true);
+    // RMA of a redeemed scratch code / release under the refurbished policy
+    expect(isValidCodeTransition('verified', 'refurbished')).toBe(true);
+    expect(isValidCodeTransition('active', 'refurbished')).toBe(true);
+  });
+
   it('rejects illegal transitions (API returns 409 for these)', () => {
     expect(isValidCodeTransition('inactive', 'verified')).toBe(false);
-    expect(isValidCodeTransition('verified', 'active')).toBe(false);
     expect(isValidCodeTransition('voided', 'active')).toBe(false);
     expect(isValidCodeTransition('inactive', 'flagged')).toBe(false);
     // §5.3 draws no flagged → voided arrow: a flagged code must be unflagged first
     expect(isValidCodeTransition('flagged', 'voided')).toBe(false);
+    // retired is terminal — a replaced label never comes back
+    expect(isValidCodeTransition('retired', 'active')).toBe(false);
+    expect(isValidCodeTransition('retired', 'refurbished')).toBe(false);
+    // refurbished never silently returns to a "fresh" look
+    expect(isValidCodeTransition('refurbished', 'active')).toBe(false);
+    expect(isValidCodeTransition('refurbished', 'verified')).toBe(false);
   });
 
   it('covers every status exactly once', () => {

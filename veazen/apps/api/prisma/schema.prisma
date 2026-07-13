@@ -62,6 +62,12 @@ enum CodeStatus {
   verified
   flagged
   voided
+  /// RMA relabel (SME suite M2): the old code after its label was replaced —
+  /// terminal, publicly shown as "recalled by the brand"
+  retired
+  /// RMA official-refurbished (M2): resold after brand QC; the verify page
+  /// shows an endorsement + verification history instead of a warning
+  refurbished
 
   @@map("code_status")
 }
@@ -90,6 +96,10 @@ enum ScanResult {
   invalid
   inactive
   flagged
+  /// scans of retired / refurbished codes get their own results (M2) so
+  /// stats and the refurbished history count stay unpolluted
+  retired
+  refurbished
 
   @@map("scan_result")
 }
@@ -117,6 +127,10 @@ enum TraceEventType {
   activated
   retail_activated
   custom
+  /// RMA / release lifecycle (SME suite M2+M3, SME_SUITE_PLAN §三)
+  returned
+  released
+  relabeled
 
   @@map("trace_event_type")
 }
@@ -139,6 +153,11 @@ enum AlertRule {
   /// auto-disable a webhook endpoint (the §4 note requires an alert but the
   /// enum lacked a fitting rule — see ARCHITECTURE.md ADR-006 appendix)
   webhook_failure
+  /// SME suite M2: a first-scan-locked Lite code was scanned again from a
+  /// different device fingerprint (same-device re-views stay silent)
+  lite_duplicate_scan
+  /// SME suite M3: the same code was released for resale ≥ 3 times
+  release_abuse
 
   @@map("alert_rule")
 }
@@ -325,14 +344,21 @@ model Code {
   prevStatus        CodeStatus? @map("prev_status")
   firstVerifiedAt   DateTime?   @map("first_verified_at")
   scratchRedeemedAt DateTime?   @map("scratch_redeemed_at")
+  /// RMA relabel (M2): after retiring, the old code points at its successor
+  /// so the trace chain stays walkable in both directions
+  replacedById      String?     @map("replaced_by_id") @db.Uuid
+  /// M3 release-for-resale counter; ≥ 3 raises a release_abuse alert
+  releaseCount      Int         @default(0) @map("release_count")
   /// bound Woo order: {site, order_id, line_item}
   orderRef          Json?       @map("order_ref")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
 
-  tenant  Tenant  @relation(fields: [tenantId], references: [id])
-  batch   Batch   @relation(fields: [batchId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  tenant     Tenant  @relation(fields: [tenantId], references: [id])
+  batch      Batch   @relation(fields: [batchId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+  replacedBy Code?   @relation("CodeReplacement", fields: [replacedById], references: [id])
+  replaces   Code[]  @relation("CodeReplacement")
 
   @@index([tenantId, batchId])
   @@index([tenantId, status])
