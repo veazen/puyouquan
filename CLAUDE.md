@@ -36,7 +36,8 @@ veazen/
 7. 品牌 LOGO 接入官网（`apps/marketing/public/brand/`），官网已改为 Cloudflare Workers Builds 自动部署（推 main 自动上线 veazen.app，Worker 项目名 `veazen-site`）
 8. 官网中英双语（/zh/ + 语言建议条）；WP 插件简体中文翻译（107 条）
 9. 演示商店上线（EasyWP + WooCommerce + 插件），2026-07-13 实弹演习五项全过（扫码/刮码/二次核销警示/告警邮件/GeoIP）；告警邮件走 Resend HTTP API（Railway 封 SMTP）且已中文化
-10. 中小企业套件**第一批（M2+M3 退货全流程）交付**（2026-07-13）：retired/refurbished 状态机、rma/release/relabel 接口、控制台 /dashboard/returns 核验台、Settings 显示策略开关、插件「退货核验」区块、lite_duplicate_scan 规则、邮件分级（仅 critical 发信）——方案与批示见 `veazen/docs/SME_SUITE_PLAN_zh.md`
+10. 中小企业套件**第一批（M2+M3 退货全流程）交付并验收关闭**（2026-07-13）：retired/refurbished 状态机、rma/release/relabel 接口、控制台 /dashboard/returns 核验台、Settings 显示策略开关、插件「退货核验」区块、lite_duplicate_scan 规则、邮件分级（仅 critical 发信）——方案与批示见 `veazen/docs/SME_SUITE_PLAN_zh.md`
+11. 企业版 **E1（权限体系+仓库账号+摄像头扫码）交付**（2026-07-13）：角色矩阵 owner/admin/viewer/warehouse + RolesGuard（未标注默认写权限，fail-closed）、团队邀请（Settings 团队区块、邀请邮件、接受页设密码直接登入、令牌 sha256+7 天+一次性）、warehouse 登录只见退货台、退货台摄像头扫码（BarcodeDetector→jsqr 兜底）；API e2e 32 项、Playwright 4 条全绿
 
 ## 生产环境（2026-07-12 全量上线）
 
@@ -52,11 +53,12 @@ veazen/
 
 ## 待办（按优先级）
 
-1. **第一批实操验收**：用户用真码在控制台 Returns 页走一遍释放/翻新流程
-   （插件需更新到新版 zip：停用删除旧版→上传新包→重连 API key）
-2. **企业版路线图 E1~E6**（PD-004，`veazen/docs/PRODUCT_DECISIONS_zh.md`）：
-   权限体系+仓库账号+摄像头扫码 → 码段工坊 → 分销管理 → 产品批量导入 →
-   自定义域名落地页 → PWA。**等老板批示 E1 开工时机与 E2/E3 先后**
+1. **E1 实操验收**：等 Railway 自动部署完成后，用户在 Settings→团队
+   邀请一个 warehouse 账号，换浏览器打开邀请链接设密码登录，确认只见
+   退货台，并用摄像头扫一枚真码
+2. **企业版路线图 E2~E6**（PD-004，`veazen/docs/PRODUCT_DECISIONS_zh.md`）：
+   码段工坊 → 分销管理 → 产品批量导入 → 自定义域名落地页 → PWA。
+   **E2/E3 先后等老板批示**（E2 等首个意向客户触发）
 3. 用户吊销聊天截图中泄露的两把 API key 并重新生成（HUMAN_TODO 有记录）
 4. **韧性加固**：Redis 断连时 API 应降级运行（验证页可用、队列重连），
    而非整体崩溃——2026-07-13 Upstash 配额事故暴露，待排期
