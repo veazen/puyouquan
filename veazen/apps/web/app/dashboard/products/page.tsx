@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { api } from '../../../lib/dashboard/client';
+import { api, friendlyMessage } from '../../../lib/dashboard/client';
 
 interface Product {
   id: string;
@@ -21,7 +21,7 @@ export default function ProductsPage() {
   const load = () =>
     api<Product[]>('/products')
       .then(setProducts)
-      .catch((e: Error) => setError(e.message));
+      .catch((e) => setError(friendlyMessage(e)));
 
   useEffect(() => {
     void load();
@@ -46,7 +46,7 @@ export default function ProductsPage() {
       form.reset();
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyMessage(e));
     } finally {
       setBusy(false);
     }

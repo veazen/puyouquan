@@ -40,6 +40,33 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Console role from the access JWT's `role` claim (E1). Pure UI hint — the
+ * API enforces the real matrix; no signature check needed here.
+ */
+export function getRole(): string | null {
+  const { access } = getTokens();
+  if (!access) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(
+      atob(access.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { role?: string };
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 403s become a human sentence instead of the raw guard message. */
+export function friendlyMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 403) {
+    return 'Your role has no permission for this — ask the account owner (403).';
+  }
+  return (error as Error).message;
+}
+
 async function tryRefresh(): Promise<boolean> {
   const { refresh } = getTokens();
   if (!refresh) {

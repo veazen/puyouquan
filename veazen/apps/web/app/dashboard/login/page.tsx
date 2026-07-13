@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { apiBase } from '../../../lib/api';
-import { setTokens } from '../../../lib/dashboard/client';
+import { getRole, setTokens } from '../../../lib/dashboard/client';
 
 /** Login / registration with the §7.5 onboarding mode fork. */
 export default function LoginPage() {
@@ -35,7 +35,8 @@ export default function LoginPage() {
         return;
       }
       setTokens(body.accessToken, body.refreshToken);
-      router.replace('/dashboard');
+      // E1: warehouse accounts land on their whole console — the Returns desk
+      router.replace(getRole() === 'warehouse' ? '/dashboard/returns' : '/dashboard');
     } catch {
       setError('network error');
     } finally {

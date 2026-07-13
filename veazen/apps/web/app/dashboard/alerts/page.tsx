@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { api } from '../../../lib/dashboard/client';
+import { api, friendlyMessage } from '../../../lib/dashboard/client';
 
 interface Alert {
   id: string;
@@ -28,7 +28,7 @@ export default function AlertsPage() {
   const load = (all: boolean) =>
     api<Alert[]>(`/alerts${all ? '' : '?status=open'}`)
       .then(setAlerts)
-      .catch((e: Error) => setError(e.message));
+      .catch((e) => setError(friendlyMessage(e)));
 
   useEffect(() => {
     void load(showAll);
@@ -39,7 +39,7 @@ export default function AlertsPage() {
       await api(`/alerts/${id}/acknowledge`, { method: 'POST', body: {} });
       await load(showAll);
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyMessage(e));
     }
   }
 

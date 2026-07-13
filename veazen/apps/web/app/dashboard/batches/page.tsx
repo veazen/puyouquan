@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { api } from '../../../lib/dashboard/client';
+import { api, friendlyMessage } from '../../../lib/dashboard/client';
 import { apiBase } from '../../../lib/api';
 
 interface Product {
@@ -46,7 +46,7 @@ export default function BatchesPage() {
         setProducts(p);
         setBatches(b);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e) => setError(friendlyMessage(e)));
 
   useEffect(() => {
     void load();
@@ -74,7 +74,7 @@ export default function BatchesPage() {
       form.reset();
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyMessage(e));
     }
   }
 
@@ -84,7 +84,7 @@ export default function BatchesPage() {
       await api(`/batches/${id}/activate`, { method: 'POST', body: { all: true } });
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyMessage(e));
     }
   }
 
@@ -95,7 +95,7 @@ export default function BatchesPage() {
       window.open(`${apiBase()}${res.downloadPath}`, '_blank');
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyMessage(e));
     }
   }
 
@@ -107,7 +107,7 @@ export default function BatchesPage() {
     try {
       setLookup(await api<CodeDetail>(`/codes/${encodeURIComponent(raw)}`));
     } catch (e) {
-      setLookupError((e as Error).message);
+      setLookupError(friendlyMessage(e));
     }
   }
 
@@ -120,7 +120,7 @@ export default function BatchesPage() {
       });
       setLookup(await api<CodeDetail>(`/codes/${serial}`));
     } catch (e) {
-      setLookupError((e as Error).message);
+      setLookupError(friendlyMessage(e));
     }
   }
 

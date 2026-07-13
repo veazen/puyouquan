@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { api } from '../../lib/dashboard/client';
+import { api, friendlyMessage } from '../../lib/dashboard/client';
 
 interface Overview {
   scan_count_30d: number;
@@ -20,7 +20,7 @@ export default function OverviewPage() {
   useEffect(() => {
     api<Overview>('/stats/overview')
       .then(setData)
-      .catch((e: Error) => setError(e.message));
+      .catch((e) => setError(friendlyMessage(e)));
   }, []);
 
   if (error) {
