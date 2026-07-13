@@ -12,8 +12,12 @@
 - [x] API 部署完成（2026-07-12）：`api.veazen.app/api/v1/health` 返回 ok。
       落地备忘：Neon 用不带 -pooler 的直连串；Railway 需显式设 `PORT=4000`；
       Cloudflare 的 api 记录保持灰云（DNS only）
-- [ ] 验证页部署（DEPLOY_GUIDE 第 5 步）+ 绑定 verify.veazen.app
-      ⚠️ 需先升级 Railway Hobby 套餐（试用版只能绑 1 个自定义域名）
+- [x] 验证页部署完成（2026-07-12）：verify.veazen.app 上线，Railway 已升级
+      Hobby；web 服务同样显式设 `PORT=3000`
+- [x] 第 6 步三项确认全部通过（2026-07-12）：官网 waitlist 表单真实入库 ✓、
+      品牌账号注册 ✓、API key 生成 ✓（截图泄露的两把 key 待吊销，见下）
+- [ ] 吊销截图中泄露的 API key（vz_CZSZYYF5…、vz_0VF1RZY4…），重新生成
+      并只存密码管理器
 - [x] UptimeRobot 已添加 health 监控（2026-07-12，5 分钟间隔）
 - [ ] 按 DEPLOY_GUIDE_PART2_zh.md 完成 Resend（SPF/DKIM/DMARC）、
       MaxMind GeoIP、ANONYMIZE_IP 三项
