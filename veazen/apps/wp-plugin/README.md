@@ -12,11 +12,13 @@ anti-counterfeit cloud platform. See `PROJECT_PLAN.md` §2.3 and §7 at the mono
 - `readme.txt` — WordPress.org readme stub.
 - `phpcs.xml.dist` — WordPress Coding Standards + PHPCompatibilityWP (PHP 8.1+) ruleset.
 
-## Status: Phase 0
+## Status: Phase 3 complete
 
-Skeleton only. It activates cleanly and registers a placeholder admin page.
-Real features (connection wizard, product sync, batch requests, order binding,
-`[veazen_verify]` shortcode/block, dashboard widget) arrive in Phase 3.
+Full feature set: connection wizard (encrypted credentials), product sync,
+batch requests, order binding, `[veazen_verify]` shortcode/block, dashboard
+widget, i18n POT. Build the installable zip with `npm run plugin:zip`
+(outputs `dist/veazen.zip`). Demo-store walkthrough:
+`docs/DEMO_STORE_GUIDE_zh.md` at the monorepo docs root.
 
 ## Development
 

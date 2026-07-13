@@ -26,8 +26,7 @@
 - [x] **ANONYMIZE_IP 决策记录**：选择 `true`，日期 `2026-07-12`，
       理由：可能被欧盟消费者扫码，GDPR 下最稳妥默认值；国家级定位与
       风控不受影响，待正式隐私政策法务审核后按律师意见复核
-- [ ] 生产 `MASTER_KEY` 已生成并离线备份两份（丢失不可恢复）
-      ——已抄纸质备份，**请确认两份分开存放后打勾**
+- [x] 生产 `MASTER_KEY` 已生成并离线备份两份（2026-07-12，用户确认）
 
 ## 账号 / 商务（既有清单）
 
@@ -39,7 +38,7 @@
 - [x] Neon / Upstash / Railway 账号注册
 - [ ] WordPress.org 账号（用户名 `veazen`）——申请中，等批复
 - [ ] 演示商店：WP 主机（$5-15/月）→ demo.veazen.app 装 WooCommerce + 插件
-      （等 API 上线 + Claude 给保姆级步骤）
+      （保姆级手册已就绪：`docs/DEMO_STORE_GUIDE_zh.md`，2026-07-13）
 - [ ] 4–6 字符超短 QR 跳转域选购；商标下证后防御性注册 veazen.net/.io
 - [ ] 商标：VEAZEN（第 9、42 类），律师检索要点见 PROJECT_PLAN §12
 - [ ] Stripe：法律名 VEAZEN LLC，公开业务名 VEAZEN
