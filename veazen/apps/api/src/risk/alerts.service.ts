@@ -43,10 +43,17 @@ export class AlertsService {
       tx.user.findFirst({ where: { role: 'owner' }, select: { email: true } }),
     );
     if (owner) {
+      // enrich the email with the human-readable serial when available
+      const code = input.codeId
+        ? await this.prisma.withTenant(tenantId, (tx) =>
+            tx.code.findUnique({ where: { id: input.codeId }, select: { serial: true } }),
+          )
+        : null;
       await this.notifications.sendAlertEmail(owner.email, {
         rule: input.rule,
         severity: input.severity,
         payload: input.payload ?? {},
+        serial: code?.serial ?? null,
       });
     }
 
