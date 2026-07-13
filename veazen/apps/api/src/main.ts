@@ -19,7 +19,9 @@ export function buildOpenApiDocument(app: Parameters<typeof SwaggerModule.create
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: keep the original request bytes for webhook HMAC verification
+  // (Lemon Squeezy X-Signature, billing.controller) — other routes unaffected
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   app.setGlobalPrefix('api/v1');
   // §9.3: validate every input; strip unknown fields
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
