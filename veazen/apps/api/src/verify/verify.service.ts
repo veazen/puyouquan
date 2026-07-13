@@ -11,7 +11,14 @@ import { RISK_QUEUE } from '../queues/queues.module';
 import { WebhookDispatcher } from '../webhooks/webhook.dispatcher';
 import type { ScanContext } from './scan-context.service';
 
-type ScanResultValue = 'ok' | 'already_verified' | 'invalid' | 'inactive' | 'flagged';
+type ScanResultValue =
+  | 'ok'
+  | 'already_verified'
+  | 'invalid'
+  | 'inactive'
+  | 'flagged'
+  | 'retired'
+  | 'refurbished';
 
 export interface RiskEvalJob {
   tenantId: string;
@@ -20,6 +27,9 @@ export interface RiskEvalJob {
   kind: 'public_scan' | 'scratch_verify';
   result: ScanResultValue;
   country: string | null;
+  /** current scan's device fingerprint — lite_duplicate_scan compares it
+   *  against the first-scan lock's fingerprint (M2 risk rule) */
+  deviceFp: string | null;
   duplicateScratch?: boolean;
 }
 
@@ -69,7 +79,7 @@ export class VerifyService {
       if (!code) {
         return null;
       }
-      const [priorScan, trace] = await Promise.all([
+      const [priorScan, trace, verifiedHistory] = await Promise.all([
         // EXISTS, not COUNT — the hint only needs "was there a prior ok scan"
         tx.scanEvent.findFirst({
           where: { codeId: code.id, kind: 'public_scan', result: 'ok' },
@@ -86,15 +96,26 @@ export class VerifyService {
           orderBy: { occurredAt: 'asc' },
           take: 50,
         }),
+        // M2 refurbished endorsement: verification history before the QC
+        // resale = scratch redemption + every "already verified" view.
+        // Post-refurbish scans book result=refurbished, so the count is stable.
+        code.status === 'refurbished'
+          ? tx.scanEvent.count({
+              where: {
+                codeId: code.id,
+                OR: [{ kind: 'scratch_verify', result: 'ok' }, { result: 'already_verified' }],
+              },
+            })
+          : Promise.resolve(null),
       ]);
-      return { code, scannedBefore: priorScan !== null, trace };
+      return { code, scannedBefore: priorScan !== null, trace, verifiedHistory };
     });
     if (!read) {
       // unattributable probe: no tenant to book the event under; the
       // cross-tenant invalid_serial_probe_source signal (Phase 4) covers this
       return invalidResponse();
     }
-    const { code, scannedBefore, trace } = read;
+    const { code, scannedBefore, trace, verifiedHistory } = read;
 
     const sigOk =
       sig === undefined ||
@@ -120,6 +141,16 @@ export class VerifyService {
         case 'voided':
           result = 'invalid';
           scanResult = 'invalid';
+          break;
+        case 'retired':
+          // M2 relabel: neutral "recalled by the brand", not a warning
+          result = 'retired';
+          scanResult = 'retired';
+          break;
+        case 'refurbished':
+          // M2 official refurbished: brand endorsement + history count
+          result = 'refurbished';
+          scanResult = 'refurbished';
           break;
         case 'verified':
           result = 'already_verified';
@@ -172,6 +203,7 @@ export class VerifyService {
         kind: 'public_scan',
         result: scanResult,
         country: ctx.geo?.country ?? null,
+        deviceFp: ctx.deviceFp,
       });
     }
     if (!sigOk) {
@@ -181,6 +213,7 @@ export class VerifyService {
     return {
       result,
       ...(code.status === 'flagged' && code.flagReason ? { flag_reason: code.flagReason } : {}),
+      ...(result === 'refurbished' ? { verified_history_count: verifiedHistory ?? 0 } : {}),
       product: {
         name: code.product.name,
         images: (code.product.images as string[] | null) ?? [],
@@ -222,11 +255,23 @@ export class VerifyService {
           : null;
       return { code, firstOkScan };
     });
-    if (!read || !read.code.scratchHash) {
+    if (!read) {
       return { result: 'invalid' };
     }
     const { code, firstOkScan } = read;
-    const scratchHash = read.code.scratchHash;
+
+    // M2: a retired label reads "recalled", a refurbished one keeps its
+    // endorsement — no scratch semantics on either (before the scratchHash
+    // check so relabelled Lite codes answer consistently too)
+    if (code.status === 'retired' || code.status === 'refurbished') {
+      await this.recordScan(code, 'scratch_verify', code.status, ctx);
+      return { result: code.status };
+    }
+
+    if (!code.scratchHash) {
+      return { result: 'invalid' };
+    }
+    const scratchHash = code.scratchHash;
 
     if (code.status === 'verified') {
       // duplicate redemption attempt → §5.4 rule 1 (critical alert)
@@ -238,6 +283,7 @@ export class VerifyService {
         kind: 'scratch_verify',
         result: 'already_verified',
         country: ctx.geo?.country ?? null,
+        deviceFp: ctx.deviceFp,
         duplicateScratch: true,
       });
       await this.webhooks.dispatch(code.tenantId, 'code.duplicate_attempt', {

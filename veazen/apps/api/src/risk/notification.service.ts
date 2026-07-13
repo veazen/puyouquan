@@ -47,6 +47,14 @@ export class NotificationService {
       zh: '疑似窜货 —— 该批次大量扫码来自目标市场之外',
       en: 'Possible gray-market diversion — many scans of this batch come from outside the target market',
     },
+    lite_duplicate_scan: {
+      zh: '锁定码被他人再次扫描 —— 已首扫锁定的码出现来自不同设备的再次扫码，标签可能被复制',
+      en: 'A first-scan-locked code was rescanned from a different device — the label may have been copied',
+    },
+    release_abuse: {
+      zh: '同一枚码被多次释放再售 —— 释放次数达到阈值，请核实退货流程是否被滥用',
+      en: 'The same code was released for resale repeatedly — release count hit the threshold; check for RMA abuse',
+    },
   };
 
   private static readonly SEVERITY_ZH: Record<string, string> = {

@@ -16,6 +16,11 @@ export interface RaiseAlertInput {
 /**
  * Alert fan-out (§5.4): alerts row + owner email (NotificationService) +
  * `alert.created` webhook event.
+ *
+ * Email severity policy (SME suite batch 1 decision, 2026-07-13): only
+ * `critical` alerts email the owner — warning/info stay in the dashboard and
+ * the webhook fan-out. Keeps warning-class rules (lite_duplicate_scan,
+ * release_abuse, geo_velocity, …) from causing alert fatigue.
  */
 @Injectable()
 export class AlertsService {
@@ -39,9 +44,12 @@ export class AlertsService {
       }),
     );
 
-    const owner = await this.prisma.withTenant(tenantId, (tx) =>
-      tx.user.findFirst({ where: { role: 'owner' }, select: { email: true } }),
-    );
+    const owner =
+      input.severity === 'critical'
+        ? await this.prisma.withTenant(tenantId, (tx) =>
+            tx.user.findFirst({ where: { role: 'owner' }, select: { email: true } }),
+          )
+        : null;
     if (owner) {
       // enrich the email with the human-readable serial when available
       const code = input.codeId
