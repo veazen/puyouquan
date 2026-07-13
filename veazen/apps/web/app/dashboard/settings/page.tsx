@@ -10,7 +10,13 @@ interface Me {
     name: string;
     slug: string;
     plan: string;
-    settings: { mode?: string; brandColor?: string; logoUrl?: string; story?: { title?: string; body?: string } };
+    settings: {
+      mode?: string;
+      brandColor?: string;
+      logoUrl?: string;
+      story?: { title?: string; body?: string };
+      rma_display_policy?: string;
+    };
   };
   user: { email: string; role: string } | null;
 }
@@ -125,6 +131,22 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveReturnsPolicy(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const policy = String(new FormData(event.currentTarget).get('rma_display_policy') ?? 'fresh');
+    setMessage('');
+    try {
+      await api('/tenant/settings', {
+        method: 'PATCH',
+        body: { settings: { rma_display_policy: policy } },
+      });
+      setMessage('Returns display policy saved.');
+      await load();
+    } catch (e) {
+      setMessage(`Returns policy save failed: ${(e as Error).message}`);
+    }
+  }
+
   async function createKey(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -186,6 +208,28 @@ export default function SettingsPage() {
         <p className="mt-2 text-[11px] text-limestone-dim/70">
           Tenant: <span className="font-mono">{me.tenant.slug}</span> · plan {me.tenant.plan} · white-label center (custom domains, serial profiles) opens in Phase 4
         </p>
+      </section>
+
+      <section className="rounded-lg border border-etch bg-basalt-deep p-4">
+        <h2 className="text-sm text-limestone-dim">Returns display policy</h2>
+        <p className="mt-1 text-[11px] text-limestone-dim/70">
+          What the verify page shows after a returned item is released for resale (Returns desk):
+          a fresh first scan, or an &quot;officially refurbished&quot; endorsement with the
+          verification history.
+        </p>
+        <form onSubmit={saveReturnsPolicy} className="mt-3 flex gap-2">
+          <select
+            name="rma_display_policy"
+            key={me.tenant.settings.rma_display_policy ?? 'fresh'}
+            defaultValue={me.tenant.settings.rma_display_policy ?? 'fresh'}
+            data-testid="rma-display-policy"
+            className={`flex-1 ${input}`}
+          >
+            <option value="fresh">Fresh (default) — released codes scan green as new</option>
+            <option value="refurbished">Refurbished — released codes show the brand endorsement</option>
+          </select>
+          <button className={btn}>Save policy</button>
+        </form>
       </section>
 
       <section className="rounded-lg border border-etch bg-basalt-deep p-4">
