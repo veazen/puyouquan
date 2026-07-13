@@ -46,14 +46,17 @@
       （保姆级手册已就绪：`docs/DEMO_STORE_GUIDE_zh.md`，2026-07-13）
 - [ ] 4–6 字符超短 QR 跳转域选购；商标下证后防御性注册 veazen.net/.io
 - [ ] 商标：VEAZEN（第 9、42 类），律师检索要点见 PROJECT_PLAN §12
-- [ ] 收款通道：法律名 VEAZEN LLC，公开业务名 VEAZEN。
-      ⚠️ 2026-07-13 Stripe 注册受阻：经营地址不接受 PMB 私人信箱
-      （931 10th St PMB 96122 被拒），必须填真实办公地址；切勿去掉
-      PMB 硬填——核验不符会冻结资金 90~180 天。备选：Lemon Squeezy /
-      Paddle（记录商户模式，免美国实体地址，代缴销售税，费率约 5%）。
-      Wise Business 只做收提现+换汇的落地账户，不能做网站收款，
-      值得单独开一个。等老板定：有真实美国经营地址→Stripe；
-      没有→Lemon Squeezy（建议）
+- [ ] 收款通道 **已定 Lemon Squeezy**（2026-07-13 老板批示，方案 B）。
+      背景：Stripe 经营地址不接受 PMB 私人信箱（切勿去掉 PMB 硬填——
+      核验不符会冻资金 90~180 天）；LS 为记录商户模式，免美国实体
+      地址且代缴销售税。用户待办：
+      1. lemonsqueezy.com 注册 → 创建 Store（名 Veazen，网站
+         https://veazen.app）→ 等审核（约 1-2 个工作日）
+      2. 审核过后取三样进 Railway API 服务变量：API key、Store ID、
+         Webhook signing secret（精确路径见 docs/BILLING_SETUP_zh.md，
+         开发完成后提供）
+      3. Wise Business 注册（wise.com → Business，VEAZEN LLC 资料）
+         → 开 USD 账户拿 ACH 收款号 → 填入 LS 的 Payouts 提现设置
 - [ ] 加州 foreign qualification + BOI 申报确认（如实际运营地在加州）
 - [ ] GDPR 隐私政策与 DPA 法务审核（覆盖 device_fp 与跨租户风控）
 - [ ] 第三方渗透测试采购（上线前）
