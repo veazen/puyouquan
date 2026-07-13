@@ -320,6 +320,8 @@ final class Veazen_Settings_Page {
 			<h2><?php esc_html_e( 'Code batches', 'veazen' ); ?></h2>
 			<?php self::render_batches_section(); ?>
 
+			<?php Veazen_Returns::render_section(); ?>
+
 			<h2><?php esc_html_e( 'Disconnect', 'veazen' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'veazen_disconnect' ); ?>

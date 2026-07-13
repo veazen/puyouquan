@@ -42,6 +42,7 @@ final class Veazen_Plugin {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
 		Veazen_Settings_Page::init();
+		Veazen_Returns::init();
 		Veazen_Product_Sync::init();
 		Veazen_Orders::init();
 		Veazen_Verify_Widget::init();

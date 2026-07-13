@@ -98,3 +98,4 @@ function wp_remote_retrieve_body( $response ) {
 
 require_once dirname( __DIR__ ) . '/includes/class-veazen-credentials.php';
 require_once dirname( __DIR__ ) . '/includes/class-veazen-api-client.php';
+require_once dirname( __DIR__ ) . '/includes/class-veazen-returns.php';
