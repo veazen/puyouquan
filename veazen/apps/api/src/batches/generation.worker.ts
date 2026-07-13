@@ -8,6 +8,7 @@ import { AppConfigService } from '../config/app-config.service';
 import { CodeSigningService } from '../codes/code-signing.service';
 import { EnvelopeService } from '../crypto/envelope.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { tryQueueAdd } from '../queues/queue-add';
 import { BULLMQ_CONNECTION, GENERATION_QUEUE } from '../queues/queues.module';
 import { StorageService } from '../storage/storage.service';
 import { buildQrUrl } from './qr-url';
@@ -61,11 +62,19 @@ export class GenerationWorker implements OnModuleInit, OnApplicationShutdown {
   }
 
   async enqueue(job: GenerationJob): Promise<void> {
-    await this.queue.add('generate', job, {
+    const enqueued = await tryQueueAdd(this.queue, 'generate', job, {
       removeOnComplete: 100,
       removeOnFail: 100,
       attempts: 3,
     });
+    if (!enqueued) {
+      // batch creation must not hang on a Redis outage: the batch row stays
+      // `pending` and generation starts when the connection recovers (offline
+      // queue flush). Lost only if the process restarts first — hence ERROR.
+      this.logger.error(
+        `batch ${job.batchId}: generation job not durably queued (redis degraded) — stays pending until redis recovers`,
+      );
+    }
   }
 
   async process({ batchId, tenantId }: GenerationJob): Promise<void> {

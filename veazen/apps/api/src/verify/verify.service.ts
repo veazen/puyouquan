@@ -7,6 +7,7 @@ import type { VerifyResponse } from '@veazen/shared';
 import { CodeSigningService } from '../codes/code-signing.service';
 import { EnvelopeService } from '../crypto/envelope.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { tryQueueAdd } from '../queues/queue-add';
 import { RISK_QUEUE } from '../queues/queues.module';
 import { WebhookDispatcher } from '../webhooks/webhook.dispatcher';
 import type { ScanContext } from './scan-context.service';
@@ -196,7 +197,9 @@ export class VerifyService {
     }
 
     if (sigOk) {
-      await this.riskQueue.add('scan', {
+      // best-effort: a Redis outage must not block the consumer verify path;
+      // the scan_event row above is the durable record either way
+      await tryQueueAdd(this.riskQueue, 'scan', {
         tenantId: code.tenantId,
         codeId: code.id,
         batchId: code.batchId,
@@ -276,7 +279,7 @@ export class VerifyService {
     if (code.status === 'verified') {
       // duplicate redemption attempt → §5.4 rule 1 (critical alert)
       await this.recordScan(code, 'scratch_verify', 'already_verified', ctx);
-      await this.riskQueue.add('scan', {
+      await tryQueueAdd(this.riskQueue, 'scan', {
         tenantId: code.tenantId,
         codeId: code.id,
         batchId: code.batchId,

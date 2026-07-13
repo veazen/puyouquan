@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { tryQueueAdd } from '../queues/queue-add';
 import { WEBHOOK_QUEUE } from '../queues/queues.module';
 
 export interface WebhookJob {
@@ -48,7 +49,10 @@ export class WebhookDispatcher {
           },
         }),
       );
-      await this.queue.add(
+      // best-effort: the delivery row is the durable record; if Redis is
+      // down the offline-queued command still delivers on reconnect
+      await tryQueueAdd(
+        this.queue,
         'deliver',
         { deliveryId: delivery.id, tenantId, endpointId: endpoint.id },
         { removeOnComplete: 1000, removeOnFail: 1000 },
