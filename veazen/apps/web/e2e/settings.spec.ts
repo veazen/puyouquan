@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
 /** Settings page acceptance: API key lifecycle through the real stack. */
 test('settings: create + revoke an API key via the UI', async ({ page }) => {
   const run = Date.now().toString(36);
@@ -34,5 +36,12 @@ test('settings: create + revoke an API key via the UI', async ({ page }) => {
   console.log('[repro] browser errors:', JSON.stringify(errors));
 
   await expect(page.locator('[data-testid="fresh-api-key"]')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('[data-testid="fresh-api-key"]')).toContainText('vz_');
+
+  // the key box holds ONLY the key (hint lives outside the <code> element),
+  // and the copy button puts exactly the key on the clipboard
+  const keyText = await page.locator('[data-testid="fresh-api-key"] code').innerText();
+  expect(keyText).toMatch(/^vz_[A-Za-z0-9]+$/);
+  await page.getByRole('button', { name: 'Copy', exact: true }).click();
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clipboard).toBe(keyText);
 });

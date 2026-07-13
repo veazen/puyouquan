@@ -44,6 +44,31 @@ const input =
 const btn =
   'rounded border border-etch px-3 py-1.5 text-xs hover:border-jade hover:text-jade';
 
+/** One-time secret reveal: the value alone in a copy-safe box + copy button. */
+function SecretReveal({ value, hint, testId }: { value: string; hint: string; testId?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-2 rounded border border-jade bg-basalt p-2" data-testid={testId}>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 break-all font-mono text-xs text-jade">{value}</code>
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard.writeText(value).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="shrink-0 rounded border border-jade px-2.5 py-1 text-xs text-jade hover:bg-jade hover:text-basalt"
+        >
+          {copied ? 'Copied ✓' : 'Copy'}
+        </button>
+      </div>
+      <p className="mt-1.5 text-[11px] text-limestone-dim">{hint}</p>
+    </div>
+  );
+}
+
 /** Settings (§6.5): branding, mode, API keys, webhooks, team, sites. */
 export default function SettingsPage() {
   const [me, setMe] = useState<Me | null>(null);
@@ -166,9 +191,7 @@ export default function SettingsPage() {
       <section className="rounded-lg border border-etch bg-basalt-deep p-4">
         <h2 className="text-sm text-limestone-dim">API keys</h2>
         {freshKey && (
-          <p className="mt-2 break-all rounded border border-jade bg-basalt p-2 font-mono text-xs text-jade" data-testid="fresh-api-key">
-            {freshKey} — copy it now; it is shown only once.
-          </p>
+          <SecretReveal value={freshKey} hint="Copy it now — it is shown only once." testId="fresh-api-key" />
         )}
         <form onSubmit={createKey} className="mt-3 flex gap-2">
           <input name="label" placeholder="Label (e.g. woocommerce)" className={`flex-1 ${input}`} />
@@ -201,9 +224,7 @@ export default function SettingsPage() {
       <section className="rounded-lg border border-etch bg-basalt-deep p-4">
         <h2 className="text-sm text-limestone-dim">Webhooks</h2>
         {freshSecret && (
-          <p className="mt-2 break-all rounded border border-jade bg-basalt p-2 font-mono text-xs text-jade">
-            {freshSecret} — signing secret, shown only once.
-          </p>
+          <SecretReveal value={freshSecret} hint="Webhook signing secret — shown only once." />
         )}
         <form onSubmit={createWebhook} className="mt-3 flex flex-col gap-2">
           <input name="url" required placeholder="https://example.com/hooks/veazen" className={input} />
