@@ -46,7 +46,14 @@
       （保姆级手册已就绪：`docs/DEMO_STORE_GUIDE_zh.md`，2026-07-13）
 - [ ] 4–6 字符超短 QR 跳转域选购；商标下证后防御性注册 veazen.net/.io
 - [ ] 商标：VEAZEN（第 9、42 类），律师检索要点见 PROJECT_PLAN §12
-- [ ] Stripe：法律名 VEAZEN LLC，公开业务名 VEAZEN
+- [ ] 收款通道：法律名 VEAZEN LLC，公开业务名 VEAZEN。
+      ⚠️ 2026-07-13 Stripe 注册受阻：经营地址不接受 PMB 私人信箱
+      （931 10th St PMB 96122 被拒），必须填真实办公地址；切勿去掉
+      PMB 硬填——核验不符会冻结资金 90~180 天。备选：Lemon Squeezy /
+      Paddle（记录商户模式，免美国实体地址，代缴销售税，费率约 5%）。
+      Wise Business 只做收提现+换汇的落地账户，不能做网站收款，
+      值得单独开一个。等老板定：有真实美国经营地址→Stripe；
+      没有→Lemon Squeezy（建议）
 - [ ] 加州 foreign qualification + BOI 申报确认（如实际运营地在加州）
 - [ ] GDPR 隐私政策与 DPA 法务审核（覆盖 device_fp 与跨租户风控）
 - [ ] 第三方渗透测试采购（上线前）
