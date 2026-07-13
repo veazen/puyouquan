@@ -38,6 +38,7 @@ veazen/
 9. 演示商店上线（EasyWP + WooCommerce + 插件），2026-07-13 实弹演习五项全过（扫码/刮码/二次核销警示/告警邮件/GeoIP）；告警邮件走 Resend HTTP API（Railway 封 SMTP）且已中文化
 10. 中小企业套件**第一批（M2+M3 退货全流程）交付并验收关闭**（2026-07-13）：retired/refurbished 状态机、rma/release/relabel 接口、控制台 /dashboard/returns 核验台、Settings 显示策略开关、插件「退货核验」区块、lite_duplicate_scan 规则、邮件分级（仅 critical 发信）——方案与批示见 `veazen/docs/SME_SUITE_PLAN_zh.md`
 11. 企业版 **E1（权限体系+仓库账号+摄像头扫码）交付**（2026-07-13）：角色矩阵 owner/admin/viewer/warehouse + RolesGuard（未标注默认写权限，fail-closed）、团队邀请（Settings 团队区块、邀请邮件、接受页设密码直接登入、令牌 sha256+7 天+一次性）、warehouse 登录只见退货台、退货台摄像头扫码（BarcodeDetector→jsqr 兜底）；API e2e 32 项、Playwright 4 条全绿
+12. **P1 收款闭环交付**（2026-07-13，老板批示 Lemon Squeezy 方案 B）：档位矩阵+PlanGateService 五处闸门（`BILLING_ENFORCEMENT` 默认 off 零影响）、LS webhook 验签+订阅全生命周期+审计、`GET /billing/summary`、Settings 计费区块；单测 13/e2e 46/Playwright 5 全绿；配置手册 `veazen/docs/BILLING_SETUP_zh.md`。**收款账号 KYC 受阻中**（Stripe 轨道拒 PMB 地址，备选 Paddle，见 HUMAN_TODO）
 
 ## 生产环境（2026-07-12 全量上线）
 

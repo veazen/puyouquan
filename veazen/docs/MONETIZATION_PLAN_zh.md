@@ -59,3 +59,21 @@ Enterprise 走销售触达，不走自助。
 2. 【Claude】S1 补剂行业化包（若批准）与档位闸门并行/先后完成；
 3. 【Claude】Stripe 账号下来即接收款（约 1 周）；
 4. WP.org 账号批复 → 插件上架 → 闭环成立，开始铺行业内容。
+
+---
+
+## 五、P1 收款闭环交付记录（2026-07-13）
+
+- **档位闸门**：`billing/plans.ts` 单一矩阵（free 500 码/月无刮码；
+  starter 5 千+刮码+退货；growth 5 万+webhook/码段档案/团队邀请；
+  enterprise 无限），PlanGateService 统一执行，五处接线（批次创建、
+  webhook、序列号档案、退货三接口、团队邀请），402 统一响应体；
+  **BILLING_ENFORCEMENT 默认 off**，生产零影响，开闸步骤见
+  `docs/BILLING_SETUP_zh.md`
+- **Lemon Squeezy 集成**：`POST /billing/webhooks/lemonsqueezy`
+  （原始体 HMAC-SHA256 验签+恒时比较+限流；订阅创建/更新/取消/过期
+  全生命周期，幂等，全审计）；`GET /billing/summary`；Settings 新增
+  Plan & Billing 区块（用量条+升级按钮/早鸟提示）
+- **质量**：单测 13 项、API e2e 46 项（新增 14）、Playwright 5 条全绿
+- **待用户**：LS 账号 KYC 通过后按 BILLING_SETUP 手册配六个环境变量、
+  给演示租户升档、打开闸门
