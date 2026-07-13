@@ -41,6 +41,18 @@ export type ScanEventKind = (typeof SCAN_EVENT_KINDS)[number];
 export const TENANT_PLANS = ['free', 'starter', 'growth', 'enterprise'] as const;
 export type TenantPlan = (typeof TENANT_PLANS)[number];
 
+/**
+ * Console user roles (E1, PD-004). `warehouse` is the returns-desk-only
+ * account; the authoritative endpoint matrix lives in
+ * apps/api/src/auth/permissions.ts.
+ */
+export const USER_ROLES = ['owner', 'admin', 'viewer', 'warehouse'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+/** Roles an owner may hand out via team invites (never a second owner). */
+export const INVITABLE_ROLES = ['admin', 'viewer', 'warehouse'] as const;
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
 export const TENANT_MODES = ['standard', 'lite'] as const;
 export type TenantMode = (typeof TENANT_MODES)[number];
 

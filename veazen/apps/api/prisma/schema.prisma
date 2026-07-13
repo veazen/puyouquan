@@ -29,6 +29,9 @@ enum UserRole {
   owner
   admin
   viewer
+  /// E1 (PD-004): returns-desk-only account — GET /codes/:serial + the
+  /// rma/release/relabel actions + GET /tenant/me; everything else is 403
+  warehouse
 
   @@map("user_role")
 }
@@ -238,6 +241,7 @@ model Tenant {
   webhookDeliveries WebhookDelivery[]
   serialProfiles   SerialProfile[]
   customHostnames  CustomHostname[]
+  invites          Invite[]
 
   @@map("tenants")
 }
@@ -256,6 +260,27 @@ model User {
 
   @@index([tenantId])
   @@map("users")
+}
+
+/// Team invites (E1, PD-004): the 32-byte token travels only in the invite
+/// email / accept URL — the DB stores its sha256, like api_keys.key_hash.
+model Invite {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  email      String
+  role       UserRole
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  /// inviting user (owner) — plain uuid like audit_logs.actor_user_id
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("invites")
 }
 
 model ApiKey {
