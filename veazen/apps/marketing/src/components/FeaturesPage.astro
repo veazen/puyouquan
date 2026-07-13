@@ -1,0 +1,65 @@
+---
+// Features page body, shared by /features (en) and /zh/features.
+import Base from '../layouts/Base.astro';
+import SerialBar from './SerialBar.astro';
+import { getDict, localizedPath, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = 'en' } = Astro.props;
+const t = getDict(locale);
+const path = localizedPath('/features', locale);
+---
+
+<Base
+  title={t.meta.features.title}
+  description={t.meta.features.description}
+  path={path}
+  locale={locale}
+>
+  <main>
+    <p class="kicker">{t.features.kicker}</p>
+    <h1>{t.features.heading}</h1>
+    <div style="margin-top:1.6rem">
+      <SerialBar locale={locale} />
+    </div>
+    <div class="list">
+      {
+        t.features.items.map((f) => (
+          <div class="card">
+            <h2>{f.title}</h2>
+            <p class="dim">{f.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </main>
+</Base>
+
+<style>
+  h1 {
+    font-size: 2.1rem;
+    margin-top: 0.4rem;
+    max-width: 40rem;
+  }
+  .list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .card h2 {
+    font-size: 1.15rem;
+    margin-bottom: 0.5rem;
+  }
+  .card p {
+    font-size: 0.9rem;
+  }
+  @media (max-width: 720px) {
+    .list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

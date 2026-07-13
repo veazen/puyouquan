@@ -1,29 +1,54 @@
 ---
 // Shared shell for veazen.app (§2.5 tokens; §8 Phase 2 SEO: OG + keywords).
+// Bilingual: English at root paths, Simplified Chinese under /zh/.
 import '@fontsource/marcellus/400.css';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/ibm-plex-mono/400.css';
 
 import { tokensToCssVars } from '../tokens';
+import { getDict, localizedPath, zhPath, ZH_BASE_PATHS, type Locale } from '../i18n';
 
 interface Props {
   title: string;
   description: string;
   path?: string;
+  locale?: Locale;
 }
 
-const { title, description, path = '/' } = Astro.props;
-const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
+const { title, description, path = '/', locale = 'en' } = Astro.props;
+const t = getDict(locale);
+const site = Astro.site ?? 'https://veazen.app';
+const canonical = new URL(path, site).href;
+
+// Logical (locale-less) path: '/zh/features' → '/features', '/zh/' → '/'.
+const basePath =
+  locale === 'zh' ? (path === '/zh' || path === '/zh/' ? '/' : path.replace(/^\/zh/, '')) : path;
+const hasZh = ZH_BASE_PATHS.includes(basePath);
+const enUrl = new URL(basePath, site).href;
+const zhUrl = new URL(zhPath(basePath), site).href;
+// Language-switch targets: pages without a Chinese version link to the zh home.
+const zhTarget = hasZh ? zhPath(basePath) : '/zh/';
+const enTarget = basePath;
+const htmlLang = locale === 'zh' ? 'zh-CN' : 'en';
 ---
 
-<html lang="en">
+<html lang={htmlLang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+    {
+      hasZh && (
+        <>
+          <link rel="alternate" hreflang="en" href={enUrl} />
+          <link rel="alternate" hreflang="zh-CN" href={zhUrl} />
+          <link rel="alternate" hreflang="x-default" href={enUrl} />
+        </>
+      )
+    }
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Veazen" />
     <meta property="og:title" content={title} />
@@ -36,26 +61,107 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
     <style set:html={`:root {\n${tokensToCssVars()}\n}`}></style>
   </head>
   <body>
+    {
+      locale === 'en' && (
+        <div id="lang-banner" lang="zh-CN" hidden>
+          <span>{t.banner.text}</span>
+          <a href={zhTarget}>{t.banner.switchLabel}</a>
+          <button type="button" aria-label={t.banner.dismissLabel}>
+            ×
+          </button>
+        </div>
+      )
+    }
     <nav>
-      <a class="brand" href="/">
+      <a class="brand" href={localizedPath('/', locale)}>
         <img src="/brand/veazen-mark.svg" alt="" width="26" height="26" />
         <span>VEAZEN</span>
       </a>
       <div class="links">
-        <a href="/features">Features</a>
-        <a href="/pricing">Pricing</a>
-        <a class="cta" href="/#waitlist">Join the waitlist</a>
+        <a href={localizedPath('/features', locale)}>{t.nav.features}</a>
+        <a href={localizedPath('/pricing', locale)}>{t.nav.pricing}</a>
+        <span class="lang-switch">
+          {
+            locale === 'en' ? (
+              <>
+                <span class="lang-current">EN</span>
+                <span class="lang-sep" aria-hidden="true">
+                  |
+                </span>
+                <a href={zhTarget} lang="zh-CN">
+                  中文
+                </a>
+              </>
+            ) : (
+              <>
+                <a href={enTarget} lang="en">
+                  EN
+                </a>
+                <span class="lang-sep" aria-hidden="true">
+                  |
+                </span>
+                <span class="lang-current" lang="zh-CN">
+                  中文
+                </span>
+              </>
+            )
+          }
+        </span>
+        <a class="cta" href={`${localizedPath('/', locale)}#waitlist`}>{t.nav.waitlist}</a>
       </div>
     </nav>
     <slot />
     <footer>
       <img class="foot-mark" src="/brand/veazen-mark.svg" alt="" width="22" height="22" />
-      <p>Veazen™ is a product of VEAZEN LLC.</p>
+      <p>{t.footer.company}</p>
+      {/* separators as explicit expressions — the compiler trims line-end whitespace */}
       <p class="foot-links">
-        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> ·
-        <a href="mailto:hello@veazen.app">hello@veazen.app</a>
+        <a href="/privacy">{t.footer.privacy}</a>{' · '}<a href="/terms">{t.footer.terms}</a>{
+          ' · '
+        }<a href="mailto:hello@veazen.app">hello@veazen.app</a>{' · '}{
+          locale === 'en' ? (
+            <a href={zhTarget} lang="zh-CN">
+              中文
+            </a>
+          ) : (
+            <a href={enTarget} lang="en">
+              English
+            </a>
+          )
+        }
       </p>
     </footer>
+    <script is:inline>
+      // Language-suggestion banner: shown only when the browser prefers
+      // Chinese, the visitor is not already on /zh/, and it was never
+      // dismissed. Suggest — never auto-redirect.
+      (function () {
+        var banner = document.getElementById('lang-banner');
+        if (!banner) return;
+        var KEY = 'veazen-lang-banner-dismissed';
+        try {
+          if (localStorage.getItem(KEY)) return;
+        } catch (e) {
+          return;
+        }
+        var lang = (navigator.language || '').toLowerCase();
+        if (lang.indexOf('zh') !== 0) return;
+        var p = location.pathname;
+        if (p === '/zh' || p.indexOf('/zh/') === 0) return;
+        banner.hidden = false;
+        var close = banner.querySelector('button');
+        if (close) {
+          close.addEventListener('click', function () {
+            try {
+              localStorage.setItem(KEY, '1');
+            } catch (e) {
+              /* storage unavailable — dismiss for this page only */
+            }
+            banner.hidden = true;
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
 
@@ -66,6 +172,10 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
   }
   html {
     scroll-behavior: smooth;
+  }
+  /* Marcellus has no CJK glyphs — give Chinese headings a serif fallback. */
+  html:lang(zh) {
+    --font-display: Marcellus, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', SimSun, serif;
   }
   body {
     background: var(--color-basalt);
@@ -83,6 +193,35 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
   a {
     color: inherit;
     text-decoration: none;
+  }
+  #lang-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 0.45rem 1rem;
+    font-size: 0.8rem;
+    background: var(--color-basalt-deep);
+    border-bottom: 1px solid var(--color-etch);
+    color: var(--color-limestone-dim);
+  }
+  #lang-banner[hidden] {
+    display: none;
+  }
+  #lang-banner a {
+    color: var(--color-jade);
+  }
+  #lang-banner button {
+    background: none;
+    border: 0;
+    color: var(--color-limestone-dim);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.3rem;
+    cursor: pointer;
+  }
+  #lang-banner button:hover {
+    color: var(--color-limestone);
   }
   nav {
     display: flex;
@@ -111,6 +250,18 @@ const canonical = new URL(path, Astro.site ?? 'https://veazen.app').href;
     color: var(--color-limestone-dim);
   }
   nav .links a:hover {
+    color: var(--color-limestone);
+  }
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+  }
+  .lang-switch .lang-sep {
+    opacity: 0.4;
+  }
+  .lang-switch .lang-current {
     color: var(--color-limestone);
   }
   nav .cta {

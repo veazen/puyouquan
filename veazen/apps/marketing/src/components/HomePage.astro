@@ -1,0 +1,151 @@
+---
+// Home page body, shared by / (en) and /zh/ — copy comes from the locale dict.
+import Base from '../layouts/Base.astro';
+import SerialBar from './SerialBar.astro';
+import WaitlistForm from './WaitlistForm.astro';
+import { SLOGAN } from '../tokens';
+import { getDict, localizedPath, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = 'en' } = Astro.props;
+const t = getDict(locale);
+const path = localizedPath('/', locale);
+---
+
+<Base
+  title={t.meta.home.title}
+  description={t.meta.home.description}
+  path={path}
+  locale={locale}
+>
+  <main>
+    <section class="hero">
+      <p class="kicker">{t.home.heroKicker}</p>
+      <h1>{SLOGAN[locale]}</h1>
+      <p class="sub dim">{t.home.heroSub}</p>
+      <SerialBar locale={locale} />
+      <div class="hero-cta">
+        <a class="primary" href="#waitlist">{t.home.ctaPrimary}</a>
+        <a class="secondary" href={localizedPath('/features', locale)}>{t.home.ctaSecondary}</a>
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">{t.home.stepsKicker}</p>
+      <h2>{t.home.stepsHeading}</h2>
+      <div class="steps">
+        {
+          t.home.steps.map((step, i) => (
+            <div class="card">
+              <p class="step-n">{String(i + 1).padStart(2, '0')}</p>
+              <h3>{step.title}</h3>
+              <p class="dim">{step.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">{t.home.whyKicker}</p>
+      <h2>{t.home.whyHeading}</h2>
+      <div class="grid2">
+        {
+          t.home.why.map((item) => (
+            <div class="card">
+              <h3>{item.title}</h3>
+              <p class="dim">{item.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section id="waitlist">
+      <p class="kicker">{t.home.waitlistKicker}</p>
+      <h2>{t.home.waitlistHeading}</h2>
+      <p class="dim" style="max-width:34rem; margin-bottom:1.2rem;">{t.home.waitlistIntro}</p>
+      <WaitlistForm locale={locale} />
+    </section>
+  </main>
+</Base>
+
+<style>
+  .hero {
+    padding-top: 3rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.4rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+  }
+  .hero .sub {
+    max-width: 38rem;
+  }
+  .hero-cta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .primary {
+    background: var(--color-jade);
+    color: var(--color-basalt);
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 0.8rem 1.4rem;
+  }
+  .primary:hover {
+    background: var(--color-jade-deep);
+  }
+  .secondary {
+    border: 1px solid var(--color-etch);
+    border-radius: 4px;
+    padding: 0.8rem 1.4rem;
+    color: var(--color-limestone-dim);
+  }
+  .secondary:hover {
+    color: var(--color-limestone);
+  }
+  .steps,
+  .grid2 {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grid2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .step-n {
+    font-family: var(--font-mono);
+    color: var(--color-jade);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+  }
+  h2 {
+    margin-top: 0.4rem;
+    font-size: 1.7rem;
+  }
+  .card h3 {
+    margin: 0.4rem 0 0.5rem;
+    font-size: 1.1rem;
+  }
+  .card p {
+    font-size: 0.9rem;
+  }
+  @media (max-width: 720px) {
+    .steps,
+    .grid2 {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

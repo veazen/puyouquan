@@ -2,41 +2,65 @@
 // Waitlist form (§8 Phase 2): replaces the temp site's mailto. Posts to the
 // cloud waitlist endpoint (public, rate-limited). PUBLIC_API_URL is inlined
 // at build time; defaults to the platform API domain.
+// Status messages are passed to the (locale-agnostic) script via data-*.
+import { getDict, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = 'en' } = Astro.props;
+const t = getDict(locale).waitlist;
 const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'https://api.veazen.app/api/v1';
 ---
 
-<form id="waitlist-form" data-api={apiUrl}>
+<form
+  id="waitlist-form"
+  data-api={apiUrl}
+  data-msg-ok={t.ok}
+  data-msg-rate={t.rateLimited}
+  data-msg-fallback={t.fallbackPrefix}
+  data-msg-fallback-link={t.fallbackLink}
+  data-mailto-subject={t.mailtoSubject}
+>
   <div class="row">
-    <input required type="email" name="email" placeholder="Work email *" autocomplete="email" />
-    <input type="text" name="brand" placeholder="Brand name" />
+    <input
+      required
+      type="email"
+      name="email"
+      placeholder={t.emailPlaceholder}
+      autocomplete="email"
+    />
+    <input type="text" name="brand" placeholder={t.brandPlaceholder} />
   </div>
   <div class="row">
-    <input type="url" name="website" placeholder="Website" />
-    <select name="monthly_units" aria-label="Units per month">
-      <option value="">Units / month</option>
-      <option value="lt_1k">&lt; 1,000</option>
-      <option value="1k_10k">1,000 – 10,000</option>
-      <option value="10k_100k">10,000 – 100,000</option>
-      <option value="gt_100k">&gt; 100,000</option>
+    <input type="url" name="website" placeholder={t.websitePlaceholder} />
+    <select name="monthly_units" aria-label={t.unitsAria}>
+      <option value="">{t.unitsPlaceholder}</option>
+      <option value="lt_1k">{t.unitsLt1k}</option>
+      <option value="1k_10k">{t.units1k10k}</option>
+      <option value="10k_100k">{t.units10k100k}</option>
+      <option value="gt_100k">{t.unitsGt100k}</option>
     </select>
   </div>
-  <button type="submit">Request early access</button>
+  <button type="submit">{t.submit}</button>
   <p class="status" role="status" aria-live="polite"></p>
 </form>
 
 <script>
   const form = document.getElementById('waitlist-form') as HTMLFormElement;
   const status = form.querySelector('.status') as HTMLParagraphElement;
+  const msgs = form.dataset;
 
   // Until the cloud API is live, failures degrade to a prefilled mailto so
   // no early-access lead is ever lost. Once api.veazen.app deploys, the
   // form starts writing to the waitlist table with zero changes here.
   function mailtoFallback(data: Record<string, unknown>): void {
-    status.textContent = 'Our signup service is briefly unreachable — ';
+    status.textContent = msgs.msgFallback ?? '';
     const link = document.createElement('a');
     const body = `email: ${String(data.email ?? '')}\nbrand: ${String(data.brand ?? '')}\nwebsite: ${String(data.website ?? '')}\nunits/month: ${String(data.monthly_units ?? '')}`;
-    link.href = `mailto:hello@veazen.app?subject=${encodeURIComponent('Early access request')}&body=${encodeURIComponent(body)}`;
-    link.textContent = 'send us your request by email instead →';
+    link.href = `mailto:hello@veazen.app?subject=${encodeURIComponent(msgs.mailtoSubject ?? 'Early access request')}&body=${encodeURIComponent(body)}`;
+    link.textContent = msgs.msgFallbackLink ?? '';
     link.style.color = 'var(--color-jade)';
     status.appendChild(link);
   }
@@ -52,13 +76,13 @@ const apiUrl = import.meta.env.PUBLIC_API_URL ?? 'https://api.veazen.app/api/v1'
         body: JSON.stringify(data),
       });
       if (res.ok) {
-        status.textContent = "You're on the list — we'll be in touch.";
+        status.textContent = msgs.msgOk ?? '';
         status.classList.add('ok');
         form.querySelectorAll('input, select, button').forEach((el) => {
           (el as HTMLInputElement).disabled = true;
         });
       } else if (res.status === 429) {
-        status.textContent = 'Too many attempts — please try again in a minute.';
+        status.textContent = msgs.msgRate ?? '';
       } else {
         mailtoFallback(data);
       }

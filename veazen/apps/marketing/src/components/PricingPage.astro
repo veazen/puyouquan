@@ -1,0 +1,92 @@
+---
+// Pricing page body, shared by /pricing (en) and /zh/pricing.
+// Four-tier comparison (§8 Phase 2; packaging logic per §7.6.6).
+// Dollar amounts are deliberately absent until pricing is finalized —
+// early-access cohort pricing goes through the waitlist.
+import Base from '../layouts/Base.astro';
+import { getDict, localizedPath, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = 'en' } = Astro.props;
+const t = getDict(locale);
+const path = localizedPath('/pricing', locale);
+const waitlistHref = `${localizedPath('/', locale)}#waitlist`;
+---
+
+<Base
+  title={t.meta.pricing.title}
+  description={t.meta.pricing.description}
+  path={path}
+  locale={locale}
+>
+  <main>
+    <p class="kicker">{t.pricing.kicker}</p>
+    <h1>{t.pricing.heading}</h1>
+    <p class="dim" style="max-width:36rem; margin-top:0.6rem;">
+      {t.pricing.introBefore}<a href={waitlistHref} style="color:var(--color-jade)"
+        >{t.pricing.introLink}</a
+      >{t.pricing.introAfter}
+    </p>
+    <div class="tiers">
+      {
+        t.pricing.tiers.map((tier) => (
+          <div class={`card tier ${tier.highlight ? 'highlight' : ''}`}>
+            <h2>{tier.name}</h2>
+            <p class="dim tagline">{tier.tagline}</p>
+            <ul>
+              {tier.features.map((f) => (
+                <li>{f}</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+  </main>
+</Base>
+
+<style>
+  h1 {
+    font-size: 2.2rem;
+    margin-top: 0.4rem;
+  }
+  .tiers {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .tier h2 {
+    font-size: 1.3rem;
+  }
+  .tier.highlight {
+    border-color: var(--color-jade);
+  }
+  .tagline {
+    font-size: 0.85rem;
+    min-height: 2.6em;
+    margin-top: 0.3rem;
+  }
+  ul {
+    margin: 0.8rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.85rem;
+    color: var(--color-limestone-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  @media (max-width: 900px) {
+    .tiers {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (max-width: 560px) {
+    .tiers {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -1,12 +1,20 @@
 ---
 // The brand's signature motif (§2.5): monospace grouped serial + scan light
 // band + Verified badge. Reused on hero, docs and the verify page design.
-const { serial = 'A1B2C-D3E4F-6H7J8-K9M0N' } = Astro.props;
+import { getDict, type Locale } from '../i18n';
+
+interface Props {
+  serial?: string;
+  locale?: Locale;
+}
+
+const { serial = 'A1B2C-D3E4F-6H7J8-K9M0N', locale = 'en' } = Astro.props;
+const t = getDict(locale).serialBar;
 ---
 
-<div class="serial-bar" aria-label={`Example verified serial ${serial}`}>
+<div class="serial-bar" aria-label={t.ariaLabel.replace('{serial}', serial)}>
   <span class="serial">{serial}</span>
-  <span class="badge">Verified</span>
+  <span class="badge">{t.verified}</span>
   <span class="scanline" aria-hidden="true"></span>
 </div>
 

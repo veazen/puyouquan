@@ -5,4 +5,12 @@ import { defineConfig } from 'astro/config';
 export default defineConfig({
   site: 'https://veazen.app',
   output: 'static',
+  // English at root paths, Simplified Chinese under /zh/ (src/pages/zh/*).
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en', 'zh'],
+    routing: {
+      prefixDefaultLocale: false,
+    },
+  },
 });
