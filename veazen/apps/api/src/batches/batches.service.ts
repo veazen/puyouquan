@@ -7,6 +7,7 @@ import {
 
 import { normalizeInput } from '@veazen/crypto';
 
+import { PlanGateService } from '../billing/plan-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { GenerationWorker, exportKey } from './generation.worker';
@@ -17,6 +18,7 @@ export class BatchesService {
     private readonly prisma: PrismaService,
     private readonly generation: GenerationWorker,
     private readonly storage: StorageService,
+    private readonly planGate: PlanGateService,
   ) {}
 
   async create(
@@ -29,6 +31,12 @@ export class BatchesService {
       kind: 'bulk' | 'on_demand';
     },
   ) {
+    // P1 plan gates (no-op unless BILLING_ENFORCEMENT=on): scratch capability
+    // for standard batches + the monthly generated-codes quota
+    await this.planGate.checkBatchCreate(tenantId, {
+      quantity: input.quantity,
+      kind: input.kind,
+    });
     const batch = await this.prisma.withTenant(tenantId, async (tx) => {
       const product = await tx.product.findFirst({ where: { id: input.productId } });
       if (!product) {

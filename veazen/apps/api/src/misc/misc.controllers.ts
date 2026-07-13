@@ -36,6 +36,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
+import { PlanGateService } from '../billing/plan-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 class TraceEventDto {
@@ -280,7 +281,10 @@ class CreateSerialProfileDto {
 @Controller('serial-profiles')
 @UseGuards(TenantAuthGuard, RolesGuard)
 export class SerialProfilesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planGate: PlanGateService,
+  ) {}
 
   @Get()
   @Roles(...CONSOLE_READ)
@@ -293,7 +297,9 @@ export class SerialProfilesController {
   @Post()
   @Roles(...CONSOLE_WRITE)
   @Audit('serial_profile.create')
-  create(@TenantId() tenantId: string, @Body() dto: CreateSerialProfileDto) {
+  async create(@TenantId() tenantId: string, @Body() dto: CreateSerialProfileDto) {
+    // P1 plan gate: custom serial profiles are Growth and up
+    await this.planGate.requireFeature(tenantId, 'serialProfiles');
     if (dto.random_bits < 64) {
       throw new UnprocessableEntityException('random_bits must be ≥ 64 (§9.11)');
     }

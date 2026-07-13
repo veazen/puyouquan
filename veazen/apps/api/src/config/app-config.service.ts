@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 /**
  * Environment configuration (PROJECT_PLAN §11), validated at boot.
@@ -27,6 +27,17 @@ export class AppConfigService {
   readonly port: number;
   /** benchmark escape hatch only — never set in production */
   readonly rateLimitDisabled: boolean;
+  // P1 billing (Lemon Squeezy) — every variable optional; missing config
+  // degrades to "billing features off", never a boot failure.
+  /** master switch for the plan gates; default off = zero production impact */
+  readonly billingEnforcement: boolean;
+  readonly lemonSqueezyApiKey: string | null;
+  readonly lemonSqueezyStoreId: string | null;
+  readonly lemonSqueezyWebhookSecret: string | null;
+  /** plan → hosted checkout URL, e.g. {"starter":"https://…/buy/xxx"} */
+  readonly lemonSqueezyCheckoutUrls: Record<string, string>;
+  /** LS variant_id → plan, e.g. {"123456":"starter"} */
+  readonly lemonSqueezyVariantPlanMap: Record<string, string>;
 
   constructor() {
     const env = process.env;
@@ -63,6 +74,31 @@ export class AppConfigService {
     this.s3SecretKey = env.S3_SECRET_KEY ?? null;
     this.port = env.PORT ? Number(env.PORT) : 4000;
     this.rateLimitDisabled = env.RATE_LIMIT_DISABLED === 'true';
+    this.billingEnforcement = env.BILLING_ENFORCEMENT === 'on';
+    this.lemonSqueezyApiKey = env.LEMONSQUEEZY_API_KEY ?? null;
+    this.lemonSqueezyStoreId = env.LEMONSQUEEZY_STORE_ID ?? null;
+    this.lemonSqueezyWebhookSecret = env.LEMONSQUEEZY_WEBHOOK_SECRET ?? null;
+    this.lemonSqueezyCheckoutUrls = parseJsonRecord(env.LEMONSQUEEZY_CHECKOUT_URLS, 'LEMONSQUEEZY_CHECKOUT_URLS');
+    this.lemonSqueezyVariantPlanMap = parseJsonRecord(env.LEMONSQUEEZY_VARIANT_PLAN_MAP, 'LEMONSQUEEZY_VARIANT_PLAN_MAP');
+  }
+}
+
+/** Optional JSON env of string→string; malformed input logs and degrades to {}. */
+function parseJsonRecord(raw: string | undefined, name: string): Record<string, string> {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('not a JSON object');
+    }
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+    );
+  } catch (error) {
+    Logger.warn(`ignoring malformed ${name}: ${(error as Error).message}`, 'AppConfigService');
+    return {};
   }
 }
 

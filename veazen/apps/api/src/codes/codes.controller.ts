@@ -20,6 +20,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
+import { PlanGateService } from '../billing/plan-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../risk/alerts.service';
 import { WebhookDispatcher } from '../webhooks/webhook.dispatcher';
@@ -74,6 +75,7 @@ export class CodesController {
     private readonly prisma: PrismaService,
     private readonly webhooks: WebhookDispatcher,
     private readonly alerts: AlertsService,
+    private readonly planGate: PlanGateService,
   ) {}
 
   /** Single-code lookup for the dashboard (§6 Batches page). */
@@ -187,6 +189,8 @@ export class CodesController {
   @Roles(...RETURNS_WRITE)
   @Audit('code.rma')
   async rma(@TenantId() tenantId: string, @Param('serial') serialRaw: string, @Body() dto: RmaDto) {
+    // P1 plan gate: the returns suite (rma/release/relabel) is Starter and up
+    await this.planGate.requireFeature(tenantId, 'returnsSuite');
     const serial = normalizeInput(serialRaw);
     return this.prisma.withTenant(tenantId, async (tx) => {
       const code = await tx.code.findFirst({ where: { serial } });
@@ -230,6 +234,8 @@ export class CodesController {
   @Roles(...RETURNS_WRITE)
   @Audit('code.release')
   async release(@TenantId() tenantId: string, @Param('serial') serialRaw: string) {
+    // P1 plan gate: the returns suite (rma/release/relabel) is Starter and up
+    await this.planGate.requireFeature(tenantId, 'returnsSuite');
     const serial = normalizeInput(serialRaw);
     const released = await this.prisma.withTenant(tenantId, async (tx) => {
       const code = await tx.code.findFirst({ where: { serial } });
@@ -325,6 +331,8 @@ export class CodesController {
     @Param('serial') serialRaw: string,
     @Body() dto: RelabelDto,
   ) {
+    // P1 plan gate: the returns suite (rma/release/relabel) is Starter and up
+    await this.planGate.requireFeature(tenantId, 'returnsSuite');
     const serial = normalizeInput(serialRaw);
     const newSerial = normalizeInput(dto.new_serial);
     if (newSerial === serial) {

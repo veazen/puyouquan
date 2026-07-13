@@ -23,6 +23,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
+import { PlanGateService } from '../billing/plan-gate.service';
 import { EnvelopeService } from '../crypto/envelope.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookDispatcher } from './webhook.dispatcher';
@@ -72,6 +73,7 @@ export class WebhooksController {
     private readonly prisma: PrismaService,
     private readonly envelope: EnvelopeService,
     private readonly dispatcher: WebhookDispatcher,
+    private readonly planGate: PlanGateService,
   ) {}
 
   @Get()
@@ -86,6 +88,8 @@ export class WebhooksController {
   @Post()
   @Audit('webhook.create')
   async create(@TenantId() tenantId: string, @Body() dto: CreateWebhookDto) {
+    // P1 plan gate: webhook endpoints are a Growth-and-up capability
+    await this.planGate.requireFeature(tenantId, 'webhooks');
     const secret = `whsec_${randomBytes(24).toString('base64url')}`;
     const endpoint = await this.prisma.withTenant(tenantId, (tx) =>
       tx.webhookEndpoint.create({

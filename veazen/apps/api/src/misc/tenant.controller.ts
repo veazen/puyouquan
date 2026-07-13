@@ -26,6 +26,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { TenantAuthGuard } from '../auth/tenant-auth.guard';
 import { TenantId } from '../auth/tenant.decorator';
 import { Audit } from '../audit/audit.decorator';
+import { PlanGateService } from '../billing/plan-gate.service';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../risk/notification.service';
@@ -74,6 +75,7 @@ export class TenantController {
     private readonly prisma: PrismaService,
     private readonly config: AppConfigService,
     private readonly notifications: NotificationService,
+    private readonly planGate: PlanGateService,
   ) {}
 
   @Get('me')
@@ -171,6 +173,8 @@ export class TenantController {
     @Req() req: Request & { user?: { userId: string } },
     @Body() dto: CreateInviteDto,
   ) {
+    // P1 plan gate: team seats (invites) are Growth and up
+    await this.planGate.requireFeature(tenantId, 'teamInvites');
     const email = dto.email.toLowerCase();
     const token = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);

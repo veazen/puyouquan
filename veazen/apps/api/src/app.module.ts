@@ -4,6 +4,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditInterceptor } from './audit/audit.interceptor';
 import { AuthModule } from './auth/auth.module';
 import { BatchesModule } from './batches/batches.module';
+import { BillingModule } from './billing/billing.module';
 import { CodesController } from './codes/codes.controller';
 import { OrdersController } from './codes/orders.controller';
 import { ConfigModule } from './config/config.module';
@@ -39,6 +40,7 @@ import { WebhooksController } from './webhooks/webhooks.controller';
     RedisModule,
     QueuesModule,
     AuthModule,
+    BillingModule,
     BatchesModule,
     HealthModule,
   ],
