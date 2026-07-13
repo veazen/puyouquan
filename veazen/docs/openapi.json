@@ -56,6 +56,34 @@
         ]
       }
     },
+    "/api/v1/codes/{serial}": {
+      "get": {
+        "operationId": "CodesController_lookup",
+        "parameters": [
+          {
+            "name": "serial",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "codes"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/codes/{serial}/flag": {
       "post": {
         "operationId": "CodesController_flag",
@@ -107,6 +135,110 @@
             }
           }
         ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "codes"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/codes/{serial}/rma": {
+      "post": {
+        "operationId": "CodesController_rma",
+        "parameters": [
+          {
+            "name": "serial",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RmaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "codes"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/codes/{serial}/release": {
+      "post": {
+        "operationId": "CodesController_release",
+        "parameters": [
+          {
+            "name": "serial",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "codes"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/codes/{serial}/relabel": {
+      "post": {
+        "operationId": "CodesController_relabel",
+        "parameters": [
+          {
+            "name": "serial",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelabelDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -580,6 +712,116 @@
         ]
       }
     },
+    "/api/v1/tenant/me": {
+      "get": {
+        "operationId": "TenantController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "tenant"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenant/settings": {
+      "patch": {
+        "operationId": "TenantController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "tenant"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenant/users": {
+      "get": {
+        "operationId": "TenantController_users",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "tenant"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenant/sites": {
+      "get": {
+        "operationId": "TenantController_sites",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "tenant"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/waitlist": {
+      "post": {
+        "operationId": "WaitlistController_join",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "waitlist"
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "operationId": "AuthController_register",
@@ -753,6 +995,23 @@
             "bearer": []
           }
         ]
+      },
+      "get": {
+        "operationId": "BatchesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "batches"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
       }
     },
     "/api/v1/batches/{id}": {
@@ -909,6 +1168,14 @@
         "type": "object",
         "properties": {}
       },
+      "RmaDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RelabelDto": {
+        "type": "object",
+        "properties": {}
+      },
       "BindOrderDto": {
         "type": "object",
         "properties": {}
@@ -934,6 +1201,14 @@
         "properties": {}
       },
       "CreateSerialProfileDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateSettingsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WaitlistDto": {
         "type": "object",
         "properties": {}
       },
