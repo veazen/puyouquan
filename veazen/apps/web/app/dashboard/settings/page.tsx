@@ -104,10 +104,15 @@ export default function SettingsPage() {
     event.preventDefault();
     const form = event.currentTarget;
     const label = String(new FormData(form).get('label') ?? 'default');
-    const res = await api<{ apiKey: string }>('/auth/api-keys', { method: 'POST', body: { label } });
-    setFreshKey(res.apiKey);
-    form.reset();
-    await load();
+    setMessage('');
+    try {
+      const res = await api<{ apiKey: string }>('/auth/api-keys', { method: 'POST', body: { label } });
+      setFreshKey(res.apiKey);
+      form.reset();
+      await load();
+    } catch (e) {
+      setMessage(`Create key failed: ${(e as Error).message}`);
+    }
   }
 
   async function createWebhook(event: React.FormEvent<HTMLFormElement>) {
@@ -177,7 +182,14 @@ export default function SettingsPage() {
               {k.revokedAt ? (
                 <span className="text-state-alert">revoked</span>
               ) : (
-                <button onClick={() => api(`/auth/api-keys/${k.id}`, { method: 'DELETE' }).then(load)} className="text-limestone-dim hover:text-state-alert">
+                <button
+                  onClick={() =>
+                    api(`/auth/api-keys/${k.id}`, { method: 'DELETE' })
+                      .then(load)
+                      .catch((e: Error) => setMessage(`Revoke failed: ${e.message}`))
+                  }
+                  className="text-limestone-dim hover:text-state-alert"
+                >
                   Revoke
                 </button>
               )}
@@ -214,10 +226,24 @@ export default function SettingsPage() {
                 {w.active ? 'active' : 'disabled'}
               </span>
               <span className="flex shrink-0 gap-2">
-                <button onClick={() => api(`/webhooks/${w.id}/test`, { method: 'POST', body: {} }).then(() => setMessage('Test event enqueued.'))} className="hover:text-jade">
+                <button
+                  onClick={() =>
+                    api(`/webhooks/${w.id}/test`, { method: 'POST', body: {} })
+                      .then(() => setMessage('Test event enqueued.'))
+                      .catch((e: Error) => setMessage(`Webhook test failed: ${e.message}`))
+                  }
+                  className="hover:text-jade"
+                >
                   Test
                 </button>
-                <button onClick={() => api(`/webhooks/${w.id}`, { method: 'DELETE' }).then(load)} className="hover:text-state-alert">
+                <button
+                  onClick={() =>
+                    api(`/webhooks/${w.id}`, { method: 'DELETE' })
+                      .then(load)
+                      .catch((e: Error) => setMessage(`Delete failed: ${e.message}`))
+                  }
+                  className="hover:text-state-alert"
+                >
                   Delete
                 </button>
               </span>

@@ -72,7 +72,7 @@ export default function LoginPage() {
             <input
               name="slug"
               required
-              pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]"
+              pattern="[a-z0-9][a-z0-9\-]{1,38}[a-z0-9]"
               placeholder="Subdomain slug (e.g. acme)"
               className={input}
             />
