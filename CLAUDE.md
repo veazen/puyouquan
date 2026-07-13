@@ -42,8 +42,10 @@ veazen/
 
 - 官网 veazen.app：Cloudflare Workers Builds 自动部署（推 main 即上线）
 - API api.veazen.app：Railway（Hobby 套餐），Neon 直连串（无 -pooler）+
-  Upstash Redis + R2；显式 `PORT=4000`；Resend SMTP、MaxMind GeoIP、
-  ANONYMIZE_IP=true 均已配置；UptimeRobot 监控 health
+  **Railway 内网 Redis**（redis://…railway.internal，单 s 无 TLS——2026-07-13
+  从 Upstash 迁来：免费版 50 万条/月被 BullMQ 轮询耗尽导致宕机）+ R2；
+  显式 `PORT=4000`；Resend 走 HTTP API、MaxMind GeoIP、ANONYMIZE_IP=true；
+  UptimeRobot 监控 health
 - 验证页/控制台 verify.veazen.app：Railway，显式 `PORT=3000`
 - Cloudflare DNS：api/verify 两条 CNAME 均为灰云（DNS only），橙云会挡
   Railway 域名验证；Railway 部署经验教训见 `veazen/HUMAN_TODO.md` 备忘
@@ -56,7 +58,9 @@ veazen/
    权限体系+仓库账号+摄像头扫码 → 码段工坊 → 分销管理 → 产品批量导入 →
    自定义域名落地页 → PWA。**等老板批示 E1 开工时机与 E2/E3 先后**
 3. 用户吊销聊天截图中泄露的两把 API key 并重新生成（HUMAN_TODO 有记录）
-4. WordPress.org 账号等批复；设置页等 UI 细节持续精修
+4. **韧性加固**：Redis 断连时 API 应降级运行（验证页可用、队列重连），
+   而非整体崩溃——2026-07-13 Upstash 配额事故暴露，待排期
+5. WordPress.org 账号等批复；设置页等 UI 细节持续精修
 
 ## 工作约定
 

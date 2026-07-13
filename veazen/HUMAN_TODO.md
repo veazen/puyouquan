@@ -21,6 +21,9 @@
 - [ ] 吊销截图中泄露的 API key（vz_CZSZYYF5…、vz_0VF1RZY4…），重新生成
       并只存密码管理器
 - [x] UptimeRobot 已添加 health 监控（2026-07-12，5 分钟间隔）
+- [x] Redis 迁移至 Railway 内网（2026-07-13）：Upstash 免费版 50 万条/月
+      被 BullMQ 轮询耗尽 → API 宕机；现用 railway.internal 单 s 连接串，
+      无命令数限制；Upstash 旧库可删
 - [x] PART2 三项收尾完成（2026-07-12）：Resend 发件域已验证（DKIM/SPF/
       DMARC 全绿，SMTP 变量已配）、MaxMind GeoIP 已装载（日志
       `GeoLite2-City ready`）、ANONYMIZE_IP 已开启
