@@ -321,6 +321,22 @@ svg text{user-select:none}
 .cc-card .meta i{font-style:normal;border:1px solid var(--border);border-radius:10px;padding:1px 8px}
 .cc-price{position:absolute;top:14px;right:14px;font-size:12px;font-weight:700;color:var(--accent)}
 .cc-price.free{color:#2eaf64}
+/* 谱友圈：搜索 / 分类 / 收藏 工具条 */
+.cc-tools{max-width:1080px;margin:16px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.cc-search{flex:1;min-width:180px;max-width:340px;position:relative}
+.cc-search input{width:100%;border-radius:980px;padding:7px 14px 7px 32px;font-size:13px}
+.cc-search::before{content:'🔍';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
+.cc-chip{border:1px solid var(--border);background:var(--panel);border-radius:980px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.cc-chip:hover{background:var(--hover)}
+.cc-chip.on{background:var(--text);color:var(--panel);border-color:transparent}
+.cc-chip.fav.on{background:#e0395a;color:#fff}
+.cc-count{font-size:11.5px;color:var(--muted);margin-left:auto}
+/* 卡片收藏心 */
+.cc-fav{position:absolute;top:12px;left:12px;font-size:15px;line-height:1;cursor:pointer;
+  border:none;background:none;padding:2px;color:var(--muted);opacity:.55;transition:opacity .12s,transform .12s;z-index:2}
+.cc-fav:hover{opacity:1;transform:scale(1.15)}
+.cc-fav.on{opacity:1;color:#e0395a}
+.cc-card .t{padding-left:22px}
 /* 观看模式 */
 body.viewer #top, body.viewer #doc-tabs, body.viewer #left-dock, body.viewer #right-dock,
 body.viewer #hint, body.viewer #site-footer{display:none!important}
@@ -5987,23 +6003,50 @@ function showPublishMenu(libEntry, rect){
     openPersonal('creator');
   };
 }
-function openCircle(){
-  seedCircle();
-  closePop(); closeModal();
-  let div=document.getElementById('circle');
-  if(div) div.remove();
-  div=document.createElement('div'); div.id='circle';
-  const pubs=circlePubs().filter(pb=>(pb.status||'approved')==='approved');
-  const own=circleOwned();
-  const notice=(adminCfg().notice||'').trim();
-  const cards=pubs.map(pb=>`
-    <div class="cc-card" data-pub="${pb.pid}">
+const FAV_KEY='musetab-circle-fav';
+function circleFav(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY))||{}; }catch(_){ return {}; } }
+function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o)); }catch(_){} }
+function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
+let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
+const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['func','功能谱']];
+function circleCard(pb, own, fav){
+  return `<div class="cc-card" data-pub="${pb.pid}">
+      <button class="cc-fav ${fav[pb.pid]?'on':''}" data-fav="${pb.pid}" title="${fav[pb.pid]?'取消收藏':'收藏'}">${fav[pb.pid]?'♥':'♡'}</button>
       <div class="cc-price ${pb.price>0?'':'free'}">${pb.price>0? (own[pb.pid]?'已购':'¥'+pb.price) : '免费'}</div>
       <div class="t">${esc(pb.title||'未命名曲谱')}</div>
       <div class="a">制谱：${esc(pb.author||'佚名')} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</div>
       <div class="meta"><i>${TYPE_CN[pb.type]||'曲谱'}</i><i>${(pb.data.measures||[]).length} 小节</i>
         <i>👁 ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}</div>
-    </div>`).join('');
+    </div>`;
+}
+function circleFiltered(){
+  const own=circleOwned(), fav=circleFav();
+  const q=ccFilter.q.trim().toLowerCase();
+  return circlePubs().filter(pb=>(pb.status||'approved')==='approved').filter(pb=>{
+    if(ccFilter.favOnly && !fav[pb.pid]) return false;
+    if(ccFilter.cat!=='all' && pb.type!==ccFilter.cat) return false;
+    if(ccFilter.pay==='free' && pb.price>0) return false;
+    if(ccFilter.pay==='paid' && !(pb.price>0)) return false;
+    if(q){ const hay=((pb.title||'')+' '+(pb.author||'')).toLowerCase(); if(!hay.includes(q)) return false; }
+    return true;
+  });
+}
+function renderCircleGrid(){
+  const grid=document.querySelector('#circle .cc-grid'); if(!grid) return;
+  const own=circleOwned(), fav=circleFav();
+  const list=circleFiltered();
+  grid.innerHTML = list.length? list.map(pb=>circleCard(pb,own,fav)).join('')
+    : `<p style="grid-column:1/-1;color:var(--muted);text-align:center;padding:30px 0">没有符合条件的曲谱${ccFilter.favOnly?'（收藏夹为空）':''}。</p>`;
+  const cnt=document.querySelector('#circle .cc-count'); if(cnt) cnt.textContent=list.length+' 首';
+}
+function openCircle(){
+  seedCircle();
+  closePop(); closeModal();
+  ccFilter={q:'', cat:'all', pay:'all', favOnly:false};   // 每次进入重置筛选（收藏数据本身持久保存）
+  let div=document.getElementById('circle');
+  if(div) div.remove();
+  div=document.createElement('div'); div.id='circle';
+  const notice=(adminCfg().notice||'').trim();
   div.innerHTML=`<div class="cc-top">
       <span class="cc-logo">🎸 谱友圈</span>
       <span class="cc-sub">发现好谱 · 支持创作者 &nbsp;|&nbsp; 创作者可在「个人中心 → 创作者中心」发布曲谱</span>
@@ -6011,12 +6054,34 @@ function openCircle(){
       <button id="cc-back" class="primary">返回制谱器</button>
     </div>
     ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">📢 ${esc(notice)}</div></div>`:''}
-    <div class="cc-grid">${cards || '<p style="grid-column:1/-1;color:var(--muted)">还没有上架的曲谱。</p>'}</div>
+    <div class="cc-tools">
+      <span class="cc-search"><input id="cc-q" placeholder="搜索曲名 / 作者" value="${esc(ccFilter.q)}"></span>
+      ${CC_CATS.map(([k,n])=>`<button class="cc-chip ${ccFilter.cat===k?'on':''}" data-cat="${k}">${n}</button>`).join('')}
+      <button class="cc-chip ${ccFilter.pay==='free'?'on':''}" data-pay="free">免费</button>
+      <button class="cc-chip ${ccFilter.pay==='paid'?'on':''}" data-pay="paid">付费</button>
+      <button class="cc-chip fav ${ccFilter.favOnly?'on':''}" data-favonly>♥ 我的收藏</button>
+      <span class="cc-count"></span>
+    </div>
+    <div class="cc-grid"></div>
     <p style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">
       本地演示版 · 云端账号 / 微信支付 / 小程序上线后自动同步</p>`;
   document.body.appendChild(div);
+  renderCircleGrid();
   document.getElementById('cc-back').onclick=()=>div.remove();
+  const q=document.getElementById('cc-q');
+  q.oninput=()=>{ ccFilter.q=q.value; renderCircleGrid(); };
   div.addEventListener('click', e=>{
+    const fv=e.target.closest('[data-fav]');
+    if(fv){ e.stopPropagation(); const on=toggleFav(fv.dataset.fav);
+      fv.classList.toggle('on',on); fv.textContent=on?'♥':'♡'; fv.title=on?'取消收藏':'收藏';
+      if(ccFilter.favOnly) renderCircleGrid(); return; }
+    const cat=e.target.closest('[data-cat]');
+    if(cat){ ccFilter.cat=cat.dataset.cat; div.querySelectorAll('[data-cat]').forEach(b=>b.classList.toggle('on',b===cat)); renderCircleGrid(); return; }
+    const pay=e.target.closest('[data-pay]');
+    if(pay){ const v=pay.dataset.pay; ccFilter.pay = ccFilter.pay===v?'all':v;
+      div.querySelectorAll('[data-pay]').forEach(b=>b.classList.toggle('on', b.dataset.pay===ccFilter.pay)); renderCircleGrid(); return; }
+    const fo=e.target.closest('[data-favonly]');
+    if(fo){ ccFilter.favOnly=!ccFilter.favOnly; fo.classList.toggle('on',ccFilter.favOnly); renderCircleGrid(); return; }
     const c=e.target.closest('[data-pub]');
     if(c) openPubViewer(c.dataset.pub);
   });
@@ -6627,6 +6692,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.82</span><div>谱友圈功能细化：新增顶部工具条——① 搜索（按曲名/作者实时过滤）；② 分类筛选（吉他谱/尤克里里/简谱/功能谱 + 免费/付费）；③ 收藏夹（每张卡片 ♥ 一键收藏、"我的收藏"只看已收藏，本机持久保存）；实时显示结果数量，进入自动重置筛选。</div></li>
     <li><span class="v">v34.81</span><div>简谱旋律延音：把 v34.80 的「让音自然延续」模型延伸到简谱声部——拨弦/钢琴音色的旋律音延音到下一个音起点（休止不硬掐、末音自然衰减），不再被节奏时值切成断音；持续音色（弦乐/长笛/人声）仍按时值保持；连音线合并、倚音、力度记号照旧。</div></li>
     <li><span class="v">v34.80</span><div>吉他播放逻辑重构（对齐 Guitar Pro 的发声模型）——修复"音色几乎无增强"的根因：此前每个音被强行掐死在其节奏时值上，分解和弦/扫弦变成一串断音。现改为<b>逐弦延音</b>：六根弦各自独立，同一根弦被再次弹响才掐断旧音（自然响到那一刻再 50ms 快速阻尼），否则让弦自然延音到采样衰减结束；不同弦的音同时叠加延续。音符时值只决定下一个音何时开始。采样与合成器包络同步改造（6ms 起音防爆音、被弹响时快速阻尼）。反复扫弦自动掐断不堆积、分解和弦自然交叠，听感与真实吉他一致。</div></li>
     <li><span class="v">v34.79</span><div>音色重大升级——核心乐器内置真实录音采样：木吉他/尼龙吉他(尤克里里共用)/贝斯/钢琴的真实采样直接随页面内置，在<b>任何环境（在线预览、离线、服务器未部署）都是真实音色</b>，不再依赖联网或部署；引擎改为「内置采样即时铺底 → 部署自托管后自动升级 88 音全量 → 合成器仅兜底」三层，起音防爆音、拨弦自然衰减；页面体积一次性增加约 1MB（浏览器缓存）。</div></li>
