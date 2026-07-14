@@ -4800,7 +4800,7 @@ function sfDecode(ctx, bank, midi){
   }catch(_){ delete bank.buf['p'+key]; }
 }
 /* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
-function sfTryPlay(ctx, bus, name, freq, when, dur, gain){
+function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const bank=sfBanks[name];
   if(!bank || bank.status!=='ready') return false;
   const midi=Math.round(69+12*Math.log2(freq/440));
@@ -4815,22 +4815,30 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain){
   const buf=bank.buf[key];
   if(!buf){ sfDecode(ctx, bank, pick); return false; }
   const src=ctx.createBufferSource(); src.buffer=buf;
-  src.playbackRate.value=freq/midiFreq(pick);
+  const rate=freq/midiFreq(pick); src.playbackRate.value=rate;
   const sus=SF_SUSTAIN.has(name);
-  const rel=sus? 0.18 : Math.min(1.2, 0.5+dur*0.4);
+  const natLen=buf.duration/rate;                           // 采样自然衰减长度（按变速）
   const g=ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
-  g.gain.linearRampToValueAtTime(gain, when+0.006);        // 6ms 线性起音，杜绝爆音
+  g.gain.linearRampToValueAtTime(gain, when+0.006);         // 6ms 线性起音，杜绝爆音
+  let stopAt;
   if(sus){                                                  // 持续音色：随时值保持后收音
     g.gain.setValueAtTime(gain, when+Math.max(0.02, dur));
-    g.gain.linearRampToValueAtTime(0.0001, when+dur+rel);
-  }else{                                                    // 拨弦/钢琴：让采样自然衰减，尾端平滑淡出防切断爆音
-    g.gain.setValueAtTime(gain, when+Math.max(0.02, dur*0.85));
-    g.gain.exponentialRampToValueAtTime(0.0001, when+dur+rel);
+    g.gain.linearRampToValueAtTime(0.0001, when+dur+0.18);
+    stopAt=when+dur+0.2;
+  }else if(opt && opt.damp){                                // 弦被再次弹响/闷音：自然响到 when+dur，再 50ms 阻尼
+    const cutT=when+Math.max(0.05, dur);
+    g.gain.setValueAtTime(gain, Math.max(when+0.02, cutT-0.05));
+    g.gain.linearRampToValueAtTime(0.0001, cutT);
+    stopAt=cutT+0.02;
+  }else{                                                    // 让弦自然延音：播完采样的完整衰减（let ring）
+    stopAt=when+Math.min(natLen, dur);
+    g.gain.setValueAtTime(gain, Math.max(when+0.02, stopAt-0.04));
+    g.gain.linearRampToValueAtTime(0.0001, stopAt);
   }
   src.connect(g); g.connect(bus.dry);
-  const ws=ctx.createGain(); ws.gain.value=0.55; g.connect(ws); ws.connect(bus.wet);
-  src.start(when); src.stop(when+dur+rel+0.05);
+  const ws=ctx.createGain(); ws.gain.value=0.5; g.connect(ws); ws.connect(bus.wet);
+  src.start(when); src.stop(stopAt+0.03);
   audio.sources.push(src);
   return true;
 }
@@ -4935,14 +4943,19 @@ function bodyChain(ctx,bus,sp,key){
   bus._body[key]={in:head};
   return bus._body[key];
 }
-function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute){
-  const ring = mute?0.18: Math.min(dur+1.6, 4.2);
+function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
+  const damp = !!(opt && opt.damp);
+  const ring = mute?0.18 : damp? Math.max(0.1,dur)+0.06 : Math.min(dur+1.6, 4.2);
   const src=ctx.createBufferSource(); src.buffer=ksBuffer(ctx,freq,ring,sp,mute);
   const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=sp.hp||70;
   const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.6;
   /* 力度联动亮度：弹得越重泛音越亮 */
   lp.frequency.value=(sp.tone||3800)*(0.72+0.55*Math.min(1, gain*3.2));
   const g=ctx.createGain(); g.gain.value=gain;
+  if(damp && !mute){                                        // 该弦被再次弹响：快速阻尼旧音
+    g.gain.setValueAtTime(gain, when+Math.max(0.02, dur-0.05));
+    g.gain.linearRampToValueAtTime(0.0001, when+dur);
+  }
   src.connect(hp); hp.connect(lp);
   let out=lp;
   if(sp.drive){ const ws=shaperCurve(ctx, sp.drive); lp.connect(ws); out=ws; }
@@ -5093,16 +5106,16 @@ function chick(ctx,bus,when,gain){
   src.start(when); audio.sources.push(src);
 }
 /* ---- 音色分派 ---- */
-function playInst(instKey,ctx,bus,freq,when,dur,gain,mute){
+function playInst(instKey,ctx,bus,freq,when,dur,gain,mute,opt){
   const sp=INSTRUMENTS[instKey]||INSTRUMENTS.steel;
   const f = sp.oct? freq*Math.pow(2,sp.oct/12) : freq;
   const gg = gain*(sp.amp||0.28);
   /* 高保真采样优先（闷音保持合成器的短促质感）；未就绪自动回落 */
   if(hifiOn && !mute && SF_MAP[instKey]){
-    if(sfTryPlay(ctx, bus, SF_MAP[instKey], f, when, dur, gain*0.5)) return;
+    if(sfTryPlay(ctx, bus, SF_MAP[instKey], f, when, dur, gain*0.5, opt)) return;
   }
   switch(sp.type){
-    case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute); break;
+    case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute,opt); break;
     case 'piano': pianoTone(ctx,bus,f,when,dur,gg,sp); break;
     case 'fm':    fmTone(ctx,bus,f,when,dur,gg,sp); break;
     case 'saw':   sawStrings(ctx,bus,f,when,dur,gg,sp); break;
@@ -5348,6 +5361,10 @@ function play(){
     if(!trackAudible('tab',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.max(-0.4, -0.16 - vi*0.12));
     const vol = (cfg.vol||1)*norm;
+    /* Guitar Pro 式逐弦延音：先把音符按绝对时间铺平，再按弦算「掐断点」——
+       同一根弦被再次弹响才掐断旧音（自然响到那一刻再快速阻尼）；
+       否则让弦自然延音到采样衰减结束。音符时值只决定下一个音何时开始。 */
+    const insts=[];
     order.forEach((mi,oi)=>{
       let off=starts[oi];
       (song.measures[mi].tabs[vi]||[]).forEach((col,ci)=>{
@@ -5362,17 +5379,26 @@ function play(){
         const ord2 = col.strum==='u' ? ns.slice().reverse() : ns;
         const chordDiv = Math.sqrt(Math.max(1, ord2.length));
         ord2.forEach((n,k)=>{
-          const when = t+off+k*stagger;
-          if(n.x) chick(ctx, tbus, when, 0.3*vol);
-          else{
-            const freq = midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12);
-            playInst(cfg.inst, ctx, tbus, freq, when, col.mute?0.14:durSec, vol/chordDiv, col.mute);
-            if(col.mute) chick(ctx, tbus, when, 0.12*vol);
-          }
+          insts.push({ when:t+off+k*stagger, s:n.s, x:!!n.x, mute:!!col.mute,
+            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12), gain:vol/chordDiv });
         });
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
         off += durSec;
       });
+    });
+    insts.sort((a,b)=>a.when-b.when);
+    const lastByStr={};                                   // 每根弦上一次发声的下标 → 回填掐断点
+    insts.forEach((it,idx)=>{
+      it.cut=null;
+      const pv=lastByStr[it.s];
+      if(pv!=null) insts[pv].cut=it.when;                 // 前一同弦音在本音起始处被掐断
+      lastByStr[it.s]=idx;
+    });
+    insts.forEach(it=>{
+      if(it.x){ chick(ctx, tbus, it.when, 0.3*vol); return; }
+      if(it.mute){ playInst(cfg.inst, ctx, tbus, it.freq, it.when, 0.14, it.gain, true); chick(ctx, tbus, it.when, 0.12*vol); return; }
+      const ring = it.cut!=null ? Math.max(0.06, it.cut-it.when) : 6.0;   // 到下次同弦发声 / 自然延音
+      playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, {damp: it.cut!=null});
     });
   });
   /* 简谱（旋律）声部：连音线合并同音，按各自音色发声 */
@@ -6589,6 +6615,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.80</span><div>吉他播放逻辑重构（对齐 Guitar Pro 的发声模型）——修复"音色几乎无增强"的根因：此前每个音被强行掐死在其节奏时值上，分解和弦/扫弦变成一串断音。现改为<b>逐弦延音</b>：六根弦各自独立，同一根弦被再次弹响才掐断旧音（自然响到那一刻再 50ms 快速阻尼），否则让弦自然延音到采样衰减结束；不同弦的音同时叠加延续。音符时值只决定下一个音何时开始。采样与合成器包络同步改造（6ms 起音防爆音、被弹响时快速阻尼）。反复扫弦自动掐断不堆积、分解和弦自然交叠，听感与真实吉他一致。</div></li>
     <li><span class="v">v34.79</span><div>音色重大升级——核心乐器内置真实录音采样：木吉他/尼龙吉他(尤克里里共用)/贝斯/钢琴的真实采样直接随页面内置，在<b>任何环境（在线预览、离线、服务器未部署）都是真实音色</b>，不再依赖联网或部署；引擎改为「内置采样即时铺底 → 部署自托管后自动升级 88 音全量 → 合成器仅兜底」三层，起音防爆音、拨弦自然衰减；页面体积一次性增加约 1MB（浏览器缓存）。</div></li>
     <li><span class="v">v34.78</span><div>响应式断点改造（为手机/平板打底，桌面 ≥1200 布局不变）：平板（≤1200）自动收起右侧信息栏、谱面占满；手机（≤820）单栏布局——谱面缩放适配屏宽、左侧功能面板收为底部抽屉（横排标签唤出）、右栏隐藏、页头精简、播放条与页脚避让，全程无横向滚动；极窄屏（≤520）进一步精简编辑栏标签。</div></li>
     <li><span class="v">v34.77</span><div>观看模式增强（谱友圈看谱）三件套：① 即时移调——♭/♯ 或 −/+ 键升降半音，1=调号、所有和弦名、TAB 品位、简谱旋律同步移调，点调号一键还原；非破坏性（从原始发布数据重建，退出即恢复）。② 谱架模式（🎼）——全屏沉浸、放大谱面、隐藏所有编辑界面，适合看谱演奏。③ 自动卷谱——谱架内可 ▶/⏸ 自动向下滚动、加减速（8–90 px/s）、一键回顶，到谱尾自动停；空格控制卷谱、Esc 退出。</div></li>
