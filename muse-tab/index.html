@@ -806,7 +806,7 @@ body.stand #standbar{display:flex}
   <div class="mx-tracks" id="mx-tracks"></div>
   <div class="mx-bar">
     <button id="b-play" class="primary" title="播放 / 暂停（空格键）">▶ 播放</button>
-    <button id="b-restart" title="回到最前，从头播放">⏮ 最前</button>
+    <button id="b-restart" title="回到开头（停在最前，不自动播放）">⇤ 开头</button>
     <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
     <button id="b-mxgrid" title="打开小节选择面板（小节多时精确选择循环区）">▦</button>
     <span id="mx-lbl">第 1 小节</span>
@@ -5515,8 +5515,9 @@ function togglePlay(){
 }
 document.getElementById('b-play').onclick = togglePlay;
 document.getElementById('b-restart').onclick = ()=>{
+  stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
-  play();   // 回到最前从头播放
+  clampSel(); render();                    // 光标停在开头
 };
 /* ---- 底部悬浮播放条 / 音轨面板 ---- */
 let mixerExpanded = false;
@@ -6624,7 +6625,7 @@ document.getElementById('b-help').onclick = ()=>{
   </table>
   <h4>通用 · 播放与循环</h4>
   <table>
-  <tr><td class="k">空格 / ▶ / ⏮</td><td>播放键单键切换：点击播放，再点即时暂停，再点继续（音频精确冻结）；⏮ 回到最前从头播放；底部混音器可换音色、独奏/静音、调速度</td></tr>
+  <tr><td class="k">空格 / ▶ / ⇤</td><td>播放键单键切换：点击播放，再点即时暂停，再点继续（音频精确冻结）；⇤ 回到开头并停住（不自动播放）；底部混音器可换音色、独奏/静音、调速度</td></tr>
   <tr><td class="k">小节格进度条</td><td>一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时自动变密集标尺，点击或 ▦ 打开大格选择面板</td></tr>
   </table>
   <h4>通用 · 窗口与保存</h4>
@@ -6680,7 +6681,8 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
-    <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⏮ 最前」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「⏮ 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「🎧 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
+    <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ⏮）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
+    <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⇤ 开头」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「⏮ 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「🎧 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
     <li><span class="v">v34.83</span><div>新增帮助文档站（muse-tab/docs/，部署后 puyouquan.com/docs）：侧边导航 + 快速上手/曲谱类型/录入编辑/和弦级数/播放谱架/简谱乐理知识/导出分享/谱友圈/常见问题/关于，含 SEO 关键词与乐理科普，响应式适配；页头 CTA 与页脚回链制谱器，制谱器页脚新增「帮助文档」入口；部署脚本同步 docs/。</div></li>
     <li><span class="v">v34.82</span><div>谱友圈功能细化：新增顶部工具条——① 搜索（按曲名/作者实时过滤）；② 分类筛选（吉他谱/尤克里里/简谱/功能谱 + 免费/付费）；③ 收藏夹（每张卡片 ♥ 一键收藏、"我的收藏"只看已收藏，本机持久保存）；实时显示结果数量，进入自动重置筛选。</div></li>
     <li><span class="v">v34.81</span><div>简谱旋律延音：把 v34.80 的「让音自然延续」模型延伸到简谱声部——拨弦/钢琴音色的旋律音延音到下一个音起点（休止不硬掐、末音自然衰减），不再被节奏时值切成断音；持续音色（弦乐/长笛/人声）仍按时值保持；连音线合并、倚音、力度记号照旧。</div></li>
