@@ -648,8 +648,8 @@ body.stand #standbar{display:flex}
     <div class="rg panel-p" id="panel-tab-mark">
       <div class="rg-title">演奏记号</div>
       <div class="rg-body">
-        <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button><button id="b-strum-d">扫↓</button>
-        <button id="b-strum-u">扫↑</button>
+        <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button><button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
+        <button id="b-strum-u" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
         <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
@@ -1240,11 +1240,62 @@ function presetDuet(){
       M('G',[V(3,'跑','睛'),V(4,'得','一'),V(5,'快','只',2)])
     ]};
 }
+function presetUke(){
+  /* 尤克里里弹唱：4 弦 GCEA + 扫弦节奏型 + 简谱 + 歌词 —— 小星星 */
+  const V=(deg,ly,dur,oct)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false});
+  const sh={C:'0003',G:'0232',Am:'2000',F:'2010'};
+  const sounded=s=>{const r=[];[...s].forEach((c,i)=>{if(c!=='x')r.push({s:4-i,f:parseInt(c,36)})});return r;};
+  const strum=(chord)=>{ const N=sounded(sh[chord]);
+    const col=(strm,dur,mute)=>({dur,dotted:false,chord:'',notes:N.map(n=>({...n})),strum:strm,mute:!!mute});
+    const c=[col('d',4),col('d',8),col('u',8),col('d',8),col('u',8),col('d',8),col('u',8)];
+    c[0].chord=chord; return c; };
+  const M=(chord,vox)=>({tabs:[strum(chord)],voxes:[vox],repeatStart:false,repeatEnd:false});
+  return {v:3, title:'小星星（尤克里里）', singer:'', lyricist:'', composer:'法国民谣', inst:'uku',
+    maker:'谱友圈预设', key:'C', beats:4, unit:4, tempo:100, capo:0, customChords:{},
+    tabVoices:['尤克里里'], voxVoices:['旋律1'], lyricLines:1,
+    measures:[
+      M('C',[V(1,'一'),V(1,'闪'),V(5,'一'),V(5,'闪')]),
+      M('F',[V(6,'亮'),V(6,'晶'),V(5,'晶',2)]),
+      M('C',[V(4,'满'),V(4,'天'),V(3,'都'),V(3,'是')]),
+      M('G',[V(2,'小'),V(2,'星'),V(1,'星',2)],{finalBar:true})
+    ]};
+}
+function presetFunc(){
+  /* 功能谱（乐队总谱）：简谱 + 级数和弦，经典 1–5–6m–4 进行；级数/音名可切换、可即时移调 */
+  const N=(deg,dur,oct,chord)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyrics:[],tie:false,chord:chord||''});
+  const M=(vox,ext)=>Object.assign({tabs:[],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  return {v:3, title:'流行进行示例（功能谱）', singer:'', lyricist:'', composer:'', func:true,
+    maker:'谱友圈预设', key:'C', beats:4, unit:4, tempo:90, capo:0, customChords:{},
+    tabVoices:[], voxVoices:['旋律1'], lyricLines:0,
+    measures:[
+      M([N(3,4,0,'C'),N(3,8),N(2,8),N(1,4),N(5,4,-1)]),      /* C = 1 */
+      M([N(5,4,-1,'G'),N(5,8),N(6,8,-1),N(7,4,-1),N(1,4)]),  /* G = 5 */
+      M([N(1,4,0,'Am'),N(1,8),N(6,8,-1),N(6,4,-1),N(3,4)]),  /* Am = 6m */
+      M([N(4,4,0,'F'),N(3,8),N(2,8),N(1,2)],{finalBar:true}) /* F = 4 */
+    ]};
+}
+function presetRepeat(){
+  /* 反复与段落：|: :| 反复 + 第一/二段结尾 + 力度记号，展示播放导航 */
+  const V=(deg,ly,dur,oct,dyn)=>({dur:dur||4,dotted:false,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false,dyn:dyn||''});
+  const M=(vox,ext)=>Object.assign({tabs:[],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  return {v:3, title:'反复与段落示例', singer:'', lyricist:'', composer:'',
+    maker:'谱友圈预设', key:'C', beats:4, unit:4, tempo:96, capo:0, customChords:{},
+    tabVoices:[], voxVoices:['旋律1'], lyricLines:1,
+    measures:[
+      M([V(1,'我',4,0,'mf'),V(2,'们'),V(3,'唱'),V(5,'歌')],{repeatStart:true}),
+      M([V(5,'一'),V(3,'起'),V(2,'欢'),V(1,'乐')]),
+      M([V(3,'第'),V(3,'一'),V(2,'段'),V(1,'尾')],{volta:1,repeatEnd:true}),
+      M([V(5,'第',4,0,'f'),V(5,'二'),V(4,'段'),V(3,'尾')],{volta:2,finalBar:true})
+    ]};
+}
 const PRESETS = [
   {name:'小星星（分解弹唱）', desc:'分解指弹 + 简谱旋律 + 歌词，×记谱与随行和弦图', make:demoSong},
   {name:'欢乐颂（扫弦弹唱）', desc:'民谣扫弦节奏型 + 切音 + 多和弦 + 歌词', make:presetStrum},
   {name:'指弹技法示例', desc:'滑弦/击弦/勾弦/推弦/揉弦 + 大七小七和弦', make:presetTech},
   {name:'两只老虎（双声部）', desc:'指弹+扫弦双吉他声部 + 两段歌词', make:presetDuet},
+  {name:'小星星（尤克里里）', desc:'尤克里里 4 弦 GCEA 弹唱 + 扫弦节奏型 + 和弦图', make:presetUke},
+  {name:'流行进行（功能谱）', desc:'简谱 + 级数和弦 1–5–6m–4，级数/音名切换、可即时移调', make:presetFunc},
+  {name:'反复与段落示例', desc:'反复记号 + 第一/二段结尾 + 力度记号，展示播放导航', make:presetRepeat},
 ];
 function migrate(s){
   if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
@@ -1951,7 +2002,7 @@ function render(){
             /* 扫弦：只画箭头（细线），落在需要扫的弦上；切音=箭头上带一个点 */
             const sp = strumSpan(col);
             const yT = tabTop+(sp.top-1)*STR-4, yB = tabTop+(sp.bot-1)*STR+4;
-            const up = col.strum==='u';   // 所见即所得：扫↑箭头向上，扫↓箭头向下
+            const up = col.strum==='d';   // 箭头=拨片在六线谱上的移动方向：下扫从低音弦(下)扫向高音弦(上)→向上箭头；上扫反之
             p.push(`<line x1="${nx}" y1="${yT+3}" x2="${nx}" y2="${yB-3}" stroke="var(--ink)" stroke-width="1.1"/>`);
             if(up) p.push(`<path d="M ${nx-3.2} ${yT+8} L ${nx} ${yT+1} L ${nx+3.2} ${yT+8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             else   p.push(`<path d="M ${nx-3.2} ${yB-8} L ${nx} ${yB-1} L ${nx+3.2} ${yB-8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
@@ -4340,7 +4391,7 @@ document.getElementById('b-arpd').onclick = ()=>setStrum('arpd');
 document.getElementById('b-smute').onclick = ()=>{
   if(sel.row!=='tab') return toast('请先在吉他谱选中扫弦列');
   const col=curCol();
-  if(!col || !(col.strum==='d'||col.strum==='u')) return toast('扫弦切音需先设为扫↓/扫↑');
+  if(!col || !(col.strum==='d'||col.strum==='u')) return toast('扫弦切音需先设为下扫/上扫');
   mutate(()=>{ curCol().mute=!curCol().mute; });
 };
 /* 拍弦：分解和弦中需拍弦的音符用方框框住 */
@@ -6637,7 +6688,7 @@ document.getElementById('b-help').onclick = ()=>{
   <table>
   <tr><td class="k">录入与和弦</td><td>点弦位敲品位；「记谱:×」教材式切换；输入和弦自动画和弦图并按指法重排，改和弦智能移调</td></tr>
   <tr><td class="k">演奏技巧</td><td>滑弦S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音</td></tr>
-  <tr><td class="k">扫弦 / 琶音</td><td>扫↓扫↑/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数</td></tr>
+  <tr><td class="k">扫弦 / 琶音</td><td>下扫/上扫（箭头方向=拨片在六线谱上从低音弦扫向高音弦的移动方向；下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数</td></tr>
   </table>
   <h4>简谱</h4>
   <table>
@@ -6681,6 +6732,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.86</span><div>扫弦箭头方向翻转：下扫标 ↑、上扫标 ↓——箭头表示拨片在六线谱上从低音弦扫向高音弦的移动方向（低音 6 弦画在最下，故下扫向上）；播放声音不变（下扫仍低音先响）。按钮改「下扫/上扫」。新增 3 首预设曲谱：小星星（尤克里里 4 弦弹唱）、流行进行（功能谱 1–5–6m–4 级数和弦）、反复与段落示例（反复记号+第一/二段结尾+力度记号，展示播放导航）。</div></li>
     <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ⏮）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
     <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⇤ 开头」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「⏮ 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「🎧 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
     <li><span class="v">v34.83</span><div>新增帮助文档站（muse-tab/docs/，部署后 puyouquan.com/docs）：侧边导航 + 快速上手/曲谱类型/录入编辑/和弦级数/播放谱架/简谱乐理知识/导出分享/谱友圈/常见问题/关于，含 SEO 关键词与乐理科普，响应式适配；页头 CTA 与页脚回链制谱器，制谱器页脚新增「帮助文档」入口；部署脚本同步 docs/。</div></li>
