@@ -5401,27 +5401,28 @@ function play(){
       playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, {damp: it.cut!=null});
     });
   });
-  /* 简谱（旋律）声部：连音线合并同音，按各自音色发声 */
+  /* 简谱（旋律）声部：连音线合并同音；拨弦/钢琴音色延音到下一个音（休止不掐、末音自然衰减），
+     持续音色（弦乐/长笛/人声）按时值保持——与吉他谱同一套「让音自然延续」模型 */
   song.voxVoices.forEach((_,vi)=>{
     const cfg = trackCfg('vox',vi);
     if(!trackAudible('vox',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
     const vol = (cfg.vol||1)*norm;
-    let hold=null, dynG=1;
-    const flush=()=>{ if(hold){ playInst(cfg.inst, ctx, tbus, hold.freq, t+hold.start, hold.dur, vol*1.05*hold.g, false); hold=null; } };
+    const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
+    /* 1) 铺平列 → 合并连音线为音符事件；倚音/高亮/力度就地处理 */
+    const notes=[]; let cur=null, dynG=1;
     order.forEach((mi,oi)=>{
       let off=starts[oi];
       (song.measures[mi].voxes[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col)*spb;
         const m = voxMidi(col);
-        /* 前倚音：主音前的短促小音符序列（最多3音，时值越小越短促） */
+        /* 前倚音：主音前的短促小音符序列 */
         if(col.grace && m!=null){
           const g = normGrace(col.grace);
           const per = Math.min(0.12, durSec*0.35/g.notes.length) * (g.dur>=16? 0.6 : 1);
-          flush();
           g.notes.forEach((gn,gi)=>{
             const gm = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false);
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false, {damp:true});
           });
         }
         /* 后倚音：主音末尾的短促小音符序列 */
@@ -5430,21 +5431,32 @@ function play(){
           const per = Math.min(0.1, durSec*0.3/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
             const gm2 = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false);
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false, {damp:true});
           });
         }
         if(col.dyn && DYN_GAIN[col.dyn]) dynG=DYN_GAIN[col.dyn];
         if(m!=null){
           const f=midiFreq(m);
-          if(hold && Math.abs(hold.freq-f)<0.01) hold.dur += durSec;
-          else{ flush(); hold={freq:f,start:off,dur:durSec,g:dynG}; }
-          if(!col.tie) flush();
-        }else flush();
+          if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
+          else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG, tie:!!col.tie}; }
+        } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
         off += durSec;
       });
     });
-    flush();
+    if(cur) notes.push(cur);
+    /* 2) 调度延音：拨弦/钢琴延音到下一个音起点（damp）、末音自然衰减；持续音色按时值 */
+    notes.forEach((n,i)=>{
+      const rhythm = n.end - n.at;
+      let dur, opt;
+      if(sustained){ dur=rhythm; opt=undefined; }
+      else {
+        const nx=notes[i+1];
+        if(nx){ dur=Math.max(rhythm, nx.at-n.at); opt={damp:true}; }
+        else { dur=Math.max(rhythm, 6.0); opt={damp:false}; }
+      }
+      playInst(cfg.inst, ctx, tbus, n.freq, n.at, dur, vol*1.05*n.g, false, opt);
+    });
     total=Math.max(total,starts.length?starts[starts.length-1]+measureSeconds(order[order.length-1],spb):0);
   });
   audio.events.sort((a,b)=>a.tm-b.tm);
@@ -6615,6 +6627,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.81</span><div>简谱旋律延音：把 v34.80 的「让音自然延续」模型延伸到简谱声部——拨弦/钢琴音色的旋律音延音到下一个音起点（休止不硬掐、末音自然衰减），不再被节奏时值切成断音；持续音色（弦乐/长笛/人声）仍按时值保持；连音线合并、倚音、力度记号照旧。</div></li>
     <li><span class="v">v34.80</span><div>吉他播放逻辑重构（对齐 Guitar Pro 的发声模型）——修复"音色几乎无增强"的根因：此前每个音被强行掐死在其节奏时值上，分解和弦/扫弦变成一串断音。现改为<b>逐弦延音</b>：六根弦各自独立，同一根弦被再次弹响才掐断旧音（自然响到那一刻再 50ms 快速阻尼），否则让弦自然延音到采样衰减结束；不同弦的音同时叠加延续。音符时值只决定下一个音何时开始。采样与合成器包络同步改造（6ms 起音防爆音、被弹响时快速阻尼）。反复扫弦自动掐断不堆积、分解和弦自然交叠，听感与真实吉他一致。</div></li>
     <li><span class="v">v34.79</span><div>音色重大升级——核心乐器内置真实录音采样：木吉他/尼龙吉他(尤克里里共用)/贝斯/钢琴的真实采样直接随页面内置，在<b>任何环境（在线预览、离线、服务器未部署）都是真实音色</b>，不再依赖联网或部署；引擎改为「内置采样即时铺底 → 部署自托管后自动升级 88 音全量 → 合成器仅兜底」三层，起音防爆音、拨弦自然衰减；页面体积一次性增加约 1MB（浏览器缓存）。</div></li>
     <li><span class="v">v34.78</span><div>响应式断点改造（为手机/平板打底，桌面 ≥1200 布局不变）：平板（≤1200）自动收起右侧信息栏、谱面占满；手机（≤820）单栏布局——谱面缩放适配屏宽、左侧功能面板收为底部抽屉（横排标签唤出）、右栏隐藏、页头精简、播放条与页脚避让，全程无横向滚动；极窄屏（≤520）进一步精简编辑栏标签。</div></li>
