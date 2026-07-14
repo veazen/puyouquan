@@ -253,7 +253,26 @@ input.short{width:54px} input.mid{width:150px}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
 #score .pagebg{stroke:var(--border)}
-#hint{max-width:900px;margin:8px auto 34px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
+#hint{max-width:900px;margin:8px auto 20px;padding:0 20px;color:var(--muted);font-size:12px;line-height:1.6}
+/* 站点页脚（合规链接 + 备案号常驻） */
+#site-footer{max-width:900px;margin:0 auto 40px;padding:14px 20px 0;border-top:1px solid var(--border-soft);
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;
+  color:var(--muted);font-size:12px;line-height:1.7;text-align:center}
+#site-footer .fl{color:var(--muted);cursor:pointer;text-decoration:none}
+#site-footer .fl:hover{color:var(--accent)}
+#site-footer .sep{opacity:.4}
+#site-footer .beian{color:var(--muted);text-decoration:none}
+#site-footer .beian:hover{color:var(--accent)}
+#site-footer .cr{width:100%;opacity:.8;margin-top:2px}
+/* 协议 / 隐私 长文排版 */
+.legal{font-size:13px;line-height:1.8;color:var(--text);max-height:64vh;overflow:auto;padding-right:4px}
+.legal h5{margin:16px 0 5px;font-size:13.5px;color:var(--text);font-weight:700}
+.legal h5:first-child{margin-top:4px}
+.legal p{margin:5px 0;color:var(--text)}
+.legal ul{margin:5px 0;padding-left:20px}
+.legal li{margin:3px 0}
+.legal .upd{color:var(--muted);font-size:12px;margin-bottom:8px}
+.legal .note{background:var(--toolbar);border-radius:9px;padding:9px 12px;font-size:12.5px;color:var(--muted);margin:8px 0}
 /* ================= 弹窗 ================= */
 .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.34);z-index:50;
   -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
@@ -304,7 +323,7 @@ svg text{user-select:none}
 .cc-price.free{color:#2eaf64}
 /* 观看模式 */
 body.viewer #top, body.viewer #doc-tabs, body.viewer #left-dock, body.viewer #right-dock,
-body.viewer #hint{display:none!important}
+body.viewer #hint, body.viewer #site-footer{display:none!important}
 body.viewer #stage{display:block}
 body.viewer #score-wrap{margin:0 auto}
 #viewerbar{position:sticky;top:0;z-index:40;display:none;align-items:center;gap:10px;
@@ -457,7 +476,7 @@ body.viewer #viewerbar{display:flex}
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
 @media print{
-  #top,#hint,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs{display:none!important}
+  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs{display:none!important}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -689,6 +708,14 @@ body.viewer #viewerbar{display:flex}
   </aside>
 </div>
 <div id="hint">吉他谱区点弦位输品位数字；简谱区点数字位置输 0–7；Shift+点击跨小节多选后，在"节奏型库"中点图示即可批量套用（有和弦时自动按指法生成音符）。小节时值与拍号不符会自动标红并计入上方"节拍检查"。</div>
+<footer id="site-footer">
+  <a class="fl" id="f-about">关于谱友圈</a><span class="sep">·</span>
+  <a class="fl" id="f-terms">用户协议</a><span class="sep">·</span>
+  <a class="fl" id="f-privacy">隐私政策</a><span class="sep">·</span>
+  <a class="fl" id="f-help2">使用帮助</a><span class="sep">·</span>
+  <a class="beian" id="f-beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">备案号：申请中</a>
+  <div class="cr">© 2026 谱友圈 puyouquan.com · 在线制谱工具</div>
+</footer>
 <div id="mixer-dock">
   <div class="mx-tracks" id="mx-tracks"></div>
   <div class="mx-bar">
@@ -6351,6 +6378,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.76</span><div>上线合规准备：新增站点页脚（关于谱友圈 / 用户协议 / 隐私政策 / 使用帮助 常驻链接，含 ICP 备案号位——审核通过后填入并链至工信部备案系统）；新增《用户协议》《隐私政策》《关于》页面（按本应用真实数据行为撰写：当前纯本地存储不上传、账号/云端/支付为规划中功能）。观看与打印模式自动隐藏页脚。</div></li>
     <li><span class="v">v34.75</span><div>品牌与域名更名：项目全面更名「谱友圈」，域名 puyouquan.com——页头/标题/曲谱圈/署名/存证凭证/部署套件全量更新；本机数据完全兼容保留（存储键不变）。</div></li>
     <li><span class="v">v34.74</span><div>功能谱和弦标注排版修复与放大：和弦框宽度计入小节逐拍排版——相邻八分音符的两个和弦自动撑开列宽、不再重叠（级数/音名切换即时重排）；和弦框整体放大 20%（字号 14、框高 18.5、圆角 6），并为和弦行增加纵向预留空间。</div></li>
     <li><span class="v">v34.73</span><div>功能谱和弦标注三项优化：① 音符上方空位（按八分音符网格）悬停出现「＋和弦」编辑提示，点击直接打开级数构建器；② 和弦时值最小单位为八分音符——十六分及更细位置自动就近向前对齐；③ 谱面标注改为常规字号整名显示并用圆角框框住（不再上标缩小），级数/音名切换与点击编辑不变。</div></li>
@@ -6398,6 +6426,100 @@ document.getElementById('b-changelog').onclick = ()=>{
   <div class="btns"><button id="log-ok" class="primary">知道了</button></div>`);
   document.getElementById('log-ok').onclick = closeModal;
 };
+/* ===== 关于 / 用户协议 / 隐私政策（国内合规页面） ===== */
+const LEGAL_UPD = '2026 年 7 月';
+function showAbout(){
+  showModal(`<h3>关于谱友圈</h3>
+  <div class="legal">
+    <p><b>谱友圈</b>（puyouquan.com）是一款面向吉他与流行音乐爱好者、教师和创作者的<b>在线制谱工具</b>，支持吉他六线谱、尤克里里谱、简谱与功能谱的制作、试听播放、打印导出与曲谱分享。</p>
+    <h5>主要功能</h5>
+    <ul>
+      <li>多类型制谱：六线谱 TAB＋简谱＋歌词三行对齐、功能谱级数和弦</li>
+      <li>练习级播放：开源采样音色、反复记号识别、选段循环</li>
+      <li>创作者生态：曲谱发布、版权时间戳存证、收益管理（规划中）</li>
+      <li>本机实时保存，数据存于你自己的浏览器，随时导出备份</li>
+    </ul>
+    <div class="note">当前为在线体验版本。账号系统、云端同步、付费与小程序等为规划中功能，上线时间以官方公告为准。</div>
+    <p style="color:var(--muted)">联系与合作：support@puyouquan.com</p>
+  </div>
+  <div class="btns"><button id="ab-ok" class="primary">知道了</button></div>`);
+  document.getElementById('ab-ok').onclick = closeModal;
+}
+function showTerms(){
+  showModal(`<h3>用户协议</h3>
+  <div class="legal">
+    <p class="upd">更新日期：${LEGAL_UPD} · 生效日期：${LEGAL_UPD}</p>
+    <p>欢迎使用谱友圈（puyouquan.com，以下简称"本服务"）。在使用本服务前，请你仔细阅读并充分理解本协议全部内容。你开始使用本服务，即视为已阅读并同意接受本协议约束。</p>
+    <h5>一、服务说明</h5>
+    <p>本服务是一款在线制谱与曲谱分享工具，提供曲谱的创作、编辑、播放、导出、发布等功能。本服务的具体内容与功能可能随版本更新而调整。</p>
+    <h5>二、使用规则</h5>
+    <ul>
+      <li>你应遵守中华人民共和国相关法律法规，不得利用本服务制作、上传、发布任何违法违规、侵犯他人合法权益或违背公序良俗的内容。</li>
+      <li>你不得利用本服务从事危害网络安全、干扰服务正常运行的行为，包括但不限于恶意攻击、批量抓取、逆向破解等。</li>
+      <li>你应对使用本账号（如适用）进行的一切活动及后果负责，并妥善保管账号信息。</li>
+    </ul>
+    <h5>三、内容与知识产权</h5>
+    <ul>
+      <li><b>你创作的曲谱</b>：你对自己原创的曲谱内容享有相应权利。你通过本服务创作的作品，其权利归你所有；本服务仅为你提供技术工具与展示、传播的渠道。</li>
+      <li><b>曲谱扒谱/改编</b>：若你制作的曲谱涉及他人音乐作品（如流行歌曲扒谱），相关词曲著作权归原著作权人所有。你应确保你的使用（尤其是公开发布或付费销售）已取得必要授权或符合法律规定，由此产生的责任由你自行承担。</li>
+      <li><b>本服务的软件与素材</b>：本服务的软件、界面、图标及自有素材的知识产权归本服务所有者所有，未经许可不得擅自复制、传播或用于商业用途。</li>
+    </ul>
+    <h5>四、曲谱发布与交易（谱友圈）</h5>
+    <ul>
+      <li>你可选择将曲谱发布至"谱友圈"进行展示或付费销售。发布即表示你承诺对该内容拥有合法权利或已获授权。</li>
+      <li>平台有权对发布内容进行审核，对涉嫌侵权、违规的内容予以驳回或下架。</li>
+      <li>付费、分成与结算等交易功能上线后，将另行提供具体规则并以届时公示为准。</li>
+    </ul>
+    <h5>五、免责声明</h5>
+    <ul>
+      <li>本服务按"现状"提供。因不可抗力、网络故障、第三方服务中断等非本服务原因导致的服务中断或数据异常，本服务在法律允许范围内不承担责任。</li>
+      <li>本服务的曲谱数据默认保存在你的本地浏览器，请你自行做好导出备份；因清除浏览器数据、更换设备等造成的本地数据丢失，本服务不承担责任。</li>
+    </ul>
+    <h5>六、协议变更与终止</h5>
+    <p>本服务可根据法律法规及运营需要适时修订本协议，修订后将在页面公示。你继续使用即视为接受修订。你可随时停止使用本服务。</p>
+    <h5>七、其他</h5>
+    <p>本协议的订立、执行与解释均适用中华人民共和国法律。如有争议，双方应友好协商解决。联系邮箱：support@puyouquan.com。</p>
+  </div>
+  <div class="btns"><button id="tm-ok" class="primary">我已阅读并同意</button></div>`);
+  document.getElementById('tm-ok').onclick = closeModal;
+}
+function showPrivacy(){
+  showModal(`<h3>隐私政策</h3>
+  <div class="legal">
+    <p class="upd">更新日期：${LEGAL_UPD} · 生效日期：${LEGAL_UPD}</p>
+    <p>谱友圈（puyouquan.com，以下简称"本服务"）非常重视你的个人信息与隐私保护。本政策说明我们如何收集、使用、存储和保护你的信息。请你仔细阅读。</p>
+    <div class="note">核心提示：当前版本<b>不设账号、不上传你的曲谱内容</b>。你创作的曲谱、个人资料等数据默认<b>仅保存在你自己浏览器的本地存储中</b>，不会传输到我们的服务器。</div>
+    <h5>一、我们如何收集和使用信息</h5>
+    <ul>
+      <li><b>本地存储数据</b>：你创作的曲谱、个人资料（昵称/签名/署名）、自定义节奏型、发布记录等，均保存在你浏览器的本地存储（localStorage）中，用于实现自动保存与功能运行，本服务不读取、不上传该数据。</li>
+      <li><b>账号信息</b>（规划中功能）：未来若开通账号与云端同步，我们将在你注册时收集必要信息（如手机号），并单独征得你的同意后再行处理。</li>
+    </ul>
+    <h5>二、第三方服务</h5>
+    <ul>
+      <li><b>音色资源</b>：播放的"高保真"采样音色可能从公共资源站点（如开源音色库 CDN）或本站自托管目录加载。该请求仅用于获取音频资源，不携带你的个人信息。</li>
+      <li><b>支付服务</b>（规划中功能）：付费功能上线后，支付将通过持牌第三方支付机构（如微信支付）完成，相关信息由支付机构按其规则处理。</li>
+    </ul>
+    <h5>三、信息的存储与安全</h5>
+    <p>本地数据保存在你的设备上，由你自行掌控。你可随时通过导出功能备份，或通过清除浏览器数据删除。未来涉及云端存储的，我们将采取加密等合理措施保护你的信息安全。</p>
+    <h5>四、信息共享、转让与公开披露</h5>
+    <p>除法律法规要求或经你另行同意外，本服务不会向任何第三方共享、转让、公开披露你的个人信息。你主动发布到"谱友圈"的曲谱内容及署名，将按你的选择进行公开展示。</p>
+    <h5>五、未成年人保护</h5>
+    <p>若你是未成年人，请在监护人指导下使用本服务。我们不会在明知的情况下收集未成年人的个人信息。</p>
+    <h5>六、政策更新</h5>
+    <p>本政策可能适时更新，更新后将在页面公示。重大变更我们将以显著方式提示。</p>
+    <h5>七、联系我们</h5>
+    <p>如对本政策或你的信息有任何疑问，请联系：support@puyouquan.com。</p>
+  </div>
+  <div class="btns"><button id="pv-ok" class="primary">我已了解</button></div>`);
+  document.getElementById('pv-ok').onclick = closeModal;
+}
+{
+  const bind=(id,fn)=>{ const b=document.getElementById(id); if(b) b.onclick=fn; };
+  bind('f-about', showAbout);
+  bind('f-terms', showTerms);
+  bind('f-privacy', showPrivacy);
+  bind('f-help2', ()=>document.getElementById('b-help').click());
+}
 
 /* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
    页头右侧信息对齐右侧"曲谱信息"面板右缘——随窗口/面板尺寸变化实时校准 */
