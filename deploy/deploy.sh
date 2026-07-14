@@ -9,4 +9,5 @@ SRC="muse-tab/index.html"
 echo "→ 发布 $SRC 到 $SERVER:/var/www/puyouquan/index.html"
 rsync -avz --progress "$SRC" "$SERVER:/var/www/puyouquan/index.html"
 rsync -avz --progress muse-tab/PYQ-FORMAT.md "$SERVER:/var/www/puyouquan/PYQ-FORMAT.md" || true
+rsync -avz --progress --delete muse-tab/docs/ "$SERVER:/var/www/puyouquan/docs/" || true
 echo "✓ 完成。浏览器访问 http://puyouquan.com （或服务器 IP）验证"

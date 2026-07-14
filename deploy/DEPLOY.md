@@ -25,6 +25,7 @@ sudo bash fetch-soundfonts.sh
 SERVER=root@服务器IP ./deploy/deploy.sh
 ```
 约 1 秒完成；用户刷新页面即获得新版（index.html 已配置 no-cache）。
+帮助文档站随发布一并同步到 `puyouquan.com/docs/`（利于 SEO 与备案内容审核）。
 
 ## ICP 备案期间
 - 备案未下来前，域名解析到国内服务器会被拦截 —— 可先用 `http://服务器IP` 验证站点
