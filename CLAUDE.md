@@ -73,3 +73,6 @@ veazen/
 - 每阶段完成都要跑验收（turbo test/lint/typecheck、e2e），CI 绿了才算完成
 - 重要改动先跑本地验收再推送；CI 里 node 检查前必须 `prisma generate`
 - 用户的人工步骤统一记录到 `veazen/HUMAN_TODO.md`
+- **每个交付批次完成后必须同步更新 `veazen/docs/PROJECT_HANDOVER_zh.md`**
+  （总交接书：进度总账 + 当前状态与下一步两节），保证任何新团队/新
+  Claude 账号随时可完整接手
