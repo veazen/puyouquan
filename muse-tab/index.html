@@ -3263,8 +3263,8 @@ function applyVoxPattern(pat){
     }
     document.getElementById('zoom-lbl').textContent = Math.round(viewZoom*100)+'%';
   };
-  document.getElementById('z-in').onclick = ()=>setZoom(viewZoom+0.1);
-  document.getElementById('z-out').onclick = ()=>setZoom(viewZoom-0.1);
+  document.getElementById('z-in').onclick = ()=>setZoom(gridZoom(viewZoom,+1));
+  document.getElementById('z-out').onclick = ()=>setZoom(gridZoom(viewZoom,-1));
   document.getElementById('zoom-lbl').onclick = ()=>setZoom(1);
   document.getElementById('score-wrap').addEventListener('wheel', e=>{
     if(!e.ctrlKey) return;
@@ -3276,7 +3276,7 @@ function applyVoxPattern(pat){
     const r = svg.getBoundingClientRect();
     const fx = (e.clientX - r.left) / Math.max(1, r.width);
     const fy = (e.clientY - r.top) / Math.max(1, r.height);
-    setZoom(viewZoom * (e.deltaY<0 ? 1.1 : 0.9));
+    setZoom(gridZoom(viewZoom, e.deltaY<0 ? +1 : -1));
     const r2 = svg.getBoundingClientRect();
     document.getElementById('paper').scrollLeft += (r2.left + fx*r2.width) - e.clientX;
     const se = document.scrollingElement || document.documentElement;
@@ -6201,11 +6201,20 @@ const PV = {
   MMPX:96/25.4,                                  /* 96dpi 下 1mm 的像素数（100%=真实物理尺寸） */
   content:'', geo:{W:1060,pgH:1499,gap:26,n:1}
 };
+/* 缩放步进：对齐 0.1 栅格（保证 100% 一定是一档，不被跳过）。dir=+1 放大 / -1 缩小 */
+function gridZoom(cur, dir){
+  const base = Math.round(cur*10)/10;
+  return Math.round((base + dir*0.1)*10)/10;
+}
 function pvOpen(){
-  render();                                      /* 快照当前谱面（含最新分页几何） */
+  /* 快照为纯净成品谱：暂时清除全部编辑装饰（光标/选区/多选/小节选中/段序号高亮） */
+  const save={blurSel, selRange, noteSel, measureSel};
+  blurSel=true; selRange=null; noteSel=[]; measureSel=null;
+  render();
   PV.content = document.getElementById('score').innerHTML;
   PV.geo = {...PV_GEO};
-  PV.fit = 'w';
+  ({blurSel, selRange, noteSel, measureSel}=save); render();   /* 恢复编辑器视图 */
+  PV.fit = null; PV.zoom = 1;                     /* 预览默认 100%（纸张真实物理尺寸） */
   document.getElementById('preview-ov').classList.add('on');
   pvSyncBar(); pvBuild();
 }
@@ -6247,9 +6256,9 @@ function pvSyncBar(){
   document.querySelectorAll('#pv-lay button').forEach(b=>b.classList.toggle('on', b.dataset.lay===PV.lay));
   document.querySelectorAll('#pv-fit button').forEach(b=>b.classList.toggle('on', !!PV.fit && b.dataset.fit===PV.fit));
 }
-function pvZoomStep(d){
+function pvZoomStep(dir){
   const cur = PV.fit ? pvDims().zpct : PV.zoom;
-  PV.fit=null; PV.zoom=Math.max(0.25, Math.min(3, Math.round((cur+d)*20)/20));
+  PV.fit=null; PV.zoom=Math.max(0.25, Math.min(3, gridZoom(cur, dir)));
   pvSyncBar(); pvBuild();
 }
 document.getElementById('b-preview').onclick = pvOpen;
@@ -6257,8 +6266,8 @@ document.getElementById('pv-close').onclick = pvClose;
 document.getElementById('pv-size').onclick = e=>{ const b=e.target.closest('button'); if(!b)return; PV.size=b.dataset.sz; pvSyncBar(); pvBuild(); };
 document.getElementById('pv-lay').onclick  = e=>{ const b=e.target.closest('button'); if(!b)return; PV.lay=b.dataset.lay; if(PV.fit) pvSyncBar(); pvBuild(); };
 document.getElementById('pv-fit').onclick  = e=>{ const b=e.target.closest('button'); if(!b)return; PV.fit=b.dataset.fit; pvSyncBar(); pvBuild(); };
-document.getElementById('pv-zin').onclick  = ()=>pvZoomStep(+0.1);
-document.getElementById('pv-zout').onclick = ()=>pvZoomStep(-0.1);
+document.getElementById('pv-zin').onclick  = ()=>pvZoomStep(+1);
+document.getElementById('pv-zout').onclick = ()=>pvZoomStep(-1);
 document.getElementById('pv-zlbl').onclick = ()=>{ PV.fit='w'; pvSyncBar(); pvBuild(); };
 document.getElementById('pv-print').onclick= ()=>{ pvClose(); document.getElementById('b-print').click(); };
 document.getElementById('pv-stage').addEventListener('wheel', e=>{
@@ -7055,6 +7064,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.94</span><div>预览与缩放修正：① 打印预览打开即<b>默认 100%</b>（纸张真实物理尺寸），且预览为纯净成品谱——不再显示编辑光标/选区/段序号高亮；② 修正缩放<b>跳过 100%</b> 的问题（Ctrl+滚轮与 ± 均对齐 0.1 栅格、100% 必为一档），预览与谱面编辑区同修。</div></li>
     <li><span class="v">v34.93</span><div>新增<b>打印预览</b>（顶栏「预览」按钮）：① <b>纸张适配</b>——A5 / A4 / A3 一键切换，实时按纸张比例呈现；② <b>缩放</b>——±步进、Ctrl+滚轮、「适配 / 整页」两档自动缩放，100% 即纸张真实物理尺寸；③ <b>多页排布</b>——竖排（单列翻阅）/ 横排（整页并排，横向滚动）/ 网格（多页平铺）三种展示方式；预览页始终以白纸呈现、不受明暗主题影响，可直接进入打印 / 导出。</div></li>
     <li><span class="v">v34.92</span><div>歌词编辑细化：① 点谱面空白处隐藏光标时，段序号高亮也一并消失；② 智能填词的对齐预览升级为<b>可点选起点</b>——预览显示全部可唱音，点任一音即设为填词起点（自动切「从当前音符」、起点高亮、起点前的音灰显保留原词），一眼定位从哪里开始填。</div></li>
     <li><span class="v">v34.91</span><div>歌词编辑体验：① 点击谱面空白处即可隐藏光标、清除选区；② 智能填词弹窗顶部新增<b>段落切换</b>（多段歌词时），一键切换要编辑的段并自动预载该段已填歌词，切换与填入互不影响其他段。</div></li>
