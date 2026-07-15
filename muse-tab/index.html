@@ -619,6 +619,28 @@ body.stand #standbar{display:flex}
 .pv-page .pv-paper{background:#fff;box-shadow:0 4px 20px rgba(0,0,0,.16);border-radius:2px;overflow:hidden}
 .pv-page .pv-paper svg{display:block}
 .pv-page .pv-cap{font-size:11px;color:var(--muted)}
+/* ================= 排版浮层（非阻塞，实时可见谱面变化） ================= */
+#layout-pop{position:fixed;top:150px;left:16px;z-index:60;width:322px;display:none;
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  box-shadow:0 14px 44px rgba(0,0,0,.24);padding:15px 16px 14px}
+#layout-pop.on{display:block}
+#layout-pop h4{margin:0;font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px}
+#layout-pop h4 .lp-close{margin-left:auto;border:none;background:none;font-size:16px;color:var(--muted);cursor:pointer;line-height:1;padding:0 2px}
+#layout-pop .lp-sub{color:var(--muted);font-size:11.5px;margin:3px 0 4px}
+#layout-pop .lp-row{margin:11px 0}
+#layout-pop .lp-lab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted);margin-bottom:6px}
+#layout-pop .lp-lab b{color:var(--accent-ink);font-weight:600;font-family:var(--font-num)}
+#layout-pop .lp-seg{display:flex;background:var(--toolbar);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+#layout-pop .lp-seg button{flex:1;border:none;background:transparent;padding:7px 0;font-size:12.5px;color:var(--text);cursor:pointer;border-right:1px solid var(--border-soft)}
+#layout-pop .lp-seg button:last-child{border-right:none}
+#layout-pop .lp-seg button.on{background:var(--accent);color:#fff;font-weight:600}
+#layout-pop .lp-seg button:not(.on):hover{background:var(--hover)}
+#layout-pop input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+#layout-pop .lp-tip{font-size:11px;color:var(--muted);line-height:1.55;margin:12px 0 0;padding-top:11px;border-top:1px solid var(--border-soft)}
+#layout-pop .lp-foot{display:flex;gap:8px;margin-top:12px}
+#layout-pop .lp-foot button{flex:1;border:1px solid var(--border);background:var(--panel);border-radius:9px;padding:7px 0;font-size:12.5px;color:var(--text);cursor:pointer}
+#layout-pop .lp-foot button:hover{background:var(--hover)}
+#layout-pop .lp-foot .prim{background:var(--accent);color:#fff;border-color:var(--accent)}
 @media print{
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
@@ -644,6 +666,7 @@ body.stand #standbar{display:flex}
       <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
     </span>
     <span class="seg">
+      <button id="b-layout" title="排版：智能/手动疏密、内容大小、页面尺寸(A5/A4/A3 容量)">排版</button>
       <button id="b-preview" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
       <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
@@ -902,6 +925,33 @@ body.stand #standbar{display:flex}
   </div>
   <div id="pv-stage"><div id="pv-pages" class="lay-v"></div></div>
 </div>
+<!-- 排版浮层：智能/手动疏密 + 内容大小 + 页面容量（A5/A4/A3），实时应用 -->
+<div id="layout-pop">
+  <h4>📐 排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
+  <p class="lp-sub">调整版面本身——与显示/预览缩放无关</p>
+  <div class="lp-row">
+    <div class="lp-lab"><span>智能排版</span></div>
+    <div class="lp-seg" id="lp-preset">
+      <button data-preset="compact">紧凑</button><button data-preset="standard">标准</button><button data-preset="loose">宽松</button>
+    </div>
+  </div>
+  <div class="lp-row">
+    <div class="lp-lab"><span>手动疏密</span><b id="lp-dval">100%</b></div>
+    <input type="range" id="lp-density" min="0.7" max="1.5" step="0.02">
+  </div>
+  <div class="lp-row">
+    <div class="lp-lab"><span>内容大小</span><b id="lp-sval">100%</b></div>
+    <input type="range" id="lp-scale" min="0.7" max="1.5" step="0.02">
+  </div>
+  <div class="lp-row">
+    <div class="lp-lab"><span>页面尺寸（容量）</span></div>
+    <div class="lp-seg" id="lp-page">
+      <button data-page="A5">A5</button><button data-page="A4">A4</button><button data-page="A3">A3</button>
+    </div>
+  </div>
+  <p class="lp-tip" id="lp-tip"></p>
+  <div class="lp-foot"><button id="lp-reset">恢复默认</button><button class="prim" id="lp-done">完成</button></div>
+</div>
 <script id="sf-embed">/* 内嵌真实采样音色（MusyngKite 子采样，MIT 授权）：
    保证木吉他/尼龙/贝斯/钢琴在任何环境（在线预览/离线/未部署）都是真实音色。
    部署自托管全量音色包后自动升级到 88 音全量。 */
@@ -1047,6 +1097,33 @@ const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; const MARGIN = 56;
 let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页几何，供打印预览使用 */
+/* ===== 排版（engraving）参数：随曲谱保存，决定"内容大小 / 疏密 / 页面容量" =====
+   与显示缩放(viewZoom)、打印预览缩放完全独立：这里改的是版面本身——
+   页面越大(A5→A4→A3) 容纳内容越多；内容越大 每页容纳越少；疏密只调空白不改字号。*/
+const PAGE_MM = {A5:[148,210], A4:[210,297], A3:[297,420]};   // 纸张 [宽,高] mm（同比 1:√2）
+const LAY_PRESETS = {compact:0.82, standard:1, loose:1.2};
+let LAY_HS = 1, LAY_VS = 1;                     // 当前渲染用的横/纵疏密系数（render 时由 layoutCfg 写入）
+function layoutCfg(){
+  const d = {page:'A4', preset:'standard', density:1, scale:1};
+  const c = Object.assign(d, song && song.layout || {});
+  c.density = Math.max(0.7, Math.min(1.5, +c.density||1));
+  c.scale   = Math.max(0.7, Math.min(1.5, +c.scale||1));
+  if(!PAGE_MM[c.page]) c.page='A4';
+  return c;
+}
+function setViewZoom(z){
+  viewZoom = Math.max(0.5, Math.min(2, Math.round(z*20)/20));
+  localStorage.setItem('musetab-zoom', viewZoom);
+  const svg=document.getElementById('score'), vb=svg&&svg.viewBox.baseVal;
+  if(vb&&vb.width){ svg.setAttribute('width',Math.round(vb.width*viewZoom)); svg.setAttribute('height',Math.round(vb.height*viewZoom)); }
+  const zl=document.getElementById('zoom-lbl'); if(zl) zl.textContent=Math.round(viewZoom*100)+'%';
+}
+/* 版面变化后把整页宽度自动适配到编辑器可视宽（一屏看全，之后仍可自由缩放） */
+function fitViewWidth(){
+  const paper=document.getElementById('paper');
+  const avail=(paper?paper.clientWidth:900)-4;
+  setViewZoom(avail/Math.max(1,PAGE_W));
+}
 /* 内容页显示缩放（0.5-2）：工具栏 ± 或 内容区 Ctrl+滚轮 调节，仅影响显示不改排版 */
 let viewZoom = Math.max(0.5, Math.min(2, parseFloat(localStorage.getItem('musetab-zoom'))||1));
 const MAX_VOICES = 5, MAX_LYR = 5;
@@ -1611,13 +1688,14 @@ function patBeats(pat){
 
 /* ================= 布局（按拍分配宽度，吉他谱与简谱逐拍对齐） ================= */
 function measureLayout(mea){
-  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7, LYR_MIN = 17;
+  const hs = LAY_HS;                          // 横向疏密系数（紧凑<1 / 宽松>1）——只缩放空白，不缩音符字形
+  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7*hs, LYR_MIN = 17*hs;
   const beats = song.beats || 4;
-  const baseBeat = 29;                       // 每拍基准宽
+  const baseBeat = 29*hs;                     // 每拍基准宽
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
      使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
-  const MIN_COL = 13;                        // 吉他谱每列最低间隔
+  const MIN_COL = 13*hs;                     // 吉他谱每列最低间隔
   const beatNoteW = new Array(beats).fill(0);
   const beatLyrCnt = new Array(beats).fill(0);
   const beatColCnt = new Array(beats).fill(0);
@@ -1754,15 +1832,16 @@ function systemExtras(sys){
 function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0;
+  const vs = LAY_VS;                              // 纵向疏密系数：只缩放行间空白，不缩谱表/字号
   const diagH = diagMode==='inline' ? 56 : 12;   // 行内和弦图区加高，避免与一弦数字重叠
-  let y = diagH + 6;
+  let y = diagH + 6*vs;
   const tabTops=[], voxYs=[], lyricY0=[];
-  for(let i=0;i<nT;i++){ if(i>0) y += tabGap2; tabTops.push(y); y += staffH() + 12 + tabExtra + 6; }
+  for(let i=0;i<nT;i++){ if(i>0) y += tabGap2; tabTops.push(y); y += staffH() + 12*vs + tabExtra + 6*vs; }
   for(let i=0;i<nV;i++){
-    y += 15 + topExtra; voxYs.push(y); lyricY0.push(y + 24 + botExtra);
-    y += 24 + botExtra + (nL-1)*20 + 9;
+    y += 15*vs + topExtra; voxYs.push(y); lyricY0.push(y + 24 + botExtra);
+    y += 24 + botExtra + (nL-1)*20*vs + 9*vs;
   }
-  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9, tabExtra};
+  return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9*vs, tabExtra};
 }
 
 /* ================= 渲染 ================= */
@@ -1895,9 +1974,15 @@ function render(){
     }
   }
   const svg = document.getElementById('score');
-  /* 自适配：谱面宽度跟随纸张容器（响应式），限制在合理区间 */
+  /* 版面几何：页面尺寸 + 内容大小决定"每页容纳多少"（与显示缩放无关）。
+     以 A4 版宽为响应式基准（保持 A4 默认铺满编辑器），A5/A3 按纸张比例缩放版宽：
+     A3≈1.414×A4（容纳更多小节与行），A5≈0.705×A4；内容越大 → 有效版宽越小 → 容纳越少。*/
+  const cfg = layoutCfg();
+  LAY_HS = cfg.density; LAY_VS = cfg.density;   // 疏密 → 横/纵空白系数
+  const wmm = PAGE_MM[cfg.page][0];
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
-  PAGE_W = Math.max(520, Math.min(1320, paperW - 30));
+  const baseA4 = Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽
+  PAGE_W = Math.round(baseA4 * (wmm/210) / cfg.scale);
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
   const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2); });
@@ -1907,7 +1992,7 @@ function render(){
   colBoxes = {};
   const p=[];
   const barZones=[];   // 小节线热区置顶层绘制，避免被音符格遮挡、加宽更易点中
-  const MM = PAGE_W/210;                    // 1mm 对应的 SVG 单位（页宽=210mm）
+  const MM = PAGE_W/wmm;                    // 1mm 对应的 SVG 单位（真实 px/mm，随页面尺寸/内容大小变化）
   const topMargin = Math.round(12*MM);      // 标题上方留 12mm 边距
   let headY = topMargin + 22;
   p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="27" font-weight="800" letter-spacing="2" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
@@ -3252,17 +3337,7 @@ function applyVoxPattern(pat){
   document.getElementById('editbar').addEventListener('click', ebHandler);
   document.getElementById('editbar2').addEventListener('click', ebHandler);
   /* ---- 缩放：按钮 ±、点击百分比复位；内容区 Ctrl+滚轮 ---- */
-  const setZoom = z=>{
-    viewZoom = Math.max(0.5, Math.min(2, Math.round(z*20)/20));
-    localStorage.setItem('musetab-zoom', viewZoom);
-    const svg = document.getElementById('score');
-    const vb = svg.viewBox.baseVal;
-    if(vb && vb.width){
-      svg.setAttribute('width', Math.round(vb.width*viewZoom));
-      svg.setAttribute('height', Math.round(vb.height*viewZoom));
-    }
-    document.getElementById('zoom-lbl').textContent = Math.round(viewZoom*100)+'%';
-  };
+  const setZoom = setViewZoom;
   document.getElementById('z-in').onclick = ()=>setZoom(gridZoom(viewZoom,+1));
   document.getElementById('z-out').onclick = ()=>setZoom(gridZoom(viewZoom,-1));
   document.getElementById('zoom-lbl').onclick = ()=>setZoom(1);
@@ -6275,6 +6350,57 @@ document.getElementById('pv-stage').addEventListener('wheel', e=>{
 }, {passive:false});
 window.addEventListener('resize', ()=>{ const ov=document.getElementById('preview-ov'); if(ov.classList.contains('on') && PV.fit) pvBuild(); });
 window.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('preview-ov').classList.contains('on')){ pvClose(); } });
+
+/* ================= 排版浮层（智能/手动疏密 + 内容大小 + 页面容量） ================= */
+function layApply(patch, opts){
+  song.layout = Object.assign({}, layoutCfg(), patch);
+  render();
+  if(!opts || opts.fit!==false) fitViewWidth();
+  if(!opts || opts.save!==false) persist();
+  laySync();
+}
+function laySync(){
+  const c = layoutCfg();
+  document.querySelectorAll('#lp-preset button').forEach(b=>b.classList.toggle('on', b.dataset.preset===c.preset));
+  document.querySelectorAll('#lp-page button').forEach(b=>b.classList.toggle('on', b.dataset.page===c.page));
+  const dEl=document.getElementById('lp-density'), sEl=document.getElementById('lp-scale');
+  if(dEl && document.activeElement!==dEl) dEl.value=c.density;
+  if(sEl && document.activeElement!==sEl) sEl.value=c.scale;
+  document.getElementById('lp-dval').textContent=Math.round(c.density*100)+'%';
+  document.getElementById('lp-sval').textContent=Math.round(c.scale*100)+'%';
+  const cap = {A5:'较小（省纸）', A4:'标准', A3:'很大（约 A4 的 2 倍，容纳更多小节与行）'}[c.page];
+  document.getElementById('lp-tip').innerHTML=
+    `页面尺寸只改<b>容量</b>不改音符大小：A5 &lt; A4 &lt; A3。当前 <b>${c.page}</b> — ${cap}。<br>共 ${PV_GEO.n} 页。`;
+}
+function layToggle(show){
+  const pop=document.getElementById('layout-pop');
+  const on = show===undefined ? !pop.classList.contains('on') : show;
+  if(on){
+    const r=document.getElementById('b-layout').getBoundingClientRect();
+    pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-338))+'px';
+    pop.style.top=(r.bottom+8)+'px';
+    laySync();
+  }
+  pop.classList.toggle('on', on);
+}
+document.getElementById('b-layout').onclick = ()=>layToggle();
+document.getElementById('lp-close').onclick = ()=>layToggle(false);
+document.getElementById('lp-done').onclick  = ()=>layToggle(false);
+document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
+  layApply({preset:b.dataset.preset, density:LAY_PRESETS[b.dataset.preset]}); };
+document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
+  layApply({page:b.dataset.page}); };
+/* 拖动时实时重排但不跳缩放；松手再适配视图并保存 */
+const lpD=document.getElementById('lp-density');
+lpD.oninput  = ()=>{ song.layout=Object.assign({},layoutCfg(),{density:+lpD.value, preset:'custom'}); render();
+  document.getElementById('lp-dval').textContent=Math.round(+lpD.value*100)+'%'; laySync(); };
+lpD.onchange = ()=>{ fitViewWidth(); persist(); };
+const lpS=document.getElementById('lp-scale');
+lpS.oninput  = ()=>{ song.layout=Object.assign({},layoutCfg(),{scale:+lpS.value}); render();
+  document.getElementById('lp-sval').textContent=Math.round(+lpS.value*100)+'%'; laySync(); };
+lpS.onchange = ()=>{ fitViewWidth(); persist(); };
+document.getElementById('lp-reset').onclick = ()=>layApply({preset:'standard', density:1, scale:1, page:'A4'});
+
 document.getElementById('b-theme').onclick = ()=>{
   const r=document.documentElement;
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
@@ -7064,6 +7190,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.95</span><div>新增<b>排版</b>面板（顶栏「排版」，浮层实时生效）：① <b>智能排版</b>——紧凑 / 标准 / 宽松一键切换疏密；② <b>手动疏密</b>——滑杆细调行/列空白（只改留白不改字号）；③ <b>内容大小</b>——放大缩小音符本身，内容越大每页容纳越少；④ <b>页面尺寸 A5/A4/A3</b>——改变的是<b>容量</b>而非整页缩放：A3≈A4 的 2 倍面积、每行与每页容纳更多小节（如示例曲 A4 每行 2 小节→A3 每行 4 小节、2 页→1 页）。排版参数随曲谱保存。</div></li>
     <li><span class="v">v34.94</span><div>预览与缩放修正：① 打印预览打开即<b>默认 100%</b>（纸张真实物理尺寸），且预览为纯净成品谱——不再显示编辑光标/选区/段序号高亮；② 修正缩放<b>跳过 100%</b> 的问题（Ctrl+滚轮与 ± 均对齐 0.1 栅格、100% 必为一档），预览与谱面编辑区同修。</div></li>
     <li><span class="v">v34.93</span><div>新增<b>打印预览</b>（顶栏「预览」按钮）：① <b>纸张适配</b>——A5 / A4 / A3 一键切换，实时按纸张比例呈现；② <b>缩放</b>——±步进、Ctrl+滚轮、「适配 / 整页」两档自动缩放，100% 即纸张真实物理尺寸；③ <b>多页排布</b>——竖排（单列翻阅）/ 横排（整页并排，横向滚动）/ 网格（多页平铺）三种展示方式；预览页始终以白纸呈现、不受明暗主题影响，可直接进入打印 / 导出。</div></li>
     <li><span class="v">v34.92</span><div>歌词编辑细化：① 点谱面空白处隐藏光标时，段序号高亮也一并消失；② 智能填词的对齐预览升级为<b>可点选起点</b>——预览显示全部可唱音，点任一音即设为填词起点（自动切「从当前音符」、起点高亮、起点前的音灰显保留原词），一眼定位从哪里开始填。</div></li>
