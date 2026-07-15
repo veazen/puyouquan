@@ -4773,7 +4773,8 @@ function smartSlots(vi, startMi, startCi){
       const col=cols[ci];
       const before = mi<startMi || (mi===startMi && ci<startCi);
       if(!col.deg){ prev=null; continue; }
-      const cont = !!(prev && prev.tie && lyricSamePitch(prev,col));
+      /* 连音线（延音线/圆滑线）后面的音都是延续音，不占字——无论音高是否相同 */
+      const cont = !!(prev && prev.tie);
       prev=col;
       if(before) continue;
       slots.push({mi,ci,col,kind:cont?'cont':'fill'});
@@ -6843,6 +6844,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.89</span><div>修复：智能填词现在正确跳过<b>所有</b>连音线延续音——此前只跳过同音高的延音线，而连音线（圆滑线）常连接不同音高的音（一字多音的旋律），这些延续音之前会错误占字导致整段错位；现只要前一个音带连音线，其后的音一律不占字。</div></li>
     <li><span class="v">v34.88</span><div>「批量填词」升级为<b>智能填词</b>：① 实时对齐预览——边输入边显示每个可唱音将分到哪个字，休止/连音延续位自动标灰跳过、按小节分组；② 字数/音数匹配提示（正好/多字/差字，颜色区分）；③ 起点可选（从头 / 从当前光标音符）；④「换行对齐乐句」——每行歌词从新小节开头对齐；⑤ 英文单词整体成词；沿用跳休止/连音延续、标点跟随前字、- 手动跳过。</div></li>
     <li><span class="v">v34.87</span><div>批量填词优化：自动跳过休止符与<b>连音线延续的音符</b>（延续音由前一字延唱、不单独占字）——之前连音延续音会错误地被分配一个字导致整段错位；不同音高的音符即使前有连音线仍正常占字（连音线只连同音高）。</div></li>
     <li><span class="v">v34.86</span><div>扫弦箭头方向翻转：下扫标 ↑、上扫标 ↓——箭头表示拨片在六线谱上从低音弦扫向高音弦的移动方向（低音 6 弦画在最下，故下扫向上）；播放声音不变（下扫仍低音先响）。按钮改「下扫/上扫」。新增 3 首预设曲谱：小星星（尤克里里 4 弦弹唱）、流行进行（功能谱 1–5–6m–4 级数和弦）、反复与段落示例（反复记号+第一/二段结尾+力度记号，展示播放导航）。</div></li>
