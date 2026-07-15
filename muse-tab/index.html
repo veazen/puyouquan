@@ -1713,11 +1713,13 @@ function measureLayout(mea){
   const hs = LAY_HS;                          // 横向疏密系数（紧凑<1 / 宽松>1）——只缩放空白，不缩音符字形
   const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7*hs, LYR_MIN = 17*hs;
   const beats = song.beats || 4;
-  const baseBeat = 29*hs;                     // 每拍基准宽
+  const beatFloor = 7*hs;                     // 空拍最低宽（防塌陷）——不再用平地板，疏密由内容决定
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
-  /* 逐拍统计：每拍所需宽度 = max(基准, 该拍音符最小宽, 该拍歌词字数×字宽) —
-     使"某一拍挤满 16/32 分且逐字歌词"时，该拍能独立撑开、歌词不挤压 */
+  /* 逐拍统计：每拍所需宽度 = max(该拍音符时值宽之和, 该拍歌词字数×字宽, 列数×最小列距) —
+     MIN_W 为对数时值间距（时值减半宽度×0.72，出版谱惯例）：稀疏拍自然窄、密集拍自然宽，
+     "某一拍挤满 16/32 分且逐字歌词"时该拍能独立撑开、歌词不挤压 */
   const MIN_COL = 13*hs;                     // 吉他谱每列最低间隔
+  const durW = d=>Math.max(11, (MIN_W[d]||14)*hs);   // 时值宽×疏密档位（下限防碰撞）
   const beatNoteW = new Array(beats).fill(0);
   const beatLyrCnt = new Array(beats).fill(0);
   const beatColCnt = new Array(beats).fill(0);
@@ -1726,10 +1728,10 @@ function measureLayout(mea){
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      wB[bi]+=(MIN_W[c.dur]||14)+(c.dotted?6:0)
+      wB[bi]+=durW(c.dur)+(c.dotted?6:0)
              +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
              +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length : 0)
-             +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-(MIN_W[c.dur]||14)+4) : 0)
+             +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-durW(c.dur)+4) : 0)
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       nB[bi]++;
       if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
@@ -1746,21 +1748,29 @@ function measureLayout(mea){
   for(let i=0;i<beats;i++){
     /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
        32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
-    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
+    const w=Math.max(beatFloor, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
     beatW.push(w); inner+=w;
   }
-  /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
-  const rowMax=(PAGE_W-2*MARGIN)*0.66-gapTotal-pad*2;
+  /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
+  const rowMax=(PAGE_W-2*MARGIN)-gapTotal-pad*2;
   if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
   const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
+  /* 时值累计位置 → x：拍首严格对齐，拍内按时值比例 */
+  const pos = c2=>{
+    const bi=Math.min(beats-1, Math.floor(c2+1e-4));
+    return beatStart[bi]+Math.max(0, c2-bi)*beatW[bi];
+  };
+  const posEnd = c2=>{                          // 音符右缘：落在拍界时取上一拍右缘（不含拍间隙）
+    const bi=Math.min(beats-1, Math.ceil(c2-1e-4)-1<0?0:Math.ceil(c2-1e-4)-1);
+    const ib=Math.min(1, c2-bi);
+    return beatStart[bi]+Math.max(0,ib)*beatW[bi];
+  };
   const fit = cols=>{
     let cum=0; const xs=[], ws=[], ls=[];
     cols.forEach(c=>{
       const b=beatsOf(c);
-      const bi=Math.min(beats-1, Math.floor(cum+1e-4));
-      const inBeat=Math.max(0, cum-bi);          // 该音在本拍内已过的时值(0..1)
-      const left=beatStart[bi]+inBeat*beatW[bi]; // 拍内按时值比例定位（拍首严格对齐）
-      const w=Math.max(14, b*beatW[bi]);
+      const left=pos(cum);
+      const w=Math.max(14, posEnd(cum+b)-left);  // 跨拍长音按真实起止跨度（不再溢出到邻小节）
       ls.push(left); ws.push(w);
       xs.push(left+NOTE_OFF);
       cum+=b;
@@ -1773,8 +1783,9 @@ function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
   song.measures.forEach((mea,mi)=>{
     const L = measureLayout(mea);
-    /* 一行最低两个小节：仅当本行已≥2小节且再加会超宽时才换行 */
-    if(cur.measures.length >= 2 && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
+    /* 自由换行：纯按内容宽度断行——稀疏小节窄、一行可容更多；
+       极密集小节宽、可独占一行（宽度上限=整行，见 measureLayout） */
+    if(cur.measures.length >= 1 && cur.w + L.w > PAGE_W - 2*MARGIN){ systems.push(cur); cur={measures:[],w:0}; }
     cur.measures.push({mi, x:cur.w, L});
     cur.w += L.w;
   });
@@ -7253,7 +7264,7 @@ document.getElementById('b-feat').onclick = ()=>{
   showModal(`<h3>谱友圈 · 特色功能</h3>
   <h4>通用能力</h4>
   <div class="feat">
-    <div class="fc"><b>📐 智能排版自适配</b><span>按出版谱逻辑逐拍分配间距、每行 2–6 小节自适应、A4 多页自动分页，打印导出即成品。</span></div>
+    <div class="fc"><b>📐 智能排版自适配</b><span>按出版谱对数时值间距逐拍分配宽度——小节宽随内容疏密、每行数量自由适配，A4 多页自动分页，打印导出即成品。</span></div>
     <div class="fc"><b>🗂 多窗口多类型</b><span>标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。</span></div>
     <div class="fc"><b>✏️ 自由编辑优先</b><span>任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。</span></div>
     <div class="fc"><b>🔁 完整反复体系</b><span>𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。</span></div>
@@ -7273,6 +7284,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.0</span><div>排版引擎升级为<b>出版谱式内容驱动宽度</b>（参照 Gourlay 对数间距 / MuseScore 惯例）：① 小节宽度由内容疏密决定——一拍一个四分音符的小节明显<b>窄于</b>每拍两个八分音符的小节，二分/全音符小节更窄，不再统一宽度；② 打破"每行最少 2 小节 / 小节最宽 2/3 行"的旧限制——<b>换行完全按内容宽度自由适配</b>：稀疏行可容纳更多小节（省纸），极密集小节可<b>独占一行</b>从容展开（仅当单小节超过整行才压缩）；③ 各行仍两端对齐、右缘整齐，密集小节按权重多得空间、疏密有致；④ 修正跨拍长音的点击热区溢出到邻小节的问题。</div></li>
     <li><span class="v">v34.99</span><div>排版面板文案与交互微调：① 分区标题精简去括号——「① 基准纸张 / ② 智能排版 / ③ 手动微调」；②「字号·内容大小」更名为<b>整体缩放</b>；③ 手动微调的百分比数字<b>点击即可输入精确数值</b>（整体缩放 / 行距 / 间距，回车确认、Esc 取消）。</div></li>
     <li><span class="v">v34.97</span><div>排版实按预期生效：① 修复<b>手动调整时纸张外框跟着变大变小</b>的问题——现在「内容大小/字号」放大的是纸内内容（谱表、音符、字号一起放大，其他自动跟随），<b>纸张外框在屏幕上保持固定尺寸</b>，内容越大每页容纳越少（示例曲 140% 时 2 页→3 页）；② <b>智能排版</b>紧凑/宽松现在<b>可见地缩放行距与间距</b>（宽松行更高、每行更少）；③ 手动新增<b>行距</b>（可分别选中 吉他谱 / 简谱 / 歌词 单独调）与<b>间距</b>（音符横向疏密）。所有排版参数随曲谱保存。</div></li>
     <li><span class="v">v34.96</span><div>排版面板按"页面固定→智能间距→手动内容"三步理顺：① 弹窗<b>可拖动</b>（抓标题栏移到任意位置）；② 明确<b>页面尺寸选定后固定不变</b>，作为版面基准；③ <b>智能排版</b>（紧凑/标准/宽松）只在该页上智能缩放<b>行距与间距</b>；④ <b>手动微调</b>只调<b>内容大小</b>——移除了易混淆的"手动疏密"滑杆。</div></li>
