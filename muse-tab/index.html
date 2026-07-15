@@ -582,8 +582,45 @@ body.stand #standbar{display:flex}
   #viewerbar{padding:8px 12px;gap:6px;flex-wrap:wrap}
   #viewerbar .va{display:none}
 }
+/* ================= 打印预览（独立浏览视图：纸张/缩放/多页排布） ================= */
+#preview-ov{position:fixed;inset:0;z-index:1400;display:none;flex-direction:column;
+  background:var(--bg);backdrop-filter:blur(2px)}
+#preview-ov.on{display:flex}
+#pv-bar{flex:0 0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
+  padding:9px 16px;background:var(--glass);backdrop-filter:blur(20px) saturate(1.8);
+  border-bottom:1px solid var(--border-soft)}
+#pv-bar .pv-title{font-size:14px;font-weight:700;color:var(--text);margin-right:4px;display:flex;align-items:center;gap:7px}
+#pv-bar .pv-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+#pv-bar .pv-grp{display:flex;align-items:center;gap:6px;padding:0 4px}
+#pv-bar .pv-lab{font-size:11.5px;color:var(--muted)}
+#pv-bar .pv-seg{display:inline-flex;background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden}
+#pv-bar .pv-seg button{border:none;background:transparent;padding:5px 11px;font-size:12px;color:var(--text);cursor:pointer;border-right:1px solid var(--border-soft)}
+#pv-bar .pv-seg button:last-child{border-right:none}
+#pv-bar .pv-seg button.on{background:var(--accent);color:#fff}
+#pv-bar .pv-seg button:not(.on):hover{background:var(--hover)}
+#pv-bar .pv-z{display:inline-flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:2px}
+#pv-bar .pv-z button{border:none;background:transparent;width:28px;height:26px;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;border-radius:7px}
+#pv-bar .pv-z button:hover{background:var(--hover)}
+#pv-bar .pv-z #pv-zlbl{min-width:46px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+#pv-bar .grow{flex:1}
+#pv-bar #pv-print{background:var(--accent);color:#fff;border:none;border-radius:980px;padding:6px 16px;font-size:12.5px;font-weight:600;cursor:pointer}
+#pv-bar #pv-close{background:var(--panel);border:1px solid var(--border);border-radius:8px;width:30px;height:30px;font-size:16px;color:var(--text);cursor:pointer;line-height:1}
+#pv-bar #pv-close:hover{background:var(--hover)}
+#pv-stage{flex:1;overflow:auto;padding:26px;background:
+  radial-gradient(circle at 1px 1px, var(--border-soft) 1px, transparent 0) 0 0/22px 22px}
+#pv-pages{display:flex;gap:24px;min-width:min-content;min-height:min-content;
+  /* 预览页始终以纸张（浅色）呈现，不随明暗主题变化 */
+  --paper:#fff;--ink:#1a1a1a;--muted:#6e6e73;--border:#c9c9cf;--border-soft:#e6e6e9;
+  --accent:#0071e3;--accent-ink:#0060c0;--danger:#e8362b}
+#pv-pages.lay-v{flex-direction:column;align-items:center}
+#pv-pages.lay-h{flex-direction:row;align-items:flex-start;justify-content:flex-start}
+#pv-pages.lay-g{flex-flow:row wrap;align-items:flex-start;justify-content:center}
+.pv-page{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto}
+.pv-page .pv-paper{background:#fff;box-shadow:0 4px 20px rgba(0,0,0,.16);border-radius:2px;overflow:hidden}
+.pv-page .pv-paper svg{display:block}
+.pv-page .pv-cap{font-size:11px;color:var(--muted)}
 @media print{
-  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs{display:none!important}
+  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -607,6 +644,7 @@ body.stand #standbar{display:flex}
       <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
     </span>
     <span class="seg">
+      <button id="b-preview" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
       <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
       <button id="b-circle" class="seg-accent" title="谱友圈：面向吉他爱好者的曲谱展示与付费生态（创作者中心可发布）">谱友圈</button>
@@ -838,6 +876,32 @@ body.stand #standbar{display:flex}
   </div>
 </div>
 <div id="toast"></div>
+<!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
+<div id="preview-ov">
+  <div id="pv-bar">
+    <span class="pv-title"><span class="dot"></span>打印预览</span>
+    <span class="pv-grp"><span class="pv-lab">纸张</span>
+      <span class="pv-seg" id="pv-size">
+        <button data-sz="A5">A5</button><button data-sz="A4" class="on">A4</button><button data-sz="A3">A3</button>
+      </span></span>
+    <span class="pv-grp"><span class="pv-lab">排布</span>
+      <span class="pv-seg" id="pv-lay">
+        <button data-lay="v" class="on">竖排</button><button data-lay="h">横排</button><button data-lay="g">网格</button>
+      </span></span>
+    <span class="pv-grp"><span class="pv-lab">缩放</span>
+      <span class="pv-z">
+        <button id="pv-zout" title="缩小">−</button><span id="pv-zlbl" title="点击适配宽度">适配</span><button id="pv-zin" title="放大">＋</button>
+      </span>
+      <span class="pv-seg" id="pv-fit">
+        <button data-fit="w" class="on">适配</button><button data-fit="p">整页</button>
+      </span></span>
+    <span class="grow"></span>
+    <span class="pv-lab" id="pv-info"></span>
+    <button id="pv-print">打印 / 导出</button>
+    <button id="pv-close" title="关闭预览（Esc）">✕</button>
+  </div>
+  <div id="pv-stage"><div id="pv-pages" class="lay-v"></div></div>
+</div>
 <script id="sf-embed">/* 内嵌真实采样音色（MusyngKite 子采样，MIT 授权）：
    保证木吉他/尼龙/贝斯/钢琴在任何环境（在线预览/离线/未部署）都是真实音色。
    部署自托管全量音色包后自动升级到 88 音全量。 */
@@ -982,6 +1046,7 @@ const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11};
 const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; const MARGIN = 56;
+let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页几何，供打印预览使用 */
 /* 内容页显示缩放（0.5-2）：工具栏 ± 或 内容区 Ctrl+滚轮 调节，仅影响显示不改排版 */
 let viewZoom = Math.max(0.5, Math.min(2, parseFloat(localStorage.getItem('musetab-zoom'))||1));
 const MAX_VOICES = 5, MAX_LYR = 5;
@@ -2488,6 +2553,8 @@ function render(){
   });
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--accent)" opacity="0" pointer-events="none"/>`);
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
+  /* 供打印预览取用：页宽、单页高、页间距、页数（内容随 #score 快照读取） */
+  PV_GEO = {W:PAGE_W, pgH:PG_H, gap:PG_GAP, n:nPages};
   svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${totalH}`);
   svg.setAttribute('width', Math.round(PAGE_W*viewZoom));
   svg.setAttribute('height', Math.round(totalH*viewZoom));
@@ -6126,6 +6193,79 @@ document.getElementById('b-print').onclick = ()=>{
     setTimeout(()=>window.print(), 120);
   };
 };
+
+/* ================= 打印预览：纸张适配 / 缩放 / 多页横排竖排 ================= */
+const PV = {
+  size:'A4', lay:'v', fit:'w', zoom:1,          /* fit: 'w'(适配) | 'p'(整页) | null(手动缩放) */
+  SIZES:{A5:[148,210], A4:[210,297], A3:[297,420]},
+  MMPX:96/25.4,                                  /* 96dpi 下 1mm 的像素数（100%=真实物理尺寸） */
+  content:'', geo:{W:1060,pgH:1499,gap:26,n:1}
+};
+function pvOpen(){
+  render();                                      /* 快照当前谱面（含最新分页几何） */
+  PV.content = document.getElementById('score').innerHTML;
+  PV.geo = {...PV_GEO};
+  PV.fit = 'w';
+  document.getElementById('preview-ov').classList.add('on');
+  pvSyncBar(); pvBuild();
+}
+function pvClose(){ document.getElementById('preview-ov').classList.remove('on'); }
+function pvDims(){
+  const stage=document.getElementById('pv-stage');
+  const availW=Math.max(160,(stage.clientWidth||900)-52), availH=Math.max(160,(stage.clientHeight||600)-52);
+  const [wmm,hmm]=PV.SIZES[PV.size]; const ar=wmm/hmm;        /* 页宽/页高 (<1，纵向) */
+  let dW;
+  if(PV.fit==='w'){                              /* 适配：按排布方式选最合适的基准 */
+    if(PV.lay==='v') dW=availW;                  /* 竖排：单页占满宽 */
+    else if(PV.lay==='h') dW=availH*ar;          /* 横排：整页高度占满，横向滚动翻页 */
+    else dW=(availW-24)/2;                        /* 网格：一行两页 */
+  } else if(PV.fit==='p'){                        /* 整页：单页宽高都装进视口 */
+    dW=Math.min(availW, availH*ar);
+  } else {                                        /* 手动缩放：相对纸张真实物理尺寸 */
+    dW=wmm*PV.MMPX*PV.zoom;
+  }
+  dW=Math.max(120, Math.min(dW, 4200));
+  return {dW, dH:dW/ar, zpct:dW/(wmm*PV.MMPX)};
+}
+function pvBuild(){
+  const wrap=document.getElementById('pv-pages');
+  wrap.className='lay-'+PV.lay;
+  const {dW,dH,zpct}=pvDims(); const g=PV.geo; const html=[];
+  for(let pg=0; pg<g.n; pg++){
+    const vy=pg*(g.pgH+g.gap);
+    html.push(`<div class="pv-page"><div class="pv-paper">`+
+      `<svg width="${Math.round(dW)}" height="${Math.round(dH)}" viewBox="0 ${vy} ${g.W} ${g.pgH}" preserveAspectRatio="xMidYMid meet">${PV.content}</svg>`+
+      `</div><div class="pv-cap">第 ${pg+1} / ${g.n} 页</div></div>`);
+  }
+  wrap.innerHTML=html.join('');
+  document.getElementById('pv-zlbl').textContent=Math.round(zpct*100)+'%';
+  const [wmm,hmm]=PV.SIZES[PV.size];
+  document.getElementById('pv-info').textContent=`${PV.size} ${wmm}×${hmm}mm · 共 ${g.n} 页`;
+}
+function pvSyncBar(){
+  document.querySelectorAll('#pv-size button').forEach(b=>b.classList.toggle('on', b.dataset.sz===PV.size));
+  document.querySelectorAll('#pv-lay button').forEach(b=>b.classList.toggle('on', b.dataset.lay===PV.lay));
+  document.querySelectorAll('#pv-fit button').forEach(b=>b.classList.toggle('on', !!PV.fit && b.dataset.fit===PV.fit));
+}
+function pvZoomStep(d){
+  const cur = PV.fit ? pvDims().zpct : PV.zoom;
+  PV.fit=null; PV.zoom=Math.max(0.25, Math.min(3, Math.round((cur+d)*20)/20));
+  pvSyncBar(); pvBuild();
+}
+document.getElementById('b-preview').onclick = pvOpen;
+document.getElementById('pv-close').onclick = pvClose;
+document.getElementById('pv-size').onclick = e=>{ const b=e.target.closest('button'); if(!b)return; PV.size=b.dataset.sz; pvSyncBar(); pvBuild(); };
+document.getElementById('pv-lay').onclick  = e=>{ const b=e.target.closest('button'); if(!b)return; PV.lay=b.dataset.lay; if(PV.fit) pvSyncBar(); pvBuild(); };
+document.getElementById('pv-fit').onclick  = e=>{ const b=e.target.closest('button'); if(!b)return; PV.fit=b.dataset.fit; pvSyncBar(); pvBuild(); };
+document.getElementById('pv-zin').onclick  = ()=>pvZoomStep(+0.1);
+document.getElementById('pv-zout').onclick = ()=>pvZoomStep(-0.1);
+document.getElementById('pv-zlbl').onclick = ()=>{ PV.fit='w'; pvSyncBar(); pvBuild(); };
+document.getElementById('pv-print').onclick= ()=>{ pvClose(); document.getElementById('b-print').click(); };
+document.getElementById('pv-stage').addEventListener('wheel', e=>{
+  if(e.ctrlKey||e.metaKey){ e.preventDefault(); pvZoomStep(e.deltaY<0?+0.1:-0.1); }
+}, {passive:false});
+window.addEventListener('resize', ()=>{ const ov=document.getElementById('preview-ov'); if(ov.classList.contains('on') && PV.fit) pvBuild(); });
+window.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('preview-ov').classList.contains('on')){ pvClose(); } });
 document.getElementById('b-theme').onclick = ()=>{
   const r=document.documentElement;
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
@@ -6915,6 +7055,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.93</span><div>新增<b>打印预览</b>（顶栏「预览」按钮）：① <b>纸张适配</b>——A5 / A4 / A3 一键切换，实时按纸张比例呈现；② <b>缩放</b>——±步进、Ctrl+滚轮、「适配 / 整页」两档自动缩放，100% 即纸张真实物理尺寸；③ <b>多页排布</b>——竖排（单列翻阅）/ 横排（整页并排，横向滚动）/ 网格（多页平铺）三种展示方式；预览页始终以白纸呈现、不受明暗主题影响，可直接进入打印 / 导出。</div></li>
     <li><span class="v">v34.92</span><div>歌词编辑细化：① 点谱面空白处隐藏光标时，段序号高亮也一并消失；② 智能填词的对齐预览升级为<b>可点选起点</b>——预览显示全部可唱音，点任一音即设为填词起点（自动切「从当前音符」、起点高亮、起点前的音灰显保留原词），一眼定位从哪里开始填。</div></li>
     <li><span class="v">v34.91</span><div>歌词编辑体验：① 点击谱面空白处即可隐藏光标、清除选区；② 智能填词弹窗顶部新增<b>段落切换</b>（多段歌词时），一键切换要编辑的段并自动预载该段已填歌词，切换与填入互不影响其他段。</div></li>
     <li><span class="v">v34.90</span><div>多段歌词与标点排版：① 多段歌词时每段起始显示<b>段序号</b>（当前段高亮），点序号即可选中该段编辑；② 智能填词打开时<b>预载当前段已填歌词</b>，不丢失、可直接续填/修改；③ 歌词<b>标点旁挂</b>——正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐。</div></li>
