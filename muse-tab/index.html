@@ -3763,7 +3763,10 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     }
     return;
   }
-  if(t.dataset.mi===undefined) return;
+  if(t.dataset.mi===undefined){   // 点击谱面空白处 → 隐藏光标、清除选区
+    blurSel=true; measureSel=null; selRange=null; noteSel=[]; closeTech(); render();
+    return;
+  }
   const mi=+t.dataset.mi, ci=+t.dataset.ci, row=t.dataset.row, vi=+t.dataset.vi;
   /* 点扫弦列 → 选择扫几根弦 */
   if(t.dataset.zone==='strum'){
@@ -4826,7 +4829,11 @@ function smartCompute(slots, tokens, phraseAlign){
 }
 document.getElementById('b-fill').onclick = ()=>{
   const vi = sel.row==='vox'?sel.vi:0;
-  showModal(`<h3>智能填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
+  const segRow = song.lyricLines>1
+    ? `<div class="sf-opts" id="sf-segs"><span>编辑段落：</span>${Array.from({length:song.lyricLines},(_,i)=>`<button class="cc-chip ${i===activeLyr?'on':''}" data-seg="${i}" style="padding:4px 13px">第${i+1}段</button>`).join('')}</div>`
+    : '';
+  showModal(`<h3 id="sf-title">智能填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
+    ${segRow}
     <p style="font-size:12.5px">逐字分配到每个可唱音；<b>自动跳过休止符与连音线延续音</b>；标点跟随前字；<b>-</b> 手动跳过一个音；英文单词整体成词。下方实时预览对齐结果。</p>
     <div class="sf-opts">
       <span>起点：</span>
@@ -4839,13 +4846,14 @@ document.getElementById('b-fill').onclick = ()=>{
     <div class="sf-prev" id="sf-prev"></div>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   const ta=document.getElementById('fill-text');
-  /* 预载当前段已填歌词：不丢失、可直接编辑续填（空可填音用 - 占位，末尾留白省略） */
-  {
+  /* 预载指定段已填歌词到输入框（空可填音用 - 占位，末尾留白省略） */
+  const reloadTA=()=>{
     const parts=smartSlots(vi,0,0).filter(s=>s.kind==='fill')
       .map(s=>((s.col.lyrics&&s.col.lyrics[activeLyr])||'-'));
     while(parts.length && parts[parts.length-1]==='-') parts.pop();
-    if(parts.some(x=>x!=='-')) ta.value=parts.join('');
-  }
+    ta.value = parts.some(x=>x!=='-') ? parts.join('') : '';
+  };
+  reloadTA();
   const getOpts=()=>({
     start:document.querySelector('input[name=sf-start]:checked').value,
     phrase:document.getElementById('sf-phrase').checked
@@ -4881,6 +4889,15 @@ document.getElementById('b-fill').onclick = ()=>{
   ta.addEventListener('input', renderPreview);
   document.querySelectorAll('input[name=sf-start]').forEach(r=>r.addEventListener('change', renderPreview));
   document.getElementById('sf-phrase').addEventListener('change', renderPreview);
+  /* 顶部段落切换：改当前编辑段，重载该段已填歌词并刷新预览 */
+  const segs=document.getElementById('sf-segs');
+  if(segs) segs.addEventListener('click', ev=>{
+    const bs=ev.target.closest('[data-seg]'); if(!bs) return;
+    activeLyr=+bs.dataset.seg;
+    segs.querySelectorAll('[data-seg]').forEach(x=>x.classList.toggle('on', +x.dataset.seg===activeLyr));
+    document.getElementById('sf-title').textContent='智能填词（第'+(activeLyr+1)+'段 → '+song.voxVoices[vi]+'）';
+    reloadTA(); renderPreview();
+  });
   renderPreview();
   ta.focus();
   document.getElementById('fill-cancel').onclick = closeModal;
@@ -6872,6 +6889,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.91</span><div>歌词编辑体验：① 点击谱面空白处即可隐藏光标、清除选区；② 智能填词弹窗顶部新增<b>段落切换</b>（多段歌词时），一键切换要编辑的段并自动预载该段已填歌词，切换与填入互不影响其他段。</div></li>
     <li><span class="v">v34.90</span><div>多段歌词与标点排版：① 多段歌词时每段起始显示<b>段序号</b>（当前段高亮），点序号即可选中该段编辑；② 智能填词打开时<b>预载当前段已填歌词</b>，不丢失、可直接续填/修改；③ 歌词<b>标点旁挂</b>——正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐。</div></li>
     <li><span class="v">v34.89</span><div>修复：智能填词现在正确跳过<b>所有</b>连音线延续音——此前只跳过同音高的延音线，而连音线（圆滑线）常连接不同音高的音（一字多音的旋律），这些延续音之前会错误占字导致整段错位；现只要前一个音带连音线，其后的音一律不占字。</div></li>
     <li><span class="v">v34.88</span><div>「批量填词」升级为<b>智能填词</b>：① 实时对齐预览——边输入边显示每个可唱音将分到哪个字，休止/连音延续位自动标灰跳过、按小节分组；② 字数/音数匹配提示（正好/多字/差字，颜色区分）；③ 起点可选（从头 / 从当前光标音符）；④「换行对齐乐句」——每行歌词从新小节开头对齐；⑤ 英文单词整体成词；沿用跳休止/连音延续、标点跟随前字、- 手动跳过。</div></li>
