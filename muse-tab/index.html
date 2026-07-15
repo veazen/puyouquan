@@ -304,6 +304,41 @@ svg text{user-select:none}
 .modal .vlog .v{flex:0 0 62px;color:var(--accent);font-weight:700;font-family:ui-monospace,monospace;white-space:nowrap}
 .modal kbd{display:inline-block;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;
   padding:0 5px;font-size:11.5px;font-family:ui-monospace,monospace;background:var(--paper);line-height:1.7}
+/* ===== 使用帮助 / 特色功能：视觉升级（卡片式、图标分区、发丝分隔） ===== */
+.helpdoc,.featdoc{font-size:13px}
+.hd-hero{display:flex;align-items:center;gap:13px;padding:14px 16px;margin:2px 0 4px;border-radius:15px;
+  background:linear-gradient(135deg, var(--accent-soft), transparent 78%);border:1px solid var(--border-soft)}
+.hd-hero .lg{width:40px;height:40px;border-radius:11px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  font-size:21px;background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(0,113,227,.28)}
+.hd-hero .tt{font-size:15px;font-weight:800;letter-spacing:.5px}
+.hd-hero .ds{font-size:12px;color:var(--muted);margin-top:2px}
+.hd-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:12px 0 2px}
+.hd-step{border:1px solid var(--border-soft);border-radius:13px;padding:11px 12px;background:var(--paper);position:relative}
+.hd-step .n{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-bottom:7px}
+.hd-step b{font-size:13px}
+.hd-step p{margin:3px 0 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+.hd-sec{margin:16px 0 0}
+.hd-st{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;margin:0 0 8px}
+.hd-st .ic{width:24px;height:24px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  font-size:14px;background:var(--accent-soft);border:1px solid var(--border-soft)}
+.hd-rows{border:1px solid var(--border-soft);border-radius:12px;overflow:hidden}
+.hd-row{display:grid;grid-template-columns:104px 1fr;gap:12px;padding:9px 13px;border-top:1px solid var(--border-soft)}
+.hd-row:first-child{border-top:none}
+.hd-row:hover{background:var(--hover)}
+.hd-row .rk{color:var(--accent-ink);font-weight:600;font-size:12px;line-height:1.5}
+.hd-row .rv{font-size:12.5px;line-height:1.55}
+.hd-row .rv b{font-weight:700}
+.featdoc .fg{font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 8px;display:flex;align-items:center;gap:7px}
+.featdoc .fg::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+.featx{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.featx .fx{border:1px solid var(--border-soft);border-radius:14px;padding:12px 13px;
+  background:var(--paper);transition:box-shadow .16s,transform .16s,border-color .16s}
+.featx .fx:hover{box-shadow:0 8px 22px rgba(0,0,0,.09);transform:translateY(-2px);border-color:var(--border)}
+.featx .fx .ic{font-size:19px;line-height:1;margin-bottom:6px}
+.featx .fx b{display:block;font-size:13px;margin-bottom:3px}
+.featx .fx span{font-size:11.5px;color:var(--muted);line-height:1.5}
+@media (max-width:560px){ .hd-steps,.featx{grid-template-columns:1fr} .hd-row{grid-template-columns:84px 1fr} }
 /* 谱友圈（C端曲谱展示生态） */
 #circle{position:fixed;inset:0;z-index:60;background:var(--bg,#eef0f6);overflow-y:auto}
 .cc-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:12px 26px;
@@ -889,7 +924,7 @@ body.stand #standbar{display:flex}
   <a class="fl" id="f-terms">用户协议</a><span class="sep">·</span>
   <a class="fl" id="f-privacy">隐私政策</a><span class="sep">·</span>
   <a class="fl" id="f-help2">使用帮助</a><span class="sep">·</span>
-  <a class="fl" href="docs/index.html">帮助文档</a><span class="sep">·</span>
+  <a class="fl" id="f-docs">帮助文档</a><span class="sep">·</span>
   <a class="beian" id="f-beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">备案号：申请中</a>
   <div class="cr">© 2026 谱友圈 puyouquan.com · 在线制谱工具</div>
 </footer>
@@ -7206,77 +7241,95 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.style.opacity=0,2200);
 }
 document.getElementById('b-help').onclick = ()=>{
+  const sec=(icon,title,rows)=>`<div class="hd-sec"><div class="hd-st"><span class="ic">${icon}</span>${title}</div>`+
+    `<div class="hd-rows">${rows.map(([k,v])=>`<div class="hd-row"><div class="rk">${k}</div><div class="rv">${v}</div></div>`).join('')}</div></div>`;
   showModal(`<h3>谱友圈 · 使用帮助</h3>
-  <h4>快速上手（3 步做一首谱）</h4>
-  <div class="steps">
-    <div class="step"><span class="n">1</span><div><b>建谱</b>：点「新建」选曲谱类型——吉他谱 / 尤克里里谱 / 简谱 / 功能谱，填标题、词曲作者、拍号、变调夹、预设小节数与声部即可；也可在「曲谱库」选预设改编。新谱在新窗口打开，多首可同时编辑。</div></div>
-    <div class="step"><span class="n">2</span><div><b>录入</b>：TAB 区点弦位敲品位数字 0–24；简谱区点数字位敲 <kbd>0</kbd>–<kbd>7</kbd>；点歌词行直接打字。有和弦时「节奏型库」一键按指法生成整小节。</div></div>
-    <div class="step"><span class="n">3</span><div><b>润色</b>：编辑栏改时值节奏、加连音线/倚音/技巧/力度记号，右栏设反复段落；<kbd>空格</kbd>试听、小节格选段循环练习；「导出/打印」输出 A4。所有修改实时自动保存。</div></div>
+  <div class="helpdoc">
+    <div class="hd-hero">
+      <div class="lg">🎸</div>
+      <div><div class="tt">在线制谱 · 使用帮助</div>
+        <div class="ds">吉他谱｜尤克里里谱｜简谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
+    </div>
+    <div class="hd-steps">
+      <div class="hd-step"><div class="n">1</div><b>建谱</b><p>「新建」选类型，填标题/拍号/变调夹/声部；或「曲谱库」选预设改编。多首可同时开窗。</p></div>
+      <div class="hd-step"><div class="n">2</div><b>录入</b><p>TAB 点弦位敲品位 0–24；简谱敲 <kbd>0</kbd>–<kbd>7</kbd>；点歌词行打字。有和弦时「节奏型库」一键成小节。</p></div>
+      <div class="hd-step"><div class="n">3</div><b>排版打印</b><p>「排版」调纸张疏密、<kbd>空格</kbd>试听、「预览」看成品，「打印」出 A4/PDF。改动实时自动保存。</p></div>
+    </div>
+    ${sec('📐','排版 · 预览 · 打印（本次重点）',[
+      ['排版面板','顶栏「排版」浮层（可拖动、实时生效）：<b>①基准纸张</b> A5/A4/A3（选定固定，决定容量）；<b>②智能排版</b> 紧凑/标准/宽松（按出版谱对数时值间距<b>逐拍分配宽度</b>——稀疏拍窄、密集拍宽、疏密有致）；<b>③手动微调</b> 整体缩放 / 行距（可分选 吉他谱·简谱·歌词）/ 间距，百分比数字<b>点击可输入精确值</b>。参数随曲谱保存。'],
+      ['内容驱动版式','小节宽度随内容疏密自动伸缩、每行小节数自由适配；极密集小节可独占一行从容展开，各行两端对齐、右缘整齐。'],
+      ['打印预览','顶栏「预览」：A5/A4/A3 适配、缩放（±/Ctrl 滚轮/适配/整页）、多页<b>竖排 / 横排 / 网格</b>排布；纯净成品谱（不含光标），可直接进入打印。'],
+      ['打印 / 导出','「打印」选纸张出 A4 多页 PDF，或导出<b>高清 PNG</b>；显示缩放（顶部 −/＋、<kbd>Ctrl</kbd>+滚轮）只改看的大小、不改版式。'],
+    ])}
+    ${sec('⌨️','顶部编辑栏（吸顶常驻）',[
+      ['时值 / 节奏','单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」把下一音变半时值；「节奏型库」整小节套用（可 <kbd>Shift</kbd> 跨小节多选后批量）'],
+      ['音符','＋后插 / ＋前插（<kbd>Insert</kbd>）任意位置加音；<b>休止符</b>整列休止（吉他谱按时值显示 𝄽𝄾𝄿）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议'],
+      ['记号','连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨中间相连；3/5/6/7 连音原地拆分、总时值不变'],
+    ])}
+    ${sec('🎼','小节与段落 · 反复记号',[
+      ['右栏面板','插入/删除小节常驻；展开「段落·反复·跳转记号」设 |: :| 反复、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落线/终止线，作用于当前小节'],
+      ['点击小节线','弹出同款菜单；按住约半秒可独立选中该小节单个声部，<kbd>Ctrl+C</kbd>/<kbd>V</kbd> 复制粘贴'],
+      ['播放识别','整曲播放自动按记号走：𝄆𝄇 反复、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段'],
+    ])}
+    ${sec('▶️','播放与循环',[
+      ['空格 / ▶ / ⇤','播放键单键切换：点播放、再点暂停、再点继续（音频精确冻结）；⇤ 回开头并停住；底部混音器换音色、独奏/静音、调速'],
+      ['小节格进度条','一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时变密集标尺，点 ▦ 打开大格选择面板'],
+    ])}
+    ${sec('💾','窗口与保存',[
+      ['多窗口','标签栏同时开多首（可不同类型），显示"类型+序号+曲名"与保存状态点'],
+      ['保存 / 导出','实时自动保存本机；「保存」存入我的曲谱；<kbd>Ctrl+S</kbd> 导出文件；个人中心管理曲谱、节奏型模板、版权存证'],
+    ])}
+    ${sec('🎸','吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
+      ['录入与和弦','点弦位敲品位；「记谱:×」教材式切换；输入和弦自动画和弦图并按指法重排，改和弦智能移调'],
+      ['演奏技巧','滑弦 S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音'],
+      ['扫弦 / 琶音','下扫/上扫（箭头=拨片从低音弦扫向高音弦的移动方向，下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数'],
+    ])}
+    ${sec('🎵','简谱',[
+      ['音高与记号','♯♭♮、八度点 ±3；倚音最多 3 音可点击再编辑；上下波音/颤音 tr/回音'],
+      ['力度 / 速度','「力度/速度」弹窗（每项中文说明）：ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.；力度即时影响播放音量'],
+    ])}
+    ${sec('🎹','功能谱（乐队）',[
+      ['级数和弦','选中音符点「和弦/级数」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；谱面按 1=调号 显示级数，点击可再编辑，换调即时跟随'],
+    ])}
+    ${sec('⚡','快捷键',[
+      ['← → ↑ ↓ / Tab','移动光标 / 切换声部'],
+      ['Ctrl+Z / Y / S','撤销 / 重做 / 导出'],
+      ['空格 / . / Q–T','播放停止 / 附点 / 时值'],
+    ])}
   </div>
-  <h4>通用 · 顶部编辑栏（吸顶常驻）</h4>
-  <table>
-  <tr><td class="k">时值 / 节奏</td><td>单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」自动把下一音变为一半时值；「节奏型库」整小节套用</td></tr>
-  <tr><td class="k">音符</td><td>＋后插 / ＋前插（<kbd>Insert</kbd>）在任意位置加音符；<b>休止符</b>整列休止（吉他谱按时值显示 𝄽𝄾𝄿 等符号）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议</td></tr>
-  <tr><td class="k">记号</td><td>连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨过中间音符相连；3/5/6/7 连音原地拆分总时值不变</td></tr>
-  <tr><td class="k">缩放</td><td>−/＋、点百分比复位；谱面上 <kbd>Ctrl</kbd>+滚轮以光标为中心缩放</td></tr>
-  </table>
-  <h4>通用 · 小节与段落 / 反复记号</h4>
-  <table>
-  <tr><td class="k">右栏面板</td><td>插入/删除小节常驻；展开「段落·反复·跳转记号」设置 |: :| 反复、第一段/第二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落线/终止线，一键作用于当前小节</td></tr>
-  <tr><td class="k">点击小节线</td><td>弹出同款设置菜单（弹窗随页面滚动）；按住小节线约半秒可独立选中该小节的单个声部，<kbd>Ctrl+C</kbd>/<kbd>V</kbd> 复制粘贴</td></tr>
-  <tr><td class="k">播放识别</td><td>整曲播放自动按反复记号走：𝄆𝄇 反复、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段</td></tr>
-  </table>
-  <h4>通用 · 播放与循环</h4>
-  <table>
-  <tr><td class="k">空格 / ▶ / ⇤</td><td>播放键单键切换：点击播放，再点即时暂停，再点继续（音频精确冻结）；⇤ 回到开头并停住（不自动播放）；底部混音器可换音色、独奏/静音、调速度</td></tr>
-  <tr><td class="k">小节格进度条</td><td>一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时自动变密集标尺，点击或 ▦ 打开大格选择面板</td></tr>
-  </table>
-  <h4>通用 · 窗口与保存</h4>
-  <table>
-  <tr><td class="k">多窗口</td><td>标签栏同时打开多首（可不同类型），标签显示"类型+序号+曲名"与保存状态点；新建/关闭时提示保存情况</td></tr>
-  <tr><td class="k">保存 / 导出</td><td>实时自动保存本机；「保存」存入我的曲谱；<kbd>Ctrl+S</kbd> 导出文件、「打印」出 A4 分页；个人中心可管理曲谱、节奏型模板、版权存证</td></tr>
-  </table>
-  <h4>吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）</h4>
-  <table>
-  <tr><td class="k">录入与和弦</td><td>点弦位敲品位；「记谱:×」教材式切换；输入和弦自动画和弦图并按指法重排，改和弦智能移调</td></tr>
-  <tr><td class="k">演奏技巧</td><td>滑弦S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音</td></tr>
-  <tr><td class="k">扫弦 / 琶音</td><td>下扫/上扫（箭头方向=拨片在六线谱上从低音弦扫向高音弦的移动方向；下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数</td></tr>
-  </table>
-  <h4>简谱</h4>
-  <table>
-  <tr><td class="k">音高与记号</td><td>♯♭♮、八度点 ±3；倚音最多3音可点击再编辑；上下波音/颤音tr/回音</td></tr>
-  <tr><td class="k">力度 / 速度</td><td>「力度/速度」弹窗（每项中文说明）：ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.；力度即时影响播放音量</td></tr>
-  </table>
-  <h4>功能谱（乐队）</h4>
-  <table>
-  <tr><td class="k">级数和弦</td><td>选中音符点「和弦/级数」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；谱面按 1=调号 显示级数，点击级数可再编辑，换调即时跟随</td></tr>
-  </table>
-  <h4>快捷键</h4>
-  <table>
-  <tr><td class="k">← → ↑ ↓ / Tab</td><td>移动光标 / 切换声部</td></tr>
-  <tr><td class="k">Ctrl+Z / Y / S</td><td>撤销 / 重做 / 导出</td></tr>
-  <tr><td class="k">空格 / . / Q–T</td><td>播放停止 / 附点 / 时值</td></tr>
-  </table>
   <div class="btns"><button id="help-ok" class="primary">知道了</button></div>`);
   document.getElementById('help-ok').onclick = closeModal;
 };
 document.getElementById('b-feat').onclick = ()=>{
+  const fx=(ic,t,d)=>`<div class="fx"><div class="ic">${ic}</div><b>${t}</b><span>${d}</span></div>`;
   showModal(`<h3>谱友圈 · 特色功能</h3>
-  <h4>通用能力</h4>
-  <div class="feat">
-    <div class="fc"><b>📐 智能排版自适配</b><span>按出版谱对数时值间距逐拍分配宽度——小节宽随内容疏密、每行数量自由适配，A4 多页自动分页，打印导出即成品。</span></div>
-    <div class="fc"><b>🗂 多窗口多类型</b><span>标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。</span></div>
-    <div class="fc"><b>✏️ 自由编辑优先</b><span>任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。</span></div>
-    <div class="fc"><b>🔁 完整反复体系</b><span>𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。</span></div>
-    <div class="fc"><b>▶️ 练习级播放</b><span>物理建模音色（吉他双弦失谐+琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。</span></div>
-    <div class="fc"><b>💾 创作者工具</b><span>本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。</span></div>
-  </div>
-  <h4>分谱型特色</h4>
-  <div class="feat">
-    <div class="fc"><b>🎸 吉他谱</b><span>六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。</span></div>
-    <div class="fc"><b>🪕 尤克里里谱</b><span>4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱完全一致，附常用和弦库。</span></div>
-    <div class="fc"><b>🎵 简谱</b><span>纯旋律记谱：±3 八度、倚音（3音+直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。</span></div>
-    <div class="fc"><b>🎹 功能谱</b><span>乐队排练用：级数和弦标注按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。</span></div>
+  <div class="featdoc">
+    <div class="hd-hero">
+      <div class="lg">✨</div>
+      <div><div class="tt">为吉他爱好者打造的制谱工具</div>
+        <div class="ds">出版级排版 · 真实音色试听 · 一处编辑四种谱面</div></div>
+    </div>
+    <div class="fg">排版与输出</div>
+    <div class="featx">
+      ${fx('📐','内容驱动排版','按出版谱对数时值间距逐拍分配宽度——一拍一个四分音符的小节自然比每拍两个八分的窄，<b>疏窄密宽</b>；每行小节数自由适配、密集小节可独占一行，右缘整齐。')}
+      ${fx('🎚','三段式排版控制','基准纸张 A5/A4/A3（定容量）＋智能疏密（紧凑/标准/宽松）＋手动微调（整体缩放·分谱行距·间距，百分比可输入）；可拖动浮层、实时生效、随谱保存。')}
+      ${fx('🖨','打印预览','A5/A4/A3 适配、缩放、多页<b>竖排/横排/网格</b>三种排布；纯净成品谱一键进入打印，或导出高清 PNG / A4 多页 PDF。')}
+      ${fx('🗂','多窗口多类型','标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。')}
+    </div>
+    <div class="fg">编辑与播放</div>
+    <div class="featx">
+      ${fx('✏️','自由编辑优先','任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。')}
+      ${fx('🔁','完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
+      ${fx('▶️','练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
+      ${fx('💾','创作者工具','本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。')}
+    </div>
+    <div class="fg">四种谱面</div>
+    <div class="featx">
+      ${fx('🎸','吉他谱','六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。')}
+      ${fx('🪕','尤克里里谱','4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱一致，附常用和弦库。')}
+      ${fx('🎵','简谱','纯旋律记谱：±3 八度、倚音（3 音＋直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。')}
+      ${fx('🎹','功能谱','乐队排练用：级数和弦按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。')}
+    </div>
   </div>
   <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
   document.getElementById('feat-ok').onclick = closeModal;
@@ -7284,6 +7337,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.1</span><div>帮助与特色功能升级：① 修复页脚<b>「帮助文档」点击无内容</b>——改为直接打开站内使用帮助（独立 docs 站未部署时也能展示）；② <b>使用帮助 / 特色功能内容同步刷新</b>，补齐排版面板（基准纸张/智能排版/手动微调）、内容驱动版式、打印预览（竖排/横排/网格）等最新能力；③ 两个弹窗<b>视觉升级</b>——品牌 Hero、图标分区、卡片式条目与发丝分隔、悬浮微交互，深浅色自适配。</div></li>
     <li><span class="v">v35.0</span><div>排版引擎升级为<b>出版谱式内容驱动宽度</b>（参照 Gourlay 对数间距 / MuseScore 惯例）：① 小节宽度由内容疏密决定——一拍一个四分音符的小节明显<b>窄于</b>每拍两个八分音符的小节，二分/全音符小节更窄，不再统一宽度；② 打破"每行最少 2 小节 / 小节最宽 2/3 行"的旧限制——<b>换行完全按内容宽度自由适配</b>：稀疏行可容纳更多小节（省纸），极密集小节可<b>独占一行</b>从容展开（仅当单小节超过整行才压缩）；③ 各行仍两端对齐、右缘整齐，密集小节按权重多得空间、疏密有致；④ 修正跨拍长音的点击热区溢出到邻小节的问题。</div></li>
     <li><span class="v">v34.99</span><div>排版面板文案与交互微调：① 分区标题精简去括号——「① 基准纸张 / ② 智能排版 / ③ 手动微调」；②「字号·内容大小」更名为<b>整体缩放</b>；③ 手动微调的百分比数字<b>点击即可输入精确数值</b>（整体缩放 / 行距 / 间距，回车确认、Esc 取消）。</div></li>
     <li><span class="v">v34.97</span><div>排版实按预期生效：① 修复<b>手动调整时纸张外框跟着变大变小</b>的问题——现在「内容大小/字号」放大的是纸内内容（谱表、音符、字号一起放大，其他自动跟随），<b>纸张外框在屏幕上保持固定尺寸</b>，内容越大每页容纳越少（示例曲 140% 时 2 页→3 页）；② <b>智能排版</b>紧凑/宽松现在<b>可见地缩放行距与间距</b>（宽松行更高、每行更少）；③ 手动新增<b>行距</b>（可分别选中 吉他谱 / 简谱 / 歌词 单独调）与<b>间距</b>（音符横向疏密）。所有排版参数随曲谱保存。</div></li>
@@ -7448,6 +7502,7 @@ function showPrivacy(){
   bind('f-terms', showTerms);
   bind('f-privacy', showPrivacy);
   bind('f-help2', ()=>document.getElementById('b-help').click());
+  bind('f-docs',  ()=>document.getElementById('b-help').click());   // 帮助文档 → 站内使用帮助（独立 docs 站未部署时也能展示）
 }
 
 /* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
