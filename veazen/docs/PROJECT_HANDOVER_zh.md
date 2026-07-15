@@ -75,6 +75,22 @@
   - PD-005 行业调研归档；商业化闭环规划（MONETIZATION_PLAN）
   - **P1 收款闭环交付**（LS 集成，默认关闸）；LS KYC 受阻（PMB 地址）
   - 容灾预案成文（RESILIENCE_DR_PLAN，P0 待批示）
+- **2026-07-14~15（批次 R 指令执行）**：
+  - 老板发布批次 R 指令（归档 docs/DIRECTIVE_BATCH_R_zh.md）：韧性/
+    不变量/计费补完/**功能冻结令**（E2~E6 及一切新构想等首个付费客户）
+  - A1 容灾自动化上线：每日加密备份→R2 + 一键恢复演练两个 GitHub
+    Actions 工作流（待用户配置六个 Secrets 后生效）
+  - A2 交付：ADR-012「消费者验证路径永不受计费状态影响」+ §1.11 +
+    e2e 红-绿验证锁死（verify-billing-invariant）
+  - A3 交付：生成幂等化（中断产物整批丢弃重生成，护住刮码明文唯一性）、
+    卡死批次补偿扫描（15 分钟阈值→重新入队→3 次仍卡置 failed）、
+    控制台失败批次「重试」按钮、Redis 持久化启动诊断日志；
+    batches 新增 failed 状态与 generation_attempts 列
+  - A4 交付：ADR-007 修订（刮码 HMAC+pepper 论证；核查确认 pepper 由
+    MASTER_KEY 派生永不入库——合规无缺陷）
+  - 批次 D：两份行业调研归档（PLAYBOOKS/ECOSYSTEM，非执行规格）；
+    PROJECT_PLAN 校准为「原始规格+§12 Backlog」新版
+  - API e2e 增至 **58 项**；A5（泄露 key 核查）等用户跑 Neon SQL
 
 ## 四、技术实现逻辑（核心）
 
@@ -209,14 +225,23 @@ vz_0VF1RZY4…）待用户吊销重建。
 
 ## 六、当前状态与下一步（2026-07-13）
 
-**卡点（等外部）**：
-1. LS KYC（用户按三步走：改国家→问客服→换 Paddle）
-2. WordPress.org 账号批复
-3. E1 实操验收（用户邀请 warehouse 账号+摄像头扫真码）
+**执行中（批次 R 指令）**：
+1. B1 S1 补剂行业化包 + B2 码包（已批准，A 组完成后即启动）
 
-**等老板批示**：
-1. P0 容灾三项（每日备份+恢复演练+桶加固）——强烈建议立即批
-2. S1 补剂行业化包是否插队 E2/E3
+**卡点（等用户/外部）**：
+1. A1 备份配置：R2 桶 + GitHub 六个 Secrets（步骤见
+   RESILIENCE_DR_PLAN §五），配置后手动跑首次备份与恢复演练
+2. A5 泄露 key 核查：等用户在 Neon SQL Editor 跑核查 SQL 回传
+3. LS KYC（用户三步走：改国家→问客服→评估 Paddle；根治=非 PMB
+   商业地址，老板任务）
+4. WordPress.org 账号批复（批复后立即上架）
+5. E1 实操验收（用户邀请 warehouse 账号+摄像头扫真码）
+6. Neon 升付费档（老板任务，A1 前置）
 
-**新接手者的第一步**：读本文档 → 读 `/CLAUDE.md` → 跑通 4.5 的
-本地验收三件套 → 从「等批示」清单接活。
+**冻结中（批次 C，等首个付费客户/老板触发）**：E2~E6 及
+PROJECT_PLAN §12 全部构想。
+
+**新接手者的第一步**：读本文档 → 读 `/CLAUDE.md` → 读
+`docs/DIRECTIVE_BATCH_R_zh.md`（现行指令）→ 跑通 4.5 的本地验收
+三件套（注意：先杀掉残留的 `node dist/main.js` 进程，它会抢走
+BullMQ 任务导致 e2e 假失败）→ 从「执行中/卡点」清单接活。
