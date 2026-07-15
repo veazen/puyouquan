@@ -88,6 +88,17 @@ export default function BatchesPage() {
     }
   }
 
+  // A3: retry a batch the compensation sweep marked failed
+  async function retryGeneration(id: string) {
+    setError('');
+    try {
+      await api(`/batches/${id}/retry`, { method: 'POST', body: {} });
+      await load();
+    } catch (e) {
+      setError(friendlyMessage(e));
+    }
+  }
+
   async function exportCsv(id: string) {
     setError('');
     try {
@@ -179,12 +190,27 @@ export default function BatchesPage() {
               </td>
               <td className="font-mono text-xs">{b.quantity}</td>
               <td>
-                <span className={b.status === 'ready' ? 'text-jade' : b.status === 'exported' ? 'text-limestone-dim' : 'text-state-warn'}>
-                  {b.status}
-                </span>
+                {b.status === 'failed' ? (
+                  <span className="text-state-alert" title="批次生成多次中断未能完成，已停止自动重试。点击右侧「重试」重新生成整个批次。">
+                    生成失败
+                  </span>
+                ) : (
+                  <span className={b.status === 'ready' ? 'text-jade' : b.status === 'exported' ? 'text-limestone-dim' : 'text-state-warn'}>
+                    {b.status}
+                  </span>
+                )}
               </td>
               <td className="font-mono text-xs">{b.activatedCount}</td>
               <td className="text-right">
+                {b.status === 'failed' && (
+                  <button
+                    onClick={() => retryGeneration(b.id)}
+                    data-testid="batch-retry"
+                    className="rounded border border-state-alert px-2 py-1 text-xs text-state-alert hover:border-jade hover:text-jade"
+                  >
+                    重试
+                  </button>
+                )}
                 {(b.status === 'ready' || b.status === 'exported') && (
                   <span className="flex justify-end gap-2">
                     <button onClick={() => exportCsv(b.id)} className="rounded border border-etch px-2 py-1 text-xs hover:border-jade hover:text-jade">
