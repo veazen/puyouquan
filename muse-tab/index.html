@@ -1767,6 +1767,9 @@ function measureLayout(mea){
   const beatLyrCnt = new Array(beats).fill(0);
   const beatColCnt = new Array(beats).fill(0);
   const beatVoxCnt = new Array(beats).fill(0);
+  /* 弹簧-刚杆事件：每拍收集所有声部的列起点 t(0..1) 与该列最小刚性宽（带词=字宽、简谱数字、吉他列），
+     供拍内分段映射使用——32分/三连音带逐字歌词时按刚杆撑开，不再按纯时值比例挤成一团 */
+  const evts = Array.from({length:beats},()=>[]);
   const scan = (cols, isVox)=>{
     let cum=0; const wB=new Array(beats).fill(0), cB=new Array(beats).fill(0), nB=new Array(beats).fill(0);
     cols.forEach(c=>{
@@ -1777,7 +1780,13 @@ function measureLayout(mea){
              +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-durW(c.dur)+4) : 0)
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       nB[bi]++;
-      if(isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim())) cB[bi]++;
+      const hasLyr = isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim());
+      if(hasLyr) cB[bi]++;
+      let cmin = isVox? (hasLyr? LYR_MIN : 12*hs) : MIN_COL;
+      if(isVox&&c.grace)  cmin += 5+6.5*normGrace(c.grace).notes.length;
+      if(isVox&&c.graceA) cmin += 5+6.5*normGrace(c.graceA).notes.length;
+      if(isVox&&c.chord)  cmin = Math.max(cmin, vcDispW(c.chord)+4);
+      evts[bi].push({t:Math.max(0,Math.min(1,cum-bi)), min:cmin});
       cum+=beatsOf(c);
     });
     for(let i=0;i<beats;i++){
@@ -1792,21 +1801,72 @@ function measureLayout(mea){
     /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
        32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
     const w=Math.max(beatFloor, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
-    beatW.push(w); inner+=w;
+    beatW.push(w);
   }
+  /* ===== 拍内弹簧-刚杆映射（LilyPond spring-rod 思路）=====
+     相邻列间距 = max(时值比例份额, 前一列最小刚性宽)；刚杆之和超过拍宽时拍自动加宽。
+     所有声部共用同一张 时值→x 映射表，拍内跨声部依然严格对齐。 */
+  const warps=[];
+  for(let i=0;i<beats;i++){
+    const ev=evts[i].slice().sort((a,b)=>a.t-b.t);
+    const nodes=[];
+    ev.forEach(e=>{                              // 合并跨声部同时刻节点，取最大刚杆
+      const last=nodes[nodes.length-1];
+      if(last && e.t-last.t<1e-4) last.min=Math.max(last.min, e.min);
+      else nodes.push({t:e.t, min:e.min});
+    });
+    if(!nodes.length){ warps.push(null); continue; }
+    const segs=[];
+    if(nodes[0].t>1e-4) segs.push({p:nodes[0].t, min:0});          // 拍首前导空段（长音延续等）
+    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t, min:n.min}));
+    const minSum=segs.reduce((a,s)=>a+s.min,0);
+    const total=Math.max(beatW[i], minSum);      // 刚杆撑破原拍宽 → 拍加宽（三连音带词即此情形）
+    /* water-fill：有余量的段按时值比例分，份额不足刚杆的段被钉在刚杆宽 */
+    const wseg=segs.map(()=>0), clamped=segs.map(()=>false);
+    for(let pass=0; pass<=segs.length; pass++){
+      const fixed=segs.reduce((a,s,k)=>a+(clamped[k]?s.min:0),0);
+      const pSum=segs.reduce((a,s,k)=>a+(clamped[k]?0:s.p),0);
+      let changed=false;
+      for(let k=0;k<segs.length;k++){
+        if(clamped[k]){ wseg[k]=segs[k].min; continue; }
+        const w2=pSum>1e-9? (total-fixed)*segs[k].p/pSum : segs[k].min;
+        if(w2<segs[k].min-1e-6){ clamped[k]=true; changed=true; }
+        else wseg[k]=w2;
+      }
+      if(!changed) break;
+    }
+    const T=[0], X=[0]; let tA=0, xA=0;
+    segs.forEach((s,k)=>{ tA+=s.p; xA+=wseg[k]; T.push(Math.min(1,tA)); X.push(xA); });
+    T[T.length-1]=1;
+    beatW[i]=xA;
+    warps.push({T,X});
+  }
+  inner = beatW.reduce((a,b)=>a+b,0);
   /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
   const rowMax=(PAGE_W-2*MARGIN)-gapTotal-pad*2;
-  if(inner>rowMax){ const k=rowMax/inner; beatW=beatW.map(w=>w*k); inner=rowMax; }
+  if(inner>rowMax){
+    const k=rowMax/inner;
+    beatW=beatW.map(w=>w*k); inner=rowMax;
+    warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
+  }
   const beatStart=[]; { let acc=pad; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
-  /* 时值累计位置 → x：拍首严格对齐，拍内按时值比例 */
+  /* 拍内 t(0..1) → 相对拍首 x：走分段映射；无节点的拍退回线性 */
+  const warpX = (bi, tIn)=>{
+    const w=warps[bi];
+    if(!w) return tIn*beatW[bi];
+    const {T,X}=w;
+    let k=0; while(k<T.length-2 && tIn>T[k+1]+1e-9) k++;
+    const span=T[k+1]-T[k];
+    return X[k] + (span>1e-9? (Math.min(tIn,T[k+1])-T[k])/span*(X[k+1]-X[k]) : 0);
+  };
+  /* 时值累计位置 → x：拍首严格对齐，拍内走弹簧-刚杆映射 */
   const pos = c2=>{
     const bi=Math.min(beats-1, Math.floor(c2+1e-4));
-    return beatStart[bi]+Math.max(0, c2-bi)*beatW[bi];
+    return beatStart[bi]+warpX(bi, Math.max(0,Math.min(1, c2-bi)));
   };
   const posEnd = c2=>{                          // 音符右缘：落在拍界时取上一拍右缘（不含拍间隙）
-    const bi=Math.min(beats-1, Math.ceil(c2-1e-4)-1<0?0:Math.ceil(c2-1e-4)-1);
-    const ib=Math.min(1, c2-bi);
-    return beatStart[bi]+Math.max(0,ib)*beatW[bi];
+    const bi=Math.min(beats-1, Math.max(0, Math.ceil(c2-1e-4)-1));
+    return beatStart[bi]+warpX(bi, Math.max(0,Math.min(1, c2-bi)));
   };
   const fit = cols=>{
     let cum=0; const xs=[], ws=[], ls=[];
@@ -7357,6 +7417,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.6</span><div>修复 <b>32 分/三连音逐字带词时歌词重叠</b>：拍内定位由"纯时值比例"升级为<b>弹簧-刚杆映射</b>（LilyPond 思路）——相邻音列间距有余量时按时值比例（弹簧），但不小于各列的最小刚性宽（刚杆：带词列=字宽 17、简谱数字列 12、吉他列 13、和弦框/倚音更宽）；刚杆之和超过拍宽时该拍自动加宽。所有声部共用同一映射，拍内跨声部依然严格对齐；普通谱面排版几乎不变。</div></li>
     <li><span class="v">v35.5</span><div>吉他谱品位数字/×记号改为<b>极小断口</b>：用纸色描边沿字形轮廓挖开谱线（字形外约 1.3px），断口紧贴字形、不成白块，深浅色与反色下均成立。</div></li>
     <li><span class="v">v35.4</span><div>① 吉他谱品位数字/×记号一度改为不断线，后于 v35.5 调整为极小断口；② 新增<b>曲谱反色</b>（顶栏「◑ 反色」）：深色纸张 + 浅色音符，适合夜间 / 投影 / 护眼，随本机记忆；打印与导出 PDF 一律回到白纸黑字（省墨、成品规范）。</div></li>
     <li><span class="v">v35.3</span><div>吉他谱品位数字/×记号的<b>断线更贴字</b>：原先数字底色偏大、几乎占满弦间空隙，看起来像白块切断谱线；现收紧为仅遮住字形本身（高 9.4→7.4、宽度贴字），保留"数字坐线上、线在字处断开"的出版谱可读性，同时谱线保持连贯不显白块（近 Guitar Pro 观感）。</div></li>
