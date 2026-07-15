@@ -1,0 +1,83 @@
+# A1 容灾（批次 R）：每日全量备份 Neon → 加密 → R2 备份桶
+# 保留策略：daily/ 前缀由 R2 生命周期规则 30 天过期；每月 1 号另存
+# monthly/ 前缀（不过期）。恢复演练见 veazen-restore-drill.yml。
+# 未配置密钥时安静跳过（不产生失败噪音）；配置后失败会自动开 Issue。
+name: veazen-backup
+
+on:
+  schedule:
+    - cron: '17 4 * * *' # 每日 04:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check configuration
+        id: guard
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          R2_KEY: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+        run: |
+          if [ -z "$NEON_DATABASE_URL" ] || [ -z "$R2_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::backup secrets not configured yet — skipping (see docs/RESILIENCE_DR_PLAN_zh.md)"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install postgresql-client 17
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump database (custom format, compressed)
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          STAMP="$(date -u +%F)"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump "$NEON_DATABASE_URL" -Fc -f "veazen-$STAMP.dump"
+          ls -lh "veazen-$STAMP.dump"
+
+      - name: Encrypt (AES-256, PBKDF2)
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          openssl enc -aes-256-cbc -pbkdf2 -salt \
+            -in "veazen-$STAMP.dump" -out "veazen-$STAMP.dump.enc" \
+            -pass env:BACKUP_ENCRYPTION_KEY
+          rm -f "veazen-$STAMP.dump"
+
+      - name: Upload to R2
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_BACKUP_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+        run: |
+          aws s3 cp "veazen-$STAMP.dump.enc" "s3://$R2_BUCKET/daily/veazen-$STAMP.dump.enc" --endpoint-url "$R2_ENDPOINT"
+          if [ "$(date -u +%d)" = "01" ]; then
+            aws s3 cp "veazen-$STAMP.dump.enc" "s3://$R2_BUCKET/monthly/veazen-$STAMP.dump.enc" --endpoint-url "$R2_ENDPOINT"
+          fi
+          echo "uploaded daily/veazen-$STAMP.dump.enc"
+
+      - name: Open issue on failure
+        if: failure() && steps.guard.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "🔴 数据库每日备份失败 $(date -u +%F)" \
+            --body "veazen-backup 工作流失败：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID —— 请当天处理（容灾预案 docs/RESILIENCE_DR_PLAN_zh.md）。"

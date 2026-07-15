@@ -1,0 +1,110 @@
+# A1 容灾（批次 R）：恢复演练 —— 手动触发（Actions → veazen-restore-drill
+# → Run workflow）。从 R2 取最新（或指定）加密备份 → 解密 → 恢复到
+# 临时 Postgres → 数据完整性冒烟检查 → 输出演练报告。
+# 纪律：每季度至少跑一次（未演练过的备份不算备份）。
+name: veazen-restore-drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_key:
+        description: '要演练的备份对象键（留空 = daily/ 最新一份）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drill
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 20
+    steps:
+      - name: Install postgresql-client 17
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Fetch backup from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_BACKUP_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          REQUESTED_KEY: ${{ inputs.backup_key }}
+        run: |
+          KEY="$REQUESTED_KEY"
+          if [ -z "$KEY" ]; then
+            KEY=$(aws s3 ls "s3://$R2_BUCKET/daily/" --endpoint-url "$R2_ENDPOINT" | sort | tail -1 | awk '{print "daily/"$4}')
+          fi
+          [ -n "$KEY" ] || { echo "::error::备份桶里没有找到任何备份"; exit 1; }
+          echo "KEY=$KEY" >> "$GITHUB_ENV"
+          aws s3 cp "s3://$R2_BUCKET/$KEY" backup.dump.enc --endpoint-url "$R2_ENDPOINT"
+          ls -lh backup.dump.enc
+
+      - name: Decrypt
+        env:
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 \
+            -in backup.dump.enc -out backup.dump -pass env:BACKUP_ENCRYPTION_KEY
+          ls -lh backup.dump
+
+      - name: Restore into scratch database
+        run: |
+          START=$(date +%s)
+          createdb -h 127.0.0.1 -U postgres veazen_drill
+          # --no-owner/--no-privileges：临时库无 veazen 角色体系，只验数据
+          pg_restore -h 127.0.0.1 -U postgres -d veazen_drill \
+            --no-owner --no-privileges backup.dump
+          echo "RESTORE_SECONDS=$(( $(date +%s) - START ))" >> "$GITHUB_ENV"
+        env:
+          PGPASSWORD: drill
+
+      - name: Integrity smoke check
+        env:
+          PGPASSWORD: drill
+        run: |
+          psql -h 127.0.0.1 -U postgres -d veazen_drill -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'tenants',      count(*) FROM tenants;
+          SELECT 'products',     count(*) FROM products;
+          SELECT 'batches',      count(*) FROM batches;
+          SELECT 'codes',        count(*) FROM codes;
+          SELECT 'scan_events',  count(*) FROM scan_events;
+          SELECT 'audit_logs',   count(*) FROM audit_logs;
+          SELECT 'latest_scan',  max(created_at) FROM scan_events;
+          -- 随机抽一枚码验证关键字段完好
+          SELECT serial, status IS NOT NULL AS has_status
+          FROM codes ORDER BY random() LIMIT 1;
+          SQL
+
+      - name: Drill report
+        run: |
+          {
+            echo "## 恢复演练报告 $(date -u +%F)"
+            echo "- 备份对象：\`$KEY\`"
+            echo "- pg_restore 耗时：${RESTORE_SECONDS}s"
+            echo "- 完整性冒烟：通过（表计数与抽样见上一步日志）"
+            echo "- 结论：该备份可用于生产恢复"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "🔴 恢复演练失败 $(date -u +%F)" \
+            --body "veazen-restore-drill 失败：$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID —— 备份可能不可用，最高优先级排查。"

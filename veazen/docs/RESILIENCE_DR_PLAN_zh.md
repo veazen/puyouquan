@@ -84,6 +84,42 @@
 | 域名/DNS 故障 | 官网/验证页打不开 | Cloudflare DNS 状态页；灰云记录核对 CNAME 目标 |
 
 ---
-**待批示**：P0 三项（每日备份 + 恢复演练 + 备份桶加固）是否立即开工？
-需要你配合的只有一步：在 Cloudflare R2 建一个备份桶 + 发一把只写
-令牌（有保姆级步骤），其余全自动。
+
+## 五、P0 实施记录（2026-07-13，批次 R 指令 A1 批准执行）
+
+**已交付的自动化**（GitHub Actions，仓库根 `.github/workflows/`）：
+- `veazen-backup.yml`：每日 04:17 UTC 全量 `pg_dump`（PG17 客户端，
+  custom 压缩格式）→ AES-256-PBKDF2 加密 → 上传 R2 `daily/` 前缀；
+  每月 1 号加存 `monthly/`（永久保留）；密钥未配置时安静跳过；
+  配置后失败自动开 GitHub Issue 告警
+- `veazen-restore-drill.yml`：**手动一键恢复演练**（Actions 页面
+  Run workflow）——取最新备份→解密→恢复到临时 PG17→表计数+抽样
+  完整性检查→输出演练报告（含耗时）；失败自动开 Issue。
+  纪律：**每季度至少演练一次**
+
+**用户配置步骤（一次性，约 10 分钟）**：
+1. Cloudflare 控制台 → R2 → Create bucket → 名 `veazen-backups`
+   （区域默认）；若设置页有 versioning 开关则打开（R2 部分区域
+   暂不提供版本控制，没有就跳过——monthly/ 永久留存已兜底）
+2. 同页 → Settings → Object lifecycle rules → Add rule：
+   前缀 `daily/`，动作 Delete objects，30 天（自动滚动清理）
+3. R2 → Manage API Tokens → Create API Token：权限选
+   **Object Read & Write**，Bucket 只勾 `veazen-backups`
+   → 记下 Access Key ID / Secret Access Key / 端点 URL
+   （形如 `https://<account_id>.r2.cloudflarestorage.com`）
+4. GitHub 仓库 → Settings → Secrets and variables → Actions →
+   New repository secret，逐个添加 6 条：
+   - `NEON_DATABASE_URL`（Neon 直连串，与 Railway 同值）
+   - `R2_BACKUP_ENDPOINT` / `R2_BACKUP_BUCKET`（=veazen-backups）
+   - `R2_BACKUP_ACCESS_KEY_ID` / `R2_BACKUP_SECRET_ACCESS_KEY`
+   - `BACKUP_ENCRYPTION_KEY`（终端跑 `openssl rand -hex 32` 生成，
+     **密码管理器 + 离线各存一份**——丢了它备份将无法解密）
+5. Actions → veazen-backup → Run workflow（手动跑第一次）→ 绿色后
+   Actions → veazen-restore-drill → Run workflow（第一次演练）
+6. 完成后把本文档「首次演练记录」补上日期与耗时
+
+**首次演练记录**：待执行（配置完成后运行 veazen-restore-drill 填写）
+
+**RPO/RTO 承诺口径（配置完成后生效）**：最坏丢失 ≤24h 数据；
+恢复路径演练在案，RTO 目标 ≤4h。Neon 升付费档后日常误操作可
+PITR 到分钟级（老板任务，见 HUMAN_TODO 置顶）。
