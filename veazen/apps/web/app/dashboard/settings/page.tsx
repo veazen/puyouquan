@@ -43,11 +43,19 @@ interface Member {
   role: string;
 }
 
-/** GET /billing/summary (P1) — plan, usage, upgrade links. */
+/** GET /billing/summary (P1 + B2) — plan, usage, pack balance, upgrade links. */
 interface BillingSummary {
   plan: string;
   renews_at: string | null;
   usage: { codes_this_month: number; codes_quota: number | null };
+  /** B2 code packs: remaining one-time overflow credits */
+  pack_balance?: number;
+  purchase_options?: Array<{
+    id: string;
+    codes: number;
+    price_usd: number;
+    checkout_url: string | null;
+  }>;
   features: Record<string, boolean>;
   enforcement: boolean;
   checkout_urls: { starter?: string; growth?: string };
@@ -375,6 +383,28 @@ export default function SettingsPage() {
                     )}%`,
                   }}
                 />
+              </div>
+            )}
+            {/* B2 code packs: one-time overflow credits on top of the quota */}
+            <div className="mt-2 flex justify-between text-xs text-limestone-dim" data-testid="billing-pack-balance">
+              <span>Code pack balance</span>
+              <span>{(billing.pack_balance ?? 0).toLocaleString()}</span>
+            </div>
+            {(billing.purchase_options ?? []).some((o) => o.checkout_url) && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(billing.purchase_options ?? [])
+                  .filter((o) => o.checkout_url)
+                  .map((o) => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => window.open(o.checkout_url as string, '_blank', 'noopener')}
+                      data-testid={`billing-buy-${o.id}`}
+                      className={btn}
+                    >
+                      Buy {o.codes.toLocaleString()} codes — ${o.price_usd}
+                    </button>
+                  ))}
               </div>
             )}
           </div>
