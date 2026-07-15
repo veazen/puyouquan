@@ -197,19 +197,44 @@ final class Veazen_Settings_Page {
 		$quantity         = isset( $_POST['veazen_quantity'] ) ? absint( $_POST['veazen_quantity'] ) : 0;
 		$kind             = isset( $_POST['veazen_kind'] ) && 'on_demand' === $_POST['veazen_kind'] ? 'on_demand' : 'bulk';
 
+		// B1 (supplements pack): optional lot / mfg / expiry.
+		$lot_code    = isset( $_POST['veazen_lot_code'] ) ? sanitize_text_field( wp_unslash( $_POST['veazen_lot_code'] ) ) : '';
+		$mfg_date    = isset( $_POST['veazen_mfg_date'] ) ? sanitize_text_field( wp_unslash( $_POST['veazen_mfg_date'] ) ) : '';
+		$expiry_date = isset( $_POST['veazen_expiry_date'] ) ? sanitize_text_field( wp_unslash( $_POST['veazen_expiry_date'] ) ) : '';
+
 		if ( '' === $cloud_product_id || $quantity < 1 || $quantity > 100000 ) {
 			self::notice( __( 'Pick a synced product and a quantity between 1 and 100,000.', 'veazen' ), 'error' );
 			self::back();
 		}
 
-		$result = Veazen_Api_Client::post(
-			'/batches',
-			array(
-				'product_id' => $cloud_product_id,
-				'quantity'   => $quantity,
-				'kind'       => $kind,
-			)
+		foreach ( array( $mfg_date, $expiry_date ) as $date ) {
+			if ( '' !== $date && 1 !== preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+				self::notice( __( 'Dates must use the YYYY-MM-DD format.', 'veazen' ), 'error' );
+				self::back();
+			}
+		}
+		// String compare is exact for YYYY-MM-DD.
+		if ( '' !== $mfg_date && '' !== $expiry_date && $expiry_date < $mfg_date ) {
+			self::notice( __( 'The expiry date must be on or after the manufacture date.', 'veazen' ), 'error' );
+			self::back();
+		}
+
+		$body = array(
+			'product_id' => $cloud_product_id,
+			'quantity'   => $quantity,
+			'kind'       => $kind,
 		);
+		if ( '' !== $lot_code ) {
+			$body['lot_code'] = $lot_code;
+		}
+		if ( '' !== $mfg_date ) {
+			$body['mfg_date'] = $mfg_date;
+		}
+		if ( '' !== $expiry_date ) {
+			$body['expiry_date'] = $expiry_date;
+		}
+
+		$result = Veazen_Api_Client::post( '/batches', $body );
 		if ( is_wp_error( $result ) ) {
 			/* translators: %s: error message. */
 			self::notice( sprintf( __( 'Batch request failed: %s', 'veazen' ), $result->get_error_message() ), 'error' );
@@ -358,6 +383,19 @@ final class Veazen_Settings_Page {
 				<option value="bulk"><?php esc_html_e( 'Bulk (factory labels, scratch codes)', 'veazen' ); ?></option>
 				<option value="on_demand"><?php esc_html_e( 'On-demand pool (Lite shipping labels)', 'veazen' ); ?></option>
 			</select>
+			<br />
+			<label style="margin-right:0.6em;">
+				<?php esc_html_e( 'Lot number (optional)', 'veazen' ); ?>
+				<input type="text" name="veazen_lot_code" maxlength="120" />
+			</label>
+			<label style="margin-right:0.6em;">
+				<?php esc_html_e( 'Manufacture date (optional)', 'veazen' ); ?>
+				<input type="date" name="veazen_mfg_date" />
+			</label>
+			<label style="margin-right:0.6em;">
+				<?php esc_html_e( 'Expiry date (optional)', 'veazen' ); ?>
+				<input type="date" name="veazen_expiry_date" />
+			</label>
 			<?php submit_button( __( 'Request batch', 'veazen' ), 'primary', 'submit', false ); ?>
 		</form>
 		<?php
