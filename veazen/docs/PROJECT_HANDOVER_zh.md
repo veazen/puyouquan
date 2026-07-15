@@ -171,9 +171,12 @@ DNS                 api/verify 两条 CNAME 灰云（DNS only）——橙云会�
 |---|---|
 | `/CLAUDE.md`（仓库根） | 工作记忆：项目状态、待办、约定（每批更新） |
 | `docs/PROJECT_HANDOVER_zh.md` | **本文档**：总交接书（每批更新） |
-| `PROJECT_PLAN.md` | 原始完整规格（Phase 0~5） |
+| `PROJECT_PLAN.md` | 原始规格 + §12 前瞻 Backlog（状态真相源是本交接书；偏离以 ADR 为准） |
 | `docs/ARCHITECTURE.md` | 架构与 ADR |
 | `docs/PRODUCT_DECISIONS_zh.md` | PD-001~005 产品决策档案 |
+| `docs/DIRECTIVE_BATCH_R_zh.md` | 老板批次 R 指令（韧性/不变量/计费补完/功能冻结） |
+| `docs/INDUSTRY_PLAYBOOKS_zh.md` | **行业知识/战略参考（非执行规格）**：码角色模型 R1-R5、六大行业 Playbook、行业预设规格、销售话术 |
+| `docs/PLATFORM_ECOSYSTEM_ANALYSIS_zh.md` | **行业知识/战略参考（非执行规格）**：WooCommerce/Shopify/中国大陆生态分析、Shopify 技术清单、中国跨境卖家客群 |
 | `docs/SME_SUITE_PLAN_zh.md` | 中小企业套件方案与交付记录 |
 | `docs/MONETIZATION_PLAN_zh.md` | 商业化闭环 + P1 交付记录 |
 | `docs/BILLING_SETUP_zh.md` | LS 配置保姆手册（KYC 过后用） |
