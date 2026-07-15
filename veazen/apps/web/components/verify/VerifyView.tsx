@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { formatForDisplay, isCanonicalCrockford, normalizeInput } from '@veazen/crypto/format';
 import type { VerifyResponse } from '@veazen/shared';
 
+import { publicApiBase } from '../../lib/api';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ScratchForm } from './ScratchForm';
 
@@ -106,6 +107,14 @@ export async function VerifyView({ serialRaw, data }: VerifyViewProps) {
   const showScratch = !isLite && result === 'authentic';
   const showTrace = !isLite && (data?.trace.length ?? 0) > 0;
 
+  // B1 (S1 supplements pack): batch identity + COA, rendered only when the
+  // batch actually carries data — most tenants never see these modules
+  const batchInfo = data?.batch_info ?? null;
+  const coaHref = data?.coa_url ? `${publicApiBase()}${data.coa_url}` : null;
+  const isExpired =
+    batchInfo?.expiry_date != null &&
+    batchInfo.expiry_date < new Date().toISOString().slice(0, 10);
+
   return (
     <main
       className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-5 px-5 py-8"
@@ -160,6 +169,61 @@ export async function VerifyView({ serialRaw, data }: VerifyViewProps) {
               className="mt-3 max-h-56 w-full rounded object-cover"
             />
           )}
+        </section>
+      )}
+
+      {batchInfo && (
+        <section
+          data-testid="batch-info"
+          className="rounded-lg border border-etch bg-basalt-deep p-5"
+        >
+          <h2 className="font-display text-lg">{t('batch.title')}</h2>
+          <dl className="mt-3 space-y-2 text-sm">
+            {batchInfo.lot_code && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-limestone-dim">{t('batch.lot')}</dt>
+                <dd className="font-mono">{batchInfo.lot_code}</dd>
+              </div>
+            )}
+            {batchInfo.mfg_date && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-limestone-dim">{t('batch.mfg')}</dt>
+                <dd className="font-mono">{batchInfo.mfg_date}</dd>
+              </div>
+            )}
+            {batchInfo.expiry_date && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-limestone-dim">{t('batch.expiry')}</dt>
+                <dd className={`font-mono ${isExpired ? 'text-state-alert' : ''}`}>
+                  {batchInfo.expiry_date}
+                </dd>
+              </div>
+            )}
+          </dl>
+          {isExpired && (
+            <p
+              data-testid="batch-expired"
+              className="mt-3 rounded border border-state-alert/50 bg-state-alert/10 px-3 py-2 text-sm font-medium text-state-alert"
+            >
+              {t('batch.expired')}
+            </p>
+          )}
+        </section>
+      )}
+
+      {coaHref && (
+        <section data-testid="coa-module" className="rounded-lg border border-etch bg-basalt-deep p-5">
+          <h2 className="font-display text-lg">{t('coa.title')}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-limestone-dim">{t('coa.body')}</p>
+          <a
+            href={coaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="coa-link"
+            className="mt-3 inline-block rounded border border-jade px-4 py-2 text-sm font-semibold text-jade hover:bg-jade hover:text-basalt"
+          >
+            {t('coa.open')}
+          </a>
         </section>
       )}
 

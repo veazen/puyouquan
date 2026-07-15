@@ -21,6 +21,11 @@ interface Batch {
   intendedMarket: string[];
   createdAt: string;
   product: { name: string; sku: string };
+  // B1 (S1 supplements pack): regulatory identity + COA presence
+  lotCode: string | null;
+  mfgDate: string | null;
+  expiryDate: string | null;
+  coaKey: string | null;
 }
 
 interface CodeDetail {
@@ -69,6 +74,10 @@ export default function BatchesPage() {
             ? { intended_market: String(data.market).split(',').map((c) => c.trim().toUpperCase()).filter(Boolean) }
             : {}),
           ...(data.kind === 'on_demand' ? { kind: 'on_demand' } : {}),
+          // B1: optional regulatory batch identity (supplements pack)
+          ...(data.lot_code ? { lot_code: String(data.lot_code).trim() } : {}),
+          ...(data.mfg_date ? { mfg_date: data.mfg_date } : {}),
+          ...(data.expiry_date ? { expiry_date: data.expiry_date } : {}),
         },
       });
       form.reset();
@@ -97,6 +106,40 @@ export default function BatchesPage() {
     } catch (e) {
       setError(friendlyMessage(e));
     }
+  }
+
+  // B1: upload / replace the batch COA PDF (errors must surface)
+  async function uploadCoa(id: string, file: File) {
+    setError('');
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('COA 必须是 PDF 文件 — the COA must be a PDF file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('COA 超过 10MB 上限 — the COA exceeds the 10 MB limit.');
+      return;
+    }
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      await api(`/batches/${id}/coa`, { method: 'POST', body: form });
+      await load();
+    } catch (e) {
+      setError(`COA upload failed: ${friendlyMessage(e)}`);
+    }
+  }
+
+  function pickCoa(id: string) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/pdf,.pdf';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) {
+        void uploadCoa(id, file);
+      }
+    };
+    input.click();
   }
 
   async function exportCsv(id: string) {
@@ -162,6 +205,16 @@ export default function BatchesPage() {
           <option value="bulk">Bulk (factory)</option>
           <option value="on_demand">On-demand pool (Lite)</option>
         </select>
+        {/* B1 (supplements pack): optional lot / mfg / expiry */}
+        <input name="lot_code" placeholder="Lot number (optional)" maxLength={120} data-testid="batch-lot" className={input} />
+        <label className="flex items-center gap-2 text-xs text-limestone-dim">
+          Mfg date
+          <input name="mfg_date" type="date" data-testid="batch-mfg" className={`flex-1 ${input}`} />
+        </label>
+        <label className="col-span-2 flex items-center gap-2 text-xs text-limestone-dim">
+          Expiry date
+          <input name="expiry_date" type="date" data-testid="batch-expiry" className={`flex-1 ${input}`} />
+        </label>
         <button className="col-span-4 rounded bg-jade px-4 py-2 text-sm font-semibold text-basalt hover:bg-jade-deep">
           Generate batch
         </button>
@@ -185,6 +238,16 @@ export default function BatchesPage() {
                 {b.kind === 'on_demand' && (
                   <span className="ml-2 rounded border border-etch px-1.5 py-0.5 text-[10px] text-limestone-dim">
                     pool
+                  </span>
+                )}
+                {b.lotCode && (
+                  <span className="ml-2 rounded border border-etch px-1.5 py-0.5 font-mono text-[10px] text-limestone-dim" title="Lot number">
+                    {b.lotCode}
+                  </span>
+                )}
+                {b.coaKey && (
+                  <span className="ml-2 rounded border border-jade/50 px-1.5 py-0.5 text-[10px] text-jade" title="COA uploaded">
+                    COA ✓
                   </span>
                 )}
               </td>
@@ -213,6 +276,14 @@ export default function BatchesPage() {
                 )}
                 {(b.status === 'ready' || b.status === 'exported') && (
                   <span className="flex justify-end gap-2">
+                    <button
+                      onClick={() => pickCoa(b.id)}
+                      data-testid="batch-coa-upload"
+                      title={b.coaKey ? 'Replace the uploaded COA PDF' : 'Upload the batch COA PDF (≤10 MB)'}
+                      className="rounded border border-etch px-2 py-1 text-xs hover:border-jade hover:text-jade"
+                    >
+                      {b.coaKey ? 'Replace COA' : 'Upload COA'}
+                    </button>
                     <button onClick={() => exportCsv(b.id)} className="rounded border border-etch px-2 py-1 text-xs hover:border-jade hover:text-jade">
                       CSV
                     </button>

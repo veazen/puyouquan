@@ -96,13 +96,20 @@ export async function api<T>(
 ): Promise<T> {
   const attempt = async (): Promise<Response> => {
     const { access } = getTokens();
+    // FormData bodies (B1 COA upload) go out as multipart — the browser sets
+    // the content-type boundary itself
+    const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
     return fetch(`${apiBase()}${path}`, {
       method: options.method ?? 'GET',
       headers: {
-        ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...(options.body !== undefined && !isForm ? { 'content-type': 'application/json' } : {}),
         ...(access ? { authorization: `Bearer ${access}` } : {}),
       },
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: isForm
+        ? (options.body as FormData)
+        : options.body !== undefined
+          ? JSON.stringify(options.body)
+          : undefined,
     });
   };
 

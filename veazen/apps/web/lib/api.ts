@@ -17,6 +17,15 @@ export function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 }
 
+/**
+ * Browser-reachable API base for links rendered into server components
+ * (e.g. the COA download link on the verify page, B1). API_URL_INTERNAL may
+ * be cluster-internal, so consumer-facing hrefs must use the public base.
+ */
+export function publicApiBase(): string {
+  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+}
+
 export async function fetchVerify(
   serial: string,
   sig?: string,
