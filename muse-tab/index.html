@@ -4731,8 +4731,7 @@ document.getElementById('b-meta').onclick = ()=>{
 document.getElementById('b-fill').onclick = ()=>{
   const vi = sel.row==='vox'?sel.vi:0;
   showModal(`<h3>批量填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
-    <p>整段歌词按顺序逐字分配到每个有唱名的音上；标点自动跟随前一个字；
-    用短横线 - 跳过一个音；换行与空格忽略。</p>
+    <p>整段歌词按顺序逐字分配到每个有唱名的音上；<b>自动跳过休止符与连音线延续的音符</b>（延续音由前一字延唱、不单独占字）；标点自动跟随前一个字；用短横线 - 手动跳过一个音；换行与空格忽略。</p>
     <textarea id="fill-text" placeholder="一闪一闪亮晶晶，满天都是小星星"></textarea>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   document.getElementById('fill-cancel').onclick = closeModal;
@@ -4742,22 +4741,26 @@ document.getElementById('b-fill').onclick = ()=>{
     if(!text.trim()) return;
     const PUNCT = '，。！？、；：…—（）()!?,.\'"“”‘’';
     const chars = [...text.replace(/\s+/g,'')];
+    const samePitch=(a,b)=> a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0);
     mutate(()=>{
-      let i=0;
+      let i=0, prev=null;
       outer:
       for(const mea of song.measures){
         for(const col of (mea.voxes[vi]||[])){
-          if(!col.deg) continue;
-          if(i>=chars.length) break outer;
+          if(!col.deg){ prev=null; continue; }               // 休止符：跳过，并中断连音链
           col.lyrics = col.lyrics||[];
-          if(chars[i]==='-'){ col.lyrics[activeLyr]=''; i++; continue; }
+          /* 连音线延续音（前一个音 tie 且同音高）→ 不占字，清空该行歌词 */
+          if(prev && prev.tie && samePitch(prev, col)){ col.lyrics[activeLyr]=''; prev=col; continue; }
+          if(i>=chars.length) break outer;
+          if(chars[i]==='-'){ col.lyrics[activeLyr]=''; i++; prev=col; continue; }
           let ly = chars[i++];
           while(i<chars.length && PUNCT.includes(chars[i])) ly += chars[i++];
           col.lyrics[activeLyr] = ly;
+          prev=col;
         }
       }
     });
-    toast('第'+(activeLyr+1)+'段歌词已填入');
+    toast('第'+(activeLyr+1)+'段歌词已填入（已跳过休止与连音延续音）');
   };
 };
 
@@ -6732,6 +6735,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.87</span><div>批量填词优化：自动跳过休止符与<b>连音线延续的音符</b>（延续音由前一字延唱、不单独占字）——之前连音延续音会错误地被分配一个字导致整段错位；不同音高的音符即使前有连音线仍正常占字（连音线只连同音高）。</div></li>
     <li><span class="v">v34.86</span><div>扫弦箭头方向翻转：下扫标 ↑、上扫标 ↓——箭头表示拨片在六线谱上从低音弦扫向高音弦的移动方向（低音 6 弦画在最下，故下扫向上）；播放声音不变（下扫仍低音先响）。按钮改「下扫/上扫」。新增 3 首预设曲谱：小星星（尤克里里 4 弦弹唱）、流行进行（功能谱 1–5–6m–4 级数和弦）、反复与段落示例（反复记号+第一/二段结尾+力度记号，展示播放导航）。</div></li>
     <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ⏮）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
     <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⇤ 开头」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「⏮ 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「🎧 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
