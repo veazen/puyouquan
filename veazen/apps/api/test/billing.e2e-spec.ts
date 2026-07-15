@@ -490,7 +490,12 @@ describe('P1 billing — enforcement on: gates + Lemon Squeezy lifecycle', () =>
     ).expect(200);
     expect(unmapped.body.result).toBe('ignored:variant_unmapped');
 
-    const other = await postLemon({ meta: { event_name: 'order_created' } }).expect(200);
-    expect(other.body.result).toBe('ignored:order_created');
+    // B2: order_created is consumed by the code-pack handler now — with no
+    // pack variant map configured it is acknowledged and skipped
+    const order = await postLemon({ meta: { event_name: 'order_created' } }).expect(200);
+    expect(order.body.result).toBe('ignored:pack_variant_unmapped');
+
+    const other = await postLemon({ meta: { event_name: 'order_refunded' } }).expect(200);
+    expect(other.body.result).toBe('ignored:order_refunded');
   });
 });
