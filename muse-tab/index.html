@@ -1960,7 +1960,7 @@ function systemExtras(sys){
   }));
   return {
     tabGap2: tabChord2? 22 : 0,
-    topExtra: maxUp>=3 ? 14 : maxUp>=2 ? 9 : maxUp>=1 ? 4 : 0,
+    topExtra: maxUp>=3 ? 16 : maxUp>=2 ? 11 : maxUp>=1 ? 7 : 0,
     botExtra: Math.max(maxDown>=3?16 : maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
     tabExtra: Math.max(tab32?5:0, tabTup?4:0)
   };
@@ -2657,7 +2657,7 @@ function render(){
           if(col.graceA) drawGrace(col.graceA, 'post');
           /* 标识符号：上/下波音、颤音 tr、回音 */
           if(col.orn && col.deg){
-            const oy2 = voxY - (col.oct>0? 22 : 15);
+            const oy2 = voxY - (col.oct>0? 23 + (Math.min(3,col.oct)-1)*4.2 : 15);   // 波音/颤音避让上移后的高音点
             if(col.orn==='up' || col.orn==='down'){
               let d=`M ${nx-6} ${oy2}`;
               for(let k2=0;k2<3;k2++) d+=` l 2 -3 l 2 3`;
@@ -2672,8 +2672,9 @@ function render(){
           }
           if(col.deg){
             for(let d=0; d<Math.min(3,Math.abs(col.oct)); d++){
-              /* 倍高音点贴近数字上沿（避开六线谱节奏符杠）；低音点落在减时线下方 */
-              if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-14-d*4.2}" r="1.5" fill="var(--ink)"/>`);
+              /* 高低音点与数字的光学间距对称：数字字顶≈voxY-12，高音点下缘 voxY-16 → 距字顶≈4px，
+                 与低音点距数字基线的 4px 一致；低音点仍落在减时线下方 */
+              if(col.oct>0) p.push(`<circle cx="${nx}" cy="${voxY-17.5-d*4.2}" r="1.5" fill="var(--ink)"/>`);
               else p.push(`<circle cx="${nx}" cy="${voxY+5.5+under*3.1+d*4.2}" r="1.5" fill="var(--ink)"/>`);
             }
           }
@@ -7417,6 +7418,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.7</span><div>修正简谱<b>高音点几乎贴住数字</b>的问题：高音点原先硬编码在距数字基线 14px 处，而 16.5px 数字的字顶就在 12px——间隙仅约 0.3px；低音点距字底却有 4px。现高音点上移至与低音点<b>光学对称</b>（距字顶≈4px），并同步上调该情形的行上方预留空间与波音/颤音记号的避让位置。</div></li>
     <li><span class="v">v35.6</span><div>修复 <b>32 分/三连音逐字带词时歌词重叠</b>：拍内定位由"纯时值比例"升级为<b>弹簧-刚杆映射</b>（LilyPond 思路）——相邻音列间距有余量时按时值比例（弹簧），但不小于各列的最小刚性宽（刚杆：带词列=字宽 17、简谱数字列 12、吉他列 13、和弦框/倚音更宽）；刚杆之和超过拍宽时该拍自动加宽。所有声部共用同一映射，拍内跨声部依然严格对齐；普通谱面排版几乎不变。</div></li>
     <li><span class="v">v35.5</span><div>吉他谱品位数字/×记号改为<b>极小断口</b>：用纸色描边沿字形轮廓挖开谱线（字形外约 1.3px），断口紧贴字形、不成白块，深浅色与反色下均成立。</div></li>
     <li><span class="v">v35.4</span><div>① 吉他谱品位数字/×记号一度改为不断线，后于 v35.5 调整为极小断口；② 新增<b>曲谱反色</b>（顶栏「◑ 反色」）：深色纸张 + 浅色音符，适合夜间 / 投影 / 护眼，随本机记忆；打印与导出 PDF 一律回到白纸黑字（省墨、成品规范）。</div></li>
