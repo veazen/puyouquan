@@ -631,7 +631,10 @@ body.stand #standbar{display:flex}
 #layout-pop .lp-sub{color:var(--muted);font-size:11.5px;margin:3px 0 4px}
 #layout-pop .lp-row{margin:11px 0}
 #layout-pop .lp-lab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted);margin-bottom:6px}
-#layout-pop .lp-lab b{color:var(--accent-ink);font-weight:600;font-family:var(--font-num)}
+#layout-pop .lp-lab b{color:var(--accent-ink);font-weight:600;font-family:var(--font-num);cursor:text;border-bottom:1px dashed transparent}
+#layout-pop .lp-lab b:hover{border-bottom-color:var(--accent)}
+#layout-pop .lp-num{width:52px;font-size:12px;font-family:var(--font-num);color:var(--accent-ink);font-weight:600;
+  border:1px solid var(--accent);border-radius:6px;padding:1px 4px;text-align:right;background:var(--panel);outline:none}
 #layout-pop .lp-seg{display:flex;background:var(--toolbar);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 #layout-pop .lp-seg button{flex:1;border:none;background:transparent;padding:7px 0;font-size:12.5px;color:var(--text);cursor:pointer;border-right:1px solid var(--border-soft)}
 #layout-pop .lp-seg button:last-child{border-right:none}
@@ -1114,14 +1117,16 @@ let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页
    与显示缩放(viewZoom)、打印预览缩放完全独立：这里改的是版面本身——
    页面越大(A5→A4→A3) 容纳内容越多；内容越大 每页容纳越少；疏密只调空白不改字号。*/
 const PAGE_MM = {A5:[148,210], A4:[210,297], A3:[297,420]};   // 纸张 [宽,高] mm（同比 1:√2）
-const LAY_PRESETS = {compact:0.76, standard:1, loose:1.28};   // 智能排版：行距/间距智能缩放档位
-let LAY_HS = 1, LAY_VS = 1;                     // 当前渲染用的横/纵疏密系数（render 时由 layoutCfg 写入）
+/* 智能排版档位：hs=基准间距系数；fill=消耗每行剩余空白的比例（越小越"不铺满"、越省空间） */
+const LAY_PRESETS = {compact:{hs:0.9, fill:0.1}, standard:{hs:1, fill:0.55}, loose:{hs:1.12, fill:1}};
+let LAY_HS = 1, LAY_VS = 1, LAY_FILL = 0.55;    // 渲染用：横向间距系数 / 纵向系数 / 两端对齐填充比例
 let LAY_RG = {tab:1, vox:1, lyric:1};           // 手动行距：吉他谱 / 简谱 / 歌词（各自倍率）
 function layoutCfg(){
-  const d = {page:'A4', preset:'standard', density:1, scale:1, noteGap:1};
+  const d = {page:'A4', preset:'standard', density:1, fill:0.55, scale:1, noteGap:1};
   const c = Object.assign(d, song && song.layout || {});
   const cl = (v,def)=>Math.max(0.6, Math.min(1.6, +v||def||1));
   c.density = cl(c.density,1); c.scale = cl(c.scale,1); c.noteGap = cl(c.noteGap,1);
+  c.fill = Math.max(0, Math.min(1, c.fill==null?0.55:+c.fill));
   const rg = Object.assign({tab:1,vox:1,lyric:1}, c.rowGap||{});
   c.rowGap = {tab:cl(rg.tab,1), vox:cl(rg.vox,1), lyric:cl(rg.lyric,1)};
   if(!PAGE_MM[c.page]) c.page='A4';
@@ -1741,9 +1746,16 @@ function measureLayout(mea){
   mea.voxes.forEach(c=>scan(c,true));
   let beatW=[], inner=0;
   for(let i=0;i<beats;i++){
-    /* 简谱列统一采用歌词级最低间距 LYR_MIN（以首小节 32 分音符间隔为基准），
-       32 分休止"000"等不再与歌词重贴；吉他谱列保持 MIN_COL */
-    const w=Math.max(baseBeat, beatNoteW[i], beatLyrCnt[i]*LYR_MIN, beatVoxCnt[i]*LYR_MIN, beatColCnt[i]*MIN_COL);
+    /* 智能排版（以拍为单位按密度自动定宽）：吉他/简谱都稀疏（≤1~2 音、无歌词）的拍
+       自动收窄基准宽、省出空间；密集拍（多音/16·32 分/带词）按内容保持应有间隔。
+       —— 简谱列用歌词级最低间距 LYR_MIN，吉他谱列用 MIN_COL，避免与歌词/减时线重贴。*/
+    const cols=beatColCnt[i], lyr=beatLyrCnt[i];
+    let floor=baseBeat;
+    if(lyr===0){                       // 无歌词的拍才允许收窄（有词拍需容纳字宽）
+      if(cols<=1) floor=baseBeat*0.56;      // 极稀疏：≤1 音
+      else if(cols<=2) floor=baseBeat*0.78; // 较稀疏：2 音
+    }
+    const w=Math.max(floor, beatNoteW[i], lyr*LYR_MIN, beatVoxCnt[i]*LYR_MIN, cols*MIN_COL);
     beatW.push(w); inner+=w;
   }
   /* 上限≈整行的 2/3：保证一行至少能并排两个小节，极密集小节也不独占整行 */
@@ -1776,18 +1788,20 @@ function layoutSystems(){
     cur.w += L.w;
   });
   if(cur.measures.length) systems.push(cur);
-  /* 两端对齐：把整行的剩余空间按各小节"内容量(weight)"分配——
-     密集小节（如整小节十六分）分得更多、稀疏小节分得更少，
-     以行为单位自动适配，避免"一处拥挤一处空白"。 */
+  /* 两端对齐：把整行剩余空间按各小节"内容量(weight)"分配，密集小节分得多、稀疏分得少。
+     LAY_FILL 控制"消耗多少剩余空白"：宽松=1 铺满整行；紧凑≈0 保留自然（省空间、不浪费）；
+     超宽时（free<0）无论档位都收窄到刚好放下。 */
   const avail = PAGE_W - 2*MARGIN;
   systems.forEach((sys, si)=>{
-    if(si===systems.length-1 && sys.w < avail*0.55) return;
     const free = avail - sys.w;
-    if(Math.abs(free)<1e-6) return;
+    const isLast = si===systems.length-1;
+    let useFree = free>=0 ? free*LAY_FILL : free;   // 有余量按 fill 消耗一部分；超宽全部收回
+    if(isLast && free>0) useFree = 0;               // 末行不拉伸（保持自然、左对齐）
+    if(Math.abs(useFree)<0.5) return;               // 自然宽：保留打包时的 lm.x（左对齐、省空间）
     const totalW = sys.measures.reduce((a,lm)=>a+Math.max(1,lm.L.weight), 0);
     let xoff = 0;
     sys.measures.forEach(lm=>{
-      const add = free * (Math.max(1,lm.L.weight)/totalW);
+      const add = useFree * (Math.max(1,lm.L.weight)/totalW);
       const newW = Math.max(20, lm.L.w + add);
       const s = newW/lm.L.w;
       lm.x = xoff;
@@ -1799,7 +1813,7 @@ function layoutSystems(){
       });
       xoff += newW;
     });
-    sys.w = avail;
+    sys.w = sys.w + useFree;
   });
   return systems;
 }
@@ -1998,8 +2012,9 @@ function render(){
      以 A4 版宽为响应式基准（保持 A4 默认铺满编辑器），A5/A3 按纸张比例缩放版宽：
      A3≈1.414×A4（容纳更多小节与行），A5≈0.705×A4；内容越大 → 有效版宽越小 → 容纳越少。*/
   const cfg = layoutCfg();
-  LAY_HS = cfg.density * cfg.noteGap;            // 横向 = 智能疏密 × 手动间距
-  LAY_VS = cfg.density;                          // 纵向 = 智能疏密（行距细分见 LAY_RG）
+  LAY_HS = cfg.density * cfg.noteGap;            // 横向间距 = 智能排版(按拍密度) × 手动间距
+  LAY_VS = 1;                                    // 智能排版只作用于间距；行距仅由手动 LAY_RG 控制
+  LAY_FILL = cfg.fill;                           // 两端对齐填充比例（小=不铺满、省空间）
   LAY_RG = cfg.rowGap;                           // 手动行距：吉他谱/简谱/歌词
   const wmm = PAGE_MM[cfg.page][0];
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
@@ -6415,7 +6430,7 @@ document.getElementById('b-layout').onclick = ()=>layToggle();
 document.getElementById('lp-close').onclick = ()=>layToggle(false);
 document.getElementById('lp-done').onclick  = ()=>layToggle(false);
 document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
-  layApply({preset:b.dataset.preset, density:LAY_PRESETS[b.dataset.preset]}); };
+  const P=LAY_PRESETS[b.dataset.preset]; layApply({preset:b.dataset.preset, density:P.hs, fill:P.fill}); };
 document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layApply({page:b.dataset.page}); };
 /* 手动滑杆：拖动时实时重排（render 内的显示缩放已随 scale 补偿，纸张外框不变）；松手保存 */
@@ -6434,7 +6449,34 @@ laySlider('lp-rowgap','rowgap');     // 行距（作用于当前选中的谱表�
 laySlider('lp-notegap','noteGap');   // 间距（音符横向疏密）
 document.getElementById('lp-rgtar').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layRgTarget=b.dataset.rg; laySync(); };
-document.getElementById('lp-reset').onclick = ()=>layApply({preset:'standard', density:1, scale:1, page:'A4', noteGap:1, rowGap:{tab:1,vox:1,lyric:1}});
+/* 点击百分比数字 → 直接输入精确值（内容大小 / 行距 / 间距） */
+function pctEdit(labelId, min, max, apply){
+  const el=document.getElementById(labelId); if(!el || el.tagName==='INPUT') return;
+  const cur=parseInt(el.textContent)||100;
+  const inp=document.createElement('input');
+  inp.type='number'; inp.className='lp-num'; inp.id=labelId;
+  inp.value=cur; inp.min=Math.round(min*100); inp.max=Math.round(max*100); inp.step=1;
+  el.replaceWith(inp); inp.focus(); inp.select();
+  let closed=false;
+  const finish=commit=>{
+    if(closed) return; closed=true;
+    let v=cur/100;
+    if(commit){ const n=parseInt(inp.value); if(!isNaN(n)) v=Math.max(min, Math.min(max, n/100)); }
+    const b=document.createElement('b'); b.id=labelId; b.textContent=Math.round(v*100)+'%';
+    inp.replaceWith(b);
+    if(commit){ apply(v); persist(); }
+  };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){e.preventDefault();finish(true);} else if(e.key==='Escape'){e.preventDefault();finish(false);} });
+  inp.addEventListener('blur', ()=>finish(true));
+}
+document.querySelector('#layout-pop').addEventListener('click', e=>{
+  const b=e.target.closest('.lp-lab b'); if(!b) return;
+  const c=layoutCfg();
+  if(b.id==='lp-sval') pctEdit('lp-sval', 0.6, 1.6, v=>{ song.layout=Object.assign({},layoutCfg(),{scale:v}); render(); laySync(); });
+  else if(b.id==='lp-ngval') pctEdit('lp-ngval', 0.6, 1.6, v=>{ song.layout=Object.assign({},layoutCfg(),{noteGap:v}); render(); laySync(); });
+  else if(b.id==='lp-rgval') pctEdit('lp-rgval', 0.6, 1.6, v=>{ const rg=Object.assign({},layoutCfg().rowGap); rg[layRgTarget]=v; song.layout=Object.assign({},layoutCfg(),{rowGap:rg}); render(); laySync(); });
+});
+document.getElementById('lp-reset').onclick = ()=>layApply({preset:'standard', density:1, fill:0.55, scale:1, page:'A4', noteGap:1, rowGap:{tab:1,vox:1,lyric:1}});
 /* 排版浮层可拖动（抓取标题栏） */
 (function(){
   const pop=document.getElementById('layout-pop'), head=pop.querySelector('h4');
@@ -7244,6 +7286,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.98</span><div>智能排版改为<b>按拍密度自动定宽</b>：① 以拍为单位，吉他/简谱都稀疏（≤1~2 音、无词）的拍<b>自动收窄、省出空间</b>，密集拍（多音/16·32 分/带词）保持应有间隔；② 紧凑/标准/宽松改为控制"每行剩余空白的填充比例"——<b>紧凑不铺满、贴左省空间</b>，宽松铺满整行，<b>只改间距、不改行距</b>；③ 手动微调的百分比数字可<b>点击直接输入精确值</b>（内容大小 / 行距 / 间距）。</div></li>
     <li><span class="v">v34.97</span><div>排版实按预期生效：① 修复<b>手动调整时纸张外框跟着变大变小</b>的问题——现在「内容大小/字号」放大的是纸内内容（谱表、音符、字号一起放大，其他自动跟随），<b>纸张外框在屏幕上保持固定尺寸</b>，内容越大每页容纳越少（示例曲 140% 时 2 页→3 页）；② <b>智能排版</b>紧凑/宽松现在<b>可见地缩放行距与间距</b>（宽松行更高、每行更少）；③ 手动新增<b>行距</b>（可分别选中 吉他谱 / 简谱 / 歌词 单独调）与<b>间距</b>（音符横向疏密）。所有排版参数随曲谱保存。</div></li>
     <li><span class="v">v34.96</span><div>排版面板按"页面固定→智能间距→手动内容"三步理顺：① 弹窗<b>可拖动</b>（抓标题栏移到任意位置）；② 明确<b>页面尺寸选定后固定不变</b>，作为版面基准；③ <b>智能排版</b>（紧凑/标准/宽松）只在该页上智能缩放<b>行距与间距</b>；④ <b>手动微调</b>只调<b>内容大小</b>——移除了易混淆的"手动疏密"滑杆。</div></li>
     <li><span class="v">v34.95</span><div>新增<b>排版</b>面板（顶栏「排版」，浮层实时生效）：① <b>智能排版</b>——紧凑 / 标准 / 宽松一键切换疏密；② <b>手动疏密</b>——滑杆细调行/列空白（只改留白不改字号）；③ <b>内容大小</b>——放大缩小音符本身，内容越大每页容纳越少；④ <b>页面尺寸 A5/A4/A3</b>——改变的是<b>容量</b>而非整页缩放：A3≈A4 的 2 倍面积、每行与每页容纳更多小节（如示例曲 A4 每行 2 小节→A3 每行 4 小节、2 页→1 页）。排版参数随曲谱保存。</div></li>
