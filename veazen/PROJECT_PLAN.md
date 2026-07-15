@@ -3,7 +3,18 @@
 > **品牌与主体**：品牌名 **Veazen**（法律主体 VEAZEN LLC，美国怀俄明州；品牌名与主体同名，法律页脚统一写 "Veazen™ is a product of VEAZEN LLC"）。主域名 **veazen.app**（已在 Namecheap 注册；.app 后缀全域 HSTS 预加载、强制 HTTPS，协议层杜绝验证页降级劫持，可作为安全卖点写入白皮书。veazen.com 由无关联的中国乐器品牌持有，不可用；SEO 需以 "Veazen + traceability/anti-counterfeit" 组合词建立区隔）。中文产品名：**信磐**。
 > **Slogan（以"信任基石"为核）**：主用 **"Trust, set in stone."**（双关：基石之石 + set in stone 的"不可篡改"义，呼应 §1.10 证据链）／中文 **"信任，坚如磐石。"** 备选："The bedrock of trust." ／ "信任基石"。营销物料从这两组中取用。
 
-> 本文档面向 Claude Code，作为项目的权威规格说明（Spec）。请按「阶段与任务分解」章节的顺序实施，每个阶段完成后运行对应验收标准中的测试。文中所有代码标识符、API 路径、数据库字段均为约定命名，实施时保持一致。
+> ## ⚠️ 文档状态（2026-07-14 校准）
+> **本文档是项目的「原始规格 + 前瞻 Backlog」，不再承担进度跟踪职责。**
+> - **当前实际状态、生产拓扑、验收纪律 → 以 `docs/PROJECT_HANDOVER_zh.md` 为准**（唯一状态真相源）
+> - **与本规格的任何偏离 → 以 `docs/ARCHITECTURE.md` 的 ADR 为准**（ADR 优先级高于本文）
+> - **人工待办 → 以 `HUMAN_TODO.md` 为准**
+>
+> **进度快照**：Phase 0~4a 已交付，**2026-07-12 生产全量上线**（veazen.app / api.veazen.app / verify.veazen.app）。
+> 计划外新增并已交付：SME 退货套件（M2/M3）、E1 权限体系、P1 收款闭环（Lemon Squeezy，默认关闸）。
+> **当前瓶颈已从"代码不足"转为"客户不足"**——插件未上架、零付费客户、零设计伙伴。
+> 因此 §12 Backlog 中的一切**均设触发条件，无触发不启动**（见 §12 冻结纪律）。
+
+> 本文档最初面向 Claude Code 作为权威规格说明（Spec）。文中所有代码标识符、API 路径、数据库字段均为约定命名，实施时保持一致。
 
 ---
 
@@ -64,7 +75,7 @@
 - **字体**：Marcellus（展示标题，全大写 + 宽字距，罗马碑刻血统呼应 slogan）；Inter（正文）；IBM Plex Mono（序列号、代码、标签类 utility）。
 - **签名元素**：序列号验证条（monospace 分组序列 + 扫描光带 + Verified 徽章的入场动画），作为品牌的视觉母题在官网 hero、验证页、文档中复用；动画须尊重 prefers-reduced-motion。
 - **文案声线**：短句、主动语态、具体不炫技；slogan 主用 "Trust, set in stone."（中文"信任，坚如磐石。"）。
-- **现状**：一个单文件临时官网（同令牌体系）已通过 Cloudflare Pages 直传部署在项目 `veazen` 并绑定 veazen.app。apps/marketing 交付时以 git 集成方式接管该 Pages 项目（或新建项目后重绑自定义域名），临时页退役；等待列表从 mailto 升级为真实表单（写入云端 waitlist 表，见 Phase 2 任务）。
+- **现状（2026-07 更新）**：apps/marketing 正式官网已上线（EN + /zh/ 双语），经 Cloudflare **Workers Builds** git 集成自动部署（项目 `veazen-site`，推 main 即上线 veazen.app）；临时页已退役；waitlist 为真实表单入库。
 
 ---
 
@@ -322,13 +333,13 @@ MVP 页面：
 
 > 每阶段结束运行验收命令，全绿再进下一阶段。
 
-### Phase 0 — 脚手架（0.5 周）
+### Phase 0 — 脚手架（0.5 周）　✅ 已交付
 - [ ] Turborepo 初始化，apps/packages 骨架，docker-compose（pg16/redis7/minio/mailhog）
 - [ ] `packages/crypto`：serial 生成、Ed25519 签名/验签、scratch 生成与 argon2id 哈希，**附测试向量文件**
 - [ ] CI：GitHub Actions — lint + typecheck + unit test（api/web/crypto），wp-plugin 跑 PHPCS
 - 验收：`turbo run test lint typecheck` 全绿；crypto 测试向量通过
 
-### Phase 1 — 云端核心（2-3 周）
+### Phase 1 — 云端核心（2-3 周）　✅ 已交付（e2e + 500rps 压测通过）
 - [ ] Prisma schema（§4 全部表）+ RLS 迁移脚本 + seed（demo 租户）；serial_profiles 三模式的生成/签名/校验逻辑（含 byo 导入去重任务与熵值校验）
 - [ ] 鉴权模块：用户注册/登录/JWT、API Key 签发与校验
 - [ ] 产品、批次模块；BullMQ 批量生成码（10 万码 < 60s，事务分块 COPY 插入）；batches 支持 kind/auto_activate（§7.5），on_demand 池低水位自动补充任务
@@ -344,14 +355,14 @@ MVP 页面：
 - [ ] OpenAPI 文档生成
 - 验收：e2e 测试（supertest）覆盖：生成 1000 码 → 激活 → 明码扫描 → 暗码核销 → 二次核销触发告警 → 状态机非法迁移 409；`autocannon` 压测 verify 接口本地 ≥ 500 rps
 
-### Phase 2 — 验证页与控制台（2 周）
+### Phase 2 — 验证页与控制台（2 周）　✅ 已交付（含官网 EN/zh + waitlist）
 - [ ] 消费者验证页（三态视觉、多语言 5 种、品牌化配置渲染、GS1 路径路由）；Lite 分支：first-scan 锁定文案/视觉 + 产品故事页模板（§7.5）；模板系统按 §7.6 三层结构实现（主题令牌 + 模块编辑器先行，自定义 CSS 留接口 Phase 4 开放）
 - [ ] Dashboard 五个页面（§6）；onboarding 模式分叉（standard/lite）与切换设置
 - [ ] 官网 v1（apps/marketing，Astro 静态）：**视觉与文案严格沿用 §2.5 品牌设计令牌**（临时官网即设计基准，hero 复用序列号验证条母题）；首页（slogan + 三步流程演示）、定价页（四档对照）、功能页、等待列表表单（替换临时页的 mailto，写入云端 waitlist 表：email、brand、website、category、monthly_units、created_at，接口挂 api 的公开限流端点）、隐私政策与 ToS 页面骨架（占位文案，正式版由律师提供后替换）、基础 SEO（sitemap、OG 标签、"Veazen + traceability/anti-counterfeit" 关键词布局）；以 git 集成接管 Cloudflare Pages 项目 `veazen` 并确认 veazen.app / www 自定义域绑定不中断
 - [ ] Lighthouse 移动端验证页 Performance ≥ 90
 - 验收：Playwright e2e：注册租户 → 建产品 → 生成批次 → 下载 CSV → 用其中一条码走完整验证流程（浏览器层面）
 
-### Phase 3 — WordPress 插件（2 周）
+### Phase 3 — WordPress 插件（2 周）　✅ 已交付（WPCS 0 错误 + zh_CN；⏳ WP.org 上架待账号批复）
 - [ ] §7 功能 1–6（功能 7 PDF 发票联动放 Phase 4）
 - [ ] Lite 流程（§7.5）：插件 onboarding 模式识别、订单页"打印防伪发货标签"按钮（调 shipping-label 端点并打开返回的 PDF）
 - [ ] 本地开发环境：`wp-env`（docker 化 WP + Woo 示例数据）
@@ -359,7 +370,7 @@ MVP 页面：
 - 验收：wp-env 中完成端到端演示流程：连接 → 同步产品 → 申请批次 → 前台 shortcode 验证成功；PHPCS 0 error
 - 交付物：可提交 WordPress.org 的 readme.txt + 截图占位 + 打包脚本 `npm run plugin:zip`
 
-### Phase 4 — 打磨与上线准备（1-2 周）
+### Phase 4 — 打磨与上线准备（1-2 周）　🔶 部分交付（4a 生产化已完成并上线；计费改用 Lemon Squeezy 而非 Stripe；白标一期未做→§12 Backlog）
 - [ ] PDF 码标签导出（每页 N 枚，含 QR + 明文 serial + 刮涂层占位框，用 pdf-lib）；标签纸模板参数化（Avery 5160/L7160 等）+ Lite 单枚发货标签模板（§7.5），shipping-label 端点切换为真实 PDF
 - [ ] Lite 全流程计时演练：全新租户从安装插件到打印出第一张可扫描标签 ≤ 10 分钟（onboarding 埋点数据佐证）
 - [ ] WooCommerce PDF Invoices & Packing Slips 联动（§7.1 功能 7）：wp-env 中安装该插件做集成测试
@@ -374,8 +385,8 @@ MVP 页面：
 - [ ] 安全自查清单执行（§9）
 - 验收：docker compose -f infra/deploy/compose.prod.yml 一键起完整栈并通过冒烟测试脚本
 
-### Phase 5+（本计划书范围外，仅记录方向）
-窜货地图可视化增强、EPCIS 2.0 标准 JSON 导出、NFC（NTAG 424 DNA SUN 验证）、区块链批次哈希锚定（可将 scan_digests 的日摘要锚定上链，与 §1.10 衔接）、DPP 合规导出模板、Shopify App、**印刷厂伙伴门户**（partner 账号角色：接收批次码文件、回传对码/质检结果，为"认证印刷伙伴"生态做技术承接）、行业假货态势报告自动化生成、白标二期（企业发件域 SPF/DKIM 向导、报告全套品牌化模板、验证页 A/B 与转化组件）。
+### Phase 5+ → 已迁移至 §12 Backlog（见下）
+原 Phase 5 的方向列表已重构为带触发条件的 Backlog，统一在 §12 管理。
 
 ---
 
@@ -417,20 +428,62 @@ MAXMIND_LICENSE_KEY=   # 可选：设置后容器启动时自动拉取 GeoLite2-
 ANONYMIZE_IP=false
 ```
 
-## 12. 需要人工完成的事项（Claude Code 无法代办，实施中遇到时在 README 的 "Human TODO" 章节追加）
+## 12. Backlog（原 Phase 5+ 重构；**全部设触发条件，无触发不启动**）
 
-- ✅ 域名 veazen.app 已注册（Namecheap）；✅ NS 已迁 Cloudflare（Active）、停放页/旧 MX 已清理、SSL Full (Strict)；✅ Email Routing 已启用（hello@ / support@ 转发，建议开 catch-all）；✅ 临时官网已部署（Cloudflare Pages 项目 `veazen`，绑定 veazen.app + www）。待办：发件域 SPF/DKIM/DMARC（接 Resend 时配置）；另购 4-6 字符超短 QR 跳转域；商标下证后防御性收 veazen.net/.io
-- 本周账号矩阵（统一用 hello@veazen.app 注册）：**WordPress.org（最高优先级，审核队列以周计，用户名 veazen）**、GitHub 组织 `veazen`（建后将仓库迁入）、Cloudflare R2 开通并建 bucket `veazen-prod`（Access Key 写入部署环境变量）、Railway/Neon/Upstash/Resend 注册备用（免费层，暂不部署）、Sentry + UptimeRobot、MaxMind GeoLite 许可（下载 .mmdb 供风控模块使用）
+### 12.0 冻结纪律（高于本节任何条目）
+产品已具备完整可售形态并在生产运行，**瓶颈是零客户、零设计伙伴、插件未上架**。在拿到第一个付费客户或明确的客户需求之前，本节任何条目**均不得启动**。出现"这个很快就能做"的冲动 → 记入 `CLAUDE.md` Backlog，不实现。触发条件由**人（老板）确认**，不由实现方自行判定。
+
+### 12.1 已排队（交接书既有队列，触发条件见 `docs/PROJECT_HANDOVER_zh.md`）
+E2 码段工坊（自定义生成 + BYO CSV）｜E3 分销管理（分销商层级、渠道分配、窜货逐件定位）｜E4 产品批量导入｜E5 自定义域名/白标（对应本文 §7.6 白标一期）｜E6 PWA｜P1b 开闸｜插件上架
+
+### 12.2 来自《行业流程手册》（`docs/INDUSTRY_PLAYBOOKS_zh.md`）
+| 条目 | 内容 | 触发条件 |
+|---|---|---|
+| **批次 lot/expiry 字段** | 补剂/食品/美妆/宠物刚需 + 法规要求 | ✅ **已进批次 R 的 S1，无需等待** |
+| `industry_presets` 框架 | 行业预设包（码角色/必填字段/验证页模块/风控权重/标签模板）+ onboarding 行业下拉 | **第 2 个行业的付费客户出现时**。第一个行业（补剂）由 S1 直接硬编码交付，不需要框架 |
+| **R5 层级聚合** | `cases`（SSCC）+ `code_case_links`，箱↔件父子绑定；美妆窜货、汽配分销的追责基础 | 与 E3 分销管理同时触发 |
+| 码角色模型 R1-R5 | 术语统一（品类码/批次码/单品码/核销码/物流码）；"机身码"=R3+DPM 载体 | **文档与销售资产，非开发任务** |
+| 四问诊断话术 / 行业一页纸 | 销售侧应用 | **老板任务，非 Claude Code 任务** |
+
+### 12.3 来自《平台生态分析》（`docs/PLATFORM_ECOSYSTEM_ANALYSIS_zh.md`）
+| 条目 | 内容 | 触发条件 |
+|---|---|---|
+| **卸载/欠费不砖化** | 消费者验证路径永不受计费状态影响 | ✅ **已进批次 R 的 A2（架构不变量 + e2e 锁死）** |
+| `ChannelAdapter` 抽象 | `packages/adapters/{shared,woocommerce,shopify}`，核心只认接口 | **决定做 Shopify 时才做**。⚠️ 原分析建议"现在就做"**已撤回**：零客户下基于猜测的抽象劣于事后重构，且 AI 时代重构成本低 |
+| Shopify App | 技术清单见分析 §3.3（App Bridge session token、Polaris 双皮肤、Theme App Extension、三个强制隐私 webhook、**强制 Billing API**、首 100 万美元 0% 抽成、审核 2-8 周） | 老板决策"启动第二渠道"时 |
+| `tenants.billing_source` 多源 | stripe/lemonsqueezy/shopify 并存；同品牌跨平台必须同租户（否则风控数据割裂） | 随 Shopify App |
+| 工厂端 PWA 离线优先 | 中文界面 + IndexedDB 缓存 + 批量上传 + CSV 兜底（工厂穿墙网络慢） | 首个使用中国代工厂的客户 |
+| 中国跨境卖家客群 | 消费者在欧美扫码 → ICP/PIPL/防火墙问题全部消失；渠道走店匠/Shopline + 中文社群 | 市场动作，非开发任务 |
+| **中国大陆场景 A（内销）** | ❌ **明确不做**：经营性 ICP 许可证要求外资 ≤50%（VEAZEN LLC 100% 美资不可持有）；`.app` 等 TLD 在 ICP 备案中常被拒；境内数据须留境内；政府体系 + 本土价格战 | **永不启动**（除非出现愿承担合资/境内部署成本的企业客户） |
+
+### 12.4 亚马逊（2026-07 新增调研结论）
+| 条目 | 内容 | 触发条件 |
+|---|---|---|
+| **不做"亚马逊卖家工具"** | FBA 下商家不发货 →"发货即贴码"流程不存在，订单绑定不可能（亚马逊拣哪件是哪件）；仓库级拦截是亚马逊自有能力，无法竞争 | ❌ 不启动 |
+| **Transparency Interoperability** | 亚马逊允许品牌用**自有序列号**接入 Transparency（要求：唯一、7-20 字符、1D/QR/2D，可 API 实时提交）→ Veazen 的码可喂给 Transparency，实现"一个码通吃所有渠道，含亚马逊"。⚠️ 待验证：单枚 QR 能否同时满足亚马逊仓库扫描与消费者跳转 | **首个多渠道（Amazon + DTC）客户提出时** |
+| 多渠道论证话术 | Transparency 只保护亚马逊，却要求**所有制造单元都贴码**（无论在哪销售）→ 品牌付全部成本只得局部保护；且数据归亚马逊 | **销售资产，立即可用，零开发** |
+
+### 12.5 长期方向（无触发条件，仅记录）
+窜货地图可视化增强、EPCIS 2.0 JSON 导出、NFC（NTAG 424 DNA SUN）、区块链锚定（scan_digests 日摘要上链，衔接 §1.10）、DPP 合规导出模板、印刷厂伙伴门户（partner 角色）、行业假货态势报告自动化、白标二期（发件域 SPF/DKIM 向导、报告品牌化、验证页 A/B）
+
+---
+
+## 13. 需要人工完成的事项（Claude Code 无法代办，实施中遇到时在 `HUMAN_TODO.md` 追加）
+
+- ✅ 域名/DNS/邮箱/官网/生产环境**全部完成**（2026-07-12 上线；拓扑见交接书 §4.4）。剩余：另购 4-6 字符超短 QR 跳转域；商标下证后防御性收 veazen.net/.io
+- ✅ 账号矩阵基本就位（GitHub org `veazen` / Cloudflare+R2 / Neon / Railway / Resend / MaxMind / UptimeRobot / EasyWP 演示店）。⏳ **WordPress.org 账号待批复**（批复后立即上架——这是通往第一个客户的路）
+- 🔴 **Neon 升级付费档（$19/月）**：免费档 PITR 窗口过短；数据库是全部已印出码的唯一身份来源，丢失=所有在市商品同时失效，属不可逆事故。批次 R 的 A1 前置
+- 🔴 **收款主体地址（根因）**：Lemon Squeezy KYC 受阻——Stripe 轨道拒 PMB 地址。**换支付平台大概率无效**（Paddle 底层同为 Stripe 系风控）。真解法是取得非 PMB 的商业实体地址（虚拟办公室，约数十美元/月）。该问题连锁影响 Stripe 直连、银行、未来 Shopify Billing，值得一次性解决
+- 🔴 **设计伙伴客户开发**：从美国补剂/功能食品 DTC 品牌接触 20 家，目标 3-5 家内测。**软件已经够了，前十个客户只能靠人**（话术见《行业流程手册》§5 四问诊断）
 - 商标：以 VEAZEN LLC 为申请人注册 VEAZEN 商标（第 9、42 类）。**律师检索重点**：Justia 上已存在 "VEAZEN LLC" 商标持有人记录——确认其是否为本公司自有申请；核查中国乐器品牌 VEAZEN费森 在美/欧的注册是否越出第 15 类（尤其第 9 类电子乐器相关子类）；确认后按马德里体系扩展 T1/T2 市场
-- Stripe 配置：法律名 VEAZEN LLC，公开业务名与账单描述符设为 VEAZEN（品牌与主体同名，无需 DBA）
-- 演示商店：开通一个廉价 WP 主机（$5-15/月），部署 WooCommerce 示例店 demo.veazen.app，安装本插件作为活演示 + 公开测试环境（销售话术："扫这个真实商品的码"）
+- 收款：法律名 VEAZEN LLC，账单描述符 VEAZEN（品牌与主体同名，无需 DBA）。**现行方案已改为 Lemon Squeezy**（记录商户），配置手册见 `docs/BILLING_SETUP_zh.md`；Wise Business 已开户
+- ✅ 演示商店已建（EasyWP + WooCommerce + 本插件，实弹演习五项全过），可用于销售演示："扫这个真实商品的码"
 - 若实际运营地在加州：办理加州外州公司登记（foreign qualification）并预算每年 $800 特许经营税；与会计师确认 BOI（FinCEN 受益所有人）申报的最新要求
-- WordPress.org 插件账号注册与提交审核
-- 生产环境 MASTER_KEY 生成与保管（离线备份）
+- ✅ 生产环境 MASTER_KEY 已生成，用户离线备份两份（2026-07-12）
 - GDPR 隐私政策与 DPA 法务审核（须覆盖 device_fp 指纹与跨租户风控数据的合法性基础）
 - 第三方渗透测试采购
 - SOC 2 Type II 流程启动（观察期 6-12 个月，越早启动越好；audit_logs 即为其证据基础）
 - GS1 会员注册（获取 GTIN 能力与标准背书）
-- 印刷厂合作认证体系的商务谈判（技术承接见 Phase 5 伙伴门户）
+- 印刷厂合作认证体系的商务谈判（技术承接见 §12.5 伙伴门户）
 - 行业报告发布前的法务复核（确保聚合数据无法反识别客户）
 - NFC 芯片供应链（Phase 5）
