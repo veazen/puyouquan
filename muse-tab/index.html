@@ -631,7 +631,10 @@ body.stand #standbar{display:flex}
 #layout-pop .lp-sub{color:var(--muted);font-size:11.5px;margin:3px 0 4px}
 #layout-pop .lp-row{margin:11px 0}
 #layout-pop .lp-lab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted);margin-bottom:6px}
-#layout-pop .lp-lab b{color:var(--accent-ink);font-weight:600;font-family:var(--font-num)}
+#layout-pop .lp-lab b{color:var(--accent-ink);font-weight:600;font-family:var(--font-num);cursor:text;border-bottom:1px dashed transparent}
+#layout-pop .lp-lab b:hover{border-bottom-color:var(--accent)}
+#layout-pop .lp-num{width:52px;font-size:12px;font-family:var(--font-num);color:var(--accent-ink);font-weight:600;
+  border:1px solid var(--accent);border-radius:6px;padding:1px 4px;text-align:right;background:var(--panel);outline:none}
 #layout-pop .lp-seg{display:flex;background:var(--toolbar);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 #layout-pop .lp-seg button{flex:1;border:none;background:transparent;padding:7px 0;font-size:12.5px;color:var(--text);cursor:pointer;border-right:1px solid var(--border-soft)}
 #layout-pop .lp-seg button:last-child{border-right:none}
@@ -933,22 +936,22 @@ body.stand #standbar{display:flex}
 <!-- 排版浮层：智能/手动疏密 + 内容大小 + 页面容量（A5/A4/A3），实时应用 -->
 <div id="layout-pop">
   <h4><span class="lp-grip">⋮⋮</span>📐 排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
-  <p class="lp-sub">先定页面尺寸，再智能调间距、手动调内容——与显示/预览缩放无关</p>
+  <p class="lp-sub">先定基准纸张，再智能排版、手动微调——与显示/预览缩放无关</p>
   <div class="lp-row">
-    <div class="lp-lab"><span>① 页面尺寸（选定后固定）</span></div>
+    <div class="lp-lab"><span>① 基准纸张</span></div>
     <div class="lp-seg" id="lp-page">
       <button data-page="A5">A5</button><button data-page="A4">A4</button><button data-page="A3">A3</button>
     </div>
   </div>
   <div class="lp-row">
-    <div class="lp-lab"><span>② 智能排版（行距 / 间距自动缩放）</span></div>
+    <div class="lp-lab"><span>② 智能排版</span></div>
     <div class="lp-seg" id="lp-preset">
       <button data-preset="compact">紧凑</button><button data-preset="standard">标准</button><button data-preset="loose">宽松</button>
     </div>
   </div>
-  <div class="lp-hr"><span>③ 手动微调（在固定页上）</span></div>
+  <div class="lp-hr"><span>③ 手动微调</span></div>
   <div class="lp-row">
-    <div class="lp-lab"><span>字号 · 内容大小（其他自动跟随）</span><b id="lp-sval">100%</b></div>
+    <div class="lp-lab"><span>整体缩放</span><b id="lp-sval">100%</b></div>
     <input type="range" id="lp-scale" min="0.7" max="1.5" step="0.02">
   </div>
   <div class="lp-row">
@@ -959,7 +962,7 @@ body.stand #standbar{display:flex}
     <input type="range" id="lp-rowgap" min="0.6" max="1.6" step="0.02">
   </div>
   <div class="lp-row">
-    <div class="lp-lab"><span>间距（音符横向疏密）</span><b id="lp-ngval">100%</b></div>
+    <div class="lp-lab"><span>间距</span><b id="lp-ngval">100%</b></div>
     <input type="range" id="lp-notegap" min="0.6" max="1.6" step="0.02">
   </div>
   <p class="lp-tip" id="lp-tip"></p>
@@ -6398,7 +6401,7 @@ function laySync(){
   document.getElementById('lp-ngval').textContent=Math.round(c.noteGap*100)+'%';
   const cap = {A5:'较小（省纸）', A4:'标准', A3:'很大（约 A4 的 2 倍，容纳更多小节与行）'}[c.page];
   document.getElementById('lp-tip').innerHTML=
-    `<b>页面尺寸固定不变</b>：内容大小放大的是纸内内容、纸张外框不变。当前 <b>${c.page}</b>（${cap}）· 共 ${PV_GEO.n} 页。`;
+    `<b>基准纸张固定不变</b>：整体缩放放大的是纸内内容、纸张外框不变。当前 <b>${c.page}</b>（${cap}）· 共 ${PV_GEO.n} 页。`;
 }
 function layToggle(show){
   const pop=document.getElementById('layout-pop');
@@ -6434,6 +6437,32 @@ laySlider('lp-rowgap','rowgap');     // 行距（作用于当前选中的谱表�
 laySlider('lp-notegap','noteGap');   // 间距（音符横向疏密）
 document.getElementById('lp-rgtar').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layRgTarget=b.dataset.rg; laySync(); };
+/* 点击百分比数字 → 直接输入精确数值（整体缩放 / 行距 / 间距） */
+function pctEdit(labelId, min, max, apply){
+  const el=document.getElementById(labelId); if(!el || el.tagName==='INPUT') return;
+  const cur=parseInt(el.textContent)||100;
+  const inp=document.createElement('input');
+  inp.type='number'; inp.className='lp-num'; inp.id=labelId;
+  inp.value=cur; inp.min=Math.round(min*100); inp.max=Math.round(max*100); inp.step=1;
+  el.replaceWith(inp); inp.focus(); inp.select();
+  let closed=false;
+  const finish=commit=>{
+    if(closed) return; closed=true;
+    let v=cur/100;
+    if(commit){ const n=parseInt(inp.value); if(!isNaN(n)) v=Math.max(min, Math.min(max, n/100)); }
+    const b=document.createElement('b'); b.id=labelId; b.textContent=Math.round(v*100)+'%';
+    inp.replaceWith(b);
+    if(commit){ apply(v); persist(); }
+  };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){e.preventDefault();finish(true);} else if(e.key==='Escape'){e.preventDefault();finish(false);} });
+  inp.addEventListener('blur', ()=>finish(true));
+}
+document.getElementById('layout-pop').addEventListener('click', e=>{
+  const b=e.target.closest('.lp-lab b'); if(!b) return;
+  if(b.id==='lp-sval') pctEdit('lp-sval', 0.7, 1.5, v=>{ song.layout=Object.assign({},layoutCfg(),{scale:v}); render(); laySync(); });
+  else if(b.id==='lp-ngval') pctEdit('lp-ngval', 0.6, 1.6, v=>{ song.layout=Object.assign({},layoutCfg(),{noteGap:v}); render(); laySync(); });
+  else if(b.id==='lp-rgval') pctEdit('lp-rgval', 0.6, 1.6, v=>{ const rg=Object.assign({},layoutCfg().rowGap); rg[layRgTarget]=v; song.layout=Object.assign({},layoutCfg(),{rowGap:rg}); render(); laySync(); });
+});
 document.getElementById('lp-reset').onclick = ()=>layApply({preset:'standard', density:1, scale:1, page:'A4', noteGap:1, rowGap:{tab:1,vox:1,lyric:1}});
 /* 排版浮层可拖动（抓取标题栏） */
 (function(){
@@ -7244,6 +7273,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.99</span><div>排版面板文案与交互微调：① 分区标题精简去括号——「① 基准纸张 / ② 智能排版 / ③ 手动微调」；②「字号·内容大小」更名为<b>整体缩放</b>；③ 手动微调的百分比数字<b>点击即可输入精确数值</b>（整体缩放 / 行距 / 间距，回车确认、Esc 取消）。</div></li>
     <li><span class="v">v34.97</span><div>排版实按预期生效：① 修复<b>手动调整时纸张外框跟着变大变小</b>的问题——现在「内容大小/字号」放大的是纸内内容（谱表、音符、字号一起放大，其他自动跟随），<b>纸张外框在屏幕上保持固定尺寸</b>，内容越大每页容纳越少（示例曲 140% 时 2 页→3 页）；② <b>智能排版</b>紧凑/宽松现在<b>可见地缩放行距与间距</b>（宽松行更高、每行更少）；③ 手动新增<b>行距</b>（可分别选中 吉他谱 / 简谱 / 歌词 单独调）与<b>间距</b>（音符横向疏密）。所有排版参数随曲谱保存。</div></li>
     <li><span class="v">v34.96</span><div>排版面板按"页面固定→智能间距→手动内容"三步理顺：① 弹窗<b>可拖动</b>（抓标题栏移到任意位置）；② 明确<b>页面尺寸选定后固定不变</b>，作为版面基准；③ <b>智能排版</b>（紧凑/标准/宽松）只在该页上智能缩放<b>行距与间距</b>；④ <b>手动微调</b>只调<b>内容大小</b>——移除了易混淆的"手动疏密"滑杆。</div></li>
     <li><span class="v">v34.95</span><div>新增<b>排版</b>面板（顶栏「排版」，浮层实时生效）：① <b>智能排版</b>——紧凑 / 标准 / 宽松一键切换疏密；② <b>手动疏密</b>——滑杆细调行/列空白（只改留白不改字号）；③ <b>内容大小</b>——放大缩小音符本身，内容越大每页容纳越少；④ <b>页面尺寸 A5/A4/A3</b>——改变的是<b>容量</b>而非整页缩放：A3≈A4 的 2 倍面积、每行与每页容纳更多小节（如示例曲 A4 每行 2 小节→A3 每行 4 小节、2 页→1 页）。排版参数随曲谱保存。</div></li>
