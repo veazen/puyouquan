@@ -83,3 +83,37 @@ export function planAllows(plan: string, feature: PlanFeature): boolean {
 export function codesQuota(plan: string): number | null {
   return planLimits(plan).codesPerMonth;
 }
+
+/**
+ * B2 code packs — one-time overflow credits sold via Lemon Squeezy
+ * single-purchase products (DIRECTIVE_BATCH_R B2). The `id` doubles as the
+ * key of LEMONSQUEEZY_PACK_CHECKOUT_URLS.
+ *
+ * ⚠️ 价格为占位值（1 万码 $60 / 10 万码 $400，阶梯递减）——
+ * 待前 10 个付费客户反馈后再定稿（老板批示）。
+ */
+export interface CodePackOption {
+  id: string;
+  codes: number;
+  price_usd: number;
+}
+
+export const CODE_PACK_OPTIONS: readonly CodePackOption[] = [
+  { id: 'pack_10k', codes: 10_000, price_usd: 60 },
+  { id: 'pack_100k', codes: 100_000, price_usd: 400 },
+] as const;
+
+/**
+ * Append `checkout[custom][tenant_id]=<tenantId>` to a hosted checkout URL
+ * so the webhook can route the purchase back to the tenant. Returns null
+ * when the configured value is not a parseable URL.
+ */
+export function withTenantCheckoutParam(rawUrl: string, tenantId: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set('checkout[custom][tenant_id]', tenantId);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}

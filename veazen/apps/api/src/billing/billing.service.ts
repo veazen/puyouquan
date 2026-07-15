@@ -3,9 +3,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanGateService } from './plan-gate.service';
-import { codesQuota, planLimits, type PlanId, PLAN_IDS } from './plans';
+import { codesQuota, planLimits, withTenantCheckoutParam, type PlanId, PLAN_IDS } from './plans';
 
-/** Lemon Squeezy subscription webhook payload (the fields we consume). */
+export { withTenantCheckoutParam } from './plans';
+
+/** Lemon Squeezy webhook payload (subscriptions + B2 one-time orders). */
 export interface LemonEvent {
   meta?: {
     event_name?: string;
@@ -19,6 +21,8 @@ export interface LemonEvent {
       renews_at?: string | null;
       ends_at?: string | null;
       first_subscription_item?: { variant_id?: string | number } | null;
+      /** order_created (B2 code packs): the purchased variant */
+      first_order_item?: { variant_id?: string | number } | null;
     };
   };
 }
@@ -69,6 +73,9 @@ export class BillingService {
         codes_this_month: codesThisMonth,
         codes_quota: codesQuota(plan), // null = unlimited
       },
+      // B2 code packs: remaining overflow credits + the purchasable options
+      pack_balance: await this.planGate.packBalance(tenantId),
+      purchase_options: this.planGate.packPurchaseOptions(tenantId),
       features: {
         scratch: limits.scratch,
         webhooks: limits.webhooks,
@@ -88,6 +95,10 @@ export class BillingService {
    */
   async handleLemonEvent(event: LemonEvent): Promise<{ ok: true; result: string }> {
     const eventName = event.meta?.event_name ?? '';
+    if (eventName === 'order_created') {
+      // B2 code packs: one-time purchase → a code_packs row
+      return this.handleOrderCreated(event);
+    }
     if (
       !['subscription_created', 'subscription_updated', 'subscription_cancelled', 'subscription_expired'].includes(
         eventName,
@@ -141,6 +152,71 @@ export class BillingService {
       lsCustomerId: tenant.lsCustomerId,
       lsSubscriptionId: null,
       planRenewsAt: null,
+    });
+  }
+
+  /**
+   * B2 `order_created` (one-time code-pack purchase): map the ordered variant
+   * to a pack size via LEMONSQUEEZY_VARIANT_PACK_MAP, locate the tenant by
+   * the stamped custom tenant_id and create a code_packs row. Idempotent via
+   * the unique ls_order_id — a replayed webhook is acknowledged as a noop.
+   * Subscription-plan variants are not in the pack map, so ordinary plan
+   * orders fall through as ignored (subscriptions sync via their own events).
+   */
+  private async handleOrderCreated(event: LemonEvent): Promise<{ ok: true; result: string }> {
+    const attributes = event.data?.attributes ?? {};
+    const variantId = attributes.first_order_item?.variant_id ?? attributes.variant_id;
+    const codesRaw =
+      variantId !== undefined ? this.config.lemonSqueezyVariantPackMap[String(variantId)] : undefined;
+    const codes = codesRaw !== undefined ? Number(codesRaw) : NaN;
+    if (!Number.isFinite(codes) || codes <= 0) {
+      this.logger.warn(
+        `lemonsqueezy order_created: variant ${String(variantId)} not in LEMONSQUEEZY_VARIANT_PACK_MAP — acknowledged and skipped`,
+      );
+      return { ok: true, result: 'ignored:pack_variant_unmapped' };
+    }
+    const orderId = event.data?.id !== undefined ? String(event.data.id) : null;
+    if (!orderId) {
+      return { ok: true, result: 'ignored:order_without_id' };
+    }
+    const tenant = await this.locateTenant(event, null);
+    if (!tenant) {
+      this.logger.warn(
+        `lemonsqueezy order_created: no tenant matched (order ${orderId}) — acknowledged and skipped`,
+      );
+      return { ok: true, result: 'ignored:tenant_not_found' };
+    }
+    return this.prisma.withTenant(tenant.id, async (tx) => {
+      const existing = await tx.codePack.findUnique({ where: { lsOrderId: orderId } });
+      if (existing) {
+        return { ok: true as const, result: 'noop' };
+      }
+      const pack = await tx.codePack.create({
+        data: {
+          tenantId: tenant.id,
+          quantityPurchased: codes,
+          quantityRemaining: codes,
+          lsOrderId: orderId,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          // machine event — no human actor; the order id is the evidence
+          action: 'billing.pack_purchased',
+          target: {
+            order_id: orderId,
+            variant_id: variantId !== undefined ? String(variantId) : null,
+            codes,
+            pack_id: pack.id,
+            event: 'order_created',
+          },
+        },
+      });
+      this.logger.log(
+        `lemonsqueezy order_created: tenant ${tenant.id} bought a ${codes}-code pack (order ${orderId})`,
+      );
+      return { ok: true as const, result: `applied:pack:${codes}` };
     });
   }
 
@@ -236,17 +312,3 @@ const TENANT_BILLING_SELECT = {
   lsSubscriptionId: true,
   planRenewsAt: true,
 } as const;
-
-/**
- * Append `checkout[custom][tenant_id]=<tenantId>` to a hosted checkout URL.
- * Returns null when the configured value is not a parseable URL.
- */
-export function withTenantCheckoutParam(rawUrl: string, tenantId: string): string | null {
-  try {
-    const url = new URL(rawUrl);
-    url.searchParams.set('checkout[custom][tenant_id]', tenantId);
-    return url.toString();
-  } catch {
-    return null;
-  }
-}

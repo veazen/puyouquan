@@ -5,6 +5,7 @@ import { Redis } from 'ioredis';
 import { generateScratchCode, generateSerial, hashScratchCodeHmac } from '@veazen/crypto';
 
 import { AppConfigService } from '../config/app-config.service';
+import { PlanGateService } from '../billing/plan-gate.service';
 import { CodeSigningService } from '../codes/code-signing.service';
 import { EnvelopeService } from '../crypto/envelope.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -46,6 +47,7 @@ export class GenerationWorker implements OnModuleInit, OnApplicationShutdown {
     private readonly signing: CodeSigningService,
     private readonly storage: StorageService,
     private readonly config: AppConfigService,
+    private readonly planGate: PlanGateService,
     envelope: EnvelopeService,
   ) {
     this.scratchPepper = envelope.deriveKey('scratch-pepper');
@@ -203,6 +205,10 @@ export class GenerationWorker implements OnModuleInit, OnApplicationShutdown {
         // Lite: system performs the activation step (§7.5 mechanism 1)
         await tx.traceEvent.create({ data: { ...traceBase, eventType: 'activated' } });
       }
+      // B2 code packs: deduct the quota overflow FIFO in the same transaction
+      // that flips the batch to ready — failed batches never consume credits
+      // (no-op unless BILLING_ENFORCEMENT=on)
+      await this.planGate.settlePackConsumption(tx, tenantId, batch.quantity);
     });
   }
 }

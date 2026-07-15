@@ -38,6 +38,10 @@ export class AppConfigService {
   readonly lemonSqueezyCheckoutUrls: Record<string, string>;
   /** LS variant_id → plan, e.g. {"123456":"starter"} */
   readonly lemonSqueezyVariantPlanMap: Record<string, string>;
+  /** B2 code packs: pack id → hosted checkout URL, e.g. {"pack_10k":"https://…/buy/yyy"} */
+  readonly lemonSqueezyPackCheckoutUrls: Record<string, string>;
+  /** B2 code packs: LS variant_id → codes, e.g. {"654321":"10000"} */
+  readonly lemonSqueezyVariantPackMap: Record<string, string>;
 
   constructor() {
     const env = process.env;
@@ -80,6 +84,8 @@ export class AppConfigService {
     this.lemonSqueezyWebhookSecret = env.LEMONSQUEEZY_WEBHOOK_SECRET ?? null;
     this.lemonSqueezyCheckoutUrls = parseJsonRecord(env.LEMONSQUEEZY_CHECKOUT_URLS, 'LEMONSQUEEZY_CHECKOUT_URLS');
     this.lemonSqueezyVariantPlanMap = parseJsonRecord(env.LEMONSQUEEZY_VARIANT_PLAN_MAP, 'LEMONSQUEEZY_VARIANT_PLAN_MAP');
+    this.lemonSqueezyPackCheckoutUrls = parseJsonRecord(env.LEMONSQUEEZY_PACK_CHECKOUT_URLS, 'LEMONSQUEEZY_PACK_CHECKOUT_URLS');
+    this.lemonSqueezyVariantPackMap = parseJsonRecord(env.LEMONSQUEEZY_VARIANT_PACK_MAP, 'LEMONSQUEEZY_VARIANT_PACK_MAP');
   }
 }
 

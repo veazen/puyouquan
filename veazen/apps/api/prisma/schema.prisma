@@ -250,8 +250,30 @@ model Tenant {
   serialProfiles   SerialProfile[]
   customHostnames  CustomHostname[]
   invites          Invite[]
+  codePacks        CodePack[]
 
   @@map("tenants")
+}
+
+/// B2 code packs: one-time overflow credits on top of the monthly
+/// subscription quota. Consumption is FIFO (purchased_at) and happens when a
+/// batch generation completes (generation.worker) — failed batches never
+/// consume. `ls_order_id` deduplicates Lemon Squeezy `order_created` webhooks.
+model CodePack {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  quantityPurchased  Int       @map("quantity_purchased")
+  quantityRemaining  Int       @map("quantity_remaining")
+  purchasedAt        DateTime  @default(now()) @map("purchased_at")
+  /// null = never expires
+  expiresAt          DateTime? @map("expires_at")
+  lsOrderId          String?   @unique @map("ls_order_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("code_packs")
 }
 
 model User {

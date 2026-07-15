@@ -1,8 +1,22 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService, type Tx } from '../prisma/prisma.service';
 import { AppConfigService } from '../config/app-config.service';
-import { codesQuota, planAllows, type PlanFeature } from './plans';
+import {
+  CODE_PACK_OPTIONS,
+  codesQuota,
+  planAllows,
+  withTenantCheckoutParam,
+  type PlanFeature,
+} from './plans';
+
+/** 402 purchase guidance entry (B2): pack option + optional checkout link. */
+export interface PackPurchaseOption {
+  id: string;
+  codes: number;
+  price_usd: number;
+  checkout_url: string | null;
+}
 
 /**
  * P1 plan gates — the one place plan limits are enforced (no scattered ifs).
@@ -12,9 +26,16 @@ import { codesQuota, planAllows, type PlanFeature } from './plans';
  *
  * Applies to both credential types (console JWT and machine API keys):
  * limits are a property of the tenant's plan, not of the acting role.
+ *
+ * B2 code packs: the monthly quota gate additionally admits requests whose
+ * overflow is covered by the tenant's remaining pack balance; the actual
+ * FIFO deduction happens when generation completes (settlePackConsumption,
+ * called from generation.worker) so failed batches never consume credits.
  */
 @Injectable()
 export class PlanGateService {
+  private readonly logger = new Logger(PlanGateService.name);
+
   constructor(
     private readonly config: AppConfigService,
     private readonly prisma: PrismaService,
@@ -25,7 +46,12 @@ export class PlanGateService {
   }
 
   /** 402 with the unified upgrade-required body (§P1 契约). */
-  private reject(feature: string, plan: string, detail?: string): never {
+  private reject(
+    feature: string,
+    plan: string,
+    detail?: string,
+    extra?: Record<string, unknown>,
+  ): never {
     throw new HttpException(
       {
         statusCode: HttpStatus.PAYMENT_REQUIRED,
@@ -33,6 +59,7 @@ export class PlanGateService {
         feature,
         plan,
         message: `当前套餐（${plan}）不包含此功能${detail ? `：${detail}` : ''}，请到控制台 Settings → Plan & Billing 升级。Upgrade required.`,
+        ...(extra ?? {}),
       },
       HttpStatus.PAYMENT_REQUIRED,
     );
@@ -52,6 +79,35 @@ export class PlanGateService {
     );
   }
 
+  /** B2: total remaining credits across the tenant's unexpired code packs. */
+  async packBalance(tenantId: string): Promise<number> {
+    const sum = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.codePack.aggregate({
+        _sum: { quantityRemaining: true },
+        where: {
+          quantityRemaining: { gt: 0 },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      }),
+    );
+    return sum._sum.quantityRemaining ?? 0;
+  }
+
+  /**
+   * B2: purchasable pack options for the 402 guidance / billing summary —
+   * the plans.ts placeholder pricing plus a tenant-stamped checkout link for
+   * every pack configured in LEMONSQUEEZY_PACK_CHECKOUT_URLS.
+   */
+  packPurchaseOptions(tenantId: string): PackPurchaseOption[] {
+    return CODE_PACK_OPTIONS.map((option) => {
+      const rawUrl = this.config.lemonSqueezyPackCheckoutUrls[option.id];
+      return {
+        ...option,
+        checkout_url: rawUrl ? withTenantCheckoutParam(rawUrl, tenantId) : null,
+      };
+    });
+  }
+
   /** Boolean capability gate: webhooks / serialProfiles / returnsSuite / teamInvites / scratch. */
   async requireFeature(tenantId: string, feature: PlanFeature): Promise<void> {
     if (!this.enforced) {
@@ -67,7 +123,9 @@ export class PlanGateService {
    * Batch-creation gate: (1) free tier may not request standard (bulk,
    * scratch-bearing) batches — generation.worker attaches scratch codes to
    * every `bulk` batch; (2) codes already generated this month + the request
-   * must fit the monthly quota.
+   * must fit the monthly quota, or (B2) the overflow must be covered by the
+   * remaining code-pack balance. This is an availability pre-check only —
+   * the actual pack deduction happens at generation completion.
    */
   async checkBatchCreate(
     tenantId: string,
@@ -85,11 +143,73 @@ export class PlanGateService {
       return; // enterprise: unlimited
     }
     const used = await this.codesThisMonth(tenantId);
-    if (used + input.quantity > quota) {
-      this.reject(
-        'codesPerMonth',
-        plan,
-        `本月已生成 ${used} 枚、本次申请 ${input.quantity} 枚，超出每月 ${quota} 枚配额`,
+    if (used + input.quantity <= quota) {
+      return;
+    }
+    // B2: monthly quota exhausted — code packs cover the overflow silently
+    const packBalance = await this.packBalance(tenantId);
+    if (used + input.quantity <= quota + packBalance) {
+      return;
+    }
+    // not a dead wall: the 402 carries the purchasable pack options (B2)
+    this.reject(
+      'codesPerMonth',
+      plan,
+      `本月已生成 ${used} 枚、本次申请 ${input.quantity} 枚，超出每月 ${quota} 枚配额${packBalance > 0 ? `与码包余额 ${packBalance} 枚` : ''}；可购买一次性码包补充额度`,
+      { purchase_options: this.packPurchaseOptions(tenantId) },
+    );
+  }
+
+  /**
+   * B2: FIFO pack deduction, called by generation.worker inside the same
+   * transaction that flips the batch to `ready` — a batch that never reaches
+   * `ready` (failed / discarded, A3) never consumes credits, and the A3
+   * discard-and-regenerate path cannot double-charge because terminal
+   * batches short-circuit before regeneration.
+   *
+   * The overflow attributable to this batch is the part of it lying beyond
+   * the monthly quota line: min(quantity, max(0, usedThisMonth − quota)),
+   * where usedThisMonth already includes this batch's codes. Concurrent
+   * completions can slightly oversell (single-instance, low volume —
+   * accepted per the directive); a shortfall deducts to zero and warns.
+   */
+  async settlePackConsumption(tx: Tx, tenantId: string, quantity: number): Promise<void> {
+    if (!this.enforced) {
+      return;
+    }
+    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } });
+    const quota = codesQuota(tenant?.plan ?? 'free');
+    if (quota === null) {
+      return; // enterprise: unlimited, nothing to settle
+    }
+    const usedThisMonth = await tx.code.count({
+      where: { createdAt: { gte: monthStartUtc() } },
+    });
+    let overflow = Math.min(quantity, Math.max(0, usedThisMonth - quota));
+    if (overflow <= 0) {
+      return;
+    }
+    const packs = await tx.codePack.findMany({
+      where: {
+        quantityRemaining: { gt: 0 },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: [{ purchasedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+    for (const pack of packs) {
+      if (overflow <= 0) {
+        break;
+      }
+      const take = Math.min(pack.quantityRemaining, overflow);
+      await tx.codePack.update({
+        where: { id: pack.id },
+        data: { quantityRemaining: pack.quantityRemaining - take },
+      });
+      overflow -= take;
+    }
+    if (overflow > 0) {
+      this.logger.warn(
+        `tenant ${tenantId}: code packs exhausted mid-settlement — ${overflow} overflow codes uncovered (deducted to zero; concurrent completion oversell is accepted)`,
       );
     }
   }
