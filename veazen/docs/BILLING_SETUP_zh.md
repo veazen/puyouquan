@@ -145,3 +145,55 @@
 （free 500 码/月 → starter 5,000 → growth 50,000 → enterprise 不限；
 刮码 Starter 起、webhook/码段/团队邀请 Growth 起、退货套件 Starter 起）。
 改完跑 `npm test` 里的 plans 单测会帮你把关。
+
+---
+
+# 码包（Code Packs）配置（批次 R · B2）
+
+## 码包是什么（30 秒看懂）
+
+订阅供养「验证服务永远在线」这项永久义务；**码包**则匹配客户按批次
+生产的心智：当月订阅额度用完后，生成批次会**先扣订阅额度、用尽后按
+先买先用（FIFO）扣码包余额**。扣减发生在**批次生成完成时**——生成
+失败的批次一枚都不扣。额度和码包都不够时，接口返回 402，响应体里
+带着可购买的码包清单（`purchase_options`），控制台不会是一堵死墙。
+
+- 定价占位（待前 10 个客户反馈后定稿）：**1 万码 $60 / 10 万码 $400**，
+  单一来源在 `apps/api/src/billing/plans.ts` 的 `CODE_PACK_OPTIONS`；
+- `BILLING_ENFORCEMENT` 不是 `on` 时一切照旧——不扣、不拦、零影响；
+- **红线**：码包/额度耗尽绝不影响已生成码的消费者验证（ADR-012）。
+
+## 第一步：在 Lemon Squeezy 建两个一次性商品
+
+1. **Store → Products → + New product**：
+   - Name 填 `Veazen Code Pack 10k`；
+   - Pricing 选 **Single payment**（一次性付款，不是 Subscription），
+     价格填 $60；
+   - **Publish product** 保存；
+2. 同样方法再建 `Veazen Code Pack 100k`（$400）；
+3. 按上文「1a/1b」的方法各拿一条**购买链接**和一个 **variant id**。
+
+## 第二步：在 Railway 给 api 服务加 2 个环境变量
+
+| 变量名 | 填什么 | 示例 |
+|---|---|---|
+| `LEMONSQUEEZY_VARIANT_PACK_MAP` | JSON：variant id → 码数 | `{"777001":"10000","777002":"100000"}` |
+| `LEMONSQUEEZY_PACK_CHECKOUT_URLS` | JSON：码包档 id → 购买链接（id 固定是 `pack_10k` / `pack_100k`） | `{"pack_10k":"https://你的店.lemonsqueezy.com/buy/ccc","pack_100k":"https://你的店.lemonsqueezy.com/buy/ddd"}` |
+
+注意：
+
+- webhook 沿用订阅那条（第三步已配好的 endpoint），只需在
+  Lemon Squeezy 的 webhook 事件勾选里**追加勾上 `order_created`**；
+- 两个变量都可选：不配 `PACK_CHECKOUT_URLS` 时 402 里只有定价没有
+  链接；不配 `VARIANT_PACK_MAP` 时 order_created 通知会被安全忽略；
+- 同一订单的重复通知自动去重（按 LS 订单号幂等），每次购买都写
+  `billing.pack_purchased` 审计。
+
+## 验收
+
+1. 免费档租户把当月 500 码额度用完后再建批次 → 402，响应体含
+   `purchase_options`（带你配置的购买链接）；
+2. 测试模式买一单码包 → Settings → Plan & Billing 出现
+   「Code pack balance」余额；
+3. 再建批次 → 放行，批次 ready 后余额按超额部分减少；
+4. 全程用旧批次的码扫码验证 → 一直正常（不受额度影响）。
