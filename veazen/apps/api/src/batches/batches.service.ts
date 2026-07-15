@@ -82,6 +82,30 @@ export class BatchesService {
     });
   }
 
+  /**
+   * A3: operator retry for a batch the compensation sweep marked `failed` —
+   * resets the attempt counter, returns the batch to `pending` and re-enqueues
+   * generation (idempotent, see GenerationWorker.generate). Only failed
+   * batches are retryable; anything else → 409.
+   */
+  async retryGeneration(tenantId: string, batchId: string) {
+    const batch = await this.prisma.withTenant(tenantId, async (tx) => {
+      const existing = await tx.batch.findFirst({ where: { id: batchId } });
+      if (!existing) {
+        throw new NotFoundException('batch not found');
+      }
+      if (existing.status !== 'failed') {
+        throw new ConflictException(`batch is ${existing.status}; only failed batches can be retried`);
+      }
+      return tx.batch.update({
+        where: { id: batchId },
+        data: { status: 'pending', generationAttempts: 0 },
+      });
+    });
+    await this.generation.enqueue({ batchId, tenantId });
+    return batch;
+  }
+
   /** Factory-exit activation (§5.3 inactive → active); illegal states → 409. */
   async activate(tenantId: string, batchId: string, serials: 'all' | string[]) {
     const normalized = serials === 'all' ? 'all' : serials.map((s) => normalizeInput(s));

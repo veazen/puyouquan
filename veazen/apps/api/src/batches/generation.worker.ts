@@ -33,6 +33,11 @@ export class GenerationWorker implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(GenerationWorker.name);
   private worker: Worker<GenerationJob> | null = null;
   private readonly scratchPepper: Buffer;
+  /** A3: per-batch serialization — a duplicate job (compensation requeue vs a
+   *  stale original) must never generate concurrently with the first. The
+   *  deployment is single-instance (worker concurrency 2 lives in this same
+   *  process), so an in-process keyed mutex is sufficient. */
+  private readonly inFlight = new Map<string, Promise<void>>();
 
   constructor(
     @Inject(BULLMQ_CONNECTION) private readonly connection: Redis,
@@ -78,15 +83,50 @@ export class GenerationWorker implements OnModuleInit, OnApplicationShutdown {
   }
 
   async process({ batchId, tenantId }: GenerationJob): Promise<void> {
+    const prior = this.inFlight.get(batchId) ?? Promise.resolve();
+    // chain regardless of the prior run's outcome; propagate only our own
+    const current = prior.catch(() => undefined).then(() => this.generate(batchId, tenantId));
+    this.inFlight.set(batchId, current);
+    try {
+      await current;
+    } finally {
+      if (this.inFlight.get(batchId) === current) {
+        this.inFlight.delete(batchId);
+      }
+    }
+  }
+
+  /**
+   * A3 idempotent generation: safe to re-run after a lost/duplicated job.
+   * - terminal states (ready / exported / failed) short-circuit, so a replayed
+   *   job never doubles the code count;
+   * - a partial previous run is discarded and regenerated from zero. Counting
+   *   and resuming would be cheaper, but the export CSV (the only place
+   *   scratch plaintext ever exists, §9.2) is written at the end of a run —
+   *   codes inserted by a crashed run have unrecoverable scratch plaintext and
+   *   would ship as dead labels. Discarding is safe by construction: export
+   *   requires status=ready, so partially generated codes have never left the
+   *   building.
+   */
+  private async generate(batchId: string, tenantId: string): Promise<void> {
     const batch = await this.prisma.asSystem((tx) =>
       tx.batch.findUnique({ where: { id: batchId }, include: { product: true } }),
     );
-    if (!batch || batch.tenantId !== tenantId || batch.status === 'ready') {
+    if (!batch || batch.tenantId !== tenantId) {
       return;
     }
-    await this.prisma.withTenant(tenantId, (tx) =>
-      tx.batch.update({ where: { id: batchId }, data: { status: 'generating' } }),
-    );
+    if (batch.status !== 'pending' && batch.status !== 'generating') {
+      return; // ready / exported / failed — nothing to (re)do
+    }
+    await this.prisma.withTenant(tenantId, async (tx) => {
+      await tx.batch.update({ where: { id: batchId }, data: { status: 'generating' } });
+      const discarded = await tx.code.deleteMany({ where: { batchId } });
+      if (discarded.count > 0) {
+        this.logger.warn(
+          `batch ${batchId}: discarded ${discarded.count} codes from an interrupted run — regenerating from zero`,
+        );
+      }
+    });
 
     const withScratch = batch.kind === 'bulk';
     const csvRows: string[] = [

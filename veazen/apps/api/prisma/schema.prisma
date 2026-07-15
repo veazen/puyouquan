@@ -41,6 +41,9 @@ enum BatchStatus {
   generating
   ready
   exported
+  /// A3 (Batch R): generation stalled ≥3 compensation retries — surfaced in
+  /// the console with an explicit retry action, never a silent hang
+  failed
 
   @@map("batch_status")
 }
@@ -345,6 +348,8 @@ model Batch {
   /// authorized markets, ISO 3166 country codes (out_of_market rule)
   intendedMarket String[]     @default([]) @map("intended_market")
   activatedCount Int          @default(0) @map("activated_count")
+  /// A3: compensation-requeue counter (generation reaper); ≥3 → failed
+  generationAttempts Int      @default(0) @map("generation_attempts")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
@@ -366,7 +371,8 @@ model Code {
   serial            String      @unique
   /// truncated signature carried in the QR URL
   sig               String
-  /// argon2id hash; scratch plaintext exists only in the one-time export
+  /// peppered HMAC-SHA256 (ADR-007; spec originally argon2id) — scratch
+  /// plaintext exists only in the one-time export, the pepper only in RAM
   scratchHash       String?     @map("scratch_hash")
   status            CodeStatus  @default(inactive)
   flagReason        FlagReason? @map("flag_reason")

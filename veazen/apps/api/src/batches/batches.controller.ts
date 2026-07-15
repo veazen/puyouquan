@@ -104,6 +104,14 @@ export class BatchesController {
     return batch;
   }
 
+  /** A3: retry a failed generation (console 「重试」 button). */
+  @Post(':id/retry')
+  @Roles(...CONSOLE_WRITE)
+  @Audit('batch.retry_generation')
+  retry(@TenantId() tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.batches.retryGeneration(tenantId, id);
+  }
+
   @Post(':id/activate')
   @Roles(...CONSOLE_WRITE)
   @Audit('batch.activate')
