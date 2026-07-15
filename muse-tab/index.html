@@ -517,6 +517,23 @@ body.stand #standbar{display:flex}
   background:var(--text);color:var(--bg);padding:8px 18px;border-radius:20px;
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
 .hidden{display:none!important}
+/* 智能填词：实时对齐预览 */
+.sf-opts{display:flex;flex-wrap:wrap;align-items:center;gap:14px;font-size:12.5px;margin:6px 0}
+.sf-opts label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.sf-stat{font-size:12.5px;margin:6px 0 4px;color:var(--muted)}
+.sf-stat b{font-weight:700}
+.sf-stat.ok b{color:var(--ok)}
+.sf-stat.warn b{color:#c98a00}
+.sf-prev{display:flex;flex-wrap:wrap;gap:8px 10px;max-height:150px;overflow:auto;padding:9px 11px;
+  border:1px solid var(--border-soft);border-radius:11px;background:var(--toolbar);margin:4px 0 2px}
+.sf-prev .m{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding-right:10px;border-right:1px dashed var(--border)}
+.sf-prev .m:last-child{border-right:none}
+.sf-prev .m .mi{font-size:10px;color:var(--muted);align-self:flex-start;margin-right:2px}
+.sf-prev .n{min-width:22px;height:26px;padding:0 4px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:7px;background:var(--panel);border:1px solid var(--border-soft);font-size:14px;line-height:1}
+.sf-prev .n.empty{color:var(--muted);opacity:.45;font-size:11px}
+.sf-prev .n.cont{background:transparent;border-style:dashed;opacity:.5;font-size:11px}
+.sf-prev .none{color:var(--muted);font-size:12px}
 /* ================= 响应式断点（桌面 ≥1200 保持原样） ================= */
 /* 平板：收起右侧信息栏，谱面占满可用宽度 */
 @media (max-width:1200px){
@@ -713,7 +730,7 @@ body.stand #standbar{display:flex}
       <div class="rg-body">
         <label style="font-size:12px;color:var(--muted)">当前音</label>
         <input id="i-lyric" class="short" placeholder="字">
-        <button id="b-fill">批量填词</button>
+        <button id="b-fill">智能填词</button>
         <button id="b-clearlyr">清空本段</button>
       </div>
     </div>
@@ -4727,40 +4744,131 @@ document.getElementById('b-meta').onclick = ()=>{
   };
 };
 
-/* ================= 批量填词 ================= */
+/* ================= 智能填词 ================= */
+const SF_PUNCT='，。！？、；：…—（）()!?,.\'"“”‘’·';
+function lyricSamePitch(a,b){ return a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0); }
+/* 分词：中文字=1词；连续字母/数字=1词（英文整体）；标点跟随前词；- 手动跳过；换行=乐句边界 */
+function smartTokenize(text){
+  const out=[];
+  (text||'').split(/\n/).forEach((line,li)=>{
+    if(li>0) out.push({t:'br'});
+    const cs=[...line]; let i=0;
+    while(i<cs.length){
+      const c=cs[i];
+      if(/\s/.test(c)){ i++; continue; }
+      if(c==='-'){ out.push({t:'skip'}); i++; continue; }
+      if(SF_PUNCT.includes(c)){ for(let k=out.length-1;k>=0;k--){ if(out[k].t==='syl'){ out[k].v+=c; break; } if(out[k].t==='br')break; } i++; continue; }
+      if(/[A-Za-z0-9]/.test(c)){ let w=c; i++; while(i<cs.length && /[A-Za-z0-9'’]/.test(cs[i])) w+=cs[i++]; out.push({t:'syl',v:w}); continue; }
+      out.push({t:'syl',v:c}); i++;
+    }
+  });
+  return out;
+}
+/* 从起点收集音符槽：kind='fill'（可唱音）/'cont'（连音延续，恒清空）；休止不入槽、中断连音链 */
+function smartSlots(vi, startMi, startCi){
+  const slots=[]; let prev=null;
+  for(let mi=0;mi<song.measures.length;mi++){
+    const cols=song.measures[mi].voxes[vi]||[];
+    for(let ci=0;ci<cols.length;ci++){
+      const col=cols[ci];
+      const before = mi<startMi || (mi===startMi && ci<startCi);
+      if(!col.deg){ prev=null; continue; }
+      const cont = !!(prev && prev.tie && lyricSamePitch(prev,col));
+      prev=col;
+      if(before) continue;
+      slots.push({mi,ci,col,kind:cont?'cont':'fill'});
+    }
+  }
+  return slots;
+}
+/* 计算每个槽的赋值：null=不改动；''=清空；字符串=歌词。phraseAlign 时换行跳到下一小节 */
+function smartCompute(slots, tokens, phraseAlign){
+  const vals=new Array(slots.length).fill(null);
+  let si=0, lastMi=-1;
+  const clearContAt=()=>{ while(si<slots.length && slots[si].kind==='cont'){ vals[si]=''; si++; } };
+  for(const tk of tokens){
+    if(tk.t==='br'){
+      if(phraseAlign && lastMi>=0){   // 跳到下一小节：清空当前行剩余音，直到小节号 > 本行小节
+        while(si<slots.length && slots[si].mi<=lastMi){ if(vals[si]==null) vals[si]=''; si++; }
+      }
+      continue;
+    }
+    clearContAt();
+    if(si>=slots.length) break;
+    vals[si] = tk.t==='skip' ? '' : tk.v;
+    lastMi = slots[si].mi;
+    si++;
+  }
+  clearContAt();   // 收尾清理紧邻的连音延续
+  return vals;
+}
 document.getElementById('b-fill').onclick = ()=>{
   const vi = sel.row==='vox'?sel.vi:0;
-  showModal(`<h3>批量填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
-    <p>整段歌词按顺序逐字分配到每个有唱名的音上；<b>自动跳过休止符与连音线延续的音符</b>（延续音由前一字延唱、不单独占字）；标点自动跟随前一个字；用短横线 - 手动跳过一个音；换行与空格忽略。</p>
+  showModal(`<h3>智能填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
+    <p style="font-size:12.5px">逐字分配到每个可唱音；<b>自动跳过休止符与连音线延续音</b>；标点跟随前字；<b>-</b> 手动跳过一个音；英文单词整体成词。下方实时预览对齐结果。</p>
+    <div class="sf-opts">
+      <span>起点：</span>
+      <label><input type="radio" name="sf-start" value="head" checked> 从头开始</label>
+      <label><input type="radio" name="sf-start" value="cursor"> 从当前音符</label>
+      <label style="margin-left:8px"><input type="checkbox" id="sf-phrase"> 换行对齐乐句（每行从新小节开始）</label>
+    </div>
     <textarea id="fill-text" placeholder="一闪一闪亮晶晶，满天都是小星星"></textarea>
+    <div class="sf-stat" id="sf-stat"></div>
+    <div class="sf-prev" id="sf-prev"></div>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
+  const ta=document.getElementById('fill-text');
+  const getOpts=()=>({
+    start:document.querySelector('input[name=sf-start]:checked').value,
+    phrase:document.getElementById('sf-phrase').checked
+  });
+  const startPos=(o)=> o.start==='cursor' ? {mi:sel.mi||0, ci:sel.ci||0} : {mi:0,ci:0};
+  const renderPreview=()=>{
+    const o=getOpts(); const sp=startPos(o);
+    const slots=smartSlots(vi, sp.mi, sp.ci);
+    const tokens=smartTokenize(ta.value);
+    const vals=smartCompute(slots, tokens, o.phrase);
+    const fillN=slots.filter(s=>s.kind==='fill').length;
+    const sylN=tokens.filter(t=>t.t==='syl'||t.t==='skip').length;
+    const st=document.getElementById('sf-stat');
+    const diff = sylN-fillN;
+    st.className='sf-stat '+(sylN===0?'':(diff===0?'ok':'warn'));
+    st.innerHTML= sylN===0 ? '可唱音 <b>'+fillN+'</b> 个，输入歌词后显示对齐预览'
+      : '可唱音 <b>'+fillN+'</b> 个 · 歌词 <b>'+sylN+'</b> 字 · '+
+        (diff===0?'<b>正好对齐 ✓</b>':(diff>0?('歌词多 <b>'+diff+'</b> 字（多出的将忽略）'):('还差 <b>'+(-diff)+'</b> 字（末尾音留空）')));
+    // 预览：按小节分组渲染 fill 槽（cont 用虚框占位）
+    const prev=document.getElementById('sf-prev');
+    if(!slots.length){ prev.innerHTML='<span class="none">此声部还没有可填词的音符。</span>'; return; }
+    const byM={}; const order=[];
+    slots.forEach((s,idx)=>{ if(!byM[s.mi]){byM[s.mi]=[];order.push(s.mi);} byM[s.mi].push({s,v:vals[idx]}); });
+    prev.innerHTML=order.map(mi=>{
+      const cells=byM[mi].map(({s,v})=>{
+        if(s.kind==='cont') return '<span class="n cont" title="连音延续">～</span>';
+        if(v==null||v==='') return '<span class="n empty" title="留空">·</span>';
+        return '<span class="n">'+esc(v)+'</span>';
+      }).join('');
+      return '<span class="m"><span class="mi">'+(mi+1)+'</span>'+cells+'</span>';
+    }).join('');
+  };
+  ta.addEventListener('input', renderPreview);
+  document.querySelectorAll('input[name=sf-start]').forEach(r=>r.addEventListener('change', renderPreview));
+  document.getElementById('sf-phrase').addEventListener('change', renderPreview);
+  renderPreview();
+  ta.focus();
   document.getElementById('fill-cancel').onclick = closeModal;
   document.getElementById('fill-ok').onclick = ()=>{
-    const text = document.getElementById('fill-text').value;
+    const o=getOpts(); const sp=startPos(o);
+    const text=ta.value;
+    if(!text.trim()){ closeModal(); return; }
     closeModal();
-    if(!text.trim()) return;
-    const PUNCT = '，。！？、；：…—（）()!?,.\'"“”‘’';
-    const chars = [...text.replace(/\s+/g,'')];
-    const samePitch=(a,b)=> a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0);
+    const slots=smartSlots(vi, sp.mi, sp.ci);
+    const vals=smartCompute(slots, smartTokenize(text), o.phrase);
     mutate(()=>{
-      let i=0, prev=null;
-      outer:
-      for(const mea of song.measures){
-        for(const col of (mea.voxes[vi]||[])){
-          if(!col.deg){ prev=null; continue; }               // 休止符：跳过，并中断连音链
-          col.lyrics = col.lyrics||[];
-          /* 连音线延续音（前一个音 tie 且同音高）→ 不占字，清空该行歌词 */
-          if(prev && prev.tie && samePitch(prev, col)){ col.lyrics[activeLyr]=''; prev=col; continue; }
-          if(i>=chars.length) break outer;
-          if(chars[i]==='-'){ col.lyrics[activeLyr]=''; i++; prev=col; continue; }
-          let ly = chars[i++];
-          while(i<chars.length && PUNCT.includes(chars[i])) ly += chars[i++];
-          col.lyrics[activeLyr] = ly;
-          prev=col;
-        }
-      }
+      slots.forEach((s,idx)=>{
+        if(s.kind==='cont'){ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[activeLyr]=''; return; }
+        if(vals[idx]!=null){ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[activeLyr]=vals[idx]; }
+      });
     });
-    toast('第'+(activeLyr+1)+'段歌词已填入（已跳过休止与连音延续音）');
+    toast('第'+(activeLyr+1)+'段歌词已智能填入');
   };
 };
 
@@ -6735,6 +6843,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.88</span><div>「批量填词」升级为<b>智能填词</b>：① 实时对齐预览——边输入边显示每个可唱音将分到哪个字，休止/连音延续位自动标灰跳过、按小节分组；② 字数/音数匹配提示（正好/多字/差字，颜色区分）；③ 起点可选（从头 / 从当前光标音符）；④「换行对齐乐句」——每行歌词从新小节开头对齐；⑤ 英文单词整体成词；沿用跳休止/连音延续、标点跟随前字、- 手动跳过。</div></li>
     <li><span class="v">v34.87</span><div>批量填词优化：自动跳过休止符与<b>连音线延续的音符</b>（延续音由前一字延唱、不单独占字）——之前连音延续音会错误地被分配一个字导致整段错位；不同音高的音符即使前有连音线仍正常占字（连音线只连同音高）。</div></li>
     <li><span class="v">v34.86</span><div>扫弦箭头方向翻转：下扫标 ↑、上扫标 ↓——箭头表示拨片在六线谱上从低音弦扫向高音弦的移动方向（低音 6 弦画在最下，故下扫向上）；播放声音不变（下扫仍低音先响）。按钮改「下扫/上扫」。新增 3 首预设曲谱：小星星（尤克里里 4 弦弹唱）、流行进行（功能谱 1–5–6m–4 级数和弦）、反复与段落示例（反复记号+第一/二段结尾+力度记号，展示播放导航）。</div></li>
     <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ⏮）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
