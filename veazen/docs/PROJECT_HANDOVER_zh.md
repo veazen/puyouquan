@@ -90,7 +90,19 @@
     MASTER_KEY 派生永不入库——合规无缺陷）
   - 批次 D：两份行业调研归档（PLAYBOOKS/ECOSYSTEM，非执行规格）；
     PROJECT_PLAN 校准为「原始规格+§12 Backlog」新版
-  - API e2e 增至 **58 项**；A5（泄露 key 核查）等用户跑 Neon SQL
+  - **B1 S1 补剂行业化包交付**：批次 lot_code/mfg_date/expiry_date
+    字段（API+控制台+插件表单+五语验证页模块，过期明示）、批次级
+    COA 质检报告（PDF 魔数校验+10MB 上限+签名下载链，验证页展示）、
+    官网 /supplements 行业落地页（EN+zh）；演示商店验收步骤见
+    docs/S1_SUPPLEMENTS_PACK_zh.md
+  - **B2 码包交付**：code_packs 表（RLS+ls_order_id 幂等）、订阅额度
+    用尽后 FIFO 扣码包（扣减在批次 ready 事务内，失败批次天然不扣，
+    与 A3 自洽）、402 附购买引导 purchase_options（占位价：1 万码
+    $60/10 万码 $400，前 10 客户反馈后定稿）、LS order_created
+    webhook、Settings 显示码包余额；两个新可选 env：
+    LEMONSQUEEZY_VARIANT_PACK_MAP / LEMONSQUEEZY_PACK_CHECKOUT_URLS
+  - API e2e 增至 **72 项**（9 套件）；批次 R 代码部分全部收官，
+    余 A5（等用户跑 Neon SQL）与 A1 配置（等用户配 Secrets）
 
 ## 四、技术实现逻辑（核心）
 
@@ -225,8 +237,8 @@ vz_0VF1RZY4…）待用户吊销重建。
 
 ## 六、当前状态与下一步（2026-07-13）
 
-**执行中（批次 R 指令）**：
-1. B1 S1 补剂行业化包 + B2 码包（已批准，A 组完成后即启动）
+**批次 R 代码部分已全部收官**（A1~A4、B1、B2、D 交付并 CI 绿；
+详见进度总账 2026-07-14~15 节）。下一批等老板指令。
 
 **卡点（等用户/外部）**：
 1. A1 备份配置：R2 桶 + GitHub 六个 Secrets（步骤见

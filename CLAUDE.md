@@ -54,13 +54,13 @@ veazen/
 
 ## 待办（按优先级）
 
-1. **批次 R 执行中**（老板指令，归档 `veazen/docs/DIRECTIVE_BATCH_R_zh.md`）：
-   ✅ A1 备份/演练工作流已上线（等用户配 R2 桶+GitHub Secrets 生效）
-   ✅ A2 验证不变量（ADR-012+e2e 红绿锁死）✅ A3 卡死批次补偿
-   （幂等+扫描+重试按钮+Redis 诊断日志）✅ A4 刮码 HMAC ADR-007
-   （pepper 核查合规）✅ D 归档+PROJECT_PLAN 校准。
-   ⏳ A5 泄露 key 核查等用户跑 Neon SQL；→ 下一步 **B1 S1 行业化包 +
-   B2 码包**（已批准）。API e2e 现为 58 项基线
+1. **批次 R 代码部分收官**（老板指令，归档 `veazen/docs/DIRECTIVE_BATCH_R_zh.md`）：
+   ✅ A1 备份/演练工作流 ✅ A2 验证不变量（ADR-012）✅ A3 卡死批次
+   补偿 ✅ A4 刮码 HMAC ADR-007 ✅ B1 S1 补剂行业化包（lot/expiry/
+   COA/落地页）✅ B2 码包（FIFO 溢出通道+402 购买引导）✅ D 归档+
+   PROJECT_PLAN 校准。API e2e 基线 **72 项**（9 套件）。
+   ⏳ 余两件等用户：A5 泄露 key 核查（跑 Neon SQL）、A1 备份配置
+   （R2 桶+GitHub Secrets，见 RESILIENCE_DR_PLAN §五）
 2. **功能冻结令（批次 C，即刻生效）**：E2 码段工坊/E3 分销/E4 批量
    导入/E5 自定义域名/E6 PWA 及一切未列明的新功能，在拿到首个付费
    客户或明确客户需求前**不得启动**；新构想只记 Backlog 不实现；
