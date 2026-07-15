@@ -350,6 +350,14 @@ model Batch {
   activatedCount Int          @default(0) @map("activated_count")
   /// A3: compensation-requeue counter (generation reaper); ≥3 → failed
   generationAttempts Int      @default(0) @map("generation_attempts")
+  /// B1 (S1 supplements pack): regulatory batch identity — all optional,
+  /// industry presets may require them later (DIRECTIVE_BATCH_R B1)
+  lotCode        String?      @map("lot_code")
+  mfgDate        DateTime?    @map("mfg_date") @db.Date
+  expiryDate     DateTime?    @map("expiry_date") @db.Date
+  /// storage key of the uploaded COA PDF (Certificate of Analysis);
+  /// re-upload overwrites the same key — one COA per batch
+  coaKey         String?      @map("coa_key")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 

@@ -29,8 +29,17 @@ export class BatchesService {
       intendedMarket: string[];
       autoActivate?: boolean;
       kind: 'bulk' | 'on_demand';
+      // B1 (S1 supplements pack): optional regulatory batch identity,
+      // date strings are validated YYYY-MM-DD at the DTO
+      lotCode?: string;
+      mfgDate?: string;
+      expiryDate?: string;
     },
   ) {
+    if (input.mfgDate && input.expiryDate && input.expiryDate < input.mfgDate) {
+      // lexicographic compare is exact for YYYY-MM-DD
+      throw new BadRequestException('expiry_date must be on or after mfg_date');
+    }
     // P1 plan gates (no-op unless BILLING_ENFORCEMENT=on): scratch capability
     // for standard batches + the monthly generated-codes quota
     await this.planGate.checkBatchCreate(tenantId, {
@@ -54,6 +63,9 @@ export class BatchesService {
           intendedMarket: input.intendedMarket,
           autoActivate,
           kind: input.kind,
+          lotCode: input.lotCode ?? null,
+          mfgDate: input.mfgDate ? new Date(input.mfgDate) : null,
+          expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
         },
       });
     });
@@ -78,8 +90,38 @@ export class BatchesService {
         return null;
       }
       const generatedCount = await tx.code.count({ where: { batchId } });
-      return { ...batch, generatedCount, progress: generatedCount / batch.quantity };
+      return {
+        ...batch,
+        generatedCount,
+        progress: generatedCount / batch.quantity,
+        // B1: signed short-lived download path for the uploaded COA PDF
+        coaUrl: batch.coaKey ? this.storage.signedDownloadPath(batch.coaKey, 3600) : null,
+      };
     });
+  }
+
+  /**
+   * B1: store / replace the batch COA PDF. The storage key is deterministic
+   * (one COA per batch), so a re-upload overwrites the previous file and
+   * every already-issued signed URL keeps pointing at the current document.
+   */
+  async uploadCoa(tenantId: string, batchId: string, pdf: Buffer) {
+    const batch = await this.prisma.withTenant(tenantId, (tx) =>
+      tx.batch.findFirst({ where: { id: batchId } }),
+    );
+    if (!batch) {
+      throw new NotFoundException('batch not found');
+    }
+    const key = coaKey(tenantId, batchId);
+    await this.storage.put(key, pdf);
+    await this.prisma.withTenant(tenantId, (tx) =>
+      tx.batch.update({ where: { id: batchId }, data: { coaKey: key } }),
+    );
+    return {
+      batch_id: batchId,
+      coa_url: this.storage.signedDownloadPath(key, 3600),
+      size_bytes: pdf.length,
+    };
   }
 
   /**
@@ -176,4 +218,9 @@ export class BatchesService {
       };
     });
   }
+}
+
+/** Storage key of a batch's COA PDF (B1) — deterministic, one per batch. */
+export function coaKey(tenantId: string, batchId: string): string {
+  return `coa/${tenantId}/${batchId}.pdf`;
 }

@@ -9,6 +9,7 @@ import { EnvelopeService } from '../crypto/envelope.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { tryQueueAdd } from '../queues/queue-add';
 import { RISK_QUEUE } from '../queues/queues.module';
+import { StorageService } from '../storage/storage.service';
 import { WebhookDispatcher } from '../webhooks/webhook.dispatcher';
 import type { ScanContext } from './scan-context.service';
 
@@ -52,6 +53,7 @@ export class VerifyService {
     private readonly prisma: PrismaService,
     private readonly signing: CodeSigningService,
     private readonly webhooks: WebhookDispatcher,
+    private readonly storage: StorageService,
     @Inject(RISK_QUEUE) private readonly riskQueue: Queue<RiskEvalJob>,
     envelope: EnvelopeService,
   ) {
@@ -75,6 +77,9 @@ export class VerifyService {
         include: {
           product: { select: { name: true, images: true, gtin: true } },
           tenant: { select: { name: true, slug: true, settings: true } },
+          // B1: the code's own batch — regulatory identity + COA (only ever
+          // exposed for the batch this code belongs to, by construction)
+          batch: { select: { lotCode: true, mfgDate: true, expiryDate: true, coaKey: true } },
         },
       });
       if (!code) {
@@ -213,6 +218,19 @@ export class VerifyService {
       return invalidResponse();
     }
 
+    // B1 supplements pack: batch identity + COA of the code's own batch.
+    // Deliberately independent of billing state (ADR-012 invariant) — the
+    // signed URL is short-lived (1 h) and re-issued on every scan.
+    const hasBatchInfo =
+      code.batch.lotCode !== null || code.batch.mfgDate !== null || code.batch.expiryDate !== null;
+    const batchInfo = hasBatchInfo
+      ? {
+          lot_code: code.batch.lotCode,
+          mfg_date: code.batch.mfgDate?.toISOString().slice(0, 10) ?? null,
+          expiry_date: code.batch.expiryDate?.toISOString().slice(0, 10) ?? null,
+        }
+      : null;
+
     return {
       result,
       ...(code.status === 'flagged' && code.flagReason ? { flag_reason: code.flagReason } : {}),
@@ -222,6 +240,8 @@ export class VerifyService {
         images: (code.product.images as string[] | null) ?? [],
         brand: { name: code.tenant.name, slug: code.tenant.slug },
       },
+      batch_info: batchInfo,
+      coa_url: code.batch.coaKey ? this.storage.signedDownloadPath(code.batch.coaKey, 3600) : null,
       trace: trace.map((t) => ({
         step: t.eventType,
         location: formatLocation(t.location as { name?: string; country?: string } | null),
@@ -372,6 +392,8 @@ function invalidResponse(): VerifyResponse {
   return {
     result: 'invalid',
     product: null,
+    batch_info: null,
+    coa_url: null,
     trace: [],
     first_verified_at: null,
     scan_count_hint: 'first_scan',

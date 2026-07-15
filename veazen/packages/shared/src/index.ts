@@ -124,6 +124,21 @@ export interface VerifyResponse {
     images: string[];
     brand: Record<string, unknown>;
   } | null;
+  /**
+   * B1 (S1 supplements pack): regulatory identity of the code's own batch —
+   * null when the batch carries none of the three fields (or the code is
+   * unresolvable). Dates are YYYY-MM-DD.
+   */
+  batch_info: {
+    lot_code: string | null;
+    mfg_date: string | null;
+    expiry_date: string | null;
+  } | null;
+  /**
+   * B1: signed short-lived (1 h) download path of the batch COA PDF,
+   * relative to the API prefix — only when the code's batch has a COA.
+   */
+  coa_url: string | null;
   trace: Array<{ step: string; location: string | null; date: string }>;
   first_verified_at: string | null;
   scan_count_hint: 'first_scan' | 'scanned_before';

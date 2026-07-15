@@ -8,8 +8,11 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
@@ -21,6 +24,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -54,7 +59,31 @@ class CreateBatchDto {
   @IsOptional()
   @IsIn(['bulk', 'on_demand'])
   kind?: 'bulk' | 'on_demand';
+
+  // B1 (S1 supplements pack): optional regulatory batch identity
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  lot_code?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'mfg_date must be YYYY-MM-DD' })
+  mfg_date?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'expiry_date must be YYYY-MM-DD' })
+  expiry_date?: string;
 }
+
+/** B1 COA upload (multipart, memory storage): PDF only, ≤ 10 MB. */
+interface UploadedCoaFile {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
+}
+
+const COA_MAX_BYTES = 10 * 1024 * 1024;
 
 class ActivateBatchDto {
   @IsOptional()
@@ -85,6 +114,9 @@ export class BatchesController {
       intendedMarket: dto.intended_market ?? [],
       autoActivate: dto.auto_activate,
       kind: dto.kind ?? 'bulk',
+      lotCode: dto.lot_code,
+      mfgDate: dto.mfg_date,
+      expiryDate: dto.expiry_date,
     });
   }
 
@@ -102,6 +134,30 @@ export class BatchesController {
       throw new NotFoundException('batch not found');
     }
     return batch;
+  }
+
+  /**
+   * B1: upload / replace the batch COA (Certificate of Analysis).
+   * Multipart field `file`, PDF only, ≤ 10 MB (multer rejects larger with
+   * 413). Re-upload overwrites the same storage key — one COA per batch.
+   */
+  @Post(':id/coa')
+  @Roles(...CONSOLE_WRITE)
+  @Audit('batch.coa_upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: COA_MAX_BYTES } }))
+  uploadCoa(
+    @TenantId() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: UploadedCoaFile,
+  ) {
+    if (!file || file.size === 0) {
+      throw new BadRequestException('attach the COA PDF as multipart field "file"');
+    }
+    // magic-byte check beats trusting the client mimetype
+    if (!file.buffer.subarray(0, 5).equals(Buffer.from('%PDF-', 'ascii'))) {
+      throw new BadRequestException('COA must be a PDF file');
+    }
+    return this.batches.uploadCoa(tenantId, id, file.buffer);
   }
 
   /** A3: retry a failed generation (console 「重试」 button). */
