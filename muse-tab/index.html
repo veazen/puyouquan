@@ -624,8 +624,10 @@ body.stand #standbar{display:flex}
   background:var(--panel);border:1px solid var(--border);border-radius:16px;
   box-shadow:0 14px 44px rgba(0,0,0,.24);padding:15px 16px 14px}
 #layout-pop.on{display:block}
-#layout-pop h4{margin:0;font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px}
+#layout-pop h4{margin:-15px -16px 0;padding:13px 16px 11px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px;cursor:move;user-select:none;border-bottom:1px solid var(--border-soft);touch-action:none}
+#layout-pop h4 .lp-grip{color:var(--muted);font-size:13px;letter-spacing:-1px;cursor:move}
 #layout-pop h4 .lp-close{margin-left:auto;border:none;background:none;font-size:16px;color:var(--muted);cursor:pointer;line-height:1;padding:0 2px}
+#layout-pop h4 .lp-close:hover{color:var(--text)}
 #layout-pop .lp-sub{color:var(--muted);font-size:11.5px;margin:3px 0 4px}
 #layout-pop .lp-row{margin:11px 0}
 #layout-pop .lp-lab{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--muted);margin-bottom:6px}
@@ -927,27 +929,23 @@ body.stand #standbar{display:flex}
 </div>
 <!-- 排版浮层：智能/手动疏密 + 内容大小 + 页面容量（A5/A4/A3），实时应用 -->
 <div id="layout-pop">
-  <h4>📐 排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
-  <p class="lp-sub">调整版面本身——与显示/预览缩放无关</p>
+  <h4><span class="lp-grip">⋮⋮</span>📐 排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
+  <p class="lp-sub">先定页面尺寸，再智能调间距、手动调内容——与显示/预览缩放无关</p>
   <div class="lp-row">
-    <div class="lp-lab"><span>智能排版</span></div>
+    <div class="lp-lab"><span>① 页面尺寸（选定后固定）</span></div>
+    <div class="lp-seg" id="lp-page">
+      <button data-page="A5">A5</button><button data-page="A4">A4</button><button data-page="A3">A3</button>
+    </div>
+  </div>
+  <div class="lp-row">
+    <div class="lp-lab"><span>② 智能排版（行距 / 间距）</span></div>
     <div class="lp-seg" id="lp-preset">
       <button data-preset="compact">紧凑</button><button data-preset="standard">标准</button><button data-preset="loose">宽松</button>
     </div>
   </div>
   <div class="lp-row">
-    <div class="lp-lab"><span>手动疏密</span><b id="lp-dval">100%</b></div>
-    <input type="range" id="lp-density" min="0.7" max="1.5" step="0.02">
-  </div>
-  <div class="lp-row">
-    <div class="lp-lab"><span>内容大小</span><b id="lp-sval">100%</b></div>
+    <div class="lp-lab"><span>③ 手动微调 · 内容大小</span><b id="lp-sval">100%</b></div>
     <input type="range" id="lp-scale" min="0.7" max="1.5" step="0.02">
-  </div>
-  <div class="lp-row">
-    <div class="lp-lab"><span>页面尺寸（容量）</span></div>
-    <div class="lp-seg" id="lp-page">
-      <button data-page="A5">A5</button><button data-page="A4">A4</button><button data-page="A3">A3</button>
-    </div>
   </div>
   <p class="lp-tip" id="lp-tip"></p>
   <div class="lp-foot"><button id="lp-reset">恢复默认</button><button class="prim" id="lp-done">完成</button></div>
@@ -6363,14 +6361,12 @@ function laySync(){
   const c = layoutCfg();
   document.querySelectorAll('#lp-preset button').forEach(b=>b.classList.toggle('on', b.dataset.preset===c.preset));
   document.querySelectorAll('#lp-page button').forEach(b=>b.classList.toggle('on', b.dataset.page===c.page));
-  const dEl=document.getElementById('lp-density'), sEl=document.getElementById('lp-scale');
-  if(dEl && document.activeElement!==dEl) dEl.value=c.density;
+  const sEl=document.getElementById('lp-scale');
   if(sEl && document.activeElement!==sEl) sEl.value=c.scale;
-  document.getElementById('lp-dval').textContent=Math.round(c.density*100)+'%';
   document.getElementById('lp-sval').textContent=Math.round(c.scale*100)+'%';
   const cap = {A5:'较小（省纸）', A4:'标准', A3:'很大（约 A4 的 2 倍，容纳更多小节与行）'}[c.page];
   document.getElementById('lp-tip').innerHTML=
-    `页面尺寸只改<b>容量</b>不改音符大小：A5 &lt; A4 &lt; A3。当前 <b>${c.page}</b> — ${cap}。<br>共 ${PV_GEO.n} 页。`;
+    `<b>页面尺寸固定不变</b>：智能排版在此页上调行距/间距，手动微调只改内容大小。当前 <b>${c.page}</b>（${cap}）· 共 ${PV_GEO.n} 页。`;
 }
 function layToggle(show){
   const pop=document.getElementById('layout-pop');
@@ -6390,16 +6386,31 @@ document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('bu
   layApply({preset:b.dataset.preset, density:LAY_PRESETS[b.dataset.preset]}); };
 document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layApply({page:b.dataset.page}); };
-/* 拖动时实时重排但不跳缩放；松手再适配视图并保存 */
-const lpD=document.getElementById('lp-density');
-lpD.oninput  = ()=>{ song.layout=Object.assign({},layoutCfg(),{density:+lpD.value, preset:'custom'}); render();
-  document.getElementById('lp-dval').textContent=Math.round(+lpD.value*100)+'%'; laySync(); };
-lpD.onchange = ()=>{ fitViewWidth(); persist(); };
+/* 内容大小滑杆：拖动时实时重排但不跳缩放；松手再适配视图并保存 */
 const lpS=document.getElementById('lp-scale');
 lpS.oninput  = ()=>{ song.layout=Object.assign({},layoutCfg(),{scale:+lpS.value}); render();
   document.getElementById('lp-sval').textContent=Math.round(+lpS.value*100)+'%'; laySync(); };
 lpS.onchange = ()=>{ fitViewWidth(); persist(); };
 document.getElementById('lp-reset').onclick = ()=>layApply({preset:'standard', density:1, scale:1, page:'A4'});
+/* 排版浮层可拖动（抓取标题栏） */
+(function(){
+  const pop=document.getElementById('layout-pop'), head=pop.querySelector('h4');
+  let dx=0, dy=0, drag=false;
+  head.addEventListener('pointerdown', e=>{
+    if(e.target.closest('.lp-close')) return;
+    drag=true; const r=pop.getBoundingClientRect(); dx=e.clientX-r.left; dy=e.clientY-r.top;
+    try{ head.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  head.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const x=Math.max(4, Math.min(e.clientX-dx, window.innerWidth-pop.offsetWidth-4));
+    const y=Math.max(4, Math.min(e.clientY-dy, window.innerHeight-44));
+    pop.style.left=x+'px'; pop.style.top=y+'px'; pop.style.right='auto';
+  });
+  const end=e=>{ drag=false; try{ head.releasePointerCapture(e.pointerId); }catch(_){} };
+  head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+})();
 
 document.getElementById('b-theme').onclick = ()=>{
   const r=document.documentElement;
@@ -7190,6 +7201,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.96</span><div>排版面板按"页面固定→智能间距→手动内容"三步理顺：① 弹窗<b>可拖动</b>（抓标题栏移到任意位置）；② 明确<b>页面尺寸选定后固定不变</b>，作为版面基准；③ <b>智能排版</b>（紧凑/标准/宽松）只在该页上智能缩放<b>行距与间距</b>；④ <b>手动微调</b>只调<b>内容大小</b>——移除了易混淆的"手动疏密"滑杆。</div></li>
     <li><span class="v">v34.95</span><div>新增<b>排版</b>面板（顶栏「排版」，浮层实时生效）：① <b>智能排版</b>——紧凑 / 标准 / 宽松一键切换疏密；② <b>手动疏密</b>——滑杆细调行/列空白（只改留白不改字号）；③ <b>内容大小</b>——放大缩小音符本身，内容越大每页容纳越少；④ <b>页面尺寸 A5/A4/A3</b>——改变的是<b>容量</b>而非整页缩放：A3≈A4 的 2 倍面积、每行与每页容纳更多小节（如示例曲 A4 每行 2 小节→A3 每行 4 小节、2 页→1 页）。排版参数随曲谱保存。</div></li>
     <li><span class="v">v34.94</span><div>预览与缩放修正：① 打印预览打开即<b>默认 100%</b>（纸张真实物理尺寸），且预览为纯净成品谱——不再显示编辑光标/选区/段序号高亮；② 修正缩放<b>跳过 100%</b> 的问题（Ctrl+滚轮与 ± 均对齐 0.1 栅格、100% 必为一档），预览与谱面编辑区同修。</div></li>
     <li><span class="v">v34.93</span><div>新增<b>打印预览</b>（顶栏「预览」按钮）：① <b>纸张适配</b>——A5 / A4 / A3 一键切换，实时按纸张比例呈现；② <b>缩放</b>——±步进、Ctrl+滚轮、「适配 / 整页」两档自动缩放，100% 即纸张真实物理尺寸；③ <b>多页排布</b>——竖排（单列翻阅）/ 横排（整页并排，横向滚动）/ 网格（多页平铺）三种展示方式；预览页始终以白纸呈现、不受明暗主题影响，可直接进入打印 / 导出。</div></li>
