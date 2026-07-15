@@ -2227,6 +2227,12 @@ function render(){
       p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
       if(song.voxVoices.length>1)
         p.push(`<text x="${ox-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
+      /* 多段歌词：每段起始处显示段序号，点击选中该段编辑 */
+      if(song.lyricLines>1) for(let li=0; li<song.lyricLines; li++){
+        const yy=oy+M.lyricY0[vi]+li*20, on=(li===activeLyr);
+        p.push(`<text x="${ox-14}" y="${yy}" font-size="11" text-anchor="middle" font-weight="${on?'700':'400'}" fill="${on?'var(--accent)':'var(--muted)'}" data-lyrsel="${li}" style="cursor:pointer">${li+1}</text>`);
+        p.push(`<rect x="${ox-23}" y="${yy-13}" width="18" height="19" rx="4" fill="${on?'var(--accent)':'transparent'}" fill-opacity="${on?0.1:0}" data-lyrsel="${li}" style="cursor:pointer"><title>第${li+1}段歌词 · 点击选中该段编辑</title></rect>`);
+      }
       sys.measures.forEach((lm, lmIdx)=>{
         const mea = song.measures[lm.mi];
         const cols = mea.voxes[vi]||[];
@@ -2397,8 +2403,17 @@ function render(){
           if(col.dur===1) for(let d=1;d<=3;d++)
             p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
           (col.lyrics||[]).forEach((ly,li)=>{
-            if(ly && li<song.lyricLines)
-              p.push(`<text x="${nx}" y="${lyr0+li*20}" font-size="14" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(ly)}</text>`);
+            if(ly && li<song.lyricLines){
+              const yy=lyr0+li*20;
+              /* 标点旁挂：正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐 */
+              const pm=/^([\s\S]*?)([，。！？、；：、·…—""''）)\]】》.,!?;:]+)$/.exec(ly);
+              const base=pm?pm[1]:ly, punc=pm?pm[2]:'';
+              p.push(`<text x="${nx}" y="${yy}" font-size="14" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(base)}</text>`);
+              if(punc){
+                const bw=[...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7:14),0);
+                p.push(`<text x="${(nx+bw/2+1).toFixed(1)}" y="${yy}" font-size="12" font-family="var(--font-ui)" text-anchor="start" fill="var(--ink)">${esc(punc)}</text>`);
+              }
+            }
           });
           p.push(`<rect x="${clx}" y="${voxY-24}" width="${cw}" height="34" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
           for(let li=0;li<song.lyricLines;li++)
@@ -3729,6 +3744,12 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     return;
   }
   measureSel = null;
+  /* 点击段序号 → 选中该段歌词进行编辑（不移动音符光标） */
+  if(t.dataset.lyrsel!==undefined){
+    activeLyr=+t.dataset.lyrsel; setRibbon('lyr'); syncInputs(); render();
+    toast('已选中第'+(activeLyr+1)+'段歌词');
+    return;
+  }
   /* 点击每拍时值区 → 选中整拍（用于组合时值替换） */
   if(t.dataset.beatsel!==undefined){
     const [bmi,bvi,bt]=t.dataset.beatsel.split(':').map(Number);
@@ -4818,6 +4839,13 @@ document.getElementById('b-fill').onclick = ()=>{
     <div class="sf-prev" id="sf-prev"></div>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   const ta=document.getElementById('fill-text');
+  /* 预载当前段已填歌词：不丢失、可直接编辑续填（空可填音用 - 占位，末尾留白省略） */
+  {
+    const parts=smartSlots(vi,0,0).filter(s=>s.kind==='fill')
+      .map(s=>((s.col.lyrics&&s.col.lyrics[activeLyr])||'-'));
+    while(parts.length && parts[parts.length-1]==='-') parts.pop();
+    if(parts.some(x=>x!=='-')) ta.value=parts.join('');
+  }
   const getOpts=()=>({
     start:document.querySelector('input[name=sf-start]:checked').value,
     phrase:document.getElementById('sf-phrase').checked
@@ -6844,6 +6872,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.90</span><div>多段歌词与标点排版：① 多段歌词时每段起始显示<b>段序号</b>（当前段高亮），点序号即可选中该段编辑；② 智能填词打开时<b>预载当前段已填歌词</b>，不丢失、可直接续填/修改；③ 歌词<b>标点旁挂</b>——正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐。</div></li>
     <li><span class="v">v34.89</span><div>修复：智能填词现在正确跳过<b>所有</b>连音线延续音——此前只跳过同音高的延音线，而连音线（圆滑线）常连接不同音高的音（一字多音的旋律），这些延续音之前会错误占字导致整段错位；现只要前一个音带连音线，其后的音一律不占字。</div></li>
     <li><span class="v">v34.88</span><div>「批量填词」升级为<b>智能填词</b>：① 实时对齐预览——边输入边显示每个可唱音将分到哪个字，休止/连音延续位自动标灰跳过、按小节分组；② 字数/音数匹配提示（正好/多字/差字，颜色区分）；③ 起点可选（从头 / 从当前光标音符）；④「换行对齐乐句」——每行歌词从新小节开头对齐；⑤ 英文单词整体成词；沿用跳休止/连音延续、标点跟随前字、- 手动跳过。</div></li>
     <li><span class="v">v34.87</span><div>批量填词优化：自动跳过休止符与<b>连音线延续的音符</b>（延续音由前一字延唱、不单独占字）——之前连音延续音会错误地被分配一个字导致整段错位；不同音高的音符即使前有连音线仍正常占字（连音线只连同音高）。</div></li>
