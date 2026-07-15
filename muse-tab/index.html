@@ -250,6 +250,12 @@ input.short{width:54px} input.mid{width:150px}
   filter:drop-shadow(0 6px 22px rgba(0,0,0,.09));}   /* ≈A4 纵向宽度(96dpi) */
 #paper svg{max-width:none}   /* 放大时允许超出容器，容器内滚动查看 */
 #paper.wide{max-width:1180px}
+/* 曲谱反色：深色纸张 + 浅色音符（覆写谱面用到的 CSS 变量，只作用于纸面、不改 UI） */
+#paper.score-invert{
+  --paper:#17181a; --ink:#eef0f2; --muted:#b6b8bd; --border:#565a60;
+  --accent:#4a9eff; --accent-ink:#8cc0ff; --danger:#ff6f63;
+  filter:drop-shadow(0 8px 26px rgba(0,0,0,.5));
+}
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
 svg text{user-select:none}
 #score .pagebg{stroke:var(--border)}
@@ -693,6 +699,8 @@ body.stand #standbar{display:flex}
   #paper svg{width:100%!important;height:auto!important}
   #score .pagebg{stroke:none!important} #score .pageno{display:none!important}
   :root{--paper:#fff;--ink:#000}
+  /* 反色只用于屏幕浏览；打印/导出 PDF 一律回到白纸黑字（省墨、成品规范） */
+  #paper.score-invert{--paper:#fff;--ink:#000;--muted:#555;--border:#000;--accent:#0071e3;--accent-ink:#0060c0;--danger:#c00}
 }
 </style>
 </head>
@@ -721,6 +729,7 @@ body.stand #standbar{display:flex}
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
+    <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）">◑ 反色</button>
     <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
@@ -2272,14 +2281,11 @@ function render(){
               const picked = noteSel.some(q=>q.mi===lm.mi&&q.ci===ci&&q.si===n.s&&q.vi===vi);
               if(picked)
                 p.push(`<circle cx="${nx}" cy="${yy}" r="8" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
-              /* 数字/×底色只遮住字形本身（不占满弦间空隙）：断线清爽但不显白块，近 Guitar Pro 观感 */
+              /* 品位数字/×直接坐在弦线上、不断线（数字后绘、压在谱线之上，谱线连贯穿过） */
               if(n.x || isTone){
-                p.push(`<rect x="${nx-4}" y="${yy-3.7}" width="8" height="7.4" fill="var(--paper)"/>`);
-                p.push(`<text x="${nx}" y="${yy+3.4}" font-size="10" font-weight="600" text-anchor="middle" fill="var(--ink)">×</text>`);
+                p.push(`<text x="${nx}" y="${yy+3.4}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
               }else{
-                const wide = n.f>9;
-                p.push(`<rect x="${nx-(wide?6.6:4.2)}" y="${yy-3.7}" width="${wide?13.2:8.4}" height="7.4" fill="var(--paper)"/>`);
-                p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
+                p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="700" text-anchor="middle" fill="var(--ink)">${n.f}</text>`);
               }
               /* 技法：符号显示在两音之间连音线上方（比例缩小） */
               if(n.tech==='hm'){
@@ -6539,6 +6545,16 @@ document.getElementById('b-theme').onclick = ()=>{
     : window.matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme = isDark?'light':'dark';
 };
+/* 曲谱反色：深色纸张 + 浅色音符（作用于纸面，随本机记忆） */
+function applyScoreInvert(on){
+  const paper=document.getElementById('paper'); if(paper) paper.classList.toggle('score-invert', !!on);
+  const btn=document.getElementById('b-invert'); if(btn) btn.classList.toggle('on', !!on);
+  try{ localStorage.setItem('musetab-invert', on?'1':'0'); }catch(_){}
+}
+document.getElementById('b-invert').onclick = ()=>{
+  applyScoreInvert(!document.getElementById('paper').classList.contains('score-invert'));
+};
+try{ if(localStorage.getItem('musetab-invert')==='1') applyScoreInvert(true); }catch(_){}
 /* ================= 会员中心（为后期付费生态预留） ================= */
 const MEMBER_KEY = 'musetab-member';
 const MEMBER_PLANS = {
@@ -7340,6 +7356,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.4</span><div>① 吉他谱品位数字/×记号改为<b>彻底不断线</b>——数字直接坐在弦线上、谱线连贯穿过（字体加粗保证可读），不再有任何白底遮挡；② 新增<b>曲谱反色</b>（顶栏「◑ 反色」）：深色纸张 + 浅色音符，适合夜间 / 投影 / 护眼，随本机记忆；打印与导出 PDF 一律回到白纸黑字（省墨、成品规范）。</div></li>
     <li><span class="v">v35.3</span><div>吉他谱品位数字/×记号的<b>断线更贴字</b>：原先数字底色偏大、几乎占满弦间空隙，看起来像白块切断谱线；现收紧为仅遮住字形本身（高 9.4→7.4、宽度贴字），保留"数字坐线上、线在字处断开"的出版谱可读性，同时谱线保持连贯不显白块（近 Guitar Pro 观感）。</div></li>
     <li><span class="v">v35.2</span><div>两处修复：① <b>功能谱输入歌词不显示</b>——功能谱默认 0 段歌词，输入的词存进去却因"段数为 0"不渲染；现在<b>输入歌词自动补足歌词段</b>并即时显示，新建功能谱默认也带 1 段歌词；② 页脚「使用帮助」与「帮助文档」<b>去重</b>（二者已指向同一站内帮助），仅保留「使用帮助」。</div></li>
     <li><span class="v">v35.1</span><div>帮助与特色功能升级：① 修复页脚<b>「帮助文档」点击无内容</b>——改为直接打开站内使用帮助（独立 docs 站未部署时也能展示）；② <b>使用帮助 / 特色功能内容同步刷新</b>，补齐排版面板（基准纸张/智能排版/手动微调）、内容驱动版式、打印预览（竖排/横排/网格）等最新能力；③ 两个弹窗<b>视觉升级</b>——品牌 Hero、图标分区、卡片式条目与发丝分隔、悬浮微交互，深浅色自适配。</div></li>
