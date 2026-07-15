@@ -1,8 +1,11 @@
 /**
  * Scratch codes — the hidden one-time redemption code (PROJECT_PLAN §2.4):
  * 12 characters from the de-confused Crockford alphabet (digits + letters,
- * no I/L/O/U). The database only ever stores the argon2id hash; plaintext
- * appears exactly once, in the generated export file.
+ * no I/L/O/U). The database only ever stores a hash; plaintext appears
+ * exactly once, in the generated export file. Production scratch hashes are
+ * peppered HMAC-SHA256 (scratch-pepper.ts, ADR-007); the argon2id functions
+ * below stay available as the slow-hash alternative (user passwords also use
+ * argon2id, via the api's auth service directly).
  */
 
 import { randomBytes } from 'node:crypto';

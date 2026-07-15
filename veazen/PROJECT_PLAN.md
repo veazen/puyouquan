@@ -25,6 +25,7 @@
 8. **验证接口是全系统最高并发路径**，设计目标：p99 < 150ms（不含网络），单实例 ≥ 500 rps，可水平扩展。
 9. **验证域名默认由平台控制（战略锁定）。** 所有码默认指向平台域名（`verify.veazen.app` 或租户子域 `{slug}.veazen.app`；后续购入超短域名后可作为 QR 专用跳转域，302 至前者）。自定义域名（`custom_domain`）仅企业版开放，且实现上必须 CNAME 到平台边缘节点（域名可换皮，解析和数据始终经过平台）。任何实现不得引入"客户完全自持验证端点"的模式。
 10. **证据级日志（中立第三方存证）。** `scan_events` 为追加写（append-only），应用层禁止 UPDATE/DELETE（DB 权限层面对应用账号 REVOKE）；每日生成扫码日志的 Merkle 根摘要存入 `scan_digests` 表，使历史记录可证明未被篡改。这是"平台数据可作为打假/渠道纠纷证据"的技术基础。
+11. **消费者验证路径永不受计费状态影响（批次 R A2）。** `GET /verify/:serial` 与 `POST /verify/:serial/scratch` 在租户欠费、订阅取消、降级为 free、乃至插件被卸载后，仍必须照常工作（返回真实状态与基础品牌信息，刮码可正常核销）；按档位闸门降级的只能是品牌侧能力（新批次生成、导出、看板分析、告警、Webhook、API key 通道）。理由：① 消费者手中的码不得因商家欠费变砖；② 无品牌敢把防伪押在"欠费即砖化"的系统上；③ 已印出的码是持续导流资产。详见 `docs/ARCHITECTURE.md` ADR-012，由 `apps/api/test/verify-billing-invariant.e2e-spec.ts` 锁死。
 
 ---
 
@@ -54,7 +55,7 @@
 ### 2.4 密码学规范
 - 码序列号：`serial = base32(crockford)(96-bit CSPRNG)`，去除易混淆字符，长度 20 字符
 - 签名：每租户一对 Ed25519 密钥（服务端保管私钥，DB 中私钥用 KMS/主密钥信封加密存储）；QR URL 携带 `sig = base64url(Ed25519(serial || tenant_id || batch_id))[:16]` 截断签名，完整验证在服务端做全签名校验 + 查库
-- 暗码（scratch code）：12 位数字+字母（去混淆），DB 只存 `argon2id` 哈希
+- 暗码（scratch code）：12 位数字+字母（去混淆），DB 只存哈希、明文只出现在一次性导出文件。哈希算法原定 `argon2id`，经 **ADR-007** 改为**带服务端 pepper 的 HMAC-SHA256**（pepper 由 `MASTER_KEY` 环境变量派生、永不入库）：暗码是 60-bit CSPRNG 高熵随机串而非用户口令，无需抗暴力破解的慢哈希；拖库拿不到 pepper 即无法离线爆破；argon2id 置于公开验证热路径会构成内存 DoS 向量与延迟负担，且与"10 万码 <60s 生成"的 §8 预算物理冲突。argon2id 仍用于用户密码
 - 所有随机数用 `crypto.randomBytes`，禁止 Math.random
 - **展示格式化（display format）**：serial 与暗码均定义"存储版本"与"展示版本"两种形态。存储/校验永远使用无分隔符的规范形式；展示（验证页、导出文件、PDF 标签、插件 UI）按 4-5 字符分组插入连字符（如 `A1B2C-D3E4F-...`）。所有验证入口在校验前自动剥离 `-`、`:`、空格等分隔符并统一大小写（crockford base32 天然不区分大小写与易混字符）。`packages/crypto` 提供 `formatForDisplay(serial)` 与 `normalizeInput(raw)` 纯函数，全端复用，测试向量须覆盖含分隔符/混合大小写/易混字符（0/O、1/I/L）的输入。
 
@@ -117,7 +118,7 @@ id, tenant_id, key_prefix(8字符明文可查), key_hash, label, scopes text[], 
 id, tenant_id, name, sku, gtin nullable, description, images jsonb, attributes jsonb, trace_template_id nullable, external_refs jsonb（存 WooCommerce product_id 映射：`{"woo:site_hash": 123}`）
 
 ### batches（码批次）
-id, tenant_id, product_id, quantity int, status enum(pending, generating, ready, exported), kind enum(bulk, on_demand) default bulk（on_demand 为 Lite 发货标签池，见 §7.5）, auto_activate bool default false（true 时生成完成即 active，见 §7.5）, export_format enum(csv, pdf), intended_market text nullable（授权销售区域，窜货检测用，ISO 3166 国家码数组）, activated_count int default 0
+id, tenant_id, product_id, quantity int, status enum(pending, generating, ready, exported, failed)（failed 为批次 R A3 追加：补偿扫描 ≥3 次仍卡死 → failed，控制台提供「重试」）, kind enum(bulk, on_demand) default bulk（on_demand 为 Lite 发货标签池，见 §7.5）, auto_activate bool default false（true 时生成完成即 active，见 §7.5）, export_format enum(csv, pdf), intended_market text nullable（授权销售区域，窜货检测用，ISO 3166 国家码数组）, activated_count int default 0, generation_attempts int default 0（A3 补偿重试计数）
 
 ### codes（核心大表，预留 HASH(tenant_id) 分区）
 | 字段 | 类型 | 说明 |
@@ -128,7 +129,7 @@ id, tenant_id, product_id, quantity int, status enum(pending, generating, ready,
 | product_id | uuid | |
 | serial | text unique | 20字符 crockford base32 |
 | sig | text | 截断签名（进 QR URL） |
-| scratch_hash | text | argon2id(暗码) |
+| scratch_hash | text | 暗码哈希：HMAC-SHA256+pepper（ADR-007；原定 argon2id） |
 | status | enum(inactive, active, verified, flagged, voided) | 状态机见 §5.3 |
 | flag_reason | enum(risk_rule, stolen, recalled, manual) nullable | status=flagged 时必填；stolen 由商家标记（商品被盗报备），验证页对 stolen 展示专属警示文案并提示联系品牌方 |
 | first_verified_at | timestamptz nullable | |
@@ -201,7 +202,7 @@ GET  /verify/:serial?sig=xxx
 ```
 POST /verify/:serial/scratch   body: { "scratch_code": "XXXX-XXXX-XXXX" }
 ```
-核销暗码。argon2id 校验 → 成功则 `status: active → verified`，记录 `scratch_redeemed_at`；若已核销过，返回 `already_verified` + 首次核销的时间与国家（模糊化到国家级），并创建 `duplicate_scratch` 告警。此接口限流更严：IP 10 req/min + 单 serial 5 次尝试后锁定 1 小时。
+核销暗码。暗码哈希校验（HMAC-SHA256+pepper，ADR-007；原定 argon2id）→ 成功则 `status: active → verified`，记录 `scratch_redeemed_at`；若已核销过，返回 `already_verified` + 首次核销的时间与国家（模糊化到国家级），并创建 `duplicate_scratch` 告警。此接口限流更严：IP 10 req/min + 单 serial 5 次尝试后锁定 1 小时。
 
 ### 5.2 租户 API（`Authorization: Bearer <api_key>`，HMAC 请求签名头 `X-Signature` 可选启用）
 
@@ -381,7 +382,7 @@ MVP 页面：
 ## 9. 安全要求（实施时逐条对照）
 
 1. 私钥信封加密：环境变量 `MASTER_KEY`（32B）→ AES-256-GCM 加密租户私钥；`MASTER_KEY` 缺失时 API 拒绝启动。
-2. 暗码明文只出现在：生成时的导出文件流中；DB 永远只有 argon2id 哈希；日志全链路禁止打印 serial 之外的敏感字段。
+2. 暗码明文只出现在：生成时的导出文件流中；DB 永远只有暗码哈希（HMAC-SHA256+pepper，ADR-007；原定 argon2id），pepper 由 MASTER_KEY 派生、永不入库；日志全链路禁止打印 serial 之外的敏感字段。
 3. 所有公开接口：Redis 滑动窗口限流 + 输入 zod/class-validator 校验 + 统一错误响应（不泄露内部信息）。
 4. SQL 全部经 Prisma 参数化；RLS 作为纵深防御第二层。
 5. WP 插件：nonce 校验所有 admin 动作、capability 检查（`manage_woocommerce`）、所有输出 escape、API Key 加密存储。

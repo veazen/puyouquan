@@ -201,7 +201,8 @@ path must resolve a serial across tenants.
 
 ## ADR-007: Scratch-code hashes are peppered HMAC-SHA256, not argon2id
 
-**Status**: accepted (Phase 1)
+**Status**: accepted (Phase 1); reviewed & amended (Batch R directive A4,
+2026-07-15)
 
 **Context**: §2.4 says scratch hashes are argon2id, but §8 Phase 1 requires
 generating 100k codes in <60s. Memory-hard hashing per code (≈20–50 ms each)
@@ -216,6 +217,25 @@ argon2id remains in use for user passwords (and `scratch.ts` keeps the
 argon2id implementation available should per-code cost ever be preferred
 over batch speed).
 
+**Amendment (Batch R A4)** — two additions on review:
+1. *Hot-path / DoS argument*: scratch verification sits on the public,
+   unauthenticated `POST /verify/:serial/scratch` (rate limit 10 req/min/IP).
+   argon2id at 19 MiB / ~20–50 ms per attempt would turn that endpoint into a
+   memory-exhaustion DoS vector and a standing latency tax against the §1.8
+   budget; the keyed HMAC keeps verification at microseconds with constant
+   memory. Slow hashes defend low-entropy secrets — a 60-bit random string
+   under a server-side pepper does not need one.
+2. *Pepper placement verified* (A4 硬性核查): the pepper is
+   `EnvelopeService.deriveKey('scratch-pepper')` — HMAC-SHA256 of a
+   domain-separation label under `MASTER_KEY`, which the API reads from the
+   environment at boot (`app-config.service.ts`, refuses to start without
+   it). The pepper exists only in process memory
+   (generation.worker.ts / verify.service.ts constructors); it is never
+   written to the database, storage, or logs, so a database dump alone cannot
+   recompute or verify scratch hashes. PROJECT_PLAN §2.4/§4/§5.1/§9 have been
+   calibrated to match this ADR (原定 argon2id，改为带 pepper 的
+   HMAC-SHA256).
+
 ## ADR-008: Storage behind an S3-shaped interface; local driver until Phase 4
 
 **Status**: accepted (Phase 1)
@@ -226,3 +246,39 @@ driver (`STORAGE_DIR`, default `.storage`); the S3/R2 driver replaces the
 internals in Phase 4 deployment work without changing call sites. Export
 CSVs (the only place scratch plaintext ever exists, §9.2) are written by the
 generation worker straight to storage — never to the database.
+
+## ADR-012: Consumer verification never degrades with billing state
+
+**Status**: accepted (Batch R directive A2, 2026-07-15)
+
+**Context**: P1 introduced `PlanGateService` (402 gates behind
+`BILLING_ENFORCEMENT`). Codes are printed on physical goods; the obligation
+to answer for them is permanent and outlives any subscription. "What happens
+to my printed codes if I stop paying?" is a question every serious brand
+asks before signing.
+
+**Invariant（不变量）**: `GET /verify/:serial` and
+`POST /verify/:serial/scratch` must keep working — returning the true code
+status and basic brand info, and allowing normal scratch redemption — no
+matter the tenant's billing state: past-due（欠费）, subscription cancelled
+（订阅取消）, expired / downgraded to free（降级 free）, or the WP plugin
+being uninstalled（插件卸载）. What degrades by plan is strictly the
+**brand-side** capability set: new batch generation, exports, dashboard
+analytics, alerts, webhooks, the API-key channel.
+
+**Rationale**: ① a consumer's code must never turn into a brick because the
+merchant fell behind on payment; ② no brand would stake its
+anti-counterfeiting on a system where non-payment bricks goods already in
+the market; ③ printed codes are a continuing traffic asset that keeps
+pulling consumers (and the brand) back to the platform.
+
+**Enforcement**: `PlanGateService` is wired in exactly five brand-side
+places (batches.service `checkBatchCreate`; webhooks.controller,
+misc.controllers serial-profiles, tenant.controller invites,
+codes.controller returns-suite `requireFeature`) and is never imported by
+the verify module. Locked by `apps/api/test/verify-billing-invariant.e2e-spec.ts`
+under `BILLING_ENFORCEMENT=on` (free / cancelled / expired tenants; the
+402-on-`POST /batches` control group proves the gates themselves work).
+The test's own effectiveness was proven red-green: with the gate temporarily
+attached to the verify path the suite fails; with it removed, it passes.
+Any future gate on the consumer path must fail this suite before review.
