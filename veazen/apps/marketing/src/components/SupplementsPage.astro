@@ -1,0 +1,185 @@
+---
+// B1 (DIRECTIVE_BATCH_R): /supplements industry landing page, shared by
+// /supplements (en) and /zh/supplements. Copy sourced from
+// docs/INDUSTRY_PLAYBOOKS_zh.md §3.1 (pains, seven-step flow, COA pitch).
+import Base from '../layouts/Base.astro';
+import SerialBar from './SerialBar.astro';
+import { getDict, localizedPath, type Locale } from '../i18n';
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = 'en' } = Astro.props;
+const t = getDict(locale);
+const path = localizedPath('/supplements', locale);
+const waitlistHref = `${localizedPath('/', locale)}#waitlist`;
+---
+
+<Base
+  title={t.meta.supplements.title}
+  description={t.meta.supplements.description}
+  path={path}
+  locale={locale}
+>
+  <main>
+    <section class="hero">
+      <p class="kicker">{t.supplements.kicker}</p>
+      <h1>{t.supplements.heading}</h1>
+      <p class="sub dim">{t.supplements.sub}</p>
+      <SerialBar locale={locale} />
+      <div class="hero-cta">
+        <a class="primary" href={waitlistHref}>{t.supplements.ctaButton}</a>
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">{t.supplements.painsKicker}</p>
+      <h2>{t.supplements.painsHeading}</h2>
+      <div class="pains">
+        {
+          t.supplements.pains.map((pain) => (
+            <div class="card">
+              <h3>{pain.title}</h3>
+              <p class="dim">{pain.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">{t.supplements.coaKicker}</p>
+      <h2>{t.supplements.coaHeading}</h2>
+      <div class="coa card">
+        <p class="dim">{t.supplements.coaBody}</p>
+        <p class="highlight">{t.supplements.coaHighlight}</p>
+      </div>
+    </section>
+
+    <section>
+      <p class="kicker">{t.supplements.flowKicker}</p>
+      <h2>{t.supplements.flowHeading}</h2>
+      <ol class="flow">
+        {
+          t.supplements.flowSteps.map((step, i) => (
+            <li class="card">
+              <p class="step-n">{String(i + 1).padStart(2, '0')}</p>
+              <p class="dim">{step}</p>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="flow-note dim">{t.supplements.flowNote}</p>
+    </section>
+
+    <section class="cta-block">
+      <p class="kicker">{t.supplements.ctaKicker}</p>
+      <h2>{t.supplements.ctaHeading}</h2>
+      <p class="dim">{t.supplements.ctaBody}</p>
+      <a class="primary" href={waitlistHref}>{t.supplements.ctaButton}</a>
+    </section>
+  </main>
+</Base>
+
+<style>
+  .hero {
+    padding-top: 3rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.4rem;
+  }
+  .hero h1 {
+    font-size: clamp(1.9rem, 5vw, 3rem);
+    max-width: 46rem;
+  }
+  .hero .sub {
+    max-width: 40rem;
+  }
+  .hero-cta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .primary {
+    background: var(--color-jade);
+    color: var(--color-basalt);
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 0.8rem 1.4rem;
+    display: inline-block;
+  }
+  .primary:hover {
+    background: var(--color-jade-deep);
+  }
+  h2 {
+    margin-top: 0.4rem;
+    font-size: 1.7rem;
+  }
+  .pains {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  .card h3 {
+    margin: 0.2rem 0 0.5rem;
+    font-size: 1.1rem;
+  }
+  .card p {
+    font-size: 0.9rem;
+  }
+  .coa {
+    margin-top: 1.4rem;
+  }
+  .coa .highlight {
+    margin-top: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-jade);
+    border-left: 2px solid var(--color-jade);
+    padding-left: 0.9rem;
+  }
+  .flow {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  .step-n {
+    font-family: var(--font-mono);
+    color: var(--color-jade);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.4rem;
+  }
+  .flow-note {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+  .cta-block {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    border: 1px solid var(--color-etch);
+    background: var(--color-basalt-deep);
+    border-radius: 8px;
+    padding: 2.5rem 1.5rem;
+  }
+  .cta-block p.dim {
+    max-width: 34rem;
+  }
+  @media (max-width: 720px) {
+    .pains,
+    .flow {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

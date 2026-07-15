@@ -21,6 +21,7 @@ export interface Dict {
     home: { title: string; description: string };
     features: { title: string; description: string };
     pricing: { title: string; description: string };
+    supplements: { title: string; description: string };
   };
   nav: {
     features: string;
@@ -90,5 +91,26 @@ export interface Dict {
     introLink: string;
     introAfter: string;
     tiers: Tier[];
+  };
+  /** B1: /supplements industry landing page (INDUSTRY_PLAYBOOKS §3.1). */
+  supplements: {
+    kicker: string;
+    heading: string;
+    sub: string;
+    painsKicker: string;
+    painsHeading: string;
+    pains: TitledItem[];
+    coaKicker: string;
+    coaHeading: string;
+    coaBody: string;
+    coaHighlight: string;
+    flowKicker: string;
+    flowHeading: string;
+    flowSteps: string[];
+    flowNote: string;
+    ctaKicker: string;
+    ctaHeading: string;
+    ctaBody: string;
+    ctaButton: string;
   };
 }

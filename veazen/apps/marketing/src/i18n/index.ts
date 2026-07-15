@@ -17,7 +17,7 @@ export function getDict(locale: Locale): Dict {
  * Logical (locale-less) paths that have a Simplified Chinese version.
  * Legal pages (/privacy, /terms) are intentionally English-only for now.
  */
-export const ZH_BASE_PATHS: readonly string[] = ['/', '/features', '/pricing'];
+export const ZH_BASE_PATHS: readonly string[] = ['/', '/features', '/pricing', '/supplements'];
 
 /** Map a logical path to its /zh/ equivalent ('/' → '/zh/'). */
 export function zhPath(basePath: string): string {

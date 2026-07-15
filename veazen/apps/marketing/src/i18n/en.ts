@@ -18,6 +18,11 @@ export const en: Dict = {
       description:
         'Anti-counterfeit verification plans from free self-print labels to fully white-labeled enterprise deployments.',
     },
+    supplements: {
+      title: 'For supplement brands — Veazen',
+      description:
+        'Put your COA inside the scan. Lot, expiry and the third-party lab report on every bottle — anti-counterfeit verification built for DTC supplement brands.',
+    },
   },
   nav: {
     features: 'Features',
@@ -194,5 +199,46 @@ export const en: Dict = {
         ],
       },
     ],
+  },
+  supplements: {
+    kicker: 'For supplement brands',
+    heading: 'Your COA is your best salesperson. Stop hiding it in a PDF link.',
+    sub: 'Every bottle gets a cryptographically signed QR. One scan shows genuine-product status, the batch lot and expiry, and the third-party lab report for that exact batch. Trust is the selling point — anti-counterfeiting comes free.',
+    painsKicker: 'The problems',
+    painsHeading: 'Three things every DTC supplement brand fights',
+    pains: [
+      {
+        title: 'Amazon co-mingling',
+        body: "Your genuine stock and someone else's counterfeit can share the same FBA bin — and the returns and one-star reviews land on your listing. Per-bottle codes make every unit provable, and give you evidence-grade scan logs to fight back with.",
+      },
+      {
+        title: 'Ingredient skepticism',
+        body: "Supplement buyers doubt what's inside the capsule — the industry earned that. A third-party Certificate of Analysis behind every scan answers the question before it's asked.",
+      },
+      {
+        title: 'Lot, expiry & recall discipline',
+        body: 'Batch records and expiry management are the regulatory baseline (21 CFR 111). Veazen binds lot number, dates and COA to every code, so a recall becomes a filter query — not a fire drill.',
+      },
+    ],
+    coaKicker: 'The COA module',
+    coaHeading: 'Put the lab report inside the scan',
+    coaBody: 'Right now your COA sits behind a PDF link nobody opens. Move it to the verify page instead: the first thing a customer does with a new bottle is scan it — and they see authenticity, lot, expiry and the lab report for that exact batch on one screen. Verification is the feature; trust is the product.',
+    coaHighlight: 'Scan → genuine ✓ → lot & expiry → third-party COA. One screen, every bottle.',
+    flowKicker: 'How it works',
+    flowHeading: 'From sign-up to verified bottles in seven steps',
+    flowSteps: [
+      'Create the product and upload its COA in the console or the WooCommerce plugin.',
+      'Request a code batch bound to the lot number, manufacture date and expiry.',
+      'Print the QR labels — Avery sheets at home, or a label roll from your print shop.',
+      'Stick the label as you bottle or as you ship; Lite codes activate on generation.',
+      'Ship DTC with order binding, or send stock onward to your 3PL / FBA.',
+      'Customers scan: green status, batch info — and the COA one tap away.',
+      'Scan data flows back: locations, duplicate alerts and gray-market signals.',
+    ],
+    flowNote: 'Lite mode (self-printed labels): about 30 minutes from sign-up to the first scannable bottle — COA upload included.',
+    ctaKicker: 'Early access',
+    ctaHeading: 'Put your next batch on Veazen',
+    ctaBody: "We're onboarding a first cohort of supplement and functional-food brands. Join the waitlist and we'll reserve your spot.",
+    ctaButton: 'Join the waitlist',
   },
 };
