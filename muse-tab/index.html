@@ -533,7 +533,12 @@ body.stand #standbar{display:flex}
   border-radius:7px;background:var(--panel);border:1px solid var(--border-soft);font-size:14px;line-height:1}
 .sf-prev .n.empty{color:var(--muted);opacity:.45;font-size:11px}
 .sf-prev .n.cont{background:transparent;border-style:dashed;opacity:.5;font-size:11px}
+.sf-prev .n.before{opacity:.4}
+.sf-prev .n.start{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent-soft)}
+.sf-prev .n.pick{cursor:pointer}
+.sf-prev .n.pick:hover{border-color:var(--accent);background:var(--accent-soft)}
 .sf-prev .none{color:var(--muted);font-size:12px}
+.sf-prev-tip{font-size:11px;color:var(--muted);margin:2px 0 0}
 /* ================= 响应式断点（桌面 ≥1200 保持原样） ================= */
 /* 平板：收起右侧信息栏，谱面占满可用宽度 */
 @media (max-width:1200px){
@@ -2229,7 +2234,7 @@ function render(){
         p.push(`<text x="${ox-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
       /* 多段歌词：每段起始处显示段序号，点击选中该段编辑 */
       if(song.lyricLines>1) for(let li=0; li<song.lyricLines; li++){
-        const yy=oy+M.lyricY0[vi]+li*20, on=(li===activeLyr);
+        const yy=oy+M.lyricY0[vi]+li*20, on=(!blurSel && li===activeLyr);   // 点空白隐藏光标时段序号也不高亮
         p.push(`<text x="${ox-14}" y="${yy}" font-size="11" text-anchor="middle" font-weight="${on?'700':'400'}" fill="${on?'var(--accent)':'var(--muted)'}" data-lyrsel="${li}" style="cursor:pointer">${li+1}</text>`);
         p.push(`<rect x="${ox-23}" y="${yy-13}" width="18" height="19" rx="4" fill="${on?'var(--accent)':'transparent'}" fill-opacity="${on?0.1:0}" data-lyrsel="${li}" style="cursor:pointer"><title>第${li+1}段歌词 · 点击选中该段编辑</title></rect>`);
       }
@@ -4858,36 +4863,58 @@ document.getElementById('b-fill').onclick = ()=>{
     start:document.querySelector('input[name=sf-start]:checked').value,
     phrase:document.getElementById('sf-phrase').checked
   });
-  const startPos=(o)=> o.start==='cursor' ? {mi:sel.mi||0, ci:sel.ci||0} : {mi:0,ci:0};
+  let startAt = {mi:0, ci:0};            // 填词起点（默认从头）
   const renderPreview=()=>{
-    const o=getOpts(); const sp=startPos(o);
-    const slots=smartSlots(vi, sp.mi, sp.ci);
+    const phrase=getOpts().phrase;
+    const all=smartSlots(vi, 0, 0);      // 从头收集所有槽，预览始终完整可点选起点
+    let startIdx=all.findIndex(s=> s.mi>startAt.mi || (s.mi===startAt.mi && s.ci>=startAt.ci));
+    if(startIdx<0) startIdx=all.length;
+    const fillSlots=all.slice(startIdx);
     const tokens=smartTokenize(ta.value);
-    const vals=smartCompute(slots, tokens, o.phrase);
-    const fillN=slots.filter(s=>s.kind==='fill').length;
+    const vals=smartCompute(fillSlots, tokens, phrase);
+    const fillN=fillSlots.filter(s=>s.kind==='fill').length;
     const sylN=tokens.filter(t=>t.t==='syl'||t.t==='skip').length;
     const st=document.getElementById('sf-stat');
     const diff = sylN-fillN;
     st.className='sf-stat '+(sylN===0?'':(diff===0?'ok':'warn'));
-    st.innerHTML= sylN===0 ? '可唱音 <b>'+fillN+'</b> 个，输入歌词后显示对齐预览'
-      : '可唱音 <b>'+fillN+'</b> 个 · 歌词 <b>'+sylN+'</b> 字 · '+
+    st.innerHTML= sylN===0 ? '起点后可唱音 <b>'+fillN+'</b> 个，输入歌词后显示对齐预览'
+      : '起点后可唱音 <b>'+fillN+'</b> 个 · 歌词 <b>'+sylN+'</b> 字 · '+
         (diff===0?'<b>正好对齐 ✓</b>':(diff>0?('歌词多 <b>'+diff+'</b> 字（多出的将忽略）'):('还差 <b>'+(-diff)+'</b> 字（末尾音留空）')));
-    // 预览：按小节分组渲染 fill 槽（cont 用虚框占位）
     const prev=document.getElementById('sf-prev');
-    if(!slots.length){ prev.innerHTML='<span class="none">此声部还没有可填词的音符。</span>'; return; }
+    if(!all.length){ prev.innerHTML='<span class="none">此声部还没有可填词的音符。</span>'; return; }
     const byM={}; const order=[];
-    slots.forEach((s,idx)=>{ if(!byM[s.mi]){byM[s.mi]=[];order.push(s.mi);} byM[s.mi].push({s,v:vals[idx]}); });
+    all.forEach((s,idx)=>{ if(!byM[s.mi]){byM[s.mi]=[];order.push(s.mi);} byM[s.mi].push({s,idx}); });
     prev.innerHTML=order.map(mi=>{
-      const cells=byM[mi].map(({s,v})=>{
+      const cells=byM[mi].map(({s,idx})=>{
+        const pickAttr = s.kind==='fill' ? ' data-slot="'+s.mi+':'+s.ci+'" ' : '';
+        const pick = s.kind==='fill' ? ' pick' : '';
         if(s.kind==='cont') return '<span class="n cont" title="连音延续">～</span>';
-        if(v==null||v==='') return '<span class="n empty" title="留空">·</span>';
-        return '<span class="n">'+esc(v)+'</span>';
+        if(idx<startIdx){   // 起点之前：灰显既有歌词，可点设为起点
+          const cur=(s.col.lyrics&&s.col.lyrics[activeLyr])||'';
+          return '<span class="n before'+pick+'"'+pickAttr+'title="起点前（保留原词）· 点此设为起点">'+(cur?esc(cur):'·')+'</span>';
+        }
+        const v=vals[idx-startIdx];
+        const startCls = idx===startIdx? ' start':'';
+        const title = (idx===startIdx?'起点 · ':'')+'点此设为起点';
+        if(v==null||v==='') return '<span class="n empty'+pick+startCls+'"'+pickAttr+'title="'+title+'">·</span>';
+        return '<span class="n'+pick+startCls+'"'+pickAttr+'title="'+title+'">'+esc(v)+'</span>';
       }).join('');
       return '<span class="m"><span class="mi">'+(mi+1)+'</span>'+cells+'</span>';
     }).join('');
   };
   ta.addEventListener('input', renderPreview);
-  document.querySelectorAll('input[name=sf-start]').forEach(r=>r.addEventListener('change', renderPreview));
+  document.querySelectorAll('input[name=sf-start]').forEach(r=>r.addEventListener('change', ()=>{
+    startAt = r.value==='cursor' ? {mi:sel.mi||0, ci:sel.ci||0} : {mi:0,ci:0};
+    renderPreview();
+  }));
+  /* 点预览里的音符 → 设为起点（自动切到「从当前音符」） */
+  document.getElementById('sf-prev').addEventListener('click', ev=>{
+    const c=ev.target.closest('[data-slot]'); if(!c) return;
+    const [mi,ci]=c.dataset.slot.split(':').map(Number);
+    startAt={mi,ci};
+    const cr=document.querySelector('input[name=sf-start][value="cursor"]'); if(cr) cr.checked=true;
+    renderPreview();
+  });
   document.getElementById('sf-phrase').addEventListener('change', renderPreview);
   /* 顶部段落切换：改当前编辑段，重载该段已填歌词并刷新预览 */
   const segs=document.getElementById('sf-segs');
@@ -4902,12 +4929,11 @@ document.getElementById('b-fill').onclick = ()=>{
   ta.focus();
   document.getElementById('fill-cancel').onclick = closeModal;
   document.getElementById('fill-ok').onclick = ()=>{
-    const o=getOpts(); const sp=startPos(o);
-    const text=ta.value;
+    const text=ta.value, phrase=getOpts().phrase, st={mi:startAt.mi, ci:startAt.ci};   // 关闭前读取选项
     if(!text.trim()){ closeModal(); return; }
     closeModal();
-    const slots=smartSlots(vi, sp.mi, sp.ci);
-    const vals=smartCompute(slots, smartTokenize(text), o.phrase);
+    const slots=smartSlots(vi, st.mi, st.ci);
+    const vals=smartCompute(slots, smartTokenize(text), phrase);
     mutate(()=>{
       slots.forEach((s,idx)=>{
         if(s.kind==='cont'){ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[activeLyr]=''; return; }
@@ -6889,6 +6915,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v34.92</span><div>歌词编辑细化：① 点谱面空白处隐藏光标时，段序号高亮也一并消失；② 智能填词的对齐预览升级为<b>可点选起点</b>——预览显示全部可唱音，点任一音即设为填词起点（自动切「从当前音符」、起点高亮、起点前的音灰显保留原词），一眼定位从哪里开始填。</div></li>
     <li><span class="v">v34.91</span><div>歌词编辑体验：① 点击谱面空白处即可隐藏光标、清除选区；② 智能填词弹窗顶部新增<b>段落切换</b>（多段歌词时），一键切换要编辑的段并自动预载该段已填歌词，切换与填入互不影响其他段。</div></li>
     <li><span class="v">v34.90</span><div>多段歌词与标点排版：① 多段歌词时每段起始显示<b>段序号</b>（当前段高亮），点序号即可选中该段编辑；② 智能填词打开时<b>预载当前段已填歌词</b>，不丢失、可直接续填/修改；③ 歌词<b>标点旁挂</b>——正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐。</div></li>
     <li><span class="v">v34.89</span><div>修复：智能填词现在正确跳过<b>所有</b>连音线延续音——此前只跳过同音高的延音线，而连音线（圆滑线）常连接不同音高的音（一字多音的旋律），这些延续音之前会错误占字导致整段错位；现只要前一个音带连音线，其后的音一律不占字。</div></li>
