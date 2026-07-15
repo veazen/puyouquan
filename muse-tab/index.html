@@ -924,7 +924,6 @@ body.stand #standbar{display:flex}
   <a class="fl" id="f-terms">用户协议</a><span class="sep">·</span>
   <a class="fl" id="f-privacy">隐私政策</a><span class="sep">·</span>
   <a class="fl" id="f-help2">使用帮助</a><span class="sep">·</span>
-  <a class="fl" id="f-docs">帮助文档</a><span class="sep">·</span>
   <a class="beian" id="f-beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">备案号：申请中</a>
   <div class="cr">© 2026 谱友圈 puyouquan.com · 在线制谱工具</div>
 </footer>
@@ -4901,8 +4900,11 @@ if(_bAutofix) _bAutofix.onclick = ()=>{
 document.getElementById('i-lyric').addEventListener('input', e=>{
   if(sel.row!=='vox') return;
   const col=curCol(); if(!col) return;
+  const v = e.target.value;
+  /* 输入了词但当前段不存在（如功能谱默认 0 段）→ 自动补足歌词段，否则内容存进去却不显示 */
+  if(v.trim() && activeLyr>=song.lyricLines) song.lyricLines = activeLyr+1;
   col.lyrics = col.lyrics||[];
-  col.lyrics[activeLyr] = e.target.value;
+  col.lyrics[activeLyr] = v;
   persist(); render(); e.target.focus();
 });
 document.getElementById('i-lyric').addEventListener('keydown', e=>{
@@ -6259,7 +6261,7 @@ function showNewForm(type){
   ${!noTab? `<label class="f"><span>变调夹</span>${sels('nw-capo',[0,1,2,3,4,5,6,7],0)}<span style="width:auto">品（0＝不用，页头显示）</span></label>
   <label class="f"><span>${instLabel}声部</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
   <label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>
-  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],type==='func'?0:1)}</label>
+  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],1)}</label>
   ${type==='func'? `<p>功能谱：选中简谱音符后，左侧「简谱」面板点「和弦/级数」——级数为主构建（级数×类型扩展×转位低音），支持自定义后缀与调外和弦；谱面级数/音名一键切换，点击标注可再次编辑。</p>` : ''}
   <div class="btns"><button id="nw-back">← 返回选类型</button><button id="nw-create" class="primary">创建曲谱</button></div>`);
   document.getElementById('nw-back').onclick = showNewWizard;
@@ -7337,6 +7339,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.2</span><div>两处修复：① <b>功能谱输入歌词不显示</b>——功能谱默认 0 段歌词，输入的词存进去却因"段数为 0"不渲染；现在<b>输入歌词自动补足歌词段</b>并即时显示，新建功能谱默认也带 1 段歌词；② 页脚「使用帮助」与「帮助文档」<b>去重</b>（二者已指向同一站内帮助），仅保留「使用帮助」。</div></li>
     <li><span class="v">v35.1</span><div>帮助与特色功能升级：① 修复页脚<b>「帮助文档」点击无内容</b>——改为直接打开站内使用帮助（独立 docs 站未部署时也能展示）；② <b>使用帮助 / 特色功能内容同步刷新</b>，补齐排版面板（基准纸张/智能排版/手动微调）、内容驱动版式、打印预览（竖排/横排/网格）等最新能力；③ 两个弹窗<b>视觉升级</b>——品牌 Hero、图标分区、卡片式条目与发丝分隔、悬浮微交互，深浅色自适配。</div></li>
     <li><span class="v">v35.0</span><div>排版引擎升级为<b>出版谱式内容驱动宽度</b>（参照 Gourlay 对数间距 / MuseScore 惯例）：① 小节宽度由内容疏密决定——一拍一个四分音符的小节明显<b>窄于</b>每拍两个八分音符的小节，二分/全音符小节更窄，不再统一宽度；② 打破"每行最少 2 小节 / 小节最宽 2/3 行"的旧限制——<b>换行完全按内容宽度自由适配</b>：稀疏行可容纳更多小节（省纸），极密集小节可<b>独占一行</b>从容展开（仅当单小节超过整行才压缩）；③ 各行仍两端对齐、右缘整齐，密集小节按权重多得空间、疏密有致；④ 修正跨拍长音的点击热区溢出到邻小节的问题。</div></li>
     <li><span class="v">v34.99</span><div>排版面板文案与交互微调：① 分区标题精简去括号——「① 基准纸张 / ② 智能排版 / ③ 手动微调」；②「字号·内容大小」更名为<b>整体缩放</b>；③ 手动微调的百分比数字<b>点击即可输入精确数值</b>（整体缩放 / 行距 / 间距，回车确认、Esc 取消）。</div></li>
@@ -7502,7 +7505,6 @@ function showPrivacy(){
   bind('f-terms', showTerms);
   bind('f-privacy', showPrivacy);
   bind('f-help2', ()=>document.getElementById('b-help').click());
-  bind('f-docs',  ()=>document.getElementById('b-help').click());   // 帮助文档 → 站内使用帮助（独立 docs 站未部署时也能展示）
 }
 
 /* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
