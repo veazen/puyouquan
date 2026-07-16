@@ -38,10 +38,16 @@
   --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
   --danger:#ff453a; --ok:#30d158;
   --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
+/* 与官网统一的品牌渐变（site/pyq.css 同源）：主按钮/品牌标/选中态共用 */
+:root{--grad-2:#6d5cff;--grad-3:#b45cff;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--grad-2:#8b7bff;--grad-3:#c47bff} }
+:root[data-theme="dark"]{--grad-2:#8b7bff;--grad-3:#c47bff}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
-  -webkit-font-smoothing:antialiased;padding-bottom:78px;}
+  -webkit-font-smoothing:antialiased;padding-bottom:78px;
+  background-image:radial-gradient(900px 360px at 50% -150px, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%)}
 /* ================= 顶部工具栏 ================= */
 #top{position:sticky;top:0;z-index:20;background:var(--glass);
   border-bottom:1px solid var(--border-soft);
@@ -65,8 +71,14 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .main-bar{gap:7px}
 .logo{font-weight:700;font-size:16.5px;margin-right:12px;white-space:nowrap;
   display:flex;align-items:center;gap:8px;letter-spacing:.04em}
-.logo .mark{width:25px;height:25px;border-radius:8px;display:inline-flex;align-items:center;
-  justify-content:center;background:var(--text);color:var(--panel);font-size:14px}
+/* 品牌标：渐变谱线 mark（与官网一致；页头与谱友圈顶栏共用） */
+.logo .mark,.cc-logo .mark{width:27px;height:27px;border-radius:8.5px;position:relative;flex:none;display:inline-block;
+  background:var(--grad);box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 38%, transparent)}
+.logo .mark::before,.cc-logo .mark::before{content:"";position:absolute;inset:7px 5px;background:
+  linear-gradient(#fff,#fff) 0 1.5px/100% 1.4px no-repeat,
+  linear-gradient(#fff,#fff) 0 6.5px/100% 1.4px no-repeat,
+  linear-gradient(#fff,#fff) 0 11.5px/100% 1.4px no-repeat;opacity:.95}
+.logo .mark::after,.cc-logo .mark::after{content:"";position:absolute;right:7px;top:6px;width:5.5px;height:5.5px;border-radius:50%;background:#fff}
 .logo small{color:var(--muted);font-weight:400;font-size:11px;letter-spacing:.08em;margin-left:1px}
 .vsep{width:1px;align-self:stretch;background:var(--border);margin:3px 4px}
 .grow{flex:1}
@@ -78,15 +90,16 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .seg button:last-child{border-right:none}
 .seg button:hover{background:var(--hover)}
 .seg button.seg-accent{color:var(--accent-ink);font-weight:600}
-.seg button.seg-accent:hover{background:var(--accent);color:#fff}
+.seg button.seg-accent:hover{background:var(--grad);color:#fff}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
   font-family:var(--font-ui);transition:border-color .15s, background .15s, color .15s, box-shadow .15s;}
 button:hover{background:var(--hover)}
 button:active{transform:scale(.985)}
-button.primary{background:var(--accent);border-color:transparent;border-radius:980px;
-  padding:5px 15px;font-weight:500;color:#fff;box-shadow:0 1px 2.5px rgba(0,0,0,.14)}
-button.primary:hover{background:var(--accent-2);color:#fff}
+button.primary{background:var(--grad);border-color:transparent;border-radius:980px;
+  padding:5px 15px;font-weight:600;color:#fff;
+  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent)}
+button.primary:hover{background:var(--grad);color:#fff;filter:brightness(1.07);transform:translateY(-1px)}
 button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.ghost{border-color:transparent;background:transparent}
 button.ghost:hover{background:var(--accent-soft)}
@@ -191,14 +204,18 @@ input.short{width:54px} input.mid{width:150px}
 .popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
 /* 曲谱库 */
-.lib-tabs{display:flex;gap:6px;margin:2px 0 12px;border-bottom:1px solid var(--border);padding-bottom:8px}
-.lib-tab{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:500}
-.lib-tab.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
-.song-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.song-card{border:1px solid var(--border-soft);border-radius:13px;padding:13px 14px;background:var(--panel);
+.lib-tabs{display:flex;gap:6px;margin:2px 0 14px;border-bottom:1px solid var(--border-soft);padding-bottom:10px}
+.lib-tab{background:transparent;border:1px solid transparent;color:var(--muted);font-weight:500;border-radius:980px;padding:6px 15px}
+.lib-tab.on{background:var(--grad);border-color:transparent;color:#fff;font-weight:700;
+  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 28%, transparent)}
+.song-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.song-card{position:relative;overflow:hidden;border:1px solid var(--border-soft);border-radius:15px;padding:15px 16px;background:var(--panel);
   box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:6px;
-  transition:box-shadow .15s,transform .15s}
-.song-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.10);transform:translateY(-1px)}
+  transition:box-shadow .2s,transform .18s,border-color .18s}
+.song-card::before{content:"";position:absolute;inset:0 0 auto;height:2.5px;background:var(--grad);opacity:0;transition:opacity .2s}
+.song-card:hover{box-shadow:0 10px 26px rgba(0,0,0,.12);transform:translateY(-3px);
+  border-color:color-mix(in srgb, var(--accent) 26%, var(--border-soft))}
+.song-card:hover::before{opacity:1}
 .sc-title{font-weight:700;font-size:14px}
 .sc-cur{font-size:10.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 7px;border-radius:10px;font-weight:600;margin-left:4px}
 .sc-desc{font-size:11.5px;color:var(--muted);line-height:1.5;flex:1}
@@ -349,13 +366,16 @@ svg text{user-select:none}
 #circle{position:fixed;inset:0;z-index:60;background:var(--bg,#eef0f6);overflow-y:auto}
 .cc-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:12px 26px;
   background:var(--panel);border-bottom:1px solid var(--border)}
-.cc-top .cc-logo{font-weight:800;font-size:17px;letter-spacing:2px}
+.cc-top .cc-logo{font-weight:800;font-size:17px;letter-spacing:2px;display:flex;align-items:center;gap:9px}
 .cc-top .cc-sub{font-size:11.5px;color:var(--muted)}
 .cc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;
   max-width:1080px;margin:22px auto;padding:0 26px}
 .cc-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:16px;padding:16px 17px;
-  cursor:pointer;transition:box-shadow .18s,transform .18s;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.cc-card:hover{box-shadow:0 10px 28px rgba(0,0,0,.12);transform:translateY(-2px)}
+  cursor:pointer;transition:box-shadow .2s,transform .18s,border-color .18s;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.cc-card::after{content:"";position:absolute;inset:0 0 auto;height:2.5px;background:var(--grad);opacity:0;transition:opacity .2s}
+.cc-card:hover{box-shadow:0 12px 30px rgba(0,0,0,.13);transform:translateY(-3px);
+  border-color:color-mix(in srgb, var(--accent) 26%, var(--border-soft))}
+.cc-card:hover::after{opacity:1}
 .cc-card .t{font-size:15px;font-weight:700;margin-bottom:4px;color:var(--ink)}
 .cc-card .a{font-size:11.5px;color:var(--muted);margin-bottom:8px}
 .cc-card .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
@@ -369,7 +389,8 @@ svg text{user-select:none}
 .cc-search::before{content:'🔍';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
 .cc-chip{border:1px solid var(--border);background:var(--panel);border-radius:980px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--muted)}
 .cc-chip:hover{background:var(--hover)}
-.cc-chip.on{background:var(--text);color:var(--panel);border-color:transparent}
+.cc-chip.on{background:var(--grad);color:#fff;border-color:transparent;font-weight:600;
+  box-shadow:0 4px 12px color-mix(in srgb, var(--accent) 26%, transparent)}
 .cc-chip.fav.on{background:#e0395a;color:#fff}
 .cc-count{font-size:11.5px;color:var(--muted);margin-left:auto}
 /* 卡片收藏心 */
@@ -445,10 +466,12 @@ body.stand #standbar{display:flex}
 .fb-c.on.x{background:var(--muted);border-color:var(--muted)}
 /* 新建向导·类型卡片（大气现代，无图标） */
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
-.ntcard{position:relative;min-width:0;white-space:normal;border:1.5px solid var(--border);border-radius:14px;
-  padding:20px 18px 17px;background:var(--paper);cursor:pointer;text-align:left;font:inherit;
-  transition:border-color .15s,box-shadow .15s,transform .15s}
-.ntcard:hover{border-color:var(--accent);box-shadow:0 10px 26px rgba(0,0,0,.10);transform:translateY(-2px)}
+.ntcard{position:relative;min-width:0;white-space:normal;border:1.5px solid var(--border);border-radius:15px;
+  padding:20px 18px 17px;background:var(--paper);cursor:pointer;text-align:left;font:inherit;overflow:hidden;
+  transition:border-color .18s,box-shadow .2s,transform .18s}
+.ntcard::before{content:"";position:absolute;inset:0 0 auto;height:2.5px;background:var(--grad);opacity:0;transition:opacity .2s}
+.ntcard:hover{border-color:color-mix(in srgb, var(--accent) 45%, var(--border));box-shadow:0 12px 30px rgba(0,0,0,.12);transform:translateY(-3px)}
+.ntcard:hover::before{opacity:1}
 .ntcard b{display:block;font-size:16.5px;letter-spacing:2px;margin-bottom:7px;color:var(--ink);padding-right:64px}
 .ntcard span{font-size:12.5px;color:var(--muted);line-height:1.7;display:block;word-break:break-word}
 .ntcard .nt-tag{position:absolute;top:19px;right:15px;font-size:10.5px;color:var(--accent);
@@ -707,7 +730,7 @@ body.stand #standbar{display:flex}
 <body>
 <header id="top">
   <div class="bar main-bar">
-    <span class="logo"><span class="mark">🎸</span>谱友圈 <small>在线制谱</small></span>
+    <span class="logo"><span class="mark"></span>谱友圈 <small>在线制谱</small></span>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
       <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
@@ -6756,7 +6779,7 @@ function openCircle(){
   div=document.createElement('div'); div.id='circle';
   const notice=(adminCfg().notice||'').trim();
   div.innerHTML=`<div class="cc-top">
-      <span class="cc-logo">🎸 谱友圈</span>
+      <span class="cc-logo"><span class="mark"></span>谱友圈</span>
       <span class="cc-sub">发现好谱 · 支持创作者 &nbsp;|&nbsp; 创作者可在「个人中心 → 创作者中心」发布曲谱</span>
       <span style="flex:1"></span>
       <button id="cc-back" class="primary">返回制谱器</button>
@@ -7418,6 +7441,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v35.9</span><div>制谱器与曲谱库<b>视觉对齐官网</b>：① 品牌标换为官网同款<b>渐变谱线 mark</b>（页头与谱友圈顶栏统一）；② 主按钮（播放/打开/创建等）与选中态换品牌渐变胶囊；③ 曲谱库标签、新建向导卡片、我的曲谱卡片、谱友圈卡片统一为渐变顶条 + 上浮悬停；④ 页面顶部加入品牌径向光晕，深浅主题同步适配。</div></li>
     <li><span class="v">v35.8</span><div>中文歌词字号提到<b>出版级</b>：正文 14→<b>15.5</b>（约 11.6pt，与简谱数字光学等大、落在主流歌本档位），旁挂标点 12→13；同步把歌词刚杆 17→18.5、多段行距 20→21、点击/选中热区与首行偏移一并放大，密集逐字段仍不贴字、跨声部对齐不变。</div></li>
     <li><span class="v">v35.7</span><div>修正简谱<b>高音点几乎贴住数字</b>的问题：高音点原先硬编码在距数字基线 14px 处，而 16.5px 数字的字顶就在 12px——间隙仅约 0.3px；低音点距字底却有 4px。现高音点上移至与低音点<b>光学对称</b>（距字顶≈4px），并同步上调该情形的行上方预留空间与波音/颤音记号的避让位置。</div></li>
     <li><span class="v">v35.6</span><div>修复 <b>32 分/三连音逐字带词时歌词重叠</b>：拍内定位由"纯时值比例"升级为<b>弹簧-刚杆映射</b>（LilyPond 思路）——相邻音列间距有余量时按时值比例（弹簧），但不小于各列的最小刚性宽（刚杆：带词列=字宽 17、简谱数字列 12、吉他列 13、和弦框/倚音更宽）；刚杆之和超过拍宽时该拍自动加宽。所有声部共用同一映射，拍内跨声部依然严格对齐；普通谱面排版几乎不变。</div></li>
