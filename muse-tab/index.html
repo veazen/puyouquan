@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜功能谱</title>
+<title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
 :root{
@@ -858,6 +858,13 @@ body.stand #standbar{display:flex}
       <div class="rg-title">旋律声部</div>
       <div class="rg-body" id="vox-voices"></div>
     </div>
+    <div class="rg panel-p" id="panel-vox-notation">
+      <div class="rg-body">
+        <button id="vn-jp" title="当前声部以简谱显示">简谱</button>
+        <button id="vn-st" title="当前声部以五线谱显示（同一数据、可随时切回）">五线谱</button>
+      </div>
+      <div class="rg-title">记谱法 · 当前声部</div>
+    </div>
     <div class="rg panel-p" id="panel-vox-mark">
       <div class="rg-title">音符记号</div>
       <div class="rg-body">
@@ -1606,6 +1613,43 @@ function migrate(s){
 
 /* ================= 乐理 ================= */
 function keyRef(){ let r = 60 + (KEY_PC[song.key]||0); if(r>66) r-=12; return r; }
+/* ================= 五线谱（staff）音高与调号 =================
+   简谱数据 {deg,acc,oct} 即"相对调号的完整音高"，五线谱是同一数据的另一种记谱视图。 */
+const KEYSIG = {C:0,G:1,D:2,A:3,E:4,B:5,'F#':6,'C#':7,F:-1,Bb:-2,Eb:-3,Ab:-4,Db:-5,Gb:-6};
+const L_NAT = [0,2,4,5,7,9,11];                      // C D E F G A B 的自然半音
+const SIG_SH = [3,0,4,1,5,2,6];                      // 升号次序 F C G D A E B（字母下标）
+const SIG_FL = [6,2,5,1,4,0,3];                      // 降号次序 B E A D G C F
+/* 高音谱表：底线 E4。绝对音级 step = 八度序×7 + 字母下标（C4 → 5*7+0=35，E4=37，F5=45） */
+function staffKeyInfo(){
+  const k = song.key||'C';
+  const Li = 'CDEFGAB'.indexOf(k[0]);
+  const tAcc = k.includes('#')? 1 : (k.length>1&&k[1]==='b')? -1 : 0;
+  const r = keyRef();
+  const O = Math.round((r - L_NAT[Li] - tAcc)/12);
+  const sig = KEYSIG[k]!=null? KEYSIG[k] : 0;
+  const alt = {};                                     // 字母下标 → 调号升降(±1)
+  for(let i=0;i<Math.abs(sig);i++) alt[(sig>0?SIG_SH:SIG_FL)[i]] = sig>0?1:-1;
+  return {step0:O*7+Li, Li, sig, alt};
+}
+function staffStep(col, K){ return K.step0 + (col.deg-1) + (col.oct||0)*7; }
+/* 音符显式临时记号（相对调号）：col.acc 为空则被调号覆盖、不画 */
+function staffAccSym(col, K){
+  const av = col.acc==='#'?1 : col.acc==='b'?-1 : 0;
+  if(!av) return '';
+  const ln = (K.Li + col.deg - 1) % 7;
+  const shown = (K.alt[ln]||0) + av;
+  return shown===1?'♯' : shown===-1?'♭' : shown===0?'♮' : shown===2?'𝄪' : '♭♭';
+}
+/* 高音谱号（手绘路径，跨端一致；x=谱号竖轴，yG=G4 线 y，SG=线距）
+   两笔构成：① 顶钩→斜穿谱表→谱下尾卷+端点圆；② 环绕 G 线的大旋环 */
+function clefSVG(x, yG, SG){
+  const s = SG/7.5;
+  return `<g transform="translate(${x},${yG}) scale(${s})" stroke="var(--ink)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 2.8 -19.5 C 4.6 -23.5 2.0 -27.5 -0.4 -25.8 C -2.6 -24.2 -2.2 -20 -1.4 -15.5 L 2.6 8.5 C 3.6 13.5 1.8 16.6 -1.6 16.8 C -4.6 17 -6.2 14.6 -5.4 12.6 C -4.6 10.8 -2.2 11 -1.8 12.8 C -1.5 14.3 -2.8 15.3 -3.9 14.9" stroke-width="1.5"/>
+    <path d="M 2.6 8.5 C -4.8 8.8 -8.2 3.4 -5.6 -0.8 C -3.4 -4.4 1.8 -5 4.2 -1.8 C 6.2 0.9 5.4 5.2 2.6 8.5" stroke-width="1.5"/>
+    <circle cx="-3.9" cy="14.9" r="1.1" fill="var(--ink)" stroke="none"/>
+  </g>`;
+}
 /* 倚音数据：{notes:[{deg,oct}×1..3], dur}，组内共用时值（减时线）；
    兼容旧格式：纯数字 / {deg,dur,oct} 单音对象 */
 function normGrace(g){
@@ -2015,7 +2059,10 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
   const tabTops=[], voxYs=[], lyricY0=[];
   for(let i=0;i<nT;i++){ if(i>0) y += tabGap2; tabTops.push(y); y += staffH() + 12*vt + tabExtra + 6*vt; }
   for(let i=0;i<nV;i++){
-    y += 15*vv + topExtra; voxYs.push(y); lyricY0.push(y + 25 + botExtra);
+    /* 五线谱声部：voxY 上方需容纳 5 线谱表（30px）+ 谱上加线/记号空间 */
+    const st = (song.voxNotations||[])[i]==='staff';
+    y += (st? 48*vv + topExtra*1.8 : 15*vv + topExtra);
+    voxYs.push(y); lyricY0.push(y + 25 + botExtra);
     y += 25 + botExtra + (nL-1)*21*vl + 9*vv;
   }
   return {diagH, tabTops, voxYs, lyricY0, h:y+2, gap:9*vs, tabExtra};
@@ -2559,9 +2606,29 @@ function render(){
     });
     song.voxVoices.forEach((vname, vi)=>{
       const voxY = oy+M.voxYs[vi], lyr0 = oy+M.lyricY0[vi];
-      p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+      /* 五线谱声部：同一数据换记谱视图。谱表画在 voxY 上方（底线 voxY-6，线距 7.5） */
+      const isStaff = (song.voxNotations||[])[vi]==='staff';
+      const SG=7.5, staffB=voxY-6, staffT=staffB-4*SG;
+      const K = isStaff? staffKeyInfo() : null;
+      const stepY = st=> staffB - (st-37)*(SG/2);      // 绝对音级 → y（底线 E4=37）
+      const rowT = isStaff? staffT-8 : voxY-22;        // 选区/错误框顶
+      const rowH = isStaff? 44 : 30;
+      if(isStaff){
+        for(let i=0;i<5;i++)
+          p.push(`<line x1="${ox}" y1="${staffB-i*SG}" x2="${ox+sys.w}" y2="${staffB-i*SG}" stroke="var(--ink)" stroke-width="0.8"/>`);
+        p.push(clefSVG(ox-40, staffB-SG, SG));   // 谱号竖轴对齐 G4 线（自底第2线）
+        /* 调号：升降号按标准音级位置排布在谱号右侧（页边距内自适应间距） */
+        const accSp = Math.min(6.2, 26/Math.max(1,Math.abs(K.sig)));
+        const SH_STEP=[45,42,46,43,40,44,41], FL_STEP=[41,44,40,43,39,42,38];
+        for(let i=0;i<Math.abs(K.sig);i++){
+          const stp=(K.sig>0?SH_STEP:FL_STEP)[i];
+          p.push(`<text x="${ox-26+i*accSp}" y="${stepY(stp)+3.2}" font-size="12" text-anchor="middle" fill="var(--ink)">${K.sig>0?'♯':'♭'}</text>`);
+        }
+      }else{
+        p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
+      }
       if(song.voxVoices.length>1)
-        p.push(`<text x="${ox-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
+        p.push(`<text x="${ox-24}" y="${isStaff? staffT-6 : voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
       /* 多段歌词：每段起始处显示段序号，点击选中该段编辑 */
       if(song.lyricLines>1) for(let li=0; li<song.lyricLines; li++){
         const yy=oy+M.lyricY0[vi]+li*21, on=(!blurSel && li===activeLyr);   // 点空白隐藏光标时段序号也不高亮
@@ -2577,21 +2644,22 @@ function render(){
         const isLast = lm.mi===song.measures.length-1;
         const isErr = errSet.has('vox'+vi+':'+lm.mi);
         if(isErr)
-          p.push(`<rect x="${mx}" y="${voxY-22}" width="${lm.L.w}" height="34" fill="var(--danger)" opacity="0.07"/>
-            <text x="${mx+lm.L.w-8}" y="${voxY-14}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
+          p.push(`<rect x="${mx}" y="${rowT}" width="${lm.L.w}" height="${rowH+4}" fill="var(--danger)" opacity="0.07"/>
+            <text x="${mx+lm.L.w-8}" y="${rowT+8}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
         if(inRange('vox',vi,lm.mi))
-          p.push(`<rect x="${mx+1}" y="${voxY-22}" width="${lm.L.w-2}" height="34" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
+          p.push(`<rect x="${mx+1}" y="${rowT}" width="${lm.L.w-2}" height="${rowH+4}" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
         const bx = mx+lm.L.w;
         const vNextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
-        const yT2=voxY-13, yB2=voxY+4;
+        const yT2 = isStaff? staffT : voxY-13, yB2 = isStaff? staffB : voxY+4;
         /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
+        const dotY1 = isStaff? staffB-SG*1.5 : voxY-6, dotY2 = isStaff? staffB-SG*2.5 : voxY-0.5;
         if(mea.repeatStart){
           p.push(`<rect x="${mx+1}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
           p.push(`<line x1="${mx+5}" y1="${yT2}" x2="${mx+5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<circle cx="${mx+8.5}" cy="${voxY-6}" r="1.4" fill="var(--ink)"/><circle cx="${mx+8.5}" cy="${voxY-0.5}" r="1.4" fill="var(--ink)"/>`);
+          p.push(`<circle cx="${mx+8.5}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${mx+8.5}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
         }
         if(mea.repeatEnd){
-          p.push(`<circle cx="${bx-9}" cy="${voxY-6}" r="1.4" fill="var(--ink)"/><circle cx="${bx-9}" cy="${voxY-0.5}" r="1.4" fill="var(--ink)"/>`);
+          p.push(`<circle cx="${bx-9}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${bx-9}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
           p.push(`<line x1="${bx-5.5}" y1="${yT2}" x2="${bx-5.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<rect x="${bx-3}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
         }else if(isLast || mea.finalBar){
@@ -2618,16 +2686,30 @@ function render(){
         }
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
+        /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
+        const stStemFlags = (ci2)=>{
+          const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
+          const nx2=mx+lay.xs[ci2], st2=staffStep(col2,K), hy2=stepY(st2);
+          const up2 = st2<41;
+          const sx2 = nx2 + (up2?4.2:-4.2);
+          const sy2 = hy2 + (up2? -SG*2.9 : SG*2.9);
+          p.push(`<line x1="${sx2}" y1="${(hy2+(up2?-1.2:1.2)).toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+          const fl = col2.dur>=32?3: col2.dur>=16?2: col2.dur>=8?1:0;
+          for(let f2=0;f2<fl;f2++){
+            const fy = sy2 + (up2? f2*4.4 : -f2*4.4);
+            p.push(`<path d="M ${sx2} ${fy.toFixed(1)} C ${sx2+6.3} ${(fy+(up2?3.5:-3.5)).toFixed(1)} ${sx2+6.8} ${(fy+(up2?8.5:-8.5)).toFixed(1)} ${sx2+2.2} ${(fy+(up2?12.5:-12.5)).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.15"/>`);
+          }
+        };
         cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
-          colBoxes['v'+vi+':'+lm.mi+':'+ci] = {x:clx, y:voxY-24, w:cw, h:26+song.lyricLines*21+8};
+          colBoxes['v'+vi+':'+lm.mi+':'+ci] = {x:clx, y:rowT-2, w:cw, h:rowH+4+song.lyricLines*21+4};
           const isSel = !blurSel && sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
           if(isSel)
-            p.push(`<rect x="${clx}" y="${voxY-22}" width="${cw}" height="${30+song.lyricLines*21}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
+            p.push(`<rect x="${clx}" y="${rowT}" width="${cw}" height="${rowH+song.lyricLines*21}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
           else if(colInRange('vox',vi,lm.mi,ci))
-            p.push(`<rect x="${clx}" y="${voxY-22}" width="${cw}" height="34" fill="var(--accent)" opacity="0.09"/>`);
+            p.push(`<rect x="${clx}" y="${rowT}" width="${cw}" height="${rowH+4}" fill="var(--accent)" opacity="0.09"/>`);
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
-            p.push(`<circle cx="${nx}" cy="${voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
+            p.push(`<circle cx="${nx}" cy="${isStaff&&col.deg? stepY(staffStep(col,K)) : voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
           const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
           /* 功能谱：和弦标注在音符上方——级数/音名一键切换；整名圆角框、常规字号；
              空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
@@ -2636,7 +2718,7 @@ function render(){
             const grid8 = song.unit/8;
             const onGrid = Math.abs(startB/grid8 - Math.round(startB/grid8)) < 1e-4;
             if(col.chord){
-              const cy2 = voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
+              const cy2 = isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
               const disp = song.funcNames? col.chord : chordDegree(col.chord);
               const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
               const w = vcDispW(col.chord);
@@ -2645,16 +2727,54 @@ function render(){
                 <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
             }else if(song.func && onGrid){
-              const cy2 = voxY-24;
+              const cy2 = isStaff? staffT-15 : voxY-24;
               p.push(`<g class="vcz" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
                 <rect x="${clx+1}" y="${cy2-12}" width="${Math.max(cw-2,14)}" height="16" rx="5" fill="transparent"/>
                 <text x="${nx}" y="${cy2}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${cw<34?'＋':'＋和弦'}</text>
                 <title>标注和弦（最小单位：八分音符）</title></g>`);
             }
           }
-          if(col.acc)
-            p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
-          p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+          if(!isStaff){
+            if(col.acc)
+              p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
+            p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+          }else if(col.deg){
+            /* ===== 五线谱音符：加线 / 符头 / 附点 / 临时记号；符干符尾见 stStemFlags 与符杠段 ===== */
+            const st = staffStep(col,K), hy = stepY(st);
+            for(let L2=47; L2<=st; L2+=2)
+              p.push(`<line x1="${nx-6.6}" y1="${stepY(L2).toFixed(1)}" x2="${nx+6.6}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+            for(let L2=35; L2>=st; L2-=2)
+              p.push(`<line x1="${nx-6.6}" y1="${stepY(L2).toFixed(1)}" x2="${nx+6.6}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+            const filled = col.dur>=4;
+            p.push(`<ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="4.5" ry="3.2" transform="rotate(-18 ${nx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
+            if(col.dotted){
+              const dy2 = (st%2===1)? hy-SG/2 : hy;      // 符头在线上→附点写在上方间内
+              p.push(`<circle cx="${nx+8}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+            }
+            const sym = staffAccSym(col,K);
+            if(sym) p.push(`<text x="${nx-9.5}" y="${(hy+3.4).toFixed(1)}" font-size="11.5" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+            if(!inGroup.has(ci)) stStemFlags(ci);
+          }else{
+            /* ===== 五线谱休止符 ===== */
+            const yMid = staffB-2*SG;
+            if(col.dur===1)
+              p.push(`<rect x="${nx-4.5}" y="${(staffB-3*SG).toFixed(1)}" width="9" height="3" fill="var(--ink)"/>`);
+            else if(col.dur===2)
+              p.push(`<rect x="${nx-4.5}" y="${(yMid-3).toFixed(1)}" width="9" height="3" fill="var(--ink)"/>`);
+            else if(col.dur===4)
+              p.push(`<path d="M ${nx-1.5} ${yMid-9} L ${nx+3} ${yMid-3.5} C ${nx-1.5} ${yMid} ${nx+2.5} ${yMid+2.5} ${nx+2.8} ${yMid+6} C ${nx-3.5} ${yMid+3} ${nx-1} ${yMid-0.5} ${nx+0.5} ${yMid-2} Z" fill="var(--ink)"/>`);
+            else{
+              const hooks = col.dur>=32?3 : col.dur>=16?2 : 1;
+              const topY = yMid-5, botY = yMid+6+(hooks-1)*3;
+              p.push(`<line x1="${nx+3}" y1="${topY}" x2="${nx-2}" y2="${botY}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              for(let h2=0;h2<hooks;h2++){
+                const hx = nx+3-h2*1.6, hyk = topY+h2*4.4;
+                p.push(`<path d="M ${hx} ${hyk} C ${hx-2.5} ${hyk+3} ${hx-5.5} ${hyk+3} ${hx-6.5} ${hyk+0.5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+                p.push(`<circle cx="${hx-6.6}" cy="${hyk+0.6}" r="1.5" fill="var(--ink)"/>`);
+              }
+            }
+            if(col.dotted) p.push(`<circle cx="${nx+8}" cy="${(yMid-SG/2).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+          }
           /* 倚音（图式记谱）：最多3个小音符成组、共用减时线、各自八度点，
              连接线=直角折线（倚音正下方 → 主音符腰部），可点击编辑 */
           const graceZones=[];
@@ -2693,11 +2813,12 @@ function render(){
             p.push(`<path d="M ${gx} ${yTop} L ${gx} ${yH} L ${xe} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             graceZones.push(`<rect x="${gxc-7}" y="${gyb-17}" width="${gW+14}" height="${yH-(gyb-17)+3}" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
           };
-          if(col.grace) drawGrace(col.grace, 'pre');
-          if(col.graceA) drawGrace(col.graceA, 'post');
+          if(!isStaff && col.grace) drawGrace(col.grace, 'pre');
+          if(!isStaff && col.graceA) drawGrace(col.graceA, 'post');
           /* 标识符号：上/下波音、颤音 tr、回音 */
           if(col.orn && col.deg){
-            const oy2 = voxY - (col.oct>0? 23 + (Math.min(3,col.oct)-1)*4.2 : 15);   // 波音/颤音避让上移后的高音点
+            const oy2 = isStaff? Math.min(staffT-9, stepY(staffStep(col,K))-14)
+              : voxY - (col.oct>0? 23 + (Math.min(3,col.oct)-1)*4.2 : 15);   // 波音/颤音避让上移后的高音点
             if(col.orn==='up' || col.orn==='down'){
               let d=`M ${nx-6} ${oy2}`;
               for(let k2=0;k2<3;k2++) d+=` l 2 -3 l 2 3`;
@@ -2710,7 +2831,7 @@ function render(){
               p.push(`<text x="${nx}" y="${oy2+3}" font-size="12" text-anchor="middle" fill="var(--ink)">∽</text>`);
             }
           }
-          if(col.deg){
+          if(!isStaff && col.deg){
             for(let d=0; d<Math.min(3,Math.abs(col.oct)); d++){
               /* 高低音点与数字的光学间距对称：数字字顶≈voxY-12，高音点下缘 voxY-16 → 距字顶≈4px，
                  与低音点距数字基线的 4px 一致；低音点仍落在减时线下方 */
@@ -2718,13 +2839,13 @@ function render(){
               else p.push(`<circle cx="${nx}" cy="${voxY+5.5+under*3.1+d*4.2}" r="1.5" fill="var(--ink)"/>`);
             }
           }
-          if(under && !inGroup.has(ci))
+          if(!isStaff && under && !inGroup.has(ci))
             for(let u=0;u<under;u++)
               p.push(`<line x1="${nx-6.5}" y1="${voxY+3.4+u*3.2}" x2="${nx+6.5}" y2="${voxY+3.4+u*3.2}" stroke="var(--ink)" stroke-width="1.1"/>`);
-          if(col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+          if(!isStaff && col.dotted) p.push(`<circle cx="${nx+11}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
           /* 力度/速度记号：音符下方（避让减时线与低音点），渐强/渐弱画折线 */
           if(col.dyn){
-            const dyY = voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
+            const dyY = isStaff? staffB+16 : voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
             if(col.dyn==='<' || col.dyn==='>'){
               const w2=Math.min(16, cw*0.42);
               if(col.dyn==='<')
@@ -2735,8 +2856,8 @@ function render(){
               p.push(`<text x="${nx}" y="${dyY}" font-size="10.5" font-style="italic" font-weight="${/^(rit|accel)/.test(col.dyn)?'400':'700'}" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
             }
           }
-          if(col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
-          if(col.dur===1) for(let d=1;d<=3;d++)
+          if(!isStaff && col.dur===2) p.push(`<text x="${nx+cw*0.42}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+          if(!isStaff && col.dur===1) for(let d=1;d<=3;d++)
             p.push(`<text x="${nx+cw*0.22*d}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
           (col.lyrics||[]).forEach((ly,li)=>{
             if(ly && li<song.lyricLines){
@@ -2751,7 +2872,7 @@ function render(){
               }
             }
           });
-          p.push(`<rect x="${clx}" y="${voxY-24}" width="${cw}" height="34" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
+          p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
@@ -2766,8 +2887,9 @@ function render(){
             while(b3+1<cols.length && cols[b3+1].tie) b3++;
             const x1 = mx+lay.xs[a3]+5;
             const x2 = (b3+1<cols.length)? mx+lay.xs[b3+1]-6 : mx+lm.L.w+10;
-            const yp = voxY-22-Math.min(6,(b3-a3)*2);
-            p.push(`<path d="M ${x1} ${voxY-13} Q ${(x1+x2)/2} ${yp} ${x2} ${voxY-13}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+            const tyB = isStaff? staffT-3 : voxY-13;
+            const yp = tyB-9-Math.min(6,(b3-a3)*2);
+            p.push(`<path d="M ${x1} ${tyB} Q ${(x1+x2)/2} ${yp} ${x2} ${tyB}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
             a3=b3+1;
           }
         }
@@ -2784,7 +2906,7 @@ function render(){
                 const e=Math.min(s+n-1, b3);
                 const x1=mx+lay.xs[s]-3, x2=mx+lay.xs[e]+3, xm=(x1+x2)/2;
                 const half=Math.min(6, Math.max(3.5,(x2-x1)/2-3));
-                const y0=voxY-13, yp=voxY-19;
+                const y0=isStaff? staffT-7 : voxY-13, yp=y0-6;
                 p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-half} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<path d="M ${xm+half} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
@@ -2795,6 +2917,41 @@ function render(){
         }
         vGroups.forEach(g=>{
           if(g.idx.length<2) return;
+          if(isStaff){
+            /* ===== 五线谱符杠：组内同向符干 + 水平杠（8/16/32 分层级段与简谱减时线同构） ===== */
+            const notes = g.idx.filter(i=>cols[i].deg>0);
+            if(notes.length<2){ notes.forEach(i=>stStemFlags(i)); return; }
+            const steps2 = notes.map(i=>staffStep(cols[i],K));
+            const up = (steps2.reduce((a,b)=>a+b,0)/steps2.length) < 41;
+            const beamY = up? Math.min(...steps2.map(s2=>stepY(s2)))-SG*2.9
+                            : Math.max(...steps2.map(s2=>stepY(s2)))+SG*2.9;
+            const sxOf = i=> mx+lay.xs[i] + (up? 4.2 : -4.2);
+            notes.forEach(i=>{
+              const hy2=stepY(staffStep(cols[i],K));
+              p.push(`<line x1="${sxOf(i)}" y1="${(hy2+(up?-1.2:1.2)).toFixed(1)}" x2="${sxOf(i)}" y2="${beamY.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+            });
+            const rectY = lvl => up? beamY+lvl*4.4 : beamY-2.8-lvl*4.4;
+            const bar = (iA,iB,lvl)=>{
+              const xa=Math.min(sxOf(iA),sxOf(iB))-0.6, xb=Math.max(sxOf(iA),sxOf(iB))+0.6;
+              p.push(`<rect x="${xa.toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="${(xb-xa).toFixed(1)}" height="2.8" fill="var(--ink)"/>`);
+            };
+            bar(notes[0], notes[notes.length-1], 0);
+            for(const [dm,lvl] of [[16,1],[32,2]]){
+              for(let a=0;a<notes.length;a++){
+                if(cols[notes[a]].dur>=dm){
+                  let b=a; while(b<notes.length-1 && cols[notes[b+1]].dur>=dm) b++;
+                  if(b>a) bar(notes[a], notes[b], lvl);
+                  else{   // 孤立层级：朝相邻音画短杠
+                    const i=notes[a], dir=a>0? -1 : 1;
+                    const x0=sxOf(i), x1b=x0+dir*6.5;
+                    p.push(`<rect x="${Math.min(x0,x1b).toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="6.5" height="2.8" fill="var(--ink)"/>`);
+                  }
+                  a=b;
+                }
+              }
+            }
+            return;
+          }
           const x1 = mx+lay.xs[g.idx[0]]-6.5, x2 = mx+lay.xs[g.idx[g.idx.length-1]]+6.5;
           p.push(`<line x1="${x1}" y1="${voxY+3.4}" x2="${x2}" y2="${voxY+3.4}" stroke="var(--ink)" stroke-width="1.1"/>`);
           for(let a=0;a<g.idx.length;a++){
@@ -3002,6 +3159,14 @@ function syncInputs(){
   document.getElementById('lyr-lines').innerHTML =
     chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
     `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
+  { /* 记谱法切换按钮状态（当前旋律声部） */
+    const vnJ=document.getElementById('vn-jp'), vnS=document.getElementById('vn-st');
+    if(vnJ && vnS){
+      const vvi = sel.row==='vox'? sel.vi : 0;
+      const st = (song.voxNotations||[])[vvi]==='staff';
+      vnJ.classList.toggle('on', !st); vnS.classList.toggle('on', st);
+    }
+  }
   document.getElementById('i-chord').value = (sel.row==='tab'&&col)?(col.chord||''):'';
   const lyr = document.getElementById('i-lyric');
   if(document.activeElement!==lyr)
@@ -4891,6 +5056,17 @@ document.getElementById('b-vchord').onclick = e=>{
   const r=e.target.getBoundingClientRect();
   showVoxChordMenu(r.right+8, r.top-10);
 };
+/* 记谱法切换：同一数据换视图，可随时往返（声部级） */
+function setVoxNotation(nt){
+  const vvi = sel.row==='vox'? sel.vi : 0;
+  mutate(()=>{
+    song.voxNotations = song.voxNotations||[];
+    song.voxNotations[vvi] = nt==='staff'? 'staff' : undefined;
+  });
+  toast('当前声部已切换为'+(nt==='staff'?'五线谱':'简谱')+'（数据不变，可随时切回）');
+}
+document.getElementById('vn-jp').onclick = ()=>setVoxNotation('jianpu');
+document.getElementById('vn-st').onclick = ()=>setVoxNotation('staff');
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
 document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
@@ -6131,7 +6307,7 @@ const LS_LIB = 'musetab-library-v1';
 const LS_DOCS = 'musetab-docs-v1';
 /* ================= 多窗口：同时编辑多个（可不同类型的）曲谱 ================= */
 let docs = [], curDocI = 0;
-function docType(s){ return !s.tabVoices.length ? (s.func?'func':'vox') : (s.inst==='uku'?'uku':'guitar'); }
+function docType(s){ return !s.tabVoices.length ? (s.func?'func': ((s.voxNotations||[])[0]==='staff'?'staff':'vox')) : (s.inst==='uku'?'uku':'guitar'); }
 function docIcon(s){ return {guitar:'🎸',uku:'🎶',vox:'🎵',func:'🎹'}[docType(s)]; }
 function saveStatusText(s){
   if(s.id){
@@ -6326,12 +6502,13 @@ document.getElementById('file-in').addEventListener('change', e=>{
 });
 /* ---- 新建曲谱向导：先选类型（吉他/尤克里里/简谱），再填曲谱信息 ---- */
 function createSong(type, o){
-  const noTab = type==='vox' || type==='func';
+  const noTab = type==='vox' || type==='func' || type==='staff';
   const s = {v:3, title:o.title||'未命名曲谱', singer:o.singer||'', lyricist:o.lyricist||'', composer:o.composer||'', maker:o.maker||'',
     key:o.key||'C', beats:o.beats||4, unit:o.unit||4, tempo:o.tempo||90, capo:o.capo||0, customChords:{},
     inst: type==='uku'?'uku':'guitar', func: type==='func'||undefined,
     tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(type==='uku'?'尤克里里':'吉他')+(i+1)),
     voxVoices: Array.from({length:o.nVox||0},(_,i)=>'旋律'+(i+1)),
+    voxNotations: type==='staff'? Array.from({length:o.nVox||1},()=> 'staff') : undefined,
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
   const old = song; song = s;
   for(let i=0;i<(o.nMea||8);i++) s.measures.push(blankMeasure());
@@ -6346,6 +6523,7 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="guitar"><span class="nt-tag">六线谱</span><b>吉他谱</b><span>六线谱 TAB＋简谱＋歌词三行对齐，标准弹唱谱版式，支持和弦图与演奏技巧记谱。</span></button>
     <button class="ntcard ntype" data-nt="uku"><span class="nt-tag">四线谱</span><b>尤克里里谱</b><span>四线 TAB（GCEA 标准调弦）＋简谱＋歌词，与吉他谱同一套编辑方式与技巧体系。</span></button>
     <button class="ntcard ntype" data-nt="vox"><span class="nt-tag">旋律</span><b>简谱</b><span>纯简谱＋歌词，不含 TAB 行，适合旋律记谱、声乐与教学场景。</span></button>
+    <button class="ntcard ntype" data-nt="staff"><span class="nt-tag">标准记谱</span><b>五线谱</b><span>高音谱表＋歌词：调号/符杠/临时记号标准绘制，与简谱同源数据、一键互切。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦标注，按 1=调号 自动换算（C 调 Am → 6m），乐队排练通用。</span></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>`);
@@ -6353,9 +6531,9 @@ function showNewWizard(){
   document.getElementById('nw-cancel').onclick = closeModal;
 }
 function showNewForm(type){
-  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', func:'功能谱'}[type];
+  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', func:'功能谱'}[type];
   const instLabel = type==='uku'?'尤克里里':'吉他';
-  const noTab = type==='vox' || type==='func';
+  const noTab = type==='vox' || type==='func' || type==='staff';
   const sels=(id,arr,def)=>`<select id="${id}">${arr.map(v=>`<option value="${v}"${v===def?' selected':''}>${v}</option>`).join('')}</select>`;
   showModal(`<h3>新建${tName} · 第 2 步：曲谱信息</h3>
   <label class="f"><span>标题</span><input id="nw-title" value="未命名曲谱" style="flex:1"></label>
@@ -6724,7 +6902,7 @@ function seedCircle(){
   if(typeof PRESETS!=='undefined' && PRESETS[1]) l.push(mk(PRESETS[1].make, 3, 2));
   circlePubsSave(l);
 }
-const TYPE_CN={guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', func:'功能谱'};
+const TYPE_CN={guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', func:'功能谱'};
 function showPublishMenu(libEntry, rect){
   closePop();
   const cr=creatorLoad();
@@ -6756,7 +6934,7 @@ function circleFav(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY))||{};
 function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o)); }catch(_){} }
 function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
 let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
-const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['func','功能谱']];
+const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['staff','五线谱'],['func','功能谱']];
 /* 曲谱卡封面：取谱面首小节旋律与歌词生成迷你预览（每首卡面都不同；
    后期小程序精致分享卡沿用此封面语言） */
 function ccCover(pb){
@@ -7410,7 +7588,7 @@ document.getElementById('b-help').onclick = ()=>{
     <div class="hd-hero">
       <div class="lg">🎸</div>
       <div><div class="tt">在线制谱 · 使用帮助</div>
-        <div class="ds">吉他谱｜尤克里里谱｜简谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
+        <div class="ds">吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
     </div>
     <div class="hd-steps">
       <div class="hd-step"><div class="n">1</div><b>建谱</b><p>「新建」选类型，填标题/拍号/变调夹/声部；或「预设」选一首示例改编。多首可同时开窗。</p></div>
@@ -7469,7 +7647,7 @@ document.getElementById('b-feat').onclick = ()=>{
     <div class="hd-hero">
       <div class="lg">✨</div>
       <div><div class="tt">为吉他爱好者打造的制谱工具</div>
-        <div class="ds">出版级排版 · 真实音色试听 · 一处编辑四种谱面</div></div>
+        <div class="ds">出版级排版 · 真实音色试听 · 一处编辑五种谱面</div></div>
     </div>
     <div class="fg">排版与输出</div>
     <div class="featx">
@@ -7499,6 +7677,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.1</span><div>平台升级第一步：<b>新增五线谱</b>。① 新建向导新增「五线谱」类型（高音谱表＋歌词）；② 旋律声部支持<b>记谱法一键互切</b>（左栏「记谱法」：简谱 ↔ 五线谱，同一数据换视图、无损往返）；③ 标准绘制：手绘高音谱号、调号（升降号标准音位排布）、符头符干、<b>符杠</b>（8/16/32 分层级、组内同向）、临时记号（与调号联动：调内音不重复标记）、附点、上下加线、全套休止符、连音线/三连音/波音颤音、力度记号；④ 歌词、功能谱和弦标注、排版面板、打印预览、播放全部照常工作；曲谱库新增「五线谱」分类。</div></li>
     <li><span class="v">v36.0</span><div>入口更名与曲谱库改版：① 顶栏「曲谱库」更名为<b>「预设」</b>（预设示例＋我的曲谱），原「谱友圈」更名为<b>「曲谱库」</b>；② 曲谱库页面全新改版——大标题引导区、渐变筛选、<b>精致曲谱卡</b>：每张卡自动生成迷你谱面封面（取该曲第一段有旋律的小节，数字谱＋歌词＋类型/价格徽章），后期将以同款卡面接入<b>小程序分享链接</b>。</div></li>
     <li><span class="v">v35.9</span><div>制谱器与曲谱库<b>视觉对齐官网</b>：① 品牌标换为官网同款<b>渐变谱线 mark</b>（页头与谱友圈顶栏统一）；② 主按钮（播放/打开/创建等）与选中态换品牌渐变胶囊；③ 曲谱库标签、新建向导卡片、我的曲谱卡片、谱友圈卡片统一为渐变顶条 + 上浮悬停；④ 页面顶部加入品牌径向光晕，深浅主题同步适配。</div></li>
     <li><span class="v">v35.8</span><div>中文歌词字号提到<b>出版级</b>：正文 14→<b>15.5</b>（约 11.6pt，与简谱数字光学等大、落在主流歌本档位），旁挂标点 12→13；同步把歌词刚杆 17→18.5、多段行距 20→21、点击/选中热区与首行偏移一并放大，密集逐字段仍不贴字、跨声部对齐不变。</div></li>
