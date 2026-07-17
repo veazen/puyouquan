@@ -868,7 +868,8 @@ body.stand #standbar{display:flex}
     <div class="rg panel-p" id="panel-vox-notation">
       <div class="rg-body">
         <button id="vn-jp" title="当前声部以简谱显示">简谱</button>
-        <button id="vn-st" title="当前声部以五线谱显示（同一数据、可随时切回）">五线谱</button>
+        <button id="vn-st" title="当前声部以高音谱表显示（同一数据、可随时切回）">五线谱</button>
+        <button id="vn-bs" title="当前声部以低音谱表显示（钢琴左手/贝斯声部；与上方高音谱表自动连成大谱表）">低音谱表</button>
       </div>
       <div class="rg-title">记谱法 · 当前声部</div>
     </div>
@@ -1688,6 +1689,20 @@ function staffRestStr(nx, staffB, SG, dur, dotted){
   if(dotted) p.push(`<circle cx="${nx+8}" cy="${(yMid-SG/2).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
   return p.join('');
 }
+/* 低音谱号（F 谱号）：F 线起笔圆点 + 上拱下卷弧 + 右侧上下两点；yF=F3 线 y */
+function bassClefSVG(x, yF, SG){
+  const s = SG/7.5;
+  return `<g transform="translate(${x},${yF}) scale(${s})" fill="var(--ink)">
+    <circle cx="-7" cy="0" r="2.4"/>
+    <path d="M -7 -2.4 C -2.5 -8.8 6.2 -6.2 6.4 0.6 C 6.6 8.6 -0.5 15.6 -8.5 19.5" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="10.5" cy="-3" r="1.5"/><circle cx="10.5" cy="3" r="1.5"/>
+  </g>`;
+}
+/* 大谱表花括线：连接上下两谱表左端 */
+function braceSVG(x, y1, y2){
+  const ym=(y1+y2)/2;
+  return `<path d="M ${x} ${y1} C ${x-8} ${y1+9} ${x-2.5} ${ym-11} ${x-9.5} ${ym} C ${x-2.5} ${ym+11} ${x-8} ${y2-9} ${x} ${y2}" fill="none" stroke="var(--ink)" stroke-width="1.7" stroke-linecap="round"/>`;
+}
 /* 高音谱号（手绘路径，跨端一致；x=谱号竖轴，yG=G4 线 y，SG=线距）
    两笔构成：① 顶钩→斜穿谱表→谱下尾卷+端点圆；② 环绕 G 线的大旋环 */
 function clefSVG(x, yG, SG){
@@ -2113,7 +2128,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
   }
   for(let i=0;i<nV;i++){
     /* 五线谱声部：voxY 上方需容纳 5 线谱表（30px）+ 谱上加线/记号空间 */
-    const st = (song.voxNotations||[])[i]==='staff';
+    const st = ['staff','bass'].includes((song.voxNotations||[])[i]);
     y += (st? 48*vv + topExtra*1.8 : 15*vv + topExtra);
     voxYs.push(y); lyricY0.push(y + 25 + botExtra);
     y += 25 + botExtra + (nL-1)*21*vl + 9*vv;
@@ -2772,23 +2787,35 @@ function render(){
     });
     song.voxVoices.forEach((vname, vi)=>{
       const voxY = oy+M.voxYs[vi], lyr0 = oy+M.lyricY0[vi];
-      /* 五线谱声部：同一数据换记谱视图。谱表画在 voxY 上方（底线 voxY-6，线距 7.5） */
-      const isStaff = (song.voxNotations||[])[vi]==='staff';
+      /* 五线谱声部：同一数据换记谱视图。谱表画在 voxY 上方（底线 voxY-6，线距 7.5）
+         高音谱表底线 E4(37)/中线 B4(41)；低音谱表底线 G2(25)/中线 D3(29) */
+      const nota = (song.voxNotations||[])[vi];
+      const isStaff = nota==='staff' || nota==='bass';
+      const isBass = nota==='bass';
       const SG=7.5, staffB=voxY-6, staffT=staffB-4*SG;
+      const S_BOT = isBass? 25 : 37, S_MID = isBass? 29 : 41;
       const K = isStaff? staffKeyInfo() : null;
-      const stepY = st=> staffB - (st-37)*(SG/2);      // 绝对音级 → y（底线 E4=37）
+      const stepY = st=> staffB - (st-S_BOT)*(SG/2);
       const rowT = isStaff? staffT-8 : voxY-22;        // 选区/错误框顶
       const rowH = isStaff? 44 : 30;
       if(isStaff){
         for(let i=0;i<5;i++)
           p.push(`<line x1="${ox}" y1="${staffB-i*SG}" x2="${ox+sys.w}" y2="${staffB-i*SG}" stroke="var(--ink)" stroke-width="0.8"/>`);
-        p.push(clefSVG(ox-40, staffB-SG, SG));   // 谱号竖轴对齐 G4 线（自底第2线）
+        if(isBass) p.push(bassClefSVG(ox-36, staffB-3*SG, SG));   // F 谱号对齐 F3 线（自顶第2线）
+        else p.push(clefSVG(ox-40, staffB-SG, SG));               // G 谱号对齐 G4 线（自底第2线）
         /* 调号：升降号按标准音级位置排布在谱号右侧（页边距内自适应间距） */
         const accSp = Math.min(6.2, 26/Math.max(1,Math.abs(K.sig)));
-        const SH_STEP=[45,42,46,43,40,44,41], FL_STEP=[41,44,40,43,39,42,38];
+        const SH_STEP = isBass? [31,28,32,29,26,30,27] : [45,42,46,43,40,44,41];
+        const FL_STEP = isBass? [27,30,26,29,25,28,24] : [41,44,40,43,39,42,38];
         for(let i=0;i<Math.abs(K.sig);i++){
           const stp=(K.sig>0?SH_STEP:FL_STEP)[i];
-          p.push(`<text x="${ox-26+i*accSp}" y="${stepY(stp)+3.2}" font-size="12" text-anchor="middle" fill="var(--ink)">${K.sig>0?'♯':'♭'}</text>`);
+          p.push(`<text x="${ox-25+i*accSp}" y="${stepY(stp)+3.2}" font-size="12" text-anchor="middle" fill="var(--ink)">${K.sig>0?'♯':'♭'}</text>`);
+        }
+        /* 大谱表连谱括线：上一声部为高音谱表、本声部为低音谱表 → 左端花括线相连 */
+        if(isBass && (song.voxNotations||[])[vi-1]==='staff'){
+          const prevT = oy+M.voxYs[vi-1]-6-4*SG;
+          p.push(braceSVG(ox-4, prevT, staffB));
+          p.push(`<line x1="${ox}" y1="${prevT}" x2="${ox}" y2="${staffB}" stroke="var(--ink)" stroke-width="1.1"/>`);
         }
       }else{
         p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -2856,7 +2883,7 @@ function render(){
         const stStemFlags = (ci2)=>{
           const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
           const nx2=mx+lay.xs[ci2], st2=staffStep(col2,K), hy2=stepY(st2);
-          const up2 = st2<41;
+          const up2 = st2<S_MID;
           const sx2 = nx2 + (up2?4.2:-4.2);
           const sy2 = hy2 + (up2? -SG*2.9 : SG*2.9);
           p.push(`<line x1="${sx2}" y1="${(hy2+(up2?-1.2:1.2)).toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
@@ -2907,9 +2934,9 @@ function render(){
           }else if(col.deg){
             /* ===== 五线谱音符：加线 / 符头 / 附点 / 临时记号；符干符尾见 stStemFlags 与符杠段 ===== */
             const st = staffStep(col,K), hy = stepY(st);
-            for(let L2=47; L2<=st; L2+=2)
+            for(let L2=S_BOT+10; L2<=st; L2+=2)
               p.push(`<line x1="${nx-6.6}" y1="${stepY(L2).toFixed(1)}" x2="${nx+6.6}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
-            for(let L2=35; L2>=st; L2-=2)
+            for(let L2=S_BOT-2; L2>=st; L2-=2)
               p.push(`<line x1="${nx-6.6}" y1="${stepY(L2).toFixed(1)}" x2="${nx+6.6}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             const filled = col.dur>=4;
             p.push(`<ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="4.5" ry="3.2" transform="rotate(-18 ${nx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
@@ -3038,7 +3065,7 @@ function render(){
               }
             }
           });
-          p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}"${isStaff?` data-staffb="${staffB.toFixed(1)}"`:''} style="cursor:pointer"${isStaff?`><title>点击选中；再次点击线/间可直接定音高</title></rect`:'/'}>`);
+          p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}"${isStaff?` data-staffb="${staffB.toFixed(1)}" data-sbot="${S_BOT}"`:''} style="cursor:pointer"${isStaff?`><title>点击选中；再次点击线/间可直接定音高</title></rect`:'/'}>`);
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
@@ -3088,7 +3115,7 @@ function render(){
             const notes = g.idx.filter(i=>cols[i].deg>0);
             if(notes.length<2){ notes.forEach(i=>stStemFlags(i)); return; }
             const steps2 = notes.map(i=>staffStep(cols[i],K));
-            const up = (steps2.reduce((a,b)=>a+b,0)/steps2.length) < 41;
+            const up = (steps2.reduce((a,b)=>a+b,0)/steps2.length) < S_MID;
             const beamY = up? Math.min(...steps2.map(s2=>stepY(s2)))-SG*2.9
                             : Math.max(...steps2.map(s2=>stepY(s2)))+SG*2.9;
             const sxOf = i=> mx+lay.xs[i] + (up? 4.2 : -4.2);
@@ -3329,8 +3356,10 @@ function syncInputs(){
     const vnJ=document.getElementById('vn-jp'), vnS=document.getElementById('vn-st');
     if(vnJ && vnS){
       const vvi = sel.row==='vox'? sel.vi : 0;
-      const st = (song.voxNotations||[])[vvi]==='staff';
-      vnJ.classList.toggle('on', !st); vnS.classList.toggle('on', st);
+      const nt = (song.voxNotations||[])[vvi];
+      vnJ.classList.toggle('on', nt!=='staff'&&nt!=='bass');
+      vnS.classList.toggle('on', nt==='staff');
+      const vnB=document.getElementById('vn-bs'); if(vnB) vnB.classList.toggle('on', nt==='bass');
     }
     const tnT=document.getElementById('tn-tab'), tnB=document.getElementById('tn-both');
     if(tnT && tnB){ tnT.classList.toggle('on', !song.tabStaff); tnB.classList.toggle('on', !!song.tabStaff); }
@@ -4457,7 +4486,8 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     const yS=(e.clientY-r2.top)/r2.height*vb2.height;
     const sb=+t.dataset.staffb;
     if(yS>sb-48 && yS<sb+14){
-      const step=Math.max(23, Math.min(52, 37+Math.round((sb-yS)/3.75)));
+      const bot=+t.dataset.sbot||37;
+      const step=Math.max(bot-14, Math.min(bot+15, bot+Math.round((sb-yS)/3.75)));
       const KK=staffKeyInfo(), rel=step-KK.step0;
       mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
         c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
@@ -5245,12 +5275,13 @@ function setVoxNotation(nt){
   const vvi = sel.row==='vox'? sel.vi : 0;
   mutate(()=>{
     song.voxNotations = song.voxNotations||[];
-    song.voxNotations[vvi] = nt==='staff'? 'staff' : undefined;
+    song.voxNotations[vvi] = (nt==='staff'||nt==='bass')? nt : undefined;
   });
-  toast('当前声部已切换为'+(nt==='staff'?'五线谱':'简谱')+'（数据不变，可随时切回）');
+  toast('当前声部已切换为'+(nt==='staff'?'五线谱（高音谱表）':nt==='bass'?'低音谱表':'简谱')+'（数据不变，可随时切回）');
 }
 document.getElementById('vn-jp').onclick = ()=>setVoxNotation('jianpu');
 document.getElementById('vn-st').onclick = ()=>setVoxNotation('staff');
+document.getElementById('vn-bs').onclick = ()=>setVoxNotation('bass');
 document.getElementById('tn-tab').onclick = ()=>{ mutate(()=>{ song.tabStaff=undefined; }); toast('已切换为仅 TAB'); };
 document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=true; }); toast('已开启 TAB+五线谱联排（品位按调号自动拼写）'); };
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
@@ -6493,7 +6524,7 @@ const LS_LIB = 'musetab-library-v1';
 const LS_DOCS = 'musetab-docs-v1';
 /* ================= 多窗口：同时编辑多个（可不同类型的）曲谱 ================= */
 let docs = [], curDocI = 0;
-function docType(s){ return !s.tabVoices.length ? (s.func?'func': ((s.voxNotations||[])[0]==='staff'?'staff':'vox')) : (s.inst==='uku'?'uku':'guitar'); }
+function docType(s){ const vn=s.voxNotations||[]; return !s.tabVoices.length ? (s.func?'func': (vn[0]==='staff'&&vn[1]==='bass')?'piano' : vn[0]==='staff'?'staff':'vox') : (s.inst==='uku'?'uku':'guitar'); }
 function docIcon(s){ return {guitar:'🎸',uku:'🎶',vox:'🎵',func:'🎹'}[docType(s)]; }
 function saveStatusText(s){
   if(s.id){
@@ -6688,13 +6719,13 @@ document.getElementById('file-in').addEventListener('change', e=>{
 });
 /* ---- 新建曲谱向导：先选类型（吉他/尤克里里/简谱），再填曲谱信息 ---- */
 function createSong(type, o){
-  const noTab = type==='vox' || type==='func' || type==='staff';
+  const noTab = type==='vox' || type==='func' || type==='staff' || type==='piano';
   const s = {v:3, title:o.title||'未命名曲谱', singer:o.singer||'', lyricist:o.lyricist||'', composer:o.composer||'', maker:o.maker||'',
     key:o.key||'C', beats:o.beats||4, unit:o.unit||4, tempo:o.tempo||90, capo:o.capo||0, customChords:{},
     inst: type==='uku'?'uku':'guitar', func: type==='func'||undefined,
     tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(type==='uku'?'尤克里里':'吉他')+(i+1)),
-    voxVoices: Array.from({length:o.nVox||0},(_,i)=>'旋律'+(i+1)),
-    voxNotations: type==='staff'? Array.from({length:o.nVox||1},()=> 'staff') : undefined,
+    voxVoices: type==='piano'? ['右手','左手'] : Array.from({length:o.nVox||0},(_,i)=>'旋律'+(i+1)),
+    voxNotations: type==='piano'? ['staff','bass'] : (type==='staff'? Array.from({length:o.nVox||1},()=> 'staff') : undefined),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
   const old = song; song = s;
   for(let i=0;i<(o.nMea||8);i++) s.measures.push(blankMeasure());
@@ -6710,6 +6741,7 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="uku"><span class="nt-tag">四线谱</span><b>尤克里里谱</b><span>四线 TAB（GCEA 标准调弦）＋简谱＋歌词，与吉他谱同一套编辑方式与技巧体系。</span></button>
     <button class="ntcard ntype" data-nt="vox"><span class="nt-tag">旋律</span><b>简谱</b><span>纯简谱＋歌词，不含 TAB 行，适合旋律记谱、声乐与教学场景。</span></button>
     <button class="ntcard ntype" data-nt="staff"><span class="nt-tag">标准记谱</span><b>五线谱</b><span>高音谱表＋歌词：调号/符杠/临时记号标准绘制，与简谱同源数据、一键互切。</span></button>
+    <button class="ntcard ntype" data-nt="piano"><span class="nt-tag">大谱表</span><b>钢琴谱</b><span>高音+低音双谱表（右手/左手）连谱括线联排，双手各自独立录入。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦标注，按 1=调号 自动换算（C 调 Am → 6m），乐队排练通用。</span></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>`);
@@ -6717,9 +6749,9 @@ function showNewWizard(){
   document.getElementById('nw-cancel').onclick = closeModal;
 }
 function showNewForm(type){
-  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', func:'功能谱'}[type];
+  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', piano:'钢琴谱', func:'功能谱'}[type];
   const instLabel = type==='uku'?'尤克里里':'吉他';
-  const noTab = type==='vox' || type==='func' || type==='staff';
+  const noTab = type==='vox' || type==='func' || type==='staff' || type==='piano';
   const sels=(id,arr,def)=>`<select id="${id}">${arr.map(v=>`<option value="${v}"${v===def?' selected':''}>${v}</option>`).join('')}</select>`;
   showModal(`<h3>新建${tName} · 第 2 步：曲谱信息</h3>
   <label class="f"><span>标题</span><input id="nw-title" value="未命名曲谱" style="flex:1"></label>
@@ -7088,7 +7120,7 @@ function seedCircle(){
   if(typeof PRESETS!=='undefined' && PRESETS[1]) l.push(mk(PRESETS[1].make, 3, 2));
   circlePubsSave(l);
 }
-const TYPE_CN={guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', func:'功能谱'};
+const TYPE_CN={guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', piano:'钢琴谱', func:'功能谱'};
 function showPublishMenu(libEntry, rect){
   closePop();
   const cr=creatorLoad();
@@ -7120,7 +7152,7 @@ function circleFav(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY))||{};
 function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o)); }catch(_){} }
 function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
 let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
-const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['staff','五线谱'],['func','功能谱']];
+const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['staff','五线谱'],['piano','钢琴谱'],['func','功能谱']];
 /* 曲谱卡封面：取谱面首小节旋律与歌词生成迷你预览（每首卡面都不同；
    后期小程序精致分享卡沿用此封面语言） */
 function ccCover(pb){
@@ -7863,6 +7895,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.4</span><div>二期收官：<b>大谱表（钢琴谱）</b>。① 记谱法新增<b>低音谱表</b>（F 谱号、低音调号音位、符干/加线/点击定音高全套适配）；② 相邻「高音谱表+低音谱表」声部自动以<b>花括线</b>连成大谱表；③ 新建向导新增<b>「钢琴谱」</b>类型——右手/左手双声部各自独立录入；曲谱库新增钢琴谱分类。</div></li>
     <li><span class="v">v36.3</span><div>五线谱<b>点击定音高</b>：选中音列后，再点谱表上的任意<b>线或间</b>即把该音改为对应音高（含上下加线区，自动换算八度、清除临时记号），配合键盘 0–7 两种输入方式随意用。</div></li>
     <li><span class="v">v36.2</span><div>五线谱二连发：① <b>TAB+五线谱联排</b>（Guitar Pro 式）——吉他谱左栏「记谱法」选「TAB+五线谱」，TAB 上方即出标准五线谱：品位按调号自动拼写（调内音不标记、调外音按调性取升降）、和弦列叠置符头（相邻二度自动错位）、共用符干、符杠随节奏分组、闷音 ×符头、休止符对应；② <b>五线谱倚音</b>——小符头+小符干+微型符杠+倚音斜杠，前/后倚音各居主音一侧，点击可编辑。</div></li>
     <li><span class="v">v36.1</span><div>平台升级第一步：<b>新增五线谱</b>。① 新建向导新增「五线谱」类型（高音谱表＋歌词）；② 旋律声部支持<b>记谱法一键互切</b>（左栏「记谱法」：简谱 ↔ 五线谱，同一数据换视图、无损往返）；③ 标准绘制：手绘高音谱号、调号（升降号标准音位排布）、符头符干、<b>符杠</b>（8/16/32 分层级、组内同向）、临时记号（与调号联动：调内音不重复标记）、附点、上下加线、全套休止符、连音线/三连音/波音颤音、力度记号；④ 歌词、功能谱和弦标注、排版面板、打印预览、播放全部照常工作；曲谱库新增「五线谱」分类。</div></li>
