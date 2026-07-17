@@ -1640,14 +1640,6 @@ function staffKeyInfo(){
   return {step0:O*7+Li, Li, sig, alt};
 }
 function staffStep(col, K){ return K.step0 + (col.deg-1) + (col.oct||0)*7; }
-/* 音符显式临时记号（相对调号）：col.acc 为空则被调号覆盖、不画 */
-function staffAccSym(col, K){
-  const av = col.acc==='#'?1 : col.acc==='b'?-1 : 0;
-  if(!av) return '';
-  const ln = (K.Li + col.deg - 1) % 7;
-  const shown = (K.alt[ln]||0) + av;
-  return shown===1?'♯' : shown===-1?'♭' : shown===0?'♮' : shown===2?'𝄪' : '♭♭';
-}
 /* TAB → 五线谱拼写：MIDI 音高按当前调号选择字母音与临时记号（调内音不标记；
    调外音按调性方向取 ♯/♭，升调系用升、降调系用降） */
 function midiToStaff(m, K){
@@ -1656,7 +1648,7 @@ function midiToStaff(m, K){
     const alt = K.alt[Li]||0;
     if((((L_NAT[Li]+alt)%12)+12)%12 === pc){
       const O = Math.round((m - L_NAT[Li] - alt)/12);
-      return {step:O*7+Li, sym:''};
+      return {step:O*7+Li, sym:'', Li, alt};
     }
   }
   const useFlat = K.sig<0;
@@ -1664,10 +1656,24 @@ function midiToStaff(m, K){
     const alt = (K.alt[Li]||0) + (useFlat? -1 : 1);
     if((((L_NAT[Li]+alt)%12)+12)%12 === pc){
       const O = Math.round((m - L_NAT[Li] - alt)/12);
-      return {step:O*7+Li, sym: alt===1?'♯': alt===-1?'♭': alt===0?'♮': alt===2?'𝄪':'♭♭'};
+      return {step:O*7+Li, sym: alt===1?'♯': alt===-1?'♭': alt===0?'♮': alt===2?'𝄪':'♭♭', Li, alt};
     }
   }
-  return {step:35, sym:''};
+  return {step:35, sym:'', Li:0, alt:0};
+}
+/* 小节内临时记号进位（出版惯例）：同小节同字母持续有效——
+   重复变化音不重复标记；变化后回到调内音需补还原/调号记号 */
+function accCarry(accSt, Li, targetAlt, keyAlt){
+  if(targetAlt !== keyAlt){
+    if(accSt[Li] === targetAlt) return '';            // 本小节已标过，省略
+    accSt[Li] = targetAlt;
+    return targetAlt===1?'♯': targetAlt===-1?'♭': targetAlt===0?'♮': targetAlt===2?'𝄪':'♭♭';
+  }
+  if(accSt[Li]!=null && accSt[Li]!==keyAlt){          // 曾被改变 → 补还原到调内
+    accSt[Li] = keyAlt;
+    return keyAlt===1?'♯': keyAlt===-1?'♭':'♮';
+  }
+  return '';
 }
 /* 五线谱休止符（vox 与 TAB 联排谱共用）：nx=中心x，staffB=底线y */
 function staffRestStr(nx, staffB, SG, dur, dotted){
@@ -2264,6 +2270,11 @@ function render(){
       tb.textContent = instOf()==='uku'? '尤克里里' : '吉他谱';
       if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
     }
+    const vb=document.querySelector('.ltab[data-t="vox"]');
+    if(vb){
+      const anyStaff = (song.voxNotations||[]).some(n=>n==='staff'||n==='bass');
+      vb.textContent = anyStaff? '五线谱' : '简谱';
+    }
   }
   const svg = document.getElementById('score');
   /* 版面几何：页面尺寸 + 内容大小决定"每页容纳多少"（与显示缩放无关）。
@@ -2374,6 +2385,11 @@ function render(){
           const stp=(K2.sig>0?SH_STEP:FL_STEP)[i];
           p.push(`<text x="${ox-26+i*accSp}" y="${(stepYt(stp)+3.2).toFixed(1)}" font-size="12" text-anchor="middle" fill="var(--ink)">${K2.sig>0?'♯':'♭'}</text>`);
         }
+        /* 拍号：调号右侧、仅首行（与 TAB 谱表拍号成对） */
+        if(sIdx===0){
+          p.push(`<text x="${ox+9}" y="${(cStaffB-2*cSGt-1).toFixed(1)}" font-size="15.5" font-family="var(--font-num)" font-weight="bold" text-anchor="middle" fill="var(--ink)">${song.beats}</text>`);
+          p.push(`<text x="${ox+9}" y="${(cStaffB-1).toFixed(1)}" font-size="15.5" font-family="var(--font-num)" font-weight="bold" text-anchor="middle" fill="var(--ink)">${song.unit}</text>`);
+        }
         p.push(`<line x1="${ox}" y1="${cStaffT}" x2="${ox}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
         /* 逐小节：小节线 + 音符（叠置符头/共用符干/符杠/休止符） */
         sys.measures.forEach(lm=>{
@@ -2382,7 +2398,7 @@ function render(){
           const mx2 = ox+lm.x, bx2 = mx2+lm.L.w;
           p.push(`<line x1="${bx2}" y1="${cStaffT}" x2="${bx2}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
           const gs = beamGroups(cols, null);
-          const inG2 = new Set(); gs.forEach(g=>{ if(g.idx.length>1 && g.idx.filter(i=>(cols[i].notes||[]).length).length>1) g.idx.forEach(i=>inG2.add(i)); });
+          const accSt2 = {};   // 小节内临时记号进位状态（按谱面音级）
           const colSteps = ci=>{
             const ns=(cols[ci].notes||[]).filter(n=>n.s>=1 && n.s<=SN);
             return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0), K2).step, sym:'', x:true}
@@ -2407,7 +2423,8 @@ function render(){
                 p.push(`<path d="M ${hx-3} ${(hy-3).toFixed(1)} L ${hx+3} ${(hy+3).toFixed(1)} M ${hx-3} ${(hy+3).toFixed(1)} L ${hx+3} ${(hy-3).toFixed(1)}" stroke="var(--ink)" stroke-width="1.3" fill="none"/>`);
               else
                 p.push(`<ellipse cx="${hx}" cy="${hy.toFixed(1)}" rx="4.3" ry="3.1" transform="rotate(-18 ${hx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
-              if(o.sym) p.push(`<text x="${hx-9}" y="${(hy+3.2).toFixed(1)}" font-size="11" text-anchor="middle" fill="var(--ink)">${o.sym}</text>`);
+              const sym2 = o.x? '' : accCarry(accSt2, o.step, o.alt, K2.alt[o.Li]||0);
+              if(sym2) p.push(`<text x="${hx-9}" y="${(hy+3.2).toFixed(1)}" font-size="11" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
             });
             if(col2.dotted) p.push(`<circle cx="${nx2+8.5}" cy="${(stepYt(sts[sts.length-1].step)-(sts[sts.length-1].step%2?cSGt/2:0)).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
             return sts;
@@ -2428,22 +2445,31 @@ function render(){
               p.push(`<path d="M ${sx} ${fy.toFixed(1)} C ${sx+6} ${(fy+(up?3.4:-3.4)).toFixed(1)} ${sx+6.5} ${(fy+(up?8.2:-8.2)).toFixed(1)} ${sx+2.1} ${(fy+(up?12:-12)).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             }
           };
-          gs.forEach(g=>{
+          /* 逐列绘制（严格左→右，保证临时记号进位次序）：可成杠的组整组画符杠，
+             其余列（四分及以上、孤立八分、休止）单列画——修复联排谱四分/二分/全音符不显示 */
+          const gAt={}; gs.forEach(g=>{
             const played = g.idx.filter(i=>(cols[i].notes||[]).length && (colSteps(i).length));
-            const beamable = g.idx.length>1 && played.length>1;
-            if(!beamable){
-              g.idx.forEach(ci=>{
-                const sts = drawHeads(ci); if(!sts) return;
-                if(cols[ci].dur>=2){        // 全音符无符干
-                  const mean=(sts[0].step+sts[sts.length-1].step)/2, up=mean<41;
-                  const endY = up? stepYt(sts[sts.length-1].step)-cSGt*2.9 : stepYt(sts[0].step)+cSGt*2.9;
-                  const sx=stem2(ci, sts, endY, up); flag2(sx, endY, up, cols[ci].dur);
-                }
-              });
-              return;
+            if(g.idx.length>1 && played.length>1) gAt[g.idx[0]] = {g, played};
+          });
+          const drawSingle = (ci)=>{
+            const sts = drawHeads(ci); if(!sts) return;
+            if(cols[ci].dur>=2){        // 全音符无符干
+              const mean=(sts[0].step+sts[sts.length-1].step)/2, up=mean<41;
+              const endY = up? stepYt(sts[sts.length-1].step)-cSGt*2.9 : stepYt(sts[0].step)+cSGt*2.9;
+              const sx=stem2(ci, sts, endY, up); flag2(sx, endY, up, cols[ci].dur);
             }
-            const all = played.map(i=>({ci:i, sts:drawHeads(i)})).filter(o=>o.sts);
-            g.idx.forEach(ci=>{ if(!played.includes(ci)) drawHeads(ci); });   // 组内休止照画
+          };
+          for(let ci0=0; ci0<cols.length; ci0++){
+            const ga = gAt[ci0];
+            if(!ga){ drawSingle(ci0); continue; }
+            const {g, played} = ga;
+            const all=[];
+            g.idx.forEach(i=>{ const sts=drawHeads(i); if(played.includes(i)&&sts) all.push({ci:i, sts}); });
+            if(all.length<2){ all.forEach(o=>{ if(cols[o.ci].dur>=2){
+              const mean=(o.sts[0].step+o.sts[o.sts.length-1].step)/2, up=mean<41;
+              const endY = up? stepYt(o.sts[o.sts.length-1].step)-cSGt*2.9 : stepYt(o.sts[0].step)+cSGt*2.9;
+              const sx=stem2(o.ci, o.sts, endY, up); flag2(sx, endY, up, cols[o.ci].dur);
+            } }); ci0=g.idx[g.idx.length-1]; continue; }
             const meanStep = all.reduce((a,o)=>a+(o.sts[0].step+o.sts[o.sts.length-1].step)/2,0)/all.length;
             const up = meanStep<41;
             const beamY = up? Math.min(...all.map(o=>stepYt(o.sts[o.sts.length-1].step)))-cSGt*2.9
@@ -2470,7 +2496,8 @@ function render(){
                 }
               }
             }
-          });
+            ci0 = g.idx[g.idx.length-1];
+          }
         });
       }
       for(let i=0;i<SN;i++)
@@ -2811,6 +2838,11 @@ function render(){
           const stp=(K.sig>0?SH_STEP:FL_STEP)[i];
           p.push(`<text x="${ox-25+i*accSp}" y="${stepY(stp)+3.2}" font-size="12" text-anchor="middle" fill="var(--ink)">${K.sig>0?'♯':'♭'}</text>`);
         }
+        /* 拍号：调号右侧、仅首行——上下数字各占谱表半高（出版惯例） */
+        if(sIdx===0){
+          p.push(`<text x="${ox+9}" y="${(staffB-2*SG-1).toFixed(1)}" font-size="15.5" font-family="var(--font-num)" font-weight="bold" text-anchor="middle" fill="var(--ink)">${song.beats}</text>`);
+          p.push(`<text x="${ox+9}" y="${(staffB-1).toFixed(1)}" font-size="15.5" font-family="var(--font-num)" font-weight="bold" text-anchor="middle" fill="var(--ink)">${song.unit}</text>`);
+        }
         /* 大谱表连谱括线：上一声部为高音谱表、本声部为低音谱表 → 左端花括线相连 */
         if(isBass && (song.voxNotations||[])[vi-1]==='staff'){
           const prevT = oy+M.voxYs[vi-1]-6-4*SG;
@@ -2879,6 +2911,7 @@ function render(){
         }
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
+        const accSt = {};   // 五线谱小节内临时记号进位状态（按谱面音级）
         /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
         const stStemFlags = (ci2)=>{
           const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
@@ -2944,7 +2977,9 @@ function render(){
               const dy2 = (st%2===1)? hy-SG/2 : hy;      // 符头在线上→附点写在上方间内
               p.push(`<circle cx="${nx+8}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
             }
-            const sym = staffAccSym(col,K);
+            const ln = (K.Li + col.deg - 1) % 7, keyAlt = K.alt[ln]||0;
+            const av = col.acc==='#'?1 : col.acc==='b'?-1 : 0;
+            const sym = accCarry(accSt, st, keyAlt+av, keyAlt);
             if(sym) p.push(`<text x="${nx-9.5}" y="${(hy+3.4).toFixed(1)}" font-size="11.5" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
             if(!inGroup.has(ci)) stStemFlags(ci);
           }else{
@@ -3080,9 +3115,22 @@ function render(){
             while(b3+1<cols.length && cols[b3+1].tie) b3++;
             const x1 = mx+lay.xs[a3]+5;
             const x2 = (b3+1<cols.length)? mx+lay.xs[b3+1]-6 : mx+lm.L.w+10;
-            const tyB = isStaff? staffT-3 : voxY-13;
-            const yp = tyB-9-Math.min(6,(b3-a3)*2);
-            p.push(`<path d="M ${x1} ${tyB} Q ${(x1+x2)/2} ${yp} ${x2} ${tyB}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+            if(isStaff){
+              /* 五线谱：连音线贴着符头、弯向符干反侧（出版惯例），不再固定在谱表上缘 */
+              const cA=cols[a3], cB=(b3+1<cols.length && cols[b3+1].deg)? cols[b3+1] : null;
+              const sA = cA.deg? staffStep(cA,K) : S_MID;
+              const sB = cB? staffStep(cB,K) : sA;
+              const below = sA < S_MID;                 // 符干朝上 → 弧线在符头下方
+              const yA=stepY(sA), yE=stepY(sB);
+              const ty = below? Math.max(yA,yE)+5.2 : Math.min(yA,yE)-5.2;
+              const bow = 7+Math.min(6,(b3-a3)*2);
+              const yp = below? ty+bow : ty-bow;
+              p.push(`<path d="M ${x1} ${ty.toFixed(1)} Q ${((x1+x2)/2).toFixed(1)} ${yp.toFixed(1)} ${x2} ${ty.toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+            }else{
+              const tyB = voxY-13;
+              const yp = tyB-9-Math.min(6,(b3-a3)*2);
+              p.push(`<path d="M ${x1} ${tyB} Q ${(x1+x2)/2} ${yp} ${x2} ${tyB}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+            }
             a3=b3+1;
           }
         }
@@ -7895,6 +7943,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.5</span><div>五线谱<b>深度审计</b>五项修正：① 联排谱修复<b>四分/二分/全音符不显示</b>（原先只画符杠组内音符）；② 临时记号按出版惯例<b>小节内进位</b>——同小节同音级重复变化音不重复标记、变化后回到调内自动补<b>还原号/调号记号</b>（五线谱与联排谱一致，按线/间独立计算）；③ 谱表首行调号右侧补<b>拍号</b>（叠置数字）；④ <b>连音线贴符头</b>并弯向符干反侧（不再固定在谱表上缘）；⑤ 左栏行标签随记谱法自动显示「五线谱/简谱」。</div></li>
     <li><span class="v">v36.4</span><div>二期收官：<b>大谱表（钢琴谱）</b>。① 记谱法新增<b>低音谱表</b>（F 谱号、低音调号音位、符干/加线/点击定音高全套适配）；② 相邻「高音谱表+低音谱表」声部自动以<b>花括线</b>连成大谱表；③ 新建向导新增<b>「钢琴谱」</b>类型——右手/左手双声部各自独立录入；曲谱库新增钢琴谱分类。</div></li>
     <li><span class="v">v36.3</span><div>五线谱<b>点击定音高</b>：选中音列后，再点谱表上的任意<b>线或间</b>即把该音改为对应音高（含上下加线区，自动换算八度、清除临时记号），配合键盘 0–7 两种输入方式随意用。</div></li>
     <li><span class="v">v36.2</span><div>五线谱二连发：① <b>TAB+五线谱联排</b>（Guitar Pro 式）——吉他谱左栏「记谱法」选「TAB+五线谱」，TAB 上方即出标准五线谱：品位按调号自动拼写（调内音不标记、调外音按调性取升降）、和弦列叠置符头（相邻二度自动错位）、共用符干、符杠随节奏分组、闷音 ×符头、休止符对应；② <b>五线谱倚音</b>——小符头+小符干+微型符杠+倚音斜杠，前/后倚音各居主音一侧，点击可编辑。</div></li>
