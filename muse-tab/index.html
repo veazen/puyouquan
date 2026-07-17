@@ -370,18 +370,36 @@ svg text{user-select:none}
 .cc-top .cc-sub{font-size:11.5px;color:var(--muted)}
 .cc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;
   max-width:1080px;margin:22px auto;padding:0 26px}
-.cc-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:16px;padding:16px 17px;
+/* 曲谱库页 hero（tutorials 式：大标题 + 引导语） */
+.cc-hero{max-width:1080px;margin:30px auto 2px;padding:0 26px}
+.cc-hero .kk{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:2px;color:var(--accent);margin-bottom:8px}
+.cc-hero .kk::before{content:"";width:22px;height:2.5px;border-radius:2px;background:var(--grad)}
+.cc-hero h1{font-size:clamp(26px,3.6vw,38px);margin:0 0 8px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
+.cc-hero h1 .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cc-hero p{color:var(--muted);font-size:14px;margin:0;max-width:640px}
+/* 精致曲谱卡：封面（迷你谱面预览）+ 信息区（后期小程序分享同款卡） */
+.cc-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:17px;padding:0;
   cursor:pointer;transition:box-shadow .2s,transform .18s,border-color .18s;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-.cc-card::after{content:"";position:absolute;inset:0 0 auto;height:2.5px;background:var(--grad);opacity:0;transition:opacity .2s}
-.cc-card:hover{box-shadow:0 12px 30px rgba(0,0,0,.13);transform:translateY(-3px);
-  border-color:color-mix(in srgb, var(--accent) 26%, var(--border-soft))}
+.cc-card::after{content:"";position:absolute;inset:0 0 auto;height:2.5px;background:var(--grad);opacity:0;transition:opacity .2s;z-index:2}
+.cc-card:hover{box-shadow:0 14px 34px rgba(0,0,0,.14);transform:translateY(-3px);
+  border-color:color-mix(in srgb, var(--accent) 28%, var(--border-soft))}
 .cc-card:hover::after{opacity:1}
-.cc-card .t{font-size:15px;font-weight:700;margin-bottom:4px;color:var(--ink)}
-.cc-card .a{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+.cc-cover{position:relative;height:108px;overflow:hidden;border-bottom:1px solid var(--border-soft);
+  background:linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--grad-3) 6%, transparent) 80%)}
+.cc-cover svg{position:absolute;inset:0;width:100%;height:100%}
+.cc-type{position:absolute;top:10px;left:12px;font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.5px;
+  background:color-mix(in srgb, var(--panel) 84%, transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2.5px 11px;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.cc-body{padding:13px 16px 14px}
+.cc-card .tr{display:flex;align-items:flex-start;gap:8px}
+.cc-card .t{flex:1;font-size:15px;font-weight:700;margin-bottom:3px;color:var(--ink);padding-left:0}
+.cc-card .a{font-size:11.5px;color:var(--muted);margin-bottom:9px}
 .cc-card .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
-.cc-card .meta i{font-style:normal;border:1px solid var(--border);border-radius:10px;padding:1px 8px}
-.cc-price{position:absolute;top:14px;right:14px;font-size:12px;font-weight:700;color:var(--accent)}
-.cc-price.free{color:#2eaf64}
+.cc-card .meta i{font-style:normal;border:1px solid var(--border-soft);border-radius:10px;padding:1px 8px;background:color-mix(in srgb, var(--panel) 60%, var(--bg))}
+.cc-price{position:absolute;top:10px;right:12px;font-size:12px;font-weight:800;color:var(--accent);
+  background:color-mix(in srgb, var(--panel) 84%, transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2.5px 11px;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.cc-price.free{color:#22a05a}
 /* 谱友圈：搜索 / 分类 / 收藏 工具条 */
 .cc-tools{max-width:1080px;margin:16px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cc-search{flex:1;min-width:180px;max-width:340px;position:relative}
@@ -394,11 +412,10 @@ svg text{user-select:none}
 .cc-chip.fav.on{background:#e0395a;color:#fff}
 .cc-count{font-size:11.5px;color:var(--muted);margin-left:auto}
 /* 卡片收藏心 */
-.cc-fav{position:absolute;top:12px;left:12px;font-size:15px;line-height:1;cursor:pointer;
-  border:none;background:none;padding:2px;color:var(--muted);opacity:.55;transition:opacity .12s,transform .12s;z-index:2}
+.cc-fav{font-size:16px;line-height:1;cursor:pointer;flex:none;
+  border:none;background:none;padding:2px 0 0;color:var(--muted);opacity:.55;transition:opacity .12s,transform .12s}
 .cc-fav:hover{opacity:1;transform:scale(1.15)}
 .cc-fav.on{opacity:1;color:#e0395a}
-.cc-card .t{padding-left:22px}
 /* 观看模式 */
 body.viewer #top, body.viewer #doc-tabs, body.viewer #left-dock, body.viewer #right-dock,
 body.viewer #hint, body.viewer #site-footer{display:none!important}
@@ -743,8 +760,8 @@ body.stand #standbar{display:flex}
       <button id="b-layout" title="排版：智能/手动疏密、内容大小、页面尺寸(A5/A4/A3 容量)">排版</button>
       <button id="b-preview" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
-      <button id="b-library" class="seg-accent" title="预设曲谱与我的曲谱">曲谱库</button>
-      <button id="b-circle" class="seg-accent" title="谱友圈：面向吉他爱好者的曲谱展示与付费生态（创作者中心可发布）">谱友圈</button>
+      <button id="b-library" class="seg-accent" title="预设曲谱（功能示例）与我的曲谱">预设</button>
+      <button id="b-circle" class="seg-accent" title="曲谱库：发现好谱、收藏与购买（创作者可在个人中心发布）">曲谱库</button>
     </span>
     <span class="seg">
       <button id="b-undo" title="Ctrl+Z">撤销</button>
@@ -6165,7 +6182,7 @@ function closeDoc(i){
   const st=saveStatusText(d.song);
   showModal(`<h3>关闭窗口 · ${esc(d.song.title||'未命名曲谱')}</h3>
   <p style="font-size:13px;color:var(--ink)">${st.saved?'✅':'⚠️'} 保存情况：${st.text}。</p>
-  ${st.saved?'':'<p>关闭后此窗口不再显示；未存入「我的曲谱」的内容将无法从曲谱库找回。</p>'}
+  ${st.saved?'':'<p>关闭后此窗口不再显示；未存入「我的曲谱」的内容将无法找回。</p>'}
   <div class="btns">
     <button id="dc-cancel">取消</button>
     ${st.saved?'':'<button id="dc-save" class="primary">存入我的曲谱并关闭</button>'}
@@ -6268,7 +6285,7 @@ function showLibrary(){
          <button data-del-mine="${e.id}">删除</button></div>
      </div>`).join('')
     : `<p style="grid-column:1/-1">还没有保存的曲谱。制作时点顶部"存入我的曲谱"即可保存，之后编辑会实时自动保存。</p>`;
-  showModal(`<h3>曲谱库</h3>
+  showModal(`<h3>预设 · 我的曲谱</h3>
     <div class="lib-tabs">
       <button class="lib-tab ${libTab==='preset'?'on':''}" data-lt="preset">预设曲谱 · 功能展示</button>
       <button class="lib-tab ${libTab==='mine'?'on':''}" data-lt="mine">我的曲谱（${lib.length}）</button>
@@ -6740,14 +6757,50 @@ function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o))
 function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
 let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
 const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['func','功能谱']];
+/* 曲谱卡封面：取谱面首小节旋律与歌词生成迷你预览（每首卡面都不同；
+   后期小程序精致分享卡沿用此封面语言） */
+function ccCover(pb){
+  /* 取第一个有实际旋律/歌词的小节做封面（跳过前奏休止小节） */
+  const meas=((pb.data||{}).measures||[]);
+  let cols=[];
+  for(const m of meas){
+    const cs=(((m||{}).voxes||[])[0]||[]).filter(c=>c&&(c.deg>0 || ((c.lyrics||[])[0]||'').trim()));
+    if(cs.length){ cols=cs.slice(0,7); break; }
+  }
+  const p=[];
+  for(let i=0;i<4;i++)
+    p.push(`<line x1="14" y1="${30+i*15}" x2="240" y2="${30+i*15}" stroke="var(--ink)" stroke-opacity=".06"/>`);
+  p.push(`<text x="212" y="100" font-size="70" fill="var(--accent)" fill-opacity=".09" text-anchor="middle" font-weight="700">♪</text>`);
+  if(cols.length){
+    const step=Math.min(30, 200/cols.length);
+    cols.forEach((c,i)=>{
+      const x=26+i*step;
+      if(c.deg){
+        p.push(`<text x="${x}" y="56" font-size="17" font-weight="600" fill="var(--ink)" fill-opacity=".78" text-anchor="middle">${c.deg}</text>`);
+        if(c.oct>0) p.push(`<circle cx="${x}" cy="41" r="1.4" fill="var(--ink)" fill-opacity=".6"/>`);
+        if(c.oct<0) p.push(`<circle cx="${x}" cy="63" r="1.4" fill="var(--ink)" fill-opacity=".6"/>`);
+      }
+      const ly=(c.lyrics||[])[0];
+      if(ly) p.push(`<text x="${x}" y="84" font-size="11.5" fill="var(--muted)" text-anchor="middle">${esc(String(ly).slice(0,2))}</text>`);
+    });
+  }else{
+    p.push(`<text x="26" y="60" font-size="13" fill="var(--muted)" fill-opacity=".8">♩ 点击试读曲谱</text>`);
+  }
+  return `<svg viewBox="0 0 250 108" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${p.join('')}</svg>`;
+}
 function circleCard(pb, own, fav){
   return `<div class="cc-card" data-pub="${pb.pid}">
-      <button class="cc-fav ${fav[pb.pid]?'on':''}" data-fav="${pb.pid}" title="${fav[pb.pid]?'取消收藏':'收藏'}">${fav[pb.pid]?'♥':'♡'}</button>
-      <div class="cc-price ${pb.price>0?'':'free'}">${pb.price>0? (own[pb.pid]?'已购':'¥'+pb.price) : '免费'}</div>
-      <div class="t">${esc(pb.title||'未命名曲谱')}</div>
-      <div class="a">制谱：${esc(pb.author||'佚名')} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</div>
-      <div class="meta"><i>${TYPE_CN[pb.type]||'曲谱'}</i><i>${(pb.data.measures||[]).length} 小节</i>
-        <i>👁 ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}</div>
+      <div class="cc-cover">${ccCover(pb)}
+        <span class="cc-type">${TYPE_CN[pb.type]||'曲谱'}</span>
+        <span class="cc-price ${pb.price>0?'':'free'}">${pb.price>0? (own[pb.pid]?'已购':'¥'+pb.price) : '免费'}</span>
+      </div>
+      <div class="cc-body">
+        <div class="tr"><div class="t">${esc(pb.title||'未命名曲谱')}</div>
+          <button class="cc-fav ${fav[pb.pid]?'on':''}" data-fav="${pb.pid}" title="${fav[pb.pid]?'取消收藏':'收藏'}">${fav[pb.pid]?'♥':'♡'}</button></div>
+        <div class="a">制谱：${esc(pb.author||'佚名')} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</div>
+        <div class="meta"><i>${(pb.data.measures||[]).length} 小节</i>
+          <i>👁 ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}</div>
+      </div>
     </div>`;
 }
 function circleFiltered(){
@@ -6779,12 +6832,17 @@ function openCircle(){
   div=document.createElement('div'); div.id='circle';
   const notice=(adminCfg().notice||'').trim();
   div.innerHTML=`<div class="cc-top">
-      <span class="cc-logo"><span class="mark"></span>谱友圈</span>
-      <span class="cc-sub">发现好谱 · 支持创作者 &nbsp;|&nbsp; 创作者可在「个人中心 → 创作者中心」发布曲谱</span>
+      <span class="cc-logo"><span class="mark"></span>曲谱库</span>
+      <span class="cc-sub">谱友圈 · 发现好谱、支持创作者 &nbsp;|&nbsp; 创作者可在「个人中心 → 创作者中心」发布曲谱</span>
       <span style="flex:1"></span>
       <button id="cc-back" class="primary">返回制谱器</button>
     </div>
     ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">📢 ${esc(notice)}</div></div>`:''}
+    <div class="cc-hero">
+      <span class="kk">曲谱库</span>
+      <h1>发现好谱，<span class="grad">边看边弹</span></h1>
+      <p>精选示例与谱友发布的曲谱：搜索、筛选、收藏，点开即看即弹。后续每首谱都会生成精致曲谱卡，小程序一键分享给朋友。</p>
+    </div>
     <div class="cc-tools">
       <span class="cc-search"><input id="cc-q" placeholder="搜索曲名 / 作者" value="${esc(ccFilter.q)}"></span>
       ${CC_CATS.map(([k,n])=>`<button class="cc-chip ${ccFilter.cat===k?'on':''}" data-cat="${k}">${n}</button>`).join('')}
@@ -6795,7 +6853,7 @@ function openCircle(){
     </div>
     <div class="cc-grid"></div>
     <p style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">
-      本地演示版 · 云端账号 / 微信支付 / 小程序上线后自动同步</p>`;
+      本地演示版 · 云端账号 / 微信支付上线后自动同步 · 精致曲谱卡 + 小程序分享链接 规划中</p>`;
   document.body.appendChild(div);
   renderCircleGrid();
   document.getElementById('cc-back').onclick=()=>div.remove();
@@ -7020,7 +7078,7 @@ function pcMineHTML(){
     <button data-pc-del="${e.id}">删除</button></div>`).join('');
   return `<h4>我的曲谱（${lib.length}）</h4>
     ${lib.length? rows : '<p>还没有保存的曲谱。制作时点顶部「保存」即可存入，之后编辑实时同步。</p>'}
-    <div class="btns"><button id="pc-openlib">打开曲谱库</button></div>`;
+    <div class="btns"><button id="pc-openlib">打开我的曲谱</button></div>`;
 }
 function pcPatHTML(){
   const pats=myPatLoad();
@@ -7355,7 +7413,7 @@ document.getElementById('b-help').onclick = ()=>{
         <div class="ds">吉他谱｜尤克里里谱｜简谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
     </div>
     <div class="hd-steps">
-      <div class="hd-step"><div class="n">1</div><b>建谱</b><p>「新建」选类型，填标题/拍号/变调夹/声部；或「曲谱库」选预设改编。多首可同时开窗。</p></div>
+      <div class="hd-step"><div class="n">1</div><b>建谱</b><p>「新建」选类型，填标题/拍号/变调夹/声部；或「预设」选一首示例改编。多首可同时开窗。</p></div>
       <div class="hd-step"><div class="n">2</div><b>录入</b><p>TAB 点弦位敲品位 0–24；简谱敲 <kbd>0</kbd>–<kbd>7</kbd>；点歌词行打字。有和弦时「节奏型库」一键成小节。</p></div>
       <div class="hd-step"><div class="n">3</div><b>排版打印</b><p>「排版」调纸张疏密、<kbd>空格</kbd>试听、「预览」看成品，「打印」出 A4/PDF。改动实时自动保存。</p></div>
     </div>
@@ -7441,6 +7499,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.0</span><div>入口更名与曲谱库改版：① 顶栏「曲谱库」更名为<b>「预设」</b>（预设示例＋我的曲谱），原「谱友圈」更名为<b>「曲谱库」</b>；② 曲谱库页面全新改版——大标题引导区、渐变筛选、<b>精致曲谱卡</b>：每张卡自动生成迷你谱面封面（取该曲第一段有旋律的小节，数字谱＋歌词＋类型/价格徽章），后期将以同款卡面接入<b>小程序分享链接</b>。</div></li>
     <li><span class="v">v35.9</span><div>制谱器与曲谱库<b>视觉对齐官网</b>：① 品牌标换为官网同款<b>渐变谱线 mark</b>（页头与谱友圈顶栏统一）；② 主按钮（播放/打开/创建等）与选中态换品牌渐变胶囊；③ 曲谱库标签、新建向导卡片、我的曲谱卡片、谱友圈卡片统一为渐变顶条 + 上浮悬停；④ 页面顶部加入品牌径向光晕，深浅主题同步适配。</div></li>
     <li><span class="v">v35.8</span><div>中文歌词字号提到<b>出版级</b>：正文 14→<b>15.5</b>（约 11.6pt，与简谱数字光学等大、落在主流歌本档位），旁挂标点 12→13；同步把歌词刚杆 17→18.5、多段行距 20→21、点击/选中热区与首行偏移一并放大，密集逐字段仍不贴字、跨声部对齐不变。</div></li>
     <li><span class="v">v35.7</span><div>修正简谱<b>高音点几乎贴住数字</b>的问题：高音点原先硬编码在距数字基线 14px 处，而 16.5px 数字的字顶就在 12px——间隙仅约 0.3px；低音点距字底却有 4px。现高音点上移至与低音点<b>光学对称</b>（距字顶≈4px），并同步上调该情形的行上方预留空间与波音/颤音记号的避让位置。</div></li>
