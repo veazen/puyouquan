@@ -2307,14 +2307,20 @@ function render(){
      水平位置不超过（不高于）标题 */
   credits.forEach((t,i)=>
     p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+8+i*17}" font-size="12.5" text-anchor="end" fill="var(--ink)">${esc(t)}</text>`));
-  p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(song.key)}</text>`);
-  p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
-  p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
-  p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
+  /* 纯五线谱/钢琴谱：调性由调号表达、拍号在谱表上——页头不再重复 1=X 与 4/4，
+     只保留速度记号（出版惯例）；含简谱/TAB 的谱面维持原页头 */
+  const pureStaff = !song.tabVoices.length && song.voxVoices.length>0 &&
+    song.voxVoices.every((_,i2)=>['staff','bass'].includes((song.voxNotations||[])[i2]));
+  if(!pureStaff){
+    p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(song.key)}</text>`);
+    p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
+    p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
+    p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
+  }
   const capoBits=[];
-  if(song.capo>0) capoBits.push(`变调夹 ${song.capo} 品`);
+  if(song.capo>0 && !pureStaff) capoBits.push(`变调夹 ${song.capo} 品`);
   capoBits.push(`♩=${song.tempo}`);
-  p.push(`<text x="${MARGIN+78}" y="${headY+22}" font-size="12.5" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
+  p.push(`<text x="${pureStaff? MARGIN : MARGIN+78}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
   let top = headY + 42;
   if(diagMode==='top'){
     const chords = usedChords();
@@ -2382,6 +2388,9 @@ function render(){
           p.push(tsigStr(song.unit,  ox+9, cStaffB-cSGt,   cSGt));
         }
         p.push(`<line x1="${ox}" y1="${cStaffT}" x2="${ox}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
+        /* 小节号：非首行行首标注（联排谱画在五线谱表上方） */
+        if(sIdx>0 && vi===0 && sys.measures.length)
+          p.push(`<text x="${ox-45}" y="${(cStaffT-8).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${sys.measures[0].mi+1}</text>`);
         /* 逐小节：小节线 + 音符（叠置符头/共用符干/符杠/休止符） */
         sys.measures.forEach(lm=>{
           const cols = song.measures[lm.mi].tabs[vi]||[];
@@ -2390,6 +2399,9 @@ function render(){
           p.push(`<line x1="${bx2}" y1="${cStaffT}" x2="${bx2}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
           const gs = beamGroups(cols, null);
           const accSt2 = {};   // 小节内临时记号进位状态（按谱面音级）
+          /* 整小节休止：全空小节画一个居中全休止 */
+          const emptyM2 = cols.length>0 && !cols.some(c2=>(c2.notes||[]).length);
+          if(emptyM2) p.push(staffRestStr(mx2+lm.L.w/2, cStaffB, cSGt, 1, false));
           const colSteps = ci=>{
             const ns=(cols[ci].notes||[]).filter(n=>n.s>=1 && n.s<=SN);
             return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0), K2).step, sym:'', x:true}
@@ -2398,7 +2410,7 @@ function render(){
           const drawHeads = (ci)=>{
             const nx2 = mx2+lay.xs[ci], col2=cols[ci];
             const sts = colSteps(ci);
-            if(!sts.length){ p.push(staffRestStr(nx2, cStaffB, cSGt, col2.dur, col2.dotted)); return null; }
+            if(!sts.length){ if(!emptyM2) p.push(staffRestStr(nx2, cStaffB, cSGt, col2.dur, col2.dotted)); return null; }
             sts.sort((a,b)=>a.step-b.step);
             const filled = col2.dur>=4;
             let prev=null, flip=false;
@@ -2468,15 +2480,26 @@ function render(){
             } }); ci0=g.idx[g.idx.length-1]; continue; }
             const meanStep = all.reduce((a,o)=>a+(o.sts[0].step+o.sts[o.sts.length-1].step)/2,0)/all.length;
             const up = meanStep<41;
-            const beamY = up? Math.min(...all.map(o=>stepYt(o.sts[o.sts.length-1].step)))-cSGt*2.9
-                            : Math.max(...all.map(o=>stepYt(o.sts[0].step)))+cSGt*2.9;
+            /* 斜杠：随首末（朝杠侧）符头走向倾斜，限幅±0.8线距 */
+            const hyTop = o => up? stepYt(o.sts[o.sts.length-1].step) : stepYt(o.sts[0].step);
+            const sxOf2 = ci => mx2+lay.xs[ci] + (up? 4.1 : -4.1);
+            const xF2 = sxOf2(all[0].ci), xL2 = sxOf2(all[all.length-1].ci);
+            const slant2 = Math.max(-cSGt*0.8, Math.min(cSGt*0.8, (hyTop(all[all.length-1])-hyTop(all[0]))*0.5));
+            const slope2 = xL2>xF2? slant2/(xL2-xF2) : 0;
+            let aInt2 = up? Infinity : -Infinity;
+            all.forEach(o=>{
+              const t = (up? hyTop(o)-cSGt*2.9 : hyTop(o)+cSGt*2.9) - slope2*(sxOf2(o.ci)-xF2);
+              aInt2 = up? Math.min(aInt2,t) : Math.max(aInt2,t);
+            });
+            const beamAt2 = x => aInt2 + slope2*(x-xF2);
             const sxs = {};
-            all.forEach(o=>{ sxs[o.ci]=stem2(o.ci, o.sts, beamY, up); });
-            const rectY = lvl => up? beamY+lvl*4.4 : beamY-2.8-lvl*4.4;
+            all.forEach(o=>{ sxs[o.ci]=stem2(o.ci, o.sts, beamAt2(sxOf2(o.ci)), up); });
             const idxs = all.map(o=>o.ci);
             const bar2=(iA,iB,lvl)=>{
               const xa=Math.min(sxs[iA],sxs[iB])-0.6, xb=Math.max(sxs[iA],sxs[iB])+0.6;
-              p.push(`<rect x="${xa.toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="${(xb-xa).toFixed(1)}" height="2.8" fill="var(--ink)"/>`);
+              const off = up? lvl*4.4 : -2.8-lvl*4.4;
+              const ya=beamAt2(xa)+off, yb=beamAt2(xb)+off;
+              p.push(`<path d="M ${xa.toFixed(1)} ${ya.toFixed(1)} L ${xb.toFixed(1)} ${yb.toFixed(1)} L ${xb.toFixed(1)} ${(yb+2.8).toFixed(1)} L ${xa.toFixed(1)} ${(ya+2.8).toFixed(1)} Z" fill="var(--ink)"/>`);
             };
             bar2(idxs[0], idxs[idxs.length-1], 0);
             for(const [dm,lvl] of [[16,1],[32,2]]){
@@ -2486,7 +2509,10 @@ function render(){
                   if(b2>a) bar2(idxs[a], idxs[b2], lvl);
                   else{
                     const sx=sxs[idxs[a]], dir=a>0?-1:1;
-                    p.push(`<rect x="${Math.min(sx,sx+dir*6.5).toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="6.5" height="2.8" fill="var(--ink)"/>`);
+                    const xa=Math.min(sx,sx+dir*6.5), xb=Math.max(sx,sx+dir*6.5);
+                    const off = up? lvl*4.4 : -2.8-lvl*4.4;
+                    const ya=beamAt2(xa)+off, yb=beamAt2(xb)+off;
+                    p.push(`<path d="M ${xa.toFixed(1)} ${ya.toFixed(1)} L ${xb.toFixed(1)} ${yb.toFixed(1)} L ${xb.toFixed(1)} ${(yb+2.8).toFixed(1)} L ${xa.toFixed(1)} ${(ya+2.8).toFixed(1)} Z" fill="var(--ink)"/>`);
                   }
                   a=b2;
                 }
@@ -2864,6 +2890,10 @@ function render(){
         const isRowEnd = lmIdx===sys.measures.length-1;
         const isLast = lm.mi===song.measures.length-1;
         const isErr = errSet.has('vox'+vi+':'+lm.mi);
+        /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部 */
+        if(isStaff && lmIdx===0 && sIdx>0 && !song.tabVoices.length &&
+           vi===(song.voxNotations||[]).findIndex(n2=>n2==='staff'||n2==='bass'))
+          p.push(`<text x="${ox-45}" y="${(staffT-12).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${lm.mi+1}</text>`);
         if(isErr)
           p.push(`<rect x="${mx}" y="${rowT}" width="${lm.L.w}" height="${rowH+4}" fill="var(--danger)" opacity="0.07"/>
             <text x="${mx+lm.L.w-8}" y="${rowT+8}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
@@ -2908,6 +2938,9 @@ function render(){
         const vGroups = beamGroups(cols, null);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
         const accSt = {};   // 五线谱小节内临时记号进位状态（按谱面音级）
+        /* 整小节休止（出版惯例）：空小节画一个居中全休止，不逐拍画休止符 */
+        const emptyMea = isStaff && cols.length>0 && cols.every(c2=>!c2.deg);
+        if(emptyMea) p.push(staffRestStr(mx+lm.L.w/2, staffB, SG, 1, false));
         /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
         const stStemFlags = (ci2)=>{
           const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
@@ -2979,7 +3012,7 @@ function render(){
             const sym = accCarry(accSt, st, keyAlt+av, keyAlt);
             if(sym) p.push(accG(sym, nx, hy, SG));
             if(!inGroup.has(ci)) stStemFlags(ci);
-          }else{
+          }else if(!emptyMea){
             p.push(staffRestStr(nx, staffB, SG, col.dur, col.dotted));
           }
           /* 倚音（图式记谱）：最多3个小音符成组、共用减时线、各自八度点，
@@ -3167,22 +3200,33 @@ function render(){
         vGroups.forEach(g=>{
           if(g.idx.length<2) return;
           if(isStaff){
-            /* ===== 五线谱符杠：组内同向符干 + 水平杠（8/16/32 分层级段与简谱减时线同构） ===== */
+            /* ===== 五线谱符杠：随旋律走向倾斜（出版惯例）——
+               坡度=首末符头连线之半、限幅±0.8线距；每根符干至少约2.9线距并延伸至杠线 ===== */
             const notes = g.idx.filter(i=>cols[i].deg>0);
             if(notes.length<2){ notes.forEach(i=>stStemFlags(i)); return; }
+            const hyOf = i=> stepY(staffStep(cols[i],K));
             const steps2 = notes.map(i=>staffStep(cols[i],K));
             const up = (steps2.reduce((a,b)=>a+b,0)/steps2.length) < S_MID;
-            const beamY = up? Math.min(...steps2.map(s2=>stepY(s2)))-SG*2.9
-                            : Math.max(...steps2.map(s2=>stepY(s2)))+SG*2.9;
             const sxOf = i=> mx+lay.xs[i] + (up? 4.2 : -4.2);
+            const xF = sxOf(notes[0]), xL = sxOf(notes[notes.length-1]);
+            const slant = Math.max(-SG*0.8, Math.min(SG*0.8, (hyOf(notes[notes.length-1])-hyOf(notes[0]))*0.5));
+            const slope = xL>xF? slant/(xL-xF) : 0;
+            let aInt = up? Infinity : -Infinity;
             notes.forEach(i=>{
-              const hy2=stepY(staffStep(cols[i],K));
-              p.push(`<line x1="${sxOf(i)}" y1="${(hy2+(up?-1.2:1.2)).toFixed(1)}" x2="${sxOf(i)}" y2="${beamY.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              const req = up? hyOf(i)-SG*2.9 : hyOf(i)+SG*2.9;
+              const t = req - slope*(sxOf(i)-xF);
+              aInt = up? Math.min(aInt,t) : Math.max(aInt,t);
             });
-            const rectY = lvl => up? beamY+lvl*4.4 : beamY-2.8-lvl*4.4;
+            const beamAt = x => aInt + slope*(x-xF);
+            notes.forEach(i=>{
+              const hy2=hyOf(i), sx=sxOf(i);
+              p.push(`<line x1="${sx}" y1="${(hy2+(up?-1.2:1.2)).toFixed(1)}" x2="${sx}" y2="${beamAt(sx).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+            });
             const bar = (iA,iB,lvl)=>{
               const xa=Math.min(sxOf(iA),sxOf(iB))-0.6, xb=Math.max(sxOf(iA),sxOf(iB))+0.6;
-              p.push(`<rect x="${xa.toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="${(xb-xa).toFixed(1)}" height="2.8" fill="var(--ink)"/>`);
+              const off = up? lvl*4.4 : -2.8-lvl*4.4;
+              const ya=beamAt(xa)+off, yb=beamAt(xb)+off;
+              p.push(`<path d="M ${xa.toFixed(1)} ${ya.toFixed(1)} L ${xb.toFixed(1)} ${yb.toFixed(1)} L ${xb.toFixed(1)} ${(yb+2.8).toFixed(1)} L ${xa.toFixed(1)} ${(ya+2.8).toFixed(1)} Z" fill="var(--ink)"/>`);
             };
             bar(notes[0], notes[notes.length-1], 0);
             for(const [dm,lvl] of [[16,1],[32,2]]){
@@ -3190,10 +3234,13 @@ function render(){
                 if(cols[notes[a]].dur>=dm){
                   let b=a; while(b<notes.length-1 && cols[notes[b+1]].dur>=dm) b++;
                   if(b>a) bar(notes[a], notes[b], lvl);
-                  else{   // 孤立层级：朝相邻音画短杠
+                  else{   // 孤立层级：朝相邻音画短杠（随杠线坡度）
                     const i=notes[a], dir=a>0? -1 : 1;
                     const x0=sxOf(i), x1b=x0+dir*6.5;
-                    p.push(`<rect x="${Math.min(x0,x1b).toFixed(1)}" y="${rectY(lvl).toFixed(1)}" width="6.5" height="2.8" fill="var(--ink)"/>`);
+                    const xa=Math.min(x0,x1b), xb=Math.max(x0,x1b);
+                    const off = up? lvl*4.4 : -2.8-lvl*4.4;
+                    const ya=beamAt(xa)+off, yb=beamAt(xb)+off;
+                    p.push(`<path d="M ${xa.toFixed(1)} ${ya.toFixed(1)} L ${xb.toFixed(1)} ${yb.toFixed(1)} L ${xb.toFixed(1)} ${(yb+2.8).toFixed(1)} L ${xa.toFixed(1)} ${(ya+2.8).toFixed(1)} Z" fill="var(--ink)"/>`);
                   }
                   a=b;
                 }
@@ -7951,6 +7998,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.8</span><div>五线谱<b>刻版规则升级</b>（对照专业钢琴谱逐项修正）：① <b>符杠随旋律倾斜</b>——坡度取首末符头连线之半、限幅±0.8线距，符干自动延伸至杠线（16/32分层级与短杠同坡度，五线谱与联排一致）；② <b>整小节休止</b>——空小节按出版惯例画一个居中全休止，不再逐拍画休止符；③ 非首行行首标<b>小节号</b>；④ 纯五线谱/钢琴谱页头不再重复「1=X 4/4」，只保留 ♩=速度（调性由调号表达）。</div></li>
     <li><span class="v">v36.7</span><div>五线谱<b>出版级字形引擎</b>：接入行业标准 <b>SMuFL 规范 + Bravura 字体</b>（MuseScore/Dorico 同源，SIL 开源协议），45 枚真字形内嵌——谱号（G/F）、符头（全/二分/实心）、休止符（全～32分）、符尾（8/16/32）、变音记号（♯♭♮×𝄫）、调号、拍号数字、装饰音（上/下波音·颤音·回音）、Segno/Coda 全部替换为出版级轮廓，并按 SMuFL 注册点规范定位（谱号锚线、休止符挂线/坐线、符尾锚符干端点）；首小节自动预留拍号空间不再拥挤；加线随全音符加宽。</div></li>
     <li><span class="v">v36.6</span><div>五线谱<b>符号标准化</b>（对照出版级符号百科）：① <b>全音符标准字形</b>——更宽的横向空心椭圆、内孔斜切，与二分音符明确区分（五线谱与联排谱同步）；② <b>重升号改标准 × 字形</b>（避免生僻字符缺字）；③ <b>加线音符干延伸至中线</b>（出版惯例，远离谱表的高低音不再短干）；④ 高音区<b>三连音括线自动抬升</b>不再压符头；并新增 12 组合跨谱类冲突矩阵测试（吉他/尤克里里联排、钢琴、混合记谱、功能谱+五线谱、反色、A5/A3 等全部通过）。</div></li>
     <li><span class="v">v36.5</span><div>五线谱<b>深度审计</b>五项修正：① 联排谱修复<b>四分/二分/全音符不显示</b>（原先只画符杠组内音符）；② 临时记号按出版惯例<b>小节内进位</b>——同小节同音级重复变化音不重复标记、变化后回到调内自动补<b>还原号/调号记号</b>（五线谱与联排谱一致，按线/间独立计算）；③ 谱表首行调号右侧补<b>拍号</b>（叠置数字）；④ <b>连音线贴符头</b>并弯向符干反侧（不再固定在谱表上缘）；⑤ 左栏行标签随记谱法自动显示「五线谱/简谱」。</div></li>
