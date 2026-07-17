@@ -3038,7 +3038,7 @@ function render(){
               }
             }
           });
-          p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" style="cursor:pointer"/>`);
+          p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}"${isStaff?` data-staffb="${staffB.toFixed(1)}"`:''} style="cursor:pointer"${isStaff?`><title>点击选中；再次点击线/间可直接定音高</title></rect`:'/'}>`);
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
@@ -4449,6 +4449,22 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     /* 不再弹出技法提示条：技巧在顶部固定功能栏中选择 */
     if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"或"连音线"':'点"连音线"可跨音符相连'));
     return;
+  }
+  /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑） */
+  if(row==='vox' && t.dataset.staffb!==undefined && !e.shiftKey &&
+     sel.row==='vox' && sel.vi===vi && sel.mi===mi && sel.ci===ci){
+    const svg2=document.getElementById('score'), r2=svg2.getBoundingClientRect(), vb2=svg2.viewBox.baseVal;
+    const yS=(e.clientY-r2.top)/r2.height*vb2.height;
+    const sb=+t.dataset.staffb;
+    if(yS>sb-48 && yS<sb+14){
+      const step=Math.max(23, Math.min(52, 37+Math.round((sb-yS)/3.75)));
+      const KK=staffKeyInfo(), rel=step-KK.step0;
+      mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
+        c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
+      const c3=song.measures[mi].voxes[vi][ci];
+      toast('音高 → '+c3.deg+(c3.oct>0?'（高'+c3.oct+'八度）':c3.oct<0?'（低'+(-c3.oct)+'八度）':''));
+      return;
+    }
   }
   noteSel=[]; closeTech();
   if(e.shiftKey && sel.row===row && sel.vi===vi){
@@ -7847,6 +7863,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.3</span><div>五线谱<b>点击定音高</b>：选中音列后，再点谱表上的任意<b>线或间</b>即把该音改为对应音高（含上下加线区，自动换算八度、清除临时记号），配合键盘 0–7 两种输入方式随意用。</div></li>
     <li><span class="v">v36.2</span><div>五线谱二连发：① <b>TAB+五线谱联排</b>（Guitar Pro 式）——吉他谱左栏「记谱法」选「TAB+五线谱」，TAB 上方即出标准五线谱：品位按调号自动拼写（调内音不标记、调外音按调性取升降）、和弦列叠置符头（相邻二度自动错位）、共用符干、符杠随节奏分组、闷音 ×符头、休止符对应；② <b>五线谱倚音</b>——小符头+小符干+微型符杠+倚音斜杠，前/后倚音各居主音一侧，点击可编辑。</div></li>
     <li><span class="v">v36.1</span><div>平台升级第一步：<b>新增五线谱</b>。① 新建向导新增「五线谱」类型（高音谱表＋歌词）；② 旋律声部支持<b>记谱法一键互切</b>（左栏「记谱法」：简谱 ↔ 五线谱，同一数据换视图、无损往返）；③ 标准绘制：手绘高音谱号、调号（升降号标准音位排布）、符头符干、<b>符杠</b>（8/16/32 分层级、组内同向）、临时记号（与调号联动：调内音不重复标记）、附点、上下加线、全套休止符、连音线/三连音/波音颤音、力度记号；④ 歌词、功能谱和弦标注、排版面板、打印预览、播放全部照常工作；曲谱库新增「五线谱」分类。</div></li>
     <li><span class="v">v36.0</span><div>入口更名与曲谱库改版：① 顶栏「曲谱库」更名为<b>「预设」</b>（预设示例＋我的曲谱），原「谱友圈」更名为<b>「曲谱库」</b>；② 曲谱库页面全新改版——大标题引导区、渐变筛选、<b>精致曲谱卡</b>：每张卡自动生成迷你谱面封面（取该曲第一段有旋律的小节，数字谱＋歌词＋类型/价格徽章），后期将以同款卡面接入<b>小程序分享链接</b>。</div></li>
