@@ -1656,7 +1656,7 @@ function midiToStaff(m, K){
     const alt = (K.alt[Li]||0) + (useFlat? -1 : 1);
     if((((L_NAT[Li]+alt)%12)+12)%12 === pc){
       const O = Math.round((m - L_NAT[Li] - alt)/12);
-      return {step:O*7+Li, sym: alt===1?'♯': alt===-1?'♭': alt===0?'♮': alt===2?'𝄪':'♭♭', Li, alt};
+      return {step:O*7+Li, sym: alt===1?'♯': alt===-1?'♭': alt===0?'♮': alt===2?'×':'♭♭', Li, alt};
     }
   }
   return {step:35, sym:'', Li:0, alt:0};
@@ -1667,7 +1667,7 @@ function accCarry(accSt, Li, targetAlt, keyAlt){
   if(targetAlt !== keyAlt){
     if(accSt[Li] === targetAlt) return '';            // 本小节已标过，省略
     accSt[Li] = targetAlt;
-    return targetAlt===1?'♯': targetAlt===-1?'♭': targetAlt===0?'♮': targetAlt===2?'𝄪':'♭♭';
+    return targetAlt===1?'♯': targetAlt===-1?'♭': targetAlt===0?'♮': targetAlt===2?'×':'♭♭';
   }
   if(accSt[Li]!=null && accSt[Li]!==keyAlt){          // 曾被改变 → 补还原到调内
     accSt[Li] = keyAlt;
@@ -2421,6 +2421,8 @@ function render(){
                 p.push(`<line x1="${hx-6.4}" y1="${stepYt(L2).toFixed(1)}" x2="${hx+6.4}" y2="${stepYt(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
               if(o.x)
                 p.push(`<path d="M ${hx-3} ${(hy-3).toFixed(1)} L ${hx+3} ${(hy+3).toFixed(1)} M ${hx-3} ${(hy+3).toFixed(1)} L ${hx+3} ${(hy-3).toFixed(1)}" stroke="var(--ink)" stroke-width="1.3" fill="none"/>`);
+              else if(col2.dur===1)   /* 全音符标准字形（联排）：宽横向空心椭圆、内孔斜切 */
+                p.push(`<ellipse cx="${hx}" cy="${hy.toFixed(1)}" rx="5.8" ry="3.5" fill="var(--ink)"/><ellipse cx="${hx}" cy="${hy.toFixed(1)}" rx="2.8" ry="2.1" transform="rotate(-62 ${hx} ${hy.toFixed(1)})" fill="var(--paper)"/>`);
               else
                 p.push(`<ellipse cx="${hx}" cy="${hy.toFixed(1)}" rx="4.3" ry="3.1" transform="rotate(-18 ${hx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
               const sym2 = o.x? '' : accCarry(accSt2, o.step, o.alt, K2.alt[o.Li]||0);
@@ -2455,7 +2457,9 @@ function render(){
             const sts = drawHeads(ci); if(!sts) return;
             if(cols[ci].dur>=2){        // 全音符无符干
               const mean=(sts[0].step+sts[sts.length-1].step)/2, up=mean<41;
-              const endY = up? stepYt(sts[sts.length-1].step)-cSGt*2.9 : stepYt(sts[0].step)+cSGt*2.9;
+              const yMid2 = stepYt(41);   // 加线音符干延伸至中线（出版惯例）
+              const endY = up? Math.min(stepYt(sts[sts.length-1].step)-cSGt*2.9, yMid2)
+                             : Math.max(stepYt(sts[0].step)+cSGt*2.9, yMid2);
               const sx=stem2(ci, sts, endY, up); flag2(sx, endY, up, cols[ci].dur);
             }
           };
@@ -2467,7 +2471,9 @@ function render(){
             g.idx.forEach(i=>{ const sts=drawHeads(i); if(played.includes(i)&&sts) all.push({ci:i, sts}); });
             if(all.length<2){ all.forEach(o=>{ if(cols[o.ci].dur>=2){
               const mean=(o.sts[0].step+o.sts[o.sts.length-1].step)/2, up=mean<41;
-              const endY = up? stepYt(o.sts[o.sts.length-1].step)-cSGt*2.9 : stepYt(o.sts[0].step)+cSGt*2.9;
+              const yMid2 = stepYt(41);
+              const endY = up? Math.min(stepYt(o.sts[o.sts.length-1].step)-cSGt*2.9, yMid2)
+                             : Math.max(stepYt(o.sts[0].step)+cSGt*2.9, yMid2);
               const sx=stem2(o.ci, o.sts, endY, up); flag2(sx, endY, up, cols[o.ci].dur);
             } }); ci0=g.idx[g.idx.length-1]; continue; }
             const meanStep = all.reduce((a,o)=>a+(o.sts[0].step+o.sts[o.sts.length-1].step)/2,0)/all.length;
@@ -2918,7 +2924,9 @@ function render(){
           const nx2=mx+lay.xs[ci2], st2=staffStep(col2,K), hy2=stepY(st2);
           const up2 = st2<S_MID;
           const sx2 = nx2 + (up2?4.2:-4.2);
-          const sy2 = hy2 + (up2? -SG*2.9 : SG*2.9);
+          /* 符干标准长度约3线距；远离谱表的加线音延伸至中线（出版惯例） */
+          const yMid2 = stepY(S_MID);
+          const sy2 = up2? Math.min(hy2-SG*2.9, yMid2) : Math.max(hy2+SG*2.9, yMid2);
           p.push(`<line x1="${sx2}" y1="${(hy2+(up2?-1.2:1.2)).toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
           const fl = col2.dur>=32?3: col2.dur>=16?2: col2.dur>=8?1:0;
           for(let f2=0;f2<fl;f2++){
@@ -2972,7 +2980,10 @@ function render(){
             for(let L2=S_BOT-2; L2>=st; L2-=2)
               p.push(`<line x1="${nx-6.6}" y1="${stepY(L2).toFixed(1)}" x2="${nx+6.6}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             const filled = col.dur>=4;
-            p.push(`<ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="4.5" ry="3.2" transform="rotate(-18 ${nx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
+            if(col.dur===1)   /* 全音符标准字形：更宽的横向空心椭圆、内孔斜切（区别于二分音符） */
+              p.push(`<ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="6" ry="3.7" fill="var(--ink)"/><ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="2.9" ry="2.2" transform="rotate(-62 ${nx} ${hy.toFixed(1)})" fill="var(--paper)"/>`);
+            else
+              p.push(`<ellipse cx="${nx}" cy="${hy.toFixed(1)}" rx="4.5" ry="3.2" transform="rotate(-18 ${nx} ${hy.toFixed(1)})" fill="${filled?'var(--ink)':'none'}" stroke="var(--ink)" stroke-width="1.3"/>`);
             if(col.dotted){
               const dy2 = (st%2===1)? hy-SG/2 : hy;      // 符头在线上→附点写在上方间内
               p.push(`<circle cx="${nx+8}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
@@ -3147,7 +3158,11 @@ function render(){
                 const e=Math.min(s+n-1, b3);
                 const x1=mx+lay.xs[s]-3, x2=mx+lay.xs[e]+3, xm=(x1+x2)/2;
                 const half=Math.min(6, Math.max(3.5,(x2-x1)/2-3));
-                const y0=isStaff? staffT-7 : voxY-13, yp=y0-6;
+                /* 五线谱：括线在组内最高音（含符干）上方，高音加线区自动抬升 */
+                let y0 = isStaff? staffT-7 : voxY-13;
+                if(isStaff) for(let k3=s;k3<=e;k3++){ const c3=cols[k3];
+                  if(c3.deg>0) y0 = Math.min(y0, stepY(staffStep(c3,K)) - SG*2.9 - 5); }
+                const yp=y0-6;
                 p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-half} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<path d="M ${xm+half} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
@@ -7943,6 +7958,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v36.6</span><div>五线谱<b>符号标准化</b>（对照出版级符号百科）：① <b>全音符标准字形</b>——更宽的横向空心椭圆、内孔斜切，与二分音符明确区分（五线谱与联排谱同步）；② <b>重升号改标准 × 字形</b>（避免生僻字符缺字）；③ <b>加线音符干延伸至中线</b>（出版惯例，远离谱表的高低音不再短干）；④ 高音区<b>三连音括线自动抬升</b>不再压符头；并新增 12 组合跨谱类冲突矩阵测试（吉他/尤克里里联排、钢琴、混合记谱、功能谱+五线谱、反色、A5/A3 等全部通过）。</div></li>
     <li><span class="v">v36.5</span><div>五线谱<b>深度审计</b>五项修正：① 联排谱修复<b>四分/二分/全音符不显示</b>（原先只画符杠组内音符）；② 临时记号按出版惯例<b>小节内进位</b>——同小节同音级重复变化音不重复标记、变化后回到调内自动补<b>还原号/调号记号</b>（五线谱与联排谱一致，按线/间独立计算）；③ 谱表首行调号右侧补<b>拍号</b>（叠置数字）；④ <b>连音线贴符头</b>并弯向符干反侧（不再固定在谱表上缘）；⑤ 左栏行标签随记谱法自动显示「五线谱/简谱」。</div></li>
     <li><span class="v">v36.4</span><div>二期收官：<b>大谱表（钢琴谱）</b>。① 记谱法新增<b>低音谱表</b>（F 谱号、低音调号音位、符干/加线/点击定音高全套适配）；② 相邻「高音谱表+低音谱表」声部自动以<b>花括线</b>连成大谱表；③ 新建向导新增<b>「钢琴谱」</b>类型——右手/左手双声部各自独立录入；曲谱库新增钢琴谱分类。</div></li>
     <li><span class="v">v36.3</span><div>五线谱<b>点击定音高</b>：选中音列后，再点谱表上的任意<b>线或间</b>即把该音改为对应音高（含上下加线区，自动换算八度、清除临时记号），配合键盘 0–7 两种输入方式随意用。</div></li>
