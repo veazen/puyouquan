@@ -1085,6 +1085,34 @@ const KEY_LIST = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 const DEG_SEMI = [null,0,2,4,5,7,9,11];
 const SEMI_DEG = [[1,''],[1,'#'],[2,''],[2,'#'],[3,''],[4,''],[4,'#'],[5,''],[5,'#'],[6,''],[6,'#'],[7,'']];
+/* ===== 整体移调（换调自动适应）：和弦名按半音差换根音/斜杠低音，
+   吉他谱品位整体平移（越界时该音自动升/降八度补偿）；简谱唱名不变 ===== */
+const PC_SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const PC_FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+function transChordName(name, delta, useFlat){
+  return (name||'').replace(/([A-G])(#|b)?/g, (m,r,acc)=>{
+    const pc = ((KEY_PC[r+(acc||'')] + delta) % 12 + 12) % 12;
+    return (useFlat? PC_FLAT : PC_SHARP)[pc];
+  });
+}
+function transposeEditor(delta){   // 与曲谱库观看模式的 transposeSong(s,delta) 区分：编辑器内整体统一平移
+  const useFlat = (typeof KEYSIG!=='undefined' && (KEYSIG[song.key]||0)<0);
+  let nCh=0;
+  song.measures.forEach(m=>{
+    m.tabs.forEach(cols=>cols.forEach(c=>{ if(c.chord){ c.chord=transChordName(c.chord,delta,useFlat); nCh++; } }));
+    m.voxes.forEach(cols=>cols.forEach(c=>{ if(c.chord){ c.chord=transChordName(c.chord,delta,useFlat); nCh++; } }));
+  });
+  const notes=[];
+  song.measures.forEach(m=>m.tabs.forEach(cols=>cols.forEach(c=>(c.notes||[]).forEach(n=>{ if(typeof n.f==='number') notes.push(n); }))));
+  let shift=0, clamped=0;
+  if(notes.length){
+    const fits = sh=>notes.every(n=>n.f+sh>=0 && n.f+sh<=24);
+    shift = [delta, delta+12, delta-12].find(fits);   // 优先整体不越界的平移（必要时整体换八度）
+    if(shift==null) shift=delta;
+    notes.forEach(n=>{ let f=n.f+shift; if(f<0){f+=12;clamped++;} if(f>24){f-=12;clamped++;} n.f=f; });
+  }
+  return {nCh, nNotes:notes.length, shift, clamped};
+}
 const CHORD_SHAPES = {
   /* C 系 */
   'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cm':'x35543','Cm7':'x35343',
@@ -5629,6 +5657,8 @@ document.getElementById('b-meta').onclick = ()=>{
     <div class="btns"><button id="mm-cancel">取消</button><button id="mm-ok" class="primary">确定</button></div>`);
   document.getElementById('mm-cancel').onclick = closeModal;
   document.getElementById('mm-ok').onclick = ()=>{
+    const oldKey = song.key;
+    let tr = null, dSemi = 0;
     mutate(()=>{
       song.title = document.getElementById('mm-title').value;
       song.singer = document.getElementById('mm-singer').value;
@@ -5639,8 +5669,19 @@ document.getElementById('b-meta').onclick = ()=>{
       song.beats = Math.max(1, Math.min(12, +document.getElementById('mm-beats').value||4));
       song.unit = +document.getElementById('mm-unit').value||4;
       song.capo = Math.max(0, Math.min(12, +document.getElementById('mm-capo').value||0));
+      /* 换调自动适应：和弦名与吉他谱品位整体移调（简谱唱名/歌词不变，可撤销） */
+      if(song.key !== oldKey){
+        dSemi = ((KEY_PC[song.key]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
+        if(dSemi!==0) tr = transposeEditor(dSemi);
+      }
     });
     closeModal();
+    if(tr){
+      const bits=[];
+      if(tr.nCh) bits.push(`${tr.nCh} 处和弦已移调`);
+      if(tr.nNotes) bits.push(`吉他谱品位整体 ${tr.shift>0?'+':''}${tr.shift} 品`+(tr.clamped? `（${tr.clamped} 音越界已按八度回折）`:''));
+      toast(`已换调 1=${oldKey} → 1=${song.key}（${dSemi>0?'+':''}${dSemi} 半音）：${bits.join('，')||'简谱唱名不变'}，可 Ctrl+Z 撤销`);
+    }
   };
 };
 
@@ -8045,6 +8086,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v37.2</span><div><b>换调自动移调</b>：曲谱信息里更改 1=调号后，全曲<b>和弦名</b>（含斜杠低音、maj7/sus/dim 等后缀，按新调升降体系拼写）与<b>吉他谱品位</b>自动整体平移——优先保持全部音不越界的统一平移（必要时整体换八度），个别越界音按八度回折；简谱唱名与歌词不变；和弦图自动换用新和弦标准指法；一次 Ctrl+Z 可整体撤销。</div></li>
     <li><span class="v">v37.1</span><div>修复<b>大谱表花括线显示不完整</b>：非均匀缩放在特定跨度下误走默认字号分支，导致花括线只有一小段；现按两谱表实际外沿精确拉伸，并新增花括线跨度自动断言（上端=高音谱顶线、下端=低音谱底线）防复发。</div></li>
     <li><span class="v">v37.0</span><div>五线谱四项升级：① <b>大谱表花括线换 SMuFL 标准 brace 字形</b>（非均匀缩放精确跨接两谱表）；② <b>行距随音域自动扩展</b>——谱表上/下加线区按整曲实际最高/最低音预留空间，相邻声部内容不再交叠（低音谱高加线音的符干/符杠本就朝下，此前是行距不足造成的视觉重叠）；③ 五线谱行不再显示声部名；④ 记谱法新增<b>「＋简谱行」</b>——谱表下方附加一行与五线谱逐列对齐的简谱（含高低音点/减时线/附点/延音线），构成「五线谱+简谱+歌词」出版式联排；并修复中音谱表切换未生效的问题。</div></li>
     <li><span class="v">v36.9</span><div>五线谱<b>系统头部按严格出版标准重构</b>：① 谱线自系统左端起、<b>谱号画在谱线上</b>（G谱号锚G4线、F谱号锚F3线、新增<b>中音谱表</b>C谱号锚中线）；② <b>调号紧随谱号</b>、每个升降号按字形宽度全尺寸依次排列（任何调不压缩不重叠），升号序F-C-G-D-A-E-B/降号序B-E-A-D-G-C-F 三种谱号各自标准音位；③ 头部宽度纳入排版引擎（可用宽度自动扣除），钢琴大谱表上下两谱表谱号/调号严格纵向对齐；④ 新增头部几何自动化验证（谱线起点/谱号锚线/逐个调号坐标断言）。</div></li>
