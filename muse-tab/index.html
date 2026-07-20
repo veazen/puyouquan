@@ -925,6 +925,7 @@ body.stand #standbar{display:flex}
     <div class="rcard">
       <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
       <button class="rc-h rc-btn" id="b-acctex" style="display:none" title="按已标注的和弦，用所选伴奏织体自动生成双手音符（可编辑、可逐段重生成）">伴奏织体</button>
+      <button class="rc-h rc-btn" id="b-arrange" style="display:none" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（开新窗口，原谱不动）">智能配谱</button>
     </div>
     <div class="rcard open">
       <button class="rc-h" type="button">小节与段落</button>
@@ -1164,10 +1165,12 @@ function midiToVoxCol(midi){
   const oct = Math.floor(rel/12), pc = ((rel%12)+12)%12;
   return {deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct};
 }
-function genAccompaniment(texId, m1, m2){
+function genAccompaniment(texId, m1, m2, opt){
+  opt=opt||{};
+  const cVi=opt.chordVi||0, rVi=opt.rhVi!=null? opt.rhVi:0, lVi=opt.lhVi!=null? opt.lhVi:1;
   const tex = PIANO_TEX.find(t=>t.id===texId); if(!tex) return {done:0, noChord:0};
   const timeline=[];
-  song.measures.forEach((m,mi)=>{ let cum=0; (m.voxes[0]||[]).forEach(c=>{ if(c.chord) timeline.push({mi, beat:cum, chord:c.chord}); cum+=beatsOf(c); }); });
+  song.measures.forEach((m,mi)=>{ let cum=0; (m.voxes[cVi]||[]).forEach(c=>{ if(c.chord) timeline.push({mi, beat:cum, chord:c.chord}); cum+=beatsOf(c); }); });
   const chordAt=(mi,beat)=>{ let cur=null;
     for(const e of timeline){ if(e.mi>mi || (e.mi===mi && e.beat>beat+1e-4)) break; cur=e.chord; } return cur; };
   let done=0, noChord=0;
@@ -1176,8 +1179,9 @@ function genAccompaniment(texId, m1, m2){
     if(!chordAt(mi,0)){ noChord++; continue; }
     /* 原右手列上的 和弦标注/歌词/力度 按拍位回填到新列 */
     const keep={}; let cum=0;
-    (mea.voxes[0]||[]).forEach(c=>{ if(c.chord||((c.lyrics||[]).some(x=>x))||c.dyn)
-      keep[cum.toFixed(3)]={chord:c.chord, lyrics:c.lyrics, dyn:c.dyn}; cum+=beatsOf(c); });
+    if(rVi===cVi)   // 仅当和弦声部=右手声部（钢琴弹唱谱）时回填标注
+      (mea.voxes[cVi]||[]).forEach(c=>{ if(c.chord||((c.lyrics||[]).some(x=>x))||c.dyn)
+        keep[cum.toFixed(3)]={chord:c.chord, lyrics:c.lyrics, dyn:c.dyn}; cum+=beatsOf(c); });
     const build=(evts, octBase)=>{ const cols=[]; let at=0;
       evts.forEach(ev=>{
         const col={dur:ev.d, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false};
@@ -1194,8 +1198,8 @@ function genAccompaniment(texId, m1, m2){
         cols.push(col); at += song.unit/ev.d;
       });
       return cols; };
-    mea.voxes[0] = build(tex.R, 1);
-    mea.voxes[1] = build(tex.L, 0);
+    mea.voxes[rVi] = build(tex.R, 1);
+    mea.voxes[lVi] = build(tex.L, 0);
     done++;
   }
   return {done, noChord};
@@ -1245,6 +1249,56 @@ function suggestChords(s2, vi){
   });
   song=o0;
   return out;
+}
+/* ===== 智能配谱（P1-B）：主旋律 → 配和弦 → 织体伴奏 =====
+   默认产出教学对照谱（旋律=五线谱+简谱行+歌词 保留，下方右手/左手伴奏大谱表）；
+   opt.pure=true 产出纯伴奏钢琴弹唱谱（去旋律、和弦移到右手、pianoAcc）。
+   纯函数：不修改传入的 melody song，返回新 song（调用方 addDoc 开新窗口）。 */
+function arrangeAccompaniment(melody, opt){
+  opt=opt||{};
+  const out = migrate(JSON.parse(JSON.stringify(melody||song)));
+  const vi = opt.vi||0;
+  const o0=song; song=out;
+  if(opt.suggest!==false){                 // 空小节自动配和弦（不覆盖已填）
+    const sug=suggestChords(out, vi);
+    out.measures.forEach((mea,mi)=>{
+      const cols=mea.voxes[vi]||[];
+      if(cols.length && sug[mi] && !cols.some(c=>c.chord)) cols[0].chord=sug[mi];
+    });
+  }
+  const blank=()=>Array.from({length:out.beats},()=>({dur:out.unit,dotted:false,deg:0,acc:'',oct:0,lyrics:[],tie:false}));
+  const mel = out.measures.map(m=>m.voxes[vi]);
+  out.voxVoices=['旋律','右手伴奏','左手伴奏'];
+  out.voxNotations=['staff','staff','bass'];
+  out.voxDual=[true,false,false];
+  out.funcNames=true;
+  out.tabVoices=[]; delete out.tabStaff; delete out.func; delete out.chordOnly;
+  out.measures.forEach((m,mi)=>{ m.voxes=[mel[mi]||blank(), blank(), blank()]; m.tabs=[]; });
+  const gen=genAccompaniment(opt.texId||'slow', 0, out.measures.length-1, {chordVi:0, rhVi:1, lhVi:2});
+  out.texId=opt.texId||'slow';
+  song=o0;
+  if(opt.pure){                            // 纯伴奏：去旋律声部、和弦按拍位移到右手
+    const o1=song; song=out;
+    out.measures.forEach(m=>{
+      const marks=[]; let cum=0;
+      m.voxes[0].forEach(c=>{ if(c.chord) marks.push({beat:cum, chord:c.chord}); cum+=beatsOf(c); });
+      m.voxes=[m.voxes[1], m.voxes[2]];
+      let cum2=0;
+      m.voxes[0].forEach(c=>{
+        const mk=marks.find(x=>Math.abs(x.beat-cum2)<1e-3);
+        if(mk) c.chord=mk.chord;
+        cum2+=beatsOf(c);
+      });
+      const left=marks.filter(mk=>!m.voxes[0].some(c=>c.chord===mk.chord));
+      if(marks.length && !m.voxes[0].some(c=>c.chord)) m.voxes[0][0].chord=marks[0].chord;
+    });
+    song=o1;
+    out.voxVoices=['右手','左手']; out.voxNotations=['staff','bass'];
+    delete out.voxDual;
+    out.pianoAcc=true;
+  }
+  out.title=(out.title||'曲谱')+(opt.pure?'（即兴伴奏）':'（伴奏对照谱）');
+  return {song:out, gen};
 }
 function applySuggestChords(){
   const sug=suggestChords(song,0);
@@ -2468,6 +2522,8 @@ function render(){
     }
     const at=document.getElementById('b-acctex');
     if(at) at.style.display = song.pianoAcc? '' : 'none';
+    const ar=document.getElementById('b-arrange');
+    if(ar) ar.style.display = ['vocal','teach','instr'].includes(docType(song))? '' : 'none';
     const vb=document.querySelector('.ltab[data-t="vox"]');
     if(vb){
       const anyStaff = (song.voxNotations||[]).some(isStaffNota);
@@ -7276,6 +7332,37 @@ function showNewForm(type){
     toast('已在新窗口新建'+tName+'：'+o.nMea+' 小节');
   };
 }
+/* 智能配谱弹窗（主旋律 → 即兴伴奏成品谱） */
+document.getElementById('b-arrange').onclick = ()=>{
+  const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
+  if(!avail.length){ toast('当前拍号暂无内置织体（支持 4/4 与 3/4）'); return; }
+  showModal(`<h3>智能配谱 · 主旋律 → 即兴伴奏谱</h3>
+    <p style="font-size:12.5px;line-height:1.6">对当前旋律：空小节自动配和弦（功能和声，已填的不覆盖）→ 按所选织体生成双手伴奏。<b>在新窗口生成，当前谱不受影响</b>；生成后可继续改和弦、逐段重生成、一键换调。</p>
+    ${['入门','进阶'].map(lv=>{
+      const g=avail.filter(t=>t.level===lv);
+      return g.length? `<p style="margin:8px 0 2px;font-size:12px;color:var(--muted)"><b>${lv}</b></p>`+
+        g.map((t,i)=>`<label class="f" style="gap:8px"><input type="radio" name="arr-tex" value="${t.id}" ${t.id===avail[0].id?'checked':''}> <b>${t.name}</b></label>`).join('') : '';
+    }).join('')}
+    <label class="f"><span>产出</span><select id="arr-out">
+      <option value="teach">教学对照谱（保留旋律：五线+简谱行+歌词 / 下方双手伴奏）</option>
+      <option value="pure">纯伴奏钢琴谱（旋律交给演唱者）</option>
+    </select></label>
+    <label class="f" style="gap:8px"><input type="checkbox" id="arr-sug" checked> 空小节自动配和弦（建议）</label>
+    <div class="btns"><button id="arr-cancel">取消</button><button id="arr-go" class="primary">生成</button></div>`);
+  document.getElementById('arr-cancel').onclick=closeModal;
+  document.getElementById('arr-go').onclick=()=>{
+    const texId=(document.querySelector('input[name="arr-tex"]:checked')||{}).value;
+    const pure=document.getElementById('arr-out').value==='pure';
+    const sug=document.getElementById('arr-sug').checked;
+    const r=arrangeAccompaniment(song, {texId, pure, suggest:sug});
+    closeModal();
+    addDoc(r.song);
+    setRibbon('vox');
+    toast('已生成《'+r.song.title+'》：'+r.gen.done+' 小节伴奏'
+      +(r.gen.noChord? '，'+r.gen.noChord+' 小节无和弦跳过':'')
+      +'；可点和弦修改后用「伴奏织体」重生成'+(pure?'':'，「记谱法」可调对照行'));
+  };
+};
 document.getElementById('b-new').onclick = showNewWizard;
 /* 伴奏织体弹窗（钢琴弹唱谱） */
 document.getElementById('b-acctex').onclick = ()=>{
@@ -8887,6 +8974,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.2</span><div><b>智能配谱</b>（P1 收官·垂类成品交付）：歌谱/教学/器乐谱顶栏新增<b>「智能配谱」</b>——对当前主旋律一键完成 <b>自动配和弦 → 织体生成双手伴奏</b>，在新窗口产出两种成品（原谱不动）：①<b>教学对照谱</b>（旋律=五线谱+简谱行+歌词保留，下方右手/左手伴奏大谱表）②<b>纯伴奏钢琴谱</b>（旋律交给演唱者，和弦自动移到右手，接「伴奏织体」可重生成）；已填和弦不覆盖；生成后一键换调全谱联动。即兴伴奏/考编场景从旋律到可弹可打印的对照谱一步到位。</div></li>
     <li><span class="v">v38.1</span><div><b>伴奏织体深化 + 一键配和弦</b>（P1·即兴伴奏/考编垂类）：织体库扩至 <b>11 套并按难度分级</b>（入门：抒情分解/柱式/半分解/儿歌伴奏/八分琶音/两种圆舞曲；进阶：阿尔贝蒂/低音行走/<b>进行曲</b>/<b>全分解十六分琶音</b>）；织体弹窗新增<b>「一键配和弦（建议）」</b>——按右手旋律用功能和声（I/IV/V/vi/ii/iii）逐小节打分配和弦（强拍加权、根音加权、首尾偏主和弦），<b>已有和弦的小节绝不覆盖</b>，填入后可点击修改再生成伴奏。</div></li>
     <li><span class="v">v38.0</span><div><b>MIDI 导出</b>（P0 互操作四件套收官：MusicXML 出/入 + MIDI 入/出）：打印/导出弹窗新增「导出 MIDI」——标准 SMF：曲名/速度/拍号/调号完整；简谱声部逐轨导出（<b>连音线自动合并为长音</b>、和音同起同长）；TAB 声部独立音轨（尼龙吉他音色、含<b>变调夹音高偏移</b>，×闷音跳过提示）；可导入任意 DAW/编曲软件或用于跟弹练习。至此「AI 转谱 → 导入精修 → 专业格式交付」链路双向贯通。</div></li>
     <li><span class="v">v37.9</span><div><b>MIDI 导入</b>（P0·直接吃下 AI 转谱/AI 作曲的主流输出格式）：新建向导「导入 MIDI…」——纯前端解析标准 MIDI（含多轨/运行状态/速度/拍号/调号），<b>16 分网格智能量化</b>为简谱草稿：同起点合并为和音、超长音自动拆分并补连音线（含跨小节）、空隙补休止、附点识别；三种导入形式：单轨→歌谱、单轨按中央C自动分手→钢琴大谱表、双轨→钢琴左右手；量化简化处逐一计数提示。量化模块与后续「哼唱转谱」共用。</div></li>

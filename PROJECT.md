@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v38.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-20 · 当前版本 **v38.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -112,7 +112,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 新建向导八卡 | `showNewWizard` / `showNewForm` / `createSong`（场景→基础形态映射） |
 | 类型归类 | `docType` / `TYPE_CN` / `CC_CATS` / `TYPE_NORM` |
 | 换调自动移调 | `transposeEditor` / `transChordName`（mm-ok 内触发） |
-| 伴奏织体 | `PIANO_TEX`（11套·level分级）/ `genAccompaniment`（和弦时间线逐拍生效、柱式 ev.s→adds、标注回填）/ `suggestChords` 配和弦建议 / `b-acctex` |
+| 伴奏织体 | `PIANO_TEX`（11套·level分级）/ `genAccompaniment`（可选 chordVi/rhVi/lhVi 声部参数）/ `suggestChords` / `b-acctex` |
+| 智能配谱 | `arrangeAccompaniment(melody,{texId,pure,suggest})`（纯函数开新窗口）/ `b-arrange`（vocal/teach/instr 可见） |
 | 纯和弦谱 | `song.chordOnly`（斜线绘制在 cols.forEach、拍宽拉平在 measureLayout） |
 | 和音输入 | `b-addnote`（唱名串自动向上排列）/ 五线谱 Ctrl+点击（click handler `dataset.sbot` 分支） |
 | 记谱法切换 | `setVoxNotation` / `toggleVoxDual` / 面板 `vn-jp/st/bs/al/dual` |
@@ -140,6 +141,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_audit | 临时记号进位/拍号/连音线贴符头/左栏标签/字形库健全 |
 | tv_types | 八类型创建+特性+旧类型兼容 13 项 |
 | tv_acc | 织体生成音级断言/弹窗/换调联动/**配和弦建议(不覆盖)**/11套分级/新织体生成 |
+| tv_arrange | 智能配谱：teach三声部产出/纯伴奏/换调联动/已填保留/入口显隐——5项 |
 | tv_chord2 | 和音：符头数/共用符干/二度错位/简谱叠置/柱式生成 |
 | tv_trans | 换调移调 6 项（含还原逐字节一致） |
 | tv_brace | 花括线跨度（两端落线） |
@@ -163,7 +165,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 换调移调 | v37.2 | 和弦+品位自动移调 |
 | 八场景重构 | v37.3–v37.6 | 八类型体系、纯和弦谱、**钢琴弹唱织体生成（8套）**、**同列多音** |
 | P0 互操作 | v37.7–v38.0 | **MusicXML 出/入 + MIDI 入/出 四件套**（往返一致；通用量化模块；P0 收官） |
-| P1 垂类楔子 | v38.1 | **织体库11套+难度分级**、**一键配和弦建议**（功能和声打分） |
+| P1 垂类楔子 | v38.1–v38.2 | **织体库11套+分级**、**配和弦建议**、**智能配谱**（旋律→伴奏教学谱/纯伴奏，P1 收官） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
@@ -175,7 +177,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 **P1 垂类楔子（即兴伴奏/考编）**
 5. ✅ ~~织体深化~~（v38.1：11套+level分级；`suggestChords`/`applySuggestChords` 功能和声建议，不覆盖已填）
-6. 智能配谱 `arrangeAccompaniment`：主旋律→配和弦→织体→**默认产出教学对照谱**（teach，保留旋律），可一键转纯伴奏（pianoacc）；换调联动
+6. ✅ ~~智能配谱~~（v38.2，`arrangeAccompaniment`：teach 三声部/pure 纯伴奏两种产出；P1 收官）
 
 **P2 增长（无需后端）**
 7. 哼唱→简谱草稿（Web Audio 单声部基频检测，复用 P0-3 量化模块；麦克风需正式站点验证）

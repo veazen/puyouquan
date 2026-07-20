@@ -1,0 +1,86 @@
+const { chromium } = require('playwright');
+const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'../index.html');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
+  const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
+  const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message)); pg.on('console',m=>{if(m.type()==='error'&&!/sounds|CORS|Failed to load|TUNNEL/.test(m.text()))errs.push('CONSOLE:'+m.text());});
+  await pg.goto(F); await pg.waitForTimeout(900);
+  let pass=0;
+  const MEL=`
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:1,beats:4,unit:4,key:'C',nMea:4,title:'小曲'});
+    s.measures[0].voxes[0]=[V(1,4,{lyrics:['一']}),V(3,4,{lyrics:['二']}),V(5,4),V(3,4)];
+    s.measures[1].voxes[0]=[V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)];
+    s.measures[2].voxes[0]=[V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)];
+    s.measures[3].voxes[0]=[V(1,4),V(1,4),V(1,2)];`;
+  // T1 默认产出：教学对照谱 + 双手伴奏（旋律/歌词保留）
+  const t1 = await pg.evaluate(`(()=>{ ${MEL}
+    const before=JSON.stringify(s);
+    const r=arrangeAccompaniment(s,{texId:'slow'});
+    const o=r.song;
+    loadSong(o);
+    const h=document.getElementById('score').innerHTML;
+    return { pure:JSON.stringify(s)===before,
+      voices:o.voxVoices.join(','), nota:(o.voxNotations||[]).join(','), dual:(o.voxDual||[])[0],
+      type:docType(o), chords:o.measures.map(m=>m.voxes[0][0].chord||'-').join(' '),
+      melKept:o.measures[0].voxes[0][0].deg===1 && (o.measures[0].voxes[0][0].lyrics||[])[0]==='一',
+      rhNotes:o.measures[0].voxes[1].filter(c=>c.deg).length,
+      lhNotes:o.measures[0].voxes[2].filter(c=>c.deg).length,
+      done:r.gen.done, renderOK:h.length>1000 && !h.includes('NaN') };
+  })()`);
+  const ok1 = t1.pure && t1.voices==='旋律,右手伴奏,左手伴奏' && t1.nota==='staff,staff,bass' && t1.dual===true
+    && t1.type==='teach' && t1.chords==='C F G C' && t1.melKept && t1.rhNotes===8 && t1.lhNotes===2
+    && t1.done===4 && t1.renderOK;
+  console.log((ok1?'✅':'❌')+' T1 教学对照产出: 原谱未动='+t1.pure+' 声部='+t1.voices+' 记谱='+t1.nota+' dual='+t1.dual+' type='+t1.type+' 和弦='+t1.chords+' 旋律歌词保留='+t1.melKept+' 右手音='+t1.rhNotes+'/8 左手音='+t1.lhNotes+'/2 渲染='+t1.renderOK);
+  if(ok1) pass++;
+  // T2 纯伴奏产出
+  const t2 = await pg.evaluate(`(()=>{ ${MEL}
+    const r=arrangeAccompaniment(s,{texId:'block', pure:true});
+    const o=r.song; loadSong(o);
+    return { type:docType(o), acc:!!o.pianoAcc, voices:o.voxVoices.join(','),
+      chordOnRH:o.measures.map(m=>m.voxes[0].some(c=>c.chord)).every(Boolean),
+      firstChord:o.measures[0].voxes[0][0].chord,
+      rhAdds:(o.measures[0].voxes[0][0].adds||[]).length,
+      noMelody:o.voxVoices.length===2 };
+  })()`);
+  const ok2 = t2.type==='pianoacc' && t2.acc && t2.voices==='右手,左手' && t2.chordOnRH && t2.firstChord==='C' && t2.rhAdds===2 && t2.noMelody;
+  console.log((ok2?'✅':'❌')+' T2 纯伴奏产出: type='+t2.type+' pianoAcc='+t2.acc+' 声部='+t2.voices+' 和弦回填='+t2.chordOnRH+'('+t2.firstChord+') 柱式adds='+t2.rhAdds);
+  if(ok2) pass++;
+  // T3 换调联动：生成后 C→D，和弦整体移调
+  const t3 = await pg.evaluate(`(()=>{ ${MEL}
+    const r=arrangeAccompaniment(s,{texId:'slow'});
+    loadSong(r.song);
+    document.getElementById('b-meta').click();
+    document.getElementById('mm-key').value='D';
+    document.getElementById('mm-ok').click();
+    return { key:song.key, chords:song.measures.map(m=>m.voxes[0][0].chord||'-').join(' ') };
+  })()`);
+  const ok3 = t3.key==='D' && t3.chords==='D G A D';
+  console.log((ok3?'✅':'❌')+' T3 换调联动: 1=D 和弦='+t3.chords+'(期望 D G A D)');
+  if(ok3) pass++;
+  // T4 已填和弦不被建议覆盖（suggest 尊重）
+  const t4 = await pg.evaluate(`(()=>{ ${MEL}
+    s.measures[1].voxes[0][0].chord='Dm7';
+    const r=arrangeAccompaniment(s,{texId:'slow'});
+    return { m1:r.song.measures[1].voxes[0][0].chord };
+  })()`);
+  console.log((t4.m1==='Dm7'?'✅':'❌')+' T4 已填和弦保留: '+t4.m1+'(期望 Dm7)');
+  if(t4.m1==='Dm7') pass++;
+  // T5 入口显隐 + 弹窗
+  const t5 = await pg.evaluate(`(()=>{ ${MEL}
+    loadSong(s);
+    const vis1=document.getElementById('b-arrange').style.display!=='none';
+    document.getElementById('b-arrange').click();
+    const modal=!!document.getElementById('arr-go') && document.querySelectorAll('input[name="arr-tex"]').length===9;
+    document.getElementById('arr-cancel').click();
+    const p2=createSong('pianoacc',{lyr:0,beats:4,unit:4,key:'C',nMea:1}); loadSong(p2);
+    const vis2=document.getElementById('b-arrange').style.display==='none';
+    return {vis1, modal, vis2};
+  })()`);
+  const ok5 = t5.vis1 && t5.modal && t5.vis2;
+  console.log((ok5?'✅':'❌')+' T5 入口: 歌谱可见='+t5.vis1+' 弹窗9织体='+t5.modal+' 钢琴弹唱谱隐藏='+t5.vis2);
+  if(ok5) pass++;
+  console.log('PASS '+pass+'/5');
+  console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
+  await b.close();
+})();
