@@ -3022,8 +3022,31 @@ function render(){
                   bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
+              }else if(n.tech==='v'){
+                /* 揉弦：波浪线随时值延长——列格宽与时值成正比，波峰按格宽复制；
+                   Ctrl 扩选（tk 指向范围末音）时波浪线一直延伸到末音 */
+                const tpv = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                const wy = yy-11;
+                const x0 = nx-4;
+                const x1 = (tpv && tpv.sys===sIdx)? tpv.x+6 : nx+Math.max(10, cw-8);
+                const k = Math.max(1, Math.floor((x1-x0)/6));
+                let d = `M ${x0.toFixed(1)} ${wy.toFixed(1)}`;
+                for(let w2=0; w2<k; w2++) d += ' q 1.5 -2.8 3 0 q 1.5 2.8 3 0';
+                p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              }else if(n.tech==='pm' && n.tk){
+                /* 闷音范围（扩选）：P.M. + 虚线延伸到范围末音，末端小竖钩（出版惯例）；
+                   末音在下一行时虚线画到本列格末 */
+                const tpm = tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
+                const wy = yy-10.5;
+                const xEnd = (tpm && tpm.sys===sIdx)? tpm.x+5 : nx+Math.max(16, cw-4);
+                p.push(`<text x="${nx-6}" y="${wy}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">P.M.</text>`);
+                const xd = nx+16;
+                if(xEnd > xd+2){
+                  p.push(`<line x1="${xd}" y1="${wy-3}" x2="${xEnd}" y2="${wy-3}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
+                  p.push(`<line x1="${xEnd}" y1="${wy-3}" x2="${xEnd}" y2="${wy+2.5}" stroke="var(--ink)" stroke-width="1"/>`);
+                }
               }else if(n.tech){
-                const SYM = {sl:'S',h:'h',p:'p',v:'~',tp:'T',pm:'P.M.'};
+                const SYM = {sl:'S',h:'h',p:'p',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
@@ -3808,7 +3831,12 @@ function setRibbon(t){
     ebCtxFor=t;
     if(t==='tab'){
       ctxT.textContent='演奏技巧';
-      ctx.innerHTML = EB_TECHS.map(([k,l,g])=>`<button class="eb ico" data-tech2="${k}" title="${l}${k?'：作用于当前选中音符（可 Ctrl+多选后批量）':''}"><b class="g">${g}</b><span>${l}</span></button>`).join('');
+      ctx.innerHTML = EB_TECHS.map(([k,l,g])=>{
+        const hint = {v:'：波浪线随音符时值延长；Ctrl 选首末两音可让波浪覆盖整段范围',
+                      pm:'：单音标 P.M.；Ctrl 选首末两音，P.M. 虚线覆盖整段范围'}[k]
+                   || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
+        return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
+      }).join('');
     }else if(t==='vox'){
       ctxT.textContent='标识符号';
       ctx.innerHTML = EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
@@ -5406,12 +5434,20 @@ function applyTech(tech){
       list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; } });
       return;
     }
-    /* 技法连线：连接相邻两个被选中的音符（头对头） */
-    for(let i=0;i<list.length-1;i++){
-      const n = noteAt(list[i]);
-      if(!n) continue;
-      n.tech = tech;
-      n.tk = {mi:list[i+1].mi, ci:list[i+1].ci, si:list[i+1].si};
+    /* 揉弦/闷音是「范围记号」：扩选多个音符时首音直连末音，
+       一段波浪线 / P.M.虚线覆盖整个范围（中间音符不重复标记） */
+    if((tech==='v' || tech==='pm') && list.length>1){
+      const n = noteAt(list[0]);
+      const last = list[list.length-1];
+      if(n){ n.tech=tech; n.tk={mi:last.mi, ci:last.ci, si:last.si}; delete n.bt; }
+    }else{
+      /* 其余技法连线：连接相邻两个被选中的音符（头对头） */
+      for(let i=0;i<list.length-1;i++){
+        const n = noteAt(list[i]);
+        if(!n) continue;
+        n.tech = tech;
+        n.tk = {mi:list[i+1].mi, ci:list[i+1].ci, si:list[i+1].si};
+      }
     }
     if(list.length===1){ const n=noteAt(list[0]); if(n){ n.tech=tech; delete n.tk; } }
   });
@@ -9411,6 +9447,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
     <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>
     <li><span class="v">v38.5</span><div><b>动态互动谱 + 节拍器</b>：① 打印/导出新增<b>「互动谱 HTML」</b>——把整个应用自打包成单文件网页并注入当前曲谱，对方浏览器打开即进入观看模式：可播放、倍速、节拍器、即时移调、谱架自动卷谱，无需安装、纯本地不上传（分享卡由此升级为「静态 PNG + 动态 HTML」双模式）；② 播放条新增<b>节拍器</b>开关——播放时叠加拍点声、每小节第一拍重音，随倍速同步缩放；③ 播放条新增<b>倍速</b>（0.5×–1.5×）——慢速跟练/快速过谱，只改播放快慢不动曲谱速度设置。</div></li>
     <li><span class="v">v38.4</span><div><b>曲谱分享卡</b>（P2·微信生态增长回路）：打印/导出新增<b>「生成分享卡」</b>——一键产出竖版品牌谱面卡 PNG（750×1000）：渐变品牌带 + 谱面首屏精裁 + 曲名/词曲/调速信息 + 谱友圈品牌与二维码占位（正式上线后替换为可扫的看谱链接），任何谱类通用，微信/朋友圈/小红书直接转发。纯本地生成，不上传任何数据。</div></li>
