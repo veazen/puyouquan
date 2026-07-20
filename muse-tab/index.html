@@ -6715,8 +6715,19 @@ const LS_LIB = 'musetab-library-v1';
 const LS_DOCS = 'musetab-docs-v1';
 /* ================= 多窗口：同时编辑多个（可不同类型的）曲谱 ================= */
 let docs = [], curDocI = 0;
-function docType(s){ const vn=s.voxNotations||[]; return !s.tabVoices.length ? (s.func?'func': (vn[0]==='staff'&&vn[1]==='bass')?'piano' : isStaffNota(vn[0])?'staff':'vox') : (s.inst==='uku'?'uku':'guitar'); }
-function docIcon(s){ return {guitar:'🎸',uku:'🎶',vox:'🎵',func:'🎹'}[docType(s)]; }
+function docType(s){
+  const vn=s.voxNotations||[];
+  if(s.tabVoices.length){
+    if(s.tabStaff && !(s.voxVoices||[]).length) return 'solo';
+    return s.inst==='uku'?'uku':'guitar';
+  }
+  if(s.chordOnly) return 'chord';
+  if(s.func) return 'func';
+  if(vn[0]==='staff' && vn[1]==='bass') return s.pianoAcc? 'pianoacc':'piano';
+  if(isStaffNota(vn[0])) return (s.voxDual||[])[0]? 'teach':'instr';
+  return 'vocal';
+}
+function docIcon(s){ return {guitar:'🎸',uku:'🎶',solo:'🎸',vocal:'🎵',func:'🎹',chord:'🎼',piano:'🎹',pianoacc:'🎹',teach:'📖',instr:'🎻'}[docType(s)] || '🎼'; }
 function saveStatusText(s){
   if(s.id){
     const e=libLoad().find(x=>x.id===s.id);
@@ -6910,14 +6921,23 @@ document.getElementById('file-in').addEventListener('change', e=>{
 });
 /* ---- 新建曲谱向导：先选类型（吉他/尤克里里/简谱），再填曲谱信息 ---- */
 function createSong(type, o){
-  const noTab = type==='vox' || type==='func' || type==='staff' || type==='piano';
+  /* 场景类型 → 基础形态映射（新八类；旧类型名保持兼容） */
+  if(type==='tanchang') type = (o.inst==='uku')? 'uku' : 'guitar';
+  if(type==='vocal') type = 'vox';
+  const base = {solo:'guitar', teach:'staff', instr:'staff', pianoacc:'piano'}[type] || type;
+  const noTab = !(base==='guitar' || base==='uku');
+  const isChordOnly = base==='func' && o.ftype==='chord';
   const s = {v:3, title:o.title||'未命名曲谱', singer:o.singer||'', lyricist:o.lyricist||'', composer:o.composer||'', maker:o.maker||'',
     key:o.key||'C', beats:o.beats||4, unit:o.unit||4, tempo:o.tempo||90, capo:o.capo||0, customChords:{},
-    inst: type==='uku'?'uku':'guitar', func: type==='func'||undefined,
-    tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(type==='uku'?'尤克里里':'吉他')+(i+1)),
-    voxVoices: type==='piano'? ['右手','左手'] : Array.from({length:o.nVox||0},(_,i)=>'旋律'+(i+1)),
-    voxNotations: type==='piano'? ['staff','bass'] : (type==='staff'? Array.from({length:o.nVox||1},()=> 'staff') : undefined),
+    inst: base==='uku'?'uku':'guitar', func: base==='func'||undefined,
+    tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(base==='uku'?'尤克里里':'吉他')+(i+1)),
+    voxVoices: base==='piano'? ['右手','左手'] : Array.from({length:type==='solo'?0:(o.nVox||0)},(_,i)=>'旋律'+(i+1)),
+    voxNotations: base==='piano'? ['staff','bass'] : (base==='staff'? Array.from({length:o.nVox||1},()=> (type==='instr'&&o.clef)||'staff') : undefined),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
+  if(type==='solo') s.tabStaff = true;                        // 独奏谱：TAB+五线谱联排
+  if(type==='teach') s.voxDual = Array.from({length:o.nVox||1},()=>true);   // 教学对照：谱表+简谱行
+  if(type==='pianoacc'){ s.pianoAcc = true; s.funcNames = true; }           // 钢琴弹唱：纯伴奏+和弦名
+  if(isChordOnly) s.chordOnly = true;                          // 纯和弦谱（小节格）
   const old = song; song = s;
   for(let i=0;i<(o.nMea||8);i++) s.measures.push(blankMeasure());
   song = old;
@@ -6928,21 +6948,24 @@ function showNewWizard(){
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
   ${st? `<p style="font-size:12.5px">${st.saved?'✅':'⚠️'} 当前窗口《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将在<b>新窗口</b>打开，当前窗口保留。</p>` : ''}
   <div class="ntgrid">
-    <button class="ntcard ntype" data-nt="guitar"><span class="nt-tag">六线谱</span><b>吉他谱</b><span>六线谱 TAB＋简谱＋歌词三行对齐，标准弹唱谱版式，支持和弦图与演奏技巧记谱。</span></button>
-    <button class="ntcard ntype" data-nt="uku"><span class="nt-tag">四线谱</span><b>尤克里里谱</b><span>四线 TAB（GCEA 标准调弦）＋简谱＋歌词，与吉他谱同一套编辑方式与技巧体系。</span></button>
-    <button class="ntcard ntype" data-nt="vox"><span class="nt-tag">旋律</span><b>简谱</b><span>纯简谱＋歌词，不含 TAB 行，适合旋律记谱、声乐与教学场景。</span></button>
-    <button class="ntcard ntype" data-nt="staff"><span class="nt-tag">标准记谱</span><b>五线谱</b><span>高音谱表＋歌词：调号/符杠/临时记号标准绘制，与简谱同源数据、一键互切。</span></button>
-    <button class="ntcard ntype" data-nt="piano"><span class="nt-tag">大谱表</span><b>钢琴谱</b><span>高音+低音双谱表（右手/左手）连谱括线联排，双手各自独立录入。</span></button>
-    <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦标注，按 1=调号 自动换算（C 调 Am → 6m），乐队排练通用。</span></button>
+    <button class="ntcard ntype" data-nt="tanchang"><span class="nt-tag">弹唱</span><b>弹唱谱</b><span>六线谱 TAB＋简谱＋歌词＋和弦图，吉他/尤克里里通用的标准弹唱版式（乐器下一步选）。</span></button>
+    <button class="ntcard ntype" data-nt="solo"><span class="nt-tag">独奏</span><b>独奏谱</b><span>六线谱＋五线谱联排（Guitar Pro 式），木吉他指弹与电吉他专用，完整演奏技法记谱。</span></button>
+    <button class="ntcard ntype" data-nt="pianoacc"><span class="nt-tag">伴奏</span><b>钢琴弹唱谱</b><span>大谱表纯伴奏：标注和弦、选伴奏织体自动生成双手音符——主旋律由演唱者担任。</span></button>
+    <button class="ntcard ntype" data-nt="piano"><span class="nt-tag">大谱表</span><b>钢琴独奏谱</b><span>高音+低音双谱表（右手/左手）花括线联排，双手各自独立录入。</span></button>
+    <button class="ntcard ntype" data-nt="vocal"><span class="nt-tag">简谱</span><b>歌谱</b><span>简谱＋多段歌词：独唱、合唱（1–4 声部）与二胡/古筝等民乐记谱通用。</span></button>
+    <button class="ntcard ntype" data-nt="teach"><span class="nt-tag">对照</span><b>教学对照谱</b><span>五线谱＋简谱行逐列对齐＋歌词，音乐课堂与考级教学的标配版式。</span></button>
+    <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
+    <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>`);
   document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt));
   document.getElementById('nw-cancel').onclick = closeModal;
 }
 function showNewForm(type){
-  const tName = {guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', piano:'钢琴谱', func:'功能谱'}[type];
-  const instLabel = type==='uku'?'尤克里里':'吉他';
-  const noTab = type==='vox' || type==='func' || type==='staff' || type==='piano';
+  const tName = {tanchang:'弹唱谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱', vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱',
+    guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱'}[type]||'曲谱';
+  const instLabel = '吉他';
+  const noTab = !(type==='tanchang' || type==='solo' || type==='guitar' || type==='uku');
   const sels=(id,arr,def)=>`<select id="${id}">${arr.map(v=>`<option value="${v}"${v===def?' selected':''}>${v}</option>`).join('')}</select>`;
   showModal(`<h3>新建${tName} · 第 2 步：曲谱信息</h3>
   <label class="f"><span>标题</span><input id="nw-title" value="未命名曲谱" style="flex:1"></label>
@@ -6954,23 +6977,32 @@ function showNewForm(type){
   <label class="f"><span>调号</span>${sels('nw-key',KEY_LIST,'C')}<span style="width:auto">（1=所选调）</span></label>
   <label class="f"><span>速度</span><input id="nw-tempo" type="number" value="90" min="30" max="240" style="width:70px"> BPM</label>
   <label class="f"><span>小节数</span><input id="nw-mea" type="number" value="8" min="1" max="200" style="width:70px"> 预设小节，后续可增删</label>
+  ${type==='tanchang'? `<label class="f"><span>乐器</span><select id="nw-inst"><option value="guitar">吉他（六线）</option><option value="uku">尤克里里（四线）</option></select></label>` : ''}
+  ${type==='instr'? `<label class="f"><span>谱号</span><select id="nw-clef"><option value="staff">高音谱表（G谱号）</option><option value="alto">中音谱表（C谱号）</option><option value="bass">低音谱表（F谱号）</option></select></label>` : ''}
+  ${type==='func'? `<label class="f"><span>谱式</span><select id="nw-ftype"><option value="func">简谱＋级数和弦</option><option value="chord">纯和弦谱（小节格）</option></select></label>` : ''}
   ${!noTab? `<label class="f"><span>变调夹</span>${sels('nw-capo',[0,1,2,3,4,5,6,7],0)}<span style="width:auto">品（0＝不用，页头显示）</span></label>
-  <label class="f"><span>${instLabel}声部</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
-  <label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>
-  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3],1)}</label>
-  ${type==='func'? `<p>功能谱：选中简谱音符后，左侧「简谱」面板点「和弦/级数」——级数为主构建（级数×类型扩展×转位低音），支持自定义后缀与调外和弦；谱面级数/音名一键切换，点击标注可再次编辑。</p>` : ''}
+  <label class="f"><span>声部数</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
+  ${type==='vocal'? `<label class="f"><span>简谱声部</span>${sels('nw-nvox',[1,2,3,4],1)}<span style="width:auto">（合唱选 2–4）</span></label>` :
+    (type==='pianoacc'||type==='piano'||type==='teach'||type==='instr'||type==='func')? '' :
+    `<label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>`}
+  <label class="f"><span>歌词行数</span>${sels('nw-lyr',[0,1,2,3], type==='solo'||type==='piano'||type==='instr'?0:1)}</label>
+  ${type==='func'? `<p>简谱＋级数和弦：选中音符后左侧面板点「和弦/级数」标注；纯和弦谱：小节格内按拍点击放和弦、配节奏斜线，适合乐队排练一页纸。</p>` : ''}
+  ${type==='pianoacc'? `<p>创建后：在右手谱表上按拍标注和弦 → 顶栏「伴奏织体」选织体一键生成双手伴奏（生成的是可编辑音符，可逐小节重生成）。</p>` : ''}
   <div class="btns"><button id="nw-back">← 返回选类型</button><button id="nw-create" class="primary">创建曲谱</button></div>`);
   document.getElementById('nw-back').onclick = showNewWizard;
   document.getElementById('nw-create').onclick = ()=>{
     const V=id=>document.getElementById(id).value;
+    const gv=id=>{ const el=document.getElementById(id); return el? el.value : null; };
     const o={ title:V('nw-title').trim(), singer:V('nw-singer').trim(),
       lyricist:V('nw-lyricist').trim(), composer:V('nw-composer').trim(), maker:V('nw-maker').trim(),
       beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:+V('nw-tempo')||90,
       nMea:Math.max(1,Math.min(200,+V('nw-mea')||8)),
-      capo:!noTab? +V('nw-capo')||0 : 0,
-      nTab:!noTab? +V('nw-ntab') : 0, nVox:+V('nw-nvox'), lyr:+V('nw-lyr') };
+      capo:!noTab? +gv('nw-capo')||0 : 0,
+      nTab:!noTab? +gv('nw-ntab')||1 : 0, nVox:+(gv('nw-nvox')||1), lyr:+V('nw-lyr'),
+      inst:gv('nw-inst')||undefined, clef:gv('nw-clef')||undefined, ftype:gv('nw-ftype')||undefined };
     if(!noTab && o.nTab<1) o.nTab=1;
     if(noTab && o.nVox<1) o.nVox=1;
+    if(type==='solo'){ o.nVox=0; }
     closeModal();
     addDoc(createSong(type, o));
     setRibbon(sel.row==='vox'?'vox':'tab');
@@ -7311,7 +7343,10 @@ function seedCircle(){
   if(typeof PRESETS!=='undefined' && PRESETS[1]) l.push(mk(PRESETS[1].make, 3, 2));
   circlePubsSave(l);
 }
-const TYPE_CN={guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱', piano:'钢琴谱', func:'功能谱'};
+const TYPE_CN={guitar:'弹唱谱', uku:'尤克里里谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱',
+  vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱',
+  vox:'歌谱', staff:'器乐五线谱'};   // vox/staff 为旧发布数据的兼容映射
+const TYPE_NORM={vox:'vocal', staff:'instr'};   // 旧类型 → 新分类
 function showPublishMenu(libEntry, rect){
   closePop();
   const cr=creatorLoad();
@@ -7343,7 +7378,7 @@ function circleFav(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY))||{};
 function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o)); }catch(_){} }
 function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
 let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
-const CC_CATS=[['all','全部'],['guitar','吉他谱'],['uku','尤克里里'],['vox','简谱'],['staff','五线谱'],['piano','钢琴谱'],['func','功能谱']];
+const CC_CATS=[['all','全部'],['guitar','弹唱'],['solo','独奏'],['pianoacc','钢琴弹唱'],['piano','钢琴独奏'],['vocal','歌谱'],['teach','教学对照'],['instr','器乐五线'],['func','功能谱'],['chord','和弦谱'],['uku','尤克里里']];
 /* 曲谱卡封面：取谱面首小节旋律与歌词生成迷你预览（每首卡面都不同；
    后期小程序精致分享卡沿用此封面语言） */
 function ccCover(pb){
@@ -7395,7 +7430,7 @@ function circleFiltered(){
   const q=ccFilter.q.trim().toLowerCase();
   return circlePubs().filter(pb=>(pb.status||'approved')==='approved').filter(pb=>{
     if(ccFilter.favOnly && !fav[pb.pid]) return false;
-    if(ccFilter.cat!=='all' && pb.type!==ccFilter.cat) return false;
+    if(ccFilter.cat!=='all' && (TYPE_NORM[pb.type]||pb.type)!==ccFilter.cat) return false;   // 旧发布数据 vox/staff 自动归入 歌谱/器乐五线
     if(ccFilter.pay==='free' && pb.price>0) return false;
     if(ccFilter.pay==='paid' && !(pb.price>0)) return false;
     if(q){ const hay=((pb.title||'')+' '+(pb.author||'')).toLowerCase(); if(!hay.includes(q)) return false; }
