@@ -7655,6 +7655,86 @@ function buildSongFromMIDI(smf, sel){
       repeatStart:false, repeatEnd:false});
   return {song:migrate(out), skipped, keyDefaulted:smf.keySf==null};
 }
+/* ===== MIDI 导出（P0-D）=====
+   song v3 → SMF format1（TPQ=480）。轨0=meta（曲名/速度/拍号/调号）；
+   每个简谱声部一轨（钢琴音色，tie 链合并为长音、和音 adds 同起同长）；
+   每个 TAB 声部一轨（尼龙吉他音色，含变调夹音高偏移；×闷音跳过计数）。
+   TODO: 反复/段落按线性导出（不展开）、力度按 dyn 映射、倚音。 */
+function exportMIDI(s){
+  s = s || song;
+  const TPQ=480, beatTicks=TPQ*4/(s.unit||4);
+  const ref=(()=>{ let r=60+(KEY_PC[s.key]||0); if(r>66)r-=12; return r; })();
+  const fifths = KEYSIG[s.key]!=null? KEYSIG[s.key] : 0;
+  const vlq=n=>{ n=Math.max(0,Math.round(n)); const out=[n&0x7f]; n=Math.floor(n/128);
+    while(n){ out.unshift((n&0x7f)|0x80); n=Math.floor(n/128); } return out; };
+  const str=t=>{ const u=new TextEncoder().encode(t||''); return [...u]; };
+  const chFor=i=> i>=9? i+1 : i;                       // 跳过打击乐通道9
+  const track=evts=>{
+    evts.sort((a,b2)=>a.tick-b2.tick || a.pr-b2.pr);
+    const bytes=[]; let last=0;
+    evts.forEach(e=>{ bytes.push(...vlq(e.tick-last), ...e.data); last=e.tick; });
+    bytes.push(0,0xFF,0x2F,0);
+    return [0x4D,0x54,0x72,0x6B,(bytes.length>>>24)&255,(bytes.length>>16)&255,(bytes.length>>8)&255,bytes.length&255,...bytes];
+  };
+  let skipped=0;
+  const chunks=[];
+  { const nm=str(s.title||'谱友圈曲谱');
+    const us=Math.round(60000000/(s.tempo||90));
+    chunks.push(track([
+      {tick:0,pr:0,data:[0xFF,0x03,...vlq(nm.length),...nm]},
+      {tick:0,pr:0,data:[0xFF,0x51,3,(us>>16)&255,(us>>8)&255,us&255]},
+      {tick:0,pr:0,data:[0xFF,0x58,4,s.beats||4,Math.round(Math.log2(s.unit||4)),24,8]},
+      {tick:0,pr:0,data:[0xFF,0x59,2,fifths&255,0]}])); }
+  const colMidi=c=> ref + DEG_SEMI[c.deg] + (c.acc==='#'?1:c.acc==='b'?-1:0) + (c.oct||0)*12;
+  (s.voxVoices||[]).forEach((vn,vi)=>{
+    const ch=chFor(vi);
+    const evts=[{tick:0,pr:0,data:[0xC0|ch,0]}];
+    const note=(m,at,len)=>{ evts.push({tick:at,pr:2,data:[0x90|ch,m&127,80]},
+                                       {tick:at+len,pr:1,data:[0x80|ch,m&127,0]}); };
+    let tick=0, cur=null;   // cur={m,at,len,tie}：tie 链合并
+    s.measures.forEach(mea=>(mea.voxes[vi]||[]).forEach(c=>{
+      const len=beatsOf(c)*beatTicks;
+      if(c.deg){
+        const m=colMidi(c);
+        if(cur && cur.tie && cur.m===m){ cur.len+=len; cur.tie=!!c.tie; }
+        else{ if(cur) note(cur.m,cur.at,cur.len); cur={m,at:tick,len,tie:!!c.tie}; }
+        (c.adds||[]).forEach(a=>{ if(a&&a.deg) note(colMidi(a),tick,len); });
+      }else if(cur){ note(cur.m,cur.at,cur.len); cur=null; }
+      tick+=len;
+    }));
+    if(cur) note(cur.m,cur.at,cur.len);
+    chunks.push(track(evts));
+  });
+  const TUN = s.inst==='uku'? UKU_TUNING : TUNING;
+  (s.tabVoices||[]).forEach((tn,ti)=>{
+    const ch=chFor((s.voxVoices||[]).length+ti);
+    const evts=[{tick:0,pr:0,data:[0xC0|ch,24]}];
+    let tick=0;
+    s.measures.forEach(mea=>(mea.tabs[ti]||[]).forEach(c=>{
+      const len=beatsOf(c)*beatTicks;
+      (c.notes||[]).forEach(n=>{
+        if(!n || n.s<1 || n.s>TUN.length) return;
+        if(n.x){ skipped++; return; }
+        const m=TUN[n.s-1]+(n.f||0)+(s.capo||0);
+        evts.push({tick,pr:2,data:[0x90|ch,m&127,78]},{tick:tick+len,pr:1,data:[0x80|ch,m&127,0]});
+      });
+      tick+=len;
+    }));
+    chunks.push(track(evts));
+  });
+  const n=chunks.length;
+  const out=[0x4D,0x54,0x68,0x64,0,0,0,6,0,1,(n>>8)&255,n&255,(TPQ>>8)&255,TPQ&255];
+  chunks.forEach(c=>out.push(...c));
+  return {bytes:new Uint8Array(out), skipped};
+}
+function downloadMIDI(){
+  const r=exportMIDI(song);
+  const b=new Blob([r.bytes],{type:'audio/midi'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download=(song.title||'曲谱')+'.mid'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('已导出 MIDI（反复段落按线性导出'+(r.skipped? '；跳过 '+r.skipped+' 处×闷音':'')+'）');
+}
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
     <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
@@ -7669,12 +7749,14 @@ document.getElementById('b-print').onclick = ()=>{
     <div class="btns">
       <button id="ex-png">导出 PNG 图片</button>
       <button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">导出 MusicXML</button>
+      <button id="ex-mid" title="导出标准 MIDI：可导入 DAW/编曲软件，或用于跟弹练习">导出 MIDI</button>
       <button id="ex-cancel">取消</button>
       <button id="ex-print" class="primary">打印 / 存 PDF</button>
     </div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
   document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); downloadMusicXML(); };
+  document.getElementById('ex-mid').onclick = ()=>{ closeModal(); downloadMIDI(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
     closeModal();
@@ -8729,6 +8811,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.0</span><div><b>MIDI 导出</b>（P0 互操作四件套收官：MusicXML 出/入 + MIDI 入/出）：打印/导出弹窗新增「导出 MIDI」——标准 SMF：曲名/速度/拍号/调号完整；简谱声部逐轨导出（<b>连音线自动合并为长音</b>、和音同起同长）；TAB 声部独立音轨（尼龙吉他音色、含<b>变调夹音高偏移</b>，×闷音跳过提示）；可导入任意 DAW/编曲软件或用于跟弹练习。至此「AI 转谱 → 导入精修 → 专业格式交付」链路双向贯通。</div></li>
     <li><span class="v">v37.9</span><div><b>MIDI 导入</b>（P0·直接吃下 AI 转谱/AI 作曲的主流输出格式）：新建向导「导入 MIDI…」——纯前端解析标准 MIDI（含多轨/运行状态/速度/拍号/调号），<b>16 分网格智能量化</b>为简谱草稿：同起点合并为和音、超长音自动拆分并补连音线（含跨小节）、空隙补休止、附点识别；三种导入形式：单轨→歌谱、单轨按中央C自动分手→钢琴大谱表、双轨→钢琴左右手；量化简化处逐一计数提示。量化模块与后续「哼唱转谱」共用。</div></li>
     <li><span class="v">v37.8</span><div><b>MusicXML 导入</b>（P0·把 AI 转谱产物"吃进来"精修）：新建向导新增「导入 MusicXML…」——解析 score-partwise（MuseScore/Finale 等导出均可），自动换算为可动 do 简谱数据：音高按调号逆映射、时值优先读 type/附点/三连音、和弦标注/多段歌词/连音线/反复记号/各声部谱号（G/F/C→高/低/中音谱表）一并还原；暂不支持的记号<b>跳过并计数提示</b>，绝不产出坏谱；未读到调号按 1=C 提醒核对。导入后立即可编辑、可切三种记谱法。压缩 .mxl 请先在 MuseScore 转存未压缩格式。</div></li>
     <li><span class="v">v37.7</span><div><b>MusicXML 导出</b>（P0·接入专业软件与 AI 转谱生态）：打印/导出弹窗新增「导出 MusicXML」——简谱/五线谱声部完整导出为标准 score-partwise 4.0（音高按调号拼写与五线谱渲染同源；含和音、附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复与终止线、各声部谱号），可直接在 MuseScore / Finale / Sibelius 打开继续编辑或印刷。TAB 声部导出列入路线图。</div></li>

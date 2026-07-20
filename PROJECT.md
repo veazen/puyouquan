@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v37.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-20 · 当前版本 **v38.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -123,6 +123,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
 | MusicXML 导入 | `importMusicXML`（DOMParser；音高 midi−keyRef→SEMI_DEG；跳过计数）/ 向导 nw-import |
 | MIDI 导入 | `parseSMF`（SMF 0/1+运行状态）/ `quantizeToCols`（16分网格量化，**通用模块**）/ `buildSongFromMIDI` / 向导 nw-midi |
+| MIDI 导出 | `exportMIDI`（SMF format1；tie链合并长音/和音/TAB轨含capo）/ `downloadMIDI` / 弹窗 ex-mid |
 
 ## 7. 测试体系（**每次改动必须跑**）
 
@@ -144,7 +145,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_brace | 花括线跨度（两端落线） |
 | tv_staff / tv_piano / tv_combo | 五线谱/钢琴/联排基础回归 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
-| tv_midi | MIDI 导入：SMF二进制fixture/量化(附点·跨小节连音·和弦adds)/running status/分手 |
+| tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -161,7 +162,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 五线谱深度打磨 | v36.5–v37.1 | 审计修正、**SMuFL/Bravura 字形引擎**、刻版规则（斜杠/整小节休止/小节号）、**系统头部出版标准**+中音谱表、行距音域扩展、五线谱+简谱行联排、标准花括线 |
 | 换调移调 | v37.2 | 和弦+品位自动移调 |
 | 八场景重构 | v37.3–v37.6 | 八类型体系、纯和弦谱、**钢琴弹唱织体生成（8套）**、**同列多音** |
-| P0 互操作 | v37.7–v37.9 | **MusicXML 导出+导入**（往返一致）、**MIDI 导入**（SMF解析+通用量化模块） |
+| P0 互操作 | v37.7–v38.0 | **MusicXML 出/入 + MIDI 入/出 四件套**（往返一致；通用量化模块；P0 收官） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
@@ -169,7 +170,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 1. ✅ ~~MusicXML 导出~~（v37.7，`exportMusicXML`）
 2. ✅ ~~MusicXML 导入~~（v37.8，`importMusicXML`，往返一致性已验证）
 3. ✅ ~~MIDI 导入~~（v37.9，`parseSMF`/`quantizeToCols`〔哼唱转谱复用此模块〕/`buildSongFromMIDI`）
-4. MIDI 导出（从播放事件生成 SMF，低成本）
+4. ✅ ~~MIDI 导出~~（v38.0，`exportMIDI`：tie合并/和音/TAB轨+变调夹）
 
 **P1 垂类楔子（即兴伴奏/考编）**
 5. 织体深化：PIANO_TEX 补考试标准织体 + `level` 难度分级 + `suggestChords(song)` 配和弦建议（自然音级功能模板，默认不覆盖用户已填）

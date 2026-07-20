@@ -74,7 +74,43 @@ function smf({tpq=480, tempo=500000, ts=[4,4], key=null, evs=[]}){
   const ok6=!t6.error && okN && t6.cols[0][0]==='3:1' && t6.cols[0][1]==='1:1' && t6.nVox===2;
   console.log((ok6?'✅':'❌')+' T6 按中央C分手: '+(t6.error||('右手='+t6.cols[0][0]+' 左手='+t6.cols[0][1]+' 记谱='+t6.notations)));
   if(ok6) pass++;
-  console.log('PASS '+pass+'/6');
+  // T7 导出：meta 正确 + tie 合并长音 + 和音 + 往返 deg 序列一致
+  const t7 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'D',tempo:100,nMea:2,title:'MIDI往返'});
+    s.measures[0].voxes[0]=[V(1,4,{adds:[{deg:3,oct:0}]}),V(2,4),V(5,2,{dotted:true,tie:true})];
+    s.measures[1].voxes[0]=[V(5,4),V(3,4),V(0,2)];
+    loadSong(s);
+    const ex=exportMIDI(song);
+    const p2=parseSMF(ex.bytes);
+    if(p2.error) return {error:p2.error};
+    const notes=p2.tracks[0].notes;
+    const tied=notes.find(n=>n.dur===1920);        // 附点二分+四分 tie 合并 = 4拍 = 1920tick
+    const r=buildSongFromMIDI(p2,{mode:'single',a:0});
+    // 主音选择约定：导入取最高音为主音——比较按"列内音高集合"（主音+和音排序）
+    const degs=x=>x.measures.map(m=>m.voxes[0].filter(c=>c.deg)
+      .map(c=>[c.deg,...(c.adds||[]).map(a=>a.deg)].sort().join('')).join(' ')).join('|');
+    return { tempo:p2.tempo, ts:p2.ts.beats+'/'+p2.ts.unit, keySf:p2.keySf,
+      nNotes:notes.length, tiedOK:!!tied, rtKey:r.song.key, rtDegs:degs(r.song), srcDegs:degs(song) };
+  })()`);
+  const ok7 = !t7.error && t7.tempo===100 && t7.ts==='4/4' && t7.keySf===2 && t7.nNotes===5 && t7.tiedOK
+    && t7.rtKey==='D' && t7.rtDegs===t7.srcDegs;
+  console.log((ok7?'✅':'❌')+' T7 MIDI导出往返: ♩='+t7.tempo+' 拍号='+t7.ts+' sf='+t7.keySf+' 音符='+t7.nNotes+'/5 tie合并='+t7.tiedOK+' 唱名往返='+(t7.rtDegs===t7.srcDegs)+'('+t7.rtDegs+')');
+  if(ok7) pass++;
+  // T8 吉他预设导出：vox+tab 双轨、TAB 音符落在吉他音域
+  const t8 = await pg.evaluate(`(()=>{
+    loadSong(PRESETS[0].make());
+    const ex=exportMIDI(song);
+    const p2=parseSMF(ex.bytes);
+    if(p2.error) return {error:p2.error};
+    const tabN=p2.tracks.length>1? p2.tracks[p2.tracks.length-1].notes : [];
+    return { nTracks:p2.tracks.length, tabNotes:tabN.length,
+      rangeOK: tabN.every(n=>n.midi>=40 && n.midi<=88) };
+  })()`);
+  const ok8 = !t8.error && t8.nTracks>=2 && t8.tabNotes>10 && t8.rangeOK;
+  console.log((ok8?'✅':'❌')+' T8 吉他预设导出: 音轨='+t8.nTracks+' TAB音符='+t8.tabNotes+' 音域OK='+t8.rangeOK);
+  if(ok8) pass++;
+  console.log('PASS '+pass+'/8');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
