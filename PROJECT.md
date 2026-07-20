@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v38.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-20 · 当前版本 **v38.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -118,6 +118,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 分享卡（静态） | `buildShareCardSVG`（干净快照嵌套裁窗+二维码占位）/ `exportShareCard`（CSS变量解析→canvas 2x PNG）/ 弹窗 ex-card |
 | 互动谱（动态分享） | `exportInteractiveCard`（fetch 自身源码→DOM 快照兜底；注入 `pyq-share-data` 脚本；**源码内严禁裸写 body 闭合标签字面量**）/ `enterShareViewer`（`window.PYQ_SHARE` 经 DOMContentLoaded 启动，body 类 viewer+share）/ 弹窗 ex-icard |
 | 节拍器/倍速 | `metroClick`（正弦+噪声拍点，首拍重音）/ `metroOn`·`playRate`（play() 内 spb 缩放与逐拍布点）/ 播放条 `b-metro`·`mx-rate` |
+| 左栏谱类感知 | `DOCK_PANELS`（类型→页面板集合与顺序，flex order 排序）/ `renderDock`（页签显隐/命名/标题/失效页回退，render() 首行调用）/ `setRibbon`（面板显隐+排序在此应用）/ 专属面板 panel-vox-acc·fn·arr·lyradd（按钮全部委托既有流程） |
 | 纯和弦谱 | `song.chordOnly`（斜线绘制在 cols.forEach、拍宽拉平在 measureLayout） |
 | 和音输入 | `b-addnote`（唱名串自动向上排列）/ 五线谱 Ctrl+点击（click handler `dataset.sbot` 分支） |
 | 记谱法切换 | `setVoxNotation` / `toggleVoxDual` / 面板 `vn-jp/st/bs/al/dual` |
@@ -153,6 +154,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_brace | 花括线跨度（两端落线） |
 | tv_staff / tv_piano / tv_combo | 五线谱/钢琴/联排基础回归 |
 | tv_viewer | 互动谱+节拍器：Node 侧打包注入→观看模式启动/移调不改原数据/倍速时长比/节拍器源增量/导出自打包完整性/双模式入口——6项 |
+| tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 
@@ -176,6 +178,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | P2 增长 | v38.3–v38.4 | **哼唱成谱**、**曲谱分享卡**（P2 收官） |
 | P3 垂类文案 | — | 官网首页/制谱/功能/帮助按八场景+即兴伴奏/考编叙事重写（**优化指令全部完成**） |
 | 分享升级+练习工具 | v38.5 | **动态互动谱**（自打包单文件 HTML，收谱即可播放/倍速/移调/谱架）+ 播放条**节拍器**与**倍速**（0.5×–1.5×） |
+| 编辑器体验 | v38.6 | **左栏谱类感知布局**：页签/面板按八类型显隐排序，钢琴弹唱伴奏工作流置顶、功能谱级数置顶、纯和弦谱精简、＋歌词行入口 |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 

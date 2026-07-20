@@ -832,17 +832,23 @@ body.stand #standbar{display:flex}
       </div>
       <div class="rg-title">记谱法</div>
     </div>
-    <div class="rg panel-p" id="panel-tab-mark">
-      <div class="rg-title">演奏记号</div>
+    <div class="rg panel-p" id="panel-tab-strum">
+      <div class="rg-title">扫弦 · 琶音</div>
       <div class="rg-body">
-        <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button><button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
+        <button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
         <button id="b-strum-u" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
         <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
-        <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-arr-minus" title="扫弦箭头缩短一根弦">箭头−</button>
         <button id="b-arr-plus" title="扫弦箭头加长一根弦">箭头＋</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-tab-mark">
+      <div class="rg-title">音符记号</div>
+      <div class="rg-body">
+        <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button>
+        <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格</button>
       </div>
     </div>
@@ -900,6 +906,34 @@ body.stand #standbar{display:flex}
     <div class="rg panel-p" id="panel-vox-pat">
       <div class="rg-title">节奏型 · 可 Shift 多选小节</div>
       <div class="rg-body" id="vox-quick"></div>
+    </div>
+    <!-- 类型专属工具（v38.6：按谱类显隐/排序） -->
+    <div class="rg panel-p" id="panel-vox-acc">
+      <div class="rg-title">伴奏工具</div>
+      <div class="rg-body">
+        <button id="va-chord" title="标注和弦：级数为主构建（级数×类型扩展×转位低音），织体按和弦生成音符">标和弦…</button>
+        <button id="va-sug" title="按功能和声自动建议全曲和弦（已填的小节不覆盖）">一键配和弦</button>
+        <button id="va-tex" title="选伴奏织体，按已标注的和弦自动生成双手音符（可编辑、可逐段重生成）">伴奏织体…</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-fn">
+      <div class="rg-title">和弦 · 级数</div>
+      <div class="rg-body">
+        <button id="vf-edit" title="以级数为主构建和弦（级数×类型扩展×转位低音），写入当前列">和弦/级数…</button>
+        <button id="vf-names" title="谱面所有和弦标注一键切换：级数 ↔ 音名">级数↔音名</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-arr">
+      <div class="rg-title">智能配谱</div>
+      <div class="rg-body">
+        <button id="varr-go" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（开新窗口，原谱不动）">一键配伴奏…</button>
+      </div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-lyradd">
+      <div class="rg-title">歌词</div>
+      <div class="rg-body">
+        <button id="vl-add" title="为本谱添加一行歌词，添加后左栏出现「歌词」页">＋添加歌词行</button>
+      </div>
     </div>
     <!-- 歌词 -->
     <div class="rg panel-p" id="panel-lyr-line">
@@ -2522,26 +2556,40 @@ function strumSpan(col){
   return {top, bot, n:bot-top+1};
 }
 
-function render(){
-  /* 左侧面板按曲谱类型适配：简谱类型隐藏 TAB 工具页，尤克里里改标签名 */
-  {
-    const tb=document.querySelector('.ltab[data-t="tab"]');
-    if(tb){
-      const hasTab = song.tabVoices.length>0;
-      tb.style.display = hasTab? '' : 'none';
-      tb.textContent = instOf()==='uku'? '尤克里里' : '吉他谱';
-      if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
-    }
-    const at=document.getElementById('b-acctex');
-    if(at) at.style.display = song.pianoAcc? '' : 'none';
-    const ar=document.getElementById('b-arrange');
-    if(ar) ar.style.display = ['vocal','teach','instr'].includes(docType(song))? '' : 'none';
-    const vb=document.querySelector('.ltab[data-t="vox"]');
-    if(vb){
-      const anyStaff = (song.voxNotations||[]).some(isStaffNota);
-      vb.textContent = anyStaff? '五线谱' : '简谱';
-    }
+/* v38.6 左栏谱类感知：页签显隐/命名 + 面板标题 + 失效页回退（面板集合/排序在 setRibbon 内按 DOCK_PANELS 应用） */
+function renderDock(){
+  const dt = docType(song);
+  const tb=document.querySelector('.ltab[data-t="tab"]');
+  if(tb){
+    const hasTab = song.tabVoices.length>0;
+    tb.style.display = hasTab? '' : 'none';
+    tb.textContent = instOf()==='uku'? '尤克里里' : (dt==='solo'? '独奏谱' : '吉他谱');
+    if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
   }
+  const vb=document.querySelector('.ltab[data-t="vox"]');
+  if(vb){
+    vb.style.display = song.voxVoices.length>0? '' : 'none';
+    const anyStaff = (song.voxNotations||[]).some(isStaffNota);
+    vb.textContent = ({piano:'钢琴',pianoacc:'钢琴伴奏',teach:'教学谱',instr:'五线谱',func:'功能谱',chord:'和弦谱'})[dt]
+      || (anyStaff? '五线谱' : '简谱');
+  }
+  const lb=document.querySelector('.ltab[data-t="lyr"]');
+  if(lb) lb.style.display = song.lyricLines>0? '' : 'none';
+  const vt=document.querySelector('#panel-vox-voice .rg-title');
+  if(vt) vt.textContent = ({piano:'钢琴声部',pianoacc:'钢琴声部',instr:'器乐声部'})[dt] || '旋律声部';
+  const at=document.getElementById('b-acctex');
+  if(at) at.style.display = song.pianoAcc? '' : 'none';
+  const ar=document.getElementById('b-arrange');
+  if(ar) ar.style.display = ['vocal','teach','instr'].includes(dt)? '' : 'none';
+  /* 当前左栏页对该谱类不可用时回退到第一个可见页；否则重算当前页面板（类型可能已变） */
+  const visible=['tab','vox','lyr'].filter(k=>{
+    const el=document.querySelector('.ltab[data-t="'+k+'"]');
+    return el && el.style.display!=='none';
+  });
+  setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
+}
+function render(){
+  renderDock();
   const svg = document.getElementById('score');
   /* 版面几何：页面尺寸 + 内容大小决定"每页容纳多少"（与显示缩放无关）。
      以 A4 版宽为响应式基准（保持 A4 默认铺满编辑器），A5/A3 按纸张比例缩放版宽：
@@ -3714,16 +3762,50 @@ function tupSVG(n){
   p+=`<text x="15" y="6" font-size="7.5" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">${n}</text>`;
   return `<svg width="30" height="19" viewBox="0 0 30 19">${p}</svg>`;
 }
+/* v38.6 左栏谱类感知布局：每种曲谱类型 → 各页显示哪些面板、按什么顺序。
+   未列出的面板隐藏；数组顺序即视觉顺序（flex order）。键 = panel-<页>-<key> 的 key。 */
+const DOCK_PANELS = {
+  tab: {
+    guitar:['voice','notation','chord','strum','mark','pat','col'],
+    uku:   ['voice','notation','chord','strum','mark','pat','col'],
+    solo:  ['voice','notation','strum','mark','pat','chord','col'],   // 指弹：技法优先，和弦后置
+  },
+  vox: {
+    guitar:  ['voice','notation','mark','pat','col','lyradd'],
+    uku:     ['voice','notation','mark','pat','col','lyradd'],
+    solo:    ['voice','notation','mark','pat','col','lyradd'],
+    vocal:   ['voice','notation','mark','arr','pat','col','lyradd'],
+    teach:   ['voice','notation','mark','arr','pat','col','lyradd'],
+    instr:   ['voice','notation','mark','arr','pat','col','lyradd'],
+    piano:   ['voice','notation','mark','pat','col','lyradd'],
+    pianoacc:['acc','voice','notation','mark','col','lyradd'],        // 伴奏工作流置顶
+    func:    ['fn','voice','notation','mark','pat','col','lyradd'],   // 级数和弦置顶
+    chord:   ['fn','col'],                                            // 纯和弦谱：只留和弦与列
+  },
+};
+let ebCtxFor=null;   // 编辑栏第二行当前已构建的页，避免每次 render 重建
 function setRibbon(t){
   activeTab = t;
   { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = t==='tab'? '' : 'none'; }
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
+  const dt = song? docType(song) : 'guitar';
+  const spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
   document.querySelectorAll('.panel-p').forEach(el=>{
-    el.style.display = el.id.startsWith('panel-'+t)?'':'none';
+    const onPage = el.id.startsWith('panel-'+t+'-');
+    if(!onPage){ el.style.display='none'; return; }
+    if(!spec){ el.style.display=''; el.style.order=''; return; }   // 歌词页等：全显、原序
+    const key = el.id.slice(('panel-'+t+'-').length);
+    const idx = spec.indexOf(key);
+    if(idx<0){ el.style.display='none'; el.style.order=''; }
+    else { el.style.display=''; el.style.order=idx; }
   });
+  /* 附加条件：已有歌词行时不再显示「＋添加歌词行」入口 */
+  { const la=document.getElementById('panel-vox-lyradd');
+    if(la && song && song.lyricLines>0) la.style.display='none'; }
   /* 编辑栏第二行按声部切换：吉他谱→演奏技巧，简谱→标识符号 */
   const ctx = document.getElementById('eb-ctx'), ctxT = document.getElementById('eb-ctx-t');
-  if(ctx){
+  if(ctx && ebCtxFor!==t){
+    ebCtxFor=t;
     if(t==='tab'){
       ctxT.textContent='演奏技巧';
       ctx.innerHTML = EB_TECHS.map(([k,l,g])=>`<button class="eb ico" data-tech2="${k}" title="${l}${k?'：作用于当前选中音符（可 Ctrl+多选后批量）':''}"><b class="g">${g}</b><span>${l}</span></button>`).join('');
@@ -5695,6 +5777,29 @@ function showVoxChordMenu(cx, cy){
 document.getElementById('b-vchord').onclick = e=>{
   const r=e.target.getBoundingClientRect();
   showVoxChordMenu(r.right+8, r.top-10);
+};
+/* v38.6 左栏类型专属面板：全部委托既有流程，不复制逻辑 */
+document.getElementById('va-chord').onclick = e=>{
+  const r=e.target.getBoundingClientRect(); showVoxChordMenu(r.right+8, r.top-10);
+};
+document.getElementById('vf-edit').onclick = e=>{
+  const r=e.target.getBoundingClientRect(); showVoxChordMenu(r.right+8, r.top-10);
+};
+document.getElementById('va-sug').onclick = ()=>{
+  let n; mutate(()=>{ n=applySuggestChords(); });
+  toast(n? '已按功能和声建议标注 '+n+' 个小节的和弦（已填的不覆盖，可再点「伴奏织体…」生成音符）'
+         : '没有可标注的小节（已填和弦或无参考音符）');
+};
+document.getElementById('va-tex').onclick = ()=>document.getElementById('b-acctex').click();
+document.getElementById('vf-names').onclick = ()=>{
+  mutate(()=>{ song.funcNames=!song.funcNames; });
+  toast('谱面和弦显示：'+(song.funcNames?'音名':'级数'));
+};
+document.getElementById('varr-go').onclick = ()=>document.getElementById('b-arrange').click();
+document.getElementById('vl-add').onclick = ()=>{
+  mutate(()=>{ song.lyricLines=1; });
+  activeLyr=0; setRibbon('lyr'); syncInputs();
+  toast('已添加歌词行：左栏「歌词」页可分段填词，简谱区光标处直接打字也可填入');
 };
 /* 记谱法切换：同一数据换视图，可随时往返（声部级） */
 function setVoxNotation(nt){
@@ -9306,6 +9411,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>
     <li><span class="v">v38.5</span><div><b>动态互动谱 + 节拍器</b>：① 打印/导出新增<b>「互动谱 HTML」</b>——把整个应用自打包成单文件网页并注入当前曲谱，对方浏览器打开即进入观看模式：可播放、倍速、节拍器、即时移调、谱架自动卷谱，无需安装、纯本地不上传（分享卡由此升级为「静态 PNG + 动态 HTML」双模式）；② 播放条新增<b>节拍器</b>开关——播放时叠加拍点声、每小节第一拍重音，随倍速同步缩放；③ 播放条新增<b>倍速</b>（0.5×–1.5×）——慢速跟练/快速过谱，只改播放快慢不动曲谱速度设置。</div></li>
     <li><span class="v">v38.4</span><div><b>曲谱分享卡</b>（P2·微信生态增长回路）：打印/导出新增<b>「生成分享卡」</b>——一键产出竖版品牌谱面卡 PNG（750×1000）：渐变品牌带 + 谱面首屏精裁 + 曲名/词曲/调速信息 + 谱友圈品牌与二维码占位（正式上线后替换为可扫的看谱链接），任何谱类通用，微信/朋友圈/小红书直接转发。纯本地生成，不上传任何数据。</div></li>
     <li><span class="v">v38.3</span><div><b>哼唱成谱</b>（P2·大众获客钩子）：新建向导「哼唱成谱…」——对麦克风清唱一段（或上传清唱录音），纯前端完成 <b>音高检测</b>（NSDF 自相关+首峰选取防八度错+中值平滑）→ <b>自动定调</b>（12 大调音阶拟合+首末音加权）→ <b>16 分网格量化</b>（连奏容差、跨小节连音线）→ 生成简谱草稿进编辑器精修；检测不到音高时友好提示。与 MIDI 导入共用同一量化引擎。提示：跟稳所选 BPM 清唱单音旋律（哼「啦」最准）。</div></li>
