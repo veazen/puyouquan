@@ -7103,8 +7103,44 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
   </div>
-  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-cancel">取消</button></div>
-  <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">`);
+  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-midi">导入 MIDI…</button><button id="nw-cancel">取消</button></div>
+  <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
+  <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
+  document.getElementById('nw-midi').onclick = ()=>document.getElementById('nw-midifile').click();
+  document.getElementById('nw-midifile').onchange = e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const smf=parseSMF(new Uint8Array(rd.result));
+      if(smf.error){ toast('导入失败：'+smf.error); return; }
+      const opts=smf.tracks.map((t2,i)=>`<option value="${i}">${esc(t2.name)}（${t2.notes.length}音）</option>`).join('');
+      showModal(`<h3>导入 MIDI · 选择音轨</h3>
+        <p style="font-size:12.5px">检测到 ${smf.tracks.length} 条音轨 · ${smf.ts.beats}/${smf.ts.unit} · ♩=${smf.tempo}${smf.keySf!=null? ' · 调号 '+(MIDI_F2K[smf.keySf]||'?') : ' · 未含调号(按1=C，导入后可核对换调)'}<br>导入为<b>草稿</b>：时值按16分网格量化，请导入后精修。</p>
+        <label class="f"><span>形式</span><select id="mi-mode">
+          <option value="single">单轨 → 歌谱（简谱草稿）</option>
+          <option value="split">单轨按中央C分手 → 钢琴大谱表</option>
+          ${smf.tracks.length>1? '<option value="piano">双轨 → 钢琴大谱表（右手/左手）</option>':''}
+        </select></label>
+        <label class="f"><span>音轨A</span><select id="mi-a">${opts}</select></label>
+        ${smf.tracks.length>1? `<label class="f"><span>音轨B</span><select id="mi-b">${opts}</select></label>`:''}
+        <div class="btns"><button id="mi-cancel">取消</button><button id="mi-go" class="primary">导入</button></div>`);
+      if(document.getElementById('mi-b')) document.getElementById('mi-b').selectedIndex=Math.min(1,smf.tracks.length-1);
+      document.getElementById('mi-cancel').onclick=closeModal;
+      document.getElementById('mi-go').onclick=()=>{
+        const mode=document.getElementById('mi-mode').value;
+        const selA=+document.getElementById('mi-a').value;
+        const selB=document.getElementById('mi-b')? +document.getElementById('mi-b').value : 0;
+        const r=buildSongFromMIDI(smf, mode==='piano'? {mode,a:selA,b:selB} : {mode, a:selA});
+        closeModal();
+        addDoc(r.song);
+        setRibbon('vox');
+        toast('已导入 MIDI 草稿：'+r.song.measures.length+' 小节'
+          +(r.skipped? '；量化中简化了 '+r.skipped+' 处（和音超4音/超细时值）':'')
+          +(r.keyDefaulted? '；未含调号已按 1=C，请核对后用换调整体移调':''));
+      };
+    };
+    rd.readAsArrayBuffer(file);
+  };
   document.getElementById('nw-import').onclick = ()=>document.getElementById('nw-mxlfile').click();
   document.getElementById('nw-mxlfile').onchange = e=>{
     const file=e.target.files[0]; if(!file) return;
@@ -7468,6 +7504,156 @@ function importMusicXML(xmlStr){
   }
   if(!out.measures.length) return {error:'未解析到任何小节'};
   return {song: migrate(out), skip, keyDefaulted};
+}
+/* ===== MIDI 导入（P0-C）=====
+   ① parseSMF：纯前端 SMF(format 0/1) 解析（运行状态/变长量/meta 速度·拍号·调号·轨名）；
+   ② quantizeToCols：**通用时值量化模块**（16分网格、同起点合并为和音、单声部化、
+      贪心时值分解+跨小节连音线、空隙补休止）——哼唱转谱(P2-A)复用同一模块；
+   ③ buildSongFromMIDI：音轨选择（单轨→歌谱草稿 / 双轨或按中央C分手→钢琴大谱表草稿）。
+   定位=草稿+精修：量化丢失的细节跳过并计数提示。TODO: SMPTE 时间、中途变速/变拍。 */
+function parseSMF(u8){
+  if(u8.length<14 || String.fromCharCode(u8[0],u8[1],u8[2],u8[3])!=='MThd')
+    return {error:'不是标准 MIDI 文件（缺少 MThd 头）'};
+  const hlen=(u8[4]<<24)|(u8[5]<<16)|(u8[6]<<8)|u8[7];
+  const format=(u8[8]<<8)|u8[9], ntrk=(u8[10]<<8)|u8[11], division=(u8[12]<<8)|u8[13];
+  if(division & 0x8000) return {error:'暂不支持 SMPTE 时间格式的 MIDI'};
+  let p=8+hlen;
+  const tracks=[]; let tempo=null, ts=null, keySf=null;
+  for(let t=0; t<ntrk && p+8<=u8.length; t++){
+    if(String.fromCharCode(u8[p],u8[p+1],u8[p+2],u8[p+3])!=='MTrk') break;
+    const len=(u8[p+4]<<24)|(u8[p+5]<<16)|(u8[p+6]<<8)|u8[p+7];
+    p+=8; const end=p+len;
+    let tick=0, run=0, name='';
+    const on={}, notes=[];
+    while(p<end){
+      let d=0,b; do{ b=u8[p++]; d=(d<<7)|(b&0x7f); }while(b&0x80);
+      tick+=d;
+      let st=u8[p];
+      if(st&0x80){ p++; if(st<0xF0) run=st; } else st=run;
+      if(st===0xFF){
+        const type=u8[p++]; let l=0; do{ b=u8[p++]; l=(l<<7)|(b&0x7f); }while(b&0x80);
+        if(type===0x51 && tempo==null) tempo=Math.round(60000000/(((u8[p]<<16)|(u8[p+1]<<8)|u8[p+2])||500000));
+        else if(type===0x58 && ts==null) ts={beats:u8[p]||4, unit:(1<<u8[p+1])||4};
+        else if(type===0x59 && keySf==null) keySf=(u8[p]<<24>>24);
+        else if(type===0x03 && !name){ for(let i=0;i<l;i++) name+=String.fromCharCode(u8[p+i]); }
+        p+=l;
+      }else if(st===0xF0 || st===0xF7){
+        let l=0; do{ b=u8[p++]; l=(l<<7)|(b&0x7f); }while(b&0x80); p+=l;
+      }else{
+        const hi=st&0xF0, ch=st&0x0F;
+        if(hi===0x90 || hi===0x80){
+          const note=u8[p++], vel=u8[p++];
+          const k=ch*128+note;
+          if(hi===0x90 && vel>0){ if(!on[k]) on[k]={start:tick}; }
+          else if(on[k]){ notes.push({midi:note, start:on[k].start, dur:Math.max(1,tick-on[k].start), ch}); delete on[k]; }
+        }else if(hi===0xC0 || hi===0xD0) p+=1;
+        else p+=2;
+      }
+    }
+    Object.keys(on).forEach(k=>notes.push({midi:(+k)%128, start:on[k].start, dur:division, ch:Math.floor((+k)/128)}));
+    notes.sort((a,b2)=>a.start-b2.start || a.midi-b2.midi);
+    if(notes.length) tracks.push({name:name||('音轨'+(tracks.length+1)), notes});
+    p=end;
+  }
+  if(!tracks.length) return {error:'文件里没有音符事件'};
+  return {format, division, tracks, tempo:tempo||120, ts:ts||{beats:4,unit:4}, keySf};
+}
+/* 量化：notes[{midi,start,dur}(ticks)] → {measures:[voxCol[]], skipped}；ref=keyRef 基准 midi */
+function quantizeToCols(notes, tpq, beats, unit, ref){
+  const beatTicks = tpq*4/unit, grid=0.25;
+  const qz=v=>Math.round(v/grid)*grid;
+  let skipped=0;
+  const evs=[];
+  notes.forEach(n=>{
+    const s2=qz(n.start/beatTicks);
+    const e2=Math.max(s2+grid, qz((n.start+n.dur)/beatTicks));
+    const last=evs[evs.length-1];
+    if(last && Math.abs(last.s-s2)<1e-6){ last.ms.push(n.midi); last.e=Math.max(last.e,e2); }
+    else evs.push({s:s2, e:e2, ms:[n.midi]});
+  });
+  const segs=[];
+  evs.forEach((ev,i)=>{
+    const cap = i+1<evs.length? Math.min(ev.e, evs[i+1].s) : ev.e;
+    if(cap>ev.s+1e-6) segs.push({len:cap-ev.s, ms:ev.ms});
+    if(i+1<evs.length && evs[i+1].s-cap>grid-1e-6) segs.push({len:evs[i+1].s-cap, ms:null});
+  });
+  if(evs.length && evs[0].s>grid-1e-6) segs.unshift({len:evs[0].s, ms:null});
+  /* 时值分解表（拍长，降序）：附点+基础值；32分为最小网格 */
+  const VALS=[];
+  [1,2,4,8,16,32].forEach(d=>{ VALS.push([d,true,unit/d*1.5]); VALS.push([d,false,unit/d]); });
+  VALS.sort((a,b2)=>b2[2]-a[2]);
+  const minLen=unit/32;
+  const toCol=(ms,d,dot,tie)=>{
+    const col={dur:d, dotted:dot, deg:0, acc:'', oct:0, lyrics:[], tie:false};
+    if(ms){
+      const sorted=[...ms].sort((a,b2)=>b2-a);        // 主音=最高音
+      const rel=sorted[0]-ref, pc=((rel%12)+12)%12;
+      col.deg=SEMI_DEG[pc][0]; col.acc=SEMI_DEG[pc][1]; col.oct=Math.floor(rel/12);
+      const adds=sorted.slice(1,4).map(m2=>{ const r2=m2-ref, p2=((r2%12)+12)%12;
+        return {deg:SEMI_DEG[p2][0], acc:SEMI_DEG[p2][1], oct:Math.floor(r2/12)}; });
+      if(adds.length) col.adds=adds;
+      skipped += Math.max(0, sorted.length-4);
+      col.tie=!!tie;
+    }
+    return col;
+  };
+  const measures=[]; let cols=[], fill=0;
+  const push=(col,len)=>{ cols.push(col); fill+=len;
+    if(fill>=beats-1e-6){ measures.push(cols); cols=[]; fill=0; } };
+  segs.forEach(seg=>{
+    let rem=seg.len;
+    while(rem>minLen/2){
+      const room=beats-fill;
+      const take=Math.min(rem, room);
+      const v=VALS.find(x=>x[2]<=take+1e-6);
+      if(!v){ skipped++; break; }
+      const cont = rem-v[2]>minLen/2;
+      push(toCol(seg.ms, v[0], v[1], seg.ms && cont), v[2]);
+      rem-=v[2];
+    }
+  });
+  if(cols.length){                                      // 末小节补休止
+    let room=beats-fill;
+    while(room>minLen/2){
+      const v=VALS.find(x=>!x[1] && x[2]<=room+1e-6); if(!v) break;
+      push(toCol(null,v[0],false,false), v[2]); room=beats-fill;
+      if(!cols.length) break;
+    }
+    if(cols.length) measures.push(cols);
+  }
+  return {measures, skipped};
+}
+const MIDI_F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
+function buildSongFromMIDI(smf, sel){
+  const beats=Math.max(1,Math.min(12,smf.ts.beats));
+  const unit=(smf.ts.unit===8)?8:4;
+  const key=MIDI_F2K[smf.keySf]||'C';
+  const ref=(()=>{ let r=60+(KEY_PC[key]||0); if(r>66)r-=12; return r; })();
+  let voices=[], notations, names;
+  let skipped=0;
+  if(sel.mode==='piano' || sel.mode==='split'){
+    let hi,lo;
+    if(sel.mode==='piano'){ hi=smf.tracks[sel.a].notes; lo=smf.tracks[sel.b].notes; }
+    else{ const ns=smf.tracks[sel.a].notes; hi=ns.filter(n=>n.midi>=60); lo=ns.filter(n=>n.midi<60); }
+    const qh=quantizeToCols(hi, smf.division, beats, unit, ref);
+    const ql=quantizeToCols(lo, smf.division, beats, unit, ref);
+    skipped=qh.skipped+ql.skipped;
+    voices=[qh.measures, ql.measures]; notations=['staff','bass']; names=['右手','左手'];
+  }else{
+    const q1=quantizeToCols(smf.tracks[sel.a].notes, smf.division, beats, unit, ref);
+    skipped=q1.skipped;
+    voices=[q1.measures]; notations=undefined; names=['旋律1'];
+  }
+  const nMea=Math.max(1, ...voices.map(v=>v.length));
+  const blank=()=>Array.from({length:beats},()=>({dur:unit,dotted:false,deg:0,acc:'',oct:0,lyrics:[],tie:false}));
+  const out={v:3, title:(smf.tracks[sel.a].name&&!/^音轨/.test(smf.tracks[sel.a].name)? smf.tracks[sel.a].name:'导入 MIDI'),
+    singer:'', lyricist:'', composer:'', maker:'', key, beats, unit,
+    tempo:Math.max(30,Math.min(240,smf.tempo||120)), capo:0, customChords:{},
+    tabVoices:[], voxVoices:names, voxNotations:notations, lyricLines:1, measures:[]};
+  for(let mi=0; mi<nMea; mi++)
+    out.measures.push({tabs:[], voxes:voices.map(v=>v[mi]&&v[mi].length? v[mi]:blank()),
+      repeatStart:false, repeatEnd:false});
+  return {song:migrate(out), skipped, keyDefaulted:smf.keySf==null};
 }
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
@@ -8543,6 +8729,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v37.9</span><div><b>MIDI 导入</b>（P0·直接吃下 AI 转谱/AI 作曲的主流输出格式）：新建向导「导入 MIDI…」——纯前端解析标准 MIDI（含多轨/运行状态/速度/拍号/调号），<b>16 分网格智能量化</b>为简谱草稿：同起点合并为和音、超长音自动拆分并补连音线（含跨小节）、空隙补休止、附点识别；三种导入形式：单轨→歌谱、单轨按中央C自动分手→钢琴大谱表、双轨→钢琴左右手；量化简化处逐一计数提示。量化模块与后续「哼唱转谱」共用。</div></li>
     <li><span class="v">v37.8</span><div><b>MusicXML 导入</b>（P0·把 AI 转谱产物"吃进来"精修）：新建向导新增「导入 MusicXML…」——解析 score-partwise（MuseScore/Finale 等导出均可），自动换算为可动 do 简谱数据：音高按调号逆映射、时值优先读 type/附点/三连音、和弦标注/多段歌词/连音线/反复记号/各声部谱号（G/F/C→高/低/中音谱表）一并还原；暂不支持的记号<b>跳过并计数提示</b>，绝不产出坏谱；未读到调号按 1=C 提醒核对。导入后立即可编辑、可切三种记谱法。压缩 .mxl 请先在 MuseScore 转存未压缩格式。</div></li>
     <li><span class="v">v37.7</span><div><b>MusicXML 导出</b>（P0·接入专业软件与 AI 转谱生态）：打印/导出弹窗新增「导出 MusicXML」——简谱/五线谱声部完整导出为标准 score-partwise 4.0（音高按调号拼写与五线谱渲染同源；含和音、附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复与终止线、各声部谱号），可直接在 MuseScore / Finale / Sibelius 打开继续编辑或印刷。TAB 声部导出列入路线图。</div></li>
     <li><span class="v">v37.6</span><div><b>同列多音（和音）</b>：一列可叠 1+3 个音——五线谱逐音绘制符头/加线/临时记号、二度音程自动左右翻转、<b>共用一根符干贯穿</b>（含符杠组）；简谱视图数字纵向叠置；播放同起同长发声；输入两种方式：面板<b>「和音」</b>按钮输唱名（自动向上排列）或五线谱 <b>Ctrl+点击</b>线/间直接加减。伴奏织体库补全柱式类：<b>柱式和弦、半分解、圆舞曲柱式</b>（织体库共 8 套），行距自动为和音扩展。</div></li>
