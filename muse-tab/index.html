@@ -12,7 +12,7 @@
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
   --paper:#ffffff; --ink:#141414; --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045);
   --glass:rgba(251,251,253,.82);
-  --danger:#e8362b; --ok:#1d9a53;
+  --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
   --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09);
   --radius:10px;
   --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
@@ -30,7 +30,7 @@
   --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
   --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045); --glass:rgba(251,251,253,.82);
-  --danger:#e8362b; --ok:#1d9a53;
+  --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
   --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09); }
 :root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
   --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
@@ -399,7 +399,7 @@ svg text{user-select:none}
 .cc-price{position:absolute;top:10px;right:12px;font-size:12px;font-weight:800;color:var(--accent);
   background:color-mix(in srgb, var(--panel) 84%, transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2.5px 11px;
   -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
-.cc-price.free{color:#22a05a}
+.cc-price.free{color:var(--ok)}
 /* 谱友圈：搜索 / 分类 / 收藏 工具条 */
 .cc-tools{max-width:1080px;margin:16px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cc-search{flex:1;min-width:180px;max-width:340px;position:relative}
@@ -486,6 +486,12 @@ body.stand #standbar{display:flex}
 .fb-c.on.x{background:var(--muted);border-color:var(--muted)}
 /* 新建向导·类型卡片（大气现代，无图标） */
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
+/* v38.8 向导差异化入口提权：导入/哼唱不再与「取消」同权重 */
+.nw-feats{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:12px 0 2px;
+  padding:10px 12px;border:1.5px dashed var(--accent);border-radius:12px;background:var(--accent-soft)}
+.nw-feats-t{align-self:center;font-size:12px;font-weight:700;color:var(--accent-ink);white-space:nowrap}
+.nw-feats .nwf{display:flex;flex-direction:column;align-items:flex-start;gap:2px;font-weight:600;flex:1;min-width:150px}
+.nw-feats .nwf small{font-weight:400;font-size:10.5px;color:var(--muted);white-space:nowrap}
 .ntcard{position:relative;min-width:0;white-space:normal;border:1.5px solid var(--border);border-radius:15px;
   padding:20px 18px 17px;background:var(--paper);cursor:pointer;text-align:left;font:inherit;overflow:hidden;
   transition:border-color .18s,box-shadow .2s,transform .18s}
@@ -609,7 +615,7 @@ body.stand #standbar{display:flex}
 .sf-stat{font-size:12.5px;margin:6px 0 4px;color:var(--muted)}
 .sf-stat b{font-weight:700}
 .sf-stat.ok b{color:var(--ok)}
-.sf-stat.warn b{color:#c98a00}
+.sf-stat.warn b{color:#9a6a00}
 .sf-prev{display:flex;flex-wrap:wrap;gap:8px 10px;max-height:150px;overflow:auto;padding:9px 11px;
   border:1px solid var(--border-soft);border-radius:11px;background:var(--toolbar);margin:4px 0 2px}
 .sf-prev .m{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding-right:10px;border-right:1px dashed var(--border)}
@@ -1046,10 +1052,11 @@ body.stand #standbar{display:flex}
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
     <select id="mx-rate" class="rate" title="播放倍速：只改播放快慢，不改曲谱速度设置（慢速跟练/快速过谱）">
-      <option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+      <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
     <button id="b-metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用">⏱ 节拍器</button>
+    <button id="b-stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习">🎼 谱架</button>
     <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
   </div>
 </div>
@@ -1860,7 +1867,7 @@ function migrate(s){
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
     s.lyricist=s.lyricist||''; s.composer=s.composer||'';
-    s.measures.forEach(m=>{
+    (s.measures||(s.measures=[])).forEach(m=>{
       m.tabs=[m.tab]; delete m.tab;
       (m.vox||[]).forEach(c=>{ c.lyrics = c.lyric?[c.lyric]:[]; delete c.lyric; });
       m.voxes=[m.vox]; delete m.vox;
@@ -3969,7 +3976,18 @@ function pushUndo(){
   if(undoStack.length>200) undoStack.shift();
   redoStack=[];
 }
-function mutate(fn){ pushUndo(); fn(); clampSel(); persist(); render(); }
+/* v38.8 渲染优先于落盘：若本次编辑触发渲染异常，坏状态不会写入 localStorage，自动撤销恢复 */
+function mutate(fn){
+  pushUndo(); fn(); clampSel();
+  try{ render(); }
+  catch(e){
+    console.error('渲染异常，自动撤销本次操作', e);
+    try{ undo(); }catch(_){}
+    try{ toast('该操作触发渲染异常，已自动撤销（数据未受影响）'); }catch(_){}
+    return;
+  }
+  persist();
+}
 function undo(){
   if(!undoStack.length) return toast('没有可撤销的操作');
   redoStack.push(JSON.stringify(song));
@@ -7119,6 +7137,7 @@ document.getElementById('b-metro').onclick = ()=>{
   if(audio.playing && !audio.paused) play();   // 播放中切换：重新调度以立即生效
   toast(metroOn? '节拍器已开启：随播放发出拍点声，每小节第一拍重音' : '节拍器已关闭');
 };
+document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 document.getElementById('b-restart').onclick = ()=>{
   stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
@@ -7284,7 +7303,15 @@ function persist(){
       const i = lib.findIndex(e=>e.id===song.id);
       if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib); }
     }
-  }catch(_){}
+  }catch(err){
+    /* v38.8 存储写入失败（多为配额已满）不再静默：明确告知并引导导出备份，60秒节流防刷屏 */
+    console.error('本地存储写入失败', err);
+    if(!persist._warned){
+      persist._warned = true;
+      try{ toast('⚠️ 本地存储写入失败（可能已满）：编辑暂时无法自动保存，请尽快「导出」曲谱文件备份'); }catch(_){}
+      setTimeout(()=>{ persist._warned=false; }, 60000);
+    }
+  }
 }
 function nowStamp(){ try{ return new Date().toLocaleString('zh-CN',{hour12:false}); }catch(_){ return ''; } }
 function libLoad(){ try{ return JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(_){ return []; } }
@@ -7304,6 +7331,14 @@ function saveToLibrary(){
 }
 function loadSong(s){
   s = migrate(s);
+  /* v38.8 防静默覆盖：当前窗口曲谱未存入「我的曲谱」且有过编辑时，
+     不覆盖而是另开新窗口（与「新建」同一心智模型），原曲谱保留在标签页 */
+  if(song && !song.id && undoStack.length>0 && !viewerMode && docs.length>0){
+    const prevTitle = song.title || '未命名曲谱';
+    addDoc(s); selRange=null;
+    toast('已在新窗口打开；原曲谱《'+prevTitle+'》未入库，已保留在顶部标签页');
+    return;
+  }
   pushUndo(); song=s;
   if(docs[curDocI]) docs[curDocI].song = song;
   sel={mi:0,row:song.tabVoices&&song.tabVoices.length?'tab':'vox',vi:0,ci:0,si:1}; selRange=null;
@@ -7416,7 +7451,13 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
   </div>
-  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-midi">导入 MIDI…</button><button id="nw-hum">哼唱成谱…</button><button id="nw-cancel">取消</button></div>
+  <div class="nw-feats">
+    <span class="nw-feats-t">已有曲子？不用从零录入：</span>
+    <button id="nw-import" class="nwf">📄 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
+    <button id="nw-midi" class="nwf">🎹 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
+    <button id="nw-hum" class="nwf">🎤 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
+  </div>
+  <div class="btns"><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
   <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
   document.getElementById('nw-hum').onclick = ()=>{
@@ -8649,6 +8690,7 @@ function showPublishMenu(libEntry, rect){
   div.innerHTML=`<div class="t">发布《${esc(libEntry.title||'未命名曲谱')}》到谱友圈</div>
     <div class="row" style="align-items:center">定价 ¥ <input id="pub-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:70px">（0=免费）</div>
     <div class="row" style="align-items:center">付费谱试读 <input id="pub-prev" type="number" min="1" max="16" value="2" style="width:60px"> 小节</div>
+    <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">⚠️ 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>。</div>
     <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">确认发布</button></div>`;
   document.body.appendChild(div);
   document.getElementById('pub-go').onclick=()=>{
@@ -8661,7 +8703,7 @@ function showPublishMenu(libEntry, rect){
       author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'pending', data:d});
     circlePubsSave(l);
     closePop();
-    toast('已提交发布（'+(price>0?('¥'+price+' · 试读'+preview+'小节'):'免费')+'）· 平台审核通过后在谱友圈上架');
+    toast('已记录发布（'+(price>0?('¥'+price+' · 试读'+preview+'小节'):'免费')+'）· 当前为本机演示仅自己可见；分享给他人请用「互动谱 HTML / 分享卡」');
     openPersonal('creator');
   };
 }
@@ -9447,6 +9489,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「🎼 谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
     <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
     <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>
     <li><span class="v">v38.5</span><div><b>动态互动谱 + 节拍器</b>：① 打印/导出新增<b>「互动谱 HTML」</b>——把整个应用自打包成单文件网页并注入当前曲谱，对方浏览器打开即进入观看模式：可播放、倍速、节拍器、即时移调、谱架自动卷谱，无需安装、纯本地不上传（分享卡由此升级为「静态 PNG + 动态 HTML」双模式）；② 播放条新增<b>节拍器</b>开关——播放时叠加拍点声、每小节第一拍重音，随倍速同步缩放；③ 播放条新增<b>倍速</b>（0.5×–1.5×）——慢速跟练/快速过谱，只改播放快慢不动曲谱速度设置。</div></li>
@@ -9688,9 +9731,12 @@ function alignHeader(){
   try{
     const dd = JSON.parse(localStorage.getItem(LS_DOCS));
     if(dd && dd.docs && dd.docs.length){
-      docs = dd.docs.map(x=>({song:migrate(x), sel:null}));
+      /* v38.8 逐条容错：单个历史文档损坏只跳过该条，绝不连累其余标签页（数据红线） */
+      const bad=[];
+      docs = dd.docs.map((x,i)=>{ try{ return {song:migrate(x), sel:null}; }catch(e){ console.error('文档'+(i+1)+'迁移失败',e); bad.push(i+1); return null; } }).filter(Boolean);
+      if(bad.length) setTimeout(()=>toast('⚠️ 第 '+bad.join('、')+' 个标签页曲谱数据损坏已跳过，其余曲谱完好'),800);
       curDocI = Math.max(0, Math.min(dd.cur||0, docs.length-1));
-      song = docs[curDocI].song;
+      if(docs.length) song = docs[curDocI].song;
     }
   }catch(_){}
   if(!docs.length){
@@ -9706,7 +9752,15 @@ function alignHeader(){
   setRibbon('tab');
   document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
   persist();
-  render();
+  /* v38.8 启动渲染兜底：上次的曲谱若渲染异常，不丢弃它——另开新窗口保持应用可用，原数据留在标签页 */
+  try{ render(); }
+  catch(e){
+    console.error('启动渲染失败', e);
+    docs.push({song:demoSong(), sel:null}); curDocI=docs.length-1; song=docs[curDocI].song;
+    sel={mi:0,row:'tab',vi:0,ci:0,si:1}; clampSel();
+    try{ render(); }catch(_){}
+    setTimeout(()=>toast('⚠️ 上次编辑的曲谱渲染异常，已为你打开新窗口；原曲谱保留在顶部标签页，可尝试「导出」备份'),800);
+  }
   renderProgCells();
   sfEmbedInit();
   updateHifiBtn();
