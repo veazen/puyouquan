@@ -7225,9 +7225,64 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
   </div>
-  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-midi">导入 MIDI…</button><button id="nw-cancel">取消</button></div>
+  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-midi">导入 MIDI…</button><button id="nw-hum">哼唱成谱…</button><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
   <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
+  document.getElementById('nw-hum').onclick = ()=>{
+    let rec=null, chunks=[], stream=null;
+    showModal(`<h3>哼唱成谱 · 录一段清唱出简谱草稿</h3>
+      <p style="font-size:12.5px;line-height:1.6">对着麦克风<b>清唱单音旋律</b>（哼「啦」最准），尽量跟稳节拍。生成的是<b>草稿</b>：自动识别音高并定调、按16分网格量化，导入编辑器后请核对精修。也可直接上传一段清唱录音文件。</p>
+      <label class="f"><span>速度</span><select id="hm-bpm">${[60,72,80,90,100,110,120].map(v=>`<option ${v===90?'selected':''}>${v}</option>`).join('')}</select><span style="width:auto">BPM（跟这个速度唱）</span></label>
+      <div class="btns" style="justify-content:flex-start">
+        <button id="hm-rec" class="primary">● 开始录音</button>
+        <button id="hm-file2">选择音频文件…</button>
+        <button id="hm-cancel">取消</button>
+      </div>
+      <p id="hm-st" style="font-size:12px;color:var(--muted)"></p>
+      <input type="file" id="hm-file" accept="audio/*" style="display:none">`);
+    const st=t2=>{ const el=document.getElementById('hm-st'); if(el) el.textContent=t2; };
+    const finish=async (arrayBuf)=>{
+      st('分析中…（音高检测+量化）');
+      try{
+        const ctx=new (window.AudioContext||window.webkitAudioContext)();
+        const buf=await ctx.decodeAudioData(arrayBuf);
+        ctx.close && ctx.close();
+        setTimeout(()=>{
+          const r=hummingToSong(hmMono(buf), buf.sampleRate, +document.getElementById('hm-bpm').value||90);
+          if(r.error){ st(''); toast(r.error); return; }
+          closeModal();
+          addDoc(r.song);
+          setRibbon('vox');
+          toast('已生成哼唱草稿：'+r.nNotes+' 个音 · 自动定调 1='+r.key+'（草稿请核对，可用换调/记谱法继续处理）');
+        }, 60);
+      }catch(e){ st(''); toast('音频解码失败：'+(e.message||e)); }
+    };
+    document.getElementById('hm-cancel').onclick=()=>{ try{ rec&&rec.state!=='inactive'&&rec.stop(); stream&&stream.getTracks().forEach(t2=>t2.stop()); }catch(e){} closeModal(); };
+    document.getElementById('hm-file2').onclick=()=>document.getElementById('hm-file').click();
+    document.getElementById('hm-file').onchange=e2=>{
+      const file=e2.target.files[0]; if(!file) return;
+      const rd=new FileReader(); rd.onload=()=>finish(rd.result); rd.readAsArrayBuffer(file);
+    };
+    document.getElementById('hm-rec').onclick=async ()=>{
+      const btn=document.getElementById('hm-rec');
+      if(rec && rec.state==='recording'){ rec.stop(); return; }
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      }catch(e){ toast('无法访问麦克风（预览环境可能受限）——可改用「选择音频文件」上传清唱录音'); return; }
+      chunks=[]; rec=new MediaRecorder(stream);
+      rec.ondataavailable=e2=>chunks.push(e2.data);
+      rec.onstop=async ()=>{
+        stream.getTracks().forEach(t2=>t2.stop());
+        btn.textContent='● 开始录音';
+        const ab=await new Blob(chunks).arrayBuffer();
+        finish(ab);
+      };
+      rec.start();
+      btn.textContent='■ 停止并生成';
+      st('录音中…唱完点「停止并生成」（最长60秒）');
+      setTimeout(()=>{ if(rec && rec.state==='recording') rec.stop(); }, 60000);
+    };
+  };
   document.getElementById('nw-midi').onclick = ()=>document.getElementById('nw-midifile').click();
   document.getElementById('nw-midifile').onchange = e=>{
     const file=e.target.files[0]; if(!file) return;
@@ -7722,7 +7777,8 @@ function parseSMF(u8){
   return {format, division, tracks, tempo:tempo||120, ts:ts||{beats:4,unit:4}, keySf};
 }
 /* 量化：notes[{midi,start,dur}(ticks)] → {measures:[voxCol[]], skipped}；ref=keyRef 基准 midi */
-function quantizeToCols(notes, tpq, beats, unit, ref){
+function quantizeToCols(notes, tpq, beats, unit, ref, opt){
+  const legato=(opt&&opt.legato)||0;   // 连奏容差（拍）：短于此的空隙并入前音（哼唱用；MIDI 不传保持精确）
   const beatTicks = tpq*4/unit, grid=0.25;
   const qz=v=>Math.round(v/grid)*grid;
   let skipped=0;
@@ -7733,6 +7789,9 @@ function quantizeToCols(notes, tpq, beats, unit, ref){
     const last=evs[evs.length-1];
     if(last && Math.abs(last.s-s2)<1e-6){ last.ms.push(n.midi); last.e=Math.max(last.e,e2); }
     else evs.push({s:s2, e:e2, ms:[n.midi]});
+  });
+  if(legato) evs.forEach((ev,i)=>{                     // 连奏：音尾延到下一音起点
+    if(i+1<evs.length && evs[i+1].s-ev.e>0 && evs[i+1].s-ev.e<legato) ev.e=evs[i+1].s;
   });
   const segs=[];
   evs.forEach((ev,i)=>{
@@ -7897,6 +7956,96 @@ function downloadMIDI(){
   a.download=(song.title||'曲谱')+'.mid'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   toast('已导出 MIDI（反复段落按线性导出'+(r.skipped? '；跳过 '+r.skipped+' 处×闷音':'')+'）');
+}
+/* ===== 哼唱/录音 → 简谱草稿（P2-A）=====
+   纯前端管线：降采样(≈11kHz) → 分帧 NSDF 自相关基频检测（RMS门限+清晰度阈值）
+   → 中值平滑 → 音符分段 → 自动定调（12大调音阶拟合+首末音加权）
+   → 复用 quantizeToCols（P0-C 通用量化模块）→ 歌谱草稿。
+   定位=草稿+精修；单声部清唱效果最好。TODO: Worker 后台分析、自动测速(BPM)。 */
+function hmMono(buf){
+  const n=buf.numberOfChannels, len=buf.length;
+  const out=new Float32Array(len);
+  for(let c=0;c<n;c++){ const d=buf.getChannelData(c); for(let i=0;i<len;i++) out[i]+=d[i]/n; }
+  return out;
+}
+function hmPitchTrack(samples, sr){
+  const ds=Math.max(1, Math.round(sr/11025)), sr2=sr/ds;
+  const len=Math.floor(samples.length/ds);
+  const x=new Float32Array(len);
+  for(let i=0;i<len;i++){ let a=0; for(let k=0;k<ds;k++) a+=samples[i*ds+k]||0; x[i]=a/ds; }
+  const N=1024, hop=256;
+  const minLag=Math.floor(sr2/1000), maxLag=Math.min(N-2, Math.ceil(sr2/70));
+  const frames=[];
+  for(let s0=0; s0+N<len; s0+=hop){
+    let rms=0; for(let i=0;i<N;i++) rms+=x[s0+i]*x[s0+i];
+    rms=Math.sqrt(rms/N);
+    if(rms<0.01){ frames.push(null); continue; }
+    const vals=new Float32Array(maxLag+1);
+    let gmax=0;
+    for(let t=minLag;t<=maxLag;t++){
+      let r=0,m=0;
+      for(let i=0;i<N-t;i++){ const a=x[s0+i], b2=x[s0+i+t]; r+=a*b2; m+=a*a+b2*b2; }
+      vals[t]=m>0? 2*r/m : 0;
+      if(vals[t]>gmax) gmax=vals[t];
+    }
+    /* McLeod 首峰：取第一个 ≥0.9×全局峰 的局部峰（最小周期），防倍周期八度错 */
+    let bestT=0;
+    for(let t=minLag+1;t<maxLag;t++){
+      if(vals[t]>=0.9*gmax && vals[t]>=vals[t-1] && vals[t]>=vals[t+1]){ bestT=t; break; }
+    }
+    frames.push(gmax>0.62 && bestT? 69+12*Math.log2((sr2/bestT)/440) : null);
+  }
+  /* 中值平滑(5) + 取整 */
+  const md=frames.map((v,i)=>{
+    if(v==null) return null;
+    const w=[]; for(let k=-2;k<=2;k++){ const u=frames[i+k]; if(u!=null) w.push(u); }
+    w.sort((a,b2)=>a-b2);
+    return Math.round(w[Math.floor(w.length/2)]);
+  });
+  /* 分段：同音高连续帧为一音；≥2帧静音断开；<3帧的碎段并入邻段或丢弃 */
+  const notes=[]; let cur=null, gap=0;
+  md.forEach((m,i)=>{
+    if(m==null){ gap++; if(cur && gap>=2){ notes.push(cur); cur=null; } return; }
+    gap=0;
+    if(cur && cur.midi===m) cur.frames++;
+    else{
+      if(cur){ if(cur.frames>=3) notes.push(cur);
+        else if(notes.length && notes[notes.length-1].midi===m){ /* 碎段吸收 */ }
+        else if(cur.frames>=3) notes.push(cur); }
+      cur={midi:m, start:i, frames:1};
+    }
+  });
+  if(cur && cur.frames>=3) notes.push(cur);
+  const spf=hop/sr2, half=(N/2)/sr2;
+  return notes.filter(n=>n.frames*spf>=0.07)
+    .map(n=>({midi:n.midi, t0:n.start*spf+half, dur:n.frames*spf}));
+}
+function hmDetectKey(notes){
+  if(!notes.length) return 'C';
+  let best='C', bestSc=-1;
+  for(let pc=0; pc<12; pc++){
+    const scale=new Set(L_NAT.map(v=>(v+pc)%12));
+    let sc=0;
+    notes.forEach(n=>{ if(scale.has(((n.midi%12)+12)%12)) sc+=n.dur; });
+    if(((notes[notes.length-1].midi%12)+12)%12===pc) sc*=1.3;   // 末音=主音加权
+    if(((notes[0].midi%12)+12)%12===pc) sc*=1.1;                // 首音=主音加权
+    if(sc>bestSc){ bestSc=sc; best=KEY_LIST[pc]; }
+  }
+  return best;
+}
+function hummingToSong(samples, sr, bpm){
+  const pn=hmPitchTrack(samples, sr);
+  if(!pn.length) return {error:'没有检测到清晰的音高——请靠近麦克风、放慢速度清唱单音旋律'};
+  const key=hmDetectKey(pn);
+  const ref=(()=>{ let r=60+(KEY_PC[key]||0); if(r>66)r-=12; return r; })();
+  const qn=pn.map(n=>({midi:n.midi, start:n.t0*(bpm/60)*480, dur:Math.max(1,n.dur*(bpm/60)*480)}));
+  const q=quantizeToCols(qn, 480, 4, 4, ref, {legato:0.45});
+  if(!q.measures.length) return {error:'量化后没有得到音符——试试更慢的速度'};
+  const out={v:3, title:'哼唱草稿', singer:'', lyricist:'', composer:'', maker:'',
+    key, beats:4, unit:4, tempo:bpm, capo:0, customChords:{},
+    tabVoices:[], voxVoices:['旋律1'], voxNotations:undefined, lyricLines:1,
+    measures:q.measures.map(cols=>({tabs:[], voxes:[cols], repeatStart:false, repeatEnd:false}))};
+  return {song:migrate(out), nNotes:pn.length, key};
 }
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
@@ -8974,6 +9123,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.3</span><div><b>哼唱成谱</b>（P2·大众获客钩子）：新建向导「哼唱成谱…」——对麦克风清唱一段（或上传清唱录音），纯前端完成 <b>音高检测</b>（NSDF 自相关+首峰选取防八度错+中值平滑）→ <b>自动定调</b>（12 大调音阶拟合+首末音加权）→ <b>16 分网格量化</b>（连奏容差、跨小节连音线）→ 生成简谱草稿进编辑器精修；检测不到音高时友好提示。与 MIDI 导入共用同一量化引擎。提示：跟稳所选 BPM 清唱单音旋律（哼「啦」最准）。</div></li>
     <li><span class="v">v38.2</span><div><b>智能配谱</b>（P1 收官·垂类成品交付）：歌谱/教学/器乐谱顶栏新增<b>「智能配谱」</b>——对当前主旋律一键完成 <b>自动配和弦 → 织体生成双手伴奏</b>，在新窗口产出两种成品（原谱不动）：①<b>教学对照谱</b>（旋律=五线谱+简谱行+歌词保留，下方右手/左手伴奏大谱表）②<b>纯伴奏钢琴谱</b>（旋律交给演唱者，和弦自动移到右手，接「伴奏织体」可重生成）；已填和弦不覆盖；生成后一键换调全谱联动。即兴伴奏/考编场景从旋律到可弹可打印的对照谱一步到位。</div></li>
     <li><span class="v">v38.1</span><div><b>伴奏织体深化 + 一键配和弦</b>（P1·即兴伴奏/考编垂类）：织体库扩至 <b>11 套并按难度分级</b>（入门：抒情分解/柱式/半分解/儿歌伴奏/八分琶音/两种圆舞曲；进阶：阿尔贝蒂/低音行走/<b>进行曲</b>/<b>全分解十六分琶音</b>）；织体弹窗新增<b>「一键配和弦（建议）」</b>——按右手旋律用功能和声（I/IV/V/vi/ii/iii）逐小节打分配和弦（强拍加权、根音加权、首尾偏主和弦），<b>已有和弦的小节绝不覆盖</b>，填入后可点击修改再生成伴奏。</div></li>
     <li><span class="v">v38.0</span><div><b>MIDI 导出</b>（P0 互操作四件套收官：MusicXML 出/入 + MIDI 入/出）：打印/导出弹窗新增「导出 MIDI」——标准 SMF：曲名/速度/拍号/调号完整；简谱声部逐轨导出（<b>连音线自动合并为长音</b>、和音同起同长）；TAB 声部独立音轨（尼龙吉他音色、含<b>变调夹音高偏移</b>，×闷音跳过提示）；可导入任意 DAW/编曲软件或用于跟弹练习。至此「AI 转谱 → 导入精修 → 专业格式交付」链路双向贯通。</div></li>
