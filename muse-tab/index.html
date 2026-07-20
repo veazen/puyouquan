@@ -8047,6 +8047,75 @@ function hummingToSong(samples, sr, bpm){
     measures:q.measures.map(cols=>({tabs:[], voxes:[cols], repeatStart:false, repeatEnd:false}))};
   return {song:migrate(out), nNotes:pn.length, key};
 }
+/* ===== 曲谱分享卡（P2-B）=====
+   编辑器内一键生成竖版品牌谱面卡（750×1000，适配微信/朋友圈/小红书转发）：
+   品牌带 + 干净谱面首屏裁窗（复用 render 快照）+ 二维码占位（服务器上线后
+   替换为真实分享链接码）。纯读不写用户数据。site/card.html 薄查看页待服务器就绪。 */
+function buildShareCardSVG(){
+  const kb=blurSel, ks=noteSel; blurSel=true; noteSel=[]; render();
+  const inner=document.getElementById('score').innerHTML;
+  const vb=document.getElementById('score').viewBox.baseVal;
+  blurSel=kb; noteSel=ks; render();
+  const W=750,H=1000, boxX=25,boxY=96,boxW=700,boxH=790;
+  const cropW=vb.width, cropH=cropW*boxH/boxW;
+  /* 二维码占位：三定位角+确定性点阵（内容仅示意，上线后换真码） */
+  let qr='';
+  const q0=598, qy=886, cell=4.4, seed='puyouquan';
+  const fp=(x,y)=>`<rect x="${x}" y="${y}" width="${cell*7}" height="${cell*7}" fill="none" stroke="#232323" stroke-width="${cell}"/><rect x="${x+cell*2}" y="${y+cell*2}" width="${cell*3}" height="${cell*3}" fill="#232323"/>`;
+  qr+=fp(q0,qy)+fp(q0+cell*14,qy)+fp(q0,qy+cell*14);
+  for(let r=0;r<21;r++) for(let c=0;c<21;c++){
+    if((r<8&&c<8)||(r<8&&c>12)||(r>12&&c<8)) continue;
+    const h=(r*31+c*17+seed.charCodeAt((r+c)%seed.length))%7;
+    if(h<3) qr+=`<rect x="${q0+c*cell}" y="${qy+r*cell}" width="${cell-0.8}" height="${cell-0.8}" fill="#232323"/>`;
+  }
+  const meta=[song.singer?'演唱 '+song.singer:'', song.composer?'作曲 '+song.composer:'', '1='+song.key+' · ♩='+song.tempo]
+    .filter(Boolean).join('　');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="system-ui,'PingFang SC','Microsoft YaHei',sans-serif">
+  <defs><linearGradient id="cgrad" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="var(--accent)"/><stop offset="0.55" stop-color="#6d5cff"/><stop offset="1" stop-color="#b45cff"/>
+  </linearGradient></defs>
+  <rect width="${W}" height="${H}" fill="#faf9f6"/>
+  <rect width="${W}" height="10" fill="url(#cgrad)"/>
+  <text x="28" y="56" font-size="27" font-weight="800" fill="#1c1c1c">谱友圈</text>
+  <text x="124" y="56" font-size="13" fill="#8a8a8a">人人都能做谱 · puyouquan.com</text>
+  <text x="${W-28}" y="56" font-size="13" text-anchor="end" fill="#8a8a8a">${xesc(TYPE_CN[docType(song)]||'曲谱')}</text>
+  <line x1="28" y1="72" x2="${W-28}" y2="72" stroke="#e5e2dc" stroke-width="1"/>
+  <rect x="${boxX-3}" y="${boxY-6}" width="${boxW+6}" height="${boxH+12}" rx="10" fill="#ffffff" stroke="#e5e2dc"/>
+  <svg x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" viewBox="0 0 ${cropW.toFixed(0)} ${cropH.toFixed(0)}" preserveAspectRatio="xMidYMin meet">${inner}</svg>
+  <rect x="0" y="${H-130}" width="${W}" height="130" fill="#faf9f6"/>
+  <line x1="28" y1="${H-128}" x2="${W-28}" y2="${H-128}" stroke="#e5e2dc" stroke-width="1"/>
+  <text x="28" y="${H-88}" font-size="21" font-weight="700" fill="#1c1c1c">${xesc(song.title||'未命名曲谱')}</text>
+  <text x="28" y="${H-60}" font-size="13" fill="#6a6a6a">${xesc(meta)}</text>
+  <text x="28" y="${H-30}" font-size="12" fill="#8a8a8a">用「谱友圈」制作 · 在线制谱/找谱 · 简谱五线谱六线谱互切</text>
+  ${qr}
+  <text x="${q0+cell*10.5}" y="${H-8}" font-size="9.5" text-anchor="middle" fill="#a0a0a0">上线后扫码看谱</text>
+</svg>`;
+}
+function exportShareCard(){
+  let xml=buildShareCardSVG();
+  const cs=getComputedStyle(document.documentElement);
+  const ink=(cs.getPropertyValue('--ink')||'#141414').trim();
+  xml=xml.replace(/var\(--ink\)/g, ink).replace(/var\(--paper\)/g,'#ffffff')
+         .replace(/var\(--accent\)/g,'#3a5ce0').replace(/var\(--muted\)/g,'#8a8a8a')
+         .replace(/var\(--border\)/g,'#e5e2dc').replace(/var\(--danger\)/g,'#e0483a')
+         .replace(/var\(--font-num\)/g,'serif').replace(/var\(--font-ui\)/g,"system-ui,'PingFang SC',sans-serif");
+  const img=new Image();
+  img.onload=()=>{
+    const k=2, cv=document.createElement('canvas');
+    cv.width=750*k; cv.height=1000*k;
+    const g=cv.getContext('2d');
+    g.fillStyle='#faf9f6'; g.fillRect(0,0,cv.width,cv.height);
+    g.drawImage(img,0,0,cv.width,cv.height);
+    cv.toBlob(b2=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(b2); a.download=(song.title||'曲谱')+'-分享卡.png'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+      toast('已生成分享卡 PNG（可直接发微信/朋友圈/小红书）');
+    },'image/png');
+  };
+  img.onerror=()=>toast('分享卡生成失败，请重试');
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+}
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
     <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
@@ -8062,6 +8131,7 @@ document.getElementById('b-print').onclick = ()=>{
       <button id="ex-png">导出 PNG 图片</button>
       <button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">导出 MusicXML</button>
       <button id="ex-mid" title="导出标准 MIDI：可导入 DAW/编曲软件，或用于跟弹练习">导出 MIDI</button>
+      <button id="ex-card" title="生成竖版品牌谱面卡 PNG：微信/朋友圈/小红书直接转发">生成分享卡</button>
       <button id="ex-cancel">取消</button>
       <button id="ex-print" class="primary">打印 / 存 PDF</button>
     </div>`);
@@ -8069,6 +8139,7 @@ document.getElementById('b-print').onclick = ()=>{
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
   document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); downloadMusicXML(); };
   document.getElementById('ex-mid').onclick = ()=>{ closeModal(); downloadMIDI(); };
+  document.getElementById('ex-card').onclick = ()=>{ closeModal(); exportShareCard(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
     closeModal();
@@ -9123,6 +9194,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.4</span><div><b>曲谱分享卡</b>（P2·微信生态增长回路）：打印/导出新增<b>「生成分享卡」</b>——一键产出竖版品牌谱面卡 PNG（750×1000）：渐变品牌带 + 谱面首屏精裁 + 曲名/词曲/调速信息 + 谱友圈品牌与二维码占位（正式上线后替换为可扫的看谱链接），任何谱类通用，微信/朋友圈/小红书直接转发。纯本地生成，不上传任何数据。</div></li>
     <li><span class="v">v38.3</span><div><b>哼唱成谱</b>（P2·大众获客钩子）：新建向导「哼唱成谱…」——对麦克风清唱一段（或上传清唱录音），纯前端完成 <b>音高检测</b>（NSDF 自相关+首峰选取防八度错+中值平滑）→ <b>自动定调</b>（12 大调音阶拟合+首末音加权）→ <b>16 分网格量化</b>（连奏容差、跨小节连音线）→ 生成简谱草稿进编辑器精修；检测不到音高时友好提示。与 MIDI 导入共用同一量化引擎。提示：跟稳所选 BPM 清唱单音旋律（哼「啦」最准）。</div></li>
     <li><span class="v">v38.2</span><div><b>智能配谱</b>（P1 收官·垂类成品交付）：歌谱/教学/器乐谱顶栏新增<b>「智能配谱」</b>——对当前主旋律一键完成 <b>自动配和弦 → 织体生成双手伴奏</b>，在新窗口产出两种成品（原谱不动）：①<b>教学对照谱</b>（旋律=五线谱+简谱行+歌词保留，下方右手/左手伴奏大谱表）②<b>纯伴奏钢琴谱</b>（旋律交给演唱者，和弦自动移到右手，接「伴奏织体」可重生成）；已填和弦不覆盖；生成后一键换调全谱联动。即兴伴奏/考编场景从旋律到可弹可打印的对照谱一步到位。</div></li>
     <li><span class="v">v38.1</span><div><b>伴奏织体深化 + 一键配和弦</b>（P1·即兴伴奏/考编垂类）：织体库扩至 <b>11 套并按难度分级</b>（入门：抒情分解/柱式/半分解/儿歌伴奏/八分琶音/两种圆舞曲；进阶：阿尔贝蒂/低音行走/<b>进行曲</b>/<b>全分解十六分琶音</b>）；织体弹窗新增<b>「一键配和弦（建议）」</b>——按右手旋律用功能和声（I/IV/V/vi/ii/iii）逐小节打分配和弦（强拍加权、根音加权、首尾偏主和弦），<b>已有和弦的小节绝不覆盖</b>，填入后可点击修改再生成伴奏。</div></li>

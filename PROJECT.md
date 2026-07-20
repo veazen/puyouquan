@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v38.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-20 · 当前版本 **v38.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -115,6 +115,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 伴奏织体 | `PIANO_TEX`（11套·level分级）/ `genAccompaniment`（可选 chordVi/rhVi/lhVi 声部参数）/ `suggestChords` / `b-acctex` |
 | 智能配谱 | `arrangeAccompaniment(melody,{texId,pure,suggest})`（纯函数开新窗口）/ `b-arrange`（vocal/teach/instr 可见） |
 | 哼唱成谱 | `hmPitchTrack`（NSDF+首峰+中值）/ `hmDetectKey` / `hummingToSong`（quantizeToCols legato 参数）/ 向导 nw-hum |
+| 分享卡 | `buildShareCardSVG`（干净快照嵌套裁窗+二维码占位）/ `exportShareCard`（CSS变量解析→canvas 2x PNG）/ 弹窗 ex-card |
 | 纯和弦谱 | `song.chordOnly`（斜线绘制在 cols.forEach、拍宽拉平在 measureLayout） |
 | 和音输入 | `b-addnote`（唱名串自动向上排列）/ 五线谱 Ctrl+点击（click handler `dataset.sbot` 分支） |
 | 记谱法切换 | `setVoxNotation` / `toggleVoxDual` / 面板 `vn-jp/st/bs/al/dual` |
@@ -144,6 +145,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_acc | 织体生成音级断言/弹窗/换调联动/**配和弦建议(不覆盖)**/11套分级/新织体生成 |
 | tv_arrange | 智能配谱：teach三声部产出/纯伴奏/换调联动/已填保留/入口显隐——5项 |
 | tv_humming | 哼唱：页面内合成带颤/包络正弦旋律→音级与时值断言/定调G/无声降级——5项 |
+| tv_card | 分享卡：三谱类出卡结构断言/光栅化冒烟(非空像素)/入口+编辑态还原——5项 |
 | tv_chord2 | 和音：符头数/共用符干/二度错位/简谱叠置/柱式生成 |
 | tv_trans | 换调移调 6 项（含还原逐字节一致） |
 | tv_brace | 花括线跨度（两端落线） |
@@ -168,7 +170,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 八场景重构 | v37.3–v37.6 | 八类型体系、纯和弦谱、**钢琴弹唱织体生成（8套）**、**同列多音** |
 | P0 互操作 | v37.7–v38.0 | **MusicXML 出/入 + MIDI 入/出 四件套**（往返一致；通用量化模块；P0 收官） |
 | P1 垂类楔子 | v38.1–v38.2 | **织体库11套+分级**、**配和弦建议**、**智能配谱**（旋律→伴奏教学谱/纯伴奏，P1 收官） |
-| P2 增长 | v38.3 | **哼唱成谱**（NSDF 音高检测+自动定调+连奏量化） |
+| P2 增长 | v38.3–v38.4 | **哼唱成谱**、**曲谱分享卡**（P2 收官） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
@@ -184,7 +186,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 **P2 增长（无需后端）**
 7. ✅ ~~哼唱→简谱草稿~~（v38.3：NSDF 检测+自动定调+legato 量化；**麦克风链路待正式站点真机验证**）
-8. 编辑器内「生成分享卡」（复用 render+PNG 导出，竖版品牌卡；site/card.html 等服务器就绪后做薄查看页）
+8. ✅ ~~编辑器内「生成分享卡」~~（v38.4，`buildShareCardSVG`/`exportShareCard`；card.html 薄查看页待服务器）
 
 **P3 垂类文案**：官网 make/features/help/首页按八场景+即兴伴奏/考编叙事重写
 
