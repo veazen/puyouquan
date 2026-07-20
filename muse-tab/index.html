@@ -882,6 +882,7 @@ body.stand #standbar{display:flex}
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
         <button id="b-tie">连音线</button>
         <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
+        <button id="b-addnote" title="和音（同列多音）：在当前音上叠加1-3个音；五线谱也可 Ctrl+点击线/间直接加减">和音</button>
         <button id="b-vchord" title="功能谱和弦：级数为主构建（级数×类型扩展×转位低音），谱面级数/音名一键切换">和弦/级数</button>
       </div>
     </div>
@@ -1130,9 +1131,18 @@ const PIANO_TEX = [
  {id:'basswalk', name:'低音行走+高音琶音', beats:4,
   L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}],
   R:[{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}]},
- {id:'waltz',   name:'圆舞曲 蓬-嚓-嚓', beats:3,
+ {id:'waltz',   name:'圆舞曲分解 蓬-嚓-嚓', beats:3,
   L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'5'}],
   R:[{d:4,t:null},{d:4,t:'3'},{d:4,t:'5'}]},
+ {id:'block',   name:'柱式和弦', beats:4,
+  L:[{d:2,t:'1'},{d:2,t:'5'}],
+  R:[{d:4,s:['1','3','5']},{d:4,s:['1','3','5']},{d:4,s:['1','3','5']},{d:4,s:['1','3','5']}]},
+ {id:'halfbrk', name:'半分解（低音+后半拍柱式）', beats:4,
+  L:[{d:4,t:'1'},{d:4,t:null},{d:4,t:'5'},{d:4,t:null}],
+  R:[{d:4,t:null},{d:4,s:['3','5','8']},{d:4,t:null},{d:4,s:['3','5','8']}]},
+ {id:'waltz2',  name:'圆舞曲柱式 蓬-嚓-嚓', beats:3,
+  L:[{d:4,t:'1'},{d:4,t:null},{d:4,t:null}],
+  R:[{d:4,t:null},{d:4,s:['3','5','8']},{d:4,s:['3','5','8']}]},
 ];
 function chordTones(name){
   const m=/^([A-G](?:#|b)?)(.*)$/.exec((name||'').trim());
@@ -1163,9 +1173,12 @@ function genAccompaniment(texId, m1, m2){
       evts.forEach(ev=>{
         const col={dur:ev.d, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false};
         const ct = chordTones(chordAt(mi, at));
-        if(ev.t && ct){
+        if(ct && (ev.t || ev.s)){
           const root = (ct.pc<8? 48+ct.pc : 36+ct.pc) + octBase*12;
-          Object.assign(col, midiToVoxCol(root + ct.iv[ev.t]));
+          if(ev.s){   // 柱式：s[0]=主音，其余为和音（同列多音）
+            Object.assign(col, midiToVoxCol(root + ct.iv[ev.s[0]]));
+            col.adds = ev.s.slice(1).map(tn=>midiToVoxCol(root + ct.iv[tn]));
+          } else Object.assign(col, midiToVoxCol(root + ct.iv[ev.t]));
         }
         const k=keep[at.toFixed(3)];
         if(octBase===1 && k) Object.assign(col, {chord:k.chord, lyrics:k.lyrics||[], dyn:k.dyn});
@@ -2253,7 +2266,10 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
       let mx2=SBOT+11, mn2=SBOT-5;
       song.measures.forEach(m=>{ (m.voxes[i]||[]).forEach(c=>{ if(!c.deg) return;
         const s2=K3.step0+(c.deg-1)+(c.oct||0)*7;
-        if(s2>mx2) mx2=s2; if(s2<mn2) mn2=s2; }); });
+        if(s2>mx2) mx2=s2; if(s2<mn2) mn2=s2;
+        (c.adds||[]).forEach(a=>{ if(!a||!a.deg) return;
+          const s3=K3.step0+(a.deg-1)+(a.oct||0)*7;
+          if(s3>mx2) mx2=s3; if(s3<mn2) mn2=s3; }); }); });
       ledUp = (mx2-(SBOT+11))*3.75 + (mx2>SBOT+11? 6:0);
       ledDn = ((SBOT-5)-mn2)*3.75 + (mn2<SBOT-5? 4:0);
     }
@@ -3071,17 +3087,25 @@ function render(){
         /* 整小节休止（出版惯例）：空小节画一个居中全休止，不逐拍画休止符 */
         const emptyMea = isStaff && cols.length>0 && cols.every(c2=>!c2.deg);
         if(emptyMea) p.push(staffRestStr(mx+lm.L.w/2, staffB, SG, 1, false));
+        /* 同列多音（和音）：主音 + col.adds[{deg,acc,oct}]，按谱面音级升序 */
+        const chNotes = (col2)=>{
+          const arr=[{deg:col2.deg, acc:col2.acc||'', oct:col2.oct||0, st:staffStep(col2,K)}];
+          (col2.adds||[]).forEach(a=>{ if(a&&a.deg) arr.push({deg:a.deg, acc:a.acc||'', oct:a.oct||0, st:K.step0+(a.deg-1)+(a.oct||0)*7}); });
+          return arr.sort((x,y)=>x.st-y.st);
+        };
         /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
         const stStemFlags = (ci2)=>{
           const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
-          const nx2=mx+lay.xs[ci2], st2=staffStep(col2,K), hy2=stepY(st2);
-          const up2 = st2<S_MID;
+          const nx2=mx+lay.xs[ci2], ns2=chNotes(col2);
+          const yLo=stepY(ns2[0].st), yHi=stepY(ns2[ns2.length-1].st);   // yLo=最低音(最大y)
+          const up2 = (ns2[0].st+ns2[ns2.length-1].st)/2 < S_MID;
           const sx2 = nx2 + (up2?4.2:-4.2);
-          /* 符干标准长度约3线距（带符尾加长）；远离谱表的加线音延伸至中线（出版惯例） */
+          /* 符干标准长度约3线距（带符尾加长）；远离谱表的加线音延伸至中线；和音共用一根符干贯穿全部符头 */
           const yMid2 = stepY(S_MID);
           const len2 = col2.dur>=32? 3.8 : col2.dur>=8? 3.2 : 2.9;
-          const sy2 = up2? Math.min(hy2-SG*len2, yMid2) : Math.max(hy2+SG*len2, yMid2);
-          p.push(`<line x1="${sx2}" y1="${(hy2+(up2?-1.2:1.2)).toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+          const sy2 = up2? Math.min(yHi-SG*len2, yMid2) : Math.max(yLo+SG*len2, yMid2);
+          const from2 = up2? yLo-1.2 : yHi+1.2;
+          p.push(`<line x1="${sx2}" y1="${from2.toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
           if(col2.dur>=8)   /* SMuFL 符尾字形：整体一枚，锚定符干端点 */
             p.push(smg('flag'+(col2.dur>=32?'32nd':col2.dur>=16?'16th':'8th')+(up2?'Up':'Down'), sx2-0.55, sy2, SG));
         };
@@ -3126,25 +3150,37 @@ function render(){
             if(col.acc)
               p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
             p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+            (col.adds||[]).forEach((a2,ai)=>{ if(!a2||!a2.deg) return;   // 和音：数字纵向叠置（简谱惯例）
+              p.push(`<text x="${nx}" y="${voxY-13-ai*11}" font-size="12" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
+              if(a2.acc) p.push(`<text x="${nx-7.5}" y="${voxY-16-ai*11}" font-size="8" text-anchor="middle" fill="var(--ink)">${a2.acc==='#'?'♯':'♭'}</text>`);
+            });
           }
           if(isStaff && col.deg){
-            /* ===== 五线谱音符：加线 / 符头 / 附点 / 临时记号；符干符尾见 stStemFlags 与符杠段 ===== */
-            const st = staffStep(col,K), hy = stepY(st);
+            /* ===== 五线谱音符（支持同列多音）：逐音 加线/符头/临时记号，二度翻转；共用符干见 stStemFlags/符杠段 ===== */
+            const ns = chNotes(col);
+            const stLo=ns[0].st, stHi=ns[ns.length-1].st;
             const lw = col.dur===1? 9.2 : 6.6;   // 加线比符头两侧各多出约0.4线距（全音符更宽）
-            for(let L2=S_BOT+10; L2<=st; L2+=2)
+            for(let L2=S_BOT+10; L2<=stHi; L2+=2)
               p.push(`<line x1="${nx-lw}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lw}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
-            for(let L2=S_BOT-2; L2>=st; L2-=2)
+            for(let L2=S_BOT-2; L2>=stLo; L2-=2)
               p.push(`<line x1="${nx-lw}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lw}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             const hnm = col.dur===1?'noteheadWhole': col.dur===2?'noteheadHalf':'noteheadBlack';
-            p.push(smg(hnm, nx-smw(hnm)*SG/2, hy, SG));
+            let prevSt=null, flip=false;
+            ns.forEach(n2=>{
+              flip = (prevSt!=null && n2.st-prevSt===1)? !flip : false; prevSt=n2.st;
+              const hx = nx + (flip? 6.6 : 0);      // 二度音程：上方音翻转到符干另一侧
+              const hy2 = stepY(n2.st);
+              p.push(smg(hnm, hx-smw(hnm)*SG/2, hy2, SG));
+              const ln=(K.Li+n2.deg-1)%7, keyAlt=K.alt[ln]||0;
+              const av=n2.acc==='#'?1 : n2.acc==='b'?-1 : 0;
+              const sym=accCarry(accSt, n2.st, keyAlt+av, keyAlt);
+              if(sym) p.push(accG(sym, nx, hy2, SG));
+            });
             if(col.dotted){
-              const dy2 = (st%2===1)? hy-SG/2 : hy;      // 符头在线上→附点写在上方间内
+              const stP=staffStep(col,K), hyP=stepY(stP);
+              const dy2 = (stP%2===1)? hyP-SG/2 : hyP;   // 符头在线上→附点写在上方间内
               p.push(`<circle cx="${nx+8}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
             }
-            const ln = (K.Li + col.deg - 1) % 7, keyAlt = K.alt[ln]||0;
-            const av = col.acc==='#'?1 : col.acc==='b'?-1 : 0;
-            const sym = accCarry(accSt, st, keyAlt+av, keyAlt);
-            if(sym) p.push(accG(sym, nx, hy, SG));
             if(!inGroup.has(ci)) stStemFlags(ci);
           }else if(isStaff && !emptyMea){
             p.push(staffRestStr(nx, staffB, SG, col.dur, col.dotted));
@@ -3338,7 +3374,8 @@ function render(){
                坡度=首末符头连线之半、限幅±0.8线距；每根符干至少约2.9线距并延伸至杠线 ===== */
             const notes = g.idx.filter(i=>cols[i].deg>0);
             if(notes.length<2){ notes.forEach(i=>stStemFlags(i)); return; }
-            const hyOf = i=> stepY(staffStep(cols[i],K));
+            const extOf = i=>{ const ns2=chNotes(cols[i]); return {lo:stepY(ns2[0].st), hi:stepY(ns2[ns2.length-1].st)}; };
+            const hyOf = i=>{ const e2=extOf(i); return up? e2.hi : e2.lo; };   // 朝杠侧极值符头
             const steps2 = notes.map(i=>staffStep(cols[i],K));
             const up = (steps2.reduce((a,b)=>a+b,0)/steps2.length) < S_MID;
             const sxOf = i=> mx+lay.xs[i] + (up? 4.2 : -4.2);
@@ -3353,8 +3390,9 @@ function render(){
             });
             const beamAt = x => aInt + slope*(x-xF);
             notes.forEach(i=>{
-              const hy2=hyOf(i), sx=sxOf(i);
-              p.push(`<line x1="${sx}" y1="${(hy2+(up?-1.2:1.2)).toFixed(1)}" x2="${sx}" y2="${beamAt(sx).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              const e2=extOf(i), sx=sxOf(i);
+              const from = up? e2.lo-1.2 : e2.hi+1.2;   // 符干贯穿全部符头直达符杠
+              p.push(`<line x1="${sx}" y1="${from.toFixed(1)}" x2="${sx}" y2="${beamAt(sx).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
             });
             const bar = (iA,iB,lvl)=>{
               const xa=Math.min(sxOf(iA),sxOf(iB))-0.6, xb=Math.max(sxOf(iA),sxOf(iB))+0.6;
@@ -4730,6 +4768,19 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       const bot=+t.dataset.sbot||37;
       const step=Math.max(bot-14, Math.min(bot+15, bot+Math.round((sb-yS)/3.75)));
       const KK=staffKeyInfo(), rel=step-KK.step0;
+      if(e.ctrlKey || e.metaKey){
+        /* Ctrl+点击：在选中音上叠加/移除和音（同列多音，最多4音） */
+        const deg2=((rel%7)+7)%7+1, oct2=Math.floor(rel/7);
+        mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
+          if(!c2.deg){ c2.deg=deg2; c2.oct=oct2; c2.acc=''; return; }
+          if(c2.deg===deg2 && (c2.oct||0)===oct2) return;
+          c2.adds=c2.adds||[];
+          const ix=c2.adds.findIndex(a=>a&&a.deg===deg2&&(a.oct||0)===oct2);
+          if(ix>=0) c2.adds.splice(ix,1); else if(c2.adds.length<3) c2.adds.push({deg:deg2, acc:'', oct:oct2});
+          if(!c2.adds.length) delete c2.adds; });
+        toast('和音已更新（Ctrl+点击线/间可继续加减）');
+        return;
+      }
       mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
         c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
       const c3=song.measures[mi].voxes[vi][ci];
@@ -5577,6 +5628,25 @@ document.getElementById('b-tie').onclick = toggleTie;
   };
   volta('b-volta1',1); volta('b-volta2',2);
 })();
+document.getElementById('b-addnote').onclick = ()=>{
+  if(sel.row!=='vox'){ toast('请先选中一个简谱/五线谱音'); return; }
+  const col = curCol();
+  if(!col || !col.deg){ toast('和音需加在有唱名的音上'); return; }
+  askText('叠加音唱名（1–7，最多3个如 35；留空清除；自动取主音上方最近位置）',
+    (col.adds||[]).map(a=>a.deg).join(''), v=>{
+    const tx=(v||'').trim();
+    mutate(()=>{
+      if(tx===''){ delete col.adds; return; }
+      if(!/^[1-7]{1,3}$/.test(tx)) return;
+      let last={deg:col.deg, oct:col.oct||0};
+      col.adds=[...tx].map(ch=>{
+        const d=+ch, o=(d<=last.deg)? last.oct+1 : last.oct;   // 逐音向上排列
+        last={deg:d, oct:o};
+        return {deg:d, acc:'', oct:o};
+      });
+    });
+  });
+};
 document.getElementById('b-grace').onclick = ()=>{
   if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
   const col = curCol();
@@ -6670,6 +6740,11 @@ function play(){
           if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
           else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG, tie:!!col.tie}; }
         } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
+        /* 同列多音（和音）：附加音与主音同起同长，独立发声不入延音链 */
+        if(m!=null && col.adds) col.adds.forEach(a=>{ if(!a||!a.deg) return;
+          const am = keyRef() + DEG_SEMI[a.deg] + (a.acc==='#'?1:a.acc==='b'?-1:0) + (a.oct||0)*12;
+          playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off, durSec, vol*0.85, false, {damp:true});
+        });
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
         off += durSec;
       });
@@ -8214,6 +8289,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v37.6</span><div><b>同列多音（和音）</b>：一列可叠 1+3 个音——五线谱逐音绘制符头/加线/临时记号、二度音程自动左右翻转、<b>共用一根符干贯穿</b>（含符杠组）；简谱视图数字纵向叠置；播放同起同长发声；输入两种方式：面板<b>「和音」</b>按钮输唱名（自动向上排列）或五线谱 <b>Ctrl+点击</b>线/间直接加减。伴奏织体库补全柱式类：<b>柱式和弦、半分解、圆舞曲柱式</b>（织体库共 8 套），行距自动为和音扩展。</div></li>
     <li><span class="v">v37.5</span><div>🎹 <b>钢琴弹唱谱·伴奏织体</b>：右手谱表按拍标注和弦 → 顶栏「伴奏织体」选织体<b>一键生成双手伴奏</b>（抒情分解/流行八分琶音/阿尔贝蒂低音/低音行走/圆舞曲，4/4 与 3/4）——生成的是<b>可编辑真音符</b>，和弦标注/歌词/力度自动回填，小节内换和弦逐拍生效，可分范围重生成、Ctrl+Z 撤销，换调自动联动移调。大小三和弦自适应三音。</div></li>
     <li><span class="v">v37.4</span><div>🎼 <b>纯和弦谱</b>（功能谱新谱式）：小节格内按拍放和弦、每拍节奏斜线（出版和弦格惯例），小节格均匀排布；支持反复/段落/终止线与级数⇄音名切换，乐队排练一页纸。</div></li>
     <li><span class="v">v37.3</span><div><b>曲谱类型重构为八大场景</b>（深度梳理中国曲谱用户后重新定位）：🎸弹唱谱（吉他/尤克里里）、🎸独奏谱（指弹·电吉他，TAB+五线联排）、🎹钢琴弹唱谱（纯伴奏）、🎹钢琴独奏谱、🎤歌谱（独唱/合唱1–4声部·民乐通用）、📖教学对照谱（五线+简谱行）、🎻器乐五线谱（高/中/低谱号）、🎼功能谱（级数和弦/纯和弦谱）；曲谱库分类同步，旧曲谱自动归类。</div></li>
