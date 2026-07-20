@@ -40,6 +40,7 @@ muse-tab/tools/gen_glyphs.py ← SMuFL 字形提取脚本（fontTools，可复�
 deploy/deploy.sh           ← 服务器部署脚本（rsync 编辑器 + site/）
 PROJECT.md                 ← 本文档
 CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
+.claude/agents/            ← 协作角色库（10个，选自 MIT 开源 agency-agents；新会话自动注册为 subagent，见该目录 README）
 ```
 
 - **单文件架构是刻意选择**：零构建、零依赖、离线可用、artifact 可直接预览。不要引入打包器。
