@@ -7103,7 +7103,26 @@ function showNewWizard(){
     <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
     <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
   </div>
-  <div class="btns"><button id="nw-cancel">取消</button></div>`);
+  <div class="btns"><button id="nw-import">导入 MusicXML…</button><button id="nw-cancel">取消</button></div>
+  <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">`);
+  document.getElementById('nw-import').onclick = ()=>document.getElementById('nw-mxlfile').click();
+  document.getElementById('nw-mxlfile').onchange = e=>{
+    const file=e.target.files[0]; if(!file) return;
+    if(/\.mxl$/i.test(file.name)){ toast('暂不支持压缩的 .mxl——请在 MuseScore 里另存为「未压缩 MusicXML (.musicxml)」'); return; }
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const r=importMusicXML(rd.result);
+      if(r.error){ toast('导入失败：'+r.error); return; }
+      closeModal();
+      addDoc(r.song);
+      setRibbon('vox');
+      const sk=r.skip.notes+r.skip.other;
+      toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节'
+        +(sk? '；跳过 '+sk+' 处暂不支持的记号（详见帮助）':'')
+        +(r.keyDefaulted? '；未读到调号已按 1=C，请在曲谱信息中核对':''));
+    };
+    rd.readAsText(file);
+  };
   document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt));
   document.getElementById('nw-cancel').onclick = closeModal;
 }
@@ -7311,6 +7330,144 @@ function downloadMusicXML(){
   a.download=(song.title||'曲谱')+'.musicxml'; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   toast('已导出 MusicXML（可在 MuseScore / Finale / Sibelius 打开）');
+}
+/* ===== MusicXML 导入（P0-B）=====
+   score-partwise → 合法 song v3（过 migrate() 补默认）。解析不了的元素跳过并计数，
+   绝不静默产出坏 song。part→声部；谱号→voxNotations（G/F/C→staff/bass/alto）；
+   音高→可动 do（midi−keyRef→SEMI_DEG，与 Muse 导入同源；导入拼写统一升号系）。
+   TODO: backup/forward 同谱表多声部（跳过非首 voice）、grace、中途变调/变拍。 */
+function importMusicXML(xmlStr){
+  const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+  if(doc.querySelector('parsererror')) return {error:'XML 解析失败：文件不是合法的 XML'};
+  const root = doc.querySelector('score-partwise');
+  if(!root) return {error:'仅支持 score-partwise 格式（score-timewise 请先在 MuseScore 中转存）'};
+  const skip = {notes:0, other:0};
+  const q=(el,sel)=>el.querySelector(':scope > '+sel);
+  const txt=(el,sel)=>{ const n=el&&q(el,sel); return n? n.textContent.trim() : null; };
+  /* 调号：fifths → key 名 */
+  const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
+  const firstAttr = doc.querySelector('part > measure > attributes');
+  let key = F2K[txt(firstAttr,'key > fifths')] || 'C';
+  let keyDefaulted = !firstAttr || txt(firstAttr,'key > fifths')==null;
+  let beats = +(txt(firstAttr,'time > beats')||4) || 4;
+  let unit  = +(txt(firstAttr,'time > beat-type')||4) || 4;
+  if(unit!==4 && unit!==8){ skip.other++; unit=4; }
+  beats = Math.max(1, Math.min(12, beats));
+  const ref = (()=>{ let r=60+(KEY_PC[key]||0); if(r>66) r-=12; return r; })();
+  const L_IDX={C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+  const midiOf = pe=>{
+    const li=L_IDX[txt(pe,'step')||'C']||0;
+    return (+(txt(pe,'octave')||4)+1)*12 + L_NAT[li] + (+(txt(pe,'alter')||0));
+  };
+  const TYPE_INV={whole:1,half:2,quarter:4,eighth:8,'16th':16,'32nd':32};
+  const KIND_MAP={major:'',minor:'m',dominant:'7','major-seventh':'maj7','minor-seventh':'m7',
+    'dominant-ninth':'9','suspended-fourth':'sus4',diminished:'dim',augmented:'aug'};
+  const parts=[...root.querySelectorAll(':scope > part')].slice(0,4);
+  const nV = parts.length;
+  const tempoEl = doc.querySelector('sound[tempo]');
+  const out = {v:3, title: txt(root,'work > work-title')||'导入曲谱',
+    singer:'', lyricist:'', composer:'', maker:'',
+    key, beats, unit, tempo: tempoEl? Math.round(+tempoEl.getAttribute('tempo'))||90 : 90,
+    capo:0, customChords:{}, tabVoices:[],
+    voxVoices: parts.map((_,i)=>'声部'+(i+1)),
+    voxNotations: [], lyricLines:1, measures:[]};
+  [...doc.querySelectorAll('identification creator')].forEach(c=>{
+    const t=c.getAttribute('type');
+    if(t==='composer') out.composer=c.textContent.trim();
+    if(t==='lyricist') out.lyricist=c.textContent.trim();
+  });
+  let maxLyr=1, nMea=0;
+  const partCols = parts.map((part,pi)=>{
+    let div = 24;   // divisions/四分音符（attributes 可更新）
+    const clefSign = txt(part.querySelector('measure attributes clef')||null,'sign');
+    out.voxNotations[pi] = clefSign==='F'? 'bass' : clefSign==='C'? 'alto' : 'staff';
+    const meas=[...part.querySelectorAll(':scope > measure')];
+    nMea = Math.max(nMea, meas.length);
+    return meas.map(m=>{
+      const cols=[]; let firstVoice=null, pendChord='';
+      [...m.children].forEach(el=>{
+        const tag=el.tagName;
+        if(tag==='attributes'){
+          const d2=txt(el,'divisions'); if(d2) div=+d2||div;
+          if(txt(el,'key > fifths')!=null && F2K[txt(el,'key > fifths')]!==key) skip.other++;   // 中途变调不支持
+          return;
+        }
+        if(tag==='harmony'){
+          const rs=txt(el,'root > root-step')||'';
+          const ra=+(txt(el,'root > root-alter')||0);
+          const kd=q(el,'kind');
+          const ktext=kd? (kd.getAttribute('text')!=null? kd.getAttribute('text') : (KIND_MAP[kd.textContent.trim()]??kd.textContent.trim())) : '';
+          const bs=txt(el,'bass > bass-step');
+          const ba=+(txt(el,'bass > bass-alter')||0);
+          if(rs) pendChord = rs+(ra>0?'#':ra<0?'b':'')+ktext+(bs? '/'+bs+(ba>0?'#':ba<0?'b':'') : '');
+          return;
+        }
+        if(tag==='backup' || tag==='forward'){ skip.other++; return; }
+        if(tag!=='note') return;
+        if(q(el,'grace')){ skip.notes++; return; }                    // TODO 装饰音
+        const vc=txt(el,'voice');
+        if(vc!=null){ if(firstVoice==null) firstVoice=vc; else if(vc!==firstVoice){ skip.notes++; return; } }
+        const isChord = !!q(el,'chord');
+        /* 时值：优先 type+dot+time-modification；否则由 duration/divisions 推 */
+        let dur = TYPE_INV[txt(el,'type')||''] || 0;
+        let dotted = !!q(el,'dot');
+        let tup = (txt(el,'time-modification > actual-notes')==='3' && txt(el,'time-modification > normal-notes')==='2')? 1 : undefined;
+        if(!dur){
+          const quarters=(+(txt(el,'duration')||0))/div;
+          const cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
+          for(const [d2,qn] of cand){
+            if(Math.abs(quarters-qn)<1e-3){ dur=d2; break; }
+            if(Math.abs(quarters-qn*1.5)<1e-3){ dur=d2; dotted=true; break; }
+            if(Math.abs(quarters-qn*2/3)<1e-3){ dur=d2; tup=1; break; }
+          }
+          if(!dur){ skip.notes++; dur = quarters>=3? 2 : quarters>=1.5? 4 : quarters>=0.7? 4 : quarters>=0.35? 8 : 16; }
+        }
+        if(q(el,'rest')){
+          cols.push({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{})});
+          pendChord=''; return;
+        }
+        const pe=q(el,'pitch');
+        if(!pe){ skip.notes++; return; }
+        const rel = midiOf(pe)-ref;
+        const pc=((rel%12)+12)%12;
+        const noteObj={deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct:Math.floor(rel/12)};
+        if(isChord && cols.length){
+          const last=cols[cols.length-1];
+          last.adds=last.adds||[];
+          if(last.adds.length<3) last.adds.push(noteObj); else skip.notes++;
+          return;
+        }
+        const col={dur, dotted, deg:noteObj.deg, acc:noteObj.acc, oct:noteObj.oct, lyrics:[],
+          tie: !![...el.querySelectorAll(':scope > tie')].find(t2=>t2.getAttribute('type')==='start'),
+          ...(tup?{tup}:{})};
+        if(pendChord){ col.chord=pendChord; pendChord=''; }
+        [...el.querySelectorAll(':scope > lyric')].forEach(ly=>{
+          const n2=Math.max(1, +(ly.getAttribute('number')||1));
+          if(n2<=3){ col.lyrics[n2-1]=txt(ly,'text')||''; maxLyr=Math.max(maxLyr,n2); }
+          else skip.other++;
+        });
+        cols.push(col);
+      });
+      return cols;
+    });
+  });
+  out.lyricLines = Math.min(3, maxLyr);
+  for(let mi=0; mi<nMea; mi++){
+    const mea={tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
+    parts.forEach((part,pi)=>{
+      const cols = partCols[pi][mi];
+      mea.voxes.push(cols && cols.length? cols
+        : Array.from({length:beats},()=>({dur:unit, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false})));
+    });
+    const mEl=parts[0].querySelectorAll(':scope > measure')[mi];
+    if(mEl){
+      if(mEl.querySelector('repeat[direction="forward"]')) mea.repeatStart=true;
+      if(mEl.querySelector('repeat[direction="backward"]')) mea.repeatEnd=true;
+    }
+    out.measures.push(mea);
+  }
+  if(!out.measures.length) return {error:'未解析到任何小节'};
+  return {song: migrate(out), skip, keyDefaulted};
 }
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
@@ -8386,6 +8543,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v37.8</span><div><b>MusicXML 导入</b>（P0·把 AI 转谱产物"吃进来"精修）：新建向导新增「导入 MusicXML…」——解析 score-partwise（MuseScore/Finale 等导出均可），自动换算为可动 do 简谱数据：音高按调号逆映射、时值优先读 type/附点/三连音、和弦标注/多段歌词/连音线/反复记号/各声部谱号（G/F/C→高/低/中音谱表）一并还原；暂不支持的记号<b>跳过并计数提示</b>，绝不产出坏谱；未读到调号按 1=C 提醒核对。导入后立即可编辑、可切三种记谱法。压缩 .mxl 请先在 MuseScore 转存未压缩格式。</div></li>
     <li><span class="v">v37.7</span><div><b>MusicXML 导出</b>（P0·接入专业软件与 AI 转谱生态）：打印/导出弹窗新增「导出 MusicXML」——简谱/五线谱声部完整导出为标准 score-partwise 4.0（音高按调号拼写与五线谱渲染同源；含和音、附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复与终止线、各声部谱号），可直接在 MuseScore / Finale / Sibelius 打开继续编辑或印刷。TAB 声部导出列入路线图。</div></li>
     <li><span class="v">v37.6</span><div><b>同列多音（和音）</b>：一列可叠 1+3 个音——五线谱逐音绘制符头/加线/临时记号、二度音程自动左右翻转、<b>共用一根符干贯穿</b>（含符杠组）；简谱视图数字纵向叠置；播放同起同长发声；输入两种方式：面板<b>「和音」</b>按钮输唱名（自动向上排列）或五线谱 <b>Ctrl+点击</b>线/间直接加减。伴奏织体库补全柱式类：<b>柱式和弦、半分解、圆舞曲柱式</b>（织体库共 8 套），行距自动为和音扩展。</div></li>
     <li><span class="v">v37.5</span><div>🎹 <b>钢琴弹唱谱·伴奏织体</b>：右手谱表按拍标注和弦 → 顶栏「伴奏织体」选织体<b>一键生成双手伴奏</b>（抒情分解/流行八分琶音/阿尔贝蒂低音/低音行走/圆舞曲，4/4 与 3/4）——生成的是<b>可编辑真音符</b>，和弦标注/歌词/力度自动回填，小节内换和弦逐拍生效，可分范围重生成、Ctrl+Z 撤销，换调自动联动移调。大小三和弦自适应三音。</div></li>

@@ -71,7 +71,53 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const okCS = /<step>C<\/step><alter>1<\/alter><octave>4<\/octave>/.test(t3);
   console.log(((okF&&okG3&&okG4&&okCS)?'✅':'❌')+` 音高拼写(G调): F#4=${okF} G3=${okG3} G4(1̇)=${okG4} C#4(#4)=${okCS}`);
   if(okF&&okG3&&okG4&&okCS) pass++;
-  console.log('PASS '+pass+'/5');
+  // T4 往返一致性：song → export → import → 核心字段逐项一致
+  const t4 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:2,beats:4,unit:4,key:'D',tempo:76,nMea:3,title:'往返'});
+    s.measures[0].voxes[0]=[V(1,4,{lyrics:['甲','乙'],chord:'D'}),V(2,8,{tup:1}),V(3,8,{tup:1}),V(5,8,{tup:1}),V(4,4,{acc:'#'}),V(5,4)];
+    s.measures[1].voxes[0]=[V(5,2,{dotted:true,tie:true}),V(5,4)];
+    s.measures[1].repeatEnd=true;
+    s.measures[2].voxes[0]=[V(1,2,{adds:[{deg:3,oct:0},{deg:5,oct:0}],chord:'Bm/D'}),V(0,2)];
+    loadSong(s);
+    const r=importMusicXML(exportMusicXML(song));
+    if(r.error) return {error:r.error};
+    const a2=song, b2=r.song;
+    const flat=x=>x.measures.map(m=>m.voxes[0].map(c=>[c.deg,c.dur,!!c.dotted,!!c.tie,c.tup||0,(c.adds||[]).length,c.chord||'', (c.lyrics||[]).filter(Boolean).join('|')]));
+    const midi=x=>{ const o=song; song=x; const ref=keyRef(); const out=x.measures.map(m=>m.voxes[0].map(c=>c.deg? ref+DEG_SEMI[c.deg]+(c.acc==='#'?1:c.acc==='b'?-1:0)+(c.oct||0)*12 : -1)); song=o; return out; };
+    return { same: JSON.stringify(flat(a2))===JSON.stringify(flat(b2)),
+      midiSame: JSON.stringify(midi(a2))===JSON.stringify(midi(b2)),
+      key:b2.key, beats:b2.beats, tempo:b2.tempo, rep:b2.measures[1].repeatEnd,
+      skip:r.skip.notes+r.skip.other };
+  })()`);
+  const ok4 = !t4.error && t4.same && t4.midiSame && t4.key==='D' && t4.beats===4 && t4.tempo===76 && t4.rep && t4.skip===0;
+  console.log((ok4?'✅':'❌')+' 往返一致: 结构='+t4.same+' 音高='+t4.midiSame+' key='+t4.key+' beats='+t4.beats+' tempo='+t4.tempo+' 反复='+t4.rep+' 跳过='+t4.skip);
+  if(ok4) pass++;
+  // T5 第三方风格 fixture（MuseScore 式：divisions=480、显式 type、F谱号、backup 双声部）
+  const FIX = '<?xml version="1.0" encoding="UTF-8"?>'+
+   '<score-partwise version="3.1"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>'+
+   '<part id="P1"><measure number="1"><attributes><divisions>480</divisions><key><fifths>-3</fifths></key>'+
+   '<time><beats>3</beats><beat-type>4</beat-type></time><clef><sign>F</sign><line>4</line></clef></attributes>'+
+   '<note><pitch><step>E</step><alter>-1</alter><octave>3</octave></pitch><duration>480</duration><voice>1</voice><type>quarter</type></note>'+
+   '<note><pitch><step>G</step><octave>3</octave></pitch><duration>720</duration><voice>1</voice><type>quarter</type><dot/></note>'+
+   '<note><rest/><duration>240</duration><voice>1</voice><type>eighth</type></note>'+
+   '<backup><duration>1440</duration></backup>'+
+   '<note><pitch><step>C</step><octave>3</octave></pitch><duration>1440</duration><voice>2</voice><type>half</type><dot/></note>'+
+   '</measure></part></score-partwise>';
+  const t5 = await pg.evaluate(`(()=>{
+    const r=importMusicXML(${JSON.stringify(FIX)});
+    if(r.error) return {error:r.error};
+    loadSong(r.song);
+    const h=document.getElementById('score').innerHTML;
+    const c=r.song.measures[0].voxes[0];
+    return { key:r.song.key, beats:r.song.beats, clef:r.song.voxNotations[0],
+      cols:c.map(x=>x.deg+':'+x.dur+(x.dotted?'.':'')).join(' '),
+      skipped:r.skip.notes, renderOK:h.length>1000 && !h.includes('NaN') };
+  })()`);
+  const ok5 = !t5.error && t5.key==='Eb' && t5.beats===3 && t5.clef==='bass' && t5.cols==='1:4 3:4. 0:8' && t5.skipped===1 && t5.renderOK;
+  console.log((ok5?'✅':'❌')+' 第三方fixture: key='+t5.key+'(Eb) beats='+t5.beats+' 谱号='+t5.clef+' 列='+t5.cols+'(期望 1:4 3:4. 0:8) 跳过voice2='+t5.skipped+' 渲染='+t5.renderOK);
+  if(ok5) pass++;
+  console.log('PASS '+pass+'/7');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
