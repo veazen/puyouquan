@@ -1119,30 +1119,39 @@ function transposeEditor(delta){   // 与曲谱库观看模式的 transposeSong(
    模板以和弦内音级定义：1=根音 3=三音（大小和弦自适应）5=五音 8=高八度根音；
    左手基准八度≈C3、右手≈C4；和弦可在小节内任意拍更换，逐音取当拍生效和弦 */
 const PIANO_TEX = [
- {id:'slow',    name:'抒情分解（低音+琶音）', beats:4,
+ {id:'slow',    name:'抒情分解（低音+琶音）', level:'入门', beats:4,
   L:[{d:2,t:'1'},{d:2,t:'5'}],
   R:[{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'}]},
- {id:'arp8',    name:'流行八分琶音', beats:4,
-  L:[{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'}],
-  R:[{d:4,t:'3'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}]},
- {id:'alberti', name:'阿尔贝蒂低音（古典）', beats:4,
-  L:[{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}],
-  R:[{d:2,t:'8'},{d:2,t:'5'}]},
- {id:'basswalk', name:'低音行走+高音琶音', beats:4,
-  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}],
-  R:[{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}]},
- {id:'waltz',   name:'圆舞曲分解 蓬-嚓-嚓', beats:3,
-  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'5'}],
-  R:[{d:4,t:null},{d:4,t:'3'},{d:4,t:'5'}]},
- {id:'block',   name:'柱式和弦', beats:4,
+ {id:'block',   name:'柱式和弦', level:'入门', beats:4,
   L:[{d:2,t:'1'},{d:2,t:'5'}],
   R:[{d:4,s:['1','3','5']},{d:4,s:['1','3','5']},{d:4,s:['1','3','5']},{d:4,s:['1','3','5']}]},
- {id:'halfbrk', name:'半分解（低音+后半拍柱式）', beats:4,
+ {id:'halfbrk', name:'半分解（低音+后半拍柱式）', level:'入门', beats:4,
   L:[{d:4,t:'1'},{d:4,t:null},{d:4,t:'5'},{d:4,t:null}],
   R:[{d:4,t:null},{d:4,s:['3','5','8']},{d:4,t:null},{d:4,s:['3','5','8']}]},
- {id:'waltz2',  name:'圆舞曲柱式 蓬-嚓-嚓', beats:3,
+ {id:'kids',    name:'儿歌伴奏（交替低音+轻柱式）', level:'入门', beats:4,
+  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}],
+  R:[{d:4,t:null},{d:4,s:['3','5']},{d:4,t:null},{d:4,s:['3','5']}]},
+ {id:'arp8',    name:'流行八分琶音', level:'入门', beats:4,
+  L:[{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'}],
+  R:[{d:4,t:'3'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}]},
+ {id:'waltz',   name:'圆舞曲分解 蓬-嚓-嚓', level:'入门', beats:3,
+  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'5'}],
+  R:[{d:4,t:null},{d:4,t:'3'},{d:4,t:'5'}]},
+ {id:'waltz2',  name:'圆舞曲柱式 蓬-嚓-嚓', level:'入门', beats:3,
   L:[{d:4,t:'1'},{d:4,t:null},{d:4,t:null}],
   R:[{d:4,t:null},{d:4,s:['3','5','8']},{d:4,s:['3','5','8']}]},
+ {id:'alberti', name:'阿尔贝蒂低音（古典）', level:'进阶', beats:4,
+  L:[{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}],
+  R:[{d:2,t:'8'},{d:2,t:'5'}]},
+ {id:'basswalk', name:'低音行走+高音琶音', level:'进阶', beats:4,
+  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'3'},{d:4,t:'5'}],
+  R:[{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}]},
+ {id:'march',   name:'进行曲（低音+后半拍和弦）', level:'进阶', beats:4,
+  L:[{d:4,t:'1'},{d:4,t:'5'},{d:4,t:'1'},{d:4,t:'5'}],
+  R:[{d:8,t:null},{d:8,s:['3','5','8']},{d:8,t:null},{d:8,s:['3','5','8']},{d:8,t:null},{d:8,s:['3','5','8']},{d:8,t:null},{d:8,s:['3','5','8']}]},
+ {id:'arp16',   name:'全分解十六分琶音', level:'进阶', beats:4,
+  L:[{d:2,t:'1'},{d:2,t:'5'}],
+  R:[{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'}]},
 ];
 function chordTones(name){
   const m=/^([A-G](?:#|b)?)(.*)$/.exec((name||'').trim());
@@ -1190,6 +1199,63 @@ function genAccompaniment(texId, m1, m2){
     done++;
   }
   return {done, noChord};
+}
+/* ===== 配和弦建议（P1-A）：大调自然音级功能和声 =====
+   逐小节给旋律（默认声部0）配 I/IV/V/vi/ii/iii：按"音符时值×强拍权重×和弦内音
+   命中（根音加权）"打分，首小节偏 I、末小节强偏 I；变化音不计分。
+   建议默认不覆盖已有和弦。TODO: 小调/半小节换和弦/V7/终止式模板。 */
+function suggestChords(s2, vi){
+  s2=s2||song; vi=vi||0;
+  const CAND=[
+    {deg:1,m:false,tones:[1,3,5],w:1.2},
+    {deg:4,m:false,tones:[4,6,1],w:1.1},
+    {deg:5,m:false,tones:[5,7,2],w:1.1},
+    {deg:6,m:true, tones:[6,1,3],w:1.0},
+    {deg:2,m:true, tones:[2,4,6],w:0.85},
+    {deg:3,m:true, tones:[3,5,7],w:0.7},
+  ];
+  const useFlat=(KEYSIG[s2.key]||0)<0;
+  const cname=c=>{
+    const pc=(((KEY_PC[s2.key]||0)+DEG_SEMI[c.deg])%12+12)%12;
+    return (useFlat?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'');
+  };
+  const o0=song; song=s2;
+  const out=[];
+  s2.measures.forEach((mea,mi)=>{
+    const cols=mea.voxes[vi]||[];
+    let best=null, bestSc=0;
+    CAND.forEach(c=>{
+      let sc=0, cum=0;
+      cols.forEach(col=>{
+        const b=beatsOf(col);
+        if(col.deg && !col.acc){
+          const onBeat=Math.abs(cum-Math.round(cum))<1e-4;
+          const w=b*(onBeat?1.5:1)*(cum<1e-4?1.4:1);
+          if(c.tones.includes(col.deg)) sc+=w*(col.deg===c.deg?1.25:1);
+          (col.adds||[]).forEach(a=>{ if(a&&!a.acc&&c.tones.includes(a.deg)) sc+=0.3*b; });
+        }
+        cum+=b;
+      });
+      sc*=c.w;
+      if(mi===0 && c.deg===1) sc*=1.25;
+      if(mi===s2.measures.length-1) sc*= c.deg===1? 1.6 : 0.8;
+      if(sc>bestSc){ bestSc=sc; best=c; }
+    });
+    out.push(best? cname(best) : null);
+  });
+  song=o0;
+  return out;
+}
+function applySuggestChords(){
+  const sug=suggestChords(song,0);
+  let n=0;
+  song.measures.forEach((mea,mi)=>{
+    const cols=mea.voxes[0]||[];
+    if(!cols.length || !sug[mi]) return;
+    if(cols.some(c=>c.chord)) return;   // 已有和弦的小节不覆盖
+    cols[0].chord=sug[mi]; n++;
+  });
+  return n;
 }
 const CHORD_SHAPES = {
   /* C 系 */
@@ -7218,10 +7284,20 @@ document.getElementById('b-acctex').onclick = ()=>{
   if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 4/4 与 3/4）'); return; }
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
     <p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（点谱面「＋和弦」空位），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>
-    ${avail.map((t,i)=>`<label class="f" style="gap:8px"><input type="radio" name="tex" value="${t.id}" ${(song.texId?song.texId===t.id:i===0)?'checked':''}> <b>${t.name}</b></label>`).join('')}
+    ${['入门','进阶'].map(lv=>{
+      const g=avail.filter(t=>t.level===lv);
+      return g.length? `<p style="margin:8px 0 2px;font-size:12px;color:var(--muted)"><b>${lv}</b>${lv==='入门'?'（考编/幼师即兴伴奏常用）':''}</p>`+
+        g.map(t=>`<label class="f" style="gap:8px"><input type="radio" name="tex" value="${t.id}" ${(song.texId? song.texId===t.id : t.id===avail[0].id)?'checked':''}> <b>${t.name}</b></label>`).join('') : '';
+    }).join('')}
+    <div class="btns" style="margin-top:6px"><button id="tex-sug" title="按右手声部旋律用功能和声（I/IV/V/vi…）逐小节给出和弦建议；已有和弦的小节不覆盖">一键配和弦（建议）</button></div>
     <label class="f"><span>范围</span><select id="tex-scope"><option value="all">全曲</option><option value="from">当前小节 → 结尾</option><option value="one">仅当前小节</option></select></label>
     <div class="btns"><button id="tex-cancel">取消</button><button id="tex-go" class="primary">生成伴奏</button></div>`);
   document.getElementById('tex-cancel').onclick=closeModal;
+  document.getElementById('tex-sug').onclick=()=>{
+    let n; mutate(()=>{ n=applySuggestChords(); });
+    toast(n? `已为 ${n} 个小节填入建议和弦（已有和弦的小节未覆盖，可点击标注修改）`
+           : '没有可建议的小节：需要右手声部有旋律、且小节内尚无和弦');
+  };
   document.getElementById('tex-go').onclick=()=>{
     const texId=(document.querySelector('input[name="tex"]:checked')||{}).value;
     const sc=document.getElementById('tex-scope').value;
@@ -8811,6 +8887,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.1</span><div><b>伴奏织体深化 + 一键配和弦</b>（P1·即兴伴奏/考编垂类）：织体库扩至 <b>11 套并按难度分级</b>（入门：抒情分解/柱式/半分解/儿歌伴奏/八分琶音/两种圆舞曲；进阶：阿尔贝蒂/低音行走/<b>进行曲</b>/<b>全分解十六分琶音</b>）；织体弹窗新增<b>「一键配和弦（建议）」</b>——按右手旋律用功能和声（I/IV/V/vi/ii/iii）逐小节打分配和弦（强拍加权、根音加权、首尾偏主和弦），<b>已有和弦的小节绝不覆盖</b>，填入后可点击修改再生成伴奏。</div></li>
     <li><span class="v">v38.0</span><div><b>MIDI 导出</b>（P0 互操作四件套收官：MusicXML 出/入 + MIDI 入/出）：打印/导出弹窗新增「导出 MIDI」——标准 SMF：曲名/速度/拍号/调号完整；简谱声部逐轨导出（<b>连音线自动合并为长音</b>、和音同起同长）；TAB 声部独立音轨（尼龙吉他音色、含<b>变调夹音高偏移</b>，×闷音跳过提示）；可导入任意 DAW/编曲软件或用于跟弹练习。至此「AI 转谱 → 导入精修 → 专业格式交付」链路双向贯通。</div></li>
     <li><span class="v">v37.9</span><div><b>MIDI 导入</b>（P0·直接吃下 AI 转谱/AI 作曲的主流输出格式）：新建向导「导入 MIDI…」——纯前端解析标准 MIDI（含多轨/运行状态/速度/拍号/调号），<b>16 分网格智能量化</b>为简谱草稿：同起点合并为和音、超长音自动拆分并补连音线（含跨小节）、空隙补休止、附点识别；三种导入形式：单轨→歌谱、单轨按中央C自动分手→钢琴大谱表、双轨→钢琴左右手；量化简化处逐一计数提示。量化模块与后续「哼唱转谱」共用。</div></li>
     <li><span class="v">v37.8</span><div><b>MusicXML 导入</b>（P0·把 AI 转谱产物"吃进来"精修）：新建向导新增「导入 MusicXML…」——解析 score-partwise（MuseScore/Finale 等导出均可），自动换算为可动 do 简谱数据：音高按调号逆映射、时值优先读 type/附点/三连音、和弦标注/多段歌词/连音线/反复记号/各声部谱号（G/F/C→高/低/中音谱表）一并还原；暂不支持的记号<b>跳过并计数提示</b>，绝不产出坏谱；未读到调号按 1=C 提醒核对。导入后立即可编辑、可切三种记谱法。压缩 .mxl 请先在 MuseScore 转存未压缩格式。</div></li>
