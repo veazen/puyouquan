@@ -426,6 +426,9 @@ body.viewer #score-wrap{margin:0 auto}
 body.viewer #viewerbar{display:flex}
 #viewerbar .vt{font-weight:700;font-size:14.5px}
 #viewerbar .va{font-size:11.5px;color:var(--muted)}
+#viewerbar .vw-brand{font-size:11.5px;color:var(--accent-ink);text-decoration:none;white-space:nowrap;
+  border:1px solid var(--border);border-radius:980px;padding:4px 11px;background:var(--panel)}
+#viewerbar .vw-brand:hover{border-color:var(--accent)}
 /* 观看模式：即时移调控件 */
 .vw-trans{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--border);
   border-radius:980px;padding:2px;background:var(--panel)}
@@ -543,6 +546,8 @@ body.stand #standbar{display:flex}
 .mx-bar{display:flex;align-items:center;gap:9px;padding:8px 12px}
 .mx-splabel{color:var(--muted);font-size:12px;white-space:nowrap}
 .tempo{width:74px;text-align:center}
+.rate{width:72px;text-align:center}
+#b-metro.on{background:var(--accent);border-color:var(--accent);color:#fff}
 #mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
   display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
 .mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
@@ -1006,6 +1011,11 @@ body.stand #standbar{display:flex}
     <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
+    <select id="mx-rate" class="rate" title="播放倍速：只改播放快慢，不改曲谱速度设置（慢速跟练/快速过谱）">
+      <option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+      <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
+    </select>
+    <button id="b-metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用">⏱ 节拍器</button>
     <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
   </div>
 </div>
@@ -1590,6 +1600,8 @@ let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
 let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, paused:false, raf:0, prog:null, loop:null, events:[], evIdx:0};
+let playRate = 1;      // 播放倍速：只作用于播放调度，不改动 song.tempo（v38.5）
+let metroOn = false;   // 节拍器开关：播放时叠加拍点声，首拍重音（v38.5）
 let mix = {tab:true, vox:true};
 /* 每条声部对应一条音轨，配置（静音/独奏/音色/音量）随曲谱保存于 song.mixer */
 function trackCfg(kind, vi){
@@ -6750,6 +6762,25 @@ function startProgress(t, dur, order, starts){
   };
   audio.raf = requestAnimationFrame(tick);
 }
+/* 节拍器拍点声：木鱼式短促点击（正弦骨架+噪声起振），首拍高音重读（v38.5） */
+function metroClick(ctx, bus, when, accent){
+  const o=ctx.createOscillator(), g=ctx.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(accent?1760:1175, when);
+  o.frequency.exponentialRampToValueAtTime(accent?1100:800, when+0.035);
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(accent?0.42:0.26, when+0.0025);
+  g.gain.exponentialRampToValueAtTime(0.0001, when+0.055);
+  o.connect(g); g.connect(bus.dry);
+  o.start(when); o.stop(when+0.07);
+  audio.sources.push(o);
+  const sr=ctx.sampleRate, len=Math.floor(sr*0.012);
+  const buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  const src=ctx.createBufferSource(); src.buffer=buf;
+  const g2=ctx.createGain(); g2.gain.value=accent?0.16:0.1;
+  src.connect(g2); g2.connect(bus.dry);
+  src.start(when); audio.sources.push(src);
+}
 function previewInst(instKey){
   if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
   if(hifiOn) sfLoad(instKey);
@@ -6768,7 +6799,7 @@ function play(){
   if(hifiOn) hifiPreload();
   audio.playing = true;
   setPlayBtn();
-  const spb = 60/song.tempo;
+  const spb = 60/(song.tempo*playRate);   // 倍速只缩放拍长，谱面速度设置保持不变
   const t = ctx.currentTime+0.15;
   const startMi = audio.loop? audio.loop.a : (sel.mi||0);
   const order = buildPlayOrder(startMi);            // 识别反复记号 / 循环选区
@@ -6887,6 +6918,13 @@ function play(){
     total=Math.max(total,starts.length?starts[starts.length-1]+measureSeconds(order[order.length-1],spb):0);
   });
   audio.events.sort((a,b)=>a.tm-b.tm);
+  /* 节拍器：按小节实际时长逐拍布点（与倍速同缩放），每小节第一拍重音 */
+  if(metroOn){
+    order.forEach((mi,oi)=>{
+      const secs=measureSeconds(mi,spb);
+      for(let b=0; b*spb < secs-1e-4; b++) metroClick(ctx, bus, t+starts[oi]+b*spb, b===0);
+    });
+  }
   startProgress(t, total||1, order, starts);
 }
 function highlight(prefix,mi,ci){
@@ -6928,6 +6966,18 @@ function togglePlay(){
   setPlayBtn();
 }
 document.getElementById('b-play').onclick = togglePlay;
+document.getElementById('mx-rate').onchange = e=>{
+  playRate = parseFloat(e.target.value)||1;
+  const wasPlaying = audio.playing && !audio.paused;
+  if(wasPlaying) play();                       // 播放中切倍速：按新倍速重新起播
+  toast('播放倍速 '+playRate+'×（不改变曲谱速度设置）');
+};
+document.getElementById('b-metro').onclick = ()=>{
+  metroOn = !metroOn;
+  document.getElementById('b-metro').classList.toggle('on', metroOn);
+  if(audio.playing && !audio.paused) play();   // 播放中切换：重新调度以立即生效
+  toast(metroOn? '节拍器已开启：随播放发出拍点声，每小节第一拍重音' : '节拍器已关闭');
+};
 document.getElementById('b-restart').onclick = ()=>{
   stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
@@ -8116,6 +8166,32 @@ function exportShareCard(){
   img.onerror=()=>toast('分享卡生成失败，请重试');
   img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
 }
+/* 互动谱导出（v38.5）：把整个应用自打包成单文件 HTML 并注入当前曲谱，
+   收到的人浏览器打开即进入观看模式——可播放/倍速/节拍器/移调/切记谱法/谱架，无需安装。
+   优先 fetch 自身源码（干净原文）；被拦截时退回当前 DOM 快照重建。 */
+async function exportInteractiveCard(){
+  let html='';
+  try{
+    const r=await fetch(location.href);
+    if(r.ok) html=await r.text();
+  }catch(_){}
+  if(!/<\/body>/i.test(html)) html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+  /* 再分享时去掉旧注入。注意：必须匹配 `={` 才是真实注入块——本函数源码里也含同名字符串字面量，
+     宽松匹配会把源码到主脚本结尾整段删掉 */
+  html=html.replace(/<script id="pyq-share-data">window\.PYQ_SHARE=\{[\s\S]*?<\/script>\s*/g,'');
+  const payload={v:1, mode:'viewer', song:JSON.parse(JSON.stringify(song))};
+  const inj='<script id="pyq-share-data">window.PYQ_SHARE='
+    +JSON.stringify(payload).replace(/<\//g,'<\\/')+';<\/script>\n';
+  /* 替换串必须转义斜杠写 <\/body>：裸写会在本函数源码里留下真实的 body 闭合标签字面量，
+     打包时注入点会错落到脚本中段直接打断整个应用（注释里同样不能裸写） */
+  if(/<\/body>/i.test(html)) html=html.replace(/<\/body>/i, inj+'<\/body>');
+  else html+=inj;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=(song.title||'曲谱')+'-互动谱.html'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('已导出互动谱 HTML：发给对方，浏览器打开即可播放 / 倍速 / 移调 / 节拍器 / 谱架');
+}
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
     <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
@@ -8131,7 +8207,8 @@ document.getElementById('b-print').onclick = ()=>{
       <button id="ex-png">导出 PNG 图片</button>
       <button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">导出 MusicXML</button>
       <button id="ex-mid" title="导出标准 MIDI：可导入 DAW/编曲软件，或用于跟弹练习">导出 MIDI</button>
-      <button id="ex-card" title="生成竖版品牌谱面卡 PNG：微信/朋友圈/小红书直接转发">生成分享卡</button>
+      <button id="ex-card" title="静态分享卡：竖版品牌谱面卡 PNG，微信/朋友圈/小红书直接转发">分享卡 PNG</button>
+      <button id="ex-icard" title="动态互动谱：自包含单文件 HTML，对方打开即可播放/倍速/节拍器/移调/谱架学习">互动谱 HTML</button>
       <button id="ex-cancel">取消</button>
       <button id="ex-print" class="primary">打印 / 存 PDF</button>
     </div>`);
@@ -8140,6 +8217,7 @@ document.getElementById('b-print').onclick = ()=>{
   document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); downloadMusicXML(); };
   document.getElementById('ex-mid').onclick = ()=>{ closeModal(); downloadMIDI(); };
   document.getElementById('ex-card').onclick = ()=>{ closeModal(); exportShareCard(); };
+  document.getElementById('ex-icard').onclick = ()=>{ closeModal(); exportInteractiveCard(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
     closeModal();
@@ -8685,6 +8763,40 @@ function vwTranspose(delta){
   window.scrollTo(0, sy);
   toast(vwTrans===0? '已还原到原调 1='+song.key : '移调：1='+song.key+'（'+(vwTrans>0?'+':'')+vwTrans+' 半音）');
 }
+/* ===== 互动分享谱（v38.5）：自包含 HTML 注入数据后进入的独立观看模式 ===== */
+function enterShareViewer(share){
+  const data = share && share.song;
+  if(!data || !data.measures || !data.measures.length) return;
+  viewerMode=true; viewerPrev=null;
+  viewerCtx={pb:{title:data.title||'未命名曲谱', author:data.author||'佚名',
+    type:data.docType||'guitar', data, price:0, preview:9999}, own:true, total:data.measures.length};
+  vwTrans=0;
+  song=viewerBuildSong();
+  sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
+  selRange=null; noteSel=[]; measureSel=null;
+  document.body.classList.add('viewer','share');
+  document.title=(song.title||'曲谱')+' · 谱友圈互动谱';
+  stopPlay(); audio.loop=null;
+  clampSel(); render(); renderProgCells();
+  const vb=document.getElementById('viewerbar');
+  vb.innerHTML=`<span class="vt">${esc(song.title||'未命名曲谱')}</span>
+    <span class="va">${esc(song.author||'佚名')} · ${TYPE_CN[viewerCtx.pb.type]||'曲谱'} · ${viewerCtx.total} 小节 · 互动谱</span>
+    <span style="flex:1"></span>
+    <span class="vw-trans" title="即时移调（不改动原谱）">
+      <button id="vw-tdn" title="降半音">♭</button>
+      <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
+      <button id="vw-tup" title="升半音">♯</button></span>
+    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">🎼 谱架</button>
+    <a class="vw-brand" href="https://puyouquan.com" target="_blank" rel="noopener"
+      title="本互动谱由谱友圈在线制谱导出——你也可以免费制谱并分享">谱友圈 puyouquan.com</a>`;
+  updateVwKey();
+  document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
+  document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
+  document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
+  document.getElementById('vw-stand').onclick=enterStand;
+  window.scrollTo(0,0);
+  toast('互动谱：底部播放条可播放 / 倍速 / 节拍器，右上可移调、进谱架模式');
+}
 /* ===== 谱架模式：全屏沉浸 + 自动卷谱 ===== */
 let standScroll={on:false, speed:26, raf:0, acc:0};
 function enterStand(){
@@ -9194,6 +9306,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v38.5</span><div><b>动态互动谱 + 节拍器</b>：① 打印/导出新增<b>「互动谱 HTML」</b>——把整个应用自打包成单文件网页并注入当前曲谱，对方浏览器打开即进入观看模式：可播放、倍速、节拍器、即时移调、谱架自动卷谱，无需安装、纯本地不上传（分享卡由此升级为「静态 PNG + 动态 HTML」双模式）；② 播放条新增<b>节拍器</b>开关——播放时叠加拍点声、每小节第一拍重音，随倍速同步缩放；③ 播放条新增<b>倍速</b>（0.5×–1.5×）——慢速跟练/快速过谱，只改播放快慢不动曲谱速度设置。</div></li>
     <li><span class="v">v38.4</span><div><b>曲谱分享卡</b>（P2·微信生态增长回路）：打印/导出新增<b>「生成分享卡」</b>——一键产出竖版品牌谱面卡 PNG（750×1000）：渐变品牌带 + 谱面首屏精裁 + 曲名/词曲/调速信息 + 谱友圈品牌与二维码占位（正式上线后替换为可扫的看谱链接），任何谱类通用，微信/朋友圈/小红书直接转发。纯本地生成，不上传任何数据。</div></li>
     <li><span class="v">v38.3</span><div><b>哼唱成谱</b>（P2·大众获客钩子）：新建向导「哼唱成谱…」——对麦克风清唱一段（或上传清唱录音），纯前端完成 <b>音高检测</b>（NSDF 自相关+首峰选取防八度错+中值平滑）→ <b>自动定调</b>（12 大调音阶拟合+首末音加权）→ <b>16 分网格量化</b>（连奏容差、跨小节连音线）→ 生成简谱草稿进编辑器精修；检测不到音高时友好提示。与 MIDI 导入共用同一量化引擎。提示：跟稳所选 BPM 清唱单音旋律（哼「啦」最准）。</div></li>
     <li><span class="v">v38.2</span><div><b>智能配谱</b>（P1 收官·垂类成品交付）：歌谱/教学/器乐谱顶栏新增<b>「智能配谱」</b>——对当前主旋律一键完成 <b>自动配和弦 → 织体生成双手伴奏</b>，在新窗口产出两种成品（原谱不动）：①<b>教学对照谱</b>（旋律=五线谱+简谱行+歌词保留，下方右手/左手伴奏大谱表）②<b>纯伴奏钢琴谱</b>（旋律交给演唱者，和弦自动移到右手，接「伴奏织体」可重生成）；已填和弦不覆盖；生成后一键换调全谱联动。即兴伴奏/考编场景从旋律到可弹可打印的对照谱一步到位。</div></li>
@@ -9465,6 +9578,12 @@ function alignHeader(){
     ro.observe(document.getElementById('stage'));
   }
 })();
+/* 互动分享谱启动（v38.5）：注入的数据脚本位于本脚本之后，待文档解析完成再检测进入观看模式 */
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(window.PYQ_SHARE && window.PYQ_SHARE.song){
+    try{ enterShareViewer(window.PYQ_SHARE); }catch(e){ console.error('互动谱启动失败', e); }
+  }
+});
 </script>
 </body>
 </html>
