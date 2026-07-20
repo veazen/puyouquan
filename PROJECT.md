@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v37.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-20 · 当前版本 **v37.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -120,6 +120,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 播放 | `sf-embed` 内嵌采样、`playInst`、let-ring、和音在延音链外独立发声 |
 | 曲谱库/观看 | `PRESETS` / `viewerBuildSong` / `vwTranspose` / 谱架模式 `enterStand` |
 | 打印预览 | `pvOpen` / `PV_GEO` |
+| MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
 
 ## 7. 测试体系（**每次改动必须跑**）
 
@@ -140,6 +141,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_trans | 换调移调 6 项（含还原逐字节一致） |
 | tv_brace | 花括线跨度（两端落线） |
 | tv_staff / tv_piano / tv_combo | 五线谱/钢琴/联排基础回归 |
+| tv_mxl | MusicXML 导出：xmllint 校验/字段计数/小节时值和/音高拼写 |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -156,6 +158,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 五线谱深度打磨 | v36.5–v37.1 | 审计修正、**SMuFL/Bravura 字形引擎**、刻版规则（斜杠/整小节休止/小节号）、**系统头部出版标准**+中音谱表、行距音域扩展、五线谱+简谱行联排、标准花括线 |
 | 换调移调 | v37.2 | 和弦+品位自动移调 |
 | 八场景重构 | v37.3–v37.6 | 八类型体系、纯和弦谱、**钢琴弹唱织体生成（8套）**、**同列多音** |
+| P0 互操作 | v37.7 | **MusicXML 导出**（score-partwise 4.0，xmllint 校验+往返测试基座） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 

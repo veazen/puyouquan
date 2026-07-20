@@ -7217,6 +7217,101 @@ function exportPNG(scale){
   img.onerror = ()=>toast('图片导出失败，请改用打印');
   img.src = svg64;
 }
+/* ===== MusicXML 导出（P0-A）=====
+   song v3 → score-partwise 4.0。简谱是主数据：音高经 staffKeyInfo 音级/调号换算
+   拼写（与五线谱渲染同一套逻辑）。v1 范围：简谱/五线谱声部（音符+和音 adds、
+   附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复/终止线、
+   谱号按 voxNotations）。
+   TODO: TAB→独立part；grace/orn 装饰音；力度 dyn；三连音括线记号（时值已正确）；
+   钢琴双声部合并单 part 双谱表（当前导出为两个 part）。 */
+function xesc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function exportMusicXML(s){
+  s = s || song;
+  if(!(s.voxVoices||[]).length) return null;   // TAB-only 暂不支持（见 TODO）
+  const o0=song; song=s;
+  const K = staffKeyInfo();
+  const fifths = KEYSIG[s.key]!=null? KEYSIG[s.key] : 0;
+  const DIV=48, beatDiv = 192/(s.unit||4);     // divisions=48/四分音符：32分附点与三连音时值均为整数
+  const TYPE = {1:'whole',2:'half',4:'quarter',8:'eighth',16:'16th',32:'32nd'};
+  const L='CDEFGAB';
+  const pitchXML = (deg,acc,oct)=>{
+    const st = K.step0+(deg-1)+(oct||0)*7;
+    const li = ((st%7)+7)%7;
+    const alter = (K.alt[li]||0) + (acc==='#'?1 : acc==='b'?-1 : 0);
+    return `<pitch><step>${L[li]}</step>${alter? `<alter>${alter}</alter>`:''}<octave>${Math.floor(st/7)-1}</octave></pitch>`;
+  };
+  const clefXML = nt => nt==='bass'? '<clef><sign>F</sign><line>4</line></clef>'
+                    : nt==='alto'? '<clef><sign>C</sign><line>3</line></clef>'
+                    : '<clef><sign>G</sign><line>2</line></clef>';
+  const harmonyXML = name=>{
+    const m=/^([A-G])(#|b)?([^/]*)(?:\/([A-G])(#|b)?)?$/.exec((name||'').trim());
+    if(!m) return '';
+    let x = `<harmony><root><root-step>${m[1]}</root-step>${m[2]==='#'?'<root-alter>1</root-alter>':m[2]==='b'?'<root-alter>-1</root-alter>':''}</root>`;
+    x += `<kind text="${xesc(m[3]||'')}">${/^m(?!aj)/.test(m[3]||'')?'minor':'major'}</kind>`;
+    if(m[4]) x += `<bass><bass-step>${m[4]}</bass-step>${m[5]==='#'?'<bass-alter>1</bass-alter>':m[5]==='b'?'<bass-alter>-1</bass-alter>':''}</bass>`;
+    return x+'</harmony>';
+  };
+  const partList = (s.voxVoices||[]).map((vn,vi)=>
+    `<score-part id="P${vi+1}"><part-name>${xesc(vn)}</part-name></score-part>`).join('');
+  const parts = (s.voxVoices||[]).map((vn,vi)=>{
+    const nt=(s.voxNotations||[])[vi];
+    let tiePend=false, mm='';
+    s.measures.forEach((mea,mi)=>{
+      const cols = mea.voxes[vi]||[];
+      let body='';
+      if(mi===0){
+        body += `<attributes><divisions>${DIV}</divisions><key><fifths>${fifths}</fifths></key>`+
+          `<time><beats>${s.beats}</beats><beat-type>${s.unit}</beat-type></time>${clefXML(nt)}</attributes>`;
+        if(vi===0) body += `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit>`+
+          `<per-minute>${s.tempo||90}</per-minute></metronome></direction-type><sound tempo="${s.tempo||90}"/></direction>`;
+      }
+      if(mea.repeatStart) body += `<barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>`;
+      cols.forEach(col=>{
+        const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
+        const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
+        const dot = col.dotted? '<dot/>' : '';
+        const tmod = col.tup? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : '';
+        if(!col.deg){
+          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}</note>`;
+          tiePend = false;
+          return;
+        }
+        if(col.chord) body += harmonyXML(col.chord);
+        const tieStart = !!col.tie, tieStop = tiePend;
+        const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
+        const notat = (tieStart||tieStop)? `<notations>${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}</notations>` : '';
+        const lyr = (col.lyrics||[]).map((t2,li)=> t2&&t2.trim()?
+          `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
+        body += `<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${notat}${lyr}</note>`;
+        (col.adds||[]).forEach(a=>{ if(!a||!a.deg) return;
+          body += `<note><chord/>${pitchXML(a.deg,a.acc,a.oct)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}</note>`;
+        });
+        tiePend = tieStart;
+      });
+      if(mea.repeatEnd) body += `<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>`;
+      else if(mea.finalBar || mi===s.measures.length-1) body += `<barline location="right"><bar-style>light-heavy</bar-style></barline>`;
+      mm += `<measure number="${mi+1}">${body}</measure>`;
+    });
+    return `<part id="P${vi+1}">${mm}</part>`;
+  }).join('');
+  song=o0;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0"><work><work-title>${xesc(s.title||'未命名曲谱')}</work-title></work>`+
+`<identification>${s.composer?`<creator type="composer">${xesc(s.composer)}</creator>`:''}`+
+`${s.lyricist?`<creator type="lyricist">${xesc(s.lyricist)}</creator>`:''}`+
+`<encoding><software>谱友圈 puyouquan.com</software></encoding></identification>`+
+`<part-list>${partList}</part-list>${parts}</score-partwise>`;
+}
+function downloadMusicXML(){
+  const xml = exportMusicXML(song);
+  if(!xml){ toast('当前谱面只有 TAB 声部——MusicXML 导出暂支持简谱/五线谱声部（TAB 见路线图）'); return; }
+  const b=new Blob([xml],{type:'application/vnd.recordare.musicxml+xml'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download=(song.title||'曲谱')+'.musicxml'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('已导出 MusicXML（可在 MuseScore / Finale / Sibelius 打开）');
+}
 document.getElementById('b-print').onclick = ()=>{
   showModal(`<h3>打印 / 导出</h3>
     <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
@@ -7230,11 +7325,13 @@ document.getElementById('b-print').onclick = ()=>{
       </select></label>
     <div class="btns">
       <button id="ex-png">导出 PNG 图片</button>
+      <button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">导出 MusicXML</button>
       <button id="ex-cancel">取消</button>
       <button id="ex-print" class="primary">打印 / 存 PDF</button>
     </div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
+  document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); downloadMusicXML(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
     closeModal();
@@ -8289,6 +8386,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v37.7</span><div><b>MusicXML 导出</b>（P0·接入专业软件与 AI 转谱生态）：打印/导出弹窗新增「导出 MusicXML」——简谱/五线谱声部完整导出为标准 score-partwise 4.0（音高按调号拼写与五线谱渲染同源；含和音、附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复与终止线、各声部谱号），可直接在 MuseScore / Finale / Sibelius 打开继续编辑或印刷。TAB 声部导出列入路线图。</div></li>
     <li><span class="v">v37.6</span><div><b>同列多音（和音）</b>：一列可叠 1+3 个音——五线谱逐音绘制符头/加线/临时记号、二度音程自动左右翻转、<b>共用一根符干贯穿</b>（含符杠组）；简谱视图数字纵向叠置；播放同起同长发声；输入两种方式：面板<b>「和音」</b>按钮输唱名（自动向上排列）或五线谱 <b>Ctrl+点击</b>线/间直接加减。伴奏织体库补全柱式类：<b>柱式和弦、半分解、圆舞曲柱式</b>（织体库共 8 套），行距自动为和音扩展。</div></li>
     <li><span class="v">v37.5</span><div>🎹 <b>钢琴弹唱谱·伴奏织体</b>：右手谱表按拍标注和弦 → 顶栏「伴奏织体」选织体<b>一键生成双手伴奏</b>（抒情分解/流行八分琶音/阿尔贝蒂低音/低音行走/圆舞曲，4/4 与 3/4）——生成的是<b>可编辑真音符</b>，和弦标注/歌词/力度自动回填，小节内换和弦逐拍生效，可分范围重生成、Ctrl+Z 撤销，换调自动联动移调。大小三和弦自适应三音。</div></li>
     <li><span class="v">v37.4</span><div>🎼 <b>纯和弦谱</b>（功能谱新谱式）：小节格内按拍放和弦、每拍节奏斜线（出版和弦格惯例），小节格均匀排布；支持反复/段落/终止线与级数⇄音名切换，乐队排练一页纸。</div></li>
