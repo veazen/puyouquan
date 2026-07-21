@@ -241,6 +241,21 @@ input.short{width:54px} input.mid{width:150px}
   overflow:visible;border-bottom:none;background:transparent}
 #left-flyout .rg{width:100%}
 #left-flyout .rg .rg-body{max-width:none}
+/* v40.1 新版左轨六图层：图标+标签竖排按钮（图标经 data-ic 由 CSS 呈现，textContent 语义不变）；
+   小节/段落图层面板承接右栏「小节与段落」移入的原节点（经典版移回） */
+.lsep{display:none}
+.ltab.shell-only{display:none}
+body.shell #left-dock{flex-direction:row-reverse}
+body.shell #left-flyout{margin-right:0;margin-left:7px;width:262px}
+body.shell #left-rail{gap:5px}
+body.shell .ltab{writing-mode:horizontal-tb;text-orientation:mixed;display:flex;flex-direction:column;
+  align-items:center;gap:3px;letter-spacing:.02em;padding:8px 3px;font-size:10.5px;min-width:50px;border-radius:11px}
+body.shell .ltab::before{content:attr(data-ic);font-size:15px;font-weight:700;line-height:1.15}
+body.shell .ltab.shell-only{display:flex}
+body.shell .lsep{display:block;width:26px;height:1px;background:var(--border-soft);margin:3px auto}
+body.shell #rc-measec{display:none}
+#panel-mea-ops .sp-sec,#panel-sect-ops .sp-sec,#sect-host>#sp-more{width:100%}
+#panel-mea-ops .sp-sec,#panel-sect-ops #sp-more .sp-sec{margin:0 0 6px}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
@@ -997,12 +1012,25 @@ body.shell #hint{display:none}
         <button id="b-clearlyr">清空本段</button>
       </div>
     </div>
+    <!-- v40.1 新版图层：小节/段落（面板内容自右栏「小节与段落」整块移入，切回经典版时移回原位） -->
+    <div class="rg panel-p" id="panel-mea-ops">
+      <div class="rg-title">小节</div>
+      <div class="rg-body" id="mea-host"></div>
+    </div>
+    <div class="rg panel-p" id="panel-sect-ops">
+      <div class="rg-title">段落 · 反复 · 跳转</div>
+      <div class="rg-body" id="sect-host"></div>
+    </div>
       </div><!-- /#ribbon -->
     </div><!-- /#left-flyout -->
     <div id="left-rail">
-      <button class="ltab on" data-t="tab">吉他谱</button>
-      <button class="ltab" data-t="vox">简谱</button>
-      <button class="ltab" data-t="lyr">歌词</button>
+      <button class="ltab on" data-t="tab" data-ic="六">吉他谱</button>
+      <button class="ltab" data-t="vox" data-ic="简">简谱</button>
+      <button class="ltab" data-t="lyr" data-ic="词">歌词</button>
+      <button class="ltab shell-only" data-t="chord" data-ic="和" title="和弦层：输入 / 指法编辑 / 图示方式">和弦</button>
+      <div class="lsep"></div>
+      <button class="ltab shell-only" data-t="mea" data-ic="𝄀" title="小节：插入 / 删除">小节</button>
+      <button class="ltab shell-only" data-t="sect" data-ic="𝄆" title="段落：反复 / 跳转 / 分段线">段落</button>
     </div>
   </aside>
 
@@ -1014,10 +1042,10 @@ body.shell #hint{display:none}
       <button class="rc-h rc-btn" id="b-acctex" style="display:none" title="按已标注的和弦，用所选伴奏织体自动生成双手音符（可编辑、可逐段重生成）">伴奏织体</button>
       <button class="rc-h rc-btn" id="b-arrange" style="display:none" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（开新窗口，原谱不动）">智能配谱</button>
     </div>
-    <div class="rcard open">
+    <div class="rcard open" id="rc-measec">
       <button class="rc-h" type="button">小节与段落</button>
       <div class="rc-b">
-        <div class="sp-sec">
+        <div class="sp-sec" id="sp-mea">
           <div class="sp-t">小节</div>
           <div class="sp-grid">
             <button id="b-insmea" title="在当前小节后插入空白小节"><b>＋</b><span>插入小节</span></button>
@@ -2758,6 +2786,7 @@ function renderDock(){
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
     return el && el.style.display!=='none';
   });
+  if(uiShell) visible.push('chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这三页，自动回退）
   setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
 }
 function render(){
@@ -3984,8 +4013,18 @@ function setRibbon(t){
   { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = t==='tab'? '' : 'none'; }
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   const dt = song? docType(song) : 'guitar';
+  /* v40.1 新版图层页（和弦/小节/段落）：显式面板清单，不走 panel-<页>- 前缀匹配；
+     和弦层按谱类复用现有面板（有吉他声部→和弦输入面板，否则→级数和弦面板） */
+  const virt = t==='chord' ? ((song && song.tabVoices.length>0)? ['panel-tab-chord'] : ['panel-vox-fn'])
+             : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops'] : null;
   const spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
   document.querySelectorAll('.panel-p').forEach(el=>{
+    if(virt){
+      const i = virt.indexOf(el.id);
+      if(i<0){ el.style.display='none'; el.style.order=''; }
+      else { el.style.display=''; el.style.order=i; }
+      return;
+    }
     const onPage = el.id.startsWith('panel-'+t+'-');
     if(!onPage){ el.style.display='none'; return; }
     if(!spec){ el.style.display=''; el.style.order=''; return; }   // 歌词页等：全显、原序
@@ -3999,7 +4038,8 @@ function setRibbon(t){
     if(la && song && song.lyricLines>0) la.style.display='none'; }
   /* 编辑栏第二行按声部切换：吉他谱→演奏技巧，简谱→标识符号 */
   const ctx = document.getElementById('eb-ctx'), ctxT = document.getElementById('eb-ctx-t');
-  if(ctx && ebCtxFor!==t){
+  if(ctx && ebCtxFor!==t && !virt){   // v40.1 图层页（和弦/小节/段落）不清空第二行，保留最近的技法/记号
+
     ebCtxFor=t;
     if(t==='tab'){
       ctxT.textContent='演奏技巧';
@@ -7384,10 +7424,31 @@ document.getElementById('b-metro').onclick = ()=>{
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 /* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
 let uiShell = (localStorage.getItem('musetab-shell')||'new')!=='classic';
+/* v40.1 小节/段落内容在两种外壳间搬移（同一批节点，id 与事件保持）：
+   新版 → 左栏小节/段落图层面板；经典版 → 右栏「小节与段落」卡片原位 */
+function applyShellDock(){
+  const meaSec=document.getElementById('sp-mea'), more=document.getElementById('sp-more');
+  const meaHost=document.getElementById('mea-host'), sectHost=document.getElementById('sect-host');
+  const rcb=document.querySelector('#rc-measec .rc-b'), tog=document.getElementById('sp-toggle');
+  if(!meaSec||!more||!meaHost||!sectHost||!rcb||!tog) return;
+  if(uiShell){
+    meaHost.appendChild(meaSec);
+    sectHost.appendChild(more);
+    more.classList.remove('hidden');   // 图层面板内始终展开，无需折叠开关
+  }else{
+    rcb.insertBefore(meaSec, tog);
+    rcb.appendChild(more);
+    const openSp = localStorage.getItem('musetab-sp-open')==='1';
+    more.classList.toggle('hidden', !openSp);
+    const ar=document.getElementById('sp-arrow'); if(ar) ar.textContent = openSp? '▴':'▾';
+  }
+}
 function applyShell(){
   document.body.classList.toggle('shell', uiShell);
   const b=document.getElementById('b-shell');
   if(b) b.textContent = uiShell? '经典版' : '新版界面';
+  applyShellDock();
+  if(song) renderDock();   // 图层页集合随外壳变化：经典版无 和弦/小节/段落 页时自动回退
 }
 document.getElementById('b-shell').onclick = ()=>{
   uiShell = !uiShell;
@@ -9755,6 +9816,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.1</span><div><b>新版界面 · 阶段二：左侧六图层轨</b>（v5 设计稿路线）：左侧栏升级为<b>图标图层轨</b>——吉他谱 / 简谱 / 歌词 / <b>和弦</b> / <b>小节</b> / <b>段落</b> 六个图层按钮（图标+文字竖排，按谱类自动显隐与命名）。新增三个专属图层：<b>和弦层</b>（和弦输入/编辑指法/图示方式，谱类感知——简谱类曲谱显示级数和弦工具）、<b>小节层</b>（插入/删除小节）、<b>段落层</b>（反复/第一二段/D.C./D.S./Segno/Coda/段落线/终止线，全部展开直达不再折叠）——小节与段落工具从右栏移入左栏图层，右栏更专注于信息展示。切回「经典版」时布局与右栏「小节与段落」卡片完整还原。</div></li>
     <li><span class="v">v40.0</span><div><b>新版界面 · 阶段一</b>（按 v5 设计稿路线，配色保持现有蓝紫并现代化）：① <b>深色扁平顶栏与通栏播放条</b>——顶栏改深色扁平风、新增<b>快速换调 ♭/♯</b>（和弦与品位自动移调）；播放条从悬浮胶囊改为全宽深色底栏；② <b>护眼扁平化配色</b>——界面背景转暖降亮、阴影减半（谱面纸张保持纯白不受影响）；③ 工具行<b>「音符」组前置</b>到「时值」之前（同行排列）；④ 顶栏新增<b>「经典版」一键切换</b>——新旧界面随时互切并记住选择。后续阶段：左侧图层轨（六线谱/简谱/歌词/和弦/小节/段落）与右栏四页签。</div></li>
     <li><span class="v">v39.7</span><div><b>把位方案排版修正</b>：三张方案卡不再换行变形（右栏加宽+卡片紧凑化，标签超长省略号）；高把位库指法不再误标「开放」（如 Cm 3品横按改标「常用」）；创建器提示语精简为单行「点格新建 · 方案卡调整 · 顶部切 ×/○」。</div></li>
     <li><span class="v">v39.6</span><div><b>创建流引导 + CAGED 全把位</b>：① 创建和弦改为引导流——<b>点「＋创建和弦」→ 自定义名称 → 在空白和弦图上点格编辑 → 保存</b>（名称必填，点格重绘不丢已键入名称）；② 把位方案补齐 <b>CAGED 五型体系</b>（C/A/G/E/D 型把位，C 大调即「开放1品→A型3品→G型5品→E型8品→D型10品」），默认只显示前三个、<b>「更多 ▾」展开</b>其余，卡片标注起始品位；③ <b>主音 12 键单行等分显示</b>不再换行。</div></li>

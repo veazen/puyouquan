@@ -70,6 +70,70 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.standOn && r.standOff, 'T5 谱架兼容', '进=' + r.standOn + ' 出=' + r.standOff);
 
+  // T6 v40.1 六图层轨：新版显示 和弦/小节/段落 图层按钮，经典版隐藏
+  r = await pg.evaluate(() => {
+    const vis = k => { const el = document.querySelector('.ltab[data-t="' + k + '"]'); return el && el.offsetParent !== null; };
+    const shellOn = ['chord', 'mea', 'sect'].every(vis);
+    document.getElementById('b-shell').click();
+    const classicOff = ['chord', 'mea', 'sect'].every(k => !vis(k));
+    const classicBase = ['tab', 'vox', 'lyr'].every(vis);
+    document.getElementById('b-shell').click();
+    return { shellOn, classicOff, classicBase };
+  });
+  T(r.shellOn && r.classicOff && r.classicBase, 'T6 六图层轨显隐', '新版6层=' + r.shellOn + ' 经典3页=' + (r.classicOff && r.classicBase));
+
+  // T7 和弦层谱类感知：吉他谱→和弦输入面板；钢琴弹唱（无吉他声部）→级数和弦面板
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    document.querySelector('.ltab[data-t="chord"]').click();
+    const g = { active: activeTab,
+      chordPanel: document.getElementById('panel-tab-chord').style.display !== 'none',
+      strumHidden: document.getElementById('panel-tab-strum').style.display === 'none' };
+    render();   // 再渲染一次，图层页不被重置
+    g.kept = activeTab === 'chord';
+    loadSong(createSong('pianoacc', { beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }));
+    document.querySelector('.ltab[data-t="chord"]').click();
+    const p = { fnPanel: document.getElementById('panel-vox-fn').style.display !== 'none',
+      chordHidden: document.getElementById('panel-tab-chord').style.display === 'none' };
+    return { g, p };
+  });
+  T(r.g.active === 'chord' && r.g.chordPanel && r.g.strumHidden && r.g.kept && r.p.fnPanel && r.p.chordHidden,
+    'T7 和弦层谱类感知', '吉他=和弦面板 ' + r.g.chordPanel + ' 渲染保持=' + r.g.kept + ' 钢琴=级数面板 ' + r.p.fnPanel);
+
+  // T8 小节/段落层：右栏内容移入左栏图层且按钮真实生效
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    document.querySelector('.ltab[data-t="mea"]').click();
+    const ins = document.getElementById('b-insmea');
+    const inFly = !!ins.closest('#left-flyout');
+    const rcHidden = getComputedStyle(document.getElementById('rc-measec')).display === 'none';
+    const n0 = song.measures.length; ins.click();
+    const insWorks = song.measures.length === n0 + 1;
+    document.querySelector('.ltab[data-t="sect"]').click();
+    const rep = document.getElementById('b-rep-s');
+    const sectInFly = !!rep.closest('#left-flyout');
+    const expanded = !document.getElementById('sp-more').classList.contains('hidden');
+    sel.mi = 0; rep.click();
+    const repWorks = !!song.measures[0].repeatStart;
+    rep.click();   // 还原
+    mutate(() => { song.measures.pop(); });   // 还原小节数
+    return { inFly, rcHidden, insWorks, sectInFly, expanded, repWorks };
+  });
+  T(r.inFly && r.rcHidden && r.insWorks && r.sectInFly && r.expanded && r.repWorks,
+    'T8 小节/段落层', '移入左栏=' + (r.inFly && r.sectInFly) + ' 右卡隐藏=' + r.rcHidden + ' 插入/反复生效=' + (r.insWorks && r.repWorks));
+
+  // T9 经典版还原：小节/段落回右栏原位，图层页回退到基础页
+  r = await pg.evaluate(() => {
+    document.getElementById('b-shell').click();   // → 经典
+    const backIn = !!document.getElementById('sp-mea').closest('#rc-measec')
+      && !!document.getElementById('sp-more').closest('#rc-measec');
+    const rcShown = getComputedStyle(document.getElementById('rc-measec')).display !== 'none';
+    const fellBack = ['tab', 'vox', 'lyr'].includes(activeTab);
+    document.getElementById('b-shell').click();   // → 新版
+    return { backIn, rcShown, fellBack };
+  });
+  T(r.backIn && r.rcShown && r.fellBack, 'T9 经典版还原', '节点回位=' + r.backIn + ' 右卡显示=' + r.rcShown + ' 页面回退=' + r.fellBack);
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
