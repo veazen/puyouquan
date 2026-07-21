@@ -561,6 +561,9 @@ sup.chacc{font-size:82%;margin-right:1px}
 /* v39.6 主音 12 键单行等分 */
 .ce-roots{display:flex;flex-wrap:nowrap;gap:3px}
 .ce-roots .chip{flex:1;min-width:0;padding:6px 0;text-align:center;font-size:12px}
+/* v39.7 把位方案卡紧凑化：三张稳定单行不变形 */
+#ce-pos .pat-card{width:86px;min-width:0;margin:0;padding:5px 2px}
+#ce-pos .pat-card .bt{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:82px}
 #mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
   display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
 .mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
@@ -5250,9 +5253,9 @@ function positionVariants(){
   const vs=[];
   const posOf = sh=>{ const f=[...sh].map(ch=>ch==='x'?-1:parseInt(ch,36)).filter(v=>v>0); return f.length? Math.min(...f) : 0; };
   const add=(label,shape)=>{ if(shape && !vs.some(v=>v.shape===shape)) vs.push({label, shape, pos:posOf(shape)}); };
-  /* "开放"取标准库原始指法（不经 customChords 覆盖，保证能选回库图） */
+  /* 标准库原始指法（不经 customChords 覆盖，保证能选回库图）；高把位库指法不叫"开放" */
   const open = instOf()==='uku'? UKU_SHAPES[ceState.root+q] : CHORD_SHAPES[ceState.root+q];
-  add('开放', open);
+  add(open && posOf(open)>1? '常用' : '开放', open);
   if(instOf()==='uku'){
     /* v39.0 尤克里里用 4 弦通用推导，不再误用吉他 6 弦模板 */
     const iv=QUAL_INTERVALS[q];
@@ -5351,10 +5354,10 @@ function renderChordEditor(){
         <div class="row"><button id="ce-create" class="primary">＋ 创建和弦</button></div>
         <div style="font-size:11px;color:var(--muted);margin-top:5px">点击后：自定义名称 → 在空白和弦图上点格编辑 → 保存（随本谱携带与分享）。</div>`}
       </div>
-      <div style="width:252px;flex:none;text-align:center">
+      <div style="width:282px;flex:none;text-align:center">
         <div style="font-size:17px;margin:0 0 2px"><b>${chordHtmlLabel(ceName())}</b></div>
         <div style="display:flex;justify-content:center">${cdg}</div>
-        <div style="font-size:10.5px;color:var(--muted);margin:1px 0 5px">直接点格＝从空白新建 · 点方案卡＝在其上调整 · 顶部切 ×/○</div>
+        <div style="font-size:10.5px;color:var(--muted);margin:1px 0 5px;white-space:nowrap">点格新建 · 方案卡调整 · 顶部切 ×/○</div>
         <div class="row" style="display:flex;justify-content:center;align-items:center;gap:7px;margin-bottom:8px">
           <span style="font-size:11.5px;color:var(--muted)">把位</span>
           <input id="ce-base" type="number" min="1" max="12" value="${cdBase}" style="width:50px;text-align:center" title="直接输入起始品位 1-12">
@@ -9697,6 +9700,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.7</span><div><b>把位方案排版修正</b>：三张方案卡不再换行变形（右栏加宽+卡片紧凑化，标签超长省略号）；高把位库指法不再误标「开放」（如 Cm 3品横按改标「常用」）；创建器提示语精简为单行「点格新建 · 方案卡调整 · 顶部切 ×/○」。</div></li>
     <li><span class="v">v39.6</span><div><b>创建流引导 + CAGED 全把位</b>：① 创建和弦改为引导流——<b>点「＋创建和弦」→ 自定义名称 → 在空白和弦图上点格编辑 → 保存</b>（名称必填，点格重绘不丢已键入名称）；② 把位方案补齐 <b>CAGED 五型体系</b>（C/A/G/E/D 型把位，C 大调即「开放1品→A型3品→G型5品→E型8品→D型10品」），默认只显示前三个、<b>「更多 ▾」展开</b>其余，卡片标注起始品位；③ <b>主音 12 键单行等分显示</b>不再换行。</div></li>
     <li><span class="v">v39.5</span><div><b>创建和弦收口 + 常用指法修正</b>：① 「我的和弦」区改为<b>「创建和弦」</b>——点格创建 → 命名 → 一键保存（随本谱携带与分享），移除本机用户和弦库；② <b>修正默认 C 等常用和弦被顶掉的问题</b>——历史用户和弦库残留数据不再覆盖标准指法库，C 恢复 x32010 标准按法；③ 把位方案<b>从低到高排序</b>并新增 <b>4弦根音 D 型</b>——常用和弦现有「开放/A型/E型/D型」最多四种把位可选。</div></li>
     <li><span class="v">v39.4</span><div><b>创建体验修正</b>：① 用户创建和弦时<b>从空白和弦图开始</b>——直接点格即全新创建，不再在当前和弦指法基础上调整（想改现有指法：先点「把位方案」卡载入底稿再编辑）；把位数字可先填后点格，空白高把位创建一步到位；② 修复<b>把位 ≥10 时</b>把位方案小卡上的数字显示不全（两位数缩字号右靠，几何断言保证不裁切）。</div></li>
