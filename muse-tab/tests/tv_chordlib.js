@@ -17,7 +17,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     for (const qual in CHORD_TEMPLATES) {
       const iv = QUAL_INTERVALS[qual];
       if (!iv) { bad.push(qual + ':无音程表'); continue; }
-      for (const form of ['E', 'A']) {
+      for (const form of ['E', 'A', 'D']) {
         if (!CHORD_TEMPLATES[qual][form]) continue;
         for (let root = 0; root < 12; root++) {
           const sh = movableShape(root, qual, form);
@@ -219,6 +219,26 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { ok: true, num, x, fs, leftEdge, fits: leftEdge >= 0 };
   });
   T(r.ok && r.num === '10' && r.fits, 'T13 两位数把位不裁切', '把位=' + r.num + ' 左缘=' + (r.leftEdge != null && r.leftEdge.toFixed(1)));
+
+  // T14 v39.5：用户和弦库停用（残留数据不再顶掉标准 C）+ 创建和弦按钮 + 把位方案低→高排序含D型
+  r = await pg.evaluate(() => {
+    localStorage.setItem('musetab-userchords', JSON.stringify({C: '8aa988'}));   // 模拟历史残留
+    loadSong(PRESETS[0].make());
+    const cStd = chordShape('C') === 'x32010';
+    showChordEditor(0, 0, 0);
+    const noUser = !document.getElementById('ce-saveuser') && !document.querySelector('[data-ucl]');
+    const createBtn = document.getElementById('ce-savecustom');
+    const isCreate = createBtn && createBtn.textContent === '创建和弦';
+    const vs = positionVariants();
+    const sorted = vs.every((v, i) => i === 0 || vs[i-1].pos <= v.pos);
+    const hasD = vs.some(v => v.label.includes('D型'));
+    document.getElementById('ce-cancel').click();
+    localStorage.removeItem('musetab-userchords');
+    return { cStd, noUser, isCreate, n: vs.length, sorted, hasD,
+      order: vs.map(v => v.label + '@' + v.pos).join(' ') };
+  });
+  T(r.cStd && r.noUser && r.isCreate && r.sorted && r.hasD && r.n >= 4,
+    'T14 创建和弦/排序/标准C修正', 'C标准=' + r.cStd + ' 方案=' + r.order);
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

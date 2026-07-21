@@ -1460,14 +1460,12 @@ function vcDispW(chord){
   return 13 + [...disp].reduce((a,ch)=>a+(/[\/#b1ilj.]/.test(ch)?5.5:8),0);
 }
 /* 用户和弦库（全局，跨曲谱可用）：指板自选创建后保存于本机 */
-const USERCH_KEY='musetab-userchords';
-function userChords(){ try{ return JSON.parse(localStorage.getItem(USERCH_KEY))||{}; }catch(_){ return {}; } }
-function userChordsSave(o){ try{ localStorage.setItem(USERCH_KEY, JSON.stringify(o)); }catch(_){} }
+/* v39.5 用户和弦库（musetab-userchords）已停用：不再读写，历史数据原样保留在本机不清除 */
 function chordShape(n){
   if(!n) return null;
+  /* v39.5 移除用户和弦库查找：本机残留的 userchords 条目曾把标准 C 等常用指法顶掉；
+     覆盖语义只保留「本谱 customChords」一层，标准库恢复权威 */
   if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
-  const uc=userChords();
-  if(uc[n] && uc[n].length===strN()) return uc[n];
   /* 1) 人工精修库优先（开放把位手感最好） 2) 未命中 → 可移调模板推导 3) 再兜底通用搜索
      —— 12 根音 × 20+ 类型 × 任意斜杠低音全覆盖（v39.0） */
   const uku = instOf()==='uku';
@@ -1492,17 +1490,17 @@ const OPEN_PC = [4,11,7,2,9,4];   // 1..6 弦空弦音高 pc（E B G D A E）
    12 根音自动推导——取代逐根音硬编码扩容。null=闷音，数字=相对把位起始品的偏移。
    与 QUAL_INTERVALS 用同一份 qual 口径；某型不适合的类型置 null（如 dim7 无 A 型）。 */
 const CHORD_TEMPLATES = {
-  '':    { E:[0,2,2,1,0,0],           A:[null,0,2,2,2,0] },
-  'm':   { E:[0,2,2,0,0,0],           A:[null,0,2,2,1,0] },
-  '7':   { E:[0,2,0,1,0,0],           A:[null,0,2,0,2,0] },
-  'maj7':{ E:[0,2,1,1,0,0],           A:[null,0,2,1,2,0] },
-  'm7':  { E:[0,2,0,0,0,0],           A:[null,0,2,0,1,0] },
+  '':    { E:[0,2,2,1,0,0],           A:[null,0,2,2,2,0],  D:[null,null,0,2,3,2] },
+  'm':   { E:[0,2,2,0,0,0],           A:[null,0,2,2,1,0],  D:[null,null,0,2,3,1] },
+  '7':   { E:[0,2,0,1,0,0],           A:[null,0,2,0,2,0],  D:[null,null,0,2,1,2] },
+  'maj7':{ E:[0,2,1,1,0,0],           A:[null,0,2,1,2,0],  D:[null,null,0,2,2,2] },
+  'm7':  { E:[0,2,0,0,0,0],           A:[null,0,2,0,1,0],  D:[null,null,0,2,1,1] },
   'dim': { E:[0,1,2,0,null,null],     A:[null,0,1,2,1,null] },
   'dim7':{ E:[0,1,2,0,2,null],        A:null },
   'm7b5':{ E:[0,1,0,0,null,null],     A:[null,0,1,0,1,null] },
   'aug': { E:[0,null,2,1,1,0],        A:[null,0,3,2,2,null] },
-  'sus2':{ E:[0,2,2,null,0,2],        A:[null,0,2,2,0,0] },
-  'sus4':{ E:[0,2,2,2,0,0],           A:[null,0,2,2,3,0] },
+  'sus2':{ E:[0,2,2,null,0,2],        A:[null,0,2,2,0,0],  D:[null,null,0,2,3,0] },
+  'sus4':{ E:[0,2,2,2,0,0],           A:[null,0,2,2,3,0],  D:[null,null,0,2,3,3] },
   '7sus4':{E:[0,2,0,2,0,0],           A:[null,0,2,0,3,0] },
   '6':   { E:[0,2,2,1,2,0],           A:[null,0,2,2,2,2] },
   'm6':  { E:[0,2,2,0,2,0],           A:[null,0,2,2,1,2] },
@@ -1520,7 +1518,7 @@ const FRET_36 = n=> n>9? n.toString(36) : ''+n;   // 10→a…（36进制品位�
 function movableShape(rootPc, qual, form){
   const tpl = CHORD_TEMPLATES[qual] && CHORD_TEMPLATES[qual][form];
   if(!tpl) return null;
-  const openPc = form==='E'? OPEN_PC[5] : OPEN_PC[4];      // 6弦E / 5弦A
+  const openPc = form==='E'? OPEN_PC[5] : form==='A'? OPEN_PC[4] : OPEN_PC[3];   // 6弦E / 5弦A / 4弦D
   const f = ((rootPc-openPc)%12+12)%12;
   const base = f===0? 12 : f;                              // 根音在空弦时上移一个八度把位，避免与开放和弦重复
   return tpl.map(o=> o==null? 'x' : FRET_36(base+o)).join('');
@@ -5236,19 +5234,22 @@ function ceShape(){
 function positionVariants(){
   const r = NOTE_PC[ceState.root], q = ceState.qual;
   const vs=[];
+  const posOf = sh=>{ const f=[...sh].map(ch=>ch==='x'?-1:parseInt(ch,36)).filter(v=>v>0); return f.length? Math.min(...f) : 0; };
+  const add=(label,shape)=>{ if(shape && !vs.some(v=>v.shape===shape)) vs.push({label, shape, pos:posOf(shape)}); };
   /* "开放"取标准库原始指法（不经 customChords 覆盖，保证能选回库图） */
   const open = instOf()==='uku'? UKU_SHAPES[ceState.root+q] : CHORD_SHAPES[ceState.root+q];
-  if(open) vs.push({label:'开放', shape:open});
+  add('开放', open);
   if(instOf()==='uku'){
     /* v39.0 尤克里里用 4 弦通用推导，不再误用吉他 6 弦模板 */
-    const iv=QUAL_INTERVALS[q], a=iv? algoShape(UKU_OPEN_PC, r, iv) : null;
-    if(a && a!==open) vs.push({label:'推导', shape:a});
+    const iv=QUAL_INTERVALS[q];
+    add('推导', iv? algoShape(UKU_OPEN_PC, r, iv) : null);
   }else{
-    const e=movableShape(r,q,'E'); if(e) vs.push({label:'6弦根音(E型)', shape:e});
-    const a=movableShape(r,q,'A'); if(a) vs.push({label:'5弦根音(A型)', shape:a});
+    /* v39.5 三种根音弦把位型全给出，按把位从低到高排序 */
+    add('6弦根音(E型)', movableShape(r,q,'E'));
+    add('5弦根音(A型)', movableShape(r,q,'A'));
+    add('4弦根音(D型)', movableShape(r,q,'D'));
   }
-  const uc=userChords()[ceState.root+q];
-  if(uc && uc.length===strN()) vs.push({label:'用户', shape:uc});
+  vs.sort((a,b)=>a.pos-b.pos);
   return vs;
 }
 /* v39.0 和弦试听：按指法从低音弦到高音弦琶音（与主播放同一音色引擎） */
@@ -5311,9 +5312,6 @@ function renderChordEditor(){
       cdg+=`<rect class="cdgc" data-cdc="${i}:${r2}" x="${sx-CDW/2+2}" y="${CDY+r2*CDH+2}" width="${CDW-4}" height="${CDH-4}" rx="4" fill="transparent"><title>${SN-i}弦 ${cdBase+r2}品（再点取消）</title></rect>`;
   }
   cdg+='</svg>';
-  const uc = userChords();
-  const ucChips = Object.keys(uc).filter(k=>uc[k].length===SN).map(k=>
-    `<span class="chip" style="display:inline-flex;align-items:center;gap:4px"><a data-ucl="${esc(k)}" style="cursor:pointer">${esc(k)}</a><a data-ucx="${esc(k)}" title="删除" style="cursor:pointer;opacity:.55">✕</a></span>`).join('') || '<span style="font-size:11.5px;color:var(--muted)">还没有用户和弦——在上方指板自选音符后点「存为用户和弦」</span>';
   /* v39.2 单页布局：左列选主音/性质/转位/保存，右列=可编辑和弦图（创建器兼预览）+把位方案，无滚动 */
   showModal(`<h3>编辑和弦</h3>
     <div style="display:flex;gap:18px;flex-wrap:wrap">
@@ -5321,13 +5319,12 @@ function renderChordEditor(){
         <h4>主音</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${rootBtns}</div>
         <h4>和弦性质</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
         <h4>转位 / 低音（Slash）</h4><select id="ce-bass">${bassOpts}</select>
-        <div class="row" style="margin-top:12px;display:flex;gap:6px;align-items:center">
-          <input id="ce-name" value="${esc(ceName())}" title="和弦名称（可自定义，如 Cadd9/G 或 我的C）" style="width:110px">
-          <button id="ce-saveuser">存为用户和弦</button>
-          <button id="ce-savecustom" title="仅保存到当前曲谱的随谱指法表">存入本谱</button>
+        <h4>创建和弦</h4>
+        <div class="row" style="display:flex;gap:6px;align-items:center">
+          <input id="ce-name" value="${esc(ceName())}" title="和弦名称（可自定义，如 Cadd9/G 或 我的C）" style="width:120px">
+          <button id="ce-savecustom" class="primary" title="把右侧和弦图创建的指法以此名称保存到本谱，谱面与和弦输入即可使用">创建和弦</button>
         </div>
-        <h4>我的和弦（本机通用，点击载入）</h4>
-        <div class="row" style="display:flex;flex-wrap:wrap;gap:5px">${ucChips}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">在右侧和弦图上点格创建指法 → 命名 → 创建和弦；随本谱保存与分享。</div>
       </div>
       <div style="width:252px;flex:none;text-align:center">
         <div style="font-size:17px;margin:0 0 2px"><b>${chordHtmlLabel(ceName())}</b></div>
@@ -5368,10 +5365,6 @@ function renderChordEditor(){
       arr[i] = arr[i]===enc? 'x' : enc;                            // 同格再点=取消该弦
       ceState.custom=arr.join(''); rerender(); return;
     }
-    const ul=ev.target.closest('[data-ucl]');
-    if(ul){ const k=ul.dataset.ucl; ceState.custom=userChords()[k]; ceState.cname=k; ceState.cdBase=null; rerender(); return; }
-    const ux=ev.target.closest('[data-ucx]');
-    if(ux){ const o=userChords(); delete o[ux.dataset.ucx]; userChordsSave(o); toast('已删除用户和弦'); rerender(); return; }
   });
   document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; ceState.cdBase=null; rerender(); });
   /* v39.3 把位直接输入数字（1-12）；v39.4 只移窗不固化指法，空白创建可先定把位再点格 */
@@ -5385,18 +5378,13 @@ function renderChordEditor(){
     ceState.cname = nameInp.value.trim() || null;
     const pv=document.querySelector('.modal b'); if(pv) pv.innerHTML=chordHtmlLabel(ceName());
   });
-  document.getElementById('ce-saveuser').onclick = ()=>{
+  /* v39.5 创建和弦：命名后保存到本谱（随谱携带与分享，谱面/和弦输入即可用） */
+  document.getElementById('ce-savecustom').onclick = ()=>{
     ceState.cname = (nameInp&&nameInp.value.trim()) || ceState.cname || null;
     const nm = ceName(), sh2 = ceShape();
-    if(!sh2 || !/[0-9a-w]/.test(sh2)) return toast('请先在指板上选择至少一个音符');
-    const o=userChords(); o[nm]=sh2; userChordsSave(o);
-    toast('已存为用户和弦：'+nm+'（本机所有曲谱可用）');
-    closeModal(); renderChordEditor();
-  };
-  document.getElementById('ce-savecustom').onclick = ()=>{
-    const nm = ceName();
-    mutate(()=>{ song.customChords[nm]=ceShape(); });
-    toast('已存入本谱指法：'+nm);
+    if(!sh2 || !/[0-9a-w]/.test(sh2)) return toast('请先在右侧和弦图上点格创建至少一个音符');
+    mutate(()=>{ song.customChords[nm]=sh2; });
+    toast('已创建和弦：'+nm+'（随本谱保存，可在和弦输入中直接使用）');
   };
   document.getElementById('ce-cancel').onclick = closeModal;
   document.getElementById('ce-ok').onclick = ()=>{
@@ -6205,7 +6193,6 @@ function rebuildChordList(){
   diatonicChords().forEach(add);                                   // 当前调内 7 级
   (song && song.chordRecent||[]).forEach(add);                     // 最近使用
   song && Object.keys(song.customChords||{}).forEach(add);         // 本谱自定义
-  Object.keys(userChords()).forEach(add);                          // 本机用户和弦
   Object.keys(instOf()==='uku'? UKU_SHAPES : CHORD_SHAPES).forEach(add);   // 精修库
   const SUFS=['','m','7','maj7','m7','sus4','add9','dim','9'];     // 模板全根音组合（常用9类，避免列表过长）
   ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'].forEach(rt=>SUFS.forEach(sf=>add(rt+sf)));
@@ -9664,6 +9651,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.5</span><div><b>创建和弦收口 + 常用指法修正</b>：① 「我的和弦」区改为<b>「创建和弦」</b>——点格创建 → 命名 → 一键保存（随本谱携带与分享），移除本机用户和弦库；② <b>修正默认 C 等常用和弦被顶掉的问题</b>——历史用户和弦库残留数据不再覆盖标准指法库，C 恢复 x32010 标准按法；③ 把位方案<b>从低到高排序</b>并新增 <b>4弦根音 D 型</b>——常用和弦现有「开放/A型/E型/D型」最多四种把位可选。</div></li>
     <li><span class="v">v39.4</span><div><b>创建体验修正</b>：① 用户创建和弦时<b>从空白和弦图开始</b>——直接点格即全新创建，不再在当前和弦指法基础上调整（想改现有指法：先点「把位方案」卡载入底稿再编辑）；把位数字可先填后点格，空白高把位创建一步到位；② 修复<b>把位 ≥10 时</b>把位方案小卡上的数字显示不全（两位数缩字号右靠，几何断言保证不裁切）。</div></li>
     <li><span class="v">v39.3</span><div><b>和弦细节打磨</b>：① 创建器的「把位」由 −/＋ 步进改为<b>直接输入数字</b>（1–12），高把位一步到位；② 主音左上角的<b>升降号放大</b>（谱面/和弦图/弹窗全线，约为主音字号八成），投影和打印下更清晰。</div></li>
     <li><span class="v">v39.2</span><div><b>和弦弹窗单页化</b>：编辑和弦重排为紧凑双栏、<b>一屏放下无滚动</b>——左列「主音（原根音）/和弦性质/转位低音/命名保存/我的和弦」，右列大号<b>可编辑和弦图</b>（创建器兼预览，名称升降号左上角显示）+ 把位调节/试听 + 把位方案卡；按需求移除「和弦名直达」「调内常用」条与「自定义指法」文本行，创建统一走和弦图点格。</div></li>
