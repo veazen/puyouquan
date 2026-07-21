@@ -236,6 +236,35 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(narrowFixed && r.bar2Shown && r.techInBar2,
     'T15 窄屏浮层+经典还原', '窄屏fixed=' + narrowFixed + ' 经典二行=' + (r.bar2Shown && r.techInBar2));
 
+  // T16 v40.4 通栏应用框架：左右贴边全高列、制版台内部滚动、轨上新建/帮助、经典版还原
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    const ld = document.getElementById('left-dock').getBoundingClientRect();
+    const rd = document.getElementById('right-dock').getBoundingClientRect();
+    const sw = document.getElementById('score-wrap');
+    const bodyClipped = getComputedStyle(document.body).overflow === 'hidden';
+    const flushL = ld.left <= 1, flushR = Math.abs(rd.right - innerWidth) <= 1;
+    const fullCol = ld.height > innerHeight * 0.6 && rd.height > innerHeight * 0.6;
+    const innerScroll = getComputedStyle(sw).overflowY === 'auto' && sw.scrollHeight > sw.clientHeight;
+    sw.scrollTop = 180; const scrolled = sw.scrollTop > 100; sw.scrollTop = 0;
+    const railNew = document.querySelector('.ltab[data-act="new"]');
+    railNew.click();
+    const wizOpen = !!document.querySelector('.modal-mask') || !!document.getElementById('nw-cancel');
+    const cancel = document.getElementById('nw-cancel'); if (cancel) cancel.click();
+    document.getElementById('b-shell').click();   // → 经典
+    const back = {
+      bodyScroll: getComputedStyle(document.body).overflow !== 'hidden',
+      centered: document.getElementById('left-dock').getBoundingClientRect().left > 1,
+      actHidden: document.querySelector('.ltab[data-act="new"]').offsetParent === null
+    };
+    document.getElementById('b-shell').click();   // → 新版
+    return { bodyClipped, flushL, flushR, fullCol, innerScroll, scrolled, wizOpen, back };
+  });
+  T(r.bodyClipped && r.flushL && r.flushR && r.fullCol && r.innerScroll && r.scrolled && r.wizOpen
+    && r.back.bodyScroll && r.back.centered && r.back.actHidden,
+    'T16 通栏应用框架', '贴边=' + (r.flushL && r.flushR) + ' 内滚=' + (r.innerScroll && r.scrolled)
+    + ' 轨新建=' + r.wizOpen + ' 经典还原=' + JSON.stringify(r.back));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

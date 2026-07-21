@@ -284,9 +284,37 @@ body.shell #editbar2{display:none}
 body.shell #doc-tabs{padding:6px 14px 0}
 body.shell .dtab{box-shadow:none}
 body.shell .dtab.on{box-shadow:none}
+/* v40.4 新版通栏应用框架（按 v5 设计稿）：左轨/面板贴左缘、右栏贴右缘、全高列，
+   制版台内部滚动（#score-wrap）；谱架/观看模式仍走整页窗口滚动，不套用此框架 */
+body.shell:not(.stand):not(.viewer){height:100vh;overflow:hidden;display:flex;flex-direction:column;
+  padding-bottom:0}   /* 底部预留改由 #stage 的 margin 承担（列高贴到播放条上缘） */
+body.shell:not(.stand):not(.viewer) #stage{flex:1;min-height:0;width:100%;max-width:none;
+  margin:0 0 52px;padding:0;gap:0;align-items:stretch;justify-content:flex-start}
+body.shell:not(.stand):not(.viewer) #left-dock{position:static;align-self:stretch;z-index:6;
+  background:var(--toolbar);border-right:1px solid var(--border-soft);padding:10px 0 10px 8px}
+body.shell:not(.stand):not(.viewer) #left-rail{height:100%;overflow-y:auto;padding-right:8px}
+body.shell:not(.stand):not(.viewer) #left-flyout{height:100%;max-height:none;border-radius:0;
+  border:none;border-left:1px solid var(--border-soft);box-shadow:none;overflow-y:auto;
+  margin:-10px 0 -10px 0;padding:10px 0;background:var(--panel)}
+body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;max-width:none;min-width:0;
+  overflow-y:auto;padding:16px 22px 46px}
+body.shell:not(.stand):not(.viewer) #paper{margin:0 auto;max-width:900px}
+body.shell:not(.stand):not(.viewer) #right-dock{position:static;align-self:stretch;height:auto;
+  width:254px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
+  padding:10px 9px}
+.lgrow{display:none}
+body.shell .lgrow{display:block;flex:1}
+body.shell .ltab[data-act="new"]{background:var(--accent);color:#fff;border-color:transparent}
+body.shell .ltab[data-act="new"]:hover{filter:brightness(1.07)}
+@media print{
+  body.shell{display:block;height:auto;overflow:visible}
+  body.shell #stage{margin:0}
+  body.shell #score-wrap{overflow:visible;height:auto;padding:0}
+}
 @media(max-width:1180px){
-  body.shell #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;width:262px;max-height:none;
-    overflow-y:auto;z-index:40;box-shadow:var(--shadow);margin-left:0}
+  body.shell:not(.stand):not(.viewer) #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;
+    width:262px;height:auto;max-height:none;overflow-y:auto;z-index:40;box-shadow:var(--shadow);
+    margin:0;border:1px solid var(--border-soft);border-radius:14px}
 }
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
@@ -1065,6 +1093,8 @@ body.shell #hint{display:none}
       </div><!-- /#ribbon -->
     </div><!-- /#left-flyout -->
     <div id="left-rail">
+      <button class="ltab shell-only" data-act="new" data-ic="＋" title="新建曲谱 · 八场景选谱类">新建</button>
+      <div class="lsep"></div>
       <button class="ltab on" data-t="tab" data-ic="六">吉他谱</button>
       <button class="ltab" data-t="vox" data-ic="简">简谱</button>
       <button class="ltab" data-t="lyr" data-ic="词">歌词</button>
@@ -1072,6 +1102,8 @@ body.shell #hint{display:none}
       <div class="lsep"></div>
       <button class="ltab shell-only" data-t="mea" data-ic="𝄀" title="小节：插入 / 删除">小节</button>
       <button class="ltab shell-only" data-t="sect" data-ic="𝄆" title="段落：反复 / 跳转 / 分段线">段落</button>
+      <div class="lgrow"></div>
+      <button class="ltab shell-only" data-act="help" data-ic="?" title="使用帮助与快捷键">帮助</button>
     </div>
   </aside>
 
@@ -5079,6 +5111,12 @@ function openFlyout(t){
 }
 function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
 document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
+  /* v40.4 轨上动作按钮（新建/帮助）：委托既有入口，不参与图层切换 */
+  if(b.dataset.act){
+    const go={new:'b-new', help:'b-help'}[b.dataset.act];
+    if(go) document.getElementById(go).click();
+    return;
+  }
   const fly = document.getElementById('left-flyout');
   const isOpen = !fly.classList.contains('hidden');
   if(isOpen && activeTab===b.dataset.t){ closeFlyout(); }
@@ -6450,8 +6488,10 @@ document.getElementById('err-drop').addEventListener('click', e=>{
   if(b){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
-    const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
-    window.scrollTo({top:y-200, behavior:'smooth'});
+    const vy = svg.getBoundingClientRect().top+b.y*scale;   // 视口坐标
+    const sc = scoreScroller();
+    if(sc) sc.scrollTo({top:sc.scrollTop+vy-200, behavior:'smooth'});
+    else window.scrollTo({top:vy+window.scrollY-200, behavior:'smooth'});
   }
 });
 
@@ -7476,9 +7516,12 @@ function highlight(prefix,mi,ci){
   if(ci===0){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
-    const y = svg.getBoundingClientRect().top+window.scrollY+b.y*scale;
-    if(y > window.scrollY+window.innerHeight-280 || y < window.scrollY+150)
-      window.scrollTo({top:y-220, behavior:'smooth'});
+    const vy = svg.getBoundingClientRect().top+b.y*scale;   // 视口坐标（两种滚动模式通用）
+    if(vy > window.innerHeight-280 || vy < 150){
+      const sc = scoreScroller();
+      if(sc) sc.scrollTo({top:sc.scrollTop+vy-220, behavior:'smooth'});
+      else window.scrollTo({top:vy+window.scrollY-220, behavior:'smooth'});
+    }
   }
 }
 function stopPlay(){
@@ -7520,6 +7563,12 @@ document.getElementById('b-metro').onclick = ()=>{
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 /* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
 let uiShell = (localStorage.getItem('musetab-shell')||'new')!=='classic';
+/* v40.4 滚动器感知：新版通栏框架下制版台内部滚动（#score-wrap），经典/谱架/观看仍走窗口滚动 */
+function scoreScroller(){
+  const c=document.body.classList;
+  return (c.contains('shell') && !c.contains('stand') && !c.contains('viewer'))
+    ? document.getElementById('score-wrap') : null;
+}
 /* v40.1 小节/段落内容在两种外壳间搬移（同一批节点，id 与事件保持）：
    新版 → 左栏小节/段落图层面板；经典版 → 右栏「小节与段落」卡片原位 */
 function applyShellDock(){
@@ -9950,6 +9999,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.4</span><div><b>新版界面 · 通栏应用框架</b>（按 v5 设计稿贴边布局）：新版下整个编辑器改为<b>全屏应用网格</b>——左侧图层轨与功能面板<b>贴左缘</b>、右栏四页签<b>贴右缘</b>，均为全高列（各自独立滚动），中间制版台<b>内部滚动</b>（顶栏/工具行/播放条常驻不动，只有谱面滚动）；播放跟随与节拍错误跳转自动适配新滚动模型。左轨新增「＋新建」（顶部，直达八场景向导）与「?帮助」（底部）。谱架/观看/打印模式不受影响仍为整页滚动；「经典版」一键切回原居中布局。</div></li>
     <li><span class="v">v40.3</span><div><b>新版界面 · 阶段四收尾：工具行单行化</b>（v5 设计稿主体完工）：① 编辑工具收为<b>单行</b>——演奏技巧（滑弦/击勾/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音）并入左栏<b>吉他谱图层</b>、标识符号（倚音/波音/颤音/回音/力度）并入<b>简谱图层</b>，跟在「音符记号」面板后，编辑栏更清爽；② <b>窄屏适配</b>——窗口较窄时左栏面板自动转为浮层（图层轨保持常驻，点图层弹出面板不再挤压谱面）；③ 文档标签页扁平化微调。切回「经典版」时技法/记号回到编辑栏第二行。至此 v5 新版界面四阶段全部落地：深色外壳 → 左轨六图层 → 右栏四页签 → 单行工具行。</div></li>
     <li><span class="v">v40.2</span><div><b>新版界面 · 阶段三：右栏四页签</b>（v5 设计稿路线）：右侧栏重组为 <b>信息 / 排版 / 库 / 智能</b> 四个页签——① <b>信息页</b>：曲谱信息、光标位置、节拍检查、帮助/特色/更新日志；② <b>排版页</b>：排版面板从浮层<b>常驻停靠</b>右栏（纸张 A5/A4/A3、智能疏密、缩放/行距/间距滑杆实时生效），顶栏「排版」按钮直达；③ <b>库页</b>：节奏型库、编辑/创建和弦、伴奏织体一站直达；④ <b>智能页</b>：一键配和弦、一键配伴奏、智能填词、哼唱成谱、导入 MusicXML/MIDI 按谱类智能显隐、一键进入对应工作流。切回「经典版」时右栏卡片布局与排版浮层行为完整还原。</div></li>
     <li><span class="v">v40.1</span><div><b>新版界面 · 阶段二：左侧六图层轨</b>（v5 设计稿路线）：左侧栏升级为<b>图标图层轨</b>——吉他谱 / 简谱 / 歌词 / <b>和弦</b> / <b>小节</b> / <b>段落</b> 六个图层按钮（图标+文字竖排，按谱类自动显隐与命名）。新增三个专属图层：<b>和弦层</b>（和弦输入/编辑指法/图示方式，谱类感知——简谱类曲谱显示级数和弦工具）、<b>小节层</b>（插入/删除小节）、<b>段落层</b>（反复/第一二段/D.C./D.S./Segno/Coda/段落线/终止线，全部展开直达不再折叠）——小节与段落工具从右栏移入左栏图层，右栏更专注于信息展示。切回「经典版」时布局与右栏「小节与段落」卡片完整还原。</div></li>
