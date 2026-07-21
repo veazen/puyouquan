@@ -277,6 +277,17 @@ body.shell #right-dock #layout-pop .lp-grip,body.shell #right-dock #layout-pop .
 body.shell #right-dock #layout-pop #lp-done{display:none}
 #layout-host{display:block}
 body.shell #right-dock{width:236px}   /* 页签内容（排版滑杆/入口列表）需要比经典版稍宽 */
+/* v40.3 阶段四：新版工具行单行化（技法/记号入左栏图层）、文档标签扁平、窄屏 fly 浮层 */
+body.shell #editbar2{display:none}
+#panel-tab-tech .eb,#panel-vox-orn .eb{font-size:12px;padding:3px 8px;white-space:nowrap}
+#panel-tab-tech .eb .g,#panel-vox-orn .eb .g{font-weight:700;margin-right:3px}
+body.shell #doc-tabs{padding:6px 14px 0}
+body.shell .dtab{box-shadow:none}
+body.shell .dtab.on{box-shadow:none}
+@media(max-width:1180px){
+  body.shell #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;width:262px;max-height:none;
+    overflow-y:auto;z-index:40;box-shadow:var(--shadow);margin-left:0}
+}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
@@ -1034,6 +1045,15 @@ body.shell #hint{display:none}
       </div>
     </div>
     <!-- v40.1 新版图层：小节/段落（面板内容自右栏「小节与段落」整块移入，切回经典版时移回原位） -->
+    <!-- v40.3 新版工具行单行化：技法/记号并入左栏图层面板（经典版仍在编辑栏第二行） -->
+    <div class="rg panel-p" id="panel-tab-tech">
+      <div class="rg-title">演奏技巧</div>
+      <div class="rg-body" id="tech-host"></div>
+    </div>
+    <div class="rg panel-p" id="panel-vox-orn">
+      <div class="rg-title">标识符号</div>
+      <div class="rg-body" id="orn-host"></div>
+    </div>
     <div class="rg panel-p" id="panel-mea-ops">
       <div class="rg-title">小节</div>
       <div class="rg-body" id="mea-host"></div>
@@ -4076,7 +4096,12 @@ function setRibbon(t){
      和弦层按谱类复用现有面板（有吉他声部→和弦输入面板，否则→级数和弦面板） */
   const virt = t==='chord' ? ((song && song.tabVoices.length>0)? ['panel-tab-chord'] : ['panel-vox-fn'])
              : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops'] : null;
-  const spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
+  let spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
+  /* v40.3 新版外壳：演奏技巧/标识符号并入左栏图层（跟在音符记号面板后），编辑栏收为单行 */
+  if(uiShell && spec){
+    const key = t==='tab'? 'tech' : t==='vox'? 'orn' : null;
+    if(key){ const i=spec.indexOf('mark'); spec=spec.slice(); spec.splice(i<0? spec.length : i+1, 0, key); }
+  }
   document.querySelectorAll('.panel-p').forEach(el=>{
     if(virt){
       const i = virt.indexOf(el.id);
@@ -4100,17 +4125,25 @@ function setRibbon(t){
   if(ctx && ebCtxFor!==t && !virt){   // v40.1 图层页（和弦/小节/段落）不清空第二行，保留最近的技法/记号
 
     ebCtxFor=t;
-    if(t==='tab'){
-      ctxT.textContent='演奏技巧';
-      ctx.innerHTML = EB_TECHS.map(([k,l,g])=>{
+    const techHtml = ()=>EB_TECHS.map(([k,l,g])=>{
         const hint = {v:'：波浪线随音符时值延长；Ctrl 选首末两音可让波浪覆盖整段范围',
                       pm:'：单音标 P.M.；Ctrl 选首末两音，P.M. 虚线覆盖整段范围'}[k]
                    || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
         return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
       }).join('');
+    const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
+    if(uiShell){
+      /* v40.3 新版：技法/记号渲染进左栏图层面板，编辑栏第二行留空（CSS 已隐藏） */
+      ctxT.textContent=''; ctx.innerHTML='';
+      const th=document.getElementById('tech-host'), oh=document.getElementById('orn-host');
+      if(th && t==='tab') th.innerHTML = techHtml();
+      if(oh && t==='vox') oh.innerHTML = ornHtml();
+    }else if(t==='tab'){
+      ctxT.textContent='演奏技巧';
+      ctx.innerHTML = techHtml();
     }else if(t==='vox'){
       ctxT.textContent='标识符号';
-      ctx.innerHTML = EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
+      ctx.innerHTML = ornHtml();
     }else{
       ctxT.textContent=''; ctx.innerHTML='';
     }
@@ -4687,6 +4720,10 @@ function applyVoxPattern(pat){
   };
   document.getElementById('editbar').addEventListener('click', ebHandler);
   document.getElementById('editbar2').addEventListener('click', ebHandler);
+  /* v40.3 新版外壳：技法/记号面板移入左栏图层后仍走同一处理器 */
+  ['panel-tab-tech','panel-vox-orn'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.addEventListener('click', ebHandler);
+  });
   /* ---- 缩放：按钮 ±、点击百分比复位；内容区 Ctrl+滚轮 ---- */
   const setZoom = setViewZoom;
   document.getElementById('z-in').onclick = ()=>setZoom(gridZoom(viewZoom,+1));
@@ -7527,6 +7564,7 @@ function applyShell(){
   if(b) b.textContent = uiShell? '经典版' : '新版界面';
   applyShellDock();
   setRTab(uiShell? rTab : 'info');   // 经典版：setRTab 内全卡片恢复显示
+  ebCtxFor=null;   // v40.3 技法/记号行宿主随外壳切换（编辑栏第二行 ↔ 左栏图层面板），强制重建
   if(song) renderDock();   // 图层页集合随外壳变化：经典版无 和弦/小节/段落 页时自动回退
 }
 /* v40.2 库/智能页签入口：全部委托既有按钮与工作流（含向导内的哼唱/导入入口） */
@@ -9912,6 +9950,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.3</span><div><b>新版界面 · 阶段四收尾：工具行单行化</b>（v5 设计稿主体完工）：① 编辑工具收为<b>单行</b>——演奏技巧（滑弦/击勾/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音）并入左栏<b>吉他谱图层</b>、标识符号（倚音/波音/颤音/回音/力度）并入<b>简谱图层</b>，跟在「音符记号」面板后，编辑栏更清爽；② <b>窄屏适配</b>——窗口较窄时左栏面板自动转为浮层（图层轨保持常驻，点图层弹出面板不再挤压谱面）；③ 文档标签页扁平化微调。切回「经典版」时技法/记号回到编辑栏第二行。至此 v5 新版界面四阶段全部落地：深色外壳 → 左轨六图层 → 右栏四页签 → 单行工具行。</div></li>
     <li><span class="v">v40.2</span><div><b>新版界面 · 阶段三：右栏四页签</b>（v5 设计稿路线）：右侧栏重组为 <b>信息 / 排版 / 库 / 智能</b> 四个页签——① <b>信息页</b>：曲谱信息、光标位置、节拍检查、帮助/特色/更新日志；② <b>排版页</b>：排版面板从浮层<b>常驻停靠</b>右栏（纸张 A5/A4/A3、智能疏密、缩放/行距/间距滑杆实时生效），顶栏「排版」按钮直达；③ <b>库页</b>：节奏型库、编辑/创建和弦、伴奏织体一站直达；④ <b>智能页</b>：一键配和弦、一键配伴奏、智能填词、哼唱成谱、导入 MusicXML/MIDI 按谱类智能显隐、一键进入对应工作流。切回「经典版」时右栏卡片布局与排版浮层行为完整还原。</div></li>
     <li><span class="v">v40.1</span><div><b>新版界面 · 阶段二：左侧六图层轨</b>（v5 设计稿路线）：左侧栏升级为<b>图标图层轨</b>——吉他谱 / 简谱 / 歌词 / <b>和弦</b> / <b>小节</b> / <b>段落</b> 六个图层按钮（图标+文字竖排，按谱类自动显隐与命名）。新增三个专属图层：<b>和弦层</b>（和弦输入/编辑指法/图示方式，谱类感知——简谱类曲谱显示级数和弦工具）、<b>小节层</b>（插入/删除小节）、<b>段落层</b>（反复/第一二段/D.C./D.S./Segno/Coda/段落线/终止线，全部展开直达不再折叠）——小节与段落工具从右栏移入左栏图层，右栏更专注于信息展示。切回「经典版」时布局与右栏「小节与段落」卡片完整还原。</div></li>
     <li><span class="v">v40.0</span><div><b>新版界面 · 阶段一</b>（按 v5 设计稿路线，配色保持现有蓝紫并现代化）：① <b>深色扁平顶栏与通栏播放条</b>——顶栏改深色扁平风、新增<b>快速换调 ♭/♯</b>（和弦与品位自动移调）；播放条从悬浮胶囊改为全宽深色底栏；② <b>护眼扁平化配色</b>——界面背景转暖降亮、阴影减半（谱面纸张保持纯白不受影响）；③ 工具行<b>「音符」组前置</b>到「时值」之前（同行排列）；④ 顶栏新增<b>「经典版」一键切换</b>——新旧界面随时互切并记住选择。后续阶段：左侧图层轨（六线谱/简谱/歌词/和弦/小节/段落）与右栏四页签。</div></li>

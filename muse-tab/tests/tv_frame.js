@@ -188,6 +188,54 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.tabsHidden && r.newHidden && r.popOnBody && r.infoShown && r.popFloat,
     'T12 经典版右栏还原', '页签隐=' + r.tabsHidden + ' 浮层回体=' + r.popOnBody + ' 浮层可开=' + r.popFloat);
 
+  // T13 v40.3 工具行单行化：新版下编辑栏第二行隐藏，技法移入左栏图层且真实生效
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    document.querySelector('.ltab[data-t="tab"]').click();
+    const bar2Hidden = document.getElementById('editbar2').offsetParent === null;
+    const tb = document.querySelector('#panel-tab-tech [data-tech2="h"]');
+    const inFly = !!(tb && tb.closest('#left-flyout'));
+    let applied = false, cleared = false;
+    if (tb) {
+      tb.click();
+      const col = song.measures[sel.mi].tabs[sel.vi][sel.ci];
+      applied = (col.notes || []).some(n => n.tech === 'h');
+      tb.click();   // 同技法再点=清除
+      cleared = !(col.notes || []).some(n => n.tech === 'h');
+    }
+    return { bar2Hidden, inFly, applied, cleared };
+  });
+  T(r.bar2Hidden && r.inFly && r.applied && r.cleared,
+    'T13 工具行单行化', '二行隐=' + r.bar2Hidden + ' 技法入图层=' + r.inFly + ' 生效/清除=' + (r.applied && r.cleared));
+
+  // T14 简谱页标识符号面板：装饰记号按钮在左栏图层内
+  r = await pg.evaluate(() => {
+    document.querySelector('.ltab[data-t="vox"]').click();
+    const ob = document.querySelector('#panel-vox-orn [data-orn="up"]');
+    const inFly = !!(ob && ob.closest('#left-flyout'));
+    const techPanelHidden = document.getElementById('panel-tab-tech').style.display === 'none';
+    return { inFly, techPanelHidden, nOrn: document.querySelectorAll('#panel-vox-orn [data-orn]').length };
+  });
+  T(r.inFly && r.techPanelHidden && r.nOrn >= 7, 'T14 标识符号入图层', '记号数=' + r.nOrn);
+
+  // T15 窄屏 fly 浮层化 + 经典版技法still在二行
+  await pg.setViewportSize({ width: 1000, height: 800 });
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(() => getComputedStyle(document.getElementById('left-flyout')).position);
+  const narrowFixed = r === 'fixed';
+  await pg.setViewportSize({ width: 1380, height: 900 });
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(() => {
+    document.getElementById('b-shell').click();   // → 经典
+    document.querySelector('.ltab[data-t="tab"]').click();
+    const bar2Shown = document.getElementById('editbar2').offsetParent !== null;
+    const techInBar2 = !!document.querySelector('#editbar2 [data-tech2="h"]');
+    document.getElementById('b-shell').click();   // → 新版
+    return { bar2Shown, techInBar2 };
+  });
+  T(narrowFixed && r.bar2Shown && r.techInBar2,
+    'T15 窄屏浮层+经典还原', '窄屏fixed=' + narrowFixed + ' 经典二行=' + (r.bar2Shown && r.techInBar2));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

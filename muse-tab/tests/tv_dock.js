@@ -5,6 +5,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
+  /* 本套件断言 DOCK_PANELS 的经典布局语义（新版外壳的图层注入由 tv_frame 覆盖） */
+  await pg.addInitScript(() => localStorage.setItem('musetab-shell', 'classic'));
   await pg.goto(F); await pg.waitForTimeout(900);
   let pass = 0, total = 0;
   const T = (ok, name, detail) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (detail ? ': ' + detail : '')); };
