@@ -161,6 +161,50 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.first7 && r.hasCustom && r.n > 100, 'T10 动态候选', '调内置顶=' + r.first7 + ' 含自定义=' + r.hasCustom + ' 候选数=' + r.n);
 
+  // T11 和弦图式创建器：旧指板矩阵移除，竖式和弦图可点格放音/顶部切×○/把位步进
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    showChordEditor(0, 0, 0);
+    const noOldFb = document.querySelectorAll('[data-fb]').length === 0;
+    const hasCdg = !!document.querySelector('.cdg');
+    // 点 6弦(i=0) 第1格 → 该弦品位 = 把位起始品
+    document.querySelector('[data-cdc="0:0"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    const base = ceState._cdShownBase;
+    const afterCell = (ceState.custom || '')[0] === (base <= 9 ? '' + base : base.toString(36));
+    // 顶部切换：非×→×
+    document.querySelector('[data-cdt="0"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    const afterTop = (ceState.custom || '')[0] === 'x';
+    // 把位 +1
+    const b0 = ceState._cdShownBase;
+    document.querySelector('[data-cdb="1"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    const stepped = ceState._cdShownBase === b0 + 1;
+    document.getElementById('ce-cancel').click();
+    return { noOldFb, hasCdg, afterCell, afterTop, stepped };
+  });
+  T(r.noOldFb && r.hasCdg && r.afterCell && r.afterTop && r.stepped,
+    'T11 和弦图式创建器', '旧指板移除=' + r.noOldFb + ' 点格=' + r.afterCell + ' ×○切换=' + r.afterTop + ' 把位步进=' + r.stepped);
+
+  // T12 升降号在主音左上角：TAB 和弦名 / 功能谱级数 / 弹窗预览 三处
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    mutate(() => { song.measures[0].tabs[0][0].chord = 'C#m7'; });
+    const svg1 = document.getElementById('score').innerHTML;
+    const tabOk = /♯<\/tspan><tspan[^>]*>Cm7</.test(svg1) && !svg1.includes('>C#m7<');
+    loadSong(createSong('func', {nVox:1, beats:4, unit:4, key:'C', nMea:2, lyr:0}));
+    song.funcNames = false;
+    mutate(() => { song.measures[0].voxes[0][0].chord = 'Eb'; });   // 1=C 下 Eb = b3 级
+    const svg2 = document.getElementById('score').innerHTML;
+    const degOk = /♭<\/tspan><tspan[^>]*>3</.test(svg2);
+    showChordEditor && loadSong(PRESETS[0].make());
+    showChordEditor(0, 0, 0);
+    const se = document.getElementById('ce-search');
+    se.value = 'F#m'; se.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+    const prevOk = document.querySelector('.modal b sup.chacc') && document.querySelector('.modal b sup.chacc').textContent === '♯';
+    document.getElementById('ce-cancel').click();
+    return { tabOk, degOk, prevOk: !!prevOk };
+  });
+  T(r.tabOk && r.degOk && r.prevOk, 'T12 升降号左上角', 'TAB=' + r.tabOk + ' 级数=' + r.degOk + ' 弹窗预览=' + r.prevOk);
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

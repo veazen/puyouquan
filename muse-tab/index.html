@@ -554,6 +554,10 @@ body.stand #standbar{display:flex}
 .tempo{width:74px;text-align:center}
 .rate{width:72px;text-align:center}
 #b-metro.on{background:var(--accent);border-color:var(--accent);color:#fff}
+/* v39.1 和弦图式创建器 + 升降号左上角 */
+.cdg .cdgc{cursor:pointer}
+.cdg .cdgc:hover{fill:var(--accent-soft)}
+sup.chacc{font-size:64%;margin-right:1px}
 #mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
   display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
 .mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
@@ -2540,10 +2544,40 @@ function usedChords(){
     if(c.chord && !have.has(c.chord)){ have.add(c.chord); seen.push(c.chord); }})));
   return seen;
 }
+/* v39.1 和弦名出版式显示：升降号移到主音左上角（♯C / ♭B / ♭3），数据仍存 C#/Bb 不变。
+   SVG 版（tspans，dy 先抬后落回基线）；音名式(C#)与级数式(b3)两种数据格式都识别 */
+function chordSvgLabel(disp, fs){
+  fs = fs||12;
+  disp = ''+(disp==null?'':disp);
+  const AC = a=> a==='#'?'♯':'♭';
+  const seg = part=>{
+    let m, a, core, rest;
+    if((m=/^(#|b)([A-G1-7])(.*)$/.exec(part))){ a=m[1]; core=m[2]; rest=m[3]; }
+    else if((m=/^([A-G1-7])(#|b)(.*)$/.exec(part))){ a=m[2]; core=m[1]; rest=m[3]; }
+    else return esc(part);
+    return `<tspan font-size="${Math.round(fs*0.62)}" dy="${(-fs*0.33).toFixed(1)}">${AC(a)}</tspan>`+
+           `<tspan dy="${(fs*0.33).toFixed(1)}">${esc(core+(rest||''))}</tspan>`;
+  };
+  const i = disp.indexOf('/');
+  return i<0? seg(disp) : seg(disp.slice(0,i))+'/'+seg(disp.slice(i+1));
+}
+/* HTML 版（弹窗/菜单预览用） */
+function chordHtmlLabel(disp){
+  disp = ''+(disp==null?'':disp);
+  const AC = a=> a==='#'?'♯':'♭';
+  const seg = part=>{
+    let m;
+    if((m=/^(#|b)([A-G1-7])(.*)$/.exec(part))) return `<sup class="chacc">${AC(m[1])}</sup>${esc(m[2]+(m[3]||''))}`;
+    if((m=/^([A-G1-7])(#|b)(.*)$/.exec(part))) return `<sup class="chacc">${AC(m[2])}</sup>${esc(m[1]+(m[3]||''))}`;
+    return esc(part);
+  };
+  const i = disp.indexOf('/');
+  return i<0? seg(disp) : seg(disp.slice(0,i))+'/'+seg(disp.slice(i+1));
+}
 function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
   const k = scale||1; const shape = shapeOverride || chordShape(name); const p=[];
   if(!hideName)
-    p.push(`<text x="${x+4*k+(shape?(shape.length-1):5)*7.2*k/2}" y="${y+9}" font-size="${11*k}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(name)}</text>`);
+    p.push(`<text x="${x+4*k+(shape?(shape.length-1):5)*7.2*k/2}" y="${y+9}" font-size="${11*k}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(name, 11*k)}</text>`);
   if(!shape) return p.join('');
   const ns=shape.length;                       // 6=吉他 / 4=尤克里里
   const gx=x+4*k, gy=y+19, sw=7.2*k, fh=8.6*k;
@@ -3035,7 +3069,7 @@ function render(){
                 p.push(chordDiagramSVG(col.chord, nx-10, oy+(clash?0:2), clash?0.75:0.95));
               }
             else
-              p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${esc(col.chord)}</text>`);
+              p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(col.chord, 12.5)}</text>`);
           }
           const shape = chordShape(runChord);
           if(col.strum==='d'||col.strum==='u'){
@@ -3425,7 +3459,7 @@ function render(){
               const w = vcDispW(col.chord);
               p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
                 <rect x="${(nx-w/2).toFixed(1)}" y="${(cy2-13.8).toFixed(1)}" width="${w.toFixed(1)}" height="18.5" rx="6" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="1"/>
-                <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${esc(disp)}</text>
+                <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(disp, 14)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
             }else if((song.func || song.pianoAcc) && onGrid){
               const cy2 = isStaff? staffT-15 : voxY-24;
@@ -5253,18 +5287,31 @@ function renderChordEditor(){
     return `<label style="display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted)">${s}弦
       <input class="ce-fret" data-s="${s}" value="${val}" style="width:34px;text-align:center"></label>`;
   }).join('');
-  /* 指板创建：模拟指板（行=弦、列=品，含 x/空弦 0），点击自选音符 */
-  const FBF=12;
-  const fbHead = `<span class="fb-h"></span><span class="fb-h">×</span>`+
-    Array.from({length:FBF+1},(_,f)=>`<span class="fb-h">${f}</span>`).join('');
-  const fbRows = Array.from({length:SN},(_,i)=>SN-i).map(s2=>{
-    const ch = custom[SN-s2];
-    const cur = (ch==null||ch==='x')? 'x' : parseInt(ch,36);
-    return `<span class="fb-h">${s2}弦</span>`+
-      `<button class="fb-c ${cur==='x'?'on x':''}" data-fb="${s2}:x" title="${s2}弦不弹">×</button>`+
-      Array.from({length:FBF+1},(_,f)=>
-        `<button class="fb-c ${cur===f?'on':''} ${[3,5,7,9,12].includes(f)?'mk':''}" data-fb="${s2}:${f}" title="${s2}弦 ${f===0?'空弦':f+'品'}">${cur===f?'●':''}</button>`).join('');
-  }).join('');
+  /* v39.1 和弦图式创建器：与谱面和弦图同款竖式（弦=竖线、品=横格），
+     点格放音/取消，顶部区切换 ×(不弹)/○(空弦)，高把位用「把位」步进调窗口 */
+  const cdFrArr = [...custom].map(ch=> (ch==null||ch==='x')? -1 : parseInt(ch,36));
+  const cdAuto = (()=>{ const f=cdFrArr.filter(v=>v>0); return f.length && Math.max(...f)>5? Math.min(...f):1; })();
+  const cdBase = Math.max(1, Math.min(12, (ceState.custom!=null && ceState.cdBase!=null)? ceState.cdBase : cdAuto));
+  ceState._cdShownBase = cdBase;
+  const CDW=30, CDH=27, CDX=28, CDY=32;
+  const cdW=CDX*2+CDW*(SN-1), cdH=CDY+CDH*5+10;
+  let cdg=`<svg class="cdg" width="${cdW}" height="${cdH}" viewBox="0 0 ${cdW} ${cdH}">`;
+  for(let i=0;i<SN;i++) cdg+=`<line x1="${CDX+i*CDW}" y1="${CDY}" x2="${CDX+i*CDW}" y2="${CDY+5*CDH}" stroke="var(--ink)" stroke-width="1"/>`;
+  for(let r2=0;r2<=5;r2++) cdg+=`<line x1="${CDX}" y1="${CDY+r2*CDH}" x2="${CDX+(SN-1)*CDW}" y2="${CDY+r2*CDH}" stroke="var(--ink)" stroke-width="${r2===0&&cdBase===1?3.4:1}"/>`;
+  cdg+=`<text x="${CDX-15}" y="${CDY+CDH*0.66}" font-size="11.5" font-weight="700" text-anchor="middle" fill="var(--muted)">${cdBase}</text>`;
+  for(let i=0;i<SN;i++){
+    const f=cdFrArr[i]==null? -1 : cdFrArr[i];
+    const sx=CDX+i*CDW;
+    if(f===-1) cdg+=`<text x="${sx}" y="${CDY-10}" font-size="13" text-anchor="middle" fill="var(--ink)">×</text>`;
+    else if(f===0) cdg+=`<circle cx="${sx}" cy="${CDY-14}" r="4.6" fill="none" stroke="var(--ink)" stroke-width="1.3"/>`;
+    else if(f>=cdBase && f<cdBase+5)
+      cdg+=`<circle cx="${sx}" cy="${CDY+(f-cdBase+0.5)*CDH}" r="8.5" fill="var(--accent)"/><text x="${sx}" y="${CDY+(f-cdBase+0.5)*CDH+3.4}" font-size="9" text-anchor="middle" fill="#fff">${f}</text>`;
+    else cdg+=`<text x="${sx}" y="${CDY-10}" font-size="9" text-anchor="middle" fill="var(--accent-ink)">${f}品↕</text>`;
+    cdg+=`<rect class="cdgc" data-cdt="${i}" x="${sx-CDW/2+2}" y="2" width="${CDW-4}" height="${CDY-8}" rx="4" fill="transparent"><title>${SN-i}弦：点击切换 ×不弹 / ○空弦</title></rect>`;
+    for(let r2=0;r2<5;r2++)
+      cdg+=`<rect class="cdgc" data-cdc="${i}:${r2}" x="${sx-CDW/2+2}" y="${CDY+r2*CDH+2}" width="${CDW-4}" height="${CDH-4}" rx="4" fill="transparent"><title>${SN-i}弦 ${cdBase+r2}品（再点取消）</title></rect>`;
+  }
+  cdg+='</svg>';
   const uc = userChords();
   const ucChips = Object.keys(uc).filter(k=>uc[k].length===SN).map(k=>
     `<span class="chip" style="display:inline-flex;align-items:center;gap:4px"><a data-ucl="${esc(k)}" style="cursor:pointer">${esc(k)}</a><a data-ucx="${esc(k)}" title="删除" style="cursor:pointer;opacity:.55">✕</a></span>`).join('') || '<span style="font-size:11.5px;color:var(--muted)">还没有用户和弦——在上方指板自选音符后点「存为用户和弦」</span>';
@@ -5283,8 +5330,11 @@ function renderChordEditor(){
         <h4>和弦性质</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
         <h4>转位 / 低音（Slash）</h4><select id="ce-bass">${bassOpts}</select>
         <h4>把位</h4><div class="pat-grid" id="ce-pos">${posVars}</div>
-        <h4>指板创建（点击品格自选音符，×=不弹，0=空弦）</h4>
-        <div class="fb" style="grid-template-columns:30px 20px repeat(${FBF+1},20px)">${fbHead}${fbRows}</div>
+        <h4 style="display:flex;align-items:center;gap:10px">和弦图创建（点格放音 · 顶部切 ×/○）
+          <span style="font-weight:400;font-size:11.5px;color:var(--muted)">把位
+            <button data-cdb="-1" class="chip" style="padding:1px 9px">−</button>
+            <button data-cdb="1" class="chip" style="padding:1px 9px">＋</button></span></h4>
+        <div style="display:flex;justify-content:center">${cdg}</div>
         <h4>自定义指法（每弦品位，x=不弹）</h4>
         <div style="display:flex;gap:6px;justify-content:center">${fretInputs}</div>
         <div class="row" style="margin-top:6px;display:flex;gap:6px;align-items:center">
@@ -5298,7 +5348,7 @@ function renderChordEditor(){
       <div style="width:150px;text-align:center">
         <h4>预览</h4>
         <svg width="120" height="150" viewBox="0 0 120 150">${chordDiagramSVG(ceName(),20,10,1.7,shape)}</svg>
-        <div style="font-size:13px;margin-top:4px"><b>${esc(ceName())}</b></div>
+        <div style="font-size:13px;margin-top:4px"><b>${chordHtmlLabel(ceName())}</b></div>
       </div>
     </div>
     <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
@@ -5312,22 +5362,27 @@ function renderChordEditor(){
     const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; rerender(); return; }
     const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; rerender(); return; }
     const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
-    const fb=ev.target.closest('[data-fb]');
-    if(fb){
-      const [s2,f]=fb.dataset.fb.split(':');
-      const SN2=strN();
-      const cur=(ceState.custom||ceShape()||'x'.repeat(SN2)).split('');
-      while(cur.length<SN2) cur.push('x');
-      const idx=SN2-(+s2);
-      const old2=cur[idx];
-      if(f==='x') cur[idx]='x';
-      else{
-        const F=+f;
-        const enc=F>9? F.toString(36) : ''+F;
-        cur[idx] = (old2===enc)? 'x' : enc;   // 点同一格再点=取消该弦
-      }
-      ceState.custom=cur.join('');
+    /* v39.1 和弦图式创建器交互 */
+    const cdShape0=()=>{ const SN2=strN(); const a=(ceState.custom||ceShape()||'x'.repeat(SN2)).split(''); while(a.length<SN2) a.push('x'); return a; };
+    const cdb=ev.target.closest('[data-cdb]');
+    if(cdb){
+      const arr=cdShape0(); ceState.custom=arr.join('');           // 固定当前指法再移窗
+      ceState.cdBase=Math.max(1, Math.min(12, (ceState._cdShownBase||1)+(+cdb.dataset.cdb)));
       rerender(); return;
+    }
+    const cdt=ev.target.closest('[data-cdt]');
+    if(cdt){
+      const arr=cdShape0(); const i=+cdt.dataset.cdt;
+      arr[i] = arr[i]==='x'? '0' : 'x';                            // ×↔○（有音时点顶部先归为不弹）
+      ceState.custom=arr.join(''); rerender(); return;
+    }
+    const cdc=ev.target.closest('[data-cdc]');
+    if(cdc){
+      const arr=cdShape0();
+      const [i,r2]=cdc.dataset.cdc.split(':').map(Number);
+      const enc=FRET_36((ceState._cdShownBase||1)+r2);
+      arr[i] = arr[i]===enc? 'x' : enc;                            // 同格再点=取消该弦
+      ceState.custom=arr.join(''); rerender(); return;
     }
     const ul=ev.target.closest('[data-ucl]');
     if(ul){ const k=ul.dataset.ucl; ceState.custom=userChords()[k]; ceState.cname=k; rerender(); return; }
@@ -5357,7 +5412,7 @@ function renderChordEditor(){
   const nameInp=document.getElementById('ce-name');
   if(nameInp) nameInp.addEventListener('change', ()=>{
     ceState.cname = nameInp.value.trim() || null;
-    const pv=document.querySelector('.modal b'); if(pv) pv.textContent=ceName();
+    const pv=document.querySelector('.modal b'); if(pv) pv.innerHTML=chordHtmlLabel(ceName());
   });
   document.getElementById('ce-saveuser').onclick = ()=>{
     ceState.cname = (nameInp&&nameInp.value.trim()) || ceState.cname || null;
@@ -5896,9 +5951,9 @@ function showVoxChordMenu(cx, cy){
   div.style.width='min(420px, 94vw)';
   div.style.left=(Math.min(cx, innerWidth-440)+scrollX)+'px';
   div.style.top=(Math.min(cy+8, innerHeight-430)+scrollY)+'px';
-  const supHtml=d=>{                                   // 级数/音名排版：根音大、后缀上标、低音随斜杠
+  const supHtml=d=>{                                   // 级数/音名排版：根音大、升降号左上角、后缀上标、低音随斜杠
     const pm=/^([A-G](?:#|b)?|[b#]?[1-7])(.*?)(\/.+)?$/.exec(d);
-    return pm? `${esc(pm[1])}${pm[2]?`<sup>${esc(pm[2])}</sup>`:''}${pm[3]?esc(pm[3]):''}` : esc(d);
+    return pm? `${chordHtmlLabel(pm[1])}${pm[2]?`<sup>${esc(pm[2])}</sup>`:''}${pm[3]?chordHtmlLabel(pm[3]):''}` : esc(d);
   };
   const draw=()=>{
     const cur=vcBuild(st) || col.chord || '';
@@ -9638,6 +9693,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.1</span><div><b>和弦图式创建 + 升降号左上角</b>：① 自定义和弦创建从「横向指板模拟」改为<b>与谱面同款的竖式和弦图</b>——点格放音（再点取消）、顶部点击切换 ×不弹/○空弦、「把位 −/＋」移动品位窗口（横按高把位同样直观），所见即所得；② 全部和弦名显示改为出版惯例：<b>升降号写在主音左上角</b>（♯C、♭B、♭3），谱面 TAB 和弦、和弦图标题、功能谱级数/音名、弹窗预览全线生效——数据仍存 C#/Bb 格式，导出/移调/兼容不受影响。</div></li>
     <li><span class="v">v39.0</span><div><b>和弦引擎全面升级</b>（两位专业 Agent 方案落地）：① <b>和弦库扩容到全根音全类型</b>——新增「可移调模板引擎」：每类型维护 E 型/A 型把位模板，12 个根音自动推导指法，覆盖 22 种类型（大/小/属七/大七/小七/减/减七/半减/增/挂二/挂四/七挂四/六/小六/九/大九/小九/加九/十一/十三/强力/小大七）×任意斜杠低音；精修开放指法保留优先，尤克里里走 4 弦通用推导；<b>修复把位卡把减/增等和弦画成大三和弦的错误</b>（468 个推导指法逐音高验证纯净）。② <b>编辑和弦弹窗升级</b>——新增当前调内七级<b>常用直达</b>条、<b>和弦名搜索直达</b>（输 Abmaj9 回车即跳）、<b>▶试听</b>（按指法琶音）、类型 chip 扩到 22 种与功能谱口径统一。③ <b>功能谱级数菜单</b>加和弦图预览与试听。④ 和弦输入候选<b>动态化</b>：调内和弦置顶→最近使用→自定义→精修库→全类型组合。⑤ 织体生成的和弦解析升级为全类型音程表（减/增/挂留/扩展和弦不再一律按大三和弦发声）。</div></li>
     <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「🎼 谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
     <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
