@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-21 · 当前版本 **v40.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-21 · 当前版本 **v40.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -159,7 +159,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
 | tv_safety | 数据安全：迁移逐条容错/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（另开窗口）/已入库兼容/谱架·0.25×·向导提权——6项 |
-| tv_frame | 新版外壳：默认深色顶栏/通栏播放条、经典切换持久化、音符组前置、顶栏快速换调、谱架兼容、六图层轨显隐、和弦层谱类感知、小节/段落层移入生效、经典版还原——9项 |
+| tv_frame | 新版外壳：默认深色顶栏/通栏播放条、经典切换持久化、音符组前置、顶栏快速换调、谱架兼容、六图层轨显隐、和弦层谱类感知、小节/段落层移入生效、经典版还原、右栏排版页签停靠、库/智能谱类感知、经典版右栏还原——12项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
@@ -216,7 +216,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 已定决策：配色=现有蓝紫基础上扁平化+护眼（不采纳朱砂）；图标沿用现有设计；工具行音符组前置；新版为默认、顶栏「经典版」可切回（localStorage musetab-shell）
 - 阶段1 ✅ v40.0：深色扁平顶栏（含快速换调 k-dn/k-up→transposeEditor）+ 通栏播放条 + 护眼扁平令牌
 - 阶段2 ✅ v40.1：左轨六图层（吉他谱/简谱/歌词/和弦/小节/段落，图标经 data-ic+CSS ::before 呈现、textContent 语义不变以兼容 renderDock/tv_dock）；和弦/小节/段落为虚拟图层页（setRibbon 内 `virt` 显式面板清单，不走 panel-前缀匹配）：和弦层谱类感知复用 panel-tab-chord / panel-vox-fn（tab/vox 页原面板保留不动，tv_dock 零改动）；小节/段落层内容 = 右栏「小节与段落」原 DOM 节点搬移（applyShellDock，id 与事件保持，经典版按 musetab-sp-open 状态还原）
-- 阶段3 待做：右栏四页签（信息/排版/库/智能）；阶段4：工具行单行化、doctabs 样式、窄屏 fly 浮层化、v5 评估缺口清单（导出下拉六出口/循环选区/技法4键/倍速五档）
+- 阶段3 ✅ v40.2：右栏四页签（#rtabs + rcard[data-rt] 分组，setRTab 控显隐；经典版页签条与 .rt-new 卡片 CSS 隐藏、卡片全显）：信息=原卡片；排版=#layout-pop 整体停靠 #layout-host（applyShellDock 搬移，经典版回 body 恢复浮层，b-layout 按外壳分流）；库/智能=直达入口全部委托既有按钮（eb-lib/b-chord-edit/b-acctex/va-sug/b-arrange/b-fill；哼唱与 MusicXML/MIDI 导入 = b-new.click()+nw-*.click() 链），入口显隐在 renderDock 与 b-acctex/b-arrange 同口径
+- 阶段4 待做：工具行单行化、doctabs 样式、窄屏 fly 浮层化、v5 评估缺口清单（导出下拉六出口/循环选区/技法4键/倍速五档）
 - v5 设计稿评估全文见会话记录（2026-07-21）
 
 **专家评审待办（v38.8 落地第一批后剩余）**

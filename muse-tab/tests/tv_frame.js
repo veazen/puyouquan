@@ -134,6 +134,60 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.backIn && r.rcShown && r.fellBack, 'T9 经典版还原', '节点回位=' + r.backIn + ' 右卡显示=' + r.rcShown + ' 页面回退=' + r.fellBack);
 
+  // T10 v40.2 右栏四页签：默认信息页；排版页签停靠排版面板且真实生效
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    const rtabsShown = document.getElementById('rtabs').offsetParent !== null;
+    const infoDefault = document.getElementById('cursor-info').offsetParent !== null
+      && document.querySelector('.rtab.on').dataset.p === rTab;
+    document.getElementById('b-layout').click();   // 顶栏排版按钮 → 直达排版页签
+    const layTab = rTab === 'layout';
+    const popDocked = !!document.getElementById('layout-pop').closest('#right-dock')
+      && document.getElementById('lp-page').offsetParent !== null;
+    const infoHidden = document.getElementById('cursor-info').offsetParent === null;
+    document.querySelector('#lp-page button[data-page="A3"]').click();
+    const pageSet = song.layout.page === 'A3';
+    document.querySelector('#lp-page button[data-page="A4"]').click();   // 还原
+    return { rtabsShown, infoDefault, layTab, popDocked, infoHidden, pageSet };
+  });
+  T(r.rtabsShown && r.infoDefault && r.layTab && r.popDocked && r.infoHidden && r.pageSet,
+    'T10 右栏排版页签', '停靠=' + r.popDocked + ' 纸张生效=' + r.pageSet + ' 信息页隐藏=' + r.infoHidden);
+
+  // T11 库/智能页签：入口按谱类显隐（弹唱谱 vs 钢琴弹唱）
+  r = await pg.evaluate(() => {
+    const vis = id => document.getElementById(id).offsetParent !== null;
+    document.querySelector('.rtab[data-p="lib"]').click();
+    const g = { pat: vis('rt-patlib'), chord: vis('rt-chorded'), texHidden: !vis('rt-tex') };
+    document.querySelector('.rtab[data-p="ai"]').click();
+    const a = { sug: vis('rt-sug'), fill: vis('rt-fill'), hum: vis('rt-hum'), arrHidden: !vis('rt-arr') };
+    loadSong(createSong('pianoacc', { beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }));
+    document.querySelector('.rtab[data-p="lib"]').click();
+    const p = { tex: vis('rt-tex') };
+    document.querySelector('.rtab[data-p="ai"]').click();
+    const p2 = { fillHidden: !vis('rt-fill') };
+    return { g, a, p, p2 };
+  });
+  T(r.g.pat && r.g.chord && r.g.texHidden && r.a.sug && r.a.fill && r.a.hum && r.a.arrHidden && r.p.tex && r.p2.fillHidden,
+    'T11 库/智能谱类感知', '弹唱=' + JSON.stringify(r.g) + ' 钢琴织体=' + r.p.tex);
+
+  // T12 经典版：页签条与新卡片隐藏、排版浮层回 body、信息卡全显
+  r = await pg.evaluate(() => {
+    document.getElementById('b-shell').click();   // → 经典
+    const tabsHidden = document.getElementById('rtabs').offsetParent === null;
+    const newHidden = ['rt-patlib', 'rt-sug'].every(id => document.getElementById(id).offsetParent === null);
+    const popOnBody = document.getElementById('layout-pop').parentElement === document.body
+      && !document.getElementById('layout-pop').classList.contains('on');
+    const infoShown = document.getElementById('cursor-info').offsetParent !== null
+      && document.getElementById('b-changelog').offsetParent !== null;
+    document.getElementById('b-layout').click();   // 经典版顶栏排版 → 浮层打开
+    const popFloat = document.getElementById('layout-pop').classList.contains('on');
+    document.getElementById('lp-close').click();
+    document.getElementById('b-shell').click();   // → 新版
+    return { tabsHidden, newHidden, popOnBody, infoShown, popFloat };
+  });
+  T(r.tabsHidden && r.newHidden && r.popOnBody && r.infoShown && r.popFloat,
+    'T12 经典版右栏还原', '页签隐=' + r.tabsHidden + ' 浮层回体=' + r.popOnBody + ' 浮层可开=' + r.popFloat);
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

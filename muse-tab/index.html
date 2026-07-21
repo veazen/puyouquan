@@ -256,6 +256,27 @@ body.shell .lsep{display:block;width:26px;height:1px;background:var(--border-sof
 body.shell #rc-measec{display:none}
 #panel-mea-ops .sp-sec,#panel-sect-ops .sp-sec,#sect-host>#sp-more{width:100%}
 #panel-mea-ops .sp-sec,#panel-sect-ops #sp-more .sp-sec{margin:0 0 6px}
+/* v40.2 新版右栏四页签：经典版隐藏页签条与新卡片、其余卡片全显 */
+#rtabs{display:none}
+.rt-new{display:none}
+body.shell #rtabs{display:flex;gap:1px;background:var(--panel);border:1px solid var(--border-soft);
+  border-radius:12px;padding:3px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+body.shell .rtab{flex:1;padding:6px 0;text-align:center;font-size:12px;color:var(--muted);
+  font-weight:600;border:none;background:transparent;border-radius:9px;transition:all .15s}
+body.shell .rtab:hover{color:var(--text);background:var(--hover)}
+body.shell .rtab.on{background:var(--text);color:var(--panel)}
+body.shell .rt-new{display:block}
+.rt-list{flex-direction:column;align-items:stretch}
+.rt-list button{display:block;width:100%;text-align:left;padding:8px 10px;font-size:12.5px;
+  border:1px solid var(--border);border-radius:9px;background:var(--paper);margin:2px 0}
+.rt-list button:hover{border-color:var(--accent);color:var(--accent)}
+/* 排版浮层停靠态：新版下嵌入右栏排版页签，去浮层外观与浮层专属控件 */
+body.shell #right-dock #layout-pop{position:static;display:block;width:auto;box-shadow:none;
+  border:none;background:transparent;padding:0}
+body.shell #right-dock #layout-pop .lp-grip,body.shell #right-dock #layout-pop .lp-close,
+body.shell #right-dock #layout-pop #lp-done{display:none}
+#layout-host{display:block}
+body.shell #right-dock{width:236px}   /* 页签内容（排版滑杆/入口列表）需要比经典版稍宽 */
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
@@ -1037,12 +1058,19 @@ body.shell #hint{display:none}
   <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
 
   <aside id="right-dock">
-    <div class="rcard">
+    <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
+    <div id="rtabs">
+      <button class="rtab on" data-p="info">信息</button>
+      <button class="rtab" data-p="layout">排版</button>
+      <button class="rtab" data-p="lib">库</button>
+      <button class="rtab" data-p="ai">智能</button>
+    </div>
+    <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
       <button class="rc-h rc-btn" id="b-acctex" style="display:none" title="按已标注的和弦，用所选伴奏织体自动生成双手音符（可编辑、可逐段重生成）">伴奏织体</button>
       <button class="rc-h rc-btn" id="b-arrange" style="display:none" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（开新窗口，原谱不动）">智能配谱</button>
     </div>
-    <div class="rcard open" id="rc-measec">
+    <div class="rcard open" id="rc-measec" data-rt="info">
       <button class="rc-h" type="button">小节与段落</button>
       <div class="rc-b">
         <div class="sp-sec" id="sp-mea">
@@ -1083,20 +1111,45 @@ body.shell #hint{display:none}
         </div><!-- /#sp-more -->
       </div>
     </div>
-    <div class="rcard open">
+    <div class="rcard open" data-rt="info">
       <button class="rc-h" type="button">光标位置</button>
       <div class="rc-b"><div id="cursor-info">—</div></div>
     </div>
-    <div class="rcard">
+    <!-- v40.2 排版页签：新版下排版浮层(#layout-pop)整体停靠于此，经典版移回浮层 -->
+    <div class="rcard open rt-new" data-rt="layout">
+      <div class="rc-b" id="layout-host"></div>
+    </div>
+    <!-- v40.2 库页签：素材库直达入口（全部委托既有按钮/弹窗，零新逻辑） -->
+    <div class="rcard open rt-new" data-rt="lib">
+      <button class="rc-h" type="button">素材库</button>
+      <div class="rc-b rt-list">
+        <button id="rt-patlib" title="打开节奏型库（图示化套用到选中小节）">🥁 节奏型库…</button>
+        <button id="rt-chorded" title="编辑当前列和弦 / 创建自定义和弦">🎸 编辑 / 创建和弦…</button>
+        <button id="rt-tex" style="display:none" title="按已标注的和弦生成双手伴奏音符">🎹 伴奏织体…</button>
+      </div>
+    </div>
+    <!-- v40.2 智能页签：AI/自动化入口（按谱类显隐，委托既有工作流） -->
+    <div class="rcard open rt-new" data-rt="ai">
+      <button class="rc-h" type="button">智能助手</button>
+      <div class="rc-b rt-list">
+        <button id="rt-sug" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）">✦ 一键配和弦</button>
+        <button id="rt-arr" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏">✦ 一键配伴奏…</button>
+        <button id="rt-fill" title="整段歌词自动逐字对位">✦ 智能填词…</button>
+        <button id="rt-hum" title="清唱一段，自动出简谱草稿">🎤 哼唱成谱…</button>
+        <button id="rt-mxl" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器">📄 导入 MusicXML…</button>
+        <button id="rt-midi" title="DAW / 编曲软件工程直入">🎼 导入 MIDI…</button>
+      </div>
+    </div>
+    <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-help">使用帮助</button>
     </div>
-    <div class="rcard">
+    <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-feat">特色功能</button>
     </div>
-    <div class="rcard">
+    <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-changelog">更新日志</button>
     </div>
-    <div id="beat-box">
+    <div id="beat-box" data-rt="info">
       <span id="beat-status" class="good">✓ 所有小节时值正确</span>
       <div id="err-drop" class="hidden"></div>
     </div>
@@ -2781,6 +2834,12 @@ function renderDock(){
   if(at) at.style.display = song.pianoAcc? '' : 'none';
   const ar=document.getElementById('b-arrange');
   if(ar) ar.style.display = ['vocal','teach','instr'].includes(dt)? '' : 'none';
+  /* v40.2 右栏库/智能页签入口按谱类显隐（与上方 b-acctex/b-arrange 同口径） */
+  { const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
+    show('rt-tex',  !!song.pianoAcc);
+    show('rt-arr',  ['vocal','teach','instr'].includes(dt));
+    show('rt-sug',  song.voxVoices.length>0);
+    show('rt-fill', song.lyricLines>0); }
   /* 当前左栏页对该谱类不可用时回退到第一个可见页；否则重算当前页面板（类型可能已变） */
   const visible=['tab','vox','lyr'].filter(k=>{
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
@@ -7442,14 +7501,48 @@ function applyShellDock(){
     more.classList.toggle('hidden', !openSp);
     const ar=document.getElementById('sp-arrow'); if(ar) ar.textContent = openSp? '▴':'▾';
   }
+  /* v40.2 排版浮层停靠：新版 → 右栏排版页签内；经典版 → 回 body 恢复浮层行为 */
+  const pop=document.getElementById('layout-pop'), lh=document.getElementById('layout-host');
+  if(pop && lh){
+    if(uiShell){ lh.appendChild(pop); }
+    else { document.body.appendChild(pop); pop.classList.remove('on'); }
+  }
 }
+/* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
+let rTab='info';
+function setRTab(p){
+  rTab=p;
+  document.querySelectorAll('#rtabs .rtab').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
+  document.querySelectorAll('#right-dock [data-rt]').forEach(el=>{
+    el.style.display = (!uiShell || el.dataset.rt===p)? '' : 'none';
+  });
+  if(uiShell && p==='layout' && song) laySync();   // 进排版页时同步滑杆/档位显示
+}
+document.getElementById('rtabs').onclick = e=>{
+  const b=e.target.closest('.rtab'); if(b) setRTab(b.dataset.p);
+};
 function applyShell(){
   document.body.classList.toggle('shell', uiShell);
   const b=document.getElementById('b-shell');
   if(b) b.textContent = uiShell? '经典版' : '新版界面';
   applyShellDock();
+  setRTab(uiShell? rTab : 'info');   // 经典版：setRTab 内全卡片恢复显示
   if(song) renderDock();   // 图层页集合随外壳变化：经典版无 和弦/小节/段落 页时自动回退
 }
+/* v40.2 库/智能页签入口：全部委托既有按钮与工作流（含向导内的哼唱/导入入口） */
+(function(){
+  const go=(id,fn)=>{ const el=document.getElementById(id); if(el) el.onclick=fn; };
+  const click=id=>{ const el=document.getElementById(id); if(el) el.click(); };
+  go('rt-patlib', ()=>click('eb-lib'));
+  go('rt-chorded',()=>click('b-chord-edit'));
+  go('rt-tex',    ()=>click('b-acctex'));
+  go('rt-sug',    ()=>click('va-sug'));
+  go('rt-arr',    ()=>click('b-arrange'));
+  go('rt-fill',   ()=>click('b-fill'));
+  go('rt-hum',    ()=>{ click('b-new'); click('nw-hum'); });     // 新建向导即刻转入哼唱流程
+  go('rt-mxl',    ()=>{ click('b-new'); click('nw-import'); });
+  go('rt-midi',   ()=>{ click('b-new'); click('nw-midi'); });
+})();
 document.getElementById('b-shell').onclick = ()=>{
   uiShell = !uiShell;
   try{ localStorage.setItem('musetab-shell', uiShell?'new':'classic'); }catch(_){}
@@ -8850,7 +8943,10 @@ function layToggle(show){
   }
   pop.classList.toggle('on', on);
 }
-document.getElementById('b-layout').onclick = ()=>layToggle();
+document.getElementById('b-layout').onclick = ()=>{
+  if(uiShell){ setRTab('layout'); }   // v40.2 新版：排版停靠在右栏页签，顶栏按钮直达
+  else layToggle();
+};
 document.getElementById('lp-close').onclick = ()=>layToggle(false);
 document.getElementById('lp-done').onclick  = ()=>layToggle(false);
 document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
@@ -9816,6 +9912,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.2</span><div><b>新版界面 · 阶段三：右栏四页签</b>（v5 设计稿路线）：右侧栏重组为 <b>信息 / 排版 / 库 / 智能</b> 四个页签——① <b>信息页</b>：曲谱信息、光标位置、节拍检查、帮助/特色/更新日志；② <b>排版页</b>：排版面板从浮层<b>常驻停靠</b>右栏（纸张 A5/A4/A3、智能疏密、缩放/行距/间距滑杆实时生效），顶栏「排版」按钮直达；③ <b>库页</b>：节奏型库、编辑/创建和弦、伴奏织体一站直达；④ <b>智能页</b>：一键配和弦、一键配伴奏、智能填词、哼唱成谱、导入 MusicXML/MIDI 按谱类智能显隐、一键进入对应工作流。切回「经典版」时右栏卡片布局与排版浮层行为完整还原。</div></li>
     <li><span class="v">v40.1</span><div><b>新版界面 · 阶段二：左侧六图层轨</b>（v5 设计稿路线）：左侧栏升级为<b>图标图层轨</b>——吉他谱 / 简谱 / 歌词 / <b>和弦</b> / <b>小节</b> / <b>段落</b> 六个图层按钮（图标+文字竖排，按谱类自动显隐与命名）。新增三个专属图层：<b>和弦层</b>（和弦输入/编辑指法/图示方式，谱类感知——简谱类曲谱显示级数和弦工具）、<b>小节层</b>（插入/删除小节）、<b>段落层</b>（反复/第一二段/D.C./D.S./Segno/Coda/段落线/终止线，全部展开直达不再折叠）——小节与段落工具从右栏移入左栏图层，右栏更专注于信息展示。切回「经典版」时布局与右栏「小节与段落」卡片完整还原。</div></li>
     <li><span class="v">v40.0</span><div><b>新版界面 · 阶段一</b>（按 v5 设计稿路线，配色保持现有蓝紫并现代化）：① <b>深色扁平顶栏与通栏播放条</b>——顶栏改深色扁平风、新增<b>快速换调 ♭/♯</b>（和弦与品位自动移调）；播放条从悬浮胶囊改为全宽深色底栏；② <b>护眼扁平化配色</b>——界面背景转暖降亮、阴影减半（谱面纸张保持纯白不受影响）；③ 工具行<b>「音符」组前置</b>到「时值」之前（同行排列）；④ 顶栏新增<b>「经典版」一键切换</b>——新旧界面随时互切并记住选择。后续阶段：左侧图层轨（六线谱/简谱/歌词/和弦/小节/段落）与右栏四页签。</div></li>
     <li><span class="v">v39.7</span><div><b>把位方案排版修正</b>：三张方案卡不再换行变形（右栏加宽+卡片紧凑化，标签超长省略号）；高把位库指法不再误标「开放」（如 Cm 3品横按改标「常用」）；创建器提示语精简为单行「点格新建 · 方案卡调整 · 顶部切 ×/○」。</div></li>
