@@ -557,7 +557,7 @@ body.stand #standbar{display:flex}
 /* v39.1 和弦图式创建器 + 升降号左上角 */
 .cdg .cdgc{cursor:pointer}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
-sup.chacc{font-size:64%;margin-right:1px}
+sup.chacc{font-size:82%;margin-right:1px}
 #mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
   display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
 .mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
@@ -2555,8 +2555,8 @@ function chordSvgLabel(disp, fs){
     if((m=/^(#|b)([A-G1-7])(.*)$/.exec(part))){ a=m[1]; core=m[2]; rest=m[3]; }
     else if((m=/^([A-G1-7])(#|b)(.*)$/.exec(part))){ a=m[2]; core=m[1]; rest=m[3]; }
     else return esc(part);
-    return `<tspan font-size="${Math.round(fs*0.62)}" dy="${(-fs*0.33).toFixed(1)}">${AC(a)}</tspan>`+
-           `<tspan dy="${(fs*0.33).toFixed(1)}">${esc(core+(rest||''))}</tspan>`;
+    return `<tspan font-size="${Math.round(fs*0.8)}" dy="${(-fs*0.34).toFixed(1)}">${AC(a)}</tspan>`+
+           `<tspan dy="${(fs*0.34).toFixed(1)}">${esc(core+(rest||''))}</tspan>`;
   };
   const i = disp.indexOf('/');
   return i<0? seg(disp) : seg(disp.slice(0,i))+'/'+seg(disp.slice(i+1));
@@ -5331,8 +5331,7 @@ function renderChordEditor(){
         <div style="font-size:10.5px;color:var(--muted);margin:1px 0 5px">点格放音 · 顶部切 ×/○ · 同格再点取消</div>
         <div class="row" style="display:flex;justify-content:center;align-items:center;gap:7px;margin-bottom:8px">
           <span style="font-size:11.5px;color:var(--muted)">把位</span>
-          <button data-cdb="-1" class="chip" style="padding:1px 9px">−</button>
-          <button data-cdb="1" class="chip" style="padding:1px 9px">＋</button>
+          <input id="ce-base" type="number" min="1" max="12" value="${cdBase}" style="width:50px;text-align:center" title="直接输入起始品位 1-12">
           <button id="ce-play" title="试听当前和弦（按指法自低音弦琶音）">▶ 试听</button>
         </div>
         <h4 style="margin:4px 0 5px">把位方案</h4>
@@ -5348,12 +5347,6 @@ function renderChordEditor(){
     const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
     /* v39.1 和弦图式创建器交互 */
     const cdShape0=()=>{ const SN2=strN(); const a=(ceState.custom||ceShape()||'x'.repeat(SN2)).split(''); while(a.length<SN2) a.push('x'); return a; };
-    const cdb=ev.target.closest('[data-cdb]');
-    if(cdb){
-      const arr=cdShape0(); ceState.custom=arr.join('');           // 固定当前指法再移窗
-      ceState.cdBase=Math.max(1, Math.min(12, (ceState._cdShownBase||1)+(+cdb.dataset.cdb)));
-      rerender(); return;
-    }
     const cdt=ev.target.closest('[data-cdt]');
     if(cdt){
       const arr=cdShape0(); const i=+cdt.dataset.cdt;
@@ -5374,6 +5367,15 @@ function renderChordEditor(){
     if(ux){ const o=userChords(); delete o[ux.dataset.ucx]; userChordsSave(o); toast('已删除用户和弦'); rerender(); return; }
   });
   document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; rerender(); });
+  /* v39.3 把位直接输入数字（1-12）：固定当前指法后移动品位窗口 */
+  const baseInp=document.getElementById('ce-base');
+  if(baseInp) baseInp.addEventListener('change', ()=>{
+    const v=Math.max(1, Math.min(12, parseInt(baseInp.value,10)||1));
+    const SN2=strN(); const a=(ceState.custom||ceShape()||'x'.repeat(SN2)).split(''); while(a.length<SN2) a.push('x');
+    ceState.custom=a.join('');
+    ceState.cdBase=v;
+    rerender();
+  });
   const nameInp=document.getElementById('ce-name');
   if(nameInp) nameInp.addEventListener('change', ()=>{
     ceState.cname = nameInp.value.trim() || null;
@@ -9658,6 +9660,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.3</span><div><b>和弦细节打磨</b>：① 创建器的「把位」由 −/＋ 步进改为<b>直接输入数字</b>（1–12），高把位一步到位；② 主音左上角的<b>升降号放大</b>（谱面/和弦图/弹窗全线，约为主音字号八成），投影和打印下更清晰。</div></li>
     <li><span class="v">v39.2</span><div><b>和弦弹窗单页化</b>：编辑和弦重排为紧凑双栏、<b>一屏放下无滚动</b>——左列「主音（原根音）/和弦性质/转位低音/命名保存/我的和弦」，右列大号<b>可编辑和弦图</b>（创建器兼预览，名称升降号左上角显示）+ 把位调节/试听 + 把位方案卡；按需求移除「和弦名直达」「调内常用」条与「自定义指法」文本行，创建统一走和弦图点格。</div></li>
     <li><span class="v">v39.1</span><div><b>和弦图式创建 + 升降号左上角</b>：① 自定义和弦创建从「横向指板模拟」改为<b>与谱面同款的竖式和弦图</b>——点格放音（再点取消）、顶部点击切换 ×不弹/○空弦、「把位 −/＋」移动品位窗口（横按高把位同样直观），所见即所得；② 全部和弦名显示改为出版惯例：<b>升降号写在主音左上角</b>（♯C、♭B、♭3），谱面 TAB 和弦、和弦图标题、功能谱级数/音名、弹窗预览全线生效——数据仍存 C#/Bb 格式，导出/移调/兼容不受影响。</div></li>
     <li><span class="v">v39.0</span><div><b>和弦引擎全面升级</b>（两位专业 Agent 方案落地）：① <b>和弦库扩容到全根音全类型</b>——新增「可移调模板引擎」：每类型维护 E 型/A 型把位模板，12 个根音自动推导指法，覆盖 22 种类型（大/小/属七/大七/小七/减/减七/半减/增/挂二/挂四/七挂四/六/小六/九/大九/小九/加九/十一/十三/强力/小大七）×任意斜杠低音；精修开放指法保留优先，尤克里里走 4 弦通用推导；<b>修复把位卡把减/增等和弦画成大三和弦的错误</b>（468 个推导指法逐音高验证纯净）。② <b>编辑和弦弹窗升级</b>——新增当前调内七级<b>常用直达</b>条、<b>和弦名搜索直达</b>（输 Abmaj9 回车即跳）、<b>▶试听</b>（按指法琶音）、类型 chip 扩到 22 种与功能谱口径统一。③ <b>功能谱级数菜单</b>加和弦图预览与试听。④ 和弦输入候选<b>动态化</b>：调内和弦置顶→最近使用→自定义→精修库→全类型组合。⑤ 织体生成的和弦解析升级为全类型音程表（减/增/挂留/扩展和弦不再一律按大三和弦发声）。</div></li>

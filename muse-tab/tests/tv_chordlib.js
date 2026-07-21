@@ -175,10 +175,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     // 顶部切换：非×→×
     document.querySelector('[data-cdt="0"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     const afterTop = (ceState.custom || '')[0] === 'x';
-    // 把位 +1
-    const b0 = ceState._cdShownBase;
-    document.querySelector('[data-cdb="1"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
-    const stepped = ceState._cdShownBase === b0 + 1;
+    // 把位直接输入数字（v39.3）
+    const bi = document.getElementById('ce-base');
+    bi.value = '7'; bi.dispatchEvent(new Event('change', {bubbles: true}));
+    const stepped = ceState._cdShownBase === 7;
     document.getElementById('ce-cancel').click();
     return { noOldFb, hasCdg, afterCell, afterTop, stepped };
   });
