@@ -7,32 +7,34 @@
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
 :root{
-  --bg:#f0f0ec; --panel:#fcfcfa; --text:#1d1d1f; --muted:#6e6e73;   /* v40.0 护眼：背景转暖降亮 */
-  --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
+  /* v40.5 视觉舒适度：中性色整体升温、表面三级层级（--bg 画布 < --toolbar 栏 < --panel 卡片）、
+     染色细线边框、暖调阴影；--paper 谱纸转暖米白（打印分支强制回 #fff，见 @media print） */
+  --bg:#f2efe7; --panel:#fdfcf6; --text:#222220; --muted:#6f695f; --faint:#a59d8e;
+  --border:#ddd6c8; --border-soft:#e9e3d5;
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --paper:#ffffff; --ink:#141414; --toolbar:#f3f3ef; --hover:rgba(0,0,0,.045);
-  --glass:rgba(251,251,253,.82);
+  --paper:#fdfcf7; --ink:#141414; --toolbar:#f4f1e9; --hover:rgba(80,65,40,.06);
+  --glass:rgba(251,250,245,.82);
   --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
-  --shadow:0 1px 2px rgba(0,0,0,.03), 0 6px 18px rgba(0,0,0,.06);   /* v40.0 扁平化：阴影减半 */
+  --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06);
   --radius:10px;
   --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
+  :root{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d; --faint:#77777d;
     --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
     --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
     --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
     --danger:#ff453a; --ok:#30d158;
     --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
 }
-:root[data-theme="light"]{ --bg:#f0f0ec; --panel:#fcfcfa; --text:#1d1d1f; --muted:#6e6e73;
-  --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
+:root[data-theme="light"]{ --bg:#f2efe7; --panel:#fdfcf6; --text:#222220; --muted:#6f695f; --faint:#a59d8e;
+  --border:#ddd6c8; --border-soft:#e9e3d5;
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --toolbar:#f3f3ef; --hover:rgba(0,0,0,.045); --glass:rgba(251,251,253,.82);
+  --paper:#fdfcf7; --toolbar:#f4f1e9; --hover:rgba(80,65,40,.06); --glass:rgba(251,250,245,.82);
   --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
-  --shadow:0 1px 2px rgba(0,0,0,.03), 0 6px 18px rgba(0,0,0,.06);   /* v40.0 扁平化：阴影减半 */ }
-:root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
+  --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06);   /* v40.5 暖调 */ }
+:root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d; --faint:#77777d;
   --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
   --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
   --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
@@ -316,6 +318,40 @@ body.shell .ltab[data-act="new"]:hover{filter:brightness(1.07)}
     width:262px;height:auto;max-height:none;overflow-y:auto;z-index:40;box-shadow:var(--shadow);
     margin:0;border:1px solid var(--border-soft);border-radius:14px}
 }
+/* v40.5 视觉舒适度第一批（UI/UX 专家评审落地）：
+   ① 层级顺序——左栏分区标题置顶左对齐弱化；② 强调纪律——光标数值回墨色、工具选中态降饱和；
+   ③ 扁平边框——卡片去阴影；④ 状态胶囊移入工具行右端（JS 搬移见 applyShellDock） */
+body.shell #left-flyout .rg .rg-title{order:0;text-align:left;margin:0 0 6px;
+  font-size:10.5px;letter-spacing:.1em;color:var(--faint)}
+body.shell #left-flyout .rg-body button{font-size:12px;padding:4px 9px;min-height:28px}
+body.shell .rg-title,body.shell .sp-t{font-size:10.5px;letter-spacing:.1em;color:var(--faint)}
+body.shell .rcard,body.shell #left-flyout .rg,body.shell .ltab{box-shadow:none}
+body.shell .rc-h{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+body.shell .rcard:has(#b-help),body.shell .rcard:has(#b-feat),body.shell .rcard:has(#b-changelog){
+  border:none;background:transparent;box-shadow:none}
+body.shell .rcard:has(#b-help) .rc-h,body.shell .rcard:has(#b-feat) .rc-h,
+body.shell .rcard:has(#b-changelog) .rc-h{padding:2px 10px;font-size:11px;color:var(--faint);background:transparent}
+body.shell .rcard:has(#b-help) .rc-h:hover,body.shell .rcard:has(#b-feat) .rc-h:hover,
+body.shell .rcard:has(#b-changelog) .rc-h:hover{color:var(--accent-ink)}
+body.shell #editbar .eb.on{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
+#cursor-info b{color:var(--text)}
+#cursor-info b.z{color:var(--accent-ink)}
+body.shell #editbar #beat-box{flex:none;padding:0;white-space:nowrap}
+body.shell #editbar #beat-status{padding:3.5px 10px;border-radius:20px;font-size:11.5px}
+body.shell #editbar #err-drop{position:fixed;right:14px;top:150px;width:340px;max-height:62vh;
+  overflow-y:auto;z-index:55;background:var(--panel);border:1px solid var(--border-soft);
+  border-radius:12px;box-shadow:var(--shadow);padding:8px;margin:0}
+/* v40.5 工具行减密：新版时值用音符字形、图标组只留图形（名称进 title），行内控件统一 28px 高 */
+#editbar .eb .dg{display:none}
+body.shell #editbar .eb .dg{display:inline;font-size:14px;line-height:1}
+body.shell #eb-dur .eb .dg{font-size:15px;font-family:var(--font-num)}
+body.shell #editbar .eb .dn{display:none}
+body.shell #eb-dur .eb,body.shell #editbar .eb:has(.dg){min-width:30px;justify-content:center}
+body.shell #editbar{gap:5px}
+body.shell #editbar .eb-grp{gap:3px}
+body.shell #editbar .eb.ico span{display:none}
+body.shell #editbar .eb{font-size:12px;padding:3px 8px;min-height:28px;display:inline-flex;align-items:center}
+body.shell #editbar #eb-lib{display:none}   /* 新版下节奏型库入口在右栏「库」页签，工具行不重复 */
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
@@ -634,7 +670,7 @@ body.stand #standbar{display:flex}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
 /* ================= v40.0 新版外壳（阶段1：深色扁平顶栏/底栏，经典版可切回） ================= */
-body.shell #top .main-bar{background:#1c1d20;border-bottom:1px solid rgba(255,255,255,.06)}
+body.shell #top .main-bar{background:#262b40;border-bottom:1px solid rgba(255,255,255,.07)}   /* v40.5 近黑→靛墨（蓝紫同族），降低与浅内容区的明度对撞 */
 body.shell .main-bar .logo{color:#f2f2f4}
 body.shell .main-bar .logo small{color:#9a9aa2}
 body.shell .main-bar button{color:#d9d9de;background:transparent;border-color:rgba(255,255,255,.13);box-shadow:none}
@@ -644,7 +680,7 @@ body.shell .main-bar .seg-accent{color:#9ecbff}
 body.shell .main-bar #k-val{color:#f5f5f7}
 body.shell .main-bar #b-member{background:var(--accent);color:#fff;border-color:transparent}
 body.shell #mixer-dock{left:0;right:0;bottom:0;transform:none;width:100%;max-width:none;border-radius:0;
-  background:#1c1d20;border:none;border-top:1px solid rgba(255,255,255,.06);
+  background:#262b40;border:none;border-top:1px solid rgba(255,255,255,.07);
   box-shadow:0 -8px 26px rgba(0,0,0,.22);-webkit-backdrop-filter:none;backdrop-filter:none}
 body.shell #mixer-dock .mx-bar{padding:9px 18px}
 body.shell #mixer-dock button{color:#d9d9de}
@@ -886,8 +922,8 @@ body.shell #hint{display:none}
       <button id="b-circle" class="seg-accent" title="曲谱库：发现好谱、收藏与购买（创作者可在个人中心发布）">曲谱库</button>
     </span>
     <span class="seg">
-      <button id="b-undo" title="Ctrl+Z">撤销</button>
-      <button id="b-redo" title="Ctrl+Y">重做</button>
+      <button id="b-undo" title="撤销 (Ctrl+Z)" style="font-size:14px;min-width:34px">↶</button>
+      <button id="b-redo" title="重做 (Ctrl+Y)" style="font-size:14px;min-width:34px">↷</button>
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
@@ -897,21 +933,21 @@ body.shell #hint{display:none}
       <button id="k-up" title="升半音">♯</button>
     </span>
     <button id="b-shell" class="ghost" title="新版界面 / 经典版 一键切换">经典版</button>
-    <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）">◑ 反色</button>
-    <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
+    <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）" style="font-size:15px">◑</button>
+    <button id="b-theme" class="ghost" title="界面风格：明暗切换" style="font-size:15px">◐</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
   <!-- 常用编辑功能栏：与页头等宽、随页头一起固定 -->
   <div class="bar" id="editbar">
     <span class="eb-t">音符</span>
     <span class="eb-grp">
-      <button class="eb" id="eb-add" title="在光标后插入同时值音符（快捷键 Insert）">＋后插</button>
-      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
-      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍">休止符</button>
-      <button class="eb" id="eb-clear" title="清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）">清单音</button>
-      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
-      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
-      <button class="eb" id="eb-delcol2" title="删除当前音符列（时值一并移除）">删音符</button>
+      <button class="eb" id="eb-add" title="后插音符：在光标后插入同时值音符（快捷键 Insert）" aria-label="后插音符"><span class="dg">＋»</span><span class="dn">＋后插</span></button>
+      <button class="eb" id="eb-addb" title="前插音符：在光标前插入同时值音符（Shift+Insert）" aria-label="前插音符"><span class="dg">«＋</span><span class="dn">＋前插</span></button>
+      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍" aria-label="休止符"><span class="dg">𝄽</span><span class="dn">休止符</span></button>
+      <button class="eb" id="eb-clear" title="清单音：清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）" aria-label="清单音"><span class="dg">⌫</span><span class="dn">清单音</span></button>
+      <button class="eb" id="eb-split" title="拆分：把当前音符一分为二（各减半时值，总时值不变）" aria-label="拆分"><span class="dg">½</span><span class="dn">拆分</span></button>
+      <button class="eb" id="eb-merge" title="合并：当前与下一同时值音符合并为一个（时值加倍）" aria-label="合并"><span class="dg">⌒</span><span class="dn">合并</span></button>
+      <button class="eb" id="eb-delcol2" title="删音符：删除当前音符列（时值一并移除）" aria-label="删音符"><span class="dg">✕</span><span class="dn">删音符</span></button>
     </span>
     <span class="eb-sep"></span>
     <span class="eb-t">时值</span>
@@ -4192,8 +4228,8 @@ function syncInputs(){
     let durTxt = '—';
     if(col){ durTxt = (col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?('·'+(col.tup===1?3:col.tup)+'连音'):''); }
     ci.innerHTML =
-      `<div class="ci-row"><span class="ci-k">声部</span><b>${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
-      `<div class="ci-row"><span class="ci-k">小节</span><b>第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
+      `<div class="ci-row"><span class="ci-k">声部</span><b class="z">${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
+      `<div class="ci-row"><span class="ci-k">小节</span><b class="z">第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
       `<div class="ci-row"><span class="ci-k">列</span><b>第 ${sel.ci+1} / ${cols.length}</b></div>`+
       `<div class="ci-row"><span class="ci-k">时值</span><b>${durTxt}</b></div>`+
       (selRange?`<div class="ci-row"><span class="ci-k">多选</span><b>${selRange.m1+1}–${selRange.m2+1} 小节</b></div>`:'');
@@ -4706,9 +4742,11 @@ function applyVoxPattern(pat){
   });
   /* ---- 页头下常用编辑功能栏：时值 + 组合节奏 + 缩放 ---- */
   const ebDur = document.getElementById('eb-dur');
+  /* v40.5 新版外壳时值按钮用音符字形（.dg，经典版仍显中文 .dn；显隐由 CSS 按外壳切换） */
+  const DUR_GLYPH = {1:'𝅝',2:'𝅗𝅥',4:'♩',8:'♪',16:'𝅘𝅥𝅯',32:'𝅘𝅥𝅰'};
   ebDur.innerHTML = DUR_SINGLE.map(d=>
-    `<button class="eb" data-dur="${d.dur}" title="${d.name}">${d.name}</button>`
-  ).join('') + `<button class="eb" id="eb-dot" title="附点">附点</button>`;
+    `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${DUR_GLYPH[d.dur]||d.dur}</span><span class="dn">${d.name}</span></button>`
+  ).join('') + `<button class="eb" id="eb-dot" title="附点：时值×1.5" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-dot') toggleDot(); else setDur(+b.dataset.dur);
@@ -4718,7 +4756,7 @@ function applyVoxPattern(pat){
   ebCombo.innerHTML = DUR_COMBOS.slice(0,4).map((c,i)=>
     `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${comboSVG(c.durs,34,20)}<span>${esc(c.name)}</span></button>`
   ).join('')
-  + `<button class="eb" id="eb-more" title="全部组合时值">更多 ▾</button>`
+  + `<button class="eb" id="eb-more" title="全部组合时值" aria-label="更多组合时值"><span class="dg">▾</span><span class="dn">更多 ▾</span></button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
   ebCombo.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
@@ -4728,7 +4766,7 @@ function applyVoxPattern(pat){
   });
   /* 记号组：连音线 + 3/5/6/7 连音（带图示） */
   document.getElementById('eb-marks').innerHTML =
-    `<button class="eb" id="eb-tie" title="连音线：选中音符自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（简谱/吉他谱通用）">连音线</button>`+
+    `<button class="eb" id="eb-tie" title="连音线：选中音符自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（简谱/吉他谱通用）" aria-label="连音线"><span class="dg">‿</span><span class="dn">连音线</span></button>`+
     [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
   /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
   const ebHandler = e=>{
@@ -7593,6 +7631,13 @@ function applyShellDock(){
     if(uiShell){ lh.appendChild(pop); }
     else { document.body.appendChild(pop); pop.classList.remove('on'); }
   }
+  /* v40.5 时值校验状态胶囊：新版 → 工具行右端（编辑动作发生行的扫视终点）；经典版 → 回右栏底部 */
+  const bb=document.getElementById('beat-box'), ebz=document.getElementById('eb-zoom'),
+        rdock=document.getElementById('right-dock');
+  if(bb && ebz && rdock){
+    if(uiShell) ebz.parentElement.insertBefore(bb, ebz);
+    else rdock.appendChild(bb);
+  }
 }
 /* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
 let rTab='info';
@@ -9999,6 +10044,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.5</span><div><b>视觉舒适度升级</b>（两位专业 Agent 对照设计稿逐项归因后落地，保持品牌蓝）：① <b>中性色整体升温</b>——画布/面板/工具栏转暖米调、谱纸从纯白改暖米白（打印仍纯白），相邻表面亮度阶梯平缓不刺眼；② <b>强调色纪律</b>——蓝色只留给选中/播放/主按钮，光标数值回墨色（仅声部/小节活值保留蓝）、时值选中态从蓝底白字降为柔和蓝底；③ <b>边框降噪</b>——灰黑透明线改暖色细线、卡片去阴影走纯扁平；④ <b>层级顺序修正</b>——左栏分区标题移到按钮上方、左对齐、弱化小字距排版（先分类后内容）；⑤ <b>工具行图标化单排</b>——时值改音符字形（𝅝 𝅗𝅥 ♩ ♪ …）、音符操作/节奏/连音改字形 chip（中文名进悬浮提示），<b>时值校验状态胶囊移到工具行右端</b>（出错即刻入眼）；⑥ 顶/底深色栏从近黑改<b>靛墨色</b>（蓝紫同族），撤销/重做/反色/风格图标化。经典版布局与文字按钮不受影响。</div></li>
     <li><span class="v">v40.4</span><div><b>新版界面 · 通栏应用框架</b>（按 v5 设计稿贴边布局）：新版下整个编辑器改为<b>全屏应用网格</b>——左侧图层轨与功能面板<b>贴左缘</b>、右栏四页签<b>贴右缘</b>，均为全高列（各自独立滚动），中间制版台<b>内部滚动</b>（顶栏/工具行/播放条常驻不动，只有谱面滚动）；播放跟随与节拍错误跳转自动适配新滚动模型。左轨新增「＋新建」（顶部，直达八场景向导）与「?帮助」（底部）。谱架/观看/打印模式不受影响仍为整页滚动；「经典版」一键切回原居中布局。</div></li>
     <li><span class="v">v40.3</span><div><b>新版界面 · 阶段四收尾：工具行单行化</b>（v5 设计稿主体完工）：① 编辑工具收为<b>单行</b>——演奏技巧（滑弦/击勾/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音）并入左栏<b>吉他谱图层</b>、标识符号（倚音/波音/颤音/回音/力度）并入<b>简谱图层</b>，跟在「音符记号」面板后，编辑栏更清爽；② <b>窄屏适配</b>——窗口较窄时左栏面板自动转为浮层（图层轨保持常驻，点图层弹出面板不再挤压谱面）；③ 文档标签页扁平化微调。切回「经典版」时技法/记号回到编辑栏第二行。至此 v5 新版界面四阶段全部落地：深色外壳 → 左轨六图层 → 右栏四页签 → 单行工具行。</div></li>
     <li><span class="v">v40.2</span><div><b>新版界面 · 阶段三：右栏四页签</b>（v5 设计稿路线）：右侧栏重组为 <b>信息 / 排版 / 库 / 智能</b> 四个页签——① <b>信息页</b>：曲谱信息、光标位置、节拍检查、帮助/特色/更新日志；② <b>排版页</b>：排版面板从浮层<b>常驻停靠</b>右栏（纸张 A5/A4/A3、智能疏密、缩放/行距/间距滑杆实时生效），顶栏「排版」按钮直达；③ <b>库页</b>：节奏型库、编辑/创建和弦、伴奏织体一站直达；④ <b>智能页</b>：一键配和弦、一键配伴奏、智能填词、哼唱成谱、导入 MusicXML/MIDI 按谱类智能显隐、一键进入对应工作流。切回「经典版」时右栏卡片布局与排版浮层行为完整还原。</div></li>
