@@ -7299,15 +7299,15 @@ function saveStatusText(s){
 }
 function renderDocTabs(){
   const bar=document.getElementById('doc-tabs'); if(!bar) return;
-  const TYPE_NAME={guitar:'吉他谱',uku:'尤克里里谱',vox:'简谱',func:'功能谱'};
   const cnt={};
   bar.innerHTML = docs.map((d,i)=>{
     const st=saveStatusText(d.song);
     const ty=docType(d.song);
     cnt[ty]=(cnt[ty]||0)+1;
+    const tyName = TYPE_CN[ty] || '曲谱';   // v38.9 修复：八类型全覆盖，教学谱等不再显示 undefined
     return `<div class="dtab ${i===curDocI?'on':''}" data-doc="${i}" title="${esc(st.text)}">`+
       `<span class="dt-dot ${st.saved?'saved':''}"></span>`+
-      `<span class="dt-t">${TYPE_NAME[ty]}${cnt[ty]} · ${esc(d.song.title||'未命名曲谱')}</span>`+
+      `<span class="dt-t">${tyName}${cnt[ty]} · ${esc(d.song.title||'未命名曲谱')}</span>`+
       `<button class="dt-x" data-doc-x="${i}" title="关闭窗口">✕</button></div>`;
   }).join('')+`<button id="dt-add" title="在新窗口新建曲谱（当前窗口保留）">＋ 新建窗口</button>`;
 }
