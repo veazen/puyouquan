@@ -485,29 +485,6 @@ body.stand #standbar{display:flex}
 .fb-c.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fb-c.on.x{background:var(--muted);border-color:var(--muted)}
 /* 新建向导·类型卡片（大气现代，无图标） */
-/* v38.9 顶栏收敛：低频操作收进「⋯更多」下拉（按钮保留在 DOM，处理器不动） */
-.tb-more{display:none!important}
-#more-menu{position:fixed;z-index:98;min-width:200px;background:var(--panel);border:1px solid var(--border-soft);
-  border-radius:13px;box-shadow:var(--shadow);padding:6px;display:none}
-#more-menu.on{display:block}
-#more-menu button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 11px;
-  border-radius:9px;font-size:13px;color:var(--text)}
-#more-menu button:hover{background:var(--hover)}
-#more-menu button small{color:var(--muted);font-size:11px;margin-left:auto}
-#more-menu .mm-hr{height:1px;background:var(--border-soft);margin:5px 8px}
-/* v38.9 同源互切签名切换条（谱面正上方，与曲谱同宽居中） */
-#nota-switch{display:flex;align-items:center;justify-content:center;gap:13px;margin:2px 0 10px;min-height:0}
-#nota-switch:empty{display:none}
-#nota-switch .ns-seg{display:inline-flex;gap:2px;background:var(--panel);border:1px solid var(--border-soft);
-  border-radius:12px;padding:4px;box-shadow:var(--shadow)}
-#nota-switch .ns-seg button{padding:6px 15px;border-radius:9px;font-size:13px;font-weight:500;color:var(--muted);transition:.15s}
-#nota-switch .ns-seg button:hover{color:var(--text);background:var(--hover)}
-#nota-switch .ns-seg button.on{background:var(--accent);color:#fff}
-#nota-switch .ns-seg button.on:hover{background:var(--accent);color:#fff}
-#nota-switch .ns-hint{font-size:12px;color:var(--muted);white-space:nowrap}
-#nota-switch .ns-hint b{color:var(--accent-ink)}
-@media(max-width:820px){ #nota-switch .ns-hint{display:none} }
-body.stand #nota-switch{display:none}
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
 /* v38.8 向导差异化入口提权：导入/哼唱不再与「取消」同权重 */
 .nw-feats{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:12px 0 2px;
@@ -765,7 +742,7 @@ body.stand #nota-switch{display:none}
 #layout-pop .lp-foot button:hover{background:var(--hover)}
 #layout-pop .lp-foot .prim{background:var(--accent);color:#fff;border-color:var(--accent)}
 @media print{
-  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov,#nota-switch,#more-menu{display:none!important}
+  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -784,16 +761,16 @@ body.stand #nota-switch{display:none}
     <span class="logo"><span class="mark"></span>谱友圈 <small>在线制谱</small></span>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
-      <button id="b-open" class="tb-more" title="打开 / 导入 .mtab.json 文件">打开</button>
+      <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
     </span>
     <span class="seg">
       <button id="b-savemine" title="保存到我的曲谱">保存</button>
-      <button id="b-save" class="tb-more" title="导出为 .mtab.json 文件">导出</button>
+      <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
     </span>
     <span class="seg">
-      <button id="b-layout" class="tb-more" title="排版：智能/手动疏密、内容大小、页面尺寸(A5/A4/A3 容量)">排版</button>
-      <button id="b-preview" class="tb-more" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
-      <button id="b-print" title="打印、导出 PDF/图片/MusicXML/MIDI、分享卡与互动谱">导出…</button>
+      <button id="b-layout" title="排版：智能/手动疏密、内容大小、页面尺寸(A5/A4/A3 容量)">排版</button>
+      <button id="b-preview" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
+      <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
       <button id="b-library" class="seg-accent" title="预设曲谱（功能示例）与我的曲谱">预设</button>
       <button id="b-circle" class="seg-accent" title="曲谱库：发现好谱、收藏与购买（创作者可在个人中心发布）">曲谱库</button>
     </span>
@@ -803,9 +780,8 @@ body.stand #nota-switch{display:none}
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
-    <button id="b-invert" class="ghost tb-more" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）">◑ 反色</button>
-    <button id="b-theme" class="ghost tb-more" title="界面风格：明暗切换">◐ 界面风格</button>
-    <button id="b-more" class="ghost" title="更多：打开文件 / 导出曲谱文件 / 排版 / 预览 / 反色 / 界面风格">⋯ 更多</button>
+    <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）">◑ 反色</button>
+    <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
   <!-- 常用编辑功能栏：与页头等宽、随页头一起固定 -->
@@ -988,11 +964,7 @@ body.stand #nota-switch{display:none}
     </div>
   </aside>
 
-  <div id="score-wrap">
-    <!-- v38.9 签名交互：三记谱法同源互切（委托左栏既有 tn-*/vn-* 处理器，渲染引擎不动） -->
-    <div id="nota-switch"></div>
-    <div id="paper"><svg id="score"></svg></div>
-  </div>
+  <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
 
   <aside id="right-dock">
     <div class="rcard">
@@ -2622,34 +2594,6 @@ function renderDock(){
     return el && el.style.display!=='none';
   });
   setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
-  renderNotaSwitch();
-}
-/* v38.9 同源互切签名切换条：谱面正上方常驻，按当前编辑声部展示可切的记谱法。
-   全部委托左栏既有按钮（tn-tab/tn-both、vn-jp/st/bs/al/dual）的处理器——只是入口提权，不新增切换逻辑 */
-function renderNotaSwitch(){
-  const el=document.getElementById('nota-switch'); if(!el) return;
-  const dt=docType(song);
-  if(dt==='chord'){ el.innerHTML=''; return; }        // 纯和弦谱无记谱法可切
-  const segs=[];
-  if(song.tabVoices.length && sel.row!=='vox'){
-    segs.push('<span class="ns-seg">'
-      +'<button data-ns="tn-tab"'+(!song.tabStaff?' class="on"':'')+' title="仅六线谱 TAB">六线谱 TAB</button>'
-      +'<button data-ns="tn-both"'+(song.tabStaff?' class="on"':'')+' title="TAB 上方联排五线谱（Guitar Pro 式）">TAB＋五线谱</button>'
-      +'</span>');
-  }else if(song.voxVoices.length){
-    const vvi = sel.row==='vox'? sel.vi : 0;
-    const nt=(song.voxNotations||[])[vvi];
-    const on=k=>k?' class="on"':'';
-    segs.push('<span class="ns-seg" title="作用于当前声部：同一份数据，换个写法，可随时切回">'
-      +'<button data-ns="vn-jp"'+on(!isStaffNota(nt))+'>简谱</button>'
-      +'<button data-ns="vn-st"'+on(nt==='staff')+'>五线谱</button>'
-      +'<button data-ns="vn-bs"'+on(nt==='bass')+'>低音谱表</button>'
-      +'<button data-ns="vn-al"'+on(nt==='alto')+'>中音谱表</button>'
-      +(isStaffNota(nt)? '<button data-ns="vn-dual"'+on(!!(song.voxDual||[])[vvi])+' title="谱表下附加一行简谱（与歌词对齐）">＋简谱行</button>':'')
-      +'</span>');
-  }
-  if(!segs.length){ el.innerHTML=''; return; }
-  el.innerHTML=segs.join('')+'<span class="ns-hint"><b>同源互切</b> · 同一份曲谱，随时换记谱法</span>';
 }
 function render(){
   renderDock();
@@ -7194,34 +7138,6 @@ document.getElementById('b-metro').onclick = ()=>{
   toast(metroOn? '节拍器已开启：随播放发出拍点声，每小节第一拍重音' : '节拍器已关闭');
 };
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
-/* v38.9 签名切换条：点击委托到左栏既有按钮 */
-document.getElementById('nota-switch').addEventListener('click', e=>{
-  const b=e.target.closest('[data-ns]'); if(!b) return;
-  const t=document.getElementById(b.dataset.ns); if(t) t.click();
-});
-/* v38.9 顶栏「⋯更多」下拉：收纳低频操作，条目点击委托到原按钮（处理器/快捷键不动） */
-(function(){
-  const mm=document.createElement('div'); mm.id='more-menu';
-  const IT=[['b-open','📂 打开文件','.mtab.json'], ['b-save','💾 导出曲谱文件','.mtab.json'], null,
-            ['b-layout','📐 排版','疏密/大小/纸张'], ['b-preview','🖨 打印预览','A5/A4/A3'], null,
-            ['b-invert','◑ 曲谱反色','夜间/投影'], ['b-theme','◐ 界面风格','明暗切换']];
-  mm.innerHTML=IT.map(x=>x? `<button data-mm="${x[0]}">${x[1]}${x[2]?`<small>${x[2]}</small>`:''}</button>` : '<div class="mm-hr"></div>').join('');
-  document.body.appendChild(mm);
-  const btn=document.getElementById('b-more');
-  btn.onclick=e=>{
-    e.stopPropagation();
-    const r=btn.getBoundingClientRect();
-    mm.style.left=Math.max(8, Math.min(r.right-208, innerWidth-216))+'px';
-    mm.style.top=(r.bottom+6)+'px';
-    mm.classList.toggle('on');
-  };
-  mm.addEventListener('click', e=>{
-    const b=e.target.closest('[data-mm]'); if(!b) return;
-    mm.classList.remove('on');
-    const t=document.getElementById(b.dataset.mm); if(t) t.click();
-  });
-  document.addEventListener('click', e=>{ if(!mm.contains(e.target) && e.target!==btn) mm.classList.remove('on'); });
-})();
 document.getElementById('b-restart').onclick = ()=>{
   stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
@@ -9573,7 +9489,6 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
-    <li><span class="v">v38.9</span><div><b>界面简约化第二步</b>（参考应用壳设计稿，品牌色不变）：① <b>顶栏收敛为单行</b>——打开/导出文件/排版/预览/反色/界面风格六个低频操作收进「⋯更多」下拉，高频操作（新建/保存/导出/预设/曲谱库/撤销重做/个人中心）保持直达，原快捷键与功能全部保留；「打印…」更名「导出…」更贴合实际内容。② <b>「同源互切」签名交互</b>——谱面正上方新增常驻记谱法切换条：吉他谱一键切「六线谱 TAB ↔ TAB＋五线谱联排」，简谱/五线谱类一键切「简谱 ↔ 高音/低音/中音谱表 ↔ ＋简谱行」，把产品核心能力（一份谱、多种写法）从左栏设置项提为第一眼交互；纯和弦谱自动隐藏。</div></li>
     <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「🎼 谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
     <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
     <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>
