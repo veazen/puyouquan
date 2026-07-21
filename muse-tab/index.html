@@ -1205,11 +1205,26 @@ const PIANO_TEX = [
   L:[{d:2,t:'1'},{d:2,t:'5'}],
   R:[{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'}]},
 ];
+/* v39.0 和弦类型 → 音程表（半音）：与 CHORD_TEMPLATES 同一份 qual 口径。
+   槽位 1/3/5/8 永远存在（11 套织体事件表只引用这四个槽），sus/11/5 等无三音类型
+   的 3 槽放其"色彩音"（挂留音/纯五度），织体引擎零改动即正确发声；7/9/6 为增量槽。 */
+const QUAL_INTERVALS = {
+  '':    {1:0,3:4,5:7,8:12},           'm':   {1:0,3:3,5:7,8:12},
+  '7':   {1:0,3:4,5:7,7:10,8:12},      'maj7':{1:0,3:4,5:7,7:11,8:12},
+  'm7':  {1:0,3:3,5:7,7:10,8:12},      'dim': {1:0,3:3,5:6,8:12},
+  'dim7':{1:0,3:3,5:6,7:9,8:12},       'm7b5':{1:0,3:3,5:6,7:10,8:12},
+  'aug': {1:0,3:4,5:8,8:12},           'sus2':{1:0,3:2,5:7,8:12},
+  'sus4':{1:0,3:5,5:7,8:12},           '6':   {1:0,3:4,5:7,6:9,8:12},
+  'm6':  {1:0,3:3,5:7,6:9,8:12},       '9':   {1:0,3:4,5:7,7:10,9:14,8:12},
+  'maj9':{1:0,3:4,5:7,7:11,9:14,8:12}, 'm9':  {1:0,3:3,5:7,7:10,9:14,8:12},
+  'add9':{1:0,3:4,5:7,9:14,8:12},      '11':  {1:0,3:5,5:7,7:10,9:14,8:12},
+  '13':  {1:0,3:4,5:7,7:10,6:9,8:12},  '5':   {1:0,3:7,5:7,8:12},
+  'mmaj7':{1:0,3:3,5:7,7:11,8:12},     '7sus4':{1:0,3:5,5:7,7:10,8:12},
+};
 function chordTones(name){
-  const m=/^([A-G](?:#|b)?)(.*)$/.exec((name||'').trim());
+  const m=/^([A-G](?:#|b)?)([^/]*)(?:\/[A-G](?:#|b)?)?$/.exec((name||'').trim());
   if(!m || KEY_PC[m[1]]==null) return null;
-  const minor = /^m(?!aj)/.test(m[2]||'');
-  return {pc:KEY_PC[m[1]], iv:{'1':0, '3':minor?3:4, '5':7, '8':12}};
+  return {pc:KEY_PC[m[1]], iv: QUAL_INTERVALS[m[2]||''] || QUAL_INTERVALS['']};   // 未知后缀兜底大三（与旧行为一致）
 }
 function midiToVoxCol(midi){
   const rel = midi - keyRef();
@@ -1377,7 +1392,7 @@ const CHORD_SHAPES = {
   'Eb':'x65343','Ebm':'xx4342','Eb7':'x65646','Ebmaj7':'x65545','D#':'x65343',
   /* E 系 */
   'E':'022100','Em':'022000','E7':'020100','Emaj7':'021100','Em7':'022030',
-  'Eadd9':'024100','Esus4':'022200','Esus2':'x99877','E6':'022120','Edim':'012020','Eaug':'032110','E9':'020102',
+  'Eadd9':'024100','Esus4':'022200','Esus2':'x79977','E6':'022120','Edim':'012020','Eaug':'032110','E9':'020102',
   'Em/D':'xx0000','E/G#':'422100','E/B':'x22100',
   /* F 系 */
   'F':'133211','Fm':'133111','F7':'131211','Fmaj7':'x33210','Fm7':'131111',
@@ -1408,7 +1423,12 @@ const CHORD_QUALS = [
   {suf:'', label:'大三'},{suf:'m', label:'小三'},{suf:'7', label:'属七'},
   {suf:'maj7', label:'大七'},{suf:'m7', label:'小七'},{suf:'6', label:'六'},
   {suf:'sus4', label:'挂四'},{suf:'sus2', label:'挂二'},{suf:'add9', label:'加九'},
-  {suf:'dim', label:'减'},{suf:'aug', label:'增'},{suf:'9', label:'九'}
+  {suf:'dim', label:'减'},{suf:'aug', label:'增'},{suf:'9', label:'九'},
+  /* v39.0 与功能谱后缀口径统一（模板引擎全支持） */
+  {suf:'m6', label:'小六'},{suf:'dim7', label:'减七'},{suf:'m7b5', label:'半减'},
+  {suf:'maj9', label:'大九'},{suf:'m9', label:'小九'},{suf:'11', label:'十一'},
+  {suf:'13', label:'十三'},{suf:'5', label:'强力'},{suf:'7sus4', label:'七挂四'},
+  {suf:'mmaj7', label:'小大七'}
 ];
 /* 尤克里里常用和弦（GCEA 标准调弦；字符串按 4弦→1弦，与吉他 6弦→1弦 同逻辑） */
 const UKU_SHAPES = {
@@ -1444,30 +1464,90 @@ function chordShape(n){
   if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
   const uc=userChords();
   if(uc[n] && uc[n].length===strN()) return uc[n];
-  if(instOf()==='uku') return UKU_SHAPES[n] || null;
-  return CHORD_SHAPES[n] || null;
+  /* 1) 人工精修库优先（开放把位手感最好） 2) 未命中 → 可移调模板推导 3) 再兜底通用搜索
+     —— 12 根音 × 20+ 类型 × 任意斜杠低音全覆盖（v39.0） */
+  const uku = instOf()==='uku';
+  const std = uku? UKU_SHAPES[n] : CHORD_SHAPES[n];
+  if(std) return std;
+  const p = parseChordName(n);
+  if(!p) return null;
+  const iv = QUAL_INTERVALS[p.qual] || null;
+  let sh = null;
+  if(uku){
+    sh = iv? algoShape(UKU_OPEN_PC, p.rootPc, iv) : null;
+  }else{
+    sh = movableShape(p.rootPc, p.qual, 'E') || movableShape(p.rootPc, p.qual, 'A')
+       || (iv? algoShape([4,9,2,7,11,4], p.rootPc, iv) : null);
+    if(sh && p.bassPc!=null) sh = slashShape(sh, p.bassPc);
+  }
+  return sh;
 }
 const NOTE_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 const OPEN_PC = [4,11,7,2,9,4];   // 1..6 弦空弦音高 pc（E B G D A E）
-/* 可移动把位形（E型根音在6弦、A型根音在5弦）——按品格拼字符串 */
+/* v39.0 可移调和弦模板：每类型 E 型（根音6弦）/A 型（根音5弦）各一套相对指位，
+   12 根音自动推导——取代逐根音硬编码扩容。null=闷音，数字=相对把位起始品的偏移。
+   与 QUAL_INTERVALS 用同一份 qual 口径；某型不适合的类型置 null（如 dim7 无 A 型）。 */
+const CHORD_TEMPLATES = {
+  '':    { E:[0,2,2,1,0,0],           A:[null,0,2,2,2,0] },
+  'm':   { E:[0,2,2,0,0,0],           A:[null,0,2,2,1,0] },
+  '7':   { E:[0,2,0,1,0,0],           A:[null,0,2,0,2,0] },
+  'maj7':{ E:[0,2,1,1,0,0],           A:[null,0,2,1,2,0] },
+  'm7':  { E:[0,2,0,0,0,0],           A:[null,0,2,0,1,0] },
+  'dim': { E:[0,1,2,0,null,null],     A:[null,0,1,2,1,null] },
+  'dim7':{ E:[0,1,2,0,2,null],        A:null },
+  'm7b5':{ E:[0,1,0,0,null,null],     A:[null,0,1,0,1,null] },
+  'aug': { E:[0,null,2,1,1,0],        A:[null,0,3,2,2,null] },
+  'sus2':{ E:[0,2,2,null,0,2],        A:[null,0,2,2,0,0] },
+  'sus4':{ E:[0,2,2,2,0,0],           A:[null,0,2,2,3,0] },
+  '7sus4':{E:[0,2,0,2,0,0],           A:[null,0,2,0,3,0] },
+  '6':   { E:[0,2,2,1,2,0],           A:[null,0,2,2,2,2] },
+  'm6':  { E:[0,2,2,0,2,0],           A:[null,0,2,2,1,2] },
+  '9':   { E:[0,2,0,1,0,2],           A:[null,0,2,0,0,0] },
+  'maj9':{ E:[0,2,1,1,0,2],           A:null },
+  'm9':  { E:[0,2,0,0,0,2],           A:null },
+  'add9':{ E:[0,2,2,1,0,2],           A:[null,0,2,4,2,0] },
+  '11':  { E:null,                    A:[null,0,0,0,0,0] },
+  '13':  { E:[0,2,0,1,2,0],           A:null },
+  '5':   { E:[0,2,2,null,null,null],  A:[null,0,2,null,null,null] },
+  'mmaj7':{E:[0,2,1,0,0,0],           A:[null,0,2,1,1,0] },
+};
+const FRET_36 = n=> n>9? n.toString(36) : ''+n;   // 10→a…（36进制品位编码）
+/* 可移动把位：qual 未收录时返回 null（明确失败），绝不静默退成大三和弦（v39.0 修复） */
 function movableShape(rootPc, qual, form){
-  const f6 = ((rootPc-4)%12+12)%12 || (rootPc===4?0:((rootPc-4)%12+12)%12);
-  const f5 = ((rootPc-9)%12+12)%12;
-  const F = n=> n>9? n.toString(36) : ''+n;   // 10→a...
-  const barre=(base, offs)=> offs.map(o=> o==null?'x':F(base+o)).join('');
-  if(form==='E'){
-    const b = f6===0?12:f6;   // 避免全空弦叠罗
-    const shapes={ '':[0,2,2,1,0,0], m:[0,2,2,0,0,0], '7':[0,2,0,1,0,0],
-      m7:[0,2,0,0,0,0], maj7:[0,1,1,1,0,0], sus4:[0,2,2,2,0,0] };
-    const o = shapes[qual]||shapes[''];
-    return barre(b, [o[0],o[1],o[2],o[3],o[4],o[5]]);   // 6→1 弦
-  }else{
-    const b = f5===0?12:f5;
-    const shapes={ '':[null,0,2,2,2,0], m:[null,0,2,2,1,0], '7':[null,0,2,0,2,0],
-      m7:[null,0,2,0,1,0], maj7:[null,0,2,1,2,0], sus4:[null,0,2,2,3,0] };
-    const o = shapes[qual]||shapes[''];
-    return barre(b, o);
+  const tpl = CHORD_TEMPLATES[qual] && CHORD_TEMPLATES[qual][form];
+  if(!tpl) return null;
+  const openPc = form==='E'? OPEN_PC[5] : OPEN_PC[4];      // 6弦E / 5弦A
+  const f = ((rootPc-openPc)%12+12)%12;
+  const base = f===0? 12 : f;                              // 根音在空弦时上移一个八度把位，避免与开放和弦重复
+  return tpl.map(o=> o==null? 'x' : FRET_36(base+o)).join('');
+}
+/* 通用兜底：按音程集在指板上搜一个 4 品窗口内的可按组合（尤克里里主用，吉他模板缺型时兜底）。
+   opens=按指法串字符序的空弦 pc 数组；返回 shape 串或 null */
+function algoShape(opens, rootPc, iv){
+  const pcSet = new Set(Object.values(iv).map(v=>(rootPc+v)%12));
+  const need = Math.min(3, pcSet.size);
+  for(let base=0; base<=9; base++){
+    const frets=[], got=new Set();
+    for(const op of opens){
+      let pick=null;
+      for(let fr=0; fr<=base+3; fr++){
+        if(fr!==0 && fr<base) continue;
+        if(pcSet.has((op+fr)%12)){ pick=fr; break; }
+      }
+      if(pick==null){ frets.push(null); continue; }
+      frets.push(pick); got.add((op+pick)%12);
+    }
+    if(got.has(rootPc%12) && got.size>=need && frets.filter(x=>x!=null).length>=Math.min(3,opens.length))
+      return frets.map(fr=> fr==null?'x':FRET_36(fr)).join('');
   }
+  return null;
+}
+const UKU_OPEN_PC = [7,0,4,9];   // 尤克里里 GCEA（按指法串字符序 4弦→1弦）
+/* 和弦名 → {rootPc, qual, bassPc}；解析失败返回 null */
+function parseChordName(n){
+  const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec((n||'').trim());
+  if(!m || NOTE_PC[m[1]]==null) return null;
+  return {rootPc:NOTE_PC[m[1]], qual:m[2]||'', bassPc: m[3]!=null && NOTE_PC[m[3]]!=null ? NOTE_PC[m[3]] : null};
 }
 /* 转位：把 slash 低音音放到最低弦 */
 function slashShape(baseShape, bassPc){
@@ -5108,12 +5188,10 @@ function ceName(){
 }
 function ceShape(){
   if(ceState.custom) return ceState.custom;
-  let base = chordShape(ceState.root+ceState.qual);
-  if(!base){
-    // 库中没有 → 生成可移动把位（默认 E 型）
-    base = movableShape(NOTE_PC[ceState.root], ceState.qual, 'E');
-  }
-  if(ceState.bass && NOTE_PC[ceState.bass]!=null)
+  let base = chordShape(ceState.root+ceState.qual)
+    || movableShape(NOTE_PC[ceState.root], ceState.qual, 'E')
+    || movableShape(NOTE_PC[ceState.root], ceState.qual, 'A');
+  if(base && ceState.bass && NOTE_PC[ceState.bass]!=null)
     base = slashShape(base, NOTE_PC[ceState.bass]);
   return base;
 }
@@ -5123,11 +5201,37 @@ function positionVariants(){
   /* "开放"取标准库原始指法（不经 customChords 覆盖，保证能选回库图） */
   const open = instOf()==='uku'? UKU_SHAPES[ceState.root+q] : CHORD_SHAPES[ceState.root+q];
   if(open) vs.push({label:'开放', shape:open});
-  vs.push({label:'6弦根音(E型)', shape:movableShape(r,q,'E')});
-  vs.push({label:'5弦根音(A型)', shape:movableShape(r,q,'A')});
+  if(instOf()==='uku'){
+    /* v39.0 尤克里里用 4 弦通用推导，不再误用吉他 6 弦模板 */
+    const iv=QUAL_INTERVALS[q], a=iv? algoShape(UKU_OPEN_PC, r, iv) : null;
+    if(a && a!==open) vs.push({label:'推导', shape:a});
+  }else{
+    const e=movableShape(r,q,'E'); if(e) vs.push({label:'6弦根音(E型)', shape:e});
+    const a=movableShape(r,q,'A'); if(a) vs.push({label:'5弦根音(A型)', shape:a});
+  }
   const uc=userChords()[ceState.root+q];
   if(uc && uc.length===strN()) vs.push({label:'用户', shape:uc});
   return vs;
+}
+/* v39.0 和弦试听：按指法从低音弦到高音弦琶音（与主播放同一音色引擎） */
+function auditionShape(shape){
+  if(!shape) return toast('当前和弦暂无可试听的指法');
+  if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const ctx=audio.ctx; if(ctx.state==='suspended') ctx.resume();
+  const bus=buildBus(ctx);
+  const t=ctx.currentTime+0.05;
+  const SN=strN(); let k=0;
+  for(let i=0;i<SN;i++){
+    const ch=shape[i]; if(ch==null||ch==='x') continue;
+    const midi=tuningOf()[SN-i-1]+parseInt(ch,36);
+    playInst('steel', ctx, bus, midiFreq(midi-12), t+k*0.085, 2.4, 0.8, false);
+    k++;
+  }
+}
+/* v39.0 当前调内七级和弦名（常用直达） */
+function diatonicChords(){
+  const key=KEY_PC[song.key]||0, Q=['','m','m','','','m','dim'];
+  return [0,2,4,5,7,9,11].map((s,i)=> KEY_LIST[(key+s)%12]+Q[i]);
 }
 function renderChordEditor(){
   const rootBtns = CHORD_ROOTS.map(r=>
@@ -5164,7 +5268,15 @@ function renderChordEditor(){
   const uc = userChords();
   const ucChips = Object.keys(uc).filter(k=>uc[k].length===SN).map(k=>
     `<span class="chip" style="display:inline-flex;align-items:center;gap:4px"><a data-ucl="${esc(k)}" style="cursor:pointer">${esc(k)}</a><a data-ucx="${esc(k)}" title="删除" style="cursor:pointer;opacity:.55">✕</a></span>`).join('') || '<span style="font-size:11.5px;color:var(--muted)">还没有用户和弦——在上方指板自选音符后点「存为用户和弦」</span>';
+  const diaChips = diatonicChords().map(c=>
+    `<button class="chip ${ceName()===c?'on':''}" data-cdia="${esc(c)}" style="font-weight:700">${esc(c)}</button>`).join('');
   showModal(`<h3>编辑和弦</h3>
+    <div class="row" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 6px">
+      <input id="ce-search" placeholder="输入和弦名直达：如 Abmaj9 / F#m7b5 / Bb/D，回车确认" style="flex:1;min-width:200px">
+      <button id="ce-play" title="试听当前和弦（按指法自低音弦琶音）">▶ 试听</button>
+    </div>
+    <h4>常用 · 1=${esc(song.key)} 调内</h4>
+    <div class="row" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:2px">${diaChips}</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div style="flex:1;min-width:280px">
         <h4>根音</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${rootBtns}</div>
@@ -5192,6 +5304,11 @@ function renderChordEditor(){
     <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
   const rerender = ()=>{ closeModal(); renderChordEditor(); };
   document.querySelector('.modal').addEventListener('click', ev=>{
+    /* v39.0 调内常用直达 / 试听 */
+    const cd=ev.target.closest('[data-cdia]');
+    if(cd){ const p=parseChordName(cd.dataset.cdia);
+      if(p){ ceState.root=CHORD_ROOTS.find(r2=>NOTE_PC[r2]===p.rootPc)||'C'; ceState.qual=p.qual; ceState.bass=''; ceState.custom=null; ceState.cname=null; rerender(); } return; }
+    if(ev.target.closest('#ce-play')){ auditionShape(ceShape()); return; }
     const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; rerender(); return; }
     const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; rerender(); return; }
     const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
@@ -5225,6 +5342,18 @@ function renderChordEditor(){
     }
     ceState.custom=arr.join(''); rerender();
   }));
+  /* v39.0 搜索直达：任意和弦名（含斜杠低音）解析后跳转状态 */
+  const seInp=document.getElementById('ce-search');
+  if(seInp) seInp.addEventListener('keydown', ev=>{
+    if(ev.key!=='Enter') return;
+    const p=parseChordName(seInp.value);
+    if(!p) return toast('无法识别的和弦名：'+seInp.value+'（示例 Cmaj7 / F#m7b5 / Bb/D）');
+    ceState.root = CHORD_ROOTS.find(r2=>NOTE_PC[r2]===p.rootPc)||'C';
+    ceState.qual = p.qual;
+    ceState.bass = p.bassPc!=null? (CHORD_ROOTS.find(r2=>NOTE_PC[r2]===p.bassPc)||'') : '';
+    ceState.custom=null; ceState.cname=null;
+    rerender();
+  });
   const nameInp=document.getElementById('ce-name');
   if(nameInp) nameInp.addEventListener('change', ()=>{
     ceState.cname = nameInp.value.trim() || null;
@@ -5776,8 +5905,10 @@ function showVoxChordMenu(cx, cy){
     const recent=(song.chordRecent||[]).slice(0,8);
     div.innerHTML=`<div class="t" style="display:flex;align-items:center;gap:8px">功能谱和弦 · 1=${esc(song.key)}
         <button id="vc-names" class="${song.funcNames?'on':''}" title="谱面所有和弦标注一键切换：级数 ↔ 音名">谱面显示：${song.funcNames?'音名':'级数'}</button></div>
-      <div class="vc-prev">${cur
+      <div class="vc-prev" style="display:flex;align-items:center;gap:10px">${cur
         ? `<b>${supHtml(chordDegree(cur))}</b><span class="alt">音名 ${esc(cur)}</span>`
+          +((s2=>s2? `<svg width="46" height="56" viewBox="0 0 56 66" style="flex:none">${chordDiagramSVG('',6,2,0.95,s2,true)}</svg>`:'')(chordShape(cur)))
+          +`<button id="vc-play" title="试听该和弦（按吉他指法自低音弦琶音）" style="padding:3px 10px">▶ 试听</button>`
         : `<span class="none">未标注 —— 点下方级数开始</span>`}</div>
       <div class="t" style="opacity:.75">级数（1=${esc(song.key)}，默认调内性质）</div>
       <div class="vc-grid">${VC_SEMI.map((_,i)=>
@@ -5814,6 +5945,8 @@ function showVoxChordMenu(cx, cy){
     if(vb){ st.bass=+vb.dataset.vb; if(st.deg<0&&st.bass>=0) st.deg=0; apply(); return; }
     const b2=ev.target.closest('[data-vc]');
     if(b2){ setVoxChord(b2.dataset.vc); closePop(); return; }
+    if(ev.target.closest('#vc-play')){
+      auditionShape(chordShape(vcBuild(st) || col.chord || '')); return; }
     if(ev.target.closest('#vc-names')){
       song.funcNames=!song.funcNames; persist(); render(); draw(); return; }
     if(ev.target.closest('#vc-ok')){ setVoxChord(div.querySelector('#vc-custom').value); closePop(); return; }
@@ -6037,8 +6170,24 @@ document.getElementById('b-clearlyr').onclick = ()=>{
 document.getElementById('i-tempo').addEventListener('change', e=>{
   song.tempo = Math.max(30, Math.min(240, +e.target.value||90)); persist(); render();
 });
+/* v39.0 和弦候选动态化：调内和弦优先 → 最近使用 → 本谱/本机自定义 → 常用库 → 全类型组合 */
 const dl = document.getElementById('chord-list');
-Object.keys(CHORD_SHAPES).forEach(n=>{ const o=document.createElement('option'); o.value=n; dl.appendChild(o); });
+function rebuildChordList(){
+  if(!song) return;   // 启动早期 song 未就绪时跳过（聚焦输入框时会再构建）
+  const seen=new Set(), out=[];
+  const add=n=>{ if(n && !seen.has(n)){ seen.add(n); out.push(n); } };
+  diatonicChords().forEach(add);                                   // 当前调内 7 级
+  (song && song.chordRecent||[]).forEach(add);                     // 最近使用
+  song && Object.keys(song.customChords||{}).forEach(add);         // 本谱自定义
+  Object.keys(userChords()).forEach(add);                          // 本机用户和弦
+  Object.keys(instOf()==='uku'? UKU_SHAPES : CHORD_SHAPES).forEach(add);   // 精修库
+  const SUFS=['','m','7','maj7','m7','sus4','add9','dim','9'];     // 模板全根音组合（常用9类，避免列表过长）
+  ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'].forEach(rt=>SUFS.forEach(sf=>add(rt+sf)));
+  dl.innerHTML='';
+  out.slice(0,320).forEach(n=>{ const o=document.createElement('option'); o.value=n; dl.appendChild(o); });
+}
+rebuildChordList();
+document.getElementById('i-chord').addEventListener('focus', rebuildChordList);
 /* 点状态提示→跳到第一处不符小节（建议框已常显于其下方，无需展开） */
 document.getElementById('beat-status').onclick = ()=>{
   const errs = beatErrors(); if(!errs.length) return;
@@ -9489,6 +9638,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.0</span><div><b>和弦引擎全面升级</b>（两位专业 Agent 方案落地）：① <b>和弦库扩容到全根音全类型</b>——新增「可移调模板引擎」：每类型维护 E 型/A 型把位模板，12 个根音自动推导指法，覆盖 22 种类型（大/小/属七/大七/小七/减/减七/半减/增/挂二/挂四/七挂四/六/小六/九/大九/小九/加九/十一/十三/强力/小大七）×任意斜杠低音；精修开放指法保留优先，尤克里里走 4 弦通用推导；<b>修复把位卡把减/增等和弦画成大三和弦的错误</b>（468 个推导指法逐音高验证纯净）。② <b>编辑和弦弹窗升级</b>——新增当前调内七级<b>常用直达</b>条、<b>和弦名搜索直达</b>（输 Abmaj9 回车即跳）、<b>▶试听</b>（按指法琶音）、类型 chip 扩到 22 种与功能谱口径统一。③ <b>功能谱级数菜单</b>加和弦图预览与试听。④ 和弦输入候选<b>动态化</b>：调内和弦置顶→最近使用→自定义→精修库→全类型组合。⑤ 织体生成的和弦解析升级为全类型音程表（减/增/挂留/扩展和弦不再一律按大三和弦发声）。</div></li>
     <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「🎼 谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
     <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
     <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>

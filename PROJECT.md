@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-20 · 当前版本 **v38.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-21 · 当前版本 **v39.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -121,6 +121,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 节拍器/倍速 | `metroClick`（正弦+噪声拍点，首拍重音）/ `metroOn`·`playRate`（play() 内 spb 缩放与逐拍布点）/ 播放条 `b-metro`·`mx-rate` |
 | 左栏谱类感知 | `DOCK_PANELS`（类型→页面板集合与顺序，flex order 排序）/ `renderDock`（页签显隐/命名/标题/失效页回退，render() 首行调用）/ `setRibbon`（面板显隐+排序在此应用）/ 专属面板 panel-vox-acc·fn·arr·lyradd（按钮全部委托既有流程） |
 | 纯和弦谱 | `song.chordOnly`（斜线绘制在 cols.forEach、拍宽拉平在 measureLayout） |
+| 和弦引擎（v39.0） | `CHORD_TEMPLATES`（22类型×E/A把位模板）/ `movableShape`（未知类型返回null，绝不静默大三）/ `algoShape`（4品窗音程搜索，uku主用）/ `parseChordName` / `QUAL_INTERVALS`（与模板同口径音程表，chordTones/织体共用，1/3/5/8槽位恒在）/ `chordShape`（精修库→模板→algo 三级兜底，签名不变19处调用零改动）/ `auditionShape`（琶音试听）/ `diatonicChords` / `rebuildChordList`（动态候选） |
 | 和音输入 | `b-addnote`（唱名串自动向上排列）/ 五线谱 Ctrl+点击（click handler `dataset.sbot` 分支） |
 | 记谱法切换 | `setVoxNotation` / `toggleVoxDual` / 面板 `vn-jp/st/bs/al/dual` |
 | 智能填词 | `smartTokenize`（跳休止/连音、标点旁挂） |
@@ -158,6 +159,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
 | tv_safety | 数据安全：迁移逐条容错/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（另开窗口）/已入库兼容/谱架·0.25×·向导提权——6项 |
+| tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选——10项 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 
@@ -183,6 +185,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 分享升级+练习工具 | v38.5 | **动态互动谱**（自打包单文件 HTML，收谱即可播放/倍速/移调/谱架）+ 播放条**节拍器**与**倍速**（0.5×–1.5×） |
 | 编辑器体验 | v38.6 | **左栏谱类感知布局**：页签/面板按八类型显隐排序，钢琴弹唱伴奏工作流置顶、功能谱级数置顶、纯和弦谱精简、＋歌词行入口 |
 | TAB 技法刻版 | v38.7 | **揉弦波浪线随时值延长**（可扩选覆盖范围）+ **闷音 P.M. 范围标记**（虚线+末端竖钩，applyTech 范围语义） |
+| 和弦引擎 | v39.0 | **可移调模板引擎**（22类型全根音+斜杠，修复把位错画大三 bug）+ **弹窗升级**（调内直达/搜索/试听/口径统一）+ 织体全类型音程表。遗留：同名多把位共存（col.voicing 可选字段方案已评审，见会话记录） |
 | 专家评审第一批 | v38.8 | **数据安全加固**（迁移逐条容错/渲染异常不落盘/配额提示/loadSong 防覆盖）+ **快赢**（谱架直入/0.25×/向导提权/发布免责/WCAG AA 浅色对比度）。评审来源：.claude/agents 三角色（Code Reviewer/UX Researcher/UI Designer）；**未落地的第二、三批建议清单见会话记录与下方路线图** |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
