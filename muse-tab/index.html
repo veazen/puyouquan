@@ -7,13 +7,13 @@
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
 :root{
-  --bg:#f5f5f7; --panel:#ffffff; --text:#1d1d1f; --muted:#6e6e73;
+  --bg:#f0f0ec; --panel:#fcfcfa; --text:#1d1d1f; --muted:#6e6e73;   /* v40.0 护眼：背景转暖降亮 */
   --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --paper:#ffffff; --ink:#141414; --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045);
+  --paper:#ffffff; --ink:#141414; --toolbar:#f3f3ef; --hover:rgba(0,0,0,.045);
   --glass:rgba(251,251,253,.82);
   --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
-  --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09);
+  --shadow:0 1px 2px rgba(0,0,0,.03), 0 6px 18px rgba(0,0,0,.06);   /* v40.0 扁平化：阴影减半 */
   --radius:10px;
   --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
@@ -26,12 +26,12 @@
     --danger:#ff453a; --ok:#30d158;
     --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
 }
-:root[data-theme="light"]{ --bg:#f5f5f7; --panel:#ffffff; --text:#1d1d1f; --muted:#6e6e73;
+:root[data-theme="light"]{ --bg:#f0f0ec; --panel:#fcfcfa; --text:#1d1d1f; --muted:#6e6e73;
   --border:rgba(0,0,0,.11); --border-soft:rgba(0,0,0,.06);
   --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --toolbar:#f5f5f7; --hover:rgba(0,0,0,.045); --glass:rgba(251,251,253,.82);
+  --toolbar:#f3f3ef; --hover:rgba(0,0,0,.045); --glass:rgba(251,251,253,.82);
   --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
-  --shadow:0 2px 8px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.09); }
+  --shadow:0 1px 2px rgba(0,0,0,.03), 0 6px 18px rgba(0,0,0,.06);   /* v40.0 扁平化：阴影减半 */ }
 :root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d;
   --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
   --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
@@ -558,6 +558,32 @@ body.stand #standbar{display:flex}
 .cdg .cdgc{cursor:pointer}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
+/* ================= v40.0 新版外壳（阶段1：深色扁平顶栏/底栏，经典版可切回） ================= */
+body.shell #top .main-bar{background:#1c1d20;border-bottom:1px solid rgba(255,255,255,.06)}
+body.shell .main-bar .logo{color:#f2f2f4}
+body.shell .main-bar .logo small{color:#9a9aa2}
+body.shell .main-bar button{color:#d9d9de;background:transparent;border-color:rgba(255,255,255,.13);box-shadow:none}
+body.shell .main-bar button:hover{background:rgba(255,255,255,.1);color:#fff}
+body.shell .main-bar .seg{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);box-shadow:none}
+body.shell .main-bar .seg-accent{color:#9ecbff}
+body.shell .main-bar #k-val{color:#f5f5f7}
+body.shell .main-bar #b-member{background:var(--accent);color:#fff;border-color:transparent}
+body.shell #mixer-dock{left:0;right:0;bottom:0;transform:none;width:100%;max-width:none;border-radius:0;
+  background:#1c1d20;border:none;border-top:1px solid rgba(255,255,255,.06);
+  box-shadow:0 -8px 26px rgba(0,0,0,.22);-webkit-backdrop-filter:none;backdrop-filter:none}
+body.shell #mixer-dock .mx-bar{padding:9px 18px}
+body.shell #mixer-dock button{color:#d9d9de}
+body.shell #mixer-dock button:hover{background:rgba(255,255,255,.1);color:#fff}
+body.shell #b-play{background:var(--accent);color:#fff;border-color:transparent}
+body.shell #b-metro.on{background:var(--accent);color:#fff}
+body.shell #mx-lbl,body.shell .mx-splabel{color:#9a9aa2}
+body.shell #mx-prog{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.1)}
+body.shell .mxc{background:rgba(255,255,255,.14)}
+body.shell .mxc span{color:#b9b9c0}
+body.shell #i-tempo,body.shell #mx-rate{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:#f0f0f2}
+body.shell #mx-rate option{color:#1d1d1f}
+body.shell #site-footer{display:none}
+body.shell #hint{display:none}
 /* v39.6 主音 12 键单行等分 */
 .ce-roots{display:flex;flex-wrap:nowrap;gap:3px}
 .ce-roots .chip{flex:1;min-width:0;padding:6px 0;text-align:center;font-size:12px}
@@ -790,12 +816,29 @@ sup.chacc{font-size:82%;margin-right:1px}
     </span>
     <input type="file" id="file-in" accept=".json,.mtab,.mtab.json" class="hidden">
     <span class="grow"></span>
+    <span class="seg" id="key-step" title="快速换调：和弦与品位自动移调（详细选项在曲谱信息）">
+      <button id="k-dn" title="降半音">♭</button>
+      <span id="k-val" style="align-self:center;padding:0 7px;font-weight:700;font-size:12px"></span>
+      <button id="k-up" title="升半音">♯</button>
+    </span>
+    <button id="b-shell" class="ghost" title="新版界面 / 经典版 一键切换">经典版</button>
     <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）">◑ 反色</button>
     <button id="b-theme" class="ghost" title="界面风格：明暗切换">◐ 界面风格</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
   <!-- 常用编辑功能栏：与页头等宽、随页头一起固定 -->
   <div class="bar" id="editbar">
+    <span class="eb-t">音符</span>
+    <span class="eb-grp">
+      <button class="eb" id="eb-add" title="在光标后插入同时值音符（快捷键 Insert）">＋后插</button>
+      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
+      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍">休止符</button>
+      <button class="eb" id="eb-clear" title="清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）">清单音</button>
+      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
+      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
+      <button class="eb" id="eb-delcol2" title="删除当前音符列（时值一并移除）">删音符</button>
+    </span>
+    <span class="eb-sep"></span>
     <span class="eb-t">时值</span>
     <span class="eb-grp" id="eb-dur"></span>
     <span class="eb-sep"></span>
@@ -813,17 +856,6 @@ sup.chacc{font-size:82%;margin-right:1px}
   </div>
   <!-- 常用编辑功能栏第二行：连音/三连音 + 按声部上下文的技巧/记号 -->
   <div class="bar" id="editbar2">
-    <span class="eb-t">音符</span>
-    <span class="eb-grp">
-      <button class="eb" id="eb-add" title="在光标后插入同时值音符（快捷键 Insert）">＋后插</button>
-      <button class="eb" id="eb-addb" title="在光标前插入同时值音符（Shift+Insert）">＋前插</button>
-      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍">休止符</button>
-      <button class="eb" id="eb-clear" title="清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）">清单音</button>
-      <button class="eb" id="eb-split" title="把当前音符一分为二（各减半时值，总时值不变）">拆分</button>
-      <button class="eb" id="eb-merge" title="当前与下一同时值音符合并为一个（时值加倍）">合并</button>
-      <button class="eb" id="eb-delcol2" title="删除当前音符列（时值一并移除）">删音符</button>
-    </span>
-    <span class="eb-sep"></span>
     <span class="eb-t" id="eb-ctx-t">演奏技巧</span>
     <span class="eb-grp" id="eb-ctx"></span>
   </div>
@@ -4032,6 +4064,7 @@ function syncInputs(){
   if(document.activeElement!==lyr)
     lyr.value = (sel.row==='vox'&&col)?((col.lyrics||[])[activeLyr]||''):'';
   document.getElementById('i-tempo').value = song.tempo;
+  { const kv=document.getElementById('k-val'); if(kv) kv.textContent='1='+song.key; }   // v40.0 顶栏调号
   /* 页头编辑栏时值按钮联动高亮 */
   document.querySelectorAll('#eb-dur .eb').forEach(b=>{
     if(b.dataset.dur) b.classList.toggle('on', !!col && +b.dataset.dur===col.dur);
@@ -7349,6 +7382,28 @@ document.getElementById('b-metro').onclick = ()=>{
   toast(metroOn? '节拍器已开启：随播放发出拍点声，每小节第一拍重音' : '节拍器已关闭');
 };
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
+/* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
+let uiShell = (localStorage.getItem('musetab-shell')||'new')!=='classic';
+function applyShell(){
+  document.body.classList.toggle('shell', uiShell);
+  const b=document.getElementById('b-shell');
+  if(b) b.textContent = uiShell? '经典版' : '新版界面';
+}
+document.getElementById('b-shell').onclick = ()=>{
+  uiShell = !uiShell;
+  try{ localStorage.setItem('musetab-shell', uiShell?'new':'classic'); }catch(_){}
+  applyShell();
+  toast(uiShell? '已切换到新版界面（深色扁平顶栏/播放条）' : '已切换回经典版界面');
+};
+function stepKey(delta){
+  mutate(()=>{
+    transposeEditor(delta);
+    song.key = KEY_LIST[(((KEY_PC[song.key]||0)+delta)%12+12)%12];
+  });
+  toast('已换调 1='+song.key+'（和弦与品位自动移调；拼写与更多选项在「曲谱信息」）');
+}
+document.getElementById('k-dn').onclick = ()=>stepKey(-1);
+document.getElementById('k-up').onclick = ()=>stepKey(1);
 document.getElementById('b-restart').onclick = ()=>{
   stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
@@ -9700,6 +9755,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.0</span><div><b>新版界面 · 阶段一</b>（按 v5 设计稿路线，配色保持现有蓝紫并现代化）：① <b>深色扁平顶栏与通栏播放条</b>——顶栏改深色扁平风、新增<b>快速换调 ♭/♯</b>（和弦与品位自动移调）；播放条从悬浮胶囊改为全宽深色底栏；② <b>护眼扁平化配色</b>——界面背景转暖降亮、阴影减半（谱面纸张保持纯白不受影响）；③ 工具行<b>「音符」组前置</b>到「时值」之前（同行排列）；④ 顶栏新增<b>「经典版」一键切换</b>——新旧界面随时互切并记住选择。后续阶段：左侧图层轨（六线谱/简谱/歌词/和弦/小节/段落）与右栏四页签。</div></li>
     <li><span class="v">v39.7</span><div><b>把位方案排版修正</b>：三张方案卡不再换行变形（右栏加宽+卡片紧凑化，标签超长省略号）；高把位库指法不再误标「开放」（如 Cm 3品横按改标「常用」）；创建器提示语精简为单行「点格新建 · 方案卡调整 · 顶部切 ×/○」。</div></li>
     <li><span class="v">v39.6</span><div><b>创建流引导 + CAGED 全把位</b>：① 创建和弦改为引导流——<b>点「＋创建和弦」→ 自定义名称 → 在空白和弦图上点格编辑 → 保存</b>（名称必填，点格重绘不丢已键入名称）；② 把位方案补齐 <b>CAGED 五型体系</b>（C/A/G/E/D 型把位，C 大调即「开放1品→A型3品→G型5品→E型8品→D型10品」），默认只显示前三个、<b>「更多 ▾」展开</b>其余，卡片标注起始品位；③ <b>主音 12 键单行等分显示</b>不再换行。</div></li>
     <li><span class="v">v39.5</span><div><b>创建和弦收口 + 常用指法修正</b>：① 「我的和弦」区改为<b>「创建和弦」</b>——点格创建 → 命名 → 一键保存（随本谱携带与分享），移除本机用户和弦库；② <b>修正默认 C 等常用和弦被顶掉的问题</b>——历史用户和弦库残留数据不再覆盖标准指法库，C 恢复 x32010 标准按法；③ 把位方案<b>从低到高排序</b>并新增 <b>4弦根音 D 型</b>——常用和弦现有「开放/A型/E型/D型」最多四种把位可选。</div></li>
@@ -9971,6 +10027,7 @@ function alignHeader(){
   setRibbon('tab');
   document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字');
   persist();
+  applyShell();   // v40.0 新版外壳（localStorage musetab-shell 记忆，默认新版）
   /* v38.8 启动渲染兜底：上次的曲谱若渲染异常，不丢弃它——另开新窗口保持应用可用，原数据留在标签页 */
   try{ render(); }
   catch(e){
