@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-21 · 当前版本 **v40.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-21 · 当前版本 **v40.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -219,6 +219,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 阶段3 ✅ v40.2：右栏四页签（#rtabs + rcard[data-rt] 分组，setRTab 控显隐；经典版页签条与 .rt-new 卡片 CSS 隐藏、卡片全显）：信息=原卡片；排版=#layout-pop 整体停靠 #layout-host（applyShellDock 搬移，经典版回 body 恢复浮层，b-layout 按外壳分流）；库/智能=直达入口全部委托既有按钮（eb-lib/b-chord-edit/b-acctex/va-sug/b-arrange/b-fill；哼唱与 MusicXML/MIDI 导入 = b-new.click()+nw-*.click() 链），入口显隐在 renderDock 与 b-acctex/b-arrange 同口径
 - 阶段4 ✅ v40.3：工具行单行化——setRibbon 在 uiShell 下向 tab/vox spec 注入 'tech'/'orn' 面板（panel-tab-tech/#tech-host、panel-vox-orn/#orn-host），eb-ctx 构建分流（新版写入左栏 host、经典写回编辑栏二行，applyShell 置 ebCtxFor=null 强制重建），ebHandler 额外绑定两个面板；body.shell #editbar2 隐藏；窄屏(≤1180px) fly 转 fixed 浮层；doc-tabs 扁平微调。**注意：tv_dock 断言经典布局语义，已在套件内 addInitScript 固定 musetab-shell=classic**
 - v5 缺口清单核查（均已有，无需新做）：导出六出口=打印弹窗（PNG/MusicXML/MIDI/分享卡/互动谱/打印PDF）；循环选区=mx-prog 点击/拖动；无头无尾滑音4键=EB_TECHS su/sd/ou/od；倍速六档含 0.25×
+- 素材配色 ✅ v40.6（产品拍板「配色使用素材配色」，推翻 v40.0 的保蓝决策）：--accent 朱砂 #c33a29（dark #df5a45）、chrome 墨绿 #1f3a34、暖米表面按素材 :root 映射（bg #f3f0e8/toolbar #f7f4ec/panel #fefdf9/paper #fbfaf5）；**--danger 改琥珀 #b45309（dark #ffa424）**避免与朱砂强调混淆（专家预警的语义冲突已消化）；--grad 转朱砂族（应用内；**官网 site/pyq.css 仍蓝紫，是否跟进另行拍板**）；score-invert 与 print 分支强调色同步。个人中心 shell 下与右端图标同排（tprimary 紧凑样式）；b-restart→⏮；**修露白**：`body.shell #mixer-dock button` 此前只覆写 color 未覆写 background，浅色面板底在深色栏发白——现透明底+暖米字；注意 `body.shell #mixer-dock button` (1,1,2) 会盖过 `body.shell #b-play` (1,1,1)，播放/节拍器选中态选择器需用 `body.shell #mixer-dock #b-play` 双 id 提权
 - 视觉舒适度 ✅ v40.5（产品反馈素材 85e56eb2「视觉更舒适」→ UI/UX 两 Agent 归因：约七成来自与色相无关的系统性因素）：浅色令牌升温（--bg #f2efe7 / --toolbar #f4f1e9 / --panel #fdfcf6 / --paper #fdfcf7、--border 染色实线 #ddd6c8、新增 --faint #a59d8e、阴影转暖；@media print 已强制 --paper #fff，score-invert 自含不受影响）；chrome #1c1d20→#262b40 靛墨；强调纪律（#cursor-info b 回墨色仅 .z 活值蓝、shell eb.on 降为 accent-soft）；左栏 rg-title order:0 置顶左对齐 faint；工具行字形化（.dg/.dn 双渲染按外壳切换——经典版仍中文；DUR_GLYPH 音符字形、OPS/连音线/更多字形、.eb.ico span 隐藏、eb-lib shell 隐藏因库页签重复）；beat-box 移入 #editbar 右端（applyShellDock 搬移，err-drop shell 下 position:fixed 避 overflow 裁剪）；帮助/特色/更新日志降为轻文字链（:has 选择器）。**未做（后续可选）**：底栏 15 小节号→时间线（UX #7，需专项测试）；朱砂+墨绿整体换向已给利弊分析未采纳（与 --danger 语义冲突 + 小型 rebrand）
 - 贴边通栏框架 ✅ v40.4（产品指示按 3628b133 素材「左右贴边」）：`body.shell:not(.stand):not(.viewer)` 全屏网格——body overflow hidden + flex column（**padding-bottom 必须清零**，v40.0 为悬浮播放条预留的 78px 会挤掉列高）；#stage flex:1、margin-bottom 52px 让位固定播放条；左右 dock position:static + align-self:stretch + 内部 overflow-y；#score-wrap 内部滚动。**滚动模型**：`scoreScroller()` 返回 shell 框架下的 #score-wrap 或 null（窗口滚动）——播放跟随、节拍错误跳转两处已适配；stand（window.scrollBy 自动卷谱）/viewer/print 均排除在框架外。左轨新增 data-act=new/help 动作按钮（.ltab 点击处理内委托 b-new/b-help）
 - v5 设计稿评估全文见会话记录（2026-07-21）

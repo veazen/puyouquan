@@ -7,44 +7,44 @@
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
 :root{
-  /* v40.5 视觉舒适度：中性色整体升温、表面三级层级（--bg 画布 < --toolbar 栏 < --panel 卡片）、
-     染色细线边框、暖调阴影；--paper 谱纸转暖米白（打印分支强制回 #fff，见 @media print） */
-  --bg:#f2efe7; --panel:#fdfcf6; --text:#222220; --muted:#6f695f; --faint:#a59d8e;
-  --border:#ddd6c8; --border-soft:#e9e3d5;
-  --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --paper:#fdfcf7; --ink:#141414; --toolbar:#f4f1e9; --hover:rgba(80,65,40,.06);
+  /* v40.6 素材配色（产品拍板）：朱砂强调 + 暖米三级表面（--bg 画布 < --toolbar 栏 < --panel 卡片）；
+     --paper 谱纸暖米白（打印分支强制回 #fff）；danger 与朱砂错开色相改琥珀，避免告警与选中混淆 */
+  --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#a49c8d;
+  --border:#e4ddcd; --border-soft:#ece6d8;
+  --accent:#c33a29; --accent-2:#d24a37; --accent-soft:rgba(195,58,41,.10); --accent-ink:#b02f20;
+  --paper:#fbfaf5; --ink:#141414; --toolbar:#f7f4ec; --hover:rgba(80,65,40,.06);
   --glass:rgba(251,250,245,.82);
-  --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
+  --danger:#b45309; --ok:#157a43;   /* danger=琥珀（4.6:1 AA），与朱砂强调保持可区分 */
   --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06);
   --radius:10px;
   --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d; --faint:#77777d;
-    --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
-    --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
-    --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
-    --danger:#ff453a; --ok:#30d158;
+  :root{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#7d766a;
+    --border:#3b3e37; --border-soft:#33362f;
+    --accent:#df5a45; --accent-2:#e86a55; --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
+    --toolbar:#1e211d; --hover:rgba(255,255,255,.06); --glass:rgba(24,26,23,.78);
+    --danger:#ffa424; --ok:#30d158;
     --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
 }
-:root[data-theme="light"]{ --bg:#f2efe7; --panel:#fdfcf6; --text:#222220; --muted:#6f695f; --faint:#a59d8e;
-  --border:#ddd6c8; --border-soft:#e9e3d5;
-  --accent:#0071e3; --accent-2:#0077ed; --accent-soft:rgba(0,113,227,.10); --accent-ink:#0066cc;
-  --paper:#fdfcf7; --toolbar:#f4f1e9; --hover:rgba(80,65,40,.06); --glass:rgba(251,250,245,.82);
-  --danger:#d0281e; --ok:#157a43;   /* v38.8 浅色主题加深满足 WCAG AA 4.5:1（深色值本就达标不动） */
-  --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06);   /* v40.5 暖调 */ }
-:root[data-theme="dark"]{ --bg:#161618; --panel:#1f1f21; --text:#f5f5f7; --muted:#98989d; --faint:#77777d;
-  --border:rgba(255,255,255,.16); --border-soft:rgba(255,255,255,.08);
-  --accent:#0a84ff; --accent-2:#2e95ff; --accent-soft:rgba(10,132,255,.17); --accent-ink:#6cb2ff;
-  --toolbar:#242426; --hover:rgba(255,255,255,.06); --glass:rgba(24,24,26,.78);
-  --danger:#ff453a; --ok:#30d158;
+:root[data-theme="light"]{ --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#a49c8d;
+  --border:#e4ddcd; --border-soft:#ece6d8;
+  --accent:#c33a29; --accent-2:#d24a37; --accent-soft:rgba(195,58,41,.10); --accent-ink:#b02f20;
+  --paper:#fbfaf5; --toolbar:#f7f4ec; --hover:rgba(80,65,40,.06); --glass:rgba(251,250,245,.82);
+  --danger:#b45309; --ok:#157a43;   /* danger=琥珀，与朱砂强调可区分 */
+  --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06); }
+:root[data-theme="dark"]{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#7d766a;
+  --border:#3b3e37; --border-soft:#33362f;
+  --accent:#df5a45; --accent-2:#e86a55; --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
+  --toolbar:#1e211d; --hover:rgba(255,255,255,.06); --glass:rgba(24,26,23,.78);
+  --danger:#ffa424; --ok:#30d158;
   --shadow:0 2px 8px rgba(0,0,0,.35), 0 14px 38px rgba(0,0,0,.42); }
-/* 与官网统一的品牌渐变（site/pyq.css 同源）：主按钮/品牌标/选中态共用 */
-:root{--grad-2:#6d5cff;--grad-3:#b45cff;
+/* 品牌渐变：v40.6 随素材配色转朱砂族（应用内；官网另行决策） */
+:root{--grad-2:#d24a37;--grad-3:#e2705d;
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%)}
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--grad-2:#8b7bff;--grad-3:#c47bff} }
-:root[data-theme="dark"]{--grad-2:#8b7bff;--grad-3:#c47bff}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--grad-2:#e86a55;--grad-3:#f08874} }
+:root[data-theme="dark"]{--grad-2:#e86a55;--grad-3:#f08874}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
@@ -381,7 +381,7 @@ body.shell #editbar #eb-lib{display:none}   /* 新版下节奏型库入口在右
 /* 曲谱反色：深色纸张 + 浅色音符（覆写谱面用到的 CSS 变量，只作用于纸面、不改 UI） */
 #paper.score-invert{
   --paper:#17181a; --ink:#eef0f2; --muted:#b6b8bd; --border:#565a60;
-  --accent:#4a9eff; --accent-ink:#8cc0ff; --danger:#ff6f63;
+  --accent:#e2705d; --accent-ink:#f08874; --danger:#ffb340;
   filter:drop-shadow(0 8px 26px rgba(0,0,0,.5));
 }
 svg{display:block;margin:0 auto;max-width:100%;height:auto;}
@@ -670,27 +670,35 @@ body.stand #standbar{display:flex}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
 /* ================= v40.0 新版外壳（阶段1：深色扁平顶栏/底栏，经典版可切回） ================= */
-body.shell #top .main-bar{background:#262b40;border-bottom:1px solid rgba(255,255,255,.07)}   /* v40.5 近黑→靛墨（蓝紫同族），降低与浅内容区的明度对撞 */
-body.shell .main-bar .logo{color:#f2f2f4}
-body.shell .main-bar .logo small{color:#9a9aa2}
-body.shell .main-bar button{color:#d9d9de;background:transparent;border-color:rgba(255,255,255,.13);box-shadow:none}
-body.shell .main-bar button:hover{background:rgba(255,255,255,.1);color:#fff}
-body.shell .main-bar .seg{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);box-shadow:none}
-body.shell .main-bar .seg-accent{color:#9ecbff}
-body.shell .main-bar #k-val{color:#f5f5f7}
-body.shell .main-bar #b-member{background:var(--accent);color:#fff;border-color:transparent}
+body.shell #top .main-bar{background:#1f3a34;border-bottom:1px solid rgba(0,0,0,.22)}   /* v40.6 素材墨绿：有色温的深色框架 */
+body.shell .main-bar .logo{color:#f3efe4}
+body.shell .main-bar .logo small{color:#c6bead}
+body.shell .main-bar button{color:#e6dfd0;background:transparent;border-color:rgba(255,255,255,.11);box-shadow:none}
+body.shell .main-bar button:hover{background:rgba(255,255,255,.11);color:#fff}
+body.shell .main-bar .seg{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.11);box-shadow:none}
+body.shell .main-bar .seg-accent{color:#ffcdbf}
+body.shell .main-bar #k-val{color:#fbf8f0}
+body.shell .main-bar #b-member{background:var(--accent);color:#fff;border-color:transparent;
+  padding:5.5px 13px;font-size:12.5px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;
+  box-shadow:0 3px 10px rgba(150,40,25,.38)}   /* v40.6 与右端图标同排同高（素材 tprimary） */
+body.shell .main-bar #b-member svg{width:12px;height:12px}
 body.shell #mixer-dock{left:0;right:0;bottom:0;transform:none;width:100%;max-width:none;border-radius:0;
-  background:#262b40;border:none;border-top:1px solid rgba(255,255,255,.07);
+  background:#1f3a34;border:none;border-top:1px solid rgba(0,0,0,.22);
   box-shadow:0 -8px 26px rgba(0,0,0,.22);-webkit-backdrop-filter:none;backdrop-filter:none}
 body.shell #mixer-dock .mx-bar{padding:9px 18px}
-body.shell #mixer-dock button{color:#d9d9de}
-body.shell #mixer-dock button:hover{background:rgba(255,255,255,.1);color:#fff}
-body.shell #b-play{background:var(--accent);color:#fff;border-color:transparent}
-body.shell #b-metro.on{background:var(--accent);color:#fff}
-body.shell #mx-lbl,body.shell .mx-splabel{color:#9a9aa2}
-body.shell #mx-prog{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.1)}
-body.shell .mxc{background:rgba(255,255,255,.14)}
-body.shell .mxc span{color:#b9b9c0}
+/* v40.6 修露白：底栏按钮不再继承浅色面板底，统一透明底+暖米字（深色栏语境） */
+body.shell #mixer-dock button{color:#e0d9c9;background:transparent;border-color:rgba(255,255,255,.11);box-shadow:none}
+body.shell #mixer-dock button:hover{background:rgba(255,255,255,.11);color:#fff}
+body.shell #mixer-dock button:disabled{color:rgba(224,217,201,.4);background:transparent}
+body.shell #mixer-dock #b-play{background:var(--accent);color:#fff;border-color:transparent;
+  box-shadow:0 3px 10px rgba(150,40,25,.4)}
+body.shell #mixer-dock #b-metro.on{background:var(--accent);color:#fff;border-color:transparent}
+body.shell #mx-lbl,body.shell .mx-splabel{color:#cfc8b8}
+body.shell #mx-prog{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.12)}
+body.shell .mxc{background:rgba(255,255,255,.13)}
+body.shell .mxc span{color:#e0d9c9}
+body.shell .mxc.cur span{color:#ffcdbf}
+body.shell #mixer-dock .mxc .f{background:rgba(255,255,255,.22)}
 body.shell #i-tempo,body.shell #mx-rate{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:#f0f0f2}
 body.shell #mx-rate option{color:#1d1d1f}
 body.shell #site-footer{display:none}
@@ -898,7 +906,7 @@ body.shell #hint{display:none}
   #score .pagebg{stroke:none!important} #score .pageno{display:none!important}
   :root{--paper:#fff;--ink:#000}
   /* 反色只用于屏幕浏览；打印/导出 PDF 一律回到白纸黑字（省墨、成品规范） */
-  #paper.score-invert{--paper:#fff;--ink:#000;--muted:#555;--border:#000;--accent:#0071e3;--accent-ink:#0060c0;--danger:#c00}
+  #paper.score-invert{--paper:#fff;--ink:#000;--muted:#555;--border:#000;--accent:#c33a29;--accent-ink:#b02f20;--danger:#b45309}
 }
 </style>
 </head>
@@ -1256,7 +1264,7 @@ body.shell #hint{display:none}
   <div class="mx-tracks" id="mx-tracks"></div>
   <div class="mx-bar">
     <button id="b-play" class="primary" title="播放 / 暂停（空格键）">▶ 播放</button>
-    <button id="b-restart" title="回到开头（停在最前，不自动播放）">⇤ 开头</button>
+    <button id="b-restart" title="回到开头（停在最前，不自动播放）" aria-label="回到开头" style="font-size:14px;min-width:34px">⏮</button>
     <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
     <button id="b-mxgrid" title="打开小节选择面板（小节多时精确选择循环区）">▦</button>
     <span id="mx-lbl">第 1 小节</span>
@@ -10044,6 +10052,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.6</span><div><b>素材配色全面启用</b>（产品拍板）：① 应用配色整体切换为设计稿方案——<b>朱砂强调</b>（选中/播放/新建/个人中心）+ <b>墨绿顶/底栏</b> + 暖米三级表面与暖纸；深色主题、谱面反色同步换用朱砂族；<b>告警色改琥珀</b>与朱砂错开色相（时值不符提示不再与选中态混淆），打印仍白纸黑字；② <b>顶栏个人中心与右端图标同排同高</b>（紧凑朱砂主按钮，素材 tprimary 样式）；③ <b>底栏「回到开头」改 ⏮ 图标</b>；④ <b>修复底栏露白</b>——播放条上的开头/小节格/节拍器/谱架/音轨等按钮此前继承浅色面板底、在深色栏上发白且文字对比不足，现统一透明底+暖米文字，禁用态同步修正。</div></li>
     <li><span class="v">v40.5</span><div><b>视觉舒适度升级</b>（两位专业 Agent 对照设计稿逐项归因后落地，保持品牌蓝）：① <b>中性色整体升温</b>——画布/面板/工具栏转暖米调、谱纸从纯白改暖米白（打印仍纯白），相邻表面亮度阶梯平缓不刺眼；② <b>强调色纪律</b>——蓝色只留给选中/播放/主按钮，光标数值回墨色（仅声部/小节活值保留蓝）、时值选中态从蓝底白字降为柔和蓝底；③ <b>边框降噪</b>——灰黑透明线改暖色细线、卡片去阴影走纯扁平；④ <b>层级顺序修正</b>——左栏分区标题移到按钮上方、左对齐、弱化小字距排版（先分类后内容）；⑤ <b>工具行图标化单排</b>——时值改音符字形（𝅝 𝅗𝅥 ♩ ♪ …）、音符操作/节奏/连音改字形 chip（中文名进悬浮提示），<b>时值校验状态胶囊移到工具行右端</b>（出错即刻入眼）；⑥ 顶/底深色栏从近黑改<b>靛墨色</b>（蓝紫同族），撤销/重做/反色/风格图标化。经典版布局与文字按钮不受影响。</div></li>
     <li><span class="v">v40.4</span><div><b>新版界面 · 通栏应用框架</b>（按 v5 设计稿贴边布局）：新版下整个编辑器改为<b>全屏应用网格</b>——左侧图层轨与功能面板<b>贴左缘</b>、右栏四页签<b>贴右缘</b>，均为全高列（各自独立滚动），中间制版台<b>内部滚动</b>（顶栏/工具行/播放条常驻不动，只有谱面滚动）；播放跟随与节拍错误跳转自动适配新滚动模型。左轨新增「＋新建」（顶部，直达八场景向导）与「?帮助」（底部）。谱架/观看/打印模式不受影响仍为整页滚动；「经典版」一键切回原居中布局。</div></li>
     <li><span class="v">v40.3</span><div><b>新版界面 · 阶段四收尾：工具行单行化</b>（v5 设计稿主体完工）：① 编辑工具收为<b>单行</b>——演奏技巧（滑弦/击勾/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音）并入左栏<b>吉他谱图层</b>、标识符号（倚音/波音/颤音/回音/力度）并入<b>简谱图层</b>，跟在「音符记号」面板后，编辑栏更清爽；② <b>窄屏适配</b>——窗口较窄时左栏面板自动转为浮层（图层轨保持常驻，点图层弹出面板不再挤压谱面）；③ 文档标签页扁平化微调。切回「经典版」时技法/记号回到编辑栏第二行。至此 v5 新版界面四阶段全部落地：深色外壳 → 左轨六图层 → 右栏四页签 → 单行工具行。</div></li>
