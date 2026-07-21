@@ -558,6 +558,9 @@ body.stand #standbar{display:flex}
 .cdg .cdgc{cursor:pointer}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
+/* v39.6 主音 12 键单行等分 */
+.ce-roots{display:flex;flex-wrap:nowrap;gap:3px}
+.ce-roots .chip{flex:1;min-width:0;padding:6px 0;text-align:center;font-size:12px}
 #mx-prog{flex:1;height:18px;border-radius:6px;background:var(--toolbar);border:1px solid var(--border);
   display:flex;gap:1px;padding:1px;overflow:hidden;cursor:pointer;user-select:none}
 .mxc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px;overflow:hidden}
@@ -1490,10 +1493,13 @@ const OPEN_PC = [4,11,7,2,9,4];   // 1..6 弦空弦音高 pc（E B G D A E）
    12 根音自动推导——取代逐根音硬编码扩容。null=闷音，数字=相对把位起始品的偏移。
    与 QUAL_INTERVALS 用同一份 qual 口径；某型不适合的类型置 null（如 dim7 无 A 型）。 */
 const CHORD_TEMPLATES = {
-  '':    { E:[0,2,2,1,0,0],           A:[null,0,2,2,2,0],  D:[null,null,0,2,3,2] },
+  '':    { E:[0,2,2,1,0,0],           A:[null,0,2,2,2,0],  D:[null,null,0,2,3,2],
+           C:[null,3,2,0,1,0],        G:[3,2,0,0,0,3] },   /* v39.6 CAGED 五型齐全（C/G 型 rootOff=3） */
   'm':   { E:[0,2,2,0,0,0],           A:[null,0,2,2,1,0],  D:[null,null,0,2,3,1] },
-  '7':   { E:[0,2,0,1,0,0],           A:[null,0,2,0,2,0],  D:[null,null,0,2,1,2] },
-  'maj7':{ E:[0,2,1,1,0,0],           A:[null,0,2,1,2,0],  D:[null,null,0,2,2,2] },
+  '7':   { E:[0,2,0,1,0,0],           A:[null,0,2,0,2,0],  D:[null,null,0,2,1,2],
+           C:[null,3,2,3,1,0],        G:[3,2,0,0,0,1] },
+  'maj7':{ E:[0,2,1,1,0,0],           A:[null,0,2,1,2,0],  D:[null,null,0,2,2,2],
+           C:[null,3,2,0,0,0] },
   'm7':  { E:[0,2,0,0,0,0],           A:[null,0,2,0,1,0],  D:[null,null,0,2,1,1] },
   'dim': { E:[0,1,2,0,null,null],     A:[null,0,1,2,1,null] },
   'dim7':{ E:[0,1,2,0,2,null],        A:null },
@@ -1514,13 +1520,21 @@ const CHORD_TEMPLATES = {
   'mmaj7':{E:[0,2,1,0,0,0],           A:[null,0,2,1,1,0] },
 };
 const FRET_36 = n=> n>9? n.toString(36) : ''+n;   // 10→a…（36进制品位编码）
-/* 可移动把位：qual 未收录时返回 null（明确失败），绝不静默退成大三和弦（v39.0 修复） */
+/* 可移动把位：qual 未收录时返回 null（明确失败），绝不静默退成大三和弦（v39.0 修复）。
+   v39.6 支持 CAGED 五型：str=根音弦的 OPEN_PC 下标，off=模板内根音相对把位起点的品位偏移 */
+const FORM_META = { E:{str:5,off:0}, A:{str:4,off:0}, D:{str:3,off:0}, C:{str:4,off:3}, G:{str:5,off:3} };
 function movableShape(rootPc, qual, form){
   const tpl = CHORD_TEMPLATES[qual] && CHORD_TEMPLATES[qual][form];
-  if(!tpl) return null;
-  const openPc = form==='E'? OPEN_PC[5] : form==='A'? OPEN_PC[4] : OPEN_PC[3];   // 6弦E / 5弦A / 4弦D
-  const f = ((rootPc-openPc)%12+12)%12;
-  const base = f===0? 12 : f;                              // 根音在空弦时上移一个八度把位，避免与开放和弦重复
+  const fm = FORM_META[form];
+  if(!tpl || !fm) return null;
+  const f = ((rootPc-OPEN_PC[fm.str])%12+12)%12;
+  let base = f - fm.off;
+  if(base<0) base += 12;
+  if(base===0 && fm.off===0) base = 12;      // E/A/D 型根音在空弦时上移八度，避免与开放和弦重复
+  if(base + Math.max(...tpl.filter(o=>o!=null)) > 15){
+    if(base===12) base = 0;                  // 高八度放不下（宽指距模板）→ 回落到开放位
+    else return null;                        // 其余超限：该型不可按
+  }
   return tpl.map(o=> o==null? 'x' : FRET_36(base+o)).join('');
 }
 /* 通用兜底：按音程集在指板上搜一个 4 品窗口内的可按组合（尤克里里主用，吉他模板缺型时兜底）。
@@ -5244,10 +5258,12 @@ function positionVariants(){
     const iv=QUAL_INTERVALS[q];
     add('推导', iv? algoShape(UKU_OPEN_PC, r, iv) : null);
   }else{
-    /* v39.5 三种根音弦把位型全给出，按把位从低到高排序 */
-    add('6弦根音(E型)', movableShape(r,q,'E'));
-    add('5弦根音(A型)', movableShape(r,q,'A'));
-    add('4弦根音(D型)', movableShape(r,q,'D'));
+    /* v39.6 CAGED 全型给出（按 qual 有模板的都列），按把位从低到高排序 */
+    add('C型把位', movableShape(r,q,'C'));
+    add('A型把位', movableShape(r,q,'A'));
+    add('G型把位', movableShape(r,q,'G'));
+    add('E型把位', movableShape(r,q,'E'));
+    add('D型把位', movableShape(r,q,'D'));
   }
   vs.sort((a,b)=>a.pos-b.pos);
   return vs;
@@ -5280,10 +5296,14 @@ function renderChordEditor(){
   const bassOpts = ['<option value="">（原位）</option>']
     .concat(CHORD_ROOTS.map(b=>`<option value="${b}" ${b===ceState.bass?'selected':''}>/${b}</option>`)).join('');
   const shape = ceShape();
-  const posVars = positionVariants().map((v,i)=>
+  /* v39.6 把位方案：默认展示前三个（已按把位升序），「更多」展开其余 */
+  const vsAll = positionVariants();
+  const vsShown = ceState.posMore? vsAll : vsAll.slice(0,3);
+  const posVars = vsShown.map((v,i)=>
     `<div class="pat-card" data-cpos="${i}" data-shape="${v.shape}">
       <svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,v.shape,true)}</svg>
-      <div class="bt">${esc(v.label)}</div></div>`).join('');
+      <div class="bt">${esc(v.label)}${v.pos>1?` · ${v.pos}品`:''}</div></div>`).join('')
+    + (vsAll.length>3? `<button id="ce-posmore" class="chip" style="align-self:center">${ceState.posMore?'收起 ▴':'更多 ▾'}</button>`:'');
   const SN=strN();
   const blank='x'.repeat(SN);
   const custom = (ceState.custom||shape||blank);
@@ -5316,15 +5336,20 @@ function renderChordEditor(){
   showModal(`<h3>编辑和弦</h3>
     <div style="display:flex;gap:18px;flex-wrap:wrap">
       <div style="flex:1;min-width:300px">
-        <h4>主音</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${rootBtns}</div>
+        <h4>主音</h4><div class="row ce-roots">${rootBtns}</div>
         <h4>和弦性质</h4><div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
         <h4>转位 / 低音（Slash）</h4><select id="ce-bass">${bassOpts}</select>
         <h4>创建和弦</h4>
+        ${ceState.creating? `
         <div class="row" style="display:flex;gap:6px;align-items:center">
-          <input id="ce-name" value="${esc(ceName())}" title="和弦名称（可自定义，如 Cadd9/G 或 我的C）" style="width:120px">
-          <button id="ce-savecustom" class="primary" title="把右侧和弦图创建的指法以此名称保存到本谱，谱面与和弦输入即可使用">创建和弦</button>
+          <input id="ce-name" value="${esc(ceState.cname||'')}" placeholder="① 输入和弦名称" style="width:130px">
+          <button id="ce-savecustom" class="primary" title="保存到本谱（随谱携带与分享），谱面与和弦输入即可使用">保存和弦</button>
+          <button id="ce-createx">取消</button>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:5px">在右侧和弦图上点格创建指法 → 命名 → 创建和弦；随本谱保存与分享。</div>
+        <div style="font-size:11px;color:var(--accent-ink);margin-top:5px">② 在右侧空白和弦图上点格编辑 → ③ 保存和弦</div>`
+        : `
+        <div class="row"><button id="ce-create" class="primary">＋ 创建和弦</button></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">点击后：自定义名称 → 在空白和弦图上点格编辑 → 保存（随本谱携带与分享）。</div>`}
       </div>
       <div style="width:252px;flex:none;text-align:center">
         <div style="font-size:17px;margin:0 0 2px"><b>${chordHtmlLabel(ceName())}</b></div>
@@ -5342,7 +5367,23 @@ function renderChordEditor(){
     <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
   const rerender = ()=>{ closeModal(); renderChordEditor(); };
   document.querySelector('.modal').addEventListener('click', ev=>{
+    /* v39.6 创建态下任何交互先同步名称输入框：点格触发重绘时不丢已键入的名称 */
+    { const ni=document.getElementById('ce-name');
+      if(ni && ceState.creating) ceState.cname = ni.value.trim(); }
     if(ev.target.closest('#ce-play')){ auditionShape(ceState.custom||ceShape()); return; }
+    if(ev.target.closest('#ce-posmore')){ ceState.posMore=!ceState.posMore; rerender(); return; }
+    /* v39.6 创建流：点按钮 → 空白和弦图 + 命名 → 保存 */
+    if(ev.target.closest('#ce-create')){
+      ceState.creating=true; ceState.custom='x'.repeat(strN());
+      ceState.cdBase=null; ceState.cname='';
+      rerender();
+      setTimeout(()=>{ const ni=document.getElementById('ce-name'); if(ni) ni.focus(); }, 60);
+      return;
+    }
+    if(ev.target.closest('#ce-createx')){
+      ceState.creating=false; ceState.custom=null; ceState.cname=null; ceState.cdBase=null;
+      rerender(); return;
+    }
     const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
     const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
     const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; ceState.cdBase=null; rerender(); return; }
@@ -5378,13 +5419,18 @@ function renderChordEditor(){
     ceState.cname = nameInp.value.trim() || null;
     const pv=document.querySelector('.modal b'); if(pv) pv.innerHTML=chordHtmlLabel(ceName());
   });
-  /* v39.5 创建和弦：命名后保存到本谱（随谱携带与分享，谱面/和弦输入即可用） */
-  document.getElementById('ce-savecustom').onclick = ()=>{
-    ceState.cname = (nameInp&&nameInp.value.trim()) || ceState.cname || null;
-    const nm = ceName(), sh2 = ceShape();
-    if(!sh2 || !/[0-9a-w]/.test(sh2)) return toast('请先在右侧和弦图上点格创建至少一个音符');
+  /* v39.6 保存创建的和弦：名称必填，保存到本谱后退出创建态 */
+  const scBtn=document.getElementById('ce-savecustom');
+  if(scBtn) scBtn.onclick = ()=>{
+    const nm = (nameInp && nameInp.value.trim()) || '';
+    if(!nm) return toast('请先输入和弦名称（如 我的C / Cadd9-高把位）');
+    const sh2 = ceState.custom;
+    if(!sh2 || !/[0-9a-w]/.test(sh2)) return toast('请在右侧空白和弦图上点格创建至少一个音符');
+    ceState.cname = nm;
     mutate(()=>{ song.customChords[nm]=sh2; });
+    ceState.creating=false;
     toast('已创建和弦：'+nm+'（随本谱保存，可在和弦输入中直接使用）');
+    rerender();
   };
   document.getElementById('ce-cancel').onclick = closeModal;
   document.getElementById('ce-ok').onclick = ()=>{
@@ -9651,6 +9697,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.6</span><div><b>创建流引导 + CAGED 全把位</b>：① 创建和弦改为引导流——<b>点「＋创建和弦」→ 自定义名称 → 在空白和弦图上点格编辑 → 保存</b>（名称必填，点格重绘不丢已键入名称）；② 把位方案补齐 <b>CAGED 五型体系</b>（C/A/G/E/D 型把位，C 大调即「开放1品→A型3品→G型5品→E型8品→D型10品」），默认只显示前三个、<b>「更多 ▾」展开</b>其余，卡片标注起始品位；③ <b>主音 12 键单行等分显示</b>不再换行。</div></li>
     <li><span class="v">v39.5</span><div><b>创建和弦收口 + 常用指法修正</b>：① 「我的和弦」区改为<b>「创建和弦」</b>——点格创建 → 命名 → 一键保存（随本谱携带与分享），移除本机用户和弦库；② <b>修正默认 C 等常用和弦被顶掉的问题</b>——历史用户和弦库残留数据不再覆盖标准指法库，C 恢复 x32010 标准按法；③ 把位方案<b>从低到高排序</b>并新增 <b>4弦根音 D 型</b>——常用和弦现有「开放/A型/E型/D型」最多四种把位可选。</div></li>
     <li><span class="v">v39.4</span><div><b>创建体验修正</b>：① 用户创建和弦时<b>从空白和弦图开始</b>——直接点格即全新创建，不再在当前和弦指法基础上调整（想改现有指法：先点「把位方案」卡载入底稿再编辑）；把位数字可先填后点格，空白高把位创建一步到位；② 修复<b>把位 ≥10 时</b>把位方案小卡上的数字显示不全（两位数缩字号右靠，几何断言保证不裁切）。</div></li>
     <li><span class="v">v39.3</span><div><b>和弦细节打磨</b>：① 创建器的「把位」由 −/＋ 步进改为<b>直接输入数字</b>（1–12），高把位一步到位；② 主音左上角的<b>升降号放大</b>（谱面/和弦图/弹窗全线，约为主音字号八成），投影和打印下更清晰。</div></li>

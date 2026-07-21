@@ -220,25 +220,51 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.ok && r.num === '10' && r.fits, 'T13 两位数把位不裁切', '把位=' + r.num + ' 左缘=' + (r.leftEdge != null && r.leftEdge.toFixed(1)));
 
-  // T14 v39.5：用户和弦库停用（残留数据不再顶掉标准 C）+ 创建和弦按钮 + 把位方案低→高排序含D型
+  // T14 v39.5/39.6：用户库停用（残留不顶掉标准C）+ CAGED 排序 + 3张默认「更多」展开 + 主音单行
   r = await pg.evaluate(() => {
     localStorage.setItem('musetab-userchords', JSON.stringify({C: '8aa988'}));   // 模拟历史残留
     loadSong(PRESETS[0].make());
     const cStd = chordShape('C') === 'x32010';
     showChordEditor(0, 0, 0);
     const noUser = !document.getElementById('ce-saveuser') && !document.querySelector('[data-ucl]');
-    const createBtn = document.getElementById('ce-savecustom');
-    const isCreate = createBtn && createBtn.textContent === '创建和弦';
     const vs = positionVariants();
     const sorted = vs.every((v, i) => i === 0 || vs[i-1].pos <= v.pos);
-    const hasD = vs.some(v => v.label.includes('D型'));
+    const caged = ['A型','G型','E型','D型'].every(f => vs.some(v => v.label.includes(f)));
+    const shown3 = document.querySelectorAll('[data-cpos]').length === 3;
+    const moreBtn = document.getElementById('ce-posmore');
+    moreBtn.click();
+    const expanded = document.querySelectorAll('[data-cpos]').length === vs.length;
+    const tops = [...document.querySelectorAll('[data-cr]')].map(b => b.offsetTop);
+    const oneRow = tops.every(t => t === tops[0]);
     document.getElementById('ce-cancel').click();
     localStorage.removeItem('musetab-userchords');
-    return { cStd, noUser, isCreate, n: vs.length, sorted, hasD,
+    return { cStd, noUser, sorted, caged, n: vs.length, shown3, expanded, oneRow,
       order: vs.map(v => v.label + '@' + v.pos).join(' ') };
   });
-  T(r.cStd && r.noUser && r.isCreate && r.sorted && r.hasD && r.n >= 4,
-    'T14 创建和弦/排序/标准C修正', 'C标准=' + r.cStd + ' 方案=' + r.order);
+  T(r.cStd && r.noUser && r.sorted && r.caged && r.n >= 5 && r.shown3 && r.expanded && r.oneRow,
+    'T14 CAGED排序/3+更多/主音单行', 'C标准=' + r.cStd + ' 默认3张=' + r.shown3 + ' 展开=' + r.expanded + ' 单行=' + r.oneRow + ' | ' + r.order);
+
+  // T15 v39.6 创建流：点按钮→空白→命名→保存
+  r = await pg.evaluate(() => {
+    loadSong(PRESETS[0].make());
+    showChordEditor(0, 0, 0);
+    document.getElementById('ce-create').click();
+    const blank = ceState.creating && /^x+$/.test(ceState.custom || '');
+    const saveBtn = document.getElementById('ce-savecustom');
+    const isSave = saveBtn && saveBtn.textContent === '保存和弦';
+    saveBtn.click();                                            // 未命名 → 拒绝
+    const rejected = !!ceState.creating && !song.customChords['undefined'];
+    document.getElementById('ce-name').value = '测试X';
+    document.querySelector('[data-cdc="2:1"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    document.getElementById('ce-savecustom').click();
+    const saved = song.customChords['测试X'] && /[0-9a-w]/.test(song.customChords['测试X']);
+    const exited = !ceState.creating;
+    const usable = chordShape('测试X') === song.customChords['测试X'];
+    document.getElementById('ce-cancel').click();
+    return { blank, isSave, rejected, saved: !!saved, exited, usable };
+  });
+  T(r.blank && r.isSave && r.rejected && r.saved && r.exited && r.usable,
+    'T15 创建流(按钮→命名→空白编辑→保存)', '空白=' + r.blank + ' 未命名拒绝=' + r.rejected + ' 保存可用=' + r.usable);
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
