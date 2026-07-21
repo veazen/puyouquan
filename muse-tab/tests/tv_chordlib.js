@@ -116,25 +116,26 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(!r.nan && !r.undef && r.dia1 && r.dia2, 'T7 谱面渲染冒烟', '无NaN=' + !r.nan + ' 和弦图可得=' + (r.dia1 && r.dia2));
 
-  // T8 编辑和弦弹窗升级：调内常用条/搜索直达/试听按钮/22类型chip/把位卡无null
+  // T8 编辑和弦弹窗（v39.2 单页版）：主音标签/无搜索/无调内条/无自定义指法行/22类型/试听/单页无滚动
   r = await pg.evaluate(() => {
     loadSong(PRESETS[0].make());
     sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
     showChordEditor(0, 0, 0);
-    const dia = document.querySelectorAll('[data-cdia]').length;
+    const modal = document.querySelector('.modal');
+    const h4s = [...modal.querySelectorAll('h4')].map(h => h.textContent);
+    const hasZhuyin = h4s.some(t => t.startsWith('主音'));
+    const noGenyin = !h4s.some(t => t.startsWith('根音'));
+    const removed = !document.getElementById('ce-search') && !document.querySelector('[data-cdia]')
+      && !document.querySelector('.ce-fret');
     const quals = document.querySelectorAll('[data-cq]').length;
     const hasPlay = !!document.getElementById('ce-play');
-    // 搜索直达 Abmaj9
-    const se = document.getElementById('ce-search');
-    se.value = 'Abmaj9';
-    se.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-    const jumped = ceState.root === 'Ab' && ceState.qual === 'maj9';
     const noNullCard = !document.querySelector('[data-cpos][data-shape="null"]');
+    const onePage = modal.scrollHeight <= modal.clientHeight + 2;
     document.getElementById('ce-cancel').click();
-    return { dia, quals, hasPlay, jumped, noNullCard };
+    return { hasZhuyin, noGenyin, removed, quals, hasPlay, noNullCard, onePage };
   });
-  T(r.dia === 7 && r.quals >= 20 && r.hasPlay && r.jumped && r.noNullCard,
-    'T8 编辑弹窗升级', '调内=' + r.dia + ' 类型chip=' + r.quals + ' 搜索直达=' + r.jumped + ' 把位卡纯净=' + r.noNullCard);
+  T(r.hasZhuyin && r.noGenyin && r.removed && r.quals >= 20 && r.hasPlay && r.noNullCard && r.onePage,
+    'T8 单页弹窗', '主音=' + r.hasZhuyin + ' 已精简=' + r.removed + ' 类型=' + r.quals + ' 无滚动=' + r.onePage);
 
   // T9 功能谱菜单：和弦图预览+试听入口出现
   r = await pg.evaluate(() => {
@@ -195,11 +196,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     mutate(() => { song.measures[0].voxes[0][0].chord = 'Eb'; });   // 1=C 下 Eb = b3 级
     const svg2 = document.getElementById('score').innerHTML;
     const degOk = /♭<\/tspan><tspan[^>]*>3</.test(svg2);
-    showChordEditor && loadSong(PRESETS[0].make());
+    loadSong(PRESETS[0].make());
     showChordEditor(0, 0, 0);
-    const se = document.getElementById('ce-search');
-    se.value = 'F#m'; se.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-    const prevOk = document.querySelector('.modal b sup.chacc') && document.querySelector('.modal b sup.chacc').textContent === '♯';
+    document.querySelector('[data-cr="F#"]').click();          // 主音 F#（rerender 后重查）
+    document.querySelector('[data-cq="m"]').click();
+    const sup = document.querySelector('.modal b sup.chacc');
+    const prevOk = sup && sup.textContent === '♯';
     document.getElementById('ce-cancel').click();
     return { tabOk, degOk, prevOk: !!prevOk };
   });
