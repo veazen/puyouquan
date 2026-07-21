@@ -2586,7 +2586,11 @@ function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
   const base = fpos.length && Math.max(...fpos)>4 ? Math.min(...fpos) : 1;
   for(let i=0;i<ns;i++) p.push(`<line x1="${gx+i*sw}" y1="${gy}" x2="${gx+i*sw}" y2="${gy+4*fh}" stroke="var(--ink)" stroke-width="0.7"/>`);
   for(let i=0;i<=4;i++) p.push(`<line x1="${gx}" y1="${gy+i*fh}" x2="${gx+(ns-1)*sw}" y2="${gy+i*fh}" stroke="var(--ink)" stroke-width="${i===0&&base===1?1.8:0.7}"/>`);
-  if(base>1) p.push(`<text x="${gx-6*k}" y="${gy+fh*0.6+3}" font-size="${8*k}" text-anchor="end" fill="var(--ink)">${base}</text>`);
+  if(base>1){
+    /* v39.4 两位数把位（10+）缩字号并右靠，避免在 56 宽小卡里被裁切 */
+    const two = base>=10;
+    p.push(`<text x="${(gx-(two?1.2:6)*k).toFixed(1)}" y="${gy+fh*0.6+3}" font-size="${(two?6.2:8)*k}" text-anchor="end" fill="var(--ink)">${base}</text>`);
+  }
   frets.forEach((f,i)=>{
     const sx = gx+i*sw;   // shape[0]=6弦 画在最左；1弦在最右
     if(f===-1) p.push(`<text x="${sx}" y="${gy-2.5}" font-size="7.5" text-anchor="middle" fill="var(--ink)">×</text>`);
@@ -5286,7 +5290,7 @@ function renderChordEditor(){
      点格放音/取消，顶部区切换 ×(不弹)/○(空弦)，高把位用「把位」步进调窗口 */
   const cdFrArr = [...custom].map(ch=> (ch==null||ch==='x')? -1 : parseInt(ch,36));
   const cdAuto = (()=>{ const f=cdFrArr.filter(v=>v>0); return f.length && Math.max(...f)>5? Math.min(...f):1; })();
-  const cdBase = Math.max(1, Math.min(12, (ceState.custom!=null && ceState.cdBase!=null)? ceState.cdBase : cdAuto));
+  const cdBase = Math.max(1, Math.min(12, ceState.cdBase!=null? ceState.cdBase : cdAuto));
   ceState._cdShownBase = cdBase;
   const CDW=30, CDH=27, CDX=28, CDY=32;
   const cdW=CDX*2+CDW*(SN-1), cdH=CDY+CDH*5+10;
@@ -5328,7 +5332,7 @@ function renderChordEditor(){
       <div style="width:252px;flex:none;text-align:center">
         <div style="font-size:17px;margin:0 0 2px"><b>${chordHtmlLabel(ceName())}</b></div>
         <div style="display:flex;justify-content:center">${cdg}</div>
-        <div style="font-size:10.5px;color:var(--muted);margin:1px 0 5px">点格放音 · 顶部切 ×/○ · 同格再点取消</div>
+        <div style="font-size:10.5px;color:var(--muted);margin:1px 0 5px">直接点格＝从空白新建 · 点方案卡＝在其上调整 · 顶部切 ×/○</div>
         <div class="row" style="display:flex;justify-content:center;align-items:center;gap:7px;margin-bottom:8px">
           <span style="font-size:11.5px;color:var(--muted)">把位</span>
           <input id="ce-base" type="number" min="1" max="12" value="${cdBase}" style="width:50px;text-align:center" title="直接输入起始品位 1-12">
@@ -5342,11 +5346,14 @@ function renderChordEditor(){
   const rerender = ()=>{ closeModal(); renderChordEditor(); };
   document.querySelector('.modal').addEventListener('click', ev=>{
     if(ev.target.closest('#ce-play')){ auditionShape(ceState.custom||ceShape()); return; }
-    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; rerender(); return; }
-    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; rerender(); return; }
-    const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; rerender(); return; }
-    /* v39.1 和弦图式创建器交互 */
-    const cdShape0=()=>{ const SN2=strN(); const a=(ceState.custom||ceShape()||'x'.repeat(SN2)).split(''); while(a.length<SN2) a.push('x'); return a; };
+    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
+    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
+    const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; ceState.cdBase=null; rerender(); return; }
+    /* v39.4 创建从空白开始：未选底稿（custom 为空）时直接点格 = 全新空白和弦；
+       想在现有指法上调整 → 先点「把位方案」卡载入底稿再改 */
+    const cdShape0=()=>{ const SN2=strN();
+      const src = ceState.custom!=null? ceState.custom : 'x'.repeat(SN2);
+      const a=src.split(''); while(a.length<SN2) a.push('x'); return a; };
     const cdt=ev.target.closest('[data-cdt]');
     if(cdt){
       const arr=cdShape0(); const i=+cdt.dataset.cdt;
@@ -5362,18 +5369,15 @@ function renderChordEditor(){
       ceState.custom=arr.join(''); rerender(); return;
     }
     const ul=ev.target.closest('[data-ucl]');
-    if(ul){ const k=ul.dataset.ucl; ceState.custom=userChords()[k]; ceState.cname=k; rerender(); return; }
+    if(ul){ const k=ul.dataset.ucl; ceState.custom=userChords()[k]; ceState.cname=k; ceState.cdBase=null; rerender(); return; }
     const ux=ev.target.closest('[data-ucx]');
     if(ux){ const o=userChords(); delete o[ux.dataset.ucx]; userChordsSave(o); toast('已删除用户和弦'); rerender(); return; }
   });
-  document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; rerender(); });
-  /* v39.3 把位直接输入数字（1-12）：固定当前指法后移动品位窗口 */
+  document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; ceState.cdBase=null; rerender(); });
+  /* v39.3 把位直接输入数字（1-12）；v39.4 只移窗不固化指法，空白创建可先定把位再点格 */
   const baseInp=document.getElementById('ce-base');
   if(baseInp) baseInp.addEventListener('change', ()=>{
-    const v=Math.max(1, Math.min(12, parseInt(baseInp.value,10)||1));
-    const SN2=strN(); const a=(ceState.custom||ceShape()||'x'.repeat(SN2)).split(''); while(a.length<SN2) a.push('x');
-    ceState.custom=a.join('');
-    ceState.cdBase=v;
+    ceState.cdBase=Math.max(1, Math.min(12, parseInt(baseInp.value,10)||1));
     rerender();
   });
   const nameInp=document.getElementById('ce-name');
@@ -9660,6 +9664,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v39.4</span><div><b>创建体验修正</b>：① 用户创建和弦时<b>从空白和弦图开始</b>——直接点格即全新创建，不再在当前和弦指法基础上调整（想改现有指法：先点「把位方案」卡载入底稿再编辑）；把位数字可先填后点格，空白高把位创建一步到位；② 修复<b>把位 ≥10 时</b>把位方案小卡上的数字显示不全（两位数缩字号右靠，几何断言保证不裁切）。</div></li>
     <li><span class="v">v39.3</span><div><b>和弦细节打磨</b>：① 创建器的「把位」由 −/＋ 步进改为<b>直接输入数字</b>（1–12），高把位一步到位；② 主音左上角的<b>升降号放大</b>（谱面/和弦图/弹窗全线，约为主音字号八成），投影和打印下更清晰。</div></li>
     <li><span class="v">v39.2</span><div><b>和弦弹窗单页化</b>：编辑和弦重排为紧凑双栏、<b>一屏放下无滚动</b>——左列「主音（原根音）/和弦性质/转位低音/命名保存/我的和弦」，右列大号<b>可编辑和弦图</b>（创建器兼预览，名称升降号左上角显示）+ 把位调节/试听 + 把位方案卡；按需求移除「和弦名直达」「调内常用」条与「自定义指法」文本行，创建统一走和弦图点格。</div></li>
     <li><span class="v">v39.1</span><div><b>和弦图式创建 + 升降号左上角</b>：① 自定义和弦创建从「横向指板模拟」改为<b>与谱面同款的竖式和弦图</b>——点格放音（再点取消）、顶部点击切换 ×不弹/○空弦、「把位 −/＋」移动品位窗口（横按高把位同样直观），所见即所得；② 全部和弦名显示改为出版惯例：<b>升降号写在主音左上角</b>（♯C、♭B、♭3），谱面 TAB 和弦、和弦图标题、功能谱级数/音名、弹窗预览全线生效——数据仍存 C#/Bb 格式，导出/移调/兼容不受影响。</div></li>

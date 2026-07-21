@@ -168,10 +168,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     showChordEditor(0, 0, 0);
     const noOldFb = document.querySelectorAll('[data-fb]').length === 0;
     const hasCdg = !!document.querySelector('.cdg');
-    // 点 6弦(i=0) 第1格 → 该弦品位 = 把位起始品
+    // 点 6弦(i=0) 第1格 → v39.4 从空白创建：仅该弦有音，其余全 x
     document.querySelector('[data-cdc="0:0"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     const base = ceState._cdShownBase;
-    const afterCell = (ceState.custom || '')[0] === (base <= 9 ? '' + base : base.toString(36));
+    const afterCell = (ceState.custom || '')[0] === (base <= 9 ? '' + base : base.toString(36))
+      && [...(ceState.custom || '')].filter(ch => ch !== 'x').length === 1;
     // 顶部切换：非×→×
     document.querySelector('[data-cdt="0"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     const afterTop = (ceState.custom || '')[0] === 'x';
@@ -206,6 +207,18 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { tabOk, degOk, prevOk: !!prevOk };
   });
   T(r.tabOk && r.degOk && r.prevOk, 'T12 升降号左上角', 'TAB=' + r.tabOk + ' 级数=' + r.degOk + ' 弹窗预览=' + r.prevOk);
+
+  // T13 两位数把位在 56 宽小卡中不裁切（几何断言：文字左缘 >= 0）
+  r = await pg.evaluate(() => {
+    const sh = movableShape(7, '', 'A');   // G 大调 A 型 → 把位 10
+    const svg = chordDiagramSVG('', 6, 2, 1.05, sh, true);
+    const m = /<text x="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*text-anchor="end"[^>]*>(\d+)<\/text>/.exec(svg);
+    if (!m) return { ok: false, svg: svg.slice(0, 120) };
+    const x = +m[1], fs = +m[2], num = m[3];
+    const leftEdge = x - fs * 0.62 * num.length;   // end 锚点向左展开的估算宽度
+    return { ok: true, num, x, fs, leftEdge, fits: leftEdge >= 0 };
+  });
+  T(r.ok && r.num === '10' && r.fits, 'T13 两位数把位不裁切', '把位=' + r.num + ' 左缘=' + (r.leftEdge != null && r.leftEdge.toFixed(1)));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
