@@ -1,6 +1,7 @@
-/* v41.1/v41.2 记号回归：延长号 ferm / 演奏法四件套 artic / 换气 breath（第一批）
+/* v41.1/v41.2/v41.3 记号回归：延长号 ferm / 演奏法四件套 artic / 换气 breath（第一批）
    + 渐强渐弱范围括线 dynTo / 推弦幅度 bAmt / 排练段落标记 mea.label（第二批）
-   覆盖：数据写入（按钮/菜单入口+取消）、SVG 几何断言（跨行断线/弧上幅度/方框标记）、MusicXML 往返 */
+   + 中途转调 mea.keyTo / 钢琴踏板 ped / 指法 fing / 小节反复 mea.simile（第三批）
+   覆盖：数据写入（按钮/菜单入口+取消）、SVG 几何断言（跨行断线/弧上幅度/方框标记/踏板线/指法位）、MusicXML 往返 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -241,6 +242,139 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.dataOk && r.bold && r.boxed && r.above && r.mxl && r.rtLabel === '副歌' && r.cleared && !r.bad,
     'T8 排练/段落标记+MusicXML rehearsal 往返', JSON.stringify(r));
+
+  // T9 中途转调标记：菜单选调写入 mea.keyTo、谱面「转1=G」在数字行上方、换调同步平移、MusicXML key 变更往返、清除
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:2, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(1), Vc(2), Vc(3), Vc(5)];
+    s.measures[1].voxes[0] = [Vc(5), Vc(3), Vc(2), Vc(1)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:1, ci:0});
+    document.getElementById('b-keyto').click();
+    document.querySelector('#popmenu [data-kt="G"]').click();
+    const dataOk = song.measures[1].keyTo === 'G';
+    blurSel = true; render();
+    const tEl = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === '转1=G');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16.5');
+    const above = tEl && digit ? +tEl.getAttribute('y') < +digit.getAttribute('y') - 12 : false;
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rtOk = res.song && res.song.measures[1].keyTo === 'G' && !res.song.measures[0].keyTo;
+    mutate(() => { transposeEditor(2); song.key = KEY_LIST[((KEY_PC[song.key]+2)%12+12)%12]; });
+    const transOk = song.measures[1].keyTo === 'A' && song.key === 'D';
+    document.getElementById('b-keyto').click();
+    document.querySelector('#popmenu [data-kt=""]').click();
+    return { dataOk, hasText: !!tEl, above, transOk,
+      mxl: xml.includes('<key><fifths>1</fifths></key>'), rtOk,
+      cleared: !('keyTo' in song.measures[1]),
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.dataOk && r.hasText && r.above && r.transOk && r.mxl && r.rtOk && r.cleared && !r.bad,
+    'T9 中途转调标记+换调联动+MusicXML key 往返', JSON.stringify(r));
+
+  // T10 钢琴踏板：piano 大谱表下 Ped.____* 成对、线在谱表下方且起止 x 对应两列、MusicXML pedal 往返、入口仅五线谱声部显示
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur, ext) => Object.assign({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false}, ext||{});
+    const s = createSong('piano', {beats:4, unit:4, key:'C', nMea:1, lyr:0});
+    s.measures[0].voxes[1] = [Vc(1,4,{oct:-1}), Vc(3,4,{oct:-1}), Vc(5,4,{oct:-1}), Vc(1,4)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:1, mi:0, ci:0});
+    document.getElementById('b-ped-on').click();
+    Object.assign(sel, {row:'vox', vi:1, mi:0, ci:2});
+    document.getElementById('b-ped-off').click();
+    const c0 = song.measures[0].voxes[1][0], c2v = song.measures[0].voxes[1][2];
+    const dataOk = c0.ped === 'on' && c2v.ped === 'off';
+    blurSel = true; render();
+    const svg = document.getElementById('score').innerHTML;
+    const pedT = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === 'Ped.');
+    const starT = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === '*');
+    const staffB = Math.max(...[...document.querySelectorAll('#score line')]
+      .filter(l => l.getAttribute('stroke-width') === '0.8').map(l => +l.getAttribute('y1')));
+    const b0 = document.querySelector('#score rect[data-row="vox"][data-vi="1"][data-mi="0"][data-ci="0"]');
+    const b2 = document.querySelector('#score rect[data-row="vox"][data-vi="1"][data-mi="0"][data-ci="2"]');
+    const near = (x, b3) => b3 && Math.abs(x - (+b3.getAttribute('x') + +b3.getAttribute('width')/2)) < 30;
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rc = res.song ? res.song.measures[0].voxes[1] : [];
+    return { dataOk, hasPed: !!pedT, hasStar: !!starT,
+      below: pedT && starT ? +pedT.getAttribute('y') > staffB + 8 && +starT.getAttribute('y') > staffB + 8 : false,
+      spanOk: pedT && starT ? near(+pedT.getAttribute('x'), b0) && near(+starT.getAttribute('x'), b2) : false,
+      mxl: xml.includes('<pedal type="start"/>') && xml.includes('<pedal type="stop"/>'),
+      rt: !!(rc[0] && rc[0].ped === 'on' && rc[2] && rc[2].ped === 'off'),
+      bad: /NaN|undefined/.test(svg) };
+  });
+  T(r.dataOk && r.hasPed && r.hasStar && r.below && r.spanOk && r.mxl && r.rt && !r.bad,
+    'T10 钢琴踏板 Ped.____*+MusicXML pedal 往返', JSON.stringify(r));
+
+  // T11 指法直录：b-fing 后数字键 1–5 写入 fing、五线谱符头旁小数字（低音谱表在下）、0 清除、adds 指法 MusicXML 往返
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur, ext) => Object.assign({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false}, ext||{});
+    const s = createSong('instr', {beats:4, unit:4, key:'C', nMea:1, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(1), Vc(3), Vc(5, 4, {adds:[{deg:5, acc:'', oct:0, fing:'5'}]}), Vc(1)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:0, ci:0});
+    document.getElementById('b-fing').click();
+    const modeOn = fingMode === true;
+    window.dispatchEvent(new KeyboardEvent('keydown', {key:'3'}));
+    const w3 = song.measures[0].voxes[0][0].fing === '3';
+    window.dispatchEvent(new KeyboardEvent('keydown', {key:'0'}));
+    const cleared = !('fing' in song.measures[0].voxes[0][0]);
+    window.dispatchEvent(new KeyboardEvent('keydown', {key:'1'}));
+    window.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape'}));
+    const modeOff = fingMode === false;
+    blurSel = true; render();
+    const fEl = [...document.querySelectorAll('#score text')].filter(t2 => t2.getAttribute('font-size') === '8.5' && /^[1-5]$/.test(t2.textContent));
+    const heads = [...document.querySelectorAll('#score path')]
+      .filter(p2 => p2.getAttribute('d') === SMUFL.noteheadBlack.d)
+      .map(p2 => { const m = /translate\((-?[\d.]+),(-?[\d.]+)\)/.exec(p2.getAttribute('transform')); return {x:+m[1], y:+m[2]}; })
+      .sort((a,b2)=>a.x-b2.x);
+    const f1 = fEl.find(t2 => t2.textContent === '1');
+    const aboveOk = f1 && heads[0] ? +f1.getAttribute('y') < heads[0].y - 4 : false;
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rc = res.song ? res.song.measures[0].voxes[0] : [];
+    return { modeOn, w3, cleared, modeOff, nF: fEl.length, aboveOk,
+      mxl: xml.includes('<fingering>1</fingering>') && xml.includes('<fingering>5</fingering>'),
+      rt: !!(rc[0] && rc[0].fing === '1' && rc[2] && rc[2].adds && rc[2].adds[0].fing === '5'),
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.modeOn && r.w3 && r.cleared && r.modeOff && r.nF >= 2 && r.aboveOk && r.mxl && r.rt && !r.bad,
+    'T11 指法直录+符头旁小数字+MusicXML fingering 往返', JSON.stringify(r));
+
+  // T12 小节反复 𝄎：按钮写入/取消、渲染省写（该小节无数字）、节拍校验豁免、播放源解析轮转、MusicXML measure-repeat 往返
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:4, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(1), Vc(2), Vc(3), Vc(5)];
+    s.measures[1].voxes[0] = [Vc(6), Vc(5), Vc(3), Vc(2)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:2, ci:0});
+    document.getElementById('b-sim1').click();
+    const sim1 = song.measures[2].simile === 1;
+    document.getElementById('b-sim1').click();               // 再点取消
+    const canceled = !('simile' in song.measures[2]);
+    /* 两小节反复：m2/m3 都标 2 → 源解析 0/1 轮转；m2 时值故意残缺 → 校验豁免 */
+    mutate(() => { song.measures[2].simile = 2; song.measures[3].simile = 2;
+      song.measures[2].voxes[0] = [Vc(1), Vc(2)]; });
+    const src2 = simileSrc(2), src3 = simileSrc(3);
+    const beatOk = beatErrors().length === 0;
+    blurSel = true; render();
+    const digits = [...document.querySelectorAll('#score text')].filter(t2 => t2.getAttribute('font-size') === '16.5');
+    const b2 = document.querySelector('#score rect[data-row="vox"][data-mi="2"][data-ci="0"]');
+    const inM2 = digits.filter(t2 => b2 && +t2.getAttribute('x') >= +b2.getAttribute('x') - 2
+      && +t2.getAttribute('x') <= +b2.getAttribute('x') + +b2.getAttribute('width') + 2);
+    const slashes = [...document.querySelectorAll('#score path[stroke-width="2.6"]')];
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rt = res.song && res.song.measures[2].simile === 2 && res.song.measures[3].simile === 2 && !res.song.measures[1].simile;
+    return { sim1, canceled, src2, src3, beatOk,
+      m2Digits: inM2.length, nSlash: slashes.length,
+      mxl: xml.includes('<measure-repeat type="start">2</measure-repeat>'), rt,
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.sim1 && r.canceled && r.src2 === 0 && r.src3 === 1 && r.beatOk && r.m2Digits === 0 && r.nSlash >= 4 && r.mxl && r.rt && !r.bad,
+    'T12 小节反复 𝄎 省写+豁免+轮转+MusicXML measure-repeat 往返', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
