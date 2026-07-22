@@ -17,7 +17,9 @@
   --danger:#b45309; --ok:#157a43;   /* danger=琥珀（4.6:1 AA），与朱砂强调保持可区分 */
   --shadow:0 1px 2px rgba(60,50,30,.04), 0 6px 18px rgba(60,50,30,.06);
   --radius:10px;
-  --font-ui:-apple-system,BlinkMacSystemFont,'SF Pro Text','PingFang SC','HarmonyOS Sans SC','Helvetica Neue','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei',sans-serif;
+  /* v40.7 中文清晰度：中文字体前置（素材策略）——中西文统一由 PingFang/雅黑 渲染，
+     避免「拉丁字体优先 + 中文回退」的混排参差与伪粗合成 */
+  --font-ui:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','HarmonyOS Sans SC','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','Segoe UI',system-ui,sans-serif;
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
@@ -48,7 +50,8 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
-  -webkit-font-smoothing:antialiased;padding-bottom:78px;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;padding-bottom:78px;
   background-image:radial-gradient(900px 360px at 50% -150px, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%)}
 /* ================= 顶部工具栏 ================= */
 #top{position:sticky;top:0;z-index:20;background:var(--glass);
@@ -515,7 +518,7 @@ svg text{user-select:none}
 .cc-tools{max-width:1080px;margin:16px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cc-search{flex:1;min-width:180px;max-width:340px;position:relative}
 .cc-search input{width:100%;border-radius:980px;padding:7px 14px 7px 32px;font-size:13px}
-.cc-search::before{content:'🔍';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
+.cc-search::before{content:'';width:12px;height:12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6357' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.2'/%3E%3Cpath d='M15.3 15.3 21 21'/%3E%3C/svg%3E") center/contain no-repeat;position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
 .cc-chip{border:1px solid var(--border);background:var(--panel);border-radius:980px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--muted)}
 .cc-chip:hover{background:var(--hover)}
 .cc-chip.on{background:var(--grad);color:#fff;border-color:transparent;font-weight:600;
@@ -669,6 +672,9 @@ body.stand #standbar{display:flex}
 .cdg .cdgc{cursor:pointer}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
+/* v40.7 扁平 SVG 图标（替代 emoji） */
+.svgi{display:inline-block;vertical-align:-2px;margin-right:3px;flex:none}
+button > .svgi:only-child,.svgi:last-child:first-child{margin-right:0}
 /* ================= v40.0 新版外壳（阶段1：深色扁平顶栏/底栏，经典版可切回） ================= */
 body.shell #top .main-bar{background:#1f3a34;border-bottom:1px solid rgba(0,0,0,.22)}   /* v40.6 素材墨绿：有色温的深色框架 */
 body.shell .main-bar .logo{color:#f3efe4}
@@ -1219,9 +1225,9 @@ body.shell #hint{display:none}
     <div class="rcard open rt-new" data-rt="lib">
       <button class="rc-h" type="button">素材库</button>
       <div class="rc-b rt-list">
-        <button id="rt-patlib" title="打开节奏型库（图示化套用到选中小节）">🥁 节奏型库…</button>
-        <button id="rt-chorded" title="编辑当前列和弦 / 创建自定义和弦">🎸 编辑 / 创建和弦…</button>
-        <button id="rt-tex" style="display:none" title="按已标注的和弦生成双手伴奏音符">🎹 伴奏织体…</button>
+        <button id="rt-patlib" data-svgi="rhythm" title="打开节奏型库（图示化套用到选中小节）"> 节奏型库…</button>
+        <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
+        <button id="rt-tex" style="display:none" data-svgi="piano" title="按已标注的和弦生成双手伴奏音符"> 伴奏织体…</button>
       </div>
     </div>
     <!-- v40.2 智能页签：AI/自动化入口（按谱类显隐，委托既有工作流） -->
@@ -1231,9 +1237,9 @@ body.shell #hint{display:none}
         <button id="rt-sug" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）">✦ 一键配和弦</button>
         <button id="rt-arr" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏">✦ 一键配伴奏…</button>
         <button id="rt-fill" title="整段歌词自动逐字对位">✦ 智能填词…</button>
-        <button id="rt-hum" title="清唱一段，自动出简谱草稿">🎤 哼唱成谱…</button>
-        <button id="rt-mxl" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器">📄 导入 MusicXML…</button>
-        <button id="rt-midi" title="DAW / 编曲软件工程直入">🎼 导入 MIDI…</button>
+        <button id="rt-hum" data-svgi="mic" title="清唱一段，自动出简谱草稿"> 哼唱成谱…</button>
+        <button id="rt-mxl" data-svgi="doc" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"> 导入 MusicXML…</button>
+        <button id="rt-midi" data-svgi="score" title="DAW / 编曲软件工程直入"> 导入 MIDI…</button>
       </div>
     </div>
     <div class="rcard" data-rt="info">
@@ -1264,7 +1270,7 @@ body.shell #hint{display:none}
   <div class="mx-tracks" id="mx-tracks"></div>
   <div class="mx-bar">
     <button id="b-play" class="primary" title="播放 / 暂停（空格键）">▶ 播放</button>
-    <button id="b-restart" title="回到开头（停在最前，不自动播放）" aria-label="回到开头" style="font-size:14px;min-width:34px">⏮</button>
+    <button id="b-restart" title="回到开头（停在最前，不自动播放）" aria-label="回到开头" data-svgi="prev" style="min-width:34px"></button>
     <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
     <button id="b-mxgrid" title="打开小节选择面板（小节多时精确选择循环区）">▦</button>
     <span id="mx-lbl">第 1 小节</span>
@@ -1274,9 +1280,9 @@ body.shell #hint{display:none}
       <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
-    <button id="b-metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用">⏱ 节拍器</button>
-    <button id="b-stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习">🎼 谱架</button>
-    <button id="mx-expand" title="展开/收起音轨">🎚 音轨 ▴</button>
+    <button id="b-metro" data-svgi="metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用"> 节拍器</button>
+    <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
+    <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
   </div>
 </div>
 <div id="toast"></div>
@@ -1308,7 +1314,7 @@ body.shell #hint{display:none}
 </div>
 <!-- 排版浮层：智能/手动疏密 + 内容大小 + 页面容量（A5/A4/A3），实时应用 -->
 <div id="layout-pop">
-  <h4><span class="lp-grip">⋮⋮</span>📐 排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
+  <h4><span class="lp-grip">⋮⋮</span><span data-svgi="ruler"></span>排版 <button class="lp-close" id="lp-close" title="关闭">✕</button></h4>
   <p class="lp-sub">先定基准纸张，再智能排版、手动微调——与显示/预览缩放无关</p>
   <div class="lp-row">
     <div class="lp-lab"><span>① 基准纸张</span></div>
@@ -4319,16 +4325,16 @@ function syncInputs(){
   const errs = beatErrors();
   const bs = document.getElementById('beat-status');
   if(!errs.length){
-    bs.textContent = '✓ 所有小节时值正确'; bs.className='good';
+    bs.innerHTML = svgi('check',11)+' 所有小节时值正确'; bs.className='good';
     document.getElementById('err-drop').classList.add('hidden');
   }else{
-    bs.textContent = `⚠ ${errs.length} 处小节时值与拍号不符（点击定位）`; bs.className='bad';
+    bs.innerHTML = svgi('warn',11)+` ${errs.length} 处小节时值与拍号不符（点击定位）`; bs.className='bad';
     const rows = errs.map(e=>{
       const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
       const sg = suggestFix(e.mi, e.row, e.vi);
       return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">
-        <div class="err-desc">⚠ 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)}/${e.target} 拍</div>
-        ${sg?`<div class="err-sug">💡 ${esc(sg.text)}</div>`:''}
+        <div class="err-desc">${svgi('warn',11)} 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)}/${e.target} 拍</div>
+        ${sg?`<div class="err-sug">${svgi('bulb',11)} ${esc(sg.text)}</div>`:''}
         <button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>
       </div>`;
     }).join('');
@@ -6912,11 +6918,11 @@ function hifiPreload(){
 }
 function updateHifiBtn(){
   const b=document.getElementById('b-hifi'); if(!b) return;
-  if(!hifiOn){ b.textContent='🎧 高保真'; b.classList.remove('primary'); b.title='高保真采样音色：关（点击开启，首次需联网或站点自带音色包）'; return; }
+  if(!hifiOn){ b.innerHTML=svgi('headphone')+' 高保真'; b.classList.remove('primary'); b.title='高保真采样音色：关（点击开启，首次需联网或站点自带音色包）'; return; }
   const sts=Object.values(sfBanks).map(x=>x.status);
-  if(sts.includes('loading')){ b.textContent='🎧 加载中…'; b.classList.remove('primary'); }
-  else if(sts.includes('ready')){ b.textContent='🎧 高保真✓'; b.classList.add('primary'); b.title='高保真采样音色已启用（MusyngKite 开源音色库）'; }
-  else { b.textContent='🎧 高保真'; b.classList.add('primary'); b.title='高保真采样音色：开（播放时自动加载）'; }
+  if(sts.includes('loading')){ b.innerHTML=svgi('headphone')+' 加载中…'; b.classList.remove('primary'); }
+  else if(sts.includes('ready')){ b.innerHTML=svgi('headphone')+' 高保真✓'; b.classList.add('primary'); b.title='高保真采样音色已启用（MusyngKite 开源音色库）'; }
+  else { b.innerHTML=svgi('headphone')+' 高保真'; b.classList.add('primary'); b.title='高保真采样音色：开（播放时自动加载）'; }
 }
 /* ---- 母线：混音 + 压缩 + 混响（提升真实感） ---- */
 function makeImpulse(ctx,dur,decay){
@@ -7584,7 +7590,7 @@ function stopPlay(){
 /* 播放键单键三态：▶播放 → ⏸暂停 → ▶继续 */
 function setPlayBtn(){
   const b=document.getElementById('b-play'); if(!b) return;
-  b.textContent = !audio.playing ? '▶ 播放' : (audio.paused ? '▶ 继续' : '⏸ 暂停');
+  b.innerHTML = !audio.playing ? '▶ 播放' : (audio.paused ? '▶ 继续' : svgi('pause',12)+' 暂停');
 }
 function togglePlay(){
   if(!audio.playing){ play(); return; }
@@ -7609,6 +7615,53 @@ document.getElementById('b-metro').onclick = ()=>{
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 /* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
 let uiShell = (localStorage.getItem('musetab-shell')||'new')!=='classic';
+/* v40.7 扁平 SVG 图标库：替换全部 emoji 图案（线性 24 视口、currentColor 随文字着色）。
+   静态 HTML 用 data-svgi 占位由下方注入器补图；JS 模板直接调 svgi(name,size)。 */
+const SVGI = {
+  play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  pause:'<path d="M9 5v14M15 5v14" stroke-width="2.4"/>',
+  prev:'<path d="M6 5v14" stroke-width="2.2"/><path d="M19 6.8v10.4L10.5 12z" fill="currentColor" stroke="none"/>',
+  metro:'<path d="M9.5 3h5L18 20H6z"/><path d="M12 14.5 16 7"/>',
+  stand:'<path d="M6 4h12l-1.6 9H7.6z"/><path d="M12 13v7M8.5 20h7"/>',
+  sliders:'<path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="14" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1.9" fill="currentColor" stroke="none"/><circle cx="18" cy="16" r="1.9" fill="currentColor" stroke="none"/>',
+  rhythm:'<path d="M4 19V11M9 19V5M14 19v-6M19 19V8"/>',
+  chordgrid:'<path d="M5 5v14M12 5v14M19 5v14M5 8h14M5 15h14" stroke-width="1.3"/><circle cx="12" cy="11.5" r="2.2" fill="currentColor" stroke="none"/>',
+  piano:'<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M8 5v8M12.5 5v8M17 5v8"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5V21"/>',
+  doc:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/>',
+  score:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/><circle cx="10.6" cy="15.6" r="1.7"/><path d="M12.3 15.6V10l3.2 1.2"/>',
+  headphone:'<path d="M4 14.5v-2.3a8 8 0 0 1 16 0v2.3"/><rect x="3" y="14" width="4.2" height="6" rx="1.6"/><rect x="16.8" y="14" width="4.2" height="6" rx="1.6"/>',
+  eye:'<path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  grad:'<path d="M2.5 9.5 12 5l9.5 4.5L12 14z"/><path d="M6.5 12v4.2c0 1.6 11 1.6 11 0V12"/>',
+  check:'<path d="M4.5 12.5 10 18 19.5 6.5"/>',
+  warn:'<path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v5"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>',
+  ban:'<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  thumb:'<path d="M6.5 11.5V20M6.5 19h9.6c1 0 1.9-.7 2.1-1.7l1.2-4.7c.3-1.2-.6-2.3-1.9-2.3h-4.3l.9-3.9c.3-1.2-.6-2.4-1.9-2.4-.5 0-1 .3-1.2.8l-4.5 6.7z"/>',
+  bulb:'<path d="M9.5 18h5M10.5 21h3"/><path d="M8 13.5a5.5 5.5 0 1 1 8 0c-.9.9-1.4 1.7-1.4 2.5H9.4c0-.8-.5-1.6-1.4-2.5z"/>',
+  save:'<path d="M4.5 4.5h12l3 3v12h-15z"/><path d="M8 4.5V9h7V4.5M8 19.5V14h8v5.5"/>',
+  ruler:'<path d="M4 20 20 4M4 20h5.5M4 20v-5.5M8.2 15.8l1.6 1.6M11.8 12.2l1.6 1.6M15.4 8.6 17 10.2"/>',
+  keyboard:'<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 11h.01M11 11h.01M15 11h.01M7.5 14h9" stroke-width="2"/>',
+  note:'<circle cx="9" cy="17" r="2.5"/><path d="M11.5 17V5l5 1.6"/>',
+  notes:'<path d="M10 17.5V5.5l7-1.8V15"/><circle cx="7.6" cy="17.5" r="2.4"/><circle cx="14.6" cy="15" r="2.4"/>',
+  book:'<path d="M12 6c-1.8-1.3-4.4-1.8-7.5-1.8v14.6c3.1 0 5.7.5 7.5 1.8 1.8-1.3 4.4-1.8 7.5-1.8V4.2c-3.1 0-5.7.5-7.5 1.8v16"/>',
+  violin:'<path d="M12 3v10M10 8h4"/><circle cx="12" cy="16.5" r="4.5"/>',
+  guitar:'<circle cx="9.5" cy="14.5" r="5.5"/><circle cx="9.5" cy="14.5" r="1.4"/><path d="M13.5 10.5 20 4M18 2.5 21.5 6"/>',
+  print:'<path d="M7 8V3.5h10V8"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M7 13h10v7H7z"/>',
+  folder:'<path d="M3.5 6.5h6l2 2h9V19h-17z"/>',
+  loop:'<path d="M16.5 4.5 20 8l-3.5 3.5"/><path d="M20 8H8.5A4.5 4.5 0 0 0 4 12.5"/><path d="M7.5 19.5 4 16l3.5-3.5"/><path d="M4 16h11.5A4.5 4.5 0 0 0 20 11.5"/>',
+  pencil:'<path d="M4.5 19.5l1-4L16 5l3 3L8.5 18.5z"/>',
+  bolt:'<path d="M13 2.5 5.5 13H11l-1.5 8.5L17 11h-5.5z"/>',
+  sparkle:'<path d="M12 4l1.6 4.9 4.9 1.1-4.9 1.6L12 16.5l-1.6-4.9L5.5 10l4.9-1.1z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
+  megaphone:'<path d="M3.5 10v4h3.5l7.5 4.5v-13L7 10z"/><path d="M17.5 9.5a4.5 4.5 0 0 1 0 5"/>',
+  search:'<circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.3 15.3 21 21"/>',
+};
+function svgi(name, size){
+  const s = size || 13;
+  return `<svg class="svgi" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVGI[name]||''}</svg>`;
+}
+document.querySelectorAll('[data-svgi]').forEach(el=>el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi)));
 /* v40.4 滚动器感知：新版通栏框架下制版台内部滚动（#score-wrap），经典/谱架/观看仍走窗口滚动 */
 function scoreScroller(){
   const c=document.body.classList;
@@ -7740,7 +7793,7 @@ function setMixerExpanded(open){
   mixerExpanded = open;
   document.getElementById('mixer-dock').classList.toggle('expanded', open);
   const btn = document.getElementById('mx-expand');
-  if(btn) btn.textContent = open ? '🎚 音轨 ▾' : '🎚 音轨 ▴';
+  if(btn) btn.innerHTML = svgi('sliders')+(open ? ' 音轨 ▾' : ' 音轨 ▴');
   if(open) renderMixerDock();
 }
 document.getElementById('mx-expand').onclick = ()=>setMixerExpanded(!mixerExpanded);
@@ -7765,7 +7818,7 @@ function docType(s){
   if(isStaffNota(vn[0])) return (s.voxDual||[])[0]? 'teach':'instr';
   return 'vocal';
 }
-function docIcon(s){ return {guitar:'🎸',uku:'🎶',solo:'🎸',vocal:'🎵',func:'🎹',chord:'🎼',piano:'🎹',pianoacc:'🎹',teach:'📖',instr:'🎻'}[docType(s)] || '🎼'; }
+function docIcon(s){ return svgi({guitar:'guitar',uku:'notes',solo:'guitar',vocal:'note',func:'piano',chord:'chordgrid',piano:'piano',pianoacc:'piano',teach:'book',instr:'violin'}[docType(s)] || 'score', 12); }
 function saveStatusText(s){
   if(s.id){
     const e=libLoad().find(x=>x.id===s.id);
@@ -7814,7 +7867,7 @@ function closeDoc(i){
   const d=docs[i]; if(!d) return;
   const st=saveStatusText(d.song);
   showModal(`<h3>关闭窗口 · ${esc(d.song.title||'未命名曲谱')}</h3>
-  <p style="font-size:13px;color:var(--ink)">${st.saved?'✅':'⚠️'} 保存情况：${st.text}。</p>
+  <p style="font-size:13px;color:var(--ink)">${svgi(st.saved?'check':'warn',12)} 保存情况：${st.text}。</p>
   ${st.saved?'':'<p>关闭后此窗口不再显示；未存入「我的曲谱」的内容将无法找回。</p>'}
   <div class="btns">
     <button id="dc-cancel">取消</button>
@@ -7868,7 +7921,7 @@ function persist(){
     console.error('本地存储写入失败', err);
     if(!persist._warned){
       persist._warned = true;
-      try{ toast('⚠️ 本地存储写入失败（可能已满）：编辑暂时无法自动保存，请尽快「导出」曲谱文件备份'); }catch(_){}
+      try{ toast('本地存储写入失败（可能已满）：编辑暂时无法自动保存，请尽快「导出」曲谱文件备份'); }catch(_){}
       setTimeout(()=>{ persist._warned=false; }, 60000);
     }
   }
@@ -8000,7 +8053,7 @@ function createSong(type, o){
 function showNewWizard(){
   const st = song? saveStatusText(song) : null;
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
-  ${st? `<p style="font-size:12.5px">${st.saved?'✅':'⚠️'} 当前窗口《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将在<b>新窗口</b>打开，当前窗口保留。</p>` : ''}
+  ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前窗口《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将在<b>新窗口</b>打开，当前窗口保留。</p>` : ''}
   <div class="ntgrid">
     <button class="ntcard ntype" data-nt="tanchang"><span class="nt-tag">弹唱</span><b>弹唱谱</b><span>六线谱 TAB＋简谱＋歌词＋和弦图，吉他/尤克里里通用的标准弹唱版式（乐器下一步选）。</span></button>
     <button class="ntcard ntype" data-nt="solo"><span class="nt-tag">独奏</span><b>独奏谱</b><span>六线谱＋五线谱联排（Guitar Pro 式），木吉他指弹与电吉他专用，完整演奏技法记谱。</span></button>
@@ -8013,9 +8066,9 @@ function showNewWizard(){
   </div>
   <div class="nw-feats">
     <span class="nw-feats-t">已有曲子？不用从零录入：</span>
-    <button id="nw-import" class="nwf">📄 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
-    <button id="nw-midi" class="nwf">🎹 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
-    <button id="nw-hum" class="nwf">🎤 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
+    <button id="nw-import" class="nwf">${svgi('doc',15)} 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
+    <button id="nw-midi" class="nwf">${svgi('piano',15)} 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
+    <button id="nw-hum" class="nwf">${svgi('mic',15)} 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
@@ -9253,7 +9306,7 @@ function showPublishMenu(libEntry, rect){
   div.innerHTML=`<div class="t">发布《${esc(libEntry.title||'未命名曲谱')}》到谱友圈</div>
     <div class="row" style="align-items:center">定价 ¥ <input id="pub-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:70px">（0=免费）</div>
     <div class="row" style="align-items:center">付费谱试读 <input id="pub-prev" type="number" min="1" max="16" value="2" style="width:60px"> 小节</div>
-    <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">⚠️ 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>。</div>
+    <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">${svgi('warn',11)} 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>。</div>
     <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">确认发布</button></div>`;
   document.body.appendChild(div);
   document.getElementById('pub-go').onclick=()=>{
@@ -9318,7 +9371,7 @@ function circleCard(pb, own, fav){
           <button class="cc-fav ${fav[pb.pid]?'on':''}" data-fav="${pb.pid}" title="${fav[pb.pid]?'取消收藏':'收藏'}">${fav[pb.pid]?'♥':'♡'}</button></div>
         <div class="a">制谱：${esc(pb.author||'佚名')} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</div>
         <div class="meta"><i>${(pb.data.measures||[]).length} 小节</i>
-          <i>👁 ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}</div>
+          <i>${svgi('eye',11)} ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}</div>
       </div>
     </div>`;
 }
@@ -9356,7 +9409,7 @@ function openCircle(){
       <span style="flex:1"></span>
       <button id="cc-back" class="primary">返回制谱器</button>
     </div>
-    ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">📢 ${esc(notice)}</div></div>`:''}
+    ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft,rgba(58,92,224,.1));border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">${svgi('megaphone',12)} ${esc(notice)}</div></div>`:''}
     <div class="cc-hero">
       <span class="kk">曲谱库</span>
       <h1>发现好谱，<span class="grad">边看边弹</span></h1>
@@ -9420,9 +9473,9 @@ function openPubViewer(pid){
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
-    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">🎼 谱架</button>
+    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
     ${own? `<button id="vw-png">下载长图</button><button id="vw-pdf">打印 / PDF</button>`:''}
-    <button id="vw-tip" title="打赏支持创作者（正式支付上线后到账）">👍 打赏</button>
+    <button id="vw-tip" title="打赏支持创作者（正式支付上线后到账）">${svgi('thumb')} 打赏</button>
     <button id="vw-exit" class="primary">退出观看</button>`;
   updateVwKey();
   document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
@@ -9443,7 +9496,7 @@ function openPubViewer(pid){
   const oldPay=document.getElementById('paywall'); if(oldPay) oldPay.remove();
   if(!own){
     const pw=document.createElement('div'); pw.id='paywall';
-    pw.innerHTML=`<span>🔒 试读前 ${Math.max(1,pb.preview||2)} 小节 · 完整 ${total} 小节</span>
+    pw.innerHTML=`<span>${svgi('lock',12)} 试读前 ${Math.max(1,pb.preview||2)} 小节 · 完整 ${total} 小节</span>
       <b style="color:var(--accent)">¥${pb.price}</b>
       <button id="pw-buy" class="primary">购买解锁完整曲谱</button>`;
     document.body.appendChild(pw);
@@ -9532,7 +9585,7 @@ function enterShareViewer(share){
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
-    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">🎼 谱架</button>
+    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
     <a class="vw-brand" href="https://puyouquan.com" target="_blank" rel="noopener"
       title="本互动谱由谱友圈在线制谱导出——你也可以免费制谱并分享">谱友圈 puyouquan.com</a>`;
   updateVwKey();
@@ -9578,13 +9631,13 @@ function exitStand(){
 function toggleAutoScroll(){ standScroll.on? stopAutoScroll() : startAutoScroll(); }
 function startAutoScroll(){
   standScroll.on=true; standScroll.acc=0;
-  const g=document.getElementById('sb-go'); if(g){ g.textContent='⏸ 暂停'; g.classList.add('primary'); }
+  const g=document.getElementById('sb-go'); if(g){ g.innerHTML=svgi('pause',12)+' 暂停'; g.classList.add('primary'); }
   cancelAnimationFrame(standScroll.raf);
   standScroll.raf=requestAnimationFrame(standTick);
 }
 function stopAutoScroll(){
   standScroll.on=false; cancelAnimationFrame(standScroll.raf);
-  const g=document.getElementById('sb-go'); if(g){ g.textContent='▶ 自动卷谱'; g.classList.remove('primary'); }
+  const g=document.getElementById('sb-go'); if(g){ g.innerHTML='▶ 自动卷谱'; g.classList.remove('primary'); }
 }
 let standT=0;
 function standTick(t){
@@ -9652,7 +9705,7 @@ function pcPatHTML(){
 const CERT_NAME={tabber:'认证扒谱人', teacher:'认证教师'};
 function certBadgeHTML(cert, small){
   if(!cert) return '';
-  const ic = cert==='teacher' ? '🎓' : '✅';
+  const ic = svgi(cert==='teacher' ? 'grad' : 'check', 12);
   return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:${small?10.5:11.5}px;color:var(--accent);
     border:1px solid var(--accent);border-radius:20px;padding:1px 9px;vertical-align:2px">${ic} ${CERT_NAME[cert]}</span>`;
 }
@@ -9665,10 +9718,10 @@ function pcCreatorHTML(){
   const pubs=circlePubs();
   const pubRows=libLoad().map(e2=>{
     const pb=pubs.find(x=>x.libId===e2.id);
-    const ST={pending:'⏳ 待审核', approved:'✅ 已上架', rejected:'⛔ 已驳回'};
+    const ST={pending:svgi('clock',11)+' 待审核', approved:svgi('check',11)+' 已上架', rejected:svgi('ban',11)+' 已驳回'};
     return `<div class="pc-row">
       <span class="t1">${esc(e2.title||'未命名曲谱')}</span>
-      ${pb? `<span class="t2" title="${esc(pb.reason||'')}">${ST[pb.status||'approved']}${pb.status==='rejected'&&pb.reason?('：'+esc(pb.reason)):''} · ${pb.price>0?'¥'+pb.price:'免费'} · 已售${pb.sales||0} · 👁${pb.views||0}</span>
+      ${pb? `<span class="t2" title="${esc(pb.reason||'')}">${ST[pb.status||'approved']}${pb.status==='rejected'&&pb.reason?('：'+esc(pb.reason)):''} · ${pb.price>0?'¥'+pb.price:'免费'} · 已售${pb.sales||0} · ${svgi('eye',11)}${pb.views||0}</span>
         <button data-pub-upd="${e2.id}" title="用当前库中最新内容更新（重新进入审核）">更新</button>
         <button data-pub-off="${e2.id}">下架</button>`
       : `<span class="t2">未发布</span><button data-pub-on="${e2.id}" class="primary">发布到谱友圈</button>`}
@@ -9736,7 +9789,7 @@ function pcAdminHTML(){
     <button data-adm-ok="${pb.pid}" class="primary">通过上架</button>
     <button data-adm-no="${pb.pid}">驳回</button>`)).join('') || '<p>没有待审核的曲谱。</p>'}
   <h4>已上架内容（${live.length}）</h4>
-  ${live.map(pb=>row(pb, `<span class="t2">售${pb.sales||0} · 👁${pb.views||0}</span>
+  ${live.map(pb=>row(pb, `<span class="t2">售${pb.sales||0} · ${svgi('eye',11)}${pb.views||0}</span>
     <button data-adm-view="${pb.pid}">查看</button>
     <button data-adm-down="${pb.pid}">强制下架</button>`)).join('') || '<p>暂无上架内容。</p>'}
   <h4>系统配置</h4>
@@ -9961,7 +10014,7 @@ document.getElementById('b-help').onclick = ()=>{
   showModal(`<h3>谱友圈 · 使用帮助</h3>
   <div class="helpdoc">
     <div class="hd-hero">
-      <div class="lg">🎸</div>
+      <div class="lg">${svgi('guitar',22)}</div>
       <div><div class="tt">在线制谱 · 使用帮助</div>
         <div class="ds">吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
     </div>
@@ -9970,43 +10023,43 @@ document.getElementById('b-help').onclick = ()=>{
       <div class="hd-step"><div class="n">2</div><b>录入</b><p>TAB 点弦位敲品位 0–24；简谱敲 <kbd>0</kbd>–<kbd>7</kbd>；点歌词行打字。有和弦时「节奏型库」一键成小节。</p></div>
       <div class="hd-step"><div class="n">3</div><b>排版打印</b><p>「排版」调纸张疏密、<kbd>空格</kbd>试听、「预览」看成品，「打印」出 A4/PDF。改动实时自动保存。</p></div>
     </div>
-    ${sec('📐','排版 · 预览 · 打印（本次重点）',[
+    ${sec(svgi('ruler',15),'排版 · 预览 · 打印（本次重点）',[
       ['排版面板','顶栏「排版」浮层（可拖动、实时生效）：<b>①基准纸张</b> A5/A4/A3（选定固定，决定容量）；<b>②智能排版</b> 紧凑/标准/宽松（按出版谱对数时值间距<b>逐拍分配宽度</b>——稀疏拍窄、密集拍宽、疏密有致）；<b>③手动微调</b> 整体缩放 / 行距（可分选 吉他谱·简谱·歌词）/ 间距，百分比数字<b>点击可输入精确值</b>。参数随曲谱保存。'],
       ['内容驱动版式','小节宽度随内容疏密自动伸缩、每行小节数自由适配；极密集小节可独占一行从容展开，各行两端对齐、右缘整齐。'],
       ['打印预览','顶栏「预览」：A5/A4/A3 适配、缩放（±/Ctrl 滚轮/适配/整页）、多页<b>竖排 / 横排 / 网格</b>排布；纯净成品谱（不含光标），可直接进入打印。'],
       ['打印 / 导出','「打印」选纸张出 A4 多页 PDF，或导出<b>高清 PNG</b>；显示缩放（顶部 −/＋、<kbd>Ctrl</kbd>+滚轮）只改看的大小、不改版式。'],
     ])}
-    ${sec('⌨️','顶部编辑栏（吸顶常驻）',[
+    ${sec(svgi('keyboard',15),'顶部编辑栏（吸顶常驻）',[
       ['时值 / 节奏','单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」把下一音变半时值；「节奏型库」整小节套用（可 <kbd>Shift</kbd> 跨小节多选后批量）'],
       ['音符','＋后插 / ＋前插（<kbd>Insert</kbd>）任意位置加音；<b>休止符</b>整列休止（吉他谱按时值显示 𝄽𝄾𝄿）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议'],
       ['记号','连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨中间相连；3/5/6/7 连音原地拆分、总时值不变'],
     ])}
-    ${sec('🎼','小节与段落 · 反复记号',[
+    ${sec(svgi('score',15),'小节与段落 · 反复记号',[
       ['右栏面板','插入/删除小节常驻；展开「段落·反复·跳转记号」设 |: :| 反复、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落线/终止线，作用于当前小节'],
       ['点击小节线','弹出同款菜单；按住约半秒可独立选中该小节单个声部，<kbd>Ctrl+C</kbd>/<kbd>V</kbd> 复制粘贴'],
       ['播放识别','整曲播放自动按记号走：𝄆𝄇 反复、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段'],
     ])}
-    ${sec('▶️','播放与循环',[
+    ${sec(svgi('play',15),'播放与循环',[
       ['空格 / ▶ / ⇤','播放键单键切换：点播放、再点暂停、再点继续（音频精确冻结）；⇤ 回开头并停住；底部混音器换音色、独奏/静音、调速'],
       ['小节格进度条','一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时变密集标尺，点 ▦ 打开大格选择面板'],
     ])}
-    ${sec('💾','窗口与保存',[
+    ${sec(svgi('save',15),'窗口与保存',[
       ['多窗口','标签栏同时开多首（可不同类型），显示"类型+序号+曲名"与保存状态点'],
       ['保存 / 导出','实时自动保存本机；「保存」存入我的曲谱；<kbd>Ctrl+S</kbd> 导出文件；个人中心管理曲谱、节奏型模板、版权存证'],
     ])}
-    ${sec('🎸','吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
+    ${sec(svgi('guitar',15),'吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
       ['录入与和弦','点弦位敲品位；「记谱:×」教材式切换；输入和弦自动画和弦图并按指法重排，改和弦智能移调'],
       ['演奏技巧','滑弦 S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音'],
       ['扫弦 / 琶音','下扫/上扫（箭头=拨片从低音弦扫向高音弦的移动方向，下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数'],
     ])}
-    ${sec('🎵','简谱',[
+    ${sec(svgi('note',15),'简谱',[
       ['音高与记号','♯♭♮、八度点 ±3；倚音最多 3 音可点击再编辑；上下波音/颤音 tr/回音'],
       ['力度 / 速度','「力度/速度」弹窗（每项中文说明）：ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.；力度即时影响播放音量'],
     ])}
-    ${sec('🎹','功能谱（乐队）',[
+    ${sec(svgi('piano',15),'功能谱（乐队）',[
       ['级数和弦','选中音符点「和弦/级数」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；谱面按 1=调号 显示级数，点击可再编辑，换调即时跟随'],
     ])}
-    ${sec('⚡','快捷键',[
+    ${sec(svgi('bolt',15),'快捷键',[
       ['← → ↑ ↓ / Tab','移动光标 / 切换声部'],
       ['Ctrl+Z / Y / S','撤销 / 重做 / 导出'],
       ['空格 / . / Q–T','播放停止 / 附点 / 时值'],
@@ -10020,30 +10073,30 @@ document.getElementById('b-feat').onclick = ()=>{
   showModal(`<h3>谱友圈 · 特色功能</h3>
   <div class="featdoc">
     <div class="hd-hero">
-      <div class="lg">✨</div>
+      <div class="lg">${svgi('sparkle',22)}</div>
       <div><div class="tt">为吉他爱好者打造的制谱工具</div>
         <div class="ds">出版级排版 · 真实音色试听 · 一处编辑五种谱面</div></div>
     </div>
     <div class="fg">排版与输出</div>
     <div class="featx">
-      ${fx('📐','内容驱动排版','按出版谱对数时值间距逐拍分配宽度——一拍一个四分音符的小节自然比每拍两个八分的窄，<b>疏窄密宽</b>；每行小节数自由适配、密集小节可独占一行，右缘整齐。')}
-      ${fx('🎚','三段式排版控制','基准纸张 A5/A4/A3（定容量）＋智能疏密（紧凑/标准/宽松）＋手动微调（整体缩放·分谱行距·间距，百分比可输入）；可拖动浮层、实时生效、随谱保存。')}
-      ${fx('🖨','打印预览','A5/A4/A3 适配、缩放、多页<b>竖排/横排/网格</b>三种排布；纯净成品谱一键进入打印，或导出高清 PNG / A4 多页 PDF。')}
-      ${fx('🗂','多窗口多类型','标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。')}
+      ${fx(svgi('ruler',15),'内容驱动排版','按出版谱对数时值间距逐拍分配宽度——一拍一个四分音符的小节自然比每拍两个八分的窄，<b>疏窄密宽</b>；每行小节数自由适配、密集小节可独占一行，右缘整齐。')}
+      ${fx(svgi('sliders',15),'三段式排版控制','基准纸张 A5/A4/A3（定容量）＋智能疏密（紧凑/标准/宽松）＋手动微调（整体缩放·分谱行距·间距，百分比可输入）；可拖动浮层、实时生效、随谱保存。')}
+      ${fx(svgi('print',15),'打印预览','A5/A4/A3 适配、缩放、多页<b>竖排/横排/网格</b>三种排布；纯净成品谱一键进入打印，或导出高清 PNG / A4 多页 PDF。')}
+      ${fx(svgi('folder',15),'多窗口多类型','标签栏同时编辑多首不同类型曲谱，保存状态一目了然，刷新自动恢复。')}
     </div>
     <div class="fg">编辑与播放</div>
     <div class="featx">
-      ${fx('✏️','自由编辑优先','任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。')}
-      ${fx('🔁','完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
-      ${fx('▶️','练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
-      ${fx('💾','创作者工具','本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。')}
+      ${fx(svgi('pencil',15),'自由编辑优先','任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。')}
+      ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
+      ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
+      ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。')}
     </div>
     <div class="fg">四种谱面</div>
     <div class="featx">
-      ${fx('🎸','吉他谱','六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。')}
-      ${fx('🪕','尤克里里谱','4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱一致，附常用和弦库。')}
-      ${fx('🎵','简谱','纯旋律记谱：±3 八度、倚音（3 音＋直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。')}
-      ${fx('🎹','功能谱','乐队排练用：级数和弦按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。')}
+      ${fx(svgi('guitar',15),'吉他谱','六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。')}
+      ${fx(svgi('notes',15),'尤克里里谱','4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱一致，附常用和弦库。')}
+      ${fx(svgi('note',15),'简谱','纯旋律记谱：±3 八度、倚音（3 音＋直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。')}
+      ${fx(svgi('piano',15),'功能谱','乐队排练用：级数和弦按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。')}
     </div>
   </div>
   <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
@@ -10052,7 +10105,8 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
-    <li><span class="v">v40.6</span><div><b>素材配色全面启用</b>（产品拍板）：① 应用配色整体切换为设计稿方案——<b>朱砂强调</b>（选中/播放/新建/个人中心）+ <b>墨绿顶/底栏</b> + 暖米三级表面与暖纸；深色主题、谱面反色同步换用朱砂族；<b>告警色改琥珀</b>与朱砂错开色相（时值不符提示不再与选中态混淆），打印仍白纸黑字；② <b>顶栏个人中心与右端图标同排同高</b>（紧凑朱砂主按钮，素材 tprimary 样式）；③ <b>底栏「回到开头」改 ⏮ 图标</b>；④ <b>修复底栏露白</b>——播放条上的开头/小节格/节拍器/谱架/音轨等按钮此前继承浅色面板底、在深色栏上发白且文字对比不足，现统一透明底+暖米文字，禁用态同步修正。</div></li>
+    <li><span class="v">v40.7</span><div><b>中文渲染清晰化 + 全面去 emoji</b>：① 界面字体栈改为<b>中文字体前置</b>（苹方/雅黑优先，素材同策略）——中西文统一由同一字体渲染，消除「拉丁字体优先、中文回退」造成的混排参差与伪粗合成，小字号中文更锐利；② <b>全部 emoji 图案替换为扁平线性 SVG 图标</b>（36 枚自绘图标库，随文字颜色着色）：播放条（回开头/节拍器/谱架/音轨）、右栏库与智能入口、新建向导、文档标签、曲谱库（浏览量/收藏审核状态/试读锁）、帮助与特色功能弹窗节头、节拍校验状态、搜索框等全线生效；历史更新日志文案同步清理。跨平台不再出现彩色 emoji 与系统字体差异。</div></li>
+    <li><span class="v">v40.6</span><div><b>素材配色全面启用</b>（产品拍板）：① 应用配色整体切换为设计稿方案——<b>朱砂强调</b>（选中/播放/新建/个人中心）+ <b>墨绿顶/底栏</b> + 暖米三级表面与暖纸；深色主题、谱面反色同步换用朱砂族；<b>告警色改琥珀</b>与朱砂错开色相（时值不符提示不再与选中态混淆），打印仍白纸黑字；② <b>顶栏个人中心与右端图标同排同高</b>（紧凑朱砂主按钮，素材 tprimary 样式）；③ <b>底栏「回到开头」改为扁平图标</b>；④ <b>修复底栏露白</b>——播放条上的开头/小节格/节拍器/谱架/音轨等按钮此前继承浅色面板底、在深色栏上发白且文字对比不足，现统一透明底+暖米文字，禁用态同步修正。</div></li>
     <li><span class="v">v40.5</span><div><b>视觉舒适度升级</b>（两位专业 Agent 对照设计稿逐项归因后落地，保持品牌蓝）：① <b>中性色整体升温</b>——画布/面板/工具栏转暖米调、谱纸从纯白改暖米白（打印仍纯白），相邻表面亮度阶梯平缓不刺眼；② <b>强调色纪律</b>——蓝色只留给选中/播放/主按钮，光标数值回墨色（仅声部/小节活值保留蓝）、时值选中态从蓝底白字降为柔和蓝底；③ <b>边框降噪</b>——灰黑透明线改暖色细线、卡片去阴影走纯扁平；④ <b>层级顺序修正</b>——左栏分区标题移到按钮上方、左对齐、弱化小字距排版（先分类后内容）；⑤ <b>工具行图标化单排</b>——时值改音符字形（𝅝 𝅗𝅥 ♩ ♪ …）、音符操作/节奏/连音改字形 chip（中文名进悬浮提示），<b>时值校验状态胶囊移到工具行右端</b>（出错即刻入眼）；⑥ 顶/底深色栏从近黑改<b>靛墨色</b>（蓝紫同族），撤销/重做/反色/风格图标化。经典版布局与文字按钮不受影响。</div></li>
     <li><span class="v">v40.4</span><div><b>新版界面 · 通栏应用框架</b>（按 v5 设计稿贴边布局）：新版下整个编辑器改为<b>全屏应用网格</b>——左侧图层轨与功能面板<b>贴左缘</b>、右栏四页签<b>贴右缘</b>，均为全高列（各自独立滚动），中间制版台<b>内部滚动</b>（顶栏/工具行/播放条常驻不动，只有谱面滚动）；播放跟随与节拍错误跳转自动适配新滚动模型。左轨新增「＋新建」（顶部，直达八场景向导）与「?帮助」（底部）。谱架/观看/打印模式不受影响仍为整页滚动；「经典版」一键切回原居中布局。</div></li>
     <li><span class="v">v40.3</span><div><b>新版界面 · 阶段四收尾：工具行单行化</b>（v5 设计稿主体完工）：① 编辑工具收为<b>单行</b>——演奏技巧（滑弦/击勾/推弦/揉弦/泛音/点弦/闷音/无头无尾滑音）并入左栏<b>吉他谱图层</b>、标识符号（倚音/波音/颤音/回音/力度）并入<b>简谱图层</b>，跟在「音符记号」面板后，编辑栏更清爽；② <b>窄屏适配</b>——窗口较窄时左栏面板自动转为浮层（图层轨保持常驻，点图层弹出面板不再挤压谱面）；③ 文档标签页扁平化微调。切回「经典版」时技法/记号回到编辑栏第二行。至此 v5 新版界面四阶段全部落地：深色外壳 → 左轨六图层 → 右栏四页签 → 单行工具行。</div></li>
@@ -10067,7 +10121,7 @@ document.getElementById('b-changelog').onclick = ()=>{
     <li><span class="v">v39.2</span><div><b>和弦弹窗单页化</b>：编辑和弦重排为紧凑双栏、<b>一屏放下无滚动</b>——左列「主音（原根音）/和弦性质/转位低音/命名保存/我的和弦」，右列大号<b>可编辑和弦图</b>（创建器兼预览，名称升降号左上角显示）+ 把位调节/试听 + 把位方案卡；按需求移除「和弦名直达」「调内常用」条与「自定义指法」文本行，创建统一走和弦图点格。</div></li>
     <li><span class="v">v39.1</span><div><b>和弦图式创建 + 升降号左上角</b>：① 自定义和弦创建从「横向指板模拟」改为<b>与谱面同款的竖式和弦图</b>——点格放音（再点取消）、顶部点击切换 ×不弹/○空弦、「把位 −/＋」移动品位窗口（横按高把位同样直观），所见即所得；② 全部和弦名显示改为出版惯例：<b>升降号写在主音左上角</b>（♯C、♭B、♭3），谱面 TAB 和弦、和弦图标题、功能谱级数/音名、弹窗预览全线生效——数据仍存 C#/Bb 格式，导出/移调/兼容不受影响。</div></li>
     <li><span class="v">v39.0</span><div><b>和弦引擎全面升级</b>（两位专业 Agent 方案落地）：① <b>和弦库扩容到全根音全类型</b>——新增「可移调模板引擎」：每类型维护 E 型/A 型把位模板，12 个根音自动推导指法，覆盖 22 种类型（大/小/属七/大七/小七/减/减七/半减/增/挂二/挂四/七挂四/六/小六/九/大九/小九/加九/十一/十三/强力/小大七）×任意斜杠低音；精修开放指法保留优先，尤克里里走 4 弦通用推导；<b>修复把位卡把减/增等和弦画成大三和弦的错误</b>（468 个推导指法逐音高验证纯净）。② <b>编辑和弦弹窗升级</b>——新增当前调内七级<b>常用直达</b>条、<b>和弦名搜索直达</b>（输 Abmaj9 回车即跳）、<b>▶试听</b>（按指法琶音）、类型 chip 扩到 22 种与功能谱口径统一。③ <b>功能谱级数菜单</b>加和弦图预览与试听。④ 和弦输入候选<b>动态化</b>：调内和弦置顶→最近使用→自定义→精修库→全类型组合。⑤ 织体生成的和弦解析升级为全类型音程表（减/增/挂留/扩展和弦不再一律按大三和弦发声）。</div></li>
-    <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「🎼 谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
+    <li><span class="v">v38.8</span><div><b>数据安全加固 + 体验快赢</b>（三位专业 Agent 评审落地第一批）：① <b>数据安全</b>——历史曲谱单条损坏不再连累其余标签页；编辑触发渲染异常时自动撤销且坏状态不写入本地存储；存储写满明确提示并引导导出备份；打开预设/我的曲谱时，<b>未入库且有编辑的曲谱不再被静默覆盖</b>（自动另开新窗口保留）。② <b>快赢</b>——播放条新增<b>「谱架」直入按钮</b>（编好谱立刻沉浸跟练，无需发布/导出）；倍速下限增至 <b>0.25×</b>；新建向导中「导入 MusicXML / 导入 MIDI / 哼唱成谱」升级为高亮功能条；「发布到谱友圈」在决策点明确标注本机演示并导流互动谱；浅色主题语义色（成功绿/警示红/警告黄）加深达到 WCAG AA 对比度标准。</div></li>
     <li><span class="v">v38.7</span><div><b>揉弦延长线 + 闷音范围标记</b>：① 揉弦（~）由单个符号升级为<b>波浪线随音符时值延长</b>——时值越长波峰越多（列格宽即时值比例），Ctrl 选首末两音还可让波浪覆盖整段；② 闷音 P.M. 支持<b>扩选范围</b>——Ctrl 选首末两音后自动画「P.M. + 虚线 + 末端竖钩」覆盖整段（出版惯例），单音仍为单个 P.M.，中间音符不再重复标记；其余技法（滑弦/击勾弦等）连线行为不变。</div></li>
     <li><span class="v">v38.6</span><div><b>左栏按谱类自适应</b>：左侧工具栏改为「谱类感知」布局——页签按曲谱类型显隐并改名（独奏谱/钢琴伴奏/教学谱/功能谱/和弦谱…，无歌词行时隐藏歌词页），每种类型只保留相关面板并按工作流排序：钢琴弹唱把<b>「伴奏工具」（标和弦→一键配和弦→伴奏织体）置顶</b>，功能谱/纯和弦谱把<b>「和弦·级数」置顶</b>（纯和弦谱精简到两面板），歌谱/教学/器乐谱内置「一键配伴奏」入口；吉他谱面板拆分为「扫弦·琶音」与「音符记号」两组更好找；无歌词的谱可在简谱页<b>「＋添加歌词行」</b>一键补歌词。</div></li>
     <li><span class="v">v38.5</span><div><b>动态互动谱 + 节拍器</b>：① 打印/导出新增<b>「互动谱 HTML」</b>——把整个应用自打包成单文件网页并注入当前曲谱，对方浏览器打开即进入观看模式：可播放、倍速、节拍器、即时移调、谱架自动卷谱，无需安装、纯本地不上传（分享卡由此升级为「静态 PNG + 动态 HTML」双模式）；② 播放条新增<b>节拍器</b>开关——播放时叠加拍点声、每小节第一拍重音，随倍速同步缩放；③ 播放条新增<b>倍速</b>（0.5×–1.5×）——慢速跟练/快速过谱，只改播放快慢不动曲谱速度设置。</div></li>
@@ -10080,9 +10134,9 @@ document.getElementById('b-changelog').onclick = ()=>{
     <li><span class="v">v37.8</span><div><b>MusicXML 导入</b>（P0·把 AI 转谱产物"吃进来"精修）：新建向导新增「导入 MusicXML…」——解析 score-partwise（MuseScore/Finale 等导出均可），自动换算为可动 do 简谱数据：音高按调号逆映射、时值优先读 type/附点/三连音、和弦标注/多段歌词/连音线/反复记号/各声部谱号（G/F/C→高/低/中音谱表）一并还原；暂不支持的记号<b>跳过并计数提示</b>，绝不产出坏谱；未读到调号按 1=C 提醒核对。导入后立即可编辑、可切三种记谱法。压缩 .mxl 请先在 MuseScore 转存未压缩格式。</div></li>
     <li><span class="v">v37.7</span><div><b>MusicXML 导出</b>（P0·接入专业软件与 AI 转谱生态）：打印/导出弹窗新增「导出 MusicXML」——简谱/五线谱声部完整导出为标准 score-partwise 4.0（音高按调号拼写与五线谱渲染同源；含和音、附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复与终止线、各声部谱号），可直接在 MuseScore / Finale / Sibelius 打开继续编辑或印刷。TAB 声部导出列入路线图。</div></li>
     <li><span class="v">v37.6</span><div><b>同列多音（和音）</b>：一列可叠 1+3 个音——五线谱逐音绘制符头/加线/临时记号、二度音程自动左右翻转、<b>共用一根符干贯穿</b>（含符杠组）；简谱视图数字纵向叠置；播放同起同长发声；输入两种方式：面板<b>「和音」</b>按钮输唱名（自动向上排列）或五线谱 <b>Ctrl+点击</b>线/间直接加减。伴奏织体库补全柱式类：<b>柱式和弦、半分解、圆舞曲柱式</b>（织体库共 8 套），行距自动为和音扩展。</div></li>
-    <li><span class="v">v37.5</span><div>🎹 <b>钢琴弹唱谱·伴奏织体</b>：右手谱表按拍标注和弦 → 顶栏「伴奏织体」选织体<b>一键生成双手伴奏</b>（抒情分解/流行八分琶音/阿尔贝蒂低音/低音行走/圆舞曲，4/4 与 3/4）——生成的是<b>可编辑真音符</b>，和弦标注/歌词/力度自动回填，小节内换和弦逐拍生效，可分范围重生成、Ctrl+Z 撤销，换调自动联动移调。大小三和弦自适应三音。</div></li>
-    <li><span class="v">v37.4</span><div>🎼 <b>纯和弦谱</b>（功能谱新谱式）：小节格内按拍放和弦、每拍节奏斜线（出版和弦格惯例），小节格均匀排布；支持反复/段落/终止线与级数⇄音名切换，乐队排练一页纸。</div></li>
-    <li><span class="v">v37.3</span><div><b>曲谱类型重构为八大场景</b>（深度梳理中国曲谱用户后重新定位）：🎸弹唱谱（吉他/尤克里里）、🎸独奏谱（指弹·电吉他，TAB+五线联排）、🎹钢琴弹唱谱（纯伴奏）、🎹钢琴独奏谱、🎤歌谱（独唱/合唱1–4声部·民乐通用）、📖教学对照谱（五线+简谱行）、🎻器乐五线谱（高/中/低谱号）、🎼功能谱（级数和弦/纯和弦谱）；曲谱库分类同步，旧曲谱自动归类。</div></li>
+    <li><span class="v">v37.5</span><div> <b>钢琴弹唱谱·伴奏织体</b>：右手谱表按拍标注和弦 → 顶栏「伴奏织体」选织体<b>一键生成双手伴奏</b>（抒情分解/流行八分琶音/阿尔贝蒂低音/低音行走/圆舞曲，4/4 与 3/4）——生成的是<b>可编辑真音符</b>，和弦标注/歌词/力度自动回填，小节内换和弦逐拍生效，可分范围重生成、Ctrl+Z 撤销，换调自动联动移调。大小三和弦自适应三音。</div></li>
+    <li><span class="v">v37.4</span><div> <b>纯和弦谱</b>（功能谱新谱式）：小节格内按拍放和弦、每拍节奏斜线（出版和弦格惯例），小节格均匀排布；支持反复/段落/终止线与级数⇄音名切换，乐队排练一页纸。</div></li>
+    <li><span class="v">v37.3</span><div><b>曲谱类型重构为八大场景</b>（深度梳理中国曲谱用户后重新定位）：弹唱谱（吉他/尤克里里）、独奏谱（指弹·电吉他，TAB+五线联排）、钢琴弹唱谱（纯伴奏）、钢琴独奏谱、歌谱（独唱/合唱1–4声部·民乐通用）、教学对照谱（五线+简谱行）、器乐五线谱（高/中/低谱号）、功能谱（级数和弦/纯和弦谱）；曲谱库分类同步，旧曲谱自动归类。</div></li>
     <li><span class="v">v37.2</span><div><b>换调自动移调</b>：曲谱信息里更改 1=调号后，全曲<b>和弦名</b>（含斜杠低音、maj7/sus/dim 等后缀，按新调升降体系拼写）与<b>吉他谱品位</b>自动整体平移——优先保持全部音不越界的统一平移（必要时整体换八度），个别越界音按八度回折；简谱唱名与歌词不变；和弦图自动换用新和弦标准指法；一次 Ctrl+Z 可整体撤销。</div></li>
     <li><span class="v">v37.1</span><div>修复<b>大谱表花括线显示不完整</b>：非均匀缩放在特定跨度下误走默认字号分支，导致花括线只有一小段；现按两谱表实际外沿精确拉伸，并新增花括线跨度自动断言（上端=高音谱顶线、下端=低音谱底线）防复发。</div></li>
     <li><span class="v">v37.0</span><div>五线谱四项升级：① <b>大谱表花括线换 SMuFL 标准 brace 字形</b>（非均匀缩放精确跨接两谱表）；② <b>行距随音域自动扩展</b>——谱表上/下加线区按整曲实际最高/最低音预留空间，相邻声部内容不再交叠（低音谱高加线音的符干/符杠本就朝下，此前是行距不足造成的视觉重叠）；③ 五线谱行不再显示声部名；④ 记谱法新增<b>「＋简谱行」</b>——谱表下方附加一行与五线谱逐列对齐的简谱（含高低音点/减时线/附点/延音线），构成「五线谱+简谱+歌词」出版式联排；并修复中音谱表切换未生效的问题。</div></li>
@@ -10119,22 +10173,22 @@ document.getElementById('b-changelog').onclick = ()=>{
     <li><span class="v">v34.88</span><div>「批量填词」升级为<b>智能填词</b>：① 实时对齐预览——边输入边显示每个可唱音将分到哪个字，休止/连音延续位自动标灰跳过、按小节分组；② 字数/音数匹配提示（正好/多字/差字，颜色区分）；③ 起点可选（从头 / 从当前光标音符）；④「换行对齐乐句」——每行歌词从新小节开头对齐；⑤ 英文单词整体成词；沿用跳休止/连音延续、标点跟随前字、- 手动跳过。</div></li>
     <li><span class="v">v34.87</span><div>批量填词优化：自动跳过休止符与<b>连音线延续的音符</b>（延续音由前一字延唱、不单独占字）——之前连音延续音会错误地被分配一个字导致整段错位；不同音高的音符即使前有连音线仍正常占字（连音线只连同音高）。</div></li>
     <li><span class="v">v34.86</span><div>扫弦箭头方向翻转：下扫标 ↑、上扫标 ↓——箭头表示拨片在六线谱上从低音弦扫向高音弦的移动方向（低音 6 弦画在最下，故下扫向上）；播放声音不变（下扫仍低音先响）。按钮改「下扫/上扫」。新增 3 首预设曲谱：小星星（尤克里里 4 弦弹唱）、流行进行（功能谱 1–5–6m–4 级数和弦）、反复与段落示例（反复记号+第一/二段结尾+力度记号，展示播放导航）。</div></li>
-    <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ⏮）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
-    <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⇤ 开头」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「⏮ 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「🎧 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
+    <li><span class="v">v34.85</span><div>「回到开头」修正：图标改为 ⇤（不再用媒体"上一曲"的 ）；点击后停在第一小节且不自动播放（此前会直接从头播放）。</div></li>
+    <li><span class="v">v34.84</span><div>播放控制精简：底部只保留「▶ 播放」与「⇤ 开头」两键。播放键单键三态——点击播放、再点即时暂停、再点继续（基于音频时钟精确冻结，空格键同效）；「 最前」回到第一小节从头播放。移除独立的暂停/停止键；移除「 高保真」开关——真实采样音色改为始终启用（内置采样 + 部署后升级全量）。</div></li>
     <li><span class="v">v34.83</span><div>新增帮助文档站（muse-tab/docs/，部署后 puyouquan.com/docs）：侧边导航 + 快速上手/曲谱类型/录入编辑/和弦级数/播放谱架/简谱乐理知识/导出分享/谱友圈/常见问题/关于，含 SEO 关键词与乐理科普，响应式适配；页头 CTA 与页脚回链制谱器，制谱器页脚新增「帮助文档」入口；部署脚本同步 docs/。</div></li>
     <li><span class="v">v34.82</span><div>谱友圈功能细化：新增顶部工具条——① 搜索（按曲名/作者实时过滤）；② 分类筛选（吉他谱/尤克里里/简谱/功能谱 + 免费/付费）；③ 收藏夹（每张卡片 ♥ 一键收藏、"我的收藏"只看已收藏，本机持久保存）；实时显示结果数量，进入自动重置筛选。</div></li>
     <li><span class="v">v34.81</span><div>简谱旋律延音：把 v34.80 的「让音自然延续」模型延伸到简谱声部——拨弦/钢琴音色的旋律音延音到下一个音起点（休止不硬掐、末音自然衰减），不再被节奏时值切成断音；持续音色（弦乐/长笛/人声）仍按时值保持；连音线合并、倚音、力度记号照旧。</div></li>
     <li><span class="v">v34.80</span><div>吉他播放逻辑重构（对齐 Guitar Pro 的发声模型）——修复"音色几乎无增强"的根因：此前每个音被强行掐死在其节奏时值上，分解和弦/扫弦变成一串断音。现改为<b>逐弦延音</b>：六根弦各自独立，同一根弦被再次弹响才掐断旧音（自然响到那一刻再 50ms 快速阻尼），否则让弦自然延音到采样衰减结束；不同弦的音同时叠加延续。音符时值只决定下一个音何时开始。采样与合成器包络同步改造（6ms 起音防爆音、被弹响时快速阻尼）。反复扫弦自动掐断不堆积、分解和弦自然交叠，听感与真实吉他一致。</div></li>
     <li><span class="v">v34.79</span><div>音色重大升级——核心乐器内置真实录音采样：木吉他/尼龙吉他(尤克里里共用)/贝斯/钢琴的真实采样直接随页面内置，在<b>任何环境（在线预览、离线、服务器未部署）都是真实音色</b>，不再依赖联网或部署；引擎改为「内置采样即时铺底 → 部署自托管后自动升级 88 音全量 → 合成器仅兜底」三层，起音防爆音、拨弦自然衰减；页面体积一次性增加约 1MB（浏览器缓存）。</div></li>
     <li><span class="v">v34.78</span><div>响应式断点改造（为手机/平板打底，桌面 ≥1200 布局不变）：平板（≤1200）自动收起右侧信息栏、谱面占满；手机（≤820）单栏布局——谱面缩放适配屏宽、左侧功能面板收为底部抽屉（横排标签唤出）、右栏隐藏、页头精简、播放条与页脚避让，全程无横向滚动；极窄屏（≤520）进一步精简编辑栏标签。</div></li>
-    <li><span class="v">v34.77</span><div>观看模式增强（谱友圈看谱）三件套：① 即时移调——♭/♯ 或 −/+ 键升降半音，1=调号、所有和弦名、TAB 品位、简谱旋律同步移调，点调号一键还原；非破坏性（从原始发布数据重建，退出即恢复）。② 谱架模式（🎼）——全屏沉浸、放大谱面、隐藏所有编辑界面，适合看谱演奏。③ 自动卷谱——谱架内可 ▶/⏸ 自动向下滚动、加减速（8–90 px/s）、一键回顶，到谱尾自动停；空格控制卷谱、Esc 退出。</div></li>
+    <li><span class="v">v34.77</span><div>观看模式增强（谱友圈看谱）三件套：① 即时移调——♭/♯ 或 −/+ 键升降半音，1=调号、所有和弦名、TAB 品位、简谱旋律同步移调，点调号一键还原；非破坏性（从原始发布数据重建，退出即恢复）。② 谱架模式——全屏沉浸、放大谱面、隐藏所有编辑界面，适合看谱演奏。③ 自动卷谱——谱架内可 ▶/ 自动向下滚动、加减速（8–90 px/s）、一键回顶，到谱尾自动停；空格控制卷谱、Esc 退出。</div></li>
     <li><span class="v">v34.76</span><div>上线合规准备：新增站点页脚（关于谱友圈 / 用户协议 / 隐私政策 / 使用帮助 常驻链接，含 ICP 备案号位——审核通过后填入并链至工信部备案系统）；新增《用户协议》《隐私政策》《关于》页面（按本应用真实数据行为撰写：当前纯本地存储不上传、账号/云端/支付为规划中功能）。观看与打印模式自动隐藏页脚。</div></li>
     <li><span class="v">v34.75</span><div>品牌与域名更名：项目全面更名「谱友圈」，域名 puyouquan.com——页头/标题/曲谱圈/署名/存证凭证/部署套件全量更新；本机数据完全兼容保留（存储键不变）。</div></li>
     <li><span class="v">v34.74</span><div>功能谱和弦标注排版修复与放大：和弦框宽度计入小节逐拍排版——相邻八分音符的两个和弦自动撑开列宽、不再重叠（级数/音名切换即时重排）；和弦框整体放大 20%（字号 14、框高 18.5、圆角 6），并为和弦行增加纵向预留空间。</div></li>
     <li><span class="v">v34.73</span><div>功能谱和弦标注三项优化：① 音符上方空位（按八分音符网格）悬停出现「＋和弦」编辑提示，点击直接打开级数构建器；② 和弦时值最小单位为八分音符——十六分及更细位置自动就近向前对齐；③ 谱面标注改为常规字号整名显示并用圆角框框住（不再上标缩小），级数/音名切换与点击编辑不变。</div></li>
     <li><span class="v">v34.72</span><div>功能谱和弦全面升级为「级数为主」构建器：级数 1–7（含调内默认性质与各级音名提示）× 丰富类型/扩展（三和弦 / 七和弦 / 6·9·11·13 等 22 种）× 转位斜杠低音 /1–/7，点选即时应用；支持自定义后缀与调外完整自定义；「谱面显示：级数 ↔ 音名」一键切换（随曲谱保存）；谱面标注排版升级——根音大字、后缀上标、斜杠低音，悬停显示另一种形式。</div></li>
     <li><span class="v">v34.71</span><div>界面全面升级为极简现代设计语言：中性灰底+白色面板+发丝线边框、系统蓝点缀、毛玻璃顶栏与播放条、胶囊主按钮、柔和大圆角阴影，明暗两套主题同步重调；品牌宣传以中文名「谱吧」为主（页头/标题/弹窗弱化域名与代号）；新增《设计规范与多端规划》文档，为后续桌面/平板/手机/小程序客户端预留统一设计与功能架构。</div></li>
-    <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「🎧 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
+    <li><span class="v">v34.70</span><div>播放音色升级为开源采样音色库（midi-js-soundfonts · MusyngKite/FluidR3 GM，逐音符真实录音）：吉他/尤克里里/贝斯/钢琴/弦乐/长笛/人声全部映射；播放条「 高保真」开关（默认开），首次播放自动加载（优先站点自托管 sounds/，其次 CDN），加载中与离线无缝回落物理建模合成器；部署套件新增音色包下载脚本。</div></li>
     <li><span class="v">v34.69</span><div>品牌与域名定版：中文名「谱吧」（PU8），域名 pu8.cn——页头/标题/谱吧圈/凭证/格式规范全量更新；配套服务器部署脚本入库。</div></li>
     <li><span class="v">v34.68</span><div>域名更新：pokka.club → pokka.cc（后于 v34.69 定版为 pu8.cn）。</div></li>
     <li><span class="v">v34.67</span><div>平台管理演示版：个人中心新增「平台管理」——平台看板（上架/待审/销量/GMV）、审核队列（预览/通过上架/驳回附原因）、上架内容强制下架、系统配置（平台抽成%与圈内公告）；发布改为"提交→待审核→上架"状态机，创作者端实时显示审核状态与分成后收益。</div></li>
@@ -10152,7 +10206,7 @@ document.getElementById('b-changelog').onclick = ()=>{
     <li><span class="v">v34.55</span><div>品牌升级：网站更名「谱吧 PU8」（pu8.cn），页头 LOGO、页面标题、帮助/特色/日志弹窗、预设制谱署名与存证凭证全面更新；本机数据完全兼容保留。</div></li>
     <li><span class="v">v34.54</span><div>个人中心新增「创作者中心」：数据看板（作品数/曲谱浏览/收藏/收益）、收益设置（付费谱定价/打赏开关/粉丝订阅），认证扒谱人与认证教师体验标识，版权登记辅助——为当前曲谱生成 SHA-256 内容指纹+时间戳存证并可导出凭证文件。</div></li>
     <li><span class="v">v34.53</span><div>小节数多（格宽不足）时进度条自动转为密集标尺（每10小节悬浮编号），点击标尺或 ▦ 按钮打开多行大格"小节选择面板"精确点击/拖选循环区，面板随播放同步填充进度。</div></li>
-    <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续（⏸）与从头播放（⏮）按钮，暂停基于音频时钟精确冻结。</div></li>
+    <li><span class="v">v34.52</span><div>播放升级：进度条改为小节格（总长不变自动适配、显示小节编号），点击格子单小节循环、拖动多选循环选区、再点取消；整曲播放自动识别反复记号 𝄆 𝄇；新增暂停/继续与从头播放按钮，暂停基于音频时钟精确冻结。</div></li>
     <li><span class="v">v34.51</span><div>播放修正：所有音轨始终同时播放——人声"啊"音色此前在混音中过轻（被吉他掩盖，听感像"只播当前声部"），共振峰增益与旋律权重上调至清晰可闻；纯简谱/功能谱播放补上跟随高亮。</div></li>
     <li><span class="v">v34.50</span><div>播放音色还原度升级：弹拨乐器物理建模增强（分数延迟精准音高、拨弦位置激励、双弦微失谐厚度、琴体共鸣峰、力度联动亮度），新增尤克里里专属音色（尤克里里谱自动默认），钢琴改专用模型（失谐三弦+泛音层+琴槌噪声+两段衰减），混响加预延时与高频渐暗，吉他/人声声部左右摆位。</div></li>
     <li><span class="v">v34.49</span><div>会员中心升级为「个人中心」（扁平化图标）：个人资料（昵称/签名/默认制谱署名，自动填入新建曲谱）、我的曲谱（打开/删除）、自定义节奏型（存当前小节为模板、一键套用）、我的权益（点击查看各等级权益）。</div></li>
@@ -10312,7 +10366,7 @@ function alignHeader(){
       /* v38.8 逐条容错：单个历史文档损坏只跳过该条，绝不连累其余标签页（数据红线） */
       const bad=[];
       docs = dd.docs.map((x,i)=>{ try{ return {song:migrate(x), sel:null}; }catch(e){ console.error('文档'+(i+1)+'迁移失败',e); bad.push(i+1); return null; } }).filter(Boolean);
-      if(bad.length) setTimeout(()=>toast('⚠️ 第 '+bad.join('、')+' 个标签页曲谱数据损坏已跳过，其余曲谱完好'),800);
+      if(bad.length) setTimeout(()=>toast('第 '+bad.join('、')+' 个标签页曲谱数据损坏已跳过，其余曲谱完好'),800);
       curDocI = Math.max(0, Math.min(dd.cur||0, docs.length-1));
       if(docs.length) song = docs[curDocI].song;
     }
@@ -10338,7 +10392,7 @@ function alignHeader(){
     docs.push({song:demoSong(), sel:null}); curDocI=docs.length-1; song=docs[curDocI].song;
     sel={mi:0,row:'tab',vi:0,ci:0,si:1}; clampSel();
     try{ render(); }catch(_){}
-    setTimeout(()=>toast('⚠️ 上次编辑的曲谱渲染异常，已为你打开新窗口；原曲谱保留在顶部标签页，可尝试「导出」备份'),800);
+    setTimeout(()=>toast('上次编辑的曲谱渲染异常，已为你打开新窗口；原曲谱保留在顶部标签页，可尝试「导出」备份'),800);
   }
   renderProgCells();
   sfEmbedInit();
