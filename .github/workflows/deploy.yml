@@ -24,20 +24,26 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          # Secrets 里粘贴的私钥常见三种损伤：CRLF 行尾、换行被压成字面 \n、整体压成单行。
-          # 依次规范化，最后用 ssh-keygen -y 预校验（只导出公钥，不回显私钥）。
-          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
-          if [ "$(wc -l < ~/.ssh/id_deploy)" -lt 3 ] && grep -q '\\n' ~/.ssh/id_deploy; then
-            printf '%b\n' "$(cat ~/.ssh/id_deploy)" > ~/.ssh/id_deploy.n && mv ~/.ssh/id_deploy.n ~/.ssh/id_deploy
+          umask 077
+          # Secrets 粘贴常见损伤：CRLF、字面 \n、base64 正文换行丢失（整体或仅正文单行）。
+          # 统一做法：还原字面 \n → 提取头尾标记 → 正文去空白按 64 列重折行（对正常密钥无损），
+          # 最后 ssh-keygen -y 预校验（只导出公钥，不回显私钥）。
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy.raw
+          if grep -q '\\n' ~/.ssh/id_deploy.raw && [ "$(wc -l < ~/.ssh/id_deploy.raw)" -lt 3 ]; then
+            printf '%b\n' "$(cat ~/.ssh/id_deploy.raw)" > ~/.ssh/id_deploy.tmp && mv ~/.ssh/id_deploy.tmp ~/.ssh/id_deploy.raw
           fi
-          if [ "$(wc -l < ~/.ssh/id_deploy)" -lt 3 ]; then
-            sed -E 's|-----BEGIN ([A-Z0-9 ]+)-----|-----BEGIN \1-----\n|; s|-----END ([A-Z0-9 ]+)-----|\n-----END \1-----|' ~/.ssh/id_deploy \
-              | awk '/^-----/{print;next}{gsub(/ +/,"\n");print}' | sed '/^$/d' > ~/.ssh/id_deploy.n
-            mv ~/.ssh/id_deploy.n ~/.ssh/id_deploy && echo >> ~/.ssh/id_deploy
+          hdr=$(grep -oE -- '-----BEGIN [A-Z0-9 ]+-----' ~/.ssh/id_deploy.raw | head -1)
+          ftr=$(grep -oE -- '-----END [A-Z0-9 ]+-----' ~/.ssh/id_deploy.raw | head -1)
+          if [ -z "$hdr" ] || [ -z "$ftr" ]; then
+            echo "::error::DEPLOY_SSH_KEY 缺少 PEM BEGIN/END 标记，请粘贴完整私钥"
+            exit 1
           fi
+          sed -E 's/-----(BEGIN|END) [A-Z0-9 ]+-----//g' ~/.ssh/id_deploy.raw | tr -d ' \t\n' > ~/.ssh/id_deploy.b64
+          { echo "$hdr"; fold -w 64 ~/.ssh/id_deploy.b64; echo; echo "$ftr"; } > ~/.ssh/id_deploy
+          rm -f ~/.ssh/id_deploy.raw ~/.ssh/id_deploy.b64
           chmod 600 ~/.ssh/id_deploy
           if ! ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null; then
-            echo "::error::DEPLOY_SSH_KEY 无法解析为私钥（规范化后仍失败，行数=$(wc -l < ~/.ssh/id_deploy)），请重新粘贴完整 PEM"
+            echo "::error::DEPLOY_SSH_KEY 规范化后仍无法解析（行数=$(wc -l < ~/.ssh/id_deploy)），请重新粘贴完整 PEM"
             exit 1
           fi
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
