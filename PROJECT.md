@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v41.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -45,7 +45,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 
 - **单文件架构是刻意选择**：零构建、零依赖、离线可用、artifact 可直接预览。不要引入打包器。
 - 预览 artifact（Claude Code 内）：编辑器 `0209fdbe-14d8-448f-b088-d31be4405d17`（favicon 🎸）、官网 `dd24f67d-d137-43a4-89b6-dbe17f3fdf4d`（favicon 🎼）。
-- 生产部署：`deploy/deploy.sh` rsync 到服务器 `/var/www/puyouquan/`（ICP 备案中，网站名称「谱友圈」）。
+- 生产部署：`deploy/deploy.sh` rsync 到服务器 `/var/www/puyouquan/`（ICP 备案已通过：**粤ICP备2026100396号-1**，网站名称「谱友圈」；备案号展示在编辑器 #site-footer 与官网 pyq.js 注入页脚，链接 beian.miit.gov.cn）。
+- 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---
 
@@ -201,6 +202,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 和弦弹窗单页化 | v39.2 | 双栏无滚动布局：左列主音/性质/转位/保存/我的和弦，右列可编辑和弦图（兼预览）+把位/试听/把位方案；按产品要求移除搜索直达、调内常用条、自定义指法文本行，「根音」更名「主音」 |
 | 专家评审第一批 | v38.8 | **数据安全加固**（迁移逐条容错/渲染异常不落盘/配额提示/loadSong 防覆盖）+ **快赢**（谱架直入/0.25×/向导提权/发布免责/WCAG AA 浅色对比度）。评审来源：.claude/agents 三角色（Code Reviewer/UX Researcher/UI Designer）；**未落地的第二、三批建议清单见会话记录与下方路线图** |
 | 编辑组中文化+双附点+单窗口 | v41.5 | 工具行「编辑」组中文+并入八度；**双附点**（dotted:2，×1.75）+附点可用性出版规则重设+简谱增时线 GB 形态修正；**单窗口化**（防覆盖改确认对话、历史多文档转存我的曲谱） |
+| 上线体检 | v41.6 | **备案号落地**（粤ICP备2026100396号-1，编辑器+官网页脚）；**官网朱砂设计同步**（pyq.css 令牌换向素材配色，墨绿 CTA、中文字体栈）；**官网使用手册**（help.html 扩为 11 章，覆盖 v41.1–41.5 全部新功能，单窗口/双附点文案同步） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
@@ -239,7 +241,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 图层重梳理 ✅ v40.9：左轨 .ltab 结构改 `<span.lic data-lic>`(SVG 图形，renderDock 按 instOf/anyStaff 切 tab4/tab6/staff5/jianpu) + `<span.lb>`(小字；新版命名六线谱/四线谱/五线谱/简谱，经典版保留场景名——tv_dock probe 已改读 .lb)；「记号」合并=strum-body/mark-body/tech-host（vox: vmark-body/orn-host）在 applyShellDock 搬入 #sign-host-tab/vox（panel-tab-sign/panel-vox-sign，ebHandler 需绑 sign 面板），shell spec 过滤 strum/mark/chord/notation/col/pat/acc 并在 voice 后插 'sign'；notation 面板搬入 #style-host（风格页签），b-notation shell 下隐藏（st-notation 接管）
 - 图标轨与归纳 ✅ v40.8：左轨纯图标（font-size:0 + ::before data-ic 17px，title 由 renderDock 同步），选中 `body.shell .ltab.on` 朱砂底；轨上新建按钮删除；**panel-tab-pat/panel-vox-pat/panel-vox-acc 三面板在 shell 下由 applyShellDock 搬入 #lib-host（右栏库页签），setRibbon 的 .panel-p 循环对 `el.closest('#right-dock')` 直接 return（显隐交 renderDock/setRTab），经典版 appendChild 回 #ribbon（顺序由 flex order 决定）**；rt-patlib/rt-tex 委托入口删除（面板即入口）；右栏 layout 页签改 style（st-notation/st-diag/st-fn 委托 b-notation/b-diag/vf-names，b-layout 恢复 layToggle 浮层，laySync 特例移除）
 - 字体与图标 ✅ v40.7：--font-ui 中文前置（PingFang/雅黑优先，中西文同源渲染=素材清晰感的来源）+ text-rendering/grayscale 平滑；**SVGI 图标注册表**（36 枚线性图标 + `svgi(name,size)` + 静态 HTML 用 `data-svgi` 占位注入器）替换全部 emoji——textContent 赋值点已改 innerHTML（beat-status/hifi/mx-expand/播放键/sb-go），docIcon 返回 svgi，帮助/特色弹窗 sec()/fx() 头、曲谱库状态/眼睛/锁、cc-search CSS 图标（data URI）；toast 纯文本场景直接删 emoji；历史更新日志文案已清理。音乐字形 ♭♯♮♩✓♥✦ 属文字符号保留
-- 素材配色 ✅ v40.6（产品拍板「配色使用素材配色」，推翻 v40.0 的保蓝决策）：--accent 朱砂 #c33a29（dark #df5a45）、chrome 墨绿 #1f3a34、暖米表面按素材 :root 映射（bg #f3f0e8/toolbar #f7f4ec/panel #fefdf9/paper #fbfaf5）；**--danger 改琥珀 #b45309（dark #ffa424）**避免与朱砂强调混淆（专家预警的语义冲突已消化）；--grad 转朱砂族（应用内；**官网 site/pyq.css 仍蓝紫，是否跟进另行拍板**）；score-invert 与 print 分支强调色同步。个人中心 shell 下与右端图标同排（tprimary 紧凑样式）；b-restart→⏮；**修露白**：`body.shell #mixer-dock button` 此前只覆写 color 未覆写 background，浅色面板底在深色栏发白——现透明底+暖米字；注意 `body.shell #mixer-dock button` (1,1,2) 会盖过 `body.shell #b-play` (1,1,1)，播放/节拍器选中态选择器需用 `body.shell #mixer-dock #b-play` 双 id 提权
+- 素材配色 ✅ v40.6（产品拍板「配色使用素材配色」，推翻 v40.0 的保蓝决策）：--accent 朱砂 #c33a29（dark #df5a45）、chrome 墨绿 #1f3a34、暖米表面按素材 :root 映射（bg #f3f0e8/toolbar #f7f4ec/panel #fefdf9/paper #fbfaf5）；**--danger 改琥珀 #b45309（dark #ffa424）**避免与朱砂强调混淆（专家预警的语义冲突已消化）；--grad 转朱砂族（应用内；官网 site/pyq.css 已于 **v41.6** 同步换向朱砂）；score-invert 与 print 分支强调色同步。个人中心 shell 下与右端图标同排（tprimary 紧凑样式）；b-restart→⏮；**修露白**：`body.shell #mixer-dock button` 此前只覆写 color 未覆写 background，浅色面板底在深色栏发白——现透明底+暖米字；注意 `body.shell #mixer-dock button` (1,1,2) 会盖过 `body.shell #b-play` (1,1,1)，播放/节拍器选中态选择器需用 `body.shell #mixer-dock #b-play` 双 id 提权
 - 视觉舒适度 ✅ v40.5（产品反馈素材 85e56eb2「视觉更舒适」→ UI/UX 两 Agent 归因：约七成来自与色相无关的系统性因素）：浅色令牌升温（--bg #f2efe7 / --toolbar #f4f1e9 / --panel #fdfcf6 / --paper #fdfcf7、--border 染色实线 #ddd6c8、新增 --faint #a59d8e、阴影转暖；@media print 已强制 --paper #fff，score-invert 自含不受影响）；chrome #1c1d20→#262b40 靛墨；强调纪律（#cursor-info b 回墨色仅 .z 活值蓝、shell eb.on 降为 accent-soft）；左栏 rg-title order:0 置顶左对齐 faint；工具行字形化（.dg/.dn 双渲染按外壳切换——经典版仍中文；DUR_GLYPH 音符字形、OPS/连音线/更多字形、.eb.ico span 隐藏、eb-lib shell 隐藏因库页签重复）；beat-box 移入 #editbar 右端（applyShellDock 搬移，err-drop shell 下 position:fixed 避 overflow 裁剪）；帮助/特色/更新日志降为轻文字链（:has 选择器）。**未做（后续可选）**：底栏 15 小节号→时间线（UX #7，需专项测试）；朱砂+墨绿整体换向已给利弊分析未采纳（与 --danger 语义冲突 + 小型 rebrand）
 - 贴边通栏框架 ✅ v40.4（产品指示按 3628b133 素材「左右贴边」）：`body.shell:not(.stand):not(.viewer)` 全屏网格——body overflow hidden + flex column（**padding-bottom 必须清零**，v40.0 为悬浮播放条预留的 78px 会挤掉列高）；#stage flex:1、margin-bottom 52px 让位固定播放条；左右 dock position:static + align-self:stretch + 内部 overflow-y；#score-wrap 内部滚动。**滚动模型**：`scoreScroller()` 返回 shell 框架下的 #score-wrap 或 null（窗口滚动）——播放跟随、节拍错误跳转两处已适配；stand（window.scrollBy 自动卷谱）/viewer/print 均排除在框架外。左轨新增 data-act=new/help 动作按钮（.ltab 点击处理内委托 b-new/b-help）
 - v5 设计稿评估全文见会话记录（2026-07-21）
