@@ -253,9 +253,12 @@ input.short{width:54px} input.mid{width:150px}
 body.shell #left-dock{flex-direction:row-reverse}
 body.shell #left-flyout{margin-right:0;margin-left:7px;width:262px}
 body.shell #left-rail{gap:5px}
+/* v40.8 左轨纯图标（文字进 title 悬浮提示）+ 朱砂选中底 */
 body.shell .ltab{writing-mode:horizontal-tb;text-orientation:mixed;display:flex;flex-direction:column;
-  align-items:center;gap:3px;letter-spacing:.02em;padding:8px 3px;font-size:10.5px;min-width:50px;border-radius:11px}
-body.shell .ltab::before{content:attr(data-ic);font-size:15px;font-weight:700;line-height:1.15}
+  align-items:center;justify-content:center;gap:0;letter-spacing:0;padding:0;font-size:0;
+  min-width:46px;height:44px;border-radius:11px}
+body.shell .ltab::before{content:attr(data-ic);font-size:17px;font-weight:700;line-height:1}
+body.shell .ltab.on{background:var(--accent);color:#fff;border-color:transparent}
 body.shell .ltab.shell-only{display:flex}
 body.shell .lsep{display:block;width:26px;height:1px;background:var(--border-soft);margin:3px auto}
 body.shell #rc-measec{display:none}
@@ -1041,7 +1044,7 @@ body.shell #hint{display:none}
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-pat">
-      <div class="rg-title">节奏型 · 可 Shift 多选小节</div>
+      <div class="rg-title">吉他节奏型 · 可 Shift 多选小节</div>
       <div class="rg-body" id="tab-quick"></div>
     </div>
     <!-- 简谱 -->
@@ -1077,7 +1080,7 @@ body.shell #hint{display:none}
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-pat">
-      <div class="rg-title">节奏型 · 可 Shift 多选小节</div>
+      <div class="rg-title">简谱节奏型 · 可 Shift 多选小节</div>
       <div class="rg-body" id="vox-quick"></div>
     </div>
     <!-- 类型专属工具（v38.6：按谱类显隐/排序） -->
@@ -1143,11 +1146,9 @@ body.shell #hint{display:none}
       </div><!-- /#ribbon -->
     </div><!-- /#left-flyout -->
     <div id="left-rail">
-      <button class="ltab shell-only" data-act="new" data-ic="＋" title="新建曲谱 · 八场景选谱类">新建</button>
-      <div class="lsep"></div>
       <button class="ltab on" data-t="tab" data-ic="六">吉他谱</button>
       <button class="ltab" data-t="vox" data-ic="简">简谱</button>
-      <button class="ltab" data-t="lyr" data-ic="词">歌词</button>
+      <button class="ltab" data-t="lyr" data-ic="词" title="歌词层">歌词</button>
       <button class="ltab shell-only" data-t="chord" data-ic="和" title="和弦层：输入 / 指法编辑 / 图示方式">和弦</button>
       <div class="lsep"></div>
       <button class="ltab shell-only" data-t="mea" data-ic="𝄀" title="小节：插入 / 删除">小节</button>
@@ -1163,7 +1164,7 @@ body.shell #hint{display:none}
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
     <div id="rtabs">
       <button class="rtab on" data-p="info">信息</button>
-      <button class="rtab" data-p="layout">排版</button>
+      <button class="rtab" data-p="style">风格</button>
       <button class="rtab" data-p="lib">库</button>
       <button class="rtab" data-p="ai">智能</button>
     </div>
@@ -1217,17 +1218,20 @@ body.shell #hint{display:none}
       <button class="rc-h" type="button">光标位置</button>
       <div class="rc-b"><div id="cursor-info">—</div></div>
     </div>
-    <!-- v40.2 排版页签：新版下排版浮层(#layout-pop)整体停靠于此，经典版移回浮层 -->
-    <div class="rcard open rt-new" data-rt="layout">
-      <div class="rc-b" id="layout-host"></div>
+    <!-- v40.8 风格页签：记谱风格/和弦显示风格归纳一处（委托既有按钮）；排版回顶栏浮层不再重复 -->
+    <div class="rcard open rt-new" data-rt="style">
+      <button class="rc-h" type="button">显示风格</button>
+      <div class="rc-b rt-list">
+        <button id="st-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格：×记谱 / 全数字</button>
+        <button id="st-diag" title="和弦图显示方式：随行 / 顶部图例 / 隐藏 循环切换">和弦图：随行 / 图例 / 隐藏</button>
+        <button id="st-fn" title="谱面所有和弦标注一键切换：级数 ↔ 音名">和弦标注：级数 ↔ 音名</button>
+      </div>
     </div>
-    <!-- v40.2 库页签：素材库直达入口（全部委托既有按钮/弹窗，零新逻辑） -->
+    <!-- v40.8 库页签：节奏型/伴奏织体面板整体归入（applyShellDock 搬移，经典版回左栏） -->
     <div class="rcard open rt-new" data-rt="lib">
       <button class="rc-h" type="button">素材库</button>
-      <div class="rc-b rt-list">
-        <button id="rt-patlib" data-svgi="rhythm" title="打开节奏型库（图示化套用到选中小节）"> 节奏型库…</button>
+      <div class="rc-b rt-list" id="lib-host">
         <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
-        <button id="rt-tex" style="display:none" data-svgi="piano" title="按已标注的和弦生成双手伴奏音符"> 伴奏织体…</button>
       </div>
     </div>
     <!-- v40.2 智能页签：AI/自动化入口（按谱类显隐，委托既有工作流） -->
@@ -2919,6 +2923,7 @@ function renderDock(){
     const hasTab = song.tabVoices.length>0;
     tb.style.display = hasTab? '' : 'none';
     tb.textContent = instOf()==='uku'? '尤克里里' : (dt==='solo'? '独奏谱' : '吉他谱');
+    tb.title = tb.textContent + '层';   // v40.8 左轨纯图标：名称进悬浮提示
     if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
   }
   const vb=document.querySelector('.ltab[data-t="vox"]');
@@ -2927,6 +2932,7 @@ function renderDock(){
     const anyStaff = (song.voxNotations||[]).some(isStaffNota);
     vb.textContent = ({piano:'钢琴',pianoacc:'钢琴伴奏',teach:'教学谱',instr:'五线谱',func:'功能谱',chord:'和弦谱'})[dt]
       || (anyStaff? '五线谱' : '简谱');
+    vb.title = vb.textContent + '层';
   }
   const lb=document.querySelector('.ltab[data-t="lyr"]');
   if(lb) lb.style.display = song.lyricLines>0? '' : 'none';
@@ -2938,10 +2944,17 @@ function renderDock(){
   if(ar) ar.style.display = ['vocal','teach','instr'].includes(dt)? '' : 'none';
   /* v40.2 右栏库/智能页签入口按谱类显隐（与上方 b-acctex/b-arrange 同口径） */
   { const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
-    show('rt-tex',  !!song.pianoAcc);
     show('rt-arr',  ['vocal','teach','instr'].includes(dt));
     show('rt-sug',  song.voxVoices.length>0);
-    show('rt-fill', song.lyricLines>0); }
+    show('rt-fill', song.lyricLines>0);
+    /* v40.8 库页签内的节奏型/伴奏织体面板 + 风格入口按谱类显隐（仅新版；经典版由 setRibbon 管理面板） */
+    if(uiShell){
+      show('panel-tab-pat', song.tabVoices.length>0);
+      show('panel-vox-pat', song.voxVoices.length>0);
+      show('panel-vox-acc', !!song.pianoAcc);
+    }
+    show('st-notation', song.tabVoices.length>0);
+    show('st-diag',     song.tabVoices.length>0); }
   /* 当前左栏页对该谱类不可用时回退到第一个可见页；否则重算当前页面板（类型可能已变） */
   const visible=['tab','vox','lyr'].filter(k=>{
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
@@ -4185,6 +4198,7 @@ function setRibbon(t){
     if(key){ const i=spec.indexOf('mark'); spec=spec.slice(); spec.splice(i<0? spec.length : i+1, 0, key); }
   }
   document.querySelectorAll('.panel-p').forEach(el=>{
+    if(el.closest('#right-dock')) return;   // v40.8 已归入右栏「库」的面板由 renderDock/setRTab 管理
     if(virt){
       const i = virt.indexOf(el.id);
       if(i<0){ el.style.display='none'; el.style.order=''; }
@@ -7686,11 +7700,14 @@ function applyShellDock(){
     more.classList.toggle('hidden', !openSp);
     const ar=document.getElementById('sp-arrow'); if(ar) ar.textContent = openSp? '▴':'▾';
   }
-  /* v40.2 排版浮层停靠：新版 → 右栏排版页签内；经典版 → 回 body 恢复浮层行为 */
-  const pop=document.getElementById('layout-pop'), lh=document.getElementById('layout-host');
-  if(pop && lh){
-    if(uiShell){ lh.appendChild(pop); }
-    else { document.body.appendChild(pop); pop.classList.remove('on'); }
+  /* v40.8 节奏型/伴奏织体面板整体归入右栏「库」页签（去重复：左栏图层不再显示）；经典版移回左栏 ribbon */
+  const libHost=document.getElementById('lib-host'), ribbon=document.getElementById('ribbon');
+  if(libHost && ribbon){
+    ['panel-tab-pat','panel-vox-pat','panel-vox-acc'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      if(uiShell) libHost.appendChild(el);
+      else ribbon.appendChild(el);   // 经典版顺序由 setRibbon 的 flex order 决定，DOM 位置无关
+    });
   }
   /* v40.5 时值校验状态胶囊：新版 → 工具行右端（编辑动作发生行的扫视终点）；经典版 → 回右栏底部 */
   const bb=document.getElementById('beat-box'), ebz=document.getElementById('eb-zoom'),
@@ -7708,7 +7725,6 @@ function setRTab(p){
   document.querySelectorAll('#right-dock [data-rt]').forEach(el=>{
     el.style.display = (!uiShell || el.dataset.rt===p)? '' : 'none';
   });
-  if(uiShell && p==='layout' && song) laySync();   // 进排版页时同步滑杆/档位显示
 }
 document.getElementById('rtabs').onclick = e=>{
   const b=e.target.closest('.rtab'); if(b) setRTab(b.dataset.p);
@@ -7726,9 +7742,10 @@ function applyShell(){
 (function(){
   const go=(id,fn)=>{ const el=document.getElementById(id); if(el) el.onclick=fn; };
   const click=id=>{ const el=document.getElementById(id); if(el) el.click(); };
-  go('rt-patlib', ()=>click('eb-lib'));
   go('rt-chorded',()=>click('b-chord-edit'));
-  go('rt-tex',    ()=>click('b-acctex'));
+  go('st-notation',()=>click('b-notation'));   // v40.8 风格页签：委托既有切换按钮
+  go('st-diag',   ()=>click('b-diag'));
+  go('st-fn',     ()=>click('vf-names'));
   go('rt-sug',    ()=>click('va-sug'));
   go('rt-arr',    ()=>click('b-arrange'));
   go('rt-fill',   ()=>click('b-fill'));
@@ -9136,10 +9153,7 @@ function layToggle(show){
   }
   pop.classList.toggle('on', on);
 }
-document.getElementById('b-layout').onclick = ()=>{
-  if(uiShell){ setRTab('layout'); }   // v40.2 新版：排版停靠在右栏页签，顶栏按钮直达
-  else layToggle();
-};
+document.getElementById('b-layout').onclick = ()=>layToggle();   // v40.8 排版统一走顶栏浮层（右栏页签已改「风格」，不再重复）
 document.getElementById('lp-close').onclick = ()=>layToggle(false);
 document.getElementById('lp-done').onclick  = ()=>layToggle(false);
 document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
@@ -10105,6 +10119,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v40.8</span><div><b>左轨图标化 + 功能归纳去重</b>：① 左侧图层轨改<b>纯图标显示</b>（名称进悬浮提示），选中态改<b>朱砂底</b>，移除轨上「新建」（顶栏已有）；② <b>节奏型与伴奏织体统一归入右栏「库」页签</b>——吉他/简谱节奏型面板、钢琴伴奏织体工具整体移入库中集中管理，左栏图层与工具行不再重复出现（切回经典版自动还原原布局）；③ 右栏「排版」页签与顶栏「排版」重复，改为<b>「风格」页签</b>——记谱风格（×记谱/全数字）、和弦图显示（随行/图例/隐藏）、和弦标注（级数↔音名）三类显示风格归纳一处；顶栏「排版」恢复浮层面板。</div></li>
     <li><span class="v">v40.7</span><div><b>中文渲染清晰化 + 全面去 emoji</b>：① 界面字体栈改为<b>中文字体前置</b>（苹方/雅黑优先，素材同策略）——中西文统一由同一字体渲染，消除「拉丁字体优先、中文回退」造成的混排参差与伪粗合成，小字号中文更锐利；② <b>全部 emoji 图案替换为扁平线性 SVG 图标</b>（36 枚自绘图标库，随文字颜色着色）：播放条（回开头/节拍器/谱架/音轨）、右栏库与智能入口、新建向导、文档标签、曲谱库（浏览量/收藏审核状态/试读锁）、帮助与特色功能弹窗节头、节拍校验状态、搜索框等全线生效；历史更新日志文案同步清理。跨平台不再出现彩色 emoji 与系统字体差异。</div></li>
     <li><span class="v">v40.6</span><div><b>素材配色全面启用</b>（产品拍板）：① 应用配色整体切换为设计稿方案——<b>朱砂强调</b>（选中/播放/新建/个人中心）+ <b>墨绿顶/底栏</b> + 暖米三级表面与暖纸；深色主题、谱面反色同步换用朱砂族；<b>告警色改琥珀</b>与朱砂错开色相（时值不符提示不再与选中态混淆），打印仍白纸黑字；② <b>顶栏个人中心与右端图标同排同高</b>（紧凑朱砂主按钮，素材 tprimary 样式）；③ <b>底栏「回到开头」改为扁平图标</b>；④ <b>修复底栏露白</b>——播放条上的开头/小节格/节拍器/谱架/音轨等按钮此前继承浅色面板底、在深色栏上发白且文字对比不足，现统一透明底+暖米文字，禁用态同步修正。</div></li>
     <li><span class="v">v40.5</span><div><b>视觉舒适度升级</b>（两位专业 Agent 对照设计稿逐项归因后落地，保持品牌蓝）：① <b>中性色整体升温</b>——画布/面板/工具栏转暖米调、谱纸从纯白改暖米白（打印仍纯白），相邻表面亮度阶梯平缓不刺眼；② <b>强调色纪律</b>——蓝色只留给选中/播放/主按钮，光标数值回墨色（仅声部/小节活值保留蓝）、时值选中态从蓝底白字降为柔和蓝底；③ <b>边框降噪</b>——灰黑透明线改暖色细线、卡片去阴影走纯扁平；④ <b>层级顺序修正</b>——左栏分区标题移到按钮上方、左对齐、弱化小字距排版（先分类后内容）；⑤ <b>工具行图标化单排</b>——时值改音符字形（𝅝 𝅗𝅥 ♩ ♪ …）、音符操作/节奏/连音改字形 chip（中文名进悬浮提示），<b>时值校验状态胶囊移到工具行右端</b>（出错即刻入眼）；⑥ 顶/底深色栏从近黑改<b>靛墨色</b>（蓝紫同族），撤销/重做/反色/风格图标化。经典版布局与文字按钮不受影响。</div></li>
