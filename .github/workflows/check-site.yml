@@ -1,0 +1,36 @@
+name: 站点可用性检查
+# 手动触发：从 GitHub Runner（境外网络）检查域名解析、HTTP 可达性与页面标记。
+# IP 对照组用于区分「域名/DNS/备案问题」和「服务器/站点问题」。
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: '要检查的主机'
+        default: 'puyouquan.com'
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: DNS 解析与响应头
+        run: |
+          H="${{ inputs.host }}"
+          echo "== DNS =="
+          getent hosts "$H" || echo "❌ DNS 解析失败：$H 无 A 记录或未生效"
+          echo "== HTTP 响应头 =="
+          curl -sSI -m 20 "http://$H/" || echo "❌ HTTP 无响应"
+
+      - name: 对照组：服务器 IP 直访
+        continue-on-error: true
+        run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"
+
+      - name: 冒烟验收（域名）
+        run: bash deploy/smoke.sh "${{ inputs.host }}"
+
+      - name: 冒烟验收（www 子域）
+        if: ${{ inputs.host == 'puyouquan.com' }}
+        continue-on-error: true
+        run: bash deploy/smoke.sh "www.puyouquan.com"
