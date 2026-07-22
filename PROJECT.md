@@ -5,6 +5,10 @@
 
 ---
 
+## 0. 仓库迁移公告（2026-07-22）
+
+**正式仓库 = `veazen/puyouquan`**（由 Veazen-Code 全量镜像迁入，历史/分支完整）。旧仓库 duyuanping9798/My-claude-code-project → veazen/Veazen-Code 仅作归档。接手会话请直接绑定 puyouquan；部署 Secrets（DEPLOY_HOST/DEPLOY_USER/DEPLOY_SSH_KEY）配在 puyouquan 的 Actions Secrets，`.github/workflows/deploy.yml` 触发分支不变。
+
 ## 1. 项目定位（宏观）
 
 **谱友圈** = 面向中国用户的**全民曲谱平台**：制谱（创作者工具）+ 找谱（曲谱库）+ 分享（曲谱卡/小程序，规划中）。
