@@ -1,5 +1,6 @@
-/* v41.1 记号补充第一批回归：延长号 ferm / 演奏法四件套 artic / 换气 breath
-   覆盖：数据写入（按钮入口+互斥+再点取消）、简谱/五线谱/TAB SVG 出现与几何、MusicXML 往返 */
+/* v41.1/v41.2 记号回归：延长号 ferm / 演奏法四件套 artic / 换气 breath（第一批）
+   + 渐强渐弱范围括线 dynTo / 推弦幅度 bAmt / 排练段落标记 mea.label（第二批）
+   覆盖：数据写入（按钮/菜单入口+取消）、SVG 几何断言（跨行断线/弧上幅度/方框标记）、MusicXML 往返 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -118,6 +119,128 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       skip: res.skip };
   });
   T(r.exp && r.rt, 'T5 MusicXML 往返一致', '导出六元素=' + r.exp + ' 回读=' + r.rt + ' skip=' + JSON.stringify(r.skip));
+
+  // T6 渐强渐弱范围括线：Ctrl 首末两音+菜单 < → dyn/dynTo 写入、同行开口楔形几何、MusicXML wedge 往返
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:2, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(1), Vc(2), Vc(3), Vc(5)];
+    s.measures[1].voxes[0] = [Vc(5), Vc(3), Vc(2), Vc(1)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:0, ci:1});
+    noteSel = [{row:'vox', vi:0, mi:0, ci:1}, {row:'vox', vi:0, mi:1, ci:2}];
+    showDynMenu(200, 200);
+    document.querySelector('#popmenu [data-dy="<"]').click();
+    const c0 = song.measures[0].voxes[0][1];
+    const dataOk = c0.dyn === '<' && c0.dynTo && c0.dynTo.mi === 1 && c0.dynTo.ci === 2;
+    blurSel = true; render();
+    /* 楔形 path：两段 M..L..，起点开口 0 → 终点开口 7 */
+    const wp = [...document.querySelectorAll('#score path[stroke-width="0.9"]')]
+      .map(p2 => p2.getAttribute('d'))
+      .map(d => (d.match(/-?[\d.]+/g)||[]).map(Number))
+      .filter(n2 => n2.length === 8);
+    const w1 = wp[0]||[];
+    const gapA = w1.length? Math.abs(w1[5]-w1[1]) : -1, gapB = w1.length? Math.abs(w1[7]-w1[3]) : -1;
+    const b1 = document.querySelector('#score rect[data-row="vox"][data-mi="0"][data-ci="1"]');
+    const b2 = document.querySelector('#score rect[data-row="vox"][data-mi="1"][data-ci="2"]');
+    const inBox = (x, b3) => b3 && x >= +b3.getAttribute('x') - 4 && x <= +b3.getAttribute('x') + +b3.getAttribute('width') + 6;
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rc = res.song && res.song.measures[0].voxes[0][1];
+    return { dataOk, nW: wp.length, gapA, gapB,
+      spanOk: w1.length? (inBox(w1[0], b1) && inBox(w1[2], b2) && w1[2]-w1[0] > 60) : false,
+      mxl: xml.includes('<wedge type="crescendo"/>') && xml.includes('<wedge type="stop"/>'),
+      rt: !!(rc && rc.dyn === '<' && rc.dynTo && rc.dynTo.mi === 1 && rc.dynTo.ci === 2),
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.dataOk && r.nW === 1 && r.gapA < 0.5 && Math.abs(r.gapB - 7) < 0.5 && r.spanOk && r.mxl && r.rt && !r.bad,
+    'T6 渐强范围括线+MusicXML wedge 往返', JSON.stringify(r));
+
+  // T6b 跨行断线：终点在下一行 → 两段楔形（本行到行末 + 续行起到终点），开口度线性衔接
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||8, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:6, nVox:1, lyr:0});
+    for(let mi=0; mi<6; mi++) s.measures[mi].voxes[0] = [1,2,3,4,5,6,7,1].map(d => Vc(d, 8));
+    s.measures[0].voxes[0][0].dyn = '>';
+    s.measures[0].voxes[0][0].dynTo = {mi:5, ci:6};
+    loadSong(s); blurSel = true; render();
+    const wp = [...document.querySelectorAll('#score path[stroke-width="0.9"]')]
+      .map(p2 => (p2.getAttribute('d').match(/-?[\d.]+/g)||[]).map(Number))
+      .filter(n2 => n2.length === 8);
+    const rowsDiffer = wp.length === 2 && Math.abs(wp[1][1]-wp[0][1]) > 20;   // 两段在不同系统
+    const startGap = wp[0]? Math.abs(wp[0][5]-wp[0][1]) : -1;                 // dim：起点全开 7
+    const endGap = wp[1]? Math.abs(wp[1][7]-wp[1][3]) : -1;                   // 终点收拢 0
+    const joinOk = wp.length === 2 && Math.abs(Math.abs(wp[0][7]-wp[0][3]) - Math.abs(wp[1][5]-wp[1][1])) < 0.7;
+    return { nW: wp.length, rowsDiffer, startGap, endGap, joinOk,
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.nW === 2 && r.rowsDiffer && Math.abs(r.startGap - 7) < 0.5 && r.endGap < 0.5 && r.joinOk && !r.bad,
+    'T6b 渐弱括线跨行断线续画', JSON.stringify(r));
+
+  // T7 推弦幅度：Ctrl 推弦后再点推弦按钮 → 幅度菜单，弧上文字 full 替换 b↑，清除还原
+  r = await pg.evaluate(() => {
+    const Tc = (f, dur) => ({dur, dotted:false, chord:'', notes:[{s:2, f}], strum:''});
+    const s = createSong('guitar', {beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:0, lyr:0});
+    s.measures[0].tabs[0] = [Tc(7,4), Tc(9,4), Tc(7,4), Tc(5,4)];
+    loadSong(s);
+    Object.assign(sel, {row:'tab', vi:0, mi:0, ci:0, si:2});
+    noteSel = [{mi:0, ci:0, si:2, vi:0, row:'tab'}, {mi:0, ci:1, si:2, vi:0, row:'tab'}];
+    bendFromBar('b');
+    const n = song.measures[0].tabs[0][0].notes[0];
+    const techOk = n.tech === 'b' && n.tk && n.tk.ci === 1;
+    noteSel = [];
+    bendFromBar('b');                                     // 已推弦 → 幅度菜单
+    const menuUp = !!document.querySelector('#popmenu [data-amt="full"]');
+    if(menuUp) document.querySelector('#popmenu [data-amt="full"]').click();
+    const amtOk = n.bAmt === 'full';
+    blurSel = true; render();
+    const svg1 = document.getElementById('score').innerHTML;
+    bendFromBar('b');
+    document.querySelector('#popmenu [data-amt=""]').click();   // 清除幅度
+    const cleared = !('bAmt' in n);
+    blurSel = true; render();
+    const svg2 = document.getElementById('score').innerHTML;
+    return { techOk, menuUp, amtOk, cleared,
+      fullShown: svg1.includes('>full</text>') && !svg1.includes('b↑'),
+      restored: svg2.includes('b↑') && !svg2.includes('>full</text>'),
+      bad: /NaN|undefined/.test(svg1) };
+  });
+  T(r.techOk && r.menuUp && r.amtOk && r.cleared && r.fullShown && r.restored && !r.bad,
+    'T7 推弦幅度 bAmt 菜单+弧上标注', JSON.stringify(r));
+
+  // T8 排练/段落标记：askText 写入 mea.label、方框粗体几何、MusicXML rehearsal 往返、留空清除
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:2, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(1), Vc(2), Vc(3), Vc(5)];
+    s.measures[1].voxes[0] = [Vc(5), Vc(3), Vc(2), Vc(1)];
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:1, ci:0});
+    document.getElementById('b-mealabel').click();
+    document.getElementById('ask-in').value = '副歌';
+    document.getElementById('ask-ok').click();
+    const dataOk = song.measures[1].label === '副歌';
+    blurSel = true; render();
+    const tEl = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === '副歌');
+    const tx = tEl? +tEl.getAttribute('x') : 0, ty = tEl? +tEl.getAttribute('y') : 0;
+    const box = [...document.querySelectorAll('#score rect[stroke-width="1.1"]')].find(r2 =>
+      +r2.getAttribute('x') < tx && tx < +r2.getAttribute('x') + +r2.getAttribute('width')
+      && +r2.getAttribute('y') < ty && r2.getAttribute('fill') === 'none');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16.5');
+    const xml = exportMusicXML(song);
+    const res = importMusicXML(xml);
+    const rtLabel = res.song && res.song.measures[1].label;
+    document.getElementById('b-mealabel').click();               // 留空清除
+    document.getElementById('ask-in').value = '';
+    document.getElementById('ask-ok').click();
+    return { dataOk, bold: tEl && tEl.getAttribute('font-weight') === '700', boxed: !!box,
+      above: tEl && digit? ty < +digit.getAttribute('y') - 12 : false,
+      mxl: xml.includes('<rehearsal>副歌</rehearsal>'), rtLabel,
+      cleared: !('label' in song.measures[1]),
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.dataOk && r.bold && r.boxed && r.above && r.mxl && r.rtLabel === '副歌' && r.cleared && !r.bad,
+    'T8 排练/段落标记+MusicXML rehearsal 往返', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

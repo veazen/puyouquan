@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v41.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -70,14 +70,16 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   voxDual:[per-voice bool],   // 谱表下附加简谱行（教学对照）
   customChords:{名->指法}, layout:{page,preset,density,scale,noteGap,rowGap},
   measures:[{ tabs:[[tabCol]], voxes:[[voxCol]],
-    repeatStart, repeatEnd, sectionBar, finalBar, segno, coda, dc, ds, fine, volta }]
+    repeatStart, repeatEnd, sectionBar, finalBar, segno, coda, dc, ds, fine, volta,
+    label:'前奏'? }]   // label=v41.2 排练/段落文字标记（小节头上方方框粗体，MusicXML rehearsal 出/入同步）
 }
 ```
 
 - **voxCol**：`{dur:1|2|4|8|16|32, dotted, deg:0-7(0=休止), acc:'#'|'b'|'', oct, lyrics:[段], tie, chord, dyn, grace, graceA, tup, orn:'up'|'down'|'tr'|'turn', adds:[{deg,acc,oct}]≤3, ferm:true?, artic:'stacc'|'staccatissimo'|'tenuto'|'accent'?, breath:true?}`
   - `adds` = 同列多音/和音（v37.6），主音字段不变保证向后兼容
   - `ferm`（延长号 𝄐，休止上也可标）/ `artic`（演奏法四件套：跳音·/顿音▼/保持音−/重音>，互斥单值）/ `breath`（换气 v，语义=本音之后换气）= v41.1 新增可选字段，MusicXML 出/入已同步（fermata/articulations/breath-mark）
-- **tabCol**：`{dur, dotted, chord, notes:[{s:弦, f:品, x:闷音, tech, tk}], strum, ferm:true?}`（`ferm`=v41.1 列级延长号；TAB part 尚未导出 MusicXML，随 TAB 导出一并登记）
+  - `dynTo:{mi,ci}`（v41.2 渐强渐弱范围括线终点列；与 `dyn:'<'|'>'|'cresc.'|'dim.'` 组合生效——起列至终列开口楔形/文字+虚线延长，跨行断线续画；入口=力度菜单+Ctrl 选首末两音，与揉弦/闷音 `tk` 扩选同构；MusicXML wedge crescendo/diminuendo 出/入已同步）
+- **tabCol**：`{dur, dotted, chord, notes:[{s:弦, f:品, x:闷音, tech, tk, bAmt:'1/4'|'1/2'|'full'|'1.5'?}], strum, ferm:true?}`（`ferm`=v41.1 列级延长号；`bAmt`=v41.2 推弦幅度，挂在 tech:'b'|'bd' 音符上、弧上文字替换 b↑/b↓，清除技法时一并删除；TAB part 尚未导出 MusicXML，ferm 与 bAmt→bend-alter 随 TAB 导出一并登记）
 - **localStorage 键全部 `musetab-*` 前缀，永远不改名**（改名=用户丢谱）。读取入口 `migrate()` 做版本兼容。
 
 ### 3.2 乐理核心
@@ -162,7 +164,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_safety | 数据安全：迁移逐条容错/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（另开窗口）/已入库兼容/谱架·0.25×·向导提权——6项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
-| tv_sign | v41.1 记号三件：延长号/演奏法四件套/换气——按钮入口写入·互斥·取消、简谱/五线谱/TAB 几何断言（𝄐 在数字/谱表上方、artic 贴符头反符干侧）、MusicXML 往返一致——5项 |
+| tv_sign | v41.1/v41.2 记号六件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal）——9项 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 
@@ -222,6 +224,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 阶段4 ✅ v40.3：工具行单行化——setRibbon 在 uiShell 下向 tab/vox spec 注入 'tech'/'orn' 面板（panel-tab-tech/#tech-host、panel-vox-orn/#orn-host），eb-ctx 构建分流（新版写入左栏 host、经典写回编辑栏二行，applyShell 置 ebCtxFor=null 强制重建），ebHandler 额外绑定两个面板；body.shell #editbar2 隐藏；窄屏(≤1180px) fly 转 fixed 浮层；doc-tabs 扁平微调。**注意：tv_dock 断言经典布局语义，已在套件内 addInitScript 固定 musetab-shell=classic**
 - v5 缺口清单核查（均已有，无需新做）：导出六出口=打印弹窗（PNG/MusicXML/MIDI/分享卡/互动谱/打印PDF）；循环选区=mx-prog 点击/拖动；无头无尾滑音4键=EB_TECHS su/sd/ou/od；倍速六档含 0.25×
 - 记号补充第一批 ✅ v41.1（notation-audit-v41 前 3 项落地）：**延长号** `voxCol.ferm`/`tabCol.ferm`（SMuFL fermataAbove，简谱避让八度点/波音/演奏法、TAB 让位和弦名、休止可标）+ **演奏法四件套** `voxCol.artic`（stacc/staccatissimo/tenuto/accent 互斥；五线谱贴符头反符干侧，staccatissimo 楔形为几何绘制——字形库无此枚；简谱 GB 形态 ·▼−>）+ **换气记号** `voxCol.breath`（列右上角小 v，挂列右缘不占对齐宽度）；入口=简谱/吉他层「记号」面板按钮（再点取消）；systemExtras 按需预留行高；**exportMusicXML/importMusicXML 同步 fermata/articulations/breath-mark（往返一致）**；新增 tv_sign 套件（5项）。审计报告第 4 项起（渐强渐弱范围括线/推弦幅度/排练标记/中途转调/踏板/指法/小节反复）仍按 docs/notation-audit-v41.md 排期
+- 记号补充第二批 ✅ v41.2（notation-audit-v41 第 4–6 项落地）：**渐强渐弱范围括线** `voxCol.dynTo:{mi,ci}`（力度菜单 + Ctrl 选首末两音；同行开口楔形、跨行到行末断开续行起继续、开口度沿总长线性过渡，cresc./dim. 为文字+虚线延长；渲染定位靠新增 `voxPos` 预计算——与 tabPos 同源）+ **推弦幅度** `note.bAmt`（已推弦音符再点推弦按钮 → `showBendAmtMenu` 四选一小菜单；弧上文字 full/½/¼/1½ 替换 b↑/b↓，无 bAmt 维持现状；清除技法/连音线时一并删）+ **排练/段落标记** `mea.label`（小节层「段落标记…」askText 按钮，留空清除；navMarkSVG 方框粗体、与 𝄋/⊕ 右移避让、systemExtras 预留行高）；**exportMusicXML/importMusicXML 同步 wedge crescendo/diminuendo（含 stop 定位 dynTo）与 rehearsal（往返一致）**；bend-alter 待 TAB part 导出（TODO 已登记）；tv_sign 扩至 9 项（T6/T6b/T7/T8）
 - 风格撤销+左栏优化 ✅ v41.0：右栏 style 页签删除（notation 面板回 ribbon/spec 不再过滤 notation；st-* 按钮与委托删除；b-notation 取消隐藏）；左栏卡片节奏统一 CSS（body.shell #left-flyout 272px/8px gap/28px 控件）；**制谱专家 agent 已建（.claude/agents/notation-expert.md）并已启动记号审计 → docs/notation-audit-v41.md（接手者：若报告已生成，按前10项排期落地）**
 - 图层重梳理 ✅ v40.9：左轨 .ltab 结构改 `<span.lic data-lic>`(SVG 图形，renderDock 按 instOf/anyStaff 切 tab4/tab6/staff5/jianpu) + `<span.lb>`(小字；新版命名六线谱/四线谱/五线谱/简谱，经典版保留场景名——tv_dock probe 已改读 .lb)；「记号」合并=strum-body/mark-body/tech-host（vox: vmark-body/orn-host）在 applyShellDock 搬入 #sign-host-tab/vox（panel-tab-sign/panel-vox-sign，ebHandler 需绑 sign 面板），shell spec 过滤 strum/mark/chord/notation/col/pat/acc 并在 voice 后插 'sign'；notation 面板搬入 #style-host（风格页签），b-notation shell 下隐藏（st-notation 接管）
 - 图标轨与归纳 ✅ v40.8：左轨纯图标（font-size:0 + ::before data-ic 17px，title 由 renderDock 同步），选中 `body.shell .ltab.on` 朱砂底；轨上新建按钮删除；**panel-tab-pat/panel-vox-pat/panel-vox-acc 三面板在 shell 下由 applyShellDock 搬入 #lib-host（右栏库页签），setRibbon 的 .panel-p 循环对 `el.closest('#right-dock')` 直接 return（显隐交 renderDock/setRTab），经典版 appendChild 回 #ribbon（顺序由 flex order 决定）**；rt-patlib/rt-tex 委托入口删除（面板即入口）；右栏 layout 页签改 style（st-notation/st-diag/st-fn 委托 b-notation/b-diag/vf-names，b-layout 恢复 layToggle 浮层，laySync 特例移除）
