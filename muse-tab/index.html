@@ -8499,7 +8499,9 @@ function persist(){
     if(song && song.id){
       const lib = libLoad();
       const i = lib.findIndex(e=>e.id===song.id);
-      if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib); }
+      if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp();
+        lib[i].mtime=Math.floor(Date.now()/1000); libSave(lib);
+        if(window.PYQ_CLOUD) scheduleCloudPush(song.id); }   // 编辑后去抖推送云端（登录时）
     }
   }catch(err){
     /* v38.8 存储写入失败（多为配额已满）不再静默：明确告知并引导导出备份，60秒节流防刷屏 */
@@ -8519,12 +8521,15 @@ function saveToLibrary(){
   const lib = libLoad();
   if(song.id){
     const i=lib.findIndex(e=>e.id===song.id);
-    if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp(); libSave(lib); renderDocTabs();
+    if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(song)); lib[i].title=song.title; lib[i].updatedAt=nowStamp();
+      lib[i].mtime=Math.floor(Date.now()/1000); libSave(lib); renderDocTabs();
+      if(window.PYQ_CLOUD) scoreCloudPush(song.id);
       return toast('已更新到我的曲谱：'+song.title); }
   }
   song.id = newId();
-  lib.unshift({id:song.id, title:song.title||'未命名曲谱', updatedAt:nowStamp(), data:JSON.parse(JSON.stringify(song))});
+  lib.unshift({id:song.id, title:song.title||'未命名曲谱', updatedAt:nowStamp(), mtime:Math.floor(Date.now()/1000), data:JSON.parse(JSON.stringify(song))});
   libSave(lib); persist(); renderDocTabs();
+  if(window.PYQ_CLOUD) scoreCloudPush(song.id);
   toast('已保存到我的曲谱：'+(song.title||'未命名曲谱'));
 }
 function loadSong(s, after){
@@ -8587,7 +8592,7 @@ function showLibrary(){
     if(rn){ const id=rn.dataset.renameMine; const lib=libLoad(); const en=lib.find(x=>x.id===id);
       askText('重命名曲谱', en.title||'', nm=>{ if(nm!=null && nm.trim()){ en.title=nm.trim(); en.data.title=en.title; if(song.id===id) song.title=en.title; libSave(lib); persist(); render(); closeModal(); showLibrary(); } }); return; }
     const dl=e.target.closest('[data-del-mine]');
-    if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; closeModal(); showLibrary(); } return; }
+    if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; if(window.PYQ_CLOUD) apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{}); closeModal(); showLibrary(); } return; }
   });
   document.getElementById('lib-close').onclick = closeModal;
 }
@@ -10385,7 +10390,11 @@ function pcMineHTML(){
     <span class="t2">${esc(e.updatedAt||'')}</span>
     <button data-pc-open="${e.id}" class="primary">打开</button>
     <button data-pc-del="${e.id}">删除</button></div>`).join('');
+  const cloud = (window.PYQ_CLOUD && ACCT)
+    ? '<div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">☁ 云端同步已开启，曲谱自动在已登录的设备间同步。</div>'
+    : (API_ON ? '<div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">登录后曲谱可跨设备云端同步（当前仅存本机）。</div>' : '');
   return `<h4>我的曲谱（${lib.length}）</h4>
+    ${cloud}
     ${lib.length? rows : '<p>还没有保存的曲谱。制作时点顶部「保存」即可存入，之后编辑实时同步。</p>'}
     <div class="btns"><button id="pc-openlib">打开我的曲谱</button></div>`;
 }
@@ -10605,7 +10614,9 @@ function openPersonal(tab){
     });
     M.querySelectorAll('[data-pc-del]').forEach(b=>b.onclick=()=>{
       const lib=libLoad(); const i=lib.findIndex(x=>x.id===b.dataset.pcDel);
-      if(i>=0){ lib.splice(i,1); libSave(lib); toast('已删除'); openPersonal('mine'); }
+      if(i>=0){ const id=lib[i].id; lib.splice(i,1); libSave(lib);
+        if(window.PYQ_CLOUD) apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{});
+        toast('已删除'); openPersonal('mine'); }
     });
   }else if(tab==='pat'){
     document.getElementById('pc-patsave').onclick=()=>{
@@ -10685,7 +10696,7 @@ async function apiCall(path, opts){
 }
 async function acctRefresh(){
   if(!API_ON) return;
-  try{ const j=await apiCall('/me'); acctSave(j.user); }
+  try{ const j=await apiCall('/me'); acctSave(j.user); if(typeof syncScores==='function') syncScores(); }
   catch(e){ if(e.status===401) acctSave(null); }
 }
 if(API_ON) acctRefresh();
@@ -10744,7 +10755,8 @@ function openLogin(){
       acctSave(r.user);
       const p=profileLoad(); if(!p.name && r.user.nickname){ p.name=r.user.nickname; profileSave(p); }
       if(timer) clearInterval(timer);
-      toast(r.is_new?'注册成功，已登录':'登录成功');
+      if(typeof syncScores==='function') syncScores();
+      toast(r.is_new?'注册成功，已登录':'登录成功，正在同步云端曲谱');
       openPersonal('profile');
     }catch(e){ msg(e.message); }
   };
@@ -10756,6 +10768,55 @@ async function acctLogout(){
 async function acctBecomeCreator(){
   try{ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); toast('已成为创作者'); openPersonal('profile'); }
   catch(e){ toast(e.message); }
+}
+/* ---- 我的曲谱云同步（登录后）：本地 LS_LIB ↔ 后端 /api/scores，按 mtime last-write-wins。
+   触发：显式保存立即推 / 编辑后 6s 去抖推 / 登录时全量拉取合并 / 删除时传播。
+   mtime（epoch 秒）与既有 updatedAt（展示字符串）并存，是新增字段不改红线；离线/未登录全部 no-op。 */
+window.PYQ_CLOUD = API_ON;   // persist() 在本模块之前声明，用 window 标志规避 let/const 的 TDZ
+const _cloudTimers = {}; let _syncing = false;
+function scheduleCloudPush(id){
+  if(!window.PYQ_CLOUD || !ACCT || !id) return;
+  clearTimeout(_cloudTimers[id]);
+  _cloudTimers[id] = setTimeout(()=>{ delete _cloudTimers[id]; scoreCloudPush(id); }, 6000);
+}
+async function scoreCloudPush(id){
+  if(!window.PYQ_CLOUD || !ACCT || !id) return;
+  let lib = libLoad(), e = lib.find(x=>x.id===id);
+  if(!e) return;
+  if(!/^[A-Za-z0-9_-]{8,40}$/.test(e.id)){          // 极短/非法本地 id 升级为云端兼容 id（同步更新当前 song）
+    const nid = 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    if(typeof song!=='undefined' && song && song.id===e.id) song.id = nid;
+    e.id = nid; if(e.data) e.data.id = nid; libSave(lib); id = nid;
+  }
+  const mtime = e.mtime || Math.floor(Date.now()/1000);
+  try{ await apiCall('/scores/'+id, {method:'PUT', body:{title:e.title||'', singer:(e.data&&e.data.singer)||'', updated_at:mtime, data:e.data}}); }
+  catch(err){ if(err.status===413 && typeof toast==='function') toast('曲谱过大，云端未保存：'+(e.title||'')); }
+}
+async function syncScores(){
+  if(!window.PYQ_CLOUD || !ACCT || _syncing) return;
+  _syncing = true;
+  try{
+    const res = await apiCall('/scores');
+    const remote = res.scores||[]; const rmap = {}; remote.forEach(s=>rmap[s.id]=s);
+    let lib = libLoad();
+    for(const e of lib){                              // 本地→云：云端缺失 或 本地更新
+      const r = rmap[e.id];
+      if(!r || (e.mtime||0) > r.updated_at) await scoreCloudPush(e.id);
+    }
+    lib = libLoad();                                  // scoreCloudPush 可能升级过 id，重取
+    let changed = false;
+    for(const r of remote){                            // 云→本地：本地缺失 或 云端更新
+      const e = lib.find(x=>x.id===r.id);
+      if(!e || r.updated_at > (e.mtime||0)){
+        const full = await apiCall('/scores/'+r.id); const s = full.score;
+        const entry = {id:r.id, title:s.title||'未命名曲谱', updatedAt:nowStamp(), mtime:s.updated_at, data:migrate(s.data)};
+        if(e) Object.assign(e, entry); else lib.unshift(entry);
+        changed = true;
+      }
+    }
+    if(changed) libSave(lib);
+  }catch(_){/* 网络失败静默，下次登录/保存再补偿 */}
+  finally{ _syncing = false; }
 }
 document.getElementById('b-member').onclick = ()=>openPersonal('profile');
 
@@ -10902,6 +10963,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.8</span><div><b>我的曲谱云端同步</b>（云端生态 M1b 第二步）：登录后「我的曲谱」自动在设备间同步——保存立即上云、编辑 6 秒去抖续传、登录时双向拉取合并（按修改时间 last-write-wins），删除同步传播；未登录 / 本机 / 预览环境保持纯本地，行为不变。技术上新增 <code>mtime</code> 时间戳字段（与既有 <code>updatedAt</code> 并存，不改任何数据红线），极端短 id 自动升级为云端兼容格式；超大曲谱云端跳过并提示、网络失败静默重试。新增 <code>tv_sync</code> 回归 7 项。<b>提示</b>：需先完成手机验证码登录（阿里云短信配置就绪后开放）。</div></li>
     <li><span class="v">v41.7</span><div><b>真实账号登录上线</b>（云端生态 M1b 第一步）：个人中心接入<b>手机验证码登录 / 注册</b>——未注册手机号自动创建账号，登录态经 httpOnly Cookie 在制谱 / 官网 / 谱库三站互通（域 <code>.puyouquan.com</code>）；个人资料页顶部新增账号卡（昵称 / 手机号打码 / 创作者标识 / 退出登录），登录后可<b>成为创作者</b>（开放注册，一键升级）。后端为自建零依赖 Node 服务（Node 24 内建 SQLite，短信走阿里云），已配三级频控防轰炸。当前仅 puyouquan.com 线上启用，本机 / 预览环境自动降级为纯本地（原有本地演示数据不受影响）。下一步接入曲谱 / 收藏 / 谱架 / 谱集的云端同步。</div></li>
     <li><span class="v">v41.6</span><div><b>上线体检</b>：① 备案号落地——页脚「备案号：申请中」更新为「粤ICP备2026100396号-1」（编辑器与官网各页同步）；② 官网设计换向——site 全站从蓝紫渐变切换到与编辑器一致的素材配色（朱砂强调 / 墨绿深色区 / 暖米三级表面 / 中文字体前置栈）；③ 官网「帮助」升级为<b>详尽使用手册</b>：快速上手 / 八种谱类逐类指南 / 记号大全（含 v41.1–41.3 全部新记号用法）/ 和弦与级数 / 歌词填词 / 排版打印 / 导入导出 / 播放与跟练 / 快捷键 / 常见问题，共 11 章带侧边目录。</div></li>
     <li><span class="v">v41.5</span><div><b>编辑组中文化 / 双附点 / 单窗口化</b>（产品负责人三项指示落地）：① <b>工具行「编辑」组</b>——原「音符」组更名「编辑」并恢复中文按钮（后插/前插/休止/清音/拆分/合并/删除，时值/节奏/记号组保持字形），八度＋/−并入本组（简谱面板原按钮在新版界面去重隐藏），工具行按 1440 宽度预算整体收紧不溢出；② <b>双附点</b>——附点按钮循环 无→附点→双附点→无（时值×1.75），按出版逻辑重设可用性：全/2/4/8 分可双附点、16 分限单附点、32 分不可附点（附点需要更低一级细分存在）；联动补拍升级（双附点时半时值邻音自动再减半）；拍值校验/播放时长/MIDI 导出全部同源生效；五线谱画标准两点；<b>简谱增时线形态按 GB 惯例修正</b>——附点二分改记「数字+两条增时线」（不再画增时线+附点混合形态）、附点全音符 5 条增时线；MusicXML 双 &lt;dot/&gt; 导出/导入往返一致，旧谱单附点数据原样兼容；③ <b>单窗口化</b>——去掉多窗口标签与「＋新建窗口」：新建/打开/导入/预设一律替换当前窗口，未入库且有编辑时先弹确认对话（可一键存入「我的曲谱」再继续）；历史多窗口数据自动转存「我的曲谱」绝不丢失；智能配谱生成前自动保存原旋律谱。</div></li>
