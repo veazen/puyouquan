@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v41.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -41,7 +41,7 @@
 ```
 muse-tab/index.html        ← 全部产品（单文件 HTML+CSS+JS，~1.7MB，无构建）
 muse-tab/site/             ← 官网多页站（index/make/view=谱库/features/help/log/sponsors + pyq.css/pyq.js）
-muse-tab/tests/            ← Playwright 回归测试套件（11 个，见 §7）
+muse-tab/tests/            ← Playwright 回归测试套件（12 个，见 §7）
 muse-tab/tools/gen_glyphs.py ← SMuFL 字形提取脚本（fontTools，可复现）
 deploy/deploy.sh           ← 服务器部署脚本（rsync 编辑器 + site/）
 PROJECT.md                 ← 本文档
@@ -65,7 +65,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - 配置：`/etc/puyouquan/api.env`（api-setup.sh 首次生成 JWT_SECRET；**阿里云短信 AK/模板过审后填入并 `systemctl restart pyq-api`**）。
   - 接口（全 `/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联) / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
   - 测试：`bash api/test.sh` 本地端到端 25 项（DEV_OTP 模式全链路）；线上冒烟含 `/api/health`。
-  - 待办：M1b=编辑器登录面板+云同步 UI（动 index.html，走完整发版流程）；M2=创作者发布→谱库列表/详情（scores.status 已预留 published）；M3=微信扫码登录+学习资料。
+  - **M1b-part1 已完成（v41.7）**：编辑器个人中心接入真实登录——个人资料页顶部账号卡（`pcAcctHTML`），手机验证码登录/注册弹窗（`openLogin`）、退出（`acctLogout`）、成为创作者（`acctBecomeCreator`）；账号态经 `apiCall`/`acctRefresh` 与后端同步，新增缓存键 `musetab-acct`（不动既有键）。仅 `*.puyouquan.com` 启用（`API_ON` 按 hostname 判断），本机/预览自动降级纯本地。测试 `tests/tv_acct.js` 7 项。
+  - 待办：M1b-part2=曲谱/收藏/谱架/谱集接后端云同步（把现有本地演示流 libLoad/circleFav/… 分支到 API）；M2=创作者发布→谱库列表/详情（scores.status 已预留 published）；M3=微信扫码登录+学习资料。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---
@@ -189,6 +190,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
 | tv_safety | 数据安全：迁移逐条容错（v41.5 单窗口化：历史多文档取 cur、其余转存「我的曲谱」）/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（v41.5 起=确认对话：取消保留·确认替换·已入库直接替换）/谱架·0.25×·向导提权——6项 |
 | tv_dot | v41.5 双附点：循环+邻音联动/16·32分档位限制+setDur收敛/拍值1.75×·旧值兼容·播放时长/五线谱两点几何/简谱增时线新形态/MusicXML 双dot往返——6项 |
+| tv_acct | v41.7 账号系统：本机 API_ON=false 降级提示、登录弹窗结构、手机号校验拦截、stub fetch 走通登录落地、账号态/函数完备、退出清账号、既有 localStorage 键零污染——7项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |

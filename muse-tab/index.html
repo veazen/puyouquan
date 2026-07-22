@@ -10368,6 +10368,7 @@ function pcProfileHTML(){
   const p=profileLoad();
   const initial=(p.name||'乐').trim().charAt(0)||'乐';
   return `<h4>个人资料</h4>
+    ${pcAcctHTML()}
     <div style="display:flex;align-items:center;gap:14px;margin:10px 0 14px">
       <div class="pc-avatar">${esc(initial)}</div>
       <div style="font-size:12.5px;color:var(--muted)">${certBadgeHTML(creatorLoad().cert)} 资料保存在本机浏览器；"默认制谱署名"会自动填入新建曲谱的制谱一栏。</div>
@@ -10533,6 +10534,9 @@ function openPersonal(tab){
   document.getElementById('pc-close').onclick = closeModal;
   M.querySelectorAll('[data-pc-nav]').forEach(b=>b.onclick=()=>openPersonal(b.dataset.pcNav));
   if(tab==='profile'){
+    const bLg=document.getElementById('acct-login'); if(bLg) bLg.onclick=openLogin;
+    const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
+    const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
         sign:document.getElementById('pc-sign').value.trim(),
@@ -10661,6 +10665,97 @@ function openPersonal(tab){
       openPersonal('rights');
     });
   }
+}
+/* ================= 账号系统（对接 M1a 后端：手机验证码登录 + 云同步基础）
+   仅在 *.puyouquan.com 启用；本机/artifact 预览环境自动降级为纯本地（不请求 /api）。
+   新增 localStorage 键 musetab-acct 仅缓存账号展示信息，不改动任何既有键。 */
+const ACCT_KEY='musetab-acct';
+const API_ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
+let ACCT=null;
+try{ ACCT=JSON.parse(localStorage.getItem(ACCT_KEY))||null; }catch(_){ ACCT=null; }
+function acctSave(o){ ACCT=o||null; try{ ACCT? localStorage.setItem(ACCT_KEY,JSON.stringify(ACCT)) : localStorage.removeItem(ACCT_KEY); }catch(_){} }
+async function apiCall(path, opts){
+  opts=opts||{};
+  const res=await fetch('/api'+path, {method:opts.method||'GET', credentials:'include',
+    headers:opts.body?{'Content-Type':'application/json'}:{},
+    body:opts.body?JSON.stringify(opts.body):undefined});
+  let j={}; try{ j=await res.json(); }catch(_){}
+  if(!res.ok){ const e=new Error(j.error||('请求失败（'+res.status+'）')); e.status=res.status; throw e; }
+  return j;
+}
+async function acctRefresh(){
+  if(!API_ON) return;
+  try{ const j=await apiCall('/me'); acctSave(j.user); }
+  catch(e){ if(e.status===401) acctSave(null); }
+}
+if(API_ON) acctRefresh();
+function pcAcctHTML(){
+  const box='display:flex;align-items:center;gap:12px;padding:11px 13px;margin:2px 0 15px;border:1px solid var(--border-soft,#e4ddcd);border-radius:12px;background:var(--panel,#fefdf9)';
+  if(!API_ON) return `<div style="${box};font-size:12.5px;color:var(--muted)">账号登录与云端同步需在 <b>puyouquan.com</b> 上使用；本机 / 预览环境下资料仅存本地。</div>`;
+  if(ACCT){
+    const isCreator=ACCT.role==='creator';
+    const badge=isCreator?'<span style="font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:0 5px;margin-left:6px">创作者</span>':'';
+    const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
+    return `<div style="${box}">
+      <div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${esc(ACCT.nickname||'')}${badge}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启</div>
+      </div>
+      ${become}<button id="acct-logout">退出登录</button></div>`;
+  }
+  return `<div style="${box}">
+    <div style="flex:1">
+      <div style="font-weight:600">未登录</div>
+      <div style="font-size:12px;color:var(--muted)">登录后可跨设备同步曲谱、收藏与谱架</div>
+    </div>
+    <button id="acct-login" class="primary">登录 / 注册</button></div>`;
+}
+function openLogin(){
+  showModal(`<h3>登录 / 注册</h3>
+    <p style="font-size:12.5px;color:var(--muted);margin:2px 0 14px">未注册的手机号将自动创建账号。登录后曲谱、收藏、谱架云端同步。</p>
+    <label class="f"><span>手机号</span><input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号" style="flex:1"></label>
+    <label class="f"><span>验证码</span>
+      <input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" style="flex:1">
+      <button id="lg-send" style="white-space:nowrap">获取验证码</button></label>
+    <div id="lg-msg" style="font-size:12px;color:var(--accent);min-height:16px;margin-top:6px"></div>
+    <div class="btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div>`, true);
+  const msg=t=>{ const el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
+  const phoneEl=document.getElementById('lg-phone');
+  let timer=0;
+  document.getElementById('lg-cancel').onclick=()=>{ if(timer) clearInterval(timer); openPersonal('profile'); };
+  document.getElementById('lg-send').onclick=async function(){
+    const phone=phoneEl.value.trim();
+    if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
+    this.disabled=true;
+    try{
+      const r=await apiCall('/auth/sms/send',{method:'POST',body:{phone}});
+      msg(r.dev_code? ('测试环境验证码：'+r.dev_code) : '验证码已发送，请查收短信');
+      let s=60; this.textContent=s+'s';
+      timer=setInterval(()=>{ if(--s<=0){ clearInterval(timer); timer=0; this.disabled=false; this.textContent='获取验证码'; } else this.textContent=s+'s'; },1000);
+    }catch(e){ this.disabled=false; msg(e.message); }
+  };
+  document.getElementById('lg-go').onclick=async ()=>{
+    const phone=phoneEl.value.trim(), code=document.getElementById('lg-code').value.trim();
+    if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
+    if(!/^\d{6}$/.test(code)) return msg('请输入 6 位验证码');
+    try{
+      const r=await apiCall('/auth/sms/verify',{method:'POST',body:{phone,code}});
+      acctSave(r.user);
+      const p=profileLoad(); if(!p.name && r.user.nickname){ p.name=r.user.nickname; profileSave(p); }
+      if(timer) clearInterval(timer);
+      toast(r.is_new?'注册成功，已登录':'登录成功');
+      openPersonal('profile');
+    }catch(e){ msg(e.message); }
+  };
+}
+async function acctLogout(){
+  try{ await apiCall('/auth/logout',{method:'POST'}); }catch(_){}
+  acctSave(null); toast('已退出登录'); openPersonal('profile');
+}
+async function acctBecomeCreator(){
+  try{ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); toast('已成为创作者'); openPersonal('profile'); }
+  catch(e){ toast(e.message); }
 }
 document.getElementById('b-member').onclick = ()=>openPersonal('profile');
 
@@ -10807,6 +10902,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.7</span><div><b>真实账号登录上线</b>（云端生态 M1b 第一步）：个人中心接入<b>手机验证码登录 / 注册</b>——未注册手机号自动创建账号，登录态经 httpOnly Cookie 在制谱 / 官网 / 谱库三站互通（域 <code>.puyouquan.com</code>）；个人资料页顶部新增账号卡（昵称 / 手机号打码 / 创作者标识 / 退出登录），登录后可<b>成为创作者</b>（开放注册，一键升级）。后端为自建零依赖 Node 服务（Node 24 内建 SQLite，短信走阿里云），已配三级频控防轰炸。当前仅 puyouquan.com 线上启用，本机 / 预览环境自动降级为纯本地（原有本地演示数据不受影响）。下一步接入曲谱 / 收藏 / 谱架 / 谱集的云端同步。</div></li>
     <li><span class="v">v41.6</span><div><b>上线体检</b>：① 备案号落地——页脚「备案号：申请中」更新为「粤ICP备2026100396号-1」（编辑器与官网各页同步）；② 官网设计换向——site 全站从蓝紫渐变切换到与编辑器一致的素材配色（朱砂强调 / 墨绿深色区 / 暖米三级表面 / 中文字体前置栈）；③ 官网「帮助」升级为<b>详尽使用手册</b>：快速上手 / 八种谱类逐类指南 / 记号大全（含 v41.1–41.3 全部新记号用法）/ 和弦与级数 / 歌词填词 / 排版打印 / 导入导出 / 播放与跟练 / 快捷键 / 常见问题，共 11 章带侧边目录。</div></li>
     <li><span class="v">v41.5</span><div><b>编辑组中文化 / 双附点 / 单窗口化</b>（产品负责人三项指示落地）：① <b>工具行「编辑」组</b>——原「音符」组更名「编辑」并恢复中文按钮（后插/前插/休止/清音/拆分/合并/删除，时值/节奏/记号组保持字形），八度＋/−并入本组（简谱面板原按钮在新版界面去重隐藏），工具行按 1440 宽度预算整体收紧不溢出；② <b>双附点</b>——附点按钮循环 无→附点→双附点→无（时值×1.75），按出版逻辑重设可用性：全/2/4/8 分可双附点、16 分限单附点、32 分不可附点（附点需要更低一级细分存在）；联动补拍升级（双附点时半时值邻音自动再减半）；拍值校验/播放时长/MIDI 导出全部同源生效；五线谱画标准两点；<b>简谱增时线形态按 GB 惯例修正</b>——附点二分改记「数字+两条增时线」（不再画增时线+附点混合形态）、附点全音符 5 条增时线；MusicXML 双 &lt;dot/&gt; 导出/导入往返一致，旧谱单附点数据原样兼容；③ <b>单窗口化</b>——去掉多窗口标签与「＋新建窗口」：新建/打开/导入/预设一律替换当前窗口，未入库且有编辑时先弹确认对话（可一键存入「我的曲谱」再继续）；历史多窗口数据自动转存「我的曲谱」绝不丢失；智能配谱生成前自动保存原旋律谱。</div></li>
     <li><span class="v">v41.4</span><div><b>左右栏布局与图标全新升级</b>（UI 架构评审落地，新版界面专属、经典版不变）：① <b>左栏面板统一形态</b>——组标题一律置顶左对齐、按钮左对齐排列（去居中锯齿）；「记号」面板内按 扫弦·琶音 / 音符记号 / 演奏技巧（简谱：变音·连接·记号 / 装饰·力度）分小组显示；小节/段落层去嵌套双边框；② <b>语义图标补强</b>——下扫/上扫箭头、智能填词、清空、编辑和弦等按钮补线性小图标，左轨「简谱」图标重绘更清晰；③ <b>右栏信息页升级</b>——新增「曲谱信息」摘要卡（标题/演唱/调式/拍速/变调夹一眼可查，编辑入口直达弹窗），光标位置数值只保留声部/小节两处强调色；④ <b>智能页卡片化</b>——分「创作辅助」「导入·互操作」两组，每项图标+标题+一句话说明；库页面板卡片形态与左栏统一；⑤ <b>谱类感知补漏</b>——钢琴弹唱/纯和弦谱的库页不再显示无关的简谱节奏型，吉他和弦图编辑入口仅在含 TAB 声部的谱类显示。</div></li>
