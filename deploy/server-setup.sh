@@ -12,7 +12,10 @@ chown -R www-data:www-data /var/www/puyouquan
 # 站点配置（移除发行版默认站点，避免与 default_server 冲突/抢占 IP 访问）
 rm -f /etc/nginx/sites-enabled/default
 cp "$(dirname "$0")/nginx-puyouquan.conf" /etc/nginx/conf.d/pu8.conf
-nginx -t && systemctl reload nginx
+# 注意分两行写：set -e 对 `A && B` 中 A 的失败不生效（bash 语义），
+# 曾导致 nginx -t 失败被静默吞掉、reload 未执行而流水线仍显示成功
+nginx -t
+systemctl reload nginx
 systemctl enable nginx
 
 echo "==============================================="
