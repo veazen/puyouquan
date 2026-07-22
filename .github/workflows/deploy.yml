@@ -22,47 +22,57 @@ jobs:
       - name: 装载 SSH 密钥
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           mkdir -p ~/.ssh
           umask 077
           # Secrets 粘贴常见损伤：CRLF、字面 \n、正文换行丢失、BEGIN/END 外壳损坏或整段丢失、
-          # 甚至只存了 base64 正文或 PPK 格式。统一做法：提取密钥类型与 base64 正文，
-          # 重建标准 PEM（64 列折行）；无外壳时依次套常见外壳试解析；PPK 自动转换。
-          # 全程用 ssh-keygen -y 校验（只导出公钥，不回显私钥）。
+          # 只存 base64 正文、PPK 格式，甚至私钥配在了别的 Secret 名下（DEPLOY_SSH_KEY 误存公钥）。
+          # 做法：规范化重建 PEM 后用 ssh-keygen -y 校验；DEPLOY_SSH_KEY 不行就扫描其余 Secrets，
+          # 用第一个能解析成私钥的。日志只输出 Secret 名与公钥指纹，绝不回显私钥内容。
           KEYF=~/.ssh/id_deploy
-          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$KEYF.raw"
-          if grep -q '\\n' "$KEYF.raw" && [ "$(wc -l < "$KEYF.raw")" -lt 3 ]; then
-            printf '%b\n' "$(cat "$KEYF.raw")" > "$KEYF.tmp" && mv "$KEYF.tmp" "$KEYF.raw"
-          fi
           try_key() { # try_key <类型名>：用重折行正文 + 标准外壳组装并校验
             { echo "-----BEGIN $1-----"; fold -w 64 "$KEYF.b64"; echo; echo "-----END $1-----"; } > "$KEYF"
             chmod 600 "$KEYF"
             ssh-keygen -y -f "$KEYF" > /dev/null 2>&1
           }
-          ok=0
-          if grep -q 'PuTTY-User-Key-File' "$KEYF.raw"; then
-            sudo apt-get -yq install putty-tools > /dev/null 2>&1
-            puttygen "$KEYF.raw" -O private-openssh -o "$KEYF" && chmod 600 "$KEYF" \
-              && ssh-keygen -y -f "$KEYF" > /dev/null 2>&1 && ok=1
-          else
+          load_val() { # load_val <候选值>：规范化并校验，成功则 $KEYF 就绪
+            printf '%s\n' "$1" | tr -d '\r' > "$KEYF.raw"
+            if grep -q '\\n' "$KEYF.raw" && [ "$(wc -l < "$KEYF.raw")" -lt 3 ]; then
+              printf '%b\n' "$(cat "$KEYF.raw")" > "$KEYF.tmp" && mv "$KEYF.tmp" "$KEYF.raw"
+            fi
+            if grep -q 'PuTTY-User-Key-File' "$KEYF.raw"; then
+              sudo apt-get -yq install putty-tools > /dev/null 2>&1
+              puttygen "$KEYF.raw" -O private-openssh -o "$KEYF" 2>/dev/null && chmod 600 "$KEYF" \
+                && ssh-keygen -y -f "$KEYF" > /dev/null 2>&1 && return 0
+              return 1
+            fi
             # 去掉任何形态的 BEGIN/END 外壳（横线数量不限），剩余视为 base64 正文
             sed -E 's/-+ *(BEGIN|END) *([A-Z0-9 ]*KEY)? *-+//g' "$KEYF.raw" | tr -d ' \t\n' > "$KEYF.b64"
             keytype=$(sed -nE 's/.*-+ *BEGIN *([A-Z0-9 ]*KEY) *-+.*/\1/p' "$KEYF.raw" | head -1)
-            if [ -n "$keytype" ]; then
-              try_key "$keytype" && ok=1
-            fi
-            if [ "$ok" = 0 ]; then
-              for t in 'OPENSSH PRIVATE KEY' 'RSA PRIVATE KEY' 'PRIVATE KEY' 'EC PRIVATE KEY'; do
-                try_key "$t" && { ok=1; break; }
-              done
-            fi
+            if [ -n "$keytype" ]; then try_key "$keytype" && return 0; fi
+            for t in 'OPENSSH PRIVATE KEY' 'RSA PRIVATE KEY' 'PRIVATE KEY' 'EC PRIVATE KEY'; do
+              try_key "$t" && return 0
+            done
+            return 1
+          }
+          used=""
+          if [ -n "$DEPLOY_SSH_KEY" ] && load_val "$DEPLOY_SSH_KEY"; then
+            used="DEPLOY_SSH_KEY"
+          else
+            echo "DEPLOY_SSH_KEY 不是可解析的私钥（诊断：行数=$(wc -l < "$KEYF.raw")，字符=$(wc -c < "$KEYF.raw")，疑似公钥行数=$(grep -cE '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2)' "$KEYF.raw" || true)），扫描其余 Secrets…"
+            for name in $(printf '%s' "$SECRETS_JSON" | jq -r 'keys[]' | grep -viE '^(github_token|actions_)' | grep -vx 'DEPLOY_SSH_KEY'); do
+              val=$(printf '%s' "$SECRETS_JSON" | jq -r --arg k "$name" '.[$k] // empty')
+              [ -n "$val" ] || continue
+              if load_val "$val"; then used="$name"; break; fi
+            done
           fi
-          if [ "$ok" = 0 ]; then
-            echo "::error::DEPLOY_SSH_KEY 无法解析为私钥。诊断（不含密钥内容）：原始行数=$(wc -l < "$KEYF.raw")，总字符=$(wc -c < "$KEYF.raw")，BEGIN标记数=$(grep -c 'BEGIN' "$KEYF.raw" || true)，纯base64行数=$(grep -cE '^[A-Za-z0-9+/=]+$' "$KEYF.raw" || true)，疑似公钥行数=$(grep -cE '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2)' "$KEYF.raw" || true)，PuTTY标记=$(grep -c 'PuTTY' "$KEYF.raw" || true)。请确认粘贴的是完整 OpenSSH 私钥"
+          if [ -z "$used" ]; then
+            echo "::error::所有 Actions Secrets 中均未找到可解析的 SSH 私钥。已检查：$(printf '%s' "$SECRETS_JSON" | jq -r 'keys | join(", ")')。请把服务器私钥完整内容存入 DEPLOY_SSH_KEY"
             exit 1
           fi
-          rm -f "$KEYF.raw" "$KEYF.b64"
-          echo "私钥解析成功，指纹：$(ssh-keygen -lf "$KEYF" | awk '{print $1, $2}')"
+          rm -f "$KEYF.raw" "$KEYF.b64" "$KEYF.tmp"
+          echo "使用 Secret「$used」作为部署私钥，指纹：$(ssh-keygen -lf "$KEYF" | awk '{print $1, $2}')"
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy" >> ~/.ssh/config
 
