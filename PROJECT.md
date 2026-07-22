@@ -40,7 +40,7 @@
 
 ```
 muse-tab/index.html        ← 全部产品（单文件 HTML+CSS+JS，~1.7MB，无构建）
-muse-tab/site/             ← 官网多页站（index/make/view=酷谱/features/help/log/sponsors + pyq.css/pyq.js）
+muse-tab/site/             ← 官网多页站（index/make/view=谱库/features/help/log/sponsors + pyq.css/pyq.js）
 muse-tab/tests/            ← Playwright 回归测试套件（11 个，见 §7）
 muse-tab/tools/gen_glyphs.py ← SMuFL 字形提取脚本（fontTools，可复现）
 deploy/deploy.sh           ← 服务器部署脚本（rsync 编辑器 + site/）
@@ -55,7 +55,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 - **域名架构（2026-07-22 起，nginx 三虚拟主机，见 `deploy/nginx-puyouquan.conf`）**：
   - `puyouquan.com` / `www` → **官网**（root = `/var/www/puyouquan/site`，default_server，IP 直访亦命中）
   - `zhipu.puyouquan.com` → **在线制谱**（单文件编辑器，root = `/var/www/puyouquan`，index.html no-cache）
-  - `puku.puyouquan.com` → **酷谱**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页）
+  - `puku.puyouquan.com` → **谱库**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页）
   - 站内互链用协议相对子域链接（`//zhipu.puyouquan.com/` 等）；冒烟 `deploy/smoke.sh` 传 IP 时以 Host 头逐一验收三个 vhost，不依赖 DNS。HTTPS 签发时四域名一并纳入 certbot。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 

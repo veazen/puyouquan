@@ -19,5 +19,5 @@ chk puyouquan.com       /help.html  "使用手册\|快速上手"    "使用手�
 chk www.puyouquan.com   /           "谱友圈"                "官网首页（www）"
 chk zhipu.puyouquan.com /           "谱友圈"                "在线制谱（zhipu）"
 chk zhipu.puyouquan.com /           "粤ICP备2026100396号"   "制谱备案号"
-chk puku.puyouquan.com  /           "酷谱"                  "酷谱首页（puku）"
+chk puku.puyouquan.com  /           "谱库"                  "谱库首页（puku）"
 exit $fail
