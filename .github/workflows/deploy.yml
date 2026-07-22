@@ -1,0 +1,44 @@
+name: 部署到轻量云服务器
+# 触发：推送到开发分支（仅产品文件变更时）或手动触发（可选执行首次初始化）
+on:
+  push:
+    branches: [ claude/guitar-tab-software-analysis-zqm0ua ]
+    paths: [ 'muse-tab/**', 'deploy/**' ]
+  workflow_dispatch:
+    inputs:
+      setup:
+        description: '首次初始化服务器（安装 nginx/建目录/拉音色包）'
+        type: boolean
+        default: false
+
+concurrency: { group: deploy, cancel-in-progress: true }
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装载 SSH 密钥
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy" >> ~/.ssh/config
+
+      - name: 首次初始化（仅手动勾选时）
+        if: ${{ inputs.setup }}
+        run: |
+          scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh pyq:/tmp/
+          ssh pyq 'bash /tmp/server-setup.sh && bash /tmp/fetch-soundfonts.sh || true'
+
+      - name: 发布产品文件
+        run: |
+          ssh pyq 'mkdir -p /var/www/puyouquan/site /var/www/puyouquan/docs'
+          scp muse-tab/index.html pyq:/var/www/puyouquan/index.html
+          scp -r muse-tab/site/. pyq:/var/www/puyouquan/site/
+          scp muse-tab/PYQ-FORMAT.md pyq:/var/www/puyouquan/PYQ-FORMAT.md || true
+
+      - name: 冒烟验收
+        run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"
