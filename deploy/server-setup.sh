@@ -9,7 +9,8 @@ apt-get install -y nginx rsync
 mkdir -p /var/www/puyouquan
 chown -R www-data:www-data /var/www/puyouquan
 
-# 站点配置
+# 站点配置（移除发行版默认站点，避免与 default_server 冲突/抢占 IP 访问）
+rm -f /etc/nginx/sites-enabled/default
 cp "$(dirname "$0")/nginx-puyouquan.conf" /etc/nginx/conf.d/pu8.conf
 nginx -t && systemctl reload nginx
 systemctl enable nginx
