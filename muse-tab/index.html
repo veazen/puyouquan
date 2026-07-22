@@ -372,6 +372,80 @@ body.shell #editbar .eb-grp{gap:3px}
 body.shell #editbar .eb.ico span{display:none}
 body.shell #editbar .eb{font-size:12px;padding:3px 8px;min-height:28px;display:inline-flex;align-items:center}
 body.shell #editbar #eb-lib{display:none}   /* 新版下节奏型库入口在右栏「库」页签，工具行不重复 */
+/* v41.4 左右栏布局与图标升级（UI 架构评审落地，全部 body.shell 作用域、经典版不动）：
+   ① 组标题一律置顶左对齐——order:-1 令 DOM 后置的标题（记谱法/搬入右栏库的面板）也上浮；
+   ② 面板按钮左对齐（去居中锯齿）；③「记号」面板按宿主分小组（::before 小标题，DOM 不动）；
+   ④ 小节/段落层去嵌套双边框；⑤ 右栏页签改朱砂下划线 + 智能页 assist 卡片化 + 信息页摘要卡；
+   ⑥ 语义图标 .sicon / 说明行 .shell-note 仅新版显示 */
+body.shell #left-flyout .rg .rg-title,body.shell #right-dock .rg .rg-title{order:-1;text-align:left;
+  margin:0 0 6px;font-size:10.5px;letter-spacing:.1em;color:var(--faint);text-transform:none}
+body.shell #left-flyout .rg-body,body.shell #right-dock .rg .rg-body{justify-content:flex-start;max-width:none}
+body.shell #sign-host-tab .rg-body::before,body.shell #sign-host-vox .rg-body::before{
+  display:block;width:100%;font-size:10px;letter-spacing:.09em;color:var(--faint);margin:1px 0 0}
+body.shell #strum-body::before{content:'扫弦 · 琶音'}
+body.shell #mark-body::before{content:'音符记号'}
+body.shell #tech-host::before{content:'演奏技巧'}
+body.shell #vmark-body::before{content:'变音 · 连接 · 记号'}
+body.shell #orn-host::before{content:'装饰 · 力度'}
+body.shell #sign-host-tab,body.shell #sign-host-vox{row-gap:7px}
+body.shell #mark-body>#b-notation{order:9}   /* 记谱风格属显示方式而非记号，靠后排 */
+body.shell #left-flyout .sp-sec{border:none;background:transparent;padding:0;margin:0 0 9px}
+body.shell #left-flyout .sp-sec:last-child{margin-bottom:0}
+body.shell #mea-host>.sp-sec>.sp-t{display:none}   /* 与面板标题「小节」重复 */
+body.shell .ltab:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border-soft));color:var(--accent-ink)}
+body.shell .ltab.on:hover{color:#fff;border-color:transparent}
+.sicon{display:none}
+body.shell .sicon{display:inline-flex;line-height:0;margin-right:4px;vertical-align:-2px}
+.shell-note{display:none}
+body.shell .shell-note{display:block;width:100%;font-size:10.5px;color:var(--faint);line-height:1.5;margin-top:3px}
+body.shell #b-fill{color:var(--accent-ink);background:var(--accent-soft);
+  border-color:color-mix(in srgb,var(--accent) 30%,var(--border))}
+body.shell #rtabs{background:transparent;border:none;box-shadow:none;border-radius:0;
+  border-bottom:1px solid var(--border-soft);padding:0;gap:0}
+body.shell .rtab{position:relative;padding:7px 0 8px;border-radius:0}
+body.shell .rtab:hover{background:transparent;color:var(--text)}
+body.shell .rtab.on{background:transparent;color:var(--accent-ink)}
+body.shell .rtab.on::after{content:"";position:absolute;left:16px;right:16px;bottom:-1px;height:2px;
+  border-radius:2px;background:var(--accent)}
+body.shell .rtab[data-p="ai"]::before{content:"AI";position:absolute;top:2px;right:6px;font-size:8px;
+  line-height:1;color:#fff;background:var(--accent);padding:1.5px 3.5px;border-radius:6px;letter-spacing:.5px}
+body.shell .rcard[data-rt="lib"],body.shell .rcard[data-rt="ai"]{border:none;background:transparent;overflow:visible}
+body.shell .rcard[data-rt="lib"]>.rc-h,body.shell .rcard[data-rt="ai"]>.rc-h{display:none}
+body.shell .rcard[data-rt="lib"] .rc-b,body.shell .rcard[data-rt="ai"] .rc-b{display:block;padding:0;border-top:none}
+body.shell #right-dock .rg{border:1px solid var(--border-soft);border-radius:11px;background:var(--panel);
+  padding:9px 10px 8px;width:100%;margin:0 0 8px;box-shadow:none}
+body.shell #right-dock .rg .rg-body button{min-height:28px;font-size:12px;border-radius:8px;padding:3px 9px}
+body.shell #lib-host{display:flex;flex-direction:column}
+body.shell #lib-host #panel-vox-acc{order:-1}   /* 钢琴弹唱：伴奏工作流置顶 */
+body.shell #rt-chorded{display:flex;align-items:center;gap:6px;width:100%;padding:8px 10px;font-size:12.5px;
+  border:1px solid var(--border-soft);border-radius:11px;background:var(--panel);margin:0 0 8px;text-align:left}
+body.shell #rt-chorded:hover{border-color:var(--accent);color:var(--accent-ink)}
+.ai-sec{border:1px solid var(--border-soft);border-radius:11px;padding:9px 10px;margin:0 0 8px;
+  background:linear-gradient(180deg,var(--panel),var(--toolbar))}
+.ai-sec .ai-h{display:flex;align-items:center;gap:7px;margin-bottom:2px}
+.ai-sec .ai-h .sp{width:21px;height:21px;border-radius:6px;background:var(--accent-soft);
+  color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.ai-sec .ai-h b{font-size:12.5px}
+.ai-sec .ai-p{font-size:10.5px;color:var(--faint);line-height:1.5;margin:0 0 6px}
+.ai-sec .aitem{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:7px 8px;
+  border:none;background:transparent;border-radius:9px;margin:0;box-shadow:none}
+.ai-sec .aitem:hover{background:var(--accent-soft);border:none;box-shadow:none;color:inherit}
+.aitem .aic{width:26px;height:26px;border-radius:7px;background:var(--bg);display:grid;
+  place-items:center;flex:none;color:var(--accent-ink)}
+.aitem .ait{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.aitem .ait b{font-size:12px;font-weight:600}
+.aitem .ait small{font-size:10px;color:var(--faint)}
+.aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px}
+.kv{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;
+  color:var(--muted);padding:3px 0}
+.kv b{color:var(--text);font-weight:600;font-family:var(--font-num);font-size:12.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.fwide{display:block;width:100%;margin-top:7px;padding:7px;border-radius:9px;font-size:12px;font-weight:600;
+  color:var(--accent-ink);background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
+.fwide:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+body.shell .rcard:has(#b-meta){display:none}   /* 曲谱信息按钮卡由摘要卡（#rc-songinfo）替代，入口=编辑按钮 */
+body.shell #cursor-info b{color:var(--text)}
+body.shell #cursor-info b.z{color:var(--accent-ink)}
 /* 右侧信息栏 */
 #right-dock{display:flex;flex-direction:column;gap:8px;width:198px;flex:none;
   position:sticky;top:92px;align-self:flex-start;z-index:6}
@@ -690,7 +764,7 @@ body.stand #standbar{display:flex}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
 sup.chacc{font-size:82%;margin-right:1px}
 /* v40.7 扁平 SVG 图标（替代 emoji） */
-.svgi{display:inline-block;vertical-align:-2px;margin-right:3px;flex:none}
+.svgi{display:inline-block;vertical-align:-2px;margin:0 3px 0 0;flex:none}   /* margin 全写：抵消全局 svg{margin:0 auto}，flex 容器内不再被 auto 居中（v41.4） */
 button > .svgi:only-child,.svgi:last-child:first-child{margin-right:0}
 /* ================= v40.0 新版外壳（阶段1：深色扁平顶栏/底栏，经典版可切回） ================= */
 body.shell #top .main-bar{background:#1f3a34;border-bottom:1px solid rgba(0,0,0,.22)}   /* v40.6 素材墨绿：有色温的深色框架 */
@@ -1025,8 +1099,8 @@ body.shell #hint{display:none}
     <div class="rg panel-p" id="panel-tab-strum">
       <div class="rg-title">扫弦 · 琶音</div>
       <div class="rg-body" id="strum-body">
-        <button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
-        <button id="b-strum-u" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
+        <button id="b-strum-d" data-sic="arrup" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
+        <button id="b-strum-u" data-sic="arrdn" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
         <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
@@ -1048,8 +1122,9 @@ body.shell #hint{display:none}
       <div class="rg-body">
         <input id="i-chord" class="short" list="chord-list" placeholder="C">
         <datalist id="chord-list"></datalist>
-        <button id="b-chord-edit">编辑…</button>
-        <button id="b-diag">图:随行</button>
+        <button id="b-chord-edit" data-sic="pencil">编辑…</button>
+        <button id="b-diag" data-sic="eye">图:随行</button>
+        <div class="shell-note">支持斜杠低音（如 G/B）；换调时和弦名自动移调</div>
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-col">
@@ -1145,8 +1220,9 @@ body.shell #hint{display:none}
       <div class="rg-body">
         <label style="font-size:12px;color:var(--muted)">当前音</label>
         <input id="i-lyric" class="short" placeholder="字">
-        <button id="b-fill">智能填词</button>
-        <button id="b-clearlyr">清空本段</button>
+        <button id="b-fill" data-sic="sparkle">智能填词</button>
+        <button id="b-clearlyr" data-sic="eraser">清空本段</button>
+        <div class="shell-note">整段歌词自动逐字对位：跳过休止与连音，标点旁挂不占音位</div>
       </div>
     </div>
     <!-- v40.1 新版图层：小节/段落（面板内容自右栏「小节与段落」整块移入，切回经典版时移回原位） -->
@@ -1169,7 +1245,7 @@ body.shell #hint{display:none}
       <div class="rg-body" id="orn-host"></div>
     </div>
     <div class="rg panel-p" id="panel-mea-ops">
-      <div class="rg-title">小节</div>
+      <div class="rg-title">小节操作 · 标记</div>
       <div class="rg-body" id="mea-host"></div>
     </div>
     <div class="rg panel-p" id="panel-sect-ops">
@@ -1199,6 +1275,18 @@ body.shell #hint{display:none}
       <button class="rtab on" data-p="info">信息</button>
       <button class="rtab" data-p="lib">库</button>
       <button class="rtab" data-p="ai">智能</button>
+    </div>
+    <!-- v41.4 信息页摘要卡（仅新版）：调/拍速/变调夹一眼可查，编辑入口委托 b-meta 弹窗 -->
+    <div class="rcard open rt-new" data-rt="info" id="rc-songinfo">
+      <button class="rc-h" type="button">曲谱信息</button>
+      <div class="rc-b">
+        <div class="kv"><span>标题</span><b id="ri-title">—</b></div>
+        <div class="kv" id="ri-singer-row"><span>演唱</span><b id="ri-singer">—</b></div>
+        <div class="kv"><span>调式</span><b id="ri-key">—</b></div>
+        <div class="kv"><span>拍号 · 速度</span><b id="ri-ts">—</b></div>
+        <div class="kv" id="ri-capo-row"><span>变调夹</span><b id="ri-capo">—</b></div>
+        <button id="ri-edit" class="fwide" title="编辑标题 / 词曲作者 / 调号拼写 / 拍号速度 / 变调夹">编辑曲谱信息…</button>
+      </div>
     </div>
     <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
@@ -1261,16 +1349,24 @@ body.shell #hint{display:none}
         <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
       </div>
     </div>
-    <!-- v40.2 智能页签：AI/自动化入口（按谱类显隐，委托既有工作流） -->
+    <!-- v40.2/v41.4 智能页签：assist 卡片形态（图标+标题+说明两行），入口委托既有工作流、按谱类显隐 -->
     <div class="rcard open rt-new" data-rt="ai">
       <button class="rc-h" type="button">智能助手</button>
-      <div class="rc-b rt-list">
-        <button id="rt-sug" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）">✦ 一键配和弦</button>
-        <button id="rt-arr" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏">✦ 一键配伴奏…</button>
-        <button id="rt-fill" title="整段歌词自动逐字对位">✦ 智能填词…</button>
-        <button id="rt-hum" data-svgi="mic" title="清唱一段，自动出简谱草稿"> 哼唱成谱…</button>
-        <button id="rt-mxl" data-svgi="doc" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"> 导入 MusicXML…</button>
-        <button id="rt-midi" data-svgi="score" title="DAW / 编曲软件工程直入"> 导入 MIDI…</button>
+      <div class="rc-b">
+        <div class="ai-sec">
+          <div class="ai-h"><span class="sp" data-svgi="sparkle"></span><b>创作辅助</b></div>
+          <p class="ai-p">从旋律到伴奏，常规配置一键完成。</p>
+          <button id="rt-sug" class="aitem" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>一键配和弦</b><small>按调式功能和声自动配置</small></span><span class="aiarr">›</span></button>
+          <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
+          <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
+          <button id="rt-hum" class="aitem" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
+        </div>
+        <div class="ai-sec">
+          <div class="ai-h"><span class="sp" data-svgi="loop"></span><b>导入 · 互操作</b></div>
+          <p class="ai-p">与 MuseScore / DAW / AI 转谱工具互通。</p>
+          <button id="rt-mxl" class="aitem" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"><span class="aic" data-svgi="doc"></span><span class="ait"><b>导入 MusicXML…</b><small>专业制谱 / AI 转谱直入</small></span><span class="aiarr">›</span></button>
+          <button id="rt-midi" class="aitem" title="DAW / 编曲软件工程直入"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>DAW / 编曲工程直入</small></span><span class="aiarr">›</span></button>
+        </div>
       </div>
     </div>
     <div class="rcard" data-rt="info">
@@ -3026,9 +3122,22 @@ function renderDock(){
     show('rt-fill', song.lyricLines>0);
     /* v40.8 库页签内的节奏型/伴奏织体面板 + 风格入口按谱类显隐（仅新版；经典版由 setRibbon 管理面板） */
     if(uiShell){
+      /* v41.4 谱类感知补漏：库页与经典版 DOCK_PANELS 同口径——pianoacc/纯和弦谱的 vox 规格无 pat，
+         库页不再显示简谱节奏型；吉他和弦图编辑入口仅限含 TAB 声部谱类（其余谱类走和弦层级数构建） */
+      const voxSpec = DOCK_PANELS.vox[dt] || DOCK_PANELS.vox.guitar;
       show('panel-tab-pat', song.tabVoices.length>0);
-      show('panel-vox-pat', song.voxVoices.length>0);
+      show('panel-vox-pat', song.voxVoices.length>0 && voxSpec.includes('pat'));
       show('panel-vox-acc', !!song.pianoAcc);
+      show('rt-chorded', song.tabVoices.length>0);
+      /* v41.4 信息页摘要卡同步（调/拍速/变调夹一眼可查） */
+      const st=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+      st('ri-title', song.title||'未命名曲谱');
+      st('ri-singer', song.singer||'—');
+      st('ri-key', '1='+song.key);
+      st('ri-ts', song.beats+'/'+song.unit+' · ♩='+song.tempo);
+      st('ri-capo', song.capo>0? song.capo+' 品' : '无');
+      const sr=document.getElementById('ri-singer-row'); if(sr) sr.style.display = song.singer? '' : 'none';
+      const cr=document.getElementById('ri-capo-row'); if(cr) cr.style.display = song.tabVoices.length? '' : 'none';
     }
     }
   /* 当前左栏页对该谱类不可用时回退到第一个可见页；否则重算当前页面板（类型可能已变） */
@@ -8067,11 +8176,15 @@ const SVGI = {
   tab6:'<path d="M3 4.5h18M3 7.6h18M3 10.7h18M3 13.8h18M3 16.9h18M3 20h18" stroke-width="1.2"/>',
   tab4:'<path d="M3 6h18M3 10h18M3 14h18M3 18h18" stroke-width="1.3"/>',
   staff5:'<path d="M3 5h18M3 8.5h18M3 12h18M3 15.5h18M3 19h18" stroke-width="1.2"/><ellipse cx="9" cy="12" rx="2.6" ry="1.9" fill="currentColor" stroke="none"/><path d="M11.4 12V5.5" stroke-width="1.4"/>',
-  jianpu:'<text x="12" y="15.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="currentColor" stroke="none">1 2 3</text><path d="M4.5 19.5h4M10 19.5h4" stroke-width="1.4"/>',
+  jianpu:'<text x="11.5" y="15" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor" stroke="none">1 2</text><circle cx="16" cy="5.8" r="1.3" fill="currentColor" stroke="none"/><path d="M5.5 18.6h5.4M13.1 18.6h5.4" stroke-width="1.5"/>',
   lyric:'<path d="M4 6h16M4 11h16M4 16h9"/>',
   barline:'<path d="M6 4v16" stroke-width="1.5"/><path d="M17.5 4v16" stroke-width="3"/><path d="M11.5 9v6" stroke-width="1.3"/>',
   repeat:'<path d="M7.5 4v16" stroke-width="2.6"/><path d="M11 4v16" stroke-width="1.3"/><circle cx="15.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="15.5" cy="14.5" r="1.4" fill="currentColor" stroke="none"/>',
   help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1 1-1.1 1.8"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>',
+  /* v41.4 语义图标补充：扫弦方向 / 清除 */
+  arrup:'<path d="M12 20V6M6.5 11.5 12 6l5.5 5.5"/>',
+  arrdn:'<path d="M12 4v14M6.5 12.5 12 18l5.5-5.5"/>',
+  eraser:'<path d="M9.5 18.5 4.5 13.5 13.5 4.5l6 6-8 8z"/><path d="M9.5 18.5H19.5"/><path d="M8 10l6 6"/>',
 };
 function svgi(name, size){
   const s = size || 13;
@@ -8079,6 +8192,8 @@ function svgi(name, size){
 }
 document.querySelectorAll('[data-svgi]').forEach(el=>el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi)));
 document.querySelectorAll('.lic[data-lic]').forEach(el=>{ el.innerHTML = svgi(el.dataset.lic, 18); });
+/* v41.4 语义图标（data-sic）：包一层 .sicon 仅新版外壳显示，经典版视觉不变（属性名避开谱面热区的 data-si） */
+document.querySelectorAll('[data-sic]').forEach(el=>el.insertAdjacentHTML('afterbegin','<span class="sicon">'+svgi(el.dataset.sic,12)+'</span>'));
 /* v40.4 滚动器感知：新版通栏框架下制版台内部滚动（#score-wrap），经典/谱架/观看仍走窗口滚动 */
 function scoreScroller(){
   const c=document.body.classList;
@@ -8163,6 +8278,7 @@ function applyShell(){
   go('rt-hum',    ()=>{ click('b-new'); click('nw-hum'); });     // 新建向导即刻转入哼唱流程
   go('rt-mxl',    ()=>{ click('b-new'); click('nw-import'); });
   go('rt-midi',   ()=>{ click('b-new'); click('nw-midi'); });
+  go('ri-edit',   ()=>click('b-meta'));   // v41.4 信息页摘要卡 → 曲谱信息弹窗
 })();
 document.getElementById('b-shell').onclick = ()=>{
   uiShell = !uiShell;
@@ -10643,6 +10759,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.4</span><div><b>左右栏布局与图标全新升级</b>（UI 架构评审落地，新版界面专属、经典版不变）：① <b>左栏面板统一形态</b>——组标题一律置顶左对齐、按钮左对齐排列（去居中锯齿）；「记号」面板内按 扫弦·琶音 / 音符记号 / 演奏技巧（简谱：变音·连接·记号 / 装饰·力度）分小组显示；小节/段落层去嵌套双边框；② <b>语义图标补强</b>——下扫/上扫箭头、智能填词、清空、编辑和弦等按钮补线性小图标，左轨「简谱」图标重绘更清晰；③ <b>右栏信息页升级</b>——新增「曲谱信息」摘要卡（标题/演唱/调式/拍速/变调夹一眼可查，编辑入口直达弹窗），光标位置数值只保留声部/小节两处强调色；④ <b>智能页卡片化</b>——分「创作辅助」「导入·互操作」两组，每项图标+标题+一句话说明；库页面板卡片形态与左栏统一；⑤ <b>谱类感知补漏</b>——钢琴弹唱/纯和弦谱的库页不再显示无关的简谱节奏型，吉他和弦图编辑入口仅在含 TAB 声部的谱类显示。</div></li>
     <li><span class="v">v41.3</span><div><b>记号补充第三批·收官</b>（制谱专家审计第 7–10 项落地）：① <b>中途转调标记</b>——小节层「转调标记…」选新调，小节头上方标「转1=X」（流行歌尾段升调/乐队排练常用；全曲换调时随之自动移调，一期为标注式、五线谱拼写保持谱首调）；② <b>钢琴踏板 Ped.____*</b>——「记号」面板「踏板Ped./踏板收*」两键成对，五线谱（钢琴/大谱表）下方画 Ped. 文字+延续线+*收尾，跨行自动断线续画（即兴伴奏/考编场景刚需）；③ <b>指法数字 1–5</b>——「记号」面板「指法」进入直录，按数字键 1–5 写入符头上/下方小数字（低音谱表标下方，和音随音高纵向堆叠，0/退格清除）；④ <b>小节反复 𝄎</b>——小节层「同前1/2小节」把小节省写为反复记号（本小节数据保留、节拍校验豁免，播放自动展开为前一/两小节内容）。四类记号均已同步接入 <b>MusicXML 导出/导入</b>（key 变更 / pedal start·stop / fingering / measure-repeat，往返一致）。</div></li>
     <li><span class="v">v41.2</span><div><b>记号补充第二批</b>（制谱专家审计第 4–6 项落地）：① <b>渐强渐弱范围括线</b>——Ctrl 选首末两音再在「力度/速度」菜单选 &lt; / &gt;（或 cresc. / dim.），即从起音到终音画出开口楔形（cresc 开口向右 / dim 向左收拢，简谱与五线谱下方、cresc./dim. 为文字+虚线延长），终点在下一行时自动断行续画；② <b>推弦幅度</b>——已推弦的音符再点推弦按钮可选 ¼ / ½ / full / 1½，推弦弧线上的 b↑/b↓ 换为幅度标注（Guitar Pro 惯例，可清除还原）；③ <b>排练/段落文字标记</b>——小节层「段落标记…」按钮输入 前奏 / A / 副歌 等短文字，小节头上方出版级方框粗体显示（与 𝄋/⊕ 自动避让，留空清除）。渐强渐弱括线与段落标记已同步接入 <b>MusicXML 导出/导入</b>（wedge crescendo/diminuendo、rehearsal，往返一致）；推弦幅度 bend-alter 随 TAB 声部导出一并排期。</div></li>
     <li><span class="v">v41.1</span><div><b>记号补充第一批</b>（制谱专家审计前 3 项落地）：① <b>延长号 𝄐</b>——简谱/五线谱/六线谱通用，音符（含休止）上方标准字形，简谱侧自动避让八度点/波音/演奏法，入口在简谱与吉他谱图层的「记号」面板（再点取消）；② <b>演奏法四件套</b>——断音▼ / 跳音· / 保持音− / 重音&gt;（四者互斥）：五线谱按出版惯例贴符头反符干侧（Bravura 字形），简谱按 GB 惯例画在数字上方；③ <b>换气记号 v</b>——声乐/合唱刚需，标在列右上角表示本音之后换气（简谱/五线谱通用）。三类记号均已同步接入 <b>MusicXML 导出/导入</b>（fermata / articulations / breath-mark，往返一致），行距按需自动预留。</div></li>
