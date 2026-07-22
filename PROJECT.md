@@ -40,7 +40,7 @@
 
 ```
 muse-tab/index.html        ← 全部产品（单文件 HTML+CSS+JS，~1.7MB，无构建）
-muse-tab/site/             ← 官网多页站（index/make/view/features/help/log/sponsors + pyq.css/pyq.js）
+muse-tab/site/             ← 官网多页站（index/make/view=酷谱/features/help/log/sponsors + pyq.css/pyq.js）
 muse-tab/tests/            ← Playwright 回归测试套件（11 个，见 §7）
 muse-tab/tools/gen_glyphs.py ← SMuFL 字形提取脚本（fontTools，可复现）
 deploy/deploy.sh           ← 服务器部署脚本（rsync 编辑器 + site/）
@@ -51,7 +51,12 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 
 - **单文件架构是刻意选择**：零构建、零依赖、离线可用、artifact 可直接预览。不要引入打包器。
 - 预览 artifact（Claude Code 内）：编辑器 `0209fdbe-14d8-448f-b088-d31be4405d17`（favicon 🎸）、官网 `dd24f67d-d137-43a4-89b6-dbe17f3fdf4d`（favicon 🎼）。
-- 生产部署：`deploy/deploy.sh` rsync 到服务器 `/var/www/puyouquan/`（ICP 备案已通过：**粤ICP备2026100396号-1**，网站名称「谱友圈」；备案号展示在编辑器 #site-footer 与官网 pyq.js 注入页脚，链接 beian.miit.gov.cn）。
+- 生产部署：`deploy/deploy.sh` rsync 到服务器 `/var/www/puyouquan/`（ICP 备案已通过：**粤ICP备2026100396号-1**，网站名称「谱友圈」；备案号展示在编辑器 #site-footer 与官网 pyq.js 注入页脚 + 官网首页 #site-foot 静态兜底，链接 beian.miit.gov.cn）。
+- **域名架构（2026-07-22 起，nginx 三虚拟主机，见 `deploy/nginx-puyouquan.conf`）**：
+  - `puyouquan.com` / `www` → **官网**（root = `/var/www/puyouquan/site`，default_server，IP 直访亦命中）
+  - `zhipu.puyouquan.com` → **在线制谱**（单文件编辑器，root = `/var/www/puyouquan`，index.html no-cache）
+  - `puku.puyouquan.com` → **酷谱**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页）
+  - 站内互链用协议相对子域链接（`//zhipu.puyouquan.com/` 等）；冒烟 `deploy/smoke.sh` 传 IP 时以 Host 头逐一验收三个 vhost，不依赖 DNS。HTTPS 签发时四域名一并纳入 certbot。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---
