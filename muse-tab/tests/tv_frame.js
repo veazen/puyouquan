@@ -134,29 +134,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.backIn && r.rcShown && r.fellBack, 'T9 经典版还原', '节点回位=' + r.backIn + ' 右卡显示=' + r.rcShown + ' 页面回退=' + r.fellBack);
 
-  // T10 v40.8 风格页签 + 顶栏排版浮层（右栏不再有排版页签）
+  // T10 v41.0 风格页签已撤销：记谱法回左栏图层；顶栏排版浮层可用
   r = await pg.evaluate(() => {
     loadSong(PRESETS[0].make());
-    const rtabsShown = document.getElementById('rtabs').offsetParent !== null;
-    const noLayoutTab = !document.querySelector('.rtab[data-p="layout"]');
-    document.querySelector('.rtab[data-p="style"]').click();
-    const stVis = document.getElementById('st-notation').offsetParent !== null
-      && document.getElementById('st-diag').offsetParent !== null;
-    const f0 = !!song.funcNames;
-    document.getElementById('st-fn').click();
-    const fnFlips = song.funcNames !== f0;
-    document.getElementById('st-fn').click();   // 还原
-    document.getElementById('b-layout').click();   // 顶栏排版 → 浮层（新版也走浮层）
-    const popFloat = document.getElementById('layout-pop').classList.contains('on')
-      && !document.getElementById('layout-pop').closest('#right-dock');
+    const noStyleTab = !document.querySelector('.rtab[data-p="style"]');
+    document.querySelector('.ltab[data-t="tab"]').click();
+    const notBack = !!document.getElementById('panel-tab-notation').closest('#left-flyout')
+      && document.getElementById('panel-tab-notation').style.display !== 'none';
+    document.getElementById('b-layout').click();
+    const popFloat = document.getElementById('layout-pop').classList.contains('on');
     document.querySelector('#lp-page button[data-page="A3"]').click();
     const pageSet = song.layout.page === 'A3';
     document.querySelector('#lp-page button[data-page="A4"]').click();
     document.getElementById('lp-close').click();
-    return { rtabsShown, noLayoutTab, stVis, fnFlips, popFloat, pageSet };
+    return { noStyleTab, notBack, popFloat, pageSet };
   });
-  T(r.rtabsShown && r.noLayoutTab && r.stVis && r.fnFlips && r.popFloat && r.pageSet,
-    'T10 风格页签+排版浮层', '风格入口=' + r.stVis + ' 级数切换=' + r.fnFlips + ' 浮层=' + r.popFloat);
+  T(r.noStyleTab && r.notBack && r.popFloat && r.pageSet,
+    'T10 记谱法回图层+排版浮层', '无风格页签=' + r.noStyleTab + ' 记谱法在左=' + r.notBack + ' 浮层=' + r.popFloat);
 
   // T11 库页签归纳：节奏型/伴奏织体面板移入右栏库且按谱类显隐
   r = await pg.evaluate(() => {

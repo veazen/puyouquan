@@ -269,7 +269,14 @@ body.shell #rc-measec{display:none}
 /* v40.9 合并「记号」/风格宿主内的子 body 通栏排布；记谱风格按钮由风格页签接管 */
 #sign-host-tab>.rg-body,#sign-host-vox>.rg-body,#style-host .panel-p{width:100%}
 #sign-host-tab,#sign-host-vox{row-gap:6px}
-body.shell #b-notation{display:none}
+/* v41.0 左栏布局深度优化：统一卡片节奏（9-10px 内距/8px 卡距/28px 控件高/8px 圆角）、面板加宽 */
+body.shell:not(.stand):not(.viewer) #left-flyout{width:272px}
+body.shell #left-flyout #ribbon{gap:8px;padding:10px}
+body.shell #left-flyout .rg{border:1px solid var(--border-soft);border-radius:11px;background:var(--panel);
+  padding:9px 10px 8px;margin:0}
+body.shell #left-flyout .rg-body{gap:5px}
+body.shell #left-flyout .rg-body button{min-height:28px;font-size:12px;border-radius:8px;padding:3px 9px}
+body.shell #left-flyout .rg-body input{min-height:28px;border-radius:8px}
 #panel-mea-ops .sp-sec,#panel-sect-ops #sp-more .sp-sec{margin:0 0 6px}
 /* v40.2 新版右栏四页签：经典版隐藏页签条与新卡片、其余卡片全显 */
 #rtabs{display:none}
@@ -1180,7 +1187,6 @@ body.shell #hint{display:none}
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
     <div id="rtabs">
       <button class="rtab on" data-p="info">信息</button>
-      <button class="rtab" data-p="style">风格</button>
       <button class="rtab" data-p="lib">库</button>
       <button class="rtab" data-p="ai">智能</button>
     </div>
@@ -1233,15 +1239,6 @@ body.shell #hint{display:none}
     <div class="rcard open" data-rt="info">
       <button class="rc-h" type="button">光标位置</button>
       <div class="rc-b"><div id="cursor-info">—</div></div>
-    </div>
-    <!-- v40.8 风格页签：记谱风格/和弦显示风格归纳一处（委托既有按钮）；排版回顶栏浮层不再重复 -->
-    <div class="rcard open rt-new" data-rt="style">
-      <button class="rc-h" type="button">显示风格</button>
-      <div class="rc-b rt-list" id="style-host">
-        <button id="st-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格：×记谱 / 全数字</button>
-        <button id="st-diag" title="和弦图显示方式：随行 / 顶部图例 / 隐藏 循环切换">和弦图：随行 / 图例 / 隐藏</button>
-        <button id="st-fn" title="谱面所有和弦标注一键切换：级数 ↔ 音名">和弦标注：级数 ↔ 音名</button>
-      </div>
     </div>
     <!-- v40.8 库页签：节奏型/伴奏织体面板整体归入（applyShellDock 搬移，经典版回左栏） -->
     <div class="rcard open rt-new" data-rt="lib">
@@ -2976,11 +2973,8 @@ function renderDock(){
       show('panel-tab-pat', song.tabVoices.length>0);
       show('panel-vox-pat', song.voxVoices.length>0);
       show('panel-vox-acc', !!song.pianoAcc);
-      show('panel-tab-notation', song.tabVoices.length>0);   // v40.9 记谱法在风格页签
-      show('panel-vox-notation', song.voxVoices.length>0);
     }
-    show('st-notation', song.tabVoices.length>0);
-    show('st-diag',     song.tabVoices.length>0); }
+    }
   /* 当前左栏页对该谱类不可用时回退到第一个可见页；否则重算当前页面板（类型可能已变） */
   const visible=['tab','vox','lyr'].filter(k=>{
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
@@ -4221,7 +4215,7 @@ function setRibbon(t){
   /* v40.9 新版外壳图层内容归纳：扫弦/音符记号/技法（简谱：记号/装饰）合并为「记号」面板；
      和弦只在和弦层、记谱法在右栏风格、节奏型/织体在右栏库、列面板去除 */
   if(uiShell && spec){
-    spec = spec.filter(k=>!['strum','mark','chord','notation','col','pat','acc'].includes(k));
+    spec = spec.filter(k=>!['strum','mark','chord','col','pat','acc'].includes(k));
     if(t==='tab' || t==='vox'){
       const i=spec.indexOf('voice'); spec=spec.slice(); spec.splice(i<0? spec.length : i+1, 0, 'sign');
     }
@@ -7746,13 +7740,6 @@ function applyShellDock(){
       if(uiShell) libHost.appendChild(el);
       else ribbon.appendChild(el);   // 经典版顺序由 setRibbon 的 flex order 决定，DOM 位置无关
     });
-    /* v40.9 记谱法面板归入右栏「风格」页签 */
-    const styleHost=document.getElementById('style-host');
-    ['panel-tab-notation','panel-vox-notation'].forEach(id=>{
-      const el=document.getElementById(id); if(!el) return;
-      if(uiShell && styleHost) styleHost.appendChild(el);
-      else ribbon.appendChild(el);
-    });
     /* v40.9 「记号」合并：三个 body 搬入 sign 宿主；经典版回各自面板 */
     const mv=(bodyId, shellHostId, classicPanelId)=>{
       const b=document.getElementById(bodyId); if(!b) return;
@@ -7799,9 +7786,6 @@ function applyShell(){
   const go=(id,fn)=>{ const el=document.getElementById(id); if(el) el.onclick=fn; };
   const click=id=>{ const el=document.getElementById(id); if(el) el.click(); };
   go('rt-chorded',()=>click('b-chord-edit'));
-  go('st-notation',()=>click('b-notation'));   // v40.8 风格页签：委托既有切换按钮
-  go('st-diag',   ()=>click('b-diag'));
-  go('st-fn',     ()=>click('vf-names'));
   go('rt-sug',    ()=>click('va-sug'));
   go('rt-arr',    ()=>click('b-arrange'));
   go('rt-fill',   ()=>click('b-fill'));
@@ -10175,6 +10159,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.0</span><div><b>风格页签撤销 + 左栏深度优化</b>：① 右栏「风格」页签取消——记谱法（TAB/五线谱、简谱/谱表切换）回到左栏对应图层、记谱风格回吉他层记号区、和弦图显示在和弦层、级数↔音名在和弦层级数工具，右栏收敛为 信息/库/智能 三页签；② <b>左栏布局深度优化</b>——统一卡片节奏（内距/卡距/圆角/28px 控件高收敛为一套标尺），面板加宽至 272px，分区更清晰；③ 新增「制谱专家」协作角色（.claude/agents），并启动各谱类记号与标记体系的出版级审计（报告落 docs/notation-audit-v41.md，补充项将按用户价值排期落地）。</div></li>
     <li><span class="v">v40.9</span><div><b>左栏图层重梳理</b>：① 左轨改<b>图形图标 + 中文小字</b>——六线谱/四线谱（按乐器自动切换 6/4 线图形）、五线谱/简谱（按记谱法自动切换谱表/数字图形）、歌词、和弦、小节、段落；② 吉他层的扫弦·琶音、音符记号、演奏技巧<b>合并为「记号」面板</b>（记号+中文说明统一形态），简谱层的音符记号与装饰同法合并；③ <b>和弦只在和弦层</b>、<b>记谱法（TAB/五线谱切换等）归入右栏「风格」</b>、「列」面板移除（插删列走工具行音符组）；经典版布局不受影响。</div></li>
     <li><span class="v">v40.8</span><div><b>左轨图标化 + 功能归纳去重</b>：① 左侧图层轨改<b>纯图标显示</b>（名称进悬浮提示），选中态改<b>朱砂底</b>，移除轨上「新建」（顶栏已有）；② <b>节奏型与伴奏织体统一归入右栏「库」页签</b>——吉他/简谱节奏型面板、钢琴伴奏织体工具整体移入库中集中管理，左栏图层与工具行不再重复出现（切回经典版自动还原原布局）；③ 右栏「排版」页签与顶栏「排版」重复，改为<b>「风格」页签</b>——记谱风格（×记谱/全数字）、和弦图显示（随行/图例/隐藏）、和弦标注（级数↔音名）三类显示风格归纳一处；顶栏「排版」恢复浮层面板。</div></li>
     <li><span class="v">v40.7</span><div><b>中文渲染清晰化 + 全面去 emoji</b>：① 界面字体栈改为<b>中文字体前置</b>（苹方/雅黑优先，素材同策略）——中西文统一由同一字体渲染，消除「拉丁字体优先、中文回退」造成的混排参差与伪粗合成，小字号中文更锐利；② <b>全部 emoji 图案替换为扁平线性 SVG 图标</b>（36 枚自绘图标库，随文字颜色着色）：播放条（回开头/节拍器/谱架/音轨）、右栏库与智能入口、新建向导、文档标签、曲谱库（浏览量/收藏审核状态/试读锁）、帮助与特色功能弹窗节头、节拍校验状态、搜索框等全线生效；历史更新日志文案同步清理。跨平台不再出现彩色 emoji 与系统字体差异。</div></li>

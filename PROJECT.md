@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v40.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -219,6 +219,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 阶段3 ✅ v40.2：右栏四页签（#rtabs + rcard[data-rt] 分组，setRTab 控显隐；经典版页签条与 .rt-new 卡片 CSS 隐藏、卡片全显）：信息=原卡片；排版=#layout-pop 整体停靠 #layout-host（applyShellDock 搬移，经典版回 body 恢复浮层，b-layout 按外壳分流）；库/智能=直达入口全部委托既有按钮（eb-lib/b-chord-edit/b-acctex/va-sug/b-arrange/b-fill；哼唱与 MusicXML/MIDI 导入 = b-new.click()+nw-*.click() 链），入口显隐在 renderDock 与 b-acctex/b-arrange 同口径
 - 阶段4 ✅ v40.3：工具行单行化——setRibbon 在 uiShell 下向 tab/vox spec 注入 'tech'/'orn' 面板（panel-tab-tech/#tech-host、panel-vox-orn/#orn-host），eb-ctx 构建分流（新版写入左栏 host、经典写回编辑栏二行，applyShell 置 ebCtxFor=null 强制重建），ebHandler 额外绑定两个面板；body.shell #editbar2 隐藏；窄屏(≤1180px) fly 转 fixed 浮层；doc-tabs 扁平微调。**注意：tv_dock 断言经典布局语义，已在套件内 addInitScript 固定 musetab-shell=classic**
 - v5 缺口清单核查（均已有，无需新做）：导出六出口=打印弹窗（PNG/MusicXML/MIDI/分享卡/互动谱/打印PDF）；循环选区=mx-prog 点击/拖动；无头无尾滑音4键=EB_TECHS su/sd/ou/od；倍速六档含 0.25×
+- 风格撤销+左栏优化 ✅ v41.0：右栏 style 页签删除（notation 面板回 ribbon/spec 不再过滤 notation；st-* 按钮与委托删除；b-notation 取消隐藏）；左栏卡片节奏统一 CSS（body.shell #left-flyout 272px/8px gap/28px 控件）；**制谱专家 agent 已建（.claude/agents/notation-expert.md）并已启动记号审计 → docs/notation-audit-v41.md（接手者：若报告已生成，按前10项排期落地）**
 - 图层重梳理 ✅ v40.9：左轨 .ltab 结构改 `<span.lic data-lic>`(SVG 图形，renderDock 按 instOf/anyStaff 切 tab4/tab6/staff5/jianpu) + `<span.lb>`(小字；新版命名六线谱/四线谱/五线谱/简谱，经典版保留场景名——tv_dock probe 已改读 .lb)；「记号」合并=strum-body/mark-body/tech-host（vox: vmark-body/orn-host）在 applyShellDock 搬入 #sign-host-tab/vox（panel-tab-sign/panel-vox-sign，ebHandler 需绑 sign 面板），shell spec 过滤 strum/mark/chord/notation/col/pat/acc 并在 voice 后插 'sign'；notation 面板搬入 #style-host（风格页签），b-notation shell 下隐藏（st-notation 接管）
 - 图标轨与归纳 ✅ v40.8：左轨纯图标（font-size:0 + ::before data-ic 17px，title 由 renderDock 同步），选中 `body.shell .ltab.on` 朱砂底；轨上新建按钮删除；**panel-tab-pat/panel-vox-pat/panel-vox-acc 三面板在 shell 下由 applyShellDock 搬入 #lib-host（右栏库页签），setRibbon 的 .panel-p 循环对 `el.closest('#right-dock')` 直接 return（显隐交 renderDock/setRTab），经典版 appendChild 回 #ribbon（顺序由 flex order 决定）**；rt-patlib/rt-tex 委托入口删除（面板即入口）；右栏 layout 页签改 style（st-notation/st-diag/st-fn 委托 b-notation/b-diag/vf-names，b-layout 恢复 layToggle 浮层，laySync 特例移除）
 - 字体与图标 ✅ v40.7：--font-ui 中文前置（PingFang/雅黑优先，中西文同源渲染=素材清晰感的来源）+ text-rendering/grayscale 平滑；**SVGI 图标注册表**（36 枚线性图标 + `svgi(name,size)` + 静态 HTML 用 `data-svgi` 占位注入器）替换全部 emoji——textContent 赋值点已改 innerHTML（beat-status/hifi/mx-expand/播放键/sb-go），docIcon 返回 svgi，帮助/特色弹窗 sec()/fx() 头、曲谱库状态/眼睛/锁、cc-search CSS 图标（data URI）；toast 纯文本场景直接删 emoji；历史更新日志文案已清理。音乐字形 ♭♯♮♩✓♥✦ 属文字符号保留
