@@ -58,6 +58,14 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - `puku.puyouquan.com` → **谱库**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页）
   - 站内互链用协议相对子域链接（`//zhipu.puyouquan.com/` 等）；冒烟 `deploy/smoke.sh` 用 `curl --connect-to` 按域名 SNI 逐一验收三个 vhost 的 **HTTPS** 内容 + http→https 跳转，传 IP 即可、不依赖 DNS。
   - **HTTPS 已启用（2026-07-22）**：certbot 四域名一证（puyouquan.com/www/zhipu/puku），自动续期；certbot 直接改写服务器上的 pu8.conf，故 `server-setup.sh` 检测到 `managed by Certbot` 时跳过模板覆盖——仓库 nginx 模板此后仅作参考基线，改动需登录服务器手动合并。
+- **账号后端（M1a，2026-07-22 上线）**：`api/` 零依赖 Node 服务（Node 24 内建 `node:http`+`node:sqlite`+`node:crypto`，无 npm 依赖，规避境内拉包/原生编译问题）。
+  - 架构：systemd 服务 `pyq-api`（用户 pyq，127.0.0.1:3127）← nginx 各 vhost `include snippets/pyq-api.conf` 反代 `/api/`（api-setup.sh 幂等注入，兼容 certbot 配置）；Cookie 域 `.puyouquan.com` 三站互通；JWT HS256 httpOnly Cookie 30 天。
+  - 数据：SQLite `/var/lib/puyouquan/pyq.db`（WAL；**所有 SQL 集中在 `api/db.js`，主键应用层 UUID、时间 Unix 秒——为将来迁 PG 预留**；迁移信号：SQLITE_BUSY 频发/需多机/需 PG 专属能力）。表：users/otp/ip_quota/scores/favorites/shelf/collections/collection_items。
+  - 登录：手机验证码（阿里云短信 RPC-V1 签名自实现；频控 1 次/分/号、5 次/日/号、20 次/日/IP、验证 5 次上限；未配 AK 时 DEV_OTP=1 走日志验证码）。微信扫码（企业开放平台）留 `wx_openid` 字段待接。创作者开放注册（POST /api/me/creator）。
+  - 配置：`/etc/puyouquan/api.env`（api-setup.sh 首次生成 JWT_SECRET；**阿里云短信 AK/模板过审后填入并 `systemctl restart pyq-api`**）。
+  - 接口（全 `/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联) / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
+  - 测试：`bash api/test.sh` 本地端到端 25 项（DEV_OTP 模式全链路）；线上冒烟含 `/api/health`。
+  - 待办：M1b=编辑器登录面板+云同步 UI（动 index.html，走完整发版流程）；M2=创作者发布→谱库列表/详情（scores.status 已预留 published）；M3=微信扫码登录+学习资料。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---

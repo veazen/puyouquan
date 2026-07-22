@@ -3,7 +3,7 @@ name: 部署到轻量云服务器
 on:
   push:
     branches: [ claude/guitar-tab-software-analysis-zqm0ua ]
-    paths: [ 'muse-tab/**', 'deploy/**' ]
+    paths: [ 'muse-tab/**', 'deploy/**', 'api/**' ]
   workflow_dispatch:
     inputs:
       setup:
@@ -119,9 +119,9 @@ jobs:
       - name: 首次初始化（仅手动勾选时）
         if: ${{ inputs.setup }}
         run: |
-          scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh pyq:/tmp/
+          scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh deploy/api-setup.sh pyq:/tmp/
           # 音色包下载依赖境外源，失败或超时不阻塞部署（编辑器会回落内置合成音色，可日后重跑续传）
-          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && { $S timeout 600 bash /tmp/fetch-soundfonts.sh || echo "音色包下载未全部完成（不阻塞部署）"; }'
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && $S bash /tmp/api-setup.sh && { $S timeout 600 bash /tmp/fetch-soundfonts.sh || echo "音色包下载未全部完成（不阻塞部署）"; }'
 
       - name: 发布产品文件
         run: |
@@ -135,6 +135,18 @@ jobs:
             $S mv /tmp/pyq_pub_index.html /var/www/puyouquan/index.html && \
             $S cp -r /tmp/pyq_pub_site/. /var/www/puyouquan/site/ && rm -rf /tmp/pyq_pub_site && \
             { [ -f /tmp/pyq_pub_fmt.md ] && $S mv /tmp/pyq_pub_fmt.md /var/www/puyouquan/PYQ-FORMAT.md || true; }'
+
+      - name: 发布 API 服务（已初始化时）
+        run: |
+          if ssh pyq 'test -f /etc/systemd/system/pyq-api.service'; then
+            ssh pyq 'rm -rf /tmp/pyq_api'
+            scp -r api pyq:/tmp/pyq_api
+            ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
+              $S rsync -a --delete /tmp/pyq_api/ /opt/puyouquan/api/ && rm -rf /tmp/pyq_api && \
+              $S systemctl restart pyq-api && sleep 1 && $S systemctl is-active pyq-api'
+          else
+            echo "pyq-api 未初始化（先跑一次勾选 setup 的部署），跳过 API 发布"
+          fi
 
       - name: 冒烟验收
         run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"
