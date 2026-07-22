@@ -1039,6 +1039,7 @@ body.shell #hint{display:none}
       <div class="rg-body" id="mark-body">
         <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button>
         <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
+        <button id="b-ferm-t" title="延长号：当前列上方画 𝄐，自由延长该音时值（再点取消）">延长号</button>
         <button id="b-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格</button>
       </div>
     </div>
@@ -1085,6 +1086,12 @@ body.shell #hint{display:none}
         <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
         <button id="b-addnote" title="和音（同列多音）：在当前音上叠加1-3个音；五线谱也可 Ctrl+点击线/间直接加减">和音</button>
         <button id="b-vchord" title="功能谱和弦：级数为主构建（级数×类型扩展×转位低音），谱面级数/音名一键切换">和弦/级数</button>
+        <button id="b-ferm-v" title="延长号：音符上方画 𝄐，自由延长该音时值（简谱/五线谱通用，再点取消）">延长号</button>
+        <button id="b-art-stcc" title="断音（顿音）：音符上方 ▼，短促有力（与跳音/保持音/重音互斥，再点取消）">断音▼</button>
+        <button id="b-art-stacc" title="跳音：音符上方圆点 ·，短促轻巧（与断音/保持音/重音互斥，再点取消）">跳音·</button>
+        <button id="b-art-ten" title="保持音：音符上方横线 −，唱/奏足时值（与断音/跳音/重音互斥，再点取消）">保持音−</button>
+        <button id="b-art-acc" title="重音：音符上方 &gt;，强调该音（与断音/跳音/保持音互斥，再点取消）">重音&gt;</button>
+        <button id="b-breath" title="换气记号：列右上角小 v，表示本音之后换气（声乐/合唱用，再点取消）">换气v</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-col">
@@ -2705,7 +2712,10 @@ function systemExtras(sys){
   let maxUp=0, maxDown=0, maxUnder=0, tab32=false;
   sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach(cols=> cols.forEach(c=>{
     if(c.tup) maxUp=Math.max(maxUp, 1);                          // 连音弧线需上方空间
+    if(c.ferm) maxUp=Math.max(maxUp, 2);                         // v41.1 延长号需上方空间（休止上也可标）
+    if(c.breath) maxUp=Math.max(maxUp, 1);
     if(!c.deg) return;
+    if(c.artic) maxUp=Math.max(maxUp, 1);                        // v41.1 演奏法记号需上方空间
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(3, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
@@ -3480,6 +3490,10 @@ function render(){
             const y1=tabTop+(Math.min(...ss)-1)*STR-6, y2=tabTop+(Math.max(...ss)-1)*STR+6;
             p.push(`<rect x="${nx-7.5}" y="${y1}" width="15" height="${y2-y1}" rx="2" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
           }
+          /* v41.1 延长号 𝄐：一弦上方（该列有和弦名时上移让位） */
+          if(col.ferm)
+            p.push(smg('fermataAbove', nx-smw('fermataAbove')*7.5*0.62/2,
+              tabTop-((col.chord && !(diagMode==='inline'&&vi===0))? 22 : 11), 7.5, {scale:0.62}));
           const hasEvt = col.notes.length || col.strum;
           if(hasEvt && col.dur>=2){
             /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁 */
@@ -3865,6 +3879,44 @@ function render(){
             }else if(col.orn==='turn'){
               p.push(`<text x="${nx}" y="${oy2+3}" font-size="12" text-anchor="middle" fill="var(--ink)">∽</text>`);
             }
+          }
+          /* v41.1 演奏法四件套：五线谱=符头反符干侧（Gould）；简谱=数字上方 GB 形态（▼ · − >） */
+          if(col.artic && col.deg && !song.chordOnly){
+            if(isStaff){
+              const nsA=chNotes(col);
+              const upA=(nsA[0].st+nsA[nsA.length-1].st)/2 < S_MID;   // 符干朝上 → 记号在符头下方
+              const ay=upA? stepY(nsA[0].st)+SG*1.25 : stepY(nsA[nsA.length-1].st)-SG*1.25;
+              if(col.artic==='staccatissimo'){                        // 顿音楔形：尖端朝向符头（字形库无此枚，几何绘制）
+                const tip=upA? -1 : 1;
+                p.push(`<path d="M ${(nx-1.9).toFixed(1)} ${(ay-tip*2.2).toFixed(1)} L ${(nx+1.9).toFixed(1)} ${(ay-tip*2.2).toFixed(1)} L ${nx.toFixed(1)} ${(ay+tip*2.2).toFixed(1)} Z" fill="var(--ink)"/>`);
+              }else{
+                const gnA = col.artic==='stacc'?'articStaccatoAbove': col.artic==='tenuto'?'articTenutoAbove':'articAccentAbove';
+                const bbA = SMUFL[gnA].bb;
+                p.push(smg(gnA, nx-smw(gnA)*SG/2, ay-(bbA[1]+bbA[3])/2*SG, SG));
+              }
+            }else{
+              const ay = voxY - (col.oct>0? 16.5+Math.min(3,col.oct)*4.2 : 15) - (col.orn? 9 : 0);
+              if(col.artic==='stacc') p.push(`<circle cx="${nx}" cy="${(ay-2).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+              else if(col.artic==='staccatissimo') p.push(`<path d="M ${(nx-2.2).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${(nx+2.2).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${nx.toFixed(1)} ${ay.toFixed(1)} Z" fill="var(--ink)"/>`);
+              else if(col.artic==='tenuto') p.push(`<line x1="${(nx-3.8).toFixed(1)}" y1="${(ay-2.2).toFixed(1)}" x2="${(nx+3.8).toFixed(1)}" y2="${(ay-2.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.3"/>`);
+              else p.push(`<path d="M ${(nx-3.4).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${(nx+3.4).toFixed(1)} ${(ay-2.2).toFixed(1)} L ${(nx-3.4).toFixed(1)} ${ay.toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            }
+          }
+          /* v41.1 延长号 𝄐：音符正上方（五线谱=谱表上缘/最高音符干之上；简谱=避让八度点/波音/演奏法逐层上移） */
+          if(col.ferm && !song.chordOnly){
+            let fy;
+            if(isStaff){
+              fy = staffT-8;
+              if(col.deg){ const nsF=chNotes(col); fy=Math.min(fy, stepY(nsF[nsF.length-1].st)-SG*3.6); }
+            }else{
+              fy = voxY - (col.oct>0? 16.5+Math.min(3,col.oct)*4.2 : 15) - (col.orn? 9:0) - (col.artic? 8:0) - 2.5;
+            }
+            p.push(smg('fermataAbove', nx-smw('fermataAbove')*SG*0.8/2, fy, SG, {scale:0.8}));
+          }
+          /* v41.1 换气记号 v：列右上角（简谱/五线谱通用），挂列右缘、不参与对齐宽度 */
+          if(col.breath && !song.chordOnly){
+            const bxr = nx + Math.min(cw*0.5, 15), byr = isStaff? staffT-4 : voxY-15;
+            p.push(`<path d="M ${(bxr-2.6).toFixed(1)} ${(byr-5.2).toFixed(1)} L ${bxr.toFixed(1)} ${byr.toFixed(1)} L ${(bxr+2.6).toFixed(1)} ${(byr-5.2).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>`);
           }
           if((!isStaff || dual) && !song.chordOnly && col.deg){
             for(let d=0; d<Math.min(3,Math.abs(col.oct)); d++){
@@ -4340,8 +4392,13 @@ function syncInputs(){
     document.getElementById('b-arpd').classList.toggle('on', col.strum==='arpd');
     document.getElementById('b-slap').classList.toggle('on', !!col.slap);
     document.getElementById('b-smute').classList.toggle('on', !!col.mute && (col.strum==='d'||col.strum==='u'));
+    document.getElementById('b-ferm-t').classList.toggle('on', !!col.ferm);
   }
   if(col&&sel.row==='vox'){
+    document.getElementById('b-ferm-v').classList.toggle('on', !!col.ferm);
+    document.getElementById('b-breath').classList.toggle('on', !!col.breath);
+    [['b-art-stcc','staccatissimo'],['b-art-stacc','stacc'],['b-art-ten','tenuto'],['b-art-acc','accent']]
+      .forEach(([id,v])=>document.getElementById(id).classList.toggle('on', col.artic===v));
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
     document.getElementById('b-natural').classList.toggle('on', col.acc==='n');
@@ -4954,7 +5011,7 @@ function restNote(){
   mutate(()=>{
     const c=curCol();
     if(sel.row==='tab'){ c.notes=[]; c.strum=''; delete c.mute; delete c.slap; }
-    else { c.deg=0; c.acc=''; delete c.grace; delete c.graceA; delete c.orn; c.tie=false; }
+    else { c.deg=0; c.acc=''; delete c.grace; delete c.graceA; delete c.orn; delete c.artic; c.tie=false; }
   });
   toast('已变为休止符（时值 '+cur.dur+' 分不变）');
 }
@@ -6201,6 +6258,35 @@ document.getElementById('b-slap').onclick = ()=>{
   if(!col || !col.notes.length) return toast('拍弦标记需加在有音符的列上');
   mutate(()=>{ const c=curCol(); if(c.slap) delete c.slap; else c.slap=true; });
 };
+/* v41.1 延长号/演奏法四件套/换气记号：列级可选字段（只增不改），再次点击取消 */
+document.getElementById('b-ferm-t').onclick = ()=>{
+  if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的列');
+  const col=curCol(); if(!col) return;
+  mutate(()=>{ const c=curCol(); if(c.ferm) delete c.ferm; else c.ferm=true; });
+  toast(curCol().ferm? '已加延长号 𝄐（自由延长该音）' : '已取消延长号');
+};
+document.getElementById('b-ferm-v').onclick = ()=>{
+  if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
+  const col=curCol(); if(!col) return;
+  mutate(()=>{ const c=curCol(); if(c.ferm) delete c.ferm; else c.ferm=true; });
+  toast(curCol().ferm? '已加延长号 𝄐（自由延长该音）' : '已取消延长号');
+};
+document.getElementById('b-breath').onclick = ()=>{
+  if(sel.row!=='vox') return toast('请先在简谱选中换气前的最后一个音');
+  const col=curCol(); if(!col) return;
+  mutate(()=>{ const c=curCol(); if(c.breath) delete c.breath; else c.breath=true; });
+  toast(curCol().breath? '已加换气记号 v（本音之后换气）' : '已取消换气记号');
+};
+[['b-art-stcc','staccatissimo','断音'],['b-art-stacc','stacc','跳音'],
+ ['b-art-ten','tenuto','保持音'],['b-art-acc','accent','重音']].forEach(([id,val,nm])=>{
+  document.getElementById(id).onclick = ()=>{
+    if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
+    const col=curCol(); if(!col) return;
+    if(!col.deg) return toast('演奏法记号需加在有唱名的音上');
+    mutate(()=>{ const c=curCol(); if(c.artic===val) delete c.artic; else c.artic=val; });
+    toast(curCol().artic===val? '已标记'+nm : '已取消'+nm);
+  };
+});
 /* 功能谱智能和弦选择：本调常用库优先 + 常用扩展 + 最近使用 + 自定义输入 */
 function setVoxChord(name, quiet){
   mutate(()=>{ const c=curCol(); if(!c) return;
@@ -8396,9 +8482,10 @@ function exportPNG(scale){
    song v3 → score-partwise 4.0。简谱是主数据：音高经 staffKeyInfo 音级/调号换算
    拼写（与五线谱渲染同一套逻辑）。v1 范围：简谱/五线谱声部（音符+和音 adds、
    附点、连音线、三连音时值、和弦标注、多段歌词、调号/拍号/速度、反复/终止线、
-   谱号按 voxNotations）。
-   TODO: TAB→独立part；grace/orn 装饰音；力度 dyn；三连音括线记号（时值已正确）；
-   钢琴双声部合并单 part 双谱表（当前导出为两个 part）。 */
+   谱号按 voxNotations；v41.1 起含 延长号 fermata / 演奏法 articulations（staccato·
+   staccatissimo·tenuto·accent）/ 换气 breath-mark）。
+   TODO: TAB→独立part（tabCol.ferm 随之导出）；grace/orn 装饰音；力度 dyn；
+   三连音括线记号（时值已正确）；钢琴双声部合并单 part 双谱表（当前导出为两个 part）。 */
 function xesc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function exportMusicXML(s){
   s = s || song;
@@ -8446,15 +8533,20 @@ function exportMusicXML(s){
         const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
         const dot = col.dotted? '<dot/>' : '';
         const tmod = col.tup? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : '';
+        /* v41.1 记号 → MusicXML notations：articulations(staccato/staccatissimo/tenuto/accent/breath-mark)+fermata */
+        const articXML = {stacc:'<staccato/>',staccatissimo:'<staccatissimo/>',tenuto:'<tenuto/>',accent:'<accent/>'}[col.artic]||'';
+        const signXML = ((articXML||col.breath)? `<articulations>${articXML}${col.breath?'<breath-mark/>':''}</articulations>` : '')
+                      + (col.ferm? '<fermata/>' : '');
         if(!col.deg){
-          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}</note>`;
+          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${signXML?`<notations>${signXML}</notations>`:''}</note>`;
           tiePend = false;
           return;
         }
         if(col.chord) body += harmonyXML(col.chord);
         const tieStart = !!col.tie, tieStop = tiePend;
         const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
-        const notat = (tieStart||tieStop)? `<notations>${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}</notations>` : '';
+        const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}`+signXML;
+        const notat = notInner? `<notations>${notInner}</notations>` : '';
         const lyr = (col.lyrics||[]).map((t2,li)=> t2&&t2.trim()?
           `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
         body += `<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${notat}${lyr}</note>`;
@@ -8578,8 +8670,20 @@ function importMusicXML(xmlStr){
           }
           if(!dur){ skip.notes++; dur = quarters>=3? 2 : quarters>=1.5? 4 : quarters>=0.7? 4 : quarters>=0.35? 8 : 16; }
         }
+        /* v41.1 记号：notations → ferm/artic/breath（延长号/演奏法四件套/换气） */
+        const readSigns = col2=>{
+          const nt3=q(el,'notations'); if(!nt3) return col2;
+          if(nt3.querySelector('fermata')) col2.ferm=true;
+          if(nt3.querySelector('articulations > breath-mark')) col2.breath=true;
+          if(col2.deg){
+            const am=[['staccatissimo','staccatissimo'],['staccato','stacc'],['tenuto','tenuto'],['accent','accent']]
+              .find(([t3])=>nt3.querySelector('articulations > '+t3));
+            if(am) col2.artic=am[1];
+          }
+          return col2;
+        };
         if(q(el,'rest')){
-          cols.push({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{})});
+          cols.push(readSigns({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{})}));
           pendChord=''; return;
         }
         const pe=q(el,'pitch');
@@ -8602,7 +8706,7 @@ function importMusicXML(xmlStr){
           if(n2<=3){ col.lyrics[n2-1]=txt(ly,'text')||''; maxLyr=Math.max(maxLyr,n2); }
           else skip.other++;
         });
-        cols.push(col);
+        cols.push(readSigns(col));
       });
       return cols;
     });
@@ -10159,6 +10263,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.1</span><div><b>记号补充第一批</b>（制谱专家审计前 3 项落地）：① <b>延长号 𝄐</b>——简谱/五线谱/六线谱通用，音符（含休止）上方标准字形，简谱侧自动避让八度点/波音/演奏法，入口在简谱与吉他谱图层的「记号」面板（再点取消）；② <b>演奏法四件套</b>——断音▼ / 跳音· / 保持音− / 重音&gt;（四者互斥）：五线谱按出版惯例贴符头反符干侧（Bravura 字形），简谱按 GB 惯例画在数字上方；③ <b>换气记号 v</b>——声乐/合唱刚需，标在列右上角表示本音之后换气（简谱/五线谱通用）。三类记号均已同步接入 <b>MusicXML 导出/导入</b>（fermata / articulations / breath-mark，往返一致），行距按需自动预留。</div></li>
     <li><span class="v">v41.0</span><div><b>风格页签撤销 + 左栏深度优化</b>：① 右栏「风格」页签取消——记谱法（TAB/五线谱、简谱/谱表切换）回到左栏对应图层、记谱风格回吉他层记号区、和弦图显示在和弦层、级数↔音名在和弦层级数工具，右栏收敛为 信息/库/智能 三页签；② <b>左栏布局深度优化</b>——统一卡片节奏（内距/卡距/圆角/28px 控件高收敛为一套标尺），面板加宽至 272px，分区更清晰；③ 新增「制谱专家」协作角色（.claude/agents），并启动各谱类记号与标记体系的出版级审计（报告落 docs/notation-audit-v41.md，补充项将按用户价值排期落地）。</div></li>
     <li><span class="v">v40.9</span><div><b>左栏图层重梳理</b>：① 左轨改<b>图形图标 + 中文小字</b>——六线谱/四线谱（按乐器自动切换 6/4 线图形）、五线谱/简谱（按记谱法自动切换谱表/数字图形）、歌词、和弦、小节、段落；② 吉他层的扫弦·琶音、音符记号、演奏技巧<b>合并为「记号」面板</b>（记号+中文说明统一形态），简谱层的音符记号与装饰同法合并；③ <b>和弦只在和弦层</b>、<b>记谱法（TAB/五线谱切换等）归入右栏「风格」</b>、「列」面板移除（插删列走工具行音符组）；经典版布局不受影响。</div></li>
     <li><span class="v">v40.8</span><div><b>左轨图标化 + 功能归纳去重</b>：① 左侧图层轨改<b>纯图标显示</b>（名称进悬浮提示），选中态改<b>朱砂底</b>，移除轨上「新建」（顶栏已有）；② <b>节奏型与伴奏织体统一归入右栏「库」页签</b>——吉他/简谱节奏型面板、钢琴伴奏织体工具整体移入库中集中管理，左栏图层与工具行不再重复出现（切回经典版自动还原原布局）；③ 右栏「排版」页签与顶栏「排版」重复，改为<b>「风格」页签</b>——记谱风格（×记谱/全数字）、和弦图显示（随行/图例/隐藏）、和弦标注（级数↔音名）三类显示风格归纳一处；顶栏「排版」恢复浮层面板。</div></li>
