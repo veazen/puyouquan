@@ -58,24 +58,7 @@
 
 <div id="site-foot"></div>
 <script src="pyq.js"></script>
-<script>
-/* 谱库列表：拉取公开已发布曲谱，卡片链到编辑器观看模式 //zhipu.puyouquan.com/?pub=ID */
-(async function(){
-  const grid=document.getElementById('lib-grid'); if(!grid) return;
-  const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const ico=n=>(window.PYQ_ICON&&window.PYQ_ICON(n))||'';
-  try{
-    const r=await fetch('/api/pub/scores',{credentials:'include'});
-    if(!r.ok) throw 0;
-    const list=(await r.json()).scores||[];
-    if(!list.length){ grid.innerHTML='<p style="color:var(--muted)">谱库正在充实中，创作者发布的曲谱将在这里展示。</p>'; return; }
-    grid.innerHTML=list.map(s=>`<a class="card" href="//zhipu.puyouquan.com/?pub=${encodeURIComponent(s.id)}">
-      <span class="tile">${ico('eye')}</span>
-      <b>${esc(s.title||'未命名曲谱')}</b>
-      <p>${esc(s.singer||'')}${(s.singer&&s.author)?' · ':''}${esc(s.author||'')}</p>
-      <span class="go">观看曲谱 ${ico('arrow')}</span></a>`).join('');
-  }catch(e){ grid.innerHTML='<p style="color:var(--muted)">谱库暂时无法加载，请稍后重试。</p>'; }
-})();
-</script>
+<script>/* 谱库列表：复用 PYQ_LIB 渲染编辑器同款卡片，点开进编辑器观看模式 */
+  if(window.PYQ_LIB) PYQ_LIB.mount(document.getElementById('lib-grid'));</script>
 </body>
 </html>

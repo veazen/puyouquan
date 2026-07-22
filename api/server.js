@@ -71,6 +71,29 @@ function readBody(req) {
   });
 }
 const pubUser = u => ({ id: u.id, phone: u.phone.replace(/^(\d{3})\d{4}/, '$1****'), nickname: u.nickname, role: u.role, created_at: u.created_at });
+// 谱库列表卡片元信息（类型/封面/小节数）——与编辑器 docType/ccCover 同源，供官网复刻同款卡片。
+// 注：pubList 目前含 data 逐条解析；库规模大后可改存发布时快照的 type/cover 列避免每次解析。
+function docTypeOf(d) {
+  const vn = d.voxNotations || [], staff = n => n === 'staff' || n === 'bass' || n === 'alto';
+  if ((d.tabVoices || []).length) { if (d.tabStaff && !(d.voxVoices || []).length) return 'solo'; return d.inst === 'uku' ? 'uku' : 'guitar'; }
+  if (d.chordOnly) return 'chord';
+  if (d.func) return 'func';
+  if (vn[0] === 'staff' && vn[1] === 'bass') return d.pianoAcc ? 'pianoacc' : 'piano';
+  if (staff(vn[0])) return (d.voxDual || [])[0] ? 'teach' : 'instr';
+  return 'vocal';
+}
+function coverOf(d) {
+  for (const m of (d.measures || [])) {
+    const cs = (((m || {}).voxes || [])[0] || []).filter(c => c && (c.deg > 0 || (((c.lyrics || [])[0]) || '').trim()));
+    if (cs.length) return cs.slice(0, 7).map(c => ({ deg: c.deg || 0, oct: c.oct || 0, ly: ((c.lyrics || [])[0] || '').slice(0, 2) }));
+  }
+  return [];
+}
+function pubShape(row) {
+  let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
+  return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
+    type: docTypeOf(d), price: 0, measures: (d.measures || []).length, cover: coverOf(d) };
+}
 const needScore = id => { const s = ID_RE.test(id) && q.scoreGet.get(id); if (!s) throw new ApiError(404, '谱面不存在'); return s; };
 
 /* ---------- 路由表 ---------- */
@@ -173,7 +196,7 @@ const routes = [
   }],
 
   /* -- 公开谱库（谱库 puku，无需登录）-- */
-  ['GET', /^\/api\/pub\/scores$/, false, () => ({ scores: q.pubList.all() })],
+  ['GET', /^\/api\/pub\/scores$/, false, () => ({ scores: q.pubList.all().map(pubShape) })],
   ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {
     const s = q.pubGet.get(m[1]);
     if (!s) throw new ApiError(404, '曲谱不存在或未发布');

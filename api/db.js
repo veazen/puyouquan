@@ -77,7 +77,8 @@ const q = {
   scoreDelete:  db.prepare('DELETE FROM scores WHERE id = ? AND user_id = ?'),
   scoreSetStatus: db.prepare('UPDATE scores SET status = ? WHERE id = ? AND user_id = ?'),
   // 公开谱库（谱库 puku，无需登录）
-  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.created_at
+  // 含 data 以便服务端算封面/类型；库规模变大时可另建轻量查询（见 server.js pubShape 注释）
+  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.data
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.status = 'published' ORDER BY s.updated_at DESC LIMIT 200`),
   pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at

@@ -39,7 +39,7 @@ window.PYQ_ICON = n => ICONS[n]||'';
 
 /* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ---------- */
 const MENU = [
-  ['index.html','首页'],['make.html','制谱'],['view.html','谱库'],['features.html','功能'],
+  ['index.html','首页'],['make.html','制谱'],['//puku.puyouquan.com/','谱库','view'],['features.html','功能'],
   ['help.html','帮助'],['log.html','日志'],['sponsors.html','赞助商'],
 ];
 const page = document.body.dataset.page || '';
@@ -47,9 +47,10 @@ const navEl = document.getElementById('site-nav');
 if(navEl){
   navEl.innerHTML = `<nav id="nav"><div class="bar">
     <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">PUYOUQUAN</span></a>
-    <div id="menu">${MENU.map(([h,t])=>`<a href="${h}" class="${h.replace('.html','')===page?'on':''}">${t}</a>`).join('')}</div>
+    <div id="menu">${MENU.map(([h,t,k])=>`<a href="${h}" class="${(k||h.replace('.html',''))===page?'on':''}">${t}</a>`).join('')}</div>
     <div class="nav-r">
       <button id="theme-btn" title="明暗切换">${ICONS.moon}</button>
+      <span id="nav-acct"></span>
       <a class="btn" href="//zhipu.puyouquan.com/">开始制谱 ${ICONS.arrow}</a>
     </div>
   </div></nav>`;
@@ -86,6 +87,119 @@ document.querySelectorAll('i[data-i]').forEach(el=>{ el.outerHTML = ICONS[el.dat
 /* ---------- 进场动画 ---------- */
 const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }),{threshold:.12});
 document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+
+/* ---------- 谱库卡片渲染（复刻编辑器曲谱库卡片：迷你旋律封面 + 类型 + 免费/价 + 标题 + 作者）---------- */
+const _esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+window.PYQ_LIB = (function(){
+  const TYPE_CN={guitar:'弹唱谱',uku:'尤克里里谱',solo:'独奏谱',pianoacc:'钢琴弹唱谱',piano:'钢琴独奏谱',
+    vocal:'歌谱',teach:'教学对照谱',instr:'器乐五线谱',func:'功能谱',chord:'和弦谱'};
+  function cover(item){
+    const cols=item.cover||[]; const p=[];
+    for(let i=0;i<4;i++) p.push(`<line x1="14" y1="${30+i*15}" x2="240" y2="${30+i*15}" stroke="var(--text)" stroke-opacity=".06"/>`);
+    p.push(`<text x="212" y="100" font-size="70" fill="var(--accent)" fill-opacity=".09" text-anchor="middle" font-weight="700">♪</text>`);
+    if(cols.length){ const step=Math.min(30,200/cols.length);
+      cols.forEach((c,i)=>{ const x=26+i*step;
+        if(c.deg){ p.push(`<text x="${x}" y="56" font-size="17" font-weight="600" fill="var(--text)" fill-opacity=".78" text-anchor="middle">${c.deg}</text>`);
+          if(c.oct>0) p.push(`<circle cx="${x}" cy="41" r="1.4" fill="var(--text)" fill-opacity=".6"/>`);
+          if(c.oct<0) p.push(`<circle cx="${x}" cy="63" r="1.4" fill="var(--text)" fill-opacity=".6"/>`); }
+        if(c.ly) p.push(`<text x="${x}" y="84" font-size="11.5" fill="var(--muted)" text-anchor="middle">${_esc(c.ly)}</text>`);
+      });
+    }else p.push(`<text x="26" y="60" font-size="13" fill="var(--muted)" fill-opacity=".8">♩ 点击观看曲谱</text>`);
+    return `<svg viewBox="0 0 250 108" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${p.join('')}</svg>`;
+  }
+  function card(item){
+    return `<a class="cc-card" href="//zhipu.puyouquan.com/?pub=${encodeURIComponent(item.id)}">
+      <div class="cc-cover">${cover(item)}
+        <span class="cc-type">${TYPE_CN[item.type]||'曲谱'}</span>
+        <span class="cc-price free">${item.price>0?('¥'+item.price):'免费'}</span></div>
+      <div class="cc-body">
+        <div class="t">${_esc(item.title||'未命名曲谱')}</div>
+        <div class="a">制谱：${_esc(item.author||'佚名')}${item.singer?(' · '+_esc(item.singer)):''}</div>
+        <div class="meta"><i>${item.measures||0} 小节</i></div>
+      </div></a>`;
+  }
+  /* 拉取公开谱库渲染到指定容器；limit 限制条数（首页用） */
+  async function mount(el, limit){
+    if(!el) return;
+    try{
+      const r=await fetch('/api/pub/scores',{credentials:'include'}); if(!r.ok) throw 0;
+      let list=(await r.json()).scores||[];
+      if(limit) list=list.slice(0,limit);
+      el.innerHTML = list.length ? list.map(card).join('')
+        : '<p style="color:var(--muted)">谱库正在充实中，创作者发布的曲谱将在这里展示。</p>';
+    }catch(e){ el.innerHTML='<p style="color:var(--muted)">谱库暂时无法加载，请稍后重试。</p>'; }
+  }
+  return { TYPE_CN, cover, card, mount };
+})();
+
+/* ---------- 官网账号：手机验证码登录（与编辑器共享后端，Cookie 域 .puyouquan.com 互通）---------- */
+window.PYQ_ACCT = (function(){
+  const API_ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
+  let acct=null;
+  async function api(path,opts){ opts=opts||{};
+    const r=await fetch('/api'+path,{method:opts.method||'GET',credentials:'include',
+      headers:opts.body?{'Content-Type':'application/json'}:{}, body:opts.body?JSON.stringify(opts.body):undefined});
+    let j={}; try{ j=await r.json(); }catch(_){}
+    if(!r.ok){ const e=new Error(j.error||('请求失败（'+r.status+'）')); e.status=r.status; throw e; } return j;
+  }
+  function renderNav(){
+    const el=document.getElementById('nav-acct'); if(!el) return;
+    if(!API_ON){ el.innerHTML=''; return; }
+    if(acct){
+      el.innerHTML=`<div class="acct-wrap"><button class="acct-chip" id="acct-chip"><span class="acct-av">${_esc((acct.nickname||'谱').charAt(0))}</span><span class="acct-nm">${_esc(acct.nickname||'')}</span></button>
+        <div class="acct-menu" id="acct-menu">
+          <a href="//zhipu.puyouquan.com/">个人中心</a>
+          <a href="//puku.puyouquan.com/">谱库</a>
+          <button id="acct-logout">退出登录</button></div></div>`;
+      const menu=document.getElementById('acct-menu');
+      document.getElementById('acct-chip').onclick=e=>{ e.stopPropagation(); menu.classList.toggle('on'); };
+      document.addEventListener('click',()=>menu.classList.remove('on'));
+      document.getElementById('acct-logout').onclick=async()=>{ try{ await api('/auth/logout',{method:'POST'}); }catch(_){}; acct=null; renderNav(); };
+    }else{
+      el.innerHTML=`<button class="nav-login" id="nav-login">登录 / 注册</button>`;
+      document.getElementById('nav-login').onclick=openLogin;
+    }
+  }
+  function openLogin(){
+    let m=document.getElementById('pyq-login'); if(m) m.remove();
+    m=document.createElement('div'); m.id='pyq-login'; m.className='pyq-mask';
+    m.innerHTML=`<div class="pyq-modal"><h3>登录 / 注册</h3>
+      <p class="lg-sub">未注册的手机号将自动创建账号，登录后跨端同步曲谱与收藏。</p>
+      <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
+      <div class="lg-row"><input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button id="lg-send">获取验证码</button></div>
+      <div id="lg-msg" class="lg-msg"></div>
+      <div class="lg-btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click',e=>{ if(e.target===m) m.remove(); });
+    const msg=t=>{ const e=document.getElementById('lg-msg'); if(e) e.textContent=t||''; };
+    let timer=0;
+    document.getElementById('lg-cancel').onclick=()=>{ if(timer)clearInterval(timer); m.remove(); };
+    document.getElementById('lg-send').onclick=async function(){
+      const phone=document.getElementById('lg-phone').value.trim();
+      if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
+      this.disabled=true;
+      try{ const r=await api('/auth/sms/send',{method:'POST',body:{phone}});
+        msg(r.dev_code?('测试环境验证码：'+r.dev_code):'验证码已发送，请查收短信');
+        let s=60; this.textContent=s+'s';
+        timer=setInterval(()=>{ if(--s<=0){clearInterval(timer);timer=0;this.disabled=false;this.textContent='获取验证码';}else this.textContent=s+'s'; },1000);
+      }catch(e){ this.disabled=false; msg(e.message); }
+    };
+    document.getElementById('lg-go').onclick=async()=>{
+      const phone=document.getElementById('lg-phone').value.trim(), code=document.getElementById('lg-code').value.trim();
+      if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
+      if(!/^\d{6}$/.test(code)) return msg('请输入 6 位验证码');
+      try{ const r=await api('/auth/sms/verify',{method:'POST',body:{phone,code}});
+        acct=r.user; if(timer)clearInterval(timer); m.remove(); renderNav();
+      }catch(e){ msg(e.message); }
+    };
+  }
+  async function init(){ if(!API_ON){ renderNav(); return; }
+    try{ const j=await api('/me'); acct=j.user; }catch(_){ acct=null; }
+    renderNav();
+  }
+  init();
+  return { openLogin, refresh:init, get user(){ return acct; } };
+})();
 
 /* ---------- 文档路由：?section=xxx → 显示对应文章并高亮侧栏 ---------- */
 window.PYQ_DOCS = function(defaultSec){
