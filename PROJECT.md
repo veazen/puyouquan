@@ -7,6 +7,8 @@
 
 ## 0. 仓库迁移公告（2026-07-22）
 
+**状态：✅ 已完成（2026-07-22）** —— 4 个分支连同完整历史已迁入，默认分支已设为 `claude/guitar-tab-software-analysis-zqm0ua`，`deploy.yml` 首次初始化 + 发布 + 冒烟验收（5/5）已在新仓库跑通。迁移期间部署链路顺带加固：密钥装载自动修复粘贴损伤并预校验、SSH 账号探测与保活、nginx 设为 default_server（IP 直访可用）、音色包下载加超时且不阻塞发布、冒烟脚本修复 pipefail 误报。
+
 **正式仓库 = `veazen/puyouquan`**（由 Veazen-Code 全量镜像迁入，历史/分支完整）。旧仓库 duyuanping9798/My-claude-code-project → veazen/Veazen-Code 仅作归档。接手会话请直接绑定 puyouquan；部署 Secrets（DEPLOY_HOST/DEPLOY_USER/DEPLOY_SSH_KEY）配在 puyouquan 的 Actions Secrets，`.github/workflows/deploy.yml` 触发分支不变。
 
 ## 1. 项目定位（宏观）
