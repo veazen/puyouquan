@@ -6,7 +6,9 @@ BASE="http://$H"
 fail=0
 chk(){ # chk 路径 期望包含的字符串 说明
   local body; body=$(curl -fsSL --max-time 20 "$BASE$1" 2>/dev/null) || { echo "❌ $3 ($1) 无法访问"; fail=1; return; }
-  if echo "$body" | grep -q "$2"; then echo "✅ $3"; else echo "❌ $3 ($1) 缺少标记「$2」"; fail=1; fi
+  # 用 herestring 而非管道：大文件下 grep -q 提前退出会让 echo 吃 SIGPIPE，
+  # 在 pipefail 下整条管道误判失败（1.7MB 首页曾因此误报缺标记）
+  if grep -q -- "$2" <<< "$body"; then echo "✅ $3"; else echo "❌ $3 ($1) 缺少标记「$2」"; fail=1; fi
 }
 chk "/"                 "谱友圈"              "编辑器首页"
 chk "/"                 "粤ICP备2026100396号" "备案号展示"
