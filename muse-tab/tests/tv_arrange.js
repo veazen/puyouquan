@@ -5,6 +5,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message)); pg.on('console',m=>{if(m.type()==='error'&&!/sounds|CORS|Failed to load|TUNNEL/.test(m.text()))errs.push('CONSOLE:'+m.text());});
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   let pass=0;
   const MEL=`
     const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});

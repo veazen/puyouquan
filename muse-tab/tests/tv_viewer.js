@@ -75,6 +75,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   const pg2 = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs2 = []; pg2.on('pageerror', e => errs2.push('PAGEERR:' + e.message));
   await pg2.goto(F); await pg2.waitForTimeout(900);
+  await pg2.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 测试直通确认对话
   const t5 = await pg2.evaluate(async () => {
     loadSong(PRESETS[0].make());
     let captured = null;

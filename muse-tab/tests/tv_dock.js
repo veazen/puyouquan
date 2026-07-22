@@ -8,6 +8,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   /* 本套件断言 DOCK_PANELS 的经典布局语义（新版外壳的图层注入由 tv_frame 覆盖） */
   await pg.addInitScript(() => localStorage.setItem('musetab-shell', 'classic'));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   let pass = 0, total = 0;
   const T = (ok, name, detail) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (detail ? ': ' + detail : '')); };
 

@@ -1,4 +1,6 @@
-/* v38.8 数据安全与快赢回归：迁移容错/坏状态不落盘/配额提示/防覆盖/新入口 */
+/* v38.8 数据安全与快赢回归：迁移容错/坏状态不落盘/配额提示/防覆盖/新入口
+   v41.5 单窗口化改写：T1 历史多文档→取 cur、其余转存「我的曲谱」不丢数据；
+   T4/T5 loadSong 防覆盖由"另开窗口"改为"确认对话"（取消保留/确认替换/已入库直接替换） */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -16,11 +18,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     localStorage.setItem('musetab-docs-v1', JSON.stringify({cur:0, docs:[
       good('完好一'), {v:2, title:'损坏文档', measures:'不是数组'}, good('完好二')]}));
   });
-  await pg1.goto(F); await pg1.waitForTimeout(1200);
-  let r = await pg1.evaluate(() => ({ n: docs.length, titles: docs.map(d => d.song.title), cur: song.title,
-    toast: document.getElementById('toast').textContent }));
-  T(r.n === 2 && r.titles.join() === '完好一,完好二' && r.toast.includes('损坏'),
-    'T1 单文档损坏不连累其余', '存活=' + r.titles.join('/') + ' 提示=' + (r.toast.slice(0, 20) || '(无)'));
+  await pg1.goto(F); await pg1.waitForTimeout(1600);
+  /* v41.5 单窗口化：损坏文档仍只丢该条；当前窗口=cur 文档，其余完好文档转存「我的曲谱」可继续访问 */
+  let r = await pg1.evaluate(() => {
+    const lib = JSON.parse(localStorage.getItem('musetab-library-v1') || '[]');
+    return { n: docs.length, cur: song.title, inLib: lib.some(x => x.title === '完好二'),
+      docTabsHidden: document.getElementById('doc-tabs').offsetParent === null,
+      toast: document.getElementById('toast').textContent };
+  });
+  T(r.n === 1 && r.cur === '完好一' && r.inLib && r.docTabsHidden,
+    'T1 损坏容错+单窗口收敛', '当前=' + r.cur + ' 其余入库=' + r.inLib + ' 标签栏隐藏=' + r.docTabsHidden);
   await pg1.close();
 
   // 之后的用例用干净页面
@@ -54,29 +61,38 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.toast.includes('存储写入失败'), 'T3 配额失败明确提示', r.toast.slice(0, 30));
 
-  // T4 防静默覆盖：未入库+有编辑时 loadSong 另开新窗口，原曲谱保留
+  // T4 防静默覆盖（v41.5 确认对话版）：未入库+有编辑时 loadSong 先弹确认；
+  //    取消→原谱保留未替换；确认「直接替换」→替换生效且仍是单窗口
   r = await pg.evaluate(() => {
     const s0 = createSong('vocal', {nVox:1, beats:4, unit:4, key:'C', nMea:2, lyr:0});
     s0.title = '未保存的心血';
     docs = [{song: s0, sel: null}]; curDocI = 0; song = s0;
     undoStack = []; redoStack = []; clampSel(); render();
     mutate(() => { song.title = '未保存的心血·改'; });   // 产生编辑记录
-    const before = docs.length;
     loadSong(PRESETS[0].make());
-    return { before, after: docs.length, kept: docs.some(d => d.song.title === '未保存的心血·改'),
-      current: song.title };
+    const dlgShown = !!document.getElementById('gr-cancel');
+    const keptDuringDlg = song.title === '未保存的心血·改';
+    if (dlgShown) document.getElementById('gr-cancel').click();       // 先取消
+    const keptAfterCancel = song.title === '未保存的心血·改';
+    loadSong(PRESETS[0].make());                                       // 再次打开并确认替换
+    if (document.getElementById('gr-go')) document.getElementById('gr-go').click();
+    return { dlgShown, keptDuringDlg, keptAfterCancel,
+      replaced: song.title !== '未保存的心血·改', n: docs.length };
   });
-  T(r.after === r.before + 1 && r.kept && r.current !== '未保存的心血·改',
-    'T4 未入库编辑不被覆盖', '窗口 ' + r.before + '→' + r.after + ' 原谱保留=' + r.kept);
+  T(r.dlgShown && r.keptDuringDlg && r.keptAfterCancel && r.replaced && r.n === 1,
+    'T4 未入库编辑先确认后替换', '弹窗=' + r.dlgShown + ' 取消保留=' + r.keptAfterCancel +
+    ' 确认替换=' + r.replaced + ' 单窗口=' + (r.n === 1));
 
-  // T5 已入库(song.id 存在)时保持原地打开行为（不多开窗口）
+  // T5 已入库(song.id 存在)时直接替换（无确认对话、窗口数保持 1）
   r = await pg.evaluate(() => {
     song.id = 'sfake01'; persist._warned = true;   // 标记为已入库
-    const before = docs.length;
+    const t0 = song.title;
     loadSong(PRESETS[1].make());
-    return { before, after: docs.length };
+    const noDlg = !document.getElementById('gr-cancel');
+    return { noDlg, replaced: song.title !== t0, n: docs.length };
   });
-  T(r.after === r.before, 'T5 已入库原地打开兼容', '窗口数不变=' + (r.after === r.before));
+  T(r.noDlg && r.replaced && r.n === 1, 'T5 已入库直接替换兼容',
+    '无弹窗=' + r.noDlg + ' 已替换=' + r.replaced + ' 单窗口=' + (r.n === 1));
 
   // T6 快赢入口：播放条谱架按钮 / 0.25× 倍速 / 向导差异化入口条 / 发布免责说明
   r = await pg.evaluate(() => {

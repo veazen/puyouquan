@@ -5,6 +5,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   pg.on('pageerror',e=>console.log('PAGEERR:',e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   // 默认新建钢琴谱（Eb调复刻用户场景）：花括线必须精确跨接高音谱表顶线→低音谱表底线
   const r = await pg.evaluate(()=>{
     const s=createSong('piano',{title:'',beats:4,unit:4,key:'Eb',nMea:4,lyr:0});

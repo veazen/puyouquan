@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v41.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -84,6 +84,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - `ped:'on'|'off'`（v41.3 钢琴踏板，点式成对渲染为 Ped.____*：'on' 起文字+延续线、至下一 ped 列收（'off' 画 * / 'on' 换踏断线），跨行断线续画；入口=「记号」面板两枚按钮，仅五线谱记谱声部显示；MusicXML pedal start/stop 出/入已同步）
   - `fing:'1'-'5'` 及 `adds[i].fing`（v41.3 指法数字：五线谱符头上方小数字（低音谱表下方、和音按音高纵向堆叠），简谱行不渲染；入口=「记号」面板「指法」按钮进入直录（`fingMode`），数字键 1–5 写入、0/退格清除、Esc 退出（adds 指法仅经 MusicXML 出/入）；MusicXML technical fingering 出/入已同步）
 - **tabCol**：`{dur, dotted, chord, notes:[{s:弦, f:品, x:闷音, tech, tk, bAmt:'1/4'|'1/2'|'full'|'1.5'?}], strum, ferm:true?}`（`ferm`=v41.1 列级延长号；`bAmt`=v41.2 推弦幅度，挂在 tech:'b'|'bd' 音符上、弧上文字替换 b↑/b↓，清除技法时一并删除；TAB part 尚未导出 MusicXML，ferm 与 bAmt→bend-alter 随 TAB 导出一并登记）
+- **dotted（v41.5 双附点）**：`false|true|2`——`true`=单附点（旧数据原义，migrate 不转换）、`2`=双附点（×1.75，新增取值）。可用性出版规则见 `maxDotLevel()`：全/2/4/8 分可双附点、16 分限单附点、32 分不可附点（依据=附点需要更低一级细分存在，本引擎最小时值 32 分）。附点按钮循环 无→附点→双附点→无；简谱渲染形态同步 GB 惯例：附点只画在四分及更短的音上，二分/全音符（含附点）改由增时线条数表达（附点二分=2条、附点全=5条；双附点二分的余下半拍以一枚附点补记）。MusicXML `<dot/>` 一/两枚出入同步（tv_dot 覆盖）。
 - **localStorage 键全部 `musetab-*` 前缀，永远不改名**（改名=用户丢谱）。读取入口 `migrate()` 做版本兼容。
 
 ### 3.2 乐理核心
@@ -165,7 +166,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_viewer | 互动谱+节拍器：Node 侧打包注入→观看模式启动/移调不改原数据/倍速时长比/节拍器源增量/导出自打包完整性/双模式入口——6项 |
 | tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
-| tv_safety | 数据安全：迁移逐条容错/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（另开窗口）/已入库兼容/谱架·0.25×·向导提权——6项 |
+| tv_safety | 数据安全：迁移逐条容错（v41.5 单窗口化：历史多文档取 cur、其余转存「我的曲谱」）/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（v41.5 起=确认对话：取消保留·确认替换·已入库直接替换）/谱架·0.25×·向导提权——6项 |
+| tv_dot | v41.5 双附点：循环+邻音联动/16·32分档位限制+setDur收敛/拍值1.75×·旧值兼容·播放时长/五线谱两点几何/简谱增时线新形态/MusicXML 双dot往返——6项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
@@ -198,6 +200,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | 和弦创建与显示 | v39.1 | **和弦图式创建器**（竖式点格/顶部×○/把位窗，替代横向指板矩阵；`data-cdc/cdt/cdb` + `ceState.cdBase`）+ **升降号主音左上角**（`chordSvgLabel`/`chordHtmlLabel`，数据格式不变仅显示层转换） |
 | 和弦弹窗单页化 | v39.2 | 双栏无滚动布局：左列主音/性质/转位/保存/我的和弦，右列可编辑和弦图（兼预览）+把位/试听/把位方案；按产品要求移除搜索直达、调内常用条、自定义指法文本行，「根音」更名「主音」 |
 | 专家评审第一批 | v38.8 | **数据安全加固**（迁移逐条容错/渲染异常不落盘/配额提示/loadSong 防覆盖）+ **快赢**（谱架直入/0.25×/向导提权/发布免责/WCAG AA 浅色对比度）。评审来源：.claude/agents 三角色（Code Reviewer/UX Researcher/UI Designer）；**未落地的第二、三批建议清单见会话记录与下方路线图** |
+| 编辑组中文化+双附点+单窗口 | v41.5 | 工具行「编辑」组中文+并入八度；**双附点**（dotted:2，×1.75）+附点可用性出版规则重设+简谱增时线 GB 形态修正；**单窗口化**（防覆盖改确认对话、历史多文档转存我的曲谱） |
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
@@ -231,6 +234,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 记号补充第二批 ✅ v41.2（notation-audit-v41 第 4–6 项落地）：**渐强渐弱范围括线** `voxCol.dynTo:{mi,ci}`（力度菜单 + Ctrl 选首末两音；同行开口楔形、跨行到行末断开续行起继续、开口度沿总长线性过渡，cresc./dim. 为文字+虚线延长；渲染定位靠新增 `voxPos` 预计算——与 tabPos 同源）+ **推弦幅度** `note.bAmt`（已推弦音符再点推弦按钮 → `showBendAmtMenu` 四选一小菜单；弧上文字 full/½/¼/1½ 替换 b↑/b↓，无 bAmt 维持现状；清除技法/连音线时一并删）+ **排练/段落标记** `mea.label`（小节层「段落标记…」askText 按钮，留空清除；navMarkSVG 方框粗体、与 𝄋/⊕ 右移避让、systemExtras 预留行高）；**exportMusicXML/importMusicXML 同步 wedge crescendo/diminuendo（含 stop 定位 dynTo）与 rehearsal（往返一致）**；bend-alter 待 TAB part 导出（TODO 已登记）；tv_sign 扩至 9 项（T6/T6b/T7/T8）
 - 记号补充第三批·收官 ✅ v41.3（notation-audit-v41 第 7–10 项落地，审计前 10 项全部完成）：**中途转调标记** `mea.keyTo`（小节层「转调标记…」KEY_LIST 弹单选/清除；navMarkSVG 画「转1=X」粗体、与 label/𝄋 右移避让；一期标注式——五线谱调号/拼写保持谱首调；transposeEditor/transposeSong 同步平移）+ **钢琴踏板** `voxCol.ped:'on'|'off'`（「记号」面板两键成对，五线谱下方 Ped. 文字+延续线+*收尾、换踏断线不画 *、跨行断线续画（仿 wedge），仅五线谱记谱声部显示入口）+ **指法数字** `voxCol.fing`/`adds[i].fing`（「指法」按钮进入 `fingMode` 直录：数字 1–5 写入、0/退格清除、Esc 退出；符头上/下方 8.5px 小数字，chNotes 携带 fing 排堆叠）+ **小节反复** `mea.simile:1|2`（`simileSrc` 源小节解析（连续同号组内轮转）、`simileSignSVG` 手绘 𝄎（斜杠+两点、双小节加数字2）、三处渲染循环（TAB/联排/简谱·五线谱）省写并保留整小节点击热区与 colBoxes（播放头按源列数均分）、播放 play()/measureSeconds 展开为源小节、beatErrors 豁免）；**exportMusicXML/importMusicXML 同步 key 变更 / pedal start·stop / technical fingering（含 chord 和音）/ measure-style measure-repeat（往返一致）**；tv_sign 扩至 13 项（T9–T12）。审计榜下备选（A.H. 泛音细分/简谱滑腔/TAB 装饰音/let-ring 虚线/N.C./sfz/表情术语等）仍按 docs/notation-audit-v41.md §榜下备选 排期
 - 左右栏布局与图标升级 ✅ v41.4（UI 架构评审落地，全部 body.shell 作用域、经典版不动）：**左浮窗**——组标题一律置顶左对齐（`order:-1`，含 DOM 后置的记谱法标题与搬入右栏库的面板）、按钮左对齐；「记号」面板按宿主分小组（`#strum-body/#mark-body/#tech-host/#vmark-body/#orn-host` 的 `::before` 小标题，DOM 不动、经典版无感）；记谱风格按钮 order 靠后；小节/段落层 sp-sec 去嵌套边框（`#mea-host` 内重复 sp-t 隐藏）；**图标**——SVGI 增 arrup/arrdn/eraser，新增 `data-sic` 注入器（包 `.sicon` 仅新版显示——属性名避开谱面热区 data-si；`.svgi` margin 全写抵消全局 `svg{margin:0 auto}` 在 flex 容器被居中的坑）；左轨简谱图标重绘（1 2+高音点+减时线）；**右栏**——页签改朱砂下划线+智能页 AI 角标；信息页新增摘要卡 `#rc-songinfo`（ri-* 字段在 renderDock 同步，`ri-edit` 委托 b-meta；原 b-meta 按钮卡 shell 下隐藏）；智能页 assist 卡片化（创作辅助/导入·互操作两组，`.aitem` 图标+标题+说明，ids rt-* 不变）；库页外层 rcard 转透明容器、面板即卡片；光标位置仅 .z 强调（shell 作用域修复 v40.5 被 #cursor-info b 后规则覆盖的旧坑）；**谱类感知补漏**——库页 panel-vox-pat 与 DOCK_PANELS 同口径（pianoacc/纯和弦谱无节奏型）、rt-chorded 仅含 TAB 声部谱类显示
+- 编辑组中文化+双附点+单窗口化 ✅ v41.5（产品负责人三项指示）：① **工具行「编辑」组**——原「音符」组改名并在新版外壳恢复中文（`#eb-edit` 作用域 CSS 覆写 .dg/.dn 显隐，仅此组；时值/节奏/记号组保持字形），八度＋/−（eb-octup/eb-octdn 委托 bumpOct）并入本组、简谱面板 b-octup/b-octdn 在 shell 下 CSS 去重隐藏；按钮 2 字化+组内收紧+combo 图示 30px+zoom 收窄，1440 宽度实测 scrollWidth=clientWidth 恰好不溢出（余量为零——再往本行加按钮必须先减宽）；② **双附点**——数据 `dotted:2`（true=单附点旧义不迁移）、`dotLevel/dotFactor/maxDotLevel` 三助手（beatsOf 唯一时值源→播放/MIDI/MusicXML 自动同源）；可用性规则=附点需要更低一级细分（全/2/4/8 分双附点、16 分单附点、32 分禁附点），setDur 换时值自动收敛档位；toggleDot 循环并升级联动（单附点=邻音减半，双附点=该邻音再减半，取消不联动）；渲染：五线谱/TAB/休止两点并排（间距 4.6）、**简谱形态修正为 GB 惯例**（附点二分=数字+2 条增时线，不再"1 条增时线+附点"；附点全=5 条；双附点二分余下半拍以附点补记——简谱对 3.5 拍无标准写法，为体系内最小妥协）；MusicXML 双 `<dot/>` 出/入+duration 1.75 兜底；新增 tv_dot 套件 6 项；③ **单窗口化**——doc-tabs 隐藏（两外壳同治）、`addDoc/loadSong` 一律替换当前窗口，v38.8 防覆盖改为 `guardReplace` 确认对话（存入并继续/直接替换/取消；after 回调保证取消时不发成功提示）；**musetab-docs-v1 结构与 migrate 兼容不动**：启动读到历史多文档时取 cur 为当前、其余未入库文档一次性转存「我的曲谱」（不丢数据且仍可访问）；渲染异常兜底同理改为"备份入库+换演示谱"；智能配谱在生成前自动将未入库的原旋律谱存入「我的曲谱」（原"另开窗口保留"语义的单窗口等价物）；文件「打开」也改走 loadSong 获得同等防覆盖保护；测试侧各套件以 `guardReplace=(p)=>p()` 直通对话（tv_safety 专测对话本身，T1/T4/T5 已按新行为改写）
 - 风格撤销+左栏优化 ✅ v41.0：右栏 style 页签删除（notation 面板回 ribbon/spec 不再过滤 notation；st-* 按钮与委托删除；b-notation 取消隐藏）；左栏卡片节奏统一 CSS（body.shell #left-flyout 272px/8px gap/28px 控件）；**制谱专家 agent 已建（.claude/agents/notation-expert.md）并已启动记号审计 → docs/notation-audit-v41.md（接手者：若报告已生成，按前10项排期落地）**
 - 图层重梳理 ✅ v40.9：左轨 .ltab 结构改 `<span.lic data-lic>`(SVG 图形，renderDock 按 instOf/anyStaff 切 tab4/tab6/staff5/jianpu) + `<span.lb>`(小字；新版命名六线谱/四线谱/五线谱/简谱，经典版保留场景名——tv_dock probe 已改读 .lb)；「记号」合并=strum-body/mark-body/tech-host（vox: vmark-body/orn-host）在 applyShellDock 搬入 #sign-host-tab/vox（panel-tab-sign/panel-vox-sign，ebHandler 需绑 sign 面板），shell spec 过滤 strum/mark/chord/notation/col/pat/acc 并在 voice 后插 'sign'；notation 面板搬入 #style-host（风格页签），b-notation shell 下隐藏（st-notation 接管）
 - 图标轨与归纳 ✅ v40.8：左轨纯图标（font-size:0 + ::before data-ic 17px，title 由 renderDock 同步），选中 `body.shell .ltab.on` 朱砂底；轨上新建按钮删除；**panel-tab-pat/panel-vox-pat/panel-vox-acc 三面板在 shell 下由 applyShellDock 搬入 #lib-host（右栏库页签），setRibbon 的 .panel-p 循环对 `el.closest('#right-dock')` 直接 return（显隐交 renderDock/setRTab），经典版 appendChild 回 #ribbon（顺序由 flex order 决定）**；rt-patlib/rt-tex 委托入口删除（面板即入口）；右栏 layout 页签改 style（st-notation/st-diag/st-fn 委托 b-notation/b-diag/vf-names，b-layout 恢复 layToggle 浮层，laySync 特例移除）

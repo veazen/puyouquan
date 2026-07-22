@@ -5,6 +5,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   let pass=0;
   // T1 三种谱类出卡：结构完整、无 NaN/undefined、含品牌与二维码占位
   for(const [name, code] of [

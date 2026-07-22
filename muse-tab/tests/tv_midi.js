@@ -18,6 +18,7 @@ function smf({tpq=480, tempo=500000, ts=[4,4], key=null, evs=[]}){
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   const run=(b64,selJs)=>pg.evaluate(`(()=>{
     const u8=Uint8Array.from(atob(${JSON.stringify('X')}.replace('X','')+'${''}'+'${''}'+atob? '':''), c=>0);
     return null; })()`); // placeholder
