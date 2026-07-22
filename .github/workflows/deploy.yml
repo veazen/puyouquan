@@ -20,10 +20,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: 装载 SSH 密钥
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          # Secrets 里粘贴的私钥常见三种损伤：CRLF 行尾、换行被压成字面 \n、整体压成单行。
+          # 依次规范化，最后用 ssh-keygen -y 预校验（只导出公钥，不回显私钥）。
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          if [ "$(wc -l < ~/.ssh/id_deploy)" -lt 3 ] && grep -q '\\n' ~/.ssh/id_deploy; then
+            printf '%b\n' "$(cat ~/.ssh/id_deploy)" > ~/.ssh/id_deploy.n && mv ~/.ssh/id_deploy.n ~/.ssh/id_deploy
+          fi
+          if [ "$(wc -l < ~/.ssh/id_deploy)" -lt 3 ]; then
+            sed -E 's|-----BEGIN ([A-Z0-9 ]+)-----|-----BEGIN \1-----\n|; s|-----END ([A-Z0-9 ]+)-----|\n-----END \1-----|' ~/.ssh/id_deploy \
+              | awk '/^-----/{print;next}{gsub(/ +/,"\n");print}' | sed '/^$/d' > ~/.ssh/id_deploy.n
+            mv ~/.ssh/id_deploy.n ~/.ssh/id_deploy && echo >> ~/.ssh/id_deploy
+          fi
           chmod 600 ~/.ssh/id_deploy
+          if ! ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null; then
+            echo "::error::DEPLOY_SSH_KEY 无法解析为私钥（规范化后仍失败，行数=$(wc -l < ~/.ssh/id_deploy)），请重新粘贴完整 PEM"
+            exit 1
+          fi
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy" >> ~/.ssh/config
 
