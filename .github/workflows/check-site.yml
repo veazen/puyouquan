@@ -25,6 +25,16 @@ jobs:
           echo "== HTTP 响应头（${{ inputs.host }}）=="
           curl -sSI -m 20 "http://${{ inputs.host }}/" || echo "❌ HTTP 无响应"
 
+      - name: 各 vhost 响应头与首屏预览（IP + Host 头）
+        continue-on-error: true
+        run: |
+          for V in puyouquan.com zhipu.puyouquan.com puku.puyouquan.com; do
+            echo "===== $V ====="
+            curl -sSI -m 20 -H "Host: $V" "http://${{ secrets.DEPLOY_HOST }}/" | head -8
+            echo "--- 正文前 400 字节 ---"
+            curl -sSL -m 20 -H "Host: $V" "http://${{ secrets.DEPLOY_HOST }}/" | head -c 400; echo; echo
+          done
+
       - name: 对照组：服务器 IP 直访（Host 头模拟各子域）
         continue-on-error: true
         run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"
