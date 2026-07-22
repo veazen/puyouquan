@@ -29,6 +29,7 @@ chk zhipu.puyouquan.com /           "谱友圈"                "在线制谱（z
 chk zhipu.puyouquan.com /           "粤ICP备2026100396号"   "制谱备案号"
 chk puku.puyouquan.com  /           "谱库"                  "谱库首页（puku）"
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查"
+chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开接口（含种子谱）"
 redir puyouquan.com
 redir zhipu.puyouquan.com
 redir puku.puyouquan.com

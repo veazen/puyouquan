@@ -43,6 +43,14 @@ chk 谱集加谱 '"ok":true' "$(J -X PUT "http://127.0.0.1:3199/api/collections/
 chk 谱集详情 '"title":"小星星"' "$(J "http://127.0.0.1:3199/api/collections/$CID")"
 chk 谱集列表带计数 '"items":1' "$(J http://127.0.0.1:3199/api/collections)"
 
+# 该会话用户在「升级创作者」步已是 creator，故直接测发布正向路径（角色门禁的负向由代码保证）
+chk 创作者可发布 '"published":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+chk 公开谱库含已发布 '小星星' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 公开谱库免登录 '"author"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 公开详情含数据 '"v":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 种子官方谱存在 '谱友圈官方' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 下架后公开404 '未发布' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/unpublish > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+
 chk 删除谱面级联 '"deleted":true' "$(J -X DELETE http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 删除后谱架为空 '"shelf":\[\]' "$(J http://127.0.0.1:3199/api/shelf)"
 chk 未登录被拒 '请先登录' "$(curl -s http://127.0.0.1:3199/api/scores)"

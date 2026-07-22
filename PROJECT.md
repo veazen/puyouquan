@@ -63,11 +63,12 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - 数据：SQLite `/var/lib/puyouquan/pyq.db`（WAL；**所有 SQL 集中在 `api/db.js`，主键应用层 UUID、时间 Unix 秒——为将来迁 PG 预留**；迁移信号：SQLITE_BUSY 频发/需多机/需 PG 专属能力）。表：users/otp/ip_quota/scores/favorites/shelf/collections/collection_items。
   - 登录：手机验证码（阿里云短信 RPC-V1 签名自实现；频控 1 次/分/号、5 次/日/号、20 次/日/IP、验证 5 次上限；未配 AK 时 DEV_OTP=1 走日志验证码）。微信扫码（企业开放平台）留 `wx_openid` 字段待接。创作者开放注册（POST /api/me/creator）。
   - 配置：`/etc/puyouquan/api.env`（api-setup.sh 首次生成 JWT_SECRET；**阿里云短信 AK/模板过审后填入并 `systemctl restart pyq-api`**）。
-  - 接口（全 `/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联) / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
+  - 接口（全 `/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联·publish/unpublish) / **pub(pub/scores 列表·详情，公开免登录)** / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
   - 测试：`bash api/test.sh` 本地端到端 25 项（DEV_OTP 模式全链路）；线上冒烟含 `/api/health`。
   - **M1b-part1 已完成（v41.7）**：编辑器个人中心接入真实登录——个人资料页顶部账号卡（`pcAcctHTML`），手机验证码登录/注册弹窗（`openLogin`）、退出（`acctLogout`）、成为创作者（`acctBecomeCreator`）；账号态经 `apiCall`/`acctRefresh` 与后端同步，新增缓存键 `musetab-acct`（不动既有键）。仅 `*.puyouquan.com` 启用（`API_ON` 按 hostname 判断），本机/预览自动降级纯本地。测试 `tests/tv_acct.js` 7 项。
   - **M1b-part2 已完成（v41.8）**：我的曲谱云同步——本地 `LS_LIB` ↔ 后端 `/api/scores`，按新增 `mtime`（epoch 秒，与既有 updatedAt 并存、不改红线）last-write-wins。触发：`saveToLibrary` 显式保存立即 `scoreCloudPush`、`persist()` 编辑后经 `scheduleCloudPush` 6s 去抖续传、登录/`acctRefresh` 走 `syncScores` 双向拉取合并、两处删除入口传播 DELETE。极短/非法本地 id 推送前升级为云兼容格式（含当前 song.id 同步）；超大谱 413 跳过并提示、网络失败静默补偿。云门禁统一走 `window.PYQ_CLOUD`（=API_ON，规避 persist 早于账号模块声明的 TDZ）。测试 `tests/tv_sync.js` 7 项。
-  - 待办：M1b-part3=收藏/谱架/谱集接云同步 + 学习资料（需后端加 materials 表）；M2=创作者发布→谱库列表/详情（scores.status 已预留 published）；M3=微信扫码登录。
+  - **M2-part1 已完成（后端，2026-07-22）**：公开谱库 API + 发布/下架。新接口：`POST /api/scores/:id/publish`·`/unpublish`（需 creator 角色，只能操作自己的谱）；公开免登录 `GET /api/pub/scores`（列表带 author 昵称）·`GET /api/pub/scores/:id`（详情带 data）。`db.js` 启动种子：无任何已发布谱时插入官方账号（phone 占位 `00000000000` 不走登录）+ 2 首示例谱（小星星/欢乐颂），谱库开箱有内容、先于短信登录。`api/test.sh` 扩到 31 项，冒烟加 `/api/pub/scores` 断言。
+  - 待办：M2-part2=puku 页面 API 驱动列表 + 编辑器 `?pub=ID` 深链进观看模式（复用 openPubViewer/viewerMode）+ 发布按钮接真 API + 分享卡二维码指向真实谱；M1b-part3=收藏/谱架/谱集云同步 + 学习资料（需后端加 materials 表）；M3=微信扫码登录。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---

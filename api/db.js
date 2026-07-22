@@ -75,6 +75,15 @@ const q = {
                             ON CONFLICT(id) DO UPDATE SET title=excluded.title, singer=excluded.singer,
                               data=excluded.data, updated_at=excluded.updated_at`),
   scoreDelete:  db.prepare('DELETE FROM scores WHERE id = ? AND user_id = ?'),
+  scoreSetStatus: db.prepare('UPDATE scores SET status = ? WHERE id = ? AND user_id = ?'),
+  // 公开谱库（谱库 puku，无需登录）
+  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.created_at
+                            FROM scores s JOIN users u ON u.id = s.user_id
+                            WHERE s.status = 'published' ORDER BY s.updated_at DESC LIMIT 200`),
+  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at
+                            FROM scores s JOIN users u ON u.id = s.user_id
+                            WHERE s.id = ? AND s.status = 'published'`),
+  pubCount:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published'"),
   scoreUnref:   db.prepare(`DELETE FROM favorites WHERE score_id = ?;`),
   // 收藏
   favList:      db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.updated_at,f.created_at AS faved_at
@@ -109,5 +118,41 @@ const q = {
   collItemsDelByColl:  db.prepare('DELETE FROM collection_items WHERE collection_id = ?'),
   collItemsDelByScore: db.prepare('DELETE FROM collection_items WHERE score_id = ?'),
 };
+
+/* ---------- 种子：官方示例已发布谱（谱库开箱即有内容，先于短信登录上线） ----------
+   官方账号 phone='00000000000'（占位、非真实手机号，不走登录）；仅在无任何已发布谱时插入。 */
+function seedPublished(){
+  if(q.pubCount.get().n > 0) return;
+  let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
+  if(!sys){ const id = 'official0000';
+    q.userCreate.run(id, '00000000000', '谱友圈官方', now());
+    q.userSetRole.run('creator', id); sys = { id };
+  }
+  const mkVox = (arr) => arr.map(([deg,ly]) => ({dur:4,dotted:false,deg,acc:'',oct:0,lyrics:ly?[ly]:[]}));
+  const song = (title, singer, rows) => ({
+    v:3, title, singer, lyricist:'', composer:'', maker:'谱友圈官方',
+    key:'C', beats:4, unit:4, tempo:90, capo:0, inst:'guitar',
+    tabVoices:[], voxVoices:['主旋律'], lyricLines:1,
+    voxNotations:[undefined], voxDual:[false], customChords:{},
+    layout:{page:'a4',preset:'std',density:1,scale:1,noteGap:1,rowGap:1},
+    measures: rows.map(r => ({ tabs:[], voxes:[ mkVox(r) ] })),
+  });
+  const demos = [
+    { title:'小星星', singer:'儿歌', data: song('小星星','儿歌',
+      [[[1,'一'],[1,'闪'],[5,'一'],[5,'闪']],[[6,'亮'],[6,'晶'],[5,'晶'],[0,'']],
+       [[4,'满'],[4,'天'],[3,'都'],[3,'是']],[[2,'小'],[2,'星'],[1,'星'],[0,'']]]) },
+    { title:'欢乐颂', singer:'贝多芬', data: song('欢乐颂','贝多芬',
+      [[[3,'欢'],[3,'乐'],[4,'女'],[5,'神']],[[5,'圣'],[4,'洁'],[3,'美'],[2,'丽']],
+       [[1,'灿'],[1,'烂'],[2,'光'],[3,'芒']],[[3,'照'],[2,'大'],[2,'地'],[0,'']]]) },
+  ];
+  const t = now();
+  for(const d of demos){
+    const id = 'seed' + Math.random().toString(36).slice(2,10);
+    q.scoreUpsert.run(id, sys.id, d.title, d.singer, JSON.stringify(d.data), t, t);
+    q.scoreSetStatus.run('published', id, sys.id);
+  }
+  console.log('已插入官方示例已发布谱：' + demos.length + ' 首');
+}
+try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
 module.exports = { db, q, now, today };

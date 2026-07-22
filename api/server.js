@@ -157,6 +157,29 @@ const routes = [
     return { deleted: true };
   }],
 
+  /* -- 发布 / 下架到谱库（需创作者角色）-- */
+  ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/publish$/, true, (m, b, u) => {
+    const s = needScore(m[1]);
+    if (s.user_id !== u.id) throw new ApiError(403, '只能发布自己的曲谱');
+    if (u.role !== 'creator') throw new ApiError(403, '请先在个人中心「成为创作者」');
+    q.scoreSetStatus.run('published', s.id, u.id);
+    return { published: true };
+  }],
+  ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/unpublish$/, true, (m, b, u) => {
+    const s = needScore(m[1]);
+    if (s.user_id !== u.id) throw new ApiError(403, '无权操作');
+    q.scoreSetStatus.run('private', s.id, u.id);
+    return { unpublished: true };
+  }],
+
+  /* -- 公开谱库（谱库 puku，无需登录）-- */
+  ['GET', /^\/api\/pub\/scores$/, false, () => ({ scores: q.pubList.all() })],
+  ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {
+    const s = q.pubGet.get(m[1]);
+    if (!s) throw new ApiError(404, '曲谱不存在或未发布');
+    return { score: { ...s, data: JSON.parse(s.data) } };
+  }],
+
   /* -- 收藏 -- */
   ['GET', /^\/api\/favorites$/, true, (m, b, u) => ({ favorites: q.favList.all(u.id) })],
   ['PUT', /^\/api\/favorites\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
