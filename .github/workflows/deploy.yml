@@ -25,27 +25,44 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           umask 077
-          # Secrets 粘贴常见损伤：CRLF、字面 \n、base64 正文换行丢失（整体或仅正文单行）。
-          # 统一做法：还原字面 \n → 提取头尾标记 → 正文去空白按 64 列重折行（对正常密钥无损），
-          # 最后 ssh-keygen -y 预校验（只导出公钥，不回显私钥）。
-          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy.raw
-          if grep -q '\\n' ~/.ssh/id_deploy.raw && [ "$(wc -l < ~/.ssh/id_deploy.raw)" -lt 3 ]; then
-            printf '%b\n' "$(cat ~/.ssh/id_deploy.raw)" > ~/.ssh/id_deploy.tmp && mv ~/.ssh/id_deploy.tmp ~/.ssh/id_deploy.raw
+          # Secrets 粘贴常见损伤：CRLF、字面 \n、正文换行丢失、BEGIN/END 外壳损坏或整段丢失、
+          # 甚至只存了 base64 正文或 PPK 格式。统一做法：提取密钥类型与 base64 正文，
+          # 重建标准 PEM（64 列折行）；无外壳时依次套常见外壳试解析；PPK 自动转换。
+          # 全程用 ssh-keygen -y 校验（只导出公钥，不回显私钥）。
+          KEYF=~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > "$KEYF.raw"
+          if grep -q '\\n' "$KEYF.raw" && [ "$(wc -l < "$KEYF.raw")" -lt 3 ]; then
+            printf '%b\n' "$(cat "$KEYF.raw")" > "$KEYF.tmp" && mv "$KEYF.tmp" "$KEYF.raw"
           fi
-          hdr=$(grep -oE -- '-----BEGIN [A-Z0-9 ]+-----' ~/.ssh/id_deploy.raw | head -1)
-          ftr=$(grep -oE -- '-----END [A-Z0-9 ]+-----' ~/.ssh/id_deploy.raw | head -1)
-          if [ -z "$hdr" ] || [ -z "$ftr" ]; then
-            echo "::error::DEPLOY_SSH_KEY 缺少 PEM BEGIN/END 标记，请粘贴完整私钥"
+          try_key() { # try_key <类型名>：用重折行正文 + 标准外壳组装并校验
+            { echo "-----BEGIN $1-----"; fold -w 64 "$KEYF.b64"; echo; echo "-----END $1-----"; } > "$KEYF"
+            chmod 600 "$KEYF"
+            ssh-keygen -y -f "$KEYF" > /dev/null 2>&1
+          }
+          ok=0
+          if grep -q 'PuTTY-User-Key-File' "$KEYF.raw"; then
+            sudo apt-get -yq install putty-tools > /dev/null 2>&1
+            puttygen "$KEYF.raw" -O private-openssh -o "$KEYF" && chmod 600 "$KEYF" \
+              && ssh-keygen -y -f "$KEYF" > /dev/null 2>&1 && ok=1
+          else
+            # 去掉任何形态的 BEGIN/END 外壳（横线数量不限），剩余视为 base64 正文
+            sed -E 's/-+ *(BEGIN|END) *([A-Z0-9 ]*KEY)? *-+//g' "$KEYF.raw" | tr -d ' \t\n' > "$KEYF.b64"
+            keytype=$(sed -nE 's/.*-+ *BEGIN *([A-Z0-9 ]*KEY) *-+.*/\1/p' "$KEYF.raw" | head -1)
+            if [ -n "$keytype" ]; then
+              try_key "$keytype" && ok=1
+            fi
+            if [ "$ok" = 0 ]; then
+              for t in 'OPENSSH PRIVATE KEY' 'RSA PRIVATE KEY' 'PRIVATE KEY' 'EC PRIVATE KEY'; do
+                try_key "$t" && { ok=1; break; }
+              done
+            fi
+          fi
+          if [ "$ok" = 0 ]; then
+            echo "::error::DEPLOY_SSH_KEY 无法解析为私钥。诊断（不含密钥内容）：原始行数=$(wc -l < "$KEYF.raw")，总字符=$(wc -c < "$KEYF.raw")，BEGIN标记数=$(grep -c 'BEGIN' "$KEYF.raw" || true)，纯base64行数=$(grep -cE '^[A-Za-z0-9+/=]+$' "$KEYF.raw" || true)，疑似公钥行数=$(grep -cE '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2)' "$KEYF.raw" || true)，PuTTY标记=$(grep -c 'PuTTY' "$KEYF.raw" || true)。请确认粘贴的是完整 OpenSSH 私钥"
             exit 1
           fi
-          sed -E 's/-----(BEGIN|END) [A-Z0-9 ]+-----//g' ~/.ssh/id_deploy.raw | tr -d ' \t\n' > ~/.ssh/id_deploy.b64
-          { echo "$hdr"; fold -w 64 ~/.ssh/id_deploy.b64; echo; echo "$ftr"; } > ~/.ssh/id_deploy
-          rm -f ~/.ssh/id_deploy.raw ~/.ssh/id_deploy.b64
-          chmod 600 ~/.ssh/id_deploy
-          if ! ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null; then
-            echo "::error::DEPLOY_SSH_KEY 规范化后仍无法解析（行数=$(wc -l < ~/.ssh/id_deploy)），请重新粘贴完整 PEM"
-            exit 1
-          fi
+          rm -f "$KEYF.raw" "$KEYF.b64"
+          echo "私钥解析成功，指纹：$(ssh-keygen -lf "$KEYF" | awk '{print $1, $2}')"
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
           echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy" >> ~/.ssh/config
 
