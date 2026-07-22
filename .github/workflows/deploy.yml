@@ -74,20 +74,51 @@ jobs:
           rm -f "$KEYF.raw" "$KEYF.b64" "$KEYF.tmp"
           echo "使用 Secret「$used」作为部署私钥，指纹：$(ssh-keygen -lf "$KEYF" | awk '{print $1, $2}')"
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy" >> ~/.ssh/config
+          echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+
+      - name: 校验 SSH 连通并选定账号
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          # 私钥有效但登录被拒时，常见原因是公钥加到了别的账号：依次探测常见账号，
+          # 找到能登录的就改写 Host pyq 的 User。日志中 DEPLOY_USER 的值会被自动打码。
+          ok=""
+          for u in "$DEPLOY_USER" root ubuntu lighthouse admin debian; do
+            u=$(printf '%s' "$u" | tr -d '[:space:]'); [ -n "$u" ] || continue
+            if ssh -o BatchMode=yes -o ConnectTimeout=10 -o IdentitiesOnly=yes \
+                   -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_deploy "$u@$DEPLOY_HOST" true 2>/dev/null; then
+              ok="$u"; break
+            fi
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::当前私钥无法以任何常见账号（DEPLOY_USER/root/ubuntu/lighthouse/admin/debian）登录服务器。请确认对应公钥已追加到 DEPLOY_USER 账号的 ~/.ssh/authorized_keys（权限 700/.ssh、600/authorized_keys）"
+            exit 1
+          fi
+          sed -i "s/^  User .*/  User $ok/" ~/.ssh/config
+          echo "SSH 连通成功，登录账号：$ok"
+          if [ "$ok" != root ]; then
+            ssh pyq 'sudo -n true' 2>/dev/null || echo "::warning::该账号无免密 sudo，初始化/发布步骤可能失败"
+          fi
 
       - name: 首次初始化（仅手动勾选时）
         if: ${{ inputs.setup }}
         run: |
           scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh pyq:/tmp/
-          ssh pyq 'bash /tmp/server-setup.sh && bash /tmp/fetch-soundfonts.sh || true'
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && $S bash /tmp/fetch-soundfonts.sh || true'
 
       - name: 发布产品文件
         run: |
-          ssh pyq 'mkdir -p /var/www/puyouquan/site /var/www/puyouquan/docs'
-          scp muse-tab/index.html pyq:/var/www/puyouquan/index.html
-          scp -r muse-tab/site/. pyq:/var/www/puyouquan/site/
-          scp muse-tab/PYQ-FORMAT.md pyq:/var/www/puyouquan/PYQ-FORMAT.md || true
+          # 先传到 /tmp，再在服务器侧（必要时 sudo）落位，兼容非 root 部署账号
+          ssh pyq 'rm -rf /tmp/pyq_pub_site /tmp/pyq_pub_index.html /tmp/pyq_pub_fmt.md'
+          scp muse-tab/index.html pyq:/tmp/pyq_pub_index.html
+          scp -r muse-tab/site pyq:/tmp/pyq_pub_site
+          scp muse-tab/PYQ-FORMAT.md pyq:/tmp/pyq_pub_fmt.md || true
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
+            $S mkdir -p /var/www/puyouquan/site /var/www/puyouquan/docs && \
+            $S mv /tmp/pyq_pub_index.html /var/www/puyouquan/index.html && \
+            $S cp -r /tmp/pyq_pub_site/. /var/www/puyouquan/site/ && rm -rf /tmp/pyq_pub_site && \
+            { [ -f /tmp/pyq_pub_fmt.md ] && $S mv /tmp/pyq_pub_fmt.md /var/www/puyouquan/PYQ-FORMAT.md || true; }'
 
       - name: 冒烟验收
         run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"
