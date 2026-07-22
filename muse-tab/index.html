@@ -10303,6 +10303,41 @@ function enterShareViewer(share){
   window.scrollTo(0,0);
   toast('互动谱：底部播放条可播放 / 倍速 / 节拍器，右上可移调、进谱架模式');
 }
+/* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） ===== */
+async function openRemotePub(id){
+  let sc;
+  try{ const r=await apiCall('/pub/scores/'+id); sc=r.score; }
+  catch(e){ toast('曲谱加载失败：'+(e.message||'请稍后重试')); return; }
+  const data=sc && sc.data;
+  if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
+  data.author = sc.author || data.maker || '谱友圈';
+  viewerMode=true; viewerPrev=null; vwTrans=0;
+  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length};
+  song=viewerBuildSong();
+  sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
+  selRange=null; noteSel=[]; measureSel=null;
+  document.body.classList.add('viewer');
+  document.title=(song.title||'曲谱')+' · 谱友圈谱库';
+  stopPlay(); audio.loop=null; clampSel(); render(); renderProgCells();
+  const vb=document.getElementById('viewerbar');
+  vb.innerHTML=`<button id="vw-back">← 谱库</button>
+    <span class="vt">${esc(song.title||'未命名曲谱')}</span>
+    <span class="va">${esc(viewerCtx.pb.author)} · ${TYPE_CN[viewerCtx.pb.type]||'曲谱'} · ${viewerCtx.total} 小节</span>
+    <span style="flex:1"></span>
+    <span class="vw-trans" title="即时移调（不改动原谱，退出即还原）">
+      <button id="vw-tdn" title="降半音">♭</button>
+      <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
+      <button id="vw-tup" title="升半音">♯</button></span>
+    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
+    <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>`;
+  updateVwKey();
+  document.getElementById('vw-back').onclick=()=>{ location.href='//puku.puyouquan.com/'; };
+  document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
+  document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
+  document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
+  document.getElementById('vw-stand').onclick=enterStand;
+  window.scrollTo(0,0);
+}
 /* ===== 谱架模式：全屏沉浸 + 自动卷谱 ===== */
 let standScroll={on:false, speed:26, raf:0, acc:0};
 function enterStand(){
@@ -10963,6 +10998,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v41.9</span><div><b>谱库上线</b>（云端生态 M2）：<b>puku.puyouquan.com</b> 谱库页从介绍页升级为<b>已发布曲谱列表</b>，卡片点开即在编辑器进入<b>观看模式</b>——只读干净谱面 + 即时移调 + 播放跟谱 + 谱架全屏卷谱。技术上编辑器新增 <code>?pub=ID</code> 深链（<code>openRemotePub</code> 拉公开接口 <code>/api/pub/scores/:id</code> 复用观看模式渲染），后端新增公开谱库接口与创作者「发布 / 下架」，并预置<b>官方示例谱</b>（小星星 / 欢乐颂）使谱库开箱有内容。创作者从编辑器一键发布将随手机登录开放。新增 <code>tv_pub</code> 回归 5 项。</div></li>
     <li><span class="v">v41.8</span><div><b>我的曲谱云端同步</b>（云端生态 M1b 第二步）：登录后「我的曲谱」自动在设备间同步——保存立即上云、编辑 6 秒去抖续传、登录时双向拉取合并（按修改时间 last-write-wins），删除同步传播；未登录 / 本机 / 预览环境保持纯本地，行为不变。技术上新增 <code>mtime</code> 时间戳字段（与既有 <code>updatedAt</code> 并存，不改任何数据红线），极端短 id 自动升级为云端兼容格式；超大曲谱云端跳过并提示、网络失败静默重试。新增 <code>tv_sync</code> 回归 7 项。<b>提示</b>：需先完成手机验证码登录（阿里云短信配置就绪后开放）。</div></li>
     <li><span class="v">v41.7</span><div><b>真实账号登录上线</b>（云端生态 M1b 第一步）：个人中心接入<b>手机验证码登录 / 注册</b>——未注册手机号自动创建账号，登录态经 httpOnly Cookie 在制谱 / 官网 / 谱库三站互通（域 <code>.puyouquan.com</code>）；个人资料页顶部新增账号卡（昵称 / 手机号打码 / 创作者标识 / 退出登录），登录后可<b>成为创作者</b>（开放注册，一键升级）。后端为自建零依赖 Node 服务（Node 24 内建 SQLite，短信走阿里云），已配三级频控防轰炸。当前仅 puyouquan.com 线上启用，本机 / 预览环境自动降级为纯本地（原有本地演示数据不受影响）。下一步接入曲谱 / 收藏 / 谱架 / 谱集的云端同步。</div></li>
     <li><span class="v">v41.6</span><div><b>上线体检</b>：① 备案号落地——页脚「备案号：申请中」更新为「粤ICP备2026100396号-1」（编辑器与官网各页同步）；② 官网设计换向——site 全站从蓝紫渐变切换到与编辑器一致的素材配色（朱砂强调 / 墨绿深色区 / 暖米三级表面 / 中文字体前置栈）；③ 官网「帮助」升级为<b>详尽使用手册</b>：快速上手 / 八种谱类逐类指南 / 记号大全（含 v41.1–41.3 全部新记号用法）/ 和弦与级数 / 歌词填词 / 排版打印 / 导入导出 / 播放与跟练 / 快捷键 / 常见问题，共 11 章带侧边目录。</div></li>
@@ -11309,7 +11345,12 @@ function alignHeader(){
 window.addEventListener('DOMContentLoaded', ()=>{
   if(window.PYQ_SHARE && window.PYQ_SHARE.song){
     try{ enterShareViewer(window.PYQ_SHARE); }catch(e){ console.error('互动谱启动失败', e); }
+    return;
   }
+  try{
+    const pub=new URLSearchParams(location.search).get('pub');
+    if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function') openRemotePub(pub);
+  }catch(e){ console.error('谱库观看启动失败', e); }
 });
 </script>
 </body>

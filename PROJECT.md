@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-22 · 当前版本 **v41.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-22 · 当前版本 **v41.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -41,7 +41,7 @@
 ```
 muse-tab/index.html        ← 全部产品（单文件 HTML+CSS+JS，~1.7MB，无构建）
 muse-tab/site/             ← 官网多页站（index/make/view=谱库/features/help/log/sponsors + pyq.css/pyq.js）
-muse-tab/tests/            ← Playwright 回归测试套件（13 个，见 §7）
+muse-tab/tests/            ← Playwright 回归测试套件（14 个，见 §7）
 muse-tab/tools/gen_glyphs.py ← SMuFL 字形提取脚本（fontTools，可复现）
 deploy/deploy.sh           ← 服务器部署脚本（rsync 编辑器 + site/）
 PROJECT.md                 ← 本文档
@@ -68,7 +68,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - **M1b-part1 已完成（v41.7）**：编辑器个人中心接入真实登录——个人资料页顶部账号卡（`pcAcctHTML`），手机验证码登录/注册弹窗（`openLogin`）、退出（`acctLogout`）、成为创作者（`acctBecomeCreator`）；账号态经 `apiCall`/`acctRefresh` 与后端同步，新增缓存键 `musetab-acct`（不动既有键）。仅 `*.puyouquan.com` 启用（`API_ON` 按 hostname 判断），本机/预览自动降级纯本地。测试 `tests/tv_acct.js` 7 项。
   - **M1b-part2 已完成（v41.8）**：我的曲谱云同步——本地 `LS_LIB` ↔ 后端 `/api/scores`，按新增 `mtime`（epoch 秒，与既有 updatedAt 并存、不改红线）last-write-wins。触发：`saveToLibrary` 显式保存立即 `scoreCloudPush`、`persist()` 编辑后经 `scheduleCloudPush` 6s 去抖续传、登录/`acctRefresh` 走 `syncScores` 双向拉取合并、两处删除入口传播 DELETE。极短/非法本地 id 推送前升级为云兼容格式（含当前 song.id 同步）；超大谱 413 跳过并提示、网络失败静默补偿。云门禁统一走 `window.PYQ_CLOUD`（=API_ON，规避 persist 早于账号模块声明的 TDZ）。测试 `tests/tv_sync.js` 7 项。
   - **M2-part1 已完成（后端，2026-07-22）**：公开谱库 API + 发布/下架。新接口：`POST /api/scores/:id/publish`·`/unpublish`（需 creator 角色，只能操作自己的谱）；公开免登录 `GET /api/pub/scores`（列表带 author 昵称）·`GET /api/pub/scores/:id`（详情带 data）。`db.js` 启动种子：无任何已发布谱时插入官方账号（phone 占位 `00000000000` 不走登录）+ 2 首示例谱（小星星/欢乐颂），谱库开箱有内容、先于短信登录。`api/test.sh` 扩到 31 项，冒烟加 `/api/pub/scores` 断言。
-  - 待办：M2-part2=puku 页面 API 驱动列表 + 编辑器 `?pub=ID` 深链进观看模式（复用 openPubViewer/viewerMode）+ 发布按钮接真 API + 分享卡二维码指向真实谱；M1b-part3=收藏/谱架/谱集云同步 + 学习资料（需后端加 materials 表）；M3=微信扫码登录。
+  - **M2-part2 已完成（v41.9）**：谱库前端上线。① puku `site/view.html` 加「已发布曲谱」区块，`fetch('/api/pub/scores')` 渲染卡片（图标用 `window.PYQ_ICON` 内联，因异步注入晚于 pyq.js 一次性水合），卡片链到 `//zhipu.puyouquan.com/?pub=ID`。② 编辑器新增 `openRemotePub(id)`——拉 `/api/pub/scores/:id` 复用 `viewerBuildSong`/观看模式渲染（移调/谱架/退出，返回谱库）；`DOMContentLoaded` 检测 `?pub=ID` 深链启动（先于 PYQ_SHARE 分支后）。种子官方谱已验证可正常渲染。测试 `tests/tv_pub.js` 5 项。
+  - 待办：M2-part2b=编辑器创作者「发布」按钮接真 API（需登录+云端谱）+ 分享卡二维码指向 `puku/?pub=`；M1b-part3=收藏/谱架/谱集云同步 + 学习资料（需后端加 materials 表）；M3=微信扫码登录。
 - 官网设计（v41.6 起）：`site/pyq.css` 与编辑器 v40.6 素材配色同源——朱砂 `--accent:#c33a29`、墨绿深色区 `--chrome:#1f3a34`（CTA 横幅）、暖米三级表面（bg #f3f0e8 / toolbar #f7f4ec / panel #fefdf9）、暖色边框 #e4ddcd、中文字体前置栈 `--font-ui`；`help.html` 为 11 章完整使用手册（快速上手/八谱类指南/录入/记号大全/和弦/歌词/排版/导入导出/播放跟练/快捷键/FAQ，PYQ_DOCS 路由）。
 
 ---
@@ -194,6 +195,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_dot | v41.5 双附点：循环+邻音联动/16·32分档位限制+setDur收敛/拍值1.75×·旧值兼容·播放时长/五线谱两点几何/简谱增时线新形态/MusicXML 双dot往返——6项 |
 | tv_acct | v41.7 账号系统：本机 API_ON=false 降级提示、登录弹窗结构、手机号校验拦截、stub fetch 走通登录落地、账号态/函数完备、退出清账号、既有 localStorage 键零污染——7项 |
 | tv_sync | v41.8 我的曲谱云同步：未登录不触网、保存推送云端、短id升级、登录拉取云端、mtime双向合并（本地新推云/云新覆盖本地）、删除传播、413不抛错——7项 |
+| tv_pub | v41.9 谱库观看：openRemotePub 拉公开谱进观看模式+渲染非空+观看栏返回谱库、退出观看、异常数据不进观看、404容错、观看移调生效——5项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
