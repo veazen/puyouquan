@@ -16,23 +16,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: DNS 解析与响应头
+      - name: DNS 解析与 HTTPS 响应头
         run: |
           for H in puyouquan.com www.puyouquan.com zhipu.puyouquan.com puku.puyouquan.com; do
             echo "== DNS: $H =="
             getent hosts "$H" || echo "❌ DNS 解析失败：$H 无 A 记录或未生效"
           done
-          echo "== HTTP 响应头（${{ inputs.host }}）=="
-          curl -sSI -m 20 "http://${{ inputs.host }}/" || echo "❌ HTTP 无响应"
+          echo "== HTTPS 响应头（${{ inputs.host }}）=="
+          curl -sSI -m 20 "https://${{ inputs.host }}/" | head -6 || echo "❌ HTTPS 无响应"
+          echo "== HTTP 跳转 =="
+          curl -sI -m 20 "http://${{ inputs.host }}/" | head -3 || true
 
-      - name: 各 vhost 响应头与首屏预览（IP + Host 头）
+      - name: 各 vhost HTTPS 响应头与首屏预览（IP 直连）
         continue-on-error: true
         run: |
           for V in puyouquan.com zhipu.puyouquan.com puku.puyouquan.com; do
             echo "===== $V ====="
-            curl -sSI -m 20 -H "Host: $V" "http://${{ secrets.DEPLOY_HOST }}/" | head -8
+            curl -sSI -m 20 --connect-to "$V:443:${{ secrets.DEPLOY_HOST }}:443" "https://$V/" | head -8
             echo "--- 正文前 400 字节 ---"
-            curl -sSL -m 20 -H "Host: $V" "http://${{ secrets.DEPLOY_HOST }}/" | head -c 400; echo; echo
+            curl -sSL -m 20 --connect-to "$V:443:${{ secrets.DEPLOY_HOST }}:443" "https://$V/" | head -c 400; echo; echo
           done
 
       - name: 对照组：服务器 IP 直访（Host 头模拟各子域）

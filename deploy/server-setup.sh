@@ -11,7 +11,13 @@ chown -R www-data:www-data /var/www/puyouquan
 
 # 站点配置（移除发行版默认站点，避免与 default_server 冲突/抢占 IP 访问）
 rm -f /etc/nginx/sites-enabled/default
-cp "$(dirname "$0")/nginx-puyouquan.conf" /etc/nginx/conf.d/pu8.conf
+# certbot 签发 HTTPS 后会直接改写 pu8.conf（追加 443 段与 80 跳转），
+# 此时不再用仓库模板覆盖，避免抹掉证书配置；模板有变更需登录服务器手动合并。
+if grep -q 'managed by Certbot' /etc/nginx/conf.d/pu8.conf 2>/dev/null; then
+  echo "检测到 certbot 管理的 nginx 配置，跳过模板覆盖（保留 HTTPS 设置）"
+else
+  cp "$(dirname "$0")/nginx-puyouquan.conf" /etc/nginx/conf.d/pu8.conf
+fi
 # 注意分两行写：set -e 对 `A && B` 中 A 的失败不生效（bash 语义），
 # 曾导致 nginx -t 失败被静默吞掉、reload 未执行而流水线仍显示成功
 nginx -t
