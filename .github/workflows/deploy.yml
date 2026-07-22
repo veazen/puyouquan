@@ -74,7 +74,7 @@ jobs:
           rm -f "$KEYF.raw" "$KEYF.b64" "$KEYF.tmp"
           echo "使用 Secret「$used」作为部署私钥，指纹：$(ssh-keygen -lf "$KEYF" | awk '{print $1, $2}')"
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-          echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+          echo -e "Host pyq\n  HostName ${{ secrets.DEPLOY_HOST }}\n  User ${{ secrets.DEPLOY_USER }}\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n  ServerAliveInterval 30\n  ServerAliveCountMax 10" >> ~/.ssh/config
 
       - name: 校验 SSH 连通并选定账号
         env:
@@ -105,7 +105,8 @@ jobs:
         if: ${{ inputs.setup }}
         run: |
           scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh pyq:/tmp/
-          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && $S bash /tmp/fetch-soundfonts.sh || true'
+          # 音色包下载依赖境外源，失败或超时不阻塞部署（编辑器会回落内置合成音色，可日后重跑续传）
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && { $S timeout 600 bash /tmp/fetch-soundfonts.sh || echo "音色包下载未全部完成（不阻塞部署）"; }'
 
       - name: 发布产品文件
         run: |

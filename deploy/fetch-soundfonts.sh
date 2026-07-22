@@ -30,8 +30,8 @@ for f in "${FONTS[@]}"; do
   out="$DEST/${f}-mp3.js"
   if [ -s "$out" ]; then echo "✓ 已存在，跳过 $f"; ok=$((ok+1)); continue; fi
   echo "→ 下载 $f ..."
-  if curl -fsSL --retry 3 --retry-delay 2 -o "$out.tmp" "$SRC1/${f}-mp3.js" \
-     || curl -fsSL --retry 3 --retry-delay 2 -o "$out.tmp" "$SRC2/${f}-mp3.js"; then
+  if curl -fsSL --connect-timeout 8 --max-time 180 --retry 2 --retry-delay 2 -o "$out.tmp" "$SRC1/${f}-mp3.js" \
+     || curl -fsSL --connect-timeout 8 --max-time 180 --retry 2 --retry-delay 2 -o "$out.tmp" "$SRC2/${f}-mp3.js"; then
     mv "$out.tmp" "$out"; ok=$((ok+1)); echo "  ✓ $(du -h "$out" | cut -f1)"
   else
     rm -f "$out.tmp"; fail=$((fail+1)); echo "  ✗ 下载失败：$f（稍后重跑本脚本即可续传）"
