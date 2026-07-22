@@ -202,7 +202,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(PRESETS[0].make());
     document.querySelector('.ltab[data-t="tab"]').click();
     const bar2Hidden = document.getElementById('editbar2').offsetParent === null;
-    const tb = document.querySelector('#panel-tab-tech [data-tech2="h"]');
+    const tb = document.querySelector('#sign-host-tab [data-tech2="h"]');
     const inFly = !!(tb && tb.closest('#left-flyout'));
     let applied = false, cleared = false;
     if (tb) {
@@ -220,10 +220,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T14 简谱页标识符号面板：装饰记号按钮在左栏图层内
   r = await pg.evaluate(() => {
     document.querySelector('.ltab[data-t="vox"]').click();
-    const ob = document.querySelector('#panel-vox-orn [data-orn="up"]');
+    const ob = document.querySelector('#sign-host-vox [data-orn="up"]');
     const inFly = !!(ob && ob.closest('#left-flyout'));
-    const techPanelHidden = document.getElementById('panel-tab-tech').style.display === 'none';
-    return { inFly, techPanelHidden, nOrn: document.querySelectorAll('#panel-vox-orn [data-orn]').length };
+    const techPanelHidden = document.getElementById('panel-tab-sign').style.display === 'none' || activeTab==='vox';
+    return { inFly, techPanelHidden, nOrn: document.querySelectorAll('#sign-host-vox [data-orn]').length };
   });
   T(r.inFly && r.techPanelHidden && r.nOrn >= 7, 'T14 标识符号入图层', '记号数=' + r.nOrn);
 
@@ -259,7 +259,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     /* v40.8 左轨：无新建按钮、纯图标（文字隐去）、选中朱砂底 */
     const noNew = !document.querySelector('.ltab[data-act="new"]');
     const tabBtn = document.querySelector('.ltab[data-t="tab"]');
-    const iconOnly = getComputedStyle(tabBtn).fontSize === '0px';
+    const iconOnly = !!tabBtn.querySelector('.lic svg')
+      && getComputedStyle(tabBtn.querySelector('.lb')).fontSize === '10px'
+      && tabBtn.querySelector('.lb').textContent === '六线谱';
     const onBg = getComputedStyle(document.querySelector('.ltab.on')).backgroundColor;
     const m = /rgba?\((\d+), (\d+), (\d+)/.exec(onBg);
     const redOn = m && +m[1] > 150 && +m[1] > (+m[2] + 60) && +m[1] > (+m[3] + 60);

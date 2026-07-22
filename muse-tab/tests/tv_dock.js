@@ -14,7 +14,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const probe = code => pg.evaluate(`(()=>{ ${code}
     const rail = {};
     ['tab','vox','lyr'].forEach(k=>{ const el=document.querySelector('.ltab[data-t="'+k+'"]');
-      rail[k] = el.style.display!=='none' ? el.textContent : null; });
+      const lb=el.querySelector('.lb');   /* v40.9 图标+小字结构：读标签文本（图标 SVG 内含字形文本，不计入） */
+      rail[k] = el.style.display!=='none' ? (lb? lb.textContent : el.textContent) : null; });
     const panels = t => Array.from(document.querySelectorAll('.panel-p'))
       .filter(el=>el.id.startsWith('panel-'+t+'-') && el.style.display!=='none')
       .sort((a,b2)=>(+a.style.order||0)-(+b2.style.order||0))
