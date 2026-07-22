@@ -10,6 +10,10 @@ on:
         description: '首次初始化服务器（安装 nginx/建目录/拉音色包）'
         type: boolean
         default: false
+      debug:
+        description: '输出服务器 nginx 配置诊断（不改动服务器）'
+        type: boolean
+        default: false
 
 concurrency: { group: deploy, cancel-in-progress: true }
 
@@ -100,6 +104,17 @@ jobs:
           if [ "$ok" != root ]; then
             ssh pyq 'sudo -n true' 2>/dev/null || echo "::warning::该账号无免密 sudo，初始化/发布步骤可能失败"
           fi
+
+      - name: 服务器 nginx 诊断（仅 debug 勾选时）
+        if: ${{ inputs.debug }}
+        run: |
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
+            echo "== conf.d 目录 =="; $S ls -la /etc/nginx/conf.d/; \
+            echo "== sites-enabled 目录 =="; $S ls -la /etc/nginx/sites-enabled/ 2>/dev/null || echo 无; \
+            echo "== conf.d/pu8.conf 前 20 行 =="; $S head -20 /etc/nginx/conf.d/pu8.conf; \
+            echo "== nginx 实际加载的 server 块 =="; $S nginx -T 2>/dev/null | grep -nE "^# configuration file|server_name|listen|root " | head -50; \
+            echo "== /tmp 中的待部署配置 =="; ls -la /tmp/nginx-puyouquan.conf 2>/dev/null; head -12 /tmp/nginx-puyouquan.conf 2>/dev/null; \
+            echo "== nginx 进程与 reload 时间 =="; $S systemctl status nginx --no-pager | head -8'
 
       - name: 首次初始化（仅手动勾选时）
         if: ${{ inputs.setup }}
