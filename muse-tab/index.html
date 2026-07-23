@@ -2828,17 +2828,22 @@ function beatErrors(){
   const errs=[]; const target = song.beats;
   song.measures.forEach((m,mi)=>{
     if(m.simile) return;   // v41.3 小节反复省写小节：节拍校验豁免（演奏内容取自源小节）
+    /* v42.7 弱起小节 Anacrusis：首小节允许不足拍（弱起），但仍不可超拍 */
+    const pk = (mi===0 && song.pickup);
+    const bad = pk ? (b=>b-target>1e-3) : (b=>Math.abs(b-target)>1e-3);
     m.tabs.forEach((cols,vi)=>{
       const b = cols.reduce((a,c)=>a+beatsOf(c),0);
-      if(Math.abs(b-target)>1e-3) errs.push({mi,row:'tab',vi,b,target});
+      if(bad(b)) errs.push({mi,row:'tab',vi,b,target});
     });
     m.voxes.forEach((cols,vi)=>{
       const b = cols.reduce((a,c)=>a+beatsOf(c),0);
-      if(Math.abs(b-target)>1e-3) errs.push({mi,row:'vox',vi,b,target});
+      if(bad(b)) errs.push({mi,row:'vox',vi,b,target});
     });
   });
   return errs;
 }
+/* v42.7 弱起小节谱面编号：弱起时首小节不编号（空），其后第一整小节记为 1（出版惯例） */
+function meaNo(mi){ return song.pickup ? (mi===0? '' : String(mi)) : String(mi+1); }
 
 /* ================= 图示生成（时值/节奏型预览） ================= */
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -3476,7 +3481,7 @@ function renderDock(){
       st('ri-title', song.title||'未命名曲谱');
       st('ri-singer', song.singer||'—');
       st('ri-key', '1='+song.key);
-      st('ri-ts', song.beats+'/'+song.unit+' · ♩='+song.tempo);
+      st('ri-ts', (song.tempoTerm? song.tempoTerm+' ' : '')+song.beats+'/'+song.unit+' · ♩='+song.tempo+(song.pickup? ' · 弱起':''));
       st('ri-capo', song.capo>0? song.capo+' 品' : '无');
       const sr=document.getElementById('ri-singer-row'); if(sr) sr.style.display = song.singer? '' : 'none';
       const cr=document.getElementById('ri-capo-row'); if(cr) cr.style.display = song.tabVoices.length? '' : 'none';
@@ -3544,10 +3549,12 @@ function render(){
     p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
   }
   const capoBits=[];
-  if(song.capo>0 && !pureStaff) capoBits.push(`变调夹 ${song.capo} 品`);
-  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push(tl); }   // v42.3 特殊调弦谱首标注
-  capoBits.push(`♩=${song.tempo}`);
-  p.push(`<text x="${pureStaff? MARGIN : MARGIN+78}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
+  if(song.capo>0 && !pureStaff) capoBits.push(esc(`变调夹 ${song.capo} 品`));
+  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push(esc(tl)); }   // v42.3 特殊调弦谱首标注
+  /* v42.7 意大利速度术语：与 ♩=X 并排，斜体加粗（出版惯例）；五线谱/器乐谱同样显示 */
+  if(song.tempoTerm) capoBits.push(`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`);
+  capoBits.push(`♩=${esc(song.tempo)}`);
+  p.push(`<text x="${pureStaff? MARGIN : MARGIN+78}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.join('　')}</text>`);
   let top = headY + 42;
   if(diagMode==='top'){
     const chords = usedChords();
@@ -3622,7 +3629,7 @@ function render(){
         p.push(`<line x1="${oxH}" y1="${cStaffT}" x2="${oxH}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
         /* 小节号：非首行行首标注（联排谱画在五线谱表上方） */
         if(sIdx>0 && vi===0 && sys.measures.length)
-          p.push(`<text x="${oxH+1}" y="${(cStaffT-8).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${sys.measures[0].mi+1}</text>`);
+          p.push(`<text x="${oxH+1}" y="${(cStaffT-8).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${meaNo(sys.measures[0].mi)}</text>`);
         /* 逐小节：小节线 + 音符（叠置符头/共用符干/符杠/休止符） */
         sys.measures.forEach(lm=>{
           const cols = song.measures[lm.mi].tabs[vi]||[];
@@ -3785,8 +3792,9 @@ function render(){
             p.push(`<rect x="${mx}" y="${oy+M.tabTops[0]-16}" width="${lm.L.w}" height="${M.h-M.tabTops[0]+6}" rx="6" fill="var(--accent)" opacity="0.09" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="6 3"/>`);
           const numOn = measureSel===lm.mi;
           /* 小节编号：显示在吉他谱小节线正下方，悬停变色（.mnumg:hover） */
-          p.push(`<g class="mnumg"><text class="mnum" x="${mx+2.5}" y="${tabBot+11}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'600'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${lm.mi+1}</text>`+
-            `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+(''+(lm.mi+1)).length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节（可复制/粘贴）</title></rect></g>`);
+          const mnStr = meaNo(lm.mi);
+          p.push(`<g class="mnumg"><text class="mnum" x="${mx+2.5}" y="${tabBot+11}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'600'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${mnStr}</text>`+
+            `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+mnStr.length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节（可复制/粘贴）</title></rect></g>`);
         }
         if(isErr)
           p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="var(--danger)" opacity="0.07"/>
@@ -4200,7 +4208,7 @@ function render(){
         /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部 */
         if(isStaff && lmIdx===0 && sIdx>0 && !song.tabVoices.length &&
            vi===(song.voxNotations||[]).findIndex(isStaffNota))
-          p.push(`<text x="${oxH+1}" y="${(staffT-12).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${lm.mi+1}</text>`);
+          p.push(`<text x="${oxH+1}" y="${(staffT-12).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${meaNo(lm.mi)}</text>`);
         if(isErr)
           p.push(`<rect x="${mx}" y="${rowT}" width="${lm.L.w}" height="${rowH+4}" fill="var(--danger)" opacity="0.07"/>
             <text x="${mx+lm.L.w-8}" y="${rowT+8}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
@@ -4819,8 +4827,14 @@ const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'
                   ['tr','颤音'],['turn','回音'],['dyn','力度/速度'],['clr','清除记号']];
 const DYN_LIST=[['ppp','极弱'],['pp','很弱'],['p','弱'],['mp','中弱'],['mf','中强'],['f','强'],['ff','很强'],
   ['fp','强后弱'],['sf','突强'],['sfz','突强(sfz)'],['sfp','突强后弱'],['cresc.','渐强'],['dim.','渐弱'],['<','渐强记号'],['>','渐弱记号'],
-  ['rit.','渐慢'],['accel.','渐快']];
+  ['rit.','渐慢'],['accel.','渐快'],['a tempo','回原速'],['rubato','自由速度'],
+  ['dolce','柔美'],['cantabile','如歌'],['espressivo','富表情'],['legato','连奏'],['leggiero','轻巧'],['marcato','强调'],['tacet','此段休止']];
 const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18,sf:1.28,sfz:1.3};
+/* v42.7 意大利速度术语库（谱首速度记号，与 ♩=X 并排）：值=标准意语词，注=中文语境 */
+const TEMPO_TERMS=[['Grave','庄板·极慢'],['Largo','广板·宽广'],['Lento','慢板'],['Adagio','柔板'],['Larghetto','小广板'],
+  ['Andante','行板·步行速'],['Andantino','小行板'],['Moderato','中板'],['Allegretto','小快板'],['Allegro','快板'],
+  ['Vivace','活泼的快板'],['Presto','急板'],['Prestissimo','最急板'],
+  ['Allegro con brio','辉煌的快板'],['Andante cantabile','如歌的行板'],['Tempo rubato','自由速度']];
 function showDynMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音符');
   const col=curCol(); if(!col) return;
@@ -4829,7 +4843,7 @@ function showDynMenu(cx, cy){
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-330)+'px';
   div.style.top=(cy+6)+'px';
-  div.innerHTML=`<div class="t">力度 / 速度记号（标在音符下方；力度影响该处起播放音量；Ctrl 选首末两音再选 &lt; / &gt; 可拉出渐强渐弱范围括线）</div>
+  div.innerHTML=`<div class="t">力度 / 速度 / 表情术语（标在音符下方；力度影响该处起播放音量，速度与表情术语仅记谱不改音量；Ctrl 选首末两音再选 &lt; / &gt; 可拉出渐强渐弱范围括线）</div>
     <div class="row" style="max-width:340px">${DYN_LIST.map(([d,cn])=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</i><span style="font-size:10px;opacity:.65;margin-left:4px">${esc(cn)}</span></button>`).join('')}
     <button data-dy="">清除</button></div>`;
   document.body.appendChild(div);
@@ -7547,6 +7561,9 @@ document.getElementById('b-meta').onclick = ()=>{
       <span>拍号</span><input id="mm-beats" class="short" type="number" min="1" max="12" value="${song.beats}"> /
       <select id="mm-unit"><option ${song.unit===4?'selected':''}>4</option><option ${song.unit===8?'selected':''}>8</option></select></label>
     <label class="f"><span>变调夹</span><input id="mm-capo" class="short" type="number" min="0" max="12" value="${song.capo}"> 品</label>
+    <label class="f"><span>速度术语</span><input id="mm-tempoterm" class="mid" list="mm-tempoterms" value="${esc(song.tempoTerm||'')}" placeholder="如 Andante 行板（可留空）" autocomplete="off">
+      <datalist id="mm-tempoterms">${TEMPO_TERMS.map(([t,cn])=>`<option value="${esc(t)}">${esc(cn)}</option>`).join('')}</datalist></label>
+    <label class="f" style="align-items:center"><span>弱起小节</span><input id="mm-pickup" type="checkbox" ${song.pickup?'checked':''} style="width:auto;margin:0 6px 0 0"><span style="font-weight:400;color:var(--muted);font-size:12.5px">首小节为弱起（不足拍不报错、不编号）</span></label>
     <div class="btns"><button id="mm-cancel">取消</button><button id="mm-ok" class="primary">确定</button></div>`);
   document.getElementById('mm-cancel').onclick = closeModal;
   document.getElementById('mm-ok').onclick = ()=>{
@@ -7562,6 +7579,8 @@ document.getElementById('b-meta').onclick = ()=>{
       song.beats = Math.max(1, Math.min(12, +document.getElementById('mm-beats').value||4));
       song.unit = +document.getElementById('mm-unit').value||4;
       song.capo = Math.max(0, Math.min(12, +document.getElementById('mm-capo').value||0));
+      song.tempoTerm = document.getElementById('mm-tempoterm').value.trim();   // v42.7 意大利速度术语
+      song.pickup = document.getElementById('mm-pickup').checked;              // v42.7 弱起小节
       /* 换调自动适应：和弦名与吉他谱品位整体移调（简谱唱名/歌词不变，可撤销） */
       if(song.key !== oldKey){
         dSemi = ((KEY_PC[song.key]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
@@ -11438,6 +11457,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.7</span><div><b>意大利速度/表情术语库 + 弱起小节</b>（完整度审计 Tier 2，视唱练耳/器乐/艺考刚需）：① <b>速度术语库</b>——「曲谱信息」新增<b>速度术语</b>下拉（Grave/Largo/Adagio/Andante/Moderato/Allegro/Presto… 16 项可选、亦可自填如「Andante cantabile」），谱首在 ♩=X 旁以<b>斜体加粗</b>标注（出版惯例），五线谱/器乐谱同样显示。② <b>表情术语</b>——力度菜单扩充 <b>dolce（柔美）/ cantabile（如歌）/ espressivo（富表情）/ legato（连奏）/ leggiero（轻巧）/ a tempo（回原速）/ rubato（自由速度）/ tacet（此段休止）</b>，标在音符下方斜体文字，<b>仅记谱、不改播放音量</b>（力度记号仍影响音量）。③ <b>弱起小节 Anacrusis</b>——「曲谱信息」勾选<b>弱起小节</b>后，<b>首小节不足拍不再误报</b>「节拍不满」（但超拍仍报错），且谱面<b>重新编号</b>：弱起小节不编号、其后第一整小节记为「1」（出版惯例）。均为 song 只增字段、纯记谱层，不影响既有谱与播放。新增 <code>tv_tempo</code> 回归 4 项。</div></li>
     <li><span class="v">v42.6</span><div><b>独奏谱五线谱改用吉他移调谱号（treble-8vb）</b>（完整度审计 Tier 1 收官）：吉他独奏/指弹谱的<b>六线＋五线联排</b>中，五线谱此前用普通高音谱号按实音记谱，低音弦（如空弦 E/A）堆<b>大量下加线</b>（低 E 达 7 条），可读性差。现改用<b>吉他标准移调谱号</b>——谱号下方标「8」（实音低八度）、记谱升八度，把吉他音域收拢到谱表附近，<b>单音下加线最多由 7 条降到 3 条</b>，符合所有正式吉他谱出版惯例。仅独奏/指弹联排谱生效，器乐五线谱/钢琴谱/歌谱不受影响；声部实音与播放不变。至此审计 Tier 1 结构四修（大谱表小节线贯穿 / 复合拍号符杠 / 跨小节连线 / 移调谱号）全部落地。<code>tv_engrave</code> 回归扩至 8 项。</div></li>
     <li><span class="v">v42.5</span><div><b>连音线跨小节续接 + TAB/和弦图刻版精修</b>（完整度审计续）：① <b>跨小节连音线/圆滑线续接</b>——末音连到下一小节首音时，弧线此前只画到本小节右缘悬挂，现<b>跨过小节线连到目标音</b>（五线谱、简谱同源共修）；② <b>推弦弧线加箭头</b>——推弦弧线末端补<b>向上箭头</b>表示音高走向（Guitar Pro / Hal Leonard 惯例，参考手册明确要求），full/½/¼/1½ 幅度标注保留；③ <b>和弦图横按横杠</b>——最低按弦品位在两根以上弦时画<b>粗圆角横杠</b>（食指横按，如 F / Bm / B7），与开放和弦（C/G/Am 逐弦圆点）区分。均纯渲染、字段只增。<code>tv_engrave</code> 回归扩至 7 项。</div></li>
     <li><span class="v">v42.4</span><div><b>出版级刻版结构修复 + 记号补齐</b>（对照《乐谱记谱大全》完整度审计 Tier 0/1）：① <b>复合拍号符杠成组</b>——6/8·9/8·12/8 的八分音符此前逐个带符尾，现按<b>附点四分（每三个八分）</b>正确连成一组（Gould 惯例）；五线谱符杠、简谱减时线、六线谱符杠三处同源一并修正。② <b>大谱表小节线贯穿上下谱表</b>——钢琴独奏/弹唱谱的内部与终止小节线此前在上下谱表间断开，现一次画穿连结成整体（键盘大谱表刻版惯例）。③ 新增<b>顿强 Marcato（∧）</b>演奏法（五线谱 Bravura 字形 + 简谱几何，比重音更强）与 <b>sf / sfz 突强</b>力度记号。均为纯渲染/字段只增，不影响既有谱。新增 <code>tv_engrave</code> 回归 5 项（含符杠成组数、跨谱表竖线几何断言）。</div></li>
