@@ -8230,6 +8230,7 @@ const SVGI = {
   grad:'<path d="M2.5 9.5 12 5l9.5 4.5L12 14z"/><path d="M6.5 12v4.2c0 1.6 11 1.6 11 0V12"/>',
   check:'<path d="M4.5 12.5 10 18 19.5 6.5"/>',
   warn:'<path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v5"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>',
+  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><circle cx="12" cy="7.7" r=".9" fill="currentColor" stroke="none"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>',
   ban:'<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
   thumb:'<path d="M6.5 11.5V20M6.5 19h9.6c1 0 1.9-.7 2.1-1.7l1.2-4.7c.3-1.2-.6-2.3-1.9-2.3h-4.3l.9-3.9c.3-1.2-.6-2.4-1.9-2.4-.5 0-1 .3-1.2.8l-4.5 6.7z"/>',
@@ -10009,24 +10010,60 @@ function showPublishMenu(libEntry, rect){
   div.className='popmenu'; div.id='popmenu'; div.style.zIndex=99;
   div.style.left=Math.min(rect.left, innerWidth-300)+'px';
   div.style.top=Math.min(rect.bottom+6, innerHeight-190)+'px';
+  const canCloud=!!(window.PYQ_CLOUD && ACCT);   // 已登录 + 线上环境 → 走真实发布，否则本机演示
+  const note=canCloud
+    ? `${svgi('info',11)} 发布后将上架<b>在线谱库</b>（puku.puyouquan.com），任何人都能在线观看、移调、跟谱。当前线上谱库统一按<b>免费</b>展示，售卖/试读功能开发中（下方定价仅作本地记录）。`
+    : `${svgi('warn',11)} 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>；或登录 puyouquan.com 后发布到在线谱库。`;
   div.innerHTML=`<div class="t">发布《${esc(libEntry.title||'未命名曲谱')}》到谱友圈</div>
     <div class="row" style="align-items:center">定价 ¥ <input id="pub-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:70px">（0=免费）</div>
     <div class="row" style="align-items:center">付费谱试读 <input id="pub-prev" type="number" min="1" max="16" value="2" style="width:60px"> 小节</div>
-    <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">${svgi('warn',11)} 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>。</div>
-    <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">确认发布</button></div>`;
+    <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">${note}</div>
+    <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">${canCloud?'发布到在线谱库':'确认发布'}</button></div>`;
   document.body.appendChild(div);
-  document.getElementById('pub-go').onclick=()=>{
+  document.getElementById('pub-go').onclick=async function(){
     const price=Math.max(0,+document.getElementById('pub-price').value||0);
     const preview=Math.max(1,+document.getElementById('pub-prev').value||2);
     const l=circlePubs();
     const d=JSON.parse(JSON.stringify(libEntry.data));
     const author=(profileLoad().name||d.maker||'佚名');
-    l.unshift({pid:'pub'+Math.random().toString(36).slice(2,9), libId:libEntry.id, title:libEntry.title,
-      author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'pending', data:d});
-    circlePubsSave(l);
+    const rec={pid:'pub'+Math.random().toString(36).slice(2,9), libId:libEntry.id, title:libEntry.title,
+      author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'pending', data:d};
+    if(canCloud){                                   // ---- 真实发布：确保云端存有该谱 → 置为已发布 → 出真实链接 ----
+      this.disabled=true; const _t=this.textContent; this.textContent='发布中…';
+      try{
+        if(ACCT.role!=='creator'){ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); }
+        const cloudId=await scoreCloudPush(libEntry.id);
+        if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
+        await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
+        rec.status='approved'; rec.cloudId=cloudId; rec.online=true;
+        rec.url='https://zhipu.puyouquan.com/?pub='+cloudId;
+        l.unshift(rec); circlePubsSave(l);
+        closePop();
+        showPublishDone(libEntry.title||'未命名曲谱', cloudId);
+      }catch(e){
+        this.disabled=false; this.textContent=_t;
+        toast('发布失败：'+(e.message||e));
+      }
+      return;
+    }
+    l.unshift(rec); circlePubsSave(l);              // ---- 本机演示（未登录 / 预览环境）----
     closePop();
     toast('已记录发布（'+(price>0?('¥'+price+' · 试读'+preview+'小节'):'免费')+'）· 当前为本机演示仅自己可见；分享给他人请用「互动谱 HTML / 分享卡」');
     openPersonal('creator');
+  };
+}
+/* 真实发布成功后的确认弹窗：给出可复制的公开链接 + 谱库入口 */
+function showPublishDone(title, cloudId){
+  const url='https://zhipu.puyouquan.com/?pub='+cloudId;
+  showModal(`<h3>发布成功 🎉</h3>
+    <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(title)}》已上架在线谱库，任何人都能通过下方链接在线观看、移调、跟谱。</p>
+    <label class="f"><span>公开链接</span><input id="pd-url" readonly value="${esc(url)}" style="flex:1" onclick="this.select()"></label>
+    <div class="btns"><a class="btn" href="https://puku.puyouquan.com/" target="_blank" rel="noopener">前往谱库查看</a>
+      <button id="pd-copy" class="primary">复制链接</button></div>`);
+  document.getElementById('pd-copy').onclick=async ()=>{
+    const u=document.getElementById('pd-url'); u.select();
+    try{ await navigator.clipboard.writeText(u.value); toast('链接已复制'); }
+    catch(_){ try{ document.execCommand('copy'); toast('链接已复制'); }catch(__){ toast('请手动复制'); } }
   };
 }
 const FAV_KEY='musetab-circle-fav';
@@ -10824,8 +10861,9 @@ async function scoreCloudPush(id){
     e.id = nid; if(e.data) e.data.id = nid; libSave(lib); id = nid;
   }
   const mtime = e.mtime || Math.floor(Date.now()/1000);
-  try{ await apiCall('/scores/'+id, {method:'PUT', body:{title:e.title||'', singer:(e.data&&e.data.singer)||'', updated_at:mtime, data:e.data}}); }
-  catch(err){ if(err.status===413 && typeof toast==='function') toast('曲谱过大，云端未保存：'+(e.title||'')); }
+  // 成功返回最终云端 id（可能因短 id 升级而变，供发布等后续调用使用）；失败静默返回 undefined（后台去抖/同步调用不受影响）
+  try{ await apiCall('/scores/'+id, {method:'PUT', body:{title:e.title||'', singer:(e.data&&e.data.singer)||'', updated_at:mtime, data:e.data}}); return id; }
+  catch(err){ if(err.status===413 && typeof toast==='function') toast('曲谱过大，云端未保存：'+(e.title||'')); return; }
 }
 async function syncScores(){
   if(!window.PYQ_CLOUD || !ACCT || _syncing) return;
@@ -10998,6 +11036,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.1</span><div><b>创作者一键发布到在线谱库打通</b>（云端生态 M2 收官补完）：编辑器创作者中心的<b>「发布」</b>不再只是本机演示——登录后点<b>「发布到在线谱库」</b>即真实上架 <code>puku.puyouquan.com</code>：① 非创作者<b>自动开通创作者</b>（开放注册）；② 先确保曲谱已存云端（含极端短 id 自动升级），再置为已发布；③ 弹出<b>可复制的公开链接</b>（<code>zhipu.puyouquan.com/?pub=ID</code>，任何人可在线观看 / 移调 / 跟谱）与谱库入口。发布菜单文案按登录态区分（在线发布 vs 本机演示提示）；未登录 / 预览环境仍走原本机演示不变。当前线上谱库统一按<b>免费</b>展示（售卖 / 试读功能开发中）。新增 <code>tv_publish</code> 回归 6 项。</div></li>
     <li><span class="v">v42.0</span><div><b>官网谱库同款卡片 + 全站登录</b>（云端生态 M2 收官）：① 官网谱库页与首页「最新发布曲谱」改为<b>与编辑器曲谱库同款卡片</b>——迷你旋律封面（取谱面首句音符+歌词）+ 类型标签 + 免费/价格 + 标题 + 制谱者，点开进编辑器观看模式；公开接口 <code>/api/pub/scores</code> 补返回封面/类型/小节数。② 官网导航新增<b>「登录 / 注册」</b>：站内手机验证码弹窗，与编辑器/谱库共享账号（Cookie 域 <code>.puyouquan.com</code> 互通），登录后导航显示昵称与下拉（个人中心 / 谱库 / 退出）；③ 导航「谱库」链到 <code>puku.puyouquan.com</code> 子域，入口统一。新增 <code>tv_site</code> 回归 6 项、后端断言至 33 项。</div></li>
     <li><span class="v">v41.9</span><div><b>谱库上线</b>（云端生态 M2）：<b>puku.puyouquan.com</b> 谱库页从介绍页升级为<b>已发布曲谱列表</b>，卡片点开即在编辑器进入<b>观看模式</b>——只读干净谱面 + 即时移调 + 播放跟谱 + 谱架全屏卷谱。技术上编辑器新增 <code>?pub=ID</code> 深链（<code>openRemotePub</code> 拉公开接口 <code>/api/pub/scores/:id</code> 复用观看模式渲染），后端新增公开谱库接口与创作者「发布 / 下架」，并预置<b>官方示例谱</b>（小星星 / 欢乐颂）使谱库开箱有内容。创作者从编辑器一键发布将随手机登录开放。新增 <code>tv_pub</code> 回归 5 项。</div></li>
     <li><span class="v">v41.8</span><div><b>我的曲谱云端同步</b>（云端生态 M1b 第二步）：登录后「我的曲谱」自动在设备间同步——保存立即上云、编辑 6 秒去抖续传、登录时双向拉取合并（按修改时间 last-write-wins），删除同步传播；未登录 / 本机 / 预览环境保持纯本地，行为不变。技术上新增 <code>mtime</code> 时间戳字段（与既有 <code>updatedAt</code> 并存，不改任何数据红线），极端短 id 自动升级为云端兼容格式；超大曲谱云端跳过并提示、网络失败静默重试。新增 <code>tv_sync</code> 回归 7 项。<b>提示</b>：需先完成手机验证码登录（阿里云短信配置就绪后开放）。</div></li>
