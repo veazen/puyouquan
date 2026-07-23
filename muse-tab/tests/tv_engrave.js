@@ -75,6 +75,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {F:barre('F'),Bm:barre('Bm'),C:barre('C'),G:barre('G'),arrows}; })()`);
   T(r.F === 1 && r.Bm === 1 && r.C === 0 && r.G === 0 && r.arrows >= 1, '推弦箭头+和弦图横按', JSON.stringify(r));
 
+  // P2 独奏联排五线谱 treble-8vb：谱号下方「8」标记 + 记谱升八度（低音弦下加线收拢）；
+  // 按「同一 x 且同一系统(y 邻近)」统计单音最深加线叠数（旧版 E2 达 7 条，treble-8vb 后 ≤4）
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    loadSong(presetSolo()); const svg=document.getElementById('score'); const h=svg.indexOf?'':document.getElementById('score').innerHTML;
+    const led=[...document.getElementById('score').querySelectorAll('line')].map(l=>({x:+l.getAttribute('x1'),y:+l.getAttribute('y1'),x2:+l.getAttribute('x2'),y2:+l.getAttribute('y2')}))
+      .filter(l=>Math.abs(l.y-l.y2)<0.5 && Math.abs(l.x2-l.x)>9 && Math.abs(l.x2-l.x)<22);
+    // 按 (x 桶, y 桶) 聚类：同一符头的加线才叠加（y 桶隔离不同系统/上下方）
+    const byXY={}; led.forEach(l=>{const k=Math.round(l.x/6)+':'+Math.round(l.y/40); byXY[k]=(byXY[k]||0)+1;});
+    const maxStack=Object.keys(byXY).length? Math.max.apply(null,Object.keys(byXY).map(k=>byXY[k])) : 0;
+    const hh=document.getElementById('score').innerHTML;
+    return {has8:hh.indexOf('>8</text>')>=0, maxStack, clean:hh.length>1000&&hh.indexOf('NaN')<0&&hh.indexOf('undefined')<0}; })()`);
+  T(r.has8 && r.maxStack <= 4 && r.clean, 'P2 独奏 treble-8vb 移调谱号', JSON.stringify(r));
+
   T(errs.length === 0, '全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

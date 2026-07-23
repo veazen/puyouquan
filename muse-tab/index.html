@@ -3607,6 +3607,8 @@ function render(){
         for(let i=0;i<5;i++)
           p.push(`<line x1="${oxH}" y1="${(cStaffB-i*cSGt).toFixed(1)}" x2="${ox+sys.w}" y2="${(cStaffB-i*cSGt).toFixed(1)}" stroke="var(--ink)" stroke-width="0.8"/>`);
         p.push(smg('gClef', oxH+HG.clefX, cStaffB-cSGt, cSGt));
+        /* v42.6 吉他移调谱号 treble-8vb：谱号下方「8」——与 +12 记谱升八度配套，声部实音仍低八度 */
+        p.push(`<text x="${(oxH+HG.clefX+smw('gClef')*cSGt/2).toFixed(1)}" y="${(cStaffB+cSGt*1.75).toFixed(1)}" font-size="${(cSGt*1.2).toFixed(1)}" font-style="italic" text-anchor="middle" fill="var(--ink)">8</text>`);
         const SH_STEP=[45,42,46,43,40,44,41], FL_STEP=[41,44,40,43,39,42,38];
         for(let i=0;i<HG.n;i++){
           const stp=(HG.sig>0?SH_STEP:FL_STEP)[i];
@@ -3637,8 +3639,9 @@ function render(){
           if(emptyM2) p.push(staffRestStr(mx2+lm.L.w/2, cStaffB, cSGt, 1, false));
           const colSteps = ci=>{
             const ns=(cols[ci].notes||[]).filter(n=>n.s>=1 && n.s<=SN);
-            return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0), K2).step, sym:'', x:true}
-                              : midiToStaff(TUNING[n.s-1]+(n.f||0), K2));
+            /* v42.6 吉他移调谱号 treble-8vb：记谱升八度(+12)、实音低八度——收拢低音弦大量下加线（出版惯例） */
+            return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2).step, sym:'', x:true}
+                              : midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2));
           };
           const drawHeads = (ci)=>{
             const nx2 = mx2+lay.xs[ci], col2=cols[ci];
@@ -11435,6 +11438,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.6</span><div><b>独奏谱五线谱改用吉他移调谱号（treble-8vb）</b>（完整度审计 Tier 1 收官）：吉他独奏/指弹谱的<b>六线＋五线联排</b>中，五线谱此前用普通高音谱号按实音记谱，低音弦（如空弦 E/A）堆<b>大量下加线</b>（低 E 达 7 条），可读性差。现改用<b>吉他标准移调谱号</b>——谱号下方标「8」（实音低八度）、记谱升八度，把吉他音域收拢到谱表附近，<b>单音下加线最多由 7 条降到 3 条</b>，符合所有正式吉他谱出版惯例。仅独奏/指弹联排谱生效，器乐五线谱/钢琴谱/歌谱不受影响；声部实音与播放不变。至此审计 Tier 1 结构四修（大谱表小节线贯穿 / 复合拍号符杠 / 跨小节连线 / 移调谱号）全部落地。<code>tv_engrave</code> 回归扩至 8 项。</div></li>
     <li><span class="v">v42.5</span><div><b>连音线跨小节续接 + TAB/和弦图刻版精修</b>（完整度审计续）：① <b>跨小节连音线/圆滑线续接</b>——末音连到下一小节首音时，弧线此前只画到本小节右缘悬挂，现<b>跨过小节线连到目标音</b>（五线谱、简谱同源共修）；② <b>推弦弧线加箭头</b>——推弦弧线末端补<b>向上箭头</b>表示音高走向（Guitar Pro / Hal Leonard 惯例，参考手册明确要求），full/½/¼/1½ 幅度标注保留；③ <b>和弦图横按横杠</b>——最低按弦品位在两根以上弦时画<b>粗圆角横杠</b>（食指横按，如 F / Bm / B7），与开放和弦（C/G/Am 逐弦圆点）区分。均纯渲染、字段只增。<code>tv_engrave</code> 回归扩至 7 项。</div></li>
     <li><span class="v">v42.4</span><div><b>出版级刻版结构修复 + 记号补齐</b>（对照《乐谱记谱大全》完整度审计 Tier 0/1）：① <b>复合拍号符杠成组</b>——6/8·9/8·12/8 的八分音符此前逐个带符尾，现按<b>附点四分（每三个八分）</b>正确连成一组（Gould 惯例）；五线谱符杠、简谱减时线、六线谱符杠三处同源一并修正。② <b>大谱表小节线贯穿上下谱表</b>——钢琴独奏/弹唱谱的内部与终止小节线此前在上下谱表间断开，现一次画穿连结成整体（键盘大谱表刻版惯例）。③ 新增<b>顿强 Marcato（∧）</b>演奏法（五线谱 Bravura 字形 + 简谱几何，比重音更强）与 <b>sf / sfz 突强</b>力度记号。均为纯渲染/字段只增，不影响既有谱。新增 <code>tv_engrave</code> 回归 5 项（含符杠成组数、跨谱表竖线几何断言）。</div></li>
     <li><span class="v">v42.3</span><div><b>吉他谱三分类 + 演奏技巧符号大补充</b>：新建向导把吉他谱拆为<b>吉他弹唱谱 / 吉他独奏谱（电吉他）/ 指弹吉他谱</b>三入口，独奏与指弹共享「六线＋五线联排」基座但各自加载<b>专属技法面板</b>（按 <code>gtype</code> 感知，切换即刷新）。① <b>电吉他技法</b>：摇把 whammy（俯冲/上滑/下点/颤音）、泛音细分（人工 A.H./拨片 P.H./点弦 T.H.）、<b>let ring</b> 余音保持（虚线范围）、推弦幅度（沿用 full/½）。② <b>指弹技法</b>：右手指法 <b>p i m a</b>、<b>特殊调弦</b>（Drop D / DADGAD / Open G / Open D，谱首自动标注）、<b>打板</b>（低音区/高音区/击板 golpe）。③ 通用：<b>N.C. 无和弦</b>段。用法：六线谱选中音符→左栏「演奏技巧」面板点对应记号（摇把/泛音/pima 作用于音符，打板作用于列，let ring 可 Ctrl 选首末两音覆盖范围）；特殊调弦在新建独奏/指弹谱时选择。所有新增均为 song 只增字段，不影响既有谱。新增 <code>tv_gtech</code> 回归 9 项。</div></li>
