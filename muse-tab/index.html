@@ -2314,6 +2314,280 @@ function presetRepeat(){
       M([V(5,'第',4,0,'f'),V(5,'二'),V(4,'段'),V(3,'尾')],{volta:2,finalBar:true})
     ]};
 }
+/* ================= 各谱类预设曲谱（v42.2 制谱师专家设计：独奏/钢琴/歌谱/合唱/五线谱/教学/和弦/功能谱） ================= */
+function presetSolo(){
+  /* 独奏谱（solo，TAB＋五线谱联排 tabStaff）：Am 行板指弹练习曲，3/4 分解织体。
+     旋律在一弦(V–VIII把位)，低音用空弦(A/D/E)，逐列单音——把位自然可行；
+     逐一示范：击弦h(M2) 勾弦p(M4) 滑弦sl(M6) 推弦b·full(M7) 揉弦v(M8)。 */
+  const E = (s,f,tech,tk,bAmt)=>{ const n={s,f}; if(tech)n.tech=tech; if(tk)n.tk=tk; if(bAmt)n.bAmt=bAmt; return n; };
+  const C = (notes,chord,dur,strum)=>({dur:dur||8,dotted:false,chord:chord||'',notes,strum:strum||'',tech:''});
+  const s = createSong('solo',{title:'指弹练习曲 · 行板（Am）',composer:'谱友圈',maker:'谱友圈预设',
+    key:'Am',beats:3,unit:4,tempo:76,nMea:8,nTab:1,nVox:0,lyr:0});
+  s.measures[0].tabs[0]=[
+    C([E(1,5)],'Am'), C([E(2,5)]), C([E(3,5)]), C([E(5,0)]), C([E(3,5)]), C([E(2,5)]) ];
+  s.measures[1].tabs[0]=[                                   // 击弦 h：一弦 3→5
+    C([E(1,3,'h',{mi:1,ci:1,si:1})],'Dm'), C([E(1,5)]), C([E(3,2)]), C([E(4,0)]), C([E(3,2)]), C([E(2,3)]) ];
+  s.measures[2].tabs[0]=[
+    C([E(1,7)],'E7'), C([E(2,5)]), C([E(3,4)]), C([E(6,0)]), C([E(3,4)]), C([E(2,5)]) ];
+  s.measures[3].tabs[0]=[                                   // 勾弦 p：一弦 7→5
+    C([E(1,7,'p',{mi:3,ci:1,si:1})],'Am'), C([E(1,5)]), C([E(3,5)]), C([E(5,0)]), C([E(3,5)]), C([E(2,5)]) ];
+  s.measures[4].tabs[0]=[
+    C([E(1,5)],'Dm'), C([E(2,3)]), C([E(3,2)]), C([E(4,0)]), C([E(3,2)]), C([E(2,3)]) ];
+  s.measures[5].tabs[0]=[                                   // 滑弦 sl：一弦 5→8
+    C([E(1,5,'sl',{mi:5,ci:1,si:1})],'Am'), C([E(1,8)]), C([E(3,5)]), C([E(5,0)]), C([E(3,5)]), C([E(2,5)]) ];
+  s.measures[6].tabs[0]=[                                   // 推弦 b·full：一弦 5 推至 B(7)
+    C([E(1,5,'b',{mi:6,ci:1,si:1},'full')],'E7'), C([E(1,7)]), C([E(3,4)]), C([E(6,0)]), C([E(3,4)]), C([E(2,5)]) ];
+  s.measures[7].tabs[0]=[                                   // 揉弦 v：收束长音
+    C([E(1,5,'v')],'Am'), C([E(2,5)]), C([E(3,5)]), C([E(5,0)]), C([E(3,5)]), C([E(2,5)]) ];
+  s.measures[7].finalBar=true;
+  return s;
+}
+
+function presetPianoSolo(){
+  /* 钢琴独奏：欢乐颂主题（贝多芬），C大调 4/4，右手旋律 + 左手三种织体
+     （分解和弦 / 柱式和弦 / 阿尔贝蒂低音），含力度与附点。 */
+  const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+  const s=createSong('piano',{title:'欢乐颂（钢琴独奏）',composer:'贝多芬',maker:'谱友圈预设',
+    key:'C',beats:4,unit:4,tempo:88,nMea:8,lyr:0});
+  // 右手旋律（C大调，oct0 = C4–G4 区）
+  s.measures[0].voxes[0]=[V(3,4,{dyn:'mf'}),V(3,4),V(4,4),V(5,4)];      // mi mi fa sol
+  s.measures[1].voxes[0]=[V(5,4),V(4,4),V(3,4),V(2,4)];                 // sol fa mi re
+  s.measures[2].voxes[0]=[V(1,4),V(1,4),V(2,4),V(3,4)];                 // do do re mi
+  s.measures[3].voxes[0]=[V(3,4,{dotted:true}),V(2,8),V(2,2)];          // mi. re re
+  s.measures[4].voxes[0]=[V(3,4,{dyn:'f'}),V(3,4),V(4,4),V(5,4)];
+  s.measures[5].voxes[0]=[V(5,4),V(4,4),V(3,4),V(2,4)];
+  s.measures[6].voxes[0]=[V(1,4),V(1,4),V(2,4),V(3,4)];
+  s.measures[7].voxes[0]=[V(2,4,{dotted:true}),V(1,8),V(1,2)];          // re. do do
+  // 左手织体
+  const brokenC=()=>[V(1,8,{oct:-2}),V(3,8,{oct:-2}),V(5,8,{oct:-2}),V(3,8,{oct:-2}),V(1,8,{oct:-2}),V(3,8,{oct:-2}),V(5,8,{oct:-2}),V(3,8,{oct:-2})];
+  const brokenG=()=>[V(5,8,{oct:-2}),V(7,8,{oct:-2}),V(2,8,{oct:-1}),V(7,8,{oct:-2}),V(5,8,{oct:-2}),V(7,8,{oct:-2}),V(2,8,{oct:-1}),V(7,8,{oct:-2})];
+  const albertiC=()=>[V(1,8,{oct:-1}),V(5,8,{oct:-1}),V(3,8,{oct:-1}),V(5,8,{oct:-1}),V(1,8,{oct:-1}),V(5,8,{oct:-1}),V(3,8,{oct:-1}),V(5,8,{oct:-1})];
+  const albertiG=()=>[V(5,8,{oct:-2}),V(2,8,{oct:-1}),V(7,8,{oct:-2}),V(2,8,{oct:-1}),V(5,8,{oct:-2}),V(2,8,{oct:-1}),V(7,8,{oct:-2}),V(2,8,{oct:-1})];
+  const blockC4=()=>Array.from({length:4},()=>V(1,4,{oct:-1,adds:[{deg:3,oct:-1},{deg:5,oct:-1}]}));   // 柱式 C 三和弦×4拍
+  const blockG2=()=>Array.from({length:2},()=>V(5,2,{oct:-2,adds:[{deg:7,oct:-2},{deg:2,oct:-1}]}));    // 柱式 G ×2半拍
+  s.measures[0].voxes[1]=brokenC();     // 分解
+  s.measures[1].voxes[1]=brokenG();     // 分解
+  s.measures[2].voxes[1]=blockC4();     // 柱式
+  s.measures[3].voxes[1]=blockG2();     // 柱式（半终止）
+  s.measures[4].voxes[1]=albertiC();    // 阿尔贝蒂
+  s.measures[5].voxes[1]=albertiG();    // 阿尔贝蒂
+  s.measures[6].voxes[1]=brokenC();     // 分解
+  s.measures[7].voxes[1]=[
+    V(5,2,{oct:-2,adds:[{deg:7,oct:-2},{deg:2,oct:-1}]}),                // G 属和弦
+    V(1,2,{oct:-1,adds:[{deg:3,oct:-1},{deg:5,oct:-1}]})                 // C 主和弦（正格收束）
+  ];
+  s.measures[7].finalBar=true;
+  return s;
+}
+
+function presetPianoAcc(){
+  /* 钢琴弹唱纯伴奏：卡农进行 C–G–Am–Em–F–C–F–G（8小节）
+     右手三音闭合排列分解织体 + 左手根音/五度 + 逐小节和弦名（主旋律由演唱者担任）。 */
+  const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+  const s=createSong('pianoacc',{title:'卡农进行（钢琴弹唱伴奏）',maker:'谱友圈预设',
+    key:'C',beats:4,unit:4,tempo:76,nMea:8,lyr:0});
+  // 右手：三音闭合排列 (low, mid, high)，分解八分 low mid high mid ×2；和弦名+力度挂在首列
+  const RH=(lo,mi,hi,chord,dyn)=>{
+    const mk=(t,extra)=>V(t[0],8,Object.assign({oct:t[1]},extra||{}));
+    return [mk(lo,{chord,dyn}),mk(mi),mk(hi),mk(mi),mk(lo),mk(mi),mk(hi),mk(mi)];
+  };
+  const LH=(root,fifth)=>[V(root[0],2,{oct:root[1]}),V(fifth[0],2,{oct:fifth[1]})];  // 根音半 + 五度半
+  s.measures[0].voxes[0]=RH([1,0],[3,0],[5,0],'C','mp');  s.measures[0].voxes[1]=LH([1,-2],[5,-2]);
+  s.measures[1].voxes[0]=RH([7,-1],[2,0],[5,0],'G');      s.measures[1].voxes[1]=LH([5,-2],[2,-1]);
+  s.measures[2].voxes[0]=RH([6,-1],[1,0],[3,0],'Am');     s.measures[2].voxes[1]=LH([6,-2],[3,-1]);
+  s.measures[3].voxes[0]=RH([5,-1],[7,-1],[3,0],'Em');    s.measures[3].voxes[1]=LH([3,-2],[7,-2]);
+  s.measures[4].voxes[0]=RH([6,-1],[1,0],[4,0],'F');      s.measures[4].voxes[1]=LH([4,-2],[1,-1]);
+  s.measures[5].voxes[0]=RH([1,0],[3,0],[5,0],'C');       s.measures[5].voxes[1]=LH([1,-2],[5,-2]);
+  s.measures[6].voxes[0]=RH([6,-1],[1,0],[4,0],'F');      s.measures[6].voxes[1]=LH([4,-2],[1,-1]);
+  s.measures[7].voxes[0]=RH([7,-1],[2,0],[5,0],'G');      s.measures[7].voxes[1]=LH([5,-2],[2,-1]);
+  s.measures[7].finalBar=true;
+  return s;
+}
+
+function presetVocalFolk(){
+  /* 歌谱·独唱多段词：《送别》（李叔同 词、J.P.奥德威 曲，词曲均已入公有领域）
+     两段歌词逐字对位（3/3/5/7/5 句式两段同曲）；简谱记号全覆盖：
+     八分下横线 / 二分·全音符增时线 / 附点四分 / 高音点 / 圆滑线 / 三连音 / 力度记号。
+     休止用重复"0"（V(0,4)×2）而非增时线，合 GB 惯例。 */
+  const V=(deg,dur,o)=>{o=o||{};
+    const c={dur,dotted:!!o.dotted,deg,acc:o.acc||'',oct:o.oct||0,lyrics:o.ly||[],tie:!!o.tie};
+    if(o.tup) c.tup=o.tup; if(o.dyn) c.dyn=o.dyn; return c;};
+  const M=(vox,ext)=>Object.assign({tabs:[],voxes:[vox],repeatStart:false,repeatEnd:false},ext||{});
+  const L=(a,b)=>[a,b];   // [第一段, 第二段]
+  return {v:3, title:'送别', singer:'', lyricist:'李叔同', composer:'J.P.奥德威',
+    maker:'谱友圈预设', key:'C', beats:4, unit:4, tempo:60, capo:0, customChords:{},
+    tabVoices:[], voxVoices:['旋律'], lyricLines:2,
+    measures:[
+      /* 长亭外 / 天之涯 —— 力度 mp 起 */
+      M([ V(5,4,{ly:L('长','天'),dyn:'mp'}), V(3,4,{ly:L('亭','之')}), V(5,2,{ly:L('外','涯')}) ]),
+      /* 古道边 / 地之角 —— 高音点 1̇ */
+      M([ V(1,4,{oct:1,ly:L('古','地')}), V(6,4,{ly:L('道','之')}), V(5,2,{ly:L('边','角')}) ]),
+      /* 芳草碧连 / 知交半零 —— 附点四分 + 八分下横线 */
+      M([ V(3,4,{dotted:true,ly:L('芳','知')}), V(2,8,{ly:L('草','交')}), V(1,4,{ly:L('碧','半')}), V(2,4,{ly:L('连','零')}) ]),
+      /* 天 / 落 —— 二分(1条增时线) + 休止跳字(0 0) */
+      M([ V(3,2,{ly:L('天','落')}), V(0,4,{}), V(0,4,{}) ]),
+      /* 晚风拂柳 / 一壶浊酒 —— 力度 mf；圆滑线 拂→柳 */
+      M([ V(5,4,{dyn:'mf',ly:L('晚','一')}), V(3,4,{ly:L('风','壶')}), V(5,4,{tie:true,ly:L('拂','浊')}), V(1,4,{oct:1,ly:L('柳','酒')}) ]),
+      /* 笛声残 / 尽余欢 */
+      M([ V(6,4,{ly:L('笛','尽')}), V(5,4,{ly:L('声','余')}), V(3,2,{ly:L('残','欢')}) ]),
+      /* 夕阳山(三连音) 外 / 今宵别 梦 —— 渐慢 rit. */
+      M([ V(2,4,{tup:3,dyn:'rit.',ly:L('夕','今')}), V(3,4,{tup:3,ly:L('阳','宵')}), V(1,4,{tup:3,ly:L('山','别')}), V(2,2,{ly:L('外','梦')}) ]),
+      /* 山 / 寒 —— 全音符(3条增时线) + 终止线 */
+      M([ V(1,1,{ly:L('山','寒')}) ], {finalBar:true})
+    ]};
+}
+
+function presetChoir(){
+  /* 歌谱·合唱多声部：贝多芬《欢乐颂》主题四部合唱片段（旋律为公有领域；
+     此处歌词为谱友圈原创示范词，非任何既有译词）。
+     S/A 记于中高音区(oct 0)，T/B 记于低音区(低音点 oct-1，最低音 oct-2=两低音点)；
+     各声部每小节拍值独立且均为 4 拍；主旋律(S)挂词，下三声部为和声柱式织体，
+     内声部以二分音符(增时线)呈现——同源多声部 + 音域用 oct 分布的合唱记谱范例。 */
+  const V=(deg,dur,oct,ly,dot)=>({dur,dotted:!!dot,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false});
+  const M=(s,a,t,b)=>({tabs:[],voxes:[s,a,t,b],repeatStart:false,repeatEnd:false});
+  const S=[   // 女高音：欢乐颂主题旋律 + 原创示范词（每小节句式 4/4/4/3）
+    [V(3,4,0,'让'),V(3,4,0,'我'),V(4,4,0,'们'),V(5,4,0,'来')],
+    [V(5,4,0,'齐'),V(4,4,0,'声'),V(3,4,0,'歌'),V(2,4,0,'唱')],
+    [V(1,4,0,'心'),V(1,4,0,'中'),V(2,4,0,'充'),V(3,4,0,'满')],
+    [V(3,4,0,'光',1),V(2,8,0,'和'),V(2,2,0,'亮')],           // 附点四分 + 八分 + 二分
+    [V(3,4,0,'春'),V(3,4,0,'风'),V(4,4,0,'吹'),V(5,4,0,'过')],
+    [V(5,4,0,'大'),V(4,4,0,'地'),V(3,4,0,'花'),V(2,4,0,'开')],
+    [V(1,4,0,'你'),V(1,4,0,'我'),V(2,4,0,'同'),V(3,4,0,'行')],
+    [V(2,4,0,'向',1),V(1,8,0,'未'),V(1,2,0,'来')]
+  ];
+  const A=[   // 女低音：中音区 oct 0 / 部分 oct-1
+    [V(1,2,0),V(1,4,0),V(2,4,0)],
+    [V(3,4,0),V(1,4,0),V(1,4,0),V(7,4,-1)],
+    [V(5,2,-1),V(7,4,-1),V(1,4,0)],
+    [V(1,2,0),V(7,2,-1)],
+    [V(1,2,0),V(1,4,0),V(2,4,0)],
+    [V(3,4,0),V(1,4,0),V(1,4,0),V(7,4,-1)],
+    [V(5,2,-1),V(7,4,-1),V(1,4,0)],
+    [V(7,2,-1),V(5,2,-1)]
+  ];
+  const T=[   // 男高音：低音点 oct-1
+    [V(5,2,-1),V(6,4,-1),V(7,4,-1)],
+    [V(5,4,-1),V(6,4,-1),V(5,4,-1),V(5,4,-1)],
+    [V(3,2,-1),V(5,4,-1),V(5,4,-1)],
+    [V(5,2,-1),V(5,2,-1)],
+    [V(5,2,-1),V(6,4,-1),V(7,4,-1)],
+    [V(5,4,-1),V(6,4,-1),V(5,4,-1),V(5,4,-1)],
+    [V(3,2,-1),V(5,4,-1),V(5,4,-1)],
+    [V(5,2,-1),V(3,2,-1)]
+  ];
+  const B=[   // 男低音：低音点 oct-1，最低根音 oct-2(两低音点)
+    [V(1,2,-1),V(4,4,-1),V(5,4,-2)],
+    [V(1,4,-1),V(4,4,-1),V(1,4,-1),V(5,4,-2)],
+    [V(1,2,-1),V(5,4,-2),V(1,4,-1)],
+    [V(1,2,-1),V(5,2,-2)],
+    [V(1,2,-1),V(4,4,-1),V(5,4,-2)],
+    [V(1,4,-1),V(4,4,-1),V(1,4,-1),V(5,4,-2)],
+    [V(1,2,-1),V(5,4,-2),V(1,4,-1)],
+    [V(5,2,-2),V(1,2,-1)]
+  ];
+  const measures=[];
+  for(let i=0;i<8;i++) measures.push(Object.assign(M(S[i],A[i],T[i],B[i]), i===7?{finalBar:true}:{}));
+  return {v:3, title:'欢乐颂 · 四部合唱', singer:'', lyricist:'', composer:'贝多芬',
+    maker:'谱友圈预设', key:'C', beats:4, unit:4, tempo:96, capo:0, customChords:{},
+    tabVoices:[], voxVoices:['女高音 S','女低音 A','男高音 T','男低音 B'], lyricLines:1,
+    measures};
+}
+
+function presetStaffInstr(){
+  /* 巴赫《G大调小步舞曲》BWV Anh.114 主题 —— 高音谱表 G大调(1#) 3/4，
+     刻版记号：倚音 grace / 颤音 tr / 三连音 tup / 同音连线 tie / 附点 / 加线音(A5·B5) /
+     力度 mf·cresc·f·rit. / 反复 |: :| / 段落 segno·coda / 四分休止 / 延长号 fermata */
+  const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+  const s=createSong('instr',{title:'小步舞曲（G大调）',composer:'J. S. Bach（传）',maker:'谱友圈预设',
+    key:'G',beats:3,unit:4,tempo:120,nMea:12,nVox:1,lyr:0,clef:'staff'});
+  const m=s.measures;
+  // ===== A 段（重复）=====
+  m[0].voxes[0]=[V(5,4,{oct:1,dyn:'mf'}),V(1,8,{oct:1}),V(2,8,{oct:1}),V(3,8,{oct:1}),V(4,8,{oct:1})];
+  m[0].repeatStart=true; m[0].segno=true;
+  m[1].voxes[0]=[V(5,4,{oct:1}),V(1,4,{oct:1}),V(1,4,{oct:1})];
+  m[2].voxes[0]=[V(6,4,{oct:1}),V(4,8,{oct:1}),V(5,8,{oct:1}),V(6,8,{oct:1}),V(7,8,{oct:1})];
+  m[3].voxes[0]=[V(1,4,{oct:2}),V(1,4,{oct:1,tie:true}),V(1,4,{oct:1})];      // 同音连线(G4—G4)
+  m[4].voxes[0]=[V(4,4,{oct:1,dyn:'<'}),V(5,8,{oct:1}),V(4,8,{oct:1}),V(3,8,{oct:1}),V(2,8,{oct:1})];
+  m[5].voxes[0]=[V(3,4,{oct:1}),V(4,8,{oct:1}),V(3,8,{oct:1}),V(2,8,{oct:1}),V(1,8,{oct:1})];
+  m[6].voxes[0]=[V(2,4,{oct:1}),V(3,8,{oct:1}),V(2,8,{oct:1}),V(1,8,{oct:1}),V(7,8,{oct:0})]; // F#4 调内导音
+  m[7].voxes[0]=[V(1,2,{oct:1,orn:'tr'}),V(0,4)];                            // 收束颤音 + 四分休止
+  m[7].repeatEnd=true;
+  // ===== B 段（高音区，加线音 A5/B5）=====
+  m[8].voxes[0]=[V(5,4,{oct:1,grace:{notes:[{deg:6,oct:1}],dur:8},dyn:'f'}), // 倚音 E5→D5
+                 V(6,8,{oct:1,tup:3}),V(7,8,{oct:1,tup:3}),V(1,8,{oct:2,tup:3}),V(2,4,{oct:2})]; // 三连音 + A5加线
+  m[9].voxes[0]=[V(3,4,{oct:2}),V(2,8,{oct:2}),V(1,8,{oct:2}),V(7,8,{oct:1}),V(6,8,{oct:1})];    // B5/A5 加线
+  m[10].voxes[0]=[V(5,4,{oct:1,dotted:true}),V(3,8,{oct:1}),V(2,4,{oct:1})];  // 附点四分
+  m[11].voxes[0]=[V(7,4,{oct:0}),V(1,2,{oct:1,dyn:'rit.',ferm:true})];        // rit. + 延长号收束
+  m[11].coda=true; m[11].finalBar=true;
+  return s;
+}
+
+function presetTeach(){
+  /* 欢乐颂（贝多芬）教学对照谱：五线谱行 + 其下简谱行逐列对齐 + 歌词，C大调 4/4。
+     同一 voxes[0] 数据两种记法渲染（严格同音）；含 mf/p 力度、渐强 <、连音线(女—神)、
+     附点四分+八分+二分节奏；简谱行呈中央 C(deg1)=五线谱一线下加线，示范加线音教学点 */
+  const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+  const s=createSong('teach',{title:'欢乐颂（教学对照）',composer:'贝多芬',lyricist:'席勒',maker:'谱友圈预设',
+    key:'C',beats:4,unit:4,tempo:88,nMea:8,nVox:1,lyr:1});
+  const m=s.measures;
+  m[0].voxes[0]=[V(3,4,{lyrics:['欢'],dyn:'mf'}),V(3,4,{lyrics:['乐']}),V(4,4,{lyrics:['女'],tie:true}),V(5,4,{lyrics:['神']})]; // 连音(女—神)
+  m[1].voxes[0]=[V(5,4,{lyrics:['圣']}),V(4,4,{lyrics:['洁']}),V(3,4,{lyrics:['美']}),V(2,4,{lyrics:['丽']})];
+  m[2].voxes[0]=[V(1,4,{lyrics:['灿']}),V(1,4,{lyrics:['烂']}),V(2,4,{lyrics:['光']}),V(3,4,{lyrics:['芒']})];   // C4 下加线
+  m[3].voxes[0]=[V(3,4,{dotted:true,lyrics:['照']}),V(2,8,{lyrics:['大']}),V(2,2,{lyrics:['地']})];             // 附点四分+八分+二分
+  m[4].voxes[0]=[V(3,4,{lyrics:['我'],dyn:'<'}),V(3,4,{lyrics:['们']}),V(4,4,{lyrics:['心']}),V(5,4,{lyrics:['中']})];
+  m[5].voxes[0]=[V(5,4,{lyrics:['充']}),V(4,4,{lyrics:['满']}),V(3,4,{lyrics:['无']}),V(2,4,{lyrics:['限']})];
+  m[6].voxes[0]=[V(1,4,{lyrics:['热']}),V(1,4,{lyrics:['情']}),V(2,4,{lyrics:['来']}),V(3,4,{lyrics:['到']})];
+  m[7].voxes[0]=[V(2,4,{dotted:true,lyrics:['你']}),V(1,8,{lyrics:['圣']}),V(1,2,{lyrics:['殿'],dyn:'p'})];
+  m[7].finalBar=true;
+  return s;
+}
+
+function presetChordChart(){
+  /* 纯和弦谱：小节格内每拍一条节奏斜线，和弦只标在「变化处」（出版级和弦格惯例）；
+     结构 = 卡农下行(1 5/7 6m 3m/5 4 1/3 2m7 5⁷) + 4536 + 2m7-5⁷-1 收束；含 slash/七和弦色彩 */
+  const s = createSong('func',{title:'和弦进行示例（纯和弦谱）',maker:'谱友圈预设',
+    key:'C',beats:4,unit:4,tempo:84,nMea:16,nVox:1,ftype:'chord'});   // nVox:1 必传，否则空谱
+  const B=(...chs)=>{                        // 4 拍列：chs[i] 有值→标和弦，空→仅斜线
+    const a=[];
+    for(let i=0;i<4;i++) a.push({dur:4,dotted:false,deg:0,acc:'',oct:0,lyrics:[],tie:false,chord:chs[i]||''});
+    return a;
+  };
+  const P=[
+    ['C'],   ['G/B'], ['Am'],  ['Em/G'],     // 卡农：1  5/7  6m  3m/5（下行贝斯 C-B-A-G）
+    ['F'],   ['C/E'], ['Dm7'], ['G7'],       //        4  1/3  2m7  5⁷（F-E-D-G）
+    ['F'],   ['G'],   ['Em'],  ['Am'],       // 4536：4  5  3m  6m
+    ['Dm7','','G7',''], ['C'], ['F','','G',''], ['C']   // 每拍换和弦：2m7|5⁷ → 1 → 4|5 → 1
+  ];
+  P.forEach((row,i)=>{ s.measures[i].voxes[0]=B(...row); });
+  s.measures[15].finalBar=true;
+  return s;
+}
+
+function presetFuncPop(){
+  /* 功能谱（进阶）：简谱旋律 + 级数和弦；下行贝斯「line cliché」C-B-A-G-F-E-D-G，
+     含 3 个转位(G/B 5/7、Am/G 6m/5、C/E 1/3) + 副属和弦 D7=V7/V(级数 2⁷)；
+     每小节强拍旋律音均为当前和弦内音，旋律与和声对齐；1 段歌词（原创，非引用版权词） */
+  const s = createSong('func',{title:'流行副歌（功能谱·进阶）',maker:'谱友圈预设',
+    key:'C',beats:4,unit:4,tempo:88,nMea:8,nVox:1,lyr:1});
+  const N=(deg,ly,oct)=>({dur:4,dotted:false,deg,acc:'',oct:oct||0,lyrics:ly?[ly]:[],tie:false,chord:''});
+  const bars=[
+    {ch:'C',   m:[[3,'微'],[5,'风'],[3,'轻'],[1,'轻']]},   // 1     强拍3=E∈C
+    {ch:'G/B', m:[[5,'拂'],[2,'过'],[7,'窗'],[5,'前']]},   // 5/7   强拍5=G∈G，贝斯B
+    {ch:'Am',  m:[[6,'你'],[3,'的'],[1,'侧'],[3,'脸']]},   // 6m    强拍6=A∈Am
+    {ch:'Am/G',m:[[3,'还'],[1,'在'],[6,'眼'],[1,'前']]},   // 6m/5  强拍3=E∈Am，贝斯G
+    {ch:'F',   m:[[1,'时'],[6,'光'],[4,'慢'],[6,'慢']]},   // 4     强拍1=C∈F(五音)
+    {ch:'C/E', m:[[3,'走'],[5,'过'],[3,'从'],[1,'前']]},   // 1/3   强拍3=E∈C，贝斯E
+    {ch:'D7',  m:[[6,'那'],[1,'些'],[6,'心'],[2,'愿']]},   // 2⁷    副属V7/V，强拍6=A∈D7
+    {ch:'G7',  m:[[2,'都'],[7,'在'],[4,'明'],[5,'天']]}    // 5⁷    强拍2=D∈G7，回落主和弦
+  ];
+  bars.forEach((b,i)=>{
+    const cols=b.m.map(x=>N(x[0],x[1],x[2]));
+    cols[0].chord=b.ch;                        // 和弦挂在小节强拍列，与旋律同源
+    s.measures[i].voxes[0]=cols;
+  });
+  s.measures[7].finalBar=true;
+  return s;
+}
 const PRESETS = [
   {name:'小星星（分解弹唱）', desc:'分解指弹 + 简谱旋律 + 歌词，×记谱与随行和弦图', make:demoSong},
   {name:'欢乐颂（扫弦弹唱）', desc:'民谣扫弦节奏型 + 切音 + 多和弦 + 歌词', make:presetStrum},
@@ -2322,6 +2596,15 @@ const PRESETS = [
   {name:'小星星（尤克里里）', desc:'尤克里里 4 弦 GCEA 弹唱 + 扫弦节奏型 + 和弦图', make:presetUke},
   {name:'流行进行（功能谱）', desc:'简谱 + 级数和弦 1–5–6m–4，级数/音名切换、可即时移调', make:presetFunc},
   {name:'反复与段落示例', desc:'反复记号 + 第一/二段结尾 + 力度记号，展示播放导航', make:presetRepeat},
+  {name:'指弹练习曲·行板（独奏谱）', desc:'六线谱＋五线谱联排；击弦/勾弦/滑弦/推弦/揉弦五大技法 + 随行和弦，Am 3/4', make:presetSolo},
+  {name:'欢乐颂（钢琴独奏）', desc:'大谱表双手；右手旋律＋左手分解/柱式/阿尔贝蒂三种织体，含力度附点', make:presetPianoSolo},
+  {name:'卡农进行（钢琴弹唱伴奏）', desc:'大谱表纯伴奏；右手分解织体＋左手根音五度＋逐小节和弦名，主旋律由演唱者担任', make:presetPianoAcc},
+  {name:'送别（歌谱·两段词）', desc:'简谱＋两段歌词逐字对位；八分下横线/增时线/附点/高音点/圆滑线/三连音/力度', make:presetVocalFolk},
+  {name:'欢乐颂（四部合唱）', desc:'SATB 四声部同源简谱合唱，音域用高低音点分布、各声部拍值独立，主旋律挂词', make:presetChoir},
+  {name:'小步舞曲（器乐五线谱）', desc:'高音谱表 G 大调 3/4；倚音/颤音/三连音/连音线/加线音/力度/反复段落，巴赫（传）', make:presetStaffInstr},
+  {name:'欢乐颂（教学对照谱）', desc:'五线谱行＋简谱行逐列对齐＋歌词，两行严格同音，音乐课/考级标配版式', make:presetTeach},
+  {name:'和弦进行示例（纯和弦谱）', desc:'小节格每拍节奏斜线；卡农＋4536 进行，含 slash/七和弦，级数↔音名切换、可即时移调', make:presetChordChart},
+  {name:'流行副歌（功能谱·进阶）', desc:'简谱旋律＋级数和弦；下行贝斯 line cliché＋转位＋副属和弦 D7，旋律与和声对齐', make:presetFuncPop},
 ];
 function migrate(s){
   if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
@@ -3586,7 +3869,10 @@ function render(){
             col.notes.forEach(n=>{
               const yy = tabTop+(n.s-1)*STR;
               /* ×记谱仅对开放把位(≤4品)的和弦内音用×；高把位显示实际品位数字 */
-              const isTone = tabNotation==='x' && shape && !n.x && n.f<=4 && shapeString(shape, n.s)===n.f;
+              /* v42.2 独奏谱(solo：TAB＋五线谱联排且无演唱声部)为单音旋律谱，一律显示实际品位数字；
+                 ×（和弦内音记号）仅用于弹唱/扫弦语境，避免独奏低音/空弦被误记为 × 而丢失音高 */
+              const soloCtx = song.tabStaff && !(song.voxVoices||[]).length;
+              const isTone = tabNotation==='x' && !soloCtx && shape && !n.x && n.f<=4 && shapeString(shape, n.s)===n.f;
               const picked = noteSel.some(q=>q.mi===lm.mi&&q.ci===ci&&q.si===n.s&&q.vi===vi);
               if(picked)
                 p.push(`<circle cx="${nx}" cy="${yy}" r="8" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
@@ -4238,7 +4524,9 @@ function render(){
               lineP(nx+18, mx+lm.L.w-2, pyB-3);
             }
           }
-          if((!isStaff || dual) && !song.chordOnly && col.dur<=2){
+          if((!isStaff || dual) && !song.chordOnly && col.dur<=2 && col.deg){
+            /* v42.2 增时线仅延长有音高的音（col.deg≠0）；休止(deg=0)不接增时线——
+               GB 惯例休止按拍记「0」（半/整小节休止用重复 0 或单 0），不与增时线混用 */
             /* v41.5 简谱增时线按实际时值出条数（GB 惯例：整拍数−1 条）：
                二分=1条、附点二分=2条、全音符=3条、附点全=5条、双附点全=6条；
                双附点二分(3.5拍)的余下半拍以一枚附点补记于末条增时线后（体系内无更优简谱写法） */
@@ -8625,7 +8913,7 @@ function createSong(type, o){
     key:o.key||'C', beats:o.beats||4, unit:o.unit||4, tempo:o.tempo||90, capo:o.capo||0, customChords:{},
     inst: base==='uku'?'uku':'guitar', func: base==='func'||undefined,
     tabVoices: noTab? [] : Array.from({length:o.nTab||1},(_,i)=>(base==='uku'?'尤克里里':'吉他')+(i+1)),
-    voxVoices: base==='piano'? ['右手','左手'] : Array.from({length:type==='solo'?0:(o.nVox||0)},(_,i)=>'旋律'+(i+1)),
+    voxVoices: base==='piano'? ['右手','左手'] : Array.from({length:type==='solo'?0:(o.nVox||(isChordOnly?1:0))},(_,i)=>'旋律'+(i+1)),
     voxNotations: base==='piano'? ['staff','bass'] : (base==='staff'? Array.from({length:o.nVox||1},()=> (type==='instr'&&o.clef)||'staff') : undefined),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
   if(type==='solo') s.tabStaff = true;                        // 独奏谱：TAB+五线谱联排
@@ -11036,6 +11324,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.2</span><div><b>各谱类预设曲谱补齐 + 制谱功能深测</b>（5 位谱类制谱师专家协作）：曲谱库谱类覆盖由 4 类升级到<b>全 10 类</b>——新增 <b>9 首出版级预设</b>：独奏谱（六线谱＋五线谱联排，击弦/勾弦/滑弦/推弦/揉弦五技法）、钢琴独奏（大谱表分解/柱式/阿尔贝蒂三织体）、钢琴弹唱伴奏、歌谱《送别》（两段词逐字对位）、四部合唱（SATB 同源简谱）、器乐五线谱《小步舞曲》（倚音/颤音/三连音/加线音）、教学对照谱（五线＋简谱行逐列对齐）、纯和弦谱（卡农＋4536）、功能谱进阶（下行贝斯＋副属和弦）。同时按出版规范<b>深度测试</b>各谱类并修复三处：① 独奏谱不再把低音/空弦误记为 ×（默认显示品位数字）；② 简谱休止不再错误接增时线（GB 惯例）；③ 纯和弦谱构造健壮性加固。其余刻版问题（大谱表小节线贯穿、吉他移调谱号、复合拍号符杠分组、跨小节连音线续笔等）已归档 <code>docs/notation-audit-v42.md</code> 排期。新增 <code>tv_presets</code> 回归（遍历全部预设渲染校验 + 谱类覆盖断言）。</div></li>
     <li><span class="v">v42.1</span><div><b>创作者一键发布到在线谱库打通</b>（云端生态 M2 收官补完）：编辑器创作者中心的<b>「发布」</b>不再只是本机演示——登录后点<b>「发布到在线谱库」</b>即真实上架 <code>puku.puyouquan.com</code>：① 非创作者<b>自动开通创作者</b>（开放注册）；② 先确保曲谱已存云端（含极端短 id 自动升级），再置为已发布；③ 弹出<b>可复制的公开链接</b>（<code>zhipu.puyouquan.com/?pub=ID</code>，任何人可在线观看 / 移调 / 跟谱）与谱库入口。发布菜单文案按登录态区分（在线发布 vs 本机演示提示）；未登录 / 预览环境仍走原本机演示不变。当前线上谱库统一按<b>免费</b>展示（售卖 / 试读功能开发中）。新增 <code>tv_publish</code> 回归 6 项。</div></li>
     <li><span class="v">v42.0</span><div><b>官网谱库同款卡片 + 全站登录</b>（云端生态 M2 收官）：① 官网谱库页与首页「最新发布曲谱」改为<b>与编辑器曲谱库同款卡片</b>——迷你旋律封面（取谱面首句音符+歌词）+ 类型标签 + 免费/价格 + 标题 + 制谱者，点开进编辑器观看模式；公开接口 <code>/api/pub/scores</code> 补返回封面/类型/小节数。② 官网导航新增<b>「登录 / 注册」</b>：站内手机验证码弹窗，与编辑器/谱库共享账号（Cookie 域 <code>.puyouquan.com</code> 互通），登录后导航显示昵称与下拉（个人中心 / 谱库 / 退出）；③ 导航「谱库」链到 <code>puku.puyouquan.com</code> 子域，入口统一。新增 <code>tv_site</code> 回归 6 项、后端断言至 33 项。</div></li>
     <li><span class="v">v41.9</span><div><b>谱库上线</b>（云端生态 M2）：<b>puku.puyouquan.com</b> 谱库页从介绍页升级为<b>已发布曲谱列表</b>，卡片点开即在编辑器进入<b>观看模式</b>——只读干净谱面 + 即时移调 + 播放跟谱 + 谱架全屏卷谱。技术上编辑器新增 <code>?pub=ID</code> 深链（<code>openRemotePub</code> 拉公开接口 <code>/api/pub/scores/:id</code> 复用观看模式渲染），后端新增公开谱库接口与创作者「发布 / 下架」，并预置<b>官方示例谱</b>（小星星 / 欢乐颂）使谱库开箱有内容。创作者从编辑器一键发布将随手机登录开放。新增 <code>tv_pub</code> 回归 5 项。</div></li>
