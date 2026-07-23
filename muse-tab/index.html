@@ -2801,10 +2801,11 @@ function beatsOf(c){
   const t = c.tup===1? 3 : c.tup;
   return (4/c.dur)*dotFactor(c)*(t? (t===3?2/3:4/t) :1)*(song.unit/4);
 }
+/* v42.9 变化音半音偏移：升#+1 / 降b−1 / 重升x+2 / 重降bb−2 / 还原n·空 0 */
+function accSemi(acc){ return acc==='#'?1 : acc==='b'?-1 : acc==='x'?2 : acc==='bb'?-2 : 0; }
 function voxMidi(c){
   if(!c.deg) return null;
-  let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12;
-  if(c.acc==='#') m++; if(c.acc==='b') m--;
+  let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12 + accSemi(c.acc);
   return m;
 }
 function shapeSounded(shape){
@@ -4335,11 +4336,11 @@ function render(){
             p.push(`<path d="M ${nx-5} ${voxY+1} L ${nx+5} ${voxY-11}" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round" fill="none"/>`);
           }else if(!isStaff || dual){
             if(col.acc)
-              p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':'♮'}</text>`);
+              p.push(`<text x="${nx-9}" y="${voxY-6}" font-size="10" text-anchor="middle" fill="var(--ink)">${col.acc==='#'?'♯':col.acc==='b'?'♭':col.acc==='x'?'×':col.acc==='bb'?'♭♭':'♮'}</text>`);
             p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
             (col.adds||[]).forEach((a2,ai)=>{ if(!a2||!a2.deg) return;   // 和音：数字纵向叠置（简谱惯例）
               p.push(`<text x="${nx}" y="${voxY-13-ai*11}" font-size="12" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
-              if(a2.acc) p.push(`<text x="${nx-7.5}" y="${voxY-16-ai*11}" font-size="8" text-anchor="middle" fill="var(--ink)">${a2.acc==='#'?'♯':'♭'}</text>`);
+              if(a2.acc) p.push(`<text x="${nx-7.5}" y="${voxY-16-ai*11}" font-size="8" text-anchor="middle" fill="var(--ink)">${a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮'}</text>`);
             });
           }
           if(isStaff && col.deg){
@@ -4359,7 +4360,7 @@ function render(){
               const hy2 = stepY(n2.st);
               p.push(smg(hnm, hx-smw(hnm)*SG/2, hy2, SG));
               const ln=(K.Li+n2.deg-1)%7, keyAlt=K.alt[ln]||0;
-              const av=n2.acc==='#'?1 : n2.acc==='b'?-1 : 0;
+              const av=accSemi(n2.acc);
               const sym=accCarry(accSt, n2.st, keyAlt+av, keyAlt);
               if(sym) p.push(accG(sym, nx, hy2, SG));
             });
@@ -5195,8 +5196,8 @@ function syncInputs(){
     { const ob=document.getElementById('b-ottava'); if(ob) ob.classList.toggle('on', !!col.ott); }
     [['b-art-stcc','staccatissimo'],['b-art-stacc','stacc'],['b-art-ten','tenuto'],['b-art-acc','accent'],['b-art-marc','marcato']]
       .forEach(([id,v])=>{ const el=document.getElementById(id); if(el) el.classList.toggle('on', col.artic===v); });
-    document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
-    document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
+    document.getElementById('b-sharp').classList.toggle('on', col.acc==='#'||col.acc==='x');
+    document.getElementById('b-flat').classList.toggle('on', col.acc==='b'||col.acc==='bb');
     document.getElementById('b-natural').classList.toggle('on', col.acc==='n');
     document.getElementById('b-tie').classList.toggle('on', !!col.tie);
     document.getElementById('b-grace').classList.toggle('on', !!col.grace);
@@ -6925,7 +6926,12 @@ document.getElementById('score').addEventListener('pointermove', e=>{
 window.addEventListener('pointerup', ()=>{ dragSel=null; });
 
 /* ================= 其余工具动作 ================= */
-function toggleAcc(a){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.acc=c.acc===a?'':a; }); }
+/* v42.9 变化音循环输入：♯ 键 无→升→重升(×)→无；♭ 键 无→降→重降(♭♭)→无；♮ 键切换还原号 */
+function toggleAcc(a){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol();
+  if(a==='#')      c.acc = c.acc==='#'? 'x' : c.acc==='x'? '' : '#';
+  else if(a==='b') c.acc = c.acc==='b'? 'bb': c.acc==='bb'?'' : 'b';
+  else             c.acc = c.acc===a? '' : a;
+}); }
 function bumpOct(d){ if(sel.row!=='vox')return; mutate(()=>{ const c=curCol(); c.oct=Math.max(-3,Math.min(3,(c.oct||0)+d)); }); }
 function toggleTie(){
   /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用 */
@@ -8614,7 +8620,7 @@ function play(){
         } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
         /* 同列多音（和音）：附加音与主音同起同长，独立发声不入延音链 */
         if(m!=null && col.adds) col.adds.forEach(a=>{ if(!a||!a.deg) return;
-          const am = keyRef() + DEG_SEMI[a.deg] + (a.acc==='#'?1:a.acc==='b'?-1:0) + (a.oct||0)*12;
+          const am = keyRef() + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12;
           playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off, durSec, vol*0.85, false, {damp:true});
         });
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
@@ -9455,7 +9461,7 @@ function exportMusicXML(s){
   const pitchXML = (deg,acc,oct)=>{
     const st = K.step0+(deg-1)+(oct||0)*7;
     const li = ((st%7)+7)%7;
-    const alter = (K.alt[li]||0) + (acc==='#'?1 : acc==='b'?-1 : 0);
+    const alter = (K.alt[li]||0) + accSemi(acc);   // v42.9 含重升(+2)/重降(−2)
     return `<pitch><step>${L[li]}</step>${alter? `<alter>${alter}</alter>`:''}<octave>${Math.floor(st/7)-1}</octave></pitch>`;
   };
   const clefXML = nt => nt==='bass'? '<clef><sign>F</sign><line>4</line></clef>'
@@ -9962,7 +9968,7 @@ function exportMIDI(s){
       {tick:0,pr:0,data:[0xFF,0x51,3,(us>>16)&255,(us>>8)&255,us&255]},
       {tick:0,pr:0,data:[0xFF,0x58,4,s.beats||4,Math.round(Math.log2(s.unit||4)),24,8]},
       {tick:0,pr:0,data:[0xFF,0x59,2,fifths&255,0]}])); }
-  const colMidi=c=> ref + DEG_SEMI[c.deg] + (c.acc==='#'?1:c.acc==='b'?-1:0) + (c.oct||0)*12;
+  const colMidi=c=> ref + DEG_SEMI[c.deg] + accSemi(c.acc) + (c.oct||0)*12;
   (s.voxVoices||[]).forEach((vn,vi)=>{
     const ch=chFor(vi);
     const evts=[{tick:0,pr:0,data:[0xC0|ch,0]}];
@@ -11536,6 +11542,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.9</span><div><b>双变音手输：重升 × / 重降 ♭♭（完整度审计 Tier 2 续）</b>：音符变化音现支持<b>重升（double sharp）</b>与<b>重降（double flat）</b>——「音符记号」面板<b>♯ 键连按：无→升→重升(×)→无</b>，<b>♭ 键连按：无→降→重降(♭♭)→无</b>（♮ 还原不变）。五线谱按 SMuFL 标准字形画 <b>𝄪 / ♭♭</b>（含小节内临时记号进位：同线重升后转单升自动补 ♯），简谱行标 <b>× / ♭♭</b> 前缀（含和音叠音）；播放音高按 ±2 半音正确发声，MusicXML 导出 <code>&lt;alter&gt;±2&lt;/alter&gt;</code>。视唱练耳/器乐/艺考的和声小调导音、变化音级、转调经过音等终于可精确记谱。均为既有 <code>col.acc</code> 字段扩值（'x'/'bb'），旧谱与 #/b/还原完全兼容。新增 <code>tv_dblacc</code> 回归 5 项。</div></li>
     <li><span class="v">v42.8</span><div><b>八度记号 8va / 8vb（ottava 线，完整度审计 Tier 2 续）</b>：五线谱声部新增<b>八度线</b>——把音区极高/极低的乐句<b>按记谱移低/高一个八度</b>收拢大量上/下加线，谱表<b>上方（8va/15ma）或下方（8vb/15mb）画斜体标签 + 虚线括线 + 端点竖钩</b>（出版惯例），<b>实际音高与播放、导出完全不变</b>（只改谱面位置）。用法：五线谱声部「音符记号」面板点<b>「八度线8va」</b>，Ctrl 选首末两音标注整句、单选标注单音，弹出 8va/8vb/15ma/15mb 四选一（再点清除，整段一并清除）；跨行时括线画到行末断开、次行续接。仅五线谱记谱声部可用（简谱仍用「8度±」直接升降八度，二者不同：8度±改实音、八度线只改记谱）。移位由 <code>staffStep</code> 内联，符头/加线/符干/符杠/临时记号/连线全部随动。新增 <code>tv_ottava</code> 回归 4 项。</div></li>
     <li><span class="v">v42.7</span><div><b>意大利速度/表情术语库 + 弱起小节</b>（完整度审计 Tier 2，视唱练耳/器乐/艺考刚需）：① <b>速度术语库</b>——「曲谱信息」新增<b>速度术语</b>下拉（Grave/Largo/Adagio/Andante/Moderato/Allegro/Presto… 16 项可选、亦可自填如「Andante cantabile」），谱首在 ♩=X 旁以<b>斜体加粗</b>标注（出版惯例），五线谱/器乐谱同样显示。② <b>表情术语</b>——力度菜单扩充 <b>dolce（柔美）/ cantabile（如歌）/ espressivo（富表情）/ legato（连奏）/ leggiero（轻巧）/ a tempo（回原速）/ rubato（自由速度）/ tacet（此段休止）</b>，标在音符下方斜体文字，<b>仅记谱、不改播放音量</b>（力度记号仍影响音量）。③ <b>弱起小节 Anacrusis</b>——「曲谱信息」勾选<b>弱起小节</b>后，<b>首小节不足拍不再误报</b>「节拍不满」（但超拍仍报错），且谱面<b>重新编号</b>：弱起小节不编号、其后第一整小节记为「1」（出版惯例）。均为 song 只增字段、纯记谱层，不影响既有谱与播放。新增 <code>tv_tempo</code> 回归 4 项。</div></li>
     <li><span class="v">v42.6</span><div><b>独奏谱五线谱改用吉他移调谱号（treble-8vb）</b>（完整度审计 Tier 1 收官）：吉他独奏/指弹谱的<b>六线＋五线联排</b>中，五线谱此前用普通高音谱号按实音记谱，低音弦（如空弦 E/A）堆<b>大量下加线</b>（低 E 达 7 条），可读性差。现改用<b>吉他标准移调谱号</b>——谱号下方标「8」（实音低八度）、记谱升八度，把吉他音域收拢到谱表附近，<b>单音下加线最多由 7 条降到 3 条</b>，符合所有正式吉他谱出版惯例。仅独奏/指弹联排谱生效，器乐五线谱/钢琴谱/歌谱不受影响；声部实音与播放不变。至此审计 Tier 1 结构四修（大谱表小节线贯穿 / 复合拍号符杠 / 跨小节连线 / 移调谱号）全部落地。<code>tv_engrave</code> 回归扩至 8 项。</div></li>
