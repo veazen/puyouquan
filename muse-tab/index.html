@@ -1501,9 +1501,23 @@ window.SF_EMBED={"acoustic_guitar_steel":{"40":"data:audio/mp3;base64,//uQZAAAAA
 /* ================= 基础数据 ================= */
 const TUNING = [64,59,55,50,45,40];        // 吉他 1-6 弦 (E B G D A E)
 const UKU_TUNING = [69,64,60,67];          // 尤克里里 1-4 弦 (A E C G，high-G)
+/* v42.3 特殊调弦预设（指弹常用）：t=1→6 弦 MIDI 音高，null=标准；谱首标注用 label */
+const TUNINGS = {
+  std:    {label:'标准 EADGBE', t:null},
+  dropD:  {label:'Drop D',      t:[64,59,55,50,45,38]},   // 6 弦 E→D
+  dadgad: {label:'DADGAD',      t:[62,57,55,50,45,38]},
+  openG:  {label:'Open G',      t:[62,59,55,50,43,38]},
+  openD:  {label:'Open D',      t:[62,57,54,50,45,38]},
+};
 function instOf(){ return (typeof song!=='undefined' && song && song.inst)||'guitar'; }
 function strN(){ return instOf()==='uku'?4:6; }
-function tuningOf(){ return instOf()==='uku'?UKU_TUNING:TUNING; }
+function tuningOf(){ return (typeof song!=='undefined' && song && song.tuning) || (instOf()==='uku'?UKU_TUNING:TUNING); }
+/* 自定义定弦匹配到预设名（用于谱首标注）；标准/未设返回 '' */
+function tuningLabel(){
+  const t = (typeof song!=='undefined' && song && song.tuning); if(!t) return '';
+  for(const k in TUNINGS){ const p=TUNINGS[k].t; if(p && p.length===t.length && p.every((v,i)=>v===t[i])) return TUNINGS[k].label; }
+  return '自定义调弦';
+}
 const KEY_LIST = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
 const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 const DEG_SEMI = [null,0,2,4,5,7,9,11];
@@ -3517,6 +3531,7 @@ function render(){
   }
   const capoBits=[];
   if(song.capo>0 && !pureStaff) capoBits.push(`变调夹 ${song.capo} 品`);
+  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push(tl); }   // v42.3 特殊调弦谱首标注
   capoBits.push(`♩=${song.tempo}`);
   p.push(`<text x="${pureStaff? MARGIN : MARGIN+78}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${esc(capoBits.join('　'))}</text>`);
   let top = headY + 42;
@@ -3885,8 +3900,9 @@ function render(){
               }
               /* 技法：符号显示在两音之间连音线上方（比例缩小） */
               if(n.tech==='hm'){
-                /* 泛音：与功能栏 ◇ 图标同形同线宽的正菱形框住音符 */
+                /* 泛音：与功能栏 ◇ 图标同形同线宽的正菱形框住音符；v42.3 hmT 细分标 A.H./P.H./T.H. */
                 p.push(`<polygon points="${nx},${yy-7} ${nx+7},${yy} ${nx},${yy+7} ${nx-7},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                if(n.hmT) p.push(`<text x="${nx}" y="${yy-9.5}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
               }else if(n.tech==='su' || n.tech==='sd'){
                 /* 无头滑音：音符左侧斜杠（上滑/下滑）+ 小 S */
                 const up = n.tech==='su';
@@ -3942,6 +3958,12 @@ function render(){
                   p.push(`<line x1="${xd}" y1="${wy-3}" x2="${xEnd}" y2="${wy-3}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
                   p.push(`<line x1="${xEnd}" y1="${wy-3}" x2="${xEnd}" y2="${wy+2.5}" stroke="var(--ink)" stroke-width="1"/>`);
                 }
+              }else if(n.tech==='lr'){
+                /* v42.3 let ring：音符上方 "let ring" + 虚线延伸到范围末音（tk），余音保持共鸣 */
+                const tlr = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                const wy = yy-10.5, xEnd = (tlr && tlr.sys===sIdx)? tlr.x+5 : nx+Math.max(20, cw-4), xd = nx+34;
+                p.push(`<text x="${nx-6}" y="${wy}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">let ring</text>`);
+                if(xEnd > xd+2) p.push(`<line x1="${xd}" y1="${wy-3}" x2="${xEnd}" y2="${wy-3}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
               }else if(n.tech){
                 const SYM = {sl:'S',h:'h',p:'p',tp:'T',pm:'P.M.'};
                 const sym = SYM[n.tech]||n.tech;
@@ -3968,10 +3990,23 @@ function render(){
                   p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 }
               }
+              /* v42.3 摇把 whammy（电吉他）：音符上方 "w/bar" + 形态记号，与 tech 独立可共存 */
+              if(n.bar){
+                const BARSYM={dive:'↘俯冲',scoop:'↗上滑',dip:'∨下点',shake:'≈颤'};
+                p.push(`<text x="${nx}" y="${yy-13.5}" font-size="7.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">w/bar ${(BARSYM[n.bar]||'').charAt(0)}</text>`);
+              }
+              /* v42.3 指弹右手指法 p i m a：品位数字下方小字 */
+              if(n.rhFing)
+                p.push(`<text x="${nx}" y="${yy+12}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.rhFing}</text>`);
             });
-            /* 空列（无音符/无扫弦）画休止符，让时值可见 */
-            if(!col.notes.length)
+            /* v42.3 打板（指弹打击技法）：TAB 中部 × 符头 + 上方分区字母；打板列不画休止 */
+            if(col.perc){
+              const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
+              p.push(`<text x="${nx}" y="${tabTop+STAFF/2+4}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
+              p.push(`<text x="${nx}" y="${tabTop-3}" font-size="7.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);
+            }else if(!col.notes.length)
               {
+                /* 空列（无音符/无扫弦）画休止符，让时值可见 */
                 const REST={1:'𝄻',2:'𝄼',4:'𝄽',8:'𝄾',16:'𝄿',32:'𝅀'};
                 p.push(`<text x="${nx}" y="${tabTop+STAFF/2+STR*0.8}" font-size="13.5" text-anchor="middle" fill="var(--ink)" opacity="0.88">${REST[col.dur]||'𝄽'}</text>`);
               }
@@ -4737,6 +4772,17 @@ const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b'
                   ['v','揉弦','~'],['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
                   ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],['','清除','—']];
+/* v42.3 gtype 专属技法按钮：[key,label,glyph,ctx('lead'电吉他/'finger'指弹/'solo'两者),kind,value]。
+   ctx 决定按 song.gtype 显隐；kind 路由 applyGtech（tech 复用 applyTech，其余走 note.bar/hmT/rhFing/col.perc）。 */
+const EB_GTECH = [
+  ['lr','let ring','↝','solo','tech','lr'],
+  ['bDive','摇把俯冲','↘','lead','bar','dive'],['bScoop','摇把上滑','↗','lead','bar','scoop'],
+  ['bDip','摇把下点','∨','lead','bar','dip'],['bShake','摇把颤音','≈','lead','bar','shake'],
+  ['hmA','人工泛音','A.H','lead','hm','A'],['hmP','拨片泛音','P.H','lead','hm','P'],['hmT','点弦泛音','T.H','lead','hm','T'],
+  ['rhP','拇指 p','p','finger','rhFing','p'],['rhI','食指 i','i','finger','rhFing','i'],
+  ['rhM','中指 m','m','finger','rhFing','m'],['rhA','无名 a','a','finger','rhFing','a'],
+  ['pcB','打板·低','B','finger','perc','bass'],['pcS','打板·高','S','finger','perc','snare'],['pcG','击板','G','finger','perc','golpe'],
+];
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['dyn','力度/速度'],['clr','清除记号']];
 const DYN_LIST=[['ppp','极弱'],['pp','很弱'],['p','弱'],['mp','中弱'],['mf','中强'],['f','强'],['ff','很强'],
@@ -4900,15 +4946,21 @@ function setRibbon(t){
     if(la && song && song.lyricLines>0) la.style.display='none'; }
   /* 编辑栏第二行按声部切换：吉他谱→演奏技巧，简谱→标识符号 */
   const ctx = document.getElementById('eb-ctx'), ctxT = document.getElementById('eb-ctx-t');
-  if(ctx && ebCtxFor!==t && !virt){   // v40.1 图层页（和弦/小节/段落）不清空第二行，保留最近的技法/记号
+  const ctxKey = t+':'+((song&&song.gtype)||'');   // v42.3 缓存键含 gtype：切换独奏(电吉他)↔指弹时刷新专属技法面板
+  if(ctx && ebCtxFor!==ctxKey && !virt){   // v40.1 图层页（和弦/小节/段落）不清空第二行，保留最近的技法/记号
 
-    ebCtxFor=t;
+    ebCtxFor=ctxKey;
     const techHtml = ()=>EB_TECHS.map(([k,l,g])=>{
         const hint = {v:'：波浪线随音符时值延长；Ctrl 选首末两音可让波浪覆盖整段范围',
                       pm:'：单音标 P.M.；Ctrl 选首末两音，P.M. 虚线覆盖整段范围'}[k]
                    || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
         return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
-      }).join('');
+      }).join('') + gtechHtml();
+    /* v42.3 gtype 专属技法：按 song.gtype 过滤（lead/finger；'solo' 两者皆显）；非独奏谱不显 */
+    const gtechHtml = ()=>{ const gt = song && song.gtype; if(!gt) return '';
+      return EB_GTECH.filter(([k,l,g,ctx])=> ctx===gt || (ctx==='solo'))
+        .map(([k,l,g,ctx,kind,val])=>`<button class="eb ico" data-gtech="${kind}:${val}" title="${l}（${kind==='perc'?'作用于当前列':'作用于选中音符'}）"><b class="g">${g}</b><span>${l}</span></button>`).join('');
+    };
     const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
     if(uiShell){
       /* v40.3 新版：技法/记号渲染进左栏图层面板，编辑栏第二行留空（CSS 已隐藏） */
@@ -5539,6 +5591,8 @@ function applyVoxPattern(pat){
     if(tp){ applyTuplet(+tp.dataset.tup); return; }
     const tb=e.target.closest('[data-tech2]');
     if(tb){ techFromBar(tb.dataset.tech2); return; }
+    const gtb=e.target.closest('[data-gtech]');   // v42.3 gtype 专属技法（摇把/泛音细分/pima/打板/let ring）
+    if(gtb){ const [kind,val]=gtb.dataset.gtech.split(':'); if(kind==='tech') techFromBar(val); else applyGtech(kind, val); return; }
     const ob=e.target.closest('[data-orn]');
     if(ob){
       if(ob.dataset.orn==='dyn'){ const r=ob.getBoundingClientRect(); showDynMenu(r.left, r.bottom); return; }
@@ -6685,12 +6739,12 @@ function applyTech(tech){
       return cols && cols[q.ci] && cols[q.ci].notes.find(n=>n.s===q.si);
     };
     if(!tech){
-      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; } });
+      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bar; delete n.hmT; delete n.rhFing; } });
       return;
     }
     /* 揉弦/闷音是「范围记号」：扩选多个音符时首音直连末音，
        一段波浪线 / P.M.虚线覆盖整个范围（中间音符不重复标记） */
-    if((tech==='v' || tech==='pm') && list.length>1){
+    if((tech==='v' || tech==='pm' || tech==='lr') && list.length>1){
       const n = noteAt(list[0]);
       const last = list[list.length-1];
       if(n){ n.tech=tech; n.tk={mi:last.mi, ci:last.ci, si:last.si}; delete n.bt; }
@@ -6705,7 +6759,29 @@ function applyTech(tech){
     }
     if(list.length===1){ const n=noteAt(list[0]); if(n){ n.tech=tech; delete n.tk; } }
   });
-  toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'上推弦',bd:'下推弦',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音',su:'上滑音',sd:'下滑音'}[tech]||tech)):'已清除技法');
+  toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'上推弦',bd:'下推弦',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音',su:'上滑音',sd:'下滑音',lr:'let ring 余音保持'}[tech]||tech)):'已清除技法');
+}
+/* v42.3 gtype 专属技法：摇把 note.bar / 泛音细分 note.hmT / 右手指法 note.rhFing / 打板 col.perc（字段只增） */
+function applyGtech(kind, value){
+  if(kind==='perc'){                                   // 打板：作用于当前选中列（列级）
+    if(sel.row!=='tab' && !noteSel.some(q=>q.row!=='vox')) return toast('请先在六线谱选中要打板的列');
+    mutate(()=>{ const c=curCol(); if(c){ c.perc = c.perc===value? undefined : value; if(c.perc){ c.notes=[]; c.strum=''; } } });
+    return toast(value?('已标记打板：'+({bass:'低音区',snare:'高音区',golpe:'击板',tambour:'闷鼓'}[value]||value)):'已清除打板');
+  }
+  const picked = noteSel.filter(q=>q.row!=='vox');
+  if(!picked.length) return toast('请先在六线谱选中音符');
+  mutate(()=>{
+    picked.forEach(q=>{
+      const cols=song.measures[q.mi].tabs[q.vi]; const n=cols && cols[q.ci] && cols[q.ci].notes.find(x=>x.s===q.si);
+      if(!n) return;
+      if(kind==='bar')    n.bar = n.bar===value? undefined : value;
+      else if(kind==='hm'){ n.tech='hm'; n.hmT = n.hmT===value? undefined : value; }
+      else if(kind==='rhFing') n.rhFing = n.rhFing===value? undefined : value;
+    });
+  });
+  toast('已标记：'+({bar:{dive:'摇把俯冲',scoop:'摇把上滑',dip:'摇把下点',shake:'摇把颤音'},
+    hm:{A:'人工泛音 A.H.',P:'拨片泛音 P.H.',T:'点弦泛音 T.H.'},
+    rhFing:{p:'右手拇指 p',i:'右手食指 i',m:'右手中指 m',a:'右手无名 a'}}[kind]||{})[value]||value);
 }
 /* 按住左键拖动多选（同声部内，可跨小节） */
 document.getElementById('score').addEventListener('pointermove', e=>{
@@ -8917,6 +8993,8 @@ function createSong(type, o){
     voxNotations: base==='piano'? ['staff','bass'] : (base==='staff'? Array.from({length:o.nVox||1},()=> (type==='instr'&&o.clef)||'staff') : undefined),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
   if(type==='solo') s.tabStaff = true;                        // 独奏谱：TAB+五线谱联排
+  if(o.gtype) s.gtype = o.gtype;                              // v42.3 'lead'电吉他独奏 / 'finger'指弹（决定专属技法面板，字段只增）
+  if(o.tuning) s.tuning = o.tuning.slice();                   // v42.3 自定义定弦（Drop D/DADGAD/Open G 等）
   if(type==='teach') s.voxDual = Array.from({length:o.nVox||1},()=>true);   // 教学对照：谱表+简谱行
   if(type==='pianoacc'){ s.pianoAcc = true; s.funcNames = true; }           // 钢琴弹唱：纯伴奏+和弦名
   if(isChordOnly){ s.chordOnly = true; s.funcNames = true; }   // 纯和弦谱（小节格，默认显示和弦名）
@@ -8930,8 +9008,9 @@ function showNewWizard(){
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
   ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前曲谱《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将<b>替换当前窗口</b>${st.saved?'':'（未入库的编辑会先询问）'}。</p>` : ''}
   <div class="ntgrid">
-    <button class="ntcard ntype" data-nt="tanchang"><span class="nt-tag">弹唱</span><b>弹唱谱</b><span>六线谱 TAB＋简谱＋歌词＋和弦图，吉他/尤克里里通用的标准弹唱版式（乐器下一步选）。</span></button>
-    <button class="ntcard ntype" data-nt="solo"><span class="nt-tag">独奏</span><b>独奏谱</b><span>六线谱＋五线谱联排（Guitar Pro 式），木吉他指弹与电吉他专用，完整演奏技法记谱。</span></button>
+    <button class="ntcard ntype" data-nt="tanchang"><span class="nt-tag">弹唱</span><b>吉他弹唱谱</b><span>六线谱 TAB＋简谱＋歌词＋和弦图，吉他/尤克里里通用的标准弹唱版式（乐器下一步选）。</span></button>
+    <button class="ntcard ntype" data-nt="solo" data-gtype="lead"><span class="nt-tag">独奏</span><b>吉他独奏谱</b><span>六线＋五线联排（Guitar Pro 式），电吉他 solo 完整技法：推弦/摇把/滑音/泛音细分/点弦/let ring。</span></button>
+    <button class="ntcard ntype" data-nt="solo" data-gtype="finger"><span class="nt-tag">指弹</span><b>指弹吉他谱</b><span>木吉他指弹：六线＋五线联排，pima 右手指法、特殊调弦（Drop D/DADGAD/Open G）、打板与击勾滑。</span></button>
     <button class="ntcard ntype" data-nt="pianoacc"><span class="nt-tag">伴奏</span><b>钢琴弹唱谱</b><span>大谱表纯伴奏：标注和弦、选伴奏织体自动生成双手音符——主旋律由演唱者担任。</span></button>
     <button class="ntcard ntype" data-nt="piano"><span class="nt-tag">大谱表</span><b>钢琴独奏谱</b><span>高音+低音双谱表（右手/左手）花括线联排，双手各自独立录入。</span></button>
     <button class="ntcard ntype" data-nt="vocal"><span class="nt-tag">简谱</span><b>歌谱</b><span>简谱＋多段歌词：独唱、合唱（1–4 声部）与二胡/古筝等民乐记谱通用。</span></button>
@@ -9059,11 +9138,12 @@ function showNewWizard(){
     };
     rd.readAsText(file);
   };
-  document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt));
+  document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt, b.dataset.gtype));
   document.getElementById('nw-cancel').onclick = closeModal;
 }
-function showNewForm(type){
-  const tName = {tanchang:'弹唱谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱', vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱',
+function showNewForm(type, gtype){
+  const tName = (type==='solo' && gtype==='finger')? '指弹吉他谱' : (type==='solo' && gtype==='lead')? '吉他独奏谱' :
+    {tanchang:'吉他弹唱谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱', vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱',
     guitar:'吉他谱', uku:'尤克里里谱', vox:'简谱', staff:'五线谱'}[type]||'曲谱';
   const instLabel = '吉他';
   const noTab = !(type==='tanchang' || type==='solo' || type==='guitar' || type==='uku');
@@ -9083,6 +9163,7 @@ function showNewForm(type){
   ${type==='func'? `<label class="f"><span>谱式</span><select id="nw-ftype"><option value="func">简谱＋级数和弦</option><option value="chord">纯和弦谱（小节格）</option></select></label>` : ''}
   ${!noTab? `<label class="f"><span>变调夹</span>${sels('nw-capo',[0,1,2,3,4,5,6,7],0)}<span style="width:auto">品（0＝不用，页头显示）</span></label>
   <label class="f"><span>声部数</span>${sels('nw-ntab',[1,2],1)}</label>` : ''}
+  ${type==='solo'? `<label class="f"><span>定弦</span><select id="nw-tuning">${Object.keys(TUNINGS).map(k=>`<option value="${k}">${TUNINGS[k].label}</option>`).join('')}</select><span style="width:auto">（特殊调弦谱首自动标注）</span></label>` : ''}
   ${type==='vocal'? `<label class="f"><span>简谱声部</span>${sels('nw-nvox',[1,2,3,4],1)}<span style="width:auto">（合唱选 2–4）</span></label>` :
     (type==='pianoacc'||type==='piano'||type==='teach'||type==='instr'||type==='func')? '' :
     `<label class="f"><span>简谱声部</span>${noTab? sels('nw-nvox',[1,2],1) : sels('nw-nvox',[0,1,2],1)}</label>`}
@@ -9100,7 +9181,8 @@ function showNewForm(type){
       nMea:Math.max(1,Math.min(200,+V('nw-mea')||8)),
       capo:!noTab? +gv('nw-capo')||0 : 0,
       nTab:!noTab? +gv('nw-ntab')||1 : 0, nVox:+(gv('nw-nvox')||1), lyr:+V('nw-lyr'),
-      inst:gv('nw-inst')||undefined, clef:gv('nw-clef')||undefined, ftype:gv('nw-ftype')||undefined };
+      inst:gv('nw-inst')||undefined, clef:gv('nw-clef')||undefined, ftype:gv('nw-ftype')||undefined,
+      gtype:gtype||undefined, tuning:(gv('nw-tuning') && TUNINGS[gv('nw-tuning')] && TUNINGS[gv('nw-tuning')].t) || undefined };
     if(!noTab && o.nTab<1) o.nTab=1;
     if(noTab && o.nVox<1) o.nVox=1;
     if(type==='solo'){ o.nVox=0; }
@@ -11324,6 +11406,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.3</span><div><b>吉他谱三分类 + 演奏技巧符号大补充</b>：新建向导把吉他谱拆为<b>吉他弹唱谱 / 吉他独奏谱（电吉他）/ 指弹吉他谱</b>三入口，独奏与指弹共享「六线＋五线联排」基座但各自加载<b>专属技法面板</b>（按 <code>gtype</code> 感知，切换即刷新）。① <b>电吉他技法</b>：摇把 whammy（俯冲/上滑/下点/颤音）、泛音细分（人工 A.H./拨片 P.H./点弦 T.H.）、<b>let ring</b> 余音保持（虚线范围）、推弦幅度（沿用 full/½）。② <b>指弹技法</b>：右手指法 <b>p i m a</b>、<b>特殊调弦</b>（Drop D / DADGAD / Open G / Open D，谱首自动标注）、<b>打板</b>（低音区/高音区/击板 golpe）。③ 通用：<b>N.C. 无和弦</b>段。用法：六线谱选中音符→左栏「演奏技巧」面板点对应记号（摇把/泛音/pima 作用于音符，打板作用于列，let ring 可 Ctrl 选首末两音覆盖范围）；特殊调弦在新建独奏/指弹谱时选择。所有新增均为 song 只增字段，不影响既有谱。新增 <code>tv_gtech</code> 回归 9 项。</div></li>
     <li><span class="v">v42.2</span><div><b>各谱类预设曲谱补齐 + 制谱功能深测</b>（5 位谱类制谱师专家协作）：曲谱库谱类覆盖由 4 类升级到<b>全 10 类</b>——新增 <b>9 首出版级预设</b>：独奏谱（六线谱＋五线谱联排，击弦/勾弦/滑弦/推弦/揉弦五技法）、钢琴独奏（大谱表分解/柱式/阿尔贝蒂三织体）、钢琴弹唱伴奏、歌谱《送别》（两段词逐字对位）、四部合唱（SATB 同源简谱）、器乐五线谱《小步舞曲》（倚音/颤音/三连音/加线音）、教学对照谱（五线＋简谱行逐列对齐）、纯和弦谱（卡农＋4536）、功能谱进阶（下行贝斯＋副属和弦）。同时按出版规范<b>深度测试</b>各谱类并修复三处：① 独奏谱不再把低音/空弦误记为 ×（默认显示品位数字）；② 简谱休止不再错误接增时线（GB 惯例）；③ 纯和弦谱构造健壮性加固。其余刻版问题（大谱表小节线贯穿、吉他移调谱号、复合拍号符杠分组、跨小节连音线续笔等）已归档 <code>docs/notation-audit-v42.md</code> 排期。新增 <code>tv_presets</code> 回归（遍历全部预设渲染校验 + 谱类覆盖断言）。</div></li>
     <li><span class="v">v42.1</span><div><b>创作者一键发布到在线谱库打通</b>（云端生态 M2 收官补完）：编辑器创作者中心的<b>「发布」</b>不再只是本机演示——登录后点<b>「发布到在线谱库」</b>即真实上架 <code>puku.puyouquan.com</code>：① 非创作者<b>自动开通创作者</b>（开放注册）；② 先确保曲谱已存云端（含极端短 id 自动升级），再置为已发布；③ 弹出<b>可复制的公开链接</b>（<code>zhipu.puyouquan.com/?pub=ID</code>，任何人可在线观看 / 移调 / 跟谱）与谱库入口。发布菜单文案按登录态区分（在线发布 vs 本机演示提示）；未登录 / 预览环境仍走原本机演示不变。当前线上谱库统一按<b>免费</b>展示（售卖 / 试读功能开发中）。新增 <code>tv_publish</code> 回归 6 项。</div></li>
     <li><span class="v">v42.0</span><div><b>官网谱库同款卡片 + 全站登录</b>（云端生态 M2 收官）：① 官网谱库页与首页「最新发布曲谱」改为<b>与编辑器曲谱库同款卡片</b>——迷你旋律封面（取谱面首句音符+歌词）+ 类型标签 + 免费/价格 + 标题 + 制谱者，点开进编辑器观看模式；公开接口 <code>/api/pub/scores</code> 补返回封面/类型/小节数。② 官网导航新增<b>「登录 / 注册」</b>：站内手机验证码弹窗，与编辑器/谱库共享账号（Cookie 域 <code>.puyouquan.com</code> 互通），登录后导航显示昵称与下拉（个人中心 / 谱库 / 退出）；③ 导航「谱库」链到 <code>puku.puyouquan.com</code> 子域，入口统一。新增 <code>tv_site</code> 回归 6 项、后端断言至 33 项。</div></li>
