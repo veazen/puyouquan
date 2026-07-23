@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v42.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v43.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -206,6 +206,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_tempo | v42.7 速度/表情术语+弱起：TEMPO_TERMS 库+song.tempoTerm 谱首斜体渲染(简谱/五线谱)、表情术语(dolce/cantabile/legato/a tempo)音符下方斜体且不入 DYN_GAIN(不改音量)、弱起小节 song.pickup 首小节不足拍豁免+超拍仍报错+meaNo 重编号(弱起空号/其后记1)——4项 |
 | tv_ottava | v42.8 八度记号：staffStep 内联 ottStep(8va−7/8vb+7/15ma∓14) 记谱移位、voxMidi 实音不变、col.ott+ottTo 起列画 8va 斜体标签+虚线括线(dasharray)+上下方位(8va上/8vb下)、整句 ott 落每列 ottTo 仅首列、下加线收拢(22→0)——4项 |
 | tv_dblacc | v42.9 双变音手输：accSemi(x+2/bb−2) & voxMidi 半音、toggleAcc 循环(空→#→x→空 / 空→b→bb→空)、简谱 ×/♭♭ 文字(含 adds)、五线谱 SMuFL accidentalDoubleSharp/Flat 字形+临时记号进位、MusicXML 导出 alter=±2——5项 |
+| tv_glyphsz | v43.0 记号放大：简谱变化音 font-size 14(单)/12(双 ♭♭)、左置于数字左侧(x<数字)、旧 10 号已无；吉他分解/闷音 × font-size 12.5(旧 10)——2项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
