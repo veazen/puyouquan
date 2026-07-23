@@ -14,6 +14,8 @@
 | notation-staff-engraver | 五线谱刻版制谱师 | 器乐五线谱 instr / 教学对照 teach |
 | notation-func-chord | 功能谱和弦制谱师 | 功能谱 func / 纯和弦谱 chord |
 | notation-expert | 制谱专家（总审） | 跨谱类记号体系审计（既有） |
+| engraving-master | 出版级排版师 | 刻版质量审核（符干/符杠/间距/对齐/加线/谱表连接，对照 Gould+附录） |
+| smufl-symbol-manager | 音乐符号管理师 | 符号覆盖完整度盘点（SMuFL/Bravura 字形集、多乐器记号，对照记谱大全） |
 
 ## 上游精选角色（营销/工程/设计）
 
