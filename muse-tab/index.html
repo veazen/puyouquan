@@ -1183,6 +1183,7 @@ body.shell #hint{display:none}
         <button id="b-art-stacc" title="跳音：音符上方圆点 ·，短促轻巧（与断音/保持音/重音互斥，再点取消）">跳音·</button>
         <button id="b-art-ten" title="保持音：音符上方横线 −，唱/奏足时值（与断音/跳音/重音互斥，再点取消）">保持音−</button>
         <button id="b-art-acc" title="重音：音符上方 &gt;，强调该音（与断音/跳音/保持音互斥，再点取消）">重音&gt;</button>
+        <button id="b-art-marc" title="顿强（marcato）：音符上方 ∧，比重音更强的顿奏强调（与断音/跳音/保持音/重音互斥，再点取消）">顿强∧</button>
         <button id="b-breath" title="换气记号：列右上角小 v，表示本音之后换气（声乐/合唱用，再点取消）">换气v</button>
         <button id="b-fing" title="指法数字（钢琴/器乐惯例）：点击进入直录，按数字键 1–5 写入当前音指法（0/退格清除，Esc 或再点退出）；仅五线谱记谱声部显示">指法1-5</button>
         <button id="b-ped-on" title="延音踏板踩下：本列起谱表下方画 Ped.——延续线，至「踏板收」列画 * 收尾（再点取消）；仅钢琴/大谱表等五线谱记谱声部显示">踏板Ped.</button>
@@ -3349,10 +3350,13 @@ function voltaSVG(p, mea, mi, mx, bx, yV){
 }
 function beamGroups(cols, playable){
   const groups=[]; let cur=null; let cum=0;
+  /* v42.4 复合拍号(6/8·9/8·12/8，unit===8)按附点四分成组：beatsOf 令八分=1 单位，故组长=3 个八分；
+     简单拍号(unit 4/2)组长=1（每拍成组），行为不变。五线谱符杠/TAB符杠/简谱减时线三处共用本函数一并受益 */
+  const gLen = song.unit===8 ? 3 : 1;
   cols.forEach((c,i)=>{
     const b=beatsOf(c);
     const ok = c.dur>=8 && (!playable || playable(c));
-    const beat = Math.floor(cum+1e-4);
+    const beat = Math.floor(cum/gLen+1e-4);
     if(ok){
       if(cur && cur.beat===beat) cur.idx.push(i);
       else{ cur={beat, idx:[i]}; groups.push(cur); }
@@ -4189,7 +4193,10 @@ function render(){
           p.push(`<rect x="${mx+1}" y="${rowT}" width="${lm.L.w-2}" height="${rowH+4}" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.7"/>`);
         const bx = mx+lm.L.w;
         const vNextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
-        const yT2 = isStaff? staffT : voxY-13, yB2 = isStaff? staffB : voxY+4;
+        /* v42.4 大谱表低音声部：小节线/终止线上延至上方高音谱表顶线，贯穿上下谱表（Gould 键盘大谱表惯例），
+           而非各谱表各画一段留 41px 间隙——与左端花括线端点 prevT 一致 */
+        const gsBass = isStaff && isBass && (song.voxNotations||[])[vi-1]==='staff';
+        const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
         /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
         const dotY1 = isStaff? staffB-SG*1.5 : voxY-6, dotY2 = isStaff? staffB-SG*2.5 : voxY-0.5;
         if(mea.repeatStart){
@@ -4447,7 +4454,7 @@ function render(){
                 const tip=upA? -1 : 1;
                 p.push(`<path d="M ${(nx-1.9).toFixed(1)} ${(ay-tip*2.2).toFixed(1)} L ${(nx+1.9).toFixed(1)} ${(ay-tip*2.2).toFixed(1)} L ${nx.toFixed(1)} ${(ay+tip*2.2).toFixed(1)} Z" fill="var(--ink)"/>`);
               }else{
-                const gnA = col.artic==='stacc'?'articStaccatoAbove': col.artic==='tenuto'?'articTenutoAbove':'articAccentAbove';
+                const gnA = col.artic==='stacc'?'articStaccatoAbove': col.artic==='tenuto'?'articTenutoAbove': col.artic==='marcato'?'articMarcatoAbove':'articAccentAbove';
                 const bbA = SMUFL[gnA].bb;
                 p.push(smg(gnA, nx-smw(gnA)*SG/2, ay-(bbA[1]+bbA[3])/2*SG, SG));
               }
@@ -4456,6 +4463,7 @@ function render(){
               if(col.artic==='stacc') p.push(`<circle cx="${nx}" cy="${(ay-2).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
               else if(col.artic==='staccatissimo') p.push(`<path d="M ${(nx-2.2).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${(nx+2.2).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${nx.toFixed(1)} ${ay.toFixed(1)} Z" fill="var(--ink)"/>`);
               else if(col.artic==='tenuto') p.push(`<line x1="${(nx-3.8).toFixed(1)}" y1="${(ay-2.2).toFixed(1)}" x2="${(nx+3.8).toFixed(1)}" y2="${(ay-2.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.3"/>`);
+              else if(col.artic==='marcato') p.push(`<path d="M ${(nx-3.2).toFixed(1)} ${ay.toFixed(1)} L ${nx.toFixed(1)} ${(ay-5).toFixed(1)} L ${(nx+3.2).toFixed(1)} ${ay.toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.3"/>`);
               else p.push(`<path d="M ${(nx-3.4).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${(nx+3.4).toFixed(1)} ${(ay-2.2).toFixed(1)} L ${(nx-3.4).toFixed(1)} ${ay.toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             }
           }
@@ -4786,9 +4794,9 @@ const EB_GTECH = [
 const EB_ORNS  = [['grace','前倚音'],['gracea','后倚音'],['up','上波音'],['down','下波音'],
                   ['tr','颤音'],['turn','回音'],['dyn','力度/速度'],['clr','清除记号']];
 const DYN_LIST=[['ppp','极弱'],['pp','很弱'],['p','弱'],['mp','中弱'],['mf','中强'],['f','强'],['ff','很强'],
-  ['fp','强后弱'],['sfp','突强后弱'],['cresc.','渐强'],['dim.','渐弱'],['<','渐强记号'],['>','渐弱记号'],
+  ['fp','强后弱'],['sf','突强'],['sfz','突强(sfz)'],['sfp','突强后弱'],['cresc.','渐强'],['dim.','渐弱'],['<','渐强记号'],['>','渐弱记号'],
   ['rit.','渐慢'],['accel.','渐快']];
-const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18};
+const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18,sf:1.28,sfz:1.3};
 function showDynMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音符');
   const col=curCol(); if(!col) return;
@@ -5069,8 +5077,8 @@ function syncInputs(){
     document.getElementById('b-breath').classList.toggle('on', !!col.breath);
     document.getElementById('b-ped-on').classList.toggle('on', col.ped==='on');
     document.getElementById('b-ped-off').classList.toggle('on', col.ped==='off');
-    [['b-art-stcc','staccatissimo'],['b-art-stacc','stacc'],['b-art-ten','tenuto'],['b-art-acc','accent']]
-      .forEach(([id,v])=>document.getElementById(id).classList.toggle('on', col.artic===v));
+    [['b-art-stcc','staccatissimo'],['b-art-stacc','stacc'],['b-art-ten','tenuto'],['b-art-acc','accent'],['b-art-marc','marcato']]
+      .forEach(([id,v])=>{ const el=document.getElementById(id); if(el) el.classList.toggle('on', col.artic===v); });
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b');
     document.getElementById('b-natural').classList.toggle('on', col.acc==='n');
@@ -7066,7 +7074,7 @@ document.getElementById('b-breath').onclick = ()=>{
   toast(curCol().breath? '已加换气记号 v（本音之后换气）' : '已取消换气记号');
 };
 [['b-art-stcc','staccatissimo','断音'],['b-art-stacc','stacc','跳音'],
- ['b-art-ten','tenuto','保持音'],['b-art-acc','accent','重音']].forEach(([id,val,nm])=>{
+ ['b-art-ten','tenuto','保持音'],['b-art-acc','accent','重音'],['b-art-marc','marcato','顿强']].forEach(([id,val,nm])=>{
   document.getElementById(id).onclick = ()=>{
     if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
     const col=curCol(); if(!col) return;
@@ -11406,6 +11414,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.4</span><div><b>出版级刻版结构修复 + 记号补齐</b>（对照《乐谱记谱大全》完整度审计 Tier 0/1）：① <b>复合拍号符杠成组</b>——6/8·9/8·12/8 的八分音符此前逐个带符尾，现按<b>附点四分（每三个八分）</b>正确连成一组（Gould 惯例）；五线谱符杠、简谱减时线、六线谱符杠三处同源一并修正。② <b>大谱表小节线贯穿上下谱表</b>——钢琴独奏/弹唱谱的内部与终止小节线此前在上下谱表间断开，现一次画穿连结成整体（键盘大谱表刻版惯例）。③ 新增<b>顿强 Marcato（∧）</b>演奏法（五线谱 Bravura 字形 + 简谱几何，比重音更强）与 <b>sf / sfz 突强</b>力度记号。均为纯渲染/字段只增，不影响既有谱。新增 <code>tv_engrave</code> 回归 5 项（含符杠成组数、跨谱表竖线几何断言）。</div></li>
     <li><span class="v">v42.3</span><div><b>吉他谱三分类 + 演奏技巧符号大补充</b>：新建向导把吉他谱拆为<b>吉他弹唱谱 / 吉他独奏谱（电吉他）/ 指弹吉他谱</b>三入口，独奏与指弹共享「六线＋五线联排」基座但各自加载<b>专属技法面板</b>（按 <code>gtype</code> 感知，切换即刷新）。① <b>电吉他技法</b>：摇把 whammy（俯冲/上滑/下点/颤音）、泛音细分（人工 A.H./拨片 P.H./点弦 T.H.）、<b>let ring</b> 余音保持（虚线范围）、推弦幅度（沿用 full/½）。② <b>指弹技法</b>：右手指法 <b>p i m a</b>、<b>特殊调弦</b>（Drop D / DADGAD / Open G / Open D，谱首自动标注）、<b>打板</b>（低音区/高音区/击板 golpe）。③ 通用：<b>N.C. 无和弦</b>段。用法：六线谱选中音符→左栏「演奏技巧」面板点对应记号（摇把/泛音/pima 作用于音符，打板作用于列，let ring 可 Ctrl 选首末两音覆盖范围）；特殊调弦在新建独奏/指弹谱时选择。所有新增均为 song 只增字段，不影响既有谱。新增 <code>tv_gtech</code> 回归 9 项。</div></li>
     <li><span class="v">v42.2</span><div><b>各谱类预设曲谱补齐 + 制谱功能深测</b>（5 位谱类制谱师专家协作）：曲谱库谱类覆盖由 4 类升级到<b>全 10 类</b>——新增 <b>9 首出版级预设</b>：独奏谱（六线谱＋五线谱联排，击弦/勾弦/滑弦/推弦/揉弦五技法）、钢琴独奏（大谱表分解/柱式/阿尔贝蒂三织体）、钢琴弹唱伴奏、歌谱《送别》（两段词逐字对位）、四部合唱（SATB 同源简谱）、器乐五线谱《小步舞曲》（倚音/颤音/三连音/加线音）、教学对照谱（五线＋简谱行逐列对齐）、纯和弦谱（卡农＋4536）、功能谱进阶（下行贝斯＋副属和弦）。同时按出版规范<b>深度测试</b>各谱类并修复三处：① 独奏谱不再把低音/空弦误记为 ×（默认显示品位数字）；② 简谱休止不再错误接增时线（GB 惯例）；③ 纯和弦谱构造健壮性加固。其余刻版问题（大谱表小节线贯穿、吉他移调谱号、复合拍号符杠分组、跨小节连音线续笔等）已归档 <code>docs/notation-audit-v42.md</code> 排期。新增 <code>tv_presets</code> 回归（遍历全部预设渲染校验 + 谱类覆盖断言）。</div></li>
     <li><span class="v">v42.1</span><div><b>创作者一键发布到在线谱库打通</b>（云端生态 M2 收官补完）：编辑器创作者中心的<b>「发布」</b>不再只是本机演示——登录后点<b>「发布到在线谱库」</b>即真实上架 <code>puku.puyouquan.com</code>：① 非创作者<b>自动开通创作者</b>（开放注册）；② 先确保曲谱已存云端（含极端短 id 自动升级），再置为已发布；③ 弹出<b>可复制的公开链接</b>（<code>zhipu.puyouquan.com/?pub=ID</code>，任何人可在线观看 / 移调 / 跟谱）与谱库入口。发布菜单文案按登录态区分（在线发布 vs 本机演示提示）；未登录 / 预览环境仍走原本机演示不变。当前线上谱库统一按<b>免费</b>展示（售卖 / 试读功能开发中）。新增 <code>tv_publish</code> 回归 6 项。</div></li>
