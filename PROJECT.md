@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v42.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v42.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -202,7 +202,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_publish | v42.1 创作者发布：PYQ_CLOUD+ACCT+stub fetch，非创作者自动开通→PUT存谱→POST发布→真实公开链接、创作者直接发布、短id升级后发布、本机演示降级不触网、发布失败回滚(按钮可再点/不弹成功框)、全程无报错——6项 |
 | tv_presets | v42.2 预设曲谱：遍历 PRESETS 逐首 loadSong 渲染校验（len>1000/无NaN/无undefined/无报错，每次清 undoStack 规避 guardReplace）+ 记录每首 docType + 谱类覆盖断言（全 10 类 guitar/uku/solo/piano/pianoacc/vocal/teach/instr/func/chord）——16 预设+1 覆盖=17项 |
 | tv_gtech | v42.3 吉他三分类+技法：gtype='lead'/'finger' 专属技法面板显隐+切换刷新、电吉他记号渲染(A.H/P.H/摇把w-bar/let ring/Drop D谱首)+N.C.、applyGtech 落 note.bar/hmT/rhFing 与 col.perc、清除技法全清、弹唱无 gtype 技法、全程无报错——9项 |
-| tv_engrave | v42.4 刻版结构修复：P3 复合拍号符杠成组(beamGroups 6/8→[3,3]·9/8·12/8，简单拍号不变)、P1 大谱表小节线贯穿(presetPianoSolo 跨谱表高竖线几何断言 12 条×101px)、顿强 Marcato(五线字形+简谱∧与重音区分)、sf/sfz 力度——5项 |
+| tv_engrave | v42.4/v42.5 刻版结构修复：P3 复合拍号符杠成组(6/8→[3,3]·9/8·12/8，简单拍号不变)、P1 大谱表小节线贯穿(跨谱表高竖线几何 12×101px)、顿强 Marcato、sf/sfz 力度、P4 跨小节连音线续接(弧跨度几何)、推弦箭头+和弦图横按(F/Bm有杠·C/G无)——7项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |

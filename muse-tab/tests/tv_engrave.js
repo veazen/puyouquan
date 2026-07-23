@@ -52,6 +52,29 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {sf:h.includes('>sf</text>'), sfz:h.includes('>sfz</text>'), gain:typeof DYN_GAIN.sf==='number'}; })()`);
   T(r.sf && r.sfz && r.gain, 'sf/sfz 力度', JSON.stringify(r));
 
+  // P4 跨小节连音线续接：末音 tie 的弧线跨过小节线连到下一小节首音（而非停在本小节右缘）
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+    const s=createSong('instr',{title:'x',key:'C',beats:4,unit:4,nMea:2,nVox:1,lyr:0,clef:'staff'});
+    s.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(5,4,{tie:true})]; s.measures[1].voxes[0]=[V(5,4),V(3,4),V(1,2)];
+    loadSong(s); const svg=document.getElementById('score');
+    // 找水平 tie 弧（首末 y 近似），取跨度最大者
+    const ties=[...svg.querySelectorAll('path')].map(p=>p.getAttribute('d')||'').map(d=>{const m=d.match(/^M ([\\d.]+) [\\d.]+ Q [\\d.]+ [\\d.]+ ([\\d.]+) [\\d.]+$/);return m?{x1:+m[1],x2:+m[2]}:null;}).filter(Boolean);
+    const maxSpan=ties.length?Math.max(...ties.map(t=>t.x2-t.x1)):0;
+    return {maxSpan:Math.round(maxSpan)}; })()`);
+  T(r.maxSpan >= 30, 'P4 跨小节连音线续接', JSON.stringify(r));
+
+  // 推弦弧线加箭头（solo bend）+ 和弦图横按横杠（F/Bm 有、C/G/Am 无）
+  r = await pg.evaluate(`(()=>{
+    const barre = name => (chordDiagramSVG(name,0,0,1).match(/stroke-width="5\\.2"/g)||[]).length;
+    if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    s.measures[0].tabs[0]=[{dur:4,dotted:false,chord:'',notes:[{s:3,f:7,tech:'b',tk:{mi:0,ci:1,si:3},bAmt:'full'}],strum:'',tech:''},{dur:4,dotted:false,chord:'',notes:[{s:3,f:9}],strum:'',tech:''},{dur:2,dotted:false,chord:'',notes:[{s:1,f:5}],strum:'',tech:''}];
+    loadSong(s); const h=document.getElementById('score').innerHTML;
+    const arrows=(h.match(/L [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ Z" fill="var\\(--ink\\)"/g)||[]).length;
+    return {F:barre('F'),Bm:barre('Bm'),C:barre('C'),G:barre('G'),arrows}; })()`);
+  T(r.F === 1 && r.Bm === 1 && r.C === 0 && r.G === 0 && r.arrows >= 1, '推弦箭头+和弦图横按', JSON.stringify(r));
+
   T(errs.length === 0, '全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

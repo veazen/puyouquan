@@ -3287,6 +3287,16 @@ function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
     const two = base>=10;
     p.push(`<text x="${(gx-(two?1.2:6)*k).toFixed(1)}" y="${gy+fh*0.6+3}" font-size="${(two?6.2:8)*k}" text-anchor="end" fill="var(--ink)">${base}</text>`);
   }
+  /* v42.5 横按（barre）：最低按弦品位若在 ≥2 根弦上出现 → 画覆盖弦跨度的粗圆角横杠（食指横按），
+     置于圆点之下作底；参考 PAGE19「横按以弧线或延伸圆点表示」 */
+  if(fpos.length){
+    const bf = Math.min(...fpos);
+    const bIdx = frets.map((f,i)=> f===bf? i : -1).filter(i=>i>=0);
+    if(bIdx.length>=2){
+      const by = gy+(bf-base+0.5)*fh, bx0 = gx+Math.min(...bIdx)*sw, bx1 = gx+Math.max(...bIdx)*sw;
+      p.push(`<line x1="${bx0.toFixed(1)}" y1="${by.toFixed(1)}" x2="${bx1.toFixed(1)}" y2="${by.toFixed(1)}" stroke="var(--ink)" stroke-width="${(5.2*k).toFixed(1)}" stroke-linecap="round"/>`);
+    }
+  }
   frets.forEach((f,i)=>{
     const sx = gx+i*sw;   // shape[0]=6弦 画在最左；1弦在最右
     if(f===-1) p.push(`<text x="${sx}" y="${gy-2.5}" font-size="7.5" text-anchor="middle" fill="var(--ink)">×</text>`);
@@ -3929,6 +3939,7 @@ function render(){
                   const yPk=Math.min(yy,y2)-12;
                   bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5.8" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
                   bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-6.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  bendDecor.push(`<path d="M ${(x2-7.6).toFixed(1)} ${(y2-3.5).toFixed(1)} L ${(x2-5).toFixed(1)} ${(y2-7.9).toFixed(1)} L ${(x2-2.4).toFixed(1)} ${(y2-3.5).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头（向上=音高走向）
                   bendDecor.push(`<text x="${(nx+x2)/2}" y="${yPk+2.4}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else{
                   /* 兼容旧数据（bt 目标品位）：右侧合成圆圈目标音 */
@@ -3937,6 +3948,7 @@ function render(){
                   bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
                   bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
                   bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  bendDecor.push(`<path d="M ${(gx2-6.6).toFixed(1)} ${(yy-3.2).toFixed(1)} L ${(gx2-4).toFixed(1)} ${(yy-7.6).toFixed(1)} L ${(gx2-1.4).toFixed(1)} ${(yy-3.2).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
               }else if(n.tech==='v'){
@@ -4608,10 +4620,19 @@ function render(){
             let b3=a3;
             while(b3+1<cols.length && cols[b3+1].tie) b3++;
             const x1 = mx+lay.xs[a3]+5;
-            const x2 = (b3+1<cols.length)? mx+lay.xs[b3+1]-6 : mx+lm.L.w+10;
+            /* v42.4 P4 跨小节连音线/圆滑线续接：末列 tie 的目标是下一小节首音——
+               同行则弧线跨过小节线连到下一小节首音（而非停在本小节右缘悬挂）；行末才回退到行尾 */
+            let x2, cBnext=null;
+            if(b3+1<cols.length){ x2 = mx+lay.xs[b3+1]-6; }
+            else {
+              const nlm = (lmIdx+1<sys.measures.length)? sys.measures[lmIdx+1] : null;
+              const ncols = nlm? (song.measures[nlm.mi].voxes[vi]||[]) : null;
+              if(nlm && ncols && ncols.length && nlm.L.voxes[vi]){ x2 = ox+nlm.x+nlm.L.voxes[vi].xs[0]-6; cBnext = ncols[0]; }
+              else x2 = mx+lm.L.w+10;
+            }
             if(isStaff){
               /* 五线谱：连音线贴着符头、弯向符干反侧（出版惯例），不再固定在谱表上缘 */
-              const cA=cols[a3], cB=(b3+1<cols.length && cols[b3+1].deg)? cols[b3+1] : null;
+              const cA=cols[a3], cB=(b3+1<cols.length && cols[b3+1].deg)? cols[b3+1] : (cBnext && cBnext.deg? cBnext : null);
               const sA = cA.deg? staffStep(cA,K) : S_MID;
               const sB = cB? staffStep(cB,K) : sA;
               const below = sA < S_MID;                 // 符干朝上 → 弧线在符头下方
@@ -11414,6 +11435,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.5</span><div><b>连音线跨小节续接 + TAB/和弦图刻版精修</b>（完整度审计续）：① <b>跨小节连音线/圆滑线续接</b>——末音连到下一小节首音时，弧线此前只画到本小节右缘悬挂，现<b>跨过小节线连到目标音</b>（五线谱、简谱同源共修）；② <b>推弦弧线加箭头</b>——推弦弧线末端补<b>向上箭头</b>表示音高走向（Guitar Pro / Hal Leonard 惯例，参考手册明确要求），full/½/¼/1½ 幅度标注保留；③ <b>和弦图横按横杠</b>——最低按弦品位在两根以上弦时画<b>粗圆角横杠</b>（食指横按，如 F / Bm / B7），与开放和弦（C/G/Am 逐弦圆点）区分。均纯渲染、字段只增。<code>tv_engrave</code> 回归扩至 7 项。</div></li>
     <li><span class="v">v42.4</span><div><b>出版级刻版结构修复 + 记号补齐</b>（对照《乐谱记谱大全》完整度审计 Tier 0/1）：① <b>复合拍号符杠成组</b>——6/8·9/8·12/8 的八分音符此前逐个带符尾，现按<b>附点四分（每三个八分）</b>正确连成一组（Gould 惯例）；五线谱符杠、简谱减时线、六线谱符杠三处同源一并修正。② <b>大谱表小节线贯穿上下谱表</b>——钢琴独奏/弹唱谱的内部与终止小节线此前在上下谱表间断开，现一次画穿连结成整体（键盘大谱表刻版惯例）。③ 新增<b>顿强 Marcato（∧）</b>演奏法（五线谱 Bravura 字形 + 简谱几何，比重音更强）与 <b>sf / sfz 突强</b>力度记号。均为纯渲染/字段只增，不影响既有谱。新增 <code>tv_engrave</code> 回归 5 项（含符杠成组数、跨谱表竖线几何断言）。</div></li>
     <li><span class="v">v42.3</span><div><b>吉他谱三分类 + 演奏技巧符号大补充</b>：新建向导把吉他谱拆为<b>吉他弹唱谱 / 吉他独奏谱（电吉他）/ 指弹吉他谱</b>三入口，独奏与指弹共享「六线＋五线联排」基座但各自加载<b>专属技法面板</b>（按 <code>gtype</code> 感知，切换即刷新）。① <b>电吉他技法</b>：摇把 whammy（俯冲/上滑/下点/颤音）、泛音细分（人工 A.H./拨片 P.H./点弦 T.H.）、<b>let ring</b> 余音保持（虚线范围）、推弦幅度（沿用 full/½）。② <b>指弹技法</b>：右手指法 <b>p i m a</b>、<b>特殊调弦</b>（Drop D / DADGAD / Open G / Open D，谱首自动标注）、<b>打板</b>（低音区/高音区/击板 golpe）。③ 通用：<b>N.C. 无和弦</b>段。用法：六线谱选中音符→左栏「演奏技巧」面板点对应记号（摇把/泛音/pima 作用于音符，打板作用于列，let ring 可 Ctrl 选首末两音覆盖范围）；特殊调弦在新建独奏/指弹谱时选择。所有新增均为 song 只增字段，不影响既有谱。新增 <code>tv_gtech</code> 回归 9 项。</div></li>
     <li><span class="v">v42.2</span><div><b>各谱类预设曲谱补齐 + 制谱功能深测</b>（5 位谱类制谱师专家协作）：曲谱库谱类覆盖由 4 类升级到<b>全 10 类</b>——新增 <b>9 首出版级预设</b>：独奏谱（六线谱＋五线谱联排，击弦/勾弦/滑弦/推弦/揉弦五技法）、钢琴独奏（大谱表分解/柱式/阿尔贝蒂三织体）、钢琴弹唱伴奏、歌谱《送别》（两段词逐字对位）、四部合唱（SATB 同源简谱）、器乐五线谱《小步舞曲》（倚音/颤音/三连音/加线音）、教学对照谱（五线＋简谱行逐列对齐）、纯和弦谱（卡农＋4536）、功能谱进阶（下行贝斯＋副属和弦）。同时按出版规范<b>深度测试</b>各谱类并修复三处：① 独奏谱不再把低音/空弦误记为 ×（默认显示品位数字）；② 简谱休止不再错误接增时线（GB 惯例）；③ 纯和弦谱构造健壮性加固。其余刻版问题（大谱表小节线贯穿、吉他移调谱号、复合拍号符杠分组、跨小节连音线续笔等）已归档 <code>docs/notation-audit-v42.md</code> 排期。新增 <code>tv_presets</code> 回归（遍历全部预设渲染校验 + 谱类覆盖断言）。</div></li>
