@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v42.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v42.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -204,6 +204,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_gtech | v42.3 吉他三分类+技法：gtype='lead'/'finger' 专属技法面板显隐+切换刷新、电吉他记号渲染(A.H/P.H/摇把w-bar/let ring/Drop D谱首)+N.C.、applyGtech 落 note.bar/hmT/rhFing 与 col.perc、清除技法全清、弹唱无 gtype 技法、全程无报错——9项 |
 | tv_engrave | v42.4–42.6 刻版结构修复：P3 复合拍号符杠成组·P1 大谱表小节线贯穿·顿强 Marcato·sf/sfz·P4 跨小节连音线续接·推弦箭头+和弦图横按·P2 独奏 treble-8vb 移调谱号(has8+单音加线≤3几何)——8项 |
 | tv_tempo | v42.7 速度/表情术语+弱起：TEMPO_TERMS 库+song.tempoTerm 谱首斜体渲染(简谱/五线谱)、表情术语(dolce/cantabile/legato/a tempo)音符下方斜体且不入 DYN_GAIN(不改音量)、弱起小节 song.pickup 首小节不足拍豁免+超拍仍报错+meaNo 重编号(弱起空号/其后记1)——4项 |
+| tv_ottava | v42.8 八度记号：staffStep 内联 ottStep(8va−7/8vb+7/15ma∓14) 记谱移位、voxMidi 实音不变、col.ott+ottTo 起列画 8va 斜体标签+虚线括线(dasharray)+上下方位(8va上/8vb下)、整句 ott 落每列 ottTo 仅首列、下加线收拢(22→0)——4项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
@@ -243,7 +244,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 ## 9. 路线图（v37.6 起按垂类战略重排，详见 CLAUDE.md 战略锚点）
 
-> **记谱完整度基准**：对照《乐谱记谱大全》19 页出版级标准的完整审计见 `docs/completeness-audit-v42.md`（出版级排版师+音乐符号管理师并行审计）。现状：简谱 84% 覆盖 / 五线 78% 排版达标 / TAB 84% 排版达标；结构性缺口=贝斯·鼓整类缺失、五线扩展记号层（术语库/弱起/变拍/8va）。补齐分 Tier 0 快赢→Tier 1 刻版结构四修（P1 大谱表小节线/P2 8vb/P3 复合拍成组/P4 跨小节连线，其中 P3·P4 五线简谱同根「一改双修」）→Tier 2 垂类符号→Tier 3/4 战略大工程。**进度：Tier 0/1 已全部落地（v42.4–42.6）；Tier 2 进行中——v42.7 已落地 意大利速度术语库（`song.tempoTerm`）+ 表情术语（dolce/cantabile/legato/a tempo… 入 `DYN_LIST`、不入 `DYN_GAIN`）+ 弱起小节（`song.pickup` 放宽首小节满拍校验、`meaNo` 重编号）；Tier 2 待续：8va/8vb 八度记号、变拍子（per-measure 拍号，最大工程量/风险）、双变音手输(##/bb)、震音/滑音 gliss、电吉他推弦回放(bend&release)/预推(pre-bend)。** 下方原路线图后段项与此审计合并管理。
+> **记谱完整度基准**：对照《乐谱记谱大全》19 页出版级标准的完整审计见 `docs/completeness-audit-v42.md`（出版级排版师+音乐符号管理师并行审计）。现状：简谱 84% 覆盖 / 五线 78% 排版达标 / TAB 84% 排版达标；结构性缺口=贝斯·鼓整类缺失、五线扩展记号层（术语库/弱起/变拍/8va）。补齐分 Tier 0 快赢→Tier 1 刻版结构四修（P1 大谱表小节线/P2 8vb/P3 复合拍成组/P4 跨小节连线，其中 P3·P4 五线简谱同根「一改双修」）→Tier 2 垂类符号→Tier 3/4 战略大工程。**进度：Tier 0/1 已全部落地（v42.4–42.6）；Tier 2 进行中——v42.7 意大利速度术语库（`song.tempoTerm`）+ 表情术语（dolce/cantabile/legato/a tempo… 入 `DYN_LIST`、不入 `DYN_GAIN`）+ 弱起小节（`song.pickup` 放宽首小节满拍校验、`meaNo` 重编号）；v42.8 八度记号 8va/8vb/15ma/15mb（`col.ott`+`col.ottTo`，记谱移位由 `staffStep` 内联 `ottStep`、实音/播放不变，谱表上/下方虚线括线，`showOttavaMenu` 整句/单音标注）。Tier 2 待续：变拍子（per-measure 拍号，最大工程量/风险）、双变音手输(##/bb)、震音/滑音 gliss、电吉他推弦回放(bend&release)/预推(pre-bend)、八度记号 MusicXML `octave-shift` 互操作。** 下方原路线图后段项与此审计合并管理。
 
 **P0 互操作（接入 AI 转谱生态）**
 1. ✅ ~~MusicXML 导出~~（v37.7，`exportMusicXML`）

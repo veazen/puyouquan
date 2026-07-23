@@ -1174,6 +1174,7 @@ body.shell #hint{display:none}
       <div class="rg-body" id="vmark-body">
         <button id="b-sharp">♯</button><button id="b-flat">♭</button><button id="b-natural">♮</button>
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
+        <button id="b-ottava" title="八度线（8va/8vb）：仅五线谱——把选中乐句按记谱移低/高八度收拢下加线，谱表上/下方画虚线括线，实际音高与播放不变。Ctrl 选首末两音标注整句（再点清除）">八度线8va</button>
         <button id="b-tie">连音线</button>
         <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
         <button id="b-addnote" title="和音（同列多音）：在当前音上叠加1-3个音；五线谱也可 Ctrl+点击线/间直接加减">和音</button>
@@ -2722,7 +2723,11 @@ function staffKeyInfo(){
   for(let i=0;i<Math.abs(sig);i++) alt[(sig>0?SIG_SH:SIG_FL)[i]] = sig>0?1:-1;
   return {step0:O*7+Li, Li, sig, alt};
 }
-function staffStep(col, K){ return K.step0 + (col.deg-1) + (col.oct||0)*7; }
+/* v42.8 八度记号（ottava）：谱面音符按记谱移位（音符实际音高/播放不变，仅五线谱位置），
+   8va 上加八度 → 音符写低一个八度(−7 谱级)收拢下加线；8vb 反之；15ma/15mb 两个八度 */
+const OTT_STEP={'8va':-7,'8vb':7,'15ma':-14,'15mb':14};
+function ottStep(col){ return (col && OTT_STEP[col.ott]) || 0; }
+function staffStep(col, K){ return K.step0 + (col.deg-1) + (col.oct||0)*7 + ottStep(col); }
 /* TAB → 五线谱拼写：MIDI 音高按当前调号选择字母音与临时记号（调内音不标记；
    调外音按调性方向取 ♯/♭，升调系用升、降调系用降） */
 function midiToStaff(m, K){
@@ -4272,7 +4277,7 @@ function render(){
         /* 同列多音（和音）：主音 + col.adds[{deg,acc,oct}]，按谱面音级升序 */
         const chNotes = (col2)=>{
           const arr=[{deg:col2.deg, acc:col2.acc||'', oct:col2.oct||0, st:staffStep(col2,K), fing:col2.fing}];
-          (col2.adds||[]).forEach(a=>{ if(a&&a.deg) arr.push({deg:a.deg, acc:a.acc||'', oct:a.oct||0, st:K.step0+(a.deg-1)+(a.oct||0)*7, fing:a.fing}); });
+          (col2.adds||[]).forEach(a=>{ if(a&&a.deg) arr.push({deg:a.deg, acc:a.acc||'', oct:a.oct||0, st:K.step0+(a.deg-1)+(a.oct||0)*7+ottStep(col2), fing:a.fing}); });
           return arr.sort((x,y)=>x.st-y.st);
         };
         /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
@@ -4559,6 +4564,30 @@ function render(){
                 p.push(`<path d="M ${nx-w2} ${dyY-6} L ${nx+w2} ${dyY-3} M ${nx-w2} ${dyY} L ${nx+w2} ${dyY-3}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
             }else{
               p.push(`<text x="${nx}" y="${dyY}" font-size="10.5" font-style="italic" font-weight="${/^(rit|accel)/.test(col.dyn)?'400':'700'}" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
+            }
+          }
+          /* v42.8 八度记号括线（ottava）：在起列（含 ottTo）画 标签 + 虚线 + 端点竖钩；
+             8va/15ma 在谱表上方、8vb/15mb 在下方；终点在下一行时线到行末断开、续行起继续。
+             音符位移已由 staffStep 内联（实音/播放不变） */
+          if(isStaff && col.ott && col.ottTo && OTT_STEP[col.ott]!=null){
+            const above = (col.ott==='8va' || col.ott==='15ma');
+            const ep = voxPos[vi+':'+col.ottTo.mi+':'+col.ottTo.ci];
+            if(ep){
+              const oyO = above? staffT-13 : staffB+15;              // 本系统括线标签基线
+              const lw = col.ott.length*6.4 + 4, hook = above? 6 : -6;
+              const dash=(xa,xb,yy)=>{ if(xb>xa+2) p.push(`<line x1="${xa.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="5 3"/>`); };
+              const endHook=(x,yy)=>p.push(`<line x1="${x.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(yy+hook).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+              p.push(`<text x="${(nx-6).toFixed(1)}" y="${oyO.toFixed(1)}" font-size="11.5" font-style="italic" font-weight="700" font-family="Georgia,serif" fill="var(--ink)">${esc(col.ott)}</text>`);
+              const lineY = above? oyO-3.5 : oyO-1, dstart = nx-6+lw;
+              if(ep.sys===sIdx){
+                dash(dstart, ep.x+3, lineY); endHook(ep.x+3, lineY);
+              }else{
+                dash(dstart, ox+sys.w, lineY);
+                const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];       // 终点系统 voxY
+                const sB2 = vy2-6-(dual?26:0), sT2 = sB2-4*SG, oyO2 = above? sT2-13 : sB2+15;
+                const lineY2 = above? oyO2-3.5 : oyO2-1;
+                dash(ox, ep.x+3, lineY2); endHook(ep.x+3, lineY2);
+              }
             }
           }
           /* v41.3 钢琴踏板 Ped.____*：ped:'on' 起画文字+延续线，至下一 ped 列收尾——
@@ -4870,6 +4899,54 @@ function showDynMenu(cx, cy){
     closePop();
   });
 }
+/* v42.8 八度记号菜单（ottava 线，仅五线谱声部）：Ctrl 选首末两音标注整句，或单选标注单音；
+   记谱移位由 staffStep 内联（实音/播放不变），谱面画谱表上/下方虚线括线 */
+function showOttavaMenu(cx, cy){
+  if(sel.row!=='vox') return toast('八度线用于五线谱声部——请先选中该声部音符');
+  const vi=sel.vi;
+  if(!isStaffNota((song.voxNotations||[])[vi])) return toast('八度线仅用于五线谱记谱声部（简谱请用 8度± 直接升降八度）');
+  const col=curCol(); if(!col) return;
+  closePop();
+  const OTTS=[['8va','高八度（谱表上方）'],['8vb','低八度（谱表下方）'],['15ma','高十五度（两个八度）'],['15mb','低十五度（两个八度）']];
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-320)+'px';
+  div.style.top=(cy+6)+'px';
+  div.innerHTML=`<div class="t">八度记号 ottava（仅五线谱：按记谱移位收拢下加线，实际音高与播放不变；Ctrl 选首末两音标注整句，单选标注单音；再点清除）</div>
+    <div class="row" style="max-width:320px">${OTTS.map(([d,cn])=>`<button data-ot="${esc(d)}" class="${col.ott===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${esc(d)}</i><span style="font-size:10px;opacity:.65;margin-left:4px">${esc(cn)}</span></button>`).join('')}
+    <button data-ot="">清除</button></div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const b2=ev.target.closest('[data-ot]'); if(!b2) return;
+    const d=b2.dataset.ot;
+    const picks=noteSel.filter(q=>q.row==='vox'&&q.vi===vi).sort((a,b3)=>a.mi-b3.mi||a.ci-b3.ci);
+    if(!d){
+      /* 清除：沿声部展平，把选中列所在的连续 ott 段整段清除（避免遗留半截括线） */
+      mutate(()=>{
+        const flat=[]; song.measures.forEach((m,mi)=>(m.voxes[vi]||[]).forEach((c,ci)=>flat.push({c,mi,ci})));
+        const targets = picks.length? picks : [{mi:sel.mi,ci:sel.ci}];
+        const done=new Set();
+        targets.forEach(t=>{ const k=flat.findIndex(f=>f.mi===t.mi&&f.ci===t.ci); if(k<0||done.has(k)) return;
+          if(!flat[k].c.ott){ delete flat[k].c.ott; delete flat[k].c.ottTo; return; }
+          let a=k,b=k; while(a>0 && flat[a-1].c.ott) a--; while(b<flat.length-1 && flat[b+1].c.ott) b++;
+          for(let j=a;j<=b;j++){ delete flat[j].c.ott; delete flat[j].c.ottTo; done.add(j); } });
+      });
+      noteSel=[]; render(); toast('已清除八度记号'); closePop(); return;
+    }
+    const q0 = picks.length? picks[0] : {mi:sel.mi,ci:sel.ci};
+    const q1 = picks.length? picks[picks.length-1] : {mi:sel.mi,ci:sel.ci};
+    mutate(()=>{
+      let first=true;
+      for(let mi=q0.mi; mi<=q1.mi; mi++){ const cs=song.measures[mi].voxes[vi]||[];
+        const a=(mi===q0.mi)?q0.ci:0, b=(mi===q1.mi)?q1.ci:cs.length-1;
+        for(let ci=a; ci<=b; ci++){ const c=cs[ci]; if(!c) continue;
+          c.ott=d; if(first){ c.ottTo={mi:q1.mi, ci:q1.ci}; first=false; } else delete c.ottTo; } }
+    });
+    noteSel=[]; render();
+    toast('已标注 '+d+'（第'+(q0.mi+1)+'小节'+(q1.mi!==q0.mi?(' → 第'+(q1.mi+1)+'小节'):'')+'；实际音高与播放不变）');
+    closePop();
+  });
+}
 /* 简谱标识符号小图示（与谱面渲染同款） */
 function ornSVG(kind){
   const W=26, H=18;
@@ -5063,8 +5140,8 @@ function syncInputs(){
       const vnD=document.getElementById('vn-dual');
       if(vnD){ vnD.style.display = isStaffNota(nt)? '' : 'none';
         vnD.classList.toggle('on', isStaffNota(nt) && !!(song.voxDual||[])[sel.row==='vox'?sel.vi:0]); }
-      /* v41.3 踏板/指法入口：仅五线谱记谱声部显示（钢琴/器乐惯例） */
-      ['b-ped-on','b-ped-off','b-fing'].forEach(id=>{
+      /* v41.3 踏板/指法入口 + v42.8 八度线：仅五线谱记谱声部显示（钢琴/器乐惯例） */
+      ['b-ped-on','b-ped-off','b-fing','b-ottava'].forEach(id=>{
         const el2=document.getElementById(id); if(el2) el2.style.display = isStaffNota(nt)? '' : 'none';
       });
     }
@@ -5115,6 +5192,7 @@ function syncInputs(){
     document.getElementById('b-breath').classList.toggle('on', !!col.breath);
     document.getElementById('b-ped-on').classList.toggle('on', col.ped==='on');
     document.getElementById('b-ped-off').classList.toggle('on', col.ped==='off');
+    { const ob=document.getElementById('b-ottava'); if(ob) ob.classList.toggle('on', !!col.ott); }
     [['b-art-stcc','staccatissimo'],['b-art-stacc','stacc'],['b-art-ten','tenuto'],['b-art-acc','accent'],['b-art-marc','marcato']]
       .forEach(([id,v])=>{ const el=document.getElementById(id); if(el) el.classList.toggle('on', col.artic===v); });
     document.getElementById('b-sharp').classList.toggle('on', col.acc==='#');
@@ -7294,6 +7372,7 @@ document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
 document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
 document.getElementById('b-octup').onclick = ()=>bumpOct(1);
 document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
+{ const ob=document.getElementById('b-ottava'); if(ob) ob.onclick = (ev)=>showOttavaMenu(ev.clientX, ev.clientY); }
 document.getElementById('b-tie').onclick = toggleTie;
 /* 小节与段落：反复/跳转记号一键作用于当前小节 */
 (function(){
@@ -11457,6 +11536,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v42.8</span><div><b>八度记号 8va / 8vb（ottava 线，完整度审计 Tier 2 续）</b>：五线谱声部新增<b>八度线</b>——把音区极高/极低的乐句<b>按记谱移低/高一个八度</b>收拢大量上/下加线，谱表<b>上方（8va/15ma）或下方（8vb/15mb）画斜体标签 + 虚线括线 + 端点竖钩</b>（出版惯例），<b>实际音高与播放、导出完全不变</b>（只改谱面位置）。用法：五线谱声部「音符记号」面板点<b>「八度线8va」</b>，Ctrl 选首末两音标注整句、单选标注单音，弹出 8va/8vb/15ma/15mb 四选一（再点清除，整段一并清除）；跨行时括线画到行末断开、次行续接。仅五线谱记谱声部可用（简谱仍用「8度±」直接升降八度，二者不同：8度±改实音、八度线只改记谱）。移位由 <code>staffStep</code> 内联，符头/加线/符干/符杠/临时记号/连线全部随动。新增 <code>tv_ottava</code> 回归 4 项。</div></li>
     <li><span class="v">v42.7</span><div><b>意大利速度/表情术语库 + 弱起小节</b>（完整度审计 Tier 2，视唱练耳/器乐/艺考刚需）：① <b>速度术语库</b>——「曲谱信息」新增<b>速度术语</b>下拉（Grave/Largo/Adagio/Andante/Moderato/Allegro/Presto… 16 项可选、亦可自填如「Andante cantabile」），谱首在 ♩=X 旁以<b>斜体加粗</b>标注（出版惯例），五线谱/器乐谱同样显示。② <b>表情术语</b>——力度菜单扩充 <b>dolce（柔美）/ cantabile（如歌）/ espressivo（富表情）/ legato（连奏）/ leggiero（轻巧）/ a tempo（回原速）/ rubato（自由速度）/ tacet（此段休止）</b>，标在音符下方斜体文字，<b>仅记谱、不改播放音量</b>（力度记号仍影响音量）。③ <b>弱起小节 Anacrusis</b>——「曲谱信息」勾选<b>弱起小节</b>后，<b>首小节不足拍不再误报</b>「节拍不满」（但超拍仍报错），且谱面<b>重新编号</b>：弱起小节不编号、其后第一整小节记为「1」（出版惯例）。均为 song 只增字段、纯记谱层，不影响既有谱与播放。新增 <code>tv_tempo</code> 回归 4 项。</div></li>
     <li><span class="v">v42.6</span><div><b>独奏谱五线谱改用吉他移调谱号（treble-8vb）</b>（完整度审计 Tier 1 收官）：吉他独奏/指弹谱的<b>六线＋五线联排</b>中，五线谱此前用普通高音谱号按实音记谱，低音弦（如空弦 E/A）堆<b>大量下加线</b>（低 E 达 7 条），可读性差。现改用<b>吉他标准移调谱号</b>——谱号下方标「8」（实音低八度）、记谱升八度，把吉他音域收拢到谱表附近，<b>单音下加线最多由 7 条降到 3 条</b>，符合所有正式吉他谱出版惯例。仅独奏/指弹联排谱生效，器乐五线谱/钢琴谱/歌谱不受影响；声部实音与播放不变。至此审计 Tier 1 结构四修（大谱表小节线贯穿 / 复合拍号符杠 / 跨小节连线 / 移调谱号）全部落地。<code>tv_engrave</code> 回归扩至 8 项。</div></li>
     <li><span class="v">v42.5</span><div><b>连音线跨小节续接 + TAB/和弦图刻版精修</b>（完整度审计续）：① <b>跨小节连音线/圆滑线续接</b>——末音连到下一小节首音时，弧线此前只画到本小节右缘悬挂，现<b>跨过小节线连到目标音</b>（五线谱、简谱同源共修）；② <b>推弦弧线加箭头</b>——推弦弧线末端补<b>向上箭头</b>表示音高走向（Guitar Pro / Hal Leonard 惯例，参考手册明确要求），full/½/¼/1½ 幅度标注保留；③ <b>和弦图横按横杠</b>——最低按弦品位在两根以上弦时画<b>粗圆角横杠</b>（食指横按，如 F / Bm / B7），与开放和弦（C/G/Am 逐弦圆点）区分。均纯渲染、字段只增。<code>tv_engrave</code> 回归扩至 7 项。</div></li>
