@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v43.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v43.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -210,6 +210,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_trem | v43.1 震音：col.trem=1/2/3 五线谱符干上 1/2/3 斜杠(全音符符头上方)、简谱数字上方对应条数、toggleTrem 循环(无→1→2→3→无)+休止豁免、voxMidi 实音不变——5项 |
 | tv_gliss | v43.2 滑音：col.gliss 五线谱/简谱本音直线滑到下一音(diff +1 线)、跨小节续接、宽间距标 gliss.、toggleGliss 切换+休止豁免+末音无下一音不画——5项 |
 | tv_bend | v43.3 推弦回放/预推：note.bendType='rel'(∧)/'pre'(竖直上箭头) 三型渲染各异且干净、纯预推无 tk、bendFromBar 单音→pre/双音→常规、取消清 bendType——5项 |
+| tv_mxlfid | v43.4 MusicXML 保真：八度 octave-shift 导出(8va=down/8vb=up+stop)+往返(ott 落每列/ottTo 首列)、震音 <tremolo type=single>N 导出+往返、双变音 alter=±2 导入还原 ×/♭♭+音高一致——3项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |

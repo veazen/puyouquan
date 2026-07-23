@@ -9576,6 +9576,12 @@ function exportMusicXML(s){
       if(c2.dynTo && (c2.dyn==='<'||c2.dyn==='>'||c2.dyn==='cresc.'||c2.dyn==='dim.'))
         wStop[c2.dynTo.mi+':'+c2.dynTo.ci]=true;
     }));
+    /* v43.4 八度记号预扫：ottTo 终点列（该音之后输出 octave-shift stop） */
+    const oStop={};
+    s.measures.forEach(m2=> (m2.voxes[vi]||[]).forEach(c2=>{
+      if(c2.ott && c2.ottTo && OTT_STEP[c2.ott]!=null)
+        oStop[c2.ottTo.mi+':'+c2.ottTo.ci] = (c2.ott==='15ma'||c2.ott==='15mb')?'15':'8';
+    }));
     s.measures.forEach((mea,mi)=>{
       const cols = mea.voxes[vi]||[];
       let body='';
@@ -9601,11 +9607,17 @@ function exportMusicXML(s){
         /* v41.2 渐强渐弱范围括线 → wedge（起点音前 start、终点音后 stop） */
         if(col.dynTo && (col.dyn==='<'||col.dyn==='>'||col.dyn==='cresc.'||col.dyn==='dim.'))
           body += `<direction placement="below"><direction-type><wedge type="${(col.dyn==='<'||col.dyn==='cresc.')?'crescendo':'diminuendo'}"/></direction-type></direction>`;
+        /* v43.4 八度记号 → octave-shift（起点列 start；8va/15ma=down·上方，8vb/15mb=up·下方；实音已在 pitch） */
+        if(col.ott && col.ottTo && OTT_STEP[col.ott]!=null){
+          const up=(col.ott==='8vb'||col.ott==='15mb'), size=(col.ott==='15ma'||col.ott==='15mb')?'15':'8';
+          body += `<direction placement="${up?'below':'above'}"><direction-type><octave-shift type="${up?'up':'down'}" size="${size}"/></direction-type></direction>`;
+        }
         /* v41.3 钢琴踏板 → pedal（'on'=该音前 start、'off'=该音后 stop） */
         if(col.ped==='on')
           body += `<direction placement="below"><direction-type><pedal type="start"/></direction-type></direction>`;
         const pedStopXML = col.ped==='off'? `<direction placement="below"><direction-type><pedal type="stop"/></direction-type></direction>` : '';
-        const wStopXML = (wStop[mi+':'+ci]? `<direction placement="below"><direction-type><wedge type="stop"/></direction-type></direction>` : '') + pedStopXML;
+        const wStopXML = (wStop[mi+':'+ci]? `<direction placement="below"><direction-type><wedge type="stop"/></direction-type></direction>` : '') + pedStopXML
+          + (oStop[mi+':'+ci]? `<direction><direction-type><octave-shift type="stop" size="${oStop[mi+':'+ci]}"/></direction-type></direction>` : '');   // v43.4 八度记号 stop
         const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
         const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
         const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';   // v41.5 双附点=两枚 dot
@@ -9624,7 +9636,8 @@ function exportMusicXML(s){
         const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
         /* v41.3 指法数字 → technical fingering */
         const fingXML = col.fing? `<technical><fingering>${xesc(col.fing)}</fingering></technical>` : '';
-        const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}`+signXML+fingXML;
+        const ornXML = col.trem? `<ornaments><tremolo type="single">${col.trem}</tremolo></ornaments>` : '';   // v43.4 震音
+        const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}`+signXML+ornXML+fingXML;
         const notat = notInner? `<notations>${notInner}</notations>` : '';
         const lyr = (col.lyrics||[]).map((t2,li)=> t2&&t2.trim()?
           `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
@@ -9718,6 +9731,7 @@ function importMusicXML(xmlStr){
     /* v41.2 渐强渐弱范围括线：wedge start→挂到下一个音符列；stop→终点=最近音符列（跨小节持续）
        v41.3 踏板：pedal start→挂到下一个音符列 ped:'on'；stop→最近音符列 ped:'off' */
     let pendWedge=null, openWedge=null, lastPos=null, pendPed=false, lastColRef=null;
+    let pendOtt=null, curOtt=null, ottStartCol=null;   // v43.4 八度记号 octave-shift 导入
     const clefSign = txt(part.querySelector('measure attributes clef')||null,'sign');
     out.voxNotations[pi] = clefSign==='F'? 'bass' : clefSign==='C'? 'alto' : 'staff';
     const meas=[...part.querySelectorAll(':scope > measure')];
@@ -9728,6 +9742,9 @@ function importMusicXML(xmlStr){
         cols.push(col2); lastPos={mi:mi2, ci:cols.length-1}; lastColRef=col2;
         if(pendWedge){ col2.dyn=pendWedge; openWedge=col2; pendWedge=null; }
         if(pendPed){ col2.ped='on'; pendPed=false; }
+        /* v43.4 八度记号：起点列存 ott，span 内每列传播 ott（渲染符头逐列移位需要） */
+        if(pendOtt){ col2.ott=pendOtt; ottStartCol=col2; curOtt=pendOtt; pendOtt=null; }
+        else if(curOtt){ col2.ott=curOtt; }
         return col2;
       };
       [...m.children].forEach(el=>{
@@ -9757,6 +9774,13 @@ function importMusicXML(xmlStr){
               if(lastPos) openWedge.dynTo={mi:lastPos.mi, ci:lastPos.ci};
               openWedge=null;
             }
+          }
+          /* v43.4 八度记号：octave-shift down→8va/15ma、up→8vb/15mb；stop→起点列存 ottTo（span 终点） */
+          const os=el.querySelector('direction-type > octave-shift');
+          if(os){
+            const ot=os.getAttribute('type'), sz=os.getAttribute('size')||'8';
+            if(ot==='up'||ot==='down') pendOtt = ot==='down'? (sz==='15'?'15ma':'8va') : (sz==='15'?'15mb':'8vb');
+            else if(ot==='stop' && ottStartCol){ if(lastPos) ottStartCol.ottTo={mi:lastPos.mi, ci:lastPos.ci}; curOtt=null; ottStartCol=null; }
           }
           /* v41.3 踏板：pedal start→下一音符列 ped:'on'；stop→最近音符列 ped:'off' */
           const pd=el.querySelector('direction-type > pedal');
@@ -9812,6 +9836,9 @@ function importMusicXML(xmlStr){
             /* v41.3 指法数字 */
             const fg=nt3.querySelector('technical > fingering');
             if(fg && /^[1-5]$/.test(fg.textContent.trim())) col2.fing=fg.textContent.trim();
+            /* v43.4 震音：ornaments>tremolo（single 单音震音 1-3 杠）→ col.trem */
+            const tr=nt3.querySelector('ornaments > tremolo');
+            if(tr && (tr.getAttribute('type')||'single')==='single'){ const tn=+tr.textContent.trim(); if(tn>=1&&tn<=3) col2.trem=tn; }
           }
           return col2;
         };
@@ -9823,7 +9850,14 @@ function importMusicXML(xmlStr){
         if(!pe){ skip.notes++; return; }
         const rel = midiOf(pe)-ref;
         const pc=((rel%12)+12)%12;
-        const noteObj={deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct:Math.floor(rel/12)};
+        /* v43.4 双变音导入拼写保真：源含 alter=±2 时直接映射 step→deg + acc='x'/'bb'（否则沿用升号系拼写，音高一致） */
+        const alt2=+(txt(pe,'alter')||0);
+        let noteObj;
+        if(Math.abs(alt2)===2){
+          const deg=((L_IDX[txt(pe,'step')||'C']-L_IDX[key[0]]+7)%7)+1, acc=alt2===2?'x':'bb';
+          const oct=Math.round((midiOf(pe)-ref-DEG_SEMI[deg]-accSemi(acc))/12);
+          noteObj={deg, acc, oct};
+        }else noteObj={deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct:Math.floor(rel/12)};
         /* v41.3 和音指法：chord 音各自的 fingering → adds[i].fing */
         {
           const fg2=el.querySelector(':scope > notations technical > fingering');
@@ -11632,6 +11666,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v43.4</span><div><b>MusicXML 互操作保真：八度记号 / 震音 / 双变音</b>（完整度审计 Tier 2·P0 互操作）：与外部制谱软件（Sibelius/MuseScore/Finale/Guitar Pro）互导时补齐三项保真——① <b>八度记号</b>导出/导入 <code>&lt;octave-shift&gt;</code>（8va/15ma=down·上方，8vb/15mb=up·下方，span 起止完整，导入后逐列还原移位）；② <b>震音</b>导出/导入 <code>&lt;tremolo type="single"&gt;N&lt;/tremolo&gt;</code>（1/2/3 杠）；③ <b>双变音导入拼写保真</b>——源含重升/重降（<code>alter=±2</code>）时直接还原为 <b>×/♭♭</b> 拼写（此前统一归一为升号系，音高对但拼写丢失），音高逐音一致。往返一致性回归全绿。新增 <code>tv_mxlfid</code> 回归 3 项。</div></li>
     <li><span class="v">v43.3</span><div><b>电吉他推弦回放 bend &amp; release + 预推 pre-bend</b>（完整度审计 Tier 2 续）：推弦在<b>常规上推</b>之外新增两型——<b>推弦回放（bend &amp; release）</b>画 ∧ 形（推上到顶点再回落到目标音，末端下箭头）；<b>预推（pre-bend）</b>画起音处<b>竖直上箭头</b>（拨弦前已推起），可单音使用、也可预推后回落。用法：Ctrl 选两音加推弦后<b>再点推弦按钮</b>，在幅度菜单里选「推弦回放 / 预推」；<b>单个音符直接点推弦 = 预推</b>。幅度 full/½/¼/1½ 与目标圆圈保留。纯记谱层。新增 <code>tv_bend</code> 回归 5 项。</div></li>
     <li><span class="v">v43.2</span><div><b>滑音 glissando（完整度审计 Tier 2 续）</b>：旋律声部新增<b>滑音</b>——「音符记号」面板点<b>「滑音/」</b>，本音以直线滑到<b>下一个音</b>（含跨小节续接），跨度够宽时线上标斜体 <i>gliss.</i>；五线谱按符头连线、简谱按音高方向斜线。纯记谱层，播放不变。新增 <code>tv_gliss</code> 回归 5 项。</div></li>
     <li><span class="v">v43.1</span><div><b>震音 tremolo（完整度审计 Tier 2 续）</b>：旋律声部新增<b>震音记号</b>——「音符记号」面板点<b>「震音≡」连按循环 1→2→3 杠→取消</b>，表示该音以<b>八分 / 十六分 / 三十二分</b>快速轮奏（出版惯例）。五线谱把 1-3 条斜杠画在<b>符干中段</b>（全音符画在符头上方，自动按符干上下朝向摆放），简谱画在<b>数字上方</b>（避让高八度点）。纯记谱层，音符实际音高与播放不变。视奏/器乐/钢琴谱常用记号补齐。新增 <code>tv_trem</code> 回归 5 项。</div></li>
