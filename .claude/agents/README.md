@@ -2,7 +2,20 @@
 
 本目录的角色定义精选自开源仓库 **[msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents)**（MIT License，Copyright (c) 2025 AgentLand Contributors，全文见本目录 `LICENSE-agency-agents`），按谱友圈的战略优先级（垂类内容/微信生态/小红书/短视频/小程序/编辑器体验）挑选了 10 个，逐字保留原文。
 
-## 已装角色
+## 谱类制谱师（本项目自建 · 出版级刻版专家，非上游）
+
+按记谱家族拆分，专职深测各谱类制谱功能、设计预设曲谱、审核出版规范符合度。红线：song 字段只增不改，建议兼容现有 `tech/strum/tk/orn/grace` 体系。
+
+| 文件 | 角色 | 负责谱类（docType） |
+|---|---|---|
+| notation-tab-luthier | 六线谱制谱师 | 弹唱 guitar / 独奏 solo / 尤克里里 uku |
+| notation-piano-grand | 钢琴大谱表制谱师 | 钢琴独奏 piano / 钢琴弹唱 pianoacc |
+| notation-jianpu-choral | 简谱合唱制谱师 | 歌谱 vocal（独唱/合唱/多段词） |
+| notation-staff-engraver | 五线谱刻版制谱师 | 器乐五线谱 instr / 教学对照 teach |
+| notation-func-chord | 功能谱和弦制谱师 | 功能谱 func / 纯和弦谱 chord |
+| notation-expert | 制谱专家（总审） | 跨谱类记号体系审计（既有） |
+
+## 上游精选角色（营销/工程/设计）
 
 | 文件 | 角色 | 用于谱友圈的场景 |
 |---|---|---|
