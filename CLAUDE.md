@@ -11,7 +11,7 @@
 
 ## 发版流水线（每个版本）
 1. 改 `muse-tab/index.html`
-2. `cd muse-tab/tests && node tv_matrix.js`（+ 涉及功能的专项套件；Playwright chromium 路径 env `CHROMIUM_PATH`）
+2. `node deploy/check-syntax.js muse-tab/index.html`（语法闸）→ `cd muse-tab/tests && node tv_matrix.js`（+ 涉及功能的专项套件；Playwright chromium 路径 env `CHROMIUM_PATH`）
 3. 应用内更新日志加 `<li>`（搜 `b-changelog`，版本号递增）
 4. **更新 `PROJECT.md`**（版本号/进度表/受影响章节）
 5. commit（中文、按版本号）+ push
@@ -25,6 +25,7 @@
 - SVG innerHTML 把 `/>` 序列化为 `></tag>`——测试断言别匹配 `/>`。
 - `smg` 非均匀缩放：只有未传 sx/sy 才走均匀分支（v37.1 教训）。
 - 位置/对齐问题用几何断言（数值坐标）验证，不要只看截图。
+- **`showModal(\`…\`)`/更新日志等模板字符串里禁用裸反引号**——内联代码词用 `<code>` 包裹，裸反引号会提前闭合模板字面量→整段脚本解析失败→编辑器白屏（v43.6 教训；`smoke.sh` 只查字符串标记抓不到）。发版前跑 `node deploy/check-syntax.js muse-tab/index.html`，部署流水线 checkout 后同名语法闸会拦截。
 
 ## 战略优先级（v37.6 起）
 - **北极星**：本项目定位为「AI 时代的智能制谱/配谱工具 + 教育场景」，占据「AI 生成音频 / AI 转谱 → 人类可弹可唱可教的干净谱面」这一端。当下主攻垂类：**即兴伴奏 / 教师考编 / 艺考 / 师范**。

@@ -58,6 +58,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - `puku.puyouquan.com` → **谱库**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页；页头主标题「谱友圈」·副标题「谱库」；微信小程序轻量版日后复用此展示页，以独立网站形态呈现）
   - **两站分工（v43.7 明确）**：制谱平台=做谱、谱库=展谱。编辑器顶栏「预设」旁入口 `b-circle` 由「曲谱库」改名「谱库」，线上直接跳转 `//puku.puyouquan.com/`（本机预览无该域名时回落到内置演示库 `openCircle`）。已发布谱的**交互观看**仍在 `zhipu.puyouquan.com/?pub=ID`（单文件应用承载渲染引擎），谱库页/小程序卡片链去该地址，观看页「← 谱库」回跳 puku。
   - 站内互链用协议相对子域链接（`//zhipu.puyouquan.com/` 等）；冒烟 `deploy/smoke.sh` 用 `curl --connect-to` 按域名 SNI 逐一验收三个 vhost 的 **HTTPS** 内容 + http→https 跳转，传 IP 即可、不依赖 DNS。
+  - **语法闸（v43.7 加固）**：`deploy.yml` checkout 后先跑 `node deploy/check-syntax.js muse-tab/index.html`——抽取所有内联 `<script>` 逐段 `vm.Script` 解析，任一段语法错误即 job 失败、不上服务器。缘由：`smoke.sh` 只查页面字符串标记，抓不到 JS 解析失败（v43.6 更新日志里裸反引号包 `Cookie` 落在模板字符串内→整段脚本失效→编辑器白屏，却冒烟全绿照常上线）。发版前本地也应先跑该闸再跑 `tv_matrix`。
   - **HTTPS 已启用（2026-07-22）**：certbot 四域名一证（puyouquan.com/www/zhipu/puku），自动续期；certbot 直接改写服务器上的 pu8.conf，故 `server-setup.sh` 检测到 `managed by Certbot` 时跳过模板覆盖——仓库 nginx 模板此后仅作参考基线，改动需登录服务器手动合并。
 - **账号后端（M1a，2026-07-22 上线）**：`api/` 零依赖 Node 服务（Node 24 内建 `node:http`+`node:sqlite`+`node:crypto`，无 npm 依赖，规避境内拉包/原生编译问题）。
   - 架构：systemd 服务 `pyq-api`（用户 pyq，127.0.0.1:3127）← nginx 各 vhost `include snippets/pyq-api.conf` 反代 `/api/`（api-setup.sh 幂等注入，兼容 certbot 配置）；Cookie 域 `.puyouquan.com` 三站互通；JWT HS256 httpOnly Cookie 30 天。
