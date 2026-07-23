@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v43.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v43.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -211,6 +211,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_gliss | v43.2 滑音：col.gliss 五线谱/简谱本音直线滑到下一音(diff +1 线)、跨小节续接、宽间距标 gliss.、toggleGliss 切换+休止豁免+末音无下一音不画——5项 |
 | tv_bend | v43.3 推弦回放/预推：note.bendType='rel'(∧)/'pre'(竖直上箭头) 三型渲染各异且干净、纯预推无 tk、bendFromBar 单音→pre/双音→常规、取消清 bendType——5项 |
 | tv_mxlfid | v43.4 MusicXML 保真：八度 octave-shift 导出(8va=down/8vb=up+stop)+往返(ott 落每列/ottTo 首列)、震音 <tremolo type=single>N 导出+往返、双变音 alter=±2 导入还原 ×/♭♭+音高一致——3项 |
+| api/wx.test + db.test | v43.6 微信登录：wx.js 纯逻辑(state 签名/防伪/过期、扫码 URL、code 换 openid/unionid+资料、userinfo 失败不阻断)8 项 + db 层迁移/upsert(unionid 优先匹配、openid 兜底、占位 phone、绑定 COALESCE、旧库 ALTER 迁移)6 项。`node api/wx.test.js` / `node --experimental-sqlite api/db.test.js` |
 | tv_meter | v43.5 变拍子：meaMeter(mi)/beatsOf(c,unit) 单位、beatErrors 按本小节拍号(3/4 满不报/超拍报)、beamGroups 按本小节 unit(6/8=3+3 vs 4/4=2+2+2)、简谱中途标 N/M、measureSeconds 按拍号(3/4=3拍)、MusicXML <time> 变更往返、设本小节拍号+autoFix——8项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |

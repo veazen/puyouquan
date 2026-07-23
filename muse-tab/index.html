@@ -11482,6 +11482,13 @@ async function acctRefresh(){
   catch(e){ if(e.status===401) acctSave(null); }
 }
 if(API_ON) acctRefresh();
+/* v43.6 探测服务端是否已开通微信登录（未配置则登录弹窗不显示微信入口，避免死按钮） */
+if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); }).catch(()=>{}); }
+/* v43.6 微信登录回跳：callback 302 回本页带 ?wxlogin=ok/fail —— 刷新账号态并清理 query */
+if(API_ON){ const _wl=new URLSearchParams(location.search).get('wxlogin');
+  if(_wl){ try{ history.replaceState(null,'',location.pathname+location.hash); }catch(_){}
+    if(_wl==='ok'){ acctRefresh().then(()=>{ try{ toast('微信登录成功'); }catch(_){}; if(typeof syncScores==='function') syncScores(); }); }
+    else { try{ toast('微信登录未完成，请重试'); }catch(_){} } } }
 function pcAcctHTML(){
   const box='display:flex;align-items:center;gap:12px;padding:11px 13px;margin:2px 0 15px;border:1px solid var(--border-soft,#e4ddcd);border-radius:12px;background:var(--panel,#fefdf9)';
   if(!API_ON) return `<div style="${box};font-size:12.5px;color:var(--muted)">账号登录与云端同步需在 <b>puyouquan.com</b> 上使用；本机 / 预览环境下资料仅存本地。</div>`;
@@ -11512,6 +11519,8 @@ function openLogin(){
       <input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" style="flex:1">
       <button id="lg-send" style="white-space:nowrap">获取验证码</button></label>
     <div id="lg-msg" style="font-size:12px;color:var(--accent);min-height:16px;margin-top:6px"></div>
+    ${API_ON && window.PYQ_WX_WEB? `<div style="text-align:center;margin:12px 0 8px;color:var(--muted);font-size:12px;opacity:.7">— 或 —</div>
+    <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">微信扫码登录</button>`:''}
     <div class="btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div>`, true);
   const msg=t=>{ const el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
   const phoneEl=document.getElementById('lg-phone');
@@ -11542,6 +11551,12 @@ function openLogin(){
       openPersonal('profile');
     }catch(e){ msg(e.message); }
   };
+  /* v43.6 微信扫码登录：取登录 URL 后整页跳转到微信授权，回调设 Cookie 后 302 回跳本页 */
+  { const wxb=document.getElementById('lg-wx'); if(wxb) wxb.onclick=async()=>{
+    wxb.disabled=true;
+    try{ const r=await apiCall('/wx/web/login-url?return='+encodeURIComponent(location.href));
+      if(r.url) location.href=r.url; else { wxb.disabled=false; msg('微信登录暂不可用'); } }
+    catch(e){ wxb.disabled=false; msg(e.status===503? '微信登录尚未开通' : (e.message||'微信登录暂不可用')); } }; }
 }
 async function acctLogout(){
   try{ await apiCall('/auth/logout',{method:'POST'}); }catch(_){}
@@ -11746,6 +11761,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v43.6</span><div><b>微信扫码登录（开放平台·网站应用）</b>：登录 / 注册弹窗新增<b>「微信扫码登录」</b>——手机微信扫码即可登录，与手机验证码登录共用一个账号体系（同一微信开放平台主体下 <code>unionid</code> 统一，网站 / 公众号 / 小程序日后互通）。零依赖后端（<code>api/wx.js</code> OAuth + <code>state</code> HMAC 防伪 + 回跳地址白名单），凭据只存服务器环境、不入代码；`Cookie` 按 <code>.puyouquan.com</code> 三站共享。仅在服务端配置了微信应用后显示该入口（无死按钮）。接入方式见 <code>docs/wechat-login-setup.md</code>。公众号网页授权、小程序轻量版按同一 unionid 账号体系后续接入。</div></li>
     <li><span class="v">v43.5</span><div><b>变拍子（per-measure 拍号）</b>（完整度审计 Tier 2 收官）：全曲不再只能一个拍号——现可为<b>任意小节单独设定拍号</b>（如 4/4 → 3/4 → 6/8 → 7/8）。用法：选中小节 → 小节面板<b>「本小节拍号…」</b>选 2/4…12/8 之一（选「恢复全曲拍号」清除）。改动全链路贯通：<b>节拍校验</b>按本小节拍号（3/4 放 3 拍不再误报）、<b>符杠/减时线成组</b>按本小节 unit（6/8 八分按 3 成组）、<b>谱面在拍号变化处标注新拍号</b>（五线谱字形 / 简谱 N/M 小字，联排谱表头同标）、<b>版面自动预留拍号横向空间</b>、<b>播放时长</b>按各小节拍号、<b>MusicXML 导入导出</b>按小节 <code>&lt;time&gt;</code> 往返。核心 <code>meaMeter(mi)</code>/<code>beatsOf(c,unit)</code> 贯穿 40+ 调用点。<code>mea.beats</code>/<code>mea.unit</code> 为只增字段，旧谱与既有单一拍号完全兼容。新增 <code>tv_meter</code> 回归 8 项。至此完整度审计 Tier 2 全部落地。</div></li>
     <li><span class="v">v43.4</span><div><b>MusicXML 互操作保真：八度记号 / 震音 / 双变音</b>（完整度审计 Tier 2·P0 互操作）：与外部制谱软件（Sibelius/MuseScore/Finale/Guitar Pro）互导时补齐三项保真——① <b>八度记号</b>导出/导入 <code>&lt;octave-shift&gt;</code>（8va/15ma=down·上方，8vb/15mb=up·下方，span 起止完整，导入后逐列还原移位）；② <b>震音</b>导出/导入 <code>&lt;tremolo type="single"&gt;N&lt;/tremolo&gt;</code>（1/2/3 杠）；③ <b>双变音导入拼写保真</b>——源含重升/重降（<code>alter=±2</code>）时直接还原为 <b>×/♭♭</b> 拼写（此前统一归一为升号系，音高对但拼写丢失），音高逐音一致。往返一致性回归全绿。新增 <code>tv_mxlfid</code> 回归 3 项。</div></li>
     <li><span class="v">v43.3</span><div><b>电吉他推弦回放 bend &amp; release + 预推 pre-bend</b>（完整度审计 Tier 2 续）：推弦在<b>常规上推</b>之外新增两型——<b>推弦回放（bend &amp; release）</b>画 ∧ 形（推上到顶点再回落到目标音，末端下箭头）；<b>预推（pre-bend）</b>画起音处<b>竖直上箭头</b>（拨弦前已推起），可单音使用、也可预推后回落。用法：Ctrl 选两音加推弦后<b>再点推弦按钮</b>，在幅度菜单里选「推弦回放 / 预推」；<b>单个音符直接点推弦 = 预推</b>。幅度 full/½/¼/1½ 与目标圆圈保留。纯记谱层。新增 <code>tv_bend</code> 回归 5 项。</div></li>

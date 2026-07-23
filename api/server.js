@@ -6,13 +6,18 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { q, now } = require('./db');
 const { sendSms } = require('./sms');
+const wx = require('./wx');
 
 const PORT = +(process.env.PORT || 3127);
 const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN ?? '.puyouquan.com';
 if (!JWT_SECRET) { console.error('缺少 JWT_SECRET'); process.exit(1); }
+// v43.6 微信开放平台·网站应用扫码登录（凭据只走服务器环境，不入代码）
+const WX_WEB_APPID = process.env.WX_WEB_APPID || '';
+const WX_WEB_SECRET = process.env.WX_WEB_SECRET || '';
+const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://zhipu.puyouquan.com/api/wx/web/callback';
 
-const VER = 'm1a-1';
+const VER = 'wx-1';
 const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另有 4m）
 const MAX_SCORES = 500, MAX_COLLS = 50, MAX_COLL_ITEMS = 500;
 const PHONE_RE = /^1[3-9]\d{9}$/;
@@ -70,7 +75,23 @@ function readBody(req) {
     req.on('error', () => reject(new ApiError(400, '读取请求失败')));
   });
 }
-const pubUser = u => ({ id: u.id, phone: u.phone.replace(/^(\d{3})\d{4}/, '$1****'), nickname: u.nickname, role: u.role, created_at: u.created_at });
+const pubUser = u => ({ id: u.id, phone: PHONE_RE.test(u.phone) ? u.phone.replace(/^(\d{3})\d{4}/, '$1****') : '', nickname: u.nickname, avatar: u.avatar || '', role: u.role, created_at: u.created_at, wx: !!u.wx_openid });
+/* v43.6 微信登录：按 unionid（优先，统一网站/公众号/小程序）或 openid 匹配；无则建号（合成占位 phone 满足 NOT NULL/UNIQUE，可后续绑定真实号） */
+function upsertWxUser({ openid, unionid, nickname, avatar }) {
+  let u = null;
+  if (unionid) u = q.userByUnionid.get(unionid);
+  if (!u && openid) u = q.userByWxOpenid.get(openid);
+  if (u) {
+    q.userBindWx.run(openid || null, unionid || null, u.id);
+    if (avatar) q.userFillAvatar.run(avatar, u.id);
+    return q.userById.get(u.id);
+  }
+  const id = crypto.randomUUID();
+  const phone = 'wx' + sha256((unionid || openid) + '|wx').slice(0, 18);
+  const nick = (nickname || '').trim() || ('微信用户' + String(openid || '').slice(-4));
+  q.userCreateWx.run(id, phone, openid || null, unionid || null, nick, avatar || '', now());
+  return q.userById.get(id);
+}
 // 谱库列表卡片元信息（类型/封面/小节数）——与编辑器 docType/ccCover 同源，供官网复刻同款卡片。
 // 注：pubList 目前含 data 逐条解析；库规模大后可改存发布时快照的 type/cover 列避免每次解析。
 function docTypeOf(d) {
@@ -99,7 +120,7 @@ const needScore = id => { const s = ID_RE.test(id) && q.scoreGet.get(id); if (!s
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
-  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now() })],
+  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET) })],
 
   /* -- 认证 -- */
   ['POST', /^\/api\/auth\/sms\/send$/, false, async (m, b, _u, req) => {
@@ -135,6 +156,29 @@ const routes = [
     return { user: pubUser(u), is_new: u.created_at >= now() - 5 };
   }],
   ['POST', /^\/api\/auth\/logout$/, false, (m, b, _u, req, res) => { clearAuthCookie(res); return { ok: true }; }],
+
+  /* -- 微信扫码登录（开放平台·网站应用；A）-- */
+  ['GET', /^\/api\/wx\/web\/login-url$/, false, (m, b, _u, req) => {
+    if (!WX_WEB_APPID || !WX_WEB_SECRET) throw new ApiError(503, '微信登录未配置');
+    const ret = new URL(req.url, 'http://x').searchParams.get('return') || '';
+    const safeRet = /^https?:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(ret) ? ret : 'https://zhipu.puyouquan.com/';
+    const state = wx.signState(safeRet, JWT_SECRET);
+    return { url: wx.buildLoginUrl({ appid: WX_WEB_APPID, redirect: WX_WEB_REDIRECT, state }) };
+  }],
+  ['GET', /^\/api\/wx\/web\/callback$/, false, async (m, b, _u, req, res) => {
+    const u2 = new URL(req.url, 'http://x');
+    const code = u2.searchParams.get('code'), state = u2.searchParams.get('state');
+    const st = state && wx.verifyState(state, JWT_SECRET);
+    const back = (st && st.r) || 'https://zhipu.puyouquan.com/';
+    const withFlag = (v) => back + (back.includes('?') ? '&' : '?') + 'wxlogin=' + v;
+    if (!code || !st) return { ___redirect: withFlag('fail') };
+    try {
+      const prof = await wx.webExchange(code, { appid: WX_WEB_APPID, secret: WX_WEB_SECRET });
+      const u = upsertWxUser(prof);
+      setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
+      return { ___redirect: withFlag('ok') };
+    } catch (e) { console.error('微信登录失败:', e.message); return { ___redirect: withFlag('fail') }; }
+  }],
 
   /* -- 我的资料 -- */
   ['GET', /^\/api\/me$/, true, (m, b, u) => ({
@@ -273,6 +317,7 @@ const server = http.createServer(async (req, res) => {
       if (needAuth && !user) throw new ApiError(401, '请先登录');
       const body = (method === 'GET' || method === 'DELETE') ? {} : await readBody(req);
       const out = await handler(m, body, user, req, res);
+      if (out && out.___redirect) { res.writeHead(302, { Location: out.___redirect }); res.end(); return; }   // v43.6 微信回调 302 回跳
       res.statusCode = out && out.___status || 200;
       if (out) delete out.___status;
       res.end(JSON.stringify(out ?? { ok: true }));

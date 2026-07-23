@@ -11,8 +11,8 @@ db.exec('PRAGMA foreign_keys=ON');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(
-  id TEXT PRIMARY KEY, phone TEXT UNIQUE NOT NULL, wx_openid TEXT UNIQUE,
-  nickname TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'user',
+  id TEXT PRIMARY KEY, phone TEXT UNIQUE NOT NULL, wx_openid TEXT UNIQUE, wx_unionid TEXT,
+  nickname TEXT NOT NULL DEFAULT '', avatar TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'user',
   tok_ver INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS otp(
   phone TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL,
@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS collection_items(
   PRIMARY KEY(collection_id, score_id));
 `);
 
+/* v43.6 微信登录：老库幂等补列（ALTER 失败=列已存在，忽略）+ unionid 唯一索引（多 NULL 允许） */
+for (const col of ['wx_unionid TEXT', "avatar TEXT NOT NULL DEFAULT ''"]) {
+  try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch { /* 列已存在 */ }
+}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
+
 const now = () => Math.floor(Date.now() / 1000);
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -54,6 +60,12 @@ const q = {
   userCreate:   db.prepare('INSERT INTO users(id,phone,nickname,created_at) VALUES(?,?,?,?)'),
   userSetNick:  db.prepare('UPDATE users SET nickname = ? WHERE id = ?'),
   userSetRole:  db.prepare('UPDATE users SET role = ? WHERE id = ?'),
+  // v43.6 微信登录（unionid 优先匹配，openid 兜底；合成占位 phone 满足 NOT NULL/UNIQUE）
+  userByUnionid:  db.prepare('SELECT * FROM users WHERE wx_unionid = ?'),
+  userByWxOpenid: db.prepare('SELECT * FROM users WHERE wx_openid = ?'),
+  userCreateWx:   db.prepare('INSERT INTO users(id,phone,wx_openid,wx_unionid,nickname,avatar,created_at) VALUES(?,?,?,?,?,?,?)'),
+  userBindWx:     db.prepare('UPDATE users SET wx_openid=COALESCE(?,wx_openid), wx_unionid=COALESCE(?,wx_unionid) WHERE id=?'),
+  userFillAvatar: db.prepare("UPDATE users SET avatar=CASE WHEN avatar='' THEN ? ELSE avatar END WHERE id=?"),
   // 验证码与频控
   otpGet:       db.prepare('SELECT * FROM otp WHERE phone = ?'),
   otpUpsert:    db.prepare(`INSERT INTO otp(phone,code_hash,expires_at,attempts,day,day_count,last_sent_at)
