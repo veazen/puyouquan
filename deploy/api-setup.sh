@@ -37,10 +37,11 @@ ALIYUN_AK_SECRET=
 SMS_SIGN=谱友圈
 SMS_TEMPLATE=
 # ---- 微信开放平台·网站应用扫码登录（可选；填了才显示微信登录入口）----
-# 授权回调域需在开放平台配置为 zhipu.puyouquan.com；回调地址即下方 WX_WEB_REDIRECT
+# 授权回调域＝账号中枢主域 www.puyouquan.com（回调只是内部中转：设跨域 Cookie 后 302 弹回原页，
+# 三站共享登录态）。开放平台「授权回调域」填 www.puyouquan.com，须与下方 WX_WEB_REDIRECT 的 host 字面一致。
 WX_WEB_APPID=
 WX_WEB_SECRET=
-WX_WEB_REDIRECT=https://zhipu.puyouquan.com/api/wx/web/callback
+WX_WEB_REDIRECT=https://www.puyouquan.com/api/wx/web/callback
 EOF
   chmod 600 /etc/puyouquan/api.env
   echo "已生成 /etc/puyouquan/api.env（短信参数待填写）"

@@ -15,7 +15,7 @@ if (!JWT_SECRET) { console.error('缺少 JWT_SECRET'); process.exit(1); }
 // v43.6 微信开放平台·网站应用扫码登录（凭据只走服务器环境，不入代码）
 const WX_WEB_APPID = process.env.WX_WEB_APPID || '';
 const WX_WEB_SECRET = process.env.WX_WEB_SECRET || '';
-const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://zhipu.puyouquan.com/api/wx/web/callback';
+const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.com/api/wx/web/callback';
 
 const VER = 'wx-1';
 const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另有 4m）

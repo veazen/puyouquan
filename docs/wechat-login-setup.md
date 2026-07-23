@@ -8,21 +8,25 @@
 ### 1) 微信开放平台侧（open.weixin.qq.com）
 1. 管理中心 → **网站应用 → 创建网站应用**（需**企业主体认证**，认证费约 ¥300/年）
 2. 审核通过后，在应用**「开发信息」**里拿到 **AppID** 和 **AppSecret**
-3. **「授权回调域」填**：`zhipu.puyouquan.com`
+3. **「授权回调域」填**：`www.puyouquan.com`（账号中枢主域，非编辑器子域）
    - ⚠️ 只填**域名**，不带 `https://`、不带路径
-   - 前提：`zhipu.puyouquan.com` 已 **ICP 备案通过 + 开了 HTTPS**（微信要求回调走 https）
+   - 为什么是主域：回调只是**内部中转**——微信回跳到 `www.../api/wx/web/callback` 设好跨子域 Cookie（`Domain=.puyouquan.com`）后 302 弹回登录发起页；zhipu / puku / 官网三站因此共享登录态。把中枢放主域比绑在编辑器子域更稳。
+   - 微信「网站应用」的授权回调域**不自动覆盖子域名**：填 `www.puyouquan.com`，则 `WX_WEB_REDIRECT` 的 host 必须也是 `www.puyouquan.com`（www 与不带 www 的主域**二选一并保持一致**，别混用）。
+   - 前提：`www.puyouquan.com` 已 **ICP 备案 + HTTPS**（主域即备案主体，已就绪）。
+   - ⚠️ 换域前先在服务器确认官网 vhost 的 `/api/` 反代已通：`curl -s https://www.puyouquan.com/api/health` 应返回 `{"ok":true...}`。若 404，说明 `/api/` include 没落到官网 server 块，重跑一次幂等的 `sudo bash /tmp/api-setup.sh` 或手动把 `include snippets/pyq-api.conf;` 加进官网块。（部署冒烟已加该断言，会自动兜底报警。）
 
 ### 2) 服务器侧（凭据只进这个文件，不进仓库）
 `/etc/puyouquan/api.env` 增加三行：
 ```
 WX_WEB_APPID=wx你的AppID
 WX_WEB_SECRET=你的AppSecret
-WX_WEB_REDIRECT=https://zhipu.puyouquan.com/api/wx/web/callback
+WX_WEB_REDIRECT=https://www.puyouquan.com/api/wx/web/callback
 ```
-重启：
+重启并核验（回调域主域 /api 必须通）：
 ```bash
 sudo systemctl restart pyq-api
-curl -s https://zhipu.puyouquan.com/api/health   # 应含 "wx_web":true
+curl -s https://www.puyouquan.com/api/health   # 应含 "wx_web":true —— 若 404 见上「换域前」提示
+curl -s https://zhipu.puyouquan.com/api/health  # 编辑器侧同一后端，应含 "wx_web":true
 ```
 
 ### 3) 前端
