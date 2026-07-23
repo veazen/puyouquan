@@ -1025,7 +1025,7 @@ body.shell #hint{display:none}
 <body>
 <header id="top">
   <div class="bar main-bar">
-    <span class="logo"><span class="mark"></span>谱友圈 <small>在线制谱</small></span>
+    <span class="logo"><span class="mark"></span>谱友圈 <small>专业制谱平台</small></span>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
       <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
@@ -1039,7 +1039,7 @@ body.shell #hint{display:none}
       <button id="b-preview" title="打印预览：A5/A4/A3 纸张适配、缩放、多页横排竖排">预览</button>
       <button id="b-print" title="打印或导出 PDF/图片">打印…</button>
       <button id="b-library" class="seg-accent" title="预设曲谱（功能示例）与我的曲谱">预设</button>
-      <button id="b-circle" class="seg-accent" title="曲谱库：发现好谱、收藏与购买（创作者可在个人中心发布）">曲谱库</button>
+      <button id="b-circle" class="seg-accent" title="谱库：在线展示谱面（puku.puyouquan.com）——发现好谱、收藏、看谱移调跟谱">谱库</button>
     </span>
     <span class="seg">
       <button id="b-undo" title="撤销 (Ctrl+Z)" style="font-size:14px;min-width:34px">↶</button>
@@ -11142,7 +11142,8 @@ function standTick(t){
 document.addEventListener('fullscreenchange', ()=>{
   if(!document.fullscreenElement && document.body.classList.contains('stand')) exitStand();
 });
-document.getElementById('b-circle').onclick=openCircle;
+/* v43.7 谱库改指向独立展示站 puku.puyouquan.com；本机预览无该域名时回落到内置演示库 */
+document.getElementById('b-circle').onclick=()=>{ if(/(^|\.)puyouquan\.com$/i.test(location.hostname)) location.href='//puku.puyouquan.com/'; else openCircle(); };
 const PC_ICON = {
   profile:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>',
   mine:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h7"/></svg>',
@@ -11761,7 +11762,8 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
-    <li><span class="v">v43.6</span><div><b>微信扫码登录（开放平台·网站应用）</b>：登录 / 注册弹窗新增<b>「微信扫码登录」</b>——手机微信扫码即可登录，与手机验证码登录共用一个账号体系（同一微信开放平台主体下 <code>unionid</code> 统一，网站 / 公众号 / 小程序日后互通）。零依赖后端（<code>api/wx.js</code> OAuth + <code>state</code> HMAC 防伪 + 回跳地址白名单），凭据只存服务器环境、不入代码；`Cookie` 按 <code>.puyouquan.com</code> 三站共享。仅在服务端配置了微信应用后显示该入口（无死按钮）。接入方式见 <code>docs/wechat-login-setup.md</code>。公众号网页授权、小程序轻量版按同一 unionid 账号体系后续接入。</div></li>
+    <li><span class="v">v43.7</span><div><b>品牌与域名分工梳理：制谱平台 × 谱库</b>：明确两个独立站点——<b>制谱平台</b>（本编辑器，<code>zhipu.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「专业制谱平台」</b>）负责做谱；<b>谱库</b>（<code>puku.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「谱库」</b>）是专门在线展示谱面的站点，发现好谱、看谱移调跟谱，微信小程序（轻量版）日后也复用这套谱库展示页、以独立网站形态呈现。编辑器顶栏「预设」旁的入口由<b>「曲谱库」改名「谱库」并直接跳转 puku.puyouquan.com</b>（本机预览无该域名时回落到内置演示库）。纯品牌/导航调整，不改谱面数据与渲染。<b>同时热修 v43.6 更新日志里一处反引号未转义</b>（<code>Cookie</code> 一词误用反引号包裹，落在模板字符串内导致整段脚本解析失败、编辑器白屏），现已改为 HTML 标签包裹，脚本恢复正常。</div></li>
+    <li><span class="v">v43.6</span><div><b>微信扫码登录（开放平台·网站应用）</b>：登录 / 注册弹窗新增<b>「微信扫码登录」</b>——手机微信扫码即可登录，与手机验证码登录共用一个账号体系（同一微信开放平台主体下 <code>unionid</code> 统一，网站 / 公众号 / 小程序日后互通）。零依赖后端（<code>api/wx.js</code> OAuth + <code>state</code> HMAC 防伪 + 回跳地址白名单），凭据只存服务器环境、不入代码；<code>Cookie</code> 按 <code>.puyouquan.com</code> 三站共享。仅在服务端配置了微信应用后显示该入口（无死按钮）。接入方式见 <code>docs/wechat-login-setup.md</code>。公众号网页授权、小程序轻量版按同一 unionid 账号体系后续接入。</div></li>
     <li><span class="v">v43.5</span><div><b>变拍子（per-measure 拍号）</b>（完整度审计 Tier 2 收官）：全曲不再只能一个拍号——现可为<b>任意小节单独设定拍号</b>（如 4/4 → 3/4 → 6/8 → 7/8）。用法：选中小节 → 小节面板<b>「本小节拍号…」</b>选 2/4…12/8 之一（选「恢复全曲拍号」清除）。改动全链路贯通：<b>节拍校验</b>按本小节拍号（3/4 放 3 拍不再误报）、<b>符杠/减时线成组</b>按本小节 unit（6/8 八分按 3 成组）、<b>谱面在拍号变化处标注新拍号</b>（五线谱字形 / 简谱 N/M 小字，联排谱表头同标）、<b>版面自动预留拍号横向空间</b>、<b>播放时长</b>按各小节拍号、<b>MusicXML 导入导出</b>按小节 <code>&lt;time&gt;</code> 往返。核心 <code>meaMeter(mi)</code>/<code>beatsOf(c,unit)</code> 贯穿 40+ 调用点。<code>mea.beats</code>/<code>mea.unit</code> 为只增字段，旧谱与既有单一拍号完全兼容。新增 <code>tv_meter</code> 回归 8 项。至此完整度审计 Tier 2 全部落地。</div></li>
     <li><span class="v">v43.4</span><div><b>MusicXML 互操作保真：八度记号 / 震音 / 双变音</b>（完整度审计 Tier 2·P0 互操作）：与外部制谱软件（Sibelius/MuseScore/Finale/Guitar Pro）互导时补齐三项保真——① <b>八度记号</b>导出/导入 <code>&lt;octave-shift&gt;</code>（8va/15ma=down·上方，8vb/15mb=up·下方，span 起止完整，导入后逐列还原移位）；② <b>震音</b>导出/导入 <code>&lt;tremolo type="single"&gt;N&lt;/tremolo&gt;</code>（1/2/3 杠）；③ <b>双变音导入拼写保真</b>——源含重升/重降（<code>alter=±2</code>）时直接还原为 <b>×/♭♭</b> 拼写（此前统一归一为升号系，音高对但拼写丢失），音高逐音一致。往返一致性回归全绿。新增 <code>tv_mxlfid</code> 回归 3 项。</div></li>
     <li><span class="v">v43.3</span><div><b>电吉他推弦回放 bend &amp; release + 预推 pre-bend</b>（完整度审计 Tier 2 续）：推弦在<b>常规上推</b>之外新增两型——<b>推弦回放（bend &amp; release）</b>画 ∧ 形（推上到顶点再回落到目标音，末端下箭头）；<b>预推（pre-bend）</b>画起音处<b>竖直上箭头</b>（拨弦前已推起），可单音使用、也可预推后回落。用法：Ctrl 选两音加推弦后<b>再点推弦按钮</b>，在幅度菜单里选「推弦回放 / 预推」；<b>单个音符直接点推弦 = 预推</b>。幅度 full/½/¼/1½ 与目标圆圈保留。纯记谱层。新增 <code>tv_bend</code> 回归 5 项。</div></li>

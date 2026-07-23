@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-23 · 当前版本 **v43.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-23 · 当前版本 **v43.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -54,8 +54,9 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 - 生产部署：`deploy/deploy.sh` rsync 到服务器 `/var/www/puyouquan/`（ICP 备案已通过：**粤ICP备2026100396号-1**，网站名称「谱友圈」；备案号展示在编辑器 #site-footer 与官网 pyq.js 注入页脚 + 官网首页 #site-foot 静态兜底，链接 beian.miit.gov.cn）。
 - **域名架构（2026-07-22 起，nginx 三虚拟主机，见 `deploy/nginx-puyouquan.conf`）**：
   - `puyouquan.com` / `www` → **官网**（root = `/var/www/puyouquan/site`，default_server，IP 直访亦命中）
-  - `zhipu.puyouquan.com` → **在线制谱**（单文件编辑器，root = `/var/www/puyouquan`，index.html no-cache）
-  - `puku.puyouquan.com` → **谱库**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页）
+  - `zhipu.puyouquan.com` → **在线制谱 / 专业制谱平台**（单文件编辑器，root = `/var/www/puyouquan`，index.html no-cache；页头主标题「谱友圈」·副标题「专业制谱平台」）
+  - `puku.puyouquan.com` → **谱库**（创作者正式谱展示，原「看谱」板块更名；`site/view.html` 作首页；页头主标题「谱友圈」·副标题「谱库」；微信小程序轻量版日后复用此展示页，以独立网站形态呈现）
+  - **两站分工（v43.7 明确）**：制谱平台=做谱、谱库=展谱。编辑器顶栏「预设」旁入口 `b-circle` 由「曲谱库」改名「谱库」，线上直接跳转 `//puku.puyouquan.com/`（本机预览无该域名时回落到内置演示库 `openCircle`）。已发布谱的**交互观看**仍在 `zhipu.puyouquan.com/?pub=ID`（单文件应用承载渲染引擎），谱库页/小程序卡片链去该地址，观看页「← 谱库」回跳 puku。
   - 站内互链用协议相对子域链接（`//zhipu.puyouquan.com/` 等）；冒烟 `deploy/smoke.sh` 用 `curl --connect-to` 按域名 SNI 逐一验收三个 vhost 的 **HTTPS** 内容 + http→https 跳转，传 IP 即可、不依赖 DNS。
   - **HTTPS 已启用（2026-07-22）**：certbot 四域名一证（puyouquan.com/www/zhipu/puku），自动续期；certbot 直接改写服务器上的 pu8.conf，故 `server-setup.sh` 检测到 `managed by Certbot` 时跳过模板覆盖——仓库 nginx 模板此后仅作参考基线，改动需登录服务器手动合并。
 - **账号后端（M1a，2026-07-22 上线）**：`api/` 零依赖 Node 服务（Node 24 内建 `node:http`+`node:sqlite`+`node:crypto`，无 npm 依赖，规避境内拉包/原生编译问题）。
