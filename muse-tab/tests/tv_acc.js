@@ -105,11 +105,11 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     mutate(()=>genAccompaniment('arp16',0,1));
     const r16=song.measures[0].voxes[0].filter(c=>c.deg).length;
     const h=document.getElementById('score').innerHTML;
-    return { allLv, hasNew:['march','arp16','kids'].every(i=>ids.includes(i)), n:ids.length,
+    return { allLv, hasNew:['march','arp16','kids','march2','barc68','lilt68','polka2'].every(i=>ids.includes(i)), n:ids.length,
       marchOK:rOK, arp16Notes:r16, renderOK:h.length>1000 && !h.includes('NaN') };
   });
-  const ok6 = t6.allLv && t6.hasNew && t6.n===11 && t6.marchOK && t6.arp16Notes===16 && t6.renderOK;
-  console.log((ok6?'✅':'❌')+' T6 织体库: 共'+t6.n+'套(期望11) 分级='+t6.allLv+' 新增齐='+t6.hasNew+' 进行曲后半拍柱式='+t6.marchOK+' 全分解16音='+t6.arp16Notes+' 渲染='+t6.renderOK);
+  const ok6 = t6.allLv && t6.hasNew && t6.n===15 && t6.marchOK && t6.arp16Notes===16 && t6.renderOK;   // v45.1 +2/4×2 +6/8×2 → 15
+  console.log((ok6?'✅':'❌')+' T6 织体库: 共'+t6.n+'套(期望15) 分级='+t6.allLv+' 新增齐='+t6.hasNew+' 进行曲后半拍柱式='+t6.marchOK+' 全分解16音='+t6.arp16Notes+' 渲染='+t6.renderOK);
   if(ok6) pass++;
   // T7 弹窗含配和弦按钮与分组
   const t7 = await pg.evaluate(()=>{

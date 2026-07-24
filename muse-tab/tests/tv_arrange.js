@@ -126,7 +126,23 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const ok8 = t8.split==='[{"beat":0,"chord":"C"},{"beat":2,"chord":"G"}]' && t8.m1==='[{"beat":0,"chord":"C"}]' && t8.placed==='0:C 2:G';
   console.log((ok8?'✅':'❌')+' T8 和声节奏: M0拆='+t8.split+' M1单='+t8.m1+' 回填='+t8.placed+'(期望 0:C 2:G)');
   if(ok8) pass++;
-  console.log('PASS '+pass+'/8');
+  // T9 v45.1 织体扩拍号：2/4(march2) 与 6/8(barc68) 生成时值和=拍数、有音、无 NaN
+  const t9 = await pg.evaluate(`(()=>{
+    const test=(beats,unit,texId)=>{
+      const s=createSong('pianoacc',{lyr:0,beats,unit,key:'C',nMea:1});
+      s.measures[0].voxes[0][0].chord='C'; loadSong(s);
+      const g=genAccompaniment(texId,0,0,{chordVi:0,rhVi:0,lhVi:1});
+      const sum=vi=>{let t=0;song.measures[0].voxes[vi].forEach(c=>t+=beatsOf(c));return +t.toFixed(3);};
+      const notes=vi=>song.measures[0].voxes[vi].filter(c=>c.deg||(c.adds||[]).length).length;
+      return { done:g.done, rh:sum(0), lh:sum(1), rhN:notes(0), lhN:notes(1), nan:document.getElementById('score').innerHTML.includes('NaN') };
+    };
+    return { m2:test(2,4,'march2'), b68:test(6,8,'barc68') };
+  })()`);
+  const ok9 = t9.m2.done===1 && t9.m2.rh===2 && t9.m2.lh===2 && t9.m2.rhN>0 && !t9.m2.nan
+    && t9.b68.done===1 && t9.b68.rh===6 && t9.b68.lh===6 && t9.b68.rhN>0 && !t9.b68.nan;
+  console.log((ok9?'✅':'❌')+' T9 织体扩拍号: 2/4('+t9.m2.rh+'拍/'+t9.m2.rhN+'音) 6/8('+t9.b68.rh+'拍/'+t9.b68.rhN+'音) 无NaN='+(!t9.m2.nan&&!t9.b68.nan));
+  if(ok9) pass++;
+  console.log('PASS '+pass+'/9');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();

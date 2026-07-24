@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v45.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v45.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,7 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v44.6）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入）；v44.8 补齐倚音/滑音/独立力度/速度术语的 MusicXML 往返。P0 互操作深化告一段落（TAB 技法 tech/tk/bAmt 仍未进 MusicXML、后倚音 graceA 仅单向，属长尾）。P1 智能配谱深化启动：v44.9 `suggestChords` 从逐小节贪心升级为**功能和声 Viterbi**（发射=旋律契合 + 转移=T→S→D→T 功能进行 + 属七 V7 + 正格终止），全局最优、进行连贯。v45.0 和声节奏：`suggestChordPlan` 在每小节主和弦基础上对 4/4 下半段另属和弦补第二和弦（每小节 1–2 个，`placeChordPlan` 回填多列），`suggestChords` 保持首和弦兼容。余下 P1：离调/副属(V/V·V/vi)、织体扩拍号(6/8/2/4)与风格。**
+> **执行进度（截至 v45.1）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入）；v44.8 补齐倚音/滑音/独立力度/速度术语的 MusicXML 往返。P0 互操作深化告一段落（TAB 技法 tech/tk/bAmt 仍未进 MusicXML、后倚音 graceA 仅单向，属长尾）。P1 智能配谱深化启动：v44.9 `suggestChords` 从逐小节贪心升级为**功能和声 Viterbi**（发射=旋律契合 + 转移=T→S→D→T 功能进行 + 属七 V7 + 正格终止），全局最优、进行连贯。v45.0 和声节奏：`suggestChordPlan` 在每小节主和弦基础上对 4/4 下半段另属和弦补第二和弦（每小节 1–2 个，`placeChordPlan` 回填多列），`suggestChords` 保持首和弦兼容。v45.1 织体扩拍号：PIANO_TEX 加 2/4(进行曲/波尔卡)与 6/8(船歌/摇篮曲) 4 套，picker 按 song.beats 过滤。余下 P1(长尾)：离调/副属(V/V·V/vi)、更多风格型。**
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -223,7 +223,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 新建向导八卡 | `showNewWizard` / `showNewForm` / `createSong`（场景→基础形态映射） |
 | 类型归类 | `docType` / `TYPE_CN` / `CC_CATS` / `TYPE_NORM` |
 | 换调自动移调 | `transposeEditor` / `transChordName`（mm-ok 内触发） |
-| 伴奏织体 | `PIANO_TEX`（11套·level分级）/ `genAccompaniment`（可选 chordVi/rhVi/lhVi 声部参数）/ `suggestChords`（**v44.9 功能和声 Viterbi**：发射=旋律契合+转移=T→S→D→T+属七 V7+正格终止，全局最优）/ **v45.0** `suggestChordPlan`+`placeChordPlan`（和声节奏：一小节 1–2 个和弦）/ `b-acctex` |
+| 伴奏织体 | `PIANO_TEX`（v45.1 起 15 套·level分级·2/4·3/4·4/4·6/8）/ `genAccompaniment`（可选 chordVi/rhVi/lhVi 声部参数）/ `suggestChords`（**v44.9 功能和声 Viterbi**：发射=旋律契合+转移=T→S→D→T+属七 V7+正格终止，全局最优）/ **v45.0** `suggestChordPlan`+`placeChordPlan`（和声节奏：一小节 1–2 个和弦）/ `b-acctex` |
 | 智能配谱 | `arrangeAccompaniment(melody,{texId,pure,suggest})`（纯函数开新窗口）/ `b-arrange`（vocal/teach/instr 可见） |
 | 哼唱成谱 | `hmPitchTrack`（NSDF+首峰+中值）/ `hmDetectKey` / `hummingToSong`（quantizeToCols legato 参数）/ 向导 nw-hum |
 | 分享卡（静态） | `buildShareCardSVG`（干净快照嵌套裁窗+二维码占位）/ `exportShareCard`（CSS变量解析→canvas 2x PNG）/ 弹窗 ex-card |

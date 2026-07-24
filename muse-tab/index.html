@@ -1604,6 +1604,20 @@ const PIANO_TEX = [
  {id:'arp16',   name:'全分解十六分琶音', level:'进阶', beats:4,
   L:[{d:2,t:'1'},{d:2,t:'5'}],
   R:[{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'},{d:16,t:'1'},{d:16,t:'3'},{d:16,t:'5'},{d:16,t:'8'}]},
+ /* v45.1 2/4：进行曲/波尔卡（低音+后半拍柱式 / 交替低音+轻柱式） */
+ {id:'march2',  name:'进行曲 2/4（低音+后半拍和弦）', level:'入门', beats:2,
+  L:[{d:4,t:'1'},{d:4,t:'5'}],
+  R:[{d:8,t:null},{d:8,s:['3','5','8']},{d:8,t:null},{d:8,s:['3','5','8']}]},
+ {id:'polka2',  name:'波尔卡 2/4（交替低音+轻柱式）', level:'入门', beats:2,
+  L:[{d:4,t:'1'},{d:4,t:'5'}],
+  R:[{d:8,t:null},{d:8,s:['3','5']},{d:8,t:null},{d:8,s:['3','5']}]},
+ /* v45.1 6/8：船歌/摇篮曲分解 + 蓬-哒-哒律动（unit=8，一小节 6 个八分拍，两个附点四分脉冲） */
+ {id:'barc68',  name:'船歌 6/8（低音+八分琶音）', level:'入门', beats:6,
+  L:[{d:4,t:'1'},{d:8,t:null},{d:4,t:'5'},{d:8,t:null}],
+  R:[{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'8'}]},
+ {id:'lilt68',  name:'摇篮曲 6/8（蓬-哒-哒）', level:'入门', beats:6,
+  L:[{d:8,t:'1'},{d:8,t:null},{d:8,t:null},{d:8,t:'5'},{d:8,t:null},{d:8,t:null}],
+  R:[{d:8,t:null},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:null},{d:8,t:'3'},{d:8,t:'5'}]},
 ];
 /* v39.0 和弦类型 → 音程表（半音）：与 CHORD_TEMPLATES 同一份 qual 口径。
    槽位 1/3/5/8 永远存在（11 套织体事件表只引用这四个槽），sus/11/5 等无三音类型
@@ -9585,7 +9599,7 @@ function showNewForm(type, gtype){
 /* 智能配谱弹窗（主旋律 → 即兴伴奏成品谱） */
 document.getElementById('b-arrange').onclick = ()=>{
   const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
-  if(!avail.length){ toast('当前拍号暂无内置织体（支持 4/4 与 3/4）'); return; }
+  if(!avail.length){ toast('当前拍号暂无内置织体（支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>智能配谱 · 主旋律 → 即兴伴奏谱</h3>
     <p style="font-size:12.5px;line-height:1.6">对当前旋律：空小节自动配和弦（功能和声，已填的不覆盖）→ 按所选织体生成双手伴奏。<b>生成的伴奏谱将替换当前窗口；原旋律谱自动存入「我的曲谱」</b>，可随时打开；生成后可继续改和弦、逐段重生成、一键换调。</p>
     ${['入门','进阶'].map(lv=>{
@@ -9622,7 +9636,7 @@ document.getElementById('b-new').onclick = showNewWizard;
 document.getElementById('b-acctex').onclick = ()=>{
   if(!song.pianoAcc) return;
   const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
-  if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 4/4 与 3/4）'); return; }
+  if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
     <p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（点谱面「＋和弦」空位），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>
     ${['入门','进阶'].map(lv=>{
@@ -12244,6 +12258,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.1</span><div><b>伴奏织体扩到 2/4 与 6/8 拍（P1 · 织体深化）</b>：内置伴奏织体库从「只支持 4/4 与 3/4」扩到<b>2/4、3/4、4/4、6/8 四种拍号</b>，新增 4 套织体：<b>进行曲 2/4、波尔卡 2/4、船歌 6/8、摇篮曲 6/8</b>（6/8 的附点四分脉冲、蓬-哒-哒律动）。这样 <b>2/4 的进行曲/儿歌、6/8 的抒情摇篮曲</b> 也能一键生成双手伴奏——师范儿歌伴奏、艺考视唱常见的复合拍终于有了内置织体。<code>tv_acc</code>/<code>tv_arrange</code> 回归同步更新。</div></li>
     <li><span class="v">v45.0</span><div><b>自动配和弦支持「一小节两个和弦」（P1 · 和声节奏）</b>：智能配谱不再一小节只配一个和弦——4/4 小节里当<b>下半段明显另属一个和弦</b>时，会自动在后半拍补上第二个和弦（如一小节前半 C、后半 G），更贴近真实歌曲的和声节奏；下半段仍属同一和弦时保持一个，不画蛇添足。沿用 v44.9 的功能和声全局寻优选主和弦，再对下半段按分数与功能走向决定是否加和弦，生成的双手伴奏随之逐拍换和弦。<code>tv_arrange</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.9</span><div><b>智能配和弦升级：配得更「地道」了（P1 智能配谱深化）</b>：一键配伴奏/自动配和弦的和声引擎从<b>逐小节贪心</b >升级为<b>全局功能和声寻优</b>（Viterbi）——不再各小节各自挑一个「音符最贴」的和弦，而是同时权衡<b>旋律契合度 + 和声进行的功能走向</b>，产出连贯地道的进行（主→下属→属→主 顺行、属→主 正格解决，抑制「属→下属」逆行）。并新增<b>属七和弦 V7</b>：当旋律里出现属和弦的小七度音时自动用 V7、终止式更有推动力（如 …F <b>G7</b> C）。旋律清晰时结果不变、更稳；旋律模糊处进行更顺。<code>tv_arrange</code> 回归增至 7 项。</div></li>
     <li><span class="v">v44.8</span><div><b>倚音/滑音/力度/速度术语进 MusicXML 往返（P0 互操作深化）</b>：MusicXML 导出/导入再补四类表情记号的<b>无损往返</b>——<b>前倚音（装饰音）、滑音、独立力度记号（f/p/mf/sf…）、意大利速度术语（Andante/Allegro…）</b>。此前这些记号导出会丢、从 MuseScore 等导入也读不回；现在<b>导出→导入逐音一致</b>（倚音→<code>grace</code>、滑音→<code>slide</code>、力度→<code>dynamics</code>、术语→<code>words</code>）。至此谱面记号体系的 MusicXML 保真度进一步收口。<code>tv_mxl</code> 回归增至 8 项。</div></li>
