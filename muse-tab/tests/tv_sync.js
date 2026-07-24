@@ -22,7 +22,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       const m = url.match(/\/api\/scores\/([^/]+)$/);
       if (url.endsWith('/api/scores') && method === 'GET')
         return J({ scores: Object.values(window.__remote).map(s => ({ id: s.id, title: s.title, singer: '', status: 'private', updated_at: s.updated_at })) });
-      if (m && method === 'PUT') { window.__remote[m[1]] = { id: m[1], title: body.title, updated_at: body.updated_at, data: body.data }; return J({ saved: true, updated_at: body.updated_at }); }
+      if (m && method === 'PUT') { const ex = window.__remote[m[1]]; if (ex && body.updated_at < ex.updated_at) return { ok:false, status:409, json: async()=>({ conflict:true, server_updated_at: ex.updated_at }) }; window.__remote[m[1]] = { id: m[1], title: body.title, updated_at: body.updated_at, data: body.data }; return J({ saved: true, updated_at: body.updated_at }); }
       if (m && method === 'GET') { const s = window.__remote[m[1]]; return s ? J({ score: { ...s } }) : ({ ok: false, status: 404, json: async () => ({ error: 'x' }) }); }
       if (m && method === 'DELETE') { delete window.__remote[m[1]]; return J({ deleted: true }); }
       return J({});
@@ -123,6 +123,35 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { threw };
   });
   T(r.threw === false, 'T7 413不抛错', JSON.stringify(r));
+
+  // T8 409 冲突：云端有更新版本时，本地这次改动另存为「冲突副本」不丢失（v44.1）
+  await setup();
+  r = await pg.evaluate(async () => {
+    window.PYQ_CLOUD = true; ACCT = { id:'u1', nickname:'谱友' };
+    localStorage.removeItem('musetab-library-v1'); localStorage.removeItem('musetab-deleted'); window.__remote = {};
+    window.__remote['confscore01'] = { id:'confscore01', title:'原曲', updated_at:9000, data:{ v:3, title:'原曲', measures:[] } };
+    const s = createSong('guitar', { beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:1, lyr:0 }); s.id='confscore01';
+    localStorage.setItem('musetab-library-v1', JSON.stringify([{ id:'confscore01', title:'我的改动', updatedAt:'x', mtime:5000, data:s }]));
+    await scoreCloudPush('confscore01');
+    const after = JSON.parse(localStorage.getItem('musetab-library-v1'));
+    const copy = after.find(x => /冲突副本/.test(x.title));
+    return { total: after.length, hasCopy: !!copy, origKept: after.some(x => x.id==='confscore01') };
+  });
+  T(r.total === 2 && r.hasCopy && r.origKept, 'T8 409冲突另存副本不丢失', JSON.stringify(r));
+
+  // T9 删除墓碑：删除后同步不复活 + 补删云端 + 确认后清墓碑（v44.1）
+  await setup();
+  r = await pg.evaluate(async () => {
+    window.PYQ_CLOUD = true; ACCT = { id:'u1', nickname:'谱友' };
+    localStorage.removeItem('musetab-library-v1'); localStorage.removeItem('musetab-deleted'); window.__remote = {};
+    window.__remote['tombscore01'] = { id:'tombscore01', title:'待删', updated_at:100, data:{ v:3, measures:[] } };
+    delMark('tombscore01');                 // 模拟：本地已删（删除时离线，云端仍在）
+    await syncScores();
+    const lib = JSON.parse(localStorage.getItem('musetab-library-v1') || '[]');
+    const del = JSON.parse(localStorage.getItem('musetab-deleted') || '{}');
+    return { localHas: lib.some(x => x.id==='tombscore01'), remoteHas: !!window.__remote['tombscore01'], tombPruned: !del['tombscore01'] };
+  });
+  T(!r.localHas && !r.remoteHas && r.tombPruned, 'T9 墓碑防复活+补删+清理', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

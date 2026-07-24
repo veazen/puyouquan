@@ -9256,7 +9256,7 @@ function showLibrary(){
     if(rn){ const id=rn.dataset.renameMine; const lib=libLoad(); const en=lib.find(x=>x.id===id);
       askText('重命名曲谱', en.title||'', nm=>{ if(nm!=null && nm.trim()){ en.title=nm.trim(); en.data.title=en.title; if(song.id===id) song.title=en.title; libSave(lib); persist(); render(); closeModal(); showLibrary(); } }); return; }
     const dl=e.target.closest('[data-del-mine]');
-    if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; if(window.PYQ_CLOUD) apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{}); closeModal(); showLibrary(); } return; }
+    if(dl){ const id=dl.dataset.delMine; if(confirm('确定删除这首曲谱？')){ libSave(libLoad().filter(x=>x.id!==id)); if(song.id===id) song.id=undefined; if(window.PYQ_CLOUD){ delMark(id); apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{}); } closeModal(); showLibrary(); } return; }
   });
   document.getElementById('lib-close').onclick = closeModal;
 }
@@ -11408,7 +11408,7 @@ function openPersonal(tab){
     M.querySelectorAll('[data-pc-del]').forEach(b=>b.onclick=()=>{
       const lib=libLoad(); const i=lib.findIndex(x=>x.id===b.dataset.pcDel);
       if(i>=0){ const id=lib[i].id; lib.splice(i,1); libSave(lib);
-        if(window.PYQ_CLOUD) apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{});
+        if(window.PYQ_CLOUD){ delMark(id); apiCall('/scores/'+id,{method:'DELETE'}).catch(()=>{}); }
         toast('已删除'); openPersonal('mine'); }
     });
   }else if(tab==='pat'){
@@ -11587,6 +11587,12 @@ async function acctBecomeCreator(){
    mtime（epoch 秒）与既有 updatedAt（展示字符串）并存，是新增字段不改红线；离线/未登录全部 no-op。 */
 window.PYQ_CLOUD = API_ON;   // persist() 在本模块之前声明，用 window 标志规避 let/const 的 TDZ
 const _cloudTimers = {}; let _syncing = false;
+/* v44.1 删除墓碑：记录已删曲谱 id（新增键 musetab-deleted，不碰红线），同步时对账——
+   防「设备A删除后，离线设备B下次同步把谱又推回云端」及「离线删除指令丢失后被云端拉回复活」。 */
+const LS_DELETED='musetab-deleted';
+function delLoad(){ try{ return JSON.parse(localStorage.getItem(LS_DELETED))||{}; }catch(_){ return {}; } }
+function delSave(d){ try{ localStorage.setItem(LS_DELETED, JSON.stringify(d)); }catch(_){} }
+function delMark(id){ if(!id) return; const d=delLoad(); d[id]=Math.floor(Date.now()/1000); delSave(d); }
 function scheduleCloudPush(id){
   if(!window.PYQ_CLOUD || !ACCT || !id) return;
   clearTimeout(_cloudTimers[id]);
@@ -11604,22 +11610,46 @@ async function scoreCloudPush(id){
   const mtime = e.mtime || Math.floor(Date.now()/1000);
   // 成功返回最终云端 id（可能因短 id 升级而变，供发布等后续调用使用）；失败静默返回 undefined（后台去抖/同步调用不受影响）
   try{ await apiCall('/scores/'+id, {method:'PUT', body:{title:e.title||'', singer:(e.data&&e.data.singer)||'', updated_at:mtime, data:e.data}}); return id; }
-  catch(err){ if(err.status===413 && typeof toast==='function') toast('曲谱过大，云端未保存：'+(e.title||'')); return; }
+  catch(err){
+    if(err.status===413){ if(typeof toast==='function') toast('曲谱过大，云端未保存：'+(e.title||'')); return; }
+    if(err.status===409){
+      // 冲突：云端已有更新版本（本次改动 mtime 更旧，多为双设备并发编辑）。把本地这份另存为「冲突副本」
+      // 保留，避免随后 syncScores 用云端版覆盖本地导致改动静默丢失（类 Dropbox conflicted copy）。
+      const lib2=libLoad(), cur=lib2.find(x=>x.id===id);
+      if(cur){
+        const cid='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        const copy=Object.assign({}, cur, {id:cid, title:(cur.title||'未命名曲谱')+'（冲突副本）', mtime:Math.floor(Date.now()/1000)});
+        if(copy.data){ copy.data=JSON.parse(JSON.stringify(copy.data)); copy.data.id=cid; }
+        lib2.unshift(copy); libSave(lib2);
+        if(typeof toast==='function') toast('云端有更新版本，本次改动已另存为「'+copy.title+'」');
+        scheduleCloudPush(cid);
+      }
+      return;
+    }
+    return;   // 其他错误静默（后台去抖/同步不受影响）
+  }
 }
 async function syncScores(){
   if(!window.PYQ_CLOUD || !ACCT || _syncing) return;
   _syncing = true;
   try{
+    const del = delLoad();
     const res = await apiCall('/scores');
     const remote = res.scores||[]; const rmap = {}; remote.forEach(s=>rmap[s.id]=s);
+    // 墓碑补删：云端仍存在的已删谱，补发 DELETE（离线时丢失的删除指令的补偿）；成功才从 rmap 摘除
+    for(const id in del){
+      if(rmap[id]){ try{ await apiCall('/scores/'+id,{method:'DELETE'}); delete rmap[id]; }catch(_){/* 保留墓碑下次重试 */} }
+    }
     let lib = libLoad();
     for(const e of lib){                              // 本地→云：云端缺失 或 本地更新
+      if(del[e.id]) continue;                          // 已删墓碑：不再上推（防复活）
       const r = rmap[e.id];
       if(!r || (e.mtime||0) > r.updated_at) await scoreCloudPush(e.id);
     }
     lib = libLoad();                                  // scoreCloudPush 可能升级过 id，重取
     let changed = false;
     for(const r of remote){                            // 云→本地：本地缺失 或 云端更新
+      if(del[r.id]) continue;                          // 已删墓碑：不再拉回（防复活）
       const e = lib.find(x=>x.id===r.id);
       if(!e || r.updated_at > (e.mtime||0)){
         const full = await apiCall('/scores/'+r.id); const s = full.score;
@@ -11629,6 +11659,8 @@ async function syncScores(){
       }
     }
     if(changed) libSave(lib);
+    // 墓碑清理：云端已确认不存在（删除已传播）的从墓碑移除，避免无限增长
+    let dch=false; for(const id in del){ if(!rmap[id]){ delete del[id]; dch=true; } } if(dch) delSave(del);
   }catch(_){/* 网络失败静默，下次登录/保存再补偿 */}
   finally{ _syncing = false; }
 }
@@ -11777,6 +11809,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.1</span><div><b>云同步更可靠：并发不丢改动 + 删除不复活（Sprint 1 · 数据完整性）</b>：① <b>多设备并发编辑不再静默丢失</b>——当云端已有更新版本、你本机这次改动更旧时（此前会被云端版直接覆盖、改动消失），现自动把本机这份<b>另存为「（冲突副本）」</b>保留在「我的曲谱」，两版都在、由你取舍（类云盘冲突副本）。② <b>删除不再"复活"</b>——新增删除墓碑，删掉的曲谱不会再被离线的其他设备同步时推回云端、也不会被云端拉回本机；离线删除的指令会在下次联网补发。均为幕后可靠性修复，新增 <code>musetab-deleted</code> 键（只增不改红线），tv_sync 回归增至 9 项。</div></li>
     <li><span class="v">v44.0</span><div><b>登录安全：退出所有设备（Sprint 1 · 信任）</b>：个人中心账号卡新增<b>「退出所有设备」</b>——一键作废你在<b>全部设备</b>（含本机）上的登录，用于手机丢失 / 登录态泄露时的自保（此前「退出登录」只清本端，泄露的登录凭据在有效期内无法作废）。技术上服务端自增账号 <code>tok_ver</code> 使全部已签发令牌立即失效；普通「退出登录」仍只清本端、不影响其他设备。</div></li>
     <li><span class="v">v43.9</span><div><b>隐私政策如实披露（合规 · Sprint 0）</b>：账号系统与云端同步已上线，隐私政策与「关于」页同步更新——如实说明<b>手机验证码登录收集手机号、微信登录收集 OpenID/UnionID/昵称/头像、登录后云同步与发布会上传曲谱、短信经阿里云发送</b>等真实数据处理（此前文案仍写「不设账号、不上传」，与现状不符）。未登录仍为纯本地、不上传。你可随时退出、删除云端曲谱或注销账号。</div></li>
     <li><span class="v">v43.8</span><div><b>安全加固（六维审计 Sprint 0 · 止血）</b>：① <b>观看他人发布/分享的谱面时增加内容清洗</b>——打开谱库或分享链接的曲谱前，对来源数据做安全过滤，杜绝被构造的谱面在你浏览器里执行任何脚本（存储型 XSS 防线）；② <b>修复云端曲谱删除的越权问题</b>——服务端现严格校验「只能删除自己的曲谱」且删除在数据库事务内完成，杜绝他人误伤你对某曲谱的收藏/谱架记录。纯安全与数据完整性修复，不改谱面数据与你的使用方式。</div></li>
