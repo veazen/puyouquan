@@ -6,7 +6,12 @@
    T5 小节内换谱号：col.clef='bass' 后同一音（C4）谱面位置上移 45px（treble→bass 恰好 12 谱级×3.75），
       且该小节布局宽度增加 ≥15px（小谱号占位）
    T6 换谱号 MusicXML 往返：导出含 ≥2 个 <clef>，导入还原 col.clef='bass'
-   T7 右栏信息卡补齐：作词/作曲/制谱/调弦/谱类·小节数 同步显示，空值行隐藏 */
+   T7 右栏信息卡补齐：作词/作曲/制谱/调弦/谱类·小节数 同步显示，空值行隐藏
+   ---- v45.7 细节批次2 ----
+   T8 和弦图横按判定收紧：Em(022000) 两邻弦同品不再画横杠、Bm(x24432) 跨 4 弦距仍画横杠
+   T9 联排像素级间距：低音下加线深度(26.25px)+边距 → gap≥36；高弦推弦装饰 → gap≥30
+   T10 联排低音谱号（song.tabClef='bass'）：低音入谱表 gap 回落、高音上加线区向上扩
+   T11 面板重组：b-notation 入记谱法组、技巧含哑音无下推弦、tn-clef 按钮存在、techFromBar('mute') 翻转 n.x */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -132,6 +137,66 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t7.ly === '测词' && t7.co === '测曲' && /弹唱谱 · 3 小节/.test(t7.ty) && t7.tun.length > 0 && t7.makerHid && t7.tunVis,
     'T7 信息卡补齐(作词/作曲/谱类·小节/调弦/空值隐藏)', JSON.stringify(t7));
+
+  // T8 v45.7 和弦图横按判定：Em 分指不画横杠、Bm 横按仍画
+  const t8 = await pg.evaluate(() => {
+    const em = chordDiagramSVG('Em', 0, 0, 1, '022000', true);
+    const bm = chordDiagramSVG('Bm', 0, 0, 1, 'x24432', true);
+    const barre = s => /stroke-width="5\.2"/.test(s);
+    const dots = s => (s.match(/r="2\.5"/g) || []).length;
+    return { emBarre: barre(em), bmBarre: barre(bm), emDots: dots(em) };
+  });
+  T(!t8.emBarre && t8.bmBarre && t8.emDots === 2, 'T8 横按判定(Em无杠/Bm有杠/点r=2.5)', JSON.stringify(t8));
+
+  // T9 v45.7 联排像素级间距：低音下加线 26.25px → gap≥36；一弦推弦装饰 → gap≥30
+  const t9 = await pg.evaluate(() => {
+    const mk = cols => { const s = createSong('solo', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+      s.tabStaff = true; s.measures[0].tabs[0] = cols; loadSong(s);
+      const M = sysMetrics(0, 0, 0, 0); return +(M.tabTops[0] - M.tabStaffB[0]).toFixed(1); };
+    const gLow  = mk([{ dur: 2, notes: [{ s: 6, f: 0 }] }, { dur: 2, notes: [] }]);          // E2→E3 下加2线
+    const gBend = mk([{ dur: 2, notes: [{ s: 1, f: 0, tech: 'b', bAmt: 'full' }] }, { dur: 2, notes: [] }]);  // 一弦推弦弧
+    const gBase = mk([{ dur: 1, notes: [{ s: 1, f: 0 }] }]);
+    return { gLow, gBend, gBase };
+  });
+  T(t9.gLow >= 36 && t9.gBend >= 30 && t9.gBase >= 13 && t9.gBase < 20,
+    'T9 联排像素级间距(低音36+/推弦30+/基础14)', JSON.stringify(t9));
+
+  // T10 v45.7 联排低音谱号：低音入谱表 gap 回落基础值；高音弦音符转为上加线 → 谱表上方扩距
+  const t10 = await pg.evaluate(() => {
+    const s = createSong('solo', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.tabStaff = true;
+    s.measures[0].tabs[0] = [{ dur: 2, notes: [{ s: 6, f: 0 }] }, { dur: 2, notes: [{ s: 1, f: 0 }] }];
+    loadSong(s);
+    const g1 = sysMetrics(0, 0, 0, 0);
+    const gapT = g1.tabTops[0] - g1.tabStaffB[0], topT = g1.tabStaffB[0];
+    song.tabClef = 'bass'; render();
+    const g2 = sysMetrics(0, 0, 0, 0);
+    const gapB = g2.tabTops[0] - g2.tabStaffB[0], topB = g2.tabStaffB[0];
+    const hasF = document.getElementById('score').innerHTML.length > 0;
+    delete song.tabClef; render();
+    return { gapT: +gapT.toFixed(1), gapB: +gapB.toFixed(1), dTop: +(topB - topT).toFixed(1), hasF };
+  });
+  T(t10.gapT >= 36 && t10.gapB < 20 && t10.dTop >= 25 && t10.hasF,
+    'T10 低音谱号联排(低音入谱表/上加线区扩)', JSON.stringify(t10));
+
+  // T11 v45.7 面板重组：记谱风格入记谱法组、技巧含哑音无下推弦、谱号按钮、mute 翻转 n.x
+  const t11 = await pg.evaluate(() => {
+    const bn = document.getElementById('b-notation');
+    const inNota = !!(bn && bn.closest('#panel-tab-notation'));
+    const clefBtns = !!(document.getElementById('tn-clef-g') && document.getElementById('tn-clef-f'));
+    const hasMute = EB_TECHS.some(e => e[0] === 'mute'), noBd = !EB_TECHS.some(e => e[0] === 'bd');
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 3, f: 2 }] }, { dur: 2, notes: [] }, { dur: 4, notes: [] }];
+    loadSong(s);
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 };
+    techFromBar('mute');
+    const xOn = !!song.measures[0].tabs[0][0].notes[0].x;
+    techFromBar('mute');
+    const xOff = !song.measures[0].tabs[0][0].notes[0].x;
+    return { inNota, clefBtns, hasMute, noBd, xOn, xOff };
+  });
+  T(t11.inNota && t11.clefBtns && t11.hasMute && t11.noBd && t11.xOn && t11.xOff,
+    'T11 面板重组(记谱风格分组/哑音入技巧/谱号按钮)', JSON.stringify(t11));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
