@@ -17,7 +17,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
       const xml=buildShareCardSVG();
       return { len:xml.length, nan:xml.includes('NaN'), undef:xml.includes('undefined'),
         brand:xml.includes('谱友圈')&&xml.includes('puyouquan.com'),
-        nested:/<svg x="25" y="96"/.test(xml), qr:xml.includes('上线后扫码看谱'),
+        nested:/<svg x="25" y="96"/.test(xml), qr:/微信扫码看谱|扫码上谱友圈制谱/.test(xml),
         title:xml.includes('viewBox="0 0 750 1000"') };
     })()`);
     const ok = r.len>3000 && !r.nan && !r.undef && r.brand && r.nested && r.qr && r.title;
