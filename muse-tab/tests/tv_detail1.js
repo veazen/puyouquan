@@ -15,7 +15,10 @@
    ---- v45.8 细节批次3 ----
    T12 行首小节号右对齐收进左页边距（text-anchor=end、x<MARGIN、贴谱表顶线）
    T13 系统左端连线：联排(五线谱+TAB) 行首竖线贯通两谱行（x=MARGIN 跨度≥80）；弹唱(TAB+简谱)同样相连
-   T14 TAB 全空小节居中画一个全休止（不再逐列落在列位；部分空列仍逐列画） */
+   T14 TAB 全空小节居中画一个全休止（不再逐列落在列位；部分空列仍逐列画）
+   ---- v45.9 细节批次4 ----
+   T15 行首连线无同位双绘（色差根因）：x=56 的竖线恰好 1 条（连线接管各谱行行首线）；单 TAB 行仍 1 条自身行首线
+   T16 TAB 字母移入谱表内（x=oxH+9=65，不再悬在页边距 oxH-11=45） */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -250,6 +253,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { n: xs.length, dev: +dev.toFixed(1) };
   });
   T(t14.n === 3 && t14.dev < 10, 'T14 TAB 全空小节居中全休止', JSON.stringify(t14));
+
+  // T15 v45.9 行首连线无同位双绘 + T16 TAB 字母入谱表
+  const t15 = await pg.evaluate(() => {
+    const vcount = svg => { let n = 0, m2; const re = /<line x1="56" y1="([\d.]+)" x2="56" y2="([\d.]+)"/g;
+      while ((m2 = re.exec(svg))) n++; return n; };
+    // 联排（连线接管）：x=56 竖线恰 1 条
+    const s1 = createSong('solo', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s1.tabStaff = true; s1.measures[0].tabs[0] = [{ dur: 1, notes: [{ s: 5, f: 2 }] }];
+    loadSong(s1);
+    const nLinked = vcount(document.getElementById('score').innerHTML);
+    const tabIn = /<text x="65"[^>]*font-weight="bold"[^>]*>T</.test(document.getElementById('score').innerHTML);
+    const tabOut = /<text x="45"[^>]*>T</.test(document.getElementById('score').innerHTML);
+    // 单 TAB 行（无连线）：仍恰 1 条自身行首线
+    const s2 = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s2.measures[0].tabs[0] = [{ dur: 1, notes: [{ s: 5, f: 2 }] }];
+    loadSong(s2);
+    const nSingle = vcount(document.getElementById('score').innerHTML);
+    return { nLinked, nSingle, tabIn, tabOut };
+  });
+  T(t15.nLinked === 1 && t15.nSingle === 1, 'T15 行首连线无同位双绘(竖线恰1条)', JSON.stringify(t15));
+  T(t15.tabIn && !t15.tabOut, 'T16 TAB 字母入谱表内(x=65)', JSON.stringify(t15));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

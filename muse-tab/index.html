@@ -3825,7 +3825,9 @@ function render(){
     const ox = MARGIN + STAFF_HEAD_W, oxH = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
     /* v45.8 系统左端连线（出版惯例）：行首把本行各谱行（联排五线谱/TAB/五线谱/简谱声部）
-       用一条竖线相连，方便逐行对位读谱；单行谱不画（Gould：单谱表行首无需起始小节线） */
+       用一条竖线相连，方便逐行对位读谱；单行谱不画（Gould：单谱表行首无需起始小节线）。
+       v45.9 连线存在时各谱行自己的行首竖线不再重复绘制（同位双绘导致深浅色差），线宽统一 1 */
+    let sysConnected=false;
     {
       const segs=[];
       song.tabVoices.forEach((_,vi2)=>{
@@ -3839,8 +3841,9 @@ function render(){
         if(isStaffNota(nt2)){ const sb=vy-6-(dual2?26:0); segs.push([sb-30, dual2? vy+4 : sb]); }
         else segs.push([vy-13, vy+4]);
       });
-      if(segs.length>=2)
-        p.push(`<line x1="${oxH}" y1="${Math.min(...segs.map(s=>s[0])).toFixed(1)}" x2="${oxH}" y2="${Math.max(...segs.map(s=>s[1])).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+      sysConnected = segs.length>=2;
+      if(sysConnected)
+        p.push(`<line x1="${oxH}" y1="${Math.min(...segs.map(s=>s[0])).toFixed(1)}" x2="${oxH}" y2="${Math.max(...segs.map(s=>s[1])).toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
     }
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = staffH(), SN = strN();
@@ -3871,7 +3874,7 @@ function render(){
           p.push(tsigStr(hm.beats, ox+9, cStaffB-3*cSGt, cSGt));
           p.push(tsigStr(hm.unit,  ox+9, cStaffB-cSGt,   cSGt));
         }
-        p.push(`<line x1="${oxH}" y1="${cStaffT}" x2="${oxH}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
+        if(!sysConnected) p.push(`<line x1="${oxH}" y1="${cStaffT}" x2="${oxH}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画
         /* 小节号：非首行行首标注——v45.8 右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号
            置于系统左外侧；v45.7 只是上移避让谱号，结果悬空漂移，用户反馈位移严重） */
         if(sIdx>0 && vi===0 && sys.measures.length)
@@ -4019,16 +4022,17 @@ function render(){
       }
       for(let i=0;i<SN;i++)
         p.push(`<line x1="${oxH}" y1="${tabTop+i*STR}" x2="${ox+sys.w}" y2="${tabTop+i*STR}" stroke="var(--ink)" stroke-width="0.7"/>`);
-      /* T A B 标签：以谱表中线为轴分布（4弦尤克里里自动收紧） */
+      /* T A B 标签：以谱表中线为轴分布（4弦尤克里里自动收紧）；
+         v45.9 移入谱表内（行首竖线右侧的表头区，GP/出版 TAB 惯例——此前悬在页边距上） */
       ['T','A','B'].forEach((ch,i)=>
-        p.push(`<text x="${oxH-11}" y="${tabTop+STAFF/2+(i-1)*(SN===6?STR*1.5:STR)+4}" font-size="${SN===6?11.5:9.5}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${ch}</text>`));
+        p.push(`<text x="${oxH+9}" y="${tabTop+STAFF/2+(i-1)*(SN===6?STR*1.5:STR)+4}" font-size="${SN===6?11.5:9.5}" font-weight="bold" text-anchor="middle" fill="var(--ink)">${ch}</text>`));
       if(song.tabVoices.length>1)
         p.push(`<text x="${oxH-24}" y="${tabTop+STAFF/2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6" transform="rotate(-90 ${oxH-24} ${tabTop+STAFF/2})">${esc(vname)}</text>`);
       if(sIdx===0 && vi===0){
         p.push(`<text x="${ox+8}" y="${tabTop+STAFF*0.4+3}" font-size="14" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.beats}</text>`);
         p.push(`<text x="${ox+8}" y="${tabTop+STAFF*0.8+3}" font-size="14" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${song.unit}</text>`);
       }
-      p.push(`<line x1="${oxH}" y1="${tabTop}" x2="${oxH}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+      if(!sysConnected) p.push(`<line x1="${oxH}" y1="${tabTop}" x2="${oxH}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画（防同位双绘色差）
       sys.measures.forEach((lm, lmIdx)=>{
         const mea = song.measures[lm.mi];
         const cols = mea.tabs[vi]||[];
@@ -4477,7 +4481,7 @@ function render(){
           const brH = SMUFL.brace.bb[3]-SMUFL.brace.bb[1];
           const brS = (staffB-prevT)/brH;
           p.push(smg('brace', oxH-3-SMUFL.brace.bb[2]*Math.min(brS,30), staffB, SG, {sx:Math.min(brS,30), sy:brS}));
-          p.push(`<line x1="${oxH}" y1="${prevT}" x2="${oxH}" y2="${staffB}" stroke="var(--ink)" stroke-width="1.1"/>`);
+          if(!sysConnected) p.push(`<line x1="${oxH}" y1="${prevT}" x2="${oxH}" y2="${staffB}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画（防同位双绘色差）
         }
       }else{
         p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -12607,6 +12611,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.9</span><div><b>谱面细节修复批次 4</b>：① <b>行首连线色差修复</b>——v45.8 的系统连线与各谱行原有的行首竖线在同一位置重复绘制，叠加处颜色更深造成深浅不一；现在连线存在时各谱行不再重复画自己的行首线，线宽统一，整条连线颜色均匀；② <b>TAB 字母移入谱表内</b>——六线谱行首的 T A B 三个字母从页边距移到谱表内（行首竖线右侧的表头区），与 Guitar Pro / 出版 TAB 谱一致。<b>小知识</b>：独奏谱五线谱谱号下方的小「8」是<b>吉他移调谱号（treble-8vb）的标准记号</b>——吉他实际发声比五线谱记谱<b>低一个八度</b>，出版吉他谱都这样标注，用于提示读谱者，并非多余符号。</div></li>
     <li><span class="v">v45.8</span><div><b>谱面细节修复批次 3（读谱体验）</b>：① <b>行首小节编号归位</b>——右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号置于系统左外侧），彻底解决被谱号压住/上移后悬空漂移的问题；② <b>每行行首谱行相连</b>——五线谱+TAB 联排、弹唱谱的 TAB+简谱行、教学对照谱等多谱行曲谱，每行行首用一条竖线把各谱行连成一组（参考出版谱系统线惯例），逐行对位读谱更清晰；单谱行曲谱保持原样；③ <b>TAB 全休止符居中</b>——全空小节改为在小节中央画一个全休止符（与五线谱同口径），不再逐列落在列位上；部分空拍仍按位置画对应时值休止符。</div></li>
     <li><span class="v">v45.7</span><div><b>谱面细节修复批次 2 + 联排谱号可选</b>：① <b>行首小节编号上移</b>——不再被高音谱号上弧压住；② <b>五线谱+TAB 联排间距重修</b>——改为像素级精确计算（谱表下加线深度 + TAB 上方推弦弧/技法标注高度求和），推弦、低音下加线与 TAB 彻底不再重叠；③ <b>和弦图横按判定收紧</b>——Em/A 等两三根邻弦同品是分指按法，不再被误画成横按横杠把圆点连成一团（F/Bm/Bb 等真横按仍正常画），圆点大小同步微调防粘连；④ <b>「记谱风格」独立分组</b>——移入左栏「记谱法 · 谱号」组（与 TAB/TAB+五线谱 同组），不再混在音符记号里；⑤ <b>联排五线谱谱号可选</b>：新增 <b>高音谱号（吉他标准）/ 低音谱号（贝斯记谱）</b>切换，低音吉他/贝斯谱的联排更专业；⑥ <b>技巧面板「下推弦」改为「哑音」</b>——下推弦（推弦回放）已并入推弦弹窗的类型选择，原按钮位改为哑音 ×（死音）直达入口。</div></li>
     <li><span class="v">v45.6</span><div><b>谱面细节修复批次 1 + 五线谱小节内换谱号</b>：① 吉他谱 <b>× 记号放大</b>（闷音/和弦内音 ×→15px、打板 ×→16px，与品位数字视觉匹配）；② <b>TAB 休止符改用出版级 SMuFL 字形</b>（与五线谱同源，此前的文本字形过小），附点休止的附点也同步画出；③ <b>五线谱+TAB 联排间距自适应</b>——低音弦下加线音符多时谱表与 TAB 自动拉开，不再互相重叠；④ <b>五线谱支持小节内换谱号</b>：记号面板新增「谱号切换」，自选中音起在<b>高音/中音/低音谱号</b>间切换（同一小节内也可多次切换，谱面画小号谱号；仅换记谱位置，音高与播放不变），并进 MusicXML 导出/导入无损往返；⑤ <b>拍弦记号改为「框内×」</b>（GP 惯例：方框内音符一律记 ×）；⑥ <b>右栏曲谱信息卡补齐</b>——新增作词/作曲/制谱/调弦/谱类·小节数，与曲谱数据实时同步，空值行自动隐藏。</div></li>
