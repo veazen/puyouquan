@@ -6,6 +6,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message));
   pg.on('console',m=>{if(m.type()==='error'&&!/sounds|CORS|Failed to load|TUNNEL/.test(m.text()))errs.push('CONSOLE:'+m.text());});
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v43.8 修假绿：直通「未保存确认」对话，让每个 loadSong 真正切换渲染（v41.5 起 9/12 用例被此弹窗静默拦截，一直对同一份陈旧渲染断言）
 
   const CASES = [
     ['吉他预设(TAB+简谱+歌词)', `loadSong(PRESETS[0].make());`],
@@ -60,16 +61,23 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
       s.measures[1].voxes[0]=[V(0,2,{dotted:true}),V(0,4)];
       loadSong(s);`],
   ];
-  let pass=0;
+  let pass=0; const sigs=[];
   for(const [name, code] of CASES){
     const r = await pg.evaluate(`(()=>{ try{ ${code}
       const h=document.getElementById('score').innerHTML;
-      return {len:h.length, nan:h.includes('NaN'), undef:h.includes('undefined')};
+      const sig=[song&&song.title, song&&song.key, song&&(song.docType||''), song&&song.measures&&song.measures.length, h.length].join('|');
+      return {len:h.length, nan:h.includes('NaN'), undef:h.includes('undefined'), sig};
     }catch(e){ return {err:e.message}; } })()`);
     const ok = r && !r.err && r.len>1000 && !r.nan && !r.undef;
+    if(r&&r.sig) sigs.push(r.sig);
     console.log((ok?'✅':'❌')+' '+name+': '+JSON.stringify(r));
     if(ok) pass++;
   }
+  // v43.8 假绿自检：12 个用例本是不同曲谱/调式，渲染签名（标题|调|谱类|小节数|长度）必须高度多样。
+  // 历史 bug：guardReplace 拦截 loadSong 后所有渲染坍缩成同一份（len 全 330309），套件却仍全绿。
+  const distinct = new Set(sigs).size;
+  const diverse = distinct >= 10;
+  console.log((diverse?'✅':'❌')+' 渲染多样性自检: '+distinct+'/'+CASES.length+' 个不同签名（<10 = loadSong 被拦截的假绿）');
   // 打印预览逐类 + 反色 + 排版预设
   const extra = await pg.evaluate(`(async()=>{ const out=[];
     for(const t of ['staff','piano']){
@@ -92,4 +100,5 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   console.log('PASS '+pass+'/'+CASES.length);
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
+  process.exit((pass===CASES.length && diverse && errs.length===0) ? 0 : 1);   // v43.8：套件失败置非零退出码（供 CI 门禁拦截）
 })();

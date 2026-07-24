@@ -18,13 +18,40 @@ on:
 concurrency: { group: deploy, cancel-in-progress: true }
 
 jobs:
-  deploy:
+  # 回归门禁：任一环节失败即不部署（v43.8 补——此前 CI 只跑语法闸，41 套件+api 测试全靠人工，
+  # 是 v43.6 白屏与 tv_matrix 假绿溜上线的组织性根因）。
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: 语法闸（内联脚本解析，阻止白屏版本上线）
         run: node deploy/check-syntax.js muse-tab/index.html
+      - name: API 单测 + 端到端（零依赖 node:sqlite）
+        env:
+          NODE_OPTIONS: --experimental-sqlite   # 兼容 CI 上需显式开启 node:sqlite 的 node 版本（含 test.sh 内 node server.js）
+        run: |
+          node api/wx.test.js
+          node api/db.test.js
+          bash api/test.sh
+      - name: 安装 Playwright chromium
+        working-directory: muse-tab/tests
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: 浏览器回归套件（run_all.js 关键集）
+        working-directory: muse-tab/tests
+        run: |
+          export CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")"
+          node run_all.js
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: 装载 SSH 密钥
         env:
@@ -147,6 +174,9 @@ jobs:
             ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
               $S rsync -a --delete /tmp/pyq_api/ /opt/puyouquan/api/ && rm -rf /tmp/pyq_api && \
               $S systemctl restart pyq-api && sleep 1 && $S systemctl is-active pyq-api'
+            # DB 每日备份 timer（幂等安装/刷新；api 已 rsync，db-backup.js 就位）
+            scp deploy/db-backup.sh pyq:/tmp/db-backup.sh
+            ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/db-backup.sh'
           else
             echo "pyq-api 未初始化（先跑一次勾选 setup 的部署），跳过 API 发布"
           fi
