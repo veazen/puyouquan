@@ -67,6 +67,18 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .eb.ico span{font-size:10px;color:var(--muted)}
 .eb.ico svg{display:block;color:var(--text)}
 .eb.ico .g{font-size:12px;font-style:italic;font-weight:700;line-height:1.2;min-height:14px;display:flex;align-items:center}
+/* v45.5 记号/技巧按钮「符号优先」：谱面同源符号大图 + 中文小字为辅（悬停 title 有完整说明） */
+.eb.ico.sym{min-width:44px;padding:3px 6px 3px}
+.eb.ico.sym .g{min-height:18px;font-style:normal;justify-content:center}
+.eb.ico.sym .g .gt{font-family:Georgia,'Times New Roman',var(--font-num),serif;font-style:italic;font-weight:700;font-size:14px;line-height:1;white-space:nowrap}
+.eb.ico.sym .g .gt sup{font-size:8.5px}
+.eb.ico.sym .g .smg,.eb.ico.sym .g svg{margin:0 auto;color:var(--text)}
+.eb.ico.sym span{font-size:9.5px;letter-spacing:0;white-space:nowrap}
+.eb.ico.sym.on .g,.eb.ico.sym.on span{color:var(--accent)}
+/* 左栏面板内的演奏技巧字母（S/h/p/b↑/P.M.…）与谱面同风格：衬线斜体、字号放大 */
+#ribbon .eb.ico .g{font-family:Georgia,'Times New Roman',serif;font-size:14px;min-height:18px}
+#ribbon .eb.ico{min-width:44px}
+#ribbon .eb.ico span{font-size:9.5px;white-space:nowrap}
 .eb-grp{display:flex;align-items:center;gap:4px;flex:none}
 .eb-sep{width:1px;height:18px;background:var(--border);margin:0 8px;flex:none}
 .eb-t{font-size:11.5px;color:var(--muted);margin-right:2px;flex:none}
@@ -5179,8 +5191,21 @@ function showOttavaMenu(cx, cy){
   });
 }
 /* 简谱标识符号小图示（与谱面渲染同款） */
+/* v45.5 面板按钮出版级字形：直接用谱面同一份 SMuFL(Bravura) path 出小图标——与谱面渲染 100% 同源。
+   bb=[x0,y0,x1,y1]（谱面单位，y 负向上），viewBox 原样开窗，按目标高度等比缩放。 */
+function smIcoSVG(name, h){
+  const g=SMUFL[name]; if(!g||!g.bb) return '';
+  const [x0,y0,x1,y1]=g.bb, w=(x1-x0)||0.1, ht=(y1-y0)||0.1;
+  const H=h||14, W=Math.min(26, H*w/ht);
+  return `<svg class="smg" width="${W.toFixed(1)}" height="${H}" viewBox="${x0} ${y0} ${w} ${ht}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path d="${g.d}" fill="currentColor"/></svg>`;
+}
 function ornSVG(kind){
   const W=26, H=18;
+  /* v45.5 出版级：波音/颤音/回音改用谱面同源 SMuFL 字形（此前为手绘近似） */
+  if(kind==='up')   return smIcoSVG('ornamentShortTrill', 9);
+  if(kind==='down') return smIcoSVG('ornamentMordent', 12);
+  if(kind==='tr')   return smIcoSVG('ornamentTrill', 13);
+  if(kind==='turn') return smIcoSVG('ornamentTurn', 9);
   let g='';
   if(kind==='grace'){
     /* 与谱面记法一致：前倚音 2（8分·一条减时线）＋直角连线搭到主音 1 腰部 */
@@ -5209,6 +5234,53 @@ function ornSVG(kind){
   }
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
 }
+/* v45.5 记号/技巧面板按钮「符号优先」：谱面同源符号大图 + 中文小字为辅（tooltip 保留完整说明）。
+   只改按钮内部结构（id/事件不动）；SMuFL 有字形的用 smIcoSVG，其余按谱面画法内联小 SVG/同风格文字。 */
+function decorateSignButtons(){
+  const sv=(inner,w,h)=>`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${inner}</svg>`;
+  const st='stroke="currentColor" fill="none" stroke-linecap="round"';
+  const MAP={
+    /* —— 简谱/五线谱 · 音符记号 —— */
+    'b-sharp':   [smIcoSVG('accidentalSharp',15),'升号'],
+    'b-flat':    [smIcoSVG('accidentalFlat',15),'降号'],
+    'b-natural': [smIcoSVG('accidentalNatural',15),'还原'],
+    'b-octup':   ['<i class="gt">8<sup>va</sup>＋</i>','升八度'],
+    'b-octdn':   ['<i class="gt">8<sup>vb</sup>−</i>','降八度'],
+    'b-ottava':  ['<i class="gt">8<sup>va</sup>⌐┄</i>','八度线'],
+    'b-tie':     [sv(`<path d="M3 9.5 Q 11 2.5 19 9.5" ${st} stroke-width="1.3"/>`,22,12),'连音线'],
+    'b-grace':   [ornSVG('grace'),'倚音'],
+    'b-addnote': [sv(`<ellipse cx="7" cy="4.6" rx="4.2" ry="3.1" fill="currentColor"/><ellipse cx="7" cy="12.4" rx="4.2" ry="3.1" fill="currentColor"/>`,14,17),'和音'],
+    'b-vchord':  ['<i class="gt">Ⅳ</i>','和弦/级数'],
+    'b-ferm-v':  [smIcoSVG('fermataAbove',10),'延长号'],
+    'b-art-stcc':[sv(`<path d="M6.2 2 L9.8 2 L8 12 Z" fill="currentColor"/>`,16,13),'断音'],
+    'b-art-stacc':[sv(`<circle cx="8" cy="7" r="2.4" fill="currentColor"/>`,16,13),'跳音'],
+    'b-art-ten': [sv(`<rect x="3" y="6" width="10" height="1.9" rx="0.9" fill="currentColor"/>`,16,13),'保持音'],
+    'b-art-acc': [smIcoSVG('articAccentAbove',10),'重音'],
+    'b-art-marc':[smIcoSVG('articMarcatoAbove',11),'顿强'],
+    'b-breath':  ['<i class="gt">ᵛ</i>','换气'],
+    'b-trem':    [sv(`<path d="M4 8.5 L13 4.5 M4 12 L13 8 M4 15.5 L13 11.5" ${st} stroke-width="1.7"/>`,17,18),'震音'],
+    'b-gliss':   [sv(`<path d="M3 12.5 L14 4" ${st} stroke-width="1.3"/>`,17,15),'滑音'],
+    'b-fing':    ['<i class="gt">1-5</i>','指法'],
+    'b-ped-on':  ['<i class="gt">Ped.</i>','踏板'],
+    'b-ped-off': ['<i class="gt">✻</i>','踏板收'],
+    /* —— 六线谱 · 音符记号 / 扫弦琶音 —— */
+    'b-ferm-t':  [smIcoSVG('fermataAbove',10),'延长号'],
+    'b-mute':    ['<i class="gt">×</i>','×标记'],
+    'b-slap':    [sv(`<rect x="3.5" y="3" width="11" height="12" rx="1.5" ${st} stroke-width="1.1"/><text x="9" y="12.4" font-size="9" text-anchor="middle" fill="currentColor">3</text>`,18,18),'拍弦'],
+    'b-strum-d': ['<i class="gt">↑</i>','下扫'],
+    'b-strum-u': ['<i class="gt">↓</i>','上扫'],
+    'b-smute':   [sv(`<path d="M8 15 L8 5 M5.2 8 L8 5 L10.8 8" ${st} stroke-width="1.3"/><circle cx="13" cy="5" r="1.7" fill="currentColor"/>`,17,17),'切音'],
+    'b-arp':     [sv(`<path d="M8 15.5 Q 5 13.5 8 11.5 Q 11 9.5 8 7.5 Q 5 5.5 8 3.5 M5.6 6 L8 3.2 L10.4 6" ${st} stroke-width="1.2"/>`,16,18),'上琶音'],
+    'b-arpd':    [sv(`<path d="M8 2.5 Q 5 4.5 8 6.5 Q 11 8.5 8 10.5 Q 5 12.5 8 14.5 M5.6 12 L8 14.8 L10.4 12" ${st} stroke-width="1.2"/>`,16,18),'下琶音'],
+  };
+  for(const id in MAP){
+    const b=document.getElementById(id); if(!b) continue;
+    const [glyph, cap]=MAP[id];
+    b.classList.add('eb','ico','sym');
+    b.innerHTML=`<b class="g">${glyph}</b><span>${cap}</span>`;
+  }
+}
+decorateSignButtons();
 /* 组合节奏极简图示：仅符干+符杠（主梁/16分层，孤立16分画短杠），简单明了 */
 function comboSVG(durs, W, H){
   W=W||34; H=H||20;
@@ -12380,6 +12452,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.5</span><div><b>左栏记号/技巧按钮全面「符号优先」（出版级 · 与谱面同源）</b>：编辑器左栏「记号 / 演奏技巧 / 装饰·力度 / 扫弦·琶音」面板的按钮，从「中文文字为主」升级为<b>标准出版级符号大图 + 中文小字为辅</b>——升降还原号/延长号/跳音/保持音/重音/顿强/波音/颤音/回音等直接取<b>谱面渲染同一份 Bravura(SMuFL) 字形</b>（按钮上看到什么，谱上就是什么）；连音线/断音/震音/滑音/琶音/切音等按谱面画法内联绘制；吉他技法字母（S/h/p/b↑/P.M.…）改为与谱面一致的衬线斜体。<b>鼠标悬停仍有完整中文说明</b>。找记号从「读文字」变成「认符号」，与专业制谱软件一致。</div></li>
     <li><span class="v">v45.4</span><div><b>微信支付上线 + 看谱页分享卡（微信生态四件套）</b>：① <b>微信扫码支付</b>——「我的权益」里可直接微信支付开通会员（月/年）与考编内容包：点按钮出二维码、扫码支付、<b>到账即时生效</b>（服务端以主动查单确认为准，安全可靠；与兑换码并行可用）。② <b>看谱页也能出分享卡</b>——在线看任何发布谱时，观看栏新增「分享卡」：一键生成品牌谱面卡图片（含直达本谱二维码），<b>手机上长按即可保存/转发微信</b>，看谱人也能帮谱传播。③ 微信扫码登录服务端就绪（配置后自动显示入口）；④ 谱库小程序脚手架入库（web-view 承载谱库，分享卡片带谱直达，待管理员配置业务域名后提审）。</div></li>
     <li><span class="v">v45.3</span><div><b>会员体系上线：真实权益 + 兑换码开通（商业闭环 · 第一步）</b>：个人中心「我的权益」从演示页升级为<b>真实会员系统</b>——① <b>权益如实划分</b>：全部核心制谱（八场景/三谱互切/智能配谱/MusicXML/云同步 500 首/发布）<b>明确永久免费</b>；会员（￥15/月 · ￥98/年）提供<b>云端曲谱扩容至 2000 首</b>等真实增量；「考编内容包」（￥39 买断）制作中，上线后自动到账。② <b>兑换码开通</b>：输入官方渠道购得的兑换码即时开通、跨设备生效（服务端权益记录，不再是本机演示开关）；在线支付即将上线。③ 服务端新增权益/订单/兑换码/流水/统计五张数据表与管理工具，为在线支付与创作者分成打好地基。</div></li>
     <li><span class="v">v45.2</span><div><b>自动配和弦会用「副属和弦」了（P1 智能配谱深化收官）</b>：当旋律里<b>明确写了某个升号导音、且下一小节正是它的解决目标</b>时，自动配和弦会把这一小节配成<b>副属和弦（离调属七）</b>——比如旋律出现 <code>#4</code> 且下一小节是 G，本小节自动配 <b>D7（V/V）</b>，进行更有推动力、更地道。<b>纯自然音旋律不会触发</b>（不无端加半音色彩），是保守的旋律驱动策略：只在你确实写了变化音时才用。至此 P1「智能配谱 + 织体」深化收官（功能和声全局寻优 → 属七终止 → 一小节两和弦 → 四种拍号织体 → 副属和弦）。<code>tv_arrange</code> 回归增至 10 项。</div></li>
