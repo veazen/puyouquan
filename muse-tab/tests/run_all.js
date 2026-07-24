@@ -10,7 +10,7 @@ const CORE = [
   'tv_matrix', 'tv_presets', 'tv_safety', 'tv_head', 'tv_sign',
   'tv_mxl', 'tv_midi', 'tv_meter', 'tv_types', 'tv_trans',
   'tv_pub', 'tv_viewer', 'tv_publish', 'tv_site', 'tv_acct', 'tv_sync',
-  'tv_acc', 'tv_arrange', 'tv_brace', 'tv_card', 'tv_combo', 'tv_qr', 'tv_mobile', 'tv_fav',
+  'tv_acc', 'tv_arrange', 'tv_brace', 'tv_card', 'tv_combo', 'tv_qr', 'tv_mobile', 'tv_fav', 'tv_tabmxl',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 

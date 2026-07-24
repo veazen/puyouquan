@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v44.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v44.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,7 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v44.6）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**下一步进入 P0 互操作深化 / P1 织体与智能配谱深化（见路线图）。**
+> **执行进度（截至 v44.6）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化进行中：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入，此前纯 TAB 直接被拒）；余下表情字段（倚音/滑音/独立力度/速度术语）MusicXML 往返可续。之后 P1 织体与智能配谱深化（见路线图）。**
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -185,7 +185,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - `dynTo:{mi,ci}`（v41.2 渐强渐弱范围括线终点列；与 `dyn:'<'|'>'|'cresc.'|'dim.'` 组合生效——起列至终列开口楔形/文字+虚线延长，跨行断线续画；入口=力度菜单+Ctrl 选首末两音，与揉弦/闷音 `tk` 扩选同构；MusicXML wedge crescendo/diminuendo 出/入已同步）
   - `ped:'on'|'off'`（v41.3 钢琴踏板，点式成对渲染为 Ped.____*：'on' 起文字+延续线、至下一 ped 列收（'off' 画 * / 'on' 换踏断线），跨行断线续画；入口=「记号」面板两枚按钮，仅五线谱记谱声部显示；MusicXML pedal start/stop 出/入已同步）
   - `fing:'1'-'5'` 及 `adds[i].fing`（v41.3 指法数字：五线谱符头上方小数字（低音谱表下方、和音按音高纵向堆叠），简谱行不渲染；入口=「记号」面板「指法」按钮进入直录（`fingMode`），数字键 1–5 写入、0/退格清除、Esc 退出（adds 指法仅经 MusicXML 出/入）；MusicXML technical fingering 出/入已同步）
-- **tabCol**：`{dur, dotted, chord, notes:[{s:弦, f:品, x:闷音, tech, tk, bAmt:'1/4'|'1/2'|'full'|'1.5'?}], strum, ferm:true?}`（`ferm`=v41.1 列级延长号；`bAmt`=v41.2 推弦幅度，挂在 tech:'b'|'bd' 音符上、弧上文字替换 b↑/b↓，清除技法时一并删除；TAB part 尚未导出 MusicXML，ferm 与 bAmt→bend-alter 随 TAB 导出一并登记）
+- **tabCol**：`{dur, dotted, chord, notes:[{s:弦, f:品, x:闷音, tech, tk, bAmt:'1/4'|'1/2'|'full'|'1.5'?}], strum, ferm:true?}`（`ferm`=v41.1 列级延长号；`bAmt`=v41.2 推弦幅度，挂在 tech:'b'|'bd' 音符上、弧上文字替换 b↑/b↓，清除技法时一并删除；**v44.7：TAB 声部已导出/导入 MusicXML**——string/fret/x/ferm/时值/自定义调弦/capo 往返一致；技法记号 tech/tk/bAmt 暂未进 MusicXML，后续深化）
 - **dotted（v41.5 双附点）**：`false|true|2`——`true`=单附点（旧数据原义，migrate 不转换）、`2`=双附点（×1.75，新增取值）。可用性出版规则见 `maxDotLevel()`：全/2/4/8 分可双附点、16 分限单附点、32 分不可附点（依据=附点需要更低一级细分存在，本引擎最小时值 32 分）。附点按钮循环 无→附点→双附点→无；简谱渲染形态同步 GB 惯例：附点只画在四分及更短的音上，二分/全音符（含附点）改由增时线条数表达（附点二分=2条、附点全=5条；双附点二分的余下半拍以一枚附点补记）。MusicXML `<dot/>` 一/两枚出入同步（tv_dot 覆盖）。
 - **localStorage 键全部 `musetab-*` 前缀，永远不改名**（改名=用户丢谱）。读取入口 `migrate()` 做版本兼容。
 
@@ -238,8 +238,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 播放 | `sf-embed` 内嵌采样、`playInst`、let-ring、和音在延音链外独立发声 |
 | 曲谱库/观看 | `PRESETS` / `viewerBuildSong` / `vwTranspose` / 谱架模式 `enterStand` |
 | 打印预览 | `pvOpen` / `PV_GEO` |
-| MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
-| MusicXML 导入 | `importMusicXML`（DOMParser；音高 midi−keyRef→SEMI_DEG；跳过计数）/ 向导 nw-import |
+| MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写；**v44.7 起含 TAB 声部**：staff-details 六线定弦+TAB 谱号+每音 technical string/fret+变调夹）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
+| MusicXML 导入 | `importMusicXML`（DOMParser；音高 midi−keyRef→SEMI_DEG；跳过计数；**v44.7 起识别 TAB part**：clef TAB 或 staff-tuning → tabVoices，string/fret 反解 notes，tuning/capo/uku 反解，vox/tab 混合 part 分流）/ 向导 nw-import |
 | MIDI 导入 | `parseSMF`（SMF 0/1+运行状态）/ `quantizeToCols`（16分网格量化，**通用模块**）/ `buildSongFromMIDI` / 向导 nw-midi |
 | MIDI 导出 | `exportMIDI`（SMF format1；tie链合并长音/和音/TAB轨含capo）/ `downloadMIDI` / 弹窗 ex-mid |
 
@@ -293,6 +293,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
+| tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 

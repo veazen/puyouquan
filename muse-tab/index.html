@@ -9624,8 +9624,8 @@ function exportPNG(scale){
 function xesc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function exportMusicXML(s){
   s = s || song;
-  if(!(s.voxVoices||[]).length) return null;   // TAB-only 暂不支持（见 TODO）
   const o0=song; song=s;
+  if(!(s.voxVoices||[]).length && !(s.tabVoices||[]).length){ song=o0; return null; }   // 空谱不导
   const K = staffKeyInfo();
   const fifths = KEYSIG[s.key]!=null? KEYSIG[s.key] : 0;
   const DIV=48, beatDiv = 192/(s.unit||4);     // divisions=48/四分音符：32分附点与三连音时值均为整数
@@ -9647,6 +9647,18 @@ function exportMusicXML(s){
     x += `<kind text="${xesc(m[3]||'')}">${/^m(?!aj)/.test(m[3]||'')?'minor':'major'}</kind>`;
     if(m[4]) x += `<bass><bass-step>${m[4]}</bass-step>${m[5]==='#'?'<bass-alter>1</bass-alter>':m[5]==='b'?'<bass-alter>-1</bass-alter>':''}</bass>`;
     return x+'</harmony>';
+  };
+  /* v44.7 TAB→MusicXML：MIDI 直接拼写（升号系，弦/品为权威、音高仅供他软件发声）+ 六线定弦/谱号 */
+  const PCM=[['C',0],['C',1],['D',0],['D',1],['E',0],['F',0],['F',1],['G',0],['G',1],['A',0],['A',1],['B',0]];
+  const midiPitchXML = m=>{ const pc=((m%12)+12)%12, oct=Math.floor(m/12)-1, [st,al]=PCM[pc];
+    return `<pitch><step>${st}</step>${al?`<alter>${al}</alter>`:''}<octave>${oct}</octave></pitch>`; };
+  const TUNt = tuningOf(), nStr = strN();          // s 的定弦（含自定义调弦/uku 4 弦）+ 弦数
+  const staffDetailsXML = ()=>{                     // 六线谱表：staff-lines + 各弦定弦（line 底→顶）+ 变调夹
+    let x=`<staff-details><staff-lines>${nStr}</staff-lines>`;
+    for(let L=1; L<=nStr; L++){ const m=TUNt[nStr-L], pc=((m%12)+12)%12, oct=Math.floor(m/12)-1, [st,al]=PCM[pc];   // line L 对应弦号 nStr-L+1
+      x+=`<staff-tuning line="${L}"><tuning-step>${st}</tuning-step>${al?`<tuning-alter>${al}</tuning-alter>`:''}<tuning-octave>${oct}</tuning-octave></staff-tuning>`; }
+    if(s.capo>0) x+=`<capo>${s.capo}</capo>`;
+    return x+'</staff-details>';
   };
   const partList = (s.voxVoices||[]).map((vn,vi)=>
     `<score-part id="P${vi+1}"><part-name>${xesc(vn)}</part-name></score-part>`).join('');
@@ -9743,6 +9755,47 @@ function exportMusicXML(s){
     });
     return `<part id="P${vi+1}">${mm}</part>`;
   }).join('');
+  /* v44.7 TAB 声部（guitar/solo/uku）→ tab part：staff-details 六线定弦 + TAB 谱号 + 每列 string/fret 技术标记 */
+  const tabPartList = (s.tabVoices||[]).map((tn,ti)=>
+    `<score-part id="T${ti+1}"><part-name>${xesc(tn||('TAB'+(ti+1)))}</part-name></score-part>`).join('');
+  const tabParts = (s.tabVoices||[]).map((tn,ti)=>{
+    let mm='';
+    s.measures.forEach((mea,mi)=>{
+      const cols = (mea.tabs&&mea.tabs[ti])||[];
+      let body='';
+      if(mi===0){
+        const m0=meaMeter(0);
+        body += `<attributes><divisions>${DIV}</divisions><key><fifths>${fifths}</fifths></key>`+
+          `<time><beats>${m0.beats}</beats><beat-type>${m0.unit}</beat-type></time>`+
+          staffDetailsXML()+`<clef><sign>TAB</sign><line>5</line></clef></attributes>`;
+      } else { const pm=meaMeter(mi-1), cm=meaMeter(mi);
+        if(pm.beats!==cm.beats || pm.unit!==cm.unit)
+          body += `<attributes><time><beats>${cm.beats}</beats><beat-type>${cm.unit}</beat-type></time></attributes>`; }
+      if(mea.repeatStart) body += `<barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>`;
+      cols.forEach(col=>{
+        const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
+        const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
+        const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';
+        const tmod = col.tup? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : '';
+        const ferm = col.ferm? '<fermata/>' : '';
+        const ns = (col.notes||[]).filter(n=>n && n.s>=1 && n.s<=nStr);
+        if(!ns.length){
+          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${ferm?`<notations>${ferm}</notations>`:''}</note>`;
+          return;
+        }
+        ns.forEach((n,idx)=>{
+          const m = TUNt[n.s-1]+(n.f||0)+(s.capo||0);
+          const nh = n.x? '<notehead>x</notehead>' : '';
+          const tech = `<technical><string>${n.s}</string><fret>${n.f||0}</fret></technical>`;
+          body += `<note>${idx>0?'<chord/>':''}${midiPitchXML(m)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${nh}<notations>${idx===0?ferm:''}${tech}</notations></note>`;
+        });
+      });
+      if(mea.repeatEnd) body += `<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>`;
+      else if(mea.finalBar || mi===s.measures.length-1) body += `<barline location="right"><bar-style>light-heavy</bar-style></barline>`;
+      mm += `<measure number="${mi+1}">${body}</measure>`;
+    });
+    return `<part id="T${ti+1}">${mm}</part>`;
+  }).join('');
   song=o0;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
@@ -9750,11 +9803,11 @@ function exportMusicXML(s){
 `<identification>${s.composer?`<creator type="composer">${xesc(s.composer)}</creator>`:''}`+
 `${s.lyricist?`<creator type="lyricist">${xesc(s.lyricist)}</creator>`:''}`+
 `<encoding><software>谱友圈 puyouquan.com</software></encoding></identification>`+
-`<part-list>${partList}</part-list>${parts}</score-partwise>`;
+`<part-list>${partList}${tabPartList}</part-list>${parts}${tabParts}</score-partwise>`;
 }
 function downloadMusicXML(){
   const xml = exportMusicXML(song);
-  if(!xml){ toast('当前谱面只有 TAB 声部——MusicXML 导出暂支持简谱/五线谱声部（TAB 见路线图）'); return; }
+  if(!xml){ toast('曲谱为空，无可导出的声部'); return; }
   const b=new Blob([xml],{type:'application/vnd.recordare.musicxml+xml'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b);
   a.download=(song.title||'曲谱')+'.musicxml'; a.click();
@@ -9797,25 +9850,52 @@ function importMusicXML(xmlStr){
   const KIND_MAP={major:'',minor:'m',dominant:'7','major-seventh':'maj7','minor-seventh':'m7',
     'dominant-ninth':'9','suspended-fourth':'sus4',diminished:'dim',augmented:'aug'};
   const parts=[...root.querySelectorAll(':scope > part')].slice(0,4);
+  /* v44.7 TAB 声部识别：带 TAB 谱号或 staff-tuning 的 part → 六线谱声部（string/fret 权威） */
+  const isTabPart = part=>{ const at=part.querySelector(':scope > measure > attributes'); if(!at) return false;
+    const cs=txt(at,'clef > sign'); return cs==='TAB' || cs==='tab' || !!at.querySelector('staff-details > staff-tuning'); };
+  const tabFlags = parts.map(isTabPart);
+  const voxParts = parts.filter((p,i)=>!tabFlags[i]);
+  const tabParts = parts.filter((p,i)=>tabFlags[i]);
+  const pname = part=>{ const id=part.getAttribute('id'); const sp=id&&root.querySelector(`part-list > score-part[id="${id}"]`); return sp? (txt(sp,'part-name')||'') : ''; };
+  /* v44.7 tab 元数据：从首个 tab part 的 staff-details 反解定弦/变调夹/乐器（4 弦→uku） */
+  let tabTuning=null, tabCapo=0, tabInst=null;
+  if(tabParts.length){
+    const sd = tabParts[0].querySelector('measure attributes staff-details');
+    if(sd){
+      const cp=txt(sd,'capo'); if(cp) tabCapo=Math.max(0, Math.min(12, +cp||0));
+      const sts=[...sd.querySelectorAll('staff-tuning')];
+      if(sts.length){ const nS=sts.length, tun=new Array(nS).fill(0);
+        sts.forEach(st=>{ const L=+st.getAttribute('line')||1, step=txt(st,'tuning-step')||'E', alt=+(txt(st,'tuning-alter')||0), oct=+(txt(st,'tuning-octave')||2);
+          tun[nS-L] = (oct+1)*12 + L_NAT[L_IDX[step]||0] + alt; });   // line L(底→顶)↔弦号 nS-L+1，index nS-L
+        tabTuning=tun; tabInst = nS===4? 'uku' : 'guitar';
+      }
+    }
+  }
   const nV = parts.length;
   const tempoEl = doc.querySelector('sound[tempo]');
   const out = {v:3, title: txt(root,'work > work-title')||'导入曲谱',
     singer:'', lyricist:'', composer:'', maker:'',
     key, beats, unit, tempo: tempoEl? Math.round(+tempoEl.getAttribute('tempo'))||90 : 90,
-    capo:0, customChords:{}, tabVoices:[],
-    voxVoices: parts.map((_,i)=>'声部'+(i+1)),
+    capo:tabCapo, customChords:{},
+    tabVoices: tabParts.map((p,i)=> pname(p)||('吉他'+(i+1))),
+    voxVoices: voxParts.map((p,i)=> pname(p)||('声部'+(i+1))),
     voxNotations: [], lyricLines:1, measures:[]};
+  if(tabInst==='uku') out.inst='uku'; else if(tabParts.length) out.inst='guitar';
+  if(tabTuning){ const dflt = tabInst==='uku'? UKU_TUNING : TUNING;
+    if(!(tabTuning.length===dflt.length && tabTuning.every((v,i)=>v===dflt[i]))) out.tuning=tabTuning; }
   [...doc.querySelectorAll('identification creator')].forEach(c=>{
     const t=c.getAttribute('type');
     if(t==='composer') out.composer=c.textContent.trim();
     if(t==='lyricist') out.lyricist=c.textContent.trim();
   });
   let maxLyr=1, nMea=0;
+  parts.forEach(p=> nMea=Math.max(nMea, p.querySelectorAll(':scope > measure').length));   // v44.7 含 tab part 的小节数
   /* v41.3 中途转调/小节反复（仅首 part 采集，measure 级字段） */
   const keyToMap={}, simMap={};
   const meterMap={}; let curBeatsEff=beats, curUnitEff=unit;   // v43.5 变拍子：per-measure 拍号
   let curKeyEff=key, mrActive=0;
-  const partCols = parts.map((part,pi)=>{
+  const primaryPart = voxParts[0] || tabParts[0];   // v44.7 measure 级字段采集主 part（有 vox 用首个 vox，否则首个 tab）
+  const partCols = voxParts.map((part,pi)=>{
     let div = 24;   // divisions/四分音符（attributes 可更新）
     /* v41.2 渐强渐弱范围括线：wedge start→挂到下一个音符列；stop→终点=最近音符列（跨小节持续）
        v41.3 踏板：pedal start→挂到下一个音符列 ped:'on'；stop→最近音符列 ped:'off' */
@@ -9842,12 +9922,12 @@ function importMusicXML(xmlStr){
           const d2=txt(el,'divisions'); if(d2) div=+d2||div;
           /* v41.3 中途转调：measure>0 的 key 变更 → mea.keyTo（标注式，v41.3 起支持） */
           const f5=txt(el,'key > fifths');
-          if(f5!=null && pi===0 && mi2>0){
+          if(f5!=null && part===primaryPart && mi2>0){
             if(F2K[f5] && F2K[f5]!==curKeyEff){ keyToMap[mi2]=F2K[f5]; curKeyEff=F2K[f5]; }
             else if(!F2K[f5]) skip.other++;
           }
           /* v43.5 变拍子：measure>0 的 <time> 变更 → mea.beats/mea.unit */
-          if(pi===0 && mi2>0){
+          if(part===primaryPart && mi2>0){
             const tb=txt(el,'time > beats'), tt=txt(el,'time > beat-type');
             if(tb!=null && tt!=null){
               let nb=Math.max(1,Math.min(12,+tb||curBeatsEff)), nu=+tt||curUnitEff;
@@ -9857,7 +9937,7 @@ function importMusicXML(xmlStr){
           }
           /* v41.3 小节反复：measure-style measure-repeat start/stop → mea.simile */
           const mr=el.querySelector('measure-style > measure-repeat');
-          if(mr && pi===0){
+          if(mr && part===primaryPart){
             if(mr.getAttribute('type')==='start') mrActive = mr.textContent.trim()==='2'? 2 : 1;
             else mrActive=0;
           }
@@ -9978,19 +10058,62 @@ function importMusicXML(xmlStr){
         });
         noteIn(readSigns(col));
       });
-      if(pi===0 && mrActive) simMap[mi2]=mrActive;   // v41.3 小节反复段内小节全部省写
+      if(part===primaryPart && mrActive) simMap[mi2]=mrActive;   // v41.3 小节反复段内小节全部省写
+      return cols;
+    });
+  });
+  /* v44.7 TAB 声部列解析：每列 notes:[{s,f,x?}] 由 <technical><string>/<fret> 反解；tie/和音/休止/ferm/时值同 vox */
+  const tabPartCols = tabParts.map(part=>{
+    let div=24; const meas=[...part.querySelectorAll(':scope > measure')];
+    return meas.map((m,mi2)=>{
+      const cols=[];
+      [...m.children].forEach(el=>{
+        const tag=el.tagName;
+        if(tag==='attributes'){
+          const d2=txt(el,'divisions'); if(d2) div=+d2||div;
+          if(part===primaryPart && mi2>0){
+            const f5=txt(el,'key > fifths'); if(f5!=null && F2K[f5] && F2K[f5]!==curKeyEff){ keyToMap[mi2]=F2K[f5]; curKeyEff=F2K[f5]; }
+            const tb=txt(el,'time > beats'), tt=txt(el,'time > beat-type');
+            if(tb!=null && tt!=null){ let nb=Math.max(1,Math.min(12,+tb||curBeatsEff)), nu=+tt||curUnitEff; if(nu!==4&&nu!==8) nu=curUnitEff;
+              if(nb!==curBeatsEff||nu!==curUnitEff){ meterMap[mi2]={beats:nb,unit:nu}; curBeatsEff=nb; curUnitEff=nu; } }
+          }
+          return;
+        }
+        if(tag!=='note') return;
+        if(q(el,'grace')){ skip.notes++; return; }
+        let dur=TYPE_INV[txt(el,'type')||'']||0;
+        const nDots=el.querySelectorAll(':scope > dot').length; let dotted=nDots>=2?2:nDots===1;
+        let tup=(txt(el,'time-modification > actual-notes')==='3' && txt(el,'time-modification > normal-notes')==='2')?1:undefined;
+        if(!dur){ const quarters=(+(txt(el,'duration')||0))/div, cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
+          for(const [d2,qn] of cand){ if(Math.abs(quarters-qn)<1e-3){dur=d2;break;} if(Math.abs(quarters-qn*1.5)<1e-3){dur=d2;dotted=true;break;}
+            if(Math.abs(quarters-qn*1.75)<1e-3){dur=d2;dotted=2;break;} if(Math.abs(quarters-qn*2/3)<1e-3){dur=d2;tup=1;break;} }
+          if(!dur){ skip.notes++; dur=quarters>=3?2:quarters>=1.5?4:quarters>=0.7?4:quarters>=0.35?8:16; } }
+        const nt3=q(el,'notations'); const ferm=!!(nt3&&nt3.querySelector('fermata'));
+        if(q(el,'rest')){ cols.push({dur,dotted,notes:[],...(tup?{tup}:{}),...(ferm?{ferm:true}:{})}); return; }
+        const tech=el.querySelector(':scope > notations technical'); const sEl=tech&&tech.querySelector('string'), fEl=tech&&tech.querySelector('fret');
+        if(!sEl||!fEl){ skip.notes++; return; }   // 无 string/fret 的音（如五线声部混入）跳过
+        const nObj={s:+sEl.textContent.trim()||1, f:Math.max(0,+fEl.textContent.trim()||0)};
+        const nh=q(el,'notehead'); if(nh && /x/i.test(nh.textContent.trim())) nObj.x=1;
+        if(q(el,'chord') && cols.length){ const last=cols[cols.length-1]; (last.notes=last.notes||[]).push(nObj); return; }
+        cols.push({dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(ferm?{ferm:true}:{})});
+      });
       return cols;
     });
   });
   out.lyricLines = Math.min(3, maxLyr);
   for(let mi=0; mi<nMea; mi++){
     const mea={tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
-    parts.forEach((part,pi)=>{
+    voxParts.forEach((part,pi)=>{
       const cols = partCols[pi][mi];
       mea.voxes.push(cols && cols.length? cols
         : Array.from({length:beats},()=>({dur:unit, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false})));
     });
-    const mEl=parts[0].querySelectorAll(':scope > measure')[mi];
+    tabParts.forEach((part,ti)=>{
+      const cols = tabPartCols[ti][mi];
+      mea.tabs.push(cols && cols.length? cols
+        : Array.from({length:beats},()=>({dur:unit, dotted:false, notes:[]})));
+    });
+    const mEl=primaryPart.querySelectorAll(':scope > measure')[mi];
     if(mEl){
       if(mEl.querySelector('repeat[direction="forward"]')) mea.repeatStart=true;
       if(mEl.querySelector('repeat[direction="backward"]')) mea.repeatEnd=true;
@@ -12015,6 +12138,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.7</span><div><b>六线谱（TAB）也能导 MusicXML 了（P0 互操作深化）</b>：吉他/独奏/尤克里里的 <b>六线谱声部现在可导出 / 导入 MusicXML</b>——导出为标准 <b>TAB 谱表</b>（六线定弦 <code>staff-tuning</code> + <code>TAB</code> 谱号 + 每个音的<b>弦号/品位</b>技术标记 + 变调夹），可直接在 <b>MuseScore / Guitar Pro / Finale</b> 打开；导入这些软件的 TAB 也能还原成谱友圈的六线谱。此前只有简谱/五线声部能导 MusicXML，纯 TAB 谱直接被拒——这道口子补上了。<b>自定义调弦（Drop D / DADGAD…）、变调夹、和音、闷音 ×、附点、休止</b>全程往返一致（导出→导入逐音校验）。新增 <code>tv_tabmxl</code> 回归 5 项。</div></li>
     <li><span class="v">v44.6</span><div><b>官网 SEO 基建 + 四垂类场景落地页（Sprint 2 · 增长回路收官）</b>：为官网补上被搜索引擎收录的基础设施——<b>robots.txt、站点地图（含发布谱动态 sitemap）、每页 canonical 与社交分享大图（og:image）、结构化数据</b>；并新增四个垂类场景落地页：<b>教师考编、音乐艺考、师范·音乐教育、钢琴即兴伴奏</b>（<code>/kaobian</code> <code>/yikao</code> <code>/shifan</code> <code>/jixing</code>），各自讲清「这个场景怎么用谱友圈配伴奏、出规范谱」，带 FAQ 结构化数据便于命中搜索结果。首页与页脚新增「适用场景」入口。配合 v44.4 发布谱落地页，让目标人群能从搜索/分享一路走到谱友圈。tv_site 回归扩至 14 项。</div></li>
     <li><span class="v">v44.5</span><div><b>看谱时可一键收藏，登录后跨设备同步（Sprint 2 · 增长回路）</b>：在线观看任意发布谱时，观看栏新增<b>「♡ 收藏」</b>——已登录点一下即<b>收藏进「我的收藏」并同步到云端</b>（换设备也在）；<b>未登录点收藏会就地拉起登录</b>（不打断看谱），登录/注册后自动把这首谱收好——接住「读者看到喜欢的谱、正想收藏」这个最自然的注册时机（看谱→留账号钩子）。本机/预览环境下收藏仅存本地、不弹登录。新增 <code>tv_fav</code> 回归 3 项。</div></li>
     <li><span class="v">v44.4</span><div><b>发布谱能被搜索/微信收录了（Sprint 2 · 增长回路）</b>：为每首<b>已发布</b>的曲谱生成一张<b>可被搜索引擎/微信抓取的服务端落地页</b>（<code>puku.puyouquan.com/pub/ID</code>）——含真实<b>标题、描述、社交分享大图（og:image）、结构化数据（JSON-LD）与规范链接（canonical）</b>，真人打开会自动转到在线观看页（可移调/跟谱）。此前观看页是纯前端渲染、爬虫抓到空壳，发布的谱无法被百度/微信收录；现在<b>分享卡二维码、发布成功链接均指向这张落地页</b>，被转发/收藏后能持续为谱友圈带来自然搜索流量。零依赖服务端出页 + 动态生成品牌封面 SVG，新增 SSR 端到端回归 9 项。</div></li>
