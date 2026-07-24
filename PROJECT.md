@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v45.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v45.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,6 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
+| tv_detail1 | v45.6 细节批次1（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×(非拍弦列保数字)、联排谱表↔TAB 间距自适应(低音下加线 gap≥24)、小节内换谱号(同音 treble→bass 位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐同步——7项 |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -402,3 +403,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 - 文档随代码同 commit 提交，保持 git 历史可追溯。
 
 > **v45.5 面板符号化**：左栏记号/技巧/装饰按钮「符号优先」——`smIcoSVG(name,h)` 直接用谱面同一份 `SMUFL` path 出按钮小图（bb 开窗等比缩放）；`decorateSignButtons()`（MAP: 按钮 id→[字形,小字]）启动时重写 `#vmark-body`/`#mark-body`/`#strum-body` 静态按钮为 `.eb.ico.sym`（glyph 上 + 9.5px 中文下，title 悬停全说明，id/事件不动）；`ornSVG` 的波音/颤音/回音改用 SMuFL（ornamentShortTrill/Mordent/Trill/Turn）；技法字母统一衬线斜体（#ribbon .eb.ico .g）。测试无 textContent 依赖，26 套件全绿。
+
+> **v45.6 细节批次1 + 小节内换谱号**（产品负责人细节修复清单第一批）：① TAB 闷音/和弦内音 ×→15px、打板 ×→16px（index.html TAB 渲染两处 font-size）。② TAB 休止符弃 Unicode 文本字形改 `staffRestStr`(SMuFL, SG=6, 以 TAB 中部为等效中线)，附点休止的附点随之显示。③ 联排(tabStaff)谱表↔TAB 间距自适应：`sysMetrics` 扫全曲 tab 音符 `midiToStaff(+12)` 谱级，step<32/step>48 按 3.75px/级加 `tLedDn/tLedUp`，基础间隙 9→14（treble-8vb 的"8"缀需 ≥13 净空）。④ **小节内换谱号**：新增列级字段 `col.clef`('staff'/'bass'/'alto'，永不改名删除)——渲染层 `CLEF_BOT` 表 + 每小节 `bots[]`/`setClefCtx(ci)` 让 `S_BOT/S_MID`（改 let）按列生效（stepY/加线/符干方向/符杠/连线/连音号全部接入），行首谱号/调号音位=行首生效谱号（自曲首推进）；换谱号列画 3/4 小号谱号（`smg {scale:0.75}`），`measureLayout` 该列 `wB+20/cmin+20/xs+18` 让位；MusicXML 中途 `<attributes><clef>` 导出/导入（首个 clef=声部级，其后挂 `pendClef`→下一列）；入口=记号面板「谱号切换」`b-clef`→`showClefMenu`(popmenu 高/中/低/恢复)。⑤ 拍弦=框内×：`col.slap` 列音符渲染并入 ×分支（品位数字→×），`b-slap` 图标同步框内×。⑥ 右栏信息卡补齐：`ri-lyricist/composer/maker/tuning/type`(谱类·小节数) 同步，空值行隐藏；`TYPE_CN` 自谱库段前移至 `tuningLabel` 附近（renderDock 早于原声明位置执行，避免 TDZ）。新增 `tv_detail1` 7 项几何断言，27 套件全绿。
