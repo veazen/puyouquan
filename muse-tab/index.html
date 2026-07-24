@@ -653,6 +653,10 @@ body.viewer #viewerbar{display:flex}
 #viewerbar .vw-brand{font-size:11.5px;color:var(--accent-ink);text-decoration:none;white-space:nowrap;
   border:1px solid var(--border);border-radius:980px;padding:4px 11px;background:var(--panel)}
 #viewerbar .vw-brand:hover{border-color:var(--accent)}
+#viewerbar #vw-fav{font-size:12.5px;white-space:nowrap;border:1px solid var(--border);border-radius:980px;
+  padding:4px 12px;background:var(--panel);color:var(--muted);cursor:pointer}
+#viewerbar #vw-fav:hover{border-color:#e0395a;color:#e0395a}
+#viewerbar #vw-fav.on{color:#e0395a;border-color:#e0395a;font-weight:600}
 /* 观看模式：即时移调控件 */
 .vw-trans{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--border);
   border-radius:980px;padding:2px;background:var(--panel)}
@@ -10960,6 +10964,10 @@ const FAV_KEY='musetab-circle-fav';
 function circleFav(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY))||{}; }catch(_){ return {}; } }
 function circleFavSave(o){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(o)); }catch(_){} }
 function toggleFav(pid){ const f=circleFav(); if(f[pid]) delete f[pid]; else f[pid]=1; circleFavSave(f); return !!f[pid]; }
+function isFav(id){ return !!circleFav()[id]; }
+function setFav(id, on){ const f=circleFav(); if(on) f[id]=1; else delete f[id]; circleFavSave(f); }
+/* v44.5 收藏接云：登录后收藏写入 /api/favorites/:id（跨设备）；本地 circleFav 始终翻转（离线/未登录兜底 UI） */
+async function cloudFav(id, on){ if(!(window.PYQ_CLOUD && ACCT) || !id) return; try{ await apiCall('/favorites/'+id, {method: on?'PUT':'DELETE'}); }catch(_){} }
 let ccFilter={q:'', cat:'all', pay:'all', favOnly:false};
 const CC_CATS=[['all','全部'],['guitar','弹唱'],['solo','独奏'],['pianoacc','钢琴弹唱'],['piano','钢琴独奏'],['vocal','歌谱'],['teach','教学对照'],['instr','器乐五线'],['func','功能谱'],['chord','和弦谱'],['uku','尤克里里']];
 /* 曲谱卡封面：取谱面首小节旋律与歌词生成迷你预览（每首卡面都不同；
@@ -11239,7 +11247,7 @@ async function openRemotePub(id){
   if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   viewerMode=true; viewerPrev=null; vwTrans=0;
-  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length};
+  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
@@ -11255,6 +11263,7 @@ async function openRemotePub(id){
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
+    <button id="vw-fav" title="收藏这首谱">♡ 收藏</button>
     <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
     <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>`;
   updateVwKey();
@@ -11263,7 +11272,27 @@ async function openRemotePub(id){
   document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
   document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
   document.getElementById('vw-stand').onclick=enterStand;
+  document.getElementById('vw-fav').onclick=()=>vwToggleFav();
+  updateVwFav();
   window.scrollTo(0,0);
+}
+/* 观看模式收藏：本地翻转 + 登录后接云；未登录点收藏就地拉起登录（看谱→留账号钩子），登录后自动收藏 */
+function updateVwFav(){
+  const b=document.getElementById('vw-fav'); if(!b) return;
+  const id=viewerCtx&&viewerCtx.pubId; const on=id&&isFav(id);
+  b.textContent=on?'♥ 已收藏':'♡ 收藏'; b.classList.toggle('on',!!on);
+  b.title=on?'取消收藏':'收藏这首谱（登录后跨设备同步）';
+}
+function vwToggleFav(){
+  const id=viewerCtx&&viewerCtx.pubId; if(!id) return;
+  if(window.PYQ_CLOUD && !ACCT){                          // 线上未登录：接住收藏这个自然的登录时机
+    openLogin({ hint:'登录后即可收藏这首谱，并在「我的收藏」跨设备同步。', pendingFav:id,
+      onDone:(ok)=>{ if(ok && ACCT){ setFav(id,true); updateVwFav(); cloudFav(id,true); toast('已收藏到「我的收藏」'); } } });
+    return;
+  }
+  const on=!isFav(id); setFav(id,on); updateVwFav();
+  cloudFav(id,on);
+  toast(on?'已收藏':'已取消收藏');
 }
 /* ===== 谱架模式：全屏沉浸 + 自动卷谱 ===== */
 let standScroll={on:false, speed:26, raf:0, acc:0};
@@ -11669,7 +11698,8 @@ if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); }).c
 /* v43.6 微信登录回跳：callback 302 回本页带 ?wxlogin=ok/fail —— 刷新账号态并清理 query */
 if(API_ON){ const _wl=new URLSearchParams(location.search).get('wxlogin');
   if(_wl){ try{ history.replaceState(null,'',location.pathname+location.hash); }catch(_){}
-    if(_wl==='ok'){ acctRefresh().then(()=>{ try{ toast('微信登录成功'); }catch(_){}; if(typeof syncScores==='function') syncScores(); }); }
+    if(_wl==='ok'){ acctRefresh().then(()=>{ try{ toast('微信登录成功'); }catch(_){}; if(typeof syncScores==='function') syncScores();
+        try{ const pf=sessionStorage.getItem('pyq-pendfav'); if(pf && ACCT){ sessionStorage.removeItem('pyq-pendfav'); setFav(pf,true); cloudFav(pf,true); if(typeof updateVwFav==='function') updateVwFav(); } }catch(_){} }); }
     else { try{ toast('微信登录未完成，请重试'); }catch(_){} } } }
 function pcAcctHTML(){
   const box='display:flex;align-items:center;gap:12px;padding:11px 13px;margin:2px 0 15px;border:1px solid var(--border-soft,#e4ddcd);border-radius:12px;background:var(--panel,#fefdf9)';
@@ -11693,9 +11723,13 @@ function pcAcctHTML(){
     </div>
     <button id="acct-login" class="primary">登录 / 注册</button></div>`;
 }
-function openLogin(){
+/* opts.onDone(ok)：登录/取消后的回调（提供时不再跳个人中心，用于「看谱时收藏→就地拉起登录」等钩子）；
+   opts.hint：自定义副标题文案；opts.pendingFav：微信整页跳转前暂存待收藏 id，回跳后补收藏。 */
+function openLogin(opts){
+  opts=opts||{};
+  const _fin=(ok)=>{ if(opts.onDone){ closeModal(); opts.onDone(ok); } else openPersonal('profile'); };
   showModal(`<h3>登录 / 注册</h3>
-    <p style="font-size:12.5px;color:var(--muted);margin:2px 0 14px">未注册的手机号将自动创建账号。登录后曲谱、收藏、谱架云端同步。</p>
+    <p style="font-size:12.5px;color:var(--muted);margin:2px 0 14px">${esc(opts.hint||'未注册的手机号将自动创建账号。登录后曲谱、收藏、谱架云端同步。')}</p>
     <label class="f"><span>手机号</span><input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号" style="flex:1"></label>
     <label class="f"><span>验证码</span>
       <input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" style="flex:1">
@@ -11707,7 +11741,7 @@ function openLogin(){
   const msg=t=>{ const el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
   const phoneEl=document.getElementById('lg-phone');
   let timer=0;
-  document.getElementById('lg-cancel').onclick=()=>{ if(timer) clearInterval(timer); openPersonal('profile'); };
+  document.getElementById('lg-cancel').onclick=()=>{ if(timer) clearInterval(timer); _fin(false); };
   document.getElementById('lg-send').onclick=async function(){
     const phone=phoneEl.value.trim();
     if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
@@ -11730,12 +11764,13 @@ function openLogin(){
       if(timer) clearInterval(timer);
       if(typeof syncScores==='function') syncScores();
       toast(r.is_new?'注册成功，已登录':'登录成功，正在同步云端曲谱');
-      openPersonal('profile');
+      _fin(true);
     }catch(e){ msg(e.message); }
   };
   /* v43.6 微信扫码登录：取登录 URL 后整页跳转到微信授权，回调设 Cookie 后 302 回跳本页 */
   { const wxb=document.getElementById('lg-wx'); if(wxb) wxb.onclick=async()=>{
     wxb.disabled=true;
+    if(opts.pendingFav){ try{ sessionStorage.setItem('pyq-pendfav', opts.pendingFav); }catch(_){} }   // 微信整页跳转丢上下文：暂存待收藏 id，回跳后补
     try{ const r=await apiCall('/wx/web/login-url?return='+encodeURIComponent(location.href));
       if(r.url) location.href=r.url; else { wxb.disabled=false; msg('微信登录暂不可用'); } }
     catch(e){ wxb.disabled=false; msg(e.status===503? '微信登录尚未开通' : (e.message||'微信登录暂不可用')); } }; }
@@ -11980,6 +12015,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.5</span><div><b>看谱时可一键收藏，登录后跨设备同步（Sprint 2 · 增长回路）</b>：在线观看任意发布谱时，观看栏新增<b>「♡ 收藏」</b>——已登录点一下即<b>收藏进「我的收藏」并同步到云端</b>（换设备也在）；<b>未登录点收藏会就地拉起登录</b>（不打断看谱），登录/注册后自动把这首谱收好——接住「读者看到喜欢的谱、正想收藏」这个最自然的注册时机（看谱→留账号钩子）。本机/预览环境下收藏仅存本地、不弹登录。新增 <code>tv_fav</code> 回归 3 项。</div></li>
     <li><span class="v">v44.4</span><div><b>发布谱能被搜索/微信收录了（Sprint 2 · 增长回路）</b>：为每首<b>已发布</b>的曲谱生成一张<b>可被搜索引擎/微信抓取的服务端落地页</b>（<code>puku.puyouquan.com/pub/ID</code>）——含真实<b>标题、描述、社交分享大图（og:image）、结构化数据（JSON-LD）与规范链接（canonical）</b>，真人打开会自动转到在线观看页（可移调/跟谱）。此前观看页是纯前端渲染、爬虫抓到空壳，发布的谱无法被百度/微信收录；现在<b>分享卡二维码、发布成功链接均指向这张落地页</b>，被转发/收藏后能持续为谱友圈带来自然搜索流量。零依赖服务端出页 + 动态生成品牌封面 SVG，新增 SSR 端到端回归 9 项。</div></li>
     <li><span class="v">v44.3</span><div><b>手机看谱不用再左右拖 + 未登录发布先登录（Sprint 2 · 增长回路）</b>：① <b>移动端观看 fit-to-width</b>——打开分享/谱库链接看谱时，谱面自动<b>按屏宽等比缩放铺满</b>，一屏看全整行、不再需要横向平移（观看/分享/谱架等只读模式生效；编辑器放大后仍可滚动查看）。手机微信里点开分享的谱，第一眼就是完整谱面。② <b>线上未登录点「发布」直接拉起登录</b>——此前未登录点发布只写到本机却提示「已记录发布」（他人看不到、易误解），现按钮显示<b>「登录后发布到谱库」</b>并一键唤起登录，接住最自然的登录时机。新增 <code>tv_mobile</code> 回归 3 项。</div></li>
     <li><span class="v">v44.2</span><div><b>分享卡二维码可扫了（Sprint 2 · 增长回路）</b>：曲谱分享卡右下角的二维码从「示意占位」升级为<b>真实可扫二维码</b>——已发布的谱，扫码<b>直达该谱的在线观看页</b>（<code>?pub=</code> 链接，可播放/移调/跟谱）；未发布则扫码进谱友圈制谱。内置零依赖纯 JS 二维码编码器（byte 模式 + Reed-Solomon 纠错，符合单文件无构建约束），生成的码经独立解码器往返校验、并对「渲染到卡片后」的成品再次解码确认可扫。分享出去的每张卡从此都能把人带回谱友圈。新增 <code>tv_qr</code> 回归 6 项。</div></li>

@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v44.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v44.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,7 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v44.4）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 进行中 🟡 Sprint 2 增长回路（真二维码✅·移动fit-to-width✅·发布触发登录✅·发布谱 SSR 落地页✅）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。
+> **执行进度（截至 v44.5）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 进行中 🟡 Sprint 2 增长回路（真二维码✅·移动fit-to-width✅·发布触发登录✅·发布谱 SSR 落地页✅·看谱收藏接云+留账号钩子✅，仅剩 SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -41,7 +41,8 @@
 - 移动端观看 fit-to-width：viewer SVG 520px>纸面 374px 需横向平移；按容器宽反流或等比缩放（UX P0+测试 P1，M）
 - ~~`?pub=` 最小 SSR（title/description/og:image）→已发布谱可被搜索索引（UX P1，M）~~ **✅ v44.4**：服务端出 `/pub/:id` 落地页（title/description/og/JSON-LD/canonical + 动态品牌封面 `/pub/:id/cover.svg`），真人 1.2s 后 JS 转观看页；三站 vhost 均反代、canonical 统一 puku 去重；分享卡二维码/发布链接改指 SSR 落地页。SSR 端到端回归 9 项。
 - SEO 基建 sitemap/robots/canonical/og + 四垂类（考编/艺考/师范/即兴伴奏）落地页（UX P1，M）
-- 未登录「发布」改「登录后发布」直接拉起登录（现在假成功、错过最佳登录时机）（UX P2，S）
+- ~~未登录「发布」改「登录后发布」直接拉起登录~~ **✅ v44.3**
+- ~~收藏接云（看谱→留账号钩子）~~ **✅ v44.5**：观看栏 `♡ 收藏`——已登录 `PUT/DELETE /api/favorites/:id` 接云；未登录就地 `openLogin({onDone,pendingFav})` 拉起登录、完成后自动补收藏（微信整页跳转经 sessionStorage `pyq-pendfav` 回跳补），本机/预览仅本地。`openLogin` 加可选 `onDone(ok)/hint/pendingFav`（不提供时行为不变）。新增 `tv_fav` 回归 3 项。
 - 收藏接云（看谱→留账号的唯一钩子，现纯本地）（UX P3，M）
 
 ### 🟢 Sprint 3 · 商业地基（不碰支付，即可开始变现验证）
