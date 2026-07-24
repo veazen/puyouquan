@@ -74,15 +74,8 @@ systemctl enable pyq-api
 # 5) nginx /api/ 反代：写 snippet + 幂等注入 pu8.conf 各 server 块（兼容 certbot 管理的配置，
 #    只插入一行 include，不覆盖任何既有内容）
 mkdir -p /etc/nginx/snippets
-cat > /etc/nginx/snippets/pyq-api.conf <<'EOF'
-location /api/ {
-    proxy_pass http://127.0.0.1:3127;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_read_timeout 30s;
-    client_max_body_size 4m;
-}
-EOF
+# snippet 内容取自仓库 deploy/pyq-api.conf（含 /api 反代 + 安全响应头），setup 步骤已 scp 到 /tmp
+cp /tmp/pyq-api.conf /etc/nginx/snippets/pyq-api.conf
 if ! grep -q 'snippets/pyq-api.conf' /etc/nginx/conf.d/pu8.conf; then
   sed -i 's|^server {|server {\n    include snippets/pyq-api.conf;|' /etc/nginx/conf.d/pu8.conf
 fi

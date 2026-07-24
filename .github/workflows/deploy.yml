@@ -150,22 +150,20 @@ jobs:
       - name: 首次初始化（仅手动勾选时）
         if: ${{ inputs.setup }}
         run: |
-          scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh deploy/api-setup.sh pyq:/tmp/
+          scp deploy/server-setup.sh deploy/nginx-puyouquan.conf deploy/fetch-soundfonts.sh deploy/api-setup.sh deploy/pyq-api.conf pyq:/tmp/
           # 音色包下载依赖境外源，失败或超时不阻塞部署（编辑器会回落内置合成音色，可日后重跑续传）
           ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/server-setup.sh && $S bash /tmp/api-setup.sh && { $S timeout 600 bash /tmp/fetch-soundfonts.sh || echo "音色包下载未全部完成（不阻塞部署）"; }'
 
-      - name: 发布产品文件
+      - name: 发布产品文件（原子落位 + 缓存刷新 + 保留回滚版）
         run: |
-          # 先传到 /tmp，再在服务器侧（必要时 sudo）落位，兼容非 root 部署账号
+          # 先传到 /tmp，再由 publish.sh 在服务器侧原子落位（index.html 用 mv -T + 留 .prev，
+          # site 用 rsync --delete 清孤儿，静态引用追加 ?v=<短sha> 破缓存）。兼容非 root 部署账号。
           ssh pyq 'rm -rf /tmp/pyq_pub_site /tmp/pyq_pub_index.html /tmp/pyq_pub_fmt.md'
           scp muse-tab/index.html pyq:/tmp/pyq_pub_index.html
           scp -r muse-tab/site pyq:/tmp/pyq_pub_site
           scp muse-tab/PYQ-FORMAT.md pyq:/tmp/pyq_pub_fmt.md || true
-          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
-            $S mkdir -p /var/www/puyouquan/site /var/www/puyouquan/docs && \
-            $S mv /tmp/pyq_pub_index.html /var/www/puyouquan/index.html && \
-            $S cp -r /tmp/pyq_pub_site/. /var/www/puyouquan/site/ && rm -rf /tmp/pyq_pub_site && \
-            { [ -f /tmp/pyq_pub_fmt.md ] && $S mv /tmp/pyq_pub_fmt.md /var/www/puyouquan/PYQ-FORMAT.md || true; }'
+          scp deploy/publish.sh pyq:/tmp/pyq_publish.sh
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/pyq_publish.sh "'"${GITHUB_SHA::8}"'"'
 
       - name: 发布 API 服务（已初始化时）
         run: |
@@ -181,6 +179,19 @@ jobs:
           else
             echo "pyq-api 未初始化（先跑一次勾选 setup 的部署），跳过 API 发布"
           fi
+
+      - name: 刷新 nginx 安全响应头 snippet + 校验生产配置
+        run: |
+          # snippet 已被各 server 块 include，只刷新其内容（加安全响应头）+ nginx -t 通过才 reload；失败不阻断
+          scp deploy/pyq-api.conf pyq:/tmp/pyq-api.conf
+          ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
+            if [ -f /etc/nginx/snippets/pyq-api.conf ]; then \
+              $S cp /tmp/pyq-api.conf /etc/nginx/snippets/pyq-api.conf; \
+              if $S nginx -t 2>/dev/null; then $S systemctl reload nginx && echo "nginx 安全响应头已刷新"; \
+              else echo "::warning::nginx -t 失败，未 reload（snippet 已写入，请手工核查）"; fi; \
+            else echo "snippets/pyq-api.conf 不存在（先跑一次 setup 部署），跳过"; fi'
+          # 生产环境不应残留 DEV_OTP=1（否则短信接口会回吐验证码）
+          ssh pyq 'grep -qE "^DEV_OTP=1" /etc/puyouquan/api.env 2>/dev/null && echo "::warning::生产 api.env 含 DEV_OTP=1，请移除并重启 pyq-api" || echo "DEV_OTP 校验通过（未开启）"'
 
       - name: 冒烟验收
         run: bash deploy/smoke.sh "${{ secrets.DEPLOY_HOST }}"

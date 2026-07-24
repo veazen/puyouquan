@@ -34,4 +34,7 @@ chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开�
 redir puyouquan.com
 redir zhipu.puyouquan.com
 redir puku.puyouquan.com
+# 安全响应头（软校验：缺失仅告警不阻断部署——snippet 刷新/nginx include 可能待首次 setup）
+xfo=$(curl -sI --max-time 15 --connect-to "zhipu.puyouquan.com:443:$H:443" "https://zhipu.puyouquan.com/" 2>/dev/null | grep -ci 'X-Frame-Options' || true)
+[ "${xfo:-0}" -ge 1 ] && echo "✅ 安全响应头 X-Frame-Options 已生效" || echo "⚠️ 未检测到 X-Frame-Options（snippet/include 待确认，不阻断）"
 exit $fail
