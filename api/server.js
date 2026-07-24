@@ -4,7 +4,7 @@
 // 部署：systemd 服务 pyq-api，nginx 各 vhost include snippets/pyq-api.conf 反代 /api/。
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { q, now } = require('./db');
+const { q, now, deleteScoreCascade } = require('./db');
 const { sendSms } = require('./sms');
 const wx = require('./wx');
 
@@ -219,8 +219,10 @@ const routes = [
     return { saved: true, updated_at: t };
   }],
   ['DELETE', /^\/api\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
-    q.collItemsDelByScore.run(m[1]); q.favDelByScore.run(m[1]); q.shelfDelByScore.run(m[1]);
-    q.scoreDelete.run(m[1], u.id);
+    const s = q.scoreGet.get(m[1]);
+    if (!s) return { deleted: true };                                    // 幂等：不存在视为已删
+    if (s.user_id !== u.id) throw new ApiError(403, '只能删除自己的曲谱');   // 所有权校验先于任何级联
+    deleteScoreCascade(m[1], u.id);                                      // 事务：清引用 + 删本体
     return { deleted: true };
   }],
 

@@ -99,7 +99,7 @@ window.PYQ_LIB = (function(){
     p.push(`<text x="212" y="100" font-size="70" fill="var(--accent)" fill-opacity=".09" text-anchor="middle" font-weight="700">♪</text>`);
     if(cols.length){ const step=Math.min(30,200/cols.length);
       cols.forEach((c,i)=>{ const x=26+i*step;
-        if(c.deg){ p.push(`<text x="${x}" y="56" font-size="17" font-weight="600" fill="var(--text)" fill-opacity=".78" text-anchor="middle">${c.deg}</text>`);
+        if(c.deg){ p.push(`<text x="${x}" y="56" font-size="17" font-weight="600" fill="var(--text)" fill-opacity=".78" text-anchor="middle">${_esc(c.deg)}</text>`);
           if(c.oct>0) p.push(`<circle cx="${x}" cy="41" r="1.4" fill="var(--text)" fill-opacity=".6"/>`);
           if(c.oct<0) p.push(`<circle cx="${x}" cy="63" r="1.4" fill="var(--text)" fill-opacity=".6"/>`); }
         if(c.ly) p.push(`<text x="${x}" y="84" font-size="11.5" fill="var(--muted)" text-anchor="middle">${_esc(c.ly)}</text>`);

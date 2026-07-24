@@ -2866,6 +2866,15 @@ function meaNo(mi){ return song.pickup ? (mi===0? '' : String(mi)) : String(mi+1
 
 /* ================= 图示生成（时值/节奏型预览） ================= */
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Sprint0 安全（存储型 XSS 防线）：清洗不可信来源的谱面（他人发布谱 /pub、外部分享互动谱）——
+   递归去掉字符串字段里的尖括号。render() 把 deg/品位f/指法 等数值/短字段裸拼进 #score 的 SVG innerHTML，
+   合法谱面任何字段都不含 <>，故对正常数据无损；数字/布尔原样保留。杜绝「打开恶意谱即被注入脚本」。 */
+function sanitizeUntrusted(v){
+  if(typeof v==='string') return v.replace(/[<>]/g,'');
+  if(Array.isArray(v)) return v.map(sanitizeUntrusted);
+  if(v && typeof v==='object'){ const o={}; for(const k in v) o[k]=sanitizeUntrusted(v[k]); return o; }
+  return v;
+}
 function evBeatsRaw(dur, dot){ return (4/dur)*(dot?1.5:1); }
 /* 单行节奏图（时值按钮 / 简谱节奏型）：×符头+符干+符杠 */
 function rhythmSVG(durs, W, H, noLine){
@@ -11018,7 +11027,7 @@ function vwTranspose(delta){
 }
 /* ===== 互动分享谱（v38.5）：自包含 HTML 注入数据后进入的独立观看模式 ===== */
 function enterShareViewer(share){
-  const data = share && share.song;
+  const data = sanitizeUntrusted(share && share.song);   // Sprint0 安全：外部分享互动谱走 XSS 清洗
   if(!data || !data.measures || !data.measures.length) return;
   viewerMode=true; viewerPrev=null;
   viewerCtx={pb:{title:data.title||'未命名曲谱', author:data.author||'佚名',
@@ -11055,7 +11064,7 @@ async function openRemotePub(id){
   let sc;
   try{ const r=await apiCall('/pub/scores/'+id); sc=r.score; }
   catch(e){ toast('曲谱加载失败：'+(e.message||'请稍后重试')); return; }
-  const data=sc && sc.data;
+  const data=sanitizeUntrusted(sc && sc.data);   // Sprint0 安全：他人发布谱走 XSS 清洗
   if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   viewerMode=true; viewerPrev=null; vwTrans=0;
@@ -11762,6 +11771,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v43.8</span><div><b>安全加固（六维审计 Sprint 0 · 止血）</b>：① <b>观看他人发布/分享的谱面时增加内容清洗</b>——打开谱库或分享链接的曲谱前，对来源数据做安全过滤，杜绝被构造的谱面在你浏览器里执行任何脚本（存储型 XSS 防线）；② <b>修复云端曲谱删除的越权问题</b>——服务端现严格校验「只能删除自己的曲谱」且删除在数据库事务内完成，杜绝他人误伤你对某曲谱的收藏/谱架记录。纯安全与数据完整性修复，不改谱面数据与你的使用方式。</div></li>
     <li><span class="v">v43.7</span><div><b>品牌与域名分工梳理：制谱平台 × 谱库</b>：明确两个独立站点——<b>制谱平台</b>（本编辑器，<code>zhipu.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「专业制谱平台」</b>）负责做谱；<b>谱库</b>（<code>puku.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「谱库」</b>）是专门在线展示谱面的站点，发现好谱、看谱移调跟谱，微信小程序（轻量版）日后也复用这套谱库展示页、以独立网站形态呈现。编辑器顶栏「预设」旁的入口由<b>「曲谱库」改名「谱库」并直接跳转 puku.puyouquan.com</b>（本机预览无该域名时回落到内置演示库）。纯品牌/导航调整，不改谱面数据与渲染。<b>同时热修 v43.6 更新日志里一处反引号未转义</b>（<code>Cookie</code> 一词误用反引号包裹，落在模板字符串内导致整段脚本解析失败、编辑器白屏），现已改为 HTML 标签包裹，脚本恢复正常。</div></li>
     <li><span class="v">v43.6</span><div><b>微信扫码登录（开放平台·网站应用）</b>：登录 / 注册弹窗新增<b>「微信扫码登录」</b>——手机微信扫码即可登录，与手机验证码登录共用一个账号体系（同一微信开放平台主体下 <code>unionid</code> 统一，网站 / 公众号 / 小程序日后互通）。零依赖后端（<code>api/wx.js</code> OAuth + <code>state</code> HMAC 防伪 + 回跳地址白名单），凭据只存服务器环境、不入代码；<code>Cookie</code> 按 <code>.puyouquan.com</code> 三站共享。仅在服务端配置了微信应用后显示该入口（无死按钮）。接入方式见 <code>docs/wechat-login-setup.md</code>。公众号网页授权、小程序轻量版按同一 unionid 账号体系后续接入。</div></li>
     <li><span class="v">v43.5</span><div><b>变拍子（per-measure 拍号）</b>（完整度审计 Tier 2 收官）：全曲不再只能一个拍号——现可为<b>任意小节单独设定拍号</b>（如 4/4 → 3/4 → 6/8 → 7/8）。用法：选中小节 → 小节面板<b>「本小节拍号…」</b>选 2/4…12/8 之一（选「恢复全曲拍号」清除）。改动全链路贯通：<b>节拍校验</b>按本小节拍号（3/4 放 3 拍不再误报）、<b>符杠/减时线成组</b>按本小节 unit（6/8 八分按 3 成组）、<b>谱面在拍号变化处标注新拍号</b>（五线谱字形 / 简谱 N/M 小字，联排谱表头同标）、<b>版面自动预留拍号横向空间</b>、<b>播放时长</b>按各小节拍号、<b>MusicXML 导入导出</b>按小节 <code>&lt;time&gt;</code> 往返。核心 <code>meaMeter(mi)</code>/<code>beatsOf(c,unit)</code> 贯穿 40+ 调用点。<code>mea.beats</code>/<code>mea.unit</code> 为只增字段，旧谱与既有单一拍号完全兼容。新增 <code>tv_meter</code> 回归 8 项。至此完整度审计 Tier 2 全部落地。</div></li>

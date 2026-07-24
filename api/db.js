@@ -132,6 +132,21 @@ const q = {
   collItemsDelByScore: db.prepare('DELETE FROM collection_items WHERE score_id = ?'),
 };
 
+/* Sprint0 安全：删除自有谱（事务）。调用方必须已校验 userId 拥有该谱。
+   先清他人对该谱的收藏/谱架/谱集引用（外键完整性要求），再删本体；scoreDelete 带 user_id 二次保险。
+   修复：原 DELETE 路由的级联删除按 score_id 全局执行且先于所有权校验，任意登录用户可清空所有人对任意公开谱的收藏/谱架。 */
+function deleteScoreCascade(id, userId) {
+  db.exec('BEGIN');
+  try {
+    q.collItemsDelByScore.run(id);
+    q.favDelByScore.run(id);
+    q.shelfDelByScore.run(id);
+    const r = q.scoreDelete.run(id, userId);
+    db.exec('COMMIT');
+    return r;
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+}
+
 /* ---------- 种子：官方示例已发布谱（谱库开箱即有内容，先于短信登录上线） ----------
    官方账号 phone='00000000000'（占位、非真实手机号，不走登录）；仅在无任何已发布谱时插入。 */
 function seedPublished(){
@@ -168,4 +183,4 @@ function seedPublished(){
 }
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
-module.exports = { db, q, now, today };
+module.exports = { db, q, now, today, deleteScoreCascade };
