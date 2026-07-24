@@ -36,9 +36,10 @@ jobs:
           node api/wx.test.js
           node api/db.test.js
           bash api/test.sh
-      - name: 安装 Playwright chromium
+      - name: 安装测试依赖（Playwright chromium + xmllint）
         working-directory: muse-tab/tests
         run: |
+          sudo apt-get update && sudo apt-get install -y libxml2-utils   # tv_mxl 用 xmllint 校验导出的 MusicXML
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: 浏览器回归套件（run_all.js 关键集）
