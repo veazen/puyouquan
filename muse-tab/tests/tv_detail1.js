@@ -18,7 +18,12 @@
    T14 TAB 全空小节居中画一个全休止（不再逐列落在列位；部分空列仍逐列画）
    ---- v45.9 细节批次4 ----
    T15 行首连线无同位双绘（色差根因）：x=56 的竖线恰好 1 条（连线接管各谱行行首线）；单 TAB 行仍 1 条自身行首线
-   T16 TAB 字母移入谱表内（x=oxH+9=65，不再悬在页边距 oxH-11=45） */
+   T16 TAB 字母移入谱表内（x=oxH+9=65，不再悬在页边距 oxH-11=45）
+   ---- v46.0 细节批次5 ----
+   T17 联排谱号下「8」缀隐藏（记谱 +12 不变——低音空弦仍下加 2 线）
+   T18 泛音菱形两位数品位加宽（f=12 → 宽 26px；f=7 → 宽 14px）
+   T19 Ctrl+点击小节线多选：首点选中单小节整声部、再点扩展为连续小节范围
+   T20 行首小节线热区左延至系统起始线（barzone x=oxH-4=52） */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -274,6 +279,44 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t15.nLinked === 1 && t15.nSingle === 1, 'T15 行首连线无同位双绘(竖线恰1条)', JSON.stringify(t15));
   T(t15.tabIn && !t15.tabOut, 'T16 TAB 字母入谱表内(x=65)', JSON.stringify(t15));
+
+  // T17 v46.0 「8」缀隐藏 + T18 泛音菱形加宽
+  const t17 = await pg.evaluate(() => {
+    const s = createSong('solo', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.tabStaff = true;
+    s.measures[0].tabs[0] = [
+      { dur: 4, notes: [{ s: 6, f: 0 }] },
+      { dur: 4, notes: [{ s: 1, f: 12, tech: 'hm' }] },
+      { dur: 4, notes: [{ s: 3, f: 7, tech: 'hm' }] },
+      { dur: 4, notes: [] },
+    ];
+    loadSong(s);
+    const svg = document.getElementById('score').innerHTML;
+    const widths = [];
+    const re = /<polygon points="([\d.]+),[\d.]+ ([\d.]+),[\d.]+ [\d.]+,[\d.]+ ([\d.]+),[\d.]+"/g; let m2;
+    while ((m2 = re.exec(svg))) widths.push(+(+m2[2] - +m2[3]).toFixed(1));
+    return { no8: !svg.includes('>8</text>'), widths: widths.sort((a, b) => a - b) };
+  });
+  T(t17.no8, 'T17 谱号下 8 缀已隐藏', JSON.stringify(t17));
+  T(t17.widths.length === 2 && t17.widths[0] === 14 && t17.widths[1] === 26, 'T18 泛音菱形两位数加宽(14/26)', JSON.stringify(t17));
+
+  // T19 Ctrl+点击小节线多选 + T20 行首热区左延
+  const t19 = await pg.evaluate(async () => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 0, lyr: 0 });
+    for (let i = 0; i < 4; i++) s.measures[i].tabs[0] = [{ dur: 2, notes: [{ s: 5, f: 2 }] }, { dur: 2, notes: [{ s: 1, f: 0 }] }];
+    loadSong(s);
+    const zone = mi => [...document.querySelectorAll('.barzone')].find(z => z.dataset.bar.startsWith((mi - 1) + ':' + mi + ':tab'));
+    const rowStart = !![...document.querySelectorAll('.barzone')].find(z => z.getAttribute('x') === '52');
+    const click = el => el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, ctrlKey: true }));
+    click(zone(1));
+    const one = selRange && selRange.m1 === 1 && selRange.m2 === 1 && selRange.whole;
+    click(zone(3));
+    const ext = selRange && selRange.m1 === 1 && selRange.m2 === 3 && selRange.whole;
+    selRange = null; render();
+    return { rowStart, one, ext };
+  });
+  T(t19.one && t19.ext, 'T19 Ctrl+点击小节线多选(单选→扩选1-3)', JSON.stringify(t19));
+  T(t19.rowStart, 'T20 行首小节线热区左延(x=52)', JSON.stringify(t19));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

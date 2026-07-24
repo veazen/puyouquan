@@ -3860,8 +3860,8 @@ function render(){
           p.push(`<line x1="${oxH}" y1="${(cStaffB-i*cSGt).toFixed(1)}" x2="${ox+sys.w}" y2="${(cStaffB-i*cSGt).toFixed(1)}" stroke="var(--ink)" stroke-width="0.8"/>`);
         if(SBt===25) p.push(smg('fClef', oxH+HG.clefX, cStaffB-3*cSGt, cSGt));
         else p.push(smg('gClef', oxH+HG.clefX, cStaffB-cSGt, cSGt));
-        /* v42.6 吉他移调谱号 8vb：谱号下方「8」——与 +12 记谱升八度配套，声部实音仍低八度 */
-        p.push(`<text x="${(oxH+HG.clefX+smw(SBt===25?'fClef':'gClef')*cSGt/2).toFixed(1)}" y="${(cStaffB+cSGt*1.75).toFixed(1)}" font-size="${(cSGt*1.2).toFixed(1)}" font-style="italic" text-anchor="middle" fill="var(--ink)">8</text>`);
+        /* v42.6 吉他移调谱号 8vb：与 +12 记谱升八度配套，声部实音仍低八度。
+           v46.0 产品拍板：谱号下方的「8」缀不再显示（记谱/播放语义不变，仅隐藏该标记） */
         const SH_STEP = SBt===25? [31,28,32,29,26,30,27] : [45,42,46,43,40,44,41];
         const FL_STEP = SBt===25? [27,30,26,29,25,28,24] : [41,44,40,43,39,42,38];
         for(let i=0;i<HG.n;i++){
@@ -4080,7 +4080,9 @@ function render(){
         /* 小节线热区：点击=选中小节线设置反复/终止符号；按住=选中本小节该声部 */
         {
           const selL = barSel && barSel.R===lm.mi;
-          barZones.push(`<rect class="barzone" x="${mx-5}" y="${tabTop-4}" width="10" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+          /* v46.0 行首小节线热区左延至系统起始线：此前可见行首竖线在 oxH、热区在 mx-5（错位 ~26px）点不中 */
+          const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
+          barZones.push(`<rect class="barzone" x="${zxL}" y="${tabTop-4}" width="${zwL}" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
             barZones.push(`<rect class="barzone" x="${bx-5}" y="${tabTop-4}" width="10" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
@@ -4186,8 +4188,10 @@ function render(){
               }
               /* 技法：符号显示在两音之间连音线上方（比例缩小） */
               if(n.tech==='hm'){
-                /* 泛音：与功能栏 ◇ 图标同形同线宽的正菱形框住音符；v42.3 hmT 细分标 A.H./P.H./T.H. */
-                p.push(`<polygon points="${nx},${yy-7} ${nx+7},${yy} ${nx},${yy+7} ${nx-7},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                /* 泛音：与功能栏 ◇ 图标同形同线宽的正菱形框住音符；v42.3 hmT 细分标 A.H./P.H./T.H.；
+                   v46.0 两位数品位（10+）菱形横向加宽，数字不再撑出框外 */
+                const hw = n.f>=10? 13 : 7;
+                p.push(`<polygon points="${nx},${yy-7} ${nx+hw},${yy} ${nx},${yy+7} ${nx-hw},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 if(n.hmT) p.push(`<text x="${nx}" y="${yy-9.5}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
               }else if(n.tech==='su' || n.tech==='sd'){
                 /* 无头滑音：音符左侧斜杠（上滑/下滑）+ 小 S */
@@ -4548,7 +4552,9 @@ function render(){
         /* 小节线热区：点击=选中小节线设置符号；按住=选中本小节简谱声部 */
         {
           const selL = barSel && barSel.R===lm.mi;
-          barZones.push(`<rect class="barzone" x="${mx-5}" y="${yT2-3}" width="10" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+          /* v46.0 行首小节线热区左延至系统起始线（同 TAB 行口径） */
+          const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
+          barZones.push(`<rect class="barzone" x="${zxL}" y="${yT2-3}" width="${zwL}" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
             barZones.push(`<rect class="barzone" x="${bx-5}" y="${yT2-3}" width="10" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
@@ -6754,6 +6760,26 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(t.dataset.bar!==undefined){
     const seg = t.dataset.bar.split(':');
     const L=+seg[0], R=+seg[1], row=seg[2], vi=+seg[3];
+    /* v46.0 Ctrl+点击小节线：多选小节——首次 Ctrl+点选中该小节整声部，
+       继续 Ctrl+点其他小节线扩展为连续小节范围（可整段复制/粘贴/批量操作） */
+    if(e.ctrlKey || e.metaKey){
+      const mi = (R>=0 && song.measures[R]) ? R : L;
+      if(mi<0 || !song.measures[mi]) return;
+      const colsOf = m2 => (row==='tab'? song.measures[m2].tabs[vi] : song.measures[m2].voxes[vi])||[];
+      if(!colsOf(mi).length) return;
+      if(selRange && selRange.whole && selRange.row===row && selRange.vi===vi){
+        const m1=Math.min(selRange.m1, mi), m2=Math.max(selRange.m2, mi);
+        selRange={row, vi, m1, c1:0, m2, c2:Math.max(0, colsOf(m2).length-1), whole:true};
+      }else{
+        sel.row=row; sel.vi=vi; sel.mi=mi; sel.ci=0;
+        selRange={row, vi, m1:mi, c1:0, m2:mi, c2:Math.max(0, colsOf(mi).length-1), whole:true};
+      }
+      measureSel=null; noteSel=[]; closeTech(); setRibbon(row); render();
+      toast(selRange.m1===selRange.m2
+        ? '已选中第'+(selRange.m1+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · 继续 Ctrl+点其他小节线可扩选'
+        : '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+C 复制');
+      return;
+    }
     const sx=e.clientX, sy=e.clientY;
     let held=false;
     const tm=setTimeout(()=>{
@@ -12611,6 +12637,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.0</span><div><b>谱面细节修复批次 5 + 小节线多选</b>：① <b>隐藏移调谱号的「8」缀</b>——独奏联排五线谱谱号下方不再显示小 8（记谱与播放完全不变，仅隐藏该标记，谱面更干净）；② <b>泛音菱形框加宽</b>——两位数品位（10 品以上）的泛音菱形横向加宽，数字不再撑出框外；③ <b>行首第一小节线可选中了</b>——此前行首可见竖线与点击热区错位约 26px 导致点不中，热区已左延到行首竖线处，点击即弹出小节线设置；④ <b>Ctrl+点击小节线多选小节</b>——按住 Ctrl 点小节线选中该小节整声部，继续 Ctrl+点其他小节线扩展为<b>连续多小节范围</b>，可整段复制/粘贴/批量操作（小节线悬停提示已更新）。</div></li>
     <li><span class="v">v45.9</span><div><b>谱面细节修复批次 4</b>：① <b>行首连线色差修复</b>——v45.8 的系统连线与各谱行原有的行首竖线在同一位置重复绘制，叠加处颜色更深造成深浅不一；现在连线存在时各谱行不再重复画自己的行首线，线宽统一，整条连线颜色均匀；② <b>TAB 字母移入谱表内</b>——六线谱行首的 T A B 三个字母从页边距移到谱表内（行首竖线右侧的表头区），与 Guitar Pro / 出版 TAB 谱一致。<b>小知识</b>：独奏谱五线谱谱号下方的小「8」是<b>吉他移调谱号（treble-8vb）的标准记号</b>——吉他实际发声比五线谱记谱<b>低一个八度</b>，出版吉他谱都这样标注，用于提示读谱者，并非多余符号。</div></li>
     <li><span class="v">v45.8</span><div><b>谱面细节修复批次 3（读谱体验）</b>：① <b>行首小节编号归位</b>——右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号置于系统左外侧），彻底解决被谱号压住/上移后悬空漂移的问题；② <b>每行行首谱行相连</b>——五线谱+TAB 联排、弹唱谱的 TAB+简谱行、教学对照谱等多谱行曲谱，每行行首用一条竖线把各谱行连成一组（参考出版谱系统线惯例），逐行对位读谱更清晰；单谱行曲谱保持原样；③ <b>TAB 全休止符居中</b>——全空小节改为在小节中央画一个全休止符（与五线谱同口径），不再逐列落在列位上；部分空拍仍按位置画对应时值休止符。</div></li>
     <li><span class="v">v45.7</span><div><b>谱面细节修复批次 2 + 联排谱号可选</b>：① <b>行首小节编号上移</b>——不再被高音谱号上弧压住；② <b>五线谱+TAB 联排间距重修</b>——改为像素级精确计算（谱表下加线深度 + TAB 上方推弦弧/技法标注高度求和），推弦、低音下加线与 TAB 彻底不再重叠；③ <b>和弦图横按判定收紧</b>——Em/A 等两三根邻弦同品是分指按法，不再被误画成横按横杠把圆点连成一团（F/Bm/Bb 等真横按仍正常画），圆点大小同步微调防粘连；④ <b>「记谱风格」独立分组</b>——移入左栏「记谱法 · 谱号」组（与 TAB/TAB+五线谱 同组），不再混在音符记号里；⑤ <b>联排五线谱谱号可选</b>：新增 <b>高音谱号（吉他标准）/ 低音谱号（贝斯记谱）</b>切换，低音吉他/贝斯谱的联排更专业；⑥ <b>技巧面板「下推弦」改为「哑音」</b>——下推弦（推弦回放）已并入推弦弹窗的类型选择，原按钮位改为哑音 ×（死音）直达入口。</div></li>

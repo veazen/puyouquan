@@ -86,7 +86,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const maxStack=Object.keys(byXY).length? Math.max.apply(null,Object.keys(byXY).map(k=>byXY[k])) : 0;
     const hh=document.getElementById('score').innerHTML;
     return {has8:hh.indexOf('>8</text>')>=0, maxStack, clean:hh.length>1000&&hh.indexOf('NaN')<0&&hh.indexOf('undefined')<0}; })()`);
-  T(r.has8 && r.maxStack <= 4 && r.clean, 'P2 独奏 treble-8vb 移调谱号', JSON.stringify(r));
+  /* v46.0 产品拍板隐藏谱号下「8」缀（记谱 +12 语义不变），不再断言 has8 */
+  T(r.maxStack <= 4 && r.clean, 'P2 独奏 treble-8vb 移调记谱(8缀已隐藏)', JSON.stringify(r));
 
   T(errs.length === 0, '全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
