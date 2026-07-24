@@ -1676,23 +1676,24 @@ function genAccompaniment(texId, m1, m2, opt){
    建议默认不覆盖已有和弦。TODO: 小调/半小节换和弦/V7/终止式模板。 */
 /* v44.9 智能配和弦深化：功能和声 Viterbi——不再逐小节贪心，而是「发射分(旋律契合)+转移分(功能进行)」
    全局最优。候选加属七 V7；转移偏好 T→S→D→T 顺行、D→T 解决、罚 D→S 逆行；末小节偏 I（正格终止）。
-   仍每小节一个和弦（保持返回形状，arrangeAccompaniment/标和弦 调用不变）。 */
+   v45.0：和声节奏——suggestChordPlan 在此基础上对 4/4 小节下半段另属和弦时补第二和弦。 */
+const CHORD_CANDS=[
+  {id:'I',  deg:1, m:false, tones:[1,3,5],           fn:'T', w:1.2},
+  {id:'IV', deg:4, m:false, tones:[4,6,1],           fn:'S', w:1.1},
+  {id:'V',  deg:5, m:false, tones:[5,7,2],           fn:'D', w:1.1},
+  {id:'V7', deg:5, m:false, tones:[5,7,2], sev:4, suf:'7', fn:'D', w:1.05},   // 属七：三音组 + 七音级数 4
+  {id:'vi', deg:6, m:true,  tones:[6,1,3],           fn:'T', w:1.0},
+  {id:'ii', deg:2, m:true,  tones:[2,4,6],           fn:'S', w:0.85},
+  {id:'iii',deg:3, m:true,  tones:[3,5,7],           fn:'T', w:0.7},
+];
+const chordCandName=(c,key)=>{
+  const pc=(((KEY_PC[key]||0)+DEG_SEMI[c.deg])%12+12)%12;
+  return ((KEYSIG[key]||0)<0?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'')+(c.suf||'');
+};
 function suggestChords(s2, vi){
   s2=s2||song; vi=vi||0;
-  const CAND=[
-    {id:'I',  deg:1, m:false, tones:[1,3,5],           fn:'T', w:1.2},
-    {id:'IV', deg:4, m:false, tones:[4,6,1],           fn:'S', w:1.1},
-    {id:'V',  deg:5, m:false, tones:[5,7,2],           fn:'D', w:1.1},
-    {id:'V7', deg:5, m:false, tones:[5,7,2], sev:4, suf:'7', fn:'D', w:1.05},   // 属七：三音组 + 七音级数 4
-    {id:'vi', deg:6, m:true,  tones:[6,1,3],           fn:'T', w:1.0},
-    {id:'ii', deg:2, m:true,  tones:[2,4,6],           fn:'S', w:0.85},
-    {id:'iii',deg:3, m:true,  tones:[3,5,7],           fn:'T', w:0.7},
-  ];
-  const useFlat=(KEYSIG[s2.key]||0)<0;
-  const cname=c=>{
-    const pc=(((KEY_PC[s2.key]||0)+DEG_SEMI[c.deg])%12+12)%12;
-    return (useFlat?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'')+(c.suf||'');
-  };
+  const CAND=CHORD_CANDS;
+  const cname=c=>chordCandName(c, s2.key);
   const o0=song; song=s2;
   const N=s2.measures.length;
   /* 1) 发射分：每小节每候选的旋律契合度（沿用原打分权重 + 属七七音加分） */
@@ -1743,6 +1744,58 @@ function suggestChords(s2, vi){
   song=o0;
   return out;
 }
+/* v45.0 和声节奏：在每小节主和弦（suggestChords 全局最优）基础上，4/4 类小节的「下半段」若明显
+   另属一个和弦（分数显著高于沿用主和弦、且转移不逆行），则补第二和弦（放到下半段起拍所在列）。
+   返回 [[{beat,chord}], …]（每小节 1–2 个和弦位）；不改变首和弦，故 suggestChords 结果与调用方兼容。 */
+function suggestChordPlan(s2, vi){
+  s2=s2||song; vi=vi||0;
+  const base=suggestChords(s2, vi);
+  const o0=song; song=s2;
+  const scoreRange=(c, cols, lo, hi)=>{                 // 候选 c 在小节内 [lo,hi) 拍范围的发射分
+    let sc=0, cum=0;
+    cols.forEach(col=>{ const b=beatsOf(col);
+      if(cum>=lo-1e-6 && cum<hi-1e-6 && col.deg && !col.acc){
+        const onBeat=Math.abs(cum-Math.round(cum))<1e-4, w=b*(onBeat?1.5:1);
+        if(c.tones.includes(col.deg)) sc+=w*(col.deg===c.deg?1.25:1);
+        if(c.sev && col.deg===c.sev) sc+=w*0.9;
+        (col.adds||[]).forEach(a=>{ if(a&&!a.acc){ if(c.tones.includes(a.deg)) sc+=0.3*b; if(c.sev&&a.deg===c.sev) sc+=0.25*b; } });
+      }
+      cum+=b;
+    });
+    return sc*c.w;
+  };
+  const plan=s2.measures.map((mea,mi)=>{
+    const cols=mea.voxes[vi]||[];
+    if(!base[mi]) return [];                             // 空小节不配
+    const single=[{beat:0, chord:base[mi]}];
+    const bm=meaMeter(mi);
+    if(bm.beats<4 || bm.beats%2!==0) return single;      // 仅 4/4 类偶数拍尝试二分
+    const half=bm.beats/2;
+    const baseC=CHORD_CANDS.find(c=>chordCandName(c, s2.key)===base[mi]);
+    let best=null, bv=-1; CHORD_CANDS.forEach(c=>{ const sc=scoreRange(c, cols, half, bm.beats); if(sc>bv){ bv=sc; best=c; } });
+    const baseHalf=baseC? scoreRange(baseC, cols, half, bm.beats) : 0;
+    // 拆分条件：下半段另属和弦、分数明显更高、非 D→S 逆行、下半段确有音
+    const hasNote2=cols.some((col,ci)=>{ let cum=0; for(let k=0;k<ci;k++) cum+=beatsOf(cols[k]); return cum>=half-1e-6 && col.deg && !col.acc; });
+    if(best && baseC && chordCandName(best,s2.key)!==base[mi] && hasNote2 && bv>Math.max(1.2, baseHalf*1.35) && !(baseC.fn==='D' && best.fn==='S')){
+      song=o0;
+      return [{beat:0, chord:base[mi]}, {beat:half, chord:chordCandName(best, s2.key)}];
+    }
+    return single;
+  });
+  song=o0;
+  return plan;
+}
+/* 按和声节奏计划把和弦回填到各列（beat 对应列头累计拍；未有该列时就近落到该拍起始列） */
+function placeChordPlan(cols, planM){
+  if(!cols||!cols.length||!planM||!planM.length) return 0;
+  let n=0;
+  planM.forEach(pc=>{
+    let cum=0, target=cols[0];
+    for(const col of cols){ if(Math.abs(cum-pc.beat)<1e-4){ target=col; break; } if(cum>pc.beat){ break; } cum+=beatsOf(col); target=col; }
+    if(!target.chord){ target.chord=pc.chord; n++; }
+  });
+  return n;
+}
 /* ===== 智能配谱（P1-B）：主旋律 → 配和弦 → 织体伴奏 =====
    默认产出教学对照谱（旋律=五线谱+简谱行+歌词 保留，下方右手/左手伴奏大谱表）；
    opt.pure=true 产出纯伴奏钢琴弹唱谱（去旋律、和弦移到右手、pianoAcc）。
@@ -1752,11 +1805,11 @@ function arrangeAccompaniment(melody, opt){
   const out = migrate(JSON.parse(JSON.stringify(melody||song)));
   const vi = opt.vi||0;
   const o0=song; song=out;
-  if(opt.suggest!==false){                 // 空小节自动配和弦（不覆盖已填）
-    const sug=suggestChords(out, vi);
+  if(opt.suggest!==false){                 // 空小节自动配和弦（不覆盖已填；v45.0 和声节奏：一小节可 1–2 个）
+    const plan=suggestChordPlan(out, vi);
     out.measures.forEach((mea,mi)=>{
       const cols=mea.voxes[vi]||[];
-      if(cols.length && sug[mi] && !cols.some(c=>c.chord)) cols[0].chord=sug[mi];
+      if(cols.length && plan[mi] && plan[mi].length && !cols.some(c=>c.chord)) placeChordPlan(cols, plan[mi]);
     });
   }
   const blank=()=>Array.from({length:out.beats},()=>({dur:out.unit,dotted:false,deg:0,acc:'',oct:0,lyrics:[],tie:false}));
@@ -1794,13 +1847,13 @@ function arrangeAccompaniment(melody, opt){
   return {song:out, gen};
 }
 function applySuggestChords(){
-  const sug=suggestChords(song,0);
+  const plan=suggestChordPlan(song,0);   // v45.0 和声节奏：每小节 1–2 个和弦位
   let n=0;
   song.measures.forEach((mea,mi)=>{
     const cols=mea.voxes[0]||[];
-    if(!cols.length || !sug[mi]) return;
+    if(!cols.length || !plan[mi] || !plan[mi].length) return;
     if(cols.some(c=>c.chord)) return;   // 已有和弦的小节不覆盖
-    cols[0].chord=sug[mi]; n++;
+    if(placeChordPlan(cols, plan[mi])>0) n++;
   });
   return n;
 }
@@ -12191,6 +12244,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.0</span><div><b>自动配和弦支持「一小节两个和弦」（P1 · 和声节奏）</b>：智能配谱不再一小节只配一个和弦——4/4 小节里当<b>下半段明显另属一个和弦</b>时，会自动在后半拍补上第二个和弦（如一小节前半 C、后半 G），更贴近真实歌曲的和声节奏；下半段仍属同一和弦时保持一个，不画蛇添足。沿用 v44.9 的功能和声全局寻优选主和弦，再对下半段按分数与功能走向决定是否加和弦，生成的双手伴奏随之逐拍换和弦。<code>tv_arrange</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.9</span><div><b>智能配和弦升级：配得更「地道」了（P1 智能配谱深化）</b>：一键配伴奏/自动配和弦的和声引擎从<b>逐小节贪心</b >升级为<b>全局功能和声寻优</b>（Viterbi）——不再各小节各自挑一个「音符最贴」的和弦，而是同时权衡<b>旋律契合度 + 和声进行的功能走向</b>，产出连贯地道的进行（主→下属→属→主 顺行、属→主 正格解决，抑制「属→下属」逆行）。并新增<b>属七和弦 V7</b>：当旋律里出现属和弦的小七度音时自动用 V7、终止式更有推动力（如 …F <b>G7</b> C）。旋律清晰时结果不变、更稳；旋律模糊处进行更顺。<code>tv_arrange</code> 回归增至 7 项。</div></li>
     <li><span class="v">v44.8</span><div><b>倚音/滑音/力度/速度术语进 MusicXML 往返（P0 互操作深化）</b>：MusicXML 导出/导入再补四类表情记号的<b>无损往返</b>——<b>前倚音（装饰音）、滑音、独立力度记号（f/p/mf/sf…）、意大利速度术语（Andante/Allegro…）</b>。此前这些记号导出会丢、从 MuseScore 等导入也读不回；现在<b>导出→导入逐音一致</b>（倚音→<code>grace</code>、滑音→<code>slide</code>、力度→<code>dynamics</code>、术语→<code>words</code>）。至此谱面记号体系的 MusicXML 保真度进一步收口。<code>tv_mxl</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.7</span><div><b>六线谱（TAB）也能导 MusicXML 了（P0 互操作深化）</b>：吉他/独奏/尤克里里的 <b>六线谱声部现在可导出 / 导入 MusicXML</b>——导出为标准 <b>TAB 谱表</b>（六线定弦 <code>staff-tuning</code> + <code>TAB</code> 谱号 + 每个音的<b>弦号/品位</b>技术标记 + 变调夹），可直接在 <b>MuseScore / Guitar Pro / Finale</b> 打开；导入这些软件的 TAB 也能还原成谱友圈的六线谱。此前只有简谱/五线声部能导 MusicXML，纯 TAB 谱直接被拒——这道口子补上了。<b>自定义调弦（Drop D / DADGAD…）、变调夹、和音、闷音 ×、附点、休止</b>全程往返一致（导出→导入逐音校验）。新增 <code>tv_tabmxl</code> 回归 5 项。</div></li>

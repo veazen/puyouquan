@@ -112,7 +112,21 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const ok7 = !t7.retro && t7.endsI && t7.startsI && t7.ch==='C C F G C';
   console.log((ok7?'✅':'❌')+' T7 功能进行: '+t7.ch+' 功能='+t7.fns+' 无逆行D→S='+!t7.retro+' 首末=I');
   if(ok7) pass++;
-  console.log('PASS '+pass+'/7');
+  // T8 v45.0 和声节奏：小节前半 I(1,3)/后半 V(7,2) → 拆成两个和弦(C@拍0 + G@拍2)；全 I 小节不拆
+  const t8 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:2});
+    s.measures[0].voxes[0]=[V(1,4),V(3,4),V(7,4),V(2,4,{oct:1})];
+    s.measures[1].voxes[0]=[V(1,4),V(3,4),V(1,2)];
+    const plan=suggestChordPlan(s,0);
+    const r=arrangeAccompaniment(s,{texId:'block'});
+    const placed=r.song.measures[0].voxes[0].map((c,i)=>c.chord?(i+':'+c.chord):null).filter(Boolean).join(' ');
+    return { split:JSON.stringify(plan[0]), m1:JSON.stringify(plan[1]), placed };
+  })()`);
+  const ok8 = t8.split==='[{"beat":0,"chord":"C"},{"beat":2,"chord":"G"}]' && t8.m1==='[{"beat":0,"chord":"C"}]' && t8.placed==='0:C 2:G';
+  console.log((ok8?'✅':'❌')+' T8 和声节奏: M0拆='+t8.split+' M1单='+t8.m1+' 回填='+t8.placed+'(期望 0:C 2:G)');
+  if(ok8) pass++;
+  console.log('PASS '+pass+'/8');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
