@@ -11337,6 +11337,7 @@ function openPersonal(tab){
   if(tab==='profile'){
     const bLg=document.getElementById('acct-login'); if(bLg) bLg.onclick=openLogin;
     const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
+    const bLoA=document.getElementById('acct-logout-all'); if(bLoA) bLoA.onclick=acctLogoutAll;
     const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
@@ -11512,7 +11513,7 @@ function pcAcctHTML(){
         <div style="font-weight:600">${esc(ACCT.nickname||'')}${badge}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启</div>
       </div>
-      ${become}<button id="acct-logout">退出登录</button></div>`;
+      ${become}<button id="acct-logout-all" title="作废本账号在所有设备上的登录（应对手机丢失/密码泄露）" style="font-size:12px">退出所有设备</button><button id="acct-logout">退出登录</button></div>`;
   }
   return `<div style="${box}">
     <div style="flex:1">
@@ -11571,6 +11572,11 @@ function openLogin(){
 async function acctLogout(){
   try{ await apiCall('/auth/logout',{method:'POST'}); }catch(_){}
   acctSave(null); toast('已退出登录'); openPersonal('profile');
+}
+async function acctLogoutAll(){
+  if(!confirm('退出所有设备？这会作废你在全部设备（含本机）上的登录，需重新登录。')) return;
+  try{ await apiCall('/me/logout-all',{method:'POST'}); }catch(_){}
+  acctSave(null); toast('已退出所有设备'); openPersonal('profile');
 }
 async function acctBecomeCreator(){
   try{ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); toast('已成为创作者'); openPersonal('profile'); }
@@ -11771,6 +11777,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.0</span><div><b>登录安全：退出所有设备（Sprint 1 · 信任）</b>：个人中心账号卡新增<b>「退出所有设备」</b>——一键作废你在<b>全部设备</b>（含本机）上的登录，用于手机丢失 / 登录态泄露时的自保（此前「退出登录」只清本端，泄露的登录凭据在有效期内无法作废）。技术上服务端自增账号 <code>tok_ver</code> 使全部已签发令牌立即失效；普通「退出登录」仍只清本端、不影响其他设备。</div></li>
     <li><span class="v">v43.9</span><div><b>隐私政策如实披露（合规 · Sprint 0）</b>：账号系统与云端同步已上线，隐私政策与「关于」页同步更新——如实说明<b>手机验证码登录收集手机号、微信登录收集 OpenID/UnionID/昵称/头像、登录后云同步与发布会上传曲谱、短信经阿里云发送</b>等真实数据处理（此前文案仍写「不设账号、不上传」，与现状不符）。未登录仍为纯本地、不上传。你可随时退出、删除云端曲谱或注销账号。</div></li>
     <li><span class="v">v43.8</span><div><b>安全加固（六维审计 Sprint 0 · 止血）</b>：① <b>观看他人发布/分享的谱面时增加内容清洗</b>——打开谱库或分享链接的曲谱前，对来源数据做安全过滤，杜绝被构造的谱面在你浏览器里执行任何脚本（存储型 XSS 防线）；② <b>修复云端曲谱删除的越权问题</b>——服务端现严格校验「只能删除自己的曲谱」且删除在数据库事务内完成，杜绝他人误伤你对某曲谱的收藏/谱架记录。纯安全与数据完整性修复，不改谱面数据与你的使用方式。</div></li>
     <li><span class="v">v43.7</span><div><b>品牌与域名分工梳理：制谱平台 × 谱库</b>：明确两个独立站点——<b>制谱平台</b>（本编辑器，<code>zhipu.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「专业制谱平台」</b>）负责做谱；<b>谱库</b>（<code>puku.puyouquan.com</code>，主标题「谱友圈」、副标题<b>「谱库」</b>）是专门在线展示谱面的站点，发现好谱、看谱移调跟谱，微信小程序（轻量版）日后也复用这套谱库展示页、以独立网站形态呈现。编辑器顶栏「预设」旁的入口由<b>「曲谱库」改名「谱库」并直接跳转 puku.puyouquan.com</b>（本机预览无该域名时回落到内置演示库）。纯品牌/导航调整，不改谱面数据与渲染。<b>同时热修 v43.6 更新日志里一处反引号未转义</b>（<code>Cookie</code> 一词误用反引号包裹，落在模板字符串内导致整段脚本解析失败、编辑器白屏），现已改为 HTML 标签包裹，脚本恢复正常。</div></li>

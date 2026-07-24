@@ -60,6 +60,7 @@ const q = {
   userCreate:   db.prepare('INSERT INTO users(id,phone,nickname,created_at) VALUES(?,?,?,?)'),
   userSetNick:  db.prepare('UPDATE users SET nickname = ? WHERE id = ?'),
   userSetRole:  db.prepare('UPDATE users SET role = ? WHERE id = ?'),
+  userBumpTokVer: db.prepare('UPDATE users SET tok_ver = tok_ver + 1 WHERE id = ?'),   // 退出所有设备/风控：作废该用户全部已签发 JWT
   // v43.6 微信登录（unionid 优先匹配，openid 兜底；合成占位 phone 满足 NOT NULL/UNIQUE）
   userByUnionid:  db.prepare('SELECT * FROM users WHERE wx_unionid = ?'),
   userByWxOpenid: db.prepare('SELECT * FROM users WHERE wx_openid = ?'),

@@ -156,6 +156,8 @@ const routes = [
     return { user: pubUser(u), is_new: u.created_at >= now() - 5 };
   }],
   ['POST', /^\/api\/auth\/logout$/, false, (m, b, _u, req, res) => { clearAuthCookie(res); return { ok: true }; }],
+  // 退出所有设备：自增 tok_ver 使该用户全部已签发 JWT 立即失效（应对 token 泄露/被盗；普通登出仅清本端 Cookie）
+  ['POST', /^\/api\/me\/logout-all$/, true, (m, b, u, req, res) => { q.userBumpTokVer.run(u.id); clearAuthCookie(res); return { ok: true }; }],
 
   /* -- 微信扫码登录（开放平台·网站应用；A）-- */
   ['GET', /^\/api\/wx\/web\/login-url$/, false, (m, b, _u, req) => {
