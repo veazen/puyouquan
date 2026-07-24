@@ -9662,9 +9662,10 @@ function exportMusicXML(s){
   };
   const partList = (s.voxVoices||[]).map((vn,vi)=>
     `<score-part id="P${vi+1}"><part-name>${xesc(vn)}</part-name></score-part>`).join('');
+  const DYN_XML={ppp:'<ppp/>',pp:'<pp/>',p:'<p/>',mp:'<mp/>',mf:'<mf/>',f:'<f/>',ff:'<ff/>',fff:'<fff/>',fp:'<fp/>',sfp:'<sfp/>',sf:'<sf/>',sfz:'<sfz/>'};   // v44.8 独立力度 → MusicXML dynamics（wedge 的 </>/cresc./dim. 不在表内，天然排除）
   const parts = (s.voxVoices||[]).map((vn,vi)=>{
     const nt=(s.voxNotations||[])[vi];
-    let tiePend=false, mm='';
+    let tiePend=false, glissPend=false, mm='';
     /* v41.2 渐强渐弱范围括线：预扫 dynTo 终点列（该音符之后输出 wedge stop） */
     const wStop={};
     s.measures.forEach(m2=> (m2.voxes[vi]||[]).forEach(c2=>{
@@ -9686,6 +9687,7 @@ function exportMusicXML(s){
           `<time><beats>${m0.beats}</beats><beat-type>${m0.unit}</beat-type></time>${clefXML(nt)}</attributes>`;
         if(vi===0) body += `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit>`+
           `<per-minute>${s.tempo||90}</per-minute></metronome></direction-type><sound tempo="${s.tempo||90}"/></direction>`;
+        if(vi===0 && s.tempoTerm) body += `<direction placement="above"><direction-type><words>${xesc(s.tempoTerm)}</words></direction-type></direction>`;   // v44.8 意大利速度术语
       }
       /* v43.5 变拍子：拍号变化 → <time> 变更（供外部软件识别每小节拍号） */
       if(mi>0){ const pm=meaMeter(mi-1), cm=meaMeter(mi);
@@ -9712,6 +9714,9 @@ function exportMusicXML(s){
           const up=(col.ott==='8vb'||col.ott==='15mb'), size=(col.ott==='15ma'||col.ott==='15mb')?'15':'8';
           body += `<direction placement="${up?'below':'above'}"><direction-type><octave-shift type="${up?'up':'down'}" size="${size}"/></direction-type></direction>`;
         }
+        /* v44.8 独立力度记号（f/p/mf/sf…，非渐强渐弱）→ dynamics 方向（该音之前） */
+        if(col.dyn && DYN_XML[col.dyn])
+          body += `<direction placement="below"><direction-type><dynamics>${DYN_XML[col.dyn]}</dynamics></direction-type></direction>`;
         /* v41.3 钢琴踏板 → pedal（'on'=该音前 start、'off'=该音后 stop） */
         if(col.ped==='on')
           body += `<direction placement="below"><direction-type><pedal type="start"/></direction-type></direction>`;
@@ -9728,26 +9733,32 @@ function exportMusicXML(s){
                       + (col.ferm? '<fermata/>' : '');
         if(!col.deg){
           body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${signXML?`<notations>${signXML}</notations>`:''}</note>`+wStopXML;
-          tiePend = false;
+          tiePend = false; glissPend = false;
           return;
         }
         if(col.chord) body += harmonyXML(col.chord);
+        /* v44.8 倚音（前倚音 col.grace）→ 主音前的 grace 音符（无时值） */
+        const graceXML = col.grace? (normGrace(col.grace).notes||[]).map(g=> g&&g.deg?
+          `<note><grace slash="yes"/>${pitchXML(g.deg,'',g.oct||0)}<voice>1</voice><type>eighth</type></note>`:'').join('') : '';
         const tieStart = !!col.tie, tieStop = tiePend;
         const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
+        /* v44.8 滑音 gliss → slide（本音起 start、下一音收 stop） */
+        const glStop = glissPend, glStart = !!col.gliss;
+        const slideXML = `${glStop?'<slide type="stop" number="1"/>':''}${glStart?'<slide type="start" number="1"/>':''}`;
         /* v41.3 指法数字 → technical fingering */
         const fingXML = col.fing? `<technical><fingering>${xesc(col.fing)}</fingering></technical>` : '';
         const ornXML = col.trem? `<ornaments><tremolo type="single">${col.trem}</tremolo></ornaments>` : '';   // v43.4 震音
-        const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}`+signXML+ornXML+fingXML;
+        const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}${slideXML}`+signXML+ornXML+fingXML;
         const notat = notInner? `<notations>${notInner}</notations>` : '';
         const lyr = (col.lyrics||[]).map((t2,li)=> t2&&t2.trim()?
           `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
-        body += `<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${notat}${lyr}</note>`;
+        body += graceXML+`<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${notat}${lyr}</note>`;
         (col.adds||[]).forEach(a=>{ if(!a||!a.deg) return;
           const af = a.fing? `<notations><technical><fingering>${xesc(a.fing)}</fingering></technical></notations>` : '';
           body += `<note><chord/>${pitchXML(a.deg,a.acc,a.oct)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${af}</note>`;
         });
         body += wStopXML;
-        tiePend = tieStart;
+        tiePend = tieStart; glissPend = glStart;
       });
       if(mea.repeatEnd) body += `<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>`;
       else if(mea.finalBar || mi===s.measures.length-1) body += `<barline location="right"><bar-style>light-heavy</bar-style></barline>`;
@@ -9901,6 +9912,7 @@ function importMusicXML(xmlStr){
        v41.3 踏板：pedal start→挂到下一个音符列 ped:'on'；stop→最近音符列 ped:'off' */
     let pendWedge=null, openWedge=null, lastPos=null, pendPed=false, lastColRef=null;
     let pendOtt=null, curOtt=null, ottStartCol=null;   // v43.4 八度记号 octave-shift 导入
+    let pendDyn=null, pendGrace=[];   // v44.8 独立力度 / 前倚音（挂到下一个音符列）
     const clefSign = txt(part.querySelector('measure attributes clef')||null,'sign');
     out.voxNotations[pi] = clefSign==='F'? 'bass' : clefSign==='C'? 'alto' : 'staff';
     const meas=[...part.querySelectorAll(':scope > measure')];
@@ -9910,7 +9922,9 @@ function importMusicXML(xmlStr){
       const noteIn=col2=>{                       // 音符列入列 + wedge/pedal 起止登记
         cols.push(col2); lastPos={mi:mi2, ci:cols.length-1}; lastColRef=col2;
         if(pendWedge){ col2.dyn=pendWedge; openWedge=col2; pendWedge=null; }
+        else if(pendDyn){ col2.dyn=pendDyn; pendDyn=null; }   // v44.8 独立力度记号
         if(pendPed){ col2.ped='on'; pendPed=false; }
+        if(pendGrace.length && col2.deg){ col2.grace={notes:pendGrace.slice(0,3)}; pendGrace=[]; }   // v44.8 前倚音归属下一个有音高音符
         /* v43.4 八度记号：起点列存 ott，span 内每列传播 ott（渲染符头逐列移位需要） */
         if(pendOtt){ col2.ott=pendOtt; ottStartCol=col2; curOtt=pendOtt; pendOtt=null; }
         else if(curOtt){ col2.ott=curOtt; }
@@ -9967,6 +9981,12 @@ function importMusicXML(xmlStr){
             if(pt==='start') pendPed=true;
             else if(pt==='stop' && lastColRef) lastColRef.ped='off';
           }
+          /* v44.8 独立力度：dynamics 首个子元素名 → 挂到下一音符列 col.dyn */
+          const dy=el.querySelector('direction-type > dynamics > *');
+          if(dy && /^(ppp|pp|p|mp|mf|f|ff|fff|fp|sfp|sf|sfz)$/.test(dy.tagName)) pendDyn=dy.tagName;
+          /* v44.8 意大利速度术语：首小节 words（主 part）→ song.tempoTerm */
+          const wd=el.querySelector('direction-type > words');
+          if(wd && part===primaryPart && mi2===0 && !out.tempoTerm){ const wt2=wd.textContent.trim(); if(wt2) out.tempoTerm=wt2.slice(0,40); }
           return;   // 其余 direction（metronome/rehearsal 等）另行处理
         }
         if(tag==='harmony'){
@@ -9981,7 +10001,11 @@ function importMusicXML(xmlStr){
         }
         if(tag==='backup' || tag==='forward'){ skip.other++; return; }
         if(tag!=='note') return;
-        if(q(el,'grace')){ skip.notes++; return; }                    // TODO 装饰音
+        if(q(el,'grace')){                                            // v44.8 前倚音：累积到 pendGrace，挂给下一个主音（normGrace 仅存 deg/oct）
+          const pe0=q(el,'pitch');
+          if(pe0 && !q(el,'chord') && pendGrace.length<3){ const rel0=midiOf(pe0)-ref, pc0=((rel0%12)+12)%12; pendGrace.push({deg:SEMI_DEG[pc0][0], oct:Math.floor(rel0/12)}); }
+          return;
+        }
         const vc=txt(el,'voice');
         if(vc!=null){ if(firstVoice==null) firstVoice=vc; else if(vc!==firstVoice){ skip.notes++; return; } }
         const isChord = !!q(el,'chord');
@@ -10017,6 +10041,8 @@ function importMusicXML(xmlStr){
             /* v43.4 震音：ornaments>tremolo（single 单音震音 1-3 杠）→ col.trem */
             const tr=nt3.querySelector('ornaments > tremolo');
             if(tr && (tr.getAttribute('type')||'single')==='single'){ const tn=+tr.textContent.trim(); if(tn>=1&&tn<=3) col2.trem=tn; }
+            /* v44.8 滑音：slide/glissando type=start（本音滑到下一音）→ col.gliss（连续滑音同列可含 stop+start） */
+            if([...nt3.querySelectorAll('slide, glissando')].some(x=>x.getAttribute('type')==='start')) col2.gliss=true;
           }
           return col2;
         };
@@ -12138,6 +12164,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.8</span><div><b>倚音/滑音/力度/速度术语进 MusicXML 往返（P0 互操作深化）</b>：MusicXML 导出/导入再补四类表情记号的<b>无损往返</b>——<b>前倚音（装饰音）、滑音、独立力度记号（f/p/mf/sf…）、意大利速度术语（Andante/Allegro…）</b>。此前这些记号导出会丢、从 MuseScore 等导入也读不回；现在<b>导出→导入逐音一致</b>（倚音→<code>grace</code>、滑音→<code>slide</code>、力度→<code>dynamics</code>、术语→<code>words</code>）。至此谱面记号体系的 MusicXML 保真度进一步收口。<code>tv_mxl</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.7</span><div><b>六线谱（TAB）也能导 MusicXML 了（P0 互操作深化）</b>：吉他/独奏/尤克里里的 <b>六线谱声部现在可导出 / 导入 MusicXML</b>——导出为标准 <b>TAB 谱表</b>（六线定弦 <code>staff-tuning</code> + <code>TAB</code> 谱号 + 每个音的<b>弦号/品位</b>技术标记 + 变调夹），可直接在 <b>MuseScore / Guitar Pro / Finale</b> 打开；导入这些软件的 TAB 也能还原成谱友圈的六线谱。此前只有简谱/五线声部能导 MusicXML，纯 TAB 谱直接被拒——这道口子补上了。<b>自定义调弦（Drop D / DADGAD…）、变调夹、和音、闷音 ×、附点、休止</b>全程往返一致（导出→导入逐音校验）。新增 <code>tv_tabmxl</code> 回归 5 项。</div></li>
     <li><span class="v">v44.6</span><div><b>官网 SEO 基建 + 四垂类场景落地页（Sprint 2 · 增长回路收官）</b>：为官网补上被搜索引擎收录的基础设施——<b>robots.txt、站点地图（含发布谱动态 sitemap）、每页 canonical 与社交分享大图（og:image）、结构化数据</b>；并新增四个垂类场景落地页：<b>教师考编、音乐艺考、师范·音乐教育、钢琴即兴伴奏</b>（<code>/kaobian</code> <code>/yikao</code> <code>/shifan</code> <code>/jixing</code>），各自讲清「这个场景怎么用谱友圈配伴奏、出规范谱」，带 FAQ 结构化数据便于命中搜索结果。首页与页脚新增「适用场景」入口。配合 v44.4 发布谱落地页，让目标人群能从搜索/分享一路走到谱友圈。tv_site 回归扩至 14 项。</div></li>
     <li><span class="v">v44.5</span><div><b>看谱时可一键收藏，登录后跨设备同步（Sprint 2 · 增长回路）</b>：在线观看任意发布谱时，观看栏新增<b>「♡ 收藏」</b>——已登录点一下即<b>收藏进「我的收藏」并同步到云端</b>（换设备也在）；<b>未登录点收藏会就地拉起登录</b>（不打断看谱），登录/注册后自动把这首谱收好——接住「读者看到喜欢的谱、正想收藏」这个最自然的注册时机（看谱→留账号钩子）。本机/预览环境下收藏仅存本地、不弹登录。新增 <code>tv_fav</code> 回归 3 项。</div></li>

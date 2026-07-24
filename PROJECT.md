@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v44.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v44.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,7 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v44.6）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化进行中：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入，此前纯 TAB 直接被拒）；余下表情字段（倚音/滑音/独立力度/速度术语）MusicXML 往返可续。之后 P1 织体与智能配谱深化（见路线图）。**
+> **执行进度（截至 v44.6）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入）；v44.8 补齐倚音/滑音/独立力度/速度术语的 MusicXML 往返。P0 互操作深化告一段落（TAB 技法 tech/tk/bAmt 仍未进 MusicXML、后倚音 graceA 仅单向，属长尾）。下一步 P1 织体与智能配谱深化（见路线图）。**
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -238,7 +238,7 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
 | 播放 | `sf-embed` 内嵌采样、`playInst`、let-ring、和音在延音链外独立发声 |
 | 曲谱库/观看 | `PRESETS` / `viewerBuildSong` / `vwTranspose` / 谱架模式 `enterStand` |
 | 打印预览 | `pvOpen` / `PV_GEO` |
-| MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写；**v44.7 起含 TAB 声部**：staff-details 六线定弦+TAB 谱号+每音 technical string/fret+变调夹）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
+| MusicXML 导出 | `exportMusicXML`（divisions=48，音高经 staffKeyInfo 拼写；**v44.7 起含 TAB 声部**：staff-details 六线定弦+TAB 谱号+每音 technical string/fret+变调夹；**v44.8** 前倚音 grace/滑音 slide/独立力度 dynamics/速度术语 words）/ `downloadMusicXML` / 打印弹窗 ex-mxl |
 | MusicXML 导入 | `importMusicXML`（DOMParser；音高 midi−keyRef→SEMI_DEG；跳过计数；**v44.7 起识别 TAB part**：clef TAB 或 staff-tuning → tabVoices，string/fret 反解 notes，tuning/capo/uku 反解，vox/tab 混合 part 分流）/ 向导 nw-import |
 | MIDI 导入 | `parseSMF`（SMF 0/1+运行状态）/ `quantizeToCols`（16分网格量化，**通用模块**）/ `buildSongFromMIDI` / 向导 nw-midi |
 | MIDI 导出 | `exportMIDI`（SMF format1；tie链合并长音/和音/TAB轨含capo）/ `downloadMIDI` / 弹窗 ex-mid |
@@ -291,7 +291,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
 | tv_sign | v41.1–v41.3 记号十件：延长号/演奏法四件套/换气 + 渐强渐弱范围括线/推弦幅度/排练标记 + 中途转调/钢琴踏板/指法数字/小节反复——入口写入·互斥·取消、几何断言（𝄐 位置、artic 贴符头反侧、楔形开口 0→7 与跨行断线衔接、bAmt 弧上文字、label 方框包含文字、转1=G 在数字行上方、Ped.____* 起止 x 对应两列、指法在符头上方、𝄎 省写无数字+源小节轮转+节拍豁免）、MusicXML 往返（fermata/articulations/breath-mark/wedge/rehearsal/key 变更/pedal/fingering/measure-repeat）——13项 |
-| tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture |
+| tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture/**v44.8 表情往返**(速度术语 words·独立力度 dynamics·前倚音 grace·滑音 slide) |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 

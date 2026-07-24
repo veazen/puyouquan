@@ -118,7 +118,25 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const ok5 = !t5.error && t5.key==='Eb' && t5.beats===3 && t5.clef==='bass' && t5.cols==='1:4 3:4. 0:8' && t5.skipped===1 && t5.renderOK;
   console.log((ok5?'✅':'❌')+' 第三方fixture: key='+t5.key+'(Eb) beats='+t5.beats+' 谱号='+t5.clef+' 列='+t5.cols+'(期望 1:4 3:4. 0:8) 跳过voice2='+t5.skipped+' 渲染='+t5.renderOK);
   if(ok5) pass++;
-  console.log('PASS '+pass+'/7');
+  // T6 v44.8 表情字段往返：速度术语 words / 独立力度 dynamics / 前倚音 grace / 滑音 slide
+  const t6 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',tempo:88,nMea:2,title:'表情'});
+    s.tempoTerm='Andante';
+    s.measures[0].voxes[0]=[V(1,4,{dyn:'f',grace:{notes:[{deg:2,oct:0}]}}),V(3,4,{gliss:true}),V(5,4),V(1,4,{oct:1,dyn:'pp'})];
+    s.measures[1].voxes[0]=[V(5,2,{dyn:'sf'}),V(3,2,{grace:{notes:[{deg:4,oct:0},{deg:2,oct:0}]}})];
+    loadSong(s);
+    const xml=exportMusicXML(song);
+    const im=importMusicXML(xml); if(im.error) return {error:im.error};
+    const flat=x=>x.measures.map(m=>m.voxes[0].map(c=>({d:c.deg,dyn:c.dyn||'',gl:!!c.gliss,gr:c.grace?(c.grace.notes||[]).map(g=>g.deg).join(''):''})));
+    return { words:xml.includes('<words>Andante</words>'), dyn:xml.includes('<dynamics><f/></dynamics>'),
+      grace:xml.includes('<grace slash="yes"/>'), slide:xml.includes('<slide type="start" number="1"/>')&&xml.includes('<slide type="stop" number="1"/>'),
+      term:im.song.tempoTerm, same:JSON.stringify(flat(song))===JSON.stringify(flat(im.song)), skip:im.skip.notes+im.skip.other };
+  })()`);
+  const ok6 = !t6.error && t6.words && t6.dyn && t6.grace && t6.slide && t6.term==='Andante' && t6.same && t6.skip===0;
+  console.log((ok6?'✅':'❌')+' 表情往返: 速度术语='+t6.words+' 力度='+t6.dyn+' 倚音='+t6.grace+' 滑音='+t6.slide+' term='+t6.term+' 结构='+t6.same+' 跳过='+t6.skip);
+  if(ok6) pass++;
+  console.log('PASS '+pass+'/8');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
