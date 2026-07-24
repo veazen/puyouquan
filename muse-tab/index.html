@@ -9610,6 +9610,7 @@ function showNewForm(type, gtype){
     if(noTab && o.nVox<1) o.nVox=1;
     if(type==='solo'){ o.nVox=0; }
     closeModal();
+    pyqEvent('create_song', type);
     addDoc(createSong(type, o), ()=>{
       setRibbon(sel.row==='vox'?'vox':'tab');
       toast('已新建'+tName+'：'+o.nMea+' 小节');
@@ -10875,9 +10876,9 @@ document.getElementById('b-print').onclick = ()=>{
     </div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
-  document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); downloadMusicXML(); };
-  document.getElementById('ex-mid').onclick = ()=>{ closeModal(); downloadMIDI(); };
-  document.getElementById('ex-card').onclick = ()=>{ closeModal(); exportShareCard(); };
+  document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); pyqEvent('export','mxl'); downloadMusicXML(); };
+  document.getElementById('ex-mid').onclick = ()=>{ closeModal(); pyqEvent('export','mid'); downloadMIDI(); };
+  document.getElementById('ex-card').onclick = ()=>{ closeModal(); pyqEvent('share_card'); exportShareCard(); };
   document.getElementById('ex-icard').onclick = ()=>{ closeModal(); exportInteractiveCard(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
@@ -11090,17 +11091,27 @@ document.getElementById('b-invert').onclick = ()=>{
 try{ if(localStorage.getItem('musetab-invert')==='1') applyScoreInvert(true); }catch(_){}
 /* ================= 会员中心（为后期付费生态预留） ================= */
 const MEMBER_KEY = 'musetab-member';
+/* v45.3 权益真实化：卖点只列真实增量，全部核心功能明确免费（摘掉「把已免费功能当付费点」的虚假宣传红线）。
+   会员态由服务端 entitlements 决定（window.PYQ_ENT），不再走 localStorage 演示开关（MEMBER_KEY 键保留不删）。 */
 const MEMBER_PLANS = {
-  free: {name:'免费版', price:'￥0', tag:'当前',
-    feats:['基础六线谱/简谱/歌词制谱','4 种基础音色','本地保存与我的曲谱','打印与 PDF 导出']},
-  vip:  {name:'会员', price:'￥18 / 月', tag:'推荐',
-    feats:['全部 10+ 乐器音色与混响','云端曲谱库 · 多设备同步','批量导出高清 PDF · 去水印','曲谱分享链接']},
-  pro:  {name:'专业版', price:'￥48 / 月', tag:'工作室',
-    feats:['多人实时协作编谱','AI 智能编配与和弦推荐','MIDI / MusicXML 导入导出','商用授权与优先支持']},
+  free: {name:'免费版', price:'￥0 · 永久', tag:'人人可用',
+    feats:['全部核心制谱：八场景 · 三谱法互切 · 智能配谱','MusicXML / MIDI 导入导出','打印 · PDF · PNG · 分享卡导出','云端同步曲谱 500 首','发布到谱库']},
+  vip:  {name:'会员', price:'￥15 / 月 · ￥98 / 年', tag:'支持谱友圈',
+    feats:['云端曲谱扩容至 2000 首','会员专属标识','后续会员功能上线即享（批量导出等，陆续上线）','优先答疑支持']},
+  pack_kaobian: {name:'考编内容包', price:'￥39 · 买断', tag:'制作中',
+    feats:['30 套考编常考曲目 · 配好伴奏的标准谱','一次买断 · 持续更新','上线后自动到账（兑换码可预先兑换）']},
 };
-function memberPlan(){ try{ return localStorage.getItem(MEMBER_KEY)||'free'; }catch(_){ return 'free'; } }
-function setMemberPlan(p){ try{ localStorage.setItem(MEMBER_KEY, p); }catch(_){} refreshMemberBtn(); }
-function refreshMemberBtn(){}
+window.PYQ_ENT = null;   // {vip, quota, entitlements:[{kind,expires_at,…}]}；未登录/离线为 null
+function memberPlan(){ return (window.PYQ_ENT && window.PYQ_ENT.vip)? 'vip' : 'free'; }
+async function entRefresh(){
+  if(!API_ON || !ACCT){ window.PYQ_ENT=null; return; }
+  try{ window.PYQ_ENT = await apiCall('/me/entitlements'); }catch(_){ window.PYQ_ENT=null; }
+}
+/* v45.3 埋点（fire-and-forget；仅线上生效，file://预览/测试环境 no-op） */
+function pyqEvent(name, meta){
+  if(!API_ON) return;
+  try{ apiCall('/events',{method:'POST',body:{name, meta:meta||''}}).catch(()=>{}); }catch(_){}
+}
 /* ================= 个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益 ================= */
 const PROFILE_KEY = 'musetab-profile';
 const CREATOR_KEY = 'musetab-creator';
@@ -11196,6 +11207,7 @@ function showPublishMenu(libEntry, rect){
         rec.url='https://puku.puyouquan.com/pub/'+cloudId;
         l.unshift(rec); circlePubsSave(l);
         closePop();
+        pyqEvent('publish');
         showPublishDone(libEntry.title||'未命名曲谱', cloudId);
       }catch(e){
         this.disabled=false; this.textContent=_t;
@@ -11509,6 +11521,7 @@ async function openRemotePub(id){
   const data=sanitizeUntrusted(sc && sc.data);   // Sprint0 安全：他人发布谱走 XSS 清洗
   if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
+  pyqEvent('open_pub', id);
   viewerMode=true; viewerPrev=null; vwTrans=0;
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
@@ -11555,6 +11568,7 @@ function vwToggleFav(){
   }
   const on=!isFav(id); setFav(id,on); updateVwFav();
   cloudFav(id,on);
+  if(on) pyqEvent('fav', id);
   toast(on?'已收藏':'已取消收藏');
 }
 /* ===== 谱架模式：全屏沉浸 + 自动卷谱 ===== */
@@ -11765,13 +11779,17 @@ function pcAdminHTML(){
   <div class="btns" style="justify-content:flex-start"><button id="adm-save" class="primary">保存配置</button></div>`;
 }
 function pcRightsHTML(){
-  const cur=memberPlan();
+  pyqEvent('paywall_view');
+  const ent=window.PYQ_ENT, t=Math.floor(Date.now()/1000);
+  const has=k=> !!(ent && (ent.entitlements||[]).some(e=>e.kind===k && (e.expires_at===0 || e.expires_at>t)));
+  const expOf=k=>{ const e=ent && (ent.entitlements||[]).find(x=>x.kind===k && (x.expires_at===0||x.expires_at>t));
+    return e? (e.expires_at===0? '永久' : new Date(e.expires_at*1000).toLocaleDateString()) : ''; };
   const cards=Object.entries(MEMBER_PLANS).map(([k,v])=>{
-    const active=k===cur;
+    const active = k==='free'? !has('vip') : has(k);
     const feats=v.feats.map(f=>`<li>${esc(f)}</li>`).join('');
-    const btn = active ? `<button class="mb-cur" disabled>当前方案</button>`
-      : (k==='free' ? `<button data-plan="free" class="mb-pick">切回免费版</button>`
-                    : `<button data-plan="${k}" class="mb-pick primary">开通体验</button>`);
+    const btn = k==='free'? (active? `<button class="mb-cur" disabled>当前方案</button>` : `<button class="mb-cur" disabled>已含在会员内</button>`)
+      : active? `<button class="mb-cur" disabled>已开通${expOf(k)?'（'+esc(expOf(k))+(expOf(k)==='永久'?'':' 到期')+'）':''}</button>`
+      : `<button data-buy="${k}" class="mb-pick primary">兑换码开通</button>`;
     return `<div class="mb-card ${active?'on':''} ${k}">
       <div class="mb-tag">${esc(v.tag)}</div>
       <div class="mb-name">${esc(v.name)}</div>
@@ -11780,9 +11798,15 @@ function pcRightsHTML(){
       ${btn}
     </div>`;
   }).join('');
-  return `<h4>我的权益 · 当前：${esc(MEMBER_PLANS[cur].name)}</h4>
-    <p>点击各等级卡片查看对应权益。（付费与云服务为规划中功能，当前可免费体验各档权益。）</p>
-    <div class="mb-grid">${cards}</div>`;
+  const status = !API_ON? `<p style="font-size:12.5px;color:var(--muted)">会员与兑换需在 <b>puyouquan.com</b> 登录后使用；本机 / 预览环境仅展示方案。</p>`
+    : !ACCT? `<p style="font-size:12.5px;color:var(--muted)">请先<a href="javascript:void 0" id="rt-login">登录 / 注册</a>后兑换或查看权益。</p>`
+    : `<p style="font-size:12.5px;color:var(--muted)">当前：<b>${has('vip')?'会员（'+esc(expOf('vip'))+' 到期）':'免费版'}</b>${has('pack_kaobian')?' · 已购考编内容包':''} · 云端配额 ${ent? ent.quota : 500} 首</p>`;
+  const redeem = (API_ON && ACCT)? `<div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+      <input id="rt-code" placeholder="输入兑换码（如 PYQ-XXXX-XXXX-XXXX）" style="flex:1;max-width:320px" autocomplete="off">
+      <button id="rt-redeem" class="primary">兑换</button></div>
+    <p style="font-size:12px;color:var(--muted);margin-top:6px">兑换码可通过官方渠道购买；在线支付即将上线。</p>` : '';
+  return `<h4>我的权益</h4>${status}
+    <div class="mb-grid">${cards}</div>${redeem}`;
 }
 function openPersonal(tab){
   tab = tab||'profile';
@@ -11926,11 +11950,25 @@ function openPersonal(tab){
       closeModal(); openPubViewer(b2.dataset.admView);
     });
   }else if(tab==='rights'){
-    M.querySelectorAll('.mb-pick').forEach(b=>b.onclick=()=>{
-      const p2=b.dataset.plan; setMemberPlan(p2);
-      toast(p2==='free'?'已切回免费版':`已开通「${MEMBER_PLANS[p2].name}」体验`);
-      openPersonal('rights');
+    const lg=document.getElementById('rt-login'); if(lg) lg.onclick=()=>openLogin();
+    M.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
+      const inp=document.getElementById('rt-code');
+      if(inp){ inp.focus(); inp.placeholder='输入「'+MEMBER_PLANS[b.dataset.buy].name+'」兑换码'; }
+      else if(API_ON) openLogin({hint:'登录后即可用兑换码开通会员。', onDone:(ok)=>{ if(ok) openPersonal('rights'); }});
+      else toast('会员与兑换需在 puyouquan.com 登录后使用');
     });
+    const rd=document.getElementById('rt-redeem');
+    if(rd) rd.onclick=async function(){
+      const code=(document.getElementById('rt-code').value||'').trim();
+      if(!code) return toast('请输入兑换码');
+      this.disabled=true;
+      try{
+        const r=await apiCall('/redeem',{method:'POST',body:{code}});
+        await entRefresh();
+        toast('兑换成功：已开通「'+(MEMBER_PLANS[r.kind]?MEMBER_PLANS[r.kind].name:r.kind)+'」');
+        openPersonal('rights');
+      }catch(e){ this.disabled=false; toast(e.message||'兑换失败'); }
+    };
   }
 }
 /* ================= 账号系统（对接 M1a 后端：手机验证码登录 + 云同步基础）
@@ -11952,10 +11990,11 @@ async function apiCall(path, opts){
 }
 async function acctRefresh(){
   if(!API_ON) return;
-  try{ const j=await apiCall('/me'); acctSave(j.user); if(typeof syncScores==='function') syncScores(); }
-  catch(e){ if(e.status===401) acctSave(null); }
+  try{ const j=await apiCall('/me'); acctSave(j.user); entRefresh(); if(typeof syncScores==='function') syncScores(); }
+  catch(e){ if(e.status===401){ acctSave(null); window.PYQ_ENT=null; } }
 }
 if(API_ON) acctRefresh();
+if(API_ON) pyqEvent('visit');   // v45.3 埋点：页面访问（仅线上）
 /* v43.6 探测服务端是否已开通微信登录（未配置则登录弹窗不显示微信入口，避免死按钮） */
 if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); }).catch(()=>{}); }
 /* v43.6 微信登录回跳：callback 302 回本页带 ?wxlogin=ok/fail —— 刷新账号态并清理 query */
@@ -12022,7 +12061,7 @@ function openLogin(opts){
     if(!/^\d{6}$/.test(code)) return msg('请输入 6 位验证码');
     try{
       const r=await apiCall('/auth/sms/verify',{method:'POST',body:{phone,code}});
-      acctSave(r.user);
+      acctSave(r.user); entRefresh();
       const p=profileLoad(); if(!p.name && r.user.nickname){ p.name=r.user.nickname; profileSave(p); }
       if(timer) clearInterval(timer);
       if(typeof syncScores==='function') syncScores();
@@ -12040,7 +12079,7 @@ function openLogin(opts){
 }
 async function acctLogout(){
   try{ await apiCall('/auth/logout',{method:'POST'}); }catch(_){}
-  acctSave(null); toast('已退出登录'); openPersonal('profile');
+  acctSave(null); window.PYQ_ENT=null; toast('已退出登录'); openPersonal('profile');
 }
 async function acctLogoutAll(){
   if(!confirm('退出所有设备？这会作废你在全部设备（含本机）上的登录，需重新登录。')) return;
@@ -12278,6 +12317,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.3</span><div><b>会员体系上线：真实权益 + 兑换码开通（商业闭环 · 第一步）</b>：个人中心「我的权益」从演示页升级为<b>真实会员系统</b>——① <b>权益如实划分</b>：全部核心制谱（八场景/三谱互切/智能配谱/MusicXML/云同步 500 首/发布）<b>明确永久免费</b>；会员（￥15/月 · ￥98/年）提供<b>云端曲谱扩容至 2000 首</b>等真实增量；「考编内容包」（￥39 买断）制作中，上线后自动到账。② <b>兑换码开通</b>：输入官方渠道购得的兑换码即时开通、跨设备生效（服务端权益记录，不再是本机演示开关）；在线支付即将上线。③ 服务端新增权益/订单/兑换码/流水/统计五张数据表与管理工具，为在线支付与创作者分成打好地基。</div></li>
     <li><span class="v">v45.2</span><div><b>自动配和弦会用「副属和弦」了（P1 智能配谱深化收官）</b>：当旋律里<b>明确写了某个升号导音、且下一小节正是它的解决目标</b>时，自动配和弦会把这一小节配成<b>副属和弦（离调属七）</b>——比如旋律出现 <code>#4</code> 且下一小节是 G，本小节自动配 <b>D7（V/V）</b>，进行更有推动力、更地道。<b>纯自然音旋律不会触发</b>（不无端加半音色彩），是保守的旋律驱动策略：只在你确实写了变化音时才用。至此 P1「智能配谱 + 织体」深化收官（功能和声全局寻优 → 属七终止 → 一小节两和弦 → 四种拍号织体 → 副属和弦）。<code>tv_arrange</code> 回归增至 10 项。</div></li>
     <li><span class="v">v45.1</span><div><b>伴奏织体扩到 2/4 与 6/8 拍（P1 · 织体深化）</b>：内置伴奏织体库从「只支持 4/4 与 3/4」扩到<b>2/4、3/4、4/4、6/8 四种拍号</b>，新增 4 套织体：<b>进行曲 2/4、波尔卡 2/4、船歌 6/8、摇篮曲 6/8</b>（6/8 的附点四分脉冲、蓬-哒-哒律动）。这样 <b>2/4 的进行曲/儿歌、6/8 的抒情摇篮曲</b> 也能一键生成双手伴奏——师范儿歌伴奏、艺考视唱常见的复合拍终于有了内置织体。<code>tv_acc</code>/<code>tv_arrange</code> 回归同步更新。</div></li>
     <li><span class="v">v45.0</span><div><b>自动配和弦支持「一小节两个和弦」（P1 · 和声节奏）</b>：智能配谱不再一小节只配一个和弦——4/4 小节里当<b>下半段明显另属一个和弦</b>时，会自动在后半拍补上第二个和弦（如一小节前半 C、后半 G），更贴近真实歌曲的和声节奏；下半段仍属同一和弦时保持一个，不画蛇添足。沿用 v44.9 的功能和声全局寻优选主和弦，再对下半段按分数与功能走向决定是否加和弦，生成的双手伴奏随之逐拍换和弦。<code>tv_arrange</code> 回归增至 8 项。</div></li>

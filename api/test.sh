@@ -70,6 +70,19 @@ chk SSR站点地图XML '<urlset' "$SM"
 chk 下架后公开404 '未发布' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/unpublish > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 下架后SSR也404 '不存在' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
 
+# v45.3 会员权益 / 兑换码 / 埋点（登录态延续上文会话）
+chk 权益初始为免费 '"vip":false' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 免费配额500 '"quota":500' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+CODE_VIP=$(DB_PATH="$DIR/t.db" node admin.js gen-codes 1 vip 30 2>/dev/null | tail -1)
+chk 管理工具生成兑换码 'PYQ-' "$CODE_VIP"
+chk 无效码被拒 '无效' "$(J -X POST http://127.0.0.1:3199/api/redeem -d '{"code":"PYQ-XXXX-XXXX-XXXX"}')"
+chk 兑换成功 '"kind":"vip"' "$(J -X POST http://127.0.0.1:3199/api/redeem -d "{\"code\":\"$CODE_VIP\"}")"
+chk 二次兑换被拒 '已被使用' "$(J -X POST http://127.0.0.1:3199/api/redeem -d "{\"code\":\"$CODE_VIP\"}")"
+chk 兑换后为会员 '"vip":true' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 会员配额2000 '"quota":2000' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 埋点白名单事件 '"ok":true' "$(curl -s -X POST http://127.0.0.1:3199/api/events -H 'Content-Type: application/json' -d '{"name":"visit"}')"
+chk 管理工具查用户含权益 'vip' "$(DB_PATH="$DIR/t.db" node admin.js user 13800001234 2>/dev/null)"
+
 chk 删除谱面级联 '"deleted":true' "$(J -X DELETE http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 删除后谱架为空 '"shelf":\[\]' "$(J http://127.0.0.1:3199/api/shelf)"
 chk 未登录被拒 '请先登录' "$(curl -s http://127.0.0.1:3199/api/scores)"

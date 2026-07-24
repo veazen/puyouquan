@@ -3,6 +3,7 @@
 // 所有 SQL 集中在本文件（可移植子集：无 SQLite 方言特性），未来迁 PostgreSQL 只需重写此层。
 // 主键一律应用层生成（randomUUID），布尔用 0/1，时间用 Unix 秒 —— 均为迁移友好约定。
 const { DatabaseSync } = require('node:sqlite');
+const crypto = require('node:crypto');
 
 const DB_PATH = process.env.DB_PATH || '/var/lib/puyouquan/pyq.db';
 const db = new DatabaseSync(DB_PATH);
@@ -42,6 +43,36 @@ CREATE TABLE IF NOT EXISTS collection_items(
   score_id TEXT NOT NULL REFERENCES scores(id),
   sort INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL,
   PRIMARY KEY(collection_id, score_id));
+-- v45.3 商业闭环五表（六维审计 day1 清单）。金额一律整数分；时间 Unix 秒。
+CREATE TABLE IF NOT EXISTS entitlements(
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL,                          -- 'vip' / 'pack_kaobian' / 'quota_2000' …
+  expires_at INTEGER NOT NULL DEFAULT 0,       -- 0=永久（买断）；否则到期秒
+  source TEXT NOT NULL DEFAULT '',             -- 'redeem:CODE' / 'order:ID' / 'admin'
+  created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_ent_user ON entitlements(user_id, kind);
+CREATE TABLE IF NOT EXISTS orders(
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL, amount_fen INTEGER NOT NULL,
+  channel TEXT NOT NULL DEFAULT '',            -- 'wxpay' / 'redeem' / 'admin'
+  out_trade_no TEXT UNIQUE,                    -- 支付渠道幂等键（兑换/后台授予为 NULL）
+  status TEXT NOT NULL DEFAULT 'pending',      -- pending/paid/refunded/closed
+  created_at INTEGER NOT NULL, paid_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS redeem_codes(
+  code TEXT PRIMARY KEY, kind TEXT NOT NULL,
+  days INTEGER NOT NULL DEFAULT 0,             -- 0=永久；否则有效天数
+  used_by TEXT, used_at INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS creator_earnings(
+  id TEXT PRIMARY KEY, creator_id TEXT NOT NULL REFERENCES users(id),
+  order_id TEXT NOT NULL, amount_fen INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',      -- pending/settled
+  created_at INTEGER NOT NULL, settled_at INTEGER);
+CREATE TABLE IF NOT EXISTS events(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT,
+  name TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at);
 `);
 
 /* v43.6 微信登录：老库幂等补列（ALTER 失败=列已存在，忽略）+ unionid 唯一索引（多 NULL 允许） */
@@ -131,7 +162,43 @@ const q = {
   collItemDel:  db.prepare('DELETE FROM collection_items WHERE collection_id = ? AND score_id = ?'),
   collItemsDelByColl:  db.prepare('DELETE FROM collection_items WHERE collection_id = ?'),
   collItemsDelByScore: db.prepare('DELETE FROM collection_items WHERE score_id = ?'),
+  // v45.3 权益 / 订单 / 兑换码 / 埋点
+  entList:      db.prepare('SELECT kind,expires_at,source,created_at FROM entitlements WHERE user_id = ? ORDER BY created_at DESC'),
+  entActive:    db.prepare('SELECT * FROM entitlements WHERE user_id = ? AND kind = ? AND (expires_at = 0 OR expires_at > ?) ORDER BY expires_at DESC LIMIT 1'),
+  entAdd:       db.prepare('INSERT INTO entitlements(id,user_id,kind,expires_at,source,created_at) VALUES(?,?,?,?,?,?)'),
+  entDel:       db.prepare('DELETE FROM entitlements WHERE user_id = ? AND kind = ?'),
+  orderCreate:  db.prepare('INSERT INTO orders(id,user_id,kind,amount_fen,channel,out_trade_no,status,created_at,paid_at) VALUES(?,?,?,?,?,?,?,?,?)'),
+  orderList:    db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?'),
+  orderByUser:  db.prepare('SELECT id,kind,amount_fen,channel,status,created_at,paid_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'),
+  redeemGet:    db.prepare('SELECT * FROM redeem_codes WHERE code = ?'),
+  redeemUse:    db.prepare('UPDATE redeem_codes SET used_by = ?, used_at = ? WHERE code = ? AND used_by IS NULL'),
+  redeemAdd:    db.prepare('INSERT INTO redeem_codes(code,kind,days,created_at) VALUES(?,?,?,?)'),
+  redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC LIMIT ?'),
+  eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
+  eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
 };
+
+/* v45.3 兑换：单事务内 核销码 + 发权益 + 记 0 元订单（防并发重复兑换：redeemUse 带 used_by IS NULL 条件）。
+   已有同类未过期权益时顺延（在现有到期时间上累加天数），买断类(days=0)直接给永久。 */
+function redeemApply(code, userId) {
+  const t = now();
+  db.exec('BEGIN');
+  try {
+    const r = q.redeemUse.run(userId, t, code);
+    if (!r.changes) { db.exec('ROLLBACK'); return null; }   // 码不存在或已被用（含并发竞争失败）
+    const rc = q.redeemGet.get(code);
+    let expires = 0;
+    if (rc.days > 0) {
+      const cur = q.entActive.get(userId, rc.kind, t);
+      const base = (cur && cur.expires_at > t) ? cur.expires_at : t;
+      expires = base + rc.days * 86400;
+    }
+    q.entAdd.run(crypto.randomUUID(), userId, rc.kind, expires, 'redeem:' + code, t);
+    q.orderCreate.run(crypto.randomUUID(), userId, rc.kind, 0, 'redeem', null, 'paid', t, t);
+    db.exec('COMMIT');
+    return { kind: rc.kind, expires_at: expires };
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+}
 
 /* Sprint0 安全：删除自有谱（事务）。调用方必须已校验 userId 拥有该谱。
    先清他人对该谱的收藏/谱架/谱集引用（外键完整性要求），再删本体；scoreDelete 带 user_id 二次保险。
@@ -184,4 +251,4 @@ function seedPublished(){
 }
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
-module.exports = { db, q, now, today, deleteScoreCascade };
+module.exports = { db, q, now, today, deleteScoreCascade, redeemApply };

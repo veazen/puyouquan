@@ -1,0 +1,92 @@
+'use strict';
+/* 谱友圈 · CLI 管理工具（v45.3，零依赖）。在服务器上执行（读取与 pyq-api 相同的 DB_PATH）：
+     node admin.js user <手机号>                    查用户 + 权益 + 曲谱数
+     node admin.js grant <手机号> <kind> [天数]     授予权益（天数省略=永久；如 grant 138... vip 365）
+     node admin.js revoke <手机号> <kind>           撤销该类全部权益
+     node admin.js gen-codes <数量> <kind> [天数]   批量生成兑换码（打印到 stdout，自行保存）
+     node admin.js codes [n]                        最近 n 个兑换码（默认 50）
+     node admin.js orders [n]                       最近 n 笔订单（默认 50）
+     node admin.js stats [天数]                     总量 + 近 N 天事件漏斗（默认 7）
+   kind 约定：vip=会员(配额2000) / pack_kaobian=考编内容包 / 其他自定义。
+   注意：生产执行需 sudo -u pyq 或 root（DB 文件属 pyq）；本工具不经 HTTP、无认证面。 */
+const crypto = require('node:crypto');
+const { db, q, now } = require('./db');
+
+const [, , cmd, ...args] = process.argv;
+const fmtTs = s => s ? new Date(s * 1000).toISOString().replace('T', ' ').slice(0, 19) : '-';
+const fmtExp = e => e === 0 ? '永久' : fmtTs(e) + (e > now() ? '' : '（已过期）');
+const findUser = phone => {
+  const u = q.userByPhone.get(String(phone || ''));
+  if (!u) { console.error('用户不存在：' + phone); process.exit(1); }
+  return u;
+};
+/* 兑换码：PYQ-XXXX-XXXX-XXXX，字母表剔除易混淆字符(0O1I) */
+const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const genCode = () => 'PYQ-' + Array.from({ length: 3 }, () =>
+  Array.from(crypto.randomBytes(4)).map(b => AB[b % AB.length]).join('')).join('-');
+
+const cmds = {
+  user(phone) {
+    const u = findUser(phone);
+    console.log(`id=${u.id}\n昵称=${u.nickname}  角色=${u.role}  注册=${fmtTs(u.created_at)}  微信=${u.wx_openid ? '已绑' : '未绑'}`);
+    console.log('曲谱数=' + q.scoreCount.get(u.id).n);
+    const t = now(), ents = q.entList.all(u.id);
+    console.log(ents.length ? '权益：' : '权益：无');
+    ents.forEach(e => console.log(`  ${e.kind}  到期=${fmtExp(e.expires_at)}  来源=${e.source}  ${e.expires_at !== 0 && e.expires_at <= t ? '[过期]' : '[有效]'}`));
+    (q.orderByUser.all(u.id) || []).slice(0, 5).forEach(o =>
+      console.log(`  订单 ${o.kind} ¥${(o.amount_fen / 100).toFixed(2)} ${o.channel} ${o.status} ${fmtTs(o.created_at)}`));
+  },
+  grant(phone, kind, days) {
+    if (!kind) { console.error('用法：grant <手机号> <kind> [天数]'); process.exit(1); }
+    const u = findUser(phone);
+    const t = now();
+    let expires = 0;
+    if (days && +days > 0) {
+      const cur = q.entActive.get(u.id, kind, t);
+      expires = ((cur && cur.expires_at > t) ? cur.expires_at : t) + (+days) * 86400;
+    }
+    q.entAdd.run(crypto.randomUUID(), u.id, kind, expires, 'admin', t);
+    q.orderCreate.run(crypto.randomUUID(), u.id, kind, 0, 'admin', null, 'paid', t, t);
+    console.log(`已授予 ${u.nickname}(${phone}) ${kind} 到期=${fmtExp(expires)}`);
+  },
+  revoke(phone, kind) {
+    if (!kind) { console.error('用法：revoke <手机号> <kind>'); process.exit(1); }
+    const u = findUser(phone);
+    const r = q.entDel.run(u.id, kind);
+    console.log(`已撤销 ${phone} 的 ${kind}（${r.changes} 条）`);
+  },
+  'gen-codes'(n, kind, days) {
+    n = Math.max(1, Math.min(1000, +n || 0));
+    if (!kind) { console.error('用法：gen-codes <数量> <kind> [天数]'); process.exit(1); }
+    const t = now(), out = [];
+    for (let i = 0; i < n; i++) {
+      let code;
+      do { code = genCode(); } while (q.redeemGet.get(code));
+      q.redeemAdd.run(code, kind, +days > 0 ? +days : 0, t);
+      out.push(code);
+    }
+    console.log(`已生成 ${n} 个兑换码（kind=${kind} 天数=${+days > 0 ? days : '永久'}）：`);
+    out.forEach(c => console.log(c));
+  },
+  codes(n) {
+    q.redeemList.all(Math.min(500, +n || 50)).forEach(r =>
+      console.log(`${r.code}  ${r.kind}  ${r.days > 0 ? r.days + '天' : '永久'}  ${r.used_by ? '已用@' + fmtTs(r.used_at) : '未用'}`));
+  },
+  orders(n) {
+    q.orderList.all(Math.min(500, +n || 50)).forEach(o =>
+      console.log(`${fmtTs(o.created_at)}  ${o.kind}  ¥${(o.amount_fen / 100).toFixed(2)}  ${o.channel}  ${o.status}  user=${o.user_id.slice(0, 8)}`));
+  },
+  stats(days) {
+    const d = Math.max(1, +days || 7);
+    const c = t => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
+    console.log(`用户=${c('users')}  曲谱=${c('scores')}  已发布=${q.pubCount.get().n}  订单=${c('orders')}  权益=${c('entitlements')}  未用码=${db.prepare('SELECT COUNT(*) AS n FROM redeem_codes WHERE used_by IS NULL').get().n}`);
+    console.log(`近 ${d} 天事件：`);
+    q.eventStats.all(now() - d * 86400).forEach(e => console.log(`  ${e.name}  ${e.n}`));
+  },
+};
+
+if (!cmds[cmd]) {
+  console.log('可用命令：user / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
+  process.exit(cmd ? 1 : 0);
+}
+cmds[cmd](...args);

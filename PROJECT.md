@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v45.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v45.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,9 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v45.2）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入）；v44.8 补齐倚音/滑音/独立力度/速度术语的 MusicXML 往返。P0 互操作深化告一段落（TAB 技法 tech/tk/bAmt 仍未进 MusicXML、后倚音 graceA 仅单向，属长尾）。P1 智能配谱深化启动：v44.9 `suggestChords` 从逐小节贪心升级为**功能和声 Viterbi**（发射=旋律契合 + 转移=T→S→D→T 功能进行 + 属七 V7 + 正格终止），全局最优、进行连贯。v45.0 和声节奏：`suggestChordPlan` 在每小节主和弦基础上对 4/4 下半段另属和弦补第二和弦（每小节 1–2 个，`placeChordPlan` 回填多列），`suggestChords` 保持首和弦兼容。v45.1 织体扩拍号：PIANO_TEX 加 2/4(进行曲/波尔卡)与 6/8(船歌/摇篮曲) 4 套，picker 按 song.beats 过滤。v45.2 副属和弦（保守·旋律驱动）：某小节显含二级导音(#4/#5/#1/b7)且下一小节为其解决目标→升级为副属属七(如 #4→D7 解 G)，纯自然音不触发。**P1 智能配谱+织体深化收官**（功能和声 Viterbi→属七终止→和声节奏→四拍号织体→副属和弦）。余下长尾：更多风格织体型。**
+> **执行进度（截至 v45.3）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 🟡 Sprint 2 增长回路 6/6 ✅ 全部落地（真二维码 · 移动 fit-to-width · 发布触发登录 · 发布谱 SSR 落地页 · 看谱收藏接云+留账号钩子 · SEO 基建+四垂类落地页）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。**P0 互操作深化：v44.7 打通 TAB↔MusicXML（六线谱声部导出/导入）；v44.8 补齐倚音/滑音/独立力度/速度术语的 MusicXML 往返。P0 互操作深化告一段落（TAB 技法 tech/tk/bAmt 仍未进 MusicXML、后倚音 graceA 仅单向，属长尾）。P1 智能配谱深化启动：v44.9 `suggestChords` 从逐小节贪心升级为**功能和声 Viterbi**（发射=旋律契合 + 转移=T→S→D→T 功能进行 + 属七 V7 + 正格终止），全局最优、进行连贯。v45.0 和声节奏：`suggestChordPlan` 在每小节主和弦基础上对 4/4 下半段另属和弦补第二和弦（每小节 1–2 个，`placeChordPlan` 回填多列），`suggestChords` 保持首和弦兼容。v45.1 织体扩拍号：PIANO_TEX 加 2/4(进行曲/波尔卡)与 6/8(船歌/摇篮曲) 4 套，picker 按 song.beats 过滤。v45.2 副属和弦（保守·旋律驱动）：某小节显含二级导音(#4/#5/#1/b7)且下一小节为其解决目标→升级为副属属七(如 #4→D7 解 G)，纯自然音不触发。**P1 智能配谱+织体深化收官**（功能和声 Viterbi→属七终止→和声节奏→四拍号织体→副属和弦）。余下长尾：更多风格织体型。**
+>
+> **商业闭环（产品负责人已拍板，2026-07-24）**：公司主体/微信开放平台认证/微信商户号已就绪；一套会员系统；定价 会员 ¥15/月·¥98/年、考编内容包 ¥39 买断；免登录即用与演示谱落地保持不变（价值前置、登录后置）。执行序：**S3-A1 会员地基+兑换码 ✅ v45.3** → 细节修复批次（待负责人问题清单）→ 微信 Native 扫码支付 + 轻量 Web 管理后台（商户参数配 env 后开工）→ 考编内容包 → 创作者分账（微信分账 API，生态有量后）。分成基准：付费谱 创作者70/平台30，打赏 90/10。
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -137,7 +139,9 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - 数据：SQLite `/var/lib/puyouquan/pyq.db`（WAL；**所有 SQL 集中在 `api/db.js`，主键应用层 UUID、时间 Unix 秒——为将来迁 PG 预留**；迁移信号：SQLITE_BUSY 频发/需多机/需 PG 专属能力）。表：users/otp/ip_quota/scores/favorites/shelf/collections/collection_items。
   - 登录：手机验证码（阿里云短信 RPC-V1 签名自实现；频控 1 次/分/号、5 次/日/号、20 次/日/IP、验证 5 次上限；未配 AK 时 DEV_OTP=1 走日志验证码）。微信扫码（企业开放平台）留 `wx_openid` 字段待接。创作者开放注册（POST /api/me/creator）。
   - 配置：`/etc/puyouquan/api.env`（api-setup.sh 首次生成 JWT_SECRET；**阿里云短信 AK/模板过审后填入并 `systemctl restart pyq-api`**）。
-  - 接口（`/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联·publish/unpublish) / **pub(pub/scores 列表·详情，公开免登录)** / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
+  - 接口（`/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者·**entitlements v45.3**) / scores(列表·详情·PUT 同步含 409 冲突·删除级联·publish/unpublish) / **pub(pub/scores 列表·详情，公开免登录)** / favorites / shelf(带进度) / collections(含 items) / **redeem(兑换码核销，IP 日频控 30 次) / events(埋点，白名单 12 事件 + 每 IP 每时 300 条上限，签到/登录/兑换服务端直写)**。谱面上限 免费 500 / **会员 2000**（entActive('vip') 真实开关）、单谱 2MB、谱集 50 个。
+  - **商业五表（v45.3）**：entitlements(权益，expires_at=0 永久) / orders(整数分，out_trade_no 幂等) / redeem_codes(PYQ-XXXX-XXXX-XXXX，事务核销防并发) / creator_earnings(分账流水，未启用) / events(埋点)。`redeemApply` 单事务：核销+发权益(同类顺延)+记 0 元订单。
+  - **CLI 管理工具 `api/admin.js`**（服务器 SSH 执行，与 API 同 DB）：user/grant/revoke/gen-codes/codes/orders/stats。Web 管理后台随支付上线同批。
   - **非 `/api/` 前缀的 SSR 路由**（v44.4，公开免登录，供搜索/社交爬虫收录，nginx `location /pub/` 反代）：`GET /pub/:id`→已发布谱服务端落地页（`<title>`/`meta description`/`og:*`/`twitter:card`/JSON-LD `MusicComposition`/`canonical`；真人 setTimeout 1.2s `location.replace` 转 `zhipu/?pub=ID`）；`GET /pub/:id/cover.svg`→动态品牌封面（1200×630，首行旋律简谱数字+歌词）；`GET /pub/sitemap.xml`→全部发布谱的动态站点地图（v44.6，robots.txt 引用）。dispatcher 新增 `___raw`/`___ctype`/`___cache` 出非 JSON 原样响应分支。canonical/观看主机可用 env `PUB_CANON`/`VIEW_HOST` 覆盖（默认 puku/zhipu）。
   - 测试：`bash api/test.sh` 本地端到端 25 项（DEV_OTP 模式全链路）；线上冒烟含 `/api/health`。
   - **M1b-part1 已完成（v41.7）**：编辑器个人中心接入真实登录——个人资料页顶部账号卡（`pcAcctHTML`），手机验证码登录/注册弹窗（`openLogin`）、退出（`acctLogout`）、成为创作者（`acctBecomeCreator`）；账号态经 `apiCall`/`acctRefresh` 与后端同步，新增缓存键 `musetab-acct`（不动既有键）。仅 `*.puyouquan.com` 启用（`API_ON` 按 hostname 判断），本机/预览自动降级纯本地。测试 `tests/tv_acct.js` 7 项。
@@ -294,6 +298,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_mxl | MusicXML 出+入：xmllint 校验/计数/时值和/音高拼写/**往返一致**/第三方 fixture/**v44.8 表情往返**(速度术语 words·独立力度 dynamics·前倚音 grace·滑音 slide) |
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
+| tv_member | v45.3 会员真实化：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)——3项 |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 

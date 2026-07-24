@@ -4,7 +4,7 @@
 // 部署：systemd 服务 pyq-api，nginx 各 vhost include snippets/pyq-api.conf 反代 /api/。
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { q, now, deleteScoreCascade } = require('./db');
+const { q, now, deleteScoreCascade, redeemApply } = require('./db');
 const { sendSms } = require('./sms');
 const wx = require('./wx');
 
@@ -20,6 +20,11 @@ const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.co
 const VER = 'wx-1';
 const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另有 4m）
 const MAX_SCORES = 500, MAX_COLLS = 50, MAX_COLL_ITEMS = 500;
+const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第一个真实权益开关）
+/* v45.3 埋点白名单（客户端 8 + 服务端 4：signup/login/redeem_ok/order_paid 由 handler 直写） */
+const EVENT_NAMES = new Set(['visit', 'create_song', 'export', 'publish', 'open_pub', 'paywall_view', 'fav', 'share_card',
+  'signup', 'login', 'redeem_ok', 'order_paid']);
+let evHour = 0; const evCount = new Map();       // 每 IP 每小时事件计数（内存态，重启清零可接受）
 const PHONE_RE = /^1[3-9]\d{9}$/;
 const ID_RE = /^[A-Za-z0-9_-]{8,40}$/;  // 客户端生成的谱面 id
 
@@ -241,7 +246,8 @@ const routes = [
       const id = crypto.randomUUID();
       q.userCreate.run(id, phone, '谱友' + phone.slice(-4), now());
       u = q.userById.get(id);
-    }
+      q.eventAdd.run(u.id, 'signup', 'sms', now());     // v45.3 埋点
+    } else q.eventAdd.run(u.id, 'login', 'sms', now());
     setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
     return { user: pubUser(u), is_new: u.created_at >= now() - 5 };
   }],
@@ -288,6 +294,36 @@ const routes = [
     return { user: pubUser(q.userById.get(u.id)) };
   }],
 
+  /* -- v45.3 会员权益 / 兑换码 / 埋点 -- */
+  ['GET', /^\/api\/me\/entitlements$/, true, (m, b, u) => {
+    const t = now();
+    const list = q.entList.all(u.id).filter(e => e.expires_at === 0 || e.expires_at > t);
+    const vip = !!q.entActive.get(u.id, 'vip', t);
+    return { entitlements: list, vip, quota: vip ? MAX_SCORES_VIP : MAX_SCORES };
+  }],
+  ['POST', /^\/api\/redeem$/, true, (m, b, u, req) => {
+    const code = String(b.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9-]{8,29}$/.test(code)) throw new ApiError(400, '兑换码格式不正确');
+    const ip = ipOf(req), day = today();                              // 复用 IP 日频控防爆破（与短信共表不同额度语义：此处 30 次/日）
+    if ((q.ipQuotaGet.get('rd:' + ip, day)?.count || 0) >= 30) throw new ApiError(429, '尝试过于频繁，请明日再试');
+    q.ipQuotaBump.run('rd:' + ip, day);
+    const r = redeemApply(code, u.id);
+    if (!r) throw new ApiError(400, '兑换码无效或已被使用');
+    q.eventAdd.run(u.id, 'redeem_ok', r.kind, now());
+    return { ok: true, kind: r.kind, expires_at: r.expires_at };
+  }],
+  ['POST', /^\/api\/events$/, false, (m, b, u, req) => {
+    const name = String(b.name || '');
+    if (!EVENT_NAMES.has(name)) return { ok: true };                  // 未知事件静默丢弃（不给探测面）
+    const ip = ipOf(req);
+    const h = Math.floor(Date.now() / 3600000);
+    if (evHour !== h) { evHour = h; evCount.clear(); }
+    const c = (evCount.get(ip) || 0) + 1; evCount.set(ip, c);
+    if (c > 300) return { ok: true };                                 // 每 IP 每小时 300 条上限，超出静默丢弃
+    q.eventAdd.run(u ? u.id : null, name, String(b.meta || '').slice(0, 120), now());
+    return { ok: true };
+  }],
+
   /* -- 谱面云同步（客户端 id，最后写入胜出 + 冲突提示）-- */
   ['GET', /^\/api\/scores$/, true, (m, b, u) => ({ scores: q.scoreList.all(u.id) })],
   ['GET', /^\/api\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
@@ -306,7 +342,10 @@ const routes = [
     if (exist) {
       if (exist.user_id !== u.id) throw new ApiError(403, '该 id 已被占用');
       if (t < exist.updated_at) return { ___status: 409, conflict: true, server_updated_at: exist.updated_at };
-    } else if (q.scoreCount.get(u.id).n >= MAX_SCORES) throw new ApiError(403, `云端谱面数量已达上限（${MAX_SCORES}）`);
+    } else {                                     // v45.3 配额按会员态：vip 2000 / 免费 500
+      const cap = q.entActive.get(u.id, 'vip', now()) ? MAX_SCORES_VIP : MAX_SCORES;
+      if (q.scoreCount.get(u.id).n >= cap) throw new ApiError(403, `云端谱面数量已达上限（${cap}${cap === MAX_SCORES ? '，开通会员可扩容至 ' + MAX_SCORES_VIP : ''}）`);
+    }
     q.scoreUpsert.run(id, u.id, String(b.title || '').slice(0, 120), String(b.singer || '').slice(0, 60), data, t, now());
     return { saved: true, updated_at: t };
   }],
