@@ -42,6 +42,16 @@ SMS_TEMPLATE=
 WX_WEB_APPID=
 WX_WEB_SECRET=
 WX_WEB_REDIRECT=https://www.puyouquan.com/api/wx/web/callback
+# ---- 微信支付 APIv3·Native（v45.4；五项配齐 + 私钥文件就位才启用，缺任一项支付停用不影响其他功能）----
+# 商户平台下载的 apiclient_key.pem 放到 WXPAY_KEY_PATH（chmod 600, chown pyq）；
+# WXPAY_SERIAL=商户 API 证书序列号；WXPAY_APIV3_KEY=32 位 APIv3 密钥；
+# WXPAY_APPID 缺省复用 WX_WEB_APPID（须为商户号已绑定的 appid）。改完 systemctl restart pyq-api。
+WXPAY_MCHID=
+WXPAY_APPID=
+WXPAY_SERIAL=
+WXPAY_APIV3_KEY=
+WXPAY_KEY_PATH=/etc/puyouquan/wxpay_key.pem
+WXPAY_NOTIFY_URL=https://www.puyouquan.com/api/pay/notify
 EOF
   chmod 600 /etc/puyouquan/api.env
   echo "已生成 /etc/puyouquan/api.env（短信参数待填写）"

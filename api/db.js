@@ -168,6 +168,9 @@ const q = {
   entAdd:       db.prepare('INSERT INTO entitlements(id,user_id,kind,expires_at,source,created_at) VALUES(?,?,?,?,?,?)'),
   entDel:       db.prepare('DELETE FROM entitlements WHERE user_id = ? AND kind = ?'),
   orderCreate:  db.prepare('INSERT INTO orders(id,user_id,kind,amount_fen,channel,out_trade_no,status,created_at,paid_at) VALUES(?,?,?,?,?,?,?,?,?)'),
+  orderGet:     db.prepare('SELECT * FROM orders WHERE id = ?'),
+  orderByOtn:   db.prepare('SELECT * FROM orders WHERE out_trade_no = ?'),
+  orderMarkPaid:db.prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=? AND status='pending'"),   // 幂等：仅 pending→paid
   orderList:    db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?'),
   orderByUser:  db.prepare('SELECT id,kind,amount_fen,channel,status,created_at,paid_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'),
   redeemGet:    db.prepare('SELECT * FROM redeem_codes WHERE code = ?'),
@@ -197,6 +200,27 @@ function redeemApply(code, userId) {
     q.orderCreate.run(crypto.randomUUID(), userId, rc.kind, 0, 'redeem', null, 'paid', t, t);
     db.exec('COMMIT');
     return { kind: rc.kind, expires_at: expires };
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+}
+
+/* v45.4 支付发货（单事务·幂等）：orderMarkPaid 仅 pending→paid 生效，重复回调/轮询不会二次发权益。
+   entKind/days 由调用方按价目表传入（days=0 买断永久；否则同类未过期顺延）。 */
+function fulfillOrder(orderId, entKind, days) {
+  const t = now();
+  db.exec('BEGIN');
+  try {
+    const r = q.orderMarkPaid.run(t, orderId);
+    if (!r.changes) { db.exec('ROLLBACK'); return false; }   // 已发过货（或订单不存在/非 pending）
+    const o = q.orderGet.get(orderId);
+    let expires = 0;
+    if (days > 0) {
+      const cur = q.entActive.get(o.user_id, entKind, t);
+      expires = ((cur && cur.expires_at > t) ? cur.expires_at : t) + days * 86400;
+    }
+    q.entAdd.run(crypto.randomUUID(), o.user_id, entKind, expires, 'order:' + orderId, t);
+    q.eventAdd.run(o.user_id, 'order_paid', o.kind, t);
+    db.exec('COMMIT');
+    return true;
   } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
 }
 
@@ -251,4 +275,4 @@ function seedPublished(){
 }
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
-module.exports = { db, q, now, today, deleteScoreCascade, redeemApply };
+module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder };

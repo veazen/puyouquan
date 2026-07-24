@@ -4,9 +4,11 @@
 // 部署：systemd 服务 pyq-api，nginx 各 vhost include snippets/pyq-api.conf 反代 /api/。
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { q, now, deleteScoreCascade, redeemApply } = require('./db');
+const { q, now, deleteScoreCascade, redeemApply, fulfillOrder } = require('./db');
 const { sendSms } = require('./sms');
 const wx = require('./wx');
+const wxpay = require('./wxpay');
+const fs = require('node:fs');
 
 const PORT = +(process.env.PORT || 3127);
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -16,6 +18,31 @@ if (!JWT_SECRET) { console.error('缺少 JWT_SECRET'); process.exit(1); }
 const WX_WEB_APPID = process.env.WX_WEB_APPID || '';
 const WX_WEB_SECRET = process.env.WX_WEB_SECRET || '';
 const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.com/api/wx/web/callback';
+/* v45.4 微信支付（APIv3 Native 扫码）：凭据只走服务器环境；私钥为文件路径（apiclient_key.pem）。
+   五项全配齐才启用（health.wxpay=true，前端据此显示支付入口）。 */
+const WXPAY = (() => {
+  const c = {
+    mchid: process.env.WXPAY_MCHID || '',
+    appid: process.env.WXPAY_APPID || WX_WEB_APPID,
+    serial: process.env.WXPAY_SERIAL || '',
+    apiV3Key: process.env.WXPAY_APIV3_KEY || '',
+    keyPath: process.env.WXPAY_KEY_PATH || '/etc/puyouquan/wxpay_key.pem',
+    notifyUrl: process.env.WXPAY_NOTIFY_URL || 'https://www.puyouquan.com/api/pay/notify',
+    privateKey: null,
+  };
+  if (c.mchid && c.appid && c.serial && c.apiV3Key) {
+    try { c.privateKey = fs.readFileSync(c.keyPath, 'utf8'); }
+    catch { console.error('微信支付私钥读取失败：' + c.keyPath + '（支付停用，其余功能不受影响）'); }
+  }
+  return c;
+})();
+const wxpayOn = () => !!WXPAY.privateKey;
+/* 价目表（服务端唯一权威，前端只展示；金额整数分）。月/年卡给足 31/366 天。 */
+const PRICES = {
+  vip_month:    { fen: 1500, ent: 'vip',          days: 31,  desc: '谱友圈会员 · 月卡' },
+  vip_year:     { fen: 9800, ent: 'vip',          days: 366, desc: '谱友圈会员 · 年卡' },
+  pack_kaobian: { fen: 3900, ent: 'pack_kaobian', days: 0,   desc: '谱友圈 · 考编内容包（买断）' },
+};
 
 const VER = 'wx-1';
 const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另有 4m）
@@ -215,7 +242,7 @@ ${noteSvg}
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
-  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET) })],
+  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wxpay: wxpayOn() })],
 
   /* -- 认证 -- */
   ['POST', /^\/api\/auth\/sms\/send$/, false, async (m, b, _u, req) => {
@@ -312,6 +339,51 @@ const routes = [
     q.eventAdd.run(u.id, 'redeem_ok', r.kind, now());
     return { ok: true, kind: r.kind, expires_at: r.expires_at };
   }],
+  /* -- v45.4 微信支付（Native 扫码）：下单→前端出码→轮询 status；发货一律以主动查单 SUCCESS 为准 -- */
+  ['GET', /^\/api\/pay\/prices$/, false, () => ({
+    wxpay: wxpayOn(),
+    prices: Object.fromEntries(Object.entries(PRICES).map(([k, v]) => [k, { fen: v.fen, desc: v.desc }])),
+  })],
+  ['POST', /^\/api\/pay\/create$/, true, async (m, b, u) => {
+    if (!wxpayOn()) throw new ApiError(503, '微信支付未配置');
+    const p = PRICES[String(b.kind || '')];
+    if (!p) throw new ApiError(400, '未知商品');
+    const t = now();
+    const otn = ('P' + t + crypto.randomBytes(6).toString('hex')).slice(0, 32);   // 商户单号：≤32 位字母数字
+    const orderId = crypto.randomUUID();
+    q.orderCreate.run(orderId, u.id, b.kind, p.fen, 'wxpay', otn, 'pending', t, null);
+    const codeUrl = await wxpay.nativePrepay({ description: p.desc, outTradeNo: otn, totalFen: p.fen, notifyUrl: WXPAY.notifyUrl }, WXPAY);
+    return { order_id: orderId, code_url: codeUrl, amount_fen: p.fen };
+  }],
+  ['GET', /^\/api\/pay\/status\/([A-Za-z0-9-]+)$/, true, async (m, b, u) => {
+    const o = q.orderGet.get(m[1]);
+    if (!o || o.user_id !== u.id) throw new ApiError(404, '订单不存在');
+    if (o.status === 'paid') return { status: 'paid' };
+    if (o.status !== 'pending' || o.channel !== 'wxpay') return { status: o.status };
+    const r = await wxpay.queryByOutTradeNo(o.out_trade_no, WXPAY);   // 查单确认（伪造回调无法触发发货）
+    if (r.state === 'SUCCESS') {
+      const p = PRICES[o.kind];
+      if (p) fulfillOrder(o.id, p.ent, p.days);
+      return { status: 'paid' };
+    }
+    if (r.state === 'CLOSED' || r.state === 'REVOKED' || r.state === 'PAYERROR') return { status: 'closed' };
+    return { status: 'pending' };
+  }],
+  ['POST', /^\/api\/pay\/notify$/, false, async (m, b) => {
+    /* 回调仅当加速器：解密拿单号 → 主动查单确认 → 发货（幂等）。解不开/查不到一律回 FAIL 让微信重试。 */
+    if (!wxpayOn()) return { ___status: 503, code: 'FAIL', message: 'not configured' };
+    try {
+      const res = b && b.resource;
+      const inner = wxpay.decryptNotify({ ciphertext: res.ciphertext, nonce: res.nonce, associatedData: res.associated_data }, WXPAY.apiV3Key);
+      const o = q.orderByOtn.get(inner.out_trade_no || '');
+      if (o && o.status === 'pending') {
+        const r = await wxpay.queryByOutTradeNo(o.out_trade_no, WXPAY);
+        if (r.state === 'SUCCESS') { const p = PRICES[o.kind]; if (p) fulfillOrder(o.id, p.ent, p.days); }
+      }
+      return { code: 'SUCCESS', message: '' };
+    } catch (e) { console.error('支付回调处理失败:', e.message); return { ___status: 500, code: 'FAIL', message: 'retry' }; }
+  }],
+
   ['POST', /^\/api\/events$/, false, (m, b, u, req) => {
     const name = String(b.name || '');
     if (!EVENT_NAMES.has(name)) return { ok: true };                  // 未知事件静默丢弃（不给探测面）

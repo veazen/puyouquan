@@ -81,6 +81,11 @@ chk 二次兑换被拒 '已被使用' "$(J -X POST http://127.0.0.1:3199/api/red
 chk 兑换后为会员 '"vip":true' "$(J http://127.0.0.1:3199/api/me/entitlements)"
 chk 会员配额2000 '"quota":2000' "$(J http://127.0.0.1:3199/api/me/entitlements)"
 chk 埋点白名单事件 '"ok":true' "$(curl -s -X POST http://127.0.0.1:3199/api/events -H 'Content-Type: application/json' -d '{"name":"visit"}')"
+# v45.4 微信支付（未配置环境）：价目表可读、下单 503、回调 FAIL 不发货
+chk 价目表含三商品 '"vip_year"' "$(curl -s http://127.0.0.1:3199/api/pay/prices)"
+chk 价目表金额为分 '"fen":9800' "$(curl -s http://127.0.0.1:3199/api/pay/prices)"
+chk 未配置支付下单503 '未配置' "$(J -X POST http://127.0.0.1:3199/api/pay/create -d '{"kind":"vip_month"}')"
+chk 未配置回调FAIL 'FAIL' "$(curl -s -X POST http://127.0.0.1:3199/api/pay/notify -H 'Content-Type: application/json' -d '{}')"
 chk 管理工具查用户含权益 'vip' "$(DB_PATH="$DIR/t.db" node admin.js user 13800001234 2>/dev/null)"
 
 chk 删除谱面级联 '"deleted":true' "$(J -X DELETE http://127.0.0.1:3199/api/scores/song_abc12345)"

@@ -10758,8 +10758,10 @@ function qrModules(text, ecc) {
   }
   return best;
 }
-/* 分享卡链接：已发布谱→ puku/pub/ID（可被搜索引擎/微信收录的 SSR 落地页，扫码后自动转在线观看），否则官网 */
+/* 分享卡链接：已发布谱→ puku/pub/ID（可被搜索引擎/微信收录的 SSR 落地页，扫码后自动转在线观看），否则官网。
+   v45.5 观看模式：正在看的发布谱（viewerCtx.pubId）优先——看谱人生成的分享卡直达这首谱。 */
 function shareCardURL(){
+  try{ if(typeof viewerMode!=='undefined' && viewerMode && viewerCtx && viewerCtx.pubId) return "https://puku.puyouquan.com/pub/"+viewerCtx.pubId; }catch(_){}
   try{ const rec=circlePubs().find(p=>p&&p.online&&p.cloudId&&p.libId===song.id); if(rec) return "https://puku.puyouquan.com/pub/"+rec.cloudId; }catch(_){}
   return "https://puyouquan.com";
 }
@@ -10803,7 +10805,8 @@ function buildShareCardSVG(){
   ${qr}
 </svg>`;
 }
-function exportShareCard(){
+/* 分享卡渲染（v45.5 抽出复用）：SVG→2x canvas，cb(canvas)。下载与 H5 弹窗两个出口共用。 */
+function shareCardCanvas(cb, onErr){
   let xml=buildShareCardSVG();
   const cs=getComputedStyle(document.documentElement);
   const ink=(cs.getPropertyValue('--ink')||'#141414').trim();
@@ -10818,15 +10821,32 @@ function exportShareCard(){
     const g=cv.getContext('2d');
     g.fillStyle='#faf9f6'; g.fillRect(0,0,cv.width,cv.height);
     g.drawImage(img,0,0,cv.width,cv.height);
+    cb(cv);
+  };
+  img.onerror=()=>{ if(onErr) onErr(); else toast('分享卡生成失败，请重试'); };
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+}
+function exportShareCard(){
+  shareCardCanvas(cv=>{
     cv.toBlob(b2=>{
       const a=document.createElement('a');
       a.href=URL.createObjectURL(b2); a.download=(song.title||'曲谱')+'-分享卡.png'; a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href),4000);
       toast('已生成分享卡 PNG（可直接发微信/朋友圈/小红书）');
     },'image/png');
-  };
-  img.onerror=()=>toast('分享卡生成失败，请重试');
-  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+  });
+}
+/* v45.5 H5 分享卡：看谱页（手机微信内下载不可用）以弹窗展示 PNG，长按即可保存/转发 */
+function showShareCardModal(){
+  pyqEvent('share_card', 'viewer');
+  shareCardCanvas(cv=>{
+    const url=cv.toDataURL('image/png');
+    showModal(`<h3>分享卡</h3>
+      <div style="text-align:center"><img src="${url}" alt="分享卡" style="max-width:min(320px,80vw);border:1px solid var(--border);border-radius:8px"></div>
+      <p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:8px">长按图片保存或转发到微信 / 朋友圈；扫卡上二维码可直达本谱在线观看。</p>
+      <div class="btns"><button id="sc-close" class="primary">关闭</button></div>`, true);
+    document.getElementById('sc-close').onclick=closeModal;
+  });
 }
 /* 互动谱导出（v38.5）：把整个应用自打包成单文件 HTML 并注入当前曲谱，
    收到的人浏览器打开即进入观看模式——可播放/倍速/节拍器/移调/切记谱法/谱架，无需安装。
@@ -11540,6 +11560,7 @@ async function openRemotePub(id){
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
     <button id="vw-fav" title="收藏这首谱">♡ 收藏</button>
+    <button id="vw-card" title="生成品牌分享卡图片（含直达本谱二维码），长按保存转发">分享卡</button>
     <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
     <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>`;
   updateVwKey();
@@ -11549,6 +11570,7 @@ async function openRemotePub(id){
   document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
   document.getElementById('vw-stand').onclick=enterStand;
   document.getElementById('vw-fav').onclick=()=>vwToggleFav();
+  { const vc=document.getElementById('vw-card'); if(vc) vc.onclick=showShareCardModal; }   // v45.5 H5 分享卡
   updateVwFav();
   window.scrollTo(0,0);
 }
@@ -11787,8 +11809,11 @@ function pcRightsHTML(){
   const cards=Object.entries(MEMBER_PLANS).map(([k,v])=>{
     const active = k==='free'? !has('vip') : has(k);
     const feats=v.feats.map(f=>`<li>${esc(f)}</li>`).join('');
+    const payBtns = k==='vip'? `<button data-pay="vip_month" class="mb-pick primary">微信支付 ¥15/月</button><button data-pay="vip_year" class="mb-pick primary">¥98/年</button>`
+      : `<button data-pay="pack_kaobian" class="mb-pick primary">微信支付 ¥39</button>`;
     const btn = k==='free'? (active? `<button class="mb-cur" disabled>当前方案</button>` : `<button class="mb-cur" disabled>已含在会员内</button>`)
       : active? `<button class="mb-cur" disabled>已开通${expOf(k)?'（'+esc(expOf(k))+(expOf(k)==='永久'?'':' 到期')+'）':''}</button>`
+      : (API_ON && ACCT && window.PYQ_WXPAY)? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">${payBtns}<button data-buy="${k}" class="mb-pick">兑换码</button></div>`
       : `<button data-buy="${k}" class="mb-pick primary">兑换码开通</button>`;
     return `<div class="mb-card ${active?'on':''} ${k}">
       <div class="mb-tag">${esc(v.tag)}</div>
@@ -11807,6 +11832,43 @@ function pcRightsHTML(){
     <p style="font-size:12px;color:var(--muted);margin-top:6px">兑换码可通过官方渠道购买；在线支付即将上线。</p>` : '';
   return `<h4>我的权益</h4>${status}
     <div class="mb-grid">${cards}</div>${redeem}`;
+}
+/* v45.4 微信 Native 扫码支付：下单→弹二维码（qrModules 复用）→轮询 status→到账刷新权益。
+   价格由服务端 /pay/create 权威计费，前端按钮文案仅展示。 */
+let _payTimer=0;
+function stopPayPoll(){ if(_payTimer){ clearInterval(_payTimer); _payTimer=0; } }
+async function startWxPay(kind){
+  pyqEvent('paywall_view', 'pay:'+kind);
+  let r;
+  try{ r=await apiCall('/pay/create',{method:'POST',body:{kind}}); }
+  catch(e){ toast(e.message||'下单失败，请稍后重试'); return; }
+  let qrSvg='';
+  try{
+    const qm=qrModules(r.code_url), qn=qm.length, px=210, cell=px/qn;
+    let rects='';
+    for(let i=0;i<qn;i++) for(let j2=0;j2<qn;j2++) if(qm[i][j2])
+      rects+=`<rect x="${(j2*cell).toFixed(2)}" y="${(i*cell).toFixed(2)}" width="${(cell+0.4).toFixed(2)}" height="${(cell+0.4).toFixed(2)}" fill="#1c1c1c"/>`;
+    qrSvg=`<svg width="${px}" height="${px}" viewBox="0 0 ${px} ${px}" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px;box-sizing:content-box">${rects}</svg>`;
+  }catch(_){ toast('二维码生成失败'); return; }
+  showModal(`<h3>微信扫码支付</h3>
+    <div style="text-align:center;padding:6px 0 2px">${qrSvg}
+      <div style="font-size:15px;font-weight:700;margin-top:10px">¥ ${(r.amount_fen/100).toFixed(2)}</div>
+      <div id="pay-state" style="font-size:12.5px;color:var(--muted);margin-top:4px">请用微信扫一扫完成支付…</div>
+    </div>
+    <div class="btns"><button id="pay-cancel">取消</button></div>`, true);
+  document.getElementById('pay-cancel').onclick=()=>{ stopPayPoll(); openPersonal('rights'); };
+  let ticks=0;
+  stopPayPoll();
+  _payTimer=setInterval(async ()=>{
+    if(++ticks>120){ stopPayPoll(); const el=document.getElementById('pay-state'); if(el) el.textContent='二维码已过期，请重新发起支付'; return; }
+    try{
+      const s=await apiCall('/pay/status/'+r.order_id);
+      if(s.status==='paid'){
+        stopPayPoll(); await entRefresh();
+        toast('支付成功，权益已到账'); openPersonal('rights');
+      }else if(s.status==='closed'){ stopPayPoll(); const el=document.getElementById('pay-state'); if(el) el.textContent='订单已关闭，请重新发起支付'; }
+    }catch(_){/* 网络抖动继续轮询 */}
+  }, 2500);
 }
 function openPersonal(tab){
   tab = tab||'profile';
@@ -11951,6 +12013,7 @@ function openPersonal(tab){
     });
   }else if(tab==='rights'){
     const lg=document.getElementById('rt-login'); if(lg) lg.onclick=()=>openLogin();
+    M.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>startWxPay(b.dataset.pay));
     M.querySelectorAll('[data-buy]').forEach(b=>b.onclick=()=>{
       const inp=document.getElementById('rt-code');
       if(inp){ inp.focus(); inp.placeholder='输入「'+MEMBER_PLANS[b.dataset.buy].name+'」兑换码'; }
@@ -11996,7 +12059,7 @@ async function acctRefresh(){
 if(API_ON) acctRefresh();
 if(API_ON) pyqEvent('visit');   // v45.3 埋点：页面访问（仅线上）
 /* v43.6 探测服务端是否已开通微信登录（未配置则登录弹窗不显示微信入口，避免死按钮） */
-if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); }).catch(()=>{}); }
+if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); window.PYQ_WXPAY=!!(j&&j.wxpay); }).catch(()=>{}); }
 /* v43.6 微信登录回跳：callback 302 回本页带 ?wxlogin=ok/fail —— 刷新账号态并清理 query */
 if(API_ON){ const _wl=new URLSearchParams(location.search).get('wxlogin');
   if(_wl){ try{ history.replaceState(null,'',location.pathname+location.hash); }catch(_){}
@@ -12317,6 +12380,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.4</span><div><b>微信支付上线 + 看谱页分享卡（微信生态四件套）</b>：① <b>微信扫码支付</b>——「我的权益」里可直接微信支付开通会员（月/年）与考编内容包：点按钮出二维码、扫码支付、<b>到账即时生效</b>（服务端以主动查单确认为准，安全可靠；与兑换码并行可用）。② <b>看谱页也能出分享卡</b>——在线看任何发布谱时，观看栏新增「分享卡」：一键生成品牌谱面卡图片（含直达本谱二维码），<b>手机上长按即可保存/转发微信</b>，看谱人也能帮谱传播。③ 微信扫码登录服务端就绪（配置后自动显示入口）；④ 谱库小程序脚手架入库（web-view 承载谱库，分享卡片带谱直达，待管理员配置业务域名后提审）。</div></li>
     <li><span class="v">v45.3</span><div><b>会员体系上线：真实权益 + 兑换码开通（商业闭环 · 第一步）</b>：个人中心「我的权益」从演示页升级为<b>真实会员系统</b>——① <b>权益如实划分</b>：全部核心制谱（八场景/三谱互切/智能配谱/MusicXML/云同步 500 首/发布）<b>明确永久免费</b>；会员（￥15/月 · ￥98/年）提供<b>云端曲谱扩容至 2000 首</b>等真实增量；「考编内容包」（￥39 买断）制作中，上线后自动到账。② <b>兑换码开通</b>：输入官方渠道购得的兑换码即时开通、跨设备生效（服务端权益记录，不再是本机演示开关）；在线支付即将上线。③ 服务端新增权益/订单/兑换码/流水/统计五张数据表与管理工具，为在线支付与创作者分成打好地基。</div></li>
     <li><span class="v">v45.2</span><div><b>自动配和弦会用「副属和弦」了（P1 智能配谱深化收官）</b>：当旋律里<b>明确写了某个升号导音、且下一小节正是它的解决目标</b>时，自动配和弦会把这一小节配成<b>副属和弦（离调属七）</b>——比如旋律出现 <code>#4</code> 且下一小节是 G，本小节自动配 <b>D7（V/V）</b>，进行更有推动力、更地道。<b>纯自然音旋律不会触发</b>（不无端加半音色彩），是保守的旋律驱动策略：只在你确实写了变化音时才用。至此 P1「智能配谱 + 织体」深化收官（功能和声全局寻优 → 属七终止 → 一小节两和弦 → 四种拍号织体 → 副属和弦）。<code>tv_arrange</code> 回归增至 10 项。</div></li>
     <li><span class="v">v45.1</span><div><b>伴奏织体扩到 2/4 与 6/8 拍（P1 · 织体深化）</b>：内置伴奏织体库从「只支持 4/4 与 3/4」扩到<b>2/4、3/4、4/4、6/8 四种拍号</b>，新增 4 套织体：<b>进行曲 2/4、波尔卡 2/4、船歌 6/8、摇篮曲 6/8</b>（6/8 的附点四分脉冲、蓬-哒-哒律动）。这样 <b>2/4 的进行曲/儿歌、6/8 的抒情摇篮曲</b> 也能一键生成双手伴奏——师范儿歌伴奏、艺考视唱常见的复合拍终于有了内置织体。<code>tv_acc</code>/<code>tv_arrange</code> 回归同步更新。</div></li>
