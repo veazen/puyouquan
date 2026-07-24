@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v45.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v45.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -407,3 +407,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v45.6 细节批次1 + 小节内换谱号**（产品负责人细节修复清单第一批）：① TAB 闷音/和弦内音 ×→15px、打板 ×→16px（index.html TAB 渲染两处 font-size）。② TAB 休止符弃 Unicode 文本字形改 `staffRestStr`(SMuFL, SG=6, 以 TAB 中部为等效中线)，附点休止的附点随之显示。③ 联排(tabStaff)谱表↔TAB 间距自适应：`sysMetrics` 扫全曲 tab 音符 `midiToStaff(+12)` 谱级，step<32/step>48 按 3.75px/级加 `tLedDn/tLedUp`，基础间隙 9→14（treble-8vb 的"8"缀需 ≥13 净空）。④ **小节内换谱号**：新增列级字段 `col.clef`('staff'/'bass'/'alto'，永不改名删除)——渲染层 `CLEF_BOT` 表 + 每小节 `bots[]`/`setClefCtx(ci)` 让 `S_BOT/S_MID`（改 let）按列生效（stepY/加线/符干方向/符杠/连线/连音号全部接入），行首谱号/调号音位=行首生效谱号（自曲首推进）；换谱号列画 3/4 小号谱号（`smg {scale:0.75}`），`measureLayout` 该列 `wB+20/cmin+20/xs+18` 让位；MusicXML 中途 `<attributes><clef>` 导出/导入（首个 clef=声部级，其后挂 `pendClef`→下一列）；入口=记号面板「谱号切换」`b-clef`→`showClefMenu`(popmenu 高/中/低/恢复)。⑤ 拍弦=框内×：`col.slap` 列音符渲染并入 ×分支（品位数字→×），`b-slap` 图标同步框内×。⑥ 右栏信息卡补齐：`ri-lyricist/composer/maker/tuning/type`(谱类·小节数) 同步，空值行隐藏；`TYPE_CN` 自谱库段前移至 `tuningLabel` 附近（renderDock 早于原声明位置执行，避免 TDZ）。新增 `tv_detail1` 7 项几何断言，27 套件全绿。
 
 > **v45.7 细节批次2 + 联排谱号可选**（用户截图反馈跟进）：① 联排行首小节号 `cStaffT-8→-14`（高音谱号上弧顶伸到顶线上方 ~10px 会压住数字）。② 联排谱表↔TAB 间距改**像素级**：`sysMetrics` 下方净空 = 下加线深度（每谱级 3.75px，v45.6 的谱级阈值口径低估导致仍重叠）+ TAB 顶线上方装饰高度（推弦弧 24/细分泛音 17/技法字母 13，按弦位 `-(s-1)*STR_GAP` 折算）之和 + 边距；上方净空同理。③ 和弦图假横按修正：`chordDiagramSVG` 横按判定加条件 同品跨度≥3 弦距（Em/A 分指不再连杠；F/Bm/Bb 真横按保留），圆点 r 2.8→2.5。④ `b-notation` 移入 `panel-tab-notation`（组名「记谱法 · 谱号」），CSS order 规则移除。⑤ **联排谱号可选**：新字段 `song.tabClef`（undefined=treble-8vb / 'bass'=bass-8vb，永不改名删除）——联排渲染块 SBt/SMt 参数化（谱号字形/调号音位表/加线阈值 SBt±/符干方向与中线），`tn-clef-g/f` 按钮（仅联排时显示）。⑥ EB_TECHS `bd 下推弦`→`mute 哑音`（techFromBar 路由 toggleMute；下推弦=推弦回放已并入推弦弹窗类型，旧 bd 数据照常渲染）。tv_detail1 增至 11 项，27 套件全绿。
+
+> **v45.8 细节批次3（读谱体验）**：① 行首小节号改右对齐收进左页边距、贴谱表顶线（`text-anchor="end"` x=oxH-4 y=staffT/cStaffT+2，联排 3800s 与纯五线谱 4430s 两处同口径；v45.7 只上移避让结果悬空漂移）。② **系统左端连线**：`systems.forEach` 头部按 M 度量收集本行谱行段（联排=五线谱段+TAB 段各一、TAB 段 `[tabTop, +staffH()]`、五线谱段 `[staffB-30, staffB]`（dual 延至简谱行）、简谱段 `[voxY-13, voxY+4]`），segs≥2 时在 oxH 画一条贯通竖线（单谱行不画，Gould 惯例）。③ TAB 整小节休止：`emptyTm`（无 notes/strum/perc）→ 小节中央一枚全休止（`staffRestStr(mx+w/2, ...)`），逐列休止跳过；列热区保留。tv_detail1 增至 15 项（T12 小节号入边距/T13 连线联排+弹唱/T14 居中休止 dev<10px），27 套件全绿。

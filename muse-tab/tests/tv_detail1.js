@@ -11,7 +11,11 @@
    T8 和弦图横按判定收紧：Em(022000) 两邻弦同品不再画横杠、Bm(x24432) 跨 4 弦距仍画横杠
    T9 联排像素级间距：低音下加线深度(26.25px)+边距 → gap≥36；高弦推弦装饰 → gap≥30
    T10 联排低音谱号（song.tabClef='bass'）：低音入谱表 gap 回落、高音上加线区向上扩
-   T11 面板重组：b-notation 入记谱法组、技巧含哑音无下推弦、tn-clef 按钮存在、techFromBar('mute') 翻转 n.x */
+   T11 面板重组：b-notation 入记谱法组、技巧含哑音无下推弦、tn-clef 按钮存在、techFromBar('mute') 翻转 n.x
+   ---- v45.8 细节批次3 ----
+   T12 行首小节号右对齐收进左页边距（text-anchor=end、x<MARGIN、贴谱表顶线）
+   T13 系统左端连线：联排(五线谱+TAB) 行首竖线贯通两谱行（x=MARGIN 跨度≥80）；弹唱(TAB+简谱)同样相连
+   T14 TAB 全空小节居中画一个全休止（不再逐列落在列位；部分空列仍逐列画） */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -197,6 +201,55 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t11.inNota && t11.clefBtns && t11.hasMute && t11.noBd && t11.xOn && t11.xOff,
     'T11 面板重组(记谱风格分组/哑音入技巧/谱号按钮)', JSON.stringify(t11));
+
+  // T12+T13 v45.8 行首小节号入边距 + 系统左端连线（联排两谱行贯通）
+  const t12 = await pg.evaluate(() => {
+    const s = createSong('solo', { beats: 4, unit: 4, key: 'C', nMea: 9, nTab: 1, nVox: 0, lyr: 0 });
+    s.tabStaff = true;
+    for (let i = 0; i < 9; i++) s.measures[i].tabs[0] = [{ dur: 2, notes: [{ s: 6, f: 0 }] }, { dur: 2, notes: [{ s: 1, f: 0 }] }];
+    loadSong(s);
+    const svg = document.getElementById('score').innerHTML;
+    // 行首小节号：右对齐、x ≤ MARGIN-4=52
+    const mnum = /<text x="(\d+(?:\.\d+)?)" y="[\d.]+" font-size="9.5" text-anchor="end"[^>]*opacity="0.65">\d+</.exec(svg);
+    // 系统左端连线：x=56 竖线，跨度 ≥80（谱表30 + 间距 + TAB45）
+    let conn = false;
+    const re = /<line x1="56" y1="([\d.]+)" x2="56" y2="([\d.]+)"/g; let m2;
+    while ((m2 = re.exec(svg))) { if (Math.abs(+m2[2] - +m2[1]) >= 80) conn = true; }
+    return { mnumX: mnum ? +mnum[1] : null, conn };
+  });
+  T(t12.mnumX !== null && t12.mnumX <= 52, 'T12 行首小节号入左边距(anchor=end)', JSON.stringify(t12));
+  T(t12.conn, 'T13a 联排行首竖线贯通(跨度≥80)', JSON.stringify(t12));
+
+  // T13b 弹唱谱（TAB+简谱声部）行首同样相连
+  const t13 = await pg.evaluate(() => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 1 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 2, notes: [] }, { dur: 4, notes: [] }];
+    loadSong(s);
+    const svg = document.getElementById('score').innerHTML;
+    let span = 0;
+    const re = /<line x1="56" y1="([\d.]+)" x2="56" y2="([\d.]+)"/g; let m2;
+    while ((m2 = re.exec(svg))) span = Math.max(span, Math.abs(+m2[2] - +m2[1]));
+    return { span: +span.toFixed(1) };
+  });
+  T(t13.span >= 80, 'T13b 弹唱谱 TAB↔简谱行首相连', JSON.stringify(t13));
+
+  // T14 TAB 全空小节居中全休止：m1 部分空(2枚列位休止) + m2 全空(1枚居中全休止)
+  const t14 = await pg.evaluate(() => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
+    s.measures[1].tabs[0] = [{ dur: 2, notes: [] }, { dur: 2, notes: [] }];
+    loadSong(s);
+    const svg = document.getElementById('score').innerHTML;
+    const xs = [];
+    const re = /transform="translate\((\d+(?:\.\d+)?),[\d.-]+\) scale\(6\.000\)"/g; let m2;
+    while ((m2 = re.exec(svg))) xs.push(+m2[1]);
+    // 期望 3 枚 TAB 休止（m1 两枚 + m2 一枚居中）；m2 的休止 x ≈ 小节中点
+    const S2 = layoutSystems(); const lm2 = S2[0].measures[1];
+    const cx = 56 + STAFF_HEAD_W + lm2.x + lm2.L.w / 2;
+    const dev = Math.min(...xs.map(x => Math.abs(x - cx)));
+    return { n: xs.length, dev: +dev.toFixed(1) };
+  });
+  T(t14.n === 3 && t14.dev < 10, 'T14 TAB 全空小节居中全休止', JSON.stringify(t14));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

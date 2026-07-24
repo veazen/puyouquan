@@ -3824,6 +3824,24 @@ function render(){
     const oy = sysY[sIdx];
     const ox = MARGIN + STAFF_HEAD_W, oxH = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
+    /* v45.8 系统左端连线（出版惯例）：行首把本行各谱行（联排五线谱/TAB/五线谱/简谱声部）
+       用一条竖线相连，方便逐行对位读谱；单行谱不画（Gould：单谱表行首无需起始小节线） */
+    {
+      const segs=[];
+      song.tabVoices.forEach((_,vi2)=>{
+        const tt=oy+M.tabTops[vi2];
+        if(song.tabStaff) segs.push([oy+M.tabStaffB[vi2]-30, oy+M.tabStaffB[vi2]]);   // 联排五线谱与其 TAB 各为一行，行首相连
+        segs.push([tt, tt+staffH()]);
+      });
+      song.voxVoices.forEach((_,vi2)=>{
+        const nt2=(song.voxNotations||[])[vi2], dual2=(song.voxDual||[])[vi2];
+        const vy=oy+M.voxYs[vi2];
+        if(isStaffNota(nt2)){ const sb=vy-6-(dual2?26:0); segs.push([sb-30, dual2? vy+4 : sb]); }
+        else segs.push([vy-13, vy+4]);
+      });
+      if(segs.length>=2)
+        p.push(`<line x1="${oxH}" y1="${Math.min(...segs.map(s=>s[0])).toFixed(1)}" x2="${oxH}" y2="${Math.max(...segs.map(s=>s[1])).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+    }
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = staffH(), SN = strN();
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
@@ -3854,10 +3872,10 @@ function render(){
           p.push(tsigStr(hm.unit,  ox+9, cStaffB-cSGt,   cSGt));
         }
         p.push(`<line x1="${oxH}" y1="${cStaffT}" x2="${oxH}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
-        /* 小节号：非首行行首标注（联排谱画在五线谱表上方）；
-           v45.7 上移避让——高音谱号上弧顶伸到谱表顶线上方约 10px，原 cStaffT-8 会被谱号压住 */
+        /* 小节号：非首行行首标注——v45.8 右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号
+           置于系统左外侧；v45.7 只是上移避让谱号，结果悬空漂移，用户反馈位移严重） */
         if(sIdx>0 && vi===0 && sys.measures.length)
-          p.push(`<text x="${oxH+1}" y="${(cStaffT-14).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${meaNo(sys.measures[0].mi)}</text>`);
+          p.push(`<text x="${oxH-4}" y="${(cStaffT+2).toFixed(1)}" font-size="9.5" text-anchor="end" fill="var(--ink)" opacity="0.65">${meaNo(sys.measures[0].mi)}</text>`);
         /* 逐小节：小节线 + 音符（叠置符头/共用符干/符杠/休止符） */
         sys.measures.forEach(lm=>{
           const cols = song.measures[lm.mi].tabs[vi]||[];
@@ -4087,6 +4105,10 @@ function render(){
           g.idx.forEach(i2=>dotLv.set(i2, maxD));
         });
         const bendDecor=[];   // 推弦圆圈/连线：列绘制完成后再上层绘制
+        /* v45.8 TAB 整小节休止（出版惯例，与五线谱/联排同口径）：全空小节画一个居中全休止，
+           不再逐列画休止符落在列位上（用户反馈全休止应居中）；列热区保留可继续输入 */
+        const emptyTm = !simN && cols.length>0 && !cols.some(c2=>(c2.notes||[]).length || c2.strum || c2.perc);
+        if(emptyTm) p.push(staffRestStr(mx+lm.L.w/2, tabTop+STAFF/2+12, 6, 1, false));
         if(!simN) cols.forEach((col,ci)=>{
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
@@ -4291,11 +4313,12 @@ function render(){
               const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
               p.push(`<text x="${nx}" y="${tabTop+STAFF/2+5}" font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
               p.push(`<text x="${nx}" y="${tabTop-3}" font-size="7.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);
-            }else if(!col.notes.length)
+            }else if(!col.notes.length && !emptyTm)
               {
                 /* 空列（无音符/无扫弦）画休止符，让时值可见——
                    v45.6 Unicode 文本字形（𝄽 等）随字体渲染过小，改用 SMuFL 出版字形（与五线谱同源），
-                   注册规则同 staffRestStr：TAB 中部为等效谱表中线（SG=6 略小于谱表、匹配 TAB 密度），附点同步显示 */
+                   注册规则同 staffRestStr：TAB 中部为等效谱表中线（SG=6 略小于谱表、匹配 TAB 密度），附点同步显示；
+                   v45.8 全空小节不逐列画（居中全休止见小节级 emptyTm） */
                 p.push(staffRestStr(nx, tabTop+STAFF/2+12, 6, col.dur, col.dotted));
               }
           }
@@ -4482,10 +4505,11 @@ function render(){
             else p.push(`<text x="${mx+7}" y="${voxY-3}" font-size="12" font-weight="700" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${cmM.beats}/${cmM.unit}</text>`);
           }
         }
-        /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部 */
+        /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部；
+           v45.8 右对齐收进左页边距、垂直贴谱表顶线（与联排口径一致，不被谱号压住也不悬空） */
         if(isStaff && lmIdx===0 && sIdx>0 && !song.tabVoices.length &&
            vi===(song.voxNotations||[]).findIndex(isStaffNota))
-          p.push(`<text x="${oxH+1}" y="${(staffT-12).toFixed(1)}" font-size="9.5" fill="var(--ink)" opacity="0.65">${meaNo(lm.mi)}</text>`);
+          p.push(`<text x="${oxH-4}" y="${(staffT+2).toFixed(1)}" font-size="9.5" text-anchor="end" fill="var(--ink)" opacity="0.65">${meaNo(lm.mi)}</text>`);
         if(isErr)
           p.push(`<rect x="${mx}" y="${rowT}" width="${lm.L.w}" height="${rowH+4}" fill="var(--danger)" opacity="0.07"/>
             <text x="${mx+lm.L.w-8}" y="${rowT+8}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
@@ -12583,6 +12607,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.8</span><div><b>谱面细节修复批次 3（读谱体验）</b>：① <b>行首小节编号归位</b>——右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号置于系统左外侧），彻底解决被谱号压住/上移后悬空漂移的问题；② <b>每行行首谱行相连</b>——五线谱+TAB 联排、弹唱谱的 TAB+简谱行、教学对照谱等多谱行曲谱，每行行首用一条竖线把各谱行连成一组（参考出版谱系统线惯例），逐行对位读谱更清晰；单谱行曲谱保持原样；③ <b>TAB 全休止符居中</b>——全空小节改为在小节中央画一个全休止符（与五线谱同口径），不再逐列落在列位上；部分空拍仍按位置画对应时值休止符。</div></li>
     <li><span class="v">v45.7</span><div><b>谱面细节修复批次 2 + 联排谱号可选</b>：① <b>行首小节编号上移</b>——不再被高音谱号上弧压住；② <b>五线谱+TAB 联排间距重修</b>——改为像素级精确计算（谱表下加线深度 + TAB 上方推弦弧/技法标注高度求和），推弦、低音下加线与 TAB 彻底不再重叠；③ <b>和弦图横按判定收紧</b>——Em/A 等两三根邻弦同品是分指按法，不再被误画成横按横杠把圆点连成一团（F/Bm/Bb 等真横按仍正常画），圆点大小同步微调防粘连；④ <b>「记谱风格」独立分组</b>——移入左栏「记谱法 · 谱号」组（与 TAB/TAB+五线谱 同组），不再混在音符记号里；⑤ <b>联排五线谱谱号可选</b>：新增 <b>高音谱号（吉他标准）/ 低音谱号（贝斯记谱）</b>切换，低音吉他/贝斯谱的联排更专业；⑥ <b>技巧面板「下推弦」改为「哑音」</b>——下推弦（推弦回放）已并入推弦弹窗的类型选择，原按钮位改为哑音 ×（死音）直达入口。</div></li>
     <li><span class="v">v45.6</span><div><b>谱面细节修复批次 1 + 五线谱小节内换谱号</b>：① 吉他谱 <b>× 记号放大</b>（闷音/和弦内音 ×→15px、打板 ×→16px，与品位数字视觉匹配）；② <b>TAB 休止符改用出版级 SMuFL 字形</b>（与五线谱同源，此前的文本字形过小），附点休止的附点也同步画出；③ <b>五线谱+TAB 联排间距自适应</b>——低音弦下加线音符多时谱表与 TAB 自动拉开，不再互相重叠；④ <b>五线谱支持小节内换谱号</b>：记号面板新增「谱号切换」，自选中音起在<b>高音/中音/低音谱号</b>间切换（同一小节内也可多次切换，谱面画小号谱号；仅换记谱位置，音高与播放不变），并进 MusicXML 导出/导入无损往返；⑤ <b>拍弦记号改为「框内×」</b>（GP 惯例：方框内音符一律记 ×）；⑥ <b>右栏曲谱信息卡补齐</b>——新增作词/作曲/制谱/调弦/谱类·小节数，与曲谱数据实时同步，空值行自动隐藏。</div></li>
     <li><span class="v">v45.5</span><div><b>左栏记号/技巧按钮全面「符号优先」（出版级 · 与谱面同源）</b>：编辑器左栏「记号 / 演奏技巧 / 装饰·力度 / 扫弦·琶音」面板的按钮，从「中文文字为主」升级为<b>标准出版级符号大图 + 中文小字为辅</b>——升降还原号/延长号/跳音/保持音/重音/顿强/波音/颤音/回音等直接取<b>谱面渲染同一份 Bravura(SMuFL) 字形</b>（按钮上看到什么，谱上就是什么）；连音线/断音/震音/滑音/琶音/切音等按谱面画法内联绘制；吉他技法字母（S/h/p/b↑/P.M.…）改为与谱面一致的衬线斜体。<b>鼠标悬停仍有完整中文说明</b>。找记号从「读文字」变成「认符号」，与专业制谱软件一致。</div></li>
