@@ -1674,27 +1674,31 @@ function genAccompaniment(texId, m1, m2, opt){
    逐小节给旋律（默认声部0）配 I/IV/V/vi/ii/iii：按"音符时值×强拍权重×和弦内音
    命中（根音加权）"打分，首小节偏 I、末小节强偏 I；变化音不计分。
    建议默认不覆盖已有和弦。TODO: 小调/半小节换和弦/V7/终止式模板。 */
+/* v44.9 智能配和弦深化：功能和声 Viterbi——不再逐小节贪心，而是「发射分(旋律契合)+转移分(功能进行)」
+   全局最优。候选加属七 V7；转移偏好 T→S→D→T 顺行、D→T 解决、罚 D→S 逆行；末小节偏 I（正格终止）。
+   仍每小节一个和弦（保持返回形状，arrangeAccompaniment/标和弦 调用不变）。 */
 function suggestChords(s2, vi){
   s2=s2||song; vi=vi||0;
   const CAND=[
-    {deg:1,m:false,tones:[1,3,5],w:1.2},
-    {deg:4,m:false,tones:[4,6,1],w:1.1},
-    {deg:5,m:false,tones:[5,7,2],w:1.1},
-    {deg:6,m:true, tones:[6,1,3],w:1.0},
-    {deg:2,m:true, tones:[2,4,6],w:0.85},
-    {deg:3,m:true, tones:[3,5,7],w:0.7},
+    {id:'I',  deg:1, m:false, tones:[1,3,5],           fn:'T', w:1.2},
+    {id:'IV', deg:4, m:false, tones:[4,6,1],           fn:'S', w:1.1},
+    {id:'V',  deg:5, m:false, tones:[5,7,2],           fn:'D', w:1.1},
+    {id:'V7', deg:5, m:false, tones:[5,7,2], sev:4, suf:'7', fn:'D', w:1.05},   // 属七：三音组 + 七音级数 4
+    {id:'vi', deg:6, m:true,  tones:[6,1,3],           fn:'T', w:1.0},
+    {id:'ii', deg:2, m:true,  tones:[2,4,6],           fn:'S', w:0.85},
+    {id:'iii',deg:3, m:true,  tones:[3,5,7],           fn:'T', w:0.7},
   ];
   const useFlat=(KEYSIG[s2.key]||0)<0;
   const cname=c=>{
     const pc=(((KEY_PC[s2.key]||0)+DEG_SEMI[c.deg])%12+12)%12;
-    return (useFlat?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'');
+    return (useFlat?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'')+(c.suf||'');
   };
   const o0=song; song=s2;
-  const out=[];
-  s2.measures.forEach((mea,mi)=>{
+  const N=s2.measures.length;
+  /* 1) 发射分：每小节每候选的旋律契合度（沿用原打分权重 + 属七七音加分） */
+  const emit = s2.measures.map((mea,mi)=>{
     const cols=mea.voxes[vi]||[];
-    let best=null, bestSc=0;
-    CAND.forEach(c=>{
+    return CAND.map(c=>{
       let sc=0, cum=0;
       cols.forEach(col=>{
         const b=beatsOf(col);
@@ -1702,16 +1706,39 @@ function suggestChords(s2, vi){
           const onBeat=Math.abs(cum-Math.round(cum))<1e-4;
           const w=b*(onBeat?1.5:1)*(cum<1e-4?1.4:1);
           if(c.tones.includes(col.deg)) sc+=w*(col.deg===c.deg?1.25:1);
-          (col.adds||[]).forEach(a=>{ if(a&&!a.acc&&c.tones.includes(a.deg)) sc+=0.3*b; });
+          if(c.sev && col.deg===c.sev) sc+=w*0.9;                                  // 属七七音出现在旋律 → 强化 V7
+          (col.adds||[]).forEach(a=>{ if(a&&!a.acc){ if(c.tones.includes(a.deg)) sc+=0.3*b; if(c.sev&&a.deg===c.sev) sc+=0.25*b; } });
         }
         cum+=b;
       });
       sc*=c.w;
-      if(mi===0 && c.deg===1) sc*=1.25;
-      if(mi===s2.measures.length-1) sc*= c.deg===1? 1.6 : 0.8;
-      if(sc>bestSc){ bestSc=sc; best=c; }
+      if(mi===0 && c.id==='I') sc*=1.25;
+      if(mi===N-1) sc*= c.id==='I'? 1.6 : 0.8;                                    // 末小节正格终止偏 I
+      if(c.id==='V7'){ const has=cols.some(x=>x.deg===c.sev&&!x.acc)||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.sev&&!a.acc)); if(!has) sc-=0.4; }   // 无七音支撑则让位纯 V
+      return sc;
     });
-    out.push(best? cname(best) : null);
+  });
+  /* 2) 功能转移偏好（组→组）；同名和弦保持给小加分 */
+  const TW={'T>S':0.55,'T>D':0.4,'T>T':0.15,'S>D':0.7,'S>T':0.3,'S>S':0.1,'D>T':0.85,'D>D':0.15,'D>S':-0.5};
+  const trans=(k,j)=> CAND[k].id===CAND[j].id? 0.35 : (TW[CAND[k].fn+'>'+CAND[j].fn] ?? 0);
+  /* 3) Viterbi：全局最优功能进行 */
+  const NEG=-1e9;
+  let dp=emit[0]?emit[0].slice():[], bk=s2.measures.map(()=>new Array(CAND.length).fill(0));
+  for(let mi=1; mi<N; mi++){
+    const nd=new Array(CAND.length).fill(NEG);
+    for(let j=0;j<CAND.length;j++){
+      let bi=0, bv=NEG;
+      for(let k=0;k<CAND.length;k++){ const v=dp[k]+trans(k,j); if(v>bv){ bv=v; bi=k; } }
+      nd[j]=bv+emit[mi][j]; bk[mi][j]=bi;
+    }
+    dp=nd;
+  }
+  const idx=new Array(N);
+  if(N){ let last=0; for(let j=1;j<CAND.length;j++) if(dp[j]>dp[last]) last=j; idx[N-1]=last;
+    for(let mi=N-1; mi>0; mi--) idx[mi-1]=bk[mi][idx[mi]]; }
+  const out=s2.measures.map((mea,mi)=>{
+    const cols=mea.voxes[vi]||[];
+    return cols.some(c=>c.deg)? cname(CAND[idx[mi]]) : null;   // 空小节（无旋律音）不配和弦
   });
   song=o0;
   return out;
@@ -12164,6 +12191,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.9</span><div><b>智能配和弦升级：配得更「地道」了（P1 智能配谱深化）</b>：一键配伴奏/自动配和弦的和声引擎从<b>逐小节贪心</b >升级为<b>全局功能和声寻优</b>（Viterbi）——不再各小节各自挑一个「音符最贴」的和弦，而是同时权衡<b>旋律契合度 + 和声进行的功能走向</b>，产出连贯地道的进行（主→下属→属→主 顺行、属→主 正格解决，抑制「属→下属」逆行）。并新增<b>属七和弦 V7</b>：当旋律里出现属和弦的小七度音时自动用 V7、终止式更有推动力（如 …F <b>G7</b> C）。旋律清晰时结果不变、更稳；旋律模糊处进行更顺。<code>tv_arrange</code> 回归增至 7 项。</div></li>
     <li><span class="v">v44.8</span><div><b>倚音/滑音/力度/速度术语进 MusicXML 往返（P0 互操作深化）</b>：MusicXML 导出/导入再补四类表情记号的<b>无损往返</b>——<b>前倚音（装饰音）、滑音、独立力度记号（f/p/mf/sf…）、意大利速度术语（Andante/Allegro…）</b>。此前这些记号导出会丢、从 MuseScore 等导入也读不回；现在<b>导出→导入逐音一致</b>（倚音→<code>grace</code>、滑音→<code>slide</code>、力度→<code>dynamics</code>、术语→<code>words</code>）。至此谱面记号体系的 MusicXML 保真度进一步收口。<code>tv_mxl</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.7</span><div><b>六线谱（TAB）也能导 MusicXML 了（P0 互操作深化）</b>：吉他/独奏/尤克里里的 <b>六线谱声部现在可导出 / 导入 MusicXML</b>——导出为标准 <b>TAB 谱表</b>（六线定弦 <code>staff-tuning</code> + <code>TAB</code> 谱号 + 每个音的<b>弦号/品位</b>技术标记 + 变调夹），可直接在 <b>MuseScore / Guitar Pro / Finale</b> 打开；导入这些软件的 TAB 也能还原成谱友圈的六线谱。此前只有简谱/五线声部能导 MusicXML，纯 TAB 谱直接被拒——这道口子补上了。<b>自定义调弦（Drop D / DADGAD…）、变调夹、和音、闷音 ×、附点、休止</b>全程往返一致（导出→导入逐音校验）。新增 <code>tv_tabmxl</code> 回归 5 项。</div></li>
     <li><span class="v">v44.6</span><div><b>官网 SEO 基建 + 四垂类场景落地页（Sprint 2 · 增长回路收官）</b>：为官网补上被搜索引擎收录的基础设施——<b>robots.txt、站点地图（含发布谱动态 sitemap）、每页 canonical 与社交分享大图（og:image）、结构化数据</b>；并新增四个垂类场景落地页：<b>教师考编、音乐艺考、师范·音乐教育、钢琴即兴伴奏</b>（<code>/kaobian</code> <code>/yikao</code> <code>/shifan</code> <code>/jixing</code>），各自讲清「这个场景怎么用谱友圈配伴奏、出规范谱」，带 FAQ 结构化数据便于命中搜索结果。首页与页脚新增「适用场景」入口。配合 v44.4 发布谱落地页，让目标人群能从搜索/分享一路走到谱友圈。tv_site 回归扩至 14 项。</div></li>

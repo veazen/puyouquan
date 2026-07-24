@@ -81,7 +81,38 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const ok5 = t5.vis1 && t5.modal && t5.vis2;
   console.log((ok5?'✅':'❌')+' T5 入口: 歌谱可见='+t5.vis1+' 弹窗9织体='+t5.modal+' 钢琴弹唱谱隐藏='+t5.vis2);
   if(ok5) pass++;
-  console.log('PASS '+pass+'/5');
+  // T6 v44.9 属七终止：旋律含 b7(级数4) 的属和弦小节 → V7（G7），末小节回 I
+  const t6 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:4});
+    s.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(3,4)];
+    s.measures[1].voxes[0]=[V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)];
+    s.measures[2].voxes[0]=[V(5,4),V(7,4),V(2,4,{oct:1}),V(4,4,{oct:1})];
+    s.measures[3].voxes[0]=[V(1,4),V(1,4),V(1,2)];
+    return suggestChords(s,0).join(' ');
+  })()`);
+  const ok6 = t6==='C F G7 C';
+  console.log((ok6?'✅':'❌')+' T6 属七终止: '+t6+'(期望 C F G7 C)');
+  if(ok6) pass++;
+  // T7 v44.9 功能进行连贯：全局 Viterbi 产出合法功能进行（无 D→S 逆行）
+  const t7 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:5});
+    s.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(1,4)];
+    s.measures[1].voxes[0]=[V(3,4),V(1,4),V(6,4),V(1,4)];
+    s.measures[2].voxes[0]=[V(4,4),V(6,4),V(2,4,{oct:1}),V(4,4)];
+    s.measures[3].voxes[0]=[V(5,4),V(2,4,{oct:1}),V(7,4),V(5,4)];
+    s.measures[4].voxes[0]=[V(1,4),V(3,4),V(1,2)];
+    const ch=suggestChords(s,0);
+    const FN={C:'T',Am:'T',Em:'T',F:'S',Dm:'S',G:'D',G7:'D'};
+    const fns=ch.map(c=>FN[c]||'?');
+    let retro=false; for(let i=1;i<fns.length;i++) if(fns[i-1]==='D'&&fns[i]==='S') retro=true;
+    return { ch:ch.join(' '), fns:fns.join(''), retro, endsI: ch[ch.length-1]==='C', startsI: ch[0]==='C' };
+  })()`);
+  const ok7 = !t7.retro && t7.endsI && t7.startsI && t7.ch==='C C F G C';
+  console.log((ok7?'✅':'❌')+' T7 功能进行: '+t7.ch+' 功能='+t7.fns+' 无逆行D→S='+!t7.retro+' 首末=I');
+  if(ok7) pass++;
+  console.log('PASS '+pass+'/7');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
