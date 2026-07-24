@@ -87,6 +87,28 @@ const seed = [
   T(pg._errs.length === 0, 'T6 已登录页无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
+  // v44.6 SEO 基建 + 四垂类落地页（静态文件断言：canonical/og/JSON-LD/内链/robots/sitemap）
+  const LAND = ['kaobian', 'yikao', 'shifan', 'jixing'];
+  for (const name of LAND) {
+    const h = read(name + '.html');
+    const okCanon = h.includes('<link rel="canonical" href="https://www.puyouquan.com/' + name + '.html">');
+    const okOg = h.includes('og:image') && h.includes('https://www.puyouquan.com/og.png') && h.includes('og:title');
+    const okDesc = /<meta name="description" content="[^"]{40,}"/.test(h);
+    const okCta = h.includes('//zhipu.puyouquan.com/');
+    const okH1 = /<h1[^>]*>[^<]*<span class="grad">/.test(h);
+    let ldOk = false;
+    try { const m = h.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/); const o = JSON.parse(m[1]); ldOk = o['@type'] === 'FAQPage' && o.mainEntity.length >= 3; } catch (_) {}
+    T(okCanon && okOg && okDesc && okCta && okH1 && ldOk, 'S 落地页 ' + name, JSON.stringify({ okCanon, okOg, okDesc, okCta, okH1, ldOk }));
+  }
+  const robots = read('robots.txt');
+  T(/Sitemap: https:\/\/www\.puyouquan\.com\/sitemap\.xml/.test(robots) && /Sitemap: https:\/\/puku\.puyouquan\.com\/pub\/sitemap\.xml/.test(robots), 'S robots.txt 双 sitemap', robots.slice(0, 40));
+  const sm = read('sitemap.xml');
+  T(sm.includes('<urlset') && LAND.every(n => sm.includes('/' + n + '.html')), 'S sitemap.xml 含四落地页');
+  const idx = read('index.html');
+  T(LAND.every(n => idx.includes(n + '.html')) && /rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页内链四落地页+SEO头');
+  const js2 = read('pyq.js');
+  T(LAND.every(n => js2.includes(n + '.html')), 'S 页脚含四场景内链');
+
   console.log('PASS ' + pass + '/' + total);
   await b.close();
   process.exit(pass === total ? 0 : 1);

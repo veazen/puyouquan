@@ -62,6 +62,7 @@ if(footEl){
       <div><div class="brand" style="margin-bottom:10px"><span class="mark"></span>谱友圈</div>
         <p class="fb">在线制谱工具 · 吉他谱｜尤克里里谱｜简谱｜功能谱。出版级排版，打开浏览器就能做谱。</p></div>
       <div><h5>产品</h5><a href="//zhipu.puyouquan.com/">在线制谱</a><a href="//puku.puyouquan.com/">谱库</a><a href="features.html">功能一览</a></div>
+      <div><h5>适用场景</h5><a href="kaobian.html">教师考编</a><a href="yikao.html">音乐艺考</a><a href="shifan.html">师范 · 音乐教育</a><a href="jixing.html">钢琴即兴伴奏</a></div>
       <div><h5>资源</h5><a href="help.html">使用手册</a><a href="log.html">更新日志</a><a href="help.html?section=faq">常见问题</a></div>
       <div><h5>关于</h5><a href="sponsors.html">赞助商</a><a href="mailto:support@puyouquan.com">联系我们</a></div>
     </div>

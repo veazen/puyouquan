@@ -352,6 +352,13 @@ const routes = [
     if (!s) return { ___status: 404, ___raw: '', ___ctype: 'image/svg+xml', ___cache: 'no-store' };
     return { ___raw: pubCoverSvg(s), ___ctype: 'image/svg+xml; charset=utf-8', ___cache: 'public, max-age=600' };
   }],
+  // 已发布谱动态 sitemap：每首谱一条 /pub/:id，供搜索引擎抓取（robots.txt 引用本地址）
+  ['GET', /^\/pub\/sitemap\.xml$/, false, () => {
+    const rows = q.pubList.all();
+    const urls = rows.map(r => `  <url><loc>${PUB_CANON}/pub/${escHtml(r.id)}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`).join('\n');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
+    return { ___raw: xml, ___ctype: 'application/xml; charset=utf-8', ___cache: 'public, max-age=600' };
+  }],
 
   /* -- 收藏 -- */
   ['GET', /^\/api\/favorites$/, true, (m, b, u) => ({ favorites: q.favList.all(u.id) })],

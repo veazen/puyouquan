@@ -63,6 +63,9 @@ chk SSR真人跳转观看页 'location.replace' "$SSR"
 chk SSR封面SVG 'svg xmlns' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345/cover.svg)"
 chk SSR封面ContentType 'image/svg' "$(curl -sD - -o /dev/null http://127.0.0.1:3199/pub/song_abc12345/cover.svg)"
 chk SSR未发布谱不出SSR '不存在' "$(curl -s http://127.0.0.1:3199/pub/nonexistent1234)"
+SM=$(curl -s http://127.0.0.1:3199/pub/sitemap.xml)
+chk SSR站点地图列出发布谱 '/pub/song_abc12345' "$SM"
+chk SSR站点地图XML '<urlset' "$SM"
 
 chk 下架后公开404 '未发布' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/unpublish > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 下架后SSR也404 '不存在' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
