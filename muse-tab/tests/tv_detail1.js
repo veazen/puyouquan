@@ -21,9 +21,12 @@
    T16 TAB 字母移入谱表内（x=oxH+9=65，不再悬在页边距 oxH-11=45）
    ---- v46.0 细节批次5 ----
    T17 联排谱号下「8」缀隐藏（记谱 +12 不变——低音空弦仍下加 2 线）
-   T18 泛音菱形两位数品位加宽（f=12 → 宽 26px；f=7 → 宽 14px）
+   T18 v46.1 泛音固定正菱形（一律宽 14px）+ 两位数品位数字缩号自适应（10.5→8）
    T19 Ctrl+点击小节线多选：首点选中单小节整声部、再点扩展为连续小节范围
-   T20 行首小节线热区左延至系统起始线（barzone x=oxH-4=52） */
+   T20 行首小节线热区左延至系统起始线（barzone x=oxH-4=52）
+   ---- v46.1 细节批次6 ----
+   T21 泛音类归组：EB_TECHS 自然泛音 N.H. 排尾部（清除前）、EB_GTECH 人工泛音三键置首
+   T22 泛音菱形不变量：hmT 人工泛音同样带菱形框 + A.H. 标注 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -295,10 +298,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const widths = [];
     const re = /<polygon points="([\d.]+),[\d.]+ ([\d.]+),[\d.]+ [\d.]+,[\d.]+ ([\d.]+),[\d.]+"/g; let m2;
     while ((m2 = re.exec(svg))) widths.push(+(+m2[2] - +m2[3]).toFixed(1));
-    return { no8: !svg.includes('>8</text>'), widths: widths.sort((a, b) => a - b) };
+    const smallDigit = /font-size="8"[^>]*>12</.test(svg);       // 两位数缩号入框
+    const normDigit = /font-size="10\.5"[^>]*>7</.test(svg);     // 个位数保持常规字号
+    return { no8: !svg.includes('>8</text>'), widths: widths.sort((a, b) => a - b), smallDigit, normDigit };
   });
   T(t17.no8, 'T17 谱号下 8 缀已隐藏', JSON.stringify(t17));
-  T(t17.widths.length === 2 && t17.widths[0] === 14 && t17.widths[1] === 26, 'T18 泛音菱形两位数加宽(14/26)', JSON.stringify(t17));
+  T(t17.widths.length === 2 && t17.widths[0] === 14 && t17.widths[1] === 14 && t17.smallDigit && t17.normDigit,
+    'T18 泛音固定菱形+数字自适应(14/14·12缩号)', JSON.stringify(t17));
 
   // T19 Ctrl+点击小节线多选 + T20 行首热区左延
   const t19 = await pg.evaluate(async () => {
@@ -317,6 +323,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t19.one && t19.ext, 'T19 Ctrl+点击小节线多选(单选→扩选1-3)', JSON.stringify(t19));
   T(t19.rowStart, 'T20 行首小节线热区左延(x=52)', JSON.stringify(t19));
+
+  // T21 v46.1 泛音类归组 + T22 泛音菱形不变量
+  const t21 = await pg.evaluate(() => {
+    const hmIdx = EB_TECHS.findIndex(e => e[0] === 'hm');
+    const grouped = hmIdx === EB_TECHS.length - 2 && EB_TECHS[EB_TECHS.length - 1][0] === ''
+      && EB_TECHS[hmIdx][2] === 'N.H.' && !EB_TECHS.some(e => e[2] === '◇')
+      && EB_GTECH[0][0] === 'hmA' && EB_GTECH[1][0] === 'hmP' && EB_GTECH[2][0] === 'hmT';
+    // hmT 人工泛音同样带菱形 + A.H. 标注（渲染不变量）
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 2, notes: [{ s: 2, f: 5, tech: 'hm', hmT: 'A' }] }, { dur: 2, notes: [] }];
+    loadSong(s);
+    const svg = document.getElementById('score').innerHTML;
+    const diamond = /<polygon points="[\d.]+,[\d.]+ [\d.]+,[\d.]+ [\d.]+,[\d.]+ [\d.]+,[\d.]+" fill="none"/.test(svg);
+    const ah = svg.includes('A.H.');
+    return { grouped, diamond, ah };
+  });
+  T(t21.grouped, 'T21 泛音类归组(N.H.尾部+人工泛音置首)', JSON.stringify(t21));
+  T(t21.diamond && t21.ah, 'T22 人工泛音同样带菱形框+A.H.标注', JSON.stringify(t21));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

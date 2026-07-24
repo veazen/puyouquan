@@ -4184,14 +4184,15 @@ function render(){
                 /* v45.6 ×再放大（12.5 仍偏小）→ 15；拍弦列（col.slap）内音符一律记 ×（框内×，GP 惯例） */
                 p.push(`<text x="${nx}" y="${yy+4.8}" font-size="15" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="3" stroke-linejoin="round" fill="var(--ink)">×</text>`);
               }else{
-                p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
+                /* v46.1 泛音两位数品位：菱形固定不变，数字缩号自适应框内（10.5→8） */
+                const hmSm = n.tech==='hm' && n.f>=10;
+                p.push(`<text x="${nx}" y="${yy+(hmSm?2.8:3.6)}" font-size="${hmSm?8:10.5}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${hmSm?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
               }
               /* 技法：符号显示在两音之间连音线上方（比例缩小） */
               if(n.tech==='hm'){
-                /* 泛音：与功能栏 ◇ 图标同形同线宽的正菱形框住音符；v42.3 hmT 细分标 A.H./P.H./T.H.；
-                   v46.0 两位数品位（10+）菱形横向加宽，数字不再撑出框外 */
-                const hw = n.f>=10? 13 : 7;
-                p.push(`<polygon points="${nx},${yy-7} ${nx+hw},${yy} ${nx},${yy+7} ${nx-hw},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                /* 泛音：正菱形框住音符（v46.1 恢复固定形状——所有泛音同一菱形，出版一致性；
+                   两位数品位改由数字缩号自适应框内，见下方品位数字绘制） */
+                p.push(`<polygon points="${nx},${yy-7} ${nx+7},${yy} ${nx},${yy+7} ${nx-7},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 if(n.hmT) p.push(`<text x="${nx}" y="${yy-9.5}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
               }else if(n.tech==='su' || n.tech==='sd'){
                 /* 无头滑音：音符左侧斜杠（上滑/下滑）+ 小 S */
@@ -5196,18 +5197,22 @@ let comboMore = false;
 const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
 /* 编辑栏第二行的上下文按钮：编辑吉他谱=演奏技巧（带谱面符号图示），编辑简谱=标识符号 */
 /* v45.7 「下推弦」按钮位改为「哑音」（下推弦=推弦回放，已并入推弦弹窗的类型选择 v43.3；
-   旧谱 bd 数据照常渲染）；哑音=死音×，走 toggleMute（与 ×标记 同义，技巧语境入口） */
+   旧谱 bd 数据照常渲染）；哑音=死音×，走 toggleMute（与 ×标记 同义，技巧语境入口）。
+   v46.1 泛音类归组：自然泛音 ◇→字母 N.H.（与 A.H./P.H./T.H. 统一字母风格）并排到列表尾部，
+   与紧随其后的人工泛音字母按钮聚成「泛音类」；清除按钮渲染时恒排最后（见 techHtml） */
 const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b↑'],['mute','哑音','×'],
-                  ['v','揉弦','~'],['hm','泛音','◇'],['tp','点弦','T'],['pm','闷音','P.M.'],
+                  ['v','揉弦','~'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
-                  ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],['','清除','—']];
+                  ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],
+                  ['hm','自然泛音','N.H.'],['','清除','—']];
 /* v42.3 gtype 专属技法按钮：[key,label,glyph,ctx('lead'电吉他/'finger'指弹/'solo'两者),kind,value]。
-   ctx 决定按 song.gtype 显隐；kind 路由 applyGtech（tech 复用 applyTech，其余走 note.bar/hmT/rhFing/col.perc）。 */
+   ctx 决定按 song.gtype 显隐；kind 路由 applyGtech（tech 复用 applyTech，其余走 note.bar/hmT/rhFing/col.perc）。
+   v46.1 人工泛音三键置首：紧跟 EB_TECHS 尾部的自然泛音 N.H.，聚成泛音类 */
 const EB_GTECH = [
+  ['hmA','人工泛音','A.H','lead','hm','A'],['hmP','拨片泛音','P.H','lead','hm','P'],['hmT','点弦泛音','T.H','lead','hm','T'],
   ['lr','let ring','↝','solo','tech','lr'],
   ['bDive','摇把俯冲','↘','lead','bar','dive'],['bScoop','摇把上滑','↗','lead','bar','scoop'],
   ['bDip','摇把下点','∨','lead','bar','dip'],['bShake','摇把颤音','≈','lead','bar','shake'],
-  ['hmA','人工泛音','A.H','lead','hm','A'],['hmP','拨片泛音','P.H','lead','hm','P'],['hmT','点弦泛音','T.H','lead','hm','T'],
   ['rhP','拇指 p','p','finger','rhFing','p'],['rhI','食指 i','i','finger','rhFing','i'],
   ['rhM','中指 m','m','finger','rhFing','m'],['rhA','无名 a','a','finger','rhFing','a'],
   ['pcB','打板·低','B','finger','perc','bass'],['pcS','打板·高','S','finger','perc','snare'],['pcG','击板','G','finger','perc','golpe'],
@@ -5519,14 +5524,18 @@ function setRibbon(t){
   if(ctx && ebCtxFor!==ctxKey && !virt){   // v40.1 图层页（和弦/小节/段落）不清空第二行，保留最近的技法/记号
 
     ebCtxFor=ctxKey;
-    const techHtml = ()=>EB_TECHS.map(([k,l,g])=>{
+    const tBtn = ([k,l,g])=>{
         const hint = {v:'：波浪线随音符时值延长；Ctrl 选首末两音可让波浪覆盖整段范围',
                       pm:'：单音标 P.M.；Ctrl 选首末两音，P.M. 虚线覆盖整段范围',
                       mute:'：把当前音记为闷音/死音 ×（再点取消）',
+                      hm:'：自然泛音——谱面菱形框住品位数字（所有泛音一律带菱形框）',
                       b:'：Ctrl 选起始+目标两音标推弦；已推弦音符再点可选 常规/回放/预推 与幅度'}[k]
                    || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
         return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
-      }).join('') + gtechHtml();
+      };
+    /* v46.1 渲染顺序：常规技法 → 泛音类（自然 N.H. + 人工 A.H./P.H./T.H.）→ 其余 gtype 专属 → 清除恒最后 */
+    const techHtml = ()=>EB_TECHS.filter(e=>e[0]!=='').map(tBtn).join('') + gtechHtml()
+      + EB_TECHS.filter(e=>e[0]==='').map(tBtn).join('');
     /* v42.3 gtype 专属技法：按 song.gtype 过滤（lead/finger；'solo' 两者皆显）；非独奏谱不显 */
     const gtechHtml = ()=>{ const gt = song && song.gtype; if(!gt) return '';
       return EB_GTECH.filter(([k,l,g,ctx])=> ctx===gt || (ctx==='solo'))
@@ -12637,6 +12646,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.1</span><div><b>泛音记谱与面板归组</b>：① <b>泛音菱形恢复固定形状</b>——所有泛音统一同一正菱形（出版一致性），两位数品位（10 品以上）改为<b>数字自动缩小</b>适配框内，不再改变菱形形状；② <b>左栏泛音类归组</b>——「演奏技巧」面板重排：自然泛音按钮由 ◇ 图形改为字母 <b>N.H.</b>（与人工泛音字母风格统一），并移到技巧列表尾部，与紧随其后的 <b>A.H（人工泛音）/ P.H（拨片泛音）/ T.H（点弦泛音）</b>聚成「泛音类」，「清除」恒排最后；③ <b>泛音一律带菱形框</b>——自然泛音与 A.H./P.H./T.H. 各细分在谱面上都以菱形框住品位数字（细分另在上方标注字母），规则固化进回归测试。</div></li>
     <li><span class="v">v46.0</span><div><b>谱面细节修复批次 5 + 小节线多选</b>：① <b>隐藏移调谱号的「8」缀</b>——独奏联排五线谱谱号下方不再显示小 8（记谱与播放完全不变，仅隐藏该标记，谱面更干净）；② <b>泛音菱形框加宽</b>——两位数品位（10 品以上）的泛音菱形横向加宽，数字不再撑出框外；③ <b>行首第一小节线可选中了</b>——此前行首可见竖线与点击热区错位约 26px 导致点不中，热区已左延到行首竖线处，点击即弹出小节线设置；④ <b>Ctrl+点击小节线多选小节</b>——按住 Ctrl 点小节线选中该小节整声部，继续 Ctrl+点其他小节线扩展为<b>连续多小节范围</b>，可整段复制/粘贴/批量操作（小节线悬停提示已更新）。</div></li>
     <li><span class="v">v45.9</span><div><b>谱面细节修复批次 4</b>：① <b>行首连线色差修复</b>——v45.8 的系统连线与各谱行原有的行首竖线在同一位置重复绘制，叠加处颜色更深造成深浅不一；现在连线存在时各谱行不再重复画自己的行首线，线宽统一，整条连线颜色均匀；② <b>TAB 字母移入谱表内</b>——六线谱行首的 T A B 三个字母从页边距移到谱表内（行首竖线右侧的表头区），与 Guitar Pro / 出版 TAB 谱一致。<b>小知识</b>：独奏谱五线谱谱号下方的小「8」是<b>吉他移调谱号（treble-8vb）的标准记号</b>——吉他实际发声比五线谱记谱<b>低一个八度</b>，出版吉他谱都这样标注，用于提示读谱者，并非多余符号。</div></li>
     <li><span class="v">v45.8</span><div><b>谱面细节修复批次 3（读谱体验）</b>：① <b>行首小节编号归位</b>——右对齐收进左页边距、垂直贴谱表顶线（出版惯例：行首小节号置于系统左外侧），彻底解决被谱号压住/上移后悬空漂移的问题；② <b>每行行首谱行相连</b>——五线谱+TAB 联排、弹唱谱的 TAB+简谱行、教学对照谱等多谱行曲谱，每行行首用一条竖线把各谱行连成一组（参考出版谱系统线惯例），逐行对位读谱更清晰；单谱行曲谱保持原样；③ <b>TAB 全休止符居中</b>——全空小节改为在小节中央画一个全休止符（与五线谱同口径），不再逐列落在列位上；部分空拍仍按位置画对应时值休止符。</div></li>

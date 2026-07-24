@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v46.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v46.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -413,3 +413,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v45.9 细节批次4**：① 连线色差根因=同位双绘——`sysConnected` 标志（systems.forEach 头部声明）：系统连线线宽统一 1，连线存在时 TAB 行首线（~4031）/联排五线谱行首线（~3877）/大谱表行首线（~4484）均不再重复绘制。② TAB 字母 `oxH-11`（页边距悬置）→ `oxH+9`（谱表内表头区，GP 惯例）。③ 用户问「五线谱与 TAB 之间的 8」——treble-8vb 移调谱号标准记号（吉他实音低记谱八度），已在更新日志向用户科普，无代码改动。tv_detail1 增至 17 项（T15 竖线恰 1 条/T16 字母 x=65），27 套件全绿。
 
 > **v46.0 细节批次5 + 小节线多选**：① 联排谱号下「8」缀隐藏（产品拍板；记谱 +12/播放不变，`tv_engrave` P2 断言同步去 has8）。② 泛音菱形 `hw = f>=10? 13 : 7`（两位数数字宽 ~12px，原 ±7 撑不下）。③ 行首小节线热区：可见行首竖线在 oxH、热区在 mx-5（错位 STAFF_HEAD_W≈26px）→ `lmIdx===0` 时热区 `x=oxH-4, w=(mx-oxH)+9`（TAB/vox 两处）。④ **Ctrl+点击小节线多选小节**：data-bar 处理器前置 ctrlKey 分支——首点=选中该小节整声部（selRange whole），同 row/vi 再点=扩展 m1..m2 连续范围；与既有 长按=单小节 / 点击=小节线设置 并存。tv_detail1 增至 21 项，27 套件全绿。
+
+> **v46.1 细节批次6（泛音）**：① 泛音菱形恢复固定 ±7（撤销 v46.0 的 hw=13 加宽），两位数品位改数字缩号自适应（品位数字绘制处 `hmSm = tech==='hm' && f>=10` → font 10.5→8、y 3.6→2.8、halo 2.6→2.2）。② 面板泛音类归组：EB_TECHS 的 hm 移至尾部（清除前）、glyph ◇→'N.H.'；EB_GTECH 人工泛音 hmA/hmP/hmT 三键置首；techHtml 拆 tBtn、清除按钮恒最后渲染（顺序=常规技法→N.H.→A.H/P.H/T.H→let ring/摇把→清除）。③ 泛音菱形不变量（tech==='hm' 一律画菱形，hmT 细分加字母标注）固化进 T22。tv_detail1 增至 23 项，27 套件全绿。
