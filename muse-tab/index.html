@@ -1755,6 +1755,26 @@ function suggestChords(s2, vi){
     const cols=mea.voxes[vi]||[];
     return cols.some(c=>c.deg)? cname(CAND[idx[mi]]) : null;   // 空小节（无旋律音）不配和弦
   });
+  /* v45.2 副属和弦（离调）——保守·旋律驱动：仅当某小节旋律显含某二级导音、且下一小节正是其解决目标时，
+     把该小节升级为副属属七（如 #4→D7 解 G）。纯自然音旋律不触发，故不产生意外半音色彩。 */
+  const SECDOM=[
+    {ld:4, acc:'#', tgt:['V','V7'], root:2},   // #4 → V/V（II7，如 C 调 D7）解决到 V
+    {ld:5, acc:'#', tgt:['vi'],     root:3},   // #5 → V/vi（III7，E7）解决到 vi
+    {ld:1, acc:'#', tgt:['ii'],     root:6},   // #1 → V/ii（VI7，A7）解决到 ii
+    {ld:7, acc:'b', tgt:['IV'],     root:1},   // b7 → V7/IV（I7，C7）解决到 IV
+  ];
+  const flat2=(KEYSIG[s2.key]||0)<0;
+  for(let mi=0; mi<N-1; mi++){
+    if(!out[mi]) continue;
+    const cols=s2.measures[mi].voxes[vi]||[], nextId=CAND[idx[mi+1]].id;
+    for(const sd of SECDOM){
+      if(sd.tgt.includes(nextId) && cols.some(c=>c.deg===sd.ld && c.acc===sd.acc)){
+        const pc=(((KEY_PC[s2.key]||0)+DEG_SEMI[sd.root])%12+12)%12;
+        out[mi]=(flat2?PC_FLAT:PC_SHARP)[pc]+'7';
+        break;
+      }
+    }
+  }
   song=o0;
   return out;
 }
@@ -12258,6 +12278,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v45.2</span><div><b>自动配和弦会用「副属和弦」了（P1 智能配谱深化收官）</b>：当旋律里<b>明确写了某个升号导音、且下一小节正是它的解决目标</b>时，自动配和弦会把这一小节配成<b>副属和弦（离调属七）</b>——比如旋律出现 <code>#4</code> 且下一小节是 G，本小节自动配 <b>D7（V/V）</b>，进行更有推动力、更地道。<b>纯自然音旋律不会触发</b>（不无端加半音色彩），是保守的旋律驱动策略：只在你确实写了变化音时才用。至此 P1「智能配谱 + 织体」深化收官（功能和声全局寻优 → 属七终止 → 一小节两和弦 → 四种拍号织体 → 副属和弦）。<code>tv_arrange</code> 回归增至 10 项。</div></li>
     <li><span class="v">v45.1</span><div><b>伴奏织体扩到 2/4 与 6/8 拍（P1 · 织体深化）</b>：内置伴奏织体库从「只支持 4/4 与 3/4」扩到<b>2/4、3/4、4/4、6/8 四种拍号</b>，新增 4 套织体：<b>进行曲 2/4、波尔卡 2/4、船歌 6/8、摇篮曲 6/8</b>（6/8 的附点四分脉冲、蓬-哒-哒律动）。这样 <b>2/4 的进行曲/儿歌、6/8 的抒情摇篮曲</b> 也能一键生成双手伴奏——师范儿歌伴奏、艺考视唱常见的复合拍终于有了内置织体。<code>tv_acc</code>/<code>tv_arrange</code> 回归同步更新。</div></li>
     <li><span class="v">v45.0</span><div><b>自动配和弦支持「一小节两个和弦」（P1 · 和声节奏）</b>：智能配谱不再一小节只配一个和弦——4/4 小节里当<b>下半段明显另属一个和弦</b>时，会自动在后半拍补上第二个和弦（如一小节前半 C、后半 G），更贴近真实歌曲的和声节奏；下半段仍属同一和弦时保持一个，不画蛇添足。沿用 v44.9 的功能和声全局寻优选主和弦，再对下半段按分数与功能走向决定是否加和弦，生成的双手伴奏随之逐拍换和弦。<code>tv_arrange</code> 回归增至 8 项。</div></li>
     <li><span class="v">v44.9</span><div><b>智能配和弦升级：配得更「地道」了（P1 智能配谱深化）</b>：一键配伴奏/自动配和弦的和声引擎从<b>逐小节贪心</b >升级为<b>全局功能和声寻优</b>（Viterbi）——不再各小节各自挑一个「音符最贴」的和弦，而是同时权衡<b>旋律契合度 + 和声进行的功能走向</b>，产出连贯地道的进行（主→下属→属→主 顺行、属→主 正格解决，抑制「属→下属」逆行）。并新增<b>属七和弦 V7</b>：当旋律里出现属和弦的小七度音时自动用 V7、终止式更有推动力（如 …F <b>G7</b> C）。旋律清晰时结果不变、更稳；旋律模糊处进行更顺。<code>tv_arrange</code> 回归增至 7 项。</div></li>

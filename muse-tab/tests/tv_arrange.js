@@ -142,7 +142,25 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     && t9.b68.done===1 && t9.b68.rh===6 && t9.b68.lh===6 && t9.b68.rhN>0 && !t9.b68.nan;
   console.log((ok9?'✅':'❌')+' T9 织体扩拍号: 2/4('+t9.m2.rh+'拍/'+t9.m2.rhN+'音) 6/8('+t9.b68.rh+'拍/'+t9.b68.rhN+'音) 无NaN='+(!t9.m2.nan&&!t9.b68.nan));
   if(ok9) pass++;
-  console.log('PASS '+pass+'/9');
+  // T10 v45.2 副属和弦（保守·旋律驱动）：含 #4 且下一小节为 V → 该小节升级 D7(V/V)；纯自然音不触发
+  const t10 = await pg.evaluate(`(()=>{
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const A=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:4});
+    A.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(3,4)];
+    A.measures[1].voxes[0]=[V(2,4),V(4,4,{acc:'#'}),V(5,4),V(2,4)];
+    A.measures[2].voxes[0]=[V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)];
+    A.measures[3].voxes[0]=[V(1,4),V(1,4),V(1,2)];
+    const B=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:4});
+    B.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(3,4)];
+    B.measures[1].voxes[0]=[V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)];
+    B.measures[2].voxes[0]=[V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)];
+    B.measures[3].voxes[0]=[V(1,4),V(1,4),V(1,2)];
+    return { A:suggestChords(A,0).join(' '), B:suggestChords(B,0).join(' ') };
+  })()`);
+  const ok10 = t10.A==='C D7 G C' && t10.B==='C F G C';
+  console.log((ok10?'✅':'❌')+' T10 副属和弦: 含#4→'+t10.A+'(期望 C D7 G C) 纯自然音→'+t10.B+'(期望 C F G C 不触发)');
+  if(ok10) pass++;
+  console.log('PASS '+pass+'/10');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
