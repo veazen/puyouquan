@@ -53,7 +53,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       online: !!(cp && cp.online), status: cp && cp.status, cloudId: cp && cp.cloudId, title: cp && cp.title,
     };
   });
-  T(r.creator && r.put && r.pub && r.role === 'creator' && r.done === 'https://zhipu.puyouquan.com/?pub=' + r.id
+  T(r.creator && r.put && r.pub && r.role === 'creator' && r.done === 'https://puku.puyouquan.com/pub/' + r.id
     && r.online && r.status === 'approved' && r.cloudId === r.id && r.title === '小星星', 'T1 非创作者一键发布', JSON.stringify(r));
 
   // T2 已是创作者：跳过 /me/creator，仍 PUT + publish
@@ -96,7 +96,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {
       upgraded: nid !== 'si0' && /^[A-Za-z0-9_-]{8,40}$/.test(nid),
       pubId: pubCall ? pubCall.url === '/api/scores/' + nid + '/publish' : false,
-      doneId: urlEl ? urlEl.value === 'https://zhipu.puyouquan.com/?pub=' + nid : false,
+      doneId: urlEl ? urlEl.value === 'https://puku.puyouquan.com/pub/' + nid : false,
     };
   });
   T(r.upgraded && r.pubId && r.doneId, 'T3 短id升级后发布', JSON.stringify(r));

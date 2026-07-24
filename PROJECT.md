@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v44.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v44.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -9,7 +9,7 @@
 
 > 六位专家（架构/功能测试/代码质量/安全/UX增长/商业）对全站做了一轮只读审计，全部结论带 file:line 或命令/复现证据。**结论：产品力已达可收费水准、工程底子在同体量项目里罕见地扎实，但存在 4 个红线级问题（线上真实存在）与「商业化三个零」。此审计重排取代原路线图后段执行序——先止血与补地基，暂停新增记谱功能。**
 >
-> **执行进度（截至 v44.3）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 进行中 🟡 Sprint 2 增长回路（真二维码✅·移动fit-to-width✅·发布触发登录✅）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。
+> **执行进度（截至 v44.4）：🔴 Sprint 0 止血 6/6 ✅ 已上线 · 🟠 Sprint 1 数据完整性与信任 6/6 ✅ 已上线 · 进行中 🟡 Sprint 2 增长回路（真二维码✅·移动fit-to-width✅·发布触发登录✅·发布谱 SSR 落地页✅）。** 期间新 CI 门禁已真实拦下一次坏部署（缺 xmllint），并把「套件全绿≠能用」的 tv_matrix 假绿修复。
 
 ### 交叉验证的收敛结论（多位专家独立命中＝最高置信）
 - **SQLite 零备份**（架构+安全双列 P0）：单机单盘承载全部账号+云端曲谱，无任何备份/dump/cron。
@@ -39,7 +39,7 @@
 ### 🟡 Sprint 2 · 增长回路打通（把「增长闭环 40 分」拉到 70）
 - 分享卡真二维码：内嵌零依赖 QR 编码器（纯 JS，符合单文件红线），已发布谱指向 `?pub=ID`（UX P0+测试 P1，M）
 - 移动端观看 fit-to-width：viewer SVG 520px>纸面 374px 需横向平移；按容器宽反流或等比缩放（UX P0+测试 P1，M）
-- `?pub=` 最小 SSR（title/description/og:image）或每谱静态页→已发布谱可被搜索索引（UX P1，M）
+- ~~`?pub=` 最小 SSR（title/description/og:image）→已发布谱可被搜索索引（UX P1，M）~~ **✅ v44.4**：服务端出 `/pub/:id` 落地页（title/description/og/JSON-LD/canonical + 动态品牌封面 `/pub/:id/cover.svg`），真人 1.2s 后 JS 转观看页；三站 vhost 均反代、canonical 统一 puku 去重；分享卡二维码/发布链接改指 SSR 落地页。SSR 端到端回归 9 项。
 - SEO 基建 sitemap/robots/canonical/og + 四垂类（考编/艺考/师范/即兴伴奏）落地页（UX P1，M）
 - 未登录「发布」改「登录后发布」直接拉起登录（现在假成功、错过最佳登录时机）（UX P2，S）
 - 收藏接云（看谱→留账号的唯一钩子，现纯本地）（UX P3，M）
@@ -136,7 +136,8 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   - 数据：SQLite `/var/lib/puyouquan/pyq.db`（WAL；**所有 SQL 集中在 `api/db.js`，主键应用层 UUID、时间 Unix 秒——为将来迁 PG 预留**；迁移信号：SQLITE_BUSY 频发/需多机/需 PG 专属能力）。表：users/otp/ip_quota/scores/favorites/shelf/collections/collection_items。
   - 登录：手机验证码（阿里云短信 RPC-V1 签名自实现；频控 1 次/分/号、5 次/日/号、20 次/日/IP、验证 5 次上限；未配 AK 时 DEV_OTP=1 走日志验证码）。微信扫码（企业开放平台）留 `wx_openid` 字段待接。创作者开放注册（POST /api/me/creator）。
   - 配置：`/etc/puyouquan/api.env`（api-setup.sh 首次生成 JWT_SECRET；**阿里云短信 AK/模板过审后填入并 `systemctl restart pyq-api`**）。
-  - 接口（全 `/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联·publish/unpublish) / **pub(pub/scores 列表·详情，公开免登录)** / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
+  - 接口（`/api/` 前缀）：health / auth(sms send·verify·logout) / me(资料·昵称·创作者) / scores(列表·详情·PUT 同步含 409 冲突·删除级联·publish/unpublish) / **pub(pub/scores 列表·详情，公开免登录)** / favorites / shelf(带进度) / collections(含 items)。谱面上限 500/人、单谱 2MB、谱集 50 个。
+  - **非 `/api/` 前缀的 SSR 路由**（v44.4，公开免登录，供搜索/社交爬虫收录，nginx `location /pub/` 反代）：`GET /pub/:id`→已发布谱服务端落地页（`<title>`/`meta description`/`og:*`/`twitter:card`/JSON-LD `MusicComposition`/`canonical`；真人 setTimeout 1.2s `location.replace` 转 `zhipu/?pub=ID`）；`GET /pub/:id/cover.svg`→动态品牌封面（1200×630，首行旋律简谱数字+歌词）。dispatcher 新增 `___raw`/`___ctype`/`___cache` 出非 JSON 原样响应分支。canonical/观看主机可用 env `PUB_CANON`/`VIEW_HOST` 覆盖（默认 puku/zhipu）。
   - 测试：`bash api/test.sh` 本地端到端 25 项（DEV_OTP 模式全链路）；线上冒烟含 `/api/health`。
   - **M1b-part1 已完成（v41.7）**：编辑器个人中心接入真实登录——个人资料页顶部账号卡（`pcAcctHTML`），手机验证码登录/注册弹窗（`openLogin`）、退出（`acctLogout`）、成为创作者（`acctBecomeCreator`）；账号态经 `apiCall`/`acctRefresh` 与后端同步，新增缓存键 `musetab-acct`（不动既有键）。仅 `*.puyouquan.com` 启用（`API_ON` 按 hostname 判断），本机/预览自动降级纯本地。测试 `tests/tv_acct.js` 7 项。
   - **M1b-part2 已完成（v41.8）**：我的曲谱云同步——本地 `LS_LIB` ↔ 后端 `/api/scores`，按新增 `mtime`（epoch 秒，与既有 updatedAt 并存、不改红线）last-write-wins。触发：`saveToLibrary` 显式保存立即 `scoreCloudPush`、`persist()` 编辑后经 `scheduleCloudPush` 6s 去抖续传、登录/`acctRefresh` 走 `syncScores` 双向拉取合并、两处删除入口传播 DELETE。极短/非法本地 id 推送前升级为云兼容格式（含当前 song.id 同步）；超大谱 413 跳过并提示、网络失败静默补偿。云门禁统一走 `window.PYQ_CLOUD`（=API_ON，规避 persist 早于账号模块声明的 TDZ）。测试 `tests/tv_sync.js` 7 项。

@@ -10490,9 +10490,9 @@ function qrModules(text, ecc) {
   }
   return best;
 }
-/* 分享卡链接：已发布谱→ zhipu/?pub=ID（可扫码直达观看谱），否则官网 */
+/* 分享卡链接：已发布谱→ puku/pub/ID（可被搜索引擎/微信收录的 SSR 落地页，扫码后自动转在线观看），否则官网 */
 function shareCardURL(){
-  try{ const rec=circlePubs().find(p=>p&&p.online&&p.cloudId&&p.libId===song.id); if(rec) return "https://zhipu.puyouquan.com/?pub="+rec.cloudId; }catch(_){}
+  try{ const rec=circlePubs().find(p=>p&&p.online&&p.cloudId&&p.libId===song.id); if(rec) return "https://puku.puyouquan.com/pub/"+rec.cloudId; }catch(_){}
   return "https://puyouquan.com";
 }
 function buildShareCardSVG(){
@@ -10511,7 +10511,7 @@ function buildShareCardSVG(){
     qr+=`<rect x="${qx-7}" y="${qyy-7}" width="${qpx+14}" height="${qpx+14}" rx="4" fill="#ffffff" stroke="#e5e2dc"/>`;
     for(let r=0;r<qn;r++) for(let c=0;c<qn;c++) if(_qm[r][c])
       qr+=`<rect x="${(qx+c*qcell).toFixed(2)}" y="${(qyy+r*qcell).toFixed(2)}" width="${(qcell+0.4).toFixed(2)}" height="${(qcell+0.4).toFixed(2)}" fill="#1c1c1c"/>`;
-    qr+=`<text x="${qx+qpx/2}" y="${qyy+qpx+16}" font-size="11" fill="#8a8a8a" text-anchor="middle">${_url.indexOf('?pub=')>0?'微信扫码看谱':'扫码上谱友圈制谱'}</text>`;
+    qr+=`<text x="${qx+qpx/2}" y="${qyy+qpx+16}" font-size="11" fill="#8a8a8a" text-anchor="middle">${(_url.indexOf('/pub/')>0||_url.indexOf('?pub=')>0)?'微信扫码看谱':'扫码上谱友圈制谱'}</text>`;
   }
   const meta=[song.singer?'演唱 '+song.singer:'', song.composer?'作曲 '+song.composer:'', '1='+song.key+' · ♩='+song.tempo]
     .filter(Boolean).join('　');
@@ -10926,7 +10926,7 @@ function showPublishMenu(libEntry, rect){
         if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
         await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
         rec.status='approved'; rec.cloudId=cloudId; rec.online=true;
-        rec.url='https://zhipu.puyouquan.com/?pub='+cloudId;
+        rec.url='https://puku.puyouquan.com/pub/'+cloudId;
         l.unshift(rec); circlePubsSave(l);
         closePop();
         showPublishDone(libEntry.title||'未命名曲谱', cloudId);
@@ -10944,7 +10944,7 @@ function showPublishMenu(libEntry, rect){
 }
 /* 真实发布成功后的确认弹窗：给出可复制的公开链接 + 谱库入口 */
 function showPublishDone(title, cloudId){
-  const url='https://zhipu.puyouquan.com/?pub='+cloudId;
+  const url='https://puku.puyouquan.com/pub/'+cloudId;
   showModal(`<h3>${svgi('check',18)} 发布成功</h3>
     <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(title)}》已上架在线谱库，任何人都能通过下方链接在线观看、移调、跟谱。</p>
     <label class="f"><span>公开链接</span><input id="pd-url" readonly value="${esc(url)}" style="flex:1" onclick="this.select()"></label>
@@ -11980,6 +11980,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v44.4</span><div><b>发布谱能被搜索/微信收录了（Sprint 2 · 增长回路）</b>：为每首<b>已发布</b>的曲谱生成一张<b>可被搜索引擎/微信抓取的服务端落地页</b>（<code>puku.puyouquan.com/pub/ID</code>）——含真实<b>标题、描述、社交分享大图（og:image）、结构化数据（JSON-LD）与规范链接（canonical）</b>，真人打开会自动转到在线观看页（可移调/跟谱）。此前观看页是纯前端渲染、爬虫抓到空壳，发布的谱无法被百度/微信收录；现在<b>分享卡二维码、发布成功链接均指向这张落地页</b>，被转发/收藏后能持续为谱友圈带来自然搜索流量。零依赖服务端出页 + 动态生成品牌封面 SVG，新增 SSR 端到端回归 9 项。</div></li>
     <li><span class="v">v44.3</span><div><b>手机看谱不用再左右拖 + 未登录发布先登录（Sprint 2 · 增长回路）</b>：① <b>移动端观看 fit-to-width</b>——打开分享/谱库链接看谱时，谱面自动<b>按屏宽等比缩放铺满</b>，一屏看全整行、不再需要横向平移（观看/分享/谱架等只读模式生效；编辑器放大后仍可滚动查看）。手机微信里点开分享的谱，第一眼就是完整谱面。② <b>线上未登录点「发布」直接拉起登录</b>——此前未登录点发布只写到本机却提示「已记录发布」（他人看不到、易误解），现按钮显示<b>「登录后发布到谱库」</b>并一键唤起登录，接住最自然的登录时机。新增 <code>tv_mobile</code> 回归 3 项。</div></li>
     <li><span class="v">v44.2</span><div><b>分享卡二维码可扫了（Sprint 2 · 增长回路）</b>：曲谱分享卡右下角的二维码从「示意占位」升级为<b>真实可扫二维码</b>——已发布的谱，扫码<b>直达该谱的在线观看页</b>（<code>?pub=</code> 链接，可播放/移调/跟谱）；未发布则扫码进谱友圈制谱。内置零依赖纯 JS 二维码编码器（byte 模式 + Reed-Solomon 纠错，符合单文件无构建约束），生成的码经独立解码器往返校验、并对「渲染到卡片后」的成品再次解码确认可扫。分享出去的每张卡从此都能把人带回谱友圈。新增 <code>tv_qr</code> 回归 6 项。</div></li>
     <li><span class="v">v44.1</span><div><b>云同步更可靠：并发不丢改动 + 删除不复活（Sprint 1 · 数据完整性）</b>：① <b>多设备并发编辑不再静默丢失</b>——当云端已有更新版本、你本机这次改动更旧时（此前会被云端版直接覆盖、改动消失），现自动把本机这份<b>另存为「（冲突副本）」</b>保留在「我的曲谱」，两版都在、由你取舍（类云盘冲突副本）。② <b>删除不再"复活"</b>——新增删除墓碑，删掉的曲谱不会再被离线的其他设备同步时推回云端、也不会被云端拉回本机；离线删除的指令会在下次联网补发。均为幕后可靠性修复，新增 <code>musetab-deleted</code> 键（只增不改红线），tv_sync 回归增至 9 项。</div></li>

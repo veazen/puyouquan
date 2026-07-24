@@ -117,6 +117,96 @@ function pubShape(row) {
 }
 const needScore = id => { const s = ID_RE.test(id) && q.scoreGet.get(id); if (!s) throw new ApiError(404, '谱面不存在'); return s; };
 
+/* ---------- 已发布谱的最小 SSR（title/description/og:image + JSON-LD，可被搜索引擎收录）----------
+   动机：交互观看页 zhipu/?pub=ID 是纯前端渲染，爬虫抓到的是空壳；发布谱因此无法被搜索/微信收录。
+   方案：/pub/:id 由本服务端出一张「可爬 + 可分享」的落地页（含元数据与静态谱面信息），真人再跳观看页；
+   /pub/:id/cover.svg 出一张品牌封面供 og:image。三站 vhost 均 include 本 snippet，canonical 统一指向 puku 去重。*/
+const TYPE_CN_SSR = { guitar: '弹唱谱', uku: '尤克里里谱', solo: '独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', vocal: '歌谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
+const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const PUB_CANON = process.env.PUB_CANON || 'https://puku.puyouquan.com';   // canonical/og 主机（去重用）
+const VIEW_HOST = process.env.VIEW_HOST || 'https://zhipu.puyouquan.com';  // 真人交互观看页主机
+function pubMeta(row) {
+  let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
+  const title = (row.title || '').trim() || '未命名曲谱';
+  const typeCn = TYPE_CN_SSR[docTypeOf(d)] || '曲谱';
+  const nMea = (d.measures || []).length;
+  const singer = (row.singer || '').trim();
+  const author = (row.author || '').trim() || '谱友圈';
+  const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
+  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d) };
+}
+function pubSsrHtml(row) {
+  const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`, img = `${canon}/cover.svg`;
+  const viewUrl = `${VIEW_HOST}/?pub=${encodeURIComponent(p.id)}`;
+  const pageTitle = `${p.title}${p.singer ? ' · ' + p.singer : ''} ${p.typeCn} - 谱友圈谱库`;
+  const ld = {
+    '@context': 'https://schema.org', '@type': 'MusicComposition',
+    name: p.title, url: canon, image: img, description: p.desc,
+    composer: { '@type': 'Person', name: p.author }, inLanguage: 'zh-CN',
+  };
+  if (p.singer) ld.recordedAs = { '@type': 'MusicRecording', name: p.title, byArtist: { '@type': 'MusicGroup', name: p.singer } };
+  const jsonLd = JSON.stringify(ld).replace(/</g, '\\u003c');
+  const coverRow = p.cover.map(c => `<b>${escHtml(c.deg || 0)}</b>${c.ly ? '<i>' + escHtml(c.ly) + '</i>' : ''}`).join('');
+  return `<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(pageTitle)}</title>
+<meta name="description" content="${escHtml(p.desc)}">
+<link rel="canonical" href="${escHtml(canon)}">
+<meta property="og:type" content="music.song">
+<meta property="og:title" content="${escHtml(p.title + (p.singer ? ' · ' + p.singer : ''))}">
+<meta property="og:description" content="${escHtml(p.desc)}">
+<meta property="og:url" content="${escHtml(canon)}">
+<meta property="og:image" content="${escHtml(img)}">
+<meta property="og:site_name" content="谱友圈谱库">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">${jsonLd}</script>
+<style>
+:root{--ink:#141414;--muted:#8a8a8a;--accent:#3a5ce0;--paper:#faf8f4;--border:#e5e2dc}
+*{box-sizing:border-box}body{margin:0;font:16px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper)}
+.wrap{max-width:680px;margin:0 auto;padding:40px 20px;text-align:center}
+.brand{color:var(--muted);font-size:13px;letter-spacing:.1em}
+h1{font-size:28px;margin:.4em 0 .2em}.meta{color:var(--muted);margin-bottom:1.4em}
+.cover{font-size:26px;color:var(--accent);margin:1em 0;line-height:2.2}.cover b{font-family:Georgia,serif;margin:0 .12em;font-weight:600}.cover i{font-style:normal;font-size:14px;color:var(--muted);margin-right:.4em}
+.cta{display:inline-block;margin:1em .4em;padding:12px 28px;border-radius:24px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+.cta.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.tip{color:var(--muted);font-size:13px;margin-top:1.6em}a{color:var(--accent)}
+</style></head><body>
+<div class="wrap">
+<div class="brand">谱友圈 · 谱库</div>
+<h1>${escHtml(p.title)}</h1>
+<div class="meta">${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}</div>
+${coverRow ? '<div class="cover">' + coverRow + '</div>' : ''}
+<a class="cta" href="${escHtml(viewUrl)}">▶ 在线观看 / 移调 / 跟谱</a>
+<a class="cta ghost" href="${escHtml(VIEW_HOST)}/">免费制谱</a>
+<p class="tip">正在进入在线观看页…若未自动跳转，请点上方按钮。<br>谱友圈 —— AI 时代的智能制谱 / 配谱工具</p>
+</div>
+<script>setTimeout(function(){location.replace(${JSON.stringify(viewUrl)})},1200);</script>
+</body></html>`;
+}
+function pubCoverSvg(row) {
+  const p = pubMeta(row);
+  const W = 1200, H = 630;
+  const notes = p.cover.slice(0, 7);
+  const cw = 120, x0 = W / 2 - (notes.length - 1) * cw / 2, cy = 400;
+  const dot = (cx, y, n) => Array.from({ length: n }, (_, i) => `<circle cx="${cx}" cy="${y + (y < cy ? -i * 14 : i * 14)}" r="4" fill="#3a5ce0"/>`).join('');
+  const noteSvg = notes.map((c, i) => {
+    const cx = x0 + i * cw;
+    const up = (c.oct || 0) > 0 ? dot(cx, cy - 78, c.oct) : '';
+    const dn = (c.oct || 0) < 0 ? dot(cx, cy + 20, -c.oct) : '';
+    const ly = c.ly ? `<text x="${cx}" y="${cy + 70}" font-size="30" fill="#8a8a8a" text-anchor="middle">${escHtml(c.ly)}</text>` : '';
+    return `${up}<text x="${cx}" y="${cy}" font-family="Georgia,serif" font-size="88" fill="#141414" text-anchor="middle">${escHtml(c.deg || 0)}</text>${dn}${ly}`;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<rect width="${W}" height="${H}" fill="#faf8f4"/>
+<rect x="0" y="0" width="${W}" height="10" fill="#3a5ce0"/>
+<text x="${W / 2}" y="120" font-size="30" fill="#8a8a8a" text-anchor="middle" letter-spacing="6">谱友圈 · 谱库</text>
+<text x="${W / 2}" y="210" font-size="72" font-weight="700" fill="#141414" text-anchor="middle">${escHtml(p.title.slice(0, 16))}</text>
+<text x="${W / 2}" y="270" font-size="34" fill="#8a8a8a" text-anchor="middle">${escHtml((p.singer ? p.singer + ' 演唱 · ' : '') + p.typeCn + (p.nMea ? ' · ' + p.nMea + ' 小节' : ''))}</text>
+${noteSvg}
+<text x="${W / 2}" y="580" font-size="28" fill="#3a5ce0" text-anchor="middle">扫码或点击 · 在线观看 / 移调 / 跟谱 · puyouquan.com</text>
+</svg>`;
+}
+
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
@@ -251,6 +341,18 @@ const routes = [
     return { score: { ...s, data: JSON.parse(s.data) } };
   }],
 
+  /* -- 已发布谱 SSR 落地页 + og 封面（无需登录，供搜索引擎/社交爬虫收录）-- */
+  ['GET', /^\/pub\/([A-Za-z0-9_-]+)$/, false, (m, b, u, req, res) => {
+    const s = q.pubGet.get(m[1]);
+    if (!s) return { ___raw: '<!doctype html><meta charset="utf-8"><title>曲谱不存在 - 谱友圈</title><body style="font:16px sans-serif;text-align:center;padding:60px">该曲谱不存在或已下架。<a href="//puku.puyouquan.com/">返回谱库</a>', ___ctype: 'text/html; charset=utf-8', ___cache: 'no-store', ___status: 404 };
+    return { ___raw: pubSsrHtml(s), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
+  }],
+  ['GET', /^\/pub\/([A-Za-z0-9_-]+)\/cover\.svg$/, false, (m) => {
+    const s = q.pubGet.get(m[1]);
+    if (!s) return { ___status: 404, ___raw: '', ___ctype: 'image/svg+xml', ___cache: 'no-store' };
+    return { ___raw: pubCoverSvg(s), ___ctype: 'image/svg+xml; charset=utf-8', ___cache: 'public, max-age=600' };
+  }],
+
   /* -- 收藏 -- */
   ['GET', /^\/api\/favorites$/, true, (m, b, u) => ({ favorites: q.favList.all(u.id) })],
   ['PUT', /^\/api\/favorites\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
@@ -322,6 +424,13 @@ const server = http.createServer(async (req, res) => {
       const body = (method === 'GET' || method === 'DELETE') ? {} : await readBody(req);
       const out = await handler(m, body, user, req, res);
       if (out && out.___redirect) { res.writeHead(302, { Location: out.___redirect }); res.end(); return; }   // v43.6 微信回调 302 回跳
+      if (out && out.___raw !== undefined) {   // SSR 落地页 / og 封面：非 JSON 原样输出（覆盖默认 Content-Type/no-store）
+        res.statusCode = out.___status || 200;
+        res.setHeader('Content-Type', out.___ctype || 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', out.___cache || 'public, max-age=300');
+        res.end(out.___raw);
+        return;
+      }
       res.statusCode = out && out.___status || 200;
       if (out) delete out.___status;
       res.end(JSON.stringify(out ?? { ok: true }));
