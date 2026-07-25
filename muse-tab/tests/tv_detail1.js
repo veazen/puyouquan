@@ -526,6 +526,53 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t34.sym && t34.mir && t34.gone && t34.both && t34.syncOn,
     'T34 倚音图标统一+去重(镜像同款/单独钮移除/装饰组选中态)', JSON.stringify(t34));
 
+  // T36 v47.0 纯 TAB 行首：TAB 字母与拍号不重叠（表头区 26px 预留）+ 拍号与首列内容间距 ≥8px（tsLead 17）
+  //     + 变拍子在 TAB 行画新拍号（此前纯 TAB 谱完全不显示变拍）
+  const t36 = await pg.evaluate(() => {
+    const probe = (mk) => {
+      if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      loadSong(mk());
+      const svg = document.getElementById('score');
+      const ts = [...svg.querySelectorAll('text')].map(t => {
+        const bb = t.getBBox();
+        return { t: t.textContent, x: bb.x, y: bb.y, w: bb.width, h: bb.height, fs: t.getAttribute('font-size') };
+      });
+      const tab = ts.filter(o => 'TAB'.includes(o.t) && o.t.length === 1 && (o.fs === '11.5' || o.fs === '9.5') && o.y < 320);
+      const sig = ts.filter(o => o.fs === '14' && /^\d+$/.test(o.t) && o.x < 130 && o.y > 150);
+      let ov = false;
+      tab.forEach(a => sig.forEach(c => {
+        const xov = Math.min(a.x + a.w, c.x + c.w) - Math.max(a.x, c.x);
+        const yov = Math.min(a.y + a.h, c.y + c.h) - Math.max(a.y, c.y);
+        if (xov > 0 && yov > 0) ov = true;
+      }));
+      const sigR = sig.length ? Math.max.apply(null, sig.map(o => o.x + o.w)) : 0;
+      // 首列内容（× 或品位数字）最左缘
+      const first = ts.filter(o => (o.t === '×' || /^\d{1,2}$/.test(o.t)) && o.fs !== '14' && o.x > sigR && o.y > 150 && o.y < 260)
+        .sort((a, c) => a.x - c.x)[0];
+      return { ov, gap: first ? Math.round((first.x - sigR) * 10) / 10 : -1 };
+    };
+    const g = probe(() => {
+      const s = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 1, lyr: 0 });
+      s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: 'C', strum: '', tech: '', notes: [{ s: 5, f: 3 }] },
+        { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 2, f: 1 }] },
+        { dur: 2, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 1, f: 0 }] }];
+      return s;
+    });
+    const u = probe(() => { const s = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 0, lyr: 0 }); s.inst = 'uku'; return s; });
+    // 变拍子：第 2 小节 3/4 → TAB 行第 2 小节起始处画 3 与 4（font-num 14 且 x 在小节内）
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s2 = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 0, lyr: 0 });
+    s2.measures[1].beats = 3; s2.measures[1].unit = 4;
+    loadSong(s2);
+    const sig2 = [...document.getElementById('score').querySelectorAll('text')]
+      .filter(t => t.getAttribute('font-size') === '14' && /^[34]$/.test(t.textContent))
+      .map(t => ({ t: t.textContent, x: Math.round(t.getBBox().x) }));
+    const meterDrawn = sig2.filter(o => o.t === '3').length >= 1 && sig2.length >= 4;   // 首小节 4/4 + 变拍 3/4
+    return { g, u, meterDrawn };
+  });
+  T(!t36.g.ov && t36.g.gap >= 8 && !t36.u.ov && t36.u.gap >= 8 && t36.meterDrawn,
+    'T36 纯TAB行首拍号不叠字母且留距+变拍子TAB行显示', JSON.stringify(t36));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
