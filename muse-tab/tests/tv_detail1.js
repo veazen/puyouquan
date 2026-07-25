@@ -504,12 +504,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       && cnt(s, /<line/g) >= 3 && s.includes('Q ') && !/<text/.test(s));
     // 镜像：前倚音小符头在左（cx=5），后倚音小符头在右（主符头在左）
     const mir = g.indexOf('rx="2.3"') < g.indexOf('rx="3.1"') && ga.indexOf('rx="3.1"') < ga.indexOf('rx="2.3"');
-    // 记号层「倚音」钮与装饰层「前倚音」钮同源同款
-    const bg = document.getElementById('b-grace');
-    const same = bg && bg.innerHTML.includes('rx="2.3"') && bg.innerHTML.includes('rx="3.1"');
-    return { sym, mir, same };
+    // v46.9 单独「倚音」钮移除（与装饰组前倚音重复）；装饰组前/后倚音齐备且选中态同步 col.grace/graceA
+    const gone = !document.getElementById('b-grace');
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 4, unit: 4, nMea: 1, nVox: 1, lyr: 0 }));
+    openFlyout('vox');
+    const gb = document.querySelector('[data-orn="grace"]'), gab = document.querySelector('[data-orn="gracea"]');
+    let syncOn = false;
+    if (gb && gab) {
+      sel.row = 'vox'; clampSel();
+      const col = curCol();
+      if (col) {
+        col.deg = col.deg || 1; col.grace = { notes: [{ deg: 2, oct: 0 }], dur: 8 }; syncInputs();
+        syncOn = gb.classList.contains('on') && !gab.classList.contains('on');
+        delete col.grace; syncInputs();
+        syncOn = syncOn && !gb.classList.contains('on');
+      }
+    }
+    return { sym, mir, gone, both: !!(gb && gab), syncOn };
   });
-  T(t34.sym && t34.mir && t34.same, 'T34 倚音图标统一(镜像同款/出版级符头)', JSON.stringify(t34));
+  T(t34.sym && t34.mir && t34.gone && t34.both && t34.syncOn,
+    'T34 倚音图标统一+去重(镜像同款/单独钮移除/装饰组选中态)', JSON.stringify(t34));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
@@ -533,14 +548,34 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     'T27 启动台默认态(四卡+左栏收起+空白谱面)', JSON.stringify(t27));
   T(t27.aiOn && t27.welcome && t27.ciDash && t27.noLtabOn,
     'T31 启动台默认页(智能页欢迎+光标—+左栏无高亮)', JSON.stringify(t27));
+  // T28 v46.9 改版：点新建后启动台保持（向导背后是干净启动台）、向导无「当前曲谱《旧稿》」状态行
   const t28 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const padGone = document.getElementById('start-pad').classList.contains('hidden');
-    const wizard = !!document.querySelector('.modal');
-    const flyBack = !document.getElementById('left-flyout').classList.contains('hidden');
-    return { padGone, wizard, flyBack };
+    const padStay = !document.getElementById('start-pad').classList.contains('hidden');
+    const m = document.querySelector('.modal');
+    const wizard = !!m;
+    const noOldInfo = m ? !/当前曲谱《/.test(m.textContent) : false;
+    const paperHidden = getComputedStyle(document.getElementById('paper')).visibility === 'hidden';
+    return { padStay, wizard, noOldInfo, paperHidden };
   });
-  T(t28.padGone && t28.wizard && t28.flyBack, 'T28 启动台点新建(关台+向导+左栏恢复)', JSON.stringify(t28));
+  T(t28.padStay && t28.wizard && t28.noOldInfo && t28.paperHidden,
+    'T28 启动台点新建(留台+向导无旧稿信息+谱面仍隐藏)', JSON.stringify(t28));
+  // T35 v46.9 完成向导创建 → 关台 + 全新曲谱（不残留上次编辑）+ 左栏恢复；中途取消则回启动台
+  const t35a = await pg2.evaluate(() => {
+    document.getElementById('nw-cancel').click();
+    return { padBack: !document.getElementById('start-pad').classList.contains('hidden') };
+  });
+  const t35 = await pg2.evaluate(() => {
+    document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.querySelector('.ntype[data-nt="vocal"]').click();
+    document.getElementById('nw-create').click();
+    return { padGone: document.getElementById('start-pad').classList.contains('hidden'),
+      fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 8,
+      paperVis: getComputedStyle(document.getElementById('paper')).visibility === 'visible',
+      flyBack: !document.getElementById('left-flyout').classList.contains('hidden') };
+  });
+  T(t35a.padBack && t35.padGone && t35.fresh && t35.paperVis && t35.flyBack,
+    'T35 向导创建=全新曲谱(取消回台/创建关台/无残留)', JSON.stringify(Object.assign({}, t35a, t35)));
   await pg2.close();
 
   console.log('PASS ' + pass + '/' + total);

@@ -1266,7 +1266,7 @@ body.shell #hint{display:none}
         <button id="b-ottava" title="八度线（8va/8vb）：仅五线谱——把选中乐句按记谱移低/高八度收拢下加线，谱表上/下方画虚线括线，实际音高与播放不变。Ctrl 选首末两音标注整句（再点清除）">八度线8va</button>
         <button id="b-clef" title="谱号切换（仅五线谱声部）：自当前音起切换 高音/中音/低音谱号，支持小节内切换；仅换记谱位置，音高与播放不变；选「恢复」清除本列切换">谱号切换</button>
         <button id="b-tie">连音线</button>
-        <button id="b-grace" title="倚音：在当前音前加一个小音符">倚音</button>
+        <!-- v46.9 单独「倚音」钮移除：与装饰组「前倚音/后倚音」完全重复（同编辑 col.grace） -->
         <button id="b-addnote" title="和音（同列多音）：在当前音上叠加1-3个音；五线谱也可 Ctrl+点击线/间直接加减">和音</button>
         <button id="b-vchord" title="功能谱和弦：级数为主构建（级数×类型扩展×转位低音），谱面级数/音名一键切换">和弦/级数</button>
         <button id="b-ferm-v" title="延长号：音符上方画 𝄐，自由延长该音时值（简谱/五线谱通用，再点取消）">延长号</button>
@@ -3867,7 +3867,7 @@ function editHints(){
   }else if(sel.row==='vox'){
     title='已选中简谱音符';
     items=[it('键盘输 0–7 落音；8度± 加高低音点','rib:vox',true),
-           it('升降号 ♯♭ · 附点 · 连音线 · 倚音 · 和音（记号层）','rib:vox'),
+           it('升降号 ♯♭ · 附点 · 连音线 · 和音（记号层）；倚音在装饰组','rib:vox'),
            it('选中音符后直接打字即可填入歌词'),
            it('「记谱法」组一键切五线谱视图（数据不变）','rib:vox')];
   }
@@ -5570,7 +5570,6 @@ function decorateSignButtons(){
     'b-ottava':  ['<i class="gt">8<sup>va</sup>⌐┄</i>','八度线'],
     'b-clef':    [smIcoSVG('gClef',17),'谱号切换'],
     'b-tie':     [sv(`<path d="M3 9.5 Q 11 2.5 19 9.5" ${st} stroke-width="1.3"/>`,22,12),'连音线'],
-    'b-grace':   [ornSVG('grace'),'倚音'],
     'b-addnote': [sv(`<ellipse cx="7" cy="4.6" rx="4.2" ry="3.1" fill="currentColor"/><ellipse cx="7" cy="12.4" rx="4.2" ry="3.1" fill="currentColor"/>`,14,17),'和音'],
     'b-vchord':  ['<i class="gt">Ⅳ</i>','和弦/级数'],
     'b-ferm-v':  [smIcoSVG('fermataAbove',10),'延长号'],
@@ -5865,7 +5864,9 @@ function syncInputs(){
     document.getElementById('b-flat').classList.toggle('on', col.acc==='b'||col.acc==='bb');
     document.getElementById('b-natural').classList.toggle('on', col.acc==='n');
     document.getElementById('b-tie').classList.toggle('on', !!col.tie);
-    document.getElementById('b-grace').classList.toggle('on', !!col.grace);
+    /* v46.9 单独倚音钮已移除，选中态改同步到装饰组前/后倚音 */
+    { const gb=document.querySelector('[data-orn="grace"]'); if(gb) gb.classList.toggle('on', !!col.grace);
+      const ga=document.querySelector('[data-orn="gracea"]'); if(ga) ga.classList.toggle('on', !!col.graceA); }
   }
   const mea = curMea();
   document.getElementById('b-rep-s').classList.toggle('on', !!(mea&&mea.repeatStart));
@@ -6809,7 +6810,10 @@ function initStartPad(){
   sp.addEventListener('click', e=>{
     const c=e.target.closest('[data-sp]'); if(!c) return;
     const k=c.dataset.sp;
-    hideStartPad();
+    /* v46.9 新建/打开/导入/我的不再立即关台——待新谱真正载入（loadSong/addDoc）时再关：
+       向导/文件框背后仍是干净启动台，中途取消也回启动台，全程不露上次残留；
+       「继续上次编辑」是显示旧稿的唯一入口 */
+    if(k==='cont'){ hideStartPad(); return; }
     if(k==='new') document.getElementById('b-new').click();
     else if(k==='open') document.getElementById('b-open').click();
     else if(k==='mine') document.getElementById('b-library').click();
@@ -8285,23 +8289,7 @@ document.getElementById('b-addnote').onclick = ()=>{
     });
   });
 };
-document.getElementById('b-grace').onclick = ()=>{
-  if(sel.row!=='vox'){ toast('请先在简谱区选中一个音'); return; }
-  const col = curCol();
-  if(!col || !col.deg){ toast('倚音需加在有唱名的音上'); return; }
-  const prevG = col.grace? normGrace(col.grace) : null;
-  askText('倚音唱名（1–7，最多连输3个如 32；留空清除）', prevG? prevG.notes.map(n=>n.deg).join('') : '', v=>{
-    const t = (v||'').trim();
-    mutate(()=>{
-      if(t==='') delete col.grace;
-      else if(/^[1-7]{1,3}$/.test(t)){
-        col.grace = {notes:[...t].map((ch,i2)=>({deg:+ch, oct:prevG&&prevG.notes[i2]?prevG.notes[i2].oct:0})),
-                     dur:prevG?prevG.dur:8};
-      }
-    });
-    if(t!=='') toast('已添加倚音（默认8分）· 点击谱面上的倚音可编辑音高/时值/八度');
-  });
-};
+/* v46.9 单独倚音钮移除：倚音入口统一为装饰组「前倚音/后倚音」（ornFromBar，同编辑 col.grace/graceA） */
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
 document.getElementById('b-rep-e').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatEnd=!m.repeatEnd; });
 document.getElementById('b-chord-edit').onclick = ()=>{
@@ -9809,6 +9797,7 @@ function addDoc(s, after){
     sel = {mi:0, row:s.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
     resetDocState();
     clampSel(); persist(); render();
+    hideStartPad();   // v46.9 向导新建/导入路径不走 loadSong，此处补关启动台
     if(after) after();
   });
 }
@@ -9967,7 +9956,8 @@ function createSong(type, o){
   return s;
 }
 function showNewWizard(){
-  const st = song? saveStatusText(song) : null;
+  /* v46.9 启动台态不展示「当前曲谱《旧稿》…」状态行——新建应是全新曲谱，不见上次残留 */
+  const st = (song && !startPadOn())? saveStatusText(song) : null;
   showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
   ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前曲谱《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将<b>替换当前窗口</b>${st.saved?'':'（未入库的编辑会先询问）'}。</p>` : ''}
   <div class="ntgrid">
@@ -12927,6 +12917,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.9</span><div><b>新建=全新曲谱 + 倚音入口去重</b>：① <b>启动台四入口不再提前露出旧谱</b>——点「新建/打开/导入/我的」后启动台保持在原位（向导与文件框背后是干净的启动页），<b>直到新曲谱真正载入才切换显示</b>；中途取消就回到启动台，全程不会看到上次残留的编辑信息；新建向导里的「当前曲谱《旧稿》…」状态行在启动台状态下也不再显示（从编辑中打开向导时照常提示替换风险）；「继续上次编辑」仍是查看旧稿的唯一入口；② <b>去掉重复的「倚音」按钮</b>——简谱/五线谱记号组原单独「倚音」钮与装饰组「前倚音」功能完全相同，现已移除，倚音入口统一为装饰组的<b>前倚音 / 后倚音</b>两枚（已选中音符带倚音时按钮高亮显示）。</div></li>
     <li><span class="v">v46.8</span><div><b>左栏细节修正批次</b>：① <b>音符/时值/节奏面板排版修正</b>——三个图层面板中的按钮组此前按内容撑宽（最宽溢出面板 355px，右侧按钮被截断看不见），现在改为占满面板宽度自动换行铺排，全部按钮尽收眼底；② <b>倚音图标统一为出版级</b>——「倚音 / 前倚音 / 后倚音」三枚按钮图标此前用简谱数字画法（细笔画小数字，与相邻的波音/颤音/回音出版字形分量不一致），现统一重绘为通用出版记法：<b>带斜杠的小八分音符 + 主音符 + 连线</b>，前/后倚音为同款元素的镜像布局，实心符头与统一线宽和相邻装饰记号视觉一致。</div></li>
     <li><span class="v">v46.7</span><div><b>顶部编辑行谢幕（界面重构收官）</b>：① <b>音符、时值、节奏拆为三个独立图层</b>——左栏三枚独立图标，各开各的面板（此前合在一个「音符」层里）；② <b>右栏页签顺序调整为 智能 · 库 · 创作 · 信息</b>；③ <b>顶栏「记号」（3/5/6/7 连音）分配到各谱类记号层</b>——吉他谱与简谱/五线谱记号面板各有一套，图示升级为出版级（符杠组 + 连音括线 + 斜体数字）；④ <b>时值提示（节拍状态胶囊）移到底部播放条</b>——节拍器左侧常驻可见，点击照常展开修复建议；⑤ <b>缩放控件移到左栏「帮助」上方</b>；⑥ 至此顶部第二行（编辑功能行）在新版界面<b>整行移除</b>，屏幕高度全部留给谱面；经典版界面保持原布局不变。</div></li>
     <li><span class="v">v46.6</span><div><b>「音符」图层 + 启动台默认页</b>：① 顶栏「编辑」组更名<b>「音符」</b>，并与<b>时值、节奏</b>两组一起收纳进左栏新的<b>「音符」图层</b>（与小节/段落图层并列）——插入/删除/拆合/八度、全部时值档、节奏组合集中一处，顶栏更清爽（经典版界面保持原顶栏布局）；② <b>连音线回归各谱类记号层</b>——吉他谱记号层新增「连音线」按钮，简谱/五线谱记号层沿用原有按钮，顶栏不再重复；③ <b>启动台默认页</b>——打开制谱页未选择时，右栏默认停在「智能」页显示欢迎指引、光标位置为空、左栏无选中高亮，<b>不再残留上次编辑的信息</b>；选择任一入口或载入曲谱后恢复正常显示。</div></li>
