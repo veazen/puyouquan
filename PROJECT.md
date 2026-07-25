@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v46.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v46.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -421,3 +421,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v46.3 智能预提示上线**（产品拍板：编辑内上下文提示为主、宏观建议次级）：`#rc-hints` 卡置于智能页顶部（rt-new data-rt=ai），`editHints()` 规则引擎按选中对象输出提示——优先级 barSel（小节线）> noteSel≥2（音符多选）> selRange.whole（整/多小节）> selRange（拍/片段）> sel.row tab/vox×(staff|jianpu)（音符光标）；`data-hact="rib:xxx"` 可点直达左栏图层（setRibbon）；次级段「整体建议」= 时值错误(#beat-status.bad)/空谱/有旋律无和弦/成型（宏观 T1 精简版）。`renderHints()` 挂 renderDock 尾部随每次渲染刷新；`.hb-li` 覆盖全局 button nowrap 允许换行。纯本地规则零成本。tv_detail1 T24（五上下文+直达+次级断言），25 项、27 套件全绿。
 
 > **v46.4 右栏四页签**：① #rtabs 智能·**创作(make)**·信息·库——创作辅助+导入互操作两组 assist 卡 data-rt ai→make（setRTab 全泛型自动生效）；光标位置卡 info→ai（置预提示卡下方）；无边框形态 CSS 选择器 ai→make + #rc-hints 单列。② 宽度 236→272 / 254→292。③ 谱面两侧滚动条隐藏：#score-wrap/#left-rail/#left-flyout/#right-dock `scrollbar-width:none`+webkit 0 宽（可滚不可见），#paper overflow-x:hidden。④ syncInputs 光标卡增行：音符（弦/品/×/技法名 或 简谱音高/记号）、和弦、可改项速查（时值 Q–T·附点·三连音·品位/音高）。tv_detail1 T25/T26，27 项、27 套件全绿。
+
+> **v46.5 启动台**：`#start-pad`（#score-wrap 内 absolute 覆盖层，`~#paper visibility:hidden` 防滚动泄底）——品牌 + 四入口卡（新建→b-new / 打开→b-open / 导入→popmenu 选 MusicXML|MIDI→向导 nw-import|nw-midi / 我的→b-library）+「继续上次编辑」链接（含当前草稿标题）。`initStartPad()` 挂 DOMContentLoaded 尾（PYQ_SHARE/?pub= 深链 return 后；?wxlogin= 回跳、viewer/stand 不出）；出现时 `closeFlyout()` 左栏收起，任一入口/`loadSong()`（首行 hideStartPad）关闭并恢复左栏。**注意**：数据零风险——底下仍照常恢复上次文档，启动台只是覆盖层；新建/打开走 v41.5 guardReplace 防覆盖确认。tv_detail1 T27/T28（新开页取启动态），29 项、27 套件全绿（loadSong 自动关台故存量套件零改动）。

@@ -521,7 +521,26 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
 #cursor-info .ci-k{color:var(--muted)}
 #cursor-info b{color:var(--accent-ink);font-weight:600}
 /* ================= 主区（默认 A4 纸张） ================= */
-#score-wrap{flex:0 1 900px;min-width:0;max-width:900px;margin:0;padding:0;}
+#score-wrap{flex:0 1 900px;min-width:0;max-width:900px;margin:0;padding:0;position:relative}
+/* v46.5 启动台：覆盖制版台呈"空白页"，居中品牌 + 四入口卡；打开时隐藏其后的谱面防滚动泄底 */
+#start-pad{position:absolute;inset:0;z-index:8;background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:30px}
+#start-pad.hidden{display:none!important}
+#start-pad:not(.hidden)~#paper{visibility:hidden}
+.spd-brand{display:flex;align-items:center;gap:11px;font-size:20px;font-weight:800;letter-spacing:.06em;color:var(--text)}
+#spd-cards{display:grid;grid-template-columns:repeat(4,132px);gap:14px}
+.spd-card{display:flex;flex-direction:column;align-items:center;gap:7px;padding:24px 10px 18px;
+  border:1px solid var(--border-soft);border-radius:16px;background:var(--panel);cursor:pointer;
+  transition:transform .15s, box-shadow .15s, border-color .15s}
+.spd-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,.10);
+  border-color:color-mix(in srgb,var(--accent) 30%,var(--border-soft));background:var(--panel)}
+.spd-card .ic{color:var(--accent-ink);line-height:0}
+.spd-card b{font-size:15px}
+.spd-card span:last-child{font-size:10.5px;color:var(--muted);white-space:normal;line-height:1.4;text-align:center}
+#spd-cont{font-size:12.5px;color:var(--muted);cursor:pointer}
+#spd-cont:hover{color:var(--accent-ink)}
+#spd-cont:empty{display:none}
+@media(max-width:720px){ #spd-cards{grid-template-columns:repeat(2,132px)} }
 #paper{background:transparent;border:none;box-shadow:none;padding:0;
   width:100%;max-width:820px;margin:0 auto;overflow:auto;
   filter:drop-shadow(0 6px 22px rgba(0,0,0,.09));}   /* ≈A4 纵向宽度(96dpi) */
@@ -1337,7 +1356,20 @@ body.shell #hint{display:none}
     </div>
   </aside>
 
-  <div id="score-wrap"><div id="paper"><svg id="score"></svg></div></div>
+  <div id="score-wrap">
+    <!-- v46.5 启动台：打开制谱页默认空白 + 左栏收起 + 居中四入口（新建/打开/导入/我的）；
+         深链（互动谱/谱库观看/微信登录回跳）不出现；任一操作或载入曲谱后关闭 -->
+    <div id="start-pad" class="hidden">
+      <div class="spd-brand cc-logo"><span class="mark"></span>谱友圈 · 在线制谱</div>
+      <div id="spd-cards">
+        <button class="spd-card" data-sp="new"><span class="ic" data-svgi="pencil"></span><b>新建</b><span>八类曲谱 · 新建向导</span></button>
+        <button class="spd-card" data-sp="open"><span class="ic" data-svgi="doc"></span><b>打开</b><span>打开曲谱文件</span></button>
+        <button class="spd-card" data-sp="imp"><span class="ic" data-svgi="loop"></span><b>导入</b><span>MusicXML / MIDI</span></button>
+        <button class="spd-card" data-sp="mine"><span class="ic" data-svgi="score"></span><b>我的</b><span>预设与我的曲谱</span></button>
+      </div>
+      <div id="spd-cont" data-sp="cont"></div>
+    </div>
+  <div id="paper"><svg id="score"></svg></div></div>
 
   <aside id="right-dock">
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
@@ -6713,6 +6745,46 @@ function openFlyout(t){
   setRibbon(t);
 }
 function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
+/* ===== v46.5 启动台（打开制谱页默认空白 + 左栏收起 + 居中四入口）===== */
+function hideStartPad(reopen){
+  const sp=document.getElementById('start-pad'); if(!sp || sp.classList.contains('hidden')) return;
+  sp.classList.add('hidden');
+  if(reopen!==false){ const fly=document.getElementById('left-flyout');
+    if(fly && fly.classList.contains('hidden')) openFlyout(activeTab); }
+}
+function initStartPad(){
+  const sp=document.getElementById('start-pad'); if(!sp) return;
+  if(document.body.classList.contains('viewer') || document.body.classList.contains('stand')) return;
+  if(/[?&](pub|wxlogin)=/.test(location.search)) return;   // 深链直达不出启动台
+  sp.classList.remove('hidden');
+  closeFlyout();   // 左边栏默认收起
+  const ct=document.getElementById('spd-cont');
+  if(ct) ct.textContent='继续上次编辑：《'+(((typeof song!=='undefined'&&song&&song.title)||'未命名曲谱'))+'》 →';
+  sp.addEventListener('click', e=>{
+    const c=e.target.closest('[data-sp]'); if(!c) return;
+    const k=c.dataset.sp;
+    hideStartPad();
+    if(k==='new') document.getElementById('b-new').click();
+    else if(k==='open') document.getElementById('b-open').click();
+    else if(k==='mine') document.getElementById('b-library').click();
+    else if(k==='imp'){
+      closePop();
+      const div=document.createElement('div');
+      div.className='popmenu'; div.id='popmenu';
+      div.style.left='50%'; div.style.top='38%'; div.style.transform='translateX(-50%)';
+      div.innerHTML='<div class="t">导入曲谱（之后也可从右栏「创作」页导入）</div><div class="row" style="flex-direction:column;align-items:stretch">'
+        +'<button data-im="mxl">导入 MusicXML（MuseScore / AI 转谱）</button>'
+        +'<button data-im="midi">导入 MIDI（DAW / 编曲工程）</button></div>';
+      document.body.appendChild(div);
+      div.addEventListener('click', ev=>{
+        const b2=ev.target.closest('[data-im]'); if(!b2) return;
+        const im=b2.dataset.im; closePop();
+        document.getElementById('b-new').click();
+        const x=document.getElementById(im==='mxl'?'nw-import':'nw-midi'); if(x) x.click();
+      });
+    }
+  });
+}
 document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
   /* v40.4 轨上动作按钮（新建/帮助）：委托既有入口，不参与图层切换 */
   if(b.dataset.act){
@@ -9722,6 +9794,7 @@ function saveToLibrary(){
   toast('已保存到我的曲谱：'+(song.title||'未命名曲谱'));
 }
 function loadSong(s, after){
+  hideStartPad();   // v46.5 载入任何曲谱即离开启动台
   s = migrate(s);
   /* v41.5 单窗口化：一律替换当前窗口；未入库且有编辑时先弹确认对话（guardReplace，
      v38.8 防静默覆盖语义由"另开窗口"改为"确认对话"）。after 同 addDoc：确认后才执行 */
@@ -12788,6 +12861,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.5</span><div><b>启动台上线（打开即选，不再直落编辑器）</b>：打开制谱页默认为<b>空白页面</b>，屏幕中央呈现四个入口——<b>新建</b>（八类曲谱 · 新建向导）、<b>打开</b>（打开曲谱文件）、<b>导入</b>（MusicXML / MIDI）、<b>我的</b>（预设与我的曲谱），下方一键<b>「继续上次编辑」</b>；左侧工具栏默认收起，选择任一入口或载入曲谱后自动恢复。分享谱/谱库观看等直达链接不受影响，仍直接进入对应页面。</div></li>
     <li><span class="v">v46.4</span><div><b>右栏四页签改版 + 光标信息升级</b>：① 右侧栏从三页签改为<b>四页签：智能 · 创作 · 信息 · 库</b>——新「创作」栏承接 创作辅助（一键配和弦/配伴奏/智能填词/哼唱成谱）与 导入·互操作（MusicXML/MIDI）；② <b>光标位置卡移入「智能」栏</b>，与智能预提示上下联动；③ <b>点击音符时光标卡同步显示该音符的可编辑信息</b>——当前弦/品位（或简谱音高）、已加技法、所在和弦，以及可改项速查（时值 Q–T · 附点 · 三连音 · 品位/音高输入）；④ 右栏整体<b>加宽</b>（254→292px），提示与信息不再局促；⑤ <b>谱面两侧滚动条隐藏</b>——制版台、左右栏的滚动条不再显示（滚轮/触控滚动照常），页面更干净。</div></li>
     <li><span class="v">v46.3</span><div><b>智能预提示上线（编辑内上下文提示）</b>：右栏「智能」页顶部新增<b>智能预提示卡</b>——根据你当前选中的对象实时给出对应的操作提示：<b>选中吉他谱音符</b>→品位/时值快捷键与推弦/滑弦/泛音/哑音等技法入口；<b>选中五线谱音符</b>→升降还原/谱号切换/八度线/指法踏板；<b>选中简谱音符</b>→数字输入/八度点/歌词填入；<b>选中拍（时值列）</b>→节奏重写与节奏型库；<b>选中整小节/多小节</b>→复制粘贴与小节层操作；<b>选中小节线</b>→反复/终止/跳房子设置。带 › 的提示<b>点击直达对应面板</b>。宏观流程建议（配和弦/修复时值/发布分享等）列为卡内次级「整体建议」。全部为本地规则引擎——按曲谱真实状态推导，准确、即时、离线可用。</div></li>
     <li><span class="v">v46.2</span><div><b>右栏「智能」页签置首</b>：右侧栏页签顺序调整为 <b>智能 · 信息 · 库</b>——智能配谱/自动配和弦/哼唱转谱等 AI 能力前置曝光，一眼可达；打开曲谱时默认仍停留在「信息」页，不打断编辑流。（智能预提示「下一步建议」功能已完成方案评估，见产品沟通记录，待拍板后实施。）</div></li>
@@ -13187,8 +13261,10 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }
   try{
     const pub=new URLSearchParams(location.search).get('pub');
-    if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function') openRemotePub(pub);
+    if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
   }catch(e){ console.error('谱库观看启动失败', e); }
+  /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
+  try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
 });
 </script>
 </body>

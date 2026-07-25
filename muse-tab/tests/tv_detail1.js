@@ -34,7 +34,10 @@
        且含可点 rib: 直达项与次级「整体建议」段
    ---- v46.4 ----
    T25 右栏四页签（智能·创作·信息·库）：创作栏承接创作辅助+导入互操作，光标位置卡移入智能栏
-   T26 光标卡音符可编辑信息：选中音符显示 弦/品/技法 + 可改项（时值/附点/…）+ 和弦 */
+   T26 光标卡音符可编辑信息：选中音符显示 弦/品/技法 + 可改项（时值/附点/…）+ 和弦
+   ---- v46.5 ----
+   T27 启动台（新开页面）：#start-pad 可见、含 新建/打开/导入/我的 四卡、左栏收起、谱面隐藏
+   T28 启动台交互：点「新建」→ 启动台关闭 + 新建向导弹出 + 左栏恢复；loadSong 亦关闭启动台 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -398,6 +401,30 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t25.tabs === 'ai,make,info,lib' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
   T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
+
+  // T27+T28 v46.5 启动台（需全新页面取启动态）
+  const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
+  pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
+  await pg2.goto(F); await pg2.waitForTimeout(900);
+  const t27 = await pg2.evaluate(() => {
+    const sp = document.getElementById('start-pad');
+    const vis = sp && !sp.classList.contains('hidden');
+    const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].map(c => c.dataset.sp).join(',');
+    const flyClosed = document.getElementById('left-flyout').classList.contains('hidden');
+    const paperHidden = getComputedStyle(document.getElementById('paper')).visibility === 'hidden';
+    return { vis, cards, flyClosed, paperHidden };
+  });
+  T(t27.vis && t27.cards === 'new,open,imp,mine' && t27.flyClosed && t27.paperHidden,
+    'T27 启动台默认态(四卡+左栏收起+空白谱面)', JSON.stringify(t27));
+  const t28 = await pg2.evaluate(() => {
+    document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const padGone = document.getElementById('start-pad').classList.contains('hidden');
+    const wizard = !!document.querySelector('.modal');
+    const flyBack = !document.getElementById('left-flyout').classList.contains('hidden');
+    return { padGone, wizard, flyBack };
+  });
+  T(t28.padGone && t28.wizard && t28.flyBack, 'T28 启动台点新建(关台+向导+左栏恢复)', JSON.stringify(t28));
+  await pg2.close();
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
