@@ -704,6 +704,56 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && t40.deg5 && t40.rest0 && t40.inBar && t40.label2 === '音符' && t40.inHead,
     'T40 音符输入组(品位/音级上下文)+撤销重做入上栏', JSON.stringify(t40));
 
+  // T41 v47.6 音符组三态：TAB(0-9+0–24选择器+×) / 简谱(1-7) / 五线谱(音名随调号+♯♭♮) + 节奏型库入上栏
+  const t41 = await pg.evaluate(() => {
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const vis = el => el && getComputedStyle(el).display !== 'none';
+    const s = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'D', nMea: 1, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] },
+      { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] }, { dur: 2, dotted: false, chord: '', strum: '', tech: '', notes: [] }];
+    loadSong(s);
+    // ① TAB 语境
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; selRange = null; syncInputs();
+    const tabCtx = [...document.querySelectorAll('#eb-note .nd')].filter(vis).length === 10
+      && vis(document.getElementById('eb-fret-more')) && vis(document.getElementById('eb-mute-n'))
+      && !vis(document.getElementById('eb-octup')) && !vis(document.getElementById('eb-acc-s'));
+    // 0–24 选择器：25 个品位钮 + 高把位写入
+    document.getElementById('eb-fret-more').click();
+    const grid = document.querySelectorAll('#popmenu [data-fret]').length;
+    const has24 = !!document.querySelector('#popmenu [data-fret="24"]');
+    document.querySelector('#popmenu [data-fret="17"]').click();
+    const fret17 = (song.measures[0].tabs[0][0].notes.find(n => n.s === 3) || {}).f === 17;
+    // × 闷音 + 选中态同步
+    document.getElementById('eb-mute-n').click(); syncInputs();
+    const nx = song.measures[0].tabs[0][0].notes.find(n => n.s === 3);
+    const muteOk = !!(nx && nx.x) && document.getElementById('eb-mute-n').classList.contains('on');
+    // ② 简谱语境：数字标签、无变音钮、有八度
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; selRange = null; syncInputs();
+    const jpOk = document.querySelector('#eb-note [data-nd="1"] .dg').textContent === '1'
+      && [...document.querySelectorAll('#eb-note .nd')].filter(vis).length === 8
+      && !vis(document.getElementById('eb-acc-s')) && vis(document.getElementById('eb-octup'));
+    // ③ 五线谱语境（D 大调）：按钮显音名 D E F G A B C；点「F」写音级 3；♯ 生效且高亮
+    song.voxNotations = ['staff']; render(); syncInputs();
+    const letters = [1,2,3,4,5,6,7].map(k => document.querySelector('#eb-note [data-nd="' + k + '"] .dg').textContent).join('');
+    const stCtx = letters === 'DEFGABC' && vis(document.getElementById('eb-acc-s'))
+      && vis(document.getElementById('eb-octup')) && !vis(document.getElementById('eb-fret-more'));
+    document.querySelector('#eb-note [data-nd="3"]').click();
+    const degOk = song.measures[0].voxes[0][0].deg === 3;
+    document.getElementById('eb-acc-s').click(); syncInputs();
+    const accOk = song.measures[0].voxes[0][0].acc === '#' && document.getElementById('eb-acc-s').classList.contains('on');
+    // C 大调下音名应为 CDEFGAB（换调即换标签）
+    song.key = 'C'; render(); syncInputs();
+    const lettersC = [1,2,3,4,5,6,7].map(k => document.querySelector('#eb-note [data-nd="' + k + '"] .dg').textContent).join('');
+    // ④ 节奏型库按钮在上栏、位于节奏组末尾
+    const lib = document.getElementById('eb-lib');
+    const libOk = vis(lib) && document.getElementById('editbar').contains(lib)
+      && lib === document.getElementById('eb-combo').lastElementChild;
+    return { tabCtx, grid, has24, fret17, muteOk, jpOk, letters, lettersC, stCtx, degOk, accOk, libOk };
+  });
+  T(t41.tabCtx && t41.grid >= 25 && t41.has24 && t41.fret17 && t41.muteOk && t41.jpOk
+    && t41.stCtx && t41.degOk && t41.accOk && t41.lettersC === 'CDEFGAB' && t41.libOk,
+    'T41 音符组三态(TAB 0-24+×/简谱/五线谱音名+变音)+节奏型库入上栏', JSON.stringify(t41));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
