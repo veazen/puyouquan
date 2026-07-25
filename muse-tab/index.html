@@ -82,7 +82,7 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .eb-grp{display:flex;align-items:center;gap:4px;flex:none}
 .eb-unit{display:inline-flex;align-items:center;gap:5px;flex:none}   /* v46.6 组标签+组+分隔线一体（随组搬移显隐） */
 /* v46.6 音符图层内的顶栏组：面板语境样式（字形+中文双显、按钮换行铺排） */
-#note-ops-host .eb-grp,#note-dur-host .eb-grp,#note-rhy-host .eb-grp{flex-wrap:wrap;gap:5px}
+#note-ops-host .eb-grp,#note-dur-host .eb-grp,#note-rhy-host .eb-grp{flex-wrap:wrap;gap:5px;width:100%;min-width:0}   /* v46.8 占满面板宽换行铺排（.eb-grp 全局 flex:none 会按内容撑宽溢出） */
 #note-ops-host .eb,#note-dur-host .eb,#note-rhy-host .eb{display:inline-flex;align-items:center;gap:4px;min-height:28px;font-size:12px;padding:3px 8px}
 #note-ops-host .eb .dg{font-size:13px}
 #note-dur-host .eb .dg{font-family:var(--font-num);font-size:15px}
@@ -5532,25 +5532,21 @@ function ornSVG(kind){
   if(kind==='tr')   return smIcoSVG('ornamentTrill', 13);
   if(kind==='turn') return smIcoSVG('ornamentTurn', 9);
   let g='';
+  /* v46.8 倚音图标统一：出版级通用记法——小音符(带斜杠八分)＋主音符＋连线，前/后倚音同款元素镜像布局，
+     实心符头/统一线宽与相邻 SMuFL 波音/颤音字形同视觉分量（此前简谱数字画法笔画过细、三个倚音钮观感不一） */
+  const gNote=(cx,cy)=>`<ellipse cx="${cx}" cy="${cy}" rx="2.3" ry="1.7" fill="currentColor"/>
+       <line x1="${cx+2.1}" y1="${cy-0.4}" x2="${cx+2.1}" y2="${cy-7.4}" stroke="currentColor" stroke-width="1"/>
+       <path d="M ${cx+2.1} ${cy-7.4} q 2.6 1.6 1.5 4.3" fill="none" stroke="currentColor" stroke-width="1"/>
+       <line x1="${cx+0.1}" y1="${cy-4}" x2="${cx+4.5}" y2="${cy-6.6}" stroke="currentColor" stroke-width="0.9"/>`;
+  const mNote=(cx,cy)=>`<ellipse cx="${cx}" cy="${cy}" rx="3.1" ry="2.3" fill="currentColor"/>
+       <line x1="${cx+2.9}" y1="${cy-0.5}" x2="${cx+2.9}" y2="${cy-9.6}" stroke="currentColor" stroke-width="1.2"/>`;
+  const slur=(x1,x2)=>`<path d="M ${x1} 15.7 Q ${(x1+x2)/2} 18.2 ${x2} 15.7" fill="none" stroke="currentColor" stroke-width="0.9"/>`;
   if(kind==='grace'){
-    /* 与谱面记法一致：前倚音 2（8分·一条减时线）＋直角连线搭到主音 1 腰部 */
-    g=`<text x="6" y="7.5" font-size="7" text-anchor="middle" fill="currentColor">2</text>
-       <line x1="3" y1="9" x2="9" y2="9" stroke="currentColor" stroke-width="0.8"/>
-       <path d="M 6 10.2 L 6 11.8 L 13.5 11.8" fill="none" stroke="currentColor" stroke-width="0.9"/>
-       <text x="18" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>`;
+    /* 前倚音：小音符在左、主音符在右，连线搭向主音 */
+    g=gNote(5,12.6)+mNote(18.5,13.2)+slur(7.5,16.5);
   }else if(kind==='gracea'){
-    /* 后倚音：主音 1 在左，倚音 2 在右，直角连线向左搭回主音腰部 */
-    g=`<text x="8" y="14" font-size="12" text-anchor="middle" fill="currentColor">1</text>
-       <text x="20" y="7.5" font-size="7" text-anchor="middle" fill="currentColor">2</text>
-       <line x1="17" y1="9" x2="23" y2="9" stroke="currentColor" stroke-width="0.8"/>
-       <path d="M 20 10.2 L 20 11.8 L 12.5 11.8" fill="none" stroke="currentColor" stroke-width="0.9"/>`;
-  }else if(kind==='up' || kind==='down'){
-    g=`<path d="M 5 11 l 3 -4 l 3 4 l 3 -4 l 3 4" fill="none" stroke="currentColor" stroke-width="1.2"/>`;
-    if(kind==='down') g+=`<line x1="13" y1="4" x2="13" y2="14" stroke="currentColor" stroke-width="1.2"/>`;
-  }else if(kind==='tr'){
-    g=`<text x="13" y="13" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">tr</text>`;
-  }else if(kind==='turn'){
-    g=`<text x="13" y="13.5" font-size="12" text-anchor="middle" fill="currentColor">∽</text>`;
+    /* 后倚音：主音符在左、小音符在右（同款元素镜像布局） */
+    g=mNote(6.5,13.2)+gNote(17.8,12.6)+slur(10.5,19.5);
   }else if(kind==='dyn'){
     g=`<text x="10" y="13" font-size="12" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="middle" fill="currentColor">f</text>
        <path d="M 16 6 L 23 9 L 16 12" fill="none" stroke="currentColor" stroke-width="0.9"/>`;
@@ -12931,6 +12927,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.8</span><div><b>左栏细节修正批次</b>：① <b>音符/时值/节奏面板排版修正</b>——三个图层面板中的按钮组此前按内容撑宽（最宽溢出面板 355px，右侧按钮被截断看不见），现在改为占满面板宽度自动换行铺排，全部按钮尽收眼底；② <b>倚音图标统一为出版级</b>——「倚音 / 前倚音 / 后倚音」三枚按钮图标此前用简谱数字画法（细笔画小数字，与相邻的波音/颤音/回音出版字形分量不一致），现统一重绘为通用出版记法：<b>带斜杠的小八分音符 + 主音符 + 连线</b>，前/后倚音为同款元素的镜像布局，实心符头与统一线宽和相邻装饰记号视觉一致。</div></li>
     <li><span class="v">v46.7</span><div><b>顶部编辑行谢幕（界面重构收官）</b>：① <b>音符、时值、节奏拆为三个独立图层</b>——左栏三枚独立图标，各开各的面板（此前合在一个「音符」层里）；② <b>右栏页签顺序调整为 智能 · 库 · 创作 · 信息</b>；③ <b>顶栏「记号」（3/5/6/7 连音）分配到各谱类记号层</b>——吉他谱与简谱/五线谱记号面板各有一套，图示升级为出版级（符杠组 + 连音括线 + 斜体数字）；④ <b>时值提示（节拍状态胶囊）移到底部播放条</b>——节拍器左侧常驻可见，点击照常展开修复建议；⑤ <b>缩放控件移到左栏「帮助」上方</b>；⑥ 至此顶部第二行（编辑功能行）在新版界面<b>整行移除</b>，屏幕高度全部留给谱面；经典版界面保持原布局不变。</div></li>
     <li><span class="v">v46.6</span><div><b>「音符」图层 + 启动台默认页</b>：① 顶栏「编辑」组更名<b>「音符」</b>，并与<b>时值、节奏</b>两组一起收纳进左栏新的<b>「音符」图层</b>（与小节/段落图层并列）——插入/删除/拆合/八度、全部时值档、节奏组合集中一处，顶栏更清爽（经典版界面保持原顶栏布局）；② <b>连音线回归各谱类记号层</b>——吉他谱记号层新增「连音线」按钮，简谱/五线谱记号层沿用原有按钮，顶栏不再重复；③ <b>启动台默认页</b>——打开制谱页未选择时，右栏默认停在「智能」页显示欢迎指引、光标位置为空、左栏无选中高亮，<b>不再残留上次编辑的信息</b>；选择任一入口或载入曲谱后恢复正常显示。</div></li>
     <li><span class="v">v46.5</span><div><b>启动台上线（打开即选，不再直落编辑器）</b>：打开制谱页默认为<b>空白页面</b>，屏幕中央呈现四个入口——<b>新建</b>（八类曲谱 · 新建向导）、<b>打开</b>（打开曲谱文件）、<b>导入</b>（MusicXML / MIDI）、<b>我的</b>（预设与我的曲谱），下方一键<b>「继续上次编辑」</b>；左侧工具栏默认收起，选择任一入口或载入曲谱后自动恢复。分享谱/谱库观看等直达链接不受影响，仍直接进入对应页面。</div></li>

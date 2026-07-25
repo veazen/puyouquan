@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v46.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-25 · 当前版本 **v46.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,7 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
-| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)——11项 |
+| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v46.8 累积 35 项（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -427,3 +427,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v46.6 音符图层 + 启动台默认页**：① 顶栏「编辑」→「音符」，音符/时值/节奏三组新版外壳收纳入左栏 note 图层——editbar 加 `.eb-unit`（组标签+组+分隔线一体）`#ebu-eb-edit/-dur/-combo`；`applyShellDock` 搬 `.eb-grp` 进 `note-ops/dur/rhy-host`（**eb-dur/eb-combo 的监听挂组元素随节点迁移**，eb-edit 走 ebHandler 委托加绑 panel-note-ops）；`setRibbon` virt 加 note→三面板、renderDock visible 加 'note'、eb-clear 显示条件加 note；左轨 ltab data-t=note（SVGI 加 note 四分音符图标）。② 连音线：eb-marks 不再生成 eb-tie；TAB 记号层新增 `b-tie-t`（onclick=toggleTie，toggleTie 原生支持 tab 单选/Ctrl 跨选）；vox 沿用 b-tie。③ 启动台默认页：`startPadOn()` 全局判定——initStartPad 里 `setRTab('ai')`+清 ltab 高亮+renderHints/syncInputs；editHints 启动台态返回欢迎指引、syncInputs 光标卡置「—」；hideStartPad 恢复刷新。T23 断言更新（defOn 不再是 info）。tv_detail1 T29-T31，32 项、27 套件全绿。
 
 > **v46.7 顶栏撤销（新版外壳界面重构收官）**：① 音符/时值/节奏拆三独立 ltab（data-t note/dur/rhy，SVGI 加 dur/rhy 图标；setRibbon virt 各开各面板、renderDock visible 同步）。② rtabs 序 智能·库·创作·信息。③ 连音 3/5/6/7 注入 `mark-body`+`vmark-body`（tupSVG 升级：符杠组+连音括线 ⌐¬+斜体数字；ebHandler 面板已委托），`#eb-marks` 自 HTML 移除、tuplet 选中态同步改全局 `[data-tup]`；b-tie-t 选中态同步补齐。④ beat-box（时值提示）shell → `.mx-bar`（b-metro 前，err-drop fixed 改右下）；classic → 回右栏。⑤ eb-zoom → 左栏 `#rail-zoom`（帮助上方，纵排 column-reverse）；classic → 回 editbar。⑥ `body.shell #editbar{display:none}` 整行移除（三组 v46.6 已迁+记号+缩放+节拍全部落位）；经典版布局零变化。tv_detail1 T32（九断言），33 项、27 套件全绿。
+
+> **v46.8 左栏细节修正**：① 音符/时值/节奏面板排版——`#note-*-host .eb-grp` 加 `width:100%;min-width:0`（`.eb-grp` 全局 `flex:none` 按内容撑宽，曾溢出面板 355/162/169px 截断右侧按钮），组占满面板宽 flex-wrap 换行铺排。② 倚音图标出版级统一——`ornSVG` 的 grace/gracea 弃用简谱数字画法（font-size 7 的「2」图标尺寸下不可辨、细笔画与相邻 SMuFL 波音/颤音字形分量不一），重绘为 gNote（斜杠小八分符：实心椭圆符头 rx2.3+符干+符尾+斜杠）+ mNote（主音符 rx3.1+符干）+ slur（下方连线）三元件组合，前/后倚音同款元件镜像布局；`b-grace`（记号层「倚音」）经 decorateSignButtons 同源自动统一；顺带清除 ornSVG 内不可达的 up/down/tr/turn 旧手绘分支（v45.5 起已走 smIcoSVG 早退）。tv_detail1 T33（溢出≤1px+换行）/T34（结构对称+无 text 数字+b-grace 同款），35 项、27 套件全绿。

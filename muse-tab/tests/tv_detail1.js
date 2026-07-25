@@ -471,6 +471,46 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && t32.zoomInRail && t32.beatInBar && t32.ebHidden,
     'T32 顶栏撤销(三图层/连音入记号层/缩放入左栏/节拍入播放条)', JSON.stringify(t32));
 
+  // T33 v46.8 音符/时值/节奏面板不溢出：组占满面板宽换行铺排（此前 .eb-grp flex:none 撑宽 355px 截断）
+  const t33 = await pg.evaluate(() => {
+    const fly = document.getElementById('left-flyout');
+    const worstOf = (t) => {
+      openFlyout(t);
+      const fw = fly.getBoundingClientRect().right;
+      let worst = 0;
+      fly.querySelectorAll('.rg-body *').forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0) worst = Math.max(worst, r.right - fw);
+      });
+      return Math.round(worst * 10) / 10;
+    };
+    const note = worstOf('note'), dur = worstOf('dur'), rhy = worstOf('rhy');
+    // 换行确认：音符组按钮至少两行（首末按钮 top 不同）
+    const ebs = [...document.querySelectorAll('#note-ops-host .eb')];
+    openFlyout('note');
+    const wrapped = ebs.length >= 6
+      && ebs[0].getBoundingClientRect().top < ebs[ebs.length - 1].getBoundingClientRect().top - 10;
+    return { note, dur, rhy, wrapped };
+  });
+  T(t33.note <= 1 && t33.dur <= 1 && t33.rhy <= 1 && t33.wrapped,
+    'T33 音符/时值/节奏面板不溢出且换行铺排', JSON.stringify(t33));
+
+  // T34 v46.8 倚音图标统一：前/后倚音同款元素（小音符斜杠+主音符+连线）镜像布局，弃用简谱数字画法
+  const t34 = await pg.evaluate(() => {
+    const g = ornSVG('grace'), ga = ornSVG('gracea');
+    const cnt = (s, re) => (s.match(re) || []).length;
+    // 两枚图标：各 2 实心符头（小 rx=2.3 + 主 rx=3.1）、有斜杠/符尾/连线，无 <text> 数字
+    const sym = [g, ga].every(s => cnt(s, /<ellipse/g) === 2 && s.includes('rx="2.3"') && s.includes('rx="3.1"')
+      && cnt(s, /<line/g) >= 3 && s.includes('Q ') && !/<text/.test(s));
+    // 镜像：前倚音小符头在左（cx=5），后倚音小符头在右（主符头在左）
+    const mir = g.indexOf('rx="2.3"') < g.indexOf('rx="3.1"') && ga.indexOf('rx="3.1"') < ga.indexOf('rx="2.3"');
+    // 记号层「倚音」钮与装饰层「前倚音」钮同源同款
+    const bg = document.getElementById('b-grace');
+    const same = bg && bg.innerHTML.includes('rx="2.3"') && bg.innerHTML.includes('rx="3.1"');
+    return { sym, mir, same };
+  });
+  T(t34.sym && t34.mir && t34.same, 'T34 倚音图标统一(镜像同款/出版级符头)', JSON.stringify(t34));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
