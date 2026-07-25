@@ -41,7 +41,10 @@
    ---- v46.6 ----
    T29 音符图层：顶栏 音符(原编辑)/时值/节奏 三组收纳入左栏 note 层，时值点击生效、后插生效
    T30 连音线回归谱类记号层：顶栏记号组无 eb-tie；TAB 记号层 b-tie-t 点击建立 n.tk 连音线
-   T31 启动台默认页（并入 T27 页）：右栏停智能页+欢迎提示、光标卡「—」、左栏无选中高亮 */
+   T31 启动台默认页（并入 T27 页）：右栏停智能页+欢迎提示、光标卡「—」、左栏无选中高亮
+   ---- v46.7 ----
+   T32 顶栏撤销：音符/时值/节奏拆三独立图层（各开各面板）、连音入两谱类记号层、
+       缩放入左栏 rail-zoom、节拍状态入播放条、新版外壳 #editbar 隐藏、右栏序 智能·库·创作·信息 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -363,8 +366,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const on = document.querySelector('#rtabs .rtab.on');
     return { first: tabs[0], order: tabs.join(','), defOn: on && on.dataset.p };
   });
-  /* v46.6 起启动台把右栏默认页设为智能（欢迎提示），不再断言 defOn=info */
-  T(t23.first === 'ai' && t23.order === 'ai,make,info,lib', 'T23 智能页签置首(四页签序)', JSON.stringify(t23));
+  /* v46.6 起启动台把右栏默认页设为智能；v46.7 页签序改为 智能·库·创作·信息 */
+  T(t23.first === 'ai' && t23.order === 'ai,lib,make,info', 'T23 页签序(智能·库·创作·信息)', JSON.stringify(t23));
 
   // T24 v46.3 智能预提示按选中对象切换
   const t24 = await pg.evaluate(() => {
@@ -404,7 +407,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const t = document.getElementById('cursor-info').textContent;
     return { tabs, ciAi, makeCards, note: /5弦 3品/.test(t) && /击弦/.test(t), edit: /时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
   });
-  T(t25.tabs === 'ai,make,info,lib' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
+  T(t25.tabs === 'ai,lib,make,info' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
   T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
 
   // T29 v46.6 音符图层（顶栏三组收纳入左栏）
@@ -445,6 +448,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { noTop, hasBtn: !!bt, tied: !!(n.tk && n.tk.ci === 1) };
   });
   T(t30.noTop && t30.hasBtn && t30.tied, 'T30 连音线回归记号层(TAB b-tie-t 生效)', JSON.stringify(t30));
+
+  // T32 v46.7 顶栏撤销：三独立图层 + 连音入记号层 + 缩放入左栏 + 节拍状态入播放条
+  const t32 = await pg.evaluate(() => {
+    const tabs = [...document.querySelectorAll('.ltab[data-t]')].map(b => b.dataset.t).join(',');
+    const threeTabs = /note,dur,rhy,mea,sect/.test(tabs);
+    openFlyout('dur');
+    const durOnly = document.getElementById('panel-note-dur').style.display !== 'none'
+      && document.getElementById('panel-note-ops').style.display === 'none';
+    openFlyout('rhy');
+    const rhyOnly = document.getElementById('panel-note-rhy').style.display !== 'none'
+      && document.getElementById('panel-note-dur').style.display === 'none';
+    const tupTab = !!document.querySelector('#mark-body [data-tup="3"]');
+    const tupVox = !!document.querySelector('#vmark-body [data-tup="3"]');
+    const noTopMarks = !document.getElementById('eb-marks');
+    const zoomInRail = !!document.querySelector('#rail-zoom #eb-zoom');
+    const beatInBar = !!document.querySelector('.mx-bar #beat-box');
+    const ebHidden = getComputedStyle(document.getElementById('editbar')).display === 'none';
+    return { threeTabs, durOnly, rhyOnly, tupTab, tupVox, noTopMarks, zoomInRail, beatInBar, ebHidden };
+  });
+  T(t32.threeTabs && t32.durOnly && t32.rhyOnly && t32.tupTab && t32.tupVox && t32.noTopMarks
+    && t32.zoomInRail && t32.beatInBar && t32.ebHidden,
+    'T32 顶栏撤销(三图层/连音入记号层/缩放入左栏/节拍入播放条)', JSON.stringify(t32));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });

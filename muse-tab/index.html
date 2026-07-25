@@ -391,11 +391,20 @@ body.shell .rcard:has(#b-changelog) .rc-h:hover{color:var(--accent-ink)}
 body.shell #editbar .eb.on{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
 #cursor-info b{color:var(--text)}
 #cursor-info b.z{color:var(--accent-ink)}
-body.shell #editbar #beat-box{flex:none;padding:0;white-space:nowrap}
-body.shell #editbar #beat-status{padding:3.5px 8px;border-radius:20px;font-size:11.5px}
-body.shell #editbar #err-drop{position:fixed;right:14px;top:150px;width:340px;max-height:62vh;
+/* v46.7 新版外壳去掉顶部编辑功能行：音符/时值/节奏→左栏图层、连音记号→各谱类记号层、
+   缩放→左栏帮助上方、时值提示（节拍状态）→底部播放条 */
+body.shell #editbar{display:none}
+body.shell .mx-bar #beat-box{flex:none;padding:0;white-space:nowrap}
+body.shell .mx-bar #beat-status{width:auto;padding:3.5px 9px;border-radius:20px;font-size:11.5px}
+body.shell #err-drop{position:fixed;right:14px;bottom:64px;width:340px;max-height:62vh;
   overflow-y:auto;z-index:55;background:var(--panel);border:1px solid var(--border-soft);
   border-radius:12px;box-shadow:var(--shadow);padding:8px;margin:0}
+/* v46.7 左栏缩放条（帮助上方，仅新版外壳） */
+#rail-zoom{display:none}
+body.shell #rail-zoom{display:block;margin:4px 0 2px}
+body.shell #rail-zoom .eb-grp{flex-direction:column-reverse;gap:3px;align-items:center}
+body.shell #rail-zoom button{width:42px;min-width:0;padding:3px 0;font-size:13px;font-weight:600}
+body.shell #rail-zoom #zoom-lbl{min-width:0;width:auto;font-size:10px;color:var(--muted);cursor:pointer;text-align:center}
 /* v40.5 工具行减密：新版时值用音符字形、图标组只留图形（名称进 title），行内控件统一 28px 高 */
 #editbar .eb .dg{display:none}
 body.shell #editbar .eb .dg{display:inline;font-size:14px;line-height:1}
@@ -1152,8 +1161,7 @@ body.shell #hint{display:none}
     <span class="eb-unit" id="ebu-eb-combo"><span class="eb-t">节奏</span>
     <span class="eb-grp" id="eb-combo"></span>
     <span class="eb-sep"></span></span>
-    <span class="eb-t">记号</span>
-    <span class="eb-grp" id="eb-marks"></span>
+    <!-- v46.7 顶栏记号组（连音 3/5/6/7）已分配到各谱类记号层，顶栏不再保留 -->
     <span class="grow"></span>
     <span class="eb-grp" id="eb-zoom">
       <button id="z-out" title="缩小（内容区 Ctrl+滚轮 亦可）">−</button>
@@ -1363,10 +1371,15 @@ body.shell #hint{display:none}
       <button class="ltab" data-t="lyr" title="歌词层"><span class="lic" data-lic="lyric"></span><span class="lb">歌词</span></button>
       <button class="ltab shell-only" data-t="chord" title="和弦层：输入 / 指法编辑 / 图示方式"><span class="lic" data-lic="chordgrid"></span><span class="lb">和弦</span></button>
       <div class="lsep"></div>
-      <button class="ltab shell-only" data-t="note" title="音符：插入/删除/拆合/八度 · 时值 · 节奏组合"><span class="lic" data-lic="note"></span><span class="lb">音符</span></button>
+      <!-- v46.7 音符/时值/节奏拆为三个独立图层（此前合于一个「音符」层） -->
+      <button class="ltab shell-only" data-t="note" title="音符：插入 / 删除 / 拆分合并 / 八度"><span class="lic" data-lic="note"></span><span class="lb">音符</span></button>
+      <button class="ltab shell-only" data-t="dur" title="时值：全音符到 32 分 + 附点"><span class="lic" data-lic="dur"></span><span class="lb">时值</span></button>
+      <button class="ltab shell-only" data-t="rhy" title="节奏：常用节奏组合与节奏型库"><span class="lic" data-lic="rhy"></span><span class="lb">节奏</span></button>
       <button class="ltab shell-only" data-t="mea" title="小节：插入 / 删除"><span class="lic" data-lic="barline"></span><span class="lb">小节</span></button>
       <button class="ltab shell-only" data-t="sect" title="段落：反复 / 跳转 / 分段线"><span class="lic" data-lic="repeat"></span><span class="lb">段落</span></button>
       <div class="lgrow"></div>
+      <!-- v46.7 缩放自顶栏移入左栏（帮助上方）；顶栏编辑功能行随之在新版外壳整行移除 -->
+      <div id="rail-zoom"></div>
       <button class="ltab shell-only" data-act="help" title="使用帮助与快捷键"><span class="lic" data-lic="help"></span><span class="lb">帮助</span></button>
     </div>
   </aside>
@@ -1392,9 +1405,9 @@ body.shell #hint{display:none}
          智能栏=预提示+光标位置（默认仍停留信息页不打断编辑流） -->
     <div id="rtabs">
       <button class="rtab" data-p="ai">智能</button>
+      <button class="rtab" data-p="lib">库</button>
       <button class="rtab" data-p="make">创作</button>
       <button class="rtab on" data-p="info">信息</button>
-      <button class="rtab" data-p="lib">库</button>
     </div>
     <!-- v41.4 信息页摘要卡（仅新版）：调/拍速/变调夹一眼可查，编辑入口委托 b-meta 弹窗 -->
     <div class="rcard open rt-new" data-rt="info" id="rc-songinfo">
@@ -3795,7 +3808,7 @@ function renderDock(){
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
     return el && el.style.display!=='none';
   });
-  if(uiShell) visible.push('note','chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这些页，自动回退）；v46.6 +音符层
+  if(uiShell) visible.push('note','dur','rhy','chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这些页，自动回退）；v46.7 音符/时值/节奏三层
   setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
   renderHints();   // v46.3 智能预提示随选中对象实时刷新
 }
@@ -5617,12 +5630,13 @@ function comboSVG(durs, W, H){
   }
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`;
 }
-/* n连音小图示：一束符杠上标斜体 n */
+/* n连音图示（v46.7 出版级）：符杠组 + 上方连音括线 ⌐¬（中断处置斜体数字，Gould 连音记谱惯例） */
 function tupSVG(n){
   let p='';
-  [7,15,23].forEach(x=>p+=`<line x1="${x}" y1="7" x2="${x}" y2="16" stroke="currentColor" stroke-width="1"/>`);
-  p+=`<rect x="6.5" y="15" width="17.5" height="1.8" fill="currentColor"/>`;
-  p+=`<text x="15" y="6" font-size="7.5" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">${n}</text>`;
+  [8,15,22].forEach(x=>p+=`<line x1="${x}" y1="8.5" x2="${x}" y2="16.5" stroke="currentColor" stroke-width="1"/>`);
+  p+=`<rect x="7.5" y="15.6" width="15.2" height="1.8" fill="currentColor"/>`;
+  p+=`<path d="M7 6.5v-2h4.5m7 0H23v2" fill="none" stroke="currentColor" stroke-width="1"/>`;
+  p+=`<text x="15" y="7.4" font-size="7.5" font-style="italic" font-weight="700" text-anchor="middle" fill="currentColor">${n}</text>`;
   return `<svg width="30" height="19" viewBox="0 0 30 19">${p}</svg>`;
 }
 /* v38.6 左栏谱类感知布局：每种曲谱类型 → 各页显示哪些面板、按什么顺序。
@@ -5650,13 +5664,14 @@ let ebCtxFor=null;   // 编辑栏第二行当前已构建的页，避免每次 r
 function setRibbon(t){
   activeTab = t;
   { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = (t==='tab' || t==='note')? '' : 'none'; }   // v46.6 音符图层内清音恒可见（按声部生效）
+  { const rz=document.getElementById('rail-zoom'); if(rz) rz.style.display = uiShell? '' : 'none'; }   // v46.7 缩放条仅新版外壳左栏显示
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   const dt = song? docType(song) : 'guitar';
   /* v40.1 新版图层页（和弦/小节/段落）：显式面板清单，不走 panel-<页>- 前缀匹配；
      和弦层按谱类复用现有面板（有吉他声部→和弦输入面板，否则→级数和弦面板） */
   const virt = t==='chord' ? ((song && song.tabVoices.length>0)? ['panel-tab-chord'] : ['panel-vox-fn'])
              : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops']
-             : t==='note' ? ['panel-note-ops','panel-note-dur','panel-note-rhy'] : null;   // v46.6 音符图层
+             : t==='note' ? ['panel-note-ops'] : t==='dur' ? ['panel-note-dur'] : t==='rhy' ? ['panel-note-rhy'] : null;   // v46.7 音符/时值/节奏三独立图层
   let spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
   /* v40.9 新版外壳图层内容归纳：扫弦/音符记号/技法（简谱：记号/装饰）合并为「记号」面板；
      和弦只在和弦层、记谱法在右栏风格、节奏型/织体在右栏库、列面板去除 */
@@ -5818,18 +5833,19 @@ function syncInputs(){
       if(dn2) dn2.textContent = lv2===2? '双附点' : '附点';
     }
   });
-  document.querySelectorAll('#eb-marks [data-tup]').forEach(b=>{
+  /* v46.7 连音按钮已分配到各谱类记号层，全局同步选中态 */
+  document.querySelectorAll('[data-tup]').forEach(b=>{
     b.classList.toggle('on', !!col && (col.tup===1?3:col.tup)===+b.dataset.tup);
   });
-  const ebTie=document.getElementById('eb-tie');
-  if(ebTie){
-    let tieOn = !!(col&&sel.row==='vox'&&col.tie);
-    if(col&&sel.row==='tab'&&col.notes&&col.notes.length){
-      const tn = col.notes.find(x=>x.s===sel.si) || col.notes[0];
-      tieOn = !!(tn && !tn.tech && tn.tk);
-    }
-    ebTie.classList.toggle('on', tieOn);
-  }
+  { const bt=document.getElementById('b-tie-t');   // v46.6 TAB 记号层连音线选中态
+    if(bt){
+      let tabTieOn=false;
+      if(col&&sel.row==='tab'&&col.notes&&col.notes.length){
+        const tn = col.notes.find(x=>x.s===sel.si) || col.notes[0];
+        tabTieOn = !!(tn && !tn.tech && tn.tk);
+      }
+      bt.classList.toggle('on', tabTieOn);
+    } }
   if(col&&sel.row==='tab'){
     document.getElementById('b-strum-d').classList.toggle('on', col.strum==='d');
     document.getElementById('b-strum-u').classList.toggle('on', col.strum==='u');
@@ -6349,10 +6365,14 @@ function applyVoxPattern(pat){
     if(b.id==='eb-more'){ const r=b.getBoundingClientRect(); showComboMenu(r.left, r.bottom); return; }
     applyDurCombo(DUR_COMBOS[+b.dataset.ec]);
   });
-  /* 记号组：3/5/6/7 连音（带图示）。v46.6 连音线撤出顶栏，回归各谱类记号层
-     （简谱/五线谱=既有 b-tie；吉他谱=新增 b-tie-t，同走 toggleTie） */
-  document.getElementById('eb-marks').innerHTML =
-    [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
+  /* v46.7 连音（3/5/6/7）分配到各谱类记号层（吉他谱 mark-body / 简谱·五线谱 vmark-body），
+     出版级图示：符杠组 + 连音括线 + 斜体数字（tupSVG）；顶栏记号组撤销。
+     v46.6 连音线已回归记号层（vox=b-tie / TAB=b-tie-t，同走 toggleTie） */
+  { const tupBtns=[3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
+    const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
+    if(mb) mb.insertAdjacentHTML('beforeend', tupBtns);
+    if(vb) vb.insertAdjacentHTML('beforeend', tupBtns);
+  }
   /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
   const ebHandler = e=>{
     if(e.target.closest('#eb-add')){ insertNote(false); return; }
@@ -9554,8 +9574,10 @@ const SVGI = {
   arrup:'<path d="M12 20V6M6.5 11.5 12 6l5.5 5.5"/>',
   arrdn:'<path d="M12 4v14M6.5 12.5 12 18l5.5-5.5"/>',
   eraser:'<path d="M9.5 18.5 4.5 13.5 13.5 4.5l6 6-8 8z"/><path d="M9.5 18.5H19.5"/><path d="M8 10l6 6"/>',
-  /* v46.6 音符图层图标 */
+  /* v46.6 音符图层图标；v46.7 时值/节奏独立图层图标 */
   note:'<ellipse cx="9.5" cy="16.5" rx="3.4" ry="2.5" fill="currentColor" stroke="none" transform="rotate(-16 9.5 16.5)"/><path d="M12.7 15.8V4.8" stroke-width="1.5"/><path d="M12.7 4.8c2.6.6 4.6 1.7 5.1 3.4" stroke-width="1.4"/>',
+  dur:'<ellipse cx="6.8" cy="16.8" rx="2.7" ry="2" fill="none" stroke-width="1.5"/><path d="M9.4 16.8V6.5" stroke-width="1.3"/><ellipse cx="16" cy="16.8" rx="2.7" ry="2" fill="currentColor" stroke="none"/><path d="M18.6 16.8V6.5" stroke-width="1.3"/><circle cx="21.8" cy="15.8" r="1.1" fill="currentColor" stroke="none"/>',
+  rhy:'<path d="M6.5 8v9M12 8v9M17.5 8v9" stroke-width="1.4"/><path d="M5.5 8h13" stroke-width="2.4"/><path d="M11 11.5h7.5" stroke-width="1.8"/>',
 };
 function svgi(name, size){
   const s = size || 13;
@@ -9617,12 +9639,19 @@ function applyShellDock(){
     mv('vmark-body','sign-host-vox','panel-vox-mark');
     mv('orn-host','sign-host-vox','panel-vox-orn');
   }
-  /* v40.5 时值校验状态胶囊：新版 → 工具行右端（编辑动作发生行的扫视终点）；经典版 → 回右栏底部 */
+  /* v40.5→v46.7 时值校验状态胶囊（时值提示）：新版 → 底部播放条（节拍器左侧，常驻可见）；经典版 → 回右栏底部 */
   const bb=document.getElementById('beat-box'), ebz=document.getElementById('eb-zoom'),
         rdock=document.getElementById('right-dock');
-  if(bb && ebz && rdock){
-    if(uiShell) ebz.parentElement.insertBefore(bb, ebz);
+  if(bb && rdock){
+    const metro=document.getElementById('b-metro');
+    if(uiShell && metro) metro.parentElement.insertBefore(bb, metro);
     else rdock.appendChild(bb);
+  }
+  /* v46.7 缩放自顶栏移入左栏（帮助上方）；顶栏编辑功能行在新版外壳整行隐藏（CSS） */
+  const rz=document.getElementById('rail-zoom'), eb=document.getElementById('editbar');
+  if(ebz && rz && eb){
+    if(uiShell) rz.appendChild(ebz);
+    else eb.appendChild(ebz);
   }
 }
 /* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
@@ -12902,6 +12931,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.7</span><div><b>顶部编辑行谢幕（界面重构收官）</b>：① <b>音符、时值、节奏拆为三个独立图层</b>——左栏三枚独立图标，各开各的面板（此前合在一个「音符」层里）；② <b>右栏页签顺序调整为 智能 · 库 · 创作 · 信息</b>；③ <b>顶栏「记号」（3/5/6/7 连音）分配到各谱类记号层</b>——吉他谱与简谱/五线谱记号面板各有一套，图示升级为出版级（符杠组 + 连音括线 + 斜体数字）；④ <b>时值提示（节拍状态胶囊）移到底部播放条</b>——节拍器左侧常驻可见，点击照常展开修复建议；⑤ <b>缩放控件移到左栏「帮助」上方</b>；⑥ 至此顶部第二行（编辑功能行）在新版界面<b>整行移除</b>，屏幕高度全部留给谱面；经典版界面保持原布局不变。</div></li>
     <li><span class="v">v46.6</span><div><b>「音符」图层 + 启动台默认页</b>：① 顶栏「编辑」组更名<b>「音符」</b>，并与<b>时值、节奏</b>两组一起收纳进左栏新的<b>「音符」图层</b>（与小节/段落图层并列）——插入/删除/拆合/八度、全部时值档、节奏组合集中一处，顶栏更清爽（经典版界面保持原顶栏布局）；② <b>连音线回归各谱类记号层</b>——吉他谱记号层新增「连音线」按钮，简谱/五线谱记号层沿用原有按钮，顶栏不再重复；③ <b>启动台默认页</b>——打开制谱页未选择时，右栏默认停在「智能」页显示欢迎指引、光标位置为空、左栏无选中高亮，<b>不再残留上次编辑的信息</b>；选择任一入口或载入曲谱后恢复正常显示。</div></li>
     <li><span class="v">v46.5</span><div><b>启动台上线（打开即选，不再直落编辑器）</b>：打开制谱页默认为<b>空白页面</b>，屏幕中央呈现四个入口——<b>新建</b>（八类曲谱 · 新建向导）、<b>打开</b>（打开曲谱文件）、<b>导入</b>（MusicXML / MIDI）、<b>我的</b>（预设与我的曲谱），下方一键<b>「继续上次编辑」</b>；左侧工具栏默认收起，选择任一入口或载入曲谱后自动恢复。分享谱/谱库观看等直达链接不受影响，仍直接进入对应页面。</div></li>
     <li><span class="v">v46.4</span><div><b>右栏四页签改版 + 光标信息升级</b>：① 右侧栏从三页签改为<b>四页签：智能 · 创作 · 信息 · 库</b>——新「创作」栏承接 创作辅助（一键配和弦/配伴奏/智能填词/哼唱成谱）与 导入·互操作（MusicXML/MIDI）；② <b>光标位置卡移入「智能」栏</b>，与智能预提示上下联动；③ <b>点击音符时光标卡同步显示该音符的可编辑信息</b>——当前弦/品位（或简谱音高）、已加技法、所在和弦，以及可改项速查（时值 Q–T · 附点 · 三连音 · 品位/音高输入）；④ 右栏整体<b>加宽</b>（254→292px），提示与信息不再局促；⑤ <b>谱面两侧滚动条隐藏</b>——制版台、左右栏的滚动条不再显示（滚轮/触控滚动照常），页面更干净。</div></li>

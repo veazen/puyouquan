@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v46.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v46.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -425,3 +425,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v46.5 启动台**：`#start-pad`（#score-wrap 内 absolute 覆盖层，`~#paper visibility:hidden` 防滚动泄底）——品牌 + 四入口卡（新建→b-new / 打开→b-open / 导入→popmenu 选 MusicXML|MIDI→向导 nw-import|nw-midi / 我的→b-library）+「继续上次编辑」链接（含当前草稿标题）。`initStartPad()` 挂 DOMContentLoaded 尾（PYQ_SHARE/?pub= 深链 return 后；?wxlogin= 回跳、viewer/stand 不出）；出现时 `closeFlyout()` 左栏收起，任一入口/`loadSong()`（首行 hideStartPad）关闭并恢复左栏。**注意**：数据零风险——底下仍照常恢复上次文档，启动台只是覆盖层；新建/打开走 v41.5 guardReplace 防覆盖确认。tv_detail1 T27/T28（新开页取启动态），29 项、27 套件全绿（loadSong 自动关台故存量套件零改动）。
 
 > **v46.6 音符图层 + 启动台默认页**：① 顶栏「编辑」→「音符」，音符/时值/节奏三组新版外壳收纳入左栏 note 图层——editbar 加 `.eb-unit`（组标签+组+分隔线一体）`#ebu-eb-edit/-dur/-combo`；`applyShellDock` 搬 `.eb-grp` 进 `note-ops/dur/rhy-host`（**eb-dur/eb-combo 的监听挂组元素随节点迁移**，eb-edit 走 ebHandler 委托加绑 panel-note-ops）；`setRibbon` virt 加 note→三面板、renderDock visible 加 'note'、eb-clear 显示条件加 note；左轨 ltab data-t=note（SVGI 加 note 四分音符图标）。② 连音线：eb-marks 不再生成 eb-tie；TAB 记号层新增 `b-tie-t`（onclick=toggleTie，toggleTie 原生支持 tab 单选/Ctrl 跨选）；vox 沿用 b-tie。③ 启动台默认页：`startPadOn()` 全局判定——initStartPad 里 `setRTab('ai')`+清 ltab 高亮+renderHints/syncInputs；editHints 启动台态返回欢迎指引、syncInputs 光标卡置「—」；hideStartPad 恢复刷新。T23 断言更新（defOn 不再是 info）。tv_detail1 T29-T31，32 项、27 套件全绿。
+
+> **v46.7 顶栏撤销（新版外壳界面重构收官）**：① 音符/时值/节奏拆三独立 ltab（data-t note/dur/rhy，SVGI 加 dur/rhy 图标；setRibbon virt 各开各面板、renderDock visible 同步）。② rtabs 序 智能·库·创作·信息。③ 连音 3/5/6/7 注入 `mark-body`+`vmark-body`（tupSVG 升级：符杠组+连音括线 ⌐¬+斜体数字；ebHandler 面板已委托），`#eb-marks` 自 HTML 移除、tuplet 选中态同步改全局 `[data-tup]`；b-tie-t 选中态同步补齐。④ beat-box（时值提示）shell → `.mx-bar`（b-metro 前，err-drop fixed 改右下）；classic → 回右栏。⑤ eb-zoom → 左栏 `#rail-zoom`（帮助上方，纵排 column-reverse）；classic → 回 editbar。⑥ `body.shell #editbar{display:none}` 整行移除（三组 v46.6 已迁+记号+缩放+节拍全部落位）；经典版布局零变化。tv_detail1 T32（九断言），33 项、27 套件全绿。
