@@ -418,6 +418,15 @@ body.shell #editbar #eb-more .dg{font-size:11.5px}   /* v47.4 更多▾ 回顶�
 body.shell #editbar .eb-sep{margin:0 4px}
 body.shell #editbar #zoom-lbl{min-width:36px}
 body.shell #editbar .eb{padding:3px 8px}
+/* v47.5 「音符」输入组（数字钮窄身）+ 撤销/重做入上栏 + 上栏放不下时换行兜底（新版外壳） */
+#eb-note .nd{min-width:24px;padding:3px 6px;justify-content:center}
+#eb-note .nd .dg{font-family:var(--font-num);font-weight:600}
+#editbar .nd .dg{display:inline;font-size:13px}   /* 数字钮两种外壳都显数字（经典版无 .dn 可退） */
+body.shell #eb-note .nd{min-width:21px;padding:3px 4px}
+body.shell #editbar{flex-wrap:wrap;overflow-x:visible}
+body.shell #editbar #seg-undo{margin:0 2px}
+body.shell #editbar #seg-undo button{min-height:26px;padding:2px 8px}
+body.shell #editbar #beat-box{margin-left:auto}   /* 换行后时值提示+缩放右靠齐（单行时与 grow 同向不冲突） */
 body.shell #editbar #eb-combo .eb.ico svg{width:20px;height:15px}   /* 7 组合铺开后收窄图示，1280 视口单行不溢出 */
 body.shell #editbar #eb-more{min-width:0;padding:3px 5px}
 #rail-zoom{display:none}
@@ -1138,7 +1147,8 @@ body.shell #hint{display:none}
       <button id="b-library" class="seg-accent" title="预设曲谱（功能示例）与我的曲谱">预设</button>
       <button id="b-circle" class="seg-accent" title="谱库：在线展示谱面（puku.puyouquan.com）——发现好谱、收藏、看谱移调跟谱">谱库</button>
     </span>
-    <span class="seg">
+    <!-- v47.5 撤销/重做：新版外壳由 applyShellDock 移入上栏（节奏组后），经典版留页头 -->
+    <span class="seg" id="seg-undo">
       <button id="b-undo" title="撤销 (Ctrl+Z)" style="font-size:14px;min-width:34px">↶</button>
       <button id="b-redo" title="重做 (Ctrl+Y)" style="font-size:14px;min-width:34px">↷</button>
     </span>
@@ -1158,7 +1168,8 @@ body.shell #hint{display:none}
        v46.6 「编辑」更名「音符」，音符/时值/节奏三组在新版外壳收纳入左栏「音符」图层
        （applyShellDock 搬移 .eb-grp，经典版回顶栏原位；eb-unit 含组标签与分隔线一并显隐） -->
   <div class="bar" id="editbar">
-    <span class="eb-unit" id="ebu-eb-edit"><span class="eb-t">音符</span>
+    <!-- v47.5 「音符」组改回「编辑」（插入/休止/清音/拆分/合并/删除），八度移入新「音符」输入组 -->
+    <span class="eb-unit" id="ebu-eb-edit"><span class="eb-t">编辑</span>
     <span class="eb-grp" id="eb-edit">
       <button class="eb" id="eb-add" title="后插音符：在光标后插入同时值音符（快捷键 Insert）" aria-label="后插音符"><span class="dg">＋»</span><span class="dn">后插</span></button>
       <button class="eb" id="eb-addb" title="前插音符：在光标前插入同时值音符（Shift+Insert）" aria-label="前插音符"><span class="dg">«＋</span><span class="dn">前插</span></button>
@@ -1167,8 +1178,24 @@ body.shell #hint{display:none}
       <button class="eb" id="eb-split" title="拆分：把当前音符一分为二（各减半时值，总时值不变）" aria-label="拆分"><span class="dg">½</span><span class="dn">拆分</span></button>
       <button class="eb" id="eb-merge" title="合并：当前与下一同时值音符合并为一个（时值加倍）" aria-label="合并"><span class="dg">⌒</span><span class="dn">合并</span></button>
       <button class="eb" id="eb-delcol2" title="删音符：删除当前音符列（时值一并移除）" aria-label="删音符"><span class="dg">✕</span><span class="dn">删除</span></button>
-      <button class="eb" id="eb-octup" title="八度＋：当前音升高八度（简谱高音点；简谱/五线谱声部，快捷键 +）" aria-label="八度＋"><span class="dg">8ᵛᵃ</span><span class="dn">8度＋</span></button>
-      <button class="eb" id="eb-octdn" title="八度−：当前音降低八度（简谱低音点；简谱/五线谱声部，快捷键 -）" aria-label="八度−"><span class="dg">8ᵛᵇ</span><span class="dn">8度−</span></button>
+    </span>
+    <span class="eb-sep"></span></span>
+    <!-- v47.5 「音符」输入组：简谱/五线谱=音级 1-7 + 休止 0 + 高/低八度；吉他谱=品位数字 0-9
+         （按当前声部上下文切换显隐，syncInputs 同步；与键盘数字输入同走 inputDigit） -->
+    <span class="eb-unit" id="ebu-eb-note"><span class="eb-t">音符</span>
+    <span class="eb-grp" id="eb-note">
+      <button class="eb nd" data-nd="1"><span class="dg">1</span></button>
+      <button class="eb nd" data-nd="2"><span class="dg">2</span></button>
+      <button class="eb nd" data-nd="3"><span class="dg">3</span></button>
+      <button class="eb nd" data-nd="4"><span class="dg">4</span></button>
+      <button class="eb nd" data-nd="5"><span class="dg">5</span></button>
+      <button class="eb nd" data-nd="6"><span class="dg">6</span></button>
+      <button class="eb nd" data-nd="7"><span class="dg">7</span></button>
+      <button class="eb nd" data-nd="0"><span class="dg">0</span></button>
+      <button class="eb nd nd-hi" data-nd="8"><span class="dg">8</span></button>
+      <button class="eb nd nd-hi" data-nd="9"><span class="dg">9</span></button>
+      <button class="eb" id="eb-octup" title="高八度：当前音升高八度（简谱高音点；简谱/五线谱声部，快捷键 +）" aria-label="高八度"><span class="dg">8ᵛᵃ</span><span class="dn">高8度</span></button>
+      <button class="eb" id="eb-octdn" title="低八度：当前音降低八度（简谱低音点；简谱/五线谱声部，快捷键 -）" aria-label="低八度"><span class="dg">8ᵛᵇ</span><span class="dn">低8度</span></button>
     </span>
     <span class="eb-sep"></span></span>
     <span class="eb-unit" id="ebu-eb-dur"><span class="eb-t">时值</span>
@@ -5929,6 +5956,16 @@ function setRibbon(t){
 }
 function syncInputs(){
   const col = curCol();
+  /* v47.5 顶栏「音符」输入组按声部上下文切换：吉他谱=品位 0-9（可连点两位）；简谱/五线谱=音级 1-7 + 0 休止 + 高/低八度 */
+  { const isTab = sel.row==='tab';
+    document.querySelectorAll('#eb-note .nd').forEach(b=>{
+      const k=+b.dataset.nd;
+      b.style.display = (isTab || k<=7)? '' : 'none';
+      b.title = isTab? (k+' 品（0.7 秒内连点两键可输两位品位，如 1→2 = 12 品）')
+                     : (k===0? '休止（0）' : '音级 '+k+'（1=当前调主音）');
+    });
+    ['eb-octup','eb-octdn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display = isTab? 'none' : ''; });
+  }
   const ci = document.getElementById('cursor-info');
   if(ci && typeof startPadOn==='function' && startPadOn()){ ci.innerHTML='—'; }   // v46.6 启动台未选状态不显示残留
   else if(ci){
@@ -6577,6 +6614,8 @@ function applyVoxPattern(pat){
     /* v41.5 八度并入「编辑」组：委托既有 bumpOct（仅简谱/五线谱声部生效） */
     if(e.target.closest('#eb-octup')){ if(sel.row!=='vox'){ toast('八度用于简谱/五线谱声部——请先选中旋律声部音符'); return; } bumpOct(1); return; }
     if(e.target.closest('#eb-octdn')){ if(sel.row!=='vox'){ toast('八度用于简谱/五线谱声部——请先选中旋律声部音符'); return; } bumpOct(-1); return; }
+    /* v47.5 顶栏「音符」输入组：数字按钮与键盘同走 inputDigit（吉他=品位可连点合成两位、简谱/五线谱=音级/0休止） */
+    { const nd=e.target.closest('[data-nd]'); if(nd){ inputDigit(+nd.dataset.nd); return; } }
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
     const tp=e.target.closest('[data-tup]');
     if(tp){ applyTuplet(+tp.dataset.tup); return; }
@@ -7056,6 +7095,21 @@ document.querySelectorAll('#right-dock .rc-h:not(.rc-btn)').forEach(h=>h.onclick
 });
 
 /* ================= 键盘 ================= */
+/* v47.5 数字输入统一入口（键盘 / 顶栏「音符」组按钮共用）：
+   吉他谱=品位（700ms 内连输合成两位品位 ≤24）；简谱/五线谱=音级 1-7、0=休止 */
+function inputDigit(k){
+  if(sel.row==='tab'){
+    const now=Date.now(); let d=String(k);
+    if(now-pending.time<700 && pending.digits){
+      const comb=parseInt(pending.digits+d,10);
+      if(comb<=24) d=String(comb);
+    }
+    pending={digits:d,time:now};
+    setFret(parseInt(d,10));
+  }else{
+    if(k<=7) setDeg(k);
+  }
+}
 window.addEventListener('keydown', e=>{
   if(viewerMode){   // 观看模式：仅保留播放/停止 / 移调 / 谱架
     if(document.body.classList.contains('stand')){
@@ -7102,17 +7156,7 @@ window.addEventListener('keydown', e=>{
   }
   if(/^[0-9]$/.test(e.key)){
     e.preventDefault();
-    if(sel.row==='tab'){
-      const now=Date.now(); let d=e.key;
-      if(now-pending.time<700 && pending.digits){
-        const comb=parseInt(pending.digits+d,10);
-        if(comb<=24) d=String(comb);
-      }
-      pending={digits:d,time:now};
-      setFret(parseInt(d,10));
-    }else{
-      const n=+e.key; if(n<=7) setDeg(n);
-    }
+    inputDigit(+e.key);
     return;
   }
   switch(e.key){
@@ -9839,6 +9883,13 @@ function applyShellDock(){
   if(bb && rdock){
     if(uiShell && ebz) eb.insertBefore(bb, ebz);
     else rdock.appendChild(bb);
+  }
+  /* v47.5 撤销/重做：新版 → 上栏节奏组后；经典版 → 回页头（file-in 前原位） */
+  const su=document.getElementById('seg-undo');
+  if(su && eb){
+    if(uiShell){ const anchor=document.getElementById('ebu-eb-combo');
+      if(anchor && anchor.parentElement===eb) eb.insertBefore(su, anchor.nextSibling); }
+    else { const fi=document.getElementById('file-in'); if(fi) fi.parentElement.insertBefore(su, fi); }
   }
 }
 /* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
@@ -13120,6 +13171,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v47.5</span><div><b>上栏结构调整：编辑 + 音符输入组 + 撤销重做下移</b>：① 原「音符」组更名<b>「编辑」</b>：后插 / 前插 / 休止 / 清音 / 拆分 / 合并 / 删除（八度移出）；② 编辑组后新增<b>「音符」输入组</b>——<b>简谱/五线谱声部：音级 1–7、0（休止）、高八度、低八度</b>；<b>吉他谱声部：品位数字 0–9</b>（0.7 秒内连点两键可输两位品位，如 1→2 = 12 品）——按当前选中声部自动切换选项，与键盘数字输入完全同源；③ <b>撤销 / 重做从页头下移到上栏</b>，排在节奏组之后（经典版保持页头原位）；④ 上栏内容放不下时自动换行（时值提示与缩放右靠齐），不再横向滚动。</div></li>
     <li><span class="v">v47.4</span><div><b>顶栏节奏「更多」拍号组合</b>：顶栏节奏组新增<b>「更多▾」</b>——点击展开按拍号场景分组的节奏选项：① <b>单拍细分（通用）</b>＝顶栏已铺开的七种组合；② <b>二拍组合（2/4 整小节 · 4/4 半小节）</b>：二分音符 / 四分×2 / 附点四分+八分 / 八分+附点四分 / 大切分 / 四分+八分×2 / 八分×2+四分；③ <b>三拍 · 复合拍（3/4 整小节 · 6/8 一大拍）</b>：附点二分 / 四分×3 / 二分+四分 / 四分+二分 / 附点四分 / 八分×3 / 四分+八分 / 八分+四分 / 八+双十六+八——6/8、9/8、12/8 的附点四分大拍一键拆分；所有组合自光标起替换等长片段、按当前小节拍号折算（变拍子小节同样适用）。组合图示升级：四分画实心符头、二分画空心符头、符杠只连八分及更短的音（出版口径）。</div></li>
     <li><span class="v">v47.3</span><div><b>顶部编辑行回归</b>：应产品决策撤回 v46.6/46.7 的收纳——<b>音符、时值、节奏三组，加上时值提示与缩放，全部回到顶部编辑行</b>（新版界面恢复顶栏，左栏撤下对应三个图层）；节奏组合延续 v47.2 的铺开决策：新版顶栏 <b>7 种组合全显</b>（图示紧凑化，1280 宽屏幕单行不溢出）、「更多▾」隐藏（节奏型库在右栏「库」页签，顶栏不重复）；时值提示胶囊在顶栏缩放左侧常驻；<b>连音（3/5/6/7）与连音线保持在各谱类记号层不变</b>；经典版布局不受影响（节奏仍为 4+更多▾ 紧凑式、时值提示在右栏底部）。</div></li>
     <li><span class="v">v47.2</span><div><b>简谱行首线合一 + 节奏面板铺开</b>：① <b>简谱行不再画独立的行首起始小节线</b>——多谱行曲谱（弹唱/合唱/对照等）行首由<b>系统连体线充当开头小节线</b>，不再在其右侧多画一条形成双线；单行歌谱按国标简谱出版惯例<b>行首直接起谱</b>（行间小节线不变）；② <b>左栏「节奏」图层组合时值全部铺开</b>——七种组合（八分×2 / 前八后十六 / 前十六后八 / 十六分×4 / 附点八分+十六 / 十六+附点八 / 小切分）一眼全见，不再需要点「更多▾」二级展开（经典版顶栏保持紧凑不变）；③ <b>节奏型库独立成卡</b>——从组合按钮组中分离为独立的「节奏型库」卡片，入口更清晰。</div></li>

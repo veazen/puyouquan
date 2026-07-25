@@ -418,7 +418,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const eb = document.getElementById('editbar');
     const inBar = id => { const el = document.getElementById(id); return !!(el && eb.contains(el)); };
     const opsIn = inBar('eb-edit'), durIn = inBar('eb-dur'), rhyIn = inBar('eb-combo');
-    const label = document.querySelector('#ebu-eb-edit .eb-t').textContent;
+    const label = document.querySelector('#ebu-eb-edit .eb-t').textContent;   // v47.5 更名「编辑」
     // 时值点击生效：选中第1列 → 点 8分
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; selRange = null; noteSel = [];
     const d8 = document.querySelector('#eb-dur [data-dur="8"]');
@@ -430,8 +430,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const insOk = song.measures[0].tabs[0].length === n0 + 1;
     return { opsIn, durIn, rhyIn, label, durOk, insOk };
   });
-  T(t29.opsIn && t29.durIn && t29.rhyIn && t29.label === '音符' && t29.durOk && t29.insOk,
-    'T29 顶栏三组回归(音符/时值/节奏+时值/后插生效)', JSON.stringify(t29));
+  T(t29.opsIn && t29.durIn && t29.rhyIn && t29.label === '编辑' && t29.durOk && t29.insOk,
+    'T29 顶栏组回归(编辑/时值/节奏+时值/后插生效)', JSON.stringify(t29));
 
   // T30 v46.6 连音线回归谱类记号层
   const t30 = await pg.evaluate(() => {
@@ -670,6 +670,39 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t39.grouped && t39.nBtns >= 20 && t39.applied,
     'T39 更多节奏菜单(拍号分组+6/8应用)', JSON.stringify(t39));
+
+  // T40 v47.5 音符输入组 + 撤销重做下移：TAB=品位0-9(连点合成两位)、简谱=1-7/0/八度、undo 在节奏组后
+  const t40 = await pg.evaluate(() => {
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] },
+      { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] }, { dur: 2, dotted: false, chord: '', strum: '', tech: '', notes: [] }];
+    loadSong(s);
+    const vis = el => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; selRange = null; syncInputs();
+    const tabDigits = [...document.querySelectorAll('#eb-note .nd')].filter(vis).length;
+    const octHidTab = !vis(document.getElementById('eb-octup'));
+    document.querySelector('#eb-note [data-nd="1"]').click();
+    document.querySelector('#eb-note [data-nd="2"]').click();
+    const fret12 = (song.measures[0].tabs[0][0].notes.find(n => n.s === 3) || {}).f === 12;
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; selRange = null; syncInputs();
+    const voxDigits = [...document.querySelectorAll('#eb-note .nd')].filter(vis).length;
+    const octVisVox = vis(document.getElementById('eb-octup'));
+    document.querySelector('#eb-note [data-nd="5"]').click();
+    const deg5 = song.measures[0].voxes[0][0].deg === 5;
+    document.querySelector('#eb-note [data-nd="0"]').click();
+    const rest0 = !song.measures[0].voxes[0][0].deg;
+    const eb = document.getElementById('editbar'), su = document.getElementById('seg-undo');
+    const inBar = eb.contains(su) && su.previousElementSibling && su.previousElementSibling.id === 'ebu-eb-combo';
+    const label2 = document.querySelector('#ebu-eb-note .eb-t').textContent;
+    document.getElementById('b-shell').click();
+    const inHead = !eb.contains(su) && !!su.closest('.main-bar');
+    document.getElementById('b-shell').click();
+    return { tabDigits, octHidTab, fret12, voxDigits, octVisVox, deg5, rest0, inBar, label2, inHead };
+  });
+  T(t40.tabDigits === 10 && t40.octHidTab && t40.fret12 && t40.voxDigits === 8 && t40.octVisVox
+    && t40.deg5 && t40.rest0 && t40.inBar && t40.label2 === '音符' && t40.inHead,
+    'T40 音符输入组(品位/音级上下文)+撤销重做入上栏', JSON.stringify(t40));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });

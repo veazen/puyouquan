@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-25 · 当前版本 **v47.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-25 · 当前版本 **v47.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,7 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
-| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.4 累积 40 项（T29/T32/T33/T38 顶栏口径 + T39 拍号组合菜单）（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
+| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.5 累积 41 项（+T40 音符输入组/撤销重做下移）（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -441,3 +441,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v47.3 顶部编辑行回归（撤 v46.6/46.7 收纳）**：产品拍板音符/时值/节奏/时值提示/缩放回顶栏——① CSS 删 `body.shell #editbar{display:none}`；applyShellDock：NOTE_MV 三组恒回 ebu 单元、eb-zoom 恒在 editbar、beat-box shell→editbar（缩放左侧）/classic→右栏；rail-zoom 弃用（display:none）；err-drop shell 定位改 top:108px。② 左栏 note/dur/rhy 三 ltab 撤下（HTML 删+renderDock visible 去三项）；panel-note-* 面板保留但不再展示。③ 节奏铺开延续：`body.shell #editbar .combo-extra{display:inline-flex}`+eb-more 隐藏+组合钮 span 隐藏（名称进 title）+comboSVG 24×16 收窄——1280 视口单行 maxRight 1270 不溢出（editbar 本设计 nowrap+overflow-x:auto，窄屏滚动兜底）；eb-lib 维持 v40.8 去重（shell 库入口=右栏库页签）；经典版 4+更多+库 不变。④ 连音/连音线仍留谱类记号层（v46.6/46.7 该部分不撤）。tv_detail1 T29/T32/T33/T38 改写（39 项），27 套件全绿。
 
 > **v47.4 顶栏节奏「更多」拍号组合**：① `DUR_COMBOS_X`（与 DUR_COMBOS 同构 {name,durs:[[d,dotted]]}）两组：二拍组合（2/4 整小节·4/4 半小节，7 项含大切分 [[8],[4],[8]]）、三拍/复合拍（3/4 整小节·6/8 一大拍，9 项含附点二分/附点四分/八分×3）；同走 `applyDurCombo`（comboBeatsOf 按 meaMeter(mi).unit 折算——6/8 里附点四分=3 个八分拍，变拍子小节适用）。② `showComboMenu` 分组渲染（单拍细分/二拍/三拍·复合拍三段 .t 标题）+ 扁平索引 flat[]（data-ec2 统一分发）。③ `comboSVG` 升级：主梁只跨 dur≥8 连续段（孤立八分画短杠），d===4 实心椭圆符头、d≤2 空心符头、符头系附点点在符头旁（原实现对四分/二分也画通杠，出版口径错误）。④ 顶栏恢复「更多▾」（撤 v47.3 的 shell 隐藏；.dg 文字 11.5px、min-width:0）；宽度重校平：combo 图示 20×15、beat-status max-width:126px 截断（完整信息在下拉），1280 视口 maxRight 1270 单行不溢出。tv_detail1 T33/T38 断言翻转（moreVis）+T39（分组存在+23 钮+6/8 附点四分→八分×3 应用），40 项、27 套件全绿。
+
+> **v47.5 编辑更名 + 音符输入组 + 撤销重做下移**：① `ebu-eb-edit` 标签「音符」→「编辑」，eb-octup/eb-octdn 移出；② 新 `ebu-eb-note`「音符」输入组：`.nd` 数字钮 0-9 + 高/低八度——`inputDigit(k)` 统一入口（自键盘 keydown 数字分支提取：tab=setFret+pending 700ms 两位合成 ≤24、vox=setDeg 0-7），ebHandler 加 `[data-nd]` 分发；syncInputs 按 sel.row 切换显隐（tab：0-9 显示、八度隐藏；vox：8/9 隐藏、八度显示）与 title 文案；③ `#seg-undo`（页头撤销/重做 span 加 id）applyShellDock 搬移：shell → editbar `ebu-eb-combo` 之后、classic → 页头 file-in 前原位；④ 上栏布局：`body.shell #editbar{flex-wrap:wrap;overflow-x:visible}`（内容超宽自动换行，替代横向滚动）+ beat-box `margin-left:auto`（换行后右靠齐）；.nd 窄身 21px。tv_detail1 T29 label 改「编辑」+T40（十断言：上下文切换/12 品连点/音级/休止/undo 双外壳位置），41 项、27 套件全绿。
