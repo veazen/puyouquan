@@ -410,30 +410,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t25.tabs === 'ai,lib,make,info' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
   T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
 
-  // T29 v46.6 音符图层（顶栏三组收纳入左栏）
+  // T29 v47.3 顶栏回归：音符/时值/节奏三组恒在顶栏，时值点击生效、后插生效、组标签「音符」
   const t29 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
     loadSong(s);
-    openFlyout('note');
-    const opsIn = !!document.querySelector('#note-ops-host #eb-add');
-    const durIn = !!document.querySelector('#note-dur-host [data-dur]');
-    const rhyIn = !!document.querySelector('#note-rhy-host #eb-lib');
-    const panelVis = document.getElementById('panel-note-ops').style.display !== 'none';
+    const eb = document.getElementById('editbar');
+    const inBar = id => { const el = document.getElementById(id); return !!(el && eb.contains(el)); };
+    const opsIn = inBar('eb-edit'), durIn = inBar('eb-dur'), rhyIn = inBar('eb-combo');
     const label = document.querySelector('#ebu-eb-edit .eb-t').textContent;
     // 时值点击生效：选中第1列 → 点 8分
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; selRange = null; noteSel = [];
-    const d8 = document.querySelector('#note-dur-host [data-dur="8"]');
+    const d8 = document.querySelector('#eb-dur [data-dur="8"]');
     if (d8) d8.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const durOk = song.measures[0].tabs[0][0].dur === 8;
-    // 后插生效（ebHandler 委托绑定到 note 面板）
+    // 后插生效（editbar 监听 ebHandler）
     const n0 = song.measures[0].tabs[0].length;
-    document.querySelector('#note-ops-host #eb-add').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    document.querySelector('#eb-edit #eb-add').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const insOk = song.measures[0].tabs[0].length === n0 + 1;
-    return { opsIn, durIn, rhyIn, panelVis, label, durOk, insOk };
+    return { opsIn, durIn, rhyIn, label, durOk, insOk };
   });
-  T(t29.opsIn && t29.durIn && t29.rhyIn && t29.panelVis && t29.label === '音符' && t29.durOk && t29.insOk,
-    'T29 音符图层(三组入左栏+时值/后插生效+标签更名)', JSON.stringify(t29));
+  T(t29.opsIn && t29.durIn && t29.rhyIn && t29.label === '音符' && t29.durOk && t29.insOk,
+    'T29 顶栏三组回归(音符/时值/节奏+时值/后插生效)', JSON.stringify(t29));
 
   // T30 v46.6 连音线回归谱类记号层
   const t30 = await pg.evaluate(() => {
@@ -449,51 +447,39 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t30.noTop && t30.hasBtn && t30.tied, 'T30 连音线回归记号层(TAB b-tie-t 生效)', JSON.stringify(t30));
 
-  // T32 v46.7 顶栏撤销：三独立图层 + 连音入记号层 + 缩放入左栏 + 节拍状态入播放条
+  // T32 v47.3 顶栏回归：编辑行可见、缩放/时值提示入顶栏、左栏无 note/dur/rhy 层；连音仍留记号层
   const t32 = await pg.evaluate(() => {
+    const eb = document.getElementById('editbar');
+    const ebVisible = getComputedStyle(eb).display !== 'none';
     const tabs = [...document.querySelectorAll('.ltab[data-t]')].map(b => b.dataset.t).join(',');
-    const threeTabs = /note,dur,rhy,mea,sect/.test(tabs);
-    openFlyout('dur');
-    const durOnly = document.getElementById('panel-note-dur').style.display !== 'none'
-      && document.getElementById('panel-note-ops').style.display === 'none';
-    openFlyout('rhy');
-    const rhyOnly = document.getElementById('panel-note-rhy').style.display !== 'none'
-      && document.getElementById('panel-note-dur').style.display === 'none';
+    const noLayers = !/note|dur|rhy/.test(tabs);
     const tupTab = !!document.querySelector('#mark-body [data-tup="3"]');
     const tupVox = !!document.querySelector('#vmark-body [data-tup="3"]');
     const noTopMarks = !document.getElementById('eb-marks');
-    const zoomInRail = !!document.querySelector('#rail-zoom #eb-zoom');
-    const beatInBar = !!document.querySelector('.mx-bar #beat-box');
-    const ebHidden = getComputedStyle(document.getElementById('editbar')).display === 'none';
-    return { threeTabs, durOnly, rhyOnly, tupTab, tupVox, noTopMarks, zoomInRail, beatInBar, ebHidden };
+    const zoomInBar = eb.contains(document.getElementById('eb-zoom'));
+    const beatInBar = eb.contains(document.getElementById('beat-box'));
+    return { ebVisible, noLayers, tupTab, tupVox, noTopMarks, zoomInBar, beatInBar };
   });
-  T(t32.threeTabs && t32.durOnly && t32.rhyOnly && t32.tupTab && t32.tupVox && t32.noTopMarks
-    && t32.zoomInRail && t32.beatInBar && t32.ebHidden,
-    'T32 顶栏撤销(三图层/连音入记号层/缩放入左栏/节拍入播放条)', JSON.stringify(t32));
+  T(t32.ebVisible && t32.noLayers && t32.tupTab && t32.tupVox && t32.noTopMarks
+    && t32.zoomInBar && t32.beatInBar,
+    'T32 顶栏回归(编辑行可见/缩放·时值提示入顶栏/左栏撤三层/连音留记号层)', JSON.stringify(t32));
 
-  // T33 v46.8 音符/时值/节奏面板不溢出：组占满面板宽换行铺排（此前 .eb-grp flex:none 撑宽 355px 截断）
+  // T33 v47.3 顶栏内容不溢出视口 + 新版节奏组合全铺开（7 个可见、更多▾隐藏）；经典版 4+更多 紧凑
   const t33 = await pg.evaluate(() => {
-    const fly = document.getElementById('left-flyout');
-    const worstOf = (t) => {
-      openFlyout(t);
-      const fw = fly.getBoundingClientRect().right;
-      let worst = 0;
-      fly.querySelectorAll('.rg-body *').forEach(el => {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0) worst = Math.max(worst, r.right - fw);
-      });
-      return Math.round(worst * 10) / 10;
-    };
-    const note = worstOf('note'), dur = worstOf('dur'), rhy = worstOf('rhy');
-    // 换行确认：音符组按钮至少两行（首末按钮 top 不同）
-    const ebs = [...document.querySelectorAll('#note-ops-host .eb')];
-    openFlyout('note');
-    const wrapped = ebs.length >= 6
-      && ebs[0].getBoundingClientRect().top < ebs[ebs.length - 1].getBoundingClientRect().top - 10;
-    return { note, dur, rhy, wrapped };
+    const vis = el => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+    const eb = document.getElementById('editbar');
+    let maxRight = 0; eb.querySelectorAll('button').forEach(x => { if (vis(x)) maxRight = Math.max(maxRight, x.getBoundingClientRect().right); });
+    const fits = maxRight <= innerWidth + 1;
+    const combos = [...document.querySelectorAll('#eb-combo [data-ec]')].filter(vis).length;
+    const moreHid = !vis(document.getElementById('eb-more'));
+    document.getElementById('b-shell').click();
+    const cCombos = [...document.querySelectorAll('#eb-combo [data-ec]')].filter(vis).length;
+    const cMore = vis(document.getElementById('eb-more'));
+    document.getElementById('b-shell').click();
+    return { fits, maxRight: Math.round(maxRight), combos, moreHid, cCombos, cMore };
   });
-  T(t33.note <= 1 && t33.dur <= 1 && t33.rhy <= 1 && t33.wrapped,
-    'T33 音符/时值/节奏面板不溢出且换行铺排', JSON.stringify(t33));
+  T(t33.fits && t33.combos === 7 && t33.moreHid && t33.cCombos === 4 && t33.cMore,
+    'T33 顶栏不溢出+节奏7组合铺开(经典4+更多)', JSON.stringify(t33));
 
   // T34 v46.8 倚音图标统一：前/后倚音同款元素（小音符斜杠+主音符+连线）镜像布局，弃用简谱数字画法
   const t34 = await pg.evaluate(() => {
@@ -649,23 +635,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 2, lyr: 0 }));
     const c = headLines();
     const cOk = c.length >= 1 && c.every(l => Math.abs(l.x - 56) < 1);
-    // 节奏图层：组合全铺开（≥7）、更多/库钮隐藏、节奏型库独立卡
-    openFlyout('rhy');
-    const host = document.getElementById('note-rhy-host');
-    const vis = el => el && getComputedStyle(el).display !== 'none';
-    const combos = [...host.querySelectorAll('[data-ec]')].filter(vis).length;
-    const shellOk = combos >= 7 && !vis(host.querySelector('#eb-more')) && !vis(host.querySelector('#eb-lib'))
-      && document.getElementById('panel-note-rhylib').style.display !== 'none' && vis(document.getElementById('b-rhylib'));
-    // 经典版顶栏保持紧凑：4 组合 + 更多 + 库
-    document.getElementById('b-shell').click();
+    // v47.3 节奏组合在新版顶栏全铺开（更多▾隐藏）；经典版顶栏保持紧凑：4 组合 + 更多 + 库
+    const vis = el => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
     const grp = document.getElementById('eb-combo');
+    const shellOk = [...grp.querySelectorAll('[data-ec]')].filter(vis).length === 7
+      && !vis(grp.querySelector('#eb-more'));
+    document.getElementById('b-shell').click();
     const classicOk = [...grp.querySelectorAll('[data-ec]')].filter(vis).length === 4
       && vis(grp.querySelector('#eb-more')) && vis(grp.querySelector('#eb-lib'));
     document.getElementById('b-shell').click();
-    return { gN: g.length, gOk, vOk, cN: c.length, cOk, combos, shellOk, classicOk };
+    return { gN: g.length, gOk, vOk, cN: c.length, cOk, shellOk, classicOk };
   });
   T(t38.gOk && t38.vOk && t38.cOk && t38.shellOk && t38.classicOk,
-    'T38 简谱行首线共用连体线+节奏铺开/库独立', JSON.stringify(t38));
+    'T38 简谱行首线共用连体线+节奏顶栏铺开(经典紧凑)', JSON.stringify(t38));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });

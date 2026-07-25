@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-25 · 当前版本 **v47.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-25 · 当前版本 **v47.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,7 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
-| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.2 累积 39 项（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
+| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.3 累积 39 项（T29/T32/T33/T38 已改写为顶栏回归口径）（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -437,3 +437,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v47.1 音符快捷浮条 + 习惯学习**：① `#quickbar` 浮条（popmenu 样式独立 id）——`showQuickbar(cx,cy)` 挂 #score pointerdown 普通音符路径（歌词/和弦/扫弦区走各自流程；viewer/启动台不弹），全局 window pointerdown capture 点外即关（与 popmenu 同法，score 点击先关后重开）；按钮组：dur:4/8/16+dot 通用，tab 语境+技法×3+tie，vox 语境+acc:#/b+oct:±+tie；`syncQuickbar()` 同步 on 态；「…」openFlyout 对应层，「✕」写 `musetab-quickbar=off`（智能卡 qbon 项重开）。② 习惯学习（新 localStorage 键 `musetab-habits`，纯本地）——`habit(act)` 记频次 n 与转移 t（上一动作>下一动作），条目>240 全表减半淘汰；接入 10 个动作函数入口（setDur/toggleDot/toggleAcc/bumpOct/toggleTie/techFromBar/ornFromBar/applyTuplet/applyDurCombo/applyGtech，try 包裹零风险）；`habitTop(prefix)` 重排浮条技法槽（冷启动默认 b/h/p），`habitNext()` 转移预判（≥2 次）→ 浮条 `.qb-guess` 猜测钮（预判已在条上则点亮该钮）+ 智能卡置顶「猜你想做」（data-hact qb:act → `habitDo` 分发执行）。动作键命名空间 dur:/dot/tie/acc:/oct:/tech:/gtech:/orn:/tup:/combo，`habitLabel/habitApplicable` 出中文标签与语境过滤。tv_detail1 T37（弹出/生效/重排/预判/关重开/简谱语境十断言），38 项、27 套件全绿。
 
 > **v47.2 简谱行首线合一 + 节奏铺开**：① 简谱行行首独立起始线移除——vox 非 staff 分支原无条件在 ox 画 [voxY-13,voxY+4] 竖线（多行谱与 oxH 连体线成双线；v45.9 只处理了 staff 行的 oxH 同位双绘，jianpu 的 ox 线是另一条）：现整段删除——多行谱由系统连体线（oxH）充当开头小节线，单行歌谱 GB 惯例行首直接起谱；行间/行尾小节线不变。② eb-combo 全量生成 7 组合，`i>=4` 标 `.combo-extra`；CSS：`#eb-combo .combo-extra{display:none}`（经典版顶栏 4+更多+库 不变）、`#note-rhy-host` 内 extra 显示且 eb-more/eb-lib 隐藏。③ `panel-note-rhylib` 独立卡（b-rhylib→showPatternLib(按 sel.row)），setRibbon rhy virt 加入。tv_detail1 T38（弹唱/单行/合唱行首线口径+面板铺开+经典紧凑），39 项、27 套件全绿。
+
+> **v47.3 顶部编辑行回归（撤 v46.6/46.7 收纳）**：产品拍板音符/时值/节奏/时值提示/缩放回顶栏——① CSS 删 `body.shell #editbar{display:none}`；applyShellDock：NOTE_MV 三组恒回 ebu 单元、eb-zoom 恒在 editbar、beat-box shell→editbar（缩放左侧）/classic→右栏；rail-zoom 弃用（display:none）；err-drop shell 定位改 top:108px。② 左栏 note/dur/rhy 三 ltab 撤下（HTML 删+renderDock visible 去三项）；panel-note-* 面板保留但不再展示。③ 节奏铺开延续：`body.shell #editbar .combo-extra{display:inline-flex}`+eb-more 隐藏+组合钮 span 隐藏（名称进 title）+comboSVG 24×16 收窄——1280 视口单行 maxRight 1270 不溢出（editbar 本设计 nowrap+overflow-x:auto，窄屏滚动兜底）；eb-lib 维持 v40.8 去重（shell 库入口=右栏库页签）；经典版 4+更多+库 不变。④ 连音/连音线仍留谱类记号层（v46.6/46.7 该部分不撤）。tv_detail1 T29/T32/T33/T38 改写（39 项），27 套件全绿。
