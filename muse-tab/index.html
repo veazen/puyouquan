@@ -83,6 +83,10 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .eb-unit{display:inline-flex;align-items:center;gap:5px;flex:none}   /* v46.6 组标签+组+分隔线一体（随组搬移显隐） */
 /* v46.6 音符图层内的顶栏组：面板语境样式（字形+中文双显、按钮换行铺排） */
 #note-ops-host .eb-grp,#note-dur-host .eb-grp,#note-rhy-host .eb-grp{flex-wrap:wrap;gap:5px;width:100%;min-width:0}   /* v46.8 占满面板宽换行铺排（.eb-grp 全局 flex:none 会按内容撑宽溢出） */
+/* v47.2 节奏图层：组合时值全部铺开（隐藏 更多▾/库入口——库独立成卡）；经典版顶栏保持前4+更多紧凑 */
+#eb-combo .combo-extra{display:none}
+#note-rhy-host .combo-extra{display:inline-flex}
+#note-rhy-host #eb-more,#note-rhy-host #eb-lib{display:none}
 #note-ops-host .eb,#note-dur-host .eb,#note-rhy-host .eb{display:inline-flex;align-items:center;gap:4px;min-height:28px;font-size:12px;padding:3px 8px}
 #note-ops-host .eb .dg{font-size:13px}
 #note-dur-host .eb .dg{font-family:var(--font-num);font-size:15px}
@@ -1194,6 +1198,10 @@ body.shell #hint{display:none}
     <div class="rg panel-p" id="panel-note-ops"><div class="rg-title">音符</div><div class="rg-body" id="note-ops-host"></div></div>
     <div class="rg panel-p" id="panel-note-dur"><div class="rg-title">时值</div><div class="rg-body" id="note-dur-host"></div></div>
     <div class="rg panel-p" id="panel-note-rhy"><div class="rg-title">节奏</div><div class="rg-body" id="note-rhy-host"></div></div>
+    <!-- v47.2 节奏型库独立成卡（组合时值全铺开后，库入口不再混在组合按钮里） -->
+    <div class="rg panel-p" id="panel-note-rhylib"><div class="rg-title">节奏型库</div><div class="rg-body">
+      <button id="b-rhylib" title="打开节奏型库：吉他谱扫弦/分解节奏型、简谱节奏型，一键套用到当前小节">打开节奏型库…</button>
+    </div></div>
     <!-- 吉他谱 -->
     <div class="rg panel-p" id="panel-tab-voice">
       <div class="rg-title">吉他声部</div>
@@ -4810,9 +4818,9 @@ function render(){
           p.push(smg('brace', oxH-3-SMUFL.brace.bb[2]*Math.min(brS,30), staffB, SG, {sx:Math.min(brS,30), sy:brS}));
           if(!sysConnected) p.push(`<line x1="${oxH}" y1="${prevT}" x2="${oxH}" y2="${staffB}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画（防同位双绘色差）
         }
-      }else{
-        p.push(`<line x1="${ox}" y1="${voxY-13}" x2="${ox}" y2="${voxY+4}" stroke="var(--ink)" stroke-width="1"/>`);
       }
+      /* v47.2 简谱行不再画独立的行首起始小节线：多行谱由系统连体线（oxH）充当开头小节线，
+         单行歌谱按 GB 简谱出版惯例行首直接起谱（此前在 ox 处多画一条，与连体线成双线） */
       if(song.voxVoices.length>1)
         if(!isStaff) p.push(`<text x="${oxH-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
       /* 多段歌词：每段起始处显示段序号，点击选中该段编辑 */
@@ -5810,7 +5818,7 @@ function setRibbon(t){
      和弦层按谱类复用现有面板（有吉他声部→和弦输入面板，否则→级数和弦面板） */
   const virt = t==='chord' ? ((song && song.tabVoices.length>0)? ['panel-tab-chord'] : ['panel-vox-fn'])
              : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops']
-             : t==='note' ? ['panel-note-ops'] : t==='dur' ? ['panel-note-dur'] : t==='rhy' ? ['panel-note-rhy'] : null;   // v46.7 音符/时值/节奏三独立图层
+             : t==='note' ? ['panel-note-ops'] : t==='dur' ? ['panel-note-dur'] : t==='rhy' ? ['panel-note-rhy','panel-note-rhylib'] : null;   // v46.7 音符/时值/节奏三独立图层；v47.2 节奏型库独立卡
   let spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
   /* v40.9 新版外壳图层内容归纳：扫弦/音符记号/技法（简谱：记号/装饰）合并为「记号」面板；
      和弦只在和弦层、记谱法在右栏风格、节奏型/织体在右栏库、列面板去除 */
@@ -6493,13 +6501,17 @@ function applyVoxPattern(pat){
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-dot') toggleDot(); else setDur(+b.dataset.dur);
   });
-  /* 节奏（组合时值）按钮：图示（符杠）在上、名称在下 */
+  /* 节奏（组合时值）按钮：图示（符杠）在上、名称在下。
+     v47.2 全量生成：左栏「节奏」图层全部铺开（.combo-extra 由 CSS 控制——经典版顶栏仍只显前 4+更多，
+     新版左栏面板全显并隐藏 更多▾/节奏型库…，库独立成「节奏型库」卡） */
   const ebCombo = document.getElementById('eb-combo');
-  ebCombo.innerHTML = DUR_COMBOS.slice(0,4).map((c,i)=>
-    `<button class="eb ico" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${comboSVG(c.durs,30,20)}<span>${esc(c.name)}</span></button>`
+  ebCombo.innerHTML = DUR_COMBOS.map((c,i)=>
+    `<button class="eb ico${i>=4?' combo-extra':''}" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${comboSVG(c.durs,30,20)}<span>${esc(c.name)}</span></button>`
   ).join('')
   + `<button class="eb" id="eb-more" title="全部组合时值" aria-label="更多组合时值"><span class="dg">▾</span><span class="dn">更多 ▾</span></button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
+  { const rb=document.getElementById('b-rhylib');
+    if(rb) rb.onclick = ()=>showPatternLib(sel.row==='vox'?'vox':'tab'); }
   ebCombo.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-lib'){ showPatternLib(sel.row==='vox'?'vox':'tab'); return; }
@@ -13068,6 +13080,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v47.2</span><div><b>简谱行首线合一 + 节奏面板铺开</b>：① <b>简谱行不再画独立的行首起始小节线</b>——多谱行曲谱（弹唱/合唱/对照等）行首由<b>系统连体线充当开头小节线</b>，不再在其右侧多画一条形成双线；单行歌谱按国标简谱出版惯例<b>行首直接起谱</b>（行间小节线不变）；② <b>左栏「节奏」图层组合时值全部铺开</b>——七种组合（八分×2 / 前八后十六 / 前十六后八 / 十六分×4 / 附点八分+十六 / 十六+附点八 / 小切分）一眼全见，不再需要点「更多▾」二级展开（经典版顶栏保持紧凑不变）；③ <b>节奏型库独立成卡</b>——从组合按钮组中分离为独立的「节奏型库」卡片，入口更清晰。</div></li>
     <li><span class="v">v47.1</span><div><b>音符快捷浮条 + 智能习惯预判</b>：① <b>点击音符自动弹出快捷浮条</b>——常用可选项就在音符旁边：时值（四分/八分/十六分）、附点、连音线，吉他谱另有 3 枚常用技法钮、简谱/五线谱另有升降号与八度点；点「…」直达左栏完整面板，点「✕」可关闭自动弹出（右栏「智能」页随时重新开启）；当前音已有的属性在浮条上高亮显示；② <b>智能功能深化：学习你的编辑习惯</b>——本地记录常用操作的频次与先后顺序（<b>只存在你自己的浏览器里，绝不上传</b>）：浮条的技法槽位按你的高频操作自动重排（比如常用泛音的用户会看到 N.H. 排进浮条）；③ <b>「猜你想做」预判下一步</b>——根据你的操作先后习惯（如"改完时值常接着加 3 连音"）在浮条最前面给出高亮预判钮、右栏智能卡同步置顶「猜你想做」提示，点击直达执行；出现 2 次以上的习惯才会给出预判，避免误猜。</div></li>
     <li><span class="v">v47.0</span><div><b>TAB 行首拍号重叠修复（弹唱/尤克里里）</b>：① <b>TAB 字母与拍号不再重叠</b>——纯六线谱＋简谱的弹唱谱此前没有五线谱表头区，行首 T A B 字母与拍号挤在同一位置；现在为纯 TAB 谱保留最小表头区，拍号移到字母右侧（与独奏联排谱同口径）；② <b>拍号与首个音符留出出版级间距</b>——首小节内容为拍号预留横向空间（此前拍号紧贴第一列音符）；③ 排查其余谱类（歌谱/五线谱/对照谱/大谱表/功能谱/双声部/五线谱唱名弹唱）行首区均无同类重叠；④ 顺带补齐：<b>变拍子在纯 TAB 谱上现在可见</b>——中途换拍的小节在六线谱行首画新拍号（此前只有五线谱行显示，纯 TAB 弹唱谱完全看不到变拍），首行拍号也改为按首小节有效拍号显示。</div></li>
     <li><span class="v">v46.9</span><div><b>新建=全新曲谱 + 倚音入口去重</b>：① <b>启动台四入口不再提前露出旧谱</b>——点「新建/打开/导入/我的」后启动台保持在原位（向导与文件框背后是干净的启动页），<b>直到新曲谱真正载入才切换显示</b>；中途取消就回到启动台，全程不会看到上次残留的编辑信息；新建向导里的「当前曲谱《旧稿》…」状态行在启动台状态下也不再显示（从编辑中打开向导时照常提示替换风险）；「继续上次编辑」仍是查看旧稿的唯一入口；② <b>去掉重复的「倚音」按钮</b>——简谱/五线谱记号组原单独「倚音」钮与装饰组「前倚音」功能完全相同，现已移除，倚音入口统一为装饰组的<b>前倚音 / 后倚音</b>两枚（已选中音符带倚音时按钮高亮显示）。</div></li>

@@ -630,6 +630,43 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && t37.offOk && t37.backOn && t37.voxCtx,
     'T37 快捷浮条+习惯学习(弹出/生效/重排/预判/关重开/简谱)', JSON.stringify(t37));
 
+  // T38 v47.2 简谱行首线与连体线共用 + 节奏全铺开/节奏型库独立
+  const t38 = await pg.evaluate(() => {
+    const headLines = () => [...document.getElementById('score').querySelectorAll('line')]
+      .map(l => ({ x: +l.getAttribute('x1'), x2: +l.getAttribute('x2'), h: Math.abs(+l.getAttribute('y2') - +l.getAttribute('y1')) }))
+      .filter(l => Math.abs(l.x - l.x2) < 0.5 && l.x < 90 && l.h > 8);
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    // 弹唱（2 行系统）：每系统行首只剩连体线一条（x=56），简谱行无 ox=82 处独立线
+    loadSong(createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 6, nTab: 1, nVox: 1, lyr: 1 }));
+    const g = headLines();
+    const gOk = g.length >= 1 && g.every(l => Math.abs(l.x - 56) < 1);
+    // 单行歌谱：行首无起始线（GB 惯例）
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 4, unit: 4, nMea: 6, nVox: 1, lyr: 1 }));
+    const vOk = headLines().length === 0;
+    // 二声部合唱：只有连体线
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 2, lyr: 0 }));
+    const c = headLines();
+    const cOk = c.length >= 1 && c.every(l => Math.abs(l.x - 56) < 1);
+    // 节奏图层：组合全铺开（≥7）、更多/库钮隐藏、节奏型库独立卡
+    openFlyout('rhy');
+    const host = document.getElementById('note-rhy-host');
+    const vis = el => el && getComputedStyle(el).display !== 'none';
+    const combos = [...host.querySelectorAll('[data-ec]')].filter(vis).length;
+    const shellOk = combos >= 7 && !vis(host.querySelector('#eb-more')) && !vis(host.querySelector('#eb-lib'))
+      && document.getElementById('panel-note-rhylib').style.display !== 'none' && vis(document.getElementById('b-rhylib'));
+    // 经典版顶栏保持紧凑：4 组合 + 更多 + 库
+    document.getElementById('b-shell').click();
+    const grp = document.getElementById('eb-combo');
+    const classicOk = [...grp.querySelectorAll('[data-ec]')].filter(vis).length === 4
+      && vis(grp.querySelector('#eb-more')) && vis(grp.querySelector('#eb-lib'));
+    document.getElementById('b-shell').click();
+    return { gN: g.length, gOk, vOk, cN: c.length, cOk, combos, shellOk, classicOk };
+  });
+  T(t38.gOk && t38.vOk && t38.cOk && t38.shellOk && t38.classicOk,
+    'T38 简谱行首线共用连体线+节奏铺开/库独立', JSON.stringify(t38));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
