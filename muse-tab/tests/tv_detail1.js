@@ -749,10 +749,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       .sort((a, c) => a.getBoundingClientRect().left - c.getBoundingClientRect().left)
       .map(e => (e.textContent || '').trim()).join(' ');
     const stSeq = seq();
+    /* v47.8 起五线谱休止钮改出 SMuFL 字形（无文本），序列断言改为「七音名 + 休止钮带 svg」 */
+    const stRestSvg = /<svg/.test(document.querySelector('#eb-note [data-nd="0"] .dg').innerHTML);
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; syncInputs();
     const tabSeq = seq();
     const orderOk = tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /0–24▾ ×$/.test(tabSeq)
-      && stSeq.indexOf('C D E F G A B 0') === 0;
+      && stSeq.indexOf('C D E F G A B') === 0 && stRestSvg;
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     // ④ 节奏型库按钮在上栏、位于节奏组末尾
     const lib = document.getElementById('eb-lib');
@@ -809,6 +811,55 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t42.muteKeep && t42.natOk && t42.noBogus && t42.jpSame && t42.pendOk && t42.ukuOk && t42.escOk && t42.guardOk,
     'T42 缺陷修复(闷音保真/五线谱变音/换弦断合成/uku/Esc/品位守卫)', JSON.stringify(t42));
+
+  // T43 v47.8 三谱类音符组分化 + 品位折叠 + 五线谱休止字形 + 节奏型库按谱类路由
+  const t43 = await pg.evaluate(() => {
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const vis = el => el && getComputedStyle(el).display !== 'none';
+    const seq = () => [...document.querySelectorAll('#eb-note > *')].filter(vis)
+      .sort((a, c) => a.getBoundingClientRect().left - c.getBoundingClientRect().left)
+      .map(e => (e.textContent || '').trim() || '[g]').join(' ');
+    loadSong(createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
+    // ① 简谱：1-7 简谱音名 + 0 休止 + 高/低八度；库＝节奏型库
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
+    const jpOk = seq().indexOf('1 2 3 4 5 6 7 0') === 0
+      && /简谱音名/.test(document.querySelector('#eb-note [data-nd="3"]').title)
+      && document.getElementById('eb-lib').textContent === '节奏型库…';
+    // ② 吉他：数字＝品位（非简谱音名）、× 为分解标记、品位钮按余量折叠且不溢出
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; syncInputs();
+    const caps = []; for (let i = 0; i < 3; i++) { syncInputs(); caps.push(fretInlineCap()); }
+    const shown = [...document.querySelectorAll('#eb-note .nd')].filter(vis).map(x => +x.dataset.nd);
+    const cap = fretInlineCap();
+    let maxRight = 0; document.getElementById('editbar').querySelectorAll('button').forEach(x => { if (vis(x)) maxRight = Math.max(maxRight, x.getBoundingClientRect().right); });
+    const tabOk = /品（/.test(document.querySelector('#eb-note [data-nd="5"]').title)
+      && /分解标记/.test(document.getElementById('eb-mute-n').title)
+      && new Set(caps).size === 1                       // 折叠稳定（不随重算抖动）
+      && Math.max.apply(null, shown) === cap            // 恰好铺开到 cap
+      && vis(document.getElementById('eb-fret-more')) === (cap < fretMaxOf())
+      && maxRight <= innerWidth + 1;
+    // ③ 五线谱：休止钮出 SMuFL 休止字形且随时值变化（不再是简谱的「0」）
+    song.voxNotations = ['staff']; sel = { row: 'vox', vi: 0, mi: 0, ci: 0 };
+    const c0 = song.measures[0].voxes[0][0];
+    const restHTML = d => { c0.dur = d; syncInputs(); return document.querySelector('#eb-note [data-nd="0"] .dg').innerHTML; };
+    const rq = restHTML(4), re = restHTML(8), rw = restHTML(1);
+    const stRestOk = /<svg/.test(rq) && /<svg/.test(re) && /<svg/.test(rw) && rq !== re && rq !== rw;
+    // ④ 库按谱类路由：单谱表五线谱 → 提示后退回节奏型库
+    const toasts = []; const ot = window.toast; window.toast = m => toasts.push(m);
+    openRhyLib();
+    const singleOk = /需要大谱表/.test(toasts[0] || '') && !!document.querySelector('.modal');
+    closeModal();
+    // ⑤ 大谱表钢琴 → 伴奏织体（含内置钢琴节奏型条目）
+    loadSong(createSong('piano', { title: 'p', key: 'C', beats: 4, unit: 4, nMea: 2, lyr: 0 }));
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
+    const libTxt = document.getElementById('eb-lib').textContent;
+    openRhyLib();
+    const m = document.querySelector('.modal');
+    const pianoOk = libTxt === '伴奏织体…' && !!m && /柱式和弦/.test(m.textContent) && /抒情分解/.test(m.textContent);
+    closeModal(); window.toast = ot;
+    return { jpOk, tabOk, cap, shownMax: Math.max.apply(null, shown), stRestOk, singleOk, pianoOk };
+  });
+  T(t43.jpOk && t43.tabOk && t43.stRestOk && t43.singleOk && t43.pianoOk,
+    'T43 三谱类音符组(简谱音名/品位折叠/五线谱休止字形)+库按谱类路由', JSON.stringify(t43));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });

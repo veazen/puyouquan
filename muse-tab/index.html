@@ -421,6 +421,8 @@ body.shell #editbar .eb{padding:3px 8px}
 /* v47.5 「音符」输入组（数字钮窄身）+ 撤销/重做入上栏 + 上栏放不下时换行兜底（新版外壳） */
 #eb-note .nd{min-width:24px;padding:3px 6px;justify-content:center}
 #eb-note .nd .dg{font-family:var(--font-num);font-weight:600}
+#eb-note .nd .dg .smg{vertical-align:middle}   /* v47.8 五线谱休止字形 */
+#eb-note .ndf{opacity:.92}                      /* 高把位钮（10–24），折叠时由 JS 隐藏 */
 #editbar .nd .dg{display:inline;font-size:13px}   /* 数字钮两种外壳都显数字（经典版无 .dn 可退） */
 body.shell #eb-note .nd{min-width:21px;padding:3px 4px}
 /* v47.6 音符组扩展钮：0–24 选择器 / × 闷音 / 变音记号（按语境显隐，见 syncInputs） */
@@ -1203,9 +1205,25 @@ body.shell #hint{display:none}
       <button class="eb nd" data-nd="0"><span class="dg">0</span></button>
       <button class="eb nd nd-hi" data-nd="8"><span class="dg">8</span></button>
       <button class="eb nd nd-hi" data-nd="9"><span class="dg">9</span></button>
-      <!-- v47.6 吉他谱：×闷音标记 + 0–24 全品位选择器（仅 TAB 语境显示） -->
+      <!-- v47.8 吉他谱高把位钮 10–24：按上栏余量自动折叠（放不下的收进 0–24▾ 选择器） -->
+      <button class="eb nd ndf" data-nd="10"><span class="dg">10</span></button>
+      <button class="eb nd ndf" data-nd="11"><span class="dg">11</span></button>
+      <button class="eb nd ndf" data-nd="12"><span class="dg">12</span></button>
+      <button class="eb nd ndf" data-nd="13"><span class="dg">13</span></button>
+      <button class="eb nd ndf" data-nd="14"><span class="dg">14</span></button>
+      <button class="eb nd ndf" data-nd="15"><span class="dg">15</span></button>
+      <button class="eb nd ndf" data-nd="16"><span class="dg">16</span></button>
+      <button class="eb nd ndf" data-nd="17"><span class="dg">17</span></button>
+      <button class="eb nd ndf" data-nd="18"><span class="dg">18</span></button>
+      <button class="eb nd ndf" data-nd="19"><span class="dg">19</span></button>
+      <button class="eb nd ndf" data-nd="20"><span class="dg">20</span></button>
+      <button class="eb nd ndf" data-nd="21"><span class="dg">21</span></button>
+      <button class="eb nd ndf" data-nd="22"><span class="dg">22</span></button>
+      <button class="eb nd ndf" data-nd="23"><span class="dg">23</span></button>
+      <button class="eb nd ndf" data-nd="24"><span class="dg">24</span></button>
+      <!-- v47.6 吉他谱：×分解标记 + 0–24 全品位选择器（仅 TAB 语境显示） -->
       <button class="eb" id="eb-fret-more" title="0–24 品位选择器：点开后可直接选任意品位（高把位/泛音位常用）" aria-label="0到24品位"><span class="dg">0–24▾</span></button>
-      <button class="eb" id="eb-mute-n" title="× 闷音标记：把当前弦位记为闷音 ×（死音）；再点取消" aria-label="闷音×"><span class="dg">×</span></button>
+      <button class="eb" id="eb-mute-n" title="× 分解标记：分解和弦中不发实音的 × 记号（写在当前弦位）；再点取消" aria-label="分解×"><span class="dg">×</span></button>
       <!-- v47.6 五线谱：变音记号随音名录入（仅五线谱系声部显示） -->
       <button class="eb" id="eb-acc-s" title="升号 ♯（作用于当前音）" aria-label="升号"><span class="dg">♯</span></button>
       <button class="eb" id="eb-acc-f" title="降号 ♭（作用于当前音）" aria-label="降号"><span class="dg">♭</span></button>
@@ -5982,31 +6000,47 @@ function syncInputs(){
     const isSt = !isTab && isStaffNota((song.voxNotations||[])[sel.vi]);
     const K = isSt? staffKeyInfo() : null;
     const tabNote = isTab && col? (col.notes||[]).find(n=>n.s===sel.si) : null;
+    const cap = isTab? fretInlineCap() : 7;   // v47.8 吉他高把位按余量折叠
     document.querySelectorAll('#eb-note .nd').forEach(b=>{
       const k=+b.dataset.nd, dg=b.querySelector('.dg');
-      b.style.display = (isTab || k<=7)? '' : 'none';
-      if(dg) dg.textContent = (isSt && k>=1 && k<=7)? 'CDEFGAB'[(K.Li+k-1)%7] : String(k);
-      b.title = isTab? (k+' 品（0.7 秒内连点两键可输两位品位，如 1→2 = 12 品）')
-              : k===0? '休止（0）'
+      b.style.display = (isTab? k<=cap : k<=7)? '' : 'none';
+      if(dg){
+        /* v47.8 五线谱休止按五线谱规则出字形（随当前时值变全/二/四/八/十六/三十二分休止），
+           不再沿用简谱的「0」；data-nd 仍是 0，键盘 0 与 setDeg(0) 路径不变 */
+        if(isSt && k===0) dg.innerHTML = smIcoSVG(STAFF_REST_G[(col&&col.dur)||4]||'restQuarter', 15) || '0';
+        else dg.textContent = (isSt && k>=1 && k<=7)? 'CDEFGAB'[(K.Li+k-1)%7] : String(k);
+      }
+      b.title = isTab? (k+' 品（键盘 0.7 秒内连点两键可输两位品位；按钮点击直接写入该品位）')
+              : k===0? (isSt? ('休止符（当前时值：'+({1:'全',2:'二分',4:'四分',8:'八分',16:'十六分',32:'三十二分'}[(col&&col.dur)||4]||'四分')+'休止；键盘按 0）')
+                            : '休止（简谱记 0）')
               : isSt? ('音名 '+'CDEFGAB'[(K.Li+k-1)%7]+'（＝音级 '+k+'，键盘按 '+k+'；调号内的升降自动生效，需临时记号用 ♯ ♭ ♮）')
-                    : ('音级 '+k+'（1=当前调主音）');
+                    : ('简谱音名 '+k+'（1=当前调主音）');
       /* 选中态：吉他=当前弦品位命中；简谱/五线谱=当前音级命中 */
       b.classList.toggle('on', isTab? !!(tabNote && !tabNote.x && tabNote.f===k)
                                     : !!(col && (col.deg||0)===k));
-      /* 排序：吉他谱 0-9 自然序（0＝空弦最常用，居首）；简谱/五线谱 1-7 在前、0（休止）殿后 */
+      /* 排序：吉他谱 0-24 自然序（0＝空弦最常用，居首）；简谱/五线谱 1-7 在前、0（休止）殿后 */
       b.style.order = isTab? String(k) : String(k===0? 8 : k);
     });
     /* 组内尾部功能钮显式排到数字之后（flex order 默认 0 会插到有序数字前） */
-    [['eb-fret-more',20],['eb-mute-n',21],['eb-acc-s',22],['eb-acc-f',23],['eb-acc-n',24],
-     ['eb-octup',30],['eb-octdn',31]].forEach(([id,o])=>{ const el=document.getElementById(id); if(el) el.style.order=String(o); });
+    /* order 必须高于最大品位数（24），否则铺开到高把位时功能钮会插进数字序列中间 */
+    [['eb-fret-more',40],['eb-mute-n',41],['eb-acc-s',42],['eb-acc-f',43],['eb-acc-n',44],
+     ['eb-octup',50],['eb-octdn',51]].forEach(([id,o])=>{ const el=document.getElementById(id); if(el) el.style.order=String(o); });
     const shw=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
     shw('eb-octup', !isTab); shw('eb-octdn', !isTab);
-    shw('eb-fret-more', isTab); shw('eb-mute-n', isTab);
+    shw('eb-fret-more', isTab && cap<fretMaxOf()); shw('eb-mute-n', isTab);
     shw('eb-acc-s', isSt); shw('eb-acc-f', isSt); shw('eb-acc-n', isSt);
     { const mb=document.getElementById('eb-mute-n'); if(mb) mb.classList.toggle('on', !!(tabNote && tabNote.x)); }
     [['eb-acc-s','#'],['eb-acc-f','b'],['eb-acc-n','n']].forEach(([id,a])=>{
       const el=document.getElementById(id); if(el) el.classList.toggle('on', !!(col && col.acc===a));
     });
+    /* v47.8 节奏型库钮文案随谱类：五线谱＝钢琴伴奏织体 */
+    { const libTxt = isSt? '伴奏织体…' : '节奏型库…';
+      const libTip = isSt? '常用钢琴节奏型（伴奏织体）：按已标注的和弦自动生成双手音符'
+                         : (isTab? '吉他节奏型库：扫弦 / 分解节奏型，一键套用到当前小节'
+                                 : '简谱节奏型库：一键套用到当前小节');
+      [document.getElementById('eb-lib'), document.getElementById('b-rhylib')].forEach(el=>{
+        if(el){ el.textContent=libTxt; el.title=libTip; } });
+    }
   }
   const ci = document.getElementById('cursor-info');
   if(ci && typeof startPadOn==='function' && startPadOn()){ ci.innerHTML='—'; }   // v46.6 启动台未选状态不显示残留
@@ -6216,6 +6250,22 @@ function redo(){
 }
 /* v47.7 品位上限按乐器：尤克里里常见 15 品，吉他/贝斯 24 品（song.fretMax 可覆盖，纯增量字段） */
 function fretMaxOf(){ return (song && song.fretMax) || (instOf()==='uku'? 15 : 24); }
+/* v47.8 五线谱休止字形（按当前时值取 SMuFL 休止符，供顶栏音符组的休止钮显示） */
+const STAFF_REST_G={1:'restWhole',2:'restHalf',4:'restQuarter',8:'rest8th',16:'rest16th',32:'rest32nd'};
+/* v47.8 吉他品位钮内联折叠：按上栏本行余量算能铺开到第几品，放不下的收进「0–24▾」选择器。
+   余量 = 上栏可用宽 − 其余各单元实测宽 − 本组固定开销（组标签 + ×/▾ 两钮）；测不到时退回 0-9。 */
+function fretInlineCap(){
+  const eb=document.getElementById('editbar'), unit=document.getElementById('ebu-eb-note');
+  const mx=fretMaxOf();
+  if(!eb||!unit||!eb.clientWidth) return Math.min(9,mx);
+  let used=0;
+  /* 跳过弹性占位（.grow 会随本组变宽而收缩，计入会形成"越展开余量越少"的抖动回环） */
+  [...eb.children].forEach(ch=>{ if(ch!==unit && !ch.classList.contains('grow')){
+    const w=ch.getBoundingClientRect().width; if(w>0) used+=w+5; } });
+  const free = eb.clientWidth - used - 128;      // 128≈组标签+×+0–24▾+内边距
+  const per  = 27;                               // 单个品位钮实测宽（含 gap）
+  return Math.max(Math.min(9,mx), Math.min(mx, Math.floor(free/per)));
+}
 function setFret(f){
   if(sel.row!=='tab') return;
   if(f!=null){ f=Math.max(0, Math.min(fretMaxOf(), f|0)); }   // v47.7 越界守卫（此前 setFret(99) 直接写脏）
@@ -6632,10 +6682,10 @@ function applyVoxPattern(pat){
   + `<button class="eb" id="eb-more" title="更多节奏：二拍 / 三拍 / 复合拍（3/4、6/8 等拍号）组合展开" aria-label="更多节奏组合"><span class="dg">更多▾</span><span class="dn">更多 ▾</span></button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
   { const rb=document.getElementById('b-rhylib');
-    if(rb) rb.onclick = ()=>showPatternLib(sel.row==='vox'?'vox':'tab'); }
+    if(rb) rb.onclick = ()=>openRhyLib(); }
   ebCombo.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
-    if(b.id==='eb-lib'){ showPatternLib(sel.row==='vox'?'vox':'tab'); return; }
+    if(b.id==='eb-lib'){ openRhyLib(); return; }
     if(b.id==='eb-more'){ const r=b.getBoundingClientRect(); showComboMenu(r.left, r.bottom); return; }
     applyDurCombo(DUR_COMBOS[+b.dataset.ec]);
   });
@@ -6953,6 +7003,17 @@ function applyTuplet(n){ try{habit('tup:'+n);}catch(_){}
   toast('已拆分为'+n+'连音（总时值不变）');
 }
 /* ---- 节奏型库弹窗 ---- */
+/* v47.8 节奏型库按谱类路由：编辑五线谱声部 → 常用钢琴节奏型（伴奏织体，按和弦生成双手音符）；
+   吉他谱 → 扫弦/分解节奏型；简谱 → 简谱节奏型。
+   伴奏织体需要大谱表（双手两个声部），单谱表五线谱（器乐谱）退回节奏型库并说明原因。 */
+function openRhyLib(){
+  const isSt = sel.row==='vox' && isStaffNota((song.voxNotations||[])[sel.vi]);
+  if(isSt){
+    if((song.voxVoices||[]).length>=2){ document.getElementById('b-acctex').click(); return; }
+    toast('伴奏织体（钢琴节奏型）需要大谱表双手声部——当前是单谱表，已打开节奏型库');
+  }
+  showPatternLib(sel.row==='vox'? 'vox' : 'tab');
+}
 function showPatternLib(kind){
   const groups = kind==='tab'?TAB_PATTERN_GROUPS:VOX_PATTERN_GROUPS;
   const body = groups.map((g,gi)=>
@@ -7913,6 +7974,10 @@ function askText(title, def, cb){
     if(ev.key==='Escape'){ ev.preventDefault(); closePop(); }
   });
 }
+/* v47.8 上栏余量变化 → 重算品位钮折叠（去抖；仅刷新输入组，不重排谱面） */
+{ let rzT=null;
+  window.addEventListener('resize', ()=>{ clearTimeout(rzT);
+    rzT=setTimeout(()=>{ try{ syncInputs(); }catch(_){} }, 120); }); }
 window.addEventListener('pointerdown', e=>{
   if(!e.target.closest('#popmenu') && !e.target.closest('#mx-panel')
      && !(document.getElementById('mx-panel') && e.target.closest('#mixer-dock'))
@@ -10562,7 +10627,9 @@ document.getElementById('b-arrange').onclick = ()=>{
 document.getElementById('b-new').onclick = showNewWizard;
 /* 伴奏织体弹窗（钢琴弹唱谱） */
 document.getElementById('b-acctex').onclick = ()=>{
-  if(!song.pianoAcc) return;
+  /* v47.8 放宽：原限定钢琴弹唱谱(pianoAcc)；钢琴独奏谱等大谱表同样适用（genAccompaniment 只需右手/左手两声部 + 和弦），
+     顶栏「伴奏织体…」按谱类路由到此，故这里按能力判定而非谱种判定 */
+  if(!song.pianoAcc && (song.voxVoices||[]).length<2) return;
   const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
   if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
@@ -13294,6 +13361,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v47.8</span><div><b>音符组按谱类彻底分化 + 节奏型库按谱类对应</b>：① <b>简谱</b>：1–7 为简谱音名、0 为休止符，后接高八度 / 低八度；② <b>吉他谱</b>：不再出现简谱音名，数字一律是<b>品位</b>——<b>0–24 品全部可直接点选</b>，并<b>按上栏余量自动折叠</b>（宽屏一路铺开到 24 品；窄屏只铺 0–9，其余收进「0–24▾」选择器，改变窗口大小会实时重算），<b>×</b> 改为<b>分解标记</b>（分解和弦中不发实音的 × 记号，不再叫「闷音」）；③ <b>五线谱</b>：休止符按五线谱规则出<b>真正的休止符字形</b>，并<b>随当前时值变化</b>（全 / 二分 / 四分 / 八分 / 十六分 / 三十二分休止），不再沿用简谱的「0」；④ <b>节奏型库按谱类对应</b>：编辑五线谱大谱表时按钮变为<b>「伴奏织体…」</b>，打开的是<b>常用钢琴节奏型</b>（柱式和弦 / 抒情分解 / 半分解 / 阿尔贝蒂低音 / 圆舞曲等，按已标注和弦自动生成双手音符）；吉他谱仍是扫弦/分解节奏型，简谱仍是简谱节奏型；单谱表五线谱会提示「伴奏织体需要大谱表双手声部」并退回节奏型库。</div></li>
     <li><span class="v">v47.7</span><div><b>音符录入缺陷修复（专家复核后逐条实测确认）</b>：① <b>闷音 × 不再丢品位</b>——原先「7 品 → 打 × → 再点 × 取消」会静默变成空弦（品位被清零），现在取消 × 会<b>还原原品位</b>（v47.6 把 × 放上顶栏后这条路径变成一键可达，属数据丢失，优先修）；② <b>五线谱的 ♮ 还原号此前是无效按钮</b>——五线谱的变音是相对调号的偏移，旧写法让 ♮ 与「无记号」完全等价、点了没反应；现改为<b>按目标音高记谱</b>：升号调里点 ♮ 正确画出还原号且音高降半音；<b>♯ 连点也不再画出「重降号却发升号音」的错谱</b>；简谱的升降号行为完全不变；③ <b>换弦即断开两位品位输入</b>——原先键盘「1 → ↓换弦 → 2」会在新弦写成 12 品；④ <b>尤克里里修正</b>：光标弦号不再越到第 5/6 弦（写出四线谱外的幽灵音符），品位上限按乐器取 15 品；⑤ <b>品位越界守卫</b>：任何入口都不会再写入超出上限的品位；⑥ <b>Esc 关闭弹出菜单</b>（此前弹窗开着时数字键仍会直接写音符）；⑦ 品位选择器改 6 列栅格，12 品落在行首（八度位），并按乐器裁剪长度。</div></li>
     <li><span class="v">v47.6</span><div><b>音符输入组按谱类分化 + 节奏型库上栏</b>：① <b>吉他谱：× 闷音标记 + 0–24 全品位可选</b>——上栏直接给 0–9（<b>0＝空弦排在最前</b>，吉他最常用）与 <b>×</b>（闷音/死音，再点取消，当前弦已是闷音时按钮高亮；当前弦的品位在数字钮上高亮），另加 <b>「0–24▾」品位选择器</b>：点开即是 0 到 24 全部品位的网格，高把位与泛音位一次点到（另含「× 闷音」「清除本弦音」），当前弦的品位在网格中高亮；② <b>五线谱：音名录入方案</b>——切到五线谱声部时，七个数字钮自动变为<b>音名 C D E F G A B</b>（随调号旋转：D 大调显示 D E F G A B C），点击即落该音；同组补上 <b>♯ ♭ ♮</b> 变音记号（调号内的升降自动生效，需要临时记号时点它）与高/低八度；<b>键盘 1–7 仍然等价可用</b>（按钮提示已标注对应音级），底层数据仍是首调音级，换调不改音符数据；③ 简谱声部保持 1–7 + 0 + 高低八度不变；④ <b>「节奏型库…」按钮回到上栏</b>，排在节奏组末尾（右栏「库」页签的完整节奏型库仍在）。</div></li>
     <li><span class="v">v47.5</span><div><b>上栏结构调整：编辑 + 音符输入组 + 撤销重做下移</b>：① 原「音符」组更名<b>「编辑」</b>：后插 / 前插 / 休止 / 清音 / 拆分 / 合并 / 删除（八度移出）；② 编辑组后新增<b>「音符」输入组</b>——<b>简谱/五线谱声部：音级 1–7、0（休止）、高八度、低八度</b>；<b>吉他谱声部：品位数字 0–9</b>（0.7 秒内连点两键可输两位品位，如 1→2 = 12 品）——按当前选中声部自动切换选项，与键盘数字输入完全同源；③ <b>撤销 / 重做从页头下移到上栏</b>，排在节奏组之后（经典版保持页头原位）；④ 上栏内容放不下时自动换行（时值提示与缩放右靠齐），不再横向滚动。</div></li>
