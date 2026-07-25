@@ -405,19 +405,21 @@ body.shell #editbar .eb.on{background:var(--accent-soft);color:var(--accent-ink)
 /* v47.3 顶栏回归（撤 v46.7）：音符/时值/节奏/时值提示/缩放回顶部编辑行；
    连音记号仍留各谱类记号层。时值提示（beat-box）新版在顶栏内联紧凑显示 */
 body.shell #editbar #beat-box{flex:none;padding:0;white-space:nowrap}
-body.shell #editbar #beat-status{width:auto;padding:3.5px 9px;border-radius:20px;font-size:11.5px}
+body.shell #editbar #beat-status{width:auto;max-width:126px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:3.5px 9px;border-radius:20px;font-size:11.5px}   /* 顶栏内联长文案截断（完整状态见悬停/下拉） */
 body.shell #err-drop{position:fixed;right:14px;top:108px;width:340px;max-height:62vh;
   overflow-y:auto;z-index:55;background:var(--panel);border:1px solid var(--border-soft);
   border-radius:12px;box-shadow:var(--shadow);padding:8px;margin:0}
 /* v47.3 节奏组合在新版顶栏全铺开（v47.2 铺开决策延续）：更多▾ 隐藏；经典版保持 4+更多 紧凑。
    新版顶栏组合钮只留符杠图形（名称进 title，v40.5 图标组同哲学）——7 组合铺开在 1280 宽视口也不溢出 */
 body.shell #editbar .combo-extra{display:inline-flex}
-body.shell #editbar #eb-more{display:none}
 body.shell #editbar #eb-combo .eb.ico span{display:none}
+body.shell #editbar #eb-more .dg{font-size:11.5px}   /* v47.4 更多▾ 回顶栏：展开 3/4、6/8 等拍号节奏组合 */
 body.shell #editbar .eb-sep{margin:0 4px}
 body.shell #editbar #zoom-lbl{min-width:36px}
 body.shell #editbar .eb{padding:3px 8px}
-body.shell #editbar #eb-combo .eb.ico svg{width:24px;height:16px}   /* 7 组合铺开后收窄图示，1280 视口单行不溢出 */
+body.shell #editbar #eb-combo .eb.ico svg{width:20px;height:15px}   /* 7 组合铺开后收窄图示，1280 视口单行不溢出 */
+body.shell #editbar #eb-more{min-width:0;padding:3px 5px}
 #rail-zoom{display:none}
 /* v40.5 工具行减密：新版时值用音符字形、图标组只留图形（名称进 title），行内控件统一 28px 高 */
 #editbar .eb .dg{display:none}
@@ -2278,6 +2280,31 @@ const DUR_COMBOS = [
   {name:'附点八分+十六', durs:[[8,1],[16]]},
   {name:'十六+附点八', durs:[[16],[8,1]]},
   {name:'小切分 ⅙⅛⅙', durs:[[16],[8],[16]]},
+];
+/* v47.4 更多节奏（顶栏「更多▾」展开）：按拍号场景分组——
+   二拍组合适用 2/4 整小节与 4/4 半小节；三拍/复合拍适用 3/4 整小节与 6/8·9/8·12/8 一大拍（附点四分）。
+   与 DUR_COMBOS 同构（{name,durs:[[d,dotted]]}），同走 applyDurCombo（拍数按当前小节拍号折算） */
+const DUR_COMBOS_X = [
+  {group:'二拍组合（2/4 整小节 · 4/4 半小节）', items:[
+    {name:'二分音符', durs:[[2]]},
+    {name:'四分×2', durs:[[4],[4]]},
+    {name:'附点四分+八分', durs:[[4,1],[8]]},
+    {name:'八分+附点四分', durs:[[8],[4,1]]},
+    {name:'大切分 ⅛¼⅛', durs:[[8],[4],[8]]},
+    {name:'四分+八分×2', durs:[[4],[8],[8]]},
+    {name:'八分×2+四分', durs:[[8],[8],[4]]},
+  ]},
+  {group:'三拍 · 复合拍（3/4 整小节 · 6/8 一大拍）', items:[
+    {name:'附点二分', durs:[[2,1]]},
+    {name:'四分×3', durs:[[4],[4],[4]]},
+    {name:'二分+四分', durs:[[2],[4]]},
+    {name:'四分+二分', durs:[[4],[2]]},
+    {name:'附点四分', durs:[[4,1]]},
+    {name:'八分×3', durs:[[8],[8],[8]]},
+    {name:'四分+八分', durs:[[4],[8]]},
+    {name:'八分+四分', durs:[[8],[4]]},
+    {name:'八+双十六+八', durs:[[8],[16],[16],[8]]},
+  ]},
 ];
 /* ---- 节奏型库（吉他）: b=根音 B=交替低音 sN=第N弦 c=柱式 d/u=扫弦 a=琶音 x=切音 r=休止 ---- */
 const TAB_PATTERN_GROUPS = [
@@ -5756,7 +5783,8 @@ function decorateSignButtons(){
   }
 }
 decorateSignButtons();
-/* 组合节奏极简图示：仅符干+符杠（主梁/16分层，孤立16分画短杠），简单明了 */
+/* 组合节奏极简图示：符干+符杠（主梁/16分层，孤立16分画短杠）。
+   v47.4 支持四分/二分：符杠只跨"八分及更短"的连续段，四分画实心符头、二分画空心符头（更多节奏拍号组合用） */
 function comboSVG(durs, W, H){
   W=W||34; H=H||20;
   const n=durs.length;
@@ -5765,10 +5793,20 @@ function comboSVG(durs, W, H){
   const yT=3, yB=H-3;
   let g='';
   xs.forEach((x,i)=>{
+    const d=durs[i][0];
     g+=`<line x1="${x}" y1="${yT}" x2="${x}" y2="${yB}" stroke="currentColor" stroke-width="1.4"/>`;
-    if(durs[i][1]) g+=`<circle cx="${x+3.5}" cy="${yB-6.5}" r="1.2" fill="currentColor"/>`;
+    if(d===4) g+=`<ellipse cx="${x-1.2}" cy="${yB-1.4}" rx="2.7" ry="2" fill="currentColor"/>`;
+    else if(d<=2) g+=`<ellipse cx="${x-1.2}" cy="${yB-1.4}" rx="2.7" ry="2" fill="none" stroke="currentColor" stroke-width="1.2"/>`;
+    if(durs[i][1]) g+=`<circle cx="${x+3.5}" cy="${d>=8? yB-6.5 : yB-1.4}" r="1.2" fill="currentColor"/>`;
   });
-  g+=`<rect x="${xs[0]-0.7}" y="${yB-1.8}" width="${xs[n-1]-xs[0]+1.4}" height="1.8" fill="currentColor"/>`;
+  /* 主梁：只跨八分及更短的连续段（四分/二分不入杠）；孤立八分画短杠 */
+  for(let i=0;i<n;i++){
+    if(durs[i][0]<8) continue;
+    let j=i; while(j<n-1 && durs[j+1][0]>=8) j++;
+    if(j>i) g+=`<rect x="${xs[i]-0.7}" y="${yB-1.8}" width="${xs[j]-xs[i]+1.4}" height="1.8" fill="currentColor"/>`;
+    else g+=`<rect x="${i>0? xs[i]-5 : xs[i]-0.7}" y="${yB-1.8}" width="5" height="1.8" fill="currentColor"/>`;
+    i=j;
+  }
   for(let i=0;i<n;i++){
     if(durs[i][0]<16) continue;
     let j=i; while(j<n-1 && durs[j+1][0]>=16) j++;
@@ -6509,7 +6547,7 @@ function applyVoxPattern(pat){
   ebCombo.innerHTML = DUR_COMBOS.map((c,i)=>
     `<button class="eb ico${i>=4?' combo-extra':''}" data-ec="${i}" title="${c.name}：把当前音拆分为该组合">${comboSVG(c.durs,30,20)}<span>${esc(c.name)}</span></button>`
   ).join('')
-  + `<button class="eb" id="eb-more" title="全部组合时值" aria-label="更多组合时值"><span class="dg">▾</span><span class="dn">更多 ▾</span></button>`
+  + `<button class="eb" id="eb-more" title="更多节奏：二拍 / 三拍 / 复合拍（3/4、6/8 等拍号）组合展开" aria-label="更多节奏组合"><span class="dg">更多▾</span><span class="dn">更多 ▾</span></button>`
   + `<button class="eb" id="eb-lib" title="打开节奏型库">节奏型库…</button>`;
   { const rb=document.getElementById('b-rhylib');
     if(rb) rb.onclick = ()=>showPatternLib(sel.row==='vox'?'vox':'tab'); }
@@ -6587,12 +6625,20 @@ function showComboMenu(cx, cy){
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-320)+'px';
   div.style.top=(cy+6)+'px';
-  div.innerHTML=`<div class="t">组合时值 · 拆分当前音</div><div class="row">`+
-    DUR_COMBOS.map((c,i)=>`<button class="eb ico" data-ec2="${i}" title="${c.name}">${comboSVG(c.durs,38,22)}<span>${esc(c.name)}</span></button>`).join('')+`</div>`;
+  /* v47.4 分组展示：单拍细分（通用）+ 二拍组合 + 三拍/复合拍（3/4·6/8 等）——扁平索引统一走 applyDurCombo */
+  const flat=[...DUR_COMBOS];
+  const cbtn=(c,i)=>`<button class="eb ico" data-ec2="${i}" title="${esc(c.name)}">${comboSVG(c.durs,38,22)}<span>${esc(c.name)}</span></button>`;
+  let html=`<div class="t">组合时值 · 自光标起替换等长片段</div><div class="t" style="margin-top:4px">单拍细分（通用）</div><div class="row">`+
+    DUR_COMBOS.map((c,i)=>cbtn(c,i)).join('')+`</div>`;
+  DUR_COMBOS_X.forEach(g2=>{
+    html+=`<div class="t" style="margin-top:7px">${esc(g2.group)}</div><div class="row">`+
+      g2.items.map(c=>{ const i=flat.length; flat.push(c); return cbtn(c,i); }).join('')+`</div>`;
+  });
+  div.innerHTML=html;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-ec2]'); if(!b) return;
-    applyDurCombo(DUR_COMBOS[+b.dataset.ec2]);
+    applyDurCombo(flat[+b.dataset.ec2]);
     closePop();
   });
 }
@@ -13074,6 +13120,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v47.4</span><div><b>顶栏节奏「更多」拍号组合</b>：顶栏节奏组新增<b>「更多▾」</b>——点击展开按拍号场景分组的节奏选项：① <b>单拍细分（通用）</b>＝顶栏已铺开的七种组合；② <b>二拍组合（2/4 整小节 · 4/4 半小节）</b>：二分音符 / 四分×2 / 附点四分+八分 / 八分+附点四分 / 大切分 / 四分+八分×2 / 八分×2+四分；③ <b>三拍 · 复合拍（3/4 整小节 · 6/8 一大拍）</b>：附点二分 / 四分×3 / 二分+四分 / 四分+二分 / 附点四分 / 八分×3 / 四分+八分 / 八分+四分 / 八+双十六+八——6/8、9/8、12/8 的附点四分大拍一键拆分；所有组合自光标起替换等长片段、按当前小节拍号折算（变拍子小节同样适用）。组合图示升级：四分画实心符头、二分画空心符头、符杠只连八分及更短的音（出版口径）。</div></li>
     <li><span class="v">v47.3</span><div><b>顶部编辑行回归</b>：应产品决策撤回 v46.6/46.7 的收纳——<b>音符、时值、节奏三组，加上时值提示与缩放，全部回到顶部编辑行</b>（新版界面恢复顶栏，左栏撤下对应三个图层）；节奏组合延续 v47.2 的铺开决策：新版顶栏 <b>7 种组合全显</b>（图示紧凑化，1280 宽屏幕单行不溢出）、「更多▾」隐藏（节奏型库在右栏「库」页签，顶栏不重复）；时值提示胶囊在顶栏缩放左侧常驻；<b>连音（3/5/6/7）与连音线保持在各谱类记号层不变</b>；经典版布局不受影响（节奏仍为 4+更多▾ 紧凑式、时值提示在右栏底部）。</div></li>
     <li><span class="v">v47.2</span><div><b>简谱行首线合一 + 节奏面板铺开</b>：① <b>简谱行不再画独立的行首起始小节线</b>——多谱行曲谱（弹唱/合唱/对照等）行首由<b>系统连体线充当开头小节线</b>，不再在其右侧多画一条形成双线；单行歌谱按国标简谱出版惯例<b>行首直接起谱</b>（行间小节线不变）；② <b>左栏「节奏」图层组合时值全部铺开</b>——七种组合（八分×2 / 前八后十六 / 前十六后八 / 十六分×4 / 附点八分+十六 / 十六+附点八 / 小切分）一眼全见，不再需要点「更多▾」二级展开（经典版顶栏保持紧凑不变）；③ <b>节奏型库独立成卡</b>——从组合按钮组中分离为独立的「节奏型库」卡片，入口更清晰。</div></li>
     <li><span class="v">v47.1</span><div><b>音符快捷浮条 + 智能习惯预判</b>：① <b>点击音符自动弹出快捷浮条</b>——常用可选项就在音符旁边：时值（四分/八分/十六分）、附点、连音线，吉他谱另有 3 枚常用技法钮、简谱/五线谱另有升降号与八度点；点「…」直达左栏完整面板，点「✕」可关闭自动弹出（右栏「智能」页随时重新开启）；当前音已有的属性在浮条上高亮显示；② <b>智能功能深化：学习你的编辑习惯</b>——本地记录常用操作的频次与先后顺序（<b>只存在你自己的浏览器里，绝不上传</b>）：浮条的技法槽位按你的高频操作自动重排（比如常用泛音的用户会看到 N.H. 排进浮条）；③ <b>「猜你想做」预判下一步</b>——根据你的操作先后习惯（如"改完时值常接着加 3 连音"）在浮条最前面给出高亮预判钮、右栏智能卡同步置顶「猜你想做」提示，点击直达执行；出现 2 次以上的习惯才会给出预判，避免误猜。</div></li>

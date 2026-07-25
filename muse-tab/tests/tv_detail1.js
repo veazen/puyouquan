@@ -471,15 +471,15 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     let maxRight = 0; eb.querySelectorAll('button').forEach(x => { if (vis(x)) maxRight = Math.max(maxRight, x.getBoundingClientRect().right); });
     const fits = maxRight <= innerWidth + 1;
     const combos = [...document.querySelectorAll('#eb-combo [data-ec]')].filter(vis).length;
-    const moreHid = !vis(document.getElementById('eb-more'));
+    const moreVis = vis(document.getElementById('eb-more'));   // v47.4 更多▾ 回顶栏（展开 3/4·6/8 等拍号组合）
     document.getElementById('b-shell').click();
     const cCombos = [...document.querySelectorAll('#eb-combo [data-ec]')].filter(vis).length;
     const cMore = vis(document.getElementById('eb-more'));
     document.getElementById('b-shell').click();
-    return { fits, maxRight: Math.round(maxRight), combos, moreHid, cCombos, cMore };
+    return { fits, maxRight: Math.round(maxRight), combos, moreVis, cCombos, cMore };
   });
-  T(t33.fits && t33.combos === 7 && t33.moreHid && t33.cCombos === 4 && t33.cMore,
-    'T33 顶栏不溢出+节奏7组合铺开(经典4+更多)', JSON.stringify(t33));
+  T(t33.fits && t33.combos === 7 && t33.moreVis && t33.cCombos === 4 && t33.cMore,
+    'T33 顶栏不溢出+节奏7组合铺开+更多▾在栏(经典4+更多)', JSON.stringify(t33));
 
   // T34 v46.8 倚音图标统一：前/后倚音同款元素（小音符斜杠+主音符+连线）镜像布局，弃用简谱数字画法
   const t34 = await pg.evaluate(() => {
@@ -639,7 +639,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const vis = el => el && getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
     const grp = document.getElementById('eb-combo');
     const shellOk = [...grp.querySelectorAll('[data-ec]')].filter(vis).length === 7
-      && !vis(grp.querySelector('#eb-more'));
+      && vis(grp.querySelector('#eb-more'));   // v47.4 更多▾ 恢复展示（拍号组合入口）
     document.getElementById('b-shell').click();
     const classicOk = [...grp.querySelectorAll('[data-ec]')].filter(vis).length === 4
       && vis(grp.querySelector('#eb-more')) && vis(grp.querySelector('#eb-lib'));
@@ -648,6 +648,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t38.gOk && t38.vOk && t38.cOk && t38.shellOk && t38.classicOk,
     'T38 简谱行首线共用连体线+节奏顶栏铺开(经典紧凑)', JSON.stringify(t38));
+
+  // T39 v47.4 更多节奏菜单：分组（单拍/二拍/三拍·复合拍）+ 6/8 应用（附点四分 → 八分×3）
+  const t39 = await pg.evaluate(() => {
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 6, unit: 8, nMea: 2, nVox: 1, lyr: 0 }));
+    const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+    song.measures[0].voxes[0] = [V(1, 4, { dotted: true }), V(3, 4, { dotted: true })]; render();
+    document.getElementById('eb-more').click();
+    const pm = document.getElementById('popmenu');
+    const groups = pm ? [...pm.querySelectorAll('.t')].map(t => t.textContent).join('|') : '';
+    const grouped = /单拍细分/.test(groups) && /二拍组合/.test(groups) && /复合拍/.test(groups);
+    const nBtns = pm ? pm.querySelectorAll('[data-ec2]').length : 0;
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; selRange = null;
+    const target = pm ? [...pm.querySelectorAll('[data-ec2]')].find(x => x.title === '八分×3') : null;
+    if (target) target.click();
+    const cols = song.measures[0].voxes[0];
+    const applied = cols.length === 4 && cols[0].dur === 8 && cols[2].dur === 8 && cols[3].dur === 4 && !!cols[3].dotted;
+    closePop();
+    return { grouped, nBtns, applied };
+  });
+  T(t39.grouped && t39.nBtns >= 20 && t39.applied,
+    'T39 更多节奏菜单(拍号分组+6/8应用)', JSON.stringify(t39));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
