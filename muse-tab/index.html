@@ -467,6 +467,16 @@ body.shell #rt-chorded:hover{border-color:var(--accent);color:var(--accent-ink)}
 .aitem .ait b{font-size:12px;font-weight:600}
 .aitem .ait small{font-size:10px;color:var(--faint)}
 .aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px}
+/* v46.3 智能预提示卡：选中对象上下文提示（主）+ 整体建议（次级） */
+#rc-hints .hb-li{display:block;width:100%;text-align:left;font-size:11.5px;line-height:1.55;color:var(--text);
+  padding:5px 8px;border:1px solid var(--border-soft);border-radius:8px;background:var(--paper);margin:0 0 4px;
+  white-space:normal}   /* 覆盖全局 button 的 nowrap，提示文字可换行 */
+#rc-hints button.hb-li{cursor:pointer}
+#rc-hints button.hb-li:hover{border-color:var(--accent);color:var(--accent-ink)}
+#rc-hints div.hb-li{border-style:dashed;cursor:default;color:var(--muted)}
+#rc-hints .hb-li.hb-strong{border-color:color-mix(in srgb,var(--accent) 35%,var(--border-soft));
+  background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+#rc-hints .hb-sub{font-size:10px;color:var(--faint);letter-spacing:.08em;margin:7px 0 4px}
 .kv{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;
   color:var(--muted);padding:3px 0}
 .kv b{color:var(--text);font-weight:600;font-family:var(--font-num);font-size:12.5px;
@@ -1401,6 +1411,12 @@ body.shell #hint{display:none}
       <div class="rc-b rt-list" id="lib-host">
         <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
       </div>
+    </div>
+    <!-- v46.3 智能预提示：按当前选中对象（音符/拍/小节/小节线）实时给出对应操作提示；
+         整体流程建议列为次级段（产品拍板：编辑内上下文提示为主、宏观建议为辅） -->
+    <div class="rcard open rt-new" data-rt="ai" id="rc-hints">
+      <button class="rc-h" type="button">智能预提示</button>
+      <div class="rc-b" id="hint-body"></div>
     </div>
     <!-- v40.2/v41.4 智能页签：assist 卡片形态（图标+标题+说明两行），入口委托既有工作流、按谱类显隐 -->
     <div class="rcard open rt-new" data-rt="ai">
@@ -3716,6 +3732,83 @@ function renderDock(){
   });
   if(uiShell) visible.push('chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这三页，自动回退）
   setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
+  renderHints();   // v46.3 智能预提示随选中对象实时刷新
+}
+/* ===== v46.3 智能预提示（编辑内上下文提示，规则引擎·纯本地零成本）=====
+   按当前选中对象给出该对象的可用操作提示，优先级：
+   小节线 > 音符多选 > 整小节/多小节 > 拍/片段 > 音符光标 > 空态；整体流程建议恒为次级段。 */
+function editHints(){
+  const it=(t,act,strong)=>({t,act:act||'',strong:!!strong});
+  let title='', items=[];
+  const nt=(song.voxNotations||[])[sel.vi], st=isStaffNota(nt);
+  if(barSel){
+    title='已选中小节线';
+    items=[it('在弹出菜单设置：反复 𝄆 𝄇 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子'),
+           it('按住小节线约半秒：选中该小节整个声部'),
+           it('Ctrl+点击小节线：连选多个小节')];
+  }else if(noteSel.length>1){
+    title='已多选 '+noteSel.length+' 个音符';
+    items=[it('技巧/记号面板点任一项：批量应用到所选音符','rib:'+(noteSel[0].row==='vox'?'vox':'tab'),true),
+           it('推弦 / 连音线 / 八度线：按 起始音 → 目标音 顺序选中后再点技法'),
+           it('再次 Ctrl+点击可增减选择')];
+  }else if(selRange && selRange.whole){
+    const n=selRange.m2-selRange.m1+1;
+    title=n>1? '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节声部' : '已选中第'+(selRange.m1+1)+'小节声部';
+    items=[it('Ctrl+C 复制 → 光标移到目标处 Ctrl+V 粘贴'),
+           it('小节层：插入/删除小节 · 段落标记 · 本小节拍号 · 同前小节 𝄎','rib:mea',true),
+           it('Ctrl+点击其他小节线：扩大连选范围')];
+  }else if(selRange){
+    title='已选中第'+(selRange.m1+1)+'小节 第'+(selRange.c1+1)+'–'+(selRange.c2+1)+'列';
+    items=[it('顶部工具行：改时值 / 附点 / 三连音，重写该拍节奏'),
+           it('节奏型库整拍套用（右栏「库」页；有和弦时自动按指法生成音符）'),
+           it('技法可批量应用到片段内音符','rib:tab')];
+  }else if(sel.row==='tab'){
+    const col=(typeof curCol==='function')? curCol() : null, hasN=!!(col&&col.notes&&col.notes.length);
+    title=hasN? '已选中吉他谱音符' : '吉他谱输入位';
+    items=hasN? [
+      it('键盘输 0–24 改品位；Q/W/E/R/T 换时值，「.」附点'),
+      it('演奏技巧：推弦 · 滑弦 · 击/勾弦 · 泛音 N.H. · 哑音 ×（记号层）','rib:tab',true),
+      it('扫弦 ↑↓ · 琶音 · 拍弦 ⊠ · 延长号 · 和弦标注同在记号层','rib:tab'),
+      it('Ctrl+点击多个音符可批量加技法')]
+    : [
+      it('点弦位直接输品位数字落音；空拍自动显示休止符'),
+      it('先选时值再输入：Q/W/E/R/T = 全/二/四/八/十六分'),
+      it('整小节留空 → 自动居中全休止')];
+  }else if(sel.row==='vox' && st){
+    title='已选中五线谱音符';
+    items=[it('升 ♯ · 降 ♭ · 还原 ♮ · 附点 · 连音线（记号层）','rib:vox',true),
+           it('谱号切换（高/中/低，小节内可换）· 八度线 8va · 指法 · 踏板','rib:vox'),
+           it('Ctrl+点击谱表线/间：直接叠加和音'),
+           it('倚音 · 震音 · 滑音 · 力度/速度记号在装饰组','rib:vox')];
+  }else if(sel.row==='vox'){
+    title='已选中简谱音符';
+    items=[it('键盘输 0–7 落音；8度± 加高低音点','rib:vox',true),
+           it('升降号 ♯♭ · 附点 · 连音线 · 倚音 · 和音（记号层）','rib:vox'),
+           it('选中音符后直接打字即可填入歌词'),
+           it('「记谱法」组一键切五线谱视图（数据不变）','rib:vox')];
+  }
+  /* 次级：整体流程建议（宏观下一步，最多 2 条） */
+  const subs=[];
+  try{
+    const bs=document.getElementById('beat-status');
+    if(bs && bs.classList.contains('bad')) subs.push(it('存在时值不符的小节：点节拍状态查看一键修复','',true));
+    const anyNote = song.measures.some(m=>m.tabs.some(t2=>t2.some(c=>c.notes&&c.notes.length)) || m.voxes.some(v2=>v2.some(c=>c.deg)));
+    const anyChord = song.measures.some(m=>[...m.tabs,...m.voxes].some(cols=>(cols||[]).some(c=>c.chord)));
+    if(!anyNote) subs.push(it('空白谱：可从「曲谱库」预设或「新建向导」快速开始'));
+    else if(!anyChord && song.voxVoices.length) subs.push(it('已有旋律未配和弦：本页「一键配和弦 / 一键配伴奏」'));
+    else if(song.measures.length>=8) subs.push(it('曲谱成型：试听播放 → 打印/导出 → 发布到谱库 → 生成分享卡'));
+  }catch(_){}
+  return {title, items, subs};
+}
+function renderHints(){
+  const host=document.getElementById('hint-body'); if(!host) return;
+  const h=editHints();
+  const li=x=> x.act
+    ? '<button class="hb-li'+(x.strong?' hb-strong':'')+'" data-hact="'+esc(x.act)+'">'+esc(x.t)+(x.act.indexOf('rib:')===0?' ›':'')+'</button>'
+    : '<div class="hb-li'+(x.strong?' hb-strong':'')+'">'+esc(x.t)+'</div>';
+  host.innerHTML='<div class="ai-sec"><div class="ai-h"><b>'+esc(h.title||'开始编辑')+'</b></div>'
+    +h.items.map(li).join('')
+    +(h.subs.length? '<div class="hb-sub">整体建议（次级）</div>'+h.subs.map(li).join('') : '')+'</div>';
 }
 function render(){
   renderDock();
@@ -7886,6 +7979,14 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
 { const cg=document.getElementById('tn-clef-g'), cf=document.getElementById('tn-clef-f');
   if(cg) cg.onclick = ()=>{ mutate(()=>{ delete song.tabClef; }); toast('联排五线谱：高音谱号（treble-8vb，吉他/尤克标准）'); };
   if(cf) cf.onclick = ()=>{ mutate(()=>{ song.tabClef='bass'; }); toast('联排五线谱：低音谱号（bass-8vb，贝斯/低音吉他记谱）'); };
+}
+/* v46.3 智能预提示：可点提示直达对应左栏图层 */
+{ const hb=document.getElementById('hint-body');
+  if(hb) hb.addEventListener('click', e=>{
+    const b2=e.target.closest('[data-hact]'); if(!b2) return;
+    const a=b2.dataset.hact;
+    if(a.indexOf('rib:')===0) setRibbon(a.slice(4));
+  });
 }
 document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
 document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
@@ -12647,6 +12748,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.3</span><div><b>智能预提示上线（编辑内上下文提示）</b>：右栏「智能」页顶部新增<b>智能预提示卡</b>——根据你当前选中的对象实时给出对应的操作提示：<b>选中吉他谱音符</b>→品位/时值快捷键与推弦/滑弦/泛音/哑音等技法入口；<b>选中五线谱音符</b>→升降还原/谱号切换/八度线/指法踏板；<b>选中简谱音符</b>→数字输入/八度点/歌词填入；<b>选中拍（时值列）</b>→节奏重写与节奏型库；<b>选中整小节/多小节</b>→复制粘贴与小节层操作；<b>选中小节线</b>→反复/终止/跳房子设置。带 › 的提示<b>点击直达对应面板</b>。宏观流程建议（配和弦/修复时值/发布分享等）列为卡内次级「整体建议」。全部为本地规则引擎——按曲谱真实状态推导，准确、即时、离线可用。</div></li>
     <li><span class="v">v46.2</span><div><b>右栏「智能」页签置首</b>：右侧栏页签顺序调整为 <b>智能 · 信息 · 库</b>——智能配谱/自动配和弦/哼唱转谱等 AI 能力前置曝光，一眼可达；打开曲谱时默认仍停留在「信息」页，不打断编辑流。（智能预提示「下一步建议」功能已完成方案评估，见产品沟通记录，待拍板后实施。）</div></li>
     <li><span class="v">v46.1</span><div><b>泛音记谱与面板归组</b>：① <b>泛音菱形恢复固定形状</b>——所有泛音统一同一正菱形（出版一致性），两位数品位（10 品以上）改为<b>数字自动缩小</b>适配框内，不再改变菱形形状；② <b>左栏泛音类归组</b>——「演奏技巧」面板重排：自然泛音按钮由 ◇ 图形改为字母 <b>N.H.</b>（与人工泛音字母风格统一），并移到技巧列表尾部，与紧随其后的 <b>A.H（人工泛音）/ P.H（拨片泛音）/ T.H（点弦泛音）</b>聚成「泛音类」，「清除」恒排最后；③ <b>泛音一律带菱形框</b>——自然泛音与 A.H./P.H./T.H. 各细分在谱面上都以菱形框住品位数字（细分另在上方标注字母），规则固化进回归测试。</div></li>
     <li><span class="v">v46.0</span><div><b>谱面细节修复批次 5 + 小节线多选</b>：① <b>隐藏移调谱号的「8」缀</b>——独奏联排五线谱谱号下方不再显示小 8（记谱与播放完全不变，仅隐藏该标记，谱面更干净）；② <b>泛音菱形框加宽</b>——两位数品位（10 品以上）的泛音菱形横向加宽，数字不再撑出框外；③ <b>行首第一小节线可选中了</b>——此前行首可见竖线与点击热区错位约 26px 导致点不中，热区已左延到行首竖线处，点击即弹出小节线设置；④ <b>Ctrl+点击小节线多选小节</b>——按住 Ctrl 点小节线选中该小节整声部，继续 Ctrl+点其他小节线扩展为<b>连续多小节范围</b>，可整段复制/粘贴/批量操作（小节线悬停提示已更新）。</div></li>

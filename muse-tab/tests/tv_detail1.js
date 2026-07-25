@@ -28,7 +28,10 @@
    T21 泛音类归组：EB_TECHS 自然泛音 N.H. 排尾部（清除前）、EB_GTECH 人工泛音三键置首
    T22 泛音菱形不变量：hmT 人工泛音同样带菱形框 + A.H. 标注
    ---- v46.2 ----
-   T23 右栏「智能」页签排第一位（data-p=ai 为 #rtabs 首个按钮；默认激活仍为信息页） */
+   T23 右栏「智能」页签排第一位（data-p=ai 为 #rtabs 首个按钮；默认激活仍为信息页）
+   ---- v46.3 ----
+   T24 智能预提示按选中对象切换：TAB 音符/五线谱音符/简谱音符/整小节/小节线 五种上下文标题各不同，
+       且含可点 rib: 直达项与次级「整体建议」段 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -351,6 +354,32 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { first: tabs[0], order: tabs.join(','), defOn: on && on.dataset.p };
   });
   T(t23.first === 'ai' && t23.defOn === 'info', 'T23 智能页签置首(默认仍信息页)', JSON.stringify(t23));
+
+  // T24 v46.3 智能预提示按选中对象切换
+  const t24 = await pg.evaluate(() => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 2, notes: [] }, { dur: 4, notes: [] }];
+    s.measures[0].voxes[0] = [{ dur: 4, deg: 1 }, { dur: 4, deg: 3 }, { dur: 2, deg: 5 }];
+    loadSong(s);
+    const txt = () => document.getElementById('hint-body').textContent;
+    const out = {};
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = []; renderDock();
+    out.tab = /吉他谱音符/.test(txt());
+    out.clickable = !!document.querySelector('#hint-body [data-hact]');   // 音符上下文含 rib: 直达项
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; renderDock();
+    out.jp = /简谱音符/.test(txt());
+    song.voxNotations = ['staff']; renderDock();
+    out.st = /五线谱音符/.test(txt());
+    selRange = { row: 'tab', vi: 0, m1: 0, c1: 0, m2: 0, c2: 2, whole: true }; renderDock();
+    out.mea = /小节声部/.test(txt());
+    selRange = null; barSel = { L: 0, R: 1 }; renderDock();
+    out.bar = /小节线/.test(txt());
+    out.subs = /整体建议/.test(txt());
+    barSel = null; renderDock();
+    return out;
+  });
+  T(t24.tab && t24.jp && t24.st && t24.mea && t24.bar && t24.clickable && t24.subs,
+    'T24 智能预提示随选中对象切换(五上下文+直达+次级)', JSON.stringify(t24));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
