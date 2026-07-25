@@ -80,6 +80,13 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 #ribbon .eb.ico{min-width:44px}
 #ribbon .eb.ico span{font-size:9.5px;white-space:nowrap}
 .eb-grp{display:flex;align-items:center;gap:4px;flex:none}
+.eb-unit{display:inline-flex;align-items:center;gap:5px;flex:none}   /* v46.6 组标签+组+分隔线一体（随组搬移显隐） */
+/* v46.6 音符图层内的顶栏组：面板语境样式（字形+中文双显、按钮换行铺排） */
+#note-ops-host .eb-grp,#note-dur-host .eb-grp,#note-rhy-host .eb-grp{flex-wrap:wrap;gap:5px}
+#note-ops-host .eb,#note-dur-host .eb,#note-rhy-host .eb{display:inline-flex;align-items:center;gap:4px;min-height:28px;font-size:12px;padding:3px 8px}
+#note-ops-host .eb .dg{font-size:13px}
+#note-dur-host .eb .dg{font-family:var(--font-num);font-size:15px}
+#note-dur-host .eb .dn,#note-ops-host .eb .dn{font-size:11px}
 .eb-sep{width:1px;height:18px;background:var(--border);margin:0 8px;flex:none}
 .eb-t{font-size:11.5px;color:var(--muted);margin-right:2px;flex:none}
 #eb-zoom #zoom-lbl{min-width:44px;text-align:center;font-size:12px;color:var(--muted);cursor:pointer}
@@ -1122,9 +1129,11 @@ body.shell #hint{display:none}
     <button id="b-theme" class="ghost" title="界面风格：明暗切换" style="font-size:15px">◐</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
   </div>
-  <!-- 常用编辑功能栏：与页头等宽、随页头一起固定 -->
+  <!-- 常用编辑功能栏：与页头等宽、随页头一起固定。
+       v46.6 「编辑」更名「音符」，音符/时值/节奏三组在新版外壳收纳入左栏「音符」图层
+       （applyShellDock 搬移 .eb-grp，经典版回顶栏原位；eb-unit 含组标签与分隔线一并显隐） -->
   <div class="bar" id="editbar">
-    <span class="eb-t">编辑</span>
+    <span class="eb-unit" id="ebu-eb-edit"><span class="eb-t">音符</span>
     <span class="eb-grp" id="eb-edit">
       <button class="eb" id="eb-add" title="后插音符：在光标后插入同时值音符（快捷键 Insert）" aria-label="后插音符"><span class="dg">＋»</span><span class="dn">后插</span></button>
       <button class="eb" id="eb-addb" title="前插音符：在光标前插入同时值音符（Shift+Insert）" aria-label="前插音符"><span class="dg">«＋</span><span class="dn">前插</span></button>
@@ -1136,13 +1145,13 @@ body.shell #hint{display:none}
       <button class="eb" id="eb-octup" title="八度＋：当前音升高八度（简谱高音点；简谱/五线谱声部，快捷键 +）" aria-label="八度＋"><span class="dg">8ᵛᵃ</span><span class="dn">8度＋</span></button>
       <button class="eb" id="eb-octdn" title="八度−：当前音降低八度（简谱低音点；简谱/五线谱声部，快捷键 -）" aria-label="八度−"><span class="dg">8ᵛᵇ</span><span class="dn">8度−</span></button>
     </span>
-    <span class="eb-sep"></span>
-    <span class="eb-t">时值</span>
+    <span class="eb-sep"></span></span>
+    <span class="eb-unit" id="ebu-eb-dur"><span class="eb-t">时值</span>
     <span class="eb-grp" id="eb-dur"></span>
-    <span class="eb-sep"></span>
-    <span class="eb-t">节奏</span>
+    <span class="eb-sep"></span></span>
+    <span class="eb-unit" id="ebu-eb-combo"><span class="eb-t">节奏</span>
     <span class="eb-grp" id="eb-combo"></span>
-    <span class="eb-sep"></span>
+    <span class="eb-sep"></span></span>
     <span class="eb-t">记号</span>
     <span class="eb-grp" id="eb-marks"></span>
     <span class="grow"></span>
@@ -1165,7 +1174,11 @@ body.shell #hint{display:none}
   <aside id="left-dock">
     <div id="left-flyout">
       <div id="ribbon">
-    <!-- 时值/组合时值已上移至页头常用编辑功能栏，避免重复 -->
+    <!-- v46.6 音符图层：顶栏 音符/时值/节奏 三组在新版外壳收纳于此（applyShellDock 搬移原节点，
+         事件监听随节点迁移；经典版移回顶栏） -->
+    <div class="rg panel-p" id="panel-note-ops"><div class="rg-title">音符</div><div class="rg-body" id="note-ops-host"></div></div>
+    <div class="rg panel-p" id="panel-note-dur"><div class="rg-title">时值</div><div class="rg-body" id="note-dur-host"></div></div>
+    <div class="rg panel-p" id="panel-note-rhy"><div class="rg-title">节奏</div><div class="rg-body" id="note-rhy-host"></div></div>
     <!-- 吉他谱 -->
     <div class="rg panel-p" id="panel-tab-voice">
       <div class="rg-title">吉他声部</div>
@@ -1199,6 +1212,7 @@ body.shell #hint{display:none}
         <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button>
         <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-ferm-t" title="延长号：当前列上方画 𝄐，自由延长该音时值（再点取消）">延长号</button>
+        <button id="b-tie-t" title="连音线：当前音自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（v46.6 自顶栏回归）">连音线</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-chord">
@@ -1349,6 +1363,7 @@ body.shell #hint{display:none}
       <button class="ltab" data-t="lyr" title="歌词层"><span class="lic" data-lic="lyric"></span><span class="lb">歌词</span></button>
       <button class="ltab shell-only" data-t="chord" title="和弦层：输入 / 指法编辑 / 图示方式"><span class="lic" data-lic="chordgrid"></span><span class="lb">和弦</span></button>
       <div class="lsep"></div>
+      <button class="ltab shell-only" data-t="note" title="音符：插入/删除/拆合/八度 · 时值 · 节奏组合"><span class="lic" data-lic="note"></span><span class="lb">音符</span></button>
       <button class="ltab shell-only" data-t="mea" title="小节：插入 / 删除"><span class="lic" data-lic="barline"></span><span class="lb">小节</span></button>
       <button class="ltab shell-only" data-t="sect" title="段落：反复 / 跳转 / 分段线"><span class="lic" data-lic="repeat"></span><span class="lb">段落</span></button>
       <div class="lgrow"></div>
@@ -3780,7 +3795,7 @@ function renderDock(){
     const el=document.querySelector('.ltab[data-t="'+k+'"]');
     return el && el.style.display!=='none';
   });
-  if(uiShell) visible.push('chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这三页，自动回退）
+  if(uiShell) visible.push('note','chord','mea','sect');   // v40.1 新版外壳的图层页（经典版无这些页，自动回退）；v46.6 +音符层
   setRibbon(visible.includes(activeTab)? activeTab : (visible[0]||'vox'));
   renderHints();   // v46.3 智能预提示随选中对象实时刷新
 }
@@ -3789,6 +3804,12 @@ function renderDock(){
    小节线 > 音符多选 > 整小节/多小节 > 拍/片段 > 音符光标 > 空态；整体流程建议恒为次级段。 */
 function editHints(){
   const it=(t,act,strong)=>({t,act:act||'',strong:!!strong});
+  /* v46.6 启动台未选状态：欢迎默认页（不显示上次编辑的上下文残留） */
+  if(typeof startPadOn==='function' && startPadOn())
+    return {title:'欢迎使用谱友圈制谱', items:[
+      it('从屏幕中央选择开始：新建 · 打开 · 导入 · 我的'),
+      it('新建向导覆盖八类曲谱：弹唱 / 尤克里里 / 独奏 / 钢琴 / 歌谱 / 教学对照 / 器乐五线 / 功能谱'),
+      it('也可点「继续上次编辑」回到草稿')], subs:[]};
   let title='', items=[];
   const nt=(song.voxNotations||[])[sel.vi], st=isStaffNota(nt);
   if(barSel){
@@ -5557,6 +5578,7 @@ function decorateSignButtons(){
     'b-ped-off': ['<i class="gt">✻</i>','踏板收'],
     /* —— 六线谱 · 音符记号 / 扫弦琶音 —— */
     'b-ferm-t':  [smIcoSVG('fermataAbove',10),'延长号'],
+    'b-tie-t':   [sv(`<path d="M3 9.5 Q 11 2.5 19 9.5" ${st} stroke-width="1.3"/>`,22,12),'连音线'],
     'b-mute':    ['<i class="gt">×</i>','×标记'],
     'b-slap':    [sv(`<rect x="3.5" y="3" width="11" height="12" rx="1.5" ${st} stroke-width="1.1"/><text x="9" y="12.8" font-size="11" font-weight="700" text-anchor="middle" fill="currentColor">×</text>`,18,18),'拍弦'],
     'b-strum-d': ['<i class="gt">↑</i>','下扫'],
@@ -5627,13 +5649,14 @@ const DOCK_PANELS = {
 let ebCtxFor=null;   // 编辑栏第二行当前已构建的页，避免每次 render 重建
 function setRibbon(t){
   activeTab = t;
-  { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = t==='tab'? '' : 'none'; }
+  { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = (t==='tab' || t==='note')? '' : 'none'; }   // v46.6 音符图层内清音恒可见（按声部生效）
   document.querySelectorAll('.ltab').forEach(b=>b.classList.toggle('on', b.dataset.t===t));
   const dt = song? docType(song) : 'guitar';
   /* v40.1 新版图层页（和弦/小节/段落）：显式面板清单，不走 panel-<页>- 前缀匹配；
      和弦层按谱类复用现有面板（有吉他声部→和弦输入面板，否则→级数和弦面板） */
   const virt = t==='chord' ? ((song && song.tabVoices.length>0)? ['panel-tab-chord'] : ['panel-vox-fn'])
-             : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops'] : null;
+             : t==='mea' ? ['panel-mea-ops'] : t==='sect' ? ['panel-sect-ops']
+             : t==='note' ? ['panel-note-ops','panel-note-dur','panel-note-rhy'] : null;   // v46.6 音符图层
   let spec = (DOCK_PANELS[t]||{})[dt] || (DOCK_PANELS[t]||{}).guitar || null;
   /* v40.9 新版外壳图层内容归纳：扫弦/音符记号/技法（简谱：记号/装饰）合并为「记号」面板；
      和弦只在和弦层、记谱法在右栏风格、节奏型/织体在右栏库、列面板去除 */
@@ -5706,7 +5729,8 @@ function setRibbon(t){
 function syncInputs(){
   const col = curCol();
   const ci = document.getElementById('cursor-info');
-  if(ci){
+  if(ci && typeof startPadOn==='function' && startPadOn()){ ci.innerHTML='—'; }   // v46.6 启动台未选状态不显示残留
+  else if(ci){
     const cols = curRowCols() || [];
     const durNm = {1:'全音符',2:'2分',4:'4分',8:'8分',16:'16分',32:'32分'};
     const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
@@ -6325,9 +6349,9 @@ function applyVoxPattern(pat){
     if(b.id==='eb-more'){ const r=b.getBoundingClientRect(); showComboMenu(r.left, r.bottom); return; }
     applyDurCombo(DUR_COMBOS[+b.dataset.ec]);
   });
-  /* 记号组：连音线 + 3/5/6/7 连音（带图示） */
+  /* 记号组：3/5/6/7 连音（带图示）。v46.6 连音线撤出顶栏，回归各谱类记号层
+     （简谱/五线谱=既有 b-tie；吉他谱=新增 b-tie-t，同走 toggleTie） */
   document.getElementById('eb-marks').innerHTML =
-    `<button class="eb" id="eb-tie" title="连音线：选中音符自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（简谱/吉他谱通用）" aria-label="连音线"><span class="dg">‿</span><span class="dn">连音线</span></button>`+
     [3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
   /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
   const ebHandler = e=>{
@@ -6356,8 +6380,8 @@ function applyVoxPattern(pat){
   };
   document.getElementById('editbar').addEventListener('click', ebHandler);
   document.getElementById('editbar2').addEventListener('click', ebHandler);
-  /* v40.3 新版外壳：技法/记号面板移入左栏图层后仍走同一处理器 */
-  ['panel-tab-tech','panel-vox-orn','panel-tab-sign','panel-vox-sign'].forEach(id=>{
+  /* v40.3 新版外壳：技法/记号面板移入左栏图层后仍走同一处理器；v46.6 +音符图层（eb-edit 组委托） */
+  ['panel-tab-tech','panel-vox-orn','panel-tab-sign','panel-vox-sign','panel-note-ops'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.addEventListener('click', ebHandler);
   });
   /* ---- 缩放：按钮 ±、点击百分比复位；内容区 Ctrl+滚轮 ---- */
@@ -6746,11 +6770,13 @@ function openFlyout(t){
 }
 function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
 /* ===== v46.5 启动台（打开制谱页默认空白 + 左栏收起 + 居中四入口）===== */
+function startPadOn(){ const sp=document.getElementById('start-pad'); return !!(sp && !sp.classList.contains('hidden')); }
 function hideStartPad(reopen){
   const sp=document.getElementById('start-pad'); if(!sp || sp.classList.contains('hidden')) return;
   sp.classList.add('hidden');
   if(reopen!==false){ const fly=document.getElementById('left-flyout');
     if(fly && fly.classList.contains('hidden')) openFlyout(activeTab); }
+  try{ renderHints(); syncInputs(); }catch(_){}   // v46.6 离开启动台恢复正常提示/光标信息
 }
 function initStartPad(){
   const sp=document.getElementById('start-pad'); if(!sp) return;
@@ -6758,6 +6784,10 @@ function initStartPad(){
   if(/[?&](pub|wxlogin)=/.test(location.search)) return;   // 深链直达不出启动台
   sp.classList.remove('hidden');
   closeFlyout();   // 左边栏默认收起
+  /* v46.6 未选状态左右栏默认页：右栏停智能页（欢迎提示，不显示上次编辑残留）、左栏无选中高亮 */
+  try{ setRTab('ai'); }catch(_){}
+  document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('on'));
+  try{ renderHints(); syncInputs(); }catch(_){}
   const ct=document.getElementById('spd-cont');
   if(ct) ct.textContent='继续上次编辑：《'+(((typeof song!=='undefined'&&song&&song.title)||'未命名曲谱'))+'》 →';
   sp.addEventListener('click', e=>{
@@ -8108,6 +8138,7 @@ document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
 { const ob=document.getElementById('b-ottava'); if(ob) ob.onclick = (ev)=>showOttavaMenu(ev.clientX, ev.clientY); }
 { const cb=document.getElementById('b-clef'); if(cb) cb.onclick = (ev)=>showClefMenu(ev.clientX, ev.clientY); }
 document.getElementById('b-tie').onclick = toggleTie;
+{ const tt=document.getElementById('b-tie-t'); if(tt) tt.onclick = toggleTie; }   // v46.6 吉他谱记号层连音线
 /* 小节与段落：反复/跳转记号一键作用于当前小节 */
 (function(){
   const flag=(id, prop, msg)=>{
@@ -9523,6 +9554,8 @@ const SVGI = {
   arrup:'<path d="M12 20V6M6.5 11.5 12 6l5.5 5.5"/>',
   arrdn:'<path d="M12 4v14M6.5 12.5 12 18l5.5-5.5"/>',
   eraser:'<path d="M9.5 18.5 4.5 13.5 13.5 4.5l6 6-8 8z"/><path d="M9.5 18.5H19.5"/><path d="M8 10l6 6"/>',
+  /* v46.6 音符图层图标 */
+  note:'<ellipse cx="9.5" cy="16.5" rx="3.4" ry="2.5" fill="currentColor" stroke="none" transform="rotate(-16 9.5 16.5)"/><path d="M12.7 15.8V4.8" stroke-width="1.5"/><path d="M12.7 4.8c2.6.6 4.6 1.7 5.1 3.4" stroke-width="1.4"/>',
 };
 function svgi(name, size){
   const s = size || 13;
@@ -9556,6 +9589,14 @@ function applyShellDock(){
     more.classList.toggle('hidden', !openSp);
     const ar=document.getElementById('sp-arrow'); if(ar) ar.textContent = openSp? '▴':'▾';
   }
+  /* v46.6 音符图层：顶栏 音符/时值/节奏 三组收纳入左栏（经典版回顶栏原位；
+     eb-dur/eb-combo 的监听挂在组元素上随节点迁移，eb-edit 走 ebHandler 委托已绑 note 面板） */
+  [['eb-edit','note-ops-host'],['eb-dur','note-dur-host'],['eb-combo','note-rhy-host']].forEach(([gid,hid])=>{
+    const g=document.getElementById(gid), h=document.getElementById(hid), u=document.getElementById('ebu-'+gid);
+    if(!g||!h||!u) return;
+    if(uiShell){ h.appendChild(g); u.style.display='none'; }
+    else { u.insertBefore(g, u.querySelector('.eb-sep')); u.style.display=''; }
+  });
   /* v40.8 节奏型/伴奏织体面板整体归入右栏「库」页签（去重复：左栏图层不再显示）；经典版移回左栏 ribbon */
   const libHost=document.getElementById('lib-host'), ribbon=document.getElementById('ribbon');
   if(libHost && ribbon){
@@ -12861,6 +12902,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.6</span><div><b>「音符」图层 + 启动台默认页</b>：① 顶栏「编辑」组更名<b>「音符」</b>，并与<b>时值、节奏</b>两组一起收纳进左栏新的<b>「音符」图层</b>（与小节/段落图层并列）——插入/删除/拆合/八度、全部时值档、节奏组合集中一处，顶栏更清爽（经典版界面保持原顶栏布局）；② <b>连音线回归各谱类记号层</b>——吉他谱记号层新增「连音线」按钮，简谱/五线谱记号层沿用原有按钮，顶栏不再重复；③ <b>启动台默认页</b>——打开制谱页未选择时，右栏默认停在「智能」页显示欢迎指引、光标位置为空、左栏无选中高亮，<b>不再残留上次编辑的信息</b>；选择任一入口或载入曲谱后恢复正常显示。</div></li>
     <li><span class="v">v46.5</span><div><b>启动台上线（打开即选，不再直落编辑器）</b>：打开制谱页默认为<b>空白页面</b>，屏幕中央呈现四个入口——<b>新建</b>（八类曲谱 · 新建向导）、<b>打开</b>（打开曲谱文件）、<b>导入</b>（MusicXML / MIDI）、<b>我的</b>（预设与我的曲谱），下方一键<b>「继续上次编辑」</b>；左侧工具栏默认收起，选择任一入口或载入曲谱后自动恢复。分享谱/谱库观看等直达链接不受影响，仍直接进入对应页面。</div></li>
     <li><span class="v">v46.4</span><div><b>右栏四页签改版 + 光标信息升级</b>：① 右侧栏从三页签改为<b>四页签：智能 · 创作 · 信息 · 库</b>——新「创作」栏承接 创作辅助（一键配和弦/配伴奏/智能填词/哼唱成谱）与 导入·互操作（MusicXML/MIDI）；② <b>光标位置卡移入「智能」栏</b>，与智能预提示上下联动；③ <b>点击音符时光标卡同步显示该音符的可编辑信息</b>——当前弦/品位（或简谱音高）、已加技法、所在和弦，以及可改项速查（时值 Q–T · 附点 · 三连音 · 品位/音高输入）；④ 右栏整体<b>加宽</b>（254→292px），提示与信息不再局促；⑤ <b>谱面两侧滚动条隐藏</b>——制版台、左右栏的滚动条不再显示（滚轮/触控滚动照常），页面更干净。</div></li>
     <li><span class="v">v46.3</span><div><b>智能预提示上线（编辑内上下文提示）</b>：右栏「智能」页顶部新增<b>智能预提示卡</b>——根据你当前选中的对象实时给出对应的操作提示：<b>选中吉他谱音符</b>→品位/时值快捷键与推弦/滑弦/泛音/哑音等技法入口；<b>选中五线谱音符</b>→升降还原/谱号切换/八度线/指法踏板；<b>选中简谱音符</b>→数字输入/八度点/歌词填入；<b>选中拍（时值列）</b>→节奏重写与节奏型库；<b>选中整小节/多小节</b>→复制粘贴与小节层操作；<b>选中小节线</b>→反复/终止/跳房子设置。带 › 的提示<b>点击直达对应面板</b>。宏观流程建议（配和弦/修复时值/发布分享等）列为卡内次级「整体建议」。全部为本地规则引擎——按曲谱真实状态推导，准确、即时、离线可用。</div></li>

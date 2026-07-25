@@ -37,7 +37,11 @@
    T26 光标卡音符可编辑信息：选中音符显示 弦/品/技法 + 可改项（时值/附点/…）+ 和弦
    ---- v46.5 ----
    T27 启动台（新开页面）：#start-pad 可见、含 新建/打开/导入/我的 四卡、左栏收起、谱面隐藏
-   T28 启动台交互：点「新建」→ 启动台关闭 + 新建向导弹出 + 左栏恢复；loadSong 亦关闭启动台 */
+   T28 启动台交互：点「新建」→ 启动台关闭 + 新建向导弹出 + 左栏恢复；loadSong 亦关闭启动台
+   ---- v46.6 ----
+   T29 音符图层：顶栏 音符(原编辑)/时值/节奏 三组收纳入左栏 note 层，时值点击生效、后插生效
+   T30 连音线回归谱类记号层：顶栏记号组无 eb-tie；TAB 记号层 b-tie-t 点击建立 n.tk 连音线
+   T31 启动台默认页（并入 T27 页）：右栏停智能页+欢迎提示、光标卡「—」、左栏无选中高亮 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -359,7 +363,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const on = document.querySelector('#rtabs .rtab.on');
     return { first: tabs[0], order: tabs.join(','), defOn: on && on.dataset.p };
   });
-  T(t23.first === 'ai' && t23.defOn === 'info', 'T23 智能页签置首(默认仍信息页)', JSON.stringify(t23));
+  /* v46.6 起启动台把右栏默认页设为智能（欢迎提示），不再断言 defOn=info */
+  T(t23.first === 'ai' && t23.order === 'ai,make,info,lib', 'T23 智能页签置首(四页签序)', JSON.stringify(t23));
 
   // T24 v46.3 智能预提示按选中对象切换
   const t24 = await pg.evaluate(() => {
@@ -402,6 +407,45 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t25.tabs === 'ai,make,info,lib' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
   T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
 
+  // T29 v46.6 音符图层（顶栏三组收纳入左栏）
+  const t29 = await pg.evaluate(() => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
+    loadSong(s);
+    openFlyout('note');
+    const opsIn = !!document.querySelector('#note-ops-host #eb-add');
+    const durIn = !!document.querySelector('#note-dur-host [data-dur]');
+    const rhyIn = !!document.querySelector('#note-rhy-host #eb-lib');
+    const panelVis = document.getElementById('panel-note-ops').style.display !== 'none';
+    const label = document.querySelector('#ebu-eb-edit .eb-t').textContent;
+    // 时值点击生效：选中第1列 → 点 8分
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; selRange = null; noteSel = [];
+    const d8 = document.querySelector('#note-dur-host [data-dur="8"]');
+    if (d8) d8.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const durOk = song.measures[0].tabs[0][0].dur === 8;
+    // 后插生效（ebHandler 委托绑定到 note 面板）
+    const n0 = song.measures[0].tabs[0].length;
+    document.querySelector('#note-ops-host #eb-add').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const insOk = song.measures[0].tabs[0].length === n0 + 1;
+    return { opsIn, durIn, rhyIn, panelVis, label, durOk, insOk };
+  });
+  T(t29.opsIn && t29.durIn && t29.rhyIn && t29.panelVis && t29.label === '音符' && t29.durOk && t29.insOk,
+    'T29 音符图层(三组入左栏+时值/后插生效+标签更名)', JSON.stringify(t29));
+
+  // T30 v46.6 连音线回归谱类记号层
+  const t30 = await pg.evaluate(() => {
+    const noTop = !document.querySelector('#eb-marks #eb-tie');
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 2, f: 1 }] }, { dur: 4, notes: [{ s: 2, f: 3 }] }, { dur: 2, notes: [] }];
+    loadSong(s);
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 2 }; selRange = null; noteSel = [];
+    const bt = document.getElementById('b-tie-t');
+    if (bt) bt.click();
+    const n = song.measures[0].tabs[0][0].notes[0];
+    return { noTop, hasBtn: !!bt, tied: !!(n.tk && n.tk.ci === 1) };
+  });
+  T(t30.noTop && t30.hasBtn && t30.tied, 'T30 连音线回归记号层(TAB b-tie-t 生效)', JSON.stringify(t30));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
@@ -412,10 +456,18 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].map(c => c.dataset.sp).join(',');
     const flyClosed = document.getElementById('left-flyout').classList.contains('hidden');
     const paperHidden = getComputedStyle(document.getElementById('paper')).visibility === 'hidden';
-    return { vis, cards, flyClosed, paperHidden };
+    // v46.6 默认页：右栏智能页 + 欢迎提示 + 光标卡「—」+ 左栏无选中高亮
+    const rOn = document.querySelector('#rtabs .rtab.on');
+    const aiOn = rOn && rOn.dataset.p === 'ai';
+    const welcome = /欢迎使用/.test(document.getElementById('hint-body').textContent);
+    const ciDash = document.getElementById('cursor-info').textContent.trim() === '—';
+    const noLtabOn = !document.querySelector('.ltab.on');
+    return { vis, cards, flyClosed, paperHidden, aiOn, welcome, ciDash, noLtabOn };
   });
   T(t27.vis && t27.cards === 'new,open,imp,mine' && t27.flyClosed && t27.paperHidden,
     'T27 启动台默认态(四卡+左栏收起+空白谱面)', JSON.stringify(t27));
+  T(t27.aiOn && t27.welcome && t27.ciDash && t27.noLtabOn,
+    'T31 启动台默认页(智能页欢迎+光标—+左栏无高亮)', JSON.stringify(t27));
   const t28 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     const padGone = document.getElementById('start-pad').classList.contains('hidden');
