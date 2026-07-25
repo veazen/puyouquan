@@ -310,7 +310,7 @@ body.shell #right-dock #layout-pop{position:static;display:block;width:auto;box-
 body.shell #right-dock #layout-pop .lp-grip,body.shell #right-dock #layout-pop .lp-close,
 body.shell #right-dock #layout-pop #lp-done{display:none}
 #layout-host{display:block}
-body.shell #right-dock{width:236px}   /* 页签内容（排版滑杆/入口列表）需要比经典版稍宽 */
+body.shell #right-dock{width:272px}   /* 页签内容需要比经典版稍宽；v46.4 四页签+预提示整体加宽 236→272 */
 /* v40.3 阶段四：新版工具行单行化（技法/记号入左栏图层）、文档标签扁平、窄屏 fly 浮层 */
 body.shell #editbar2{display:none}
 #panel-tab-tech .eb,#panel-vox-orn .eb{font-size:12px;padding:3px 8px;white-space:nowrap}
@@ -334,8 +334,18 @@ body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;max-width:none;min
   overflow-y:auto;padding:16px 22px 46px}
 body.shell:not(.stand):not(.viewer) #paper{margin:0 auto;max-width:900px}
 body.shell:not(.stand):not(.viewer) #right-dock{position:static;align-self:stretch;height:auto;
-  width:254px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
-  padding:10px 9px}
+  width:292px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
+  padding:10px 9px}   /* v46.4 254→292：四页签 + 预提示/光标信息加宽 */
+/* v46.4 谱面左右两侧滚动条隐藏（可滚动不可见，防视觉干扰）：制版台/左栏/右栏纵向滚动照常 */
+body.shell:not(.stand):not(.viewer) #score-wrap,
+body.shell:not(.stand):not(.viewer) #left-rail,
+body.shell:not(.stand):not(.viewer) #left-flyout,
+body.shell:not(.stand):not(.viewer) #right-dock{scrollbar-width:none;-ms-overflow-style:none}
+body.shell:not(.stand):not(.viewer) #score-wrap::-webkit-scrollbar,
+body.shell:not(.stand):not(.viewer) #left-rail::-webkit-scrollbar,
+body.shell:not(.stand):not(.viewer) #left-flyout::-webkit-scrollbar,
+body.shell:not(.stand):not(.viewer) #right-dock::-webkit-scrollbar{width:0;height:0}
+body.shell:not(.stand):not(.viewer) #paper{overflow-x:hidden}   /* 谱面容器不出横向滚动条 */
 .lgrow{display:none}
 body.shell .lgrow{display:block;flex:1}
 body.shell .ltab[data-act="new"]{background:var(--accent);color:#fff;border-color:transparent}
@@ -440,9 +450,13 @@ body.shell .rtab.on::after{content:"";position:absolute;left:16px;right:16px;bot
   border-radius:2px;background:var(--accent)}
 body.shell .rtab[data-p="ai"]::before{content:"AI";position:absolute;top:2px;right:6px;font-size:8px;
   line-height:1;color:#fff;background:var(--accent);padding:1.5px 3.5px;border-radius:6px;letter-spacing:.5px}
-body.shell .rcard[data-rt="lib"],body.shell .rcard[data-rt="ai"]{border:none;background:transparent;overflow:visible}
-body.shell .rcard[data-rt="lib"]>.rc-h,body.shell .rcard[data-rt="ai"]>.rc-h{display:none}
-body.shell .rcard[data-rt="lib"] .rc-b,body.shell .rcard[data-rt="ai"] .rc-b{display:block;padding:0;border-top:none}
+body.shell .rcard[data-rt="lib"],body.shell .rcard[data-rt="make"]{border:none;background:transparent;overflow:visible}
+body.shell .rcard[data-rt="lib"]>.rc-h,body.shell .rcard[data-rt="make"]>.rc-h{display:none}
+body.shell .rcard[data-rt="lib"] .rc-b,body.shell .rcard[data-rt="make"] .rc-b{display:block;padding:0;border-top:none}
+/* v46.4 智能页预提示卡沿用无边框形态（光标位置卡保留标准卡片样式） */
+body.shell #rc-hints{border:none;background:transparent;overflow:visible}
+body.shell #rc-hints>.rc-h{display:none}
+body.shell #rc-hints .rc-b{display:block;padding:0;border-top:none}
 body.shell #right-dock .rg{border:1px solid var(--border-soft);border-radius:11px;background:var(--panel);
   padding:9px 10px 8px;width:100%;margin:0 0 8px;box-shadow:none}
 body.shell #right-dock .rg .rg-body button{min-height:28px;font-size:12px;border-radius:8px;padding:3px 9px}
@@ -1327,9 +1341,11 @@ body.shell #hint{display:none}
 
   <aside id="right-dock">
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
-    <!-- v46.2 智能页签置首（产品拍板：AI 能力前置曝光；默认仍停留信息页不打断编辑流） -->
+    <!-- v46.2 智能页签置首；v46.4 三栏改四栏：新增「创作」栏承接 创作辅助+导入互操作，
+         智能栏=预提示+光标位置（默认仍停留信息页不打断编辑流） -->
     <div id="rtabs">
       <button class="rtab" data-p="ai">智能</button>
+      <button class="rtab" data-p="make">创作</button>
       <button class="rtab on" data-p="info">信息</button>
       <button class="rtab" data-p="lib">库</button>
     </div>
@@ -1401,10 +1417,6 @@ body.shell #hint{display:none}
         </div><!-- /#sp-more -->
       </div>
     </div>
-    <div class="rcard open" data-rt="info">
-      <button class="rc-h" type="button">光标位置</button>
-      <div class="rc-b"><div id="cursor-info">—</div></div>
-    </div>
     <!-- v40.8 库页签：节奏型/伴奏织体面板整体归入（applyShellDock 搬移，经典版回左栏） -->
     <div class="rcard open rt-new" data-rt="lib">
       <button class="rc-h" type="button">素材库</button>
@@ -1418,8 +1430,14 @@ body.shell #hint{display:none}
       <button class="rc-h" type="button">智能预提示</button>
       <div class="rc-b" id="hint-body"></div>
     </div>
-    <!-- v40.2/v41.4 智能页签：assist 卡片形态（图标+标题+说明两行），入口委托既有工作流、按谱类显隐 -->
-    <div class="rcard open rt-new" data-rt="ai">
+    <!-- v46.4 光标位置移入智能栏：与预提示联动——点击音符时同步显示音符可编辑信息（时值/节奏等） -->
+    <div class="rcard open" data-rt="ai">
+      <button class="rc-h" type="button">光标位置</button>
+      <div class="rc-b"><div id="cursor-info">—</div></div>
+    </div>
+    <!-- v40.2/v41.4 智能页签：assist 卡片形态（图标+标题+说明两行），入口委托既有工作流、按谱类显隐；
+         v46.4 移入新「创作」栏（创作辅助 + 导入互操作） -->
+    <div class="rcard open rt-new" data-rt="make">
       <button class="rc-h" type="button">智能助手</button>
       <div class="rc-b">
         <div class="ai-sec">
@@ -5663,11 +5681,33 @@ function syncInputs(){
     const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
     let durTxt = '—';
     if(col){ durTxt = (dotLevel(col)===2?'双附点':col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?('·'+(col.tup===1?3:col.tup)+'连音'):''); }
+    /* v46.4 音符可选编辑信息：点击音符时同步显示当前音符内容与可改项（时值/节奏等） */
+    let noteTxt='';
+    if(col && sel.row==='tab'){
+      const n=(col.notes||[]).find(x=>x.s===sel.si) || (col.notes||[])[0];
+      if(n) noteTxt=(n.x?'× 闷音（'+n.s+'弦）':(n.s+'弦 '+n.f+'品'))
+        +(n.tech?(' · '+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',bd:'推弦回放',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音P.M.',su:'上滑',sd:'下滑',ou:'上滑',od:'下滑',lr:'let ring'}[n.tech]||n.tech)):'');
+      else if(col.strum) noteTxt='扫弦'+(col.strum==='d'?' ↑':' ↓');
+      else if(col.perc) noteTxt='打板';
+      else noteTxt='休止';
+    }else if(col && sel.row==='vox'){
+      noteTxt = col.deg!=null && col.deg>0
+        ? ((col.acc?({'#':'♯',b:'♭',n:'♮',x:'×',bb:'♭♭'}[col.acc]||''):'')+col.deg
+           +(col.oct>0?'·高'+col.oct+'点':col.oct<0?'·低'+(-col.oct)+'点':'')
+           +(col.tie?' · 连音线':'')+(col.grace?' · 倚音':'')+(col.trem?' · 震音':''))
+        : '休止';
+    }
+    const editTxt = col
+      ? ('时值 Q–T · 附点「.」· 三连音 · '+(sel.row==='tab'?'品位 0–24 · 技法/记号（左栏）':'音高 0–7 · 记号/装饰（左栏）'))
+      : '';
     ci.innerHTML =
       `<div class="ci-row"><span class="ci-k">声部</span><b class="z">${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
       `<div class="ci-row"><span class="ci-k">小节</span><b class="z">第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
       `<div class="ci-row"><span class="ci-k">列</span><b>第 ${sel.ci+1} / ${cols.length}</b></div>`+
       `<div class="ci-row"><span class="ci-k">时值</span><b>${durTxt}</b></div>`+
+      (noteTxt?`<div class="ci-row"><span class="ci-k">音符</span><b>${esc(noteTxt)}</b></div>`:'')+
+      (col&&col.chord?`<div class="ci-row"><span class="ci-k">和弦</span><b>${esc(col.chord)}</b></div>`:'')+
+      (editTxt?`<div class="ci-row"><span class="ci-k">可改</span><b style="font-weight:400;font-size:11px">${esc(editTxt)}</b></div>`:'')+
       (selRange?`<div class="ci-row"><span class="ci-k">多选</span><b>${selRange.m1+1}–${selRange.m2+1} 小节</b></div>`:'');
   }
   document.getElementById('tab-voices').innerHTML =
@@ -12748,6 +12788,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v46.4</span><div><b>右栏四页签改版 + 光标信息升级</b>：① 右侧栏从三页签改为<b>四页签：智能 · 创作 · 信息 · 库</b>——新「创作」栏承接 创作辅助（一键配和弦/配伴奏/智能填词/哼唱成谱）与 导入·互操作（MusicXML/MIDI）；② <b>光标位置卡移入「智能」栏</b>，与智能预提示上下联动；③ <b>点击音符时光标卡同步显示该音符的可编辑信息</b>——当前弦/品位（或简谱音高）、已加技法、所在和弦，以及可改项速查（时值 Q–T · 附点 · 三连音 · 品位/音高输入）；④ 右栏整体<b>加宽</b>（254→292px），提示与信息不再局促；⑤ <b>谱面两侧滚动条隐藏</b>——制版台、左右栏的滚动条不再显示（滚轮/触控滚动照常），页面更干净。</div></li>
     <li><span class="v">v46.3</span><div><b>智能预提示上线（编辑内上下文提示）</b>：右栏「智能」页顶部新增<b>智能预提示卡</b>——根据你当前选中的对象实时给出对应的操作提示：<b>选中吉他谱音符</b>→品位/时值快捷键与推弦/滑弦/泛音/哑音等技法入口；<b>选中五线谱音符</b>→升降还原/谱号切换/八度线/指法踏板；<b>选中简谱音符</b>→数字输入/八度点/歌词填入；<b>选中拍（时值列）</b>→节奏重写与节奏型库；<b>选中整小节/多小节</b>→复制粘贴与小节层操作；<b>选中小节线</b>→反复/终止/跳房子设置。带 › 的提示<b>点击直达对应面板</b>。宏观流程建议（配和弦/修复时值/发布分享等）列为卡内次级「整体建议」。全部为本地规则引擎——按曲谱真实状态推导，准确、即时、离线可用。</div></li>
     <li><span class="v">v46.2</span><div><b>右栏「智能」页签置首</b>：右侧栏页签顺序调整为 <b>智能 · 信息 · 库</b>——智能配谱/自动配和弦/哼唱转谱等 AI 能力前置曝光，一眼可达；打开曲谱时默认仍停留在「信息」页，不打断编辑流。（智能预提示「下一步建议」功能已完成方案评估，见产品沟通记录，待拍板后实施。）</div></li>
     <li><span class="v">v46.1</span><div><b>泛音记谱与面板归组</b>：① <b>泛音菱形恢复固定形状</b>——所有泛音统一同一正菱形（出版一致性），两位数品位（10 品以上）改为<b>数字自动缩小</b>适配框内，不再改变菱形形状；② <b>左栏泛音类归组</b>——「演奏技巧」面板重排：自然泛音按钮由 ◇ 图形改为字母 <b>N.H.</b>（与人工泛音字母风格统一），并移到技巧列表尾部，与紧随其后的 <b>A.H（人工泛音）/ P.H（拨片泛音）/ T.H（点弦泛音）</b>聚成「泛音类」，「清除」恒排最后；③ <b>泛音一律带菱形框</b>——自然泛音与 A.H./P.H./T.H. 各细分在谱面上都以菱形框住品位数字（细分另在上方标注字母），规则固化进回归测试。</div></li>

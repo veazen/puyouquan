@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-24 · 当前版本 **v46.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-24 · 当前版本 **v46.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -419,3 +419,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v46.2 智能页签置首 + 智能预提示方案评估**：① #rtabs 顺序 信息·库·智能 → **智能·信息·库**（AI 前置曝光；默认激活仍 info 不打断编辑流）。② 用户问「智能预提示（猜下一步操作并给建议）能否实现」——评估结论：**可行且推荐规则引擎路线（T1），无需大模型**。三档方案：T1 规则引擎 `suggestNext()` 纯函数扫 song 状态（空谱→预设/向导；有旋律无和弦→自动配和弦；有和弦无伴奏(pianoacc)→织体生成；节拍错误→一键修复；≥8小节成型→试听/导出/发布/分享卡；换调→变调夹建议…），渲染为智能页顶部「下一步」卡片，点击直达——确定/可解释/零成本/离线，一个版本可上线；T2 行为加权（复用 pyqEvent 埋点本地统计操作序列调整排序）；T3 大模型建议（需服务端代理+API费用+延迟，暂不建议——规则已覆盖高价值场景）。建议先 T1 + 埋点 sug_click 观察点击率再决定 T2。**待产品拍板后实施 T1**。tv_detail1 增至 24 项。
 
 > **v46.3 智能预提示上线**（产品拍板：编辑内上下文提示为主、宏观建议次级）：`#rc-hints` 卡置于智能页顶部（rt-new data-rt=ai），`editHints()` 规则引擎按选中对象输出提示——优先级 barSel（小节线）> noteSel≥2（音符多选）> selRange.whole（整/多小节）> selRange（拍/片段）> sel.row tab/vox×(staff|jianpu)（音符光标）；`data-hact="rib:xxx"` 可点直达左栏图层（setRibbon）；次级段「整体建议」= 时值错误(#beat-status.bad)/空谱/有旋律无和弦/成型（宏观 T1 精简版）。`renderHints()` 挂 renderDock 尾部随每次渲染刷新；`.hb-li` 覆盖全局 button nowrap 允许换行。纯本地规则零成本。tv_detail1 T24（五上下文+直达+次级断言），25 项、27 套件全绿。
+
+> **v46.4 右栏四页签**：① #rtabs 智能·**创作(make)**·信息·库——创作辅助+导入互操作两组 assist 卡 data-rt ai→make（setRTab 全泛型自动生效）；光标位置卡 info→ai（置预提示卡下方）；无边框形态 CSS 选择器 ai→make + #rc-hints 单列。② 宽度 236→272 / 254→292。③ 谱面两侧滚动条隐藏：#score-wrap/#left-rail/#left-flyout/#right-dock `scrollbar-width:none`+webkit 0 宽（可滚不可见），#paper overflow-x:hidden。④ syncInputs 光标卡增行：音符（弦/品/×/技法名 或 简谱音高/记号）、和弦、可改项速查（时值 Q–T·附点·三连音·品位/音高）。tv_detail1 T25/T26，27 项、27 套件全绿。

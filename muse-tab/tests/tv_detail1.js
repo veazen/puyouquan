@@ -31,7 +31,10 @@
    T23 右栏「智能」页签排第一位（data-p=ai 为 #rtabs 首个按钮；默认激活仍为信息页）
    ---- v46.3 ----
    T24 智能预提示按选中对象切换：TAB 音符/五线谱音符/简谱音符/整小节/小节线 五种上下文标题各不同，
-       且含可点 rib: 直达项与次级「整体建议」段 */
+       且含可点 rib: 直达项与次级「整体建议」段
+   ---- v46.4 ----
+   T25 右栏四页签（智能·创作·信息·库）：创作栏承接创作辅助+导入互操作，光标位置卡移入智能栏
+   T26 光标卡音符可编辑信息：选中音符显示 弦/品/技法 + 可改项（时值/附点/…）+ 和弦 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -380,6 +383,21 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t24.tab && t24.jp && t24.st && t24.mea && t24.bar && t24.clickable && t24.subs,
     'T24 智能预提示随选中对象切换(五上下文+直达+次级)', JSON.stringify(t24));
+
+  // T25+T26 v46.4 四页签 + 光标卡音符可编辑信息
+  const t25 = await pg.evaluate(() => {
+    const tabs = [...document.querySelectorAll('#rtabs .rtab')].map(b => b.dataset.p).join(',');
+    const ciAi = !!document.querySelector('.rcard[data-rt="ai"] #cursor-info');
+    const makeCards = !!document.querySelector('.rcard[data-rt="make"] #rt-mxl') && !!document.querySelector('.rcard[data-rt="make"] #rt-sug');
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s.measures[0].tabs[0] = [{ dur: 8, notes: [{ s: 5, f: 3, tech: 'h' }], chord: 'C' }, { dur: 2, notes: [] }, { dur: 4, dotted: true, notes: [] }];
+    loadSong(s);
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = []; syncInputs();
+    const t = document.getElementById('cursor-info').textContent;
+    return { tabs, ciAi, makeCards, note: /5弦 3品/.test(t) && /击弦/.test(t), edit: /时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
+  });
+  T(t25.tabs === 'ai,make,info,lib' && t25.ciAi && t25.makeCards, 'T25 四页签(创作栏)+光标卡入智能栏', JSON.stringify(t25));
+  T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
