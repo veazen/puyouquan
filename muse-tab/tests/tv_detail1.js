@@ -744,14 +744,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     // C 大调下音名应为 CDEFGAB（换调即换标签）
     song.key = 'C'; render(); syncInputs();
     const lettersC = [1,2,3,4,5,6,7].map(k => document.querySelector('#eb-note [data-nd="' + k + '"] .dg').textContent).join('');
+    // ③b 组内排序：吉他 0 居首(空弦最常用)；简谱/五线谱 1-7 在前、0 殿后、功能钮排尾
+    const seq = () => [...document.querySelectorAll('#eb-note > *')].filter(e => getComputedStyle(e).display !== 'none')
+      .sort((a, c) => a.getBoundingClientRect().left - c.getBoundingClientRect().left)
+      .map(e => (e.textContent || '').trim()).join(' ');
+    const stSeq = seq();
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; syncInputs();
+    const tabSeq = seq();
+    const orderOk = tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /0–24▾ ×$/.test(tabSeq)
+      && stSeq.indexOf('C D E F G A B 0') === 0;
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     // ④ 节奏型库按钮在上栏、位于节奏组末尾
     const lib = document.getElementById('eb-lib');
     const libOk = vis(lib) && document.getElementById('editbar').contains(lib)
       && lib === document.getElementById('eb-combo').lastElementChild;
-    return { tabCtx, grid, has24, fret17, muteOk, jpOk, letters, lettersC, stCtx, degOk, accOk, libOk };
+    return { tabCtx, grid, has24, fret17, muteOk, jpOk, letters, lettersC, stCtx, degOk, accOk, libOk, orderOk, tabSeq };
   });
   T(t41.tabCtx && t41.grid >= 25 && t41.has24 && t41.fret17 && t41.muteOk && t41.jpOk
-    && t41.stCtx && t41.degOk && t41.accOk && t41.lettersC === 'CDEFGAB' && t41.libOk,
+    && t41.stCtx && t41.degOk && t41.accOk && t41.lettersC === 'CDEFGAB' && t41.libOk && t41.orderOk,
     'T41 音符组三态(TAB 0-24+×/简谱/五线谱音名+变音)+节奏型库入上栏', JSON.stringify(t41));
 
   // T27+T28 v46.5 启动台（需全新页面取启动态）
