@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-25 · 当前版本 **v47.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-25 · 当前版本 **v47.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,7 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
-| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.0 累积 37 项（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
+| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.1 累积 38 项（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -433,3 +433,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v46.9 新建不残留 + 倚音去重**：① 启动台四入口（new/open/imp/mine）不再在点击时 `hideStartPad()`——改由实际载入新谱时关台：`loadSong` 首行既有 + `addDoc` proceed 内补 `hideStartPad()`（向导创建/导入/哼唱路径不走 loadSong）；`cont`（继续上次编辑）仍立即关台；`showNewWizard` 状态行加 `!startPadOn()` 条件（启动台态不显示「当前曲谱《旧稿》…」，编辑态照常提示替换风险）。取消向导/关闭弹窗均回启动台，paper 全程 hidden。guardReplace 语义不变（跨会话草稿 undoStack 为空不弹询问——v41.5 既有语义，「继续上次编辑」为找回入口）。② `b-grace` 单独倚音钮移除（与装饰组 ornFromBar('grace') 完全重复）：HTML 钮/decorateSignButtons MAP/onclick 三处删除，syncInputs 选中态改同步 `[data-orn="grace"]`/`[data-orn="gracea"]`（col.grace/graceA），简谱 hint 文案改「倚音在装饰组」。tv_detail1 T28 改写（留台+无旧稿行+paper 隐藏）/T35 新增（取消回台+创建全新+关台）/T34 扩展（钮移除+装饰组选中态），36 项、27 套件全绿。
 
 > **v47.0 纯 TAB 行首拍号重叠修复**：根因两处同源假设「有拍号必有五线谱表头」——① `staffHeadGeom` 纯 TAB＋简谱（弹唱/uku）返回 w:0 → ox===oxH，TAB 字母(oxH+9,v45.9 入表头)与拍号(ox+8)同位重叠；现纯 TAB 保留 w:26 最小表头区。② `measureLayout` 的 `needTS`（首小节/变拍 tsLead 17px 预留）只认 staff/tabStaff；现加 `(song.tabVoices||[]).length>0`，拍号与首列间距 ≥8px（实测 19px）。③ 顺带补齐变拍子：TAB 小节循环加 meterChanged 画新拍号（mx+8，与五线谱 4069 同口径，vi===0），首行拍号改 `meaMeter(sys.measures[0].mi)`（此前纯 TAB 变拍完全不可见/首小节覆盖拍号不生效）。sweep 排查 vocal/instr(高低音)/teach/piano/pianoacc/func/双TAB/五线谱唱名弹唱 行首区无同类重叠。tv_detail1 T36（guitar+uku 不重叠+gap≥8+变拍 TAB 可见），37 项、27 套件全绿。
+
+> **v47.1 音符快捷浮条 + 习惯学习**：① `#quickbar` 浮条（popmenu 样式独立 id）——`showQuickbar(cx,cy)` 挂 #score pointerdown 普通音符路径（歌词/和弦/扫弦区走各自流程；viewer/启动台不弹），全局 window pointerdown capture 点外即关（与 popmenu 同法，score 点击先关后重开）；按钮组：dur:4/8/16+dot 通用，tab 语境+技法×3+tie，vox 语境+acc:#/b+oct:±+tie；`syncQuickbar()` 同步 on 态；「…」openFlyout 对应层，「✕」写 `musetab-quickbar=off`（智能卡 qbon 项重开）。② 习惯学习（新 localStorage 键 `musetab-habits`，纯本地）——`habit(act)` 记频次 n 与转移 t（上一动作>下一动作），条目>240 全表减半淘汰；接入 10 个动作函数入口（setDur/toggleDot/toggleAcc/bumpOct/toggleTie/techFromBar/ornFromBar/applyTuplet/applyDurCombo/applyGtech，try 包裹零风险）；`habitTop(prefix)` 重排浮条技法槽（冷启动默认 b/h/p），`habitNext()` 转移预判（≥2 次）→ 浮条 `.qb-guess` 猜测钮（预判已在条上则点亮该钮）+ 智能卡置顶「猜你想做」（data-hact qb:act → `habitDo` 分发执行）。动作键命名空间 dur:/dot/tie/acc:/oct:/tech:/gtech:/orn:/tup:/combo，`habitLabel/habitApplicable` 出中文标签与语境过滤。tv_detail1 T37（弹出/生效/重排/预判/关重开/简谱语境十断言），38 项、27 套件全绿。

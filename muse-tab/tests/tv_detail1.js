@@ -573,6 +573,63 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(!t36.g.ov && t36.g.gap >= 8 && !t36.u.ov && t36.u.gap >= 8 && t36.meterDrawn,
     'T36 纯TAB行首拍号不叠字母且留距+变拍子TAB行显示', JSON.stringify(t36));
 
+  // T37 v47.1 音符快捷浮条 + 习惯学习：弹出/操作/重排/预判/关-重开/简谱上下文
+  const t37 = await pg.evaluate(() => {
+    localStorage.removeItem('musetab-habits'); localStorage.removeItem('musetab-quickbar'); HABITS = null;
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('solo', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0, gtype: 'lead' });
+    s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 3, f: 5 }] },
+      { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 3, f: 7 }] }];
+    loadSong(s);
+    // ① 真实 pointerdown 弹出浮条（TAB 语境按钮组）
+    const cell = document.querySelector('.strcell[data-mi="0"][data-ci="0"][data-si="3"]');
+    cell.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+    let qb = document.getElementById('quickbar');
+    const open = !!qb;
+    const btns0 = qb ? [...qb.querySelectorAll('[data-qb]')].map(x => x.dataset.qb).join(',') : '';
+    const tabCtx = /dur:4,dur:8,dur:16,dot,tech:.+,tie,more,off/.test(btns0);
+    // ② 浮条操作生效 + 习惯记录
+    qb.querySelector('[data-qb="dur:8"]').click();
+    const durOk = song.measures[0].tabs[0][0].dur === 8;
+    const h1 = JSON.parse(localStorage.getItem('musetab-habits') || '{}');
+    const recOk = h1.n && h1.n['dur:8'] >= 1 && h1.last === 'dur:8';
+    // ③ 高频重排 + 转移预判（tup:3 不在条上 → 独立猜测钮居首）
+    for (let i = 0; i < 3; i++) { habit('dur:8'); habit('tup:3'); } habit('dur:8');
+    for (let i = 0; i < 4; i++) habit('tech:hm');
+    habit('dur:8');   // last=dur:8 → next 预判 tup:3
+    closeQuickbar(); showQuickbar(300, 300);
+    qb = document.getElementById('quickbar');
+    const btns1 = [...qb.querySelectorAll('[data-qb]')].map(x => x.dataset.qb);
+    const rerank = btns1.includes('tech:hm');
+    const guess = qb.querySelector('.qb-guess') && qb.querySelector('[data-qb]').dataset.qb === 'tup:3';
+    // ④ 智能卡「猜你想做」直达（应用 3连音 → 首音 tup 字段出现）
+    renderHints();
+    const hb = [...document.querySelectorAll('#hint-body [data-hact]')].find(x => x.dataset.hact.indexOf('qb:') === 0);
+    let hintDo = false;
+    if (hb) { sel.row = 'tab'; sel.mi = 0; sel.ci = 0; clampSel(); hb.click();
+      hintDo = !!(song.measures[0].tabs[0][0] && song.measures[0].tabs[0][0].tup); }
+    // ⑤ 关闭→不再弹→智能卡重开
+    showQuickbar(300, 300);
+    document.querySelector('#quickbar [data-qb="off"]').click();
+    showQuickbar(300, 300);
+    const offOk = !document.getElementById('quickbar') && localStorage.getItem('musetab-quickbar') === 'off';
+    renderHints();
+    const re = [...document.querySelectorAll('#hint-body [data-hact]')].find(x => x.dataset.hact === 'qbon');
+    if (re) re.click();
+    const backOn = localStorage.getItem('musetab-quickbar') !== 'off';
+    // ⑥ 简谱语境按钮组（升降/八度/连音线）
+    if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    loadSong(createSong('vocal', { title: 'x', key: 'C', beats: 4, unit: 4, nMea: 1, nVox: 1, lyr: 0 }));
+    sel.row = 'vox'; clampSel(); showQuickbar(300, 300);
+    const btns2 = [...document.getElementById('quickbar').querySelectorAll('[data-qb]')].map(x => x.dataset.qb).join(',');
+    const voxCtx = btns2.includes('acc:#') && btns2.includes('oct:+') && btns2.includes('tie') && !btns2.includes('tech:');
+    closeQuickbar(); localStorage.removeItem('musetab-habits'); HABITS = null;
+    return { open, tabCtx, durOk, recOk, rerank, guess: !!guess, hintDo, offOk, backOn, voxCtx };
+  });
+  T(t37.open && t37.tabCtx && t37.durOk && t37.recOk && t37.rerank && t37.guess && t37.hintDo
+    && t37.offOk && t37.backOn && t37.voxCtx,
+    'T37 快捷浮条+习惯学习(弹出/生效/重排/预判/关重开/简谱)', JSON.stringify(t37));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
