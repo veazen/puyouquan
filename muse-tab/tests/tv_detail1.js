@@ -26,7 +26,9 @@
    T20 行首小节线热区左延至系统起始线（barzone x=oxH-4=52）
    ---- v46.1 细节批次6 ----
    T21 泛音类归组：EB_TECHS 自然泛音 N.H. 排尾部（清除前）、EB_GTECH 人工泛音三键置首
-   T22 泛音菱形不变量：hmT 人工泛音同样带菱形框 + A.H. 标注 */
+   T22 泛音菱形不变量：hmT 人工泛音同样带菱形框 + A.H. 标注
+   ---- v46.2 ----
+   T23 右栏「智能」页签排第一位（data-p=ai 为 #rtabs 首个按钮；默认激活仍为信息页） */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -341,6 +343,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t21.grouped, 'T21 泛音类归组(N.H.尾部+人工泛音置首)', JSON.stringify(t21));
   T(t21.diamond && t21.ah, 'T22 人工泛音同样带菱形框+A.H.标注', JSON.stringify(t21));
+
+  // T23 v46.2 智能页签置首
+  const t23 = await pg.evaluate(() => {
+    const tabs = [...document.querySelectorAll('#rtabs .rtab')].map(b => b.dataset.p);
+    const on = document.querySelector('#rtabs .rtab.on');
+    return { first: tabs[0], order: tabs.join(','), defOn: on && on.dataset.p };
+  });
+  T(t23.first === 'ai' && t23.defOn === 'info', 'T23 智能页签置首(默认仍信息页)', JSON.stringify(t23));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
