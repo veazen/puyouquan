@@ -764,6 +764,52 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && t41.stCtx && t41.degOk && t41.accOk && t41.lettersC === 'CDEFGAB' && t41.libOk && t41.orderOk,
     'T41 音符组三态(TAB 0-24+×/简谱/五线谱音名+变音)+节奏型库入上栏', JSON.stringify(t41));
 
+  // T42 v47.7 缺陷修复（专家工作流查出、逐条实测复现后修）：
+  //   闷音往返保真 / 五线谱变音目标音高模型 / 换弦断开两位合成 / uku 弦号与品位上限 / Esc 关弹窗 / 品位越界守卫
+  const t42 = await pg.evaluate(() => {
+    const mk = () => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 1, lyr: 0 });
+      s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] },
+        { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] }, { dur: 2, dotted: false, chord: '', strum: '', tech: '', notes: [] }]; loadSong(s); };
+    // ① 闷音往返不丢品位（v47.6 顶栏 × 钮让该数据丢失一键可达）
+    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; setFret(7);
+    toggleMute(); const onX = song.measures[0].tabs[0][0].notes[0].x === true;
+    toggleMute(); const muteKeep = song.measures[0].tabs[0][0].notes[0].f === 7 && onX;
+    // ② 五线谱 ♮ 真生效：G 大调 deg=7(F♯) → 本位 F，渲染变化 + 音高降半音 + accCarry 出 ♮ 字形
+    mk(); song.voxNotations = ['staff']; song.key = 'G'; sel = { row: 'vox', vi: 0, mi: 0, ci: 0 };
+    const c = song.measures[0].voxes[0][0]; c.deg = 7; c.acc = ''; c.oct = 0; render();
+    const h0 = document.getElementById('score').innerHTML, m0 = voxMidi(c);
+    accNat(); render();
+    const natOk = document.getElementById('score').innerHTML !== h0 && (m0 - voxMidi(c)) === 1
+      && accCarry({}, 3, 0, 1) === '♮' && ACC_G['♮'] === 'accidentalNatural';
+    // ③ 五线谱 ♯ 连点不再造出「画重降却发声升号」的非法态
+    c.acc = ''; accBump(1); const s1 = c.acc; accBump(1); render();
+    const noBogus = s1 === '#' && !/♭♭/.test(document.getElementById('score').innerHTML);
+    // ④ 简谱变音零回归：仍是 ''→#→x 与 n 的旧循环
+    mk(); song.voxNotations = ['jianpu']; sel = { row: 'vox', vi: 0, mi: 0, ci: 0 };
+    const j = song.measures[0].voxes[0][0]; j.deg = 1; j.acc = '';
+    accBump(1); const q1 = j.acc; accBump(1); const q2 = j.acc; accNat(); const q3 = j.acc;
+    const jpSame = q1 === '#' && q2 === 'x' && q3 === 'n';
+    // ⑤ 换弦断开两位品位合成（此前 1→↓→2 在新弦写出 12 品）
+    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; inputDigit(1);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    inputDigit(2);
+    const nn = song.measures[0].tabs[0][0].notes.find(n => n.s === 4);
+    const pendOk = sel.si === 4 && !!nn && nn.f === 2;
+    // ⑥ 尤克里里：弦号钳到 4、品位上限 15
+    const s2 = createSong('guitar', { title: 'u', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    s2.inst = 'uku'; loadSong(s2); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 6 }; clampSel();
+    const ukuOk = sel.si === 4 && fretMaxOf() === 15;
+    // ⑦ Esc 关弹窗 + ⑧ 品位越界守卫
+    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; showFretMenu(300, 300);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const escOk = !document.getElementById('popmenu');
+    setFret(99); const guardOk = song.measures[0].tabs[0][0].notes[0].f === 24;
+    return { muteKeep, natOk, noBogus, jpSame, pendOk, ukuOk, escOk, guardOk };
+  });
+  T(t42.muteKeep && t42.natOk && t42.noBogus && t42.jpSame && t42.pendOk && t42.ukuOk && t42.escOk && t42.guardOk,
+    'T42 缺陷修复(闷音保真/五线谱变音/换弦断合成/uku/Esc/品位守卫)', JSON.stringify(t42));
+
   // T27+T28 v46.5 启动台（需全新页面取启动态）
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));

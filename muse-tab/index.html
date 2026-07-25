@@ -429,7 +429,8 @@ body.shell #eb-note .nd{min-width:21px;padding:3px 4px}
 #eb-mute-n .dg,#eb-acc-s .dg,#eb-acc-f .dg,#eb-acc-n .dg{font-size:14px}
 body.shell #eb-fret-more,body.shell #eb-mute-n,
 body.shell #eb-acc-s,body.shell #eb-acc-f,body.shell #eb-acc-n{min-width:0;padding:3px 6px}
-#fret-grid{max-width:320px}
+#fret-grid{display:grid;grid-template-columns:repeat(6,32px);gap:4px;max-width:none}
+#fret-grid button{min-width:0;padding:4px 0;justify-content:center}
 body.shell #editbar{flex-wrap:wrap;overflow-x:visible}
 body.shell #editbar #seg-undo{margin:0 2px}
 body.shell #editbar #seg-undo button{min-height:26px;padding:2px 8px}
@@ -5578,7 +5579,7 @@ function clampSel(){
   else sel.vi = Math.max(0, Math.min(sel.vi, song.voxVoices.length-1));
   const r = curRowCols();
   sel.ci = Math.max(0, Math.min(sel.ci, Math.max(0,(r||[]).length-1)));
-  sel.si = Math.max(1, Math.min(sel.si, 6));
+  sel.si = Math.max(1, Math.min(sel.si, strN()));   // v47.7 尤克里里 4 弦：此前硬编码 6
   activeLyr = Math.max(0, Math.min(activeLyr, song.lyricLines-1));
 }
 function chipHtml(list, activeIdx, cls){
@@ -6213,8 +6214,11 @@ function redo(){
   if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
   selRange=null; clampSel(); persist(); render();
 }
+/* v47.7 品位上限按乐器：尤克里里常见 15 品，吉他/贝斯 24 品（song.fretMax 可覆盖，纯增量字段） */
+function fretMaxOf(){ return (song && song.fretMax) || (instOf()==='uku'? 15 : 24); }
 function setFret(f){
   if(sel.row!=='tab') return;
+  if(f!=null){ f=Math.max(0, Math.min(fretMaxOf(), f|0)); }   // v47.7 越界守卫（此前 setFret(99) 直接写脏）
   mutate(()=>{
     const col=curCol();
     const i = col.notes.findIndex(n=>n.s===sel.si);
@@ -6666,9 +6670,9 @@ function applyVoxPattern(pat){
       if(sel.row!=='tab'){ toast('闷音 × 用于吉他谱声部——请先选中吉他谱音符'); return; }
       toggleMute(); return;
     }
-    if(e.target.closest('#eb-acc-s')){ toggleAcc('#'); return; }
-    if(e.target.closest('#eb-acc-f')){ toggleAcc('b'); return; }
-    if(e.target.closest('#eb-acc-n')){ toggleAcc('n'); return; }
+    if(e.target.closest('#eb-acc-s')){ accBump(1); return; }
+    if(e.target.closest('#eb-acc-f')){ accBump(-1); return; }
+    if(e.target.closest('#eb-acc-n')){ accNat(); return; }
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
     const tp=e.target.closest('[data-tup]');
     if(tp){ applyTuplet(+tp.dataset.tup); return; }
@@ -7155,7 +7159,7 @@ function inputDigit(k){
     const now=Date.now(); let d=String(k);
     if(now-pending.time<700 && pending.digits){
       const comb=parseInt(pending.digits+d,10);
-      if(comb<=24) d=String(comb);
+      if(comb<=fretMaxOf()) d=String(comb);
     }
     pending={digits:d,time:now};
     setFret(parseInt(d,10));
@@ -7181,6 +7185,7 @@ window.addEventListener('keydown', e=>{
     if(e.key==='Escape') document.activeElement.blur();
     return;
   }
+  if(e.key==='Escape' && document.getElementById('popmenu')){ e.preventDefault(); closePop(); return; }   // v47.7 Esc 关弹窗
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
@@ -7216,13 +7221,13 @@ window.addEventListener('keydown', e=>{
     case 'ArrowRight': e.preventDefault(); moveCol(1); break;
     case 'ArrowLeft':  e.preventDefault(); moveCol(-1); break;
     case 'ArrowDown':
-      e.preventDefault();
-      if(sel.row==='tab'){ if(sel.si<6) sel.si++; else switchRow(); render(); }
+      e.preventDefault(); pending.digits='';   // v47.7 换弦即断开两位品位合成
+      if(sel.row==='tab'){ if(sel.si<strN()) sel.si++; else switchRow(); render(); }
       break;
     case 'ArrowUp':
-      e.preventDefault();
+      e.preventDefault(); pending.digits='';
       if(sel.row==='tab'){ if(sel.si>1){ sel.si--; render(); } }
-      else { switchRow(); sel.si=6; render(); }
+      else { switchRow(); sel.si=strN(); render(); }
       break;
     case 'Tab': e.preventDefault(); switchRow(); break;
     case 'Backspace':
@@ -7236,8 +7241,8 @@ window.addEventListener('keydown', e=>{
       break;
     case ' ': e.preventDefault(); togglePlay(); break;
     case '.': e.preventDefault(); toggleDot(); break;
-    case '#': if(sel.row==='vox') toggleAcc('#'); break;
-    case 'b': if(sel.row==='vox') toggleAcc('b'); break;
+    case '#': if(sel.row==='vox') accBump(1); break;
+    case 'b': if(sel.row==='vox') accBump(-1); break;
     case '+': case '=': if(sel.row==='vox') bumpOct(1); break;
     case '-': if(sel.row==='vox') bumpOct(-1); break;
     case '~': if(sel.row==='vox') toggleTie(); break;
@@ -7743,9 +7748,9 @@ function showFretMenu(cx, cy){
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.max(8, Math.min(cx, innerWidth-330))+'px';
   div.style.top=(cy+6)+'px';
-  div.innerHTML=`<div class="t">品位 · 写入第 ${sel.si} 弦（0＝空弦）</div>`
+  div.innerHTML=`<div class="t">品位 · 写入第 ${sel.si} 弦（0＝空弦，上限 ${fretMaxOf()} 品）</div>`
     +`<div class="row" id="fret-grid">`
-    +Array.from({length:25},(_,f)=>`<button data-fret="${f}" class="${(cur&&!cur.x&&cur.f===f)?'on':''}" style="min-width:30px">${f}</button>`).join('')
+    +Array.from({length:fretMaxOf()+1},(_,f)=>`<button data-fret="${f}" class="${(cur&&!cur.x&&cur.f===f)?'on':''}">${f}</button>`).join('')
     +`</div>`
     +`<div class="row"><button data-fret="x">× 闷音</button><button data-fret="del">清除本弦音</button></div>`;
   document.body.appendChild(div);
@@ -8009,6 +8014,39 @@ function toggleAcc(a){ if(sel.row!=='vox')return; try{habit('acc:'+a);}catch(_){
   else if(a==='b') c.acc = c.acc==='b'? 'bb': c.acc==='bb'?'' : 'b';
   else             c.acc = c.acc===a? '' : a;
 }); }
+/* v47.7 变音记号按记谱法分流（简谱沿用 toggleAcc 的符号循环；五线谱走「目标音高」模型）。
+   五线谱下 acc 只是相对调号的偏移：渲染走 accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)，
+   因此 acc='n' 的 accSemi 为 0 → 目标=keyAlt → 与 acc='' 完全等价（实测 ♮ 在五线谱是空转）；
+   而 toggleAcc('#') 的 '#'→'x' 循环在升号调会造出目标 3，accCarry 无 3 分支被兜底画成 ♭♭（画重降却发声升号）。
+   故五线谱改为：先算目标 alt，再反解出能表达该目标的 acc 符号，并钳在可表示区间。 */
+function stAltCtx(){
+  const c=curCol(); if(!c) return null;
+  const K=staffKeyInfo(), Lt=(K.Li+(c.deg||1)-1)%7, keyAlt=K.alt[Lt]||0;
+  return {c, K, Lt, keyAlt, cur:keyAlt+accSemi(c.acc)};
+}
+function stAccWrite(x, target){
+  const d=target-x.keyAlt;
+  x.c.acc = ({'0':'', '1':'#', '2':'x', '-1':'b', '-2':'bb'})[String(d)] || '';
+}
+function accBump(dir){
+  if(sel.row!=='vox') return;
+  if(!isStaffNota((song.voxNotations||[])[sel.vi])) return toggleAcc(dir>0?'#':'b');
+  try{habit('acc:'+(dir>0?'#':'b'));}catch(_){}
+  mutate(()=>{ const x=stAltCtx(); if(!x||!x.c.deg) return;
+    let t=x.cur+dir;
+    /* 钳位：目标超出 ±2 全音、或相对调号偏移超出 acc 可表示的 ±2 → 回落调内 */
+    if(t>2||t<-2||Math.abs(t-x.keyAlt)>2) t=x.keyAlt;
+    stAccWrite(x, t);
+  });
+}
+function accNat(){
+  if(sel.row!=='vox') return;
+  if(!isStaffNota((song.voxNotations||[])[sel.vi])) return toggleAcc('n');
+  try{habit('acc:n');}catch(_){}
+  mutate(()=>{ const x=stAltCtx(); if(!x||!x.c.deg) return;
+    stAccWrite(x, x.cur===0? x.keyAlt : 0);   // 已是本位 → 回到调内；否则还原为本位音
+  });
+}
 /* v43.1 震音循环：无→1→2→3→无（1/2/3 杠=八分/十六分/三十二分轮奏）；仅对有音高的音符 */
 function toggleTrem(){ if(sel.row!=='vox') return toast('震音用于旋律声部音符');
   mutate(()=>{ const c=curCol(); if(!c||!c.deg) return;
@@ -8156,11 +8194,17 @@ function showChordSuggest(name){
 function toggleMute(){
   if(sel.row!=='tab')return;
   const col=curCol(); if(!col) return;
-  /* ×标记：把当前音记为闷音×（扫弦切音请用"扫弦切音"按钮） */
+  /* ×标记：把当前音记为闷音×（扫弦切音请用"扫弦切音"按钮）
+     v47.7 往返保真：打 × 时把原品位暂存 n.xf，取消 × 时回填——此前 f 被直接归 0，
+     "7品 → × → 再点×" 会静默变成空弦（v47.6 顶栏 × 钮让该路径变成一键可达）。
+     xf 为纯增量字段，渲染/播放/MusicXML 均不读取。 */
   mutate(()=>{
     const c=curCol();
     const i=c.notes.findIndex(n=>n.s===sel.si);
-    if(i>=0){ c.notes[i].x=!c.notes[i].x; if(c.notes[i].x) c.notes[i].f=0; }
+    if(i>=0){ const n=c.notes[i]; n.x=!n.x;
+      if(n.x){ if(n.f) n.xf=n.f; n.f=0; }
+      else { if(n.xf!=null){ n.f=n.xf; } delete n.xf; }
+    }
     else c.notes.push({s:sel.si,f:0,x:true});
   });
 }
@@ -8483,9 +8527,9 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
       toast('已开启：点击音符将自动弹出快捷浮条'); renderHints(); }
   });
 }
-document.getElementById('b-sharp').onclick = ()=>toggleAcc('#');
-document.getElementById('b-flat').onclick = ()=>toggleAcc('b');
-document.getElementById('b-natural').onclick = ()=>toggleAcc('n');
+document.getElementById('b-sharp').onclick = ()=>accBump(1);     // v47.7 五线谱走目标音高模型，简谱内部仍走 toggleAcc
+document.getElementById('b-flat').onclick = ()=>accBump(-1);
+document.getElementById('b-natural').onclick = ()=>accNat();
 document.getElementById('b-octup').onclick = ()=>bumpOct(1);
 document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
 { const ob=document.getElementById('b-ottava'); if(ob) ob.onclick = (ev)=>showOttavaMenu(ev.clientX, ev.clientY); }
@@ -13250,6 +13294,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v47.7</span><div><b>音符录入缺陷修复（专家复核后逐条实测确认）</b>：① <b>闷音 × 不再丢品位</b>——原先「7 品 → 打 × → 再点 × 取消」会静默变成空弦（品位被清零），现在取消 × 会<b>还原原品位</b>（v47.6 把 × 放上顶栏后这条路径变成一键可达，属数据丢失，优先修）；② <b>五线谱的 ♮ 还原号此前是无效按钮</b>——五线谱的变音是相对调号的偏移，旧写法让 ♮ 与「无记号」完全等价、点了没反应；现改为<b>按目标音高记谱</b>：升号调里点 ♮ 正确画出还原号且音高降半音；<b>♯ 连点也不再画出「重降号却发升号音」的错谱</b>；简谱的升降号行为完全不变；③ <b>换弦即断开两位品位输入</b>——原先键盘「1 → ↓换弦 → 2」会在新弦写成 12 品；④ <b>尤克里里修正</b>：光标弦号不再越到第 5/6 弦（写出四线谱外的幽灵音符），品位上限按乐器取 15 品；⑤ <b>品位越界守卫</b>：任何入口都不会再写入超出上限的品位；⑥ <b>Esc 关闭弹出菜单</b>（此前弹窗开着时数字键仍会直接写音符）；⑦ 品位选择器改 6 列栅格，12 品落在行首（八度位），并按乐器裁剪长度。</div></li>
     <li><span class="v">v47.6</span><div><b>音符输入组按谱类分化 + 节奏型库上栏</b>：① <b>吉他谱：× 闷音标记 + 0–24 全品位可选</b>——上栏直接给 0–9（<b>0＝空弦排在最前</b>，吉他最常用）与 <b>×</b>（闷音/死音，再点取消，当前弦已是闷音时按钮高亮；当前弦的品位在数字钮上高亮），另加 <b>「0–24▾」品位选择器</b>：点开即是 0 到 24 全部品位的网格，高把位与泛音位一次点到（另含「× 闷音」「清除本弦音」），当前弦的品位在网格中高亮；② <b>五线谱：音名录入方案</b>——切到五线谱声部时，七个数字钮自动变为<b>音名 C D E F G A B</b>（随调号旋转：D 大调显示 D E F G A B C），点击即落该音；同组补上 <b>♯ ♭ ♮</b> 变音记号（调号内的升降自动生效，需要临时记号时点它）与高/低八度；<b>键盘 1–7 仍然等价可用</b>（按钮提示已标注对应音级），底层数据仍是首调音级，换调不改音符数据；③ 简谱声部保持 1–7 + 0 + 高低八度不变；④ <b>「节奏型库…」按钮回到上栏</b>，排在节奏组末尾（右栏「库」页签的完整节奏型库仍在）。</div></li>
     <li><span class="v">v47.5</span><div><b>上栏结构调整：编辑 + 音符输入组 + 撤销重做下移</b>：① 原「音符」组更名<b>「编辑」</b>：后插 / 前插 / 休止 / 清音 / 拆分 / 合并 / 删除（八度移出）；② 编辑组后新增<b>「音符」输入组</b>——<b>简谱/五线谱声部：音级 1–7、0（休止）、高八度、低八度</b>；<b>吉他谱声部：品位数字 0–9</b>（0.7 秒内连点两键可输两位品位，如 1→2 = 12 品）——按当前选中声部自动切换选项，与键盘数字输入完全同源；③ <b>撤销 / 重做从页头下移到上栏</b>，排在节奏组之后（经典版保持页头原位）；④ 上栏内容放不下时自动换行（时值提示与缩放右靠齐），不再横向滚动。</div></li>
     <li><span class="v">v47.4</span><div><b>顶栏节奏「更多」拍号组合</b>：顶栏节奏组新增<b>「更多▾」</b>——点击展开按拍号场景分组的节奏选项：① <b>单拍细分（通用）</b>＝顶栏已铺开的七种组合；② <b>二拍组合（2/4 整小节 · 4/4 半小节）</b>：二分音符 / 四分×2 / 附点四分+八分 / 八分+附点四分 / 大切分 / 四分+八分×2 / 八分×2+四分；③ <b>三拍 · 复合拍（3/4 整小节 · 6/8 一大拍）</b>：附点二分 / 四分×3 / 二分+四分 / 四分+二分 / 附点四分 / 八分×3 / 四分+八分 / 八分+四分 / 八+双十六+八——6/8、9/8、12/8 的附点四分大拍一键拆分；所有组合自光标起替换等长片段、按当前小节拍号折算（变拍子小节同样适用）。组合图示升级：四分画实心符头、二分画空心符头、符杠只连八分及更短的音（出版口径）。</div></li>

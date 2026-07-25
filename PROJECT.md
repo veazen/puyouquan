@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-25 · 当前版本 **v47.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-25 · 当前版本 **v47.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -302,7 +302,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_midi | MIDI 出+入：SMF fixture/量化(附点·跨小节连音·adds)/running status/分手/**导出往返**(meta·tie合并·音高集合) |
 | tv_tabmxl | v44.7 TAB↔MusicXML：吉他弹唱(vox+tab)导出 xmllint+staff-tuning/string-fret、TAB **往返一致**(dropD/capo/和音/x/附点)、uku 4 弦往返、第三方 MuseScore 式 fixture 导入、纯 TAB(solo)导出/导入——5项 |
 | tv_member | v45.3-45.4 会员+支付：权益文案诚实(免费含云同步/MusicXML·无旧虚假卖点·无演示开关)、memberPlan 接 PYQ_ENT、兑换→entRefresh 数据链(quota 500→2000)、微信支付流(下单→真QR→轮询→到账→回权益页)、看谱页分享卡(shareCardURL 优先当前谱)——5项 |
-| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.6 累积 42 项（+T41 音符组三态/0–24 品位/音名录入）（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
+| tv_detail1 | v45.6-45.7 细节批次1+2（几何断言）：闷音×15/打板×16、TAB 休止 SMuFL 化+附点、拍弦框内×、联排间距、小节内换谱号(位差恰 45px+布局加宽+延续)、换谱号 MusicXML 往返、信息卡补齐 + 横按判定(Em无杠/Bm有杠)、联排像素级间距(低音36+/推弦装饰30+)、低音谱号联排(tabClef)、面板重组(记谱风格分组/哑音/谱号按钮)…至 v47.7 累积 43 项（+T42 音符录入缺陷回归）（行首编号/系统连线/泛音菱形/Ctrl多选/智能预提示/四页签/启动台/音符三图层/面板不溢出/倚音图标统一等，见各版本注记） |
 
 注意：SVG innerHTML 会把 `/>` 序列化为 `></tag>`，断言不要匹配 `/>`（历史坑）。
 
@@ -445,3 +445,5 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v47.5 编辑更名 + 音符输入组 + 撤销重做下移**：① `ebu-eb-edit` 标签「音符」→「编辑」，eb-octup/eb-octdn 移出；② 新 `ebu-eb-note`「音符」输入组：`.nd` 数字钮 0-9 + 高/低八度——`inputDigit(k)` 统一入口（自键盘 keydown 数字分支提取：tab=setFret+pending 700ms 两位合成 ≤24、vox=setDeg 0-7），ebHandler 加 `[data-nd]` 分发；syncInputs 按 sel.row 切换显隐（tab：0-9 显示、八度隐藏；vox：8/9 隐藏、八度显示）与 title 文案；③ `#seg-undo`（页头撤销/重做 span 加 id）applyShellDock 搬移：shell → editbar `ebu-eb-combo` 之后、classic → 页头 file-in 前原位；④ 上栏布局：`body.shell #editbar{flex-wrap:wrap;overflow-x:visible}`（内容超宽自动换行，替代横向滚动）+ beat-box `margin-left:auto`（换行后右靠齐）；.nd 窄身 21px。tv_detail1 T29 label 改「编辑」+T40（十断言：上下文切换/12 品连点/音级/休止/undo 双外壳位置），41 项、27 套件全绿。
 
 > **v47.6 音符输入组三态 + 节奏型库上栏**：#eb-note 由 v47.5 的两态扩为三态，syncInputs 内统一切换（isTab / isSt=isStaffNota(voxNotations[sel.vi]) / 简谱）。① **TAB**：新增 `#eb-mute-n`（→ toggleMute，n.x 选中态同步）与 `#eb-fret-more`（→ 新函数 `showFretMenu(cx,cy)`：0–24 品位网格 popmenu，当前弦品位高亮，另含 ×闷音/清除本弦音；**显式点选时清空 pending 不参与 700ms 两位合成**）——0-9 内联 + 网格全量，兼顾宽度预算（实测各组 编辑316/音符351/时值256/节奏408/undo70，1920 单行、1440 起换行）。② **五线谱**：不新增按钮，复用 .nd 1-7 **改标签为音名** `'CDEFGAB'[(K.Li+k-1)%7]`（K=staffKeyInfo()）——点击仍走 setDeg(k)，**数据模型 deg 首调音级零改动**，换调只换标签不改数据（该映射与 staffStep=step0+(deg-1)+oct*7 天然自洽，无需反算）；补 `#eb-acc-s/f/n` → toggleAcc('#'/'b'/'n')，acc 选中态同步。③ .nd 选中态：TAB 按当前弦 f 命中、简谱/五线谱按 col.deg 命中；组内 flex order 按语境重排（TAB 0-9 自然序，0＝空弦居首；简谱/五线谱 1-7 在前、0 殿后；尾部功能钮显式 order 20+ 防 order:0 插队）。④ `body.shell #editbar #eb-lib` 由 display:none 改 inline-flex（撤 v40.8 去重，产品要求回上栏，位于 #eb-combo 末尾＝节奏组后；右栏「库」页签保留）。新函数名 showFretMenu 已按 v37.2 教训先 grep 确认无冲突。tv_detail1 T41（三态显隐/25 品位网格/17 品写入/×选中态/D大调 DEFGABC 与 C大调 CDEFGAB/♯生效/库入栏 十一断言），42 项、27 套件全绿。
+
+> **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
