@@ -6296,20 +6296,12 @@ function redo(){
 function fretMaxOf(){ return (song && song.fretMax) || (instOf()==='uku'? 15 : 24); }
 /* v47.8 五线谱休止字形（按当前时值取 SMuFL 休止符，供顶栏音符组的休止钮显示） */
 const STAFF_REST_G={1:'restWhole',2:'restHalf',4:'restQuarter',8:'rest8th',16:'rest16th',32:'rest32nd'};
-/* v47.8 吉他品位钮内联折叠：按上栏本行余量算能铺开到第几品，放不下的收进「0–24▾」选择器。
-   余量 = 上栏可用宽 − 其余各单元实测宽 − 本组固定开销（组标签 + ×/▾ 两钮）；测不到时退回 0-9。 */
-function fretInlineCap(){
-  const eb=document.getElementById('editbar'), unit=document.getElementById('ebu-eb-note');
-  const mx=fretMaxOf();
-  if(!eb||!unit||!eb.clientWidth) return Math.min(9,mx);
-  let used=0;
-  /* 跳过弹性占位（.grow 会随本组变宽而收缩，计入会形成"越展开余量越少"的抖动回环） */
-  [...eb.children].forEach(ch=>{ if(ch!==unit && !ch.classList.contains('grow')){
-    const w=ch.getBoundingClientRect().width; if(w>0) used+=w+5; } });
-  const free = eb.clientWidth - used - 128;      // 128≈组标签+×+0–24▾+内边距
-  const per  = 27;                               // 单个品位钮实测宽（含 gap）
-  return Math.max(Math.min(9,mx), Math.min(mx, Math.floor(free/per)));
-}
+/* v48.1 吉他品位钮固定只铺 0–9，10 品及以上一律收进「10–24▾」选择器。
+   原 v47.8 按上栏余量动态铺开：实测其余各组已占去约 1300px（1600 视口下本组仅剩约 170px），
+   宽屏几乎永远算不出能多铺，却让按钮数随窗口宽度浮动、位置不固定——手指/鼠标记不住「几品在哪」。
+   固定 10 个数字钮换来稳定的肌肉记忆，高把位走选择器（弹格 0–24 一屏可点）。
+   保留本函数而非内联常量：uku 等 fretMax<9 的乐器仍需按乐器上限收敛，且各处调用点不动。 */
+function fretInlineCap(){ return Math.min(9, fretMaxOf()); }
 function setFret(f){
   if(sel.row!=='tab') return;
   if(f!=null){ f=Math.max(0, Math.min(fretMaxOf(), f|0)); }   // v47.7 越界守卫（此前 setFret(99) 直接写脏）
@@ -8028,10 +8020,8 @@ function askText(title, def, cb){
     if(ev.key==='Escape'){ ev.preventDefault(); closePop(); }
   });
 }
-/* v47.8 上栏余量变化 → 重算品位钮折叠（去抖；仅刷新输入组，不重排谱面） */
-{ let rzT=null;
-  window.addEventListener('resize', ()=>{ clearTimeout(rzT);
-    rzT=setTimeout(()=>{ try{ syncInputs(); }catch(_){} }, 120); }); }
+/* v48.1 移除 v47.8 的 resize→重算品位折叠监听：品位钮已固定铺 0–9（见 fretInlineCap），
+   折叠量不再随窗口宽度变化，该监听已无作用；顺带免掉拖窗口时的无谓 syncInputs 抖动 */
 window.addEventListener('pointerdown', e=>{
   if(!e.target.closest('#popmenu') && !e.target.closest('#mx-panel')
      && !(document.getElementById('mx-panel') && e.target.closest('#mixer-dock'))
@@ -13427,6 +13417,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.1</span><div><b>吉他谱品位钮固定铺 0–9，高把位一律收起</b>：品位数字不再随窗口宽度浮动——<b>固定只显示 0–9</b>，10 品及以上统一收进<b>「10–24▾」</b>选择器（尤克里里按乐器上限显示「10–15▾」）。此前按上栏余量动态铺开，实测其余各组已占去约 1300px、宽屏也几乎腾不出位置，结果是<b>按钮个数和位置会随窗口大小变化</b>，手记不住「几品在哪」；固定 10 个钮换来稳定的肌肉记忆，高把位走选择器（弹格 0–24 一屏可点）。同时移除了随之而来的拖窗口重算，拖动窗口时上栏不再抖动。</div></li>
     <li><span class="v">v48.0</span><div><b>落音光标真正会走 + 吉他谱「品位」组展示修正</b>：① <b>落音后光标即刻前进到下一个音</b>——v47.9 用的是「延迟前进」（光标停在刚落的音上、下次落音才移动），虽然按键数已经省下来了，但<b>看上去就像没前进</b>；现改为落音即走，录旋律一路按音高键即可，实测录 16 个音<b>只需 16 次按键</b>。② <b>「先落音、再点升降号 / 附点 / 八度」照常生效</b>——光标虽已前进，这些记号会<b>自动回落到刚录的那个音</b>上（变音钮的高亮同步跟随），不会写到前面的空位去；手动点选谱面即取消回落、就地修改已有音符。③ <b>吉他谱音符组三处展示修正</b>：组标签由「音符」改为<b>「品位」</b>（六线谱里的数字是品位不是音名）；高把位选择器由固定的「0–24▾」改为<b>只标折叠掉的那段</b>（已铺开 0–9 时显示「10–24▾」，不再与旁边的 0–9 重复）；<b>×</b> 补中文小字<b>「分解」</b>（该组只有它是纯符号，此前认不出含义）。</div></li>
     <li><span class="v">v47.9</span><div><b>录入流程两处硬伤修复（九谱类全流程实测查出）</b>：① <b>填词不再串字</b>——歌词框按回车跳到下一个音时<b>没有清空上一个字</b>，连打「好 / 一 / 朵 / 美」会写成「好 / 好一 / 好一朵 / 好一朵美」，多字词还会把谱面挤重叠；现已在跳转后按目标音回填，连打即逐字对位（简谱歌谱 / 教学对照谱 / 吉他弹唱谱三类同修）；② <b>录旋律不必再「数字＋→」交替按</b>——简谱 / 五线谱落音后<b>光标自动走到下一个音</b>，实测录 16 个音由 32 次按键降到 <b>16 次</b>。采用<b>延迟前进</b>：光标视觉上停在刚落的音上，下一次落音时才前移，因此<b>「先落音、再点升降号 / 附点 / 八度」的简谱习惯照常生效</b>（不会把升号加到下一个空音上）；手动点选谱面即放弃前进、就地改音。可在右栏「智能」页一键关闭恢复旧手感；<b>六线谱不受影响</b>（品位有两位数，需保留合成输入）；③ 智能提示按实际行为改写——旧文案「选中音符后直接打字即可填入歌词」并不成立，改为「按 Enter 唤出歌词框填词，填完再按 Enter 跳下一个音」，落音提示也随自动前进开关同步。</div></li>
     <li><span class="v">v47.8</span><div><b>音符组按谱类彻底分化 + 节奏型库按谱类对应</b>：① <b>简谱</b>：1–7 为简谱音名、0 为休止符，后接高八度 / 低八度；② <b>吉他谱</b>：不再出现简谱音名，数字一律是<b>品位</b>——<b>0–24 品全部可直接点选</b>，并<b>按上栏余量自动折叠</b>（宽屏一路铺开到 24 品；窄屏只铺 0–9，其余收进「0–24▾」选择器，改变窗口大小会实时重算），<b>×</b> 改为<b>分解标记</b>（分解和弦中不发实音的 × 记号，不再叫「闷音」）；③ <b>五线谱</b>：休止符按五线谱规则出<b>真正的休止符字形</b>，并<b>随当前时值变化</b>（全 / 二分 / 四分 / 八分 / 十六分 / 三十二分休止），不再沿用简谱的「0」；④ <b>节奏型库按谱类对应</b>：编辑五线谱大谱表时按钮变为<b>「伴奏织体…」</b>，打开的是<b>常用钢琴节奏型</b>（柱式和弦 / 抒情分解 / 半分解 / 阿尔贝蒂低音 / 圆舞曲等，按已标注和弦自动生成双手音符）；吉他谱仍是扫弦/分解节奏型，简谱仍是简谱节奏型；单谱表五线谱会提示「伴奏织体需要大谱表双手声部」并退回节奏型库。</div></li>
