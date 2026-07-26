@@ -9259,6 +9259,8 @@ function phraseGate(rhythm, br){ return br? Math.max(0.12, rhythm*0.85) : rhythm
 function pedalDur(at, nextAt, base){
   return (nextAt!=null && nextAt>at+0.01)? Math.max(0.08, nextAt-at) : Math.max(base, 3);
 }
+/* v49.2 推弦幅度→半音数（GP 惯例：full=全音；未标幅度默认 full） */
+function bendSemi(bAmt){ return {'1/4':0.5,'1/2':1,'full':2,'1.5':3}[bAmt]||2; }
 function humJit(a,b,c){
   let h=((a+1)*73856093) ^ ((b+1)*19349663) ^ (((c||0)+1)*83492791);
   h=(h ^ (h>>>13)) >>> 0;
@@ -9415,6 +9417,58 @@ function sfDecode(ctx, bank, midi){
     }).catch(()=>{ delete bank.buf['p'+key]; });
   }catch(_){ delete bank.buf['p'+key]; }
 }
+/* v49.2 技法发声·音高自动化（采样与 KS 合成共用——两条通路都是 BufferSource+playbackRate）：
+   bend 推弦（up 推起/rel 推起放回/pre 预推释放）、glide 连线滑弦到目标音、gin 滑进、
+   gout 滑出、vib 揉弦 LFO（OscillatorNode 相位固定→确定性，复听一致）。
+   fx.end=按记谱时值折算的技法有效终点（let-ring 长延音时推弦/揉弦不拖到 6 秒后）。 */
+function pitchFX(ctx, src, rate, when, endAt, fx){
+  const p=src.playbackRate; const R=(s)=>rate*Math.pow(2,s/12);
+  const endFx=fx.end? Math.min(endAt, fx.end) : endAt;
+  const span=Math.max(0.08, endFx-when);
+  if(fx.bend){
+    const semi=fx.bend.semi;
+    if(fx.bend.type==='pre'){                        // 预推：起于推满音高，稍持后释放回品位音
+      p.setValueAtTime(R(semi), when);
+      const t1=when+Math.min(0.22, span*0.3);
+      p.setValueAtTime(R(semi), t1);
+      p.linearRampToValueAtTime(rate, Math.max(t1+0.02, Math.min(t1+0.18, endFx-0.02)));
+    } else {
+      const t0=when+Math.min(0.03, span*0.12);
+      p.setValueAtTime(rate, t0);
+      const t1=Math.min(t0+0.14, when+span*0.5);
+      p.linearRampToValueAtTime(R(semi), t1);
+      if(fx.bend.type==='rel'){                      // 推弦回放：推起→保持→放回
+        const t2=Math.max(t1+0.05, endFx-0.24);
+        p.setValueAtTime(R(semi), t2);
+        p.linearRampToValueAtTime(rate, Math.max(t2+0.02, endFx-0.02));
+      }
+    }
+  }
+  if(fx.gin){                                        // 滑进：由低/高约 2 品滑入本音
+    p.setValueAtTime(rate*fx.gin.ratio, when);
+    p.linearRampToValueAtTime(rate, when+Math.min(fx.gin.dur, span*0.5));
+  }
+  if(fx.glide && fx.glide.at>when+0.03){             // 连线滑弦：目标音起点前 dur 秒滑到目标音高
+    const at=Math.min(fx.glide.at, endAt);
+    const d=Math.min(fx.glide.dur, Math.max(0.03, at-when-0.01));
+    p.setValueAtTime(rate, at-d);
+    p.linearRampToValueAtTime(rate*fx.glide.ratio, at);
+  }
+  if(fx.gout){                                       // 滑出：结尾向上/向下甩出
+    const d=Math.min(fx.gout.dur, span*0.5);
+    p.setValueAtTime(rate, endFx-d);
+    p.linearRampToValueAtTime(rate*fx.gout.ratio, endFx);
+  }
+  if(fx.vib){                                        // 揉弦：5.6Hz ±30 音分，起振后渐入
+    const o=ctx.createOscillator(); o.frequency.value=5.6;
+    const og=ctx.createGain(); og.gain.setValueAtTime(0, when);
+    og.gain.setValueAtTime(0, when+0.12);
+    og.gain.linearRampToValueAtTime(rate*0.0175, when+0.3);   // 2^(30/1200)-1
+    o.connect(og); og.connect(p);
+    o.start(when); o.stop(endFx+0.4);
+    audio.sources.push(o);
+  }
+}
 /* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
 function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const bank=sfBanks[name];
@@ -9436,10 +9490,14 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const src=ctx.createBufferSource(); src.buffer=buf;
   const rate=freq/midiFreq(pick); src.playbackRate.value=rate;
   const sus=SF_SUSTAIN.has(name);
-  const natLen=(buf.duration-ent.o)/rate;                   // 采样自然衰减长度（按变速，去掉头部静音）
+  /* v49.2 音高技法护栏：推弦/滑音临时抬高 playbackRate 会提前耗尽 buffer——natLen 按最大
+     可能上移（1.5 全音推弦 ×1.19）保守折减，确保包络仍在源耗尽前收零（揉弦对称不折减）。 */
+  const fxUp = opt && opt.fx && (opt.fx.bend||opt.fx.gin||opt.fx.gout||opt.fx.glide) ? 1.2 : 1;
+  const natLen=(buf.duration-ent.o)/rate/fxUp;              // 采样自然衰减长度（按变速，去掉头部静音）
   const g=ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
-  g.gain.linearRampToValueAtTime(gain, when+0.006);         // 6ms 线性起音，杜绝爆音
+  /* v49.2 连奏（击弦/勾弦/点弦目标音）：30ms 缓起音抹去拨片音头 */
+  g.gain.linearRampToValueAtTime(gain, when+((opt&&opt.legato)?0.03:0.006));
   /* v48.6 收音全改指数（setTargetAtTime）：线性收尾在对数听觉域前慢后快、带「推子感」，
      指数衰减才是弦振动的自然形状。截断护栏：任何分支的收音都必须在采样 buffer 耗尽前
      把增益收到零——此前 sus 分支长音在 buffer 末尾仍处 ramp 中段，源一到头就产生爆点；
@@ -9468,6 +9526,7 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   }
   src.connect(g); tail.connect(bus.dry);
   const ws=ctx.createGain(); ws.gain.value=0.5; tail.connect(ws); ws.connect(bus.wet);
+  if(opt&&opt.fx) pitchFX(ctx, src, rate, when, Math.min(stopAt+0.02, bufEnd), opt.fx);   /* v49.2 技法音高自动化 */
   src.start(when, ent.o); src.stop(Math.min(stopAt+0.02, bufEnd));   /* onset 修剪：跳过编码器头部静音，起音更准 */
   audio.sources.push(src);
   return true;
@@ -9590,10 +9649,15 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   const velB = opt && opt.vel!=null ? Math.min(1, Math.max(0.3, opt.vel)) : Math.min(1, gain*3.2);
   lp.frequency.value=(sp.tone||3800)*(0.72+0.55*velB);
   const g=ctx.createGain(); g.gain.value=gain;
+  if(opt&&opt.legato){                                      // v49.2 连奏：缓起音抹去拨片音头
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(gain, when+0.03);
+  }
   if(damp && !mute){                                        // 该弦被再次弹响：快速阻尼旧音
     g.gain.setValueAtTime(gain, when+Math.max(0.02, dur-0.05));
     g.gain.linearRampToValueAtTime(0.0001, when+dur);
   }
+  if(opt&&opt.fx) pitchFX(ctx, src, 1, when, when+ring, opt.fx);   /* v49.2 技法音高自动化（KS 通路） */
   src.connect(hp); hp.connect(lp);
   let out=lp;
   if(sp.drive){ const ws=shaperCurve(ctx, sp.drive); lp.connect(ws); out=ws; }
@@ -9607,6 +9671,7 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
     const s2=ctx.createBufferSource(); s2.buffer=ksBuffer(ctx,freq*1.0023,ring,sp,false);
     const g2=ctx.createGain(); g2.gain.value=gain*0.3;
     s2.connect(hp);
+    if(opt&&opt.fx) pitchFX(ctx, s2, 1, when, when+ring, opt.fx);   /* 双弦层随主弦同步滑/推/揉 */
     s2.start(when); s2.stop(when+ring);
     audio.sources.push(s2);
   }
@@ -10044,6 +10109,8 @@ function play(){
        同一根弦被再次弹响才掐断旧音（自然响到那一刻再快速阻尼）；
        否则让弦自然延音到采样衰减结束。音符时值只决定下一个音何时开始。 */
     const insts=[];
+    const ctimes={}, octx={};   /* v49.2 技法发声：列时刻表 + 内容小节→order 下标（tk 跨小节解析；simile 展开后 tk.mi 指源小节） */
+    order.forEach((mi,oi)=>{ const c2=simileSrc(mi); const cmi=c2!=null?c2:mi; (octx[cmi]=octx[cmi]||[]).push(oi); });
     order.forEach((mi,oi)=>{
       let off=starts[oi];
       const smi=simileSrc(mi);   // v41.3 小节反复：播放展开为源小节内容
@@ -10051,6 +10118,7 @@ function play(){
       let bcum=0;                                 /* v48.9 小节内拍位（拍点重音用） */
       (song.measures[smi!=null?smi:mi].tabs[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col,mUt)*spb;
+        ctimes[oi+':'+ci]=t+off;
         let picked = col.notes;
         if(col.strum){
           const sp = strumSpan(col);
@@ -10069,7 +10137,8 @@ function play(){
           const jj=HJ(mi, ci, n.s);                /* v48.6 确定性微扰动（精确档归零） */
           insts.push({ when:t+off+plan[k].dt, s:n.s, x:!!n.x, mute:!!col.mute,
             freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv,
-            vel:dg*plan[k].g });                   /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
+            vel:dg*plan[k].g,                      /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
+            oi, ci, dsec:durSec, tech:n.tech, tk:n.tk, bAmt:n.bAmt, bTy:n.bendType });   /* v49.2 技法字段 */
         });
         bcum+=beatsOf(col,mUt);
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
@@ -10084,11 +10153,59 @@ function play(){
       if(pv!=null) insts[pv].cut=it.when;                 // 前一同弦音在本音起始处被掐断
       lastByStr[it.s]=idx;
     });
+    /* v49.2 技法发声解析（记谱数据早已齐全，此前只画不响）：
+       推弦 b/bd/预推（bAmt 幅度画音高曲线）、连线滑弦 sl（临近目标滑到目标音高+目标连奏）、
+       滑进 su/sd·滑出 ou/od（±2 品）、击弦 h/勾弦 p/点弦 tp（目标音连奏去音头）、
+       揉弦 v（LFO，含 tk 范围）、P.M.（时值门+变暗+降力度，含 tk 范围）。let ring 由
+       既有逐弦延音模型天然覆盖（不掐弦即 let ring），无需额外处理。 */
+    const colT=(oi,tkMi,tkCi)=>{                          // tk 目标列的绝对时刻（本次出现或其后首个出现）
+      const c2=simileSrc(order[oi]); const cmi=c2!=null?c2:order[oi];
+      if(cmi===tkMi && ctimes[oi+':'+tkCi]!=null) return {tt:ctimes[oi+':'+tkCi], toi:oi};
+      for(const o2 of (octx[tkMi]||[])){ if(o2>oi && ctimes[o2+':'+tkCi]!=null) return {tt:ctimes[o2+':'+tkCi], toi:o2}; }
+      return null;
+    };
+    const byKey={};
+    insts.forEach(it=>{ byKey[it.oi+':'+it.ci+':'+it.s]=it; });
+    const pmSpans=[], vibSpans=[];
+    insts.forEach(it=>{
+      if(it.x || (!it.tech && !it.bTy)) return;
+      const te=it.tech;
+      if(te==='b'||te==='bd'||it.bTy){
+        it.fx=it.fx||{}; it.fx.bend={semi:bendSemi(it.bAmt), type: it.bTy==='pre'?'pre':((te==='bd'||it.bTy==='rel')?'rel':'up')};
+      } else if(te==='su'||te==='sd'){ it.fx=it.fx||{}; it.fx.gin={ratio:Math.pow(2,(te==='su'?-2:2)/12), dur:0.07}; }
+      else if(te==='ou'||te==='od'){ it.fx=it.fx||{}; it.fx.gout={ratio:Math.pow(2,(te==='ou'?2:-2)/12), dur:0.09}; }
+      else if(te==='tp'){ it.legato=true; it.vel*=0.85; }
+      else if((te==='sl'||te==='h'||te==='p') && it.tk){
+        const r=colT(it.oi, it.tk.mi, it.tk.ci); if(!r) return;
+        const tgt=byKey[r.toi+':'+it.tk.ci+':'+(it.tk.si!=null?it.tk.si:it.s)];
+        if(tgt){ tgt.legato=true; tgt.vel*=0.8;
+          if(te==='sl' && tgt.freq>0 && it.freq>0){ it.fx=it.fx||{}; it.fx.glide={ratio:tgt.freq/it.freq, at:r.tt, dur:0.08}; } }
+      }
+      else if(te==='v'){ it.fx=it.fx||{}; it.fx.vib=true;
+        if(it.tk){ const r=colT(it.oi, it.tk.mi, it.tk.ci); if(r) vibSpans.push({a:it.when-0.01, b:r.tt+0.02}); } }
+      else if(te==='pm'){ it.pm=true;
+        pmSpans.push({a:it.when-0.01, b: it.tk? ((colT(it.oi, it.tk.mi, it.tk.ci)||{tt:it.when}).tt+0.02) : it.when+0.01}); }
+    });
+    if(pmSpans.length||vibSpans.length) insts.forEach(it=>{
+      if(!it.x && pmSpans.some(sp2=>it.when>=sp2.a && it.when<=sp2.b)) it.pm=true;
+      if(!it.x && vibSpans.some(sp2=>it.when>=sp2.a && it.when<=sp2.b)){ it.fx=it.fx||{}; it.fx.vib=true; }
+    });
     insts.forEach(it=>{
       if(it.x){ chick(ctx, tbus, it.when, 0.3*vol); return; }
       if(it.mute){ playInst(cfg.inst, ctx, tbus, it.freq, it.when, 0.14, it.gain, true); chick(ctx, tbus, it.when, 0.12*vol); return; }
-      const ring = it.cut!=null ? Math.max(0.06, it.cut-it.when) : 6.0;   // 到下次同弦发声 / 自然延音
-      playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, {damp: it.cut!=null, vel: it.vel});
+      let ring = it.cut!=null ? Math.max(0.06, it.cut-it.when) : 6.0;   // 到下次同弦发声 / 自然延音
+      const opt2={damp: it.cut!=null, vel: it.vel};
+      if(it.pm){                                           // P.M.：时值门 + 变暗 + 略降增益
+        ring=Math.min(ring, Math.max(0.09, it.dsec*0.55)); opt2.damp=true;
+        opt2.vel=Math.min(opt2.vel, it.vel*0.6); it.gain*=0.9;
+      }
+      if(it.legato) opt2.legato=true;
+      if(it.fx){
+        if(it.fx.gout && it.cut==null) ring=Math.min(ring, Math.max(0.3, it.dsec));   // 滑出音按记谱时值收
+        it.fx.end = it.when + Math.max(0.3, it.dsec);      // 技法有效终点＝记谱时值（let-ring 不拖 6 秒）
+        opt2.fx=it.fx;
+      }
+      playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, opt2);
     });
   });
   /* 简谱（旋律）声部：连音线合并同音；拨弦/钢琴音色延音到下一个音（休止不掐、末音自然衰减），
@@ -13675,7 +13792,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.1';
+const APP_VER='v49.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13698,6 +13815,7 @@ const APP_VER='v49.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.2</span><div><b>吉他技法发声·第一批（谱上的记号终于会响了）</b>：此前 20 多种吉他技法记号「只画不响」，标满推弦滑音的 solo 谱播出来每个音都直上直下。本版让高频技法全部发声：① <b>推弦</b>——按标注幅度（¼/½/full/1½，未标默认全音）画真实音高曲线，支持推起保持、<b>推弦回放</b>（推起→放回）与<b>预推</b>（起于高音释放回落）；② <b>滑弦</b>——连线滑弦临近目标时平滑滑到目标音高，滑进/滑出（↗↘ 无头无尾滑）±2 品甩音；③ <b>击弦 h / 勾弦 p / 点弦</b>——目标音连奏化：抹去拨片音头、力度自然减弱，连奏乐句不再颗颗重敲；④ <b>揉弦</b>——5.6Hz 揉弦颤动渐入（支持范围揉弦），复听完全一致；⑤ <b>P.M. 闷音</b>——时值门+音色变暗+力度收敛（支持 P.M. 范围线）；⑥ let ring 由既有逐弦延音模型天然覆盖。采样与内置合成器<b>两条通路同一套技法引擎</b>（共用音高自动化器），首播回落时技法同样生效；推弦提高播速会提前耗尽采样，已加护栏防截断爆点。tv_audio 增至 16 项断言全绿（推弦稳态能量迁移/连奏起音包络/揉弦 LFO 数值验证）。</div></li>
     <li><span class="v">v49.1</span><div><b>踏板模拟 + 乐句呼吸 + 合成器力度一致（音质升级·第二批③，本批收官）</b>：① <b>钢琴踏板模拟</b>——钢琴/钢琴弹唱谱左手声部的和音不再按固定门限截断，而是<b>延音到本声部下一个发声位置</b>（右手换旋律音时左手和声仍「踩在踏板里」），曲末和弦自然延响≥3 秒；② <b>乐句呼吸</b>——谱面标了换气记号 v 的音自动提前收音约 15%，留出真实的「吸气」空隙，唱谱跟练更贴近人声乐句；③ <b>合成器力度一致</b>——内置合成器（采样未就绪时的回落通路）现在吃同一条力度管道：KS 拨弦亮度、合成钢琴的起始泛音与琴槌噪声都随音乐力度变化，回落与采样两条通路的强弱表现不再脱节。tv_audio 增至 13 项断言全绿。</div></li>
     <li><span class="v">v49.0</span><div><b>首播音质收敛 + 力度明暗联动（音质升级·第二批②）</b>：解决「第一遍播放音色明显偏闷」的三个根源——① <b>打开曲谱即预取全量音色</b>：进入编辑就后台下载并解码当前谱用到的高保真采样（此前要点了播放才开始下载 2MB 级音色包），首次点播放即是全量音质；② <b>音色包本地缓存</b>：下载过的音色包存入浏览器 Cache Storage，二次进站秒级就绪、离线也可用；③ <b>整包就绪才切换</b>：全量包解码期间继续用内置采样，全部就绪后一次性切换——一首歌里不再出现「前半段真采样、后半段合成器」的混播跳变；④ <b>力度→明暗联动</b>：轻音不只更小声、音色也随之变暗（真乐器弱奏高频泛音更少），与 v48.9 的拍点重音/扫弦力度型贯通成完整力度管道——伴奏更松弛、重音更亮更前。tv_audio 增至 12 项断言全绿。</div></li>
     <li><span class="v">v48.9</span><div><b>音符层塑形（音质升级·第二批①，MIDI 专家参数落地）</b>：① <b>拍点重音</b>——强拍 +2.5dB、次强拍 +1.5dB、弱拍位 −1.4～−1.9dB，简谱与 TAB 全声部生效，播放从「均匀敲格子」变出律动骨架；② <b>扫弦力度型</b>——下扫低音弦先响且更重（弦间递减梯度）、展开约 70ms 且逐弦加速；<b>上扫只碰高音侧 ≤4 根弦</b>（真人手腕物理够不到低音弦）、更快更轻——D-DU-UDU 终于有了「下重上轻」的真实手感；③ <b>和音塑形</b>——同列附加音按音高低→高各错 3ms 微滚奏、内声部退后约 −9dB（旋律浮在和声之上，不再糊成一片），并同步吃力度记号；④ <b>钢琴左手自动让位</b>——钢琴/钢琴弹唱谱左手声部默认约 −3.5dB，伴奏不压旋律（轨道音量仍可自行调整）；⑤ 新增<b>「演奏感：自然/精确」开关</b>（创作提示列）——自然档保留确定性微扰动（复听一致），精确档零扰动供校音/跟练；拍点重音等确定性塑形两档都保留。试听定论：<b>音色库保持 MusyngKite 不换</b>，灰度开关默认收起（机制保留）。tv_audio 增至 10 项断言全绿。</div></li>

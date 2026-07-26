@@ -223,6 +223,40 @@ const T = (ok, name, detail) => {
       };
     }
 
+    // ── L 技法发声（v49.2）：推弦音高曲线 / 连奏起音 / 揉弦 LFO / 幅度表 ──
+    {
+      const bare = (ctx) => { const dry = ctx.createGain(); dry.connect(ctx.destination);
+        const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination); return { dry, wet }; };
+      const rend = async (fx, legato) => {
+        const ctx = new OfflineAudioContext(2, SR * 2, SR);
+        let osc = 0; const orig = ctx.createOscillator.bind(ctx);
+        ctx.createOscillator = () => { osc++; return orig(); };
+        await decodeInto(ctx, 52);
+        sfTryPlay(ctx, bare(ctx), 'acoustic_guitar_steel', midiFreq(52), 0.1, 1.5, 0.5,
+          { vel: 1, fx, legato });
+        const buf = await ctx.startRendering();
+        return { ch: buf.getChannelData(0), osc };
+      };
+      const goe = (ch, f, a0, b0) => { const a2 = Math.floor(a0 * SR), b2 = Math.floor(b0 * SR), N = b2 - a2;
+        const w = 2 * Math.PI * f / SR, cw = 2 * Math.cos(w); let p0 = 0, p1 = 0, p2 = 0;
+        for (let i = 0; i < N; i++) { const win = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+          p0 = ch[a2 + i] * win + cw * p1 - p2; p2 = p1; p1 = p0; }
+        return Math.sqrt(Math.max(0, p1 * p1 + p2 * p2 - cw * p1 * p2)); };
+      const f0 = midiFreq(52), fB = f0 * Math.pow(2, 2 / 12);
+      const plain = await rend(null, false);
+      const bent = await rend({ bend: { semi: 2, type: 'up' }, end: 1.4 }, false);
+      const leg = await rend(null, true);
+      const pk = (ch, a0, b0) => { let m = 0; for (let i = Math.floor(a0 * SR); i < Math.floor(b0 * SR); i++) m = Math.max(m, Math.abs(ch[i])); return m; };
+      const vib = await rend({ vib: true, end: 1.4 }, false);
+      out.L = {
+        plainF0: +goe(plain.ch, f0, 0.5, 1.0).toFixed(2), plainB: +goe(plain.ch, fB, 0.5, 1.0).toFixed(2),
+        bentF0: +goe(bent.ch, f0, 0.5, 1.0).toFixed(2), bentB: +goe(bent.ch, fB, 0.5, 1.0).toFixed(2),
+        atkN: +pk(plain.ch, 0.1, 0.11).toFixed(4), atkL: +pk(leg.ch, 0.1, 0.11).toFixed(4),
+        vibOsc: vib.osc,
+        semis: [bendSemi('1/4'), bendSemi('1/2'), bendSemi('full'), bendSemi('1.5'), bendSemi(undefined)]
+      };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -262,6 +296,12 @@ const T = (ok, name, detail) => {
   T(Math.abs(r.K.gBr - 1.7) < 1e-9 && r.K.gNo === 2 && Math.abs(r.K.gMin - 0.12) < 1e-9
     && r.K.pdNext === 2 && r.K.pdEnd === 3 && r.K.pdSame === 3 && Math.abs(r.K.pdFloor - 0.08) < 1e-9,
     'K 乐句呼吸收音 15% + 踏板延音到下一发声列/末尾≥3s', JSON.stringify(r.K));
+  T(r.L.plainF0 > r.L.plainB * 2 && r.L.bentB > r.L.bentF0 * 2,
+    'L1 推弦音高曲线：稳态段能量从品位音移到推起音（全音）', JSON.stringify({ pF: r.L.plainF0, pB: r.L.plainB, bF: r.L.bentF0, bB: r.L.bentB }));
+  T(r.L.atkL < r.L.atkN * 0.7, 'L2 连奏起音：击/勾/点目标音 10ms 内包络显著低于常规拨弦',
+    'atkN=' + r.L.atkN + ' atkL=' + r.L.atkL);
+  T(r.L.vibOsc === 1 && r.L.semis.join() === '0.5,1,2,3,2',
+    'L3 揉弦 LFO 已建 + 推弦幅度表（¼/½/full/1½/默认full）', JSON.stringify({ osc: r.L.vibOsc, semis: r.L.semis }));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);
