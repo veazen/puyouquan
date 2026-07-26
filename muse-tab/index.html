@@ -9309,7 +9309,21 @@ async function sfLoad(instKey){
     let text=null;
     if(typeof SF_LOCAL!=='undefined' && SF_LOCAL[name]) text=SF_LOCAL[name];
     else for(const u of sfSources(name)){
-      try{ const r=await fetch(u); if(r && r.ok){ text=await r.text(); break; } }catch(_){}
+      /* v49.0 Cache Storage 本地缓存（非 localStorage，不触碰数据键红线）：
+         二次进站免重下 2MB 级音色包；键=完整源 URL，换库/换源天然分键。
+         file:// 或旧浏览器无 caches → 静默回退纯网络。 */
+      try{
+        let r=null;
+        try{ r=await caches.open('musetab-sf-v1').then(c=>c.match(u)); }catch(_){ }
+        if(!r){
+          const nr=await fetch(u);
+          if(nr && nr.ok){
+            try{ const c=await caches.open('musetab-sf-v1'); await c.put(u, nr.clone()); }catch(_){ }
+            r=nr;
+          }
+        }
+        if(r){ const t2=await r.text(); if(t2 && t2.length>10000){ text=t2; break; } }
+      }catch(_){}
     }
     if(!text) throw 0;
     /* 文件头部有 MIDI 命名空间样板代码，音符表从首个 data:audio 前最近的 { 开始 */
@@ -9319,8 +9333,20 @@ async function sfLoad(instKey){
       .replace(/,\s*\}\s*$/,'}'));   // 源文件为 JS 对象字面量，末尾多一个逗号
     const notes={};
     for(const k in map){ const mi=noteMidi(k); if(mi!=null) notes[mi]=map[k]; }
-    bank.notes=notes; bank.status='ready'; bank.full=true; bank.embedded=false; bank.buf={};
-    if(audio.ctx) sfPredecode(audio.ctx, bank);           // 升级到全量 88 音
+    /* v49.0 影子解码 + 原子切换：此前拿到全量表就地换 notes 并清空已解码缓存——
+       首播中途从「内嵌采样」跳成「未解码→合成回落」的混播（试听质量落差主因之一）。
+       现在全量包先在影子对象里解码，全部就绪后一次性切换；期间播放继续走内嵌采样，
+       整曲音色一致。无 ctx（还没点过播放）时建 suspended ctx 供后台解码——浏览器允许
+       创建，只是出声要等手势，play() 里已有 resume()。 */
+    if(!audio.ctx){ try{ audio.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){ } }
+    if(audio.ctx){
+      const shadow={notes, buf:{}};
+      await sfDecodeAll(audio.ctx, shadow);
+      bank.notes=notes; bank.buf=shadow.buf;
+    } else {
+      bank.notes=notes; bank.buf={};
+    }
+    bank.status='ready'; bank.full=true; bank.embedded=false;
   }catch(_){
     /* 升级失败：有内嵌采样则保持真实音色，否则标记错误回落合成器 */
     bank.status = (bank.notes && Object.keys(bank.notes).length)? 'ready' : 'error';
@@ -9336,6 +9362,22 @@ function sfPredecode(ctx, bank){
     if(i<mids.length) setTimeout(step, 30);
   };
   step();
+}
+/* v49.0 可等待的全量解码（影子库用）：分批派发让出主线程，最后等所有 pending 标记清空 */
+function sfDecodeAll(ctx, bank){
+  return new Promise(res=>{
+    const mids=Object.keys(bank.notes||{}); let i=0;
+    const step=()=>{
+      for(let k=0;k<6 && i<mids.length;k++,i++) sfDecode(ctx, bank, +mids[i]);
+      if(i<mids.length) return setTimeout(step, 30);
+      const wait=()=>{ let pend=false;
+        for(const k2 in bank.buf){ if(k2[0]==='p'){ pend=true; break; } }
+        if(pend) setTimeout(wait, 40); else res();
+      };
+      wait();
+    };
+    step();
+  });
 }
 function sfDecode(ctx, bank, midi){
   const key=ctx.sampleRate+':'+midi;
@@ -9403,8 +9445,21 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   if(sus)                stopAt=rel(when+Math.max(0.02, dur), 0.05);   // 持续音色：随时值收音
   else if(opt&&opt.damp) stopAt=rel(when+Math.max(0.05, dur)-0.05, 0.015); // 再弹响/闷音：快速阻尼
   else                   stopAt=rel(when+Math.min(natLen, dur)-0.06, 0.02); // let ring：播完自然衰减
-  src.connect(g); g.connect(bus.dry);
-  const ws=ctx.createGain(); ws.gain.value=0.5; g.connect(ws); ws.connect(bus.wet);
+  /* v49.0 力度→明暗联动（MIDI 专家「力度管道」首段）：轻音不只更小声，还更暗——
+     真乐器弱奏激励弱、高频泛音少。vel=调度层传入的确定性音乐力度（力度记号×拍点重音×
+     声部/扫弦梯度，≈1 为常规）。vel≥0.95 直通零开销；持续音色（弦乐/长笛/人声）不滤。 */
+  const vel = opt && opt.vel!=null ? opt.vel : 1;
+  let tail=g;
+  if(!sus && vel<0.95){
+    /* 截止随音高相对（谐波数模型）：固定 Hz 截止对低音无感（低音能量本就集中在低频）。
+       弱奏保留谐波数 ≈ 2.5+26·vel²：vel=0.45 约 7.8 次谐波、vel→0.95 趋于直通。 */
+    const v=Math.max(0.25, Math.min(1, vel));
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.5;
+    lp.frequency.value=Math.min(16000, Math.max(900, freq*(2.5+26*v*v)));
+    g.connect(lp); tail=lp;
+  }
+  src.connect(g); tail.connect(bus.dry);
+  const ws=ctx.createGain(); ws.gain.value=0.5; tail.connect(ws); ws.connect(bus.wet);
   src.start(when, ent.o); src.stop(Math.min(stopAt+0.02, bufEnd));   /* onset 修剪：跳过编码器头部静音，起音更准 */
   audio.sources.push(src);
   return true;
@@ -10001,7 +10056,8 @@ function play(){
         ord2.forEach((n,k)=>{
           const jj=HJ(mi, ci, n.s);                /* v48.6 确定性微扰动（精确档归零） */
           insts.push({ when:t+off+plan[k].dt, s:n.s, x:!!n.x, mute:!!col.mute,
-            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv });
+            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv,
+            vel:dg*plan[k].g });                   /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
         });
         bcum+=beatsOf(col,mUt);
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
@@ -10020,7 +10076,7 @@ function play(){
       if(it.x){ chick(ctx, tbus, it.when, 0.3*vol); return; }
       if(it.mute){ playInst(cfg.inst, ctx, tbus, it.freq, it.when, 0.14, it.gain, true); chick(ctx, tbus, it.when, 0.12*vol); return; }
       const ring = it.cut!=null ? Math.max(0.06, it.cut-it.when) : 6.0;   // 到下次同弦发声 / 自然延音
-      playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, {damp: it.cut!=null});
+      playInst(cfg.inst, ctx, tbus, it.freq, it.when, ring, it.gain, false, {damp: it.cut!=null, vel: it.vel});
     });
   });
   /* 简谱（旋律）声部：连音线合并同音；拨弦/钢琴音色延音到下一个音（休止不掐、末音自然衰减），
@@ -10051,7 +10107,7 @@ function play(){
           const per = Math.min(0.12, durSec*0.35/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
             const gm = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false, {damp:true});
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false, {damp:true, vel:0.7});
           });
         }
         /* 后倚音：主音末尾的短促小音符序列 */
@@ -10060,7 +10116,7 @@ function play(){
           const per = Math.min(0.1, durSec*0.3/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
             const gm2 = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
-            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false, {damp:true});
+            playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false, {damp:true, vel:0.65});
           });
         }
         if(col.dyn && DYN_GAIN[col.dyn]) dynG=DYN_GAIN[col.dyn];
@@ -10078,7 +10134,7 @@ function play(){
             .sort((x,y)=>x-y);
           ams.forEach((am,k)=>{
             const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
-            playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off+k*0.003, Math.max(0.08, durSec*0.9), vol*ag*dynG*acc2, false, {damp:true});
+            playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off+k*0.003, Math.max(0.08, durSec*0.9), vol*ag*dynG*acc2, false, {damp:true, vel:dynG*acc2*0.7});
           });
         }
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
@@ -10091,11 +10147,11 @@ function play(){
     notes.forEach((n,i)=>{
       const rhythm = n.end - n.at;
       let dur, opt;
-      if(sustained){ dur=rhythm; opt=undefined; }
+      if(sustained){ dur=rhythm; opt={vel:n.g}; }
       else {
         const nx=notes[i+1];
-        if(nx){ dur=Math.max(rhythm, nx.at-n.at); opt={damp:true}; }
-        else { dur=Math.max(rhythm, 6.0); opt={damp:false}; }
+        if(nx){ dur=Math.max(rhythm, nx.at-n.at); opt={damp:true, vel:n.g}; }
+        else { dur=Math.max(rhythm, 6.0); opt={damp:false, vel:n.g}; }
       }
       playInst(cfg.inst, ctx, tbus, n.freq, n.at, dur, vol*1.05*n.g, false, opt);
     });
@@ -10523,6 +10579,13 @@ function loadSong(s, after){
     sel={mi:0,row:song.tabVoices&&song.tabVoices.length?'tab':'vox',vi:0,ci:0,si:1}; selRange=null;
     clampSel(); persist(); render();
     if(after) after();
+    /* v49.0 载入即预取全量音色（不等点播放）：网络下载+后台解码在编辑期完成，
+       首次点播放即全量采样。防抖 600ms 避免连续载入重复触发；
+       仅 http(s) 生效——file:// 下 fetch 被浏览器拦截，预取无意义（回归测试也走 file://）。 */
+    try{ if(/^https?:$/.test(location.protocol)){
+      clearTimeout(window.__sfPrefetch);
+      window.__sfPrefetch=setTimeout(()=>{ try{ if(hifiOn) hifiPreload(); }catch(_){ } }, 600);
+    } }catch(_){}
   });
 }
 function exportSong(){
@@ -13583,7 +13646,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v48.9';
+const APP_VER='v49.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13606,6 +13669,7 @@ const APP_VER='v48.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.0</span><div><b>首播音质收敛 + 力度明暗联动（音质升级·第二批②）</b>：解决「第一遍播放音色明显偏闷」的三个根源——① <b>打开曲谱即预取全量音色</b>：进入编辑就后台下载并解码当前谱用到的高保真采样（此前要点了播放才开始下载 2MB 级音色包），首次点播放即是全量音质；② <b>音色包本地缓存</b>：下载过的音色包存入浏览器 Cache Storage，二次进站秒级就绪、离线也可用；③ <b>整包就绪才切换</b>：全量包解码期间继续用内置采样，全部就绪后一次性切换——一首歌里不再出现「前半段真采样、后半段合成器」的混播跳变；④ <b>力度→明暗联动</b>：轻音不只更小声、音色也随之变暗（真乐器弱奏高频泛音更少），与 v48.9 的拍点重音/扫弦力度型贯通成完整力度管道——伴奏更松弛、重音更亮更前。tv_audio 增至 12 项断言全绿。</div></li>
     <li><span class="v">v48.9</span><div><b>音符层塑形（音质升级·第二批①，MIDI 专家参数落地）</b>：① <b>拍点重音</b>——强拍 +2.5dB、次强拍 +1.5dB、弱拍位 −1.4～−1.9dB，简谱与 TAB 全声部生效，播放从「均匀敲格子」变出律动骨架；② <b>扫弦力度型</b>——下扫低音弦先响且更重（弦间递减梯度）、展开约 70ms 且逐弦加速；<b>上扫只碰高音侧 ≤4 根弦</b>（真人手腕物理够不到低音弦）、更快更轻——D-DU-UDU 终于有了「下重上轻」的真实手感；③ <b>和音塑形</b>——同列附加音按音高低→高各错 3ms 微滚奏、内声部退后约 −9dB（旋律浮在和声之上，不再糊成一片），并同步吃力度记号；④ <b>钢琴左手自动让位</b>——钢琴/钢琴弹唱谱左手声部默认约 −3.5dB，伴奏不压旋律（轨道音量仍可自行调整）；⑤ 新增<b>「演奏感：自然/精确」开关</b>（创作提示列）——自然档保留确定性微扰动（复听一致），精确档零扰动供校音/跟练；拍点重音等确定性塑形两档都保留。试听定论：<b>音色库保持 MusyngKite 不换</b>，灰度开关默认收起（机制保留）。tv_audio 增至 10 项断言全绿。</div></li>
     <li><span class="v">v48.8</span><div><b>响度归一 + 音色库灰度开关（音质升级·第一批③，核心版）</b>：① <b>按样响度归一</b>——每个采样解码时实测起音窗响度与峰值，自动补偿增益（封顶 ×4 防噪底、近静音坏样自动改走合成器）；<b>钢琴从此不再「几乎听不见」</b>（此前采样源电平低至 −30dBFS 且引擎再砍半，实测生效峰值提升约 4–10 倍）；② <b>起音修剪</b>——自动跳过 MP3 编码器头部静音（实测 3–7ms），音头与节拍器对得更准；③ 删除采样通路的统一 ×0.5，电平锚点与合成器对齐；离线渲染实测最坏情况（双轨扫弦+和弦齐鸣）总线峰值 0.60、零削波；④ <b>音色库灰度开关</b>——右栏「信息」页版本号下方新增「音色库」一行，点击在 MusyngKite ↔ <b>FluidR3</b>（逐音电平一致性更好）间切换试听，刷新生效、随时切回；也可用网址参数 <code>?sndlib=fluid</code>。服务器双库已就位。tv_audio 增至 9 项断言全绿。</div></li>
     <li><span class="v">v48.7</span><div><b>混响细修（音质升级·第一批②）</b>：混响 IR 叠加 <b>180Hz 低切</b>——钢琴低音经混响不再糊成一团（低频尾巴是元凶）；predelay 12→18ms，干湿分离度提升、<b>音头更清晰</b>（跟练要听得清音头）。如实说明：评审专家建议的「立体声去相关」「时变渐暗」经查<b>现有实现早已具备</b>（双声道独立噪声＋时变低通），本版只补真正缺的一刀；湿量不盲调，留待音色库灰度期用耳朵定。tv_audio 新增混响 IR 性质断言（predelay 零区/声道去相关/渐暗/无低频泥），8 项全绿。</div></li>

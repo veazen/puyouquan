@@ -4,7 +4,8 @@
    不断言逐样本值。
    覆盖：无削波 / 收音尾部静音 / 采样截断点无爆点（一阶差分探针）/ 采样路径有效 /
         多轨最坏情况总线安全 / 力度时间线作用于 TAB / 微扰动确定性（同位同值、异位异值）/
-        响度归一系数与生效电平 / 混响 IR 性质 / v48.9 扫弦力度型与拍点重音表。 */
+        响度归一系数与生效电平 / 混响 IR 性质 / v48.9 扫弦力度型与拍点重音表 /
+        v49.0 力度→明暗联动 / 影子解码原子切换前置。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html');
@@ -176,6 +177,43 @@ const T = (ok, name, detail) => {
         cents: +cents.toFixed(2), db: +db.toFixed(2) };
     }
 
+    // ── I 力度→明暗联动（v49.0）：同音同增益，vel 低者高次谐波显著衰减、低次谐波保留 ──
+    {
+      /* 度量踩过两个坑（记录防重蹈）：一阶差分/一阶高通级联对低音都不灵敏——165Hz 基频
+         统治总能量，中频谐波经浅斜率泄漏淹没真实差异；且 buildBus 的压缩器是非线性器件
+         会再生谐波。故：裸总线（绕开混响/压缩）+ Goertzel 频域点测谐波幅度。 */
+      const mk = async (vel) => {
+        const ctx = new OfflineAudioContext(2, SR * 2, SR);
+        const dry = ctx.createGain(); dry.connect(ctx.destination);
+        const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination);
+        await decodeInto(ctx, 52);
+        sfTryPlay(ctx, { dry, wet }, 'acoustic_guitar_steel', midiFreq(52), 0.1, 1.2, 0.5, { vel });
+        const buf = await ctx.startRendering();
+        const ch = buf.getChannelData(0);
+        const goe = (f) => { const a2 = Math.floor(0.15 * SR), b2 = Math.floor(0.65 * SR), N = b2 - a2;
+          const w = 2 * Math.PI * f / SR, cw = 2 * Math.cos(w); let p0 = 0, p1 = 0, p2 = 0;
+          for (let i = 0; i < N; i++) { const win = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+            p0 = ch[a2 + i] * win + cw * p1 - p2; p2 = p1; p1 = p0; }
+          return Math.sqrt(Math.max(0, p1 * p1 + p2 * p2 - cw * p1 * p2)); };
+        const f0 = midiFreq(52);
+        let high = 0; for (let h = 12; h <= 20; h++) high += goe(h * f0);
+        return { low: goe(4 * f0), high };
+      };
+      const L = await mk(1.0), S = await mk(0.45);
+      out.I = { loudHigh: +L.high.toFixed(2), softHigh: +S.high.toFixed(2),
+        loudLow: +L.low.toFixed(2), softLow: +S.low.toFixed(2) };
+    }
+
+    // ── J 影子解码可等待（v49.0 原子切换前置）：resolve 时全部就绪、无 pending 标记 ──
+    {
+      const ctx = new OfflineAudioContext(2, SR, SR);
+      const shadow = { notes: Object.assign({}, sfBanks['acoustic_guitar_steel'].notes), buf: {} };
+      await sfDecodeAll(ctx, shadow);
+      const keys = Object.keys(shadow.buf);
+      out.J = { n: Object.keys(shadow.notes).length,
+        dec: keys.filter(k => k[0] !== 'p').length, pend: keys.filter(k => k[0] === 'p').length };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -208,6 +246,10 @@ const T = (ok, name, detail) => {
   T(r.H.dSpan > 0.04 && r.H.dSpan < 0.09 && r.H.dAccel && r.H.dGrad && r.H.uSpan <= 0.035 && r.H.uLight
     && r.H.acc.join() === '1.33,1.19,1,0.85,0.8,1.19',
     'H 扫弦力度型（下扫加速+梯度/上扫快而轻）+ 拍点重音表', JSON.stringify(r.H));
+  T(r.I.softHigh < r.I.loudHigh * 0.65 && r.I.softLow > r.I.loudLow * 0.6,
+    'I 力度→明暗：轻音高次谐波衰减≥35%、低次谐波主体保留', JSON.stringify(r.I));
+  T(r.J.n > 0 && r.J.dec === r.J.n && r.J.pend === 0,
+    'J 影子解码：resolve 时全部就绪、零 pending（原子切换前置）', JSON.stringify(r.J));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);
