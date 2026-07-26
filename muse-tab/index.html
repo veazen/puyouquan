@@ -504,6 +504,7 @@ body.shell .rtab:hover{background:transparent;color:var(--text)}
 body.shell .rtab.on{background:transparent;color:var(--accent-ink)}
 body.shell .rtab.on::after{content:"";position:absolute;left:16px;right:16px;bottom:-1px;height:2px;
   border-radius:2px;background:var(--accent)}
+body.shell .rt-off{display:none !important}   /* v48.3 暂时隐藏的右栏卡（素材库）；面板仍在 DOM 供搬运 */
 body.shell .rtab[data-p="ai"]::before{content:"AI";position:absolute;top:2px;right:6px;font-size:8px;
   line-height:1;color:#fff;background:var(--accent);padding:1.5px 3.5px;border-radius:6px;letter-spacing:.5px}
 body.shell .rcard[data-rt="lib"],body.shell .rcard[data-rt="make"]{border:none;background:transparent;overflow:visible}
@@ -1486,11 +1487,11 @@ body.shell #hint{display:none}
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
     <!-- v46.2 智能页签置首；v46.4 三栏改四栏：新增「创作」栏承接 创作辅助+导入互操作，
          智能栏=预提示+光标位置（默认仍停留信息页不打断编辑流） -->
+    <!-- v48.3 右栏收敛为两页签：信息 / 创作。原「智能」「库」页签移除——
+         预提示并入创作页，光标位置与节拍状态并回信息页，素材库面板改由顶栏「节奏型库/伴奏织体」进入 -->
     <div id="rtabs">
-      <button class="rtab" data-p="ai">智能</button>
-      <button class="rtab" data-p="lib">库</button>
-      <button class="rtab" data-p="make">创作</button>
       <button class="rtab on" data-p="info">信息</button>
+      <button class="rtab" data-p="make">创作</button>
     </div>
     <!-- v41.4 信息页摘要卡（仅新版）：调/拍速/变调夹一眼可查，编辑入口委托 b-meta 弹窗 -->
     <div class="rcard open rt-new" data-rt="info" id="rc-songinfo">
@@ -1560,28 +1561,24 @@ body.shell #hint{display:none}
         </div><!-- /#sp-more -->
       </div>
     </div>
-    <!-- v40.8 库页签：节奏型/伴奏织体面板整体归入（applyShellDock 搬移，经典版回左栏） -->
-    <div class="rcard open rt-new" data-rt="lib">
+    <!-- v48.3 光标位置归回信息页（原在已移除的「智能」页）：点击音符时同步显示可编辑信息 -->
+    <div class="rcard open" data-rt="info" id="rc-cursor">
+      <button class="rc-h" type="button">光标位置</button>
+      <div class="rc-b"><div id="cursor-info">—</div></div>
+    </div>
+    <!-- v48.3 素材库卡暂时隐藏（rt-off）：面板仍在 DOM 内由 applyShellDock 搬运，
+         入口改走顶栏「节奏型库…/伴奏织体…」与左栏和弦层，功能不丢 -->
+    <div class="rcard open rt-new rt-off" data-rt="lib">
       <button class="rc-h" type="button">素材库</button>
       <div class="rc-b rt-list" id="lib-host">
         <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
       </div>
     </div>
-    <!-- v46.3 智能预提示：按当前选中对象（音符/拍/小节/小节线）实时给出对应操作提示；
-         整体流程建议列为次级段（产品拍板：编辑内上下文提示为主、宏观建议为辅） -->
-    <div class="rcard open rt-new" data-rt="ai" id="rc-hints">
-      <button class="rc-h" type="button">智能预提示</button>
-      <div class="rc-b" id="hint-body"></div>
-    </div>
-    <!-- v46.4 光标位置移入智能栏：与预提示联动——点击音符时同步显示音符可编辑信息（时值/节奏等） -->
-    <div class="rcard open" data-rt="ai">
-      <button class="rc-h" type="button">光标位置</button>
-      <div class="rc-b"><div id="cursor-info">—</div></div>
-    </div>
+
     <!-- v40.2/v41.4 智能页签：assist 卡片形态（图标+标题+说明两行），入口委托既有工作流、按谱类显隐；
          v46.4 移入新「创作」栏（创作辅助 + 导入互操作） -->
     <div class="rcard open rt-new" data-rt="make">
-      <button class="rc-h" type="button">智能助手</button>
+      <button class="rc-h" type="button">创作帮助</button>
       <div class="rc-b">
         <div class="ai-sec">
           <div class="ai-h"><span class="sp" data-svgi="sparkle"></span><b>创作辅助</b></div>
@@ -1591,13 +1588,20 @@ body.shell #hint{display:none}
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
           <button id="rt-hum" class="aitem" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
         </div>
-        <div class="ai-sec">
+        <!-- v48.3 暂时隐藏：导入入口在启动台「导入」与新建向导内均可达，右栏不再重复 -->
+        <div class="ai-sec" style="display:none">
           <div class="ai-h"><span class="sp" data-svgi="loop"></span><b>导入 · 互操作</b></div>
           <p class="ai-p">与 MuseScore / DAW / AI 转谱工具互通。</p>
           <button id="rt-mxl" class="aitem" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"><span class="aic" data-svgi="doc"></span><span class="ait"><b>导入 MusicXML…</b><small>专业制谱 / AI 转谱直入</small></span><span class="aiarr">›</span></button>
           <button id="rt-midi" class="aitem" title="DAW / 编曲软件工程直入"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>DAW / 编曲工程直入</small></span><span class="aiarr">›</span></button>
         </div>
       </div>
+    </div>
+    <!-- v46.3 智能预提示：按当前选中对象（音符/拍/小节/小节线）实时给出对应操作提示；
+         整体流程建议列为次级段（产品拍板：编辑内上下文提示为主、宏观建议为辅） -->
+    <div class="rcard open rt-new" data-rt="make" id="rc-hints">
+      <button class="rc-h" type="button">智能预提示</button>
+      <div class="rc-b" id="hint-body"></div>
     </div>
     <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-help">使用帮助</button>
@@ -7215,8 +7219,8 @@ function initStartPad(){
   if(/[?&](pub|wxlogin)=/.test(location.search)) return;   // 深链直达不出启动台
   sp.classList.remove('hidden');
   closeFlyout();   // 左边栏默认收起
-  /* v46.6 未选状态左右栏默认页：右栏停智能页（欢迎提示，不显示上次编辑残留）、左栏无选中高亮 */
-  try{ setRTab('ai'); }catch(_){}
+  /* v46.6→v48.3 未选状态右栏默认页：智能页已并入创作页，改停信息页 */
+  try{ setRTab('info'); }catch(_){}
   document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('on'));
   try{ renderHints(); syncInputs(); }catch(_){}
   const ct=document.getElementById('spd-cont');
@@ -10164,10 +10168,8 @@ function applyShellDock(){
   const bb=document.getElementById('beat-box'), ebz=document.getElementById('eb-zoom'),
         rdock=document.getElementById('right-dock'), eb=document.getElementById('editbar');
   if(ebz && eb && ebz.parentElement!==eb) eb.appendChild(ebz);
-  if(bb && rdock){
-    if(uiShell && ebz) eb.insertBefore(bb, ebz);
-    else rdock.appendChild(bb);
-  }
+  /* v48.3 节拍状态（小节时值提示）归回右栏「信息」页——撤 v47.3 的顶栏搬移，两种外壳一致 */
+  if(bb && rdock && bb.parentElement!==rdock) rdock.appendChild(bb);
   /* v47.5 撤销/重做：新版 → 上栏节奏组后；经典版 → 回页头（file-in 前原位） */
   const su=document.getElementById('seg-undo');
   if(su && eb){
@@ -10179,6 +10181,8 @@ function applyShellDock(){
 /* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
 let rTab='info';
 function setRTab(p){
+  /* v48.3 只剩 信息/创作 两页签：切到已移除的 ai/lib 会把所有卡片隐藏，故兜底回 info */
+  if(!document.querySelector('#rtabs .rtab[data-p="'+p+'"]')) p='info';
   rTab=p;
   document.querySelectorAll('#rtabs .rtab').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
   document.querySelectorAll('#right-dock [data-rt]').forEach(el=>{
@@ -13455,11 +13459,12 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v48.2';
+const APP_VER='v48.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.3</span><div><b>右栏收敛为「信息 · 创作」两页签</b>：① <b>小节时值提示（节拍状态）与光标位置一并归回「信息」页</b>——节拍状态不再挂在顶栏右端，曲谱信息 / 光标位置 / 使用帮助 / 特色功能 / 更新日志（含版本号）/ 节拍状态自上而下一列到底；② <b>「创作」页只留创作帮助与预提示</b>——一键配和弦 / 一键配伴奏 / 智能填词 / 哼唱成谱，下接随光标实时变化的智能预提示；③ <b>「智能」「库」两个页签移除</b>：预提示并入创作页，素材库面板<b>暂时隐藏</b>（节奏型库 / 伴奏织体改从<b>顶栏</b>进入，编辑创建和弦在<b>左栏和弦层</b>，功能均未丢失）；「导入 · 互操作」卡片同样暂时隐藏（导入 MusicXML / MIDI 在<b>启动台「导入」</b>与<b>新建向导</b>内照常可用）。启动台未选曲谱时默认停在「信息」页。</div></li>
     <li><span class="v">v48.2</span><div><b>六线谱也自动前进 + 信息栏标版本号</b>：① <b>六线谱录品位同样自动跳下一列</b>，不必再「数字＋→」交替；<b>两位品位照旧可输</b>——0.7 秒内连打的第二位数字会<b>回改刚落的那一列</b>（如 1、2 得到 12 品），不会被拆成相邻两列；② <b>「先落品位、再点 ×分解 / 附点」照常生效</b>，记号自动回落到刚录的那个音（简谱的 ♯♭♮/八度同理）；③ <b>同列多弦（和弦叠音）改用「← 退回再换弦」</b>——录完一个音光标已经前进，按 ← 回到该列再换弦输品位即可叠音；④ 右栏<b>「信息」页更新日志下方新增版本号</b>，一眼可确认自己跑的是哪一版（反馈问题、强刷后核对都用得上）。不想要自动前进可在右栏「智能」页一键关闭，关闭后简谱与六线谱一并恢复旧手感。</div></li>
     <li><span class="v">v48.1</span><div><b>吉他谱品位钮固定铺 0–9，高把位一律收起</b>：品位数字不再随窗口宽度浮动——<b>固定只显示 0–9</b>，10 品及以上统一收进<b>「10–24▾」</b>选择器（尤克里里按乐器上限显示「10–15▾」）。此前按上栏余量动态铺开，实测其余各组已占去约 1300px、宽屏也几乎腾不出位置，结果是<b>按钮个数和位置会随窗口大小变化</b>，手记不住「几品在哪」；固定 10 个钮换来稳定的肌肉记忆，高把位走选择器（弹格 0–24 一屏可点）。同时移除了随之而来的拖窗口重算，拖动窗口时上栏不再抖动。</div></li>
     <li><span class="v">v48.0</span><div><b>落音光标真正会走 + 吉他谱「品位」组展示修正</b>：① <b>落音后光标即刻前进到下一个音</b>——v47.9 用的是「延迟前进」（光标停在刚落的音上、下次落音才移动），虽然按键数已经省下来了，但<b>看上去就像没前进</b>；现改为落音即走，录旋律一路按音高键即可，实测录 16 个音<b>只需 16 次按键</b>。② <b>「先落音、再点升降号 / 附点 / 八度」照常生效</b>——光标虽已前进，这些记号会<b>自动回落到刚录的那个音</b>上（变音钮的高亮同步跟随），不会写到前面的空位去；手动点选谱面即取消回落、就地修改已有音符。③ <b>吉他谱音符组三处展示修正</b>：组标签由「音符」改为<b>「品位」</b>（六线谱里的数字是品位不是音名）；高把位选择器由固定的「0–24▾」改为<b>只标折叠掉的那段</b>（已铺开 0–9 时显示「10–24▾」，不再与旁边的 0–9 重复）；<b>×</b> 补中文小字<b>「分解」</b>（该组只有它是纯符号，此前认不出含义）。</div></li>

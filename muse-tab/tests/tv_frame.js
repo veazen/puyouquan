@@ -153,25 +153,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.noStyleTab && r.notBack && r.popFloat && r.pageSet,
     'T10 记谱法回图层+排版浮层', '无风格页签=' + r.noStyleTab + ' 记谱法在左=' + r.notBack + ' 浮层=' + r.popFloat);
 
-  // T11 库页签归纳：节奏型/伴奏织体面板移入右栏库且按谱类显隐
+  /* T11 v48.3 右栏收敛为两页签：
+       ① 库页签已移除、素材库卡隐藏，但节奏型/伴奏织体面板仍挂在 #lib-host（applyShellDock 搬运不变、左栏不重复）；
+       ② 创作辅助归「创作」页并仍按谱类显隐（旧版本此处点的是已不存在内容的「智能」页，
+          自 v46.4 把创作辅助迁到 make 后该断言一直为假——本次一并修正）。 */
   r = await pg.evaluate(() => {
     const vis = id => document.getElementById(id).offsetParent !== null;
     const inLib = id => !!document.getElementById(id).closest('#lib-host');
-    document.querySelector('.rtab[data-p="lib"]').click();
-    const g = { tabPat: inLib('panel-tab-pat') && vis('panel-tab-pat'),
-      voxPat: inLib('panel-vox-pat') && vis('panel-vox-pat'),
-      accHidden: !vis('panel-vox-acc'), chord: vis('rt-chorded'),
+    const noLibTab = !document.querySelector('.rtab[data-p="lib"]') && !document.querySelector('.rtab[data-p="ai"]');
+    const libCard = document.querySelector('.rcard[data-rt="lib"]');
+    const g = { tabPat: inLib('panel-tab-pat'), voxPat: inLib('panel-vox-pat'),
+      libHidden: !libCard || libCard.offsetParent === null,
       leftNoPat: !document.querySelector('#left-flyout #panel-tab-pat') };
-    document.querySelector('.rtab[data-p="ai"]').click();
+    document.querySelector('.rtab[data-p="make"]').click();
     const a = { sug: vis('rt-sug'), fill: vis('rt-fill'), hum: vis('rt-hum'), arrHidden: !vis('rt-arr') };
+    /* 一键配伴奏按谱类显隐：show('rt-arr', dt∈{vocal,teach,instr})——故用歌谱验「显」，
+       pianoacc 只验伴奏面板仍挂在 lib-host（结构未因隐藏库页签而丢失） */
+    loadSong(createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 1 }));
+    document.querySelector('.rtab[data-p="make"]').click();
+    const arrShown = vis('rt-arr');
     loadSong(createSong('pianoacc', { beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }));
-    document.querySelector('.rtab[data-p="lib"]').click();
-    const p = { acc: vis('panel-vox-acc'), tabPatHidden: !vis('panel-tab-pat') };
-    return { g, a, p };
+    const p = { arrShown, accInLib: inLib('panel-vox-acc') };
+    return { noLibTab, g, a, p };
   });
-  T(r.g.tabPat && r.g.voxPat && r.g.accHidden && r.g.chord && r.g.leftNoPat
-    && r.a.sug && r.a.fill && r.a.hum && r.a.arrHidden && r.p.acc && r.p.tabPatHidden,
-    'T11 库页签归纳', '弹唱=' + JSON.stringify(r.g) + ' 钢琴织体=' + r.p.acc);
+  T(r.noLibTab && r.g.tabPat && r.g.voxPat && r.g.libHidden && r.g.leftNoPat
+    && r.a.sug && r.a.fill && r.a.hum && r.a.arrHidden && r.p.arrShown && r.p.accInLib,
+    'T11 两页签收敛(库隐藏但面板留存/创作辅助在创作页按谱类显隐)',
+    '无库与智能页签=' + r.noLibTab + ' 弹唱=' + JSON.stringify(r.g) + ' 创作辅助=' + JSON.stringify(r.a) + ' 钢琴=' + JSON.stringify(r.p));
 
   // T12 经典版：页签条与新卡片隐藏、排版浮层回 body、信息卡全显
   r = await pg.evaluate(() => {
