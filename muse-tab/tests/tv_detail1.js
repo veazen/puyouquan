@@ -690,6 +690,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const octVisVox = vis(document.getElementById('eb-octup'));
     document.querySelector('#eb-note [data-nd="5"]').click();
     const deg5 = song.measures[0].voxes[0][0].deg === 5;
+    /* v47.9 落音后延迟前进：连点 5→0 属「录旋律」，0 会落到下一列（符合预期）。
+       本项要验的是「0 把当前选中的音变成休止」，故先像真实点选那样重选该音并清掉前进锚点 */
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; advFrom = null; syncInputs();
     document.querySelector('#eb-note [data-nd="0"]').click();
     const rest0 = !song.measures[0].voxes[0][0].deg;
     const eb = document.getElementById('editbar'), su = document.getElementById('seg-undo');
@@ -737,6 +740,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const letters = [1,2,3,4,5,6,7].map(k => document.querySelector('#eb-note [data-nd="' + k + '"] .dg').textContent).join('');
     const stCtx = letters === 'DEFGABC' && vis(document.getElementById('eb-acc-s'))
       && vis(document.getElementById('eb-octup')) && !vis(document.getElementById('eb-fret-more'));
+    /* v47.9 本用例自建选区（不沿用上一用例遗留的光标/前进锚点），再验「落音 + 变音作用于该音」 */
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; advFrom = null; syncInputs();
     document.querySelector('#eb-note [data-nd="3"]').click();
     const degOk = song.measures[0].voxes[0][0].deg === 3;
     document.getElementById('eb-acc-s').click(); syncInputs();
