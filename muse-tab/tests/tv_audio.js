@@ -273,6 +273,46 @@ const T = (ok, name, detail) => {
       out.M = { wired, names, peak: +peak.toFixed(3), clip };
     }
 
+    // ── N 技法第二批（v49.4）：泛音频率表/轮奏步长/摇把 dive 音高下潜/shake LFO/打板三型 ──
+    {
+      const f0 = midiFreq(52);
+      const rat = (fret) => hmFreq(0, fret) / midiFreq(0);
+      const bare = (ctx) => { const dry = ctx.createGain(); dry.connect(ctx.destination);
+        const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination); return { dry, wet }; };
+      const goe = (ch, f, a0, b0) => { const a2 = Math.floor(a0 * SR), b2 = Math.floor(b0 * SR), N2 = b2 - a2;
+        const w = 2 * Math.PI * f / SR, cw = 2 * Math.cos(w); let p0 = 0, p1 = 0, p2 = 0;
+        for (let i = 0; i < N2; i++) { const win = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N2);
+          p0 = ch[a2 + i] * win + cw * p1 - p2; p2 = p1; p1 = p0; }
+        return Math.sqrt(Math.max(0, p1 * p1 + p2 * p2 - cw * p1 * p2)); };
+      const rendB = async (fx) => {
+        const ctx = new OfflineAudioContext(2, SR * 2, SR);
+        let osc = 0; const orig = ctx.createOscillator.bind(ctx);
+        ctx.createOscillator = () => { osc++; return orig(); };
+        await decodeInto(ctx, 52);
+        sfTryPlay(ctx, bare(ctx), 'acoustic_guitar_steel', midiFreq(52), 0.1, 1.8, 0.5, { vel: 1, fx });
+        const buf = await ctx.startRendering();
+        return { ch: buf.getChannelData(0), osc };
+      };
+      const dive = await rendB({ bar: 'dive', end: 1.9 });
+      const shake = await rendB({ bar: 'shake', end: 1.9 });
+      // 打板三型：各自可闻 + 高低板频谱可区分（一阶差分比：高音板显著高于低音板）
+      const ctx2 = new OfflineAudioContext(2, SR, SR);
+      const b2 = bare(ctx2);
+      percHit(ctx2, b2, 0.05, 'bass', 0.5); percHit(ctx2, b2, 0.35, 'snare', 0.5); percHit(ctx2, b2, 0.65, 'golpe', 0.5);
+      const pch = (await ctx2.startRendering()).getChannelData(0);
+      const seg = (a0, b0) => { let pk = 0, d = 0, tot = 0;
+        for (let i = Math.floor(a0 * SR) + 1; i < Math.floor(b0 * SR); i++) { const a = Math.abs(pch[i]);
+          if (a > pk) pk = a; const dd = pch[i] - pch[i - 1]; d += dd * dd; tot += pch[i] * pch[i]; }
+        return { pk: +pk.toFixed(3), hf: +Math.sqrt(d / Math.max(1e-12, tot)).toFixed(3) }; };
+      out.N = {
+        hm: [rat(12), rat(7), rat(19), rat(5), rat(24), rat(9), rat(3)],
+        trem: [tremStep(0.6, 1), tremStep(0.6, 2), tremStep(0.6, 3)],
+        diveEarly: +goe(dive.ch, f0, 0.12, 0.33).toFixed(2), diveLate: +goe(dive.ch, f0, 1.3, 1.7).toFixed(2),
+        shakeOsc: shake.osc,
+        bass: seg(0.05, 0.3), snare: seg(0.35, 0.6), golpe: seg(0.65, 0.9)
+      };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -320,6 +360,12 @@ const T = (ok, name, detail) => {
     'L3 揉弦 LFO 已建 + 推弦幅度表（¼/½/full/1½/默认full）', JSON.stringify({ osc: r.L.vibOsc, semis: r.L.semis }));
   T(r.M.wired && r.M.names.join() === 'overdriven_guitar,distortion_guitar' && r.M.peak < 0.99 && r.M.clip === 0,
     'M 过载/失真接线完整 + 失真强力和弦最坏情况不削波', JSON.stringify(r.M));
+  T(r.N.hm.join() === '2,3,3,4,4,5,2' && r.N.trem.join() === '0.3,0.15,0.075',
+    'N1 自然泛音谐波表（12→2/7·19→3/5·24→4/9→5/其余→2）+ 轮奏步长', JSON.stringify({ hm: r.N.hm, trem: r.N.trem }));
+  T(r.N.diveLate < r.N.diveEarly * 0.3 && r.N.shakeOsc === 1,
+    'N2 摇把：dive 尾段基频能量大幅离位 + shake LFO 已建', JSON.stringify({ e: r.N.diveEarly, l: r.N.diveLate, osc: r.N.shakeOsc }));
+  T(r.N.bass.pk > 0.02 && r.N.snare.pk > 0.02 && r.N.golpe.pk > 0.02 && r.N.snare.hf > r.N.bass.hf * 3,
+    'N3 打板三型可闻且高/低板频谱可区分', JSON.stringify({ b: r.N.bass, s: r.N.snare, g: r.N.golpe }));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);

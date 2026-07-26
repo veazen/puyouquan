@@ -9265,6 +9265,14 @@ function pedalDur(at, nextAt, base){
 }
 /* v49.2 推弦幅度→半音数（GP 惯例：full=全音；未标幅度默认 full） */
 function bendSemi(bAmt){ return {'1/4':0.5,'1/2':1,'full':2,'1.5':3}[bAmt]||2; }
+/* v49.4 自然泛音实音：品位=触弦节点，发声=空弦×谐波次数（12品=2次/7·19=3/5·24=4/4·9·16=5，
+   其余节点按八度兜底）；人工/拨片/点弦泛音（hmT）=按弦音+12 半音，另行处理 */
+function hmFreq(openMidi, fret){
+  const r={12:2, 7:3, 19:3, 5:4, 24:4, 4:5, 9:5, 16:5}[fret]||2;
+  return midiFreq(openMidi)*r;
+}
+/* v49.4 轮奏细分步长：1杠=八分 2杠=十六分 3杠=三十二分（spb=四分音符秒长） */
+function tremStep(spb, t){ return spb/Math.pow(2, Math.max(1, Math.min(3, t||1))); }
 function humJit(a,b,c){
   let h=((a+1)*73856093) ^ ((b+1)*19349663) ^ (((c||0)+1)*83492791);
   h=(h ^ (h>>>13)) >>> 0;
@@ -9472,6 +9480,27 @@ function pitchFX(ctx, src, rate, when, endAt, fx){
     o.connect(og); og.connect(p);
     o.start(when); o.stop(endFx+0.4);
     audio.sources.push(o);
+  }
+  if(fx.bar){                                        /* v49.4 摇把四态（whammy） */
+    if(fx.bar==='dive'){                             // 俯冲：先保持 ~0.25s 再渐深下潜 −8 半音
+      p.setValueAtTime(rate, when+Math.min(0.25, span*0.3));
+      p.linearRampToValueAtTime(rate*Math.pow(2,-8/12), endFx);
+    } else if(fx.bar==='scoop'){                     // 上滑入音：起于 −3 半音快速回正
+      p.setValueAtTime(rate*Math.pow(2,-3/12), when);
+      p.linearRampToValueAtTime(rate, when+Math.min(0.12, span*0.4));
+    } else if(fx.bar==='dip'){                       // 下点 ∨：快速下 −2 再回
+      const d=Math.min(0.09, span*0.25);
+      p.setValueAtTime(rate, when+0.01);
+      p.linearRampToValueAtTime(rate*Math.pow(2,-2/12), when+0.01+d);
+      p.linearRampToValueAtTime(rate, when+0.01+2*d);
+    } else if(fx.bar==='shake'){                     // 摇把颤音：±70 音分 6.5Hz（深快于揉弦）
+      const o=ctx.createOscillator(); o.frequency.value=6.5;
+      const og=ctx.createGain(); og.gain.setValueAtTime(0, when);
+      og.gain.linearRampToValueAtTime(rate*0.0414, when+0.1);   // 2^(70/1200)-1
+      o.connect(og); og.connect(p);
+      o.start(when); o.stop(endFx+0.3);
+      audio.sources.push(o);
+    }
   }
 }
 /* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
@@ -9815,6 +9844,29 @@ function chick(ctx,bus,when,gain){
   src.connect(bp); bp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
   src.start(when); audio.sources.push(src);
 }
+/* v49.4 打板/击板打击层（指弹 col.perc：bass 低/snare 高/golpe 击板）：
+   噪声突发+带通塑形；低音板另叠 85Hz 短正弦「胸腔感」。确定性以外的噪声与
+   节拍器/chick 同一口径（幅度包络断言而非逐样本）。 */
+function percHit(ctx,bus,when,type,gain){
+  const sr=ctx.sampleRate;
+  const cfgP={bass:{f:120,q:1.1,len:0.09,g:1.0}, snare:{f:2400,q:0.8,len:0.07,g:0.8}, golpe:{f:800,q:1.0,len:0.06,g:0.85}}[type]||{f:800,q:1,len:0.06,g:0.8};
+  const len=Math.floor(sr*cfgP.len);
+  const buf=ctx.createBuffer(1,len,sr); const d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.6);
+  const src=ctx.createBufferSource(); src.buffer=buf;
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=cfgP.f; bp.Q.value=cfgP.q;
+  const g=ctx.createGain(); g.gain.value=gain*cfgP.g;
+  src.connect(bp); bp.connect(g); g.connect(bus.dry);
+  src.start(when); audio.sources.push(src);
+  if(type==='bass'){                                  // 低音板：叠短正弦增强「胸腔感」
+    const o=ctx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(110, when);
+    o.frequency.exponentialRampToValueAtTime(70, when+0.09);
+    const og=ctx.createGain(); og.gain.setValueAtTime(gain*0.9, when);
+    og.gain.exponentialRampToValueAtTime(0.0001, when+0.12);
+    o.connect(og); og.connect(bus.dry);
+    o.start(when); o.stop(when+0.14); audio.sources.push(o);
+  }
+}
 /* ---- 音色分派 ---- */
 function playInst(instKey,ctx,bus,freq,when,dur,gain,mute,opt){
   const sp=INSTRUMENTS[instKey]||INSTRUMENTS.steel;
@@ -10140,11 +10192,22 @@ function play(){
         const dg=dynAt(off)*acc;                   /* v48.6 力度时间线 × v48.9 拍点重音 */
         ord2.forEach((n,k)=>{
           const jj=HJ(mi, ci, n.s);                /* v48.6 确定性微扰动（精确档归零） */
+          /* v49.4 泛音发声：自然泛音=空弦×谐波次数（品位=节点）；A.H./P.H./T.H.=按弦音+12。
+             泛音音色纯净——软起音+力度略收（P.H. 反向加亮出「啸叫」倾向） */
+          let fq = n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12);
+          let vmul=1, leg=false;
+          if(!n.x && n.tech==='hm'){
+            if(n.hmT){ fq=midiFreq(tuningOf()[n.s-1]+n.f+song.capo); if(n.hmT==='P') vmul=1.25; else { leg=true; vmul=0.9; } }
+            else { fq=hmFreq(tuningOf()[n.s-1]+song.capo-12, n.f); leg=true; vmul=0.85; }
+          }
           insts.push({ when:t+off+plan[k].dt, s:n.s, x:!!n.x, mute:!!col.mute,
-            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv,
-            vel:dg*plan[k].g,                      /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
+            freq:fq*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv,
+            vel:dg*plan[k].g*vmul,                 /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
+            legato:leg||undefined, bar:n.bar, slap:!!col.slap,
             oi, ci, dsec:durSec, tech:n.tech, tk:n.tk, bAmt:n.bAmt, bTy:n.bendType });   /* v49.2 技法字段 */
         });
+        if(col.slap && ord2.length) chick(ctx, tbus, t+off, 0.4*vol);      /* v49.4 拍弦：附加拍击噪声 */
+        if(col.perc) percHit(ctx, tbus, t+off, col.perc, 0.8*vol*dg);      /* v49.4 打板列（无音符）发打击声 */
         bcum+=beatsOf(col,mUt);
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
         off += durSec;
@@ -10173,7 +10236,9 @@ function play(){
     insts.forEach(it=>{ byKey[it.oi+':'+it.ci+':'+it.s]=it; });
     const pmSpans=[], vibSpans=[];
     insts.forEach(it=>{
-      if(it.x || (!it.tech && !it.bTy)) return;
+      if(it.x) return;
+      if(it.bar){ it.fx=it.fx||{}; it.fx.bar=it.bar; }   /* v49.4 摇把与其他技法可共存 */
+      if(!it.tech && !it.bTy) return;
       const te=it.tech;
       if(te==='b'||te==='bd'||it.bTy){
         it.fx=it.fx||{}; it.fx.bend={semi:bendSemi(it.bAmt), type: it.bTy==='pre'?'pre':((te==='bd'||it.bTy==='rel')?'rel':'up')};
@@ -10203,6 +10268,10 @@ function play(){
       if(it.pm){                                           // P.M.：时值门 + 变暗 + 略降增益
         ring=Math.min(ring, Math.max(0.09, it.dsec*0.55)); opt2.damp=true;
         opt2.vel=Math.min(opt2.vel, it.vel*0.6); it.gain*=0.9;
+      }
+      if(it.slap){                                         /* v49.4 拍弦：音符短促化（拍击噪声已另发） */
+        ring=Math.min(ring, Math.max(0.08, it.dsec*0.35)); opt2.damp=true;
+        opt2.vel=Math.min(opt2.vel, it.vel*0.7);
       }
       if(it.legato) opt2.legato=true;
       if(it.fx){
@@ -10257,7 +10326,18 @@ function play(){
           });
         }
         if(col.dyn && DYN_GAIN[col.dyn]) dynG=DYN_GAIN[col.dyn];
-        if(m!=null){
+        if(m!=null && col.trem){
+          /* v49.4 轮奏细分（震音 1-3 杠=八分/十六分/三十二分重复演奏）：不入延音链，
+             逐次发音、下拍略轻（交替拨奏的自然强弱），门限 0.95 留换音气口 */
+          soundTimes.push(t+off);
+          if(cur){ notes.push(cur); cur=null; }
+          const f=midiFreq(m), rep=tremStep(spb, col.trem);
+          const nrep=Math.max(2, Math.round(durSec/rep));
+          for(let r2=0;r2<nrep;r2++){
+            const vv=(r2%2? 0.86:1)*dynG*(r2===0?acc2:1);
+            playInst(cfg.inst, ctx, tbus, f, t+off+r2*rep, rep*0.95, vol*1.05*vv, false, {damp:true, vel:vv});
+          }
+        } else if(m!=null){
           const f=midiFreq(m);
           soundTimes.push(t+off);                          /* v49.1 本声部发声列时刻（踏板延音终点用） */
           if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
@@ -13797,7 +13877,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.3';
+const APP_VER='v49.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13820,6 +13900,7 @@ const APP_VER='v49.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.4</span><div><b>吉他技法发声·第二批（技法发声化收官）</b>：① <b>泛音发声</b>——自然泛音按真实物理发声：品位=触弦节点，实际音高=空弦×谐波次数（12 品高八度、7/19 品高八度加五度、5/24 品高两个八度、4/9/16 品更高），人工/点弦泛音=按弦音高八度，拨片泛音（P.H.）额外加亮出「啸叫」倾向，泛音统一软起音更纯净；② <b>摇把四态</b>——俯冲（保持后渐深下潜）、上滑入音、下点 ∨（快速下探回弹）、摇把颤音（深快颤动）全部按形态画音高曲线；③ <b>拍弦/打板打击层</b>——拍弦列附加真实拍击噪声、音符短促化；指弹打板三型可闻可辨：低音板（含低频「胸腔感」）、高音板、击板；④ <b>轮奏细分</b>——简谱/五线谱震音 1-3 杠按八分/十六分/三十二分真实重复演奏，交替强弱如真实拨奏。至此谱面全部吉他技法记号在播放中都有对应发声，采样/合成双通路一致。tv_audio 增至 20 项断言全绿（泛音谐波表/摇把音高下潜/打板频谱区分等数值验证）。</div></li>
     <li><span class="v">v49.3</span><div><b>电吉他过载/失真音色上线（音色补强）</b>：音轨面板的音色下拉新增<b>「电吉他·过载」「电吉他·失真」</b>两个真实采样音色（GM 库 overdriven/distortion guitar，服务器双库同步供给），电吉他 solo 谱终于有了该有的驱动质感——搭配 v49.2 的推弦/揉弦/滑音技法引擎，失真长音推弦揉弦的经典乐句可以完整发声；原「电吉他」更名<b>「电吉他·清音」</b>（既有曲谱不受影响）。采样未就绪的首播窗口由内置合成器回落：过载/失真档对应加大软削波驱动、拉长延音（失真天然压缩延音），实测失真强力和弦齐鸣总线零削波。冒烟验收同步抽查两个新音色包完整性。tv_audio 增至 17 项断言全绿。</div></li>
     <li><span class="v">v49.2</span><div><b>吉他技法发声·第一批（谱上的记号终于会响了）</b>：此前 20 多种吉他技法记号「只画不响」，标满推弦滑音的 solo 谱播出来每个音都直上直下。本版让高频技法全部发声：① <b>推弦</b>——按标注幅度（¼/½/full/1½，未标默认全音）画真实音高曲线，支持推起保持、<b>推弦回放</b>（推起→放回）与<b>预推</b>（起于高音释放回落）；② <b>滑弦</b>——连线滑弦临近目标时平滑滑到目标音高，滑进/滑出（↗↘ 无头无尾滑）±2 品甩音；③ <b>击弦 h / 勾弦 p / 点弦</b>——目标音连奏化：抹去拨片音头、力度自然减弱，连奏乐句不再颗颗重敲；④ <b>揉弦</b>——5.6Hz 揉弦颤动渐入（支持范围揉弦），复听完全一致；⑤ <b>P.M. 闷音</b>——时值门+音色变暗+力度收敛（支持 P.M. 范围线）；⑥ let ring 由既有逐弦延音模型天然覆盖。采样与内置合成器<b>两条通路同一套技法引擎</b>（共用音高自动化器），首播回落时技法同样生效；推弦提高播速会提前耗尽采样，已加护栏防截断爆点。tv_audio 增至 16 项断言全绿（推弦稳态能量迁移/连奏起音包络/揉弦 LFO 数值验证）。</div></li>
     <li><span class="v">v49.1</span><div><b>踏板模拟 + 乐句呼吸 + 合成器力度一致（音质升级·第二批③，本批收官）</b>：① <b>钢琴踏板模拟</b>——钢琴/钢琴弹唱谱左手声部的和音不再按固定门限截断，而是<b>延音到本声部下一个发声位置</b>（右手换旋律音时左手和声仍「踩在踏板里」），曲末和弦自然延响≥3 秒；② <b>乐句呼吸</b>——谱面标了换气记号 v 的音自动提前收音约 15%，留出真实的「吸气」空隙，唱谱跟练更贴近人声乐句；③ <b>合成器力度一致</b>——内置合成器（采样未就绪时的回落通路）现在吃同一条力度管道：KS 拨弦亮度、合成钢琴的起始泛音与琴槌噪声都随音乐力度变化，回落与采样两条通路的强弱表现不再脱节。tv_audio 增至 13 项断言全绿。</div></li>
