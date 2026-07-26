@@ -69,7 +69,7 @@ sf_chk(){ # sf_chk 库名 文件名
   else echo "❌ 音色 $lib/$f 缺失或残缺（content-length=${len:-无}）"; fail=1; fi
 }
 for L in MusyngKite FluidR3_GM; do
-  for F in acoustic_grand_piano acoustic_guitar_steel flute; do sf_chk "$L" "$F"; done
+  for F in acoustic_grand_piano acoustic_guitar_steel flute overdriven_guitar distortion_guitar; do sf_chk "$L" "$F"; done
 done
 
 redir puyouquan.com

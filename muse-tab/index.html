@@ -9207,7 +9207,11 @@ const INSTRUMENTS = {
   steel:   {name:'钢弦吉他', grp:'弹拨', type:'ks',   amp:0.30, damp:0.9968, tone:4600, hp:80,  pick:0.18, body:[[105,4.5,3.2],[218,3,4]], dual:true},
   nylon:   {name:'尼龙吉他', grp:'弹拨', type:'ks',   amp:0.34, damp:0.9942, tone:2600, hp:70,  pick:0.30, body:[[98,5,3],[204,3.5,4]], soft:2, dual:true},
   uku:     {name:'尤克里里', grp:'弹拨', type:'ks',   amp:0.33, damp:0.9938, tone:3800, hp:130, pick:0.32, body:[[148,4.5,3.5],[300,3,4.5]], soft:1, dual:true},
-  electric:{name:'电吉他',   grp:'弹拨', type:'ks',   amp:0.25, damp:0.9976, tone:3400, hp:90,  pick:0.12, drive:2.4},
+  electric:{name:'电吉他·清音', grp:'弹拨', type:'ks', amp:0.25, damp:0.9976, tone:3400, hp:90,  pick:0.12, drive:2.4},
+  /* v49.3 音色补强：过载/失真接现成 GM 采样（overdriven/distortion_guitar），KS 回落参数
+     对应加大 drive 软削波、拉长 damp 延音（失真天然压缩延音）、降 amp 补饱和响度 */
+  elecod:  {name:'电吉他·过载', grp:'弹拨', type:'ks', amp:0.24, damp:0.9982, tone:3000, hp:95,  pick:0.10, drive:5},
+  elecdist:{name:'电吉他·失真', grp:'弹拨', type:'ks', amp:0.21, damp:0.9987, tone:2600, hp:100, pick:0.08, drive:9},
   bass:    {name:'贝斯',     grp:'弹拨', type:'ks',   amp:0.36, damp:0.9962, tone:1000, hp:40,  pick:0.22, oct:-12},
   piano:   {name:'钢琴',     grp:'键盘', type:'piano',amp:0.36, decay:3.2, atk:0.003},
   epiano:  {name:'电钢琴',   grp:'键盘', type:'fm',   amp:0.32, mod:1,   idx:1.4, decay:1.9, atk:0.003, tone:3800},
@@ -9280,7 +9284,8 @@ const SF_LIB=(function(){ try{
   if(localStorage.getItem('musetab-sndlib')==='FluidR3_GM') return 'FluidR3_GM';
 }catch(_){ } return 'MusyngKite'; })();
 const SF_MAP={steel:'acoustic_guitar_steel', nylon:'acoustic_guitar_nylon', uku:'acoustic_guitar_nylon',
-  electric:'electric_guitar_clean', bass:'acoustic_bass', piano:'acoustic_grand_piano',
+  electric:'electric_guitar_clean', elecod:'overdriven_guitar', elecdist:'distortion_guitar',
+  bass:'acoustic_bass', piano:'acoustic_grand_piano',
   epiano:'electric_piano_1', musicbox:'music_box', strings:'string_ensemble_1',
   flute:'flute', ah:'choir_aahs'};
 const SF_SUSTAIN=new Set(['string_ensemble_1','flute','choir_aahs']);   // 持续型：随时值收音
@@ -13792,7 +13797,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.2';
+const APP_VER='v49.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13815,6 +13820,7 @@ const APP_VER='v49.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.3</span><div><b>电吉他过载/失真音色上线（音色补强）</b>：音轨面板的音色下拉新增<b>「电吉他·过载」「电吉他·失真」</b>两个真实采样音色（GM 库 overdriven/distortion guitar，服务器双库同步供给），电吉他 solo 谱终于有了该有的驱动质感——搭配 v49.2 的推弦/揉弦/滑音技法引擎，失真长音推弦揉弦的经典乐句可以完整发声；原「电吉他」更名<b>「电吉他·清音」</b>（既有曲谱不受影响）。采样未就绪的首播窗口由内置合成器回落：过载/失真档对应加大软削波驱动、拉长延音（失真天然压缩延音），实测失真强力和弦齐鸣总线零削波。冒烟验收同步抽查两个新音色包完整性。tv_audio 增至 17 项断言全绿。</div></li>
     <li><span class="v">v49.2</span><div><b>吉他技法发声·第一批（谱上的记号终于会响了）</b>：此前 20 多种吉他技法记号「只画不响」，标满推弦滑音的 solo 谱播出来每个音都直上直下。本版让高频技法全部发声：① <b>推弦</b>——按标注幅度（¼/½/full/1½，未标默认全音）画真实音高曲线，支持推起保持、<b>推弦回放</b>（推起→放回）与<b>预推</b>（起于高音释放回落）；② <b>滑弦</b>——连线滑弦临近目标时平滑滑到目标音高，滑进/滑出（↗↘ 无头无尾滑）±2 品甩音；③ <b>击弦 h / 勾弦 p / 点弦</b>——目标音连奏化：抹去拨片音头、力度自然减弱，连奏乐句不再颗颗重敲；④ <b>揉弦</b>——5.6Hz 揉弦颤动渐入（支持范围揉弦），复听完全一致；⑤ <b>P.M. 闷音</b>——时值门+音色变暗+力度收敛（支持 P.M. 范围线）；⑥ let ring 由既有逐弦延音模型天然覆盖。采样与内置合成器<b>两条通路同一套技法引擎</b>（共用音高自动化器），首播回落时技法同样生效；推弦提高播速会提前耗尽采样，已加护栏防截断爆点。tv_audio 增至 16 项断言全绿（推弦稳态能量迁移/连奏起音包络/揉弦 LFO 数值验证）。</div></li>
     <li><span class="v">v49.1</span><div><b>踏板模拟 + 乐句呼吸 + 合成器力度一致（音质升级·第二批③，本批收官）</b>：① <b>钢琴踏板模拟</b>——钢琴/钢琴弹唱谱左手声部的和音不再按固定门限截断，而是<b>延音到本声部下一个发声位置</b>（右手换旋律音时左手和声仍「踩在踏板里」），曲末和弦自然延响≥3 秒；② <b>乐句呼吸</b>——谱面标了换气记号 v 的音自动提前收音约 15%，留出真实的「吸气」空隙，唱谱跟练更贴近人声乐句；③ <b>合成器力度一致</b>——内置合成器（采样未就绪时的回落通路）现在吃同一条力度管道：KS 拨弦亮度、合成钢琴的起始泛音与琴槌噪声都随音乐力度变化，回落与采样两条通路的强弱表现不再脱节。tv_audio 增至 13 项断言全绿。</div></li>
     <li><span class="v">v49.0</span><div><b>首播音质收敛 + 力度明暗联动（音质升级·第二批②）</b>：解决「第一遍播放音色明显偏闷」的三个根源——① <b>打开曲谱即预取全量音色</b>：进入编辑就后台下载并解码当前谱用到的高保真采样（此前要点了播放才开始下载 2MB 级音色包），首次点播放即是全量音质；② <b>音色包本地缓存</b>：下载过的音色包存入浏览器 Cache Storage，二次进站秒级就绪、离线也可用；③ <b>整包就绪才切换</b>：全量包解码期间继续用内置采样，全部就绪后一次性切换——一首歌里不再出现「前半段真采样、后半段合成器」的混播跳变；④ <b>力度→明暗联动</b>：轻音不只更小声、音色也随之变暗（真乐器弱奏高频泛音更少），与 v48.9 的拍点重音/扫弦力度型贯通成完整力度管道——伴奏更松弛、重音更亮更前。tv_audio 增至 12 项断言全绿。</div></li>

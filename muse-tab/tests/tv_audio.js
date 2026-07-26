@@ -257,6 +257,22 @@ const T = (ok, name, detail) => {
       };
     }
 
+    // ── M 过载/失真音色（v49.3）：接线完整 + KS 回落最坏情况（强力和弦齐鸣）不削波 ──
+    {
+      const wired = ['elecod', 'elecdist'].every(k =>
+        INSTRUMENTS[k] && INSTRUMENTS[k].type === 'ks' && INSTRUMENTS[k].drive > 2.4 && SF_MAP[k]);
+      const names = [SF_MAP.elecod, SF_MAP.elecdist];
+      const ch = await render(2.0, async (ctx, bus) => {
+        const norm = 0.85, tb = makeTrackBus(ctx, bus, 0);
+        const g5 = norm / Math.sqrt(5);
+        [40, 47, 52, 40, 47].forEach((m, k) =>
+          playInst('elecdist', ctx, tb, midiFreq(m), 0.1 + k * 0.012, 1.5, g5, false, { vel: 1.33 }));
+      });
+      let clip = 0, peak = 0;
+      for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i]); if (a > peak) peak = a; if (a >= 0.995) clip++; }
+      out.M = { wired, names, peak: +peak.toFixed(3), clip };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -302,6 +318,8 @@ const T = (ok, name, detail) => {
     'atkN=' + r.L.atkN + ' atkL=' + r.L.atkL);
   T(r.L.vibOsc === 1 && r.L.semis.join() === '0.5,1,2,3,2',
     'L3 揉弦 LFO 已建 + 推弦幅度表（¼/½/full/1½/默认full）', JSON.stringify({ osc: r.L.vibOsc, semis: r.L.semis }));
+  T(r.M.wired && r.M.names.join() === 'overdriven_guitar,distortion_guitar' && r.M.peak < 0.99 && r.M.clip === 0,
+    'M 过载/失真接线完整 + 失真强力和弦最坏情况不削波', JSON.stringify(r.M));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);

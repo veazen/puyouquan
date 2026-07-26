@@ -13,11 +13,13 @@ DEST="${DEST:-/var/www/puyouquan/sounds/${LIB}}"
 SRC1="https://raw.githubusercontent.com/gleitz/midi-js-soundfonts/gh-pages/${LIB}"
 SRC2="https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/${LIB}"
 
-# 与编辑器 SF_MAP 一一对应的 10 个音色
+# 与编辑器 SF_MAP 一一对应的 12 个音色
 FONTS=(
   acoustic_guitar_steel    # 民谣吉他（钢弦）
   acoustic_guitar_nylon    # 古典吉他 / 尤克里里
   electric_guitar_clean    # 电吉他（清音）
+  overdriven_guitar        # 电吉他（过载）v49.3
+  distortion_guitar        # 电吉他（失真）v49.3
   acoustic_bass            # 原声贝斯
   acoustic_grand_piano     # 三角钢琴
   electric_piano_1         # 电钢琴
