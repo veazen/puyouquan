@@ -9203,6 +9203,15 @@ const INSTRUMENTS = {
   ah:      {name:'人声“啊”', grp:'持续', type:'voice',amp:0.27, atk:0.06, rel:0.14, vib:5.5},
 };
 function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+/* v48.6 重复音去机枪化：±4 音分 detune + ±1.2dB 增益微扰。种子取自谱面位置（确定性），
+   同一首谱每次播放扰动完全一致——校对复听可复现（表现力顾问原则）；幅度按「校对近似无损、
+   听感去机械」标定，双档开关（自然/精确）随批次二一起上，届时精确档扰动归零。 */
+function humJit(a,b,c){
+  let h=((a+1)*73856093) ^ ((b+1)*19349663) ^ (((c||0)+1)*83492791);
+  h=(h ^ (h>>>13)) >>> 0;
+  const r1=(h%997)/997, r2=(((h/997)|0)%997)/997;
+  return { fc: Math.pow(2, ((r1*2-1)*4)/1200), gc: Math.pow(10, ((r2*2-1)*1.2)/20) };
+}
 /* ================= 高保真采样音色引擎 =================
    音色库：midi-js-soundfonts（FluidR3_GM / MusyngKite，自由授权 GM 音色，逐音符 MP3）。
    加载顺序：站点自托管 sounds/ → jsDelivr → GitHub Pages；
@@ -9311,24 +9320,22 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const g=ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
   g.gain.linearRampToValueAtTime(gain, when+0.006);         // 6ms 线性起音，杜绝爆音
+  /* v48.6 收音全改指数（setTargetAtTime）：线性收尾在对数听觉域前慢后快、带「推子感」，
+     指数衰减才是弦振动的自然形状。截断护栏：任何分支的收音都必须在采样 buffer 耗尽前
+     把增益收到零——此前 sus 分支长音在 buffer 末尾仍处 ramp 中段，源一到头就产生爆点；
+     旧库电平低（0.015 有效峰）把这个爆点掩蔽了，响度归一后会解除掩蔽，先行堵死。 */
+  const bufEnd=when+natLen;                                 // 源自然耗尽时刻
+  const rel=(t0,tau)=>{ const t=Math.min(t0, bufEnd-8*tau-0.005);
+    g.gain.setValueAtTime(gain, Math.max(when+0.02, t));
+    g.gain.setTargetAtTime(0, Math.max(when+0.02, t), tau);
+    return Math.min(Math.max(when+0.02, t)+8*tau, bufEnd-0.003); };
   let stopAt;
-  if(sus){                                                  // 持续音色：随时值保持后收音
-    g.gain.setValueAtTime(gain, when+Math.max(0.02, dur));
-    g.gain.linearRampToValueAtTime(0.0001, when+dur+0.18);
-    stopAt=when+dur+0.2;
-  }else if(opt && opt.damp){                                // 弦被再次弹响/闷音：自然响到 when+dur，再 50ms 阻尼
-    const cutT=when+Math.max(0.05, dur);
-    g.gain.setValueAtTime(gain, Math.max(when+0.02, cutT-0.05));
-    g.gain.linearRampToValueAtTime(0.0001, cutT);
-    stopAt=cutT+0.02;
-  }else{                                                    // 让弦自然延音：播完采样的完整衰减（let ring）
-    stopAt=when+Math.min(natLen, dur);
-    g.gain.setValueAtTime(gain, Math.max(when+0.02, stopAt-0.04));
-    g.gain.linearRampToValueAtTime(0.0001, stopAt);
-  }
+  if(sus)                stopAt=rel(when+Math.max(0.02, dur), 0.05);   // 持续音色：随时值收音
+  else if(opt&&opt.damp) stopAt=rel(when+Math.max(0.05, dur)-0.05, 0.015); // 再弹响/闷音：快速阻尼
+  else                   stopAt=rel(when+Math.min(natLen, dur)-0.06, 0.02); // let ring：播完自然衰减
   src.connect(g); g.connect(bus.dry);
   const ws=ctx.createGain(); ws.gain.value=0.5; g.connect(ws); ws.connect(bus.wet);
-  src.start(when); src.stop(stopAt+0.03);
+  src.start(when); src.stop(Math.min(stopAt+0.02, bufEnd));
   audio.sources.push(src);
   return true;
 }
@@ -9866,6 +9873,21 @@ function play(){
   const norm = 0.85/Math.sqrt(activeTrackCount());
   audio.events=[]; audio.evIdx=0;
   const hlVox = !song.tabVoices.length;
+  /* v48.6 全曲力度时间线：TAB 列无力度数据入口，但歌曲级强弱（标在简谱声部的 p/mf/f…）
+     本就该带动伴奏轨。取第一个含力度记号的简谱声部构建 [{tm,g}] 时间线，TAB 轨按列起点取值。
+     无任何力度记号时时间线为空、增益恒 1（零行为变化）。 */
+  const dynTL=[];
+  { let src=-1;
+    song.voxVoices.forEach((_,vi)=>{ if(src>=0) return;
+      const has=song.measures.some(m=>(m.voxes[vi]||[]).some(c=>c.dyn&&DYN_GAIN[c.dyn]));
+      if(has) src=vi; });
+    if(src>=0){ let g=1;
+      order.forEach((mi,oi)=>{ let off=starts[oi];
+        const smi=simileSrc(mi); const mUt=meaMeter(smi!=null?smi:mi).unit;
+        (song.measures[smi!=null?smi:mi].voxes[src]||[]).forEach(col=>{
+          if(col.dyn&&DYN_GAIN[col.dyn]){ g=DYN_GAIN[col.dyn]; dynTL.push({tm:off,g}); }
+          off+=beatsOf(col,mUt)*spb; }); }); } }
+  const dynAt=(off)=>{ let g=1; for(let i=0;i<dynTL.length;i++){ if(dynTL[i].tm<=off+1e-6) g=dynTL[i].g; else break; } return g; };
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
@@ -9891,9 +9913,11 @@ function play(){
         const stagger = col.strum ? ((col.strum==='arp'||col.strum==='arpd')?0.05:0.024) : 0.012;
         const ord2 = col.strum==='u' ? ns.slice().reverse() : ns;
         const chordDiv = Math.sqrt(Math.max(1, ord2.length));
+        const dg=dynAt(off);                       /* v48.6 TAB 轨吃全曲力度时间线 */
         ord2.forEach((n,k)=>{
+          const jj=humJit(mi, ci, n.s);            /* v48.6 确定性微扰动 */
           insts.push({ when:t+off+k*stagger, s:n.s, x:!!n.x, mute:!!col.mute,
-            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12), gain:vol/chordDiv });
+            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*jj.gc/chordDiv });
         });
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
         off += durSec;
@@ -13461,11 +13485,12 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v48.5';
+const APP_VER='v48.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.6</span><div><b>播放引擎快赢包（音质升级·第一批①，九方专家评审后开工）</b>：① <b>收音全面改为指数衰减</b>——线性收尾的「推子感」消除，音符结束更接近真实弦振动；② <b>采样截断护栏</b>——任何音在采样耗尽前包络必先收零，长音结尾的潜在爆点（响度归一后会被放大）提前堵死；③ <b>重复音去机枪化</b>——每个音按谱面位置加 ±4 音分、±1.2dB 的<b>确定性</b>微扰动：同一首谱每次播放完全一致（校对复听可复现），但连续同音不再逐比特相同；④ <b>力度记号带动吉他伴奏轨</b>——标在简谱声部的 p / mf / f 等力度现在同步作用于 TAB 轨（全曲力度时间线），主歌轻副歌重整体生效；⑤ 新增 <b>tv_audio 数值音频回归</b>：离线渲染后对波形做数值断言（无削波/收音静音/截断无爆点/力度取值/扰动确定性），并纳入发版流水线——音质问题此后由断言把关，不靠人耳抽查。服务器侧已完成 FluidR3_GM 双库供给与完整性冒烟（阶段0），音色库切换开关随下个版本上线灰度。</div></li>
     <li><span class="v">v48.5</span><div><b>用户手册深度改版：零基础入门 → 专业制谱</b>：① 官网「使用手册」新增<b>「零基础第一课」</b>——不懂乐理也能十分钟看懂简谱数字/时值/拍号/调/六线谱/五线谱/和弦，每个概念都注明编辑器里对应的按钮；新增<b>「专业制谱之路」</b>——三关校对法（节拍→试听→预览）、引擎自动保证的刻版细节、高效工作流顺序、与 MuseScore 协作、常见错谱自查清单与练手路线；② 全册按当前版本重写：启动台四入口、九种谱类（吉他弹唱/独奏/指弹分列）、<b>落音自动前进的连续录入</b>、品位钮 0–9＋「10–24▾」、Enter 填词流程、右栏两页签、云端同步与会员现状、版本号自查方法；③ 编辑器内「使用帮助」同步纠偏——移除早已下线的「多窗口标签栏」描述，补自动前进/单窗口/云同步/版本号说明，底部直达完整手册。</div></li>
     <li><span class="v">v48.4</span><div><b>发版流水线增加「版本落位校验」</b>：此前部署后的冒烟检查只验证页面能打开、含备案号等固定字样，<b>即便落位的是旧文件也照样通过</b>，于是「部署显示成功、线上却还是旧版」这种情况无法被发现。现在每次部署都会<b>比对线上编辑器的版本号与本次提交是否一致</b>，不一致直接判部署失败并打印线上实际版本。（若你看到的版本号仍偏旧，多为浏览器缓存了页面，<b>Ctrl+F5 / Cmd+Shift+R 强制刷新</b>即可；版本号显示在右栏「信息」页「更新日志」下方。）</div></li>
     <li><span class="v">v48.3</span><div><b>右栏收敛为「信息 · 创作」两页签</b>：① <b>小节时值提示（节拍状态）与光标位置一并归回「信息」页</b>——节拍状态不再挂在顶栏右端，曲谱信息 / 光标位置 / 使用帮助 / 特色功能 / 更新日志（含版本号）/ 节拍状态自上而下一列到底；② <b>「创作」页只留创作帮助与预提示</b>——一键配和弦 / 一键配伴奏 / 智能填词 / 哼唱成谱，下接随光标实时变化的智能预提示；③ <b>「智能」「库」两个页签移除</b>：预提示并入创作页，素材库面板<b>暂时隐藏</b>（节奏型库 / 伴奏织体改从<b>顶栏</b>进入，编辑创建和弦在<b>左栏和弦层</b>，功能均未丢失）；「导入 · 互操作」卡片同样暂时隐藏（导入 MusicXML / MIDI 在<b>启动台「导入」</b>与<b>新建向导</b>内照常可用）。启动台未选曲谱时默认停在「信息」页。</div></li>
