@@ -5,7 +5,7 @@
    覆盖：无削波 / 收音尾部静音 / 采样截断点无爆点（一阶差分探针）/ 采样路径有效 /
         多轨最坏情况总线安全 / 力度时间线作用于 TAB / 微扰动确定性（同位同值、异位异值）/
         响度归一系数与生效电平 / 混响 IR 性质 / v48.9 扫弦力度型与拍点重音表 /
-        v49.0 力度→明暗联动 / 影子解码原子切换前置。 */
+        v49.0 力度→明暗联动 / 影子解码原子切换前置 / v49.1 乐句呼吸与踏板模拟决策函数。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html');
@@ -214,6 +214,15 @@ const T = (ok, name, detail) => {
         dec: keys.filter(k => k[0] !== 'p').length, pend: keys.filter(k => k[0] === 'p').length };
     }
 
+    // ── K 乐句呼吸 + 踏板模拟（v49.1）：调度决策纯函数断言 ──
+    {
+      out.K = {
+        gBr: phraseGate(2, true), gNo: phraseGate(2, false), gMin: phraseGate(0.1, true),
+        pdNext: pedalDur(10, 12, 0.9), pdEnd: pedalDur(10, null, 0.9),
+        pdSame: pedalDur(10, 10.005, 0.9), pdFloor: pedalDur(5, 5.05, 2)
+      };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -250,6 +259,9 @@ const T = (ok, name, detail) => {
     'I 力度→明暗：轻音高次谐波衰减≥35%、低次谐波主体保留', JSON.stringify(r.I));
   T(r.J.n > 0 && r.J.dec === r.J.n && r.J.pend === 0,
     'J 影子解码：resolve 时全部就绪、零 pending（原子切换前置）', JSON.stringify(r.J));
+  T(Math.abs(r.K.gBr - 1.7) < 1e-9 && r.K.gNo === 2 && Math.abs(r.K.gMin - 0.12) < 1e-9
+    && r.K.pdNext === 2 && r.K.pdEnd === 3 && r.K.pdSame === 3 && Math.abs(r.K.pdFloor - 0.08) < 1e-9,
+    'K 乐句呼吸收音 15% + 踏板延音到下一发声列/末尾≥3s', JSON.stringify(r.K));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);

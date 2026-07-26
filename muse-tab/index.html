@@ -9251,6 +9251,14 @@ function strumPlan(n, kind){
   }
   return out;
 }
+/* v49.1 乐句呼吸：谱面换气记号（col.breath）处，本音提前收音留出「吸气」空隙——
+   收 15% 时值（至少留 0.12s 发音体），纯函数供调度与 tv_audio 断言。 */
+function phraseGate(rhythm, br){ return br? Math.max(0.12, rhythm*0.85) : rhythm; }
+/* v49.1 踏板模拟（钢琴谱左手声部）：和音附加音不再按 0.9 门限截断，而是延音到本声部
+   下一个发声列（damp 收音）——右手换旋律音时左手和声仍在踏板里；末尾和弦自然延响。 */
+function pedalDur(at, nextAt, base){
+  return (nextAt!=null && nextAt>at+0.01)? Math.max(0.08, nextAt-at) : Math.max(base, 3);
+}
 function humJit(a,b,c){
   let h=((a+1)*73856093) ^ ((b+1)*19349663) ^ (((c||0)+1)*83492791);
   h=(h ^ (h>>>13)) >>> 0;
@@ -9577,8 +9585,10 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   const src=ctx.createBufferSource(); src.buffer=ksBuffer(ctx,freq,ring,sp,mute);
   const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=sp.hp||70;
   const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.6;
-  /* 力度联动亮度：弹得越重泛音越亮 */
-  lp.frequency.value=(sp.tone||3800)*(0.72+0.55*Math.min(1, gain*3.2));
+  /* 力度联动亮度：弹得越重泛音越亮。v49.1 优先用调度层传入的音乐力度 opt.vel
+     （与采样通路同一条力度管道——合成回落时明暗行为一致）；未传时沿用绝对增益近似 */
+  const velB = opt && opt.vel!=null ? Math.min(1, Math.max(0.3, opt.vel)) : Math.min(1, gain*3.2);
+  lp.frequency.value=(sp.tone||3800)*(0.72+0.55*velB);
   const g=ctx.createGain(); g.gain.value=gain;
   if(damp && !mute){                                        // 该弦被再次弹响：快速阻尼旧音
     g.gain.setValueAtTime(gain, when+Math.max(0.02, dur-0.05));
@@ -9602,15 +9612,17 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   }
 }
 /* ---- 钢琴（专用模型：双失谐激励 + 泛音层 + 琴槌噪声 + 两段衰减） ---- */
-function pianoTone(ctx,bus,freq,when,dur,gain,sp){
+function pianoTone(ctx,bus,freq,when,dur,gain,sp,opt){
   const decay=Math.max(0.4,(sp.decay||3)*Math.min(1.4,1.7-freq/1800));
   const g=ctx.createGain();
   g.gain.setValueAtTime(0.0001,when);
   g.gain.exponentialRampToValueAtTime(gain, when+(sp.atk||0.003));
   g.gain.exponentialRampToValueAtTime(gain*0.32, when+0.24);            // 快速初衰
   g.gain.exponentialRampToValueAtTime(gain*0.0008, when+decay);          // 慢尾音
+  /* v49.1 力度→明暗（与采样/KS 同一条管道）：轻触起始泛音更少 */
+  const velB = opt && opt.vel!=null ? Math.min(1, Math.max(0.3, opt.vel)) : 1;
   const lp=ctx.createBiquadFilter(); lp.type='lowpass';
-  lp.frequency.setValueAtTime(Math.min(9000, freq*9), when);
+  lp.frequency.setValueAtTime(Math.min(9000, freq*(4+5*velB)), when);
   lp.frequency.exponentialRampToValueAtTime(Math.max(900, freq*2.2), when+decay*0.7);  // 泛音随时间变暗
   lp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
   const end=when+decay+0.1;
@@ -9623,13 +9635,13 @@ function pianoTone(ctx,bus,freq,when,dur,gain,sp){
     o.start(when); o.stop(end);
     audio.sources.push(o);
   });
-  /* 琴槌击弦噪声（短促、随音高变亮） */
+  /* 琴槌击弦噪声（短促、随音高变亮；v49.1 轻触时槌噪同步减弱） */
   const sr=ctx.sampleRate, nl=Math.floor(sr*0.02);
   const nb=ctx.createBuffer(1,nl,sr); const nd=nb.getChannelData(0);
   for(let i=0;i<nl;i++) nd[i]=(Math.random()*2-1)*(1-i/nl);
   const ns=ctx.createBufferSource(); ns.buffer=nb;
   const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=Math.min(6000,freq*4); bp.Q.value=1;
-  const ng=ctx.createGain(); ng.gain.value=gain*0.5;
+  const ng=ctx.createGain(); ng.gain.value=gain*0.5*(0.3+0.7*velB);
   ns.connect(bp); bp.connect(ng); ng.connect(bus.dry);
   ns.start(when); audio.sources.push(ns);
 }
@@ -9746,7 +9758,7 @@ function playInst(instKey,ctx,bus,freq,when,dur,gain,mute,opt){
   }
   switch(sp.type){
     case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute,opt); break;
-    case 'piano': pianoTone(ctx,bus,f,when,dur,gg,sp); break;
+    case 'piano': pianoTone(ctx,bus,f,when,dur,gg,sp,opt); break;
     case 'fm':    fmTone(ctx,bus,f,when,dur,gg,sp); break;
     case 'saw':   sawStrings(ctx,bus,f,when,dur,gg,sp); break;
     case 'flute': fluteTone(ctx,bus,f,when,dur,gg,sp); break;
@@ -10090,6 +10102,9 @@ function play(){
     const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && vi===1)? 0.67 : 1;
     const vol = (cfg.vol||1)*norm*roleG;
     const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
+    /* v49.1 踏板模拟条件：钢琴谱左手声部（非持续音色）——和音延音到本声部下一发声列 */
+    const pedal = (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
+    const pedAdds=[], soundTimes=[];
     /* 1) 铺平列 → 合并连音线为音符事件；倚音/高亮/力度就地处理 */
     const notes=[]; let cur=null, dynG=1;
     order.forEach((mi,oi)=>{
@@ -10122,9 +10137,11 @@ function play(){
         if(col.dyn && DYN_GAIN[col.dyn]) dynG=DYN_GAIN[col.dyn];
         if(m!=null){
           const f=midiFreq(m);
+          soundTimes.push(t+off);                          /* v49.1 本声部发声列时刻（踏板延音终点用） */
           if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
           else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG*acc2, tie:!!col.tie}; }
         } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
+        if(cur && col.breath) cur.br=true;                 /* v49.1 换气记号：本音提前收（乐句呼吸） */
         /* v48.9 和音塑形（MIDI 专家参数）：附加音按音高低→高各错 3ms 微滚奏（真人和弦非绝对齐击，
            也避免同起音相位叠加）；声部分层——最低附加音为外声部略保留，内声部相对旋律约 −9dB；
            时值门 ×0.9 让相邻和音间有呼吸。力度线与拍点重音同步作用（此前附加音不吃力度记号）。 */
@@ -10134,7 +10151,9 @@ function play(){
             .sort((x,y)=>x-y);
           ams.forEach((am,k)=>{
             const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
-            playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off+k*0.003, Math.max(0.08, durSec*0.9), vol*ag*dynG*acc2, false, {damp:true, vel:dynG*acc2*0.7});
+            const at2=t+off+k*0.003, gn=vol*ag*dynG*acc2, vl=dynG*acc2*0.7;
+            if(pedal) pedAdds.push({am, at:at2, base:durSec*0.9, gn, vl});   /* 踏板：终点待后置解析 */
+            else playInst(cfg.inst, ctx, tbus, midiFreq(am), at2, Math.max(0.08, durSec*0.9), gn, false, {damp:true, vel:vl});
           });
         }
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
@@ -10147,7 +10166,8 @@ function play(){
     notes.forEach((n,i)=>{
       const rhythm = n.end - n.at;
       let dur, opt;
-      if(sustained){ dur=rhythm; opt={vel:n.g}; }
+      if(n.br){ dur=phraseGate(rhythm, true); opt={damp:true, vel:n.g}; }   /* v49.1 换气：提前收音 */
+      else if(sustained){ dur=rhythm; opt={vel:n.g}; }
       else {
         const nx=notes[i+1];
         if(nx){ dur=Math.max(rhythm, nx.at-n.at); opt={damp:true, vel:n.g}; }
@@ -10155,6 +10175,15 @@ function play(){
       }
       playInst(cfg.inst, ctx, tbus, n.freq, n.at, dur, vol*1.05*n.g, false, opt);
     });
+    /* v49.1 踏板和音后置调度：延音到本声部下一发声列（damp），末尾和弦自然延响 */
+    if(pedAdds.length){
+      let si=0;
+      pedAdds.forEach(p=>{
+        while(si<soundTimes.length && soundTimes[si]<=p.at+0.01) si++;   /* 跳过本列自身时刻；at 单调递增游标只前进 */
+        const nx = si<soundTimes.length? soundTimes[si] : null;
+        playInst(cfg.inst, ctx, tbus, midiFreq(p.am), p.at, pedalDur(p.at, nx, p.base), p.gn, false, {damp: nx!=null, vel:p.vl});
+      });
+    }
     total=Math.max(total,starts.length?starts[starts.length-1]+measureSeconds(order[order.length-1],spb):0);
   });
   audio.events.sort((a,b)=>a.tm-b.tm);
@@ -13646,7 +13675,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.0';
+const APP_VER='v49.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13669,6 +13698,7 @@ const APP_VER='v49.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.1</span><div><b>踏板模拟 + 乐句呼吸 + 合成器力度一致（音质升级·第二批③，本批收官）</b>：① <b>钢琴踏板模拟</b>——钢琴/钢琴弹唱谱左手声部的和音不再按固定门限截断，而是<b>延音到本声部下一个发声位置</b>（右手换旋律音时左手和声仍「踩在踏板里」），曲末和弦自然延响≥3 秒；② <b>乐句呼吸</b>——谱面标了换气记号 v 的音自动提前收音约 15%，留出真实的「吸气」空隙，唱谱跟练更贴近人声乐句；③ <b>合成器力度一致</b>——内置合成器（采样未就绪时的回落通路）现在吃同一条力度管道：KS 拨弦亮度、合成钢琴的起始泛音与琴槌噪声都随音乐力度变化，回落与采样两条通路的强弱表现不再脱节。tv_audio 增至 13 项断言全绿。</div></li>
     <li><span class="v">v49.0</span><div><b>首播音质收敛 + 力度明暗联动（音质升级·第二批②）</b>：解决「第一遍播放音色明显偏闷」的三个根源——① <b>打开曲谱即预取全量音色</b>：进入编辑就后台下载并解码当前谱用到的高保真采样（此前要点了播放才开始下载 2MB 级音色包），首次点播放即是全量音质；② <b>音色包本地缓存</b>：下载过的音色包存入浏览器 Cache Storage，二次进站秒级就绪、离线也可用；③ <b>整包就绪才切换</b>：全量包解码期间继续用内置采样，全部就绪后一次性切换——一首歌里不再出现「前半段真采样、后半段合成器」的混播跳变；④ <b>力度→明暗联动</b>：轻音不只更小声、音色也随之变暗（真乐器弱奏高频泛音更少），与 v48.9 的拍点重音/扫弦力度型贯通成完整力度管道——伴奏更松弛、重音更亮更前。tv_audio 增至 12 项断言全绿。</div></li>
     <li><span class="v">v48.9</span><div><b>音符层塑形（音质升级·第二批①，MIDI 专家参数落地）</b>：① <b>拍点重音</b>——强拍 +2.5dB、次强拍 +1.5dB、弱拍位 −1.4～−1.9dB，简谱与 TAB 全声部生效，播放从「均匀敲格子」变出律动骨架；② <b>扫弦力度型</b>——下扫低音弦先响且更重（弦间递减梯度）、展开约 70ms 且逐弦加速；<b>上扫只碰高音侧 ≤4 根弦</b>（真人手腕物理够不到低音弦）、更快更轻——D-DU-UDU 终于有了「下重上轻」的真实手感；③ <b>和音塑形</b>——同列附加音按音高低→高各错 3ms 微滚奏、内声部退后约 −9dB（旋律浮在和声之上，不再糊成一片），并同步吃力度记号；④ <b>钢琴左手自动让位</b>——钢琴/钢琴弹唱谱左手声部默认约 −3.5dB，伴奏不压旋律（轨道音量仍可自行调整）；⑤ 新增<b>「演奏感：自然/精确」开关</b>（创作提示列）——自然档保留确定性微扰动（复听一致），精确档零扰动供校音/跟练；拍点重音等确定性塑形两档都保留。试听定论：<b>音色库保持 MusyngKite 不换</b>，灰度开关默认收起（机制保留）。tv_audio 增至 10 项断言全绿。</div></li>
     <li><span class="v">v48.8</span><div><b>响度归一 + 音色库灰度开关（音质升级·第一批③，核心版）</b>：① <b>按样响度归一</b>——每个采样解码时实测起音窗响度与峰值，自动补偿增益（封顶 ×4 防噪底、近静音坏样自动改走合成器）；<b>钢琴从此不再「几乎听不见」</b>（此前采样源电平低至 −30dBFS 且引擎再砍半，实测生效峰值提升约 4–10 倍）；② <b>起音修剪</b>——自动跳过 MP3 编码器头部静音（实测 3–7ms），音头与节拍器对得更准；③ 删除采样通路的统一 ×0.5，电平锚点与合成器对齐；离线渲染实测最坏情况（双轨扫弦+和弦齐鸣）总线峰值 0.60、零削波；④ <b>音色库灰度开关</b>——右栏「信息」页版本号下方新增「音色库」一行，点击在 MusyngKite ↔ <b>FluidR3</b>（逐音电平一致性更好）间切换试听，刷新生效、随时切回；也可用网址参数 <code>?sndlib=fluid</code>。服务器双库已就位。tv_audio 增至 9 项断言全绿。</div></li>
