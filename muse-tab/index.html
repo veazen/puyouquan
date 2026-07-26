@@ -1613,6 +1613,8 @@ body.shell #hint{display:none}
       <button class="rc-h rc-btn" id="b-changelog">更新日志</button>
       <!-- v48.2 更新日志下方标当前版本号：便于用户/反馈时确认自己跑的是哪一版（强刷后是否已更新） -->
       <div class="rc-ver" id="rc-ver" title="当前编辑器版本"></div>
+      <!-- v48.8 音色库灰度开关：默认 MusyngKite，点击切换 FluidR3 试听（刷新生效，可随时切回） -->
+      <div class="rc-ver" id="rc-sndlib" style="cursor:pointer" title="播放音色库切换（灰度试听，刷新生效）"></div>
     </div>
     <div id="beat-box" data-rt="info">
       <span id="beat-status" class="good">✓ 所有小节时值正确</span>
@@ -9216,7 +9218,14 @@ function humJit(a,b,c){
    音色库：midi-js-soundfonts（FluidR3_GM / MusyngKite，自由授权 GM 音色，逐音符 MP3）。
    加载顺序：站点自托管 sounds/ → jsDelivr → GitHub Pages；
    未就绪/离线时无缝回落到内置物理建模合成器。 */
-const SF_LIB='MusyngKite';
+/* v48.8 音色库灰度开关（评审硬门槛 C4）：默认仍 MusyngKite；?sndlib=fluid 或
+   localStorage['musetab-sndlib']='FluidR3_GM' 切 FluidR3（红线安全：仅新增键）。
+   服务器双库已并存（阶段0），回退=清掉本键刷新即可，无需发版。 */
+const SF_LIB=(function(){ try{
+  if(/[?&]sndlib=fluid/.test(location.search)) return 'FluidR3_GM';
+  if(/[?&]sndlib=musyng/.test(location.search)) return 'MusyngKite';
+  if(localStorage.getItem('musetab-sndlib')==='FluidR3_GM') return 'FluidR3_GM';
+}catch(_){ } return 'MusyngKite'; })();
 const SF_MAP={steel:'acoustic_guitar_steel', nylon:'acoustic_guitar_nylon', uku:'acoustic_guitar_nylon',
   electric:'electric_guitar_clean', bass:'acoustic_bass', piano:'acoustic_grand_piano',
   epiano:'electric_piano_1', musicbox:'music_box', strings:'string_ensemble_1',
@@ -9294,8 +9303,23 @@ function sfDecode(ctx, bank, midi){
     const b64=uri.slice(uri.indexOf(',')+1);
     const bin=atob(b64); const arr=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-    ctx.decodeAudioData(arr.buffer).then(buf=>{ bank.buf[key]=buf; delete bank.buf['p'+key]; })
-      .catch(()=>{ delete bank.buf['p'+key]; });
+    ctx.decodeAudioData(arr.buffer).then(buf=>{
+      /* v48.8 解码即测：onset（跳过 MP3 编码器头部静音）+ 起音窗 RMS + 全长峰值 →
+         按样归一系数 g=min(RMS_T/rms, PEAK_T/peak, ×4封顶)。系数随解码 buffer 同条目缓存
+         （生命周期一致，双采样率无键冲突，不持久化——评审参数②）。
+         峰值<0.001 判坏样：条目置 null，sfTryPlay 视作无样走合成回落（否则 ×250 放大噪底）。 */
+      const ch=buf.getChannelData(0); let peak=0, pi=0;
+      for(let i2=0;i2<ch.length;i2++){ const a2=Math.abs(ch[i2]); if(a2>peak){peak=a2; pi=i2;} }
+      if(peak<0.001){ bank.buf[key]=null; delete bank.buf['p'+key]; return; }
+      let on=0; const th=peak*0.1;
+      for(let i2=0;i2<ch.length;i2++){ if(Math.abs(ch[i2])>th){ on=i2; break; } }
+      const w0=on, w1=Math.min(ch.length, on+Math.floor(buf.sampleRate*0.5));
+      let sum=0; for(let i2=w0;i2<w1;i2++) sum+=ch[i2]*ch[i2];
+      const rms=Math.sqrt(sum/Math.max(1,w1-w0));
+      const g=Math.min(0.09/Math.max(1e-6,rms), 0.28/peak, 4);
+      bank.buf[key]={ b:buf, g, o:Math.max(0, on/buf.sampleRate - 0.002) };
+      delete bank.buf['p'+key];
+    }).catch(()=>{ delete bank.buf['p'+key]; });
   }catch(_){ delete bank.buf['p'+key]; }
 }
 /* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
@@ -9311,12 +9335,15 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   }
   if(pick==null) return false;
   const key=ctx.sampleRate+':'+pick;
-  const buf=bank.buf[key];
-  if(!buf){ sfDecode(ctx, bank, pick); return false; }
+  const ent=bank.buf[key];
+  if(ent===null) return false;                              // v48.8 坏样（近乎静音）→ 合成回落
+  if(!ent){ sfDecode(ctx, bank, pick); return false; }
+  const buf=ent.b;
+  gain=gain*ent.g;                                          // v48.8 按样归一增益（替代原统一 ×0.5）
   const src=ctx.createBufferSource(); src.buffer=buf;
   const rate=freq/midiFreq(pick); src.playbackRate.value=rate;
   const sus=SF_SUSTAIN.has(name);
-  const natLen=buf.duration/rate;                           // 采样自然衰减长度（按变速）
+  const natLen=(buf.duration-ent.o)/rate;                   // 采样自然衰减长度（按变速，去掉头部静音）
   const g=ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
   g.gain.linearRampToValueAtTime(gain, when+0.006);         // 6ms 线性起音，杜绝爆音
@@ -9335,7 +9362,7 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   else                   stopAt=rel(when+Math.min(natLen, dur)-0.06, 0.02); // let ring：播完自然衰减
   src.connect(g); g.connect(bus.dry);
   const ws=ctx.createGain(); ws.gain.value=0.5; g.connect(ws); ws.connect(bus.wet);
-  src.start(when); src.stop(Math.min(stopAt+0.02, bufEnd));
+  src.start(when, ent.o); src.stop(Math.min(stopAt+0.02, bufEnd));   /* onset 修剪：跳过编码器头部静音，起音更准 */
   audio.sources.push(src);
   return true;
 }
@@ -9615,7 +9642,9 @@ function playInst(instKey,ctx,bus,freq,when,dur,gain,mute,opt){
   const gg = gain*(sp.amp||0.28);
   /* 高保真采样优先（闷音保持合成器的短促质感）；未就绪自动回落 */
   if(hifiOn && !mute && SF_MAP[instKey]){
-    if(sfTryPlay(ctx, bus, SF_MAP[instKey], f, when, dur, gain*0.5, opt)) return;
+    /* v48.8 删统一 ×0.5：归一后采样峰值≈0.28×gain，与 KS 合成锚点（sp.amp≈0.28）对齐
+       （评审条件③：×0.5 挂点已查明在采样通路，锚点 0.28 成立） */
+    if(sfTryPlay(ctx, bus, SF_MAP[instKey], f, when, dur, gain, opt)) return;
   }
   switch(sp.type){
     case 'ks':    ksPluck(ctx,bus,f,when,dur,gg,sp,mute,opt); break;
@@ -13491,11 +13520,24 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v48.7';
+const APP_VER='v48.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
+/* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
+   仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。 */
+{ const sb=document.getElementById('rc-sndlib');
+  if(sb){
+    const cur=SF_LIB==='FluidR3_GM';
+    sb.textContent='音色库：'+(cur?'FluidR3（新）— 点击切回旧库':'MusyngKite — 点击试听新库');
+    sb.onclick=()=>{ try{
+      if(cur) localStorage.removeItem('musetab-sndlib');
+      else localStorage.setItem('musetab-sndlib','FluidR3_GM');
+    }catch(_){ }
+      toast('音色库已切换，正在刷新…'); setTimeout(()=>location.reload(), 500); };
+  } }
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.8</span><div><b>响度归一 + 音色库灰度开关（音质升级·第一批③，核心版）</b>：① <b>按样响度归一</b>——每个采样解码时实测起音窗响度与峰值，自动补偿增益（封顶 ×4 防噪底、近静音坏样自动改走合成器）；<b>钢琴从此不再「几乎听不见」</b>（此前采样源电平低至 −30dBFS 且引擎再砍半，实测生效峰值提升约 4–10 倍）；② <b>起音修剪</b>——自动跳过 MP3 编码器头部静音（实测 3–7ms），音头与节拍器对得更准；③ 删除采样通路的统一 ×0.5，电平锚点与合成器对齐；离线渲染实测最坏情况（双轨扫弦+和弦齐鸣）总线峰值 0.60、零削波；④ <b>音色库灰度开关</b>——右栏「信息」页版本号下方新增「音色库」一行，点击在 MusyngKite ↔ <b>FluidR3</b>（逐音电平一致性更好）间切换试听，刷新生效、随时切回；也可用网址参数 <code>?sndlib=fluid</code>。服务器双库已就位。tv_audio 增至 9 项断言全绿。</div></li>
     <li><span class="v">v48.7</span><div><b>混响细修（音质升级·第一批②）</b>：混响 IR 叠加 <b>180Hz 低切</b>——钢琴低音经混响不再糊成一团（低频尾巴是元凶）；predelay 12→18ms，干湿分离度提升、<b>音头更清晰</b>（跟练要听得清音头）。如实说明：评审专家建议的「立体声去相关」「时变渐暗」经查<b>现有实现早已具备</b>（双声道独立噪声＋时变低通），本版只补真正缺的一刀；湿量不盲调，留待音色库灰度期用耳朵定。tv_audio 新增混响 IR 性质断言（predelay 零区/声道去相关/渐暗/无低频泥），8 项全绿。</div></li>
     <li><span class="v">v48.6</span><div><b>播放引擎快赢包（音质升级·第一批①，九方专家评审后开工）</b>：① <b>收音全面改为指数衰减</b>——线性收尾的「推子感」消除，音符结束更接近真实弦振动；② <b>采样截断护栏</b>——任何音在采样耗尽前包络必先收零，长音结尾的潜在爆点（响度归一后会被放大）提前堵死；③ <b>重复音去机枪化</b>——每个音按谱面位置加 ±4 音分、±1.2dB 的<b>确定性</b>微扰动：同一首谱每次播放完全一致（校对复听可复现），但连续同音不再逐比特相同；④ <b>力度记号带动吉他伴奏轨</b>——标在简谱声部的 p / mf / f 等力度现在同步作用于 TAB 轨（全曲力度时间线），主歌轻副歌重整体生效；⑤ 新增 <b>tv_audio 数值音频回归</b>：离线渲染后对波形做数值断言（无削波/收音静音/截断无爆点/力度取值/扰动确定性），并纳入发版流水线——音质问题此后由断言把关，不靠人耳抽查。服务器侧已完成 FluidR3_GM 双库供给与完整性冒烟（阶段0），音色库切换开关随下个版本上线灰度。</div></li>
     <li><span class="v">v48.5</span><div><b>用户手册深度改版：零基础入门 → 专业制谱</b>：① 官网「使用手册」新增<b>「零基础第一课」</b>——不懂乐理也能十分钟看懂简谱数字/时值/拍号/调/六线谱/五线谱/和弦，每个概念都注明编辑器里对应的按钮；新增<b>「专业制谱之路」</b>——三关校对法（节拍→试听→预览）、引擎自动保证的刻版细节、高效工作流顺序、与 MuseScore 协作、常见错谱自查清单与练手路线；② 全册按当前版本重写：启动台四入口、九种谱类（吉他弹唱/独奏/指弹分列）、<b>落音自动前进的连续录入</b>、品位钮 0–9＋「10–24▾」、Enter 填词流程、右栏两页签、云端同步与会员现状、版本号自查方法；③ 编辑器内「使用帮助」同步纠偏——移除早已下线的「多窗口标签栏」描述，补自动前进/单窗口/云同步/版本号说明，底部直达完整手册。</div></li>

@@ -77,8 +77,8 @@ const T = (ok, name, detail) => {
 
     // ── C 最坏情况：六弦扫弦 ×2 + KS 和弦 + 合成钢琴齐鸣，总线不削波 ──
     {
-      /* 增益摆位镜像真实调度：norm=0.85/√轨数、和弦按 √n 分摊、采样通路 ×0.5（现状）。
-         此场景同时是「响度归一/删×0.5」时的削波哨兵——归一后若超线，此断言先红。 */
+      /* 增益摆位镜像真实调度：norm=0.85/√轨数、和弦按 √n 分摊；v48.8 起采样电平由按样归一接管。
+         删 ×0.5 后的削波哨兵：此场景峰值必须仍 <0.99。 */
       const ch = await render(3.0, async (ctx, bus) => {
         for (const m of [40, 45, 50, 55, 59, 64]) { await decodeInto(ctx, m); }
         const norm = 0.85 / Math.sqrt(2);
@@ -86,7 +86,7 @@ const T = (ok, name, detail) => {
         const g6 = norm / Math.sqrt(6);
         [0, 1.0].forEach(t0 => {
           [40, 45, 50, 55, 59, 64].forEach((m, k) => {
-            sfTryPlay(ctx, tb, 'acoustic_guitar_steel', midiFreq(m), 0.1 + t0 + k * 0.012, 2, g6 * 0.5, null);
+            sfTryPlay(ctx, tb, 'acoustic_guitar_steel', midiFreq(m), 0.1 + t0 + k * 0.012, 2, g6, null);  /* v48.8 归一接管电平，×0.5 已删 */
           });
         });
         const tb2 = makeTrackBus(ctx, bus, 0.2);
@@ -125,6 +125,21 @@ const T = (ok, name, detail) => {
       });
       const dynAt = (off) => { let gg = 1; for (let i = 0; i < dynTL.length; i++) { if (dynTL[i].tm <= off + 1e-6) gg = dynTL[i].g; else break; } return gg; };
       out.D = { pSeg: dynAt(0.1), fSeg: dynAt(4 * spb + 0.1), expect: [DYN_GAIN.p, DYN_GAIN.f] };
+    }
+
+    // ── G 响度归一：系数范围 + 生效电平 + onset 修剪 ──
+    {
+      const ctx = new OfflineAudioContext(2, SR * 2, SR);
+      const bus2 = buildBus(ctx);
+      await decodeInto(ctx, 52);
+      const ent = bank.buf[ctx.sampleRate + ':52'];
+      const ch = await (async () => {
+        sfTryPlay(ctx, bus2, 'acoustic_guitar_steel', midiFreq(52), 0.1, 8, 1.0, null);
+        const b2 = await ctx.startRendering(); return b2.getChannelData(0);
+      })();
+      const st2 = stats(ch, 0.1 * SR, 1.0 * SR);
+      out.G = { g: +ent.g.toFixed(2), onset: +ent.o.toFixed(4),
+        effPeak: +st2.peak.toFixed(3) };
     }
 
     // ── F 混响 IR 性质：18ms predelay 零区 / 双声道去相关 / 时变渐暗 / 无低频泥 ──
@@ -173,6 +188,8 @@ const T = (ok, name, detail) => {
     'E 扰动确定性与幅度（±4音分/±1.2dB 内）', JSON.stringify(r.E));
   T(r.F.preMax === 0 && r.F.corr < 0.2 && r.F.tailHF < r.F.headHF && r.F.lowRatio < 0.02,
     'F 混响IR：predelay零区/去相关/渐暗/无低频泥', JSON.stringify(r.F));
+  T(r.G.g > 1 && r.G.g <= 4.001 && r.G.onset >= 0 && r.G.onset < 0.05 && r.G.effPeak > 0.08 && r.G.effPeak < 0.45,
+    'G 归一：系数(1,4]/onset<50ms/生效峰值合理区间', JSON.stringify(r.G));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);
