@@ -692,7 +692,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const deg5 = song.measures[0].voxes[0][0].deg === 5;
     /* v47.9 落音后延迟前进：连点 5→0 属「录旋律」，0 会落到下一列（符合预期）。
        本项要验的是「0 把当前选中的音变成休止」，故先像真实点选那样重选该音并清掉前进锚点 */
-    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; advFrom = null; syncInputs();
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; lastEnt = null; syncInputs();
     document.querySelector('#eb-note [data-nd="0"]').click();
     const rest0 = !song.measures[0].voxes[0][0].deg;
     const eb = document.getElementById('editbar'), su = document.getElementById('seg-undo');
@@ -741,7 +741,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const stCtx = letters === 'DEFGABC' && vis(document.getElementById('eb-acc-s'))
       && vis(document.getElementById('eb-octup')) && !vis(document.getElementById('eb-fret-more'));
     /* v47.9 本用例自建选区（不沿用上一用例遗留的光标/前进锚点），再验「落音 + 变音作用于该音」 */
-    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; advFrom = null; syncInputs();
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; lastEnt = null; syncInputs();
     document.querySelector('#eb-note [data-nd="3"]').click();
     const degOk = song.measures[0].voxes[0][0].deg === 3;
     document.getElementById('eb-acc-s').click(); syncInputs();
@@ -758,7 +758,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const stRestSvg = /<svg/.test(document.querySelector('#eb-note [data-nd="0"] .dg').innerHTML);
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; syncInputs();
     const tabSeq = seq();
-    const orderOk = tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /0–24▾ ×$/.test(tabSeq)
+    /* v48.0 展示修正：折叠选择器只标「折叠掉的那段」（0–9 已铺开 → 显示 10–24▾，
+       原固定写 0–24▾ 与旁边的 0–9 重复）；× 补中文小字「分解」 */
+    const orderOk = tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /10–24▾ ×分解$/.test(tabSeq)
       && stSeq.indexOf('C D E F G A B') === 0 && stRestSvg;
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     // ④ 节奏型库按钮在上栏、位于节奏组末尾

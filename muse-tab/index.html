@@ -450,6 +450,8 @@ body.shell #eb-dur .eb,body.shell #editbar .eb:has(.dg){min-width:30px;justify-c
    简谱面板原 8度± 按钮在新版外壳隐藏去重（经典版保留原入口） */
 body.shell #editbar #eb-edit .eb .dg{display:none}
 body.shell #editbar #eb-edit .eb .dn{display:inline}
+/* v48.0 「×分解」补中文小字：品位组里数字自解释，唯独 × 是纯符号认不出含义，故字形+中文并排显示 */
+body.shell #editbar #eb-mute-n .dn{display:inline;font-size:11px;margin-left:3px}
 /* 工具行 1440 宽度预算（v40.5 教训）：编辑组转中文+并入八度后按钮加宽，此处整体收紧留白 */
 body.shell #editbar #eb-edit .eb{min-width:0;padding:3px 5px}
 body.shell #editbar .eb-sep{margin:0 5px}
@@ -3982,7 +3984,16 @@ function quickbarOn(){ return localStorage.getItem('musetab-quickbar')!=='off'; 
 /* v47.9 落音后自动前进（默认开，右栏「智能」页可切换）：与主流制谱软件一致，录旋律不必「数字/→」交替按。
    只作用于简谱/五线谱行——TAB 行的品位有两位数，靠 pending.digits 700ms 合成，自动前进会打断合成 */
 function autoAdvOn(){ return localStorage.getItem('musetab-autoadv')!=='off'; }
-let advFrom=null;   /* v47.9 延迟前进的锚点：记下上次落音的位置，光标仍在原处才补前进（见 inputDigit） */
+/* v48.0 落音即刻前进（光标肉眼可见地走到下一个音），lastEnt 记下「刚落的那个音 + 前进后的光标快照」，
+   供 modCol() 把随后的 ♯♭♮/附点/八度回落到该音——简谱习惯是「先落音、再加记号」，
+   若不回落就会把升号写到前进后的空列上，谱面会画出 ♯ 配 0 的错谱（v47.9 实测） */
+let lastEnt=null;
+function modCol(){
+  const c=curCol();
+  if(c && !c.deg && lastEnt && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
+     && lastEnt.at.mi===sel.mi && lastEnt.at.ci===sel.ci) return lastEnt.col;
+  return c;
+}
 function closeQuickbar(){ const d=document.getElementById('quickbar'); if(d) d.remove(); }
 function showQuickbar(cx, cy){
   closeQuickbar();
@@ -6039,11 +6050,33 @@ function syncInputs(){
     const shw=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
     shw('eb-octup', !isTab); shw('eb-octdn', !isTab);
     shw('eb-fret-more', isTab && cap<fretMaxOf()); shw('eb-mute-n', isTab);
+    /* v48.0 吉他谱展示修正：
+       ① 组标签「音符」→「品位」——TAB 里的数字是品位不是音名（v47.8 已如此定义，标签当时没跟上）；
+       ② 折叠选择器只标「折叠掉的那段」（如已铺开 0–9 就显示「10–24▾」），
+          原来固定写「0–24▾」与旁边已铺开的 0–9 重复，看不出下拉里到底是什么；
+       ③ × 补中文小字「分解」——同组其他功能钮都有中文，唯独它只有一个 × 认不出含义 */
+    { const lab=document.querySelector('#ebu-eb-note .eb-t');
+      if(lab) lab.textContent = isTab? '品位' : '音符';
+      const fm=document.getElementById('eb-fret-more');
+      if(fm && isTab){
+        const dg=fm.querySelector('.dg');
+        if(dg) dg.textContent = (cap+1)+'–'+fretMaxOf()+'▾';
+        fm.title = '品位选择器：点开可直接选 '+(cap+1)+'–'+fretMaxOf()+' 品（高把位/泛音位常用）；0–'+cap+' 品已在左侧铺开';
+      }
+      const mn=document.getElementById('eb-mute-n');
+      if(mn && !mn.querySelector('.dn')){
+        const sp=document.createElement('span'); sp.className='dn'; sp.textContent='分解'; mn.appendChild(sp);
+      }
+    }
     shw('eb-acc-s', isSt); shw('eb-acc-f', isSt); shw('eb-acc-n', isSt);
     { const mb=document.getElementById('eb-mute-n'); if(mb) mb.classList.toggle('on', !!(tabNote && tabNote.x)); }
-    [['eb-acc-s','#'],['eb-acc-f','b'],['eb-acc-n','n']].forEach(([id,a])=>{
-      const el=document.getElementById(id); if(el) el.classList.toggle('on', !!(col && col.acc===a));
-    });
+    /* v48.0 变音钮高亮跟随 modCol()：落音自动前进后，♯♭♮ 写的是刚落的那个音，
+       高亮若仍读当前空列就会「写进去了但按钮不亮」，与实际状态不符 */
+    { const mc=modCol();
+      [['eb-acc-s','#'],['eb-acc-f','b'],['eb-acc-n','n']].forEach(([id,a])=>{
+        const el=document.getElementById(id); if(el) el.classList.toggle('on', !!(mc && mc.acc===a));
+      });
+    }
     /* v47.8 节奏型库钮文案随谱类：五线谱＝钢琴伴奏织体 */
     { const libTxt = isSt? '伴奏织体…' : '节奏型库…';
       const libTip = isSt? '常用钢琴节奏型（伴奏织体）：按已标注的和弦自动生成双手音符'
@@ -7236,16 +7269,15 @@ function inputDigit(k){
     pending={digits:d,time:now};
     setFret(parseInt(d,10));
   }else{
-    /* v47.9 连续落音自动前进（延迟式）：光标停在刚落的音上，下一次落音时才前移。
-       这样录旋律只按音高键即可（不必「数字/→」交替），而 ♯♭/附点/八度/歌词等仍作用于刚落的那个音
-       ——若改成落音即刻前进，简谱习惯的「先落音再加升号」会把升号加到下一个空列上（会画出 ♯ 配 0 的错谱）。
-       advFrom 记录落音位置，光标一旦被手动移开就自然失配、不再补前进。
+    /* v48.0 落音后光标即刻前进到下一个音：录旋律只按音高键即可，不必「数字/→」交替。
+       随后的 ♯♭♮/附点/八度由 modCol() 回落到刚落的音（见 lastEnt），故「先落音再加记号」照常。
        仅此简谱/五线谱分支——上面 tab 分支不前进，否则两位品位的 pending 合成会被打断 */
     if(k<=7){
-      if(autoAdvOn() && advFrom && advFrom.row===sel.row && advFrom.vi===sel.vi
-         && advFrom.mi===sel.mi && advFrom.ci===sel.ci) moveCol(1);
       setDeg(k);
-      advFrom = autoAdvOn()? {row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci} : null;
+      if(autoAdvOn()){
+        const c=curCol(); moveCol(1);
+        lastEnt={col:c, at:{row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}};
+      }else lastEnt=null;
     }
   }
 }
@@ -7399,7 +7431,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
   blurSel = false;   // 点击谱面 → 恢复光标
-  advFrom = null;    /* v47.9 手动点选即放弃「延迟前进」锚点：改已有音符的休止/变音应就地生效，不再补前进 */
+  lastEnt = null;    /* v48.0 手动点选即放弃回落锚点：改已有音符的变音/八度应就地生效 */
   /* 点击小节号 → 选中整小节（可复制/粘贴） */
   if(t.dataset.measuresel!==undefined){
     measureSel = +t.dataset.measuresel;
@@ -8096,7 +8128,7 @@ window.addEventListener('pointerup', ()=>{ dragSel=null; });
 
 /* ================= 其余工具动作 ================= */
 /* v42.9 变化音循环输入：♯ 键 无→升→重升(×)→无；♭ 键 无→降→重降(♭♭)→无；♮ 键切换还原号 */
-function toggleAcc(a){ if(sel.row!=='vox')return; try{habit('acc:'+a);}catch(_){} mutate(()=>{ const c=curCol();
+function toggleAcc(a){ if(sel.row!=='vox')return; try{habit('acc:'+a);}catch(_){} mutate(()=>{ const c=modCol(); if(!c) return;   /* v48.0 自动前进后回落到刚落的音 */
   if(a==='#')      c.acc = c.acc==='#'? 'x' : c.acc==='x'? '' : '#';
   else if(a==='b') c.acc = c.acc==='b'? 'bb': c.acc==='bb'?'' : 'b';
   else             c.acc = c.acc===a? '' : a;
@@ -8107,7 +8139,7 @@ function toggleAcc(a){ if(sel.row!=='vox')return; try{habit('acc:'+a);}catch(_){
    而 toggleAcc('#') 的 '#'→'x' 循环在升号调会造出目标 3，accCarry 无 3 分支被兜底画成 ♭♭（画重降却发声升号）。
    故五线谱改为：先算目标 alt，再反解出能表达该目标的 acc 符号，并钳在可表示区间。 */
 function stAltCtx(){
-  const c=curCol(); if(!c) return null;
+  const c=modCol(); if(!c) return null;   /* v48.0 同上：自动前进后变音回落到刚落的音 */
   const K=staffKeyInfo(), Lt=(K.Li+(c.deg||1)-1)%7, keyAlt=K.alt[Lt]||0;
   return {c, K, Lt, keyAlt, cur:keyAlt+accSemi(c.acc)};
 }
@@ -8144,7 +8176,7 @@ function toggleTrem(){ if(sel.row!=='vox') return toast('震音用于旋律声�
 function toggleGliss(){ if(sel.row!=='vox') return toast('滑音用于旋律声部音符');
   mutate(()=>{ const c=curCol(); if(!c||!c.deg) return; if(c.gliss) delete c.gliss; else c.gliss=true; });
   const c=curCol(); toast(c&&c.gliss? '已加滑音（直线滑到下一个音）' : '已取消滑音'); }
-function bumpOct(d){ if(sel.row!=='vox')return; try{habit('oct:'+(d>0?'+':'-'));}catch(_){} mutate(()=>{ const c=curCol(); c.oct=Math.max(-3,Math.min(3,(c.oct||0)+d)); }); }
+function bumpOct(d){ if(sel.row!=='vox')return; try{habit('oct:'+(d>0?'+':'-'));}catch(_){} mutate(()=>{ const c=modCol(); if(!c) return;   /* v48.0 同上 */ c.oct=Math.max(-3,Math.min(3,(c.oct||0)+d)); }); }
 function toggleTie(){ try{habit('tie');}catch(_){}
   /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用 */
   if(noteSel.length>=2){
@@ -13395,6 +13427,7 @@ document.getElementById('b-feat').onclick = ()=>{
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.0</span><div><b>落音光标真正会走 + 吉他谱「品位」组展示修正</b>：① <b>落音后光标即刻前进到下一个音</b>——v47.9 用的是「延迟前进」（光标停在刚落的音上、下次落音才移动），虽然按键数已经省下来了，但<b>看上去就像没前进</b>；现改为落音即走，录旋律一路按音高键即可，实测录 16 个音<b>只需 16 次按键</b>。② <b>「先落音、再点升降号 / 附点 / 八度」照常生效</b>——光标虽已前进，这些记号会<b>自动回落到刚录的那个音</b>上（变音钮的高亮同步跟随），不会写到前面的空位去；手动点选谱面即取消回落、就地修改已有音符。③ <b>吉他谱音符组三处展示修正</b>：组标签由「音符」改为<b>「品位」</b>（六线谱里的数字是品位不是音名）；高把位选择器由固定的「0–24▾」改为<b>只标折叠掉的那段</b>（已铺开 0–9 时显示「10–24▾」，不再与旁边的 0–9 重复）；<b>×</b> 补中文小字<b>「分解」</b>（该组只有它是纯符号，此前认不出含义）。</div></li>
     <li><span class="v">v47.9</span><div><b>录入流程两处硬伤修复（九谱类全流程实测查出）</b>：① <b>填词不再串字</b>——歌词框按回车跳到下一个音时<b>没有清空上一个字</b>，连打「好 / 一 / 朵 / 美」会写成「好 / 好一 / 好一朵 / 好一朵美」，多字词还会把谱面挤重叠；现已在跳转后按目标音回填，连打即逐字对位（简谱歌谱 / 教学对照谱 / 吉他弹唱谱三类同修）；② <b>录旋律不必再「数字＋→」交替按</b>——简谱 / 五线谱落音后<b>光标自动走到下一个音</b>，实测录 16 个音由 32 次按键降到 <b>16 次</b>。采用<b>延迟前进</b>：光标视觉上停在刚落的音上，下一次落音时才前移，因此<b>「先落音、再点升降号 / 附点 / 八度」的简谱习惯照常生效</b>（不会把升号加到下一个空音上）；手动点选谱面即放弃前进、就地改音。可在右栏「智能」页一键关闭恢复旧手感；<b>六线谱不受影响</b>（品位有两位数，需保留合成输入）；③ 智能提示按实际行为改写——旧文案「选中音符后直接打字即可填入歌词」并不成立，改为「按 Enter 唤出歌词框填词，填完再按 Enter 跳下一个音」，落音提示也随自动前进开关同步。</div></li>
     <li><span class="v">v47.8</span><div><b>音符组按谱类彻底分化 + 节奏型库按谱类对应</b>：① <b>简谱</b>：1–7 为简谱音名、0 为休止符，后接高八度 / 低八度；② <b>吉他谱</b>：不再出现简谱音名，数字一律是<b>品位</b>——<b>0–24 品全部可直接点选</b>，并<b>按上栏余量自动折叠</b>（宽屏一路铺开到 24 品；窄屏只铺 0–9，其余收进「0–24▾」选择器，改变窗口大小会实时重算），<b>×</b> 改为<b>分解标记</b>（分解和弦中不发实音的 × 记号，不再叫「闷音」）；③ <b>五线谱</b>：休止符按五线谱规则出<b>真正的休止符字形</b>，并<b>随当前时值变化</b>（全 / 二分 / 四分 / 八分 / 十六分 / 三十二分休止），不再沿用简谱的「0」；④ <b>节奏型库按谱类对应</b>：编辑五线谱大谱表时按钮变为<b>「伴奏织体…」</b>，打开的是<b>常用钢琴节奏型</b>（柱式和弦 / 抒情分解 / 半分解 / 阿尔贝蒂低音 / 圆舞曲等，按已标注和弦自动生成双手音符）；吉他谱仍是扫弦/分解节奏型，简谱仍是简谱节奏型；单谱表五线谱会提示「伴奏织体需要大谱表双手声部」并退回节奏型库。</div></li>
     <li><span class="v">v47.7</span><div><b>音符录入缺陷修复（专家复核后逐条实测确认）</b>：① <b>闷音 × 不再丢品位</b>——原先「7 品 → 打 × → 再点 × 取消」会静默变成空弦（品位被清零），现在取消 × 会<b>还原原品位</b>（v47.6 把 × 放上顶栏后这条路径变成一键可达，属数据丢失，优先修）；② <b>五线谱的 ♮ 还原号此前是无效按钮</b>——五线谱的变音是相对调号的偏移，旧写法让 ♮ 与「无记号」完全等价、点了没反应；现改为<b>按目标音高记谱</b>：升号调里点 ♮ 正确画出还原号且音高降半音；<b>♯ 连点也不再画出「重降号却发升号音」的错谱</b>；简谱的升降号行为完全不变；③ <b>换弦即断开两位品位输入</b>——原先键盘「1 → ↓换弦 → 2」会在新弦写成 12 品；④ <b>尤克里里修正</b>：光标弦号不再越到第 5/6 弦（写出四线谱外的幽灵音符），品位上限按乐器取 15 品；⑤ <b>品位越界守卫</b>：任何入口都不会再写入超出上限的品位；⑥ <b>Esc 关闭弹出菜单</b>（此前弹窗开着时数字键仍会直接写音符）；⑦ 品位选择器改 6 列栅格，12 品落在行首（八度位），并按乐器裁剪长度。</div></li>
