@@ -25,8 +25,20 @@ chk puyouquan.com       /           "谱友圈"                "官网首页（�
 chk puyouquan.com       /           "粤ICP备2026100396号"   "官网备案号"
 chk puyouquan.com       /help.html  "使用手册\|快速上手"    "使用手册"
 chk www.puyouquan.com   /           "谱友圈"                "官网首页（www）"
-chk zhipu.puyouquan.com /           "谱友圈"                "在线制谱（zhipu）"
-chk zhipu.puyouquan.com /           "粤ICP备2026100396号"   "制谱备案号"
+# ── zhipu 编辑器大页：单次抓取、多项断言 ──
+# 页面已 2.3MB，境外 runner 到服务器带宽 ~100KB/s，整页一次要 ~20s——此前三处各自
+# 全量重拉（可达/备案号/版本），第二次起贴着 20s 超时线反复边缘失败（run #112 两跑同点红）。
+# 改为一次下载（60s 上限 + --compressed，服务器有无 gzip 都兼容），三项断言共用同一份 body；
+# curl 失败置空不抛错，避免 set -e 把后续检查静默截断（run #112 attempt2 版本/音色检查没跑就退出）。
+ZBODY=$(curl -fsSL --compressed --max-time 60 --connect-to "zhipu.puyouquan.com:443:$H:443" "https://zhipu.puyouquan.com/" 2>/dev/null || true)
+zchk(){ # zchk 期望包含的字符串 说明
+  local want=$1 desc=$2
+  if [ -z "$ZBODY" ]; then echo "❌ $desc (zhipu.puyouquan.com/) HTTPS 无法访问"; fail=1
+  elif grep -q -- "$want" <<< "$ZBODY"; then echo "✅ $desc"
+  else echo "❌ $desc (zhipu.puyouquan.com/) 缺少标记「$want」"; fail=1; fi
+}
+zchk "谱友圈"                "在线制谱（zhipu）"
+zchk "粤ICP备2026100396号"   "制谱备案号"
 chk puku.puyouquan.com  /           "谱库"                  "谱库首页（puku）"
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查（zhipu）"
 chk www.puyouquan.com   /api/health '"ok":true'             "官网 API 健康（微信网站应用回调域 www）"
@@ -37,9 +49,8 @@ chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开�
 # 与本次提交一致：不一致即判失败，并打印线上实际版本便于定位。
 VER=$(grep -o "const APP_VER='[^']*'" muse-tab/index.html 2>/dev/null | head -1 | sed "s/.*'\(.*\)'/\1/")
 if [ -n "$VER" ]; then
-  LIVE=$(curl -fsSL --max-time 20 --connect-to "zhipu.puyouquan.com:443:$H:443" \
-         "https://zhipu.puyouquan.com/" 2>/dev/null \
-         | grep -o "const APP_VER='[^']*'" | head -1 | sed "s/.*'\(.*\)'/\1/")
+  # 复用上方单次抓取的 ZBODY（不再整页重拉一次）；grep 无匹配不抛错
+  LIVE=$(grep -o "const APP_VER='[^']*'" <<< "$ZBODY" | head -1 | sed "s/.*'\(.*\)'/\1/" || true)
   if [ "$LIVE" = "$VER" ]; then echo "✅ 编辑器版本已落位（线上 $LIVE = 本次 $VER）"
   else echo "❌ 版本未落位：本次应为 $VER，线上实际为 ${LIVE:-解析不到}"; fail=1; fi
 else
