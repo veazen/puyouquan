@@ -127,6 +127,31 @@ const T = (ok, name, detail) => {
       out.D = { pSeg: dynAt(0.1), fSeg: dynAt(4 * spb + 0.1), expect: [DYN_GAIN.p, DYN_GAIN.f] };
     }
 
+    // ── F 混响 IR 性质：18ms predelay 零区 / 双声道去相关 / 时变渐暗 / 无低频泥 ──
+    {
+      const ctx = new OfflineAudioContext(2, SR, SR);
+      const ir = makeImpulse(ctx, 1.8, 2.4);
+      const L = ir.getChannelData(0), R = ir.getChannelData(1);
+      const preN = Math.floor(SR * 0.018);
+      let preMax = 0; for (let i = 0; i < preN; i++) preMax = Math.max(preMax, Math.abs(L[i]), Math.abs(R[i]));
+      // 声道相关（归一化零延迟互相关，取前 0.5s）
+      let num = 0, dl = 0, dr = 0; const N = Math.floor(SR * 0.5);
+      for (let i = preN; i < preN + N; i++) { num += L[i] * R[i]; dl += L[i] * L[i]; dr += R[i] * R[i]; }
+      const corr = Math.abs(num) / Math.max(1e-12, Math.sqrt(dl * dr));
+      // 渐暗：首 0.3s vs 尾 0.3s 的高频占比（一阶差分 RMS / 总 RMS）
+      const hfRatio = (from, to) => { let hf = 0, tot = 0;
+        for (let i = from + 1; i < to; i++) { const d = L[i] - L[i - 1]; hf += d * d; tot += L[i] * L[i]; }
+        return Math.sqrt(hf / Math.max(1e-12, tot)); };
+      const head = hfRatio(preN, preN + Math.floor(SR * 0.3));
+      const tail = hfRatio(ir.length - Math.floor(SR * 0.4), ir.length - Math.floor(SR * 0.1));
+      // 低频泥：40Hz 滑动均值近似的低频能量占比应很小（180Hz 高通后）
+      let lowE = 0, totE = 0, acc = 0; const W = Math.floor(SR / 40);
+      for (let i = preN; i < preN + N; i++) { acc += L[i]; if (i - preN >= W) acc -= L[i - W];
+        const m = acc / W; lowE += m * m; totE += L[i] * L[i]; }
+      out.F = { preMax: +preMax.toFixed(6), corr: +corr.toFixed(3),
+        headHF: +head.toFixed(3), tailHF: +tail.toFixed(3), lowRatio: +(lowE / Math.max(1e-12, totE)).toFixed(4) };
+    }
+
     // ── E 扰动确定性：同位同值、异位异值、幅度界内 ──
     {
       const a1 = humJit(3, 2, 4), a2 = humJit(3, 2, 4), b1 = humJit(3, 3, 4);
@@ -146,6 +171,8 @@ const T = (ok, name, detail) => {
     'D 力度时间线 p/f 段取值正确', JSON.stringify(r.D));
   T(r.E.same && r.E.diff && r.E.cents <= 4.01 && r.E.db <= 1.21,
     'E 扰动确定性与幅度（±4音分/±1.2dB 内）', JSON.stringify(r.E));
+  T(r.F.preMax === 0 && r.F.corr < 0.2 && r.F.tailHF < r.F.headHF && r.F.lowRatio < 0.02,
+    'F 混响IR：predelay零区/去相关/渐暗/无低频泥', JSON.stringify(r.F));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);
