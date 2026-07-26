@@ -800,11 +800,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     accBump(1); const q1 = j.acc; accBump(1); const q2 = j.acc; accNat(); const q3 = j.acc;
     const jpSame = q1 === '#' && q2 === 'x' && q3 === 'n';
     // ⑤ 换弦断开两位品位合成（此前 1→↓→2 在新弦写出 12 品）
-    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; inputDigit(1);
+    /* v48.2 六线谱也自动前进：1 落在 col0/3弦后光标进到 col1，换弦后的 2 落在 col1/4弦。
+       本项要守的仍是「换弦断开两位合成」——绝不能出现 12 品；列位随自动前进变化属预期。
+       另补：和弦叠音（同列多弦）现在走「← 退回再换弦」，一并纳入回归。 */
+    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; lastEnt = null; pending = { digits: '', time: 0 };
+    inputDigit(1);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     inputDigit(2);
-    const nn = song.measures[0].tabs[0][0].notes.find(n => n.s === 4);
-    const pendOk = sel.si === 4 && !!nn && nn.f === 2;
+    const n1 = song.measures[0].tabs[0][0].notes.find(n => n.s === 3);
+    const nn = song.measures[0].tabs[0][1].notes.find(n => n.s === 4);
+    const no12 = !JSON.stringify(song.measures[0].tabs[0].map(c => (c.notes || []).map(x => x.f))).includes('12');
+    /* 叠音段另起一份干净小节（mk() 只有 3 列，末列无处可前进，会测不出叠音） */
+    mk(); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; lastEnt = null; pending = { digits: '', time: 0 };
+    inputDigit(3); moveCol(-1);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    inputDigit(2);
+    const stack = song.measures[0].tabs[0][0].notes;
+    const pendOk = sel.si === 4 && !!n1 && n1.f === 1 && !!nn && nn.f === 2 && no12
+      && stack.length === 2 && stack.some(x => x.s === 3 && x.f === 3) && stack.some(x => x.s === 4 && x.f === 2);
     // ⑥ 尤克里里：弦号钳到 4、品位上限 15
     const s2 = createSong('guitar', { title: 'u', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s2.inst = 'uku'; loadSong(s2); sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 6 }; clampSel();

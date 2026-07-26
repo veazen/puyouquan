@@ -399,6 +399,8 @@ body.shell .rcard:has(#b-help) .rc-h,body.shell .rcard:has(#b-feat) .rc-h,
 body.shell .rcard:has(#b-changelog) .rc-h{padding:2px 10px;font-size:11px;color:var(--faint);background:transparent}
 body.shell .rcard:has(#b-help) .rc-h:hover,body.shell .rcard:has(#b-feat) .rc-h:hover,
 body.shell .rcard:has(#b-changelog) .rc-h:hover{color:var(--accent-ink)}
+/* v48.2 版本号：更新日志下方一行小字，不抢视觉 */
+.rc-ver{padding:0 10px 2px;font-size:10.5px;color:var(--faint);font-family:var(--font-num);letter-spacing:.02em}
 body.shell #editbar .eb.on{background:var(--accent-soft);color:var(--accent-ink);border-color:var(--accent)}
 #cursor-info b{color:var(--text)}
 #cursor-info b.z{color:var(--accent-ink)}
@@ -1605,6 +1607,8 @@ body.shell #hint{display:none}
     </div>
     <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-changelog">更新日志</button>
+      <!-- v48.2 更新日志下方标当前版本号：便于用户/反馈时确认自己跑的是哪一版（强刷后是否已更新） -->
+      <div class="rc-ver" id="rc-ver" title="当前编辑器版本"></div>
     </div>
     <div id="beat-box" data-rt="info">
       <span id="beat-status" class="good">✓ 所有小节时值正确</span>
@@ -3990,7 +3994,10 @@ function autoAdvOn(){ return localStorage.getItem('musetab-autoadv')!=='off'; }
 let lastEnt=null;
 function modCol(){
   const c=curCol();
-  if(c && !c.deg && lastEnt && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
+  if(!c || !lastEnt) return c;
+  /* 「空列」判定分谱类：简谱/五线谱看有无音级，六线谱看该列有无音符/扫弦/打板 */
+  const empty = sel.row==='tab' ? (!(c.notes||[]).length && !c.strum && !c.perc) : !c.deg;
+  if(empty && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
      && lastEnt.at.mi===sel.mi && lastEnt.at.ci===sel.ci) return lastEnt.col;
   return c;
 }
@@ -6456,7 +6463,18 @@ function dotLink(cols, ci, wasBeatLast){
     cols[ci+1].dur=cur.dur*2; cols[ci+1].dotted=false;
   }
 }
-function toggleDot(){ try{habit('dot');}catch(_){}
+/* v48.2 附点回落到刚落的音：内部「附点＋半时值邻音」联动全靠 sel.ci 索引做邻位查找，
+   改索引易错，故临时把光标移回刚落的那一列再走原逻辑，完事复位——与 ♯♭♮/八度/×分解 行为一致 */
+function toggleDot(){
+  if(!selRange && atLanding() && modCol()!==curCol()){
+    const b=lastEnt.pos, keep={mi:sel.mi, ci:sel.ci};
+    sel.mi=b.mi; sel.ci=b.ci;
+    try{ toggleDotCore(); } finally { sel.mi=keep.mi; sel.ci=keep.ci; render(); }
+    return;
+  }
+  toggleDotCore();
+}
+function toggleDotCore(){ try{habit('dot');}catch(_){}
   if(selRange){
     mutate(()=>{
       const cs=rangeCols();
@@ -7251,26 +7269,48 @@ document.querySelectorAll('#right-dock .rc-h:not(.rc-btn)').forEach(h=>h.onclick
 /* ================= 键盘 ================= */
 /* v47.5 数字输入统一入口（键盘 / 顶栏「音符」组按钮共用）：
    吉他谱=品位（700ms 内连输合成两位品位 ≤24）；简谱/五线谱=音级 1-7、0=休止 */
+/* v48.0/v48.2 落音后光标即刻前进（简谱/五线谱=音级，六线谱=品位），录一段只按数字键即可。
+   lastEnt 记下「刚落的那一列 + 它的位置 + 前进落点」：
+     · modCol() 据此把 ♯♭♮/附点/八度/×分解 回落到刚落的音（否则会写到前进后的空列上）
+     · 六线谱两位品位（如 12）的第二位数字据此回改前一列，而不是拆成相邻两列 */
+function markEntered(col){
+  if(!autoAdvOn()){ lastEnt=null; return; }
+  const pos={row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci, si:sel.si};
+  moveCol(1);
+  lastEnt={col, pos, at:{row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}};
+}
+function atLanding(){
+  return !!(lastEnt && lastEnt.pos && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
+            && lastEnt.at.mi===sel.mi && lastEnt.at.ci===sel.ci);
+}
 function inputDigit(k){
   if(sel.row==='tab'){
-    const now=Date.now(); let d=String(k);
+    const now=Date.now(); const d=String(k);
+    let comb=null;
     if(now-pending.time<700 && pending.digits){
-      const comb=parseInt(pending.digits+d,10);
-      if(comb<=fretMaxOf()) d=String(comb);
+      const c2=parseInt(pending.digits+d,10);
+      if(c2<=fretMaxOf()) comb=c2;
     }
-    pending={digits:d,time:now};
+    /* v48.2 两位品位与自动前进共存：第二位数字回改「刚落的那一列」（跨小节也按 pos 定位），
+       改完把光标放回前进落点，光标不多走一格 */
+    if(comb!=null && autoAdvOn() && atLanding()){
+      const b=lastEnt.pos, keep={mi:sel.mi, ci:sel.ci, si:sel.si};
+      sel.mi=b.mi; sel.ci=b.ci; sel.si=b.si;
+      setFret(comb);
+      sel.mi=keep.mi; sel.ci=keep.ci; sel.si=keep.si;
+      pending={digits:String(comb), time:now};
+      render();
+      return;
+    }
+    pending={digits:d, time:now};
     setFret(parseInt(d,10));
+    if(autoAdvOn()){
+      const c=curCol(), keepP={digits:d, time:now};
+      markEntered(c);
+      pending=keepP;   /* moveCol 会清 pending.digits；恢复它，两位品位的 700ms 窗口才不被前进打断 */
+    }else lastEnt=null;
   }else{
-    /* v48.0 落音后光标即刻前进到下一个音：录旋律只按音高键即可，不必「数字/→」交替。
-       随后的 ♯♭♮/附点/八度由 modCol() 回落到刚落的音（见 lastEnt），故「先落音再加记号」照常。
-       仅此简谱/五线谱分支——上面 tab 分支不前进，否则两位品位的 pending 合成会被打断 */
-    if(k<=7){
-      setDeg(k);
-      if(autoAdvOn()){
-        const c=curCol(); moveCol(1);
-        lastEnt={col:c, at:{row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}};
-      }else lastEnt=null;
-    }
+    if(k<=7){ setDeg(k); markEntered(curCol()); }
   }
 }
 window.addEventListener('keydown', e=>{
@@ -8302,13 +8342,13 @@ function showChordSuggest(name){
 }
 function toggleMute(){
   if(sel.row!=='tab')return;
-  const col=curCol(); if(!col) return;
+  const col=modCol(); if(!col) return;   /* v48.2 自动前进后 ×分解 回落到刚落的那个品位（下面 mutate 用的就是这个 col） */
   /* ×标记：把当前音记为闷音×（扫弦切音请用"扫弦切音"按钮）
      v47.7 往返保真：打 × 时把原品位暂存 n.xf，取消 × 时回填——此前 f 被直接归 0，
      "7品 → × → 再点×" 会静默变成空弦（v47.6 顶栏 × 钮让该路径变成一键可达）。
      xf 为纯增量字段，渲染/播放/MusicXML 均不读取。 */
   mutate(()=>{
-    const c=curCol();
+    const c=col;   /* v48.2 用 modCol 的目标列，不再重取 curCol——自动前进后 curCol 是空列，×会凭空造出 ×0 */
     const i=c.notes.findIndex(n=>n.s===sel.si);
     if(i>=0){ const n=c.notes[i]; n.x=!n.x;
       if(n.x){ if(n.f) n.xf=n.f; n.f=0; }
@@ -13414,9 +13454,13 @@ document.getElementById('b-feat').onclick = ()=>{
   <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
   document.getElementById('feat-ok').onclick = closeModal;
 };
+/* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
+const APP_VER='v48.2';
+{ const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.2</span><div><b>六线谱也自动前进 + 信息栏标版本号</b>：① <b>六线谱录品位同样自动跳下一列</b>，不必再「数字＋→」交替；<b>两位品位照旧可输</b>——0.7 秒内连打的第二位数字会<b>回改刚落的那一列</b>（如 1、2 得到 12 品），不会被拆成相邻两列；② <b>「先落品位、再点 ×分解 / 附点」照常生效</b>，记号自动回落到刚录的那个音（简谱的 ♯♭♮/八度同理）；③ <b>同列多弦（和弦叠音）改用「← 退回再换弦」</b>——录完一个音光标已经前进，按 ← 回到该列再换弦输品位即可叠音；④ 右栏<b>「信息」页更新日志下方新增版本号</b>，一眼可确认自己跑的是哪一版（反馈问题、强刷后核对都用得上）。不想要自动前进可在右栏「智能」页一键关闭，关闭后简谱与六线谱一并恢复旧手感。</div></li>
     <li><span class="v">v48.1</span><div><b>吉他谱品位钮固定铺 0–9，高把位一律收起</b>：品位数字不再随窗口宽度浮动——<b>固定只显示 0–9</b>，10 品及以上统一收进<b>「10–24▾」</b>选择器（尤克里里按乐器上限显示「10–15▾」）。此前按上栏余量动态铺开，实测其余各组已占去约 1300px、宽屏也几乎腾不出位置，结果是<b>按钮个数和位置会随窗口大小变化</b>，手记不住「几品在哪」；固定 10 个钮换来稳定的肌肉记忆，高把位走选择器（弹格 0–24 一屏可点）。同时移除了随之而来的拖窗口重算，拖动窗口时上栏不再抖动。</div></li>
     <li><span class="v">v48.0</span><div><b>落音光标真正会走 + 吉他谱「品位」组展示修正</b>：① <b>落音后光标即刻前进到下一个音</b>——v47.9 用的是「延迟前进」（光标停在刚落的音上、下次落音才移动），虽然按键数已经省下来了，但<b>看上去就像没前进</b>；现改为落音即走，录旋律一路按音高键即可，实测录 16 个音<b>只需 16 次按键</b>。② <b>「先落音、再点升降号 / 附点 / 八度」照常生效</b>——光标虽已前进，这些记号会<b>自动回落到刚录的那个音</b>上（变音钮的高亮同步跟随），不会写到前面的空位去；手动点选谱面即取消回落、就地修改已有音符。③ <b>吉他谱音符组三处展示修正</b>：组标签由「音符」改为<b>「品位」</b>（六线谱里的数字是品位不是音名）；高把位选择器由固定的「0–24▾」改为<b>只标折叠掉的那段</b>（已铺开 0–9 时显示「10–24▾」，不再与旁边的 0–9 重复）；<b>×</b> 补中文小字<b>「分解」</b>（该组只有它是纯符号，此前认不出含义）。</div></li>
     <li><span class="v">v47.9</span><div><b>录入流程两处硬伤修复（九谱类全流程实测查出）</b>：① <b>填词不再串字</b>——歌词框按回车跳到下一个音时<b>没有清空上一个字</b>，连打「好 / 一 / 朵 / 美」会写成「好 / 好一 / 好一朵 / 好一朵美」，多字词还会把谱面挤重叠；现已在跳转后按目标音回填，连打即逐字对位（简谱歌谱 / 教学对照谱 / 吉他弹唱谱三类同修）；② <b>录旋律不必再「数字＋→」交替按</b>——简谱 / 五线谱落音后<b>光标自动走到下一个音</b>，实测录 16 个音由 32 次按键降到 <b>16 次</b>。采用<b>延迟前进</b>：光标视觉上停在刚落的音上，下一次落音时才前移，因此<b>「先落音、再点升降号 / 附点 / 八度」的简谱习惯照常生效</b>（不会把升号加到下一个空音上）；手动点选谱面即放弃前进、就地改音。可在右栏「智能」页一键关闭恢复旧手感；<b>六线谱不受影响</b>（品位有两位数，需保留合成输入）；③ 智能提示按实际行为改写——旧文案「选中音符后直接打字即可填入歌词」并不成立，改为「按 Enter 唤出歌词框填词，填完再按 Enter 跳下一个音」，落音提示也随自动前进开关同步。</div></li>
