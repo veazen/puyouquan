@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# 谱友圈 PYQ · 下载开源采样音色包（midi-js-soundfonts / MusyngKite，MIT 仓库）
-# 在服务器上执行：sudo bash fetch-soundfonts.sh
-# 下载后站点自托管于 /var/www/puyouquan/sounds/MusyngKite/ —— 国内用户无需访问境外 CDN
+# 谱友圈 PYQ · 下载开源采样音色包（midi-js-soundfonts 渲染集，MIT 仓库）
+# 在服务器上执行：sudo bash fetch-soundfonts.sh            # 默认 MusyngKite
+#               LIB=FluidR3_GM sudo -E bash fetch-soundfonts.sh   # 指定渲染集
+# 双库并存于 /var/www/puyouquan/sounds/<LIB>/ —— 换库灰度期间旧库绝不删除（回滚依赖）。
+# 注：常规供给已由部署工作流在 CI runner 侧下载后 rsync 到服务器（境外源在 runner 快而稳），
+#     本脚本保留作服务器侧兜底/手动补漏。
 set -euo pipefail
 
-DEST="${DEST:-/var/www/puyouquan/sounds/MusyngKite}"
-LIB="MusyngKite"
+LIB="${LIB:-MusyngKite}"
+DEST="${DEST:-/var/www/puyouquan/sounds/${LIB}}"
 # 主源用 raw.githubusercontent.com（多数网络可达），失败换 jsDelivr
 SRC1="https://raw.githubusercontent.com/gleitz/midi-js-soundfonts/gh-pages/${LIB}"
 SRC2="https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/${LIB}"

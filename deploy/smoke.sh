@@ -46,6 +46,21 @@ else
   echo "⚠️ 未能从 muse-tab/index.html 解析 APP_VER，跳过版本落位校验"
 fi
 
+# ── 音色包完整性抽查（音质升级·阶段0，评审硬门槛 C2）──
+# 双库各抽 3 个代表文件，断言 HTTP 200 且体积 ≥300KB（半截文件不算有）。
+# 历史欠账：当年「超时不阻塞」安装从未校验过；此后由部署工作流「音色包供给」步幂等补齐。
+sf_chk(){ # sf_chk 库名 文件名
+  local lib=$1 f=$2 len
+  len=$(curl -sI --max-time 15 --connect-to "zhipu.puyouquan.com:443:$H:443" \
+        "https://zhipu.puyouquan.com/sounds/$lib/${f}-mp3.js" 2>/dev/null \
+        | tr -d '\r' | awk 'tolower($1)=="content-length:"{print $2}')
+  if [ "${len:-0}" -ge 300000 ] 2>/dev/null; then echo "✅ 音色 $lib/$f（$((len/1024))KB）"
+  else echo "❌ 音色 $lib/$f 缺失或残缺（content-length=${len:-无}）"; fail=1; fi
+}
+for L in MusyngKite FluidR3_GM; do
+  for F in acoustic_grand_piano acoustic_guitar_steel flute; do sf_chk "$L" "$F"; done
+done
+
 redir puyouquan.com
 redir zhipu.puyouquan.com
 redir puku.puyouquan.com

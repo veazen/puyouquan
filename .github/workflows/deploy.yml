@@ -166,6 +166,42 @@ jobs:
           scp deploy/publish.sh pyq:/tmp/pyq_publish.sh
           ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; $S bash /tmp/pyq_publish.sh "'"${GITHUB_SHA::8}"'"'
 
+      - name: 音色包供给（双库并存，幂等）
+        run: |
+          # 音质升级·阶段0：FluidR3_GM 与 MusyngKite 双库并存（评审硬门槛 C1/C2）。
+          # 在 runner 侧下载（境外源快而稳），rsync 补齐服务器缺失/残缺文件；两库均不删除。
+          # 全部齐备时本步骤只做一次 ssh 清点，秒级返回。
+          FONTS="acoustic_guitar_steel acoustic_guitar_nylon electric_guitar_clean acoustic_bass acoustic_grand_piano electric_piano_1 music_box string_ensemble_1 flute choir_aahs"
+          MIN=300000   # 单文件下限 300KB（防半截文件当完整）
+          for LIB in MusyngKite FluidR3_GM; do
+            missing=""
+            for f in $FONTS; do
+              sz=$(ssh pyq "stat -c%s /var/www/puyouquan/sounds/$LIB/${f}-mp3.js 2>/dev/null || echo 0")
+              [ "$sz" -ge "$MIN" ] || missing="$missing $f"
+            done
+            if [ -z "$missing" ]; then echo "✓ $LIB 10/10 齐备"; continue; fi
+            echo "→ $LIB 缺失:$missing"
+            mkdir -p /tmp/sf/$LIB
+            for f in $missing; do
+              curl -fsSL --connect-timeout 10 --max-time 120 --retry 2 \
+                -o /tmp/sf/$LIB/${f}-mp3.js \
+                "https://raw.githubusercontent.com/gleitz/midi-js-soundfonts/gh-pages/$LIB/${f}-mp3.js" \
+              || curl -fsSL --connect-timeout 10 --max-time 120 --retry 2 \
+                -o /tmp/sf/$LIB/${f}-mp3.js \
+                "https://cdn.jsdelivr.net/gh/gleitz/midi-js-soundfonts@gh-pages/$LIB/${f}-mp3.js"
+              sz=$(stat -c%s /tmp/sf/$LIB/${f}-mp3.js 2>/dev/null || echo 0)
+              [ "$sz" -ge "$MIN" ] || { echo "✗ $LIB/$f 下载不完整($sz)"; exit 1; }
+            done
+            ssh pyq 'rm -rf /tmp/pyq_sf && mkdir -p /tmp/pyq_sf'
+            scp -r /tmp/sf/$LIB pyq:/tmp/pyq_sf/
+            ssh pyq 'S=""; [ "$(id -u)" = 0 ] || S="sudo -n"; \
+              $S mkdir -p /var/www/puyouquan/sounds/'"$LIB"' && \
+              $S cp /tmp/pyq_sf/'"$LIB"'/*.js /var/www/puyouquan/sounds/'"$LIB"'/ && rm -rf /tmp/pyq_sf'
+            echo "✓ $LIB 已补齐:$missing"
+          done
+          # 清点 manifest（进部署日志备查）
+          ssh pyq 'for L in MusyngKite FluidR3_GM; do echo "== $L =="; ls -la /var/www/puyouquan/sounds/$L/ 2>/dev/null | awk "{print \$5, \$9}" | tail -n +2; done'
+
       - name: 发布 API 服务（已初始化时）
         run: |
           if ssh pyq 'test -f /etc/systemd/system/pyq-api.service'; then
