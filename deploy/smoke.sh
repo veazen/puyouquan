@@ -31,6 +31,21 @@ chk puku.puyouquan.com  /           "谱库"                  "谱库首页（pu
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查（zhipu）"
 chk www.puyouquan.com   /api/health '"ok":true'             "官网 API 健康（微信网站应用回调域 www）"
 chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开接口（含种子谱）"
+# ── 版本落位校验（v48.4 新增）──
+# 此前冒烟只验「页面可达 + 含固定字样（谱友圈/备案号）」，落位旧文件也照样全绿——
+# 「部署成功但线上还是旧版」因此长期无法被发现。这里断言线上编辑器的 APP_VER
+# 与本次提交一致：不一致即判失败，并打印线上实际版本便于定位。
+VER=$(grep -o "const APP_VER='[^']*'" muse-tab/index.html 2>/dev/null | head -1 | sed "s/.*'\(.*\)'/\1/")
+if [ -n "$VER" ]; then
+  LIVE=$(curl -fsSL --max-time 20 --connect-to "zhipu.puyouquan.com:443:$H:443" \
+         "https://zhipu.puyouquan.com/" 2>/dev/null \
+         | grep -o "const APP_VER='[^']*'" | head -1 | sed "s/.*'\(.*\)'/\1/")
+  if [ "$LIVE" = "$VER" ]; then echo "✅ 编辑器版本已落位（线上 $LIVE = 本次 $VER）"
+  else echo "❌ 版本未落位：本次应为 $VER，线上实际为 ${LIVE:-解析不到}"; fail=1; fi
+else
+  echo "⚠️ 未能从 muse-tab/index.html 解析 APP_VER，跳过版本落位校验"
+fi
+
 redir puyouquan.com
 redir zhipu.puyouquan.com
 redir puku.puyouquan.com
