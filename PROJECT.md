@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-07-26 · 当前版本 **v48.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-07-26 · 当前版本 **v48.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -447,6 +447,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v47.6 音符输入组三态 + 节奏型库上栏**：#eb-note 由 v47.5 的两态扩为三态，syncInputs 内统一切换（isTab / isSt=isStaffNota(voxNotations[sel.vi]) / 简谱）。① **TAB**：新增 `#eb-mute-n`（→ toggleMute，n.x 选中态同步）与 `#eb-fret-more`（→ 新函数 `showFretMenu(cx,cy)`：0–24 品位网格 popmenu，当前弦品位高亮，另含 ×闷音/清除本弦音；**显式点选时清空 pending 不参与 700ms 两位合成**）——0-9 内联 + 网格全量，兼顾宽度预算（实测各组 编辑316/音符351/时值256/节奏408/undo70，1920 单行、1440 起换行）。② **五线谱**：不新增按钮，复用 .nd 1-7 **改标签为音名** `'CDEFGAB'[(K.Li+k-1)%7]`（K=staffKeyInfo()）——点击仍走 setDeg(k)，**数据模型 deg 首调音级零改动**，换调只换标签不改数据（该映射与 staffStep=step0+(deg-1)+oct*7 天然自洽，无需反算）；补 `#eb-acc-s/f/n` → toggleAcc('#'/'b'/'n')，acc 选中态同步。③ .nd 选中态：TAB 按当前弦 f 命中、简谱/五线谱按 col.deg 命中；组内 flex order 按语境重排（TAB 0-9 自然序，0＝空弦居首；简谱/五线谱 1-7 在前、0 殿后；尾部功能钮显式 order 20+ 防 order:0 插队）。④ `body.shell #editbar #eb-lib` 由 display:none 改 inline-flex（撤 v40.8 去重，产品要求回上栏，位于 #eb-combo 末尾＝节奏组后；右栏「库」页签保留）。新函数名 showFretMenu 已按 v37.2 教训先 grep 确认无冲突。tv_detail1 T41（三态显隐/25 品位网格/17 品写入/×选中态/D大调 DEFGABC 与 C大调 CDEFGAB/♯生效/库入栏 十一断言），42 项、27 套件全绿。
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
+
+> **v48.5 用户手册深度改版（零基础→专业）**：`site/help.html` 全册重写：新增「零基础第一课」（zero-basics，最少乐理＋每个概念对应的编辑器按钮）与「专业制谱之路」（pro，三关校对/刻版常识/工作流/协作/错谱清单/练手路线）两章，侧栏 11→13 节并新增「进阶」分组；既有各章按 v48.4 现状重写（启动台/九谱类/自动前进/0–9 品位钮/Enter 填词/两页签右栏）。**纠错**：FAQ「云端同步在规划中」（v41.8 已上线）、「制谱免费，后续推出…」（v45.4 会员已上线）两条过时说法更正；编辑器内 b-help 弹窗移除自 v41.5 单窗口化起就失实的「多窗口标签栏」描述，录入段补自动前进，底部加完整手册外链。冒烟标记「使用手册/快速上手」保留；PYQ_DOCS 机制不变（新增 section 仅加侧栏 a[data-sec] 与 #doc-* 文章）。
 
 > **v48.4 冒烟增加版本落位校验**：产品负责人反馈「前端显示还是 48.2」。查证：仓库与 run #104 均为 v48.3、`publish.sh` 每次都原子落位 index.html，服务器文件应为新版——但**当时无法自证**，因为 `smoke.sh` 只断言「页面可达 + 含《谱友圈》/备案号等固定字样」，**落位旧文件也照样全绿**。现补 `APP_VER` 比对：从 `muse-tab/index.html` 解析本次版本，拉线上页面提取其 `APP_VER`，不一致即 `fail=1` 并打印线上实际值。自此「部署成功但线上是旧版」会在流水线red，不再需要靠人眼发现。
 >
