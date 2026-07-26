@@ -4138,6 +4138,10 @@ function editHints(){
     if(sel.row==='vox') items.push(autoAdvOn()
       ? it('落音后自动跳下一个音：已开启，点此关闭（改回「数字 + →」逐个录）','advoff')
       : it('落音后自动跳下一个音：已关闭，点此开启（录旋律只按音高键）','advon'));
+    /* v48.9 播放演奏感开关：自然=按谱面位置确定性微扰动（复听一致）；精确=零扰动（校音/跟练） */
+    items.push(humOn()
+      ? it('播放演奏感：自然（微扰动更像真人），点此切精确（校音零扰动）','humoff')
+      : it('播放演奏感：精确（零扰动），点此切回自然','humon'));
   }catch(_){}
   /* 次级：整体流程建议（宏观下一步，最多 2 条） */
   const subs=[];
@@ -8685,6 +8689,11 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
       toast('已关闭自动前进——落音后用 → 移到下一个音'); renderHints(); }
     else if(a==='advon'){ try{ localStorage.removeItem('musetab-autoadv'); }catch(_){}
       toast('已开启自动前进——录旋律只按音高键即可，光标自动走'); renderHints(); }
+    /* v48.9 播放演奏感：自然（确定性微扰动）/精确（零扰动）——拍点重音等确定性塑形两档都保留 */
+    else if(a==='humoff'){ try{ localStorage.setItem('musetab-humanize','off'); }catch(_){}
+      toast('已切为精确演奏——播放零扰动（校音/跟练用）'); renderHints(); }
+    else if(a==='humon'){ try{ localStorage.removeItem('musetab-humanize'); }catch(_){}
+      toast('已切回自然演奏——按谱面位置加确定性微扰动，复听完全一致'); renderHints(); }
   });
 }
 document.getElementById('b-sharp').onclick = ()=>accBump(1);     // v47.7 五线谱走目标音高模型，简谱内部仍走 toggleAcc
@@ -9208,6 +9217,37 @@ function midiFreq(m){ return 440*Math.pow(2,(m-69)/12); }
 /* v48.6 重复音去机枪化：±4 音分 detune + ±1.2dB 增益微扰。种子取自谱面位置（确定性），
    同一首谱每次播放扰动完全一致——校对复听可复现（表现力顾问原则）；幅度按「校对近似无损、
    听感去机械」标定，双档开关（自然/精确）随批次二一起上，届时精确档扰动归零。 */
+/* v48.9 「自然/精确」双档（MIDI 专家架构）：确定性塑形（拍点重音/扫弦力度型/声部分层）
+   两档都开启——那是记谱语义；双档只开关随机微扰动。校对/节拍器要机械精确就切「精确」。 */
+function humOn(){ try{ return localStorage.getItem('musetab-humanize')!=='off'; }catch(_){ return true; } }
+/* v48.9 拍点重音图谱（确定性，双档均生效）：强拍 +2.5dB、次强拍 +1.5dB、弱拍 0、
+   后半拍 −1.4dB、更细分位 −1.9dB。4/4 次强=第3拍；6/8 次强=第4拍；3/4 无次强。 */
+function beatAcc(beatPos, beats){
+  const fr=beatPos-Math.floor(beatPos);
+  if(fr>0.26 && fr<0.74) return 0.85;                     // 后半拍
+  if(fr>1e-6) return 0.80;                                // 十六分弱位
+  const b=Math.round(beatPos);
+  if(b===0) return 1.33;                                  // 强拍
+  if(beats>=6 && b===3) return 1.19;                      // 6/8 次强
+  if(beats>=4 && b===2) return 1.19;                      // 4/4 次强
+  return 1.0;
+}
+/* v48.9 扫弦规划（纯函数，供调度与 tv_audio 直接断言）：
+   下扫：先慢后快加速（0.022s 起 ×0.78 递减，6 弦总展开约 71ms），弦内力度低→高 1.12→0.88 递减；
+   上扫：只扫高音侧（调用方裁 ≤4 弦），更快（0.010s 起，总约 24ms）更轻（整体 ×0.8），高→低 1.05→0.90；
+   琶音：保持 50ms 匀速（琶音记号本就是慢滚）；普通和弦：12ms 匀速微滚。 */
+function strumPlan(n, kind){
+  const out=[]; let t=0;
+  for(let k=0;k<n;k++){
+    let dt=t, g=1;
+    if(kind==='d'){ g=1.12-(n>1? k/(n-1):0)*0.24; t+=0.022*Math.pow(0.78,k); }
+    else if(kind==='u'){ g=(1.05-(n>1? k/(n-1):0)*0.15)*0.8; t+=0.010*Math.pow(0.8,k); }
+    else if(kind==='arp'){ t+=0.05; }
+    else { t+=0.012; }
+    out.push({dt, g});
+  }
+  return out;
+}
 function humJit(a,b,c){
   let h=((a+1)*73856093) ^ ((b+1)*19349663) ^ (((c||0)+1)*83492791);
   h=(h ^ (h>>>13)) >>> 0;
@@ -9923,6 +9963,7 @@ function play(){
           if(col.dyn&&DYN_GAIN[col.dyn]){ g=DYN_GAIN[col.dyn]; dynTL.push({tm:off,g}); }
           off+=beatsOf(col,mUt)*spb; }); }); } }
   const dynAt=(off)=>{ let g=1; for(let i=0;i<dynTL.length;i++){ if(dynTL[i].tm<=off+1e-6) g=dynTL[i].g; else break; } return g; };
+  const HJ = humOn()? humJit : ()=>({fc:1,gc:1});   /* v48.9 精确档：随机微扰动归零（确定性塑形保留） */
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
@@ -9937,6 +9978,7 @@ function play(){
       let off=starts[oi];
       const smi=simileSrc(mi);   // v41.3 小节反复：播放展开为源小节内容
       const mUt=meaMeter(smi!=null?smi:mi).unit;   // v43.5 变拍子
+      let bcum=0;                                 /* v48.9 小节内拍位（拍点重音用） */
       (song.measures[smi!=null?smi:mi].tabs[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col,mUt)*spb;
         let picked = col.notes;
@@ -9945,15 +9987,20 @@ function play(){
           picked = col.notes.filter(n=>n.s>=sp.top && n.s<=sp.bot);
         }
         const ns = picked.slice().sort((a,b)=>b.s-a.s);
-        const stagger = col.strum ? ((col.strum==='arp'||col.strum==='arpd')?0.05:0.024) : 0.012;
-        const ord2 = col.strum==='u' ? ns.slice().reverse() : ns;
+        /* v48.9 扫弦力度型（MIDI 专家参数）：上扫只碰高音侧 ≤4 弦（真人物理够不到低音弦），
+           展开时间/弦内力度梯度由 strumPlan 统一给出；拍点重音按列起拍位置叠加。 */
+        const kind = col.strum ? ((col.strum==='arp'||col.strum==='arpd')?'arp':(col.strum==='u'?'u':'d')) : 'chord';
+        const ord2 = kind==='u' ? ns.slice(-Math.min(4,ns.length)).reverse() : ns;
+        const plan = strumPlan(ord2.length, kind);
         const chordDiv = Math.sqrt(Math.max(1, ord2.length));
-        const dg=dynAt(off);                       /* v48.6 TAB 轨吃全曲力度时间线 */
+        const acc = beatAcc(bcum, meaMeter(smi!=null?smi:mi).beats);
+        const dg=dynAt(off)*acc;                   /* v48.6 力度时间线 × v48.9 拍点重音 */
         ord2.forEach((n,k)=>{
-          const jj=humJit(mi, ci, n.s);            /* v48.6 确定性微扰动 */
-          insts.push({ when:t+off+k*stagger, s:n.s, x:!!n.x, mute:!!col.mute,
-            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*jj.gc/chordDiv });
+          const jj=HJ(mi, ci, n.s);                /* v48.6 确定性微扰动（精确档归零） */
+          insts.push({ when:t+off+plan[k].dt, s:n.s, x:!!n.x, mute:!!col.mute,
+            freq:n.x?0:midiFreq(tuningOf()[n.s-1]+n.f+song.capo-12)*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv });
         });
+        bcum+=beatsOf(col,mUt);
         if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
         off += durSec;
       });
@@ -9979,7 +10026,10 @@ function play(){
     const cfg = trackCfg('vox',vi);
     if(!trackAudible('vox',vi)) return;
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
-    const vol = (cfg.vol||1)*norm;
+    /* v48.9 声部角色增益：钢琴谱左手（vi=1 低音谱表）默认约 −3.5dB——伴奏手不压右手（可用轨音量覆盖） */
+    const dtp0 = docType(song);
+    const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && vi===1)? 0.67 : 1;
+    const vol = (cfg.vol||1)*norm*roleG;
     const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
     /* 1) 铺平列 → 合并连音线为音符事件；倚音/高亮/力度就地处理 */
     const notes=[]; let cur=null, dynG=1;
@@ -9987,8 +10037,10 @@ function play(){
       let off=starts[oi];
       const smi=simileSrc(mi);   // v41.3 小节反复：播放展开为源小节内容
       const mUv=meaMeter(smi!=null?smi:mi).unit;   // v43.5 变拍子
+      let bcum=0;                                  /* v48.9 小节内拍位（拍点重音用） */
       (song.measures[smi!=null?smi:mi].voxes[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col,mUv)*spb;
+        const acc2 = beatAcc(bcum, meaMeter(smi!=null?smi:mi).beats);   /* v48.9 拍点重音 */
         const m = voxMidi(col);
         /* 前倚音：主音前的短促小音符序列 */
         if(col.grace && m!=null){
@@ -10012,14 +10064,22 @@ function play(){
         if(m!=null){
           const f=midiFreq(m);
           if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
-          else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG, tie:!!col.tie}; }
+          else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG*acc2, tie:!!col.tie}; }
         } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
-        /* 同列多音（和音）：附加音与主音同起同长，独立发声不入延音链 */
-        if(m!=null && col.adds) col.adds.forEach(a=>{ if(!a||!a.deg) return;
-          const am = keyRef() + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12;
-          playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off, durSec, vol*0.85, false, {damp:true});
-        });
+        /* v48.9 和音塑形（MIDI 专家参数）：附加音按音高低→高各错 3ms 微滚奏（真人和弦非绝对齐击，
+           也避免同起音相位叠加）；声部分层——最低附加音为外声部略保留，内声部相对旋律约 −9dB；
+           时值门 ×0.9 让相邻和音间有呼吸。力度线与拍点重音同步作用（此前附加音不吃力度记号）。 */
+        if(m!=null && col.adds){
+          const ams = col.adds.filter(a=>a&&a.deg)
+            .map(a=>keyRef() + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12)
+            .sort((x,y)=>x-y);
+          ams.forEach((am,k)=>{
+            const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
+            playInst(cfg.inst, ctx, tbus, midiFreq(am), t+off+k*0.003, Math.max(0.08, durSec*0.9), vol*ag*dynG*acc2, false, {damp:true});
+          });
+        }
         if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
+        bcum += beatsOf(col,mUv);
         off += durSec;
       });
     });
@@ -13520,23 +13580,30 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v48.8';
+const APP_VER='v48.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
-   仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。 */
+   仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
+   v48.9 试听定论「不换库」：默认隐藏该行；机制保留（?sndlib= 参数或已设 localStorage 键时仍显示）。 */
 { const sb=document.getElementById('rc-sndlib');
   if(sb){
-    const cur=SF_LIB==='FluidR3_GM';
-    sb.textContent='音色库：'+(cur?'FluidR3（新）— 点击切回旧库':'MusyngKite — 点击试听新库');
-    sb.onclick=()=>{ try{
-      if(cur) localStorage.removeItem('musetab-sndlib');
-      else localStorage.setItem('musetab-sndlib','FluidR3_GM');
-    }catch(_){ }
-      toast('音色库已切换，正在刷新…'); setTimeout(()=>location.reload(), 500); };
+    let show=/[?&]sndlib=/.test(location.search);
+    try{ if(localStorage.getItem('musetab-sndlib')) show=true; }catch(_){ }
+    if(!show){ sb.style.display='none'; }
+    else{
+      const cur=SF_LIB==='FluidR3_GM';
+      sb.textContent='音色库：'+(cur?'FluidR3（新）— 点击切回旧库':'MusyngKite — 点击试听新库');
+      sb.onclick=()=>{ try{
+        if(cur) localStorage.removeItem('musetab-sndlib');
+        else localStorage.setItem('musetab-sndlib','FluidR3_GM');
+      }catch(_){ }
+        toast('音色库已切换，正在刷新…'); setTimeout(()=>location.reload(), 500); };
+    }
   } }
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v48.9</span><div><b>音符层塑形（音质升级·第二批①，MIDI 专家参数落地）</b>：① <b>拍点重音</b>——强拍 +2.5dB、次强拍 +1.5dB、弱拍位 −1.4～−1.9dB，简谱与 TAB 全声部生效，播放从「均匀敲格子」变出律动骨架；② <b>扫弦力度型</b>——下扫低音弦先响且更重（弦间递减梯度）、展开约 70ms 且逐弦加速；<b>上扫只碰高音侧 ≤4 根弦</b>（真人手腕物理够不到低音弦）、更快更轻——D-DU-UDU 终于有了「下重上轻」的真实手感；③ <b>和音塑形</b>——同列附加音按音高低→高各错 3ms 微滚奏、内声部退后约 −9dB（旋律浮在和声之上，不再糊成一片），并同步吃力度记号；④ <b>钢琴左手自动让位</b>——钢琴/钢琴弹唱谱左手声部默认约 −3.5dB，伴奏不压旋律（轨道音量仍可自行调整）；⑤ 新增<b>「演奏感：自然/精确」开关</b>（创作提示列）——自然档保留确定性微扰动（复听一致），精确档零扰动供校音/跟练；拍点重音等确定性塑形两档都保留。试听定论：<b>音色库保持 MusyngKite 不换</b>，灰度开关默认收起（机制保留）。tv_audio 增至 10 项断言全绿。</div></li>
     <li><span class="v">v48.8</span><div><b>响度归一 + 音色库灰度开关（音质升级·第一批③，核心版）</b>：① <b>按样响度归一</b>——每个采样解码时实测起音窗响度与峰值，自动补偿增益（封顶 ×4 防噪底、近静音坏样自动改走合成器）；<b>钢琴从此不再「几乎听不见」</b>（此前采样源电平低至 −30dBFS 且引擎再砍半，实测生效峰值提升约 4–10 倍）；② <b>起音修剪</b>——自动跳过 MP3 编码器头部静音（实测 3–7ms），音头与节拍器对得更准；③ 删除采样通路的统一 ×0.5，电平锚点与合成器对齐；离线渲染实测最坏情况（双轨扫弦+和弦齐鸣）总线峰值 0.60、零削波；④ <b>音色库灰度开关</b>——右栏「信息」页版本号下方新增「音色库」一行，点击在 MusyngKite ↔ <b>FluidR3</b>（逐音电平一致性更好）间切换试听，刷新生效、随时切回；也可用网址参数 <code>?sndlib=fluid</code>。服务器双库已就位。tv_audio 增至 9 项断言全绿。</div></li>
     <li><span class="v">v48.7</span><div><b>混响细修（音质升级·第一批②）</b>：混响 IR 叠加 <b>180Hz 低切</b>——钢琴低音经混响不再糊成一团（低频尾巴是元凶）；predelay 12→18ms，干湿分离度提升、<b>音头更清晰</b>（跟练要听得清音头）。如实说明：评审专家建议的「立体声去相关」「时变渐暗」经查<b>现有实现早已具备</b>（双声道独立噪声＋时变低通），本版只补真正缺的一刀；湿量不盲调，留待音色库灰度期用耳朵定。tv_audio 新增混响 IR 性质断言（predelay 零区/声道去相关/渐暗/无低频泥），8 项全绿。</div></li>
     <li><span class="v">v48.6</span><div><b>播放引擎快赢包（音质升级·第一批①，九方专家评审后开工）</b>：① <b>收音全面改为指数衰减</b>——线性收尾的「推子感」消除，音符结束更接近真实弦振动；② <b>采样截断护栏</b>——任何音在采样耗尽前包络必先收零，长音结尾的潜在爆点（响度归一后会被放大）提前堵死；③ <b>重复音去机枪化</b>——每个音按谱面位置加 ±4 音分、±1.2dB 的<b>确定性</b>微扰动：同一首谱每次播放完全一致（校对复听可复现），但连续同音不再逐比特相同；④ <b>力度记号带动吉他伴奏轨</b>——标在简谱声部的 p / mf / f 等力度现在同步作用于 TAB 轨（全曲力度时间线），主歌轻副歌重整体生效；⑤ 新增 <b>tv_audio 数值音频回归</b>：离线渲染后对波形做数值断言（无削波/收音静音/截断无爆点/力度取值/扰动确定性），并纳入发版流水线——音质问题此后由断言把关，不靠人耳抽查。服务器侧已完成 FluidR3_GM 双库供给与完整性冒烟（阶段0），音色库切换开关随下个版本上线灰度。</div></li>

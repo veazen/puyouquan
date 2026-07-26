@@ -3,7 +3,8 @@
    对 Float32Array 断言，不靠人耳抽查。合成声部含随机噪声激励，只断言包络/峰值/RMS，
    不断言逐样本值。
    覆盖：无削波 / 收音尾部静音 / 采样截断点无爆点（一阶差分探针）/ 采样路径有效 /
-        多轨最坏情况总线安全 / 力度时间线作用于 TAB / 微扰动确定性（同位同值、异位异值）。 */
+        多轨最坏情况总线安全 / 力度时间线作用于 TAB / 微扰动确定性（同位同值、异位异值）/
+        响度归一系数与生效电平 / 混响 IR 性质 / v48.9 扫弦力度型与拍点重音表。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html');
@@ -174,6 +175,20 @@ const T = (ok, name, detail) => {
       out.E = { same: a1.fc === a2.fc && a1.gc === a2.gc, diff: a1.fc !== b1.fc || a1.gc !== b1.gc,
         cents: +cents.toFixed(2), db: +db.toFixed(2) };
     }
+
+    // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
+    {
+      const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
+      const span = p => p.length > 1 ? p[p.length - 1].dt : 0;
+      // 下扫：总展开 40–90ms、相邻间隔递减（加速）、弦内力度低→高递减
+      let dAccel = true, dGrad = true;
+      for (let k = 2; k < d6.length; k++) if (d6[k].dt - d6[k - 1].dt > d6[k - 1].dt - d6[k - 2].dt + 1e-9) dAccel = false;
+      for (let k = 1; k < d6.length; k++) if (d6[k].g >= d6[k - 1].g) dGrad = false;
+      // 上扫：更快（≤35ms）且整体更轻（首音 ≤0.9）
+      out.H = { dSpan: +span(d6).toFixed(4), dAccel, dGrad,
+        uSpan: +span(u4).toFixed(4), uLight: u4[0].g <= 0.9,
+        acc: [beatAcc(0, 4), beatAcc(2, 4), beatAcc(1, 4), beatAcc(0.5, 4), beatAcc(0.25, 4), beatAcc(3, 6)] };
+    }
     return out;
   });
 
@@ -190,6 +205,9 @@ const T = (ok, name, detail) => {
     'F 混响IR：predelay零区/去相关/渐暗/无低频泥', JSON.stringify(r.F));
   T(r.G.g > 1 && r.G.g <= 4.001 && r.G.onset >= 0 && r.G.onset < 0.05 && r.G.effPeak > 0.08 && r.G.effPeak < 0.45,
     'G 归一：系数(1,4]/onset<50ms/生效峰值合理区间', JSON.stringify(r.G));
+  T(r.H.dSpan > 0.04 && r.H.dSpan < 0.09 && r.H.dAccel && r.H.dGrad && r.H.uSpan <= 0.035 && r.H.uLight
+    && r.H.acc.join() === '1.33,1.19,1,0.85,0.8,1.19',
+    'H 扫弦力度型（下扫加速+梯度/上扫快而轻）+ 拍点重音表', JSON.stringify(r.H));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);
