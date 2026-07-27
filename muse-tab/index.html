@@ -4781,12 +4781,31 @@ function render(){
                 /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech）；
                    v50.0 出版级两端细尖弧 */
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-                /* v50.1 连线滑弦自带斜杠（GP 惯例）：目标音高于主音=向上 ╱，低于=向下 ╲ */
-                let slUp=null;
-                if(n.tech==='sl' && n.tk){
-                  const tc2=(((song.measures[n.tk.mi]||{}).tabs||[])[vi]||[])[n.tk.ci];
-                  const tn2=tc2 && (tc2.notes||[]).find(x=>x.s===n.tk.si);
-                  if(tn2) slUp = (tuningOf()[tn2.s-1]+tn2.f) >= (tuningOf()[n.s-1]+n.f);
+                /* v50.1 连线滑弦自带斜杠（GP 惯例）：目标音高于主音=向上 ╱，低于=向下 ╲；
+                   v50.2 普通滑音（未框选目标、无 tk）同样自带斜杠：自动向后找最近的音符
+                   （优先同弦）比较音高定方向——即 GP 的 shift slide，只画斜杠不画弧线；
+                   后面再无音符时默认画向上短斜杠 */
+                let slUp=null, slTp=null, slTs=0;
+                if(n.tech==='sl'){
+                  if(n.tk){
+                    const tc2=(((song.measures[n.tk.mi]||{}).tabs||[])[vi]||[])[n.tk.ci];
+                    const tn2=tc2 && (tc2.notes||[]).find(x=>x.s===n.tk.si);
+                    if(tn2) slUp = (tuningOf()[tn2.s-1]+tn2.f) >= (tuningOf()[n.s-1]+n.f);
+                  }else{
+                    let tn3=null;
+                    for(let mi3=lm.mi; mi3<song.measures.length && !tn3; mi3++){
+                      const cs3 = mi3===lm.mi? cols : (((song.measures[mi3]||{}).tabs||[])[vi]||[]);
+                      for(let ci3=(mi3===lm.mi? ci+1 : 0); ci3<cs3.length; ci3++){
+                        const c3=cs3[ci3];
+                        if(c3 && c3.notes && c3.notes.length){
+                          tn3 = c3.notes.find(x=>x.s===n.s) || c3.notes[0];
+                          slTp = tabPos[vi+':'+mi3+':'+ci3]; slTs = tn3.s;
+                          break;
+                        }
+                      }
+                    }
+                    slUp = tn3? (tuningOf()[tn3.s-1]+tn3.f) >= (tuningOf()[n.s-1]+n.f) : true;
+                  }
                 }
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
@@ -4800,6 +4819,13 @@ function render(){
                   p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
                   if(slUp!=null)
                     p.push(`<line class="sldg" x1="${(nx+6).toFixed(1)}" y1="${(slUp? yy+3 : yy-3).toFixed(1)}" x2="${(nx+14).toFixed(1)}" y2="${(slUp? yy-2 : yy+2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+                }else if(n.tech==='sl' && slUp!=null){
+                  /* v50.2 普通滑音（无连线）：只画斜杠 */
+                  if(slTp && slTp.sys===sIdx && slTp.x-7.5 > nx+10.5){
+                    const y2t=tabTop+(slTs-1)*STR;
+                    p.push(`<line class="sldg" x1="${(nx+7.5).toFixed(1)}" y1="${(slUp? yy+3.2 : yy-3.2).toFixed(1)}" x2="${(slTp.x-7.5).toFixed(1)}" y2="${(slUp? y2t-3.2 : y2t+3.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+                  }else
+                    p.push(`<line class="sldg" x1="${(nx+5.5).toFixed(1)}" y1="${(slUp? yy+3 : yy-3).toFixed(1)}" x2="${(nx+12.5).toFixed(1)}" y2="${(slUp? yy-4 : yy+4).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                 }
               }else if(n.tk && !n.tech){
                 /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符
@@ -13988,7 +14014,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.1';
+const APP_VER='v50.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14011,6 +14037,7 @@ const APP_VER='v50.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.2</span><div><b>普通滑音也自带方向斜杠</b>：没框选目标音、只标了 S 的普通滑音，现在也自动向后找最近的音符（优先同弦）比较音高——<b>目标音高就画向上斜杠 ╱，目标音低就画向下斜杠 ╲</b>，只画斜杠不画弧线（GP 的 shift slide 惯例，与带连线的 legato slide 区分）；后面再无音符时默认画向上短斜杠。</div></li>
     <li><span class="v">v50.1</span><div><b>连线滑弦自带方向斜杠</b>：普通滑音（两音相连的滑弦）现在在两个品位数字之间自带斜杠——<b>目标音高于主音画向上斜杠 ╱，低于主音画向下斜杠 ╲</b>（GP 惯例），一眼可见滑行方向；圆滑线弧与标注带的 S 字母保留；跨行断开时起始侧画短斜杠示意方向。</div></li>
     <li><span class="v">v50.0</span><div><b>出版级连音线：两端细尖、中部有厚度</b>：全部连音线/圆滑线由「等线宽的一根弧线」升级为出版刻版形态——<b>括弧状实心弧</b>（双曲线填充：两端收细成尖、中部自然增厚），与专业出版乐谱一致。覆盖：简谱连音线、五线谱连音线（含贴符头弯向、跨小节续接）、六线谱击/勾/滑圆滑线与纯连音线（含跨行断弧）、工具栏「连音线」按钮图标同步换形。三连音括线与推弦箭头线按刻版惯例保持细线。</div></li>
     <li><span class="v">v49.9</span><div><b>推弦不再标注几分之几</b>：两音式推弦的规格已经完整——主音起、<b>目标音圆圈即准确音高</b>，故弧上标识固定为 b↑/b↓，不再显示 ¼/½/full 等幅度文字，幅度菜单一并取消（再点同一按钮=取消标记）；<b>播放同步升级</b>：推弦/回落的音高曲线直接按主音与圆圈目标音的<b>真实音高差</b>执行（推 2 品就推两个半音），回落连到更低目标时按「起于本音、放回目标音高」的下行曲线播放；单音式推弦维持默认全音。旧曲谱已标的幅度数据不受影响（仅作播放兜底、不再显示）。</div></li>
