@@ -4180,6 +4180,12 @@ function renderHints(){
 function render(){
   renderDock();
   const svg = document.getElementById('score');
+  /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带 r=5.8 圆圈，两位数品位数字缩号自适应
+     圆圈（圆圈大小不变，同泛音菱形 v46.1 方案）——绘制数字时需先知道自己是否目标音 */
+  const bendTks = new Set();
+  (song.measures||[]).forEach(m=> (m.tabs||[]).forEach((v2,vi2)=> (v2||[]).forEach(c2=> (c2.notes||[]).forEach(n2=>{
+    if((n2.tech==='b'||n2.tech==='bd') && n2.tk) bendTks.add(vi2+':'+n2.tk.mi+':'+n2.tk.ci+':'+n2.tk.si);
+  }))));
   /* 版面几何：页面尺寸 + 内容大小决定"每页容纳多少"（与显示缩放无关）。
      以 A4 版宽为响应式基准（保持 A4 默认铺满编辑器），A5/A3 按纸张比例缩放版宽：
      A3≈1.414×A4（容纳更多小节与行），A5≈0.705×A4；内容越大 → 有效版宽越小 → 容纳越少。*/
@@ -4708,9 +4714,13 @@ function render(){
                 /* v45.6 ×再放大（12.5 仍偏小）→ 15；拍弦列（col.slap）内音符一律记 ×（框内×，GP 惯例） */
                 p.push(`<text x="${nx}" y="${yy+4.8}" font-size="15" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="3" stroke-linejoin="round" fill="var(--ink)">×</text>`);
               }else{
-                /* v46.1 泛音两位数品位：菱形固定不变，数字缩号自适应框内（10.5→8） */
+                /* v46.1 泛音两位数品位：菱形固定不变，数字缩号自适应框内（10.5→8）；
+                   v50.6 推弦目标音同方案：圆圈 r=5.8 固定不变，两位数品位缩号入圈（10.5→7.5，
+                   圈比菱形小半号）——避免数字压到圆框线 */
                 const hmSm = n.tech==='hm' && n.f>=10;
-                p.push(`<text x="${nx}" y="${yy+(hmSm?2.8:3.6)}" font-size="${hmSm?8:10.5}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${hmSm?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
+                const bkSm = n.f>=10 && bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s);
+                const fs = hmSm? 8 : bkSm? 7.5 : 10.5;
+                p.push(`<text x="${nx}" y="${yy+((hmSm||bkSm)?2.8:3.6)}" font-size="${fs}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkSm)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
               }
               /* v49.6 技法文字标识统一进 TAB 上方标注带（mkTech，放大）；
                  此处只保留音符锚定的图形：泛音菱形/滑音斜杠/推弦弧线/连音弧线 */
@@ -4764,7 +4774,7 @@ function render(){
                   const bt = n.bt!=null? n.bt : n.f;
                   const gx2 = nx+15;
                   bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
-                  bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
+                  bendDecor.push(`<text x="${gx2}" y="${yy+(bt>=10?2.6:3.2)}" font-size="${bt>=10?7.5:9}" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);   /* v50.6 两位数缩号入圈 */
                   bendDecor.push(tieSVG(nx+5, yy-4.5, gx2-6, yy-6.2, yy-12, 1.4));
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
@@ -14049,7 +14059,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.5';
+const APP_VER='v50.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14072,6 +14082,7 @@ const APP_VER='v50.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.6</span><div><b>推弦目标音数字自适应圆圈</b>：目标音的圆圈大小保持不变（与音符圈定惯例一致），两位数品位（10 品及以上）的数字自动缩号收进圆圈内，不再压到圆框线——与泛音菱形的数字自适应同方案。</div></li>
     <li><span class="v">v50.5</span><div><b>推弦记号放大</b>：b↑/b↓ 由 10 号加大至 12.5 号并加粗——推弦/回落的方向信息由这个文字唯一承载，现在比一般技法字母（S/h/p 为 11 号）更醒目。</div></li>
     <li><span class="v">v50.4</span><div><b>和弦滑音只画一条连音线</b>：同一列多个音符一起滑（双音/和弦滑音）时，连音弧线与 S 字母只挂在<b>最上方</b>的滑音音符上，其余弦保留各自的方向斜杠（GP 惯例，避免弧线上下堆叠）；框选多列多弦标记滑弦时按<b>同弦配对</b>连接（滑音沿弦滑动），两音跨弦选择仍可直连。</div></li>
     <li><span class="v">v50.3</span><div><b>滑音两音规则 + 推弦连音线化</b>：①普通滑音必须选中<b>两个音符</b>（起始+目标）才生效——单音点「滑弦」不再生效并提示改用<b>无头/无尾滑音</b>（⟋S ⟍S S⟋ S⟍），已标记的单音可再点取消；②<b>推弦/回落的连接线统一改为连音线</b>（两头细尖的出版级弧形，与圆滑线同源），去掉全部箭头三角——推弦方向由 b↑/b↓ 文字承载，目标音仍用圆圈标注准确音高。</div></li>

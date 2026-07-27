@@ -64,6 +64,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.single.tech==='b' && r.single.noTk && r.single.noTy && r.dbl.tech==='b' && r.dbl.tk && r.dbl.noTy,
     'T3 单音就地标记 / 双音tech+tk', JSON.stringify(r));
 
+  // T5 v50.6 目标音两位数品位：数字缩号入圈（7.5），圆圈 r=5.8 不变；非目标的两位数保持 10.5
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    ${mkSong}
+    const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    s.measures[0].tabs[0]=[mk({notes:[{s:3,f:9,tech:'b',tk:{mi:0,ci:1,si:3}}]}),
+      mk({notes:[{s:3,f:12}]}),mk({dur:2,notes:[{s:3,f:12}]})]; loadSong(s);
+    const h=document.getElementById('score').innerHTML;
+    return {circle:h.indexOf('r="5.8"')>=0,
+      small:/font-size="7\\.5"[^>]*>12<\\/text>/.test(h),
+      normal:/font-size="10\\.5"[^>]*>12<\\/text>/.test(h),
+      clean:h.indexOf('NaN')<0}; })()`);
+  T(r.circle && r.small && r.normal && r.clean, 'T5 目标音两位数缩号入圈(7.5)·非目标保持10.5', JSON.stringify(r));
+
   // T4 同两音再点=取消
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
     ${mkSong}
