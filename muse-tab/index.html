@@ -3067,6 +3067,14 @@ function accG(sym, nx, hy, SG, scale){
 }
 /* v43.1 震音 tremolo：n 条粗斜杠（/）从 (cx,cy) 起沿 dir 方向堆叠（dir=-1 向上 / +1 向下）；
    1/2/3 杠 = 八分/十六分/三十二分轮奏（出版惯例） */
+/* v50.0 出版级连音线/圆滑线（产品指示：括弧形——两端细尖、中部有厚度）：
+   双二次曲线填充替代等线宽 stroke 弧。外缘控制点 (两端中点x, qy)，内缘控制点向端点侧
+   回收 2·th（二次曲线中点距弦=控制偏移的一半 → 中部厚度≈th）；两端共点=天然细尖。 */
+function tieSVG(x1,y1,x2,y2,qy,th){
+  const t=th||1.9, mx2=(x1+x2)/2, my2=(y1+y2)/2;
+  const q2=qy + (qy<my2? t*2 : -t*2);
+  return `<path d="M ${(+x1).toFixed(1)} ${(+y1).toFixed(1)} Q ${mx2.toFixed(1)} ${(+qy).toFixed(1)} ${(+x2).toFixed(1)} ${(+y2).toFixed(1)} Q ${mx2.toFixed(1)} ${q2.toFixed(1)} ${(+x1).toFixed(1)} ${(+y1).toFixed(1)} Z" fill="var(--ink)"/>`;
+}
 function tremSlashesSVG(cx, cy, n, dir){ let g='';
   for(let i=0;i<n;i++){ const y=cy+dir*i*4.3;
     g+=`<line x1="${(cx-3.7).toFixed(1)}" y1="${(y+2.3).toFixed(1)}" x2="${(cx+3.7).toFixed(1)}" y2="${(y-2.3).toFixed(1)}" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round"/>`; }
@@ -4770,14 +4778,15 @@ function render(){
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
               }else if(n.tech && n.tech!=='v' && n.tech!=='pm' && n.tech!=='lr'){
-                /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech） */
+                /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech）；
+                   v50.0 出版级两端细尖弧 */
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
                   const yPk = Math.min(yy,y2)-12;
-                  p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
                 }else if(tp){
-                  p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
                 }
               }else if(n.tk && !n.tech){
                 /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符
@@ -4786,9 +4795,9 @@ function render(){
                 if(tp && tp.sys===sIdx){
                   const x2=tp.x, y2=tabTop+(n.tk.si-1)*STR;
                   const yPk=Math.min(yy,y2)-12;
-                  p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
                 }else if(tp){
-                  p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+                  p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
                 }
               }
               /* v49.6 摇把 w/bar 已并入标注带（mkTech）；
@@ -5496,11 +5505,11 @@ function render(){
               const ty = below? Math.max(yA,yE)+5.2 : Math.min(yA,yE)-5.2;
               const bow = 7+Math.min(6,(b3-a3)*2);
               const yp = below? ty+bow : ty-bow;
-              p.push(`<path d="M ${x1} ${ty.toFixed(1)} Q ${((x1+x2)/2).toFixed(1)} ${yp.toFixed(1)} ${x2} ${ty.toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(tieSVG(x1, ty, x2, ty, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
             }else{
               const tyB = voxY-13;
               const yp = tyB-9-Math.min(6,(b3-a3)*2);
-              p.push(`<path d="M ${x1} ${tyB} Q ${(x1+x2)/2} ${yp} ${x2} ${tyB}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
+              p.push(tieSVG(x1, tyB, x2, tyB, yp, 1.9));
             }
             a3=b3+1;
           }
@@ -5870,7 +5879,7 @@ function decorateSignButtons(){
     'b-octdn':   ['<i class="gt">8<sup>vb</sup>−</i>','降八度'],
     'b-ottava':  ['<i class="gt">8<sup>va</sup>⌐┄</i>','八度线'],
     'b-clef':    [smIcoSVG('gClef',17),'谱号切换'],
-    'b-tie':     [sv(`<path d="M3 9.5 Q 11 2.5 19 9.5" ${st} stroke-width="1.3"/>`,22,12),'连音线'],
+    'b-tie':     [sv(`<path d="M3 9.5 Q 11 2.2 19 9.5 Q 11 5.6 3 9.5 Z" fill="currentColor"/>`,22,12),'连音线'],
     'b-addnote': [sv(`<ellipse cx="7" cy="4.6" rx="4.2" ry="3.1" fill="currentColor"/><ellipse cx="7" cy="12.4" rx="4.2" ry="3.1" fill="currentColor"/>`,14,17),'和音'],
     'b-vchord':  ['<i class="gt">Ⅳ</i>','和弦/级数'],
     'b-ferm-v':  [smIcoSVG('fermataAbove',10),'延长号'],
@@ -5887,7 +5896,7 @@ function decorateSignButtons(){
     'b-ped-off': ['<i class="gt">✻</i>','踏板收'],
     /* —— 六线谱 · 音符记号 / 扫弦琶音 —— */
     'b-ferm-t':  [smIcoSVG('fermataAbove',10),'延长号'],
-    'b-tie-t':   [sv(`<path d="M3 9.5 Q 11 2.5 19 9.5" ${st} stroke-width="1.3"/>`,22,12),'连音线'],
+    'b-tie-t':   [sv(`<path d="M3 9.5 Q 11 2.2 19 9.5 Q 11 5.6 3 9.5 Z" fill="currentColor"/>`,22,12),'连音线'],
     'b-mute':    ['<i class="gt">×</i>','×标记'],
     'b-slap':    [sv(`<rect x="3.5" y="3" width="11" height="12" rx="1.5" ${st} stroke-width="1.1"/><text x="9" y="12.8" font-size="11" font-weight="700" text-anchor="middle" fill="currentColor">×</text>`,18,18),'拍弦'],
     'b-strum-d': ['<i class="gt">↑</i>','下扫'],
@@ -13966,7 +13975,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.9';
+const APP_VER='v50.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13989,6 +13998,7 @@ const APP_VER='v49.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.0</span><div><b>出版级连音线：两端细尖、中部有厚度</b>：全部连音线/圆滑线由「等线宽的一根弧线」升级为出版刻版形态——<b>括弧状实心弧</b>（双曲线填充：两端收细成尖、中部自然增厚），与专业出版乐谱一致。覆盖：简谱连音线、五线谱连音线（含贴符头弯向、跨小节续接）、六线谱击/勾/滑圆滑线与纯连音线（含跨行断弧）、工具栏「连音线」按钮图标同步换形。三连音括线与推弦箭头线按刻版惯例保持细线。</div></li>
     <li><span class="v">v49.9</span><div><b>推弦不再标注几分之几</b>：两音式推弦的规格已经完整——主音起、<b>目标音圆圈即准确音高</b>，故弧上标识固定为 b↑/b↓，不再显示 ¼/½/full 等幅度文字，幅度菜单一并取消（再点同一按钮=取消标记）；<b>播放同步升级</b>：推弦/回落的音高曲线直接按主音与圆圈目标音的<b>真实音高差</b>执行（推 2 品就推两个半音），回落连到更低目标时按「起于本音、放回目标音高」的下行曲线播放；单音式推弦维持默认全音。旧曲谱已标的幅度数据不受影响（仅作播放兜底、不再显示）。</div></li>
     <li><span class="v">v49.8</span><div><b>推弦体系收敛：只留「推弦 b↑」与「回落 b↓」</b>：① 技法面板恢复<b>「回落」独立按钮</b>（即早前的下推弦符号 b↓——推起后放回），与「推弦 b↑」并列，谱面标识固定为 <b>b+箭头</b>；② <b>取消其他推弦入口</b>——预推 pre-bend 与「常规/回放/预推」类型三选菜单移除（老曲谱里已标的预推/回放数据仍照常显示与播放，不受影响）；③ 交互简化：单音点按钮即就地标记，Ctrl/Shift 选两音即连到目标音，已标记的音符再点同一按钮可选幅度（¼/½/full/1½）；幅度非全音时在箭头后以小字标注（如 b↑½），全音为默认不标；④ 回落的弧线改为 ∧ 形（推起→放回）、箭头朝下，与听感一致。</div></li>
     <li><span class="v">v49.7</span><div><b>Shift+点击多选（Ctrl 等效键）</b>：部分用户本机装有注册「双击 Ctrl」全局热键的工具（Listary、输入法快捷搜索等），按住 Ctrl 点选音符会误唤系统搜索——网页无法拦截系统级热键，故新增 <b>Shift+点击</b> 作为完全等效的多选键：多选音符加技法/连音线、连选小节，Shift 与 Ctrl 通用；批量选择也推荐直接<b>框选</b>（按住拖动，v49.5）。相关按钮提示与操作文案已同步标注「Ctrl/Shift」。</div></li>
