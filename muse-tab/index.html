@@ -3619,9 +3619,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
       const st2 = midiToStaff(TUNING[n.s-1]+(n.f||0)+12, Kt).step;
       if(st2>SBt+8) upPx=Math.max(upPx, (st2-(SBt+8))*3.75);
       if(st2<SBt)   dnPx=Math.max(dnPx, (SBt-st2)*3.75);
-      /* TAB 上方装饰超出顶线的高度：推弦弧+幅度文字≈24、细分泛音标注≈17、技法字母/连线≈13，按弦位递减 */
-      const reach = (n.tech==='b'||n.tech==='bd'||n.bendType)? 24 : n.hmT? 17 : (n.tech||n.tk)? 13 : 0;
-      if(reach) decPx=Math.max(decPx, reach-(n.s-1)*STR_GAP);
+      /* v49.6 技法标注带统一锚定 TAB 顶线上方（不再随弦位折算）：推弦弧+幅度≈26、其余技法标注≈17 */
+      const reach = (n.tech==='b'||n.tech==='bd'||n.bendType)? 26 : (n.hmT||n.tech||n.tk||n.bar)? 17 : 0;
+      if(reach) decPx=Math.max(decPx, reach);
     }))));
     tLedUp = upPx? upPx+6 : 0;
     tGapDn = Math.max(14*vs, (dnPx? dnPx+5 : 0) + (decPx>0? decPx+4 : 0) + 6);
@@ -4606,6 +4606,55 @@ function render(){
               p.push(`<text x="${nx}" y="${tabTop-8}" font-size="12.5" font-weight="bold" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(col.chord, 12.5)}</text>`);
           }
           const shape = chordShape(runChord);
+          /* v49.6 技法标注带：本列所有演奏技巧文字标识统一画在 TAB 顶线上方并放大（GP 惯例——
+             此前随所在弦位下沉、低音弦技法字压在谱线里）；多个标识向上堆叠；
+             有和弦名（文字式）时整带上移让位（同延长号 −22 口径）。
+             扫弦列此前完全不显示技法文字（扫弦分支只画箭头、不跑逐音循环）——一并补上。 */
+          let mkN=0;
+          const laneY=()=>((col.chord && !(diagMode==='inline'&&vi===0))? tabTop-22 : tabTop-9) - (mkN++)*11.5;
+          const mkTech=(n)=>{
+            if(n.tech==='hm' && n.hmT)
+              p.push(`<text x="${nx}" y="${laneY()}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
+            else if(n.tech==='su'||n.tech==='sd'||n.tech==='ou'||n.tech==='od')
+              p.push(`<text x="${nx}" y="${laneY()}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
+            else if(n.tech==='v'){
+              /* 揉弦：波浪线随时值/范围延长，置于标注带 */
+              const tpv=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+              const wy=laneY()-3;
+              const x0=nx-4, x1=(tpv&&tpv.sys===sIdx)? tpv.x+6 : nx+Math.max(10,cw-8);
+              const k=Math.max(1,Math.floor((x1-x0)/6));
+              let d=`M ${x0.toFixed(1)} ${wy.toFixed(1)}`;
+              for(let w2=0;w2<k;w2++) d+=' q 1.5 -3.2 3 0 q 1.5 3.2 3 0';
+              p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            }else if(n.tech==='pm'){
+              const wy=laneY();
+              p.push(`<text x="${nx-6}" y="${wy}" font-size="11" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">P.M.</text>`);
+              if(n.tk){
+                const tpm=tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
+                const xEnd=(tpm&&tpm.sys===sIdx)? tpm.x+5 : nx+Math.max(16,cw-4), xd=nx+22;
+                if(xEnd>xd+2){
+                  p.push(`<line x1="${xd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy-3.5}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
+                  p.push(`<line x1="${xEnd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy+2}" stroke="var(--ink)" stroke-width="1"/>`);
+                }
+              }
+            }else if(n.tech==='lr'){
+              const wy=laneY();
+              p.push(`<text x="${nx-6}" y="${wy}" font-size="10" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">let ring</text>`);
+              const tlr=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+              const xEnd=(tlr&&tlr.sys===sIdx)? tlr.x+5 : nx+Math.max(20,cw-4), xd=nx+40;
+              if(xEnd>xd+2) p.push(`<line x1="${xd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy-3.5}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
+            }else if(n.tech && n.tech!=='b' && n.tech!=='bd' && n.tech!=='hm'){
+              const SYM={sl:'S',h:'h',p:'p',tp:'T'};
+              const sym=SYM[n.tech]||n.tech;
+              const tp2=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+              const tx=(tp2&&tp2.sys===sIdx)? (nx+tp2.x)/2 : nx;
+              p.push(`<text x="${tx.toFixed(1)}" y="${laneY()}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+            }
+            if(n.bar){
+              const BARSYM={dive:'↘俯冲',scoop:'↗上滑',dip:'∨下点',shake:'≈颤'};
+              p.push(`<text x="${nx}" y="${laneY()}" font-size="9" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">w/bar ${(BARSYM[n.bar]||'').charAt(0)}</text>`);
+            }
+          };
           if(col.strum==='d'||col.strum==='u'){
             /* 扫弦：只画箭头（细线），落在需要扫的弦上；切音=箭头上带一个点 */
             const sp = strumSpan(col);
@@ -4616,6 +4665,7 @@ function render(){
             else   p.push(`<path d="M ${nx-3.2} ${yB-8} L ${nx} ${yB-1} L ${nx+3.2} ${yB-8}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             if(col.mute)   // 切音点：箭头正上方顶端
               p.push(`<circle cx="${nx}" cy="${yT-3}" r="1.7" fill="var(--ink)"/>`);
+            col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 扫弦列技法标注带 */
           }else if(col.strum==='arp' || col.strum==='arpd'){
             /* 上琶音：波浪线+顶端向上箭头；下琶音：波浪线+底端向下箭头 */
             const sp = strumSpan(col);
@@ -4627,6 +4677,7 @@ function render(){
               p.push(`<path d="M ${nx-2.8} ${yT+5} L ${nx} ${yT-1} L ${nx+2.8} ${yT+5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             else
               p.push(`<path d="M ${nx-2.8} ${yB-5} L ${nx} ${yB+1} L ${nx+2.8} ${yB-5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 琶音列技法标注带 */
           }else{
             /* 分解/单音：和弦内音显示 ×，和弦外音显示品位数字 */
             col.notes.forEach(n=>{
@@ -4649,22 +4700,21 @@ function render(){
                 const hmSm = n.tech==='hm' && n.f>=10;
                 p.push(`<text x="${nx}" y="${yy+(hmSm?2.8:3.6)}" font-size="${hmSm?8:10.5}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${hmSm?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
               }
-              /* 技法：符号显示在两音之间连音线上方（比例缩小） */
+              /* v49.6 技法文字标识统一进 TAB 上方标注带（mkTech，放大）；
+                 此处只保留音符锚定的图形：泛音菱形/滑音斜杠/推弦弧线/连音弧线 */
+              mkTech(n);
               if(n.tech==='hm'){
                 /* 泛音：正菱形框住音符（v46.1 恢复固定形状——所有泛音同一菱形，出版一致性；
                    两位数品位改由数字缩号自适应框内，见下方品位数字绘制） */
                 p.push(`<polygon points="${nx},${yy-7} ${nx+7},${yy} ${nx},${yy+7} ${nx-7},${yy}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                if(n.hmT) p.push(`<text x="${nx}" y="${yy-9.5}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
               }else if(n.tech==='su' || n.tech==='sd'){
-                /* 无头滑音：音符左侧斜杠（上滑/下滑）+ 小 S */
+                /* 无头滑音：音符左侧斜杠（上滑/下滑），S 字母在标注带 */
                 const up = n.tech==='su';
                 p.push(`<line x1="${nx-12.5}" y1="${up? yy+4 : yy-4}" x2="${nx-5.5}" y2="${up? yy-3 : yy+3}" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<text x="${nx-9}" y="${yy-6.5}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
               }else if(n.tech==='ou' || n.tech==='od'){
-                /* 无尾滑音：音符右侧斜杠（上滑/下滑）+ 小 S */
+                /* 无尾滑音：音符右侧斜杠（上滑/下滑），S 字母在标注带 */
                 const up = n.tech==='ou';
                 p.push(`<line x1="${nx+5.5}" y1="${up? yy+3 : yy-3}" x2="${nx+12.5}" y2="${up? yy-4 : yy+4}" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<text x="${nx+9}" y="${yy-6.5}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">S</text>`);
               }else if(n.tech==='b' || n.tech==='bd'){
                 /* 推弦：Ctrl 选中的目标音符加圆圈 + 连音线相连，b↑/b↓ 在连线中间上方；
                    圆圈等后绘（bendDecor），避免被目标数字底色遮住；
@@ -4678,32 +4728,32 @@ function render(){
                 const dnA=(ax,ay)=>`<path d="M ${(ax-2.6).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${ax.toFixed(1)} ${ay.toFixed(1)} L ${(ax+2.6).toFixed(1)} ${(ay-4.4).toFixed(1)} Z" fill="var(--ink)"/>`;
                 if(tp2 && tp2.sys===sIdx){
                   const x2=tp2.x, y2=tabTop+(n.tk.si-1)*STR;
-                  const yPk=Math.min(yy,y2)-12;
+                  const yPk=Math.min(tabTop-10, Math.min(yy,y2)-12);   /* v49.6 弧顶钳到谱上方 */
                   bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5.8" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
                   if(bTy==='rel'){
-                    const apX=(nx+x2)/2, apY=Math.min(yy,y2)-17;
+                    const apX=(nx+x2)/2, apY=Math.min(tabTop-15, Math.min(yy,y2)-17);
                     bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${((nx+apX)/2).toFixed(1)} ${apY.toFixed(1)} ${apX.toFixed(1)} ${(apY+1).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                     bendDecor.push(`<path d="M ${apX.toFixed(1)} ${(apY+1).toFixed(1)} Q ${((apX+x2)/2).toFixed(1)} ${apY.toFixed(1)} ${x2-5} ${(y2-6.5).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                     bendDecor.push(dnA(x2-5, y2-4.5));
-                    bendDecor.push(`<text x="${apX.toFixed(1)}" y="${(apY-1).toFixed(1)}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                    bendDecor.push(`<text x="${apX.toFixed(1)}" y="${(apY-1.5).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                   }else if(bTy==='pre'){
-                    const topY=yy-14;
+                    const topY=Math.min(tabTop-12, yy-14);
                     bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
                     bendDecor.push(upA(nx, topY));
                     bendDecor.push(`<path d="M ${nx} ${topY.toFixed(1)} Q ${((nx+x2)/2).toFixed(1)} ${(topY-2).toFixed(1)} ${x2-5} ${(y2-6.5).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                     bendDecor.push(dnA(x2-5, y2-4.5));
-                    bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                    bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                   }else{
                     bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-6.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                     bendDecor.push(`<path d="M ${(x2-7.6).toFixed(1)} ${(y2-3.5).toFixed(1)} L ${(x2-5).toFixed(1)} ${(y2-7.9).toFixed(1)} L ${(x2-2.4).toFixed(1)} ${(y2-3.5).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头（向上=音高走向）
-                    bendDecor.push(`<text x="${(nx+x2)/2}" y="${yPk+2.4}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                    bendDecor.push(`<text x="${(nx+x2)/2}" y="${yPk+1.8}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                   }
                 }else if(bTy==='pre'){
                   /* 纯预推（无目标音）：起音竖直上箭头 + 幅度 */
-                  const topY=yy-15;
+                  const topY=Math.min(tabTop-12, yy-15);
                   bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
                   bendDecor.push(upA(nx, topY));
-                  bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else{
                   /* 兼容旧数据（bt 目标品位）：右侧合成圆圈目标音 */
                   const bt = n.bt!=null? n.bt : n.f;
@@ -4712,54 +4762,21 @@ function render(){
                   bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
                   bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                   bendDecor.push(`<path d="M ${(gx2-6.6).toFixed(1)} ${(yy-3.2).toFixed(1)} L ${(gx2-4).toFixed(1)} ${(yy-7.6).toFixed(1)} L ${(gx2-1.4).toFixed(1)} ${(yy-3.2).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头
-                  bendDecor.push(`<text x="${(nx+gx2)/2}" y="${yy-13}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
-              }else if(n.tech==='v'){
-                /* 揉弦：波浪线随时值延长——列格宽与时值成正比，波峰按格宽复制；
-                   Ctrl 扩选（tk 指向范围末音）时波浪线一直延伸到末音 */
-                const tpv = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-                const wy = yy-11;
-                const x0 = nx-4;
-                const x1 = (tpv && tpv.sys===sIdx)? tpv.x+6 : nx+Math.max(10, cw-8);
-                const k = Math.max(1, Math.floor((x1-x0)/6));
-                let d = `M ${x0.toFixed(1)} ${wy.toFixed(1)}`;
-                for(let w2=0; w2<k; w2++) d += ' q 1.5 -2.8 3 0 q 1.5 2.8 3 0';
-                p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-              }else if(n.tech==='pm' && n.tk){
-                /* 闷音范围（扩选）：P.M. + 虚线延伸到范围末音，末端小竖钩（出版惯例）；
-                   末音在下一行时虚线画到本列格末 */
-                const tpm = tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
-                const wy = yy-10.5;
-                const xEnd = (tpm && tpm.sys===sIdx)? tpm.x+5 : nx+Math.max(16, cw-4);
-                p.push(`<text x="${nx-6}" y="${wy}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">P.M.</text>`);
-                const xd = nx+16;
-                if(xEnd > xd+2){
-                  p.push(`<line x1="${xd}" y1="${wy-3}" x2="${xEnd}" y2="${wy-3}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
-                  p.push(`<line x1="${xEnd}" y1="${wy-3}" x2="${xEnd}" y2="${wy+2.5}" stroke="var(--ink)" stroke-width="1"/>`);
-                }
-              }else if(n.tech==='lr'){
-                /* v42.3 let ring：音符上方 "let ring" + 虚线延伸到范围末音（tk），余音保持共鸣 */
-                const tlr = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-                const wy = yy-10.5, xEnd = (tlr && tlr.sys===sIdx)? tlr.x+5 : nx+Math.max(20, cw-4), xd = nx+34;
-                p.push(`<text x="${nx-6}" y="${wy}" font-size="8.5" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">let ring</text>`);
-                if(xEnd > xd+2) p.push(`<line x1="${xd}" y1="${wy-3}" x2="${xEnd}" y2="${wy-3}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
-              }else if(n.tech){
-                const SYM = {sl:'S',h:'h',p:'p',tp:'T',pm:'P.M.'};
-                const sym = SYM[n.tech]||n.tech;
+              }else if(n.tech && n.tech!=='v' && n.tech!=='pm' && n.tech!=='lr'){
+                /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech） */
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
                   const yPk = Math.min(yy,y2)-12;
                   p.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-4.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                  p.push(`<text x="${(nx+x2)/2}" y="${yPk+2.4}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }else if(tp){
                   p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                  p.push(`<text x="${nx+14}" y="${yy-12}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
-                }else{
-                  p.push(`<text x="${nx}" y="${yy-10.5}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
                 }
-              }else if(n.tk){
-                /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符 */
+              }else if(n.tk && !n.tech){
+                /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符
+                   （v49.6 排除 v/pm/lr 等带 tk 的范围技法——它们的波浪/虚线在标注带画） */
                 const tp = tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
                 if(tp && tp.sys===sIdx){
                   const x2=tp.x, y2=tabTop+(n.tk.si-1)*STR;
@@ -4769,20 +4786,16 @@ function render(){
                   p.push(`<path d="M ${nx+5} ${yy-4.5} q 9 -8 18 -6" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
                 }
               }
-              /* v42.3 摇把 whammy（电吉他）：音符上方 "w/bar" + 形态记号，与 tech 独立可共存 */
-              if(n.bar){
-                const BARSYM={dive:'↘俯冲',scoop:'↗上滑',dip:'∨下点',shake:'≈颤'};
-                p.push(`<text x="${nx}" y="${yy-13.5}" font-size="7.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">w/bar ${(BARSYM[n.bar]||'').charAt(0)}</text>`);
-              }
-              /* v42.3 指弹右手指法 p i m a：品位数字下方小字 */
+              /* v49.6 摇把 w/bar 已并入标注带（mkTech）；
+                 指弹右手指法 p i m a 保持品位数字下方（指法惯例位置，非技巧标识），仅放大 */
               if(n.rhFing)
-                p.push(`<text x="${nx}" y="${yy+12}" font-size="8" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.rhFing}</text>`);
+                p.push(`<text x="${nx}" y="${yy+12.5}" font-size="9" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.rhFing}</text>`);
             });
             /* v42.3 打板（指弹打击技法）：TAB 中部 × 符头 + 上方分区字母；打板列不画休止 */
             if(col.perc){
               const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
               p.push(`<text x="${nx}" y="${tabTop+STAFF/2+5}" font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
-              p.push(`<text x="${nx}" y="${tabTop-3}" font-size="7.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);
+              p.push(`<text x="${nx}" y="${laneY()}" font-size="9.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);   /* v49.6 打板分区字母入标注带并放大 */
             }else if(!col.notes.length && !emptyTm)
               {
                 /* 空列（无音符/无扫弦）画休止符，让时值可见——
@@ -13945,7 +13958,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.5';
+const APP_VER='v49.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13968,6 +13981,7 @@ const APP_VER='v49.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.6</span><div><b>技法标注带：演奏技巧符号统一置于六线谱上方并放大</b>：① 吉他谱所有演奏技巧文字标识——P.M.（含虚线范围）、let ring、揉弦波浪线、击弦 h / 勾弦 p / 滑弦 S / 点弦 T、A.H./P.H./T.H. 泛音标注、摇把 w/bar、打板分区字母、推弦幅度文字——<b>统一画在 TAB 顶线上方的标注带</b>，不再随所在弦位下沉压进谱线（低音弦技法字此前会叠在谱线里）；同列多个标识自动向上堆叠，有和弦名时整带上移让位；② 全部字号放大约 15–25%，扫谱一眼可辨；③ 推弦弧线顶点与幅度文字也钳到谱上方（GP 惯例：推弦箭头向谱外发展）；④ 顺带修复：<b>扫弦列此前完全不显示技法文字</b>（扫弦列只画箭头）——现在扫弦/琶音列的 P.M.、揉弦等照常显示；⑤ 指弹 pima 指法保持品位数字下方（指法惯例位置），同步放大。几何断言验证 10 种标注全部位于各自谱行顶线上方，全套回归 100 项全绿。</div></li>
     <li><span class="v">v49.5</span><div><b>柱式和弦整列闷音 + 谱面框选</b>：① <b>P.M. 标在柱式和弦上＝整列全弦闷音</b>（GP 惯例）——此前播放只闷被标的那个音，现在列内所有弦、扫弦展开错开的音全部进入闷音；P.M. 虚线范围与范围揉弦同步改为按「列区间」判定，覆盖更准确；② <b>框选功能</b>——在谱面上<b>按住拖动</b>即可画出选框，框内 TAB 音符一次性全部选中（不用再逐个 Ctrl+点击），松手后在「记号/技法」面板点 P.M./揉弦/let ring/连音线即批量应用；普通点击、Ctrl 多选、触屏滚动行为完全不受影响。tv_audio 增至 21 项（真实播放调度级断言：扫弦和弦列单音标 P.M. → 六弦全部收短）、tv_gtech 增框选端到端交互断言，全绿。</div></li>
     <li><span class="v">v49.4</span><div><b>吉他技法发声·第二批（技法发声化收官）</b>：① <b>泛音发声</b>——自然泛音按真实物理发声：品位=触弦节点，实际音高=空弦×谐波次数（12 品高八度、7/19 品高八度加五度、5/24 品高两个八度、4/9/16 品更高），人工/点弦泛音=按弦音高八度，拨片泛音（P.H.）额外加亮出「啸叫」倾向，泛音统一软起音更纯净；② <b>摇把四态</b>——俯冲（保持后渐深下潜）、上滑入音、下点 ∨（快速下探回弹）、摇把颤音（深快颤动）全部按形态画音高曲线；③ <b>拍弦/打板打击层</b>——拍弦列附加真实拍击噪声、音符短促化；指弹打板三型可闻可辨：低音板（含低频「胸腔感」）、高音板、击板；④ <b>轮奏细分</b>——简谱/五线谱震音 1-3 杠按八分/十六分/三十二分真实重复演奏，交替强弱如真实拨奏。至此谱面全部吉他技法记号在播放中都有对应发声，采样/合成双通路一致。tv_audio 增至 20 项断言全绿（泛音谐波表/摇把音高下潜/打板频谱区分等数值验证）。</div></li>
     <li><span class="v">v49.3</span><div><b>电吉他过载/失真音色上线（音色补强）</b>：音轨面板的音色下拉新增<b>「电吉他·过载」「电吉他·失真」</b>两个真实采样音色（GM 库 overdriven/distortion guitar，服务器双库同步供给），电吉他 solo 谱终于有了该有的驱动质感——搭配 v49.2 的推弦/揉弦/滑音技法引擎，失真长音推弦揉弦的经典乐句可以完整发声；原「电吉他」更名<b>「电吉他·清音」</b>（既有曲谱不受影响）。采样未就绪的首播窗口由内置合成器回落：过载/失真档对应加大软削波驱动、拉长延音（失真天然压缩延音），实测失真强力和弦齐鸣总线零削波。冒烟验收同步抽查两个新音色包完整性。tv_audio 增至 17 项断言全绿。</div></li>
