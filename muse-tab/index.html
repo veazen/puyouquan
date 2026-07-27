@@ -4725,56 +4725,41 @@ function render(){
                 p.push(`<line x1="${nx+5.5}" y1="${up? yy+3 : yy-3}" x2="${nx+12.5}" y2="${up? yy-4 : yy+4}" stroke="var(--ink)" stroke-width="1"/>`);
               }else if(n.tech==='b' || n.tech==='bd'){
                 /* 推弦：Ctrl 选中的目标音符加圆圈 + 连音线相连，b↑/b↓ 在连线中间上方；
-                   圆圈等后绘（bendDecor），避免被目标数字底色遮住；
-                   v41.2 推弦幅度 bAmt：弧上文字换为幅度标注（GP 惯例 full/½），无 bAmt 维持现状 */
+                   圆圈等后绘（bendDecor），避免被目标数字底色遮住 */
                 /* v49.9 谱面标识固定 b+箭头（产品拍板）：b↑=推弦 b↓=回落。
-                   不标几分之几——两音式推弦的音高由圆圈目标音明确给出（bAmt 仅旧数据播放兜底） */
+                   不标几分之几——两音式推弦的音高由圆圈目标音明确给出（bAmt 仅旧数据播放兜底）。
+                   v50.3 连接线统一用连音线（产品指示）：tieSVG 出版级两头细尖弧，
+                   不再画箭头三角/∧形/竖线箭头——推/落的方向信息由 b↑/b↓ 文字承载；
+                   预推旧数据仅保留起音竖直线示意（去箭头头） */
                 const sym2 = n.tech==='b'?'b↑':'b↓';
                 const tp2 = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-                /* v43.3 推弦类型：'rel' ∧ 形回落 / 'pre' 预推(旧数据) / 无=常规上推弦；
-                   v49.8 回落 bd 直接走 ∧ 形（推起后放回），与播放语义一致 */
-                const bTy = n.bendType || (n.tech==='bd'? 'rel' : '');
-                const upA=(ax,ay)=>`<path d="M ${(ax-2.6).toFixed(1)} ${(ay+4.4).toFixed(1)} L ${ax.toFixed(1)} ${ay.toFixed(1)} L ${(ax+2.6).toFixed(1)} ${(ay+4.4).toFixed(1)} Z" fill="var(--ink)"/>`;
-                const dnA=(ax,ay)=>`<path d="M ${(ax-2.6).toFixed(1)} ${(ay-4.4).toFixed(1)} L ${ax.toFixed(1)} ${ay.toFixed(1)} L ${(ax+2.6).toFixed(1)} ${(ay-4.4).toFixed(1)} Z" fill="var(--ink)"/>`;
+                const bTy = n.bendType || '';
                 if(tp2 && tp2.sys===sIdx){
                   const x2=tp2.x, y2=tabTop+(n.tk.si-1)*STR;
                   const yPk=Math.min(tabTop-10, Math.min(yy,y2)-12);   /* v49.6 弧顶钳到谱上方 */
                   bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5.8" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
-                  if(bTy==='rel'){
-                    const apX=(nx+x2)/2, apY=Math.min(tabTop-15, Math.min(yy,y2)-17);
-                    bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${((nx+apX)/2).toFixed(1)} ${apY.toFixed(1)} ${apX.toFixed(1)} ${(apY+1).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                    bendDecor.push(`<path d="M ${apX.toFixed(1)} ${(apY+1).toFixed(1)} Q ${((apX+x2)/2).toFixed(1)} ${apY.toFixed(1)} ${x2-5} ${(y2-6.5).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                    bendDecor.push(dnA(x2-5, y2-4.5));
-                    bendDecor.push(`<text x="${apX.toFixed(1)}" y="${(apY-1.5).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
-                  }else if(bTy==='pre'){
+                  if(bTy==='pre'){
                     const topY=Math.min(tabTop-12, yy-14);
                     bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
-                    bendDecor.push(upA(nx, topY));
-                    bendDecor.push(`<path d="M ${nx} ${topY.toFixed(1)} Q ${((nx+x2)/2).toFixed(1)} ${(topY-2).toFixed(1)} ${x2-5} ${(y2-6.5).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                    bendDecor.push(dnA(x2-5, y2-4.5));
-                    bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
-                  }else{
-                    bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+x2)/2} ${yPk} ${x2-5} ${y2-6.5}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                    bendDecor.push(`<path d="M ${(x2-7.6).toFixed(1)} ${(y2-3.5).toFixed(1)} L ${(x2-5).toFixed(1)} ${(y2-7.9).toFixed(1)} L ${(x2-2.4).toFixed(1)} ${(y2-3.5).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头（向上=音高走向）
-                    bendDecor.push(`<text x="${(nx+x2)/2}" y="${yPk+1.8}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                   }
+                  bendDecor.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
+                  bendDecor.push(`<text x="${((nx+x2)/2).toFixed(1)}" y="${(yPk-1.5).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                }else if(tp2){
+                  /* 目标音在下一行：起始侧半弧 + 文字（同圆滑线跨行口径） */
+                  bendDecor.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
+                  bendDecor.push(`<text x="${(nx+14).toFixed(1)}" y="${(yy-16).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else if(bTy==='pre'){
-                  /* 纯预推（无目标音）：起音竖直上箭头 + 幅度 */
+                  /* 纯预推（无目标音，旧数据）：起音竖直线 + 文字 */
                   const topY=Math.min(tabTop-12, yy-15);
                   bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
-                  bendDecor.push(upA(nx, topY));
                   bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else{
-                  /* 兼容旧数据（bt 目标品位）：右侧合成圆圈目标音 */
+                  /* 兼容旧数据（bt 目标品位）/单音式：右侧合成圆圈目标音 + 短连音线 */
                   const bt = n.bt!=null? n.bt : n.f;
                   const gx2 = nx+15;
                   bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
                   bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
-                  bendDecor.push(`<path d="M ${nx+5} ${yy-4.5} Q ${(nx+gx2)/2} ${yy-12} ${gx2-4} ${yy-6.2}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                  if(n.tech==='bd')   /* v49.8 单音回落：箭头朝下（推起后放回） */
-                    bendDecor.push(`<path d="M ${(gx2-6.6).toFixed(1)} ${(yy-7.9).toFixed(1)} L ${(gx2-4).toFixed(1)} ${(yy-3.5).toFixed(1)} L ${(gx2-1.4).toFixed(1)} ${(yy-7.9).toFixed(1)} Z" fill="var(--ink)"/>`);
-                  else
-                    bendDecor.push(`<path d="M ${(gx2-6.6).toFixed(1)} ${(yy-3.2).toFixed(1)} L ${(gx2-4).toFixed(1)} ${(yy-7.6).toFixed(1)} L ${(gx2-1.4).toFixed(1)} ${(yy-3.2).toFixed(1)} Z" fill="var(--ink)"/>`);   // v42.5 推弦箭头
+                  bendDecor.push(tieSVG(nx+5, yy-4.5, gx2-6, yy-6.2, yy-12, 1.4));
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
               }else if(n.tech && n.tech!=='v' && n.tech!=='pm' && n.tech!=='lr'){
@@ -4782,9 +4767,9 @@ function render(){
                    v50.0 出版级两端细尖弧 */
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 /* v50.1 连线滑弦自带斜杠（GP 惯例）：目标音高于主音=向上 ╱，低于=向下 ╲；
-                   v50.2 普通滑音（未框选目标、无 tk）同样自带斜杠：自动向后找最近的音符
+                   v50.2 普通滑音（旧数据无 tk）同样自带斜杠：自动向后找最近的音符
                    （优先同弦）比较音高定方向——即 GP 的 shift slide，只画斜杠不画弧线；
-                   后面再无音符时默认画向上短斜杠 */
+                   v50.3 后面再无音符=无效记谱不画斜杠（普通滑音必须两音，单音走无头/无尾滑音） */
                 let slUp=null, slTp=null, slTs=0;
                 if(n.tech==='sl'){
                   if(n.tk){
@@ -4804,7 +4789,8 @@ function render(){
                         }
                       }
                     }
-                    slUp = tn3? (tuningOf()[tn3.s-1]+tn3.f) >= (tuningOf()[n.s-1]+n.f) : true;
+                    /* v50.3 后面再无音符=无效记谱（普通滑音必须两音），不画兜底斜杠只留 S */
+                    if(tn3) slUp = (tuningOf()[tn3.s-1]+tn3.f) >= (tuningOf()[n.s-1]+n.f);
                   }
                 }
                 if(tp && tp.sys===sIdx){
@@ -6932,12 +6918,19 @@ function techFromBar(t){ try{ if(t) habit('tech:'+t); }catch(_){}
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的音符');
   const col=curCol();
   if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
+  /* v50.3 产品规格：普通滑音必须选中两个音符（起始+目标）才成立；
+     单音场景请用无头/无尾滑音（⟋S ⟍S S⟋ S⟍）。已标记的单音 sl 允许再点取消 */
+  if(t==='sl'){
+    const n0 = col.notes.find(x=>x.s===sel.si) || col.notes[0];
+    if(n0.tech==='sl'){ mutate(()=>{ delete n0.tech; delete n0.tk; }); return toast('已取消滑弦'); }
+    return toast('普通滑音需选中两个音符（Shift+点击或框选起始+目标）；单音请用无头/无尾滑音');
+  }
   let linked=false;
   mutate(()=>{
     const n = col.notes.find(x=>x.s===sel.si) || col.notes[0];
     if(!t || n.tech===t){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; return; }
     n.tech=t; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType;
-    if(t==='sl'||t==='h'||t==='p'){
+    if(t==='h'||t==='p'){
       /* 自动连到下一个有音符的列（优先同弦音符） */
       const cols=curRowCols();
       for(let ci2=sel.ci+1; ci2<cols.length; ci2++){
@@ -8213,6 +8206,15 @@ function applyTech(tech){
   const picked = noteSel.filter(q=>q.row!=='vox');   // 技法只作用于吉他谱音符
   if(!picked.length) return;
   const list = picked.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
+  /* v50.3 产品规格：普通滑音必须两音（起始+目标）；单音选区不生效，
+     单音场景用无头/无尾滑音。已是 sl 的单音允许取消 */
+  if(tech==='sl' && list.length===1){
+    const q=list[0];
+    const cols=song.measures[q.mi].tabs[q.vi];
+    const n=cols && cols[q.ci] && cols[q.ci].notes.find(x=>x.s===q.si);
+    if(n && n.tech==='sl'){ mutate(()=>{ delete n.tech; delete n.tk; }); return toast('已取消滑弦'); }
+    return toast('普通滑音需选中两个音符（Shift+点击或框选起始+目标）；单音请用无头/无尾滑音');
+  }
   mutate(()=>{
     const noteAt = q=>{
       const cols = song.measures[q.mi].tabs[q.vi];
@@ -14014,7 +14016,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.2';
+const APP_VER='v50.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14037,6 +14039,7 @@ const APP_VER='v50.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.3</span><div><b>滑音两音规则 + 推弦连音线化</b>：①普通滑音必须选中<b>两个音符</b>（起始+目标）才生效——单音点「滑弦」不再生效并提示改用<b>无头/无尾滑音</b>（⟋S ⟍S S⟋ S⟍），已标记的单音可再点取消；②<b>推弦/回落的连接线统一改为连音线</b>（两头细尖的出版级弧形，与圆滑线同源），去掉全部箭头三角——推弦方向由 b↑/b↓ 文字承载，目标音仍用圆圈标注准确音高。</div></li>
     <li><span class="v">v50.2</span><div><b>普通滑音也自带方向斜杠</b>：没框选目标音、只标了 S 的普通滑音，现在也自动向后找最近的音符（优先同弦）比较音高——<b>目标音高就画向上斜杠 ╱，目标音低就画向下斜杠 ╲</b>，只画斜杠不画弧线（GP 的 shift slide 惯例，与带连线的 legato slide 区分）；后面再无音符时默认画向上短斜杠。</div></li>
     <li><span class="v">v50.1</span><div><b>连线滑弦自带方向斜杠</b>：普通滑音（两音相连的滑弦）现在在两个品位数字之间自带斜杠——<b>目标音高于主音画向上斜杠 ╱，低于主音画向下斜杠 ╲</b>（GP 惯例），一眼可见滑行方向；圆滑线弧与标注带的 S 字母保留；跨行断开时起始侧画短斜杠示意方向。</div></li>
     <li><span class="v">v50.0</span><div><b>出版级连音线：两端细尖、中部有厚度</b>：全部连音线/圆滑线由「等线宽的一根弧线」升级为出版刻版形态——<b>括弧状实心弧</b>（双曲线填充：两端收细成尖、中部自然增厚），与专业出版乐谱一致。覆盖：简谱连音线、五线谱连音线（含贴符头弯向、跨小节续接）、六线谱击/勾/滑圆滑线与纯连音线（含跨行断弧）、工具栏「连音线」按钮图标同步换形。三连音括线与推弦箭头线按刻版惯例保持细线。</div></li>

@@ -134,7 +134,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {n:ls.length, up:ls[0]&&ls[0].y1>ls[0].y2, dn:ls[1]&&ls[1].y1<ls[1].y2}; })()`);
   T(r.n === 2 && r.up && r.dn, 'T8d 连线滑弦方向斜杠（高→╱ 低→╲）', JSON.stringify(r));
 
-  // T8e v50.2 普通滑音（无 tk）自带斜杠：自动向后找最近音符定方向；无后续音符→默认向上短斜杠
+  // T8e v50.2 普通滑音（旧数据无 tk）自带斜杠：自动向后找最近音符定方向；
+  //     v50.3 无后续音符=无效记谱不画兜底斜杠（普通滑音必须两音）
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
     const s=createSong('solo',{title:'se',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
     const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
@@ -142,9 +143,30 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       mk({notes:[{s:2,f:9,tech:'sl'}]}),mk({notes:[{s:2,f:5,tech:'sl'}]})];
     loadSong(s);
     const ls=[...document.querySelectorAll('#score line.sldg')].map(l=>({y1:+l.getAttribute('y1'),y2:+l.getAttribute('y2')}));
-    return {n:ls.length, up:ls[0]&&ls[0].y1>ls[0].y2, dn:ls[1]&&ls[1].y1<ls[1].y2,
-      tail:ls[2]&&ls[2].y1>ls[2].y2}; })()`);
-  T(r.n === 3 && r.up && r.dn && r.tail, 'T8e 普通滑音自带斜杠（自动找后续音符/无后续默认↗）', JSON.stringify(r));
+    return {n:ls.length, up:ls[0]&&ls[0].y1>ls[0].y2, dn:ls[1]&&ls[1].y1<ls[1].y2}; })()`);
+  T(r.n === 2 && r.up && r.dn, 'T8e 普通滑音斜杠（自动找后续/末音无后续不画）', JSON.stringify(r));
+
+  // T8f v50.3 普通滑音两音规则：单音选区不生效（提示用无头/无尾滑音）；两音生效 tech+tk；单音 sl 再点可取消
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'sf',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
+    s.measures[0].tabs[0]=[mk({notes:[{s:2,f:5}]}),mk({notes:[{s:2,f:7}]}),
+      mk({notes:[{s:2,f:9,tech:'sl'}]}),mk({notes:[{s:2,f:5}]})];
+    loadSong(s);
+    // 单音框选 → 不生效
+    noteSel=[{row:'tab',mi:0,ci:0,vi:0,si:2}]; applyTech('sl');
+    const single = !s.measures[0].tabs[0][0].notes[0].tech;
+    // 两音框选 → 生效
+    noteSel=[{row:'tab',mi:0,ci:0,vi:0,si:2},{row:'tab',mi:0,ci:1,vi:0,si:2}]; applyTech('sl');
+    const n0=s.measures[0].tabs[0][0].notes[0];
+    const dbl = n0.tech==='sl' && n0.tk && n0.tk.ci===1;
+    // 单音路径（无多选）：已是 sl 再点=取消，非 sl 不生效
+    noteSel=[]; sel={mi:0,row:'tab',vi:0,ci:2,si:2}; techFromBar('sl');
+    const cancel = !s.measures[0].tabs[0][2].notes[0].tech;
+    sel={mi:0,row:'tab',vi:0,ci:3,si:2}; techFromBar('sl');
+    const blocked = !s.measures[0].tabs[0][3].notes[0].tech;
+    return {single, dbl, cancel, blocked}; })()`);
+  T(r.single && r.dbl && r.cancel && r.blocked, 'T8f 普通滑音两音规则（单音不生效/两音生效/再点取消）', JSON.stringify(r));
 
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

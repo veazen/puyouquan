@@ -58,22 +58,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('instr',{title:'x',key:'C',beats:4,unit:4,nMea:2,nVox:1,lyr:0,clef:'staff'});
     s.measures[0].voxes[0]=[V(1,4),V(3,4),V(5,4),V(5,4,{tie:true})]; s.measures[1].voxes[0]=[V(5,4),V(3,4),V(1,2)];
     loadSong(s); const svg=document.getElementById('score');
-    // 找水平 tie 弧（首末 y 近似），取跨度最大者
-    const ties=[...svg.querySelectorAll('path')].map(p=>p.getAttribute('d')||'').map(d=>{const m=d.match(/^M ([\\d.]+) [\\d.]+ Q [\\d.]+ [\\d.]+ ([\\d.]+) [\\d.]+$/);return m?{x1:+m[1],x2:+m[2]}:null;}).filter(Boolean);
-    const maxSpan=ties.length?Math.max(...ties.map(t=>t.x2-t.x1)):0;
+    // 找 tie 弧（v50.0 起为 tieSVG 双Q闭合填充弧 M..Q..Q..Z），取跨度最大者
+    const ties=[...svg.querySelectorAll('path')].map(p=>p.getAttribute('d')||'').map(d=>{const m=d.match(/^M ([\\d.-]+) [\\d.-]+ Q [\\d.-]+ [\\d.-]+ ([\\d.-]+) [\\d.-]+ Q .* Z$/);return m?{x1:+m[1],x2:+m[2]}:null;}).filter(Boolean);
+    const maxSpan=ties.length?Math.max(...ties.map(t=>Math.abs(t.x2-t.x1))):0;
     return {maxSpan:Math.round(maxSpan)}; })()`);
   T(r.maxSpan >= 30, 'P4 跨小节连音线续接', JSON.stringify(r));
 
-  // 推弦弧线加箭头（solo bend）+ 和弦图横按横杠（F/Bm 有、C/G/Am 无）
+  // 推弦=连音线无箭头（v50.3 产品指示：连接线用连音线，方向由 b↑/b↓ 文字承载）+ 和弦图横按横杠（F/Bm 有、C/G/Am 无）
   r = await pg.evaluate(`(()=>{
     const barre = name => (chordDiagramSVG(name,0,0,1).match(/stroke-width="5\\.2"/g)||[]).length;
     if(typeof undoStack!=='undefined')undoStack.length=0;
     const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
     s.measures[0].tabs[0]=[{dur:4,dotted:false,chord:'',notes:[{s:3,f:7,tech:'b',tk:{mi:0,ci:1,si:3},bAmt:'full'}],strum:'',tech:''},{dur:4,dotted:false,chord:'',notes:[{s:3,f:9}],strum:'',tech:''},{dur:2,dotted:false,chord:'',notes:[{s:1,f:5}],strum:'',tech:''}];
     loadSong(s); const h=document.getElementById('score').innerHTML;
-    const arrows=(h.match(/L [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ Z" fill="var\\(--ink\\)"/g)||[]).length;
-    return {F:barre('F'),Bm:barre('Bm'),C:barre('C'),G:barre('G'),arrows}; })()`);
-  T(r.F === 1 && r.Bm === 1 && r.C === 0 && r.G === 0 && r.arrows >= 1, '推弦箭头+和弦图横按', JSON.stringify(r));
+    const arrows=(h.match(/d="M [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ Z" fill="var\\(--ink\\)"/g)||[]).length;
+    const ties=(h.match(/d="M [^"]* Q [^"]* Q [^"]*Z" fill="var\\(--ink\\)"/g)||[]).length;
+    return {F:barre('F'),Bm:barre('Bm'),C:barre('C'),G:barre('G'),arrows,ties}; })()`);
+  T(r.F === 1 && r.Bm === 1 && r.C === 0 && r.G === 0 && r.arrows === 0 && r.ties >= 1, '推弦连音线无箭头+和弦图横按', JSON.stringify(r));
 
   // P2 独奏联排五线谱 treble-8vb：谱号下方「8」标记 + 记谱升八度（低音弦下加线收拢）；
   // 按「同一 x 且同一系统(y 邻近)」统计单音最深加线叠数（旧版 E2 达 7 条，treble-8vb 后 ≤4）
