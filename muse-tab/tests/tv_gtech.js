@@ -112,6 +112,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.nsel === 6 && r.tech === 'pm' && r.tk === '0:3:1' && r.midClean,
     'T8b 框选6音符→P.M.范围（首音带记号连至末音，中间不重复标）', JSON.stringify(r));
 
+  // T8c v49.7 Shift+点击多选（Ctrl 等效键——避开本机双击 Ctrl 全局热键误唤系统搜索）
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'sh',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
+    s.measures[0].tabs[0]=[mk({notes:[{s:1,f:5}]}),mk({notes:[{s:1,f:7}]}),mk({notes:[{s:1,f:8}]}),mk({notes:[{s:1,f:5}]})];
+    loadSong(s); noteSel=[];
+    const cell=(ci)=>[...document.querySelectorAll('#score .strcell')].find(c=>+c.dataset.mi===0&&+c.dataset.ci===ci&&+c.dataset.si===1);
+    [0,1].forEach(ci=>cell(ci).dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,shiftKey:true,pointerType:'mouse',button:0})));
+    return {n:noteSel.length, k:noteSel.map(q=>q.ci).join(',')}; })()`);
+  T(r.n === 2 && r.k === '0,1', 'T8c Shift+点击多选（Ctrl 等效键）', JSON.stringify(r));
+
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

@@ -1306,7 +1306,7 @@ body.shell #hint{display:none}
         <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button>
         <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-ferm-t" title="延长号：当前列上方画 𝄐，自由延长该音时值（再点取消）">延长号</button>
-        <button id="b-tie-t" title="连音线：当前音自动连到相邻下一音；Ctrl 选中两个音符则跨过中间音符相连（v46.6 自顶栏回归）">连音线</button>
+        <button id="b-tie-t" title="连音线：当前音自动连到相邻下一音；Ctrl/Shift 选中两个音符则跨过中间音符相连（v46.6 自顶栏回归）">连音线</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-chord">
@@ -1349,7 +1349,7 @@ body.shell #hint{display:none}
       <div class="rg-body" id="vmark-body">
         <button id="b-sharp">♯</button><button id="b-flat">♭</button><button id="b-natural">♮</button>
         <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
-        <button id="b-ottava" title="八度线（8va/8vb）：仅五线谱——把选中乐句按记谱移低/高八度收拢下加线，谱表上/下方画虚线括线，实际音高与播放不变。Ctrl 选首末两音标注整句（再点清除）">八度线8va</button>
+        <button id="b-ottava" title="八度线（8va/8vb）：仅五线谱——把选中乐句按记谱移低/高八度收拢下加线，谱表上/下方画虚线括线，实际音高与播放不变。Ctrl/Shift 选首末两音标注整句（再点清除）">八度线8va</button>
         <button id="b-clef" title="谱号切换（仅五线谱声部）：自当前音起切换 高音/中音/低音谱号，支持小节内切换；仅换记谱位置，音高与播放不变；选「恢复」清除本列切换">谱号切换</button>
         <button id="b-tie">连音线</button>
         <!-- v46.9 单独「倚音」钮移除：与装饰组「前倚音/后倚音」完全重复（同编辑 col.grace） -->
@@ -4023,7 +4023,7 @@ function showQuickbar(cx, cy){
       if(list.length<3 && !seen[a] && EB_TECHS.some(x=>x[0]===a.slice(5))){ seen[a]=1; list.push(a); } });
     list.forEach(a=>{ const e=EB_TECHS.find(x=>x[0]===a.slice(5));
       bs.push(btn(a, '<i class="gt">'+esc(e[2])+'</i>', e[1]+'（作用于当前音）')); });
-    bs.push(btn('tie','⌒','连音线：同音相连（Ctrl 选两音跨列）'));
+    bs.push(btn('tie','⌒','连音线：同音相连（Ctrl/Shift 选两音跨列）'));
   }else{
     bs.push(btn('acc:#','♯','升号'), btn('acc:b','♭','降号'),
             btn('oct:+','8⁺','升八度（高音点）'), btn('oct:-','8₋','降八度（低音点）'),
@@ -4081,18 +4081,18 @@ function editHints(){
     title='已选中小节线';
     items=[it('在弹出菜单设置：反复 𝄆 𝄇 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子'),
            it('按住小节线约半秒：选中该小节整个声部'),
-           it('Ctrl+点击小节线：连选多个小节')];
+           it('Ctrl/Shift+点击小节线：连选多个小节')];
   }else if(noteSel.length>1){
     title='已多选 '+noteSel.length+' 个音符';
     items=[it('技巧/记号面板点任一项：批量应用到所选音符','rib:'+(noteSel[0].row==='vox'?'vox':'tab'),true),
            it('推弦 / 连音线 / 八度线：按 起始音 → 目标音 顺序选中后再点技法'),
-           it('再次 Ctrl+点击可增减选择')];
+           it('再次 Ctrl/Shift+点击可增减选择')];
   }else if(selRange && selRange.whole){
     const n=selRange.m2-selRange.m1+1;
     title=n>1? '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节声部' : '已选中第'+(selRange.m1+1)+'小节声部';
     items=[it('Ctrl+C 复制 → 光标移到目标处 Ctrl+V 粘贴'),
            it('小节层：插入/删除小节 · 段落标记 · 本小节拍号 · 同前小节 𝄎','rib:mea',true),
-           it('Ctrl+点击其他小节线：扩大连选范围')];
+           it('Ctrl/Shift+点击其他小节线：扩大连选范围')];
   }else if(selRange){
     title='已选中第'+(selRange.m1+1)+'小节 第'+(selRange.c1+1)+'–'+(selRange.c2+1)+'列';
     items=[it('顶部工具行：改时值 / 附点 / 三连音，重写该拍节奏'),
@@ -4105,7 +4105,7 @@ function editHints(){
       it('键盘输 0–24 改品位；Q/W/E/R/T 换时值，「.」附点'),
       it('演奏技巧：推弦 · 滑弦 · 击/勾弦 · 泛音 N.H. · 哑音 ×（记号层）','rib:tab',true),
       it('扫弦 ↑↓ · 琶音 · 拍弦 ⊠ · 延长号 · 和弦标注同在记号层','rib:tab'),
-      it('Ctrl+点击多个音符可批量加技法')]
+      it('框选或 Ctrl/Shift+点击多个音符可批量加技法')]
     : [
       it('点弦位直接输品位数字落音；空拍自动显示休止符'),
       it('先选时值再输入：Q/W/E/R/T = 全/二/四/八/十六分'),
@@ -7504,8 +7504,9 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     const seg = t.dataset.bar.split(':');
     const L=+seg[0], R=+seg[1], row=seg[2], vi=+seg[3];
     /* v46.0 Ctrl+点击小节线：多选小节——首次 Ctrl+点选中该小节整声部，
-       继续 Ctrl+点其他小节线扩展为连续小节范围（可整段复制/粘贴/批量操作） */
-    if(e.ctrlKey || e.metaKey){
+       继续 Ctrl+点其他小节线扩展为连续小节范围（可整段复制/粘贴/批量操作）。
+       v49.7 Shift 等效（避开本机双击 Ctrl 类全局热键误唤系统搜索） */
+    if(e.ctrlKey || e.metaKey || e.shiftKey){
       const mi = (R>=0 && song.measures[R]) ? R : L;
       if(mi<0 || !song.measures[mi]) return;
       const colsOf = m2 => (row==='tab'? song.measures[m2].tabs[vi] : song.measures[m2].voxes[vi])||[];
@@ -7519,7 +7520,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       }
       measureSel=null; noteSel=[]; closeTech(); setRibbon(row); render();
       toast(selRange.m1===selRange.m2
-        ? '已选中第'+(selRange.m1+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · 继续 Ctrl+点其他小节线可扩选'
+        ? '已选中第'+(selRange.m1+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · 继续 Ctrl/Shift+点其他小节线可扩选'
         : '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+C 复制');
       return;
     }
@@ -7590,8 +7591,11 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     showStrumMenu(e.clientX, e.clientY);
     return;
   }
-  /* Ctrl+点击音符 → 多选（吉他谱弦位音 / 简谱音）：用于演奏技巧或跨音符连音线 */
-  if((e.ctrlKey||e.metaKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
+  /* Ctrl/Shift+点击音符 → 多选（吉他谱弦位音 / 简谱音）：用于演奏技巧或跨音符连音线。
+     v49.7 增加 Shift 等效键：部分用户本机工具（Listary/输入法快捷搜索等）注册了
+     双击 Ctrl 全局热键，按住 Ctrl 点选会误唤系统搜索——Shift 不与常见全局热键冲突；
+     批量选择也可直接用框选（v49.5，按住拖动）。 */
+  if((e.ctrlKey||e.metaKey||e.shiftKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
     const si = row==='tab'? +t.dataset.si : 0;
     if(noteSel.length && (noteSel[0].row||'tab')!==row) noteSel=[];   // 跨声部多选时重新开始
     const idx = noteSel.findIndex(n=>n.mi===mi&&n.ci===ci&&n.si===si&&n.vi===vi);
@@ -13958,7 +13962,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.6';
+const APP_VER='v49.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13981,6 +13985,7 @@ const APP_VER='v49.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.7</span><div><b>Shift+点击多选（Ctrl 等效键）</b>：部分用户本机装有注册「双击 Ctrl」全局热键的工具（Listary、输入法快捷搜索等），按住 Ctrl 点选音符会误唤系统搜索——网页无法拦截系统级热键，故新增 <b>Shift+点击</b> 作为完全等效的多选键：多选音符加技法/连音线、连选小节，Shift 与 Ctrl 通用；批量选择也推荐直接<b>框选</b>（按住拖动，v49.5）。相关按钮提示与操作文案已同步标注「Ctrl/Shift」。</div></li>
     <li><span class="v">v49.6</span><div><b>技法标注带：演奏技巧符号统一置于六线谱上方并放大</b>：① 吉他谱所有演奏技巧文字标识——P.M.（含虚线范围）、let ring、揉弦波浪线、击弦 h / 勾弦 p / 滑弦 S / 点弦 T、A.H./P.H./T.H. 泛音标注、摇把 w/bar、打板分区字母、推弦幅度文字——<b>统一画在 TAB 顶线上方的标注带</b>，不再随所在弦位下沉压进谱线（低音弦技法字此前会叠在谱线里）；同列多个标识自动向上堆叠，有和弦名时整带上移让位；② 全部字号放大约 15–25%，扫谱一眼可辨；③ 推弦弧线顶点与幅度文字也钳到谱上方（GP 惯例：推弦箭头向谱外发展）；④ 顺带修复：<b>扫弦列此前完全不显示技法文字</b>（扫弦列只画箭头）——现在扫弦/琶音列的 P.M.、揉弦等照常显示；⑤ 指弹 pima 指法保持品位数字下方（指法惯例位置），同步放大。几何断言验证 10 种标注全部位于各自谱行顶线上方，全套回归 100 项全绿。</div></li>
     <li><span class="v">v49.5</span><div><b>柱式和弦整列闷音 + 谱面框选</b>：① <b>P.M. 标在柱式和弦上＝整列全弦闷音</b>（GP 惯例）——此前播放只闷被标的那个音，现在列内所有弦、扫弦展开错开的音全部进入闷音；P.M. 虚线范围与范围揉弦同步改为按「列区间」判定，覆盖更准确；② <b>框选功能</b>——在谱面上<b>按住拖动</b>即可画出选框，框内 TAB 音符一次性全部选中（不用再逐个 Ctrl+点击），松手后在「记号/技法」面板点 P.M./揉弦/let ring/连音线即批量应用；普通点击、Ctrl 多选、触屏滚动行为完全不受影响。tv_audio 增至 21 项（真实播放调度级断言：扫弦和弦列单音标 P.M. → 六弦全部收短）、tv_gtech 增框选端到端交互断言，全绿。</div></li>
     <li><span class="v">v49.4</span><div><b>吉他技法发声·第二批（技法发声化收官）</b>：① <b>泛音发声</b>——自然泛音按真实物理发声：品位=触弦节点，实际音高=空弦×谐波次数（12 品高八度、7/19 品高八度加五度、5/24 品高两个八度、4/9/16 品更高），人工/点弦泛音=按弦音高八度，拨片泛音（P.H.）额外加亮出「啸叫」倾向，泛音统一软起音更纯净；② <b>摇把四态</b>——俯冲（保持后渐深下潜）、上滑入音、下点 ∨（快速下探回弹）、摇把颤音（深快颤动）全部按形态画音高曲线；③ <b>拍弦/打板打击层</b>——拍弦列附加真实拍击噪声、音符短促化；指弹打板三型可闻可辨：低音板（含低频「胸腔感」）、高音板、击板；④ <b>轮奏细分</b>——简谱/五线谱震音 1-3 杠按八分/十六分/三十二分真实重复演奏，交替强弱如真实拨奏。至此谱面全部吉他技法记号在播放中都有对应发声，采样/合成双通路一致。tv_audio 增至 20 项断言全绿（泛音谐波表/摇把音高下潜/打板频谱区分等数值验证）。</div></li>
