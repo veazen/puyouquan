@@ -203,7 +203,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     blurSel = true; render();
     const svg2 = document.getElementById('score').innerHTML;
     return { techOk, menuUp, amtOk, cleared,
-      fullShown: svg1.includes('>full</text>') && !svg1.includes('b↑'),
+      fullShown: svg1.includes('b↑') && !svg1.includes('>full</text>'),   /* v49.8 full=默认不标，固定 b+箭头 */
       restored: svg2.includes('b↑') && !svg2.includes('>full</text>'),
       bad: /NaN|undefined/.test(svg1) };
   });

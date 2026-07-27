@@ -217,7 +217,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const bn = document.getElementById('b-notation');
     const inNota = !!(bn && bn.closest('#panel-tab-notation'));
     const clefBtns = !!(document.getElementById('tn-clef-g') && document.getElementById('tn-clef-f'));
-    const hasMute = EB_TECHS.some(e => e[0] === 'mute'), noBd = !EB_TECHS.some(e => e[0] === 'bd');
+    const hasMute = EB_TECHS.some(e => e[0] === 'mute'), noBd = EB_TECHS.some(e => e[0] === 'bd');   /* v49.8 回落按钮回归：字段名沿用、语义翻转为「存在 bd」 */
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 3, f: 2 }] }, { dur: 2, notes: [] }, { dur: 4, notes: [] }];
     loadSong(s);
