@@ -30,8 +30,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const h=document.getElementById('score').innerHTML;
     return {arrows:(h.match(${ARROW})||[]).length, ties:(h.match(${TIE})||[]).length,
       circle:h.indexOf('r="5.8"')>=0, bUp:h.indexOf('>b↑</text>')>=0,
+      big:/font-size="12\\.5"[^>]*>b↑<\\/text>/.test(h),   // v50.5 推弦记号放大：12.5/700
       clean:h.indexOf('NaN')<0 && h.indexOf('undefined')<0}; })()`);
-  T(r.arrows === 0 && r.ties >= 1 && r.circle && r.bUp && r.clean, 'T1 两音推弦=连音线+圆圈+b↑ 无箭头', JSON.stringify(r));
+  T(r.arrows === 0 && r.ties >= 1 && r.circle && r.bUp && r.big && r.clean, 'T1 两音推弦=连音线+圆圈+b↑(12.5号) 无箭头', JSON.stringify(r));
 
   // T2 回落 bd=连音线+b↓；旧数据 pre 有竖直线且无箭头
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;

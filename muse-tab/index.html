@@ -4734,7 +4734,9 @@ function render(){
                    不标几分之几——两音式推弦的音高由圆圈目标音明确给出（bAmt 仅旧数据播放兜底）。
                    v50.3 连接线统一用连音线（产品指示）：tieSVG 出版级两头细尖弧，
                    不再画箭头三角/∧形/竖线箭头——推/落的方向信息由 b↑/b↓ 文字承载；
-                   预推旧数据仅保留起音竖直线示意（去箭头头） */
+                   预推旧数据仅保留起音竖直线示意（去箭头头）。
+                   v50.5 b↑/b↓ 放大加粗（12.5/700，此前 10/600 比标注带字母 11 还小）——
+                   它是推弦方向的唯一载体，须比一般技法字母更醒目 */
                 const sym2 = n.tech==='b'?'b↑':'b↓';
                 const tp2 = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 const bTy = n.bendType || '';
@@ -4747,16 +4749,16 @@ function render(){
                     bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
                   }
                   bendDecor.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
-                  bendDecor.push(`<text x="${((nx+x2)/2).toFixed(1)}" y="${(yPk-1.5).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${((nx+x2)/2).toFixed(1)}" y="${(yPk-1.5).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else if(tp2){
                   /* 目标音在下一行：起始侧半弧 + 文字（同圆滑线跨行口径） */
                   bendDecor.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
-                  bendDecor.push(`<text x="${(nx+14).toFixed(1)}" y="${(yy-16).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${(nx+14).toFixed(1)}" y="${(yy-16).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else if(bTy==='pre'){
                   /* 纯预推（无目标音，旧数据）：起音竖直线 + 文字 */
                   const topY=Math.min(tabTop-12, yy-15);
                   bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
-                  bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else{
                   /* 兼容旧数据（bt 目标品位）/单音式：右侧合成圆圈目标音 + 短连音线 */
                   const bt = n.bt!=null? n.bt : n.f;
@@ -4764,7 +4766,7 @@ function render(){
                   bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
                   bendDecor.push(`<text x="${gx2}" y="${yy+3.2}" font-size="9" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);
                   bendDecor.push(tieSVG(nx+5, yy-4.5, gx2-6, yy-6.2, yy-12, 1.4));
-                  bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="10" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
               }else if(n.tech && n.tech!=='v' && n.tech!=='pm' && n.tech!=='lr'){
                 /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech）；
@@ -14047,7 +14049,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.4';
+const APP_VER='v50.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14070,6 +14072,7 @@ const APP_VER='v50.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.5</span><div><b>推弦记号放大</b>：b↑/b↓ 由 10 号加大至 12.5 号并加粗——推弦/回落的方向信息由这个文字唯一承载，现在比一般技法字母（S/h/p 为 11 号）更醒目。</div></li>
     <li><span class="v">v50.4</span><div><b>和弦滑音只画一条连音线</b>：同一列多个音符一起滑（双音/和弦滑音）时，连音弧线与 S 字母只挂在<b>最上方</b>的滑音音符上，其余弦保留各自的方向斜杠（GP 惯例，避免弧线上下堆叠）；框选多列多弦标记滑弦时按<b>同弦配对</b>连接（滑音沿弦滑动），两音跨弦选择仍可直连。</div></li>
     <li><span class="v">v50.3</span><div><b>滑音两音规则 + 推弦连音线化</b>：①普通滑音必须选中<b>两个音符</b>（起始+目标）才生效——单音点「滑弦」不再生效并提示改用<b>无头/无尾滑音</b>（⟋S ⟍S S⟋ S⟍），已标记的单音可再点取消；②<b>推弦/回落的连接线统一改为连音线</b>（两头细尖的出版级弧形，与圆滑线同源），去掉全部箭头三角——推弦方向由 b↑/b↓ 文字承载，目标音仍用圆圈标注准确音高。</div></li>
     <li><span class="v">v50.2</span><div><b>普通滑音也自带方向斜杠</b>：没框选目标音、只标了 S 的普通滑音，现在也自动向后找最近的音符（优先同弦）比较音高——<b>目标音高就画向上斜杠 ╱，目标音低就画向下斜杠 ╲</b>，只画斜杠不画弧线（GP 的 shift slide 惯例，与带连线的 legato slide 区分）；后面再无音符时默认画向上短斜杠。</div></li>
