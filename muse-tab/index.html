@@ -4652,11 +4652,15 @@ function render(){
               const xEnd=(tlr&&tlr.sys===sIdx)? tlr.x+5 : nx+Math.max(20,cw-4), xd=nx+40;
               if(xEnd>xd+2) p.push(`<line x1="${xd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy-3.5}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
             }else if(n.tech && n.tech!=='b' && n.tech!=='bd' && n.tech!=='hm'){
-              const SYM={sl:'S',h:'h',p:'p',tp:'T'};
-              const sym=SYM[n.tech]||n.tech;
-              const tp2=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-              const tx=(tp2&&tp2.sys===sIdx)? (nx+tp2.x)/2 : nx;
-              p.push(`<text x="${tx.toFixed(1)}" y="${laneY()}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+              /* v50.4 和弦滑音（同列多音符一起滑）只标一次：S 字母与弧线同样只挂最上方
+                 （弦号最小=谱面最上）的滑音音符，其余弦只画各自的斜杠 */
+              if(!(n.tech==='sl' && col.notes.some(m=>m!==n && m.tech==='sl' && m.s<n.s))){
+                const SYM={sl:'S',h:'h',p:'p',tp:'T'};
+                const sym=SYM[n.tech]||n.tech;
+                const tp2=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                const tx=(tp2&&tp2.sys===sIdx)? (nx+tp2.x)/2 : nx;
+                p.push(`<text x="${tx.toFixed(1)}" y="${laneY()}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+              }
             }
             if(n.bar){
               const BARSYM={dive:'↘俯冲',scoop:'↗上滑',dip:'∨下点',shake:'≈颤'};
@@ -4793,16 +4797,19 @@ function render(){
                     if(tn3) slUp = (tuningOf()[tn3.s-1]+tn3.f) >= (tuningOf()[n.s-1]+n.f);
                   }
                 }
+                /* v50.4 和弦滑音（同列多个音符带 sl+tk）：连音弧线只画在最上方（弦号最小）
+                   的滑音音符上，其余弦只画各自的方向斜杠（GP 惯例，避免弧线上下堆叠） */
+                const slDup = n.tech==='sl' && col.notes.some(m=>m!==n && m.tech==='sl' && m.tk && m.s<n.s);
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
                   const yPk = Math.min(yy,y2)-12;
-                  p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
+                  if(!slDup) p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
                   if(slUp!=null){
                     const xa=nx+7.5, xb=x2-7.5;
                     if(xb>xa+3) p.push(`<line class="sldg" x1="${xa.toFixed(1)}" y1="${(slUp? yy+3.2 : yy-3.2).toFixed(1)}" x2="${xb.toFixed(1)}" y2="${(slUp? y2-3.2 : y2+3.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                   }
                 }else if(tp){
-                  p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
+                  if(!slDup) p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
                   if(slUp!=null)
                     p.push(`<line class="sldg" x1="${(nx+6).toFixed(1)}" y1="${(slUp? yy+3 : yy-3).toFixed(1)}" x2="${(nx+14).toFixed(1)}" y2="${(slUp? yy-2 : yy+2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                 }else if(n.tech==='sl' && slUp!=null){
@@ -8230,6 +8237,30 @@ function applyTech(tech){
       const n = noteAt(list[0]);
       const last = list[list.length-1];
       if(n){ n.tech=tech; n.tk={mi:last.mi, ci:last.ci, si:last.si}; delete n.bt; }
+    }else if(tech==='sl' && list.length>1){
+      /* v50.4 和弦滑音按弦配对：滑音沿着弦滑，同一弦上相邻两列头对头相连（每弦一条 sl+tk），
+         避免排序相邻配对把同列上下两音「纵向连接」；
+         所有弦都凑不成对（如两音在不同弦）退回相邻配对，允许特意的跨弦滑音 */
+      let paired=0;
+      const byStr={};
+      list.forEach(q=>{ (byStr[q.si]=byStr[q.si]||[]).push(q); });
+      Object.values(byStr).forEach(arr=>{
+        for(let i=0;i<arr.length-1;i++){
+          const n = noteAt(arr[i]);
+          if(!n) continue;
+          n.tech = tech;
+          n.tk = {mi:arr[i+1].mi, ci:arr[i+1].ci, si:arr[i+1].si};
+          paired++;
+        }
+      });
+      if(!paired){
+        for(let i=0;i<list.length-1;i++){
+          const n = noteAt(list[i]);
+          if(!n) continue;
+          n.tech = tech;
+          n.tk = {mi:list[i+1].mi, ci:list[i+1].ci, si:list[i+1].si};
+        }
+      }
     }else{
       /* 其余技法连线：连接相邻两个被选中的音符（头对头） */
       for(let i=0;i<list.length-1;i++){
@@ -14016,7 +14047,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.3';
+const APP_VER='v50.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14039,6 +14070,7 @@ const APP_VER='v50.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.4</span><div><b>和弦滑音只画一条连音线</b>：同一列多个音符一起滑（双音/和弦滑音）时，连音弧线与 S 字母只挂在<b>最上方</b>的滑音音符上，其余弦保留各自的方向斜杠（GP 惯例，避免弧线上下堆叠）；框选多列多弦标记滑弦时按<b>同弦配对</b>连接（滑音沿弦滑动），两音跨弦选择仍可直连。</div></li>
     <li><span class="v">v50.3</span><div><b>滑音两音规则 + 推弦连音线化</b>：①普通滑音必须选中<b>两个音符</b>（起始+目标）才生效——单音点「滑弦」不再生效并提示改用<b>无头/无尾滑音</b>（⟋S ⟍S S⟋ S⟍），已标记的单音可再点取消；②<b>推弦/回落的连接线统一改为连音线</b>（两头细尖的出版级弧形，与圆滑线同源），去掉全部箭头三角——推弦方向由 b↑/b↓ 文字承载，目标音仍用圆圈标注准确音高。</div></li>
     <li><span class="v">v50.2</span><div><b>普通滑音也自带方向斜杠</b>：没框选目标音、只标了 S 的普通滑音，现在也自动向后找最近的音符（优先同弦）比较音高——<b>目标音高就画向上斜杠 ╱，目标音低就画向下斜杠 ╲</b>，只画斜杠不画弧线（GP 的 shift slide 惯例，与带连线的 legato slide 区分）；后面再无音符时默认画向上短斜杠。</div></li>
     <li><span class="v">v50.1</span><div><b>连线滑弦自带方向斜杠</b>：普通滑音（两音相连的滑弦）现在在两个品位数字之间自带斜杠——<b>目标音高于主音画向上斜杠 ╱，低于主音画向下斜杠 ╲</b>（GP 惯例），一眼可见滑行方向；圆滑线弧与标注带的 S 字母保留；跨行断开时起始侧画短斜杠示意方向。</div></li>

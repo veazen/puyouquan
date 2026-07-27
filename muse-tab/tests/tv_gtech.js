@@ -168,6 +168,48 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {single, dbl, cancel, blocked}; })()`);
   T(r.single && r.dbl && r.cancel && r.blocked, 'T8f 普通滑音两音规则（单音不生效/两音生效/再点取消）', JSON.stringify(r));
 
+  // T8g v50.4 和弦滑音渲染：弧线/S 只挂最上方滑音音符（单弦滑 vs 双弦滑弧线数相同），斜杠每弦一条
+  r = await pg.evaluate(`(()=>{
+    const TIE=/d="M [^"]* Q [^"]* Q [^"]*Z" fill="var\\(--ink\\)"/g;
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
+    const build=(two)=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+      const s=createSong('solo',{title:'sg',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+      const n1=[{s:2,f:5,tech:'sl',tk:{mi:0,ci:1,si:2}}], n2=[{s:2,f:9}];
+      if(two){ n1.push({s:3,f:5,tech:'sl',tk:{mi:0,ci:1,si:3}}); n2.push({s:3,f:9}); }
+      s.measures[0].tabs[0]=[mk({notes:n1}),mk({notes:n2}),mk({notes:[{s:1,f:0}]}),mk({notes:[{s:1,f:0}]})];
+      loadSong(s);
+      const h=document.getElementById('score').innerHTML;
+      return {ties:(h.match(TIE)||[]).length,
+        sldg:document.querySelectorAll('#score line.sldg').length,
+        sCnt:(h.match(/>S<\\/text>/g)||[]).length}; };
+    const one=build(false), two=build(true);
+    return {one, two}; })()`);
+  T(r.two.ties === r.one.ties && r.two.sldg === 2 && r.one.sldg === 1 && r.two.sCnt === r.one.sCnt,
+    'T8g 和弦滑音弧线/S只挂最上方（斜杠每弦一条）', JSON.stringify(r));
+
+  // T8h v50.4 applyTech 和弦滑音按弦配对：2列×2弦框选→每弦头对头 sl+tk；两音跨弦仍可直连
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
+    const s=createSong('solo',{title:'sh',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    s.measures[0].tabs[0]=[mk({notes:[{s:2,f:5},{s:3,f:5}]}),mk({notes:[{s:2,f:9},{s:3,f:9}]}),
+      mk({notes:[{s:2,f:7}]}),mk({notes:[{s:4,f:7}]})];
+    loadSong(s);
+    noteSel=[{row:'tab',mi:0,ci:0,vi:0,si:2},{row:'tab',mi:0,ci:0,vi:0,si:3},
+             {row:'tab',mi:0,ci:1,vi:0,si:2},{row:'tab',mi:0,ci:1,vi:0,si:3}];
+    applyTech('sl');
+    const c0=s.measures[0].tabs[0][0];
+    const a=c0.notes.find(x=>x.s===2), b2=c0.notes.find(x=>x.s===3);
+    const byStr = a.tech==='sl' && a.tk && a.tk.ci===1 && a.tk.si===2
+               && b2.tech==='sl' && b2.tk && b2.tk.ci===1 && b2.tk.si===3
+               && !s.measures[0].tabs[0][1].notes.find(x=>x.s===2).tech;
+    // 两音跨弦（弦2→弦4）：无同弦对可配 → 退回相邻直连
+    noteSel=[{row:'tab',mi:0,ci:2,vi:0,si:2},{row:'tab',mi:0,ci:3,vi:0,si:4}];
+    applyTech('sl');
+    const n2=s.measures[0].tabs[0][2].notes[0];
+    const cross = n2.tech==='sl' && n2.tk && n2.tk.ci===3 && n2.tk.si===4;
+    return {byStr, cross}; })()`);
+  T(r.byStr && r.cross, 'T8h 和弦滑音按弦配对（跨弦两音退回直连）', JSON.stringify(r));
+
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();
