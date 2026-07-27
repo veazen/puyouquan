@@ -313,6 +313,28 @@ const T = (ok, name, detail) => {
       };
     }
 
+    // ── O 柱式整列闷音（v49.5）：扫弦和弦列单音标 P.M. → 全列六弦 gate（真实 play 调度） ──
+    {
+      const s = createSong('guitar', { title: 'o', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+      const mk2 = (o) => ({ dur: 4, dotted: false, chord: '', strum: o.strum || '', tech: '', notes: o.notes || [] });
+      s.measures[0].tabs[0] = [
+        mk2({ strum: 'd', notes: [{ s: 6, f: 0 }, { s: 5, f: 2 }, { s: 4, f: 2 }, { s: 3, f: 1 }, { s: 2, f: 0 }, { s: 1, f: 0, tech: 'pm' }] }),
+        mk2({ notes: [{ s: 1, f: 3 }] }), mk2({ notes: [{ s: 2, f: 1 }] }), mk2({ notes: [{ s: 3, f: 0 }] })
+      ];
+      if (typeof undoStack !== 'undefined') undoStack.length = 0;   // 绕过 guardReplace 确认对话（同 tv_gtech 惯例）
+      loadSong(s);
+      const rec = [];
+      const orig = playInst;
+      playInst = (ik, c2, b3, f, w, d, g2, m2, o2) => { rec.push({ w, d, o: o2 || {} }); };
+      try { play(); } finally { stopPlay(); playInst = orig; }
+      rec.sort((q, z) => q.w - z.w);
+      const chord = rec.slice(0, 6), tail = rec.slice(6);
+      out.O = { n: rec.length,
+        chordGated: chord.every(q => q.o.damp === true && q.d < 0.45 && q.d > 0.15),
+        durs: chord.map(q => +q.d.toFixed(2)),
+        tailFree: tail.length === 3 && tail.every(q => q.d > 0.45) };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -366,6 +388,8 @@ const T = (ok, name, detail) => {
     'N2 摇把：dive 尾段基频能量大幅离位 + shake LFO 已建', JSON.stringify({ e: r.N.diveEarly, l: r.N.diveLate, osc: r.N.shakeOsc }));
   T(r.N.bass.pk > 0.02 && r.N.snare.pk > 0.02 && r.N.golpe.pk > 0.02 && r.N.snare.hf > r.N.bass.hf * 3,
     'N3 打板三型可闻且高/低板频谱可区分', JSON.stringify({ b: r.N.bass, s: r.N.snare, g: r.N.golpe }));
+  T(r.O.n === 9 && r.O.chordGated && r.O.tailFree,
+    'O 柱式和弦标 P.M.=整列六弦 gate（扫弦错开不再逃出范围）', JSON.stringify(r.O));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);

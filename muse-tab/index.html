@@ -8081,6 +8081,66 @@ window.addEventListener('pointerdown', e=>{
      && !e.target.closest('[data-zone="strum"]')) closePop();
   if(!e.target.closest('#quickbar')) closeQuickbar();   // v47.1 快捷浮条点外即关（点音符会重开）
 }, true);
+/* ===== v49.5 框选（marquee）：谱面按下拖动圈选 TAB 音符 → 批量加技法（如整段 P.M.） =====
+   仅鼠标（触屏拖动保留原生滚动）；移动 >6px 才激活选框，普通点击/Ctrl 多选零影响；
+   松手后吞掉随后的 click（否则会触发「点空白清选」）。命中判定：弦位热区（.strcell）
+   中心点落入选框，且该列该弦确有音符。选完复用既有多选通道（noteSel → 技法面板批量应用）。 */
+{
+  const svgSc=document.getElementById('score');
+  if(svgSc){
+    let mqSt=null, mqBox=null, mqMoved=false;
+    svgSc.addEventListener('pointerdown', e=>{
+      if(e.pointerType!=='mouse' || e.button!==0 || audio.playing) return;
+      mqSt={x:e.clientX, y:e.clientY}; mqMoved=false;
+    });
+    window.addEventListener('pointermove', e=>{
+      if(!mqSt) return;
+      if(!mqMoved){
+        if(Math.hypot(e.clientX-mqSt.x, e.clientY-mqSt.y)<6) return;
+        mqMoved=true;
+        mqBox=document.createElement('div');
+        mqBox.style.cssText='position:fixed;z-index:80;border:1.5px dashed var(--accent);background:var(--accent-soft);pointer-events:none;border-radius:3px';
+        document.body.appendChild(mqBox);
+      }
+      mqBox.style.left=Math.min(mqSt.x,e.clientX)+'px';
+      mqBox.style.top=Math.min(mqSt.y,e.clientY)+'px';
+      mqBox.style.width=Math.abs(e.clientX-mqSt.x)+'px';
+      mqBox.style.height=Math.abs(e.clientY-mqSt.y)+'px';
+    });
+    window.addEventListener('pointerup', e=>{
+      if(!mqSt) return;
+      const a=mqSt; mqSt=null;
+      if(!mqMoved) return;                              // 未构成拖动：交还普通点击
+      if(mqBox){ mqBox.remove(); mqBox=null; }
+      const x1=Math.min(a.x,e.clientX), x2=Math.max(a.x,e.clientX);
+      const y1=Math.min(a.y,e.clientY), y2=Math.max(a.y,e.clientY);
+      /* 吞掉拖动后紧随的 click（一次性，300ms 兜底移除防误吞下一次点击） */
+      const eat=ev=>{ ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener('click', eat, {capture:true, once:true});
+      setTimeout(()=>window.removeEventListener('click', eat, {capture:true}), 300);
+      const hits=[], seen={};
+      const addHit=(mi,ci,si,vi)=>{ const k='k'+mi+':'+ci+':'+si+':'+vi;
+        if(!seen[k]){ seen[k]=1; hits.push({mi,ci,si,vi,row:'tab'}); } };
+      /* 扫弦列渲染的是整列 strumcell（无逐弦 strcell）——命中即整列音符入选（P.M. 主用例） */
+      document.querySelectorAll('#score .strcell, #score .strumcell').forEach(c=>{
+        const r=c.getBoundingClientRect(), cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
+        if(cx<x1||cx>x2||cy<y1||cy>y2) return;
+        const mi=+c.dataset.mi, ci=+c.dataset.ci, si=+c.dataset.si, vi=+c.dataset.vi;
+        const col=((song.measures[mi]||{}).tabs||[])[vi] && song.measures[mi].tabs[vi][ci];
+        if(!col) return;
+        if(c.classList.contains('strumcell')) (col.notes||[]).forEach(n=>addHit(mi,ci,n.s,vi));
+        else if((col.notes||[]).some(n=>n.s===si)) addHit(mi,ci,si,vi);
+      });
+      if(!hits.length) return;                          // 空框：不清除现有选择
+      noteSel=hits;
+      const f0=hits[0];
+      sel.mi=f0.mi; sel.ci=f0.ci; sel.si=f0.si; sel.vi=f0.vi; sel.row='tab';
+      measureSel=null; selRange=null; blurSel=false;
+      setRibbon('tab'); render();
+      toast('框选 '+hits.length+' 个音符 · 在「记号/技法」面板点选即批量应用（如 P.M. 闷音/揉弦/连音线）');
+    });
+  }
+}
 /* 技法预提示条（滑弦/击弦/勾弦/推弦/揉弦） */
 function closeTech(){ const d=document.getElementById('techbar'); if(d) d.remove(); }
 function showTechSuggest(){
@@ -10252,13 +10312,21 @@ function play(){
           if(te==='sl' && tgt.freq>0 && it.freq>0){ it.fx=it.fx||{}; it.fx.glide={ratio:tgt.freq/it.freq, at:r.tt, dur:0.08}; } }
       }
       else if(te==='v'){ it.fx=it.fx||{}; it.fx.vib=true;
-        if(it.tk){ const r=colT(it.oi, it.tk.mi, it.tk.ci); if(r) vibSpans.push({a:it.when-0.01, b:r.tt+0.02}); } }
-      else if(te==='pm'){ it.pm=true;
-        pmSpans.push({a:it.when-0.01, b: it.tk? ((colT(it.oi, it.tk.mi, it.tk.ci)||{tt:it.when}).tt+0.02) : it.when+0.01}); }
+        if(it.tk){ const r=colT(it.oi, it.tk.mi, it.tk.ci); if(r) vibSpans.push({a:it.oi*4096+it.ci, b:r.toi*4096+it.tk.ci}); } }
+      else if(te==='pm'){
+        const a0=it.oi*4096+it.ci;
+        const r=it.tk? colT(it.oi, it.tk.mi, it.tk.ci) : null;
+        pmSpans.push({a:a0, b: r? r.toi*4096+it.tk.ci : a0});
+      }
     });
+    /* v49.5 范围命中改「列区间」（此前 ±10ms 时间窗）：柱式和弦上标 P.M.＝整列全弦闷音
+       （GP 惯例），扫弦展开/微滚错开的音不再逃出时间窗；揉弦范围同口径。
+       列坐标 = oi×4096+ci（oi 主序、ci 次序，区间比较天然跨小节）。 */
     if(pmSpans.length||vibSpans.length) insts.forEach(it=>{
-      if(!it.x && pmSpans.some(sp2=>it.when>=sp2.a && it.when<=sp2.b)) it.pm=true;
-      if(!it.x && vibSpans.some(sp2=>it.when>=sp2.a && it.when<=sp2.b)){ it.fx=it.fx||{}; it.fx.vib=true; }
+      if(it.x) return;
+      const ck=it.oi*4096+it.ci;
+      if(pmSpans.some(sp2=>ck>=sp2.a && ck<=sp2.b)) it.pm=true;
+      if(vibSpans.some(sp2=>ck>=sp2.a && ck<=sp2.b)){ it.fx=it.fx||{}; it.fx.vib=true; }
     });
     insts.forEach(it=>{
       if(it.x){ chick(ctx, tbus, it.when, 0.3*vol); return; }
@@ -13877,7 +13945,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.4';
+const APP_VER='v49.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13900,6 +13968,7 @@ const APP_VER='v49.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.5</span><div><b>柱式和弦整列闷音 + 谱面框选</b>：① <b>P.M. 标在柱式和弦上＝整列全弦闷音</b>（GP 惯例）——此前播放只闷被标的那个音，现在列内所有弦、扫弦展开错开的音全部进入闷音；P.M. 虚线范围与范围揉弦同步改为按「列区间」判定，覆盖更准确；② <b>框选功能</b>——在谱面上<b>按住拖动</b>即可画出选框，框内 TAB 音符一次性全部选中（不用再逐个 Ctrl+点击），松手后在「记号/技法」面板点 P.M./揉弦/let ring/连音线即批量应用；普通点击、Ctrl 多选、触屏滚动行为完全不受影响。tv_audio 增至 21 项（真实播放调度级断言：扫弦和弦列单音标 P.M. → 六弦全部收短）、tv_gtech 增框选端到端交互断言，全绿。</div></li>
     <li><span class="v">v49.4</span><div><b>吉他技法发声·第二批（技法发声化收官）</b>：① <b>泛音发声</b>——自然泛音按真实物理发声：品位=触弦节点，实际音高=空弦×谐波次数（12 品高八度、7/19 品高八度加五度、5/24 品高两个八度、4/9/16 品更高），人工/点弦泛音=按弦音高八度，拨片泛音（P.H.）额外加亮出「啸叫」倾向，泛音统一软起音更纯净；② <b>摇把四态</b>——俯冲（保持后渐深下潜）、上滑入音、下点 ∨（快速下探回弹）、摇把颤音（深快颤动）全部按形态画音高曲线；③ <b>拍弦/打板打击层</b>——拍弦列附加真实拍击噪声、音符短促化；指弹打板三型可闻可辨：低音板（含低频「胸腔感」）、高音板、击板；④ <b>轮奏细分</b>——简谱/五线谱震音 1-3 杠按八分/十六分/三十二分真实重复演奏，交替强弱如真实拨奏。至此谱面全部吉他技法记号在播放中都有对应发声，采样/合成双通路一致。tv_audio 增至 20 项断言全绿（泛音谐波表/摇把音高下潜/打板频谱区分等数值验证）。</div></li>
     <li><span class="v">v49.3</span><div><b>电吉他过载/失真音色上线（音色补强）</b>：音轨面板的音色下拉新增<b>「电吉他·过载」「电吉他·失真」</b>两个真实采样音色（GM 库 overdriven/distortion guitar，服务器双库同步供给），电吉他 solo 谱终于有了该有的驱动质感——搭配 v49.2 的推弦/揉弦/滑音技法引擎，失真长音推弦揉弦的经典乐句可以完整发声；原「电吉他」更名<b>「电吉他·清音」</b>（既有曲谱不受影响）。采样未就绪的首播窗口由内置合成器回落：过载/失真档对应加大软削波驱动、拉长延音（失真天然压缩延音），实测失真强力和弦齐鸣总线零削波。冒烟验收同步抽查两个新音色包完整性。tv_audio 增至 17 项断言全绿。</div></li>
     <li><span class="v">v49.2</span><div><b>吉他技法发声·第一批（谱上的记号终于会响了）</b>：此前 20 多种吉他技法记号「只画不响」，标满推弦滑音的 solo 谱播出来每个音都直上直下。本版让高频技法全部发声：① <b>推弦</b>——按标注幅度（¼/½/full/1½，未标默认全音）画真实音高曲线，支持推起保持、<b>推弦回放</b>（推起→放回）与<b>预推</b>（起于高音释放回落）；② <b>滑弦</b>——连线滑弦临近目标时平滑滑到目标音高，滑进/滑出（↗↘ 无头无尾滑）±2 品甩音；③ <b>击弦 h / 勾弦 p / 点弦</b>——目标音连奏化：抹去拨片音头、力度自然减弱，连奏乐句不再颗颗重敲；④ <b>揉弦</b>——5.6Hz 揉弦颤动渐入（支持范围揉弦），复听完全一致；⑤ <b>P.M. 闷音</b>——时值门+音色变暗+力度收敛（支持 P.M. 范围线）；⑥ let ring 由既有逐弦延音模型天然覆盖。采样与内置合成器<b>两条通路同一套技法引擎</b>（共用音高自动化器），首播回落时技法同样生效；推弦提高播速会提前耗尽采样，已加护栏防截断爆点。tv_audio 增至 16 项断言全绿（推弦稳态能量迁移/连奏起音包络/揉弦 LFO 数值验证）。</div></li>

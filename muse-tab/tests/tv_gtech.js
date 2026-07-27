@@ -86,6 +86,32 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {dt:docType(song), gt:song.gtype||null, n:g.length}; })()`);
   T(r.dt === 'guitar' && r.gt === null && r.n === 0, 'T8 弹唱无gtype技法', JSON.stringify(r));
 
+  // T8b v49.5 框选：鼠标拖框圈选 TAB 音符 → noteSel 批量入选 → P.M. 范围落数据
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'mq',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:o.strum||'',tech:''});
+    s.measures[0].tabs[0]=[mk({strum:'d',notes:[{s:1,f:0},{s:2,f:1},{s:3,f:2}]}),mk({notes:[{s:1,f:3}]}),mk({notes:[{s:1,f:5}]}),mk({notes:[{s:1,f:7}]})];
+    loadSong(s); noteSel=[];
+    let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+    document.querySelectorAll('#score .strcell, #score .strumcell').forEach(c=>{ if(+c.dataset.mi!==0) return;
+      const r2=c.getBoundingClientRect(); x1=Math.min(x1,r2.left); y1=Math.min(y1,r2.top); x2=Math.max(x2,r2.right); y2=Math.max(y2,r2.bottom); });
+    return {x1:x1-3,y1:y1-3,x2:x2+3,y2:y2+3}; })()`);
+  await pg.mouse.move(r.x1, r.y1);
+  await pg.mouse.down();
+  await pg.mouse.move((r.x1 + r.x2) / 2, (r.y1 + r.y2) / 2, { steps: 4 });
+  await pg.mouse.move(r.x2, r.y2, { steps: 4 });
+  await pg.mouse.up();
+  await pg.waitForTimeout(200);
+  r = await pg.evaluate(`(()=>{
+    const nsel=noteSel.length;
+    applyTech('pm');
+    const c0=song.measures[0].tabs[0][0], n0=c0.notes.find(n=>n.s===1);
+    const last=song.measures[0].tabs[0][3].notes[0];
+    return {nsel, tech:n0&&n0.tech, tk:n0&&n0.tk? n0.tk.mi+':'+n0.tk.ci+':'+n0.tk.si : null,
+      midClean: !song.measures[0].tabs[0][1].notes[0].tech}; })()`);
+  T(r.nsel === 6 && r.tech === 'pm' && r.tk === '0:3:1' && r.midClean,
+    'T8b 框选6音符→P.M.范围（首音带记号连至末音，中间不重复标）', JSON.stringify(r));
+
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();
