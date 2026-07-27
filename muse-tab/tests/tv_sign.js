@@ -179,36 +179,32 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.nW === 2 && r.rowsDiffer && Math.abs(r.startGap - 7) < 0.5 && r.endGap < 0.5 && r.joinOk && !r.bad,
     'T6b 渐弱括线跨行断线续画', JSON.stringify(r));
 
-  // T7 推弦幅度：Ctrl 推弦后再点推弦按钮 → 幅度菜单，弧上文字 full 替换 b↑，清除还原
+  // T7 v49.9 推弦两音式：目标音圆圈定音高，弧上固定 b↑/b↓、无几分之几、无幅度菜单；再点同按钮取消
   r = await pg.evaluate(() => {
     const Tc = (f, dur) => ({dur, dotted:false, chord:'', notes:[{s:2, f}], strum:''});
     const s = createSong('guitar', {beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:0, lyr:0});
-    s.measures[0].tabs[0] = [Tc(7,4), Tc(9,4), Tc(7,4), Tc(5,4)];
+    s.measures[0].tabs[0] = [Tc(7,4), Tc(9,4), Tc(9,4), Tc(7,4)];
     loadSong(s);
     Object.assign(sel, {row:'tab', vi:0, mi:0, ci:0, si:2});
     noteSel = [{mi:0, ci:0, si:2, vi:0, row:'tab'}, {mi:0, ci:1, si:2, vi:0, row:'tab'}];
     bendFromBar('b');
     const n = song.measures[0].tabs[0][0].notes[0];
     const techOk = n.tech === 'b' && n.tk && n.tk.ci === 1;
-    noteSel = [];
-    bendFromBar('b');                                     // 已推弦 → 幅度菜单
-    const menuUp = !!document.querySelector('#popmenu [data-amt="full"]');
-    if(menuUp) document.querySelector('#popmenu [data-amt="full"]').click();
-    const amtOk = n.bAmt === 'full';
+    noteSel = [{mi:0, ci:2, si:2, vi:0, row:'tab'}, {mi:0, ci:3, si:2, vi:0, row:'tab'}];
+    bendFromBar('bd');
+    const n2 = song.measures[0].tabs[0][2].notes[0];
+    const bdOk = n2.tech === 'bd' && n2.tk && n2.tk.ci === 3;
+    const noMenu = !document.querySelector('#popmenu [data-amt]');
     blurSel = true; render();
     const svg1 = document.getElementById('score').innerHTML;
-    bendFromBar('b');
-    document.querySelector('#popmenu [data-amt=""]').click();   // 清除幅度
-    const cleared = !('bAmt' in n);
-    blurSel = true; render();
-    const svg2 = document.getElementById('score').innerHTML;
-    return { techOk, menuUp, amtOk, cleared,
-      fullShown: svg1.includes('b↑') && !svg1.includes('>full</text>'),   /* v49.8 full=默认不标，固定 b+箭头 */
-      restored: svg2.includes('b↑') && !svg2.includes('>full</text>'),
-      bad: /NaN|undefined/.test(svg1) };
+    const marks = svg1.includes('b↑') && svg1.includes('b↓') && !/[¼½]|>full</.test(svg1);
+    noteSel = []; Object.assign(sel, {row:'tab', vi:0, mi:0, ci:0, si:2});
+    bendFromBar('b');                                     // 再点同按钮=取消
+    const cancelled = !n.tech && !n.tk;
+    return { techOk, bdOk, noMenu, marks, cancelled, bad: /NaN|undefined/.test(svg1) };
   });
-  T(r.techOk && r.menuUp && r.amtOk && r.cleared && r.fullShown && r.restored && !r.bad,
-    'T7 推弦幅度 bAmt 菜单+弧上标注', JSON.stringify(r));
+  T(r.techOk && r.bdOk && r.noMenu && r.marks && r.cancelled && !r.bad,
+    'T7 推弦两音式：b↑/b↓ 固定无幅度文字·无菜单·再点取消', JSON.stringify(r));
 
   // T8 排练/段落标记：askText 写入 mea.label、方框粗体几何、MusicXML rehearsal 往返、留空清除
   r = await pg.evaluate(() => {

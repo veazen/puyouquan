@@ -335,6 +335,24 @@ const T = (ok, name, detail) => {
         tailFree: tail.length === 3 && tail.every(q => q.d > 0.45) };
     }
 
+    // ── P 两音式推弦幅度=目标音真实音高差（v49.9）：b 7→9 品=up +2；bd 9→7 品=fall −2 ──
+    {
+      const s = createSong('guitar', { title: 'p', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+      const mk3 = (o) => ({ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: o.notes || [] });
+      s.measures[0].tabs[0] = [
+        mk3({ notes: [{ s: 3, f: 7, tech: 'b', tk: { mi: 0, ci: 1, si: 3 } }] }),
+        mk3({ notes: [{ s: 3, f: 9 }] }),
+        mk3({ notes: [{ s: 3, f: 9, tech: 'bd', tk: { mi: 0, ci: 3, si: 3 } }] }),
+        mk3({ notes: [{ s: 3, f: 7 }] })];
+      if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      loadSong(s);
+      const rec = []; const orig = playInst;
+      playInst = (ik, c2, b3, f, w, d, g2, m2, o2) => { rec.push({ w, fx: (o2 && o2.fx) || null }); };
+      try { play(); } finally { stopPlay(); playInst = orig; }
+      rec.sort((q, z) => q.w - z.w);
+      out.P = { b: rec[0] && rec[0].fx && rec[0].fx.bend, bd: rec[2] && rec[2].fx && rec[2].fx.bend };
+    }
+
     // ── H 音符层塑形（v48.9）：扫弦力度型 strumPlan + 拍点重音 beatAcc 纯函数断言 ──
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
@@ -390,6 +408,8 @@ const T = (ok, name, detail) => {
     'N3 打板三型可闻且高/低板频谱可区分', JSON.stringify({ b: r.N.bass, s: r.N.snare, g: r.N.golpe }));
   T(r.O.n === 9 && r.O.chordGated && r.O.tailFree,
     'O 柱式和弦标 P.M.=整列六弦 gate（扫弦错开不再逃出范围）', JSON.stringify(r.O));
+  T(r.P.b && r.P.b.semi === 2 && r.P.b.type === 'up' && r.P.bd && r.P.bd.semi === -2 && r.P.bd.type === 'fall',
+    'P 两音式推弦=目标音真实音高差（b +2 up / bd −2 fall）', JSON.stringify(r.P));
 
   console.log(errs.length ? '❌ 页面异常: ' + errs.slice(0, 3).join(' | ') : 'NO ERRORS');
   console.log(`PASS ${pass}/${pass + fail}`);

@@ -4719,10 +4719,9 @@ function render(){
                 /* 推弦：Ctrl 选中的目标音符加圆圈 + 连音线相连，b↑/b↓ 在连线中间上方；
                    圆圈等后绘（bendDecor），避免被目标数字底色遮住；
                    v41.2 推弦幅度 bAmt：弧上文字换为幅度标注（GP 惯例 full/½），无 bAmt 维持现状 */
-                /* v49.8 谱面标识固定 b+箭头（产品拍板）：b↑=推弦 b↓=回落；
-                   幅度非全音时小字后缀（b↑½），full 为默认不标 */
-                const amt2 = n.bAmt && n.bAmt!=='full'? ({'1/4':'¼','1/2':'½','1.5':'1½'}[n.bAmt]||n.bAmt) : '';
-                const sym2 = (n.tech==='b'?'b↑':'b↓')+amt2;
+                /* v49.9 谱面标识固定 b+箭头（产品拍板）：b↑=推弦 b↓=回落。
+                   不标几分之几——两音式推弦的音高由圆圈目标音明确给出（bAmt 仅旧数据播放兜底） */
+                const sym2 = n.tech==='b'?'b↑':'b↓';
                 const tp2 = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
                 /* v43.3 推弦类型：'rel' ∧ 形回落 / 'pre' 预推(旧数据) / 无=常规上推弦；
                    v49.8 回落 bd 直接走 ∧ 形（推起后放回），与播放语义一致 */
@@ -6019,7 +6018,7 @@ function setRibbon(t){
                       pm:'：单音标 P.M.；Ctrl 选首末两音，P.M. 虚线覆盖整段范围',
                       mute:'：把当前音记为闷音/死音 ×（再点取消）',
                       hm:'：自然泛音——谱面菱形框住品位数字（所有泛音一律带菱形框）',
-                      b:'：单音直接标推弦 b↑，或 Ctrl/Shift 选起始+目标两音相连；再点可标幅度', bd:'：单音直接标回落 b↓（推起后放回），或 Ctrl/Shift 选起始+目标两音相连；再点可标幅度'}[k]
+                      b:'：单音直接标推弦 b↑，或 Ctrl/Shift 选起始+目标两音相连（目标音圆圈=推到的音高）；再点取消', bd:'：单音直接标回落 b↓（推起后放回），或 Ctrl/Shift 选起始+目标两音相连（圆圈=落到的音高）；再点取消'}[k]
                    || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
         return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
       };
@@ -6969,21 +6968,22 @@ function deleteNote(){
   mutate(()=>{ cols.splice(sel.ci, 1); });
   toast('已删除音符');
 }
-/* v49.8 推弦体系收敛（产品拍板）：只保留两个符号——推弦 b↑（推起）与回落 b↓（推起后放回）。
-   预推/类型三选入口取消；旧谱里的 bendType('pre'/'rel') 数据仍照常渲染与播放（字段红线）。
-   单音点按钮=就地标记（无目标音，画合成圆圈）；Ctrl/Shift 选两音=连到目标音。 */
+/* v49.8/v49.9 推弦体系收敛（产品拍板）：只保留两个符号——推弦 b↑ 与回落 b↓。
+   两音式（Ctrl/Shift 选起始+目标）：目标音圆圈=推到/落到的准确音高，播放按真实音高差执行，
+   不标注也不需要几分之几；单音式=就地标记（默认全音）。再点同一按钮=取消。
+   预推/类型菜单/幅度菜单全部取消；旧谱 bendType/bAmt 数据仍照常渲染播放（字段红线）。 */
 function bendFromBar(t){
   const nameT = t==='b'? '推弦 b↑' : '回落 b↓';
   const picked = noteSel.filter(q=>q.row!=='vox');   // 推弦只作用于吉他谱音符
   if(picked.length<2){
-    /* v41.2 已推弦音符再点按钮 → 弹幅度小菜单（1/4·1/2·full·1.5） */
     if(sel.row==='tab'){
       const c=curCol(), n=c && c.notes && (c.notes.find(x=>x.s===sel.si)||c.notes[0]);
-      if(n && n.tech===t){ showBendAmtMenu(n); return; }
+      if(n && n.tech===t){ mutate(()=>{ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; });
+        render(); toast('已取消'+nameT); return; }
       if(n){ mutate(()=>{ n.tech=t; delete n.tk; delete n.bt; delete n.bendType; });
-        render(); toast('已加'+nameT+'（再点同一按钮可标注幅度 full/½）'); return; }
+        render(); toast('已加'+nameT+'（再点同一按钮可取消）'); return; }
     }
-    toast(nameT+'：选中一个音符直接标记；或 Ctrl/Shift 选起始+目标两音相连；已标记的音符再点可选幅度');
+    toast(nameT+'：选中一个音符直接标记；或 Ctrl/Shift 选起始+目标两音相连（目标音圆圈=准确音高）');
     return;
   }
   const list = picked.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
@@ -6998,25 +6998,7 @@ function bendFromBar(t){
   }
   mutate(()=>{ n0.tech=t; delete n0.bt; delete n0.bendType; n0.tk={mi:q1.mi, ci:q1.ci, si:q1.si}; });
   noteSel=[]; closeTech(); render();
-  toast('已加'+nameT+'（目标音符已加圆圈；再点同一按钮可标注幅度 full/½）');
-}
-/* v41.2 推弦幅度小菜单：bAmt 挂在已推弦（tech b/bd）的音符上；v49.8 类型三选已取消，
-   谱面标识固定 b↑/b↓（幅度非全音时以小字后缀显示） */
-function showBendAmtMenu(n){
-  closePop();
-  const div=document.createElement('div');
-  div.className='popmenu'; div.id='popmenu';
-  div.style.left='50%'; div.style.top='30%'; div.style.transform='translateX(-50%)';
-  const AMTS=[['1/4','¼ 四分之一音'],['1/2','½ 半音'],['full','full 全音'],['1.5','1½ 一音半']];
-  div.innerHTML=`<div class="t">${n.tech==='b'?'推弦':'回落'}幅度（默认全音；非全音在 b 箭头后小字标注）</div>
-    <div class="row">${AMTS.map(([k,l])=>`<button data-amt="${esc(k)}" class="${n.bAmt===k?'on':''}">${esc(l)}</button>`).join('')}
-    <button data-amt="">清除幅度</button></div>`;
-  document.body.appendChild(div);
-  div.addEventListener('click', ev=>{
-    const b2=ev.target.closest('[data-amt]');
-    if(b2){ mutate(()=>{ if(b2.dataset.amt) n.bAmt=b2.dataset.amt; else delete n.bAmt; });
-      toast(b2.dataset.amt? '已标注幅度 '+b2.dataset.amt : '已清除幅度标注'); closePop(); return; }
-  });
+  toast('已加'+nameT+'（目标音圆圈=准确音高，播放按实际音高差执行）');
 }
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
@@ -9521,7 +9503,11 @@ function pitchFX(ctx, src, rate, when, endAt, fx){
   const span=Math.max(0.08, endFx-when);
   if(fx.bend){
     const semi=fx.bend.semi;
-    if(fx.bend.type==='pre'){                        // 预推：起于推满音高，稍持后释放回品位音
+    if(fx.bend.type==='fall'){                       // v49.9 回落（两音式）：起于本音（已推起态），中段放回目标音高
+      const t1=when+Math.min(0.25, span*0.35);
+      p.setValueAtTime(rate, t1);
+      p.linearRampToValueAtTime(R(semi), Math.max(t1+0.03, Math.min(t1+0.16, endFx-0.02)));
+    } else if(fx.bend.type==='pre'){                 // 预推：起于推满音高，稍持后释放回品位音
       p.setValueAtTime(R(semi), when);
       const t1=when+Math.min(0.22, span*0.3);
       p.setValueAtTime(R(semi), t1);
@@ -10322,7 +10308,21 @@ function play(){
       if(!it.tech && !it.bTy) return;
       const te=it.tech;
       if(te==='b'||te==='bd'||it.bTy){
-        it.fx=it.fx||{}; it.fx.bend={semi:bendSemi(it.bAmt), type: it.bTy==='pre'?'pre':((te==='bd'||it.bTy==='rel')?'rel':'up')};
+        it.fx=it.fx||{};
+        let semi=bendSemi(it.bAmt), ty=it.bTy==='pre'?'pre':((te==='bd'||it.bTy==='rel')?'rel':'up');
+        /* v49.9 两音式推弦：幅度=与圆圈目标音的真实音高差（谱面已定音高，不看 bAmt）。
+           推弦 b=从本音推到目标音高；回落 bd 且目标更低=起于本音（已推起态）落到目标（fall）。
+           单音式（无 tk）保持默认全音/bAmt 兜底（旧数据）。 */
+        if(it.tk && it.freq>0){
+          const r2=colT(it.oi, it.tk.mi, it.tk.ci);
+          const tgt2=r2 && byKey[r2.toi+':'+it.tk.ci+':'+(it.tk.si!=null?it.tk.si:it.s)];
+          if(tgt2 && tgt2.freq>0){
+            const d2=Math.round(12*Math.log2(tgt2.freq/it.freq));
+            if(te==='bd' && d2<0){ ty='fall'; semi=d2; }
+            else if(d2!==0){ semi=Math.abs(d2); }
+          }
+        }
+        it.fx.bend={semi, type:ty};
       } else if(te==='su'||te==='sd'){ it.fx=it.fx||{}; it.fx.gin={ratio:Math.pow(2,(te==='su'?-2:2)/12), dur:0.07}; }
       else if(te==='ou'||te==='od'){ it.fx=it.fx||{}; it.fx.gout={ratio:Math.pow(2,(te==='ou'?2:-2)/12), dur:0.09}; }
       else if(te==='tp'){ it.legato=true; it.vel*=0.85; }
@@ -13966,7 +13966,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v49.8';
+const APP_VER='v49.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13989,6 +13989,7 @@ const APP_VER='v49.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v49.9</span><div><b>推弦不再标注几分之几</b>：两音式推弦的规格已经完整——主音起、<b>目标音圆圈即准确音高</b>，故弧上标识固定为 b↑/b↓，不再显示 ¼/½/full 等幅度文字，幅度菜单一并取消（再点同一按钮=取消标记）；<b>播放同步升级</b>：推弦/回落的音高曲线直接按主音与圆圈目标音的<b>真实音高差</b>执行（推 2 品就推两个半音），回落连到更低目标时按「起于本音、放回目标音高」的下行曲线播放；单音式推弦维持默认全音。旧曲谱已标的幅度数据不受影响（仅作播放兜底、不再显示）。</div></li>
     <li><span class="v">v49.8</span><div><b>推弦体系收敛：只留「推弦 b↑」与「回落 b↓」</b>：① 技法面板恢复<b>「回落」独立按钮</b>（即早前的下推弦符号 b↓——推起后放回），与「推弦 b↑」并列，谱面标识固定为 <b>b+箭头</b>；② <b>取消其他推弦入口</b>——预推 pre-bend 与「常规/回放/预推」类型三选菜单移除（老曲谱里已标的预推/回放数据仍照常显示与播放，不受影响）；③ 交互简化：单音点按钮即就地标记，Ctrl/Shift 选两音即连到目标音，已标记的音符再点同一按钮可选幅度（¼/½/full/1½）；幅度非全音时在箭头后以小字标注（如 b↑½），全音为默认不标；④ 回落的弧线改为 ∧ 形（推起→放回）、箭头朝下，与听感一致。</div></li>
     <li><span class="v">v49.7</span><div><b>Shift+点击多选（Ctrl 等效键）</b>：部分用户本机装有注册「双击 Ctrl」全局热键的工具（Listary、输入法快捷搜索等），按住 Ctrl 点选音符会误唤系统搜索——网页无法拦截系统级热键，故新增 <b>Shift+点击</b> 作为完全等效的多选键：多选音符加技法/连音线、连选小节，Shift 与 Ctrl 通用；批量选择也推荐直接<b>框选</b>（按住拖动，v49.5）。相关按钮提示与操作文案已同步标注「Ctrl/Shift」。</div></li>
     <li><span class="v">v49.6</span><div><b>技法标注带：演奏技巧符号统一置于六线谱上方并放大</b>：① 吉他谱所有演奏技巧文字标识——P.M.（含虚线范围）、let ring、揉弦波浪线、击弦 h / 勾弦 p / 滑弦 S / 点弦 T、A.H./P.H./T.H. 泛音标注、摇把 w/bar、打板分区字母、推弦幅度文字——<b>统一画在 TAB 顶线上方的标注带</b>，不再随所在弦位下沉压进谱线（低音弦技法字此前会叠在谱线里）；同列多个标识自动向上堆叠，有和弦名时整带上移让位；② 全部字号放大约 15–25%，扫谱一眼可辨；③ 推弦弧线顶点与幅度文字也钳到谱上方（GP 惯例：推弦箭头向谱外发展）；④ 顺带修复：<b>扫弦列此前完全不显示技法文字</b>（扫弦列只画箭头）——现在扫弦/琶音列的 P.M.、揉弦等照常显示；⑤ 指弹 pima 指法保持品位数字下方（指法惯例位置），同步放大。几何断言验证 10 种标注全部位于各自谱行顶线上方，全套回归 100 项全绿。</div></li>
