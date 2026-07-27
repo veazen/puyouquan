@@ -4781,12 +4781,25 @@ function render(){
                 /* 圆滑线（击/勾/滑等两音技法）：弧线仍连音符，字母已进标注带（mkTech）；
                    v50.0 出版级两端细尖弧 */
                 const tp = n.tk ? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                /* v50.1 连线滑弦自带斜杠（GP 惯例）：目标音高于主音=向上 ╱，低于=向下 ╲ */
+                let slUp=null;
+                if(n.tech==='sl' && n.tk){
+                  const tc2=(((song.measures[n.tk.mi]||{}).tabs||[])[vi]||[])[n.tk.ci];
+                  const tn2=tc2 && (tc2.notes||[]).find(x=>x.s===n.tk.si);
+                  if(tn2) slUp = (tuningOf()[tn2.s-1]+tn2.f) >= (tuningOf()[n.s-1]+n.f);
+                }
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
                   const yPk = Math.min(yy,y2)-12;
                   p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
+                  if(slUp!=null){
+                    const xa=nx+7.5, xb=x2-7.5;
+                    if(xb>xa+3) p.push(`<line class="sldg" x1="${xa.toFixed(1)}" y1="${(slUp? yy+3.2 : yy-3.2).toFixed(1)}" x2="${xb.toFixed(1)}" y2="${(slUp? y2-3.2 : y2+3.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+                  }
                 }else if(tp){
                   p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
+                  if(slUp!=null)
+                    p.push(`<line class="sldg" x1="${(nx+6).toFixed(1)}" y1="${(slUp? yy+3 : yy-3).toFixed(1)}" x2="${(nx+14).toFixed(1)}" y2="${(slUp? yy-2 : yy+2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                 }
               }else if(n.tk && !n.tech){
                 /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符
@@ -13975,7 +13988,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.0';
+const APP_VER='v50.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -13998,6 +14011,7 @@ const APP_VER='v50.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.1</span><div><b>连线滑弦自带方向斜杠</b>：普通滑音（两音相连的滑弦）现在在两个品位数字之间自带斜杠——<b>目标音高于主音画向上斜杠 ╱，低于主音画向下斜杠 ╲</b>（GP 惯例），一眼可见滑行方向；圆滑线弧与标注带的 S 字母保留；跨行断开时起始侧画短斜杠示意方向。</div></li>
     <li><span class="v">v50.0</span><div><b>出版级连音线：两端细尖、中部有厚度</b>：全部连音线/圆滑线由「等线宽的一根弧线」升级为出版刻版形态——<b>括弧状实心弧</b>（双曲线填充：两端收细成尖、中部自然增厚），与专业出版乐谱一致。覆盖：简谱连音线、五线谱连音线（含贴符头弯向、跨小节续接）、六线谱击/勾/滑圆滑线与纯连音线（含跨行断弧）、工具栏「连音线」按钮图标同步换形。三连音括线与推弦箭头线按刻版惯例保持细线。</div></li>
     <li><span class="v">v49.9</span><div><b>推弦不再标注几分之几</b>：两音式推弦的规格已经完整——主音起、<b>目标音圆圈即准确音高</b>，故弧上标识固定为 b↑/b↓，不再显示 ¼/½/full 等幅度文字，幅度菜单一并取消（再点同一按钮=取消标记）；<b>播放同步升级</b>：推弦/回落的音高曲线直接按主音与圆圈目标音的<b>真实音高差</b>执行（推 2 品就推两个半音），回落连到更低目标时按「起于本音、放回目标音高」的下行曲线播放；单音式推弦维持默认全音。旧曲谱已标的幅度数据不受影响（仅作播放兜底、不再显示）。</div></li>
     <li><span class="v">v49.8</span><div><b>推弦体系收敛：只留「推弦 b↑」与「回落 b↓」</b>：① 技法面板恢复<b>「回落」独立按钮</b>（即早前的下推弦符号 b↓——推起后放回），与「推弦 b↑」并列，谱面标识固定为 <b>b+箭头</b>；② <b>取消其他推弦入口</b>——预推 pre-bend 与「常规/回放/预推」类型三选菜单移除（老曲谱里已标的预推/回放数据仍照常显示与播放，不受影响）；③ 交互简化：单音点按钮即就地标记，Ctrl/Shift 选两音即连到目标音，已标记的音符再点同一按钮可选幅度（¼/½/full/1½）；幅度非全音时在箭头后以小字标注（如 b↑½），全音为默认不标；④ 回落的弧线改为 ∧ 形（推起→放回）、箭头朝下，与听感一致。</div></li>

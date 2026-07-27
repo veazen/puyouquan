@@ -123,6 +123,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {n:noteSel.length, k:noteSel.map(q=>q.ci).join(',')}; })()`);
   T(r.n === 2 && r.k === '0,1', 'T8c Shift+点击多选（Ctrl 等效键）', JSON.stringify(r));
 
+  // T8d v50.1 连线滑弦方向斜杠：目标高→上行 ╱（y1>y2），目标低→下行 ╲（y1<y2）
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'sd',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
+    s.measures[0].tabs[0]=[mk({notes:[{s:2,f:5,tech:'sl',tk:{mi:0,ci:1,si:2}}]}),mk({notes:[{s:2,f:7}]}),
+      mk({notes:[{s:2,f:7,tech:'sl',tk:{mi:0,ci:3,si:2}}]}),mk({notes:[{s:2,f:5}]})];
+    loadSong(s);
+    const ls=[...document.querySelectorAll('#score line.sldg')].map(l=>({y1:+l.getAttribute('y1'),y2:+l.getAttribute('y2')}));
+    return {n:ls.length, up:ls[0]&&ls[0].y1>ls[0].y2, dn:ls[1]&&ls[1].y1<ls[1].y2}; })()`);
+  T(r.n === 2 && r.up && r.dn, 'T8d 连线滑弦方向斜杠（高→╱ 低→╲）', JSON.stringify(r));
+
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();
