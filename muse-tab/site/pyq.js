@@ -112,7 +112,7 @@ window.PYQ_LIB = (function(){
     return `<a class="cc-card" href="//zhipu.puyouquan.com/?pub=${encodeURIComponent(item.id)}">
       <div class="cc-cover">${cover(item)}
         <span class="cc-type">${TYPE_CN[item.type]||'曲谱'}</span>
-        <span class="cc-price free">${item.price>0?('¥'+item.price):'免费'}</span></div>
+        <span class="cc-price ${item.price>0?'':'free'}">${item.price>0?('¥'+item.price):'免费'}</span></div>
       <div class="cc-body">
         <div class="t">${_esc(item.title||'未命名曲谱')}</div>
         <div class="a">制谱：${_esc(item.author||'佚名')}${item.singer?(' · '+_esc(item.singer)):''}</div>
