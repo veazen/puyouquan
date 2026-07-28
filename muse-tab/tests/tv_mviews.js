@@ -39,23 +39,54 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return {zoomed, wideW, back, fitW, winW: window.innerWidth}; })()`);
   T(r.zoomed && r.wideW > r.winW && r.back && r.fitW <= r.winW, 'T3 手动缩放退出/恢复 fit-width', JSON.stringify(r));
   T(errs.length === 0, '手机端无报错', errs.join('|') || 'none');
+  // T3b v51.0 播放条横滑 + 播放键吸左
+  r = await pg.evaluate(`(()=>{ const s=getComputedStyle(document.querySelector('.mx-bar'));
+    return {ox:s.overflowX, wrap:s.flexWrap, sticky:getComputedStyle(document.getElementById('b-play')).position}; })()`);
+  T(r.ox === 'auto' && r.wrap === 'nowrap' && r.sticky === 'sticky', 'T3b 播放条横滑+播放键吸左', JSON.stringify(r));
+  // T3c v51.0 首次触摸解锁音频（audio.ctx 建立）
+  await pg.tap('#score').catch(()=>{});
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(`(()=>({ctx: !!(typeof audio!=='undefined' && audio.ctx)}))()`);
+  T(r.ctx, 'T3c 触摸解锁创建 AudioContext', JSON.stringify(r));
   await ctx.close();
+
+  // T3d v51.0 手机开机忽略桌面存的缩放（fit-width 恒生效）+ 离开启动台不自动弹左栏
+  const ctxZ = await b.newContext({ ...devices['iPhone 13'], locale: 'zh-CN' });
+  const pgZ = await ctxZ.newPage();
+  const errsZ = []; pgZ.on('pageerror', e => errsZ.push(e.message));
+  await pgZ.addInitScript(`localStorage.setItem('musetab-zoom','1.5')`);
+  await pgZ.goto(F); await pgZ.waitForTimeout(900);
+  await pgZ.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; hideStartPad(); loadSong(PRESETS[0].make()); })()`);
+  await pgZ.waitForTimeout(800);
+  r = await pgZ.evaluate(`(()=>({
+    vz: viewZoom, mz: document.body.classList.contains('mzoom'),
+    scoreW: Math.round(document.getElementById('score').getBoundingClientRect().width), winW: window.innerWidth,
+    flyHidden: document.getElementById('left-flyout').classList.contains('hidden')
+  }))()`);
+  T(r.vz === 1 && !r.mz && r.scoreW <= r.winW, 'T3d 手机开机忽略存储缩放·fit生效', JSON.stringify(r));
+  T(r.flyHidden, 'T3e 离开启动台左栏面板保持关闭', JSON.stringify({ flyHidden: r.flyHidden }));
+  T(errsZ.length === 0, 'T3 组无报错', errsZ.join('|') || 'none');
+  await ctxZ.close();
 
   // ---- 桌面守护 ----
   const pg2 = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs2 = []; pg2.on('pageerror', e => errs2.push(e.message));
+  await pg2.addInitScript(`localStorage.setItem('musetab-zoom','1.5')`);
   await pg2.goto(F); await pg2.waitForTimeout(900);
   await pg2.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; loadSong(PRESETS[0].make()); })()`);
   await pg2.waitForTimeout(800);
   r = await pg2.evaluate(`(()=>{
+    const vzBoot = viewZoom;   // v51.0 桌面守护：存储缩放照常带入（手机才强制 1）
+    const flyHidden = document.getElementById('left-flyout').classList.contains('hidden');
     setViewZoom(1.5); const noCls = !document.body.classList.contains('mzoom'); setViewZoom(1);
     return {
       wrap: getComputedStyle(document.querySelector('#top .main-bar')).flexWrap,
-      noCls,
+      noCls, vzBoot, flyHidden,
       shellBtn: getComputedStyle(document.getElementById('b-shell')).display!=='none',
       fitMax: getComputedStyle(document.getElementById('score')).maxWidth
     }; })()`);
   T(r.wrap === 'wrap' && r.noCls && r.shellBtn && r.fitMax !== '100%', 'T4 桌面不受影响（wrap/无mzoom/经典版在/无fit上限）', JSON.stringify(r));
+  T(r.vzBoot === 1.5 && r.flyHidden === false, 'T4b 桌面守护：存储缩放带入·左栏自动展开保持', JSON.stringify({ vzBoot: r.vzBoot, flyHidden: r.flyHidden }));
   T(errs2.length === 0, '桌面端无报错', errs2.join('|') || 'none');
   await pg2.close();
 
