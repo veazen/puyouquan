@@ -2,71 +2,145 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>谱友圈 · 谱库 — 创作者正式谱展示</title>
-<meta name="description" content="谱友圈谱库：创作者正式谱的展示舞台——曲谱库、观看模式、即时移调、播放跟谱，以及从零开始的演奏与制谱攻略。">
+<title>谱库 · 谱友圈 — 免费在线看谱｜吉他谱 简谱 钢琴谱｜移调 跟谱播放</title>
+<meta name="description" content="谱友圈谱库：免费在线看谱，不用下载安装。吉他弹唱谱、独奏谱、简谱、钢琴谱、教学对照谱，按谱种筛选、搜索曲名歌手，点开即看——一键移调、跟谱播放、手机可看、可收藏。">
 <link rel="canonical" href="https://puku.puyouquan.com/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="谱友圈 · 谱库">
-<meta property="og:description" content="创作者正式谱的展示舞台：曲谱库、观看模式、即时移调、播放跟谱。">
+<meta property="og:title" content="谱库 · 谱友圈 — 免费在线看谱，点开就能弹">
+<meta property="og:description" content="吉他谱、简谱、钢琴谱免费在线看：搜索筛选、一键移调、跟谱播放、手机可看。">
 <meta property="og:url" content="https://puku.puyouquan.com/">
 <meta property="og:image" content="https://www.puyouquan.com/og.png">
 <meta property="og:site_name" content="谱友圈">
 <meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"谱库看谱收费吗？","acceptedAnswer":{"@type":"Answer","text":"谱库曲谱免费在线观看，不用下载安装，打开就能看；移调、跟谱播放也免费。"}},
+{"@type":"Question","name":"手机能看吗？","acceptedAnswer":{"@type":"Answer","text":"可以。观看页做了移动适配，谱面自动适配屏宽；微信里打开分享卡也能直接看。"}},
+{"@type":"Question","name":"能移调吗？会不会改坏原谱？","acceptedAnswer":{"@type":"Answer","text":"看谱时可以随手升降调，和弦跟着变，只影响你当前观看，不会改动原谱。"}},
+{"@type":"Question","name":"找不到想要的谱怎么办？","acceptedAnswer":{"@type":"Answer","text":"谱库在持续充实。你也可以用谱友圈制谱工具自己做一份——录入旋律自动配和弦、生成伴奏，几分钟出谱，做完还能发布到谱库。"}}
+]}
+</script>
 <link rel="stylesheet" href="pyq.css">
+<style>
+/* 找谱页：搜索置顶 + 谱种筛选（与编辑器谱友圈同口径的实底 chip） */
+.page-hero.puku{padding:128px 0 8px}
+.lib-search{position:relative;max-width:560px;margin:20px 0 0}
+.lib-search input{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:980px;
+  padding:13px 20px 13px 46px;font-size:15px;background:var(--panel);color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s}
+.lib-search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.lib-search .icon{position:absolute;left:17px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:var(--muted)}
+.lib-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:18px 0 20px}
+.fchip{border:1px solid var(--border);background:var(--panel);border-radius:980px;padding:6px 14px;
+  font-size:12.5px;cursor:pointer;color:var(--muted);font-family:inherit;transition:.15s}
+.fchip:hover{background:var(--accent-soft);color:var(--text)}
+.fchip.on{background:var(--text);color:var(--panel);border-color:transparent;font-weight:600}
+.fchip.fav.on{background:#e0395a;color:#fff}
+.lib-count{font-size:12px;color:var(--muted);margin-left:auto}
+.lib-empty{grid-column:1/-1;text-align:center;padding:44px 0;color:var(--muted)}
+.lib-empty b{display:block;font-size:16px;color:var(--text);margin-bottom:6px}
+.lib-empty .btn{margin-top:14px}
+.maker-strip{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  border:1px dashed var(--border);border-radius:16px;padding:16px 22px;margin-top:44px;font-size:13.5px;color:var(--muted)}
+.maker-strip a{color:var(--accent);font-weight:700;white-space:nowrap}
+</style>
 </head>
 <body data-page="view">
 <div id="site-nav"></div>
 
-<header class="page-hero"><div class="wrap">
-  <div class="brand rv" style="font-size:27px;margin-bottom:18px"><span class="mark"></span>谱友圈<span class="sub" style="font-size:13.5px">谱库</span></div>
-  <h1 class="rv">创作者正式谱的<span class="grad">展示舞台</span></h1>
-  <p class="lead rv">曲谱不只是做出来，更要好看、好弹。创作者发布的正式谱在这里展示，选一首，边看边弹、随手移调跟谱。</p>
-  <p style="margin-top:22px" class="rv"><a class="btn big" href="//zhipu.puyouquan.com/">去制谱 <i data-i="arrow"></i></a></p>
+<header class="page-hero puku"><div class="wrap">
+  <h1 class="rv">找谱，<span class="grad">点开就能弹</span></h1>
+  <p class="lead rv">免费在线看谱，不用下载安装：一键移调、跟谱播放，手机也能看。搜索曲名或歌手，选一首开始。</p>
+  <div class="lib-search rv"><i data-i="scan"></i><input id="lib-q" type="search" placeholder="搜索曲名 / 歌手 / 制谱人…" autocomplete="off"></div>
 </div></header>
 
-<section class="sec" id="lib-sec"><div class="wrap">
-  <span class="kicker rv">谱库</span>
-  <h2 class="rv">已发布曲谱</h2>
-  <p class="lead rv">创作者发布的正式谱，点开即可在线观看、即时移调、播放跟谱。</p>
-  <div id="lib-grid" class="grid g3" style="margin-top:22px">
+<section class="sec" id="lib-sec" style="padding-top:26px"><div class="wrap">
+  <div class="lib-toolbar rv" id="lib-cats"></div>
+  <div id="lib-grid" class="grid g3">
     <p style="color:var(--muted)">正在加载谱库…</p>
   </div>
 </div></section>
 
-<section class="sec"><div class="wrap">
-  <span class="kicker rv">核心体验</span>
-  <h2 class="rv">为演奏优化的观谱体验</h2>
+<section class="sec alt"><div class="wrap">
+  <span class="kicker rv">看谱三件事</span>
+  <h2 class="rv">不只是「看」，是拿来练</h2>
   <div class="grid g4" style="margin-top:22px">
-    <div class="card rv"><span class="tile"><i data-i="grid"></i></span><b>曲谱库</b><p>预设经典曲目与我的曲谱云集一处，搜索、分类、收藏一目了然。</p></div>
-    <div class="card rv"><span class="tile"><i data-i="eye"></i></span><b>观看模式</b><p>只读干净谱面，隐藏一切编辑痕迹；全屏谱架与自动卷谱在多端规划中。</p></div>
-    <div class="card rv"><span class="tile"><i data-i="sliders"></i></span><b>即时移调</b><p>看谱时随手升降调，和弦图与级数即时跟随，不改原谱数据。</p></div>
-    <div class="card rv"><span class="tile"><i data-i="play"></i></span><b>播放跟谱</b><p>真实采样音色试听，小节循环练习，播放头随谱面滚动。</p></div>
+    <div class="card rv"><span class="tile"><i data-i="eye"></i></span><b>点开即看</b><p>免费在线观看，干净成品谱面，不用下载 App、不用注册。</p></div>
+    <div class="card rv"><span class="tile"><i data-i="sliders"></i></span><b>一键移调</b><p>弹唱嫌调高？看谱时随手升降调，和弦即时跟随，不改原谱。</p></div>
+    <div class="card rv"><span class="tile"><i data-i="play"></i></span><b>跟谱播放</b><p>真实音色试听，播放头随谱面走，还能选段循环慢练。</p></div>
+    <div class="card rv"><span class="tile"><i data-i="heart"></i></span><b>收藏常用谱</b><p>登录后点♥收藏，手机电脑跨设备同步，练习清单随身带。</p></div>
   </div>
 </div></section>
 
 <section class="sec"><div class="wrap">
-  <span class="kicker rv">攻略</span>
-  <h2 class="rv">从零开始的实用攻略</h2>
-  <p class="lead rv">每篇攻略对应文档站的一节，点开即读。</p>
-  <div class="grid g3">
-    <a class="card rv" href="help.html?section=getting-started"><span class="tag">入门</span><span class="tile"><i data-i="rocket"></i></span><b>三分钟做一首谱</b><p>新建 → 录入 → 排版打印，最短路径跑通全流程。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
-    <a class="card rv" href="help.html?section=score-types"><span class="tag">入门</span><span class="tile"><i data-i="grid"></i></span><b>四种谱面怎么选</b><p>吉他谱 / 尤克里里谱 / 简谱 / 功能谱的适用场景与区别。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
-    <a class="card rv" href="help.html?section=editing"><span class="tag">进阶</span><span class="tile"><i data-i="pencil"></i></span><b>录入与演奏技巧记谱</b><p>品位/简谱录入、技巧连线、扫弦琶音、反复记号全解。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
-    <a class="card rv" href="help.html?section=lyrics"><span class="tag">进阶</span><span class="tile"><i data-i="type"></i></span><b>歌词与智能填词</b><p>逐字对位、多段歌词、自动跳过休止连音、标点旁挂。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
-    <a class="card rv" href="help.html?section=layout-print"><span class="tag">进阶</span><span class="tile"><i data-i="layout"></i></span><b>排版与打印导出</b><p>基准纸张、智能疏密、手动微调，预览与 PDF/PNG 导出。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
-    <a class="card rv" href="help.html?section=playback"><span class="tag">练习</span><span class="tile"><i data-i="play"></i></span><b>播放与循环练习</b><p>选段循环、速度调节、混音独奏，把练琴效率拉满。</p><span class="go">阅读攻略 <i data-i="arrow"></i></span></a>
+  <span class="kicker rv">常见问题</span>
+  <h2 class="rv">找谱的人常问</h2>
+  <div style="max-width:760px;margin-top:6px">
+    <details class="faq rv"><summary>谱库看谱收费吗？</summary><p>谱库曲谱免费在线观看，不用下载安装，打开就能看；移调、跟谱播放也免费。</p></details>
+    <details class="faq rv"><summary>手机能看吗？</summary><p>可以。观看页做了移动适配，谱面自动适配屏宽；微信里打开分享卡也能直接看。</p></details>
+    <details class="faq rv"><summary>能移调吗？会不会改坏原谱？</summary><p>看谱时可以随手升降调，和弦跟着变，只影响你当前观看，不会改动原谱。</p></details>
+    <details class="faq rv"><summary>找不到想要的谱怎么办？</summary><p>谱库在持续充实。你也可以用谱友圈制谱工具自己做一份——录入旋律自动配和弦、生成伴奏，几分钟出谱，做完还能发布到谱库。</p></details>
   </div>
 
-  <div class="cta-band rv">
-    <h2>谱友圈 · 创作者生态</h2>
-    <p>曲谱发布、展示与收益体系正在建设中——先把你的谱做出来，上线即首批入驻。</p>
-    <a class="btn big" href="//zhipu.puyouquan.com/">去做谱 <i data-i="arrow"></i></a>
+  <div class="maker-strip rv">
+    <span>你也做谱？把作品发布到谱库，让更多人弹到你的谱。</span>
+    <a href="//zhipu.puyouquan.com/">打开制谱工具 →</a>
   </div>
 </div></section>
 
 <div id="site-foot"></div>
 <script src="pyq.js"></script>
-<script>/* 谱库列表：复用 PYQ_LIB 渲染编辑器同款卡片，点开进编辑器观看模式 */
-  if(window.PYQ_LIB) PYQ_LIB.mount(document.getElementById('lib-grid'));</script>
+<script>
+/* 找谱页：一次拉取 /api/pub/scores，本地搜索 + 谱种筛选 + 收藏筛选（与编辑器谱友圈同口径） */
+(function(){
+  var CATS=[['all','全部'],['guitar','弹唱'],['solo','独奏'],['uku','尤克里里'],['pianoacc','钢琴弹唱'],['piano','钢琴独奏'],
+            ['vocal','歌谱'],['teach','教学对照'],['instr','器乐五线'],['func','功能谱'],['chord','和弦谱']];
+  var NORM={vox:'vocal', staff:'instr'};
+  var all=[], favs={}, st={q:'', cat:'all', favOnly:false};
+  var grid=document.getElementById('lib-grid'), cats=document.getElementById('lib-cats'), qIn=document.getElementById('lib-q');
+
+  function chips(){
+    cats.innerHTML = CATS.map(function(c){
+      return '<button class="fchip'+(st.cat===c[0]?' on':'')+'" data-cat="'+c[0]+'">'+c[1]+'</button>'; }).join('')
+      +'<button class="fchip fav'+(st.favOnly?' on':'')+'" data-fav>♥ 我的收藏</button>'
+      +'<span class="lib-count" id="lib-count"></span>';
+  }
+  function filtered(){
+    var q=st.q.trim().toLowerCase();
+    return all.filter(function(s){
+      if(st.favOnly && !favs[s.id]) return false;
+      if(st.cat!=='all' && (NORM[s.type]||s.type)!==st.cat) return false;
+      if(q){ var hay=((s.title||'')+' '+(s.singer||'')+' '+(s.author||'')).toLowerCase();
+        if(hay.indexOf(q)<0) return false; }
+      return true;
+    });
+  }
+  function draw(){
+    var list=filtered();
+    grid.innerHTML = list.length? list.map(PYQ_LIB.card).join('')
+      : '<div class="lib-empty"><b>'+(st.favOnly?'收藏夹还是空的':'没有找到相关曲谱')+'</b>'
+        +(st.favOnly?'看到喜欢的谱点 ♥ 收藏，登录后跨设备同步。':'换个关键词或谱种试试；也可以自己做一份——录入旋律自动配和弦，几分钟出谱。')
+        +'<br><a class="btn" href="//zhipu.puyouquan.com/">自己配一份谱 →</a></div>';
+    var c=document.getElementById('lib-count'); if(c) c.textContent=list.length+' 首';
+  }
+  cats.addEventListener('click', function(e){
+    var b=e.target.closest('.fchip'); if(!b) return;
+    if(b.dataset.cat!==undefined){ st.cat=b.dataset.cat; st.favOnly=false; }
+    else if(b.dataset.fav!==undefined){
+      if(!Object.keys(favs).length && window.PYQ_ACCT && !PYQ_ACCT.user){ PYQ_ACCT.openLogin(); return; }
+      st.favOnly=!st.favOnly;
+    }
+    chips(); draw();
+  });
+  qIn.addEventListener('input', function(){ st.q=qIn.value; draw(); });
+
+  chips();
+  fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:[]}; })
+    .then(function(j){ all=j.scores||[]; draw(); })
+    .catch(function(){ grid.innerHTML='<p style="color:var(--muted)">谱库暂时无法加载，请稍后重试。</p>'; });
+  fetch('/api/favorites',{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
+    .then(function(j){ if(!j) return; (j.favorites||[]).forEach(function(f){ favs[f.score_id||f.id||f]=1; }); })
+    .catch(function(){});
+})();
+</script>
 </body>
 </html>
