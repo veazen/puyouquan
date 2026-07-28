@@ -7284,7 +7284,7 @@ function hideStartPad(reopen){
 function initStartPad(){
   const sp=document.getElementById('start-pad'); if(!sp) return;
   if(document.body.classList.contains('viewer') || document.body.classList.contains('stand')) return;
-  if(/[?&](pub|wxlogin)=/.test(location.search)) return;   // 深链直达不出启动台
+  if(/[?&](pub|wxlogin|mine)=/.test(location.search)) return;   // 深链直达不出启动台（v50.7 +mine 云端曲谱直达）
   sp.classList.remove('hidden');
   closeFlyout();   // 左边栏默认收起
   /* v46.6→v48.3 未选状态右栏默认页：智能页已并入创作页，改停信息页 */
@@ -14059,7 +14059,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v50.6';
+const APP_VER='v50.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14082,6 +14082,7 @@ const APP_VER='v50.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v50.7</span><div><b>全站个人中心卡 + 云端曲谱直达</b>：官网与谱库的账号菜单升级为个人中心弹窗卡（会员状态/云端曲谱/最近曲谱/退出所有设备），卡上「最近曲谱」点击即以 <code>?mine=曲谱ID</code> 直达编辑器打开对应云端曲谱（本地已有秒开，云端拉取自动入库；未登录回落启动台并提示登录）。</div></li>
     <li><span class="v">v50.6</span><div><b>推弦目标音数字自适应圆圈</b>：目标音的圆圈大小保持不变（与音符圈定惯例一致），两位数品位（10 品及以上）的数字自动缩号收进圆圈内，不再压到圆框线——与泛音菱形的数字自适应同方案。</div></li>
     <li><span class="v">v50.5</span><div><b>推弦记号放大</b>：b↑/b↓ 由 10 号加大至 12.5 号并加粗——推弦/回落的方向信息由这个文字唯一承载，现在比一般技法字母（S/h/p 为 11 号）更醒目。</div></li>
     <li><span class="v">v50.4</span><div><b>和弦滑音只画一条连音线</b>：同一列多个音符一起滑（双音/和弦滑音）时，连音弧线与 S 字母只挂在<b>最上方</b>的滑音音符上，其余弦保留各自的方向斜杠（GP 惯例，避免弧线上下堆叠）；框选多列多弦标记滑弦时按<b>同弦配对</b>连接（滑音沿弦滑动），两音跨弦选择仍可直连。</div></li>
@@ -14515,6 +14516,29 @@ function alignHeader(){
     ro.observe(document.getElementById('stage'));
   }
 })();
+/* v50.7 云端曲谱深链 ?mine=<id>：官网/谱库个人中心卡「最近曲谱」直达编辑。
+   本地库已有该谱直接打开（离线可用）；否则凭登录 Cookie 从云端拉取、存入本地库再打开；
+   未登录/失败回落启动台并提示 */
+async function openRemoteMine(id){
+  const e0 = libLoad().find(x=>x.id===id);
+  if(e0 && e0.data){ loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+(e0.title||''))); return; }
+  try{
+    const r = await apiCall('/scores/'+id);
+    const d = r && r.score && r.score.data;
+    if(!d || !d.measures) throw new Error('曲谱数据为空');
+    d.id = id;
+    const lib = libLoad();
+    if(!lib.find(x=>x.id===id)){
+      lib.unshift({id, title:r.score.title||d.title||'未命名曲谱', mtime:r.score.updated_at||Math.floor(Date.now()/1000), data:d});
+      libSave(lib);
+    }
+    loadSong(JSON.parse(JSON.stringify(d)), ()=>toast('已打开云端曲谱：'+(r.score.title||d.title||'')));
+  }catch(err){
+    toast(err && err.status===401 ? '请先登录，再打开云端曲谱' : '云端曲谱打开失败'+(err&&err.message?('：'+err.message):''));
+    if(err && err.status===401 && typeof openLogin==='function') try{ openLogin(); }catch(_){}
+    try{ initStartPad(); }catch(_){}
+  }
+}
 /* 互动分享谱启动（v38.5）：注入的数据脚本位于本脚本之后，待文档解析完成再检测进入观看模式 */
 window.addEventListener('DOMContentLoaded', ()=>{
   if(window.PYQ_SHARE && window.PYQ_SHARE.song){
@@ -14524,7 +14548,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   try{
     const pub=new URLSearchParams(location.search).get('pub');
     if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
-  }catch(e){ console.error('谱库观看启动失败', e); }
+    const mine=new URLSearchParams(location.search).get('mine');
+    if(mine && /^[A-Za-z0-9_-]{1,40}$/.test(mine)){ openRemoteMine(mine); return; }
+  }catch(e){ console.error('曲谱深链启动失败', e); }
   /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
   try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
 });
