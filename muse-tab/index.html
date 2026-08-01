@@ -3822,13 +3822,19 @@ function beamGroups(cols, playable, unit){
   /* v42.4 复合拍号(6/8·9/8·12/8，unit===8)按附点四分成组：beatsOf 令八分=1 单位，故组长=3 个八分；
      简单拍号(unit 4/2)组长=1（每拍成组），行为不变。五线谱符杠/TAB符杠/简谱减时线三处共用本函数一并受益 */
   const gLen = unit===8 ? 3 : 1;
+  /* v51.6 连音组成杠（时值线修正）：N:M 连音时值非整拍（8:7/4:3/7:6…），按拍边界分组会把
+     连音组拦腰拆断或与相邻普通音并组——连音列改按「同标连续段、每 N 个一块」独立成杠
+     （与连音括线分块口径一致），普通音仍按拍成组 */
+  const tKey=c=> c.tup? ((c.tup===1?3:c.tup)+':'+(c.tupM||0)) : '';
   cols.forEach((c,i)=>{
     const b=beatsOf(c,unit);
     const ok = c.dur>=8 && (!playable || playable(c));
     const beat = Math.floor(cum/gLen+1e-4);
+    const k = tKey(c);
     if(ok){
-      if(cur && cur.beat===beat) cur.idx.push(i);
-      else{ cur={beat, idx:[i]}; groups.push(cur); }
+      const cont = cur && cur.key===k && (k? cur.idx.length<cur.n : cur.beat===beat);
+      if(cont) cur.idx.push(i);
+      else{ cur={beat, idx:[i], key:k, n:k? (c.tup===1?3:c.tup) : 0}; groups.push(cur); }
     } else cur=null;
     cum += b;
   });
@@ -6913,7 +6919,8 @@ function applyVoxPattern(pat){
   /* v46.7 连音（3/5/6/7）分配到各谱类记号层（吉他谱 mark-body / 简谱·五线谱 vmark-body），
      出版级图示：符杠组 + 连音括线 + 斜体数字（tupSVG）；顶栏记号组撤销。
      v46.6 连音线已回归记号层（vox=b-tie / TAB=b-tie-t，同走 toggleTie） */
-  { const tupBtns=[3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
+  { /* v51.6 预设只留三连音（最高频）；5/6/7 及任意比例统一走「N连音」（产品拍板去重） */
+    const tupBtns=[3].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
       /* v51.4 N:M 任意连音（GP 式）；v51.5 改名 N连音、图标=三连音式样换 N */
       +`<button class="eb ico" data-tupcustom title="N连音（Guitar Pro 式自定 N:M）：N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；点时值线选中整拍 / Shift 点选后设置可整体套用，音符不足时可自动补齐">${tupSVG('N')}<span>N连音</span></button>`;
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
@@ -7317,6 +7324,13 @@ function showTupletMenu(cx, cy){
   div.querySelector('#tup-ok').onclick=ok;
   div.querySelector('#tup-rm').onclick=()=>{ closePop(); removeTuplet(); };
   div.querySelector('#tup-x').onclick=()=>closePop();
+  /* v51.6 改 N 时自动建议 M（GP 惯例）：非 2 幂 N → 最近的下方 2 幂（5/6/7→4、9–15→8）；
+     2 幂 N → ×1.5（2→3、4→6、8→12，复拍二对三口径）；用户可再手改 */
+  div.querySelector('#tup-n').addEventListener('input', ev=>{
+    const n2=Math.round(+ev.target.value||0);
+    if(n2>=2 && n2<=16)
+      div.querySelector('#tup-m').value = Math.min(16, (n2&(n2-1))===0? n2*3/2 : Math.pow(2, Math.floor(Math.log2(n2))));
+  });
   div.querySelectorAll('input').forEach(inp=>inp.addEventListener('keydown', ev=>{
     ev.stopPropagation();
     if(ev.key==='Enter'){ ev.preventDefault(); ok(); }
@@ -14355,7 +14369,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.5';
+const APP_VER='v51.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14378,6 +14392,7 @@ const APP_VER='v51.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.6</span><div><b>连音收敛 + 时值线修正</b>：①连音预设只保留<b>三连音</b>——5/6/7 连音及任意比例统一并入「<b>N连音</b>」（弹窗改 N 时自动建议 M：5/6/7→4、9–15→8、2→3、4→6，可手改）；②<b>N 连音时值线（符杠）修正</b>——8:7、4:3、7:6 等非整拍连音此前会被拍边界拦腰拆断符杠、或与相邻普通音并成一杠，现连音组按 N 个一块独立成杠，与连音括线分块完全一致（五线谱符杠/TAB 符杠/简谱减时线三处同修）。</div></li>
     <li><span class="v">v51.5</span><div><b>N连音打磨</b>：①「自定连音」更名为「<b>N连音</b>」，图标与三连音同款（数字换 N）；②<b>音符不足自动补齐</b>——设定 N 连音时选中的音不够 N 个（或单音无法拆分，如 7:6、时值过小）不再仅提示，弹窗一键<b>自动补齐空拍</b>凑满 N 个并整组设标，补齐的空拍与所选音同时值，可直接继续输入音符。</div></li>
     <li><span class="v">v51.4</span><div><b>N 连音自定义</b>（Guitar Pro 式）：连音从固定 3/5/6/7 扩展为任意 <b>N:M 自定连音</b>（N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；N 2–16、M 1–16）——记号层新增「自定连音」弹窗，输入 N 音符等于 M 音符，<b>确定</b>=套用/改标（光标在已有连音上时整组改）、<b>移除</b>=清除连音。<b>点时值线选中整拍后同样可设置</b>（选中 N 个等时值音整体套用，任意 M 均可；单音拆分需 M 为 2 的幂）。谱面括线自定比例标 <b>N:M</b>；播放时值按 M/N 精确折算；MusicXML 按真实 N:M 出入（并修正了 5/6/7 连音此前误写 3:2 的导出缺陷）。</div></li>
     <li><span class="v">v51.3</span><div><b>右键弹出对象菜单</b>：选中不再直接弹窗——鼠标<b>左键点音符/小节线只选中</b>（小节线高亮、音符落光标），<b>右键才弹出</b>快捷浮条/小节线反复终止设置，浏览器默认右键菜单已屏蔽；触屏无右键，点按仍直接弹出。快捷浮条「关闭自动弹出」现在只关触屏自动弹，右键唤出始终可用。</div></li>

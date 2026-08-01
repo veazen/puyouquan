@@ -174,6 +174,34 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.n === 10 && r.tups.every(t => t === 7) && r.ms.every(m => m === 6) && r.first && r.empt
     && Math.abs(r.b1 - 0.5 * 6 / 7) < 1e-9 && r.lbl, 'T10 单音7:6→补齐6空拍', JSON.stringify({ n: r.n, b1: r.b1, lbl: r.lbl }));
 
+  // T11 v51.6 时值线（符杠）成组修正：连音组独立成杠、不被拍边界拆断、不与普通音并组
+  r = await pg.evaluate(() => {
+    const mk = (dur, tup, tupM) => Object.assign({ dur, dotted: false, notes: [{ s: 1, f: 1 }] },
+      tup ? { tup } : {}, tupM ? { tupM } : {});
+    // ① 8:7 十六分×8：旧逻辑在 cum 跨 1.0 处拆断——应为一整组 8
+    const g1 = beamGroups(Array.from({ length: 8 }, () => mk(16, 8, 7)), null, 4).map(g => g.idx.length);
+    // ② 4:3 十六分×4 + 普通八分×2：旧逻辑把首个八分并进连音组（同拍）——修后连音组隔离 [4,…]；
+    //   后两个八分起点 0.75/1.25 拍各跨真实拍界，按既有「不跨拍连杠」规则各自成组 → [4,1,1]
+    const g2 = beamGroups([mk(16, 4, 3), mk(16, 4, 3), mk(16, 4, 3), mk(16, 4, 3), mk(8), mk(8)], null, 4).map(g => g.idx.length);
+    // ③ 两组三连音八分×6：保持逐组分块 [3,3]（回归守护）
+    const g3 = beamGroups(Array.from({ length: 6 }, () => mk(8, 3)), null, 4).map(g => g.idx.length);
+    // ④ 普通四个十六分+四个十六分：按拍成组 [4,4] 不受影响（回归守护）
+    const g4 = beamGroups(Array.from({ length: 8 }, () => mk(16)), null, 4).map(g => g.idx.length);
+    return { g1, g2, g3, g4 };
+  });
+  T(JSON.stringify(r.g1) === '[8]' && JSON.stringify(r.g2) === '[4,1,1]'
+    && JSON.stringify(r.g3) === '[3,3]' && JSON.stringify(r.g4) === '[4,4]',
+    'T11 连音符杠成组修正', JSON.stringify(r));
+
+  // T12 v51.6 预设只留三连音：5/6/7 按钮移除、N连音按钮在（mark/vmark 两宿主）
+  r = await pg.evaluate(() => {
+    const tups = [...document.querySelectorAll('[data-tup]')].map(b => b.dataset.tup);
+    return { tups, only3: tups.length === 2 && tups.every(t => t === '3'),
+      nBtn: document.querySelectorAll('[data-tupcustom]').length === 2,
+      label: [...document.querySelectorAll('[data-tupcustom] span')].every(s => s.textContent === 'N连音') };
+  });
+  T(r.only3 && r.nBtn && r.label, 'T12 预设仅3连音+N连音按钮', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
