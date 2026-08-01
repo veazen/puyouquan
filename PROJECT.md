@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-01 · 当前版本 **v51.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-01 · 当前版本 **v51.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v51.2 吉他谱弦位圆形光标（产品反馈，Guitar Pro 式）**：选中 TAB 列时在 `sel.si` 弦线上画圆形光标（r=8，accent 淡填充 fill-opacity 0.15 + 1.5px 描边）——落点 `(mx+lay.xs[ci], tabTop+(sel.si-1)*STR)`，在既有 isSel 列高亮块内追加、后绘的品位数字（纸色 halo）自然压在圈上；空弦位同样显示（指示输入落点），`col.strum`/`col.perc`（扫弦/琶音/打板）整列输入不画；与 Ctrl 多选的纯描边圈（r=8 无填充）以淡填充区分。测试：新增 `tv_cursor.js` 五断言（光标圆心=strcell 热区中心的几何交叉验证/换弦 cy 位移=2×STR_GAP/空弦位显示/扫弦列不画/blurSel·vox 行不画+无 NaN）并入 run_all CORE；tv_matrix 12/12 无回归。
+>
 > **v51.1 谱号直接点击修改（产品反馈，Guitar Pro 式交互）**：五线谱**行首谱号可直接点击**弹出谱号选择——五线谱声部改声部级 `voxNotations[vi]`（G2 高音/C3 中音/F4 低音），TAB+五线谱联排改 `song.tabClef`（G2/F4，均 8vb 移调），小节内换谱号的小谱号同样可点击直达既有 `showClefMenu` 改/清除；均仅换记谱视图，音高与播放不变。实现要点：热区收进独立 `clefZones` 数组在 `barZones` 之后冲刷（v46.0 行首线热区左延覆盖整个谱头，谱号热区必须压其上层才可点中）；小谱号热区在列热区之后 push；谱面主处理器挂 `#score` **pointerdown**（非 click，测试直发事件需注意）。新增 `showClefHeadMenu`（全库唯一名）。测试：tv_staff 新增 T7 七断言全过（行首热区/弹窗三谱号/声部改低音/联排热区/联排改低音/小谱号热区/列谱号改低音），tv_matrix 12/12、tv_head 5/5、tv_engrave 8/8 无回归。
 
 > **v51.0 手机端四项修复（真机反馈）**：① **播放无声**——b-play 旁新增一次性 audioUnlock（touchend/pointerdown capture + WeixinJSBridgeReady）：手势内建/resume AudioContext + 播 1 采样静音 buffer + 播静音 `<audio>`（data:wav base64，iOS 会话切 playback 类别→静音拨片下 WebAudio 才发声；微信 webview 同解锁）；② 手机**不自动弹左栏面板**——`hideStartPad` 的 reopen 分支加 `innerWidth>820` 门槛（窄屏浮层盖谱面）；③ **谱面默认整幅**——viewZoom 初始化后 `≤820px` 强制 1（桌面 localStorage 存的缩放不带入手机、不回写）；④ **播放条适配**——mobile 块 .mx-bar nowrap 横滑 + `#b-play` sticky 吸左 + mx-prog flex:1 min-width 130 + tempo/rate 紧凑。tv_mviews 扩至 **12 断言**（+播放条横滑/触摸解锁 ctx/开机忽略存储缩放/左栏保持关闭 + 桌面守护 T4b：存储缩放照常带入·左栏自动展开保持）；tv_matrix 12/12、tv_audio 22/22。注意：音频解锁效果 headless 只能断言 ctx 建立，静音拨片场景需真机复核。
