@@ -6914,8 +6914,8 @@ function applyVoxPattern(pat){
      出版级图示：符杠组 + 连音括线 + 斜体数字（tupSVG）；顶栏记号组撤销。
      v46.6 连音线已回归记号层（vox=b-tie / TAB=b-tie-t，同走 toggleTie） */
   { const tupBtns=[3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
-      /* v51.4 自定连音 N:M（GP 式）：任意 2–16 连音、任意比例；点时值线选中整拍后也可设置 */
-      +`<button class="eb ico" data-tupcustom title="自定连音 N:M（Guitar Pro 式）：N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；点时值线选中整拍 / Shift 点选 N 个音后设置可整体套用">${tupSVG('N:M')}<span>自定连音</span></button>`;
+      /* v51.4 N:M 任意连音（GP 式）；v51.5 改名 N连音、图标=三连音式样换 N */
+      +`<button class="eb ico" data-tupcustom title="N连音（Guitar Pro 式自定 N:M）：N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；点时值线选中整拍 / Shift 点选后设置可整体套用，音符不足时可自动补齐">${tupSVG('N')}<span>N连音</span></button>`;
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
     if(mb) mb.insertAdjacentHTML('beforeend', tupBtns);
     if(vb) vb.insertAdjacentHTML('beforeend', tupBtns);
@@ -7198,6 +7198,11 @@ function applyTuplet(n, m){
       });
       toast('已切换'+lbl+'连音'); return;
     }
+    /* v51.5 不足音符自动补齐：选中数 < N 且同小节等时值无附点 → 弹窗提议补空拍凑满 N */
+    if(cs && cs.length && cs.length<n && cs.every(x=>x.mi===cs[0].mi) &&
+       cs.every(x=>x.col.dur===cs[0].col.dur && !x.col.dotted) && selRange.m1===selRange.m2){
+      showTupletFill(n, M); return;
+    }
     if(cs && cs.length>1)
       return toast('选中数与连音数不符：'+n+(custom?':'+M:'')+' 连音需选中 '+n+' 个同时值、无附点的音（当前选中 '+cs.length+' 个）');
   }
@@ -7206,10 +7211,9 @@ function applyTuplet(n, m){
     mutate(()=>{ delete col.tup; delete col.tupM; });
     toast('已取消连音'); return;
   }
-  if(M!==2 && M!==4 && M!==8 && M!==16)
-    return toast(n+':'+M+' 连音无法从单音拆分（M 非 2 的幂）——请先选中 '+n+' 个等时值音（点时值线选拍 / Shift 点选），再设置');
   const nd=col.dur*M;
-  if(nd>32) return toast('当前时值过小，无法再细分为'+lbl+'连音');
+  /* v51.5 单音无法拆分（M 非 2 的幂 / 时值过小）→ 不再仅报错，弹窗提议自动补齐空拍成组 */
+  if((M!==2 && M!==4 && M!==8 && M!==16) || nd>32){ showTupletFill(n, M); return; }
   mutate(()=>{
     const cols=curRowCols();
     const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; put(c1);
@@ -7225,7 +7229,51 @@ function applyTuplet(n, m){
   });
   toast('已拆分为'+lbl+'连音（总时值不变）');
 }
-/* v51.4 自定连音弹窗（Guitar Pro 式）：N 音符等于 M 音符。
+/* v51.5 不足音符自动补齐：设定 N 连音时选中/可拆音符不足 → 弹窗提议在其后补空拍凑满 N 个再整体设标。
+   触发：①选区不足 N 个（同小节等时值无附点）②单音无法拆分（M 非 2 的幂 / 时值过小）。
+   补齐的空拍与基准音同时值、随组带连音标，可直接继续输入音符 */
+function showTupletFill(n, M){
+  const custom = M !== (n===3?2:4);
+  const lbl = custom? n+':'+M : ''+n;
+  const row=sel.row;
+  let mi, vi, c1, cnt, dur0;
+  if(selRange){
+    const cs=rangeCols();
+    mi=cs[0].mi; vi=selRange.vi; c1=selRange.c1||0; cnt=cs.length; dur0=cs[0].col.dur;
+  }else{
+    const col=curCol(); if(!col) return;
+    mi=sel.mi; vi=sel.vi; c1=sel.ci; cnt=1; dur0=col.dur;
+  }
+  const need=n-cnt;
+  if(need<=0) return toast('选中数已达 '+n+' 个——直接点连音即可切换');
+  closePop(); closeQuickbar();
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left='50%'; div.style.top='30%'; div.style.transform='translateX(-50%)';
+  div.innerHTML=`<div class="t"><b>${lbl} 连音</b>需 ${n} 个音——当前${cnt>1?'选中 '+cnt+' 个':'只有 1 个'}</div>
+    <div class="row" style="margin-top:9px">
+      <button id="tf-ok" class="primary">自动补齐 ${need} 个空拍并设置</button>
+      <button id="tf-x">取消</button>
+    </div>
+    <div class="t" style="margin-top:7px;font-size:11px">补齐的空拍与所选音同时值、随组带连音标，可直接输入音符</div>`;
+  document.body.appendChild(div);
+  div.querySelector('#tf-ok').onclick=()=>{
+    closePop();
+    mutate(()=>{
+      const colsArr = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
+      const put=c=>{ c.tup=n; if(custom) c.tupM=M; else delete c.tupM; c.dotted=false; };
+      for(let i=0;i<cnt;i++) put(colsArr[c1+i]);
+      const add=[];
+      for(let i=0;i<need;i++){ const c= row==='tab'? tcol() : vcol(); c.dur=dur0; put(c); add.push(c); }
+      colsArr.splice(c1+cnt, 0, ...add);
+    });
+    selRange={row, vi, m1:mi, c1, m2:mi, c2:c1+n-1};
+    render();
+    toast('已补齐 '+need+' 个空拍并设置 '+lbl+' 连音——空位可直接输入音符');
+  };
+  div.querySelector('#tf-x').onclick=()=>closePop();
+}
+/* v51.4 N连音弹窗（Guitar Pro 式）：N 音符等于 M 音符。
    光标在已有连音上 → 确定=整个连续同标组改标；有选区 → 走 applyTuplet 选区分支；
    普通单音 → 拆分为 N 连音（M 须为 2 的幂）。移除=清光标处/选区内连音标记 */
 function showTupletMenu(cx, cy){
@@ -7237,7 +7285,7 @@ function showTupletMenu(cx, cy){
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.max(8, Math.min(cx, innerWidth-300))+'px';
   div.style.top=Math.min(cy, innerHeight-180)+'px';
-  div.innerHTML=`<div class="t">自定连音（<i style="font-family:Georgia,serif;font-weight:700">N:M</i> = N 个音符占 M 个同时值音符的时值）</div>
+  div.innerHTML=`<div class="t">N 连音（<i style="font-family:Georgia,serif;font-weight:700">N:M</i> = N 个音符占 M 个同时值音符的时值）</div>
     <div class="row" style="align-items:center;gap:7px;margin-top:8px">
       <input id="tup-n" type="number" min="2" max="16" value="${n0}" style="width:56px"> 音符等于
       <input id="tup-m" type="number" min="1" max="16" value="${m0}" style="width:56px"> 音符
@@ -7781,7 +7829,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       sel.row='tab'; sel.vi=bvi; sel.mi=bmi; sel.ci=ids[0];
       selRange={row:'tab', vi:bvi, m1:bmi, c1:ids[0], m2:bmi, c2:ids[ids.length-1]};
       noteSel=[]; closeTech(); setRibbon('tab'); render();
-      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"替换节奏，或在记号层点连音/自定连音整拍套用');
+      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"替换节奏，或在记号层点连音/N连音整拍套用');
     }
     return;
   }
@@ -14307,7 +14355,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.4';
+const APP_VER='v51.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14330,6 +14378,7 @@ const APP_VER='v51.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.5</span><div><b>N连音打磨</b>：①「自定连音」更名为「<b>N连音</b>」，图标与三连音同款（数字换 N）；②<b>音符不足自动补齐</b>——设定 N 连音时选中的音不够 N 个（或单音无法拆分，如 7:6、时值过小）不再仅提示，弹窗一键<b>自动补齐空拍</b>凑满 N 个并整组设标，补齐的空拍与所选音同时值，可直接继续输入音符。</div></li>
     <li><span class="v">v51.4</span><div><b>N 连音自定义</b>（Guitar Pro 式）：连音从固定 3/5/6/7 扩展为任意 <b>N:M 自定连音</b>（N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；N 2–16、M 1–16）——记号层新增「自定连音」弹窗，输入 N 音符等于 M 音符，<b>确定</b>=套用/改标（光标在已有连音上时整组改）、<b>移除</b>=清除连音。<b>点时值线选中整拍后同样可设置</b>（选中 N 个等时值音整体套用，任意 M 均可；单音拆分需 M 为 2 的幂）。谱面括线自定比例标 <b>N:M</b>；播放时值按 M/N 精确折算；MusicXML 按真实 N:M 出入（并修正了 5/6/7 连音此前误写 3:2 的导出缺陷）。</div></li>
     <li><span class="v">v51.3</span><div><b>右键弹出对象菜单</b>：选中不再直接弹窗——鼠标<b>左键点音符/小节线只选中</b>（小节线高亮、音符落光标），<b>右键才弹出</b>快捷浮条/小节线反复终止设置，浏览器默认右键菜单已屏蔽；触屏无右键，点按仍直接弹出。快捷浮条「关闭自动弹出」现在只关触屏自动弹，右键唤出始终可用。</div></li>
     <li><span class="v">v51.2</span><div><b>吉他谱弦位光标</b>（Guitar Pro 式）：选中吉他谱音符时，在当前输入弦位显示<b>圆形光标</b>（淡红填充+描边圈）——空弦位同样显示，一眼看清品位数字将落到哪根弦；上下方向键换弦光标随动。扫弦/琶音列为整列输入不显示。</div></li>

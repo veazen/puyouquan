@@ -82,22 +82,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.pre.n === 9 && r.pre.m === 8 && r.tups.every(t => t === 6) && r.noM, 'T5 弹窗改标整组9:8→6', JSON.stringify(r.pre));
 
-  // T6 M 非 2 的幂时禁止单音拆分（守卫 toast、数据不动）；弹窗「移除」清整组
+  // T6 v51.5 M 非 2 的幂单音不硬拆 → 弹出自动补齐弹窗；取消=数据不动；弹窗「移除」清整组
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
     const s = createSong('guitar', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     const mk = (o) => Object.assign({ dur: 4, dotted: false, chord: '', notes: [], strum: '', tech: '' }, o || {});
     s.measures[0].tabs[0] = [mk({ notes: [{ s: 1, f: 3 }] }), mk(), mk(), mk()];
     loadSong(s); sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 1 }; selRange = null;
     applyTuplet(4, 3);
+    const pm = document.getElementById('popmenu');
+    const dlg = !!pm && !!pm.querySelector('#tf-ok') && pm.textContent.indexOf('补齐') >= 0;
+    pm.querySelector('#tf-x').click();   // 取消
     const kept = song.measures[0].tabs[0].length === 4 && !song.measures[0].tabs[0][0].tup;
-    const guard = document.getElementById('toast').textContent.indexOf('2 的幂') >= 0;
-    applyTuplet(3);   // 拆三连音后用弹窗移除
+    applyTuplet(3);   // 拆三连音后用 N连音弹窗移除
     showTupletMenu(200, 200);
     document.querySelector('#popmenu #tup-rm').click();
     const cleared = !song.measures[0].tabs[0][0].tup;
-    return { kept, guard, cleared };
+    return { dlg, kept, cleared };
   });
-  T(r.kept && r.guard && r.cleared, 'T6 非2幂拆分守卫+弹窗移除', JSON.stringify(r));
+  T(r.dlg && r.kept && r.cleared, 'T6 非2幂弹补齐+取消不动+弹窗移除', JSON.stringify(r));
 
   // T7 MusicXML 往返：简谱声部 3连音 + 8:7 八分 → actual/normal 真实读写
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
@@ -133,6 +135,44 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.selOk && r.tups.every(t => t === 4) && r.ms.every(m => m === 3) && r.lbl,
     'T8 时值线选拍套用4:3', JSON.stringify(r));
+
+  // T9 v51.5 选区不足自动补齐：选 3 个16分 → 5连音 → 弹窗确认 → 补 2 个空拍成组
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    const mk16 = () => ({ dur: 16, dotted: false, chord: '', notes: [{ s: 2, f: 5 }], strum: '', tech: '' });
+    const mk4 = () => ({ dur: 4, dotted: false, chord: '', notes: [], strum: '', tech: '' });
+    s.measures[0].tabs[0] = [mk16(), mk16(), mk16(), mk4(), mk4(), mk4()];
+    loadSong(s); sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 2 };
+    selRange = { row: 'tab', vi: 0, m1: 0, c1: 0, m2: 0, c2: 2 };
+    applyTuplet(5);
+    const pm = document.getElementById('popmenu');
+    const dlg = !!pm && pm.textContent.indexOf('补齐 2 个空拍') >= 0;
+    pm.querySelector('#tf-ok').click();
+    const cols = song.measures[0].tabs[0];
+    const five = cols.slice(0, 5);
+    return { dlg, n: cols.length, tups: five.map(c => c.tup), durs: five.map(c => c.dur),
+      empt: five.slice(3).every(c => !(c.notes || []).length), noM: five.every(c => !c.tupM),
+      rangeOk: !!selRange && selRange.c2 === 4 };
+  });
+  T(r.dlg && r.n === 8 && r.tups.every(t => t === 5) && r.durs.every(d => d === 16) && r.empt && r.noM && r.rangeOk,
+    'T9 选区不足→补齐成5连音', JSON.stringify(r));
+
+  // T10 单音 7:6（M非2幂）→ 补齐 6 个空拍成组；时值 ×6/7
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    const mk = (o) => Object.assign({ dur: 8, dotted: false, chord: '', notes: [], strum: '', tech: '' }, o || {});
+    s.measures[0].tabs[0] = [mk({ notes: [{ s: 1, f: 7 }] }), mk(), mk(), mk()];
+    loadSong(s); sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 1 }; selRange = null;
+    applyTuplet(7, 6);
+    document.querySelector('#popmenu #tf-ok').click();
+    const cols = song.measures[0].tabs[0];
+    const seven = cols.slice(0, 7);
+    return { n: cols.length, tups: seven.map(c => c.tup), ms: seven.map(c => c.tupM),
+      first: (seven[0].notes || []).length === 1, empt: seven.slice(1).every(c => !(c.notes || []).length),
+      b1: beatsOf(seven[0], 4), lbl: document.getElementById('score').innerHTML.indexOf('>7:6</text>') >= 0 };
+  });
+  T(r.n === 10 && r.tups.every(t => t === 7) && r.ms.every(m => m === 6) && r.first && r.empt
+    && Math.abs(r.b1 - 0.5 * 6 / 7) < 1e-9 && r.lbl, 'T10 单音7:6→补齐6空拍', JSON.stringify({ n: r.n, b1: r.b1, lbl: r.lbl }));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
