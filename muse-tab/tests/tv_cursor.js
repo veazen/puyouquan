@@ -68,6 +68,30 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {nBlur, nVox, nan:document.getElementById('score').innerHTML.includes('NaN')}; })()`);
   T(r.nBlur === 0 && r.nVox === 0 && !r.nan, 'T5 blur/简谱行不画+无NaN', JSON.stringify(r));
 
+  // T6 v51.7 谱末按 → 自动续小节：最后一列按 ArrowRight 追加空白小节并落光标；
+  //    中途按 → 只移动不加；落音自动前进（markEntered→moveCol 无 ext）不扩谱；Ctrl+Z 可撤
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('guitar',{title:'e',beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0});
+    loadSong(s); blurSel=false;
+    const nCols=song.measures[0].tabs[0].length;
+    sel={mi:0,row:'tab',vi:0,ci:1,si:3}; render();
+    window.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight'}));
+    const midMove = song.measures.length===1 && sel.ci===2;
+    sel.ci=nCols-1; render();
+    window.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight'}));
+    const grew = song.measures.length===2 && sel.mi===1 && sel.ci===0;
+    const blank2 = song.measures[1].tabs[0].length===nCols && song.measures[1].tabs[0].every(c=>!(c.notes||[]).length);
+    // 落音自动前进不扩谱：光标移到第2小节最后一列落音 → 停在原位、小节数不变
+    sel={mi:1,row:'tab',vi:1,ci:0,si:2}; clampSel(); sel.ci=song.measures[1].tabs[0].length-1; render();
+    if(typeof inputDigit==='function') inputDigit(5);
+    const noAuto = song.measures.length===2;
+    undo();
+    const undone = song.measures.length===2 || song.measures.length===1;   // 撤销落音后再撤扩谱
+    undo();
+    const backTo1 = song.measures.length===1;
+    return {midMove, grew, blank2, noAuto, backTo1}; })()`);
+  T(r.midMove && r.grew && r.blank2 && r.noAuto && r.backTo1, 'T6 谱末→自动续小节', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

@@ -6497,11 +6497,18 @@ function setDeg(d){
   if(sel.row!=='vox') return;
   mutate(()=>{ const c=curCol(); c.deg=d; if(!d){ c.acc=''; c.oct=0; } });
 }
-function moveCol(dir){
+function moveCol(dir, ext){
   const r = curRowCols();
   if(dir>0){
     if(sel.ci<r.length-1) sel.ci++;
     else if(sel.mi<song.measures.length-1){ sel.mi++; sel.ci=0; }
+    /* v51.7 谱末右移自动续小节（GP 式）：光标在最后一个音位再按 → 追加空白小节继续录入。
+       仅显式方向键触发（ext=true）——落音自动前进 markEntered / 歌词 Enter 前进不扩谱，
+       避免录完最后一个音就凭空多出空小节 */
+    else if(ext && !(typeof startPadOn==='function' && startPadOn())){
+      mutate(()=>{ song.measures.push(blankMeasure()); sel.mi=song.measures.length-1; sel.ci=0; });
+      toast('已新增第'+song.measures.length+'小节 · 继续输入，Ctrl+Z 可撤销');
+    }
   }else{
     if(sel.ci>0) sel.ci--;
     else if(sel.mi>0){ sel.mi--; sel.ci=curRowCols().length-1; }
@@ -7653,7 +7660,7 @@ window.addEventListener('keydown', e=>{
     return;
   }
   switch(e.key){
-    case 'ArrowRight': e.preventDefault(); moveCol(1); break;
+    case 'ArrowRight': e.preventDefault(); moveCol(1, true); break;   /* v51.7 谱末按 → 自动续小节 */
     case 'ArrowLeft':  e.preventDefault(); moveCol(-1); break;
     case 'ArrowDown':
       e.preventDefault(); pending.digits='';   // v47.7 换弦即断开两位品位合成
@@ -14369,7 +14376,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.6';
+const APP_VER='v51.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14392,6 +14399,7 @@ const APP_VER='v51.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.7</span><div><b>谱末按 → 自动续小节</b>（Guitar Pro 式）：光标在<b>最后一个音位</b>时再按右方向键，自动在曲末追加一个空白小节并把光标落进去，录入不再需要先手动「插入小节」；Ctrl+Z 可撤销。仅显式按 → 触发——落音自动前进、歌词回车前进不会扩谱。</div></li>
     <li><span class="v">v51.6</span><div><b>连音收敛 + 时值线修正</b>：①连音预设只保留<b>三连音</b>——5/6/7 连音及任意比例统一并入「<b>N连音</b>」（弹窗改 N 时自动建议 M：5/6/7→4、9–15→8、2→3、4→6，可手改）；②<b>N 连音时值线（符杠）修正</b>——8:7、4:3、7:6 等非整拍连音此前会被拍边界拦腰拆断符杠、或与相邻普通音并成一杠，现连音组按 N 个一块独立成杠，与连音括线分块完全一致（五线谱符杠/TAB 符杠/简谱减时线三处同修）。</div></li>
     <li><span class="v">v51.5</span><div><b>N连音打磨</b>：①「自定连音」更名为「<b>N连音</b>」，图标与三连音同款（数字换 N）；②<b>音符不足自动补齐</b>——设定 N 连音时选中的音不够 N 个（或单音无法拆分，如 7:6、时值过小）不再仅提示，弹窗一键<b>自动补齐空拍</b>凑满 N 个并整组设标，补齐的空拍与所选音同时值，可直接继续输入音符。</div></li>
     <li><span class="v">v51.4</span><div><b>N 连音自定义</b>（Guitar Pro 式）：连音从固定 3/5/6/7 扩展为任意 <b>N:M 自定连音</b>（N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；N 2–16、M 1–16）——记号层新增「自定连音」弹窗，输入 N 音符等于 M 音符，<b>确定</b>=套用/改标（光标在已有连音上时整组改）、<b>移除</b>=清除连音。<b>点时值线选中整拍后同样可设置</b>（选中 N 个等时值音整体套用，任意 M 均可；单音拆分需 M 为 2 的幂）。谱面括线自定比例标 <b>N:M</b>；播放时值按 M/N 精确折算；MusicXML 按真实 N:M 出入（并修正了 5/6/7 连音此前误写 3:2 的导出缺陷）。</div></li>

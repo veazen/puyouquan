@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-01 · 当前版本 **v51.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-01 · 当前版本 **v51.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v51.7 谱末按 → 自动续小节（产品反馈，GP 式）**：`moveCol(dir, ext)` 增 ext 参数——光标在最后小节最后一列且 `ext=true` 时 `mutate(()=>{ song.measures.push(blankMeasure()); sel 落新小节 })`（undo 一步可撤）+ toast；仅 keydown ArrowRight 传 ext=true，**markEntered 落音自动前进与歌词 Enter 前进不传**（录完最后一个音不会凭空多出空小节），启动台 startPadOn 守卫不扩谱。blankMeasure 按 song 级拍号生成列（与「插入小节」同口径）。tv_cursor 增 T6 五断言（中途→只移动/谱末→扩谱落位/新小节空白列数正确/落音自动前进不扩/两步撤销回 1 小节），tv_matrix/tv_detail1/tv_tuplet 回归绿。
+>
 > **v51.6 连音收敛 + 符杠成组修正（产品反馈）**：①预设 `[3,5,6,7]`→`[3]`（5/6/7 并入 N连音；tv_detail1 只断言 data-tup="3" 存在故零改动；旧习惯记录 tup:5 等经 applyTuplet 仍可执行）；N连音弹窗 `#tup-n` input 时自动建议 M——非 2 幂 N→下方最近 2 幂（5/6/7→4、9–15→8）、2 幂 N→×1.5（2→3、4→6、8→12），存储缺省口径不变（M=defM 不写 tupM）。②**beamGroups 连音感知**（时值线修正核心）：N:M 连音时值非整拍（8:7 每音 0.21875 拍等），原「按拍 floor 分组」会把连音组拦腰拆断（8:7 在第 5 音后断杠）或把同拍普通音并进连音杠（4:3 后的八分）；改为连音列按 `tup+':'+tupM` 同标连续段、每 N 个一块独立成杠（与括线 s+=n 分块口径一致），普通音仍按拍成组——五线谱符杠/TAB 符杠/简谱减时线三处共用一并修正。注意既有「不跨拍连杠」规则保留：连音后错位起拍的普通音各自成组属正常（T11 ② [4,1,1]）。tv_tuplet 扩至 12 断言（T11 四情形分组几何/T12 按钮收敛），tv_matrix/tv_detail1/tv_dot/tv_combo/tv_engrave 全绿。
 >
 > **v51.5 N连音打磨（产品反馈）**：①「自定连音」改名「N连音」，按钮图标 `tupSVG('N')`（三连音同款字形换 N）；②新增 `showTupletFill(n,M)`——设定 N 连音音符不足时弹窗自动补齐：触发点两处（applyTuplet 选区分支 cs.length<n 且同小节等时值无附点；单音分支 M 非 2 的幂 / nd>32 时值过小，均不再硬报错），确认后在所选末尾 splice 补 `need=n-cnt` 个同时值空列（tcol/vcol）、整组设 tup/tupM、selRange 扩为整组并 render，空位可继续输入；取消零改动。tv_tuplet 扩至 10 断言（T6 改写为弹窗+取消守卫，新增 T9 选区 3→5 补齐 / T10 单音 7:6 补 6 空拍 ×6/7），tv_matrix/tv_detail1/tv_mxl 回归绿。
