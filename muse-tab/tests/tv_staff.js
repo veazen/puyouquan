@@ -58,6 +58,49 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const t5=await pg.evaluate(()=>{ const s=PRESETS[0].make(); loadSong(s); const ok=document.getElementById('score').innerHTML.length>2000; return ok; });
   console.log('T5 吉他谱预设回归:', t5);
 
+  // T7(v51.1): 谱号直接点击修改——行首谱号热区/弹窗换谱号/联排谱号/小节内小谱号
+  const t7 = await (async ()=>{
+    const r={};
+    // 7a: 行首谱号热区存在 + 真实鼠标点击弹出谱号菜单
+    await pg.evaluate(()=>{ const s=createSong('staff',{title:'谱号点击',beats:4,unit:4,key:'C',tempo:90,nMea:2,nVox:1,lyr:0});
+      s.measures[0].voxes[0]=[{dur:4,deg:1,acc:'',oct:0,lyrics:[]},{dur:4,deg:3,acc:'',oct:0,lyrics:[]}]; loadSong(s); });
+    const hot = await pg.evaluate(()=>{ const el=document.querySelector('[data-clefhead="vox:0"]'); if(!el) return null;
+      const b2=el.getBoundingClientRect(); return {x:b2.left+b2.width/2, y:b2.top+b2.height/2}; });
+    r.行首热区存在 = !!hot;
+    if(hot){ await pg.mouse.click(hot.x, hot.y); await pg.waitForTimeout(150); }
+    r.弹窗三谱号 = await pg.evaluate(()=> document.querySelectorAll('#popmenu [data-chd]').length===3);
+    // 7b: 选低音谱号 → 声部级谱号改变 + 谱面出现 F 谱号字形
+    await pg.evaluate(()=>{ const b2=document.querySelector('#popmenu [data-chd="bass"]'); if(b2) b2.click(); });
+    await pg.waitForTimeout(150);
+    r.声部改低音 = await pg.evaluate(()=> (song.voxNotations||[])[0]==='bass'
+      && document.getElementById('score').innerHTML.includes(SMUFL.fClef.d)
+      && !document.getElementById('popmenu'));
+    // 7c: 联排五线谱（TAB+五线谱）行首谱号热区 → 换低音 8vb（tabClef）
+    await pg.evaluate(()=>{ const s=PRESETS[0].make(); s.tabStaff=true; loadSong(s); });
+    const hot2 = await pg.evaluate(()=>{ const el=document.querySelector('[data-clefhead="tab"]'); if(!el) return null;
+      const b2=el.getBoundingClientRect(); return {x:b2.left+b2.width/2, y:b2.top+b2.height/2}; });
+    r.联排热区存在 = !!hot2;
+    if(hot2){ await pg.mouse.click(hot2.x, hot2.y); await pg.waitForTimeout(150); }
+    await pg.evaluate(()=>{ const b2=document.querySelector('#popmenu [data-chd="bass"]'); if(b2) b2.click(); });
+    await pg.waitForTimeout(150);
+    r.联排改低音 = await pg.evaluate(()=> song.tabClef==='bass');
+    // 7d: 小节内换谱号小谱号热区 → 点击直达该列谱号菜单并可改换
+    await pg.evaluate(()=>{ const s=createSong('staff',{title:'小谱号点击',beats:4,unit:4,key:'C',tempo:90,nMea:2,nVox:1,lyr:0});
+      s.measures[0].voxes[0]=[{dur:4,deg:1,acc:'',oct:0,lyrics:[]},{dur:4,deg:3,acc:'',oct:0,lyrics:[]}];
+      s.measures[1].voxes[0]=[{dur:4,deg:5,acc:'',oct:0,lyrics:[],clef:'alto'},{dur:4,deg:6,acc:'',oct:0,lyrics:[]}]; loadSong(s); });
+    const hot3 = await pg.evaluate(()=>{ const el=document.querySelector('[data-clefmid="1:0:0"]'); if(!el) return null;
+      const b2=el.getBoundingClientRect(); return {x:b2.left+b2.width/2, y:b2.top+b2.height/2}; });
+    r.小谱号热区存在 = !!hot3;
+    if(hot3){ await pg.mouse.click(hot3.x, hot3.y); await pg.waitForTimeout(150); }
+    await pg.evaluate(()=>{ const b2=document.querySelector('#popmenu [data-cl="bass"]'); if(b2) b2.click(); });
+    await pg.waitForTimeout(150);
+    r.列谱号改低音 = await pg.evaluate(()=> song.measures[1].voxes[0][0].clef==='bass');
+    return r;
+  })();
+  const t7fail = Object.entries(t7).filter(([k,v])=>!v).map(([k])=>k);
+  console.log('T7 谱号点击修改(v51.1):', JSON.stringify(t7), t7fail.length?('FAIL:'+t7fail.join(',')):'PASS');
+  if(t7fail.length) process.exitCode=1;
+
   // T6: 播放不报错（staff 谱）
   await pg.evaluate(()=>{ const s=createSong('staff',{beats:4,unit:4,key:'C',nMea:2,nVox:1,lyr:0}); s.measures[0].voxes[0]=[{dur:4,deg:1,acc:'',oct:0,lyrics:[]},{dur:4,deg:3,acc:'',oct:0,lyrics:[]},{dur:4,deg:5,acc:'',oct:0,lyrics:[]},{dur:4,deg:1,acc:'',oct:1,lyrics:[]}]; loadSong(s); });
   await pg.evaluate(()=>document.getElementById('b-play').click()); await pg.waitForTimeout(600);
