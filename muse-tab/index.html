@@ -3198,11 +3198,14 @@ function dotFactor(c){ return dotLevel(c)===2? 1.75 : dotLevel(c)===1? 1.5 : 1; 
 function maxDotLevel(dur){ return dur<=8? 2 : dur<=16? 1 : 0; }
 /* v43.5 变拍子：每小节可覆盖 mea.beats/mea.unit（缺省继承 song 默认）；meaMeter 取有效拍号 */
 function meaMeter(mi){ const m=(song.measures||[])[mi]||{}; return {beats: m.beats||song.beats, unit: m.unit||song.unit}; }
-/* 连音：tup=3(或旧数据1)三连音×2/3；tup=5/6/7 → n个音占4个的时值×4/n；unit 缺省用 song.unit（变拍子传入本小节 unit） */
+/* 连音：tup=3(或旧数据1)三连音×2/3；tup=5/6/7 → n个音占4个的时值×4/n；unit 缺省用 song.unit（变拍子传入本小节 unit）
+   v51.4 N:M 自定连音：col.tupM=M（N 音符等于 M 音符 → ×M/N）；缺省 M 沿旧语义（3→2、其余→4），
+   预设 3/5/6/7 不写 tupM——旧版本打开新存档仍按原语义解读（用户数据兼容红线） */
+function tupMOf(c){ const t=c.tup===1?3:c.tup; return c.tupM || (t===3?2:4); }
 function beatsOf(c, unit){
   const u = unit || song.unit;
   const t = c.tup===1? 3 : c.tup;
-  return (4/c.dur)*dotFactor(c)*(t? (t===3?2/3:4/t) :1)*(u/4);
+  return (4/c.dur)*dotFactor(c)*(t? tupMOf(c)/t :1)*(u/4);
 }
 /* v42.9 变化音半音偏移：升#+1 / 降b−1 / 重升x+2 / 重降bb−2 / 还原n·空 0 */
 function accSemi(acc){ return acc==='#'?1 : acc==='b'?-1 : acc==='x'?2 : acc==='bb'?-2 : 0; }
@@ -4963,22 +4966,25 @@ function render(){
            每 n 个音为一组独立标记（同小节多组连音互不关联），
            括号两端对齐该组时值符号（符杠）的左右两端 */
         if(!simN){
+          /* v51.4 N:M 自定连音：按 tup+tupM 双键分组；标数默认 N、自定比例标 N:M（GP 惯例），断口随标宽自适应 */
           const tN=c2=>c2.tup===1?3:c2.tup;
+          const tKey=c2=>tN(c2)+':'+(c2.tupM||0);
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
-              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
+              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tKey(cols[b3+1])===tKey(cols[a2])) b3++;
               const n=tN(cols[a2]);
+              const lbl=cols[a2].tupM? n+':'+cols[a2].tupM : ''+n;
               for(let s=a2; s<=b3; s+=n){
                 const e=Math.min(s+n-1, b3);
                 const x1=mx+lay.xs[s], x2=mx+lay.xs[e], xm=(x1+x2)/2;
-                const half=Math.min(5.5, Math.max(3,(x2-x1)/2-3));
+                const half=Math.min(2.5+lbl.length*3, Math.max(3,(x2-x1)/2-3));
                 const yl=stemY+4.5;
                 p.push(`<line x1="${x1}" y1="${yl}" x2="${x1}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<line x1="${x2}" y1="${yl}" x2="${x2}" y2="${yl-3.2}" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<line x1="${x1}" y1="${yl}" x2="${xm-half}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
                 p.push(`<line x1="${xm+half}" y1="${yl}" x2="${x2}" y2="${yl}" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<text x="${xm}" y="${yl+2.8}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
+                p.push(`<text x="${xm}" y="${yl+2.8}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${lbl}</text>`);
               }
               a2=b3+1;
             } else a2++;
@@ -5620,16 +5626,19 @@ function render(){
         /* 连音标记（简谱）：音符上方连音弧线，中间断开标斜体数字；
            每 n 个音为一组独立标记（同小节多组连音互不关联） */
         if(!simV){
+          /* v51.4 N:M 自定连音：按 tup+tupM 双键分组；标数默认 N、自定比例标 N:M，断口随标宽自适应 */
           const tN=c2=>c2.tup===1?3:c2.tup;
+          const tKey=c2=>tN(c2)+':'+(c2.tupM||0);
           let a2=0;
           while(a2<cols.length){
             if(cols[a2].tup){
-              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tN(cols[b3+1])===tN(cols[a2])) b3++;
+              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tKey(cols[b3+1])===tKey(cols[a2])) b3++;
               const n=tN(cols[a2]);
+              const lbl=cols[a2].tupM? n+':'+cols[a2].tupM : ''+n;
               for(let s=a2; s<=b3; s+=n){
                 const e=Math.min(s+n-1, b3);
                 const x1=mx+lay.xs[s]-3, x2=mx+lay.xs[e]+3, xm=(x1+x2)/2;
-                const half=Math.min(6, Math.max(3.5,(x2-x1)/2-3));
+                const half=Math.min(3+lbl.length*3, Math.max(3.5,(x2-x1)/2-3));
                 /* 五线谱：括线在组内最高音（含符干）上方，高音加线区自动抬升 */
                 let y0 = isStaff? staffT-7 : voxY-13;
                 if(isStaff) for(let k3=s;k3<=e;k3++){ const c3=cols[k3];
@@ -6259,7 +6268,7 @@ function syncInputs(){
     const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
     const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
     let durTxt = '—';
-    if(col){ durTxt = (dotLevel(col)===2?'双附点':col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?('·'+(col.tup===1?3:col.tup)+'连音'):''); }
+    if(col){ durTxt = (dotLevel(col)===2?'双附点':col.dotted?'附点':'') + (durNm[col.dur]||('1/'+col.dur)) + (col.tup?('·'+(col.tup===1?3:col.tup)+(col.tupM?':'+col.tupM:'')+'连音'):''); }
     /* v46.4 音符可选编辑信息：点击音符时同步显示当前音符内容与可改项（时值/节奏等） */
     let noteTxt='';
     if(col && sel.row==='tab'){
@@ -6343,7 +6352,7 @@ function syncInputs(){
   });
   /* v46.7 连音按钮已分配到各谱类记号层，全局同步选中态 */
   document.querySelectorAll('[data-tup]').forEach(b=>{
-    b.classList.toggle('on', !!col && (col.tup===1?3:col.tup)===+b.dataset.tup);
+    b.classList.toggle('on', !!col && !col.tupM && (col.tup===1?3:col.tup)===+b.dataset.tup);
   });
   { const bt=document.getElementById('b-tie-t');   // v46.6 TAB 记号层连音线选中态
     if(bt){
@@ -6904,7 +6913,9 @@ function applyVoxPattern(pat){
   /* v46.7 连音（3/5/6/7）分配到各谱类记号层（吉他谱 mark-body / 简谱·五线谱 vmark-body），
      出版级图示：符杠组 + 连音括线 + 斜体数字（tupSVG）；顶栏记号组撤销。
      v46.6 连音线已回归记号层（vox=b-tie / TAB=b-tie-t，同走 toggleTie） */
-  { const tupBtns=[3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('');
+  { const tupBtns=[3,5,6,7].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
+      /* v51.4 自定连音 N:M（GP 式）：任意 2–16 连音、任意比例；点时值线选中整拍后也可设置 */
+      +`<button class="eb ico" data-tupcustom title="自定连音 N:M（Guitar Pro 式）：N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；点时值线选中整拍 / Shift 点选 N 个音后设置可整体套用">${tupSVG('N:M')}<span>自定连音</span></button>`;
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
     if(mb) mb.insertAdjacentHTML('beforeend', tupBtns);
     if(vb) vb.insertAdjacentHTML('beforeend', tupBtns);
@@ -6936,6 +6947,8 @@ function applyVoxPattern(pat){
     if(e.target.closest('#eb-acc-f')){ accBump(-1); return; }
     if(e.target.closest('#eb-acc-n')){ accNat(); return; }
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
+    const tpc=e.target.closest('[data-tupcustom]');
+    if(tpc){ const r=tpc.getBoundingClientRect(); showTupletMenu(r.left, r.bottom+4); return; }
     const tp=e.target.closest('[data-tup]');
     if(tp){ applyTuplet(+tp.dataset.tup); return; }
     const tb=e.target.closest('[data-tech2]');
@@ -7163,36 +7176,46 @@ function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
   if(!col.deg) return toast('记号需加在有唱名的音上');
   mutate(()=>{ if(col.orn===k) delete col.orn; else col.orn=k; });
 }
-/* n连音（3/5/6/7）：选中n个等时值音→整体切换；否则把当前音拆分为n连音（总时值不变）
-   三连音=3音占2音时值（dur×2）；5/6/7连音=n音占4音时值（dur×4） */
-function applyTuplet(n){ try{habit('tup:'+n);}catch(_){}
+/* n连音（3/5/6/7 预设 + v51.4 N:M 自定）：选中n个等时值音→整体切换；否则把当前音拆分为n连音（总时值不变）
+   三连音=3音占2音时值（dur×2）；5/6/7连音=n音占4音时值（dur×4）；
+   自定 N:M=N 音占 M 音时值（×M/N）——M 非 2 的幂时无法拆分单音，仅支持「选中 N 个等时值音」整体切换 */
+function applyTuplet(n, m){
+  n=Math.round(+n||0); const defM = n===3? 2 : 4; const M = Math.round(+m||0) || defM;
+  if(!(n>=2 && n<=16 && M>=1 && M<=16)) return toast('连音比例超出支持范围（N 2–16 · M 1–16）');
+  const custom = M!==defM;
+  try{ if(!custom) habit('tup:'+n); }catch(_){}
   const row=sel.row;
   const tupOf = c=> c.tup===1?3:c.tup;
+  const put = c=>{ c.tup=n; if(custom) c.tupM=M; else delete c.tupM; };
+  const lbl = custom? n+':'+M : ''+n;
   if(selRange){
     const cs=rangeCols();
     if(cs && cs.length===n && cs.every(x=>x.mi===cs[0].mi) &&
        cs.every(x=>x.col.dur===cs[0].col.dur && !x.col.dotted)){
       mutate(()=>{
-        const on = !cs.every(x=>tupOf(x.col)===n);
-        cs.forEach(x=>{ if(on) x.col.tup=n; else delete x.col.tup; });
+        const on = !cs.every(x=>tupOf(x.col)===n && (x.col.tupM||0)===(custom?M:0));
+        cs.forEach(x=>{ if(on) put(x.col); else { delete x.col.tup; delete x.col.tupM; } });
       });
-      toast('已切换'+n+'连音'); return;
+      toast('已切换'+lbl+'连音'); return;
     }
+    if(cs && cs.length>1)
+      return toast('选中数与连音数不符：'+n+(custom?':'+M:'')+' 连音需选中 '+n+' 个同时值、无附点的音（当前选中 '+cs.length+' 个）');
   }
   const col=curCol(); if(!col) return;
   if(col.tup){
-    mutate(()=>{ delete col.tup; });
+    mutate(()=>{ delete col.tup; delete col.tupM; });
     toast('已取消连音'); return;
   }
-  const mul = n===3? 2 : 4;
-  if(col.dur*mul>32) return toast('当前时值过小，无法再细分为'+n+'连音');
+  if(M!==2 && M!==4 && M!==8 && M!==16)
+    return toast(n+':'+M+' 连音无法从单音拆分（M 非 2 的幂）——请先选中 '+n+' 个等时值音（点时值线选拍 / Shift 点选），再设置');
+  const nd=col.dur*M;
+  if(nd>32) return toast('当前时值过小，无法再细分为'+lbl+'连音');
   mutate(()=>{
     const cols=curRowCols();
-    const nd=col.dur*mul;
-    const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; c1.tup=n;
+    const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; put(c1);
     const mk=()=>{
       const c= row==='tab'? tcol() : vcol();
-      c.dur=nd; c.tup=n;
+      c.dur=nd; put(c);
       if(row==='tab') c.notes=JSON.parse(JSON.stringify(col.notes));
       else c.deg=col.deg;
       return c;
@@ -7200,7 +7223,64 @@ function applyTuplet(n){ try{habit('tup:'+n);}catch(_){}
     const arr=[c1]; for(let i=1;i<n;i++) arr.push(mk());
     cols.splice(sel.ci, 1, ...arr);
   });
-  toast('已拆分为'+n+'连音（总时值不变）');
+  toast('已拆分为'+lbl+'连音（总时值不变）');
+}
+/* v51.4 自定连音弹窗（Guitar Pro 式）：N 音符等于 M 音符。
+   光标在已有连音上 → 确定=整个连续同标组改标；有选区 → 走 applyTuplet 选区分支；
+   普通单音 → 拆分为 N 连音（M 须为 2 的幂）。移除=清光标处/选区内连音标记 */
+function showTupletMenu(cx, cy){
+  closePop(); closeQuickbar();
+  const col=curCol()||{};
+  const n0=col.tup? (col.tup===1?3:col.tup) : 5;
+  const m0=col.tup? tupMOf(col) : 4;
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.max(8, Math.min(cx, innerWidth-300))+'px';
+  div.style.top=Math.min(cy, innerHeight-180)+'px';
+  div.innerHTML=`<div class="t">自定连音（<i style="font-family:Georgia,serif;font-weight:700">N:M</i> = N 个音符占 M 个同时值音符的时值）</div>
+    <div class="row" style="align-items:center;gap:7px;margin-top:8px">
+      <input id="tup-n" type="number" min="2" max="16" value="${n0}" style="width:56px"> 音符等于
+      <input id="tup-m" type="number" min="1" max="16" value="${m0}" style="width:56px"> 音符
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="tup-ok" class="primary">确定</button>
+      <button id="tup-rm">移除</button>
+      <button id="tup-x">取消</button>
+    </div>`;
+  document.body.appendChild(div);
+  const ok=()=>{
+    const n=Math.round(+div.querySelector('#tup-n').value||0), m=Math.round(+div.querySelector('#tup-m').value||0);
+    closePop();
+    if(!(n>=2&&n<=16&&m>=1&&m<=16)) return toast('连音比例超出支持范围（N 2–16 · M 1–16）');
+    const c=curCol();
+    if(!selRange && c && c.tup){
+      /* 改标：光标所在连续同标组整组改为 N:M（GP 语义——对既有连音「确定」是修改而非取消） */
+      const cols=curRowCols();
+      const key=c2=>(c2.tup===1?3:c2.tup)+':'+(c2.tupM||0);
+      let a=sel.ci, b=sel.ci;
+      while(a>0 && cols[a-1].tup && key(cols[a-1])===key(c)) a--;
+      while(b<cols.length-1 && cols[b+1].tup && key(cols[b+1])===key(c)) b++;
+      const defM=n===3?2:4;
+      mutate(()=>{ for(let i=a;i<=b;i++){ cols[i].tup=n; if(m!==defM) cols[i].tupM=m; else delete cols[i].tupM; } });
+      toast('已改为'+n+(m!==defM?':'+m:'')+'连音'); return;
+    }
+    applyTuplet(n, m);
+  };
+  div.querySelector('#tup-ok').onclick=ok;
+  div.querySelector('#tup-rm').onclick=()=>{ closePop(); removeTuplet(); };
+  div.querySelector('#tup-x').onclick=()=>closePop();
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.key==='Enter'){ ev.preventDefault(); ok(); }
+    if(ev.key==='Escape'){ ev.preventDefault(); closePop(); }
+  }));
+}
+function removeTuplet(){
+  const cs = selRange? rangeCols() : null;
+  const list = (cs&&cs.length)? cs.map(x=>x.col) : (curCol()? [curCol()] : []);
+  if(!list.some(c=>c.tup)) return toast('当前位置没有连音标记');
+  mutate(()=>{ list.forEach(c=>{ delete c.tup; delete c.tupM; }); });
+  toast('已移除连音');
 }
 /* ---- 节奏型库弹窗 ---- */
 /* v47.8 节奏型库按谱类路由：编辑五线谱声部 → 常用钢琴节奏型（伴奏织体，按和弦生成双手音符）；
@@ -7701,7 +7781,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       sel.row='tab'; sel.vi=bvi; sel.mi=bmi; sel.ci=ids[0];
       selRange={row:'tab', vi:bvi, m1:bmi, c1:ids[0], m2:bmi, c2:ids[ids.length-1]};
       noteSel=[]; closeTech(); setRibbon('tab'); render();
-      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"即可替换本拍节奏');
+      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"替换节奏，或在记号层点连音/自定连音整拍套用');
     }
     return;
   }
@@ -11637,7 +11717,7 @@ function exportMusicXML(s){
         const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
         const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
         const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';   // v41.5 双附点=两枚 dot
-        const tmod = col.tup? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : '';
+        const tmod = col.tup? `<time-modification><actual-notes>${col.tup===1?3:col.tup}</actual-notes><normal-notes>${tupMOf(col)}</normal-notes></time-modification>` : '';   /* v51.4 真实 N:M（此前 5/6/7 也误写 3:2） */
         /* v41.1 记号 → MusicXML notations：articulations(staccato/staccatissimo/tenuto/accent/breath-mark)+fermata */
         const articXML = {stacc:'<staccato/>',staccatissimo:'<staccatissimo/>',tenuto:'<tenuto/>',accent:'<accent/>'}[col.artic]||'';
         const signXML = ((articXML||col.breath)? `<articulations>${articXML}${col.breath?'<breath-mark/>':''}</articulations>` : '')
@@ -11698,7 +11778,7 @@ function exportMusicXML(s){
         const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
         const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
         const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';
-        const tmod = col.tup? `<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>` : '';
+        const tmod = col.tup? `<time-modification><actual-notes>${col.tup===1?3:col.tup}</actual-notes><normal-notes>${tupMOf(col)}</normal-notes></time-modification>` : '';   /* v51.4 真实 N:M（此前 5/6/7 也误写 3:2） */
         const ferm = col.ferm? '<fermata/>' : '';
         const ns = (col.notes||[]).filter(n=>n && n.s>=1 && n.s<=nStr);
         if(!ns.length){
@@ -11933,7 +12013,11 @@ function importMusicXML(xmlStr){
         /* v41.5 双附点：两枚 <dot/> → dotted:2（单枚仍为 true，与旧数据同义） */
         const nDots = el.querySelectorAll(':scope > dot').length;
         let dotted = nDots>=2? 2 : nDots===1;
-        let tup = (txt(el,'time-modification > actual-notes')==='3' && txt(el,'time-modification > normal-notes')==='2')? 1 : undefined;
+        /* v51.4 N:M 连音导入：3:2 沿旧写法 tup=1；其余 actual/normal → tup=N（M 非缺省时 tupM=M） */
+        let tup, tupM2;
+        { const aN=+txt(el,'time-modification > actual-notes')||0, nN=+txt(el,'time-modification > normal-notes')||0;
+          if(aN===3 && nN===2) tup=1;
+          else if(aN>=2 && aN<=16 && nN>=1 && nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM2=nN; } }
         if(!dur){
           const quarters=(+(txt(el,'duration')||0))/div;
           const cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
@@ -11966,7 +12050,7 @@ function importMusicXML(xmlStr){
           return col2;
         };
         if(q(el,'rest')){
-          noteIn(readSigns({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{})}));
+          noteIn(readSigns({dur, dotted, deg:0, acc:'', oct:0, lyrics:[], tie:false, ...(tup?{tup}:{}), ...(tupM2?{tupM:tupM2}:{})}));
           pendChord=''; return;
         }
         const pe=q(el,'pitch');
@@ -11994,7 +12078,7 @@ function importMusicXML(xmlStr){
         }
         const col={dur, dotted, deg:noteObj.deg, acc:noteObj.acc, oct:noteObj.oct, lyrics:[],
           tie: !![...el.querySelectorAll(':scope > tie')].find(t2=>t2.getAttribute('type')==='start'),
-          ...(tup?{tup}:{})};
+          ...(tup?{tup}:{}), ...(tupM2?{tupM:tupM2}:{})};
         if(pendChord){ col.chord=pendChord; pendChord=''; }
         [...el.querySelectorAll(':scope > lyric')].forEach(ly=>{
           const n2=Math.max(1, +(ly.getAttribute('number')||1));
@@ -12028,19 +12112,22 @@ function importMusicXML(xmlStr){
         if(q(el,'grace')){ skip.notes++; return; }
         let dur=TYPE_INV[txt(el,'type')||'']||0;
         const nDots=el.querySelectorAll(':scope > dot').length; let dotted=nDots>=2?2:nDots===1;
-        let tup=(txt(el,'time-modification > actual-notes')==='3' && txt(el,'time-modification > normal-notes')==='2')?1:undefined;
+        let tup, tupM2;   /* v51.4 N:M 连音导入（同简谱路径口径） */
+        { const aN=+txt(el,'time-modification > actual-notes')||0, nN=+txt(el,'time-modification > normal-notes')||0;
+          if(aN===3 && nN===2) tup=1;
+          else if(aN>=2 && aN<=16 && nN>=1 && nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM2=nN; } }
         if(!dur){ const quarters=(+(txt(el,'duration')||0))/div, cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
           for(const [d2,qn] of cand){ if(Math.abs(quarters-qn)<1e-3){dur=d2;break;} if(Math.abs(quarters-qn*1.5)<1e-3){dur=d2;dotted=true;break;}
             if(Math.abs(quarters-qn*1.75)<1e-3){dur=d2;dotted=2;break;} if(Math.abs(quarters-qn*2/3)<1e-3){dur=d2;tup=1;break;} }
           if(!dur){ skip.notes++; dur=quarters>=3?2:quarters>=1.5?4:quarters>=0.7?4:quarters>=0.35?8:16; } }
         const nt3=q(el,'notations'); const ferm=!!(nt3&&nt3.querySelector('fermata'));
-        if(q(el,'rest')){ cols.push({dur,dotted,notes:[],...(tup?{tup}:{}),...(ferm?{ferm:true}:{})}); return; }
+        if(q(el,'rest')){ cols.push({dur,dotted,notes:[],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{})}); return; }
         const tech=el.querySelector(':scope > notations technical'); const sEl=tech&&tech.querySelector('string'), fEl=tech&&tech.querySelector('fret');
         if(!sEl||!fEl){ skip.notes++; return; }   // 无 string/fret 的音（如五线声部混入）跳过
         const nObj={s:+sEl.textContent.trim()||1, f:Math.max(0,+fEl.textContent.trim()||0)};
         const nh=q(el,'notehead'); if(nh && /x/i.test(nh.textContent.trim())) nObj.x=1;
         if(q(el,'chord') && cols.length){ const last=cols[cols.length-1]; (last.notes=last.notes||[]).push(nObj); return; }
-        cols.push({dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(ferm?{ferm:true}:{})});
+        cols.push({dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{})});
       });
       return cols;
     });
@@ -14220,7 +14307,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.3';
+const APP_VER='v51.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14243,6 +14330,7 @@ const APP_VER='v51.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.4</span><div><b>N 连音自定义</b>（Guitar Pro 式）：连音从固定 3/5/6/7 扩展为任意 <b>N:M 自定连音</b>（N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；N 2–16、M 1–16）——记号层新增「自定连音」弹窗，输入 N 音符等于 M 音符，<b>确定</b>=套用/改标（光标在已有连音上时整组改）、<b>移除</b>=清除连音。<b>点时值线选中整拍后同样可设置</b>（选中 N 个等时值音整体套用，任意 M 均可；单音拆分需 M 为 2 的幂）。谱面括线自定比例标 <b>N:M</b>；播放时值按 M/N 精确折算；MusicXML 按真实 N:M 出入（并修正了 5/6/7 连音此前误写 3:2 的导出缺陷）。</div></li>
     <li><span class="v">v51.3</span><div><b>右键弹出对象菜单</b>：选中不再直接弹窗——鼠标<b>左键点音符/小节线只选中</b>（小节线高亮、音符落光标），<b>右键才弹出</b>快捷浮条/小节线反复终止设置，浏览器默认右键菜单已屏蔽；触屏无右键，点按仍直接弹出。快捷浮条「关闭自动弹出」现在只关触屏自动弹，右键唤出始终可用。</div></li>
     <li><span class="v">v51.2</span><div><b>吉他谱弦位光标</b>（Guitar Pro 式）：选中吉他谱音符时，在当前输入弦位显示<b>圆形光标</b>（淡红填充+描边圈）——空弦位同样显示，一眼看清品位数字将落到哪根弦；上下方向键换弦光标随动。扫弦/琶音列为整列输入不显示。</div></li>
     <li><span class="v">v51.1</span><div><b>谱号直接点击修改</b>（Guitar Pro 式）：五线谱<b>行首谱号可直接点击</b>，弹窗选择 高音 G2 / 中音 C3 / 低音 F4——五线谱声部改整声部谱号；TAB+五线谱联排改 高音/低音（8vb 移调记谱，品位与播放不变）；小节内换谱号的<b>小谱号同样可点击</b>直接改换或清除。均仅换记谱视图，音高与播放不变。</div></li>
