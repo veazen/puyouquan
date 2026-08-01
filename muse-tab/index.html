@@ -4035,9 +4035,10 @@ function modCol(){
   return c;
 }
 function closeQuickbar(){ const d=document.getElementById('quickbar'); if(d) d.remove(); }
-function showQuickbar(cx, cy){
+function showQuickbar(cx, cy, force){
   closeQuickbar();
-  if(!quickbarOn() || viewerMode) return;
+  /* v51.3 force=右键显式唤出：无视触屏自动弹出偏好（off 只关自动弹，不关右键） */
+  if((!force && !quickbarOn()) || viewerMode) return;
   if(typeof startPadOn==='function' && startPadOn()) return;
   const isTab = sel.row==='tab';
   const btn=(act,label,title)=>`<button data-qb="${esc(act)}" title="${esc(title||'')}">${label}</button>`;
@@ -4066,7 +4067,7 @@ function showQuickbar(cx, cy){
   div.style.top=Math.min(cy+22, innerHeight-64)+'px';
   div.innerHTML='<div class="row" style="margin-top:0">'+bs.join('')
     +btn('more','…','更多选项：打开左栏对应图层面板')
-    +btn('off','✕','关闭并不再自动弹出（右栏「智能」页可重新开启）')+'</div>';
+    +btn('off','✕','关闭浮条（右键音符可随时唤出；触屏不再点按自动弹出）')+'</div>';
   document.body.appendChild(div);
   /* 预判命中的现有按钮同样点亮引导色（预判动作已在条上时不另出猜测钮） */
   if(nx && nx.n>=2){ const gb2=div.querySelector('[data-qb="'+(nx.act||'').replace(/"/g,'')+'"]'); if(gb2) gb2.classList.add('qb-guess'); }
@@ -4074,7 +4075,7 @@ function showQuickbar(cx, cy){
     const b=ev.target.closest('[data-qb]'); if(!b) return;
     const act=b.dataset.qb;
     if(act==='off'){ try{ localStorage.setItem('musetab-quickbar','off'); }catch(_){}
-      closeQuickbar(); toast('已关闭自动弹出——右栏「智能」页提示卡可重新开启'); try{ renderHints(); }catch(_){} return; }
+      closeQuickbar(); toast('已关闭触屏自动弹出——鼠标右键点音符仍可唤出'); try{ renderHints(); }catch(_){} return; }
     if(act==='more'){ closeQuickbar(); openFlyout(sel.row==='tab'?'tab':'vox'); return; }
     habitDo(act); syncQuickbar();
   });
@@ -4106,7 +4107,7 @@ function editHints(){
   const nt=(song.voxNotations||[])[sel.vi], st=isStaffNota(nt);
   if(barSel){
     title='已选中小节线';
-    items=[it('在弹出菜单设置：反复 𝄆 𝄇 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子'),
+    items=[it('右键小节线弹出设置：反复 𝄆 𝄇 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子（触屏：点按即弹）'),
            it('按住小节线约半秒：选中该小节整个声部'),
            it('Ctrl/Shift+点击小节线：连选多个小节')];
   }else if(noteSel.length>1){
@@ -4130,6 +4131,7 @@ function editHints(){
     title=hasN? '已选中吉他谱音符' : '吉他谱输入位';
     items=hasN? [
       it('键盘输 0–24 改品位；Q/W/E/R/T 换时值，「.」附点'),
+      it('右键点击音符：弹出快捷浮条（触屏点按即弹）'),
       it('演奏技巧：推弦 · 滑弦 · 击/勾弦 · 泛音 N.H. · 哑音 ×（记号层）','rib:tab',true),
       it('扫弦 ↑↓ · 琶音 · 拍弦 ⊠ · 延长号 · 和弦标注同在记号层','rib:tab'),
       it('框选或 Ctrl/Shift+点击多个音符可批量加技法')]
@@ -4141,6 +4143,7 @@ function editHints(){
     title='已选中五线谱音符';
     items=[it(autoAdvOn()? '键盘输 1–7 落音，自动跳到下一个音；升 ♯ · 降 ♭ · 还原 ♮ · 附点 · 连音线（记号层）'
                          : '键盘输 1–7 落音，→ 移到下一个音（自动前进已关）；升 ♯ · 降 ♭ · 还原 ♮（记号层）','rib:vox',true),
+           it('右键点击音符：弹出快捷浮条（触屏点按即弹）'),
            it('谱号切换（高/中/低，小节内可换）· 八度线 8va · 指法 · 踏板','rib:vox'),
            it('Ctrl+点击谱表线/间：直接叠加和音'),
            it('倚音 · 震音 · 滑音 · 力度/速度记号在装饰组','rib:vox')];
@@ -4149,6 +4152,7 @@ function editHints(){
     /* v47.9 提示按实际行为改写：落音是否自动前进随开关变；填词必须先按 Enter 唤出歌词框（旧文案说「直接打字」不成立） */
     items=[it(autoAdvOn()? '键盘输 0–7 落音，自动跳到下一个音；8度± 加高低音点'
                          : '键盘输 0–7 落音，→ 移到下一个音（自动前进已关）；8度± 加高低音点','rib:vox',true),
+           it('右键点击音符：弹出快捷浮条（触屏点按即弹）'),
            it('升降号 ♯♭ · 附点 · 连音线 · 和音（记号层）；倚音在装饰组','rib:vox'),
            it('按 Enter 唤出歌词框填词，填完再按 Enter 跳下一个音'),
            it('「记谱法」组一键切五线谱视图（数据不变）','rib:vox')];
@@ -4160,7 +4164,7 @@ function editHints(){
       if(nx && nx.n>=2 && habitApplicable(nx.act))
         items.unshift(it('猜你想做：'+habitLabel(nx.act)+'（按你的习惯预判）','qb:'+nx.act,true));
     }
-    if(!quickbarOn()) items.push(it('点击音符自动弹出快捷浮条：已关闭，点此重新开启','qbon'));
+    if(!quickbarOn()) items.push(it('触屏点按音符自动弹快捷浮条：已关闭，点此重新开启（鼠标右键唤出不受影响）','qbon'));
     /* v47.9 落音自动前进开关（简谱/五线谱行才有意义，TAB 行两位品位不适用） */
     if(sel.row==='vox') items.push(autoAdvOn()
       ? it('落音后自动跳下一个音：已开启，点此关闭（改回「数字 + →」逐个录）','advoff')
@@ -4579,10 +4583,10 @@ function render(){
           const selL = barSel && barSel.R===lm.mi;
           /* v46.0 行首小节线热区左延至系统起始线：此前可见行首竖线在 oxH、热区在 mx-5（错位 ~26px）点不中 */
           const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
-          barZones.push(`<rect class="barzone" x="${zxL}" y="${tabTop-4}" width="${zwL}" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱 · Ctrl+点击：多选小节</title></rect>`);
+          barZones.push(`<rect class="barzone" x="${zxL}" y="${tabTop-4}" width="${zwL}" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节吉他谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
-            barZones.push(`<rect class="barzone" x="${bx-5}" y="${tabTop-4}" width="10" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节吉他谱</title></rect>`);
+            barZones.push(`<rect class="barzone" x="${bx-5}" y="${tabTop-4}" width="10" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节吉他谱</title></rect>`);
           }
         }
         if(vi===0){
@@ -5116,10 +5120,10 @@ function render(){
           const selL = barSel && barSel.R===lm.mi;
           /* v46.0 行首小节线热区左延至系统起始线（同 TAB 行口径） */
           const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
-          barZones.push(`<rect class="barzone" x="${zxL}" y="${yT2-3}" width="${zwL}" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱 · Ctrl+点击：多选小节</title></rect>`);
+          barZones.push(`<rect class="barzone" x="${zxL}" y="${yT2-3}" width="${zwL}" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节简谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
             const selR = barSel && barSel.L===lm.mi;
-            barZones.push(`<rect class="barzone" x="${bx-5}" y="${yT2-3}" width="10" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>点击：小节线设置（反复/终止）· 按住：选中本小节简谱</title></rect>`);
+            barZones.push(`<rect class="barzone" x="${bx-5}" y="${yT2-3}" width="10" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节简谱</title></rect>`);
           }
         }
         if(vi===0 && !song.tabVoices.length){
@@ -7616,10 +7620,11 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     return;
   }
   /* 小节线：按住(≥450ms)=选中该小节的吉他谱/简谱声部（可独立复制粘贴）；
-     点击=选中小节线，弹出反复/终止符号设置 */
+     v51.3 鼠标左键=仅选中小节线，右键弹出反复/终止设置；触屏点按保持直接弹出（无右键可用） */
   if(t.dataset.bar!==undefined){
     const seg = t.dataset.bar.split(':');
     const L=+seg[0], R=+seg[1], row=seg[2], vi=+seg[3];
+    if(e.button===2){ showBarMenu(e.clientX, e.clientY, L, R); return; }
     /* v46.0 Ctrl+点击小节线：多选小节——首次 Ctrl+点选中该小节整声部，
        继续 Ctrl+点其他小节线扩展为连续小节范围（可整段复制/粘贴/批量操作）。
        v49.7 Shift 等效（避开本机双击 Ctrl 类全局热键误唤系统搜索） */
@@ -7655,7 +7660,11 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       toast('已选中第'+(mi+1)+'小节'+(row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+C 复制 / Ctrl+V 粘贴');
     }, 450);
     const off=()=>{ document.removeEventListener('pointerup',up); document.removeEventListener('pointermove',mv); };
-    const up=()=>{ clearTimeout(tm); off(); if(!held) showBarMenu(sx, sy, L, R); };
+    const up=()=>{ clearTimeout(tm); off(); if(held) return;
+      if(e.pointerType!=='mouse'){ showBarMenu(sx, sy, L, R); return; }
+      measureSel=null; selRange=null; noteSel=[]; closeTech();
+      barSel={L, R}; render();
+      toast('已选中小节线 · 右键：反复/终止/段落设置'); };
     const mv=ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>11){ clearTimeout(tm); off(); } };
     document.addEventListener('pointerup', up);
     document.addEventListener('pointermove', mv);
@@ -7725,7 +7734,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
      v49.7 增加 Shift 等效键：部分用户本机工具（Listary/输入法快捷搜索等）注册了
      双击 Ctrl 全局热键，按住 Ctrl 点选会误唤系统搜索——Shift 不与常见全局热键冲突；
      批量选择也可直接用框选（v49.5，按住拖动）。 */
-  if((e.ctrlKey||e.metaKey||e.shiftKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
+  if(e.button!==2 && (e.ctrlKey||e.metaKey||e.shiftKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
     const si = row==='tab'? +t.dataset.si : 0;
     if(noteSel.length && (noteSel[0].row||'tab')!==row) noteSel=[];   // 跨声部多选时重新开始
     const idx = noteSel.findIndex(n=>n.mi===mi&&n.ci===ci&&n.si===si&&n.vi===vi);
@@ -7736,8 +7745,8 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"或"连音线"':'点"连音线"可跨音符相连'));
     return;
   }
-  /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑） */
-  if(row==='vox' && t.dataset.staffb!==undefined && !e.shiftKey &&
+  /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑；v51.3 仅左键） */
+  if(e.button===0 && row==='vox' && t.dataset.staffb!==undefined && !e.shiftKey &&
      sel.row==='vox' && sel.vi===vi && sel.mi===mi && sel.ci===ci){
     const svg2=document.getElementById('score'), r2=svg2.getBoundingClientRect(), vb2=svg2.viewBox.baseVal;
     const yS=(e.clientY-r2.top)/r2.height*vb2.height;
@@ -7784,9 +7793,13 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(t.dataset.zone==='chord'){
     showChordPopup(e.clientX, e.clientY, mi, ci, vi);
   }
-  /* v47.1 快捷浮条：普通音符点击自动弹出常用可选项（歌词/和弦区走各自编辑流程） */
-  else if(t.dataset.zone!=='lyric') showQuickbar(e.clientX, e.clientY);
+  /* v47.1 快捷浮条（v51.3 改右键唤出）：鼠标左键只选中、右键弹出常用可选项；
+     触屏无右键，点按保持自动弹出（歌词/和弦区走各自编辑流程） */
+  else if(t.dataset.zone!=='lyric' && (e.button===2 || e.pointerType!=='mouse'))
+    showQuickbar(e.clientX, e.clientY, e.button===2);
 });
+/* v51.3 谱面右键接管：右键用于唤出对象菜单（音符快捷浮条/小节线设置），屏蔽浏览器默认菜单 */
+document.getElementById('score').addEventListener('contextmenu', e=>e.preventDefault());
 /* 点击和弦图旁弹出：编辑和弦 + 节奏型推荐 */
 function showChordPopup(cx, cy, mi, ci, vi){
   const cur = (song.measures[mi].tabs[vi][ci]||{}).chord || chordBefore(mi,vi);
@@ -14207,7 +14220,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.2';
+const APP_VER='v51.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14230,6 +14243,7 @@ const APP_VER='v51.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.3</span><div><b>右键弹出对象菜单</b>：选中不再直接弹窗——鼠标<b>左键点音符/小节线只选中</b>（小节线高亮、音符落光标），<b>右键才弹出</b>快捷浮条/小节线反复终止设置，浏览器默认右键菜单已屏蔽；触屏无右键，点按仍直接弹出。快捷浮条「关闭自动弹出」现在只关触屏自动弹，右键唤出始终可用。</div></li>
     <li><span class="v">v51.2</span><div><b>吉他谱弦位光标</b>（Guitar Pro 式）：选中吉他谱音符时，在当前输入弦位显示<b>圆形光标</b>（淡红填充+描边圈）——空弦位同样显示，一眼看清品位数字将落到哪根弦；上下方向键换弦光标随动。扫弦/琶音列为整列输入不显示。</div></li>
     <li><span class="v">v51.1</span><div><b>谱号直接点击修改</b>（Guitar Pro 式）：五线谱<b>行首谱号可直接点击</b>，弹窗选择 高音 G2 / 中音 C3 / 低音 F4——五线谱声部改整声部谱号；TAB+五线谱联排改 高音/低音（8vb 移调记谱，品位与播放不变）；小节内换谱号的<b>小谱号同样可点击</b>直接改换或清除。均仅换记谱视图，音高与播放不变。</div></li>
     <li><span class="v">v51.0</span><div><b>手机端四项修复</b>：①<b>播放无声修复</b>——首次触摸即解锁音频（含 iOS 静音拨片场景与微信内置浏览器）；②手机上新建/编辑<b>不再自动弹出左栏面板</b>（浮层不再挡谱面，点左栏页签随时打开）；③<b>谱面默认整幅入屏</b>——手机开机恒 100% 缩放，桌面端存的缩放不再带进手机导致超宽；④<b>播放条手机适配</b>——单行横滑、播放键吸左恒可点、速度/倍速控件紧凑化。</div></li>

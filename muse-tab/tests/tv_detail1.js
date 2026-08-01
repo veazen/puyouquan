@@ -576,11 +576,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].tabs[0] = [{ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 3, f: 5 }] },
       { dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [{ s: 3, f: 7 }] }];
     loadSong(s);
-    // ① 真实 pointerdown 弹出浮条（TAB 语境按钮组）
-    const cell = document.querySelector('.strcell[data-mi="0"][data-ci="0"][data-si="3"]');
-    cell.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
+    // ① v51.3 鼠标左键只选中不弹；右键 pointerdown 弹出；触屏点按仍自动弹（TAB 语境按钮组）。
+    //   每次分发前重新取节点：pointerdown 处理器内 render() 重建 SVG，缓存节点已脱离文档不再冒泡
+    const cellQ = () => document.querySelector('.strcell[data-mi="0"][data-ci="0"][data-si="3"]');
+    cellQ().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'mouse', button: 0 }));
+    const noPopLeft = !document.getElementById('quickbar');
+    cellQ().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'touch', button: 0 }));
+    const tapPop = !!document.getElementById('quickbar');
+    closeQuickbar();
+    cellQ().dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'mouse', button: 2 }));
     let qb = document.getElementById('quickbar');
-    const open = !!qb;
+    const open = !!qb && noPopLeft && tapPop;
     const btns0 = qb ? [...qb.querySelectorAll('[data-qb]')].map(x => x.dataset.qb).join(',') : '';
     const tabCtx = /dur:4,dur:8,dur:16,dot,tech:.+,tie,more,off/.test(btns0);
     // ② 浮条操作生效 + 习惯记录
@@ -607,7 +613,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     showQuickbar(300, 300);
     document.querySelector('#quickbar [data-qb="off"]').click();
     showQuickbar(300, 300);
-    const offOk = !document.getElementById('quickbar') && localStorage.getItem('musetab-quickbar') === 'off';
+    let offOk = !document.getElementById('quickbar') && localStorage.getItem('musetab-quickbar') === 'off';
+    // v51.3 关闭偏好只关自动弹：右键 force 唤出不受影响
+    showQuickbar(300, 300, true);
+    offOk = offOk && !!document.getElementById('quickbar'); closeQuickbar();
     renderHints();
     const re = [...document.querySelectorAll('#hint-body [data-hact]')].find(x => x.dataset.hact === 'qbon');
     if (re) re.click();
