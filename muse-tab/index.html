@@ -1541,6 +1541,7 @@ body.shell #hint{display:none}
             <button id="b-meameter" title="本小节拍号（变拍子）：为当前小节单独设定拍号（如中途转 3/4 · 6/8 · 7/8），谱面在该小节头标新拍号，节拍校验 / 符杠成组 / 播放均按新拍号；选「恢复全曲拍号」清除"><b>𝄴</b><span>本小节拍号…</span></button>
             <button id="b-sim1" title="小节反复 𝄎：本小节谱面省写为反复记号，演奏与前一小节相同（本小节数据保留、节拍校验豁免、播放自动展开；再点取消）"><b>𝄎</b><span>同前1小节</span></button>
             <button id="b-sim2" title="两小节反复：演奏与前两小节相同（连续两小节都标 2，播放按位置轮转展开；再点取消）"><b>𝄎²</b><span>同前2小节</span></button>
+            <button id="b-meahandle" title="小节宽度手柄（Guitar Pro 式）：开启后每小节右上角显示 ↔▼ 手柄，左右拖动单独调节该小节宽度（60%–250%），双击手柄复位；再点本按钮隐藏手柄"><b>↔</b><span>宽度手柄</span></button>
           </div>
         </div>
         <button id="sp-toggle" title="展开/收起 反复与跳转记号">段落 · 反复 · 跳转记号 <span id="sp-arrow">▾</span></button>
@@ -2492,6 +2493,7 @@ let clipMeasure = null;  // 复制的小节（深拷贝）
 let clipRow = null;      // 复制的单声部小节 {row, cols}（按住小节线选中后 Ctrl+C）
 let barSel = null;       // 选中的小节线 {L,R}（点击小节线，用于反复/终止设置）
 let blurSel = false;     // 点击页面内容区外 → 隐藏光标
+let meaHandleOn = false; // v51.8 小节宽度手柄显示开关（GP 式，小节图层「宽度手柄」切换）
 let fingMode = false;    // v41.3 指法直录模式：数字键 1–5 写入 voxCol.fing
 let activeLyr = 0;
 let activeTab = 'tab';
@@ -3497,6 +3499,10 @@ function measureLayout(mea){
     beatW[i]=xA;
     warps.push({T,X});
   }
+  /* v51.8 单小节宽度系数 mea.wf（GP 式手柄，0.6–2.5，默认 1）：缩放拍宽与拍内映射
+     （同下方 rowMax 压缩机制）；weight 随之缩放 → 行内两端对齐按调整后内容量分配 */
+  const wf = Math.max(0.6, Math.min(2.5, mea.wf||1));
+  if(wf!==1){ beatW=beatW.map(w=>w*wf); warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*wf); }); }
   inner = beatW.reduce((a,b)=>a+b,0);
   /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
   const rowMax=(PAGE_W-2*MARGIN-STAFF_HEAD_W)-gapTotal-pad*2;
@@ -5747,6 +5753,32 @@ function render(){
   if(zl) zl.textContent = Math.round(viewZoom*100)+'%';
   barZones.forEach(z=>p.push(z));
   clefZones.forEach(z=>p.push(z));   // v51.1 谱号热区压在行首小节线热区之上（其余头部区域仍归行首线热区）
+  /* v51.8 小节宽度手柄（GP 式）：开关开启时每小节右缘上方画 ↔+▼ 手柄，拖动=调本小节宽度系数、
+     双击=复位；已调整过的小节手柄以强调色标出。顶层绘制、压过所有热区 */
+  if(meaHandleOn && !viewerMode) systems.forEach((sys2, sIdx2)=>{
+    const oy2=sysY[sIdx2], M2=sysM[sIdx2];
+    let yT=Infinity;
+    if(song.tabVoices.length)
+      yT=Math.min(yT, song.tabStaff? oy2+M2.tabStaffB[0]-4*7.5 : oy2+M2.tabTops[0]);
+    if(song.voxVoices.length){
+      const nt2=(song.voxNotations||[])[0], dual2=(song.voxDual||[])[0];
+      const vy2=oy2+M2.voxYs[0];
+      yT=Math.min(yT, isStaffNota(nt2)? vy2-6-(dual2?26:0)-30 : vy2-13);
+    }
+    if(yT===Infinity) return;
+    const hy=yT-10;   // 手柄基线：本系统最上方谱行再上移
+    sys2.measures.forEach(lm=>{
+      const hx=MARGIN+STAFF_HEAD_W+lm.x+lm.L.w;   // 小节右缘（右小节线位置）
+      const mea2=song.measures[lm.mi];
+      const adj=(mea2.wf||1)!==1;
+      const cc=adj? 'var(--accent)' : 'var(--faint)';
+      p.push(`<g data-meahandle="${lm.mi}" data-mw="${lm.L.w.toFixed(1)}" style="cursor:ew-resize">`
+        +`<line x1="${(hx-8).toFixed(1)}" y1="${(hy-6).toFixed(1)}" x2="${(hx+8).toFixed(1)}" y2="${(hy-6).toFixed(1)}" stroke="${cc}" stroke-width="1.2"/>`
+        +`<path d="M ${(hx-8).toFixed(1)} ${(hy-6).toFixed(1)} l 3 -2.4 v 4.8 z M ${(hx+8).toFixed(1)} ${(hy-6).toFixed(1)} l -3 -2.4 v 4.8 z" fill="${cc}"/>`
+        +`<path d="M ${(hx-4.2).toFixed(1)} ${(hy-2.5).toFixed(1)} h 8.4 l -4.2 6 z" fill="${adj?'var(--accent)':'var(--muted)'}"/>`
+        +`<rect x="${(hx-11).toFixed(1)}" y="${(hy-12).toFixed(1)}" width="22" height="18" fill="transparent"><title>拖动调节第${lm.mi+1}小节宽度（当前 ${Math.round((mea2.wf||1)*100)}%）· 双击复位</title></rect></g>`);
+    });
+  });
   svg.innerHTML = p.join('');
   syncInputs();
 }
@@ -7760,6 +7792,39 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(!(t instanceof Element)) return;
   blurSel = false;   // 点击谱面 → 恢复光标
   lastEnt = null;    /* v48.0 手动点选即放弃回落锚点：改已有音符的变音/八度应就地生效 */
+  /* v51.8 小节宽度手柄：拖动=调 mea.wf（实时预览，松手一次 mutate 可撤销）；双击=复位 */
+  { const mh = t.closest? t.closest('[data-meahandle]') : null;
+    if(mh){
+      if(e.button!==0) return;
+      const mi2=+mh.dataset.meahandle, w0=Math.max(20, +mh.dataset.mw||100);
+      const mea2=song.measures[mi2]; if(!mea2) return;
+      if(e.detail>=2){
+        if((mea2.wf||1)!==1){ mutate(()=>{ delete mea2.wf; }); toast('第'+(mi2+1)+'小节宽度已复位 100%'); }
+        return;
+      }
+      const svg2=document.getElementById('score'), r2=svg2.getBoundingClientRect(), vb2=svg2.viewBox.baseVal;
+      const kk=(vb2&&vb2.width&&r2.width)? vb2.width/r2.width : 1;
+      const wf0=mea2.wf||1, sx2=e.clientX;
+      let live=wf0, raf=0;
+      const mv2=ev=>{
+        const dx=(ev.clientX-sx2)*kk;
+        live=Math.max(0.6, Math.min(2.5, wf0*(w0+dx)/w0));
+        mea2.wf=live;
+        if(!raf) raf=requestAnimationFrame(()=>{ raf=0; render(); });
+      };
+      const up2=()=>{
+        document.removeEventListener('pointermove',mv2); document.removeEventListener('pointerup',up2);
+        if(raf){ cancelAnimationFrame(raf); raf=0; }
+        const fin=Math.round(live*100)/100;
+        if(wf0===1) delete mea2.wf; else mea2.wf=wf0;   // 回到起始状态再 mutate（undo 快照记录原状）
+        if(Math.abs(fin-wf0)<0.01){ render(); return; }
+        mutate(()=>{ if(Math.abs(fin-1)<0.02) delete mea2.wf; else mea2.wf=fin; });
+        toast('第'+(mi2+1)+'小节宽度 '+Math.round(fin*100)+'%（拖动手柄再调 · 双击复位）');
+      };
+      document.addEventListener('pointermove', mv2);
+      document.addEventListener('pointerup', up2);
+      return;
+    } }
   /* 点击小节号 → 选中整小节（可复制/粘贴） */
   if(t.dataset.measuresel!==undefined){
     measureSel = +t.dataset.measuresel;
@@ -8400,6 +8465,7 @@ window.addEventListener('pointerdown', e=>{
     let mqSt=null, mqBox=null, mqMoved=false;
     svgSc.addEventListener('pointerdown', e=>{
       if(e.pointerType!=='mouse' || e.button!==0 || audio.playing) return;
+      if(e.target.closest && e.target.closest('[data-meahandle]')) return;   // v51.8 宽度手柄拖动不启动框选
       mqSt={x:e.clientX, y:e.clientY}; mqMoved=false;
     });
     window.addEventListener('pointermove', e=>{
@@ -8831,6 +8897,14 @@ document.getElementById('b-delcol-t').onclick = ()=>{ if(sel.row==='tab') delCol
 document.getElementById('b-inscol-v').onclick = ()=>insColumn('vox');
 document.getElementById('b-delcol-v').onclick = ()=>{ if(sel.row==='vox') delColumn(); };
 document.getElementById('b-insmea').onclick = insMeasure;
+/* v51.8 小节宽度手柄开关（GP 式）：谱面每小节右上角 ↔▼ 拖动单独调宽 */
+{ const bh=document.getElementById('b-meahandle');
+  if(bh) bh.onclick=()=>{
+    meaHandleOn=!meaHandleOn;
+    bh.classList.toggle('on', meaHandleOn);
+    render();
+    toast(meaHandleOn? '宽度手柄已开启：拖动小节右上角 ↔▼ 单独调宽，双击复位' : '宽度手柄已隐藏（已调整的小节宽度保留）');
+  }; }
 document.getElementById('b-delmea').onclick = delMeasure;
 document.getElementById('b-undo').onclick = undo;
 document.getElementById('b-redo').onclick = redo;
@@ -14376,7 +14450,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.7';
+const APP_VER='v51.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14399,6 +14473,7 @@ const APP_VER='v51.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.8</span><div><b>小节宽度手柄</b>（Guitar Pro 式）：左栏「小节」层新增<b>宽度手柄</b>开关——开启后每小节右上角显示 <b>↔▼</b> 手柄，<b>左右拖动单独调节该小节宽度</b>（60%–250%，实时预览），双击手柄复位 100%，Ctrl+Z 可撤销；已调整过的小节手柄以朱砂色标出。调整保存在曲谱里，行内其余小节按两端对齐自动重排；关闭开关只隐藏手柄、宽度保留。</div></li>
     <li><span class="v">v51.7</span><div><b>谱末按 → 自动续小节</b>（Guitar Pro 式）：光标在<b>最后一个音位</b>时再按右方向键，自动在曲末追加一个空白小节并把光标落进去，录入不再需要先手动「插入小节」；Ctrl+Z 可撤销。仅显式按 → 触发——落音自动前进、歌词回车前进不会扩谱。</div></li>
     <li><span class="v">v51.6</span><div><b>连音收敛 + 时值线修正</b>：①连音预设只保留<b>三连音</b>——5/6/7 连音及任意比例统一并入「<b>N连音</b>」（弹窗改 N 时自动建议 M：5/6/7→4、9–15→8、2→3、4→6，可手改）；②<b>N 连音时值线（符杠）修正</b>——8:7、4:3、7:6 等非整拍连音此前会被拍边界拦腰拆断符杠、或与相邻普通音并成一杠，现连音组按 N 个一块独立成杠，与连音括线分块完全一致（五线谱符杠/TAB 符杠/简谱减时线三处同修）。</div></li>
     <li><span class="v">v51.5</span><div><b>N连音打磨</b>：①「自定连音」更名为「<b>N连音</b>」，图标与三连音同款（数字换 N）；②<b>音符不足自动补齐</b>——设定 N 连音时选中的音不够 N 个（或单音无法拆分，如 7:6、时值过小）不再仅提示，弹窗一键<b>自动补齐空拍</b>凑满 N 个并整组设标，补齐的空拍与所选音同时值，可直接继续输入音符。</div></li>
