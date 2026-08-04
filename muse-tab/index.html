@@ -4595,12 +4595,13 @@ function render(){
         }
         /* 小节线热区：点击=选中小节线设置反复/终止符号；按住=选中本小节该声部 */
         {
-          const selL = barSel && barSel.R===lm.mi;
+          /* v51.9 高亮限定被点击的声部行（barSel 带 row/vi）：多声部同一小节边界不再全行亮起 */
+          const selL = barSel && barSel.R===lm.mi && (!barSel.row || (barSel.row==='tab' && barSel.vi===vi));
           /* v46.0 行首小节线热区左延至系统起始线：此前可见行首竖线在 oxH、热区在 mx-5（错位 ~26px）点不中 */
           const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
           barZones.push(`<rect class="barzone" x="${zxL}" y="${tabTop-4}" width="${zwL}" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:tab:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节吉他谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
-            const selR = barSel && barSel.L===lm.mi;
+            const selR = barSel && barSel.L===lm.mi && (!barSel.row || (barSel.row==='tab' && barSel.vi===vi));
             barZones.push(`<rect class="barzone" x="${bx-5}" y="${tabTop-4}" width="10" height="${STAFF+8}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:tab:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节吉他谱</title></rect>`);
           }
         }
@@ -5135,12 +5136,13 @@ function render(){
         }
         /* 小节线热区：点击=选中小节线设置符号；按住=选中本小节简谱声部 */
         {
-          const selL = barSel && barSel.R===lm.mi;
+          /* v51.9 高亮限定被点击的声部行（同 TAB 行口径） */
+          const selL = barSel && barSel.R===lm.mi && (!barSel.row || (barSel.row==='vox' && barSel.vi===vi));
           /* v46.0 行首小节线热区左延至系统起始线（同 TAB 行口径） */
           const zxL = lmIdx===0? oxH-4 : mx-5, zwL = lmIdx===0? (mx-oxH)+9 : 10;
           barZones.push(`<rect class="barzone" x="${zxL}" y="${yT2-3}" width="${zwL}" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selL?0.3:0}" data-bar="${lm.mi-1}:${lm.mi}:vox:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节简谱 · Ctrl+点击：多选小节</title></rect>`);
           if(isRowEnd || isLast){
-            const selR = barSel && barSel.L===lm.mi;
+            const selR = barSel && barSel.L===lm.mi && (!barSel.row || (barSel.row==='vox' && barSel.vi===vi));
             barZones.push(`<rect class="barzone" x="${bx-5}" y="${yT2-3}" width="10" height="${yB2-yT2+6}" fill="var(--accent)" fill-opacity="${selR?0.3:0}" data-bar="${lm.mi}:${isLast?-1:lm.mi+1}:vox:${vi}" style="cursor:pointer"><title>右键：小节线设置（反复/终止）· 左键：选中小节线 · 按住：选中本小节简谱</title></rect>`);
           }
         }
@@ -7838,7 +7840,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(t.dataset.bar!==undefined){
     const seg = t.dataset.bar.split(':');
     const L=+seg[0], R=+seg[1], row=seg[2], vi=+seg[3];
-    if(e.button===2){ showBarMenu(e.clientX, e.clientY, L, R); return; }
+    if(e.button===2){ showBarMenu(e.clientX, e.clientY, L, R, row, vi); return; }
     /* v46.0 Ctrl+点击小节线：多选小节——首次 Ctrl+点选中该小节整声部，
        继续 Ctrl+点其他小节线扩展为连续小节范围（可整段复制/粘贴/批量操作）。
        v49.7 Shift 等效（避开本机双击 Ctrl 类全局热键误唤系统搜索） */
@@ -7875,9 +7877,10 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     }, 450);
     const off=()=>{ document.removeEventListener('pointerup',up); document.removeEventListener('pointermove',mv); };
     const up=()=>{ clearTimeout(tm); off(); if(held) return;
-      if(e.pointerType!=='mouse'){ showBarMenu(sx, sy, L, R); return; }
+      if(e.pointerType!=='mouse'){ showBarMenu(sx, sy, L, R, row, vi); return; }
       measureSel=null; selRange=null; noteSel=[]; closeTech();
-      barSel={L, R}; render();
+      blurSel=true;   // v51.9 选中小节线时熄灭音符光标（避免「多处光标亮起」）
+      barSel={L, R, row, vi}; render();
       toast('已选中小节线 · 右键：反复/终止/段落设置'); };
     const mv=ev=>{ if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>11){ clearTimeout(tm); off(); } };
     document.addEventListener('pointerup', up);
@@ -8369,9 +8372,10 @@ function showGraceMenu(mi, ci, vi, kind, cx, cy){
   });
 }
 /* 小节线设置弹窗：反复开始/反复结束/终止线（L=线左侧小节，R=线右侧小节） */
-function showBarMenu(cx, cy, L, R){
+function showBarMenu(cx, cy, L, R, row, vi){
   closePop();
-  barSel = {L, R}; render();   // 高亮选中的小节线
+  blurSel=true;   // v51.9 弹菜单同样熄灭音符光标
+  barSel = {L, R, row, vi}; render();   // 高亮选中的小节线（仅被点击的声部行，row/vi 缺省时全行）
   const mL = L>=0? song.measures[L] : null;
   const mR = (R>=0 && R<song.measures.length)? song.measures[R] : null;
   if(!mL && !mR) return;
@@ -14450,7 +14454,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.8';
+const APP_VER='v51.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14473,6 +14477,7 @@ const APP_VER='v51.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v51.9</span><div><b>小节线选中高亮修正</b>：单击小节线不再多处亮起——①多声部（双吉他/多行谱）时只高亮<b>被点击的那一行</b>的小节线，其他声部同位置不再一起变红；②选中小节线时<b>音符光标同时熄灭</b>，谱面同一时刻只有一个选中焦点。</div></li>
     <li><span class="v">v51.8</span><div><b>小节宽度手柄</b>（Guitar Pro 式）：左栏「小节」层新增<b>宽度手柄</b>开关——开启后每小节右上角显示 <b>↔▼</b> 手柄，<b>左右拖动单独调节该小节宽度</b>（60%–250%，实时预览），双击手柄复位 100%，Ctrl+Z 可撤销；已调整过的小节手柄以朱砂色标出。调整保存在曲谱里，行内其余小节按两端对齐自动重排；关闭开关只隐藏手柄、宽度保留。</div></li>
     <li><span class="v">v51.7</span><div><b>谱末按 → 自动续小节</b>（Guitar Pro 式）：光标在<b>最后一个音位</b>时再按右方向键，自动在曲末追加一个空白小节并把光标落进去，录入不再需要先手动「插入小节」；Ctrl+Z 可撤销。仅显式按 → 触发——落音自动前进、歌词回车前进不会扩谱。</div></li>
     <li><span class="v">v51.6</span><div><b>连音收敛 + 时值线修正</b>：①连音预设只保留<b>三连音</b>——5/6/7 连音及任意比例统一并入「<b>N连音</b>」（弹窗改 N 时自动建议 M：5/6/7→4、9–15→8、2→3、4→6，可手改）；②<b>N 连音时值线（符杠）修正</b>——8:7、4:3、7:6 等非整拍连音此前会被拍边界拦腰拆断符杠、或与相邻普通音并成一杠，现连音组按 N 个一块独立成杠，与连音括线分块完全一致（五线谱符杠/TAB 符杠/简谱减时线三处同修）。</div></li>

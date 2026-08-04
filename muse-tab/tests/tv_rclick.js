@@ -21,13 +21,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); blurSel = false; });
   const PD = (selDesc, init) => `document.querySelector('${selDesc}').dispatchEvent(new PointerEvent('pointerdown', Object.assign({bubbles:true, composed:true}, ${JSON.stringify(init)})))`;
 
-  // T1 左键点小节线：仅选中（barSel 置位、高亮 0.3、无 #popmenu），pointerup 收尾
+  // T1 左键点小节线：仅选中（barSel 置位、高亮 0.3、无 #popmenu），pointerup 收尾；
+  //    v51.9 音符光标同时熄灭（blurSel）——不再「多处光标亮起」
   let r = await pg.evaluate(`(()=>{
+    sel={mi:0,row:'tab',vi:0,ci:0,si:3}; blurSel=false; render();
     ${PD('#score .barzone', { pointerType: 'mouse', button: 0 })};
     document.dispatchEvent(new PointerEvent('pointerup', {bubbles:true}));
     const hi=[...document.querySelectorAll('#score .barzone')].some(z=>z.getAttribute('fill-opacity')==='0.3');
-    return {barSel:!!barSel, pop:!!document.getElementById('popmenu'), hi}; })()`);
-  T(r.barSel && !r.pop && r.hi, 'T1 左键小节线=仅选中', JSON.stringify(r));
+    const noteCur=document.querySelectorAll('#score circle[r="8"][fill-opacity="0.15"]').length;
+    return {barSel:!!barSel, pop:!!document.getElementById('popmenu'), hi, noteCur}; })()`);
+  T(r.barSel && !r.pop && r.hi && r.noteCur === 0, 'T1 左键小节线=仅选中+音符光标熄灭', JSON.stringify(r));
 
   // T2 右键点小节线：立即弹出设置菜单（含反复记号项）
   r = await pg.evaluate(`(()=>{
@@ -75,6 +78,18 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     closeQuickbar();
     return {prevented:ev.defaultPrevented, degKeep}; })()`);
   T(r.prevented && r.degKeep, 'T6 默认菜单屏蔽+右键不改音高', JSON.stringify(r));
+
+  // T7 v51.9 多声部只亮被点的行：双吉他声部点吉他1小节线 → 高亮热区全部属 :tab:0，吉他2 不亮
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('guitar',{title:'r2',beats:4,unit:4,key:'C',nMea:2,nTab:2,nVox:0,lyr:0});
+    loadSong(s); blurSel=false;
+    const z=document.querySelector('#score .barzone[data-bar="0:1:tab:0"]');
+    z.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true, composed:true, pointerType:'mouse', button:0}));
+    document.dispatchEvent(new PointerEvent('pointerup', {bubbles:true}));
+    const lit=[...document.querySelectorAll('#score .barzone')].filter(x=>x.getAttribute('fill-opacity')==='0.3');
+    return {n:lit.length, allV0:lit.every(x=>x.dataset.bar.indexOf(':tab:0')>=0),
+      v1lit:lit.some(x=>x.dataset.bar.indexOf(':tab:1')>=0)}; })()`);
+  T(r.n >= 1 && r.allV0 && !r.v1lit, 'T7 多声部仅亮被点行', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
