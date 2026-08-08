@@ -6282,11 +6282,11 @@ function setRibbon(t){
     /* v46.1 渲染顺序：常规技法 → 泛音类（自然 N.H. + 人工 A.H./P.H./T.H.）→ 其余 gtype 专属 → 清除恒最后 */
     const techHtml = ()=>EB_TECHS.filter(e=>e[0]!=='').map(tBtn).join('') + gtechHtml()
       + EB_TECHS.filter(e=>e[0]==='').map(tBtn).join('');
-    /* v42.3 gtype 专属技法：按 song.gtype 过滤（lead/finger；'solo' 两者皆显）；非独奏谱不显 */
-    const gtechHtml = ()=>{ const gt = song && song.gtype; if(!gt) return '';
-      return EB_GTECH.filter(([k,l,g,ctx])=> ctx===gt || (ctx==='solo'))
+    /* v42.3 原按 song.gtype 过滤（lead 电吉他/finger 指弹/无 gtype 弹唱各显各的）；
+       v52.6 产品拍板统一：只要是吉他谱，摇把/泛音细分/let ring/pima/打板全部技法一并显示，
+       不再按风格分栏（gtype 仍保留用于新建向导默认调弦等，仅不再作面板过滤） */
+    const gtechHtml = ()=> EB_GTECH
         .map(([k,l,g,ctx,kind,val])=>`<button class="eb ico" data-gtech="${kind}:${val}" title="${l}（${kind==='perc'?'作用于当前列':'作用于选中音符'}）"><b class="g">${g}</b><span>${l}</span></button>`).join('');
-    };
     const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
     if(uiShell){
       /* v40.3 新版：技法/记号渲染进左栏图层面板，编辑栏第二行留空（CSS 已隐藏） */
@@ -14618,7 +14618,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.5';
+const APP_VER='v52.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14641,6 +14641,7 @@ const APP_VER='v52.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.6</span><div><b>吉他技法面板统一</b>：独奏（电吉他）/指弹/弹唱三类吉他谱的左栏技法符号不再按风格分栏——只要是吉他谱，<b>摇把、泛音细分（A.H./P.H./T.H.）、let ring、pima 右手指法、打板</b>等全部技法一并显示，弹唱谱也能直接使用完整技法集（吉他类型仍保留，用于新建向导的默认调弦等）。</div></li>
     <li><span class="v">v52.5</span><div><b>左右手指法 + 拨片方向</b>（吉他谱，Guitar Pro 对标）：记号层新增三组标记——①<b>左手指法</b> Ⓣ①②③④⓪（标注带圆圈数字，快捷键 <b>Ctrl+Alt+T/1/2/3/4/0</b>）；②<b>右手指法</b> p/i/m/a 开放给<b>全部吉他类型</b>（此前仅指弹谱面板有，标在品位数字下方）；③<b>拨片方向</b>：下拨 ⊓ / 上拨 ∨（列级标记，标注带显示）。均为同键再点清除、可多选批量；MusicXML 按 fingering/pluck/down-bow·up-bow 标准元素出入。</div></li>
     <li><span class="v">v52.4</span><div><b>最小时值扩至 64 分音符</b>（全谱类）：①时值库/顶栏时值组新增 <b>64分</b>，快捷键扩展 <b>Y=32分、U=64分</b>；②附点档位整体下移——<b>16分可双附点、32分可单附点</b>（原 32 分不可附点的限制解除）；③拆分链延伸：32分可再拆为两个64分；④刻版补齐：TAB 第四层符杠/第四道符尾钩、简谱第四条减时线、五线谱 64 分符尾与休止符字形（SMuFL 同源合成）；⑤ MusicXML 按 64th 精确出入（divisions 升为 96），自动补齐/节拍修复网格同步细化到 64 分。</div></li>
     <li><span class="v">v52.3</span><div><b>增减小节容量计算</b>：①「+ 增加小节」现在会<b>自动计算本行放不放得下</b>——按各小节自然宽度判断（允许适度压缩），塞不下时按钮置灰并提示，不再能把一行塞爆成叠字；②<b>拖柄缩窄自动排入</b>——用拖柄把本行小节缩窄、腾出足够空间后，后续小节自动排入本行（无需手动点 +），配合置灰提示形成完整工作流：先缩窄 → 空间够了自动进（或 + 变为可点）。</div></li>

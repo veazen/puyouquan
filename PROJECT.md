@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-01 · 当前版本 **v52.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-01 · 当前版本 **v52.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v52.6 吉他技法面板统一（产品拍板，撤 v42.3 gtype 分栏）**：`gtechHtml` 去掉 `song.gtype` 过滤——任何吉他谱（独奏 lead/指弹 finger/弹唱无 gtype）左栏技法层均显示 EB_GTECH 全量 15 项（泛音细分3+let ring+摇把4+pima4+打板3）；EB_GTECH 的 ctx 字段保留不再读取，gtype 字段本身保留（新建向导默认调弦/文案仍用）。applyGtech 本就不 gate gtype，数据层零改动。tv_gtech T1/T4/T8 断言翻转（n 8/8/0 → 15/15/15，noFinger/noBar → has*），16/16；tv_matrix/tv_detail1/tv_fing 绿。
+>
 > **v52.5 左右手指法 + 拨片方向（产品需求，GP 对标）**：数据纯增量——`note.lhF`∈T/0-4（左手）、`col.pk`∈d/u（拨片，列级）；右手复用既有 `note.rhFing`（pima）。入口：mark-body 追加 12 钮（Ⓣ①②③④⓪ / pima / ⊓∨ SVG），新分发 `applyFingerMark(kind,val)`（比 applyGtech 宽松：无 noteSel 时作用当前 sel.si 音，多选批量；同值 toggle 清除）+ `applyPickDir`；键盘 **Ctrl+Alt+T/1-4/0**（置于 ctrl/alt 早退守卫之前）。渲染：lhF=标注带圆圈字（laneY 栈位，r4.7 纸底圈防线串字）、rhFing 沿用品位下方斜体、pk=列级 ⊓/∨ 入标注带；「清除技法」联动 delete lhF。MusicXML：TAB 路径 technical 内 `<fingering>`/`<pluck>`/`<down-bow/>·<up-bow/>`（拨片挂列首音）出入往返。右手 pima 由此对全部 gtype 开放（指弹专属面板保留原入口）。tv_fing 六断言（按钮组/左手+快捷键/右手通用化/拨片 toggle+渲染/圆圈字+清除联动/MusicXML 往返）入 CORE；tv_matrix/tv_gtech/tv_tabmxl/tv_detail1/tv_mxl 绿。
 >
 > **v52.4 最小时值 32分→64分（产品需求，全谱类）**：涉及 20+ 落点——数据：MIN_W+64:9、DUR_SINGLE/DUR_GLYPH(𝅘𝅥𝅱)/durNm/habitLabel 补 64；`maxDotLevel` 档位下移 `dur<=16?2:dur<=32?1:0`；dotLink/批量附点/邻音联动上限 32→64（×2/×4 守卫三处）、splitNote/applyTuplet nd 上限 64；fitDurTo 与节拍修复 VALS 网格加 64。刻版：TAB 孤立符尾第四钩(stemY-15)与符杠 64 层(stemY-14.2)、附点对齐层、简谱第四条减时线(voxY+13)与 under/undN/gu/under2 四处计数、systemExtras 纵向预留；五线谱 flag64th/rest64th **运行时字形合成**——`tPath` 平移 32 分字形自拷贝取填充并集（符尾钩距 0.588 空、休止珠距 (0.232,-0.988)，量自 16↔32 bb 差），smg 正常调用。键盘 Y/U=32/64。MusicXML：divisions 48→96（64分附点=9 整数）、TYPE/TYPE_INV 补 64th、duration 兜底 cand 两路径补 [64,0.0625]。**关联套件断言联动**：tv_dot T1b 重写（档位下移）、T5 双附点四分 84→168、tv_mxl expDur 192→384。新增 tv_d64 七断言（算术+档位+字形合成/拆分链+守卫/TAB四层杠几何/简谱第四线 delta/五线渲染/MusicXML 往返/键盘）入 CORE；11 套件全绿。

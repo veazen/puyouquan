@@ -19,8 +19,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead',tuning:TUNINGS.dropD.t});
     s.measures[0].tabs[0][0].notes=[{s:1,f:7}]; loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
-    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, hasBar:g.includes('bar:dive'), hasHm:g.includes('hm:A'), hasLr:g.includes('tech:lr'), noFinger:!g.includes('rhFing:p'), n:g.length}; })()`);
-  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.hasBar && r.hasHm && r.hasLr && r.noFinger && r.n === 8, 'T1 电吉他gtype+专属面板', JSON.stringify(r));
+    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, hasBar:g.includes('bar:dive'), hasHm:g.includes('hm:A'), hasLr:g.includes('tech:lr'), hasFinger:g.includes('rhFing:p'), n:g.length}; })()`);
+  /* v52.6 面板统一：任何吉他谱全量显示（15 项），不再按 gtype 过滤 */
+  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.hasBar && r.hasHm && r.hasLr && r.hasFinger && r.n === 15, 'T1 电吉他gtype+统一面板', JSON.stringify(r));
 
   // T2 电吉他记号渲染 + Drop D 谱首标注 + N.C.
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -46,8 +47,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('solo',{title:'y',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'finger'});
     s.measures[0].tabs[0][0].notes=[{s:3,f:0}]; loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
-    return {gt:song.gtype, hasRh:g.includes('rhFing:p'), hasPerc:g.includes('perc:bass'), hasLr:g.includes('tech:lr'), noBar:!g.includes('bar:dive'), n:g.length}; })()`);
-  T(r.gt === 'finger' && r.hasRh && r.hasPerc && r.hasLr && r.noBar && r.n === 8, 'T4 指弹面板刷新', JSON.stringify(r));
+    return {gt:song.gtype, hasRh:g.includes('rhFing:p'), hasPerc:g.includes('perc:bass'), hasLr:g.includes('tech:lr'), hasBar:g.includes('bar:dive'), n:g.length}; })()`);
+  T(r.gt === 'finger' && r.hasRh && r.hasPerc && r.hasLr && r.hasBar && r.n === 15, 'T4 指弹统一面板', JSON.stringify(r));
 
   // T5 指弹记号渲染（pima + 打板×2）
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -78,13 +79,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {tech:n.tech, hmT:n.hmT, bar:n.bar, rhFing:n.rhFing}; })()`);
   T(!r.tech && !r.hmT && !r.bar && !r.rhFing, 'T7 清除技法全清', JSON.stringify(r));
 
-  // T8 弹唱谱(guitar)不显示 gtype 专属技法（无 gtype）
+  // T8 v52.6 弹唱谱（无 gtype）同样显示全量技法面板（统一不再按风格分栏）
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
     const s=createSong('tanchang',{title:'弹唱',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:1,lyr:1});
     loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
-    return {dt:docType(song), gt:song.gtype||null, n:g.length}; })()`);
-  T(r.dt === 'guitar' && r.gt === null && r.n === 0, 'T8 弹唱无gtype技法', JSON.stringify(r));
+    return {dt:docType(song), gt:song.gtype||null, n:g.length,
+      hasBar:g.includes('bar:dive'), hasRh:g.includes('rhFing:p'), hasPerc:g.includes('perc:bass')}; })()`);
+  T(r.dt === 'guitar' && r.gt === null && r.n === 15 && r.hasBar && r.hasRh && r.hasPerc, 'T8 弹唱统一面板', JSON.stringify(r));
 
   // T8b v49.5 框选：鼠标拖框圈选 TAB 音符 → noteSel 批量入选 → P.M. 范围落数据
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
