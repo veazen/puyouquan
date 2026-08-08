@@ -7819,6 +7819,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   /* v52.0 行尾布局按钮（GP 式 ○+−）：恢复本行默认 / 下一行首小节移入 / 行尾小节移出 */
   { const sb = t.closest? t.closest('[data-sysact]') : null;
     if(sb){
+      blurSel=true;   // 布局按钮是排版操作，不点亮音符光标
       if(e.button!==0 || !sb.dataset.sysact) return;
       const seg=sb.dataset.sysact.split(':'); const act=seg[0], m1=+seg[1], m2=+seg[2];
       if(act==='pull'){
@@ -7841,6 +7842,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   /* v51.8 小节宽度手柄：拖动=调 mea.wf（实时预览，松手一次 mutate 可撤销）；双击=复位 */
   { const mh = t.closest? t.closest('[data-meahandle]') : null;
     if(mh){
+      blurSel=true;   // 宽度手柄是排版操作，不点亮音符光标
       if(e.button!==0) return;
       const mi2=+mh.dataset.meahandle, w0=Math.max(20, +mh.dataset.mw||100);
       const mea2=song.measures[mi2]; if(!mea2) return;
