@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-01 · 当前版本 **v52.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-01 · 当前版本 **v52.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v52.3 增减小节容量计算（缺陷反馈：+ 可把行塞爆成叠字、缩窄无自动排入反馈）**：①「+」容量守卫双保险——按钮渲染时按**自然宽度和**判定 `natRow+natNext ≤ availW×1.75`（允许压缩到 ~57%；sys.w 已被两端对齐改写为 avail，须逐小节重算 measureLayout(mea).w），塞不下置灰+title 指引「先用拖柄缩窄」；点击处理再复核一次（按钮状态可能滞后于布局变化），拒绝时 toast 指引。②拖柄缩窄自动排入本就成立（断行按 wf 后自然宽度），T10 显式回归护住该链路（密集 3 小节自然 [2,1] → 前两节 wf 0.4 → 首行变 3 → 删 wf 回 [2,1]）。tv_meaw 扩至 11（T10 缩窄自动排入 / T11 连点 + 到置灰、首行自然宽比 ≤1.75、无过度塞入），tv_matrix/tv_detail1/tv_cursor 绿。
+>
 > **v52.2 宽度手柄与增减行修正（产品反馈三条）**：①手柄图形第三版：◂▮▸ 列宽拖柄（.mh-i 竖块 2.8×12 + 内向双三角，表格列宽通用符号），去百分比文字（title 保留说明）；②wf 钳制 0.6–2.5 → **0.3–3**（measureLayout 与拖动两处；0.6 下限过早卡住缩窄——注意 T1 断言随钳制界联动）；③**增减小节标志卫生**：pull 时同时 `delete nm.brk`、push 时同时 `delete last.brk`——被移动小节携带的旧行尾 brk 若不清除，会把后续行钉死在旧断点（复现：连续两次「−」后第二行变 [1] 单小节孤行而非 [1,2,3] 合并），每次操作只钉本行行尾一个边界，剩余小节全部按宽度自由重排。tv_meaw 扩至 9（T9 四步链：自然→减→再减合并重排→加回，断言无 stale brk），tv_matrix/tv_cursor/tv_rclick 绿。
 >
 > **v52.1 排版控件视觉调整（产品反馈）**：①行尾三按钮改对齐**首行谱表垂直居中**——手柄块内先算首行谱表带 [rT,rB]（联排=上方五线谱 4×7.5、TAB=六线谱表 staffH、五线谱=sb-30..sb、简谱=vy-13..vy+4，取 top 最小的候选），按钮组锚 `mid=(rT+rB)/2` ±16；②宽度手柄弃 GP ↔▼ 样式，改**圆角胶囊（10×13 rx5）+双竖纹 grip**（.meah/.meah-pill，hover 描边 accent），调整过的小节胶囊 accent-soft 底 + 上方 7.5px 百分比标注（信息就地可见，替代原 title-only）。选择器 data-meahandle/data-sysact 未变，tv_meaw 8/8 零改动过，tv_matrix/tv_cursor/tv_rclick 绿。

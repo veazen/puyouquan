@@ -159,6 +159,48 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && r.a2 && JSON.stringify(r.r2) === '["0","1,2,3"]' && r.staleClean
     && r.a3 && r.first3.indexOf('0,1') === 0, 'T9 剩余小节自由重排', JSON.stringify(r));
 
+  // T10 v52.3 拖柄缩窄 → 自然宽度腾出空间后，后续小节自动排入本行（无需手动 +）
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'd', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 0, lyr: 0 });
+    const mk8 = (f) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
+    s.measures.forEach(m => { m.tabs[0] = [mk8(3), mk8(5), mk8(7), mk8(5), mk8(3), mk8(5), mk8(7), mk8(5)]; });
+    loadSong(s); blurSel = true; render();
+    const len0 = layoutSystems()[0].measures.length;      // 密集小节：首行自然放不下全部 3 个
+    song.measures[0].wf = 0.4; song.measures[1].wf = 0.4; render();
+    const len1 = layoutSystems()[0].measures.length;      // 缩窄后自然宽度和变小 → 自动多排入
+    delete song.measures[0].wf; delete song.measures[1].wf; render();
+    const lenBack = layoutSystems()[0].measures.length;
+    return { len0, len1, lenBack };
+  });
+  T(r.len0 < 3 && r.len1 > r.len0 && r.lenBack === r.len0, 'T10 缩窄自动排入后续小节', JSON.stringify(r));
+
+  // T11 v52.3 「+」容量守卫：塞不下时按钮置灰（sysact 空）、点击守卫拒绝、pull 不落标志
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'e', beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 0, lyr: 0 });
+    const mk8 = (f) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
+    s.measures.forEach(m => { m.tabs[0] = [mk8(3), mk8(5), mk8(7), mk8(5), mk8(3), mk8(5), mk8(7), mk8(5)]; });
+    loadSong(s); blurSel = true; render();
+    // 首行连点 +：允许压缩到自然宽和 ≤ 行宽×1.75，超限后按钮置灰
+    const pullBtn = () => [...document.querySelectorAll('#score .sysbtn')].filter(g =>
+      g.querySelector('path') && g.dataset.sysact !== undefined)
+      .find(g => (g.dataset.sysact || '').indexOf('pull:0:') === 0 ||
+                 (!g.dataset.sysact && g.querySelector('path[d*="v 6.4"]')));
+    let clicks = 0;
+    for (let i = 0; i < 4; i++) {
+      const el = [...document.querySelectorAll('#score .sysbtn')].find(g => (g.dataset.sysact || '').indexOf('pull:0:') === 0);
+      if (!el) break;
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'mouse', button: 0 }));
+      clicks++;
+    }
+    const row0 = layoutSystems()[0].measures.length;
+    // 置灰后不存在可点的 pull 钮；且无小节被过度塞入（首行自然宽和 ≤ 行宽×1.75）
+    const noMore = ![...document.querySelectorAll('#score .sysbtn')].some(g => (g.dataset.sysact || '').indexOf('pull:0:') === 0);
+    const availW2 = PAGE_W - 2 * MARGIN - STAFF_HEAD_W;
+    let natRow = 0; layoutSystems()[0].measures.forEach(lm => { natRow += measureLayout(song.measures[lm.mi]).w; });
+    return { clicks, row0, noMore, ratio: natRow / availW2 };
+  });
+  T(r.clicks >= 1 && r.row0 >= 2 && r.noMore && r.ratio <= 1.76, 'T11 「+」容量守卫', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

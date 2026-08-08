@@ -5802,7 +5802,13 @@ function render(){
     { const m1=sys2.measures[0].mi, m2=sys2.measures[sys2.measures.length-1].mi;
       const bx0=MARGIN+STAFF_HEAD_W+sys2.w+13;
       const mid=(rT+rB)/2;
-      const canPull=m2<song.measures.length-1, canPush=m2>m1;
+      /* v52.3 「+」容量计算：按自然宽度判断本行还塞不塞得下下一小节（允许压缩到 ~57%＝自然宽和 ≤ 行宽×1.75），
+         放不下则置灰并提示——不再允许把行塞爆成叠字（sys2.w 已被两端对齐改写，须重算自然宽） */
+      const availW2 = PAGE_W - 2*MARGIN - STAFF_HEAD_W;
+      let natRow=0; sys2.measures.forEach(lm=>{ natRow+=measureLayout(song.measures[lm.mi]).w; });
+      const hasNext=m2<song.measures.length-1;
+      const fits=hasNext && (natRow + measureLayout(song.measures[m2+1]).w) <= availW2*1.75;
+      const canPull=hasNext && fits, canPush=m2>m1;
       const btn3=(act,cy2,en,tip,inner)=>p.push(
         `<g class="sysbtn" data-sysact="${en?act+':'+m1+':'+m2:''}" opacity="${en?1:0.3}" style="cursor:${en?'pointer':'default'}">`
         +`<circle cx="${bx0}" cy="${cy2.toFixed(1)}" r="6.2" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.1"/>`
@@ -5810,7 +5816,8 @@ function render(){
         +`<rect x="${bx0-8}" y="${(cy2-8).toFixed(1)}" width="16" height="16" fill="transparent"/></g>`);
       btn3('reset', mid-16, true, '本行恢复默认布局（清除本行的小节宽度调整与换行设定）',
         `<text x="${bx0}" y="${(mid-16+3.2).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--accent)">↺</text>`);
-      btn3('pull', mid, canPull, canPull?'增加小节：把下一行的首小节移入本行（本行自动压缩对齐）':'已是最后一行，无小节可移入',
+      btn3('pull', mid, canPull, canPull?'增加小节：把后续首个小节移入本行（本行自动压缩对齐）'
+        : hasNext?'本行已放不下更多小节——可先用拖柄缩窄本行小节宽度':'已是最后一行，无小节可移入',
         `<path d="M ${bx0-3.2} ${mid.toFixed(1)} h 6.4 M ${bx0} ${(mid-3.2).toFixed(1)} v 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
       btn3('push', mid+16, canPush, canPush?'删减小节：把本行行尾小节移到下一行':'本行只有一个小节，无法移出',
         `<path d="M ${bx0-3.2} ${(mid+16).toFixed(1)} h 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
@@ -7841,6 +7848,11 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       if(act==='pull'){
         const nm=song.measures[m2+1];
         if(!nm) return;
+        /* v52.3 容量复核（按钮状态可能滞后）：自然宽和超过行宽×1.75 → 拒绝并指引 */
+        { const availW2=PAGE_W-2*MARGIN-STAFF_HEAD_W;
+          let natRow=0; for(let i=m1;i<=m2;i++) natRow+=measureLayout(song.measures[i]).w;
+          if(natRow+measureLayout(nm).w > availW2*1.75)
+            return toast('本行已放不下更多小节——可先用拖柄缩窄本行小节宽度，缩出空间后小节会自动排入'); }
         mutate(()=>{ nm.pull=1; delete nm.brk; delete song.measures[m2].brk; });
         toast('已从后续小节移入一个（其余小节自动重排）'); return;
       }
@@ -14516,7 +14528,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.2';
+const APP_VER='v52.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14539,6 +14551,7 @@ const APP_VER='v52.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.3</span><div><b>增减小节容量计算</b>：①「+ 增加小节」现在会<b>自动计算本行放不放得下</b>——按各小节自然宽度判断（允许适度压缩），塞不下时按钮置灰并提示，不再能把一行塞爆成叠字；②<b>拖柄缩窄自动排入</b>——用拖柄把本行小节缩窄、腾出足够空间后，后续小节自动排入本行（无需手动点 +），配合置灰提示形成完整工作流：先缩窄 → 空间够了自动进（或 + 变为可点）。</div></li>
     <li><span class="v">v52.2</span><div><b>宽度手柄与增减行修正</b>：①手柄图形改为<b>◂▮▸ 列宽拖柄</b>（表格调列宽的通用符号：中间竖块=可拖的小节线、两侧三角=拖动方向），去掉百分比标注，已调整的小节整体强调色；②缩放范围放宽为 <b>30%–300%</b>——原 60% 下限过早卡住缩窄；③<b>增减小节后剩余小节自由重排</b>——被移动小节的旧换行标记一并清除，不再出现「只能和下一行来回换」，减一个小节后其余小节按宽度自动合并重排。</div></li>
     <li><span class="v">v52.1</span><div><b>排版控件视觉调整</b>：①行尾 ↺/+/− 三按钮改为<b>对齐首行谱表垂直居中</b>（原来悬在手柄行高度）；②小节宽度手柄换新样式——<b>圆角胶囊双竖纹拖柄</b>（专业排版/DAW 通用的 grip 视觉语言），已调整的小节胶囊填强调色底并在上方直接标注当前宽度百分比，悬停描边高亮。</div></li>
     <li><span class="v">v52.0</span><div><b>行尾布局按钮</b>（Guitar Pro 式 ○+−）：开启宽度手柄后，每行行尾出现三个圆形按钮——<b>○ 恢复本行默认布局</b>（清除本行小节的宽度调整与换行设定）、<b>+ 增加小节</b>（把下一行的首小节移入本行，行内自动压缩对齐）、<b>− 删减小节</b>（把本行行尾小节移到下一行）。每步可撤销；换行设定随曲谱保存。</div></li>
