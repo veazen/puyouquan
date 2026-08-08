@@ -2314,7 +2314,7 @@ function slashShape(baseShape, bassPc){
   }
   return baseShape;
 }
-const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11};
+const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11, 64:9};   /* v52.4 最小时值扩至 64 分 */
 const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; const MARGIN = 56;
@@ -2365,7 +2365,7 @@ const MAX_VOICES = 5, MAX_LYR = 5;
 /* ---- 时值库 ---- */
 const DUR_SINGLE = [
   {name:'全音符', dur:1},{name:'2分', dur:2},{name:'4分', dur:4},
-  {name:'8分', dur:8},{name:'16分', dur:16},{name:'32分', dur:32}
+  {name:'8分', dur:8},{name:'16分', dur:16},{name:'32分', dur:32},{name:'64分', dur:64}
 ];
 const DUR_COMBOS = [
   {name:'八分×2', durs:[[8],[8]]},
@@ -3058,6 +3058,25 @@ function smg(name, x, y, SG, opts){
   return `<path d="${g.d}" transform="translate(${(+x).toFixed(1)},${(+y).toFixed(1)}) ${tf}" fill="${opts && opts.fill || 'var(--ink)'}"/>`;
 }
 function smw(name){ const b=SMUFL[name]&&SMUFL[name].bb; return b? b[2]-b[0] : 1; }
+/* v52.4 64分字形合成：内嵌 Bravura 子集无 64 分符尾/休止——用 32 分字形与其按「钩距/珠距」
+   平移的自拷贝取填充并集合成（符尾钩距 0.588 空、休止珠距 (0.232,-0.988) 空，量自 16↔32 分字形差），
+   4 钩/4 珠形态与原生字形在谱面字号下不可分辨 */
+{ const tPath=(d,dx,dy)=>d.replace(/([A-Za-z])([^A-Za-z]*)/g,(m,cmd,args)=>{
+    const ns=(args.match(/-?\d*\.?\d+/g)||[]).map(Number);
+    const put=a=>a.map(v=>+v.toFixed(3)).join(' ');
+    if(cmd==='H') return cmd+put(ns.map(v=>v+dx));
+    if(cmd==='V') return cmd+put(ns.map(v=>v+dy));
+    if('MLCSQT'.indexOf(cmd)>=0) return cmd+put(ns.map((v,i)=>v+(i%2===0?dx:dy)));
+    return m;   // Z 及小写（相对）命令原样保留
+  });
+  const synth=(src,dx,dy,name)=>{ const g=SMUFL[src]; if(!g || SMUFL[name]) return;
+    SMUFL[name]={d:g.d+' '+tPath(g.d,dx,dy),
+      bb:[Math.min(g.bb[0],g.bb[0]+dx), Math.min(g.bb[1],g.bb[1]+dy),
+          Math.max(g.bb[2],g.bb[2]+dx), Math.max(g.bb[3],g.bb[3]+dy)]}; };
+  synth('flag32ndUp',   0, -0.588, 'flag64thUp');
+  synth('flag32ndDown', 0,  0.588, 'flag64thDown');
+  synth('rest32nd',  0.232, -0.988, 'rest64th');
+}
 function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
 /* v45.6 小节内换谱号：col.clef ∈ 'staff'|'bass'|'alto'（列级新增字段，仅五线谱声部生效；
    纯记谱视图切换——音高数据与播放不变，谱号状态自曲首沿列顺序延续） */
@@ -3171,7 +3190,7 @@ function accCarry(accSt, Li, targetAlt, keyAlt){
    注册规则：全休止挂在自上第2线下方、二分坐在中线上、其余以中线垂直居中 */
 function staffRestStr(nx, staffB, SG, dur, dotted){
   const yMid = staffB-2*SG;
-  const nm = dur===1?'restWhole': dur===2?'restHalf': dur===4?'restQuarter': dur===8?'rest8th': dur===16?'rest16th':'rest32nd';
+  const nm = dur===1?'restWhole': dur===2?'restHalf': dur===4?'restQuarter': dur===8?'rest8th': dur===16?'rest16th': dur>=64?'rest64th':'rest32nd';
   const y = dur===1? staffB-3*SG : yMid;
   const w = smw(nm)*SG;
   let s = smg(nm, nx-w/2, y, SG);
@@ -3199,7 +3218,7 @@ function dotFactor(c){ return dotLevel(c)===2? 1.75 : dotLevel(c)===1? 1.5 : 1; 
    - 16 分：仅单附点（双附点需要 64 分，超出体系）
    - 32 分：不可附点（附点需要 64 分）
    旧版"任意时值均可点附点"的限制策略由此推翻；连音内附点维持允许（如三连音内附点八分）。 */
-function maxDotLevel(dur){ return dur<=8? 2 : dur<=16? 1 : 0; }
+function maxDotLevel(dur){ return dur<=16? 2 : dur<=32? 1 : 0; }   /* v52.4 64分入体系：双附点限16分及以上、单附点限32分及以上 */
 /* v43.5 变拍子：每小节可覆盖 mea.beats/mea.unit（缺省继承 song 默认）；meaMeter 取有效拍号 */
 function meaMeter(mi){ const m=(song.measures||[])[mi]||{}; return {beats: m.beats||song.beats, unit: m.unit||song.unit}; }
 /* 连音：tup=3(或旧数据1)三连音×2/3；tup=5/6/7 → n个音占4个的时值×4/n；unit 缺省用 song.unit（变拍子传入本小节 unit）
@@ -3615,12 +3634,12 @@ function systemExtras(sys){
       if(h2>=1) maxUp=Math.max(maxUp, h2>=2? 3 : 2);   // 倚音高8度点按层数加高
       /* 倚音低音点/多减时线 → 整组上移，同样需要上方空间 */
       const lowN = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct<0? Math.min(3,-n2.oct):0)) : 0;
-      const undN = g2=> g2? (g2.dur>=32?3 : g2.dur>=16?2 : g2.dur>=8?1 : 0) : 0;
+      const undN = g2=> g2? (g2.dur>=64?4 : g2.dur>=32?3 : g2.dur>=16?2 : g2.dur>=8?1 : 0) : 0;
       const lo = Math.max(lowN(gg), lowN(ga)), un = Math.max(undN(gg), undN(ga));
       if(lo>=2 || (lo>=1 && un>=2)) maxUp=Math.max(maxUp, 3);
       else if(lo>=1 || un>=2) maxUp=Math.max(maxUp, 2);
     }
-    maxUnder=Math.max(maxUnder, c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
+    maxUnder=Math.max(maxUnder, c.dur>=64?4 : c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));
   sys.measures.forEach(lm=>{ if(song.measures[lm.mi].label || song.measures[lm.mi].keyTo) maxUp=Math.max(maxUp, 2); });   // v41.2/v41.3 排练标记/转调标记需上方空间
   /* 六线谱含 32 分/连音括号时，符干区按需加高 */
@@ -4011,7 +4030,7 @@ function habitLabel(act){
   if(act==='tie') return '连音线';
   if(act==='combo') return '组合时值';
   const i=act.indexOf(':'), k=i<0?act:act.slice(0,i), v=i<0?'':act.slice(i+1);
-  if(k==='dur') return ({1:'全音符',2:'2分音符',4:'4分音符',8:'8分音符',16:'16分音符',32:'32分音符'})[+v]||(v+'分');
+  if(k==='dur') return ({1:'全音符',2:'2分音符',4:'4分音符',8:'8分音符',16:'16分音符',32:'32分音符',64:'64分音符'})[+v]||(v+'分');
   if(k==='acc') return ({'#':'升号 ♯','b':'降号 ♭','n':'还原 ♮'})[v]||v;
   if(k==='oct') return v==='+'?'升八度':'降八度';
   if(k==='tech'){ const e=EB_TECHS.find(x=>x[0]===v); return e? e[1] : v; }
@@ -4153,14 +4172,14 @@ function editHints(){
     const col=(typeof curCol==='function')? curCol() : null, hasN=!!(col&&col.notes&&col.notes.length);
     title=hasN? '已选中吉他谱音符' : '吉他谱输入位';
     items=hasN? [
-      it('键盘输 0–24 改品位；Q/W/E/R/T 换时值，「.」附点'),
+      it('键盘输 0–24 改品位；Q/W/E/R/T/Y/U 换时值（全→64分），「.」附点'),
       it('右键点击音符：弹出快捷浮条（触屏点按即弹）'),
       it('演奏技巧：推弦 · 滑弦 · 击/勾弦 · 泛音 N.H. · 哑音 ×（记号层）','rib:tab',true),
       it('扫弦 ↑↓ · 琶音 · 拍弦 ⊠ · 延长号 · 和弦标注同在记号层','rib:tab'),
       it('框选或 Ctrl/Shift+点击多个音符可批量加技法')]
     : [
       it('点弦位直接输品位数字落音；空拍自动显示休止符'),
-      it('先选时值再输入：Q/W/E/R/T = 全/二/四/八/十六分'),
+      it('先选时值再输入：Q/W/E/R/T/Y/U = 全/二/四/八/十六/三十二/六十四分'),
       it('整小节留空 → 自动居中全休止')];
   }else if(sel.row==='vox' && st){
     title='已选中五线谱音符';
@@ -4459,7 +4478,7 @@ function render(){
           };
           const flag2 = (sx, endY, up, dur)=>{
             if(dur<8) return;   /* SMuFL 符尾字形：整体一枚，锚定符干端点 */
-            p.push(smg('flag'+(dur>=32?'32nd':dur>=16?'16th':'8th')+(up?'Up':'Down'), sx-0.55, endY, cSGt));
+            p.push(smg('flag'+(dur>=64?'64th':dur>=32?'32nd':dur>=16?'16th':'8th')+(up?'Up':'Down'), sx-0.55, endY, cSGt));
           };
           /* 逐列绘制（严格左→右，保证临时记号进位次序）：可成杠的组整组画符杠，
              其余列（四分及以上、孤立八分、休止）单列画——修复联排谱四分/二分/全音符不显示 */
@@ -4939,7 +4958,7 @@ function render(){
             if(col.dotted){
               /* 附点对齐该拍符杠组由上至下的第一条时值线（32分层/16分层/主梁）；v41.5 双附点两点并排 */
               const lv = dotLv.get(ci) || col.dur;
-              const dy = lv>=32 ? stemY-9.1 : lv>=16 ? stemY-5.1 : stemY-1.1;
+              const dy = lv>=64 ? stemY-13.1 : lv>=32 ? stemY-9.1 : lv>=16 ? stemY-5.1 : stemY-1.1;
               for(let kD=0;kD<dotLevel(col);kD++)
                 p.push(`<circle cx="${(nx+4.5+kD*4.6).toFixed(1)}" cy="${dy}" r="1.6" fill="var(--ink)"/>`);
             }
@@ -4960,7 +4979,7 @@ function render(){
             p.push(`<rect x="${x1-0.5}" y="${stemY-2.2}" width="${x2-x1+1}" height="2.2" fill="var(--ink)"/>`);
             /* 16/32 分层：连续段画整梁；组内孤立的 16/32 分（如附点8+16）
                画一截短杠（断梁），朝向组内相邻音符 */
-            [[16, stemY-6.2],[32, stemY-10.2]].forEach(([lv,yy])=>{
+            [[16, stemY-6.2],[32, stemY-10.2],[64, stemY-14.2]].forEach(([lv,yy])=>{   /* v52.4 64分层 */
               for(let a=0;a<g.idx.length;a++){
                 if(cols[g.idx[a]].dur<lv) continue;
                 let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=lv) b++;
@@ -4981,6 +5000,8 @@ function render(){
               p.push(`<path d="M ${x} ${stemY-5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
             if(cols[g.idx[0]].dur>=32)
               p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+            if(cols[g.idx[0]].dur>=64)
+              p.push(`<path d="M ${x} ${stemY-15} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);   /* v52.4 64分第四钩 */
           }
         });
         /* 连音标记（吉他谱）：时值符号下方刻度线括号，中间断开标斜体数字；
@@ -5199,7 +5220,7 @@ function render(){
           const from2 = up2? yLo-1.2 : yHi+1.2;
           p.push(`<line x1="${sx2}" y1="${from2.toFixed(1)}" x2="${sx2}" y2="${sy2.toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
           if(col2.dur>=8)   /* SMuFL 符尾字形：整体一枚，锚定符干端点 */
-            p.push(smg('flag'+(col2.dur>=32?'32nd':col2.dur>=16?'16th':'8th')+(up2?'Up':'Down'), sx2-0.55, sy2, SG));
+            p.push(smg('flag'+(col2.dur>=64?'64th':col2.dur>=32?'32nd':col2.dur>=16?'16th':'8th')+(up2?'Up':'Down'), sx2-0.55, sy2, SG));
         };
         if(!simV) cols.forEach((col,ci)=>{
           setClefCtx(ci);   // v45.6 该列生效谱号上下文
@@ -5219,7 +5240,7 @@ function render(){
             p.push(`<rect x="${clx}" y="${rowT}" width="${cw}" height="${rowH+4}" fill="var(--accent)" opacity="0.09"/>`);
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
             p.push(`<circle cx="${nx}" cy="${isStaff&&col.deg? stepY(staffStep(col,K)) : voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
-          const under = col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
+          const under = col.dur>=64?4 : col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
           /* 功能谱：和弦标注在音符上方——级数/音名一键切换；整名圆角框、常规字号；
              空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
           {
@@ -5330,7 +5351,7 @@ function render(){
             /* 整体小比例：位于主音左上/右上角，含减时线与八度点也不超过主音大小 */
             const STEP=6.5, gW=(g.notes.length-1)*STEP;
             const gxc = pre? nx-10-gW : nx+10;      // 组首音符中心
-            const gu = g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;
+            const gu = g.dur>=64?4 : g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;
             const LSP=1.7, DSP=2.6;                 // 减时线距 / 八度点距
             const maxLow = Math.max(0, ...g.notes.map(gn=>gn.oct<0? Math.min(3,-gn.oct) : 0));
             /* 约束：倚音全部元素（减时线/低音点/连接线横边）最低不越过主音符腰线。
@@ -5465,7 +5486,7 @@ function render(){
             const ep = col.dynTo? voxPos[vi+':'+col.dynTo.mi+':'+col.dynTo.ci] : null;
             const ec = col.dynTo && song.measures[col.dynTo.mi] && (song.measures[col.dynTo.mi].voxes[vi]||[])[col.dynTo.ci];
             if(ep && ec && (col.dyn==='<'||col.dyn==='>'||col.dyn==='cresc.'||col.dyn==='dim.')){
-              const under2 = ec.dur>=32?3 : ec.dur>=16?2 : ec.dur>=8?1 : 0;
+              const under2 = ec.dur>=64?4 : ec.dur>=32?3 : ec.dur>=16?2 : ec.dur>=8?1 : 0;
               const eyY = ep.sys===sIdx? dyY : (()=>{           // 终点列所在系统的记号基线
                 const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];
                 return (isStaff && !dual)? vy2+10 : vy2+14+under2*3.2+(ec.oct<0? Math.min(3,-ec.oct)*4.2:0);
@@ -5743,6 +5764,14 @@ function render(){
               let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=32) b++;
               const xa = mx+lay.xs[g.idx[a]]-6.5, xb = mx+lay.xs[g.idx[b]]+6.5;
               p.push(`<line x1="${xa}" y1="${voxY+9.8}" x2="${xb}" y2="${voxY+9.8}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              a=b;
+            }
+          }
+          for(let a=0;a<g.idx.length;a++){   /* v52.4 64分第四条减时线 */
+            if(cols[g.idx[a]].dur>=64){
+              let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=64) b++;
+              const xa = mx+lay.xs[g.idx[a]]-6.5, xb = mx+lay.xs[g.idx[b]]+6.5;
+              p.push(`<line x1="${xa}" y1="${voxY+13}" x2="${xb}" y2="${voxY+13}" stroke="var(--ink)" stroke-width="1.1"/>`);
               a=b;
             }
           }
@@ -6346,7 +6375,7 @@ function syncInputs(){
   if(ci && typeof startPadOn==='function' && startPadOn()){ ci.innerHTML='—'; }   // v46.6 启动台未选状态不显示残留
   else if(ci){
     const cols = curRowCols() || [];
-    const durNm = {1:'全音符',2:'2分',4:'4分',8:'8分',16:'16分',32:'32分'};
+    const durNm = {1:'全音符',2:'2分',4:'4分',8:'8分',16:'16分',32:'32分',64:'64分'};
     const rowNm = sel.row==='tab' ? '吉他谱' : '简谱';
     const voiceNm = sel.row==='tab' ? (song.tabVoices[sel.vi]||'') : (song.voxVoices[sel.vi]||'');
     let durTxt = '—';
@@ -6551,7 +6580,7 @@ function redo(){
 /* v47.7 品位上限按乐器：尤克里里常见 15 品，吉他/贝斯 24 品（song.fretMax 可覆盖，纯增量字段） */
 function fretMaxOf(){ return (song && song.fretMax) || (instOf()==='uku'? 15 : 24); }
 /* v47.8 五线谱休止字形（按当前时值取 SMuFL 休止符，供顶栏音符组的休止钮显示） */
-const STAFF_REST_G={1:'restWhole',2:'restHalf',4:'restQuarter',8:'rest8th',16:'rest16th',32:'rest32nd'};
+const STAFF_REST_G={1:'restWhole',2:'restHalf',4:'restQuarter',8:'rest8th',16:'rest16th',32:'rest32nd',64:'rest64th'};
 /* v48.1 吉他品位钮固定只铺 0–9，10 品及以上一律收进「10–24▾」选择器。
    原 v47.8 按上栏余量动态铺开：实测其余各组已占去约 1300px（1600 视口下本组仅剩约 170px），
    宽屏几乎永远算不出能多铺，却让按钮数随窗口宽度浮动、位置不固定——手指/鼠标记不住「几品在哪」。
@@ -6601,7 +6630,7 @@ function switchRow(){
 /* ================= 自动补齐/删减：保持小节时值准确 ================= */
 /* 在可用时值(含附点)中选 ≤rem 的方案：精确吻合优先(含附点)，否则取最大的普通时值 */
 function fitDurTo(rem, allowLong, unit){
-  const durs = allowLong? [1,2,4,8,16,32] : [4,8,16,32];
+  const durs = allowLong? [1,2,4,8,16,32,64] : [4,8,16,32,64];
   const cand=[];
   durs.forEach(d=>{ cand.push({dur:d,dotted:true}); cand.push({dur:d,dotted:false}); });
   cand.sort((a,b)=>beatsOf(b,unit)-beatsOf(a,unit));
@@ -6712,7 +6741,7 @@ function isBeatLastCol(cols, ci, unit){
    则改为"前一个音符"变当前的1/2（如 16,16,16,16 点末尾→16,16,32,附点16） */
 function dotLink(cols, ci, wasBeatLast){
   const cur=cols[ci];
-  if(cur.dur*2>32) return;
+  if(cur.dur*2>64) return;
   if(wasBeatLast && cur.dur>8 && cols[ci-1]){
     cols[ci-1].dur=cur.dur*2; cols[ci-1].dotted=false;
   }else if(cols[ci+1]){
@@ -6738,7 +6767,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
       /* 选中恰为一拍内两个相邻等时值音符（如两个8分）时，设附点=经典
          "附点+半时值"组合：前者加附点、后者时值减半，总时值不变 */
       if(!allDot && cs.length===2 && cs[0].mi===cs[1].mi &&
-         cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=32){
+         cs[0].col.dur===cs[1].col.dur && cs[0].col.dur*2<=64){
         cs[0].col.dotted=true;
         cs[1].col.dur=cs[0].col.dur*2; cs[1].col.dotted=false;
         return;
@@ -6761,7 +6790,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
   }
   const c=curCol(); if(!c) return;
   const lvl=dotLevel(c), mx=maxDotLevel(c.dur);
-  if(!mx){ toast('32分音符不可加附点（所需的 64 分细分不在时值体系内）'); return; }
+  if(!mx){ toast('64分音符不可加附点（所需的 128 分细分不在时值体系内）'); return; }
   mutate(()=>{
     const cur=curCol();
     const cols=curRowCols();
@@ -6780,7 +6809,7 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
          例 4分附点+8分 → 4分双附点+16分，总时值不变；找不到匹配邻音则不联动 */
       const j = (cols[sel.ci+1] && cols[sel.ci+1].dur===cur.dur*2 && !cols[sel.ci+1].dotted)? sel.ci+1
               : (cols[sel.ci-1] && cols[sel.ci-1].dur===cur.dur*2 && !cols[sel.ci-1].dotted)? sel.ci-1 : -1;
-      if(j>=0 && cur.dur*4<=32) cols[j].dur=cur.dur*4;
+      if(j>=0 && cur.dur*4<=64) cols[j].dur=cur.dur*4;
     }else{
       cur.dotted=false;   // 取消附点不联动（与旧行为一致，欠拍交由节拍校验提示）
     }
@@ -6974,10 +7003,10 @@ function applyVoxPattern(pat){
   /* ---- 页头下常用编辑功能栏：时值 + 组合节奏 + 缩放 ---- */
   const ebDur = document.getElementById('eb-dur');
   /* v40.5 新版外壳时值按钮用音符字形（.dg，经典版仍显中文 .dn；显隐由 CSS 按外壳切换） */
-  const DUR_GLYPH = {1:'𝅝',2:'𝅗𝅥',4:'♩',8:'♪',16:'𝅘𝅥𝅯',32:'𝅘𝅥𝅰'};
+  const DUR_GLYPH = {1:'𝅝',2:'𝅗𝅥',4:'♩',8:'♪',16:'𝅘𝅥𝅯',32:'𝅘𝅥𝅰',64:'𝅘𝅥𝅱'};
   ebDur.innerHTML = DUR_SINGLE.map(d=>
     `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${DUR_GLYPH[d.dur]||d.dur}</span><span class="dn">${d.name}</span></button>`
-  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限16分及以上、双附点限8分及以上（32分不可附点）" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`;
+  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-dot') toggleDot(); else setDur(+b.dataset.dur);
@@ -7158,7 +7187,7 @@ function insertNote(before){
 function splitNote(){
   const cols=curRowCols(); const cur=curCol();
   if(!cols || !cur) return toast('请先选中要拆分的音符');
-  if(cur.dur*2>32) return toast('32分音符不能再拆分');
+  if(cur.dur*2>64) return toast('64分音符不能再拆分');
   mutate(()=>{
     const half=JSON.parse(JSON.stringify(cur));
     cur.dur*=2; half.dur=cur.dur;      // 附点/连音随克隆保留，总时值不变
@@ -7303,7 +7332,7 @@ function applyTuplet(n, m){
   }
   const nd=col.dur*M;
   /* v51.5 单音无法拆分（M 非 2 的幂 / 时值过小）→ 不再仅报错，弹窗提议自动补齐空拍成组 */
-  if((M!==2 && M!==4 && M!==8 && M!==16) || nd>32){ showTupletFill(n, M); return; }
+  if((M!==2 && M!==4 && M!==8 && M!==16) || nd>64){ showTupletFill(n, M); return; }
   mutate(()=>{
     const cols=curRowCols();
     const c1=JSON.parse(JSON.stringify(col)); c1.dur=nd; c1.dotted=false; put(c1);
@@ -7770,6 +7799,8 @@ window.addEventListener('keydown', e=>{
     case 'e': setDur(4); break;
     case 'r': setDur(8); break;
     case 't': setDur(16); break;
+    case 'y': setDur(32); break;   /* v52.4 时值键位扩展 */
+    case 'u': setDur(64); break;
     case 'Insert': insertNote(e.shiftKey); break;
   }
 });
@@ -11838,8 +11869,8 @@ function exportMusicXML(s){
   if(!(s.voxVoices||[]).length && !(s.tabVoices||[]).length){ song=o0; return null; }   // 空谱不导
   const K = staffKeyInfo();
   const fifths = KEYSIG[s.key]!=null? KEYSIG[s.key] : 0;
-  const DIV=48, beatDiv = 192/(s.unit||4);     // divisions=48/四分音符：32分附点与三连音时值均为整数
-  const TYPE = {1:'whole',2:'half',4:'quarter',8:'eighth',16:'16th',32:'32nd'};
+  const DIV=96, beatDiv = 384/(s.unit||4);     // v52.4 divisions=96/四分音符：64分附点（=9）与三连音时值均为整数
+  const TYPE = {1:'whole',2:'half',4:'quarter',8:'eighth',16:'16th',32:'32nd',64:'64th'};
   const L='CDEFGAB';
   const pitchXML = (deg,acc,oct)=>{
     const st = K.step0+(deg-1)+(oct||0)*7;
@@ -12069,7 +12100,7 @@ function importMusicXML(xmlStr){
     const li=L_IDX[txt(pe,'step')||'C']||0;
     return (+(txt(pe,'octave')||4)+1)*12 + L_NAT[li] + (+(txt(pe,'alter')||0));
   };
-  const TYPE_INV={whole:1,half:2,quarter:4,eighth:8,'16th':16,'32nd':32};
+  const TYPE_INV={whole:1,half:2,quarter:4,eighth:8,'16th':16,'32nd':32,'64th':64};
   const KIND_MAP={major:'',minor:'m',dominant:'7','major-seventh':'maj7','minor-seventh':'m7',
     'dominant-ninth':'9','suspended-fourth':'sus4',diminished:'dim',augmented:'aug'};
   const parts=[...root.querySelectorAll(':scope > part')].slice(0,4);
@@ -12241,7 +12272,7 @@ function importMusicXML(xmlStr){
           else if(aN>=2 && aN<=16 && nN>=1 && nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM2=nN; } }
         if(!dur){
           const quarters=(+(txt(el,'duration')||0))/div;
-          const cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
+          const cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125],[64,0.0625]];
           for(const [d2,qn] of cand){
             if(Math.abs(quarters-qn)<1e-3){ dur=d2; break; }
             if(Math.abs(quarters-qn*1.5)<1e-3){ dur=d2; dotted=true; break; }
@@ -12337,7 +12368,7 @@ function importMusicXML(xmlStr){
         { const aN=+txt(el,'time-modification > actual-notes')||0, nN=+txt(el,'time-modification > normal-notes')||0;
           if(aN===3 && nN===2) tup=1;
           else if(aN>=2 && aN<=16 && nN>=1 && nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM2=nN; } }
-        if(!dur){ const quarters=(+(txt(el,'duration')||0))/div, cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125]];
+        if(!dur){ const quarters=(+(txt(el,'duration')||0))/div, cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125],[64,0.0625]];
           for(const [d2,qn] of cand){ if(Math.abs(quarters-qn)<1e-3){dur=d2;break;} if(Math.abs(quarters-qn*1.5)<1e-3){dur=d2;dotted=true;break;}
             if(Math.abs(quarters-qn*1.75)<1e-3){dur=d2;dotted=2;break;} if(Math.abs(quarters-qn*2/3)<1e-3){dur=d2;tup=1;break;} }
           if(!dur){ skip.notes++; dur=quarters>=3?2:quarters>=1.5?4:quarters>=0.7?4:quarters>=0.35?8:16; } }
@@ -12460,9 +12491,9 @@ function quantizeToCols(notes, tpq, beats, unit, ref, opt){
     if(i+1<evs.length && evs[i+1].s-cap>grid-1e-6) segs.push({len:evs[i+1].s-cap, ms:null});
   });
   if(evs.length && evs[0].s>grid-1e-6) segs.unshift({len:evs[0].s, ms:null});
-  /* 时值分解表（拍长，降序）：附点+基础值；32分为最小网格 */
+  /* 时值分解表（拍长，降序）：附点+基础值；v52.4 64分为最小网格 */
   const VALS=[];
-  [1,2,4,8,16,32].forEach(d=>{ VALS.push([d,true,unit/d*1.5]); VALS.push([d,false,unit/d]); });
+  [1,2,4,8,16,32,64].forEach(d=>{ VALS.push([d,true,unit/d*1.5]); VALS.push([d,false,unit/d]); });
   VALS.sort((a,b2)=>b2[2]-a[2]);
   const minLen=unit/32;
   const toCol=(ms,d,dot,tie)=>{
@@ -14528,7 +14559,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.3';
+const APP_VER='v52.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14551,6 +14582,7 @@ const APP_VER='v52.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.4</span><div><b>最小时值扩至 64 分音符</b>（全谱类）：①时值库/顶栏时值组新增 <b>64分</b>，快捷键扩展 <b>Y=32分、U=64分</b>；②附点档位整体下移——<b>16分可双附点、32分可单附点</b>（原 32 分不可附点的限制解除）；③拆分链延伸：32分可再拆为两个64分；④刻版补齐：TAB 第四层符杠/第四道符尾钩、简谱第四条减时线、五线谱 64 分符尾与休止符字形（SMuFL 同源合成）；⑤ MusicXML 按 64th 精确出入（divisions 升为 96），自动补齐/节拍修复网格同步细化到 64 分。</div></li>
     <li><span class="v">v52.3</span><div><b>增减小节容量计算</b>：①「+ 增加小节」现在会<b>自动计算本行放不放得下</b>——按各小节自然宽度判断（允许适度压缩），塞不下时按钮置灰并提示，不再能把一行塞爆成叠字；②<b>拖柄缩窄自动排入</b>——用拖柄把本行小节缩窄、腾出足够空间后，后续小节自动排入本行（无需手动点 +），配合置灰提示形成完整工作流：先缩窄 → 空间够了自动进（或 + 变为可点）。</div></li>
     <li><span class="v">v52.2</span><div><b>宽度手柄与增减行修正</b>：①手柄图形改为<b>◂▮▸ 列宽拖柄</b>（表格调列宽的通用符号：中间竖块=可拖的小节线、两侧三角=拖动方向），去掉百分比标注，已调整的小节整体强调色；②缩放范围放宽为 <b>30%–300%</b>——原 60% 下限过早卡住缩窄；③<b>增减小节后剩余小节自由重排</b>——被移动小节的旧换行标记一并清除，不再出现「只能和下一行来回换」，减一个小节后其余小节按宽度自动合并重排。</div></li>
     <li><span class="v">v52.1</span><div><b>排版控件视觉调整</b>：①行尾 ↺/+/− 三按钮改为<b>对齐首行谱表垂直居中</b>（原来悬在手柄行高度）；②小节宽度手柄换新样式——<b>圆角胶囊双竖纹拖柄</b>（专业排版/DAW 通用的 grip 视觉语言），已调整的小节胶囊填强调色底并在上方直接标注当前宽度百分比，悬停描边高亮。</div></li>

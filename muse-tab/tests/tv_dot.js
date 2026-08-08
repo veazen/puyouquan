@@ -31,7 +31,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.s1[0] === true && r.s1[1] === 8 && r.s2[0] === 2 && r.s2[1] === 16 && r.s3[0] === false,
     'T1 循环+联动(4分)', JSON.stringify([r.s1, r.s2, r.s3]));
 
-  // T1b 档位上限：16分止步单附点（无→附点→无）；32分不可附点（保持无+提示）
+  // T1b 档位上限（v52.4 64分入体系整体下移）：16分可双附点（无→附点→双→无）；
+  //   32分止步单附点；64分不可附点（保持无+128分提示）
   r = await pg.evaluate(() => {
     const Vc = (deg, dur) => ({dur, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
     const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:1, nVox:1, lyr:0});
@@ -40,20 +41,26 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     Object.assign(sel, {row:'vox', vi:0, mi:0, ci:0}); selRange = null;
     const c0 = () => song.measures[0].voxes[0][0];
     const out = {};
-    toggleDot(); out.a = c0().dotted;      // true（16分单附点合法：16+32）
-    toggleDot(); out.b = c0().dotted;      // false（无双附点档，直接归零）
-    // 32分不可附点
+    toggleDot(); out.a = c0().dotted;      // true（16分单附点：16+32）
+    toggleDot(); out.b = c0().dotted;      // 2（16分双附点：16+32+64）
+    toggleDot(); out.b2 = c0().dotted;     // false（循环归零）
+    // 32分止步单附点：无→附点→无
     song.measures[0].voxes[0][0].dur = 32; render();
-    toggleDot(); out.c = c0().dotted;      // 保持 false
+    toggleDot(); out.c = c0().dotted;      // true
+    toggleDot(); out.c2 = c0().dotted;     // false（无双附点档）
+    // 64分不可附点
+    song.measures[0].voxes[0][0].dur = 64; render();
+    toggleDot(); out.f = c0().dotted;      // 保持 false
     out.toast = document.getElementById('toast').textContent;
-    // setDur 收敛：双附点8分 → 改16分降单附点 → 改32分去附点
-    const c1 = song.measures[0].voxes[0][3]; c1.dur = 8; c1.dotted = 2;
-    Object.assign(sel, {ci:3}); setDur(16); out.d = c1.dotted;
-    setDur(32); out.e = c1.dotted;
+    // setDur 收敛：双附点16分 → 改32分降单附点 → 改64分去附点
+    const c1 = song.measures[0].voxes[0][3]; c1.dur = 16; c1.dotted = 2;
+    Object.assign(sel, {ci:3}); setDur(32); out.d = c1.dotted;
+    setDur(64); out.e = c1.dotted;
     return out;
   });
-  T(r.a === true && r.b === false && r.c === false && r.toast.includes('32分') && r.d === true && r.e === false,
-    'T1b 16分/32分档位限制+setDur收敛', JSON.stringify(r));
+  T(r.a === true && r.b === 2 && r.b2 === false && r.c === true && r.c2 === false && r.f === false
+    && r.toast.includes('128') && r.d === true && r.e === false,
+    'T1b 附点档位下移+setDur收敛', JSON.stringify(r));
 
   // T2 拍值与播放时值：beatsOf ×1.75；双附点小节 beatErrors 不误报；measureSeconds 同源
   r = await pg.evaluate(() => {
@@ -119,7 +126,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const xml = exportMusicXML(song);
     const dd = (xml.match(/<dot\/><dot\/>/g) || []).length;
     const singleDot = (xml.match(/<dot\/>/g) || []).length;                  // 2(双)+1(单)=3 枚
-    const dur84 = xml.includes('<duration>84</duration>');
+    const dur84 = xml.includes('<duration>168</duration>');   /* v52.4 divisions 48→96：双附点四分=96×1.75=168 */
     const r2 = importMusicXML(xml);
     const c = r2.song.measures[0].voxes[0];
     return { dd, singleDot, dur84,

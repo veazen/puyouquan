@@ -52,7 +52,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const m1=xml.slice(xml.indexOf('<measure number="1">'), xml.indexOf('<measure number="2">'));
     const durSum=[...m1.matchAll(/<duration>(\\d+)<\\/duration>/g)].reduce((a,m)=>a+ +m[1],0);
     return { meas:cnt(/<measure /g), notes:cnt(/<note>/g), rests:cnt(/<rest\\/>/g),
-      chordTag:cnt(/<chord\\/>/g), lyrics:cnt(/<lyric /g), durSum, expDur:4*48 };
+      chordTag:cnt(/<chord\\/>/g), lyrics:cnt(/<lyric /g), durSum, expDur:4*96 };   /* v52.4 divisions 48→96 */
   })()`);
   const ok2 = t2.meas===2 && t2.notes===7 && t2.rests===1 && t2.chordTag===1 && t2.lyrics===1 && t2.durSum===t2.expDur;
   console.log((ok2?'✅':'❌')+` 计数: 小节=${t2.meas}/2 音符=${t2.notes}/7 休止=${t2.rests}/1 和音chord=${t2.chordTag}/1 歌词=${t2.lyrics}/1 第1小节时值和=${t2.durSum}/${t2.expDur}`);
