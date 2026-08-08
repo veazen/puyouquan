@@ -4922,7 +4922,17 @@ function render(){
                  指弹右手指法 p i m a 保持品位数字下方（指法惯例位置，非技巧标识），仅放大 */
               if(n.rhFing)
                 p.push(`<text x="${nx}" y="${yy+12.5}" font-size="9" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${n.rhFing}</text>`);
+              /* v52.5 左手指法：标注带圆圈字 T/1-4/0（GP/教材惯例：圆圈数字=左手指） */
+              if(n.lhF){ const wy=laneY()-3.4;
+                p.push(`<circle cx="${nx}" cy="${wy.toFixed(1)}" r="4.7" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
+                p.push(`<text x="${nx}" y="${(wy+2.7).toFixed(1)}" font-size="7.5" font-weight="700" text-anchor="middle" fill="var(--ink)">${n.lhF}</text>`);
+              }
             });
+            /* v52.5 拨片方向（列级）：标注带 ⊓=下拨 / ∨=上拨（GP 惯例符号） */
+            if(col.pk){ const wy=laneY();
+              if(col.pk==='d') p.push(`<path d="M ${(nx-3.4).toFixed(1)} ${wy.toFixed(1)} v -5 h 6.8 v 5" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
+              else p.push(`<path d="M ${(nx-3.4).toFixed(1)} ${(wy-5.2).toFixed(1)} L ${nx} ${wy.toFixed(1)} L ${(nx+3.4).toFixed(1)} ${(wy-5.2).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
+            }
             /* v42.3 打板（指弹打击技法）：TAB 中部 × 符头 + 上方分区字母；打板列不画休止 */
             if(col.perc){
               const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
@@ -7038,6 +7048,13 @@ function applyVoxPattern(pat){
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
     if(mb) mb.insertAdjacentHTML('beforeend', tupBtns);
     if(vb) vb.insertAdjacentHTML('beforeend', tupBtns);
+    /* v52.5 左手指法 T/1-4/0（圆圈字，Ctrl+Alt 快捷）+ 右手指法 pima + 拨片方向 ⊓∨——
+       全部吉他类型可用（此前 pima 只在指弹 gtype 面板），只进吉他谱记号层 mark-body */
+    const fingBtns = ['T','1','2','3','4','0'].map(v=>`<button class="eb ico sym" data-lhf="${v}" title="左手指法 ${({T:'拇指 T','0':'空弦 0'})[v]||('第'+v+'指')}（Ctrl+Alt+${v} 快捷输入；标注带圆圈数字显示，再点同键清除）"><span class="g"><span class="gt" style="font-style:normal">${({T:'Ⓣ','0':'⓪','1':'①','2':'②','3':'③','4':'④'})[v]}</span></span><span>左手${v}</span></button>`).join('')
+      +['p','i','m','a'].map(v=>`<button class="eb ico sym" data-rhf="${v}" title="右手指法 ${({p:'拇指',i:'食指',m:'中指',a:'无名指'})[v]} ${v}（标在品位数字下方，再点同键清除）"><span class="g"><span class="gt">${v}</span></span><span>右手${v}</span></button>`).join('')
+      +`<button class="eb ico sym" data-pk="d" title="拨片下拨 ⊓（当前列标记，标注带显示；再点清除）"><span class="g"><svg width="16" height="14" viewBox="0 0 16 14"><path d="M4.5 12 V4.5 h7 v7.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span>下拨</span></button>`
+      +`<button class="eb ico sym" data-pk="u" title="拨片上拨 ∨（当前列标记，标注带显示；再点清除）"><span class="g"><svg width="16" height="14" viewBox="0 0 16 14"><path d="M4.5 4.5 L8 12 L11.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span>上拨</span></button>`;
+    if(mb) mb.insertAdjacentHTML('beforeend', fingBtns);
   }
   /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
   const ebHandler = e=>{
@@ -7066,6 +7083,12 @@ function applyVoxPattern(pat){
     if(e.target.closest('#eb-acc-f')){ accBump(-1); return; }
     if(e.target.closest('#eb-acc-n')){ accNat(); return; }
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
+    const lf=e.target.closest('[data-lhf]');
+    if(lf){ applyFingerMark('lhF', lf.dataset.lhf); return; }
+    const rf=e.target.closest('[data-rhf]');
+    if(rf){ applyFingerMark('rhFing', rf.dataset.rhf); return; }
+    const pkb=e.target.closest('[data-pk]');
+    if(pkb){ applyPickDir(pkb.dataset.pk); return; }
     const tpc=e.target.closest('[data-tupcustom]');
     if(tpc){ const r=tpc.getBoundingClientRect(); showTupletMenu(r.left, r.bottom+4); return; }
     const tp=e.target.closest('[data-tup]');
@@ -7738,6 +7761,11 @@ window.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copyMeasure(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteMeasure(); return; }
+  /* v52.5 GP 式左手指法快捷键：Ctrl+Alt+T/1-4/0（吉他谱当前弦位音） */
+  if(e.ctrlKey && e.altKey && sel.row==='tab'){
+    const kf=e.key.toLowerCase();
+    if(kf==='t' || /^[0-4]$/.test(kf)){ e.preventDefault(); applyFingerMark('lhF', kf==='t'?'T':kf); return; }
+  }
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(blurSel){ blurSel=false; }   // 任意编辑按键恢复光标
   /* v41.3 指法直录：fingMode 下数字 1–5 写入 voxCol.fing（0/退格/Delete 清除，Esc 退出） */
@@ -8661,7 +8689,7 @@ function applyTech(tech){
       return cols && cols[q.ci] && cols[q.ci].notes.find(n=>n.s===q.si);
     };
     if(!tech){
-      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; delete n.bar; delete n.hmT; delete n.rhFing; } });
+      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; delete n.bar; delete n.hmT; delete n.rhFing; delete n.lhF; } });
       return;
     }
     /* 揉弦/闷音是「范围记号」：扩选多个音符时首音直连末音，
@@ -8728,6 +8756,29 @@ function applyGtech(kind, value){ try{habit('gtech:'+kind+':'+value);}catch(_){}
   toast('已标记：'+({bar:{dive:'摇把俯冲',scoop:'摇把上滑',dip:'摇把下点',shake:'摇把颤音'},
     hm:{A:'人工泛音 A.H.',P:'拨片泛音 P.H.',T:'点弦泛音 T.H.'},
     rhFing:{p:'右手拇指 p',i:'右手食指 i',m:'右手中指 m',a:'右手无名 a'}}[kind]||{})[value]||value);
+}
+/* v52.5 左手指法 note.lhF（T/1-4/0）与右手指法 note.rhFing（pima）——全部吉他类型可用；
+   多选批量，无多选则作用于当前弦位音（比 applyGtech 宽松：不强制先 Ctrl 多选） */
+function applyFingerMark(kind, value){
+  const picked = noteSel.filter(q=>q.row!=='vox');
+  if(!picked.length && sel.row!=='tab') return toast('指法标记用于吉他谱——请先选中吉他谱音符');
+  const list = picked.length? picked : [{mi:sel.mi, ci:sel.ci, si:sel.si, vi:sel.vi}];
+  const hit = list.filter(q=>{ const cols=song.measures[q.mi] && song.measures[q.mi].tabs[q.vi];
+    return cols && cols[q.ci] && (cols[q.ci].notes||[]).some(x=>x.s===q.si); });
+  if(!hit.length) return toast('当前弦位没有音符——先落品位数字再标指法');
+  mutate(()=>{ hit.forEach(q=>{
+    const n=song.measures[q.mi].tabs[q.vi][q.ci].notes.find(x=>x.s===q.si);
+    if(kind==='lhF') n.lhF = n.lhF===value? undefined : value;
+    else n.rhFing = n.rhFing===value? undefined : value;
+  }); });
+  toast((kind==='lhF'?'左手指法 ':'右手指法 ')+value+'（再点同键清除）');
+}
+/* v52.5 拨片方向 col.pk：'d'=下拨 ⊓ / 'u'=上拨 ∨（列级，标注带显示） */
+function applyPickDir(v){
+  if(sel.row!=='tab') return toast('拨片方向用于吉他谱——请先选中吉他谱列');
+  const c=curCol(); if(!c) return;
+  mutate(()=>{ const c2=curCol(); c2.pk = c2.pk===v? undefined : v; });
+  toast(v==='d'?'已标记下拨 ⊓（再点清除）':'已标记上拨 ∨（再点清除）');
 }
 /* 按住左键拖动多选（同声部内，可跨小节） */
 document.getElementById('score').addEventListener('pointermove', e=>{
@@ -12040,7 +12091,9 @@ function exportMusicXML(s){
         ns.forEach((n,idx)=>{
           const m = TUNt[n.s-1]+(n.f||0)+(s.capo||0);
           const nh = n.x? '<notehead>x</notehead>' : '';
-          const tech = `<technical><string>${n.s}</string><fret>${n.f||0}</fret></technical>`;
+          /* v52.5 左手指法→fingering / 右手指法→pluck / 拨片方向→down-bow·up-bow（列级，挂首音） */
+          const pkX = idx===0 && col.pk? (col.pk==='d'?'<down-bow/>':'<up-bow/>') : '';
+          const tech = `<technical><string>${n.s}</string><fret>${n.f||0}</fret>${n.lhF?`<fingering>${n.lhF}</fingering>`:''}${n.rhFing?`<pluck>${n.rhFing}</pluck>`:''}${pkX}</technical>`;
           body += `<note>${idx>0?'<chord/>':''}${midiPitchXML(m)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${nh}<notations>${idx===0?ferm:''}${tech}</notations></note>`;
         });
       });
@@ -12378,8 +12431,14 @@ function importMusicXML(xmlStr){
         if(!sEl||!fEl){ skip.notes++; return; }   // 无 string/fret 的音（如五线声部混入）跳过
         const nObj={s:+sEl.textContent.trim()||1, f:Math.max(0,+fEl.textContent.trim()||0)};
         const nh=q(el,'notehead'); if(nh && /x/i.test(nh.textContent.trim())) nObj.x=1;
+        /* v52.5 指法/拨片导入：fingering→lhF、pluck→rhFing、down/up-bow→col.pk */
+        { const fgE=tech.querySelector('fingering');
+          if(fgE){ const fv=fgE.textContent.trim().toUpperCase(); if(/^[0-4T]$/.test(fv)) nObj.lhF=fv; }
+          const plE=tech.querySelector('pluck');
+          if(plE && /^[pima]$/.test(plE.textContent.trim())) nObj.rhFing=plE.textContent.trim(); }
+        const pkIn = tech.querySelector('down-bow')? 'd' : tech.querySelector('up-bow')? 'u' : '';
         if(q(el,'chord') && cols.length){ const last=cols[cols.length-1]; (last.notes=last.notes||[]).push(nObj); return; }
-        cols.push({dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{})});
+        cols.push({dur,dotted,notes:[nObj],...(tup?{tup}:{}),...(tupM2?{tupM:tupM2}:{}),...(ferm?{ferm:true}:{}),...(pkIn?{pk:pkIn}:{})});
       });
       return cols;
     });
@@ -14559,7 +14618,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.4';
+const APP_VER='v52.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14582,6 +14641,7 @@ const APP_VER='v52.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.5</span><div><b>左右手指法 + 拨片方向</b>（吉他谱，Guitar Pro 对标）：记号层新增三组标记——①<b>左手指法</b> Ⓣ①②③④⓪（标注带圆圈数字，快捷键 <b>Ctrl+Alt+T/1/2/3/4/0</b>）；②<b>右手指法</b> p/i/m/a 开放给<b>全部吉他类型</b>（此前仅指弹谱面板有，标在品位数字下方）；③<b>拨片方向</b>：下拨 ⊓ / 上拨 ∨（列级标记，标注带显示）。均为同键再点清除、可多选批量；MusicXML 按 fingering/pluck/down-bow·up-bow 标准元素出入。</div></li>
     <li><span class="v">v52.4</span><div><b>最小时值扩至 64 分音符</b>（全谱类）：①时值库/顶栏时值组新增 <b>64分</b>，快捷键扩展 <b>Y=32分、U=64分</b>；②附点档位整体下移——<b>16分可双附点、32分可单附点</b>（原 32 分不可附点的限制解除）；③拆分链延伸：32分可再拆为两个64分；④刻版补齐：TAB 第四层符杠/第四道符尾钩、简谱第四条减时线、五线谱 64 分符尾与休止符字形（SMuFL 同源合成）；⑤ MusicXML 按 64th 精确出入（divisions 升为 96），自动补齐/节拍修复网格同步细化到 64 分。</div></li>
     <li><span class="v">v52.3</span><div><b>增减小节容量计算</b>：①「+ 增加小节」现在会<b>自动计算本行放不放得下</b>——按各小节自然宽度判断（允许适度压缩），塞不下时按钮置灰并提示，不再能把一行塞爆成叠字；②<b>拖柄缩窄自动排入</b>——用拖柄把本行小节缩窄、腾出足够空间后，后续小节自动排入本行（无需手动点 +），配合置灰提示形成完整工作流：先缩窄 → 空间够了自动进（或 + 变为可点）。</div></li>
     <li><span class="v">v52.2</span><div><b>宽度手柄与增减行修正</b>：①手柄图形改为<b>◂▮▸ 列宽拖柄</b>（表格调列宽的通用符号：中间竖块=可拖的小节线、两侧三角=拖动方向），去掉百分比标注，已调整的小节整体强调色；②缩放范围放宽为 <b>30%–300%</b>——原 60% 下限过早卡住缩窄；③<b>增减小节后剩余小节自由重排</b>——被移动小节的旧换行标记一并清除，不再出现「只能和下一行来回换」，减一个小节后其余小节按宽度自动合并重排。</div></li>
