@@ -209,6 +209,7 @@ input.short{width:54px} input.mid{width:150px}
 #score .barzone:hover{fill-opacity:.25}
 .popmenu button.on{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
+#score .sysbtn:hover circle{fill:var(--accent-soft)}
 #score .beatzone:hover{fill:var(--accent);fill-opacity:.13}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
 .popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border-soft);
@@ -3546,13 +3547,18 @@ function measureLayout(mea){
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
+  const availW = PAGE_W - 2*MARGIN - STAFF_HEAD_W;
+  let forceBreak=false;   // v52.0 上一小节带 brk（行尾「−」按钮）→ 此处强制换行
   song.measures.forEach((mea,mi)=>{
     const L = measureLayout(mea);
     /* 自由换行：纯按内容宽度断行——稀疏小节窄、一行可容更多；
-       极密集小节宽、可独占一行（宽度上限=整行，见 measureLayout） */
-    if(cur.measures.length >= 1 && cur.w + L.w > PAGE_W - 2*MARGIN - STAFF_HEAD_W){ systems.push(cur); cur={measures:[],w:0}; }
+       极密集小节宽、可独占一行（宽度上限=整行，见 measureLayout）。
+       v52.0 行尾布局按钮（GP 式 ○+−）：mea.pull=1 强制并入上一行（可暂超宽，
+       随后两端对齐按内容量压缩回行宽）；mea.brk=1 在本小节后强制换行 */
+    if(cur.measures.length >= 1 && mea.pull!==1 && (forceBreak || cur.w + L.w > availW)){ systems.push(cur); cur={measures:[],w:0}; }
     cur.measures.push({mi, x:cur.w, L});
     cur.w += L.w;
+    forceBreak = mea.brk===1;
   });
   if(cur.measures.length) systems.push(cur);
   /* 两端对齐：把整行的剩余空间按各小节"内容量(weight)"分配——
@@ -5780,6 +5786,22 @@ function render(){
         +`<path d="M ${(hx-4.2).toFixed(1)} ${(hy-2.5).toFixed(1)} h 8.4 l -4.2 6 z" fill="${adj?'var(--accent)':'var(--muted)'}"/>`
         +`<rect x="${(hx-11).toFixed(1)}" y="${(hy-12).toFixed(1)}" width="22" height="18" fill="transparent"><title>拖动调节第${lm.mi+1}小节宽度（当前 ${Math.round((mea2.wf||1)*100)}%）· 双击复位</title></rect></g>`);
     });
+    /* v52.0 行尾布局按钮（GP 式，随宽度手柄一同显隐）：○=本行恢复默认布局 · +=下一行首小节移入本行 · −=行尾小节移到下一行 */
+    { const m1=sys2.measures[0].mi, m2=sys2.measures[sys2.measures.length-1].mi;
+      const bx0=MARGIN+STAFF_HEAD_W+sys2.w+13;
+      const canPull=m2<song.measures.length-1, canPush=m2>m1;
+      const btn3=(act,dy,en,tip,inner)=>p.push(
+        `<g class="sysbtn" data-sysact="${en?act+':'+m1+':'+m2:''}" opacity="${en?1:0.3}" style="cursor:${en?'pointer':'default'}">`
+        +`<circle cx="${bx0}" cy="${(hy+dy).toFixed(1)}" r="6.2" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.1"/>`
+        +inner+`<title>${tip}</title>`
+        +`<rect x="${bx0-8}" y="${(hy+dy-8).toFixed(1)}" width="16" height="16" fill="transparent"/></g>`);
+      btn3('reset', -2, true, '本行恢复默认布局（清除本行的小节宽度调整与换行设定）',
+        `<text x="${bx0}" y="${(hy+1.2).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--accent)">↺</text>`);
+      btn3('pull', 13, canPull, canPull?'增加小节：把下一行的首小节移入本行（本行自动压缩对齐）':'已是最后一行，无小节可移入',
+        `<path d="M ${bx0-3.2} ${(hy+13).toFixed(1)} h 6.4 M ${bx0} ${(hy+9.8).toFixed(1)} v 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
+      btn3('push', 28, canPush, canPush?'删减小节：把本行行尾小节移到下一行':'本行只有一个小节，无法移出',
+        `<path d="M ${bx0-3.2} ${(hy+28).toFixed(1)} h 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
+    }
   });
   svg.innerHTML = p.join('');
   syncInputs();
@@ -7794,6 +7816,28 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(!(t instanceof Element)) return;
   blurSel = false;   // 点击谱面 → 恢复光标
   lastEnt = null;    /* v48.0 手动点选即放弃回落锚点：改已有音符的变音/八度应就地生效 */
+  /* v52.0 行尾布局按钮（GP 式 ○+−）：恢复本行默认 / 下一行首小节移入 / 行尾小节移出 */
+  { const sb = t.closest? t.closest('[data-sysact]') : null;
+    if(sb){
+      if(e.button!==0 || !sb.dataset.sysact) return;
+      const seg=sb.dataset.sysact.split(':'); const act=seg[0], m1=+seg[1], m2=+seg[2];
+      if(act==='pull'){
+        const nm=song.measures[m2+1];
+        if(!nm) return;
+        mutate(()=>{ nm.pull=1; delete song.measures[m2].brk; });
+        toast('已把下一行首小节移入本行（行内自动压缩对齐）'); return;
+      }
+      if(act==='push'){
+        if(m2<=m1) return;
+        mutate(()=>{ delete song.measures[m2].pull; song.measures[m2-1].brk=1; });
+        toast('已把行尾小节移到下一行'); return;
+      }
+      if(act==='reset'){
+        mutate(()=>{ for(let i=m1;i<=m2;i++){ delete song.measures[i].pull; delete song.measures[i].brk; delete song.measures[i].wf; } });
+        toast('本行已恢复默认布局（宽度/换行设定已清除）'); return;
+      }
+      return;
+    } }
   /* v51.8 小节宽度手柄：拖动=调 mea.wf（实时预览，松手一次 mutate 可撤销）；双击=复位 */
   { const mh = t.closest? t.closest('[data-meahandle]') : null;
     if(mh){
@@ -14454,7 +14498,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v51.9';
+const APP_VER='v52.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14477,6 +14521,7 @@ const APP_VER='v51.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.0</span><div><b>行尾布局按钮</b>（Guitar Pro 式 ○+−）：开启宽度手柄后，每行行尾出现三个圆形按钮——<b>○ 恢复本行默认布局</b>（清除本行小节的宽度调整与换行设定）、<b>+ 增加小节</b>（把下一行的首小节移入本行，行内自动压缩对齐）、<b>− 删减小节</b>（把本行行尾小节移到下一行）。每步可撤销；换行设定随曲谱保存。</div></li>
     <li><span class="v">v51.9</span><div><b>小节线选中高亮修正</b>：单击小节线不再多处亮起——①多声部（双吉他/多行谱）时只高亮<b>被点击的那一行</b>的小节线，其他声部同位置不再一起变红；②选中小节线时<b>音符光标同时熄灭</b>，谱面同一时刻只有一个选中焦点。</div></li>
     <li><span class="v">v51.8</span><div><b>小节宽度手柄</b>（Guitar Pro 式）：左栏「小节」层新增<b>宽度手柄</b>开关——开启后每小节右上角显示 <b>↔▼</b> 手柄，<b>左右拖动单独调节该小节宽度</b>（60%–250%，实时预览），双击手柄复位 100%，Ctrl+Z 可撤销；已调整过的小节手柄以朱砂色标出。调整保存在曲谱里，行内其余小节按两端对齐自动重排；关闭开关只隐藏手柄、宽度保留。</div></li>
     <li><span class="v">v51.7</span><div><b>谱末按 → 自动续小节</b>（Guitar Pro 式）：光标在<b>最后一个音位</b>时再按右方向键，自动在曲末追加一个空白小节并把光标落进去，录入不再需要先手动「插入小节」；Ctrl+Z 可撤销。仅显式按 → 触发——落音自动前进、歌词回车前进不会扩谱。</div></li>

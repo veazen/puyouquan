@@ -81,6 +81,60 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.kept, 'T5 wf序列化往返', JSON.stringify(r));
 
+  // T6 v52.0 断行标志机制（相对断言，不依赖自然断行位置）：brk=小节后强制换行；pull=并入上一行且覆盖 brk
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'b', beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 0, lyr: 0 });
+    const mk4 = (f) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
+    s.measures.forEach(m => { m.tabs[0] = [mk4(3), mk4(5), mk4(7), mk4(5)]; });
+    loadSong(s); blurSel = true;
+    const row0 = sy => sy[0].measures.map(l => l.mi).join(',');
+    song.measures[0].brk = 1;
+    const afterBrk = row0(layoutSystems());        // 首小节后强制换行 → 首行只有 0
+    song.measures[1].pull = 1;
+    const afterPull = row0(layoutSystems());       // pull 覆盖 brk → 1 并回首行
+    delete song.measures[0].brk; delete song.measures[1].pull; render();
+    return { afterBrk, afterPull };
+  });
+  T(r.afterBrk === '0' && r.afterPull.indexOf('0,1') === 0, 'T6 brk/pull断行机制', JSON.stringify(r));
+
+  // T7 行尾三按钮随宽度手柄显示：每行 ○/+/− 各一（末行 + 置灰=data-sysact 空）
+  r = await pg.evaluate(() => {
+    render();   // meaHandleOn 已在 T2 留在开启态
+    const gs = [...document.querySelectorAll('#score .sysbtn')];
+    const acts = gs.map(g => (g.dataset.sysact || '').split(':')[0] || 'off');
+    const nSys = layoutSystems().length;
+    return { n: gs.length, nSys, hasReset: acts.includes('reset'), hasPush: acts.includes('push'), lastPullOff: acts.includes('off') };
+  });
+  T(r.n === r.nSys * 3 && r.hasReset && r.hasPush && r.lastPullOff, 'T7 行尾三按钮渲染', JSON.stringify(r));
+
+  // T8 按钮操作（3 稀疏小节自然 1 行）：−（push）拆行 → +（pull）拉回 → ○（reset）清全部布局标志
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'b3', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 0, lyr: 0 });
+    const mk4 = (f) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
+    s.measures.forEach(m => { m.tabs[0] = [mk4(3), mk4(5), mk4(7), mk4(5)]; });
+    loadSong(s); blurSel = true; render();
+    const clickBtn = (prefix) => {
+      const el = [...document.querySelectorAll('#score .sysbtn')].find(g => (g.dataset.sysact || '').indexOf(prefix) === 0);
+      if (!el) return false;
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'mouse', button: 0 }));
+      return true;
+    };
+    const nat1 = layoutSystems().length === 1;
+    const okPush = clickBtn('push:0:2');
+    const rowsA = layoutSystems().map(sy => sy.measures.map(l => l.mi).join(','));
+    const brkSet = song.measures[1].brk === 1;
+    const okPull = clickBtn('pull:0:1');
+    const rowsB = layoutSystems().length;
+    const pullSet = song.measures[2].pull === 1 && !song.measures[1].brk;
+    song.measures[1].wf = 1.4; render();
+    const okReset = clickBtn('reset:0:2');
+    const clean = song.measures.every(m => !m.brk && !m.pull && !m.wf);
+    return { nat1, okPush, rowsA, brkSet, okPull, rowsB, pullSet, okReset, clean };
+  });
+  T(r.nat1 && r.okPush && JSON.stringify(r.rowsA) === '["0,1","2"]' && r.brkSet
+    && r.okPull && r.rowsB === 1 && r.pullSet && r.okReset && r.clean,
+    'T8 行尾按钮 −/+/○ 操作', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
