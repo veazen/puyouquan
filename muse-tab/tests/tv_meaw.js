@@ -26,13 +26,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const w1 = measureLayout(song.measures[1]).w;   // 非首小节：无 tsLead 的干净基线
     song.measures[1].wf = 2;
     const w2 = measureLayout(song.measures[1]).w;
-    song.measures[1].wf = 0.3;   // 超下限 → 按 0.6 生效
-    const w06 = measureLayout(song.measures[1]).w;
+    song.measures[1].wf = 0.1;   // 超下限 → 按 0.3 生效（v52.2 范围放宽 0.3–3）
+    const w03 = measureLayout(song.measures[1]).w;
     delete song.measures[1].wf;
     const wBack = measureLayout(song.measures[1]).w;
-    return { ratio2: w2 / w1, ratio06: w06 / w1, back: Math.abs(wBack - w1) < 0.01 };
+    return { ratio2: w2 / w1, ratio03: w03 / w1, back: Math.abs(wBack - w1) < 0.01 };
   });
-  T(r.ratio2 > 1.5 && r.ratio06 < 0.85 && r.ratio06 > 0.55 && r.back, 'T1 wf布局缩放+钳制', JSON.stringify(r));
+  T(r.ratio2 > 1.5 && r.ratio03 < 0.6 && r.ratio03 > 0.28 && r.back, 'T1 wf布局缩放+钳制', JSON.stringify(r));
 
   // T2 手柄开关：默认隐藏；开启后每小节一个手柄；再点隐藏
   r = await pg.evaluate(() => {
@@ -60,7 +60,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const undone = !song.measures[1].wf;
     return { wf, undone };
   });
-  T(r.wf > 1.05 && r.wf <= 2.5 && r.undone, 'T3 拖宽+一步撤销', JSON.stringify(r));
+  T(r.wf > 1.05 && r.wf <= 3 && r.undone, 'T3 拖宽+一步撤销', JSON.stringify(r));
 
   // T4 双击复位：wf=1.5 → 手柄双击（detail 2）→ wf 清除
   r = await pg.evaluate(() => {
@@ -134,6 +134,30 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.nat1 && r.okPush && JSON.stringify(r.rowsA) === '["0,1","2"]' && r.brkSet
     && r.okPull && r.rowsB === 1 && r.pullSet && r.okReset && r.clean,
     'T8 行尾按钮 −/+/○ 操作', JSON.stringify(r));
+
+  // T9 v52.2 连续增减后剩余小节自由重排：被移动小节的旧 brk 一并清除，不残留钉死后续行
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'b4', beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 0, lyr: 0 });
+    const mk4 = (f) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
+    s.measures.forEach(m => { m.tabs[0] = [mk4(3), mk4(5), mk4(7), mk4(5)]; });
+    loadSong(s); blurSel = true; render();
+    const clickBtn = (prefix) => {
+      const el = [...document.querySelectorAll('#score .sysbtn')].find(g => (g.dataset.sysact || '').indexOf(prefix) === 0);
+      if (!el) return false;
+      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true, pointerType: 'mouse', button: 0 }));
+      return true;
+    };
+    const rows = () => layoutSystems().map(sy => sy.measures.map(l => l.mi).join(','));
+    const r0 = rows();                                   // 自然 [0,1,2],[3]
+    const a1 = clickBtn('push:0:2'); const r1 = rows();  // → [0,1],[2,3]
+    const a2 = clickBtn('push:0:1'); const r2 = rows();  // → [0],[1,2,3]（m1 旧 brk 清除，剩余合并重排）
+    const staleClean = !song.measures[1].brk;
+    const a3 = clickBtn('pull:0:0'); const r3 = rows();  // + 拉回 → [0,1,...]（nm 旧 brk 一并清）
+    return { r0, a1, r1, a2, r2, staleClean, a3, first3: r3[0] };
+  });
+  T(JSON.stringify(r.r0) === '["0,1,2","3"]' && r.a1 && JSON.stringify(r.r1) === '["0,1","2,3"]'
+    && r.a2 && JSON.stringify(r.r2) === '["0","1,2,3"]' && r.staleClean
+    && r.a3 && r.first3.indexOf('0,1') === 0, 'T9 剩余小节自由重排', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

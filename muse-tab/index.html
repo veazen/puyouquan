@@ -210,7 +210,7 @@ input.short{width:54px} input.mid{width:150px}
 .popmenu button.on{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
 #score .strcell:hover{fill:var(--accent);fill-opacity:.16}
 #score .sysbtn:hover circle{fill:var(--accent-soft)}
-#score .meah:hover .meah-pill{stroke:var(--accent)}
+#score .meah:hover .mh-i{fill:var(--accent)}
 #score .beatzone:hover{fill:var(--accent);fill-opacity:.13}
 #score .strumcell:hover{fill:var(--accent);fill-opacity:.10}
 .popmenu{position:fixed;z-index:70;background:var(--panel);border:1px solid var(--border-soft);
@@ -1543,7 +1543,7 @@ body.shell #hint{display:none}
             <button id="b-meameter" title="本小节拍号（变拍子）：为当前小节单独设定拍号（如中途转 3/4 · 6/8 · 7/8），谱面在该小节头标新拍号，节拍校验 / 符杠成组 / 播放均按新拍号；选「恢复全曲拍号」清除"><b>𝄴</b><span>本小节拍号…</span></button>
             <button id="b-sim1" title="小节反复 𝄎：本小节谱面省写为反复记号，演奏与前一小节相同（本小节数据保留、节拍校验豁免、播放自动展开；再点取消）"><b>𝄎</b><span>同前1小节</span></button>
             <button id="b-sim2" title="两小节反复：演奏与前两小节相同（连续两小节都标 2，播放按位置轮转展开；再点取消）"><b>𝄎²</b><span>同前2小节</span></button>
-            <button id="b-meahandle" title="小节宽度手柄（Guitar Pro 式）：开启后每小节右上角显示 ↔▼ 手柄，左右拖动单独调节该小节宽度（60%–250%），双击手柄复位；再点本按钮隐藏手柄"><b>↔</b><span>宽度手柄</span></button>
+            <button id="b-meahandle" title="小节宽度手柄：开启后每小节右上角显示 ◂▮▸ 拖柄，左右拖动单独调节该小节宽度，双击复位；行尾另有 ↺/+/− 按钮调整本行小节数量；再点本按钮隐藏"><b>↔</b><span>宽度手柄</span></button>
           </div>
         </div>
         <button id="sp-toggle" title="展开/收起 反复与跳转记号">段落 · 反复 · 跳转记号 <span id="sp-arrow">▾</span></button>
@@ -3501,9 +3501,10 @@ function measureLayout(mea){
     beatW[i]=xA;
     warps.push({T,X});
   }
-  /* v51.8 单小节宽度系数 mea.wf（GP 式手柄，0.6–2.5，默认 1）：缩放拍宽与拍内映射
-     （同下方 rowMax 压缩机制）；weight 随之缩放 → 行内两端对齐按调整后内容量分配 */
-  const wf = Math.max(0.6, Math.min(2.5, mea.wf||1));
+  /* v51.8 单小节宽度系数 mea.wf（宽度手柄，默认 1）：缩放拍宽与拍内映射
+     （同下方 rowMax 压缩机制）；weight 随之缩放 → 行内两端对齐按调整后内容量分配。
+     v52.2 范围放宽 0.3–3（原 0.6 下限过早卡住缩窄） */
+  const wf = Math.max(0.3, Math.min(3, mea.wf||1));
   if(wf!==1){ beatW=beatW.map(w=>w*wf); warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*wf); }); }
   inner = beatW.reduce((a,b)=>a+b,0);
   /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
@@ -5783,18 +5784,18 @@ function render(){
     cand.forEach(c=>{ if(c[0]<rT){ rT=c[0]; rB=c[1]; } });
     if(rT===Infinity) return;
     const hy=rT-10;   // 手柄基线：首行谱表上缘再上移
-    /* v52.1 手柄新样式（去 GP 化）：圆角胶囊拖柄 + 双竖纹（DAW/排版软件通用 grip 语言，
-       ew-resize 光标示意横向拖动）；已调整的小节胶囊填强调色底并在上方标当前百分比 */
+    /* v52.2 手柄改「列宽拖柄」图形 ◂▮▸（表格/排版软件调列宽的通用符号：中间竖块=可拖的小节线、
+       两侧内外三角=左右可拖方向），比胶囊纹理直白；已调整的小节整体强调色，不再标百分比 */
     sys2.measures.forEach(lm=>{
       const hx=MARGIN+STAFF_HEAD_W+lm.x+lm.L.w;   // 小节右缘（右小节线位置）
       const mea2=song.measures[lm.mi];
       const adj=(mea2.wf||1)!==1;
+      const cc=adj? 'var(--accent)' : 'var(--muted)';
       p.push(`<g class="meah" data-meahandle="${lm.mi}" data-mw="${lm.L.w.toFixed(1)}" style="cursor:ew-resize">`
-        +(adj?`<text x="${hx.toFixed(1)}" y="${(hy-9.5).toFixed(1)}" font-size="7.5" font-weight="600" text-anchor="middle" fill="var(--accent)">${Math.round((mea2.wf||1)*100)}%</text>`:'')
-        +`<rect class="meah-pill" x="${(hx-5).toFixed(1)}" y="${(hy-6).toFixed(1)}" width="10" height="13" rx="5" fill="${adj?'var(--accent-soft)':'var(--panel)'}" stroke="${adj?'var(--accent)':'var(--faint)'}" stroke-width="1.1"/>`
-        +`<line x1="${(hx-1.7).toFixed(1)}" y1="${(hy-2.8).toFixed(1)}" x2="${(hx-1.7).toFixed(1)}" y2="${(hy+3.8).toFixed(1)}" stroke="${adj?'var(--accent)':'var(--muted)'}" stroke-width="1"/>`
-        +`<line x1="${(hx+1.7).toFixed(1)}" y1="${(hy-2.8).toFixed(1)}" x2="${(hx+1.7).toFixed(1)}" y2="${(hy+3.8).toFixed(1)}" stroke="${adj?'var(--accent)':'var(--muted)'}" stroke-width="1"/>`
-        +`<rect x="${(hx-9).toFixed(1)}" y="${(hy-15).toFixed(1)}" width="18" height="24" fill="transparent"><title>拖动调节第${lm.mi+1}小节宽度（当前 ${Math.round((mea2.wf||1)*100)}%）· 双击复位</title></rect></g>`);
+        +`<rect class="mh-i" x="${(hx-1.4).toFixed(1)}" y="${(hy-6).toFixed(1)}" width="2.8" height="12" rx="1.4" fill="${cc}"/>`
+        +`<path class="mh-i" d="M ${(hx-4).toFixed(1)} ${(hy-3).toFixed(1)} v 6 l -4.4 -3 z" fill="${cc}"/>`
+        +`<path class="mh-i" d="M ${(hx+4).toFixed(1)} ${(hy-3).toFixed(1)} v 6 l 4.4 -3 z" fill="${cc}"/>`
+        +`<rect x="${(hx-10).toFixed(1)}" y="${(hy-10).toFixed(1)}" width="20" height="20" fill="transparent"><title>左右拖动：单独调节第${lm.mi+1}小节宽度 · 双击：复位</title></rect></g>`);
     });
     /* v52.0 行尾布局按钮（随宽度手柄一同显隐）：○=本行恢复默认布局 · +=下一行首小节移入本行 · −=行尾小节移到下一行。
        v52.1 垂直对齐首行谱表居中（不再挂在手柄行高度） */
@@ -7834,16 +7835,19 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       blurSel=true;   // 布局按钮是排版操作，不点亮音符光标
       if(e.button!==0 || !sb.dataset.sysact) return;
       const seg=sb.dataset.sysact.split(':'); const act=seg[0], m1=+seg[1], m2=+seg[2];
+      /* v52.2 增减小节只钉「本行行尾」这一个边界，被移动的小节自身的旧断行标志一并清除——
+         其后的剩余小节全部按宽度自由重排（此前旧 brk 残留会把后续行钉死在旧位置，
+         表现为"只能和下一行换来换去"） */
       if(act==='pull'){
         const nm=song.measures[m2+1];
         if(!nm) return;
-        mutate(()=>{ nm.pull=1; delete song.measures[m2].brk; });
-        toast('已把下一行首小节移入本行（行内自动压缩对齐）'); return;
+        mutate(()=>{ nm.pull=1; delete nm.brk; delete song.measures[m2].brk; });
+        toast('已从后续小节移入一个（其余小节自动重排）'); return;
       }
       if(act==='push'){
         if(m2<=m1) return;
-        mutate(()=>{ delete song.measures[m2].pull; song.measures[m2-1].brk=1; });
-        toast('已把行尾小节移到下一行'); return;
+        mutate(()=>{ const last=song.measures[m2]; delete last.pull; delete last.brk; song.measures[m2-1].brk=1; });
+        toast('已把行尾小节移出（后续小节自动重排）'); return;
       }
       if(act==='reset'){
         mutate(()=>{ for(let i=m1;i<=m2;i++){ delete song.measures[i].pull; delete song.measures[i].brk; delete song.measures[i].wf; } });
@@ -7868,7 +7872,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       let live=wf0, raf=0;
       const mv2=ev=>{
         const dx=(ev.clientX-sx2)*kk;
-        live=Math.max(0.6, Math.min(2.5, wf0*(w0+dx)/w0));
+        live=Math.max(0.3, Math.min(3, wf0*(w0+dx)/w0));   /* v52.2 范围放宽：0.6 下限过早卡住缩窄 */
         mea2.wf=live;
         if(!raf) raf=requestAnimationFrame(()=>{ raf=0; render(); });
       };
@@ -14512,7 +14516,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.1';
+const APP_VER='v52.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14535,6 +14539,7 @@ const APP_VER='v52.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.2</span><div><b>宽度手柄与增减行修正</b>：①手柄图形改为<b>◂▮▸ 列宽拖柄</b>（表格调列宽的通用符号：中间竖块=可拖的小节线、两侧三角=拖动方向），去掉百分比标注，已调整的小节整体强调色；②缩放范围放宽为 <b>30%–300%</b>——原 60% 下限过早卡住缩窄；③<b>增减小节后剩余小节自由重排</b>——被移动小节的旧换行标记一并清除，不再出现「只能和下一行来回换」，减一个小节后其余小节按宽度自动合并重排。</div></li>
     <li><span class="v">v52.1</span><div><b>排版控件视觉调整</b>：①行尾 ↺/+/− 三按钮改为<b>对齐首行谱表垂直居中</b>（原来悬在手柄行高度）；②小节宽度手柄换新样式——<b>圆角胶囊双竖纹拖柄</b>（专业排版/DAW 通用的 grip 视觉语言），已调整的小节胶囊填强调色底并在上方直接标注当前宽度百分比，悬停描边高亮。</div></li>
     <li><span class="v">v52.0</span><div><b>行尾布局按钮</b>（Guitar Pro 式 ○+−）：开启宽度手柄后，每行行尾出现三个圆形按钮——<b>○ 恢复本行默认布局</b>（清除本行小节的宽度调整与换行设定）、<b>+ 增加小节</b>（把下一行的首小节移入本行，行内自动压缩对齐）、<b>− 删减小节</b>（把本行行尾小节移到下一行）。每步可撤销；换行设定随曲谱保存。</div></li>
     <li><span class="v">v51.9</span><div><b>小节线选中高亮修正</b>：单击小节线不再多处亮起——①多声部（双吉他/多行谱）时只高亮<b>被点击的那一行</b>的小节线，其他声部同位置不再一起变红；②选中小节线时<b>音符光标同时熄灭</b>，谱面同一时刻只有一个选中焦点。</div></li>
