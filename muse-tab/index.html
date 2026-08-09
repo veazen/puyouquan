@@ -3493,6 +3493,18 @@ function measureLayout(mea){
       if(isVox&&c.chord)  cmin = Math.max(cmin, vcDispW(c.chord)+4);
       if(isVox&&c.clef)   cmin += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
       evts[bi].push({t:Math.max(0,Math.min(1,cum-bi)), min:cmin});
+      /* v54.1 增时线占位刚杆（用户反馈：延长横线压行尾小节线）：长音的每条「–」在其
+         四分拍位登记最小宽度事件——此前该拍若无任何声部的音符列，拍宽塌到 beatFloor(7px)，
+         小于横线落点的 NOTE_OFF(10px) 偏移，横线就叠上小节线；登记后空拍与真实音符列同权撑开 */
+      if(isVox && c.deg && c.dur<=2 && !song.chordOnly){
+        const q4d=(4/c.dur)*dotFactor(c), qbD=unit/4;
+        for(let q=1; q<=Math.floor(q4d+1e-4)-1; q++){
+          const tq=cum+q*qbD;
+          if(tq>=beats-1e-4) break;
+          const bq=Math.min(beats-1, Math.floor(tq+1e-4));
+          evts[bq].push({t:Math.max(0,Math.min(1,tq-bq)), min:12*hs});
+        }
+      }
       cum+=beatsOf(c,unit);
     });
     for(let i=0;i<beats;i++){
@@ -3591,7 +3603,10 @@ function measureLayout(mea){
       /* v53.9 简谱增时线拍点：该列后续每个四分拍位的 x（走同一张 时值→x 映射 pos()，
          与吉他谱/五线谱同拍的音符列严格同 x）；列不足一个后续四分拍位则为空数组 */
       const qb=unit/4, qx=[];
-      for(let q=1; q*qb<b-1e-4; q++) qx.push(pos(cum+q*qb)+NOTE_OFF);
+      /* v54.1 右边界钳制：横线中心不越过小节右内边距（pos 上限=L.w-pad，+NOTE_OFF 后可探到
+         小节线上——正常由占位刚杆撑开、此钳制兜底极端压缩 wf/超满小节） */
+      const qCap = pad+tsLead+inner+gapTotal-4;
+      for(let q=1; q*qb<b-1e-4; q++) qx.push(Math.min(pos(cum+q*qb)+NOTE_OFF, qCap));
       qxs.push(qx);
       cum+=b;
     });
@@ -15219,7 +15234,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.0';
+const APP_VER='v54.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15242,6 +15257,7 @@ const APP_VER='v54.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.1</span><div><b>增时线不再压小节线</b>（用户反馈：延长号与小节线重叠）：长音末尾的延长横线所在拍若在吉他谱/五线谱里没有音符（如半音符跨到行尾），该拍此前会收缩到最窄、横线被挤到小节线上——现在<b>每条延长横线在布局里占有自己的拍位空间</b>（与真实音符同权撑开空拍），并加右边界保护，任何压缩下横线都不越过小节右内边距。</div></li>
     <li><span class="v">v54.0</span><div><b>歌词段序号归位 + 选中歌词直接编辑</b>（用户需求）：①多段歌词的<b>段序号只标在歌词最前面</b>（首行行首，歌本惯例），不再每一行谱都重复一遍；②<b>点击任意歌词字即选中</b>（描框高亮）并弹出编辑浮条——<b>前移/后移</b>（此字与后续字整体挪一个可唱音，遇到空位自动吸收截止，只动当前乐句）、<b>空格</b>（仅置空此音位，其余不动）、<b>删除</b>（后续字前提补位）、<b>替换</b>（弹窗改字，多字/英文单词均可；选中后直接打字也是替换）；全部操作跳过休止与连音延续音、可 Ctrl+Z 撤销，后移把末尾字挤出时会提醒。</div></li>
     <li><span class="v">v53.9</span><div><b>简谱增时线对齐拍点</b>（用户反馈：简谱延长符号也要对齐吉他谱/五线谱的每一拍）：二分/全音符等长音的延长横线「–」不再在列内均分——<b>每条横线画在它代表的那一拍的拍位上</b>，与上方吉他谱/五线谱同一拍的音符列严格纵向对齐（全声部共用同一张时值→宽度映射，拍宽不均时也对得上）；双附点长音的补记附点同样落在对应拍位。</div></li>
     <li><span class="v">v53.8</span><div><b>列/拍拖选联动框选音符</b>（用户反馈：列选的时候不出现框选音符）：音符列拖选、拍区拖选与 Shift 扩选<b>松手后，范围内的音符自动进入框选态</b>——每个音符出现圈选标记，技法/指法/时值等按音符的批量操作直接可用，与空白处拖圈框选行为一致。按住小节号连选整小节、Ctrl+点小节线连选声部段仍保持小节级语义（复制粘贴整段），不转框选。</div></li>

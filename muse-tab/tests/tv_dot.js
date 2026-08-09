@@ -159,6 +159,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.ok1 && r.ok2, 'T6 增时线对齐拍点(全音符×3+附点二分×2)',
     JSON.stringify(r.whole) + ' ' + JSON.stringify(r.dotHalf));
 
+  // T7 v54.1 行尾空拍增时线不压小节线（用户反馈）：TAB 第4拍无音符列（半音符跨3-4拍）
+  //    → 该拍此前塌到 beatFloor(7px)，末条「–」叠上小节线；现占位刚杆撑开+右边界钳制
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const Tc = (f, d) => ({dur:d, dotted:false, chord:'', notes:[{s:3, f}], strum:'', tech:''});
+    const s = createSong('guitar', {beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:1, lyr:0});
+    s.measures[0].tabs[0] = [Tc(5,4), Tc(7,4), Tc(9,2)];
+    s.measures[0].voxes[0] = [Vc(6,1)];
+    loadSong(s); blurSel = true; render();
+    const L = measureLayout(song.measures[0]);
+    const qx = L.voxes[0].qxs[0];
+    const mono = qx.every((v, i) => !i || v > qx[i-1] + 8);       // 三条横线保持间距（空拍被撑开）
+    const nDash = (document.getElementById('score').innerHTML.match(/>–<\/text>/g) || []).length;
+    return { n: qx.length, mono, inside: qx[2] <= L.w - 14, edge: (L.w - qx[2]).toFixed(1), nDash };
+  });
+  T(r.n === 3 && r.mono && r.inside && r.nDash === 3, 'T7 行尾空拍增时线不压小节线', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

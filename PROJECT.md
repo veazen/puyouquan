@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-09 · 当前版本 **v54.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-09 · 当前版本 **v54.1** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v54.1 增时线不压小节线（用户反馈：延长号与小节线重叠）**：v53.9 把增时线钉到拍点后暴露的空拍塌陷问题——横线所在拍若全声部无音符列（半音符跨 3-4 拍、TAB 行尾无列），拍宽塌到 beatFloor(7px)＜落点 NOTE_OFF(10px)，横线叠上小节线。① `measureLayout.scan()`：vox 长音（dur≤2 有 deg 非 chordOnly）的每条增时线在其四分拍位 push 刚杆事件 `{t, min:12*hs}`——空拍与真实音符列同权进弹簧-刚杆映射被撑开（同拍已有音符时 merge 取 max、位置零扰动，tv_dot T6 数值不变验证）。② `fit()` qxs 右边界钳制 `qCap=pad+tsLead+inner+gapTotal-4`（=L.w−pad−4）兜底 wf 极端压缩/超满小节。tv_dot 增 T7（TAB [四,四,二] 第4拍无列+vox 全音符：三横线保距 >8px 且末条 ≤L.w−14，实测距边 15px）成 8 断言；41 套件全绿。
+>
 > **v54.0 歌词段序号归位 + 选中歌词直接编辑（用户需求）**：① 段序号（lyricLines>1 时的 1/2/… + data-lyrsel 热区）渲染条件加 `sIdx===0`——只在首系统标注（歌本惯例），后续行选段走左栏「歌词」页段落 chips。② 新状态 `lyrSel {vi,mi,ci,li}`：歌词区 pointerdown 设置（非歌词点击清除），渲染层按估宽（CJK 15.5/ASCII 7.75）画描框高亮（空位也可选中）；聚焦 #i-lyric 保留——直接打字即替换。③ 新函数 `showLyricMenu(cx,cy,vi,mi,ci,li)` 编辑浮条：操作对象=`smartSlots(vi,0,0)` 的 fill 槽序列（跳过休止/连音延续，k=findIndex 命中失败即不弹）；**移位语义=乐句局部**——前移/后移/删除都在 `nextEmpty(k+1)`（下一个空音位）处吸收截止，空位之后已对齐的歌词不受牵连，无空位顺延段尾：前移=`[k..e-1]` 左移一槽（覆盖 k-1 时 toast 提示被覆盖字）、后移=`[k..e-1]` 右移一槽 k 留空（e=段尾且末字非空→挤出 toast）、空格=仅置空 k、删除=`[k+1..e-1]` 前提补位、替换=askText 预填当前字（多字/英文词可）；全走 mutate 可撤销。tv_lyr 七断言（段序号仅首系统×2段4件/点击选中+高亮+五按钮/后移空位吸收/前移填回/置空+删除/askText 替换/满段后移挤出+undo 恢复）入 CORE；41 套件全绿。
 >
 > **v53.9 简谱增时线对齐拍点（用户反馈：简谱延长符号也要对齐吉他谱/五线谱的每一拍）**：此前增时线「–」按列宽均分（`stepD` 基于 cw），与时间网格无关——TAB 行按内容撑出的拍宽不均时横线落点跑偏（用户截图红框）。① `measureLayout.fit()` 新增 `qxs`：每列后续每个四分拍位的 x（`pos(cum+q*unit/4)+NOTE_OFF`，走全声部共用的弹簧-刚杆 时值→x 映射，与 TAB/五线谱同拍列的 `xs` 出自同一浮点 → toFixed 后严格同 x）；layoutSystems 两端对齐缩放同步 `r.qxs`（嵌套数组）。② 渲染（vox 增时线块）：`dashX(d)=mx+qx[d-1]`，缺数据退回旧列内均分（防御）；双附点补记附点优先落下一拍位 `qx[nDash]`，无则挂末条横线后 +7。③ 增时线条数逻辑不动（GB 整拍数−1）；仅 `!isStaff||dual` 简谱路径受影响，五线谱/纯和弦谱零变化。tv_dot 增 T6（TAB 八分列制造拍宽不均，全音符 3 条/附点二分 2 条横线 x 与 TAB 拍首品位列 x 完全相等）成 7 断言，tv_dot 补入 CORE；40 套件全绿。
