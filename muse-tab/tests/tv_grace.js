@@ -142,6 +142,25 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.z && !r.nan, 'T8 vox倚音回归', JSON.stringify(r));
 
+  // T9 倚音播放顺序（v53.0 修正）：前倚音先于主音入队——同弦主音不被误掐成 60ms；
+  //    倚音自身在主音起点被掐（短促装饰音）
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'gp', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    const mk4 = (f, st) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: st, f }], strum: '', tech: '' });
+    s.measures[0].tabs[0] = [mk4(5, 3), mk4(7, 3), mk4(5, 3), mk4(3, 3)];
+    s.measures[0].tabs[0][1].grace = { notes: [{ s: 3, f: 5 }], dur: 8 };   // 同弦前倚音
+    loadSong(s);
+    const rec = []; const orig = playInst;
+    window.playInst = (ik, c2, b3, f, w, d, g2, m2, o2) => { rec.push({ w, d }); };
+    try { play(); } finally { stopPlay(); window.playInst = orig; }
+    rec.sort((a, b2) => a.w - b2.w);
+    // 5 次发声：主0 / 倚音 / 主1 / 主2 / 主3；倚音短促（≤0.15s）、主1 完整一拍（同弦下一音前）
+    const spb = 60 / song.tempo;
+    return { n: rec.length, gd: rec[1] ? +rec[1].d.toFixed(3) : 0,
+      m1Beats: rec[2] ? +(rec[2].d / spb).toFixed(2) : 0 };
+  });
+  T(r.n === 5 && r.gd > 0 && r.gd <= 0.15 && r.m1Beats >= 0.9, 'T9 倚音播放不掐主音', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

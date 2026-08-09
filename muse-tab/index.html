@@ -10974,6 +10974,18 @@ function play(){
         const chordDiv = Math.sqrt(Math.max(1, ord2.length));
         const acc = beatAcc(bcum, meaMeter(smi!=null?smi:mi).beats);
         const dg=dynAt(off)*acc;                   /* v48.6 力度时间线 × v48.9 拍点重音 */
+        /* v52.7 TAB 前倚音播放：主音起始前的短促小音符（同 vox 倚音口径，音量收敛）。
+           v53.0 修正：必须先于主音推入——掐弦链（lastByStr）假设 insts 数组序=时间序，
+           后推入的前倚音会把同弦主音的 cut 误设到主音起点之前、主音被截成 60ms */
+        if(col.grace && ord2.length){
+          const gG=normTabGrace(col.grace);
+          const per=Math.min(0.1, durSec*0.3/Math.max(1,gG.notes.length)) * (gG.dur>=16? 0.6 : 1);
+          gG.notes.forEach((gn,gi)=>{
+            insts.push({ when:Math.max(t, t+off-per*(gG.notes.length-gi)), s:gn.s, x:false, mute:false,
+              freq:midiFreq(tuningOf()[gn.s-1]+gn.f+song.capo-12), gain:vol*dg*0.55/chordDiv,
+              vel:dg*0.55, oi, ci, dsec:per });
+          });
+        }
         ord2.forEach((n,k)=>{
           const jj=HJ(mi, ci, n.s);                /* v48.6 确定性微扰动（精确档归零） */
           /* v49.4 泛音发声：自然泛音=空弦×谐波次数（品位=节点）；A.H./P.H./T.H.=按弦音+12。
@@ -10990,16 +11002,7 @@ function play(){
             legato:leg||undefined, bar:n.bar, slap:!!col.slap,
             oi, ci, dsec:durSec, tech:n.tech, tk:n.tk, bAmt:n.bAmt, bTy:n.bendType });   /* v49.2 技法字段 */
         });
-        /* v52.7 TAB 倚音播放：主音起始前/后的短促小音符（同 vox 倚音口径，音量收敛） */
-        if(col.grace && ord2.length){
-          const gG=normTabGrace(col.grace);
-          const per=Math.min(0.1, durSec*0.3/Math.max(1,gG.notes.length)) * (gG.dur>=16? 0.6 : 1);
-          gG.notes.forEach((gn,gi)=>{
-            insts.push({ when:Math.max(t, t+off-per*(gG.notes.length-gi)), s:gn.s, x:false, mute:false,
-              freq:midiFreq(tuningOf()[gn.s-1]+gn.f+song.capo-12), gain:vol*dg*0.55/chordDiv,
-              vel:dg*0.55, oi, ci, dsec:per });
-          });
-        }
+        /* v52.7 TAB 后倚音播放：主音末尾的短促小音符（时刻在主音之后，数组序天然一致） */
         if(col.graceA && ord2.length){
           const gG=normTabGrace(col.graceA);
           const per=Math.min(0.09, durSec*0.25/Math.max(1,gG.notes.length)) * (gG.dur>=16? 0.6 : 1);
@@ -11056,6 +11059,15 @@ function play(){
             const d2=Math.round(12*Math.log2(tgt2.freq/it.freq));
             if(te==='bd' && d2<0){ ty='fall'; semi=d2; }
             else if(d2!==0){ semi=Math.abs(d2); }
+            /* v53.0 圆圈目标音不拨奏（GP 语义：目标音高由推弦达到，不再击弦）：
+               目标静默、源音延音接管目标的延音窗（cut 顺延到目标之后）；
+               目标自身还带推弦（连锁推-放的中继音）时保留发声但去音头连奏，近似弦上延续 */
+            if(tgt2.tech==='b'||tgt2.tech==='bd'||tgt2.bTy){ tgt2.legato=true; tgt2.vel*=0.6; }
+            else{
+              tgt2.silent=true;
+              if(it.cut!=null && Math.abs(it.cut-tgt2.when)<1e-6) it.cut=tgt2.cut;
+              it.dsec=Math.max(it.dsec, tgt2.when-it.when+tgt2.dsec);   // 技法有效终点覆盖目标时值
+            }
           }
         }
         it.fx.bend={semi, type:ty};
@@ -11086,6 +11098,7 @@ function play(){
       if(vibSpans.some(sp2=>ck>=sp2.a && ck<=sp2.b)){ it.fx=it.fx||{}; it.fx.vib=true; }
     });
     insts.forEach(it=>{
+      if(it.silent) return;                                /* v53.0 推弦圆圈目标音：不拨奏（源音贯穿） */
       if(it.x){ chick(ctx, tbus, it.when, 0.3*vol); return; }
       if(it.mute){ playInst(cfg.inst, ctx, tbus, it.freq, it.when, 0.14, it.gain, true); chick(ctx, tbus, it.when, 0.12*vol); return; }
       let ring = it.cut!=null ? Math.max(0.06, it.cut-it.when) : 6.0;   // 到下次同弦发声 / 自然延音
@@ -14799,7 +14812,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.9';
+const APP_VER='v53.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14822,6 +14835,7 @@ const APP_VER='v52.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.0</span><div><b>推弦目标音播放修正</b>（用户反馈）：推弦的圆圈目标音是「推到的音高」而非再拨一次——播放时<b>目标音不再拨奏</b>，由源音的推弦曲线滑到位并<b>延音贯穿目标时值</b>（连锁推-放的中继音保留发声但去音头连奏）。另修正倚音播放：同弦前倚音此前会把主音误掐成 60ms，现主音完整发声、倚音在主音起点自然收束。</div></li>
     <li><span class="v">v52.9</span><div><b>连音线线径细化</b>（用户反馈线径过粗）：全部连音线/圆滑线/推弦弧统一细化约 40%——中部厚度由约 1.9 降到约 1.1，两端细尖与同一线径（厚度与跨度无关）保持不变，谱面更清爽。</div></li>
     <li><span class="v">v52.8</span><div><b>倚音/连音线细节修正</b>（用户反馈）：①吉他谱（TAB）行的倚音<b>去掉斜杠</b>——只保留小品位数字＋小连音弧，更干净（五线谱行的倚音斜杠为标准记谱，保留）；②连音线恢复<b>同一线径</b>：弧线中部厚度恒定、与跨度无关，两端细尖不变（撤 v52.7 的短弧随跨度收细）。</div></li>
     <li><span class="v">v52.7</span><div><b>倚音跨谱类统一 + 连音线厚度封顶</b>：①<b>吉他谱（TAB）新增倚音</b>——记号层「前倚音/后倚音」按钮输入品位（最多3音），谱面显示为弦线上的小品位数字＋倚音斜杠＋小连音弧，<b>联排五线谱同步显示</b>小符头倚音组（品位→音高自动换算），点谱面倚音组可逐音改弦位/品位/时值；播放为主音前/后的短促小音符；MusicXML 按标准 grace 元素（含 string/fret）出入。至此倚音在<b>简谱/五线谱/六线谱/联排</b>全谱类统一——同一份数据，切换任意记谱法都同步呈现。②<b>连音线最粗处封顶</b>：弧线中部厚度不再与跨度无关地固定给足——短弧（相邻音击勾弦、小连线）随跨度按比例收细，到一定跨度即达上限不再加粗（出版惯例），所有连音线/圆滑线/推弦弧统一生效。</div></li>
