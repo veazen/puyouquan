@@ -3580,16 +3580,21 @@ function measureLayout(mea){
     return beatStart[bi]+warpX(bi, Math.max(0,Math.min(1, c2-bi)));
   };
   const fit = cols=>{
-    let cum=0; const xs=[], ws=[], ls=[];
+    let cum=0; const xs=[], ws=[], ls=[], qxs=[];
     cols.forEach(c=>{
       const b=beatsOf(c,unit);
       const left=pos(cum);
       const w=Math.max(14, posEnd(cum+b)-left);  // 跨拍长音按真实起止跨度（不再溢出到邻小节）
       ls.push(left); ws.push(w);
       xs.push(left+NOTE_OFF+(c.clef?18:0));   // v45.6 小节内换谱号：音符右移让位小谱号（TAB 列无 clef 字段不受影响）
+      /* v53.9 简谱增时线拍点：该列后续每个四分拍位的 x（走同一张 时值→x 映射 pos()，
+         与吉他谱/五线谱同拍的音符列严格同 x）；列不足一个后续四分拍位则为空数组 */
+      const qb=unit/4, qx=[];
+      for(let q=1; q*qb<b-1e-4; q++) qx.push(pos(cum+q*qb)+NOTE_OFF);
+      qxs.push(qx);
       cum+=b;
     });
-    return {xs, ws, ls, rt:cols.reduce((a,c)=>a+beatsOf(c,unit),0)||1};
+    return {xs, ws, ls, qxs, rt:cols.reduce((a,c)=>a+beatsOf(c,unit),0)||1};
   };
   return {w:inner+gapTotal+pad*2+tsLead, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
@@ -3629,6 +3634,7 @@ function layoutSystems(){
         r.xs = r.xs.map(v=>v*s);
         r.ws = r.ws.map(v=>v*s);
         r.ls = r.ls.map(v=>v*s);
+        r.qxs = r.qxs.map(a=>a.map(v=>v*s));   // v53.9 增时线拍点同步缩放
       });
       xoff += newW;
     });
@@ -5725,13 +5731,19 @@ function render(){
             /* v41.5 简谱增时线按实际时值出条数（GB 惯例：整拍数−1 条）：
                二分=1条、附点二分=2条、全音符=3条、附点全=5条、双附点全=6条；
                双附点二分(3.5拍)的余下半拍以一枚附点补记于末条增时线后（体系内无更优简谱写法） */
+            /* v53.9 增时线对齐拍点（用户反馈：延长线要对齐吉他谱/五线谱的每一拍）：
+               每条横线画在它代表的四分拍位上——x 取 measureLayout 预计算的 qxs（全声部共用
+               同一张 时值→x 弹簧-刚杆映射），与上方 TAB/五线谱同拍音符列严格纵向对齐；
+               缺拍点数据时退回列内均分（防御，正常不可达） */
             const q4=(4/col.dur)*dotFactor(col);
             const nDash=Math.max(0, Math.floor(q4+1e-4)-1);
+            const qx=(lay.qxs&&lay.qxs[ci])||[];
             const stepD = nDash===1? cw*0.42 : Math.min(cw*0.22, cw*0.66/Math.max(1,nDash));
+            const dashX = d=> qx[d-1]!==undefined? mx+qx[d-1] : (nDash===1? nx+stepD : nx+stepD*d);
             for(let d=1;d<=nDash;d++)
-              p.push(`<text x="${(nDash===1? nx+stepD : nx+stepD*d).toFixed(1)}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
-            if(q4-Math.floor(q4+1e-4)>1e-3)
-              p.push(`<circle cx="${(nx+(nDash===1?stepD:stepD*nDash)+7).toFixed(1)}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
+              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+            if(q4-Math.floor(q4+1e-4)>1e-3)   /* 双附点余下半拍的补记附点：有下一拍点则记在该拍位，否则挂末条横线后 */
+              p.push(`<circle cx="${(qx[nDash]!==undefined? mx+qx[nDash] : dashX(nDash)+7).toFixed(1)}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
           }
           (col.lyrics||[]).forEach((ly,li)=>{
             if(ly && li<song.lyricLines){
@@ -15147,7 +15159,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.8';
+const APP_VER='v53.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15170,6 +15182,7 @@ const APP_VER='v53.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.9</span><div><b>简谱增时线对齐拍点</b>（用户反馈：简谱延长符号也要对齐吉他谱/五线谱的每一拍）：二分/全音符等长音的延长横线「–」不再在列内均分——<b>每条横线画在它代表的那一拍的拍位上</b>，与上方吉他谱/五线谱同一拍的音符列严格纵向对齐（全声部共用同一张时值→宽度映射，拍宽不均时也对得上）；双附点长音的补记附点同样落在对应拍位。</div></li>
     <li><span class="v">v53.8</span><div><b>列/拍拖选联动框选音符</b>（用户反馈：列选的时候不出现框选音符）：音符列拖选、拍区拖选与 Shift 扩选<b>松手后，范围内的音符自动进入框选态</b>——每个音符出现圈选标记，技法/指法/时值等按音符的批量操作直接可用，与空白处拖圈框选行为一致。按住小节号连选整小节、Ctrl+点小节线连选声部段仍保持小节级语义（复制粘贴整段），不转框选。</div></li>
     <li><span class="v">v53.7</span><div><b>拖动选中节拍/小节 + 全粒度复制粘贴</b>（用户需求）：①<b>按住小节号拖过多个小节号</b>=整小节连选（跨全部声部，虚线高亮），Ctrl+C 复制整段、光标移到目标小节 Ctrl+V 粘贴——覆盖同数量小节、<b>不足自动补建</b>；②<b>按住拍区拖过多拍</b>=按拍连选（对齐拍边界、可跨小节），配合组合时值/连音/技法批量套用；③<b>音符列拖选的片段现在也能 Ctrl+C/V</b>——列级片段从光标位置<b>顺延覆盖粘贴</b>（跨小节，到曲末自动截断提示）；Ctrl+点小节线连选的多小节声部段则按小节替换粘贴。原有单小节/单声部复制粘贴不变。</div></li>
     <li><span class="v">v53.6</span><div><b>简谱短连音线按歌本标准重画</b>（用户反馈 v53.5 短弧过小近不可见）：找到两轮反馈的共同根因——弧线端点此前挤在两个数字之间的空隙里（相邻十六分音符只剩几个像素的缝），弧怎么调都不对。现按专业制谱标准：<b>弧横跨首末两个数字整体上方</b>（端点落在数字中心），弧高固定在清晰可见的档位（短弧约 6px、随跨度缓增），与出版歌本样式一致。</div></li>

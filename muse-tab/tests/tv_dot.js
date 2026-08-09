@@ -137,6 +137,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     JSON.stringify(r.back) === JSON.stringify([[4,2],[16,false],[4,true],[8,false]]),
     'T5 MusicXML 双dot往返', JSON.stringify(r.back) + ' dur84=' + r.dur84);
 
+  // T6 v53.9 增时线对齐拍点：TAB 八分列使各拍宽度不均，简谱全音符的 3 条横线仍须
+  //    与 TAB 第 2/3/4 拍首音符列（品位 13/14/15）严格同 x；附点二分 2 条对齐第 2/3 拍
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur, dot) => ({dur, dotted:dot||false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const Tc = f => ({dur:8, dotted:false, chord:'', notes:[{s:3, f}], strum:'', tech:''});
+    const s = createSong('guitar', {beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:1, lyr:0});
+    s.measures[0].tabs[0] = [Tc(12),Tc(0),Tc(13),Tc(0),Tc(14),Tc(0),Tc(15),Tc(0)];   // 拍首 12/13/14/15
+    s.measures[0].voxes[0] = [Vc(6,1)];                                              // 全音符 → 3 条增时线
+    loadSong(s); blurSel = true; render();
+    const html = () => document.getElementById('score').innerHTML;
+    const dashXs = h => [...h.matchAll(/<text x="([\d.]+)"[^>]*>–<\/text>/g)].map(m => +m[1]);
+    const tabX = (h, f) => { const m = h.match(new RegExp('<text x="([\\d.]+)"[^>]*>' + f + '</text>')); return m ? +m[1] : NaN; };
+    let h = html();
+    const whole = { d: dashXs(h), t: [tabX(h,13), tabX(h,14), tabX(h,15)] };
+    song.measures[0].voxes[0] = [Vc(6,2,true), Vc(5,4)]; render(); h = html();      // 附点二分+四分
+    const dotHalf = { d: dashXs(h), t: [tabX(h,13), tabX(h,14)] };
+    const near = (a, b) => a.length === b.length && a.every((x, i) => Math.abs(x - b[i]) < 0.6);
+    return { whole, dotHalf, ok1: near(whole.d, whole.t), ok2: near(dotHalf.d, dotHalf.t) };
+  });
+  T(r.ok1 && r.ok2, 'T6 增时线对齐拍点(全音符×3+附点二分×2)',
+    JSON.stringify(r.whole) + ' ' + JSON.stringify(r.dotHalf));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
