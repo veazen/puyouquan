@@ -3802,17 +3802,8 @@ function chordDiagramSVG(name, x, y, scale, shapeOverride, hideName){
     const two = base>=10;
     p.push(`<text x="${(gx-(two?1.2:6)*k).toFixed(1)}" y="${gy+fh*0.6+3}" font-size="${(two?6.2:8)*k}" text-anchor="end" fill="var(--ink)">${base}</text>`);
   }
-  /* v42.5 横按（barre）→ v45.7 判定收紧：同品跨度须 ≥3 根弦距才视为食指横按（F/Bm/Bb 式）；
-     Em/A/A7 等两三根邻弦同品是分指按法，此前 ≥2 弦即画横杠，Em 的两个圆点被横杠连成一团（用户反馈）。
-     置于圆点之下作底；参考 PAGE19「横按以弧线或延伸圆点表示」 */
-  if(fpos.length){
-    const bf = Math.min(...fpos);
-    const bIdx = frets.map((f,i)=> f===bf? i : -1).filter(i=>i>=0);
-    if(bIdx.length>=2 && (Math.max(...bIdx)-Math.min(...bIdx))>=3){
-      const by = gy+(bf-base+0.5)*fh, bx0 = gx+Math.min(...bIdx)*sw, bx1 = gx+Math.max(...bIdx)*sw;
-      p.push(`<line x1="${bx0.toFixed(1)}" y1="${by.toFixed(1)}" x2="${bx1.toFixed(1)}" y2="${by.toFixed(1)}" stroke="var(--ink)" stroke-width="${(5.2*k).toFixed(1)}" stroke-linecap="round"/>`);
-    }
-  }
+  /* v53.5 横按改逐弦圆点表示（用户拍板：不要大黑线）——每根按弦本就各画一个圆点（见下方
+     frets.forEach），同品成排的点列即横按视觉；撤 v42.5/v45.7 的横杠叠加层 */
   frets.forEach((f,i)=>{
     const sx = gx+i*sw;   // shape[0]=6弦 画在最左；1弦在最右
     if(f===-1) p.push(`<text x="${sx}" y="${gy-2.5}" font-size="7.5" text-anchor="middle" fill="var(--ink)">×</text>`);
@@ -5768,13 +5759,19 @@ function render(){
               const below = sA < S_MID;                 // 符干朝上 → 弧线在符头下方
               const yA=stepY(sA), yE=stepY(sB);
               const ty = below? Math.max(yA,yE)+5.2 : Math.min(yA,yE)-5.2;
-              const bow = 7+Math.min(6,(b3-a3)*2);
+              /* v53.5 弧高随跨度比例钳制：窄跨度不再出「^ 尖拱」（用户反馈短连音线别扭） */
+              const bow = Math.max(2.5, Math.min(7+Math.min(6,(b3-a3)*2), (x2-x1)*0.55));
               const yp = below? ty+bow : ty-bow;
               p.push(tieSVG(x1, ty, x2, ty, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
             }else{
-              const tyB = voxY-13;
-              const yp = tyB-9-Math.min(6,(b3-a3)*2);
-              p.push(tieSVG(x1, tyB, x2, tyB, yp, 1.9));
+              /* v53.5 简谱连音线形状修正（用户反馈短弧「^ 尖拱」）：弧高按跨度 0.55 比例给、
+                 下限 2.5 上限 9+跨列增量——相邻两音的小连线成扁平小弧（GB 惯例）；
+                 基线让过区间内最高的高八度点（此前固定 voxY-13 会压点/穿点） */
+              let hiN=0;
+              for(let ci4=a3; ci4<=Math.min(b3+1, cols.length-1); ci4++){ const c4=cols[ci4]; if(c4&&c4.deg&&c4.oct>0) hiN=Math.max(hiN, Math.min(3,c4.oct)); }
+              const tyB = voxY-13 - (hiN? 7.5+(hiN-1)*4.2 : 0);
+              const rise = Math.max(2.5, Math.min(9+Math.min(6,(b3-a3)*2), (x2-x1)*0.55));
+              p.push(tieSVG(x1, tyB, x2, tyB, tyB-rise, 1.9));
             }
             a3=b3+1;
           }
@@ -14998,7 +14995,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.4';
+const APP_VER='v53.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15021,6 +15018,7 @@ const APP_VER='v53.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.5</span><div><b>横按圆点 + 简谱连音线形状修正</b>（用户反馈）：①和弦图<b>大横按改用逐弦黑点</b>表示——F/Bm 等横按和弦不再画大黑线，每根按弦一个圆点，与分指按法视觉统一；②<b>简谱短连音线不再「^ 尖拱」</b>——弧高改为随跨度比例给（上下限钳制），相邻两音的小连线呈扁平小弧（GB 惯例），长连音线弧高同步封顶；连音线基线自动<b>让过高八度点</b>（此前会压点）；五线谱连音线短弧同款钳制。</div></li>
     <li><span class="v">v53.4</span><div><b>页头点击直改 + 变调夹联动简谱</b>（用户需求）：①谱面页头元素全部可点——<b>调号</b>（弹调号菜单，换调自动移调和弦与吉他品位）、<b>拍号</b>（全曲拍号菜单）、<b>速度</b>（直接输入 BPM）、<b>变调夹</b>（0-12 品一键设置）、<b>标题/演唱/词曲区</b>（打开曲谱信息弹窗，标题等文本字段<b>输入即实时上谱预览</b>，取消可恢复、确定后一次撤销）。②<b>变调夹联动简谱</b>：设夹后页头 1=X 显示<b>实际调</b>（指法调+夹品半音，如 1=C 夹 3 品显示 1=Eb），变调夹位注明「按 1=C 指法」（歌本惯例）；<b>简谱声部播放与 MIDI 导出同步升 Key</b>，与吉他实际音高一致——此前谱面与播放都停在指法调，显示和听感双双不对。</div></li>
     <li><span class="v">v53.3</span><div><b>简谱和音编辑与显示完善</b>（用户需求）：①<b>显示重做</b>——和音数字放大（接近主音字号）、纵列动态间距，<b>每个叠加音自带高/低八度点</b>（此前完全缺失）与放大左置的变音记号，不再挤成一团；和弦标注框自动上移避让和音纵列，行高按需预留。②<b>编辑升级</b>——记号层「和音」按钮改为<b>完整编辑弹窗</b>：逐音改唱名 1-7、八度 ±、变音（♯/♭/♮）、加删音（自动取上方三度）、一键清空；<b>谱面直接点击和音纵列</b>也可进入编辑；五线谱 Ctrl+点击线/间加减和音保持不变。</div></li>
     <li><span class="v">v53.2</span><div><b>倚音避让变音记号</b>（用户反馈：五线谱倚音跟升号重叠）：主音带临时升降/还原记号时，<b>前倚音组自动再左移让位</b>——升降号紧贴主音符头、倚音排在记号左侧，互不重叠。三处同步生效：<b>联排五线谱</b>（TAB 倚音）、<b>五线谱</b>与<b>简谱</b>（变化音 ♯♭ 左置符号同让位）。</div></li>

@@ -217,6 +217,36 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T12 简谱倚音让位变化音(9px)', JSON.stringify(r));
 
+  // T13 简谱连音线形状（v53.5）：弧高随跨度 0.55 钳制——16分相邻对的短弧扁平（不再 ^ 尖拱）、
+  //     长弧上限 15；主音带高八度点时基线上移 7.5 让位
+  r = await pg.evaluate(() => {
+    const parseTies = () => [...document.getElementById('score').innerHTML.matchAll(/d="M ([\d.-]+) ([\d.-]+) Q [\d.-]+ ([\d.-]+) ([\d.-]+) [\d.-]+ Q /g)]
+      .map(m => ({ span: Math.abs(+m[4] - +m[1]), rise: +m[2] - +m[3], y1: +m[2] }));
+    const build = (oct) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('vocal', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 0, nVox: 1, lyr: 0 });
+      const V = (deg, dur, o) => ({ dur, dotted: false, deg, acc: '', oct: o || 0, lyrics: [], tie: false });
+      s.measures[0].voxes[0] = Array.from({ length: 16 }, (_, i) => V((i % 7) + 1, 16, i < 2 ? oct : 0));
+      s.measures[0].voxes[0][0].tie = true;               // 16分相邻对：窄跨度短弧
+      s.measures[1].voxes[0] = [V(5, 1)];
+      s.measures[1].voxes[0][0].tie = true;               // 跨小节长弧
+      s.measures[2].voxes[0] = [V(5, 1)];
+      loadSong(s); blurSel = true; render();
+      const ts = parseTies(); ts.sort((a, b) => a.span - b.span);
+      // 基线相对主音数字（voxY）测量——高八度点会触发行高预留使整行下移，绝对 y 不可比
+      const voxY = +document.querySelector('#score text[font-size="16.5"]').getAttribute('y');
+      return { ts, voxY };
+    };
+    const t0 = build(0), t1 = build(1);
+    const s0 = t0.ts[0], l0 = t0.ts[t0.ts.length - 1], s1 = t1.ts[0];
+    const rel0 = t0.voxY - s0.y1, rel1 = t1.voxY - s1.y1;   // 连音线基线高出数字基线的量
+    return { n: t0.ts.length, span: +s0.span.toFixed(1), rise: +s0.rise.toFixed(1),
+      shortOK: s0.rise <= Math.max(2.6, s0.span * 0.56), flatter: s0.rise < 9,
+      longOK: l0.span > 40 && l0.rise <= 15.1 && l0.rise >= 4,
+      lift: +(rel1 - rel0).toFixed(1) };
+  });
+  T(r.n === 2 && r.shortOK && r.flatter && r.longOK && Math.abs(r.lift - 7.5) < 0.2,
+    'T13 简谱连音线扁平化+让高八度点', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

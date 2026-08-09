@@ -64,7 +64,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {maxSpan:Math.round(maxSpan)}; })()`);
   T(r.maxSpan >= 30, 'P4 跨小节连音线续接', JSON.stringify(r));
 
-  // 推弦=连音线无箭头（v50.3 产品指示：连接线用连音线，方向由 b↑/b↓ 文字承载）+ 和弦图横按横杠（F/Bm 有、C/G/Am 无）
+  // 推弦=连音线无箭头（v50.3 产品指示：连接线用连音线，方向由 b↑/b↓ 文字承载）
+  // + 和弦图横按=逐弦圆点（v53.5 产品拍板撤横杠：F/Bm 也不画大黑线）
   r = await pg.evaluate(`(()=>{
     const barre = name => (chordDiagramSVG(name,0,0,1).match(/stroke-width="5\\.2"/g)||[]).length;
     if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -74,7 +75,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const arrows=(h.match(/d="M [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ Z" fill="var\\(--ink\\)"/g)||[]).length;
     const ties=(h.match(/d="M [^"]* Q [^"]* Q [^"]*Z" fill="var\\(--ink\\)"/g)||[]).length;
     return {F:barre('F'),Bm:barre('Bm'),C:barre('C'),G:barre('G'),arrows,ties}; })()`);
-  T(r.F === 1 && r.Bm === 1 && r.C === 0 && r.G === 0 && r.arrows === 0 && r.ties >= 1, '推弦连音线无箭头+和弦图横按', JSON.stringify(r));
+  T(r.F === 0 && r.Bm === 0 && r.C === 0 && r.G === 0 && r.arrows === 0 && r.ties >= 1, '推弦连音线无箭头+横按逐弦圆点', JSON.stringify(r));
 
   // P2 独奏联排五线谱 treble-8vb：谱号下方「8」标记 + 记谱升八度（低音弦下加线收拢）；
   // 按「同一 x 且同一系统(y 邻近)」统计单音最深加线叠数（旧版 E2 达 7 条，treble-8vb 后 ≤4）

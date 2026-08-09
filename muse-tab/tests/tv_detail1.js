@@ -171,15 +171,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t7.ly === '测词' && t7.co === '测曲' && /弹唱谱 · 3 小节/.test(t7.ty) && t7.tun.length > 0 && t7.makerHid && t7.tunVis,
     'T7 信息卡补齐(作词/作曲/谱类·小节/调弦/空值隐藏)', JSON.stringify(t7));
 
-  // T8 v45.7 和弦图横按判定：Em 分指不画横杠、Bm 横按仍画
+  // T8 和弦图横按表示：v53.5 产品拍板改逐弦圆点、全面撤横杠——Em/Bm/F 均无横杠，按弦数=圆点数
   const t8 = await pg.evaluate(() => {
     const em = chordDiagramSVG('Em', 0, 0, 1, '022000', true);
     const bm = chordDiagramSVG('Bm', 0, 0, 1, 'x24432', true);
+    const f = chordDiagramSVG('F', 0, 0, 1, '133211', true);
     const barre = s => /stroke-width="5\.2"/.test(s);
     const dots = s => (s.match(/r="2\.5"/g) || []).length;
-    return { emBarre: barre(em), bmBarre: barre(bm), emDots: dots(em) };
+    return { emBarre: barre(em), bmBarre: barre(bm), fBarre: barre(f), emDots: dots(em), bmDots: dots(bm), fDots: dots(f) };
   });
-  T(!t8.emBarre && t8.bmBarre && t8.emDots === 2, 'T8 横按判定(Em无杠/Bm有杠/点r=2.5)', JSON.stringify(t8));
+  T(!t8.emBarre && !t8.bmBarre && !t8.fBarre && t8.emDots === 2 && t8.bmDots === 5 && t8.fDots === 6,
+    'T8 横按=逐弦圆点无横杠(Em2/Bm5/F6点)', JSON.stringify(t8));
 
   // T9 v45.7 联排像素级间距：低音下加线 26.25px → gap≥36；一弦推弦装饰 → gap≥30
   const t9 = await pg.evaluate(() => {
