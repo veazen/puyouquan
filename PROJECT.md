@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-09 · 当前版本 **v53.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-09 · 当前版本 **v53.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v53.7 拖选节拍/小节 + 全粒度复制粘贴（用户需求）**：① 新状态 `measureRange {m1,m2}`（整小节多选）+ 新剪贴板 `clipMeasures`（整小节数组）/`clipCols {row,meas,whole}`（声部片段）。② 拖选：dragSel 扩展 kind——小节号 pointerdown 记 `{kind:'mea',m1}`、拍区记 `{kind:'beat',vi,mi,bt}`；pointermove 前置两分支（小节号→measureRange+高亮复用 measureSel 虚线框；拍区→拍→列区间换算 setRange 对齐拍边界，起终按文档序）；既有 cell 列级拖选不动。③ copyMeasure 优先级：measureRange→clipMeasures；whole 单小节→clipRow（原路径）；任意 selRange→clipCols（whole 多小节=meas 按小节分段、列/拍范围=拼接单段）；兜底 clipMeasure。pasteMeasure：clipMeasures 逐小节覆盖（`blankMeasure()` 自动补建、声部数对齐当前曲谱）；clipCols whole=逐小节替换该声部、列级=从光标列顺延覆盖（跨小节推进、曲末截断 toast done/total）。④ 清理点：点空白/点 cell/单击小节号均清 measureRange；智能提示新增 measureRange 分支；小节号热区 title 更新。tv_clip 六断言（拖号连选+高亮/多小节粘贴+补建/拖拍连选/列级顺延+截断/whole 声部替换/单小节回归）入 CORE；39 套件全绿。
+>
 > **v53.6 简谱短连音线歌本标准重画（用户反馈 v53.5 过扁近不可见）**：两轮反馈（v53.4「^ 尖拱」→ v53.5「过小」）的共同根因不是弧高而是**端点**——`x1=xs+5, x2=nextXs-6` 把弧挤在两数字之间 ~8px 的缝里，调高=尖拱、调扁=看不见。改为 GB 歌本标准：端点=首末数字中心 ±1（`xA=xs[a3]+1, xB=xs[b3+1]-1`，跨小节/行尾续接沿用既有 x2），弧横跨数字整体上方；弧高 `rise=min(9+跨列增量, max(6,(xB-xA)*0.35))`；高八度点让位（v53.5 的 tyB 逻辑）保留。五线谱分支不动（tie 贴符头是 Gould 惯例，端点语义不同）。tv_grace T13 断言改写：短弧跨度≥10（横跨两数字）且 rise∈[6,9.1]；38 套件全绿。
 >
 > **v53.5 横按圆点 + 简谱连音线形状修正（用户反馈）**：① chordDiagramSVG **撤横按横杠**（v42.5 加、v45.7 收紧的 5.2k 粗线层）——逐弦圆点本就每按弦一个（frets.forEach），删杠即成「横按=成排圆点」（用户拍板：不要大黑线）。② 简谱连音线（!isStaff 分支）：弧高 `rise=max(2.5, min(9+跨列增量, 跨度×0.55))`——此前固定 9+增量与跨度无关，16分/8分相邻对的窄跨度连线成「^ 尖拱」（用户截图）；基线 `tyB=voxY-13-(hiN?7.5+(hiN-1)*4.2:0)` 让过区间内最高高八度点（此前固定 -13 压点/穿点）；五线谱分支 bow 同款跨度钳制 `max(2.5, min(7+增量, 跨度×0.55))`。断言联动：tv_detail1 T8 重写（Em/Bm/F 全无杠、按弦数=圆点数 2/5/6）、tv_engrave 横按断言翻转（F/Bm=0）、tv_grace 新增 T13（短弧 rise≤max(2.6,span×0.56) 且 <9、长弧 ≤15、高八度让位相对量=7.5——绝对 y 不可比：oct>0 触发 systemExtras 行高预留整行下移 7px，须以 voxY 为基准，已录教训）；38 套件全绿。

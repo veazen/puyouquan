@@ -2493,6 +2493,9 @@ let selRange = null;
 let measureSel = null;   // 选中的整小节 mi
 let clipMeasure = null;  // 复制的小节（深拷贝）
 let clipRow = null;      // 复制的单声部小节 {row, cols}（按住小节线选中后 Ctrl+C）
+let measureRange = null; // v53.7 {m1,m2} 整小节多选（按住小节号拖过多个连选，跨全部声部）
+let clipMeasures = null; // v53.7 多小节剪贴板（整小节深拷贝数组，measureRange Ctrl+C）
+let clipCols = null;     // v53.7 声部片段剪贴板 {row, meas:[[列]…], whole}（拖选列/拍/多小节声部 Ctrl+C）
 let barSel = null;       // 选中的小节线 {L,R}（点击小节线，用于反复/终止设置）
 let blurSel = false;     // 点击页面内容区外 → 隐藏光标
 let meaHandleOn = false; // v51.8 小节宽度手柄显示开关（GP 式，小节图层「宽度手柄」切换）
@@ -4174,6 +4177,10 @@ function editHints(){
     items=[it('技巧/记号面板点任一项：批量应用到所选音符','rib:'+(noteSel[0].row==='vox'?'vox':'tab'),true),
            it('推弦 / 连音线 / 八度线：按 起始音 → 目标音 顺序选中后再点技法'),
            it('再次 Ctrl/Shift+点击可增减选择')];
+  }else if(measureRange){
+    title='已连选第'+(measureRange.m1+1)+'–'+(measureRange.m2+1)+'小节（整小节×'+(measureRange.m2-measureRange.m1+1)+'）';
+    items=[it('Ctrl+C 复制整段 → 光标移到目标小节 Ctrl+V 粘贴（覆盖同数量小节，不足自动补建）'),
+           it('按住小节号拖动可重新调整连选范围')];
   }else if(selRange && selRange.whole){
     const n=selRange.m2-selRange.m1+1;
     title=n>1? '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节声部' : '已选中第'+(selRange.m1+1)+'小节声部';
@@ -4644,14 +4651,15 @@ function render(){
         const isLast = lm.mi===song.measures.length-1;
         const isErr = errSet.has('tab'+vi+':'+lm.mi);
         if(vi===0){
-          /* 整小节选中高亮（跨所有声部） */
-          if(measureSel===lm.mi)
+          /* 整小节选中高亮（跨所有声部）；v53.7 拖小节号连选（measureRange）同款高亮 */
+          const meaOn = measureSel===lm.mi || (measureRange && lm.mi>=measureRange.m1 && lm.mi<=measureRange.m2);
+          if(meaOn)
             p.push(`<rect x="${mx}" y="${oy+M.tabTops[0]-16}" width="${lm.L.w}" height="${M.h-M.tabTops[0]+6}" rx="6" fill="var(--accent)" opacity="0.09" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="6 3"/>`);
-          const numOn = measureSel===lm.mi;
+          const numOn = meaOn;
           /* 小节编号：显示在吉他谱小节线正下方，悬停变色（.mnumg:hover） */
           const mnStr = meaNo(lm.mi);
           p.push(`<g class="mnumg"><text class="mnum" x="${mx+2.5}" y="${tabBot+11}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'600'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${mnStr}</text>`+
-            `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+mnStr.length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节（可复制/粘贴）</title></rect></g>`);
+            `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+mnStr.length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节 · 按住拖过其他小节号连选多小节（Ctrl+C/V 复制粘贴）</title></rect></g>`);
         }
         if(isErr)
           p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="var(--danger)" opacity="0.07"/>
@@ -7963,25 +7971,65 @@ window.addEventListener('keydown', e=>{
 });
 let dragSel = null;
 let noteSel = [];   // Ctrl 多选音符： [{mi,ci,si}]
-/* ---- 整小节复制 / 粘贴（按住小节线选中时：仅复制该声部，可独立粘贴） ---- */
+/* ---- 复制 / 粘贴（v53.7 全粒度统一）：
+   整小节多选(拖小节号) > 单声部整小节(长按小节线) > 声部片段(拖列/拍/Ctrl+点小节线连选) > 单小节 ---- */
 function copyMeasure(){
+  if(measureRange){
+    clipMeasures=[]; for(let m=measureRange.m1;m<=measureRange.m2;m++) clipMeasures.push(JSON.parse(JSON.stringify(song.measures[m])));
+    clipMeasure=null; clipRow=null; clipCols=null;
+    toast('已复制第'+(measureRange.m1+1)+'–'+(measureRange.m2+1)+'小节（整小节×'+clipMeasures.length+'）· 光标到目标小节 Ctrl+V 粘贴');
+    return;
+  }
   if(selRange && selRange.whole && selRange.m1===selRange.m2){
     const cols = selRange.row==='tab'
       ? song.measures[selRange.m1].tabs[selRange.vi]
       : song.measures[selRange.m1].voxes[selRange.vi];
     if(cols){
       clipRow = {row:selRange.row, cols:JSON.parse(JSON.stringify(cols))};
-      clipMeasure = null;
+      clipMeasure = null; clipMeasures=null; clipCols=null;
       toast('已复制第'+(selRange.m1+1)+'小节'+(selRange.row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+V 粘贴到光标小节');
       return;
     }
   }
+  if(selRange){
+    /* v53.7 声部片段：whole 多小节=逐小节段（粘贴按小节替换）；列/拍范围=列级片段（粘贴顺延覆盖） */
+    const {row,vi}=selRange; const meas=[];
+    for(let m=selRange.m1;m<=selRange.m2;m++){
+      const cols=(row==='tab'? (song.measures[m].tabs||[])[vi] : (song.measures[m].voxes||[])[vi])||[];
+      const a = m===selRange.m1? (selRange.c1||0) : 0;
+      const b = (m===selRange.m2 && selRange.c2!==undefined)? Math.min(selRange.c2, cols.length-1) : cols.length-1;
+      meas.push(JSON.parse(JSON.stringify(cols.slice(a, b+1))));
+    }
+    if(!selRange.whole && meas.length>1) clipCols={row, meas:[meas.flat()], whole:false};   // 跨小节列选拼接为一段顺延覆盖
+    else clipCols={row, meas, whole:!!selRange.whole};
+    clipMeasure=null; clipRow=null; clipMeasures=null;
+    const n=meas.reduce((s2,x)=>s2+x.length,0);
+    toast('已复制'+(row==='tab'?'吉他谱':'简谱')+'片段（'+n+' 列）· 光标移到目标位置 Ctrl+V 覆盖粘贴');
+    return;
+  }
   const mi = measureSel!=null? measureSel : sel.mi;
   clipMeasure = JSON.parse(JSON.stringify(song.measures[mi]));
-  clipRow = null;
+  clipRow = null; clipMeasures=null; clipCols=null;
   toast('已复制第'+(mi+1)+'小节');
 }
 function pasteMeasure(){
+  if(clipMeasures){
+    /* v53.7 多小节粘贴：从目标小节起逐小节覆盖（声部数对齐当前曲谱），不足自动补建小节 */
+    const mi0 = measureSel!=null? measureSel : sel.mi;
+    mutate(()=>{
+      clipMeasures.forEach((srcM,k)=>{
+        const mi=mi0+k;
+        while(mi>=song.measures.length) song.measures.push(blankMeasure());
+        const src=JSON.parse(JSON.stringify(srcM));
+        const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
+        song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})()); });
+        song.voxVoices.forEach((_,vi)=>{ m.voxes.push(src.voxes&&src.voxes[vi]? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
+        song.measures[mi]=m;
+      });
+    });
+    toast('已粘贴 '+clipMeasures.length+' 个小节（第'+(mi0+1)+'小节起'+(mi0+clipMeasures.length>song.measures.length-0?'，不足已自动补建':'')+'）');
+    return;
+  }
   if(clipRow){
     const mi = measureSel!=null? measureSel : sel.mi;
     mutate(()=>{
@@ -7990,6 +8038,44 @@ function pasteMeasure(){
       arr[vi] = JSON.parse(JSON.stringify(clipRow.cols));
     });
     toast('已粘贴'+(clipRow.row==='tab'?'吉他谱':'简谱')+'声部到第'+(mi+1)+'小节');
+    return;
+  }
+  if(clipCols){
+    /* v53.7 声部片段粘贴：whole=从光标小节起逐小节替换该声部（不足补建）；
+       列级=从光标列起顺延覆盖（跨小节；曲末截断并提示） */
+    if(sel.row!==clipCols.row){ toast('剪贴板是'+(clipCols.row==='tab'?'吉他谱':'简谱')+'片段——先把光标放到对应声部再 Ctrl+V'); return; }
+    const vi=sel.vi;
+    if(clipCols.whole){
+      const mi0=sel.mi;
+      mutate(()=>{
+        clipCols.meas.forEach((cols2,k)=>{
+          const mi=mi0+k;
+          while(mi>=song.measures.length) song.measures.push(blankMeasure());
+          const arr = clipCols.row==='tab'? song.measures[mi].tabs : song.measures[mi].voxes;
+          arr[Math.max(0,Math.min(vi,arr.length-1))] = JSON.parse(JSON.stringify(cols2));
+        });
+      });
+      toast('已按小节粘贴'+(clipCols.row==='tab'?'吉他谱':'简谱')+'声部（第'+(mi0+1)+'小节起 ×'+clipCols.meas.length+'）');
+      return;
+    }
+    const flat=clipCols.meas[0]||[]; let done=0;
+    mutate(()=>{
+      let mi=sel.mi, ci=sel.ci;
+      for(const col of flat){
+        let cols3=null;
+        while(song.measures[mi]){
+          const mea=song.measures[mi];
+          const arr = clipCols.row==='tab'? mea.tabs : mea.voxes;
+          cols3 = arr[Math.max(0,Math.min(vi,arr.length-1))];
+          if(cols3 && ci<cols3.length) break;
+          mi++; ci=0; cols3=null;
+        }
+        if(!cols3) break;
+        cols3[ci]=JSON.parse(JSON.stringify(col)); ci++; done++;
+      }
+    });
+    toast(done>=flat.length? '已覆盖粘贴 '+done+' 列（小节时值若不符会在节拍检查中提示）'
+      : '已覆盖粘贴 '+done+'/'+flat.length+' 列（到曲末截断）');
     return;
   }
   if(!clipMeasure) return toast('剪贴板为空，先选中小节号 Ctrl+C 复制');
@@ -8014,7 +8100,7 @@ document.addEventListener('pointerdown', e=>{
   if(!(t instanceof Element)) return;
   const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button');
   if(!inside){
-    blurSel = true; measureSel=null; selRange=null; noteSel=[]; closeTech();
+    blurSel = true; measureSel=null; selRange=null; noteSel=[]; measureRange=null; closeTech();
     render();
   }
 }, true);
@@ -8089,12 +8175,13 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       document.addEventListener('pointerup', up2);
       return;
     } }
-  /* 点击小节号 → 选中整小节（可复制/粘贴） */
+  /* 点击小节号 → 选中整小节（可复制/粘贴）；v53.7 按住拖过多个小节号=整小节连选 */
   if(t.dataset.measuresel!==undefined){
     measureSel = +t.dataset.measuresel;
-    sel.mi = measureSel; sel.ci = 0; selRange=null; noteSel=[]; closeTech();
+    sel.mi = measureSel; sel.ci = 0; selRange=null; noteSel=[]; measureRange=null; closeTech();
+    dragSel = {kind:'mea', m1:measureSel};
     clampSel(); render();
-    toast('已选中第'+(measureSel+1)+'小节 · Ctrl+C 复制 / Ctrl+V 粘贴');
+    toast('已选中第'+(measureSel+1)+'小节 · Ctrl+C 复制 / Ctrl+V 粘贴 · 按住拖过其他小节号可连选');
     return;
   }
   /* 小节线：按住(≥450ms)=选中该小节的吉他谱/简谱声部（可独立复制粘贴）；
@@ -8196,8 +8283,9 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     if(ids.length){
       sel.row='tab'; sel.vi=bvi; sel.mi=bmi; sel.ci=ids[0];
       selRange={row:'tab', vi:bvi, m1:bmi, c1:ids[0], m2:bmi, c2:ids[ids.length-1]};
-      noteSel=[]; closeTech(); setRibbon('tab'); render();
-      toast('已选中第'+(bt+1)+'拍 · 点"组合时值"替换节奏，或在记号层点连音/N连音整拍套用');
+      noteSel=[]; measureRange=null; closeTech(); setRibbon('tab'); render();
+      dragSel = {kind:'beat', vi:bvi, mi:bmi, bt};   /* v53.7 按住拖过其他拍区=连选多拍 */
+      toast('已选中第'+(bt+1)+'拍 · 按住拖过其他拍可连选 · Ctrl+C 复制 / 组合时值·连音整拍套用');
     }
     return;
   }
@@ -8271,7 +8359,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
       return;
     }
   }
-  noteSel=[]; closeTech();
+  noteSel=[]; measureRange=null; closeTech();
   if(e.shiftKey && sel.row===row && sel.vi===vi){
     setRange(row, vi, {mi:sel.mi, ci:sel.ci}, {mi, ci});
     render(); return;
@@ -9108,11 +9196,46 @@ function applyTabGrace(kind){
       toast(tv?('已设置'+(kind==='pre'?'前':'后')+'倚音——点谱面倚音组可改弦位/时值'):'已清除倚音');
     });
 }
-/* 按住左键拖动多选（同声部内，可跨小节） */
+/* 按住左键拖动多选（同声部内，可跨小节）；
+   v53.7 扩展两种拖选粒度：拖小节号=整小节连选（measureRange，跨全部声部）、
+   拖拍区=按拍连选（selRange 对齐拍边界，可跨小节）——统一编辑/复制粘贴用 */
 document.getElementById('score').addEventListener('pointermove', e=>{
   if(!dragSel || !(e.buttons&1)) return;
   const t = e.target;
-  if(!(t instanceof Element) || t.dataset.mi===undefined) return;
+  if(!(t instanceof Element)) return;
+  if(dragSel.kind==='mea'){
+    const mz = t.closest? t.closest('[data-measuresel]') : null;
+    if(!mz) return;
+    const m = +mz.dataset.measuresel;
+    const nr = m===dragSel.m1? null : {m1:Math.min(dragSel.m1,m), m2:Math.max(dragSel.m1,m)};
+    if(JSON.stringify(nr)!==JSON.stringify(measureRange)){
+      measureRange = nr;
+      measureSel = nr? null : dragSel.m1;
+      render();
+    }
+    return;
+  }
+  if(dragSel.kind==='beat'){
+    const bz = t.closest? t.closest('[data-beatsel]') : null;
+    if(!bz) return;
+    const [mi2,vi2,bt2] = bz.dataset.beatsel.split(':').map(Number);
+    if(vi2!==dragSel.vi) return;
+    /* 拍→列区间（起止两拍按文档序排序后取首拍首列、末拍末列） */
+    const span=(m3,b3)=>{ const cols=(song.measures[m3]&&song.measures[m3].tabs[dragSel.vi])||[];
+      const mU=meaMeter(m3).unit; let cum=0,a=-1,b=-1;
+      cols.forEach((c,ci3)=>{ if(Math.floor(cum+1e-4)===b3){ if(a<0)a=ci3; b=ci3; } cum+=beatsOf(c,mU); });
+      return a<0? null : {a,b}; };
+    const fwd = (mi2>dragSel.mi) || (mi2===dragSel.mi && bt2>=dragSel.bt);
+    const A = fwd? {mi:dragSel.mi, bt:dragSel.bt} : {mi:mi2, bt:bt2};
+    const B = fwd? {mi:mi2, bt:bt2} : {mi:dragSel.mi, bt:dragSel.bt};
+    const sA=span(A.mi,A.bt), sB=span(B.mi,B.bt);
+    if(!sA || !sB) return;
+    const old2 = JSON.stringify(selRange);
+    setRange('tab', dragSel.vi, {mi:A.mi, ci:sA.a}, {mi:B.mi, ci:sB.b});
+    if(JSON.stringify(selRange)!==old2) render();
+    return;
+  }
+  if(t.dataset.mi===undefined) return;
   if(t.dataset.row!==dragSel.row || +t.dataset.vi!==dragSel.vi) return;
   const mi=+t.dataset.mi, ci=+t.dataset.ci;
   if(mi===dragSel.mi && ci===dragSel.ci){
@@ -14998,7 +15121,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.6';
+const APP_VER='v53.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15021,6 +15144,7 @@ const APP_VER='v53.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.7</span><div><b>拖动选中节拍/小节 + 全粒度复制粘贴</b>（用户需求）：①<b>按住小节号拖过多个小节号</b>=整小节连选（跨全部声部，虚线高亮），Ctrl+C 复制整段、光标移到目标小节 Ctrl+V 粘贴——覆盖同数量小节、<b>不足自动补建</b>；②<b>按住拍区拖过多拍</b>=按拍连选（对齐拍边界、可跨小节），配合组合时值/连音/技法批量套用；③<b>音符列拖选的片段现在也能 Ctrl+C/V</b>——列级片段从光标位置<b>顺延覆盖粘贴</b>（跨小节，到曲末自动截断提示）；Ctrl+点小节线连选的多小节声部段则按小节替换粘贴。原有单小节/单声部复制粘贴不变。</div></li>
     <li><span class="v">v53.6</span><div><b>简谱短连音线按歌本标准重画</b>（用户反馈 v53.5 短弧过小近不可见）：找到两轮反馈的共同根因——弧线端点此前挤在两个数字之间的空隙里（相邻十六分音符只剩几个像素的缝），弧怎么调都不对。现按专业制谱标准：<b>弧横跨首末两个数字整体上方</b>（端点落在数字中心），弧高固定在清晰可见的档位（短弧约 6px、随跨度缓增），与出版歌本样式一致。</div></li>
     <li><span class="v">v53.5</span><div><b>横按圆点 + 简谱连音线形状修正</b>（用户反馈）：①和弦图<b>大横按改用逐弦黑点</b>表示——F/Bm 等横按和弦不再画大黑线，每根按弦一个圆点，与分指按法视觉统一；②<b>简谱短连音线不再「^ 尖拱」</b>——弧高改为随跨度比例给（上下限钳制），相邻两音的小连线呈扁平小弧（GB 惯例），长连音线弧高同步封顶；连音线基线自动<b>让过高八度点</b>（此前会压点）；五线谱连音线短弧同款钳制。</div></li>
     <li><span class="v">v53.4</span><div><b>页头点击直改 + 变调夹联动简谱</b>（用户需求）：①谱面页头元素全部可点——<b>调号</b>（弹调号菜单，换调自动移调和弦与吉他品位）、<b>拍号</b>（全曲拍号菜单）、<b>速度</b>（直接输入 BPM）、<b>变调夹</b>（0-12 品一键设置）、<b>标题/演唱/词曲区</b>（打开曲谱信息弹窗，标题等文本字段<b>输入即实时上谱预览</b>，取消可恢复、确定后一次撤销）。②<b>变调夹联动简谱</b>：设夹后页头 1=X 显示<b>实际调</b>（指法调+夹品半音，如 1=C 夹 3 品显示 1=Eb），变调夹位注明「按 1=C 指法」（歌本惯例）；<b>简谱声部播放与 MIDI 导出同步升 Key</b>，与吉他实际音高一致——此前谱面与播放都停在指法调，显示和听感双双不对。</div></li>
