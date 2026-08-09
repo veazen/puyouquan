@@ -3901,6 +3901,24 @@ function setRange(row, vi, a, b){
   if(a.mi>b.mi || (a.mi===b.mi && a.ci>b.ci)){ const t=a; a=b; b=t; }
   selRange = {row, vi, m1:a.mi, c1:a.ci, m2:b.mi, c2:b.ci};
 }
+/* v53.8 选区 → 框选音符：把 selRange 范围内全部音符填入 noteSel——圈选标记可见、
+   技法/指法等按音符批量的操作直接可用（用户反馈：列选时不出现框选音符） */
+function noteSelFromRange(){
+  if(!selRange) return 0;
+  const hits=[]; const {row,vi}=selRange;
+  for(let m=selRange.m1;m<=selRange.m2;m++){
+    const cols=(row==='tab'? ((song.measures[m]||{}).tabs||[])[vi] : ((song.measures[m]||{}).voxes||[])[vi])||[];
+    const a=m===selRange.m1? (selRange.c1||0) : 0;
+    const b=(m===selRange.m2 && selRange.c2!==undefined)? Math.min(selRange.c2, cols.length-1) : cols.length-1;
+    for(let ci2=a;ci2<=b;ci2++){
+      const c=cols[ci2]; if(!c) continue;
+      if(row==='tab') (c.notes||[]).forEach(n=>hits.push({mi:m, ci:ci2, si:n.s, vi, row:'tab'}));
+      else if(c.deg) hits.push({mi:m, ci:ci2, si:0, vi, row:'vox'});
+    }
+  }
+  if(hits.length) noteSel=hits;
+  return hits.length;
+}
 function colInRange(row, vi, mi, ci){
   if(!selRange || selRange.row!==row || selRange.vi!==vi) return false;
   if(mi<selRange.m1 || mi>selRange.m2) return false;
@@ -8362,6 +8380,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   noteSel=[]; measureRange=null; closeTech();
   if(e.shiftKey && sel.row===row && sel.vi===vi){
     setRange(row, vi, {mi:sel.mi, ci:sel.ci}, {mi, ci});
+    noteSelFromRange();   /* v53.8 Shift 扩选同样进入框选态 */
     render(); return;
   }
   selRange = null;
@@ -9246,7 +9265,14 @@ document.getElementById('score').addEventListener('pointermove', e=>{
   setRange(dragSel.row, dragSel.vi, {mi:dragSel.mi, ci:dragSel.ci}, {mi, ci});
   if(JSON.stringify(selRange)!==old) render();
 });
-window.addEventListener('pointerup', ()=>{ dragSel=null; });
+window.addEventListener('pointerup', ()=>{
+  /* v53.8 列/拍拖选结束：范围内音符自动进入框选态（圈选标记 + 按音符批量操作可用）；
+     小节号连选(kind==='mea')/小节线声部选(whole)是小节级语义，不转框选 */
+  if(dragSel && selRange && !selRange.whole && (!dragSel.kind || dragSel.kind==='beat')){
+    if(noteSelFromRange()) render();
+  }
+  dragSel=null;
+});
 
 /* ================= 其余工具动作 ================= */
 /* v42.9 变化音循环输入：♯ 键 无→升→重升(×)→无；♭ 键 无→降→重降(♭♭)→无；♮ 键切换还原号 */
@@ -15121,7 +15147,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.7';
+const APP_VER='v53.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15144,6 +15170,7 @@ const APP_VER='v53.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.8</span><div><b>列/拍拖选联动框选音符</b>（用户反馈：列选的时候不出现框选音符）：音符列拖选、拍区拖选与 Shift 扩选<b>松手后，范围内的音符自动进入框选态</b>——每个音符出现圈选标记，技法/指法/时值等按音符的批量操作直接可用，与空白处拖圈框选行为一致。按住小节号连选整小节、Ctrl+点小节线连选声部段仍保持小节级语义（复制粘贴整段），不转框选。</div></li>
     <li><span class="v">v53.7</span><div><b>拖动选中节拍/小节 + 全粒度复制粘贴</b>（用户需求）：①<b>按住小节号拖过多个小节号</b>=整小节连选（跨全部声部，虚线高亮），Ctrl+C 复制整段、光标移到目标小节 Ctrl+V 粘贴——覆盖同数量小节、<b>不足自动补建</b>；②<b>按住拍区拖过多拍</b>=按拍连选（对齐拍边界、可跨小节），配合组合时值/连音/技法批量套用；③<b>音符列拖选的片段现在也能 Ctrl+C/V</b>——列级片段从光标位置<b>顺延覆盖粘贴</b>（跨小节，到曲末自动截断提示）；Ctrl+点小节线连选的多小节声部段则按小节替换粘贴。原有单小节/单声部复制粘贴不变。</div></li>
     <li><span class="v">v53.6</span><div><b>简谱短连音线按歌本标准重画</b>（用户反馈 v53.5 短弧过小近不可见）：找到两轮反馈的共同根因——弧线端点此前挤在两个数字之间的空隙里（相邻十六分音符只剩几个像素的缝），弧怎么调都不对。现按专业制谱标准：<b>弧横跨首末两个数字整体上方</b>（端点落在数字中心），弧高固定在清晰可见的档位（短弧约 6px、随跨度缓增），与出版歌本样式一致。</div></li>
     <li><span class="v">v53.5</span><div><b>横按圆点 + 简谱连音线形状修正</b>（用户反馈）：①和弦图<b>大横按改用逐弦黑点</b>表示——F/Bm 等横按和弦不再画大黑线，每根按弦一个圆点，与分指按法视觉统一；②<b>简谱短连音线不再「^ 尖拱」</b>——弧高改为随跨度比例给（上下限钳制），相邻两音的小连线呈扁平小弧（GB 惯例），长连音线弧高同步封顶；连音线基线自动<b>让过高八度点</b>（此前会压点）；五线谱连音线短弧同款钳制。</div></li>

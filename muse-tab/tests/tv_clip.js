@@ -99,6 +99,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { cm, pasted, cr }; })()`);
   T(r.cm && r.pasted && r.cr, 'T6 单小节/单声部剪贴板回归', JSON.stringify(r));
 
+  // T7 列选→框选音符（v53.8）：vox 列拖选松手后范围内音符进入 noteSel，圈选标记出现
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong}; loadSong(s); blurSel=true; render();
+    const cell=(mi,ci)=>document.querySelector('[data-mi="'+mi+'"][data-ci="'+ci+'"][data-row="vox"]');
+    cell(0,0).dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1}));
+    cell(0,2).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1}));
+    const rangeOn = selRange && selRange.c1===0 && selRange.c2===2;
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+    const circ=(document.getElementById('score').innerHTML.match(/r="8\\.5"/g)||[]).length;
+    return { rangeOn, n:noteSel.length, rows:noteSel.every(q=>q.row==='vox'), circ }; })()`);
+  T(r.rangeOn && r.n === 3 && r.rows && r.circ === 3, 'T7 列选松手=框选音符(vox圈×3)', JSON.stringify(r));
+
+  // T8 拍选→框选音符：TAB 拍区拖选两拍松手后 noteSel=拍内音符、TAB 圈选标记出现
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong}; loadSong(s); blurSel=true; render();
+    document.querySelector('[data-beatsel="0:0:0"]').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1}));
+    document.querySelector('[data-beatsel="0:0:1"]').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1}));
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+    const circ=(document.getElementById('score').innerHTML.match(/r="8" fill="none" stroke="var\\(--accent\\)"/g)||[]).length;
+    return { n:noteSel.length, tab:noteSel.every(q=>q.row==='tab'&&q.si===3), circ }; })()`);
+  T(r.n === 2 && r.tab && r.circ === 2, 'T8 拍选松手=框选音符(tab圈×2)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
