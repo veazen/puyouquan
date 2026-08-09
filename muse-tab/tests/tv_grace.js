@@ -16,8 +16,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  // T1 tieSVG 同一线径（v52.8）：中部厚度=th 恒定（跨度 8/60/200 相同、不随跨度加粗/收细）；
-  //    两端细尖=内外缘共起终点（几何断言：厚度=|qy-q2|/2，从 path d 反解）
+  // T1 tieSVG 同一线径（v52.8）+ 线径细化 ×0.6（v52.9）：中部厚度=th×0.6 恒定
+  //    （跨度 8/60/200 相同、不随跨度加粗/收细）；两端细尖=内外缘共起终点
+  //    （几何断言：厚度=|qy-q2|/2，从 path d 反解）
   let r = await pg.evaluate(() => {
     const parse = (svg) => svg.match(/d="([^"]+)"/)[1].split(/[MQZ\s]+/).filter(Boolean).map(Number);
     const thick = (svg) => { const t = parse(svg); return Math.abs(t[3] - t[7]) / 2; };   // [x1,y1, mx,qy,x2,y2, mx,q2,x1,y1]
@@ -26,13 +27,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       s8: thick(tieSVG(0, 0, 8, 0, -10, 1.8)),
       s60: thick(tieSVG(0, 0, 60, 0, -10, 1.8)),
       s200: thick(tieSVG(0, 0, 200, 0, -10, 1.8)),
-      dft: thick(tieSVG(0, 0, 60, 0, -10)),             // 缺省 th=1.9
+      dft: thick(tieSVG(0, 0, 60, 0, -10)),             // 缺省 th=1.9 → 1.14
       sharp: sharp(tieSVG(0, 0, 60, 0, -10)),           // 两端细尖（内外缘共点）
     };
   });
-  T(Math.abs(r.s8 - 1.8) < 0.01 && Math.abs(r.s60 - 1.8) < 0.01 && Math.abs(r.s200 - 1.8) < 0.01
-    && Math.abs(r.dft - 1.9) < 0.01 && r.sharp,
-    'T1 tieSVG同一线径+两端细尖', JSON.stringify(r));
+  // 容差 0.06：path 坐标 toFixed(1) 量化 ±0.05（1.08→读出 1.1、1.14→1.15）
+  T(Math.abs(r.s8 - 1.08) < 0.06 && Math.abs(r.s60 - 1.08) < 0.06 && Math.abs(r.s200 - 1.08) < 0.06
+    && Math.abs(r.dft - 1.14) < 0.06 && Math.abs(r.s8 - r.s200) < 0.06 && r.sharp,
+    'T1 tieSVG同一线径细化+两端细尖', JSON.stringify(r));
 
   // T2 TAB 倚音渲染：小品位数字（font-size=8）+ 前/后热区 + 数字在主音左/右（几何）
   //    + v52.8 不画斜杠（加倚音前后 <line> 数不变——数字/弧/热区分别是 text/path/rect）

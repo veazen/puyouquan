@@ -3112,10 +3112,10 @@ function accG(sym, nx, hy, SG, scale){
 /* v50.0 出版级连音线/圆滑线（产品指示：括弧形——两端细尖、中部有厚度）：
    双二次曲线填充替代等线宽 stroke 弧。外缘控制点 (两端中点x, qy)，内缘控制点向端点侧
    回收 2·th（二次曲线中点距弦=控制偏移的一半 → 中部厚度≈th）；两端共点=天然细尖。
-   v52.8 产品拍板：同一线径——中部厚度恒为 th、与跨度无关（撤 v52.7 的短弧随跨度收细斜坡），
-   两端细尖保持；「不随跨度加粗」由厚度恒定天然满足。 */
+   v52.8 产品拍板：同一线径——中部厚度恒为 th、与跨度无关（撤 v52.7 的短弧随跨度收细斜坡）。
+   v52.9 产品反馈线径过粗：统一细化 40%（×0.6 单点旋钮，各调用点相对粗细与细尖形状不变）。 */
 function tieSVG(x1,y1,x2,y2,qy,th){
-  const t=th||1.9, mx2=(x1+x2)/2, my2=(y1+y2)/2;
+  const t=(th||1.9)*0.6, mx2=(x1+x2)/2, my2=(y1+y2)/2;
   const q2=qy + (qy<my2? t*2 : -t*2);
   return `<path d="M ${(+x1).toFixed(1)} ${(+y1).toFixed(1)} Q ${mx2.toFixed(1)} ${(+qy).toFixed(1)} ${(+x2).toFixed(1)} ${(+y2).toFixed(1)} Q ${mx2.toFixed(1)} ${q2.toFixed(1)} ${(+x1).toFixed(1)} ${(+y1).toFixed(1)} Z" fill="var(--ink)"/>`;
 }
@@ -14799,7 +14799,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v52.8';
+const APP_VER='v52.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14822,6 +14822,7 @@ const APP_VER='v52.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v52.9</span><div><b>连音线线径细化</b>（用户反馈线径过粗）：全部连音线/圆滑线/推弦弧统一细化约 40%——中部厚度由约 1.9 降到约 1.1，两端细尖与同一线径（厚度与跨度无关）保持不变，谱面更清爽。</div></li>
     <li><span class="v">v52.8</span><div><b>倚音/连音线细节修正</b>（用户反馈）：①吉他谱（TAB）行的倚音<b>去掉斜杠</b>——只保留小品位数字＋小连音弧，更干净（五线谱行的倚音斜杠为标准记谱，保留）；②连音线恢复<b>同一线径</b>：弧线中部厚度恒定、与跨度无关，两端细尖不变（撤 v52.7 的短弧随跨度收细）。</div></li>
     <li><span class="v">v52.7</span><div><b>倚音跨谱类统一 + 连音线厚度封顶</b>：①<b>吉他谱（TAB）新增倚音</b>——记号层「前倚音/后倚音」按钮输入品位（最多3音），谱面显示为弦线上的小品位数字＋倚音斜杠＋小连音弧，<b>联排五线谱同步显示</b>小符头倚音组（品位→音高自动换算），点谱面倚音组可逐音改弦位/品位/时值；播放为主音前/后的短促小音符；MusicXML 按标准 grace 元素（含 string/fret）出入。至此倚音在<b>简谱/五线谱/六线谱/联排</b>全谱类统一——同一份数据，切换任意记谱法都同步呈现。②<b>连音线最粗处封顶</b>：弧线中部厚度不再与跨度无关地固定给足——短弧（相邻音击勾弦、小连线）随跨度按比例收细，到一定跨度即达上限不再加粗（出版惯例），所有连音线/圆滑线/推弦弧统一生效。</div></li>
     <li><span class="v">v52.6</span><div><b>吉他技法面板统一</b>：独奏（电吉他）/指弹/弹唱三类吉他谱的左栏技法符号不再按风格分栏——只要是吉他谱，<b>摇把、泛音细分（A.H./P.H./T.H.）、let ring、pima 右手指法、打板</b>等全部技法一并显示，弹唱谱也能直接使用完整技法集（吉他类型仍保留，用于新建向导的默认调弦等）。</div></li>
