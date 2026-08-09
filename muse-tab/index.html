@@ -3248,9 +3248,13 @@ function beatsOf(c, unit){
 }
 /* v42.9 变化音半音偏移：升#+1 / 降b−1 / 重升x+2 / 重降bb−2 / 还原n·空 0 */
 function accSemi(acc){ return acc==='#'?1 : acc==='b'?-1 : acc==='x'?2 : acc==='bb'?-2 : 0; }
+/* v53.4 变调夹联动简谱（弹唱语境）：简谱按指法调记谱（唱名/数据不变），
+   实际歌声与吉他同升 capo 半音——简谱声部播放/MIDI 统一 +capo；
+   页头显示实际调 1=X（见 render 页头）。五线谱/联排记谱不动（capo 惯例：写指法调、响实际调） */
+function voxCapo(){ return (song.tabVoices&&song.tabVoices.length)? (song.capo||0) : 0; }
 function voxMidi(c){
   if(!c.deg) return null;
-  let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12 + accSemi(c.acc);
+  let m = keyRef() + DEG_SEMI[c.deg] + c.oct*12 + accSemi(c.acc) + voxCapo();
   return m;
 }
 function shapeSounded(shape){
@@ -4318,19 +4322,43 @@ function render(){
      只保留速度记号（出版惯例）；含简谱/TAB 的谱面维持原页头 */
   const pureStaff = !song.tabVoices.length && song.voxVoices.length>0 &&
     song.voxVoices.every((_,i2)=>isStaffNota((song.voxNotations||[])[i2]));
+  /* v53.4 变调夹联动简谱显示：有 TAB 且设夹时，1=X 标「实际调」（歌声调=指法调+capo，
+     与播放同步，见 voxCapo），变调夹位注明按什么指法（歌本惯例：1=bE 变调夹3品 按C指法） */
+  const capoShift = (song.tabVoices.length && song.capo>0 && !pureStaff)? song.capo : 0;
+  const dispKey = capoShift? KEY_LIST[(KEY_PC[song.key]+capoShift)%12] : song.key;
   if(!pureStaff){
-    p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(song.key)}</text>`);
+    p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(dispKey)}</text>`);
     p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
     p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
     p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
   }
+  /* v53.4 页头位段结构化 {t,act}：act=点击直改动作（capo/tempo），null=纯标注；估宽定热区 */
   const capoBits=[];
-  if(song.capo>0 && !pureStaff) capoBits.push(esc(`变调夹 ${song.capo} 品`));
-  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push(esc(tl)); }   // v42.3 特殊调弦谱首标注
+  if(song.capo>0 && !pureStaff) capoBits.push({t:esc(`变调夹 ${song.capo} 品（按 1=${song.key} 指法）`), act:'capo'});
+  /* 未设夹不占谱面（打印纯净）：capo 从曲谱信息弹窗（点标题区）或变调夹菜单（设过后可点）进入 */
+  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push({t:esc(tl), act:null}); }   // v42.3 特殊调弦谱首标注
   /* v42.7 意大利速度术语：与 ♩=X 并排，斜体加粗（出版惯例）；五线谱/器乐谱同样显示 */
-  if(song.tempoTerm) capoBits.push(`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`);
-  capoBits.push(`♩=${esc(song.tempo)}`);
-  p.push(`<text x="${pureStaff? MARGIN : MARGIN+78}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.join('　')}</text>`);
+  if(song.tempoTerm) capoBits.push({t:`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`, act:'tempo'});
+  capoBits.push({t:`♩=${esc(song.tempo)}`, act:'tempo'});
+  const cbX0 = pureStaff? MARGIN : MARGIN+78;
+  p.push(`<text x="${cbX0}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.map(b2=>b2.t).join('　')}</text>`);
+  /* v53.4 页头直改热区：标题/词曲区→曲谱信息弹窗；调号/拍号/变调夹/速度→就地菜单 */
+  {
+    const hz=(x,y,w2,h2,act,tip)=>p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w2.toFixed(1)}" height="${h2.toFixed(1)}" fill="transparent" data-hd="${act}" style="cursor:pointer"><title>${tip}</title></rect>`);
+    hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', '点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）');
+    if(!pureStaff){
+      hz(MARGIN-4, headY+6, 50, 22, 'key', '点击更换调号（和弦名与吉他品位自动移调，简谱唱名不变）');
+      hz(MARGIN+42, headY+2, 26, 30, 'meter', '点击设置全曲拍号（单个小节变拍：点击该小节拍号区）');
+    }
+    const estW = s2=>[...String(s2).replace(/<[^>]*>/g,'')].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7:12.5),0);
+    let cx2=cbX0;
+    capoBits.forEach(b2=>{
+      const w2=estW(b2.t);
+      if(b2.act) hz(cx2-2, headY+9, w2+5, 18, b2.act,
+        b2.act==='capo'? '点击设置变调夹（简谱实际调与播放同步联动）' : '点击设置速度 ♩=X');
+      cx2 += w2 + 12.5;
+    });
+  }
   let top = headY + 42;
   if(diagMode==='top'){
     const chords = usedChords();
@@ -8148,6 +8176,11 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     showAddsMenu(+seg[0], +seg[1], +seg[2], e.clientX, e.clientY);
     return;
   }
+  /* v53.4 页头点击直改：调号/拍号/速度/变调夹/曲谱信息 */
+  if(t.dataset.hd!==undefined){
+    showHeadMenu(t.dataset.hd, e.clientX, e.clientY);
+    return;
+  }
   measureSel = null;
   /* 点击段序号 → 选中该段歌词进行编辑（不移动音符光标） */
   if(t.dataset.lyrsel!==undefined){
@@ -8664,6 +8697,67 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
     });
     rebuild();
   });
+}
+/* v53.4 页头直改菜单：调号/拍号/速度/变调夹点击就地设置；标题区→曲谱信息弹窗 */
+function showHeadMenu(kind, cx, cy){
+  closePop();
+  if(kind==='meta'){ document.getElementById('b-meta').onclick(); return; }
+  if(kind==='tempo'){
+    askText('速度 ♩=（30–240）', song.tempo, v=>{
+      const t2=Math.max(30, Math.min(240, parseInt(v,10)||song.tempo));
+      mutate(()=>{ song.tempo=t2; });
+      toast('已设速度 ♩='+t2+'（速度术语在曲谱信息弹窗设置）');
+    });
+    return;
+  }
+  const div=document.createElement('div');
+  div.className='popmenu pm-follow'; div.id='popmenu';
+  div.style.left=(Math.min(cx, innerWidth-320)+scrollX)+'px';
+  div.style.top=(cy+8+scrollY)+'px';
+  if(kind==='key'){
+    div.innerHTML=`<div class="t">调号 1=X（换调自动移调：和弦名与吉他品位整体平移、简谱唱名不变，可撤销）</div>
+      <div class="row">${KEY_LIST.map(k=>`<button data-k="${k}" class="${k===song.key?'on':''}">${k}</button>`).join('')}</div>
+      ${song.capo>0?`<div class="t" style="margin-top:5px">当前变调夹 ${song.capo} 品：页头 1=X 显示实际调（指法调+${song.capo} 半音）</div>`:''}`;
+    document.body.appendChild(div);
+    div.addEventListener('click', ev=>{
+      const b2=ev.target.closest('[data-k]'); if(!b2) return;
+      const nk=b2.dataset.k, oldKey=song.key;
+      if(nk===oldKey){ closePop(); return; }
+      let tr=null, dSemi=0;
+      mutate(()=>{
+        song.key=nk;
+        dSemi=((KEY_PC[nk]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
+        if(dSemi!==0) tr=transposeEditor(dSemi);
+      });
+      closePop();
+      const bits=[];
+      if(tr && tr.nCh) bits.push(`${tr.nCh} 处和弦已移调`);
+      if(tr && tr.nNotes) bits.push(`吉他谱品位整体 ${tr.shift>0?'+':''}${tr.shift} 品`);
+      toast(`已换调 1=${oldKey} → 1=${nk}：${bits.join('，')||'简谱唱名不变'}，可 Ctrl+Z 撤销`);
+    });
+  } else if(kind==='meter'){
+    const MS=[[2,4],[3,4],[4,4],[5,4],[6,4],[3,8],[6,8],[9,8],[12,8]];
+    div.innerHTML=`<div class="t">全曲拍号（单个小节变拍：右键该小节 → 小节拍号）</div>
+      <div class="row">${MS.map(([b3,u3])=>`<button data-m="${b3}:${u3}" class="${song.beats===b3&&song.unit===u3?'on':''}">${b3}/${u3}</button>`).join('')}</div>`;
+    document.body.appendChild(div);
+    div.addEventListener('click', ev=>{
+      const b2=ev.target.closest('[data-m]'); if(!b2) return;
+      const seg=b2.dataset.m.split(':').map(Number);
+      mutate(()=>{ song.beats=seg[0]; song.unit=seg[1]; });
+      closePop();
+      toast('已设全曲拍号 '+seg[0]+'/'+seg[1]+'（各小节时值不符会在节拍检查中提示）');
+    });
+  } else if(kind==='capo'){
+    div.innerHTML=`<div class="t">变调夹品位（0=不用）：设夹后简谱页头标实际调、简谱声部播放与吉他同步升 Key</div>
+      <div class="row">${Array.from({length:13},(_,i)=>`<button data-c="${i}" class="${(song.capo||0)===i?'on':''}">${i===0?'无':i+' 品'}</button>`).join('')}</div>`;
+    document.body.appendChild(div);
+    div.addEventListener('click', ev=>{
+      const b2=ev.target.closest('[data-c]'); if(!b2) return;
+      mutate(()=>{ song.capo=+b2.dataset.c; });
+      closePop();
+      toast(song.capo>0? `变调夹 ${song.capo} 品：实际调 1=${KEY_LIST[(KEY_PC[song.key]+song.capo)%12]}（按 1=${song.key} 指法），播放已同步` : '已取消变调夹');
+    });
+  }
 }
 /* v53.3 简谱/五线谱和音编辑弹窗：逐音改唱名/八度/变音、加删音——
    入口：记号层「和音」钮 / 谱面点和音纵列（data-vadds 热区）；五线谱 Ctrl+点击线/间加减仍可用 */
@@ -9857,8 +9951,20 @@ document.getElementById('b-meta').onclick = ()=>{
       <datalist id="mm-tempoterms">${TEMPO_TERMS.map(([t,cn])=>`<option value="${esc(t)}">${esc(cn)}</option>`).join('')}</datalist></label>
     <label class="f" style="align-items:center"><span>弱起小节</span><input id="mm-pickup" type="checkbox" ${song.pickup?'checked':''} style="width:auto;margin:0 6px 0 0"><span style="font-weight:400;color:var(--muted);font-size:12.5px">首小节为弱起（不足拍不报错、不编号）</span></label>
     <div class="btns"><button id="mm-cancel">取消</button><button id="mm-ok" class="primary">确定</button></div>`);
-  document.getElementById('mm-cancel').onclick = closeModal;
+  /* v53.4 文本字段实时预览：输入即上谱；取消恢复原值；确定前先回滚预览值，
+     再走 mutate 整体应用——撤销快照因此是「修改前」状态，一次 Ctrl+Z 全撤 */
+  const liveMap=[['mm-title','title'],['mm-singer','singer'],['mm-lyricist','lyricist'],['mm-composer','composer'],['mm-maker','maker']];
+  const origMeta={};
+  liveMap.forEach(([id,f])=>{ origMeta[f]=song[f];
+    const el=document.getElementById(id);
+    el.addEventListener('input', ()=>{ song[f]=el.value; render(); });
+  });
+  document.getElementById('mm-cancel').onclick = ()=>{
+    liveMap.forEach(([id,f])=>{ song[f]=origMeta[f]; });
+    render(); closeModal();
+  };
   document.getElementById('mm-ok').onclick = ()=>{
+    liveMap.forEach(([id,f])=>{ song[f]=origMeta[f]; });   // 回滚预览，mutate 快照=修改前
     const oldKey = song.key;
     let tr = null, dSemi = 0;
     mutate(()=>{
@@ -11229,7 +11335,7 @@ function play(){
           const g = normGrace(col.grace);
           const per = Math.min(0.12, durSec*0.35/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
-            const gm = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
+            const gm = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12 + voxCapo();   /* v53.4 变调夹联动 */
             playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false, {damp:true, vel:0.7});
           });
         }
@@ -11238,7 +11344,7 @@ function play(){
           const g = normGrace(col.graceA);
           const per = Math.min(0.1, durSec*0.3/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
-            const gm2 = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12;
+            const gm2 = keyRef() + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12 + voxCapo();   /* v53.4 变调夹联动 */
             playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false, {damp:true, vel:0.65});
           });
         }
@@ -11266,7 +11372,7 @@ function play(){
            时值门 ×0.9 让相邻和音间有呼吸。力度线与拍点重音同步作用（此前附加音不吃力度记号）。 */
         if(m!=null && col.adds){
           const ams = col.adds.filter(a=>a&&a.deg)
-            .map(a=>keyRef() + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12)
+            .map(a=>keyRef() + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12 + voxCapo())   /* v53.4 变调夹联动 */
             .sort((x,y)=>x-y);
           ams.forEach((am,k)=>{
             const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
@@ -12930,7 +13036,8 @@ function exportMIDI(s){
       {tick:0,pr:0,data:[0xFF,0x51,3,(us>>16)&255,(us>>8)&255,us&255]},
       {tick:0,pr:0,data:[0xFF,0x58,4,s.beats||4,Math.round(Math.log2(s.unit||4)),24,8]},
       {tick:0,pr:0,data:[0xFF,0x59,2,fifths&255,0]}])); }
-  const colMidi=c=> ref + DEG_SEMI[c.deg] + accSemi(c.acc) + (c.oct||0)*12;
+  const vCapo=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0;   /* v53.4 变调夹：vox 轨与 TAB 轨（既含 capo）同调 */
+  const colMidi=c=> ref + DEG_SEMI[c.deg] + accSemi(c.acc) + (c.oct||0)*12 + vCapo;
   (s.voxVoices||[]).forEach((vn,vi)=>{
     const ch=chFor(vi);
     const evts=[{tick:0,pr:0,data:[0xC0|ch,0]}];
@@ -14891,7 +14998,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.3';
+const APP_VER='v53.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14914,6 +15021,7 @@ const APP_VER='v53.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.4</span><div><b>页头点击直改 + 变调夹联动简谱</b>（用户需求）：①谱面页头元素全部可点——<b>调号</b>（弹调号菜单，换调自动移调和弦与吉他品位）、<b>拍号</b>（全曲拍号菜单）、<b>速度</b>（直接输入 BPM）、<b>变调夹</b>（0-12 品一键设置）、<b>标题/演唱/词曲区</b>（打开曲谱信息弹窗，标题等文本字段<b>输入即实时上谱预览</b>，取消可恢复、确定后一次撤销）。②<b>变调夹联动简谱</b>：设夹后页头 1=X 显示<b>实际调</b>（指法调+夹品半音，如 1=C 夹 3 品显示 1=Eb），变调夹位注明「按 1=C 指法」（歌本惯例）；<b>简谱声部播放与 MIDI 导出同步升 Key</b>，与吉他实际音高一致——此前谱面与播放都停在指法调，显示和听感双双不对。</div></li>
     <li><span class="v">v53.3</span><div><b>简谱和音编辑与显示完善</b>（用户需求）：①<b>显示重做</b>——和音数字放大（接近主音字号）、纵列动态间距，<b>每个叠加音自带高/低八度点</b>（此前完全缺失）与放大左置的变音记号，不再挤成一团；和弦标注框自动上移避让和音纵列，行高按需预留。②<b>编辑升级</b>——记号层「和音」按钮改为<b>完整编辑弹窗</b>：逐音改唱名 1-7、八度 ±、变音（♯/♭/♮）、加删音（自动取上方三度）、一键清空；<b>谱面直接点击和音纵列</b>也可进入编辑；五线谱 Ctrl+点击线/间加减和音保持不变。</div></li>
     <li><span class="v">v53.2</span><div><b>倚音避让变音记号</b>（用户反馈：五线谱倚音跟升号重叠）：主音带临时升降/还原记号时，<b>前倚音组自动再左移让位</b>——升降号紧贴主音符头、倚音排在记号左侧，互不重叠。三处同步生效：<b>联排五线谱</b>（TAB 倚音）、<b>五线谱</b>与<b>简谱</b>（变化音 ♯♭ 左置符号同让位）。</div></li>
     <li><span class="v">v53.1</span><div><b>推弦弧线与圆圈修正</b>（用户反馈：弧线样式怪、圆圈压邻弦音符）：①推弦连音线不再冲到谱表上方——改为<b>贴着两个品位数字上缘的低平小弧</b>，终点搭在圆圈上缘，弧顶不越过上一根弦线，不再穿过邻弦音符区（b↑/b↓ 文字仍在谱表上方标注带）；②目标音圆圈 <b>5.8→5</b> 并把圈内数字整体缩号（两位数 6.8/一位数 8.6），在 9px 弦距内完全退出邻弦数字带，同列上下弦有音符也不再重叠。</div></li>

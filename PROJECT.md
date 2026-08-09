@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-09 · 当前版本 **v53.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-09 · 当前版本 **v53.4** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v53.4 页头点击直改 + 变调夹联动简谱（用户需求）**：① **变调夹联动**——新 `voxCapo()`（有 TAB 声部时=song.capo，否则 0，简谱数据/五线谱记谱不动）：`voxMidi` 主音 + 倚音/和音播放三处 keyRef 表达式 + MIDI 导出 `colMidi`（局部 vCapo，与 TAB 轨既含 capo 对齐）统一 +capo；页头 `1=X` 显示实际调 `KEY_LIST[(KEY_PC[key]+capo)%12]`、变调夹位注明「按 1=C 指法」（歌本惯例：写指法调、响实际调）。keyRef 本体不动（MusicXML 出入/五线谱拼写/导入映射零影响，vox XML 仍写记谱音高——罕见语义留待互操作专版）。② **页头直改热区**——capoBits 重构为 {t,act} 结构化位段、CJK/ASCII 估宽定位 `data-hd` 热区（meta/key/meter/tempo/capo），新 `showHeadMenu`：调号菜单（复用 meta 弹窗换调逻辑 transposeEditor 自动移调+toast）、拍号 9 常用、变调夹 0-12、速度 askText；capo=0 不渲染占位（打印纯净，经曲谱信息弹窗设置）。③ **曲谱信息实时预览**——标题/演唱/作词/作曲/制谱五个文本字段 oninput 直写 song+render；取消恢复原值；确定先回滚预览再 mutate（撤销快照=修改前，一次 Ctrl+Z 全撤）。tv_capo 六断言（热区+实际调显示/voxCapo ±/菜单链/速度输入/实时预览+撤销/meta 路由）入 CORE；38 套件全绿。
+>
 > **v53.3 简谱和音编辑与显示完善（用户需求）**：① 渲染重做（原 12 号小字、固定 11px 间距、无八度点）——数字 14.5、纵列动态槽位（槽=13.5+低点让位 2.5+3.8n+高点让位 2+3.8n，起点让过主音高八度点），每音自带高/低八度点（r1.4/间距 3.8）与放大左置变音（♯♭ 12 号 nx-9.5、××♭♭ 10.5 号 nx-11.5）；新顶层函数 `jpAddsH(col)` 统一槽位算法，和弦框 cy2 减去它避让、systemExtras 按 adds 数预留 maxUp(1→2、≥2→3)。② 编辑——新 `showAddsMenu(mi,ci,vi,cx,cy)` 弹窗（唱名 1-7/八度±/变音 无♯♭♮/✕删/＋加音自动上方三度/清空），b-addnote 由 askText 快输改开弹窗，谱面 `data-vadds` 热区（graceZones 同置顶层，防列热区覆盖）点击同入口；五线谱 Ctrl+点击路径不动。数据字段零改动（adds 纯读写）。tv_adds 五断言（样式几何/和弦框避让双渲染差值=jpAddsH/弹窗全操作链/双入口/××♭♭ 回归）入 CORE；37 套件全绿。
 >
 > **v53.2 倚音避让变音记号（用户反馈：五线谱倚音压升号）**：前倚音组与临时记号同在主音左侧（倚音 nx-11-gW vs 升号左缘约 nx-14）→ 主音画了记号时倚音组再左移 9px。三处实现：① 联排五线谱——`accCols2` Set 在 drawHeads 的 accCarry 命中时记列号，倚音渲染段查表左移；② vox 五线谱——列级 `stAccDrawn` 标志（accCarry 命中置位，stGrace 闭包读取；声明在 col 迭代顶部避免 TDZ）；③ 简谱 drawGrace——`col.acc` 直判（♯♭ 左置符号 nx-10.5 与倚音组同位，同类 bug 一并修）。tv_grace T10-T12：三谱类各用「同曲仅差一个变音」双渲染差值断言 9px 让位（联排小符干=竖 11px/0.9 线、五线谱=竖 12px/0.9 线、简谱=8.5 号数字），12/12；36 套件全绿。
