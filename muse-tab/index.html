@@ -3216,6 +3216,14 @@ function normTabGrace(g){
   if(g==null) return null;
   return {notes:(g.notes||[]).map(n=>({s:Math.max(1,n.s||1), f:Math.max(0,n.f||0)})).slice(0,3), dur:g.dur||8};
 }
+/* v53.3 简谱和音纵列总高（像素）：每音槽位=数字 13.5 + 低八度点让位 + 高八度点让位；
+   渲染堆叠与和弦标注避让共用同一算法，保证不重叠 */
+function jpAddsH(c){
+  let h=0;
+  ((c && c.adds)||[]).forEach(a=>{ if(!a||!a.deg) return;
+    h += 13.5 + (a.oct<0? 2.5+Math.min(3,-a.oct)*3.8 : 0) + (a.oct>0? 2+Math.min(3,a.oct)*3.8 : 0); });
+  return h;
+}
 /* v41.5 附点档位：0=无 / 1=附点 / 2=双附点。数据表示：dotted:true=单附点（旧数据不动），
    dotted:2=双附点（新增取值，字段只增不改）；migrate 不做任何转换，旧谱按原义读取 */
 function dotLevel(c){ return c.dotted===2? 2 : (c.dotted? 1 : 0); }
@@ -3633,6 +3641,8 @@ function systemExtras(sys){
     if(!c.deg) return;
     if(c.artic) maxUp=Math.max(maxUp, 1);                        // v41.1 演奏法记号需上方空间
     if(c.fing || (c.adds||[]).some(a=>a&&a.fing)) maxUp=Math.max(maxUp, 1);   // v41.3 指法数字需上方空间
+    { const na=(c.adds||[]).filter(a=>a&&a.deg).length;                       /* v53.3 和音纵列需上方空间 */
+      if(na) maxUp=Math.max(maxUp, na>=2? 3 : 2); }
     if(c.oct>0) maxUp=Math.max(maxUp, Math.min(3, c.oct));
     if(c.oct<0) maxDown=Math.max(maxDown, Math.min(3, -c.oct));
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
@@ -5327,7 +5337,7 @@ function render(){
             const grid8 = mUu/8;
             const onGrid = Math.abs(startB/grid8 - Math.round(startB/grid8)) < 1e-4;
             if(col.chord){
-              const cy2 = isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0);
+              const cy2 = isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col);   /* v53.3 和弦框避让和音纵列 */
               const disp = song.funcNames? col.chord : chordDegree(col.chord);
               const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
               const w = vcDispW(col.chord);
@@ -5343,6 +5353,7 @@ function render(){
                 <title>标注和弦（最小单位：八分音符）</title></g>`);
             }
           }
+          let addsZone='';   /* v53.3 和音纵列点击热区（列热区之后压顶推入，保证可点） */
           if(song.chordOnly && !isStaff){
             /* 纯和弦谱：每拍一条节奏斜线（出版和弦格惯例），和弦标在斜线上方 */
             p.push(`<path d="M ${nx-5} ${voxY+1} L ${nx+5} ${voxY-11}" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round" fill="none"/>`);
@@ -5358,10 +5369,25 @@ function render(){
             /* v43.1 简谱震音杠：数字上方（避让高八度点），1-3 条斜杠 */
             if(col.trem && !isStaff)
               p.push(tremSlashesSVG(nx, voxY-15-(col.oct>0? Math.min(3,col.oct)*4.2 : 0), col.trem, -1));
-            (col.adds||[]).forEach((a2,ai)=>{ if(!a2||!a2.deg) return;   // 和音：数字纵向叠置（简谱惯例）
-              p.push(`<text x="${nx}" y="${voxY-13-ai*11}" font-size="12" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
-              if(a2.acc) p.push(`<text x="${nx-9}" y="${voxY-14-ai*11}" font-size="10.5" text-anchor="middle" fill="var(--ink)">${a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮'}</text>`);
-            });
+            /* v53.3 和音显示样式完善（GB 简谱惯例）：数字放大（12→14.5，接近主音）、纵列动态间距，
+               每音自带高/低八度点（此前完全缺失）与放大左置的变音记号；槽位算法与 jpAddsH 同源；
+               整列可点击弹出和音编辑弹窗（showAddsMenu） */
+            if((col.adds||[]).some(a2=>a2&&a2.deg)){
+              let yCur = voxY - 13.5 - (col.oct>0? 4.5+Math.min(3,col.oct)*4.2 : 0);   // 让过主音高八度点
+              (col.adds||[]).forEach(a2=>{ if(!a2||!a2.deg) return;
+                const loN = a2.oct<0? Math.min(3,-a2.oct) : 0, hiN = a2.oct>0? Math.min(3,a2.oct) : 0;
+                const ay = yCur - (loN? 2.5+loN*3.8 : 0);   // 先给本音低八度点让位
+                p.push(`<text x="${nx}" y="${ay.toFixed(1)}" font-size="14.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
+                if(a2.acc){
+                  const as2 = a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮';
+                  p.push(`<text x="${nx-(as2.length>1?11.5:9.5)}" y="${(ay-1.5).toFixed(1)}" font-size="${as2.length>1?10.5:12}" text-anchor="middle" fill="var(--ink)">${as2}</text>`);
+                }
+                for(let d2=0; d2<loN; d2++) p.push(`<circle cx="${nx}" cy="${(ay+2.6+d2*3.8).toFixed(1)}" r="1.4" fill="var(--ink)"/>`);
+                for(let d2=0; d2<hiN; d2++) p.push(`<circle cx="${nx}" cy="${(ay-12-d2*3.8).toFixed(1)}" r="1.4" fill="var(--ink)"/>`);
+                yCur = ay - 13.5 - (hiN? 2+hiN*3.8 : 0);
+              });
+              addsZone = `<rect x="${(nx-14).toFixed(1)}" y="${(yCur+2).toFixed(1)}" width="28" height="${(voxY-9-(yCur+2)).toFixed(1)}" fill="transparent" data-vadds="${lm.mi}:${ci}:${vi}" style="cursor:pointer"><title>点击编辑和音（唱名/八度/变音，最多3音）</title></rect>`;
+            }
           }
           let stAccDrawn=false;   /* v53.2 本列画过临时记号 → 前倚音组左移让位（倚音与升降号同侧，用户反馈重叠） */
           if(isStaff && col.deg){
@@ -5679,6 +5705,7 @@ function render(){
           for(let li=0;li<song.lyricLines;li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
+          if(addsZone) p.push(addsZone);      // v53.3 和音纵列热区同置顶层
           /* v51.1 小节内小谱号也可点击：直达该列谱号切换菜单（改/清除）——置于列热区之上 */
           if(isStaff && col.clef && CLEF_BOT[col.clef]){
             const chw2 = smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75;
@@ -8115,6 +8142,12 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], e.clientX, e.clientY);
     return;
   }
+  /* v53.3 点击简谱和音纵列 → 弹出和音编辑（唱名/八度/变音） */
+  if(t.dataset.vadds!==undefined){
+    const seg=t.dataset.vadds.split(':');
+    showAddsMenu(+seg[0], +seg[1], +seg[2], e.clientX, e.clientY);
+    return;
+  }
   measureSel = null;
   /* 点击段序号 → 选中该段歌词进行编辑（不移动音符光标） */
   if(t.dataset.lyrsel!==undefined){
@@ -8628,6 +8661,57 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
       if(gr && g.notes.length>1) g.notes.splice(+gr.dataset.gr,1);
       if(gt) g.dur=+gt.dataset.gt;
       col[key]=g;
+    });
+    rebuild();
+  });
+}
+/* v53.3 简谱/五线谱和音编辑弹窗：逐音改唱名/八度/变音、加删音——
+   入口：记号层「和音」钮 / 谱面点和音纵列（data-vadds 热区）；五线谱 Ctrl+点击线/间加减仍可用 */
+function showAddsMenu(mi, ci, vi, cx, cy){
+  closePop();
+  const col = song.measures[mi] && song.measures[mi].voxes[vi] && song.measures[mi].voxes[vi][ci];
+  if(!col || !col.deg) return;
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.min(cx, innerWidth-330)+'px';
+  div.classList.add('pm-follow'); div.style.top=(cy+8+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
+  const ACCL=[['','无'],['#','♯'],['b','♭'],['n','♮']];
+  const rebuild=()=>{
+    const adds=(col.adds||[]).filter(a=>a&&a.deg);
+    const rows = adds.map((a2,ai)=>`
+      <div class="t" style="margin-top:5px">叠加音${ai+1}　<button data-ar="${ai}" style="padding:1px 7px">✕删</button></div>
+      <div class="row">${[1,2,3,4,5,6,7].map(d=>`<button data-ad="${ai}:${d}" class="${a2.deg===d?'on':''}">${d}</button>`).join('')}
+        <button data-am="${ai}" style="margin-left:8px" title="八度−">8度−</button>
+        <span style="font-size:12px;min-width:22px;text-align:center">${a2.oct>0?'+':''}${a2.oct||0}</span>
+        <button data-ap="${ai}" title="八度+">8度+</button></div>
+      <div class="row">${ACCL.map(([v,l])=>`<button data-aa="${ai}:${v}" class="${(a2.acc||'')===v?'on':''}">${l}</button>`).join('')}</div>`).join('');
+    div.innerHTML=`<div class="t">和音 · 主音 ${col.deg} 上的叠加音（最多3个，纵列显示；五线谱另可 Ctrl+点击线/间加减）</div>
+      ${rows||'<div class="t" style="opacity:.72">尚无叠加音——点下方「＋加音符」开始</div>'}
+      <div class="row" style="margin-top:6px">${(col.adds||[]).filter(a=>a&&a.deg).length<3?`<button data-aab="1">＋加音符（自动取上方三度）</button>`:''}
+        ${(col.adds||[]).filter(a=>a&&a.deg).length?`<button data-ax="1" style="margin-left:10px">清空和音</button>`:''}</div>`;
+  };
+  rebuild();
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const ad=ev.target.closest('[data-ad]'), aa=ev.target.closest('[data-aa]'),
+          ap=ev.target.closest('[data-ap]'), am=ev.target.closest('[data-am]'),
+          ab=ev.target.closest('[data-aab]'), ar=ev.target.closest('[data-ar]'),
+          ax=ev.target.closest('[data-ax]');
+    if(ax){ mutate(()=>{ delete col.adds; }); closePop(); return; }
+    if(!ad && !aa && !ap && !am && !ab && !ar) return;
+    mutate(()=>{
+      col.adds = (col.adds||[]).filter(a=>a&&a.deg);
+      if(ad){ const [ai,d]=ad.dataset.ad.split(':').map(Number); col.adds[ai].deg=d; }
+      if(aa){ const seg=aa.dataset.aa.split(':'); if(col.adds[+seg[0]]) col.adds[+seg[0]].acc=seg[1]||''; }
+      if(ap){ const ai=+ap.dataset.ap; col.adds[ai].oct=Math.min(3,(col.adds[ai].oct||0)+1); }
+      if(am){ const ai=+am.dataset.am; col.adds[ai].oct=Math.max(-3,(col.adds[ai].oct||0)-1); }
+      if(ab && col.adds.length<3){
+        const top = col.adds.length? col.adds[col.adds.length-1] : {deg:col.deg, oct:col.oct||0};
+        let d=(top.deg||1)+2, o=top.oct||0; if(d>7){ d-=7; o=Math.min(3,o+1); }
+        col.adds.push({deg:d, acc:'', oct:o});
+      }
+      if(ar) col.adds.splice(+ar.dataset.ar,1);
+      if(!col.adds.length) delete col.adds;
     });
     rebuild();
   });
@@ -9605,24 +9689,13 @@ function showMeaMeterMenu(){
     closePop();
   });
 }
-document.getElementById('b-addnote').onclick = ()=>{
+document.getElementById('b-addnote').onclick = (e)=>{
   if(sel.row!=='vox'){ toast('请先选中一个简谱/五线谱音'); return; }
   const col = curCol();
   if(!col || !col.deg){ toast('和音需加在有唱名的音上'); return; }
-  askText('叠加音唱名（1–7，最多3个如 35；留空清除；自动取主音上方最近位置）',
-    (col.adds||[]).map(a=>a.deg).join(''), v=>{
-    const tx=(v||'').trim();
-    mutate(()=>{
-      if(tx===''){ delete col.adds; return; }
-      if(!/^[1-7]{1,3}$/.test(tx)) return;
-      let last={deg:col.deg, oct:col.oct||0};
-      col.adds=[...tx].map(ch=>{
-        const d=+ch, o=(d<=last.deg)? last.oct+1 : last.oct;   // 逐音向上排列
-        last={deg:d, oct:o};
-        return {deg:d, acc:'', oct:o};
-      });
-    });
-  });
+  /* v53.3 askText 快输升级为完整编辑弹窗：逐音唱名/八度/变音可调，谱面点和音纵列同入口 */
+  const r = e && e.target && e.target.getBoundingClientRect? e.target.getBoundingClientRect() : {left:innerWidth/2-160, bottom:innerHeight/3};
+  showAddsMenu(sel.mi, sel.ci, sel.vi, r.left, r.bottom);
 };
 /* v46.9 单独倚音钮移除：倚音入口统一为装饰组「前倚音/后倚音」（ornFromBar，同编辑 col.grace/graceA） */
 document.getElementById('b-rep-s').onclick = ()=>mutate(()=>{ const m=curMea(); m.repeatStart=!m.repeatStart; });
@@ -14818,7 +14891,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.2';
+const APP_VER='v53.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14841,6 +14914,7 @@ const APP_VER='v53.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.3</span><div><b>简谱和音编辑与显示完善</b>（用户需求）：①<b>显示重做</b>——和音数字放大（接近主音字号）、纵列动态间距，<b>每个叠加音自带高/低八度点</b>（此前完全缺失）与放大左置的变音记号，不再挤成一团；和弦标注框自动上移避让和音纵列，行高按需预留。②<b>编辑升级</b>——记号层「和音」按钮改为<b>完整编辑弹窗</b>：逐音改唱名 1-7、八度 ±、变音（♯/♭/♮）、加删音（自动取上方三度）、一键清空；<b>谱面直接点击和音纵列</b>也可进入编辑；五线谱 Ctrl+点击线/间加减和音保持不变。</div></li>
     <li><span class="v">v53.2</span><div><b>倚音避让变音记号</b>（用户反馈：五线谱倚音跟升号重叠）：主音带临时升降/还原记号时，<b>前倚音组自动再左移让位</b>——升降号紧贴主音符头、倚音排在记号左侧，互不重叠。三处同步生效：<b>联排五线谱</b>（TAB 倚音）、<b>五线谱</b>与<b>简谱</b>（变化音 ♯♭ 左置符号同让位）。</div></li>
     <li><span class="v">v53.1</span><div><b>推弦弧线与圆圈修正</b>（用户反馈：弧线样式怪、圆圈压邻弦音符）：①推弦连音线不再冲到谱表上方——改为<b>贴着两个品位数字上缘的低平小弧</b>，终点搭在圆圈上缘，弧顶不越过上一根弦线，不再穿过邻弦音符区（b↑/b↓ 文字仍在谱表上方标注带）；②目标音圆圈 <b>5.8→5</b> 并把圈内数字整体缩号（两位数 6.8/一位数 8.6），在 9px 弦距内完全退出邻弦数字带，同列上下弦有音符也不再重叠。</div></li>
     <li><span class="v">v53.0</span><div><b>推弦目标音播放修正</b>（用户反馈）：推弦的圆圈目标音是「推到的音高」而非再拨一次——播放时<b>目标音不再拨奏</b>，由源音的推弦曲线滑到位并<b>延音贯穿目标时值</b>（连锁推-放的中继音保留发声但去音头连奏）。另修正倚音播放：同弦前倚音此前会把主音误掐成 60ms，现主音完整发声、倚音在主音起点自然收束。</div></li>
