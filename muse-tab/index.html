@@ -5764,14 +5764,17 @@ function render(){
               const yp = below? ty+bow : ty-bow;
               p.push(tieSVG(x1, ty, x2, ty, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
             }else{
-              /* v53.5 简谱连音线形状修正（用户反馈短弧「^ 尖拱」）：弧高按跨度 0.55 比例给、
-                 下限 2.5 上限 9+跨列增量——相邻两音的小连线成扁平小弧（GB 惯例）；
-                 基线让过区间内最高的高八度点（此前固定 voxY-13 会压点/穿点） */
+              /* v53.6 简谱连音线按歌本标准重画（v53.5 短弧过扁近不可见，用户两轮反馈的共同根因：
+                 端点挤在两数字之间的空隙里——x1/x2 从数字中心让出 5/6px，16分对只剩 ~8px 缝）。
+                 GB 歌本惯例：弧横跨首末两个数字整体上方——端点落在数字中心 ±1，
+                 弧高固定档（短弧 6、随跨度/跨列缓增至 9+增量），基线让过高八度点 */
               let hiN=0;
               for(let ci4=a3; ci4<=Math.min(b3+1, cols.length-1); ci4++){ const c4=cols[ci4]; if(c4&&c4.deg&&c4.oct>0) hiN=Math.max(hiN, Math.min(3,c4.oct)); }
+              const xA = mx+lay.xs[a3]+1;
+              const xB = (b3+1<cols.length)? mx+lay.xs[b3+1]-1 : x2;   // 跨小节/行尾续接沿用既有终点
               const tyB = voxY-13 - (hiN? 7.5+(hiN-1)*4.2 : 0);
-              const rise = Math.max(2.5, Math.min(9+Math.min(6,(b3-a3)*2), (x2-x1)*0.55));
-              p.push(tieSVG(x1, tyB, x2, tyB, tyB-rise, 1.9));
+              const rise = Math.min(9+Math.min(6,(b3-a3)*2), Math.max(6, (xB-xA)*0.35));
+              p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9));
             }
             a3=b3+1;
           }
@@ -14995,7 +14998,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.5';
+const APP_VER='v53.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15018,6 +15021,7 @@ const APP_VER='v53.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.6</span><div><b>简谱短连音线按歌本标准重画</b>（用户反馈 v53.5 短弧过小近不可见）：找到两轮反馈的共同根因——弧线端点此前挤在两个数字之间的空隙里（相邻十六分音符只剩几个像素的缝），弧怎么调都不对。现按专业制谱标准：<b>弧横跨首末两个数字整体上方</b>（端点落在数字中心），弧高固定在清晰可见的档位（短弧约 6px、随跨度缓增），与出版歌本样式一致。</div></li>
     <li><span class="v">v53.5</span><div><b>横按圆点 + 简谱连音线形状修正</b>（用户反馈）：①和弦图<b>大横按改用逐弦黑点</b>表示——F/Bm 等横按和弦不再画大黑线，每根按弦一个圆点，与分指按法视觉统一；②<b>简谱短连音线不再「^ 尖拱」</b>——弧高改为随跨度比例给（上下限钳制），相邻两音的小连线呈扁平小弧（GB 惯例），长连音线弧高同步封顶；连音线基线自动<b>让过高八度点</b>（此前会压点）；五线谱连音线短弧同款钳制。</div></li>
     <li><span class="v">v53.4</span><div><b>页头点击直改 + 变调夹联动简谱</b>（用户需求）：①谱面页头元素全部可点——<b>调号</b>（弹调号菜单，换调自动移调和弦与吉他品位）、<b>拍号</b>（全曲拍号菜单）、<b>速度</b>（直接输入 BPM）、<b>变调夹</b>（0-12 品一键设置）、<b>标题/演唱/词曲区</b>（打开曲谱信息弹窗，标题等文本字段<b>输入即实时上谱预览</b>，取消可恢复、确定后一次撤销）。②<b>变调夹联动简谱</b>：设夹后页头 1=X 显示<b>实际调</b>（指法调+夹品半音，如 1=C 夹 3 品显示 1=Eb），变调夹位注明「按 1=C 指法」（歌本惯例）；<b>简谱声部播放与 MIDI 导出同步升 Key</b>，与吉他实际音高一致——此前谱面与播放都停在指法调，显示和听感双双不对。</div></li>
     <li><span class="v">v53.3</span><div><b>简谱和音编辑与显示完善</b>（用户需求）：①<b>显示重做</b>——和音数字放大（接近主音字号）、纵列动态间距，<b>每个叠加音自带高/低八度点</b>（此前完全缺失）与放大左置的变音记号，不再挤成一团；和弦标注框自动上移避让和音纵列，行高按需预留。②<b>编辑升级</b>——记号层「和音」按钮改为<b>完整编辑弹窗</b>：逐音改唱名 1-7、八度 ±、变音（♯/♭/♮）、加删音（自动取上方三度）、一键清空；<b>谱面直接点击和音纵列</b>也可进入编辑；五线谱 Ctrl+点击线/间加减和音保持不变。</div></li>
