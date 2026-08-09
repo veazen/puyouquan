@@ -243,10 +243,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       /* 短弧：横跨两个数字（跨度≥10=中心距-2，不再挤 8px 缝）且弧高 6-9.1 清晰可见 */
       shortOK: s0.span >= 10 && s0.rise >= 6 && s0.rise <= 9.1,
       longOK: l0.span > 40 && l0.rise <= 15.1 && l0.rise >= 4,
+      rel0: +rel0.toFixed(1),   /* v54.2 净距：基线高出数字基线 16（数字顶≈12 → 净距 4px 不再贴字） */
       lift: +(rel1 - rel0).toFixed(1) };
   });
-  T(r.n === 2 && r.shortOK && r.longOK && Math.abs(r.lift - 7.5) < 0.2,
-    'T13 简谱连音线歌本标准(跨数字+可见弧高)+让高八度点', JSON.stringify(r));
+  T(r.n === 2 && r.shortOK && r.longOK && Math.abs(r.lift - 7.5) < 0.2 && Math.abs(r.rel0 - 16) < 0.2,
+    'T13 简谱连音线歌本标准(跨数字+弧高+4px净距)+让高八度点', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

@@ -86,6 +86,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { after, undone: ${lyrics()} }; })()`);
   T(r.after === '好,,山,好' && r.undone === '好,山,好,水', 'T7 后移挤出末字+撤销恢复', JSON.stringify(r));
 
+  // T8 v54.2 段序号标在该段起始字左侧（不在行首）：段1 从 m0 起、段2 从 m6 起（不同系统）
+  //    → 各自系统标一次，x=起始字中心−14；行首（oxH-14=76）不再有序号
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong(12, 2)};
+    '长亭外'.split('').forEach((ch,i)=>{ s.measures[0].voxes[0][i].lyrics=[ch,''] });
+    '问君此'.split('').forEach((ch,i)=>{ s.measures[6].voxes[0][i].lyrics=['',ch] });
+    loadSong(s); blurSel=true; render();
+    const h=document.getElementById('score').innerHTML;
+    const num=q=>{ const m=h.match(new RegExp('<text x="([\\\\d.]+)" y="([\\\\d.]+)"[^>]*data-lyrsel="'+q+'"[^>]*>')); return m? {x:+m[1],y:+m[2]} : null; };
+    const chX=c=>{ const m=h.match(new RegExp('<text x="([\\\\d.]+)"[^>]*>'+c+'</text>')); return m? +m[1] : NaN; };
+    const n0=num(0), n1=num(1);
+    const cnt=(h.match(/data-lyrsel/g)||[]).length;
+    return { cnt, d0:+(chX('长')-n0.x).toFixed(1), d1:+(chX('问')-n1.x).toFixed(1),
+      sysDiff: n1.y-n0.y }; })()`);
+  T(r.cnt === 4 && r.d0 === 14 && r.d1 === 14 && r.sysDiff > 50,
+    'T8 段序号在起始字左侧(跨系统各标一次)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
