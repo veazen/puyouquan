@@ -1,7 +1,7 @@
-/* v52.7 倚音跨谱类统一 + 连音线厚度封顶回归：
-   - tieSVG 最粗处封顶：短弧随跨度线性给厚、达调用方 th 即封顶、硬上限 2.2（任何调用不超限）
+/* v52.7/52.8 倚音跨谱类统一 + 连音线同一线径回归：
+   - tieSVG 同一线径（v52.8 产品拍板）：中部厚度恒为 th、与跨度无关，两端细尖
    - TAB 倚音 col.grace/graceA {notes:[{s,f}],dur}：入口按钮 → askText 品位输入；渲染小品位数字
-     + 斜杠 + 小连音弧 + 可点热区；联排五线谱同步小符头；布局宽度占位
+     + 小连音弧 + 可点热区（v52.8：TAB 行不画斜杠，斜杠仅五线谱行）；联排五线谱同步小符头；布局宽度占位
    - showTabGraceMenu 弹窗逐音改弦/品/时值
    - MusicXML：<grace slash> + string/fret 出入往返
    - vox 倚音（简谱/五线谱）行为不回归 */
@@ -16,31 +16,36 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  // T1 tieSVG 厚度封顶（几何断言：厚度=|qy-q2|/2，从 path d 反解）
+  // T1 tieSVG 同一线径（v52.8）：中部厚度=th 恒定（跨度 8/60/200 相同、不随跨度加粗/收细）；
+  //    两端细尖=内外缘共起终点（几何断言：厚度=|qy-q2|/2，从 path d 反解）
   let r = await pg.evaluate(() => {
-    const thick = (svg) => {
-      const t = svg.match(/d="([^"]+)"/)[1].split(/[MQZ\s]+/).filter(Boolean).map(Number);
-      return Math.abs(t[3] - t[7]) / 2;   // [x1,y1, mx,qy,x2,y2, mx,q2,x1,y1]
-    };
+    const parse = (svg) => svg.match(/d="([^"]+)"/)[1].split(/[MQZ\s]+/).filter(Boolean).map(Number);
+    const thick = (svg) => { const t = parse(svg); return Math.abs(t[3] - t[7]) / 2; };   // [x1,y1, mx,qy,x2,y2, mx,q2,x1,y1]
+    const sharp = (svg) => { const t = parse(svg); return t[0] === t[8] && t[1] === t[9]; };
     return {
-      hardCap: thick(tieSVG(0, 0, 200, 0, -10, 5)),     // 调用方给 5 → 硬上限 2.2
-      long60: thick(tieSVG(0, 0, 60, 0, -10)),          // 默认 th：长弧封顶 1.9
-      long200: thick(tieSVG(0, 0, 200, 0, -10)),        // 更长不再加粗（==long60）
-      short8: thick(tieSVG(0, 0, 8, 0, -10, 1.8)),      // 短弧按跨度收细 0.7+8/20=1.1
+      s8: thick(tieSVG(0, 0, 8, 0, -10, 1.8)),
+      s60: thick(tieSVG(0, 0, 60, 0, -10, 1.8)),
+      s200: thick(tieSVG(0, 0, 200, 0, -10, 1.8)),
+      dft: thick(tieSVG(0, 0, 60, 0, -10)),             // 缺省 th=1.9
+      sharp: sharp(tieSVG(0, 0, 60, 0, -10)),           // 两端细尖（内外缘共点）
     };
   });
-  T(Math.abs(r.hardCap - 2.2) < 0.06 && Math.abs(r.long60 - 1.9) < 0.06
-    && Math.abs(r.long200 - r.long60) < 0.06 && Math.abs(r.short8 - 1.1) < 0.06,
-    'T1 tieSVG封顶+短弧收细', JSON.stringify(r));
+  T(Math.abs(r.s8 - 1.8) < 0.01 && Math.abs(r.s60 - 1.8) < 0.01 && Math.abs(r.s200 - 1.8) < 0.01
+    && Math.abs(r.dft - 1.9) < 0.01 && r.sharp,
+    'T1 tieSVG同一线径+两端细尖', JSON.stringify(r));
 
   // T2 TAB 倚音渲染：小品位数字（font-size=8）+ 前/后热区 + 数字在主音左/右（几何）
+  //    + v52.8 不画斜杠（加倚音前后 <line> 数不变——数字/弧/热区分别是 text/path/rect）
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
     const s = createSong('guitar', { title: 'g', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0 });
     const mk4 = (f, st) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: st, f }], strum: '', tech: '' });
     s.measures[0].tabs[0] = [mk4(5, 3), mk4(7, 3), mk4(5, 2), mk4(3, 2)];
-    s.measures[0].tabs[0][1].grace = { notes: [{ s: 3, f: 5 }, { s: 3, f: 7 }], dur: 16 };
-    s.measures[0].tabs[0][2].graceA = { notes: [{ s: 2, f: 8 }], dur: 8 };
     loadSong(s); blurSel = true; render();
+    const lineN = () => (document.getElementById('score').innerHTML.match(/<line /g) || []).length;
+    const l0 = lineN();
+    song.measures[0].tabs[0][1].grace = { notes: [{ s: 3, f: 5 }, { s: 3, f: 7 }], dur: 16 };
+    song.measures[0].tabs[0][2].graceA = { notes: [{ s: 2, f: 8 }], dur: 8 };
+    render();
     const h = document.getElementById('score').innerHTML;
     const pre = document.querySelector('[data-tabgrace="0:1:0:pre"]'), post = document.querySelector('[data-tabgrace="0:2:0:post"]');
     // 几何：前倚音数字 x < 主音 x；后倚音数字 x > 主音 x
@@ -48,9 +53,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const mainX1 = colBoxes['t0:0:1'].x + colBoxes['t0:0:1'].w / 2;
     return { pre: !!pre, post: !!post, n8: gx.length,
       preLeft: gx.length >= 2 && gx[0] < mainX1 && gx[1] < mainX1,
+      noSlash: lineN() === l0,
       nan: h.includes('NaN') };
   });
-  T(r.pre && r.post && r.n8 === 3 && r.preLeft && !r.nan, 'T2 TAB倚音渲染+热区+几何', JSON.stringify(r));
+  T(r.pre && r.post && r.n8 === 3 && r.preLeft && r.noSlash && !r.nan, 'T2 TAB倚音渲染+热区+无斜杠', JSON.stringify(r));
 
   // T3 联排五线谱同步：tabStaff 打开后，倚音新增 ≥2 枚小符头（noteheadBlack 字形计数）
   r = await pg.evaluate(() => {

@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-09 · 当前版本 **v52.7** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-09 · 当前版本 **v52.8** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v52.8 倚音/连音线细节修正（用户反馈 v52.7）**：① TAB 行倚音**去斜杠**——只留小品位数字+小连音弧（GP 同款：斜杠仅五线谱行有，联排五线谱/vox stGrace 斜杠保留）；slY 变量保留仅作热区上缘。② tieSVG **撤跨度斜坡恢复同一线径**：`t=th||1.9` 恒定、与跨度无关，两端细尖（双二次曲线共端点）不变——用户明确「同一线径的连接线，两头细尖就可以」；「不随跨度加粗」由厚度恒定天然满足。tv_grace T1 改写（8/60/200 跨度厚度恒等 + 共端点细尖断言）、T2 加"加倚音前后 line 数不变"断言无斜杠；35 套件全绿。
+>
 > **v52.7 倚音跨谱类统一 + 连音线厚度封顶（产品需求）**：① **TAB 倚音**（此前仅 vox 简谱/五线谱有）——数据纯增量 `col.grace/graceA={notes:[{s,f}×1..3],dur}`（与 vox 同字段名、品位制），新 `normTabGrace` 与 vox `normGrace` 并列；入口=mark-body「前倚音/后倚音」钮（ornSVG 同款图标）→ `applyTabGrace` askText 品位串（空格分隔≤3、落当前弦位、留空清除），谱面倚音组热区 `data-tabgrace` → `showTabGraceMenu` 逐音改弦/品±/时值(8/16/32)/增删。渲染：TAB 行=弦线上 font-size 8 小品位数字＋倚音斜杠＋小连音弧(tieSVG th1.1，pre 连主音左/post 右)；**联排五线谱同步**=小符头(0.62)+小符干+微型符杠+斜杠，品位→音高走主音同链 `TUNING[s-1]+f+12→midiToStaff→stepYt`；measureLayout `!isVox` 分支占位 `8+7n`。播放：insts 追加主音前/后短促小音符（gain 0.55/0.5 收敛）。MusicXML：TAB part 导出 `<grace slash>`+`<type>`+technical string/fret，导入撤销 v44.7 的 skip 改 pendTabGrace 挂下一主音列（同 vox pendGrace 口径）。至此倚音四谱类（简谱/五线谱/TAB/联排）同数据同步呈现。② **tieSVG 厚度封顶**：`t=min(th‖1.9, 2.2, 0.7+|x2-x1|/20)`——短弧（相邻击勾弦 span≈8→1.1）按跨度收细、长弧到 th 即封顶、硬上限 2.2 保证任何调用不超限；全部 10 处调用点（TAB 推弦/圆滑线/连音线、vox 连音线）统一生效，调用端零改动。tv_grace 八断言（封顶几何/TAB渲染+热区/联排小符头计数/宽度占位/入口+品位输入/弹窗编辑/MusicXML 往返/vox 回归）入 CORE；35 套件全绿。
 >
 > **v52.6 吉他技法面板统一（产品拍板，撤 v42.3 gtype 分栏）**：`gtechHtml` 去掉 `song.gtype` 过滤——任何吉他谱（独奏 lead/指弹 finger/弹唱无 gtype）左栏技法层均显示 EB_GTECH 全量 15 项（泛音细分3+let ring+摇把4+pima4+打板3）；EB_GTECH 的 ctx 字段保留不再读取，gtype 字段本身保留（新建向导默认调弦/文案仍用）。applyGtech 本就不 gate gtype，数据层零改动。tv_gtech T1/T4/T8 断言翻转（n 8/8/0 → 15/15/15，noFinger/noBar → has*），16/16；tv_matrix/tv_detail1/tv_fing 绿。
