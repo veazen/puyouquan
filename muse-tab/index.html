@@ -4257,7 +4257,7 @@ function renderHints(){
 function render(){
   renderDock();
   const svg = document.getElementById('score');
-  /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带 r=5.8 圆圈，两位数品位数字缩号自适应
+  /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
      圆圈（圆圈大小不变，同泛音菱形 v46.1 方案）——绘制数字时需先知道自己是否目标音 */
   const bendTks = new Set();
   (song.measures||[]).forEach(m=> (m.tabs||[]).forEach((v2,vi2)=> (v2||[]).forEach(c2=> (c2.notes||[]).forEach(n2=>{
@@ -4824,12 +4824,13 @@ function render(){
                 p.push(`<text x="${nx}" y="${yy+4.8}" font-size="15" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="3" stroke-linejoin="round" fill="var(--ink)">×</text>`);
               }else{
                 /* v46.1 泛音两位数品位：菱形固定不变，数字缩号自适应框内（10.5→8）；
-                   v50.6 推弦目标音同方案：圆圈 r=5.8 固定不变，两位数品位缩号入圈（10.5→7.5，
-                   圈比菱形小半号）——避免数字压到圆框线 */
+                   v53.1 推弦目标音圆圈 5.8→5（弦距 9 内退出邻弦数字带，用户反馈重叠）：
+                   目标数字整体缩号入圈——两位数 6.8、一位数 8.6 */
                 const hmSm = n.tech==='hm' && n.f>=10;
-                const bkSm = n.f>=10 && bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s);
-                const fs = hmSm? 8 : bkSm? 7.5 : 10.5;
-                p.push(`<text x="${nx}" y="${yy+((hmSm||bkSm)?2.8:3.6)}" font-size="${fs}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkSm)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
+                const bkT = bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s);
+                const bkSm = n.f>=10 && bkT;
+                const fs = hmSm? 8 : bkSm? 6.8 : bkT? 8.6 : 10.5;
+                p.push(`<text x="${nx}" y="${yy+(bkSm?2.5:hmSm?2.8:bkT?3.1:3.6)}" font-size="${fs}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkT)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${n.f}</text>`);
               }
               /* v49.6 技法文字标识统一进 TAB 上方标注带（mkTech，放大）；
                  此处只保留音符锚定的图形：泛音菱形/滑音斜杠/推弦弧线/连音弧线 */
@@ -4861,14 +4862,17 @@ function render(){
                 const bTy = n.bendType || '';
                 if(tp2 && tp2.sys===sIdx){
                   const x2=tp2.x, y2=tabTop+(n.tk.si-1)*STR;
-                  const yPk=Math.min(tabTop-10, Math.min(yy,y2)-12);   /* v49.6 弧顶钳到谱上方 */
-                  bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5.8" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+                  /* v53.1 弧线重画（用户反馈：弧样式怪且穿越邻弦音符）：撤 v49.6「弧顶钳到谱上方」——
+                     改为贴两数字上缘的低平小弧、终点搭在圆圈上缘（弧顶不越过上一根弦线）；
+                     b↑/b↓ 文字仍固定在谱表上方标注带 */
+                  const yPk=Math.min(yy,y2)-12;
+                  bendDecor.push(`<circle cx="${x2}" cy="${y2}" r="5" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
                   if(bTy==='pre'){
                     const topY=Math.min(tabTop-12, yy-14);
                     bendDecor.push(`<line x1="${nx}" y1="${(yy+3).toFixed(1)}" x2="${nx}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
                   }
-                  bendDecor.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
-                  bendDecor.push(`<text x="${((nx+x2)/2).toFixed(1)}" y="${(yPk-1.5).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
+                  bendDecor.push(tieSVG(nx+5, yy-5.5, x2-4, y2-5.8, yPk, 1.8));
+                  bendDecor.push(`<text x="${((nx+x2)/2).toFixed(1)}" y="${Math.min(tabTop-11.5, yPk-2.5).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else if(tp2){
                   /* 目标音在下一行：起始侧半弧 + 文字（同圆滑线跨行口径） */
                   bendDecor.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
@@ -4882,8 +4886,8 @@ function render(){
                   /* 兼容旧数据（bt 目标品位）/单音式：右侧合成圆圈目标音 + 短连音线 */
                   const bt = n.bt!=null? n.bt : n.f;
                   const gx2 = nx+15;
-                  bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5.8" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
-                  bendDecor.push(`<text x="${gx2}" y="${yy+(bt>=10?2.6:3.2)}" font-size="${bt>=10?7.5:9}" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);   /* v50.6 两位数缩号入圈 */
+                  bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
+                  bendDecor.push(`<text x="${gx2}" y="${yy+(bt>=10?2.4:2.9)}" font-size="${bt>=10?6.8:8.6}" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);   /* v53.1 圆圈 5.8→5，数字同步缩号 */
                   bendDecor.push(tieSVG(nx+5, yy-4.5, gx2-6, yy-6.2, yy-12, 1.4));
                   bendDecor.push(`<text x="${(nx+gx2)/2}" y="${Math.min(tabTop-11, yy-13).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }
@@ -14812,7 +14816,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.0';
+const APP_VER='v53.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14835,6 +14839,7 @@ const APP_VER='v53.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.1</span><div><b>推弦弧线与圆圈修正</b>（用户反馈：弧线样式怪、圆圈压邻弦音符）：①推弦连音线不再冲到谱表上方——改为<b>贴着两个品位数字上缘的低平小弧</b>，终点搭在圆圈上缘，弧顶不越过上一根弦线，不再穿过邻弦音符区（b↑/b↓ 文字仍在谱表上方标注带）；②目标音圆圈 <b>5.8→5</b> 并把圈内数字整体缩号（两位数 6.8/一位数 8.6），在 9px 弦距内完全退出邻弦数字带，同列上下弦有音符也不再重叠。</div></li>
     <li><span class="v">v53.0</span><div><b>推弦目标音播放修正</b>（用户反馈）：推弦的圆圈目标音是「推到的音高」而非再拨一次——播放时<b>目标音不再拨奏</b>，由源音的推弦曲线滑到位并<b>延音贯穿目标时值</b>（连锁推-放的中继音保留发声但去音头连奏）。另修正倚音播放：同弦前倚音此前会把主音误掐成 60ms，现主音完整发声、倚音在主音起点自然收束。</div></li>
     <li><span class="v">v52.9</span><div><b>连音线线径细化</b>（用户反馈线径过粗）：全部连音线/圆滑线/推弦弧统一细化约 40%——中部厚度由约 1.9 降到约 1.1，两端细尖与同一线径（厚度与跨度无关）保持不变，谱面更清爽。</div></li>
     <li><span class="v">v52.8</span><div><b>倚音/连音线细节修正</b>（用户反馈）：①吉他谱（TAB）行的倚音<b>去掉斜杠</b>——只保留小品位数字＋小连音弧，更干净（五线谱行的倚音斜杠为标准记谱，保留）；②连音线恢复<b>同一线径</b>：弧线中部厚度恒定、与跨度无关，两端细尖不变（撤 v52.7 的短弧随跨度收细）。</div></li>

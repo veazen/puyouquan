@@ -1,6 +1,9 @@
 /* 推弦谱面/交互回归（v50.3 规格重写；原套件断言停留在 v43.3——
-   v49.8 只保留 b↑/b↓、v49.9 去幅度标注、v50.3 连接线改连音线去箭头，逐条对齐现规格）：
-   T1 两音推弦=连音线（tieSVG 双Q闭合填充弧）+ 圆圈目标音 + b↑ 文字，全谱无箭头三角
+   v49.8 只保留 b↑/b↓、v49.9 去幅度标注、v50.3 连接线改连音线去箭头，逐条对齐现规格；
+   v53.1 弧线低平化+圆圈缩小：撤「弧顶钳到谱上方」，弧贴数字上缘不穿邻弦，
+   圆圈 5.8→5、目标数字缩号入圈——几何断言见 T1/T5）：
+   T1 两音推弦=连音线（tieSVG 双Q闭合填充弧）+ 圆圈目标音 + b↑ 文字，全谱无箭头三角；
+      弧顶 qy=min(yy,y2)−12（低平，不飞到谱上方）、b↑ 文字仍在谱表上方
    T2 回落 bd 同为连音线 + b↓ 文字（与 b 仅文字之别）；旧数据 bendType='pre' 有竖直线且无箭头
    T3 bendFromBar：单音点推弦=就地标记（无 tk/bendType）；双音多选=tech+tk
    T4 同两音再点=取消（清 tech/tk/bendType）
@@ -28,11 +31,20 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].tabs[0]=[mk({notes:[{s:3,f:7,tech:'b',tk:{mi:0,ci:1,si:3}}]}),
       mk({notes:[{s:3,f:9}]}),mk({dur:2,notes:[{s:1,f:5}]})]; loadSong(s);
     const h=document.getElementById('score').innerHTML;
-    return {arrows:(h.match(${ARROW})||[]).length, ties:(h.match(${TIE})||[]).length,
-      circle:h.indexOf('r="5.8"')>=0, bUp:h.indexOf('>b↑</text>')>=0,
+    const cm=h.match(/<circle cx="([\\d.]+)" cy="([\\d.]+)" r="5"/);
+    const tieM=h.match(${TIE});
+    const tk2=tieM? tieM[0].match(/d="([^"]+)"/)[1].split(/[MQZ\\s]+/).filter(Boolean).map(Number) : null;
+    const btm=h.match(/y="([\\d.-]+)"[^>]*>b↑<\\/text>/);
+    return {arrows:(h.match(${ARROW})||[]).length, ties:(tieM||[]).length,
+      circle:!!cm, bUp:h.indexOf('>b↑</text>')>=0,
       big:/font-size="12\\.5"[^>]*>b↑<\\/text>/.test(h),   // v50.5 推弦记号放大：12.5/700
+      /* v53.1 几何：3弦→3弦推弦，弧顶 qy=cy−12（低平贴数字，不再钳到谱上方 tabTop−10=cy−28）；
+         b↑ 文字仍在谱表上方（≤cy−2×弦距−7） */
+      lowArc: cm&&tk2? Math.abs(tk2[3]-(+cm[2]-12))<0.2 : false,
+      txUp: cm&&btm? (+btm[1] <= +cm[2]-25) : false,
       clean:h.indexOf('NaN')<0 && h.indexOf('undefined')<0}; })()`);
-  T(r.arrows === 0 && r.ties >= 1 && r.circle && r.bUp && r.big && r.clean, 'T1 两音推弦=连音线+圆圈+b↑(12.5号) 无箭头', JSON.stringify(r));
+  T(r.arrows === 0 && r.ties >= 1 && r.circle && r.bUp && r.big && r.lowArc && r.txUp && r.clean,
+    'T1 两音推弦=连音线+圆圈+b↑ 低平弧不穿邻弦', JSON.stringify(r));
 
   // T2 回落 bd=连音线+b↓；旧数据 pre 有竖直线且无箭头
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -64,18 +76,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.single.tech==='b' && r.single.noTk && r.single.noTy && r.dbl.tech==='b' && r.dbl.tk && r.dbl.noTy,
     'T3 单音就地标记 / 双音tech+tk', JSON.stringify(r));
 
-  // T5 v50.6 目标音两位数品位：数字缩号入圈（7.5），圆圈 r=5.8 不变；非目标的两位数保持 10.5
+  // T5 目标音数字缩号入圈（v53.1 圆圈 r=5：两位数 6.8 / 一位数 8.6）；非目标两位数保持 10.5
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
     ${mkSong}
     const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
-    s.measures[0].tabs[0]=[mk({notes:[{s:3,f:9,tech:'b',tk:{mi:0,ci:1,si:3}}]}),
-      mk({notes:[{s:3,f:12}]}),mk({dur:2,notes:[{s:3,f:12}]})]; loadSong(s);
+    s.measures[0].tabs[0]=[mk({dur:8,notes:[{s:3,f:9,tech:'b',tk:{mi:0,ci:1,si:3}}]}),
+      mk({dur:8,notes:[{s:3,f:12}]}),
+      mk({dur:8,notes:[{s:2,f:5,tech:'b',tk:{mi:0,ci:3,si:2}}]}),
+      mk({dur:8,notes:[{s:2,f:7}]}),
+      mk({dur:2,notes:[{s:3,f:12}]})]; loadSong(s);
     const h=document.getElementById('score').innerHTML;
-    return {circle:h.indexOf('r="5.8"')>=0,
-      small:/font-size="7\\.5"[^>]*>12<\\/text>/.test(h),
+    return {circle:h.indexOf('r="5"')>=0, noOld:h.indexOf('r="5.8"')<0,
+      small:/font-size="6\\.8"[^>]*>12<\\/text>/.test(h),
+      small1:/font-size="8\\.6"[^>]*>7<\\/text>/.test(h),
       normal:/font-size="10\\.5"[^>]*>12<\\/text>/.test(h),
       clean:h.indexOf('NaN')<0}; })()`);
-  T(r.circle && r.small && r.normal && r.clean, 'T5 目标音两位数缩号入圈(7.5)·非目标保持10.5', JSON.stringify(r));
+  T(r.circle && r.noOld && r.small && r.small1 && r.normal && r.clean,
+    'T5 目标数字缩号入圈(两位6.8/一位8.6)·圆圈r=5·非目标保持10.5', JSON.stringify(r));
 
   // T4 同两音再点=取消
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
