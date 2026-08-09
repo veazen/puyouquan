@@ -4440,6 +4440,7 @@ function render(){
           }
           const gs = beamGroups(cols, null, meaMeter(lm.mi).unit);
           const accSt2 = {};   // 小节内临时记号进位状态（按谱面音级）
+          const accCols2 = new Set();   /* v53.2 画过临时记号的列 → 前倚音组左移让位（用户反馈倚音压升号） */
           /* v41.3 小节反复 𝄎：省写小节联排谱表同样只画反复记号 */
           const simT = simileSrc(lm.mi)!=null? song.measures[lm.mi].simile : 0;
           if(simT) simileSignSVG(p, mx2+lm.L.w/2, cStaffB-2*cSGt, simT);
@@ -4474,7 +4475,7 @@ function render(){
                 p.push(smg(hnm2, hx-smw(hnm2)*cSGt/2, hy, cSGt));
               }
               const sym2 = o.x? '' : accCarry(accSt2, o.step, o.alt, K2.alt[o.Li]||0);
-              if(sym2) p.push(accG(sym2, hx, hy, cSGt, 0.94));
+              if(sym2){ p.push(accG(sym2, hx, hy, cSGt, 0.94)); accCols2.add(ci); }
             });
             for(let kD=0;kD<dotLevel(col2);kD++) p.push(`<circle cx="${(nx2+8.5+kD*4.6).toFixed(1)}" cy="${(stepYt(sts[sts.length-1].step)-(sts[sts.length-1].step%2?cSGt/2:0)).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
             return sts;
@@ -4574,7 +4575,7 @@ function render(){
               const preG = kG==='grace';
               const nxG = mx2+lay.xs[ciG];
               const STEPG=5.5, gWG=(g2.notes.length-1)*STEPG;
-              const gx0 = preG? nxG-11-gWG : nxG+11;
+              const gx0 = preG? nxG-11-gWG-(accCols2.has(ciG)?9:0) : nxG+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
               let topYG=1e9;
               g2.notes.forEach((gn,gi)=>{
                 const stG = midiToStaff(TUNING[gn.s-1]+(gn.f||0)+12, K2);
@@ -5362,6 +5363,7 @@ function render(){
               if(a2.acc) p.push(`<text x="${nx-9}" y="${voxY-14-ai*11}" font-size="10.5" text-anchor="middle" fill="var(--ink)">${a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮'}</text>`);
             });
           }
+          let stAccDrawn=false;   /* v53.2 本列画过临时记号 → 前倚音组左移让位（倚音与升降号同侧，用户反馈重叠） */
           if(isStaff && col.deg){
             /* ===== 五线谱音符（支持同列多音）：逐音 加线/符头/临时记号，二度翻转；共用符干见 stStemFlags/符杠段 ===== */
             const ns = chNotes(col);
@@ -5381,7 +5383,7 @@ function render(){
               const ln=(K.Li+n2.deg-1)%7, keyAlt=K.alt[ln]||0;
               const av=accSemi(n2.acc);
               const sym=accCarry(accSt, n2.st, keyAlt+av, keyAlt);
-              if(sym) p.push(accG(sym, nx, hy2, SG));
+              if(sym){ p.push(accG(sym, nx, hy2, SG)); stAccDrawn=true; }
             });
             /* v43.1 震音杠：符干中段（有符干）或符头上方（全音符）画 1-3 条斜杠 */
             if(col.trem){
@@ -5427,7 +5429,7 @@ function render(){
             const pre = kind==='pre';
             /* 整体小比例：位于主音左上/右上角，含减时线与八度点也不超过主音大小 */
             const STEP=6.5, gW=(g.notes.length-1)*STEP;
-            const gxc = pre? nx-10-gW : nx+10;      // 组首音符中心
+            const gxc = pre? nx-10-gW-(col.acc?9:0) : nx+10;      // 组首音符中心（v53.2 主音带变化音时左移让位）
             const gu = g.dur>=64?4 : g.dur>=32?3 : g.dur>=16?2 : g.dur>=8?1 : 0;
             const LSP=1.7, DSP=2.6;                 // 减时线距 / 八度点距
             const maxLow = Math.max(0, ...g.notes.map(gn=>gn.oct<0? Math.min(3,-gn.oct) : 0));
@@ -5460,7 +5462,7 @@ function render(){
           const stGrace = (gRaw, kind)=>{
             const g=normGrace(gRaw); if(!g.notes.length) return;
             const pre = kind==='pre', STEP=5.5, gW=(g.notes.length-1)*STEP;
-            const gx0 = pre? nx-11-gW : nx+11;
+            const gx0 = pre? nx-11-gW-(stAccDrawn?9:0) : nx+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
             let topY=1e9;
             g.notes.forEach((gn,gi)=>{
               const st2=staffStep({deg:gn.deg||1, oct:gn.oct||0}, K), hy2=stepY(st2);
@@ -14816,7 +14818,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v53.1';
+const APP_VER='v53.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -14839,6 +14841,7 @@ const APP_VER='v53.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v53.2</span><div><b>倚音避让变音记号</b>（用户反馈：五线谱倚音跟升号重叠）：主音带临时升降/还原记号时，<b>前倚音组自动再左移让位</b>——升降号紧贴主音符头、倚音排在记号左侧，互不重叠。三处同步生效：<b>联排五线谱</b>（TAB 倚音）、<b>五线谱</b>与<b>简谱</b>（变化音 ♯♭ 左置符号同让位）。</div></li>
     <li><span class="v">v53.1</span><div><b>推弦弧线与圆圈修正</b>（用户反馈：弧线样式怪、圆圈压邻弦音符）：①推弦连音线不再冲到谱表上方——改为<b>贴着两个品位数字上缘的低平小弧</b>，终点搭在圆圈上缘，弧顶不越过上一根弦线，不再穿过邻弦音符区（b↑/b↓ 文字仍在谱表上方标注带）；②目标音圆圈 <b>5.8→5</b> 并把圈内数字整体缩号（两位数 6.8/一位数 8.6），在 9px 弦距内完全退出邻弦数字带，同列上下弦有音符也不再重叠。</div></li>
     <li><span class="v">v53.0</span><div><b>推弦目标音播放修正</b>（用户反馈）：推弦的圆圈目标音是「推到的音高」而非再拨一次——播放时<b>目标音不再拨奏</b>，由源音的推弦曲线滑到位并<b>延音贯穿目标时值</b>（连锁推-放的中继音保留发声但去音头连奏）。另修正倚音播放：同弦前倚音此前会把主音误掐成 60ms，现主音完整发声、倚音在主音起点自然收束。</div></li>
     <li><span class="v">v52.9</span><div><b>连音线线径细化</b>（用户反馈线径过粗）：全部连音线/圆滑线/推弦弧统一细化约 40%——中部厚度由约 1.9 降到约 1.1，两端细尖与同一线径（厚度与跨度无关）保持不变，谱面更清爽。</div></li>

@@ -161,6 +161,62 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.n === 5 && r.gd > 0 && r.gd <= 0.15 && r.m1Beats >= 0.9, 'T9 倚音播放不掐主音', JSON.stringify(r));
 
+  // T10 联排五线谱：主音带临时记号 → 前倚音组左移 9px 让位（v53.2，用户反馈倚音压升号）。
+  //     同曲两渲染仅差主音品位（f10=D6 自然 / f11=D#6 升号），布局一致，比对倚音小符干 min x 差值
+  r = await pg.evaluate(() => {
+    const build = (f) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('guitar', { title: 'ga', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+      s.tabStaff = 1;
+      const mk4 = (f2, st) => ({ dur: 4, dotted: false, chord: '', notes: [{ s: st, f: f2 }], strum: '', tech: '' });
+      s.measures[0].tabs[0] = [mk4(0, 3), mk4(f, 1), mk4(0, 3), mk4(2, 3)];
+      s.measures[0].tabs[0][1].grace = { notes: [{ s: 1, f: 5 }, { s: 1, f: 7 }], dur: 16 };
+      loadSong(s); blurSel = true; render();
+      // 倚音小符干＝竖直 11px、0.9 宽的 line（联排谱其余 0.9 线均为横向加线）
+      const xs = [...document.querySelectorAll('#score line')].filter(l =>
+        l.getAttribute('x1') === l.getAttribute('x2') && l.getAttribute('stroke-width') === '0.9'
+        && Math.abs(Math.abs(+l.getAttribute('y1') - +l.getAttribute('y2')) - 11) < 0.11)
+        .map(l => +l.getAttribute('x1'));
+      return { n: xs.length, x: Math.min(...xs) };
+    };
+    const nat = build(10), shp = build(11);
+    return { nNat: nat.n, nShp: shp.n, delta: +(nat.x - shp.x).toFixed(1) };
+  });
+  T(r.nNat === 2 && r.nShp === 2 && Math.abs(r.delta - 9) < 0.6, 'T10 联排倚音让位升号(9px)', JSON.stringify(r));
+
+  // T11 vox 五线谱：主音带临时记号（F→F#）→ stGrace 前倚音组左移 9px（小符干 12px/0.9 宽）
+  r = await pg.evaluate(() => {
+    const build = (acc) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('vocal', { title: 'gs', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
+      s.voxNotations = ['staff'];
+      s.measures[0].voxes[0] = Array.from({ length: 4 }, (_, i) => ({ dur: 4, dotted: false, deg: i === 1 ? 4 : 1, acc: i === 1 ? acc : '', oct: 0, lyrics: [], tie: false }));
+      s.measures[0].voxes[0][1].grace = { notes: [{ deg: 2, oct: 0 }], dur: 8 };
+      loadSong(s); blurSel = true; render();
+      const xs = [...document.querySelectorAll('#score line')].filter(l =>
+        l.getAttribute('x1') === l.getAttribute('x2') && l.getAttribute('stroke-width') === '0.9'
+        && Math.abs(Math.abs(+l.getAttribute('y1') - +l.getAttribute('y2')) - 12) < 0.11)
+        .map(l => +l.getAttribute('x1'));
+      return { n: xs.length, x: Math.min(...xs) };
+    };
+    const nat = build(''), shp = build('#');
+    return { nNat: nat.n, nShp: shp.n, delta: +(nat.x - shp.x).toFixed(1) };
+  });
+  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T11 五线谱倚音让位升号(9px)', JSON.stringify(r));
+
+  // T12 简谱：主音带变化音 → drawGrace 倚音数字组左移 9px（倚音数字 font-size 8.5）
+  r = await pg.evaluate(() => {
+    const build = (acc) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('vocal', { title: 'gj', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
+      s.measures[0].voxes[0] = Array.from({ length: 4 }, (_, i) => ({ dur: 4, dotted: false, deg: i === 1 ? 4 : 1, acc: i === 1 ? acc : '', oct: 0, lyrics: [], tie: false }));
+      s.measures[0].voxes[0][1].grace = { notes: [{ deg: 2, oct: 0 }], dur: 8 };
+      loadSong(s); blurSel = true; render();
+      const xs = [...document.querySelectorAll('#score text[font-size="8.5"]')].map(t => +t.getAttribute('x'));
+      return { n: xs.length, x: Math.min(...xs) };
+    };
+    const nat = build(''), shp = build('#');
+    return { nNat: nat.n, nShp: shp.n, delta: +(nat.x - shp.x).toFixed(1) };
+  });
+  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T12 简谱倚音让位变化音(9px)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
