@@ -3951,10 +3951,12 @@ function setRange(row, vi, a, b){
   if(a.mi>b.mi || (a.mi===b.mi && a.ci>b.ci)){ const t=a; a=b; b=t; }
   selRange = {row, vi, m1:a.mi, c1:a.ci, m2:b.mi, c2:b.ci};
 }
-/* v53.8 选区 → 框选音符：把 selRange 范围内全部音符填入 noteSel——圈选标记可见、
-   技法/指法等按音符批量的操作直接可用（用户反馈：列选时不出现框选音符） */
-function noteSelFromRange(){
-  if(!selRange) return 0;
+/* v54.4 区域选区取音（GP 式，用户参考视频拍板——撤 v53.8「松手转圈选」）：
+   列/拍/小节拖选与音轨小节格选中都只显示区域高亮、不给音符画圈选标记；
+   技法/指法/连音线等按音符的批量操作在执行时把选区展开成音（notesInRange 纯查询），
+   marquee 拖圈/Ctrl 逐音点选的真框选（noteSel）依旧优先。 */
+function notesInRange(){
+  if(!selRange) return [];
   const hits=[]; const {row,vi}=selRange;
   for(let m=selRange.m1;m<=selRange.m2;m++){
     const cols=(row==='tab'? ((song.measures[m]||{}).tabs||[])[vi] : ((song.measures[m]||{}).voxes||[])[vi])||[];
@@ -3966,9 +3968,10 @@ function noteSelFromRange(){
       else if(c.deg) hits.push({mi:m, ci:ci2, si:0, vi, row:'vox'});
     }
   }
-  if(hits.length) noteSel=hits;
-  return hits.length;
+  return hits;
 }
+/* 批量操作取音池：真框选（marquee/Ctrl 点选）优先，否则展开当前区域选区 */
+function selNotes(){ return noteSel.length? noteSel : notesInRange(); }
 function colInRange(row, vi, mi, ci){
   if(!selRange || selRange.row!==row || selRange.vi!==vi) return false;
   if(mi<selRange.m1 || mi>selRange.m2) return false;
@@ -6182,7 +6185,7 @@ function showDynMenu(cx, cy){
     /* v41.2 渐强渐弱范围括线：Ctrl 选首末两音（同揉弦/闷音扩选交互）+ < / > / cresc. / dim.
        → 首音存 dyn + dynTo{mi,ci}（终点列），谱面画起止范围开口楔形 */
     const isRange = ['<','>','cresc.','dim.'].includes(d);
-    const picks = noteSel.filter(q=>q.row==='vox').sort((a,b3)=> a.mi-b3.mi || a.ci-b3.ci);
+    const picks = selNotes().filter(q=>q.row==='vox').sort((a,b3)=> a.mi-b3.mi || a.ci-b3.ci);
     if(isRange && picks.length>=2){
       const q0=picks[0], q1=picks[picks.length-1];
       const c0=song.measures[q0.mi] && (song.measures[q0.mi].voxes[q0.vi]||[])[q0.ci];
@@ -6279,7 +6282,7 @@ function showOttavaMenu(cx, cy){
   div.addEventListener('click', ev=>{
     const b2=ev.target.closest('[data-ot]'); if(!b2) return;
     const d=b2.dataset.ot;
-    const picks=noteSel.filter(q=>q.row==='vox'&&q.vi===vi).sort((a,b3)=>a.mi-b3.mi||a.ci-b3.ci);
+    const picks=selNotes().filter(q=>q.row==='vox'&&q.vi===vi).sort((a,b3)=>a.mi-b3.mi||a.ci-b3.ci);
     if(!d){
       /* 清除：沿声部展平，把选中列所在的连续 ott 段整段清除（避免遗留半截括线） */
       mutate(()=>{
@@ -7401,7 +7404,7 @@ function techFromBar(t){ try{ if(t) habit('tech:'+t); }catch(_){}
   if(t==='mute'){ toggleMute(); return; }
   /* 推弦走统一流程（无论单选还是 Ctrl 多选）：圆圈目标音+连线+提示编辑 */
   if(t==='b'||t==='bd'){ bendFromBar(t); return; }
-  if(noteSel.some(q=>q.row!=='vox')){ applyTech(t); return; }
+  if(selNotes().some(q=>q.row!=='vox')){ applyTech(t); return; }
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的音符');
   const col=curCol();
   if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
@@ -7502,7 +7505,7 @@ function deleteNote(){
    预推/类型菜单/幅度菜单全部取消；旧谱 bendType/bAmt 数据仍照常渲染播放（字段红线）。 */
 function bendFromBar(t){
   const nameT = t==='b'? '推弦 b↑' : '回落 b↓';
-  const picked = noteSel.filter(q=>q.row!=='vox');   // 推弦只作用于吉他谱音符
+  const picked = selNotes().filter(q=>q.row!=='vox');   // 推弦只作用于吉他谱音符（v54.4 区域选区同样可用）
   if(picked.length<2){
     if(sel.row==='tab'){
       const c=curCol(), n=c && c.notes && (c.notes.find(x=>x.s===sel.si)||c.notes[0]);
@@ -8464,8 +8467,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   noteSel=[]; measureRange=null; lyrSel=null; closeTech();
   if(e.shiftKey && sel.row===row && sel.vi===vi){
     setRange(row, vi, {mi:sel.mi, ci:sel.ci}, {mi, ci});
-    noteSelFromRange();   /* v53.8 Shift 扩选同样进入框选态 */
-    render(); return;
+    render(); return;   /* v54.4 Shift 扩选=区域选区（不转圈选，GP 式；批量操作走 selNotes 兜底） */
   }
   selRange = null;
   dragSel = {row, vi, mi, ci};
@@ -9220,7 +9222,7 @@ function showTechSuggest(){
   });
 }
 function applyTech(tech){
-  const picked = noteSel.filter(q=>q.row!=='vox');   // 技法只作用于吉他谱音符
+  const picked = selNotes().filter(q=>q.row!=='vox');   // 技法只作用于吉他谱音符（v54.4 区域选区同样可用）
   if(!picked.length) return;
   const list = picked.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
   /* v50.3 产品规格：普通滑音必须两音（起始+目标）；单音选区不生效，
@@ -9287,11 +9289,11 @@ function applyTech(tech){
 /* v42.3 gtype 专属技法：摇把 note.bar / 泛音细分 note.hmT / 右手指法 note.rhFing / 打板 col.perc（字段只增） */
 function applyGtech(kind, value){ try{habit('gtech:'+kind+':'+value);}catch(_){}
   if(kind==='perc'){                                   // 打板：作用于当前选中列（列级）
-    if(sel.row!=='tab' && !noteSel.some(q=>q.row!=='vox')) return toast('请先在六线谱选中要打板的列');
+    if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('请先在六线谱选中要打板的列');
     mutate(()=>{ const c=curCol(); if(c){ c.perc = c.perc===value? undefined : value; if(c.perc){ c.notes=[]; c.strum=''; } } });
     return toast(value?('已标记打板：'+({bass:'低音区',snare:'高音区',golpe:'击板',tambour:'闷鼓'}[value]||value)):'已清除打板');
   }
-  const picked = noteSel.filter(q=>q.row!=='vox');
+  const picked = selNotes().filter(q=>q.row!=='vox');
   if(!picked.length) return toast('请先在六线谱选中音符');
   mutate(()=>{
     picked.forEach(q=>{
@@ -9309,7 +9311,7 @@ function applyGtech(kind, value){ try{habit('gtech:'+kind+':'+value);}catch(_){}
 /* v52.5 左手指法 note.lhF（T/1-4/0）与右手指法 note.rhFing（pima）——全部吉他类型可用；
    多选批量，无多选则作用于当前弦位音（比 applyGtech 宽松：不强制先 Ctrl 多选） */
 function applyFingerMark(kind, value){
-  const picked = noteSel.filter(q=>q.row!=='vox');
+  const picked = selNotes().filter(q=>q.row!=='vox');
   if(!picked.length && sel.row!=='tab') return toast('指法标记用于吉他谱——请先选中吉他谱音符');
   const list = picked.length? picked : [{mi:sel.mi, ci:sel.ci, si:sel.si, vi:sel.vi}];
   const hit = list.filter(q=>{ const cols=song.measures[q.mi] && song.measures[q.mi].tabs[q.vi];
@@ -9401,14 +9403,9 @@ document.getElementById('score').addEventListener('pointermove', e=>{
   setRange(dragSel.row, dragSel.vi, {mi:dragSel.mi, ci:dragSel.ci}, {mi, ci});
   if(JSON.stringify(selRange)!==old) render();
 });
-window.addEventListener('pointerup', ()=>{
-  /* v53.8 列/拍拖选结束：范围内音符自动进入框选态（圈选标记 + 按音符批量操作可用）；
-     小节号连选(kind==='mea')/小节线声部选(whole)是小节级语义，不转框选 */
-  if(dragSel && selRange && !selRange.whole && (!dragSel.kind || dragSel.kind==='beat')){
-    if(noteSelFromRange()) render();
-  }
-  dragSel=null;
-});
+/* v54.4 撤 v53.8「松手转圈选」：列/拍拖选松手后保持区域高亮（GP 式区域选区，用户参考视频拍板），
+   不再给范围内音符画圈；技法/指法等批量操作在执行时经 selNotes() 展开选区取音 */
+window.addEventListener('pointerup', ()=>{ dragSel=null; });
 
 /* ================= 其余工具动作 ================= */
 /* v42.9 变化音循环输入：♯ 键 无→升→重升(×)→无；♭ 键 无→降→重降(♭♭)→无；♮ 键切换还原号 */
@@ -9462,9 +9459,11 @@ function toggleGliss(){ if(sel.row!=='vox') return toast('滑音用于旋律声�
   const c=curCol(); toast(c&&c.gliss? '已加滑音（直线滑到下一个音）' : '已取消滑音'); }
 function bumpOct(d){ if(sel.row!=='vox')return; try{habit('oct:'+(d>0?'+':'-'));}catch(_){} mutate(()=>{ const c=modCol(); if(!c) return;   /* v48.0 同上 */ c.oct=Math.max(-3,Math.min(3,(c.oct||0)+d)); }); }
 function toggleTie(){ try{habit('tie');}catch(_){}
-  /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用 */
-  if(noteSel.length>=2){
-    const list = noteSel.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || (a.si||0)-(b.si||0));
+  /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用；
+     v54.4 区域选区同样可用（selNotes 展开，首尾音相连） */
+  const tiePool = selNotes();
+  if(tiePool.length>=2){
+    const list = tiePool.slice().sort((a,b)=> a.mi-b.mi || a.ci-b.ci || (a.si||0)-(b.si||0));
     const q0=list[0], q1=list[list.length-1];
     if(q0.row==='vox'){
       const vcols = mi=>song.measures[mi] && song.measures[mi].voxes[q0.vi] || [];
@@ -15329,7 +15328,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.3';
+const APP_VER='v54.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15352,6 +15351,7 @@ const APP_VER='v54.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.4</span><div><b>列/拍选改为区域选区（GP 式）</b>（用户参考视频拍板）：列拖选、拍区拖选、Shift 扩选与音轨小节格选中，谱面只显示<b>整块区域高亮</b>（同 Guitar Pro 的蓝色选块），<b>不再给范围内音符逐个画圈</b>（撤 v53.8）；技法、指法、推弦、连音线、力度括线、八度括线等按音符的批量操作<b>在点击时自动把选区展开成音</b>——区域选中后直接点面板按钮即可批量套用，行为不变、谱面更干净。空白处拖圈（marquee）与 Ctrl 逐音点选的真框选保持原样（仍画圈、优先生效）。</div></li>
     <li><span class="v">v54.3</span><div><b>播放轨道面板重设计</b>（用户反馈：样式配色问题）：①<b>音量条收窄为自绘滑杆</b>（细轨+填充色+圆钮，浅色/深色播放坞双主题适配），不再是占满整行的系统蓝色原生滑杆；轨名/分组标/音色下拉在深色坞里配色同步修正。②<b>每条轨道新增小节格</b>——横向排满全曲小节（带编号），<b>点击某格=光标跳到该轨该小节</b>（该小节整段进入声部选区，复制/批量编辑直接可用）<b>并设为单小节循环播放</b>；<b>按住拖过多格=多小节循环选段</b>；再点同一格取消循环。与下方进度条循环选区双向同步。</div></li>
     <li><span class="v">v54.2</span><div><b>连音线留距 + 段序号到歌词起始位</b>（用户反馈）：①简谱连音线/圆滑线不再几乎贴着数字——基线整体上提，与数字顶端保持约 4px 净距（歌本口径），高八度点让位不变；②多段歌词的<b>段序号改标在该段歌词起始字的左侧</b>（不在行首）——每段在自己开唱的位置标注，第二段从中途小节开唱时序号也跟到那一行那个字前，点击选段功能不变。</div></li>
     <li><span class="v">v54.1</span><div><b>增时线不再压小节线</b>（用户反馈：延长号与小节线重叠）：长音末尾的延长横线所在拍若在吉他谱/五线谱里没有音符（如半音符跨到行尾），该拍此前会收缩到最窄、横线被挤到小节线上——现在<b>每条延长横线在布局里占有自己的拍位空间</b>（与真实音符同权撑开空拍），并加右边界保护，任何压缩下横线都不越过小节右内边距。</div></li>
