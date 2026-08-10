@@ -1213,7 +1213,8 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 }
 </style>
 </head>
-<body>
+<body class="shell"><!-- v55.2 首帧即新版外壳：脚本在文末执行前浏览器已按 HTML+CSS 首绘，
+  此前 body 无 class 首绘出经典版布局、脚本跑完才切换 → 打开页面闪现经典版（用户反馈的「卡一下」） -->
 <header id="top">
   <div class="bar main-bar">
     <span class="logo"><span class="mark"></span>谱友圈 <small>专业制谱平台</small></span>
@@ -1244,7 +1245,8 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
       <span id="k-val" style="align-self:center;padding:0 7px;font-weight:700;font-size:12px"></span>
       <button id="k-up" title="升半音">♯</button>
     </span>
-    <button id="b-shell" class="ghost" title="新版界面 / 经典版 一键切换">经典版</button>
+    <!-- v55.2 经典版入口退役：按钮保留供回归套件程序化切换，产品界面不再展示 -->
+    <button id="b-shell" class="ghost" style="display:none" title="新版界面 / 经典版 一键切换">经典版</button>
     <button id="b-invert" class="ghost" title="曲谱反色：深色纸张 + 浅色音符（夜间 / 投影 / 护眼）" style="font-size:15px">◑</button>
     <button id="b-theme" class="ghost" title="界面风格：明暗切换" style="font-size:15px">◐</button>
     <button id="b-member" class="seg-accent" title="个人中心：个人资料 / 我的曲谱 / 自定义节奏型 / 我的权益"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:-2px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg> 个人中心</button>
@@ -11947,7 +11949,10 @@ document.getElementById('b-metro').onclick = ()=>{
 };
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 /* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
-let uiShell = (localStorage.getItem('musetab-shell')||'new')!=='classic';
+/* v55.2 经典版界面退役（用户拍板：打开页面闪现经典版布局，删除经典版界面）：
+   恒为新版外壳——musetab-shell 键保留不删（红线），存量 'classic' 值不再读取；
+   经典版代码路径与隐藏的 #b-shell 按钮保留（回归套件仍覆盖，紧急可程序化切换） */
+let uiShell = true;
 /* v40.7 扁平 SVG 图标库：替换全部 emoji 图案（线性 24 视口、currentColor 随文字着色）。
    静态 HTML 用 data-svgi 占位由下方注入器补图；JS 模板直接调 svgi(name,size)。 */
 const SVGI = {
@@ -15495,7 +15500,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.1';
+const APP_VER='v55.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15518,6 +15523,7 @@ const APP_VER='v55.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.2</span><div><b>打开页面不再闪现经典版 · 经典版界面退役</b>（用户反馈+拍板）：打开制谱页时闪过的错乱布局是<b>经典版界面的首帧</b>——新版外壳此前由页面脚本加载完才挂上，脚本执行前浏览器先按经典版画了一帧。现在<b>页面首帧直接以新版外壳渲染</b>，不再闪现；同时按拍板<b>移除「经典版」切换入口</b>，界面恒为新版外壳（历史保存过经典版偏好的也统一回新版）。</div></li>
     <li><span class="v">v55.1</span><div><b>六弦数字不压时值线 + 手机端速度/倍速回归</b>（用户反馈）：①六弦（最低弦）上的品位数字与下方时值符杠重叠修复——16 分双杠的第二层此前几乎贴着数字（实测只差 0.2px），现在<b>最低弦有带符杠的音时，符干区按符杠层数自动下移</b>，8/16/32/64 分全档数字与符杠净距 ≥3px；②手机分享页底部<b>速度设置与播放倍速加回</b>（紧凑版：速度输入收窄、节拍器改图标），谱架/小节进度条/音轨维持去除，播放条仍一屏放下。</div></li>
     <li><span class="v">v55.0</span><div><b>手机观看页精简 + 无声追修</b>（用户拍板）：①手机上打开分享曲谱时，<b>谱架（顶栏与播放条）、小节进度条、倍速、音轨、速度输入全部去除</b>——保留 ▦ 展开小节（循环选区走小节面板，面板宽度适配手机），精简后的播放条<b>一屏放下、无需横向拖动</b>；②微信 iOS 播放无声追修——播放期间维持一条循环的静音音轨，把系统音频会话钉在「媒体播放」类别，<b>iPhone 侧边静音拨片不再压掉播放声音</b>（此前静音拨片开着时 WebAudio 会被系统整体静掉，这是微信里最常见的无声原因）；起播 1.2 秒后若检测到引擎仍未运转，会弹出可操作的提示（检查媒体音量/静音拨片）。</div></li>
     <li><span class="v">v54.9</span><div><b>手机分享页五连修</b>（用户反馈：微信打开谱库链接的问题清单）：①<b>观看页不再漏出编辑光标</b>——红色弦位圈、光标列高亮、红色段序号全部熄灭（观看模式只读，不该有编辑态）；②<b>顶栏移动端重排</b>——第一行返回+标题（超长截断）+移调，第二行收藏/分享卡/谱架/去制谱等宽排满，不再拥挤错位；③<b>底部播放条让出 iPhone 圆角/横条区</b>（安全区适配，小节数不再被裁）；④<b>微信 iOS 播放无声修复</b>——音频解锁改为「重试直到真正就绪」（此前首个滚动手势会误标已解锁）、按微信官方口径在 JSBridge 回调内解锁、播放时检测到音频上下文被系统卡死则就地重建（已加载音色不丢）。</div></li>
