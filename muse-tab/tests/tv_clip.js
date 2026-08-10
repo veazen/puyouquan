@@ -133,6 +133,46 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.n === 0 && r.circ === 0 && r.nBlk === 1 && r.blkW > 30 && r.fs === 'p,p',
     'T8 拍选=整块色块+批量技法走选区兜底', JSON.stringify(r));
 
+  // T9 v54.6 选区激活时无光标视觉：列选后无 0.12 光标列矩形、拍选后无 0.15 弦位圆圈
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong}; loadSong(s); blurSel=true; render();
+    const cell=(mi,ci)=>document.querySelector('[data-mi="'+mi+'"][data-ci="'+ci+'"][data-row="vox"]');
+    cell(0,0).dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1}));
+    cell(0,2).dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1}));
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); render();
+    const curRect=(document.getElementById('score').innerHTML.match(/opacity="0\\.12"/g)||[]).length;
+    document.querySelector('[data-beatsel="0:0:0"]').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,buttons:1}));
+    document.querySelector('[data-beatsel="0:0:1"]').dispatchEvent(new PointerEvent('pointermove',{bubbles:true,buttons:1}));
+    window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); render();
+    const curCirc=(document.getElementById('score').innerHTML.match(/fill-opacity="0\\.15"/g)||[]).length;
+    selRange=null; render();
+    const back=(document.getElementById('score').innerHTML.match(/fill-opacity="0\\.15"/g)||[]).length;
+    return { curRect, curCirc, back }; })()`);
+  T(r.curRect === 0 && r.curCirc === 0 && r.back === 1, 'T9 选区激活=隐藏光标圈(取消选区恢复)', JSON.stringify(r));
+
+  // T10 v54.6 点小节线=在其后插入剪贴板小节：复制小节1-2 → 选中第2/3小节间小节线 → 粘贴
+  //     插入两小节、原第3小节顺延到第5
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong}; loadSong(s);
+    measureRange={m1:0,m2:1}; measureSel=null; selRange=null; copyMeasure(); measureRange=null;
+    barSel={L:1,R:2,row:'tab',vi:0};
+    const n0=song.measures.length;
+    pasteMeasure();
+    const f=m=>song.measures[m].tabs[0].map(c=>c.notes[0].f).join('');
+    return { n0, n:song.measures.length, ins: f(2)===f(0)&&f(3)===f(1), shifted: f(4)==='2345', cleared: !barSel }; })()`);
+  T(r.n0 === 3 && r.n === 5 && r.ins && r.shifted && r.cleared, 'T10 小节线后插入粘贴', JSON.stringify(r));
+
+  // T11 v54.6 选中区域=替换目标：复制小节2-3声部段 → 选中小节1-2区域（sel 故意留在别处）→ 粘贴落在选区起点
+  r = await pg.evaluate(`(()=>{
+    const s=${mkSong}; loadSong(s);
+    selRange={row:'vox',vi:0,m1:1,c1:0,m2:2,c2:3,whole:true}; copyMeasure();
+    sel={mi:2,row:'vox',vi:0,ci:0,si:3};
+    selRange={row:'vox',vi:0,m1:0,c1:0,m2:1,c2:3,whole:true};
+    pasteMeasure();
+    const d=m=>song.measures[m].voxes[0].map(c=>c.deg).join('');
+    return { d0:d(0), d1:d(1), d2:d(2), n:song.measures.length }; })()`);
+  T(r.d0 === '2345' && r.d1 === '3456' && r.d2 === '3456' && r.n === 3, 'T11 选中区域替换粘贴(选区优先于光标)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

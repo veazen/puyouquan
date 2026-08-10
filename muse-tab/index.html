@@ -4822,7 +4822,9 @@ function render(){
           const nx = mx+lay.xs[ci], cw = lay.ws[ci], clx = mx+lay.ls[ci];
           const boxTop = oy + (vi===0 ? M.diagH : M.tabTops[vi]-14);
           colBoxes['t'+vi+':'+lm.mi+':'+ci] = {x:clx, y:boxTop, w:cw, h:stemY-boxTop+8};
-          const isSel = !blurSel && sel.row==='tab'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          const isSel = !blurSel && !selRange && sel.row==='tab'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          /* v54.6 区域选区激活时不画光标列高亮与弦位圆圈（用户反馈：列选还显示红色圈）——
+             选中态由整块色块表达（GP 式），光标视觉在取消选区后恢复 */
           if(isSel){
             p.push(`<rect x="${clx}" y="${tabTop-16}" width="${cw}" height="${stemY-tabTop+26}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
             /* v51.2 弦位圆形光标（GP 式）：标出品位数字将落到的那根弦——空弦位同样显示；
@@ -5455,7 +5457,7 @@ function render(){
             const cy2 = col.clef==='bass'? staffB-3*SG : col.clef==='alto'? staffB-2*SG : staffB-SG;
             p.push(smg(cnm, nx-14-smw(cnm)*SG*cs, cy2, SG, {scale:cs}));
           }
-          const isSel = !blurSel && sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;
+          const isSel = !blurSel && !selRange && sel.row==='vox'&&sel.vi===vi&&sel.mi===lm.mi&&sel.ci===ci;   /* v54.6 选区激活时不画光标列 */
           if(isSel)
             p.push(`<rect x="${clx}" y="${rowT}" width="${cw}" height="${rowH+song.lyricLines*21}" rx="4" fill="var(--accent)" opacity="0.12"/>`);
           /* v54.5 选区改整块色块（rangeSpan），不再逐列画 0.09 条带 */
@@ -8133,9 +8135,43 @@ function copyMeasure(){
   toast('已复制第'+(mi+1)+'小节');
 }
 function pasteMeasure(){
+  /* v54.6 点击小节线 → 在小节线后【插入】剪贴板内容（用户需求）：整小节剪贴板
+     （多小节/单小节）插入完整小节；声部段（whole）插入新小节、其余声部空白；
+     列级片段没有小节形状，仍走光标处覆盖粘贴 */
+  if(barSel && (clipMeasures || clipMeasure || (clipCols&&clipCols.whole))){
+    const at = Math.max(0, Math.min(barSel.R>=0? barSel.R : barSel.L+1, song.measures.length));
+    let n=0;
+    mutate(()=>{
+      let newMs=[];
+      if(clipMeasures || clipMeasure){
+        const srcs = clipMeasures || [clipMeasure];
+        newMs = srcs.map(srcM=>{
+          const src=JSON.parse(JSON.stringify(srcM));
+          const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
+          song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})()); });
+          song.voxVoices.forEach((_,vi2)=>{ m.voxes.push(src.voxes&&src.voxes[vi2]? src.voxes[vi2] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
+          return m;
+        });
+      }else{
+        const tvi = barSel.row===clipCols.row? barSel.vi : 0;
+        newMs = clipCols.meas.map(cols2=>{
+          const m=blankMeasure();
+          const arr = clipCols.row==='tab'? m.tabs : m.voxes;
+          arr[Math.max(0,Math.min(tvi,arr.length-1))]=JSON.parse(JSON.stringify(cols2));
+          return m;
+        });
+      }
+      n=newMs.length;
+      song.measures.splice(at, 0, ...newMs);
+    });
+    barSel=null;
+    toast('已在小节线后插入 '+n+' 个小节（第'+(at+1)+'小节起，原有小节顺延）');
+    return;
+  }
   if(clipMeasures){
-    /* v53.7 多小节粘贴：从目标小节起逐小节覆盖（声部数对齐当前曲谱），不足自动补建小节 */
-    const mi0 = measureSel!=null? measureSel : sel.mi;
+    /* v53.7 多小节粘贴：从目标小节起逐小节覆盖（声部数对齐当前曲谱），不足自动补建小节；
+       v54.6 选中区域优先：拖小节号连选（measureRange）/区域选区（selRange）→ 从选区起点替换 */
+    const mi0 = measureRange? measureRange.m1 : (measureSel!=null? measureSel : (selRange? selRange.m1 : sel.mi));
     mutate(()=>{
       clipMeasures.forEach((srcM,k)=>{
         const mi=mi0+k;
@@ -8163,10 +8199,14 @@ function pasteMeasure(){
   if(clipCols){
     /* v53.7 声部片段粘贴：whole=从光标小节起逐小节替换该声部（不足补建）；
        列级=从光标列起顺延覆盖（跨小节；曲末截断并提示） */
-    if(sel.row!==clipCols.row){ toast('剪贴板是'+(clipCols.row==='tab'?'吉他谱':'简谱')+'片段——先把光标放到对应声部再 Ctrl+V'); return; }
-    const vi=sel.vi;
+    if(sel.row!==clipCols.row && !(selRange && selRange.row===clipCols.row)){ toast('剪贴板是'+(clipCols.row==='tab'?'吉他谱':'简谱')+'片段——先把光标放到对应声部再 Ctrl+V'); return; }
+    /* v54.6 选中区域优先：区域选区（含音轨小节格选中）→ 以选区起点/声部为粘贴目标，
+       选区小节数与剪贴板不一致时仍按剪贴板长度替换并提示 */
+    const rngOn = selRange && selRange.row===clipCols.row;
+    const vi = rngOn? selRange.vi : sel.vi;
     if(clipCols.whole){
-      const mi0=sel.mi;
+      const mi0 = rngOn? selRange.m1 : sel.mi;
+      const spanN = rngOn? (selRange.m2-selRange.m1+1) : null;
       mutate(()=>{
         clipCols.meas.forEach((cols2,k)=>{
           const mi=mi0+k;
@@ -8175,7 +8215,8 @@ function pasteMeasure(){
           arr[Math.max(0,Math.min(vi,arr.length-1))] = JSON.parse(JSON.stringify(cols2));
         });
       });
-      toast('已按小节粘贴'+(clipCols.row==='tab'?'吉他谱':'简谱')+'声部（第'+(mi0+1)+'小节起 ×'+clipCols.meas.length+'）');
+      toast('已按小节粘贴'+(clipCols.row==='tab'?'吉他谱':'简谱')+'声部（第'+(mi0+1)+'小节起 ×'+clipCols.meas.length+'）'
+        +(spanN!=null && spanN!==clipCols.meas.length? ' · 注意：选区 '+spanN+' 小节 ≠ 剪贴板 '+clipCols.meas.length+' 小节，已按剪贴板长度替换' : ''));
       return;
     }
     const flat=clipCols.meas[0]||[]; let done=0;
@@ -15343,7 +15384,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.5';
+const APP_VER='v54.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15366,6 +15407,7 @@ const APP_VER='v54.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.6</span><div><b>选区隐藏光标圈 + 粘贴插入/替换</b>（用户反馈+需求）：①区域选中（列/拍/音轨小节格）时<b>不再显示红色弦位光标圈与光标列高亮</b>——选中态只由整块色块表达，取消选区后光标恢复；②粘贴增强：复制小节内容后<b>点击小节线再 Ctrl+V=在小节线后插入</b>（整小节/声部段剪贴板均可，原有小节自动顺延）；<b>选中一块区域再 Ctrl+V=从选区起点替换</b>（选区优先于光标位置，小节数不一致时按剪贴板长度替换并提示）。</div></li>
     <li><span class="v">v54.5</span><div><b>选区色块连成整块</b>（用户参考 GP 截图拍板）：列/拍/小节区域选区由「逐列小条带＋虚线框」改为<b>一整块连续色块</b>——覆盖选中范围的整行高度、跨小节不断开（首末列在小节边界时贴到小节线），与 Guitar Pro 拖选的蓝色选块同款视觉；音轨小节格选中同步生效。</div></li>
     <li><span class="v">v54.4</span><div><b>列/拍选改为区域选区（GP 式）</b>（用户参考视频拍板）：列拖选、拍区拖选、Shift 扩选与音轨小节格选中，谱面只显示<b>整块区域高亮</b>（同 Guitar Pro 的蓝色选块），<b>不再给范围内音符逐个画圈</b>（撤 v53.8）；技法、指法、推弦、连音线、力度括线、八度括线等按音符的批量操作<b>在点击时自动把选区展开成音</b>——区域选中后直接点面板按钮即可批量套用，行为不变、谱面更干净。空白处拖圈（marquee）与 Ctrl 逐音点选的真框选保持原样（仍画圈、优先生效）。</div></li>
     <li><span class="v">v54.3</span><div><b>播放轨道面板重设计</b>（用户反馈：样式配色问题）：①<b>音量条收窄为自绘滑杆</b>（细轨+填充色+圆钮，浅色/深色播放坞双主题适配），不再是占满整行的系统蓝色原生滑杆；轨名/分组标/音色下拉在深色坞里配色同步修正。②<b>每条轨道新增小节格</b>——横向排满全曲小节（带编号），<b>点击某格=光标跳到该轨该小节</b>（该小节整段进入声部选区，复制/批量编辑直接可用）<b>并设为单小节循环播放</b>；<b>按住拖过多格=多小节循环选段</b>；再点同一格取消循环。与下方进度条循环选区双向同步。</div></li>
