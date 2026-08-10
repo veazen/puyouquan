@@ -249,6 +249,26 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.n === 2 && r.shortOK && r.longOK && Math.abs(r.lift - 7.5) < 0.2 && Math.abs(r.rel0 - 16) < 0.2,
     'T13 简谱连音线歌本标准(跨数字+弧高+4px净距)+让高八度点', JSON.stringify(r));
 
+  // T14 v54.7 连音线计入行距预留（用户反馈：只有连音线的系统与上一行 TAB 无间隙）：
+  //     单跨 tie → topExtra 7；连跨（长弧更高）→ 11；无 tie → 0；五线谱声部 tie 不计
+  r = await pg.evaluate(() => {
+    const s = createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 0 });
+    const V = (deg, dur) => ({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false });
+    s.measures[0].voxes[0] = [V(1,4), V(2,4), V(3,4), V(5,4)];
+    s.measures[1].voxes[0] = [V(1,4), V(2,4), V(3,4), V(5,4)];
+    loadSong(s); blurSel = true; render();
+    const sysA = { measures: [{ mi: 0 }] }, sysB = { measures: [{ mi: 1 }] };
+    song.measures[0].voxes[0][0].tie = true;                    // 单跨
+    const e1 = systemExtras(sysA).topExtra, e2 = systemExtras(sysB).topExtra;
+    song.measures[0].voxes[0][1].tie = true;                    // 连跨长弧
+    const e3 = systemExtras(sysA).topExtra;
+    song.voxNotations = ['staff'];                              // 五线谱：tie 贴符头不占行高
+    const e4 = systemExtras(sysA).topExtra;
+    song.voxNotations = ['jp'];
+    return { e1, e2, e3, e4 };
+  });
+  T(r.e1 === 7 && r.e2 === 0 && r.e3 === 11 && r.e4 === 0, 'T14 连音线计入行距预留(单跨7/连跨11/五线谱0)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

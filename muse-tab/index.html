@@ -3690,8 +3690,13 @@ function layoutSystems(){
    纵向空间；不含这些符号的系统保持默认行距 → 按需自适配、不浪费。 */
 function systemExtras(sys){
   let maxUp=0, maxDown=0, maxUnder=0, tab32=false;
-  sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach(cols=> cols.forEach(c=>{
+  sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach((cols,vv2)=> cols.forEach((c,ci2)=>{
     if(c.tup) maxUp=Math.max(maxUp, 1);                          // 连音弧线需上方空间
+    /* v54.7 简谱连音线/圆滑线弧需上方空间（用户反馈：只有连音线的行与上一行 TAB 无间隙）——
+       v53.6 弧改到数字整体上方、v54.2 基线再抬 3px 后一直欠账：短弧顶≈数字上方 11px、
+       跨多列长弧（弧高上限 15）更高 → 单跨记 1 档、连跨记 2 档；五线谱行的连音线贴符头不占行高，不计 */
+    if(c.tie && !isStaffNota((song.voxNotations||[])[vv2]))
+      maxUp=Math.max(maxUp, (cols[ci2+1]&&cols[ci2+1].tie)? 2 : 1);
     if(c.ferm) maxUp=Math.max(maxUp, 2);                         // v41.1 延长号需上方空间（休止上也可标）
     if(c.breath) maxUp=Math.max(maxUp, 1);
     if(c.ped) maxDown=Math.max(maxDown, 2);                      // v41.3 踏板 Ped.____* 需谱表下方空间
@@ -3719,7 +3724,7 @@ function systemExtras(sys){
       else if(lo>=1 || un>=2) maxUp=Math.max(maxUp, 2);
     }
     maxUnder=Math.max(maxUnder, c.dur>=64?4 : c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
-  })));
+  })));   /* v54.7 上方 forEach 增加 (cols,vv2)/(c,ci2) 形参供连音线判定 */
   sys.measures.forEach(lm=>{ if(song.measures[lm.mi].label || song.measures[lm.mi].keyTo) maxUp=Math.max(maxUp, 2); });   // v41.2/v41.3 排练标记/转调标记需上方空间
   /* 六线谱含 32 分/连音括号时，符干区按需加高 */
   let tabTup=false;
@@ -15384,7 +15389,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.6';
+const APP_VER='v54.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15407,6 +15412,7 @@ const APP_VER='v54.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.7</span><div><b>连音线计入行距</b>（用户反馈：同页两行行距不一致，一行简谱与吉他谱之间没有间隙）：根因是简谱<b>连音线/圆滑线的弧从未计入行距预留</b>——弧画在数字整体上方（近期又抬高留净距），但只有连音线、没有倚音/高八度点等其它记号的行不会加高行距，弧和数字一起顶到上一行吉他谱底下；带倚音的行恰好因倚音预留了空间而显得「正常」。现在<b>连音线同样按需预留上方空间</b>（跨多列的长弧预留更多），同页各行行距回归一致；五线谱行的连音线贴符头、不占行高，不受影响。</div></li>
     <li><span class="v">v54.6</span><div><b>选区隐藏光标圈 + 粘贴插入/替换</b>（用户反馈+需求）：①区域选中（列/拍/音轨小节格）时<b>不再显示红色弦位光标圈与光标列高亮</b>——选中态只由整块色块表达，取消选区后光标恢复；②粘贴增强：复制小节内容后<b>点击小节线再 Ctrl+V=在小节线后插入</b>（整小节/声部段剪贴板均可，原有小节自动顺延）；<b>选中一块区域再 Ctrl+V=从选区起点替换</b>（选区优先于光标位置，小节数不一致时按剪贴板长度替换并提示）。</div></li>
     <li><span class="v">v54.5</span><div><b>选区色块连成整块</b>（用户参考 GP 截图拍板）：列/拍/小节区域选区由「逐列小条带＋虚线框」改为<b>一整块连续色块</b>——覆盖选中范围的整行高度、跨小节不断开（首末列在小节边界时贴到小节线），与 Guitar Pro 拖选的蓝色选块同款视觉；音轨小节格选中同步生效。</div></li>
     <li><span class="v">v54.4</span><div><b>列/拍选改为区域选区（GP 式）</b>（用户参考视频拍板）：列拖选、拍区拖选、Shift 扩选与音轨小节格选中，谱面只显示<b>整块区域高亮</b>（同 Guitar Pro 的蓝色选块），<b>不再给范围内音符逐个画圈</b>（撤 v53.8）；技法、指法、推弦、连音线、力度括线、八度括线等按音符的批量操作<b>在点击时自动把选区展开成音</b>——区域选中后直接点面板按钮即可批量套用，行为不变、谱面更干净。空白处拖圈（marquee）与 Ctrl 逐音点选的真框选保持原样（仍画圈、优先生效）。</div></li>
