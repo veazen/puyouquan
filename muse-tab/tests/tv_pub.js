@@ -18,13 +18,15 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       score: { id:'seedabc123', title:'云端小星星', singer:'儿歌', author:'谱友圈官方', updated_at: 100, data } }) });
     await openRemotePub('seedabc123');
     await new Promise(r => setTimeout(r, 120));
-    const bar = document.getElementById('viewerbar');
     const scoreLen = (document.getElementById('score')||{}).innerHTML ? document.getElementById('score').innerHTML.length : 0;
+    /* v55.6 头部 2.0：谱库主页图标 + 指法/变调夹/拍速三组数值 + 收藏/分享图标 */
     return { viewer: viewerMode === true, cls: document.body.classList.contains('viewer'),
-      title: song.title, back: !!document.getElementById('vw-back'), trans: !!document.getElementById('vw-tup'),
-      author: bar ? /谱友圈官方/.test(bar.innerHTML) : false, scoreNonEmpty: scoreLen > 500 };
+      title: song.title, home: !!document.getElementById('vh-home'),
+      stats: document.querySelectorAll('#viewerbar .vh-stat').length,
+      fav: !!document.getElementById('vw-fav'), card: !!document.getElementById('vw-card'),
+      scoreNonEmpty: scoreLen > 500 };
   });
-  T(r.viewer && r.cls && r.title === '云端小星星' && r.back && r.trans && r.author && r.scoreNonEmpty, 'T1 观看模式渲染', JSON.stringify(r));
+  T(r.viewer && r.cls && r.title === '云端小星星' && r.home && r.stats === 3 && r.fav && r.card && r.scoreNonEmpty, 'T1 观看模式渲染', JSON.stringify(r));
 
   // T2 退出观看回到常规编辑
   r = await pg.evaluate(() => { exitViewer(); return { viewer: viewerMode, cls: document.body.classList.contains('viewer') }; });

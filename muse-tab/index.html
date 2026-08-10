@@ -1120,18 +1120,43 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inset-bottom,0px)}
 /* v55.0 手机观看页精简（用户拍板）：谱架（顶栏+播放条）/小节进度条/倍速/音轨/速度输入全部去除，
    保留 ▦ 展开小节（循环选区走小节面板）；剩余播放条一屏放下、无需横向拖动 */
-/* v55.5 速度推子浮层（手机观看页专用）：底栏 ♩=BPM 紧凑按钮，点击在播放条上方弹出推子；
-   桌面/编辑器默认隐藏（用数字输入）。浮层恒深色，与播放坞同调 */
-#b-tempo{display:none;align-items:center;white-space:nowrap;font-weight:400;opacity:.92}
-#b-tempo b{font-weight:700;font-size:13px;margin-left:1px}
-#tempo-pop{display:none;position:fixed;left:50%;transform:translateX(-50%);z-index:1250;
-  width:min(330px,calc(100vw - 34px));align-items:center;gap:9px;padding:13px 14px;border-radius:16px;
+/* v55.6 观看页浮层组（.vh-pop，页首「指法/变调夹/拍速」点击弹出）：恒深色圆角面板，与播放坞同调 */
+.vh-pop{display:none;position:fixed;left:50%;transform:translateX(-50%);z-index:1250;
+  align-items:center;gap:9px;padding:13px 14px;border-radius:16px;
   background:rgba(17,40,34,.96);border:1px solid rgba(255,255,255,.14);
   box-shadow:0 10px 34px rgba(0,0,0,.4);backdrop-filter:blur(14px) saturate(1.4)}
-#tempo-pop.on{display:flex}
-#tempo-pop .tp-nudge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;padding:0;line-height:1;
+#tempo-pop{width:min(330px,calc(100vw - 34px))}
+.vh-pop.on{display:flex}
+.vh-pop .tp-nudge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;padding:0;line-height:1;
   border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#efe9d8;font-size:17px;font-weight:600}
-#tempo-pop .tp-nudge:active{background:rgba(255,255,255,.2)}
+.vh-pop .tp-nudge:active{background:rgba(255,255,255,.2)}
+.vh-pop>b{font-size:14px;min-width:78px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
+.vh-pop>b small{color:rgba(239,233,216,.6);font-weight:400}
+/* v55.6 观看页头部 2.0：左=指法/变调夹/拍速 三组数值控件，右=收藏/分享/谱库主页 圆形图标 */
+.vh-stats{display:flex;align-items:stretch;gap:2px}
+.vh-stat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  border:none;background:transparent;box-shadow:none;padding:3px 10px;cursor:pointer;border-radius:10px}
+.vh-stat:hover{background:var(--hover)}
+.vh-stat b{font-size:15px;font-weight:700;color:var(--text);line-height:1.15;white-space:nowrap}
+#vh-key b{color:var(--accent-ink)}
+#vh-capo b::after,#vh-tempo b::after{content:'›';opacity:.45;font-weight:400;margin-left:2px}
+.vh-stat small{font-size:10px;color:var(--muted);line-height:1}
+.vh-icons{display:flex;align-items:center;gap:7px}
+#viewerbar .vh-icons>*{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:34px;height:34px;padding:0;margin:0;border:1px solid var(--border);border-radius:50%;
+  background:var(--panel);color:var(--text);cursor:pointer;font-size:0}
+#viewerbar .vh-icons>*:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--hover)}
+#viewerbar .vh-icons #vw-fav.on{color:#e0395a;border-color:#e0395a}
+#viewerbar .vh-icons #vw-fav.on svg{fill:#e0395a}
+/* v55.6 观看设置（底栏 ⚙）：观看模式可见 */
+#b-vwset{display:none}
+body.viewer #b-vwset{display:inline-flex;align-items:center}
+.vwset-sec{margin-top:13px;padding-top:12px;border-top:1px solid var(--border-soft)}
+.vwset-sec>b{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;font-weight:600}
+.vwset-row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.vwset-row button{flex:1;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+#vs-zoom button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vwset-promo p{font-size:12px;color:var(--muted);margin:7px 0 10px;line-height:1.7}
 #tempo-sl-wrap{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
 #tempo-sl-wrap input{-webkit-appearance:none;appearance:none;flex:1;width:auto;height:4px;border-radius:2px;
   outline:none;border:none;padding:0;cursor:pointer;--mxtrk:rgba(255,255,255,.22);
@@ -1142,11 +1167,10 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 #tempo-sl-wrap b{font-size:14px;min-width:54px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
 #tempo-sl-wrap b::before{content:'♩=';opacity:.65;font-weight:400;font-size:12px}
 @media (max-width:640px){
-  /* v55.5 手机观看页播放条（用户拍板）：速度=♩=BPM 紧凑按钮（点击弹推子浮层）、去倍速、音轨保留；
-     首行=播放/回开头/▦/♩=BPM/节拍器/音轨 等距铺满，次行=小节信息居中 */
+  /* v55.6 手机观看页播放条（用户拍板）：速度移到页首（拍速）、去倍速、音轨保留、⚙ 设置；
+     首行=播放/回开头/▦/节拍器/音轨/⚙ 等距铺满，次行=小节信息居中 */
   body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #b-stand,
   body.viewer .mx-splabel,body.viewer #i-tempo,body.viewer #mx-rate{display:none!important}
-  body.viewer #b-tempo{display:inline-flex}
   body.viewer #mixer-dock .mx-bar{flex-wrap:wrap;gap:7px;padding:9px 10px;overflow-x:visible;justify-content:space-between}
   body.viewer #mx-lbl{order:9;width:100%;text-align:center;font-size:10.5px;margin-top:-2px}   /* 小节信息独占第二行 */
   body.viewer #b-play{padding:7px 12px}
@@ -1741,8 +1765,6 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
     <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
-    <!-- v55.5 手机观看页速度：底栏只放 ♩=BPM 紧凑按钮，点击弹出推子浮层（桌面/编辑器仍用数字输入，CSS 控制显隐） -->
-    <button id="b-tempo" title="速度（BPM）：点击弹出推子调节，播放中即时生效">♩=<b id="b-tempo-v">90</b></button>
     <select id="mx-rate" class="rate" title="播放倍速：只改播放快慢，不改曲谱速度设置（慢速跟练/快速过谱）">
       <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
@@ -1750,13 +1772,24 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
     <button id="b-metro" data-svgi="metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用"> 节拍器</button>
     <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
     <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
+    <button id="b-vwset" data-svgi="gear" title="设置：显示效果 / 打印 / 成为创作者"></button>
   </div>
 </div>
-<!-- v55.5 速度推子浮层：点底栏 ♩=BPM 弹出，拖动调速（播放中即时生效），点外部收起 -->
-<div id="tempo-pop">
+<!-- v55.6 观看页浮层组（.vh-pop）：页首「指法/变调夹/拍速」点击弹出，点外部收起 -->
+<div id="tempo-pop" class="vh-pop" title="拍速（BPM）：拖动调节，播放中即时生效">
   <button class="tp-nudge" id="tp-dn" title="减 1 BPM">−</button>
   <span id="tempo-sl-wrap"><input id="i-tempo-sl" type="range" min="40" max="240" step="1"><b id="i-tempo-sl-v">90</b></span>
   <button class="tp-nudge" id="tp-up" title="加 1 BPM">＋</button>
+</div>
+<div id="key-pop" class="vh-pop" title="指法调：即时移调，不改动原谱">
+  <button class="tp-nudge" id="kp-dn" title="降半音">♭</button>
+  <b id="kp-v" title="点击还原到原调"></b>
+  <button class="tp-nudge" id="kp-up" title="升半音">♯</button>
+</div>
+<div id="capo-pop" class="vh-pop" title="变调夹：播放音高同步，不改动原谱">
+  <button class="tp-nudge" id="cp-dn" title="减 1 品">−</button>
+  <b id="cp-v"></b>
+  <button class="tp-nudge" id="cp-up" title="加 1 品">＋</button>
 </div>
 <div id="toast"></div>
 <!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
@@ -6791,12 +6824,11 @@ function syncInputs(){
   if(document.activeElement!==lyr)
     lyr.value = (sel.row==='vox'&&col)?((col.lyrics||[])[activeLyr]||''):'';
   document.getElementById('i-tempo').value = song.tempo;
-  { /* v55.5 速度推子浮层同步（手机观看页）：推子/浮层读数/底栏 ♩=BPM 按钮 */
-    const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v'),
-      bv=document.getElementById('b-tempo-v');
+  { /* v55.6 速度推子浮层同步 + 观看页头部三组数值（指法/变调夹/拍速） */
+    const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v');
     if(sl){ sl.value=song.tempo; sl.style.setProperty('--p', Math.round((song.tempo-40)/2)+'%'); }
     if(sv) sv.textContent=song.tempo;
-    if(bv) bv.textContent=song.tempo; }
+    if(typeof updateVwHdr==='function') updateVwHdr(); }
   { const kv=document.getElementById('k-val'); if(kv) kv.textContent='1='+song.key; }   // v40.0 顶栏调号
   /* 页头编辑栏时值按钮联动高亮 */
   document.querySelectorAll('#eb-dur .eb').forEach(b=>{
@@ -10303,13 +10335,12 @@ document.getElementById('b-clearlyr').onclick = ()=>{
 document.getElementById('i-tempo').addEventListener('change', e=>{
   song.tempo = Math.max(30, Math.min(240, +e.target.value||90)); persist(); render();
 });
-/* v55.5 速度推子浮层（手机观看页）：点底栏 ♩=BPM 弹出/收起（点浮层外也收起）；
-   推子拖动实时读数、松手提交，−/＋ 微调 1 BPM；播放中提交立即按新速度重起播 */
-{ const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v'),
-    bt=document.getElementById('b-tempo'), pop=document.getElementById('tempo-pop');
+/* v55.6 观看页浮层组（.vh-pop）：页首「指法/变调夹/拍速」点击弹出、点外部收起；
+   拍速推子拖动实时读数、松手提交，−/＋ 微调 1 BPM，播放中提交立即按新速度重起播 */
+{ const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v');
   const clamp=v=>Math.max(40, Math.min(240, +v||90));
   const show=v=>{ if(sv) sv.textContent=v;
-    const bv=document.getElementById('b-tempo-v'); if(bv) bv.textContent=v;
+    const hv=document.getElementById('vh-tempo-v'); if(hv) hv.textContent=v;
     if(sl){ sl.value=v; sl.style.setProperty('--p', Math.round((v-40)/2)+'%'); } };
   const commit=v=>{ v=clamp(v); song.tempo=v;
     const it=document.getElementById('i-tempo'); if(it) it.value=v;
@@ -10319,19 +10350,19 @@ document.getElementById('i-tempo').addEventListener('change', e=>{
     sl.addEventListener('input', e=>show(clamp(e.target.value)));
     sl.addEventListener('change', e=>commit(e.target.value));
   }
-  if(bt && pop){
-    bt.onclick = e=>{ e.stopPropagation();
-      const on = !pop.classList.contains('on');
-      if(on){ /* 锚在播放坞正上方（坞高随内容变，开合时实测） */
-        const r = document.getElementById('mixer-dock').getBoundingClientRect();
-        pop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
-      }
-      pop.classList.toggle('on', on); };
-    pop.addEventListener('click', e=>e.stopPropagation());
-    document.addEventListener('click', ()=>pop.classList.remove('on'));
-    document.getElementById('tp-dn').onclick = ()=>commit((+song.tempo||90)-1);
-    document.getElementById('tp-up').onclick = ()=>commit((+song.tempo||90)+1);
-  } }
+  document.getElementById('tp-dn').onclick = ()=>commit((+song.tempo||90)-1);
+  document.getElementById('tp-up').onclick = ()=>commit((+song.tempo||90)+1);
+  /* 指法浮层：♭/♯ 即时移调（观看副本），点读数还原原调 */
+  document.getElementById('kp-dn').onclick = ()=>{ vwTranspose(-1); updateVwPopKey(); };
+  document.getElementById('kp-up').onclick = ()=>{ vwTranspose(1); updateVwPopKey(); };
+  document.getElementById('kp-v').onclick = ()=>{ if(vwTrans!==0){ vwTranspose(-vwTrans); updateVwPopKey(); } };
+  /* 变调夹浮层：0–12 品（观看副本，播放音高同步） */
+  document.getElementById('cp-dn').onclick = ()=>vwSetCapo(-1);
+  document.getElementById('cp-up').onclick = ()=>vwSetCapo(1);
+  document.querySelectorAll('.vh-pop').forEach(p=>p.addEventListener('click', e=>e.stopPropagation()));
+  document.addEventListener('click', ()=>document.querySelectorAll('.vh-pop.on').forEach(p=>p.classList.remove('on')));
+  document.getElementById('b-vwset').onclick = ()=>showVwSettings();
+}
 /* v39.0 和弦候选动态化：调内和弦优先 → 最近使用 → 本谱/本机自定义 → 常用库 → 全类型组合 */
 const dl = document.getElementById('chord-list');
 function rebuildChordList(){
@@ -12065,6 +12096,11 @@ const SVGI = {
   bolt:'<path d="M13 2.5 5.5 13H11l-1.5 8.5L17 11h-5.5z"/>',
   sparkle:'<path d="M12 4l1.6 4.9 4.9 1.1-4.9 1.6L12 16.5l-1.6-4.9L5.5 10l4.9-1.1z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
   megaphone:'<path d="M3.5 10v4h3.5l7.5 4.5v-13L7 10z"/><path d="M17.5 9.5a4.5 4.5 0 0 1 0 5"/>',
+  /* v55.6 观看页头部/设置图标 */
+  heart:'<path d="M12 19.8S4.2 15 3 10.6C2.2 7.7 4.3 5 7.2 5c2 0 3.6 1.1 4.8 2.9C13.2 6.1 14.8 5 16.8 5c2.9 0 5 2.7 4.2 5.6C19.8 15 12 19.8 12 19.8z"/>',
+  share:'<path d="M12 3.2v10.6"/><path d="M8.2 6.6 12 3.2l3.8 3.4"/><path d="M7 10.5H5v10h14v-10h-2"/>',
+  home:'<path d="M3.5 11.5 12 4l8.5 7.5"/><path d="M6 9.8V20h12V9.8"/><path d="M10 20v-5h4v5"/>',
+  gear:'<circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1"/>',
   search:'<circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.3 15.3 21 21"/>',
   tab6:'<path d="M3 4.5h18M3 7.6h18M3 10.7h18M3 13.8h18M3 16.9h18M3 20h18" stroke-width="1.2"/>',
   tab4:'<path d="M3 6h18M3 10h18M3 14h18M3 18h18" stroke-width="1.3"/>',
@@ -14633,7 +14669,7 @@ function exitViewer(){
   if(document.body.classList.contains('stand')) exitStand();
   const pw=document.getElementById('paywall'); if(pw) pw.remove();
   document.body.classList.remove('viewer');
-  viewerMode=false; viewerCtx=null; vwTrans=0;
+  viewerMode=false; viewerCtx=null; vwTrans=0; vwCapo=null;
   stopPlay();
   if(viewerPrev){
     song=viewerPrev.song; sel=viewerPrev.sel; viewerPrev=null;
@@ -14648,6 +14684,7 @@ function viewerBuildSong(){
   if(!own) data.measures=data.measures.slice(0, Math.max(1, pb.preview||2));
   const s=migrate(data);
   if(vwTrans) transposeSong(s, vwTrans);
+  if(vwCapo!=null) s.capo=vwCapo;   /* v55.6 观看页变调夹覆盖：移调重建后仍保留 */
   return s;
 }
 function shiftChordName(name, delta){
@@ -14682,6 +14719,81 @@ function vwTranspose(delta){
   window.scrollTo(0, sy);
   toast(vwTrans===0? '已还原到原调 1='+song.key : '移调：1='+song.key+'（'+(vwTrans>0?'+':'')+vwTrans+' 半音）');
 }
+/* ===== v55.6 观看页头部 2.0（参考 GTP 手机排版，用户拍板）：
+   左=指法/变调夹/拍速 三组数值控件（点击弹 .vh-pop 浮层），右=收藏/分享/谱库主页 圆形图标；
+   标题/作者/谱库/去制谱按钮移出头部（标题谱面自带，去制谱入 ⚙ 设置推广位） ===== */
+function vwHeaderHTML(o){
+  o=o||{};
+  return `<div class="vh-stats">
+      <button class="vh-stat" id="vh-key" title="指法调：点击升降调（即时移调，不改动原谱）"><b id="vh-key-v"></b><small>指法</small></button>
+      <button class="vh-stat" id="vh-capo" title="变调夹：点击调整品位，播放音高同步（不改动原谱）"><b id="vh-capo-v"></b><small>变调夹</small></button>
+      <button class="vh-stat" id="vh-tempo" title="拍速：点击弹出推子调节，播放中即时生效"><b id="vh-tempo-v"></b><small>拍速</small></button>
+    </div>
+    <span style="flex:1"></span>
+    <div class="vh-icons">
+      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('heart',16)}</button>`:''}
+      ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',16)}</button>`:''}
+      <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',16)}</a>
+    </div>`;
+}
+function updateVwHdr(){
+  const kv=document.getElementById('vh-key-v'); if(!kv) return;
+  kv.textContent=(song.key||'C')+'调';
+  const cv=document.getElementById('vh-capo-v'); if(cv) cv.textContent=song.capo? song.capo+'品':'空';
+  const tv=document.getElementById('vh-tempo-v'); if(tv) tv.textContent=song.tempo;
+}
+function vwPopToggle(pid, bid){
+  const pop=document.getElementById(pid), btn=document.getElementById(bid);
+  if(!pop||!btn) return;
+  const on=!pop.classList.contains('on');
+  document.querySelectorAll('.vh-pop.on').forEach(p=>p.classList.remove('on'));
+  if(!on) return;
+  const r=btn.getBoundingClientRect();
+  pop.style.top=(r.bottom+8)+'px'; pop.style.bottom='auto';
+  pop.classList.add('on');
+}
+function updateVwPopKey(){
+  const el=document.getElementById('kp-v'); if(!el) return;
+  el.innerHTML='1='+esc(song.key)+(vwTrans? ' <small>('+(vwTrans>0?'+':'')+vwTrans+')</small>':' <small>(原调)</small>');
+}
+function updateVwPopCapo(){
+  const el=document.getElementById('cp-v'); if(el) el.textContent=song.capo? song.capo+' 品':'无（空）';
+}
+let vwCapo=null;    /* 观看页变调夹覆盖值：作用在观看副本上，移调重建后仍保留；进出观看模式清空 */
+function vwSetCapo(d){
+  vwCapo=Math.max(0, Math.min(12, (song.capo||0)+d));
+  song.capo=vwCapo; render(); updateVwHdr(); updateVwPopCapo();
+}
+function vwHeaderWire(){
+  const k=document.getElementById('vh-key'); if(k) k.onclick=e=>{ e.stopPropagation(); updateVwPopKey(); vwPopToggle('key-pop','vh-key'); };
+  const c=document.getElementById('vh-capo'); if(c) c.onclick=e=>{ e.stopPropagation(); updateVwPopCapo(); vwPopToggle('capo-pop','vh-capo'); };
+  const t=document.getElementById('vh-tempo'); if(t) t.onclick=e=>{ e.stopPropagation(); vwPopToggle('tempo-pop','vh-tempo'); };
+}
+/* ===== v55.6 观看设置（底栏 ⚙）：显示效果 / 打印 / 成为创作者推广（内容后续按需扩展） ===== */
+function showVwSettings(){
+  showModal(`<h3>${svgi('gear',15)} 观看设置</h3>
+    <div class="vwset-sec"><b>显示效果</b>
+      <div class="vwset-row" id="vs-zoom">
+        <button data-z="1">适配屏宽</button><button data-z="1.15">放大 115%</button><button data-z="1.35">放大 135%</button>
+      </div>
+      <div class="vwset-row"><button id="vs-stand">${svgi('stand',13)} 谱架模式（全屏自动卷谱）</button></div>
+    </div>
+    <div class="vwset-sec"><b>打印</b>
+      <div class="vwset-row"><button id="vs-print">${svgi('print',13)} 打印 / 导出 PDF</button></div>
+    </div>
+    <div class="vwset-sec vwset-promo"><b>${svgi('sparkle',13)} 成为创作者</b>
+      <p>用谱友圈在线制谱：简谱 / 六线谱 / 五线谱三种记谱法一键互换，出版级谱面，编好即可发布到谱库、分享给学生和朋友。</p>
+      <div class="vwset-row"><button id="vs-make" class="primary">免费开始制谱</button></div>
+    </div>`);
+  document.querySelectorAll('#vs-zoom button').forEach(b=>{
+    b.classList.toggle('on', Math.abs(viewZoom-parseFloat(b.dataset.z))<0.01);
+    b.onclick=()=>{ setViewZoom(parseFloat(b.dataset.z));
+      document.querySelectorAll('#vs-zoom button').forEach(x=>x.classList.toggle('on', x===b)); };
+  });
+  document.getElementById('vs-stand').onclick=()=>{ closeModal(); enterStand(); };
+  document.getElementById('vs-print').onclick=()=>{ closeModal(); window.print(); };
+  document.getElementById('vs-make').onclick=()=>{ location.href='//zhipu.puyouquan.com/'; };
+}
 /* ===== 互动分享谱（v38.5）：自包含 HTML 注入数据后进入的独立观看模式 ===== */
 function enterShareViewer(share){
   const data = sanitizeUntrusted(share && share.song);   // Sprint0 安全：外部分享互动谱走 XSS 清洗
@@ -14689,7 +14801,7 @@ function enterShareViewer(share){
   viewerMode=true; viewerPrev=null;
   viewerCtx={pb:{title:data.title||'未命名曲谱', author:data.author||'佚名',
     type:data.docType||'guitar', data, price:0, preview:9999}, own:true, total:data.measures.length};
-  vwTrans=0;
+  vwTrans=0; vwCapo=null;
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
@@ -14699,26 +14811,11 @@ function enterShareViewer(share){
   stopPlay(); audio.loop=null;
   clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
-  vb.innerHTML=`<span class="vt">${esc(song.title||'未命名曲谱')}</span>
-    <span class="va">${esc(song.author||'佚名')} · ${TYPE_CN[viewerCtx.pb.type]||'曲谱'} · ${viewerCtx.total} 小节 · 互动谱</span>
-    <span style="flex:1"></span>
-    <span class="vw-trans" title="即时移调（不改动原谱）">
-      <button id="vw-tdn" title="降半音">♭</button>
-      <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
-      <button id="vw-tup" title="升半音">♯</button></span>
-    <span class="vw-acts">
-      <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
-      <a class="vw-brand" href="https://puyouquan.com" target="_blank" rel="noopener"
-        title="本互动谱由谱友圈在线制谱导出——你也可以免费制谱并分享">谱友圈 puyouquan.com</a>
-    </span>`;
-  updateVwKey();
-  document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
-  document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
-  document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
-  document.getElementById('vw-stand').onclick=enterStand;
+  vb.innerHTML=vwHeaderHTML({});   /* v55.6 头部 2.0：指法/变调夹/拍速 + 谱库主页图标 */
+  updateVwHdr(); vwHeaderWire();
   wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
-  toast('互动谱：底部播放条可播放 / 倍速 / 节拍器，右上可移调、进谱架模式');
+  toast('互动谱：底部可播放、⚙ 设置，页首可调指法 / 变调夹 / 拍速');
 }
 /* ===== v55.3 微信内分享出自定义卡片（JS-SDK updateAppMessageShareData）=====
    机制：微信聊天里「粘贴的裸链接」永远显示为文字链（微信不抓取任意网站）；卡片来自
@@ -14762,7 +14859,7 @@ async function openRemotePub(id){
   if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   pyqEvent('open_pub', id);
-  viewerMode=true; viewerPrev=null; vwTrans=0;
+  viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null;
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
@@ -14772,26 +14869,8 @@ async function openRemotePub(id){
   document.title=(song.title||'曲谱')+' · 谱友圈谱库';
   stopPlay(); audio.loop=null; clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
-  vb.innerHTML=`<button id="vw-back">← 谱库</button>
-    <span class="vt">${esc(song.title||'未命名曲谱')}</span>
-    <span class="va">${esc(viewerCtx.pb.author)} · ${TYPE_CN[viewerCtx.pb.type]||'曲谱'} · ${viewerCtx.total} 小节</span>
-    <span style="flex:1"></span>
-    <span class="vw-trans" title="即时移调（不改动原谱，退出即还原）">
-      <button id="vw-tdn" title="降半音">♭</button>
-      <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
-      <button id="vw-tup" title="升半音">♯</button></span>
-    <span class="vw-acts">
-      <button id="vw-fav" title="收藏这首谱">♡ 收藏</button>
-      <button id="vw-card" title="生成品牌分享卡图片（含直达本谱二维码），长按保存转发">分享卡</button>
-      <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
-      <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>
-    </span>`;
-  updateVwKey();
-  document.getElementById('vw-back').onclick=()=>{ location.href='//puku.puyouquan.com/'; };
-  document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
-  document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
-  document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
-  document.getElementById('vw-stand').onclick=enterStand;
+  vb.innerHTML=vwHeaderHTML({fav:true, card:true});   /* v55.6 头部 2.0：指法/变调夹/拍速 + 收藏/分享/谱库主页图标 */
+  updateVwHdr(); vwHeaderWire();
   document.getElementById('vw-fav').onclick=()=>vwToggleFav();
   { const vc=document.getElementById('vw-card'); if(vc) vc.onclick=showShareCardModal; }   // v45.5 H5 分享卡
   updateVwFav();
@@ -14802,8 +14881,10 @@ async function openRemotePub(id){
 function updateVwFav(){
   const b=document.getElementById('vw-fav'); if(!b) return;
   const id=viewerCtx&&viewerCtx.pubId; const on=id&&isFav(id);
-  b.textContent=on?'♥ 已收藏':'♡ 收藏'; b.classList.toggle('on',!!on);
+  b.classList.toggle('on',!!on);
   b.title=on?'取消收藏':'收藏这首谱（登录后跨设备同步）';
+  if(b.dataset.ic) return;   /* v55.6 图标态：桃心 SVG 只变色不换文案 */
+  b.textContent=on?'♥ 已收藏':'♡ 收藏';
 }
 function vwToggleFav(){
   const id=viewerCtx&&viewerCtx.pubId; if(!id) return;
@@ -15606,7 +15687,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.5';
+const APP_VER='v55.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15629,6 +15710,7 @@ const APP_VER='v55.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.6</span><div><b>分享观看页改版：页首指法/变调夹/拍速 + 底栏 ⚙ 设置</b>（用户参考 GTP 排版拍板）：①页首重排——左侧三组可点数值：<b>指法</b>（当前调，点开 ♭/♯ 升降调、点读数还原原调）、<b>变调夹</b>（点开 −/＋ 调品位 0–12，播放音高同步，移调后仍保留）、<b>拍速</b>（点开推子浮层，播放中即时变速）；右侧只留三个圆形图标：<b>收藏 ♥ / 分享卡 / 谱库主页</b>；原标题（谱面自带）、谱库、去制谱按钮移出页首。②底栏新增 <b>⚙ 设置</b>：显示效果（谱面缩放三档 + 谱架模式）、打印 / 导出 PDF、成为创作者（免费制谱入口）——设置内容后续会持续扩充。三处调节都作用在观看副本上，<b>不改动原谱</b>。</div></li>
     <li><span class="v">v55.5</span><div><b>速度推子改为点击弹出</b>（用户反馈：常驻推条太占空间）：手机观看页底栏不再常驻速度推条，改为紧凑的 <b>♩=92</b> 速度按钮——<b>点击才弹出推子浮层</b>（播放条正上方深色圆角面板：推子 + −/＋ 每次 1 BPM 微调 + 大字读数），拖动实时跟手、松手生效，<b>播放中即时变速</b>；点浮层外任意处收起。底栏腾出的空间让 播放/回开头/▦/速度/节拍器/音轨 六个控件等距铺满一行，版面更清爽。</div></li>
     <li><span class="v">v55.4</span><div><b>手机观看页播放条 2.0：速度推子 + 音轨回归</b>（用户拍板）：①底部速度设置改为<b>推子（滑杆）形式</b>——♩= 读数实时跟手，松手生效并写回曲谱，<b>播放中拖动即时变速</b>（谱面速度同步更新）；②<b>去除播放倍速功能</b>（速度由推子一处掌管，不再有两套速度叠乘）；③<b>音轨功能加回</b>——🎚 打开音轨面板可静音/独奏/调音量/点小节格循环，面板按手机宽度重排（轨名与按钮一行、音量滑杆与小节格通栏），竖屏不横向溢出；④底栏布局与配色随之升级，仍一屏放下、免拖动。</div></li>
     <li><span class="v">v55.3</span><div><b>微信转发出自定义卡片</b>（JS-SDK 接入）：在微信里打开谱页后点右上角「…→发送给朋友」，卡片显示<b>曲名·谱友圈 + 作者/调号/速度摘要 + 品牌缩略图</b>（接入微信官方 JS-SDK 自定义分享；朋友圈同步支持）。需在公众号后台完成：已认证公众号、域名加入「JS接口安全域名」、服务器配置公众号凭据——未配置时自动回退微信默认卡片（页面标题+截图），不影响使用。注：微信聊天里<b>直接粘贴的裸链接任何网站都只显示文字链</b>，卡片来自微信内打开后转发。</div></li>

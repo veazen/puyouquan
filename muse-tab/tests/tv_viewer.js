@@ -30,14 +30,14 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     title: song.title, docTitle: document.title,
     topHidden: getComputedStyle(document.getElementById('top')).display === 'none',
     mixerShown: getComputedStyle(document.getElementById('mixer-dock')).display !== 'none',
-    brand: !!document.querySelector('#viewerbar .vw-brand'),
-    stand: !!document.getElementById('vw-stand'),
+    home: !!document.getElementById('vh-home'),                     // v55.6 谱库主页图标
+    stats: document.querySelectorAll('#viewerbar .vh-stat').length, // 指法/变调夹/拍速
     metro: !!document.getElementById('b-metro'), rate: !!document.getElementById('mx-rate')
   }));
   const ok1 = t1.viewer && t1.title === '小星星·互动测试' && t1.docTitle.includes('互动谱')
-    && t1.topHidden && t1.mixerShown && t1.brand && t1.stand && t1.metro && t1.rate;
+    && t1.topHidden && t1.mixerShown && t1.home && t1.stats === 3 && t1.metro && t1.rate;
   console.log((ok1 ? '✅' : '❌') + ' T1 注入启动进观看模式: viewer=' + t1.viewer + ' 曲名=' + t1.title
-    + ' 编辑栏隐藏=' + t1.topHidden + ' 播放条在=' + t1.mixerShown + ' 品牌链=' + t1.brand);
+    + ' 编辑栏隐藏=' + t1.topHidden + ' 播放条在=' + t1.mixerShown + ' 头部stats=' + t1.stats + ' 谱库链=' + t1.home);
   if (ok1) pass++;
 
   // T2 观看模式内即时移调不改原始注入数据
@@ -55,16 +55,17 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     return { blur: blurSel,
       circ: (h.match(/fill-opacity="0\.15"/g) || []).length,       // TAB 弦位光标圈
       curRect: (h.match(/opacity="0\.12"/g) || []).length,         // 光标列高亮
-      acts: !!document.querySelector('#viewerbar .vw-acts'),
+      acts: !!document.querySelector('#viewerbar .vh-icons'),      // v55.6 头部图标组
       vpfit: (document.querySelector('meta[name="viewport"]').content || '').includes('viewport-fit=cover') };
   });
   const ok7 = t7.blur === true && t7.circ === 0 && t7.curRect === 0 && t7.acts && t7.vpfit;
   console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
   if (ok7) pass++;
 
-  // T8 v55.5 手机观看页播放条：谱架/小节进度条/倍速/数字速度输入隐藏、♩=BPM 紧凑按钮可见、
-  //    点按钮弹出推子浮层（默认收起、点外部收起）、推子/微调改速生效并同步各读数、
-  //    音轨保留（面板行不超宽）、▦ 保留、播放条一屏放下；kaEl 会话保持起停
+  // T8 v55.6 手机观看页：页首=指法/变调夹/拍速三组数值（点击弹浮层）+ 图标组；
+  //    拍速推子/微调改速生效并同步、变调夹 ±品作用观看副本且移调后保留；
+  //    底栏=谱架/进度条/倍速/数字速度隐藏、音轨/▦/⚙ 在、一屏放下、⚙ 弹设置（缩放/打印/去制谱）；
+  //    kaEl 会话保持起停
   const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
   await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
   const t8 = await pg3.evaluate(() => {
@@ -73,30 +74,42 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     play(); const ka1 = !!(audio.kaEl && !audio.kaEl.paused && audio.kaEl.loop);
     stopPlay(); const ka2 = !!(audio.kaEl && audio.kaEl.paused);
     const popClosed0 = disp('tempo-pop') === 'none';                 // 默认收起
-    document.getElementById('b-tempo').click();
-    const popOpen = disp('tempo-pop') === 'flex';                    // 点 ♩=BPM 弹出
+    document.getElementById('vh-tempo').click();
+    const popOpen = disp('tempo-pop') === 'flex';                    // 点页首「拍速」弹出
     const sl = document.getElementById('i-tempo-sl');
     sl.value = 132; sl.dispatchEvent(new Event('change'));
     const slTempo = song.tempo === 132 && +document.getElementById('i-tempo').value === 132
-      && document.getElementById('b-tempo-v').textContent === '132';
+      && document.getElementById('vh-tempo-v').textContent === '132';
     document.getElementById('tp-up').click();                        // ＋1 微调
     const nudge = song.tempo === 133 && document.getElementById('i-tempo-sl-v').textContent === '133';
     document.body.click();
     const popClosed1 = disp('tempo-pop') === 'none';                 // 点外部收起
+    document.getElementById('vh-capo').click();                      // 变调夹浮层：+2 品，移调后保留
+    const capoPop = disp('capo-pop') === 'flex' && disp('tempo-pop') === 'none';   // 互斥
+    document.getElementById('cp-up').click(); document.getElementById('cp-up').click();
+    const capo2 = song.capo === 2 && document.getElementById('vh-capo-v').textContent === '2品';
+    vwTranspose(1);
+    const capoKeep = song.capo === 2;                                // 移调重建后 vwCapo 覆盖仍在
+    document.body.click();
+    document.getElementById('b-vwset').click();                      // ⚙ 设置面板
+    const setOn = !!document.getElementById('vs-print') && !!document.getElementById('vs-make')
+      && document.querySelectorAll('#vs-zoom button').length === 3 && !!document.getElementById('vs-stand');
+    closeModal();
     setMixerExpanded(true);
     const row = document.querySelector('#mx-tracks .mx-row');
     const rowFit = !!row && row.scrollWidth <= row.clientWidth + 1 && row.getBoundingClientRect().width <= 390;
     setMixerExpanded(false);
     return { prog: disp('mx-prog'), rate: disp('mx-rate'), stand: disp('b-stand'), trk: disp('mx-expand'),
-      tempo: disp('i-tempo'), bt: disp('b-tempo'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
-      popClosed0, popOpen, popClosed1, nudge,
+      tempo: disp('i-tempo'), vset: disp('b-vwset'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
+      popClosed0, popOpen, popClosed1, nudge, capoPop, capo2, capoKeep, setOn,
       fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2, slTempo, rowFit };
   });
   const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk !== 'none'
-    && t8.tempo === 'none' && t8.bt !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none'
+    && t8.tempo === 'none' && t8.vset !== 'none' && t8.grid !== 'none' && t8.vwStand === 'missing'
     && t8.popClosed0 && t8.popOpen && t8.popClosed1 && t8.nudge
+    && t8.capoPop && t8.capo2 && t8.capoKeep && t8.setOn
     && t8.fit && t8.ka1 && t8.ka2 && t8.slTempo && t8.rowFit;
-  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页播放条(♩=BPM弹出推子): ' + JSON.stringify(t8));
+  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页(页首指法/变调夹/拍速+⚙设置): ' + JSON.stringify(t8));
   if (ok8) pass++;
   await pg3.close();
 
