@@ -59,6 +59,35 @@ T('webExchange：userinfo 失败不阻断（仍返回 openid/unionid）', async 
   assert.strictEqual(r.nickname, '');
 });
 
+/* ---- v55.3 JS-SDK 分享签名 ---- */
+const { jsapiTicket, jsapiSign } = require('./wx');
+const cryptoT = require('node:crypto');
+
+T('jsapiTicket：token+ticket 各请求一次并缓存（第二次调用零网络）', async () => {
+  let calls = 0;
+  const stub = async (u) => { calls++; return { json: async () =>
+    u.includes('/cgi-bin/token') ? { access_token: 'AT1', expires_in: 7200 } : { ticket: 'TIC1', expires_in: 7200, errcode: 0 } }; };
+  const cache = { tok: null, tokExp: 0, tic: null, ticExp: 0 };
+  const t1 = await jsapiTicket({ appid: 'a', secret: 's', fetchFn: stub, cache, nowFn: () => 1000 });
+  const t2 = await jsapiTicket({ appid: 'a', secret: 's', fetchFn: stub, cache, nowFn: () => 1000 });
+  assert.strictEqual(t1, 'TIC1'); assert.strictEqual(t2, 'TIC1'); assert.strictEqual(calls, 2);
+});
+T('jsapiTicket：token 接口失败 → 抛 502', async () => {
+  const stub = async () => ({ json: async () => ({ errcode: 40125, errmsg: 'invalid appsecret' }) });
+  await assert.rejects(() => jsapiTicket({ appid: 'a', secret: 'bad', fetchFn: stub,
+    cache: { tok: null, tokExp: 0, tic: null, ticExp: 0 } }), e => e.status === 502);
+});
+T('jsapiSign：字段字典序拼接 + url 去 # 后 sha1（官方附录1 规则）', () => {
+  const r = jsapiSign('TICKET_X', 'https://zhipu.puyouquan.com/?pub=abc#frag', { nonceStr: 'NONCE1', timestamp: 12345 });
+  const raw = 'jsapi_ticket=TICKET_X&noncestr=NONCE1&timestamp=12345&url=https://zhipu.puyouquan.com/?pub=abc';
+  assert.strictEqual(r.signature, cryptoT.createHash('sha1').update(raw).digest('hex'));
+  assert.strictEqual(r.nonceStr, 'NONCE1'); assert.strictEqual(r.timestamp, 12345);
+});
+T('jsapiSign：缺省自动生成 nonce/timestamp', () => {
+  const r = jsapiSign('T', 'https://puyouquan.com/');
+  assert.ok(r.nonceStr.length >= 8 && r.timestamp > 0 && /^[0-9a-f]{40}$/.test(r.signature));
+});
+
 (async () => {
   // 顺序跑（含 async T）
   await new Promise(r => setTimeout(r, 50));

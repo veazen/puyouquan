@@ -14645,8 +14645,42 @@ function enterShareViewer(share){
   document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
   document.getElementById('vw-key').onclick=()=>{ if(vwTrans!==0) vwTranspose(-vwTrans); };
   document.getElementById('vw-stand').onclick=enterStand;
+  wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
   toast('互动谱：底部播放条可播放 / 倍速 / 节拍器，右上可移调、进谱架模式');
+}
+/* ===== v55.3 微信内分享出自定义卡片（JS-SDK updateAppMessageShareData）=====
+   机制：微信聊天里「粘贴的裸链接」永远显示为文字链（微信不抓取任意网站）；卡片来自
+   在微信内打开页面后经右上角「…→发送给朋友」转发。不接 SDK 时卡片=页面标题+自动截图；
+   接 SDK 后可自定义 标题/摘要/缩略图。前提（公众号后台）：已认证公众号 + 域名加入
+   「JS接口安全域名」+ 服务器 IP 白名单；服务端未配置凭据（/api/wx/jssign 503）时静默跳过。 */
+function wxShareCard(){
+  try{
+    if(!/MicroMessenger/i.test(navigator.userAgent)) return;
+    if(!viewerMode || !location.origin.includes('puyouquan.com')) return;
+    const pageUrl = location.href.split('#')[0];
+    const info = {
+      title: (song.title||'曲谱')+' · 谱友圈',
+      desc: [(viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)||'', '1='+(song.key||'C'), '♩='+(song.tempo||90),
+        TYPE_CN[docType(song)]||'曲谱'].filter(Boolean).join(' · ')+'｜在线看谱·可播放·可移调',
+      link: pageUrl,
+      imgUrl: 'https://puyouquan.com/og.png'
+    };
+    apiCall('/wx/jssign?url='+encodeURIComponent(pageUrl)).then(cfg=>{
+      const s=document.createElement('script');
+      s.src='https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
+      s.onload=()=>{ try{
+        window.wx.config({ appId:cfg.appId, timestamp:cfg.timestamp, nonceStr:cfg.nonceStr,
+          signature:cfg.signature, jsApiList:['updateAppMessageShareData','updateTimelineShareData'] });
+        window.wx.ready(()=>{ try{
+          window.wx.updateAppMessageShareData({ title:info.title, desc:info.desc, link:info.link, imgUrl:info.imgUrl, success(){}, fail(){} });
+          window.wx.updateTimelineShareData({ title:info.title, link:info.link, imgUrl:info.imgUrl, success(){}, fail(){} });
+        }catch(_){} });
+        window.wx.error(()=>{});   // 签名/域名未配好：保持微信默认卡片
+      }catch(_){} };
+      document.head.appendChild(s);
+    }).catch(()=>{});   // 503 未配置/网络失败：静默回退默认卡片
+  }catch(_){}
 }
 /* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） ===== */
 async function openRemotePub(id){
@@ -14690,6 +14724,7 @@ async function openRemotePub(id){
   document.getElementById('vw-fav').onclick=()=>vwToggleFav();
   { const vc=document.getElementById('vw-card'); if(vc) vc.onclick=showShareCardModal; }   // v45.5 H5 分享卡
   updateVwFav();
+  wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
 }
 /* 观看模式收藏：本地翻转 + 登录后接云；未登录点收藏就地拉起登录（看谱→留账号钩子），登录后自动收藏 */
@@ -15500,7 +15535,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.2';
+const APP_VER='v55.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15523,6 +15558,7 @@ const APP_VER='v55.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.3</span><div><b>微信转发出自定义卡片</b>（JS-SDK 接入）：在微信里打开谱页后点右上角「…→发送给朋友」，卡片显示<b>曲名·谱友圈 + 作者/调号/速度摘要 + 品牌缩略图</b>（接入微信官方 JS-SDK 自定义分享；朋友圈同步支持）。需在公众号后台完成：已认证公众号、域名加入「JS接口安全域名」、服务器配置公众号凭据——未配置时自动回退微信默认卡片（页面标题+截图），不影响使用。注：微信聊天里<b>直接粘贴的裸链接任何网站都只显示文字链</b>，卡片来自微信内打开后转发。</div></li>
     <li><span class="v">v55.2</span><div><b>打开页面不再闪现经典版 · 经典版界面退役</b>（用户反馈+拍板）：打开制谱页时闪过的错乱布局是<b>经典版界面的首帧</b>——新版外壳此前由页面脚本加载完才挂上，脚本执行前浏览器先按经典版画了一帧。现在<b>页面首帧直接以新版外壳渲染</b>，不再闪现；同时按拍板<b>移除「经典版」切换入口</b>，界面恒为新版外壳（历史保存过经典版偏好的也统一回新版）。</div></li>
     <li><span class="v">v55.1</span><div><b>六弦数字不压时值线 + 手机端速度/倍速回归</b>（用户反馈）：①六弦（最低弦）上的品位数字与下方时值符杠重叠修复——16 分双杠的第二层此前几乎贴着数字（实测只差 0.2px），现在<b>最低弦有带符杠的音时，符干区按符杠层数自动下移</b>，8/16/32/64 分全档数字与符杠净距 ≥3px；②手机分享页底部<b>速度设置与播放倍速加回</b>（紧凑版：速度输入收窄、节拍器改图标），谱架/小节进度条/音轨维持去除，播放条仍一屏放下。</div></li>
     <li><span class="v">v55.0</span><div><b>手机观看页精简 + 无声追修</b>（用户拍板）：①手机上打开分享曲谱时，<b>谱架（顶栏与播放条）、小节进度条、倍速、音轨、速度输入全部去除</b>——保留 ▦ 展开小节（循环选区走小节面板，面板宽度适配手机），精简后的播放条<b>一屏放下、无需横向拖动</b>；②微信 iOS 播放无声追修——播放期间维持一条循环的静音音轨，把系统音频会话钉在「媒体播放」类别，<b>iPhone 侧边静音拨片不再压掉播放声音</b>（此前静音拨片开着时 WebAudio 会被系统整体静掉，这是微信里最常见的无声原因）；起播 1.2 秒后若检测到引擎仍未运转，会弹出可操作的提示（检查媒体音量/静音拨片）。</div></li>

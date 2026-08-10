@@ -18,6 +18,10 @@ if (!JWT_SECRET) { console.error('缺少 JWT_SECRET'); process.exit(1); }
 const WX_WEB_APPID = process.env.WX_WEB_APPID || '';
 const WX_WEB_SECRET = process.env.WX_WEB_SECRET || '';
 const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.com/api/wx/web/callback';
+/* v55.3 公众号 JS-SDK 分享签名（微信内转发出自定义卡片）：已认证公众号的 AppID/Secret，
+   与扫码登录（开放平台网站应用）是两套凭据；未配置时接口 503、前端静默回退微信默认卡片 */
+const WX_MP_APPID = process.env.WX_MP_APPID || '';
+const WX_MP_SECRET = process.env.WX_MP_SECRET || '';
 /* v45.4 微信支付（APIv3 Native 扫码）：凭据只走服务器环境；私钥为文件路径（apiclient_key.pem）。
    五项全配齐才启用（health.wxpay=true，前端据此显示支付入口）。 */
 const WXPAY = (() => {
@@ -303,6 +307,16 @@ const routes = [
       setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
       return { ___redirect: withFlag('ok') };
     } catch (e) { console.error('微信登录失败:', e.message); return { ___redirect: withFlag('fail') }; }
+  }],
+
+  /* -- v55.3 微信 JS-SDK 分享签名：viewer 页转发出自定义卡片（标题/摘要/缩略图）。
+        仅为本站域名下的页面签名（防外站白嫖 ticket）；未配置公众号凭据时 503 -- */
+  ['GET', /^\/api\/wx\/jssign$/, false, async (m, b, _u, req) => {
+    if (!WX_MP_APPID || !WX_MP_SECRET) throw new ApiError(503, '微信 JS-SDK 未配置');
+    const url = new URL(req.url, 'http://x').searchParams.get('url') || '';
+    if (!/^https?:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(url)) throw new ApiError(400, '仅限本站页面签名');
+    const ticket = await wx.jsapiTicket({ appid: WX_MP_APPID, secret: WX_MP_SECRET });
+    return { appId: WX_MP_APPID, ...wx.jsapiSign(ticket, url) };
   }],
 
   /* -- 我的资料 -- */

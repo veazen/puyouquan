@@ -60,4 +60,36 @@ async function webExchange(code, { appid, secret, fetchFn = fetch }) {
   };
 }
 
-module.exports = { signState, verifyState, buildLoginUrl, webExchange };
+/* ---- v55.3 公众号 JS-SDK 分享签名（微信内转发链接出自定义卡片的官方通道）----
+   前提（公众号后台人工配置）：已认证的服务号/订阅号、域名加入「JS接口安全域名」、服务器 IP 加白名单。
+   access_token / jsapi_ticket 各 7200s，内存缓存并提前 5 分钟刷新；凭据由调用方注入不落代码。
+   cache/fetchFn/nowFn 可注入以便单测。 */
+const _jsCache = { tok: null, tokExp: 0, tic: null, ticExp: 0 };
+async function jsapiTicket({ appid, secret, fetchFn = fetch, cache = _jsCache, nowFn = nowSec }) {
+  const now = nowFn();
+  if (cache.tic && now < cache.ticExp) return cache.tic;
+  if (!cache.tok || now >= cache.tokExp) {
+    const r = await fetchFn(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential`
+      + `&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`, { signal: AbortSignal.timeout(10000) });
+    const j = await r.json().catch(() => ({}));
+    if (!j.access_token) { const e = new Error('获取公众号 access_token 失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e; }
+    cache.tok = j.access_token; cache.tokExp = now + Math.min(j.expires_in || 7200, 7200) - 300;
+  }
+  const r2 = await fetchFn(`https://api.weixin.qq.com/cgi-bin/ticket/getticket`
+    + `?access_token=${encodeURIComponent(cache.tok)}&type=jsapi`, { signal: AbortSignal.timeout(10000) });
+  const j2 = await r2.json().catch(() => ({}));
+  if (j2.errcode || !j2.ticket) { const e = new Error('获取 jsapi_ticket 失败: ' + (j2.errmsg || j2.errcode || 'unknown')); e.status = 502; throw e; }
+  cache.tic = j2.ticket; cache.ticExp = now + Math.min(j2.expires_in || 7200, 7200) - 300;
+  return cache.tic;
+}
+/* 签名规则（官方附录1）：jsapi_ticket/noncestr/timestamp/url 按 key 字典序拼接后 sha1；
+   url=当前页面完整 URL 去掉 # 及其后部分。nonce/timestamp 可注入以便单测 */
+function jsapiSign(ticket, url, { nonceStr, timestamp } = {}) {
+  nonceStr = nonceStr || crypto.randomBytes(8).toString('hex');
+  timestamp = timestamp || nowSec();
+  const raw = `jsapi_ticket=${ticket}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${String(url).split('#')[0]}`;
+  const signature = crypto.createHash('sha1').update(raw).digest('hex');
+  return { nonceStr, timestamp, signature };
+}
+
+module.exports = { signState, verifyState, buildLoginUrl, webExchange, jsapiTicket, jsapiSign };
