@@ -3777,7 +3777,10 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
     if(i>0) y += tabGap2;
     if(song.tabStaff){ y += 15*vt + tLedUp; tabStaffB.push(y+30); y += 30 + tGapDn; }   // 联排五线谱：TAB 上方 5 线谱表（谱表↔TAB 间距像素级自适应）
     else tabStaffB.push(0);
-    tabTops.push(y); y += staffH() + 12*vt + tabExtra + 6*vt;
+    /* v54.8 TAB 下缘净距底线（用户反馈：无预留记号的行简谱顶进 TAB，换页后再现）：
+       符干区(12px)与小节号带(≈14px)是固定像素、不随行距/疏密系数缩放——系数<1 时
+       12*vt+6*vt 可缩到比固定内容还小，简谱直接压上符杠。夹 18px 无缩放底线 */
+    tabTops.push(y); y += staffH() + Math.max(12*vt + 6*vt, 18) + tabExtra;
   }
   /* 五线谱声部：按整曲实际音域为谱表上/下加线区自动扩展行距（防止相邻行内容交叠） */
   const K3 = (song.voxNotations||[]).some(isStaffNota)? staffKeyInfo() : null;
@@ -3799,7 +3802,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
       ledUp = relU*3.75 + (relU? 6:0);
       ledDn = relD*3.75 + (relD? 4:0);
     }
-    y += (st? 48*vv + topExtra*1.8 + ledUp + (dual?26:0) : 15*vv + topExtra);
+    /* v54.8 首个简谱声部紧邻 TAB 块时的上缘垫距：默认 15→20（数字顶到小节号带留 ≥8px，
+       出版口径），并同样不随行距系数缩小——topExtra（连音线/倚音等预留）在此之上叠加 */
+    y += (st? 48*vv + topExtra*1.8 + ledUp + (dual?26:0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
     voxYs.push(y); lyricY0.push(y + 25 + botExtra + ledDn);
     y += 25 + botExtra + ledDn + (nL-1)*21*vl + 9*vv;
   }
@@ -15389,7 +15394,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.7';
+const APP_VER='v54.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15412,6 +15417,7 @@ const APP_VER='v54.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.8</span><div><b>吉他谱与简谱净距加底线</b>（用户反馈：换页后行距问题再现）：v54.7 修了连音线漏计预留，这次修更深一层的基线问题——TAB 下方的<b>符干区与小节号是固定像素，但行距/疏密系数会把这段间隙等比压缩</b>，没有任何预留记号（连音线/倚音/高八度点等）的行就会顶到一起。现在 TAB 块与简谱行之间有<b>不随压缩系数缩小的净距底线</b>（默认净距同时加宽 5px，达到出版口径），任何行距设置、任何页、任何记号组合下都不再贴死。</div></li>
     <li><span class="v">v54.7</span><div><b>连音线计入行距</b>（用户反馈：同页两行行距不一致，一行简谱与吉他谱之间没有间隙）：根因是简谱<b>连音线/圆滑线的弧从未计入行距预留</b>——弧画在数字整体上方（近期又抬高留净距），但只有连音线、没有倚音/高八度点等其它记号的行不会加高行距，弧和数字一起顶到上一行吉他谱底下；带倚音的行恰好因倚音预留了空间而显得「正常」。现在<b>连音线同样按需预留上方空间</b>（跨多列的长弧预留更多），同页各行行距回归一致；五线谱行的连音线贴符头、不占行高，不受影响。</div></li>
     <li><span class="v">v54.6</span><div><b>选区隐藏光标圈 + 粘贴插入/替换</b>（用户反馈+需求）：①区域选中（列/拍/音轨小节格）时<b>不再显示红色弦位光标圈与光标列高亮</b>——选中态只由整块色块表达，取消选区后光标恢复；②粘贴增强：复制小节内容后<b>点击小节线再 Ctrl+V=在小节线后插入</b>（整小节/声部段剪贴板均可，原有小节自动顺延）；<b>选中一块区域再 Ctrl+V=从选区起点替换</b>（选区优先于光标位置，小节数不一致时按剪贴板长度替换并提示）。</div></li>
     <li><span class="v">v54.5</span><div><b>选区色块连成整块</b>（用户参考 GP 截图拍板）：列/拍/小节区域选区由「逐列小条带＋虚线框」改为<b>一整块连续色块</b>——覆盖选中范围的整行高度、跨小节不断开（首末列在小节边界时贴到小节线），与 Guitar Pro 拖选的蓝色选块同款视觉；音轨小节格选中同步生效。</div></li>

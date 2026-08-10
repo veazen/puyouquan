@@ -269,6 +269,21 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.e1 === 7 && r.e2 === 0 && r.e3 === 11 && r.e4 === 0, 'T14 连音线计入行距预留(单跨7/连跨11/五线谱0)', JSON.stringify(r));
 
+  // T15 v54.8 TAB↔简谱净距底线：默认 38px（18 无缩放底垫 + 20 上缘垫距）；
+  //     行距系数压到 0.6 也不缩（符干/小节号是固定像素）；预留（topExtra）在底线之上叠加
+  r = await pg.evaluate(() => {
+    const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 1, lyr: 0 });
+    loadSong(s); blurSel = true; render();
+    const gap = M2 => M2.voxYs[0] - (M2.tabTops[0] + staffH());
+    const g1 = gap(sysMetrics());
+    const save = LAY_RG; LAY_RG = { tab: 0.6, vox: 0.6, lyric: 1 };
+    const g2 = gap(sysMetrics());
+    const g3 = gap(sysMetrics(7, 0, 0, 0));      // 预留在底线之上叠加
+    LAY_RG = save;
+    return { g1, g2, g3 };
+  });
+  T(r.g1 === 38 && r.g2 === 38 && r.g3 === 45, 'T15 TAB↔简谱净距底线(38不随行距压缩)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
