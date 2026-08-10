@@ -176,6 +176,31 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.n === 3 && r.mono && r.inside && r.nDash === 3, 'T7 行尾空拍增时线不压小节线', JSON.stringify(r));
 
+  // T8 v55.1 六弦（最低弦）数字与符杠净距：8分/16分/32分在六弦上时符干区按层数下移，
+  //    最上层符杠顶与数字底净距 ≥3px（此前 16 分第二层只差 0.2px 视觉重叠）
+  r = await pg.evaluate(() => {
+    const mk = (f, st, d) => ({dur: d, dotted: false, chord: '', notes: [{s: st, f}], strum: '', tech: ''});
+    const probe = cols => {
+      const s = createSong('guitar', {beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0});
+      s.measures[0].tabs[0] = cols;
+      loadSong(s); blurSel = true; render();
+      const svg = document.getElementById('score');
+      const tt = [...svg.querySelectorAll('text')].filter(t => t.textContent === '7')[0];
+      const bb = tt.getBBox();
+      const beams = [...svg.querySelectorAll('rect')]
+        .map(el => ({x: +el.getAttribute('x'), y: +el.getAttribute('y'), w: +el.getAttribute('width'), h: +el.getAttribute('height')}))
+        .filter(q => q.h > 1 && q.h < 4 && q.w > 8 && q.x < bb.x + bb.width && q.x + q.w > bb.x && q.y > bb.y);
+      const top = Math.min(...beams.map(q => q.y));
+      return +(top - (bb.y + bb.height)).toFixed(1);
+    };
+    const g8  = probe([mk(7,6,8), mk(7,6,8), mk(5,5,4), mk(5,5,4), mk(5,5,4)]);
+    const g16 = probe([mk(7,6,16), mk(7,6,16), mk(7,6,16), mk(7,6,16), mk(5,5,4), mk(5,5,4), mk(5,5,4)]);
+    const g32 = probe([mk(7,6,32), mk(7,6,32), mk(7,6,32), mk(7,6,32), mk(7,6,32), mk(7,6,32), mk(7,6,32), mk(7,6,32),
+                       mk(5,5,4), mk(5,5,4), mk(5,5,4)]);
+    return { g8, g16, g32 };
+  });
+  T(r.g8 >= 3 && r.g16 >= 3 && r.g32 >= 3, 'T8 六弦数字与符杠净距≥3px(8/16/32分)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

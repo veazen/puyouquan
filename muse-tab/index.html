@@ -1121,10 +1121,15 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 /* v55.0 手机观看页精简（用户拍板）：谱架（顶栏+播放条）/小节进度条/倍速/音轨/速度输入全部去除，
    保留 ▦ 展开小节（循环选区走小节面板）；剩余播放条一屏放下、无需横向拖动 */
 @media (max-width:640px){
-  body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #mx-rate,body.viewer #b-stand,
-  body.viewer #mx-expand,body.viewer .mx-splabel,body.viewer #i-tempo{display:none!important}
-  body.viewer #mixer-dock .mx-bar{flex-wrap:nowrap;gap:7px;padding:9px 10px;overflow-x:visible;justify-content:space-between}
-  body.viewer #mx-lbl{min-width:0;flex:0 1 auto}
+  /* v55.1 用户拍板：速度输入与倍速加回（紧凑版）；谱架/小节进度条/音轨仍去除 */
+  body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #b-stand,
+  body.viewer #mx-expand,body.viewer .mx-splabel{display:none!important}
+  body.viewer #mixer-dock .mx-bar{flex-wrap:wrap;gap:6px;padding:8px 10px;overflow-x:visible;justify-content:space-between}
+  body.viewer #mx-lbl{min-width:0;flex:0 1 auto;font-size:10px}
+  body.viewer #i-tempo{width:52px;padding:5px 4px}
+  body.viewer #mx-rate{padding:5px 3px}
+  body.viewer #b-play{padding:7px 12px}
+  body.viewer #b-metro{font-size:0;gap:0;padding:7px 9px}
   #mx-panel .mxp-grid{width:min(420px, calc(100vw - 56px))}
 }
 /* ================= 打印预览（独立浏览视图：纸张/缩放/多页排布） ================= */
@@ -3748,10 +3753,15 @@ function systemExtras(sys){
   })));   /* v54.7 上方 forEach 增加 (cols,vv2)/(c,ci2) 形参供连音线判定 */
   sys.measures.forEach(lm=>{ if(song.measures[lm.mi].label || song.measures[lm.mi].keyTo) maxUp=Math.max(maxUp, 2); });   // v41.2/v41.3 排练标记/转调标记需上方空间
   /* 六线谱含 32 分/连音括号时，符干区按需加高 */
-  let tabTup=false;
+  let tabTup=false, tabLow=0;
+  const SN_low=strN();
   sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach(cols=> cols.forEach(c=>{
     if(c.dur>=32) tab32=true;
     if(c.tup) tabTup=true;
+    /* v55.1 最低弦上的带符杠音（用户反馈：时值线与六弦数字重叠）：符杠自 stemY 向上叠层，
+       16分第二层顶到六弦数字底（实测只差 0.2px）——按层数把符干区整体下移 */
+    if(c.dur>=8 && (c.notes||[]).some(n=>n&&n.s===SN_low))
+      tabLow=Math.max(tabLow, c.dur>=64?12 : c.dur>=32?8 : c.dur>=16?4 : 2);
   })));
   /* 第二行及以后的 TAB 声部有和弦名时，行间需为其预留高度（否则压住上一行符杠） */
   let tabChord2=false;
@@ -3762,7 +3772,7 @@ function systemExtras(sys){
     tabGap2: tabChord2? 22 : 0,
     topExtra: maxUp>=3 ? 16 : maxUp>=2 ? 11 : maxUp>=1 ? 7 : 0,
     botExtra: Math.max(maxDown>=3?16 : maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
-    tabExtra: Math.max(tab32?5:0, tabTup?4:0)
+    tabExtra: Math.max(tab32?5:0, tabTup?4:0, tabLow)
   };
 }
 function sysMetrics(topExtra, botExtra, tabExtra, tabGap2){
@@ -15485,7 +15495,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.0';
+const APP_VER='v55.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15508,6 +15518,7 @@ const APP_VER='v55.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.1</span><div><b>六弦数字不压时值线 + 手机端速度/倍速回归</b>（用户反馈）：①六弦（最低弦）上的品位数字与下方时值符杠重叠修复——16 分双杠的第二层此前几乎贴着数字（实测只差 0.2px），现在<b>最低弦有带符杠的音时，符干区按符杠层数自动下移</b>，8/16/32/64 分全档数字与符杠净距 ≥3px；②手机分享页底部<b>速度设置与播放倍速加回</b>（紧凑版：速度输入收窄、节拍器改图标），谱架/小节进度条/音轨维持去除，播放条仍一屏放下。</div></li>
     <li><span class="v">v55.0</span><div><b>手机观看页精简 + 无声追修</b>（用户拍板）：①手机上打开分享曲谱时，<b>谱架（顶栏与播放条）、小节进度条、倍速、音轨、速度输入全部去除</b>——保留 ▦ 展开小节（循环选区走小节面板，面板宽度适配手机），精简后的播放条<b>一屏放下、无需横向拖动</b>；②微信 iOS 播放无声追修——播放期间维持一条循环的静音音轨，把系统音频会话钉在「媒体播放」类别，<b>iPhone 侧边静音拨片不再压掉播放声音</b>（此前静音拨片开着时 WebAudio 会被系统整体静掉，这是微信里最常见的无声原因）；起播 1.2 秒后若检测到引擎仍未运转，会弹出可操作的提示（检查媒体音量/静音拨片）。</div></li>
     <li><span class="v">v54.9</span><div><b>手机分享页五连修</b>（用户反馈：微信打开谱库链接的问题清单）：①<b>观看页不再漏出编辑光标</b>——红色弦位圈、光标列高亮、红色段序号全部熄灭（观看模式只读，不该有编辑态）；②<b>顶栏移动端重排</b>——第一行返回+标题（超长截断）+移调，第二行收藏/分享卡/谱架/去制谱等宽排满，不再拥挤错位；③<b>底部播放条让出 iPhone 圆角/横条区</b>（安全区适配，小节数不再被裁）；④<b>微信 iOS 播放无声修复</b>——音频解锁改为「重试直到真正就绪」（此前首个滚动手势会误标已解锁）、按微信官方口径在 JSBridge 回调内解锁、播放时检测到音频上下文被系统卡死则就地重建（已加载音色不丢）。</div></li>
     <li><span class="v">v54.8</span><div><b>吉他谱与简谱净距加底线</b>（用户反馈：换页后行距问题再现）：v54.7 修了连音线漏计预留，这次修更深一层的基线问题——TAB 下方的<b>符干区与小节号是固定像素，但行距/疏密系数会把这段间隙等比压缩</b>，没有任何预留记号（连音线/倚音/高八度点等）的行就会顶到一起。现在 TAB 块与简谱行之间有<b>不随压缩系数缩小的净距底线</b>（默认净距同时加宽 5px，达到出版口径），任何行距设置、任何页、任何记号组合下都不再贴死。</div></li>

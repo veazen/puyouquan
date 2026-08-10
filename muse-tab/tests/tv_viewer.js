@@ -62,8 +62,9 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
   if (ok7) pass++;
 
-  // T8 v55.0 手机观看页精简：谱架(顶栏+播放条)/小节进度条/倍速/音轨/速度输入隐藏、
-  //    ▦ 展开小节保留、播放条一屏放下；播放启动 iOS 会话保持音轨（kaEl 循环）、停止即暂停
+  // T8 v55.0/v55.1 手机观看页精简：谱架(顶栏+播放条)/小节进度条/音轨隐藏、
+  //    速度输入+倍速保留（v55.1 用户拍板加回）、▦ 展开小节保留、播放条一屏放下；
+  //    播放启动 iOS 会话保持音轨（kaEl 循环）、停止即暂停
   const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
   await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
   const t8 = await pg3.evaluate(() => {
@@ -75,8 +76,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
       tempo: disp('i-tempo'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
       fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2 };
   });
-  const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk === 'none'
-    && t8.tempo === 'none' && t8.grid !== 'none' && t8.vwStand === 'none' && t8.fit && t8.ka1 && t8.ka2;
+  const ok8 = t8.prog === 'none' && t8.rate !== 'none' && t8.stand === 'none' && t8.trk === 'none'
+    && t8.tempo !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none' && t8.fit && t8.ka1 && t8.ka2;
   console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页精简+会话保持音轨: ' + JSON.stringify(t8));
   if (ok8) pass++;
   await pg3.close();
