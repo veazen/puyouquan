@@ -110,11 +110,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     render();
     const h=document.getElementById('score').innerHTML;
     const circ=(h.match(/r="8\\.5"/g)||[]).length;
-    const hl=(h.match(/opacity="0\\.09"/g)||[]).length;
+    const blk=[...h.matchAll(/width="([\\d.]+)" height="[\\d.]+" fill="var\\(--accent\\)" opacity="0\\.14"/g)].map(m=>+m[1]);
     const rangeOn = selRange && selRange.row==='vox' && selRange.c1===0 && selRange.c2===2;
-    return { rangeOn, n:noteSel.length, circ, hl, pool:notesInRange().length }; })()`);
-  T(r.rangeOn && r.n === 0 && r.circ === 0 && r.hl === 2 && r.pool === 3,   // 光标列走 0.12 光标高亮，0.09=列数-1
-    'T7 列选=区域高亮不画圈(选区取音池3)', JSON.stringify(r));
+    return { rangeOn, n:noteSel.length, circ, nBlk:blk.length, blkW:blk[0]||0, pool:notesInRange().length }; })()`);
+  T(r.rangeOn && r.n === 0 && r.circ === 0 && r.nBlk === 1 && r.blkW > 55 && r.pool === 3,
+    'T7 列选=整块色块不画圈(选区取音池3)', JSON.stringify(r));
 
   // T8 拍选同样不画圈 + 批量操作走选区兜底：TAB 拍区拖两拍 → 无圈、高亮2列，
   //    applyGtech 右手指法直接作用于选区内两音（selNotes 展开）
@@ -126,12 +126,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     render();
     const h=document.getElementById('score').innerHTML;
     const circ=(h.match(/r="8" fill="none" stroke="var\\(--accent\\)"/g)||[]).length;
-    const hl=(h.match(/opacity="0\\.09"/g)||[]).length;
+    const blk=[...h.matchAll(/width="([\\d.]+)" height="[\\d.]+" fill="var\\(--accent\\)" opacity="0\\.14"/g)].map(m=>+m[1]);
     applyGtech('rhFing','p');
     const fs=song.measures[0].tabs[0].slice(0,2).map(c=>c.notes[0].rhFing).join(',');
-    return { n:noteSel.length, circ, hl, fs }; })()`);
-  T(r.n === 0 && r.circ === 0 && r.hl === 1 && r.fs === 'p,p',   // 光标列走光标高亮，0.09=列数-1
-    'T8 拍选不画圈+批量技法走选区兜底', JSON.stringify(r));
+    return { n:noteSel.length, circ, nBlk:blk.length, blkW:blk[0]||0, fs }; })()`);
+  T(r.n === 0 && r.circ === 0 && r.nBlk === 1 && r.blkW > 30 && r.fs === 'p,p',
+    'T8 拍选=整块色块+批量技法走选区兜底', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
