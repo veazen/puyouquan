@@ -62,8 +62,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
   if (ok7) pass++;
 
-  // T8 v55.0/v55.1 手机观看页精简：谱架(顶栏+播放条)/小节进度条/音轨隐藏、
-  //    速度输入+倍速保留（v55.1 用户拍板加回）、▦ 展开小节保留、播放条一屏放下；
+  // T8 v55.4 手机观看页播放条 2.0：谱架/小节进度条/倍速/数字速度输入隐藏、
+  //    速度推子可见且改速生效、音轨回归（面板行不超宽）、▦ 保留、播放条一屏放下；
   //    播放启动 iOS 会话保持音轨（kaEl 循环）、停止即暂停
   const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
   await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
@@ -72,13 +72,21 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     const bar = document.querySelector('#mixer-dock .mx-bar');
     play(); const ka1 = !!(audio.kaEl && !audio.kaEl.paused && audio.kaEl.loop);
     stopPlay(); const ka2 = !!(audio.kaEl && audio.kaEl.paused);
+    const sl = document.getElementById('i-tempo-sl');
+    sl.value = 132; sl.dispatchEvent(new Event('change'));
+    const slTempo = song.tempo === 132 && +document.getElementById('i-tempo').value === 132;
+    setMixerExpanded(true);
+    const row = document.querySelector('#mx-tracks .mx-row');
+    const rowFit = !!row && row.scrollWidth <= row.clientWidth + 1 && row.getBoundingClientRect().width <= 390;
+    setMixerExpanded(false);
     return { prog: disp('mx-prog'), rate: disp('mx-rate'), stand: disp('b-stand'), trk: disp('mx-expand'),
-      tempo: disp('i-tempo'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
-      fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2 };
+      tempo: disp('i-tempo'), slWrap: disp('tempo-sl-wrap'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
+      fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2, slTempo, rowFit };
   });
-  const ok8 = t8.prog === 'none' && t8.rate !== 'none' && t8.stand === 'none' && t8.trk === 'none'
-    && t8.tempo !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none' && t8.fit && t8.ka1 && t8.ka2;
-  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页精简+会话保持音轨: ' + JSON.stringify(t8));
+  const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk !== 'none'
+    && t8.tempo === 'none' && t8.slWrap !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none'
+    && t8.fit && t8.ka1 && t8.ka2 && t8.slTempo && t8.rowFit;
+  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页播放条2.0(推子+音轨回归): ' + JSON.stringify(t8));
   if (ok8) pass++;
   await pg3.close();
 
