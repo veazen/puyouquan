@@ -1118,6 +1118,15 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 }
 /* v54.9 iPhone 底部安全区：播放坞让出 home 指示条/圆角（viewport-fit=cover 后 env 生效） */
 body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inset-bottom,0px)}
+/* v55.0 手机观看页精简（用户拍板）：谱架（顶栏+播放条）/小节进度条/倍速/音轨/速度输入全部去除，
+   保留 ▦ 展开小节（循环选区走小节面板）；剩余播放条一屏放下、无需横向拖动 */
+@media (max-width:640px){
+  body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #mx-rate,body.viewer #b-stand,
+  body.viewer #mx-expand,body.viewer .mx-splabel,body.viewer #i-tempo{display:none!important}
+  body.viewer #mixer-dock .mx-bar{flex-wrap:nowrap;gap:7px;padding:9px 10px;overflow-x:visible;justify-content:space-between}
+  body.viewer #mx-lbl{min-width:0;flex:0 1 auto}
+  #mx-panel .mxp-grid{width:min(420px, calc(100vw - 56px))}
+}
 /* ================= 打印预览（独立浏览视图：纸张/缩放/多页排布） ================= */
 #preview-ov{position:fixed;inset:0;z-index:1400;display:none;flex-direction:column;
   background:var(--bg);backdrop-filter:blur(2px)}
@@ -11315,7 +11324,9 @@ function showMeasurePanel(){
   const n=song.measures.length;
   const div=document.createElement('div');
   div.className='popmenu'; div.id='mx-panel';
-  const pr=document.getElementById('mx-prog').getBoundingClientRect();
+  /* v55.0 手机观看页隐藏小节进度条后，面板锚到 ▦ 按钮 */
+  const anchorEl=(el=>el&&el.offsetParent!==null? el : document.getElementById('b-mxgrid'))(document.getElementById('mx-prog'));
+  const pr=anchorEl.getBoundingClientRect();
   div.style.left=Math.max(8, Math.min(pr.left, innerWidth-460))+'px';
   div.style.bottom=(innerHeight-pr.top+10)+'px';
   div.style.top='auto';
@@ -11455,6 +11466,31 @@ function previewInst(instKey){
    页面加载期后台解码创建的 ctx 在 iOS/微信 webview 里可能永久卡 suspended（resume 无效）——
    手势内检测到非 running 就地重建（新 ctx 在用户手势中创建即为 running；
    已解码 AudioBuffer 与 ctx 无绑定，跨 ctx 直接复用，不丢音色） */
+/* v55.0 iOS 播放会话保持（微信 iOS 无声追修）：播放期间循环播放一段 0.4s 真实时长的
+   静音 <audio>，把系统音频会话钉在「媒体播放」类别——侧边静音拨片打开时 WKWebView 会把
+   WebAudio 静掉，唯有正在播放的 <audio> 能把会话切到 playback 从而绕开拨片；
+   v51.0 解锁用的 44 字节零采样 WAV 播完即结束，压不住会话。运行时合成，不占体积 */
+function kaSrc(){
+  const sr=8000, n=3200, h=new Uint8Array(44+n);
+  const w=(o,s)=>{ for(let i=0;i<s.length;i++) h[o+i]=s.charCodeAt(i); };
+  const u32=(o,v)=>{ h[o]=v&255; h[o+1]=(v>>8)&255; h[o+2]=(v>>16)&255; h[o+3]=(v>>24)&255; };
+  const u16=(o,v)=>{ h[o]=v&255; h[o+1]=(v>>8)&255; };
+  w(0,'RIFF'); u32(4,36+n); w(8,'WAVE'); w(12,'fmt '); u32(16,16); u16(20,1); u16(22,1);
+  u32(24,sr); u32(28,sr); u16(32,1); u16(34,8); w(36,'data'); u32(40,n); h.fill(128,44);
+  let s=''; for(let i=0;i<h.length;i++) s+=String.fromCharCode(h[i]);
+  return 'data:audio/wav;base64,'+btoa(s);
+}
+function kaStart(){
+  try{
+    if(!audio.kaEl){
+      const el=document.createElement('audio');
+      el.loop=true; el.setAttribute('playsinline',''); el.src=kaSrc(); el.volume=0;
+      audio.kaEl=el;
+    }
+    const p=audio.kaEl.play(); if(p&&p.catch) p.catch(()=>{});
+  }catch(_){}
+}
+function kaStop(){ try{ if(audio.kaEl) audio.kaEl.pause(); }catch(_){ } }
 function ensureLiveCtx(){
   const AC=window.AudioContext||window.webkitAudioContext;
   if(!audio.ctx){ try{ audio.ctx=new AC(); }catch(_){ return null; } }
@@ -11471,6 +11507,7 @@ function play(){
   stopPlay();
   const ctx = ensureLiveCtx();
   if(!ctx) return toast('当前浏览器不支持音频播放');
+  kaStart();   /* v55.0 iOS：手势内启动静音保持音轨，钉住媒体播放会话（绕开静音拨片） */
   audio.bus = buildBus(ctx);
   const bus = audio.bus;
   if(hifiOn) hifiPreload();
@@ -11478,6 +11515,11 @@ function play(){
   setPlayBtn();
   const spb = 60/(song.tempo*playRate);   // 倍速只缩放拍长，谱面速度设置保持不变
   const t = ctx.currentTime+0.15;
+  /* v55.0 无声自诊断：起播 1.2s 后引擎仍没走（挂起/被系统压掉）→ 给出可操作提示 */
+  setTimeout(()=>{ try{
+    if(audio.playing && !audio.paused && audio.ctx===ctx && (ctx.state!=='running' || ctx.currentTime<=t-0.1))
+      toast('若听不到声音：请调大媒体音量；iPhone 请关闭侧边静音拨片后重新点播放');
+  }catch(_){} }, 1200);
   const startMi = audio.loop? audio.loop.a : (sel.mi||0);
   const order = buildPlayOrder(startMi);            // 识别反复记号 / 循环选区
   const starts=[]; let total=0;
@@ -11821,6 +11863,7 @@ function stopPlay(){
   audio.playing=false; audio.prog=null; audio.events=[]; audio.evIdx=0;
   if(audio.paused && audio.ctx){ try{audio.ctx.resume();}catch(_){} }
   audio.paused=false;
+  kaStop();   /* v55.0 停播释放 iOS 会话保持音轨 */
   cancelAnimationFrame(audio.raf);
   setPlayBtn();
   document.querySelectorAll('#mx-prog .mxc').forEach(c=>{ c.classList.remove('cur'); c.firstElementChild.style.width='0%'; });
@@ -11834,7 +11877,7 @@ function setPlayBtn(){
 function togglePlay(){
   if(!audio.playing){ play(); return; }
   if(!audio.ctx) return;
-  if(audio.paused){ audio.ctx.resume(); audio.paused=false; }   // 即时继续
+  if(audio.paused){ audio.ctx.resume(); audio.paused=false; kaStart(); }   // 即时继续（v55.0 会话保持随之恢复）
   else { audio.ctx.suspend(); audio.paused=true; }              // 即时暂停
   setPlayBtn();
 }
@@ -15442,7 +15485,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.9';
+const APP_VER='v55.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15465,6 +15508,7 @@ const APP_VER='v54.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.0</span><div><b>手机观看页精简 + 无声追修</b>（用户拍板）：①手机上打开分享曲谱时，<b>谱架（顶栏与播放条）、小节进度条、倍速、音轨、速度输入全部去除</b>——保留 ▦ 展开小节（循环选区走小节面板，面板宽度适配手机），精简后的播放条<b>一屏放下、无需横向拖动</b>；②微信 iOS 播放无声追修——播放期间维持一条循环的静音音轨，把系统音频会话钉在「媒体播放」类别，<b>iPhone 侧边静音拨片不再压掉播放声音</b>（此前静音拨片开着时 WebAudio 会被系统整体静掉，这是微信里最常见的无声原因）；起播 1.2 秒后若检测到引擎仍未运转，会弹出可操作的提示（检查媒体音量/静音拨片）。</div></li>
     <li><span class="v">v54.9</span><div><b>手机分享页五连修</b>（用户反馈：微信打开谱库链接的问题清单）：①<b>观看页不再漏出编辑光标</b>——红色弦位圈、光标列高亮、红色段序号全部熄灭（观看模式只读，不该有编辑态）；②<b>顶栏移动端重排</b>——第一行返回+标题（超长截断）+移调，第二行收藏/分享卡/谱架/去制谱等宽排满，不再拥挤错位；③<b>底部播放条让出 iPhone 圆角/横条区</b>（安全区适配，小节数不再被裁）；④<b>微信 iOS 播放无声修复</b>——音频解锁改为「重试直到真正就绪」（此前首个滚动手势会误标已解锁）、按微信官方口径在 JSBridge 回调内解锁、播放时检测到音频上下文被系统卡死则就地重建（已加载音色不丢）。</div></li>
     <li><span class="v">v54.8</span><div><b>吉他谱与简谱净距加底线</b>（用户反馈：换页后行距问题再现）：v54.7 修了连音线漏计预留，这次修更深一层的基线问题——TAB 下方的<b>符干区与小节号是固定像素，但行距/疏密系数会把这段间隙等比压缩</b>，没有任何预留记号（连音线/倚音/高八度点等）的行就会顶到一起。现在 TAB 块与简谱行之间有<b>不随压缩系数缩小的净距底线</b>（默认净距同时加宽 5px，达到出版口径），任何行距设置、任何页、任何记号组合下都不再贴死。</div></li>
     <li><span class="v">v54.7</span><div><b>连音线计入行距</b>（用户反馈：同页两行行距不一致，一行简谱与吉他谱之间没有间隙）：根因是简谱<b>连音线/圆滑线的弧从未计入行距预留</b>——弧画在数字整体上方（近期又抬高留净距），但只有连音线、没有倚音/高八度点等其它记号的行不会加高行距，弧和数字一起顶到上一行吉他谱底下；带倚音的行恰好因倚音预留了空间而显得「正常」。现在<b>连音线同样按需预留上方空间</b>（跨多列的长弧预留更多），同页各行行距回归一致；五线谱行的连音线贴符头、不占行高，不受影响。</div></li>

@@ -62,6 +62,25 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
   if (ok7) pass++;
 
+  // T8 v55.0 手机观看页精简：谱架(顶栏+播放条)/小节进度条/倍速/音轨/速度输入隐藏、
+  //    ▦ 展开小节保留、播放条一屏放下；播放启动 iOS 会话保持音轨（kaEl 循环）、停止即暂停
+  const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
+  await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
+  const t8 = await pg3.evaluate(() => {
+    const disp = id => { const el = document.getElementById(id); return el ? getComputedStyle(el).display : 'missing'; };
+    const bar = document.querySelector('#mixer-dock .mx-bar');
+    play(); const ka1 = !!(audio.kaEl && !audio.kaEl.paused && audio.kaEl.loop);
+    stopPlay(); const ka2 = !!(audio.kaEl && audio.kaEl.paused);
+    return { prog: disp('mx-prog'), rate: disp('mx-rate'), stand: disp('b-stand'), trk: disp('mx-expand'),
+      tempo: disp('i-tempo'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
+      fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2 };
+  });
+  const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk === 'none'
+    && t8.tempo === 'none' && t8.grid !== 'none' && t8.vwStand === 'none' && t8.fit && t8.ka1 && t8.ka2;
+  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页精简+会话保持音轨: ' + JSON.stringify(t8));
+  if (ok8) pass++;
+  await pg3.close();
+
   // T3 倍速：0.5× 总时长应为 1× 的 2 倍（只作用于播放调度）
   const t3 = await pg1.evaluate(() => {
     playRate = 1; metroOn = false; play(); const d1 = audio.prog.dur; stopPlay();
@@ -133,8 +152,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
 
   fs.unlinkSync(shared);
   const errs = errs1.concat(errs2);
-  console.log('PASS ' + pass + '/7');
+  console.log('PASS ' + pass + '/8');
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === 7 && !errs.length ? 0 : 1);
+  process.exit(pass === 8 && !errs.length ? 0 : 1);
 })();
