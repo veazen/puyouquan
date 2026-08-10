@@ -62,9 +62,9 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
   if (ok7) pass++;
 
-  // T8 v55.4 手机观看页播放条 2.0：谱架/小节进度条/倍速/数字速度输入隐藏、
-  //    速度推子可见且改速生效、音轨回归（面板行不超宽）、▦ 保留、播放条一屏放下；
-  //    播放启动 iOS 会话保持音轨（kaEl 循环）、停止即暂停
+  // T8 v55.5 手机观看页播放条：谱架/小节进度条/倍速/数字速度输入隐藏、♩=BPM 紧凑按钮可见、
+  //    点按钮弹出推子浮层（默认收起、点外部收起）、推子/微调改速生效并同步各读数、
+  //    音轨保留（面板行不超宽）、▦ 保留、播放条一屏放下；kaEl 会话保持起停
   const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
   await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
   const t8 = await pg3.evaluate(() => {
@@ -72,21 +72,31 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     const bar = document.querySelector('#mixer-dock .mx-bar');
     play(); const ka1 = !!(audio.kaEl && !audio.kaEl.paused && audio.kaEl.loop);
     stopPlay(); const ka2 = !!(audio.kaEl && audio.kaEl.paused);
+    const popClosed0 = disp('tempo-pop') === 'none';                 // 默认收起
+    document.getElementById('b-tempo').click();
+    const popOpen = disp('tempo-pop') === 'flex';                    // 点 ♩=BPM 弹出
     const sl = document.getElementById('i-tempo-sl');
     sl.value = 132; sl.dispatchEvent(new Event('change'));
-    const slTempo = song.tempo === 132 && +document.getElementById('i-tempo').value === 132;
+    const slTempo = song.tempo === 132 && +document.getElementById('i-tempo').value === 132
+      && document.getElementById('b-tempo-v').textContent === '132';
+    document.getElementById('tp-up').click();                        // ＋1 微调
+    const nudge = song.tempo === 133 && document.getElementById('i-tempo-sl-v').textContent === '133';
+    document.body.click();
+    const popClosed1 = disp('tempo-pop') === 'none';                 // 点外部收起
     setMixerExpanded(true);
     const row = document.querySelector('#mx-tracks .mx-row');
     const rowFit = !!row && row.scrollWidth <= row.clientWidth + 1 && row.getBoundingClientRect().width <= 390;
     setMixerExpanded(false);
     return { prog: disp('mx-prog'), rate: disp('mx-rate'), stand: disp('b-stand'), trk: disp('mx-expand'),
-      tempo: disp('i-tempo'), slWrap: disp('tempo-sl-wrap'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
+      tempo: disp('i-tempo'), bt: disp('b-tempo'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
+      popClosed0, popOpen, popClosed1, nudge,
       fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2, slTempo, rowFit };
   });
   const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk !== 'none'
-    && t8.tempo === 'none' && t8.slWrap !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none'
+    && t8.tempo === 'none' && t8.bt !== 'none' && t8.grid !== 'none' && t8.vwStand === 'none'
+    && t8.popClosed0 && t8.popOpen && t8.popClosed1 && t8.nudge
     && t8.fit && t8.ka1 && t8.ka2 && t8.slTempo && t8.rowFit;
-  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页播放条2.0(推子+音轨回归): ' + JSON.stringify(t8));
+  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页播放条(♩=BPM弹出推子): ' + JSON.stringify(t8));
   if (ok8) pass++;
   await pg3.close();
 

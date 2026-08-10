@@ -1120,24 +1120,34 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inset-bottom,0px)}
 /* v55.0 手机观看页精简（用户拍板）：谱架（顶栏+播放条）/小节进度条/倍速/音轨/速度输入全部去除，
    保留 ▦ 展开小节（循环选区走小节面板）；剩余播放条一屏放下、无需横向拖动 */
-/* v55.4 速度推子（手机观看页专用，桌面/编辑器默认隐藏用数字输入） */
-#tempo-sl-wrap{display:none;align-items:center;gap:8px;flex:1;min-width:112px}
+/* v55.5 速度推子浮层（手机观看页专用）：底栏 ♩=BPM 紧凑按钮，点击在播放条上方弹出推子；
+   桌面/编辑器默认隐藏（用数字输入）。浮层恒深色，与播放坞同调 */
+#b-tempo{display:none;align-items:center;white-space:nowrap;font-weight:400;opacity:.92}
+#b-tempo b{font-weight:700;font-size:13px;margin-left:1px}
+#tempo-pop{display:none;position:fixed;left:50%;transform:translateX(-50%);z-index:1250;
+  width:min(330px,calc(100vw - 34px));align-items:center;gap:9px;padding:13px 14px;border-radius:16px;
+  background:rgba(17,40,34,.96);border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 10px 34px rgba(0,0,0,.4);backdrop-filter:blur(14px) saturate(1.4)}
+#tempo-pop.on{display:flex}
+#tempo-pop .tp-nudge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;padding:0;line-height:1;
+  border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#efe9d8;font-size:17px;font-weight:600}
+#tempo-pop .tp-nudge:active{background:rgba(255,255,255,.2)}
+#tempo-sl-wrap{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
 #tempo-sl-wrap input{-webkit-appearance:none;appearance:none;flex:1;width:auto;height:4px;border-radius:2px;
-  outline:none;border:none;padding:0;cursor:pointer;
+  outline:none;border:none;padding:0;cursor:pointer;--mxtrk:rgba(255,255,255,.22);
   background:linear-gradient(90deg,var(--accent) var(--p,25%),var(--mxtrk,var(--border)) var(--p,25%))}
-#tempo-sl-wrap input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+#tempo-sl-wrap input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;
   background:#fff;border:3px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer}
-#tempo-sl-wrap input::-moz-range-thumb{width:9px;height:9px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
-#tempo-sl-wrap b{font-size:11.5px;min-width:40px;text-align:center;color:#efe9d8;font-weight:600;white-space:nowrap}
-#tempo-sl-wrap b::before{content:'♩=';opacity:.65;font-weight:400}
-body.shell #tempo-sl-wrap input{--mxtrk:rgba(255,255,255,.22)}
+#tempo-sl-wrap input::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
+#tempo-sl-wrap b{font-size:14px;min-width:54px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
+#tempo-sl-wrap b::before{content:'♩=';opacity:.65;font-weight:400;font-size:12px}
 @media (max-width:640px){
-  /* v55.4 手机观看页播放条 2.0（用户拍板）：速度改推子、去倍速、音轨回归；
-     首行=播放/回开头/▦/速度推子(弹性)/节拍器/音轨，次行=小节信息居中 */
+  /* v55.5 手机观看页播放条（用户拍板）：速度=♩=BPM 紧凑按钮（点击弹推子浮层）、去倍速、音轨保留；
+     首行=播放/回开头/▦/♩=BPM/节拍器/音轨 等距铺满，次行=小节信息居中 */
   body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #b-stand,
   body.viewer .mx-splabel,body.viewer #i-tempo,body.viewer #mx-rate{display:none!important}
-  body.viewer #tempo-sl-wrap{display:flex}
-  body.viewer #mixer-dock .mx-bar{flex-wrap:wrap;gap:7px;padding:9px 10px;overflow-x:visible}
+  body.viewer #b-tempo{display:inline-flex}
+  body.viewer #mixer-dock .mx-bar{flex-wrap:wrap;gap:7px;padding:9px 10px;overflow-x:visible;justify-content:space-between}
   body.viewer #mx-lbl{order:9;width:100%;text-align:center;font-size:10.5px;margin-top:-2px}   /* 小节信息独占第二行 */
   body.viewer #b-play{padding:7px 12px}
   body.viewer #b-metro{font-size:0;gap:0;padding:7px 9px}
@@ -1731,8 +1741,8 @@ body.shell #tempo-sl-wrap input{--mxtrk:rgba(255,255,255,.22)}
     <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
-    <!-- v55.4 手机观看页速度推子（桌面/编辑器仍用数字输入，CSS 控制显隐） -->
-    <span id="tempo-sl-wrap" title="速度（BPM）：拖动调节，播放中即时生效"><input id="i-tempo-sl" type="range" min="40" max="240" step="1"><b id="i-tempo-sl-v">90</b></span>
+    <!-- v55.5 手机观看页速度：底栏只放 ♩=BPM 紧凑按钮，点击弹出推子浮层（桌面/编辑器仍用数字输入，CSS 控制显隐） -->
+    <button id="b-tempo" title="速度（BPM）：点击弹出推子调节，播放中即时生效">♩=<b id="b-tempo-v">90</b></button>
     <select id="mx-rate" class="rate" title="播放倍速：只改播放快慢，不改曲谱速度设置（慢速跟练/快速过谱）">
       <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
@@ -1741,6 +1751,12 @@ body.shell #tempo-sl-wrap input{--mxtrk:rgba(255,255,255,.22)}
     <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
     <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
   </div>
+</div>
+<!-- v55.5 速度推子浮层：点底栏 ♩=BPM 弹出，拖动调速（播放中即时生效），点外部收起 -->
+<div id="tempo-pop">
+  <button class="tp-nudge" id="tp-dn" title="减 1 BPM">−</button>
+  <span id="tempo-sl-wrap"><input id="i-tempo-sl" type="range" min="40" max="240" step="1"><b id="i-tempo-sl-v">90</b></span>
+  <button class="tp-nudge" id="tp-up" title="加 1 BPM">＋</button>
 </div>
 <div id="toast"></div>
 <!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
@@ -6775,10 +6791,12 @@ function syncInputs(){
   if(document.activeElement!==lyr)
     lyr.value = (sel.row==='vox'&&col)?((col.lyrics||[])[activeLyr]||''):'';
   document.getElementById('i-tempo').value = song.tempo;
-  { /* v55.4 速度推子同步（手机观看页） */
-    const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v');
+  { /* v55.5 速度推子浮层同步（手机观看页）：推子/浮层读数/底栏 ♩=BPM 按钮 */
+    const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v'),
+      bv=document.getElementById('b-tempo-v');
     if(sl){ sl.value=song.tempo; sl.style.setProperty('--p', Math.round((song.tempo-40)/2)+'%'); }
-    if(sv) sv.textContent=song.tempo; }
+    if(sv) sv.textContent=song.tempo;
+    if(bv) bv.textContent=song.tempo; }
   { const kv=document.getElementById('k-val'); if(kv) kv.textContent='1='+song.key; }   // v40.0 顶栏调号
   /* 页头编辑栏时值按钮联动高亮 */
   document.querySelectorAll('#eb-dur .eb').forEach(b=>{
@@ -10285,16 +10303,34 @@ document.getElementById('b-clearlyr').onclick = ()=>{
 document.getElementById('i-tempo').addEventListener('change', e=>{
   song.tempo = Math.max(30, Math.min(240, +e.target.value||90)); persist(); render();
 });
-/* v55.4 速度推子（手机观看页）：拖动实时显示读数，松手提交；播放中松手立即按新速度重起播 */
-{ const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v');
+/* v55.5 速度推子浮层（手机观看页）：点底栏 ♩=BPM 弹出/收起（点浮层外也收起）；
+   推子拖动实时读数、松手提交，−/＋ 微调 1 BPM；播放中提交立即按新速度重起播 */
+{ const sl=document.getElementById('i-tempo-sl'), sv=document.getElementById('i-tempo-sl-v'),
+    bt=document.getElementById('b-tempo'), pop=document.getElementById('tempo-pop');
+  const clamp=v=>Math.max(40, Math.min(240, +v||90));
+  const show=v=>{ if(sv) sv.textContent=v;
+    const bv=document.getElementById('b-tempo-v'); if(bv) bv.textContent=v;
+    if(sl){ sl.value=v; sl.style.setProperty('--p', Math.round((v-40)/2)+'%'); } };
+  const commit=v=>{ v=clamp(v); song.tempo=v;
+    const it=document.getElementById('i-tempo'); if(it) it.value=v;
+    show(v); persist(); render();
+    if(audio.playing && !audio.paused) play(); };
   if(sl){
-    const clamp=v=>Math.max(40, Math.min(240, +v||90));
-    sl.addEventListener('input', e=>{ const v=clamp(e.target.value);
-      if(sv) sv.textContent=v; sl.style.setProperty('--p', Math.round((v-40)/2)+'%'); });
-    sl.addEventListener('change', e=>{ const v=clamp(e.target.value);
-      song.tempo=v; const it=document.getElementById('i-tempo'); if(it) it.value=v;
-      persist(); render();
-      if(audio.playing && !audio.paused) play(); });
+    sl.addEventListener('input', e=>show(clamp(e.target.value)));
+    sl.addEventListener('change', e=>commit(e.target.value));
+  }
+  if(bt && pop){
+    bt.onclick = e=>{ e.stopPropagation();
+      const on = !pop.classList.contains('on');
+      if(on){ /* 锚在播放坞正上方（坞高随内容变，开合时实测） */
+        const r = document.getElementById('mixer-dock').getBoundingClientRect();
+        pop.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+      }
+      pop.classList.toggle('on', on); };
+    pop.addEventListener('click', e=>e.stopPropagation());
+    document.addEventListener('click', ()=>pop.classList.remove('on'));
+    document.getElementById('tp-dn').onclick = ()=>commit((+song.tempo||90)-1);
+    document.getElementById('tp-up').onclick = ()=>commit((+song.tempo||90)+1);
   } }
 /* v39.0 和弦候选动态化：调内和弦优先 → 最近使用 → 本谱/本机自定义 → 常用库 → 全类型组合 */
 const dl = document.getElementById('chord-list');
@@ -15570,7 +15606,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.4';
+const APP_VER='v55.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15593,6 +15629,7 @@ const APP_VER='v55.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.5</span><div><b>速度推子改为点击弹出</b>（用户反馈：常驻推条太占空间）：手机观看页底栏不再常驻速度推条，改为紧凑的 <b>♩=92</b> 速度按钮——<b>点击才弹出推子浮层</b>（播放条正上方深色圆角面板：推子 + −/＋ 每次 1 BPM 微调 + 大字读数），拖动实时跟手、松手生效，<b>播放中即时变速</b>；点浮层外任意处收起。底栏腾出的空间让 播放/回开头/▦/速度/节拍器/音轨 六个控件等距铺满一行，版面更清爽。</div></li>
     <li><span class="v">v55.4</span><div><b>手机观看页播放条 2.0：速度推子 + 音轨回归</b>（用户拍板）：①底部速度设置改为<b>推子（滑杆）形式</b>——♩= 读数实时跟手，松手生效并写回曲谱，<b>播放中拖动即时变速</b>（谱面速度同步更新）；②<b>去除播放倍速功能</b>（速度由推子一处掌管，不再有两套速度叠乘）；③<b>音轨功能加回</b>——🎚 打开音轨面板可静音/独奏/调音量/点小节格循环，面板按手机宽度重排（轨名与按钮一行、音量滑杆与小节格通栏），竖屏不横向溢出；④底栏布局与配色随之升级，仍一屏放下、免拖动。</div></li>
     <li><span class="v">v55.3</span><div><b>微信转发出自定义卡片</b>（JS-SDK 接入）：在微信里打开谱页后点右上角「…→发送给朋友」，卡片显示<b>曲名·谱友圈 + 作者/调号/速度摘要 + 品牌缩略图</b>（接入微信官方 JS-SDK 自定义分享；朋友圈同步支持）。需在公众号后台完成：已认证公众号、域名加入「JS接口安全域名」、服务器配置公众号凭据——未配置时自动回退微信默认卡片（页面标题+截图），不影响使用。注：微信聊天里<b>直接粘贴的裸链接任何网站都只显示文字链</b>，卡片来自微信内打开后转发。</div></li>
     <li><span class="v">v55.2</span><div><b>打开页面不再闪现经典版 · 经典版界面退役</b>（用户反馈+拍板）：打开制谱页时闪过的错乱布局是<b>经典版界面的首帧</b>——新版外壳此前由页面脚本加载完才挂上，脚本执行前浏览器先按经典版画了一帧。现在<b>页面首帧直接以新版外壳渲染</b>，不再闪现；同时按拍板<b>移除「经典版」切换入口</b>，界面恒为新版外壳（历史保存过经典版偏好的也统一回新版）。</div></li>
