@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-09 · 当前版本 **v54.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-09 · 当前版本 **v54.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v54.3 播放轨道面板重设计（用户反馈：样式配色问题 + 需求：轨道小节格选中编辑/循环）**：① 音量条自绘：`.mx-vol input` appearance:none + 4px 轨（`--p` 填充变量做已填色段，`--mxtrk` 深色坞未填色）+ 白底描边圆钮；**教训：全局 `input{padding:5px 9px}` 会把 4px 条撑到 10px，必须 padding:0**；宽度 100px 定宽（原 minmax(120px,1fr) 占满整行）。② 深色坞（body.shell）配色补齐：mx-grp/mx-nm/select/vv/小节格全套 rgba 白系。③ 每轨小节格 `.mx-cells`（renderMixerDock 内 cellsHtml）：格数=song.measures、≤26 小节每格编号否则每 5 格；`.loop`=audio.loop 范围、`.cur`=sel 命中该轨该小节。交互（pointerdown/move/up 同 mxp-grid 模式）：点击=sel 跳该轨该小节首列 + `selRange={row,vi,m1,c1:0,m2,c2:末列,whole:true}`（声部段选区，Ctrl+C/批量编辑直接接上）+ setLoop(mi,mi)；再点同格（loop.a===a===b）=setLoop(null) 取消；拖动=setLoop(a,b) 选段循环。setLoop 增 `mixerExpanded→renderMixerDock()`（进度条/面板改循环时轨道格同步高亮）；render() 本就重建 expanded 混音坞 → sel/loop 高亮天然新鲜。tv_mixui 五断言（滑杆几何+--p/2轨6格编号/点击三态联动/再点取消/拖动选段）入 CORE；42 套件全绿。
+>
 > **v54.2 连音线留距 + 段序号到歌词起始位（用户反馈）**：① 简谱连音线基线 `tyB=voxY-13→voxY-16`——16.5 号数字顶≈voxY-12，原基线只留 1px 近乎贴字，现留 4px 净距（歌本口径）；高八度让位 7.5+(hiN-1)*4.2 不变；tv_grace T13 增 rel0=16±0.2 净距断言。② 段序号重写：先扫全曲找该段(li)首个非空 lyrics 列 {mi,ci}，在其所在系统画于 `xs[ci]-14`（起始字左缘让 3px，anchor middle，热区 rect 同步跟随）；起始字不在本系统则跳过（各段在自己开唱的系统标一次）；整段无词退回首系统 oxH-14 行首占位（保留点击选段入口）。tv_lyr 增 T8（段1 m0 起/段2 m6 起跨系统：cnt=4、两段 d=chX−numX=14、sysDiff>50）成 8 断言；41 套件全绿。教训：T8 初版加了 headFree(x>90) 冗余检查——第 1 段本就从行首附近开唱，锚定正确也会 <90，d=14 已充分证明锚定，勿叠加与被测量纠缠的绝对坐标阈值。
 >
 > **v54.1 增时线不压小节线（用户反馈：延长号与小节线重叠）**：v53.9 把增时线钉到拍点后暴露的空拍塌陷问题——横线所在拍若全声部无音符列（半音符跨 3-4 拍、TAB 行尾无列），拍宽塌到 beatFloor(7px)＜落点 NOTE_OFF(10px)，横线叠上小节线。① `measureLayout.scan()`：vox 长音（dur≤2 有 deg 非 chordOnly）的每条增时线在其四分拍位 push 刚杆事件 `{t, min:12*hs}`——空拍与真实音符列同权进弹簧-刚杆映射被撑开（同拍已有音符时 merge 取 max、位置零扰动，tv_dot T6 数值不变验证）。② `fit()` qxs 右边界钳制 `qCap=pad+tsLead+inner+gapTotal-4`（=L.w−pad−4）兜底 wf 极端压缩/超满小节。tv_dot 增 T7（TAB [四,四,二] 第4拍无列+vox 全音符：三横线保距 >8px 且末条 ≤L.w−14，实测距边 15px）成 8 断言；41 套件全绿。

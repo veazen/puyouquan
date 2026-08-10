@@ -972,17 +972,45 @@ body.shell #hint{display:none}
   padding:9px 12px 3px;border-bottom:1px solid var(--border)}
 #mixer-dock.expanded .mx-tracks{display:flex}
 .mx-grp{font-size:10px;color:var(--muted);letter-spacing:.09em;margin:3px 2px 0;font-weight:600}
-.mx-row{display:grid;grid-template-columns:88px 112px 28px 28px minmax(120px,1fr);align-items:center;
-  gap:8px;padding:2px 4px;border-radius:7px}
+.mx-row{display:grid;grid-template-columns:84px 110px 26px 26px auto minmax(140px,1fr);align-items:center;
+  gap:7px;padding:2px 4px;border-radius:7px}
 .mx-row:hover{background:var(--toolbar)}
 .mx-row .mx-nm{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mx-row select{padding:3px 5px;font-size:12px}
 .mx-btn{padding:3px 0;font-size:10.5px;font-weight:700;border-radius:6px}
 .mx-btn.solo.on{background:#f5b301;border-color:#f5b301;color:#3a2c00}
 .mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:#fff}
-.mx-vol{display:flex;align-items:center;gap:6px}
-.mx-vol input{flex:1;min-width:60px}
+/* v54.3 音量条收窄 + 自绘样式（原生滑杆在深色播放坞里配色失控且占满整行） */
+.mx-vol{display:flex;align-items:center;gap:5px;width:142px;flex:none}
+.mx-vol input{-webkit-appearance:none;appearance:none;width:100px;flex:none;height:4px;border-radius:2px;
+  outline:none;border:none;padding:0;cursor:pointer;   /* padding:0 抵消全局 input 内边距（否则 4px 条被撑到 10px） */
+  background:linear-gradient(90deg,var(--accent) var(--p,66%),var(--mxtrk,var(--border)) var(--p,66%))}
+.mx-vol input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;
+  background:#fff;border:3px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer}
+.mx-vol input::-moz-range-thumb{width:8px;height:8px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
 .mx-vol .vv{font-size:10px;color:var(--muted);width:32px;text-align:right}
+/* v54.3 每轨小节格：点击=光标跳该轨该小节+单小节循环；拖动=选段循环 */
+.mx-cells{display:flex;gap:1px;height:17px;flex:1;min-width:120px;border:1px solid var(--border);border-radius:5px;
+  padding:1px;background:var(--toolbar);cursor:pointer;user-select:none;overflow:hidden;touch-action:none}
+.mxtc{flex:1;min-width:2px;position:relative;background:var(--panel);border-radius:2px}
+.mxtc span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:8.5px;color:var(--muted);pointer-events:none;line-height:1}
+.mxtc.loop{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.mxtc.cur{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.mxtc.loop span,.mxtc.cur span{color:var(--accent);font-weight:700}
+/* v54.3 深色播放坞（shell）轨道排配色：组标/轨名/下拉/滑杆/小节格全部适配 */
+body.shell .mx-grp{color:#cfc8b8}
+body.shell .mx-row .mx-nm{color:#efe9d8}
+body.shell .mx-row:hover{background:rgba(255,255,255,.05)}
+body.shell .mx-row select{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#f0f0f2}
+body.shell .mx-row select option{color:#1d1d1f}
+body.shell .mx-vol input{--mxtrk:rgba(255,255,255,.22)}
+body.shell .mx-vol .vv{color:#cfc8b8}
+body.shell .mx-cells{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12)}
+body.shell .mxtc{background:rgba(255,255,255,.13)}
+body.shell .mxtc span{color:#d8d2c2}
+body.shell .mxtc.loop{background:rgba(255,205,191,.28)}
+body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 /* 节奏型库卡片 */
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .pat-card{border:1px solid var(--border-soft);border-radius:11px;padding:6px;cursor:pointer;
@@ -11261,6 +11289,7 @@ function setLoop(a,b){
     toast(a===b? `循环播放第 ${a+1} 小节` : `循环播放第 ${audio.loop.a+1}–${audio.loop.b+1} 小节`);
   }
   renderProgCells();
+  if(typeof mixerExpanded!=='undefined' && mixerExpanded) renderMixerDock();   /* v54.3 每轨小节格同步循环高亮 */
   if(audio.playing) play();
 }
 let progDrag=null;
@@ -11957,17 +11986,30 @@ function renderMixerDock(){
     .map(([k,v])=>`<option value="${k}" ${k===cur?'selected':''}>${v.name}</option>`).join('');
   const groups=[['tab','吉他谱',song.tabVoices],['vox','简谱',song.voxVoices]];
   let html='';
+  /* v54.3 每轨小节格（用户需求：轨道上显示小节数，点击选中该轨小节编辑+循环播放） */
+  const nMea=song.measures.length;
+  const wide = nMea<=26;                                   // 每格都放得下编号；多了退化为每5格标一个
+  const rowOf = k=> k==='tab'?'tab':'vox';
+  const cellsHtml=(kind,vi)=>`<div class="mx-cells" data-kind="${kind}" data-vi="${vi}" title="小节格：点击=光标跳到该轨该小节并单小节循环；拖动=选段循环；再点同格取消">`+
+    song.measures.map((_,mi)=>{
+      const inloop=audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
+      const isCur=(!blurSel && sel.row===rowOf(kind) && sel.vi===vi && sel.mi===mi);
+      const show=wide || mi===0 || (mi+1)%5===0;
+      return `<i class="mxtc${inloop?' loop':''}${isCur?' cur':''}" data-mi="${mi}">${show?`<span>${mi+1}</span>`:''}</i>`;
+    }).join('')+'</div>';
   groups.forEach(([kind,label,arr])=>{
     if(!arr.length) return;
     html+=`<div class="mx-grp">${label}</div>`;
     arr.forEach((nm,vi)=>{
       const cfg=trackCfg(kind,vi);
+      const pv=Math.round((cfg.vol||1)*100);
       html+=`<div class="mx-row" data-kind="${kind}" data-vi="${vi}">
         <span class="mx-nm" title="${esc(nm)}">${esc(nm)}</span>
         <select class="mx-inst">${instOpts(cfg.inst)}</select>
         <button class="mx-btn solo ${cfg.solo?'on':''}" title="独奏">S</button>
         <button class="mx-btn mute ${cfg.on===false?'on':''}" title="静音">M</button>
-        <span class="mx-vol"><input type="range" min="0" max="150" value="${Math.round((cfg.vol||1)*100)}"><span class="vv">${Math.round((cfg.vol||1)*100)}%</span></span>
+        <span class="mx-vol" title="轨道音量"><input type="range" min="0" max="150" value="${pv}" style="--p:${Math.round(pv/1.5)}%"><span class="vv">${pv}%</span></span>
+        ${cellsHtml(kind,vi)}
       </div>`;
     });
   });
@@ -11978,7 +12020,39 @@ function renderMixerDock(){
     row.querySelector('.mx-btn.solo').onclick = e=>{ cfg.solo=!cfg.solo; e.currentTarget.classList.toggle('on',cfg.solo); persist(); };
     row.querySelector('.mx-btn.mute').onclick = e=>{ cfg.on=(cfg.on===false); e.currentTarget.classList.toggle('on',cfg.on===false); persist(); };
     const vin=row.querySelector('.mx-vol input'), vv=row.querySelector('.mx-vol .vv');
-    vin.oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%'; persist(); };
+    vin.oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%';
+      vin.style.setProperty('--p', Math.round(e.target.value/1.5)+'%'); persist(); };
+    /* v54.3 小节格交互：点击=光标跳该轨该小节+该小节循环（再点同格取消循环）；拖动=选段循环。
+       同时把这些小节设为该声部的整小节选区（selRange whole）——Ctrl+C/批量编辑直接接得上 */
+    const cells=row.querySelector('.mx-cells');
+    let dragC=null;
+    cells.addEventListener('pointerdown', e=>{
+      const c=e.target.closest('.mxtc'); if(!c) return;
+      dragC={a:+c.dataset.mi, b:+c.dataset.mi, moved:false};
+      e.preventDefault();
+    });
+    cells.addEventListener('pointermove', e=>{
+      if(!dragC) return;
+      const c=e.target.closest('.mxtc'); if(!c) return;
+      const mi=+c.dataset.mi;
+      if(mi!==dragC.b){
+        dragC.b=mi; dragC.moved=true;
+        const a=Math.min(dragC.a,dragC.b), b2=Math.max(dragC.a,dragC.b);
+        cells.querySelectorAll('.mxtc').forEach(x=>{ const m=+x.dataset.mi; x.classList.toggle('loop', m>=a&&m<=b2); });
+      }
+    });
+    cells.addEventListener('pointerup', ()=>{
+      const d=dragC; dragC=null; if(!d) return;
+      const a=Math.min(d.a,d.b), b2=Math.max(d.a,d.b), rw=rowOf(kind);
+      const lastCols=(rw==='tab'? (song.measures[b2].tabs||[])[vi] : (song.measures[b2].voxes||[])[vi])||[];
+      sel.row=rw; sel.vi=vi; sel.mi=a; sel.ci=0; blurSel=false; pending.digits='';
+      noteSel=[]; measureSel=null; measureRange=null; lyrSel=null;
+      selRange={row:rw, vi, m1:a, c1:0, m2:b2, c2:Math.max(0,lastCols.length-1), whole:true};
+      clampSel();
+      if(!d.moved && audio.loop && audio.loop.a===a && audio.loop.b===a) setLoop(null);
+      else setLoop(a, b2);
+      setRibbon(rw); render();
+    });
   });
 }
 function setMixerExpanded(open){
@@ -15255,7 +15329,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.2';
+const APP_VER='v54.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15278,6 +15352,7 @@ const APP_VER='v54.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.3</span><div><b>播放轨道面板重设计</b>（用户反馈：样式配色问题）：①<b>音量条收窄为自绘滑杆</b>（细轨+填充色+圆钮，浅色/深色播放坞双主题适配），不再是占满整行的系统蓝色原生滑杆；轨名/分组标/音色下拉在深色坞里配色同步修正。②<b>每条轨道新增小节格</b>——横向排满全曲小节（带编号），<b>点击某格=光标跳到该轨该小节</b>（该小节整段进入声部选区，复制/批量编辑直接可用）<b>并设为单小节循环播放</b>；<b>按住拖过多格=多小节循环选段</b>；再点同一格取消循环。与下方进度条循环选区双向同步。</div></li>
     <li><span class="v">v54.2</span><div><b>连音线留距 + 段序号到歌词起始位</b>（用户反馈）：①简谱连音线/圆滑线不再几乎贴着数字——基线整体上提，与数字顶端保持约 4px 净距（歌本口径），高八度点让位不变；②多段歌词的<b>段序号改标在该段歌词起始字的左侧</b>（不在行首）——每段在自己开唱的位置标注，第二段从中途小节开唱时序号也跟到那一行那个字前，点击选段功能不变。</div></li>
     <li><span class="v">v54.1</span><div><b>增时线不再压小节线</b>（用户反馈：延长号与小节线重叠）：长音末尾的延长横线所在拍若在吉他谱/五线谱里没有音符（如半音符跨到行尾），该拍此前会收缩到最窄、横线被挤到小节线上——现在<b>每条延长横线在布局里占有自己的拍位空间</b>（与真实音符同权撑开空拍），并加右边界保护，任何压缩下横线都不越过小节右内边距。</div></li>
     <li><span class="v">v54.0</span><div><b>歌词段序号归位 + 选中歌词直接编辑</b>（用户需求）：①多段歌词的<b>段序号只标在歌词最前面</b>（首行行首，歌本惯例），不再每一行谱都重复一遍；②<b>点击任意歌词字即选中</b>（描框高亮）并弹出编辑浮条——<b>前移/后移</b>（此字与后续字整体挪一个可唱音，遇到空位自动吸收截止，只动当前乐句）、<b>空格</b>（仅置空此音位，其余不动）、<b>删除</b>（后续字前提补位）、<b>替换</b>（弹窗改字，多字/英文单词均可；选中后直接打字也是替换）；全部操作跳过休止与连音延续音、可 Ctrl+Z 撤销，后移把末尾字挤出时会提醒。</div></li>
