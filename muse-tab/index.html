@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <style>
@@ -1103,9 +1103,21 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 /* 极窄：编辑栏标签精简，仅留必要 */
 @media (max-width:520px){
   .eb-t{display:none}
-  #viewerbar{padding:8px 12px;gap:6px;flex-wrap:wrap}
-  #viewerbar .va{display:none}
 }
+/* v54.9 观看页顶栏移动端适配（微信分享页顶部两行拥挤）：
+   第一行=返回+标题(截断)+移调；第二行=收藏/分享卡/谱架/去制谱 等宽排满 */
+#viewerbar .vw-acts{display:contents}
+@media (max-width:640px){
+  #viewerbar{padding:9px 10px;gap:7px;flex-wrap:wrap}
+  #viewerbar .va{display:none}
+  #viewerbar .vt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+  #viewerbar .vw-acts{display:flex;width:100%;gap:7px}
+  #viewerbar .vw-acts>*{flex:1;display:inline-flex;align-items:center;justify-content:center;
+    white-space:nowrap;padding:8px 0;font-size:12.5px;border:1px solid var(--border);border-radius:10px;margin:0}
+  #viewerbar .vw-acts .vw-brand{border-color:var(--accent);color:var(--accent-ink)}
+}
+/* v54.9 iPhone 底部安全区：播放坞让出 home 指示条/圆角（viewport-fit=cover 后 env 生效） */
+body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inset-bottom,0px)}
 /* ================= 打印预览（独立浏览视图：纸张/缩放/多页排布） ================= */
 #preview-ov{position:fixed;inset:0;z-index:1400;display:none;flex-direction:column;
   background:var(--bg);backdrop-filter:blur(2px)}
@@ -8679,8 +8691,7 @@ function positionVariants(){
 /* v39.0 和弦试听：按指法从低音弦到高音弦琶音（与主播放同一音色引擎） */
 function auditionShape(shape){
   if(!shape) return toast('当前和弦暂无可试听的指法');
-  if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
-  const ctx=audio.ctx; if(ctx.state==='suspended') ctx.resume();
+  const ctx=ensureLiveCtx(); if(!ctx) return;
   const bus=buildBus(ctx);
   const t=ctx.currentTime+0.05;
   const SN=strN(); let k=0;
@@ -11434,18 +11445,32 @@ function metroClick(ctx, bus, when, accent){
   src.start(when); audio.sources.push(src);
 }
 function previewInst(instKey){
-  if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const ctx=ensureLiveCtx(); if(!ctx) return;
   if(hifiOn) sfLoad(instKey);
-  const ctx=audio.ctx; if(ctx.state==='suspended') ctx.resume();
   const bus=buildBus(ctx);
   const t=ctx.currentTime+0.05;
   [0,4,7,12].forEach((s,i)=>playInst(instKey,ctx,bus,midiFreq(60+s), t+i*0.17, 0.55, 0.9, false));
 }
+/* v54.9 播放前保证 AudioContext 可用（用户反馈：微信 iOS 分享页播放无声）：
+   页面加载期后台解码创建的 ctx 在 iOS/微信 webview 里可能永久卡 suspended（resume 无效）——
+   手势内检测到非 running 就地重建（新 ctx 在用户手势中创建即为 running；
+   已解码 AudioBuffer 与 ctx 无绑定，跨 ctx 直接复用，不丢音色） */
+function ensureLiveCtx(){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!audio.ctx){ try{ audio.ctx=new AC(); }catch(_){ return null; } }
+  if(audio.ctx.state!=='running'){
+    try{ audio.ctx.resume(); }catch(_){ }
+    if(audio.ctx.state!=='running'){
+      try{ audio.ctx.close(); }catch(_){ }
+      try{ audio.ctx=new AC(); if(audio.ctx.resume) audio.ctx.resume(); }catch(_){ }
+    }
+  }
+  return audio.ctx;
+}
 function play(){
   stopPlay();
-  if(!audio.ctx) audio.ctx = new (window.AudioContext||window.webkitAudioContext)();
-  const ctx = audio.ctx;
-  if(ctx.state==='suspended') ctx.resume();
+  const ctx = ensureLiveCtx();
+  if(!ctx) return toast('当前浏览器不支持音频播放');
   audio.bus = buildBus(ctx);
   const bus = audio.bus;
   if(hifiOn) hifiPreload();
@@ -11819,25 +11844,41 @@ document.getElementById('b-play').onclick = togglePlay;
    ② 同手势播一段静音 <audio>——iOS 把音频会话切到 playback 类别，静音拨片打开时 WebAudio 才发声；
    ③ 微信 webview 在 WeixinJSBridgeReady 时同样解锁。桌面无副作用（首次点击静默执行一次） */
 (function(){
-  let unlocked=false;
-  function audioUnlock(){
-    if(unlocked) return; unlocked=true;
+  /* v54.9 加固（用户反馈：微信 iOS 分享页播放无声）：
+     ① 原实现首个手势即置 unlocked 并摘监听——首个手势常是滚动（不算用户激活，resume 无效），
+        之后再无解锁机会。现在改为「直到 ctx 真正 running 才算解锁成功」，失败保留监听下次手势重试；
+     ② 微信按官方口径在 WeixinJSBridge.invoke('getNetworkType') 回调内解锁，并处理 bridge 早于本脚本
+        就绪的情况（此时 WeixinJSBridgeReady 已错过，直接调用）。 */
+  let done=false;
+  function offAll(){
+    document.removeEventListener('touchend', tryUnlock, true);
+    document.removeEventListener('pointerdown', tryUnlock, true);
+  }
+  function tryUnlock(){
+    if(done) return;
     try{
       if(!audio.ctx) audio.ctx=new (window.AudioContext||window.webkitAudioContext)();
-      if(audio.ctx.state==='suspended') audio.ctx.resume();
+      const fin=()=>{ if(!done && audio.ctx && audio.ctx.state==='running'){ done=true; offAll(); } };
+      try{ const p=audio.ctx.resume(); if(p&&p.then) p.then(fin).catch(()=>{}); }catch(_){ }
       const b=audio.ctx.createBuffer(1,1,22050), s=audio.ctx.createBufferSource();
       s.buffer=b; s.connect(audio.ctx.destination); s.start(0);
       const el=document.createElement('audio');
       el.setAttribute('playsinline','');
       el.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=';
-      el.volume=0; const p=el.play(); if(p&&p.catch) p.catch(()=>{});
+      el.volume=0; const p2=el.play(); if(p2&&p2.catch) p2.catch(()=>{});
+      setTimeout(fin, 90);
     }catch(_){}
-    document.removeEventListener('touchend', audioUnlock, true);
-    document.removeEventListener('pointerdown', audioUnlock, true);
   }
-  document.addEventListener('touchend', audioUnlock, true);
-  document.addEventListener('pointerdown', audioUnlock, true);
-  document.addEventListener('WeixinJSBridgeReady', audioUnlock);
+  document.addEventListener('touchend', tryUnlock, true);
+  document.addEventListener('pointerdown', tryUnlock, true);
+  function wxUnlock(){
+    try{
+      if(window.WeixinJSBridge && WeixinJSBridge.invoke) WeixinJSBridge.invoke('getNetworkType', {}, tryUnlock);
+      else tryUnlock();
+    }catch(_){ tryUnlock(); }
+  }
+  if(window.WeixinJSBridge && window.WeixinJSBridge.invoke) wxUnlock();
+  else document.addEventListener('WeixinJSBridgeReady', wxUnlock, false);
 })();
 document.getElementById('mx-rate').onchange = e=>{
   playRate = parseFloat(e.target.value)||1;
@@ -14409,6 +14450,7 @@ function openPubViewer(pid){
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
+  blurSel=true;   /* v54.9 观看模式熄灭编辑光标（分享页曾漏出红色弦位圈/红色段序号） */
   document.body.classList.add('viewer');
   stopPlay(); audio.loop=null;
   clampSel(); render(); renderProgCells();
@@ -14522,6 +14564,7 @@ function enterShareViewer(share){
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
+  blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer','share');
   document.title=(song.title||'曲谱')+' · 谱友圈互动谱';
   stopPlay(); audio.loop=null;
@@ -14534,9 +14577,11 @@ function enterShareViewer(share){
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
-    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
-    <a class="vw-brand" href="https://puyouquan.com" target="_blank" rel="noopener"
-      title="本互动谱由谱友圈在线制谱导出——你也可以免费制谱并分享">谱友圈 puyouquan.com</a>`;
+    <span class="vw-acts">
+      <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
+      <a class="vw-brand" href="https://puyouquan.com" target="_blank" rel="noopener"
+        title="本互动谱由谱友圈在线制谱导出——你也可以免费制谱并分享">谱友圈 puyouquan.com</a>
+    </span>`;
   updateVwKey();
   document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
   document.getElementById('vw-tup').onclick=()=>vwTranspose(1);
@@ -14559,6 +14604,7 @@ async function openRemotePub(id){
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
+  blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer');
   document.title=(song.title||'曲谱')+' · 谱友圈谱库';
   stopPlay(); audio.loop=null; clampSel(); render(); renderProgCells();
@@ -14571,10 +14617,12 @@ async function openRemotePub(id){
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
       <button id="vw-tup" title="升半音">♯</button></span>
-    <button id="vw-fav" title="收藏这首谱">♡ 收藏</button>
-    <button id="vw-card" title="生成品牌分享卡图片（含直达本谱二维码），长按保存转发">分享卡</button>
-    <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
-    <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>`;
+    <span class="vw-acts">
+      <button id="vw-fav" title="收藏这首谱">♡ 收藏</button>
+      <button id="vw-card" title="生成品牌分享卡图片（含直达本谱二维码），长按保存转发">分享卡</button>
+      <button id="vw-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand')} 谱架</button>
+      <a class="vw-brand" href="//zhipu.puyouquan.com/" title="免费在线制谱">去制谱</a>
+    </span>`;
   updateVwKey();
   document.getElementById('vw-back').onclick=()=>{ location.href='//puku.puyouquan.com/'; };
   document.getElementById('vw-tdn').onclick=()=>vwTranspose(-1);
@@ -15394,7 +15442,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v54.8';
+const APP_VER='v54.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15417,6 +15465,7 @@ const APP_VER='v54.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v54.9</span><div><b>手机分享页五连修</b>（用户反馈：微信打开谱库链接的问题清单）：①<b>观看页不再漏出编辑光标</b>——红色弦位圈、光标列高亮、红色段序号全部熄灭（观看模式只读，不该有编辑态）；②<b>顶栏移动端重排</b>——第一行返回+标题（超长截断）+移调，第二行收藏/分享卡/谱架/去制谱等宽排满，不再拥挤错位；③<b>底部播放条让出 iPhone 圆角/横条区</b>（安全区适配，小节数不再被裁）；④<b>微信 iOS 播放无声修复</b>——音频解锁改为「重试直到真正就绪」（此前首个滚动手势会误标已解锁）、按微信官方口径在 JSBridge 回调内解锁、播放时检测到音频上下文被系统卡死则就地重建（已加载音色不丢）。</div></li>
     <li><span class="v">v54.8</span><div><b>吉他谱与简谱净距加底线</b>（用户反馈：换页后行距问题再现）：v54.7 修了连音线漏计预留，这次修更深一层的基线问题——TAB 下方的<b>符干区与小节号是固定像素，但行距/疏密系数会把这段间隙等比压缩</b>，没有任何预留记号（连音线/倚音/高八度点等）的行就会顶到一起。现在 TAB 块与简谱行之间有<b>不随压缩系数缩小的净距底线</b>（默认净距同时加宽 5px，达到出版口径），任何行距设置、任何页、任何记号组合下都不再贴死。</div></li>
     <li><span class="v">v54.7</span><div><b>连音线计入行距</b>（用户反馈：同页两行行距不一致，一行简谱与吉他谱之间没有间隙）：根因是简谱<b>连音线/圆滑线的弧从未计入行距预留</b>——弧画在数字整体上方（近期又抬高留净距），但只有连音线、没有倚音/高八度点等其它记号的行不会加高行距，弧和数字一起顶到上一行吉他谱底下；带倚音的行恰好因倚音预留了空间而显得「正常」。现在<b>连音线同样按需预留上方空间</b>（跨多列的长弧预留更多），同页各行行距回归一致；五线谱行的连音线贴符头、不占行高，不受影响。</div></li>
     <li><span class="v">v54.6</span><div><b>选区隐藏光标圈 + 粘贴插入/替换</b>（用户反馈+需求）：①区域选中（列/拍/音轨小节格）时<b>不再显示红色弦位光标圈与光标列高亮</b>——选中态只由整块色块表达，取消选区后光标恢复；②粘贴增强：复制小节内容后<b>点击小节线再 Ctrl+V=在小节线后插入</b>（整小节/声部段剪贴板均可，原有小节自动顺延）；<b>选中一块区域再 Ctrl+V=从选区起点替换</b>（选区优先于光标位置，小节数不一致时按剪贴板长度替换并提示）。</div></li>

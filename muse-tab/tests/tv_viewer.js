@@ -49,6 +49,19 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   console.log((ok2 ? '✅' : '❌') + ' T2 互动谱移调: C→' + t2.k1 + ' 原始数据保持=' + (t2.orig === 'C'));
   if (ok2) pass++;
 
+  // T7 v54.9 观看模式无编辑光标（分享页曾漏出红色弦位圈/光标列）+ 顶栏动作分组 + viewport 安全区
+  const t7 = await pg1.evaluate(() => {
+    const h = document.getElementById('score').innerHTML;
+    return { blur: blurSel,
+      circ: (h.match(/fill-opacity="0\.15"/g) || []).length,       // TAB 弦位光标圈
+      curRect: (h.match(/opacity="0\.12"/g) || []).length,         // 光标列高亮
+      acts: !!document.querySelector('#viewerbar .vw-acts'),
+      vpfit: (document.querySelector('meta[name="viewport"]').content || '').includes('viewport-fit=cover') };
+  });
+  const ok7 = t7.blur === true && t7.circ === 0 && t7.curRect === 0 && t7.acts && t7.vpfit;
+  console.log((ok7 ? '✅' : '❌') + ' T7 观看模式无编辑光标+顶栏acts+viewport-fit: ' + JSON.stringify(t7));
+  if (ok7) pass++;
+
   // T3 倍速：0.5× 总时长应为 1× 的 2 倍（只作用于播放调度）
   const t3 = await pg1.evaluate(() => {
     playRate = 1; metroOn = false; play(); const d1 = audio.prog.dur; stopPlay();
@@ -120,8 +133,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
 
   fs.unlinkSync(shared);
   const errs = errs1.concat(errs2);
-  console.log('PASS ' + pass + '/6');
+  console.log('PASS ' + pass + '/7');
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === 6 && !errs.length ? 0 : 1);
+  process.exit(pass === 7 && !errs.length ? 0 : 1);
 })();
