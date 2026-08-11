@@ -42,6 +42,10 @@ SMS_TEMPLATE=
 WX_WEB_APPID=
 WX_WEB_SECRET=
 WX_WEB_REDIRECT=https://www.puyouquan.com/api/wx/web/callback
+# ---- 微信公众号·JS-SDK 分享卡（v55.3；两项配齐 /api/wx/jssign 才生效，缺省 503 前端回退默认卡）----
+# 公众号后台「基本配置」的 AppID/AppSecret（与上面开放平台网站应用是两套凭据）；服务器 IP 须加入公众号 IP 白名单。
+WX_MP_APPID=
+WX_MP_SECRET=
 # ---- 微信支付 APIv3·Native（v45.4；五项配齐 + 私钥文件就位才启用，缺任一项支付停用不影响其他功能）----
 # 商户平台下载的 apiclient_key.pem 放到 WXPAY_KEY_PATH（chmod 600, chown pyq）；
 # WXPAY_SERIAL=商户 API 证书序列号；WXPAY_APIV3_KEY=32 位 APIv3 密钥；
