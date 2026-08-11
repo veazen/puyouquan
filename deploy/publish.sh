@@ -24,7 +24,15 @@ rm -f $TMP/pyq_pub_index.html
 rsync -a --delete $TMP/pyq_pub_site/ "$ROOT/site/"
 rm -rf $TMP/pyq_pub_site
 
-# 4) PYQ-FORMAT.md（可选）
+# 4) 微信域名校验文件同步到 zhipu 根：JS接口安全域名/小程序业务域名校验要求文件在各域名根可访问；
+#    www/puku 根=$ROOT/site（rsync 已覆盖），zhipu 根=$ROOT——把 site 下根级 txt（除 robots.txt）复制一份。
+for f in "$ROOT/site/"*.txt; do
+  [ -f "$f" ] || continue
+  b="$(basename "$f")"
+  [ "$b" = "robots.txt" ] || cp -f "$f" "$ROOT/$b"
+done
+
+# 5) PYQ-FORMAT.md（可选）
 [ -f $TMP/pyq_pub_fmt.md ] && mv $TMP/pyq_pub_fmt.md "$ROOT/PYQ-FORMAT.md" || true
 
 echo "产品落位完成（缓存 token=$V；已保留 index.html.prev 供回滚）"
