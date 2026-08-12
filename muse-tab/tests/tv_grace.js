@@ -305,19 +305,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       const n = d.match(/-?[\d.]+/g).map(Number);
       return inZone(n.filter((_,i)=>i%2===0), n.filter((_,i)=>i%2===1));
     });
-    /* 弧线存在且弧深≈弦长/5：tieSVG d=[x1,y1, mx,qy, x2,y2, mx,q2, x1,y1] */
-    const arcs = [...document.querySelectorAll('#score path[fill="var(--ink)"]')]
-      .map(p2 => p2.getAttribute('d')||'').filter(d => /^M .+ Q .+ Q .+ Z$/.test(d))
-      .map(d => d.match(/-?[\d.]+/g).map(Number))
-      .filter(n => inZone(n.filter((_,i)=>i%2===0), n.filter((_,i)=>i%2===1)));
-    const devs = arcs.map(n => { const L = Math.hypot(n[4]-n[0], n[5]-n[1]);
+    /* 弧线存在且弧深≈弦长/5：v56.3 固定线径描边弧（stroke 0.9、单 Q、无 Z——不是 tieSVG 两头细尖）
+       d=[x1,y1, qx,qy, x2,y2] */
+    const arcEls = [...document.querySelectorAll('#score path[fill="none"]')]
+      .filter(p2 => /^M [\d.-]+ [\d.-]+ Q [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+$/.test((p2.getAttribute('d')||'').trim()));
+    const arcs = arcEls
+      .map(p2 => ({ n: p2.getAttribute('d').match(/-?[\d.]+/g).map(Number), sw: p2.getAttribute('stroke-width') }))
+      .filter(a => inZone(a.n.filter((_,i)=>i%2===0), a.n.filter((_,i)=>i%2===1)));
+    const devs = arcs.map(a => { const n=a.n, L = Math.hypot(n[4]-n[0], n[5]-n[1]);
       return { dev: (n[3]-(n[1]+n[5])/2)/2, want: L/5 }; });
     return { elbows: elbows.length, nArcs: arcs.length,
+      fixedW: arcs.length>0 && arcs.every(a => a.sw === '0.9'),
       depthOK: devs.length>0 && devs.every(d2 => Math.abs(d2.dev-d2.want) < 0.35),
       devs: devs.map(d2 => +d2.dev.toFixed(2)+'/'+ +d2.want.toFixed(2)).join(' '),
       nan: document.getElementById('score').innerHTML.includes('NaN') };
   });
-  T(r.elbows === 0 && r.nArcs >= 3 && r.depthOK && !r.nan, 'T16 倚音连接线1/5弧线(无直角+弧深=弦长/5)', JSON.stringify(r));
+  T(r.elbows === 0 && r.nArcs >= 3 && r.fixedW && r.depthOK && !r.nan,
+    'T16 倚音连接线1/5弧线(无直角+固定线径0.9+弧深=弦长/5)', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
