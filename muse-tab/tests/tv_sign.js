@@ -373,6 +373,88 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.sim1 && r.canceled && r.src2 === 0 && r.src3 === 1 && r.beatOk && r.m2Digits === 0 && r.nSlash >= 4 && r.mxl && r.rt && !r.bad,
     'T12 小节反复 𝄎 省写+豁免+轮转+MusicXML measure-repeat 往返', JSON.stringify(r));
 
+  // T13 跨行连音线（v56.1）：行末出线弧止于行尾小节线内（不再 +10 戳出页边）、
+  //     下一行行首有「进入半弧」连到首音（简谱与五线谱两分支，几何断言）
+  const xTieCheck = (docType) => pg.evaluate((dt) => {
+    const Vc = (deg, dur, ext) => Object.assign({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false}, ext||{});
+    const s = createSong(dt, {beats:4, unit:4, key:'C', nMea:10, nVox:1, lyr:0});
+    for(let mi=0; mi<10; mi++) s.measures[mi].voxes[0] = [Vc(1+(mi%5)), Vc(3), Vc(5), Vc(6,4,{tie:true})];
+    s.measures[9].voxes[0][3].tie = false;   // 末小节不留悬空 tie
+    loadSong(s); blurSel = true; render();
+    const zs = [...document.querySelectorAll('#score rect[data-row="vox"]:not([data-zone])')]
+      .map(z => ({mi:+z.dataset.mi, ci:+z.dataset.ci, x:+z.getAttribute('x'), y:+z.getAttribute('y'),
+                  w:+z.getAttribute('width'), h:+z.getAttribute('height')}));
+    const rowY = [...new Set(zs.map(z => z.y))].sort((a,b) => a-b);
+    if(rowY.length < 2) return {rows: rowY.length};
+    const miB = Math.min(...zs.filter(z => z.y===rowY[1]).map(z => z.mi));   // 第二行首小节
+    const z0 = zs.find(z => z.mi===miB && z.ci===0);
+    /* 连音线路径：tieSVG 输出 M..Q..Q..Z 的 var(--ink) 填充路径 */
+    const arcs = [...document.querySelectorAll('#score path[fill="var(--ink)"]')]
+      .map(p2 => (p2.getAttribute('d')||''))
+      .filter(d => /^M [\d.-]+ [\d.-]+ Q .+ Z$/.test(d))
+      .map(d => { const n = d.match(/-?[\d.]+/g).map(Number);
+        const xs = n.filter((_,i) => i%2===0), ys = n.filter((_,i) => i%2===1);
+        return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)}; });
+    /* 行首进入半弧：整条弧落在第二行首列热区带内、右端进入首列、左端在首列左侧 */
+    const inArc = arcs.find(a => a.y0 >= z0.y-8 && a.y1 <= z0.y+z0.h+8 &&
+      a.x1 >= z0.x && a.x1 <= z0.x+z0.w && a.x0 >= z0.x-26 && a.x0 < z0.x+2);
+    /* 行末收边：行尾小节线 bx 由右端小节线热区（x=bx-5）反推，第一行内弧线最右端 ≤ bx */
+    const miE = miB-1;
+    const bz = document.querySelector(`#score rect[data-bar="${miE}:${miB}:vox:0"]`);
+    const bx = bz? +bz.getAttribute('x')+5 : null;
+    const z1 = zs.find(z => z.mi===miE && z.ci===3);
+    const outArcs = arcs.filter(a => a.y0 >= z1.y-8 && a.y1 <= z1.y+z1.h+8 && a.x1 > z1.x);
+    const outMax = outArcs.length? Math.max(...outArcs.map(a => a.x1)) : -1;
+    return { rows: rowY.length, miB, hasIn: !!inArc, nOut: outArcs.length,
+      outMax: +outMax.toFixed(1), bx: bx==null? null : +bx.toFixed(1),
+      outOk: bx!=null && outMax > bx-10 && outMax <= bx+0.6,
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  }, docType);
+  r = await xTieCheck('vocal');
+  T(r.rows >= 2 && r.hasIn && r.outOk && !r.bad,
+    'T13a 跨行连音线·简谱：行首进入半弧+行末止于小节线', JSON.stringify(r));
+  r = await xTieCheck('instr');
+  T(r.rows >= 2 && r.hasIn && r.outOk && !r.bad,
+    'T13b 跨行连音线·五线谱：行首进入半弧+行末止于小节线', JSON.stringify(r));
+
+  // T14 跨行连音线（TAB）：tk 目标音在下一行 → 行末出线短弧（原有）+ 目标音进入半弧（v56.1 新增）
+  r = await pg.evaluate(() => {
+    const s = createSong('tanchang', {beats:4, unit:4, key:'C', nMea:8, nTab:1, nVox:0, lyr:0});
+    for(let mi=0; mi<8; mi++){
+      const mk = () => ({dur:4, dotted:false, chord:'', notes:[], strum:'', tech:''});
+      const cols = [mk(), mk(), mk(), mk()];
+      cols.forEach(c => c.notes = [{s:2, f:5}]);
+      if(mi<7) cols[3].notes[0].tk = {mi:mi+1, ci:0, si:2};
+      s.measures[mi].tabs[0] = cols;
+    }
+    loadSong(s); blurSel = true; render();
+    const zs = [...document.querySelectorAll('#score rect.strcell[data-row="tab"][data-si="2"]')]
+      .map(z => ({mi:+z.dataset.mi, ci:+z.dataset.ci, x:+z.getAttribute('x'), y:+z.getAttribute('y'),
+                  w:+z.getAttribute('width'), h:+z.getAttribute('height')}));
+    const rowY = [...new Set(zs.map(z => z.y))].sort((a,b) => a-b);
+    if(rowY.length < 2) return {rows: rowY.length};
+    const miB = Math.min(...zs.filter(z => Math.abs(z.y-rowY[1])<1).map(z => z.mi));
+    const z0 = zs.find(z => z.mi===miB && z.ci===0);
+    const yy = z0.y + z0.h/2;   // 目标音弦线 y（strcell 垂直居中）
+    const arcs = [...document.querySelectorAll('#score path[fill="var(--ink)"]')]
+      .map(p2 => (p2.getAttribute('d')||''))
+      .filter(d => /^M [\d.-]+ [\d.-]+ Q .+ Z$/.test(d))
+      .map(d => { const n = d.match(/-?[\d.]+/g).map(Number);
+        const xs = n.filter((_,i) => i%2===0), ys = n.filter((_,i) => i%2===1);
+        return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)}; });
+    /* 音符锚点取品位数字文本真实 x（列格中心与音符 x 有排版偏差） */
+    const ft = [...document.querySelectorAll('#score text')].find(t2 =>
+      t2.textContent==='5' && t2.getAttribute('font-weight')==='700' &&
+      +t2.getAttribute('x') >= z0.x && +t2.getAttribute('x') <= z0.x+z0.w &&
+      Math.abs(+t2.getAttribute('y') - yy) < 8);
+    const nx = ft? +ft.getAttribute('x') : z0.x + z0.w/2;
+    const inArc = arcs.find(a => a.x1 >= nx-6.5 && a.x1 <= nx-3.5 && a.x0 >= nx-26 &&
+      a.y0 >= yy-16 && a.y1 <= yy-2);
+    return { rows: rowY.length, miB, hasIn: !!inArc,
+      bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
+  });
+  T(r.rows >= 2 && r.hasIn && !r.bad, 'T14 跨行连音线·TAB：目标音进入半弧', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

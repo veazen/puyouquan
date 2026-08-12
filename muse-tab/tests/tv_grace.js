@@ -231,9 +231,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       s.measures[1].voxes[0][0].tie = true;               // 跨小节长弧
       s.measures[2].voxes[0] = [V(5, 1)];
       loadSong(s); blurSel = true; render();
-      const ts = parseTies(); ts.sort((a, b) => a.span - b.span);
       // 基线相对主音数字（voxY）测量——高八度点会触发行高预留使整行下移，绝对 y 不可比
       const voxY = +document.querySelector('#score text[font-size="16.5"]').getAttribute('y');
+      /* v56.1 跨行连音线两段式后，m1→m2 若被排到两行会多出行首进入半弧——
+         本测只验 v53.6 弧形标准，池子限定第一行的弧（y 同行带内） */
+      const ts = parseTies().filter(t => Math.abs(t.y1 - voxY) < 60);
+      ts.sort((a, b) => a.span - b.span);
       return { ts, voxY };
     };
     const t0 = build(0), t1 = build(1);

@@ -4578,6 +4578,15 @@ function render(){
       });
     });
   });
+  /* v56.1 跨行连音线（TAB）：纯连音线（tk 无 tech）目标音落在另一系统时，
+     行末已画出线短弧——此处预收集目标集合，渲染目标音时补「进入半弧」（出版惯例两段式续接） */
+  const tieInX = new Set();
+  song.measures.forEach((mea,mi)=> (mea.tabs||[]).forEach((cols,vi)=> cols.forEach((c,ci)=> (c.notes||[]).forEach(n=>{
+    if(n.tk && !n.tech){
+      const a=tabPos[vi+':'+mi+':'+ci], d=tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
+      if(a && d && a.sys!==d.sys) tieInX.add(vi+':'+n.tk.mi+':'+n.tk.ci+':'+n.tk.si);
+    }
+  }))));
   /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
   const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
   const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
@@ -5193,6 +5202,11 @@ function render(){
                 }else if(tp){
                   p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
                 }
+              }
+              /* v56.1 跨行连音线目标音：进入半弧（与上一行末出线短弧镜像成对，两段式续接） */
+              if(tieInX.has(vi+':'+lm.mi+':'+ci+':'+n.s)){
+                const xi = Math.max(mx-8, nx-23);
+                p.push(tieSVG(xi, yy-10.5, nx-5, yy-4.5, yy-13, 1.5));
               }
               /* v49.6 摇把 w/bar 已并入标注带（mkTech）；
                  指弹右手指法 p i m a 保持品位数字下方（指法惯例位置，非技巧标识），仅放大 */
@@ -5974,6 +5988,27 @@ function render(){
         /* 连音线（简谱）：连续 tie 合并为一条弧线，跨过中间音符直达目标音
            （Ctrl 跨选两音时中间音符自动相连，整段渲染为一条线） */
         if(!simV){
+          /* v56.1 跨行连音线续接（出版惯例两段式）：上一行末音带 tie 且本小节是行首 →
+             行首画「进入半弧」连到首音（此前只有行末出线弧、新行无续接，跨行连音线断头） */
+          if(lmIdx===0 && lm.mi>0 && cols.length && cols[0].deg){
+            const pmea = song.measures[lm.mi-1], pcols = pmea.voxes[vi]||[];
+            const pSim = simileSrc(lm.mi-1)!=null? pmea.simile : 0;
+            if(!pSim && pcols.length && pcols[pcols.length-1].tie){
+              if(isStaff){
+                setClefCtx(0);
+                const sB = staffStep(cols[0],K), yB = stepY(sB);
+                const below = sB < S_MID;
+                const ty = below? yB+5.2 : yB-5.2;
+                const x2i = mx+lay.xs[0]-6, x1i = Math.max(mx+2, x2i-18);
+                p.push(tieSVG(x1i, ty, x2i, ty, below? ty+3.5 : ty-3.5, 1.9));
+              }else{
+                const hiN0 = (cols[0].oct>0)? Math.min(3,cols[0].oct) : 0;
+                const tyB = voxY-16 - (hiN0? 7.5+(hiN0-1)*4.2 : 0);
+                const xBi = mx+lay.xs[0]-1, xAi = Math.max(mx+3, xBi-20);
+                p.push(tieSVG(xAi, tyB, xBi, tyB, tyB-Math.max(5, Math.min(8,(xBi-xAi)*0.5)), 1.9));
+              }
+            }
+          }
           let a3=0;
           while(a3<cols.length){
             if(!cols[a3].tie){ a3++; continue; }
@@ -5988,7 +6023,7 @@ function render(){
               const nlm = (lmIdx+1<sys.measures.length)? sys.measures[lmIdx+1] : null;
               const ncols = nlm? (song.measures[nlm.mi].voxes[vi]||[]) : null;
               if(nlm && ncols && ncols.length && nlm.L.voxes[vi]){ x2 = ox+nlm.x+nlm.L.voxes[vi].xs[0]-6; cBnext = ncols[0]; }
-              else x2 = mx+lm.L.w+10;
+              else x2 = mx+lm.L.w-2;   /* v56.1 行末出线弧止于行尾小节线内（原 +10 戳出行尾悬在页边） */
             }
             if(isStaff){
               /* 五线谱：连音线贴着符头、弯向符干反侧（出版惯例），不再固定在谱表上缘 */
@@ -16488,7 +16523,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.0';
+const APP_VER='v56.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16511,6 +16546,7 @@ const APP_VER='v56.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.1</span><div><b>跨行连音线两段式续接</b>（用户反馈优化）：连音线的目标音被排到下一行时，按出版惯例画成<b>两段半弧</b>——行末从起音画「出线半弧」并<b>止于行尾小节线内</b>（此前弧线戳出小节线约 10px 悬在页边），下一行行首新增<b>「进入半弧」</b>连到目标音（此前新行完全没有续接，连音线看起来断头）。简谱、五线谱（含钢琴大谱表）、吉他谱 TAB（连音线 tk）三类记谱同步修正；同行内的跨小节连音线行为不变。新增跨行连音线几何回归 3 项（tv_sign T13a/T13b/T14）。</div></li>
     <li><span class="v">v56.0</span><div><b>增时线一键延长</b>（用户需求：简谱里给主音加两拍延长拍应像打横线一样简单）：时值组新增<b>「增时线」按钮</b>（快捷键 <b>D</b>）——点一下当前音延长一拍：1拍→2拍→3拍→4拍（简谱按国标画增时线「－」，不再需要换算成「2分+附点」）；延长所需的时值<b>自动从其后的休止吸收</b>（整拍休止直接吃掉、长休止精确缩短），小节总时值始终保持正确；后面是音符或本小节腾不出位时会明确提示（跨小节延音请用连音线）。<b>Shift+D 反向缩短一拍</b>，腾出的时值原位补休止。同一操作在<b>所有谱类通用</b>：简谱行画增时线、五线谱行落成二分/附点二分/全音符、吉他谱 TAB 行同步时值。</div></li>
     <li><span class="v">v55.9</span><div><b>Guitar Pro 全版本导入</b>（用户拍板 P2/P3）：在 v55.8 的 GP7/8 基础上，补齐<b>全部旧版本格式</b>——<b>.gp3 / .gp4 / .gp5</b>（2000 年代经典二进制格式，国内曲谱站存量 GTP 的主力）与 <b>.gpx</b>（GP6）。同一个「导入 Guitar Pro」入口自动识别版本：GP6 的 .gpx 容器解压后走 GP7/8 同款解析；GP3/4/5 按逆向字节布局逐段解析（小节头/音轨/双声部/和弦图/混音表等变长结构完整跳读，失步立即报错不产出错谱）。识别内容与 .gp 版一致：品位/和音/时值/连音组/变拍/反复/段落/调号速度变调夹/击勾滑推泛闷延颤/倚音/连音线/和弦名；GP5 双声部取主声部。<b>老文件中文乱码免疫</b>：GP3/4/5 时代中文多为 GBK 编码，UTF-8 解不动时自动回退 GBK，曲名歌手名不再乱码。</div></li>
     <li><span class="v">v55.8</span><div><b>导入 Guitar Pro（.gp）</b>（用户拍板 P1）：新建向导「已有曲子」组新增<b>导入 Guitar Pro</b>——支持 <b>GP7/GP8 的 .gp 文件</b>，选择音轨（最多 3 条，各成一个六线谱声部，打击乐轨自动跳过）后直接进编辑器，可二次编辑、三记谱法互切、发布到谱库。识别内容：多轨品位/和音/休止、时值/附点/连音组、变拍子、反复记号、段落标记、调号/速度/变调夹/特殊调弦、和弦名、击勾弦/滑音/推弦/自然与人工泛音/闷音/延音/颤音、倚音、连音线；多声部取主声部、暂不支持的记号计数提示。老格式 .gp3/.gp4/.gp5 与 GP6 的 .gpx 暂不支持（请用 GP7/8 另存为 .gp）。<b>顺带解锁压缩 MusicXML（.mxl）直接导入</b>（此前须解压另存）。解压引擎为零依赖纯 JS 自研，文件在本机浏览器内解析、不上传。</div></li>
