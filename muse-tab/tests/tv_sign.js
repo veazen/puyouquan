@@ -455,6 +455,31 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.rows >= 2 && r.hasIn && !r.bad, 'T14 跨行连音线·TAB：目标音进入半弧', JSON.stringify(r));
 
+  // T15 v56.4 段落括线与行内和弦图不重叠：同一行有 volta + 和弦图时图带加高 16px，
+  //     括线横线让到图下方（用户截图：G 和弦图压住「1.」房子线）——几何断言
+  r = await pg.evaluate(() => {
+    const s = createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 1, lyr: 0 });
+    for(let mi=0; mi<4; mi++){
+      const cols = s.measures[mi].tabs[0];
+      for(let k=0; k<8; k+=2){ cols[k].notes = [{s:3, f:0}]; }
+      cols[0].chord = ['G','C','D','G'][mi];
+    }
+    s.measures[2].volta = 1; s.measures[3].volta = 2;
+    s.measures[1].repeatEnd = true; s.measures[0].label = 'A';
+    loadSong(s); blurSel = true; render();
+    const texts = [...document.querySelectorAll('#score text')];
+    const v1 = texts.find(t => t.textContent === '1.' && t.getAttribute('font-size') === '9');
+    if(!v1) return { hasVolta: false };
+    const voltaLineY = +v1.getAttribute('y') - 9.5;
+    /* volta 所在系统的和弦名（bold，y 与 volta 最近的图带）：图网格底 ≈ 名字基线+43（k=0.95） */
+    const lblY = Math.max(...texts.filter(t => /^[GCD]$/.test(t.textContent) && t.getAttribute('font-weight')==='bold')
+      .map(t => +t.getAttribute('y')).filter(y => y < voltaLineY));
+    return { hasVolta: true, gap: +(voltaLineY - lblY).toFixed(1),
+      clear: voltaLineY - lblY >= 50,   /* 修正前 38（线穿图）；修正后 ≥52 */
+      nan: document.getElementById('score').innerHTML.includes('NaN') };
+  });
+  T(r.hasVolta && r.clear && !r.nan, 'T15 段落括线让位行内和弦图(v56.4)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
