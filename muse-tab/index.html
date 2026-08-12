@@ -12582,12 +12582,26 @@ function showNewWizard(){
   <div class="nw-feats">
     <span class="nw-feats-t">已有曲子？不用从零录入：</span>
     <button id="nw-import" class="nwf">${svgi('doc',15)} 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
+    <button id="nw-gp" class="nwf">${svgi('guitar',15)} 导入 Guitar Pro<small>.gp（GP7/GP8）多轨吉他谱直入</small></button>
     <button id="nw-midi" class="nwf">${svgi('piano',15)} 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
     <button id="nw-hum" class="nwf">${svgi('mic',15)} 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
+  <input type="file" id="nw-gpfile" accept=".gp" style="display:none">
   <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
+  /* v55.8 Guitar Pro (.gp) 导入入口 */
+  document.getElementById('nw-gp').onclick = ()=>document.getElementById('nw-gpfile').click();
+  document.getElementById('nw-gpfile').onchange = e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const r=parseGP(rd.result);
+      if(r.error){ toast('导入失败：'+r.error); return; }
+      showGPTrackModal(r.gp);
+    };
+    rd.readAsArrayBuffer(file);
+  };
   document.getElementById('nw-hum').onclick = ()=>{
     let rec=null, chunks=[], stream=null;
     showModal(`<h3>哼唱成谱 · 录一段清唱出简谱草稿</h3>
@@ -12683,10 +12697,7 @@ function showNewWizard(){
   document.getElementById('nw-import').onclick = ()=>document.getElementById('nw-mxlfile').click();
   document.getElementById('nw-mxlfile').onchange = e=>{
     const file=e.target.files[0]; if(!file) return;
-    if(/\.mxl$/i.test(file.name)){ toast('暂不支持压缩的 .mxl——请在 MuseScore 里另存为「未压缩 MusicXML (.musicxml)」'); return; }
-    const rd=new FileReader();
-    rd.onload=()=>{
-      const r=importMusicXML(rd.result);
+    const done=r=>{
       if(r.error){ toast('导入失败：'+r.error); return; }
       closeModal();
       addDoc(r.song, ()=>{
@@ -12697,7 +12708,14 @@ function showNewWizard(){
           +(r.keyDefaulted? '；未读到调号已按 1=C，请在曲谱信息中核对':''));
       });
     };
-    rd.readAsText(file);
+    const rd=new FileReader();
+    if(/\.mxl$/i.test(file.name)){   /* v55.8 压缩 .mxl：ZIP 解压取根 XML 后走同一导入 */
+      rd.onload=()=>done(importMXLBuffer(rd.result));
+      rd.readAsArrayBuffer(file);
+    } else {
+      rd.onload=()=>done(importMusicXML(rd.result));
+      rd.readAsText(file);
+    }
   };
   document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt, b.dataset.gtype));
   document.getElementById('nw-cancel').onclick = closeModal;
@@ -13100,6 +13118,365 @@ function downloadMusicXML(){
    technical fingering→fing（含 chord 和音 adds[i].fing）、measure-style
    measure-repeat→mea.simile。
    TODO: backup/forward 同谱表多声部（跳过非首 voice）、grace、中途变拍。 */
+/* ===== v55.8 ZIP/DEFLATE 纯 JS 解压（Guitar Pro .gp 与压缩 MusicXML .mxl 导入共用；零依赖自研，符合单文件无构建约束） ===== */
+function inflateRaw(src){
+  let sp=0, bitBuf=0, bitCnt=0;
+  const out=[];
+  const readBit=()=>{ if(!bitCnt){ if(sp>=src.length) throw new Error('数据截断'); bitBuf=src[sp++]; bitCnt=8; } const b=bitBuf&1; bitBuf>>=1; bitCnt--; return b; };
+  const readBits=n=>{ let v=0; for(let i=0;i<n;i++) v|=readBit()<<i; return v; };
+  const buildHuff=lens=>{   // 规范 Huffman：key=(len<<16)|code → 符号
+    let maxLen=0; lens.forEach(l=>{ if(l>maxLen) maxLen=l; });
+    const blCount=new Array(maxLen+1).fill(0);
+    lens.forEach(l=>{ if(l) blCount[l]++; });
+    const nextCode=new Array(maxLen+1).fill(0);
+    let code=0;
+    for(let l=1;l<=maxLen;l++){ code=(code+blCount[l-1])<<1; nextCode[l]=code; }
+    const codes={};
+    lens.forEach((l,sym)=>{ if(l){ codes[(l<<16)|nextCode[l]]=sym; nextCode[l]++; } });
+    return codes;
+  };
+  const decodeSym=codes=>{ let code=0,len=0;
+    for(;;){ code=(code<<1)|readBit(); len++;
+      if(len>15) throw new Error('Huffman 解码失败');
+      const s=codes[(len<<16)|code]; if(s!=null) return s; } };
+  const LBASE=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LEXT =[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DBASE=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DEXT =[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  let fixedLit=null, fixedDist=null;
+  for(;;){
+    const fin=readBit(), type=readBits(2);
+    if(type===0){
+      bitBuf=0; bitCnt=0;
+      if(sp+4>src.length) throw new Error('stored 块截断');
+      const len=src[sp]|(src[sp+1]<<8); sp+=4;
+      for(let i=0;i<len;i++) out.push(src[sp++]);
+    } else if(type===1 || type===2){
+      let lit, dist;
+      if(type===1){
+        if(!fixedLit){
+          const l=new Array(288);
+          for(let i=0;i<144;i++)l[i]=8; for(let i=144;i<256;i++)l[i]=9;
+          for(let i=256;i<280;i++)l[i]=7; for(let i=280;i<288;i++)l[i]=8;
+          fixedLit=buildHuff(l); fixedDist=buildHuff(new Array(30).fill(5));
+        }
+        lit=fixedLit; dist=fixedDist;
+      } else {
+        const hlit=readBits(5)+257, hdist=readBits(5)+1, hclen=readBits(4)+4;
+        const ORD=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+        const clLens=new Array(19).fill(0);
+        for(let i=0;i<hclen;i++) clLens[ORD[i]]=readBits(3);
+        const clCodes=buildHuff(clLens);
+        const lens=[];
+        while(lens.length<hlit+hdist){
+          const s=decodeSym(clCodes);
+          if(s<16) lens.push(s);
+          else if(s===16){ const r=3+readBits(2), pv=lens[lens.length-1]||0; for(let i=0;i<r;i++) lens.push(pv); }
+          else if(s===17){ const r=3+readBits(3); for(let i=0;i<r;i++) lens.push(0); }
+          else { const r=11+readBits(7); for(let i=0;i<r;i++) lens.push(0); }
+        }
+        lit=buildHuff(lens.slice(0,hlit)); dist=buildHuff(lens.slice(hlit));
+      }
+      for(;;){
+        const sym=decodeSym(lit);
+        if(sym===256) break;
+        if(sym<256) out.push(sym);
+        else {
+          const li=sym-257; if(li>=LBASE.length) throw new Error('长度码越界');
+          const len=LBASE[li]+readBits(LEXT[li]);
+          const ds=decodeSym(dist), d=DBASE[ds]+readBits(DEXT[ds]);
+          const start=out.length-d; if(start<0) throw new Error('回溯越界');
+          for(let i=0;i<len;i++) out.push(out[start+i]);
+        }
+      }
+    } else throw new Error('非法块类型');
+    if(fin) break;
+  }
+  return new Uint8Array(out);
+}
+function zipList(u8){   // 中央目录枚举（自尾部回扫 EOCD，容忍注释）
+  let e=-1;
+  const lo=Math.max(0, u8.length-22-65536);
+  for(let i=u8.length-22; i>=lo; i--){
+    if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x05&&u8[i+3]===0x06){ e=i; break; }
+  }
+  if(e<0) return null;
+  const dv=new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const n=dv.getUint16(e+10,true), cdOff=dv.getUint32(e+16,true);
+  const list=[]; let p=cdOff;
+  for(let i=0;i<n && p+46<=u8.length;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csz=dv.getUint32(p+20,true),
+      nl=dv.getUint16(p+28,true), el=dv.getUint16(p+30,true), cl=dv.getUint16(p+32,true),
+      off=dv.getUint32(p+42,true);
+    let name=''; for(let k=0;k<nl;k++) name+=String.fromCharCode(u8[p+46+k]);
+    list.push({name, method, csz, off});
+    p+=46+nl+el+cl;
+  }
+  return list;
+}
+function zipExtract(u8, ent){
+  const dv=new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  if(dv.getUint32(ent.off,true)!==0x04034b50) throw new Error('ZIP 本地头损坏');
+  const nl=dv.getUint16(ent.off+26,true), el=dv.getUint16(ent.off+28,true);
+  const start=ent.off+30+nl+el;
+  const data=u8.subarray(start, start+ent.csz);
+  if(ent.method===0) return data.slice();
+  if(ent.method===8) return inflateRaw(data);
+  throw new Error('不支持的压缩方式 '+ent.method);
+}
+const u8utf8 = u8 => new TextDecoder('utf-8').decode(u8);
+/* ===== v55.8 Guitar Pro (.gp，GP7/GP8) 导入 =====
+   .gp = ZIP 容器内 Content/score.gpif（XML）。parseGP 解析出曲目信息与音轨清单，
+   经音轨选择后 buildSongFromGP 落入 song 模型——映射口径对齐 MusicXML TAB 导入（v44.7）：
+   notes:{s,f,x}、tech(h/p/b/bd/sl/sd/su/hm/pm/lr/v)+tk 链、col.tie、tup/tupM、grace、
+   col.chord（DiagramCollection 名）、repeatStart/End、label、keyTo、变拍子。
+   GPIF 弦序 0=最低弦 → 本引擎 s=弦数-GP弦号（s=1 为最高弦）。
+   GP3/4/5 二进制与 GP6 .gpx（BCFZ 压缩）暂不支持（评估 P2/P3）。 */
+function parseGP(buf){
+  const u8 = buf instanceof Uint8Array? buf : new Uint8Array(buf);
+  if(!(u8[0]===0x50&&u8[1]===0x4b)){
+    if(u8[0]===0x42&&u8[1]===0x43&&u8[2]===0x46)
+      return {error:'这是 GP6 的 .gpx 格式（暂不支持）——请用 Guitar Pro 7/8 打开后另存为 .gp'};
+    return {error:'不是 GP7/GP8 的 .gp 文件（.gp3/.gp4/.gp5 老格式暂不支持——请用 Guitar Pro 7/8 打开后另存为 .gp）'};
+  }
+  const list=zipList(u8); if(!list) return {error:'ZIP 结构损坏'};
+  const ent=list.find(x=>/score\.gpif$/i.test(x.name));
+  if(!ent) return {error:'包内未找到 score.gpif——不是 Guitar Pro 7/8 导出的 .gp'};
+  let xml; try{ xml=u8utf8(zipExtract(u8, ent)); }catch(err){ return {error:'解压失败：'+err.message}; }
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.querySelector('parsererror')) return {error:'score.gpif 不是合法 XML'};
+  const T=(el,sel)=>{ const n=el&&el.querySelector(sel); return n? n.textContent.trim():null; };
+  const prop=(el,name)=>el? [...el.querySelectorAll(':scope > Properties > Property')].find(p=>p.getAttribute('name')===name)||null : null;
+  /* 音轨清单：Tuning 缺失（鼓/打击乐）标记不支持 */
+  const tracks=[...doc.querySelectorAll('Tracks > Track')].map((tk,i)=>{
+    const staffProps=tk.querySelector('Staves > Staff');
+    const tunP=prop(staffProps,'Tuning');
+    const pitches=tunP? (T(tunP,'Pitches')||'').split(/\s+/).map(Number).filter(x=>!isNaN(x)) : [];
+    const capoP=prop(staffProps,'CapoFret');
+    const diag={};
+    { const dc=prop(staffProps,'DiagramCollection');
+      if(dc) [...dc.querySelectorAll('Items > Item')].forEach(it=>{ diag[it.getAttribute('id')]=it.getAttribute('name')||''; }); }
+    return { idx:i, el:tk, name:T(tk,':scope > Name')||('音轨'+(i+1)),
+      pitches, strings:pitches.length, capo: capoP? Math.max(0,Math.min(12,+T(capoP,'Fret')||0)) : 0,
+      drum: !pitches.length, diag };
+  });
+  if(!tracks.length) return {error:'文件中没有音轨'};
+  /* id 索引表 */
+  const byId=sel=>{ const m={}; [...doc.querySelectorAll(sel)].forEach(x=>{ m[x.getAttribute('id')]=x; }); return m; };
+  const bars=byId('Bars > Bar'), voices=byId('Voices > Voice'), beats=byId('Beats > Beat'),
+    rhythms=byId('Rhythms > Rhythm'), notes=byId('Notes > Note');
+  const masterBars=[...doc.querySelectorAll('MasterBars > MasterBar')];
+  if(!masterBars.length) return {error:'文件中没有小节'};
+  /* 速度：MasterTrack 首个 Tempo 自动化，Value="BPM 单位"（1=八分 2=四分 3=附点四分 4=二分 5=附点二分） */
+  let tempo=90;
+  { const au=[...doc.querySelectorAll('MasterTrack Automations Automation')]
+      .find(a=>T(a,':scope > Type')==='Tempo');
+    if(au){ const v=(T(au,':scope > Value')||'').split(/\s+/);
+      const bpm=+v[0]||90, u={1:.5,2:1,3:1.5,4:2,5:3}[+v[1]||2]||1;
+      tempo=Math.max(30,Math.min(240,Math.round(bpm*u))); } }
+  const sc=doc.querySelector('Score');
+  return { gp:{ doc, T, prop, tracks, masterBars, bars, voices, beats, rhythms, notes, tempo,
+    title:T(sc,':scope > Title')||'导入曲谱', artist:T(sc,':scope > Artist')||'',
+    composer:T(sc,':scope > Music')||'', lyricist:T(sc,':scope > Words')||'',
+    maker:T(sc,':scope > Tabber')||'' } };
+}
+function buildSongFromGP(gp, selIdx){
+  const skip={notes:0, other:0};
+  const {T, prop}=gp;
+  const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
+  const NV_MAP={Whole:1,Half:2,Quarter:4,Eighth:8,'16th':16,'32nd':32,'64th':64};
+  const sel=selIdx.map(i=>gp.tracks[i]).filter(t=>t&&!t.drum);
+  if(!sel.length) return {error:'请至少选择一条非鼓音轨'};
+  const MB=gp.masterBars.slice(0,500);
+  if(gp.masterBars.length>500) skip.other+=gp.masterBars.length-500;
+  /* 小节级：拍号/调号/反复/段落 */
+  let beats0=4, unit0=4, key='C', keyDefaulted=true;
+  { const t0=T(MB[0],':scope > Time'); if(t0){ const p2=t0.split('/'); beats0=Math.max(1,Math.min(12,+p2[0]||4)); unit0=(+p2[1]===8)?8:4; }
+    const ac=T(MB[0],':scope > Key > AccidentalCount');
+    if(ac!=null && F2K[ac]){ key=F2K[ac]; keyDefaulted=false; } }
+  let curB=beats0, curU=unit0;   /* GPIF 不带 Time 的小节继承上一小节拍号 */
+  const meaInfo=MB.map((mb,mi)=>{
+    const tm=T(mb,':scope > Time');
+    if(tm){ const p2=tm.split('/'); const nb=Math.max(1,Math.min(12,+p2[0]||curB)); let nu=+p2[1]||curU;
+      if(nu!==4&&nu!==8){ skip.other++; nu=4; } curB=nb; curU=nu; }
+    const info={beats:curB, unit:curU};
+    const rp=mb.querySelector(':scope > Repeat');
+    if(rp){ info.repS=rp.getAttribute('start')==='true'; info.repE=rp.getAttribute('end')==='true'; }
+    const secT=T(mb,':scope > Section > Text'); if(secT) info.label=secT;
+    if(mi>0){ const ac=T(mb,':scope > Key > AccidentalCount'); if(ac!=null && F2K[ac]) info.keyTo=F2K[ac]; }
+    info.barIds=(T(mb,':scope > Bars')||'').split(/\s+/);
+    return info;
+  });
+  /* 逐选中音轨解析列 */
+  const trackCols=sel.map(tk=>{
+    const nS=tk.strings||6;
+    const colsByMea=MB.map((mb,mi)=>{
+      const cols=[];
+      const barId=meaInfo[mi].barIds[tk.idx];
+      const bar=gp.bars[barId]; if(!bar) return cols;
+      const vIds=(T(bar,':scope > Voices')||'').split(/\s+/);
+      vIds.slice(1).forEach(v=>{ if(v!=='-1' && gp.voices[v] && (T(gp.voices[v],':scope > Beats')||'').trim()) skip.other++; });   // 多声部：仅取声部1
+      const voice=gp.voices[vIds[0]]; if(!voice) return cols;
+      let pendGrace=[], pendGraceDur=8;
+      (T(voice,':scope > Beats')||'').split(/\s+/).forEach(bid=>{
+        const beat=gp.beats[bid]; if(!beat) return;
+        const rh=gp.rhythms[(beat.querySelector(':scope > Rhythm')||{getAttribute:()=>null}).getAttribute('ref')];
+        let dur=NV_MAP[T(rh,':scope > NoteValue')||'Quarter']||4;
+        const dotN=rh&&rh.querySelector(':scope > AugmentationDot');
+        let dotted=dotN? (Math.min(2,+dotN.getAttribute('count')||1)) : 0;
+        if(dotted===1) dotted=true;
+        let tup, tupM;
+        const tpl=rh&&rh.querySelector(':scope > PrimaryTuplet');
+        if(tpl){ const aN=+tpl.getAttribute('num')||0, nN=+tpl.getAttribute('den')||0;
+          if(aN===3&&nN===2) tup=1;
+          else if(aN>=2&&aN<=16&&nN>=1&&nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM=nN; } }
+        const noteIds=(T(beat,':scope > Notes')||'').split(/\s+/).filter(Boolean);
+        const isGrace=!!T(beat,':scope > GraceNotes');
+        const nObjs=[]; let tieDest=false, hopo=false, slLegato=false;
+        noteIds.forEach(nid=>{
+          const nt=gp.notes[nid]; if(!nt) return;
+          const fP=prop(nt,'Fret'), sP=prop(nt,'String');
+          if(!fP||!sP){ skip.notes++; return; }
+          const gs=+T(sP,'String')||0;
+          const s=Math.max(1, Math.min(nS, nS-gs));
+          const n={s, f:Math.max(0, Math.min(24, +T(fP,'Fret')||0))};
+          if(prop(nt,'Muted')) n.x=1;
+          /* 技法（tech 单值，按信息量优先）：推弦 > 泛音 > 无头滑 > 颤音 > 闷音 > 延音 */
+          if(prop(nt,'Bended')){
+            const bo=+T(prop(nt,'BendOriginValue')||null,'Float')||0;
+            const bd2=+T(prop(nt,'BendDestinationValue')||null,'Float')||0;
+            const bm=+T(prop(nt,'BendMiddleValue')||null,'Float')||0;
+            n.tech=(bm>bd2||bd2<bo)?'bd':'b';
+            if(bo>0) n.bendType='pre';
+          } else if(prop(nt,'HarmonicType')){
+            n.tech='hm'; const ht=T(prop(nt,'HarmonicType'),'HType');
+            if(ht==='Pinch') n.hmT='P';
+          } else {
+            const slP=prop(nt,'Slide');
+            const flags=slP? (+T(slP,'Flags')||0) : 0;
+            if(flags&4) n.tech='sd'; else if(flags&8) n.tech='su';
+            else if(flags&3) slLegato=true;   // shift/legato 滑音 → 后处理连到下一列
+            else if(nt.querySelector(':scope > Vibrato')) n.tech='v';
+            else if(prop(nt,'PalmMuted')) n.tech='pm';
+            else if(prop(nt,'LetRing')) n.tech='lr';
+          }
+          if(prop(nt,'HopoOrigin')) hopo=true;
+          const tie=nt.querySelector(':scope > Tie');
+          if(tie && tie.getAttribute('destination')==='true') tieDest=true;
+          nObjs.push(n);
+        });
+        if(isGrace){   // 倚音拍：挂给下一个主音列
+          nObjs.slice(0,3-pendGrace.length).forEach(n=>pendGrace.push({s:n.s, f:n.f}));
+          if(dur>=8) pendGraceDur=Math.min(32,dur);
+          return;
+        }
+        if(!nObjs.length){ cols.push({dur, dotted, notes:[], ...(tup?{tup}:{}), ...(tupM?{tupM}:{})}); return; }
+        const col={dur, dotted, notes:nObjs, ...(tup?{tup}:{}), ...(tupM?{tupM}:{})};
+        if(pendGrace.length){ col.grace={notes:pendGrace.slice(0,3), dur:pendGraceDur}; pendGrace=[]; pendGraceDur=8; }
+        { const chE=beat.querySelector(':scope > Chord');
+          if(chE && tk.diag[chE.textContent.trim()]!=null && tk.diag[chE.textContent.trim()]!=='') col.chord=tk.diag[chE.textContent.trim()]; }
+        if(tieDest) col._tieDest=1;
+        if(hopo) col._hopo=1;
+        if(slLegato) col._sl=1;
+        cols.push(col);
+      });
+      return cols;
+    });
+    /* 后处理：连音线归到前列；击勾弦/普通滑音连到下一列（同弦优先，比较品位定 h/p） */
+    let prevPos=null, pend=null;   // pend={type:'hopo'|'sl', note, mi, ci}
+    colsByMea.forEach((cols,mi)=>cols.forEach((col,ci)=>{
+      if(!col.notes || !col.notes.length) return;
+      if(col._tieDest){ if(prevPos) colsByMea[prevPos.mi][prevPos.ci].tie=true; delete col._tieDest; }
+      if(pend){
+        const org=pend.note;
+        const tgt=col.notes.find(x=>x.s===org.s)||col.notes[0];
+        if(!org.tech){
+          org.tech = pend.type==='sl'? 'sl' : (tgt.f>org.f? 'h':'p');
+          org.tk={mi, ci, si:tgt.s};
+        }
+        pend=null;
+      }
+      if(col._hopo){ pend={type:'hopo', note:col.notes[0], mi, ci}; delete col._hopo; }
+      else if(col._sl){ pend={type:'sl', note:col.notes[0], mi, ci}; delete col._sl; }
+      prevPos={mi, ci};
+    }));
+    colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._tieDest; delete col._hopo; delete col._sl; }));
+    return colsByMea;
+  });
+  /* 组装 song */
+  const out={v:3, title:gp.title, singer:gp.artist, lyricist:gp.lyricist, composer:gp.composer, maker:gp.maker,
+    key, beats:beats0, unit:unit0, tempo:gp.tempo, capo:sel[0].capo||0, customChords:{},
+    tabVoices:sel.map(t=>t.name), voxVoices:[], voxNotations:[], lyricLines:1, measures:[]};
+  const nS0=sel[0].strings||6;
+  out.inst = nS0===4? 'uku':'guitar';
+  { const dflt = nS0===4? UKU_TUNING : TUNING;
+    const tun = sel[0].pitches.slice().reverse();   // GPIF 低→高 转 本引擎 s=1 最高弦
+    if(tun.length && !(tun.length===dflt.length && tun.every((v,i)=>v===dflt[i]))) out.tuning=tun; }
+  MB.forEach((mb,mi)=>{
+    const info=meaInfo[mi];
+    const mea={tabs:[], voxes:[], repeatStart:!!info.repS, repeatEnd:!!info.repE};
+    trackCols.forEach(colsByMea=>{
+      const cols=colsByMea[mi];
+      mea.tabs.push(cols && cols.length? cols
+        : Array.from({length:info.beats},()=>({dur:info.unit, dotted:false, notes:[]})));
+    });
+    if(info.label) mea.label=info.label;
+    if(info.keyTo && info.keyTo!==key) mea.keyTo=info.keyTo;
+    if(info.beats!==beats0 || info.unit!==unit0){ mea.beats=info.beats; mea.unit=info.unit; }
+    out.measures.push(mea);
+  });
+  if(!out.measures.length) return {error:'未解析到任何小节'};
+  return {song:migrate(out), skip, keyDefaulted};
+}
+/* 音轨选择弹窗：默认勾选前 3 条非鼓音轨；确认后建谱入库 */
+function showGPTrackModal(gp){
+  const rows=gp.tracks.map((t,i)=>{
+    const dis=t.drum;
+    const checked=!dis && gp.tracks.filter(x=>!x.drum).indexOf(t)<3;
+    return `<label class="f" style="gap:9px${dis?';opacity:.5':''}">
+      <input type="checkbox" class="gp-tk" data-i="${i}" ${checked?'checked':''} ${dis?'disabled':''} style="width:auto">
+      <span style="width:auto;flex:1">${esc(t.name)}</span>
+      <span style="width:auto;font-size:11.5px;color:var(--muted)">${dis?'打击乐（暂不支持）':t.strings+' 弦'+(t.capo?' · 变调夹'+t.capo:'')}</span>
+    </label>`;
+  }).join('');
+  showModal(`<h3>导入 Guitar Pro：选择音轨</h3>
+    <p style="font-size:12.5px;color:var(--muted)">《${esc(gp.title)}》共 ${gp.masterBars.length} 小节。选择要导入的音轨（最多 3 条，各成一个六线谱声部）：</p>
+    ${rows}
+    <div class="btns"><button id="gp-cancel">取消</button><button id="gp-go" class="primary">导入</button></div>`);
+  document.getElementById('gp-cancel').onclick=closeModal;
+  document.getElementById('gp-go').onclick=()=>{
+    const selIdx=[...document.querySelectorAll('.gp-tk:checked')].map(x=>+x.dataset.i);
+    if(!selIdx.length){ toast('请至少选择一条音轨'); return; }
+    if(selIdx.length>3){ toast('最多选 3 条音轨'); return; }
+    const r=buildSongFromGP(gp, selIdx);
+    if(r.error){ toast('导入失败：'+r.error); return; }
+    closeModal();
+    addDoc(r.song, ()=>{
+      setRibbon('tab');
+      const sk=r.skip.notes+r.skip.other;
+      toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节 · '+selIdx.length+' 条音轨'
+        +(sk? '；简化/跳过 '+sk+' 处（多声部/打击乐/暂不支持记号）':'')
+        +(r.keyDefaulted? '；未读到调号已按 1=C，请核对':''));
+    });
+  };
+}
+/* v55.8 压缩 MusicXML (.mxl)：ZIP 解压 → META-INF/container.xml 指路 rootfile（缺失则取首个非 META-INF 的 xml）→ importMusicXML */
+function importMXLBuffer(buf){
+  const u8=new Uint8Array(buf);
+  const list=zipList(u8); if(!list) return {error:'.mxl 不是合法 ZIP 包'};
+  let rootPath=null;
+  const cont=list.find(x=>/^META-INF\/container\.xml$/i.test(x.name));
+  if(cont){ try{
+    const cdoc=new DOMParser().parseFromString(u8utf8(zipExtract(u8,cont)),'application/xml');
+    const rf=cdoc.querySelector('rootfile'); if(rf) rootPath=rf.getAttribute('full-path');
+  }catch(_){} }
+  let ent=rootPath? list.find(x=>x.name===rootPath) : null;
+  if(!ent) ent=list.find(x=>/\.(musicxml|xml)$/i.test(x.name) && !/^META-INF\//i.test(x.name));
+  if(!ent) return {error:'.mxl 包内未找到 MusicXML 文件'};
+  try{ return importMusicXML(u8utf8(zipExtract(u8, ent))); }
+  catch(err){ return {error:'解压失败：'+err.message}; }
+}
 function importMusicXML(xmlStr){
   const doc = new DOMParser().parseFromString(xmlStr, 'application/xml');
   if(doc.querySelector('parsererror')) return {error:'XML 解析失败：文件不是合法的 XML'};
@@ -15696,7 +16073,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.7';
+const APP_VER='v55.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -15719,6 +16096,7 @@ const APP_VER='v55.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.8</span><div><b>导入 Guitar Pro（.gp）</b>（用户拍板 P1）：新建向导「已有曲子」组新增<b>导入 Guitar Pro</b>——支持 <b>GP7/GP8 的 .gp 文件</b>，选择音轨（最多 3 条，各成一个六线谱声部，打击乐轨自动跳过）后直接进编辑器，可二次编辑、三记谱法互切、发布到谱库。识别内容：多轨品位/和音/休止、时值/附点/连音组、变拍子、反复记号、段落标记、调号/速度/变调夹/特殊调弦、和弦名、击勾弦/滑音/推弦/自然与人工泛音/闷音/延音/颤音、倚音、连音线；多声部取主声部、暂不支持的记号计数提示。老格式 .gp3/.gp4/.gp5 与 GP6 的 .gpx 暂不支持（请用 GP7/8 另存为 .gp）。<b>顺带解锁压缩 MusicXML（.mxl）直接导入</b>（此前须解压另存）。解压引擎为零依赖纯 JS 自研，文件在本机浏览器内解析、不上传。</div></li>
     <li><span class="v">v55.7</span><div><b>微信分享卡诊断开关</b>（配合公众号 JS-SDK 配置排障）：谱页链接加 <code>?wxdebug=1</code>（已有参数则加 <code>&wxdebug=1</code>）后在微信里打开，会逐步弹窗显示分享卡链路每一环的结果——①签名接口是否成功及使用的 appId、②微信是否接受签名（失败会给出 invalid signature / invalid url domain 等具体原因）、③分享内容是否注册成功。正常访问（不带参数）行为不变，配置未就绪时仍静默回退微信默认卡片。</div></li>
     <li><span class="v">v55.6</span><div><b>分享观看页改版：页首指法/变调夹/拍速 + 底栏 ⚙ 设置</b>（用户参考 GTP 排版拍板）：①页首重排——左侧三组可点数值：<b>指法</b>（当前调，点开 ♭/♯ 升降调、点读数还原原调）、<b>变调夹</b>（点开 −/＋ 调品位 0–12，播放音高同步，移调后仍保留）、<b>拍速</b>（点开推子浮层，播放中即时变速）；右侧只留三个圆形图标：<b>收藏 ♥ / 分享卡 / 谱库主页</b>；原标题（谱面自带）、谱库、去制谱按钮移出页首。②底栏新增 <b>⚙ 设置</b>：显示效果（谱面缩放三档 + 谱架模式）、打印 / 导出 PDF、成为创作者（免费制谱入口）——设置内容后续会持续扩充。三处调节都作用在观看副本上，<b>不改动原谱</b>。</div></li>
     <li><span class="v">v55.5</span><div><b>速度推子改为点击弹出</b>（用户反馈：常驻推条太占空间）：手机观看页底栏不再常驻速度推条，改为紧凑的 <b>♩=92</b> 速度按钮——<b>点击才弹出推子浮层</b>（播放条正上方深色圆角面板：推子 + −/＋ 每次 1 BPM 微调 + 大字读数），拖动实时跟手、松手生效，<b>播放中即时变速</b>；点浮层外任意处收起。底栏腾出的空间让 播放/回开头/▦/速度/节拍器/音轨 六个控件等距铺满一行，版面更清爽。</div></li>

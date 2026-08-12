@@ -106,7 +106,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     if (standOn) exitStand();
     return { stand: !!stand, rate025, feats, standOn };
   });
-  T(r.stand && r.rate025 && r.feats === 3 && r.standOn,
+  T(r.stand && r.rate025 && r.feats === 4 && r.standOn,   /* v55.8 导入组 4 入口：MusicXML/GuitarPro/MIDI/哼唱 */
     'T6 谱架入口/0.25×/向导提权', '谱架可进=' + r.standOn + ' 提权按钮=' + r.feats);
 
   const allErrs = errs1.concat(errs);
