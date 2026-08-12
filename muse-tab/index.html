@@ -12582,13 +12582,13 @@ function showNewWizard(){
   <div class="nw-feats">
     <span class="nw-feats-t">已有曲子？不用从零录入：</span>
     <button id="nw-import" class="nwf">${svgi('doc',15)} 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
-    <button id="nw-gp" class="nwf">${svgi('guitar',15)} 导入 Guitar Pro<small>.gp（GP7/GP8）多轨吉他谱直入</small></button>
+    <button id="nw-gp" class="nwf">${svgi('guitar',15)} 导入 Guitar Pro<small>.gp / .gpx / .gp3 / .gp4 / .gp5 全版本</small></button>
     <button id="nw-midi" class="nwf">${svgi('piano',15)} 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
     <button id="nw-hum" class="nwf">${svgi('mic',15)} 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
-  <input type="file" id="nw-gpfile" accept=".gp" style="display:none">
+  <input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" style="display:none">
   <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
   /* v55.8 Guitar Pro (.gp) 导入入口 */
   document.getElementById('nw-gp').onclick = ()=>document.getElementById('nw-gpfile').click();
@@ -13233,17 +13233,367 @@ const u8utf8 = u8 => new TextDecoder('utf-8').decode(u8);
    col.chord（DiagramCollection 名）、repeatStart/End、label、keyTo、变拍子。
    GPIF 弦序 0=最低弦 → 本引擎 s=弦数-GP弦号（s=1 为最高弦）。
    GP3/4/5 二进制与 GP6 .gpx（BCFZ 压缩）暂不支持（评估 P2/P3）。 */
+/* ===== v55.9 GP6 .gpx 容器：BCFZ 位流解压（1=回溯引用块 0=原始字节块）+ BCFS 扇区文件系统 ===== */
+function bcfzDecompress(u8){
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  const expect=dv.getUint32(4,true);
+  if(expect>64*1024*1024) throw new Error('解压尺寸异常');
+  let bytePos=8, bitPos=0;
+  const readBit=()=>{ if(bytePos>=u8.length) throw new Error('位流截断'); const b=(u8[bytePos]>>(7-bitPos))&1; if(++bitPos===8){bitPos=0;bytePos++;} return b; };
+  const readBits=n=>{ let v=0; for(let i=0;i<n;i++) v=(v<<1)|readBit(); return v; };     // MSB 序
+  const readBitsRev=n=>{ let v=0; for(let i=0;i<n;i++) v|=readBit()<<i; return v; };     // LSB 序
+  const out=[];
+  while(out.length<expect){
+    if(readBit()){
+      const ws=readBits(4);
+      const offset=readBitsRev(ws), size=readBitsRev(ws);
+      const pos=out.length-offset;
+      if(pos<0) throw new Error('回溯越界');
+      const n=Math.min(offset,size);
+      for(let i=0;i<n;i++) out.push(out[pos+i]);
+    } else {
+      const size=readBitsRev(2);
+      for(let i=0;i<size;i++) out.push(readBits(8));
+    }
+  }
+  return new Uint8Array(out);
+}
+function bcfsFind(u8, wanted){
+  const rd32=off=>(u8[off]|(u8[off+1]<<8)|(u8[off+2]<<16)|(u8[off+3]<<24))>>>0;
+  for(let off=0x1000; off+0x94<u8.length; off+=0x1000){
+    if(rd32(off)!==2) continue;   // 2=文件项
+    let name=''; for(let i=0;i<127 && u8[off+4+i];i++) name+=String.fromCharCode(u8[off+4+i]);
+    if(!name.toLowerCase().endsWith(wanted.toLowerCase())) continue;
+    const size=rd32(off+0x8C);
+    const data=[];
+    for(let bi=off+0x94; bi+4<=u8.length; bi+=4){
+      const blk=rd32(bi); if(!blk) break;
+      const s=blk*0x1000;
+      for(let i=0;i<0x1000 && data.length<size && s+i<u8.length;i++) data.push(u8[s+i]);
+    }
+    return new Uint8Array(data.slice(0,size));
+  }
+  return null;
+}
+/* ===== v55.9 GP3/4/5 二进制解析（字节布局按 PyGuitarPro/alphaTab 逆向口径）=====
+   共同骨架：版本串→曲目信息→(3:tripletFeel / 4,5:歌词等)→速度/调号→64 MIDI 通道→
+   小节头×N→音轨×M→逐小节×逐音轨的拍数据。GP5 每小节双声部+行尾字节；
+   变长结构（和弦图/混音表/RSE）按固定布局跳过。任何失步立即报错（不产出错谱）。
+   中文老文件字符串多为 GBK：UTF-8 严格解码失败即回退 GBK。 */
+function parseGP345(u8){
+  const skipBase={notes:0, other:0};
+  try{
+    const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+    let p=0;
+    const need=n=>{ if(p+n>u8.length) throw new Error('文件截断（位置 '+p+'）'); };
+    const B=()=>{ need(1); return u8[p++]; };
+    const SB=()=>{ const v=B(); return v>127? v-256:v; };
+    const I=()=>{ need(4); const v=dv.getInt32(p,true); p+=4; return v; };
+    const SH=()=>{ need(2); const v=dv.getInt16(p,true); p+=2; return v; };
+    const SKIP=n=>{ need(n); p+=n; };
+    const dec=bytes=>{ try{ return new TextDecoder('utf-8',{fatal:true}).decode(bytes); }
+      catch(_){ try{ return new TextDecoder('gbk').decode(bytes); }
+      catch(_2){ let s=''; bytes.forEach(c=>s+=String.fromCharCode(c)); return s; } } };
+    const bss=size=>{ const len=B(); need(size); const s=dec(u8.subarray(p, p+Math.min(len,size))); p+=size; return s; };
+    const ibs=()=>{ const tot=I(); if(tot<1||tot>65536) throw new Error('字符串长度异常（位置 '+p+'）');
+      const len=B(); need(tot-1); const s=dec(u8.subarray(p, p+Math.min(len,tot-1))); p+=tot-1; return s; };
+    const iss=()=>{ const len=I(); if(len<0||len>65536) throw new Error('字符串长度异常（位置 '+p+'）'); need(len); const s=dec(u8.subarray(p,p+len)); p+=len; return s; };
+    /* 版本 */
+    const vs=bss(30);
+    const vm=/v(\d)\.(\d+)/.exec(vs);
+    if(!vm) return {error:'版本串无法识别：'+vs};
+    const major=+vm[1], minor=+vm[2];
+    if(major<3||major>5) return {error:'不支持的 Guitar Pro 版本 '+major+'.'+minor+'（支持 3/4/5，GP6 请用 .gpx，GP7/8 用 .gp）'};
+    const is5=major===5, is50=is5&&minor===0, is51=is5&&minor>0, is3=major===3;
+    /* 曲目信息 */
+    const title=ibs(); ibs();                  // title / subtitle
+    const artist=ibs(); ibs();                 // artist / album
+    const words=ibs();
+    const music=is5? ibs() : words;            // GP5 词曲分开
+    ibs(); const tabber=ibs(); ibs();          // copyright / tabber / instructions
+    { const n=I(); if(n<0||n>100) throw new Error('注释数异常'); for(let i=0;i<n;i++) ibs(); }
+    if(!is5) B();                              // tripletFeel（GP3/4）
+    if(!is3){ I(); for(let i=0;i<5;i++){ I(); iss(); } }   // 歌词（GP4/5：轨号+5 行）
+    if(is51){ I(); SKIP(4); SKIP(11); }        // RSE 主效果（5.1）
+    if(is5){ SKIP(30); for(let i=0;i<10;i++) ibs(); }      // 页面设置：尺寸/边距/比例/页眉标志(30) + 10 模板串
+    if(is5) ibs();                             // 速度文本
+    const tempo=Math.max(30,Math.min(240,I()||90));
+    if(is51) B();                              // hideTempo
+    let keyFifths;
+    if(is3) keyFifths=I(); else { keyFifths=SB(); I(); }   // GP4/5：sbyte 调号 + int 八度
+    for(let i=0;i<64;i++){ I(); SKIP(8); }     // 64 MIDI 通道（乐器 int + 6 参数 + 2 空）
+    if(is5) SKIP(42);                          // 指示记号 19×short + 主混响 int
+    const measureCount=I(), trackCount=I();
+    if(measureCount<1||measureCount>2000||trackCount<1||trackCount>64) throw new Error('小节/音轨数异常');
+    /* 小节头 */
+    const headers=[]; let curNum=4, curDen=4;
+    for(let mi=0; mi<measureCount; mi++){
+      if(is5 && mi>0) SKIP(1);
+      const fl=B(); const h={};
+      if(fl&0x01) curNum=B();
+      if(fl&0x02) curDen=B();
+      h.num=curNum; h.den=curDen;
+      h.repS=!!(fl&0x04);
+      if(fl&0x08){ is5? B():SB(); h.repE=true; }
+      if(is5){
+        if(fl&0x20){ h.label=ibs(); I(); }
+        if(fl&0x10) B();
+      } else {
+        if(fl&0x10) B();
+        if(fl&0x20){ h.label=ibs(); I(); }
+      }
+      if(fl&0x40){ h.keyRoot=SB(); B(); }
+      if(is5){
+        if(fl&0x03) SKIP(4);                   // 符杠分组
+        if(!(fl&0x10)) SKIP(1);
+        B();                                   // tripletFeel
+      }
+      headers.push(h);
+    }
+    /* 音轨 */
+    const tracks=[];
+    for(let ti=0; ti<trackCount; ti++){
+      if(is5 && (ti===0 || is50)) SKIP(1);
+      const fl=B();
+      const drumFlag=!!(fl&0x01);
+      const name=bss(40);
+      const nS=Math.max(1,Math.min(7,I()));
+      const tun=[]; for(let i=0;i<7;i++){ const v=I(); if(i<nS) tun.push(v); }   // 弦1(最高)→弦N
+      I();                                     // port
+      const ch=I(); I();                       // channel / effectChannel
+      I();                                     // frets
+      const capo=Math.max(0,Math.min(12,I()));
+      I();                                     // color
+      if(is5){
+        SKIP(2+1+1+1+12+12);                   // flags2+autoAccent+bank+humanize+未知×24
+        I(); I(); I();                         // RSE 乐器：instrument/unknown/soundBank
+        if(is50){ SH(); SKIP(1); } else I();   // effectNumber
+        if(is51){ SKIP(4); ibs(); ibs(); }     // 均衡 4 + 音色名×2
+      }
+      tracks.push({idx:ti, name:name||('音轨'+(ti+1)), strings:nS, tuning:tun, capo, drum:drumFlag||ch===10});
+    }
+    if(is5) SKIP(is50?2:1);
+    /* 拍数据结构读取器 */
+    const readBendStruct=n=>{                  // 推弦/摇把：type+value+points
+      const bt=B(); I(); const nP=I();
+      if(nP<0||nP>64) throw new Error('推弦点数异常');
+      let first=0,last=0,maxV=0;
+      for(let i=0;i<nP;i++){ I(); const val=I(); B(); if(i===0) first=val; last=val; if(val>maxV) maxV=val; }
+      if(n){ n.tech=(last<maxV)?'bd':'b'; if(first>0||bt===4||bt===5) n.bendType='pre'; }
+    };
+    const readChordName=()=>{
+      if(is5){ SKIP(17); const nm=bss(21); SKIP(4); I(); SKIP(28); SKIP(32); return nm; }
+      const nf=B();
+      if(!nf){ const nm=ibs(); const ff=I(); if(ff>0) SKIP(24); return nm; }
+      if(is3){ SKIP(3+24); const nm=bss(22); SKIP(12); I(); SKIP(28); SKIP(4+8+8+8+7+1); return nm; }
+      SKIP(3+1+1+1+4+4+1); const nm=bss(22); SKIP(2+1+1+1); I(); SKIP(28); SKIP(1+5+5+5+7+1+7+1); return nm;
+    };
+    const readBeatFx=()=>{
+      if(is3){
+        const fl=B();
+        if(fl&0x20){ const v=B(); if(v===0) I(); }
+        if(fl&0x40){ B(); B(); }
+      } else {
+        const f1=B(), f2=B();
+        if(f1&0x20) B();
+        if(f2&0x04) readBendStruct(null);      // 摇把
+        if(f1&0x40){ B(); B(); }
+        if(f2&0x02) B();
+      }
+    };
+    const readMixTable=()=>{
+      SB();
+      if(is5){ I(); I(); I(); if(is50){ SH(); SKIP(1); } else I(); }
+      const vals=[SB(),SB(),SB(),SB(),SB(),SB()];
+      if(is5) ibs();
+      const tmp=I();
+      vals.forEach(v=>{ if(v>=0) B(); });
+      if(tmp>=0){ B(); if(is51) B(); skipBase.other++; }   // 中途变速暂不落谱
+      if(!is3) B();
+      if(is5){ B(); if(is51){ ibs(); ibs(); } }
+    };
+    const GRACE_DUR={1:32,2:16,3:8};
+    const readNoteFx=(n,r)=>{
+      if(is3){
+        const fl=B();
+        if(fl&0x01) readBendStruct(n);
+        if(fl&0x02) r.hopo=true;
+        if(fl&0x04 && !n.tech) n.tech='sl';    // GP3 滑音仅标志位 → 连滑
+        if(fl&0x08 && !n.tech) n.tech='lr';
+        if(fl&0x10){ const gf=B(); B(); B(); const gd=B(); r.grace={f:Math.max(0,Math.min(24,gf)), dur:GRACE_DUR[gd]||16}; }
+        return;
+      }
+      const f1=B(), f2=B();
+      if(f1&0x01) readBendStruct(n);
+      if(f1&0x10){ const gf=B(); B(); B(); const gd=B(); if(is5) B();
+        r.grace={f:Math.max(0,Math.min(24,gf)), dur:GRACE_DUR[gd]||16}; }
+      if(f2&0x04) B();                         // 轮拨
+      if(f2&0x08){                             // 滑音
+        const sv=is5? B():SB();
+        if(!n.tech){
+          if(is5){ if(sv&4) n.tech='sd'; else if(sv&8) n.tech='su'; else if(sv&16) n.tech='ou'; else if(sv&32) n.tech='od'; else if(sv&3) r.sl=true; }
+          else { if(sv===3) n.tech='sd'; else if(sv===4) n.tech='su'; else if(sv===-1) n.tech='ou'; else if(sv===-2) n.tech='od'; else if(sv===1||sv===2) r.sl=true; }
+        }
+      }
+      if(f2&0x10){                             // 泛音
+        const hv=B();
+        if(is5){ if(hv===2) SKIP(3); else if(hv===3) SKIP(1); }
+        if(!n.tech){ n.tech='hm'; if(hv===4) n.hmT='P'; }
+      }
+      if(f2&0x20){ SKIP(2); skipBase.other++; }   // 颤指 trill 暂不支持
+      if(f1&0x02) r.hopo=true;
+      if(!n.tech){
+        if(f2&0x40) n.tech='v';
+        else if(f2&0x02) n.tech='pm';
+        else if(f1&0x08) n.tech='lr';
+      }
+    };
+    const DUR_MAP={'-2':1,'-1':2,'0':4,'1':8,'2':16,'3':32,'4':64};
+    const readNote=stringNo=>{
+      const fl=B(); const r={};
+      let type=1;
+      if(fl&0x20) type=B();
+      if(!is5 && (fl&0x01)) SKIP(2);
+      if(fl&0x10) SB();                        // 力度
+      let fret=0;
+      if(fl&0x20) fret=SB();
+      if(fl&0x80) SKIP(2);                     // 指法
+      if(is5){ if(fl&0x01) SKIP(8); SKIP(1); }
+      const n={s:stringNo, f:Math.max(0,Math.min(24,fret))};
+      if(type===3) n.x=1;
+      if(type===2) r.tieDest=true;
+      if(fl&0x08) readNoteFx(n,r);
+      r.n=n;
+      return r;
+    };
+    const readBeat=nS=>{
+      const fl=B();
+      let empty=false, rest=false;
+      if(fl&0x40){ const st=B(); if(st===0x02) rest=true; else empty=true; }
+      const dur=DUR_MAP[String(SB())]||4;
+      const dotted=!!(fl&0x01);
+      let tup, tupM;
+      if(fl&0x20){ const nT=I();
+        if(nT===3) tup=1;
+        else if(nT>=2&&nT<=16){ tup=nT; const dn=nT<=4?2:(nT<=6?4:8); if(dn!==(nT===3?2:4)) tupM=dn; } }
+      let chordName=null;
+      if(fl&0x02) chordName=readChordName();
+      if(fl&0x04) ibs();                       // 拍文本
+      if(fl&0x08) readBeatFx();
+      if(fl&0x10) readMixTable();
+      const sf=B();
+      const nObjs=[]; let tieDest=false, hopo=false, slLeg=false, grace=null;
+      for(let i=0;i<7;i++){
+        if(!(sf&(1<<(6-i)))) continue;
+        const r=readNote(i+1);
+        if(r.n.s>nS){ skipBase.notes++; continue; }
+        if(r.tieDest) tieDest=true; if(r.hopo) hopo=true; if(r.sl) slLeg=true;
+        if(r.grace) grace={notes:[{s:r.n.s, f:r.grace.f}], dur:r.grace.dur};
+        nObjs.push(r.n);
+      }
+      if(is5){ const f2=SH(); if(f2&0x0800) B(); }
+      if(empty && !nObjs.length && !rest) return null;
+      if(!nObjs.length) return {dur, dotted, notes:[], ...(tup?{tup}:{}), ...(tupM?{tupM}:{})};
+      const col={dur, dotted, notes:nObjs, ...(tup?{tup}:{}), ...(tupM?{tupM}:{})};
+      if(chordName) col.chord=chordName;
+      if(grace) col.grace=grace;
+      if(tieDest) col._tieDest=1;
+      if(hopo) col._hopo=1;
+      if(slLeg) col._sl=1;
+      return col;
+    };
+    /* 逐小节×逐音轨（GP5 双声部：取声部1，声部2 有内容计数丢弃） */
+    const colsData=[];
+    for(let mi=0; mi<measureCount; mi++){
+      const row=[];
+      for(let ti=0; ti<trackCount; ti++){
+        const nS=tracks[ti].strings;
+        let cols=[];
+        const nV=is5?2:1;
+        for(let v=0; v<nV; v++){
+          const nB=I();
+          if(nB<0||nB>128) throw new Error('拍数异常（小节 '+(mi+1)+'）');
+          const vcols=[];
+          for(let bi2=0;bi2<nB;bi2++){ const c=readBeat(nS); if(c) vcols.push(c); }
+          if(v===0) cols=vcols;
+          else if(vcols.some(c=>c.notes&&c.notes.length)) skipBase.other++;
+        }
+        if(is5) B();                           // 换行标记
+        row.push(cols);
+      }
+      colsData.push(row);
+    }
+    return {gp:{kind:'bin', ver:major+'.'+minor, title:title||'导入曲谱', artist, composer:music, lyricist:words, maker:tabber,
+      tempo, keyFifths, tracks, headers, colsData, skipBase, masterBars:{length:measureCount}}};
+  }catch(err){
+    return {error:'解析失败：'+((err&&err.message)||err)+'。可尝试用 Guitar Pro 7/8 打开后另存为 .gp 再导入'};
+  }
+}
+function buildSongFromGP345(gp, selIdx){
+  const skip={notes:gp.skipBase.notes, other:gp.skipBase.other};
+  const F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
+  const sel=selIdx.map(i=>gp.tracks[i]).filter(t=>t&&!t.drum);
+  if(!sel.length) return {error:'请至少选择一条非鼓音轨'};
+  const key=F2K[gp.keyFifths]||'C', keyDefaulted=F2K[gp.keyFifths]==null;
+  const meaInfo=gp.headers.map(h=>{
+    let nu=h.den; if(nu!==4&&nu!==8){ skip.other++; nu=4; }
+    return {beats:Math.max(1,Math.min(12,h.num||4)), unit:nu, repS:h.repS, repE:h.repE, label:h.label,
+      keyTo:(h.keyRoot!=null && F2K[h.keyRoot])? F2K[h.keyRoot] : null};
+  });
+  const beats0=meaInfo[0].beats, unit0=meaInfo[0].unit;
+  const trackCols=sel.map(t=>{
+    const colsByMea=gp.colsData.map(row=>row[t.idx]||[]);
+    gpPostLink(colsByMea);
+    return colsByMea;
+  });
+  const out={v:3, title:gp.title, singer:gp.artist, lyricist:gp.lyricist, composer:gp.composer, maker:gp.maker,
+    key, beats:beats0, unit:unit0, tempo:gp.tempo, capo:sel[0].capo||0, customChords:{},
+    tabVoices:sel.map(t=>t.name), voxVoices:[], voxNotations:[], lyricLines:1, measures:[]};
+  const nS0=sel[0].strings||6;
+  out.inst = nS0===4? 'uku':'guitar';
+  { const dflt = nS0===4? UKU_TUNING : TUNING;
+    const tun=sel[0].tuning;                   // GP 二进制弦序=弦1(最高)在前，与本引擎一致
+    if(tun.length && !(tun.length===dflt.length && tun.every((v,i)=>v===dflt[i]))) out.tuning=tun; }
+  meaInfo.forEach((info,mi)=>{
+    const mea={tabs:[], voxes:[], repeatStart:!!info.repS, repeatEnd:!!info.repE};
+    trackCols.forEach(colsByMea=>{
+      const cols=colsByMea[mi];
+      mea.tabs.push(cols && cols.length? cols
+        : Array.from({length:info.beats},()=>({dur:info.unit, dotted:false, notes:[]})));
+    });
+    if(info.label) mea.label=info.label;
+    if(info.keyTo && info.keyTo!==key) mea.keyTo=info.keyTo;
+    if(info.beats!==beats0 || info.unit!==unit0){ mea.beats=info.beats; mea.unit=info.unit; }
+    out.measures.push(mea);
+  });
+  if(!out.measures.length) return {error:'未解析到任何小节'};
+  return {song:migrate(out), skip, keyDefaulted};
+}
 function parseGP(buf){
   const u8 = buf instanceof Uint8Array? buf : new Uint8Array(buf);
-  if(!(u8[0]===0x50&&u8[1]===0x4b)){
-    if(u8[0]===0x42&&u8[1]===0x43&&u8[2]===0x46)
-      return {error:'这是 GP6 的 .gpx 格式（暂不支持）——请用 Guitar Pro 7/8 打开后另存为 .gp'};
-    return {error:'不是 GP7/GP8 的 .gp 文件（.gp3/.gp4/.gp5 老格式暂不支持——请用 Guitar Pro 7/8 打开后另存为 .gp）'};
+  /* 分发：PK=GP7/8 zip；BCFZ=GP6 gpx；FICHIER GUITAR PRO=GP3/4/5 二进制 */
+  if(u8[0]===0x50&&u8[1]===0x4b){
+    const list=zipList(u8); if(!list) return {error:'ZIP 结构损坏'};
+    const ent=list.find(x=>/score\.gpif$/i.test(x.name));
+    if(!ent) return {error:'包内未找到 score.gpif——不是 Guitar Pro 7/8 导出的 .gp'};
+    try{ return parseGPIFXml(u8utf8(zipExtract(u8, ent))); }
+    catch(err){ return {error:'解压失败：'+err.message}; }
   }
-  const list=zipList(u8); if(!list) return {error:'ZIP 结构损坏'};
-  const ent=list.find(x=>/score\.gpif$/i.test(x.name));
-  if(!ent) return {error:'包内未找到 score.gpif——不是 Guitar Pro 7/8 导出的 .gp'};
-  let xml; try{ xml=u8utf8(zipExtract(u8, ent)); }catch(err){ return {error:'解压失败：'+err.message}; }
+  if(u8[0]===0x42&&u8[1]===0x43&&u8[2]===0x46&&u8[3]===0x5a){   /* v55.9 GP6 .gpx：BCFZ 解压 → BCFS 文件系统 → score.gpif */
+    try{
+      const fs2=bcfzDecompress(u8);
+      const gpif=bcfsFind(fs2,'score.gpif');
+      if(!gpif) return {error:'.gpx 内未找到 score.gpif'};
+      return parseGPIFXml(u8utf8(gpif));
+    }catch(err){ return {error:'.gpx 解压失败：'+(err&&err.message)}; }
+  }
+  if(u8.length>31 && u8[0]<=30){   /* v55.9 GP3/4/5 二进制：首字节=版本串长度 */
+    let vs=''; for(let i=1;i<=Math.min(30,u8[0]);i++) vs+=String.fromCharCode(u8[i]);
+    if(/FICHIER GUITAR PRO/i.test(vs)) return parseGP345(u8);
+  }
+  return {error:'无法识别的文件——支持 .gp（GP7/8）、.gpx（GP6）、.gp3/.gp4/.gp5'};
+}
+function parseGPIFXml(xml){
   const doc=new DOMParser().parseFromString(xml,'application/xml');
   if(doc.querySelector('parsererror')) return {error:'score.gpif 不是合法 XML'};
   const T=(el,sel)=>{ const n=el&&el.querySelector(sel); return n? n.textContent.trim():null; };
@@ -13276,10 +13626,32 @@ function parseGP(buf){
       const bpm=+v[0]||90, u={1:.5,2:1,3:1.5,4:2,5:3}[+v[1]||2]||1;
       tempo=Math.max(30,Math.min(240,Math.round(bpm*u))); } }
   const sc=doc.querySelector('Score');
-  return { gp:{ doc, T, prop, tracks, masterBars, bars, voices, beats, rhythms, notes, tempo,
+  return { gp:{ kind:'gpif', doc, T, prop, tracks, masterBars, bars, voices, beats, rhythms, notes, tempo,
     title:T(sc,':scope > Title')||'导入曲谱', artist:T(sc,':scope > Artist')||'',
     composer:T(sc,':scope > Music')||'', lyricist:T(sc,':scope > Words')||'',
     maker:T(sc,':scope > Tabber')||'' } };
+}
+/* GP 导入共用后处理（gpif 与 gp3/4/5 二进制两条管线共用）：
+   连音线归到前列；击勾弦/普通滑音连到下一列（同弦优先，比较品位定 h/p）；临时 _ 标记删净防入库 */
+function gpPostLink(colsByMea){
+  let prevPos=null, pend=null;   // pend={type:'hopo'|'sl', note, mi, ci}
+  colsByMea.forEach((cols,mi)=>cols.forEach((col,ci)=>{
+    if(!col.notes || !col.notes.length) return;
+    if(col._tieDest){ if(prevPos) colsByMea[prevPos.mi][prevPos.ci].tie=true; delete col._tieDest; }
+    if(pend){
+      const org=pend.note;
+      const tgt=col.notes.find(x=>x.s===org.s)||col.notes[0];
+      if(!org.tech){
+        org.tech = pend.type==='sl'? 'sl' : (tgt.f>org.f? 'h':'p');
+        org.tk={mi, ci, si:tgt.s};
+      }
+      pend=null;
+    }
+    if(col._hopo){ pend={type:'hopo', note:col.notes[0], mi, ci}; delete col._hopo; }
+    else if(col._sl){ pend={type:'sl', note:col.notes[0], mi, ci}; delete col._sl; }
+    prevPos={mi, ci};
+  }));
+  colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._tieDest; delete col._hopo; delete col._sl; }));
 }
 function buildSongFromGP(gp, selIdx){
   const skip={notes:0, other:0};
@@ -13383,25 +13755,7 @@ function buildSongFromGP(gp, selIdx){
       });
       return cols;
     });
-    /* 后处理：连音线归到前列；击勾弦/普通滑音连到下一列（同弦优先，比较品位定 h/p） */
-    let prevPos=null, pend=null;   // pend={type:'hopo'|'sl', note, mi, ci}
-    colsByMea.forEach((cols,mi)=>cols.forEach((col,ci)=>{
-      if(!col.notes || !col.notes.length) return;
-      if(col._tieDest){ if(prevPos) colsByMea[prevPos.mi][prevPos.ci].tie=true; delete col._tieDest; }
-      if(pend){
-        const org=pend.note;
-        const tgt=col.notes.find(x=>x.s===org.s)||col.notes[0];
-        if(!org.tech){
-          org.tech = pend.type==='sl'? 'sl' : (tgt.f>org.f? 'h':'p');
-          org.tk={mi, ci, si:tgt.s};
-        }
-        pend=null;
-      }
-      if(col._hopo){ pend={type:'hopo', note:col.notes[0], mi, ci}; delete col._hopo; }
-      else if(col._sl){ pend={type:'sl', note:col.notes[0], mi, ci}; delete col._sl; }
-      prevPos={mi, ci};
-    }));
-    colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._tieDest; delete col._hopo; delete col._sl; }));
+    gpPostLink(colsByMea);
     return colsByMea;
   });
   /* 组装 song */
@@ -13449,7 +13803,7 @@ function showGPTrackModal(gp){
     const selIdx=[...document.querySelectorAll('.gp-tk:checked')].map(x=>+x.dataset.i);
     if(!selIdx.length){ toast('请至少选择一条音轨'); return; }
     if(selIdx.length>3){ toast('最多选 3 条音轨'); return; }
-    const r=buildSongFromGP(gp, selIdx);
+    const r = gp.kind==='bin'? buildSongFromGP345(gp, selIdx) : buildSongFromGP(gp, selIdx);
     if(r.error){ toast('导入失败：'+r.error); return; }
     closeModal();
     addDoc(r.song, ()=>{
@@ -16073,7 +16427,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.8';
+const APP_VER='v55.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16096,6 +16450,7 @@ const APP_VER='v55.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v55.9</span><div><b>Guitar Pro 全版本导入</b>（用户拍板 P2/P3）：在 v55.8 的 GP7/8 基础上，补齐<b>全部旧版本格式</b>——<b>.gp3 / .gp4 / .gp5</b>（2000 年代经典二进制格式，国内曲谱站存量 GTP 的主力）与 <b>.gpx</b>（GP6）。同一个「导入 Guitar Pro」入口自动识别版本：GP6 的 .gpx 容器解压后走 GP7/8 同款解析；GP3/4/5 按逆向字节布局逐段解析（小节头/音轨/双声部/和弦图/混音表等变长结构完整跳读，失步立即报错不产出错谱）。识别内容与 .gp 版一致：品位/和音/时值/连音组/变拍/反复/段落/调号速度变调夹/击勾滑推泛闷延颤/倚音/连音线/和弦名；GP5 双声部取主声部。<b>老文件中文乱码免疫</b>：GP3/4/5 时代中文多为 GBK 编码，UTF-8 解不动时自动回退 GBK，曲名歌手名不再乱码。</div></li>
     <li><span class="v">v55.8</span><div><b>导入 Guitar Pro（.gp）</b>（用户拍板 P1）：新建向导「已有曲子」组新增<b>导入 Guitar Pro</b>——支持 <b>GP7/GP8 的 .gp 文件</b>，选择音轨（最多 3 条，各成一个六线谱声部，打击乐轨自动跳过）后直接进编辑器，可二次编辑、三记谱法互切、发布到谱库。识别内容：多轨品位/和音/休止、时值/附点/连音组、变拍子、反复记号、段落标记、调号/速度/变调夹/特殊调弦、和弦名、击勾弦/滑音/推弦/自然与人工泛音/闷音/延音/颤音、倚音、连音线；多声部取主声部、暂不支持的记号计数提示。老格式 .gp3/.gp4/.gp5 与 GP6 的 .gpx 暂不支持（请用 GP7/8 另存为 .gp）。<b>顺带解锁压缩 MusicXML（.mxl）直接导入</b>（此前须解压另存）。解压引擎为零依赖纯 JS 自研，文件在本机浏览器内解析、不上传。</div></li>
     <li><span class="v">v55.7</span><div><b>微信分享卡诊断开关</b>（配合公众号 JS-SDK 配置排障）：谱页链接加 <code>?wxdebug=1</code>（已有参数则加 <code>&wxdebug=1</code>）后在微信里打开，会逐步弹窗显示分享卡链路每一环的结果——①签名接口是否成功及使用的 appId、②微信是否接受签名（失败会给出 invalid signature / invalid url domain 等具体原因）、③分享内容是否注册成功。正常访问（不带参数）行为不变，配置未就绪时仍静默回退微信默认卡片。</div></li>
     <li><span class="v">v55.6</span><div><b>分享观看页改版：页首指法/变调夹/拍速 + 底栏 ⚙ 设置</b>（用户参考 GTP 排版拍板）：①页首重排——左侧三组可点数值：<b>指法</b>（当前调，点开 ♭/♯ 升降调、点读数还原原调）、<b>变调夹</b>（点开 −/＋ 调品位 0–12，播放音高同步，移调后仍保留）、<b>拍速</b>（点开推子浮层，播放中即时变速）；右侧只留三个圆形图标：<b>收藏 ♥ / 分享卡 / 谱库主页</b>；原标题（谱面自带）、谱库、去制谱按钮移出页首。②底栏新增 <b>⚙ 设置</b>：显示效果（谱面缩放三档 + 谱架模式）、打印 / 导出 PDF、成为创作者（免费制谱入口）——设置内容后续会持续扩充。三处调节都作用在观看副本上，<b>不改动原谱</b>。</div></li>

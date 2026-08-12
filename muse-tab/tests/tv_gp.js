@@ -210,6 +210,133 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
   });
   T(t9.gpx && t9.gp5 && t9.bad, 'T9 容错(gpx/gp5/坏包)', JSON.stringify(t9));
 
+  /* ===== v55.9 旧格式：GP5/GP4 二进制夹具（镜像读取器布局）+ GPX（BCFZ+BCFS） ===== */
+  const mkW = () => { const a = [];
+    const w = { arr: a,
+      b: v => a.push(v & 255),
+      i: v => a.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255),
+      sh: v => a.push(v & 255, (v >> 8) & 255),
+      z: n => { for (let i = 0; i < n; i++) a.push(0); },
+      bss: (s, size) => { const bf = Buffer.from(s, 'utf8'); a.push(Math.min(bf.length, size));
+        for (let i = 0; i < size; i++) a.push(i < bf.length ? bf[i] : 0); },
+      ibs: s => { const bf = Buffer.from(s, 'utf8'); w.i(bf.length + 1); a.push(bf.length); bf.forEach(x => a.push(x)); },
+      iss: s => { const bf = Buffer.from(s, 'utf8'); w.i(bf.length); bf.forEach(x => a.push(x)); } };
+    return w; };
+  const gp5Buf = (() => {
+    const w = mkW();
+    w.bss('FICHIER GUITAR PRO v5.10', 30);
+    ['T5测试', '', '歌手5', '', '词', '曲', '', '制谱', ''].forEach(s => w.ibs(s)); w.i(0);   // 9 信息串+0 注释
+    w.i(0); for (let i = 0; i < 5; i++) { w.i(0); w.iss(''); }        // 歌词
+    w.i(0); w.z(4); w.z(11);                                          // RSE 主效果(5.1)
+    w.z(30); for (let i = 0; i < 10; i++) w.ibs('');                  // 页面设置
+    w.ibs('');                                                        // 速度文本
+    w.i(100); w.b(0);                                                 // tempo + hideTempo
+    w.b(2); w.i(0);                                                   // key=D(2) + octave
+    for (let i = 0; i < 64; i++) { w.i(0); w.z(8); }                  // 通道
+    w.z(42);                                                          // 指示记号
+    w.i(2); w.i(1);                                                   // 2 小节 1 轨
+    w.b(0x07); w.b(4); w.b(4); w.z(4); w.z(1); w.b(0);                // 头1：4/4+反复开始+beams+pad+tripletFeel
+    w.z(1); w.b(0x00); w.z(1); w.b(0);                                // 头2：间隔字节+flags0+pad+tripletFeel
+    w.z(1); w.b(0);                                                   // 轨1：前导字节+flags
+    w.bss('Lead', 40); w.i(6);
+    [64, 59, 55, 50, 45, 40, 0].forEach(v => w.i(v));                 // 标准定弦（弦1 高音e 在前）
+    w.i(1); w.i(1); w.i(2); w.i(24); w.i(1); w.i(0);                  // port/ch/chE/frets/capo=1/color
+    w.z(29);                                                          // flags2+autoAccent+bank+humanize+24 未知
+    w.i(0); w.i(0); w.i(0); w.i(0);                                   // RSE 乐器 3 ints + effectNumber(5.1)
+    w.z(4); w.ibs(''); w.ibs('');                                     // 均衡+效果名×2
+    w.z(1);                                                           // 全部轨后 skip(1)（5.1）
+    /* 小节1 轨1：声部1=2 拍（四分音 弦1品7 + 四分休止），声部2=0 拍，行尾字节 */
+    w.i(2);
+    w.b(0x00); w.b(0); w.b(0x40); w.b(0x20); w.b(1); w.b(7); w.z(1); w.sh(0);   // 音拍：dur0+弦1+note(type1,f7)+pad+short
+    w.b(0x40); w.b(0x02); w.b(0); w.b(0x00); w.sh(0);                            // 休止拍
+    w.i(0); w.b(0);
+    /* 小节2 轨1：声部1=1 拍（四分 弦1品9 tie 目标→前列应得 tie），声部2=0，行尾 */
+    w.i(1);
+    w.b(0x00); w.b(0); w.b(0x40); w.b(0x20); w.b(2); w.b(9); w.z(1); w.sh(0);
+    w.i(0); w.b(0);
+    return Buffer.from(w.arr);
+  })();
+  const gp4Buf = (() => {
+    const w = mkW();
+    w.bss('FICHIER GUITAR PRO v4.06', 30);
+    ['T4测试', '', '', '', '', '', '', ''].forEach(s => w.ibs(s)); w.i(0);   // 8 信息串（无「曲」）
+    w.b(0);                                                           // tripletFeel
+    w.i(0); for (let i = 0; i < 5; i++) { w.i(0); w.iss(''); }        // 歌词
+    w.i(88);                                                          // tempo
+    w.b(0); w.i(0);                                                   // key C + octave
+    for (let i = 0; i < 64; i++) { w.i(0); w.z(8); }
+    w.i(1); w.i(1);                                                   // 1 小节 1 轨
+    w.b(0x03); w.b(3); w.b(4);                                        // 头：3/4
+    w.b(0); w.bss('Gtr', 40); w.i(6);
+    [64, 59, 55, 50, 45, 40, 0].forEach(v => w.i(v));
+    w.i(1); w.i(1); w.i(2); w.i(24); w.i(0); w.i(0);
+    w.i(1);                                                           // 1 拍
+    w.b(0x00); w.b(0); w.b(0x20); w.b(0x20); w.b(1); w.b(5);          // 四分 弦2(bit5) note f5
+    return Buffer.from(w.arr);
+  })();
+  const gpxBuf = (() => {
+    const content = Buffer.from(GPIF);
+    const nSec = 2 + Math.ceil(content.length / 0x1000);
+    const fsB = Buffer.alloc(nSec * 0x1000);
+    fsB.write('BCFS', 0, 'latin1');
+    fsB.writeInt32LE(2, 0x1000); fsB.write('score.gpif', 0x1004, 'latin1');
+    fsB.writeInt32LE(content.length, 0x1000 + 0x8C);
+    for (let i = 0; i < nSec - 2; i++) fsB.writeInt32LE(2 + i, 0x1000 + 0x94 + i * 4);
+    content.copy(fsB, 0x2000);
+    const bits = [];
+    const pushB = (v, n, msb) => { for (let i = 0; i < n; i++) bits.push(msb ? (v >> (n - 1 - i)) & 1 : (v >> i) & 1); };
+    for (let i = 0; i < fsB.length; i += 3) {
+      const sz = Math.min(3, fsB.length - i);
+      bits.push(0); pushB(sz, 2, false);
+      for (let k = 0; k < sz; k++) pushB(fsB[i + k], 8, true);
+    }
+    const bytes = []; for (let i = 0; i < bits.length; i += 8) { let v = 0; for (let k = 0; k < 8; k++) v = (v << 1) | (bits[i + k] || 0); bytes.push(v); }
+    const head = Buffer.alloc(8); head.write('BCFZ', 0, 'latin1'); head.writeInt32LE(fsB.length, 4);
+    return Buffer.concat([head, Buffer.from(bytes)]);
+  })();
+
+  // T10 GP5 二进制：元数据/调号/变调夹/音符/休止/跨小节 tie/反复
+  const t10 = await pg.evaluate((s) => {
+    const u8 = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    const r = parseGP(u8.buffer);
+    if (r.error) return { error: r.error };
+    const br = buildSongFromGP345(r.gp, [0]);
+    if (br.error) return { error: br.error };
+    const sg = br.song, c0 = sg.measures[0].tabs[0], c1 = sg.measures[1].tabs[0];
+    return { kind: r.gp.kind, ver: r.gp.ver, title: sg.title, singer: sg.singer, tempo: sg.tempo, key: sg.key,
+      capo: sg.capo, nMea: sg.measures.length, repS: sg.measures[0].repeatStart,
+      n0: c0[0].notes[0], tie0: !!c0[0].tie, rest: c0[1].notes.length === 0, n1: c1[0].notes[0],
+      tuningStd: sg.tuning === undefined };
+  }, gp5Buf.toString('base64'));
+  T(!t10.error && t10.kind === 'bin' && t10.ver === '5.10' && t10.title === 'T5测试' && t10.singer === '歌手5'
+    && t10.tempo === 100 && t10.key === 'D' && t10.capo === 1 && t10.nMea === 2 && t10.repS === true
+    && t10.n0 && t10.n0.s === 1 && t10.n0.f === 7 && t10.tie0 === true && t10.rest
+    && t10.n1 && t10.n1.f === 9 && t10.tuningStd, 'T10 GP5 二进制导入', JSON.stringify(t10));
+
+  // T11 GP4 二进制：3/4 拍号 + 弦2 音符
+  const t11 = await pg.evaluate((s) => {
+    const u8 = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    const r = parseGP(u8.buffer);
+    if (r.error) return { error: r.error };
+    const br = buildSongFromGP345(r.gp, [0]);
+    if (br.error) return { error: br.error };
+    const sg = br.song;
+    return { ver: r.gp.ver, title: sg.title, tempo: sg.tempo, beats: sg.beats,
+      n0: sg.measures[0].tabs[0][0].notes[0] };
+  }, gp4Buf.toString('base64'));
+  T(!t11.error && t11.ver === '4.6' && t11.title === 'T4测试' && t11.tempo === 88 && t11.beats === 3
+    && t11.n0 && t11.n0.s === 2 && t11.n0.f === 5, 'T11 GP4 二进制导入', JSON.stringify(t11));
+
+  // T12 GPX（GP6 BCFZ 容器）：解压后复用 GPIF 管线
+  const t12 = await pg.evaluate((s) => {
+    const u8 = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    const r = parseGP(u8.buffer);
+    if (r.error) return { error: r.error };
+    const br = buildSongFromGP(r.gp, [0]);
+    return { kind: r.gp.kind, title: r.gp.title, nMea: br.song ? br.song.measures.length : 0 };
+  }, gpxBuf.toString('base64'));
+  T(!t12.error && t12.kind === 'gpif' && t12.title === 'GP导入测试' && t12.nMea === 3, 'T12 GPX(BCFZ) 导入', JSON.stringify(t12));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
