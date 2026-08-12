@@ -201,6 +201,54 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.g8 >= 3 && r.g16 >= 3 && r.g32 >= 3, 'T8 六弦数字与符杠净距≥3px(8/16/32分)', JSON.stringify(r));
 
+  // T9 v56.0 增时线快捷操作（简谱）：D 延长逐级 1→2→3→4 拍吸收休止、上限拒绝、Shift+D 缩短补休止
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur) => ({dur: dur||4, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:1, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(5,4), Vc(0,4), Vc(0,4), Vc(0,4)];   // 5 + 三拍休止
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:0, ci:0}); selRange = null;
+    const cols = () => song.measures[0].voxes[0];
+    const st = () => [cols()[0].dur, !!cols()[0].dotted, cols().length].join(',');
+    const out = {};
+    extendBeat(1); out.b2 = st();               // 2,false,3（吸掉 1 个休止）
+    extendBeat(1); out.b3 = st();               // 2,true,2
+    extendBeat(1); out.b4 = st();               // 1,false,1（全音符独占小节）
+    extendBeat(1); out.cap = st();              // 拒绝：仍 1,false,1
+    const dash = (document.getElementById('score').innerHTML.match(/>–</g)||[]).length;
+    out.dash3 = dash;                            // 4 拍=3 条增时线
+    extendBeat(-1); out.shrink = st()+';'+(cols()[1] && !cols()[1].deg ? 'rest' : 'x');   // 缩回 3 拍+补休止
+    return out;
+  });
+  T(r.b2 === '2,false,3' && r.b3 === '2,true,2' && r.b4 === '1,false,1' && r.cap === '1,false,1'
+    && r.dash3 === 3 && r.shrink === '2,true,2;rest', 'T9 增时线延长/缩短(简谱)', JSON.stringify(r));
+
+  // T10 v56.0 增时线：后面是音符时拒绝；长休止精确缩短；TAB 行同操作生效
+  r = await pg.evaluate(() => {
+    const Vc = (deg, dur, dotted) => ({dur: dur||4, dotted:!!dotted, deg, acc:'', oct:0, lyrics:[], tie:false});
+    const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:1, nVox:1, lyr:0});
+    s.measures[0].voxes[0] = [Vc(5,4), Vc(3,4), Vc(0,2)];            // 5 后面紧跟音符 3
+    loadSong(s);
+    Object.assign(sel, {row:'vox', vi:0, mi:0, ci:0}); selRange = null;
+    const cols = () => song.measures[0].voxes[0];
+    const out = {};
+    extendBeat(1); out.blocked = cols()[0].dur === 4 && cols().length === 3;   // 拒绝不动
+    sel.ci = 1; extendBeat(1);                                       // 音符3 吸收 2 拍休止的 1 拍
+    out.partial = [cols()[1].dur, cols()[2].dur].join(',');          // 2,4（休止 2拍→1拍）
+    /* TAB 行 */
+    const s2 = createSong('guitar', {beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:1, lyr:0});
+    s2.measures[0].tabs[0] = [
+      {dur:4, dotted:false, notes:[{s:1,f:3}]},
+      {dur:4, dotted:false, notes:[]}, {dur:4, dotted:false, notes:[]}, {dur:4, dotted:false, notes:[]}];
+    loadSong(s2);
+    Object.assign(sel, {row:'tab', vi:0, mi:0, ci:0, si:1}); selRange = null;
+    extendBeat(1); extendBeat(1);
+    const tc = song.measures[0].tabs[0];
+    out.tab = [tc[0].dur, !!tc[0].dotted, tc.length].join(',');      // 2,true,2
+    return out;
+  });
+  T(r.blocked === true && r.partial === '2,4' && r.tab === '2,true,2', 'T10 增时线(拒绝/精确缩短/TAB同步)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

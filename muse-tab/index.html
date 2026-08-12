@@ -7131,6 +7131,64 @@ function dotLink(cols, ci, wasBeatLast){
 }
 /* v48.2 附点回落到刚落的音：内部「附点＋半时值邻音」联动全靠 sel.ci 索引做邻位查找，
    改索引易错，故临时把光标移回刚落的那一列再走原逻辑，完事复位——与 ♯♭♮/八度/×分解 行为一致 */
+/* ===== v56.0 增时线快捷操作（用户需求：4/4 里「一个主音 + 两拍延长」应像打横线一样简单）=====
+   extendBeat(+1)：当前音延长一拍（1拍→2拍→3拍→4拍，对应 4分→2分→2分附点→全音符），
+   延长所需时值自动从其后连续的休止列吸收（整列删除 / 长休止精确缩短），小节总时值保持不变；
+   本小节腾不出 1 拍（后面是音符/连音组/到头）则拒绝并提示。extendBeat(-1)：缩短一拍，原位补 1 拍休止。
+   简谱行按 GB 惯例逐拍画增时线「－」，五线谱行/TAB 行同一操作落成对应时值——各谱类通用（同一列模型）。 */
+function extendBeat(dir){
+  const cols=curRowCols(); const col=cols&&cols[sel.ci];
+  if(!col){ toast('先选中一个音'); return; }
+  if(col.tup){ toast('连音组内的音不能做增时线操作'); return; }
+  if(col.dotted===2){ toast('双附点音不支持增时线操作'); return; }
+  const isRestCol=c=> sel.row==='tab'? !(c.notes&&c.notes.length) : !c.deg;
+  const LAD=[[4,0],[2,0],[2,1],[1,0]];   // 1/2/3/4 拍 ↔ [dur,dotted]
+  const idx=LAD.findIndex(L=>L[0]===col.dur && !!col.dotted===!!L[1]);
+  if(idx<0){ toast(dir>0?'增时线用于 1 拍及以上的音——先把时值设为 4 分':'该时值不支持缩短一拍'); return; }
+  const ni=idx+dir;
+  if(ni>=LAD.length){ toast('已到 4 拍（一小节上限）——更长请用连音线延到下一小节'); return; }
+  if(ni<0){ toast('已是 1 拍——更短请直接选 8 分 / 16 分时值'); return; }
+  const colQ=c=>{ let q=4/(c.dur||4); if(c.dotted===2) q*=1.75; else if(c.dotted) q*=1.5;
+    if(c.tup){ const n=c.tup===1?3:c.tup, m=c.tupM||(n===3?2:4); q=q*m/n; } return q; };
+  if(dir>0){
+    const mea=song.measures[sel.mi];
+    const cap=(mea.beats||song.beats)*4/((mea.unit||song.unit)||4);
+    const total=cols.reduce((a,c)=>a+colQ(c),0);
+    /* 预演吸收方案（不动数据）：小节空隙优先，其后连续休止整删/精确缩短 */
+    const R2D={'4':[1,0],'3':[2,1],'2':[2,0],'1.5':[4,1],'1':[4,0],'0.75':[8,1],'0.5':[8,0],'0.375':[16,1],'0.25':[16,0],'0.125':[32,0]};
+    const plan=(()=>{
+      let need=1-Math.max(0,cap-total);
+      const acts=[];
+      let i=sel.ci+1;
+      while(need>1e-6 && i<cols.length){
+        const c=cols[i];
+        if(!isRestCol(c) || c.tup) return null;
+        const q=colQ(c);
+        if(q<=need+1e-6){ acts.push({del:i}); need-=q; i++; }
+        else { const r=R2D[String(+(q-need).toFixed(3))]; if(!r) return null;
+          acts.push({shrink:i, dur:r[0], dotted:r[1]===1}); need=0; }
+      }
+      return need>1e-6? null : acts;
+    })();
+    if(!plan){ toast('本小节腾不出 1 拍：先删掉其后的音符，或用连音线延到下一小节'); return; }
+    mutate(()=>{
+      plan.slice().reverse().forEach(a=>{
+        if(a.del!=null) cols.splice(a.del,1);
+        else { const c=cols[a.shrink]; c.dur=a.dur; c.dotted=a.dotted; }
+      });
+      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1];
+    });
+    toast('已延长为 '+(ni+1)+' 拍'+(sel.row!=='tab'?'（'+ni+' 条增时线）':''));
+  } else {
+    mutate(()=>{
+      col.dur=LAD[ni][0]; col.dotted=!!LAD[ni][1];
+      const rest = sel.row==='tab'? {dur:4, dotted:false, notes:[]}
+        : {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false};
+      cols.splice(sel.ci+1, 0, rest);   // 缩短腾出的一拍以休止补位，小节总时值不变
+    });
+    toast('已缩短为 '+(ni+1)+' 拍（原位补 1 拍休止）');
+  }
+}
 function toggleDot(){
   if(!selRange && atLanding() && modCol()!==curCol()){
     const b=lastEnt.pos, keep={mi:sel.mi, ci:sel.ci};
@@ -7387,10 +7445,11 @@ function applyVoxPattern(pat){
   const DUR_GLYPH = {1:'𝅝',2:'𝅗𝅥',4:'♩',8:'♪',16:'𝅘𝅥𝅯',32:'𝅘𝅥𝅰',64:'𝅘𝅥𝅱'};
   ebDur.innerHTML = DUR_SINGLE.map(d=>
     `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${DUR_GLYPH[d.dur]||d.dur}</span><span class="dn">${d.name}</span></button>`
-  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`;
+  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`
+  + `<button class="eb" id="eb-ext" title="增时线：当前音延长一拍（1拍→2拍→3拍→4拍，简谱按 GB 惯例画增时线「－」，自动吸收其后的休止时值）；快捷键 D，Shift+D 缩短一拍。各谱类通用" aria-label="增时线"><span class="dg">5－</span><span class="dn">增时线</span></button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
-    if(b.id==='eb-dot') toggleDot(); else setDur(+b.dataset.dur);
+    if(b.id==='eb-dot') toggleDot(); else if(b.id==='eb-ext') extendBeat(1); else setDur(+b.dataset.dur);
   });
   /* 节奏（组合时值）按钮：图示（符杠）在上、名称在下。
      v47.2 全量生成：左栏「节奏」图层全部铺开（.combo-extra 由 CSS 控制——经典版顶栏仍只显前 4+更多，
@@ -8198,6 +8257,8 @@ window.addEventListener('keydown', e=>{
     case '-': if(sel.row==='vox') bumpOct(-1); break;
     case '~': if(sel.row==='vox') toggleTie(); break;
     case 'x': if(sel.row==='tab') toggleMute(); break;
+    case 'd': extendBeat(1); break;    /* v56.0 增时线：延长一拍 */
+    case 'D': extendBeat(-1); break;   /* Shift+D 缩短一拍 */
     case 'q': setDur(1); break;
     case 'w': setDur(2); break;
     case 'e': setDur(4); break;
@@ -16427,7 +16488,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v55.9';
+const APP_VER='v56.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16450,6 +16511,7 @@ const APP_VER='v55.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.0</span><div><b>增时线一键延长</b>（用户需求：简谱里给主音加两拍延长拍应像打横线一样简单）：时值组新增<b>「增时线」按钮</b>（快捷键 <b>D</b>）——点一下当前音延长一拍：1拍→2拍→3拍→4拍（简谱按国标画增时线「－」，不再需要换算成「2分+附点」）；延长所需的时值<b>自动从其后的休止吸收</b>（整拍休止直接吃掉、长休止精确缩短），小节总时值始终保持正确；后面是音符或本小节腾不出位时会明确提示（跨小节延音请用连音线）。<b>Shift+D 反向缩短一拍</b>，腾出的时值原位补休止。同一操作在<b>所有谱类通用</b>：简谱行画增时线、五线谱行落成二分/附点二分/全音符、吉他谱 TAB 行同步时值。</div></li>
     <li><span class="v">v55.9</span><div><b>Guitar Pro 全版本导入</b>（用户拍板 P2/P3）：在 v55.8 的 GP7/8 基础上，补齐<b>全部旧版本格式</b>——<b>.gp3 / .gp4 / .gp5</b>（2000 年代经典二进制格式，国内曲谱站存量 GTP 的主力）与 <b>.gpx</b>（GP6）。同一个「导入 Guitar Pro」入口自动识别版本：GP6 的 .gpx 容器解压后走 GP7/8 同款解析；GP3/4/5 按逆向字节布局逐段解析（小节头/音轨/双声部/和弦图/混音表等变长结构完整跳读，失步立即报错不产出错谱）。识别内容与 .gp 版一致：品位/和音/时值/连音组/变拍/反复/段落/调号速度变调夹/击勾滑推泛闷延颤/倚音/连音线/和弦名；GP5 双声部取主声部。<b>老文件中文乱码免疫</b>：GP3/4/5 时代中文多为 GBK 编码，UTF-8 解不动时自动回退 GBK，曲名歌手名不再乱码。</div></li>
     <li><span class="v">v55.8</span><div><b>导入 Guitar Pro（.gp）</b>（用户拍板 P1）：新建向导「已有曲子」组新增<b>导入 Guitar Pro</b>——支持 <b>GP7/GP8 的 .gp 文件</b>，选择音轨（最多 3 条，各成一个六线谱声部，打击乐轨自动跳过）后直接进编辑器，可二次编辑、三记谱法互切、发布到谱库。识别内容：多轨品位/和音/休止、时值/附点/连音组、变拍子、反复记号、段落标记、调号/速度/变调夹/特殊调弦、和弦名、击勾弦/滑音/推弦/自然与人工泛音/闷音/延音/颤音、倚音、连音线；多声部取主声部、暂不支持的记号计数提示。老格式 .gp3/.gp4/.gp5 与 GP6 的 .gpx 暂不支持（请用 GP7/8 另存为 .gp）。<b>顺带解锁压缩 MusicXML（.mxl）直接导入</b>（此前须解压另存）。解压引擎为零依赖纯 JS 自研，文件在本机浏览器内解析、不上传。</div></li>
     <li><span class="v">v55.7</span><div><b>微信分享卡诊断开关</b>（配合公众号 JS-SDK 配置排障）：谱页链接加 <code>?wxdebug=1</code>（已有参数则加 <code>&wxdebug=1</code>）后在微信里打开，会逐步弹窗显示分享卡链路每一环的结果——①签名接口是否成功及使用的 appId、②微信是否接受签名（失败会给出 invalid signature / invalid url domain 等具体原因）、③分享内容是否注册成功。正常访问（不带参数）行为不变，配置未就绪时仍静默回退微信默认卡片。</div></li>
