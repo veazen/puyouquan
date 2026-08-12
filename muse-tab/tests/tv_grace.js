@@ -287,6 +287,38 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.g1 === 38 && r.g2 === 38 && r.g3 === 45, 'T15 TAB↔简谱净距底线(38不随行距压缩)', JSON.stringify(r));
 
+  // T16 v56.2 简谱倚音连接线：直角折线（M-L-L 描边）改 1/5 弧线——
+  //     倚音热区内不再有折线、存在 tieSVG 弧且弧深≈弦长/5（几何断言）
+  r = await pg.evaluate(() => {
+    const V = (deg, dur, o) => Object.assign({ dur: dur||4, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o||{});
+    const s = createSong('vocal', { title: 'ga', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
+    s.measures[0].voxes[0] = [V(5,4,{grace:{notes:[{deg:6,oct:0}],dur:8}}),
+      V(3,4,{grace:{notes:[{deg:4,oct:0},{deg:2,oct:0}],dur:16}}), V(2,4), V(6,4,{graceA:{notes:[{deg:5,oct:0}],dur:8}})];
+    loadSong(s); blurSel = true; render();
+    const zones = [...document.querySelectorAll('#score rect[data-grace]')].map(z =>
+      ({ x:+z.getAttribute('x')-3, y:+z.getAttribute('y')-3, r:+z.getAttribute('x')+ +z.getAttribute('width')+3, b:+z.getAttribute('y')+ +z.getAttribute('height')+3 }));
+    const inZone = (xs, ys) => zones.some(z => Math.min(...xs)>=z.x && Math.max(...xs)<=z.r && Math.min(...ys)>=z.y && Math.max(...ys)<=z.b);
+    /* 直角折线已消失：倚音区内无 M-L-L 描边 path */
+    const elbows = [...document.querySelectorAll('#score path[fill="none"]')].filter(p2 => {
+      const d = p2.getAttribute('d')||'';
+      if(!/^M [\d.-]+ [\d.-]+ L [\d.-]+ [\d.-]+ L /.test(d)) return false;
+      const n = d.match(/-?[\d.]+/g).map(Number);
+      return inZone(n.filter((_,i)=>i%2===0), n.filter((_,i)=>i%2===1));
+    });
+    /* 弧线存在且弧深≈弦长/5：tieSVG d=[x1,y1, mx,qy, x2,y2, mx,q2, x1,y1] */
+    const arcs = [...document.querySelectorAll('#score path[fill="var(--ink)"]')]
+      .map(p2 => p2.getAttribute('d')||'').filter(d => /^M .+ Q .+ Q .+ Z$/.test(d))
+      .map(d => d.match(/-?[\d.]+/g).map(Number))
+      .filter(n => inZone(n.filter((_,i)=>i%2===0), n.filter((_,i)=>i%2===1)));
+    const devs = arcs.map(n => { const L = Math.hypot(n[4]-n[0], n[5]-n[1]);
+      return { dev: (n[3]-(n[1]+n[5])/2)/2, want: L/5 }; });
+    return { elbows: elbows.length, nArcs: arcs.length,
+      depthOK: devs.length>0 && devs.every(d2 => Math.abs(d2.dev-d2.want) < 0.35),
+      devs: devs.map(d2 => +d2.dev.toFixed(2)+'/'+ +d2.want.toFixed(2)).join(' '),
+      nan: document.getElementById('score').innerHTML.includes('NaN') };
+  });
+  T(r.elbows === 0 && r.nArcs >= 3 && r.depthOK && !r.nan, 'T16 倚音连接线1/5弧线(无直角+弧深=弦长/5)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

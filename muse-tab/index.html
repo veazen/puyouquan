@@ -5736,13 +5736,15 @@ function render(){
             /* 共用减时线：横跨整组 */
             for(let u=0;u<gu;u++)
               p.push(`<line x1="${gxc-3.6}" y1="${gyb+1.4+u*LSP}" x2="${gxc+gW+3.6}" y2="${gyb+1.4+u*LSP}" stroke="var(--ink)" stroke-width="0.8"/>`);
-            /* 倚音连接线：一个直角——竖边起点在倚音正下方（自动让过减时线与低音点），
-               横边终点搭在主音符腰部；减时线/低音点越多，转角自动下移 */
+            /* v56.2 倚音连接线：直角折线改 1/5 弧线（用户指示）——从倚音组正下方连到主音腰部的
+               小连音弧（tieSVG 出版级两头细尖，与 TAB 倚音/推弦连线同款），弧深=弦长/5、
+               朝下弓出（开口朝上，凹向主音）；起点沿用原让位逻辑（减时线/低音点越多越下移） */
             const yTop = gyb+extBelow+(maxLow?1:1.2);
-            const yH = waistY;                             // 横边固定在主音符腰线，不再下移
+            const yH = waistY;                             // 终点搭在主音符腰线
             const gx = gxc+gW/2;                          // 倚音组正下方
             const xe = pre? nx-6.5 : nx+6.5;              // 主音符腰部（左/右侧）
-            p.push(`<path d="M ${gx} ${yTop} L ${gx} ${yH} L ${xe} ${yH}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+            const Lc = Math.hypot(xe-gx, yH-yTop)||1;     // 弦长；t=.5 处弧深=(qy-my)/2=Lc/5
+            p.push(tieSVG(gx, yTop, xe, yH, (yTop+yH)/2 + Lc*0.4, 1.1));
             graceZones.push(`<rect x="${gxc-7}" y="${gyb-17}" width="${gW+14}" height="${yH-(gyb-17)+3}" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
           };
           /* 五线谱倚音：小符头 + 小符干 + 微型符杠 + 倚音斜杠（前/后各居主音一侧） */
@@ -16523,7 +16525,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.1';
+const APP_VER='v56.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16546,6 +16548,7 @@ const APP_VER='v56.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.2</span><div><b>倚音连接线改弧线</b>（用户指示）：简谱倚音与主音之间的连接线由<b>直角折线</b>改为<b>小连音弧</b>——从倚音组下方弯到主音腰部、弧深为弦长的 1/5（开口朝上、凹向主音），与吉他谱倚音/推弦连线同款出版级两头细尖弧形；原有的避让逻辑不变（减时线越多、低八度点越多，起点自动下移）。前倚音/后倚音、单音/多音倚音组全部生效。新增几何回归（tv_grace T16：无直角折线 + 弧深=弦长/5）。</div></li>
     <li><span class="v">v56.1</span><div><b>跨行连音线两段式续接</b>（用户反馈优化）：连音线的目标音被排到下一行时，按出版惯例画成<b>两段半弧</b>——行末从起音画「出线半弧」并<b>止于行尾小节线内</b>（此前弧线戳出小节线约 10px 悬在页边），下一行行首新增<b>「进入半弧」</b>连到目标音（此前新行完全没有续接，连音线看起来断头）。简谱、五线谱（含钢琴大谱表）、吉他谱 TAB（连音线 tk）三类记谱同步修正；同行内的跨小节连音线行为不变。新增跨行连音线几何回归 3 项（tv_sign T13a/T13b/T14）。</div></li>
     <li><span class="v">v56.0</span><div><b>增时线一键延长</b>（用户需求：简谱里给主音加两拍延长拍应像打横线一样简单）：时值组新增<b>「增时线」按钮</b>（快捷键 <b>D</b>）——点一下当前音延长一拍：1拍→2拍→3拍→4拍（简谱按国标画增时线「－」，不再需要换算成「2分+附点」）；延长所需的时值<b>自动从其后的休止吸收</b>（整拍休止直接吃掉、长休止精确缩短），小节总时值始终保持正确；后面是音符或本小节腾不出位时会明确提示（跨小节延音请用连音线）。<b>Shift+D 反向缩短一拍</b>，腾出的时值原位补休止。同一操作在<b>所有谱类通用</b>：简谱行画增时线、五线谱行落成二分/附点二分/全音符、吉他谱 TAB 行同步时值。</div></li>
     <li><span class="v">v55.9</span><div><b>Guitar Pro 全版本导入</b>（用户拍板 P2/P3）：在 v55.8 的 GP7/8 基础上，补齐<b>全部旧版本格式</b>——<b>.gp3 / .gp4 / .gp5</b>（2000 年代经典二进制格式，国内曲谱站存量 GTP 的主力）与 <b>.gpx</b>（GP6）。同一个「导入 Guitar Pro」入口自动识别版本：GP6 的 .gpx 容器解压后走 GP7/8 同款解析；GP3/4/5 按逆向字节布局逐段解析（小节头/音轨/双声部/和弦图/混音表等变长结构完整跳读，失步立即报错不产出错谱）。识别内容与 .gp 版一致：品位/和音/时值/连音组/变拍/反复/段落/调号速度变调夹/击勾滑推泛闷延颤/倚音/连音线/和弦名；GP5 双声部取主声部。<b>老文件中文乱码免疫</b>：GP3/4/5 时代中文多为 GBK 编码，UTF-8 解不动时自动回退 GBK，曲名歌手名不再乱码。</div></li>
