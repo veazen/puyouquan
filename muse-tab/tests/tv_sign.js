@@ -448,8 +448,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       +t2.getAttribute('x') >= z0.x && +t2.getAttribute('x') <= z0.x+z0.w &&
       Math.abs(+t2.getAttribute('y') - yy) < 8);
     const nx = ft? +ft.getAttribute('x') : z0.x + z0.w/2;
-    const inArc = arcs.find(a => a.x1 >= nx-6.5 && a.x1 <= nx-3.5 && a.x0 >= nx-26 &&
-      a.y0 >= yy-16 && a.y1 <= yy-2);
+    /* v57.6 连音线抬到音符上方口径：进入半弧终点=音符中心-1、y 带 [yy-18, yy-9.5]（此前 nx-5 / [yy-13, yy-4.5]） */
+    const inArc = arcs.find(a => a.x1 >= nx-2.5 && a.x1 <= nx+0.5 && a.x0 >= nx-26 &&
+      a.y0 >= yy-20 && a.y1 <= yy-7);
     return { rows: rowY.length, miB, hasIn: !!inArc,
       bad: /NaN|undefined/.test(document.getElementById('score').innerHTML) };
   });
