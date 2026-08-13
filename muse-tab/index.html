@@ -6850,9 +6850,7 @@ function syncInputs(){
            +(col.tie?' · 连音线':'')+(col.grace?' · 倚音':'')+(col.trem?' · 震音':''))
         : '休止';
     }
-    const editTxt = col
-      ? ('时值 Q–T · 附点「.」· 三连音 · '+(sel.row==='tab'?'品位 0–24 · 技法/记号（左栏）':'音高 0–7 · 记号/装饰（左栏）'))
-      : '';
+    /* v56.6b 「可改」快捷键提示行去除（用户指示）：光标卡只留位置/内容事实行 */
     ci.innerHTML =
       `<div class="ci-row"><span class="ci-k">声部</span><b class="z">${esc(rowNm)}·${esc(voiceNm)}</b></div>`+
       `<div class="ci-row"><span class="ci-k">小节</span><b class="z">第 ${sel.mi+1} / ${song.measures.length}</b></div>`+
@@ -6860,7 +6858,6 @@ function syncInputs(){
       `<div class="ci-row"><span class="ci-k">时值</span><b>${durTxt}</b></div>`+
       (noteTxt?`<div class="ci-row"><span class="ci-k">音符</span><b>${esc(noteTxt)}</b></div>`:'')+
       (col&&col.chord?`<div class="ci-row"><span class="ci-k">和弦</span><b>${esc(col.chord)}</b></div>`:'')+
-      (editTxt?`<div class="ci-row"><span class="ci-k">可改</span><b style="font-weight:400;font-size:11px">${esc(editTxt)}</b></div>`:'')+
       (selRange?`<div class="ci-row"><span class="ci-k">多选</span><b>${selRange.m1+1}–${selRange.m2+1} 小节</b></div>`:'');
   }
   document.getElementById('tab-voices').innerHTML =
@@ -16641,7 +16638,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.6';
+const APP_VER='v56.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16664,6 +16661,7 @@ const APP_VER='v56.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.7</span><div><b>光标位置卡精简</b>（用户指示）：去掉「可改」快捷键提示行，只保留 声部/小节/列/时值/音符/和弦/多选 等位置与内容信息。</div></li>
     <li><span class="v">v56.6</span><div><b>右栏改版：创作页置首 + 自由/智能编辑开关</b>（用户指示）：① 右栏页签改为「<b>创作</b>·信息」，创作页为默认页；② 创作页原「智能预提示」卡移除，改为<b>光标位置</b>＋<b>节拍检查</b>＋创作辅助——编辑时光标信息与时值状态一眼可见；③ 节拍检查卡顶部新增<b>自由编辑 / 智能编辑</b>开关：<b>自由编辑</b>=任意时值与形式编辑曲谱，只提示各小节时值正确与否（可点击定位），不给修复建议；<b>智能编辑</b>（默认）=时值不符时给出补充/删减修复建议，支持单条与全部一键采纳。选择记忆在本机。修复建议列表随卡内联展示，不再悬浮谱面右上角。</div></li>
     <li><span class="v">v56.5</span><div><b>播放功能优化</b>（用户反馈）：① 音轨 <b>S（独奏）/M（静音）/音量</b> 在<b>播放中</b>切换即时生效——此前音量等在起播时一次算死，播放中按了没反应；现在收敛到各轨总线增益（平滑过渡无爆音）。② <b>播放光标升级</b>：默认为<b>整谱光标</b>——高亮条纵向贯穿本行所有声部（此前只罩吉他行）；<b>单独 SOLO 某轨时光标只跟随该轨</b>，滚动也按该轨行定位。③ 顺带修复：静音吉他轨后播放光标整个消失（光标事件此前挂在吉他轨排程里）。新增 tv_mix 播放混音回归套件（7 断言）。</div></li>
     <li><span class="v">v56.4</span><div><b>段落括线不再与和弦图重叠</b>（用户截图反馈）：吉他谱行内和弦图模式下，1/2 房段落括线、排练标记、Segno/Coda 跳转记号画在六线谱上方的记号带里，与同一行的和弦图（底缘更低）发生重叠——现在同一行两者共存时<b>和弦图带自动加高</b>，把括线/标记让到和弦图正下方、六线谱上方的空档，互不相压；没有共存的行不加高，版面不变。新增几何回归（tv_sign T15）。</div></li>

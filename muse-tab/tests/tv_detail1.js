@@ -404,11 +404,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s);
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = []; syncInputs();
     const t = document.getElementById('cursor-info').textContent;
-    return { tabs, ciInfo, makeCards, mxlHidden, libOff, note: /5弦 3品/.test(t) && /击弦/.test(t), edit: /时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
+    /* v56.6b 「可改」快捷键提示行已去除（用户指示），断言不再出现 */
+    return { tabs, ciInfo, makeCards, mxlHidden, libOff, note: /5弦 3品/.test(t) && /击弦/.test(t), noEdit: !/可改|时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
   });
   T(t25.tabs === 'make,info' && t25.ciInfo && t25.makeCards && t25.mxlHidden && t25.libOff,
     'T25 两页签(创作=光标位置+节拍检查+创作帮助，库与导入互操作隐藏)', JSON.stringify(t25));
-  T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
+  T(t25.note && t25.noEdit && t25.chord, 'T26 光标卡音符信息(弦品/技法/和弦，无「可改」行)', JSON.stringify(t25));
 
   // T29 v47.3 顶栏回归：音符/时值/节奏三组恒在顶栏，时值点击生效、后插生效、组标签「音符」
   const t29 = await pg.evaluate(() => {
