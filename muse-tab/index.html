@@ -2631,6 +2631,7 @@ let activeTab = 'tab';
 let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
+let meaBands = {};   /* v56.5 小节→所在系统纵带 {y,h}：整谱播放光标（贯穿所有声部行）用 */
 let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, paused:false, raf:0, prog:null, loop:null, events:[], evIdx:0};
 let playRate = 1;      // 播放倍速：只作用于播放调度，不改动 song.tempo（v38.5）
 let metroOn = false;   // 节拍器开关：播放时叠加拍点声，首拍重音（v38.5）
@@ -4612,6 +4613,9 @@ function render(){
     sysY[si] = cursorY;
     cursorY += sysM[si].h + M.gap;
   });
+  /* v56.5 小节纵带：整谱播放光标覆盖本小节所在系统的全部声部行 */
+  meaBands = {};
+  systems.forEach((sys,si2)=>{ sys.measures.forEach(lm=>{ meaBands[lm.mi]={y:sysY[si2], h:sysM[si2].h}; }); });
   const nPages = pageIdx+1;
   /* 页面白底（衬在内容下方，页间留灰缝） */
   for(let pg=0; pg<nPages; pg++){
@@ -11638,7 +11642,7 @@ function startProgress(t, dur, order, starts){
     if(!audio.playing || !audio.prog){ return; }
     const e = Math.max(0, audio.ctx.currentTime - audio.prog.t);
     while(audio.evIdx<audio.events.length && e>=audio.events[audio.evIdx].tm){
-      const ev=audio.events[audio.evIdx++]; highlight(ev.pre, ev.mi, ev.ci);
+      const ev=audio.events[audio.evIdx++]; highlight(ev.pre, ev.mi, ev.ci, ev.whole);
     }
     let oi=0;
     for(let i=0;i<starts.length;i++){ if(e>=starts[i]) oi=i; else break; }
@@ -11750,8 +11754,11 @@ function play(){
   const starts=[]; let total=0;
   order.forEach(mi=>{ starts.push(total); total+=measureSeconds(mi,spb); });
   const norm = 0.85/Math.sqrt(activeTrackCount());
-  audio.events=[]; audio.evIdx=0;
-  const hlVox = !song.tabVoices.length;
+  /* v56.5 光标事件独立于排程构建（参考轨：单独 SOLO=该轨，否则整谱）；SOLO 切换播放中可重建 */
+  audio.evIdx=0;
+  audio.evCtx={order, starts, spb};
+  audio.events=buildPlayEvents();
+  audio.tracks={};   /* v56.5 轨→总线映射：S/M/音量播放中即时生效 */
   /* v48.6 全曲力度时间线：TAB 列无力度数据入口，但歌曲级强弱（标在简谱声部的 p/mf/f…）
      本就该带动伴奏轨。取第一个含力度记号的简谱声部构建 [{tm,g}] 时间线，TAB 轨按列起点取值。
      无任何力度记号时时间线为空、增益恒 1（零行为变化）。 */
@@ -11771,9 +11778,12 @@ function play(){
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
-    if(!trackAudible('tab',vi)) return;
+    /* v56.5 全轨常排程：静音/独奏/音量收敛到轨道总线增益（播放中切 S/M/音量即时生效，
+       不再在起播时剔除轨——此前播放中按钮无效、且静音吉他轨会连光标一起消失） */
     const tbus = makeTrackBus(ctx, bus, Math.max(-0.4, -0.16 - vi*0.12));
-    const vol = (cfg.vol||1)*norm;
+    audio.tracks['tab:'+vi]=tbus;
+    tbus.dry.gain.value = trackAudible('tab',vi)? (cfg.vol||1) : 0;
+    const vol = norm;
     /* Guitar Pro 式逐弦延音：先把音符按绝对时间铺平，再按弦算「掐断点」——
        同一根弦被再次弹响才掐断旧音（自然响到那一刻再快速阻尼）；
        否则让弦自然延音到采样衰减结束。音符时值只决定下一个音何时开始。 */
@@ -11843,7 +11853,6 @@ function play(){
         if(col.slap && ord2.length) chick(ctx, tbus, t+off, 0.4*vol);      /* v49.4 拍弦：附加拍击噪声 */
         if(col.perc) percHit(ctx, tbus, t+off, col.perc, 0.8*vol*dg);      /* v49.4 打板列（无音符）发打击声 */
         bcum+=beatsOf(col,mUt);
-        if(vi===0) audio.events.push({tm:off, pre:'t0', mi, ci});
         off += durSec;
       });
     });
@@ -11952,12 +11961,14 @@ function play(){
      持续音色（弦乐/长笛/人声）按时值保持——与吉他谱同一套「让音自然延续」模型 */
   song.voxVoices.forEach((_,vi)=>{
     const cfg = trackCfg('vox',vi);
-    if(!trackAudible('vox',vi)) return;
+    /* v56.5 全轨常排程（同 TAB 轨口径）：S/M/音量收敛到轨道总线增益 */
     const tbus = makeTrackBus(ctx, bus, Math.min(0.4, 0.14 + vi*0.12));
+    audio.tracks['vox:'+vi]=tbus;
+    tbus.dry.gain.value = trackAudible('vox',vi)? (cfg.vol||1) : 0;
     /* v48.9 声部角色增益：钢琴谱左手（vi=1 低音谱表）默认约 −3.5dB——伴奏手不压右手（可用轨音量覆盖） */
     const dtp0 = docType(song);
     const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && vi===1)? 0.67 : 1;
-    const vol = (cfg.vol||1)*norm*roleG;
+    const vol = norm*roleG;
     const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
     /* v49.1 踏板模拟条件：钢琴谱左手声部（非持续音色）——和音延音到本声部下一发声列 */
     const pedal = (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
@@ -12024,7 +12035,6 @@ function play(){
             else playInst(cfg.inst, ctx, tbus, midiFreq(am), at2, Math.max(0.08, durSec*0.9), gn, false, {damp:true, vel:vl});
           });
         }
-        if(vi===0 && hlVox) audio.events.push({tm:off, pre:'v0', mi, ci});
         bcum += beatsOf(col,mUv);
         off += durSec;
       });
@@ -12064,17 +12074,67 @@ function play(){
   }
   startProgress(t, total||1, order, starts);
 }
-function highlight(prefix,mi,ci){
+/* v56.5 播放光标参考轨：恰有一轨 SOLO=跟随该轨（单轨光标/滚动）；否则整谱模式——
+   参考时间轴取首个 TAB 声部（无 TAB 时简谱声部 0），光标纵向贯穿本系统全部声部行 */
+function playCursorRef(){
+  const solos=[];
+  song.tabVoices.forEach((_,vi)=>{ if(trackCfg('tab',vi).solo) solos.push({kind:'tab',vi}); });
+  song.voxVoices.forEach((_,vi)=>{ if(trackCfg('vox',vi).solo) solos.push({kind:'vox',vi}); });
+  if(solos.length===1) return {kind:solos[0].kind, vi:solos[0].vi, whole:false};
+  return {kind: song.tabVoices.length? 'tab':'vox', vi:0, whole:true};
+}
+/* v56.5 光标事件时间轴：独立于发声排程（此前挂在 tab0 排程里——tab0 被静音/他轨 SOLO 时
+   整个光标消失）；SOLO 切换时可随时重建 */
+function buildPlayEvents(){
+  if(!audio.evCtx) return [];
+  const {order, starts, spb} = audio.evCtx;
+  const ref = playCursorRef();
+  const pre = (ref.kind==='tab'?'t':'v')+ref.vi;
+  const evs=[];
+  order.forEach((mi,oi)=>{
+    let off=starts[oi];
+    const smi=simileSrc(mi); const cmi=smi!=null?smi:mi;
+    const mUt=meaMeter(cmi).unit;
+    const cols=(ref.kind==='tab'? (song.measures[cmi].tabs||[])[ref.vi] : (song.measures[cmi].voxes||[])[ref.vi])||[];
+    cols.forEach((col,ci)=>{ evs.push({tm:off, pre, mi, ci, whole:ref.whole}); off+=beatsOf(col,mUt)*spb; });
+  });
+  return evs;
+}
+/* v56.5 播放中 SOLO 切换：重建光标时间轴并跳到当前时刻的列（下一帧立即重画） */
+function refreshPlayEvents(){
+  if(!audio.playing || !audio.prog || !audio.evCtx) return;
+  audio.events = buildPlayEvents();
+  const e = Math.max(0, audio.ctx.currentTime - audio.prog.t);
+  let i=0; while(i<audio.events.length && audio.events[i].tm<=e) i++;
+  audio.evIdx = Math.max(0, i-1);
+}
+/* v56.5 混音即时生效：静音/独奏/音量收敛为各轨总线增益（20ms 平滑防爆音），播放中可切 */
+function applyMixLive(){
+  if(!audio.playing || !audio.tracks || !audio.ctx) return;
+  const tset=(kind,vi)=>{
+    const tb=audio.tracks[kind+':'+vi]; if(!tb) return;
+    const g = trackAudible(kind,vi)? (trackCfg(kind,vi).vol||1) : 0;
+    try{ tb.dry.gain.setTargetAtTime(g, audio.ctx.currentTime, 0.02); }
+    catch(_){ tb.dry.gain.value=g; }
+  };
+  song.tabVoices.forEach((_,vi)=>tset('tab',vi));
+  song.voxVoices.forEach((_,vi)=>tset('vox',vi));
+  refreshPlayEvents();
+}
+function highlight(prefix,mi,ci,whole){
   const b = colBoxes[prefix+':'+mi+':'+ci];
   const ph = document.getElementById('playhead');
   if(!b||!ph) return;
-  ph.setAttribute('x',b.x); ph.setAttribute('y',b.y);
-  ph.setAttribute('width',b.w); ph.setAttribute('height',b.h);
+  /* v56.5 整谱模式：光标纵向贯穿本小节所在系统全部声部行（单轨 SOLO 时只罩该轨行） */
+  const band = whole? meaBands[mi] : null;
+  ph.setAttribute('x',b.x); ph.setAttribute('y', band? band.y : b.y);
+  ph.setAttribute('width',b.w); ph.setAttribute('height', band? band.h : b.h);
   ph.setAttribute('opacity','0.16');
   if(ci===0){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
-    const vy = svg.getBoundingClientRect().top+b.y*scale;   // 视口坐标（两种滚动模式通用）
+    const yTop = band? band.y : b.y;
+    const vy = svg.getBoundingClientRect().top+yTop*scale;   // 视口坐标（两种滚动模式通用）
     if(vy > window.innerHeight-280 || vy < 150){
       const sc = scoreScroller();
       if(sc) sc.scrollTo({top:sc.scrollTop+vy-220, behavior:'smooth'});
@@ -12086,6 +12146,7 @@ function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
   audio.sources.forEach(x=>{try{x.stop()}catch(_){}}); audio.sources=[];
   audio.playing=false; audio.prog=null; audio.events=[]; audio.evIdx=0;
+  audio.tracks=null; audio.evCtx=null;   /* v56.5 混音总线映射/光标时间轴上下文 */
   if(audio.paused && audio.ctx){ try{audio.ctx.resume();}catch(_){} }
   audio.paused=false;
   kaStop();   /* v55.0 停播释放 iOS 会话保持音轨 */
@@ -12399,11 +12460,12 @@ function renderMixerDock(){
   wrap.querySelectorAll('.mx-row').forEach(row=>{
     const kind=row.dataset.kind, vi=+row.dataset.vi, cfg=trackCfg(kind,vi);
     row.querySelector('.mx-inst').onchange = e=>{ cfg.inst=e.target.value; persist(); previewInst(cfg.inst); };
-    row.querySelector('.mx-btn.solo').onclick = e=>{ cfg.solo=!cfg.solo; e.currentTarget.classList.toggle('on',cfg.solo); persist(); };
-    row.querySelector('.mx-btn.mute').onclick = e=>{ cfg.on=(cfg.on===false); e.currentTarget.classList.toggle('on',cfg.on===false); persist(); };
+    /* v56.5 S/M/音量播放中即时生效（applyMixLive 收敛到轨道总线增益；SOLO 还切光标参考轨） */
+    row.querySelector('.mx-btn.solo').onclick = e=>{ cfg.solo=!cfg.solo; e.currentTarget.classList.toggle('on',cfg.solo); persist(); applyMixLive(); };
+    row.querySelector('.mx-btn.mute').onclick = e=>{ cfg.on=(cfg.on===false); e.currentTarget.classList.toggle('on',cfg.on===false); persist(); applyMixLive(); };
     const vin=row.querySelector('.mx-vol input'), vv=row.querySelector('.mx-vol .vv');
     vin.oninput = e=>{ cfg.vol=+e.target.value/100; vv.textContent=e.target.value+'%';
-      vin.style.setProperty('--p', Math.round(e.target.value/1.5)+'%'); persist(); };
+      vin.style.setProperty('--p', Math.round(e.target.value/1.5)+'%'); persist(); applyMixLive(); };
     /* v54.3 小节格交互：点击=光标跳该轨该小节+该小节循环（再点同格取消循环）；拖动=选段循环。
        同时把这些小节设为该声部的整小节选区（selRange whole）——Ctrl+C/批量编辑直接接得上 */
     const cells=row.querySelector('.mx-cells');
@@ -16538,7 +16600,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.4';
+const APP_VER='v56.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16561,6 +16623,7 @@ const APP_VER='v56.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.5</span><div><b>播放功能优化</b>（用户反馈）：① 音轨 <b>S（独奏）/M（静音）/音量</b> 在<b>播放中</b>切换即时生效——此前音量等在起播时一次算死，播放中按了没反应；现在收敛到各轨总线增益（平滑过渡无爆音）。② <b>播放光标升级</b>：默认为<b>整谱光标</b>——高亮条纵向贯穿本行所有声部（此前只罩吉他行）；<b>单独 SOLO 某轨时光标只跟随该轨</b>，滚动也按该轨行定位。③ 顺带修复：静音吉他轨后播放光标整个消失（光标事件此前挂在吉他轨排程里）。新增 tv_mix 播放混音回归套件（7 断言）。</div></li>
     <li><span class="v">v56.4</span><div><b>段落括线不再与和弦图重叠</b>（用户截图反馈）：吉他谱行内和弦图模式下，1/2 房段落括线、排练标记、Segno/Coda 跳转记号画在六线谱上方的记号带里，与同一行的和弦图（底缘更低）发生重叠——现在同一行两者共存时<b>和弦图带自动加高</b>，把括线/标记让到和弦图正下方、六线谱上方的空档，互不相压；没有共存的行不加高，版面不变。新增几何回归（tv_sign T15）。</div></li>
     <li><span class="v">v56.3</span><div><b>倚音连接线定稿：固定线径弧线</b>（用户指示两轮）：简谱倚音与主音之间的连接线由<b>直角折线</b>改为<b>小弧线</b>——从倚音组下方弯到主音腰部、弧深为弦长的 <b>1/5</b>（开口朝上、凹向主音），并按第二轮指示采用<b>固定线径</b>描边（0.9，与原折线同线重），不用两头细尖的连音线形。原有避让逻辑不变（减时线越多、低八度点越多，起点自动下移）；前倚音/后倚音、单音/多音倚音组全部生效。几何回归 tv_grace T16：无直角折线 + 固定线径 0.9 + 弧深=弦长/5。</div></li>
     <li><span class="v">v56.1</span><div><b>跨行连音线两段式续接</b>（用户反馈优化）：连音线的目标音被排到下一行时，按出版惯例画成<b>两段半弧</b>——行末从起音画「出线半弧」并<b>止于行尾小节线内</b>（此前弧线戳出小节线约 10px 悬在页边），下一行行首新增<b>「进入半弧」</b>连到目标音（此前新行完全没有续接，连音线看起来断头）。简谱、五线谱（含钢琴大谱表）、吉他谱 TAB（连音线 tk）三类记谱同步修正；同行内的跨小节连音线行为不变。新增跨行连音线几何回归 3 项（tv_sign T13a/T13b/T14）。</div></li>
