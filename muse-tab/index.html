@@ -5352,6 +5352,23 @@ function render(){
             p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值，最多3音）</title></rect>`);
           });
           const hasEvt = col.notes.length || col.strum;
+          /* v57.4 二分/全音符增时线（用户反馈：TAB 二分音符只有一根符干、与四分无区别看不出延长）：
+             教材/GB 惯例同简谱「X –」——在该音后续每个四分拍位的节奏梁位画一截短横线，
+             条数=整拍数−1（二分1条、附点二分2条、全音符3条）；拍点 x 用 measureLayout 预计算的
+             qxs（全声部同源映射，与简谱增时线/邻行音符列严格纵向对齐）；附点时值并入横线条数，
+             dur≤2 不再另画附点圆点（同简谱附点二分记 2 条横线不记点的口径）；
+             双附点二分余下半拍以一枚附点补记于下一拍点（同简谱 6034 行口径）；休止不接增时线 */
+          if(hasEvt && col.dur<=2){
+            const q4=(4/col.dur)*dotFactor(col);
+            const nD=Math.max(0, Math.floor(q4+1e-4)-1);
+            const qxT=(lay.qxs&&lay.qxs[ci])||[];
+            for(let d2=1; d2<=nD; d2++){
+              const dx = qxT[d2-1]!==undefined? mx+qxT[d2-1] : nx+14*d2;
+              p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(stemY-2.2).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`);
+            }
+            if(nD && q4-Math.floor(q4+1e-4)>1e-3)
+              p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${(stemY-1.1).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+          }
           if(hasEvt && col.dur>=2){
             /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁 */
             let sLow = 6;
@@ -5359,7 +5376,7 @@ function render(){
             else if(col.notes.length) sLow = Math.max(...col.notes.map(n=>n.s));
             const stemTop = Math.min(tabBot+2, tabTop+(sLow-1)*STR+6);
             p.push(`<line x1="${nx}" y1="${stemTop}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="1"/>`);
-            if(col.dotted){
+            if(col.dotted && col.dur>=4){   /* v57.4 dur≤2 的附点并入增时线，不再画点 */
               /* 附点对齐该拍符杠组由上至下的第一条时值线（32分层/16分层/主梁）；v41.5 双附点两点并排 */
               const lv = dotLv.get(ci) || col.dur;
               const dy = lv>=64 ? stemY-13.1 : lv>=32 ? stemY-9.1 : lv>=16 ? stemY-5.1 : stemY-1.1;
@@ -16723,7 +16740,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.3';
+const APP_VER='v57.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16746,6 +16763,7 @@ const APP_VER='v57.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.4</span><div><b>吉他谱二分/全音符增时线</b>（用户反馈：TAB 上二分音符只有一根符干、与四分音符没有区别看不出延长）：按教材/GB 惯例（同简谱 <code>X –</code>），TAB 的<b>二分音符在其后每个四分拍位的节奏梁位画增时线短横</b>——二分 1 条、附点二分 2 条（附点时值并入横线、不再另画附点圆点，同简谱口径）、全音符 3 条（无符干）；横线拍点与简谱增时线 / 邻行音符列<b>严格纵向对齐</b>（全声部同源拍点映射）；双附点二分余下半拍以附点补记于下一拍点；休止不接增时线。tv_dot 新增 T11 几何断言。</div></li>
     <li><span class="v">v57.3</span><div><b>创作栏卡片样式统一</b>（用户指示）：创作页三个栏目（当前编辑位置 / 编辑模式 · 时值提示 / 创作辅助）改为与信息页<b>「曲谱信息」同款标准卡片样式</b>——带边框卡片 + 标题栏，<b>点击标题可展开 / 收起</b>（默认展开）；创作辅助卡内的重复大标题行由标题栏承担。</div></li>
     <li><span class="v">v57.2</span><div><b>创作栏栏目主题</b>（用户指示）：此前创作页卡片标题被整体隐藏、栏目无主题——现恢复显示并定名：光标信息栏目主题为<b>「当前编辑位置」</b>；<b>自由编辑 / 智能编辑开关与时值提示同属一个栏目</b>，主题为<b>「编辑模式 · 时值提示」</b>（原「节拍检查」），准确覆盖栏目全部内容；创作辅助卡保持自带卡内标题。</div></li>
     <li><span class="v">v57.1</span><div><b>弹唱谱 × 记号=和弦内音实音化 + 琶音/扫弦按指法补全和弦</b>（用户反馈：女儿国——G 和弦 1 弦的 × 应是 3 品实音而非哑音；结尾下琶音五线谱只显示一个音）：弹唱语境（非独奏、有和弦）下，TAB 弦上的 <b>×</b> 按教材惯例是<b>「按住和弦弹这根弦」的和弦内音记法</b>——现在<b>关联五线谱按当前和弦指法显示实音高</b>（G 和弦 1 弦 × → 3 品 G），<b>播放/MusicXML/MIDI 导出同步发实音</b>（此前播放为哑音、MIDI 导出直接丢音）；<b>扫弦/琶音箭头覆盖而无音符的弦按指法自动补全</b>——单音上做下琶音即整个和弦发声、五线谱显示完整柱式和弦。哑音原义保留：拍弦 ⊠ 列、切音列（节奏型库切音现打 mute 标记并在 × 上方加切音点，同扫弦切音「箭头带点」口径）、扫弦列内的 ×（GP 闷弦惯例）与独奏谱不受影响。光标卡的 × 同步显示「和弦内音（弦/品）」。</div></li>
