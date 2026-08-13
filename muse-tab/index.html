@@ -5263,20 +5263,26 @@ function render(){
                 }
               }else if(n.tk && !n.tech){
                 /* 纯连音线（无技法字母）：可跨过中间音符直接连到目标音符
-                   （v49.6 排除 v/pm/lr 等带 tk 的范围技法——它们的波浪/虚线在标注带画） */
+                   （v49.6 排除 v/pm/lr 等带 tk 的范围技法——它们的波浪/虚线在标注带画）。
+                   v57.6 样式对齐简谱连音线（用户指示：在音符上方居中）：端点=首末音符中心 ±1、
+                   平基线抬到较高音符上方留净距（同简谱字顶 4px 口径）、弧高 rise 同简谱公式 */
                 const tp = tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
                 if(tp && tp.sys===sIdx){
                   const x2=tp.x, y2=tabTop+(n.tk.si-1)*STR;
-                  const yPk=Math.min(yy,y2)-12;
-                  p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
+                  const xA=nx+1, xB=x2-1;
+                  const tyB=Math.min(yy,y2)-9.5;
+                  const rise=Math.min(15, Math.max(6, (xB-xA)*0.35));
+                  p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9));
                 }else if(tp){
-                  p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
+                  /* 跨行出线半弧（v56.1 两段式续接）：同步抬到音符上方口径 */
+                  p.push(tieSVG(nx+1, yy-9.5, nx+23, yy-15.5, yy-18, 1.5));
                 }
               }
-              /* v56.1 跨行连音线目标音：进入半弧（与上一行末出线短弧镜像成对，两段式续接） */
+              /* v56.1 跨行连音线目标音：进入半弧（与上一行末出线短弧镜像成对，两段式续接）；
+                 v57.6 同步抬到音符上方口径（与出线半弧镜像） */
               if(tieInX.has(vi+':'+lm.mi+':'+ci+':'+n.s)){
                 const xi = Math.max(mx-8, nx-23);
-                p.push(tieSVG(xi, yy-10.5, nx-5, yy-4.5, yy-13, 1.5));
+                p.push(tieSVG(xi, yy-15.5, nx-1, yy-9.5, yy-18, 1.5));
               }
               /* v49.6 摇把 w/bar 已并入标注带（mkTech）；
                  指弹右手指法 p i m a 保持品位数字下方（指法惯例位置，非技巧标识），仅放大 */
@@ -5363,14 +5369,15 @@ function render(){
             const q4=(4/col.dur)*dotFactor(col);
             const nD=Math.max(0, Math.floor(q4+1e-4)-1);
             const qxT=(lay.qxs&&lay.qxs[ci])||[];
-            const dSs=col.notes.filter(n2=>n2.s>=1&&n2.s<=SN).map(n2=>n2.s);
+            /* v57.6 增时线固定在六线谱垂直居中（用户指示：不随音符弦位变动）——
+               画在三、四弦之间的线间空隙里，每列一组不逐弦重复 */
+            const dyC = tabTop + (SN-1)/2*STR;
             for(let d2=1; d2<=nD; d2++){
               const dx = qxT[d2-1]!==undefined? mx+qxT[d2-1] : nx+14*d2;
-              dSs.forEach(s3=>
-                p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(tabTop+(s3-1)*STR-1.1).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`));
+              p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(dyC-1.1).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`);
             }
             if(nD && q4-Math.floor(q4+1e-4)>1e-3)
-              p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${(tabTop+(Math.min(...dSs)-1)*STR-4).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+              p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${dyC.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
           }
           if(hasEvt && col.dur>=2){
             /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁 */
@@ -16743,7 +16750,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.5';
+const APP_VER='v57.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16766,6 +16773,7 @@ const APP_VER='v57.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.6</span><div><b>TAB 增时线居中 + 连音线对齐简谱规则</b>（用户指示两点）：① 增时线<b>固定在六线谱垂直居中位置</b>（三、四弦之间的空隙），不再随音符弦位变动，每列一组；② 六线谱<b>连音线样式与简谱统一</b>——弧画在<b>音符上方居中</b>：端点取首末音符中心、平基线抬到较高音符上方留净距、弧高随跨度缓增（同简谱公式），跨行两段式半弧同步抬高。</div></li>
     <li><span class="v">v57.5</span><div><b>TAB 增时线位置修正</b>（用户指示：吉他谱的增时线显示在六线谱中间，不是六线谱下面）：v57.4 的增时线从谱表下方节奏梁位移入<b>六线谱内</b>——跟在音符后、<b>压在其所在弦线上的短粗横</b>（和弦长音每个发声音符的弦各画一组），拍点对齐不变；附点补记圆点同步移至弦线上方。</div></li>
     <li><span class="v">v57.4</span><div><b>吉他谱二分/全音符增时线</b>（用户反馈：TAB 上二分音符只有一根符干、与四分音符没有区别看不出延长）：按教材/GB 惯例（同简谱 <code>X –</code>），TAB 的<b>二分音符在其后每个四分拍位的节奏梁位画增时线短横</b>——二分 1 条、附点二分 2 条（附点时值并入横线、不再另画附点圆点，同简谱口径）、全音符 3 条（无符干）；横线拍点与简谱增时线 / 邻行音符列<b>严格纵向对齐</b>（全声部同源拍点映射）；双附点二分余下半拍以附点补记于下一拍点；休止不接增时线。tv_dot 新增 T11 几何断言。</div></li>
     <li><span class="v">v57.3</span><div><b>创作栏卡片样式统一</b>（用户指示）：创作页三个栏目（当前编辑位置 / 编辑模式 · 时值提示 / 创作辅助）改为与信息页<b>「曲谱信息」同款标准卡片样式</b>——带边框卡片 + 标题栏，<b>点击标题可展开 / 收起</b>（默认展开）；创作辅助卡内的重复大标题行由标题栏承担。</div></li>

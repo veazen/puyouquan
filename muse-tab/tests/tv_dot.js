@@ -262,11 +262,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const dashEls = [...document.querySelectorAll('#score rect')]
       .filter(el => el.getAttribute('width') === '9' && el.getAttribute('height') === '2.2');
     const dashes = dashEls.map(el => +el.getAttribute('x')).sort((a,b2)=>a-b2);
-    /* v57.5 增时线在六线谱内：每条短横中心 y 必须压在某条弦线（sw0.7 横线）上 */
+    /* v57.6 增时线固定在六线谱垂直居中（用户指示：不随音符弦位变动）：
+       每条短横中心 y == 弦线带中点（三、四弦之间空隙），且所有短横同一 y */
     const strY = [...document.querySelectorAll('#score line')]
       .filter(l2 => l2.getAttribute('stroke-width') === '0.7' && l2.getAttribute('y1') === l2.getAttribute('y2'))
       .map(l2 => +l2.getAttribute('y1'));
-    const onString = dashEls.every(el => strY.some(y => Math.abs((+el.getAttribute('y') + 1.1) - y) < 0.7));
+    const midY = (Math.min(...strY) + Math.max(...strY)) / 2;
+    const dashYs = new Set(dashEls.map(el => (+el.getAttribute('y') + 1.1).toFixed(1)));
+    const onString = dashYs.size === 1 && dashEls.every(el => Math.abs((+el.getAttribute('y') + 1.1) - midY) < 0.7);
     const dots = [...document.querySelectorAll('#score circle')].filter(c2 => c2.getAttribute('r') === '1.6');
     const vl = [...document.querySelectorAll('#score line')].filter(l2 =>
       l2.getAttribute('stroke-width') === '1' && l2.getAttribute('x1') === l2.getAttribute('x2'));

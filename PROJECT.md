@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-13 · 当前版本 **v57.5** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-13 · 当前版本 **v57.6** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v57.6 TAB 增时线居中 + 连音线简谱化（用户指示两点：增时线固定六线谱居中不随音符；连音线同简谱规则在音符上方居中）**：① 增时线 y 从逐弦 `tabTop+(s-1)*STR` 改固定 `dyC=tabTop+(SN-1)/2*STR`（6弦=三、四弦间空隙，uku=二、三弦间），每列一组不逐弦、附点补记圆点同 y；② 纯连音线（n.tk 无 tech）同行弧改简谱口径：端点=首末音符中心±1、平基线 `min(yy,y2)-9.5`（×字形顶留 4px 净距）、`rise=min(15,max(6,跨度×0.35))`、th 1.9；跨行出线/进线两段半弧同步抬到 -9.5/-15.5/-18 口径（v56.1 结构不变）；圆滑线（h/p/sl 技法弧）保持 GP 式不动。tv_dot T11 onString 改「所有短横同一 y 且=弦线带中点±0.7」12/12；tv_matrix/tv_gtech/tv_adds/tv_capo 全绿。
+>
 > **v57.5 TAB 增时线移入谱表内（用户指示：增时线显示在六线谱中间不是下面）**：v57.4 短横从节奏梁位（stemY-2.2）改画在音符所在弦线上（`tabTop+(s-1)*STR-1.1`，w9 h2.2 粗横压 0.7 细弦线），和弦长音逐发声弦各画一组（dSs=col.notes 弦号），无音符列（纯扫弦标记）不画；附点补记圆点移至最高弦线上方 -4。tv_dot T11 增 onString 断言（每条短横中心 y 压在某条 sw0.7 弦线上）12/12；tv_matrix/tv_meaw/tv_gtech/tv_xtone 全绿。
 >
 > **v57.4 TAB 二分/全音符增时线（用户反馈：TAB 二分音符与四分只有一根符干无法区分、看不到延音线）**：TAB 时值刻画原状——dur≥2 一律素符干（5355 行 `hasEvt && col.dur>=2`）、dur=1 无任何标记。新增：dur≤2 列在节奏梁位（stemY-2.2，与符杠同层）按后续四分拍位画增时线短横 rect（w9 h2.2），条数=`floor((4/dur)*dotFactor)−1`（二分1/附点二分2/全音符3）；拍点 x 取 `lay.qxs[ci]`——measureLayout 的 fit() 本就对 tabs/voxes 都算 qxs（v53.9 只有简谱在用），与简谱增时线/邻行音符列同源纵向对齐；dur≤2 的附点圆点不再画（附点并入横线条数，同简谱附点二分记 2 横不记点），双附点二分余半拍附点补记于下一拍点；休止（无 notes 无 strum）不接增时线。tv_dot +T11（6 横线升序 + 附点无圆点 + 符干数4=全音符无干；符干判别用「竖线终点=最深 y」防与小节线混计）=12/12；tv_matrix/tv_meaw/tv_d64/tv_engrave/tv_xtone/tv_arrange/tv_gtech/tv_tabmxl 全绿。
