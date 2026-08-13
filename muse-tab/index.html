@@ -5353,21 +5353,24 @@ function render(){
           });
           const hasEvt = col.notes.length || col.strum;
           /* v57.4 二分/全音符增时线（用户反馈：TAB 二分音符只有一根符干、与四分无区别看不出延长）：
-             教材/GB 惯例同简谱「X –」——在该音后续每个四分拍位的节奏梁位画一截短横线，
-             条数=整拍数−1（二分1条、附点二分2条、全音符3条）；拍点 x 用 measureLayout 预计算的
-             qxs（全声部同源映射，与简谱增时线/邻行音符列严格纵向对齐）；附点时值并入横线条数，
-             dur≤2 不再另画附点圆点（同简谱附点二分记 2 条横线不记点的口径）；
-             双附点二分余下半拍以一枚附点补记于下一拍点（同简谱 6034 行口径）；休止不接增时线 */
-          if(hasEvt && col.dur<=2){
+             教材/GB 惯例同简谱「X –」——条数=整拍数−1（二分1条、附点二分2条、全音符3条）；
+             拍点 x 用 measureLayout 预计算的 qxs（全声部同源映射，与简谱增时线/邻行音符列严格纵向对齐）；
+             附点时值并入横线条数，dur≤2 不再另画附点圆点（同简谱附点二分记 2 条横线不记点的口径）；
+             双附点二分余下半拍以一枚附点补记于下一拍点（同简谱口径）；休止/无音符列不接增时线。
+             v57.5 位置修正（用户指示）：增时线画在六线谱内——跟在音符后、压在其所在弦线上的短粗横
+             （每个发声音符的弦各画一组），不画在谱表下方的节奏梁位 */
+          if(hasEvt && col.dur<=2 && col.notes.length){
             const q4=(4/col.dur)*dotFactor(col);
             const nD=Math.max(0, Math.floor(q4+1e-4)-1);
             const qxT=(lay.qxs&&lay.qxs[ci])||[];
+            const dSs=col.notes.filter(n2=>n2.s>=1&&n2.s<=SN).map(n2=>n2.s);
             for(let d2=1; d2<=nD; d2++){
               const dx = qxT[d2-1]!==undefined? mx+qxT[d2-1] : nx+14*d2;
-              p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(stemY-2.2).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`);
+              dSs.forEach(s3=>
+                p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(tabTop+(s3-1)*STR-1.1).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`));
             }
             if(nD && q4-Math.floor(q4+1e-4)>1e-3)
-              p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${(stemY-1.1).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+              p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${(tabTop+(Math.min(...dSs)-1)*STR-4).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
           }
           if(hasEvt && col.dur>=2){
             /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁 */
@@ -16740,7 +16743,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.4';
+const APP_VER='v57.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16763,6 +16766,7 @@ const APP_VER='v57.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.5</span><div><b>TAB 增时线位置修正</b>（用户指示：吉他谱的增时线显示在六线谱中间，不是六线谱下面）：v57.4 的增时线从谱表下方节奏梁位移入<b>六线谱内</b>——跟在音符后、<b>压在其所在弦线上的短粗横</b>（和弦长音每个发声音符的弦各画一组），拍点对齐不变；附点补记圆点同步移至弦线上方。</div></li>
     <li><span class="v">v57.4</span><div><b>吉他谱二分/全音符增时线</b>（用户反馈：TAB 上二分音符只有一根符干、与四分音符没有区别看不出延长）：按教材/GB 惯例（同简谱 <code>X –</code>），TAB 的<b>二分音符在其后每个四分拍位的节奏梁位画增时线短横</b>——二分 1 条、附点二分 2 条（附点时值并入横线、不再另画附点圆点，同简谱口径）、全音符 3 条（无符干）；横线拍点与简谱增时线 / 邻行音符列<b>严格纵向对齐</b>（全声部同源拍点映射）；双附点二分余下半拍以附点补记于下一拍点；休止不接增时线。tv_dot 新增 T11 几何断言。</div></li>
     <li><span class="v">v57.3</span><div><b>创作栏卡片样式统一</b>（用户指示）：创作页三个栏目（当前编辑位置 / 编辑模式 · 时值提示 / 创作辅助）改为与信息页<b>「曲谱信息」同款标准卡片样式</b>——带边框卡片 + 标题栏，<b>点击标题可展开 / 收起</b>（默认展开）；创作辅助卡内的重复大标题行由标题栏承担。</div></li>
     <li><span class="v">v57.2</span><div><b>创作栏栏目主题</b>（用户指示）：此前创作页卡片标题被整体隐藏、栏目无主题——现恢复显示并定名：光标信息栏目主题为<b>「当前编辑位置」</b>；<b>自由编辑 / 智能编辑开关与时值提示同属一个栏目</b>，主题为<b>「编辑模式 · 时值提示」</b>（原「节拍检查」），准确覆盖栏目全部内容；创作辅助卡保持自带卡内标题。</div></li>

@@ -259,19 +259,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[1].tabs[0] = [Tc({dur:2, dotted:true, notes:[{s:2,f:1}]}), Tc({dur:4, notes:[{s:1,f:0}]})];
     s.measures[2].tabs[0] = [Tc({dur:1, notes:[{s:3,f:0}]})];
     loadSong(s); blurSel = true; render();
-    const dashes = [...document.querySelectorAll('#score rect')]
-      .filter(el => el.getAttribute('width') === '9' && el.getAttribute('height') === '2.2')
-      .map(el => +el.getAttribute('x')).sort((a,b2)=>a-b2);
+    const dashEls = [...document.querySelectorAll('#score rect')]
+      .filter(el => el.getAttribute('width') === '9' && el.getAttribute('height') === '2.2');
+    const dashes = dashEls.map(el => +el.getAttribute('x')).sort((a,b2)=>a-b2);
+    /* v57.5 增时线在六线谱内：每条短横中心 y 必须压在某条弦线（sw0.7 横线）上 */
+    const strY = [...document.querySelectorAll('#score line')]
+      .filter(l2 => l2.getAttribute('stroke-width') === '0.7' && l2.getAttribute('y1') === l2.getAttribute('y2'))
+      .map(l2 => +l2.getAttribute('y1'));
+    const onString = dashEls.every(el => strY.some(y => Math.abs((+el.getAttribute('y') + 1.1) - y) < 0.7));
     const dots = [...document.querySelectorAll('#score circle')].filter(c2 => c2.getAttribute('r') === '1.6');
     const vl = [...document.querySelectorAll('#score line')].filter(l2 =>
       l2.getAttribute('stroke-width') === '1' && l2.getAttribute('x1') === l2.getAttribute('x2'));
     const maxY2 = Math.max(...vl.map(l2 => +l2.getAttribute('y2')));
     const stems = vl.filter(l2 => Math.abs(+l2.getAttribute('y2') - maxY2) < 0.5);   /* 符干统一延到节奏梁位 stemY=全谱最深竖线终点 */
     return { nDash: dashes.length, ascending: dashes.every((v,i,a)=>!i||v>a[i-1]),
-      noDot: dots.length === 0, nStem: stems.length };
+      noDot: dots.length === 0, nStem: stems.length, onString };
   });
-  T(r.nDash === 6 && r.ascending && r.noDot && r.nStem === 4,
-    'T11 TAB增时线：二分1+附点二分2+全音符3条·附点不画点·全音符无干', JSON.stringify(r));
+  T(r.nDash === 6 && r.ascending && r.noDot && r.nStem === 4 && r.onString,
+    'T11 TAB增时线：二分1+附点二分2+全音符3条·附点不画点·全音符无干·横线压弦线', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
