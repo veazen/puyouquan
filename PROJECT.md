@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-13 · 当前版本 **v56.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-13 · 当前版本 **v57.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v57.0 反复结束/终止线粗线与谱线端齐平（用户截图：六线谱线冒出反复结束线）**：谱线画到 `ox+sys.w`（=行尾小节 bx），而 TAB 反复结束粗线 rect x=bx-3.5 w=2.4 → 右缘 bx-1.1、终止线右缘 bx-0.4；五线谱行 bx-1/-0.6——谱线从粗线右侧探出（反复号差 1px 最显眼，用户截图即此）。修正：四处粗线 rect 改 `x=bx-w`（右缘=bx 齐平），细线/圆点按原间距同步右移（TAB 𝄇：点 bx-9.5·细线 bx-5·粗线 bx-2.4；TAB 𝄂：细 bx-5·粗 bx-2.6；五线谱 𝄇：点 bx-8·细 bx-4.5·粗 bx-2；𝄂：细 bx-4.4·粗 bx-2.4）。tv_sign +T16（行尾反复粗线右缘==谱线最大 x2，TAB+五线谱两行齐平断言）=18 断言；tv_matrix/tv_detail1/tv_brace/tv_arrange 全绿。
+>
 > **v56.9 连音弧与普通连音线样式统一（用户截图：三连音括线一头压到 1̇ 高音点）**：简谱/五线谱连音标记（6120 块）此前为细描边双 Q 折弧、简谱基线固定 voxY-13 不避高八度点。改为与 tie 完全同口径：`tieSVG` 两端细尖弧（th 1.9）、端点=首末数字中心±1、`rise=min(9+跨列×2·≤6, max(6, 跨度×0.35))`；简谱基线 `voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0)`（同 v53.6/v54.2 tie 规则，组内最大高八度点数让位），五线谱仍取组内最高符头上方（SG×2.9+5）。数字（N 或 N:M）置弧顶中央：quad 中点=基线-rise/2，先垫 `var(--paper)` 纸底块再置字（断口效果，注意别的断言别匹配 .pagebg 之外的 paper rect）。systemExtras `c.tup` maxUp 1→2（弧抬高一档防压上一行）。TAB 保持 GP 式直线刻度括线（是括号不是连音线，且无高音点问题）。tv_tuplet +T18（tieSVG 形 + 高八度让位 ≥7px + 纸底断口）=18 断言；tv_matrix/tv_sign/tv_grace/tv_detail1/tv_meaw 全绿。
 >
 > **v56.8 三连音深修：Ctrl+点选（noteSel）可设连音（用户截图：4/4 简谱三个四分设三连音无效）**：排查结论——`beatsOf` 连音数学（四分三连音 (4/4)×2/3×3=2 拍）、三谱类括线渲染（TAB 5374/简谱·五线谱 6120，按 tup 连续段分组与符杠无关）、MusicXML 真 N:M 出入（13236/14256）、播放调度全部正确；**唯一断点在输入**：`applyTuplet` 只认拖选 `selRange`，用户截图里的红圈= `noteSel`（Ctrl+点选，8744 行 {mi,ci,si,vi,row}）被完全忽略 → 落到单音拆分路径。修复：applyTuplet 头部把合规 noteSel **升格为列选区**——按 ci 去重（TAB 同列多弦）排序，校验同声部同小节、列连续、等时值无附点，合成 selRange 后走既有整体切换/不足补齐逻辑；不合规给出规则性 toast（相邻连续/等时值）。按钮 title 与多选 toast 补规则文案（四分三连音=2拍、八分三连音=1拍）。tv_tuplet +T13~T17（用户场景简谱/TAB同列去重/五线谱/非法拒绝/四分三连音 MXL 3:2 往返）=17 断言全绿；tv_matrix/tv_rclick/tv_detail1/tv_mxl/tv_sign 回归通过。

@@ -4923,13 +4923,14 @@ function render(){
         }
         const bx = mx+lm.L.w;
         const nextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
+        /* v57.0 反复结束/终止线粗线右缘与谱线端(bx)齐平（用户截图：六线谱线冒出反复结束线 1.1px） */
         if(mea.repeatEnd){
-          p.push(`<circle cx="${bx-10.5}" cy="${tabTop+STAFF/2-STR/2}" r="1.8" fill="var(--ink)"/><circle cx="${bx-10.5}" cy="${tabTop+STAFF/2+STR/2}" r="1.8" fill="var(--ink)"/>`);
-          p.push(`<line x1="${bx-6}" y1="${tabTop}" x2="${bx-6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-3.5}" y="${tabTop}" width="2.4" height="${STAFF}" fill="var(--ink)"/>`);
+          p.push(`<circle cx="${bx-9.5}" cy="${tabTop+STAFF/2-STR/2}" r="1.8" fill="var(--ink)"/><circle cx="${bx-9.5}" cy="${tabTop+STAFF/2+STR/2}" r="1.8" fill="var(--ink)"/>`);
+          p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-2.4}" y="${tabTop}" width="2.4" height="${STAFF}" fill="var(--ink)"/>`);
         }else if(isLast || mea.finalBar){
           p.push(`<line x1="${bx-5}" y1="${tabTop}" x2="${bx-5}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-3}" y="${tabTop}" width="2.6" height="${STAFF}" fill="var(--ink)"/>`);
+          p.push(`<rect x="${bx-2.6}" y="${tabTop}" width="2.6" height="${STAFF}" fill="var(--ink)"/>`);
         }else if(mea.sectionBar){   // 段落重复线：双细线
           p.push(`<line x1="${bx-4}" y1="${tabTop}" x2="${bx-4}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<line x1="${bx}" y1="${tabTop}" x2="${bx}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -5536,13 +5537,14 @@ function render(){
           p.push(`<line x1="${mx+5}" y1="${yT2}" x2="${mx+5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<circle cx="${mx+8.5}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${mx+8.5}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
         }
+        /* v57.0 同 TAB 行口径：粗线右缘与谱线端(bx)齐平（五线谱线不再冒头） */
         if(mea.repeatEnd){
-          p.push(`<circle cx="${bx-9}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${bx-9}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
-          p.push(`<line x1="${bx-5.5}" y1="${yT2}" x2="${bx-5.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-3}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
+          p.push(`<circle cx="${bx-8}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${bx-8}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
+          p.push(`<line x1="${bx-4.5}" y1="${yT2}" x2="${bx-4.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-2}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
         }else if(isLast || mea.finalBar){
-          p.push(`<line x1="${bx-5}" y1="${yT2}" x2="${bx-5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-3}" y="${yT2}" width="2.4" height="${yB2-yT2}" fill="var(--ink)"/>`);
+          p.push(`<line x1="${bx-4.4}" y1="${yT2}" x2="${bx-4.4}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<rect x="${bx-2.4}" y="${yT2}" width="2.4" height="${yB2-yT2}" fill="var(--ink)"/>`);
         }else if(mea.sectionBar){   // 段落重复线：双细线
           p.push(`<line x1="${bx-4}" y1="${yT2}" x2="${bx-4}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
           p.push(`<line x1="${bx}" y1="${yT2}" x2="${bx}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
@@ -16670,7 +16672,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.9';
+const APP_VER='v57.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16693,6 +16695,7 @@ const APP_VER='v56.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.0</span><div><b>反复结束线刻版修正</b>（用户截图：六线谱的线冒出反复结束线）：六线谱与五线谱的<b>反复结束 𝄇 / 终止线 𝄂 的粗线右缘改为与谱线终点严格齐平</b>——此前粗线右缘差谱线端约 1px，放大或打印时谱线会从反复号右侧探出一小截；圆点与细线按原间距同步右移，出版惯例（谱线止于终止粗线）达成。</div></li>
     <li><span class="v">v56.9</span><div><b>连音弧与普通连音线样式统一</b>（用户截图：三连音括线一头压到高音点）：简谱/五线谱的三连音、N连音弧线改用与普通连音线<b>完全相同的样式与显示规则</b>——同款两端细尖弧形、端点落在首末数字中心、弧高随跨度缓增；简谱基线与连音线同口径并<b>按组内高八度点自动抬升让位</b>（此前固定高度会压到高音点），五线谱仍取组内最高音上方。连音数字改置弧顶中央断口处（N:M 自定比例同步显示）。六线谱保持 Guitar Pro 式刻度括线不变。</div></li>
     <li><span class="v">v56.8</span><div><b>三连音编辑修复：Ctrl+点选多选可直接成组</b>（用户反馈：4/4 简谱选中三个四分音符点三连音无效）：此前只有<b>拖选</b>的选区能整体设连音，<b>Ctrl+点选</b>的红圈多选被忽略、误落到单音拆分。现在两种多选方式都可以：选中<b>相邻、等时值、无附点</b>的 N 个音（同声部同小节）点「三连音/N连音」即整体成组——如三个四分音符=<b>四分三连音（占 2 拍）</b>、三个八分=八分三连音（占 1 拍）；选中不连续或时值混杂会明确提示规则。简谱/五线谱/六线谱三谱类通用，括线数字、节拍校验、播放时值、MusicXML 3:2 往返均已验证（tv_tuplet 新增 5 项回归）。</div></li>
     <li><span class="v">v56.7</span><div><b>光标位置卡精简</b>（用户指示）：去掉「可改」快捷键提示行，只保留 声部/小节/列/时值/音符/和弦/多选 等位置与内容信息。</div></li>

@@ -480,6 +480,34 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.hasVolta && r.clear && !r.nan, 'T15 段落括线让位行内和弦图(v56.4)', JSON.stringify(r));
 
+  // T16 v57.0 反复结束/终止线粗线与谱线端齐平（用户截图：TAB 六线谱线冒出反复结束线）：
+  //     TAB 行与简谱/五线谱行，粗线(rect)右缘 == 谱线终点 x（系统右缘），谱线不再冒头
+  r = await pg.evaluate(() => {
+    const s = createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.voxNotations = ['staff'];
+    for (let mi = 0; mi < 2; mi++) {
+      s.measures[mi].tabs[0].forEach((c, k) => { if (k % 2 === 0) c.notes = [{ s: 3, f: 0 }]; });
+      s.measures[mi].voxes[0].forEach((c, k) => { if (k % 2 === 0) c.deg = 1 + (k % 5); });
+    }
+    s.measures[1].repeatEnd = true;   /* 行尾小节反复结束（用户场景：反复号在系统右缘） */
+    loadSong(s); blurSel = true; render();
+    /* 谱线终点 x：横线里最右端（六线谱/五线谱线都画到系统右缘） */
+    const lines = [...document.querySelectorAll('#score line')]
+      .map(l => ({ x1: +l.getAttribute('x1'), x2: +l.getAttribute('x2'), y1: +l.getAttribute('y1'), y2: +l.getAttribute('y2') }))
+      .filter(l => Math.abs(l.y1 - l.y2) < 0.01 && (l.x2 - l.x1) > 100);
+    const lineEnd = Math.max(...lines.map(l => l.x2));
+    /* 粗线 rect（var(--ink)、宽 2~2.6、高>20）：反复结束 + 终止线两组，右缘应≈各自小节右缘 */
+    const bars = [...document.querySelectorAll('#score rect[fill="var(--ink)"]')]
+      .map(r2 => ({ x: +r2.getAttribute('x'), w: +r2.getAttribute('width'), h: +r2.getAttribute('height') }))
+      .filter(r2 => r2.w >= 1.8 && r2.w <= 2.8 && r2.h > 20);
+    /* 行尾终止线的粗线右缘==谱线终点（允差0.1）；不存在右缘 < 其行的谱线端 0.3px 以上的行尾粗线 */
+    const endBars = bars.filter(b2 => Math.abs(b2.x + b2.w - lineEnd) < 0.5);
+    const flush = endBars.length >= 2 && endBars.every(b2 => Math.abs(b2.x + b2.w - lineEnd) < 0.1);
+    return { lineEnd: +lineEnd.toFixed(1), nBars: bars.length, nEnd: endBars.length,
+      ends: endBars.map(b2 => +(b2.x + b2.w).toFixed(2)).join(','), flush };
+  });
+  T(r.nEnd >= 2 && r.flush, 'T16 反复/终止粗线与谱线端齐平(v57.0)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
