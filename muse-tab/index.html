@@ -525,6 +525,11 @@ body.shell .rtab[data-p="ai"]::before{content:"AI";position:absolute;top:2px;rig
 body.shell .rcard[data-rt="lib"],body.shell .rcard[data-rt="make"]{border:none;background:transparent;overflow:visible}
 body.shell .rcard[data-rt="lib"]>.rc-h,body.shell .rcard[data-rt="make"]>.rc-h{display:none}
 body.shell .rcard[data-rt="lib"] .rc-b,body.shell .rcard[data-rt="make"] .rc-b{display:block;padding:0;border-top:none}
+/* v57.2 创作页栏目主题（用户指示）：光标卡=「当前编辑位置」、开关+时值提示卡=「编辑模式 · 时值提示」
+   ——恢复这两张卡的标题显示（v56.6 曾整页隐藏 make 卡标题导致栏目无主题）；创作辅助卡自带卡内大标题维持隐藏 */
+body.shell #rc-cursor>.rc-h,body.shell #rc-beat>.rc-h{display:flex;padding:2px 2px 6px;
+  font-size:11px;letter-spacing:.08em;color:var(--muted);background:transparent;border:none;cursor:default}
+body.shell #rc-cursor>.rc-h::after,body.shell #rc-beat>.rc-h::after{content:none}   /* 创作页卡体常显（不折叠），去掉折叠箭头 */
 /* v46.4 智能页预提示卡沿用无边框形态（光标位置卡保留标准卡片样式） */
 body.shell #rc-hints{border:none;background:transparent;overflow:visible}
 body.shell #rc-hints>.rc-h{display:none}
@@ -1696,13 +1701,13 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
     </div>
     <!-- v48.3 光标位置卡；v56.6 移入创作页（用户指示：光标信息与时值提示随编辑流放创作栏） -->
     <div class="rcard open" data-rt="make" id="rc-cursor">
-      <button class="rc-h" type="button">光标位置</button>
+      <button class="rc-h" type="button">当前编辑位置</button><!-- v57.2 栏目主题按用户指示定名 -->
       <div class="rc-b"><div id="cursor-info">—</div></div>
     </div>
     <!-- v56.6 节拍检查卡（创作页）：自由/智能编辑开关 + 时值提示（beat-box 由 applyShellDock 搬入）。
          自由编辑=只提示各小节时值正确与否（可点击定位）；智能编辑=给补充/删减修复建议并可一键采纳 -->
     <div class="rcard open" data-rt="make" id="rc-beat">
-      <button class="rc-h" type="button">节拍检查</button>
+      <button class="rc-h" type="button">编辑模式 · 时值提示</button><!-- v57.2 栏目主题覆盖全部内容（自由/智能编辑开关+时值提示同属本栏目，用户指示） -->
       <div class="rc-b">
         <div id="em-toggle">
           <button data-em="free" title="自由编辑：任意时值与形式编辑曲谱，仅提示各小节时值正确与否（点击可定位），不给修复建议">自由编辑</button>
@@ -16718,7 +16723,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.1';
+const APP_VER='v57.2';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16741,6 +16746,7 @@ const APP_VER='v57.1';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.2</span><div><b>创作栏栏目主题</b>（用户指示）：此前创作页卡片标题被整体隐藏、栏目无主题——现恢复显示并定名：光标信息栏目主题为<b>「当前编辑位置」</b>；<b>自由编辑 / 智能编辑开关与时值提示同属一个栏目</b>，主题为<b>「编辑模式 · 时值提示」</b>（原「节拍检查」），准确覆盖栏目全部内容；创作辅助卡保持自带卡内标题。</div></li>
     <li><span class="v">v57.1</span><div><b>弹唱谱 × 记号=和弦内音实音化 + 琶音/扫弦按指法补全和弦</b>（用户反馈：女儿国——G 和弦 1 弦的 × 应是 3 品实音而非哑音；结尾下琶音五线谱只显示一个音）：弹唱语境（非独奏、有和弦）下，TAB 弦上的 <b>×</b> 按教材惯例是<b>「按住和弦弹这根弦」的和弦内音记法</b>——现在<b>关联五线谱按当前和弦指法显示实音高</b>（G 和弦 1 弦 × → 3 品 G），<b>播放/MusicXML/MIDI 导出同步发实音</b>（此前播放为哑音、MIDI 导出直接丢音）；<b>扫弦/琶音箭头覆盖而无音符的弦按指法自动补全</b>——单音上做下琶音即整个和弦发声、五线谱显示完整柱式和弦。哑音原义保留：拍弦 ⊠ 列、切音列（节奏型库切音现打 mute 标记并在 × 上方加切音点，同扫弦切音「箭头带点」口径）、扫弦列内的 ×（GP 闷弦惯例）与独奏谱不受影响。光标卡的 × 同步显示「和弦内音（弦/品）」。</div></li>
     <li><span class="v">v57.0</span><div><b>反复结束线刻版修正</b>（用户截图：六线谱的线冒出反复结束线）：六线谱与五线谱的<b>反复结束 𝄇 / 终止线 𝄂 的粗线右缘改为与谱线终点严格齐平</b>——此前粗线右缘差谱线端约 1px，放大或打印时谱线会从反复号右侧探出一小截；圆点与细线按原间距同步右移，出版惯例（谱线止于终止粗线）达成。</div></li>
     <li><span class="v">v56.9</span><div><b>连音弧与普通连音线样式统一</b>（用户截图：三连音括线一头压到高音点）：简谱/五线谱的三连音、N连音弧线改用与普通连音线<b>完全相同的样式与显示规则</b>——同款两端细尖弧形、端点落在首末数字中心、弧高随跨度缓增；简谱基线与连音线同口径并<b>按组内高八度点自动抬升让位</b>（此前固定高度会压到高音点），五线谱仍取组内最高音上方。连音数字改置弧顶中央断口处（N:M 自定比例同步显示）。六线谱保持 Guitar Pro 式刻度括线不变。</div></li>

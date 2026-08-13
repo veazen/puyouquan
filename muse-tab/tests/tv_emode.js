@@ -32,7 +32,13 @@ const T = (ok, name, detail) => {
     const vis = id => { const el = document.getElementById(id); return !!el && el.style.display !== 'none' && !!el.offsetParent; };
     const make = { cursor: vis('rc-cursor'), beat: vis('rc-beat'), em: vis('em-toggle'),
       bbHosted: (document.getElementById('beat-box') || {}).parentElement === document.getElementById('beat-host'),
-      info: vis('rc-songinfo') };
+      info: vis('rc-songinfo'),
+      /* v57.2 栏目主题（用户指示）：光标卡=「当前编辑位置」；开关+时值提示同栏目=「编辑模式 · 时值提示」；
+         标题必须可见（v56.6 曾整页隐藏 make 卡标题→栏目无主题，本次恢复两卡标题显示） */
+      tCur: document.querySelector('#rc-cursor .rc-h').textContent.trim() === '当前编辑位置'
+        && !!document.querySelector('#rc-cursor .rc-h').offsetParent,
+      tBeat: document.querySelector('#rc-beat .rc-h').textContent.trim() === '编辑模式 · 时值提示'
+        && !!document.querySelector('#rc-beat .rc-h').offsetParent };
     const order = (() => {
       const aside = document.getElementById('rc-cursor').parentElement;
       const ids = [...aside.children].map(el => el.id).filter(Boolean);
@@ -44,8 +50,9 @@ const T = (ok, name, detail) => {
     return { make, info, order };
   });
   T(r.make.cursor && r.make.beat && r.make.em && r.make.bbHosted && !r.make.info
+    && r.make.tCur && r.make.tBeat
     && !r.info.cursor && !r.info.beat && r.info.info && r.order,
-    'T2 创作页=光标+节拍检查(含beat-box)，信息页=曲谱信息', JSON.stringify(r));
+    'T2 创作页=当前编辑位置+编辑模式·时值提示(含beat-box)，信息页=曲谱信息', JSON.stringify(r));
 
   // 造一处时值错误：4/4 小节只填 2 拍
   await pg.evaluate(() => {
