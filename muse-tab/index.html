@@ -172,8 +172,15 @@ input.short{width:54px} input.mid{width:150px}
   font-size:12px;line-height:1;transition:opacity .12s,max-width .12s,margin .12s;margin-left:0}
 .vchip:hover .vdel{opacity:.75;max-width:14px;margin-left:2px}
 .vchip .vdel:hover{color:var(--danger);opacity:1}
-/* 节拍状态（位于右栏“使用帮助”下方） */
+/* 节拍状态（v56.6 位于创作页「节拍检查」卡内） */
 #beat-box{position:relative;font-size:12px;padding:2px}
+/* v56.6 自由/智能编辑分段开关（节拍检查卡顶部） */
+#em-toggle{display:flex;gap:1px;background:var(--panel);border:1px solid var(--border-soft);
+  border-radius:9px;padding:2px;margin:0 0 7px}
+#em-toggle button{flex:1;border:none;background:transparent;padding:4.5px 0;text-align:center;
+  font-size:12px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:all .15s}
+#em-toggle button:hover{color:var(--text);background:var(--hover);box-shadow:none}
+#em-toggle button.on{background:var(--text);color:var(--panel)}
 #beat-status{cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:5px 11px;
   border-radius:20px;border:1px solid var(--border);background:var(--panel);width:100%;
   box-sizing:border-box;font-size:12px;line-height:1.3}
@@ -416,8 +423,9 @@ body.shell #editbar .eb.on{background:var(--accent-soft);color:var(--accent-ink)
 body.shell #editbar #beat-box{flex:none;padding:0;white-space:nowrap}
 body.shell #editbar #beat-status{width:auto;max-width:126px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   padding:3.5px 9px;border-radius:20px;font-size:11.5px}   /* 顶栏内联长文案截断（完整状态见悬停/下拉） */
-body.shell #err-drop{position:fixed;right:14px;top:108px;width:340px;max-height:62vh;
-  overflow-y:auto;z-index:55;background:var(--panel);border:1px solid var(--border-soft);
+/* v56.6 修复建议随节拍检查卡内联展示（创作页），不再固定浮层悬于谱面右上 */
+body.shell #err-drop{position:static;width:auto;max-height:42vh;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--border-soft);
   border-radius:12px;box-shadow:var(--shadow);padding:8px;margin:0}
 /* v47.3 节奏组合在新版顶栏全铺开（v47.2 铺开决策延续）：更多▾ 隐藏；经典版保持 4+更多 紧凑。
    新版顶栏组合钮只留符杠图形（名称进 title，v40.5 图标组同哲学）——7 组合铺开在 1280 宽视口也不溢出 */
@@ -1612,9 +1620,10 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
          智能栏=预提示+光标位置（默认仍停留信息页不打断编辑流） -->
     <!-- v48.3 右栏收敛为两页签：信息 / 创作。原「智能」「库」页签移除——
          预提示并入创作页，光标位置与节拍状态并回信息页，素材库面板改由顶栏「节奏型库/伴奏织体」进入 -->
+    <!-- v56.6 创作页签置首（默认页）：光标信息+节拍检查（自由/智能编辑开关）随编辑流常驻 -->
     <div id="rtabs">
-      <button class="rtab on" data-p="info">信息</button>
-      <button class="rtab" data-p="make">创作</button>
+      <button class="rtab on" data-p="make">创作</button>
+      <button class="rtab" data-p="info">信息</button>
     </div>
     <!-- v41.4 信息页摘要卡（仅新版）：调/拍速/变调夹一眼可查，编辑入口委托 b-meta 弹窗 -->
     <div class="rcard open rt-new" data-rt="info" id="rc-songinfo">
@@ -1685,10 +1694,22 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
         </div><!-- /#sp-more -->
       </div>
     </div>
-    <!-- v48.3 光标位置归回信息页（原在已移除的「智能」页）：点击音符时同步显示可编辑信息 -->
-    <div class="rcard open" data-rt="info" id="rc-cursor">
+    <!-- v48.3 光标位置卡；v56.6 移入创作页（用户指示：光标信息与时值提示随编辑流放创作栏） -->
+    <div class="rcard open" data-rt="make" id="rc-cursor">
       <button class="rc-h" type="button">光标位置</button>
       <div class="rc-b"><div id="cursor-info">—</div></div>
+    </div>
+    <!-- v56.6 节拍检查卡（创作页）：自由/智能编辑开关 + 时值提示（beat-box 由 applyShellDock 搬入）。
+         自由编辑=只提示各小节时值正确与否（可点击定位）；智能编辑=给补充/删减修复建议并可一键采纳 -->
+    <div class="rcard open" data-rt="make" id="rc-beat">
+      <button class="rc-h" type="button">节拍检查</button>
+      <div class="rc-b">
+        <div id="em-toggle">
+          <button data-em="free" title="自由编辑：任意时值与形式编辑曲谱，仅提示各小节时值正确与否（点击可定位），不给修复建议">自由编辑</button>
+          <button data-em="smart" title="智能编辑：时值不符时给出补充/删减等修复建议，支持单条与全部一键采纳">智能编辑</button>
+        </div>
+        <div id="beat-host"></div>
+      </div>
     </div>
     <!-- v48.3 素材库卡暂时隐藏（rt-off）：面板仍在 DOM 内由 applyShellDock 搬运，
          入口改走顶栏「节奏型库…/伴奏织体…」与左栏和弦层，功能不丢 -->
@@ -1721,12 +1742,8 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
         </div>
       </div>
     </div>
-    <!-- v46.3 智能预提示：按当前选中对象（音符/拍/小节/小节线）实时给出对应操作提示；
-         整体流程建议列为次级段（产品拍板：编辑内上下文提示为主、宏观建议为辅） -->
-    <div class="rcard open rt-new" data-rt="make" id="rc-hints">
-      <button class="rc-h" type="button">智能预提示</button>
-      <div class="rc-b" id="hint-body"></div>
-    </div>
+    <!-- v56.6 智能预提示卡移除（用户指示）：创作页改为 光标位置+节拍检查+创作帮助；
+         renderHints/hint-body 事件均有空宿主守卫，函数保留不再渲染 -->
     <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-help">使用帮助</button>
     </div>
@@ -1740,7 +1757,9 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
       <!-- v48.8 音色库灰度开关：默认 MusyngKite，点击切换 FluidR3 试听（刷新生效，可随时切回） -->
       <div class="rc-ver" id="rc-sndlib" style="cursor:pointer" title="播放音色库切换（灰度试听，刷新生效）"></div>
     </div>
-    <div id="beat-box" data-rt="info">
+    <!-- v56.6 beat-box 由 applyShellDock 搬入创作页「节拍检查」卡的 beat-host（不再挂 data-rt，
+         避免嵌套页签显隐互相打架） -->
+    <div id="beat-box">
       <span id="beat-status" class="good">✓ 所有小节时值正确</span>
       <div id="err-drop" class="hidden"></div>
     </div>
@@ -6725,6 +6744,11 @@ function setRibbon(t){
     }
   }
 }
+/* v56.6 编辑模式：'smart'（默认）=时值修复/补充/删减建议+一键采纳；'free'=任意时值/形式编辑，
+   只提示各小节时值正确与否（可定位）。存 musetab-editmode（新增键，不改旧键） */
+function editModeSmart(){
+  try{ return localStorage.getItem('musetab-editmode')!=='free'; }catch(_){ return true; }
+}
 function syncInputs(){
   const col = curCol();
   /* v47.5→v47.6 顶栏「音符」输入组按声部上下文切换（三态）：
@@ -6951,9 +6975,13 @@ function syncInputs(){
   if(bs2) bs2.classList.toggle('on', !!(mea&&mea.simile===2));
   const bfg=document.getElementById('b-fing');
   if(bfg) bfg.classList.toggle('on', !!fingMode);
-  /* 节拍状态栏 */
+  /* 节拍状态栏。v56.6 自由/智能编辑分流：自由=只列各小节时值正确与否（可点击定位），
+     不给修复建议；智能=修复建议 + 单条/全部一键采纳（原行为） */
   const errs = beatErrors();
   const bs = document.getElementById('beat-status');
+  const emSmart = editModeSmart();
+  document.querySelectorAll('#em-toggle button').forEach(b2=>
+    b2.classList.toggle('on', (b2.dataset.em==='smart')===emSmart));
   if(!errs.length){
     bs.innerHTML = svgi('check',11)+' 所有小节时值正确'; bs.className='good';
     document.getElementById('err-drop').classList.add('hidden');
@@ -6961,16 +6989,17 @@ function syncInputs(){
     bs.innerHTML = svgi('warn',11)+` ${errs.length} 处小节时值与拍号不符（点击定位）`; bs.className='bad';
     const rows = errs.map(e=>{
       const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
-      const sg = suggestFix(e.mi, e.row, e.vi);
+      const sg = emSmart? suggestFix(e.mi, e.row, e.vi) : null;
       return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">
         <div class="err-desc">${svgi('warn',11)} 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)}/${e.target} 拍</div>
         ${sg?`<div class="err-sug">${svgi('bulb',11)} ${esc(sg.text)}</div>`:''}
-        <button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>
+        ${emSmart?`<button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>`:''}
       </div>`;
     }).join('');
     const ed = document.getElementById('err-drop');
-    ed.innerHTML =
-      `<div class="err-hd"><span>修复建议 · ${errs.length} 处</span><button id="err-fixall">全部采纳</button></div>` + rows;
+    ed.innerHTML = (emSmart
+      ? `<div class="err-hd"><span>修复建议 · ${errs.length} 处</span><button id="err-fixall">全部采纳</button></div>`
+      : `<div class="err-hd"><span>时值检查 · ${errs.length} 处不符（点击定位）</span></div>`) + rows;
     ed.classList.remove('hidden');   // 独立框常显于状态提示下方
   }
   if(!audio.playing){
@@ -8128,8 +8157,8 @@ function initStartPad(){
   if(/[?&](pub|wxlogin|mine)=/.test(location.search)) return;   // 深链直达不出启动台（v50.7 +mine 云端曲谱直达）
   sp.classList.remove('hidden');
   closeFlyout();   // 左边栏默认收起
-  /* v46.6→v48.3 未选状态右栏默认页：智能页已并入创作页，改停信息页 */
-  try{ setRTab('info'); }catch(_){}
+  /* v46.6→v48.3 未选状态右栏默认页停信息页；v56.6 创作页置首为默认（光标+节拍检查随编辑流） */
+  try{ setRTab('make'); }catch(_){}
   document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('on'));
   try{ renderHints(); syncInputs(); }catch(_){}
   const ct=document.getElementById('spd-cont');
@@ -10496,6 +10525,17 @@ function rebuildChordList(){
 rebuildChordList();
 document.getElementById('i-chord').addEventListener('focus', rebuildChordList);
 /* 点状态提示→跳到第一处不符小节（建议框已常显于其下方，无需展开） */
+/* v56.6 自由/智能编辑开关：切换即重刷节拍检查区（智能建议显隐） */
+{ const em=document.getElementById('em-toggle');
+  if(em) em.addEventListener('click', e=>{
+    const b2=e.target.closest('button[data-em]'); if(!b2) return;
+    const free = b2.dataset.em==='free';
+    try{ localStorage.setItem('musetab-editmode', free?'free':'smart'); }catch(_){}
+    toast(free? '自由编辑：任意时值与形式编辑，仅提示时值正确与否'
+              : '智能编辑：时值不符给出补充/删减修复建议，可一键采纳');
+    syncInputs();
+  });
+}
 document.getElementById('beat-status').onclick = ()=>{
   const errs = beatErrors(); if(!errs.length) return;
   const e = errs[0];
@@ -12354,8 +12394,9 @@ function applyShellDock(){
   const bb=document.getElementById('beat-box'), ebz=document.getElementById('eb-zoom'),
         rdock=document.getElementById('right-dock'), eb=document.getElementById('editbar');
   if(ebz && eb && ebz.parentElement!==eb) eb.appendChild(ebz);
-  /* v48.3 节拍状态（小节时值提示）归回右栏「信息」页——撤 v47.3 的顶栏搬移，两种外壳一致 */
-  if(bb && rdock && bb.parentElement!==rdock) rdock.appendChild(bb);
+  /* v48.3 节拍状态归右栏；v56.6 进创作页「节拍检查」卡（自由/智能编辑开关下方），两种外壳一致 */
+  const bhost=document.getElementById('beat-host');
+  if(bb && bhost && bb.parentElement!==bhost) bhost.appendChild(bb);
   /* v47.5 撤销/重做：新版 → 上栏节奏组后；经典版 → 回页头（file-in 前原位） */
   const su=document.getElementById('seg-undo');
   if(su && eb){
@@ -12364,11 +12405,11 @@ function applyShellDock(){
     else { const fi=document.getElementById('file-in'); if(fi) fi.parentElement.insertBefore(su, fi); }
   }
 }
-/* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显） */
-let rTab='info';
+/* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显）；v56.6 创作页置首为默认 */
+let rTab='make';
 function setRTab(p){
-  /* v48.3 只剩 信息/创作 两页签：切到已移除的 ai/lib 会把所有卡片隐藏，故兜底回 info */
-  if(!document.querySelector('#rtabs .rtab[data-p="'+p+'"]')) p='info';
+  /* v48.3 只剩 信息/创作 两页签：切到已移除的 ai/lib 会把所有卡片隐藏，故兜底回创作页 */
+  if(!document.querySelector('#rtabs .rtab[data-p="'+p+'"]')) p='make';
   rTab=p;
   document.querySelectorAll('#rtabs .rtab').forEach(b=>b.classList.toggle('on', b.dataset.p===p));
   document.querySelectorAll('#right-dock [data-rt]').forEach(el=>{
@@ -16600,7 +16641,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.5';
+const APP_VER='v56.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16623,6 +16664,7 @@ const APP_VER='v56.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.6</span><div><b>右栏改版：创作页置首 + 自由/智能编辑开关</b>（用户指示）：① 右栏页签改为「<b>创作</b>·信息」，创作页为默认页；② 创作页原「智能预提示」卡移除，改为<b>光标位置</b>＋<b>节拍检查</b>＋创作辅助——编辑时光标信息与时值状态一眼可见；③ 节拍检查卡顶部新增<b>自由编辑 / 智能编辑</b>开关：<b>自由编辑</b>=任意时值与形式编辑曲谱，只提示各小节时值正确与否（可点击定位），不给修复建议；<b>智能编辑</b>（默认）=时值不符时给出补充/删减修复建议，支持单条与全部一键采纳。选择记忆在本机。修复建议列表随卡内联展示，不再悬浮谱面右上角。</div></li>
     <li><span class="v">v56.5</span><div><b>播放功能优化</b>（用户反馈）：① 音轨 <b>S（独奏）/M（静音）/音量</b> 在<b>播放中</b>切换即时生效——此前音量等在起播时一次算死，播放中按了没反应；现在收敛到各轨总线增益（平滑过渡无爆音）。② <b>播放光标升级</b>：默认为<b>整谱光标</b>——高亮条纵向贯穿本行所有声部（此前只罩吉他行）；<b>单独 SOLO 某轨时光标只跟随该轨</b>，滚动也按该轨行定位。③ 顺带修复：静音吉他轨后播放光标整个消失（光标事件此前挂在吉他轨排程里）。新增 tv_mix 播放混音回归套件（7 断言）。</div></li>
     <li><span class="v">v56.4</span><div><b>段落括线不再与和弦图重叠</b>（用户截图反馈）：吉他谱行内和弦图模式下，1/2 房段落括线、排练标记、Segno/Coda 跳转记号画在六线谱上方的记号带里，与同一行的和弦图（底缘更低）发生重叠——现在同一行两者共存时<b>和弦图带自动加高</b>，把括线/标记让到和弦图正下方、六线谱上方的空档，互不相压；没有共存的行不加高，版面不变。新增几何回归（tv_sign T15）。</div></li>
     <li><span class="v">v56.3</span><div><b>倚音连接线定稿：固定线径弧线</b>（用户指示两轮）：简谱倚音与主音之间的连接线由<b>直角折线</b>改为<b>小弧线</b>——从倚音组下方弯到主音腰部、弧深为弦长的 <b>1/5</b>（开口朝上、凹向主音），并按第二轮指示采用<b>固定线径</b>描边（0.9，与原折线同线重），不用两头细尖的连音线形。原有避让逻辑不变（减时线越多、低八度点越多，起点自动下移）；前倚音/后倚音、单音/多音倚音组全部生效。几何回归 tv_grace T16：无直角折线 + 固定线径 0.9 + 弧深=弦长/5。</div></li>

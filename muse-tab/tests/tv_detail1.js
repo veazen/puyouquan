@@ -369,44 +369,34 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { first: tabs[0], order: tabs.join(','), defOn: on && on.dataset.p };
   });
   /* v46.6 起启动台把右栏默认页设为智能；v46.7 页签序改为 智能·库·创作·信息 */
-  /* v48.3 右栏收敛为两页签：信息（默认）· 创作；原智能/库页签移除 */
-  T(t23.first === 'info' && t23.order === 'info,make' && t23.defOn === 'info',
-    'T23 页签序(信息·创作，默认停信息)', JSON.stringify(t23));
+  /* v48.3 右栏收敛为两页签：信息（默认）· 创作 */
+  /* v56.6 创作页签置首为默认（光标位置+节拍检查随编辑流） */
+  T(t23.first === 'make' && t23.order === 'make,info' && t23.defOn === 'make',
+    'T23 页签序(创作·信息，默认停创作)', JSON.stringify(t23));
 
-  // T24 v46.3 智能预提示按选中对象切换
+  // T24 v46.3 智能预提示 → v56.6 移除（用户指示）：卡片/宿主不存在且 renderHints 空转不抛
   const t24 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 2, notes: [] }, { dur: 4, notes: [] }];
     s.measures[0].voxes[0] = [{ dur: 4, deg: 1 }, { dur: 4, deg: 3 }, { dur: 2, deg: 5 }];
     loadSong(s);
-    const txt = () => document.getElementById('hint-body').textContent;
-    const out = {};
-    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = []; renderDock();
-    out.tab = /吉他谱音符/.test(txt());
-    out.clickable = !!document.querySelector('#hint-body [data-hact]');   // 音符上下文含 rib: 直达项
-    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; renderDock();
-    out.jp = /简谱音符/.test(txt());
-    song.voxNotations = ['staff']; renderDock();
-    out.st = /五线谱音符/.test(txt());
-    selRange = { row: 'tab', vi: 0, m1: 0, c1: 0, m2: 0, c2: 2, whole: true }; renderDock();
-    out.mea = /小节声部/.test(txt());
-    selRange = null; barSel = { L: 0, R: 1 }; renderDock();
-    out.bar = /小节线/.test(txt());
-    out.subs = /整体建议/.test(txt());
-    barSel = null; renderDock();
+    const out = { gone: !document.getElementById('rc-hints') && !document.getElementById('hint-body') };
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = [];
+    try{ renderDock(); renderHints(); out.noThrow = true; }catch(_){ out.noThrow = false; }
     return out;
   });
-  T(t24.tab && t24.jp && t24.st && t24.mea && t24.bar && t24.clickable && t24.subs,
-    'T24 智能预提示随选中对象切换(五上下文+直达+次级)', JSON.stringify(t24));
+  T(t24.gone && t24.noThrow, 'T24 智能预提示卡已移除(v56.6)且渲染无异常', JSON.stringify(t24));
 
-  // T25+T26 v46.4 四页签 + 光标卡音符可编辑信息
+  // T25+T26 v46.4→v56.6 两页签 + 光标卡音符可编辑信息
   const t25 = await pg.evaluate(() => {
     const tabs = [...document.querySelectorAll('#rtabs .rtab')].map(b => b.dataset.p).join(',');
-    /* v48.3 光标位置归回信息页；创作页＝创作帮助(rt-sug 等) + 预提示(rc-hints)；
+    /* v56.6 光标位置+节拍检查（em-toggle+beat-box）移入创作页；预提示移除；
        导入互操作(rt-mxl) 暂时隐藏（启动台/新建向导仍可达） */
-    const ciInfo = !!document.querySelector('.rcard[data-rt="info"] #cursor-info');
+    const ciInfo = !!document.querySelector('.rcard[data-rt="make"] #cursor-info');
     const makeCards = !!document.querySelector('.rcard[data-rt="make"] #rt-sug')
-      && !!document.querySelector('.rcard[data-rt="make"]#rc-hints');
+      && !!document.querySelector('.rcard[data-rt="make"]#rc-beat')
+      && !!document.querySelector('#rc-beat #em-toggle')
+      && document.getElementById('beat-box').parentElement === document.getElementById('beat-host');
     const mxlHidden = !document.querySelector('#rt-mxl') || !document.querySelector('#rt-mxl').offsetParent;
     const libOff = !document.querySelector('.rcard[data-rt="lib"]') || !document.querySelector('.rcard[data-rt="lib"]').offsetParent;
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
@@ -416,8 +406,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const t = document.getElementById('cursor-info').textContent;
     return { tabs, ciInfo, makeCards, mxlHidden, libOff, note: /5弦 3品/.test(t) && /击弦/.test(t), edit: /时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
   });
-  T(t25.tabs === 'info,make' && t25.ciInfo && t25.makeCards && t25.mxlHidden && t25.libOff,
-    'T25 两页签(信息=光标位置/创作=创作帮助+预提示，库与导入互操作隐藏)', JSON.stringify(t25));
+  T(t25.tabs === 'make,info' && t25.ciInfo && t25.makeCards && t25.mxlHidden && t25.libOff,
+    'T25 两页签(创作=光标位置+节拍检查+创作帮助，库与导入互操作隐藏)', JSON.stringify(t25));
   T(t25.note && t25.edit && t25.chord, 'T26 光标卡音符可编辑信息(弦品/技法/可改/和弦)', JSON.stringify(t25));
 
   // T29 v47.3 顶栏回归：音符/时值/节奏三组恒在顶栏，时值点击生效、后插生效、组标签「音符」
@@ -605,13 +595,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const btns1 = [...qb.querySelectorAll('[data-qb]')].map(x => x.dataset.qb);
     const rerank = btns1.includes('tech:hm');
     const guess = qb.querySelector('.qb-guess') && qb.querySelector('[data-qb]').dataset.qb === 'tup:3';
-    // ④ 智能卡「猜你想做」直达（应用 3连音 → 首音 tup 字段出现）
-    renderHints();
-    const hb = [...document.querySelectorAll('#hint-body [data-hact]')].find(x => x.dataset.hact.indexOf('qb:') === 0);
+    // ④ 「猜你想做」直达：v56.6 预提示卡移除，改走快捷浮条置顶预判项（点击应用 3连音）
+    sel.row = 'tab'; sel.mi = 0; sel.ci = 0; clampSel(); closeQuickbar(); showQuickbar(300, 300);
     let hintDo = false;
-    if (hb) { sel.row = 'tab'; sel.mi = 0; sel.ci = 0; clampSel(); hb.click();
+    const gq = document.querySelector('#quickbar [data-qb="tup:3"]');
+    if (gq) { gq.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       hintDo = !!(song.measures[0].tabs[0][0] && song.measures[0].tabs[0][0].tup); }
-    // ⑤ 关闭→不再弹→智能卡重开
+    closeQuickbar();
+    // ⑤ 关闭→不再弹（重开入口 v56.6 随预提示卡移除，直接恢复偏好键）
     showQuickbar(300, 300);
     document.querySelector('#quickbar [data-qb="off"]').click();
     showQuickbar(300, 300);
@@ -619,9 +610,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     // v51.3 关闭偏好只关自动弹：右键 force 唤出不受影响
     showQuickbar(300, 300, true);
     offOk = offOk && !!document.getElementById('quickbar'); closeQuickbar();
-    renderHints();
-    const re = [...document.querySelectorAll('#hint-body [data-hact]')].find(x => x.dataset.hact === 'qbon');
-    if (re) re.click();
+    try{ localStorage.removeItem('musetab-quickbar'); }catch(_){}
     const backOn = localStorage.getItem('musetab-quickbar') !== 'off';
     // ⑥ 简谱语境按钮组（升降/八度/连音线）
     if (typeof undoStack !== 'undefined') undoStack.length = 0;
@@ -911,19 +900,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].map(c => c.dataset.sp).join(',');
     const flyClosed = document.getElementById('left-flyout').classList.contains('hidden');
     const paperHidden = getComputedStyle(document.getElementById('paper')).visibility === 'hidden';
-    // v46.6 默认页：右栏智能页 + 欢迎提示 + 光标卡「—」+ 左栏无选中高亮
+    // v46.6 默认页 → v56.6：启动台右栏停「创作」页（预提示卡已移除，欢迎语随之取消）
     const rOn = document.querySelector('#rtabs .rtab.on');
-    /* v48.3 智能页已并入创作页：启动台默认停「信息」页 */
-    const infoOn = rOn && rOn.dataset.p === 'info';
-    const welcome = /欢迎使用/.test(document.getElementById('hint-body').textContent);
+    const makeOn = rOn && rOn.dataset.p === 'make';
     const ciDash = document.getElementById('cursor-info').textContent.trim() === '—';
     const noLtabOn = !document.querySelector('.ltab.on');
-    return { vis, cards, flyClosed, paperHidden, infoOn, welcome, ciDash, noLtabOn };
+    return { vis, cards, flyClosed, paperHidden, makeOn, ciDash, noLtabOn };
   });
   T(t27.vis && t27.cards === 'new,open,imp,mine' && t27.flyClosed && t27.paperHidden,
     'T27 启动台默认态(四卡+左栏收起+空白谱面)', JSON.stringify(t27));
-  T(t27.infoOn && t27.welcome && t27.ciDash && t27.noLtabOn,
-    'T31 启动台默认页(信息页+光标—+左栏无高亮)', JSON.stringify(t27));
+  T(t27.makeOn && t27.ciDash && t27.noLtabOn,
+    'T31 启动台默认页(创作页+光标—+左栏无高亮)', JSON.stringify(t27));
   // T28 v46.9 改版：点新建后启动台保持（向导背后是干净启动台）、向导无「当前曲谱《旧稿》」状态行
   const t28 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
