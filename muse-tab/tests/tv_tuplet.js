@@ -202,6 +202,115 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.only3 && r.nBtn && r.label, 'T12 预设仅3连音+N连音按钮', JSON.stringify(r));
 
+  // ---- v56.8 三连音深修（用户反馈：4/4 简谱 Ctrl 选中三个四分音符点三连音无效） ----
+  // T13 用户场景：简谱 0556(八分×4)+高1·7·6(四分×3)，Ctrl 红圈多选（noteSel）→ applyTuplet(3)
+  //     四分三连音成组（tup=3、占2拍、小节4拍无误）+ 括线数字3绘出 + noteSel 升格清空
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('vocal', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 1 });
+    const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+    s.measures[0].voxes[0] = [V(0, 8), V(5, 8), V(5, 8), V(6, 8), V(1, 4, { oct: 1 }), V(7, 4), V(6, 4)];
+    loadSong(s); blurSel = false; selRange = null;
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 6 };
+    noteSel = [ { mi: 0, ci: 5, si: 0, vi: 0, row: 'vox' },   /* 乱序+含当前列：按 ci 排序后应成组 */
+                { mi: 0, ci: 4, si: 0, vi: 0, row: 'vox' },
+                { mi: 0, ci: 6, si: 0, vi: 0, row: 'vox' } ];
+    applyTuplet(3);
+    render();
+    const cols = song.measures[0].voxes[0];
+    const svg = document.getElementById('score').innerHTML;
+    return { tups: cols.map(c => c.tup || 0).join(','), nCols: cols.length,
+      beats: +cols.reduce((a, c) => a + beatsOf(c, 4), 0).toFixed(4),
+      errN: beatErrors().length, nsCleared: noteSel.length === 0,
+      has3: [...document.querySelectorAll('#score text')].some(t => t.textContent === '3' && t.getAttribute('font-style') === 'italic'),
+      nan: svg.includes('NaN') };
+  });
+  T(r.tups === '0,0,0,0,3,3,3' && r.nCols === 7 && r.beats === 4 && r.errN === 0 && r.nsCleared && r.has3 && !r.nan,
+    'T13 Ctrl多选三个四分→四分三连音(简谱·占2拍·括线3)', JSON.stringify(r));
+
+  // T14 TAB 四分三连音：Ctrl 多选含同列两弦（重复 ci 去重）→ 成组；括线在符干下方
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    const mk = (o) => Object.assign({ dur: 4, dotted: false, chord: '', notes: [], strum: '', tech: '' }, o || {});
+    s.measures[0].tabs[0] = [mk({ notes: [{ s: 3, f: 0 }] }), mk({ notes: [{ s: 3, f: 2 }, { s: 4, f: 2 }] }),
+                             mk({ notes: [{ s: 2, f: 1 }] }), mk({ notes: [{ s: 1, f: 0 }] })];
+    loadSong(s); blurSel = false; selRange = null;
+    sel = { row: 'tab', vi: 0, mi: 0, ci: 1, si: 3 };
+    noteSel = [ { mi: 0, ci: 1, si: 3, vi: 0, row: 'tab' }, { mi: 0, ci: 1, si: 4, vi: 0, row: 'tab' },   /* 同列两弦 */
+                { mi: 0, ci: 2, si: 2, vi: 0, row: 'tab' }, { mi: 0, ci: 3, si: 1, vi: 0, row: 'tab' } ];
+    applyTuplet(3);
+    render();
+    const cols = song.measures[0].tabs[0];
+    return { tups: cols.map(c => c.tup || 0).join(','),
+      beats: +cols.reduce((a, c) => a + beatsOf(c, 4), 0).toFixed(4), errN: beatErrors().length,
+      has3: [...document.querySelectorAll('#score text')].some(t => t.textContent === '3' && t.getAttribute('font-style') === 'italic') };
+  });
+  T(r.tups === '0,3,3,3' && r.beats === 3 && r.errN === 1 && r.has3,
+    'T14 TAB四分三连音(同列两弦去重成组)', JSON.stringify(r));
+
+  // T15 五线谱四分三连音：noteSel 路径 + 括线在谱表上方 + 无 NaN
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('vocal', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 0 });
+    s.voxNotations = ['staff'];
+    const V = (deg, dur) => ({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false });
+    s.measures[0].voxes[0] = [V(5, 4), V(6, 4), V(7, 4), V(5, 4)];
+    loadSong(s); blurSel = false; selRange = null;
+    sel = { row: 'vox', vi: 0, mi: 0, ci: 0 };
+    noteSel = [ { mi: 0, ci: 0, si: 0, vi: 0, row: 'vox' }, { mi: 0, ci: 1, si: 0, vi: 0, row: 'vox' },
+                { mi: 0, ci: 2, si: 0, vi: 0, row: 'vox' } ];
+    applyTuplet(3);
+    render();
+    const cols = song.measures[0].voxes[0];
+    return { tups: cols.map(c => c.tup || 0).join(','),
+      beats: +cols.reduce((a, c) => a + beatsOf(c, 4), 0).toFixed(4),
+      has3: [...document.querySelectorAll('#score text')].some(t => t.textContent === '3' && t.getAttribute('font-style') === 'italic'),
+      nan: document.getElementById('score').innerHTML.includes('NaN') };
+  });
+  T(r.tups === '3,3,3,0' && r.beats === 3 && r.has3 && !r.nan,
+    'T15 五线谱四分三连音(noteSel路径)', JSON.stringify(r));
+
+  // T16 非法选区拒绝：不连续（跳列）与时值混杂 → 拒绝且数据不动
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('vocal', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 0 });
+    const V = (deg, dur) => ({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false });
+    s.measures[0].voxes[0] = [V(1, 4), V(2, 4), V(3, 4), V(4, 4)];
+    loadSong(s); blurSel = false;
+    const toasts = []; const t0 = window.toast; window.toast = (x) => toasts.push(x);
+    /* ① 跳列（ci 0,1,3） */
+    selRange = null; sel = { row: 'vox', vi: 0, mi: 0, ci: 0 };
+    noteSel = [ { mi: 0, ci: 0, si: 0, vi: 0, row: 'vox' }, { mi: 0, ci: 1, si: 0, vi: 0, row: 'vox' }, { mi: 0, ci: 3, si: 0, vi: 0, row: 'vox' } ];
+    applyTuplet(3);
+    const afterSkip = song.measures[0].voxes[0].map(c => c.tup || 0).join(',');
+    /* ② 时值混杂（改 ci1 为八分） */
+    song.measures[0].voxes[0][1].dur = 8;
+    selRange = null; noteSel = [ { mi: 0, ci: 0, si: 0, vi: 0, row: 'vox' }, { mi: 0, ci: 1, si: 0, vi: 0, row: 'vox' }, { mi: 0, ci: 2, si: 0, vi: 0, row: 'vox' } ];
+    applyTuplet(3);
+    const afterMix = song.measures[0].voxes[0].map(c => c.tup || 0).join(',');
+    window.toast = t0;
+    return { afterSkip, afterMix, toasts };
+  });
+  T(r.afterSkip === '0,0,0,0' && r.afterMix === '0,0,0,0'
+    && r.toasts.some(x => /相邻连续/.test(x)) && r.toasts.some(x => /等时值/.test(x)),
+    'T16 非法选区拒绝(跳列/混时值)且数据不动', JSON.stringify(r.toasts));
+
+  // T17 四分三连音 MusicXML 往返：type=quarter + 3:2 time-modification → 导入回 tup（拍值等价）
+  r = await pg.evaluate(async () => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('vocal', { title: 'RT', beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 0 });
+    const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+    s.measures[0].voxes[0] = [V(0, 8), V(5, 8), V(5, 8), V(6, 8), V(1, 4, { tup: 3 }), V(7, 4, { tup: 3 }), V(6, 4, { tup: 3 })];
+    loadSong(s);
+    const xml = exportMusicXML(song);
+    const hasTM = /<type>quarter<\/type>[\s\S]{0,200}?<time-modification><actual-notes>3<\/actual-notes><normal-notes>2<\/normal-notes><\/time-modification>/.test(xml)
+      || /<time-modification><actual-notes>3<\/actual-notes><normal-notes>2<\/normal-notes><\/time-modification>[\s\S]{0,60}?<type>quarter<\/type>/.test(xml)
+      || (xml.includes('<actual-notes>3</actual-notes>') && xml.includes('<type>quarter</type>'));
+    const r2 = importMusicXML(xml);
+    const cols2 = r2.song.measures[0].voxes[0];
+    const last3 = cols2.slice(-3);
+    const beats2 = +cols2.reduce((a, c) => a + beatsOf(c, 4), 0).toFixed(4);
+    return { hasTM, durs: last3.map(c => c.dur).join(','), tupEq: last3.every(c => c.tup && (c.tup === 1 || c.tup === 3) && !c.tupM), beats2 };
+  });
+  T(r.hasTM && r.durs === '4,4,4' && r.tupEq && r.beats2 === 4,
+    'T17 四分三连音MusicXML往返(3:2+quarter)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

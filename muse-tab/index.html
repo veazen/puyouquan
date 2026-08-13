@@ -7552,7 +7552,7 @@ function applyVoxPattern(pat){
      出版级图示：符杠组 + 连音括线 + 斜体数字（tupSVG）；顶栏记号组撤销。
      v46.6 连音线已回归记号层（vox=b-tie / TAB=b-tie-t，同走 toggleTie） */
   { /* v51.6 预设只留三连音（最高频）；5/6/7 及任意比例统一走「N连音」（产品拍板去重） */
-    const tupBtns=[3].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；选中${n}个等时值音可整体切换">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
+    const tupBtns=[3].map(n=>`<button class="eb ico" data-tup="${n}" title="${n}连音：当前音拆分为${n}连音（总时值不变）；拖选或 Ctrl+点选 ${n} 个相邻等时值音可整体切换——如三个四分音符=四分三连音（占2拍）、三个八分=八分三连音（占1拍）">${tupSVG(n)}<span>${n}连音</span></button>`).join('')
       /* v51.4 N:M 任意连音（GP 式）；v51.5 改名 N连音、图标=三连音式样换 N */
       +`<button class="eb ico" data-tupcustom title="N连音（Guitar Pro 式自定 N:M）：N 个音符占 M 个音符的时值，如 8:7、9:8、2:3；点时值线选中整拍 / Shift 点选后设置可整体套用，音符不足时可自动补齐">${tupSVG('N')}<span>N连音</span></button>`;
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
@@ -7841,6 +7841,27 @@ function applyTuplet(n, m){
   if(!(n>=2 && n<=16 && M>=1 && M<=16)) return toast('连音比例超出支持范围（N 2–16 · M 1–16）');
   const custom = M!==defM;
   try{ if(!custom) habit('tup:'+n); }catch(_){}
+  /* v56.8 Ctrl+点选多选（noteSel）同样可设连音（用户反馈：4/4 简谱选中三个四分音符点
+     三连音无效——此前只认拖选 selRange，Ctrl 红圈多选被无视、落到单音拆分路径）。
+     规则（各谱类通用）：同声部同小节、列号连续、等时值且无附点 → 升格为列选区，
+     走既有整体切换/不足补齐逻辑；四分三连音=3 音占 2 拍、八分三连音=3 音占 1 拍 */
+  if(!selRange && typeof noteSel!=='undefined' && noteSel.length>1){
+    const seen=new Set();
+    const ns=noteSel.filter(q=>{ const k=q.mi+':'+q.ci; if(seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a,b)=>a.ci-b.ci);
+    const row0=ns[0].row||'tab', vi0=ns[0].vi||0, mi0=ns[0].mi;
+    if(!ns.every(q=>(q.row||'tab')===row0 && (q.vi||0)===vi0 && q.mi===mi0))
+      return toast('连音组需在同一声部同一小节内——请只选中相邻的 '+n+' 个音');
+    if(!ns.every((q,i)=> i===0 || q.ci===ns[i-1].ci+1))
+      return toast('连音组的音需相邻连续——请连续选中 '+n+' 个相邻的音（中间不能跳过）');
+    const colsA = row0==='tab'? (song.measures[mi0].tabs||[])[vi0] : (song.measures[mi0].voxes||[])[vi0];
+    if(!colsA || !colsA[ns[0].ci]) return;
+    if(!ns.every(q=> colsA[q.ci] && colsA[q.ci].dur===colsA[ns[0].ci].dur && !colsA[q.ci].dotted))
+      return toast('连音组内需等时值且无附点（如三个四分音符=四分三连音，共占 2 拍）');
+    sel.row=row0; sel.vi=vi0; sel.mi=mi0; sel.ci=ns[0].ci;
+    selRange={row:row0, vi:vi0, m1:mi0, c1:ns[0].ci, m2:mi0, c2:ns[ns.length-1].ci};
+    noteSel=[];
+  }
   const row=sel.row;
   const tupOf = c=> c.tup===1?3:c.tup;
   const put = c=>{ c.tup=n; if(custom) c.tupM=M; else delete c.tupM; };
@@ -8745,7 +8766,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     sel.mi=mi; sel.ci=ci; sel.row=row; sel.vi=vi; if(si) sel.si=si;
     render();
     /* 不再弹出技法提示条：技巧在顶部固定功能栏中选择 */
-    if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"或"连音线"':'点"连音线"可跨音符相连'));
+    if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"、"连音线"，相邻等时值音可设"三连音/N连音"':'点"连音线"可跨音符相连；相邻等时值音可设"三连音/N连音"'));
     return;
   }
   /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑；v51.3 仅左键） */
@@ -16638,7 +16659,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.7';
+const APP_VER='v56.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16661,6 +16682,7 @@ const APP_VER='v56.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.8</span><div><b>三连音编辑修复：Ctrl+点选多选可直接成组</b>（用户反馈：4/4 简谱选中三个四分音符点三连音无效）：此前只有<b>拖选</b>的选区能整体设连音，<b>Ctrl+点选</b>的红圈多选被忽略、误落到单音拆分。现在两种多选方式都可以：选中<b>相邻、等时值、无附点</b>的 N 个音（同声部同小节）点「三连音/N连音」即整体成组——如三个四分音符=<b>四分三连音（占 2 拍）</b>、三个八分=八分三连音（占 1 拍）；选中不连续或时值混杂会明确提示规则。简谱/五线谱/六线谱三谱类通用，括线数字、节拍校验、播放时值、MusicXML 3:2 往返均已验证（tv_tuplet 新增 5 项回归）。</div></li>
     <li><span class="v">v56.7</span><div><b>光标位置卡精简</b>（用户指示）：去掉「可改」快捷键提示行，只保留 声部/小节/列/时值/音符/和弦/多选 等位置与内容信息。</div></li>
     <li><span class="v">v56.6</span><div><b>右栏改版：创作页置首 + 自由/智能编辑开关</b>（用户指示）：① 右栏页签改为「<b>创作</b>·信息」，创作页为默认页；② 创作页原「智能预提示」卡移除，改为<b>光标位置</b>＋<b>节拍检查</b>＋创作辅助——编辑时光标信息与时值状态一眼可见；③ 节拍检查卡顶部新增<b>自由编辑 / 智能编辑</b>开关：<b>自由编辑</b>=任意时值与形式编辑曲谱，只提示各小节时值正确与否（可点击定位），不给修复建议；<b>智能编辑</b>（默认）=时值不符时给出补充/删减修复建议，支持单条与全部一键采纳。选择记忆在本机。修复建议列表随卡内联展示，不再悬浮谱面右上角。</div></li>
     <li><span class="v">v56.5</span><div><b>播放功能优化</b>（用户反馈）：① 音轨 <b>S（独奏）/M（静音）/音量</b> 在<b>播放中</b>切换即时生效——此前音量等在起播时一次算死，播放中按了没反应；现在收敛到各轨总线增益（平滑过渡无爆音）。② <b>播放光标升级</b>：默认为<b>整谱光标</b>——高亮条纵向贯穿本行所有声部（此前只罩吉他行）；<b>单独 SOLO 某轨时光标只跟随该轨</b>，滚动也按该轨行定位。③ 顺带修复：静音吉他轨后播放光标整个消失（光标事件此前挂在吉他轨排程里）。新增 tv_mix 播放混音回归套件（7 断言）。</div></li>
