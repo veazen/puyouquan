@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-13 · 当前版本 **v57.2** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-13 · 当前版本 **v57.3** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v57.3 创作页卡片回归标准卡样式（用户指示：参考信息页曲谱信息卡，可展开可收起）**：撤销 v56.6 make 页三条覆盖（无边框/隐藏 rc-h/rc-b 强制 display:block）——`[data-rt="make"]` 从 525-527 行选择器移除（lib 页保留），v57.2 的两条自定义标题样式删除；标准 `.rcard` 样式与 8283 行 rc-h 点击折叠机制自然生效（默认 open）。创作辅助卡：rc-h 由「创作帮助」更名「创作辅助」，卡内重复大标题行 `.ai-h` 在 shell 隐藏（标题栏承担）、`.ai-p` 说明句保留。tv_emode +T8（边框卡+收起/展开往返+标题归一/重复标题隐藏；注意 T7 外壳往返后需 setRTab('make') 再断言）=8/8；tv_detail1/tv_matrix 全绿。
+>
 > **v57.2 创作栏栏目主题（用户指示：光标显示要有栏目主题「当前编辑位置」；自由/智能编辑与时值提示同栏目）**：根因是 v56.6 的 `body.shell .rcard[data-rt="make"]>.rc-h{display:none}`（526 行）把创作页全部卡片标题隐藏——栏目从无主题。修复：`#rc-cursor`/`#rc-beat` 两卡标题恢复显示（display:flex 小字号样式 + `::after{content:none}` 去折叠箭头——创作页卡体被 rc-b display:block 强制常显、折叠无效故不给箭头）；标题定名「当前编辑位置」（原「光标位置」）与「编辑模式 · 时值提示」（原「节拍检查」，覆盖 em-toggle+beat-box 全部内容）；创作辅助卡保持卡内自带标题（rc-h 仍隐藏）。tv_emode T2 增标题文案+可见性断言，7/7；tv_detail1/tv_matrix 全绿。
 >
 > **v57.1 弹唱 ×=和弦内音实音化 + 琶音/扫弦按指法补全（用户反馈：女儿国——G 和弦 1 弦 × 应为 3 品实音而非哑音；单音下琶音五线谱只显示一个音）**：新增 `chordImpliedNotes(col, shape, solo)`（strumSpan 后）——发声视角解析、不改数据：① 非拍弦/切音/扫弦列且非独奏时，`n.x` 落在和弦指法发声弦上 → `{...n, f:shapeString(shape,s), x:false}`（教材式「和弦内音记×」＝按住和弦弹这根弦）；② 扫弦/琶音列箭头 span 内无显式音符的弦按指法补实音（指法 x 弦跳过）。四处消费点接入：**联排五线谱**（4750s：`impNs=cols.map(...chordAtCol...)`，emptyM2/colSteps/beam played 三处换 impNs 口径）、**播放**（11905s：`picked=chordImpliedNotes(...)` 后再按 strumSpan 过滤；soloPB 循环外算一次）、**MusicXML 导出**（13380s：ns 换 impNs，解析后的 × 不再输出 `notehead x`）、**MIDI 导出**（14700s：行进和弦 runChM，此前 × 直接 skip 丢音）。哑音原义保留：col.slap / col.mute / 扫弦列内 ×（GP 闷弦）/ 独奏谱 / 指法不发声弦；**节奏型库切音 token 'x' 现打 `c.mute=true`**（evToCol）与教材式 × 区分，TAB 非扫弦切音列 × 上方补切音点（r1.7，同扫弦切音「箭头带点」口径）；光标卡 × 分「和弦内音（弦/品）/闷音」。新增 `tv_xtone` 11 断言（单元语义×7 场景/联排几何符头同高+琶音六符头/MIDI note-on=13 skipped=4/MusicXML notehead x=4·chord=7/切音点/光标卡）入 run_all（47 套件）；tv_matrix/tv_detail1/tv_audio/tv_midi/tv_mxl/tv_tabmxl/tv_arrange/tv_gp/tv_gtech/tv_capo/tv_mix/tv_emode/tv_engrave/tv_brace/tv_presets/tv_d64 全绿。

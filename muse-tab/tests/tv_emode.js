@@ -121,6 +121,29 @@ const T = (ok, name, detail) => {
   T(!r.classic.shell && r.classic.cursor && r.classic.beat && r.backShell,
     'T7 经典版两卡可见+切回新版', JSON.stringify(r));
 
+  // T8 v57.3 创作页卡片=标准卡样式（同曲谱信息卡）：带边框 + 标题可点击收起/展开（默认展开）
+  r = await pg.evaluate(() => {
+    setRTab('make');   /* T7 外壳往返后回创作页再断言 */
+    const card = document.getElementById('rc-cursor');
+    if(!card.classList.contains('open')) card.classList.add('open');
+    const cs = getComputedStyle(card);
+    const framed = cs.borderTopWidth !== '0px' && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+    const bodyVis = () => !!card.querySelector('.rc-b').offsetParent;
+    const open0 = card.classList.contains('open') && bodyVis();
+    card.querySelector('.rc-h').click();
+    const collapsed = !card.classList.contains('open') && !bodyVis();
+    card.querySelector('.rc-h').click();
+    const reopened = card.classList.contains('open') && bodyVis();
+    /* 创作辅助卡：标题栏「创作辅助」可见，卡内重复大标题行隐藏（新版外壳） */
+    const sugCard = document.getElementById('rt-sug').closest('.rcard');
+    const sugTitle = sugCard.querySelector('.rc-h').textContent.trim() === '创作辅助'
+      && !!sugCard.querySelector('.rc-h').offsetParent;
+    const aihHidden = !sugCard.querySelector('.ai-h').offsetParent;
+    return { framed, open0, collapsed, reopened, sugTitle, aihHidden };
+  });
+  T(r.framed && r.open0 && r.collapsed && r.reopened && r.sugTitle && r.aihHidden,
+    'T8 创作页标准卡样式：可收起/展开 + 创作辅助标题归一', JSON.stringify(r));
+
   await browser.close();
   console.log('PASS ' + pass + '/' + (pass + fail));
   console.log(errs.length ? ('ERRORS: ' + errs.join(' | ')) : 'NO ERRORS');
