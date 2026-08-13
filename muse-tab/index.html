@@ -3808,7 +3808,7 @@ function layoutSystems(){
 function systemExtras(sys){
   let maxUp=0, maxDown=0, maxUnder=0, tab32=false;
   sys.measures.forEach(lm=> (song.measures[lm.mi].voxes||[]).forEach((cols,vv2)=> cols.forEach((c,ci2)=>{
-    if(c.tup) maxUp=Math.max(maxUp, 1);                          // 连音弧线需上方空间
+    if(c.tup) maxUp=Math.max(maxUp, 2);                          // 连音弧线需上方空间（v56.9 弧同 tie 高度档，抬一档）
     /* v54.7 简谱连音线/圆滑线弧需上方空间（用户反馈：只有连音线的行与上一行 TAB 无间隙）——
        v53.6 弧改到数字整体上方、v54.2 基线再抬 3px 后一直欠账：短弧顶≈数字上方 11px、
        跨多列长弧（弧高上限 15）更高 → 单跨记 1 档、连跨记 2 档；五线谱行的连音线贴符头不占行高，不计 */
@@ -6129,16 +6129,27 @@ function render(){
               const lbl=cols[a2].tupM? n+':'+cols[a2].tupM : ''+n;
               for(let s=a2; s<=b3; s+=n){
                 const e=Math.min(s+n-1, b3);
-                const x1=mx+lay.xs[s]-3, x2=mx+lay.xs[e]+3, xm=(x1+x2)/2;
-                const half=Math.min(3+lbl.length*3, Math.max(3.5,(x2-x1)/2-3));
-                /* 五线谱：括线在组内最高音（含符干）上方，高音加线区自动抬升 */
-                let y0 = isStaff? staffT-7 : voxY-13;
-                if(isStaff) for(let k3=s;k3<=e;k3++){ const c3=cols[k3];
-                  if(c3.deg>0){ setClefCtx(k3); y0 = Math.min(y0, stepY(staffStep(c3,K)) - SG*2.9 - 5); } }
-                const yp=y0-6;
-                p.push(`<path d="M ${x1} ${y0} Q ${(x1+xm)/2} ${yp-1} ${xm-half} ${yp+0.8}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<path d="M ${xm+half} ${yp+0.8} Q ${(xm+x2)/2} ${yp-1} ${x2} ${y0}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-                p.push(`<text x="${xm}" y="${yp+3.4}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${n}</text>`);
+                /* v56.9 连音弧=普通连音线同款同规则（用户截图：括线端点压到高音点）：
+                   tieSVG 两端细尖弧、端点=首末数字中心±1（同 tie 口径）；简谱基线 voxY-16 并按
+                   组内最大高八度点数让位（同 v53.6/v54.2 tie 规则）；五线谱仍取组内最高符头上方；
+                   弧高同 tie 随跨度缓增。数字置弧顶中央纸底断口（quad 中点=基线-弧高/2） */
+                const x1=mx+lay.xs[s]+1, x2=mx+lay.xs[e]-1, xm=(x1+x2)/2;
+                let y0;
+                if(isStaff){
+                  y0 = staffT-7;
+                  for(let k3=s;k3<=e;k3++){ const c3=cols[k3];
+                    if(c3.deg>0){ setClefCtx(k3); y0 = Math.min(y0, stepY(staffStep(c3,K)) - SG*2.9 - 5); } }
+                }else{
+                  let hiN=0;
+                  for(let k3=s;k3<=e;k3++){ const c3=cols[k3]; if(c3&&c3.deg&&c3.oct>0) hiN=Math.max(hiN, Math.min(3,c3.oct)); }
+                  y0 = voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0);
+                }
+                const rise = Math.min(9+Math.min(6,(e-s)*2), Math.max(6,(x2-x1)*0.35));
+                p.push(tieSVG(x1, y0, x2, y0, y0-rise, 1.9));
+                const yA = y0 - rise/2;                        // 二次曲线中点高度
+                const half = 2.5 + lbl.length*2.8;
+                p.push(`<rect x="${(xm-half).toFixed(1)}" y="${(yA-4.6).toFixed(1)}" width="${(half*2).toFixed(1)}" height="9" fill="var(--paper)"/>`);
+                p.push(`<text x="${xm}" y="${(yA+3).toFixed(1)}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${lbl}</text>`);
               }
               a2=b3+1;
             } else a2++;
@@ -16659,7 +16670,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v56.8';
+const APP_VER='v56.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16682,6 +16693,7 @@ const APP_VER='v56.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v56.9</span><div><b>连音弧与普通连音线样式统一</b>（用户截图：三连音括线一头压到高音点）：简谱/五线谱的三连音、N连音弧线改用与普通连音线<b>完全相同的样式与显示规则</b>——同款两端细尖弧形、端点落在首末数字中心、弧高随跨度缓增；简谱基线与连音线同口径并<b>按组内高八度点自动抬升让位</b>（此前固定高度会压到高音点），五线谱仍取组内最高音上方。连音数字改置弧顶中央断口处（N:M 自定比例同步显示）。六线谱保持 Guitar Pro 式刻度括线不变。</div></li>
     <li><span class="v">v56.8</span><div><b>三连音编辑修复：Ctrl+点选多选可直接成组</b>（用户反馈：4/4 简谱选中三个四分音符点三连音无效）：此前只有<b>拖选</b>的选区能整体设连音，<b>Ctrl+点选</b>的红圈多选被忽略、误落到单音拆分。现在两种多选方式都可以：选中<b>相邻、等时值、无附点</b>的 N 个音（同声部同小节）点「三连音/N连音」即整体成组——如三个四分音符=<b>四分三连音（占 2 拍）</b>、三个八分=八分三连音（占 1 拍）；选中不连续或时值混杂会明确提示规则。简谱/五线谱/六线谱三谱类通用，括线数字、节拍校验、播放时值、MusicXML 3:2 往返均已验证（tv_tuplet 新增 5 项回归）。</div></li>
     <li><span class="v">v56.7</span><div><b>光标位置卡精简</b>（用户指示）：去掉「可改」快捷键提示行，只保留 声部/小节/列/时值/音符/和弦/多选 等位置与内容信息。</div></li>
     <li><span class="v">v56.6</span><div><b>右栏改版：创作页置首 + 自由/智能编辑开关</b>（用户指示）：① 右栏页签改为「<b>创作</b>·信息」，创作页为默认页；② 创作页原「智能预提示」卡移除，改为<b>光标位置</b>＋<b>节拍检查</b>＋创作辅助——编辑时光标信息与时值状态一眼可见；③ 节拍检查卡顶部新增<b>自由编辑 / 智能编辑</b>开关：<b>自由编辑</b>=任意时值与形式编辑曲谱，只提示各小节时值正确与否（可点击定位），不给修复建议；<b>智能编辑</b>（默认）=时值不符时给出补充/删减修复建议，支持单条与全部一键采纳。选择记忆在本机。修复建议列表随卡内联展示，不再悬浮谱面右上角。</div></li>

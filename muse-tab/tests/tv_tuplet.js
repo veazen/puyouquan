@@ -311,6 +311,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.hasTM && r.durs === '4,4,4' && r.tupEq && r.beats2 === 4,
     'T17 四分三连音MusicXML往返(3:2+quarter)', JSON.stringify(r));
 
+  // T18 v56.9 连音弧与普通连音线同款同规则（用户截图：括线端点压到高音点）：
+  //     ① 弧=tieSVG 填充细尖弧（非细描边折弧）② 组内含高八度点时弧整体抬升让位 ③ 数字断口纸底垫块
+  r = await pg.evaluate(() => {
+    const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+    const tieArcs = () => [...document.querySelectorAll('#score path[fill="var(--ink)"]')]
+      .map(p2 => p2.getAttribute('d') || '').filter(d => /^M .+ Q .+ Q .+ Z$/.test(d))
+      .map(d => { const nn = d.match(/-?[\d.]+/g).map(Number); return { x1: nn[0], y1: nn[1], x2: nn[4], y2: nn[5] }; });
+    const arcNear = (xm) => tieArcs().filter(a => a.x1 < xm && a.x2 > xm && Math.abs(a.y1 - a.y2) < 0.5)
+      .sort((a, b) => (b.x2 - b.x1) - (a.x2 - a.x1))[0];
+    const num3x = () => { const t = [...document.querySelectorAll('#score text')]
+      .find(t2 => t2.textContent === '3' && t2.getAttribute('font-style') === 'italic'); return t ? +t.getAttribute('x') : null; };
+    const build = (hi) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+      const s = createSong('vocal', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 0 });
+      s.measures[0].voxes[0] = [V(0, 8), V(5, 8), V(5, 8), V(6, 8),
+        V(1, 4, { oct: hi ? 1 : 0, tup: 3 }), V(7, 4, { tup: 3 }), V(6, 4, { tup: 3 })];
+      loadSong(s); blurSel = true; render();
+      const xm = num3x(); const arc = xm != null ? arcNear(xm) : null;
+      return { xm, y: arc ? arc.y1 : null,
+        mask: !!document.querySelector('#score rect[fill="var(--paper)"]:not(.pagebg)') };
+    };
+    const hi = build(true), lo = build(false);
+    return { hiY: hi.y, loY: lo.y, lifted: hi.y != null && lo.y != null && (lo.y - hi.y) >= 7,
+      mask: hi.mask && lo.mask, found: hi.xm != null && lo.xm != null };
+  });
+  T(r.found && r.lifted && r.mask,
+    'T18 连音弧同tie样式(tieSVG+高八度让位+纸底断口)', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
