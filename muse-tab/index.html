@@ -4168,6 +4168,31 @@ function strumSpan(col){
   const top = Math.max(1, bot-n+1);
   return {top, bot, n:bot-top+1};
 }
+/* v57.1 弹唱语境「和弦隐含音」解析（发声视角，不改数据，联排五线谱/播放/MusicXML/MIDI 共用）：
+   ① ×落在当前和弦指法发声弦上 → 该弦品位实音——弹唱 TAB 的 × 是教材式「和弦内音记×」
+     （按住和弦弹这根弦），不是哑音（用户反馈：G 和弦 1 弦 × = 3 品 G，关联五线谱应显示实音高）；
+     拍弦(slap)/切音(col.mute)列、扫弦列内的 ×（GP 闷弦惯例）与独奏谱保持哑音原义；
+   ② 扫弦/琶音列：箭头覆盖而无显式音符的弦按指法补实音（下琶音=整个和弦发声/显示）。 */
+function chordImpliedNotes(col, shape, solo){
+  let out = col.notes||[];
+  if(solo || !shape) return out;
+  if(!col.slap && !col.mute && !col.strum && out.some(n=>n.x))
+    out = out.map(n=>{ if(!n.x) return n;
+      const f = shapeString(shape, n.s);
+      return f==null? n : Object.assign({}, n, {f, x:false});
+    });
+  if(col.strum){
+    const sp = strumSpan(col), add=[];
+    for(let s2=sp.top; s2<=sp.bot; s2++){
+      if(out.some(n=>n.s===s2)) continue;
+      const f = shapeString(shape, s2);
+      if(f!=null) add.push({s:s2, f});
+    }
+    if(add.length) out = out.concat(add);
+  }
+  return out;
+}
+function soloTabCtx(s2){ return !!(s2.tabStaff && !(s2.voxVoices||[]).length); }
 
 /* v38.6 左栏谱类感知：页签显隐/命名 + 面板标题 + 失效页回退（面板集合/排序在 setRibbon 内按 DOCK_PANELS 应用） */
 function renderDock(){
@@ -4721,11 +4746,14 @@ function render(){
           /* v41.3 小节反复 𝄎：省写小节联排谱表同样只画反复记号 */
           const simT = simileSrc(lm.mi)!=null? song.measures[lm.mi].simile : 0;
           if(simT) simileSignSVG(p, mx2+lm.L.w/2, cStaffB-2*cSGt, simT);
+          /* v57.1 和弦隐含音（发声视角）：×→和弦内音实音、扫弦/琶音箭头按指法补全（chordImpliedNotes） */
+          const soloT2 = soloTabCtx(song);
+          const impNs = cols.map((c2,ci2)=> chordImpliedNotes(c2, chordShape(chordAtCol(lm.mi, vi, ci2)), soloT2));
           /* 整小节休止：全空小节画一个居中全休止 */
-          const emptyM2 = cols.length>0 && !cols.some(c2=>(c2.notes||[]).length) && !simT;
+          const emptyM2 = cols.length>0 && !impNs.some(ns2=>ns2.length) && !simT;
           if(emptyM2) p.push(staffRestStr(mx2+lm.L.w/2, cStaffB, cSGt, 1, false));
           const colSteps = ci=>{
-            const ns=(cols[ci].notes||[]).filter(n=>n.s>=1 && n.s<=SN);
+            const ns=impNs[ci].filter(n=>n.s>=1 && n.s<=SN);
             /* v42.6 吉他移调谱号 treble-8vb：记谱升八度(+12)、实音低八度——收拢低音弦大量下加线（出版惯例） */
             return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2).step, sym:'', x:true}
                               : midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2));
@@ -4773,7 +4801,7 @@ function render(){
           /* 逐列绘制（严格左→右，保证临时记号进位次序）：可成杠的组整组画符杠，
              其余列（四分及以上、孤立八分、休止）单列画——修复联排谱四分/二分/全音符不显示 */
           const gAt={}; gs.forEach(g=>{
-            const played = g.idx.filter(i=>(cols[i].notes||[]).length && (colSteps(i).length));
+            const played = g.idx.filter(i=>colSteps(i).length);   /* v57.1 含和弦隐含音（×实音/扫弦补全）口径 */
             if(g.idx.length>1 && played.length>1) gAt[g.idx[0]] = {g, played};
           });
           const drawSingle = (ci)=>{
@@ -5255,6 +5283,12 @@ function render(){
                 p.push(`<text x="${nx}" y="${(wy+2.7).toFixed(1)}" font-size="7.5" font-weight="700" text-anchor="middle" fill="var(--ink)">${n.lhF}</text>`);
               }
             });
+            /* v57.1 切音列（非扫弦，节奏型库 x token）：×上方加切音点——与教材式和弦内音×区分
+               （同扫弦切音「箭头带点」口径；此类列保持哑音打击发声，不作和弦内音解析） */
+            if(col.mute && !col.strum && col.notes.some(n2=>n2.x)){
+              const topS = Math.min(...col.notes.map(n2=>n2.s));
+              p.push(`<circle cx="${nx}" cy="${(tabTop+(topS-1)*STR-9).toFixed(1)}" r="1.7" fill="var(--ink)"/>`);
+            }
             /* v52.5 拨片方向（列级）：标注带 ⊓=下拨 / ∨=上拨（GP 惯例符号） */
             if(col.pk){ const wy=laneY();
               if(col.pk==='d') p.push(`<path d="M ${(nx-3.4).toFixed(1)} ${wy.toFixed(1)} v -5 h 6.8 v 5" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
@@ -6851,7 +6885,13 @@ function syncInputs(){
     let noteTxt='';
     if(col && sel.row==='tab'){
       const n=(col.notes||[]).find(x=>x.s===sel.si) || (col.notes||[])[0];
-      if(n) noteTxt=(n.x?'× 闷音（'+n.s+'弦）':(n.s+'弦 '+n.f+'品'))
+      /* v57.1 弹唱语境 × = 教材式和弦内音：光标卡显示解析后的实音（指法品位），真闷音仍显示闷音 */
+      let xTone=null;
+      if(n && n.x && !col.slap && !col.mute && !col.strum && !soloTabCtx(song)){
+        const shX=chordShape(chordAtCol(sel.mi, sel.vi, sel.ci));
+        if(shX){ const fX=shapeString(shX, n.s); if(fX!=null) xTone=fX; }
+      }
+      if(n) noteTxt=(n.x? (xTone!=null? '× 和弦内音（'+n.s+'弦'+xTone+'品）' : '× 闷音（'+n.s+'弦）') : (n.s+'弦 '+n.f+'品'))
         +(n.tech?(' · '+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',bd:'回落',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音P.M.',su:'上滑',sd:'下滑',ou:'上滑',od:'下滑',lr:'let ring'}[n.tech]||n.tech)):'');
       else if(col.strum) noteTxt='扫弦'+(col.strum==='d'?' ↑':' ↓');
       else if(col.perc) noteTxt='打板';
@@ -7434,7 +7474,7 @@ function evToCol([t,dur,dot], shape, fallback){
     else if(t==='d'||t==='u'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t; }
     else if(t==='md'||t==='mu'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum=t==='md'?'d':'u'; c.mute=true; }
     else if(t==='a'){ c.notes = sounded.map(n=>({s:n.s,f:n.f})); c.strum='arp'; }
-    else if(t==='x') c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true}));
+    else if(t==='x'){ c.notes = sounded.slice(0,3).map(n=>({s:n.s,f:0,x:true})); c.mute=true; }   /* v57.1 切音列打 mute 标记：区别于教材式和弦内音×（后者发声解析为指法实音） */
   }else if(t!=='r' && fallback){
     const fn = fallback();
     if(fn){
@@ -11846,6 +11886,7 @@ function play(){
           off+=beatsOf(col,mUt)*spb; }); }); } }
   const dynAt=(off)=>{ let g=1; for(let i=0;i<dynTL.length;i++){ if(dynTL[i].tm<=off+1e-6) g=dynTL[i].g; else break; } return g; };
   const HJ = humOn()? humJit : ()=>({fc:1,gc:1});   /* v48.9 精确档：随机微扰动归零（确定性塑形保留） */
+  const soloPB = soloTabCtx(song);   /* v57.1 和弦隐含音：×实音化/扫弦补全仅弹唱语境 */
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
@@ -11869,10 +11910,11 @@ function play(){
       (song.measures[smi!=null?smi:mi].tabs[vi]||[]).forEach((col,ci)=>{
         const durSec = beatsOf(col,mUt)*spb;
         ctimes[oi+':'+ci]=t+off;
-        let picked = col.notes;
+        /* v57.1 和弦隐含音：弹唱 × → 指法实音发声；扫弦/琶音箭头覆盖弦按指法补全（下琶音=整个和弦） */
+        let picked = chordImpliedNotes(col, chordShape(chordAtCol(smi!=null?smi:mi, vi, ci)), soloPB);
         if(col.strum){
           const sp = strumSpan(col);
-          picked = col.notes.filter(n=>n.s>=sp.top && n.s<=sp.bot);
+          picked = picked.filter(n=>n.s>=sp.top && n.s<=sp.bot);
         }
         const ns = picked.slice().sort((a,b)=>b.s-a.s);
         /* v48.9 扫弦力度型（MIDI 专家参数）：上扫只碰高音侧 ≤4 弦（真人物理够不到低音弦），
@@ -13303,13 +13345,15 @@ function exportMusicXML(s){
         if(pm.beats!==cm.beats || pm.unit!==cm.unit)
           body += `<attributes><time><beats>${cm.beats}</beats><beat-type>${cm.unit}</beat-type></time></attributes>`; }
       if(mea.repeatStart) body += `<barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>`;
-      cols.forEach(col=>{
+      cols.forEach((col,ci)=>{
         const dur = Math.max(1, Math.round(beatsOf(col)*beatDiv));
         const typ = TYPE[col.dur]? `<type>${TYPE[col.dur]}</type>` : '';
         const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';
         const tmod = col.tup? `<time-modification><actual-notes>${col.tup===1?3:col.tup}</actual-notes><normal-notes>${tupMOf(col)}</normal-notes></time-modification>` : '';   /* v51.4 真实 N:M（此前 5/6/7 也误写 3:2） */
         const ferm = col.ferm? '<fermata/>' : '';
-        const ns = (col.notes||[]).filter(n=>n && n.s>=1 && n.s<=nStr);
+        /* v57.1 和弦隐含音随导出：弹唱 × → 指法实音（notehead x 不再输出）、扫弦/琶音补全和弦 */
+        const nsImp = chordImpliedNotes(col, chordShape(chordAtCol(mi, ti, ci)), soloTabCtx(s));
+        const ns = nsImp.filter(n=>n && n.s>=1 && n.s<=nStr);
         if(!ns.length){
           body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${ferm?`<notations>${ferm}</notations>`:''}</note>`;
           return;
@@ -14640,9 +14684,11 @@ function exportMIDI(s){
     const ch=chFor((s.voxVoices||[]).length+ti);
     const evts=[{tick:0,pr:0,data:[0xC0|ch,24]}];
     let tick=0;
+    let runChM='';   /* v57.1 和弦隐含音随导出：×→指法实音、扫弦/琶音补全（行进和弦=列级 chord 记号顺序生效） */
     s.measures.forEach(mea=>(mea.tabs[ti]||[]).forEach(c=>{
       const len=beatsOf(c)*beatTicks;
-      (c.notes||[]).forEach(n=>{
+      if(c.chord) runChM=c.chord;
+      chordImpliedNotes(c, chordShape(runChM), soloTabCtx(s)).forEach(n=>{
         if(!n || n.s<1 || n.s>TUN.length) return;
         if(n.x){ skipped++; return; }
         const m=TUN[n.s-1]+(n.f||0)+(s.capo||0);
@@ -16672,7 +16718,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.0';
+const APP_VER='v57.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16695,6 +16741,7 @@ const APP_VER='v57.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.1</span><div><b>弹唱谱 × 记号=和弦内音实音化 + 琶音/扫弦按指法补全和弦</b>（用户反馈：女儿国——G 和弦 1 弦的 × 应是 3 品实音而非哑音；结尾下琶音五线谱只显示一个音）：弹唱语境（非独奏、有和弦）下，TAB 弦上的 <b>×</b> 按教材惯例是<b>「按住和弦弹这根弦」的和弦内音记法</b>——现在<b>关联五线谱按当前和弦指法显示实音高</b>（G 和弦 1 弦 × → 3 品 G），<b>播放/MusicXML/MIDI 导出同步发实音</b>（此前播放为哑音、MIDI 导出直接丢音）；<b>扫弦/琶音箭头覆盖而无音符的弦按指法自动补全</b>——单音上做下琶音即整个和弦发声、五线谱显示完整柱式和弦。哑音原义保留：拍弦 ⊠ 列、切音列（节奏型库切音现打 mute 标记并在 × 上方加切音点，同扫弦切音「箭头带点」口径）、扫弦列内的 ×（GP 闷弦惯例）与独奏谱不受影响。光标卡的 × 同步显示「和弦内音（弦/品）」。</div></li>
     <li><span class="v">v57.0</span><div><b>反复结束线刻版修正</b>（用户截图：六线谱的线冒出反复结束线）：六线谱与五线谱的<b>反复结束 𝄇 / 终止线 𝄂 的粗线右缘改为与谱线终点严格齐平</b>——此前粗线右缘差谱线端约 1px，放大或打印时谱线会从反复号右侧探出一小截；圆点与细线按原间距同步右移，出版惯例（谱线止于终止粗线）达成。</div></li>
     <li><span class="v">v56.9</span><div><b>连音弧与普通连音线样式统一</b>（用户截图：三连音括线一头压到高音点）：简谱/五线谱的三连音、N连音弧线改用与普通连音线<b>完全相同的样式与显示规则</b>——同款两端细尖弧形、端点落在首末数字中心、弧高随跨度缓增；简谱基线与连音线同口径并<b>按组内高八度点自动抬升让位</b>（此前固定高度会压到高音点），五线谱仍取组内最高音上方。连音数字改置弧顶中央断口处（N:M 自定比例同步显示）。六线谱保持 Guitar Pro 式刻度括线不变。</div></li>
     <li><span class="v">v56.8</span><div><b>三连音编辑修复：Ctrl+点选多选可直接成组</b>（用户反馈：4/4 简谱选中三个四分音符点三连音无效）：此前只有<b>拖选</b>的选区能整体设连音，<b>Ctrl+点选</b>的红圈多选被忽略、误落到单音拆分。现在两种多选方式都可以：选中<b>相邻、等时值、无附点</b>的 N 个音（同声部同小节）点「三连音/N连音」即整体成组——如三个四分音符=<b>四分三连音（占 2 拍）</b>、三个八分=八分三连音（占 1 拍）；选中不连续或时值混杂会明确提示规则。简谱/五线谱/六线谱三谱类通用，括线数字、节拍校验、播放时值、MusicXML 3:2 往返均已验证（tv_tuplet 新增 5 项回归）。</div></li>
