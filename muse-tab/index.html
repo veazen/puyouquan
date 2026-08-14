@@ -5065,6 +5065,19 @@ function render(){
              扫弦列此前完全不显示技法文字（扫弦分支只画箭头、不跑逐音循环）——一并补上。 */
           let mkN=0;
           const laneY=()=>((col.chord && !(diagMode==='inline'&&vi===0))? tabTop-22 : tabTop-9) - (mkN++)*11.5;
+          /* v57.8 两音技法（h/p/S/T）圆滑线几何：与纯连音线完全同简谱口径（用户反馈：加技法后
+             弧还是旧式贴边小弧）——端点=两音中心±1、平基线抬到较高音上方、rise 跨列封顶；
+             字母不再进顶部标注带、改置弧顶上方（教材式，mkTech 与弧线共用本几何） */
+          const slurGeo=(n2)=>{
+            const tp2=n2.tk? tabPos[vi+':'+n2.tk.mi+':'+n2.tk.ci] : null;
+            if(!tp2 || tp2.sys!==sIdx) return null;
+            const yyN=tabTop+(n2.s-1)*STR, y2N=tabTop+(n2.tk.si-1)*STR;
+            const xA=nx+1, xB=tp2.x-1;
+            const tyB=Math.min(yyN,y2N)-9.5;
+            const gapC=(n2.tk.mi===lm.mi)? Math.max(0, n2.tk.ci-ci-1) : 1;
+            const rise=Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35));
+            return {xA, xB, tyB, rise};
+          };
           const mkTech=(n)=>{
             if(n.tech==='hm' && n.hmT)
               p.push(`<text x="${nx}" y="${laneY()}" font-size="9.5" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${({A:'A.H.',P:'P.H.',T:'T.H.'}[n.hmT])||''}</text>`);
@@ -5102,9 +5115,15 @@ function render(){
               if(!(n.tech==='sl' && col.notes.some(m=>m!==n && m.tech==='sl' && m.s<n.s))){
                 const SYM={sl:'S',h:'h',p:'p',tp:'T'};
                 const sym=SYM[n.tech]||n.tech;
-                const tp2=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-                const tx=(tp2&&tp2.sys===sIdx)? (nx+tp2.x)/2 : nx;
-                p.push(`<text x="${tx.toFixed(1)}" y="${laneY()}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                const g=slurGeo(n);
+                if(g && ['sl','h','p','tp'].includes(n.tech)){
+                  /* v57.8 两音技法字母跟弧：置于短弧弧顶上方（教材式），纸底描边防压弦线/邻行元素 */
+                  p.push(`<text x="${((g.xA+g.xB)/2).toFixed(1)}" y="${(g.tyB-g.rise-2.8).toFixed(1)}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.4" stroke-linejoin="round" fill="var(--ink)">${sym}</text>`);
+                }else{
+                  const tp2=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
+                  const tx=(tp2&&tp2.sys===sIdx)? (nx+tp2.x)/2 : nx;
+                  p.push(`<text x="${tx.toFixed(1)}" y="${laneY()}" font-size="11" font-weight="600" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym}</text>`);
+                }
               }
             }
             if(n.bar){
@@ -5257,14 +5276,15 @@ function render(){
                 const slDup = n.tech==='sl' && col.notes.some(m=>m!==n && m.tech==='sl' && m.tk && m.s<n.s);
                 if(tp && tp.sys===sIdx){
                   const x2 = tp.x, y2 = tabTop+(n.tk.si-1)*STR;
-                  const yPk = Math.min(yy,y2)-12;
-                  if(!slDup) p.push(tieSVG(nx+5, yy-4.5, x2-5, y2-4.5, yPk, 1.8));
+                  /* v57.8 圆滑线改简谱短弧口径（同纯连音线）：端点两音中心±1、平基线、rise 跨列封顶 */
+                  const g2=slurGeo(n);
+                  if(!slDup && g2) p.push(tieSVG(g2.xA, g2.tyB, g2.xB, g2.tyB, g2.tyB-g2.rise, 1.9));
                   if(slUp!=null){
                     const xa=nx+7.5, xb=x2-7.5;
                     if(xb>xa+3) p.push(`<line class="sldg" x1="${xa.toFixed(1)}" y1="${(slUp? yy+3.2 : yy-3.2).toFixed(1)}" x2="${xb.toFixed(1)}" y2="${(slUp? y2-3.2 : y2+3.2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                   }
                 }else if(tp){
-                  if(!slDup) p.push(tieSVG(nx+5, yy-4.5, nx+23, yy-10.5, yy-13, 1.5));
+                  if(!slDup) p.push(tieSVG(nx+1, yy-9.5, nx+23, yy-15.5, yy-18, 1.5));   /* v57.8 跨行出线半弧同抬高口径 */
                   if(slUp!=null)
                     p.push(`<line class="sldg" x1="${(nx+6).toFixed(1)}" y1="${(slUp? yy+3 : yy-3).toFixed(1)}" x2="${(nx+14).toFixed(1)}" y2="${(slUp? yy-2 : yy+2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
                 }else if(n.tech==='sl' && slUp!=null){
@@ -16767,7 +16787,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.7';
+const APP_VER='v57.8';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16790,6 +16810,7 @@ const APP_VER='v57.7';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.8</span><div><b>技法圆滑线同款短弧</b>（用户反馈：普通连音线已对但带演奏技巧时还是旧样式）：击弦 h / 勾弦 p / 滑弦 S / 点弦 T 的<b>两音圆滑线改与简谱短连音线完全同款</b>——端点取两音中心、平基线抬到音符上方、弧高随跨列缓增（此前是贴着音符边缘的小弧）；<b>技法字母从顶部标注带移到弧顶上方</b>（教材式，字母带纸底描边不压弦线），跨行出线半弧同步抬高。揉弦/P.M./let ring 等范围技法与推弦保持原样。</div></li>
     <li><span class="v">v57.7</span><div><b>连音线短弧 + 和弦图避让修正 + 启动遮罩</b>（用户反馈三点）：① TAB 连音线弧高<b>完全对齐简谱短连音线</b>——相邻两音为 9px 短弧、随跨列缓增（此前统一 15px 封顶偏高偏圆）；② <b>和弦图避让缩小规则修正</b>：技法字母（h/p/S 等）自 v49.6 起全部画在 TAB 顶部标注带、与行内和弦图同一高度带，但避让判定还停留在「仅一弦技法」——现在任意弦的技法字母与和弦图横向重叠都会触发和弦图缩小让位；③ <b>启动遮罩</b>：单文件较大时加载期会闪现未初始化的乱版界面——现以品牌遮罩盖住、初始化完成后淡出（含 8 秒兜底自拆，异常也不至于卡住）。</div></li>
     <li><span class="v">v57.6</span><div><b>TAB 增时线居中 + 连音线对齐简谱规则</b>（用户指示两点）：① 增时线<b>固定在六线谱垂直居中位置</b>（三、四弦之间的空隙），不再随音符弦位变动，每列一组；② 六线谱<b>连音线样式与简谱统一</b>——弧画在<b>音符上方居中</b>：端点取首末音符中心、平基线抬到较高音符上方留净距、弧高随跨度缓增（同简谱公式），跨行两段式半弧同步抬高。</div></li>
     <li><span class="v">v57.5</span><div><b>TAB 增时线位置修正</b>（用户指示：吉他谱的增时线显示在六线谱中间，不是六线谱下面）：v57.4 的增时线从谱表下方节奏梁位移入<b>六线谱内</b>——跟在音符后、<b>压在其所在弦线上的短粗横</b>（和弦长音每个发声音符的弦各画一组），拍点对齐不变；附点补记圆点同步移至弦线上方。</div></li>
