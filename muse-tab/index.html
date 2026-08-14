@@ -1280,6 +1280,18 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
 </head>
 <body class="shell"><!-- v55.2 首帧即新版外壳：脚本在文末执行前浏览器已按 HTML+CSS 首绘，
   此前 body 无 class 首绘出经典版布局、脚本跑完才切换 → 打开页面闪现经典版（用户反馈的「卡一下」） -->
+<!-- v57.7 启动遮罩（用户截图：加载中闪现未初始化的乱版）：单文件 2MB+，HTML/CSS 先绘、
+  文末脚本后跑——面板搬移/图标注入/启动台就绪前先以品牌遮罩盖住，主初始化末尾淡出移除；
+  自带 8s 兜底自拆（初始化脚本异常也不至于黑屏卡死） -->
+<div id="boot-veil" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#f3f0e8;transition:opacity .22s">
+  <span style="width:44px;height:44px;border-radius:13px;position:relative;display:inline-block;background:linear-gradient(96deg,#c33a29 0%,#d24a37 55%,#e2705d 110%);box-shadow:0 4px 14px rgba(195,58,41,.35)">
+    <span style="content:'';position:absolute;inset:11px 8px;background:linear-gradient(#fff,#fff) 0 2.5px/100% 2.2px no-repeat,linear-gradient(#fff,#fff) 0 10.5px/100% 2.2px no-repeat,linear-gradient(#fff,#fff) 0 18.5px/100% 2.2px no-repeat;opacity:.95"></span>
+    <span style="position:absolute;right:11px;top:9px;width:9px;height:9px;border-radius:50%;background:#fff"></span>
+  </span>
+  <span style="font:600 15px/1 'PingFang SC','Microsoft YaHei',sans-serif;color:#20211d;letter-spacing:.08em">谱友圈 · 加载中…</span>
+</div>
+<script>setTimeout(function(){var v=document.getElementById('boot-veil');if(v)v.remove();},8000);
+if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=document.getElementById('boot-veil');if(_bv){_bv.style.background='#181a17';_bv.lastElementChild.style.color='#edefe8';}}</script>
 <header id="top">
   <div class="bar main-bar">
     <span class="logo"><span class="mark"></span>谱友圈 <small>专业制谱平台</small></span>
@@ -5028,12 +5040,14 @@ function render(){
             runChord = col.chord;
             if(diagMode==='inline' && vi===0)
               {
-                /* 仅当"该"和弦图与一弦技巧符号（含连线全程）横向重叠时才缩小，
-                   其他和弦图保持原尺寸 */
+                /* 仅当"该"和弦图与技巧符号（含连线全程）横向重叠时才缩小，其他和弦图保持原尺寸。
+                   v57.7 修正（用户截图：h/p 字母压和弦图但未缩小）：v49.6 起技法字母全部画在
+                   TAB 顶部标注带（laneY，与行内和弦图同一高度带），不再限于一弦——
+                   任意弦上带技法的音符都参与横向重叠判定 */
                 const dL=nx-14, dR=nx+38;
                 const clash = cols.some((c2,ci2)=>
                   c2.notes && c2.notes.some(nn=>{
-                    if(!(nn.s===1 && nn.tech)) return false;
+                    if(!nn.tech) return false;
                     const a=mx+lay.xs[ci2];
                     let b2=a;
                     if(nn.tk && nn.tk.mi===lm.mi && lay.xs[nn.tk.ci]!=null) b2=mx+lay.xs[nn.tk.ci];
@@ -5271,7 +5285,10 @@ function render(){
                   const x2=tp.x, y2=tabTop+(n.tk.si-1)*STR;
                   const xA=nx+1, xB=x2-1;
                   const tyB=Math.min(yy,y2)-9.5;
-                  const rise=Math.min(15, Math.max(6, (xB-xA)*0.35));
+                  /* v57.7 弧高完全对齐简谱短连音线（用户反馈 v57.6 相邻音弧过高过圆）：
+                     封顶=9+跨列增量（相邻列=9 短弧，同简谱 6152 行 (b3-a3)*2 口径） */
+                  const gapC=(n.tk.mi===lm.mi)? Math.max(0, n.tk.ci-ci-1) : 1;
+                  const rise=Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35));
                   p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9));
                 }else if(tp){
                   /* 跨行出线半弧（v56.1 两段式续接）：同步抬到音符上方口径 */
@@ -16750,7 +16767,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.6';
+const APP_VER='v57.7';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16773,6 +16790,7 @@ const APP_VER='v57.6';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v57.7</span><div><b>连音线短弧 + 和弦图避让修正 + 启动遮罩</b>（用户反馈三点）：① TAB 连音线弧高<b>完全对齐简谱短连音线</b>——相邻两音为 9px 短弧、随跨列缓增（此前统一 15px 封顶偏高偏圆）；② <b>和弦图避让缩小规则修正</b>：技法字母（h/p/S 等）自 v49.6 起全部画在 TAB 顶部标注带、与行内和弦图同一高度带，但避让判定还停留在「仅一弦技法」——现在任意弦的技法字母与和弦图横向重叠都会触发和弦图缩小让位；③ <b>启动遮罩</b>：单文件较大时加载期会闪现未初始化的乱版界面——现以品牌遮罩盖住、初始化完成后淡出（含 8 秒兜底自拆，异常也不至于卡住）。</div></li>
     <li><span class="v">v57.6</span><div><b>TAB 增时线居中 + 连音线对齐简谱规则</b>（用户指示两点）：① 增时线<b>固定在六线谱垂直居中位置</b>（三、四弦之间的空隙），不再随音符弦位变动，每列一组；② 六线谱<b>连音线样式与简谱统一</b>——弧画在<b>音符上方居中</b>：端点取首末音符中心、平基线抬到较高音符上方留净距、弧高随跨度缓增（同简谱公式），跨行两段式半弧同步抬高。</div></li>
     <li><span class="v">v57.5</span><div><b>TAB 增时线位置修正</b>（用户指示：吉他谱的增时线显示在六线谱中间，不是六线谱下面）：v57.4 的增时线从谱表下方节奏梁位移入<b>六线谱内</b>——跟在音符后、<b>压在其所在弦线上的短粗横</b>（和弦长音每个发声音符的弦各画一组），拍点对齐不变；附点补记圆点同步移至弦线上方。</div></li>
     <li><span class="v">v57.4</span><div><b>吉他谱二分/全音符增时线</b>（用户反馈：TAB 上二分音符只有一根符干、与四分音符没有区别看不出延长）：按教材/GB 惯例（同简谱 <code>X –</code>），TAB 的<b>二分音符在其后每个四分拍位的节奏梁位画增时线短横</b>——二分 1 条、附点二分 2 条（附点时值并入横线、不再另画附点圆点，同简谱口径）、全音符 3 条（无符干）；横线拍点与简谱增时线 / 邻行音符列<b>严格纵向对齐</b>（全声部同源拍点映射）；双附点二分余下半拍以附点补记于下一拍点；休止不接增时线。tv_dot 新增 T11 几何断言。</div></li>
@@ -17266,6 +17284,9 @@ function alignHeader(){
   updateHifiBtn();
   applyResponsive();
   alignHeader();
+  /* v57.7 启动遮罩淡出：面板搬移/图标/启动台全部就绪后再露出界面（防加载期乱版闪现） */
+  { const bv=document.getElementById('boot-veil');
+    if(bv){ bv.style.opacity='0'; bv.style.pointerEvents='none'; setTimeout(()=>{ try{ bv.remove(); }catch(_){ } }, 240); } }
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
   window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ applyResponsive(); render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });

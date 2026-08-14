@@ -144,6 +144,12 @@ const T = (ok, name, detail) => {
   T(r.framed && r.open0 && r.collapsed && r.reopened && r.sugTitle && r.aihHidden,
     'T8 创作页标准卡样式：可收起/展开 + 创作辅助标题归一', JSON.stringify(r));
 
+  // T9 v57.7 启动遮罩：初始化完成后 #boot-veil 已移除、shell 外壳就位（加载期乱版由遮罩盖住）
+  r = await pg.evaluate(() => ({
+    veilGone: !document.getElementById('boot-veil'),
+    shell: document.body.classList.contains('shell') }));
+  T(r.veilGone && r.shell, 'T9 启动遮罩初始化后移除', JSON.stringify(r));
+
   await browser.close();
   console.log('PASS ' + pass + '/' + (pass + fail));
   console.log(errs.length ? ('ERRORS: ' + errs.join(' | ')) : 'NO ERRORS');
