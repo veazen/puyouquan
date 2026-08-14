@@ -593,6 +593,12 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
 .rcard.open .rc-b{display:block}
 .rc-b .rg-body{max-width:none;justify-content:flex-start;gap:5px}
 .rc-b .rg-body button{margin:1px 0}
+/* v58.0 标注卡：固定标注词 chips 网格 + 自由标注输入 */
+.anno-t{font-size:10.5px;color:var(--faint);letter-spacing:.08em;margin:2px 0 6px}
+.anno-t+ .anno-t,#anno-fixed+.anno-t{margin-top:9px}
+#anno-fixed{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+#anno-fixed button{padding:4px 0;font-size:12px;border-radius:8px;min-width:0}
+#anno-fixed button:hover{border-color:var(--accent);color:var(--accent-ink)}
 #cursor-info{font-size:12.5px;color:var(--text);line-height:1.85}
 #cursor-info .ci-row{display:flex;justify-content:space-between;gap:8px}
 #cursor-info .ci-k{color:var(--muted)}
@@ -1657,6 +1663,25 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <div class="kv" id="ri-tuning-row"><span>调弦</span><b id="ri-tuning">—</b></div>
         <div class="kv"><span>谱类 · 篇幅</span><b id="ri-type">—</b></div>
         <button id="ri-edit" class="fwide" title="编辑标题 / 词曲作者 / 调号拼写 / 拍号速度 / 变调夹">编辑曲谱信息…</button>
+      </div>
+    </div>
+    <!-- v58.0 标注（用户需求：固定标注=常用词一键标注 / 自由标注=任意文字；暂位于曲谱信息卡下方）。
+         标注挂在当前光标列（col.anno 增量字段），谱面显示在该列上方；再次标注覆盖、清除按钮移除 -->
+    <div class="rcard open rt-new" data-rt="info" id="rc-anno">
+      <button class="rc-h" type="button">标注</button>
+      <div class="rc-b">
+        <div class="anno-t">固定标注（点击标在当前光标列上方）</div>
+        <div id="anno-fixed">
+          <button data-anno="前奏">前奏</button><button data-anno="间奏">间奏</button><button data-anno="尾奏">尾奏</button><button data-anno="副歌">副歌</button>
+          <button data-anno="慢起">慢起</button><button data-anno="渐慢">渐慢</button><button data-anno="渐快">渐快</button><button data-anno="原速">原速</button>
+          <button data-anno="自由地">自由地</button><button data-anno="扫弦">扫弦</button><button data-anno="分解">分解</button><button data-anno="加花">加花</button>
+        </div>
+        <div class="anno-t">自由标注</div>
+        <div style="display:flex;gap:5px">
+          <input id="anno-input" placeholder="任意文字…" style="flex:1;min-width:0" maxlength="30">
+          <button id="anno-add" title="把输入的文字标在当前光标列上方">标注</button>
+        </div>
+        <button id="anno-del" class="fwide" style="margin-top:6px" title="移除当前光标列上的标注">清除当前位置标注</button>
       </div>
     </div>
     <div class="rcard" data-rt="info">
@@ -5045,14 +5070,17 @@ function render(){
                    TAB 顶部标注带（laneY，与行内和弦图同一高度带），不再限于一弦——
                    任意弦上带技法的音符都参与横向重叠判定 */
                 const dL=nx-14, dR=nx+38;
-                const clash = cols.some((c2,ci2)=>
-                  c2.notes && c2.notes.some(nn=>{
+                const clash = cols.some((c2,ci2)=>{
+                  /* v58.0 标注文字同带避让：标注列与图带横向重叠也触发缩小 */
+                  if(c2.anno){ const ax=mx+lay.xs[ci2]; if(ax+22 > dL && ax-16 < dR) return true; }
+                  return c2.notes && c2.notes.some(nn=>{
                     if(!nn.tech) return false;
                     const a=mx+lay.xs[ci2];
                     let b2=a;
                     if(nn.tk && nn.tk.mi===lm.mi && lay.xs[nn.tk.ci]!=null) b2=mx+lay.xs[nn.tk.ci];
                     return Math.max(a,b2)+22 > dL && Math.min(a,b2)-16 < dR;
-                  }));
+                  });
+                });
                 p.push(chordDiagramSVG(col.chord, nx-10, oy+(clash?0:2), clash?0.75:0.95));
               }
             else
@@ -5065,6 +5093,9 @@ function render(){
              扫弦列此前完全不显示技法文字（扫弦分支只画箭头、不跑逐音循环）——一并补上。 */
           let mkN=0;
           const laneY=()=>((col.chord && !(diagMode==='inline'&&vi===0))? tabTop-22 : tabTop-9) - (mkN++)*11.5;
+          /* v58.0 标注（col.anno）：TAB 行上方居中斜体文字——占一个标注带槽位（与技法字母同带堆叠避让） */
+          if(col.anno)
+            p.push(`<text x="${nx}" y="${laneY()}" font-size="10.5" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${esc(col.anno)}</text>`);
           /* v57.8 两音技法（h/p/S/T）圆滑线几何：与纯连音线完全同简谱口径（用户反馈：加技法后
              弧还是旧式贴边小弧）——端点=两音中心±1、平基线抬到较高音上方、rise 跨列封顶；
              字母不再进顶部标注带、改置弧顶上方（教材式，mkTech 与弧线共用本几何） */
@@ -5913,6 +5944,9 @@ function render(){
           };
           if(col.grace) (isStaff? stGrace : drawGrace)(col.grace, 'pre');
           if(col.graceA) (isStaff? stGrace : drawGrace)(col.graceA, 'post');
+          /* v58.0 标注（col.anno）：行上方居中斜体文字（固定/自由标注共用），纸底描边防压邻元素 */
+          if(col.anno)
+            p.push(`<text x="${nx}" y="${(isStaff? staffT-16 : voxY-30).toFixed(1)}" font-size="10.5" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${esc(col.anno)}</text>`);
           /* 标识符号：上/下波音、颤音 tr、回音 */
           if(col.orn && col.deg){
             const oy2 = isStaff? Math.min(staffT-9, stepY(staffStep(col,K))-14)
@@ -8352,6 +8386,29 @@ document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
 document.querySelectorAll('#right-dock .rc-h:not(.rc-btn)').forEach(h=>h.onclick = ()=>{
   h.closest('.rcard').classList.toggle('open');
 });
+/* v58.0 标注：固定标注（常用词一键）/ 自由标注（任意文字）落在当前光标列上方（col.anno 增量字段，
+   TAB/简谱/五线谱行通用；再次标注覆盖、清除按钮移除；随撤销/云同步/本地保存一体持久化） */
+function setAnno(txt){
+  const r=curRowCols(), c=r && r[sel.ci];
+  if(!c) return toast('请先在谱面点选一个位置');
+  txt=(txt||'').trim().slice(0,30);
+  if(!txt && !c.anno) return toast('当前位置没有标注');
+  mutate(()=>{ if(txt) c.anno=txt; else delete c.anno; });
+  toast(txt? ('已标注：'+txt) : '已清除标注');
+}
+document.getElementById('anno-fixed').addEventListener('click', e=>{
+  const b=e.target.closest('[data-anno]'); if(b) setAnno(b.dataset.anno);
+});
+document.getElementById('anno-add').onclick = ()=>{
+  const inp=document.getElementById('anno-input');
+  if(!inp.value.trim()) return toast('请先输入标注文字');
+  setAnno(inp.value);
+};
+document.getElementById('anno-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); document.getElementById('anno-add').click(); }
+  e.stopPropagation();   /* 输入时不触发谱面快捷键 */
+});
+document.getElementById('anno-del').onclick = ()=>setAnno('');
 
 /* ================= 键盘 ================= */
 /* v47.5 数字输入统一入口（键盘 / 顶栏「音符」组按钮共用）：
@@ -13353,6 +13410,9 @@ function exportMusicXML(s){
         /* v44.8 独立力度记号（f/p/mf/sf…，非渐强渐弱）→ dynamics 方向（该音之前） */
         if(col.dyn && DYN_XML[col.dyn])
           body += `<direction placement="below"><direction-type><dynamics>${DYN_XML[col.dyn]}</dynamics></direction-type></direction>`;
+        /* v58.0 标注（col.anno）→ words 方向（该音上方） */
+        if(col.anno)
+          body += `<direction placement="above"><direction-type><words>${xesc(col.anno)}</words></direction-type></direction>`;
         /* v41.3 钢琴踏板 → pedal（'on'=该音前 start、'off'=该音后 stop） */
         if(col.ped==='on')
           body += `<direction placement="below"><direction-type><pedal type="start"/></direction-type></direction>`;
@@ -13425,6 +13485,9 @@ function exportMusicXML(s){
         const dot = dotLevel(col)===2? '<dot/><dot/>' : col.dotted? '<dot/>' : '';
         const tmod = col.tup? `<time-modification><actual-notes>${col.tup===1?3:col.tup}</actual-notes><normal-notes>${tupMOf(col)}</normal-notes></time-modification>` : '';   /* v51.4 真实 N:M（此前 5/6/7 也误写 3:2） */
         const ferm = col.ferm? '<fermata/>' : '';
+        /* v58.0 标注（col.anno）→ words 方向（该列上方，TAB 声部同口径） */
+        if(col.anno)
+          body += `<direction placement="above"><direction-type><words>${xesc(col.anno)}</words></direction-type></direction>`;
         /* v57.1 和弦隐含音随导出：弹唱 × → 指法实音（notehead x 不再输出）、扫弦/琶音补全和弦 */
         const nsImp = chordImpliedNotes(col, chordShape(chordAtCol(mi, ti, ci)), soloTabCtx(s));
         const ns = nsImp.filter(n=>n && n.s>=1 && n.s<=nStr);
@@ -16792,7 +16855,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v57.9';
+const APP_VER='v58.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16815,6 +16878,7 @@ const APP_VER='v57.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.0</span><div><b>标注功能上线</b>（用户需求）：右栏信息页「曲谱信息」下方新增<b>「标注」</b>卡——<b>固定标注</b>提供常用词一键标注（前奏 / 间奏 / 尾奏 / 副歌 / 慢起 / 渐慢 / 渐快 / 原速 / 自由地 / 扫弦 / 分解 / 加花），<b>自由标注</b>可输入任意文字（回车或点「标注」）；标注落在<b>当前光标列上方</b>（斜体小字，TAB 与技法字母同带堆叠避让、简谱/五线谱行置行上方），再次标注即覆盖、「清除当前位置标注」移除；支持撤销、随曲谱本地保存与云同步，<b>MusicXML 导出为 words 记号</b>（简谱与 TAB 声部）。</div></li>
     <li><span class="v">v57.9</span><div><b>TAB 显示严格跟随输入：输入 0 不再被记成 ×</b>（用户反馈：编辑 0 时出现 × 标记、无法显示 0 品）：此前教材式模式会把「与当前和弦指法相同的真实品位」自动替换显示为 ×——输入 0（或指法内任何品位）就看不到数字。自 v57.1 起 × 已可直接输入并按指法解析为和弦内音，这个自动替换废除：<b>输入数字显示数字、输入 × 显示 ×</b>。「记谱风格」切换含义更新：<b>全数字</b>模式下 ×（和弦内音）显示为按指法解析出的品位数字（谱面数据不变，仅显示切换）。</div></li>
     <li><span class="v">v57.8</span><div><b>技法圆滑线同款短弧</b>（用户反馈：普通连音线已对但带演奏技巧时还是旧样式）：击弦 h / 勾弦 p / 滑弦 S / 点弦 T 的<b>两音圆滑线改与简谱短连音线完全同款</b>——端点取两音中心、平基线抬到音符上方、弧高随跨列缓增（此前是贴着音符边缘的小弧）；<b>技法字母从顶部标注带移到弧顶上方</b>（教材式，字母带纸底描边不压弦线），跨行出线半弧同步抬高。揉弦/P.M./let ring 等范围技法与推弦保持原样。</div></li>
     <li><span class="v">v57.7</span><div><b>连音线短弧 + 和弦图避让修正 + 启动遮罩</b>（用户反馈三点）：① TAB 连音线弧高<b>完全对齐简谱短连音线</b>——相邻两音为 9px 短弧、随跨列缓增（此前统一 15px 封顶偏高偏圆）；② <b>和弦图避让缩小规则修正</b>：技法字母（h/p/S 等）自 v49.6 起全部画在 TAB 顶部标注带、与行内和弦图同一高度带，但避让判定还停留在「仅一弦技法」——现在任意弦的技法字母与和弦图横向重叠都会触发和弦图缩小让位；③ <b>启动遮罩</b>：单文件较大时加载期会闪现未初始化的乱版界面——现以品牌遮罩盖住、初始化完成后淡出（含 8 秒兜底自拆，异常也不至于卡住）。</div></li>

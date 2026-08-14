@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-14 · 当前版本 **v57.9** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-14 · 当前版本 **v58.0** · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -448,6 +448,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
+> **v58.0 标注功能（用户需求：固定标注=常用词 / 自由标注=任意文字，暂放曲谱信息下方）**：列级增量字段 `col.anno`（tab/vox 通用，随 JSON 深拷贝/本地保存/云同步/撤销一体）。UI：信息页 `#rc-anno` 卡（rc-songinfo 后），12 固定词 chips（前奏/间奏/尾奏/副歌/慢起/渐慢/渐快/原速/自由地/扫弦/分解/加花）+ 自由输入（Enter 或按钮，maxlength 30、keydown stopPropagation 防谱面快捷键）+ 清除；`setAnno(txt)` 经 `curRowCols()[sel.ci]` + mutate 落当前光标列，空文本 delete。渲染：TAB 行占 laneY 标注带槽位（与技法字母堆叠避让，斜体 10.5 纸底描边 esc 转义防 XSS）；vox 行 isStaff? staffT-16 : voxY-30；行内和弦图 clash 判定补标注列（v57.7 结构改块体，注意括号闭合）。MusicXML：vox（dyn direction 旁）与 TAB（v57.1 隐含音前）两处导出 `<words>`。新增 `tv_anno` 5 断言（卡位/固定+覆盖/自由+转义/清除+撤销/导出）入 run_all（48 套件）；tv_matrix/tv_emode/tv_detail1/tv_mxl/tv_sign/tv_presets/tv_xtone 全绿。
+>
 > **v57.9 TAB 显示严格跟随输入（用户反馈：输入 0 出现 × 无法显示 0 品）**：废除 5165 行 `isTone` 猜测替换（教材式下真实品位≤4 且=指法音自动显示 ×——把显式输入的 0/1/2 全吞成 ×）。新口径：`xDisp = n.x||col.slap`，数字→数字、×→×；「全数字」模式（tabNotation!=='x'）×音在非拍弦/切音/独奏语境按 `shapeString` 解析显示品位数字 `fShow`（数据不变，泛音/推弦缩号判定同用 fShow）。toggle 文案两处 + toast 更新。影响面：v57.1 后 × 即和弦内音输入，该替换已无存在必要；节奏型库/织体生成输出实品位者改为显示数字（更信息化，教材式 × 需用 × 输入）。tv_xtone +T8（教材式 0/3 显数字·×计数·全数字模式×→解析品位）=12；tv_matrix/tv_presets/tv_capo/tv_arrange/tv_acc/tv_detail1/tv_gtech/tv_audit/tv_dot/tv_emode 全绿。
 >
 > **v57.8 技法圆滑线同款短弧（用户反馈：普通连音线已对、带技法仍旧样式）**：新增列级 `slurGeo(n2)` 共用几何（laneY 旁）——与纯连音线同口径（端点=两音中心±1、tyB=min-9.5、rise=9+跨列封顶）；两音技法弧（sl/h/p/tp，5102 mkTech 与 5260s 弧线两处）改用之，**字母从顶部标注带移到弧顶上方**（`(xA+xB)/2, tyB-rise-2.8`，paint-order 纸底描边 2.4 防压弦线），mkN 槽位不再被两音技法占用；跨行出线半弧同抬高（nx+1/yy-9.5/-15.5/-18）。范围技法（v/pm/lr）、泛音标注、推弦圆圈弧保持原样；和弦滑音 slDup 只画最上弧逻辑不变。tv_gtech/tv_sign/tv_matrix/tv_bend/tv_capo/tv_detail1/tv_dot/tv_gliss 8 套件全绿（tv_gtech 断言为计数/类名口径，未受字母移位影响）。
