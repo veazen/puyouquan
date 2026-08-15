@@ -41,6 +41,40 @@ curl -s https://zhipu.puyouquan.com/api/health  # 编辑器侧同一后端，应
 ## B. 公众号·网页授权（后续，与 A 共账号）
 需公众号后台配置**网页授权域名**；后端加 `snsapi_userinfo` 授权的 `/api/wx/mp/*` 路由，复用 `upsertWxUser`（unionid 统一）。等 A 跑通后接。
 
+## B2. 微信内转发卡片（JS-SDK 分享，代码 v55.3 已就绪）
+
+> ⚠️ **最常见误区：这一步用的是「公众号」（mp.weixin.qq.com），不是 A 的「网站应用」。**
+> 网站应用（`WX_WEB_*`）只管扫码登录；它的 AppID/Secret **拿不到 jsapi_ticket**，填进 `WX_MP_*` 无效。
+> 转发卡片必须有一个**已认证的公众号**（服务号或订阅号均可，需微信认证；认证费约 ¥300/年，
+> 与开放平台同一企业主体绑定后 unionid 才能统一账号）。
+
+### 1) 公众号后台（mp.weixin.qq.com）
+1. **设置与开发 → 公众号设置 → 功能设置 → JS接口安全域名**：填 `zhipu.puyouquan.com`
+   - ⚠️ 设置时公众号会要求**下载校验文件 `MP_verify_xxxxxx.txt`**，必须放到该域名根目录、
+     `https://zhipu.puyouquan.com/MP_verify_xxxxxx.txt` 能直接访问后才能保存成功。
+     放置方法：把文件放到服务器编辑器发布目录（nginx zhipu 站点根，即 publish.sh 的落位目录）；
+     或把文件发给 Claude 提交进仓库随下次部署落位。
+2. **设置与开发 → 基本配置**：拿 **AppID / AppSecret**（这是公众号的，区别于网站应用的）；
+   同页 **IP 白名单**加入服务器出口 IP（漏这步 → 取 access_token 报 40164）。
+
+### 2) 服务器（/etc/puyouquan/api.env）
+```
+WX_MP_APPID=wx公众号的AppID
+WX_MP_SECRET=公众号的AppSecret
+```
+`sudo systemctl restart pyq-api` 后自测：
+```bash
+curl -s 'https://zhipu.puyouquan.com/api/wx/jssign?url=https%3A%2F%2Fzhipu.puyouquan.com%2F'
+# 正常应返回 {"appId":...,"timestamp":...,"nonceStr":...,"signature":...}
+# 503=凭据没填/没重启；502 含 40164=IP白名单；40125=AppSecret 错
+```
+
+### 3) 微信里验证（注意两点）
+- **必须用谱库观看页测试**（`zhipu.puyouquan.com/?pub=ID` 链接）——编辑器页不注册分享卡。
+- 在微信里打开该链接**加 `&wxdebug=1`**：页面会逐步弹窗（①签名接口→②wx.config→③注册分享），
+  哪一步失败会给出对应原因（invalid url domain=JS安全域名没配对；invalid signature=签名 URL 不一致）。
+  全部通过后，点右上角「…→发送给朋友」即出卡片。聊天里**直接粘贴的链接永远是文字裸链**（微信平台规则）。
+
 ## C. 小程序·轻量版（后续，独立前端工程）
 独立小程序（浏览/搜索谱库 + 看谱跟谱移调 + 登录 + 个人中心，**非全功能编辑器**）。后端加 `/api/wx/mini/login`（`wx.login`→`code2session`），同样按 unionid 统一账号。需小程序主体认证 + 类目审核 + 提审上架（周期以周计）。
 
