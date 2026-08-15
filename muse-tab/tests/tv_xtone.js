@@ -160,6 +160,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.def==='num' && r.numD==='0,3,3' && r.numX===0 && r.eduD==='' && r.eduX===3,
     'T8 双模式互切：默认num(0品可见·×解析品位)/教材式全记×', JSON.stringify(r));
 
+  // T9 v58.5 记谱风格随曲谱走：song.tabNota 优先于本机偏好（分享观看端按制谱人风格显示）；
+  //    toggle 把风格写入 song.tabNota（mutate 落盘）且可撤销
+  r = await pg.evaluate(() => {
+    const Tc = (ext) => Object.assign({dur:4, dotted:false, chord:'', notes:[], strum:'', tech:''}, ext);
+    const s = createSong('guitar', {title:'nt', beats:4, unit:4, key:'G', nMea:1, nTab:1, nVox:1, lyr:0});
+    s.measures[0].tabs[0] = [ Tc({chord:'G', notes:[{s:1, f:3}]}), Tc({}), Tc({}), Tc({}) ];
+    s.tabNota = 'x';                       /* 制谱人已选教材式，随数据传来 */
+    loadSong(s); blurSel = true;
+    tabNotation = 'num'; render();         /* 本机偏好=全数字，应被曲谱字段覆盖 */
+    const xs = () => [...document.querySelectorAll('#score text')]
+      .filter(t2 => t2.getAttribute('font-size')==='15' && t2.textContent==='×').length;
+    const followSong = xs()===1;
+    document.getElementById('b-notation').click();   /* 教材式→全数字：应写回 song.tabNota */
+    const flipped = song.tabNota==='num' && xs()===0;
+    undo();
+    const undone = song.tabNota==='x';
+    render();
+    return { followSong, flipped, undone, xAfterUndo: xs() };
+  });
+  T(r.followSong && r.flipped && r.undone && r.xAfterUndo===1,
+    'T9 song.tabNota 优先生效 + toggle 写回曲谱可撤销', JSON.stringify(r));
+
   // T7 光标卡：弹唱 × 显示「和弦内音（1弦3品）」；切音列 × 仍显示「闷音」
   r = await pg.evaluate((code) => {
     eval(code);

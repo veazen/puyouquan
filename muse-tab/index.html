@@ -2723,6 +2723,9 @@ let tabNotation = 'num';               // 'x'=和弦内音记×（教材式） '
 /* v58.2 默认改「全数字」：输入什么显示什么（0 品可见，v57.9 诉求默认成立）；
    教材式 × 记法保留为显式切换（记谱风格按钮），两种模式对称互切（用户反馈：切不回 ×） */
 try{ tabNotation = localStorage.getItem('musetab-notation')||'num'; }catch(_){}
+/* v58.5 记谱风格随曲谱走（用户反馈：编辑器切成 × 教材式，分享观看页仍显示全数字）：
+   song.tabNota（纯增量字段）随保存/云同步/发布流至观看端并优先生效；老谱无字段回退本机偏好 */
+function effNota(){ return (song && (song.tabNota==='x'||song.tabNota==='num'))? song.tabNota : tabNotation; }
 
 function tcol(){ return {dur:8, dotted:false, chord:'', notes:[], strum:'', tech:''}; }
 function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false}; }
@@ -5199,7 +5202,7 @@ function render(){
                    （v57.9 口径保留）——输入什么看什么、0 品可见。两模式一键互切，数据均不变。 */
               const soloCtx = song.tabStaff && !(song.voxVoices||[]).length;
               let xDisp = n.x || col.slap, fShow = n.f;
-              if(tabNotation==='x'){
+              if(effNota()==='x'){
                 if(!n.x && !col.slap && !soloCtx && shape && n.f<=4 && shapeString(shape, n.s)===n.f) xDisp = true;
               }else if(n.x && !col.slap && !col.mute && !soloCtx && shape){
                 const fr = shapeString(shape, n.s);
@@ -10635,11 +10638,14 @@ document.getElementById('i-chord').addEventListener('change', e=>{
 document.getElementById('b-arr-minus').onclick = ()=>bumpStrumN(-1);
 document.getElementById('b-arr-plus').onclick = ()=>bumpStrumN(1);
 document.getElementById('b-notation').onclick = ()=>{
-  tabNotation = tabNotation==='x' ? 'num' : 'x';
-  try{ localStorage.setItem('musetab-notation', tabNotation); }catch(_){}
-  document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字（输入什么显示什么，× 显示解析品位）');
-  toast('记谱风格：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字'));
-  render();
+  const next = effNota()==='x' ? 'num' : 'x';
+  tabNotation = next;
+  try{ localStorage.setItem('musetab-notation', next); }catch(_){}
+  /* v58.5 风格写入曲谱（mutate：可撤销 + 落盘 + 云同步），发布/分享后观看端按制谱人选的风格显示 */
+  if(!viewerMode && song) mutate(()=>{ song.tabNota = next; });
+  else render();
+  document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(next==='x'?'和弦内音记×（教材式）':'全数字（输入什么显示什么，× 显示解析品位）');
+  toast('记谱风格：'+(next==='x'?'和弦内音记×（教材式）':'全数字')+'（已存入本谱，分享页同步生效）');
 };
 const _bAutofix=document.getElementById('b-autofix');
 if(_bAutofix) _bAutofix.onclick = ()=>{
@@ -16887,7 +16893,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.4';
+const APP_VER='v58.5';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16910,6 +16916,7 @@ const APP_VER='v58.4';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.5</span><div><b>观看页驻谱库域 + 记谱风格随曲谱走</b>：① 分享观看页整体搬到 <b>puku.puyouquan.com</b>——落地页自动进入 <code>puku.puyouquan.com/kanpu.html?pub=曲谱ID</code>，地址栏全程谱库域名不再跳转制谱域名；谱库卡片、落地页「在线观看」同步指向新地址。② <b>记谱风格存入曲谱</b>：编辑器切换「教材式 ×/全数字」现在会写进当前曲谱（可撤销、随保存/云同步/发布传递）——分享出去的观看页按<b>制谱人选定的风格</b>显示，不再回落观看者本机默认；老谱未存风格时仍按本机偏好。</div></li>
     <li><span class="v">v58.4</span><div><b>微信生态反馈批次</b>：① 官网/谱库登录弹窗补上微信登录——微信内置浏览器里走公众号网页授权<b>一键登录</b>（免扫码），微信外走扫码登录，与手机号账号经 unionid 统一；编辑器登录/绑定入口同步按环境自动选通道。② 手机版官网头部「登录 / 注册」按钮不再被挤成竖排溢出。③ 微信转发卡片链接统一为 <b>puku.puyouquan.com/pub/曲谱ID</b> 谱库落地页；分享观看页（<code>?pub=</code> 深链）启动遮罩保持到谱面就绪，不再闪现一下编辑器界面。④ 观看页「收藏」图标由桃心改为<b>五角星</b>（更符合收藏的通用认知，已收藏亮琥珀色实心星）；「设置」齿轮图标改为真齿形轮廓，更易辨识。</div></li>
     <li><span class="v">v58.3</span><div><b>手机号账号绑定微信</b>：个人中心（已登录且未绑微信时）新增「绑定微信」入口——跳微信扫码授权后，该微信身份直接落到当前手机号账号上（不建新号、不动登录态），资料卡显示「已绑定微信」，此后可用微信扫码直接登录本账号。安全口径：绑定目标 uid 由服务端 HMAC 签入 state（防伪造/防换绑），该微信已被其他账号占用时提示冲突不抢占。</div></li>
     <li><span class="v">v58.2</span><div><b>记谱风格双模式对称互切</b>（用户反馈：v57.9 后切不回 × 教材式）：「记谱风格」恢复为两种完整模式一键互切——<b>教材式</b>：与当前和弦指法一致的开放把位实音显示 ×（和弦内音记法），× 输入亦显示 ×；<b>全数字</b>（现为默认）：实音显示品位数字、× 输入按指法解析显示品位——输入什么看什么、0 品可见（v57.9 诉求默认成立）。两模式仅切显示，谱面数据不变。</div></li>

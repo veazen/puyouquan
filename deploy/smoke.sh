@@ -40,6 +40,12 @@ zchk(){ # zchk 期望包含的字符串 说明
 zchk "谱友圈"                "在线制谱（zhipu）"
 zchk "粤ICP备2026100396号"   "制谱备案号"
 chk puku.puyouquan.com  /           "谱库"                  "谱库首页（puku）"
+# v58.5 观看页驻 puku 域：kanpu.html=编辑器单文件副本（publish.sh 3b 落位）。
+# 2.4MB 大文件不整页抓（境外 runner 20s 拉不完，zhipu 主页早有此教训）——HEAD 断言 200 且 ≥1MB。
+KLEN=$(curl -sI --max-time 15 --connect-to "puku.puyouquan.com:443:$H:443" "https://puku.puyouquan.com/kanpu.html" 2>/dev/null \
+      | tr -d '\r' | awk 'tolower($1)=="content-length:"{print $2}')
+if [ "${KLEN:-0}" -ge 1000000 ] 2>/dev/null; then echo "✅ puku 观看页 kanpu.html（$((KLEN/1024))KB）"
+else echo "❌ puku 观看页 kanpu.html 缺失或残缺（content-length=${KLEN:-无}）"; fail=1; fi
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查（zhipu）"
 chk www.puyouquan.com   /api/health '"ok":true'             "官网 API 健康（微信网站应用回调域 www）"
 chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开接口（含种子谱）"

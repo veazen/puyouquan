@@ -109,7 +109,7 @@ window.PYQ_LIB = (function(){
     return `<svg viewBox="0 0 250 108" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${p.join('')}</svg>`;
   }
   function card(item){
-    return `<a class="cc-card" href="//zhipu.puyouquan.com/?pub=${encodeURIComponent(item.id)}">
+    return `<a class="cc-card" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
       <div class="cc-cover">${cover(item)}
         <span class="cc-type">${TYPE_CN[item.type]||'曲谱'}</span>
         <span class="cc-price ${item.price>0?'':'free'}">${item.price>0?('¥'+item.price):'免费'}</span></div>

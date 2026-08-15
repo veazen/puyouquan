@@ -221,7 +221,9 @@ function pubMeta(row) {
 }
 function pubSsrHtml(row) {
   const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`, img = `${canon}/cover.svg`;
-  const viewUrl = `${VIEW_HOST}/?pub=${encodeURIComponent(p.id)}`;
+  /* v58.5 观看页驻 puku 域（用户要求分享链路地址栏全程 puku）：跳 site/kanpu.html（发布落位时
+     由编辑器单文件复制而来），不再跳 zhipu；免费制谱 CTA 仍指 zhipu 编辑器 */
+  const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}`;
   const pageTitle = `${p.title}${p.singer ? ' · ' + p.singer : ''} ${p.typeCn} - 谱友圈谱库`;
   const ld = {
     '@context': 'https://schema.org', '@type': 'MusicComposition',

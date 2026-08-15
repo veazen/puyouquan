@@ -24,6 +24,14 @@ rm -f $TMP/pyq_pub_index.html
 rsync -a --delete $TMP/pyq_pub_site/ "$ROOT/site/"
 rm -rf $TMP/pyq_pub_site
 
+# 3b) v58.5 观看页驻 puku 域：编辑器单文件复制为 site/kanpu.html ——
+#     puku.puyouquan.com/kanpu.html?pub=ID 在谱库域名下直接进观看模式（用户要求分享链路全程 puku，
+#     不再跳 zhipu 暴露制谱域名）。注意 rsync --delete 会清掉上一版，故必须放在 rsync 之后。
+#     sounds/ 采样音色以符号链接共享（编辑器 fetch 相对路径 sounds/…，跨域走不通；无音色目录时
+#     悬空链接 404 → 前端自动回落 CDN/内置采样，行为同今）。
+cp -f "$ROOT/index.html" "$ROOT/site/kanpu.html"
+ln -sfn "$ROOT/sounds" "$ROOT/site/sounds" 2>/dev/null || true
+
 # 4) 微信域名校验文件同步到 zhipu 根：JS接口安全域名/小程序业务域名校验要求文件在各域名根可访问；
 #    www/puku 根=$ROOT/site（rsync 已覆盖），zhipu 根=$ROOT——把 site 下根级 txt（除 robots.txt）复制一份。
 for f in "$ROOT/site/"*.txt; do
