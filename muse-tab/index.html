@@ -15988,12 +15988,16 @@ function wxShareCard(){
     /* v55.7 诊断开关：链接加 ?wxdebug=1（或 &wxdebug=1）在微信里弹出每一步结果，逐环节定位卡片不出的原因 */
     const dbg = /[?&]wxdebug=1/.test(location.search);
     const pageUrl = location.href.split('#')[0];
+    /* v58.1 卡片美化（用户反馈：样式要美观直观）：标题=《歌名》谱类（一眼知道是什么谱）；
+       摘要=调/变调夹/速度 + 制谱人 + 功能点；缩略图换 512 方形品牌图（og.png 为 1200×630 旧蓝横幅，
+       微信中裁方块后文字糊成一团） */
     const info = {
-      title: (song.title||'曲谱')+' · 谱友圈',
-      desc: [(viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)||'', '1='+(song.key||'C'), '♩='+(song.tempo||90),
-        TYPE_CN[docType(song)]||'曲谱'].filter(Boolean).join(' · ')+'｜在线看谱·可播放·可移调',
+      title: '《'+(song.title||'未命名曲谱')+'》'+(TYPE_CN[docType(song)]||'曲谱'),
+      desc: ['1='+(song.key||'C')+(song.capo? ' · 变调夹'+song.capo+'品':''), '♩='+(song.tempo||90),
+        ((viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)? '制谱 '+viewerCtx.pb.author : '')].filter(Boolean).join(' · ')
+        +'｜谱友圈在线看谱 · 可播放 · 可移调',
       link: pageUrl,
-      imgUrl: 'https://puyouquan.com/og.png'
+      imgUrl: 'https://www.puyouquan.com/share-icon.png'
     };
     apiCall('/wx/jssign?url='+encodeURIComponent(pageUrl)).then(cfg=>{
       if(dbg) alert('① 签名接口 OK\nappId='+cfg.appId+'\n签名URL='+pageUrl);
@@ -16007,7 +16011,7 @@ function wxShareCard(){
           window.wx.updateAppMessageShareData({ title:info.title, desc:info.desc, link:info.link, imgUrl:info.imgUrl,
             success(){ if(dbg) alert('③ 分享卡注册成功：现在点右上角…→发送给朋友应出卡片'); },
             fail(r){ if(dbg) alert('③ 分享卡注册失败：'+(r&&r.errMsg)); } });
-          window.wx.updateTimelineShareData({ title:info.title, link:info.link, imgUrl:info.imgUrl, success(){}, fail(){} });
+          window.wx.updateTimelineShareData({ title:info.title+' · 谱友圈', link:info.link, imgUrl:info.imgUrl, success(){}, fail(){} });   /* v58.1 朋友圈卡只显标题，缀上品牌 */
         }catch(e){ if(dbg) alert('② ready 内异常：'+(e&&e.message)); } });
         window.wx.error(res=>{ if(dbg) alert('② wx.config 被微信拒绝：'+(res&&res.errMsg)
           +'\n（invalid signature=签名不符；invalid url domain=当前域名不在JS安全域名）'); });   // 非调试时静默回退默认卡片
@@ -16855,7 +16859,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.0';
+const APP_VER='v58.1';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16878,6 +16882,7 @@ const APP_VER='v58.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.1</span><div><b>微信转发卡片美化</b>（转发卡片已随公众号配置打通；用户反馈样式需美观直观）：卡片<b>标题改为《歌名》谱类</b>（如《茶花开了》弹唱谱，一眼知道是什么谱）；<b>摘要重排</b>为「1=调 · 变调夹 · ♩=速度 · 制谱人｜谱友圈在线看谱 · 可播放 · 可移调」；<b>缩略图换 512×512 朱砂品牌方图</b>（原用官网 og 横幅，微信裁成方块后文字模糊）；朋友圈卡片标题缀「· 谱友圈」品牌。</div></li>
     <li><span class="v">v58.0</span><div><b>标注功能上线</b>（用户需求）：右栏信息页「曲谱信息」下方新增<b>「标注」</b>卡——<b>固定标注</b>提供常用词一键标注（前奏 / 间奏 / 尾奏 / 副歌 / 慢起 / 渐慢 / 渐快 / 原速 / 自由地 / 扫弦 / 分解 / 加花），<b>自由标注</b>可输入任意文字（回车或点「标注」）；标注落在<b>当前光标列上方</b>（斜体小字，TAB 与技法字母同带堆叠避让、简谱/五线谱行置行上方），再次标注即覆盖、「清除当前位置标注」移除；支持撤销、随曲谱本地保存与云同步，<b>MusicXML 导出为 words 记号</b>（简谱与 TAB 声部）。</div></li>
     <li><span class="v">v57.9</span><div><b>TAB 显示严格跟随输入：输入 0 不再被记成 ×</b>（用户反馈：编辑 0 时出现 × 标记、无法显示 0 品）：此前教材式模式会把「与当前和弦指法相同的真实品位」自动替换显示为 ×——输入 0（或指法内任何品位）就看不到数字。自 v57.1 起 × 已可直接输入并按指法解析为和弦内音，这个自动替换废除：<b>输入数字显示数字、输入 × 显示 ×</b>。「记谱风格」切换含义更新：<b>全数字</b>模式下 ×（和弦内音）显示为按指法解析出的品位数字（谱面数据不变，仅显示切换）。</div></li>
     <li><span class="v">v57.8</span><div><b>技法圆滑线同款短弧</b>（用户反馈：普通连音线已对但带演奏技巧时还是旧样式）：击弦 h / 勾弦 p / 滑弦 S / 点弦 T 的<b>两音圆滑线改与简谱短连音线完全同款</b>——端点取两音中心、平基线抬到音符上方、弧高随跨列缓增（此前是贴着音符边缘的小弧）；<b>技法字母从顶部标注带移到弧顶上方</b>（教材式，字母带纸底描边不压弦线），跨行出线半弧同步抬高。揉弦/P.M./let ring 等范围技法与推弦保持原样。</div></li>
