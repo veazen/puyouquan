@@ -35,7 +35,7 @@ curl -s https://zhipu.puyouquan.com/api/health  # 编辑器侧同一后端，应
 ### 登录流程（已实现）
 点「微信扫码登录」→ 后端 `GET /api/wx/web/login-url` 返回二维码链接 → 整页跳转到微信授权页扫码 → 微信回跳 `GET /api/wx/web/callback?code=&state=` → 后端换 `openid/unionid`、按 **unionid 优先**匹配或建号、发 JWT Cookie（`Domain=.puyouquan.com` 三站共享）→ 302 回跳原页 `?wxlogin=ok`，前端刷新账号态。
 
-- **账号统一**：同一 unionid 复登返回同一账号；已有手机号账号可后续绑定微信（`userBindWx`，绑定入口为后续小功能）。
+- **账号统一**：同一 unionid 复登返回同一账号；已有手机号账号可在**个人中心 →「绑定微信」**扫码绑定（v58.3 已实现）：`/api/wx/web/login-url?bind=1` 把当前 uid HMAC 签入 state，回调按 uid 落 `userBindWx`（不建新号、不动登录态），该微信已被他号占用则提示冲突不抢占；绑定成功后微信扫码直登同一账号。
 - **CSRF**：`state` 用 JWT_SECRET HMAC 签名 + 10 分钟过期 + 回跳地址白名单（仅 `*.puyouquan.com`）。
 
 ## B. 公众号·网页授权（后续，与 A 共账号）

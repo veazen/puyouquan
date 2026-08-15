@@ -289,9 +289,18 @@ const routes = [
   /* -- 微信扫码登录（开放平台·网站应用；A）-- */
   ['GET', /^\/api\/wx\/web\/login-url$/, false, (m, b, _u, req) => {
     if (!WX_WEB_APPID || !WX_WEB_SECRET) throw new ApiError(503, '微信登录未配置');
-    const ret = new URL(req.url, 'http://x').searchParams.get('return') || '';
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const ret = sp.get('return') || '';
     const safeRet = /^https?:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(ret) ? ret : 'https://zhipu.puyouquan.com/';
-    const state = wx.signState(safeRet, JWT_SECRET);
+    /* v58.3 绑定模式（?bind=1）：已登录的手机号账号扫码绑定微信——uid 签入 state（HMAC 防伪），
+       回调按 uid 落绑定而非登录建号 */
+    let extra;
+    if (sp.get('bind') === '1') {
+      const cur = authUser(req);
+      if (!cur) throw new ApiError(401, '请先登录再绑定微信');
+      extra = { b: cur.id };
+    }
+    const state = wx.signState(safeRet, JWT_SECRET, 600, extra);
     return { url: wx.buildLoginUrl({ appid: WX_WEB_APPID, redirect: WX_WEB_REDIRECT, state }) };
   }],
   ['GET', /^\/api\/wx\/web\/callback$/, false, async (m, b, _u, req, res) => {
@@ -301,6 +310,23 @@ const routes = [
     const back = (st && st.r) || 'https://zhipu.puyouquan.com/';
     const withFlag = (v) => back + (back.includes('?') ? '&' : '?') + 'wxlogin=' + v;
     if (!code || !st) return { ___redirect: withFlag('fail') };
+    /* v58.3 绑定分支（state 携带 b=uid）：把该微信身份落到已登录的手机号账号上，不动登录态。
+       该微信已被其他账号占用 → conflict（unionid/openid 唯一，不抢占不合并，避免误并号） */
+    if (st.b) {
+      const withB = (v) => back + (back.includes('?') ? '&' : '?') + 'wxbind=' + v;
+      try {
+        const prof = await wx.webExchange(code, { appid: WX_WEB_APPID, secret: WX_WEB_SECRET });
+        const target = q.userById.get(st.b);
+        if (!target) return { ___redirect: withB('fail') };
+        let ex = null;
+        if (prof.unionid) ex = q.userByUnionid.get(prof.unionid);
+        if (!ex && prof.openid) ex = q.userByWxOpenid.get(prof.openid);
+        if (ex && ex.id !== st.b) return { ___redirect: withB('conflict') };
+        q.userBindWx.run(prof.openid || null, prof.unionid || null, st.b);
+        if (prof.avatar) q.userFillAvatar.run(prof.avatar, st.b);
+        return { ___redirect: withB('ok') };
+      } catch (e) { console.error('微信绑定失败:', e.message); return { ___redirect: withB('fail') }; }
+    }
     try {
       const prof = await wx.webExchange(code, { appid: WX_WEB_APPID, secret: WX_WEB_SECRET });
       const u = upsertWxUser(prof);

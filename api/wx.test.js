@@ -22,6 +22,13 @@ T('state 防伪：换密钥不通过', () => {
 T('state 过期：ttl<0 立即失效', () => {
   assert.strictEqual(verifyState(signState('https://a.com', SEC, -1), SEC), null);
 });
+T('state extra：绑定模式 {b:uid} 随签名往返（v58.3）', () => {
+  const st = signState('https://zhipu.puyouquan.com/', SEC, 600, { b: 'uid-123' });
+  const o = verifyState(st, SEC);
+  assert.ok(o && o.b === 'uid-123' && o.r === 'https://zhipu.puyouquan.com/');
+  assert.strictEqual(verifyState(signState('https://a.com', SEC, 600, { b: 'u1' }).slice(0, -2) + 'zz', SEC), null);
+  assert.strictEqual((verifyState(signState('https://a.com', SEC), SEC) || {}).b, undefined);
+});
 T('登录 URL 含 appid/scope=snsapi_login/state + wechat_redirect', () => {
   const url = buildLoginUrl({ appid: 'wxABC', redirect: 'https://zhipu.puyouquan.com/api/wx/web/callback', state: 'S1' });
   assert.ok(url.includes('open.weixin.qq.com/connect/qrconnect'));

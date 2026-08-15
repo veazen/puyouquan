@@ -8,9 +8,10 @@ const b64u = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const hmac = (s, key) => crypto.createHmac('sha256', key).update(s).digest('base64url');
 const nowSec = () => Math.floor(Date.now() / 1000);
 
-/* ---- state（回跳地址 + 随机数 + 过期，HMAC 签名防伪造/CSRF）---- */
-function signState(ret, secret, ttl = 600) {
-  const p = b64u({ r: String(ret || '').slice(0, 300), n: crypto.randomBytes(6).toString('hex'), exp: nowSec() + ttl });
+/* ---- state（回跳地址 + 随机数 + 过期，HMAC 签名防伪造/CSRF）----
+   v58.3 extra：附加字段并入签名载荷（如绑定模式 {b:uid}），随 verifyState 原样返回 */
+function signState(ret, secret, ttl = 600, extra) {
+  const p = b64u(Object.assign({ r: String(ret || '').slice(0, 300), n: crypto.randomBytes(6).toString('hex'), exp: nowSec() + ttl }, extra || {}));
   return p + '.' + hmac(p, secret);
 }
 function verifyState(state, secret) {

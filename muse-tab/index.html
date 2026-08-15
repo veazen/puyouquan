@@ -16372,6 +16372,11 @@ function openPersonal(tab){
     const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
     const bLoA=document.getElementById('acct-logout-all'); if(bLoA) bLoA.onclick=acctLogoutAll;
     const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
+    /* v58.3 绑定微信：整页跳微信扫码（bind=1 → state 签入 uid），授权后 302 回本页带 ?wxbind= */
+    const bWx=document.getElementById('acct-bindwx'); if(bWx) bWx.onclick=async()=>{
+      bWx.disabled=true; bWx.textContent='跳转中…';
+      try{ const r=await apiCall('/wx/web/login-url?bind=1&return='+encodeURIComponent(location.origin+location.pathname)); location.href=r.url; }
+      catch(e){ toast(e.message||'微信绑定发起失败'); bWx.disabled=false; bWx.textContent='绑定微信'; } };
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
         sign:document.getElementById('pc-sign').value.trim(),
@@ -16550,6 +16555,12 @@ if(API_ON){ const _wl=new URLSearchParams(location.search).get('wxlogin');
     if(_wl==='ok'){ acctRefresh().then(()=>{ try{ toast('微信登录成功'); }catch(_){}; if(typeof syncScores==='function') syncScores();
         try{ const pf=sessionStorage.getItem('pyq-pendfav'); if(pf && ACCT){ sessionStorage.removeItem('pyq-pendfav'); setFav(pf,true); cloudFav(pf,true); if(typeof updateVwFav==='function') updateVwFav(); } }catch(_){} }); }
     else { try{ toast('微信登录未完成，请重试'); }catch(_){} } } }
+/* v58.3 微信绑定回跳：callback 302 带 ?wxbind=ok/conflict/fail —— 提示并刷新账号态（wx 标记） */
+if(API_ON){ const _wb=new URLSearchParams(location.search).get('wxbind');
+  if(_wb){ try{ history.replaceState(null,'',location.pathname+location.hash); }catch(_){}
+    if(_wb==='ok'){ acctRefresh().then(()=>{ try{ toast('微信绑定成功，下次可扫码登录'); }catch(_){}; try{ openPersonal('profile'); }catch(_){} }); }
+    else if(_wb==='conflict'){ try{ toast('该微信已绑定其他账号，请先在原账号解绑'); }catch(_){} }
+    else { try{ toast('微信绑定未完成，请重试'); }catch(_){} } } }
 function pcAcctHTML(){
   const box='display:flex;align-items:center;gap:12px;padding:11px 13px;margin:2px 0 15px;border:1px solid var(--border-soft,#e4ddcd);border-radius:12px;background:var(--panel,#fefdf9)';
   if(!API_ON) return `<div style="${box};font-size:12.5px;color:var(--muted)">账号登录与云端同步需在 <b>puyouquan.com</b> 上使用；本机 / 预览环境下资料仅存本地。</div>`;
@@ -16557,13 +16568,16 @@ function pcAcctHTML(){
     const isCreator=ACCT.role==='creator';
     const badge=isCreator?'<span style="font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:0 5px;margin-left:6px">创作者</span>':'';
     const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
+    /* v58.3 微信绑定：已绑显示标记；未绑且服务端已配微信登录时给绑定入口（扫码回跳 ?wxbind=） */
+    const wxTag=ACCT.wx?' · <span style="color:#07c160">已绑定微信</span>':'';
+    const bindWx=(!ACCT.wx && window.PYQ_WX_WEB)?'<button id="acct-bindwx" title="绑定后可用微信扫码直接登录本账号" style="white-space:nowrap;color:#07c160;border-color:#07c160">绑定微信</button>':'';
     return `<div style="${box}">
       <div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600">${esc(ACCT.nickname||'')}${badge}</div>
-        <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启${wxTag}</div>
       </div>
-      ${become}<button id="acct-logout-all" title="作废本账号在所有设备上的登录（应对手机丢失/密码泄露）" style="font-size:12px">退出所有设备</button><button id="acct-logout">退出登录</button></div>`;
+      ${become}${bindWx}<button id="acct-logout-all" title="作废本账号在所有设备上的登录（应对手机丢失/密码泄露）" style="font-size:12px">退出所有设备</button><button id="acct-logout">退出登录</button></div>`;
   }
   return `<div style="${box}">
     <div style="flex:1">
@@ -16864,7 +16878,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.2';
+const APP_VER='v58.3';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16887,6 +16901,7 @@ const APP_VER='v58.2';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.3</span><div><b>手机号账号绑定微信</b>：个人中心（已登录且未绑微信时）新增「绑定微信」入口——跳微信扫码授权后，该微信身份直接落到当前手机号账号上（不建新号、不动登录态），资料卡显示「已绑定微信」，此后可用微信扫码直接登录本账号。安全口径：绑定目标 uid 由服务端 HMAC 签入 state（防伪造/防换绑），该微信已被其他账号占用时提示冲突不抢占。</div></li>
     <li><span class="v">v58.2</span><div><b>记谱风格双模式对称互切</b>（用户反馈：v57.9 后切不回 × 教材式）：「记谱风格」恢复为两种完整模式一键互切——<b>教材式</b>：与当前和弦指法一致的开放把位实音显示 ×（和弦内音记法），× 输入亦显示 ×；<b>全数字</b>（现为默认）：实音显示品位数字、× 输入按指法解析显示品位——输入什么看什么、0 品可见（v57.9 诉求默认成立）。两模式仅切显示，谱面数据不变。</div></li>
     <li><span class="v">v58.1</span><div><b>微信转发卡片美化</b>（转发卡片已随公众号配置打通；用户反馈样式需美观直观）：卡片<b>标题改为《歌名》谱类</b>（如《茶花开了》弹唱谱，一眼知道是什么谱）；<b>摘要重排</b>为「1=调 · 变调夹 · ♩=速度 · 制谱人｜谱友圈在线看谱 · 可播放 · 可移调」；<b>缩略图换 512×512 朱砂品牌方图</b>（原用官网 og 横幅，微信裁成方块后文字模糊）；朋友圈卡片标题缀「· 谱友圈」品牌。</div></li>
     <li><span class="v">v58.0</span><div><b>标注功能上线</b>（用户需求）：右栏信息页「曲谱信息」下方新增<b>「标注」</b>卡——<b>固定标注</b>提供常用词一键标注（前奏 / 间奏 / 尾奏 / 副歌 / 慢起 / 渐慢 / 渐快 / 原速 / 自由地 / 扫弦 / 分解 / 加花），<b>自由标注</b>可输入任意文字（回车或点「标注」）；标注落在<b>当前光标列上方</b>（斜体小字，TAB 与技法字母同带堆叠避让、简谱/五线谱行置行上方），再次标注即覆盖、「清除当前位置标注」移除；支持撤销、随曲谱本地保存与云同步，<b>MusicXML 导出为 words 记号</b>（简谱与 TAB 声部）。</div></li>
