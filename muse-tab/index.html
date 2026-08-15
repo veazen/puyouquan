@@ -16614,7 +16614,8 @@ function openLogin(opts){
       <button id="lg-send" style="white-space:nowrap">获取验证码</button></label>
     <div id="lg-msg" style="font-size:12px;color:var(--accent);min-height:16px;margin-top:6px"></div>
     ${API_ON && (window.PYQ_WX_WEB||window.PYQ_WX_MP)? `<div style="text-align:center;margin:12px 0 8px;color:var(--muted);font-size:12px;opacity:.7">— 或 —</div>
-    <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">${/MicroMessenger/i.test(navigator.userAgent)&&window.PYQ_WX_MP?'微信一键登录':'微信扫码登录'}</button>`:''}
+    <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">${/MicroMessenger/i.test(navigator.userAgent)&&window.PYQ_WX_MP?'微信一键登录':'微信扫码登录'}</button>
+    ${/MicroMessenger/i.test(navigator.userAgent)&&!window.PYQ_WX_MP?'<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':''}`:''}
     <div class="btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div>`, true);
   const msg=t=>{ const el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
   const phoneEl=document.getElementById('lg-phone');
@@ -16893,7 +16894,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.5';
+const APP_VER='v58.6';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16916,6 +16917,7 @@ const APP_VER='v58.5';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.6</span><div><b>微信内登录通道校准</b>：公众号「一键登录」需<b>认证服务号</b>（订阅号后台没有「网页授权域名」设置项，授权必报 10003）——本站公众号为订阅号，该通道默认关闭不再误导；微信内置浏览器里的登录回落<b>扫码通道</b>，按钮下提示「点击后长按页面上的二维码即可识别登录」（同一部手机扫不了自己的屏幕，长按识别是微信内标准做法）。将来若启用认证服务号，服务器加一个开关即可恢复一键登录。</div></li>
     <li><span class="v">v58.5</span><div><b>观看页驻谱库域 + 记谱风格随曲谱走</b>：① 分享观看页整体搬到 <b>puku.puyouquan.com</b>——落地页自动进入 <code>puku.puyouquan.com/kanpu.html?pub=曲谱ID</code>，地址栏全程谱库域名不再跳转制谱域名；谱库卡片、落地页「在线观看」同步指向新地址。② <b>记谱风格存入曲谱</b>：编辑器切换「教材式 ×/全数字」现在会写进当前曲谱（可撤销、随保存/云同步/发布传递）——分享出去的观看页按<b>制谱人选定的风格</b>显示，不再回落观看者本机默认；老谱未存风格时仍按本机偏好。</div></li>
     <li><span class="v">v58.4</span><div><b>微信生态反馈批次</b>：① 官网/谱库登录弹窗补上微信登录——微信内置浏览器里走公众号网页授权<b>一键登录</b>（免扫码），微信外走扫码登录，与手机号账号经 unionid 统一；编辑器登录/绑定入口同步按环境自动选通道。② 手机版官网头部「登录 / 注册」按钮不再被挤成竖排溢出。③ 微信转发卡片链接统一为 <b>puku.puyouquan.com/pub/曲谱ID</b> 谱库落地页；分享观看页（<code>?pub=</code> 深链）启动遮罩保持到谱面就绪，不再闪现一下编辑器界面。④ 观看页「收藏」图标由桃心改为<b>五角星</b>（更符合收藏的通用认知，已收藏亮琥珀色实心星）；「设置」齿轮图标改为真齿形轮廓，更易辨识。</div></li>
     <li><span class="v">v58.3</span><div><b>手机号账号绑定微信</b>：个人中心（已登录且未绑微信时）新增「绑定微信」入口——跳微信扫码授权后，该微信身份直接落到当前手机号账号上（不建新号、不动登录态），资料卡显示「已绑定微信」，此后可用微信扫码直接登录本账号。安全口径：绑定目标 uid 由服务端 HMAC 签入 state（防伪造/防换绑），该微信已被其他账号占用时提示冲突不抢占。</div></li>

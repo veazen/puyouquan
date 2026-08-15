@@ -23,8 +23,12 @@ const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.co
 const WX_MP_APPID = process.env.WX_MP_APPID || '';
 const WX_MP_SECRET = process.env.WX_MP_SECRET || '';
 /* v58.4 公众号网页授权登录（微信内置浏览器免扫码）：复用 WX_MP 凭据；
-   公众号后台「网页授权域名」须含本 redirect 的域名（www.puyouquan.com） */
+   公众号后台「网页授权域名」须含本 redirect 的域名（www.puyouquan.com）。
+   v58.6 默认关闭：网页授权仅认证服务号可用——订阅号后台根本没有「网页授权域名」设置项
+   （用户截图证实本站公众号为订阅号），oauth 必报 10003。将来换/增服务号并配好
+   网页授权域名后，置环境变量 WX_MP_OAUTH=1 即可开启，前端自动出「微信一键登录」。 */
 const WX_MP_REDIRECT = process.env.WX_MP_REDIRECT || 'https://www.puyouquan.com/api/wx/mp/callback';
+const WX_MP_OAUTH = process.env.WX_MP_OAUTH === '1';
 /* v45.4 微信支付（APIv3 Native 扫码）：凭据只走服务器环境；私钥为文件路径（apiclient_key.pem）。
    五项全配齐才启用（health.wxpay=true，前端据此显示支付入口）。 */
 const WXPAY = (() => {
@@ -296,7 +300,7 @@ ${noteSvg}
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
-  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_APPID && WX_MP_SECRET), wxpay: wxpayOn() })],
+  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wxpay: wxpayOn() })],
 
   /* -- 认证 -- */
   ['POST', /^\/api\/auth\/sms\/send$/, false, async (m, b, _u, req) => {
@@ -345,7 +349,7 @@ const routes = [
   }],
   ['GET', /^\/api\/wx\/web\/callback$/, false, (m, b, _u, req, res) => wxCallbackFlow(req, res, WX_WEB_APPID, WX_WEB_SECRET)],
   ['GET', /^\/api\/wx\/mp\/login-url$/, false, (m, b, _u, req) => {
-    if (!WX_MP_APPID || !WX_MP_SECRET) throw new ApiError(503, '微信登录未配置');
+    if (!WX_MP_OAUTH || !WX_MP_APPID || !WX_MP_SECRET) throw new ApiError(503, '微信登录未配置');
     const state = wxStateFromReq(req);
     return { url: wx.buildMpAuthUrl({ appid: WX_MP_APPID, redirect: WX_MP_REDIRECT, state }) };
   }],

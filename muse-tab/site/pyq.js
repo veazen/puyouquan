@@ -218,9 +218,12 @@ window.PYQ_ACCT = (function(){
   function openLogin(){
     let m=document.getElementById('pyq-login'); if(m) m.remove();
     m=document.createElement('div'); m.id='pyq-login'; m.className='pyq-mask';
-    /* v58.4 微信登录入口：微信内走公众号网页授权（免扫码），微信外走开放平台扫码 */
+    /* v58.4 微信登录入口：微信内走公众号网页授权（免扫码），微信外走开放平台扫码。
+       v58.6 网页授权需认证服务号（订阅号无此能力，wx_mp 默认关）——微信内回落扫码通道时
+       提示长按二维码识别（同一部手机扫不了自己的屏） */
     const wxBtn=(wxWeb||wxMp)? `<div class="lg-or">— 或 —</div>
-      <button id="lg-wx" class="lg-wx">${(inWx&&wxMp)?'微信一键登录':'微信扫码登录'}</button>` : '';
+      <button id="lg-wx" class="lg-wx">${(inWx&&wxMp)?'微信一键登录':'微信扫码登录'}</button>
+      ${(inWx&&!wxMp)?'<div class="lg-wxtip">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':''}` : '';
     m.innerHTML=`<div class="pyq-modal"><h3>登录 / 注册</h3>
       <p class="lg-sub">未注册的手机号将自动创建账号，登录后跨端同步曲谱与收藏。</p>
       <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
