@@ -36,6 +36,19 @@ function buildLoginUrl({ appid, redirect, state }) {
   return u.toString() + '#wechat_redirect';
 }
 
+/* ---- v58.4 公众号网页授权 URL（微信内置浏览器里免扫码：直接弹授权/静默通过）----
+   与扫码登录同一 code 交换端点（webExchange 复用），凭据换公众号 AppID/Secret；
+   前提（公众号后台）：「网页授权域名」含 redirect 所在域名，且为已认证服务号 */
+function buildMpAuthUrl({ appid, redirect, state, scope = 'snsapi_userinfo' }) {
+  const u = new URL('https://open.weixin.qq.com/connect/oauth2/authorize');
+  u.searchParams.set('appid', appid);
+  u.searchParams.set('redirect_uri', redirect);
+  u.searchParams.set('response_type', 'code');
+  u.searchParams.set('scope', scope);
+  u.searchParams.set('state', state);
+  return u.toString() + '#wechat_redirect';
+}
+
 /* ---- code → access_token(+openid+unionid) → userinfo（fetchFn 可注入以便单测）---- */
 async function webExchange(code, { appid, secret, fetchFn = fetch }) {
   const tUrl = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appid)}`
@@ -93,4 +106,4 @@ function jsapiSign(ticket, url, { nonceStr, timestamp } = {}) {
   return { nonceStr, timestamp, signature };
 }
 
-module.exports = { signState, verifyState, buildLoginUrl, webExchange, jsapiTicket, jsapiSign };
+module.exports = { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, jsapiTicket, jsapiSign };

@@ -137,6 +137,9 @@ window.PYQ_LIB = (function(){
 window.PYQ_ACCT = (function(){
   const API_ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
   let acct=null, stats=null;
+  /* v58.4 微信登录能力探测：wx_web=扫码（开放平台）、wx_mp=公众号网页授权（微信内免扫码） */
+  let wxWeb=false, wxMp=false;
+  const inWx=/MicroMessenger/i.test(navigator.userAgent);
   async function api(path,opts){ opts=opts||{};
     const r=await fetch('/api'+path,{method:opts.method||'GET',credentials:'include',
       headers:opts.body?{'Content-Type':'application/json'}:{}, body:opts.body?JSON.stringify(opts.body):undefined});
@@ -215,16 +218,25 @@ window.PYQ_ACCT = (function(){
   function openLogin(){
     let m=document.getElementById('pyq-login'); if(m) m.remove();
     m=document.createElement('div'); m.id='pyq-login'; m.className='pyq-mask';
+    /* v58.4 微信登录入口：微信内走公众号网页授权（免扫码），微信外走开放平台扫码 */
+    const wxBtn=(wxWeb||wxMp)? `<div class="lg-or">— 或 —</div>
+      <button id="lg-wx" class="lg-wx">${(inWx&&wxMp)?'微信一键登录':'微信扫码登录'}</button>` : '';
     m.innerHTML=`<div class="pyq-modal"><h3>登录 / 注册</h3>
       <p class="lg-sub">未注册的手机号将自动创建账号，登录后跨端同步曲谱与收藏。</p>
       <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
       <div class="lg-row"><input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button id="lg-send">获取验证码</button></div>
       <div id="lg-msg" class="lg-msg"></div>
+      ${wxBtn}
       <div class="lg-btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div></div>`;
     document.body.appendChild(m);
     m.addEventListener('click',e=>{ if(e.target===m) m.remove(); });
     const msg=t=>{ const e=document.getElementById('lg-msg'); if(e) e.textContent=t||''; };
     let timer=0;
+    { const wxb=document.getElementById('lg-wx'); if(wxb) wxb.onclick=async function(){
+        this.disabled=true;
+        try{ const r=await api('/wx/'+((inWx&&wxMp)?'mp':'web')+'/login-url?return='+encodeURIComponent(location.href));
+          if(r.url) location.href=r.url; else { this.disabled=false; msg('微信登录暂不可用'); } }
+        catch(e){ this.disabled=false; msg(e.status===503?'微信登录尚未开通':(e.message||'微信登录暂不可用')); } }; }
     document.getElementById('lg-cancel').onclick=()=>{ if(timer)clearInterval(timer); m.remove(); };
     document.getElementById('lg-send').onclick=async function(){
       const phone=document.getElementById('lg-phone').value.trim();
@@ -246,6 +258,12 @@ window.PYQ_ACCT = (function(){
     };
   }
   async function init(){ if(!API_ON){ renderNav(); return; }
+    api('/health').then(j=>{ wxWeb=!!(j&&j.wx_web); wxMp=!!(j&&j.wx_mp); }).catch(()=>{});
+    /* v58.4 微信登录回跳（callback 302 带 ?wxlogin=ok/fail）：清 query；fail 重开登录框提示 */
+    try{ const wl=new URLSearchParams(location.search).get('wxlogin');
+      if(wl){ history.replaceState(null,'',location.pathname+location.hash);
+        if(wl!=='ok') setTimeout(()=>{ openLogin(); const e=document.getElementById('lg-msg'); if(e) e.textContent='微信登录未完成，请重试'; },50); }
+    }catch(_){}
     try{ const j=await api('/me'); acct=j.user; }catch(_){ acct=null; }
     renderNav();
   }

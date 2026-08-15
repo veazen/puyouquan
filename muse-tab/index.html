@@ -1165,8 +1165,9 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
   width:34px;height:34px;padding:0;margin:0;border:1px solid var(--border);border-radius:50%;
   background:var(--panel);color:var(--text);cursor:pointer;font-size:0}
 #viewerbar .vh-icons>*:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--hover)}
-#viewerbar .vh-icons #vw-fav.on{color:#e0395a;border-color:#e0395a}
-#viewerbar .vh-icons #vw-fav.on svg{fill:#e0395a}
+/* v58.4 收藏=星标：已收藏亮琥珀色实心星（原桃心红） */
+#viewerbar .vh-icons #vw-fav.on{color:#f0a020;border-color:#f0a020}
+#viewerbar .vh-icons #vw-fav.on svg{fill:#f0a020}
 /* v55.6 观看设置（底栏 ⚙）：观看模式可见 */
 #b-vwset{display:none}
 body.viewer #b-vwset{display:inline-flex;align-items:center}
@@ -12519,9 +12520,12 @@ const SVGI = {
   megaphone:'<path d="M3.5 10v4h3.5l7.5 4.5v-13L7 10z"/><path d="M17.5 9.5a4.5 4.5 0 0 1 0 5"/>',
   /* v55.6 观看页头部/设置图标 */
   heart:'<path d="M12 19.8S4.2 15 3 10.6C2.2 7.7 4.3 5 7.2 5c2 0 3.6 1.1 4.8 2.9C13.2 6.1 14.8 5 16.8 5c2.9 0 5 2.7 4.2 5.6C19.8 15 12 19.8 12 19.8z"/>',
+  /* v58.4 收藏改五角星（用户反馈：桃心当收藏辨识不合理，中文产品惯例收藏=星标） */
+  star:'<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>',
   share:'<path d="M12 3.2v10.6"/><path d="M8.2 6.6 12 3.2l3.8 3.4"/><path d="M7 10.5H5v10h14v-10h-2"/>',
   home:'<path d="M3.5 11.5 12 4l8.5 7.5"/><path d="M6 9.8V20h12V9.8"/><path d="M10 20v-5h4v5"/>',
-  gear:'<circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1"/>',
+  /* v58.4 齿轮改真齿形（用户反馈：原「圆+放射线」像太阳不易辨识） */
+  gear:'<path d="M10.6 3.2h2.8l.5 2.3a6.6 6.6 0 0 1 1.9 1.1l2.2-.8 1.4 2.5-1.7 1.6a6.7 6.7 0 0 1 0 2.2l1.7 1.6-1.4 2.5-2.2-.8a6.6 6.6 0 0 1-1.9 1.1l-.5 2.3h-2.8l-.5-2.3a6.6 6.6 0 0 1-1.9-1.1l-2.2.8-1.4-2.5 1.7-1.6a6.7 6.7 0 0 1 0-2.2L4.6 8.3 6 5.8l2.2.8a6.6 6.6 0 0 1 1.9-1.1z"/><circle cx="12" cy="12" r="2.7"/>',
   search:'<circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.3 15.3 21 21"/>',
   tab6:'<path d="M3 4.5h18M3 7.6h18M3 10.7h18M3 13.8h18M3 16.9h18M3 20h18" stroke-width="1.2"/>',
   tab4:'<path d="M3 6h18M3 10h18M3 14h18M3 18h18" stroke-width="1.3"/>',
@@ -15895,7 +15899,7 @@ function vwHeaderHTML(o){
     </div>
     <span style="flex:1"></span>
     <div class="vh-icons">
-      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('heart',16)}</button>`:''}
+      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',16)}</button>`:''}
       ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',16)}</button>`:''}
       <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',16)}</a>
     </div>`;
@@ -16001,7 +16005,8 @@ function wxShareCard(){
       desc: ['1='+(song.key||'C')+(song.capo? ' · 变调夹'+song.capo+'品':''), '♩='+(song.tempo||90),
         ((viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)? '制谱 '+viewerCtx.pb.author : '')].filter(Boolean).join(' · ')
         +'｜谱友圈在线看谱 · 可播放 · 可移调',
-      link: pageUrl,
+      /* v58.4 卡片链接统一 puku 谱库域（用户拍板）：/pub/ID 落地页可爬可分享，真人自动转观看页 */
+      link: (viewerCtx&&viewerCtx.pubId)? 'https://puku.puyouquan.com/pub/'+viewerCtx.pubId : pageUrl,
       imgUrl: 'https://www.puyouquan.com/share-icon.png'
     };
     apiCall('/wx/jssign?url='+encodeURIComponent(pageUrl)).then(cfg=>{
@@ -16031,9 +16036,9 @@ function wxShareCard(){
 async function openRemotePub(id){
   let sc;
   try{ const r=await apiCall('/pub/scores/'+id); sc=r.score; }
-  catch(e){ toast('曲谱加载失败：'+(e.message||'请稍后重试')); return; }
+  catch(e){ bootVeilDone(); toast('曲谱加载失败：'+(e.message||'请稍后重试')); return; }
   const data=sanitizeUntrusted(sc && sc.data);   // Sprint0 安全：他人发布谱走 XSS 清洗
-  if(!data || !data.measures || !data.measures.length){ toast('曲谱数据异常'); return; }
+  if(!data || !data.measures || !data.measures.length){ bootVeilDone(); toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   pyqEvent('open_pub', id);
   viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null;
@@ -16053,6 +16058,7 @@ async function openRemotePub(id){
   updateVwFav();
   wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
+  bootVeilDone();   /* v58.4 谱面就绪才揭幕：分享页不再闪现编辑器外壳 */
 }
 /* 观看模式收藏：本地翻转 + 登录后接云；未登录点收藏就地拉起登录（看谱→留账号钩子），登录后自动收藏 */
 function updateVwFav(){
@@ -16375,7 +16381,7 @@ function openPersonal(tab){
     /* v58.3 绑定微信：整页跳微信扫码（bind=1 → state 签入 uid），授权后 302 回本页带 ?wxbind= */
     const bWx=document.getElementById('acct-bindwx'); if(bWx) bWx.onclick=async()=>{
       bWx.disabled=true; bWx.textContent='跳转中…';
-      try{ const r=await apiCall('/wx/web/login-url?bind=1&return='+encodeURIComponent(location.origin+location.pathname)); location.href=r.url; }
+      try{ const r=await apiCall(wxLoginPath()+'?bind=1&return='+encodeURIComponent(location.origin+location.pathname)); location.href=r.url; }
       catch(e){ toast(e.message||'微信绑定发起失败'); bWx.disabled=false; bWx.textContent='绑定微信'; } };
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
@@ -16548,7 +16554,10 @@ async function acctRefresh(){
 if(API_ON) acctRefresh();
 if(API_ON) pyqEvent('visit');   // v45.3 埋点：页面访问（仅线上）
 /* v43.6 探测服务端是否已开通微信登录（未配置则登录弹窗不显示微信入口，避免死按钮） */
-if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); window.PYQ_WXPAY=!!(j&&j.wxpay); }).catch(()=>{}); }
+if(API_ON){ apiCall('/health').then(j=>{ window.PYQ_WX_WEB=!!(j&&j.wx_web); window.PYQ_WX_MP=!!(j&&j.wx_mp); window.PYQ_WXPAY=!!(j&&j.wxpay); }).catch(()=>{}); }
+/* v58.4 微信登录端点选择：微信内置浏览器走公众号网页授权（免扫码，同手机扫不了自己的码），
+   微信外走开放平台扫码；unionid 同主体下两路落同一账号 */
+function wxLoginPath(){ return (/MicroMessenger/i.test(navigator.userAgent) && window.PYQ_WX_MP)? '/wx/mp/login-url' : '/wx/web/login-url'; }
 /* v43.6 微信登录回跳：callback 302 回本页带 ?wxlogin=ok/fail —— 刷新账号态并清理 query */
 if(API_ON){ const _wl=new URLSearchParams(location.search).get('wxlogin');
   if(_wl){ try{ history.replaceState(null,'',location.pathname+location.hash); }catch(_){}
@@ -16570,7 +16579,7 @@ function pcAcctHTML(){
     const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
     /* v58.3 微信绑定：已绑显示标记；未绑且服务端已配微信登录时给绑定入口（扫码回跳 ?wxbind=） */
     const wxTag=ACCT.wx?' · <span style="color:#07c160">已绑定微信</span>':'';
-    const bindWx=(!ACCT.wx && window.PYQ_WX_WEB)?'<button id="acct-bindwx" title="绑定后可用微信扫码直接登录本账号" style="white-space:nowrap;color:#07c160;border-color:#07c160">绑定微信</button>':'';
+    const bindWx=(!ACCT.wx && (window.PYQ_WX_WEB||window.PYQ_WX_MP))?'<button id="acct-bindwx" title="绑定后可用微信扫码直接登录本账号" style="white-space:nowrap;color:#07c160;border-color:#07c160">绑定微信</button>':'';
     return `<div style="${box}">
       <div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>
       <div style="flex:1;min-width:200px">
@@ -16598,8 +16607,8 @@ function openLogin(opts){
       <input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" style="flex:1">
       <button id="lg-send" style="white-space:nowrap">获取验证码</button></label>
     <div id="lg-msg" style="font-size:12px;color:var(--accent);min-height:16px;margin-top:6px"></div>
-    ${API_ON && window.PYQ_WX_WEB? `<div style="text-align:center;margin:12px 0 8px;color:var(--muted);font-size:12px;opacity:.7">— 或 —</div>
-    <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">微信扫码登录</button>`:''}
+    ${API_ON && (window.PYQ_WX_WEB||window.PYQ_WX_MP)? `<div style="text-align:center;margin:12px 0 8px;color:var(--muted);font-size:12px;opacity:.7">— 或 —</div>
+    <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">${/MicroMessenger/i.test(navigator.userAgent)&&window.PYQ_WX_MP?'微信一键登录':'微信扫码登录'}</button>`:''}
     <div class="btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div>`, true);
   const msg=t=>{ const el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
   const phoneEl=document.getElementById('lg-phone');
@@ -16634,7 +16643,7 @@ function openLogin(opts){
   { const wxb=document.getElementById('lg-wx'); if(wxb) wxb.onclick=async()=>{
     wxb.disabled=true;
     if(opts.pendingFav){ try{ sessionStorage.setItem('pyq-pendfav', opts.pendingFav); }catch(_){} }   // 微信整页跳转丢上下文：暂存待收藏 id，回跳后补
-    try{ const r=await apiCall('/wx/web/login-url?return='+encodeURIComponent(location.href));
+    try{ const r=await apiCall(wxLoginPath()+'?return='+encodeURIComponent(location.href));
       if(r.url) location.href=r.url; else { wxb.disabled=false; msg('微信登录暂不可用'); } }
     catch(e){ wxb.disabled=false; msg(e.status===503? '微信登录尚未开通' : (e.message||'微信登录暂不可用')); } }; }
 }
@@ -16878,7 +16887,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.3';
+const APP_VER='v58.4';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16901,6 +16910,7 @@ const APP_VER='v58.3';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.4</span><div><b>微信生态反馈批次</b>：① 官网/谱库登录弹窗补上微信登录——微信内置浏览器里走公众号网页授权<b>一键登录</b>（免扫码），微信外走扫码登录，与手机号账号经 unionid 统一；编辑器登录/绑定入口同步按环境自动选通道。② 手机版官网头部「登录 / 注册」按钮不再被挤成竖排溢出。③ 微信转发卡片链接统一为 <b>puku.puyouquan.com/pub/曲谱ID</b> 谱库落地页；分享观看页（<code>?pub=</code> 深链）启动遮罩保持到谱面就绪，不再闪现一下编辑器界面。④ 观看页「收藏」图标由桃心改为<b>五角星</b>（更符合收藏的通用认知，已收藏亮琥珀色实心星）；「设置」齿轮图标改为真齿形轮廓，更易辨识。</div></li>
     <li><span class="v">v58.3</span><div><b>手机号账号绑定微信</b>：个人中心（已登录且未绑微信时）新增「绑定微信」入口——跳微信扫码授权后，该微信身份直接落到当前手机号账号上（不建新号、不动登录态），资料卡显示「已绑定微信」，此后可用微信扫码直接登录本账号。安全口径：绑定目标 uid 由服务端 HMAC 签入 state（防伪造/防换绑），该微信已被其他账号占用时提示冲突不抢占。</div></li>
     <li><span class="v">v58.2</span><div><b>记谱风格双模式对称互切</b>（用户反馈：v57.9 后切不回 × 教材式）：「记谱风格」恢复为两种完整模式一键互切——<b>教材式</b>：与当前和弦指法一致的开放把位实音显示 ×（和弦内音记法），× 输入亦显示 ×；<b>全数字</b>（现为默认）：实音显示品位数字、× 输入按指法解析显示品位——输入什么看什么、0 品可见（v57.9 诉求默认成立）。两模式仅切显示，谱面数据不变。</div></li>
     <li><span class="v">v58.1</span><div><b>微信转发卡片美化</b>（转发卡片已随公众号配置打通；用户反馈样式需美观直观）：卡片<b>标题改为《歌名》谱类</b>（如《茶花开了》弹唱谱，一眼知道是什么谱）；<b>摘要重排</b>为「1=调 · 变调夹 · ♩=速度 · 制谱人｜谱友圈在线看谱 · 可播放 · 可移调」；<b>缩略图换 512×512 朱砂品牌方图</b>（原用官网 og 横幅，微信裁成方块后文字模糊）；朋友圈卡片标题缀「· 谱友圈」品牌。</div></li>
@@ -17401,9 +17411,11 @@ function alignHeader(){
   updateHifiBtn();
   applyResponsive();
   alignHeader();
-  /* v57.7 启动遮罩淡出：面板搬移/图标/启动台全部就绪后再露出界面（防加载期乱版闪现） */
-  { const bv=document.getElementById('boot-veil');
-    if(bv){ bv.style.opacity='0'; bv.style.pointerEvents='none'; setTimeout(()=>{ try{ bv.remove(); }catch(_){ } }, 240); } }
+  /* v57.7 启动遮罩淡出：面板搬移/图标/启动台全部就绪后再露出界面（防加载期乱版闪现）。
+     v58.4 观看/云谱深链（?pub= / ?mine=）此处不揭幕——远端拉谱期间会露出编辑器外壳（用户反馈
+     分享页闪现编辑界面），改由 openRemotePub/openRemoteMine 谱面就绪或失败后调 bootVeilDone()；
+     内联 8s 失效保护仍兜底 */
+  if(!/[?&](pub|mine)=/.test(location.search)) bootVeilDone();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
   window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ applyResponsive(); render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });
@@ -17413,12 +17425,17 @@ function alignHeader(){
     ro.observe(document.getElementById('stage'));
   }
 })();
+/* v58.4 启动遮罩揭幕（幂等）：普通启动在主初始化尾调用；?pub=/?mine= 深链推迟到谱面就绪/失败时调 */
+function bootVeilDone(){
+  const bv=document.getElementById('boot-veil');
+  if(bv){ bv.style.opacity='0'; bv.style.pointerEvents='none'; setTimeout(()=>{ try{ bv.remove(); }catch(_){ } }, 240); }
+}
 /* v50.7 云端曲谱深链 ?mine=<id>：官网/谱库个人中心卡「最近曲谱」直达编辑。
    本地库已有该谱直接打开（离线可用）；否则凭登录 Cookie 从云端拉取、存入本地库再打开；
    未登录/失败回落启动台并提示 */
 async function openRemoteMine(id){
   const e0 = libLoad().find(x=>x.id===id);
-  if(e0 && e0.data){ loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+(e0.title||''))); return; }
+  if(e0 && e0.data){ loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+(e0.title||''))); bootVeilDone(); return; }
   try{
     const r = await apiCall('/scores/'+id);
     const d = r && r.score && r.score.data;
@@ -17430,7 +17447,9 @@ async function openRemoteMine(id){
       libSave(lib);
     }
     loadSong(JSON.parse(JSON.stringify(d)), ()=>toast('已打开云端曲谱：'+(r.score.title||d.title||'')));
+    bootVeilDone();
   }catch(err){
+    bootVeilDone();
     toast(err && err.status===401 ? '请先登录，再打开云端曲谱' : '云端曲谱打开失败'+(err&&err.message?('：'+err.message):''));
     if(err && err.status===401 && typeof openLogin==='function') try{ openLogin(); }catch(_){}
     try{ initStartPad(); }catch(_){}
@@ -17450,6 +17469,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }catch(e){ console.error('曲谱深链启动失败', e); }
   /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
   try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
+  bootVeilDone();   /* v58.4 深链 id 非法落回启动台时也揭幕（幂等，普通启动已揭） */
 });
 </script>
 </body>

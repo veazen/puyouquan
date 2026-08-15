@@ -1,7 +1,7 @@
 'use strict';
 // 微信登录纯逻辑单测（零依赖，node api/wx.test.js）
 const assert = require('node:assert');
-const { signState, verifyState, buildLoginUrl, webExchange } = require('./wx');
+const { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange } = require('./wx');
 
 let pass = 0, total = 0;
 const T = (name, fn) => { total++; try { fn(); pass++; console.log('✅ ' + name); } catch (e) { console.log('❌ ' + name + ': ' + e.message); } };
@@ -28,6 +28,14 @@ T('state extra：绑定模式 {b:uid} 随签名往返（v58.3）', () => {
   assert.ok(o && o.b === 'uid-123' && o.r === 'https://zhipu.puyouquan.com/');
   assert.strictEqual(verifyState(signState('https://a.com', SEC, 600, { b: 'u1' }).slice(0, -2) + 'zz', SEC), null);
   assert.strictEqual((verifyState(signState('https://a.com', SEC), SEC) || {}).b, undefined);
+});
+T('公众号授权 URL：oauth2/authorize + snsapi_userinfo + wechat_redirect（v58.4）', () => {
+  const url = buildMpAuthUrl({ appid: 'wxMP1', redirect: 'https://www.puyouquan.com/api/wx/mp/callback', state: 'S2' });
+  assert.ok(url.includes('open.weixin.qq.com/connect/oauth2/authorize'));
+  assert.ok(url.includes('appid=wxMP1'));
+  assert.ok(url.includes('scope=snsapi_userinfo'));
+  assert.ok(url.includes('state=S2'));
+  assert.ok(url.endsWith('#wechat_redirect'));
 });
 T('登录 URL 含 appid/scope=snsapi_login/state + wechat_redirect', () => {
   const url = buildLoginUrl({ appid: 'wxABC', redirect: 'https://zhipu.puyouquan.com/api/wx/web/callback', state: 'S1' });

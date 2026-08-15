@@ -22,6 +22,9 @@ const WX_WEB_REDIRECT = process.env.WX_WEB_REDIRECT || 'https://www.puyouquan.co
    与扫码登录（开放平台网站应用）是两套凭据；未配置时接口 503、前端静默回退微信默认卡片 */
 const WX_MP_APPID = process.env.WX_MP_APPID || '';
 const WX_MP_SECRET = process.env.WX_MP_SECRET || '';
+/* v58.4 公众号网页授权登录（微信内置浏览器免扫码）：复用 WX_MP 凭据；
+   公众号后台「网页授权域名」须含本 redirect 的域名（www.puyouquan.com） */
+const WX_MP_REDIRECT = process.env.WX_MP_REDIRECT || 'https://www.puyouquan.com/api/wx/mp/callback';
 /* v45.4 微信支付（APIv3 Native 扫码）：凭据只走服务器环境；私钥为文件路径（apiclient_key.pem）。
    五项全配齐才启用（health.wxpay=true，前端据此显示支付入口）。 */
 const WXPAY = (() => {
@@ -127,6 +130,51 @@ function upsertWxUser({ openid, unionid, nickname, avatar }) {
   const nick = (nickname || '').trim() || ('微信用户' + String(openid || '').slice(-4));
   q.userCreateWx.run(id, phone, openid || null, unionid || null, nick, avatar || '', now());
   return q.userById.get(id);
+}
+/* v58.4 微信登录两路（扫码 web / 公众号网页授权 mp）共享逻辑：
+   state 构造（回跳白名单 + v58.3 绑定模式 uid 签入）与回调落库（绑定分支 + 登录建号分支） */
+function wxStateFromReq(req) {
+  const sp = new URL(req.url, 'http://x').searchParams;
+  const ret = sp.get('return') || '';
+  const safeRet = /^https?:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(ret) ? ret : 'https://zhipu.puyouquan.com/';
+  let extra;
+  if (sp.get('bind') === '1') {
+    const cur = authUser(req);
+    if (!cur) throw new ApiError(401, '请先登录再绑定微信');
+    extra = { b: cur.id };
+  }
+  return wx.signState(safeRet, JWT_SECRET, 600, extra);
+}
+async function wxCallbackFlow(req, res, appid, secret) {
+  const u2 = new URL(req.url, 'http://x');
+  const code = u2.searchParams.get('code'), state = u2.searchParams.get('state');
+  const st = state && wx.verifyState(state, JWT_SECRET);
+  const back = (st && st.r) || 'https://zhipu.puyouquan.com/';
+  const withFlag = (v) => back + (back.includes('?') ? '&' : '?') + 'wxlogin=' + v;
+  if (!code || !st) return { ___redirect: withFlag('fail') };
+  /* v58.3 绑定分支（state 携带 b=uid）：把该微信身份落到已登录的手机号账号上，不动登录态。
+     该微信已被其他账号占用 → conflict（unionid/openid 唯一，不抢占不合并，避免误并号） */
+  if (st.b) {
+    const withB = (v) => back + (back.includes('?') ? '&' : '?') + 'wxbind=' + v;
+    try {
+      const prof = await wx.webExchange(code, { appid, secret });
+      const target = q.userById.get(st.b);
+      if (!target) return { ___redirect: withB('fail') };
+      let ex = null;
+      if (prof.unionid) ex = q.userByUnionid.get(prof.unionid);
+      if (!ex && prof.openid) ex = q.userByWxOpenid.get(prof.openid);
+      if (ex && ex.id !== st.b) return { ___redirect: withB('conflict') };
+      q.userBindWx.run(prof.openid || null, prof.unionid || null, st.b);
+      if (prof.avatar) q.userFillAvatar.run(prof.avatar, st.b);
+      return { ___redirect: withB('ok') };
+    } catch (e) { console.error('微信绑定失败:', e.message); return { ___redirect: withB('fail') }; }
+  }
+  try {
+    const prof = await wx.webExchange(code, { appid, secret });
+    const u = upsertWxUser(prof);
+    setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
+    return { ___redirect: withFlag('ok') };
+  } catch (e) { console.error('微信登录失败:', e.message); return { ___redirect: withFlag('fail') }; }
 }
 // 谱库列表卡片元信息（类型/封面/小节数）——与编辑器 docType/ccCover 同源，供官网复刻同款卡片。
 // 注：pubList 目前含 data 逐条解析；库规模大后可改存发布时快照的 type/cover 列避免每次解析。
@@ -246,7 +294,7 @@ ${noteSvg}
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
-  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wxpay: wxpayOn() })],
+  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_APPID && WX_MP_SECRET), wxpay: wxpayOn() })],
 
   /* -- 认证 -- */
   ['POST', /^\/api\/auth\/sms\/send$/, false, async (m, b, _u, req) => {
@@ -286,54 +334,20 @@ const routes = [
   // 退出所有设备：自增 tok_ver 使该用户全部已签发 JWT 立即失效（应对 token 泄露/被盗；普通登出仅清本端 Cookie）
   ['POST', /^\/api\/me\/logout-all$/, true, (m, b, u, req, res) => { q.userBumpTokVer.run(u.id); clearAuthCookie(res); return { ok: true }; }],
 
-  /* -- 微信扫码登录（开放平台·网站应用；A）-- */
+  /* -- 微信登录（A 开放平台·网站应用扫码 /wx/web/*；v58.4 B 公众号网页授权 /wx/mp/*，微信内免扫码）
+        两路共享 state 签名与回调落库逻辑，仅凭据（AppID/Secret）不同 -- */
   ['GET', /^\/api\/wx\/web\/login-url$/, false, (m, b, _u, req) => {
     if (!WX_WEB_APPID || !WX_WEB_SECRET) throw new ApiError(503, '微信登录未配置');
-    const sp = new URL(req.url, 'http://x').searchParams;
-    const ret = sp.get('return') || '';
-    const safeRet = /^https?:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(ret) ? ret : 'https://zhipu.puyouquan.com/';
-    /* v58.3 绑定模式（?bind=1）：已登录的手机号账号扫码绑定微信——uid 签入 state（HMAC 防伪），
-       回调按 uid 落绑定而非登录建号 */
-    let extra;
-    if (sp.get('bind') === '1') {
-      const cur = authUser(req);
-      if (!cur) throw new ApiError(401, '请先登录再绑定微信');
-      extra = { b: cur.id };
-    }
-    const state = wx.signState(safeRet, JWT_SECRET, 600, extra);
+    const state = wxStateFromReq(req);
     return { url: wx.buildLoginUrl({ appid: WX_WEB_APPID, redirect: WX_WEB_REDIRECT, state }) };
   }],
-  ['GET', /^\/api\/wx\/web\/callback$/, false, async (m, b, _u, req, res) => {
-    const u2 = new URL(req.url, 'http://x');
-    const code = u2.searchParams.get('code'), state = u2.searchParams.get('state');
-    const st = state && wx.verifyState(state, JWT_SECRET);
-    const back = (st && st.r) || 'https://zhipu.puyouquan.com/';
-    const withFlag = (v) => back + (back.includes('?') ? '&' : '?') + 'wxlogin=' + v;
-    if (!code || !st) return { ___redirect: withFlag('fail') };
-    /* v58.3 绑定分支（state 携带 b=uid）：把该微信身份落到已登录的手机号账号上，不动登录态。
-       该微信已被其他账号占用 → conflict（unionid/openid 唯一，不抢占不合并，避免误并号） */
-    if (st.b) {
-      const withB = (v) => back + (back.includes('?') ? '&' : '?') + 'wxbind=' + v;
-      try {
-        const prof = await wx.webExchange(code, { appid: WX_WEB_APPID, secret: WX_WEB_SECRET });
-        const target = q.userById.get(st.b);
-        if (!target) return { ___redirect: withB('fail') };
-        let ex = null;
-        if (prof.unionid) ex = q.userByUnionid.get(prof.unionid);
-        if (!ex && prof.openid) ex = q.userByWxOpenid.get(prof.openid);
-        if (ex && ex.id !== st.b) return { ___redirect: withB('conflict') };
-        q.userBindWx.run(prof.openid || null, prof.unionid || null, st.b);
-        if (prof.avatar) q.userFillAvatar.run(prof.avatar, st.b);
-        return { ___redirect: withB('ok') };
-      } catch (e) { console.error('微信绑定失败:', e.message); return { ___redirect: withB('fail') }; }
-    }
-    try {
-      const prof = await wx.webExchange(code, { appid: WX_WEB_APPID, secret: WX_WEB_SECRET });
-      const u = upsertWxUser(prof);
-      setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
-      return { ___redirect: withFlag('ok') };
-    } catch (e) { console.error('微信登录失败:', e.message); return { ___redirect: withFlag('fail') }; }
+  ['GET', /^\/api\/wx\/web\/callback$/, false, (m, b, _u, req, res) => wxCallbackFlow(req, res, WX_WEB_APPID, WX_WEB_SECRET)],
+  ['GET', /^\/api\/wx\/mp\/login-url$/, false, (m, b, _u, req) => {
+    if (!WX_MP_APPID || !WX_MP_SECRET) throw new ApiError(503, '微信登录未配置');
+    const state = wxStateFromReq(req);
+    return { url: wx.buildMpAuthUrl({ appid: WX_MP_APPID, redirect: WX_MP_REDIRECT, state }) };
   }],
+  ['GET', /^\/api\/wx\/mp\/callback$/, false, (m, b, _u, req, res) => wxCallbackFlow(req, res, WX_MP_APPID, WX_MP_SECRET)],
 
   /* -- v55.3 微信 JS-SDK 分享签名：viewer 页转发出自定义卡片（标题/摘要/缩略图）。
         仅为本站域名下的页面签名（防外站白嫖 ticket）；未配置公众号凭据时 503 -- */

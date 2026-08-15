@@ -38,7 +38,11 @@ curl -s https://zhipu.puyouquan.com/api/health  # 编辑器侧同一后端，应
 - **账号统一**：同一 unionid 复登返回同一账号；已有手机号账号可在**个人中心 →「绑定微信」**扫码绑定（v58.3 已实现）：`/api/wx/web/login-url?bind=1` 把当前 uid HMAC 签入 state，回调按 uid 落 `userBindWx`（不建新号、不动登录态），该微信已被他号占用则提示冲突不抢占；绑定成功后微信扫码直登同一账号。
 - **CSRF**：`state` 用 JWT_SECRET HMAC 签名 + 10 分钟过期 + 回跳地址白名单（仅 `*.puyouquan.com`）。
 
-## B. 公众号·网页授权（后续，与 A 共账号）
+## B. 公众号·网页授权（v58.4 已实现，与 A 共账号）
+
+代码已就绪：`/api/wx/mp/login-url` + `/api/wx/mp/callback`（凭据复用 `WX_MP_APPID/SECRET`，回调地址 `WX_MP_REDIRECT` 默认 `https://www.puyouquan.com/api/wx/mp/callback`）。微信内置浏览器里官网/谱库/编辑器的登录弹窗自动改走此通道（「微信一键登录」，免扫码）；与扫码登录同主体 unionid 统一账号。
+
+**你需要在公众号后台补一项配置**：设置与开发 → 功能设置 → **网页授权域名**，填 `www.puyouquan.com`（校验文件 MP_verify_*.txt 已随官网发布在该域名根目录，直接下一步即可）。注意：**网页授权域名和「JS接口安全域名」是两个设置项**，都要有。另：网页授权需**已认证的服务号**——若你的公众号是订阅号，此通道微信会在授权页报错，届时告诉我改回退方案。
 需公众号后台配置**网页授权域名**；后端加 `snsapi_userinfo` 授权的 `/api/wx/mp/*` 路由，复用 `upsertWxUser`（unionid 统一）。等 A 跑通后接。
 
 ## B2. 微信内转发卡片（JS-SDK 分享，代码 v55.3 已就绪）
