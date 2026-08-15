@@ -133,30 +133,32 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   }, buildSong);
   T(r.mute && r.arp && r.nDot>=1, 'T6 切音列 mute 标记 + TAB 切音点', JSON.stringify(r));
 
-  // T8 v57.9 TAB 显示严格跟随输入：教材式下输入 0/3（指法内品位）显示数字不再自动记 ×；
-  //    全数字模式下 × 显示解析品位（数据不变）
+  // T8 v58.2 记谱风格双模式对称互切（默认全数字）：全数字=实音数字+×解析品位（0 品可见）；
+  //    教材式=指法内实音记 × + × 输入记 ×（整谱教材式）；两模式一键互切数据不变
   r = await pg.evaluate(() => {
+    const def = tabNotation;   /* v58.2 默认应为 'num'（输入什么显示什么） */
     const Tc = (ext) => Object.assign({dur:4, dotted:false, chord:'', notes:[], strum:'', tech:''}, ext);
     const s = createSong('guitar', {title:'xd', beats:4, unit:4, key:'G', nMea:1, nTab:1, nVox:1, lyr:0});
     s.measures[0].tabs[0] = [
-      Tc({chord:'G', notes:[{s:1, f:3}]}),        // 显式 3 品（=指法音，旧逻辑会显示 ×）
-      Tc({notes:[{s:3, f:0}]}),                   // 显式 0 品（用户反馈场景）
+      Tc({chord:'G', notes:[{s:1, f:3}]}),        // 显式 3 品（=指法音）
+      Tc({notes:[{s:3, f:0}]}),                   // 显式 0 品（指法内空弦）
       Tc({notes:[{s:1, f:0, x:true}]}),           // × 输入
       Tc({notes:[]})
     ];
-    loadSong(s); blurSel = true; render();
+    loadSong(s); blurSel = true;
+    tabNotation='num'; render();
     const digits = () => [...document.querySelectorAll('#score text')]
       .filter(t2 => t2.getAttribute('font-size')==='10.5' && /^\d+$/.test(t2.textContent)).map(t2=>t2.textContent);
     const xs = () => [...document.querySelectorAll('#score text')]
       .filter(t2 => t2.getAttribute('font-size')==='15' && t2.textContent==='×').length;
-    const eduD = digits().sort().join(','), eduX = xs();
-    tabNotation='num'; render();
     const numD = digits().sort().join(','), numX = xs();
     tabNotation='x'; render();
-    return { eduD, eduX, numD, numX };
+    const eduD = digits().sort().join(','), eduX = xs();
+    tabNotation='num'; render();
+    return { def, numD, numX, eduD, eduX };
   });
-  T(r.eduD==='0,3' && r.eduX===1 && r.numD==='0,3,3' && r.numX===0,
-    'T8 输入0/3显示数字·×按输入显示·全数字模式×→解析品位', JSON.stringify(r));
+  T(r.def==='num' && r.numD==='0,3,3' && r.numX===0 && r.eduD==='' && r.eduX===3,
+    'T8 双模式互切：默认num(0品可见·×解析品位)/教材式全记×', JSON.stringify(r));
 
   // T7 光标卡：弹唱 × 显示「和弦内音（1弦3品）」；切音列 × 仍显示「闷音」
   r = await pg.evaluate((code) => {
