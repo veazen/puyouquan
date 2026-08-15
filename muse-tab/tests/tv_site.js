@@ -52,8 +52,9 @@ const seed = [
       apiOn: /puyouquan\.com$/.test(location.hostname),
     };
   });
+  /* v58.5 观看页驻 puku 域：卡片链接改 puku.puyouquan.com/kanpu.html?pub= */
   T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.free === '免费' && r.title === '小星星'
-    && /zhipu\.puyouquan\.com\/\?pub=seedaaa111/.test(r.href) && r.login, 'T1 卡片+登录按钮', JSON.stringify(r));
+    && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href) && r.login, 'T1 卡片+登录按钮', JSON.stringify(r));
 
   // 登录弹窗结构
   r = await pg.evaluate(() => {
