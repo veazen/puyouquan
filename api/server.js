@@ -382,7 +382,7 @@ const routes = [
     }
     if (hasAva) {
       const ava = String(b.avatar || '');
-      if (ava !== '' && !/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(ava)) throw new ApiError(400, '头像格式不支持');
+      if (ava !== '' && !/^data:image\/(png|jpe?g|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(ava)) throw new ApiError(400, '头像格式不支持');
       if (ava.length > 40000) throw new ApiError(400, '头像图片过大，请重新选择');
       q.userSetAvatar.run(ava, u.id);
     }

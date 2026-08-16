@@ -26,11 +26,12 @@
 <!-- 已登录：个人中心主体 -->
 <main id="me-body" class="me-wrap" hidden>
   <header class="me-head">
-    <span class="acct-av me-av" id="me-av">谱</span>
+    <span class="acct-av me-av" id="me-av" title="更换头像">谱</span>
     <div class="me-id">
-      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span></h1>
+      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span><span id="me-cr-badge" class="cr-badge" hidden>创作者</span></h1>
       <p class="me-sub"><span id="me-phone"></span><span id="me-wx-slot"></span></p>
     </div>
+    <a class="btn me-openzp" href="//zhipu.puyouquan.com/">打开编辑器</a>
   </header>
   <p class="me-msg" id="me-msg"></p>
 
@@ -40,6 +41,7 @@
       <div class="me-vipcard" id="me-vip">
         <b>会员状态</b><p>查询中…</p>
       </div>
+      <section class="me-card" id="me-creator" hidden></section>
       <section class="me-card" id="me-ops">
         <h3 class="me-h">账号与安全</h3>
         <button class="me-op" id="op-nick">修改昵称</button>
@@ -135,9 +137,73 @@
     document.getElementById('me-auth').hidden=true;
     document.getElementById('me-body').hidden=false;
     if(backMsg) msg(backMsg);
-    document.getElementById('me-av').textContent=(u.nickname||'谱').charAt(0);
+    /* 头像三态渲染（值只进 img src 属性；失败回退首字）+ 相机徽章 */
+    var AV_EDIT='<span class="av-edit"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13.5" r="3.5"/></svg></span>';
+    var meAv=document.getElementById('me-av');
+    function renderAv(){
+      var av=u.avatar||'', ch=esc((u.nickname||'谱').charAt(0));
+      if(av && (av.slice(0,11)==='data:image/'||av.slice(0,4)==='http')){
+        meAv.classList.add('has-img');
+        meAv.innerHTML='<img src="'+esc(av)+'" alt="">'+AV_EDIT;
+        meAv.querySelector('img').onerror=function(){ meAv.classList.remove('has-img'); meAv.innerHTML=ch+AV_EDIT; };
+      }else{ meAv.classList.remove('has-img'); meAv.innerHTML=ch+AV_EDIT; }
+    }
+    renderAv();
+    /* 更换头像浮层：8 预设 + 本地上传（96×96 居中裁切 JPEG）+ 恢复默认；零确认步，选即生效 */
+    function saveAv(val, m2){
+      api('/me',{method:'PATCH',body:{avatar:val}}).then(function(j){
+        u.avatar=(j.user&&j.user.avatar)||val; renderAv(); msg('头像已更新');
+        try{ if(window.PYQ_ACCT&&PYQ_ACCT.refresh) PYQ_ACCT.refresh(); }catch(_){}
+        var mk=document.getElementById('av-mask'); if(mk) mk.remove();
+      }).catch(function(e){ if(m2) m2(e.message||'头像更新失败，请检查网络后重试'); });
+    }
+    meAv.onclick=function(){
+      var mk=document.createElement('div'); mk.id='av-mask'; mk.className='pyq-mask';
+      mk.innerHTML='<div class="pyq-modal av-modal"><h3>更换头像</h3>'
+        +'<p class="lg-sub">选一个预设，或上传本地图片（自动裁成正方形）</p>'
+        +'<div class="av-grid">'+PYQ_AV.PRESETS.map(function(pv,i){
+          return '<button class="av-opt'+(u.avatar===pv?' on':'')+'" data-i="'+i+'"><img src="'+pv+'" alt=""></button>'; }).join('')+'</div>'
+        +'<div class="lg-msg" id="av-msg"></div>'
+        +'<div class="av-actions"><button class="btn ghost" id="av-up" style="padding:9px 16px;font-size:13px">上传图片</button>'
+        +'<input type="file" id="av-file" accept="image/jpeg,image/png,image/webp" hidden>'
+        +(u.avatar?'<button class="av-rm" id="av-rm">恢复默认头像</button>':'')
+        +'<button class="av-rm" id="av-x" style="margin-left:'+(u.avatar?'0':'auto')+'">取消</button></div></div>';
+      document.body.appendChild(mk);
+      mk.addEventListener('click',function(e){ if(e.target===mk) mk.remove(); });
+      var m2=function(t){ var el=document.getElementById('av-msg'); if(el) el.textContent=t||''; };
+      mk.querySelectorAll('.av-opt').forEach(function(b2){ b2.onclick=function(){ saveAv(PYQ_AV.PRESETS[+b2.dataset.i], m2); }; });
+      document.getElementById('av-x').onclick=function(){ mk.remove(); };
+      var rm=document.getElementById('av-rm'); if(rm) rm.onclick=function(){ saveAv('', m2); };
+      var fi=document.getElementById('av-file');
+      document.getElementById('av-up').onclick=function(){ fi.click(); };
+      fi.onchange=function(){
+        var f=fi.files&&fi.files[0]; if(!f) return;
+        if(f.size>2*1024*1024 || !/^image\//.test(f.type)) return m2('请选择 2MB 以内的图片');
+        var draw=function(img,w,h){
+          var cv=document.createElement('canvas'); cv.width=96; cv.height=96;
+          var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,96,96);
+          var side=Math.min(w,h);
+          cx.drawImage(img,(w-side)/2,(h-side)/2,side,side,0,0,96,96);
+          var d=cv.toDataURL('image/jpeg',.85), qs=[.75,.6], k=0;
+          while(d.length>28672 && k<qs.length) d=cv.toDataURL('image/jpeg',qs[k++]);
+          if(d.length>28672) return m2('图片过于复杂，请换一张');
+          saveAv(d, m2);
+        };
+        if(window.createImageBitmap){
+          createImageBitmap(f,{imageOrientation:'from-image'}).then(function(bm){ draw(bm,bm.width,bm.height); })
+            .catch(function(){ legacy(); });
+        }else legacy();
+        function legacy(){
+          var url=URL.createObjectURL(f), im=new Image();
+          im.onload=function(){ draw(im,im.naturalWidth,im.naturalHeight); URL.revokeObjectURL(url); };
+          im.onerror=function(){ m2('请选择 2MB 以内的图片'); };
+          im.src=url;
+        }
+      };
+    };
     document.getElementById('me-nick-t').textContent=u.nickname||'谱友';
     document.getElementById('me-phone').textContent=u.phone||'';
+    if(u.role==='creator') document.getElementById('me-cr-badge').hidden=false;
     /* 微信绑定状态（/api/me 的 user.wx 既有字段） */
     var wxSlot=document.getElementById('me-wx-slot'), opWx=document.getElementById('op-wx');
     if(u.wx){ wxSlot.innerHTML='<span class="wx-chip">微信已绑定</span>'; }
@@ -161,19 +227,51 @@
         badge.textContent='会员'; badge.classList.remove('free');
         el.innerHTML='<b>会员</b><p>'+esc(exp)+' · 云端曲谱 '+(j.quota|0)+' 首</p><a class="btn" href="//zhipu.puyouquan.com/">续费 →</a>';
       }else{
-        el.innerHTML='<b>免费版</b><p>云端曲谱 '+(j.quota|0)+' 首</p><a class="btn ghost" style="padding:8px 16px;font-size:12.5px" href="//zhipu.puyouquan.com/">了解会员 →</a>';
+        el.innerHTML='<b>免费版</b><p>云端曲谱 '+(j.quota|0)+' 首<br>扩容云端曲谱，解锁专业功能</p><a class="btn ghost" style="padding:8px 16px;font-size:12.5px" href="//zhipu.puyouquan.com/">了解会员 →</a>';
       }
     }).catch(function(){ document.getElementById('me-vip').innerHTML='<b>会员状态</b><p>暂时无法获取</p>'; });
-    /* 我的云端曲谱 */
-    api('/scores').then(function(j){
+    /* 我的云端曲谱（共享 promise，创作者中心复用）+ 上次来过差异徽标（新键 pyq-me-seen） */
+    var seen=0; try{ seen=+localStorage.getItem('pyq-me-seen')||0; }catch(_){}
+    var scoresP=api('/scores');
+    scoresP.then(function(j){
       var el=document.getElementById('sc-list'), list=(j.scores||[]).slice(0,8);
       el.innerHTML=list.length? list.map(function(s){
         return '<a class="pc-row" href="//zhipu.puyouquan.com/?mine='+encodeURIComponent(s.id)+'">'
-          +'<span class="t">'+esc(s.title||'未命名曲谱')+'</span>'
+          +'<span class="t">'+esc(s.title||'未命名曲谱')+(seen&&s.updated_at*1000>seen?'<span class="pc-new" title="上次来过之后有更新"></span>':'')+'</span>'
           +(s.status==='published'||s.status==='pub'?'<i class="k">已发布</i>':'')
           +'<span class="d">'+FMT(s.updated_at)+'</span></a>'; }).join('')
         : '<p class="pc-empty">还没有云端曲谱。</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/">去做第一份谱 →</a>';
+      try{ localStorage.setItem('pyq-me-seen', String(Date.now())); }catch(_){}
     }).catch(function(){ document.getElementById('sc-list').innerHTML='<p class="pc-empty">列表暂时无法加载</p>'; });
+    /* 创作者槽位：user=成为创作者卡；creator=创作者中心（已发布列表复用 scoresP，零新增请求） */
+    function renderCreator(){
+      var el=document.getElementById('me-creator'); el.hidden=false;
+      if(u.role!=='creator'){
+        el.innerHTML='<h3 class="me-h">创作者</h3>'
+          +'<p class="cr-sub">发布曲谱到谱库，所有人都能弹到<br>免费开通，无需会员</p>'
+          +'<button class="btn" id="cr-become" style="padding:9px 18px;font-size:13px">成为创作者</button>';
+        document.getElementById('cr-become').onclick=function(){
+          var self=this; self.disabled=true;
+          api('/me/creator',{method:'POST'}).then(function(){
+            u.role='creator'; document.getElementById('me-cr-badge').hidden=false;
+            msg('创作者已开通，可去编辑器发布曲谱'); renderCreator();
+          }).catch(function(e){ self.disabled=false; msg(e.message); });
+        };
+        return;
+      }
+      el.innerHTML='<h3 class="me-h">创作者中心<span class="lib-count" id="cr-count"></span><a class="pc-more" href="//zhipu.puyouquan.com/?pc=creator">去编辑器发布 →</a></h3>'
+        +'<div class="pc-list" id="cr-list"><p class="pc-empty">加载中…</p></div>';
+      scoresP.then(function(j){
+        var pub=(j.scores||[]).filter(function(s){ return s.status==='published'||s.status==='pub'; });
+        var c=document.getElementById('cr-count'); if(c) c.textContent=pub.length?('已发布 '+pub.length+' 首'):'';
+        var l=document.getElementById('cr-list');
+        l.innerHTML=pub.length? pub.slice(0,5).map(function(s){
+          return '<a class="pc-row" href="//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(s.id)+'">'
+            +'<span class="t">'+esc(s.title||'未命名曲谱')+'</span><span class="pc-see">在谱库查看</span></a>'; }).join('')
+          : '<p class="pc-empty"><b>还没发布过谱</b><br>在编辑器打开曲谱，点「发布」即可</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/?pc=creator">去发布第一份谱 →</a>';
+      }).catch(function(){ document.getElementById('cr-list').innerHTML='<p class="pc-empty">列表暂时无法加载</p>'; });
+    }
+    renderCreator();
     /* 我的收藏：favorites 与 pub/scores 联查出完整卡片 */
     Promise.all([
       api('/favorites').catch(function(){ return {favorites:[]}; }),

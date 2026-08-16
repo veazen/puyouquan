@@ -14,7 +14,7 @@ const seed = [
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  const mkPage = async (loggedIn, page, viewport) => {
+  const mkPage = async (loggedIn, page, viewport, role) => {
     const pg = await b.newPage({ viewport: viewport || { width: 1200, height: 900 } });
     const errs = []; pg.on('pageerror', e => errs.push(e.message));
     await pg.route('**/*', route => {
@@ -29,7 +29,8 @@ const seed = [
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
       if (p === '/api/me/entitlements') return loggedIn ? J({ entitlements: [], vip: false, quota: 20 })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
-      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator', wx:false }, stats:{} })
+      if (p === '/api/me/creator') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator', wx:false } });
+      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role: role || 'creator', wx:false }, stats:{} })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
       if (p === '/api/auth/sms/send') return J({ sent: true, dev_code: '123456' });
       if (p === '/api/auth/sms/verify') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator' } });
@@ -160,7 +161,52 @@ const seed = [
   T(r.body && r.nick === '阿杜' && r.phone === '138****8888' && r.vip && r.rows === 1
     && /zhipu\.puyouquan\.com\/\?mine=sc1/.test(r.rowHref) && r.favs === 1 && r.bindWx && r.ops >= 4,
     'T8 me.html 已登录主体', JSON.stringify(r));
+  // T8a v58.9 creator 角色：创作者徽标 + 创作者中心（已发布计数 + kanpu 行 + 去编辑器发布 ?pc=creator）
+  r = await pg.evaluate(() => {
+    const el = document.getElementById('me-creator');
+    return { badge: !document.getElementById('me-cr-badge').hidden,
+      shown: el && !el.hidden, h: el ? (el.querySelector('.me-h')||{}).textContent||'' : '',
+      count: (document.getElementById('cr-count')||{}).textContent||'',
+      rowHref: (document.querySelector('#cr-list .pc-row')||{getAttribute:()=>''} ).getAttribute('href')||'',
+      goEdit: !!el.querySelector('a[href*="?pc=creator"]') };
+  });
+  T(r.badge && r.shown && r.h.includes('创作者中心') && r.count === '已发布 1 首'
+    && /puku\.puyouquan\.com\/kanpu\.html\?pub=sc1/.test(r.rowHref) && r.goEdit,
+    'T8a creator角色创作者中心', JSON.stringify(r));
+  // T8b v58.9 换头像：点头像 → 8 预设浮层 → 选预设 → PATCH 生效 img 头像 + 浮层关闭
+  r = await pg.evaluate(async () => {
+    document.getElementById('me-av').click();
+    await new Promise(r=>setTimeout(r,50));
+    const opts = document.querySelectorAll('#av-mask .av-opt');
+    const n = opts.length, up = !!document.getElementById('av-up');
+    if (opts[2]) opts[2].click();
+    await new Promise(r=>setTimeout(r,150));
+    const av = document.getElementById('me-av');
+    const img = av.querySelector('img');
+    return { n, up, closed: !document.getElementById('av-mask'),
+      hasImg: av.classList.contains('has-img'),
+      src: img ? img.getAttribute('src').slice(0, 22) : '' };
+  });
+  T(r.n === 8 && r.up && r.closed && r.hasImg && r.src === 'data:image/svg+xml;bas', 'T8b 换头像浮层+预设生效', JSON.stringify(r));
   T(pg._errs.length === 0, 'T9 me.html 无报错', pg._errs.join('|') || 'none');
+  await pg.close();
+
+  // T9a v58.9 user 角色：成为创作者卡 → 点击 POST /me/creator → 徽标亮起 + 创作者中心接管
+  pg = await mkPage(true, 'me.html', null, 'user');
+  await pg.waitForTimeout(400);
+  r = await pg.evaluate(async () => {
+    /* v58.7 教训：display 声明压过 [hidden]，显隐必须断言 computed display */
+    const disp = () => getComputedStyle(document.getElementById('me-cr-badge')).display;
+    const before = { badge: disp() !== 'none',
+      btn: !!document.getElementById('cr-become'),
+      sub: ((document.querySelector('#me-creator .cr-sub')||{}).textContent||'').includes('免费开通') };
+    const b2 = document.getElementById('cr-become'); if (b2) b2.click();
+    await new Promise(r=>setTimeout(r,200));
+    return { ...before, afterBadge: disp() !== 'none',
+      center: ((document.querySelector('#me-creator .me-h')||{}).textContent||'').includes('创作者中心') };
+  });
+  T(!r.badge && r.btn && r.sub && r.afterBadge && r.center, 'T9a user角色成为创作者流', JSON.stringify(r));
+  T(pg._errs.length === 0, 'T9b me.html(user) 无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
   // T10 手机断点（380px）：首页无横向滚动 + chip 单行横滑 + 卡片单列全宽 + 导航不竖排

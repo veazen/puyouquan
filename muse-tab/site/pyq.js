@@ -37,6 +37,37 @@ const ICONS = {
 };
 window.PYQ_ICON = n => ICONS[n]||'';
 
+/* ---------- v58.9 头像系统：统一渲染器 + 8 枚预设（四族社色×2，SVG→base64 data URI） ----------
+   判定一条：avatar 非空即 <img>（data:/http: 均可，onerror 回退首字），为空即首字渐变圆。
+   值只进 <img src> 属性（esc），绝不 innerHTML——SVG 在 img 上下文脚本惰性。 */
+window.PYQ_AV = (function(){
+  const eA = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const AV_SVG = (c1,c2,inner)=>'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
+    +'<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+    +`<stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>`
+    +'<circle cx="48" cy="48" r="48" fill="url(#g)"/>'
+    +`<g transform="translate(26 26) scale(1.83)" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</g></svg>`;
+  const P8=[
+    ['#d24a37','#c33a29','<path d="M11 20 q-3.4 -.6 -3.6 -3.4 q-.2 -2.4 2 -2.6 q2.2 -.2 2.4 2.2 L9.4 3.5 q-.4 -3 1.8 -3.3 q2 2 1.3 4.6 q-.6 2.6 -3.6 5.2 q-3.2 2.8 -3.2 5.6 q0 3.4 3.4 3.8 q3.4 .4 3.9 -2.6 q.4 -2.8 -2.2 -3.5"/>'],
+    ['#d24a37','#c33a29','<path d="m20 4-3.5 3.5"/><path d="M15.5 8.5 12 12"/><circle cx="8.5" cy="15.5" r="5.5"/><circle cx="8.5" cy="15.5" r="1.6"/>'],
+    ['#44688c','#33587a','<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v7M12 6v7M16 6v7"/>'],
+    ['#44688c','#33587a','<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'],
+    ['#3c7f5f','#2f6d4f','<rect x="9" y="3" width="6" height="10" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/>'],
+    ['#3c7f5f','#2f6d4f','<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="2"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="2"/>'],
+    ['#b98738','#a8762a','<path d="M9.5 3h5L18 20H6z"/><path d="M12 16.5L16.8 7"/><circle cx="16.8" cy="7" r="1.4"/>'],
+    ['#b98738','#a8762a','<path d="M9 3v7a3 3 0 0 0 6 0V3"/><path d="M12 13v7M9 20.5h6"/>'],
+  ];
+  const PRESETS = P8.map(a=>'data:image/svg+xml;base64,'+btoa(AV_SVG(a[0],a[1],a[2])));
+  function html(u, cls){
+    const av=(u&&u.avatar)||'', ch=eA(((u&&u.nickname)||'谱').charAt(0));
+    if(av && (av.slice(0,11)==='data:image/' || av.slice(0,4)==='http'))
+      return `<span class="${cls||'acct-av'} has-img"><img src="${eA(av)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.parentNode.textContent='${ch}'"></span>`;
+    return `<span class="${cls||'acct-av'}">${ch}</span>`;
+  }
+  html.PRESETS = PRESETS;
+  return html;
+})();
+
 /* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ----------
    v58.7 搜索型定位：菜单收敛为 4 项（找谱=首页即谱库；谱库/日志/赞助商入页脚），
    个人中心升级独立页 me.html（登录后头像直达） */
@@ -266,7 +297,7 @@ window.PYQ_ACCT = (function(){
     if(!API_ON){ el.innerHTML=''; return; }
     if(acct){
       /* v58.7 个人中心升级独立页：头像 chip 直达 me.html（下拉菜单废除；退出等操作入 me.html） */
-      el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心"><span class="acct-av">${_esc((acct.nickname||'谱').charAt(0))}</span><span class="acct-nm">${_esc(acct.nickname||'')}</span></a>`;
+      el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心">${PYQ_AV(acct)}<span class="acct-nm">${_esc(acct.nickname||'')}</span></a>`;
     }else{
       el.innerHTML=`<button class="nav-login" id="nav-login">登录 / 注册</button>`;
       document.getElementById('nav-login').onclick=openLogin;

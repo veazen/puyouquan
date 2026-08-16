@@ -882,6 +882,8 @@ body.stand #standbar{display:flex}
 .pc-nav button.on{background:var(--accent-soft,rgba(58,92,224,.1));color:var(--accent);border-color:var(--accent);font-weight:600}
 .pc-body{flex:1;min-width:0}
 .pc-body h4{margin-top:2px}
+.pc-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.pc-avatar.has-img{background:var(--panel);border:1px solid var(--border-soft)}
 .pc-avatar{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-size:22px;font-weight:700;
   display:flex;align-items:center;justify-content:center;letter-spacing:0}
 .pc-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px dashed var(--border);font-size:13px}
@@ -16210,10 +16212,6 @@ function certBadgeHTML(cert, small){
 }
 function pcCreatorHTML(){
   const cr=creatorLoad();
-  const lib=libLoad();
-  const views=lib.reduce((a,e)=>a+(e.views||0),0);
-  const tile=(v,label,note)=>`<div class="fc" style="text-align:center;padding:12px 8px">
-    <b style="font-size:19px;letter-spacing:0">${v}</b><span>${label}${note?`<br><i style="font-style:normal;opacity:.7;font-size:11px">${note}</i>`:''}</span></div>`;
   const pubs=circlePubs();
   const pubRows=libLoad().map(e2=>{
     const pb=pubs.find(x=>x.libId===e2.id);
@@ -16226,36 +16224,15 @@ function pcCreatorHTML(){
       : `<span class="t2">未发布</span><button data-pub-on="${e2.id}" class="primary">发布到谱友圈</button>`}
     </div>`;
   }).join('');
-  const rate=adminCfg().rate||0;
-  const revenue=pubs.reduce((a,x)=>a+(x.price||0)*(x.sales||0),0)*(1-rate/100);
   const proofs=cr.proofs.map((e2,i)=>`<div class="pc-row">
     <span class="t1" title="${esc(e2.hash)}">${esc(e2.title||'未命名曲谱')}</span>
     <span class="t2">${esc(e2.at)}</span>
     <span class="t2" style="font-family:ui-monospace,monospace">${esc(e2.hash.slice(0,18))}…</span>
     <button data-pf-exp="${i}">导出凭证</button><button data-pf-del="${i}">删除</button></div>`).join('');
   return `<h4>创作者中心 ${certBadgeHTML(cr.cert)}</h4>
-  <div style="font-size:12px;color:var(--muted);margin:4px 0 8px">认证审核、收藏/收益结算与订阅需云端社区上线后生效（规划中）；以下设置与存证保存在本机、随时可用。</div>
-  <h4>数据看板</h4>
-  <div class="feat" style="grid-template-columns:repeat(4,1fr);margin:8px 0">
-    ${tile(lib.length,'作品数')}
-    ${tile(views + pubs.reduce((a,x)=>a+(x.views||0),0),'曲谱浏览','本机打开+谱友圈')}
-    ${tile('—','收藏','云端上线后统计')}
-    ${tile('¥ '+revenue.toFixed(2),'收益','已扣平台抽成 '+rate+'%（演示）')}
-  </div>
   <h4>谱友圈 · 发布管理</h4>
   <p>选择哪些曲谱推送到谱友圈；付费谱可设定价与试读小节数，C端购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱友圈 →</a></p>
   ${pubRows || '<p>先在制谱器里「保存」曲谱到我的曲谱，再到这里发布。</p>'}
-  <h4>收益设置（付费谱 / 打赏 / 订阅）</h4>
-  <label class="f"><span>付费谱定价</span>¥ <input id="cr-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:80px"> <span style="width:auto">元/份（0＝免费公开）</span></label>
-  <label class="f"><span>打赏</span><input id="cr-tip" type="checkbox" ${cr.pricing.tipOn?'checked':''} style="width:auto"> <span style="width:auto">允许读者打赏支持</span></label>
-  <label class="f"><span>粉丝订阅</span>¥ <input id="cr-sub" type="number" min="0" step="1" value="${cr.pricing.subPrice||0}" style="width:80px"> <span style="width:auto">元/月（订阅可看全部付费谱）</span></label>
-  <div class="btns" style="margin-top:4px;justify-content:flex-start"><button id="cr-save" class="primary">保存收益设置</button></div>
-  <h4>创作者认证</h4>
-  ${cr.cert? `<div class="pc-row"><span class="t1">当前标识：${certBadgeHTML(cr.cert)}（体验认证，云端审核上线后自动转正式）</span><button id="cr-uncert">取消认证</button></div>`
-    : `<div class="row" style="display:flex;gap:8px;margin:6px 0">
-        <button id="cr-cert-tabber">申请认证扒谱人</button>
-        <button id="cr-cert-teacher">申请认证教师</button>
-        <span style="font-size:11.5px;color:var(--muted);align-self:center">当前为免费体验认证，即时生效</span></div>`}
   <h4>版权登记辅助（原创作品时间戳存证）</h4>
   <p>对当前曲谱内容生成 SHA-256 指纹并记录时间戳，可导出凭证文件；内容修改后指纹即变化，可证明"此时刻已存在此内容"。（接入公证时间戳/区块链存证为规划功能）</p>
   <div class="btns" style="justify-content:flex-start;margin:4px 0"><button id="cr-proof" class="primary">为当前曲谱生成存证</button></div>
@@ -16368,7 +16345,7 @@ async function startWxPay(kind){
 }
 function openPersonal(tab){
   tab = tab||'profile';
-  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益'],['admin','平台管理']];
+  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['pat','自定义节奏型'],['rights','我的权益'],...(API_ON?[]:[['admin','平台管理']])];   /* v58.9 平台管理为演示版，线上隐藏 */
   const body={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, pat:pcPatHTML, rights:pcRightsHTML, admin:pcAdminHTML}[tab]();
   showModal(`<h3>个人中心</h3>
     <div class="pc-wrap">
@@ -16382,13 +16359,8 @@ function openPersonal(tab){
   if(tab==='profile'){
     const bLg=document.getElementById('acct-login'); if(bLg) bLg.onclick=openLogin;
     const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
-    const bLoA=document.getElementById('acct-logout-all'); if(bLoA) bLoA.onclick=acctLogoutAll;
+    /* v58.9 统一个人中心：绑定微信/退出所有设备等账号类操作移居 www 的 me.html（账号卡「个人中心 ↗」直达） */
     const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
-    /* v58.3 绑定微信：整页跳微信扫码（bind=1 → state 签入 uid），授权后 302 回本页带 ?wxbind= */
-    const bWx=document.getElementById('acct-bindwx'); if(bWx) bWx.onclick=async()=>{
-      bWx.disabled=true; bWx.textContent='跳转中…';
-      try{ const r=await apiCall(wxLoginPath()+'?bind=1&return='+encodeURIComponent(location.origin+location.pathname)); location.href=r.url; }
-      catch(e){ toast(e.message||'微信绑定发起失败'); bWx.disabled=false; bWx.textContent='绑定微信'; } };
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
         sign:document.getElementById('pc-sign').value.trim(),
@@ -16414,18 +16386,6 @@ function openPersonal(tab){
       const l=circlePubs().filter(x=>x.libId!==b2.dataset.pubOff);
       circlePubsSave(l); toast('已下架'); openPersonal('creator');
     });
-    document.getElementById('cr-save').onclick=()=>{
-      cr.pricing={price:+document.getElementById('cr-price').value||0,
-        tipOn:document.getElementById('cr-tip').checked,
-        subPrice:+document.getElementById('cr-sub').value||0};
-      creatorSave(cr); toast('已保存收益设置（云端结算上线后生效）');
-    };
-    const bindCert=(id,kind)=>{ const b2=document.getElementById(id); if(b2) b2.onclick=()=>{
-      cr.cert=kind; creatorSave(cr); toast('已获得「'+CERT_NAME[kind]+'」体验标识'); openPersonal('creator');
-    };};
-    bindCert('cr-cert-tabber','tabber'); bindCert('cr-cert-teacher','teacher');
-    const un=document.getElementById('cr-uncert');
-    if(un) un.onclick=()=>{ cr.cert=''; creatorSave(cr); openPersonal('creator'); };
     document.getElementById('cr-proof').onclick=async ()=>{
       const hash=await contentHash(JSON.stringify(song));
       cr.proofs.unshift({title:song.title||'未命名曲谱', at:nowStamp(), hash});
@@ -16583,16 +16543,21 @@ function pcAcctHTML(){
     const isCreator=ACCT.role==='creator';
     const badge=isCreator?'<span style="font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:0 5px;margin-left:6px">创作者</span>':'';
     const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
-    /* v58.3 微信绑定：已绑显示标记；未绑且服务端已配微信登录时给绑定入口（扫码回跳 ?wxbind=） */
     const wxTag=ACCT.wx?' · <span style="color:#07c160">已绑定微信</span>':'';
-    const bindWx=(!ACCT.wx && (window.PYQ_WX_WEB||window.PYQ_WX_MP))?'<button id="acct-bindwx" title="绑定后可用微信扫码直接登录本账号" style="white-space:nowrap;color:#07c160;border-color:#07c160">绑定微信</button>':'';
+    /* v58.9 统一个人中心：账号类操作（换头像/绑微信/全下线）统一在 me.html，编辑器账号卡瘦身只留展示+直达；
+       头像三态复用 ACCT.avatar（data:/http: 出 img，空回退首字） */
+    const av=ACCT.avatar||'';
+    const avHTML=(av && (av.slice(0,11)==='data:image/'||av.slice(0,4)==='http'))
+      ? `<div class="pc-avatar has-img"><img src="${esc(av)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.parentNode.textContent='${esc((ACCT.nickname||'谱').charAt(0))}'"></div>`
+      : `<div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>`;
     return `<div style="${box}">
-      <div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>
+      <a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" title="在个人中心更换头像" style="line-height:0">${avHTML}</a>
       <div style="flex:1;min-width:200px">
         <div style="font-weight:600">${esc(ACCT.nickname||'')}${badge}</div>
         <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启${wxTag}</div>
       </div>
-      ${become}${bindWx}<button id="acct-logout-all" title="作废本账号在所有设备上的登录（应对手机丢失/密码泄露）" style="font-size:12px">退出所有设备</button><button id="acct-logout">退出登录</button></div>`;
+      <a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" style="white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--accent)">个人中心 ↗</a>
+      ${become}<button id="acct-logout">退出登录</button></div>`;
   }
   return `<div style="${box}">
     <div style="flex:1">
@@ -16664,7 +16629,7 @@ async function acctLogoutAll(){
   acctSave(null); toast('已退出所有设备'); openPersonal('profile');
 }
 async function acctBecomeCreator(){
-  try{ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); toast('已成为创作者'); openPersonal('profile'); }
+  try{ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); toast('已成为创作者，发布你的第一份谱吧'); openPersonal('creator'); }
   catch(e){ toast(e.message); }
 }
 /* ---- 我的曲谱云同步（登录后）：本地 LS_LIB ↔ 后端 /api/scores，按 mtime last-write-wins。
@@ -16880,7 +16845,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('pencil',15),'自由编辑优先','任意插入/拆分/合并/删除音符不受拍号强制；节拍检查＋绿色修复建议一键采纳。')}
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
-      ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证、数据看板与收益设置。')}
+      ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、自定义节奏型模板、SHA-256 版权时间戳存证与谱友圈发布管理。')}
     </div>
     <div class="fg">四种谱面</div>
     <div class="featx">
@@ -16894,7 +16859,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.8';
+const APP_VER='v58.9';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16917,6 +16882,7 @@ const APP_VER='v58.8';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v58.9</span><div><b>个人中心大升级：统一入口 + 换头像 + 创作者中心</b>（3 位专家 agent 联合策划）：① <b>制谱与看谱共用一个个人中心</b>——www.puyouquan.com/me.html 统管「我是谁」（账号资料/头像/会员/创作者身份/云端曲谱/收藏），编辑器个人中心专注「我在做什么」（发布管理/节奏型模板/已购），编辑器账号页头像与「个人中心 ↗」一键直达统一页面，绑定微信/退出所有设备等账号操作集中到统一中心不再两处维护。② <b>支持更换头像</b>：点击头像即换——8 个四族社色预设（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金 × 乐器图标），或上传本地图片（自动裁成正方形、压缩存云端，全端同步显示）；选即生效零确认步。③ <b>成为创作者 / 创作者中心</b>：普通会员在个人中心一键免费开通创作者；开通后原位变身<b>创作者中心</b>——已发布曲谱计数与列表（直达谱库观看页）、「去编辑器发布」深链直落编辑器创作者页签；编辑器创作者页签同步瘦身，删掉演示性的数据看板/收益设置/体验认证，保留发布管理与版权存证两件真功能。</div></li>
     <li><span class="v">v58.8</span><div><b>官网 UI 大升级：「智能曲谱平台」</b>（slogan 定案，4 位专家 agent 联合策划）：① <b>曲谱卡片刻版化</b>——每种谱种长出真实刻版骨架：六线谱 TAB+品位数字、简谱数字+八度点、大谱表花括线+高低音谱号+符头、和弦框图按点；四族出版社色（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金）只染封面洗色与印章，音乐内容永远墨色；hover「谱面苏醒」微动效 + 进场渐次浮现 + 加载骨架屏。② <b>全站降噪</b>：页脚 5 列 20 链砍为两行 7 链（slogan+备案保留）、首页删「看谱三件事」/FAQ/重复制谱条、工具带 4→3 格下移让位卡片流、免费角标撤除。③ <b>智能可感知</b>：「最近看过」回访置顶一行、「上新 N 首」徽章、搜索占位轮播。④ slogan 落位 h1/浏览器标题/导航/页脚/微信分享卡，全站文案统一口径。</div></li>
     <li><span class="v">v58.7</span><div><b>官网大改版：曲谱搜索网站 + 独立个人中心</b>（产品定位拍板：整站以找谱为第一任务，制谱是其中一个工具）：① www.puyouquan.com 首页改为<b>搜索型首页</b>——大搜索框即时本地过滤、谱种快捷筛选（空分类自动隐藏）、谱库卡片流全量展示 + 加载更多、工具带四入口（在线制谱/智能配伴奏/考编艺考/帮助）；原营销内容迁入「制谱」介绍页；谱库域 puku 根路径并入主站（观看页 kanpu 分享链接不受影响）。② <b>个人中心升级独立页面</b>（导航头像直达）：账号资料/会员状态/我的云端曲谱/我的收藏/绑定微信/退出等一站集中，未登录时整页居中登录卡（含微信登录）。③ 全站移动端适配：380px 无横向滚动、搜索框 50px 大点击区、筛选单行横滑、卡片单列、手机端制谱入口先进介绍页（编辑器电脑体验最佳，一键复制链接）。</div></li>
     <li><span class="v">v58.6</span><div><b>微信内登录通道校准</b>：公众号「一键登录」需<b>认证服务号</b>（订阅号后台没有「网页授权域名」设置项，授权必报 10003）——本站公众号为订阅号，该通道默认关闭不再误导；微信内置浏览器里的登录回落<b>扫码通道</b>，按钮下提示「点击后长按页面上的二维码即可识别登录」（同一部手机扫不了自己的屏幕，长按识别是微信内标准做法）。将来若启用认证服务号，服务器加一个开关即可恢复一键登录。</div></li>
@@ -17477,6 +17443,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
     const mine=new URLSearchParams(location.search).get('mine');
     if(mine && /^[A-Za-z0-9_-]{1,40}$/.test(mine)){ openRemoteMine(mine); return; }
+    /* v58.9 ?pc=<页签>：me.html「去编辑器发布」深链直达个人中心对应页签 */
+    const pc=new URLSearchParams(location.search).get('pc');
+    if(pc && ['profile','creator','mine','pat','rights'].indexOf(pc)>=0){
+      try{ history.replaceState(null,'',location.pathname); }catch(_){}
+      try{ initStartPad(); }catch(_){}
+      setTimeout(()=>{ try{ openPersonal(pc); }catch(_){} }, 60);
+      bootVeilDone(); return;
+    }
   }catch(e){ console.error('曲谱深链启动失败', e); }
   /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
   try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
