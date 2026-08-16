@@ -37,10 +37,11 @@ const ICONS = {
 };
 window.PYQ_ICON = n => ICONS[n]||'';
 
-/* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ---------- */
+/* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ----------
+   v58.7 搜索型定位：菜单收敛为 4 项（找谱=首页即谱库；谱库/日志/赞助商入页脚），
+   个人中心升级独立页 me.html（登录后头像直达） */
 const MENU = [
-  ['index.html','首页'],['make.html','制谱'],['//puku.puyouquan.com/','谱库','view'],['features.html','功能'],
-  ['help.html','帮助'],['log.html','日志'],['sponsors.html','赞助商'],
+  ['index.html','找谱'],['make.html','制谱'],['features.html','功能'],['help.html','帮助'],
 ];
 const page = document.body.dataset.page || '';
 const navEl = document.getElementById('site-nav');
@@ -61,10 +62,10 @@ if(footEl){
     <div class="cols">
       <div><div class="brand" style="margin-bottom:10px"><span class="mark"></span>谱友圈</div>
         <p class="fb">在线制谱工具 · 吉他谱｜尤克里里谱｜简谱｜功能谱。出版级排版，打开浏览器就能做谱。</p></div>
-      <div><h5>产品</h5><a href="//zhipu.puyouquan.com/">在线制谱</a><a href="//puku.puyouquan.com/">谱库</a><a href="features.html">功能一览</a></div>
+      <div><h5>产品</h5><a href="index.html">找谱 · 谱库</a><a href="//zhipu.puyouquan.com/">在线制谱</a><a href="features.html">功能一览</a><a href="me.html">个人中心</a></div>
       <div><h5>适用场景</h5><a href="kaobian.html">教师考编</a><a href="yikao.html">音乐艺考</a><a href="shifan.html">师范 · 音乐教育</a><a href="jixing.html">钢琴即兴伴奏</a></div>
       <div><h5>资源</h5><a href="help.html">使用手册</a><a href="log.html">更新日志</a><a href="help.html?section=faq">常见问题</a></div>
-      <div><h5>关于</h5><a href="sponsors.html">赞助商</a><a href="mailto:support@puyouquan.com">联系我们</a></div>
+      <div><h5>关于</h5><a href="sponsors.html">赞助商</a><a href="log.html">更新日志</a><a href="mailto:support@puyouquan.com">联系我们</a></div>
     </div>
     <div class="beian">
       <span>© 2026 谱友圈 puyouquan.com · 在线制谱工具</span>
@@ -136,7 +137,7 @@ window.PYQ_LIB = (function(){
 /* ---------- 官网账号：手机验证码登录（与编辑器共享后端，Cookie 域 .puyouquan.com 互通）---------- */
 window.PYQ_ACCT = (function(){
   const API_ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
-  let acct=null, stats=null;
+  let acct=null;
   /* v58.4 微信登录能力探测：wx_web=扫码（开放平台）、wx_mp=公众号网页授权（微信内免扫码） */
   let wxWeb=false, wxMp=false;
   const inWx=/MicroMessenger/i.test(navigator.userAgent);
@@ -150,71 +151,15 @@ window.PYQ_ACCT = (function(){
     const el=document.getElementById('nav-acct'); if(!el) return;
     if(!API_ON){ el.innerHTML=''; return; }
     if(acct){
-      el.innerHTML=`<div class="acct-wrap"><button class="acct-chip" id="acct-chip"><span class="acct-av">${_esc((acct.nickname||'谱').charAt(0))}</span><span class="acct-nm">${_esc(acct.nickname||'')}</span></button>
-        <div class="acct-menu" id="acct-menu">
-          <button id="acct-center">个人中心</button>
-          <a href="//puku.puyouquan.com/">谱库</a>
-          <button id="acct-logout">退出登录</button></div></div>`;
-      const menu=document.getElementById('acct-menu');
-      document.getElementById('acct-chip').onclick=e=>{ e.stopPropagation(); menu.classList.toggle('on'); };
-      document.addEventListener('click',()=>menu.classList.remove('on'));
-      document.getElementById('acct-center').onclick=()=>{ menu.classList.remove('on'); openCenter(); };
-      document.getElementById('acct-logout').onclick=async()=>{ try{ await api('/auth/logout',{method:'POST'}); }catch(_){}; acct=null; renderNav(); };
+      /* v58.7 个人中心升级独立页：头像 chip 直达 me.html（下拉菜单废除；退出等操作入 me.html） */
+      el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心"><span class="acct-av">${_esc((acct.nickname||'谱').charAt(0))}</span><span class="acct-nm">${_esc(acct.nickname||'')}</span></a>`;
     }else{
       el.innerHTML=`<button class="nav-login" id="nav-login">登录 / 注册</button>`;
       document.getElementById('nav-login').onclick=openLogin;
     }
   }
-  /* ---- 个人中心弹窗卡（www/puku 共享；全功能中心在编辑器内，此卡覆盖高频查询与直达）---- */
-  const fmtD=t=>{ if(!t) return '—'; const d=new Date(t*1000);
-    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
-  function openCenter(){
-    if(!acct) return openLogin();
-    let m=document.getElementById('pyq-center'); if(m) m.remove();
-    m=document.createElement('div'); m.id='pyq-center'; m.className='pyq-mask';
-    m.innerHTML=`<div class="pyq-modal pc-modal">
-      <div class="pc-head"><span class="acct-av pc-av">${_esc((acct.nickname||'谱').charAt(0))}</span>
-        <div><div class="pc-nick">${_esc(acct.nickname||'谱友')}</div><div class="pc-sub">${_esc(acct.phone||'')}</div></div>
-        <button class="pc-x" id="pc-close" title="关闭">×</button></div>
-      <div class="pc-vip" id="pc-vip">会员状态查询中…</div>
-      <div class="pc-stats" id="pc-stats"></div>
-      <h4 class="pc-h">最近曲谱</h4>
-      <div class="pc-list" id="pc-list"><p class="pc-empty">加载中…</p></div>
-      <div class="pc-actions">
-        <a class="btn" href="//zhipu.puyouquan.com/">打开编辑器</a>
-        <button id="pc-logout">退出登录</button>
-        <button id="pc-logout-all" title="使所有已登录设备（含本机）下线">退出所有设备</button>
-      </div></div>`;
-    document.body.appendChild(m);
-    m.addEventListener('click',e=>{ if(e.target===m) m.remove(); });
-    document.getElementById('pc-close').onclick=()=>m.remove();
-    document.getElementById('pc-logout').onclick=async()=>{ try{ await api('/auth/logout',{method:'POST'}); }catch(_){}; acct=null; m.remove(); renderNav(); };
-    document.getElementById('pc-logout-all').onclick=async()=>{
-      if(!confirm('将退出所有已登录设备（包括本机），确定？')) return;
-      try{ await api('/me/logout-all',{method:'POST'}); }catch(_){}; acct=null; m.remove(); renderNav(); };
-    /* 三路数据并行填充；任一失败不影响其余（卡骨架已就位） */
-    api('/me').then(j=>{ acct=j.user||acct; stats=j.stats||stats;
-      const s=document.getElementById('pc-stats');
-      if(s&&stats) s.innerHTML=`<span><b>${stats.scores|0}</b> 云端曲谱</span><span><b>${stats.collections|0}</b> 谱集</span>`;
-    }).catch(()=>{});
-    api('/me/entitlements').then(j=>{
-      const el=document.getElementById('pc-vip'); if(!el) return;
-      if(j.vip){
-        const e=(j.entitlements||[]).find(x=>x.kind==='vip');
-        const exp=e&&e.expires_at? ('有效期至 '+fmtD(e.expires_at)) : '长期有效';
-        el.innerHTML=`<b class="on">会员</b><span>${exp} · 云端曲谱 ${j.quota|0} 首</span><a href="//zhipu.puyouquan.com/">续费 →</a>`;
-      }else el.innerHTML=`<b>免费版</b><span>云端曲谱 ${j.quota|0} 首</span><a href="//zhipu.puyouquan.com/">开通会员 →</a>`;
-    }).catch(()=>{ const el=document.getElementById('pc-vip'); if(el) el.textContent='会员状态暂时无法获取'; });
-    api('/scores').then(j=>{
-      const el=document.getElementById('pc-list'); if(!el) return;
-      const list=(j.scores||[]).slice(0,3);
-      el.innerHTML = list.length
-        ? list.map(s=>`<a class="pc-row" href="//zhipu.puyouquan.com/?mine=${encodeURIComponent(s.id)}">
-            <span class="t">${_esc(s.title||'未命名曲谱')}</span><span class="d">${fmtD(s.updated_at)}</span></a>`).join('')
-          +'<a class="pc-more" href="//zhipu.puyouquan.com/">在编辑器中管理全部 →</a>'
-        : '<p class="pc-empty">还没有云端曲谱——去编辑器做第一份谱吧。</p>';
-    }).catch(()=>{ const el=document.getElementById('pc-list'); if(el) el.innerHTML='<p class="pc-empty">列表暂时无法加载</p>'; });
-  }
+  /* ---- v58.7 个人中心升级独立页 me.html：openCenter 保留函数名向后兼容，改为跳转 ---- */
+  function openCenter(){ location.href='me.html'; }
   function openLogin(){
     let m=document.getElementById('pyq-login'); if(m) m.remove();
     m=document.createElement('div'); m.id='pyq-login'; m.className='pyq-mask';

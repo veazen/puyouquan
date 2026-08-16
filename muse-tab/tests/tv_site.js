@@ -1,5 +1,6 @@
-/* v42.0 官网谱库+登录回归：用 page.route 把 view.html 伪装为 puku.puyouquan.com（API_ON=true）+ stub API，
-   验证编辑器同款卡片渲染（封面/类型/免费）、导航登录按钮、登录弹窗、已登录账号 chip。 */
+/* v42.0 官网谱库+登录回归 → v58.7 改版为搜索型首页 + 独立个人中心：
+   route 把 index.html 伪装为 www.puyouquan.com（API_ON=true）+ stub API，
+   验证 搜索/筛选/卡片/工具带/登录弹窗/账号chip直达me.html + me.html 未登录/已登录两态。 */
 const { chromium } = require('playwright');
 const fs = require('fs'), P = require('path');
 const SITE = P.resolve(__dirname, '../site');
@@ -13,30 +14,38 @@ const seed = [
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  const mkPage = async (loggedIn) => {
-    const pg = await b.newPage({ viewport: { width: 1200, height: 900 } });
+  const mkPage = async (loggedIn, page, viewport) => {
+    const pg = await b.newPage({ viewport: viewport || { width: 1200, height: 900 } });
     const errs = []; pg.on('pageerror', e => errs.push(e.message));
     await pg.route('**/*', route => {
       const u = new URL(route.request().url());
       const p = u.pathname;
       const J = o => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
       if (p === '/api/pub/scores') return J({ scores: seed });
-      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator' }, stats:{} })
+      if (p === '/api/health') return J({ ok: true, wx_web: true, wx_mp: false });
+      if (p === '/api/favorites') return loggedIn ? J({ favorites: [{ id:'seedaaa111' }] })
+        : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+      if (p === '/api/scores') return loggedIn ? J({ scores: [{ id:'sc1', title:'我的第一首', singer:'', status:'published', updated_at:1700000000 }] })
+        : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+      if (p === '/api/me/entitlements') return loggedIn ? J({ entitlements: [], vip: false, quota: 20 })
+        : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator', wx:false }, stats:{} })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
       if (p === '/api/auth/sms/send') return J({ sent: true, dev_code: '123456' });
       if (p === '/api/auth/sms/verify') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator' } });
-      if (p === '/view.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('view.html') });
+      if (p === '/index.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('index.html') });
+      if (p === '/me.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('me.html') });
       if (p === '/pyq.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: read('pyq.js') });
       if (p === '/pyq.css') return route.fulfill({ status: 200, contentType: 'text/css', body: read('pyq.css') });
       return route.fulfill({ status: 404, body: '' });
     });
     pg._errs = errs;
-    await pg.goto('https://puku.puyouquan.com/view.html');
+    await pg.goto('https://www.puyouquan.com/' + (page || ''));
     await pg.waitForTimeout(600);
     return pg;
   };
 
-  // 未登录：卡片 + 登录按钮
+  // T1 搜索型首页：卡片渲染 + kanpu 链接 + 搜索框/chip/工具带就位 + 登录按钮
   let pg = await mkPage(false);
   let r = await pg.evaluate(() => {
     const cards = document.querySelectorAll('#lib-grid .cc-card');
@@ -46,17 +55,38 @@ const seed = [
       cover: !!(first && first.querySelector('.cc-cover svg')),
       type: first ? first.querySelector('.cc-type').textContent : '',
       free: first ? first.querySelector('.cc-price').textContent : '',
-      title: first ? first.querySelector('.t').textContent : '',
       href: first ? first.getAttribute('href') : '',
+      search: !!document.getElementById('lib-q'),
+      chips: document.querySelectorAll('#lib-cats .fchip').length,
+      tools: document.querySelectorAll('.tool-card').length,
       login: !!document.getElementById('nav-login'),
       apiOn: /puyouquan\.com$/.test(location.hostname),
     };
   });
-  /* v58.5 观看页驻 puku 域：卡片链接改 puku.puyouquan.com/kanpu.html?pub= */
-  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.free === '免费' && r.title === '小星星'
-    && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href) && r.login, 'T1 卡片+登录按钮', JSON.stringify(r));
+  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.free === '免费'
+    && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
+    && r.search && r.chips >= 3 && r.tools === 4 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
 
-  // 登录弹窗结构
+  // T1b 本地即时搜索：命中过滤 + 空结果引导 + URL ?q= 同步
+  r = await pg.evaluate(async () => {
+    const q = document.getElementById('lib-q');
+    const type = (v) => { q.value = v; q.dispatchEvent(new Event('input')); };
+    type('欢乐');
+    await new Promise(r=>setTimeout(r,30));
+    const hit = document.querySelectorAll('#lib-grid .cc-card').length;
+    const title = document.getElementById('lib-title').textContent;
+    type('不存在的歌');
+    await new Promise(r=>setTimeout(r,30));
+    const empty = !!document.querySelector('#lib-grid .lib-empty');
+    const urlQ = location.search.includes('q=');
+    type('');
+    await new Promise(r=>setTimeout(r,30));
+    const back = document.querySelectorAll('#lib-grid .cc-card').length;
+    return { hit, title, empty, urlQ, back };
+  });
+  T(r.hit === 1 && r.title === '搜索结果' && r.empty && r.urlQ && r.back === 2, 'T1b 即时搜索+空态+URL同步', JSON.stringify(r));
+
+  // T2 登录弹窗结构
   r = await pg.evaluate(() => {
     document.getElementById('nav-login').click();
     return { phone: !!document.getElementById('lg-phone'), code: !!document.getElementById('lg-code'),
@@ -64,7 +94,7 @@ const seed = [
   });
   T(r.phone && r.code && r.send && r.go, 'T2 登录弹窗', JSON.stringify(r));
 
-  // 走通登录 → 账号 chip
+  // T3 走通登录 → 账号 chip
   r = await pg.evaluate(async () => {
     document.getElementById('lg-phone').value = '13888888888';
     document.getElementById('lg-send').click(); await new Promise(r=>setTimeout(r,50));
@@ -74,21 +104,76 @@ const seed = [
     return { gone: !document.getElementById('pyq-login'), chip: !!chip, nm: chip ? chip.querySelector('.acct-nm').textContent : '' };
   });
   T(r.gone && r.chip && r.nm === '阿杜', 'T3 登录后账号chip', JSON.stringify(r));
-  T(pg._errs.length === 0, 'T4 未登录页无报错', pg._errs.join('|') || 'none');
+  T(pg._errs.length === 0, 'T4 未登录首页无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
-  // 已登录进入：直接显示 chip + 菜单
+  // T5 已登录：chip 为 me.html 直达链接（v58.7 下拉菜单废除）
   pg = await mkPage(true);
   r = await pg.evaluate(() => {
-    const chip = document.querySelector('.acct-chip'); if (chip) chip.click();
-    return { chip: !!chip, menu: !!document.querySelector('.acct-menu.on'),
-      logout: !!document.getElementById('acct-logout'), noLogin: !document.getElementById('nav-login') };
+    const chip = document.querySelector('.acct-chip');
+    return { chip: !!chip, isLink: chip ? chip.tagName === 'A' : false,
+      href: chip ? chip.getAttribute('href') : '', noMenu: !document.querySelector('.acct-menu'),
+      noLogin: !document.getElementById('nav-login') };
   });
-  T(r.chip && r.menu && r.logout && r.noLogin, 'T5 已登录chip+菜单', JSON.stringify(r));
-  T(pg._errs.length === 0, 'T6 已登录页无报错', pg._errs.join('|') || 'none');
+  T(r.chip && r.isLink && r.href === 'me.html' && r.noMenu && r.noLogin, 'T5 已登录chip直达me.html', JSON.stringify(r));
+  T(pg._errs.length === 0, 'T6 已登录首页无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
-  // v44.6 SEO 基建 + 四垂类落地页（静态文件断言：canonical/og/JSON-LD/内链/robots/sitemap）
+  // T7 me.html 未登录：整页居中登录卡（含手机号/验证码/微信钮），主体隐藏
+  pg = await mkPage(false, 'me.html');
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(() => ({
+    auth: !document.getElementById('me-auth').hidden,
+    body: document.getElementById('me-body').hidden,
+    phone: !!document.getElementById('lg-phone'), wx: !!document.getElementById('lg-wx'),
+  }));
+  T(r.auth && r.body && r.phone && r.wx, 'T7 me.html 未登录登录卡', JSON.stringify(r));
+  await pg.close();
+
+  // T8 me.html 已登录：昵称/手机号/会员卡/云端曲谱行/收藏卡片（favorites×pub联查）/账号操作
+  pg = await mkPage(true, 'me.html');
+  await pg.waitForTimeout(400);
+  r = await pg.evaluate(() => ({
+    body: !document.getElementById('me-body').hidden,
+    nick: document.getElementById('me-nick-t').textContent,
+    phone: document.getElementById('me-phone').textContent,
+    vip: document.getElementById('me-vip').textContent.includes('免费版'),
+    rows: document.querySelectorAll('#sc-list .pc-row').length,
+    rowHref: (document.querySelector('#sc-list .pc-row')||{}).getAttribute ? document.querySelector('#sc-list .pc-row').getAttribute('href') : '',
+    favs: document.querySelectorAll('#fav-grid .cc-card').length,
+    bindWx: !!document.getElementById('wx-bind'),
+    ops: document.querySelectorAll('.me-op').length,
+  }));
+  T(r.body && r.nick === '阿杜' && r.phone === '138****8888' && r.vip && r.rows === 1
+    && /zhipu\.puyouquan\.com\/\?mine=sc1/.test(r.rowHref) && r.favs === 1 && r.bindWx && r.ops >= 4,
+    'T8 me.html 已登录主体', JSON.stringify(r));
+  T(pg._errs.length === 0, 'T9 me.html 无报错', pg._errs.join('|') || 'none');
+  await pg.close();
+
+  // T10 手机断点（380px）：首页无横向滚动 + chip 单行横滑 + 卡片单列全宽 + 导航不竖排
+  pg = await mkPage(false, '', { width: 380, height: 800 });
+  await pg.waitForTimeout(300);
+  r = await pg.evaluate(() => {
+    const doc = document.documentElement;
+    const chipRow = document.getElementById('lib-cats');
+    const card = document.querySelector('#lib-grid .cc-card');
+    const nav = document.getElementById('nav-login');
+    const nr = nav ? nav.getBoundingClientRect() : { height: 99 };
+    return {
+      noHScroll: doc.scrollWidth <= doc.clientWidth + 1,
+      chipNowrap: chipRow ? getComputedStyle(chipRow).flexWrap === 'nowrap' : false,
+      chipScroll: chipRow ? chipRow.scrollWidth >= chipRow.clientWidth : false,
+      cardFull: card ? Math.abs(card.getBoundingClientRect().width - card.parentElement.getBoundingClientRect().width) < 2 : false,
+      navH: Math.round(nr.height),
+      searchH: Math.round(document.getElementById('lib-q').getBoundingClientRect().height),
+      tools: document.querySelectorAll('.tool-card').length,
+    };
+  });
+  T(r.noHScroll && r.chipNowrap && r.cardFull && r.navH < 45 && r.searchH >= 48 && r.tools === 4,
+    'T10 380px 移动端适配', JSON.stringify(r));
+  await pg.close();
+
+  // v44.6 SEO 基建 + 四垂类落地页（静态文件断言）
   const LAND = ['kaobian', 'yikao', 'shifan', 'jixing'];
   for (const name of LAND) {
     const h = read(name + '.html');
@@ -109,6 +194,8 @@ const seed = [
   T(LAND.every(n => idx.includes(n + '.html')) && /rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页内链四落地页+SEO头');
   const js2 = read('pyq.js');
   T(LAND.every(n => js2.includes(n + '.html')), 'S 页脚含四场景内链');
+  const vh = read('view.html');
+  T(/canonical" href="https:\/\/www\.puyouquan\.com\/"/.test(vh) && /http-equiv="refresh"/.test(vh) && /noindex/.test(vh), 'S view.html 跳转占位（谱库并入主站）');
 
   console.log('PASS ' + pass + '/' + total);
   await b.close();

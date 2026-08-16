@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>个人中心 · 谱友圈</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="pyq.css">
+</head>
+<body data-page="me">
+<div id="site-nav"></div>
+
+<!-- 未登录：整页居中登录卡（默认隐藏，探测 /api/me 401 后显示） -->
+<main id="me-auth" class="me-auth" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="mark" style="width:40px;height:40px;border-radius:12px"></span></div>
+    <h2>登录谱友圈</h2>
+    <p class="lg-sub">未注册的手机号将自动创建账号，登录后跨端同步曲谱与收藏。</p>
+    <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
+    <div class="lg-row"><input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button id="lg-send">获取验证码</button></div>
+    <div id="lg-msg" class="lg-msg"></div>
+    <button id="lg-go" class="lg-go">登录</button>
+    <div id="lg-wx-slot"></div>
+  </div>
+</main>
+
+<!-- 已登录：个人中心主体 -->
+<main id="me-body" class="me-wrap" hidden>
+  <header class="me-head">
+    <span class="acct-av me-av" id="me-av">谱</span>
+    <div class="me-id">
+      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span></h1>
+      <p class="me-sub"><span id="me-phone"></span><span id="me-wx-slot"></span></p>
+    </div>
+  </header>
+  <p class="me-msg" id="me-msg"></p>
+
+  <div class="me-grid">
+    <!-- DOM 序 = 移动端单列序：会员卡 → 我的曲谱 → 我的收藏 → 账号操作；桌面右栏由 grid 归位 -->
+    <div class="me-side">
+      <div class="me-vipcard" id="me-vip">
+        <b>会员状态</b><p>查询中…</p>
+      </div>
+      <section class="me-card" id="me-ops">
+        <h3 class="me-h">账号与安全</h3>
+        <button class="me-op" id="op-nick">修改昵称</button>
+        <button class="me-op" id="op-wx" hidden>绑定微信<small>绑定后可用微信扫码直接登录本账号</small></button>
+        <button class="me-op" id="op-logout">退出登录</button>
+        <button class="me-op" id="op-logout-all">退出所有设备<small>使所有已登录设备（含本机）下线，应对手机丢失</small></button>
+      </section>
+    </div>
+    <div class="me-main">
+      <section class="me-card" id="me-scores">
+        <h3 class="me-h">我的云端曲谱<a class="pc-more" href="//zhipu.puyouquan.com/">在编辑器中管理全部 →</a></h3>
+        <div class="pc-list" id="sc-list"><p class="pc-empty">加载中…</p></div>
+      </section>
+      <section class="me-card" id="me-favs">
+        <h3 class="me-h">我的收藏<span class="lib-count" id="fav-count"></span></h3>
+        <div class="grid g2" id="fav-grid"><p class="pc-empty">加载中…</p></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="site-foot"></div>
+<script src="pyq.js"></script>
+<script>
+/* 个人中心独立页：/api/me 探测登录态；已登录拉 会员/云端曲谱/收藏（收藏经 pub/scores 本地联查出卡片）。
+   微信绑定/登录回跳（?wxlogin= / ?wxbind=）在本页就地处理。 */
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  function api(path,opts){ opts=opts||{};
+    return fetch('/api'+path,{method:opts.method||'GET',credentials:'include',
+      headers:opts.body?{'Content-Type':'application/json'}:{},body:opts.body?JSON.stringify(opts.body):undefined})
+      .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){
+        if(!r.ok){ var e=new Error(j.error||('请求失败（'+r.status+'）')); e.status=r.status; throw e; } return j; }); }); }
+  var inWx=/MicroMessenger/i.test(navigator.userAgent);
+  var wxWeb=false, wxMp=false;
+  var healthP=api('/health').then(function(j){ wxWeb=!!(j&&j.wx_web); wxMp=!!(j&&j.wx_mp); }).catch(function(){});
+  function wxPath(){ return (inWx&&wxMp)?'/wx/mp/login-url':'/wx/web/login-url'; }
+  function msg(t){ var el=document.getElementById('me-msg'); if(el) el.textContent=t||''; }
+
+  /* 微信登录/绑定回跳提示 */
+  var backMsg='';
+  try{
+    var sp=new URLSearchParams(location.search);
+    var wl=sp.get('wxlogin'), wb=sp.get('wxbind');
+    if(wl||wb){ history.replaceState(null,'',location.pathname);
+      if(wl==='ok') backMsg='微信登录成功';
+      else if(wl) backMsg='微信登录未完成，请重试';
+      if(wb==='ok') backMsg='微信绑定成功，下次可扫码登录';
+      else if(wb==='conflict') backMsg='该微信已绑定其他账号，请先在原账号解绑';
+      else if(wb) backMsg='微信绑定未完成，请重试';
+    }
+  }catch(_){}
+
+  var FMT=function(t){ if(!t) return '—'; var d=new Date(t*1000);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+
+  function showAuth(){
+    document.getElementById('me-auth').hidden=false;
+    document.getElementById('me-body').hidden=true;
+    var timer=0;
+    var m=function(t){ var el=document.getElementById('lg-msg'); if(el) el.textContent=t||''; };
+    if(backMsg) m(backMsg);
+    document.getElementById('lg-send').onclick=function(){
+      var phone=document.getElementById('lg-phone').value.trim(), self=this;
+      if(!/^1[3-9]\d{9}$/.test(phone)) return m('请输入正确的手机号');
+      self.disabled=true;
+      api('/auth/sms/send',{method:'POST',body:{phone:phone}}).then(function(r){
+        m(r.dev_code?('测试环境验证码：'+r.dev_code):'验证码已发送，请查收短信');
+        var s=60; self.textContent=s+'s';
+        timer=setInterval(function(){ if(--s<=0){ clearInterval(timer); timer=0; self.disabled=false; self.textContent='获取验证码'; } else self.textContent=s+'s'; },1000);
+      }).catch(function(e){ self.disabled=false; m(e.message); });
+    };
+    document.getElementById('lg-go').onclick=function(){
+      var phone=document.getElementById('lg-phone').value.trim(), code=document.getElementById('lg-code').value.trim();
+      if(!/^1[3-9]\d{9}$/.test(phone)) return m('请输入正确的手机号');
+      if(!/^\d{6}$/.test(code)) return m('请输入 6 位验证码');
+      api('/auth/sms/verify',{method:'POST',body:{phone:phone,code:code}})
+        .then(function(){ location.reload(); }).catch(function(e){ m(e.message); });
+    };
+    healthP.then(function(){
+      if(!(wxWeb||wxMp)) return;
+      document.getElementById('lg-wx-slot').innerHTML =
+        '<div class="lg-or">— 或 —</div><button class="lg-wx" id="lg-wx">'+((inWx&&wxMp)?'微信一键登录':'微信扫码登录')+'</button>'
+        +((inWx&&!wxMp)?'<div class="lg-wxtip">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':'');
+      document.getElementById('lg-wx').onclick=function(){ var self=this; self.disabled=true;
+        api(wxPath()+'?return='+encodeURIComponent(location.origin+location.pathname)).then(function(r){
+          if(r.url) location.href=r.url; else { self.disabled=false; m('微信登录暂不可用'); } })
+        .catch(function(e){ self.disabled=false; m(e.status===503?'微信登录尚未开通':(e.message||'微信登录暂不可用')); }); };
+    });
+  }
+
+  function showMe(u){
+    document.getElementById('me-auth').hidden=true;
+    document.getElementById('me-body').hidden=false;
+    if(backMsg) msg(backMsg);
+    document.getElementById('me-av').textContent=(u.nickname||'谱').charAt(0);
+    document.getElementById('me-nick-t').textContent=u.nickname||'谱友';
+    document.getElementById('me-phone').textContent=u.phone||'';
+    /* 微信绑定状态（/api/me 的 user.wx 既有字段） */
+    var wxSlot=document.getElementById('me-wx-slot'), opWx=document.getElementById('op-wx');
+    if(u.wx){ wxSlot.innerHTML='<span class="wx-chip">微信已绑定</span>'; }
+    else{
+      healthP.then(function(){
+        if(!(wxWeb||wxMp)) return;
+        wxSlot.innerHTML='<button class="wx-chip" id="wx-bind">绑定微信</button>';
+        opWx.hidden=false;
+        var go=function(){ api(wxPath()+'?bind=1&return='+encodeURIComponent(location.origin+location.pathname))
+          .then(function(r){ location.href=r.url; }).catch(function(e){ msg(e.message||'微信绑定发起失败'); }); };
+        document.getElementById('wx-bind').onclick=go; opWx.onclick=go;
+      });
+    }
+    /* 会员卡 */
+    api('/me/entitlements').then(function(j){
+      var el=document.getElementById('me-vip'), badge=document.getElementById('me-vip-badge');
+      badge.hidden=false;
+      if(j.vip){
+        var e=(j.entitlements||[]).find(function(x){ return x.kind==='vip'; });
+        var exp=e&&e.expires_at?('有效期至 '+FMT(e.expires_at)):'长期有效';
+        badge.textContent='会员'; badge.classList.remove('free');
+        el.innerHTML='<b>会员</b><p>'+esc(exp)+' · 云端曲谱 '+(j.quota|0)+' 首</p><a class="btn" href="//zhipu.puyouquan.com/">续费 →</a>';
+      }else{
+        el.innerHTML='<b>免费版</b><p>云端曲谱 '+(j.quota|0)+' 首 · 会员享更大空间与进阶功能</p><a class="btn" href="//zhipu.puyouquan.com/">开通会员 →</a>';
+      }
+    }).catch(function(){ document.getElementById('me-vip').innerHTML='<b>会员状态</b><p>暂时无法获取</p>'; });
+    /* 我的云端曲谱 */
+    api('/scores').then(function(j){
+      var el=document.getElementById('sc-list'), list=(j.scores||[]).slice(0,8);
+      el.innerHTML=list.length? list.map(function(s){
+        return '<a class="pc-row" href="//zhipu.puyouquan.com/?mine='+encodeURIComponent(s.id)+'">'
+          +'<span class="t">'+esc(s.title||'未命名曲谱')+'</span>'
+          +(s.status==='published'||s.status==='pub'?'<i class="k">已发布</i>':'')
+          +'<span class="d">'+FMT(s.updated_at)+'</span></a>'; }).join('')
+        : '<p class="pc-empty">还没有云端曲谱。</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/">去做第一份谱 →</a>';
+    }).catch(function(){ document.getElementById('sc-list').innerHTML='<p class="pc-empty">列表暂时无法加载</p>'; });
+    /* 我的收藏：favorites 与 pub/scores 联查出完整卡片 */
+    Promise.all([
+      api('/favorites').catch(function(){ return {favorites:[]}; }),
+      fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:[]}; }).catch(function(){ return {scores:[]}; })
+    ]).then(function(rs){
+      var favIds={}; (rs[0].favorites||[]).forEach(function(f){ favIds[f.score_id||f.id||f]=1; });
+      var cards=(rs[1].scores||[]).filter(function(s){ return favIds[s.id]; });
+      var el=document.getElementById('fav-grid');
+      el.innerHTML=cards.length? cards.map(PYQ_LIB.card).join('')
+        : '<div class="lib-empty" style="padding:24px 0"><b>收藏夹还是空的</b>去谱库看到喜欢的谱点 ♥，登录后跨设备同步。<br><a class="btn ghost" href="index.html" style="margin-top:14px">去谱库逛逛 →</a></div>';
+      var c=document.getElementById('fav-count'); if(c) c.textContent=cards.length? (cards.length+' 首'):'';
+    });
+    /* 账号操作 */
+    document.getElementById('op-nick').onclick=function(){
+      var nk=prompt('新昵称（1-24 个字符）', u.nickname||''); if(nk==null) return;
+      nk=nk.trim(); if(!nk||nk.length>24) return msg('昵称需为 1-24 个字符');
+      api('/me',{method:'PATCH',body:{nickname:nk}}).then(function(){ location.reload(); })
+        .catch(function(e){ msg(e.message); });
+    };
+    document.getElementById('op-logout').onclick=function(){
+      api('/auth/logout',{method:'POST'}).catch(function(){}).then(function(){ location.reload(); });
+    };
+    document.getElementById('op-logout-all').onclick=function(){
+      if(!confirm('将退出所有已登录设备（包括本机），确定？')) return;
+      api('/me/logout-all',{method:'POST'}).catch(function(){}).then(function(){ location.reload(); });
+    };
+  }
+
+  api('/me').then(function(j){ showMe(j.user||{}); }).catch(function(){ showAuth(); });
+})();
+</script>
+</body>
+</html>
