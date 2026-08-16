@@ -90,6 +90,7 @@ const q = {
   userById:     db.prepare('SELECT * FROM users WHERE id = ?'),
   userCreate:   db.prepare('INSERT INTO users(id,phone,nickname,created_at) VALUES(?,?,?,?)'),
   userSetNick:  db.prepare('UPDATE users SET nickname = ? WHERE id = ?'),
+  userSetAvatar: db.prepare('UPDATE users SET avatar = ? WHERE id = ?'),   /* v58.9 换头像（data URI / 微信 URL / 空串清除） */
   userSetRole:  db.prepare('UPDATE users SET role = ? WHERE id = ?'),
   userBumpTokVer: db.prepare('UPDATE users SET tok_ver = tok_ver + 1 WHERE id = ?'),   // 退出所有设备/风控：作废该用户全部已签发 JWT
   // v43.6 微信登录（unionid 优先匹配，openid 兜底；合成占位 phone 满足 NOT NULL/UNIQUE）

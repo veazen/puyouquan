@@ -371,9 +371,21 @@ const routes = [
     stats: { scores: q.scoreCount.get(u.id).n, collections: q.collCount.get(u.id).n },
   })],
   ['PATCH', /^\/api\/me$/, true, (m, b, u) => {
-    const nick = String(b.nickname || '').trim();
-    if (!nick || nick.length > 24) throw new ApiError(400, '昵称需为 1-24 个字符');
-    q.userSetNick.run(nick, u.id);
+    /* v58.9 支持改头像：avatar 为 data:image/*（前端压到 96×96 JPEG，服务端封顶 40KB 字符）
+       或空串清除；nickname/avatar 至少给一个，各自独立校验独立落库 */
+    const hasNick = b.nickname !== undefined, hasAva = b.avatar !== undefined;
+    if (!hasNick && !hasAva) throw new ApiError(400, '没有要修改的字段');
+    if (hasNick) {
+      const nick = String(b.nickname || '').trim();
+      if (!nick || nick.length > 24) throw new ApiError(400, '昵称需为 1-24 个字符');
+      q.userSetNick.run(nick, u.id);
+    }
+    if (hasAva) {
+      const ava = String(b.avatar || '');
+      if (ava !== '' && !/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(ava)) throw new ApiError(400, '头像格式不支持');
+      if (ava.length > 40000) throw new ApiError(400, '头像图片过大，请重新选择');
+      q.userSetAvatar.run(ava, u.id);
+    }
     return { user: pubUser(q.userById.get(u.id)) };
   }],
   ['POST', /^\/api\/me\/creator$/, true, (m, b, u) => {   // 创作者开放注册

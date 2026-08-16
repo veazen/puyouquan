@@ -66,6 +66,15 @@ T('userBindWx 用 COALESCE：只传 openid 不清空已有 unionid', () => {
   assert.strictEqual(u.wx_unionid, 'uC');   // 未被 null 覆盖
 });
 
+T('userSetAvatar：设 data URI / 清空 往返（v58.9 换头像）', () => {
+  const id = crypto.randomUUID();
+  q.userCreateWx.run(id, 'wxavatartest0001', 'oAv', 'uAv', '头像君', '', now());
+  q.userSetAvatar.run('data:image/jpeg;base64,QUJD', id);
+  assert.strictEqual(q.userById.get(id).avatar, 'data:image/jpeg;base64,QUJD');
+  q.userSetAvatar.run('', id);
+  assert.strictEqual(q.userById.get(id).avatar, '');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);
