@@ -113,8 +113,9 @@ h1,h2,h3{letter-spacing:-.3px;line-height:1.2}
 .flow .step b{display:block;margin-bottom:4px}
 .flow .step p{font-size:13.5px;color:var(--muted);margin:0}
 .faq{margin-top:16px}
-.faq details{border-bottom:1px solid var(--border-soft);padding:14px 0}
-.faq summary{font-weight:600;cursor:pointer;list-style:none}
+.faq details{border-bottom:1px solid var(--border-soft)}
+.faq summary{font-weight:600;cursor:pointer;list-style:none;padding:14px 0}   /* v59.0 P1-4：内距移到 summary，折叠条触控热区 27→55px（视觉零变化） */
+.faq details>*:not(summary){margin-top:0;padding-bottom:14px}
 .faq summary::-webkit-details-marker{display:none}
 .faq summary::before{content:"+";color:var(--accent);font-weight:800;margin-right:9px}
 .faq details[open] summary::before{content:"–"}
@@ -237,7 +238,7 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 #foot{margin-top:80px;border-top:1px solid var(--border-soft);padding:30px 0 26px}
 #foot .f-line{display:flex;align-items:center;justify-content:space-between;gap:14px 24px;flex-wrap:wrap}
 #foot .f-links{display:flex;gap:4px 22px;flex-wrap:wrap}
-#foot .f-links a{font-size:12.5px;color:var(--muted);padding:4px 0}
+#foot .f-links a{font-size:12.5px;color:var(--muted);padding:9px 0;display:inline-block}
 #foot .f-links a:hover,#foot .beian a:hover{color:var(--accent)}
 #foot .beian{margin-top:28px;padding-top:18px;border-top:1px solid var(--border-soft);
   font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
@@ -269,7 +270,7 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .cc-price.free{color:#2f9e57}
 .cc-body{padding:13px 16px 14px}
 .cc-body .t{font-size:15px;font-weight:700;margin-bottom:3px;color:var(--text)}
-.cc-body .a{font-size:11.5px;color:var(--muted);margin-bottom:9px}
+.cc-body .a{font-size:12px;color:var(--muted);margin-bottom:9px}
 .cc-body .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
 .cc-body .meta i{font-style:normal;border:1px solid var(--border-soft);border-radius:10px;padding:1px 8px}
 /* 账号 chip / 下拉 / 登录按钮 */
@@ -287,11 +288,12 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .acct-menu a,.acct-menu button{display:block;width:100%;text-align:left;box-sizing:border-box;padding:8px 12px;border-radius:8px;font-size:13.5px;color:var(--text);background:none;border:none;cursor:pointer;text-decoration:none}
 .acct-menu a:hover,.acct-menu button:hover{background:var(--accent-soft)}
 /* 登录弹窗 */
-.pyq-mask{position:fixed;inset:0;background:rgba(20,18,15,.42);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
-.pyq-modal{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;padding:26px 26px 22px;width:100%;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+/* v59.0 P0-2：mask 可滚 + modal margin:auto——键盘弹起视口压扁时弹窗超高可双向滚动触达（flex 居中会两端同时裁死） */
+.pyq-mask{position:fixed;inset:0;background:rgba(20,18,15,.42);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;overflow-y:auto}
+.pyq-modal{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;padding:26px 26px 22px;width:100%;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.3);margin:auto}
 .pyq-modal h3{margin:0 0 6px;font-size:20px}
 .pyq-modal .lg-sub{font-size:12.5px;color:var(--muted);margin:0 0 16px}
-.pyq-modal input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:14px;background:var(--bg);color:var(--text);margin-bottom:10px}
+.pyq-modal input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:16px;background:var(--bg);color:var(--text);margin-bottom:10px}   /* 16px：<16 会触发 iOS 聚焦整页放大（me.html 登录卡同口径） */
 .pyq-modal .lg-row{display:flex;gap:8px}
 .pyq-modal .lg-row input{flex:1}
 .pyq-modal .lg-row button{white-space:nowrap;border:1px solid var(--border);background:transparent;border-radius:10px;padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);margin-bottom:10px}
@@ -327,8 +329,8 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
   border:1px solid var(--border-soft);border-radius:10px;font-size:13.5px;transition:.15s}
 .pc-row:hover{border-color:var(--accent);background:var(--accent-soft)}
 .pc-row .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pc-row .d{color:var(--muted);font-size:11.5px;flex:0 0 auto}
-.pc-more{font-size:12.5px;color:var(--accent);font-weight:600;padding:4px 2px}
+.pc-row .d{color:var(--muted);font-size:12px;flex:0 0 auto}
+.pc-more{font-size:12.5px;color:var(--accent);font-weight:600;padding:12px 2px;margin:-8px 0}   /* v59.0 负 margin 扩热区不动版式（原高 23px） */
 .pc-empty{font-size:13px;color:var(--muted);margin:4px 0}
 .pc-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .pc-actions .btn{padding:9px 18px;font-size:13px}
@@ -371,6 +373,7 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 /* --- 工具带（制谱等工具入口：4 格小图标卡） --- */
 .tool-band{margin-top:28px}
 .tool-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tool-strip.c3{grid-template-columns:repeat(3,1fr)}   /* v59.0：三格布局用类而非 inline style——inline 会压过 ≤580 的 1fr 1fr（审计 P1-1 竖排字根因） */
 .tool-card{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--panel);color:inherit;text-decoration:none;
   border:1px solid var(--border-soft);border-radius:14px;transition:transform .15s,box-shadow .2s,border-color .15s}
 .tool-card:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--accent) 26%,var(--border-soft))}
@@ -396,10 +399,11 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .wx-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 12px;border-radius:980px;
   color:#07c160;border:1px solid rgba(7,193,96,.35)}
 .wx-chip::before{content:'';width:6px;height:6px;border-radius:50%;background:#07c160}
-button.wx-chip{color:var(--muted);border:1px solid var(--border);background:transparent;cursor:pointer;font-family:inherit}
+button.wx-chip{color:var(--muted);border:1px solid var(--border);background:transparent;cursor:pointer;font-family:inherit;padding:9px 16px}   /* v59.0 绑定微信钮热区 25→40px */
 button.wx-chip::before{display:none}
 button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .me-grid{display:grid;grid-template-columns:1fr;gap:12px;padding-bottom:44px}
+.me-grid>*,.me-card,.me-vipcard{min-width:0}   /* v59.0 P1-2：长曲谱标题的 min-content 会把 1fr 轨道撑破容器（375 实测 +8px 横晃） */
 @media(min-width:821px){
   .me-grid{grid-template-columns:1fr 320px;gap:20px;align-items:start}
   .me-grid>.me-main{grid-column:1}
@@ -455,12 +459,21 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   .chip-row::-webkit-scrollbar{display:none}
   .chip-row .fchip{flex:0 0 auto}
   .tool-band{margin-top:20px}
-  .tool-strip{grid-template-columns:1fr 1fr}
+  .tool-strip,.tool-strip.c3{grid-template-columns:1fr 1fr}   /* .c3 双类特异性更高，窄屏需并列点名 */
   .tool-card{padding:12px 14px}
   .tool-card small,.tool-card .tg{display:none}
   .brand .sub{display:none}
   .acct-nm{display:none}
-  .acct-chip{padding:4px}
+  .acct-chip{padding:6px}   /* v59.0 触控热区：24px 头像 + 6px 内距 ≈ 38px（原 4px 仅 34px） */
+  /* v59.0 P0-1 导航菜单大半不可见：品牌收成纯 mark（font-size:0 灭文字节点），菜单占满等分——
+     四项完整可见，不再依赖用户猜「能横滑」 */
+  #nav .bar{padding:0 12px;gap:2px}
+  .brand{font-size:0;gap:0;margin-right:6px}
+  .brand .mark{width:30px;height:30px}
+  #menu{flex:1}
+  #menu a{flex:1;text-align:center;padding:9px 2px;font-size:13px}
+  .nav-login{padding:9px 13px;font-size:12.5px}
+  #theme-btn{width:40px;height:40px}
   .me-head{padding:96px 0 16px}
   .me-av{width:52px;height:52px;font-size:21px}
   .me-nick{font-size:19px}
@@ -533,7 +546,9 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .fchip.on{background:var(--text);border-color:transparent}
 /* 场景内链条（自页脚/正文合并的唯一场景入口，安静样式） */
 .scene-strip{font-size:12.5px;color:var(--muted);text-align:center;margin:44px 0 0}
-.scene-strip a{color:var(--muted);border-bottom:1px dashed var(--border);margin:0 6px;padding-bottom:1px}
+/* v59.0 触控热区：虚线下划线改 text-decoration，链接改块级加内距（17→33px），视觉不变 */
+.scene-strip a{color:var(--muted);margin:0 6px;display:inline-block;padding:8px 2px;
+  text-decoration:underline dashed var(--border);text-underline-offset:4px}
 .scene-strip a:hover{color:var(--accent);border-color:var(--accent)}
 /* 「最新上架」上新徽章 + 「最近看过」行 */
 .lib-new{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);
@@ -571,7 +586,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .av-opt:hover{transform:scale(1.06);border-color:var(--accent)}
 .av-opt.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .av-actions{display:flex;align-items:center;gap:10px}
-.av-rm{margin-left:auto;border:none;background:none;color:var(--muted);font-size:12.5px;cursor:pointer;font-family:inherit}
+.av-rm{margin-left:auto;border:none;background:none;color:var(--muted);font-size:12.5px;cursor:pointer;font-family:inherit;padding:11px 8px}   /* v59.0 取消/恢复默认钮热区 19→41px */
 .av-rm:hover{color:var(--accent)}
 .cr-badge{display:inline-flex;font-size:11px;font-weight:800;padding:3px 10px;border-radius:980px;
   color:var(--accent);border:1px solid var(--accent);background:transparent}

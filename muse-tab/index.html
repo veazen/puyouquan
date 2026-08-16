@@ -388,8 +388,9 @@ body.shell .ltab[data-act="new"]:hover{filter:brightness(1.07)}
 /* v44.3 移动端看谱 fit-to-width：观看/分享/谱架等只读模式下，窄屏把谱面按 viewBox 等比缩到
    容器宽度，免去横向平移（编辑器模式不受影响，仍可放大后容器内滚动）。#score 本身即 <svg>。 */
 @media(max-width:820px){
-  body.viewer #score, body.stand #score{max-width:100%!important;width:100%!important;height:auto!important}
-  body.viewer #paper, body.stand #paper{max-width:100%!important;width:100%!important}
+  /* v59.0 观看页放大档（115%/135%）生效：手动缩放（body.mzoom）退出 fit 钳制，回容器内横滚（同编辑态 v50.9 口径） */
+  body.viewer:not(.mzoom) #score, body.stand #score{max-width:100%!important;width:100%!important;height:auto!important}
+  body.viewer:not(.mzoom) #paper, body.stand #paper{max-width:100%!important;width:100%!important}
 }
 /* v50.9 手机「编辑态」也默认 fit-width（同观看模式口径）：谱面等比缩到屏宽免横向平移，
    点击命中不受影响（谱面命中全走 e.target/元素包围盒，随 CSS 缩放自洽）；
@@ -667,7 +668,7 @@ svg text{user-select:none}
   padding:20px 22px;max-width:720px;width:94%;max-height:84vh;overflow-y:auto;overflow-x:hidden;}
 .modal h3{margin:0 0 10px;font-size:16px}
 .modal h4{margin:14px 0 6px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:3px}
-.modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.modal .btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap}   /* v59.0 P0-6：右对齐+不换行会把导出钮向左甩出屏，窄屏折行兜底 */
 .modal textarea{width:100%;height:120px;resize:vertical}
 .modal p{color:var(--muted);font-size:12px;margin:6px 0}
 .modal table{border-collapse:collapse;font-size:13px;width:100%}
@@ -873,15 +874,76 @@ body.stand #standbar{display:flex}
 .dtab .dt-x:hover{color:#fff;background:var(--danger,#d33)}
 #dt-add{border:1px dashed var(--border);background:none;border-radius:8px;padding:5px 11px;cursor:pointer;color:var(--muted);font-size:12.5px;margin-bottom:1px}
 #dt-add:hover{color:var(--accent);border-color:var(--accent)}
-/* 个人中心 */
-.pc-wrap{display:flex;gap:16px;min-height:300px}
-.pc-nav{flex:0 0 132px;display:flex;flex-direction:column;gap:5px;border-right:1px solid var(--border);padding-right:12px}
-.pc-nav button{display:flex;align-items:center;gap:9px;justify-content:flex-start;text-align:left;
-  border:1px solid transparent;background:none;border-radius:9px;padding:9px 11px;font-size:13px;color:var(--muted);box-shadow:none}
-.pc-nav button svg{flex:0 0 15px}
-.pc-nav button.on{background:var(--accent-soft,rgba(58,92,224,.1));color:var(--accent);border-color:var(--accent);font-weight:600}
-.pc-body{flex:1;min-width:0}
-.pc-body h4{margin-top:2px}
+/* 个人中心（v59.0 独立页 #pcenter：弹窗退役改全页模式。
+   层级红线：z-index 48——低于 .modal-mask 50（页内还会开支付二维码/登录/驳回弹窗），
+   高于 #mixer-dock/#viewerbar 40 与移动端 #left-flyout 45；不要抄 #circle 的 60 */
+#pcenter{position:fixed;inset:0;z-index:48;overflow-y:auto;overscroll-behavior:contain;
+  background:var(--bg);
+  background-image:radial-gradient(900px 360px at 50% -150px, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%)}
+.pcx-top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;
+  padding:11px 24px;background:var(--glass);border-bottom:1px solid var(--border-soft);
+  -webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8)}
+.pcx-top .t{font-weight:800;font-size:16px;letter-spacing:1px;display:flex;align-items:center;gap:9px}
+.pcx-top .sub{font-size:11.5px;color:var(--muted)}
+.pcx-hero{max-width:1020px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:26px 24px 18px}
+.pcx-hero .pc-avatar{width:64px;height:64px;font-size:26px}
+.pcx-id{min-width:0;flex:1}
+.pcx-nick{font-size:20px;font-weight:800;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pcx-badge{font-size:11px;font-weight:700;color:var(--accent);border:1px solid var(--accent);
+  border-radius:980px;padding:2px 10px;letter-spacing:1px}
+.pcx-sub{font-size:12.5px;color:var(--muted);margin-top:5px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pcx-acts{display:flex;gap:8px;align-items:center}
+.pcx-layout{max-width:1020px;margin:0 auto;padding:0 24px 56px;
+  display:grid;grid-template-columns:190px 1fr;gap:26px;align-items:start}
+.pcx-side{display:flex;flex-direction:column;gap:4px;position:sticky;top:76px}
+.pcx-side button{display:flex;align-items:center;gap:10px;justify-content:flex-start;text-align:left;
+  min-height:40px;padding:0 13px;font-size:13.5px;border:1px solid transparent;
+  border-radius:var(--radius);background:none;color:var(--text);box-shadow:none}
+.pcx-side button svg{flex:0 0 15px;margin:0}   /* 抵消全局 svg{margin:0 auto}（v41.4 .svgi 同款坑） */
+.pcx-side button:hover{background:var(--hover)}
+.pcx-side button.on{background:var(--accent-soft);color:var(--accent);font-weight:600;
+  border-color:color-mix(in srgb, var(--accent) 26%, transparent)}
+.pcx-main{min-width:0}
+.pcx-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;
+  padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.pcx-card h4{display:flex;align-items:baseline;gap:10px;margin:0 0 12px;flex-wrap:wrap;
+  font-size:12.5px;font-weight:800;letter-spacing:.5px;color:var(--text);border:none;padding:0}
+.pcx-card h4 .cnt{font-size:11px;font-weight:600;color:var(--muted);
+  border:1px solid var(--border-soft);border-radius:980px;padding:2px 9px;margin-left:2px}
+.pcx-main .pc-row{padding:11px 6px;border-bottom:1px solid var(--border-soft);font-size:13.5px}
+.pcx-main .pc-row:last-child{border-bottom:none}
+.pcx-main .pc-row:hover{background:var(--accent-soft);border-radius:8px}
+.pcx-main .pc-row .t1{font-weight:600}
+.pcx-main .pc-row .t2{font-size:12px}
+.pcx-main .pc-row button{min-height:30px;padding:4px 12px;border-radius:8px}
+.pcx-main label.f input{min-width:0}   /* input 默认 size 的 min-content 会阻止收缩（审计 P1-5） */
+@media (max-width:820px){
+  .pcx-top{padding:9px 14px}
+  .pcx-top .sub{display:none}
+  .pcx-top button{min-height:40px}
+  .pcx-hero{padding:16px 14px 10px;gap:12px}
+  .pcx-hero .pc-avatar{width:52px;height:52px;font-size:21px}
+  .pcx-nick{font-size:18px}
+  .pcx-layout{display:block;padding:0 14px calc(96px + env(safe-area-inset-bottom,0px))}
+  .pcx-side{flex-direction:row;gap:8px;overflow-x:auto;position:sticky;top:52px;z-index:4;
+    margin:0 -14px 12px;padding:8px 14px;background:var(--glass);
+    -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+    border-bottom:1px solid var(--border-soft);
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .pcx-side::-webkit-scrollbar{display:none}
+  .pcx-side button{flex:0 0 auto;min-height:44px;padding:0 16px;border-radius:980px;
+    border-color:var(--border);font-size:13px}
+  .pcx-card{padding:15px 14px;border-radius:16px;margin-bottom:10px}
+  .pcx-main .pc-row{padding:12px 4px;flex-wrap:wrap}
+  .pcx-main .pc-row .t1{flex:1 1 100%;white-space:normal}
+  .pcx-main .pc-row button{min-height:40px;padding:8px 14px;font-size:12.5px;flex:1}
+  .pcx-main label.f{flex-wrap:nowrap}
+  .pcx-main label.f span{flex:0 0 64px;width:64px;white-space:nowrap}
+  .pcx-main label.f input{min-height:42px}
+  .pcx-hero .pcx-acts{width:100%;display:flex;gap:8px}
+  .pcx-hero .pcx-acts button{flex:1;min-height:44px}
+}
 .pc-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .pc-avatar.has-img{background:var(--panel);border:1px solid var(--border-soft)}
 .pc-avatar{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-size:22px;font-weight:700;
@@ -1120,6 +1182,46 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
   /* 弹窗更满屏、可滚 */
   .modal{width:96%;max-height:88vh;padding:16px 15px}
   .modal .feat{grid-template-columns:1fr}
+  /* ===== v59.0 手机深修（移动端审计：桌面 shell 框架高特异性规则系统性压过本块的经典版手机规则，
+     导致滚动死锁/抽屉失位/热区失效——以下同前缀重申，靠书写顺序取胜） ===== */
+  /* P0-1 纵向滚动死锁：#stage display:block 打断 v40.4 框架的高度链 → 恢复 flex 列，score-wrap 拿到受限高自滚 */
+  body.shell:not(.stand):not(.viewer) #stage{display:flex;flex-direction:column;min-height:0;margin:0;padding:0}
+  body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;min-height:0;overflow-y:auto;
+    padding:10px 8px 150px;-webkit-overflow-scrolling:touch;
+    margin:0;max-width:100%}   /* margin:0 auto 的 auto 侧距会禁用 flex 交叉轴 stretch → 容器收缩成内容宽（mzoom 横滚失效根因） */
+  /* P0-2 启动台落首屏：占位 #paper 在手机直接不占位（桌面 visibility:hidden 撑高保持不变） */
+  body.shell:not(.stand):not(.viewer) #start-pad:not(.hidden)~#paper{display:none}
+  /* P0-3 左轨 432px 向左甩出屏：底部横滑抽屉（shell 静态 dock + row-reverse 反制） */
+  body.shell:not(.stand):not(.viewer) #left-dock{position:fixed;left:0;right:0;bottom:0;top:auto;
+    flex-direction:row;align-items:flex-end;z-index:44;background:transparent;border-right:none;
+    padding:0 6px calc(8px + env(safe-area-inset-bottom,0px))}
+  body.shell:not(.stand):not(.viewer) #left-rail{height:auto;max-width:100%;overflow-x:auto;overflow-y:hidden;
+    flex-direction:row;gap:5px;background:var(--glass);border:1px solid var(--border-soft);
+    -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-radius:12px;padding:5px 6px;
+    box-shadow:0 6px 22px rgba(0,0,0,.18);scrollbar-width:none}
+  body.shell:not(.stand):not(.viewer) #left-rail::-webkit-scrollbar{display:none}
+  body.shell .ltab{flex-direction:row;gap:5px;min-width:0;padding:9px 11px;border-radius:10px}
+  body.shell .lsep,body.shell .lgrow{display:none}
+  /* P1-1 图层面板：262px 竖条浮层 → 全宽底部抽屉（1180 断点 shell 规则特异性反制） */
+  body.shell:not(.stand):not(.viewer) #left-flyout{position:fixed;left:8px;right:8px;top:auto;
+    bottom:calc(64px + env(safe-area-inset-bottom,0px));width:auto;height:auto;max-height:56vh;margin:0;
+    overflow-y:auto;z-index:45;border:1px solid var(--border-soft);border-radius:14px;
+    box-shadow:0 12px 40px rgba(0,0,0,.28);background:var(--panel)}
+  /* P0-4 编辑栏「音符/节奏」组超宽：shell 的 wrap+overflow:visible → 单行横滑（组 flex:none 不折行，不滚即裁） */
+  body.shell #editbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  body.shell #editbar::-webkit-scrollbar{display:none}
+  body.shell #editbar #beat-box{margin-left:0}
+  /* P1-3 触控热区：38px 重申（被 shell 的 28px 压过） */
+  body.shell #editbar .eb{min-height:38px}
+  body.shell #editbar #seg-undo button{min-height:36px}
+  #quickbar button{min-height:38px}
+  #viewerbar .vh-icons>*{width:40px;height:40px}
+  /* P0-7 手动放大（body.mzoom）后可横向平移查看右半谱面（编辑/观看两态通用） */
+  body.mzoom #score-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  body.shell.mzoom:not(.stand):not(.viewer) #paper{overflow-x:visible}
+  /* 右栏（创作/智能/排版/信息）暂不入手机版式：三栏框架窄屏无落位，原本就在折叠屏外不可达；
+     隐藏换取谱面全幅（移动端右栏形态列入后续路线） */
+  body.shell:not(.stand):not(.viewer) #right-dock{display:none}
 }
 /* 极窄：编辑栏标签精简，仅留必要 */
 @media (max-width:520px){
@@ -8479,6 +8581,12 @@ window.addEventListener('keydown', e=>{
     else if(e.key==='Escape') exitViewer();
     else if(e.key==='+'||e.key==='=') vwTranspose(1);
     else if(e.key==='-'||e.key==='_') vwTranspose(-1);
+    return;
+  }
+  if(document.getElementById('pcenter')){   /* v59.0 个人中心整页打开：屏蔽编辑器快捷键，Esc 返回制谱器 */
+    const tg=(document.activeElement||{}).tagName;
+    if(tg==='INPUT'||tg==='SELECT'||tg==='TEXTAREA'){ if(e.key==='Escape') document.activeElement.blur(); return; }
+    if(e.key==='Escape' && !document.querySelector('.modal-mask') && !document.getElementById('popmenu')) pcxBack();
     return;
   }
   const tag = (document.activeElement||{}).tagName;
@@ -16158,17 +16266,12 @@ const PC_ICON = {
 };
 function pcProfileHTML(){
   const p=profileLoad();
-  const initial=(p.name||'乐').trim().charAt(0)||'乐';
-  return `<h4>个人资料</h4>
-    ${pcAcctHTML()}
-    <div style="display:flex;align-items:center;gap:14px;margin:10px 0 14px">
-      <div class="pc-avatar">${esc(initial)}</div>
-      <div style="font-size:12.5px;color:var(--muted)">${certBadgeHTML(creatorLoad().cert)} 资料保存在本机浏览器；"默认制谱署名"会自动填入新建曲谱的制谱一栏。</div>
-    </div>
+  return `<div class="pcx-card"><h4>个人资料</h4>
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">资料保存在本机浏览器；「默认制谱署名」会自动填入新建曲谱的制谱一栏。账号头像与昵称在<a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" style="color:var(--accent)">官网个人中心</a>修改。</p>
     <label class="f"><span>昵称</span><input id="pc-name" value="${esc(p.name||'')}" placeholder="如：阿杜" style="flex:1"></label>
     <label class="f"><span>签名</span><input id="pc-sign" value="${esc(p.sign||'')}" placeholder="一句话介绍自己（可留空）" style="flex:1"></label>
     <label class="f"><span>制谱署名</span><input id="pc-maker" value="${esc(p.maker||'')}" placeholder="新建曲谱时自动填入制谱（可留空）" style="flex:1"></label>
-    <div class="btns"><button id="pc-psave" class="primary">保存资料</button></div>`;
+    <div class="btns"><button id="pc-psave" class="primary">保存资料</button></div></div>`;
 }
 function pcMineHTML(){
   const lib=libLoad();
@@ -16180,10 +16283,10 @@ function pcMineHTML(){
   const cloud = (window.PYQ_CLOUD && ACCT)
     ? '<div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">☁ 云端同步已开启，曲谱自动在已登录的设备间同步。</div>'
     : (API_ON ? '<div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">登录后曲谱可跨设备云端同步（当前仅存本机）。</div>' : '');
-  return `<h4>我的曲谱（${lib.length}）</h4>
+  return `<div class="pcx-card"><h4>我的曲谱 <span class="cnt">${lib.length} 首</span></h4>
     ${cloud}
     ${lib.length? rows : '<p>还没有保存的曲谱。制作时点顶部「保存」即可存入，之后编辑实时同步。</p>'}
-    <div class="btns"><button id="pc-openlib">打开我的曲谱</button></div>`;
+    <div class="btns" style="justify-content:flex-start;margin-top:10px"><button id="pc-openlib">打开我的曲谱</button></div></div>`;
 }
 const CERT_NAME={tabber:'认证扒谱人', teacher:'认证教师'};
 function certBadgeHTML(cert, small){
@@ -16211,14 +16314,13 @@ function pcCreatorHTML(){
     <span class="t2">${esc(e2.at)}</span>
     <span class="t2" style="font-family:ui-monospace,monospace">${esc(e2.hash.slice(0,18))}…</span>
     <button data-pf-exp="${i}">导出凭证</button><button data-pf-del="${i}">删除</button></div>`).join('');
-  return `<h4>创作者中心 ${certBadgeHTML(cr.cert)}</h4>
-  <h4>谱友圈 · 发布管理</h4>
+  return `<div class="pcx-card"><h4>谱友圈 · 发布管理</h4>
   <p>选择哪些曲谱推送到谱友圈；付费谱可设定价与试读小节数，C端购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱友圈 →</a></p>
-  ${pubRows || '<p>先在制谱器里「保存」曲谱到我的曲谱，再到这里发布。</p>'}
-  <h4>版权登记辅助（原创作品时间戳存证）</h4>
+  ${pubRows || '<p>先在制谱器里「保存」曲谱到我的曲谱，再到这里发布。</p>'}</div>
+  <div class="pcx-card"><h4>版权登记辅助（原创作品时间戳存证）</h4>
   <p>对当前曲谱内容生成 SHA-256 指纹并记录时间戳，可导出凭证文件；内容修改后指纹即变化，可证明"此时刻已存在此内容"。（接入公证时间戳/区块链存证为规划功能）</p>
   <div class="btns" style="justify-content:flex-start;margin:4px 0"><button id="cr-proof" class="primary">为当前曲谱生成存证</button></div>
-  ${proofs || '<p>还没有存证记录。</p>'}`;
+  ${proofs || '<p>还没有存证记录。</p>'}</div>`;
 }
 /* 平台管理（演示版）：审核队列 / 上架管理 / 平台看板 / 系统配置。
    云端上线后此界面对接管理员账号与真实 API（admin.puyouquan.com） */
@@ -16234,7 +16336,7 @@ function pcAdminHTML(){
     <span class="t1">${esc(pb.title||'未命名曲谱')}</span>
     <span class="t2">${esc(pb.author||'佚名')} · ${TYPE_CN[pb.type]||'曲谱'} · ${pb.price>0?'¥'+pb.price:'免费'} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</span>
     ${acts}</div>`;
-  return `<h4>平台管理 <span style="font-size:10.5px;color:var(--muted);letter-spacing:0">演示版 · 云端上线后为独立管理员后台</span></h4>
+  return `<div class="pcx-card"><h4>平台管理 <span style="font-size:10.5px;color:var(--muted);letter-spacing:0">演示版 · 云端上线后为独立管理员后台</span></h4>
   <h4>平台看板</h4>
   <div class="feat" style="grid-template-columns:repeat(4,1fr);margin:8px 0">
     ${tile(live.length,'已上架')}
@@ -16253,7 +16355,7 @@ function pcAdminHTML(){
   <h4>系统配置</h4>
   <label class="f"><span>平台抽成</span><input id="adm-rate" type="number" min="0" max="90" value="${cfg.rate}" style="width:70px"> %（创作者到手 = 售价 ×（1−抽成））</label>
   <label class="f"><span>圈内公告</span><input id="adm-notice" value="${esc(cfg.notice||'')}" placeholder="显示在谱友圈顶部（留空不显示）" style="flex:1"></label>
-  <div class="btns" style="justify-content:flex-start"><button id="adm-save" class="primary">保存配置</button></div>`;
+  <div class="btns" style="justify-content:flex-start"><button id="adm-save" class="primary">保存配置</button></div></div>`;
 }
 function pcRightsHTML(){
   pyqEvent('paywall_view');
@@ -16285,8 +16387,9 @@ function pcRightsHTML(){
       <input id="rt-code" placeholder="输入兑换码（如 PYQ-XXXX-XXXX-XXXX）" style="flex:1;max-width:320px" autocomplete="off">
       <button id="rt-redeem" class="primary">兑换</button></div>
     <p style="font-size:12px;color:var(--muted);margin-top:6px">兑换码可通过官方渠道购买；在线支付即将上线。</p>` : '';
-  return `<h4>我的权益</h4>${status}
-    <div class="mb-grid">${cards}</div>${redeem}`;
+  return `${status}
+    <div class="mb-grid">${cards}</div>
+    ${redeem? `<div class="pcx-card" style="margin-top:14px;max-width:480px"><h4>兑换码</h4>${redeem}</div>` : ''}`;
 }
 /* v45.4 微信 Native 扫码支付：下单→弹二维码（qrModules 复用）→轮询 status→到账刷新权益。
    价格由服务端 /pay/create 权威计费，前端按钮文案仅展示。 */
@@ -16325,24 +16428,71 @@ async function startWxPay(kind){
     }catch(_){/* 网络抖动继续轮询 */}
   }, 2500);
 }
-function openPersonal(tab){
-  tab = tab||'profile';
-  const NAV=[['profile','个人资料'],['creator','创作者中心'],['mine','我的曲谱'],['rights','我的权益'],...(API_ON?[]:[['admin','平台管理']])];   /* v58.9 平台管理线上隐藏；v59.0 自定义节奏型下线 */
-  const body={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, rights:pcRightsHTML, admin:pcAdminHTML}[tab]();
-  showModal(`<h3>个人中心</h3>
-    <div class="pc-wrap">
-      <div class="pc-nav">${NAV.map(([k,n])=>`<button data-pc-nav="${k}" class="${k===tab?'on':''}">${PC_ICON[k]}<span>${n}</span></button>`).join('')}</div>
-      <div class="pc-body">${body}</div>
-    </div>
-    <div class="btns"><button id="pc-close" class="primary">关闭</button></div>`, true);
-  const M=document.querySelector('.modal');
-  document.getElementById('pc-close').onclick = closeModal;
-  M.querySelectorAll('[data-pc-nav]').forEach(b=>b.onclick=()=>openPersonal(b.dataset.pcNav));
+/* v59.0 个人中心独立页：enterPersonal 建全页壳（#pcenter）→ renderPersonal 渲染页签；
+   openPersonal 保名作别名，全部既有「操作后重刷」调用零改动。
+   history：整页在历史栈只占一条（进入 pushState 一次、切页签 replaceState），Back 一次回编辑器；
+   ?pc=<tab> 可刷新可收藏（冷启动 replace 进入，返回钮直接拆页清参）。 */
+let PCX_PUSHED=false;
+function enterPersonal(tab, opts){
+  opts=opts||{}; tab=tab||'mine';
+  let pg=document.getElementById('pcenter');
+  if(!pg){
+    closePop(); closeModal();
+    pg=document.createElement('div'); pg.id='pcenter';
+    pg.innerHTML=`<div class="pcx-top">
+        <span class="t cc-logo"><span class="mark"></span>个人中心</span>
+        <span class="sub">管理曲谱 · 发布 · 权益</span>
+        <span style="flex:1"></span>
+        <button id="pcx-back" class="primary">返回制谱器</button>
+      </div>
+      <div class="pcx-hero" id="pcx-hero"></div>
+      <div class="pcx-layout"><nav class="pcx-side" id="pcx-side"></nav><div class="pcx-main" id="pcx-main"></div></div>`;
+    document.body.appendChild(pg);
+    document.getElementById('pcx-back').onclick=pcxBack;
+    if(!opts.fromPop){
+      try{
+        if(opts.replace){ history.replaceState({pyqPc:1},'','?pc='+tab); PCX_PUSHED=false; }
+        else{ history.pushState({pyqPc:1},'','?pc='+tab); PCX_PUSHED=true; }
+      }catch(_){}
+    }else PCX_PUSHED=true;
+  }else if(!opts.fromPop){
+    try{ history.replaceState({pyqPc:1},'','?pc='+tab); }catch(_){}
+  }
+  renderPersonal(tab);
+}
+function pcxBack(){ if(PCX_PUSHED){ try{ history.back(); return; }catch(_){} } exitPersonal(); }
+function exitPersonal(opts){
+  opts=opts||{};
+  const pg=document.getElementById('pcenter'); if(pg) pg.remove();
+  if(opts.fromPop){ PCX_PUSHED=false; return; }
+  try{
+    if(PCX_PUSHED){ PCX_PUSHED=false; history.back(); }
+    else if(/[?&]pc=/.test(location.search)) history.replaceState(null,'',location.pathname);
+  }catch(_){}
+}
+window.addEventListener('popstate', ()=>{
+  let pc=null; try{ pc=new URLSearchParams(location.search).get('pc'); }catch(_){}
+  if(pc && (['profile','creator','mine','rights'].indexOf(pc)>=0 || (!API_ON && pc==='admin'))) enterPersonal(pc,{fromPop:true});
+  else exitPersonal({fromPop:true});
+});
+function openPersonal(tab){ enterPersonal(tab); }
+function renderPersonal(tab){
+  const pg=document.getElementById('pcenter'); if(!pg) return;
+  const bodyFn={profile:pcProfileHTML, creator:pcCreatorHTML, mine:pcMineHTML, rights:pcRightsHTML, admin:pcAdminHTML}[tab] || (tab='mine', pcMineHTML);
+  const NAV=[['mine','我的曲谱'],['creator','创作者中心'],['rights','我的权益'],['profile','个人资料'],...(API_ON?[]:[['admin','平台管理']])];   /* v59.0 工作台心智：曲谱在前、资料殿后 */
+  const keep = pg.dataset.tab===tab ? pg.scrollTop : 0;
+  pg.dataset.tab=tab;
+  document.getElementById('pcx-hero').innerHTML=pcxHeroHTML();
+  document.getElementById('pcx-side').innerHTML=NAV.map(([k,n])=>`<button data-pc-nav="${k}" class="${k===tab?'on':''}">${PC_ICON[k]}<span>${n}</span></button>`).join('');
+  document.getElementById('pcx-main').innerHTML=bodyFn();
+  pg.scrollTop=keep;
+  const M=pg;
+  M.querySelectorAll('[data-pc-nav]').forEach(b=>b.onclick=()=>enterPersonal(b.dataset.pcNav));
+  /* 页头账号操作（账号卡上移进常驻页头，每次渲染重绑；绑定微信/全下线仍归 www 的 me.html） */
+  const bLg=document.getElementById('acct-login'); if(bLg) bLg.onclick=()=>openLogin();
+  const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
+  const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
   if(tab==='profile'){
-    const bLg=document.getElementById('acct-login'); if(bLg) bLg.onclick=openLogin;
-    const bLo=document.getElementById('acct-logout'); if(bLo) bLo.onclick=acctLogout;
-    /* v58.9 统一个人中心：绑定微信/退出所有设备等账号类操作移居 www 的 me.html（账号卡「个人中心 ↗」直达） */
-    const bCr=document.getElementById('acct-creator'); if(bCr) bCr.onclick=acctBecomeCreator;
     document.getElementById('pc-psave').onclick=()=>{
       profileSave({name:document.getElementById('pc-name').value.trim(),
         sign:document.getElementById('pc-sign').value.trim(),
@@ -16352,7 +16502,7 @@ function openPersonal(tab){
   }else if(tab==='creator'){
     const cr=creatorLoad();
     const gc=document.getElementById('cr-gocircle');
-    if(gc) gc.onclick=()=>{ closeModal(); openCircle(); };
+    if(gc) gc.onclick=()=>{ exitPersonal(); openCircle(); };
     M.querySelectorAll('[data-pub-on]').forEach(b2=>b2.onclick=()=>{
       const e0=libLoad().find(x=>x.id===b2.dataset.pubOn); if(!e0) return;
       showPublishMenu(e0, b2.getBoundingClientRect());
@@ -16392,10 +16542,10 @@ function openPersonal(tab){
       openPersonal('creator');
     });
   }else if(tab==='mine'){
-    document.getElementById('pc-openlib').onclick=()=>{ closeModal(); showLibrary(); };
+    document.getElementById('pc-openlib').onclick=()=>{ exitPersonal(); showLibrary(); };
     M.querySelectorAll('[data-pc-open]').forEach(b=>b.onclick=()=>{
       const e0=libLoad().find(x=>x.id===b.dataset.pcOpen);
-      if(e0){ bumpViews(e0.id); closeModal(); loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+e0.title)); }
+      if(e0){ bumpViews(e0.id); exitPersonal(); loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+e0.title)); }
     });
     M.querySelectorAll('[data-pc-del]').forEach(b=>b.onclick=()=>{
       const lib=libLoad(); const i=lib.findIndex(x=>x.id===b.dataset.pcDel);
@@ -16428,7 +16578,7 @@ function openPersonal(tab){
       toast('已强制下架'); openPersonal('admin');
     });
     M.querySelectorAll('[data-adm-view]').forEach(b2=>b2.onclick=()=>{
-      closeModal(); openPubViewer(b2.dataset.admView);
+      exitPersonal(); openPubViewer(b2.dataset.admView);
     });
   }else if(tab==='rights'){
     const lg=document.getElementById('rt-login'); if(lg) lg.onclick=()=>openLogin();
@@ -16494,35 +16644,32 @@ if(API_ON){ const _wb=new URLSearchParams(location.search).get('wxbind');
     if(_wb==='ok'){ acctRefresh().then(()=>{ try{ toast('微信绑定成功，下次可扫码登录'); }catch(_){}; try{ openPersonal('profile'); }catch(_){} }); }
     else if(_wb==='conflict'){ try{ toast('该微信已绑定其他账号，请先在原账号解绑'); }catch(_){} }
     else { try{ toast('微信绑定未完成，请重试'); }catch(_){} } } }
-function pcAcctHTML(){
-  const box='display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:11px 13px;margin:2px 0 15px;border:1px solid var(--border-soft,#e4ddcd);border-radius:12px;background:var(--panel,#fefdf9)';
-  if(!API_ON) return `<div style="${box};font-size:12.5px;color:var(--muted)">账号登录与云端同步需在 <b>puyouquan.com</b> 上使用；本机 / 预览环境下资料仅存本地。</div>`;
+/* v59.0 独立页常驻页头（原 pcAcctHTML 账号卡上移）：账号三态照搬——本机提示 / 已登录身份区 / 未登录登录钮；
+   账号类操作（换头像/绑微信/全下线）仍统一在 www 的 me.html，此处只留展示+直达+登录/退出/成为创作者 */
+function pcxHeroHTML(){
+  if(!API_ON) return `<div class="pcx-id"><div class="pcx-nick">本机模式</div>
+    <div class="pcx-sub">账号登录与云端同步需在 <b>puyouquan.com</b> 上使用；本机 / 预览环境下资料仅存本地。</div></div>`;
   if(ACCT){
     const isCreator=ACCT.role==='creator';
-    const badge=isCreator?'<span style="font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:0 5px;margin-left:6px">创作者</span>':'';
+    const badge=isCreator?'<span class="pcx-badge">创作者</span>':'';
     const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
     const wxTag=ACCT.wx?' · <span style="color:#07c160">已绑定微信</span>':'';
-    /* v58.9 统一个人中心：账号类操作（换头像/绑微信/全下线）统一在 me.html，编辑器账号卡瘦身只留展示+直达；
-       头像三态复用 ACCT.avatar（data:/http: 出 img，空回退首字） */
     const av=ACCT.avatar||'';
     const avHTML=(av && (av.slice(0,11)==='data:image/'||av.slice(0,4)==='http'))
       ? `<div class="pc-avatar has-img"><img src="${esc(av)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.parentNode.textContent='${esc((ACCT.nickname||'谱').charAt(0))}'"></div>`
       : `<div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>`;
-    return `<div style="${box}">
-      <a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" title="在个人中心更换头像" style="line-height:0">${avHTML}</a>
-      <div style="flex:1;min-width:200px">
-        <div style="font-weight:600">${esc(ACCT.nickname||'')}${badge}</div>
-        <div style="font-size:12px;color:var(--muted)">${esc(ACCT.phone||'')} · 已登录，云端同步开启${wxTag}</div>
+    return `<a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" title="在官网个人中心更换头像" style="line-height:0;text-decoration:none">${avHTML}</a>
+      <div class="pcx-id">
+        <div class="pcx-nick">${esc(ACCT.nickname||'')}${badge}${certBadgeHTML(creatorLoad().cert, true)}</div>
+        <div class="pcx-sub"><span>${esc(ACCT.phone||'')}</span><span>已登录 · 云端同步开启${wxTag}</span>
+          <a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600;white-space:nowrap">官网个人中心 ↗</a></div>
       </div>
-      <a href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener" style="white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--accent)">个人中心 ↗</a>
-      ${become}<button id="acct-logout">退出登录</button></div>`;
+      <div class="pcx-acts">${become}<button id="acct-logout" class="ghost" style="color:var(--muted)">退出登录</button></div>`;
   }
-  return `<div style="${box}">
-    <div style="flex:1">
-      <div style="font-weight:600">未登录</div>
-      <div style="font-size:12px;color:var(--muted)">登录后可跨设备同步曲谱、收藏与谱架</div>
-    </div>
-    <button id="acct-login" class="primary">登录 / 注册</button></div>`;
+  return `<div class="pc-avatar">谱</div>
+    <div class="pcx-id"><div class="pcx-nick">未登录</div>
+      <div class="pcx-sub">登录后可跨设备同步曲谱、收藏与谱架</div></div>
+    <div class="pcx-acts"><button id="acct-login" class="primary">登录 / 注册</button></div>`;
 }
 /* opts.onDone(ok)：登录/取消后的回调（提供时不再跳个人中心，用于「看谱时收藏→就地拉起登录」等钩子）；
    opts.hint：自定义副标题文案；opts.pendingFav：微信整页跳转前暂存待收藏 id，回跳后补收藏。 */
@@ -16672,7 +16819,7 @@ async function syncScores(){
   }catch(_){/* 网络失败静默，下次登录/保存再补偿 */}
   finally{ _syncing = false; }
 }
-document.getElementById('b-member').onclick = ()=>openPersonal('profile');
+document.getElementById('b-member').onclick = ()=>openPersonal('mine');   /* v59.0 独立页默认落「我的曲谱」（工作台心智） */
 
 /* ================= 弹窗/提示 ================= */
 let modalPos=null;
@@ -16817,7 +16964,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v58.9';
+const APP_VER='v59.0';
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -16840,6 +16987,7 @@ const APP_VER='v58.9';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.0</span><div><b>个人中心独立页面 + 全站移动端深修</b>（UI 设计专家 + 两组移动端审计专家实测策划）：① <b>编辑器个人中心从弹窗升级为独立页面</b>——整页布局：常驻身份页头（头像/昵称/创作者徽章/云同步状态/官网个人中心直达）+ 左侧导航（我的曲谱 / 创作者中心 / 我的权益 / 个人资料，工作台心智曲谱在前）+ 卡片化内容区；地址栏 <code>?pc=页签</code> 可刷新可收藏，浏览器返回一步回到制谱器，Esc 同效；手机上导航变吸顶胶囊横滑、触控目标 44px。② <b>自定义节奏型下线</b>（本机模板数据原地保留不清除）。③ <b>手机制谱可用性深修</b>（实测发现桌面框架规则在窄屏压过手机适配规则）：修复谱面纵向滚动死锁（此前第一屏以下不可达）、启动台入口落回首屏、左栏图层轨改为屏内底部横滑抽屉、编辑栏改单行横滑（清音/高把位钮不再被裁出屏）、放大后可横向平移看右半幅、导出弹窗按钮不再向左甩出屏、按钮触控高度提到 38px+；观看页「放大 115%/135%」在手机上真正生效。④ <b>官网移动端修正</b>：顶部导航四项完整可见（此前大半被裁且无滑动暗示）、登录弹窗在键盘弹起后可滚动触达按钮、输入框 16px 不再触发 iOS 自动放大、首页工具卡不再逐字竖排、个人中心长曲谱名不再撑破页面横晃、常见小按钮触控热区全面加大。</div></li>
     <li><span class="v">v58.9</span><div><b>个人中心大升级：统一入口 + 换头像 + 创作者中心</b>（3 位专家 agent 联合策划）：① <b>制谱与看谱共用一个个人中心</b>——www.puyouquan.com/me.html 统管「我是谁」（账号资料/头像/会员/创作者身份/云端曲谱/收藏），编辑器个人中心专注「我在做什么」（发布管理/节奏型模板/已购），编辑器账号页头像与「个人中心 ↗」一键直达统一页面，绑定微信/退出所有设备等账号操作集中到统一中心不再两处维护。② <b>支持更换头像</b>：点击头像即换——8 个四族社色预设（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金 × 乐器图标），或上传本地图片（自动裁成正方形、压缩存云端，全端同步显示）；选即生效零确认步。③ <b>成为创作者 / 创作者中心</b>：普通会员在个人中心一键免费开通创作者；开通后原位变身<b>创作者中心</b>——已发布曲谱计数与列表（直达谱库观看页）、「去编辑器发布」深链直落编辑器创作者页签；编辑器创作者页签同步瘦身，删掉演示性的数据看板/收益设置/体验认证，保留发布管理与版权存证两件真功能。</div></li>
     <li><span class="v">v58.8</span><div><b>官网 UI 大升级：「智能曲谱平台」</b>（slogan 定案，4 位专家 agent 联合策划）：① <b>曲谱卡片刻版化</b>——每种谱种长出真实刻版骨架：六线谱 TAB+品位数字、简谱数字+八度点、大谱表花括线+高低音谱号+符头、和弦框图按点；四族出版社色（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金）只染封面洗色与印章，音乐内容永远墨色；hover「谱面苏醒」微动效 + 进场渐次浮现 + 加载骨架屏。② <b>全站降噪</b>：页脚 5 列 20 链砍为两行 7 链（slogan+备案保留）、首页删「看谱三件事」/FAQ/重复制谱条、工具带 4→3 格下移让位卡片流、免费角标撤除。③ <b>智能可感知</b>：「最近看过」回访置顶一行、「上新 N 首」徽章、搜索占位轮播。④ slogan 落位 h1/浏览器标题/导航/页脚/微信分享卡，全站文案统一口径。</div></li>
     <li><span class="v">v58.7</span><div><b>官网大改版：曲谱搜索网站 + 独立个人中心</b>（产品定位拍板：整站以找谱为第一任务，制谱是其中一个工具）：① www.puyouquan.com 首页改为<b>搜索型首页</b>——大搜索框即时本地过滤、谱种快捷筛选（空分类自动隐藏）、谱库卡片流全量展示 + 加载更多、工具带四入口（在线制谱/智能配伴奏/考编艺考/帮助）；原营销内容迁入「制谱」介绍页；谱库域 puku 根路径并入主站（观看页 kanpu 分享链接不受影响）。② <b>个人中心升级独立页面</b>（导航头像直达）：账号资料/会员状态/我的云端曲谱/我的收藏/绑定微信/退出等一站集中，未登录时整页居中登录卡（含微信登录）。③ 全站移动端适配：380px 无横向滚动、搜索框 50px 大点击区、筛选单行横滑、卡片单列、手机端制谱入口先进介绍页（编辑器电脑体验最佳，一键复制链接）。</div></li>
@@ -17401,12 +17549,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
     if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
     const mine=new URLSearchParams(location.search).get('mine');
     if(mine && /^[A-Za-z0-9_-]{1,40}$/.test(mine)){ openRemoteMine(mine); return; }
-    /* v58.9 ?pc=<页签>：me.html「去编辑器发布」深链直达个人中心对应页签 */
+    /* v58.9 ?pc=<页签> 深链直达个人中心；v59.0 独立页化：保留 URL 参数（可刷新/收藏），replace 进入 */
     const pc=new URLSearchParams(location.search).get('pc');
     if(pc && ['profile','creator','mine','rights'].indexOf(pc)>=0){
-      try{ history.replaceState(null,'',location.pathname); }catch(_){}
       try{ initStartPad(); }catch(_){}
-      setTimeout(()=>{ try{ openPersonal(pc); }catch(_){} }, 60);
+      setTimeout(()=>{ try{ enterPersonal(pc,{replace:true}); }catch(_){} }, 60);
       bootVeilDone(); return;
     }
   }catch(e){ console.error('曲谱深链启动失败', e); }

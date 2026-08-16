@@ -10,14 +10,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   let pass = 0, total = 0;
   const T = (ok, name, detail) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (detail ? ': ' + detail : '')); };
 
-  // T1 file:// 下 API_ON=false：个人资料含降级提示、无登录按钮，本地演示不受影响
+  // T1 file:// 下 API_ON=false：个人中心独立页（v59.0）页头含降级提示、无登录按钮，本地资料表单可用
   let r = await pg.evaluate(() => {
     openPersonal('profile');
-    const body = document.querySelector('.pc-body').innerHTML;
-    return { apiOn: API_ON, hint: body.includes('puyouquan.com'), noLogin: !document.getElementById('acct-login'),
-      hasProfile: !!document.getElementById('pc-name') };
+    const pc = document.getElementById('pcenter');
+    return { apiOn: API_ON, open: !!pc, hint: document.getElementById('pcx-hero').innerHTML.includes('puyouquan.com'),
+      noLogin: !document.getElementById('acct-login'), hasProfile: !!document.getElementById('pc-name') };
   });
-  T(r.apiOn === false && r.hint && r.noLogin && r.hasProfile, 'T1 本机降级提示', JSON.stringify(r));
+  T(r.apiOn === false && r.open && r.hint && r.noLogin && r.hasProfile, 'T1 本机降级提示（独立页）', JSON.stringify(r));
 
   // T2 openLogin 弹窗结构完整
   r = await pg.evaluate(() => {
@@ -60,14 +60,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.acct && r.acct.id === 'u1' && r.cache && r.cache.nickname === '谱友0000', 'T4 登录落地', JSON.stringify(r.acct));
 
-  // T5 登录后账号卡（模拟 API_ON 路径）：pcAcctHTML 含昵称/退出/成为创作者（role=user）
+  // T5 登录后账号态（模拟 API_ON 路径）：v59.0 页头渲染函数与账号操作函数完备（file:// 下 API_ON=false 短路为提示）
   r = await pg.evaluate(() => {
-    // 强制走登录态渲染分支：ACCT 已由 T4 设置；pcAcctHTML 内部对 API_ON 判断，
-    // file:// 下 API_ON=false 会短路为提示——故此处直接断言 pcAcctHTML 的 ACCT 分支逻辑用 stub。
-    const html = (function(){ const A = ACCT; // 复用真实函数需 API_ON；这里直接检查函数存在性与 ACCT 字段
-      return { hasFn: typeof pcAcctHTML === 'function' && typeof acctLogout === 'function' && typeof acctBecomeCreator === 'function',
-        role: A && A.role, nick: A && A.nickname }; })();
-    return html;
+    const A = ACCT;
+    return { hasFn: typeof pcxHeroHTML === 'function' && typeof acctLogout === 'function' && typeof acctBecomeCreator === 'function'
+        && typeof enterPersonal === 'function' && typeof exitPersonal === 'function',
+      role: A && A.role, nick: A && A.nickname };
   });
   T(r.hasFn && r.role === 'user' && r.nick === '谱友0000', 'T5 账号态与函数完备', JSON.stringify(r));
 
