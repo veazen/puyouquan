@@ -54,7 +54,11 @@ const seed = [
       n: cards.length,
       cover: !!(first && first.querySelector('.cc-cover svg')),
       type: first ? first.querySelector('.cc-type').textContent : '',
-      free: first ? first.querySelector('.cc-price').textContent : '',
+      noFree: first ? !first.querySelector('.cc-price') : false,   /* v58.8 免费角标撤除，仅付费显 ¥ */
+      mea: first ? (first.querySelector('.cc-mea')||{}).textContent||'' : '',
+      fam: first ? first.dataset.fam : '',
+      seal: !!(first && first.querySelector('.cv-seal')),          /* 刻版印章层（谱号/TAB/按点） */
+      skGone: !document.querySelector('#lib-grid .sk-card'),
       href: first ? first.getAttribute('href') : '',
       search: !!document.getElementById('lib-q'),
       chips: document.querySelectorAll('#lib-cats .fchip').length,
@@ -63,9 +67,18 @@ const seed = [
       apiOn: /puyouquan\.com$/.test(location.hostname),
     };
   });
-  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.free === '免费'
+  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.noFree && r.mea === '4 小节'
+    && r.fam === 'v' && r.seal === false /* vocal 无印章件，仅水印 */ && r.skGone
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
-    && r.search && r.chips >= 3 && r.tools === 4 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
+    && r.search && r.chips >= 3 && r.tools === 3 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
+  // T1a v58.8 刻版封面：guitar 卡有 TAB 印章 + data-fam=g + 家族色变量生效
+  r = await pg.evaluate(() => {
+    const g = [...document.querySelectorAll('#lib-grid .cc-card')].find(c => c.dataset.fam === 'g');
+    return { has: !!g, seal: !!(g && g.querySelector('.cv-seal')),
+      lines: g ? g.querySelectorAll('.cv-line').length : 0,
+      famVar: g ? getComputedStyle(g).getPropertyValue('--fam').trim().length > 0 : false };
+  });
+  T(r.has && r.seal && r.lines === 6 && r.famVar, 'T1a 刻版封面（六线+TAB印章+家族色）', JSON.stringify(r));
 
   // T1b 本地即时搜索：命中过滤 + 空结果引导 + URL ?q= 同步
   r = await pg.evaluate(async () => {
@@ -169,7 +182,7 @@ const seed = [
       tools: document.querySelectorAll('.tool-card').length,
     };
   });
-  T(r.noHScroll && r.chipNowrap && r.cardFull && r.navH < 45 && r.searchH >= 48 && r.tools === 4,
+  T(r.noHScroll && r.chipNowrap && r.cardFull && r.navH < 45 && r.searchH >= 48 && r.tools === 3,
     'T10 380px 移动端适配', JSON.stringify(r));
   await pg.close();
 
@@ -193,7 +206,7 @@ const seed = [
   const idx = read('index.html');
   T(LAND.every(n => idx.includes(n + '.html')) && /rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页内链四落地页+SEO头');
   const js2 = read('pyq.js');
-  T(LAND.every(n => js2.includes(n + '.html')), 'S 页脚含四场景内链');
+  T(js2.includes('智能曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 页脚含 slogan+备案（v58.8 场景链移居首页 scene-strip）');
   const vh = read('view.html');
   T(/canonical" href="https:\/\/www\.puyouquan\.com\/"/.test(vh) && /http-equiv="refresh"/.test(vh) && /noindex/.test(vh), 'S view.html 跳转占位（谱库并入主站）');
 

@@ -233,12 +233,12 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .cta-band .btn.ghost:hover{background:rgba(246,243,234,.12)}
 
 /* ---------- 页脚 ---------- */
-#foot{margin-top:90px;border-top:1px solid var(--border-soft);padding:46px 0 36px}
-#foot .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:28px}
-#foot .fb{font-size:12.5px;color:var(--muted);max-width:280px}
-#foot h5{margin:0 0 10px;font-size:13px}
-#foot a{display:block;font-size:12.5px;color:var(--muted);padding:3.5px 0}
-#foot a:hover{color:var(--accent)}
+/* v58.8 极简页脚：品牌+slogan 行（右侧 5 链）+ 备案行 */
+#foot{margin-top:80px;border-top:1px solid var(--border-soft);padding:30px 0 26px}
+#foot .f-line{display:flex;align-items:center;justify-content:space-between;gap:14px 24px;flex-wrap:wrap}
+#foot .f-links{display:flex;gap:4px 22px;flex-wrap:wrap}
+#foot .f-links a{font-size:12.5px;color:var(--muted);padding:4px 0}
+#foot .f-links a:hover,#foot .beian a:hover{color:var(--accent)}
 #foot .beian{margin-top:28px;padding-top:18px;border-top:1px solid var(--border-soft);
   font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between}
 
@@ -254,7 +254,6 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
   .docs{grid-template-columns:1fr;gap:18px}
   .docs-side{position:static;display:flex;flex-wrap:wrap;gap:4px}
   .docs-side h6{display:none}
-  #foot .cols{grid-template-columns:1fr 1fr}
   .nav-r .btn{display:none}
 }
 @media (max-width:580px){ .g2,.g3,.g4{grid-template-columns:1fr} .stat{min-width:46%} }
@@ -476,3 +475,81 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   #me-favs{order:3}
   #me-ops{order:4}
 }
+
+/* ============ v58.8 「智能曲谱平台」升级：四族社色卡片 + 谱面苏醒动效 + 降噪 ============ */
+/* 四族社色（借乐谱出版社社色传统：Henle蓝/Peters绿/Bärenreiter红/Schott黄）——
+   音乐内容永远墨色，家族色只出现在封面洗色/印章/水印（一枚印章原则） */
+:root{
+  --fam-g:var(--accent);  /* 吉他族 guitar/solo/uku/chord：朱砂 */
+  --fam-p:#33587a;        /* 钢琴族 piano/pianoacc：墨蓝 */
+  --fam-v:#2f6d4f;        /* 人声族 vocal/teach：墨绿 */
+  --fam-f:#a8762a;        /* 功能族 func/instr：赭金 */
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a; }}
+:root[data-theme="dark"]{ --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a; }
+.cc-card{--fam:var(--fam-g)}
+.cc-card[data-fam="p"]{--fam:var(--fam-p)}
+.cc-card[data-fam="v"]{--fam:var(--fam-v)}
+.cc-card[data-fam="f"]{--fam:var(--fam-f)}
+/* 卡片本体：圆角 18 + 家族色 hover 描边 + 三级阴影 */
+.cc-card{border-radius:18px;box-shadow:0 1px 2px rgba(60,50,30,.05)}
+.cc-card:hover{transform:translateY(-4px);
+  box-shadow:0 16px 40px rgba(60,50,30,.14),0 2px 8px rgba(60,50,30,.06);
+  border-color:color-mix(in srgb,var(--fam) 30%,var(--border-soft))}
+/* 封面：家族渐变洗色（全站唯一渐变来源，SVG 内零渐变），高度 108→120 */
+.cc-cover{height:120px;background:linear-gradient(155deg,
+  color-mix(in srgb,var(--fam) 14%,var(--panel)),
+  color-mix(in srgb,var(--fam) 4%,var(--panel)) 62%, var(--panel))}
+.cc-type{color:var(--fam);border-color:color-mix(in srgb,var(--fam) 25%,transparent)}
+.cc-mea{position:absolute;left:12px;bottom:8px;font-size:10.5px;color:var(--muted)}
+.cc-body{padding:12px 16px 13px}
+.cc-body .t,.cc-body .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 谱面苏醒（hover 势能，全 transform/opacity 合成层）：音符列琶音式微浮 + 墨色呼吸 + 水印偏头 */
+.cc-cover .cv-col{transition:transform .32s cubic-bezier(0,0,.2,1)}
+.cc-card:hover .cv-col{transform:translateY(-1.5px)}
+.cc-cover .cv-line{transition:stroke-opacity .25s}
+.cc-card:hover .cv-line{stroke-opacity:.2}
+.cc-cover .cv-seal{opacity:.85;transition:opacity .25s}
+.cc-card:hover .cv-seal{opacity:1}
+.cc-cover .cv-wm{transform-box:view-box;transform-origin:195px 60px;
+  transition:transform .6s cubic-bezier(.22,.61,.36,1),opacity .6s}
+.cc-card:hover .cv-wm{transform:rotate(-4deg) translateY(-2px);opacity:.16}
+/* 进场 stagger：仅首绘一次（grid data-ready 后过滤重绘不闪） */
+@keyframes ccIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+#lib-grid:not([data-ready]) .cc-card,#fav-grid:not([data-ready]) .cc-card{
+  animation:ccIn .5s cubic-bezier(.2,.7,.3,1) var(--d,0ms) backwards}
+@media (prefers-reduced-motion:reduce){
+  #lib-grid .cc-card,#fav-grid .cc-card{animation:none!important}
+  .cc-cover .cv-col,.cc-cover .cv-line,.cc-cover .cv-seal,.cc-cover .cv-wm{transition:none}}
+/* 骨架屏（加载态替代文字占位） */
+.sk-card{height:196px;border-radius:18px;border:1px solid var(--border-soft);
+  background:linear-gradient(100deg,var(--panel) 40%,color-mix(in srgb,var(--text) 4%,var(--panel)) 50%,var(--panel) 60%);
+  background-size:200% 100%;animation:sk 1.2s linear infinite}
+@keyframes sk{to{background-position:-100% 0}}
+/* 谱种 chip 降噪：默认无边框静底，选中态不变 */
+.fchip{border-color:transparent;background:color-mix(in srgb,var(--text) 5%,transparent)}
+.fchip:hover{background:var(--accent-soft)}
+.fchip.on{background:var(--text);border-color:transparent}
+/* 场景内链条（自页脚/正文合并的唯一场景入口，安静样式） */
+.scene-strip{font-size:12.5px;color:var(--muted);text-align:center;margin:44px 0 0}
+.scene-strip a{color:var(--muted);border-bottom:1px dashed var(--border);margin:0 6px;padding-bottom:1px}
+.scene-strip a:hover{color:var(--accent);border-color:var(--accent)}
+/* 「最新上架」上新徽章 + 「最近看过」行 */
+.lib-new{font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+  border-radius:980px;padding:2px 9px;margin-left:2px}
+#recent-sec{margin-bottom:30px}
+/* 个人中心降噪：曲谱行分隔线式、区块标题收敛、圆角统一 18 */
+.pc-list .pc-row{border:none;border-bottom:1px solid var(--border-soft);border-radius:0;padding:10px 4px}
+.pc-list .pc-row:last-child{border-bottom:none}
+.pc-list .pc-row:hover{background:var(--accent-soft)}
+.me-h{font-size:12px;letter-spacing:.5px}
+.me-card,.me-vipcard,.auth-card{border-radius:18px}
+/* 移动端个人中心单列顺序改为：曲谱→收藏→会员→操作（回来动线优先，覆盖 v58.7 序） */
+@media(max-width:820px){
+  #me-scores{order:1}
+  #me-favs{order:2}
+  .me-vipcard{order:3}
+  #me-ops{order:4}
+}
+@media(max-width:580px){ .cc-cover{height:150px} }

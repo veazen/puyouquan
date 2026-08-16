@@ -47,7 +47,7 @@ const page = document.body.dataset.page || '';
 const navEl = document.getElementById('site-nav');
 if(navEl){
   navEl.innerHTML = `<nav id="nav"><div class="bar">
-    <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">PUYOUQUAN</span></a>
+    <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">智能曲谱平台</span></a>
     <div id="menu">${MENU.map(([h,t,k])=>`<a href="${h}" class="${(k||h.replace('.html',''))===page?'on':''}">${t}</a>`).join('')}</div>
     <div class="nav-r">
       <button id="theme-btn" title="明暗切换">${ICONS.moon}</button>
@@ -58,18 +58,21 @@ if(navEl){
 }
 const footEl = document.getElementById('site-foot');
 if(footEl){
+  /* v58.8 极简页脚（用户点名去冗）：品牌+slogan 一行 5 链 + 备案行；场景内链移居首页 .scene-strip */
   footEl.innerHTML = `<footer id="foot"><div class="wrap">
-    <div class="cols">
-      <div><div class="brand" style="margin-bottom:10px"><span class="mark"></span>谱友圈</div>
-        <p class="fb">在线制谱工具 · 吉他谱｜尤克里里谱｜简谱｜功能谱。出版级排版，打开浏览器就能做谱。</p></div>
-      <div><h5>产品</h5><a href="index.html">找谱 · 谱库</a><a href="//zhipu.puyouquan.com/">在线制谱</a><a href="features.html">功能一览</a><a href="me.html">个人中心</a></div>
-      <div><h5>适用场景</h5><a href="kaobian.html">教师考编</a><a href="yikao.html">音乐艺考</a><a href="shifan.html">师范 · 音乐教育</a><a href="jixing.html">钢琴即兴伴奏</a></div>
-      <div><h5>资源</h5><a href="help.html">使用手册</a><a href="log.html">更新日志</a><a href="help.html?section=faq">常见问题</a></div>
-      <div><h5>关于</h5><a href="sponsors.html">赞助商</a><a href="log.html">更新日志</a><a href="mailto:support@puyouquan.com">联系我们</a></div>
+    <div class="f-line">
+      <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">智能曲谱平台</span></a>
+      <nav class="f-links">
+        <a href="//zhipu.puyouquan.com/">在线制谱</a>
+        <a href="help.html">帮助</a>
+        <a href="log.html">更新日志</a>
+        <a href="sponsors.html">赞助商</a>
+        <a href="mailto:support@puyouquan.com">联系我们</a>
+      </nav>
     </div>
     <div class="beian">
-      <span>© 2026 谱友圈 puyouquan.com · 在线制谱工具</span>
-      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" style="display:inline">粤ICP备2026100396号-1</a>
+      <span>© 2026 谱友圈 puyouquan.com · 智能曲谱平台</span>
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a>
     </div>
   </div></footer>`;
 }
@@ -95,32 +98,143 @@ const _esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'
 window.PYQ_LIB = (function(){
   const TYPE_CN={guitar:'弹唱谱',uku:'尤克里里谱',solo:'独奏谱',pianoacc:'钢琴弹唱谱',piano:'钢琴独奏谱',
     vocal:'歌谱',teach:'教学对照谱',instr:'器乐五线谱',func:'功能谱',chord:'和弦谱'};
+  /* ===== v58.8 封面刻版引擎（出版级排版师规格 + UI 四族社色）=====
+     原则：音乐内容永远墨色（--text × 四阶透明度），家族色只出现在封面洗色/印章/水印；
+     每谱种真实刻版骨架（谱线/谱号/TAB/大谱表/和弦框图），不伪造时值，空数据画诚实的休止。 */
+  const FAM={guitar:'g',solo:'g',uku:'g',chord:'g',piano:'p',pianoacc:'p',vocal:'v',teach:'v',instr:'f',func:'f'};
+  const T='var(--text)', M='var(--muted)', S='var(--fam)';
+  const GT={'1,0':[5,3],'2,0':[4,0],'3,0':[4,2],'4,0':[4,3],'5,0':[3,0],'6,0':[3,2],'7,0':[2,0],
+    '1,1':[2,1],'2,1':[2,3],'3,1':[1,0],'4,1':[1,1],'5,1':[1,3],'6,1':[1,5],'7,1':[1,7],
+    '1,-1':[6,8],'2,-1':[6,10],'3,-1':[6,0],'4,-1':[6,1],'5,-1':[6,3],'6,-1':[5,0],'7,-1':[5,2]};
+  const UK={'1,0':[3,0],'2,0':[3,2],'3,0':[2,0],'4,0':[2,1],'5,0':[4,0],'6,0':[1,0],'7,0':[1,2],
+    '1,1':[1,3],'2,1':[1,5],'3,1':[1,7],'4,1':[1,8],'5,1':[1,10]};
+  const ln=(x1,y1,x2,y2,op,w,cls)=>`<line ${cls?('class="'+cls+'" '):''}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${T}" stroke-opacity="${op}" stroke-width="${w||1}"/>`;
+  const bars=(y0,y1)=>ln(16,y0,16,y1,.3,1)+ln(227,y0,227,y1,.25,1)
+    +`<rect x="230.8" y="${y0}" width="3.2" height="${y1-y0}" fill="${T}" fill-opacity=".25"/>`;
+  const staff=(ys,x0)=>ys.map(y=>ln(x0||16,y,234,y,.14,1,'cv-line')).join('');
+  const clefG=(x,y,sc)=>`<g transform="translate(${x} ${y}) scale(${sc})" fill="none" stroke="${S}" stroke-opacity=".6" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M-1.2 13.2 q-3.6 -.6 -3.8 -3.6 q-.2 -2.6 2.2 -2.8 q2.4 -.2 2.6 2.4 L-2.6 -19.5 q-.5 -5.5 3 -8.5 q3.1 2.6 2.1 7 q-.9 4 -5.6 8 q-5 4.3 -5 8.7 q0 5.3 5.3 5.9 q5.3 .6 6.1 -4.1 q.7 -4.3 -3.5 -5.5 q-3 -.8 -4.7 1.4"/></g>`;
+  const clefF=(x,y,sc)=>`<g transform="translate(${x} ${y}) scale(${sc})" fill="${S}" fill-opacity=".6" stroke="${S}" stroke-opacity=".6"><circle r="1.9" stroke="none"/><path d="M-1.6 -1.8 q6.2 -4.6 9 .6 q2.6 4.8 -1.8 9.8 q-2.7 3.1 -6.6 5" fill="none" stroke-width="1.7" stroke-linecap="round"/><circle cx="11" cy="-2.2" r="1.2" stroke="none"/><circle cx="11" cy="2.6" r="1.2" stroke="none"/></g>`;
+  const brace=(y0,y1)=>{const m=(y0+y1)/2;
+    return `<path d="M18 ${y0} C12.5 ${y0+7} 18.5 ${m-8} 13.5 ${m} C18.5 ${m+8} 12.5 ${y1-7} 18 ${y1}" fill="none" stroke="${T}" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round"/>`;};
+  const wm=()=>`<g class="cv-wm" opacity=".12"><g stroke="${S}" stroke-width="2.6" stroke-linecap="round" fill="none"><ellipse cx="188" cy="85" rx="8" ry="5.8" transform="rotate(-16 188 85)" fill="${S}" stroke="none"/><path d="M195.6 83 L195.6 36 Q209 41 211 55"/></g></g>`;
+  const romanWM=()=>`<text class="cv-wm" x="200" y="88" font-size="54" font-style="italic" font-family="Georgia,serif" fill="${S}" fill-opacity=".12" text-anchor="middle">Ⅴ<tspan font-size="28" dy="-20">7</tspan></text>`;
+  const rest=(cx,yLine)=>`<rect x="${cx-2.8}" y="${yLine}" width="5.6" height="2.3" fill="${T}" fill-opacity=".5"/>`;
+  const tabLabel=(cx,cys,size)=>`<g class="cv-seal" fill="${S}" fill-opacity=".55" font-size="${size}" font-weight="700" text-anchor="middle">`
+    +['T','A','B'].map((ch,k)=>`<text x="${cx}" y="${cys[k]}" dominant-baseline="central">${ch}</text>`).join('')+`</g>`;
   function cover(item){
-    const cols=item.cover||[]; const p=[];
-    for(let i=0;i<4;i++) p.push(`<line x1="14" y1="${30+i*15}" x2="240" y2="${30+i*15}" stroke="var(--text)" stroke-opacity=".06"/>`);
-    p.push(`<text x="212" y="100" font-size="70" fill="var(--accent)" fill-opacity=".09" text-anchor="middle" font-weight="700">♪</text>`);
-    if(cols.length){ const step=Math.min(30,200/cols.length);
-      cols.forEach((c,i)=>{ const x=26+i*step;
-        if(c.deg){ p.push(`<text x="${x}" y="56" font-size="17" font-weight="600" fill="var(--text)" fill-opacity=".78" text-anchor="middle">${_esc(c.deg)}</text>`);
-          if(c.oct>0) p.push(`<circle cx="${x}" cy="41" r="1.4" fill="var(--text)" fill-opacity=".6"/>`);
-          if(c.oct<0) p.push(`<circle cx="${x}" cy="63" r="1.4" fill="var(--text)" fill-opacity=".6"/>`); }
-        if(c.ly) p.push(`<text x="${x}" y="84" font-size="11.5" fill="var(--muted)" text-anchor="middle">${_esc(c.ly)}</text>`);
-      });
-    }else p.push(`<text x="26" y="60" font-size="13" fill="var(--muted)" fill-opacity=".8">♩ 点击观看曲谱</text>`);
+    const cols=item.cover||[], n=cols.length, tp=item.type, p=[];
+    const colWrap=(i,inner)=>`<g class="cv-col" style="transition-delay:${Math.min(i,8)*30}ms">${inner}</g>`;
+    const octDots=(x,base,oct,r)=>{let g=''; const cnt=Math.min(2,Math.abs(oct||0));
+      for(let k=0;k<cnt;k++) g+=`<circle cx="${x}" cy="${oct>0? base-14.5-k*4 : base+6.5+k*4}" r="${r}" fill="${T}" fill-opacity=".7"/>`;
+      return g;};
+    /* 简谱行（vocal/func/teach 副行共用）：列缺 deg 保留索引定位 */
+    function jpRow(ox,w,cap,degY,lyY,noLy,degSize){
+      const step=Math.min(cap,w/Math.max(1,n));
+      const ds=degSize||(n>=6?15.5:17), dr=n>=6?1.3:1.5, ls=n>=6?10.5:11.5;
+      return cols.map((c,i)=>{const x=ox+i*step; let g='';
+        if(c.deg){ g+=`<text x="${x}" y="${degY}" font-size="${ds}" font-family="Georgia,'Times New Roman',serif" font-weight="600" fill="${T}" fill-opacity=".82" text-anchor="middle">${_esc(c.deg)}</text>`+octDots(x,degY,+c.oct||0,dr); }
+        if(!noLy&&c.ly) g+=`<text x="${x}" y="${lyY}" font-size="${ls}" fill="${M}" text-anchor="middle">${_esc(String(c.ly).slice(0,2))}</text>`;
+        return g?colWrap(i,g):'';}).join('');
+    }
+    /* 五线谱符头列：整列按中位数定符干方向；越界整八度折叠；加线略宽于符头 */
+    function stNotes(ox,w,cap,base,half,lo,hi,mid,ry,ledY){
+      const step=Math.min(cap,w/Math.max(1,n)), ys=[];
+      cols.forEach(c=>{ if(!c.deg) return; let y=base-half*((parseInt(c.deg,10)||1)-1+7*(+c.oct||0));
+        while(y<lo) y+=half*7; while(y>hi) y-=half*7; ys.push(y); });
+      if(!ys.length) return '';
+      const med=ys.slice().sort((a2,b2)=>a2-b2)[Math.floor(ys.length/2)];
+      const up=med>mid, rx=1.3*ry, stemL=9.4*ry;
+      let k=0;
+      return cols.map((c,i)=>{ if(!c.deg) return '';
+        const x=ox+i*step, y=ys[k++];
+        let g=`<ellipse cx="${x}" cy="${y}" rx="${rx.toFixed(2)}" ry="${ry}" transform="rotate(-14 ${x} ${y})" fill="${T}" fill-opacity=".8"/>`;
+        g+= up? `<rect x="${(x+rx-1.1).toFixed(2)}" y="${(y-stemL).toFixed(1)}" width="1.1" height="${stemL.toFixed(1)}" fill="${T}" fill-opacity=".8"/>`
+              : `<rect x="${(x-rx).toFixed(2)}" y="${y}" width="1.1" height="${stemL.toFixed(1)}" fill="${T}" fill-opacity=".8"/>`;
+        if(ledY!=null&&y>=ledY-.01) g+=ln((x-4.8).toFixed(1),ledY,(x+4.8).toFixed(1),ledY,.5,1);
+        return colWrap(i,`<g class="cv-note">${g}</g>`); }).join('');
+    }
+    /* TAB 品位数字（骑线 + 纸底白衬），(deg,oct)→首把位[弦,品] */
+    function tabRow(ox,w,cap,topY,sp,tbl,size,lyY){
+      const step=Math.min(cap,w/Math.max(1,n));
+      return cols.map((c,i)=>{const x=ox+i*step; let g='';
+        if(c.deg){ const key=(parseInt(c.deg,10)||1)+','+Math.max(-1,Math.min(1,+c.oct||0));
+          const sf=tbl[key]||tbl[(parseInt(c.deg,10)||1)+',0']||[3,0];
+          g+=`<text x="${x}" y="${topY+(sf[0]-1)*sp}" font-size="${size}" font-family="Georgia,'Times New Roman',serif" font-weight="700" fill="${T}" fill-opacity=".85" text-anchor="middle" dominant-baseline="central" style="paint-order:stroke;stroke:var(--panel);stroke-width:4px">${sf[1]}</text>`; }
+        if(lyY&&c.ly) g+=`<text x="${x}" y="${lyY}" font-size="11" fill="${M}" text-anchor="middle">${_esc(String(c.ly).slice(0,2))}</text>`;
+        return g?colWrap(i,g):'';}).join('');
+    }
+    if(tp==='instr'){
+      p.push(staff([40,47,54,61,68]), bars(40,68), `<g class="cv-seal">${clefG(27,61,1)}</g>`);
+      p.push(n? stNotes(48,158,26,75,3.5,33,75,54,2.6,75) : rest(125,47));
+      p.push(wm());
+    }else if(tp==='teach'){
+      p.push(staff([32,37,42,47,52]), bars(32,52), `<g class="cv-seal">${clefG(25,47,.72)}</g>`);
+      if(n){ p.push(stNotes(48,158,26,57,2.5,27,57,42,2,57)); p.push(jpRow(48,158,26,74,0,true,13)); }
+      else p.push(rest(125,37));
+    }else if(tp==='piano'||tp==='pianoacc'){
+      const hi5=tp==='piano'?[30,35,40,45,50]:[42,46.5,51,55.5,60];
+      const lo5=tp==='piano'?[62,67,72,77,82]:[68,72.5,77,81.5,86];
+      const y0=hi5[0], y1=lo5[4];
+      p.push(staff(hi5,22), staff(lo5,22), brace(y0,y1), ln(22,y0,22,y1,.3,1), ln(227,y0,227,y1,.25,1),
+        `<rect x="230.8" y="${y0}" width="3.2" height="${y1-y0}" fill="${T}" fill-opacity=".25"/>`);
+      p.push(`<g class="cv-seal">${tp==='piano'? clefG(31,45,.72)+clefF(30,67,1) : clefG(30,55.5,.64)+clefF(29,72.5,.9)}</g>`);
+      if(n){
+        if(tp==='pianoacc'){ const step=Math.min(24,128/n);
+          cols.forEach((c,i)=>{ if(c.ly) p.push(colWrap(i,`<text x="${72+i*step}" y="32" font-size="11" fill="${M}" text-anchor="middle">${_esc(String(c.ly).slice(0,2))}</text>`)); });
+          p.push(stNotes(72,128,24,64.5,2.25,40.5,64.5,51,1.8,64.5));
+        }else p.push(stNotes(48,158,26,55,2.5,27.5,55,40,2,55));
+      }else p.push(rest(90, tp==='piano'?35:46.5));
+      p.push(rest(n?125:90, tp==='piano'?67:72.5));   /* 左手无数据=诚实的空小节 */
+    }else if(tp==='guitar'){
+      p.push(staff([48,54,60,66,72,78]), bars(48,78), tabLabel(26,[56.1,63,69.9],8.1));
+      if(n) p.push(tabRow(72,128,24,48,6,GT,10,36)); else p.push(wm());
+    }else if(tp==='solo'){
+      p.push(staff([38,45,52,59,66,73]), bars(38,73), tabLabel(26,[47.5,55.5,63.5],9.45));
+      if(n) p.push(tabRow(48,158,26,38,7,GT,10.5,0));
+      p.push(wm());
+    }else if(tp==='uku'){
+      p.push(staff([50,57,64,71]), bars(50,71), tabLabel(26,[52.5,60.5,68.5],8.1));
+      if(n) p.push(tabRow(72,128,24,50,7,UK,10,38)); else p.push(wm());
+    }else if(tp==='chord'){
+      for(let i2=0;i2<6;i2++) p.push(ln(34+i2*7,34,34+i2*7,74,.25,1));
+      p.push(ln(34,34,69,34,.5,3));
+      [44,54,64,74].forEach(y=>p.push(ln(34,y,69,y,.25,1)));
+      p.push(`<g class="cv-seal">`+[[41,59],[48,49],[62,39]].map(d=>`<circle cx="${d[0]}" cy="${d[1]}" r="2.7" fill="${S}" fill-opacity=".8"/>`).join('')
+        +[[55,30],[69,30]].map(d=>`<circle cx="${d[0]}" cy="${d[1]}" r="1.7" fill="none" stroke="${S}" stroke-opacity=".4"/>`).join('')+`</g>`);
+      if(n){ const step=Math.min(24,128/n);
+        cols.forEach((c,i)=>{const x=96+i*step; let g='';
+          if(c.deg){ g+=`<text x="${x}" y="54" font-size="15.5" font-family="Georgia,'Times New Roman',serif" font-weight="600" fill="${T}" fill-opacity=".82" text-anchor="middle">${_esc(c.deg)}</text>`+octDots(x,54,+c.oct||0,1.4);
+            if(c.ly) g+=`<text x="${x}" y="74" font-size="10.5" fill="${M}" text-anchor="middle">${_esc(String(c.ly).slice(0,2))}</text>`; }
+          else if(c.ly) g+=`<text x="${x}" y="58" font-size="12" fill="${M}" text-anchor="middle">${_esc(String(c.ly).slice(0,2))}</text>`;
+          if(g) p.push(colWrap(i,g)); });
+      }
+      p.push(wm());
+    }else{ /* vocal / func / 未知谱种 → 简谱纸面 */
+      p.push(bars(34,70));
+      if(n){ p.push(jpRow(26,200,30,54,74,false));
+        if(tp==='func'){ const step=Math.min(30,200/n), x0=(26-.3*step).toFixed(1), xn=(26+(n-1)*step+.3*step).toFixed(1);
+          p.push(`<path class="cv-seal" d="M${x0} 62 v3 H${xn} v-3" fill="none" stroke="${S}" stroke-opacity=".45" stroke-width="1"/>`); }
+      }else{
+        if(tp==='func') p.push(`<text x="26" y="58" font-size="17" font-style="italic" font-family="Georgia,serif" fill="${T}" fill-opacity=".55">Ⅰ — Ⅳ — Ⅴ — Ⅰ</text>`);
+        else for(let k=0;k<4;k++) p.push(`<text x="${26+k*30}" y="54" font-size="17" font-family="Georgia,'Times New Roman',serif" font-weight="600" fill="${T}" fill-opacity=".45" text-anchor="middle">0</text>`);
+      }
+      p.push(tp==='func'? romanWM() : wm());
+    }
     return `<svg viewBox="0 0 250 108" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${p.join('')}</svg>`;
   }
-  function card(item){
-    return `<a class="cc-card" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
+  /* v58.8 卡片：家族色 data-fam、免费角标撤除（仅付费显 ¥）、小节数入封面左下、正文两行、进场 stagger */
+  function card(item, idx){
+    return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
       <div class="cc-cover">${cover(item)}
         <span class="cc-type">${TYPE_CN[item.type]||'曲谱'}</span>
-        <span class="cc-price ${item.price>0?'':'free'}">${item.price>0?('¥'+item.price):'免费'}</span></div>
+        ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}
+        ${item.measures?`<span class="cc-mea">${item.measures} 小节</span>`:''}</div>
       <div class="cc-body">
         <div class="t">${_esc(item.title||'未命名曲谱')}</div>
-        <div class="a">制谱：${_esc(item.author||'佚名')}${item.singer?(' · '+_esc(item.singer)):''}</div>
-        <div class="meta"><i>${item.measures||0} 小节</i></div>
+        <div class="a">${_esc(item.singer||item.author||'佚名')}${item.singer&&item.author?(' · '+_esc(item.author)):''}</div>
       </div></a>`;
   }
-  /* 拉取公开谱库渲染到指定容器；limit 限制条数（首页用） */
+  /* 拉取公开谱库渲染到指定容器；limit 限制条数 */
   async function mount(el, limit){
     if(!el) return;
     try{
@@ -129,7 +243,7 @@ window.PYQ_LIB = (function(){
       if(limit) list=list.slice(0,limit);
       el.innerHTML = list.length ? list.map(card).join('')
         : '<p style="color:var(--muted)">谱库正在充实中，创作者发布的曲谱将在这里展示。</p>';
-    }catch(e){ el.innerHTML='<p style="color:var(--muted)">谱库暂时无法加载，请稍后重试。</p>'; }
+    }catch(e){ el.innerHTML='<p style="color:var(--muted)">刷新试试，谱库马上回来。</p>'; }
   }
   return { TYPE_CN, cover, card, mount };
 })();
@@ -170,7 +284,7 @@ window.PYQ_ACCT = (function(){
       <button id="lg-wx" class="lg-wx">${(inWx&&wxMp)?'微信一键登录':'微信扫码登录'}</button>
       ${(inWx&&!wxMp)?'<div class="lg-wxtip">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':''}` : '';
     m.innerHTML=`<div class="pyq-modal"><h3>登录 / 注册</h3>
-      <p class="lg-sub">未注册的手机号将自动创建账号，登录后跨端同步曲谱与收藏。</p>
+      <p class="lg-sub">输入手机号即登录，新号自动注册，跨端同步。</p>
       <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
       <div class="lg-row"><input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button id="lg-send">获取验证码</button></div>
       <div id="lg-msg" class="lg-msg"></div>
