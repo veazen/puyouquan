@@ -1375,6 +1375,24 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
 #layout-pop .lp-foot button{flex:1;border:1px solid var(--border);background:var(--panel);border-radius:9px;padding:7px 0;font-size:12.5px;color:var(--text);cursor:pointer}
 #layout-pop .lp-foot button:hover{background:var(--hover)}
 #layout-pop .lp-foot .prim{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* ===== v59.1 左栏改造：记谱法点亮 + 弹窗选指 + 图标精细化统一（追加段，书写顺序取胜——v59.0 教训） ===== */
+.nl-cap{flex-basis:100%;width:100%;font-size:10.5px;color:var(--faint,#a59d8e);letter-spacing:1.5px;margin:2px 0 1px}
+.nlit{display:inline-flex;align-items:center;gap:5px;opacity:.48}
+.nlit .lic{display:inline-flex;line-height:0}
+.nlit .lic svg{margin:0}
+.nlit.on{opacity:1;border-color:var(--accent);color:var(--accent);background:rgba(195,58,41,.07)}
+body.shell #left-flyout .nlit.on{border-color:var(--accent);color:var(--accent)}
+/* 面板按钮图标盒统一（①样式精细化）：字母字形与 SVG 同框同基线，尺寸/间距归一 */
+body.shell #left-flyout .rg-body .eb.ico .g,
+body.shell #left-flyout .rg-body .eb.ico b.g{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;line-height:1}
+body.shell #left-flyout .rg-body .eb.ico .g svg{display:block}
+/* v59.1 旧记谱法面板下线（元素保留供程序化调用与回归套件；!important 压过 setRibbon 的行内显隐） */
+#panel-vox-notation{display:none!important}
+/* 收纳弹窗选项：图标盒+文字，当前值朱砂高亮 */
+.popmenu .pickpop{display:flex;flex-wrap:wrap;gap:6px;max-width:300px}
+.popmenu .pickpop button{display:inline-flex;align-items:center;gap:7px;min-width:92px;padding:6px 10px}
+.popmenu .pickpop button .g{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;font-family:Georgia,serif;font-weight:700;font-size:14px}
+.popmenu .pickpop button.on{border-color:var(--accent);color:var(--accent);background:rgba(195,58,41,.07)}
 @media print{
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
@@ -1536,22 +1554,31 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rg panel-p" id="panel-tab-voice">
       <div class="rg-title">吉他声部</div>
       <div class="rg-body" id="tab-voices"></div>
+      <!-- v59.1 记谱法点亮（声部下方）：图标点亮=显示该记谱视图，同源数据自动互译 -->
+      <div class="rg-body" id="tab-nota-lit">
+        <div class="nl-cap">记谱法 · 点亮即显示</div>
+        <button class="nlit on" id="nl-tab6" title="六线谱 TAB：吉他声部的基础记谱，恒点亮显示"><span class="lic" data-lic="tab6"></span><span>六线谱</span></button>
+        <button class="nlit" id="nl-tabst" title="五线谱联排：TAB 上方同源联排标准五线谱（品位按调号自动拼写翻译）；已点亮时再点可换谱号或关闭"><span class="lic" data-lic="staff5"></span><span>五线谱</span></button>
+        <button class="nlit" id="nl-tabjp" title="简谱联排：TAB 上方同源联排简谱行（每列最高发声音自动翻译为首调唱名，含八度点/变音/时值线）"><span class="lic" data-lic="jianpu"></span><span>简谱</span></button>
+      </div>
     </div>
     <div class="rg panel-p" id="panel-tab-notation">
       <div class="rg-body">
-        <button id="tn-tab" title="仅六线谱 TAB">TAB</button>
-        <button id="tn-both" title="TAB 上方联排五线谱（Guitar Pro 式）：品位自动按调拼写为标准记谱">TAB+五线谱</button>
+        <!-- v59.1 tn-* 旧记谱法按钮下线（保留供程序化调用/回归套件，入口改为声部下方记谱法点亮） -->
+        <button id="tn-tab" style="display:none" title="仅六线谱 TAB">TAB</button>
+        <button id="tn-both" style="display:none" title="TAB 上方联排五线谱（Guitar Pro 式）：品位自动按调拼写为标准记谱">TAB+五线谱</button>
         <button id="b-notation" title="记谱风格切换：和弦内音记×（教材式）/ 全数字">记谱风格</button>
-        <button id="tn-clef-g" title="联排五线谱谱号：高音谱号（8vb 移调记谱，吉他/尤克里里标准）">高音谱号</button>
-        <button id="tn-clef-f" title="联排五线谱谱号：低音谱号（8vb 移调记谱，贝斯/低音吉他标准）">低音谱号</button>
+        <button id="tn-clef-g" style="display:none" title="联排五线谱谱号：高音谱号（8vb 移调记谱，吉他/尤克里里标准）">高音谱号</button>
+        <button id="tn-clef-f" style="display:none" title="联排五线谱谱号：低音谱号（8vb 移调记谱，贝斯/低音吉他标准）">低音谱号</button>
       </div>
-      <div class="rg-title">记谱法 · 谱号</div>
+      <div class="rg-title">记谱风格</div>
     </div>
     <div class="rg panel-p" id="panel-tab-strum">
       <div class="rg-title">扫弦 · 琶音</div>
       <div class="rg-body" id="strum-body">
-        <button id="b-strum-d" data-sic="arrup" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
-        <button id="b-strum-u" data-sic="arrdn" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
+        <!-- v59.1 去 data-sic：与 decorateSignButtons 的箭头字形重复注入，谱面曾同时显示两个箭头（用户反馈） -->
+        <button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
+        <button id="b-strum-u" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
         <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
@@ -1592,8 +1619,15 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rg panel-p" id="panel-vox-voice">
       <div class="rg-title">旋律声部</div>
       <div class="rg-body" id="vox-voices"></div>
+      <!-- v59.1 记谱法点亮（声部下方）：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），同源自动互译 -->
+      <div class="rg-body" id="vox-nota-lit">
+        <div class="nl-cap">记谱法 · 点亮即显示</div>
+        <button class="nlit on" id="nl-voxjp" title="简谱：当前声部以简谱显示；与五线谱同时点亮=五线谱下方附简谱行联排（同一数据自动互译）"><span class="lic" data-lic="jianpu"></span><span>简谱</span></button>
+        <button class="nlit" id="nl-voxst" title="五线谱：当前声部以五线谱显示（同一数据自动翻译，可随时切回）；已点亮时再点可换 高音/低音/中音 谱表或关闭"><span class="lic" data-lic="staff5"></span><span>五线谱</span></button>
+      </div>
     </div>
-    <div class="rg panel-p" id="panel-vox-notation">
+    <div class="rg panel-p" id="panel-vox-notation" style="display:none">
+      <!-- v59.1 vn-* 旧记谱法按钮下线（保留供程序化调用/回归套件，入口改为声部下方记谱法点亮） -->
       <div class="rg-body">
         <button id="vn-jp" title="当前声部以简谱显示">简谱</button>
         <button id="vn-st" title="当前声部以高音谱表显示（同一数据、可随时切回）">五线谱</button>
@@ -4038,7 +4072,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra){
   /* v56.4 diagExtra：本行段落括线/跳转标记与行内和弦图共存时图带加高（记号带让到图下方） */
   const diagH = (diagMode==='inline' ? 56 : 12) + (diagExtra||0);   // 行内和弦图区加高，避免与一弦数字重叠
   let y = diagH + 6*vs;
-  const tabTops=[], voxYs=[], lyricY0=[], tabStaffB=[];
+  const tabTops=[], voxYs=[], lyricY0=[], tabStaffB=[], tabJpB=[];
   /* v45.6→v45.7 联排五线谱与 TAB 间距按整曲内容"像素级"自适应（此前谱级阈值口径低估，实测仍可重叠）：
      下方净空 = 谱表底线以下加线音符深度（每谱级 3.75px）+ TAB 顶线以上装饰高度
      （推弦弧/技法字母/泛音标注，按所在弦位折算）之和；上方净空 = 顶线以上加线深度。
@@ -4064,6 +4098,10 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra){
     if(i>0) y += tabGap2;
     if(song.tabStaff){ y += 15*vt + tLedUp; tabStaffB.push(y+30); y += 30 + tGapDn; }   // 联排五线谱：TAB 上方 5 线谱表（谱表↔TAB 间距像素级自适应）
     else tabStaffB.push(0);
+    /* v59.1 简谱联排行（song.tabJp）：TAB 上方（联排五线谱之下）一行首调简谱翻译。
+       基线上方 22px 容纳高八度点、下方 18px 容纳减时线+低八度点 */
+    if(song.tabJp){ tabJpB.push(y+22); y += 40; }
+    else tabJpB.push(0);
     /* v54.8 TAB 下缘净距底线（用户反馈：无预留记号的行简谱顶进 TAB，换页后再现）：
        符干区(12px)与小节号带(≈14px)是固定像素、不随行距/疏密系数缩放——系数<1 时
        12*vt+6*vt 可缩到比固定内容还小，简谱直接压上符杠。夹 18px 无缩放底线 */
@@ -4095,7 +4133,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra){
     voxYs.push(y); lyricY0.push(y + 25 + botExtra + ledDn);
     y += 25 + botExtra + ledDn + (nL-1)*21*vl + 9*vv;
   }
-  return {diagH, tabTops, voxYs, lyricY0, tabStaffB, h:y+2, gap:9*vs, tabExtra};
+  return {diagH, tabTops, voxYs, lyricY0, tabStaffB, tabJpB, h:y+2, gap:9*vs, tabExtra};
 }
 
 /* ================= 渲染 ================= */
@@ -5047,6 +5085,49 @@ function render(){
             });
           });
         });
+      }
+      /* ===== v59.1 TAB+简谱 联排行（song.tabJp）：TAB 上方一行首调简谱翻译——
+         每列取最高发声音（含 ×实音/扫弦补全的 chordImpliedNotes 口径），midiToVoxCol 转
+         首调唱名（数字+八度点+♯♭+附点+减时线/增时线简写）；只读派生视图，不参与点击热区。
+         注：与联排五线谱同口径不计变调夹（记谱=指法相对音高） */
+      if(song.tabJp && M.tabJpB && M.tabJpB[vi]){
+        const jpY = oy+M.tabJpB[vi];
+        const soloJ = soloTabCtx(song);
+        p.push(`<g data-tabjp="${vi}">`);
+        sys.measures.forEach(lm=>{
+          const colsJ = song.measures[lm.mi].tabs[vi]||[];
+          const layJ = lm.L.tabs[vi];
+          const mxJ = ox+lm.x;
+          const simJ = simileSrc(lm.mi)!=null? song.measures[lm.mi].simile : 0;
+          if(simJ){ simileSignSVG(p, mxJ+lm.L.w/2, jpY-3, simJ); }
+          else colsJ.forEach((cJ,ciJ)=>{
+            const nxJ = mxJ+layJ.xs[ciJ];
+            const nsJ = chordImpliedNotes(cJ, chordShape(chordAtCol(lm.mi, vi, ciJ)), soloJ).filter(n=>n.s>=1&&n.s<=strN()&&!n.x);
+            let digit='0', vcJ=null;
+            if(nsJ.length){
+              const topM = Math.max(...nsJ.map(n=>TUNING[n.s-1]+(n.f||0)));
+              vcJ = midiToVoxCol(topM); digit=String(vcJ.deg);
+            }
+            p.push(`<text x="${nxJ.toFixed(1)}" y="${jpY.toFixed(1)}" font-size="13" font-family="var(--font-num)" font-weight="600" text-anchor="middle" fill="var(--ink)">${digit}</text>`);
+            if(vcJ && vcJ.acc) p.push(`<text x="${(nxJ-8.5).toFixed(1)}" y="${(jpY-4).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--ink)">${vcJ.acc==='#'?'♯':'♭'}</text>`);
+            const ulsJ = cJ.dur>=32?3: cJ.dur>=16?2: cJ.dur>=8?1:0;
+            for(let u2=0;u2<ulsJ;u2++)
+              p.push(`<line x1="${(nxJ-5).toFixed(1)}" y1="${(jpY+3+u2*2.6).toFixed(1)}" x2="${(nxJ+5).toFixed(1)}" y2="${(jpY+3+u2*2.6).toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
+            if(vcJ && vcJ.oct){
+              const nDJ=Math.min(3,Math.abs(vcJ.oct)), dnY0=jpY+3+ulsJ*2.6+3.2;
+              for(let d2=0;d2<nDJ;d2++)
+                p.push(`<circle cx="${nxJ.toFixed(1)}" cy="${(vcJ.oct>0? jpY-13.5-d2*4 : dnY0+d2*4).toFixed(1)}" r="1.3" fill="var(--ink)"/>`);
+            }
+            if(cJ.dur<=2 && nsJ.length){ const nDash = cJ.dur===1? 3 : 1;
+              for(let d3=1;d3<=nDash;d3++)
+                p.push(`<line x1="${(nxJ+6+(d3-1)*11).toFixed(1)}" y1="${(jpY-3.5).toFixed(1)}" x2="${(nxJ+13+(d3-1)*11).toFixed(1)}" y2="${(jpY-3.5).toFixed(1)}" stroke="var(--ink)" stroke-width="1.2"/>`);
+            }
+            for(let kD=0;kD<dotLevel(cJ);kD++)
+              p.push(`<circle cx="${(nxJ+7.5+kD*4).toFixed(1)}" cy="${(jpY-3.5).toFixed(1)}" r="1.4" fill="var(--ink)"/>`);
+          });
+          p.push(`<line x1="${(mxJ+lm.L.w).toFixed(1)}" y1="${(jpY-10.5).toFixed(1)}" x2="${(mxJ+lm.L.w).toFixed(1)}" y2="${(jpY+3.5).toFixed(1)}" stroke="var(--ink)" stroke-width="0.8" opacity="0.55"/>`);
+        });
+        p.push('</g>');
       }
       for(let i=0;i<SN;i++)
         p.push(`<line x1="${oxH}" y1="${tabTop+i*STR}" x2="${ox+sys.w}" y2="${tabTop+i*STR}" stroke="var(--ink)" stroke-width="0.7"/>`);
@@ -6859,6 +6940,9 @@ function decorateSignButtons(){
     'b-smute':   [sv(`<path d="M8 15 L8 5 M5.2 8 L8 5 L10.8 8" ${st} stroke-width="1.3"/><circle cx="13" cy="5" r="1.7" fill="currentColor"/>`,17,17),'切音'],
     'b-arp':     [sv(`<path d="M8 15.5 Q 5 13.5 8 11.5 Q 11 9.5 8 7.5 Q 5 5.5 8 3.5 M5.6 6 L8 3.2 L10.4 6" ${st} stroke-width="1.2"/>`,16,18),'上琶音'],
     'b-arpd':    [sv(`<path d="M8 2.5 Q 5 4.5 8 6.5 Q 11 8.5 8 10.5 Q 5 12.5 8 14.5 M5.6 12 L8 14.8 L10.4 12" ${st} stroke-width="1.2"/>`,16,18),'下琶音'],
+    /* v59.1 图标补齐：箭头长度调节两钮此前无图标（左栏唯二裸文字钮，风格不统一） */
+    'b-arr-minus':[sv(`<path d="M7 14.5 L7 6.5 M4.6 9 L7 6.5 L9.4 9" ${st} stroke-width="1.2" opacity="0.5"/><path d="M12 10.5 h4.5" ${st} stroke-width="1.5"/>`,19,18),'箭头−'],
+    'b-arr-plus': [sv(`<path d="M7 15 L7 3.5 M4.6 6 L7 3.5 L9.4 6" ${st} stroke-width="1.2"/><path d="M12 10.5 h4.5 M14.25 8.25 v4.5" ${st} stroke-width="1.5"/>`,19,18),'箭头＋'],
   };
   for(const id in MAP){
     const b=document.getElementById(id); if(!b) continue;
@@ -6986,13 +7070,20 @@ function setRibbon(t){
                    || (k?'：作用于当前选中音符（可 Ctrl+多选后批量）':'');
         return `<button class="eb ico" data-tech2="${k}" title="${l}${hint}"><b class="g">${g}</b><span>${l}</span></button>`;
       };
-    /* v46.1 渲染顺序：常规技法 → 泛音类（自然 N.H. + 人工 A.H./P.H./T.H.）→ 其余 gtype 专属 → 清除恒最后 */
-    const techHtml = ()=>EB_TECHS.filter(e=>e[0]!=='').map(tBtn).join('') + gtechHtml()
+    /* v46.1 渲染顺序：常规技法 → 滑音/泛音弹窗钮 → 其余 gtype 专属 → 清除恒最后。
+       v59.1 收纳（用户指示）：滑音 5 钮（滑弦/无头上下滑/无尾上下滑）→「滑音」弹窗、
+       泛音 4 钮（N.H./A.H./P.H./T.H.）→「泛音」弹窗；EB_TECHS/EB_GTECH 数组保持原样（标签查找/习惯学习仍引用） */
+    const SLIDE_KEYS=['sl','su','sd','ou','od'];
+    const techHtml = ()=>EB_TECHS.filter(e=>e[0]!=='' && !SLIDE_KEYS.includes(e[0]) && e[0]!=='hm').map(tBtn).join('')
+      + `<button class="eb ico" data-slidemenu title="滑音类：滑弦 S（两音相连）/ 无头上滑 ⟋S / 无头下滑 ⟍S / 无尾上滑 S⟋ / 无尾下滑 S⟍——点击弹窗选择"><b class="g"><i class="gt">S</i>⟋</b><span>滑音</span></button>`
+      + `<button class="eb ico" data-harmmenu title="泛音类：自然泛音 N.H. / 人工泛音 A.H / 拨片泛音 P.H / 点弦泛音 T.H——点击弹窗选择（谱面菱形框住品位数字）"><b class="g">◇</b><span>泛音</span></button>`
+      + gtechHtml()
       + EB_TECHS.filter(e=>e[0]==='').map(tBtn).join('');
-    /* v42.3 原按 song.gtype 过滤（lead 电吉他/finger 指弹/无 gtype 弹唱各显各的）；
-       v52.6 产品拍板统一：只要是吉他谱，摇把/泛音细分/let ring/pima/打板全部技法一并显示，
-       不再按风格分栏（gtype 仍保留用于新建向导默认调弦等，仅不再作面板过滤） */
+    /* v42.3 原按 song.gtype 过滤；v52.6 产品拍板统一全量显示。
+       v59.1：泛音细分（hmA/hmP/hmT）收进「泛音」弹窗、pima（rhP/rhI/rhM/rhA）收进记号层「右手指法」弹窗——
+       面板不再直排（数组保留：applyGtech 路由与既有数据/快捷入口不变） */
     const gtechHtml = ()=> EB_GTECH
+        .filter(([k])=>!['hmA','hmP','hmT','rhP','rhI','rhM','rhA'].includes(k))
         .map(([k,l,g,ctx,kind,val])=>`<button class="eb ico" data-gtech="${kind}:${val}" title="${l}（${kind==='perc'?'作用于当前列':'作用于选中音符'}）"><b class="g">${g}</b><span>${l}</span></button>`).join('');
     const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
     if(uiShell){
@@ -7162,11 +7253,19 @@ function syncInputs(){
     }
     const tnT=document.getElementById('tn-tab'), tnB=document.getElementById('tn-both');
     if(tnT && tnB){ tnT.classList.toggle('on', !song.tabStaff); tnB.classList.toggle('on', !!song.tabStaff); }
-    /* v45.7 联排谱号按钮：仅联排开启时显示，高亮当前谱号 */
+    /* v45.7 联排谱号按钮：仅联排开启时显示，高亮当前谱号（v59.1 起按钮隐藏，状态仍同步供回归套件） */
     { const cg=document.getElementById('tn-clef-g'), cf=document.getElementById('tn-clef-f');
       if(cg && cf){ const on2=!!song.tabStaff, bass2=song.tabClef==='bass';
-        cg.style.display = on2? '' : 'none'; cf.style.display = on2? '' : 'none';
         cg.classList.toggle('on', on2 && !bass2); cf.classList.toggle('on', on2 && bass2); } }
+    /* v59.1 记谱法点亮态同步（声部下方图标） */
+    { const nlTS2=document.getElementById('nl-tabst'), nlTJ2=document.getElementById('nl-tabjp');
+      if(nlTS2) nlTS2.classList.toggle('on', !!song.tabStaff);
+      if(nlTJ2) nlTJ2.classList.toggle('on', !!song.tabJp);
+      const vvi2 = sel.row==='vox'? sel.vi:0;
+      const ntv2=(song.voxNotations||[])[vvi2], stv2=isStaffNota(ntv2), dlv2=!!((song.voxDual||[])[vvi2]);
+      const nlVJ2=document.getElementById('nl-voxjp'), nlVS2=document.getElementById('nl-voxst');
+      if(nlVJ2) nlVJ2.classList.toggle('on', !stv2 || dlv2);
+      if(nlVS2) nlVS2.classList.toggle('on', stv2); }
   }
   document.getElementById('i-chord').value = (sel.row==='tab'&&col)?(col.chord||''):'';
   const lyr = document.getElementById('i-lyric');
@@ -7832,10 +7931,11 @@ function applyVoxPattern(pat){
     const mb=document.getElementById('mark-body'), vb=document.getElementById('vmark-body');
     if(mb) mb.insertAdjacentHTML('beforeend', tupBtns);
     if(vb) vb.insertAdjacentHTML('beforeend', tupBtns);
-    /* v52.5 左手指法 T/1-4/0（圆圈字，Ctrl+Alt 快捷）+ 右手指法 pima + 拨片方向 ⊓∨——
-       全部吉他类型可用（此前 pima 只在指弹 gtype 面板），只进吉他谱记号层 mark-body */
-    const fingBtns = ['T','1','2','3','4','0'].map(v=>`<button class="eb ico sym" data-lhf="${v}" title="左手指法 ${({T:'拇指 T','0':'空弦 0'})[v]||('第'+v+'指')}（Ctrl+Alt+${v} 快捷输入；标注带圆圈数字显示，再点同键清除）"><span class="g"><span class="gt" style="font-style:normal">${({T:'Ⓣ','0':'⓪','1':'①','2':'②','3':'③','4':'④'})[v]}</span></span><span>左手${v}</span></button>`).join('')
-      +['p','i','m','a'].map(v=>`<button class="eb ico sym" data-rhf="${v}" title="右手指法 ${({p:'拇指',i:'食指',m:'中指',a:'无名指'})[v]} ${v}（标在品位数字下方，再点同键清除）"><span class="g"><span class="gt">${v}</span></span><span>右手${v}</span></button>`).join('')
+    /* v52.5 左手指法 T/1-4/0（Ctrl+Alt 快捷）+ 右手指法 pima + 拨片方向 ⊓∨——全部吉他类型可用。
+       v59.1 收纳：10 枚选指钮收成「左手/右手」两枚手形钮，点击弹窗（showHandMenu）再选指（用户指示） */
+    const handSVG = lh=>`<svg width="17" height="17" viewBox="0 0 24 24"${lh?' style="transform:scale(-1,1)"':''}><path d="M8.2 12.4V6a1.25 1.25 0 0 1 2.5 0v4.8m0-6a1.25 1.25 0 0 1 2.5 0v5.8m0-4.6a1.25 1.25 0 0 1 2.5 0v5.4m0-3.2a1.25 1.25 0 0 1 2.5 0v5.6c0 3.8-2.4 6.4-6.1 6.4-3 0-4.5-1.3-5.9-3.7l-2.3-4c-.5-.9-.2-2 .7-2.5.8-.5 1.9-.2 2.4.7l1.2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const fingBtns = `<button class="eb ico sym" data-hand="lh" title="左手指法：Ⓣ①②③④⓪ 圆圈字标注——点击弹窗选指（Ctrl+Alt+T/1-4/0 快捷输入，再点同键清除）"><span class="g">${handSVG(true)}</span><span>左手指法</span></button>`
+      +`<button class="eb ico sym" data-hand="rh" title="右手指法：p i m a（拇指/食指/中指/无名指，标在品位数字下方）——点击弹窗选指（再点同键清除）"><span class="g">${handSVG(false)}</span><span>右手指法</span></button>`
       +`<button class="eb ico sym" data-pk="d" title="拨片下拨 ⊓（当前列标记，标注带显示；再点清除）"><span class="g"><svg width="16" height="14" viewBox="0 0 16 14"><path d="M4.5 12 V4.5 h7 v7.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span>下拨</span></button>`
       +`<button class="eb ico sym" data-pk="u" title="拨片上拨 ∨（当前列标记，标注带显示；再点清除）"><span class="g"><svg width="16" height="14" viewBox="0 0 16 14"><path d="M4.5 4.5 L8 12 L11.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><span>上拨</span></button>`
       /* v52.7 TAB 倚音入口（跨谱类统一）：品位制小音符，TAB/联排五线谱/MusicXML/播放同步 */
@@ -7870,6 +7970,13 @@ function applyVoxPattern(pat){
     if(e.target.closest('#eb-acc-f')){ accBump(-1); return; }
     if(e.target.closest('#eb-acc-n')){ accNat(); return; }
     if(e.target.closest('#eb-tie')){ toggleTie(); return; }
+    /* v59.1 收纳弹窗入口：左手/右手指法、滑音类、泛音类 */
+    const hd2=e.target.closest('[data-hand]');
+    if(hd2){ const r=hd2.getBoundingClientRect(); showHandMenu(hd2.dataset.hand, r.right+6, r.top-4); return; }
+    const sm2=e.target.closest('[data-slidemenu]');
+    if(sm2){ const r=sm2.getBoundingClientRect(); showSlideMenu(r.right+6, r.top-4); return; }
+    const hm2=e.target.closest('[data-harmmenu]');
+    if(hm2){ const r=hm2.getBoundingClientRect(); showHarmMenu(r.right+6, r.top-4); return; }
     const lf=e.target.closest('[data-lhf]');
     if(lf){ applyFingerMark('lhF', lf.dataset.lhf); return; }
     const rf=e.target.closest('[data-rhf]');
@@ -9961,6 +10068,60 @@ function applyFingerMark(kind, value){
   }); });
   toast((kind==='lhF'?'左手指法 ':'右手指法 ')+value+'（再点同键清除）');
 }
+/* ===== v59.1 记号收纳弹窗（用户指示：左栏减负）：
+   指法 10 钮→左手/右手两枚手形钮弹窗、滑音 5 钮→1、泛音 4 钮→1。
+   通用选择弹窗 pickPop 复用 .popmenu 样式，选项带当前值高亮 ===== */
+function pickPop(cx, cy, title, items){
+  closePop();
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.max(8, Math.min(cx, innerWidth-300))+'px';
+  div.style.top=Math.max(8, Math.min(cy, innerHeight-220))+'px';
+  div.innerHTML=`<div class="t">${title}</div><div class="row pickpop">${items.map((it,i)=>
+    `<button data-pki="${i}" class="${it.on?'on':''}" title="${esc(it.hint||it.label)}"><b class="g">${it.glyph}</b><span>${esc(it.label)}</span></button>`).join('')}</div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const b2=ev.target.closest('[data-pki]'); if(!b2) return;
+    const it=items[+b2.dataset.pki]; closePop(); it.act();
+  });
+}
+function curTabNoteVal(field){
+  try{ const c=song.measures[sel.mi].tabs[sel.vi][sel.ci];
+    const n=(c.notes||[]).find(n2=>n2.s===sel.si)||(c.notes||[])[0];
+    return n? n[field] : null; }catch(_){ return null; }
+}
+function showHandMenu(kind, cx, cy){
+  if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('指法标注用于吉他谱声部——请先选中吉他谱音符');
+  if(kind==='lh'){
+    const cur=curTabNoteVal('lhF');
+    const G={T:'Ⓣ','1':'①','2':'②','3':'③','4':'④','0':'⓪'};
+    pickPop(cx, cy, '左手指法（圆圈字标注带显示 · Ctrl+Alt+键 快捷 · 再点同键清除）',
+      ['T','1','2','3','4','0'].map(v=>({label:({T:'拇指 T','0':'空弦 0'})[v]||('第'+v+'指'), glyph:`<span class="gt" style="font-style:normal">${G[v]}</span>`, on:cur===v, act:()=>applyFingerMark('lhF', v)})));
+  }else{
+    const cur=curTabNoteVal('rhFing');
+    pickPop(cx, cy, '右手指法 pima（标在品位数字下方 · 再点同键清除）',
+      ['p','i','m','a'].map(v=>({label:({p:'拇指 p',i:'食指 i',m:'中指 m',a:'无名指 a'})[v], glyph:`<i class="gt">${v}</i>`, on:cur===v, act:()=>applyFingerMark('rhFing', v)})));
+  }
+}
+function showSlideMenu(cx, cy){
+  if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('滑音技法用于吉他谱声部——请先选中吉他谱音符');
+  const cur=curTabNoteVal('tech');
+  pickPop(cx, cy, '滑音类（作用于选中音符 · 再点同项清除）', [
+    {label:'滑弦 S', glyph:'<i class="gt">S</i>', on:cur==='sl', hint:'两音相连的滑弦：单音标 S，Ctrl 选两音可跨选相连', act:()=>techFromBar('sl')},
+    {label:'无头上滑', glyph:'⟋<i class="gt">S</i>', on:cur==='su', hint:'自低处滑入本音（无起始音头）', act:()=>techFromBar('su')},
+    {label:'无头下滑', glyph:'⟍<i class="gt">S</i>', on:cur==='sd', hint:'自高处滑入本音（无起始音头）', act:()=>techFromBar('sd')},
+    {label:'无尾上滑', glyph:'<i class="gt">S</i>⟋', on:cur==='ou', hint:'本音向上滑出（无目标音头）', act:()=>techFromBar('ou')},
+    {label:'无尾下滑', glyph:'<i class="gt">S</i>⟍', on:cur==='od', hint:'本音向下滑出（无目标音头）', act:()=>techFromBar('od')}]);
+}
+function showHarmMenu(cx, cy){
+  if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('泛音技法用于吉他谱声部——请先选中吉他谱音符');
+  const tech=curTabNoteVal('tech'), hmT=curTabNoteVal('hmT');
+  pickPop(cx, cy, '泛音类（谱面菱形框住品位数字 · 再点同项清除）', [
+    {label:'自然泛音 N.H.', glyph:'◇', on:tech==='hm'&&!hmT, hint:'空弦泛音点（5/7/12 品等）', act:()=>techFromBar('hm')},
+    {label:'人工泛音 A.H', glyph:'◈', on:hmT==='A', hint:'按品后右手点弦泛音', act:()=>applyGtech('hm','A')},
+    {label:'拨片泛音 P.H', glyph:'◇<i class="gt">p</i>', on:hmT==='P', hint:'拨片斜触发声（电吉他啸叫感）', act:()=>applyGtech('hm','P')},
+    {label:'点弦泛音 T.H', glyph:'◇<i class="gt">t</i>', on:hmT==='T', hint:'右手轻点高十二品泛音', act:()=>applyGtech('hm','T')}]);
+}
 /* v52.5 拨片方向 col.pk：'d'=下拨 ⊓ / 'u'=上拨 ∨（列级，标注带显示） */
 function applyPickDir(v){
   if(sel.row!=='tab') return toast('拨片方向用于吉他谱——请先选中吉他谱列');
@@ -10561,6 +10722,41 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
 { const cg=document.getElementById('tn-clef-g'), cf=document.getElementById('tn-clef-f');
   if(cg) cg.onclick = ()=>{ mutate(()=>{ delete song.tabClef; }); toast('联排五线谱：高音谱号（treble-8vb，吉他/尤克标准）'); };
   if(cf) cf.onclick = ()=>{ mutate(()=>{ song.tabClef='bass'; }); toast('联排五线谱：低音谱号（bass-8vb，贝斯/低音吉他记谱）'); };
+}
+/* ===== v59.1 记谱法点亮（声部下方）：图标点亮=显示该记谱视图，同源数据自动互译。
+   吉他声部：六线谱恒亮；五线谱=tabStaff 联排（已亮再点→谱号/关闭弹窗）；简谱=tabJp 联排行（新可选字段）。
+   旋律声部：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排 voxDual）；五线谱已亮再点→谱表/关闭弹窗。
+   全部委托既有 vn- 与 tn- 系隐藏按钮与字段语义，点亮态由 renderDock 同步 ===== */
+{ const $n=id=>document.getElementById(id);
+  const nlT6=$n('nl-tab6'), nlTS=$n('nl-tabst'), nlTJ=$n('nl-tabjp');
+  if(nlT6) nlT6.onclick = ()=> toast('六线谱是吉他声部的基础记谱，恒点亮显示');
+  if(nlTS) nlTS.onclick = e=>{
+    if(!song.tabStaff){ $n('tn-both').click(); return; }
+    const r=e.target.closest('button').getBoundingClientRect();
+    pickPop(r.right+6, r.top-4, '五线谱联排 · 谱号', [
+      {label:'高音谱号', glyph:'𝄞', on:song.tabClef!=='bass', hint:'treble-8vb（吉他/尤克标准）', act:()=>$n('tn-clef-g').click()},
+      {label:'低音谱号', glyph:'𝄢', on:song.tabClef==='bass', hint:'bass-8vb（贝斯/低音吉他记谱）', act:()=>$n('tn-clef-f').click()},
+      {label:'关闭五线谱', glyph:'—', hint:'恢复仅六线谱（数据不变，可随时再点亮）', act:()=>$n('tn-tab').click()}]);
+  };
+  if(nlTJ) nlTJ.onclick = ()=>{
+    mutate(()=>{ if(song.tabJp) delete song.tabJp; else song.tabJp=true; });
+    toast(song.tabJp?'已点亮简谱联排：TAB 上方同源简谱行（每列最高发声音自动翻译为首调唱名）':'已关闭简谱联排行（数据不变，可随时再点亮）');
+  };
+  const vSt=()=>{ const vvi=sel.row==='vox'? sel.vi:0; const nt=(song.voxNotations||[])[vvi];
+    return {vvi, st:isStaffNota(nt), nt, dual:!!((song.voxDual||[])[vvi])}; };
+  const nlVJ=$n('nl-voxjp'), nlVS=$n('nl-voxst');
+  if(nlVJ) nlVJ.onclick = ()=>{ const s2=vSt();
+    if(!s2.st) return toast('简谱是当前声部的基础记谱，已点亮显示——点亮「五线谱」可自动翻译为五线谱/联排');
+    $n('vn-dual').click(); };
+  if(nlVS) nlVS.onclick = e=>{ const s2=vSt();
+    if(!s2.st){ $n('vn-st').click(); $n('vn-dual').click(); return; }   /* 叠亮：五线谱+简谱行联排 */
+    const r=e.target.closest('button').getBoundingClientRect();
+    pickPop(r.right+6, r.top-4, '五线谱 · 谱表', [
+      {label:'高音谱表', glyph:'𝄞', on:s2.nt==='staff', act:()=>$n('vn-st').click()},
+      {label:'低音谱表', glyph:'𝄢', on:s2.nt==='bass', hint:'钢琴左手/贝斯声部；与上方高音谱表自动连成大谱表', act:()=>$n('vn-bs').click()},
+      {label:'中音谱表', glyph:'𝄡', on:s2.nt==='alto', hint:'C 谱号锚定中线（中提琴等声部）', act:()=>$n('vn-al').click()},
+      {label:'关闭五线谱', glyph:'—', hint:'回到仅简谱（数据不变，可随时再点亮）', act:()=>$n('vn-jp').click()}]);
+  };
 }
 /* v46.3 智能预提示：可点提示直达对应左栏图层 */
 { const hb=document.getElementById('hint-body');
@@ -16987,6 +17183,7 @@ const APP_VER='v59.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.1</span><div><b>左栏记号面板改造：收纳弹窗 + 记谱法点亮</b>（用户指示批次）：① <b>指法收纳</b>——左手 6 钮 + 右手 4 钮收成两枚<b>手形按钮</b>，点击弹窗选指（Ⓣ①②③④⓪ / p i m a，当前值高亮，快捷键不变）。② <b>滑音/泛音收纳</b>——滑弦与无头/无尾上下滑 5 钮收进「滑音」弹窗，自然/人工/拨片/点弦泛音 4 钮收进「泛音」弹窗；演奏技巧面板从 30+ 钮精简到 14 钮。③ <b>扫弦箭头修正</b>：下扫/上扫按钮此前双重注入图标显示两个箭头，现恒一个。④ <b>记谱法移到声部下方 · 图标点亮式</b>——吉他声部：六线谱恒亮，<b>五线谱/简谱可点亮联排</b>（同源自动互译：五线谱按调拼写、简谱按首调唱名翻译，新增 TAB+简谱联排行）；旋律声部：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），已点亮再点可换谱号/谱表或关闭。⑤ 箭头长度调节等裸文字钮补齐图标，面板图标盒统一尺寸基线。</div></li>
     <li><span class="v">v59.0</span><div><b>个人中心独立页面 + 全站移动端深修</b>（UI 设计专家 + 两组移动端审计专家实测策划）：① <b>编辑器个人中心从弹窗升级为独立页面</b>——整页布局：常驻身份页头（头像/昵称/创作者徽章/云同步状态/官网个人中心直达）+ 左侧导航（我的曲谱 / 创作者中心 / 我的权益 / 个人资料，工作台心智曲谱在前）+ 卡片化内容区；地址栏 <code>?pc=页签</code> 可刷新可收藏，浏览器返回一步回到制谱器，Esc 同效；手机上导航变吸顶胶囊横滑、触控目标 44px。② <b>自定义节奏型下线</b>（本机模板数据原地保留不清除）。③ <b>手机制谱可用性深修</b>（实测发现桌面框架规则在窄屏压过手机适配规则）：修复谱面纵向滚动死锁（此前第一屏以下不可达）、启动台入口落回首屏、左栏图层轨改为屏内底部横滑抽屉、编辑栏改单行横滑（清音/高把位钮不再被裁出屏）、放大后可横向平移看右半幅、导出弹窗按钮不再向左甩出屏、按钮触控高度提到 38px+；观看页「放大 115%/135%」在手机上真正生效。④ <b>官网移动端修正</b>：顶部导航四项完整可见（此前大半被裁且无滑动暗示）、登录弹窗在键盘弹起后可滚动触达按钮、输入框 16px 不再触发 iOS 自动放大、首页工具卡不再逐字竖排、个人中心长曲谱名不再撑破页面横晃、常见小按钮触控热区全面加大。</div></li>
     <li><span class="v">v58.9</span><div><b>个人中心大升级：统一入口 + 换头像 + 创作者中心</b>（3 位专家 agent 联合策划）：① <b>制谱与看谱共用一个个人中心</b>——www.puyouquan.com/me.html 统管「我是谁」（账号资料/头像/会员/创作者身份/云端曲谱/收藏），编辑器个人中心专注「我在做什么」（发布管理/节奏型模板/已购），编辑器账号页头像与「个人中心 ↗」一键直达统一页面，绑定微信/退出所有设备等账号操作集中到统一中心不再两处维护。② <b>支持更换头像</b>：点击头像即换——8 个四族社色预设（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金 × 乐器图标），或上传本地图片（自动裁成正方形、压缩存云端，全端同步显示）；选即生效零确认步。③ <b>成为创作者 / 创作者中心</b>：普通会员在个人中心一键免费开通创作者；开通后原位变身<b>创作者中心</b>——已发布曲谱计数与列表（直达谱库观看页）、「去编辑器发布」深链直落编辑器创作者页签；编辑器创作者页签同步瘦身，删掉演示性的数据看板/收益设置/体验认证，保留发布管理与版权存证两件真功能。</div></li>
     <li><span class="v">v58.8</span><div><b>官网 UI 大升级：「智能曲谱平台」</b>（slogan 定案，4 位专家 agent 联合策划）：① <b>曲谱卡片刻版化</b>——每种谱种长出真实刻版骨架：六线谱 TAB+品位数字、简谱数字+八度点、大谱表花括线+高低音谱号+符头、和弦框图按点；四族出版社色（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金）只染封面洗色与印章，音乐内容永远墨色；hover「谱面苏醒」微动效 + 进场渐次浮现 + 加载骨架屏。② <b>全站降噪</b>：页脚 5 列 20 链砍为两行 7 链（slogan+备案保留）、首页删「看谱三件事」/FAQ/重复制谱条、工具带 4→3 格下移让位卡片流、免费角标撤除。③ <b>智能可感知</b>：「最近看过」回访置顶一行、「上新 N 首」徽章、搜索占位轮播。④ slogan 落位 h1/浏览器标题/导航/页脚/微信分享卡，全站文案统一口径。</div></li>

@@ -19,9 +19,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('solo',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead',tuning:TUNINGS.dropD.t});
     s.measures[0].tabs[0][0].notes=[{s:1,f:7}]; loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
-    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, hasBar:g.includes('bar:dive'), hasHm:g.includes('hm:A'), hasLr:g.includes('tech:lr'), hasFinger:g.includes('rhFing:p'), n:g.length}; })()`);
-  /* v52.6 面板统一：任何吉他谱全量显示（15 项），不再按 gtype 过滤 */
-  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.hasBar && r.hasHm && r.hasLr && r.hasFinger && r.n === 15, 'T1 电吉他gtype+统一面板', JSON.stringify(r));
+    /* v59.1 收纳：泛音细分入「泛音」弹窗、pima 入「右手指法」弹窗——面板直排 8 项（lr+摇把4+打板3），
+       弹窗内项经 showHarmMenu/showHandMenu 验证 */
+    showHarmMenu(200,200);
+    const hmN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
+    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, hasBar:g.includes('bar:dive'), hmN,
+      hasLr:g.includes('tech:lr'), hasHand:document.querySelectorAll('#mark-body [data-hand]').length, n:g.length}; })()`);
+  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.hasBar && r.hmN === 4 && r.hasLr && r.hasHand === 2 && r.n === 8, 'T1 电吉他gtype+收纳面板', JSON.stringify(r));
 
   // T2 电吉他记号渲染 + Drop D 谱首标注 + N.C.
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -47,8 +51,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('solo',{title:'y',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'finger'});
     s.measures[0].tabs[0][0].notes=[{s:3,f:0}]; loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
-    return {gt:song.gtype, hasRh:g.includes('rhFing:p'), hasPerc:g.includes('perc:bass'), hasLr:g.includes('tech:lr'), hasBar:g.includes('bar:dive'), n:g.length}; })()`);
-  T(r.gt === 'finger' && r.hasRh && r.hasPerc && r.hasLr && r.hasBar && r.n === 15, 'T4 指弹统一面板', JSON.stringify(r));
+    showHandMenu('rh',200,200);
+    const rhN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
+    return {gt:song.gtype, rhN, hasPerc:g.includes('perc:bass'), hasLr:g.includes('tech:lr'), hasBar:g.includes('bar:dive'), n:g.length}; })()`);
+  T(r.gt === 'finger' && r.rhN === 4 && r.hasPerc && r.hasLr && r.hasBar && r.n === 8, 'T4 指弹收纳面板', JSON.stringify(r));
 
   // T5 指弹记号渲染（pima + 打板×2）
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -85,8 +91,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
     return {dt:docType(song), gt:song.gtype||null, n:g.length,
-      hasBar:g.includes('bar:dive'), hasRh:g.includes('rhFing:p'), hasPerc:g.includes('perc:bass')}; })()`);
-  T(r.dt === 'guitar' && r.gt === null && r.n === 15 && r.hasBar && r.hasRh && r.hasPerc, 'T8 弹唱统一面板', JSON.stringify(r));
+      hasBar:g.includes('bar:dive'), hasHand:document.querySelectorAll('#mark-body [data-hand]').length, hasPerc:g.includes('perc:bass')}; })()`);
+  T(r.dt === 'guitar' && r.gt === null && r.n === 8 && r.hasBar && r.hasHand === 2 && r.hasPerc, 'T8 弹唱收纳面板', JSON.stringify(r));
 
   // T8b v49.5 框选：鼠标拖框圈选 TAB 音符 → noteSel 批量入选 → P.M. 范围落数据
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;

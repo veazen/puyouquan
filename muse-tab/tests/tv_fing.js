@@ -14,17 +14,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  // T1 记号层按钮：左手6 + 右手4 + 拨片2（吉他谱 mark-body，任意 gtype 可见）
+  // T1 v59.1 记号层收纳：左手/右手两枚手形钮 + 拨片2；点击弹窗内 6/4 个选指项
   let r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
     const s = createSong('guitar', { title: 'f', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     const mk8 = (f, st) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: st, f }], strum: '', tech: '' });
     s.measures[0].tabs[0] = [mk8(5, 3), mk8(7, 3), mk8(5, 2), mk8(7, 2), mk8(5, 1), mk8(7, 1), mk8(5, 2), mk8(3, 2)];
     loadSong(s); blurSel = false;
-    return { lhf: document.querySelectorAll('#mark-body [data-lhf]').length,
-      rhf: document.querySelectorAll('#mark-body [data-rhf]').length,
-      pk: document.querySelectorAll('#mark-body [data-pk]').length };
+    sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 3 }; noteSel = []; render();
+    const hands = document.querySelectorAll('#mark-body [data-hand]').length;
+    const pk = document.querySelectorAll('#mark-body [data-pk]').length;
+    showHandMenu('lh', 200, 200);
+    const lhf = document.querySelectorAll('#popmenu [data-pki]').length;
+    closePop(); showHandMenu('rh', 200, 200);
+    const rhf = document.querySelectorAll('#popmenu [data-pki]').length;
+    closePop();
+    return { hands, pk, lhf, rhf };
   });
-  T(r.lhf === 6 && r.rhf === 4 && r.pk === 2, 'T1 按钮组渲染', JSON.stringify(r));
+  T(r.hands === 2 && r.pk === 2 && r.lhf === 6 && r.rhf === 4, 'T1 手形钮+弹窗选指项', JSON.stringify(r));
 
   // T2 左手指法：无多选作用当前音；同键清除；Ctrl+Alt 快捷键
   r = await pg.evaluate(() => {
@@ -41,15 +47,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.a === '2' && r.cleared && r.kb3 === '3' && r.kbT === 'T', 'T2 左手标记+快捷键', JSON.stringify(r));
 
-  // T3 右手指法：任意 gtype 可标（此前仅指弹面板），无多选作用当前音
+  // T3 右手指法：任意 gtype 可标（v59.1 经弹窗选指），无多选作用当前音
   r = await pg.evaluate(() => {
     sel = { mi: 0, row: 'tab', vi: 0, ci: 1, si: 3 }; noteSel = []; render();
-    document.querySelector('#mark-body [data-rhf="p"]').click();
+    showHandMenu('rh', 200, 200);
+    document.querySelector('#popmenu [data-pki="0"]').click();   // 第一项 = 拇指 p
     const set = song.measures[0].tabs[0][1].notes[0].rhFing;
+    const popGone = !document.getElementById('popmenu');
     const svg = document.getElementById('score').innerHTML.indexOf('>p</text>') >= 0;
-    return { set, svg, gtype: song.gtype || '(none)' };
+    return { set, svg, popGone, gtype: song.gtype || '(none)' };
   });
-  T(r.set === 'p' && r.svg, 'T3 右手pima通用化', JSON.stringify(r));
+  T(r.set === 'p' && r.svg && r.popGone, 'T3 右手pima弹窗选指', JSON.stringify(r));
 
   // T4 拨片方向：列级 toggle + ⊓/∨ 渲染
   r = await pg.evaluate(() => {
