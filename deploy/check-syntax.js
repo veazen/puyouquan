@@ -26,6 +26,14 @@ for (const path of files) {
   }
   if (!i) { console.error('⚠️ ' + path + ' 未找到内联脚本'); bad++; }
   else if (!bad) console.log('✅ ' + path + '：' + i + ' 段内联脚本语法校验通过');
+  /* v59.2 教训：APP_VER 忘随更新日志递增 → 线上版本角标停在旧版 + smoke 版本落位两边读同一常量成假绿。
+     闸：APP_VER 必须等于更新日志首条 <span class="v">vX.Y</span>，不一致即拦截发版。 */
+  const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];
+  const cl = (html.match(/<span class="v">(v[\d.]+)<\/span>/) || [])[1];
+  if (av && cl) {
+    if (av !== cl) { console.error('❌ ' + path + ' 版本不一致：APP_VER=' + av + '，更新日志首条=' + cl + '（发版须同步递增 APP_VER）'); bad++; }
+    else console.log('✅ ' + path + '：版本一致（APP_VER=' + av + ' = 更新日志首条）');
+  }
   totalBad += bad;
 }
 process.exit(totalBad ? 1 : 0);
