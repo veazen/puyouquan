@@ -1554,12 +1554,13 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rg panel-p" id="panel-tab-voice">
       <div class="rg-title">吉他声部</div>
       <div class="rg-body" id="tab-voices"></div>
-      <!-- v59.1 记谱法点亮（声部下方）：图标点亮=显示该记谱视图，同源数据自动互译 -->
+      <!-- v59.1 记谱法点亮（声部下方）：图标点亮=显示该记谱视图，同源数据自动互译。
+           v59.2 纯图标化（用户指示）：只用图标点击点亮，中文靠 title 悬停显示，标题改「显示」 -->
       <div class="rg-body" id="tab-nota-lit">
-        <div class="nl-cap">记谱法 · 点亮即显示</div>
-        <button class="nlit on" id="nl-tab6" title="六线谱 TAB：吉他声部的基础记谱，恒点亮显示"><span class="lic" data-lic="tab6"></span><span>六线谱</span></button>
-        <button class="nlit" id="nl-tabst" title="五线谱联排：TAB 上方同源联排标准五线谱（品位按调号自动拼写翻译）；已点亮时再点可换谱号或关闭"><span class="lic" data-lic="staff5"></span><span>五线谱</span></button>
-        <button class="nlit" id="nl-tabjp" title="简谱联排：TAB 上方同源联排简谱行（每列最高发声音自动翻译为首调唱名，含八度点/变音/时值线）"><span class="lic" data-lic="jianpu"></span><span>简谱</span></button>
+        <div class="nl-cap">显示</div>
+        <button class="nlit on" id="nl-tab6" title="六线谱：吉他声部的基础记谱，恒点亮显示"><span class="lic" data-lic="tab6"></span></button>
+        <button class="nlit" id="nl-tabst" title="五线谱：点亮=TAB 上方同源联排标准五线谱（品位按调号自动拼写翻译）；已点亮再点可换谱号或关闭"><span class="lic" data-lic="staff5"></span></button>
+        <button class="nlit" id="nl-tabjp" title="简谱：点亮=TAB 上方同源联排简谱行（每列最高发声音自动翻译为首调唱名，含八度点/变音/时值线）"><span class="lic" data-lic="jianpu"></span></button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-notation">
@@ -1582,8 +1583,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <button id="b-smute" title="扫弦切音：扫弦箭头上带一个点">扫弦切音</button>
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
-        <button id="b-arr-minus" title="扫弦箭头缩短一根弦">箭头−</button>
-        <button id="b-arr-plus" title="扫弦箭头加长一根弦">箭头＋</button>
+        <!-- v59.2 箭头±两钮删除（用户指示）：改弦数直接点谱面箭头（bumpStrumN 谱面入口保留） -->
       </div>
     </div>
     <div class="rg panel-p" id="panel-tab-mark">
@@ -1619,11 +1619,12 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rg panel-p" id="panel-vox-voice">
       <div class="rg-title">旋律声部</div>
       <div class="rg-body" id="vox-voices"></div>
-      <!-- v59.1 记谱法点亮（声部下方）：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），同源自动互译 -->
+      <!-- v59.1 记谱法点亮（声部下方）：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），同源自动互译。
+           v59.2 纯图标化：中文靠 title 悬停显示 -->
       <div class="rg-body" id="vox-nota-lit">
-        <div class="nl-cap">记谱法 · 点亮即显示</div>
-        <button class="nlit on" id="nl-voxjp" title="简谱：当前声部以简谱显示；与五线谱同时点亮=五线谱下方附简谱行联排（同一数据自动互译）"><span class="lic" data-lic="jianpu"></span><span>简谱</span></button>
-        <button class="nlit" id="nl-voxst" title="五线谱：当前声部以五线谱显示（同一数据自动翻译，可随时切回）；已点亮时再点可换 高音/低音/中音 谱表或关闭"><span class="lic" data-lic="staff5"></span><span>五线谱</span></button>
+        <div class="nl-cap">显示</div>
+        <button class="nlit on" id="nl-voxjp" title="简谱：当前声部以简谱显示；与五线谱同时点亮=五线谱下方附简谱行联排（同一数据自动互译）"><span class="lic" data-lic="jianpu"></span></button>
+        <button class="nlit" id="nl-voxst" title="五线谱：当前声部以五线谱显示（同一数据自动翻译，可随时切回）；已点亮再点可换 高音/低音/中音 谱表或关闭"><span class="lic" data-lic="staff5"></span></button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-notation" style="display:none">
@@ -6689,7 +6690,9 @@ const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
    旧谱 bd 数据照常渲染）；哑音=死音×，走 toggleMute（与 ×标记 同义，技巧语境入口）。
    v46.1 泛音类归组：自然泛音 ◇→字母 N.H.（与 A.H./P.H./T.H. 统一字母风格）并排到列表尾部，
    与紧随其后的人工泛音字母按钮聚成「泛音类」；清除按钮渲染时恒排最后（见 techHtml） */
-const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b↑'],['bd','回落','b↓'],['mute','哑音','×'],
+/* v59.2 哑音图标改「圈内 ×」——与音符记号层的「×标记」按钮视觉区分（用户指示；二者同写死音 ×，仅入口图标不同） */
+const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b↑'],['bd','回落','b↓'],
+                  ['mute','哑音','<svg width="16" height="16" viewBox="0 0 16 16" style="vertical-align:-2px"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.15"/><path d="M5.7 5.7 L10.3 10.3 M5.7 10.3 L10.3 5.7" stroke="currentColor" stroke-width="1.25" fill="none"/></svg>'],
                   ['v','揉弦','~'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
                   ['ou','无尾上滑','S⟋'],['od','无尾下滑','S⟍'],
@@ -6937,12 +6940,10 @@ function decorateSignButtons(){
     'b-slap':    [sv(`<rect x="3.5" y="3" width="11" height="12" rx="1.5" ${st} stroke-width="1.1"/><text x="9" y="12.8" font-size="11" font-weight="700" text-anchor="middle" fill="currentColor">×</text>`,18,18),'拍弦'],
     'b-strum-d': ['<i class="gt">↑</i>','下扫'],
     'b-strum-u': ['<i class="gt">↓</i>','上扫'],
-    'b-smute':   [sv(`<path d="M8 15 L8 5 M5.2 8 L8 5 L10.8 8" ${st} stroke-width="1.3"/><circle cx="13" cy="5" r="1.7" fill="currentColor"/>`,17,17),'切音'],
+    /* v59.2 切音点改箭头顶端正上方（与谱面渲染 cy=yT-3 同口径，此前点在右侧） */
+    'b-smute':   [sv(`<path d="M8 16 L8 6.5 M5.2 9.5 L8 6.5 L10.8 9.5" ${st} stroke-width="1.3"/><circle cx="8" cy="2.9" r="1.7" fill="currentColor"/>`,17,18),'切音'],
     'b-arp':     [sv(`<path d="M8 15.5 Q 5 13.5 8 11.5 Q 11 9.5 8 7.5 Q 5 5.5 8 3.5 M5.6 6 L8 3.2 L10.4 6" ${st} stroke-width="1.2"/>`,16,18),'上琶音'],
     'b-arpd':    [sv(`<path d="M8 2.5 Q 5 4.5 8 6.5 Q 11 8.5 8 10.5 Q 5 12.5 8 14.5 M5.6 12 L8 14.8 L10.4 12" ${st} stroke-width="1.2"/>`,16,18),'下琶音'],
-    /* v59.1 图标补齐：箭头长度调节两钮此前无图标（左栏唯二裸文字钮，风格不统一） */
-    'b-arr-minus':[sv(`<path d="M7 14.5 L7 6.5 M4.6 9 L7 6.5 L9.4 9" ${st} stroke-width="1.2" opacity="0.5"/><path d="M12 10.5 h4.5" ${st} stroke-width="1.5"/>`,19,18),'箭头−'],
-    'b-arr-plus': [sv(`<path d="M7 15 L7 3.5 M4.6 6 L7 3.5 L9.4 6" ${st} stroke-width="1.2"/><path d="M12 10.5 h4.5 M14.25 8.25 v4.5" ${st} stroke-width="1.5"/>`,19,18),'箭头＋'],
   };
   for(const id in MAP){
     const b=document.getElementById(id); if(!b) continue;
@@ -10941,8 +10942,7 @@ document.getElementById('i-chord').addEventListener('change', e=>{
     showChordSuggest(newName);
   }
 });
-document.getElementById('b-arr-minus').onclick = ()=>bumpStrumN(-1);
-document.getElementById('b-arr-plus').onclick = ()=>bumpStrumN(1);
+/* v59.2 箭头± 面板钮删除（用户指示）——改弦数入口=点谱面扫弦箭头（bumpStrumN 保留） */
 document.getElementById('b-notation').onclick = ()=>{
   const next = effNota()==='x' ? 'num' : 'x';
   tabNotation = next;
@@ -17183,6 +17183,7 @@ const APP_VER='v59.0';
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.2</span><div><b>左栏细节修正</b>（用户指示批次）：① 声部下方记谱法区标题改「显示」，按钮<b>纯图标化</b>——点击点亮生效，鼠标悬停显示中文说明。② <b>哑音图标改「圈内 ×」</b>，与音符记号层的「×标记」按钮视觉区分（二者记谱相同，仅入口图标不同）。③ 扫弦「箭头−/箭头＋」两钮删除——改箭头覆盖弦数直接点谱面箭头即可。④ 切音按钮图标的圆点移到<b>箭头顶端正上方</b>（与谱面画法一致，此前点偏在右侧）。</div></li>
     <li><span class="v">v59.1</span><div><b>左栏记号面板改造：收纳弹窗 + 记谱法点亮</b>（用户指示批次）：① <b>指法收纳</b>——左手 6 钮 + 右手 4 钮收成两枚<b>手形按钮</b>，点击弹窗选指（Ⓣ①②③④⓪ / p i m a，当前值高亮，快捷键不变）。② <b>滑音/泛音收纳</b>——滑弦与无头/无尾上下滑 5 钮收进「滑音」弹窗，自然/人工/拨片/点弦泛音 4 钮收进「泛音」弹窗；演奏技巧面板从 30+ 钮精简到 14 钮。③ <b>扫弦箭头修正</b>：下扫/上扫按钮此前双重注入图标显示两个箭头，现恒一个。④ <b>记谱法移到声部下方 · 图标点亮式</b>——吉他声部：六线谱恒亮，<b>五线谱/简谱可点亮联排</b>（同源自动互译：五线谱按调拼写、简谱按首调唱名翻译，新增 TAB+简谱联排行）；旋律声部：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），已点亮再点可换谱号/谱表或关闭。⑤ 箭头长度调节等裸文字钮补齐图标，面板图标盒统一尺寸基线。</div></li>
     <li><span class="v">v59.0</span><div><b>个人中心独立页面 + 全站移动端深修</b>（UI 设计专家 + 两组移动端审计专家实测策划）：① <b>编辑器个人中心从弹窗升级为独立页面</b>——整页布局：常驻身份页头（头像/昵称/创作者徽章/云同步状态/官网个人中心直达）+ 左侧导航（我的曲谱 / 创作者中心 / 我的权益 / 个人资料，工作台心智曲谱在前）+ 卡片化内容区；地址栏 <code>?pc=页签</code> 可刷新可收藏，浏览器返回一步回到制谱器，Esc 同效；手机上导航变吸顶胶囊横滑、触控目标 44px。② <b>自定义节奏型下线</b>（本机模板数据原地保留不清除）。③ <b>手机制谱可用性深修</b>（实测发现桌面框架规则在窄屏压过手机适配规则）：修复谱面纵向滚动死锁（此前第一屏以下不可达）、启动台入口落回首屏、左栏图层轨改为屏内底部横滑抽屉、编辑栏改单行横滑（清音/高把位钮不再被裁出屏）、放大后可横向平移看右半幅、导出弹窗按钮不再向左甩出屏、按钮触控高度提到 38px+；观看页「放大 115%/135%」在手机上真正生效。④ <b>官网移动端修正</b>：顶部导航四项完整可见（此前大半被裁且无滑动暗示）、登录弹窗在键盘弹起后可滚动触达按钮、输入框 16px 不再触发 iOS 自动放大、首页工具卡不再逐字竖排、个人中心长曲谱名不再撑破页面横晃、常见小按钮触控热区全面加大。</div></li>
     <li><span class="v">v58.9</span><div><b>个人中心大升级：统一入口 + 换头像 + 创作者中心</b>（3 位专家 agent 联合策划）：① <b>制谱与看谱共用一个个人中心</b>——www.puyouquan.com/me.html 统管「我是谁」（账号资料/头像/会员/创作者身份/云端曲谱/收藏），编辑器个人中心专注「我在做什么」（发布管理/节奏型模板/已购），编辑器账号页头像与「个人中心 ↗」一键直达统一页面，绑定微信/退出所有设备等账号操作集中到统一中心不再两处维护。② <b>支持更换头像</b>：点击头像即换——8 个四族社色预设（吉他朱砂/钢琴墨蓝/人声墨绿/功能赭金 × 乐器图标），或上传本地图片（自动裁成正方形、压缩存云端，全端同步显示）；选即生效零确认步。③ <b>成为创作者 / 创作者中心</b>：普通会员在个人中心一键免费开通创作者；开通后原位变身<b>创作者中心</b>——已发布曲谱计数与列表（直达谱库观看页）、「去编辑器发布」深链直落编辑器创作者页签；编辑器创作者页签同步瘦身，删掉演示性的数据看板/收益设置/体验认证，保留发布管理与版权存证两件真功能。</div></li>
