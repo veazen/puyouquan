@@ -164,15 +164,25 @@ const seed = [
   // T8a v58.9 creator 角色：创作者徽标 + 创作者中心（已发布计数 + kanpu 行 + 去编辑器发布 ?pc=creator）
   r = await pg.evaluate(() => {
     const el = document.getElementById('me-creator');
-    return { badge: !document.getElementById('me-cr-badge').hidden,
+    /* v59.4 双入口：头部「创作者中心」按钮 + 可点徽章，点击后卡片进入 cr-flash 定位高亮 */
+    const gocr = document.getElementById('me-gocr');
+    const badgeEl = document.getElementById('me-cr-badge');
+    badgeEl.click();
+    const flashByBadge = el.classList.contains('cr-flash');
+    el.classList.remove('cr-flash');
+    if (gocr) gocr.click();
+    return { badge: !badgeEl.hidden,
       shown: el && !el.hidden, h: el ? (el.querySelector('.me-h')||{}).textContent||'' : '',
       count: (document.getElementById('cr-count')||{}).textContent||'',
       rowHref: (document.querySelector('#cr-list .pc-row')||{getAttribute:()=>''} ).getAttribute('href')||'',
-      goEdit: !!el.querySelector('a[href*="?pc=creator"]') };
+      goEdit: !!el.querySelector('a[href*="?pc=creator"]'),
+      gocrShown: !!gocr && getComputedStyle(gocr).display !== 'none',
+      badgeTag: badgeEl.tagName, flashByBadge, flashByBtn: el.classList.contains('cr-flash') };
   });
   T(r.badge && r.shown && r.h.includes('创作者中心') && r.count === '已发布 1 首'
-    && /puku\.puyouquan\.com\/kanpu\.html\?pub=sc1/.test(r.rowHref) && r.goEdit,
-    'T8a creator角色创作者中心', JSON.stringify(r));
+    && /puku\.puyouquan\.com\/kanpu\.html\?pub=sc1/.test(r.rowHref) && r.goEdit
+    && r.gocrShown && r.badgeTag === 'BUTTON' && r.flashByBadge && r.flashByBtn,
+    'T8a creator角色创作者中心+双入口', JSON.stringify(r));
   // T8b v58.9 换头像：点头像 → 8 预设浮层 → 选预设 → PATCH 生效 img 头像 + 浮层关闭
   r = await pg.evaluate(async () => {
     document.getElementById('me-av').click();
@@ -197,15 +207,17 @@ const seed = [
   r = await pg.evaluate(async () => {
     /* v58.7 教训：display 声明压过 [hidden]，显隐必须断言 computed display */
     const disp = () => getComputedStyle(document.getElementById('me-cr-badge')).display;
-    const before = { badge: disp() !== 'none',
+    const dispG = () => getComputedStyle(document.getElementById('me-gocr')).display;
+    const before = { badge: disp() !== 'none', gocr: dispG() !== 'none',
       btn: !!document.getElementById('cr-become'),
       sub: ((document.querySelector('#me-creator .cr-sub')||{}).textContent||'').includes('免费开通') };
     const b2 = document.getElementById('cr-become'); if (b2) b2.click();
     await new Promise(r=>setTimeout(r,200));
-    return { ...before, afterBadge: disp() !== 'none',
+    return { ...before, afterBadge: disp() !== 'none', afterGocr: dispG() !== 'none',   /* v59.4 开通后头部按钮同步点亮 */
       center: ((document.querySelector('#me-creator .me-h')||{}).textContent||'').includes('创作者中心') };
   });
-  T(!r.badge && r.btn && r.sub && r.afterBadge && r.center, 'T9a user角色成为创作者流', JSON.stringify(r));
+  T(!r.badge && !r.gocr && r.btn && r.sub && r.afterBadge && r.afterGocr && r.center,
+    'T9a user角色成为创作者流+入口点亮', JSON.stringify(r));
   T(pg._errs.length === 0, 'T9b me.html(user) 无报错', pg._errs.join('|') || 'none');
   await pg.close();
 

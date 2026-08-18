@@ -28,10 +28,15 @@
   <header class="me-head">
     <span class="acct-av me-av" id="me-av" title="更换头像">谱</span>
     <div class="me-id">
-      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span><span id="me-cr-badge" class="cr-badge" hidden>创作者</span></h1>
+      <!-- v59.4 创作者徽章可点：与「创作者中心」按钮同一动作，直达创作者中心卡片（用户指示） -->
+      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span><button type="button" id="me-cr-badge" class="cr-badge" hidden title="进入创作者中心">创作者</button></h1>
       <p class="me-sub"><span id="me-phone"></span><span id="me-wx-slot"></span></p>
     </div>
-    <a class="btn me-openzp" href="//zhipu.puyouquan.com/">打开编辑器</a>
+    <!-- v59.4 头部按钮成组：手机端整组换行到第二行，身份区不被挤破（徽章竖排） -->
+    <div class="me-hbtns">
+      <button type="button" class="btn me-gocr" id="me-gocr" hidden title="进入创作者中心：已发布曲谱与发布入口">创作者中心</button>
+      <a class="btn me-openzp" href="//zhipu.puyouquan.com/">打开编辑器</a>
+    </div>
   </header>
   <p class="me-msg" id="me-msg"></p>
 
@@ -203,7 +208,24 @@
     };
     document.getElementById('me-nick-t').textContent=u.nickname||'谱友';
     document.getElementById('me-phone').textContent=u.phone||'';
-    if(u.role==='creator') document.getElementById('me-cr-badge').hidden=false;
+    /* v59.4 创作者入口双通道：头部「创作者中心」按钮 + 可点徽章 → 同一 gotoCreator（定位并高亮卡片） */
+    function gotoCreator(){
+      var c=document.getElementById('me-creator');
+      if(!c || c.hidden) return;
+      try{ c.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){ c.scrollIntoView(); }
+      c.classList.remove('cr-flash');
+      void c.offsetWidth;            /* 重排以便连点两次也能重放高亮 */
+      c.classList.add('cr-flash');
+      setTimeout(function(){ c.classList.remove('cr-flash'); }, 1600);
+    }
+    function syncCreatorEntries(){
+      var isCr = u.role==='creator';
+      document.getElementById('me-cr-badge').hidden = !isCr;
+      document.getElementById('me-gocr').hidden = !isCr;
+    }
+    syncCreatorEntries();
+    document.getElementById('me-cr-badge').onclick = gotoCreator;
+    document.getElementById('me-gocr').onclick = gotoCreator;
     /* 微信绑定状态（/api/me 的 user.wx 既有字段） */
     var wxSlot=document.getElementById('me-wx-slot'), opWx=document.getElementById('op-wx');
     if(u.wx){ wxSlot.innerHTML='<span class="wx-chip">微信已绑定</span>'; }
@@ -253,7 +275,7 @@
         document.getElementById('cr-become').onclick=function(){
           var self=this; self.disabled=true;
           api('/me/creator',{method:'POST'}).then(function(){
-            u.role='creator'; document.getElementById('me-cr-badge').hidden=false;
+            u.role='creator'; syncCreatorEntries();   /* v59.4 开通即点亮徽章与头部按钮 */
             msg('创作者已开通，可去编辑器发布曲谱'); renderCreator();
           }).catch(function(e){ self.disabled=false; msg(e.message); });
         };
