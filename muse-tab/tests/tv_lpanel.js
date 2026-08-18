@@ -106,6 +106,31 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(!r.nan && !r.undef && r.hasJp && r.hasStaff, 'T7 双联排无NaN', JSON.stringify(r));
 
+  // T8 v59.7 哑音不再哑失败：吉他谱有音符→打×并记住原品位；再点还原；光标在简谱行→给指引 toast 不静默
+  r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
+    const s = createSong('guitar', { title: 'mute', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 1, lyr: 1 });
+    const mk = (f, st) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: st, f }], strum: '', tech: '' });
+    s.measures[0].tabs[0] = [mk(3, 5), mk(2, 4), mk(0, 3), mk(1, 2), mk(0, 1), mk(3, 5), mk(2, 4), mk(0, 3)];
+    loadSong(s); setRibbon('tab'); blurSel = false;
+    const btn = document.querySelector('[data-tech2="mute"]');
+    sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 5 }; noteSel = []; selRange = null; render();
+    btn.click();
+    const n1 = song.measures[0].tabs[0][0].notes[0];
+    const on = { x: !!n1.x, xf: n1.xf, f: n1.f };
+    btn.click();   // 再点还原原品位
+    const n2 = song.measures[0].tabs[0][0].notes[0];
+    const off = { x: !!n2.x, f: n2.f, noXf: n2.xf == null };
+    // 光标在简谱行：不改数据，但必须有指引提示（此前静默）
+    sel = { mi: 0, row: 'vox', vi: 0, ci: 0 }; render();
+    const before = JSON.stringify(song.measures[0]);
+    const tEl = document.getElementById('toast'); if (tEl) tEl.textContent = '';
+    btn.click();
+    return { on, off, voxUnchanged: JSON.stringify(song.measures[0]) === before,
+      voxHint: ((document.getElementById('toast') || {}).textContent || '').includes('吉他谱声部') };
+  });
+  T(r.on.x && r.on.xf === 3 && r.on.f === 0 && !r.off.x && r.off.f === 3 && r.off.noXf
+    && r.voxUnchanged && r.voxHint, 'T8 哑音×往返+非吉他谱指引', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
