@@ -7984,7 +7984,7 @@ function applyVoxPattern(pat){
     const hm2=e.target.closest('[data-harmmenu]');
     if(hm2){ const r=hm2.getBoundingClientRect(); showHarmMenu(r.right+6, r.top-4); return; }
     const bm2=e.target.closest('[data-barmenu]');
-    if(bm2){ const r=bm2.getBoundingClientRect(); showBarMenu(r.right+6, r.top-4); return; }
+    if(bm2){ const r=bm2.getBoundingClientRect(); showWhammyMenu(r.right+6, r.top-4); return; }
     const fm2=e.target.closest('[data-fingmenu]');
     if(fm2){ const r=fm2.getBoundingClientRect(); showFingStyleMenu(r.right+6, r.top-4); return; }
     const lf=e.target.closest('[data-lhf]');
@@ -10161,8 +10161,10 @@ function showHarmMenu(cx, cy){
     {label:'拨片泛音 P.H', glyph:'◇<i class="gt">p</i>', on:hmT==='P', hint:'拨片斜触发声（电吉他啸叫感）', act:()=>applyGtech('hm','P')},
     {label:'点弦泛音 T.H', glyph:'◇<i class="gt">t</i>', on:hmT==='T', hint:'右手轻点高十二品泛音', act:()=>applyGtech('hm','T')}]);
 }
-/* v59.5 摇把弹窗（note.bar）：4 种颤音系统奏法，作用于选中音符 */
-function showBarMenu(cx, cy){
+/* v59.5 摇把弹窗（note.bar）：4 种颤音系统奏法，作用于选中音符。
+   v59.7 改名 showWhammyMenu——原名 showBarMenu 与既有「小节线设置菜单」重名，
+   单文件后声明覆盖前声明导致右键小节线弹出摇把菜单（CI tv_rclick T2 拦下，v37.2 同款教训）。 */
+function showWhammyMenu(cx, cy){
   if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('摇把技法用于吉他谱声部——请先选中吉他谱音符');
   const cur=curTabNoteVal('bar');
   pickPop(cx, cy, '摇把 · 颤音系统（谱面标注带显示 w/bar · 再点同项清除）', [
@@ -17220,7 +17222,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v59.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v59.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17243,6 +17245,7 @@ const APP_VER='v59.7';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.8</span><div><b>修复：右键小节线菜单失灵</b>（CI 门禁拦下的回归）：v59.5 新增的「摇把」弹窗函数与既有<b>小节线设置菜单</b>重名，单文件中后声明静默覆盖前者——导致<b>右键/长按小节线弹出的是摇把菜单</b>，反复记号、跳转记号、分段线等设置整块无法使用。现已改名修复。同时给发版语法闸<b>加了「顶层函数重名」检查</b>，此类静默覆盖今后在本地与 CI 都会被直接拦截。</div></li>
     <li><span class="v">v59.7</span><div><b>哑音「点了没反应」修复</b>（用户反馈）：光标不在吉他谱声部（在简谱行/歌词行）或当前位置取不到列时，哑音按钮此前是<b>静默失败</b>——既不生效也无任何提示。现改为明确指引：「哑音 × 用于吉他谱声部——请先在六线谱上点选一个音符（或某根弦的位置）再点哑音」。同时把使用规则写进按钮说明：<b>作用于光标所在的弦位</b>——该弦有音符→变 ×（原品位记住，再点一次还原）；该弦没有音符→在此弦落一个 ×；与「×标记」按钮同义；给扫弦箭头加点请用「切音」。</div></li>
     <li><span class="v">v59.6</span><div><b>技法图标统一与排序</b>（用户指示）：① <b>击勾弦图标改谱面写法</b>——三个符头 + 两道连线弧、弧上分别标 <i>h</i> / <i>p</i>，一眼看懂是「击弦→勾弦」连奏。② <b>指弹技巧移到记号组最末</b>。③ <b>图标全部改线性 SVG，不再使用 Emoji</b>：摇把=摇杆＋俯冲弧箭头，指弹=击板箭头＋面板线＋震动纹，与面板其他图标同一线宽与视觉重量。④ <b>「清除」按钮撤销</b>——清除方式统一为「再点同一技法即取消」（谱面点音符的菜单里仍有清除项）。</div></li>
     <li><span class="v">v59.5</span><div><b>技法面板再收纳 + 新增击勾弦</b>（用户指示）：① <b>摇把</b>——俯冲/上滑/下点/颤音 4 钮收成一枚「摇把」图标，点击弹窗选择。② <b>指弹技巧</b>——打板·低/打板·高/击板 3 钮收成一枚「指弹」图标弹窗（作用于当前列）。③ <b>新增「击勾弦」连奏技法</b>：Ctrl/Shift 选中连续几个音（如 5→7→5），一键按音高走向自动派工——升高的连接记<b>击弦 h</b>、降低的记<b>勾弦 p</b>，并自动连线成串，省去逐音判断；落谱仍是标准 h/p 记号，播放与导出不受影响。演奏技巧组由 14 钮精简到 12 钮。</div></li>

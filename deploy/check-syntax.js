@@ -26,6 +26,22 @@ for (const path of files) {
   }
   if (!i) { console.error('⚠️ ' + path + ' 未找到内联脚本'); bad++; }
   else if (!bad) console.log('✅ ' + path + '：' + i + ' 段内联脚本语法校验通过');
+  /* v59.7 教训（v37.2 同款复发）：单文件里后声明的同名函数会静默覆盖前一个——
+     v59.5 新增的摇把菜单 showBarMenu 覆盖了既有「小节线设置菜单」，右键小节线功能整块失灵，
+     语法闸查不出、只有 CI 的 tv_rclick 拦下。闸：顶层 `function 名(` 重复即拦截发版。 */
+  {
+    const seen = new Map(), dups = [];
+    const fnRe = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+    let fm;
+    while ((fm = fnRe.exec(html))) {
+      const name = fm[1];
+      const line = html.slice(0, fm.index).split('\n').length;
+      if (seen.has(name)) dups.push(name + '（行 ' + seen.get(name) + ' 与 ' + line + '）');
+      else seen.set(name, line);
+    }
+    if (dups.length) { console.error('❌ ' + path + ' 顶层函数重名（后声明会静默覆盖前者）：' + dups.join('；')); bad++; }
+    else console.log('✅ ' + path + '：顶层函数无重名（' + seen.size + ' 个）');
+  }
   /* v59.2 教训：APP_VER 忘随更新日志递增 → 线上版本角标停在旧版 + smoke 版本落位两边读同一常量成假绿。
      闸：APP_VER 必须等于更新日志首条 <span class="v">vX.Y</span>，不一致即拦截发版。 */
   const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];
