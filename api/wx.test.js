@@ -1,7 +1,7 @@
 'use strict';
 // 微信登录纯逻辑单测（零依赖，node api/wx.test.js）
 const assert = require('node:assert');
-const { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange } = require('./wx');
+const { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession } = require('./wx');
 
 let pass = 0, total = 0;
 const T = (name, fn) => { total++; try { fn(); pass++; console.log('✅ ' + name); } catch (e) { console.log('❌ ' + name + ': ' + e.message); } };
@@ -101,6 +101,24 @@ T('jsapiSign：字段字典序拼接 + url 去 # 后 sha1（官方附录1 规则
 T('jsapiSign：缺省自动生成 nonce/timestamp', () => {
   const r = jsapiSign('T', 'https://puyouquan.com/');
   assert.ok(r.nonceStr.length >= 8 && r.timestamp > 0 && /^[0-9a-f]{40}$/.test(r.signature));
+});
+
+T('miniSession：jscode2session 正常 → 取回 openid+unionid，且不外传 session_key', async () => {
+  let seen = '';
+  const stub = async (u) => { seen = u; return { json: async () => ({ openid: 'OP1', unionid: 'UN1', session_key: 'SECRET_SK' }) }; };
+  const r = await miniSession('CODE1', { appid: 'wxmini', secret: 'msec', fetchFn: stub });
+  assert.deepStrictEqual(r, { openid: 'OP1', unionid: 'UN1' });
+  assert.ok(!('session_key' in r), 'session_key 绝不能出现在返回值里');
+  assert.ok(seen.includes('/sns/jscode2session') && seen.includes('js_code=CODE1')
+    && seen.includes('grant_type=authorization_code'), '端点/参数应为小程序 code2Session');
+});
+T('miniSession：未绑开放平台无 unionid → null（不报错，仅按 openid 建号）', async () => {
+  const stub = async () => ({ json: async () => ({ openid: 'OP2', session_key: 'x' }) });
+  assert.deepStrictEqual(await miniSession('C', { appid: 'a', secret: 's', fetchFn: stub }), { openid: 'OP2', unionid: null });
+});
+T('miniSession：code 无效 → 抛 502', async () => {
+  const stub = async () => ({ json: async () => ({ errcode: 40029, errmsg: 'invalid code' }) });
+  await assert.rejects(() => miniSession('BAD', { appid: 'a', secret: 's', fetchFn: stub }), e => e.status === 502);
 });
 
 (async () => {

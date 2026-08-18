@@ -135,6 +135,18 @@ chk 未配置支付下单503 '未配置' "$(J -X POST http://127.0.0.1:3199/api/
 chk 未配置回调FAIL 'FAIL' "$(curl -s -X POST http://127.0.0.1:3199/api/pay/notify -H 'Content-Type: application/json' -d '{}')"
 chk 管理工具查用户含权益 'vip' "$(DB_PATH="$DIR/t.db" node admin.js user 13800001234 2>/dev/null)"
 
+# v60.1 小程序静默登录（本地未配 WX_MINI_* → login 应 503；enter 的票据/白名单逻辑与凭据无关，可独立验）
+chk 健康暴露小程序开关 '"wx_mini":false' "$(curl -s http://127.0.0.1:3199/api/health)"
+chk 未配置小程序登录503 '小程序登录未配置' "$(curl -s -X POST http://127.0.0.1:3199/api/wx/mini/login -H 'Content-Type: application/json' -d '{"code":"abcd1234"}')"
+# 无票/坏票不报错，按未登录进站；to 只认站内，站外一律回落主站（防开放重定向）
+EN1=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fpuku.puyouquan.com%2Fkanpu.html%3Fpub%3Dx')
+chk 坏票据仍302不报错 '302 https://puku.puyouquan.com/kanpu.html?pub=x' "$EN1"
+EN2=$(curl -s -o /dev/null -w '%{redirect_url}' 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fevil.example.com%2F')
+chk 站外to被拒回落主站 '^https://www.puyouquan.com/$' "$EN2"
+EN3=$(curl -s -o /dev/null -w '%{redirect_url}' 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com.evil.com%2F')
+chk 相似域名不误判 '^https://www.puyouquan.com/$' "$EN3"
+nchk 坏票据不下发Cookie 'pyq_token=ey' "$(curl -sI 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com%2F')"
+
 chk 删除谱面级联 '"deleted":true' "$(J -X DELETE http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 删除后谱架为空 '"shelf":\[\]' "$(J http://127.0.0.1:3199/api/shelf)"
 chk 未登录被拒 '请先登录' "$(curl -s http://127.0.0.1:3199/api/scores)"

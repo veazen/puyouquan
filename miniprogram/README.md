@@ -11,6 +11,23 @@
 
 小程序里 web-view **每一次跳转的落地域名**都必须在业务域名白名单里，跳到没加白的域名就是本页顶部那个报错。
 
+## 静默登录（v60.1）
+小程序**读不到也写不了 web-view 的 Cookie**，所以走一次性换票，网页端零改动：
+
+```
+wx.login() → code
+  → POST https://www.puyouquan.com/api/wx/mini/login {code}
+      服务端 jscode2session 换 openid(+unionid) → upsertWxUser 建/认号 → 回 ticket（120s，用一次即焚）
+  → <web-view src="…/api/wx/mini/enter?t=<ticket>&to=<目标页>">
+      服务端校验并作废票据 → Set-Cookie pyq_token → 302 到目标页 → 落地即登录态
+```
+
+实现在 `utils/login.js` 的 `enterUrl(target)`；换票失败（网络差 / 未配 `WX_MINI_*` / 审核环境）自动回落直开目标页，
+只是没有登录态，**不会白屏**。`to` 走站内域名白名单，站外一律回落主站（防开放重定向）。
+
+要让小程序用户和网页微信登录**并成同一个账号**，需把小程序绑定到与网站应用/公众号**同一个开放平台账号**
+——否则 `jscode2session` 不返回 unionid，只能按 openid 建号，会是两个独立账号。
+
 ## 上线步骤（需小程序管理员操作）
 1. **确认主体不是「个人」**：个人主体小程序**不支持 web-view**，业务域名配了也无效，会一直报「不支持打开」。企业 / 个体工商户等非个人主体才可用。
 2. **微信公众平台 → 小程序后台 → 开发 → 开发管理 → 开发设置 → 业务域名**，添加：
@@ -21,8 +38,19 @@
    推送部署后即在 www / puku 根可访问；`deploy/publish.sh` 第 4 步会自动把 site 根级 txt（robots.txt 除外）
    复制一份到 zhipu 根，三个域名一次覆盖。部署完成再回后台点「校验」。
    > 备案通过 ≠ 业务域名已配置，这是两件事，必须单独做。
-3. **微信开发者工具**：导入本 `miniprogram/` 目录，`project.config.json` 里填入小程序 AppID。
-4. 预览真机验证 → 上传体验版 → 提交审核（类目建议：教育-在线教育 或 工具-信息查询）。
+3. **服务器域名（request 合法域名）**：同一页 → **服务器域名 → request 合法域名**，添加 `https://www.puyouquan.com`。
+   > 这和上一步的**业务域名是两个不同的设置项**：业务域名管 `web-view` 能打开哪些网页，
+   > request 合法域名管 `wx.request` 能请求哪些接口。静默登录要调 `/api/wx/mini/login`，所以两个都得配。
+4. **后端凭据**：服务器 `/etc/puyouquan/api.env` 里加两行（小程序后台 → 开发管理 → 开发设置 → AppID/AppSecret），
+   然后 `sudo systemctl restart pyq-api`：
+   ```
+   WX_MINI_APPID=wx********
+   WX_MINI_SECRET=********
+   ```
+   验证：`curl -s https://www.puyouquan.com/api/health` 里 `"wx_mini":true` 即已生效（未配时为 false，
+   登录接口返回 503，小程序自动回落到不登录直接看谱）。
+5. **微信开发者工具**：导入本 `miniprogram/` 目录，`project.config.json` 里填入小程序 AppID。
+6. 预览真机验证 → 上传体验版 → 提交审核（类目建议：教育-在线教育 或 工具-信息查询）。
 
 > 开发者工具里调试时可临时勾选「不校验合法域名」，但真机/体验版仍以后台白名单为准——
 > **工具里能开、手机上打不开**，基本都是白名单没配或校验文件没落位。

@@ -29,6 +29,10 @@ const WX_MP_SECRET = process.env.WX_MP_SECRET || '';
    网页授权域名后，置环境变量 WX_MP_OAUTH=1 即可开启，前端自动出「微信一键登录」。 */
 const WX_MP_REDIRECT = process.env.WX_MP_REDIRECT || 'https://www.puyouquan.com/api/wx/mp/callback';
 const WX_MP_OAUTH = process.env.WX_MP_OAUTH === '1';
+/* v60.1 小程序静默登录：与公众号/开放平台是**第三套**独立凭据（小程序后台 → 开发管理 → 开发设置）。
+   要与网页微信登录并成同一账号，需把小程序绑定到与网站应用/公众号同一个开放平台账号（才有 unionid）。*/
+const WX_MINI_APPID = process.env.WX_MINI_APPID || '';
+const WX_MINI_SECRET = process.env.WX_MINI_SECRET || '';
 /* v45.4 微信支付（APIv3 Native 扫码）：凭据只走服务器环境；私钥为文件路径（apiclient_key.pem）。
    五项全配齐才启用（health.wxpay=true，前端据此显示支付入口）。 */
 const WXPAY = (() => {
@@ -215,6 +219,25 @@ const adminLog = (adminId, action, target, detail) => {
 };
 const needUser = id => { const u = q.userById.get(String(id || '')); if (!u) throw new ApiError(404, '用户不存在'); return u; };
 
+/* ---------- v60.1 小程序换票（内存态，进程重启即清空——120s 有效期内的登录重来一次即可）----------
+   一次性：consume 后立刻删除，重放拿不到第二次 Cookie。签发时顺带清过期票，上限兜住异常刷量。 */
+const MINI_TICKET_TTL = 120;
+const miniTickets = new Map();
+function miniTicketIssue(uid) {
+  const nowMs = Date.now();
+  for (const [k, v] of miniTickets) if (v.exp <= nowMs) miniTickets.delete(k);
+  if (miniTickets.size > 5000) miniTickets.clear();            // 异常刷量兜底：宁可让在途票失效也不涨内存
+  const t = crypto.randomBytes(24).toString('base64url');
+  miniTickets.set(t, { uid, exp: nowMs + MINI_TICKET_TTL * 1000 });
+  return t;
+}
+function miniTicketConsume(t) {
+  const v = miniTickets.get(String(t || ''));
+  if (!v) return null;
+  miniTickets.delete(String(t));                               // 用一次即焚（先删再判过期，过期票也不留）
+  return v.exp > Date.now() ? v.uid : null;
+}
+
 /* ---------- 已发布谱的最小 SSR（title/description/og:image + JSON-LD，可被搜索引擎收录）----------
    动机：交互观看页 zhipu/?pub=ID 是纯前端渲染，爬虫抓到的是空壳；发布谱因此无法被搜索/微信收录。
    方案：/pub/:id 由本服务端出一张「可爬 + 可分享」的落地页（含元数据与静态谱面信息），真人再跳观看页；
@@ -310,7 +333,7 @@ ${noteSvg}
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
 const routes = [
-  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wxpay: wxpayOn() })],
+  ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wx_mini: !!(WX_MINI_APPID && WX_MINI_SECRET), wxpay: wxpayOn() })],
 
   /* -- 认证 -- */
   ['POST', /^\/api\/auth\/sms\/send$/, false, async (m, b, _u, req) => {
@@ -364,6 +387,36 @@ const routes = [
     return { url: wx.buildMpAuthUrl({ appid: WX_MP_APPID, redirect: WX_MP_REDIRECT, state }) };
   }],
   ['GET', /^\/api\/wx\/mp\/callback$/, false, (m, b, _u, req, res) => wxCallbackFlow(req, res, WX_MP_APPID, WX_MP_SECRET)],
+
+  /* -- v60.1 C 小程序静默登录（web-view 免登录）--
+     小程序端拿不到、也设不了 web-view 的 Cookie，只能靠一次性换票：
+       ① 小程序 wx.login() → code，POST /wx/mini/login → 服务端 jscode2session 建/认号 → 回一次性 ticket
+       ② 小程序把 enter_url 交给 <web-view>：GET /wx/mini/enter?t=…&to=… → 校验并作废 ticket
+          → Set-Cookie pyq_token → 302 到目标页。网页端零改动，落地即登录态。
+     ticket 只在内存、120s、用一次即焚（进程重启丢弃无害）；to 走站内白名单防开放重定向。 */
+  ['POST', /^\/api\/wx\/mini\/login$/, false, async (m, b) => {
+    if (!WX_MINI_APPID || !WX_MINI_SECRET) throw new ApiError(503, '小程序登录未配置');
+    const code = String(b.code || '').trim();
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(code)) throw new ApiError(400, '缺少或非法的 code');
+    const prof = await wx.miniSession(code, { appid: WX_MINI_APPID, secret: WX_MINI_SECRET });
+    // 小程序不再提供昵称/头像（getUserInfo 已废），允许端上用 chooseAvatar/nickname 组件采集后带上，仅用于新建号
+    const u = upsertWxUser({ ...prof, nickname: String(b.nickname || '').slice(0, 24), avatar: '' });
+    q.eventAdd.run(u.id, 'login', 'mini', now());
+    const t = miniTicketIssue(u.id);
+    return { ticket: t, expires_in: MINI_TICKET_TTL, user: pubUser(u),
+      enter_url: 'https://www.puyouquan.com/api/wx/mini/enter?t=' + t };
+  }],
+  ['GET', /^\/api\/wx\/mini\/enter$/, false, (m, b, _u, req, res) => {
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const to = sp.get('to') || '';
+    const dest = /^https:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(to) ? to : 'https://www.puyouquan.com/';
+    const uid = miniTicketConsume(sp.get('t') || '');
+    if (!uid) return { ___redirect: dest };                    // 票据过期/已用：不报错，按未登录进站
+    const u = q.userById.get(uid);
+    if (!u) return { ___redirect: dest };
+    setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
+    return { ___redirect: dest };
+  }],
 
   /* -- v55.3 微信 JS-SDK 分享签名：viewer 页转发出自定义卡片（标题/摘要/缩略图）。
         仅为本站域名下的页面签名（防外站白嫖 ticket）；未配置公众号凭据时 503 -- */

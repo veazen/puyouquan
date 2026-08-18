@@ -74,6 +74,22 @@ async function webExchange(code, { appid, secret, fetchFn = fetch }) {
   };
 }
 
+/* ---- v60.1 小程序静默登录：wx.login() 的 code → openid(+unionid) ----
+   与网页端 webExchange 是两套端点两套凭据（小程序 AppID/Secret，非公众号/开放平台）。
+   注意 unionid 只有在「小程序已绑定到与公众号/网站应用同一个开放平台账号」时才返回——
+   没绑定就只有 openid，会与网页微信登录建成两个账号（upsertWxUser 按 unionid 优先合并）。
+   session_key 是解密手机号/敏感数据用的，本项目不用，**不落库不外传**（拿到即丢）。 */
+async function miniSession(code, { appid, secret, fetchFn = fetch }) {
+  const u = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(appid)}`
+    + `&secret=${encodeURIComponent(secret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+  const r = await fetchFn(u, { signal: AbortSignal.timeout(10000) });
+  const j = await r.json().catch(() => ({}));
+  if (j.errcode || !j.openid) {
+    const e = new Error('小程序 code 换 openid 失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e;
+  }
+  return { openid: j.openid, unionid: j.unionid || null };
+}
+
 /* ---- v55.3 公众号 JS-SDK 分享签名（微信内转发链接出自定义卡片的官方通道）----
    前提（公众号后台人工配置）：已认证的服务号/订阅号、域名加入「JS接口安全域名」、服务器 IP 加白名单。
    access_token / jsapi_ticket 各 7200s，内存缓存并提前 5 分钟刷新；凭据由调用方注入不落代码。
@@ -106,4 +122,4 @@ function jsapiSign(ticket, url, { nonceStr, timestamp } = {}) {
   return { nonceStr, timestamp, signature };
 }
 
-module.exports = { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, jsapiTicket, jsapiSign };
+module.exports = { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession, jsapiTicket, jsapiSign };

@@ -46,6 +46,12 @@ WX_WEB_REDIRECT=https://www.puyouquan.com/api/wx/web/callback
 # 公众号后台「基本配置」的 AppID/AppSecret（与上面开放平台网站应用是两套凭据）；服务器 IP 须加入公众号 IP 白名单。
 WX_MP_APPID=
 WX_MP_SECRET=
+# ---- 微信小程序·静默登录（v60.1；两项配齐 /api/wx/mini/login 才生效，缺省 503，小程序自动回落不登录看谱）----
+# 小程序后台「开发管理 → 开发设置」的 AppID/AppSecret（与上面两套都不同，这是第三套）。
+# 小程序后台另需配：业务域名（web-view 能开的网页）+ request 合法域名（wx.request 能调的接口，填 https://www.puyouquan.com）。
+# 要与网页微信登录并成同一账号，须把小程序绑到与网站应用/公众号同一个开放平台账号（才返回 unionid）。
+WX_MINI_APPID=
+WX_MINI_SECRET=
 # ---- 微信支付 APIv3·Native（v45.4；五项配齐 + 私钥文件就位才启用，缺任一项支付停用不影响其他功能）----
 # 商户平台下载的 apiclient_key.pem 放到 WXPAY_KEY_PATH（chmod 600, chown pyq）；
 # WXPAY_SERIAL=商户 API 证书序列号；WXPAY_APIV3_KEY=32 位 APIv3 密钥；
