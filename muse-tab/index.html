@@ -495,7 +495,7 @@ body.shell #left-flyout .rg .rg-title,body.shell #right-dock .rg .rg-title{order
 body.shell #left-flyout .rg-body,body.shell #right-dock .rg .rg-body{justify-content:flex-start;max-width:none}
 body.shell #sign-host-tab .rg-body::before,body.shell #sign-host-vox .rg-body::before{
   display:block;width:100%;font-size:10px;letter-spacing:.09em;color:var(--faint);margin:1px 0 0}
-body.shell #strum-body::before{content:'扫弦 · 琶音'}
+/* v59.3 扫弦·琶音并入音符记号：原 #strum-body 分组撤销（按钮前置于 mark-body） */
 body.shell #mark-body::before{content:'音符记号'}
 body.shell #tech-host::before{content:'演奏技巧'}
 body.shell #vmark-body::before{content:'变音 · 连接 · 记号'}
@@ -1574,9 +1574,10 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       </div>
       <div class="rg-title">记谱风格</div>
     </div>
-    <div class="rg panel-p" id="panel-tab-strum">
-      <div class="rg-title">扫弦 · 琶音</div>
-      <div class="rg-body" id="strum-body">
+    <!-- v59.3 扫弦·琶音组并入音符记号组（用户指示）：原 panel-tab-strum/#strum-body 撤销，5 钮前置于 mark-body -->
+    <div class="rg panel-p" id="panel-tab-mark">
+      <div class="rg-title">音符记号</div>
+      <div class="rg-body" id="mark-body">
         <!-- v59.1 去 data-sic：与 decorateSignButtons 的箭头字形重复注入，谱面曾同时显示两个箭头（用户反馈） -->
         <button id="b-strum-d" title="下扫：从低音弦扫向高音弦（低音先响），谱面标 ↑ 箭头">下扫</button>
         <button id="b-strum-u" title="上扫：从高音弦扫向低音弦（高音先响），谱面标 ↓ 箭头">上扫</button>
@@ -1584,11 +1585,6 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <button id="b-arp" title="上琶音：由低音向高音顺拨">上琶音</button>
         <button id="b-arpd" title="下琶音：由高音向低音顺拨">下琶音</button>
         <!-- v59.2 箭头±两钮删除（用户指示）：改弦数直接点谱面箭头（bumpStrumN 谱面入口保留） -->
-      </div>
-    </div>
-    <div class="rg panel-p" id="panel-tab-mark">
-      <div class="rg-title">音符记号</div>
-      <div class="rg-body" id="mark-body">
         <button id="b-mute" title="×标记：把当前音记为闷音×">×标记</button>
         <button id="b-slap" title="拍弦：分解和弦中需拍弦的音符用方框框住">拍弦</button>
         <button id="b-ferm-t" title="延长号：当前列上方画 𝄐，自由延长该音时值（再点取消）">延长号</button>
@@ -6999,9 +6995,10 @@ function tupSVG(n){
    未列出的面板隐藏；数组顺序即视觉顺序（flex order）。键 = panel-<页>-<key> 的 key。 */
 const DOCK_PANELS = {
   tab: {
-    guitar:['voice','notation','chord','strum','mark','pat','col'],
-    uku:   ['voice','notation','chord','strum','mark','pat','col'],
-    solo:  ['voice','notation','strum','mark','pat','chord','col'],   // 指弹：技法优先，和弦后置
+    /* v59.3 'strum' 键撤销：扫弦·琶音已并入 'mark'（音符记号）面板 */
+    guitar:['voice','notation','chord','mark','pat','col'],
+    uku:   ['voice','notation','chord','mark','pat','col'],
+    solo:  ['voice','notation','mark','pat','chord','col'],   // 指弹：技法优先，和弦后置
   },
   vox: {
     guitar:  ['voice','notation','mark','pat','col','lyradd'],
@@ -7032,7 +7029,7 @@ function setRibbon(t){
   /* v40.9 新版外壳图层内容归纳：扫弦/音符记号/技法（简谱：记号/装饰）合并为「记号」面板；
      和弦只在和弦层、记谱法在右栏风格、节奏型/织体在右栏库、列面板去除 */
   if(uiShell && spec){
-    spec = spec.filter(k=>!['strum','mark','chord','col','pat','acc'].includes(k));
+    spec = spec.filter(k=>!['mark','chord','col','pat','acc'].includes(k));   /* v59.3 'strum' 键已撤销 */
     if(t==='tab' || t==='vox'){
       const i=spec.indexOf('voice'); spec=spec.slice(); spec.splice(i<0? spec.length : i+1, 0, 'sign');
     }
@@ -12909,7 +12906,7 @@ function applyShellDock(){
       if(uiShell){ const h=document.getElementById(shellHostId); if(h) h.appendChild(b); }
       else { const pp=document.getElementById(classicPanelId); if(pp) pp.appendChild(b); }
     };
-    mv('strum-body','sign-host-tab','panel-tab-strum');
+    /* v59.3 strum-body 撤销（并入 mark-body），不再单独搬移 */
     mv('mark-body','sign-host-tab','panel-tab-mark');
     mv('tech-host','sign-host-tab','panel-tab-tech');
     mv('vmark-body','sign-host-vox','panel-vox-mark');
@@ -17160,7 +17157,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v59.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v59.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17183,6 +17180,7 @@ const APP_VER='v59.2';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.3</span><div><b>扫弦 · 琶音并入音符记号</b>（用户指示）：吉他谱左栏「记号」卡不再分「扫弦 · 琶音」「音符记号」两个子组——下扫/上扫/切音/上下琶音 5 个按钮前置并入<b>音符记号</b>组，与 ×标记/拍弦/延长号/连音线等同组排列，左栏分组更少、找按钮更快（功能与谱面记法不变）。</div></li>
     <li><span class="v">v59.2</span><div><b>左栏细节修正</b>（用户指示批次）：① 声部下方记谱法区标题改「显示」，按钮<b>纯图标化</b>——点击点亮生效，鼠标悬停显示中文说明。② <b>哑音图标改「圈内 ×」</b>，与音符记号层的「×标记」按钮视觉区分（二者记谱相同，仅入口图标不同）。③ 扫弦「箭头−/箭头＋」两钮删除——改箭头覆盖弦数直接点谱面箭头即可。④ 切音按钮图标的圆点移到<b>箭头顶端正上方</b>（与谱面画法一致，此前点偏在右侧）。</div></li>
     <li><span class="v">v59.1</span><div><b>左栏记号面板改造：收纳弹窗 + 记谱法点亮</b>（用户指示批次）：① <b>指法收纳</b>——左手 6 钮 + 右手 4 钮收成两枚<b>手形按钮</b>，点击弹窗选指（Ⓣ①②③④⓪ / p i m a，当前值高亮，快捷键不变）。② <b>滑音/泛音收纳</b>——滑弦与无头/无尾上下滑 5 钮收进「滑音」弹窗，自然/人工/拨片/点弦泛音 4 钮收进「泛音」弹窗；演奏技巧面板从 30+ 钮精简到 14 钮。③ <b>扫弦箭头修正</b>：下扫/上扫按钮此前双重注入图标显示两个箭头，现恒一个。④ <b>记谱法移到声部下方 · 图标点亮式</b>——吉他声部：六线谱恒亮，<b>五线谱/简谱可点亮联排</b>（同源自动互译：五线谱按调拼写、简谱按首调唱名翻译，新增 TAB+简谱联排行）；旋律声部：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），已点亮再点可换谱号/谱表或关闭。⑤ 箭头长度调节等裸文字钮补齐图标，面板图标盒统一尺寸基线。</div></li>
     <li><span class="v">v59.0</span><div><b>个人中心独立页面 + 全站移动端深修</b>（UI 设计专家 + 两组移动端审计专家实测策划）：① <b>编辑器个人中心从弹窗升级为独立页面</b>——整页布局：常驻身份页头（头像/昵称/创作者徽章/云同步状态/官网个人中心直达）+ 左侧导航（我的曲谱 / 创作者中心 / 我的权益 / 个人资料，工作台心智曲谱在前）+ 卡片化内容区；地址栏 <code>?pc=页签</code> 可刷新可收藏，浏览器返回一步回到制谱器，Esc 同效；手机上导航变吸顶胶囊横滑、触控目标 44px。② <b>自定义节奏型下线</b>（本机模板数据原地保留不清除）。③ <b>手机制谱可用性深修</b>（实测发现桌面框架规则在窄屏压过手机适配规则）：修复谱面纵向滚动死锁（此前第一屏以下不可达）、启动台入口落回首屏、左栏图层轨改为屏内底部横滑抽屉、编辑栏改单行横滑（清音/高把位钮不再被裁出屏）、放大后可横向平移看右半幅、导出弹窗按钮不再向左甩出屏、按钮触控高度提到 38px+；观看页「放大 115%/135%」在手机上真正生效。④ <b>官网移动端修正</b>：顶部导航四项完整可见（此前大半被裁且无滑动暗示）、登录弹窗在键盘弹起后可滚动触达按钮、输入框 16px 不再触发 iOS 自动放大、首页工具卡不再逐字竖排、个人中心长曲谱名不再撑破页面横晃、常见小按钮触控热区全面加大。</div></li>

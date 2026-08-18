@@ -89,7 +89,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.querySelector('.ltab[data-t="chord"]').click();
     const g = { active: activeTab,
       chordPanel: document.getElementById('panel-tab-chord').style.display !== 'none',
-      strumHidden: document.getElementById('panel-tab-strum').style.display === 'none' };
+      /* v59.3 扫弦·琶音并入音符记号：原 panel-tab-strum 撤销，改断言记号面板在和弦层隐藏 */
+      strumHidden: document.getElementById('panel-tab-mark').style.display === 'none'
+        && !document.getElementById('panel-tab-strum')
+        && !!document.querySelector('#mark-body #b-strum-d') };
     render();   // 再渲染一次，图层页不被重置
     g.kept = activeTab === 'chord';
     loadSong(createSong('pianoacc', { beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }));

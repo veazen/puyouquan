@@ -28,13 +28,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T1 弹唱谱（吉他）：三页齐全，tab 页顺序=声部/记谱法/和弦/扫弦/音符/节奏型/列
   let r = await probe("loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:2,nTab:1,nVox:1,lyr:1})); setRibbon('tab');");
   T(r.rail.tab === '吉他谱' && r.rail.vox === '简谱' && r.rail.lyr === '歌词'
-    && r.tabPanels.join() === 'voice,notation,chord,strum,mark,pat,col',
+    && r.tabPanels.join() === 'voice,notation,chord,mark,pat,col',
     'T1 弹唱谱', 'rail=' + JSON.stringify(r.rail) + ' tab页=' + r.tabPanels.join('/'));
 
   // T2 独奏谱：无简谱/歌词页，标签「独奏谱」，技法优先和弦后置
   r = await probe("loadSong(createSong('solo',{beats:4,unit:4,key:'C',nMea:2,nTab:1,lyr:0})); ");
   T(r.rail.tab === '独奏谱' && r.rail.vox === null && r.rail.lyr === null && r.active === 'tab'
-    && r.tabPanels.join() === 'voice,notation,strum,mark,pat,chord,col',
+    && r.tabPanels.join() === 'voice,notation,mark,pat,chord,col',
     'T2 独奏谱', 'rail=' + JSON.stringify(r.rail) + ' 回退页=' + r.active);
 
   // T3 钢琴弹唱：标签「钢琴伴奏」，伴奏工具置顶，无节奏型，无歌词页
