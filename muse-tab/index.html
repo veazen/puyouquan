@@ -6688,7 +6688,9 @@ const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
    与紧随其后的人工泛音字母按钮聚成「泛音类」；清除按钮渲染时恒排最后（见 techHtml） */
 /* v59.2 哑音图标改「圈内 ×」——与音符记号层的「×标记」按钮视觉区分（用户指示；二者同写死音 ×，仅入口图标不同） */
 /* v59.5 击勾弦 hp：连奏命令键（选 ≥2 音按音高走向自动派 h/p），数据层不存 'hp' */
-const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['hp','击勾弦','h<i style="font-style:normal;opacity:.55">/</i>p'],['b','推弦','b↑'],['bd','回落','b↓'],
+/* v59.6 击勾弦图标改谱面写法（用户指示）：三个符头 + 两道连线弧，弧上分别标 h / p */
+const HP_SVG='<svg width="34" height="18" viewBox="0 0 34 18"><text x="9" y="6.4" font-size="7.2" font-style="italic" font-family="Georgia,serif" font-weight="700" text-anchor="middle" fill="currentColor">h</text><text x="25" y="6.4" font-size="7.2" font-style="italic" font-family="Georgia,serif" font-weight="700" text-anchor="middle" fill="currentColor">p</text><path d="M3.4 12.4 Q9 7.4 14.6 12.4" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M19.4 12.4 Q25 7.4 30.6 12.4" fill="none" stroke="currentColor" stroke-width="1.1"/><circle cx="3.4" cy="14.6" r="2.1" fill="currentColor"/><circle cx="17" cy="14.6" r="2.1" fill="currentColor"/><circle cx="30.6" cy="14.6" r="2.1" fill="currentColor"/></svg>';
+const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['hp','击勾弦',HP_SVG],['b','推弦','b↑'],['bd','回落','b↓'],
                   ['mute','哑音','<svg width="16" height="16" viewBox="0 0 16 16" style="vertical-align:-2px"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.15"/><path d="M5.7 5.7 L10.3 10.3 M5.7 10.3 L10.3 5.7" stroke="currentColor" stroke-width="1.25" fill="none"/></svg>'],
                   ['v','揉弦','~'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
@@ -7077,10 +7079,11 @@ function setRibbon(t){
       + `<button class="eb ico" data-slidemenu title="滑音类：滑弦 S（两音相连）/ 无头上滑 ⟋S / 无头下滑 ⟍S / 无尾上滑 S⟋ / 无尾下滑 S⟍——点击弹窗选择"><b class="g"><i class="gt">S</i>⟋</b><span>滑音</span></button>`
       + `<button class="eb ico" data-harmmenu title="泛音类：自然泛音 N.H. / 人工泛音 A.H / 拨片泛音 P.H / 点弦泛音 T.H——点击弹窗选择（谱面菱形框住品位数字）"><b class="g">◇</b><span>泛音</span></button>`
       /* v59.5 摇把 4 钮、指弹（打板/击板）3 钮各收进一个弹窗（用户指示） */
-      + `<button class="eb ico" data-barmenu title="摇把（颤音系统）：俯冲 ↘ / 上滑 ↗ / 下点 ∨ / 颤音 ≈——点击弹窗选择（谱面标注带显示 w/bar）"><b class="g">↘</b><span>摇把</span></button>`
-      + `<button class="eb ico" data-fingmenu title="指弹技巧：打板·低音区 B / 打板·高音区 S / 击板 G——点击弹窗选择（作用于当前列）"><b class="g">✋</b><span>指弹</span></button>`
+      /* v59.6 图标统一为线性 SVG（禁 Emoji）：摇把=摇杆+俯冲弧箭头；指弹=击板箭头+面板线+震动纹 */
+      + `<button class="eb ico" data-barmenu title="摇把（颤音系统）：俯冲 ↘ / 上滑 ↗ / 下点 ∨ / 颤音 ≈——点击弹窗选择（谱面标注带显示 w/bar）"><b class="g"><svg width="18" height="17" viewBox="0 0 20 19"><path d="M3.4 4.6 h6.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="3.4" cy="4.6" r="1.5" fill="currentColor"/><path d="M9.6 4.6 q5.2 0.6 5.6 8.4" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M12.8 11.6 L15.2 14.6 L17.2 11.2" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></b><span>摇把</span></button>`
       + gtechHtml()
-      + EB_TECHS.filter(e=>e[0]==='').map(tBtn).join('');
+      /* v59.6 指弹技巧排在记号组最末（用户指示）；「清除」按钮撤销——再点同一技法即清除 */
+      + `<button class="eb ico" data-fingmenu title="指弹技巧：打板·低音区 B / 打板·高音区 S / 击板 G——点击弹窗选择（作用于当前列）"><b class="g"><svg width="18" height="17" viewBox="0 0 20 19"><path d="M10 2.6 v6.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><path d="M7.4 6.4 L10 9.2 L12.6 6.4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.2 12.4 h13.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M5.4 16.2 l1.5-2.2 M14.6 16.2 l-1.5-2.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none" opacity="0.72"/></svg></b><span>指弹</span></button>`;
     /* v42.3 原按 song.gtype 过滤；v52.6 产品拍板统一全量显示。
        v59.1：泛音细分（hmA/hmP/hmT）收进「泛音」弹窗、pima（rhP/rhI/rhM/rhA）收进记号层「右手指法」弹窗——
        面板不再直排（数组保留：applyGtech 路由与既有数据/快捷入口不变） */
@@ -17214,7 +17217,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v59.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v59.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17237,6 +17240,7 @@ const APP_VER='v59.5';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.6</span><div><b>技法图标统一与排序</b>（用户指示）：① <b>击勾弦图标改谱面写法</b>——三个符头 + 两道连线弧、弧上分别标 <i>h</i> / <i>p</i>，一眼看懂是「击弦→勾弦」连奏。② <b>指弹技巧移到记号组最末</b>。③ <b>图标全部改线性 SVG，不再使用 Emoji</b>：摇把=摇杆＋俯冲弧箭头，指弹=击板箭头＋面板线＋震动纹，与面板其他图标同一线宽与视觉重量。④ <b>「清除」按钮撤销</b>——清除方式统一为「再点同一技法即取消」（谱面点音符的菜单里仍有清除项）。</div></li>
     <li><span class="v">v59.5</span><div><b>技法面板再收纳 + 新增击勾弦</b>（用户指示）：① <b>摇把</b>——俯冲/上滑/下点/颤音 4 钮收成一枚「摇把」图标，点击弹窗选择。② <b>指弹技巧</b>——打板·低/打板·高/击板 3 钮收成一枚「指弹」图标弹窗（作用于当前列）。③ <b>新增「击勾弦」连奏技法</b>：Ctrl/Shift 选中连续几个音（如 5→7→5），一键按音高走向自动派工——升高的连接记<b>击弦 h</b>、降低的记<b>勾弦 p</b>，并自动连线成串，省去逐音判断；落谱仍是标准 h/p 记号，播放与导出不受影响。演奏技巧组由 14 钮精简到 12 钮。</div></li>
     <li><span class="v">v59.3</span><div><b>扫弦 · 琶音并入音符记号</b>（用户指示）：吉他谱左栏「记号」卡不再分「扫弦 · 琶音」「音符记号」两个子组——下扫/上扫/切音/上下琶音 5 个按钮前置并入<b>音符记号</b>组，与 ×标记/拍弦/延长号/连音线等同组排列，左栏分组更少、找按钮更快（功能与谱面记法不变）。</div></li>
     <li><span class="v">v59.2</span><div><b>左栏细节修正</b>（用户指示批次）：① 声部下方记谱法区标题改「显示」，按钮<b>纯图标化</b>——点击点亮生效，鼠标悬停显示中文说明。② <b>哑音图标改「圈内 ×」</b>，与音符记号层的「×标记」按钮视觉区分（二者记谱相同，仅入口图标不同）。③ 扫弦「箭头−/箭头＋」两钮删除——改箭头覆盖弦数直接点谱面箭头即可。④ 切音按钮图标的圆点移到<b>箭头顶端正上方</b>（与谱面画法一致，此前点偏在右侧）。</div></li>
