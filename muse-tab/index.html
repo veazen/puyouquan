@@ -6687,7 +6687,8 @@ const COMBO_COMMON = 3;   // 组合时值默认展示的常用个数
    v46.1 泛音类归组：自然泛音 ◇→字母 N.H.（与 A.H./P.H./T.H. 统一字母风格）并排到列表尾部，
    与紧随其后的人工泛音字母按钮聚成「泛音类」；清除按钮渲染时恒排最后（见 techHtml） */
 /* v59.2 哑音图标改「圈内 ×」——与音符记号层的「×标记」按钮视觉区分（用户指示；二者同写死音 ×，仅入口图标不同） */
-const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['b','推弦','b↑'],['bd','回落','b↓'],
+/* v59.5 击勾弦 hp：连奏命令键（选 ≥2 音按音高走向自动派 h/p），数据层不存 'hp' */
+const EB_TECHS = [['sl','滑弦','S'],['h','击弦','h'],['p','勾弦','p'],['hp','击勾弦','h<i style="font-style:normal;opacity:.55">/</i>p'],['b','推弦','b↑'],['bd','回落','b↓'],
                   ['mute','哑音','<svg width="16" height="16" viewBox="0 0 16 16" style="vertical-align:-2px"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.15"/><path d="M5.7 5.7 L10.3 10.3 M5.7 10.3 L10.3 5.7" stroke="currentColor" stroke-width="1.25" fill="none"/></svg>'],
                   ['v','揉弦','~'],['tp','点弦','T'],['pm','闷音','P.M.'],
                   ['su','无头上滑','⟋S'],['sd','无头下滑','⟍S'],
@@ -7075,13 +7076,17 @@ function setRibbon(t){
     const techHtml = ()=>EB_TECHS.filter(e=>e[0]!=='' && !SLIDE_KEYS.includes(e[0]) && e[0]!=='hm').map(tBtn).join('')
       + `<button class="eb ico" data-slidemenu title="滑音类：滑弦 S（两音相连）/ 无头上滑 ⟋S / 无头下滑 ⟍S / 无尾上滑 S⟋ / 无尾下滑 S⟍——点击弹窗选择"><b class="g"><i class="gt">S</i>⟋</b><span>滑音</span></button>`
       + `<button class="eb ico" data-harmmenu title="泛音类：自然泛音 N.H. / 人工泛音 A.H / 拨片泛音 P.H / 点弦泛音 T.H——点击弹窗选择（谱面菱形框住品位数字）"><b class="g">◇</b><span>泛音</span></button>`
+      /* v59.5 摇把 4 钮、指弹（打板/击板）3 钮各收进一个弹窗（用户指示） */
+      + `<button class="eb ico" data-barmenu title="摇把（颤音系统）：俯冲 ↘ / 上滑 ↗ / 下点 ∨ / 颤音 ≈——点击弹窗选择（谱面标注带显示 w/bar）"><b class="g">↘</b><span>摇把</span></button>`
+      + `<button class="eb ico" data-fingmenu title="指弹技巧：打板·低音区 B / 打板·高音区 S / 击板 G——点击弹窗选择（作用于当前列）"><b class="g">✋</b><span>指弹</span></button>`
       + gtechHtml()
       + EB_TECHS.filter(e=>e[0]==='').map(tBtn).join('');
     /* v42.3 原按 song.gtype 过滤；v52.6 产品拍板统一全量显示。
        v59.1：泛音细分（hmA/hmP/hmT）收进「泛音」弹窗、pima（rhP/rhI/rhM/rhA）收进记号层「右手指法」弹窗——
        面板不再直排（数组保留：applyGtech 路由与既有数据/快捷入口不变） */
     const gtechHtml = ()=> EB_GTECH
-        .filter(([k])=>!['hmA','hmP','hmT','rhP','rhI','rhM','rhA'].includes(k))
+        /* v59.5 再收：摇把 4 钮进「摇把」弹窗、打板 3 钮进「指弹」弹窗——直排只剩 let ring */
+        .filter(([k])=>!['hmA','hmP','hmT','rhP','rhI','rhM','rhA','bDive','bScoop','bDip','bShake','pcB','pcS','pcG'].includes(k))
         .map(([k,l,g,ctx,kind,val])=>`<button class="eb ico" data-gtech="${kind}:${val}" title="${l}（${kind==='perc'?'作用于当前列':'作用于选中音符'}）"><b class="g">${g}</b><span>${l}</span></button>`).join('');
     const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}">${ornSVG(k)}<span>${l}</span></button>`).join('');
     if(uiShell){
@@ -7975,6 +7980,10 @@ function applyVoxPattern(pat){
     if(sm2){ const r=sm2.getBoundingClientRect(); showSlideMenu(r.right+6, r.top-4); return; }
     const hm2=e.target.closest('[data-harmmenu]');
     if(hm2){ const r=hm2.getBoundingClientRect(); showHarmMenu(r.right+6, r.top-4); return; }
+    const bm2=e.target.closest('[data-barmenu]');
+    if(bm2){ const r=bm2.getBoundingClientRect(); showBarMenu(r.right+6, r.top-4); return; }
+    const fm2=e.target.closest('[data-fingmenu]');
+    if(fm2){ const r=fm2.getBoundingClientRect(); showFingStyleMenu(r.right+6, r.top-4); return; }
     const lf=e.target.closest('[data-lhf]');
     if(lf){ applyFingerMark('lhF', lf.dataset.lhf); return; }
     const rf=e.target.closest('[data-rhf]');
@@ -8054,6 +8063,9 @@ function showComboMenu(cx, cy){
 function techFromBar(t){ try{ if(t) habit('tech:'+t); }catch(_){}
   /* v45.7 哑音（死音×）：技巧面板入口，等效「×标记」（把当前音记为闷音×，再点取消） */
   if(t==='mute'){ toggleMute(); return; }
+  /* v59.5 击勾弦（连奏）：选 ≥2 个音，按音高走向自动逐对判定——升→击弦 h、降→勾弦 p、同品→击弦。
+     'hp' 只是命令不入库：落数据仍是既有 h/p + tk 链，渲染/播放/MusicXML 全兼容。 */
+  if(t==='hp'){ hammerPullChain(); return; }
   /* 推弦走统一流程（无论单选还是 Ctrl 多选）：圆圈目标音+连线+提示编辑 */
   if(t==='b'||t==='bd'){ bendFromBar(t); return; }
   if(selNotes().some(q=>q.row!=='vox')){ applyTech(t); return; }
@@ -10028,6 +10040,32 @@ function applyTech(tech){
   });
   toast(tech?('已标记技法：'+({sl:'滑弦',h:'击弦',p:'勾弦',b:'上推弦',bd:'下推弦',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音',su:'上滑音',sd:'下滑音',lr:'let ring 余音保持'}[tech]||tech)):'已清除技法');
 }
+/* v59.5 击勾弦（连奏 h/p 链）：Ctrl/Shift 选 ≥2 个吉他谱音符，按谱面先后逐对判定——
+   后一音品位更高=击弦 h、更低=勾弦 p、同品=击弦 h（同弦优先配对，跨弦仍按选中序连）。
+   落库仍是既有 note.tech='h'/'p' + note.tk（不新增字段/不新增枚举值），渲染与播放零改动。 */
+function hammerPullChain(){
+  const list = selNotes().filter(q=>q.row!=='vox')
+    .sort((a,b)=> a.mi-b.mi || a.ci-b.ci || a.si-b.si);
+  if(list.length<2) return toast('击勾弦需选中至少 2 个音符：Ctrl/Shift 点选或框选连续几个音（如 5→7→5）');
+  const noteAt = q=>{ const cols=song.measures[q.mi] && song.measures[q.mi].tabs[q.vi];
+    return cols && cols[q.ci] && (cols[q.ci].notes||[]).find(x=>x.s===q.si); };
+  let nH=0, nP=0;
+  mutate(()=>{
+    for(let i=0;i<list.length-1;i++){
+      const a=noteAt(list[i]), b2=noteAt(list[i+1]);
+      if(!a || !b2) continue;
+      const up = (b2.f||0) >= (a.f||0);
+      a.tech = up? 'h' : 'p';
+      a.tk = {mi:list[i+1].mi, ci:list[i+1].ci, si:list[i+1].si};
+      delete a.bt; delete a.bAmt; delete a.bendType;
+      if(up) nH++; else nP++;
+    }
+    const last=noteAt(list[list.length-1]);   /* 链末音不再往后连（避免悬挂 tk） */
+    if(last && (last.tech==='h'||last.tech==='p')){ delete last.tech; delete last.tk; }
+  });
+  render();
+  toast('已标记击勾弦连奏：击弦 '+nH+' 处 · 勾弦 '+nP+' 处（按音高走向自动判定，点单音技法可改）');
+}
 /* v42.3 gtype 专属技法：摇把 note.bar / 泛音细分 note.hmT / 右手指法 note.rhFing / 打板 col.perc（字段只增） */
 function applyGtech(kind, value){ try{habit('gtech:'+kind+':'+value);}catch(_){}
   if(kind==='perc'){                                   // 打板：作用于当前选中列（列级）
@@ -10119,6 +10157,25 @@ function showHarmMenu(cx, cy){
     {label:'人工泛音 A.H', glyph:'◈', on:hmT==='A', hint:'按品后右手点弦泛音', act:()=>applyGtech('hm','A')},
     {label:'拨片泛音 P.H', glyph:'◇<i class="gt">p</i>', on:hmT==='P', hint:'拨片斜触发声（电吉他啸叫感）', act:()=>applyGtech('hm','P')},
     {label:'点弦泛音 T.H', glyph:'◇<i class="gt">t</i>', on:hmT==='T', hint:'右手轻点高十二品泛音', act:()=>applyGtech('hm','T')}]);
+}
+/* v59.5 摇把弹窗（note.bar）：4 种颤音系统奏法，作用于选中音符 */
+function showBarMenu(cx, cy){
+  if(sel.row!=='tab' && !selNotes().some(q=>q.row!=='vox')) return toast('摇把技法用于吉他谱声部——请先选中吉他谱音符');
+  const cur=curTabNoteVal('bar');
+  pickPop(cx, cy, '摇把 · 颤音系统（谱面标注带显示 w/bar · 再点同项清除）', [
+    {label:'俯冲', glyph:'↘', on:cur==='dive', hint:'压下摇把使音高俯冲下坠', act:()=>applyGtech('bar','dive')},
+    {label:'上滑', glyph:'↗', on:cur==='scoop', hint:'自低处推起摇把滑入本音', act:()=>applyGtech('bar','scoop')},
+    {label:'下点', glyph:'∨', on:cur==='dip', hint:'快速压放一次（V 形回位）', act:()=>applyGtech('bar','dip')},
+    {label:'颤音', glyph:'≈', on:cur==='shake', hint:'持续小幅抖动摇把', act:()=>applyGtech('bar','shake')}]);
+}
+/* v59.5 指弹技巧弹窗（col.perc）：打板/击板，列级标记 */
+function showFingStyleMenu(cx, cy){
+  if(sel.row!=='tab') return toast('指弹技巧（打板/击板）作用于吉他谱的列——请先在六线谱选中一列');
+  let cur=null; try{ cur=(song.measures[sel.mi].tabs[sel.vi][sel.ci]||{}).perc||null; }catch(_){}
+  pickPop(cx, cy, '指弹技巧 · 打板与击板（作用于当前列 · 再点同项清除）', [
+    {label:'打板·低', glyph:'<i class="gt">B</i>', on:cur==='bass', hint:'右手掌根拍击低音弦区（bass）', act:()=>applyGtech('perc','bass')},
+    {label:'打板·高', glyph:'<i class="gt">S</i>', on:cur==='snare', hint:'指侧拍击高音弦区（snare）', act:()=>applyGtech('perc','snare')},
+    {label:'击板', glyph:'<i class="gt">G</i>', on:cur==='golpe', hint:'敲击面板（golpe，弗拉门戈惯例）', act:()=>applyGtech('perc','golpe')}]);
 }
 /* v52.5 拨片方向 col.pk：'d'=下拨 ⊓ / 'u'=上拨 ∨（列级，标注带显示） */
 function applyPickDir(v){
@@ -17157,7 +17214,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v59.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v59.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17180,6 +17237,7 @@ const APP_VER='v59.3';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v59.5</span><div><b>技法面板再收纳 + 新增击勾弦</b>（用户指示）：① <b>摇把</b>——俯冲/上滑/下点/颤音 4 钮收成一枚「摇把」图标，点击弹窗选择。② <b>指弹技巧</b>——打板·低/打板·高/击板 3 钮收成一枚「指弹」图标弹窗（作用于当前列）。③ <b>新增「击勾弦」连奏技法</b>：Ctrl/Shift 选中连续几个音（如 5→7→5），一键按音高走向自动派工——升高的连接记<b>击弦 h</b>、降低的记<b>勾弦 p</b>，并自动连线成串，省去逐音判断；落谱仍是标准 h/p 记号，播放与导出不受影响。演奏技巧组由 14 钮精简到 12 钮。</div></li>
     <li><span class="v">v59.3</span><div><b>扫弦 · 琶音并入音符记号</b>（用户指示）：吉他谱左栏「记号」卡不再分「扫弦 · 琶音」「音符记号」两个子组——下扫/上扫/切音/上下琶音 5 个按钮前置并入<b>音符记号</b>组，与 ×标记/拍弦/延长号/连音线等同组排列，左栏分组更少、找按钮更快（功能与谱面记法不变）。</div></li>
     <li><span class="v">v59.2</span><div><b>左栏细节修正</b>（用户指示批次）：① 声部下方记谱法区标题改「显示」，按钮<b>纯图标化</b>——点击点亮生效，鼠标悬停显示中文说明。② <b>哑音图标改「圈内 ×」</b>，与音符记号层的「×标记」按钮视觉区分（二者记谱相同，仅入口图标不同）。③ 扫弦「箭头−/箭头＋」两钮删除——改箭头覆盖弦数直接点谱面箭头即可。④ 切音按钮图标的圆点移到<b>箭头顶端正上方</b>（与谱面画法一致，此前点偏在右侧）。</div></li>
     <li><span class="v">v59.1</span><div><b>左栏记号面板改造：收纳弹窗 + 记谱法点亮</b>（用户指示批次）：① <b>指法收纳</b>——左手 6 钮 + 右手 4 钮收成两枚<b>手形按钮</b>，点击弹窗选指（Ⓣ①②③④⓪ / p i m a，当前值高亮，快捷键不变）。② <b>滑音/泛音收纳</b>——滑弦与无头/无尾上下滑 5 钮收进「滑音」弹窗，自然/人工/拨片/点弦泛音 4 钮收进「泛音」弹窗；演奏技巧面板从 30+ 钮精简到 14 钮。③ <b>扫弦箭头修正</b>：下扫/上扫按钮此前双重注入图标显示两个箭头，现恒一个。④ <b>记谱法移到声部下方 · 图标点亮式</b>——吉他声部：六线谱恒亮，<b>五线谱/简谱可点亮联排</b>（同源自动互译：五线谱按调拼写、简谱按首调唱名翻译，新增 TAB+简谱联排行）；旋律声部：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），已点亮再点可换谱号/谱表或关闭。⑤ 箭头长度调节等裸文字钮补齐图标，面板图标盒统一尺寸基线。</div></li>

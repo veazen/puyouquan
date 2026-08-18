@@ -23,9 +23,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
        弹窗内项经 showHarmMenu/showHandMenu 验证 */
     showHarmMenu(200,200);
     const hmN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
-    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, hasBar:g.includes('bar:dive'), hmN,
+    /* v59.5 摇把 4 钮进「摇把」弹窗、打板 3 钮进「指弹」弹窗 → 直排只剩 let ring（n=1） */
+    showBarMenu(200,200);
+    const barN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
+    return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, barN, hmN,
       hasLr:g.includes('tech:lr'), hasHand:document.querySelectorAll('#mark-body [data-hand]').length, n:g.length}; })()`);
-  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.hasBar && r.hmN === 4 && r.hasLr && r.hasHand === 2 && r.n === 8, 'T1 电吉他gtype+收纳面板', JSON.stringify(r));
+  T(r.dt === 'solo' && r.gt === 'lead' && r.tune && r.barN === 4 && r.hmN === 4 && r.hasLr && r.hasHand === 2 && r.n === 1, 'T1 电吉他gtype+收纳面板', JSON.stringify(r));
 
   // T2 电吉他记号渲染 + Drop D 谱首标注 + N.C.
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -53,8 +56,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
     showHandMenu('rh',200,200);
     const rhN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
-    return {gt:song.gtype, rhN, hasPerc:g.includes('perc:bass'), hasLr:g.includes('tech:lr'), hasBar:g.includes('bar:dive'), n:g.length}; })()`);
-  T(r.gt === 'finger' && r.rhN === 4 && r.hasPerc && r.hasLr && r.hasBar && r.n === 8, 'T4 指弹收纳面板', JSON.stringify(r));
+    showFingStyleMenu(200,200);   /* v59.5 指弹技巧弹窗：打板·低/打板·高/击板 */
+    const pcN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
+    return {gt:song.gtype, rhN, pcN, hasLr:g.includes('tech:lr'), n:g.length}; })()`);
+  T(r.gt === 'finger' && r.rhN === 4 && r.pcN === 3 && r.hasLr && r.n === 1, 'T4 指弹收纳面板', JSON.stringify(r));
 
   // T5 指弹记号渲染（pima + 打板×2）
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -91,8 +96,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); setRibbon('tab');
     const g=[...document.querySelectorAll('[data-gtech]')].map(x=>x.dataset.gtech);
     return {dt:docType(song), gt:song.gtype||null, n:g.length,
-      hasBar:g.includes('bar:dive'), hasHand:document.querySelectorAll('#mark-body [data-hand]').length, hasPerc:g.includes('perc:bass')}; })()`);
-  T(r.dt === 'guitar' && r.gt === null && r.n === 8 && r.hasBar && r.hasHand === 2 && r.hasPerc, 'T8 弹唱收纳面板', JSON.stringify(r));
+      hasBarMenu:!!document.querySelector('[data-barmenu]'), hasFingMenu:!!document.querySelector('[data-fingmenu]'),
+      hasHp:!!document.querySelector('[data-tech2="hp"]'),
+      hasHand:document.querySelectorAll('#mark-body [data-hand]').length}; })()`);
+  T(r.dt === 'guitar' && r.gt === null && r.n === 1 && r.hasBarMenu && r.hasFingMenu && r.hasHp && r.hasHand === 2, 'T8 弹唱收纳面板+击勾弦钮', JSON.stringify(r));
 
   // T8b v49.5 框选：鼠标拖框圈选 TAB 音符 → noteSel 批量入选 → P.M. 范围落数据
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
@@ -219,6 +226,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.byStr && r.cross, 'T8h 和弦滑音按弦配对（跨弦两音退回直连）', JSON.stringify(r));
 
   T(errs.length === 0, 'T9 全程无报错', errs.join('|') || 'none');
+  // T10 v59.5 击勾弦：选 5→7→5 三音，按音高走向自动派 h/p 并连线；末音不留悬挂 tk
+  r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
+    const s=createSong('solo',{title:'lianzou',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:0,lyr:0,gtype:'lead'});
+    const mk=(f)=>({dur:8,dotted:false,chord:'',notes:[{s:3,f}],strum:'',tech:''});
+    s.measures[0].tabs[0]=[mk(5),mk(7),mk(5),mk(9)];
+    loadSong(s); blurSel=false;
+    sel={mi:0,row:'tab',vi:0,ci:0,si:3}; selRange=null;   /* 清前序用例遗留的框选区（selNotes 优先取 selRange） */
+    noteSel=[{mi:0,ci:0,si:3,vi:0,row:'tab'},{mi:0,ci:1,si:3,vi:0,row:'tab'},{mi:0,ci:2,si:3,vi:0,row:'tab'}];
+    techFromBar('hp');
+    /* 单选不成链（提示后不落数据）；'hp' 是命令键，绝不入库 */
+    const few=(()=>{ sel={mi:0,row:'tab',vi:0,ci:3,si:3}; noteSel=[{mi:0,ci:3,si:3,vi:0,row:'tab'}];
+      techFromBar('hp'); return !song.measures[0].tabs[0][3].tech; })();
+    noteSel=[];
+    const h=document.getElementById('score').innerHTML;
+    const cur=song.measures[0].tabs[0];   /* mutate 可能整体替换 song，读实时引用而非旧快照 */
+    return {t0:cur[0].notes[0].tech||'', t0k:!!cur[0].notes[0].tk, t1:cur[1].notes[0].tech||'', t1k:!!cur[1].notes[0].tk,
+      t2:cur[2].notes[0].tech||'', t2k:!!cur[2].notes[0].tk,
+      few, noHpInData:JSON.stringify(song).indexOf('"tech":"hp"')<0, nan:h.includes('NaN')}; })()`);
+  T(r.t0 === 'h' && r.t0k && r.t1 === 'p' && r.t1k && !r.t2 && !r.t2k && r.few && r.noHpInData && !r.nan,
+    'T10 击勾弦自动派h/p+链末收尾', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   await b.close();
   process.exit(pass === total ? 0 : 1);
