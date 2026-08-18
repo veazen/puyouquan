@@ -440,6 +440,15 @@ body.shell #editbar .eb{padding:3px 8px}
 #eb-note .nd{min-width:24px;padding:3px 6px;justify-content:center}
 #eb-note .nd .dg{font-family:var(--font-num);font-weight:600}
 #eb-note .nd .dg .smg{vertical-align:middle}   /* v47.8 五线谱休止字形 */
+/* v60.2 时值/记号图标改内联 SVG 后的收口：全局 `svg{margin:0 auto;max-width:100%;height:auto}`
+   会把图标撑出左右空隙并按容器压扁（v41.4 .svgi / v59.0 侧栏同款坑），必须逐条抵消。
+   颜色统一走 currentColor 由按钮 color 继承——不能靠 smg 默认的 var(--ink)，
+   它在暗色 UI 外壳下没有重定义（只在 :root 亮色 / #paper.score-invert / 打印分支有值）。 */
+.dg svg,[data-bico] svg{margin:0;max-width:none;height:auto;display:inline-block;vertical-align:middle;color:inherit}
+.dg svg{width:20px;height:28px}
+[data-bico] svg{width:18px;height:20px}
+[data-bico] sup{font-size:9px;vertical-align:super;margin-left:1px}
+.popmenu button>svg,.popmenu button .smg{vertical-align:-3px;margin:0 3px 0 0;max-width:none}
 #eb-note .ndf{opacity:.92}                      /* 高把位钮（10–24），折叠时由 JS 隐藏 */
 #editbar .nd .dg{display:inline;font-size:13px}   /* 数字钮两种外壳都显数字（经典版无 .dn 可退） */
 body.shell #eb-note .nd{min-width:21px;padding:3px 4px}
@@ -1405,6 +1414,99 @@ body.shell #left-flyout .rg-body .eb.ico .g svg{display:block}
   /* 反色只用于屏幕浏览；打印/导出 PDF 一律回到白纸黑字（省墨、成品规范） */
   #paper.score-invert{--paper:#fff;--ink:#000;--muted:#555;--border:#000;--accent:#c33a29;--accent-ink:#b02f20;--danger:#b45309}
 }
+
+/* ================= v60.2 移动端信息架构重整（真机实测驱动） =================
+   实测（390×844，编辑态）：顶栏 93px、main-bar 内容 875px、editbar 内容 1559px——
+   editbar 有 75% 在屏幕外；播放条 #mixer-dock(z40) 被 #left-dock(z44) 完全压住，
+   elementFromPoint(播放键) 命中图层标签，手机上播放/节拍器/循环全部点不到。
+   改法：顶栏收成单行（低频项进 ☰ 抽屉）、时值条沉到拇指区并等分铺满、播放条提层、
+   启动台态清场。全部收在 ≤820 断点内，桌面零影响。 */
+:root{ --bar-bg:#f7f4ec; --bar-sep:rgba(0,0,0,.10); --tap:rgba(0,0,0,.06) }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bar-bg:#1e211d; --bar-sep:rgba(255,255,255,.13); --tap:rgba(255,255,255,.10) }}
+:root[data-theme="dark"]{ --bar-bg:#1e211d; --bar-sep:rgba(255,255,255,.13); --tap:rgba(255,255,255,.10) }
+#b-mmenu{display:none}
+
+@media(max-width:820px){
+  :root{ --mob-b1:60px;              /* 播放条高（实测 59） */
+         --mob-b2:114px;             /* = b1 + 图层轨 52 + 2 分隔 */
+         --mob-b3:165px }            /* = b2 + 时值条 49 + 2 分隔 */
+  /* —— A. 顶栏单行：低频项收进 ☰，只留 品牌 / ☰ / 撤销重做 / 个人中心 —— */
+  body.shell:not(.stand):not(.viewer) #b-mmenu{display:inline-flex;align-items:center;justify-content:center;
+    min-width:40px;min-height:40px;font-size:17px;line-height:1;padding:0}
+  body.shell:not(.stand):not(.viewer) #top .main-bar>.seg:not(#seg-undo),
+  body.shell:not(.stand):not(.viewer) #top .main-bar>#key-step,
+  body.shell:not(.stand):not(.viewer) #top .main-bar>#b-invert,
+  body.shell:not(.stand):not(.viewer) #top .main-bar>#b-theme{display:none}
+  body.shell:not(.stand):not(.viewer) #top .main-bar{overflow-x:hidden;gap:6px;padding:4px 8px}
+  /* 品牌只留标记方块：文字 82px 在 390 屏上是纯占位，灭字后 main-bar 恰好不溢出（实测 396→346） */
+  body.shell:not(.stand):not(.viewer) #top .main-bar .logo{font-size:0;gap:0}
+  body.shell:not(.stand):not(.viewer) #top .main-bar .logo small{display:none}
+  body.shell:not(.stand):not(.viewer) #top .main-bar>#seg-undo{margin-left:auto}
+  body.shell:not(.stand):not(.viewer) #top .main-bar>#seg-undo button{min-height:40px}
+
+  /* —— B. 时值条沉到拇指区、9 钮等分不横滑 ——
+     坑：#top 的 backdrop-filter 会成为 fixed 后代的包含块，不清掉沉底必然失效 */
+  body.shell:not(.stand):not(.viewer) #top{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--toolbar)}
+  body.shell:not(.stand):not(.viewer) #editbar{
+    position:fixed;left:0;right:0;top:auto;bottom:calc(var(--mob-b2) + env(safe-area-inset-bottom,0px));
+    z-index:43;margin:0;padding:2px 8px;gap:0;overflow-x:hidden;
+    background:var(--bar-bg);border-top:1px solid var(--bar-sep);border-bottom:0}
+  /* 条内只留时值：节奏/缩放/时值提示归左栏图层与抽屉，组标签在窄屏本就不显示 */
+  body.shell:not(.stand):not(.viewer) #editbar>*:not(#ebu-eb-dur){display:none}
+  body.shell:not(.stand):not(.viewer) #editbar #ebu-eb-dur{display:flex;flex:1 1 auto;min-width:0;gap:0}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur{display:flex;flex:1 1 auto;min-width:0;gap:0;align-items:stretch}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb{
+    flex:1 1 0;min-width:0;min-height:44px;padding:0;margin:0;border:0;border-radius:0;
+    background:transparent;box-shadow:none;display:flex;align-items:center;justify-content:center;color:var(--text)}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb+.eb{box-shadow:inset 1px 0 0 var(--bar-sep)}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb:active{background:var(--tap)}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb.on{background:var(--accent-soft);color:var(--accent-ink);
+    box-shadow:inset 1px 0 0 var(--bar-sep), inset 0 -2px 0 var(--accent)}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb .dn{display:none}
+  body.shell:not(.stand):not(.viewer) #editbar #eb-dur .eb .dg svg{width:18px;height:25px}
+  body.shell:not(.stand):not(.viewer) #score-wrap{padding-bottom:calc(var(--mob-b3) + 18px)}
+
+  /* —— C. 播放条提到图层轨之上并让位（原 z40 被 z44 的 #left-dock 完全遮住）—— */
+  /* 三条底栏必须真正堆叠，不能共用同一 bottom（v60.2 初版即踩：图层轨与时值条都写 52px 直接重叠，
+     播放条实测高 59 也咬进上层 7px）。自下而上：播放条(--mob-b1 高) → 图层轨 → 时值条。
+     数值为 390×844 实测高度 + 余量；tv_mobile 有两两交集为 0 的几何断言兜住后续改高。 */
+  body.shell:not(.stand):not(.viewer) #mixer-dock{
+    z-index:46;bottom:calc(env(safe-area-inset-bottom,0px));left:0;right:0}
+  body.shell:not(.stand):not(.viewer) #left-dock{
+    z-index:44;bottom:calc(var(--mob-b1) + env(safe-area-inset-bottom,0px))}
+
+  /* —— D. 上下文条（点音符即弹）贴底固定：原来浮在点击点附近会盖住刚点的音符 —— */
+  body.shell:not(.stand):not(.viewer) #quickbar{
+    position:fixed!important;left:0!important;right:0!important;top:auto!important;
+    bottom:calc(var(--mob-b3) + env(safe-area-inset-bottom,0px))!important;transform:none!important;
+    width:auto!important;max-width:none!important;border-radius:14px 14px 0 0;
+    display:flex;flex-wrap:nowrap;overflow-x:auto;gap:2px;z-index:47;padding:4px 8px}
+  body.shell:not(.stand):not(.viewer) #quickbar button{min-height:40px;flex:0 0 auto}
+
+  /* —— D2. 「智能」抽屉：把既有 #right-dock 原样升成底部半屏抽屉。
+     不复制任何面板、不改任何 id/wiring——右栏「创作/信息」两页签里就是
+     一键配和弦(rt-sug) / 一键配伴奏(rt-arr) / 节拍检查(beat-host) / 曲谱信息(ri-edit)。 —— */
+  body.shell:not(.stand):not(.viewer) #b-msmart{display:inline-flex;align-items:center;justify-content:center;
+    min-height:40px;padding:0 12px;font-size:13px;font-weight:700;color:var(--accent-ink)}
+  body.shell:not(.stand):not(.viewer).rsheet #right-dock{
+    display:flex!important;position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;height:auto;
+    max-height:76vh;overflow-y:auto;z-index:61;margin:0;
+    padding:10px 12px calc(16px + env(safe-area-inset-bottom,0px));
+    background:var(--panel);border-top:1px solid var(--bar-sep);border-radius:16px 16px 0 0;
+    box-shadow:0 -14px 40px rgba(0,0,0,.22)}
+  #rsheet-mask{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.34)}
+  body:not(.rsheet) #rsheet-mask{display:none}
+
+  /* —— E. 启动台态清场：没打开曲谱时不该有任何编辑工具（首屏"坏掉"观感的最大来源）——
+     用 :has 判定，避免去 hook 每一处 start-pad 的显隐（本文件已多处依赖 :has） */
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #editbar,
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #left-dock,
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #mixer-dock,
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #top .main-bar>#seg-undo,
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #b-msmart{display:none}
+  body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #score-wrap{padding-bottom:0}
+}
 </style>
 </head>
 <body class="shell"><!-- v55.2 首帧即新版外壳：脚本在文末执行前浏览器已按 HTML+CSS 首绘，
@@ -1424,6 +1526,11 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
 <header id="top">
   <div class="bar main-bar">
     <span class="logo"><span class="mark"></span>谱友圈 <small>专业制谱平台</small></span>
+    <!-- v60.2 手机端「更多」抽屉入口：文件/输出/排版/移调/主题等低频项收纳于此，顶栏不再横滑 -->
+    <button id="b-mmenu" class="ghost" title="更多：新建 / 打开 / 保存 / 导出 / 排版 / 打印 / 预设 / 谱库 / 移调 / 主题" aria-label="更多功能">☰</button>
+    <!-- v60.2 手机端「智能」抽屉：直接放出既有右栏（创作页=一键配和弦/一键配伴奏/节拍检查，信息页=拍号速度变调夹）。
+         右栏在 ≤820 原本 display:none，导致这三样在手机上全部不可达——而它们恰恰是最不吃屏幕宽度、最适合手机的整谱级操作。 -->
+    <button id="b-msmart" class="ghost" title="智能：一键配和弦 / 一键配伴奏 / 节拍检查 / 曲谱信息（拍号·速度·变调夹）" aria-label="智能面板">智能</button>
     <span class="seg">
       <button id="b-new" title="新建空白曲谱">新建</button>
       <button id="b-open" title="打开 / 导入 .mtab.json 文件">打开</button>
@@ -1466,7 +1573,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <span class="eb-grp" id="eb-edit">
       <button class="eb" id="eb-add" title="后插音符：在光标后插入同时值音符（快捷键 Insert）" aria-label="后插音符"><span class="dg">＋»</span><span class="dn">后插</span></button>
       <button class="eb" id="eb-addb" title="前插音符：在光标前插入同时值音符（Shift+Insert）" aria-label="前插音符"><span class="dg">«＋</span><span class="dn">前插</span></button>
-      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍" aria-label="休止符"><span class="dg">𝄽</span><span class="dn">休止</span></button>
+      <button class="eb" id="eb-rest" title="休止符：当前列变休止（吉他谱清空整列音符/扫弦，简谱记 0）；时值照常占拍" aria-label="休止符"><span class="dg"></span><span class="dn">休止</span></button>
       <button class="eb" id="eb-clear" title="清单音：清除当前弦位的单个音符（快捷键 Backspace；其他弦位保留）" aria-label="清单音"><span class="dg">⌫</span><span class="dn">清音</span></button>
       <button class="eb" id="eb-split" title="拆分：把当前音符一分为二（各减半时值，总时值不变）" aria-label="拆分"><span class="dg">½</span><span class="dn">拆分</span></button>
       <button class="eb" id="eb-merge" title="合并：当前与下一同时值音符合并为一个（时值加倍）" aria-label="合并"><span class="dg">⌒</span><span class="dn">合并</span></button>
@@ -1836,8 +1943,8 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
             <button id="b-mealabel" title="排练/段落标记：本小节头上方方框粗体文字（如 前奏 / A / 副歌），乐队排练与教学定位用；留空清除"><b>▣</b><span>段落标记…</span></button>
             <button id="b-keyto" title="中途转调标记：本小节头上方标「转1=X」（流行歌尾段升调/乐队排练常用；换调时随之自动移调，选「清除」删除；一期为标注式——五线谱调号拼写保持谱首调）"><b>1=</b><span>转调标记…</span></button>
             <button id="b-meameter" title="本小节拍号（变拍子）：为当前小节单独设定拍号（如中途转 3/4 · 6/8 · 7/8），谱面在该小节头标新拍号，节拍校验 / 符杠成组 / 播放均按新拍号；选「恢复全曲拍号」清除"><b>𝄴</b><span>本小节拍号…</span></button>
-            <button id="b-sim1" title="小节反复 𝄎：本小节谱面省写为反复记号，演奏与前一小节相同（本小节数据保留、节拍校验豁免、播放自动展开；再点取消）"><b>𝄎</b><span>同前1小节</span></button>
-            <button id="b-sim2" title="两小节反复：演奏与前两小节相同（连续两小节都标 2，播放按位置轮转展开；再点取消）"><b>𝄎²</b><span>同前2小节</span></button>
+            <button id="b-sim1" title="小节反复：本小节谱面省写为反复记号，演奏与前一小节相同（本小节数据保留、节拍校验豁免、播放自动展开；再点取消）"><b data-bico="sim"></b><span>同前1小节</span></button>
+            <button id="b-sim2" title="两小节反复：演奏与前两小节相同（连续两小节都标 2，播放按位置轮转展开；再点取消）"><b data-bico="sim" data-sup="2"></b><span>同前2小节</span></button>
             <button id="b-meahandle" title="小节宽度手柄：开启后每小节右上角显示 ◂▮▸ 拖柄，左右拖动单独调节该小节宽度，双击复位；行尾另有 ↺/+/− 按钮调整本行小节数量；再点本按钮隐藏"><b>↔</b><span>宽度手柄</span></button>
           </div>
         </div>
@@ -1856,8 +1963,8 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <div class="sp-t">跳转记号</div>
           <div class="sp-grid">
             <button id="b-dc" title="D.C.：从头开始反复（标于本小节末）"><b>D.C.</b><span>从头</span></button>
-            <button id="b-ds" title="D.S.：从 𝄋 标记处开始反复（标于本小节末）"><b>D.S.</b><span>从𝄋</span></button>
-            <button id="b-segno" title="Segno 标记：D.S. 反复的起点（标于本小节头）"><b>𝄋</b><span>Segno</span></button>
+            <button id="b-ds" title="D.S.：从 Segno 标记处开始反复（标于本小节末）"><b>D.S.</b><span>反复</span></button>
+            <button id="b-segno" title="Segno 标记：D.S. 反复的起点（标于本小节头）"><b data-bico="segno"></b><span>Segno</span></button>
             <button id="b-fine2" title="Fine：反复至此处结束，配合 D.C./D.S. 使用"><b>Fine</b><span>终点</span></button>
             <button id="b-coda" title="Da Coda 与 Coda：成对使用，跳过两记号中间的部分"><b>⊕</b><span>Coda</span></button>
           </div>
@@ -1865,8 +1972,8 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <div class="sp-sec">
           <div class="sp-t">小节线</div>
           <div class="sp-grid">
-            <button id="b-secline" title="段落重复线（双细线），标于本小节末"><b>𝄁</b><span>段落线</span></button>
-            <button id="b-finline" title="终止线，标于本小节末"><b>𝄂</b><span>终止线</span></button>
+            <button id="b-secline" title="段落重复线（双细线），标于本小节末"><b data-bico="sec"></b><span>段落线</span></button>
+            <button id="b-finline" title="终止线，标于本小节末"><b data-bico="fin"></b><span>终止线</span></button>
           </div>
         </div>
         </div><!-- /#sp-more -->
@@ -3409,6 +3516,44 @@ function smw(name){ const b=SMUFL[name]&&SMUFL[name].bb; return b? b[2]-b[0] : 1
   synth('flag32ndDown', 0,  0.588, 'flag64thDown');
   synth('rest32nd',  0.232, -0.988, 'rest64th');
 }
+/* v60.2 工具栏音符图标：符头+符干+符尾按 SMuFL 字形现拼，替代 U+1D15D 等「音乐符号扩展区」字符。
+   起因：iOS/Android/微信 X5 的系统字体不含 U+1D1xx 区段 → 手机上整排时值渲染成豆腐块 ▯
+   （♩ U+2669 与 ♪ U+266A 在基本平面故独独这两个正常，正是用户截图的形态）。
+   v45.6 已为谱面侧改用 SMuFL，当时漏了工具栏；桌面 Windows 同样缺字，故不做断点分流、两端一起修。
+   画布 20×28：音符是 1:1.4 竖长比例，方盒会把符头逼小。六枚带干时值符头中心恒定 y=21，
+   横排时符头连成一条基线，辨识全靠符尾数量。fill 走 currentColor 由按钮 color 继承——
+   smg() 默认的 var(--ink) 只在 :root 亮色 / #paper.score-invert / 打印分支有值，
+   暗色 UI 外壳下未重定义（仍是 #141414），直接用会近黑不可见。 */
+function durIconSVG(dur, dot){
+  const SG = 5, HX = 5, HCY = 21, SX = HX + 1.12 * SG, O = { fill: 'currentColor' };
+  const wrap = b => `<svg viewBox="0 0 20 28" width="20" height="28" aria-hidden="true">${b}</svg>`;
+  const dotN = dot === true ? 1 : (+dot || 0), DX = HX + 1.18 * SG + 0.35 * SG;
+  const dotG = dotN ? smg('augmentationDot', DX, HCY, SG, O)
+    + (dotN > 1 ? smg('augmentationDot', DX + 0.9 * SG, HCY, SG, O) : '') : '';
+  /* 全音符无符干，墨量单薄，放大到 SG=7 才与其余六枚齐平；bb 宽 1.688sp，据此水平居中 */
+  if (dur === 1) return wrap(smg('noteheadWhole', 10 - 1.688 * 7 / 2, 14, 7, O) + dotG);
+  const st = dur === 64 ? 7.2 : 5;   /* 64 分符尾（synth 合成）上探 1.184sp，st=5 会溢出画布顶 */
+  const FLAG = { 8: 'flag8thUp', 16: 'flag16thUp', 32: 'flag32ndUp', 64: 'flag64thUp' }[dur];
+  return wrap(smg(dur === 2 ? 'noteheadHalf' : 'noteheadBlack', HX, HCY, SG, O)
+    + `<rect x="${SX}" y="${st}" width="1.3" height="${(HCY - st).toFixed(1)}" fill="currentColor"/>`
+    + (FLAG ? smg(FLAG, SX, st, SG, O) : '') + dotG);
+}
+/* 小节线类记号图标（𝄆 𝄇 𝄁 𝄂 𝄎 在 SMUFL 表里没有对应字形，按刻版比例手绘：
+   细线 1 / 粗线 3 / 反复点 r1.5，与谱面 renderBarline 同一视觉语言） */
+function barIconSVG(kind){
+  const wrap = b => `<svg viewBox="0 0 18 20" width="18" height="20" aria-hidden="true" fill="currentColor">${b}</svg>`;
+  const thin = x => `<rect x="${x}" y="2" width="1" height="16"/>`;
+  const thick = x => `<rect x="${x}" y="2" width="3" height="16"/>`;
+  const dots = x => `<circle cx="${x}" cy="7.5" r="1.5"/><circle cx="${x}" cy="12.5" r="1.5"/>`;
+  return wrap({
+    rs:   thick(3) + thin(7.5) + dots(11.5),          /* 𝄆 反复开始 */
+    re:   dots(6.5) + thin(10) + thick(12),           /* 𝄇 反复结束 */
+    sec:  thin(6.5) + thin(10.5),                     /* 𝄁 段落双细线 */
+    fin:  thin(6.5) + thick(10),                      /* 𝄂 终止线 */
+    sim:  `<rect x="8.5" y="4" width="1.2" height="12" transform="rotate(20 9 10)"/>`
+          + `<circle cx="6" cy="6.5" r="1.4"/><circle cx="12" cy="13.5" r="1.4"/>`,   /* 𝄎 小节反复 */
+  }[kind] || '');
+}
 function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
 /* v45.6 小节内换谱号：col.clef ∈ 'staff'|'bass'|'alto'（列级新增字段，仅五线谱声部生效；
    纯记谱视图切换——音高数据与播放不变，谱号状态自曲首沿列顺序延续） */
@@ -4546,7 +4691,7 @@ function showQuickbar(cx, cy, force){
   const isTab = sel.row==='tab';
   const btn=(act,label,title)=>`<button data-qb="${esc(act)}" title="${esc(title||'')}">${label}</button>`;
   let bs=[btn('dur:4','♩','四分音符（快捷键 E）'), btn('dur:8','♪','八分音符（快捷键 R）'),
-          btn('dur:16','𝅘𝅥𝅯','十六分音符（快捷键 T）'), btn('dot','♩·','附点：无→附点→双附点循环')];
+          btn('dur:16',durIconSVG(16),'十六分音符（快捷键 T）'), btn('dot',durIconSVG(4,true),'附点：无→附点→双附点循环')];
   if(isTab){
     /* 常用技法槽：个人高频 top3（习惯学习），冷启动默认 推弦/击弦/勾弦 */
     const seen={}, list=[];
@@ -4610,7 +4755,7 @@ function editHints(){
   const nt=(song.voxNotations||[])[sel.vi], st=isStaffNota(nt);
   if(barSel){
     title='已选中小节线';
-    items=[it('右键小节线弹出设置：反复 𝄆 𝄇 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子（触屏：点按即弹）'),
+    items=[it('右键小节线弹出设置：反复记号 · 终止线 · 段落双细线 · D.C./D.S./Fine · 1.2. 跳房子（触屏：点按即弹）'),
            it('按住小节线约半秒：选中该小节整个声部'),
            it('Ctrl/Shift+点击小节线：连选多个小节')];
   }else if(noteSel.length>1){
@@ -4626,7 +4771,7 @@ function editHints(){
     const n=selRange.m2-selRange.m1+1;
     title=n>1? '已选中第'+(selRange.m1+1)+'–'+(selRange.m2+1)+'小节声部' : '已选中第'+(selRange.m1+1)+'小节声部';
     items=[it('Ctrl+C 复制 → 光标移到目标处 Ctrl+V 粘贴'),
-           it('小节层：插入/删除小节 · 段落标记 · 本小节拍号 · 同前小节 𝄎','rib:mea',true),
+           it('小节层：插入/删除小节 · 段落标记 · 本小节拍号 · 同前小节','rib:mea',true),
            it('Ctrl/Shift+点击其他小节线：扩大连选范围')];
   }else if(selRange){
     title='已选中第'+(selRange.m1+1)+'小节 第'+(selRange.c1+1)+'–'+(selRange.c2+1)+'列';
@@ -6765,7 +6910,7 @@ function showClefMenu(cx, cy){
   if(!isStaffNota((song.voxNotations||[])[vi])) return toast('谱号切换仅用于五线谱记谱声部（先在「记谱法」面板切换为五线谱/低音/中音谱表）');
   const col=curCol(); if(!col) return;
   closePop();
-  const CLS=[['staff','𝄞 高音谱号'],['alto','𝄡 中音谱号'],['bass','𝄢 低音谱号']];
+  const CLS=[['staff',smIcoSVG('gClef',16)+' 高音谱号'],['alto',smIcoSVG('cClef',16)+' 中音谱号'],['bass',smIcoSVG('fClef',16)+' 低音谱号']];
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-300)+'px';
@@ -6952,6 +7097,21 @@ function decorateSignButtons(){
   }
 }
 decorateSignButtons();
+/* v60.2 静态 HTML 里剩余的 U+1D1xx 字形补位（休止符 / 小节线类）——同样是手机缺字来源。
+   只换 innerHTML 不动 id 与结构，既有 CSS、事件绑定、回归断言全部照旧。 */
+(function fixTofuGlyphs(){
+  const mm = document.getElementById('b-mmenu');
+  if (mm) mm.onclick = () => showMobileMenu();
+  const sm = document.getElementById('b-msmart');
+  if (sm) sm.onclick = () => toggleSmartSheet();
+  const rest = document.querySelector('#eb-rest .dg');
+  if (rest) rest.innerHTML = smIcoSVG('restQuarter', 20);
+  document.querySelectorAll('[data-bico]').forEach(el => {
+    const k = el.dataset.bico;
+    el.innerHTML = (k === 'segno' ? smIcoSVG('segno', 16) : barIconSVG(k))
+      + (el.dataset.sup ? '<sup>' + el.dataset.sup + '</sup>' : '');
+  });
+})();
 /* 组合节奏极简图示：符干+符杠（主梁/16分层，孤立16分画短杠）。
    v47.4 支持四分/二分：符杠只跨"八分及更短"的连续段，四分画实心符头、二分画空心符头（更多节奏拍号组合用） */
 function comboSVG(durs, W, H){
@@ -7017,6 +7177,16 @@ const DOCK_PANELS = {
   },
 };
 let ebCtxFor=null;   // 编辑栏第二行当前已构建的页，避免每次 render 重建
+/* v60.2 手机默认图层：不再落在六线谱。
+   fit-width 后单弦间距不足 7px，而触点约 9mm——手机上「选中某根弦上的某个品位」在物理上就点不准，
+   一进来就停在最不可编辑的层。改为落旋律/简谱层（一列一个数字，约 20px，可点），
+   六线谱在手机上退为只读 + 智能生成（一键配和弦 / 一键配伴奏），逐弦精修引导去电脑端。 */
+function defaultLayer(){
+  try{
+    if(window.innerWidth<=820 && song && (song.voxVoices||[]).length>0) return 'vox';
+  }catch(_){}
+  return 'tab';
+}
 function setRibbon(t){
   activeTab = t;
   { const ebc=document.getElementById('eb-clear'); if(ebc) ebc.style.display = (t==='tab' || t==='note')? '' : 'none'; }   // v46.6 音符图层内清音恒可见（按声部生效）
@@ -7292,7 +7462,8 @@ function syncInputs(){
       /* v41.5 附点档位联动显示：双附点时按钮显示两点 */
       const lv2 = col? dotLevel(col) : 0;
       const dg2=b.querySelector('.dg'), dn2=b.querySelector('.dn');
-      if(dg2) dg2.textContent = lv2===2? '♩··' : '♩·';
+      /* v60.2 必须用 innerHTML 写 SVG 图标——原来的 textContent 会把图标覆写回 U+1D1xx 文字（手机豆腐块） */
+      if(dg2) dg2.innerHTML = durIconSVG(4, lv2===2? 2 : 1);
       if(dn2) dn2.textContent = lv2===2? '双附点' : '附点';
     }
   });
@@ -7901,10 +8072,10 @@ function applyVoxPattern(pat){
   /* ---- 页头下常用编辑功能栏：时值 + 组合节奏 + 缩放 ---- */
   const ebDur = document.getElementById('eb-dur');
   /* v40.5 新版外壳时值按钮用音符字形（.dg，经典版仍显中文 .dn；显隐由 CSS 按外壳切换） */
-  const DUR_GLYPH = {1:'𝅝',2:'𝅗𝅥',4:'♩',8:'♪',16:'𝅘𝅥𝅯',32:'𝅘𝅥𝅰',64:'𝅘𝅥𝅱'};
+  /* v60.2 时值字形改 SMuFL 拼装（原 U+1D1xx 字符在手机系统字体缺字→豆腐块）；DUR_GLYPH 已由 durIconSVG 取代 */
   ebDur.innerHTML = DUR_SINGLE.map(d=>
-    `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${DUR_GLYPH[d.dur]||d.dur}</span><span class="dn">${d.name}</span></button>`
-  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">♩·</span><span class="dn">附点</span></button>`
+    `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${durIconSVG(d.dur)}</span><span class="dn">${d.name}</span></button>`
+  ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">${durIconSVG(4,true)}</span><span class="dn">附点</span></button>`
   + `<button class="eb" id="eb-ext" title="增时线：当前音延长一拍（1拍→2拍→3拍→4拍，简谱按 GB 惯例画增时线「－」，自动吸收其后的休止时值）；快捷键 D，Shift+D 缩短一拍。各谱类通用" aria-label="增时线"><span class="dg">5－</span><span class="dn">增时线</span></button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
@@ -8604,6 +8775,12 @@ function initStartPad(){
   });
 }
 document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
+  /* v60.2 手机点六线谱层：给一次性引导——手机不做逐弦精修，走智能生成或电脑端。
+     只提示不拦截（谱面仍可查看/移调/播放），提示每次会话只出一次免打扰。 */
+  if(b.dataset.t==='tab' && window.innerWidth<=820 && !window.__tabHintShown){
+    window.__tabHintShown = true;
+    toast('六线谱在手机上以查看为主：单弦间距不足指尖精度。要加内容用顶栏「智能」一键配和弦 / 一键配伴奏；逐弦精修请到电脑端打开 zhipu.puyouquan.com');
+  }
   /* v40.4 轨上动作按钮（新建/帮助）：委托既有入口，不参与图层切换 */
   if(b.dataset.act){
     const go={new:'b-new', help:'b-help'}[b.dataset.act];
@@ -9146,7 +9323,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     if(ids.length){
       sel.row='tab'; sel.vi=bvi; sel.mi=bmi; sel.ci=ids[0];
       selRange={row:'tab', vi:bvi, m1:bmi, c1:ids[0], m2:bmi, c2:ids[ids.length-1]};
-      noteSel=[]; measureRange=null; closeTech(); setRibbon('tab'); render();
+      noteSel=[]; measureRange=null; closeTech(); setRibbon(defaultLayer()); render();
       dragSel = {kind:'beat', vi:bvi, mi:bmi, bt};   /* v53.7 按住拖过其他拍区=连选多拍 */
       toast('已选中第'+(bt+1)+'拍 · 按住拖过其他拍可连选 · Ctrl+C 复制 / 组合时值·连音整拍套用');
     }
@@ -9173,7 +9350,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   /* 点扫弦列 → 选择扫几根弦 */
   if(t.dataset.zone==='strum'){
     selRange=null; sel.mi=mi; sel.ci=ci; sel.row='tab'; sel.vi=vi;
-    setRibbon('tab'); render();
+    setRibbon(defaultLayer()); render();
     showStrumMenu(e.clientX, e.clientY);
     return;
   }
@@ -9826,14 +10003,14 @@ function showBarMenu(cx, cy, L, R, row, vi){
   div.style.top=(cy+8+scrollY)+'px';
   const chk=v=>v?' class="on"':'';
   let rows='';
-  if(mR) rows+=`<button data-k="rs"${chk(mR.repeatStart)}>𝄆 反复开始 · 第${R+1}小节</button>`;
-  if(mL) rows+=`<button data-k="re"${chk(mL.repeatEnd)}>𝄇 反复结束 · 第${L+1}小节</button>`;
-  if(mL) rows+=`<button data-k="sec"${chk(mL.sectionBar)}>𝄁 段落重复线（双细线）· 第${L+1}小节末</button>`;
-  if(mL) rows+=`<button data-k="fin"${chk(mL.finalBar)}>𝄂 终止线 · 第${L+1}小节末</button>`;
+  if(mR) rows+=`<button data-k="rs"${chk(mR.repeatStart)}>${barIconSVG('rs')} 反复开始 · 第${R+1}小节</button>`;
+  if(mL) rows+=`<button data-k="re"${chk(mL.repeatEnd)}>${barIconSVG('re')} 反复结束 · 第${L+1}小节</button>`;
+  if(mL) rows+=`<button data-k="sec"${chk(mL.sectionBar)}>${barIconSVG('sec')} 段落重复线（双细线）· 第${L+1}小节末</button>`;
+  if(mL) rows+=`<button data-k="fin"${chk(mL.finalBar)}>${barIconSVG('fin')} 终止线 · 第${L+1}小节末</button>`;
   if(mL) rows+=`<button data-k="dc"${chk(mL.dc)}>D.C. 从头反复 · 第${L+1}小节末</button>`;
-  if(mL) rows+=`<button data-k="ds"${chk(mL.ds)}>D.S. 从 𝄋 标记反复 · 第${L+1}小节末</button>`;
+  if(mL) rows+=`<button data-k="ds"${chk(mL.ds)}>D.S. 从 Segno 标记反复 · 第${L+1}小节末</button>`;
   if(mL) rows+=`<button data-k="fine"${chk(mL.fine)}>Fine 反复段结束点 · 第${L+1}小节末</button>`;
-  if(mR) rows+=`<button data-k="segno"${chk(mR.segno)}>𝄋 Segno 标记 · 第${R+1}小节头</button>`;
+  if(mR) rows+=`<button data-k="segno"${chk(mR.segno)}>${smIcoSVG('segno',15)} Segno 标记 · 第${R+1}小节头</button>`;
   if(mR) rows+=`<button data-k="coda"${chk(mR.coda)}>⊕ 跳跃记号（成对使用，跳过两 ⊕ 间内容）· 第${R+1}小节头</button>`;
   if(mR) rows+=`<button data-k="v1"${mR.volta===1?' class="on"':''}>┌1. 第一段 · 第${R+1}小节</button>`;
   if(mR) rows+=`<button data-k="v2"${mR.volta===2?' class="on"':''}>┌2. 第二段 · 第${R+1}小节</button>`;
@@ -9956,7 +10133,7 @@ window.addEventListener('pointerdown', e=>{
       const f0=hits[0];
       sel.mi=f0.mi; sel.ci=f0.ci; sel.si=f0.si; sel.vi=f0.vi; sel.row='tab';
       measureSel=null; selRange=null; blurSel=false;
-      setRibbon('tab'); render();
+      setRibbon(defaultLayer()); render();
       toast('框选 '+hits.length+' 个音符 · 在「记号/技法」面板点选即批量应用（如 P.M. 闷音/揉弦/连音线）');
     });
   }
@@ -10565,7 +10742,7 @@ document.getElementById('b-ferm-t').onclick = ()=>{
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的列');
   const col=curCol(); if(!col) return;
   mutate(()=>{ const c=curCol(); if(c.ferm) delete c.ferm; else c.ferm=true; });
-  toast(curCol().ferm? '已加延长号 𝄐（自由延长该音）' : '已取消延长号');
+  toast(curCol().ferm? '已加延长号（自由延长该音）' : '已取消延长号');
 };
 document.getElementById('b-ferm-v').onclick = ()=>{
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
@@ -10797,8 +10974,8 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
     if(!song.tabStaff){ $n('tn-both').click(); return; }
     const r=e.target.closest('button').getBoundingClientRect();
     pickPop(r.right+6, r.top-4, '五线谱联排 · 谱号', [
-      {label:'高音谱号', glyph:'𝄞', on:song.tabClef!=='bass', hint:'treble-8vb（吉他/尤克标准）', act:()=>$n('tn-clef-g').click()},
-      {label:'低音谱号', glyph:'𝄢', on:song.tabClef==='bass', hint:'bass-8vb（贝斯/低音吉他记谱）', act:()=>$n('tn-clef-f').click()},
+      {label:'高音谱号', glyph:smIcoSVG('gClef',17), on:song.tabClef!=='bass', hint:'treble-8vb（吉他/尤克标准）', act:()=>$n('tn-clef-g').click()},
+      {label:'低音谱号', glyph:smIcoSVG('fClef',17), on:song.tabClef==='bass', hint:'bass-8vb（贝斯/低音吉他记谱）', act:()=>$n('tn-clef-f').click()},
       {label:'关闭五线谱', glyph:'—', hint:'恢复仅六线谱（数据不变，可随时再点亮）', act:()=>$n('tn-tab').click()}]);
   };
   if(nlTJ) nlTJ.onclick = ()=>{
@@ -10815,9 +10992,9 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
     if(!s2.st){ $n('vn-st').click(); $n('vn-dual').click(); return; }   /* 叠亮：五线谱+简谱行联排 */
     const r=e.target.closest('button').getBoundingClientRect();
     pickPop(r.right+6, r.top-4, '五线谱 · 谱表', [
-      {label:'高音谱表', glyph:'𝄞', on:s2.nt==='staff', act:()=>$n('vn-st').click()},
-      {label:'低音谱表', glyph:'𝄢', on:s2.nt==='bass', hint:'钢琴左手/贝斯声部；与上方高音谱表自动连成大谱表', act:()=>$n('vn-bs').click()},
-      {label:'中音谱表', glyph:'𝄡', on:s2.nt==='alto', hint:'C 谱号锚定中线（中提琴等声部）', act:()=>$n('vn-al').click()},
+      {label:'高音谱表', glyph:smIcoSVG('gClef',17), on:s2.nt==='staff', act:()=>$n('vn-st').click()},
+      {label:'低音谱表', glyph:smIcoSVG('fClef',17), on:s2.nt==='bass', hint:'钢琴左手/贝斯声部；与上方高音谱表自动连成大谱表', act:()=>$n('vn-bs').click()},
+      {label:'中音谱表', glyph:smIcoSVG('cClef',17), on:s2.nt==='alto', hint:'C 谱号锚定中线（中提琴等声部）', act:()=>$n('vn-al').click()},
       {label:'关闭五线谱', glyph:'—', hint:'回到仅简谱（数据不变，可随时再点亮）', act:()=>$n('vn-jp').click()}]);
   };
 }
@@ -10874,8 +11051,8 @@ document.getElementById('b-tie').onclick = toggleTie;
     };
   }
   flag('b-dc','dc','D.C. 从头反复');
-  flag('b-ds','ds','D.S. 从 𝄋 标记反复');
-  flag('b-segno','segno','𝄋 Segno 标记');
+  flag('b-ds','ds','D.S. 从 Segno 标记反复');
+  flag('b-segno','segno','Segno 反复起点标记');
   flag('b-fine2','fine','Fine 反复结束点');
   flag('b-coda','coda','⊕ 跳跃记号（需成对：再在目标小节点一次）');
   flag('b-secline','sectionBar','段落重复线');
@@ -10908,9 +11085,9 @@ document.getElementById('b-tie').onclick = toggleTie;
     const b2=document.getElementById(id); if(!b2) return;
     b2.onclick=()=>{
       const m=curMea(); if(!m) return toast('请先选中一个小节');
-      if(m.simile!==v && sel.mi<v) return toast('本小节前没有足够的小节可反复（𝄎 需前面已有 '+v+' 个小节）');
+      if(m.simile!==v && sel.mi<v) return toast('本小节前没有足够的小节可反复（需前面已有 '+v+' 个小节）');
       mutate(()=>{ if(m.simile===v) delete m.simile; else m.simile=v; });
-      toast(m.simile? '第'+(sel.mi+1)+'小节已省写为小节反复 𝄎（演奏同前'+v+'小节；本小节数据仍保留）'
+      toast(m.simile? '第'+(sel.mi+1)+'小节已省写为小节反复（演奏同前'+v+'小节；本小节数据仍保留）'
                     : '已取消小节反复（恢复显示本小节内容）');
     };
   };
@@ -14616,7 +14793,7 @@ function showGPTrackModal(gp){
     if(r.error){ toast('导入失败：'+r.error); return; }
     closeModal();
     addDoc(r.song, ()=>{
-      setRibbon('tab');
+      setRibbon(defaultLayer());
       const sk=r.skip.notes+r.skip.other;
       toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节 · '+selIdx.length+' 条音轨'
         +(sk? '；简化/跳过 '+sk+' 处（多声部/打击乐/暂不支持记号）':'')
@@ -17172,13 +17349,13 @@ document.getElementById('b-help').onclick = ()=>{
     ])}
     ${sec(svgi('keyboard',15),'顶部编辑栏（吸顶常驻）',[
       ['时值 / 节奏','单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」把下一音变半时值；「节奏型库」整小节套用（可 <kbd>Shift</kbd> 跨小节多选后批量）'],
-      ['音符','＋后插 / ＋前插（<kbd>Insert</kbd>）任意位置加音；<b>休止符</b>整列休止（吉他谱按时值显示 𝄽𝄾𝄿）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议'],
+      ['音符','＋后插 / ＋前插（<kbd>Insert</kbd>）任意位置加音；<b>休止符</b>整列休止（吉他谱按时值显示对应休止符）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议'],
       ['记号','连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨中间相连；3/5/6/7 连音原地拆分、总时值不变'],
     ])}
     ${sec(svgi('score',15),'小节与段落 · 反复记号',[
-      ['右栏面板','插入/删除小节常驻；展开「段落·反复·跳转记号」设 |: :| 反复、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落线/终止线，作用于当前小节'],
+      ['右栏面板','插入/删除小节常驻；展开「段落·反复·跳转记号」设 |: :| 反复、第一/二段（开口括线）、D.C./D.S./Segno/Fine/Coda、段落线/终止线，作用于当前小节'],
       ['点击小节线','弹出同款菜单；按住约半秒可独立选中该小节单个声部，<kbd>Ctrl+C</kbd>/<kbd>V</kbd> 复制粘贴'],
-      ['播放识别','整曲播放自动按记号走：𝄆𝄇 反复、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段'],
+      ['播放识别','整曲播放自动按记号走：反复记号、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段'],
     ])}
     ${sec(svgi('play',15),'播放与循环',[
       ['空格 / ▶ / ⇤','播放键单键切换：点播放、再点暂停、再点继续（音频精确冻结）；⇤ 回开头并停住；底部混音器换音色、独奏/静音、调速'],
@@ -17246,7 +17423,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17269,6 +17446,7 @@ const APP_VER='v60.0';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.2</span><div><b>手机端制谱大改：工具栏乱码修复 + 信息架构重整</b>（用户实测反馈「乱码、不符合操作逻辑」，产品/UX、UI、制谱三位专家交叉论证后落地）：① <b>修「乱码」</b>——时值按钮上那排空心方框不是编码问题，是<b>字体缺字</b>：全音符/十六分等用的是 Unicode「音乐符号扩展区」字符，手机系统字体不含该区段（四分 ♩ 与八分 ♪ 在基本平面，所以只有这两个正常，正是截图的样子）。现改用与谱面同源的 <b>SMuFL 出版字形</b>现拼（符头+符干+符尾），休止符、谱号、反复/段落/终止线、Segno、小节反复同批换掉，深浅色两套主题都已校色；桌面 Windows 同样缺字，故两端一起修。② <b>播放键点不到</b>（用户还没遇到的隐性故障）——手机编辑态播放条被图层轨完全压住，播放/节拍器/循环全部失效，现已提层并让位。③ <b>顶栏从两条横滑收成单行</b>：实测顶部两条工具带分别有 875px 与 1559px 内容塞在 390px 屏里（时值那条 75% 在屏幕外）。现在低频入口（新建/打开/保存/导出/排版/预览/打印/预设/谱库/移调/主题）收进顶栏 <b>☰</b> 抽屉，顶栏高度 93px→52px，两条横滑彻底消除。④ <b>时值条沉到拇指区</b>：9 枚按钮等分铺满、不再横滑，触控高度 44px。⑤ <b>启动台清场</b>：没打开曲谱时不再挂着三条编辑工具带（此前白占 145px，是「界面坏掉」观感的最大来源）。⑥ <b>智能编辑在手机上打通</b>——新增顶栏「智能」抽屉，把原本在手机上被整体隐藏的右栏放出来：<b>一键配和弦 / 一键配伴奏（旋律→和弦→双手织体）/ 哼唱成谱 / 智能填词 / 节拍检查 / 曲谱信息（拍号·速度·变调夹）</b>全部可用。⑦ <b>六线谱在手机上转为「看 + 智能生成」</b>：fit-width 后单弦间距不足 7px，指尖点不准，故手机打开弹唱谱默认落<b>简谱/旋律层</b>（原来默认落最不可编辑的六线谱层），点六线谱层会提示改用智能生成或到电脑端精修。谱面渲染、移调、播放、发布一切照旧。经此一版，手机上谱面可视高度从约 430px 提到 630px。新增 tv_mobile 几何断言 4 组（清场/单行顶栏/零重叠/图标无缺字/智能可达），全部为坐标与计算样式判定，不接受截图目测；48 套回归全绿，桌面端零改动。</div></li>
     <li><span class="v">v60.0</span><div><b>平台管理中心上线 + 曲谱发布改为审核制</b>：① <b>平台管理中心</b>进驻个人中心（www.puyouquan.com/me.html），仅平台管理员可见，含<b>待审队列</b>（预览谱面 / 通过 / 驳回并填原因）、<b>已上架</b>（一键下架）、<b>用户管理</b>（手机号或昵称搜索、改角色、发放与撤销权益）、<b>审计日志</b>（谁在什么时候做了什么，全部留痕）；概览四格给出用户数、曲谱数、待审数与已支付订单额。② <b>角色体系</b>扩为 普通用户 / 创作者 / 平台管理员三级，管理员天然含创作者权限；<b>首个管理员只能在服务器上用命令行任命</b>（<code>node admin.js set-role 手机号 admin</code>），网页端没有任何自助提权入口，之后的管理员由现任管理员在管理中心指派，且不能取消自己的管理员身份。③ <b>发布改真审核流</b>：创作者点「发布」后曲谱进入<b>待审核</b>（谱库暂不展示），管理员通过才上架；被驳回会带回<b>驳回原因</b>，在个人中心创作者中心与「我的云端曲谱」直接可见，改好再提交即可。管理员本人发布免自审、直接上架。④ 编辑器新增 <code>?review=曲谱ID</code> 审核预览深链，管理员可在观看模式下核对未上架的谱面。后端新增 7 个管理接口与审计日志表，端到端断言扩到 92 项，官网回归 28 项。</div></li>
     <li><span class="v">v59.8</span><div><b>修复：右键小节线菜单失灵</b>（CI 门禁拦下的回归）：v59.5 新增的「摇把」弹窗函数与既有<b>小节线设置菜单</b>重名，单文件中后声明静默覆盖前者——导致<b>右键/长按小节线弹出的是摇把菜单</b>，反复记号、跳转记号、分段线等设置整块无法使用。现已改名修复。同时给发版语法闸<b>加了「顶层函数重名」检查</b>，此类静默覆盖今后在本地与 CI 都会被直接拦截。</div></li>
     <li><span class="v">v59.7</span><div><b>哑音「点了没反应」修复</b>（用户反馈）：光标不在吉他谱声部（在简谱行/歌词行）或当前位置取不到列时，哑音按钮此前是<b>静默失败</b>——既不生效也无任何提示。现改为明确指引：「哑音 × 用于吉他谱声部——请先在六线谱上点选一个音符（或某根弦的位置）再点哑音」。同时把使用规则写进按钮说明：<b>作用于光标所在的弦位</b>——该弦有音符→变 ×（原品位记住，再点一次还原）；该弦没有音符→在此弦落一个 ×；与「×标记」按钮同义；给扫弦箭头加点请用「切音」。</div></li>
@@ -17685,9 +17863,60 @@ function showPrivacy(){
 /* 页头对齐：LOGO栏与常用工具栏左缘对齐左侧工具面板（弹出框）左缘，
    页头右侧信息对齐右侧"曲谱信息"面板右缘——随窗口/面板尺寸变化实时校准 */
 /* 响应式：进入手机宽度时把左侧功能面板收为底部抽屉，回到桌面恢复常驻 */
+/* v60.2 手机端「更多」抽屉：低频入口收纳，不复制逻辑——每项都 .click() 既有按钮，
+   按钮 id / 事件绑定 / 回归断言全部不动。禁用裸反引号（v43.6 教训：模板串会提前闭合）。 */
+function showMobileMenu(){
+  const G=[
+    ['文件', [['b-new','新建'],['b-open','打开'],['b-savemine','保存'],['b-save','导出']]],
+    ['输出', [['b-layout','排版'],['b-preview','预览'],['b-print','打印'],['b-library','预设'],['b-circle','谱库']]],
+    ['显示', [['b-invert','曲谱反色'],['b-theme','界面明暗'],['b-member','个人中心']]],
+  ];
+  const rows=G.map(([t,items])=>{
+    const bs=items.filter(([id])=>document.getElementById(id))
+      .map(([id,n])=>'<button class="btn" data-mm="'+id+'">'+esc(n)+'</button>').join('');
+    return bs? '<div class="mm-t">'+esc(t)+'</div><div class="mm-g">'+bs+'</div>' : '';
+  }).join('');
+  const kv=(document.getElementById('k-val')||{}).textContent||'';
+  showModal('<h3>更多功能</h3>'+rows
+    +'<div class="mm-t">快速换调</div><div class="mm-g">'
+    +'<button class="btn" data-mm="k-dn">降半音 ♭</button>'
+    +'<button class="btn" style="pointer-events:none;opacity:.75">'+esc(kv||'当前调')+'</button>'
+    +'<button class="btn" data-mm="k-up">升半音 ♯</button></div>'
+    +'<div class="btns"><button id="mm-x" class="primary">关闭</button></div>');
+  const mk=document.getElementById('modal-mask'); if(!mk) return;
+  mk.querySelectorAll('[data-mm]').forEach(b=>b.onclick=()=>{
+    const t=document.getElementById(b.dataset.mm); if(!t) return;
+    const keep = b.dataset.mm==='k-dn' || b.dataset.mm==='k-up';   /* 移调连点：不关抽屉 */
+    if(!keep) closeModal();
+    t.click();
+    if(keep){ const kv2=document.getElementById('k-val');
+      const cell=mk.querySelector('[data-mm="k-dn"]+button'); if(cell&&kv2) cell.textContent=kv2.textContent||''; }
+  });
+  const x=document.getElementById('mm-x'); if(x) x.onclick=()=>closeModal();
+}
+/* v60.2 手机「智能」抽屉开合：只加/去 body.rsheet 一个类，右栏内容与事件完全复用。
+   打开时把右栏滚回顶部，免得停在上次位置让人以为是空的。 */
+function toggleSmartSheet(on){
+  const b=document.body, want = on===undefined? !b.classList.contains('rsheet') : !!on;
+  b.classList.toggle('rsheet', want);
+  let mk=document.getElementById('rsheet-mask');
+  if(want){
+    if(!mk){ mk=document.createElement('div'); mk.id='rsheet-mask'; document.body.appendChild(mk);
+      mk.addEventListener('click', ()=>toggleSmartSheet(false)); }
+    const rd=document.getElementById('right-dock'); if(rd) rd.scrollTop=0;
+  }
+}
 function applyResponsive(){
   const fly=document.getElementById('left-flyout'); if(!fly) return;
   const mob=window.innerWidth<=820;
+  /* v60.2 撤销/重做在手机上回顶栏——editbar 已沉底且只留时值组，留在里面就没了 */
+  const su=document.getElementById('seg-undo'), mbar=document.querySelector('#top .main-bar'),
+        eb2=document.getElementById('editbar'), mem=document.getElementById('b-member');
+  if(su && mbar && eb2){
+    if(mob){ if(su.parentElement!==mbar) mbar.insertBefore(su, mem||null); }
+    else if(su.parentElement!==eb2){ const anc=document.getElementById('ebu-eb-combo');
+      if(anc && anc.parentElement===eb2) eb2.insertBefore(su, anc.nextSibling); else eb2.appendChild(su); }
+  }
   if(mob){ if(!fly.dataset.mob){ fly.classList.add('hidden'); fly.dataset.mob='1'; } }
   else { fly.classList.remove('hidden'); delete fly.dataset.mob; }
 }
@@ -17757,7 +17986,7 @@ function alignHeader(){
   }
   if(song.tabVoices && !song.tabVoices.length) sel.row='vox';
   clampSel();
-  setRibbon('tab');
+  setRibbon(defaultLayer());
   document.getElementById('b-notation').title = '记谱风格切换 · 当前：'+(tabNotation==='x'?'和弦内音记×（教材式）':'全数字（输入什么显示什么，× 显示解析品位）');
   persist();
   applyShell();   // v40.0 新版外壳（localStorage musetab-shell 记忆，默认新版）
