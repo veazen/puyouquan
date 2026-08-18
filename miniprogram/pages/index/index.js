@@ -21,5 +21,6 @@ Page({
     if (this.pubId) return { title: (this.pubTitle || '曲谱') + ' - 谱友圈谱库', path: '/pages/score/score?id=' + this.pubId };
     return { title: '谱友圈谱库 · 在线看谱/移调/跟谱', path: '/pages/index/index' };
   },
-  onShareTimeline() { return { title: '谱友圈谱库 · 在线看谱/移调/跟谱' }; },
+  // 无 onShareTimeline：web-view 页面不支持分享到朋友圈，声明了只会在控制台报警告。
+  //   要做朋友圈分享得走网页侧的 H5 分享卡（观看栏「分享卡」出 PNG，长按保存转发）。
 });
