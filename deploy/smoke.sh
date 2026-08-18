@@ -46,6 +46,12 @@ KLEN=$(curl -sI --max-time 15 --connect-to "puku.puyouquan.com:443:$H:443" "http
       | tr -d '\r' | awk 'tolower($1)=="content-length:"{print $2}')
 if [ "${KLEN:-0}" -ge 1000000 ] 2>/dev/null; then echo "✅ puku 观看页 kanpu.html（$((KLEN/1024))KB）"
 else echo "❌ puku 观看页 kanpu.html 缺失或残缺（content-length=${KLEN:-无}）"; fail=1; fi
+# 微信小程序业务域名校验文件（三域根均须可访问）：web-view 白名单靠它维持，
+#   rsync --delete 或 publish.sh 第 4 步一旦漏拷，后台校验就会失效——这里守住。
+WXV=XSJTQ471zE.txt
+for vh in www.puyouquan.com puku.puyouquan.com zhipu.puyouquan.com; do
+  chk "$vh" "/$WXV" '^[0-9a-f]\{32\}$' "小程序业务域名校验文件（$vh）"
+done
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查（zhipu）"
 chk www.puyouquan.com   /api/health '"ok":true'             "官网 API 健康（微信网站应用回调域 www）"
 chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开接口（含种子谱）"
