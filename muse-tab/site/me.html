@@ -312,7 +312,7 @@
         };
         return;
       }
-      el.innerHTML='<h3 class="me-h">创作者中心<span class="lib-count" id="cr-count"></span><a class="pc-more" href="//zhipu.puyouquan.com/?pc=creator">去编辑器发布 →</a></h3>'
+      el.innerHTML='<h3 class="me-h"><span class="me-hname">创作者中心</span><span class="lib-count" id="cr-count"></span><a class="pc-more" href="//zhipu.puyouquan.com/?pc=creator">去编辑器发布 →</a></h3>'
         +'<div class="pc-list" id="cr-list"><p class="pc-empty">加载中…</p></div>';
       scoresP.then(function(j){
         /* v60.0：提交发布后先进 pending 审核队列，本列表同时呈现「已上架 / 审核中 / 已驳回+原因」三态 */
@@ -331,7 +331,7 @@
                         : ('//zhipu.puyouquan.com/?mine='+encodeURIComponent(s.id));
           return '<a class="pc-row" href="'+href+'">'
             +'<span class="t">'+esc(s.title||'未命名曲谱')
-            +(s.status==='rejected'&&s.review_note? '<small class="cr-note">驳回原因：'+esc(s.review_note)+'</small>':'')
+            +(s.status==='rejected'&&s.review_note? '<small class="cr-note" title="'+esc(s.review_note)+'">驳回原因：'+esc(s.review_note)+'</small>':'')
             +'</span>'+stChip(s)
             +'<span class="pc-see">'+(isPub?'在谱库查看':'去编辑器修改')+'</span></a>'; }).join('')
           : '<p class="pc-empty"><b>还没发布过谱</b><br>在编辑器打开曲谱，点「发布」提交审核，通过后自动上架谱库</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/?pc=creator">去发布第一份谱 →</a>';
@@ -357,7 +357,7 @@
           ['曲谱', j.scores|0, (j.published|0)+' 已上架'],
           ['待审核', j.pending|0, (j.pending?'需要处理':'队列已清空')],
           ['已支付订单', o.paid|0, '¥'+(((o.amount_fen|0)/100).toFixed(2))]
-        ].map(function(t){ return '<div class="ad-stat"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
+        ].map(function(t){ return '<div class="ad-stat" title="'+esc(t[0]+'：'+t[1]+'（'+t[2]+'）')+'"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
         var d=document.getElementById('ad-dot');
         d.hidden=!(j.pending|0); d.textContent=j.pending|0;
       }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
