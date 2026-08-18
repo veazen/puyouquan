@@ -7,6 +7,7 @@
 
      node admin.js user <手机号>                    查用户 + 权益 + 曲谱数
      node admin.js set-role <手机号> <角色>         改角色：user / creator / admin（首个管理员只能在此任命）
+     node admin.js users [n]                        最近 n 个用户 + 微信绑定/unionid 情况（默认 20）
      node admin.js admins                           列出全部平台管理员
      node admin.js logs [n]                         最近 n 条管理审计日志（默认 50）
      node admin.js grant <手机号> <kind> [天数]     授予权益（天数省略=永久；如 grant 138... vip 365）
@@ -56,6 +57,25 @@ const cmds = {
     q.adminLogAdd.run(u.id, 'cli:set-role', u.id, '服务器 CLI 任命：' + old + '→' + role, now());
     console.log(`已把 ${u.nickname}(${phone}) 的角色 ${old} 改为 ${role}`);
     if (role === 'admin') console.log('提示：该用户重新打开 https://www.puyouquan.com/me.html 即可看到「平台管理」页签。');
+  },
+  /* v60.2：最近注册用户 + 微信绑定情况。诊断「小程序账号是否与网页账号分裂」——
+     unionid=无 说明 jscode2session 没返回 unionid，即小程序尚未绑到与网站应用同一个开放平台账号，
+     此时小程序登录只能按 openid 另建号，与网页微信登录不是同一个账号。 */
+  users(n) {
+    const rows = db.prepare(`SELECT phone,nickname,role,wx_openid,wx_unionid,created_at
+                             FROM users ORDER BY created_at DESC LIMIT ?`).all(Math.min(200, +n || 20));
+    if (!rows.length) return console.log('暂无用户。');
+    console.log('注册时间              手机号        昵称            角色      openid  unionid');
+    rows.forEach(r => console.log(
+      [fmtTs(r.created_at).padEnd(20),
+       (/^\d{11}$/.test(r.phone || '') ? r.phone : '(微信登录)').padEnd(13),
+       String(r.nickname || '').slice(0, 14).padEnd(15),
+       String(r.role).padEnd(9),
+       (r.wx_openid ? '有' : '无').padEnd(7),
+       r.wx_unionid ? '有' : '无'].join('')));
+    const wx = rows.filter(r => r.wx_openid);
+    if (wx.length && wx.every(r => !r.wx_unionid))
+      console.log('\n⚠️ 所有微信号都没有 unionid：小程序/公众号与网站应用未绑在同一个微信开放平台账号下，账号会分裂。');
   },
   admins() {
     const rows = db.prepare("SELECT id,phone,nickname,created_at FROM users WHERE role='admin' ORDER BY created_at").all();
@@ -117,7 +137,7 @@ const cmds = {
 };
 
 if (!cmds[cmd]) {
-  console.log('可用命令：user / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
+  console.log('可用命令：user / users / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
   process.exit(cmd ? 1 : 0);
 }
 cmds[cmd](...args);
