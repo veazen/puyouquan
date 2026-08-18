@@ -1,6 +1,9 @@
 'use strict';
 /* 谱友圈 · CLI 管理工具（v45.3，零依赖）。在服务器上执行（读取与 pyq-api 相同的 DB_PATH）：
      node admin.js user <手机号>                    查用户 + 权益 + 曲谱数
+     node admin.js set-role <手机号> <角色>         改角色：user / creator / admin（首个管理员只能在此任命）
+     node admin.js admins                           列出全部平台管理员
+     node admin.js logs [n]                         最近 n 条管理审计日志（默认 50）
      node admin.js grant <手机号> <kind> [天数]     授予权益（天数省略=永久；如 grant 138... vip 365）
      node admin.js revoke <手机号> <kind>           撤销该类全部权益
      node admin.js gen-codes <数量> <kind> [天数]   批量生成兑换码（打印到 stdout，自行保存）
@@ -35,6 +38,29 @@ const cmds = {
     ents.forEach(e => console.log(`  ${e.kind}  到期=${fmtExp(e.expires_at)}  来源=${e.source}  ${e.expires_at !== 0 && e.expires_at <= t ? '[过期]' : '[有效]'}`));
     (q.orderByUser.all(u.id) || []).slice(0, 5).forEach(o =>
       console.log(`  订单 ${o.kind} ¥${(o.amount_fen / 100).toFixed(2)} ${o.channel} ${o.status} ${fmtTs(o.created_at)}`));
+  },
+  /* v60.0：首个平台管理员只能在服务器上任命——HTTP 侧无任何自助提权路径。
+     admin 天然含创作者权限；降级同样走这里（网页端不允许管理员取消自己的身份）。 */
+  'set-role'(phone, role) {
+    if (!['user', 'creator', 'admin'].includes(role)) {
+      console.error('用法：set-role <手机号> <user|creator|admin>'); process.exit(1);
+    }
+    const u = findUser(phone);
+    const old = u.role;
+    q.userSetRole.run(role, u.id);
+    q.adminLogAdd.run(u.id, 'cli:set-role', u.id, '服务器 CLI 任命：' + old + '→' + role, now());
+    console.log(`已把 ${u.nickname}(${phone}) 的角色 ${old} 改为 ${role}`);
+    if (role === 'admin') console.log('提示：该用户重新打开 https://www.puyouquan.com/me.html 即可看到「平台管理」页签。');
+  },
+  admins() {
+    const rows = db.prepare("SELECT id,phone,nickname,created_at FROM users WHERE role='admin' ORDER BY created_at").all();
+    if (!rows.length) return console.log('当前没有平台管理员——用 set-role <手机号> admin 任命第一个。');
+    rows.forEach(r => console.log(`${r.phone || '(微信登录)'}  ${r.nickname}  id=${r.id}  注册=${fmtTs(r.created_at)}`));
+  },
+  logs(n) {
+    const rows = q.adminLogList.all(Math.min(500, +n || 50));
+    if (!rows.length) return console.log('暂无管理审计日志。');
+    rows.forEach(l => console.log(`${fmtTs(l.created_at)}  ${l.admin_name || l.admin_phone || l.admin_id}  ${l.action}  ${l.target}  ${l.detail}`));
   },
   grant(phone, kind, days) {
     if (!kind) { console.error('用法：grant <手机号> <kind> [天数]'); process.exit(1); }
@@ -86,7 +112,7 @@ const cmds = {
 };
 
 if (!cmds[cmd]) {
-  console.log('可用命令：user / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
+  console.log('可用命令：user / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
   process.exit(cmd ? 1 : 0);
 }
 cmds[cmd](...args);

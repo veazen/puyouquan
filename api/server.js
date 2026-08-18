@@ -204,6 +204,16 @@ function pubShape(row) {
     type: docTypeOf(d), price: 0, measures: (d.measures || []).length, cover: coverOf(d) };
 }
 const needScore = id => { const s = ID_RE.test(id) && q.scoreGet.get(id); if (!s) throw new ApiError(404, '谱面不存在'); return s; };
+/* ---------- v60.0 平台管理：角色与审计 ----------
+   role 三值：'user' / 'creator' / 'admin'（admin 天然包含创作者权限）。
+   首个管理员只能在服务器上用 CLI 任命（node admin.js set-role <手机号> admin）——
+   任何 HTTP 路径都无法自助提权，这是本模块的安全底线。 */
+const isCreator = u => !!u && (u.role === 'creator' || u.role === 'admin');
+const requireAdmin = u => { if (!u || u.role !== 'admin') throw new ApiError(403, '需要平台管理员权限'); return u; };
+const adminLog = (adminId, action, target, detail) => {
+  try { q.adminLogAdd.run(adminId, action, String(target || ''), String(detail || ''), now()); } catch (e) { console.error('adminLog', e); }
+};
+const needUser = id => { const u = q.userById.get(String(id || '')); if (!u) throw new ApiError(404, '用户不存在'); return u; };
 
 /* ---------- 已发布谱的最小 SSR（title/description/og:image + JSON-LD，可被搜索引擎收录）----------
    动机：交互观看页 zhipu/?pub=ID 是纯前端渲染，爬虫抓到的是空壳；发布谱因此无法被搜索/微信收录。
@@ -502,18 +512,97 @@ const routes = [
   }],
 
   /* -- 发布 / 下架到谱库（需创作者角色）-- */
+  /* v60.0 审核流：创作者提交 → status='pending'（谱库不展示）→ 管理员通过才 'published'。
+     管理员自己发布的谱直接上架（免自审）。返回 status 供前端显示「审核中」。 */
   ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/publish$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '只能发布自己的曲谱');
-    if (u.role !== 'creator') throw new ApiError(403, '请先在个人中心「成为创作者」');
-    q.scoreSetStatus.run('published', s.id, u.id);
-    return { published: true };
+    if (!isCreator(u)) throw new ApiError(403, '请先在个人中心「成为创作者」');
+    const st = u.role === 'admin' ? 'published' : 'pending';
+    q.scoreReview.run(st, '', s.id);
+    return { published: st === 'published', status: st, pending: st === 'pending' };
   }],
   ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/unpublish$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '无权操作');
     q.scoreSetStatus.run('private', s.id, u.id);
     return { unpublished: true };
+  }],
+
+  /* -- v60.0 平台管理（全部需 role='admin'；写操作一律记 admin_logs 审计）-- */
+  ['GET', /^\/api\/admin\/overview$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const roles = {}; q.userCountRole.all().forEach(r => { roles[r.role] = r.n; });
+    const sts = {}; q.scoreCountBySt.all().forEach(r => { sts[r.status] = r.n; });
+    const paid = q.orderPaidAgg.get();
+    return { users: q.userCount.get().n, roles, scores: q.scoreCountAll.get().n, scoreStatus: sts,
+      pending: sts.pending || 0, published: sts.published || 0,
+      orders: { paid: paid.n, amount_fen: paid.fen },
+      funnel: q.eventStats.all(now() - 7 * 86400) };
+  }],
+  ['GET', /^\/api\/admin\/users$/, true, (m, b, u, req) => {
+    requireAdmin(u);
+    const kw = (new URL(req.url, 'http://x').searchParams.get('q') || '').trim().slice(0, 40);
+    const rows = kw ? q.userSearch.all('%' + kw + '%', '%' + kw + '%', 50) : q.userRecent.all(50);
+    return { users: rows.map(r => ({ ...r, phone: PHONE_RE.test(r.phone) ? r.phone.replace(/^(\d{3})\d{4}/, '$1****') : '' })) };
+  }],
+  ['POST', /^\/api\/admin\/users\/([A-Za-z0-9_-]+)\/role$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const target = needUser(m[1]), role = String(b.role || '');
+    if (!['user', 'creator', 'admin'].includes(role)) throw new ApiError(400, '角色只能是 user / creator / admin');
+    if (target.id === u.id && role !== 'admin') throw new ApiError(400, '不能取消自己的管理员身份（请由另一位管理员操作，或用服务器 CLI）');
+    q.userSetRole.run(role, target.id);
+    adminLog(u.id, 'role', target.id, target.role + '→' + role);
+    return { ok: true, role };
+  }],
+  ['POST', /^\/api\/admin\/users\/([A-Za-z0-9_-]+)\/grant$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const target = needUser(m[1]);
+    const kind = String(b.kind || '').trim(), days = Math.max(0, Math.min(3650, parseInt(b.days, 10) || 0));
+    if (!/^[a-z0-9_]{2,32}$/.test(kind)) throw new ApiError(400, '权益类型不合法（小写字母/数字/下划线）');
+    const t = now();
+    const cur = q.entActive.get(target.id, kind, t);
+    const expires = days > 0 ? ((cur && cur.expires_at > t) ? cur.expires_at : t) + days * 86400 : 0;
+    q.entAdd.run(crypto.randomUUID(), target.id, kind, expires, 'admin:' + u.id, t);
+    adminLog(u.id, 'grant', target.id, kind + (days ? '+' + days + '天' : '（永久）'));
+    return { ok: true, kind, expires_at: expires };
+  }],
+  ['POST', /^\/api\/admin\/users\/([A-Za-z0-9_-]+)\/revoke$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const target = needUser(m[1]), kind = String(b.kind || '').trim();
+    if (!kind) throw new ApiError(400, '缺少权益类型');
+    q.entDel.run(target.id, kind);
+    adminLog(u.id, 'revoke', target.id, kind);
+    return { ok: true };
+  }],
+  ['GET', /^\/api\/admin\/reviews$/, true, (m, b, u, req) => {
+    requireAdmin(u);
+    const st = (new URL(req.url, 'http://x').searchParams.get('status') || 'pending');
+    if (!['pending', 'published', 'rejected'].includes(st)) throw new ApiError(400, '状态不合法');
+    return { status: st, scores: q.reviewList.all(st, 50).map(r => ({ ...r, phone: PHONE_RE.test(r.phone) ? r.phone.replace(/^(\d{3})\d{4}/, '$1****') : '' })) };
+  }],
+  /* 审核预览：管理员按 id 读任意谱（含未上架的 pending），供编辑器 ?review=ID 进观看模式核对谱面 */
+  ['GET', /^\/api\/admin\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const s = needScore(m[1]), au = q.userById.get(s.user_id);
+    return { score: { id: s.id, title: s.title, singer: s.singer, author: au ? au.nickname : '',
+      status: s.status, review_note: s.review_note || '', updated_at: s.updated_at, data: JSON.parse(s.data) } };
+  }],
+  ['POST', /^\/api\/admin\/scores\/([A-Za-z0-9_-]+)\/review$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const s = needScore(m[1]);
+    const act = String(b.action || '');
+    if (!['approve', 'reject', 'unpublish'].includes(act)) throw new ApiError(400, '操作只能是 approve / reject / unpublish');
+    const note = String(b.note || '').slice(0, 200);
+    if (act === 'reject' && !note) throw new ApiError(400, '驳回需填写原因（会展示给创作者）');
+    const st = act === 'approve' ? 'published' : act === 'reject' ? 'rejected' : 'private';
+    q.scoreReview.run(st, act === 'approve' ? '' : note, s.id);
+    adminLog(u.id, act, s.id, (s.title || '') + (note ? ' · ' + note : ''));
+    return { ok: true, status: st };
+  }],
+  ['GET', /^\/api\/admin\/logs$/, true, (m, b, u) => {
+    requireAdmin(u);
+    return { logs: q.adminLogList.all(50).map(l => ({ ...l, admin_phone: PHONE_RE.test(l.admin_phone) ? l.admin_phone.replace(/^(\d{3})\d{4}/, '$1****') : '' })) };
   }],
 
   /* -- 公开谱库（谱库 puku，无需登录）-- */

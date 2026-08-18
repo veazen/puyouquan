@@ -15920,13 +15920,13 @@ function showPublishMenu(libEntry, rect){
   div.style.top=Math.min(rect.bottom+6, innerHeight-190)+'px';
   const canCloud=!!(window.PYQ_CLOUD && ACCT);   // 已登录 + 线上环境 → 走真实发布，否则本机演示
   const note=canCloud
-    ? `${svgi('info',11)} 发布后将上架<b>在线谱库</b>（puku.puyouquan.com），任何人都能在线观看、移调、跟谱。当前线上谱库统一按<b>免费</b>展示，售卖/试读功能开发中（下方定价仅作本地记录）。`
+    ? `${svgi('info',11)} 点击后<b>提交平台审核</b>，通过即上架<b>在线谱库</b>（puku.puyouquan.com），任何人都能在线观看、移调、跟谱；审核状态可在<b>个人中心 · 创作者中心</b>查看。当前线上谱库统一按<b>免费</b>展示，售卖/试读功能开发中（下方定价仅作本地记录）。`
     : `${svgi('warn',11)} 当前为本机演示：发布内容仅存在你自己的浏览器里，他人（包括学生）看不到。要分享给别人，请用「打印/导出」里的<b>互动谱 HTML</b> 或<b>分享卡 PNG</b>；或登录 puyouquan.com 后发布到在线谱库。`;
   div.innerHTML=`<div class="t">发布《${esc(libEntry.title||'未命名曲谱')}》到谱友圈</div>
     <div class="row" style="align-items:center">定价 ¥ <input id="pub-price" type="number" min="0" step="0.5" value="${cr.pricing.price||0}" style="width:70px">（0=免费）</div>
     <div class="row" style="align-items:center">付费谱试读 <input id="pub-prev" type="number" min="1" max="16" value="2" style="width:60px"> 小节</div>
     <div class="row" style="font-size:11px;color:var(--muted);line-height:1.5">${note}</div>
-    <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">${canCloud?'发布到在线谱库':(window.PYQ_CLOUD?'登录后发布到谱库':'确认发布')}</button></div>`;
+    <div class="row" style="justify-content:flex-end"><button id="pub-go" class="primary">${canCloud?'提交审核并发布':(window.PYQ_CLOUD?'登录后发布到谱库':'确认发布')}</button></div>`;
   document.body.appendChild(div);
   document.getElementById('pub-go').onclick=async function(){
     if(!canCloud && window.PYQ_CLOUD){ closePop(); openLogin(); return; }   // v44.3 线上未登录：拉起登录（不再本机演示误导「已记录发布」）
@@ -15938,18 +15938,20 @@ function showPublishMenu(libEntry, rect){
     const rec={pid:'pub'+Math.random().toString(36).slice(2,9), libId:libEntry.id, title:libEntry.title,
       author, type:docType(d), price, preview, pubAt:nowStamp(), sales:0, tips:0, views:0, status:'pending', data:d};
     if(canCloud){                                   // ---- 真实发布：确保云端存有该谱 → 置为已发布 → 出真实链接 ----
-      this.disabled=true; const _t=this.textContent; this.textContent='发布中…';
+      this.disabled=true; const _t=this.textContent; this.textContent='提交中…';
       try{
-        if(ACCT.role!=='creator'){ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); }
+        if(ACCT.role!=='creator' && ACCT.role!=='admin'){ const r=await apiCall('/me/creator',{method:'POST'}); acctSave(r.user); }
         const cloudId=await scoreCloudPush(libEntry.id);
         if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
-        await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
-        rec.status='approved'; rec.cloudId=cloudId; rec.online=true;
-        rec.url='https://puku.puyouquan.com/pub/'+cloudId;
+        /* v60.0 审核流：普通创作者提交后落 pending（谱库尚不可见），管理员发布免自审直接上架 */
+        const pr=await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
+        const online=!!(pr && pr.published);
+        rec.status=online?'approved':'pending'; rec.cloudId=cloudId; rec.online=online;
+        if(online) rec.url='https://puku.puyouquan.com/pub/'+cloudId;
         l.unshift(rec); circlePubsSave(l);
         closePop();
         pyqEvent('publish');
-        showPublishDone(libEntry.title||'未命名曲谱', cloudId);
+        showPublishDone(libEntry.title||'未命名曲谱', cloudId, online);
       }catch(e){
         this.disabled=false; this.textContent=_t;
         toast('发布失败：'+(e.message||e));
@@ -15962,8 +15964,18 @@ function showPublishMenu(libEntry, rect){
     openPersonal('creator');
   };
 }
-/* 真实发布成功后的确认弹窗：给出可复制的公开链接 + 谱库入口 */
-function showPublishDone(title, cloudId){
+/* 真实发布成功后的确认弹窗：已上架给可复制的公开链接 + 谱库入口；
+   v60.0 审核流下普通创作者拿到的是「已提交审核」——此时还没有公开链接，只给进度去处。 */
+function showPublishDone(title, cloudId, online){
+  if(online===false){
+    showModal(`<h3>${svgi('check',18)} 已提交审核</h3>
+      <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(title)}》已提交平台审核，通过后自动上架在线谱库并生成公开链接。
+      审核进度可在<b>个人中心 · 创作者中心</b>查看；若被驳回，那里会显示原因，改好再提交一次即可。</p>
+      <div class="btns"><a class="btn" href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener">查看审核进度</a>
+        <button id="pd-ok" class="primary">知道了</button></div>`);
+    const ok=document.getElementById('pd-ok'); if(ok) ok.onclick=()=>closeModal();
+    return;
+  }
   const url='https://puku.puyouquan.com/pub/'+cloudId;
   showModal(`<h3>${svgi('check',18)} 发布成功</h3>
     <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(title)}》已上架在线谱库，任何人都能通过下方链接在线观看、移调、跟谱。</p>
@@ -16404,15 +16416,17 @@ function wxShareCard(){
       +'\n（未配置=服务器缺公众号凭据；40164=IP白名单；40125=AppSecret错）'); });   // 非调试时静默回退默认卡片
   }catch(_){}
 }
-/* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） ===== */
-async function openRemotePub(id){
+/* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） =====
+   v60.0 第二形态「审核预览」：管理员从个人中心待审核队列点进来（?review=ID），走 /api/admin/scores/:id
+   读取尚未上架的 pending 谱；除接口与提示外与谱库观看完全同路（同样过 sanitizeUntrusted 清洗）。*/
+async function openRemotePub(id, review){
   let sc;
-  try{ const r=await apiCall('/pub/scores/'+id); sc=r.score; }
-  catch(e){ bootVeilDone(); toast('曲谱加载失败：'+(e.message||'请稍后重试')); return; }
+  try{ const r=await apiCall((review?'/admin/scores/':'/pub/scores/')+id); sc=r.score; }
+  catch(e){ bootVeilDone(); toast(review?('审核预览打开失败：'+(e.message||'请确认已用管理员账号登录')):('曲谱加载失败：'+(e.message||'请稍后重试'))); return; }
   const data=sanitizeUntrusted(sc && sc.data);   // Sprint0 安全：他人发布谱走 XSS 清洗
   if(!data || !data.measures || !data.measures.length){ bootVeilDone(); toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
-  pyqEvent('open_pub', id);
+  if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
   viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null;
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
@@ -16431,6 +16445,11 @@ async function openRemotePub(id){
   wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
   bootVeilDone();   /* v58.4 谱面就绪才揭幕：分享页不再闪现编辑器外壳 */
+  if(review){
+    document.title='审核预览 · '+(song.title||'曲谱');
+    const STCN={pending:'待审核', published:'已上架', rejected:'已驳回', private:'未提交'};
+    toast('审核预览：'+(sc.title||'')+'（'+(STCN[sc.status]||sc.status)+'）——回个人中心「平台管理」通过或驳回');
+  }
 }
 /* 观看模式收藏：本地翻转 + 登录后接云；未登录点收藏就地拉起登录（看谱→留账号钩子），登录后自动收藏 */
 function updateVwFav(){
@@ -16572,7 +16591,12 @@ function pcCreatorHTML(){
     <span class="t2">${esc(e2.at)}</span>
     <span class="t2" style="font-family:ui-monospace,monospace">${esc(e2.hash.slice(0,18))}…</span>
     <button data-pf-exp="${i}">导出凭证</button><button data-pf-del="${i}">删除</button></div>`).join('');
-  return `<div class="pcx-card"><h4>谱友圈 · 发布管理</h4>
+  /* v60.0 线上管理员：真实平台管理中心在 www 个人中心（审核队列/角色/权益/审计日志），此处只给入口不做二套界面 */
+  const adCard=(API_ON && ACCT && ACCT.role==='admin')
+    ? `<div class="pcx-card"><h4>平台管理中心</h4>
+      <p>你是平台管理员。曲谱审核队列、用户与角色、权益发放、审计日志都在个人中心。
+      <a style="color:var(--accent)" href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener">打开平台管理中心 →</a></p></div>` : '';
+  return `${adCard}<div class="pcx-card"><h4>谱友圈 · 发布管理</h4>
   <p>选择哪些曲谱推送到谱友圈；付费谱可设定价与试读小节数，C端购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱友圈 →</a></p>
   ${pubRows || '<p>先在制谱器里「保存」曲谱到我的曲谱，再到这里发布。</p>'}</div>
   <div class="pcx-card"><h4>版权登记辅助（原创作品时间戳存证）</h4>
@@ -17222,7 +17246,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v59.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17245,6 +17269,7 @@ const APP_VER='v59.8';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.0</span><div><b>平台管理中心上线 + 曲谱发布改为审核制</b>：① <b>平台管理中心</b>进驻个人中心（www.puyouquan.com/me.html），仅平台管理员可见，含<b>待审队列</b>（预览谱面 / 通过 / 驳回并填原因）、<b>已上架</b>（一键下架）、<b>用户管理</b>（手机号或昵称搜索、改角色、发放与撤销权益）、<b>审计日志</b>（谁在什么时候做了什么，全部留痕）；概览四格给出用户数、曲谱数、待审数与已支付订单额。② <b>角色体系</b>扩为 普通用户 / 创作者 / 平台管理员三级，管理员天然含创作者权限；<b>首个管理员只能在服务器上用命令行任命</b>（<code>node admin.js set-role 手机号 admin</code>），网页端没有任何自助提权入口，之后的管理员由现任管理员在管理中心指派，且不能取消自己的管理员身份。③ <b>发布改真审核流</b>：创作者点「发布」后曲谱进入<b>待审核</b>（谱库暂不展示），管理员通过才上架；被驳回会带回<b>驳回原因</b>，在个人中心创作者中心与「我的云端曲谱」直接可见，改好再提交即可。管理员本人发布免自审、直接上架。④ 编辑器新增 <code>?review=曲谱ID</code> 审核预览深链，管理员可在观看模式下核对未上架的谱面。后端新增 7 个管理接口与审计日志表，端到端断言扩到 92 项，官网回归 28 项。</div></li>
     <li><span class="v">v59.8</span><div><b>修复：右键小节线菜单失灵</b>（CI 门禁拦下的回归）：v59.5 新增的「摇把」弹窗函数与既有<b>小节线设置菜单</b>重名，单文件中后声明静默覆盖前者——导致<b>右键/长按小节线弹出的是摇把菜单</b>，反复记号、跳转记号、分段线等设置整块无法使用。现已改名修复。同时给发版语法闸<b>加了「顶层函数重名」检查</b>，此类静默覆盖今后在本地与 CI 都会被直接拦截。</div></li>
     <li><span class="v">v59.7</span><div><b>哑音「点了没反应」修复</b>（用户反馈）：光标不在吉他谱声部（在简谱行/歌词行）或当前位置取不到列时，哑音按钮此前是<b>静默失败</b>——既不生效也无任何提示。现改为明确指引：「哑音 × 用于吉他谱声部——请先在六线谱上点选一个音符（或某根弦的位置）再点哑音」。同时把使用规则写进按钮说明：<b>作用于光标所在的弦位</b>——该弦有音符→变 ×（原品位记住，再点一次还原）；该弦没有音符→在此弦落一个 ×；与「×标记」按钮同义；给扫弦箭头加点请用「切音」。</div></li>
     <li><span class="v">v59.6</span><div><b>技法图标统一与排序</b>（用户指示）：① <b>击勾弦图标改谱面写法</b>——三个符头 + 两道连线弧、弧上分别标 <i>h</i> / <i>p</i>，一眼看懂是「击弦→勾弦」连奏。② <b>指弹技巧移到记号组最末</b>。③ <b>图标全部改线性 SVG，不再使用 Emoji</b>：摇把=摇杆＋俯冲弧箭头，指弹=击板箭头＋面板线＋震动纹，与面板其他图标同一线宽与视觉重量。④ <b>「清除」按钮撤销</b>——清除方式统一为「再点同一技法即取消」（谱面点音符的菜单里仍有清除项）。</div></li>
@@ -17763,7 +17788,7 @@ function alignHeader(){
      v58.4 观看/云谱深链（?pub= / ?mine=）此处不揭幕——远端拉谱期间会露出编辑器外壳（用户反馈
      分享页闪现编辑界面），改由 openRemotePub/openRemoteMine 谱面就绪或失败后调 bootVeilDone()；
      内联 8s 失效保护仍兜底 */
-  if(!/[?&](pub|mine)=/.test(location.search)) bootVeilDone();
+  if(!/[?&](pub|mine|review)=/.test(location.search)) bootVeilDone();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
   window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ applyResponsive(); render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });
@@ -17773,7 +17798,7 @@ function alignHeader(){
     ro.observe(document.getElementById('stage'));
   }
 })();
-/* v58.4 启动遮罩揭幕（幂等）：普通启动在主初始化尾调用；?pub=/?mine= 深链推迟到谱面就绪/失败时调 */
+/* v58.4 启动遮罩揭幕（幂等）：普通启动在主初始化尾调用；?pub=/?mine=/?review= 深链推迟到谱面就绪/失败时调 */
 function bootVeilDone(){
   const bv=document.getElementById('boot-veil');
   if(bv){ bv.style.opacity='0'; bv.style.pointerEvents='none'; setTimeout(()=>{ try{ bv.remove(); }catch(_){ } }, 240); }
@@ -17812,6 +17837,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   try{
     const pub=new URLSearchParams(location.search).get('pub');
     if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
+    /* v60.0 ?review=<id> 管理员审核预览：同一观看模式，改走 /api/admin/scores/:id（非管理员会被服务端 403 拒） */
+    const rvw=new URLSearchParams(location.search).get('review');
+    if(rvw && /^[A-Za-z0-9_-]{1,40}$/.test(rvw) && typeof openRemotePub==='function'){ openRemotePub(rvw, true); return; }
     const mine=new URLSearchParams(location.search).get('mine');
     if(mine && /^[A-Za-z0-9_-]{1,40}$/.test(mine)){ openRemoteMine(mine); return; }
     /* v58.9 ?pc=<页签> 深链直达个人中心；v59.0 独立页化：保留 URL 参数（可刷新/收藏），replace 进入 */

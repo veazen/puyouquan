@@ -13,7 +13,12 @@ chk(){ # chk 说明 期望片段 实际输出
   if grep -q -- "$2" <<< "$3"; then pass=$((pass+1)); echo "✅ $1";
   else fail=$((fail+1)); echo "❌ $1 —— 期望含[$2] 实际: $(head -c 300 <<< "$3")"; fi
 }
+nchk(){ # nchk 说明 不应出现的片段 实际输出
+  if grep -q -- "$2" <<< "$3"; then fail=$((fail+1)); echo "❌ $1 —— 不应含[$2] 实际: $(head -c 300 <<< "$3")";
+  else pass=$((pass+1)); echo "✅ $1"; fi
+}
 J(){ curl -s -b "$DIR/jar" -c "$DIR/jar" -H 'Content-Type: application/json' "$@"; }
+J2(){ curl -s -b "$DIR/jar2" -c "$DIR/jar2" -H 'Content-Type: application/json' "$@"; }   # v60.0 管理员会话（独立 cookie jar）
 
 chk 健康检查 '"ok":true' "$(curl -s http://127.0.0.1:3199/api/health)"
 
@@ -43,9 +48,51 @@ chk 谱集加谱 '"ok":true' "$(J -X PUT "http://127.0.0.1:3199/api/collections/
 chk 谱集详情 '"title":"小星星"' "$(J "http://127.0.0.1:3199/api/collections/$CID")"
 chk 谱集列表带计数 '"items":1' "$(J http://127.0.0.1:3199/api/collections)"
 
+# v60.0 审核流：创作者提交 → status=pending（谱库暂不展示）→ 平台管理员通过 → published
 # 该会话用户在「升级创作者」步已是 creator，故直接测发布正向路径（角色门禁的负向由代码保证）
-chk 创作者可发布 '"published":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
-chk 公开谱库含已发布 '小星星' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 创作者发布进审核队列 '"status":"pending"' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+nchk 待审谱不进公开谱库 '"singer":"测试"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 非管理员访问管理接口403 '需要平台管理员权限' "$(J http://127.0.0.1:3199/api/admin/overview)"
+chk 非管理员不能审核 '需要平台管理员权限' "$(J -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}')"
+
+# 第二账号 + 服务器 CLI 任命首个管理员（HTTP 无自助提权路径）
+R2=$(J2 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13900002345"}')
+CODE2=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R2" | grep -oE '[0-9]{6}')
+J2 -X POST http://127.0.0.1:3199/api/auth/sms/verify -d "{\"phone\":\"13900002345\",\"code\":\"$CODE2\"}" > /dev/null
+chk CLI任命管理员 '改为 admin' "$(DB_PATH="$DIR/t.db" node admin.js set-role 13900002345 admin 2>&1)"
+chk CLI拒绝非法角色 '用法：set-role' "$(DB_PATH="$DIR/t.db" node admin.js set-role 13900002345 root 2>&1)"
+chk CLI列出管理员 '13900002345' "$(DB_PATH="$DIR/t.db" node admin.js admins 2>&1)"
+chk 管理员身份生效 '"role":"admin"' "$(J2 http://127.0.0.1:3199/api/me)"
+chk 管理概览含待审数 '"pending":1' "$(J2 http://127.0.0.1:3199/api/admin/overview)"
+chk 审核队列含待审谱 '小星星' "$(J2 'http://127.0.0.1:3199/api/admin/reviews?status=pending')"
+chk 审核队列手机号打码 '138\*\*\*\*1234' "$(J2 'http://127.0.0.1:3199/api/admin/reviews?status=pending')"
+chk 审核预览可读未上架谱 '"v":3' "$(J2 http://127.0.0.1:3199/api/admin/scores/song_abc12345)"
+chk 驳回必须填原因 '驳回需填写原因' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"reject"}')"
+chk 驳回落原因 '"status":"rejected"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"reject","note":"歌词第2段缺字"}')"
+chk 创作者看到驳回原因 '歌词第2段缺字' "$(J http://127.0.0.1:3199/api/scores)"
+chk 重新提交回到待审 '"status":"pending"' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+chk 重提清空旧驳回原因 '"review_note":""' "$(J2 http://127.0.0.1:3199/api/admin/scores/song_abc12345)"
+chk 审核通过即上架 '"status":"published"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}')"
+chk 管理员看用户列表 '"nickname":"小谱"' "$(J2 http://127.0.0.1:3199/api/admin/users)"
+chk 用户搜索按手机号 '"role":"creator"' "$(J2 'http://127.0.0.1:3199/api/admin/users?q=13800001234')"
+chk 用户列表手机号打码 '138\*\*\*\*1234' "$(J2 http://127.0.0.1:3199/api/admin/users)"
+UID1=$(J2 'http://127.0.0.1:3199/api/admin/users?q=13800001234' | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)
+chk 拿到目标用户id '.' "$UID1"
+chk 管理员发放权益 '"kind":"pack_kaobian"' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID1/grant" -d '{"kind":"pack_kaobian","days":30}')"
+chk 权益对用户生效 'pack_kaobian' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 管理员撤销权益 '"ok":true' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID1/revoke" -d '{"kind":"pack_kaobian"}')"
+nchk 撤销后权益消失 'pack_kaobian' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 拒绝非法角色值 '角色只能是' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID1/role" -d '{"role":"root"}')"
+chk 管理员改角色 '"role":"user"' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID1/role" -d '{"role":"user"}')"
+chk 改回创作者 '"role":"creator"' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID1/role" -d '{"role":"creator"}')"
+UID2=$(J2 http://127.0.0.1:3199/api/me | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)
+chk 不能自撤管理员 '不能取消自己的管理员身份' "$(J2 -X POST "http://127.0.0.1:3199/api/admin/users/$UID2/role" -d '{"role":"user"}')"
+chk 审计日志记录审核 '"action":"approve"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+chk 审计日志记录改角色 '"action":"role"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+chk 审计日志记录CLI任命 'cli:set-role' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+chk CLI查审计日志 'approve' "$(DB_PATH="$DIR/t.db" node admin.js logs 5 2>&1)"
+
+chk 公开谱库含已发布 '"singer":"测试"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 公开谱库免登录 '"author"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 公开详情含数据 '"v":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 种子官方谱存在 '谱友圈官方' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"

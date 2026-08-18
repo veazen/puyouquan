@@ -29,12 +29,13 @@
     <span class="acct-av me-av" id="me-av" title="更换头像">谱</span>
     <div class="me-id">
       <!-- v59.4 创作者徽章可点：与「创作者中心」按钮同一动作，直达创作者中心卡片（用户指示） -->
-      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span><button type="button" id="me-cr-badge" class="cr-badge" hidden title="进入创作者中心">创作者</button></h1>
+      <h1 class="me-nick"><span id="me-nick-t">…</span><span id="me-vip-badge" class="vip-badge free" hidden>免费版</span><button type="button" id="me-cr-badge" class="cr-badge" hidden title="进入创作者中心">创作者</button><button type="button" id="me-ad-badge" class="cr-badge ad-badge" hidden title="进入平台管理中心">管理员</button></h1>
       <p class="me-sub"><span id="me-phone"></span><span id="me-wx-slot"></span></p>
     </div>
     <!-- v59.4 头部按钮成组：手机端整组换行到第二行，身份区不被挤破（徽章竖排） -->
     <div class="me-hbtns">
       <button type="button" class="btn me-gocr" id="me-gocr" hidden title="进入创作者中心：已发布曲谱与发布入口">创作者中心</button>
+      <button type="button" class="btn me-goad" id="me-goad" hidden title="进入平台管理中心：审核 / 用户 / 审计">平台管理</button>
       <a class="btn me-openzp" href="//zhipu.puyouquan.com/">打开编辑器</a>
     </div>
   </header>
@@ -56,6 +57,19 @@
       </section>
     </div>
     <div class="me-main">
+      <!-- v60.0 平台管理中心：仅 role='admin' 显示；前端隐藏只是入口，/api/admin/* 服务端逐条 requireAdmin 二次鉴权 -->
+      <section class="me-card ad-card" id="me-admin" hidden>
+        <h3 class="me-h">平台管理中心<span class="lib-count" id="ad-sum"></span></h3>
+        <div class="ad-stats" id="ad-stats"></div>
+        <div class="ad-tabs" id="ad-tabs">
+          <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
+          <button type="button" class="ad-tab" data-ad="done">已上架</button>
+          <button type="button" class="ad-tab" data-ad="users">用户</button>
+          <button type="button" class="ad-tab" data-ad="logs">审计日志</button>
+        </div>
+        <p class="ad-msg" id="ad-msg"></p>
+        <div class="ad-pane" id="ad-pane"><p class="pc-empty">加载中…</p></div>
+      </section>
       <section class="me-card" id="me-scores">
         <h3 class="me-h">我的云端曲谱<a class="pc-more" href="//zhipu.puyouquan.com/">在编辑器中管理全部 →</a></h3>
         <div class="pc-list" id="sc-list"><p class="pc-empty">加载中…</p></div>
@@ -102,6 +116,16 @@
 
   var FMT=function(t){ if(!t) return '—'; var d=new Date(t*1000);
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  var FMTS=function(t){ if(!t) return '—'; var d=new Date(t*1000);
+    return FMT(t)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  /* v60.0 审核流状态角标：published 已上架 / pending 审核中 / rejected 已驳回（原因进 title 与创作者中心正文） */
+  function stChip(s){
+    var st=s.status;
+    if(st==='published'||st==='pub') return '<i class="k k-ok">已发布</i>';
+    if(st==='pending') return '<i class="k k-wait">审核中</i>';
+    if(st==='rejected') return '<i class="k k-no" title="'+esc(s.review_note||'')+'">已驳回</i>';
+    return '';
+  }
 
   function showAuth(){
     document.getElementById('me-auth').hidden=false;
@@ -209,23 +233,30 @@
     document.getElementById('me-nick-t').textContent=u.nickname||'谱友';
     document.getElementById('me-phone').textContent=u.phone||'';
     /* v59.4 创作者入口双通道：头部「创作者中心」按钮 + 可点徽章 → 同一 gotoCreator（定位并高亮卡片） */
-    function gotoCreator(){
-      var c=document.getElementById('me-creator');
+    function gotoCreator(){ flashCard('me-creator'); }   /* 定位并高亮卡片（连点两次能重放：见 flashCard 的强制重排） */
+    /* v60.0 管理员天然含创作者权限；平台管理入口与创作者入口同为「徽章 + 头部按钮」双通道 */
+    function isCreator(){ return u.role==='creator'||u.role==='admin'; }
+    function isAdmin(){ return u.role==='admin'; }
+    function gotoAdmin(){ flashCard('me-admin'); }
+    function flashCard(id){
+      var c=document.getElementById(id);
       if(!c || c.hidden) return;
       try{ c.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){ c.scrollIntoView(); }
-      c.classList.remove('cr-flash');
-      void c.offsetWidth;            /* 重排以便连点两次也能重放高亮 */
-      c.classList.add('cr-flash');
+      c.classList.remove('cr-flash'); void c.offsetWidth; c.classList.add('cr-flash');
       setTimeout(function(){ c.classList.remove('cr-flash'); }, 1600);
     }
     function syncCreatorEntries(){
-      var isCr = u.role==='creator';
+      var isCr = isCreator(), ad = isAdmin();
       document.getElementById('me-cr-badge').hidden = !isCr;
       document.getElementById('me-gocr').hidden = !isCr;
+      document.getElementById('me-ad-badge').hidden = !ad;
+      document.getElementById('me-goad').hidden = !ad;
     }
     syncCreatorEntries();
     document.getElementById('me-cr-badge').onclick = gotoCreator;
     document.getElementById('me-gocr').onclick = gotoCreator;
+    document.getElementById('me-ad-badge').onclick = gotoAdmin;
+    document.getElementById('me-goad').onclick = gotoAdmin;
     /* 微信绑定状态（/api/me 的 user.wx 既有字段） */
     var wxSlot=document.getElementById('me-wx-slot'), opWx=document.getElementById('op-wx');
     if(u.wx){ wxSlot.innerHTML='<span class="wx-chip">微信已绑定</span>'; }
@@ -260,7 +291,7 @@
       el.innerHTML=list.length? list.map(function(s){
         return '<a class="pc-row" href="//zhipu.puyouquan.com/?mine='+encodeURIComponent(s.id)+'">'
           +'<span class="t">'+esc(s.title||'未命名曲谱')+(seen&&s.updated_at*1000>seen?'<span class="pc-new" title="上次来过之后有更新"></span>':'')+'</span>'
-          +(s.status==='published'||s.status==='pub'?'<i class="k">已发布</i>':'')
+          +stChip(s)
           +'<span class="d">'+FMT(s.updated_at)+'</span></a>'; }).join('')
         : '<p class="pc-empty">还没有云端曲谱。</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/">去做第一份谱 →</a>';
       try{ localStorage.setItem('pyq-me-seen', String(Date.now())); }catch(_){}
@@ -268,7 +299,7 @@
     /* 创作者槽位：user=成为创作者卡；creator=创作者中心（已发布列表复用 scoresP，零新增请求） */
     function renderCreator(){
       var el=document.getElementById('me-creator'); el.hidden=false;
-      if(u.role!=='creator'){
+      if(!isCreator()){
         el.innerHTML='<h3 class="me-h">创作者</h3>'
           +'<p class="cr-sub">发布曲谱到谱库，所有人都能弹到<br>免费开通，无需会员</p>'
           +'<button class="btn" id="cr-become" style="padding:9px 18px;font-size:13px">成为创作者</button>';
@@ -284,16 +315,157 @@
       el.innerHTML='<h3 class="me-h">创作者中心<span class="lib-count" id="cr-count"></span><a class="pc-more" href="//zhipu.puyouquan.com/?pc=creator">去编辑器发布 →</a></h3>'
         +'<div class="pc-list" id="cr-list"><p class="pc-empty">加载中…</p></div>';
       scoresP.then(function(j){
-        var pub=(j.scores||[]).filter(function(s){ return s.status==='published'||s.status==='pub'; });
-        var c=document.getElementById('cr-count'); if(c) c.textContent=pub.length?('已发布 '+pub.length+' 首'):'';
+        /* v60.0：提交发布后先进 pending 审核队列，本列表同时呈现「已上架 / 审核中 / 已驳回+原因」三态 */
+        var all=(j.scores||[]);
+        var pub=all.filter(function(s){ return s.status==='published'||s.status==='pub'; });
+        var wait=all.filter(function(s){ return s.status==='pending'; });
+        var bad=all.filter(function(s){ return s.status==='rejected'; });
+        var rows=wait.concat(bad, pub);
+        var c=document.getElementById('cr-count');
+        if(c) c.textContent=[pub.length?('已上架 '+pub.length):'', wait.length?('审核中 '+wait.length):'', bad.length?('待修改 '+bad.length):'']
+          .filter(Boolean).join(' · ');
         var l=document.getElementById('cr-list');
-        l.innerHTML=pub.length? pub.slice(0,5).map(function(s){
-          return '<a class="pc-row" href="//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(s.id)+'">'
-            +'<span class="t">'+esc(s.title||'未命名曲谱')+'</span><span class="pc-see">在谱库查看</span></a>'; }).join('')
-          : '<p class="pc-empty"><b>还没发布过谱</b><br>在编辑器打开曲谱，点「发布」即可</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/?pc=creator">去发布第一份谱 →</a>';
+        l.innerHTML=rows.length? rows.slice(0,6).map(function(s){
+          var isPub=(s.status==='published'||s.status==='pub');
+          var href=isPub? ('//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(s.id))
+                        : ('//zhipu.puyouquan.com/?mine='+encodeURIComponent(s.id));
+          return '<a class="pc-row" href="'+href+'">'
+            +'<span class="t">'+esc(s.title||'未命名曲谱')
+            +(s.status==='rejected'&&s.review_note? '<small class="cr-note">驳回原因：'+esc(s.review_note)+'</small>':'')
+            +'</span>'+stChip(s)
+            +'<span class="pc-see">'+(isPub?'在谱库查看':'去编辑器修改')+'</span></a>'; }).join('')
+          : '<p class="pc-empty"><b>还没发布过谱</b><br>在编辑器打开曲谱，点「发布」提交审核，通过后自动上架谱库</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/?pc=creator">去发布第一份谱 →</a>';
       }).catch(function(){ document.getElementById('cr-list').innerHTML='<p class="pc-empty">列表暂时无法加载</p>'; });
     }
     renderCreator();
+
+    /* ===== v60.0 平台管理中心 =====
+       四个页签：待审核（通过/驳回）· 已上架（可下架）· 用户（搜索 / 改角色 / 发撤权益）· 审计日志。
+       全部走 /api/admin/*，服务端逐条 requireAdmin 鉴权、写操作落 admin_logs；本页隐藏只是入口收敛。 */
+    var adTab='review';
+    function adMsg(t){ var el=document.getElementById('ad-msg'); if(el) el.textContent=t||''; }
+    function adPane(html){ document.getElementById('ad-pane').innerHTML=html; }
+    function adRole(r){ return r==='admin'?'管理员':(r==='creator'?'创作者':'普通用户'); }
+    function renderAdmin(){
+      if(!isAdmin()) return;
+      document.getElementById('me-admin').hidden=false;
+      api('/admin/overview').then(function(j){
+        var r=j.roles||{}, o=j.orders||{};
+        document.getElementById('ad-sum').textContent='待审 '+(j.pending|0)+' · 已上架 '+(j.published|0);
+        document.getElementById('ad-stats').innerHTML=[
+          ['用户', j.users|0, (r.creator|0)+' 创作者 · '+(r.admin|0)+' 管理员'],
+          ['曲谱', j.scores|0, (j.published|0)+' 已上架'],
+          ['待审核', j.pending|0, (j.pending?'需要处理':'队列已清空')],
+          ['已支付订单', o.paid|0, '¥'+(((o.amount_fen|0)/100).toFixed(2))]
+        ].map(function(t){ return '<div class="ad-stat"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
+        var d=document.getElementById('ad-dot');
+        d.hidden=!(j.pending|0); d.textContent=j.pending|0;
+      }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
+      Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(b){
+        b.onclick=function(){
+          Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(x){ x.classList.toggle('on', x===b); });
+          adTab=b.dataset.ad; adMsg(''); adLoad();
+        };
+      });
+      adLoad();
+    }
+    function adLoad(){
+      adPane('<p class="pc-empty">加载中…</p>');
+      if(adTab==='review') return adReviews('pending');
+      if(adTab==='done')   return adReviews('published');
+      if(adTab==='users')  return adUsers('');
+      return adLogs();
+    }
+    /* 审核队列 / 已上架：同一列表两种状态，动作按钮不同 */
+    function adReviews(status){
+      api('/admin/reviews?status='+status).then(function(j){
+        var rows=j.scores||[];
+        if(!rows.length) return adPane('<p class="pc-empty">'+(status==='pending'?'待审核队列已清空 🎉':'还没有已上架的曲谱')+'</p>');
+        adPane(rows.map(function(s){
+          var acts=status==='pending'
+            ? '<button class="ad-b ok" data-ok="'+esc(s.id)+'">通过</button><button class="ad-b no" data-no="'+esc(s.id)+'">驳回</button>'
+            : '<button class="ad-b no" data-off="'+esc(s.id)+'">下架</button>';
+          return '<div class="ad-row"><div class="ad-rmain">'
+            +'<b>'+esc(s.title||'未命名曲谱')+'</b>'
+            +'<small>'+esc(s.author||'佚名')+(s.phone?(' · '+esc(s.phone)):'')+' · '+FMTS(s.updated_at)
+            +(s.review_note?(' · 上次驳回：'+esc(s.review_note)):'')+'</small></div>'
+            +'<div class="ad-racts"><a class="ad-b" href="//zhipu.puyouquan.com/?review='+encodeURIComponent(s.id)+'" target="_blank" rel="noopener">预览谱面</a>'+acts+'</div></div>';
+        }).join(''));
+        var pane=document.getElementById('ad-pane');
+        pane.querySelectorAll('[data-ok]').forEach(function(b){ b.onclick=function(){ adReview(b.dataset.ok,'approve',''); }; });
+        pane.querySelectorAll('[data-no]').forEach(function(b){ b.onclick=function(){
+          var note=prompt('驳回原因（会展示给创作者，必填）',''); if(note==null) return;
+          note=note.trim(); if(!note) return adMsg('驳回必须填写原因');
+          adReview(b.dataset.no,'reject',note); }; });
+        pane.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){
+          if(!confirm('确定把这首谱从谱库下架？（回到创作者的私有状态）')) return;
+          adReview(b.dataset.off,'unpublish',''); }; });
+      }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'列表加载失败')+'</p>'); });
+    }
+    function adReview(id, action, note){
+      adMsg('处理中…');
+      api('/admin/scores/'+encodeURIComponent(id)+'/review',{method:'POST',body:{action:action,note:note}})
+        .then(function(){ adMsg(action==='approve'?'已通过并上架':(action==='reject'?'已驳回，原因已通知创作者':'已下架')); renderAdmin(); })
+        .catch(function(e){ adMsg(e.message||'操作失败'); });
+    }
+    /* 用户：手机号/昵称搜索（默认最近注册 50）→ 改角色 / 发放·撤销权益 */
+    function adUsers(kw){
+      var head='<div class="ad-search"><input id="ad-q" placeholder="按手机号或昵称搜索" value="'+esc(kw)+'"><button class="ad-b" id="ad-qgo">搜索</button></div>';
+      api('/admin/users'+(kw?('?q='+encodeURIComponent(kw)):'')).then(function(j){
+        var rows=j.users||[];
+        adPane(head+(rows.length? rows.map(function(x){
+          return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(x.nickname||'谱友')+'</b>'
+            +'<small>'+esc(x.phone||'（微信登录）')+' · 注册 '+FMT(x.created_at)+' · '+adRole(x.role)+'</small></div>'
+            +'<div class="ad-racts">'
+            +'<select class="ad-sel" data-role="'+esc(x.id)+'">'
+            +['user','creator','admin'].map(function(r){ return '<option value="'+r+'"'+(x.role===r?' selected':'')+'>'+adRole(r)+'</option>'; }).join('')
+            +'</select>'
+            +'<button class="ad-b" data-grant="'+esc(x.id)+'">发权益</button>'
+            +'<button class="ad-b no" data-revoke="'+esc(x.id)+'">撤权益</button></div></div>';
+        }).join('') : '<p class="pc-empty">没有匹配的用户</p>'));
+        var pane=document.getElementById('ad-pane');
+        document.getElementById('ad-qgo').onclick=function(){ adUsers(document.getElementById('ad-q').value.trim()); };
+        document.getElementById('ad-q').onkeydown=function(e){ if(e.key==='Enter') document.getElementById('ad-qgo').click(); };
+        pane.querySelectorAll('[data-role]').forEach(function(s){ s.onchange=function(){
+          var id=s.dataset.role, r=s.value;
+          if(!confirm('确定把该用户的角色改为「'+adRole(r)+'」？')) return adUsers(kw);
+          adMsg('处理中…');
+          api('/admin/users/'+encodeURIComponent(id)+'/role',{method:'POST',body:{role:r}})
+            .then(function(){ adMsg('角色已更新为 '+adRole(r)); adUsers(kw); })
+            .catch(function(e){ adMsg(e.message||'角色修改失败'); adUsers(kw); });
+        }; });
+        pane.querySelectorAll('[data-grant]').forEach(function(b){ b.onclick=function(){
+          var kind=prompt('权益类型（vip = 会员；pack_kaobian = 考编内容包）','vip'); if(kind==null) return;
+          kind=kind.trim(); if(!kind) return;
+          var days=prompt('有效天数（留空 = 永久）','365'); if(days==null) return;
+          adMsg('处理中…');
+          api('/admin/users/'+encodeURIComponent(b.dataset.grant)+'/grant',{method:'POST',body:{kind:kind,days:+days||0}})
+            .then(function(j){ adMsg('已发放 '+kind+'（'+(j.expires_at?('到期 '+FMT(j.expires_at)):'永久')+'）'); })
+            .catch(function(e){ adMsg(e.message||'发放失败'); });
+        }; });
+        pane.querySelectorAll('[data-revoke]').forEach(function(b){ b.onclick=function(){
+          var kind=prompt('要撤销的权益类型','vip'); if(kind==null) return;
+          kind=kind.trim(); if(!kind) return;
+          adMsg('处理中…');
+          api('/admin/users/'+encodeURIComponent(b.dataset.revoke)+'/revoke',{method:'POST',body:{kind:kind}})
+            .then(function(){ adMsg('已撤销 '+kind); }).catch(function(e){ adMsg(e.message||'撤销失败'); });
+        }; });
+      }).catch(function(e){ adPane(head+'<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+    }
+    var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益', 'cli:set-role':'服务器改角色'};
+    function adLogs(){
+      api('/admin/logs').then(function(j){
+        var rows=j.logs||[];
+        adPane(rows.length? rows.map(function(l){
+          return '<div class="ad-log"><span class="ad-t">'+FMTS(l.created_at)+'</span>'
+            +'<b>'+esc(l.admin_name||l.admin_phone||'管理员')+'</b>'
+            +'<i>'+esc(AD_ACT[l.action]||l.action)+'</i>'
+            +'<span class="ad-d">'+esc(l.detail||l.target||'')+'</span></div>';
+        }).join('') : '<p class="pc-empty">还没有管理操作记录</p>');
+      }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+    }
+    renderAdmin();
+
     /* 我的收藏：favorites 与 pub/scores 联查出完整卡片 */
     Promise.all([
       api('/favorites').catch(function(){ return {favorites:[]}; }),

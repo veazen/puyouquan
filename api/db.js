@@ -73,12 +73,24 @@ CREATE TABLE IF NOT EXISTS events(
   name TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at);
+-- v60.0 平台管理：管理操作审计日志（谁 在何时 对谁 做了什么，永不删）
+CREATE TABLE IF NOT EXISTS admin_logs(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id TEXT NOT NULL REFERENCES users(id),
+  action TEXT NOT NULL,                        -- 'role' / 'grant' / 'revoke' / 'approve' / 'reject'
+  target TEXT NOT NULL DEFAULT '',             -- 目标 user_id 或 score_id
+  detail TEXT NOT NULL DEFAULT '',             -- 补充说明（新角色/权益类型/驳回原因…）
+  created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_adminlogs_at ON admin_logs(created_at DESC);
 `);
 
 /* v43.6 微信登录：老库幂等补列（ALTER 失败=列已存在，忽略）+ unionid 唯一索引（多 NULL 允许） */
 for (const col of ['wx_unionid TEXT', "avatar TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec('ALTER TABLE users ADD COLUMN ' + col); } catch { /* 列已存在 */ }
 }
+/* v60.0 审核流：驳回原因挂在谱面上（scores.status 增枚举值 'pending'/'rejected'，列名不改——数据红线）。
+   老库已 published 的谱不受影响：只有新提交的发布才会进入 pending。 */
+try { db.exec("ALTER TABLE scores ADD COLUMN review_note TEXT NOT NULL DEFAULT ''"); } catch { /* 列已存在 */ }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -112,7 +124,7 @@ const q = {
   ipQuotaBump:  db.prepare(`INSERT INTO ip_quota(ip,day,count) VALUES(?,?,1)
                             ON CONFLICT(ip,day) DO UPDATE SET count = count + 1`),
   // 谱面
-  scoreList:    db.prepare('SELECT id,title,singer,status,updated_at,created_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
+  scoreList:    db.prepare('SELECT id,title,singer,status,review_note,updated_at,created_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
   scoreGet:     db.prepare('SELECT * FROM scores WHERE id = ?'),
   scoreCount:   db.prepare('SELECT COUNT(*) AS n FROM scores WHERE user_id = ?'),
   scoreUpsert:  db.prepare(`INSERT INTO scores(id,user_id,title,singer,data,updated_at,created_at)
@@ -180,6 +192,25 @@ const q = {
   redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC LIMIT ?'),
   eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
   eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
+  // v60.0 平台管理（全部只读或后台写，均需 role='admin'，见 server.js requireAdmin）
+  userSearch:   db.prepare(`SELECT id,phone,nickname,avatar,role,created_at FROM users
+                            WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC LIMIT ?`),
+  userRecent:   db.prepare('SELECT id,phone,nickname,avatar,role,created_at FROM users ORDER BY created_at DESC LIMIT ?'),
+  userCount:    db.prepare('SELECT COUNT(*) AS n FROM users'),
+  userCountRole:db.prepare('SELECT role, COUNT(*) AS n FROM users GROUP BY role'),
+  scoreCountAll:db.prepare('SELECT COUNT(*) AS n FROM scores'),
+  scoreCountBySt:db.prepare('SELECT status, COUNT(*) AS n FROM scores GROUP BY status'),
+  // 审核队列：待审 + 最近处理（含作者昵称/手机号，便于甄别）
+  reviewList:   db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.review_note,s.updated_at,
+                              u.id AS user_id,u.nickname AS author,u.phone
+                            FROM scores s JOIN users u ON u.id = s.user_id
+                            WHERE s.status = ? ORDER BY s.updated_at DESC LIMIT ?`),
+  scoreReview:  db.prepare('UPDATE scores SET status = ?, review_note = ? WHERE id = ?'),   // 管理员改状态：不带 user_id 约束
+  orderPaidAgg: db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_fen),0) AS fen FROM orders WHERE status='paid'"),
+  adminLogAdd:  db.prepare('INSERT INTO admin_logs(admin_id,action,target,detail,created_at) VALUES(?,?,?,?,?)'),
+  adminLogList: db.prepare(`SELECT l.id,l.admin_id,l.action,l.target,l.detail,l.created_at,u.nickname AS admin_name,u.phone AS admin_phone
+                            FROM admin_logs l JOIN users u ON u.id = l.admin_id
+                            ORDER BY l.created_at DESC LIMIT ?`),
 };
 
 /* v45.3 兑换：单事务内 核销码 + 发权益 + 记 0 元订单（防并发重复兑换：redeemUse 带 used_by IS NULL 条件）。

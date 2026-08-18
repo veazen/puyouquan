@@ -16,6 +16,7 @@ const seed = [
 
   const mkPage = async (loggedIn, page, viewport, role) => {
     const pg = await b.newPage({ viewport: viewport || { width: 1200, height: 900 } });
+    const pg2 = pg; pg2._posts = [];                      // v60.0 记录管理写操作请求路径
     const errs = []; pg.on('pageerror', e => errs.push(e.message));
     await pg.route('**/*', route => {
       const u = new URL(route.request().url());
@@ -32,6 +33,18 @@ const seed = [
       if (p === '/api/me/creator') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator', wx:false } });
       if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role: role || 'creator', wx:false }, stats:{} })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+      /* v60.0 平台管理中心（仅 role='admin' 页面用到）：概览/审核队列/用户/审计日志 + 审核写操作 */
+      if (p === '/api/admin/overview') return J({ users: 12, roles: { user: 9, creator: 2, admin: 1 }, scores: 20,
+        scoreStatus: { private: 15, pending: 2, published: 3 }, pending: 2, published: 3,
+        orders: { paid: 4, amount_fen: 39200 }, funnel: [] });
+      if (p === '/api/admin/users') return J({ users: [{ id: 'u2', phone: '139****9999', nickname: '小谱', avatar: '', role: 'creator', created_at: 1700000000 }] });
+      if (p === '/api/admin/reviews') return J({ status: u.searchParams.get('status') || 'pending',
+        scores: [{ id: 'sc9', title: '待审谱', singer: '', status: 'pending', review_note: '', updated_at: 1700000000,
+                   user_id: 'u2', author: '小谱', phone: '139****9999' }] });
+      if (/^\/api\/admin\/scores\/[^/]+\/review$/.test(p)) { pg2._posts.push(p); return J({ ok: true, status: 'published' }); }
+      if (/^\/api\/admin\/users\/[^/]+\/(role|grant|revoke)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, role: 'creator', kind: 'vip', expires_at: 0 }); }
+      if (p === '/api/admin/logs') return J({ logs: [{ id: 1, admin_id: 'u1', action: 'approve', target: 'sc9',
+        detail: '待审谱', created_at: 1700000000, admin_name: '阿杜', admin_phone: '138****8888' }] });
       if (p === '/api/auth/sms/send') return J({ sent: true, dev_code: '123456' });
       if (p === '/api/auth/sms/verify') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator' } });
       if (p === '/index.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('index.html') });
@@ -174,14 +187,17 @@ const seed = [
     return { badge: !badgeEl.hidden,
       shown: el && !el.hidden, h: el ? (el.querySelector('.me-h')||{}).textContent||'' : '',
       count: (document.getElementById('cr-count')||{}).textContent||'',
+      adminHidden: getComputedStyle(document.getElementById('me-admin')).display === 'none',   /* v60.0 创作者看不到平台管理 */
+      goadHidden: getComputedStyle(document.getElementById('me-goad')).display === 'none',
       rowHref: (document.querySelector('#cr-list .pc-row')||{getAttribute:()=>''} ).getAttribute('href')||'',
       goEdit: !!el.querySelector('a[href*="?pc=creator"]'),
       gocrShown: !!gocr && getComputedStyle(gocr).display !== 'none',
       badgeTag: badgeEl.tagName, flashByBadge, flashByBtn: el.classList.contains('cr-flash') };
   });
-  T(r.badge && r.shown && r.h.includes('创作者中心') && r.count === '已发布 1 首'
+  T(r.badge && r.shown && r.h.includes('创作者中心') && r.count === '已上架 1'
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=sc1/.test(r.rowHref) && r.goEdit
-    && r.gocrShown && r.badgeTag === 'BUTTON' && r.flashByBadge && r.flashByBtn,
+    && r.gocrShown && r.badgeTag === 'BUTTON' && r.flashByBadge && r.flashByBtn
+    && r.adminHidden && r.goadHidden,
     'T8a creator角色创作者中心+双入口', JSON.stringify(r));
   // T8b v58.9 换头像：点头像 → 8 预设浮层 → 选预设 → PATCH 生效 img 头像 + 浮层关闭
   r = await pg.evaluate(async () => {
@@ -219,6 +235,54 @@ const seed = [
   T(!r.badge && !r.gocr && r.btn && r.sub && r.afterBadge && r.afterGocr && r.center,
     'T9a user角色成为创作者流+入口点亮', JSON.stringify(r));
   T(pg._errs.length === 0, 'T9b me.html(user) 无报错', pg._errs.join('|') || 'none');
+  await pg.close();
+
+  /* T9c v60.0 平台管理中心（role='admin'）：入口双通道 + 概览四格 + 待审队列（预览/通过/驳回）
+     + 用户页签（搜索框 + 角色下拉）+ 审计日志；写操作确实打到 /api/admin/*。 */
+  pg = await mkPage(true, 'me.html', null, 'admin');
+  pg.on('dialog', d => d.accept('内容不完整'));           // 驳回原因 prompt / 下架 confirm 一律接受
+  await pg.waitForTimeout(500);
+  r = await pg.evaluate(() => {
+    const card = document.getElementById('me-admin');
+    const row = document.querySelector('#ad-pane .ad-row');
+    return {
+      cardShown: getComputedStyle(card).display !== 'none',
+      goadShown: getComputedStyle(document.getElementById('me-goad')).display !== 'none',
+      badgeShown: getComputedStyle(document.getElementById('me-ad-badge')).display !== 'none',
+      tiles: document.querySelectorAll('#ad-stats .ad-stat').length,
+      sum: (document.getElementById('ad-sum')||{}).textContent||'',
+      dot: (document.getElementById('ad-dot')||{}).textContent||'',
+      tabs: document.querySelectorAll('#ad-tabs .ad-tab').length,
+      rowTitle: row ? (row.querySelector('b')||{}).textContent||'' : '',
+      preview: row ? (row.querySelector('a.ad-b')||{getAttribute:()=>''}).getAttribute('href')||'' : '',
+      ok: !!(row && row.querySelector('[data-ok]')), no: !!(row && row.querySelector('[data-no]')),
+    };
+  });
+  T(r.cardShown && r.goadShown && r.badgeShown && r.tiles === 4 && r.sum === '待审 2 · 已上架 3'
+    && r.dot === '2' && r.tabs === 4 && r.rowTitle === '待审谱'
+    && /zhipu\.puyouquan\.com\/\?review=sc9/.test(r.preview) && r.ok && r.no,
+    'T9c 管理中心入口+概览+待审队列', JSON.stringify(r));
+
+  r = await pg.evaluate(async () => {
+    document.querySelector('#ad-pane [data-ok]').click();       // 通过
+    await new Promise(r=>setTimeout(r,220));
+    const okMsg = (document.getElementById('ad-msg')||{}).textContent||'';
+    document.querySelector('#ad-tabs [data-ad="users"]').click();
+    await new Promise(r=>setTimeout(r,220));
+    const hasSearch = !!document.getElementById('ad-q');
+    const sel = document.querySelector('#ad-pane [data-role]');
+    const roles = sel ? Array.from(sel.options).map(o=>o.value).join(',') : '';
+    const grant = !!document.querySelector('#ad-pane [data-grant]');
+    document.querySelector('#ad-tabs [data-ad="logs"]').click();
+    await new Promise(r=>setTimeout(r,220));
+    const log = (document.querySelector('#ad-pane .ad-log')||{}).textContent||'';
+    return { okMsg, hasSearch, roles, grant, log, onTab: (document.querySelector('#ad-tabs .ad-tab.on')||{}).dataset.ad };
+  });
+  T(r.okMsg === '已通过并上架' && r.hasSearch && r.roles === 'user,creator,admin' && r.grant
+    && r.log.includes('审核通过') && r.log.includes('阿杜') && r.onTab === 'logs'
+    && pg._posts.some(x => x === '/api/admin/scores/sc9/review'),
+    'T9d 审核通过+用户页签+审计日志', JSON.stringify(r) + ' posts=' + JSON.stringify(pg._posts));
+  T(pg._errs.length === 0, 'T9e me.html(admin) 无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
   // T10 手机断点（380px）：首页无横向滚动 + chip 单行横滑 + 卡片单列全宽 + 导航不竖排
