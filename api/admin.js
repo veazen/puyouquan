@@ -1,5 +1,10 @@
 'use strict';
 /* 谱友圈 · CLI 管理工具（v45.3，零依赖）。在服务器上执行（读取与 pyq-api 相同的 DB_PATH）：
+     ⚠️ node 装在 /opt/node（不在 pyq 用户 PATH 里，systemd 单元同样用绝对路径），务必写全路径：
+        cd /opt/puyouquan/api
+        sudo -u pyq /opt/node/bin/node admin.js <命令> …
+     DB 默认 /var/lib/puyouquan/pyq.db（与 /etc/puyouquan/api.env 一致），无需额外指定。
+
      node admin.js user <手机号>                    查用户 + 权益 + 曲谱数
      node admin.js set-role <手机号> <角色>         改角色：user / creator / admin（首个管理员只能在此任命）
      node admin.js admins                           列出全部平台管理员
