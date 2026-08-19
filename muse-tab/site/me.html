@@ -40,6 +40,13 @@
     </div>
   </header>
   <p class="me-msg" id="me-msg"></p>
+  <!-- v60.5 绑手机号横幅：微信/小程序建的号 phone 是合成占位，换设备接不上。
+       只提示不拦截——账号本来就能用，缺的只是「跨端接得上」。 -->
+  <section class="bindbar" id="me-bind" hidden>
+    <div class="bb-t"><b>绑定手机号</b><span>换设备也能接着弹——绑定后与手机验证码登录是同一个账号</span></div>
+    <button type="button" class="btn" id="bb-go">去绑定</button>
+    <button type="button" class="bb-x" id="bb-x" aria-label="以后再说">✕</button>
+  </section>
 
   <div class="me-grid">
     <!-- DOM 序 = 移动端单列序：会员卡 → 我的曲谱 → 我的收藏 → 账号操作；桌面右栏由 grid 归位 -->
@@ -257,6 +264,54 @@
     document.getElementById('me-gocr').onclick = gotoCreator;
     document.getElementById('me-ad-badge').onclick = gotoAdmin;
     document.getElementById('me-goad').onclick = gotoAdmin;
+    /* v60.5 绑手机号横幅：pubUser 对合成占位号返回 phone:''（PHONE_RE 不匹配），
+       所以「已登录但 phone 为空」即未绑真实号。本次会话点过 ✕ 就不再出现。 */
+    function syncBindBar(){
+      const bar=document.getElementById('me-bind'); if(!bar) return;
+      let dismissed=false; try{ dismissed=!!sessionStorage.getItem('pyq-bind-x'); }catch(_){}
+      bar.hidden = !!u.phone || dismissed;
+    }
+    syncBindBar();
+    document.getElementById('bb-x').onclick=function(){
+      try{ sessionStorage.setItem('pyq-bind-x','1'); }catch(_){}
+      document.getElementById('me-bind').hidden=true;
+    };
+    document.getElementById('bb-go').onclick=function(){
+      const mk=document.createElement('div'); mk.id='bind-mask'; mk.className='pyq-mask';
+      mk.innerHTML='<div class="pyq-modal"><h3>绑定手机号</h3>'
+        +'<p class="lg-sub">绑定后，用「手机号 + 验证码」在任意设备登录都是这个账号，曲谱和收藏跟着走。</p>'
+        +'<input id="bd-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">'
+        +'<div class="lg-row"><input id="bd-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码">'
+        +'<button id="bd-send">获取验证码</button></div>'
+        +'<div id="bd-msg" class="lg-msg"></div>'
+        +'<div class="btns"><button id="bd-x" class="btn ghost" style="padding:9px 16px;font-size:13px">取消</button>'
+        +'<button id="bd-go" class="lg-go" style="margin:0;width:auto;padding:11px 22px">确认绑定</button></div></div>';
+      document.body.appendChild(mk);
+      mk.addEventListener('click', function(e){ if(e.target===mk) mk.remove(); });
+      const m2=function(t){ const el=document.getElementById('bd-msg'); if(el) el.textContent=t||''; };
+      document.getElementById('bd-x').onclick=function(){ mk.remove(); };
+      let timer=0;
+      document.getElementById('bd-send').onclick=function(){
+        const phone=document.getElementById('bd-phone').value.trim(), self=this;
+        if(!/^1[3-9]\d{9}$/.test(phone)) return m2('请输入正确的手机号');
+        self.disabled=true;
+        api('/auth/sms/send',{method:'POST',body:{phone:phone}}).then(function(r){
+          m2(r.dev_code?('测试环境验证码：'+r.dev_code):'验证码已发送，请查收短信');
+          let s2=60; self.textContent=s2+'s';
+          timer=setInterval(function(){ if(--s2<=0){ clearInterval(timer); self.disabled=false; self.textContent='获取验证码'; }
+            else self.textContent=s2+'s'; },1000);
+        }).catch(function(e){ self.disabled=false; m2(e.message); });
+      };
+      document.getElementById('bd-go').onclick=function(){
+        const phone=document.getElementById('bd-phone').value.trim(), code=document.getElementById('bd-code').value.trim();
+        if(!/^1[3-9]\d{9}$/.test(phone)) return m2('请输入正确的手机号');
+        if(!/^\d{6}$/.test(code)) return m2('请输入 6 位验证码');
+        api('/me/bind-phone',{method:'POST',body:{phone:phone,code:code}}).then(function(j){
+          u.phone=(j.user&&j.user.phone)||''; document.getElementById('me-phone').textContent=u.phone;
+          syncBindBar(); mk.remove(); msg('手机号已绑定，换设备用它登录即可');
+        }).catch(function(e){ m2(e.message); });   /* 409 已被占用时后端给的是完整指路文案，原样展示 */
+      };
+    };
     /* 微信绑定状态（/api/me 的 user.wx 既有字段） */
     var wxSlot=document.getElementById('me-wx-slot'), opWx=document.getElementById('op-wx');
     if(u.wx){ wxSlot.innerHTML='<span class="wx-chip">微信已绑定</span>'; }

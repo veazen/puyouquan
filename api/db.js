@@ -103,6 +103,9 @@ const q = {
   userCreate:   db.prepare('INSERT INTO users(id,phone,nickname,created_at) VALUES(?,?,?,?)'),
   userSetNick:  db.prepare('UPDATE users SET nickname = ? WHERE id = ?'),
   userSetAvatar: db.prepare('UPDATE users SET avatar = ? WHERE id = ?'),   /* v58.9 换头像（data URI / 微信 URL / 空串清除） */
+  /* v60.5 微信账号补绑真实手机号：小程序/扫码建号时 phone 是合成占位（wx+hash），
+     绑定后该账号即与网页短信登录同号。UNIQUE 约束由调用方先查重后再写，冲突不静默覆盖。 */
+  userSetPhone: db.prepare('UPDATE users SET phone = ? WHERE id = ?'),
   userSetRole:  db.prepare('UPDATE users SET role = ? WHERE id = ?'),
   userBumpTokVer: db.prepare('UPDATE users SET tok_ver = tok_ver + 1 WHERE id = ?'),   // 退出所有设备/风控：作废该用户全部已签发 JWT
   // v43.6 微信登录（unionid 优先匹配，openid 兜底；合成占位 phone 满足 NOT NULL/UNIQUE）

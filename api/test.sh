@@ -19,6 +19,7 @@ nchk(){ # nchk 说明 不应出现的片段 实际输出
 }
 J(){ curl -s -b "$DIR/jar" -c "$DIR/jar" -H 'Content-Type: application/json' "$@"; }
 J2(){ curl -s -b "$DIR/jar2" -c "$DIR/jar2" -H 'Content-Type: application/json' "$@"; }   # v60.0 管理员会话（独立 cookie jar）
+J3(){ curl -s -b "$DIR/jar3" -c "$DIR/jar3" -H 'Content-Type: application/json' "$@"; }   # v60.5 第三方会话（绑手机号用例）
 
 chk 健康检查 '"ok":true' "$(curl -s http://127.0.0.1:3199/api/health)"
 
@@ -91,6 +92,36 @@ chk 审计日志记录审核 '"action":"approve"' "$(J2 http://127.0.0.1:3199/ap
 chk 审计日志记录改角色 '"action":"role"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 chk 审计日志记录CLI任命 'cli:set-role' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 chk CLI查审计日志 'approve' "$(DB_PATH="$DIR/t.db" node admin.js logs 5 2>&1)"
+
+# v60.5 微信账号补绑真实手机号（方案A 横幅的落点）：合成占位号可绑、真号不可改、被占用不静默合并
+R3=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13700003456"}')
+CODE3=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R3" | grep -oE '[0-9]{6}')
+chk 已有真手机号的账号不能改绑 '已绑定手机号' "$(J -X POST http://127.0.0.1:3199/api/me/bind-phone -d "{\"phone\":\"13700003456\",\"code\":\"$CODE3\"}")"
+chk 绑定需登录 '请先登录' "$(curl -s -X POST http://127.0.0.1:3199/api/me/bind-phone -H 'Content-Type: application/json' -d '{"phone":"13700003456","code":"000000"}')"
+# 造一个「微信建号」态（phone 为 wx 合成占位）并自签 JWT——测试自己掌握 JWT_SECRET，
+# 否则这条分支要真微信凭据才能走到，而它恰恰是最该守的：绑定成功 + 目标号被占用时不许静默合并。
+WXTOK=$(DB_PATH="$DIR/t.db" JWT_SECRET=testsecret node -e '
+  const c=require("node:crypto"), {q,now}=require("./db");
+  const id=c.randomUUID(); q.userCreateWx.run(id,"wxTESTPLACEHOLD01","openid_test",null,"微信用户test","",now());
+  const b=o=>Buffer.from(JSON.stringify(o)).toString("base64url");
+  const h=b({alg:"HS256",typ:"JWT"}), p=b({uid:id,tv:0,exp:now()+3600});
+  const sig=c.createHmac("sha256",process.env.JWT_SECRET).update(h+"."+p).digest("base64url");
+  console.log(h+"."+p+"."+sig);' 2>/dev/null | tail -1)
+JW(){ curl -s -H "Cookie: pyq_token=$WXTOK" -H 'Content-Type: application/json' "$@"; }
+chk 微信占位号会话可用 '"phone":""' "$(JW http://127.0.0.1:3199/api/me)"
+# 冲突分支：OTP 校验先于占用判定，故被撞的号必须持有「未被消耗」的验证码——
+# 直接在库里造该账号（不走登录、不吃验证码），再申请一条新码去撞。
+DB_PATH="$DIR/t.db" node -e '
+  const c=require("node:crypto"), {q,now}=require("./db");
+  q.userCreate.run(c.randomUUID(),"13500001111","谱友1111",now());' 2>/dev/null
+R5=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13500001111"}')
+CODE5=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R5" | grep -oE '[0-9]{6}')
+chk 绑已被占用的号要拒绝 '已注册过账号' "$(JW -X POST http://127.0.0.1:3199/api/me/bind-phone -d "{\"phone\":\"13500001111\",\"code\":\"$CODE5\"}")"
+nchk 冲突时不改写任一方 '135\*\*\*\*1111' "$(JW http://127.0.0.1:3199/api/me)"
+R4=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13600006789"}')
+CODE4=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R4" | grep -oE '[0-9]{6}')
+chk 微信占位号绑定成功 '136\*\*\*\*6789' "$(JW -X POST http://127.0.0.1:3199/api/me/bind-phone -d "{\"phone\":\"13600006789\",\"code\":\"$CODE4\"}")"
+chk 绑定后不可再改绑 '已绑定手机号' "$(JW -X POST http://127.0.0.1:3199/api/me/bind-phone -d "{\"phone\":\"13700003456\",\"code\":\"$CODE3\"}")"
 
 # v60.3 小程序微信一键登录（手机号）：未配凭据时 503；参数校验先于外呼
 chk 小程序一键登录未配置503 '未配置' "$(curl -s -X POST http://127.0.0.1:3199/api/wx/mini/phone -H 'Content-Type: application/json' -d '{"code":"abcdefgh1234"}')"

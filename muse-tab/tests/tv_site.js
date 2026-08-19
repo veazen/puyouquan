@@ -31,7 +31,10 @@ const seed = [
       if (p === '/api/me/entitlements') return loggedIn ? J({ entitlements: [], vip: false, quota: 20 })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
       if (p === '/api/me/creator') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator', wx:false } });
-      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role: role || 'creator', wx:false }, stats:{} })
+      /* v60.5 绑手机号：横幅只在 phone 为空（微信/小程序合成占位号）时出现 */
+      if (p === '/api/me/bind-phone') return J({ user: { id:'u1', phone:'137****7777', nickname:'微信用户', role:'user', wx:true } });
+      if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone: (role === 'wxonly' ? '' : '138****8888'), nickname:'阿杜',
+          role: role === 'wxonly' ? 'user' : (role || 'creator'), wx: role === 'wxonly' }, stats:{} })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
       /* v60.0 平台管理中心（仅 role='admin' 页面用到）：概览/审核队列/用户/审计日志 + 审核写操作 */
       if (p === '/api/admin/overview') return J({ users: 12, roles: { user: 9, creator: 2, admin: 1 }, scores: 20,
@@ -188,6 +191,7 @@ const seed = [
       shown: el && !el.hidden, h: el ? (el.querySelector('.me-h')||{}).textContent||'' : '',
       count: (document.getElementById('cr-count')||{}).textContent||'',
       adminHidden: getComputedStyle(document.getElementById('me-admin')).display === 'none',   /* v60.0 创作者看不到平台管理 */
+      bindHidden: getComputedStyle(document.getElementById('me-bind')).display === 'none',      /* v60.5 已有真手机号→无绑定横幅 */
       goadHidden: getComputedStyle(document.getElementById('me-goad')).display === 'none',
       rowHref: (document.querySelector('#cr-list .pc-row')||{getAttribute:()=>''} ).getAttribute('href')||'',
       goEdit: !!el.querySelector('a[href*="?pc=creator"]'),
@@ -197,7 +201,7 @@ const seed = [
   T(r.badge && r.shown && r.h.includes('创作者中心') && r.count === '已上架 1'
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=sc1/.test(r.rowHref) && r.goEdit
     && r.gocrShown && r.badgeTag === 'BUTTON' && r.flashByBadge && r.flashByBtn
-    && r.adminHidden && r.goadHidden,
+    && r.adminHidden && r.goadHidden && r.bindHidden,
     'T8a creator角色创作者中心+双入口', JSON.stringify(r));
   // T8b v58.9 换头像：点头像 → 8 预设浮层 → 选预设 → PATCH 生效 img 头像 + 浮层关闭
   r = await pg.evaluate(async () => {
@@ -283,6 +287,29 @@ const seed = [
     && pg._posts.some(x => x === '/api/admin/scores/sc9/review'),
     'T9d 审核通过+用户页签+审计日志', JSON.stringify(r) + ' posts=' + JSON.stringify(pg._posts));
   T(pg._errs.length === 0, 'T9e me.html(admin) 无报错', pg._errs.join('|') || 'none');
+  await pg.close();
+
+  /* T9f v60.5 绑手机号横幅：微信/小程序建的号 phone 为空 → 横幅出现、可关、可绑；
+     真号账号（前面 T8）不该出现横幅——方案A 的核心是「提示而非拦截」。 */
+  pg = await mkPage(true, 'me.html', null, 'wxonly');
+  await pg.waitForTimeout(500);
+  r = await pg.evaluate(async () => {
+    const bar = document.getElementById('me-bind');
+    const shown = getComputedStyle(bar).display !== 'none';
+    document.getElementById('bb-go').click();
+    await new Promise(r2 => setTimeout(r2, 60));
+    const modal = !!document.getElementById('bd-phone');
+    document.getElementById('bd-phone').value = '13700007777';
+    document.getElementById('bd-code').value = '123456';
+    document.getElementById('bd-go').click();
+    await new Promise(r2 => setTimeout(r2, 200));
+    return { shown, modal, closed: !document.getElementById('bind-mask'),
+      phoneNow: (document.getElementById('me-phone') || {}).textContent || '',
+      barGone: getComputedStyle(bar).display === 'none' };
+  });
+  T(r.shown && r.modal && r.closed && r.phoneNow === '137****7777' && r.barGone,
+    'T9f 绑手机号横幅：仅占位号显示 → 绑定后消失', JSON.stringify(r));
+  T(pg._errs.length === 0, 'T9g me.html(微信占位号) 无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
   // T10 手机断点（380px）：首页无横向滚动 + chip 单行横滑 + 卡片单列全宽 + 导航不竖排

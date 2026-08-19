@@ -482,6 +482,28 @@ const routes = [
     }
     return { user: pubUser(q.userById.get(u.id)) };
   }],
+  /* v60.5 微信账号补绑真实手机号（方案A 的落点）：小程序静默登录 / 微信扫码建的号，
+     phone 是合成占位（wx+hash），换设备就接不上。这里用同一套短信验证码把真号绑上，
+     绑定后与网页短信登录是同一个账号。
+     不做账号合并：目标号已被占用时明确拒绝并指路，绝不静默改写任何一方的数据。 */
+  ['POST', /^\/api\/me\/bind-phone$/, true, (m, b, u) => {
+    if (PHONE_RE.test(u.phone)) throw new ApiError(400, '该账号已绑定手机号');
+    const phone = String(b.phone || ''), code = String(b.code || '');
+    if (!PHONE_RE.test(phone) || !/^\d{6}$/.test(code)) throw new ApiError(400, '参数不正确');
+    const row = q.otpGet.get(phone);
+    if (!row || row.expires_at < now()) throw new ApiError(400, '验证码已过期，请重新获取');
+    if (row.attempts >= 5) throw new ApiError(429, '尝试次数过多，请重新获取验证码');
+    if (row.code_hash !== sha256(code + phone)) { q.otpAttempt.run(phone); throw new ApiError(400, '验证码不正确'); }
+    const other = q.userByPhone.get(phone);
+    if (other && other.id !== u.id) {
+      throw new ApiError(409, '该手机号已注册过账号。请改用「手机号 + 验证码」直接登录那个账号；'
+        + '本微信账号里的曲谱可先导出再导入，我们不会自动合并以免覆盖任何一边的数据。');
+    }
+    q.otpDelete.run(phone);
+    q.userSetPhone.run(phone, u.id);
+    q.eventAdd.run(u.id, 'login', 'bind_phone', now());
+    return { user: pubUser(q.userById.get(u.id)) };
+  }],
   ['POST', /^\/api\/me\/creator$/, true, (m, b, u) => {   // 创作者开放注册
     q.userSetRole.run('creator', u.id);
     return { user: pubUser(q.userById.get(u.id)) };
