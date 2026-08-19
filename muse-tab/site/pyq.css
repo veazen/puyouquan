@@ -716,7 +716,9 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   font-size:15px;line-height:1;cursor:pointer;border-radius:9px;font-family:inherit}
 .bb-x:hover{background:rgba(0,0,0,.06);color:var(--text)}
 @media(max-width:580px){
+  /* 换行顺序要显式给 order：按钮在 DOM 里排在 ✕ 之前，flex 100% 会先换行把 ✕ 挤到第三行 */
   .bindbar{flex-wrap:wrap;padding:12px}
-  .bb-t{flex:1 1 calc(100% - 46px)}
-  .bindbar .btn{flex:1 1 100%;margin-top:10px;justify-content:center;text-align:center}
+  .bb-t{order:1;flex:1 1 calc(100% - 46px)}
+  .bb-x{order:2}
+  .bindbar .btn{order:3;flex:1 1 100%;margin-top:10px;justify-content:center;text-align:center}
 }
