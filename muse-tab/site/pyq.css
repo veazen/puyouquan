@@ -11,7 +11,7 @@
   --chrome:#1f3a34;                                /* 墨绿深色区（CTA 横幅等） */
   --glass:rgba(251,250,245,.82); --paper:#fbfaf5; --ink:#141414;
   --toolbar:#f7f4ec;
-  --shadow:0 24px 70px rgba(60,50,30,.13); --shadow-sm:0 8px 26px rgba(60,50,30,.09);
+  --shadow:none; --shadow-sm:none;
   --r:18px;
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--accent-2) 55%,var(--accent-3) 110%);
   --font-ui:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','HarmonyOS Sans SC','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','Segoe UI',system-ui,sans-serif;
@@ -24,7 +24,7 @@
   --chrome:#16281f;
   --glass:rgba(24,26,23,.78); --paper:#fbfaf5; --ink:#141414;
   --toolbar:#1e211d;
-  --shadow:0 24px 70px rgba(0,0,0,.55); --shadow-sm:0 8px 26px rgba(0,0,0,.4);
+  --shadow:none; --shadow-sm:none;
 }}
 :root[data-theme="dark"]{
   --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90;
@@ -34,7 +34,7 @@
   --chrome:#16281f;
   --glass:rgba(24,26,23,.78); --paper:#fbfaf5; --ink:#141414;
   --toolbar:#1e211d;
-  --shadow:0 24px 70px rgba(0,0,0,.55); --shadow-sm:0 8px 26px rgba(0,0,0,.4);
+  --shadow:none; --shadow-sm:none;
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -53,7 +53,7 @@ h1,h2,h3{letter-spacing:-.3px;line-height:1.2}
   border-bottom:1px solid var(--border-soft)}
 #nav .bar{display:flex;align-items:center;gap:4px;height:62px;max-width:1140px;margin:0 auto;padding:0 26px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:.5px;margin-right:16px;white-space:nowrap}
-.brand .mark{width:32px;height:32px;border-radius:9.5px;background:var(--grad);position:relative;box-shadow:0 4px 14px color-mix(in srgb, var(--accent) 42%, transparent)}
+.brand .mark{width:32px;height:32px;border-radius:9.5px;background:var(--grad);position:relative;box-shadow:none}
 .brand .mark::before{content:"";position:absolute;inset:8px 6px;background:
   linear-gradient(#fff,#fff) 0 2px/100% 1.5px no-repeat,
   linear-gradient(#fff,#fff) 0 8px/100% 1.5px no-repeat,
@@ -71,7 +71,7 @@ h1,h2,h3{letter-spacing:-.3px;line-height:1.2}
 #theme-btn:hover{background:var(--accent-soft)}
 .btn{display:inline-flex;align-items:center;gap:8px;background:var(--grad);color:#fff;font-weight:700;
   border-radius:980px;padding:10px 22px;font-size:13.5px;border:none;cursor:pointer;white-space:nowrap;
-  box-shadow:0 8px 22px color-mix(in srgb, var(--accent) 36%, transparent);transition:transform .14s,box-shadow .22s,filter .2s}
+  box-shadow:none;transition:transform .14s,box-shadow .22s,filter .2s}
 .btn:hover{transform:translateY(-1.5px);filter:brightness(1.06)}
 .btn.big{padding:14px 32px;font-size:15px}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);box-shadow:none}
@@ -195,7 +195,7 @@ a.card .go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-s
 .tier{background:var(--panel);border:1px solid var(--border-soft);border-radius:20px;padding:30px 26px;text-align:center;position:relative}
 .tier.hot{border-color:transparent;background:
   linear-gradient(var(--panel),var(--panel)) padding-box, var(--grad) border-box;border:1.5px solid transparent;
-  box-shadow:0 18px 50px color-mix(in srgb, var(--accent) 18%, transparent)}
+  box-shadow:none}
 .tier .tag2{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--grad);color:#fff;
   font-size:11px;font-weight:800;border-radius:980px;padding:3.5px 15px;letter-spacing:1.5px}
 .tier .nm{font-size:15px;font-weight:800}
@@ -260,19 +260,22 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 @media (max-width:580px){ .g2,.g3,.g4{grid-template-columns:1fr} .stat{min-width:46%} }
 
 /* ============ 谱库卡片（复刻编辑器曲谱库）+ 账号登录（v42.0） ============ */
-/* v50.8 卡片语言与编辑器谱友圈同源（主页向谱友圈靠拢）：安静阴影+轻上浮，无渐变顶条/accent 描边 */
-.cc-card{display:block;background:var(--panel);border:1px solid var(--border-soft);border-radius:16px;padding:0;overflow:hidden;position:relative;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:box-shadow .18s,transform .18s;color:inherit;text-decoration:none}
-.cc-card:hover{box-shadow:0 10px 28px rgba(0,0,0,.12);transform:translateY(-2px)}
-.cc-cover{position:relative;height:108px;overflow:hidden;border-bottom:1px solid var(--border-soft);background:linear-gradient(135deg,var(--accent-soft),transparent 82%)}
+/* v60.6 扁平化：卡片不再靠阴影抬起，改用描边 + hover 换边框色区分层次 */
+.cc-card{display:block;background:var(--panel);border:1px solid var(--border-soft);border-radius:16px;padding:0;overflow:hidden;position:relative;transition:border-color .18s,transform .18s;color:inherit;text-decoration:none}
+.cc-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 30%,var(--border-soft))}
+.cc-cover{position:relative;aspect-ratio:2/1;overflow:hidden;border-bottom:1px solid var(--border-soft);background:linear-gradient(135deg,var(--accent-soft),transparent 82%)}
 .cc-cover svg{position:absolute;inset:0;width:100%;height:100%}
-.cc-type{position:absolute;top:10px;left:12px;font-size:10.5px;font-weight:700;color:var(--accent);letter-spacing:.5px;background:color-mix(in srgb,var(--panel) 84%,transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2.5px 11px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
-.cc-price{position:absolute;top:10px;right:12px;font-size:12px;font-weight:800;color:var(--accent);background:color-mix(in srgb,var(--panel) 84%,transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2.5px 11px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+/* v60.6 真实谱面缩图：制谱器渲染后光栅化上传的 2:1 截图，盖在刻版骨架之上。
+   骨架留在底层当占位——缩图 lazy 加载中 / 老谱还没缩图 / 图挂了（onerror 移除 img），都由它兜住。 */
+.cc-shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block;background:#fff}
+.cc-type{position:absolute;top:8px;left:9px;font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.4px;background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2px 9px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.cc-price{position:absolute;top:8px;right:9px;font-size:11.5px;font-weight:800;color:var(--accent);background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2px 9px;-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
 .cc-price.free{color:#2f9e57}
-.cc-body{padding:13px 16px 14px}
-.cc-body .t{font-size:15px;font-weight:700;margin-bottom:3px;color:var(--text)}
-.cc-body .a{font-size:12px;color:var(--muted);margin-bottom:9px}
-.cc-body .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
-.cc-body .meta i{font-style:normal;border:1px solid var(--border-soft);border-radius:10px;padding:1px 8px}
+.cc-body{padding:10px 12px 11px}
+.cc-body .t{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--text);line-height:1.35}
+.cc-body .a{font-size:11.5px;color:var(--muted);margin-bottom:7px}
+.cc-body .meta{display:flex;gap:5px;flex-wrap:wrap;font-size:10px;color:var(--muted);line-height:1.6}
+.cc-body .meta i{font-style:normal;border:1px solid var(--border-soft);border-radius:9px;padding:0 6px;white-space:nowrap}
 /* 账号 chip / 下拉 / 登录按钮 */
 /* v58.4 white-space/flex-shrink：手机窄屏下头部被压缩时按钮曾逐字竖排溢出（用户反馈） */
 .nav-login{background:transparent;color:var(--text);border:1px solid var(--border);border-radius:980px;padding:7px 16px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
@@ -283,14 +286,14 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .acct-chip:hover{background:var(--accent-soft)}
 .acct-av{width:24px;height:24px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 .acct-nm{font-size:13.5px;font-weight:600;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.acct-menu{position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border-soft);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.16);padding:6px;min-width:140px;display:none;z-index:60}
+.acct-menu{position:absolute;right:0;top:calc(100% + 8px);background:var(--panel);border:1px solid var(--border-soft);border-radius:12px;box-shadow:none;padding:6px;min-width:140px;display:none;z-index:60}
 .acct-menu.on{display:block}
 .acct-menu a,.acct-menu button{display:block;width:100%;text-align:left;box-sizing:border-box;padding:8px 12px;border-radius:8px;font-size:13.5px;color:var(--text);background:none;border:none;cursor:pointer;text-decoration:none}
 .acct-menu a:hover,.acct-menu button:hover{background:var(--accent-soft)}
 /* 登录弹窗 */
 /* v59.0 P0-2：mask 可滚 + modal margin:auto——键盘弹起视口压扁时弹窗超高可双向滚动触达（flex 居中会两端同时裁死） */
 .pyq-mask{position:fixed;inset:0;background:rgba(20,18,15,.42);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;overflow-y:auto}
-.pyq-modal{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;padding:26px 26px 22px;width:100%;max-width:420px;box-shadow:0 30px 80px rgba(0,0,0,.3);margin:auto}
+.pyq-modal{background:var(--panel);border:1px solid var(--border-soft);border-radius:18px;padding:26px 26px 22px;width:100%;max-width:420px;box-shadow:none;margin:auto}
 .pyq-modal h3{margin:0 0 6px;font-size:20px}
 .pyq-modal .lg-sub{font-size:12.5px;color:var(--muted);margin:0 0 16px}
 .pyq-modal input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:16px;background:var(--bg);color:var(--text);margin-bottom:10px}   /* 16px：<16 会触发 iOS 聚焦整页放大（me.html 登录卡同口径） */
@@ -506,19 +509,21 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .cc-card[data-fam="p"]{--fam:var(--fam-p)}
 .cc-card[data-fam="v"]{--fam:var(--fam-v)}
 .cc-card[data-fam="f"]{--fam:var(--fam-f)}
-/* 卡片本体：圆角 18 + 家族色 hover 描边 + 三级阴影 */
-.cc-card{border-radius:18px;box-shadow:0 1px 2px rgba(60,50,30,.05)}
-.cc-card:hover{transform:translateY(-4px);
-  box-shadow:0 16px 40px rgba(60,50,30,.14),0 2px 8px rgba(60,50,30,.06);
-  border-color:color-mix(in srgb,var(--fam) 30%,var(--border-soft))}
-/* 封面：家族渐变洗色（全站唯一渐变来源，SVG 内零渐变），高度 108→120 */
-.cc-cover{height:120px;background:linear-gradient(155deg,
+/* 卡片本体：圆角 14 + 家族色 hover 描边（v60.6 扁平化：阴影全撤，层次交给描边） */
+.cc-card{border-radius:14px}
+.cc-card:hover{transform:translateY(-2px);
+  border-color:color-mix(in srgb,var(--fam) 32%,var(--border-soft))}
+/* 封面：家族渐变洗色（全站唯一渐变来源，SVG 内零渐变）。
+   v60.6 定高改 2:1 定比——真实缩图就是 2:1 出的，用比例留位才不会拉伸变形，窄屏也自动跟着缩。 */
+.cc-cover{background:linear-gradient(155deg,
   color-mix(in srgb,var(--fam) 14%,var(--panel)),
   color-mix(in srgb,var(--fam) 4%,var(--panel)) 62%, var(--panel))}
 .cc-type{color:var(--fam);border-color:color-mix(in srgb,var(--fam) 25%,transparent)}
-.cc-mea{position:absolute;left:12px;bottom:8px;font-size:10.5px;color:var(--muted)}
-.cc-body{padding:12px 16px 13px}
+.cc-body{padding:10px 12px 11px}
 .cc-body .t,.cc-body .a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* v60.6 卡片瘦身：定列数（g2/g3）改自适应列宽——卡片小了一屏才装得下更多，
+   也才不会把一张缩图撑成海报。ID 选择器特异性高于 .g2/.g3，无需 !important。 */
+#lib-grid,#recent-grid,#fav-grid{grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:14px}
 /* 谱面苏醒（hover 势能，全 transform/opacity 合成层）：音符列琶音式微浮 + 墨色呼吸 + 水印偏头 */
 .cc-cover .cv-col{transition:transform .32s cubic-bezier(0,0,.2,1)}
 .cc-card:hover .cv-col{transform:translateY(-1.5px)}
@@ -536,8 +541,8 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 @media (prefers-reduced-motion:reduce){
   #lib-grid .cc-card,#fav-grid .cc-card{animation:none!important}
   .cc-cover .cv-col,.cc-cover .cv-line,.cc-cover .cv-seal,.cc-cover .cv-wm{transition:none}}
-/* 骨架屏（加载态替代文字占位） */
-.sk-card{height:196px;border-radius:18px;border:1px solid var(--border-soft);
+/* 骨架屏（加载态替代文字占位）；v60.6 随卡片瘦身同步降高，避免加载完塌陷跳动 */
+.sk-card{height:158px;border-radius:14px;border:1px solid var(--border-soft);
   background:linear-gradient(100deg,var(--panel) 40%,color-mix(in srgb,var(--text) 4%,var(--panel)) 50%,var(--panel) 60%);
   background-size:200% 100%;animation:sk 1.2s linear infinite}
 @keyframes sk{to{background-position:-100% 0}}
@@ -568,7 +573,15 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   .me-vipcard{order:3}
   #me-ops{order:4}
 }
-@media(max-width:580px){ .cc-cover{height:150px} }
+/* v60.6 窄屏：卡片改双列（此前 1 列 + 150px 高封面，一屏只装得下一张半，翻找成本高）。
+   封面已是 2:1 定比，跟着列宽自动缩，不再需要单独定高。 */
+@media(max-width:580px){
+  #lib-grid,#recent-grid,#fav-grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+  .cc-body{padding:8px 10px 9px}
+  .cc-body .t{font-size:13px}
+  .cc-body .a{font-size:11px;margin-bottom:5px}
+  .sk-card{height:132px}
+}
 
 /* ============ v58.9 统一个人中心：头像系统 + 创作者中心 ============ */
 .acct-av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
@@ -576,7 +589,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .me-av{cursor:pointer;position:relative}
 .me-av .av-edit{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;
   background:var(--panel);border:1px solid var(--border-soft);display:flex;align-items:center;justify-content:center;
-  color:var(--muted);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  color:var(--muted);box-shadow:none}
 .me-av .av-edit .icon{width:12px;height:12px}
 .me-av:hover .av-edit{color:var(--accent);border-color:var(--accent)}
 .av-modal{max-width:340px}

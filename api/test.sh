@@ -152,7 +152,31 @@ SM=$(curl -s http://127.0.0.1:3199/pub/sitemap.xml)
 chk SSR站点地图列出发布谱 '/pub/song_abc12345' "$SM"
 chk SSR站点地图XML '<urlset' "$SM"
 
+# v60.6 曲谱实例缩图：制谱器渲染真谱面 → 光栅化上传 → 卡片/og:image 当截图用
+PNG1='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+nchk 未生成缩图时列表标记为0 '"thumb":1' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 缩图未生成时404 '404' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"
+chk 拒绝非图片数据 '缩图格式不合法' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d '{"data":"data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0PlBIT2pZWFpoYzJOeWFYQjA="}')"
+chk 拒绝声明与内容不符 '不符' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/webp;base64,$PNG1\"}")"
+# 超大缩图走文件传参：400KB 的 base64 直接写进命令行会撞 execve 的 ARG_MAX
+{ printf '{"data":"data:image/png;base64,'; head -c 300000 /dev/zero | base64 | tr -d '\n'; printf '"}'; } > "$DIR/big.json"
+chk 拒绝超大缩图 '缩图过大' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d @"$DIR/big.json")"
+chk 非本人不能改他人缩图 '只能为自己的曲谱生成缩图' "$(J2 -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/png;base64,$PNG1\"}")"
+chk 本人上传缩图成功 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/png;base64,$PNG1\"}")"
+TH=$(curl -s -D - -o /dev/null http://127.0.0.1:3199/api/pub/song_abc12345/thumb)
+chk 缩图ContentType 'image/png' "$TH"
+chk 缩图带nosniff 'X-Content-Type-Options: nosniff' "$TH"
+chk 缩图可缓存 'Cache-Control: public' "$TH"
+ETAG=$(grep -oiE 'etag: *"[^"]+"' <<< "$TH" | sed -E 's/^[Ee][Tt][Aa][Gg]: *//')
+chk 缩图带ETag '"t' "$ETAG"
+chk 缩图命中304 '304' "$(curl -s -o /dev/null -w '%{http_code}' -H "If-None-Match: $ETAG" http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"
+chk 列表标记已有缩图 '"thumb":1' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 列表含调号等卡片信息 '"key"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 有缩图后og改指缩图 '/api/pub/song_abc12345/thumb' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
+nchk 谱面详情不外发缩图二进制 '"thumb":{' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+
 chk 下架后公开404 '未发布' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/unpublish > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 下架后缩图也404 '404' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"
 chk 下架后SSR也404 '不存在' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
 
 # v45.3 会员权益 / 兑换码 / 埋点（登录态延续上文会话）

@@ -91,6 +91,12 @@ for (const col of ['wx_unionid TEXT', "avatar TEXT NOT NULL DEFAULT ''"]) {
 /* v60.0 审核流：驳回原因挂在谱面上（scores.status 增枚举值 'pending'/'rejected'，列名不改——数据红线）。
    老库已 published 的谱不受影响：只有新提交的发布才会进入 pending。 */
 try { db.exec("ALTER TABLE scores ADD COLUMN review_note TEXT NOT NULL DEFAULT ''"); } catch { /* 列已存在 */ }
+/* v60.6 曲谱实例缩图：制谱器把真实渲染谱面裁首行、光栅化成 webp/jpeg 后回传，卡片直接当截图用。
+   存栅格而非 SVG 是安全取舍——栅格无脚本面，服务端只校验魔数即可安全外发；SVG 同源直开会执行脚本。
+   老库无这三列时补齐；缺图的谱前端回退刻版封面（cover 数组仍在，向后兼容）。 */
+for (const col of ['thumb BLOB', 'thumb_mime TEXT', 'thumb_at INTEGER']) {
+  try { db.exec('ALTER TABLE scores ADD COLUMN ' + col); } catch { /* 列已存在 */ }
+}
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -127,8 +133,10 @@ const q = {
   ipQuotaBump:  db.prepare(`INSERT INTO ip_quota(ip,day,count) VALUES(?,?,1)
                             ON CONFLICT(ip,day) DO UPDATE SET count = count + 1`),
   // 谱面
-  scoreList:    db.prepare('SELECT id,title,singer,status,review_note,updated_at,created_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
-  scoreGet:     db.prepare('SELECT * FROM scores WHERE id = ?'),
+  scoreList:    db.prepare('SELECT id,title,singer,status,review_note,updated_at,created_at,thumb_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
+  /* v60.6 起显式列而非 SELECT *：thumb 是 BLOB，随 `{...s}` 进 JSON 会被序列化成
+     {"0":82,"1":73,…} 的巨型对象（体积翻十几倍且客户端无用）。只取 thumb_at 供前端判断有无缩图。 */
+  scoreGet:     db.prepare('SELECT id,user_id,title,singer,status,review_note,data,updated_at,created_at,thumb_at FROM scores WHERE id = ?'),
   scoreCount:   db.prepare('SELECT COUNT(*) AS n FROM scores WHERE user_id = ?'),
   scoreUpsert:  db.prepare(`INSERT INTO scores(id,user_id,title,singer,data,updated_at,created_at)
                             VALUES(?,?,?,?,?,?,?)
@@ -136,12 +144,16 @@ const q = {
                               data=excluded.data, updated_at=excluded.updated_at`),
   scoreDelete:  db.prepare('DELETE FROM scores WHERE id = ? AND user_id = ?'),
   scoreSetStatus: db.prepare('UPDATE scores SET status = ? WHERE id = ? AND user_id = ?'),
+  /* v60.6 缩图：写入只认本人（server.js 先查 ownership），读取按发布态放行 */
+  scoreThumbSet: db.prepare('UPDATE scores SET thumb = ?, thumb_mime = ?, thumb_at = ? WHERE id = ? AND user_id = ?'),
+  scoreThumbGet: db.prepare("SELECT thumb,thumb_mime,thumb_at FROM scores WHERE id = ? AND status = 'published'"),
   // 公开谱库（谱库 puku，无需登录）
   // 含 data 以便服务端算封面/类型；库规模变大时可另建轻量查询（见 server.js pubShape 注释）
-  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.data
+  // thumb_at 只取时间戳不取 BLOB——列表接口若带上二进制会撑爆 JSON
+  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.thumb_at,s.data
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.status = 'published' ORDER BY s.updated_at DESC LIMIT 200`),
-  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at
+  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at,s.thumb_at
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.id = ? AND s.status = 'published'`),
   pubCount:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published'"),

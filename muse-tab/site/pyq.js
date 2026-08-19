@@ -253,16 +253,36 @@ window.PYQ_LIB = (function(){
     }
     return `<svg viewBox="0 0 250 108" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${p.join('')}</svg>`;
   }
-  /* v58.8 卡片：家族色 data-fam、免费角标撤除（仅付费显 ¥）、小节数入封面左下、正文两行、进场 stagger */
+  /* v60.6 卡片信息补齐：调号/拍号/速度/小节数/段词数——挑谱时真正要看的几项，
+     一眼判断「这份谱能不能直接用」，不用点进去。纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」。 */
+  const TYPE_STAFF = { instr: 1, piano: 1, solo: 1 };
+  function metaBits(item){
+    const b = [], k = String(item.key||'').slice(0,6);
+    if(k) b.push(TYPE_STAFF[item.type] ? k+' 调' : '1='+k);
+    if(item.beats>0 && item.unit>0) b.push(item.beats+'/'+item.unit);
+    if(item.tempo>0) b.push('♩='+item.tempo);
+    if(item.measures>0) b.push(item.measures+' 小节');
+    if(item.verses>1) b.push(item.verses+' 段词');
+    return b;
+  }
+  /* v58.8 家族色 data-fam + 进场 stagger；v60.6 封面换真实谱面缩图：
+     刻版骨架留在底层当占位（缩图 lazy 加载中/老谱没缩图/图挂了都由它兜住），真缩图盖在上面。 */
   function card(item, idx){
-    return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
-      <div class="cc-cover">${cover(item)}
-        <span class="cc-type">${TYPE_CN[item.type]||'曲谱'}</span>
-        ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}
-        ${item.measures?`<span class="cc-mea">${item.measures} 小节</span>`:''}</div>
+    const type = TYPE_CN[item.type]||'曲谱';
+    const who = [item.singer?('演唱 '+item.singer):'', item.author?('制谱 '+item.author):''].filter(Boolean).join(' · ') || '佚名';
+    const bits = metaBits(item);
+    const tip = [item.title||'未命名曲谱', type, who].concat(bits).join(' · ');
+    const shot = item.thumb
+      ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(item.id)}/thumb" alt="" loading="lazy" decoding="async" onerror="this.remove()">`
+      : '';
+    return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" title="${_esc(tip)}" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
+      <div class="cc-cover">${cover(item)}${shot}
+        <span class="cc-type">${type}</span>
+        ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}</div>
       <div class="cc-body">
         <div class="t">${_esc(item.title||'未命名曲谱')}</div>
-        <div class="a">${_esc(item.singer||item.author||'佚名')}${item.singer&&item.author?(' · '+_esc(item.author)):''}</div>
+        <div class="a">${_esc(who)}</div>
+        ${bits.length?`<div class="meta">${bits.map(x=>`<i>${_esc(x)}</i>`).join('')}</div>`:''}
       </div></a>`;
   }
   /* 拉取公开谱库渲染到指定容器；limit 限制条数 */

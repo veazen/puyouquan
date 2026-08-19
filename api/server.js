@@ -204,8 +204,32 @@ function coverOf(d) {
 }
 function pubShape(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
+  /* v60.6 卡片信息补全：谱种/小节数之外再给 调号·拍号·速度·歌词版数——
+     卡片一眼能判断「这份谱能不能用」，不用点进去。thumb 为 1 时前端换真实缩图。 */
+  const mea = d.measures || [];
   return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
-    type: docTypeOf(d), price: 0, measures: (d.measures || []).length, cover: coverOf(d) };
+    type: docTypeOf(d), price: 0, measures: mea.length, cover: coverOf(d),
+    thumb: row.thumb_at ? 1 : 0,
+    key: String(d.key || '').slice(0, 6), tempo: +d.tempo || 0,
+    beats: +d.beats || 0, unit: +d.unit || 0,
+    verses: Math.max(0, Math.min(9, +d.verses || 0)) };
+}
+/* v60.6 曲谱实例缩图：只收栅格图（webp/jpeg/png），按魔数硬校验后落库。
+   收栅格不收 SVG 是安全取舍——SVG 同源直开会执行内嵌脚本，栅格没有脚本面。 */
+const THUMB_MAX = 220 * 1024;
+function decodeThumb(dataUrl) {
+  const s = String(dataUrl || '');
+  const m = /^data:image\/(webp|jpeg|png);base64,([A-Za-z0-9+/=\s]{64,})$/.exec(s);
+  if (!m) throw new ApiError(400, '缩图格式不合法');
+  let buf; try { buf = Buffer.from(m[2], 'base64'); } catch (_) { throw new ApiError(400, '缩图解码失败'); }
+  if (!buf.length) throw new ApiError(400, '缩图为空');
+  if (buf.length > THUMB_MAX) throw new ApiError(413, '缩图过大');
+  const isWebp = buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  const isPng = buf.toString('hex', 0, 8) === '89504e470d0a1a0a';
+  const mime = isWebp ? 'image/webp' : isJpeg ? 'image/jpeg' : isPng ? 'image/png' : '';
+  if (!mime || mime !== 'image/' + (m[1] === 'jpeg' ? 'jpeg' : m[1])) throw new ApiError(400, '缩图内容与声明格式不符');
+  return { buf, mime };
 }
 const needScore = id => { const s = ID_RE.test(id) && q.scoreGet.get(id); if (!s) throw new ApiError(404, '谱面不存在'); return s; };
 /* ---------- v60.0 平台管理：角色与审计 ----------
@@ -254,10 +278,13 @@ function pubMeta(row) {
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
-  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d) };
+  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: !!row.thumb_at };
 }
 function pubSsrHtml(row) {
-  const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`, img = `${canon}/cover.svg`;
+  const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`;
+  /* v60.6 og:image 优先用真实谱面缩图（栅格）：微信/微博等抓取端对 SVG 支持参差，
+     且真谱面比品牌封面更能说明这首谱长什么样；没生成过缩图的老谱仍回落 cover.svg。 */
+  const img = p.thumb ? `${PUB_CANON}/api/pub/${p.id}/thumb` : `${canon}/cover.svg`;
   /* v58.5 观看页驻 puku 域（用户要求分享链路地址栏全程 puku）：跳 site/kanpu.html（发布落位时
      由编辑器单文件复制而来），不再跳 zhipu；免费制谱 CTA 仍指 zhipu 编辑器 */
   const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}`;
@@ -628,6 +655,15 @@ const routes = [
     q.scoreReview.run(st, '', s.id);
     return { published: st === 'published', status: st, pending: st === 'pending' };
   }],
+  /* v60.6 曲谱实例缩图上传：制谱器把真实渲染的谱面首行光栅化后回传，谱库卡片直接当截图展示。
+     只认本人的谱——别人不能给你的谱换封面（栅格已无脚本面，剩下的风险只有「贴错图」）。 */
+  ['PUT', /^\/api\/scores\/([A-Za-z0-9_-]+)\/thumb$/, true, (m, b, u) => {
+    const s = needScore(m[1]);
+    if (s.user_id !== u.id) throw new ApiError(403, '只能为自己的曲谱生成缩图');
+    const { buf, mime } = decodeThumb(b && b.data);
+    q.scoreThumbSet.run(buf, mime, now(), s.id, u.id);
+    return { saved: true, bytes: buf.length, mime };
+  }],
   ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/unpublish$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '无权操作');
@@ -730,6 +766,18 @@ const routes = [
     if (!s) return { ___status: 404, ___raw: '', ___ctype: 'image/svg+xml', ___cache: 'no-store' };
     return { ___raw: pubCoverSvg(s), ___ctype: 'image/svg+xml; charset=utf-8', ___cache: 'public, max-age=600' };
   }],
+  /* v60.6 曲谱实例缩图（已发布谱公开可读，谱库卡片与 og:image 共用）。
+     栅格原样外发，另加 nosniff 防浏览器把它当别的类型解释；ETag 走 thumb_at，换图即换 URL 语义。 */
+  ['GET', /^\/api\/pub\/([A-Za-z0-9_-]+)\/thumb$/, false, (m, b, u, req) => {
+    const r = ID_RE.test(m[1]) && q.scoreThumbGet.get(m[1]);
+    if (!r || !r.thumb) return { ___status: 404, ___raw: '', ___ctype: 'text/plain; charset=utf-8', ___cache: 'no-store' };
+    const etag = '"t' + (r.thumb_at || 0) + '-' + (r.thumb.length || 0) + '"';
+    const hdr = { ETag: etag, 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' };
+    if ((req.headers['if-none-match'] || '') === etag)
+      return { ___status: 304, ___raw: '', ___ctype: r.thumb_mime || 'image/webp', ___cache: 'public, max-age=86400', ___headers: hdr };
+    return { ___raw: Buffer.from(r.thumb), ___ctype: r.thumb_mime || 'image/webp',
+      ___cache: 'public, max-age=86400', ___headers: hdr };
+  }],
   // 已发布谱动态 sitemap：每首谱一条 /pub/:id，供搜索引擎抓取（robots.txt 引用本地址）
   ['GET', /^\/pub\/sitemap\.xml$/, false, () => {
     const rows = q.pubList.all();
@@ -809,10 +857,11 @@ const server = http.createServer(async (req, res) => {
       const body = (method === 'GET' || method === 'DELETE') ? {} : await readBody(req);
       const out = await handler(m, body, user, req, res);
       if (out && out.___redirect) { res.writeHead(302, { Location: out.___redirect }); res.end(); return; }   // v43.6 微信回调 302 回跳
-      if (out && out.___raw !== undefined) {   // SSR 落地页 / og 封面：非 JSON 原样输出（覆盖默认 Content-Type/no-store）
+      if (out && out.___raw !== undefined) {   // SSR 落地页 / og 封面 / 曲谱缩图：非 JSON 原样输出（覆盖默认 Content-Type/no-store）
         res.statusCode = out.___status || 200;
         res.setHeader('Content-Type', out.___ctype || 'text/html; charset=utf-8');
         res.setHeader('Cache-Control', out.___cache || 'public, max-age=300');
+        for (const k in (out.___headers || {})) res.setHeader(k, out.___headers[k]);   // v60.6 ETag / nosniff 等附加头
         res.end(out.___raw);
         return;
       }

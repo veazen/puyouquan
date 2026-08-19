@@ -5,10 +5,13 @@ const { chromium } = require('playwright');
 const fs = require('fs'), P = require('path');
 const SITE = P.resolve(__dirname, '../site');
 const read = f => fs.readFileSync(P.join(SITE, f), 'utf8');
+/* v60.6：seedaaa111 有实例缩图（thumb:1）、seedbbb222 没有——两条路径同屏可验 */
 const seed = [
-  { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
-  { id:'seedbbb222', title:'欢乐颂', singer:'贝多芬', author:'谱友圈官方', updated_at:99, type:'guitar', price:0, measures:4, cover:[{deg:3,oct:0,ly:'欢'},{deg:3,oct:0,ly:'乐'}] },
+  { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, thumb:1, key:'C', tempo:92, beats:4, unit:4, verses:2, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
+  { id:'seedbbb222', title:'欢乐颂', singer:'贝多芬', author:'谱友圈官方', updated_at:99, type:'guitar', price:0, measures:4, thumb:0, key:'G', tempo:0, beats:3, unit:4, verses:0, cover:[{deg:3,oct:0,ly:'欢'},{deg:3,oct:0,ly:'乐'}] },
 ];
+/* 1×1 PNG：缩图字节由 route 兜住，测试不打真网络 */
+const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -23,6 +26,7 @@ const seed = [
       const p = u.pathname;
       const J = o => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
       if (p === '/api/pub/scores') return J({ scores: seed });
+      if (/^\/api\/pub\/[A-Za-z0-9_-]+\/thumb$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/png', body: PNG1 });
       if (p === '/api/health') return J({ ok: true, wx_web: true, wx_mp: false });
       if (p === '/api/favorites') return loggedIn ? J({ favorites: [{ id:'seedaaa111' }] })
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
@@ -72,7 +76,8 @@ const seed = [
       cover: !!(first && first.querySelector('.cc-cover svg')),
       type: first ? first.querySelector('.cc-type').textContent : '',
       noFree: first ? !first.querySelector('.cc-price') : false,   /* v58.8 免费角标撤除，仅付费显 ¥ */
-      mea: first ? (first.querySelector('.cc-mea')||{}).textContent||'' : '',
+      /* v60.6 小节数从封面左下移进正文信息条，与调号/拍号/速度并排 */
+      meta: first ? [...first.querySelectorAll('.cc-body .meta i')].map(i => i.textContent).join('|') : '',
       fam: first ? first.dataset.fam : '',
       seal: !!(first && first.querySelector('.cv-seal')),          /* 刻版印章层（谱号/TAB/按点） */
       skGone: !document.querySelector('#lib-grid .sk-card'),
@@ -84,10 +89,26 @@ const seed = [
       apiOn: /puyouquan\.com$/.test(location.hostname),
     };
   });
-  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.noFree && r.mea === '4 小节'
+  T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.noFree
+    && r.meta === '1=C|4/4|♩=92|4 小节|2 段词'
     && r.fam === 'v' && r.seal === false /* vocal 无印章件，仅水印 */ && r.skGone
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
     && r.search && r.chips >= 3 && r.tools === 3 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
+  // T1c v60.6 曲谱实例缩图：有缩图的谱出 .cc-shot 真截图（刻版骨架留底层占位），无缩图的只剩骨架
+  r = await pg.evaluate(() => {
+    const a = document.querySelector('.cc-card[href*="seedaaa111"]');
+    const c = document.querySelector('.cc-card[href*="seedbbb222"]');
+    const sa = a && a.querySelector('.cc-shot');
+    const cov = a && a.querySelector('.cc-cover').getBoundingClientRect();
+    return { shotA: !!sa, srcA: sa ? sa.getAttribute('src') : '', lazyA: sa ? sa.getAttribute('loading') : '',
+      skelA: !!(a && a.querySelector('.cc-cover svg')),
+      shotC: !!(c && c.querySelector('.cc-shot')), skelC: !!(c && c.querySelector('.cc-cover svg')),
+      ratio: cov ? +(cov.width / cov.height).toFixed(2) : 0,
+      w: a ? Math.round(a.getBoundingClientRect().width) : 0 };
+  });
+  T(r.shotA && r.srcA === '/api/pub/seedaaa111/thumb' && r.lazyA === 'lazy' && r.skelA
+    && !r.shotC && r.skelC && Math.abs(r.ratio - 2) < 0.06 && r.w <= 210,
+    'T1c 实例缩图 + 骨架占位 + 卡片瘦身（2:1 封面/列宽≤210）', JSON.stringify(r));
   // T1a v58.8 刻版封面：guitar 卡有 TAB 印章 + data-fam=g + 家族色变量生效
   r = await pg.evaluate(() => {
     const g = [...document.querySelectorAll('#lib-grid .cc-card')].find(c => c.dataset.fam === 'g');
@@ -325,14 +346,15 @@ const seed = [
       noHScroll: doc.scrollWidth <= doc.clientWidth + 1,
       chipNowrap: chipRow ? getComputedStyle(chipRow).flexWrap === 'nowrap' : false,
       chipScroll: chipRow ? chipRow.scrollWidth >= chipRow.clientWidth : false,
-      cardFull: card ? Math.abs(card.getBoundingClientRect().width - card.parentElement.getBoundingClientRect().width) < 2 : false,
+      /* v60.6 窄屏改双列（此前单列 + 150px 高封面，一屏只装得下一张半，翻找成本高） */
+      cardCols: card ? Math.round(card.parentElement.getBoundingClientRect().width / card.getBoundingClientRect().width) : 0,
       navH: Math.round(nr.height),
       searchH: Math.round(document.getElementById('lib-q').getBoundingClientRect().height),
       tools: document.querySelectorAll('.tool-card').length,
     };
   });
-  T(r.noHScroll && r.chipNowrap && r.cardFull && r.navH < 45 && r.searchH >= 48 && r.tools === 3,
-    'T10 380px 移动端适配', JSON.stringify(r));
+  T(r.noHScroll && r.chipNowrap && r.cardCols === 2 && r.navH < 45 && r.searchH >= 48 && r.tools === 3,
+    'T10 380px 移动端适配（v60.6 卡片双列）', JSON.stringify(r));
   await pg.close();
 
   // v44.6 SEO 基建 + 四垂类落地页（静态文件断言）
@@ -358,6 +380,32 @@ const seed = [
   T(js2.includes('智能曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 页脚含 slogan+备案（v58.8 场景链移居首页 scene-strip）');
   const vh = read('view.html');
   T(/canonical" href="https:\/\/www\.puyouquan\.com\/"/.test(vh) && /http-equiv="refresh"/.test(vh) && /noindex/.test(vh), 'S view.html 跳转占位（谱库并入主站）');
+
+  // T11 v60.6 全站扁平化：按钮/LOGO/卡片/输入框零立体投影（inset 分隔线与 0 偏移焦点环不算）
+  pg = await mkPage(false);
+  r = await pg.evaluate(() => {
+    const has = v => {
+      if (!v || v === 'none') return false;
+      return v.split(/,(?![^(]*\))/).some(l => {
+        if (/\binset\b/.test(l)) return false;
+        const n = (l.match(/-?[\d.]+px/g) || []).slice(0, 3).map(parseFloat);
+        return n.length >= 2 && n.some(x => x !== 0);
+      });
+    };
+    const bad = [];
+    document.querySelectorAll('.btn, .brand .mark, .cc-card, .tool-card, .card, .lib-search input, .nav-login, .fchip')
+      .forEach(el => { const s = getComputedStyle(el);
+        if (has(s.boxShadow)) bad.push((el.className || el.tagName) + '|' + s.boxShadow.slice(0, 36));
+        if (/drop-shadow/.test(s.filter || '')) bad.push((el.className || el.tagName) + '|filter'); });
+    /* 变量本体也得是 none——不然任何新写的 box-shadow:var(--shadow) 会悄悄把阴影带回来 */
+    const cs = getComputedStyle(document.documentElement);
+    const tok = (cs.getPropertyValue('--shadow') + '|' + cs.getPropertyValue('--shadow-sm')).replace(/\s/g, '');
+    return { bad, tok };
+  });
+  T(r.bad.length === 0 && r.tok === 'none|none', 'T11 全站扁平化（按钮/LOGO/卡片零投影 + --shadow 令牌置 none）',
+    (r.bad.slice(0, 3).join(' ; ') || 'none') + ' tok=' + r.tok);
+  T(pg._errs.length === 0, 'T11 扁平化页无报错', pg._errs.join('|') || 'none');
+  await pg.close();
 
   console.log('PASS ' + pass + '/' + total);
   await b.close();
