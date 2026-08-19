@@ -122,4 +122,34 @@ function jsapiSign(ticket, url, { nonceStr, timestamp } = {}) {
   return { nonceStr, timestamp, signature };
 }
 
-module.exports = { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession, jsapiTicket, jsapiSign };
+/* ---- v60.3 小程序手机号一键登录（getPhoneNumber）----
+   前端 <button open-type="getPhoneNumber"> 回调给一个 code（基础库 2.21.2+ 的新版方式，
+   不再是 encryptedData/iv 那套需要 session_key 解密的旧协议），服务端拿 access_token 换真实手机号。
+   前提（小程序后台人工开通）：非个人主体 + 已认证 + 已开通「手机号快速验证」并有余额/免费额度。
+   access_token 全局 7200s，内存缓存提前 5 分钟刷新；cache/fetchFn/nowFn 可注入以便单测。 */
+const _miniCache = { tok: '', tokExp: 0 };
+async function miniAccessToken({ appid, secret, fetchFn = fetch, cache = _miniCache, nowFn = nowSec }) {
+  const now = nowFn();
+  if (cache.tok && now < cache.tokExp) return cache.tok;
+  const r = await fetchFn(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential`
+    + `&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`, { signal: AbortSignal.timeout(10000) });
+  const j = await r.json().catch(() => ({}));
+  if (!j.access_token) { const e = new Error('获取小程序 access_token 失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e; }
+  cache.tok = j.access_token; cache.tokExp = now + Math.min(j.expires_in || 7200, 7200) - 300;
+  return cache.tok;
+}
+async function miniPhone(code, { appid, secret, fetchFn = fetch, cache = _miniCache, nowFn = nowSec }) {
+  const tok = await miniAccessToken({ appid, secret, fetchFn, cache, nowFn });
+  const r = await fetchFn(`https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(tok)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: AbortSignal.timeout(10000) });
+  const j = await r.json().catch(() => ({}));
+  const info = j && j.phone_info;
+  if (j.errcode || !info || !info.purePhoneNumber) {
+    /* 40001/42001 = token 失效（并发或后台重置）：清缓存让下次重取，本次如实报错不静默 */
+    if (j.errcode === 40001 || j.errcode === 42001) { cache.tok = ''; cache.tokExp = 0; }
+    const e = new Error('获取手机号失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e;
+  }
+  return { phone: String(info.purePhoneNumber), countryCode: info.countryCode || '86' };
+}
+
+module.exports = { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession, miniAccessToken, miniPhone, jsapiTicket, jsapiSign };

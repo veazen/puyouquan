@@ -92,6 +92,13 @@ chk 审计日志记录改角色 '"action":"role"' "$(J2 http://127.0.0.1:3199/ap
 chk 审计日志记录CLI任命 'cli:set-role' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 chk CLI查审计日志 'approve' "$(DB_PATH="$DIR/t.db" node admin.js logs 5 2>&1)"
 
+# v60.3 小程序微信一键登录（手机号）：未配凭据时 503；参数校验先于外呼
+chk 小程序一键登录未配置503 '未配置' "$(curl -s -X POST http://127.0.0.1:3199/api/wx/mini/phone -H 'Content-Type: application/json' -d '{"code":"abcdefgh1234"}')"
+chk 小程序静默登录未配置503 '未配置' "$(curl -s -X POST http://127.0.0.1:3199/api/wx/mini/login -H 'Content-Type: application/json' -d '{"code":"abcdefgh1234"}')"
+# -D - 取响应头但走 GET：路由只注册 GET，curl -I 的 HEAD 会 404（不是功能问题，是探测方式问题）
+chk 小程序enter票据无效不报错只回跳 'Location: https://www.puyouquan.com/' "$(curl -s -D - -o /dev/null --max-time 10 'http://127.0.0.1:3199/api/wx/mini/enter?t=bad&to=https%3A%2F%2Fwww.puyouquan.com%2F')"
+nchk 小程序enter拒绝站外跳转 'evil.example' "$(curl -s -D - -o /dev/null --max-time 10 'http://127.0.0.1:3199/api/wx/mini/enter?t=bad&to=https%3A%2F%2Fevil.example%2F')"
+
 chk 公开谱库含已发布 '"singer":"测试"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 公开谱库免登录 '"author"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 公开详情含数据 '"v":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"

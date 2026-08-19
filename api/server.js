@@ -406,6 +406,37 @@ const routes = [
     return { ticket: t, expires_in: MINI_TICKET_TTL, user: pubUser(u),
       enter_url: 'https://www.puyouquan.com/api/wx/mini/enter?t=' + t };
   }],
+  /* v60.3 小程序「微信一键登录」：<button open-type="getPhoneNumber"> 回调的 code → 真实手机号 → 账号。
+     选手机号而非 unionid 作为主键，是因为本站账号本就以手机号唯一——这样小程序用户与网页短信登录
+     天然是同一个账号，比靠开放平台 unionid 更直接，也不受「用户先在哪端注册」影响。
+     loginCode（wx.login 的 code）可选：一并带上就把 openid/unionid 绑到该手机号账号，微信扫码登录随后也能命中。
+     手机号验证是微信付费能力（需后台开通「手机号快速验证」；有免费额度），未开通时官方返回错误，此处如实上抛不静默。 */
+  ['POST', /^\/api\/wx\/mini\/phone$/, false, async (m, b) => {
+    if (!WX_MINI_APPID || !WX_MINI_SECRET) throw new ApiError(503, '小程序登录未配置');
+    const code = String(b.code || '').trim();
+    if (!/^[A-Za-z0-9_-]{8,256}$/.test(code)) throw new ApiError(400, '缺少或非法的 code');
+    const { phone } = await wx.miniPhone(code, { appid: WX_MINI_APPID, secret: WX_MINI_SECRET });
+    if (!PHONE_RE.test(phone)) throw new ApiError(502, '微信返回的手机号格式异常');
+    let u = q.userByPhone.get(phone), fresh = false;
+    if (!u) {
+      const id = crypto.randomUUID();
+      q.userCreate.run(id, phone, '谱友' + phone.slice(-4), now());
+      u = q.userById.get(id); fresh = true;
+    }
+    /* 顺带绑微信身份：同一个人之后用微信扫码登录网页时能命中同一账号（COALESCE 不清空已有值） */
+    const lc = String(b.loginCode || '').trim();
+    if (/^[A-Za-z0-9_-]{8,128}$/.test(lc)) {
+      try {
+        const prof = await wx.miniSession(lc, { appid: WX_MINI_APPID, secret: WX_MINI_SECRET });
+        const owner = (prof.unionid && q.userByUnionid.get(prof.unionid)) || (prof.openid && q.userByWxOpenid.get(prof.openid));
+        if (!owner) q.userBindWx.run(prof.openid || null, prof.unionid || null, u.id);   // 已属他号则不抢占
+      } catch (e) { console.error('mini bind wx:', e.message); }                          // 绑定失败不影响登录
+    }
+    q.eventAdd.run(u.id, fresh ? 'signup' : 'login', 'mini_phone', now());
+    const t = miniTicketIssue(u.id);
+    return { ticket: t, expires_in: MINI_TICKET_TTL, user: pubUser(u), fresh,
+      enter_url: 'https://www.puyouquan.com/api/wx/mini/enter?t=' + t };
+  }],
   ['GET', /^\/api\/wx\/mini\/enter$/, false, (m, b, _u, req, res) => {
     const sp = new URL(req.url, 'http://x').searchParams;
     const to = sp.get('to') || '';

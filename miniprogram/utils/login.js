@@ -1,17 +1,20 @@
-// v60.1 小程序静默登录 → web-view 免登录。
-// 小程序既读不到也写不了 web-view 的 Cookie，所以走「一次性票据」：
-//   wx.login() → code → POST /api/wx/mini/login → 服务端建/认号，回 ticket
-//   → 把 /api/wx/mini/enter?t=…&to=<目标页> 交给 <web-view>，服务端校验票据后 Set-Cookie 再 302 到目标页。
+// v60.1 小程序静默登录 → web-view 免登录；v60.3 增微信一键登录（手机号）。
+// 小程序既读不到也写不了 web-view 的 Cookie，所以两条路都走「一次性票据」：
+//   静默：wx.login() → code → POST /api/wx/mini/login          （只认 openid/unionid，够看谱/收藏）
+//   一键：getPhoneNumber → code → POST /api/wx/mini/phone      （拿真实手机号，与网页短信登录同一个账号）
+//   两者都回 ticket → 把 /api/wx/mini/enter?t=…&to=… 交给 <web-view>
+//     → 服务端校验并作废票据 → Set-Cookie pyq_token → 302 到目标页。网页端零改动，落地即登录态。
 // 票据 120s、用一次即焚，所以每次进页面都重新换一张，不缓存。
 // 登录拿不到（网络差/未配置/审核环境）时回落到直开目标页——只是没登录态，不能白屏。
 const API = 'https://www.puyouquan.com';
+const K_PHONE = 'pyq_phone_ok';   // 已完成一键登录（仅作是否再弹登录页的判断，不存任何凭据）
 
 function wxLoginCode() {
   return new Promise((resolve) => wx.login({ success: r => resolve(r && r.code), fail: () => resolve(null) }));
 }
 function post(path, data) {
   return new Promise((resolve) => wx.request({
-    url: API + path, method: 'POST', data, timeout: 8000,
+    url: API + path, method: 'POST', data, timeout: 10000,
     success: r => resolve(r && r.statusCode === 200 ? r.data : null),
     fail: () => resolve(null),
   }));
@@ -20,6 +23,9 @@ function post(path, data) {
 /** 换出可直接喂给 <web-view> 的地址：成功=带票据的 enter 链接（落地即登录），失败=原目标页 */
 async function enterUrl(target) {
   try {
+    /* 一键登录刚拿到的票据只用一次，用完即删——票据本身 120s 过期，留着也没用 */
+    const pending = wx.getStorageSync('pyq_enter');
+    if (pending) { wx.removeStorageSync('pyq_enter'); return pending + '&to=' + encodeURIComponent(target); }
     const code = await wxLoginCode();
     if (!code) return target;
     const j = await post('/api/wx/mini/login', { code });
@@ -28,4 +34,21 @@ async function enterUrl(target) {
   } catch (_) { return target; }
 }
 
-module.exports = { enterUrl, API };
+/** 微信一键登录：getPhoneNumber 的 code → 真实手机号账号。成功返回 true 并留一张待用票据 */
+async function phoneLogin(phoneCode) {
+  try {
+    const loginCode = await wxLoginCode();   // 一并带上，服务端顺手把微信身份绑到该手机号账号
+    const j = await post('/api/wx/mini/phone', { code: phoneCode, loginCode: loginCode || '' });
+    if (!j || !j.ticket) return false;
+    wx.setStorageSync(K_PHONE, 1);
+    wx.setStorageSync('pyq_enter', API + '/api/wx/mini/enter?t=' + encodeURIComponent(j.ticket));
+    return true;
+  } catch (_) { return false; }
+}
+
+/** 是否该先弹登录页：没一键登录过、且本次安装内没点过「先随便看看」 */
+function needLogin() {
+  try { return !wx.getStorageSync(K_PHONE) && !wx.getStorageSync('pyq_skip'); } catch (_) { return false; }
+}
+
+module.exports = { enterUrl, phoneLogin, needLogin, API };

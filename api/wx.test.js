@@ -1,7 +1,7 @@
 'use strict';
 // 微信登录纯逻辑单测（零依赖，node api/wx.test.js）
 const assert = require('node:assert');
-const { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession } = require('./wx');
+const { signState, verifyState, buildLoginUrl, buildMpAuthUrl, webExchange, miniSession, miniPhone } = require('./wx');
 
 let pass = 0, total = 0;
 const T = (name, fn) => { total++; try { fn(); pass++; console.log('✅ ' + name); } catch (e) { console.log('❌ ' + name + ': ' + e.message); } };
@@ -121,7 +121,42 @@ T('miniSession：code 无效 → 抛 502', async () => {
   await assert.rejects(() => miniSession('BAD', { appid: 'a', secret: 's', fetchFn: stub }), e => e.status === 502);
 });
 
+/* ── v60.3 小程序微信一键登录：getPhoneNumber 的 code → 真实手机号 ──
+   新版协议（基础库 2.21.2+）不再是 encryptedData/iv 那套需 session_key 解密，
+   而是服务端用小程序全局 access_token 直接换；token 缓存与失效重取是这里的关键行为。 */
+const TA = (name, fn) => { total++; return fn().then(() => { pass++; console.log('✅ ' + name); })
+  .catch(e => console.log('❌ ' + name + ': ' + e.message)); };
+
 (async () => {
+  const cache = { tok: '', tokExp: 0 };
+  let tokHits = 0;
+  const fake = async (url, opt) => {
+    if (url.indexOf('/cgi-bin/token') >= 0) { tokHits++; return { json: async () => ({ access_token: 'TOK', expires_in: 7200 }) }; }
+    if (url.indexOf('getuserphonenumber') >= 0) {
+      const body = JSON.parse(opt.body);
+      if (body.code === 'bad') return { json: async () => ({ errcode: 40029, errmsg: 'invalid code' }) };
+      if (body.code === 'stale') return { json: async () => ({ errcode: 40001, errmsg: 'invalid credential' }) };
+      return { json: async () => ({ errcode: 0, phone_info: { phoneNumber: '+8613800001234', purePhoneNumber: '13800001234', countryCode: '86' } }) };
+    }
+    return { json: async () => ({}) };
+  };
+  const opt = { appid: 'wxA', secret: 'S', fetchFn: fake, cache, nowFn: () => 1000 };
+  await TA('miniPhone：换出纯手机号（不外传 access_token）', async () => {
+    const r = await miniPhone('good-code-1234', opt);
+    assert.strictEqual(r.phone, '13800001234'); assert.strictEqual(r.countryCode, '86');
+    assert.ok(!('access_token' in r));
+  });
+  await TA('miniPhone：access_token 命中缓存不重复取', async () => {
+    await miniPhone('good-code-1234', opt); assert.strictEqual(tokHits, 1);
+  });
+  await TA('miniPhone：微信报错时抛 502 不静默', async () => {
+    await assert.rejects(() => miniPhone('bad', opt), e => e.status === 502);
+  });
+  await TA('miniPhone：40001 token 失效时清缓存供下次重取', async () => {
+    await assert.rejects(() => miniPhone('stale', opt), e => e.status === 502);
+    assert.strictEqual(cache.tok, '');
+  });
+
   // 顺序跑（含 async T）
   await new Promise(r => setTimeout(r, 50));
   console.log('PASS ' + pass + '/' + total);
