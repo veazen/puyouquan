@@ -13,13 +13,21 @@ const KEEP = Math.max(1, +(process.env.BACKUP_KEEP || 14));
 fs.mkdirSync(DIR, { recursive: true });
 const stamp = new Date().toISOString().slice(0, 10);          // 每日一份，同日重跑覆盖
 const out = path.join(DIR, 'pyq-' + stamp + '.db');
-try { fs.unlinkSync(out); } catch { /* 首次无旧文件 */ }
+/* v60.7 先写临时名、成功后再原子改名——此前是「先删当天旧文件再 VACUUM」，
+   磁盘写满时 VACUUM 抛 ENOSPC，旧快照已删、新快照没写成，当天备份直接归零。
+   缩图 BLOB 进库后（v60.6）快照体积会涨，这个次序问题从理论隐患变成现实风险。 */
+const tmp = out + '.tmp';
+try { fs.unlinkSync(tmp); } catch { /* 无残留 */ }
 
 const db = new DatabaseSync(SRC);
 try {
   db.exec('PRAGMA busy_timeout=10000');                       // 与 pyq-api 并发时不立刻 SQLITE_BUSY
-  db.exec("VACUUM INTO '" + out.replace(/'/g, "''") + "'");   // 一致性快照到新文件
+  db.exec("VACUUM INTO '" + tmp.replace(/'/g, "''") + "'");   // 一致性快照到临时文件
+} catch (e) {
+  try { fs.unlinkSync(tmp); } catch { /* 写了一半的残片清掉 */ }
+  throw e;                                                    // 失败时当天旧快照原封不动
 } finally { db.close(); }
+fs.renameSync(tmp, out);                                      // 同盘 rename 原子，旧文件此刻才被替换
 
 // 保留最近 KEEP 份，其余按日期升序删除
 const files = fs.readdirSync(DIR).filter(f => /^pyq-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort();

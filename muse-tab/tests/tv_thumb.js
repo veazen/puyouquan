@@ -59,6 +59,22 @@ const HAS_ELEVATION = `(v=>{
   T(r1.ink > 500, 'T1b 缩图画的是真谱面（有墨色像素）', '墨点=' + r1.ink);
   T(JSON.stringify(r1.before) === JSON.stringify(r1.after), 'T1c 借完即还：曲谱/光标原样复原', JSON.stringify(r1.after));
 
+  // T1d v60.7：编辑器 UI 态不入镜——整小节选中框/宽度拖柄开着时出的图，与全关时逐像素等墨；
+  //           且 measureSel/measureRange/meaHandleOn/activeTab 借完全部复原
+  const r1d = await pg.evaluate(async (s) => {
+    measureSel = 0; measureRange = { m1: 0, m2: 1 }; meaHandleOn = true;
+    const tabBefore = activeTab;
+    const ink = cv => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] < 200) n++; return n; };
+    const cv1 = await new Promise(res => buildThumbCanvas(s, c => res(c), () => res(null)));
+    const restored = measureSel === 0 && !!measureRange && meaHandleOn === true && activeTab === tabBefore;
+    measureSel = null; measureRange = null; meaHandleOn = false;
+    const cv2 = await new Promise(res => buildThumbCanvas(s, c => res(c), () => res(null)));
+    return { restored, a: ink(cv1), b: ink(cv2) };
+  }, SONG);
+  T(r1d.restored, 'T1d1 选区/拖柄/页签全局借完复原', JSON.stringify(r1d));
+  T(Math.abs(r1d.a - r1d.b) < 10, 'T1d2 选中框与拖柄不入镜（两图等墨）', r1d.a + ' vs ' + r1d.b);
+
   // T2 上传载荷（stub apiCall 记调用：file:// 下真发 /api 请求会被当成 file:/// 直接失败）
   const r2 = await pg.evaluate(async (s) => {
     window.PYQ_CLOUD = true; ACCT = { id: 'u1', nickname: '谱友', role: 'creator' };
@@ -84,7 +100,7 @@ const HAS_ELEVATION = `(v=>{
   ];
   await pg.route('**/api/pub/scores', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ scores: PUBS }) }));
   /* 缩图字节由 route 兜住：离线跑测试时不该真去打网络 */
-  await pg.route('**/api/pub/*/thumb', rt => rt.fulfill({ status: 200, contentType: 'image/png',
+  await pg.route('**/api/pub/*/thumb*', rt => rt.fulfill({ status: 200, contentType: 'image/png',
     body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }));
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.click('#b-circle'); await pg.waitForTimeout(900);
@@ -98,7 +114,7 @@ const HAS_ELEVATION = `(v=>{
       shotC:!!(c && c.querySelector('.cc-shot')), skelC:!!(c && c.querySelector('.cc-cover svg')),
       txtA:a? a.textContent.replace(/\\s+/g,' ') : ''};
   })()`);
-  T(r3.shotA && /\/api\/pub\/p_withthumb\/thumb$/.test(r3.srcA), 'T3a 有缩图的谱出真截图 img', r3.srcA);
+  T(r3.shotA && /\/api\/pub\/p_withthumb\/thumb\?v=1$/.test(r3.srcA), 'T3a 有缩图的谱出真截图 img（带缓存戳）', r3.srcA);
   T(r3.skelA, 'T3b 刻版骨架留底层当占位（加载中/图挂了兜底）', String(r3.skelA));
   T(!r3.shotC && r3.skelC, 'T3c 无缩图的谱只剩刻版骨架', JSON.stringify({ shot: r3.shotC, skel: r3.skelC }));
   T(/1=C/.test(r3.txtA) && /4\/4/.test(r3.txtA) && /♩=88/.test(r3.txtA) && /16 小节/.test(r3.txtA),

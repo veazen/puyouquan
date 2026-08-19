@@ -67,6 +67,7 @@ const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第�
 const EVENT_NAMES = new Set(['visit', 'create_song', 'export', 'publish', 'open_pub', 'paywall_view', 'fav', 'share_card',
   'signup', 'login', 'redeem_ok', 'order_paid']);
 let evHour = 0; const evCount = new Map();       // 每 IP 每小时事件计数（内存态，重启清零可接受）
+let thumbHour = 0; const thumbCount = new Map(); // v60.7 每用户每小时缩图上传计数（同上，内存态）
 const PHONE_RE = /^1[3-9]\d{9}$/;
 const ID_RE = /^[A-Za-z0-9_-]{8,40}$/;  // 客户端生成的谱面 id
 
@@ -209,10 +210,14 @@ function pubShape(row) {
   const mea = d.measures || [];
   return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
     type: docTypeOf(d), price: 0, measures: mea.length, cover: coverOf(d),
-    thumb: row.thumb_at ? 1 : 0,
+    /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
+       缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
+    thumb: row.thumb_at || 0,
     key: String(d.key || '').slice(0, 6), tempo: +d.tempo || 0,
     beats: +d.beats || 0, unit: +d.unit || 0,
-    verses: Math.max(0, Math.min(9, +d.verses || 0)) };
+    /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
+       「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
+    verses: Math.max(0, Math.min(9, +d.lyricLines || 0)) };
 }
 /* v60.6 曲谱实例缩图：只收栅格图（webp/jpeg/png），按魔数硬校验后落库。
    收栅格不收 SVG 是安全取舍——SVG 同源直开会执行内嵌脚本，栅格没有脚本面。 */
@@ -224,7 +229,9 @@ function decodeThumb(dataUrl) {
   let buf; try { buf = Buffer.from(m[2], 'base64'); } catch (_) { throw new ApiError(400, '缩图解码失败'); }
   if (!buf.length) throw new ApiError(400, '缩图为空');
   if (buf.length > THUMB_MAX) throw new ApiError(413, '缩图过大');
-  const isWebp = buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  /* v60.7 按整数逐字节精确比对：Node 的 'ascii' 解码会抹高位（0xD2→'R'），
+     伪造高位字节可冒充 RIFF/WEBP 绕过魔数闸（复核实测复现过）；jpeg/png 分支本就精确 */
+  const isWebp = buf.length > 12 && buf.readUInt32BE(0) === 0x52494646 && buf.readUInt32BE(8) === 0x57454250;
   const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
   const isPng = buf.toString('hex', 0, 8) === '89504e470d0a1a0a';
   const mime = isWebp ? 'image/webp' : isJpeg ? 'image/jpeg' : isPng ? 'image/png' : '';
@@ -278,13 +285,14 @@ function pubMeta(row) {
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
-  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: !!row.thumb_at };
+  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: row.thumb_at || 0 };
 }
 function pubSsrHtml(row) {
   const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`;
   /* v60.6 og:image 优先用真实谱面缩图（栅格）：微信/微博等抓取端对 SVG 支持参差，
-     且真谱面比品牌封面更能说明这首谱长什么样；没生成过缩图的老谱仍回落 cover.svg。 */
-  const img = p.thumb ? `${PUB_CANON}/api/pub/${p.id}/thumb` : `${canon}/cover.svg`;
+     且真谱面比品牌封面更能说明这首谱长什么样；没生成过缩图的老谱仍回落 cover.svg。
+     v60.7 拼 ?v=thumb_at 当缓存戳：URL 恒定 + max-age=86400 会让重新发布后的分享图吃一整天陈图 */
+  const img = p.thumb ? `${PUB_CANON}/api/pub/${p.id}/thumb?v=${p.thumb}` : `${canon}/cover.svg`;
   /* v58.5 观看页驻 puku 域（用户要求分享链路地址栏全程 puku）：跳 site/kanpu.html（发布落位时
      由编辑器单文件复制而来），不再跳 zhipu；免费制谱 CTA 仍指 zhipu 编辑器 */
   const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}`;
@@ -660,6 +668,14 @@ const routes = [
   ['PUT', /^\/api\/scores\/([A-Za-z0-9_-]+)\/thumb$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '只能为自己的曲谱生成缩图');
+    /* v60.7 私有谱拒收：缩图只被公开接口消费（scoreThumbGet 要求 published），私有谱的缩图是
+       纯死重——免费号 500 谱 ×220KB 可合法塞 110MB 进主库再被每日备份放大，堵住这个面 */
+    if (s.status === 'private') throw new ApiError(403, '缩图仅用于已发布或审核中的曲谱');
+    /* v60.7 频控：正常路径每次发布 1 张 + 补图每次 3 张，40/小时远够用，刷子直接 429 */
+    const h = Math.floor(Date.now() / 3600000);
+    if (thumbHour !== h) { thumbHour = h; thumbCount.clear(); }
+    const c = (thumbCount.get(u.id) || 0) + 1; thumbCount.set(u.id, c);
+    if (c > 40) throw new ApiError(429, '缩图上传过于频繁，请稍后再试');
     const { buf, mime } = decodeThumb(b && b.data);
     q.scoreThumbSet.run(buf, mime, now(), s.id, u.id);
     return { saved: true, bytes: buf.length, mime };

@@ -753,8 +753,9 @@ svg text{user-select:none}
 .cc-cover{position:relative;aspect-ratio:2/1;overflow:hidden;border-bottom:1px solid var(--border-soft);
   background:linear-gradient(135deg, var(--accent-soft), transparent 80%)}
 .cc-cover svg{position:absolute;inset:0;width:100%;height:100%}
-/* 真实谱面缩图盖在刻版骨架之上；骨架留底层当占位（lazy 加载中/老谱无缩图/图挂了都由它兜住） */
-.cc-shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block;background:#fff}
+/* 真实谱面缩图盖在刻版骨架之上；骨架留底层当占位（lazy 加载中/老谱无缩图/图挂了都由它兜住）。
+   不给 background——img 在图到达前是透明的，骨架才真正可见（v60.7 修：白底会提前盖死骨架） */
+.cc-shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
 .cc-type{position:absolute;top:8px;left:9px;font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.4px;
   background:color-mix(in srgb, var(--panel) 88%, transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2px 9px;
   -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
@@ -15764,23 +15765,33 @@ function buildThumbCanvas(data, cb, onErr){
   const svg = document.getElementById('score');
   const fail = ()=>{ if(onErr) onErr(); };
   if(!svg || !data || !(data.measures||[]).length) return fail();
-  const keep = {song:song, blur:blurSel, note:noteSel, sel:sel, bar:barSel, rng:selRange};
+  /* v60.7 保存清单补全（复核抓出三处遗漏）：measureSel/measureRange 的整小节朱砂选中框、
+     meaHandleOn 的小节宽度拖柄 ◂▮▸ 与行尾 ↺/+/− 按钮都会被 render() 画进谱面——不清零就烤进公开缩图；
+     activeTab 会被 renderDock 按借来的谱的声部自动改写（借无吉他声部的谱后页签被永久切走），须复原。 */
+  const keep = {song:song, blur:blurSel, note:noteSel, sel:sel, bar:barSel, rng:selRange,
+    mSel:measureSel, mRng:measureRange, mHnd:meaHandleOn, aTab:activeTab};
   let inner='', vw=0, cy=0;
   try{
     song = JSON.parse(JSON.stringify(data));
     blurSel = true; noteSel = []; barSel = null; selRange = null;
+    measureSel = null; measureRange = null; meaHandleOn = false;
     sel = {mi:0, row:'tab', vi:0, ci:0, si:1};    /* 光标归零：借来的谱未必有原光标指向的小节 */
     render();
     inner = svg.innerHTML; vw = svg.viewBox.baseVal.width;
     /* 裁切起点落在标题块之下：卡片正文已经写了曲名/演唱/制谱，缩图再重复一遍标题
        既占地方又和「谱种」角标打架；跳过标题块后整张缩图全是乐谱本身，信息密度最高。
-       [data-hd="meta"] 是曲谱信息卡的点击热区，正好圈住整个标题块。 */
+       [data-hd="meta"] 是曲谱信息卡的点击热区，正好圈住整个标题块。
+       读 rect 的 y/height **属性**而非 getBBox()——手机启动台态 #paper 是 display:none，
+       getBBox 在 Chromium 返回全 0（Firefox/WebKit 直接抛错），属性值与布局无关、永远可用。 */
     const hd = svg.querySelector('[data-hd="meta"]');
-    if(hd){ const bb = hd.getBBox(); if(bb.height>0) cy = Math.max(0, bb.y + bb.height - 4); }
+    if(hd){ const hy=parseFloat(hd.getAttribute('y'))||0, hh=parseFloat(hd.getAttribute('height'))||0;
+      if(hh>0) cy = Math.max(0, hy + hh - 4); }
   }catch(e){ inner=''; }
   finally{
     song = keep.song; blurSel = keep.blur; noteSel = keep.note;
     sel = keep.sel; barSel = keep.bar; selRange = keep.rng;
+    measureSel = keep.mSel; measureRange = keep.mRng; meaHandleOn = keep.mHnd;
+    activeTab = keep.aTab;    /* 在 render 之前复原：用户自己的谱里该页签必然有效，renderDock 不会再改写 */
     try{ render(); }catch(_){}
   }
   if(!inner || !vw) return fail();
@@ -16327,10 +16338,11 @@ function circleAll(){
   return circlePubs().filter(pb=>(pb.status||'approved')==='approved')
     .map(pb=>Object.assign({}, pb, {measures:(pb.data.measures||[]).length,
       key:(pb.data||{}).key||'', tempo:(pb.data||{}).tempo||0,
-      beats:(pb.data||{}).beats||0, unit:(pb.data||{}).unit||0}));
+      beats:(pb.data||{}).beats||0, unit:(pb.data||{}).unit||0,
+      verses:(pb.data||{}).lyricLines||0}));   /* v60.7 本地兜底也给段词（字段名是 lyricLines） */
 }
 /* 与官网同口径的卡片信息条：挑谱真正要看的几项，一眼判断能不能直接用 */
-const CC_STAFF_TYPE={instr:1, piano:1, solo:1};   // 纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」
+const CC_STAFF_TYPE={instr:1, piano:1, pianoacc:1, solo:1};   // 纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」（v60.7 补 pianoacc）
 function ccMetaBits(pb){
   const b=[], k=String(pb.key||'').slice(0,6);
   if(k) b.push(CC_STAFF_TYPE[pb.type]? k+' 调' : '1='+k);
@@ -16344,7 +16356,7 @@ function circleCard(pb, own, fav){
   /* v60.6 封面换真实谱面缩图：刻版骨架留底层当占位（lazy 加载中 / 老谱无缩图 / 图挂了都由它兜住） */
   const cover = pb.remote? ccCoverApi(pb) : ccCover(pb);
   const shot = (pb.remote && pb.thumb)
-    ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(pb.pid)}/thumb" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : '';
+    ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(pb.pid)}/thumb?v=${+pb.thumb||0}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : '';
   const sub = pb.remote
     ? '制谱：'+esc(pb.author||'佚名')+(pb.singer?(' · 演唱：'+esc(pb.singer)):'')
     : '制谱：'+esc(pb.author||'佚名')+' · '+esc((pb.pubAt||'').split(' ')[0]||'');
@@ -17389,8 +17401,9 @@ async function syncScores(){
     }
     if(changed) libSave(lib);
     /* v60.6 记下「已发布但还没缩图」的谱（多为 v60.6 之前发布的老谱），
-       进创作者中心时由 thumbBackfill() 静默补图——此处只记账不渲染，不打断正在进行的编辑。 */
-    window._thumbNeed = remote.filter(r=>r.status==='published' && !r.thumb_at && !del[r.id]).map(r=>r.id);
+       进创作者中心时由 thumbBackfill() 静默补图——此处只记账不渲染，不打断正在进行的编辑。
+       v60.7 连「谱面比缩图新」的也记上：改谱重发后缩图会过期，一并在创作者中心刷新 */
+    window._thumbNeed = remote.filter(r=>r.status==='published' && (!r.thumb_at || r.updated_at > r.thumb_at) && !del[r.id]).map(r=>r.id);
     // 墓碑清理：云端已确认不存在（删除已传播）的从墓碑移除，避免无限增长
     let dch=false; for(const id in del){ if(!rmap[id]){ delete del[id]; dch=true; } } if(dch) delSave(del);
   }catch(_){/* 网络失败静默，下次登录/保存再补偿 */}
@@ -17541,7 +17554,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17564,6 +17577,7 @@ const APP_VER='v60.6';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.7</span><div><b>v60.6 深度复核修复批</b>（发版后对全部 diff 做了一轮对抗式复核：21 条疑点经双人独立验证，14 条确认为真、7 条误报被拦下，本版全部修复）：① <b>「N 段词」信息条上线即失效</b>——服务端读的字段名 <code>verses</code> 在曲谱数据模型里不存在（真实字段是 <code>lyricLines</code>），恒为 0 导致该信息永不显示；现已改读真实字段，本地兜底分支一并补上。② <b>编辑器界面元素会被烤进公开缩图</b>——出缩图前只清了 4 个选区全局，漏了整小节选中框（measureSel/measureRange，实测污染缩图 9.3% 像素、朱砂实色）与小节宽度拖柄 ◂▮▸/行尾按钮（meaHandleOn）；另外借无吉他声部的谱出图后左栏页签会被永久切走（activeTab 未复原）。三者全部纳入保存/清零/复原清单，新增像素级断言：开关选区两次出图必须逐像素等墨。③ <b>换图后卡片吃一整天陈图</b>——缩图 URL 恒定又挂 max-age=86400，重新发布后浏览器根本不发请求；现在 URL 带 <code>?v=缩图时间戳</code>，换图即换地址，og 分享图同步；改谱重发后创作者中心会自动刷新过期缩图。④ <b>WebP 魔数校验可被绕过</b>——Node 的 ascii 解码抹高位字节（0xD2→R），伪造高位可冒充 RIFF/WEBP 把任意二进制存进图床；改为按整数逐字节精确比对。⑤ 缩图上传加闸：私有谱拒收（缩图只被公开接口消费，私有缩图是纯死重）+ 每用户每小时 40 次频控。⑥ 图未加载完时卡片白屏——<code>.cc-shot</code> 的白底会提前盖死底层刻版骨架占位，撤掉白底让骨架真正兜底。⑦ 钢琴弹唱谱的调号信息条误写「1=F」，与钢琴独奏谱同为大谱表应写「F 调」。⑧ 手机启动台态出缩图裁切起点归零（display:none 下 getBBox 全 0），改读 rect 属性坐标，与布局无关永远可用。⑨ 每日备份改「先写临时文件、成功再原子改名」——原来先删旧快照再写新的，磁盘写满时当天备份直接归零；缩图进库后快照变大，这个次序隐患变成了现实风险。测试：tv_thumb 16→18 项、api/test.sh 126→131 项、tv_site 33 项随缓存戳更新断言，49 套件全绿。</div></li>
     <li><span class="v">v60.6</span><div><b>曲谱卡片换真实缩图 + 卡片瘦身 + 全站扁平化</b>（用户反馈：「卡片应该是曲谱实例缩图，尺寸不用这么大，信息展示要完整直观；全站扁平化，按钮 LOGO 去掉阴影」）：① <b>封面改真截图</b>——过去卡片画的是按谱种伪造的「刻版骨架」示意图，看不出这首谱到底长什么样。现在<b>发布时由制谱引擎渲染真谱面</b>，跳过标题块裁出版心首屏（和弦图、六线谱品位、简谱数字、歌词一应俱全），光栅化成 2:1 的 webp 存到谱库，卡片直接当截图展示；分享到微信的 og 图也同步换成这张真谱面。老谱不用管——进创作者中心会自动补图，补图前仍由刻版骨架兜底占位，图没加载完/加载失败也是它顶上。安全上只收<b>栅格</b>不收 SVG（SVG 同源打开会执行内嵌脚本，栅格没有脚本面），服务端按文件魔数硬校验，且<b>只有本人能给自己的谱换封面</b>。② <b>卡片瘦身</b>：列宽 230→186px，封面由定高改 <b>2:1 定比</b>（缩图永不拉伸变形），正文留白收紧；手机窄屏由单列改<b>双列</b>（此前单列配 150px 高封面，一屏只装得下一张半，翻找成本高）。③ <b>信息补全</b>：卡片新增 <b>调号 / 拍号 / 速度 / 小节数 / 歌词段数</b>，配上曲名与「演唱 X · 制谱 Y」，不点进去就能判断这份谱能不能直接用。④ <b>全站扁平化</b>：官网与制谱器一次性清掉 <b>57 处</b>立体投影声明（按钮、LOGO、卡片、弹窗、下拉、谱纸、工具带…，含 <code>--shadow</code> 令牌本体），层次改由描边和底色区分；分隔用的内阴影和键盘焦点环<b>保留</b>——那是可用性不是装饰。⑤ 顺手修了两个导出老毛病：PNG 导出与分享卡里的强调色一直硬编码着改版前的蓝色（应为朱砂），且墨色取的是当前主题的计算值——深色主题下导出的图是浅墨压白纸，几乎看不见；现已统一按印刷色出图。新增 tv_thumb 套件 16 项断言（出图/借完即还/载荷格式/占位回退/瘦身几何/零投影），官网回归扩到 33 项，后端端到端 126 项，49 套件全绿。</div></li>
     <li><span class="v">v60.2</span><div><b>手机端制谱大改：工具栏乱码修复 + 信息架构重整</b>（用户实测反馈「乱码、不符合操作逻辑」，产品/UX、UI、制谱三位专家交叉论证后落地）：① <b>修「乱码」</b>——时值按钮上那排空心方框不是编码问题，是<b>字体缺字</b>：全音符/十六分等用的是 Unicode「音乐符号扩展区」字符，手机系统字体不含该区段（四分 ♩ 与八分 ♪ 在基本平面，所以只有这两个正常，正是截图的样子）。现改用与谱面同源的 <b>SMuFL 出版字形</b>现拼（符头+符干+符尾），休止符、谱号、反复/段落/终止线、Segno、小节反复同批换掉，深浅色两套主题都已校色；桌面 Windows 同样缺字，故两端一起修。② <b>播放键点不到</b>（用户还没遇到的隐性故障）——手机编辑态播放条被图层轨完全压住，播放/节拍器/循环全部失效，现已提层并让位。③ <b>顶栏从两条横滑收成单行</b>：实测顶部两条工具带分别有 875px 与 1559px 内容塞在 390px 屏里（时值那条 75% 在屏幕外）。现在低频入口（新建/打开/保存/导出/排版/预览/打印/预设/谱库/移调/主题）收进顶栏 <b>☰</b> 抽屉，顶栏高度 93px→52px，两条横滑彻底消除。④ <b>时值条沉到拇指区</b>：9 枚按钮等分铺满、不再横滑，触控高度 44px。⑤ <b>启动台清场</b>：没打开曲谱时不再挂着三条编辑工具带（此前白占 145px，是「界面坏掉」观感的最大来源）。⑥ <b>智能编辑在手机上打通</b>——新增顶栏「智能」抽屉，把原本在手机上被整体隐藏的右栏放出来：<b>一键配和弦 / 一键配伴奏（旋律→和弦→双手织体）/ 哼唱成谱 / 智能填词 / 节拍检查 / 曲谱信息（拍号·速度·变调夹）</b>全部可用。⑦ <b>六线谱在手机上转为「看 + 智能生成」</b>：fit-width 后单弦间距不足 7px，指尖点不准，故手机打开弹唱谱默认落<b>简谱/旋律层</b>（原来默认落最不可编辑的六线谱层），点六线谱层会提示改用智能生成或到电脑端精修。谱面渲染、移调、播放、发布一切照旧。经此一版，手机上谱面可视高度从约 430px 提到 630px。新增 tv_mobile 几何断言 4 组（清场/单行顶栏/零重叠/图标无缺字/智能可达），全部为坐标与计算样式判定，不接受截图目测；48 套回归全绿，桌面端零改动。</div></li>
     <li><span class="v">v60.0</span><div><b>平台管理中心上线 + 曲谱发布改为审核制</b>：① <b>平台管理中心</b>进驻个人中心（www.puyouquan.com/me.html），仅平台管理员可见，含<b>待审队列</b>（预览谱面 / 通过 / 驳回并填原因）、<b>已上架</b>（一键下架）、<b>用户管理</b>（手机号或昵称搜索、改角色、发放与撤销权益）、<b>审计日志</b>（谁在什么时候做了什么，全部留痕）；概览四格给出用户数、曲谱数、待审数与已支付订单额。② <b>角色体系</b>扩为 普通用户 / 创作者 / 平台管理员三级，管理员天然含创作者权限；<b>首个管理员只能在服务器上用命令行任命</b>（<code>node admin.js set-role 手机号 admin</code>），网页端没有任何自助提权入口，之后的管理员由现任管理员在管理中心指派，且不能取消自己的管理员身份。③ <b>发布改真审核流</b>：创作者点「发布」后曲谱进入<b>待审核</b>（谱库暂不展示），管理员通过才上架；被驳回会带回<b>驳回原因</b>，在个人中心创作者中心与「我的云端曲谱」直接可见，改好再提交即可。管理员本人发布免自审、直接上架。④ 编辑器新增 <code>?review=曲谱ID</code> 审核预览深链，管理员可在观看模式下核对未上架的谱面。后端新增 7 个管理接口与审计日志表，端到端断言扩到 92 项，官网回归 28 项。</div></li>

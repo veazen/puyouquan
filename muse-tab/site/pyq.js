@@ -255,7 +255,7 @@ window.PYQ_LIB = (function(){
   }
   /* v60.6 卡片信息补齐：调号/拍号/速度/小节数/段词数——挑谱时真正要看的几项，
      一眼判断「这份谱能不能直接用」，不用点进去。纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」。 */
-  const TYPE_STAFF = { instr: 1, piano: 1, solo: 1 };
+  const TYPE_STAFF = { instr: 1, piano: 1, pianoacc: 1, solo: 1 };   /* v60.7 补 pianoacc：同为大谱表，写「F 调」不写「1=F」 */
   function metaBits(item){
     const b = [], k = String(item.key||'').slice(0,6);
     if(k) b.push(TYPE_STAFF[item.type] ? k+' 调' : '1='+k);
@@ -272,8 +272,9 @@ window.PYQ_LIB = (function(){
     const who = [item.singer?('演唱 '+item.singer):'', item.author?('制谱 '+item.author):''].filter(Boolean).join(' · ') || '佚名';
     const bits = metaBits(item);
     const tip = [item.title||'未命名曲谱', type, who].concat(bits).join(' · ');
+    /* v60.7 ?v=thumb_at 缓存戳：重新发布换图后 URL 跟着变，不再吃 max-age=86400 的陈图 */
     const shot = item.thumb
-      ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(item.id)}/thumb" alt="" loading="lazy" decoding="async" onerror="this.remove()">`
+      ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(item.id)}/thumb?v=${+item.thumb||0}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`
       : '';
     return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" title="${_esc(tip)}" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
       <div class="cc-cover">${cover(item)}${shot}

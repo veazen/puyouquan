@@ -239,6 +239,48 @@
 
 ---
 
+## 附录 A：为什么不是 alphaTab（2026-08-19 补，应产品负责人追问）
+
+本报告初版只回答「音源格式换不换」；alphaTab 是整套渲染+播放引擎，属另一层决策。补充调研后结论：**播放侧继续自研 + 定向补短板，不整体替换**。以下全部为实测（npm 实下 @coderline/alphatab 1.8.4 解包 + Playwright 实跑 + 许可原文比对）。
+
+### A.1 先纠正一个错误预设
+
+调研前的假设是「alphaTab 不支持简谱，简谱是我们对它的引擎级护城河」——**这个假设错了**。alphaTab 自 v1.4（2024-08）起原生支持简谱（numbered notation），`\staff {score tabs numbered}` 可五线谱+TAB+简谱三行同源联排，实测渲染出 1=C、八度点、减时线、延音线。对抗复核者独立取证（源码 NumberedBarRenderer.ts、issue #1505/#2317）后确认推翻。
+
+但要看清成色：它的简谱是**五线谱引擎附挂的简谱视图**（2024 年才落地，2026-08 仍有 open bug #2803——含全音符休止符的小节在简谱模式下直接渲染中断），而本项目是**简谱优先**的引擎（GB 惯例、增减时线、多段歌词对位、教学对照谱，60 个版本的细节积累）。差异化从「独占简谱渲染」修正为「简谱优先的排版质量 + 三记谱法互切成熟度 + 教学场景智能层」。
+
+### A.2 站住的两条硬阻力（对抗复核未推翻，且第一条比预想更严重）
+
+1. **许可与单文件约束正面冲突**。alphaTab 是 MPL-2.0——文件级 copyleft，作为**独立文件**引用可闭源商用；但 MPL §1.7 把「Larger Work」限定为 *in a separate file or files*，§1.10(b) 规定任何包含 Covered Software 的**新文件**整体构成 Modification。把 alphaTab 拼进单文件 index.html，**整个 index.html 成为 Covered Software，全产品须按 MPL 开源、任何人可自由复制再分发**——与订阅+B 端授权的变现模型直接冲突。合规使用只有两条路：放弃单文件架构（引独立 script），或放弃闭源。另有硬编码 "rendered by alphaTab" 水印且无官方开关。
+2. **迁移代价 ≫ 差距代价**。播放功能 13 项逐项对表：11 项双方都有；alphaTab 独有的只有 数拍 count-in（我们补齐=容易）与 小节级速度自动化（=中等）；我们独有 扫弦力度型/逐样归一/确定性揉弦。为两个可补的功能置换整个引擎，还要重接 60 个版本的智能层（智能配谱/织体生成/八场景/移调联动和弦图），不成立。
+
+### A.3 实测数字备查
+
+| 项 | 实测值 |
+|---|---|
+| alphaTab.min.js | 1.12 MB（gzip 279 KB），无 wasm |
+| Bravura.woff2 | 313 KB（几乎不可再压） |
+| 官方音色 sonivox.sf2 / .sf3 | 1.35 MB（gzip 711 KB）/ 0.98 MB（gzip 302 KB） |
+| 播放全集 gzip 传输 | 约 0.89–1.30 MB（对照：本项目引擎代码 76 KB） |
+| 输入格式 | GP3–GP8 全系（Mature）、alphaTex、MusicXML（官方定级 Mature，但不遵守排版指令）、CapXML（弱） |
+| 导出 | alphaTex、GP7、MIDI |
+| 合成 | alphaSynth：SF2+SF3（TinySoundFont 内核），AudioWorklet 默认/ScriptProcessor 回退，合成跑在独立 Worker，**worker 建不起来播放器直接不可用、无主线程回退** |
+| 单文件内联 | http(s) 下可用 blob URL 技巧全内联（渲染+播放实测通过）；file:// 下播放不可用 |
+
+### A.4 与 Guitar Pro / MuseScore 协作的现实路径（实测）
+
+- **MuseScore（GPLv3）**：双向桥 = MusicXML，我们已通畅（导出含 TAB 调弦/品位/倚音/滑音等，tv_mxl/tv_tabmxl/tv_mxlfid 回归背书）。GPL 只限抄代码，不限格式互操作。
+- **Guitar Pro**：GP→我们走原生导入（GP3–GP8 全版本，v55.8/v55.9），**优于**业界通用的 MusicXML 通道；我们→GP 只能走 MusicXML 且业界公认技法丢失。GP 原生**导出**连 MuseScore 都没做，非刚需。
+- **实测确认的最大缺口**：我们的 MusicXML **导出**端不出 TAB 技法（bend/hammer-on/pull-off 等 `<technical>` 子元素）——这是「协作门槛」里唯一该优先修的一段，其次是 .mxl 压缩导出。
+
+### A.5 追赶与扩展的把握度（如实交底）
+
+**有把握（现有架构直接承接，各自是有界工作量）**：循环点无限延音（SF 报告阶段一）、逐音色力度曲线（阶段二）、count-in 数拍、仅播放移调、声像滑杆、MusicXML 技法导出、.mxl 导出。
+**中等把握（要动数据模型或排程）**：小节级速度自动化、tick 级循环、拍内光标插值动画。
+**不追（判断为不必追）**：DAW 级音色拟真、实时 MIDI 演奏输入、MusicXML 版面保真（alphaTab 也不遵守）、GP 原生导出（MuseScore 也没有）。
+
+---
+
 ## 附：调研方法与可复现性
 
 - 现状数据：直接解析 `muse-tab/index.html`（行区间统计、`SF_EMBED` JSON 解析、正则统计 `data:audio`）。

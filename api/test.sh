@@ -170,10 +170,22 @@ chk 缩图可缓存 'Cache-Control: public' "$TH"
 ETAG=$(grep -oiE 'etag: *"[^"]+"' <<< "$TH" | sed -E 's/^[Ee][Tt][Aa][Gg]: *//')
 chk 缩图带ETag '"t' "$ETAG"
 chk 缩图命中304 '304' "$(curl -s -o /dev/null -w '%{http_code}' -H "If-None-Match: $ETAG" http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"
-chk 列表标记已有缩图 '"thumb":1' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 列表thumb为时间戳缓存戳 '"thumb":1' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 列表含调号等卡片信息 '"key"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
-chk 有缩图后og改指缩图 '/api/pub/song_abc12345/thumb' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
+chk 有缩图后og改指缩图带版本 '/api/pub/song_abc12345/thumb?v=' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
+chk 缩图URL带查询串仍可取 '200' "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:3199/api/pub/song_abc12345/thumb?v=123')"
 nchk 谱面详情不外发缩图二进制 '"thumb":{' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+
+# v60.7 复核修复回归
+# ① verses 读真实字段 lyricLines（此前读不存在的 d.verses 恒为 0——死代码）
+chk 更新谱面带歌词段数 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星","singer":"测试","updated_at":2100,"data":{"v":3,"title":"小星星","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}')"
+chk 列表段词取自lyricLines '"verses":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+# ② WebP 魔数按字节精确比对：高位伪造（0xD2C9C6C6…0xD7C5C2D0 经 ascii 解码假冒 RIFF/WEBP）必须被拒
+FAKE=$( { printf '\xd2\xc9\xc6\xc6\x00\x00\x00\x00\xd7\xc5\xc2\xd0'; head -c 52 /dev/zero; } | base64 | tr -d '\n')
+chk 拒绝高位伪造的WebP魔数 '不符' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/webp;base64,$FAKE\"}")"
+# ③ 私有谱不收缩图（缩图只被公开接口消费，私有缩图是纯死重）
+J -X PUT http://127.0.0.1:3199/api/scores/song_priv9990 -d '{"title":"私有","updated_at":2000,"data":{"v":3,"measures":[{}]}}' > /dev/null
+chk 私有谱缩图被拒 '仅用于已发布' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_priv9990/thumb -d "{\"data\":\"data:image/png;base64,$PNG1\"}")"
 
 chk 下架后公开404 '未发布' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/unpublish > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 下架后缩图也404 '404' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"

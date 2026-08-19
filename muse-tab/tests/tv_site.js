@@ -106,7 +106,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       ratio: cov ? +(cov.width / cov.height).toFixed(2) : 0,
       w: a ? Math.round(a.getBoundingClientRect().width) : 0 };
   });
-  T(r.shotA && r.srcA === '/api/pub/seedaaa111/thumb' && r.lazyA === 'lazy' && r.skelA
+  T(r.shotA && r.srcA === '/api/pub/seedaaa111/thumb?v=1' && r.lazyA === 'lazy' && r.skelA
     && !r.shotC && r.skelC && Math.abs(r.ratio - 2) < 0.06 && r.w <= 210,
     'T1c 实例缩图 + 骨架占位 + 卡片瘦身（2:1 封面/列宽≤210）', JSON.stringify(r));
   // T1a v58.8 刻版封面：guitar 卡有 TAB 印章 + data-fam=g + 家族色变量生效
