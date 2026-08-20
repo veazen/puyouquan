@@ -72,14 +72,18 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     loadSong(s);
     const vis1=document.getElementById('b-arrange').style.display!=='none';
     document.getElementById('b-arrange').click();
-    const modal=!!document.getElementById('arr-go') && document.querySelectorAll('input[name="arr-tex"]').length===9;
+    // v60.19：4/4 织体 9→15 套（依 POP909 统计新增 6 套）。改为「与 PIANO_TEX 里 4/4 的条数一致」，
+    // 而不是钉死数字——以后增删织体这条仍有效，且能抓住「弹窗漏渲染某个难度组」的回退（本版就踩到过）。
+    const want44=PIANO_TEX.filter(t=>t.beats===4).length;
+    const got44=document.querySelectorAll('input[name="arr-tex"]').length;
+    const modal=!!document.getElementById('arr-go') && got44===want44 && want44>=15;
     document.getElementById('arr-cancel').click();
     const p2=createSong('pianoacc',{lyr:0,beats:4,unit:4,key:'C',nMea:1}); loadSong(p2);
     const vis2=document.getElementById('b-arrange').style.display==='none';
     return {vis1, modal, vis2};
   })()`);
   const ok5 = t5.vis1 && t5.modal && t5.vis2;
-  console.log((ok5?'✅':'❌')+' T5 入口: 歌谱可见='+t5.vis1+' 弹窗9织体='+t5.modal+' 钢琴弹唱谱隐藏='+t5.vis2);
+  console.log((ok5?'✅':'❌')+' T5 入口: 歌谱可见='+t5.vis1+' 弹窗织体数与库一致='+t5.modal+' 钢琴弹唱谱隐藏='+t5.vis2);
   if(ok5) pass++;
   // T6 v44.9 属七终止：旋律含 b7(级数4) 的属和弦小节 → V7（G7），末小节回 I
   const t6 = await pg.evaluate(`(()=>{

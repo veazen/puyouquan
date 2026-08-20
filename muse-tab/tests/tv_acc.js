@@ -94,7 +94,16 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   if(ok5) pass++;
   // T6 难度分级 + 新织体生成
   const t6 = await pg.evaluate(()=>{
-    const allLv = PIANO_TEX.every(t=>t.level==='入门'||t.level==='进阶');
+    // v60.19：难度改为已拍板的五级（原来只有 入门/进阶 两档）
+    const LV5=['入门','初级','中级','高级','专业'];
+    const allLv = PIANO_TEX.every(t=>LV5.indexOf(t.level)>=0);
+    // 结构性不变量：每套织体左右手的时值和都必须等于它声明的拍数——
+    // 这条比「数一数有几套」有用得多，写坏一套模板（多写/漏写一格）立刻会红
+    // 单位随拍号：6/8 谱的 unit 是 8（拍=八分），其余为 4——与 genAccompaniment 的 song.unit/ev.d 同口径
+    const sumBeats=(arr,u)=>arr.reduce((x,e)=>x+u/e.d,0);
+    const beatsOK = PIANO_TEX.every(t=>{ const u=(t.beats===6?8:4);
+      return Math.abs(sumBeats(t.L,u)-t.beats)<1e-6 && Math.abs(sumBeats(t.R,u)-t.beats)<1e-6; });
+    const meters=[...new Set(PIANO_TEX.map(t=>t.beats))].sort();
     const ids = PIANO_TEX.map(t=>t.id);
     const s=createSong('pianoacc',{lyr:0,beats:4,unit:4,key:'C',nMea:2});
     s.measures[0].voxes[0][0].chord='C'; s.measures[1].voxes[0][0].chord='G';
@@ -105,11 +114,13 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     mutate(()=>genAccompaniment('arp16',0,1));
     const r16=song.measures[0].voxes[0].filter(c=>c.deg).length;
     const h=document.getElementById('score').innerHTML;
-    return { allLv, hasNew:['march','arp16','kids','march2','barc68','lilt68','polka2'].every(i=>ids.includes(i)), n:ids.length,
+    return { allLv, beatsOK, meters:meters.join('/'),
+      hasNew:['march','arp16','kids','march2','barc68','lilt68','polka2',
+              'long','flow8','bass3','lhonly','offbeat','drive8'].every(i=>ids.includes(i)), n:ids.length,
       marchOK:rOK, arp16Notes:r16, renderOK:h.length>1000 && !h.includes('NaN') };
   });
-  const ok6 = t6.allLv && t6.hasNew && t6.n===15 && t6.marchOK && t6.arp16Notes===16 && t6.renderOK;   // v45.1 +2/4×2 +6/8×2 → 15
-  console.log((ok6?'✅':'❌')+' T6 织体库: 共'+t6.n+'套(期望15) 分级='+t6.allLv+' 新增齐='+t6.hasNew+' 进行曲后半拍柱式='+t6.marchOK+' 全分解16音='+t6.arp16Notes+' 渲染='+t6.renderOK);
+  const ok6 = t6.allLv && t6.beatsOK && t6.hasNew && t6.n===21 && t6.marchOK && t6.arp16Notes===16 && t6.renderOK;   // v60.19 依 POP909 统计 +6 → 21
+  console.log((ok6?'✅':'❌')+' T6 织体库: 共'+t6.n+'套(期望21) 五级分级='+t6.allLv+' 拍数自洽='+t6.beatsOK+' 拍号='+t6.meters+' 新增齐='+t6.hasNew+' 进行曲后半拍柱式='+t6.marchOK+' 全分解16音='+t6.arp16Notes+' 渲染='+t6.renderOK);
   if(ok6) pass++;
   // T7 弹窗含配和弦按钮与分组
   const t7 = await pg.evaluate(()=>{
@@ -120,8 +131,8 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     document.getElementById('tex-cancel').click();
     return {hasSug, radios};
   });
-  const ok7 = t7.hasSug && t7.radios===9;   // 4/4 拍织体 9 套
-  console.log((ok7?'✅':'❌')+' T7 弹窗: 配和弦按钮='+t7.hasSug+' 4/4织体数='+t7.radios+'(期望9)');
+  const ok7 = t7.hasSug && t7.radios===15;   // v60.19：4/4 织体 9→15 套
+  console.log((ok7?'✅':'❌')+' T7 弹窗: 配和弦按钮='+t7.hasSug+' 4/4织体数='+t7.radios+'(期望15)');
   if(ok7) pass++;
   console.log('PASS(P1A) '+pass);
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
