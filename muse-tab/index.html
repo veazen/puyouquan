@@ -2505,7 +2505,7 @@ const PROG_PRIOR=0.30;      // 每小节先验：套路每比自由解少这么�
 let PROG_LAST={segs:[], marks:[]};   // 上一次配和弦的乐句切分与命中套路（供测试与将来的智能栏展示）
 /* 段级套路匹配：ctx={CAND, emit, trans, minor, N}；返回 {idx, marks:[{a,b,tpl,rot,name}]} */
 function applyProgTemplates(s2, vi, ctx, baseIdx){
-  const {CAND, emit, trans, minor, N}=ctx;
+  const {CAND, emit, trans, minor, N, endDeg}=ctx;
   const idx=baseIdx.slice(), marks=[];
   if(N<3) return {idx, marks};
   const byId={}; CAND.forEach((c,i)=>{ byId[c.id]=i; });
@@ -2530,10 +2530,6 @@ function applyProgTemplates(s2, vi, ctx, baseIdx){
     for(let mi=a; mi<=b; mi++) ((s2.measures[mi].voxes||[])[vi]||[]).forEach(c=>{ s+=(c.deg||0)+(c.acc||'')+':'+beatsOf(c).toFixed(2)+','; });
     return s;
   };
-  /* 全曲末音（无变化音的最后一个实音）——终止式收尾的判据 */
-  let endDeg=0;
-  { const ec=((s2.measures[N-1]||{}).voxes||[])[vi]||[];
-    for(let i=ec.length-1;i>=0;i--){ if(ec[i].deg && !ec[i].acc){ endDeg=ec[i].deg; break; } } }
   /* 单个跨度的决定：套路 vs 自由，取分高者（套路带每小节先验） */
   const memo={};
   const decide=(a,b)=>{
@@ -2596,7 +2592,15 @@ function applyProgTemplates(s2, vi, ctx, baseIdx){
   chosen.forEach(({a,b})=>{
     const L=b-a+1, key=L+'|'+sig(a,b);
     const prev=seen[key], d=prev||decide(a,b);
-    for(let t=0;t<L;t++) idx[a+t]=d.ids[t];
+    let ids=d.ids;
+    /* 复用不得越过终止式：主歌两遍旋律一模一样，但**只有后一遍结束全曲**。
+       小星星实测踩到过——m9–12 与 m1–4 逐音相同，复用把前句收在 V 的决定原样搬到末句，
+       整首歌停在属和弦上，而 decide() 本已为末句算出了收主和弦的版本。 */
+    if(prev && b===N-1 && endDeg===(minor?6:1)){
+      const ti=byId[minor?'i':'I'];
+      if(ti!=null && CAND[ids[L-1]].id!==(minor?'i':'I')){ ids=ids.slice(); ids[L-1]=ti; }
+    }
+    for(let t=0;t<L;t++) idx[a+t]=ids[t];
     if(d.mark) marks.push(Object.assign({a, b}, d.mark, prev?{reuse:true}:{}));
     if(!prev) seen[key]=d;
   });
@@ -2610,6 +2614,12 @@ function suggestChords(s2, vi){
   const cname=c=>chordCandName(c, s2.key);
   const o0=song; song=s2;
   const N=s2.measures.length;
+  /* v60.16 全曲末音（最后一个非变化音实音）：终止式的唯一判据。
+     取末音而非小节序号——旋律收在 6 上时配 IV/vi 才对，一律要求收主和弦会毙掉正确答案。 */
+  let endDeg=0;
+  { const ec=((s2.measures[N-1]||{}).voxes||[])[vi]||[];
+    for(let i=ec.length-1;i>=0;i--){ if(ec[i].deg && !ec[i].acc){ endDeg=ec[i].deg; break; } } }
+  const endsOnTonic = endDeg===(minor?6:1);
   /* 1) 发射分：每小节每候选的旋律契合度（沿用原打分权重 + 属七七音加分） */
   const emit = s2.measures.map((mea,mi)=>{
     const cols=mea.voxes[vi]||[];
@@ -2628,7 +2638,10 @@ function suggestChords(s2, vi){
       });
       sc*=c.w;
       if(mi===0 && c.id===TONIC) sc*=1.25;
-      if(mi===N-1) sc*= c.id===TONIC? 1.6 : 0.8;                                  // 末小节终止偏主和弦
+      /* 末小节终止：旋律收在主音上时，主和弦的偏置必须**决定性**（2.0 / 0.5）。
+         原来的 1.6 / 0.8 在「末小节长音落在属和弦五音上」时会输——欢乐颂末小节
+         2(3拍) 1(1拍) 实测配成 G，整首歌停在属和弦。旋律不收主音时维持原偏置。 */
+      if(mi===N-1) sc*= c.id===TONIC? (endsOnTonic?2.0:1.6) : (endsOnTonic?0.5:0.8);
       if(c.id==='V7'){ const has=cols.some(x=>x.deg===c.sev&&!x.acc)||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.sev&&!a.acc)); if(!has) sc-=0.4; }   // 无七音支撑则让位纯 V
       if(c.ld){ const hl=cols.some(x=>x.deg===c.ld&&x.acc==='#')||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.ld&&a.acc==='#')); sc+= hl? 0.8 : -0.35; }   // 和声小调导音取证
       return sc;
@@ -2657,7 +2670,7 @@ function suggestChords(s2, vi){
   if(N){ let last=0; for(let j=1;j<CAND.length;j++) if(dp[j]>dp[last]) last=j; idx[N-1]=last;
     for(let mi=N-1; mi>0; mi--) idx[mi-1]=bk[mi][idx[mi]]; }
   /* 3.5) v60.15 A8 进行模板层：以乐句为单位试套固定级数走向，套不上就退回上面的自由解 */
-  const prog=applyProgTemplates(s2, vi, {CAND, emit, trans, minor, N}, idx);
+  const prog=applyProgTemplates(s2, vi, {CAND, emit, trans, minor, N, endDeg}, idx);
   idx=prog.idx;
   PROG_LAST={segs:phraseSegments(s2, vi), marks:prog.marks};
   const out=s2.measures.map((mea,mi)=>{
@@ -18027,7 +18040,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.15';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.16';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -18050,6 +18063,7 @@ const APP_VER='v60.15';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.16</span><div><b>配和弦评测集上线，首轮跑分就抓出两处终止式真缺陷（编配质量专项 A7）</b>：第八节把评测集列为「整节的关键」——没有它，配和弦的每次改动都只是换一批参数、谁也说不清改好还是改坏。本版把它做出来了。① <b>语料</b>：首批 <b>9 首 / 80 小节</b>（6 首公有领域传统曲目 + 3 段自制小调片段），标注为<b>每小节的「可接受和弦集合」而非唯一答案</b>——配和弦本就多解，钉死单一答案会把评测变成对某一种配法的过拟合。② <b>三项指标</b>：<b>级数准确率</b>（配得对不对）、<b>功能准确率</b>（T/S/D 对不对——配成 vi 而答案是 I，级数错但功能对，听感可接受）、<b>套路命中率</b>；套路命中率<b>单独统计、不进闸门</b>，否则会为了命中率牺牲准确率。大调 / 小调<b>分桶统计</b>，防止大调涨分掩盖小调仍然错。③ <b>首轮就抓出两处真缺陷，都是「整首歌停在属和弦上」这种用户一耳朵能听出来的错</b>：<b>(a) 重复乐句复用越过了终止式</b>——小星星第 9–12 小节与第 1–4 小节逐音相同，A8 的「重复乐句同配」把前句<b>收在 V</b> 的决定原样搬到末句，而模板层本已为末句算出了收主和弦的版本（调试打印显示 <code>cad=true</code>，却被复用覆盖）。主歌两遍旋律一样，但<b>只有后一遍结束全曲</b>，复用不能越过终止式。<b>(b) 自由路径根本不认终止式</b>——欢乐颂末小节是 <code>2</code>(3 拍) + <code>1</code>(1 拍)，长音落在属和弦的五音上，原来 1.6 / 0.8 的主和弦偏置压不过它，整首歌配成 G 收尾。现把判据统一为<b>旋律末音</b>：末音收主音时主和弦偏置提到 2.0 / 0.5（自由路径与模板路径同一口径），复用路径则对末句单独补收尾。修完级数准确率 93.8%→<b>97.5%</b>、功能 96.3%→<b>97.5%</b>。④ <b>闸门自己也被变异测出问题，一并记下</b>：初版地板留了 1.5% 余量，结果<b>把终止式修复抽掉后只掉到 96.3%，照样绿</b>——80 小节的语料上一小节只占 1.25%，余量放大就等于没有闸门。现地板收紧到<b>错一小节就红</b>，并加一条<b>结构性不变量</b>断言：凡旋律收在主音上的曲目，末小节必须配主和弦。三个变异体（只抽 a / 只抽 b / 两个都抽）现在<b>全部转红</b>，其中「只抽 b」正是靠这条结构断言抓住的——百分比对它无感。⑤ <b>如实保留的红项</b>：欢乐颂第 4、8 小节（句尾应为半终止 <code>G</code>，引擎配 <code>C</code> / <code>Dm</code>）确属引擎缺陷——<b>句尾终止式 A2 尚未实现</b>，评测集正好把它变成了一个可复现的靶子。⑥ <b>标注修订如实记录</b>：小星星第 5/7 小节的可接受集合补入 <code>G7</code>（该小节旋律 <code>5 5 4 4</code> 含 <code>4</code>，正是 G7 的七音，教学配法用 G 或 G7 都通行，初稿漏写）；修订发生在看到引擎输出之后，已写进语料文件的 <code>revisions</code> 字段。⑦ <b>语料缺口如实标注</b>：<b>小调传统曲目目前为 0 首</b>，小调项全部是自制片段，所以「小调 100%」只能当回归闸，<b>不能当作小调达到专业水准的证据</b>；补齐传统小调民歌是本项首要缺口。新增 <code>tv_eval</code> <b>5 项</b>，53→<b>54 套件</b>全绿。</div></li>
     <li><span class="v">v60.15</span><div><b>和弦进行套路层：引擎终于「知道自己在走 1-5-6-4」（编配质量专项 A3+A8）</b>（用户提问：「和弦进行套路（固定级数走向）有没有规划？是不是优先匹配固定走向？」——查下来<b>原方案确实没有</b>，本版补上）：此前的和声引擎是<b>一阶</b>的，转移分只看相邻两个和弦，所以 <code>1-5-6-4</code> 与 <code>1-5-6-3</code> 的差别只体现在其中一个转移分上，引擎里<b>根本不存在「整条走向」这个概念</b>；谱面上出现的「卡农」「4536」也只是预设示范曲里写死的和弦，不是引擎能力。本版加两层：① <b>A3 乐句切分</b>——按「小节末长音 / 末尾休止 / 歌词标点 / 4 小节格」取证，用一次小 DP 把全曲切成 2–8 小节的句（偏好 4 小节）。<b>这里踩了一个坑记一笔</b>：证据分若取<b>绝对值</b>，段越多累计分越高，DP 会系统性偏向切碎——全曲每小节都以长音收尾时，8 小节被切成 4 段 2 小节（实测）。改成<b>减去全曲均值</b>后，「并不比别处更像句尾」的位置贡献 0，长度先验才真正说了算。② <b>A8 进行模板层</b>——12 条套路入库（大调 1-5-6-4 / 1-6-4-5 / 4-5-3-6 / 卡农八格 / 1-4-5-1 / 1-4-1-5 / 2-5-1；小调 i-♭VII-♭VI-♭VII / i-♭VI-♭III-♭VII / 安达卢西亚 i-♭VII-♭VI-V / i-iv-v-i / i-iv-♭VII-♭III），以乐句为单位枚举「模板 × 旋转 × 铺排」，用<b>同一套发射分与转移分</b>打分。三条关键设计：<b>(a) 不硬套</b>——套路只带每小节 0.3 的先验，打不过自由最优就退回自由解（「所有歌都配 1-5-6-4」是另一种低级）；<b>(b) 每格是一组候选</b>（如 V 与 V7 同格），格内按旋律自选，所以属七终止等既有行为不被套路抹平；<b>(c) 相邻两句可合并</b>成一个跨度再匹配，否则 8 格的卡农永远等不到 8 小节的段。另加<b>终止式收尾</b>：跨度含全曲末小节、且<b>旋律确实收在主音</b>时，把套路最后一格换成主和弦——不加这条，卡农这类循环型套路会让整首歌停在 V 上（实测收尾 <code>…F C F G</code>）；但也<b>不能一律要求收主和弦</b>——先写成硬性护栏，结果把一条正经的、旋律收在 <code>6</code> 上的 1-5-6-4 乐句给毙了，故判据改取<b>旋律末音</b>而非小节序号。还有<b>重复乐句同配</b>：旋律指纹一致的句直接沿用先前决定，主歌两遍不会配出两套和弦。<b>实测对照</b>：含糊旋律（某小节只剩 <code>1</code> 与 <code>3</code>，自由解因根音加权偏 C）由 <code>C G C F</code> 扳正为 <code>C G Am F</code>；卡农旋律由 <code>C G Am C F C F C</code> 变为 <code>C G Am Em F C F C</code>（三级和弦归位）；而固执停在 <code>7</code> 与 <code>4</code> 的旋律<b>一条套路都不套</b>，仍是 <code>G7…C</code>。大调既有输出 <code>C F G C</code> 与 <code>C F G7 C</code> 一字未变。<b>但有一处大调输出确实变了，如实说明</b>：<code>tv_arrange</code> T7 那条 5 小节旋律由 <code>C C F G C</code> 变为 <code>C Am F G C</code>。核对后认定是<b>改善而非回退</b>——该小节旋律 <code>3-1-6-1</code> 的四个音<b>全部</b>落在 Am 内（C 只覆盖三个，<code>6</code> 是外音；实测 vi=4/4、I=3/4），且这是地道的 1-6-4-5 进行；功能序列仍为 T-T-S-D-T、无属→下属逆行、首末仍为主和弦。T7 的期望值已随之更新，结构性断言一条没放松。新增 <code>tv_prog</code> <b>8 项</b>，并做了<b>两次变异验证</b>证明它真有防线：清空模板表 → 8 项中 5 项转红；把切分证据退回绝对分 → T1 立刻报出 <code>[[0,1],[2,3],[4,5],[6,7]]</code> 的切碎结果。（其中 T8 最初在停用套路层时也能通过，补上「套路标记须覆盖两句」后才真正有效，顺手记一笔。）52→<b>53 套件</b>全绿。<b>已知边界</b>：套路目前<b>每格恒等于一小节</b>，半小节换和弦（A4）尚未与套路层打通；模板表里的风格与难度字段已预留，但还没接选择器。</div></li>
     <li><span class="v">v60.14</span><div><b>自动配和弦终于会配小调了（编配质量专项 A1）</b>（用户反馈：「自动编配和弦和节奏型库都非常的低级和错误百出」）：先做了一轮审计定位，结论分两半——<b>节奏型库没有算错的条目</b>（60 条逐条复算拍数，0 条硬错误，问题是「量太小、无风格无难度标签」），而<b>配和弦确实系统性配错，主因只有一个</b>：和弦候选集里<b>只有大调级数</b>（I/IV/V/V7/vi/ii/iii），代码里原本就留着「TODO: 小调」。于是任何小调歌曲——民谣、影视、大量儿歌与考级曲目——都会被配上大调和弦。<b>本版补齐小调</b>：新增小调候选集 <code>i / ii° / III / iv / v / V / V7 / VI / ♭VII</code>（按简谱惯例仍写作大调调号、主音落 <code>6</code>，故级数一律用「相对写作调号」表达），新增<b>大小调自动判别</b>（终止音最重，其次首音、<code>6</code> 与 <code>1</code> 的时值占比、和声小调导音 <code>#5</code>；默认判大调，阈值刻意保守），并为小调单配一张<b>转移偏好表</b>——流行小调的下行走向 <code>i-♭VII-♭VI-V</code> 在大调的功能三分法里会被当成「属→下属逆行」而遭惩罚，沿用大调那张表配不出地道的小调。半小节换和弦的候选集也一并跟着调式走。<b>改前→改后实测</b>：自然小调旋律 <code>C G F Am</code> → <code>Am G F Am</code>；流行小调 <code>Am G F C</code>（末小节配成大三和弦，最刺耳的那种错）→ <code>Am G F Am</code>；同一旋律写在 1=F <code>F C Bb Dm</code> → <code>Dm C Bb Dm</code>；旋律含导音 <code>#5</code> 时属和弦取大三 → <code>Am Dm E Am</code>。<b>大调结果一个不变</b>（<code>C F G C</code>、副属和弦 <code>C D7 G C</code> 均原样），「大调歌偶然结在 <code>6</code>」也不会被误判成小调。<b>新增外部交叉校验</b>：新套件 <code>tv_keytab</code> 拿第三方 MIT 音乐理论库 tonal 当「预言机」，逐调核对 12 个调的自然小调七级、和声小调属和弦与大调候选是否与权威表一致（仅测试期依赖，<b>不进产品单文件</b>，不引入任何运行时体积或许可负担）；实测 12 调全对，唯 C#(7♯)/F#(6♯) 两调的字面拼写与学院写法有出入（本项目音名表不写 <code>B#</code>/<code>E#</code>，属既有全局拼写策略，非本次引入），已在套件里如实标注为例外而非放行。<b>顺带修一处长期误报</b>：<code>tv_chord2</code> 的简谱和音断言写死了 <code>font-size="12"</code> 字面量，字号早已改过（现主音 16.5、和音 14.5），改成几何断言（和音数字与主音同 x、y 更小=叠在上方）后恢复真实防护。<code>tv_arrange</code> 10→14 项，51→<b>52 套件</b>全绿。</div></li>
     <li><span class="v">v60.13</span><div><b>混音台三件：S/M 点了看得见 · 每轨立体声声像 · 电平平衡</b>（用户反馈：「增加立体声调节，分析电平平衡度，把响度调节到同一水平线。S和M点击时样式没有变化，分辨不出是否生效」）：① <b>S / M 点击终于有反馈</b>——之前点了确实生效（独奏/静音是真的在起作用），但按钮<b>外观完全不变</b>，只能靠听。根因是播放坞的深色按钮样式选择器里带了 ID，优先级压过了高亮样式，把琥珀色/红色底整条盖掉了；同一个坞里节拍器的高亮一直正常，正是因为它的写法本来就带 ID。现已补齐，独奏亮琥珀、静音亮红。② <b>每轨新增立体声声像滑杆</b>——此前各声部只是按固定规则自动左右铺开，用户改不了。现在混音台每轨在音量条右侧多一个声像条，读数显示 <code>L70</code> / <code>中</code> / <code>R40</code>；默认是「<b>自动</b>」，即维持原来的自动铺开，<b>不改任何现有曲谱的听感</b>；拖动即接管，<b>双击滑杆回到「自动」</b>。播放中拖动即时生效（与 S/M/音量同一口径）。③ <b>电平平衡：响度计量换成感知加权</b>——采样入库时的响度归一原本按「不加权均方根 + 瞬时最大值」两项取小，这让不同乐器落不到同一条线上：一是不加权的均方根<b>高估低频</b>，同样数值的贝斯听起来明显比长笛轻；二是瞬时最大值对<b>拨弦/击弦</b>不公平——它们的起音是一根 1 毫秒的针，这一项先到顶，于是打击类整体被压在目标响度以下，长音类却正好落在目标上。现在响度按<b>国际标准的 K 加权</b>（ITU-R BS.1770，低频降权、高频略升，贴近人耳）来量，峰值约束改看 <b>10 毫秒短时包络</b>（针尖放行，真正决定听感与叠加电平的是包络），另加一道真峰兜底只防单样削波。合成信号实测：贝斯 / 拨弦 / 钢琴 / 长笛四类过归一后的感知响度离散度由 <b>19.0 dB 收窄到 9.1 dB</b>。最坏情况总线峰值 0.635、零削波（与改动前基本持平）。<b>需要说明</b>：本机取不到线上音色包（CDN 不可达），所以上面这组数字是用<b>合成信号</b>测的，真实采样包上的实际改善幅度尚未逐音色复核；另外贝斯这类低频乐器<b>不可能</b>与长笛做到完全等响（同样满刻度下低频的感知响度本就更低），残留差距属物理限制而非算法缺陷。新增 tv_balance 套件 8 项断言（S/M 高亮用「同一时刻比点亮与未点亮两个按钮」判定，绕开计算样式的陈旧读数；声像的自动/手动/双击复位；K 加权滤波器与规范理论值逐点吻合；离散度收窄幅度）。50→<b>51 套件</b>全绿。</div></li>
