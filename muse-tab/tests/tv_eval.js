@@ -17,8 +17,8 @@ const DATA = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures/eval-s
 // 地板紧贴当前成绩：80 小节里 1 小节 = 1.25%，留 0.5% 余量 ⇒ **错一小节就红**。
 // 起初留了 1.5% 余量，变异实测发现「抽掉终止式修复」只掉到 96.3%，照样绿——余量放大就等于没有闸门。
 // 改进后请连同 BASE_* 一起上调（这是有意的：每次调地板都是一次显式决定）。
-const BASE_DEG = 0.97;   // 当前 97.5%
-const BASE_FN  = 0.97;   // 当前 97.5%
+const BASE_DEG = 0.98;   // 当前 98.8%（79/80，再错一小节即红）
+const BASE_FN  = 0.98;   // 当前 98.8%
 const BASE_MIN = 1.00;   // 当前 100%
 
 (async () => {
