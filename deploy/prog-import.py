@@ -41,6 +41,29 @@ def norm_major(tok):
     return t if t in MAJ_OK else None
 
 
+# modal 表的记法：bIIIM/bVIM/bVIIM/bIIM 是大调语境下的借用；im/ivm/vm 是小调语境
+MODAL_MAP = {'bIIM': 'bII', 'bIIIM': 'bIII', 'bVIM': 'bVI', 'bVIIM': 'bVII', 'bVIIm': 'bVII',
+             'bviim': 'bVII', 'biii': 'bIII', 'ivm': 'iv', 'im': 'i', 'vm': 'v', 'viim': 'vii',
+             'vidim': 'vi', 'iiidim': 'iii', 'IIIM': 'III', 'IIM': 'II', 'VIM': 'VI',
+             'bIdom7': 'bI', 'Vdom7': 'V7'}
+
+
+def norm_modal(tok, minor):
+    t = tok
+    while True:
+        t2 = SUFFIX.sub('', t)
+        if t2 == t or not t2:
+            break
+        t = t2
+    t = MODAL_MAP.get(t, t)
+    if minor:
+        # 小调语境下 ♭III/♭VI/♭VII 就是本项目小调候选里的 III/VI/VII——
+        # 上一版把 modal 表整表跳过，正是漏掉了这一层等价关系（有 4 条本来就能表达）
+        t = {'bIII': 'III', 'bVI': 'VI', 'bVII': 'VII'}.get(t, t)
+        return t if t in MIN_OK else None
+    return t if t in MAJ_OK else None
+
+
 def norm_minor(tok):
     t = tok
     if t in ('Vdom7',):
@@ -142,28 +165,54 @@ def main():
         for ids in lst:
             seen.add((mode,) + canon(ids))
 
-    for mode, name in (('M', 'prog_maj'), ('m', 'prog_min')):
+    for mode, name in (('M', 'prog_maj'), ('m', 'prog_min'), ('?', 'prog_modal')):
         entries = parse_list(src, name)
-        kept, dropped = convert(entries, mode)
+        if mode == '?':
+            # modal 表按主音语境分流：含小调主音的走小调候选，其余走大调候选
+            mj, mn = [], []
+            for toks, mood in entries:
+                minor = any(norm_modal(t, True) == 'i' for t in toks)
+                (mn if minor else mj).append((toks, mood))
+            kept, dropped = [], []
+            for sub, sm in ((mj, 'M'), (mn, 'm')):
+                for toks, mood in sub:
+                    ids = [norm_modal(t, sm == 'm') for t in toks]
+                    if any(x is None for x in ids):
+                        bad = [t for t, x in zip(toks, ids) if x is None]
+                        dropped.append((' '.join(toks), '待补候选：' + '/'.join(sorted(set(bad)))))
+                        continue
+                    if not (3 <= len(ids) <= 8) or len(set(ids)) < 2:
+                        dropped.append((' '.join(toks), '长度或退化'))
+                        continue
+                    top = max(ids.count(x) for x in set(ids))
+                    if top / len(ids) >= 0.75:
+                        dropped.append((' '.join(toks), '准退化'))
+                        continue
+                    kept.append((ids, mood, sm))
+            kept = [(i, m2) for i, m2, _sm in kept] if False else kept
+        else:
+            kept, dropped = convert(entries, mode)
         uniq, dup = [], 0
-        for ids, mood in kept:
-            k = (mode,) + canon(ids)
+        for item in kept:
+            ids, mood = item[0], item[1]
+            md = item[2] if len(item) > 2 else mode
+            k = (md,) + canon(ids)
             if k in seen:
                 dup += 1
                 continue
             seen.add(k)
-            uniq.append((ids, mood))
+            uniq.append((ids, mood, md))
         report[name] = dict(total=len(entries), kept=len(kept), unique=len(uniq),
                             dup=dup, dropped=len(dropped),
                             drop_reasons=dropped)
-        for i, (ids, mood) in enumerate(uniq):
+        for i, (ids, mood, md) in enumerate(uniq):
             slots = ','.join('[%s]' % ','.join("'%s'" % x for x in ids)
                              for x in [ids])  # placeholder, replaced below
             slot_js = ','.join("['%s']" % x for x in ids)
-            tid = ('%s%d' % ('x' if mode == 'M' else 'xm', i + 1))
+            tid = ('%s%d' % ({'M': 'x', 'm': 'xm', '?': 'xd'}[mode] + ('' if mode != '?' else md.lower()), i + 1))
             label = '-'.join(ids)
             out_js.append("  {id:'%s', name:'%s', mode:'%s', rot:false, w:0.18, mood:'%s', slots:[%s]},"
-                          % (tid, label, mode, mood, slot_js))
+                          % (tid, label, md, mood, slot_js))
 
     print('=' * 72)
     for k, v in report.items():
@@ -174,7 +223,7 @@ def main():
     for k, v in report.items():
         for prog, why in v['drop_reasons'][:12]:
             print('  [%s] %-40s %s' % (k, prog, why))
-    print('\n注：modal 表整表未导入——♭II/♭III/♭VI/♭VII 在大调语境下本项目没有候选级数。\n')
+    print('\n注：modal 表按主音语境分流后逐条判定；「待补候选」= 需要新增候选级数（♭III/♭VI/♭VII/iv/♭II 等）才能表达。\n')
     print('=' * 72)
     print('/* 以下由 deploy/prog-import.py 从 free-midi-chords 导入 */')
     print('\n'.join(out_js))
