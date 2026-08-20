@@ -75,6 +75,37 @@ T('userSetAvatar：设 data URI / 清空 往返（v58.9 换头像）', () => {
   assert.strictEqual(q.userById.get(id).avatar, '');
 });
 
+/* v60.8 同秒并列排序回归。
+   背景：created_at 是秒级整数，一批管理动作/下单常常全部落在同一秒；
+   `ORDER BY created_at DESC LIMIT N` 对并列行的相对顺序在 SQL 里是**未定义**的，
+   于是「最近 N 条」会从窗口里随机丢行——CI 快机器上实测把一条 approve 挤出了前 5。
+   这两条用例不依赖机器快慢：显式写死同一个 created_at，构造出必然并列的条件，
+   所以去掉 db.js 里的 rowid/id tie-breaker 就会红。 */
+T('adminLogList：同秒 8 条取前 5 —— 严格按插入倒序，不丢条（v60.8）', () => {
+  const admin = crypto.randomUUID();
+  q.userCreate.run(admin, '13900002222', '管理员', now());
+  const T0 = 1750000000;                        // 写死时间戳：8 条全部同秒
+  const acts = ['role', 'grant', 'revoke', 'approve', 'reject', 'grant', 'approve', 'revoke'];
+  acts.forEach((a, i) => q.adminLogAdd.run(admin, a, 'tgt' + i, 'd' + i, T0));
+  const rows = q.adminLogList.all(5);
+  assert.strictEqual(rows.length, 5);
+  // 最近 5 条 = 下标 7..3 倒序；target 里带下标，能精确指认「丢了哪条」
+  assert.deepStrictEqual(rows.map(r => r.target), ['tgt7', 'tgt6', 'tgt5', 'tgt4', 'tgt3']);
+  assert.deepStrictEqual(rows.map(r => r.action), ['revoke', 'approve', 'grant', 'reject', 'approve']);
+  // id 严格递减 —— 审计日志的时序保证
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].id > rows[i].id, '审计日志 id 必须严格递减');
+});
+
+T('orderByUser：同秒 6 单 —— 订单记录按下单序倒排，不随机丢单（v60.8）', () => {
+  const uid = crypto.randomUUID();
+  q.userCreate.run(uid, '13900003333', '买家', now());
+  const T0 = 1750000100;
+  for (let i = 0; i < 6; i++) q.orderCreate.run('od' + i, uid, 'pro', 100 + i, 'admin', null, 'paid', T0, T0);
+  const rows = q.orderByUser.all(uid);
+  assert.strictEqual(rows.length, 6);
+  assert.deepStrictEqual(rows.map(r => r.id), ['od5', 'od4', 'od3', 'od2', 'od1', 'od0']);
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);

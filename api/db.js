@@ -132,6 +132,10 @@ const q = {
   ipQuotaGet:   db.prepare('SELECT count FROM ip_quota WHERE ip = ? AND day = ?'),
   ipQuotaBump:  db.prepare(`INSERT INTO ip_quota(ip,day,count) VALUES(?,?,1)
                             ON CONFLICT(ip,day) DO UPDATE SET count = count + 1`),
+  /* v60.8 所有「秒级时间戳 DESC + LIMIT」的列表一律补 rowid DESC 破并列：
+     created_at/updated_at 只到秒，同秒多行的相对顺序在 SQL 里是未定义的，
+     叠加 LIMIT 就会从窗口里随机丢行（管理端少看到一条订单/一次审计）。
+     rowid 是插入序，既确定又正好等于「谁先发生」。 */
   // 谱面
   scoreList:    db.prepare('SELECT id,title,singer,status,review_note,updated_at,created_at,thumb_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
   /* v60.6 起显式列而非 SELECT *：thumb 是 BLOB，随 `{...s}` 进 JSON 会被序列化成
@@ -152,7 +156,7 @@ const q = {
   // thumb_at 只取时间戳不取 BLOB——列表接口若带上二进制会撑爆 JSON
   pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.thumb_at,s.data
                             FROM scores s JOIN users u ON u.id = s.user_id
-                            WHERE s.status = 'published' ORDER BY s.updated_at DESC LIMIT 200`),
+                            WHERE s.status = 'published' ORDER BY s.updated_at DESC, s.rowid DESC LIMIT 200`),
   pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at,s.thumb_at
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.id = ? AND s.status = 'published'`),
@@ -199,18 +203,18 @@ const q = {
   orderGet:     db.prepare('SELECT * FROM orders WHERE id = ?'),
   orderByOtn:   db.prepare('SELECT * FROM orders WHERE out_trade_no = ?'),
   orderMarkPaid:db.prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=? AND status='pending'"),   // 幂等：仅 pending→paid
-  orderList:    db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?'),
-  orderByUser:  db.prepare('SELECT id,kind,amount_fen,channel,status,created_at,paid_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'),
+  orderList:    db.prepare('SELECT * FROM orders ORDER BY created_at DESC, rowid DESC LIMIT ?'),
+  orderByUser:  db.prepare('SELECT id,kind,amount_fen,channel,status,created_at,paid_at FROM orders WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 50'),
   redeemGet:    db.prepare('SELECT * FROM redeem_codes WHERE code = ?'),
   redeemUse:    db.prepare('UPDATE redeem_codes SET used_by = ?, used_at = ? WHERE code = ? AND used_by IS NULL'),
   redeemAdd:    db.prepare('INSERT INTO redeem_codes(code,kind,days,created_at) VALUES(?,?,?,?)'),
-  redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC LIMIT ?'),
+  redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC, rowid DESC LIMIT ?'),
   eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
   eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
   // v60.0 平台管理（全部只读或后台写，均需 role='admin'，见 server.js requireAdmin）
   userSearch:   db.prepare(`SELECT id,phone,nickname,avatar,role,created_at FROM users
-                            WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC LIMIT ?`),
-  userRecent:   db.prepare('SELECT id,phone,nickname,avatar,role,created_at FROM users ORDER BY created_at DESC LIMIT ?'),
+                            WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC, rowid DESC LIMIT ?`),
+  userRecent:   db.prepare('SELECT id,phone,nickname,avatar,role,created_at FROM users ORDER BY created_at DESC, rowid DESC LIMIT ?'),
   userCount:    db.prepare('SELECT COUNT(*) AS n FROM users'),
   userCountRole:db.prepare('SELECT role, COUNT(*) AS n FROM users GROUP BY role'),
   scoreCountAll:db.prepare('SELECT COUNT(*) AS n FROM scores'),
@@ -219,13 +223,17 @@ const q = {
   reviewList:   db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.review_note,s.updated_at,
                               u.id AS user_id,u.nickname AS author,u.phone
                             FROM scores s JOIN users u ON u.id = s.user_id
-                            WHERE s.status = ? ORDER BY s.updated_at DESC LIMIT ?`),
+                            WHERE s.status = ? ORDER BY s.updated_at DESC, s.rowid DESC LIMIT ?`),
   scoreReview:  db.prepare('UPDATE scores SET status = ?, review_note = ? WHERE id = ?'),   // 管理员改状态：不带 user_id 约束
   orderPaidAgg: db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_fen),0) AS fen FROM orders WHERE status='paid'"),
   adminLogAdd:  db.prepare('INSERT INTO admin_logs(admin_id,action,target,detail,created_at) VALUES(?,?,?,?,?)'),
   adminLogList: db.prepare(`SELECT l.id,l.admin_id,l.action,l.target,l.detail,l.created_at,u.nickname AS admin_name,u.phone AS admin_phone
                             FROM admin_logs l JOIN users u ON u.id = l.admin_id
-                            ORDER BY l.created_at DESC LIMIT ?`),
+                            /* v60.8 加 id DESC 破同秒并列：created_at 是秒级，同一秒内的多条
+                               操作靠它排序结果是未定义的——审计日志要求严格时序，且 CI 快机器上
+                               一批管理动作常落在同一秒，会让「最近 N 条」随机丢条（实测踩到）。
+                               id 是 AUTOINCREMENT 严格单调，正好当插入序的 tie-breaker。 */
+                            ORDER BY l.created_at DESC, l.id DESC LIMIT ?`),
 };
 
 /* v45.3 兑换：单事务内 核销码 + 发权益 + 记 0 元订单（防并发重复兑换：redeemUse 带 used_by IS NULL 条件）。
