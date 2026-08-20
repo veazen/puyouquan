@@ -396,7 +396,7 @@ const T = (ok, name, detail) => {
       const per = SR / 440, ls = Math.round(per * 20) / SR, le = Math.round(per * 400) / SR;
       const play = async (withLoop) => {
         SF_LOOPS[NAME] = withLoop ? { 69: [ls, le] } : {};
-        return await render(5.0, async (ctx, bus) => {
+        return await render(6.6, async (ctx, bus) => {
           mk(ctx);
           sfTryPlay(ctx, bus, NAME, 440, 0.05, 3.0, 0.9, null);
         });
@@ -410,12 +410,14 @@ const T = (ok, name, detail) => {
         // 接缝探针：整个循环期内的最大一阶差分，与主体峰值比
         seamRel: +(maxDiff(chL, SR * 0.3, SR * 2.9) / Math.max(1e-9, stats(chL, SR * 0.3, SR * 2.9).peak)).toFixed(4),
         /* 收音后必须真正归零——natLen=Infinity 最大的风险就是「源永不停」。
-           收音自 3.05s 起、tau=0.05 的指数衰减跑满 8tau 到 3.45s，故量 3.6s 之后：
-           此时若仍有能量，说明 stop() 没排上或包络没收完。 */
-        /* 源停在 3.47s（收音 3.05s 起、tau=0.05 跑满 8tau）。此后母线卷积混响仍有尾巴，
-           所以判据不是「绝对静音」而是「持续衰减」——源若卡住不停，电平会**恒定**而非下降。 */
-        tailA: +stats(chL, SR * 3.6, SR * 3.9).rms.toFixed(6),    // 停后 0.1~0.4s
-        tailB: +stats(chL, SR * 4.6, SR * 4.9).rms.toFixed(6),    // 停后 1.1~1.4s
+           源停在 4.65s：收音自 3.05s 起、tau 跑满 8tau。
+           **v60.9 起 tau 由 SF_REL 决定**（弦乐 0.2，此前硬编码 0.05），收音从 0.4s 变成 1.6s，
+           故这两个取样窗整体后移、渲染时长同步加到 6.6s——量的是「收音跑完之后」，
+           窗口没跟着标定走就会量在收音中段，读数偏高（本版实测踩到，非回归）。
+           此后母线卷积混响仍有尾巴，所以判据不是「绝对静音」而是「持续衰减」——
+           源若卡住不停，电平会**恒定**而非下降。 */
+        tailA: +stats(chL, SR * 4.8, SR * 5.1).rms.toFixed(6),    // 停后 0.15~0.45s
+        tailB: +stats(chL, SR * 6.0, SR * 6.3).rms.toFixed(6),    // 停后 1.35~1.65s
         body: +stats(chL, SR * 1.0, SR * 2.8).rms.toFixed(5),     // 循环主体电平（参照）
         relMid: +stats(chL, SR * 3.1, SR * 3.2).rms.toFixed(5),   // 衰减中段应仍有声（证明是平滑收音不是硬切）
       };
@@ -442,6 +444,76 @@ const T = (ok, name, detail) => {
       };
     }
 
+    // ── S v60.9 逐音色收音时长 + 力度持平音色 ──
+    //    两条都用**同一段合成采样**跑，两个音色名唯一的差别就是标定表里的值，
+    //    这样差异只可能来自新表本身，不会被真实音色包的音质差异污染。
+    {
+      const MIDI = 52, F0 = midiFreq(MIDI);
+      const keepBank = { mb: sfBanks['music_box'], ep: sfBanks['electric_piano_1'],
+        st: sfBanks['acoustic_guitar_steel'] };
+      /* 采样造成**等幅**（不自带衰减）：否则采样自身的包络会盖过收音包络，量不出 tau 的差别。 */
+      const mkBank = (ctx, name, saw) => {
+        const b = ctx.createBuffer(1, Math.floor(SR * 2.0), SR), d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) {
+          if (saw) { let v = 0; for (let h = 1; h <= 24; h++) v += Math.sin(2 * Math.PI * h * F0 * i / SR) / h;
+            d[i] = v * 0.25; }                                  // 富含高次谐波，供滤波器有东西可滤
+          else d[i] = Math.sin(2 * Math.PI * F0 * i / SR) * 0.5;
+        }
+        sfBanks[name] = { status: 'ready', notes: { [MIDI]: 1 }, buf: {} };
+        sfBanks[name].buf[ctx.sampleRate + ':' + MIDI] = { b, g: 1, o: 0 };
+      };
+
+      /* S1 收音时长：八音盒（tau 0.438，梳齿无制音机构）vs 电钢琴（tau 0.025，毡片立刻压住）。
+         同音同时值，写定时值 0.5s 结束后，八音盒应仍在响、电钢琴应已静音。 */
+      const tail = async (name) => {
+        const ctx = new OfflineAudioContext(2, SR * 2.5, SR);
+        const dry = ctx.createGain(); dry.connect(ctx.destination);
+        const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination);
+        mkBank(ctx, name, false);
+        sfTryPlay(ctx, { dry, wet }, name, F0, 0.05, 0.5, 0.9, null);
+        const ch = (await ctx.startRendering()).getChannelData(0);
+        /* after = 写定时值刚结束那一段（0.5s 时值 → 收音自 0.49s 起）：这里才是
+           「余韵长短」的用户可感处。far 再往后取一段，用来证明最终确实收净。 */
+        return { body: stats(ch, SR * 0.1, SR * 0.4).rms,
+          after: stats(ch, SR * 0.6, SR * 1.0).rms,
+          far: stats(ch, SR * 1.9, SR * 2.1).rms };
+      };
+      const mb = await tail('music_box'), ep = await tail('electric_piano_1');
+
+      /* S2 持平音色：八音盒在 SF_VEL_FLAT 里→不建低通；钢弦吉他不在→照旧滤。
+         同一段锯齿采样、同一个 vel，量 12–20 次谐波的能量差。
+         窗口取 0.15–0.65s，两者都还在满增益段，避开 S1 那条收音差异。 */
+      const hi = async (name, vel) => {
+        const ctx = new OfflineAudioContext(2, SR * 2, SR);
+        const dry = ctx.createGain(); dry.connect(ctx.destination);
+        const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination);
+        mkBank(ctx, name, true);
+        sfTryPlay(ctx, { dry, wet }, name, F0, 0.1, 1.2, 0.5, { vel });
+        const ch = (await ctx.startRendering()).getChannelData(0);
+        const goe = (f) => { const a2 = Math.floor(0.15 * SR), b2 = Math.floor(0.65 * SR), N = b2 - a2;
+          const w = 2 * Math.PI * f / SR, cw = 2 * Math.cos(w); let p0 = 0, p1 = 0, p2 = 0;
+          for (let i = 0; i < N; i++) { const win = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+            p0 = ch[a2 + i] * win + cw * p1 - p2; p2 = p1; p1 = p0; }
+          return Math.sqrt(Math.max(0, p1 * p1 + p2 * p2 - cw * p1 * p2)); };
+        let h = 0; for (let k = 12; k <= 20; k++) h += goe(k * F0);
+        return h;
+      };
+      const flatSoft = await hi('music_box', 0.45), curvSoft = await hi('acoustic_guitar_steel', 0.45);
+      sfBanks['music_box'] = keepBank.mb; sfBanks['electric_piano_1'] = keepBank.ep;
+      sfBanks['acoustic_guitar_steel'] = keepBank.st;
+
+      out.S = {
+        mbBody: +mb.body.toFixed(4), mbAfter: +mb.after.toFixed(4), mbFar: +mb.far.toFixed(5),
+        epBody: +ep.body.toFixed(4), epAfter: +ep.after.toFixed(5),
+        flatSoft: +flatSoft.toFixed(2), curvSoft: +curvSoft.toFixed(2),
+        // 表结构自洽：两张表的键都必须是真实音色名（打错字会静默失效，不报错）
+        relN: Object.keys(SF_REL).length,
+        relAllMapped: Object.keys(SF_REL).every(k => Object.values(SF_MAP).indexOf(k) >= 0),
+        flatAllMapped: Array.from(SF_VEL_FLAT).every(k => Object.values(SF_MAP).indexOf(k) >= 0),
+        flatNotSustain: Array.from(SF_VEL_FLAT).every(k => !SF_SUSTAIN.has(k)),
+      };
+    }
+
     return out;
   });
 
@@ -456,6 +528,15 @@ const T = (ok, name, detail) => {
     'R1 数拍段只有拍点、没有乐音（乐音确实整体后移）', JSON.stringify(r.R));
   T(r.R.ciMusic > 0.05, 'R2 数拍结束后乐音正常进入', 'rms=' + r.R.ciMusic);
   T(r.R.ciQuietBeforeMusic < r.R.ciMusic * 0.2, 'R3 末拍与乐音之间是安静的预备空档', 'rms=' + r.R.ciQuietBeforeMusic);
+  /* S v60.9：同一段合成采样、两个音色名，差别只来自标定表 */
+  T(r.S.mbBody > 0.05 && r.S.epBody > 0.05, 'S1a 两音色主体段都正常发声（对照基准成立）', JSON.stringify(r.S));
+  T(r.S.mbAfter > r.S.mbBody * 0.1, 'S1b 长余韵音色（八音盒）写定时值后明显仍在响', 'after=' + r.S.mbAfter + ' body=' + r.S.mbBody);
+  T(r.S.epAfter < r.S.mbAfter * 0.05, 'S1c 短余韵音色（电钢琴）同一时刻已收净', 'ep=' + r.S.epAfter + ' mb=' + r.S.mbAfter);
+  T(r.S.mbFar < r.S.mbBody * 0.01, 'S1d 长余韵最终仍收净（tau 受剩余素材封顶，不会拖到源耗尽）', 'far=' + r.S.mbFar);
+  T(r.S.flatSoft > r.S.curvSoft * 2, 'S2 持平音色弱奏不被压暗（八音盒高次谐波远高于走曲线的钢弦吉他）',
+    'flat=' + r.S.flatSoft + ' curve=' + r.S.curvSoft);
+  T(r.S.relN === 12 && r.S.relAllMapped, 'S3a SF_REL 覆盖全部 12 音色且键名都是真实音色名', 'n=' + r.S.relN);
+  T(r.S.flatAllMapped && r.S.flatNotSustain, 'S3b SF_VEL_FLAT 键名有效且不含持续音色（持续音色本就不过滤波器）', '');
   T(r.A.dec && r.A.bodyPeak > 0.02, 'A1 采样路径有效（let-ring 主体有声）', 'peak=' + r.A.bodyPeak);
   T(r.A.tailRms < 0.001, 'A2 let-ring 收尾静音（buffer 耗尽后无残响）', 'tailRms=' + r.A.tailRms);
   T(r.A.clickRel < 0.3, 'A3 截断点无爆点（一阶差分相对主体峰值）', 'rel=' + r.A.clickRel);
