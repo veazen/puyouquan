@@ -73,27 +73,32 @@ const T = (ok, name, detail) => {
       tk: (col(0).notes.find(n => n.s === 3) || {}).tk ? [col(0).notes.find(n => n.s === 3).tk.ci,
         col(0).notes.find(n => n.s === 3).tk.si] : null };
 
-    // ── D 渲染层：扫弦列必须真的画出一条弧，且位置在谱表下方、符杠上方 ──
+    // ── D 渲染层：扫弦列必须真的画出一条弧，位置在六线谱**上方**，且给和弦图让出了位 ──
+    const staffTopNow = () => Math.min(...Array.from(document.querySelectorAll('#score .strumcell'))
+      .map(c => c.getBBox().y));
     fresh(); render();
     out.arcBefore = arcs().length;
+    out.staffTopNoTie = +staffTopNow().toFixed(1);   // 无连音线时的谱表顶（对照）
     selRange = { row: 'tab', vi: 0, m1: 0, c1: 1, m2: 0, c2: 2 };
     toggleTie(); selRange = null; noteSel = []; blurSel = true; render();
     const aa = arcs();
     out.arcAfter = aa.length;
     if (aa.length === 1) {
       const a = aa[0];
-      // 参照几何：扫弦热区（=TAB 谱表）上下沿，以及被连的两列 x
-      const cells = Array.from(document.querySelectorAll('#score .strumcell'));
-      const bb = cells.map(c => c.getBBox ? c.getBBox() : null);
-      const staffTop = Math.min(...bb.map(b => b.y)), staffBot = Math.max(...bb.map(b => b.y + b.height));
+      const bb = Array.from(document.querySelectorAll('#score .strumcell')).map(c => c.getBBox());
+      const staffTop = Math.min(...bb.map(b => b.y));
       const cx = i => bb[i].x + bb[i].width / 2;
       out.geo = {
-        flat: Math.abs(a.y1 - a.y2) < 0.6,          // 两端等高（不是斜穿）
-        belowStaff: a.y1 > staffBot,                 // 在谱表下方（不撞上方的和弦图）
-        spansPair: a.x1 > cx(1) - 2 && a.x2 < cx(2) + 2 && a.x2 > a.x1,  // 恰好跨第2→第3列
-        y: +a.y1.toFixed(1), staffBot: +staffBot.toFixed(1),
+        flat: Math.abs(a.y1 - a.y2) < 0.6,                                // 两端等高（不是斜穿）
+        aboveStaff: a.y1 < staffTop,                                      // 画在六线谱上方
+        spansPair: a.x1 > cx(1) - 2 && a.x2 < cx(2) + 2 && a.x2 > a.x1,   // 恰好跨第2→第3列
+        y: +a.y1.toFixed(1), staffTop: +staffTop.toFixed(1),
         x1: +a.x1.toFixed(1), x2: +a.x2.toFixed(1), c1x: +cx(1).toFixed(1), c2x: +cx(2).toFixed(1),
       };
+      /* 让位验证：本行有和弦图（fresh 里给第 1 列挂了 G），加上连音线后整个谱表应被
+         diagExtra 往下推 14px——这就是「弧不会压到和弦图」的可复算证据，
+         比拿和弦图那张图的墨迹去比对稳得多。 */
+      out.headroom = +(staffTop - out.staffTopNoTie).toFixed(1);
     }
     return out;
   });
@@ -111,9 +116,11 @@ const T = (ok, name, detail) => {
   T(r.arcBefore === 0 && r.arcAfter === 1,
     'D1 扫弦列真的画出连音线，且整个和弦只画一条（无品位数字可依附，逐弦 6 条不合刻版惯例）',
     '前=' + r.arcBefore + ' 后=' + r.arcAfter);
-  T(!!(r.geo && r.geo.flat && r.geo.belowStaff && r.geo.spansPair),
-    'D2 弧位几何：两端等高 · 落在谱表下方（不撞行内和弦图）· 恰好跨被连的两列',
-    JSON.stringify(r.geo));
+  T(!!(r.geo && r.geo.flat && r.geo.aboveStaff && r.geo.spansPair),
+    'D2 弧位几何：两端等高 · 画在六线谱上方 · 恰好跨被连的两列', JSON.stringify(r.geo));
+  T(r.headroom >= 13 && r.headroom <= 15,
+    'D3 有和弦图时整行被 diagExtra 下推 14px 让出弧位（弧不会压到和弦图）',
+    '下推=' + r.headroom + 'px');
 
   if (errs.length) { fail++; console.log('❌ 页面报错: ' + errs.slice(0, 3).join(' | ')); }
   else console.log('NO ERRORS');
