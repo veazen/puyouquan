@@ -100,8 +100,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   console.log((ok8 ? '✅' : '❌') + ' T8 重复乐句同配: 和弦=' + t8.ch + ' 前后两句一致=' + t8.same + ' 套路=' + (t8.marks || '(无)'));
   if (ok8) pass++;
 
-  console.log('PASS ' + pass + '/8');
+  // T9 套路词典（v60.22）：情绪来自上游 mood，风格由和声内容推定。
+  //    最要紧的一条不变量——**上游的情绪词不许有一个被静默丢掉**：将来重跑 prog-import 若上游添了新词，
+  //    没进 PROG_EMO_MAP 就会悄悄消失（标签少了没人看得出来），这条让它当场转红。
+  const t9 = await pg.evaluate(`(()=>{
+    const words=new Set(), unmapped=[];
+    PROG_TPL.forEach(t=> String(t.mood||'').split(/\\s+/).forEach(w=>{ if(w) words.add(w); }));
+    words.forEach(w=>{ if(!PROG_EMO_MAP[w]) unmapped.push(w); });
+    const noMood=PROG_TPL.filter(t=>!t.mood).map(t=>t.id);
+    const noEmo=PROG_TPL.filter(t=>!progTags(t).emo.length).map(t=>t.id);
+    const noSty=PROG_TPL.filter(t=>!progTags(t).sty.length).map(t=>t.id);
+    const badSty=PROG_TPL.filter(t=>progTags(t).sty.some(x=>PROG_STY_ALL.indexOf(x)<0)).map(t=>t.id);
+    const g=id=>progTags(PROG_TPL.find(t=>t.id===id)).sty.join('/');
+    return { n:PROG_TPL.length, nWord:words.size, unmapped, noMood, noEmo, noSty, badSty,
+             s1564:g('1564'), s4536:g('4536'), s251:g('251'), s1451:g('1451'), sm1767:g('m1767') };
+  })()`);
+  // 抽查五条众所周知的：万能进行=流行、4536=流行（不是古典）、2-5-1=爵士、1-4-5-1=民谣、小调 6415=流行+中国风
+  const ok9 = !t9.unmapped.length && !t9.noMood.length && !t9.noEmo.length && !t9.noSty.length
+    && !t9.badSty.length && t9.s1564 === '流行' && t9.s4536 === '流行' && t9.s251 === '爵士'
+    && t9.s1451 === '民谣' && t9.sm1767 === '流行/中国风';
+  console.log((ok9 ? '✅' : '❌') + ' T9 套路词典: ' + t9.n + ' 条 / ' + t9.nWord + ' 个上游情绪词，未映射='
+    + (t9.unmapped.join(',') || '无') + ' 无 mood=' + (t9.noMood.length) + ' 无情绪=' + t9.noEmo.length
+    + ' 无风格=' + t9.noSty.length + ' | 1-5-6-4→' + t9.s1564 + ' 4-5-3-6→' + t9.s4536
+    + ' 2-5-1→' + t9.s251 + ' 1-4-5-1→' + t9.s1451 + ' i-♭VII-♭VI→' + t9.sm1767);
+  if (ok9) pass++;
+
+  console.log('PASS ' + pass + '/9');
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === 8 && !errs.length ? 0 : 1);
+  process.exit(pass === 9 && !errs.length ? 0 : 1);
 })();

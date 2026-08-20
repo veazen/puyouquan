@@ -2517,21 +2517,21 @@ function phraseSegments(s2, vi){
    套路配不上旋律就退回自由解，否则「所有歌都配 1-5-6-4」是另一种低级。
    slots 每格是**一组可接受候选**（如 ['V','V7']），格内按发射分自选，故属七终止等既有行为不被套路抹平。 */
 const PROG_TPL=[
-  {id:'1564', name:'1-5-6-4',            mode:'M', rot:true,  w:0.30, slots:[['I'],['V','V7'],['vi'],['IV']]},
-  {id:'1645', name:'1-6-4-5（50s）',      mode:'M', rot:true,  w:0.24, slots:[['I'],['vi'],['IV'],['V','V7']]},
-  {id:'4536', name:'4-5-3-6',            mode:'M', rot:true,  w:0.24, slots:[['IV'],['V','V7'],['iii'],['vi']]},
-  {id:'canon',name:'卡农进行',            mode:'M', rot:false, w:0.30, slots:[['I'],['V'],['vi'],['iii'],['IV'],['I'],['IV'],['V','V7']]},
-  {id:'1451', name:'1-4-5-1',            mode:'M', rot:false, w:0.26, slots:[['I'],['IV'],['V','V7'],['I']]},
-  {id:'1415', name:'1-4-1-5',            mode:'M', rot:false, w:0.20, slots:[['I'],['IV'],['I'],['V','V7']]},
-  {id:'251',  name:'2-5-1',              mode:'M', rot:false, w:0.22, slots:[['ii'],['V','V7'],['I']]},
+  {id:'1564', name:'1-5-6-4',            mode:'M', rot:true,  w:0.30, mood:'Hopeful Nostalgic', slots:[['I'],['V','V7'],['vi'],['IV']]},
+  {id:'1645', name:'1-6-4-5（50s）',      mode:'M', rot:true,  w:0.24, mood:'Nostalgic Tender', slots:[['I'],['vi'],['IV'],['V','V7']]},
+  {id:'4536', name:'4-5-3-6',            mode:'M', rot:true,  w:0.24, mood:'Hopeful Romantic', slots:[['IV'],['V','V7'],['iii'],['vi']]},
+  {id:'canon',name:'卡农进行',            mode:'M', rot:false, w:0.30, mood:'Romantic Nostalgic', slots:[['I'],['V'],['vi'],['iii'],['IV'],['I'],['IV'],['V','V7']]},
+  {id:'1451', name:'1-4-5-1',            mode:'M', rot:false, w:0.26, mood:'Joyful Triumphant', slots:[['I'],['IV'],['V','V7'],['I']]},
+  {id:'1415', name:'1-4-1-5',            mode:'M', rot:false, w:0.20, mood:'Peaceful Joyful', slots:[['I'],['IV'],['I'],['V','V7']]},
+  {id:'251',  name:'2-5-1',              mode:'M', rot:false, w:0.22, mood:'Romantic Hopeful', slots:[['ii'],['V','V7'],['I']]},
   /* 主属交替：流行向的进行库（含本版导入的 free-midi-chords）整族没有它，但儿歌/传统民歌大量在用。
      **不开旋转**——开了之后 V-I-V-I 这一相位会把属和弦放到乐句头上，实测把「玛丽有只小羊羔」从 8/8 打到 6/8。 */
-  {id:'i5alt',name:'1-5 交替',            mode:'M', rot:false, w:0.24, slots:[['I'],['V','V7'],['I'],['V','V7']]},
-  {id:'m1767',name:'i-♭VII-♭VI-♭VII',    mode:'m', rot:false, w:0.30, slots:[['i'],['VII'],['VI'],['VII']]},
-  {id:'m1637',name:'i-♭VI-♭III-♭VII',    mode:'m', rot:true,  w:0.28, slots:[['i'],['VI'],['III'],['VII']]},
-  {id:'mand', name:'安达卢西亚 i-♭VII-♭VI-V', mode:'m', rot:false, w:0.26, slots:[['i'],['VII'],['VI'],['V','V7']]},
-  {id:'m1451',name:'i-iv-v-i',           mode:'m', rot:false, w:0.26, slots:[['i'],['iv'],['v','V','V7'],['i']]},
-  {id:'m1473',name:'i-iv-♭VII-♭III',     mode:'m', rot:false, w:0.22, slots:[['i'],['iv'],['VII'],['III']]},
+  {id:'i5alt',name:'1-5 交替',            mode:'M', rot:false, w:0.24, mood:'Joyful Playful', slots:[['I'],['V','V7'],['I'],['V','V7']]},
+  {id:'m1767',name:'i-♭VII-♭VI-♭VII',    mode:'m', rot:false, w:0.30, mood:'Mysterious Rebellious', slots:[['i'],['VII'],['VI'],['VII']]},
+  {id:'m1637',name:'i-♭VI-♭III-♭VII',    mode:'m', rot:true,  w:0.28, mood:'Nostalgic Mysterious', slots:[['i'],['VI'],['III'],['VII']]},
+  {id:'mand', name:'安达卢西亚 i-♭VII-♭VI-V', mode:'m', rot:false, w:0.26, mood:'Dark Dramatic', slots:[['i'],['VII'],['VI'],['V','V7']]},
+  {id:'m1451',name:'i-iv-v-i',           mode:'m', rot:false, w:0.26, mood:'Sad Lonely', slots:[['i'],['iv'],['v','V','V7'],['i']]},
+  {id:'m1473',name:'i-iv-♭VII-♭III',     mode:'m', rot:false, w:0.22, mood:'Sad Hopeful', slots:[['i'],['iv'],['VII'],['III']]},
   /* ↓↓ 以下 83 条由 deploy/prog-import.py 从 free-midi-chords 导入并归一化 ↓↓
      来源 https://github.com/ldrolez/free-midi-chords —— MIT License, Copyright (c) 2019 Ludovic Drolez
      该项目的进行表在源码里本就是「级数文本 + 情绪标签」，故只取级数序列这一层，未使用其任何 MIDI 文件。
@@ -2622,6 +2622,67 @@ const PROG_TPL=[
   {id:'xdm1', name:'i-III-VI-V', mode:'m', rot:false, w:0.18, mood:'Mysterious Triumphant', slots:[['i'],['III'],['VI'],['V']]},
   {id:'xdm2', name:'i-VI-iv-V', mode:'m', rot:false, w:0.18, mood:'Triumphant', slots:[['i'],['VI'],['iv'],['V']]},
 ];
+/* ===== v60.22 A6 套路词典：风格 / 情绪标签 =====
+   两个轴的**来源完全不同**，别当成一回事：
+   · 情绪 —— 是**上游真数据**。free-midi-chords 的进行表本来就是「级数序列 = 情绪词」，
+     导入时已原样存进 mood 字段（83 条全有，19 个英文词）；13 条手写核心套路照同一套词汇手工补齐。
+     这里只做「英文词 → 中文桶」的归并，不改判定。
+   · 风格 —— 上游**没有**，由和声内容按下面的规则**推定**。推定就是推定：判据写在代码里可复核，
+     一条进行同时算两三种风格很正常（卡农既是流行也是古典），故为多标签。
+   两条踩过的弯路，记下来免得再来一遍：
+   ① 一度想判「摇滚」，判据取「含 ♭VII/♭VI」——结果 96 条里 45 条中标。因为 ♭VII/♭VI 在**小调里是自然音级**，
+      根本不是摇滚标记；真正的摇滚标记是**大调里的模态借用**，而借用和弦还没进候选集（见路线图），
+      现在根本没有可判的素材。故不设「摇滚」桶——宁可不给，也不给一个错的。
+   ② 一度用「含 iii → 古典」，把 4-5-3-6 判成古典。4536 是国内流行的王道进行，iii 在这里毫无古典意味。
+      改成「顺阶模进（长度≥5 且含 iii）或含 iii 但不含 vi」，4536 才归回流行。 */
+const PROG_EMO_MAP = {
+  Joyful:'欢快', Excited:'欢快', Playful:'欢快',
+  Triumphant:'激昂', Empowered:'激昂', Rebellious:'激昂',
+  Tender:'温柔', Romantic:'温柔', Peaceful:'温柔', Spiritual:'温柔',
+  Hopeful:'希望', New:'希望',
+  Nostalgic:'怀旧',
+  Sad:'忧伤', Lonely:'忧伤',
+  Mysterious:'暗色', Dark:'暗色', Dramatic:'暗色', Surprised:'暗色',
+};
+const PROG_EMO_ALL = ['欢快','激昂','温柔','希望','怀旧','忧伤','暗色'];
+const PROG_STY_ALL = ['流行','民谣','爵士','古典','中国风','通用'];
+/* 四五度下行链：ii-V-I 这一族的判据。只取顺阶的那几环，不含 I→IV——
+   否则 1-4 起头的民谣进行会被算成链。链长 ≥3 个和弦（即 ≥2 环）才算爵士。 */
+const PROG_F5_M = {iii:'vi', vi:'ii', ii:'V', V:'I', V7:'I'};
+const PROG_F5_m = {VII:'III', III:'VI', VI:'ii0', ii0:'v', v:'i', V:'i', V7:'i'};
+const PROG_TAG_CACHE = {};
+function progTags(tpl){
+  if(PROG_TAG_CACHE[tpl.id]) return PROG_TAG_CACHE[tpl.id];
+  const ids = tpl.slots.map(s => s[0]);        // 每格的首选级数即该格的代表和弦
+  const S = {}; ids.forEach(x => { S[x] = 1; });
+  const has = x => !!S[x];
+  const only = list => ids.every(x => list.indexOf(x) >= 0);
+  const minor = tpl.mode === 'm', L = ids.length, sty = [];
+  if(!minor){
+    if(has('vi') && only(['I','ii','iii','IV','V','V7','vi'])) sty.push('流行');
+    if(only(['I','IV','V','V7'])) sty.push('民谣');
+    if((L >= 5 && has('iii')) || (has('iii') && !has('vi'))) sty.push('古典');
+  } else {
+    if(has('VI') && only(['i','VI','III','VII'])) sty.push('流行');
+    if(only(['i','iv','v','V','V7'])) sty.push('民谣');
+    if(has('V') || has('V7')) sty.push('古典');                    // 小调用导音 = 和声小调 = 传统/古典写法
+    if(has('VII') && !has('V') && !has('V7')) sty.push('中国风');   // 自然小调、无导音，国内流行的小调色彩
+  }
+  const F = minor ? PROG_F5_m : PROG_F5_M;
+  let run = 1, best = 1;
+  for(let i = 1; i < L; i++){ run = (F[ids[i-1]] === ids[i]) ? run + 1 : 1; if(run > best) best = run; }
+  if(best >= 3) sty.push('爵士');
+  if((tpl.id === 'canon' || tpl.id === 'mand') && sty.indexOf('古典') < 0) sty.push('古典');
+  if(!sty.length) sty.push('通用');
+
+  const emo = [];
+  String(tpl.mood || '').split(/\s+/).forEach(w => {
+    const c = PROG_EMO_MAP[w];
+    if(c && emo.indexOf(c) < 0) emo.push(c);
+  });
+  emo.sort((a, b) => PROG_EMO_ALL.indexOf(a) - PROG_EMO_ALL.indexOf(b));
+  return (PROG_TAG_CACHE[tpl.id] = { sty, emo });
+}
 const PROG_PRIOR=0.30;      // 每小节先验：套路每比自由解少这么多分仍可接受（≈一步转移分的量级）
 let PROG_LAST={segs:[], marks:[]};   // 上一次配和弦的乐句切分与命中套路（供测试与将来的智能栏展示）
 /* 段级套路匹配：ctx={CAND, emit, trans, minor, N}；返回 {idx, marks:[{a,b,tpl,rot,name}]} */
@@ -3066,7 +3127,10 @@ function chordLabTplRank(a, b){
   r.CAND.forEach((c, i) => { byId[c.id] = i; });
   return PROG_TPL.map(t => {
     const f = progFitSpan(r.ctx, byId, a, b, t);
-    return f ? { id: t.id, name: progLabel(t.name), score: f.sc, ids: f.ids, cad: f.cad } : null;
+    if(!f) return null;
+    const tg = progTags(t);
+    return { id: t.id, name: progLabel(t.name), score: f.sc, ids: f.ids, cad: f.cad,
+             sty: tg.sty, emo: tg.emo };
   }).filter(Boolean).sort((x, y) => y.score - x.score);
 }
 function chordLabTplApply(a, b, tplId){
@@ -3173,16 +3237,33 @@ function chordLabRender(){
   chordLabBind();
 }
 
+/* 换套路面板：风格 / 情绪两个分类筛选 + 按契合度排序的候选。
+   筛选只收窄候选集合，**不改排序口径**——排在前面的仍然是引擎认为最贴这段旋律的那条。 */
 function chordLabTplPanel(a, b){
-  const rank = chordLabTplRank(a, b);
-  const shown = chordLab.tplMore ? rank : rank.slice(0, 6);
-  return '<div class="cl-tplbar"><span class="cl-tt">换套路（按契合度排序）</span>'
+  const L = chordLab;
+  const all = chordLabTplRank(a, b);
+  const rank = all.filter(t => (!L.fSty || t.sty.indexOf(L.fSty) >= 0)
+                            && (!L.fEmo || t.emo.indexOf(L.fEmo) >= 0));
+  /* 下拉里只列**当前这段旋律真配得上**的标签，并带上条数——列一堆点了是空的选项等于骗人 */
+  const cnt = (key, v) => all.filter(t => t[key].indexOf(v) >= 0).length;
+  const opts = (key, cur, list) => list.map(v => { const n = cnt(key, v); return n
+      ? '<option value="' + v + '"' + (cur === v ? ' selected' : '') + '>' + v + ' ' + n + '</option>' : ''; }).join('');
+  const shown = L.tplMore ? rank : rank.slice(0, 6);
+  return '<div class="cl-tplbar"><span class="cl-tt">换套路</span>'
+    + '<select class="cl-sel" id="cl-fsty"><option value="">风格 · 全部</option>'
+    + opts('sty', L.fSty, PROG_STY_ALL) + '</select>'
+    + '<select class="cl-sel" id="cl-femo"><option value="">情绪 · 全部</option>'
+    + opts('emo', L.fEmo, PROG_EMO_ALL) + '</select>'
+    + '<span class="cl-tt">' + rank.length + ' 条 · 按契合度排序</span>'
+    + '<span class="cl-tplrow">'
     + '<button class="cl-chip free" data-cl-tpl="free" data-cl-a="' + a + '" data-cl-b="' + b + '">自由解</button>'
-    + shown.map(t => '<button class="cl-chip" data-cl-tpl="' + esc(t.id) + '" data-cl-a="' + a
-        + '" data-cl-b="' + b + '">' + esc(t.name) + '</button>').join('')
+    + (shown.length ? shown.map(t => '<button class="cl-chip" data-cl-tpl="' + esc(t.id) + '" data-cl-a="' + a
+        + '" data-cl-b="' + b + '" title="' + esc(t.sty.concat(t.emo).join(' · ')) + '">' + esc(t.name)
+        + (t.emo.length ? '<i class="cl-tg">' + esc(t.emo[0]) + '</i>' : '') + '</button>').join('')
+       : '<span class="cl-tt">这段旋律没有该分类下配得上的套路，换个筛选或用「自由解」</span>')
     + (rank.length > 6 ? '<button class="cl-chip more" data-cl-more="1">'
-        + (chordLab.tplMore ? '收起' : '更多 ' + (rank.length - 6)) + '</button>' : '')
-    + '</div>';
+        + (L.tplMore ? '收起' : '更多 ' + (rank.length - 6)) + '</button>' : '')
+    + '</span></div>';
 }
 
 function chordLabCSS(){
@@ -3209,6 +3290,9 @@ function chordLabCSS(){
     + '.cl-chip{min-height:36px;padding:5px 10px;border:1px solid var(--line);border-radius:16px;'
     + 'background:var(--bg);font-size:12.5px;cursor:pointer}'
     + '.cl-chip.free{border-style:dashed}.cl-chip.more{color:var(--muted)}'
+    + '.cl-chip .cl-tg{font-style:normal;color:var(--muted);font-size:11px;margin-left:5px}'
+    + '.cl-sel{min-height:36px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}'
+    + '.cl-tplrow{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center}'
     + '.cl-det{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}'
     + '.cl-dh{font-size:12.5px;margin-bottom:6px}'
     + '.cl-hint{color:var(--muted);font-size:11.5px}'
@@ -3239,6 +3323,8 @@ function chordLabCSS(){
     + '.cl-scroll{max-height:26vh}.cl-list{max-height:21vh}'
     + '.cl-cand .cl-fn{display:none}.cl-cand .cl-nm{width:52px}'
     + '.cl-hint{display:none}'
+    /* 筛选下拉与套路 chip 在手机上也得够得着（面板其余可点区域已 ≥44px，这两处别落下） */
+    + '.cl-chip,.cl-sel{min-height:44px}.cl-sel{flex:1;min-width:0}'
     + '.cl-btns{flex-wrap:wrap}.cl-btns .ghost,.cl-btns .primary{flex:1;min-height:44px}.cl-sp{display:none}'
     + '}</style>';
 }
@@ -3267,6 +3353,10 @@ function chordLabBind(){
   });
   const more = M.querySelector('[data-cl-more]');
   if(more) more.onclick = () => { chordLab.tplMore = !chordLab.tplMore; chordLabRender(); };
+  /* 换筛选后回到前 6 条：筛完只剩 3 条却还挂着「收起」，看着像坏了 */
+  const fs = M.querySelector('#cl-fsty'), fe = M.querySelector('#cl-femo');
+  if(fs) fs.onchange = () => { chordLab.fSty = fs.value; chordLab.tplMore = false; chordLabRender(); };
+  if(fe) fe.onchange = () => { chordLab.fEmo = fe.value; chordLab.tplMore = false; chordLabRender(); };
   /* 乐句列表是个限高滚动区：展开套路条时把它带进视野，否则点开了却看不见（尤其手机） */
   const bar = M.querySelector('.cl-tplbar');
   if(bar && bar.scrollIntoView) bar.scrollIntoView({ block: 'nearest' });
@@ -3280,6 +3370,7 @@ function chordLabBind(){
   if(g('cl-reset1')) g('cl-reset1').onclick = () => { delete chordLab.picks[chordLab.sel]; chordLabRender(); };
   if(g('cl-resetall')) g('cl-resetall').onclick = () => {
     chordLab.picks = {}; chordLab.tpl = {}; chordLab.mode = 'auto'; chordLab.tplOpen = -1;
+    chordLab.fSty = ''; chordLab.fEmo = '';
     chordLabCalc(); chordLabRender(); };
   if(g('cl-cancel')) g('cl-cancel').onclick = () => { chordLab = null; closeModal(); };
   if(g('cl-ok')) g('cl-ok').onclick = () => chordLabApply();
@@ -3311,7 +3402,7 @@ function chordLabOpen(){
   if(!song.measures.some(m => (m.voxes[vi] || []).some(c => c.deg)))
     return toast('先录入旋律，再打开配和弦工作台');
   chordLab = { vi, mode: (song.mode === 'major' || song.mode === 'minor') ? song.mode : 'auto',
-               picks: {}, tpl: {}, sel: 0, selBeat: 0, tplOpen: -1, tplMore: false };
+               picks: {}, tpl: {}, sel: 0, selBeat: 0, tplOpen: -1, tplMore: false, fSty: '', fEmo: '' };
   chordLabCalc();
   chordLabRender();
 }
@@ -18545,7 +18636,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.21';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.22';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -18568,6 +18659,7 @@ const APP_VER='v60.21';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.22</span><div><b>套路词典：96 条和弦进行按「风格 / 情绪」分类，换套路时可筛</b>（用户指示：「和弦套路按音乐风格和情绪标签给出分类选项」）：套路库涨到 96 条之后，「换套路」列表按契合度排完还是一长串，想找「爵士味的」「忧伤的」只能一条条试。本版给每条套路打上两组标签，面板顶部加<b>风格</b>、<b>情绪</b>两个下拉，筛完仍按契合度排序。<b>① 两组标签的来源完全不同，产品里也分开讲</b>：<b>情绪是上游真数据</b>——free-midi-chords 的进行表本来就是「级数序列 = 情绪词」，导入时已原样存下（83 条全有，19 个英文词），本版只做「英文词 → 中文桶」的归并，归成<b>欢快／激昂／温柔／希望／怀旧／忧伤／暗色</b>七类；13 条手写核心套路上游没有，按同一套词汇手工补齐。<b>风格上游没有</b>，由和声内容<b>按规则推定</b>：词汇只用三个正三和弦→民谣；万能四和弦家族→流行；四五度连锁≥3 个和弦→爵士；顺阶模进含 iii 或小调用导音→古典；小调含 ♭VII 且无导音→中国风；判据都写在代码里可复核，一条进行同时属于两三种风格很正常（卡农既是流行也是古典），故为多标签。<b>② 两条错误规则被数据当场证伪，记下来免得再犯</b>：其一，本想判「摇滚」，判据取「含 ♭VII/♭VI」——96 条里 45 条中标，因为 <b>♭VII/♭VI 在小调里是自然音级</b>，根本不是摇滚标记；真正的摇滚标记是<b>大调里的模态借用</b>，而借用和弦还没进候选集，<b>现在根本没有可判的素材，故不设「摇滚」桶——宁可不给，也不给一个错的</b>。其二，本用「含 iii → 古典」，把 <code>4-5-3-6</code> 判成古典，可 4536 是国内流行的王道进行；改成「长度≥5 的顺阶模进，或含 iii 但不含 vi」，4536 才归回流行。<b>③ 下拉里只列这段旋律真配得上的标签并带条数</b>（如「爵士 4」），点了是空的选项不给列；筛完为空时给一句话出路，不留空白。套路 chip 上直接带首要情绪词（<code>1-5-6-4 希望</code>），不用打开下拉也看得见。<b>④ 手机上照样能点</b>：筛选下拉与套路 chip 一并抬到 <b>≥44px</b>，窄屏两个下拉平分一行；T11 新增断言把这两处也量进去。新增 <code>tv_prog</code> T9（<b>上游情绪词一个都不许被静默丢掉</b>——将来重跑导入若上游添了新词，没进映射表会悄悄消失，这条让它当场转红；外加五条众所周知的抽查：1-5-6-4→流行、4-5-3-6→流行、2-5-1→爵士、1-4-5-1→民谣、小调 6415→流行/中国风）与 <code>tv_chordlab</code> T12（筛选收窄候选、下拉条数与实算一致、清空复原），8→9 与 11→12 项，<b>55 套件</b>全绿。</div></li>
     <li><span class="v">v60.21</span><div><b>配和弦工作台二版：乐句级换套路 + 每拍逐格编辑，一套界面手机上照样用</b>（用户指示：「乐句级换套路；每拍和弦的逐格编辑。界面设计要符合智能／简单／高效，移动端通用」）：上一版只能<b>逐小节</b>换和弦——想让整句改走另一条进行得一格一格点，想在第三拍换和弦则根本做不到。本版把面板改成<b>三层</b>，越往下越细，默认只暴露最上面一层。① <b>乐句级换套路</b>：每个乐句行首的按钮显示该句现在用的是哪条进行（或「自由解」），点开列出<b>按契合度排好序</b>的候选套路，点一下整句换掉，再点「自由解」原样退回引擎的解。② <b>每拍逐格编辑</b>：点一个小节，下方展开该小节的<b>拍位条</b>（几拍就几格）；点某一拍，候选清单换成「<b>这一拍起</b>」的候选，点选即换并试听——半小节换和弦、第三拍插一个属七，现在都点得出来；小节格上会用 <code>C·G</code> 这样的写法显示一小节里的多个和弦。③ <b>分数仍然一份都不新写</b>：整小节口径用引擎的发射分 <code>emit</code>（Viterbi 挑和弦用的就是它），子区间口径用 <code>chordRangeScore</code>（引擎拆半小节用的同一把尺子），换套路的排序用 <code>progFitSpan</code>（这一版从 <code>applyProgTemplates</code> 里抽出来，自动挡和手动挡从此共用同一段代码）——所以<b>面板上排第一的，就是引擎自己会选的</b>；<code>tv_chordlab</code> T2／T3／T6 分别钉住这三条同源关系，其中 T3 特意挑了一个「整小节口径与后半段口径答案不同」的小节，面板若偷懒对所有拍都用整小节分数，这条立刻变红。④ <b>手机上是一等公民</b>：所有可点区域<b>≥44px</b>，栅格自动换行，不依赖 hover；窄屏下乐句标签占满整行把小节格让出完整宽度、隐藏次要的功能列（分数条已经表达了优先级）、底部按钮拉平。新增 T11 在 <b>360×740</b> 真窄屏视口里断言「横向零溢出 + 触控目标 ≥44px + 标签整行」。⑤ 上一版的四条约束一条没松：谱面已有和弦仍优先且分色标出、调式仍可手动覆盖并记进 <code>song.mode</code>、应用仍是一次可撤销的整体写入、取消仍一个字都不写。⑥ <b>两处只有截图才看得出来的毛病，顺手一并修了</b>：其一，标「来源=套路」的小节格类名与新加的套路条容器类名撞车（都叫 <code>cl-tpl</code>），被套路条的整行样式带得<b>每个小节格独占一行</b>——断言全绿、肉眼一看就不对，已改名并补上「同乐句的小节格必须排成一行」的几何断言；其二，手机上面板太高，<b>「应用到谱面」被挤出首屏</b>要滚动才够得着（360×780 溢出 67px），已压窄屏两个滚动区并加断言钉住。<code>tv_chordlab</code> 7→<b>11 项</b>，<b>55 套件</b>全绿。</div></li>
     <li><span class="v">v60.20</span><div><b>配和弦工作台：把「一键配和弦」升级成可逐小节推敲的专业面板</b>（用户指示：「自动编配和弦做成一个专业的工具，编辑谱时点击弹出一个独立界面」）：此前配和弦只有一个「一键」按钮——按下去就写满全谱，<b>配得对不对、为什么这么配、想改某一小节怎么办，全都看不见也管不着</b>。本版给它一个独立面板。① <b>面板长什么样</b>：顶栏显示 <code>1=调号</code>、<b>调式判别结果（可手动改成大调/小调）</b>、乐句数与小节数、手改处数；中间<b>按乐句分行</b>（A3 切分），行首标出该乐句<b>命中了哪条进行套路</b>（A8），行内每个小节一个格子显示当前和弦；下方是选中小节的<b>候选清单</b>——列出全部候选和弦，标注功能（主／下属／属），按<b>旋律契合度排序并画分数条</b>，点一下即换、同时试听。② <b>分数不是新算的</b>：面板显示的分数就是引擎实际用的发射分——为此把 <code>suggestChords</code> 拆成 <code>chordSolve</code>（返回解 + 过程数据）与一层薄封装。<b>不另写一份打分实现</b>，否则面板上看到的分数迟早会和引擎实际用的漂移；<code>tv_chordlab</code> T2 专门钉这一条：逐小节比对「面板首位候选」与「emit 最高候选」，8/8 必须一致。③ <b>不静默覆盖用户已经写好的东西</b>：谱面上已有的和弦<b>优先于</b>引擎建议进入面板，并标为「谱面已有」（与「套路」「自动」「手改」四种来源分色显示），看得见哪些是你自己写的。④ <b>调式判错不必回去改谱</b>：面板上直接切大调/小调即刻重算；确认应用时把选择记进 <code>song.mode</code>（新增字段，不动任何既有字段），否则下次自动重算又会判回去。⑤ <b>写回是一次可撤销的整体操作</b>：应用后 Ctrl+Z 一步还原；取消则一个字都不写。⑥ <b>顺带修了套路名的显示</b>：从 free-midi-chords 导入的条目用罗马级数命名（<code>I-V-IV-vi</code>），与国内习惯的数字级数不统一，现按显示层转成 <code>1-5-4-6m</code>；小调仍保留罗马数字（<code>i / ♭VII / ♭VI</code> 一眼看出调式）。⑦ 入口两处：右栏创作页「配和弦工作台」（紧挨「一键配和弦」），经典栏同名按钮；两者显隐口径与一键配和弦一致。新增 <code>tv_chordlab</code> <b>7 项</b>（打开结构／分数同源／已有和弦优先／改+应用+撤销／调式覆盖／取消不写回／套路名显示），54→<b>55 套件</b>全绿。<b>本版只做「看得见、改得动、可撤销」</b>；乐句级换套路、半小节和弦的逐格编辑、以及试听整句，留作下一步。</div></li>
     <li><span class="v">v60.19</span><div><b>钢琴伴奏织体 15→21 套：依 POP909 的「节奏骨架统计」重写，难度同步改五级</b>（用户提问：「909 首扒谱里的钢琴伴奏节奏型能不能采纳进来？」——<b>能，但要采对那一层</b>）：① <b>先把边界划清</b>。POP909（MIT · Copyright (c) 2020 Music X Lab）是 909 首**商业中文流行歌**的扒谱，仓库许可解决的是「这份标注数据可以用」，<b>清洗不了底层音乐作品的著作权</b>。所以我们只采「不构成表达」的那一层：<b>节奏骨架</b>——左右手在拍位上的起音分布 + 右手是柱式还是分解；<b>音高内容一概不取</b>（不取音符、不取音程、不取和弦、不记曲目标识），并以<b>跨曲频次</b>为闸：只看某个骨架被<b>多少首不同的歌</b>共用。被两三百首歌共用的打法是<b>体裁惯例</b>（「低音走八分、和弦落在二四拍」这种），不是任何一首歌的表达。落地时由人按我们自己的 <code>PIANO_TEX</code> 惯例<b>重写</b>成模板，音级（1/3/5/8）本来就由和弦决定。<b>一句话：采的是「中文流行钢琴伴奏一般怎么打节奏」这个事实，不是任何一首歌怎么弹。</b>② <b>统计口径调了两轮才站得住</b>：起初按 16 分格逐格比对，908 首里出现 1956 种骨架、<b>没有一种能过 20 首的闸</b>——被演奏的细微差异打散了；退到 8 分格仍有 1584 种，且前 12 名里有 5 条其实是「左手八分但缺一格」的<b>同一个织体</b>。最终改为<b>按拍位类别归并</b>（哪几拍上有音 + 有没有后半拍），这层抽象既更稳、也离具体表达更远。全量跑完：<b>908 首 / 72191 小节</b>，过闸（≥90 首）骨架 <b>63 种</b>，覆盖 48.6% 的小节；头部骨架被 <b>186–383 首</b>歌共用。③ <b>据此补了 6 套 4/4 织体</b>（括号内为该骨架的共用曲目数）：<b>抒情长音</b>每小节各一次（212）、<b>左手流动＋右手柱式</b>（352）、<b>低音走三拍＋和弦</b>（233）、<b>仅左手流动</b>用于间奏留白（186）、<b>反拍和弦</b>右手只落二四拍（231）、<b>密集柱式推进</b>副歌型（383）。这几类此前<b>一套都没有</b>——我们原有 11 套 4/4 偏抒情与古典，缺的正是流行伴奏的高密度推进型、反拍型与留白型。④ <b>难度同步改五级</b>（入门/初级/中级/高级/专业），原来只有入门/进阶两档，与已拍板的五级对不上。<b>改完立刻踩了一个真回退</b>：两个织体弹窗把难度组<b>写死成</b> <code>['入门','进阶']</code>，改五级后初级/中级/高级三组直接不渲染，4/4 可选项从 15 掉到 <b>3</b>——被 <code>tv_acc</code> T7 当场抓住。已抽出共用的 <code>TEX_LV</code> 常量，两处弹窗都按它分组。⑤ <b>测试改成跟着库走</b>：原来三处断言钉死数字（「共 15 套」「弹窗 9 套」），加织体就得改一次；现改为<b>与 <code>PIANO_TEX</code> 实际条数一致</b>，并新增一条<b>结构性不变量</b>——每套织体左右手的时值和必须等于它声明的拍数（6/8 谱按 <code>unit=8</code> 折算，与生成器同口径）。这条比数数有用得多：写坏一套模板（多写或漏写一格）立刻转红。⑥ 21 套全部实测生成通过（拍数自洽、无 NaN、2/4·3/4·4/4·6/8 四种拍号齐备）。新增工具 <code>deploy/pop909-texture.py</code>（零依赖最小 SMF 解析，用 <code>set_tempo</code> 建 tick↔秒 映射再按重拍定小节线，不假设「从 0 起每 4 拍一小节」）。54 套件全绿。<b>仍缺</b>：专业级织体为 0 套（现有最难是十六分全分解＝高级）；伴奏仍是<b>整曲一个织体</b>，乐句级选择与段落对比是下一项。</div></li>

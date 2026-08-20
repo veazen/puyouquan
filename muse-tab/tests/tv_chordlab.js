@@ -23,7 +23,7 @@ const MEL = `
   await pg.goto(F); await pg.waitForTimeout(800);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });
   let pass = 0;
-  const N = 10;
+  const N = 11;
 
   // T1 打开与结构：格数=小节数、候选数=候选表大小、乐句行数=A3 切分数、拍位条=本小节拍数
   const t1 = await pg.evaluate(`(()=>{ ${MEL}
@@ -202,6 +202,41 @@ const MEL = `
     + ' 小调保留=' + t10.c);
   if (ok10) pass++;
 
+  // T12 分类筛选：风格/情绪下拉收窄候选，且下拉里只出现「这段旋律真配得上」的标签（带条数）
+  const t12 = await pg.evaluate(`(()=>{ ${MEL}
+    loadSong(mk()); chordLabOpen();
+    const [a,bb]=chordLab.data.segs[0];
+    document.querySelector('[data-cl-seg="0"]').click();
+    const all=chordLabTplRank(a,bb);
+    const chipIds=()=>[...document.querySelectorAll('[data-cl-tpl]')].map(c=>c.dataset.clTpl).filter(x=>x!=='free');
+    const before=chipIds().length;
+    const sel=document.getElementById('cl-fsty');
+    // 下拉里列出的每个风格都必须真有候选（条数>0），且与 rank 实算一致
+    const listed=[...sel.options].slice(1).map(o=>({v:o.value, n:+o.textContent.split(' ').pop()}));
+    const cntBad=listed.filter(o=>o.n!==all.filter(t=>t.sty.indexOf(o.v)>=0).length).length;
+    sel.value='爵士'; sel.onchange();
+    const jazz=chipIds();
+    const allJazz=jazz.every(id=>all.find(t=>t.id===id).sty.indexOf('爵士')>=0);
+    const nJazz=all.filter(t=>t.sty.indexOf('爵士')>=0).length;
+    // 情绪叠加筛选
+    const se=document.getElementById('cl-femo');
+    const emoOpt=[...se.options].slice(1)[0];
+    sel.value=''; sel.onchange();
+    se.value=emoOpt.value; se.onchange();
+    const byEmo=chipIds();
+    const allEmo=byEmo.every(id=>all.find(t=>t.id===id).emo.indexOf(emoOpt.value)>=0);
+    // 清空恢复
+    se.value=''; se.onchange();
+    return { before, listed:listed.length, cntBad, jazzShown:jazz.length, nJazz, allJazz,
+             emo:emoOpt.value, byEmo:byEmo.length, allEmo, back:chipIds().length };
+  })()`);
+  const ok12 = t12.cntBad === 0 && t12.listed >= 3 && t12.allJazz && t12.jazzShown > 0
+    && t12.jazzShown <= t12.nJazz && t12.allEmo && t12.byEmo > 0 && t12.back === t12.before;
+  console.log((ok12 ? '✅' : '❌') + ' T12 分类筛选: 风格下拉 ' + t12.listed + ' 项（条数错=' + t12.cntBad
+    + '）筛「爵士」剩 ' + t12.jazzShown + '/' + t12.nJazz + ' 且全带该标签=' + t12.allJazz
+    + ' 情绪「' + t12.emo + '」剩 ' + t12.byEmo + ' 全带=' + t12.allEmo + ' 清空后复原=' + (t12.back === t12.before));
+  if (ok12) pass++;
+
   // T11 窄屏（360×740）：不出现横向溢出、触控目标 ≥44px、乐句标签占满整行
   const pm = await b.newPage({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
   pm.on('pageerror', e => errs.push('PAGEERR(m):' + e.message));
@@ -209,12 +244,15 @@ const MEL = `
   await pm.evaluate(() => { window.guardReplace = (p) => p(); });
   const t11 = await pm.evaluate(`(()=>{ ${MEL}
     loadSong(mk()); chordLabOpen();
-    const M=document.getElementById('modal-mask');
     const h=el=>el.getBoundingClientRect().height;
+    document.querySelector('[data-cl-seg="0"]').click();      // 展开套路条，一并量筛选下拉与 chip
+    const M=document.getElementById('modal-mask');            // 点击会整体重渲染，M 必须点完再取
     const cells=[...M.querySelectorAll('[data-cl-mi]')], beats=[...M.querySelectorAll('[data-cl-beat]')];
+    const taps=[...M.querySelectorAll('.cl-chip,.cl-sel')];
     const lab=M.querySelector('.cl-lab'), row=M.querySelector('.cl-row');
     const ok=document.getElementById('cl-ok').getBoundingClientRect();
-    return { okVisible: ok.top>=0 && ok.bottom<=window.innerHeight+1,
+    return { minTap: taps.length? Math.min.apply(null, taps.map(h)) : 0, nTap: taps.length,
+             okVisible: ok.top>=0 && ok.bottom<=window.innerHeight+1,
              overflow: document.documentElement.scrollWidth - window.innerWidth,
              minCell: Math.min.apply(null, cells.map(h)),
              minBeat: Math.min.apply(null, beats.map(h)),
@@ -223,10 +261,11 @@ const MEL = `
              okWide: M.getBoundingClientRect().width <= 360 };
   })()`);
   const ok11 = t11.overflow <= 0 && t11.minCell >= 44 && t11.minBeat >= 44 && t11.labFull
-    && t11.fnHidden && t11.okWide && t11.okVisible;
+    && t11.fnHidden && t11.okWide && t11.okVisible && t11.nTap >= 3 && t11.minTap >= 44;
   console.log((ok11 ? '✅' : '❌') + ' T11 窄屏布局: 横向溢出=' + t11.overflow + 'px(期望≤0) 最小小节格='
     + t11.minCell + 'px 最小拍位格=' + t11.minBeat + 'px 乐句标签整行=' + t11.labFull
-    + ' 功能列隐藏=' + t11.fnHidden + ' 主按钮首屏可见=' + t11.okVisible);
+    + ' 功能列隐藏=' + t11.fnHidden + ' 主按钮首屏可见=' + t11.okVisible
+    + ' 筛选/chip 最小高=' + t11.minTap + 'px×' + t11.nTap + '个');
   if (ok11) pass++;
   await pm.close();
 
