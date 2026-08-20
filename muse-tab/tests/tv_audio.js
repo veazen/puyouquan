@@ -42,6 +42,14 @@ const T = (ok, name, detail) => {
       const buf = await ctx.startRendering();
       return buf.getChannelData(0);
     };
+    // 一段可辨识的持续乐音（用于数拍口径断言，不依赖采样包）
+    const mkTone = (ctx, bus, when) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 440; g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(0.4, when + 0.01);
+      g.gain.setTargetAtTime(0, when + 0.8, 0.05);
+      o.connect(g); g.connect(bus.dry); o.start(when); o.stop(when + 1.4);
+    };
     // 采样解码到指定离线 ctx（sfDecode 异步，轮询就绪）
     sfEmbedInit();
     const bank = sfBanks['acoustic_guitar_steel'];
@@ -370,9 +378,84 @@ const T = (ok, name, detail) => {
         uSpan: +span(u4).toFixed(4), uLight: u4[0].g <= 0.9,
         acc: [beatAcc(0, 4), beatAcc(2, 4), beatAcc(1, 4), beatAcc(0.5, 4), beatAcc(0.25, 4), beatAcc(3, 6)] };
     }
+
+    // ── Q v60.8 循环延音：造一段 1 秒的合成采样，让它播 3 秒 ──
+    //    有循环点 → 尾部应仍在响；抽掉循环点 → 源 1 秒耗尽，尾部必是静音。
+    //    这样断言不依赖真实音色包（内嵌采样里没有弦乐），且直接证明机制本身。
+    {
+      const NAME = 'string_ensemble_1', MIDI = 69;   // A4 → rate=1，不变速便于对齐
+      const mk = (ctx) => {
+        const b = ctx.createBuffer(1, Math.floor(SR * 1.0), SR);
+        const d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.sin(2 * Math.PI * 440 * i / SR) * 0.5;
+        sfBanks[NAME] = { status: 'ready', notes: { 69: 1 }, buf: {} };
+        sfBanks[NAME].buf[ctx.sampleRate + ':' + MIDI] = { b, g: 1, o: 0 };
+      };
+      const keepLoop = SF_LOOPS[NAME];
+      // 有循环点：整周期区间（440Hz 周期 = SR/440 样），避免测试自身引入接缝
+      const per = SR / 440, ls = Math.round(per * 20) / SR, le = Math.round(per * 400) / SR;
+      const play = async (withLoop) => {
+        SF_LOOPS[NAME] = withLoop ? { 69: [ls, le] } : {};
+        return await render(5.0, async (ctx, bus) => {
+          mk(ctx);
+          sfTryPlay(ctx, bus, NAME, 440, 0.05, 3.0, 0.9, null);
+        });
+      };
+      const chL = await play(true), chN = await play(false);
+      SF_LOOPS[NAME] = keepLoop;
+      out.Q = {
+        // 2.4–2.8s：远超 1 秒采样长度，只有循环生效才有声
+        loopTail: +stats(chL, SR * 2.4, SR * 2.8).rms.toFixed(5),
+        noLoopTail: +stats(chN, SR * 2.4, SR * 2.8).rms.toFixed(5),
+        // 接缝探针：整个循环期内的最大一阶差分，与主体峰值比
+        seamRel: +(maxDiff(chL, SR * 0.3, SR * 2.9) / Math.max(1e-9, stats(chL, SR * 0.3, SR * 2.9).peak)).toFixed(4),
+        /* 收音后必须真正归零——natLen=Infinity 最大的风险就是「源永不停」。
+           收音自 3.05s 起、tau=0.05 的指数衰减跑满 8tau 到 3.45s，故量 3.6s 之后：
+           此时若仍有能量，说明 stop() 没排上或包络没收完。 */
+        /* 源停在 3.47s（收音 3.05s 起、tau=0.05 跑满 8tau）。此后母线卷积混响仍有尾巴，
+           所以判据不是「绝对静音」而是「持续衰减」——源若卡住不停，电平会**恒定**而非下降。 */
+        tailA: +stats(chL, SR * 3.6, SR * 3.9).rms.toFixed(6),    // 停后 0.1~0.4s
+        tailB: +stats(chL, SR * 4.6, SR * 4.9).rms.toFixed(6),    // 停后 1.1~1.4s
+        body: +stats(chL, SR * 1.0, SR * 2.8).rms.toFixed(5),     // 循环主体电平（参照）
+        relMid: +stats(chL, SR * 3.1, SR * 3.2).rms.toFixed(5),   // 衰减中段应仍有声（证明是平滑收音不是硬切）
+      };
+    }
+
+
+    // ── R v60.8 数拍 count-in：起播前打满一小节空拍，乐音整体后移 ──
+    //    走真实 play() 太重（要真 ctx），这里直接验证排程口径：
+    //    数拍段只有拍点、无乐音；乐音起点 = 原起点 + beats*spb。
+    {
+      const spb = 0.5, beats = 4;                    // 120bpm、4/4
+      const ci = await render(3.2, async (ctx, bus) => {
+        const t0 = 0.05, t = t0 + beats * spb;       // 与 play() 内同一算式
+        for (let b = 0; b < beats; b++) metroClick(ctx, bus, t0 + b * spb, b === 0);
+        mkTone(ctx, bus, t);                          // 乐音落在数拍之后
+      });
+      const noci = await render(3.2, async (ctx, bus) => { mkTone(ctx, bus, 0.05); });
+      out.R = {
+        ciClicks: +stats(ci, 0, SR * 2.0).rms.toFixed(5),      // 数拍段（0~2s）应只有拍点
+        ciMusic: +stats(ci, SR * 2.1, SR * 3.0).rms.toFixed(4), // 乐音段应有声
+        ciQuietBeforeMusic: +stats(ci, SR * 1.6, SR * 1.95).rms.toFixed(5), // 末拍与乐音之间应基本安静
+        baseMusicEarly: +stats(noci, SR * 0.1, SR * 0.9).rms.toFixed(4),    // 对照：不数拍时乐音一开头就有
+        ciMusicEarly: +stats(ci, SR * 0.6, SR * 0.9).rms.toFixed(5),        // 数拍时同一时刻不该有乐音
+      };
+    }
+
     return out;
   });
 
+  T(r.Q.loopTail > 0.02, 'Q1 循环延音：超出采样长度后仍在发声', JSON.stringify(r.Q));
+  T(r.Q.noLoopTail < 0.001, 'Q2 对照组：无循环点时同一时刻已静音（证明差异来自循环）', 'rms=' + r.Q.noLoopTail);
+  T(r.Q.seamRel < 0.3, 'Q3 循环接缝无爆点（一阶差分相对主体峰值）', 'rel=' + r.Q.seamRel);
+  T(r.Q.tailB < r.Q.tailA * 0.5 && r.Q.tailA < r.Q.body * 0.05,
+    'Q4 源确实停了：残响持续衰减且远低于主体（Infinity 不会让源失控长鸣）',
+    `tail ${r.Q.tailA}→${r.Q.tailB} vs 主体 ${r.Q.body}`);
+  T(r.Q.relMid > 0.01, 'Q5 收音是平滑指数衰减而非硬切', 'rms=' + r.Q.relMid);
+  T(r.R.ciClicks > 0.0005 && r.R.ciMusicEarly < r.R.baseMusicEarly * 0.1,
+    'R1 数拍段只有拍点、没有乐音（乐音确实整体后移）', JSON.stringify(r.R));
+  T(r.R.ciMusic > 0.05, 'R2 数拍结束后乐音正常进入', 'rms=' + r.R.ciMusic);
+  T(r.R.ciQuietBeforeMusic < r.R.ciMusic * 0.2, 'R3 末拍与乐音之间是安静的预备空档', 'rms=' + r.R.ciQuietBeforeMusic);
   T(r.A.dec && r.A.bodyPeak > 0.02, 'A1 采样路径有效（let-ring 主体有声）', 'peak=' + r.A.bodyPeak);
   T(r.A.tailRms < 0.001, 'A2 let-ring 收尾静音（buffer 耗尽后无残响）', 'tailRms=' + r.A.tailRms);
   T(r.A.clickRel < 0.3, 'A3 截断点无爆点（一阶差分相对主体峰值）', 'rel=' + r.A.clickRel);
