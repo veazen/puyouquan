@@ -2368,7 +2368,7 @@ function genAccompaniment(texId, m1, m2, opt){
 /* ===== 配和弦建议（P1-A）：大调自然音级功能和声 =====
    逐小节给旋律（默认声部0）配 I/IV/V/vi/ii/iii：按"音符时值×强拍权重×和弦内音
    命中（根音加权）"打分，首小节偏 I、末小节强偏 I；变化音不计分。
-   建议默认不覆盖已有和弦。TODO: 小调/半小节换和弦/V7/终止式模板。 */
+   建议默认不覆盖已有和弦。TODO: 终止式模板/乐句边界感知（A2/A3）。 */
 /* v44.9 智能配和弦深化：功能和声 Viterbi——不再逐小节贪心，而是「发射分(旋律契合)+转移分(功能进行)」
    全局最优。候选加属七 V7；转移偏好 T→S→D→T 顺行、D→T 解决、罚 D→S 逆行；末小节偏 I（正格终止）。
    v45.0：和声节奏——suggestChordPlan 在此基础上对 4/4 小节下半段另属和弦时补第二和弦。 */
@@ -2385,9 +2385,60 @@ const chordCandName=(c,key)=>{
   const pc=(((KEY_PC[key]||0)+DEG_SEMI[c.deg])%12+12)%12;
   return ((KEYSIG[key]||0)<0?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'')+(c.suf||'');
 };
+/* ===== v60.14 A1 小调候选集 =====
+   简谱惯例：小调歌曲仍写作 1=大调调号，主音落在 6（la）。故所有级数沿用「相对写作调号」的
+   deg 空间表达：i=6m、III=1、iv=2m、v=3m、V=3（和声小调，导音 #5）、VI=4、VII=5、ii°=7dim。
+   tones 同样是写作调号下的级数——发射分只统计无变化音的自然音（与大调分支同口径），
+   和声小调导音 #5 由 ld 字段单独取证：旋律里出现 #5 才不扣分，否则让位自然小调的 v/VII。 */
+const CHORD_CANDS_MIN=[
+  {id:'i',   deg:6, m:true,  tones:[6,1,3],           fn:'T', w:1.25},
+  {id:'III', deg:1, m:false, tones:[1,3,5],           fn:'T', w:1.0},
+  {id:'iv',  deg:2, m:true,  tones:[2,4,6],           fn:'S', w:1.05},
+  {id:'v',   deg:3, m:true,  tones:[3,5,7],           fn:'D', w:0.9},
+  {id:'V',   deg:3, m:false, tones:[3,7],             fn:'D', w:0.95, ld:5},   // 和声小调属：E-#G-B
+  {id:'V7',  deg:3, m:false, tones:[3,7], sev:2, suf:'7', fn:'D', w:0.9, ld:5},
+  {id:'VI',  deg:4, m:false, tones:[4,6,1],           fn:'S', w:1.05},
+  {id:'VII', deg:5, m:false, tones:[5,7,2],           fn:'S', w:1.0},          // ♭VII 下主音，流行小调常用
+  {id:'ii0', deg:7, m:false, tones:[7,2,4], suf:'dim', fn:'S', w:0.55},
+];
+/* 小调专用转移偏好：流行/民谣小调的地道走向（i-♭VII-♭VI-V 下行、♭VII→i 调式终止、
+   iv→i 变格）无法用大调的 T/S/D 三分表达——D→S 在大调是逆行，在小调下行序列里却是常态。 */
+const MIN_TW={'VII>VI':0.5,'VI>VII':0.45,'VI>V':0.5,'VI>v':0.4,'VII>i':0.55,'iv>i':0.5,
+  'III>VII':0.4,'i>VII':0.45,'i>VI':0.4,'i>iv':0.4,'i>III':0.35,'iv>V':0.5,'iv>V7':0.5,
+  'ii0>V':0.5,'ii0>V7':0.5,'III>iv':0.3,'V>VI':0.3,'v>VI':0.3,'V>i':0.85,'V7>i':0.85,'v>i':0.6};
+const MIN_FN={'T>S':0.5,'T>D':0.4,'T>T':0.15,'S>D':0.65,'S>T':0.4,'S>S':0.25,'D>T':0.85,'D>D':0.15,'D>S':-0.2};
+/* 调式判别（大调 / 自然小调）：末音最重（终止音）、首音次之、6 与 1 的时值占比、和声小调导音 #5。
+   保守起见默认大调——阈值 1.5 保证「大调歌偶然结在 6」不会被误判。song.mode 可显式覆盖。 */
+function detectMinorMode(s2, vi){
+  s2=s2||song; vi=vi||0;
+  if(s2.mode==='minor') return true;
+  if(s2.mode==='major') return false;
+  const dur=new Array(8).fill(0);
+  let first=0, last=0, raised=0, tot=0;
+  (s2.measures||[]).forEach(mea=>{
+    ((mea.voxes||[])[vi]||[]).forEach(col=>{
+      if(!col.deg) return;
+      const b=beatsOf(col);
+      if(!col.acc){ dur[col.deg]+=b; if(!first) first=col.deg; last=col.deg; }
+      if(col.deg===5 && col.acc==='#') raised+=b;
+      tot+=b;
+    });
+  });
+  if(!tot) return false;
+  let sc=0;
+  if(last===6) sc+=3; else if(last===1) sc-=3; else if(last===3) sc-=1;
+  if(first===6) sc+=1; else if(first===1) sc-=1;
+  if(raised>0) sc+=2;
+  const d6=dur[6]||0, d1=dur[1]||0;
+  if(d6>d1*1.15) sc+=1.2; else if(d1>d6*1.15) sc-=1.2;
+  return sc>1.5;
+}
+const chordCandSet=(s2,vi)=> detectMinorMode(s2,vi)? CHORD_CANDS_MIN : CHORD_CANDS;
 function suggestChords(s2, vi){
   s2=s2||song; vi=vi||0;
-  const CAND=CHORD_CANDS;
+  const minor=detectMinorMode(s2, vi);
+  const CAND=minor? CHORD_CANDS_MIN : CHORD_CANDS;
+  const TONIC=minor?'i':'I';
   const cname=c=>chordCandName(c, s2.key);
   const o0=song; song=s2;
   const N=s2.measures.length;
@@ -2408,15 +2459,20 @@ function suggestChords(s2, vi){
         cum+=b;
       });
       sc*=c.w;
-      if(mi===0 && c.id==='I') sc*=1.25;
-      if(mi===N-1) sc*= c.id==='I'? 1.6 : 0.8;                                    // 末小节正格终止偏 I
+      if(mi===0 && c.id===TONIC) sc*=1.25;
+      if(mi===N-1) sc*= c.id===TONIC? 1.6 : 0.8;                                  // 末小节终止偏主和弦
       if(c.id==='V7'){ const has=cols.some(x=>x.deg===c.sev&&!x.acc)||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.sev&&!a.acc)); if(!has) sc-=0.4; }   // 无七音支撑则让位纯 V
+      if(c.ld){ const hl=cols.some(x=>x.deg===c.ld&&x.acc==='#')||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.ld&&a.acc==='#')); sc+= hl? 0.8 : -0.35; }   // 和声小调导音取证
       return sc;
     });
   });
   /* 2) 功能转移偏好（组→组）；同名和弦保持给小加分 */
   const TW={'T>S':0.55,'T>D':0.4,'T>T':0.15,'S>D':0.7,'S>T':0.3,'S>S':0.1,'D>T':0.85,'D>D':0.15,'D>S':-0.5};
-  const trans=(k,j)=> CAND[k].id===CAND[j].id? 0.35 : (TW[CAND[k].fn+'>'+CAND[j].fn] ?? 0);
+  const trans=(k,j)=>{
+    if(CAND[k].id===CAND[j].id) return 0.35;
+    const pair=CAND[k].id+'>'+CAND[j].id, fp=CAND[k].fn+'>'+CAND[j].fn;
+    return minor? (MIN_TW[pair] ?? MIN_FN[fp] ?? 0) : (TW[fp] ?? 0);
+  };
   /* 3) Viterbi：全局最优功能进行 */
   const NEG=-1e9;
   let dp=emit[0]?emit[0].slice():[], bk=s2.measures.map(()=>new Array(CAND.length).fill(0));
@@ -2445,7 +2501,7 @@ function suggestChords(s2, vi){
     {ld:7, acc:'b', tgt:['IV'],     root:1},   // b7 → V7/IV（I7，C7）解决到 IV
   ];
   const flat2=(KEYSIG[s2.key]||0)<0;
-  for(let mi=0; mi<N-1; mi++){
+  for(let mi=0; !minor && mi<N-1; mi++){        /* v60.14：副属和弦表按大调级数写死，小调分支先不离调 */
     if(!out[mi]) continue;
     const cols=s2.measures[mi].voxes[vi]||[], nextId=CAND[idx[mi+1]].id;
     for(const sd of SECDOM){
@@ -2465,6 +2521,7 @@ function suggestChords(s2, vi){
 function suggestChordPlan(s2, vi){
   s2=s2||song; vi=vi||0;
   const base=suggestChords(s2, vi);
+  const CAND2=chordCandSet(s2, vi);              /* v60.14：半小节换和弦的候选集须与主和弦同调式 */
   const o0=song; song=s2;
   const scoreRange=(c, cols, lo, hi)=>{                 // 候选 c 在小节内 [lo,hi) 拍范围的发射分
     let sc=0, cum=0;
@@ -2486,8 +2543,8 @@ function suggestChordPlan(s2, vi){
     const bm=meaMeter(mi);
     if(bm.beats<4 || bm.beats%2!==0) return single;      // 仅 4/4 类偶数拍尝试二分
     const half=bm.beats/2;
-    const baseC=CHORD_CANDS.find(c=>chordCandName(c, s2.key)===base[mi]);
-    let best=null, bv=-1; CHORD_CANDS.forEach(c=>{ const sc=scoreRange(c, cols, half, bm.beats); if(sc>bv){ bv=sc; best=c; } });
+    const baseC=CAND2.find(c=>chordCandName(c, s2.key)===base[mi]);
+    let best=null, bv=-1; CAND2.forEach(c=>{ const sc=scoreRange(c, cols, half, bm.beats); if(sc>bv){ bv=sc; best=c; } });
     const baseHalf=baseC? scoreRange(baseC, cols, half, bm.beats) : 0;
     // 拆分条件：下半段另属和弦、分数明显更高、非 D→S 逆行、下半段确有音
     const hasNote2=cols.some((col,ci)=>{ let cum=0; for(let k=0;k<ci;k++) cum+=beatsOf(cols[k]); return cum>=half-1e-6 && col.deg && !col.acc; });
@@ -17798,7 +17855,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.13';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.14';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -17821,6 +17878,7 @@ const APP_VER='v60.13';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.14</span><div><b>自动配和弦终于会配小调了（编配质量专项 A1）</b>（用户反馈：「自动编配和弦和节奏型库都非常的低级和错误百出」）：先做了一轮审计定位，结论分两半——<b>节奏型库没有算错的条目</b>（60 条逐条复算拍数，0 条硬错误，问题是「量太小、无风格无难度标签」），而<b>配和弦确实系统性配错，主因只有一个</b>：和弦候选集里<b>只有大调级数</b>（I/IV/V/V7/vi/ii/iii），代码里原本就留着「TODO: 小调」。于是任何小调歌曲——民谣、影视、大量儿歌与考级曲目——都会被配上大调和弦。<b>本版补齐小调</b>：新增小调候选集 <code>i / ii° / III / iv / v / V / V7 / VI / ♭VII</code>（按简谱惯例仍写作大调调号、主音落 <code>6</code>，故级数一律用「相对写作调号」表达），新增<b>大小调自动判别</b>（终止音最重，其次首音、<code>6</code> 与 <code>1</code> 的时值占比、和声小调导音 <code>#5</code>；默认判大调，阈值刻意保守），并为小调单配一张<b>转移偏好表</b>——流行小调的下行走向 <code>i-♭VII-♭VI-V</code> 在大调的功能三分法里会被当成「属→下属逆行」而遭惩罚，沿用大调那张表配不出地道的小调。半小节换和弦的候选集也一并跟着调式走。<b>改前→改后实测</b>：自然小调旋律 <code>C G F Am</code> → <code>Am G F Am</code>；流行小调 <code>Am G F C</code>（末小节配成大三和弦，最刺耳的那种错）→ <code>Am G F Am</code>；同一旋律写在 1=F <code>F C Bb Dm</code> → <code>Dm C Bb Dm</code>；旋律含导音 <code>#5</code> 时属和弦取大三 → <code>Am Dm E Am</code>。<b>大调结果一个不变</b>（<code>C F G C</code>、副属和弦 <code>C D7 G C</code> 均原样），「大调歌偶然结在 <code>6</code>」也不会被误判成小调。<b>新增外部交叉校验</b>：新套件 <code>tv_keytab</code> 拿第三方 MIT 音乐理论库 tonal 当「预言机」，逐调核对 12 个调的自然小调七级、和声小调属和弦与大调候选是否与权威表一致（仅测试期依赖，<b>不进产品单文件</b>，不引入任何运行时体积或许可负担）；实测 12 调全对，唯 C#(7♯)/F#(6♯) 两调的字面拼写与学院写法有出入（本项目音名表不写 <code>B#</code>/<code>E#</code>，属既有全局拼写策略，非本次引入），已在套件里如实标注为例外而非放行。<b>顺带修一处长期误报</b>：<code>tv_chord2</code> 的简谱和音断言写死了 <code>font-size="12"</code> 字面量，字号早已改过（现主音 16.5、和音 14.5），改成几何断言（和音数字与主音同 x、y 更小=叠在上方）后恢复真实防护。<code>tv_arrange</code> 10→14 项，51→<b>52 套件</b>全绿。</div></li>
     <li><span class="v">v60.13</span><div><b>混音台三件：S/M 点了看得见 · 每轨立体声声像 · 电平平衡</b>（用户反馈：「增加立体声调节，分析电平平衡度，把响度调节到同一水平线。S和M点击时样式没有变化，分辨不出是否生效」）：① <b>S / M 点击终于有反馈</b>——之前点了确实生效（独奏/静音是真的在起作用），但按钮<b>外观完全不变</b>，只能靠听。根因是播放坞的深色按钮样式选择器里带了 ID，优先级压过了高亮样式，把琥珀色/红色底整条盖掉了；同一个坞里节拍器的高亮一直正常，正是因为它的写法本来就带 ID。现已补齐，独奏亮琥珀、静音亮红。② <b>每轨新增立体声声像滑杆</b>——此前各声部只是按固定规则自动左右铺开，用户改不了。现在混音台每轨在音量条右侧多一个声像条，读数显示 <code>L70</code> / <code>中</code> / <code>R40</code>；默认是「<b>自动</b>」，即维持原来的自动铺开，<b>不改任何现有曲谱的听感</b>；拖动即接管，<b>双击滑杆回到「自动」</b>。播放中拖动即时生效（与 S/M/音量同一口径）。③ <b>电平平衡：响度计量换成感知加权</b>——采样入库时的响度归一原本按「不加权均方根 + 瞬时最大值」两项取小，这让不同乐器落不到同一条线上：一是不加权的均方根<b>高估低频</b>，同样数值的贝斯听起来明显比长笛轻；二是瞬时最大值对<b>拨弦/击弦</b>不公平——它们的起音是一根 1 毫秒的针，这一项先到顶，于是打击类整体被压在目标响度以下，长音类却正好落在目标上。现在响度按<b>国际标准的 K 加权</b>（ITU-R BS.1770，低频降权、高频略升，贴近人耳）来量，峰值约束改看 <b>10 毫秒短时包络</b>（针尖放行，真正决定听感与叠加电平的是包络），另加一道真峰兜底只防单样削波。合成信号实测：贝斯 / 拨弦 / 钢琴 / 长笛四类过归一后的感知响度离散度由 <b>19.0 dB 收窄到 9.1 dB</b>。最坏情况总线峰值 0.635、零削波（与改动前基本持平）。<b>需要说明</b>：本机取不到线上音色包（CDN 不可达），所以上面这组数字是用<b>合成信号</b>测的，真实采样包上的实际改善幅度尚未逐音色复核；另外贝斯这类低频乐器<b>不可能</b>与长笛做到完全等响（同样满刻度下低频的感知响度本就更低），残留差距属物理限制而非算法缺陷。新增 tv_balance 套件 8 项断言（S/M 高亮用「同一时刻比点亮与未点亮两个按钮」判定，绕开计算样式的陈旧读数；声像的自动/手动/双击复位；K 加权滤波器与规范理论值逐点吻合；离散度收窄幅度）。50→<b>51 套件</b>全绿。</div></li>
     <li><span class="v">v60.12</span><div><b>扫弦连音线改到六线谱上方</b>（用户指示）：v60.11 把这条弧画在谱表下方、符杠上方——那是为了躲开行内和弦图。本版按要求移到<b>六线谱上方</b>，跨过扫弦箭头。和弦图的位置冲突不再靠躲，而是<b>让位</b>：本行同时有和弦图与扫弦连音线时，和弦图带自动加高 14px 把整行往下推，弧就有了落脚处（沿用 v56.4 处理段落括线压和弦图时的同一套机制）。弧的基线取本列最高的墨再往上让 6px——下扫是箭头尖、上扫是竖线顶端、带切音点时是那个点，三种情况分别算，不会贴着箭头也不会飘太高。回归断言同步改判：由「落在谱表下方」改为「画在六线谱上方」，并新增一条<b>让位验证</b>——有和弦图时整行确实被下推 14px（这比拿和弦图的墨迹去比对稳，是可复算的证据）。tv_strumtie 7→8 项，50 套件全绿。</div></li>
     <li><span class="v">v60.11</span><div><b>扫弦「保持不重扫」终于能记了：整列扫弦可加连音线</b>（用户反馈：「如何选中扫弦并设置连音线？这是扫弦中常用的技巧」）：扫一下、下一拍不再扫、让和弦响满，这是民谣弹唱最基本的一个技巧，此前<b>记不出来</b>——查下来两层都不成立：① <b>数据层</b>：给六线谱加连音线时，程序只把选中的<b>第一个音连到最后一个音</b>一条线。单音时这没问题，可扫弦一列是 6 根弦，结果就是从 1 弦斜穿到 6 弦的一条怪线（实测 6 根弦只有 1 根连上）。现在改为<b>逐弦对位</b>：每根弦连到下一列的同一根弦，整个和弦被延留——这才是 Guitar Pro／教材的记法。② <b>渲染层</b>：扫弦列只画箭头、不画品位数字，压根不走画连音线那段代码，所以哪怕数据对了也<b>一条线都看不见</b>。现在为扫弦单独画：因为没有品位数字可依附，逐弦画 6 条弧既无处落脚也不合刻版惯例，整个和弦被延留时出版惯例本就是<b>一条弧</b>，故画一条，位置在<b>谱表下方、符杠上方</b>的空档里——扫弦的时值本就靠符干符杠表达，弧贴着节奏走才读得懂（放谱表上方会撞行内和弦图，实测撞了）。<b>怎么用</b>：按住鼠标<b>框选</b>要连的那一段（扫弦列的整个谱表区域都是热区），再点左栏记号里的「连音线」；只框一列也行，会自动连到本小节下一个有音的列；再点一次即取消。注意<b>单击</b>扫弦列打开的是「扫几根弦」菜单，不是选中——多选请用框选。新增 tv_strumtie 套件 7 项断言（逐弦对位／单列自动续接／开关语义／不破坏原有的两单音跨列相连／真的画出弧且只画一条／弧位几何：两端等高、落在谱表下方、恰好跨被连的两列），停用修复后 4 项转红。50 套件全绿。</div></li>

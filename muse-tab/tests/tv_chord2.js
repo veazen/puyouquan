@@ -34,12 +34,20 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   await pg.screenshot({path:'v376-chords.png', clip:{x:Math.max(0,r.x), y:Math.max(0,r.y+120), width:Math.min(1100,r.w), height:200}});
 
   // T2 简谱视图叠置数字
+  // v60.14：原断言写死 font-size="12" 字面量，字号后来调整过（现主音 16.5 / 和音 14.5），长期误报。
+  // 改为几何断言：和音数字个数 + 与主音同 x、y 更小（叠在主音上方）——与字号脱钩。
   const t2 = await pg.evaluate(()=>{
     document.getElementById('vn-jp').click();
-    const h=document.getElementById('score').innerHTML;
-    return { small:(h.match(/font-size="12" font-family/g)||[]).length };
+    const ts=[...document.getElementById('score').querySelectorAll('text')]
+      .filter(t=>/^[1-7]$/.test((t.textContent||'').trim()) && +t.getAttribute('y')>150);
+    const fs=t=>+t.getAttribute('font-size'), X=t=>+t.getAttribute('x'), Y=t=>+t.getAttribute('y');
+    const top=Math.max.apply(null, ts.map(fs));
+    const mains=ts.filter(t=>fs(t)===top), adds=ts.filter(t=>fs(t)<top);
+    const stacked=adds.length>0 && adds.every(a=>mains.some(m=>Math.abs(X(m)-X(a))<1 && Y(a)<Y(m)));
+    return { small:adds.length, mains:mains.length, stacked };
   });
-  console.log('T2 简谱和音叠置: 小数字='+t2.small+'(期望3)', t2.small===3?'✅':'❌');
+  console.log('T2 简谱和音叠置: 和音数字='+t2.small+'(期望3) 主音='+t2.mains+'(期望2) 叠在主音上方='+t2.stacked,
+    (t2.small===3&&t2.mains===2&&t2.stacked)?'✅':'❌');
 
   // T3 柱式织体生成（block：右手4个柱式+左手分解）
   const t3 = await pg.evaluate(()=>{

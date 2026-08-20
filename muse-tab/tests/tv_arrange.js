@@ -160,7 +160,57 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const ok10 = t10.A==='C D7 G C' && t10.B==='C F G C';
   console.log((ok10?'✅':'❌')+' T10 副属和弦: 含#4→'+t10.A+'(期望 C D7 G C) 纯自然音→'+t10.B+'(期望 C F G C 不触发)');
   if(ok10) pass++;
-  console.log('PASS '+pass+'/10');
+  // ===== v60.14 A1 小调候选集 =====
+  // 改动前（HEAD~）实测：自然小调→"C G F Am"（开头配成大调主）、流行小调→"Am G F C"（末小节配成 C 大调）、
+  // 1=F 的 d 小调→"F C Bb Dm"。这三条是「小调系统性配错」的原样复现，下列断言即以修正后结果为准。
+  const MIN=`
+    const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
+    const mk=(rows,key)=>{ const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:key||'C',nMea:rows.length});
+      rows.forEach((r,i)=> s.measures[i].voxes[0]=r); return s; };`;
+  // T11 自然小调：主音落 6 → i ♭VII ♭VI i（改动前首小节是 C）
+  const t11 = await pg.evaluate(`(()=>{ ${MIN}
+    const B=mk([[V(6,4),V(1,4,{oct:1}),V(3,4,{oct:1}),V(1,4,{oct:1})],[V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)],
+                [V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)],[V(3,4),V(2,4),V(6,2)]]);
+    const D=mk([[V(6,4),V(6,4),V(1,4,{oct:1}),V(3,4,{oct:1})],[V(5,4),V(5,4),V(7,4),V(2,4,{oct:1})],
+                [V(4,4),V(4,4),V(6,4),V(1,4,{oct:1})],[V(5,4),V(7,4),V(6,2)]]);
+    return { natMode:detectMinorMode(B,0), nat:suggestChords(B,0).join(' '),
+             popMode:detectMinorMode(D,0), pop:suggestChords(D,0).join(' '),
+             plan:suggestChordPlan(B,0).map(p=>p.map(x=>x.chord).join('+')).join(' ') };
+  })()`);
+  const ok11 = t11.natMode===true && t11.nat==='Am G F Am' && t11.popMode===true && t11.pop==='Am G F Am'
+    && t11.plan.split(' ')[0]==='Am';
+  console.log((ok11?'✅':'❌')+' T11 自然小调: 判别='+t11.natMode+' 和弦='+t11.nat+'(期望 Am G F Am) 流行小调='+t11.pop+'(期望 Am G F Am，改前 Am G F C) 半小节计划首和弦='+t11.plan.split(' ')[0]);
+  if(ok11) pass++;
+  // T12 和声小调：旋律含导音 #5 → 属和弦取大三 E（而非自然小调 Em）
+  const t12 = await pg.evaluate(`(()=>{ ${MIN}
+    const C=mk([[V(6,4),V(1,4,{oct:1}),V(3,4,{oct:1}),V(6,4,{oct:1})],[V(4,4),V(6,4),V(2,4,{oct:1}),V(4,4,{oct:1})],
+                [V(3,4),V(5,4,{acc:'#'}),V(7,4),V(5,4,{acc:'#'})],[V(6,2),V(6,2)]]);
+    return { mode:detectMinorMode(C,0), ch:suggestChords(C,0).join(' ') };
+  })()`);
+  const ok12 = t12.mode===true && t12.ch==='Am Dm E Am';
+  console.log((ok12?'✅':'❌')+' T12 和声小调导音: 判别='+t12.mode+' 和弦='+t12.ch+'(期望 Am Dm E Am，属和弦须为大三 E)');
+  if(ok12) pass++;
+  // T13 大调不回归 + 误判防线：大调旋律结果不变；「大调歌偶然结在 6」不得判成小调
+  const t13 = await pg.evaluate(`(()=>{ ${MIN}
+    const A=mk([[V(1,4),V(3,4),V(5,4),V(3,4)],[V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)],
+                [V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)],[V(1,4),V(1,4),V(1,2)]]);
+    const E=mk([[V(1,2),V(1,2)],[V(5,2),V(3,2)],[V(1,2),V(1,4),V(2,4)],[V(3,4),V(2,4),V(6,2)]]);
+    return { majMode:detectMinorMode(A,0), maj:suggestChords(A,0).join(' '),
+             guardMode:detectMinorMode(E,0), guard:suggestChords(E,0).join(' ') };
+  })()`);
+  const ok13 = t13.majMode===false && t13.maj==='C F G C' && t13.guardMode===false && t13.guard==='C C C Am';
+  console.log((ok13?'✅':'❌')+' T13 大调不回归: 大调判别='+t13.majMode+' 和弦='+t13.maj+'(期望 C F G C) 结在6的大调判别='+t13.guardMode+'(期望 false) 和弦='+t13.guard);
+  if(ok13) pass++;
+  // T14 换调保真：同一小调旋律写在 1=F → d 小调，按调号拼写降号
+  const t14 = await pg.evaluate(`(()=>{ ${MIN}
+    const G=mk([[V(6,4),V(1,4,{oct:1}),V(3,4,{oct:1}),V(1,4,{oct:1})],[V(5,4),V(7,4),V(2,4,{oct:1}),V(7,4)],
+                [V(4,4),V(6,4),V(1,4,{oct:1}),V(6,4)],[V(3,4),V(2,4),V(6,2)]],'F');
+    return { mode:detectMinorMode(G,0), ch:suggestChords(G,0).join(' ') };
+  })()`);
+  const ok14 = t14.mode===true && t14.ch==='Dm C Bb Dm';
+  console.log((ok14?'✅':'❌')+' T14 小调换调: 1=F 判别='+t14.mode+' 和弦='+t14.ch+'(期望 Dm C Bb Dm，改前 F C Bb Dm)');
+  if(ok14) pass++;
+  console.log('PASS '+pass+'/14');
   console.log(errs.length?'ERRORS:\n'+errs.join('\n'):'NO ERRORS');
   await b.close();
 })();
