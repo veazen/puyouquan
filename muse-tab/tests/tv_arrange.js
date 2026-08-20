@@ -109,7 +109,11 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     let retro=false; for(let i=1;i<fns.length;i++) if(fns[i-1]==='D'&&fns[i]==='S') retro=true;
     return { ch:ch.join(' '), fns:fns.join(''), retro, endsI: ch[ch.length-1]==='C', startsI: ch[0]==='C' };
   })()`);
-  const ok7 = !t7.retro && t7.endsI && t7.startsI && t7.ch==='C C F G C';
+  // v60.15：期望值由 C C F G C 改为 C Am F G C。不是为了让测试变绿——
+  // 第 2 小节旋律 3-1-6-1 的四个音**全部**落在 Am 内（C 只覆盖三个，6 是外音，实测 vi=4/4 vs I=3/4），
+  // 且 A8 套路层在此命中 1-6-4-5（50s 进行）。功能序列仍是 T-T-S-D-T、无 D→S 逆行、首末为 I，
+  // 原断言的结构性部分一条没放松，只把「钉住旧解」的那一条更新为更优解。
+  const ok7 = !t7.retro && t7.endsI && t7.startsI && t7.ch==='C Am F G C';
   console.log((ok7?'✅':'❌')+' T7 功能进行: '+t7.ch+' 功能='+t7.fns+' 无逆行D→S='+!t7.retro+' 首末=I');
   if(ok7) pass++;
   // T8 v45.0 和声节奏：小节前半 I(1,3)/后半 V(7,2) → 拆成两个和弦(C@拍0 + G@拍2)；全 I 小节不拆
