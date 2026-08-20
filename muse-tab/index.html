@@ -1807,6 +1807,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <div class="rg-body">
         <button id="va-chord" title="标注和弦：级数为主构建（级数×类型扩展×转位低音），织体按和弦生成音符">标和弦…</button>
         <button id="va-sug" title="按功能和声自动建议全曲和弦（已填的小节不覆盖）">一键配和弦</button>
+        <button id="va-lab" title="配和弦工作台：逐小节候选与得分、乐句套路可见、可手动指定调式">配和弦工作台</button>
         <button id="va-tex" title="选伴奏织体，按已标注的和弦自动生成双手音符（可编辑、可逐段重生成）">伴奏织体…</button>
       </div>
     </div>
@@ -2039,6 +2040,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <div class="ai-h"><span class="sp" data-svgi="sparkle"></span><b>创作辅助</b></div>
           <p class="ai-p">从旋律到伴奏，常规配置一键完成。</p>
           <button id="rt-sug" class="aitem" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>一键配和弦</b><small>按调式功能和声自动配置</small></span><span class="aiarr">›</span></button>
+          <button id="rt-lab" class="aitem" title="配和弦工作台：逐小节看候选与得分、按乐句显示命中的进行套路、可手动指定调式与逐格改和弦，确认后再写回谱面"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>配和弦工作台</b><small>逐小节推敲·候选评分·套路可见</small></span><span class="aiarr">›</span></button>
           <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
           <button id="rt-hum" class="aitem" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
@@ -2734,7 +2736,11 @@ function applyProgTemplates(s2, vi, ctx, baseIdx){
   });
   return {idx, marks};
 }
-function suggestChords(s2, vi){
+/* v60.20 拆出 chordSolve：把「解出的和弦」与「解的过程数据」一并返回，
+   供配和弦工作台展示逐小节候选与得分。suggestChords 退化为它的薄封装——
+   **不另写一份打分实现**，否则工作台看到的分数会与引擎实际用的分数漂移。 */
+function suggestChords(s2, vi){ return chordSolve(s2, vi).out; }
+function chordSolve(s2, vi){
   s2=s2||song; vi=vi||0;
   const minor=detectMinorMode(s2, vi);
   const CAND=minor? CHORD_CANDS_MIN : CHORD_CANDS;
@@ -2826,7 +2832,8 @@ function suggestChords(s2, vi){
     }
   }
   song=o0;
-  return out;
+  return {out, emit, CAND, idx, minor, cname,
+          segs:PROG_LAST.segs.slice(), marks:PROG_LAST.marks.slice()};
 }
 /* v45.0 和声节奏：在每小节主和弦（suggestChords 全局最优）基础上，4/4 类小节的「下半段」若明显
    另属一个和弦（分数显著高于沿用主和弦、且转移不逆行），则补第二和弦（放到下半段起拍所在列）。
@@ -2942,6 +2949,215 @@ function applySuggestChords(){
   });
   return n;
 }
+/* ===== v60.20 配和弦工作台：把「一键配和弦」升级成可逐小节推敲的专业面板 =====
+   设计要点：
+   · 数据全部来自 chordSolve —— 面板里看到的分数就是引擎实际用的发射分，不另写一份实现
+   · 以「乐句」为行（A3 切分），命中的套路（A8）直接标在行首，让人看得见引擎为什么这么配
+   · 每个小节列出全部候选并按旋律契合度排序，点选即换；换过的格子标「手改」，其余保持自动
+   · 谱面上已有的和弦**优先于**引擎建议进入面板（不静默覆盖用户已经写好的东西）
+   · 调式可手动覆盖（自动/大调/小调）——判别错时不必回去改谱，改这里立刻重算 */
+let chordLab = null;
+
+/* 套路名显示：导入进来的条目用罗马级数命名（I-V-IV-vi），国内习惯是数字级数（1-5-4-6）。
+   仅大调做转换——小调用罗马数字反而更清楚（i / ♭VII / ♭VI 一眼看出调式）。 */
+const PROG_ROMAN2NUM = {I:'1', ii:'2m', iii:'3m', IV:'4', V:'5', V7:'5⁷', vi:'6m'};
+function progLabel(name){
+  const parts = String(name || '').split('-');
+  if(!parts.length || !parts.every(x => PROG_ROMAN2NUM[x] != null)) return name;
+  return parts.map(x => PROG_ROMAN2NUM[x]).join('-');
+}
+function chordLabExisting(mi, vi){
+  const cols = (song.measures[mi] || {}).voxes;
+  const arr = (cols && cols[vi]) || [];
+  const c = arr.find(x => x.chord);
+  return c ? c.chord : null;
+}
+
+function chordLabCalc(){
+  const L = chordLab;
+  const had = Object.prototype.hasOwnProperty.call(song, 'mode'), prev = song.mode;
+  if(L.mode === 'auto'){ delete song.mode; } else { song.mode = L.mode; }
+  L.data = chordSolve(song, L.vi);
+  L.plan = suggestChordPlan(song, L.vi);
+  if(had){ song.mode = prev; } else { delete song.mode; }
+}
+
+function chordLabCur(mi){
+  const L = chordLab;
+  if(L.picks[mi] != null) return L.picks[mi];
+  const ex = chordLabExisting(mi, L.vi);
+  return ex != null ? ex : (L.data.out[mi] || '');
+}
+
+function chordLabSrc(mi){
+  const L = chordLab;
+  if(L.picks[mi] != null) return 'edit';
+  if(chordLabExisting(mi, L.vi) != null) return 'own';
+  return L.data.marks.some(m => mi >= m.a && mi <= m.b) ? 'tpl' : 'auto';
+}
+
+function chordLabMelody(mi){
+  const cols = ((song.measures[mi] || {}).voxes || [])[chordLab.vi] || [];
+  const t = cols.filter(c => c.deg).map(c => (c.acc === '#' ? '♯' : c.acc === 'b' ? '♭' : '') + c.deg
+    + (c.oct > 0 ? '̇' : c.oct < 0 ? '̣' : '')).join(' ');
+  return t || '（空小节）';
+}
+
+/* 候选：名称 / 功能 / 发射分（引擎同源）——分数条按本小节最高分归一 */
+function chordLabCands(mi){
+  const L = chordLab, r = L.data;
+  const row = r.emit[mi] || [];
+  const mx = Math.max.apply(null, row.concat([0.001]));
+  return r.CAND.map((c, j) => ({ name: r.cname(c), fn: c.fn, id: c.id,
+    score: row[j] || 0, pct: Math.max(2, Math.round(100 * (row[j] || 0) / mx)) }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function chordLabAudition(name){
+  const ct = chordTones(name);
+  if(!ct) return toast('该和弦暂不支持试听');
+  const ctx = ensureLiveCtx(); if(!ctx) return;
+  const bus = buildBus(ctx), t = ctx.currentTime + 0.04;
+  const root = (ct.pc < 8 ? 48 + ct.pc : 36 + ct.pc);
+  ['1', '3', '5', '8'].forEach((tn, k) => {
+    if(ct.iv[tn] == null) return;
+    playInst('piano', ctx, bus, midiFreq(root + ct.iv[tn]), t + k * 0.055, 1.6, 0.7, false);
+  });
+}
+
+function chordLabRender(){
+  const L = chordLab, r = L.data;
+  const FN = { T: '主', S: '下属', D: '属' };
+  const tag = { own: '<b style="color:var(--accent-ink)">谱面已有</b>', edit: '<b style="color:var(--danger)">手改</b>',
+                tpl: '套路', auto: '自动' };
+  const rows = r.segs.map(([a, b], si) => {
+    const mk = r.marks.find(m => m.a === a && m.b === b)
+            || r.marks.find(m => a >= m.a && b <= m.b);
+    const cells = [];
+    for(let mi = a; mi <= b; mi++){
+      const on = mi === L.sel, src = chordLabSrc(mi);
+      const extra = (L.picks[mi] == null && L.plan[mi] && L.plan[mi].length > 1)
+        ? '<i style="font-style:normal;opacity:.6;font-size:11px"> ' + esc(L.plan[mi][1].chord) + '</i>' : '';
+      cells.push('<button class="cl-cell' + (on ? ' on' : '') + ' cl-' + src + '" data-cl-mi="' + mi + '">'
+        + '<span class="cl-no">' + (mi + 1) + '</span>'
+        + '<span class="cl-ch">' + (esc(chordLabCur(mi)) || '—') + extra + '</span></button>');
+    }
+    return '<div class="cl-row"><div class="cl-lab">乐句 ' + (si + 1)
+      + '<small>' + (a + 1) + '–' + (b + 1) + ' 小节</small>'
+      + (mk ? '<em>' + esc(progLabel(mk.name)) + (mk.cad ? '·收主' : '') + '</em>' : '<em class="off">自由解</em>')
+      + '</div><div class="cl-cells">' + cells.join('') + '</div></div>';
+  }).join('');
+
+  const cands = chordLabCands(L.sel);
+  const curName = chordLabCur(L.sel);
+  const list = cands.map(c => '<button class="cl-cand' + (c.name === curName ? ' on' : '') + '" data-cl-pick="'
+    + esc(c.name) + '"><span class="cl-nm">' + esc(c.name) + '</span>'
+    + '<span class="cl-fn">' + (FN[c.fn] || '') + '</span>'
+    + '<span class="cl-bar"><i style="width:' + c.pct + '%"></i></span>'
+    + '<span class="cl-sc">' + c.score.toFixed(1) + '</span></button>').join('');
+
+  const nEdit = Object.keys(L.picks).length;
+  showModal('<h3>配和弦工作台</h3>'
+    + '<style>'
+    + '.cl-top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;font-size:12.5px;margin:2px 0 10px}'
+    + '.cl-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}'
+    + '.cl-lab{flex:none;width:112px;font-size:12px;line-height:1.45}'
+    + '.cl-lab small{display:block;color:var(--muted)}'
+    + '.cl-lab em{display:block;font-style:normal;color:var(--accent-ink);font-size:11.5px}'
+    + '.cl-lab em.off{color:var(--muted)}'
+    + '.cl-cells{display:flex;flex-wrap:wrap;gap:6px}'
+    + '.cl-cell{min-width:62px;padding:4px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);'
+    + 'display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}'
+    + '.cl-cell .cl-no{font-size:10px;color:var(--muted)}'
+    + '.cl-cell .cl-ch{font-size:13.5px;font-weight:600}'
+    + '.cl-cell.on{outline:2px solid var(--accent);outline-offset:1px}'
+    + '.cl-cell.cl-edit .cl-ch{color:var(--danger)}'
+    + '.cl-cell.cl-own .cl-ch{color:var(--accent-ink)}'
+    + '.cl-det{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}'
+    + '.cl-cand{display:flex;align-items:center;gap:8px;width:100%;padding:3px 6px;border:1px solid transparent;'
+    + 'border-radius:5px;background:transparent;cursor:pointer;font-size:12.5px}'
+    + '.cl-cand:hover{background:var(--bg)}'
+    + '.cl-cand.on{border-color:var(--accent)}'
+    + '.cl-cand .cl-nm{width:56px;text-align:left;font-weight:600}'
+    + '.cl-cand .cl-fn{width:34px;color:var(--muted);font-size:11px}'
+    + '.cl-cand .cl-bar{flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden}'
+    + '.cl-cand .cl-bar i{display:block;height:100%;background:var(--accent)}'
+    + '.cl-cand .cl-sc{width:34px;text-align:right;color:var(--muted);font-size:11px}'
+    + '</style>'
+    + '<div class="cl-top"><span>1=' + esc(song.key) + '</span>'
+    + '<label>调式 <select id="cl-mode">'
+    + '<option value="auto"' + (L.mode === 'auto' ? ' selected' : '') + '>自动（判为'
+    + (r.minor ? '小调' : '大调') + '）</option>'
+    + '<option value="major"' + (L.mode === 'major' ? ' selected' : '') + '>大调</option>'
+    + '<option value="minor"' + (L.mode === 'minor' ? ' selected' : '') + '>小调</option>'
+    + '</select></label>'
+    + '<span>' + r.segs.length + ' 个乐句 · ' + song.measures.length + ' 小节</span>'
+    + '<span>手改 ' + nEdit + ' 处</span></div>'
+    + '<div style="max-height:34vh;overflow:auto">' + rows + '</div>'
+    + '<div class="cl-det"><div style="font-size:12.5px;margin-bottom:6px">'
+    + '第 <b>' + (L.sel + 1) + '</b> 小节 · 旋律 <b>' + esc(chordLabMelody(L.sel)) + '</b>'
+    + ' <button id="cl-play" class="ghost" style="margin-left:8px">试听当前和弦</button>'
+    + (L.picks[L.sel] != null ? ' <button id="cl-reset1" class="ghost">恢复本小节</button>' : '')
+    + '</div><div style="max-height:24vh;overflow:auto">' + list + '</div></div>'
+    + '<div class="btns" style="margin-top:10px"><button id="cl-resetall" class="ghost">全部恢复自动</button>'
+    + '<span style="flex:1"></span><button id="cl-cancel" class="ghost">取消</button>'
+    + '<button id="cl-ok" class="primary">应用到谱面</button></div>', true);
+
+  const M = document.getElementById('modal-mask'); if(!M) return;
+  M.querySelectorAll('[data-cl-mi]').forEach(el => el.onclick = () => {
+    chordLab.sel = +el.dataset.clMi; chordLabRender();
+  });
+  M.querySelectorAll('[data-cl-pick]').forEach(el => el.onclick = () => {
+    const nm = el.dataset.clPick;
+    chordLab.picks[chordLab.sel] = nm;
+    chordLabAudition(nm);
+    chordLabRender();
+  });
+  const modeSel = document.getElementById('cl-mode');
+  if(modeSel) modeSel.onchange = () => { chordLab.mode = modeSel.value; chordLabCalc(); chordLabRender(); };
+  const bp = document.getElementById('cl-play');
+  if(bp) bp.onclick = () => chordLabAudition(chordLabCur(chordLab.sel));
+  const b1 = document.getElementById('cl-reset1');
+  if(b1) b1.onclick = () => { delete chordLab.picks[chordLab.sel]; chordLabRender(); };
+  const ba = document.getElementById('cl-resetall');
+  if(ba) ba.onclick = () => { chordLab.picks = {}; chordLab.mode = 'auto'; chordLabCalc(); chordLabRender(); };
+  const bc = document.getElementById('cl-cancel');
+  if(bc) bc.onclick = () => { chordLab = null; closeModal(); };
+  const bo = document.getElementById('cl-ok');
+  if(bo) bo.onclick = () => chordLabApply();
+}
+
+function chordLabApply(){
+  const L = chordLab; if(!L) return;
+  let n = 0;
+  mutate(() => {
+    /* 调式若被手动指定，连同结果一起记进 song.mode——否则下次自动重算又会判回去。
+       新增字段，不动任何既有字段。 */
+    if(L.mode === 'auto'){ delete song.mode; } else { song.mode = L.mode; }
+    song.measures.forEach((mea, mi) => {
+      const cols = (mea.voxes[L.vi] || []);
+      if(!cols.length || !cols.some(c => c.deg)) return;
+      const pick = L.picks[mi];
+      const planM = (pick != null) ? [{ beat: 0, chord: pick }] : (L.plan[mi] || []);
+      if(!planM.length) return;
+      cols.forEach(c => { if(c.chord) delete c.chord; });
+      if(placeChordPlan(cols, planM) > 0) n++;
+    });
+  });
+  chordLab = null; closeModal(); render();
+  toast('已写入 ' + n + ' 个小节的和弦（Ctrl+Z 可一步撤销）');
+}
+
+function chordLabOpen(){
+  if(!song.voxVoices || !song.voxVoices.length) return toast('当前谱类没有可配和弦的旋律声部');
+  const vi = 0;
+  if(!song.measures.some(m => (m.voxes[vi] || []).some(c => c.deg)))
+    return toast('先录入旋律，再打开配和弦工作台');
+  chordLab = { vi, mode: (song.mode === 'major' || song.mode === 'minor') ? song.mode : 'auto', picks: {}, sel: 0 };
+  chordLabCalc();
+  chordLabRender();
+}
+
 const CHORD_SHAPES = {
   /* C 系 */
   'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cm':'x35543','Cm7':'x35343',
@@ -4980,6 +5196,7 @@ function renderDock(){
   { const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
     show('rt-arr',  ['vocal','teach','instr'].includes(dt));
     show('rt-sug',  song.voxVoices.length>0);
+    show('rt-lab',  song.voxVoices.length>0);
     show('rt-fill', song.lyricLines>0);
     /* v40.8 库页签内的节奏型/伴奏织体面板 + 风格入口按谱类显隐（仅新版；经典版由 setRibbon 管理面板） */
     if(uiShell){
@@ -11401,6 +11618,7 @@ document.getElementById('va-sug').onclick = ()=>{
   toast(n? '已按功能和声建议标注 '+n+' 个小节的和弦（已填的不覆盖，可再点「伴奏织体…」生成音符）'
          : '没有可标注的小节（已填和弦或无参考音符）');
 };
+document.getElementById('va-lab').onclick = ()=>chordLabOpen();
 document.getElementById('va-tex').onclick = ()=>document.getElementById('b-acctex').click();
 document.getElementById('vf-names').onclick = ()=>{
   mutate(()=>{ song.funcNames=!song.funcNames; });
@@ -13812,6 +14030,7 @@ function applyShell(){
   const click=id=>{ const el=document.getElementById(id); if(el) el.click(); };
   go('rt-chorded',()=>click('b-chord-edit'));
   go('rt-sug',    ()=>click('va-sug'));
+  go('rt-lab',    ()=>click('va-lab'));
   go('rt-arr',    ()=>click('b-arrange'));
   go('rt-fill',   ()=>click('b-fill'));
   go('rt-hum',    ()=>{ click('b-new'); click('nw-hum'); });     // 新建向导即刻转入哼唱流程
@@ -18168,7 +18387,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.19';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.20';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -18191,6 +18410,7 @@ const APP_VER='v60.19';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.20</span><div><b>配和弦工作台：把「一键配和弦」升级成可逐小节推敲的专业面板</b>（用户指示：「自动编配和弦做成一个专业的工具，编辑谱时点击弹出一个独立界面」）：此前配和弦只有一个「一键」按钮——按下去就写满全谱，<b>配得对不对、为什么这么配、想改某一小节怎么办，全都看不见也管不着</b>。本版给它一个独立面板。① <b>面板长什么样</b>：顶栏显示 <code>1=调号</code>、<b>调式判别结果（可手动改成大调/小调）</b>、乐句数与小节数、手改处数；中间<b>按乐句分行</b>（A3 切分），行首标出该乐句<b>命中了哪条进行套路</b>（A8），行内每个小节一个格子显示当前和弦；下方是选中小节的<b>候选清单</b>——列出全部候选和弦，标注功能（主／下属／属），按<b>旋律契合度排序并画分数条</b>，点一下即换、同时试听。② <b>分数不是新算的</b>：面板显示的分数就是引擎实际用的发射分——为此把 <code>suggestChords</code> 拆成 <code>chordSolve</code>（返回解 + 过程数据）与一层薄封装。<b>不另写一份打分实现</b>，否则面板上看到的分数迟早会和引擎实际用的漂移；<code>tv_chordlab</code> T2 专门钉这一条：逐小节比对「面板首位候选」与「emit 最高候选」，8/8 必须一致。③ <b>不静默覆盖用户已经写好的东西</b>：谱面上已有的和弦<b>优先于</b>引擎建议进入面板，并标为「谱面已有」（与「套路」「自动」「手改」四种来源分色显示），看得见哪些是你自己写的。④ <b>调式判错不必回去改谱</b>：面板上直接切大调/小调即刻重算；确认应用时把选择记进 <code>song.mode</code>（新增字段，不动任何既有字段），否则下次自动重算又会判回去。⑤ <b>写回是一次可撤销的整体操作</b>：应用后 Ctrl+Z 一步还原；取消则一个字都不写。⑥ <b>顺带修了套路名的显示</b>：从 free-midi-chords 导入的条目用罗马级数命名（<code>I-V-IV-vi</code>），与国内习惯的数字级数不统一，现按显示层转成 <code>1-5-4-6m</code>；小调仍保留罗马数字（<code>i / ♭VII / ♭VI</code> 一眼看出调式）。⑦ 入口两处：右栏创作页「配和弦工作台」（紧挨「一键配和弦」），经典栏同名按钮；两者显隐口径与一键配和弦一致。新增 <code>tv_chordlab</code> <b>7 项</b>（打开结构／分数同源／已有和弦优先／改+应用+撤销／调式覆盖／取消不写回／套路名显示），54→<b>55 套件</b>全绿。<b>本版只做「看得见、改得动、可撤销」</b>；乐句级换套路、半小节和弦的逐格编辑、以及试听整句，留作下一步。</div></li>
     <li><span class="v">v60.19</span><div><b>钢琴伴奏织体 15→21 套：依 POP909 的「节奏骨架统计」重写，难度同步改五级</b>（用户提问：「909 首扒谱里的钢琴伴奏节奏型能不能采纳进来？」——<b>能，但要采对那一层</b>）：① <b>先把边界划清</b>。POP909（MIT · Copyright (c) 2020 Music X Lab）是 909 首**商业中文流行歌**的扒谱，仓库许可解决的是「这份标注数据可以用」，<b>清洗不了底层音乐作品的著作权</b>。所以我们只采「不构成表达」的那一层：<b>节奏骨架</b>——左右手在拍位上的起音分布 + 右手是柱式还是分解；<b>音高内容一概不取</b>（不取音符、不取音程、不取和弦、不记曲目标识），并以<b>跨曲频次</b>为闸：只看某个骨架被<b>多少首不同的歌</b>共用。被两三百首歌共用的打法是<b>体裁惯例</b>（「低音走八分、和弦落在二四拍」这种），不是任何一首歌的表达。落地时由人按我们自己的 <code>PIANO_TEX</code> 惯例<b>重写</b>成模板，音级（1/3/5/8）本来就由和弦决定。<b>一句话：采的是「中文流行钢琴伴奏一般怎么打节奏」这个事实，不是任何一首歌怎么弹。</b>② <b>统计口径调了两轮才站得住</b>：起初按 16 分格逐格比对，908 首里出现 1956 种骨架、<b>没有一种能过 20 首的闸</b>——被演奏的细微差异打散了；退到 8 分格仍有 1584 种，且前 12 名里有 5 条其实是「左手八分但缺一格」的<b>同一个织体</b>。最终改为<b>按拍位类别归并</b>（哪几拍上有音 + 有没有后半拍），这层抽象既更稳、也离具体表达更远。全量跑完：<b>908 首 / 72191 小节</b>，过闸（≥90 首）骨架 <b>63 种</b>，覆盖 48.6% 的小节；头部骨架被 <b>186–383 首</b>歌共用。③ <b>据此补了 6 套 4/4 织体</b>（括号内为该骨架的共用曲目数）：<b>抒情长音</b>每小节各一次（212）、<b>左手流动＋右手柱式</b>（352）、<b>低音走三拍＋和弦</b>（233）、<b>仅左手流动</b>用于间奏留白（186）、<b>反拍和弦</b>右手只落二四拍（231）、<b>密集柱式推进</b>副歌型（383）。这几类此前<b>一套都没有</b>——我们原有 11 套 4/4 偏抒情与古典，缺的正是流行伴奏的高密度推进型、反拍型与留白型。④ <b>难度同步改五级</b>（入门/初级/中级/高级/专业），原来只有入门/进阶两档，与已拍板的五级对不上。<b>改完立刻踩了一个真回退</b>：两个织体弹窗把难度组<b>写死成</b> <code>['入门','进阶']</code>，改五级后初级/中级/高级三组直接不渲染，4/4 可选项从 15 掉到 <b>3</b>——被 <code>tv_acc</code> T7 当场抓住。已抽出共用的 <code>TEX_LV</code> 常量，两处弹窗都按它分组。⑤ <b>测试改成跟着库走</b>：原来三处断言钉死数字（「共 15 套」「弹窗 9 套」），加织体就得改一次；现改为<b>与 <code>PIANO_TEX</code> 实际条数一致</b>，并新增一条<b>结构性不变量</b>——每套织体左右手的时值和必须等于它声明的拍数（6/8 谱按 <code>unit=8</code> 折算，与生成器同口径）。这条比数数有用得多：写坏一套模板（多写或漏写一格）立刻转红。⑥ 21 套全部实测生成通过（拍数自洽、无 NaN、2/4·3/4·4/4·6/8 四种拍号齐备）。新增工具 <code>deploy/pop909-texture.py</code>（零依赖最小 SMF 解析，用 <code>set_tempo</code> 建 tick↔秒 映射再按重拍定小节线，不假设「从 0 起每 4 拍一小节」）。54 套件全绿。<b>仍缺</b>：专业级织体为 0 套（现有最难是十六分全分解＝高级）；伴奏仍是<b>整曲一个织体</b>，乐句级选择与段落对比是下一项。</div></li>
     <li><span class="v">v60.18</span><div><b>更正上一版的家底数字：源表是 190 条不是 108 条；modal 表不再整表跳过</b>（用户质疑：「那个项目写着每个调 190 种进行，你验证的数据是多少？」——<b>用户是对的，我上一版报少了</b>）：核对 <code>chords.py</code> 的确切条数：<b>大调 50 + 小调 58 + modal 82 = 正好 190</b>。v60.17 的说明里写的「原表 108 条」只是大调+小调，<b>把 82 条 modal 整表跳过了，还没在对外说明里交代这块家底</b>，等于把分母说小了。① <b>更正后的完整账</b>：190 条 = 已导入 83 条（大调 32 + 小调 49 + modal 回收 2）+ 与既有核心/彼此重复 24 条 + 退化/准退化/长度剔除 5 条 + <b>待补候选 78 条</b>。② <b>modal 表不是「不能用」，是「需要新增候选级数」</b>——上一版整表跳过的判断下得太粗。按主音语境重新分流：<b>大调语境 45 条 · 小调语境 37 条</b>。其中小调语境里的 <code>♭III/♭VI/♭VII</code> <b>本来就等于</b>本项目小调候选的 <code>III/VI/VII</code>，所以有 4 条<b>现在就能表达</b>（去重后净增 2 条，已入库）——这是整表跳过造成的实际漏收，不只是数字口径问题。③ <b>剩下 78 条的可回收量已量化</b>：大调语境补「同主音小调借用」四件（<code>♭III/♭VI/♭VII/iv</code>）可回收 <b>27/45</b>，再加 <code>♭II</code> 到 <b>34/45</b>；小调语境补 <code>♭II</code>（弗里几亚/那不勒斯）可回收 <b>18/37</b>，再加 <code>IV</code>（多利亚大下属）与 <code>I</code>（同名大调借用）到 <b>30/37</b>。合计再补 5 个候选级数即可回收 <b>52 条以上</b>，覆盖 190 条里的 160 条。④ <b>但这不是「多加几条模板」</b>：<code>♭VII/♭VI/♭III</code> 借用是**候选集的能力缺口**（流行/摇滚/影视/古风里 <code>C-B♭-F</code> 这类走向极常见），加了会影响**所有**曲子的配和弦结果，必须挂在评测集下逐步放开、逐曲复核，不能一次性放行——故本版<b>只做零风险的 2 条回收</b>，借用和弦另立一项。⑤ <b>导入器同步改造</b>：<code>deploy/prog-import.py</code> 现在三张表全过一遍，按主音语境归一，并对每条给出去向（已收 / 重复 / 退化 / <b>待补候选：缺哪个级数</b>），家底一目了然，不会再出现「整表跳过且不记账」。⑥ <b>顺带自查</b>：这次核对过程中我自己的统计口径连错三次——先是没按主音语境分流、再是漏了「小调语境下 ♭VII 就是 VII」这层等价、最后是映射表漏了 <code>bIIIM/bVIM/bVIIM</code> 三个拼写；每次的中间数字都不同（0/82 → 27/82 → 34/82），直到分流+补全后才自洽。<b>结论数字以本条为准。</b>评测集成绩不变（级数 98.8%、功能 98.8%、命中率 60%），54 套件全绿。</div></li>
     <li><span class="v">v60.17</span><div><b>套路库从 12 条扩到 94 条（导入 free-midi-chords · MIT），配和弦准确率 97.5%→98.8%</b>（用户提问：「套路储备够不够？<code>ldrolez/free-midi-chords</code> 能不能拿更多进行？」）：先回答够不够——<b>不够，而且缺口有实测证据</b>。用评测语料逐段审计，未命中的段落走的是 <code>V7-I-V7-I</code>、<code>I-I-V-I</code>、<code>I-V7-I-V</code> 这类<b>主属交替</b>，我们 12 条里一条都没有，大调命中率只有 20%。① <b>可以拿，而且很干净</b>：该项目 <b>MIT 许可</b>，更关键的是它的进行表在源码 <code>chords.py</code> 里本就是<b>级数文本 + 情绪标签</b>（不是 MIDI），所以既不用解析 MIDI、也不用分发它的任何文件，只取「级数序列」这一层，按 MIT 保留署名即可。新增 <code>deploy/prog-import.py</code> 做导入：加音/挂留/七九度回落底和弦；<b>表达不了的整条丢弃</b>（大调 vii°、小调 v°、以及整张 modal 表的 ♭II/♭III/♭VI/♭VII）——不做「删掉一格再凑」，那会改掉进行本身。原表 108 条 → 可表达 103 → 与既有核心/彼此去重后<b>净增 81 条</b>（大调 32 + 小调 49），套路库 12 → <b>94 条</b>。② <b>导入不是照单全收，三道过滤都是被实测逼出来的</b>：<b>(a) 退化项</b>——<code>I I7 Idom7 I7</code> 归一化后成了 <code>I-I-I-I</code>，那不是进行是静态主和弦，入库只会让「全程主和弦」的段也算命中；<b>(b) 准退化项</b>——单一和弦占比 ≥3/4 的（如 <code>I I7 Idom7 IV</code> → <code>I-I-I-IV</code>），音乐内容原本在七/加音的色彩上、而那层我们表达不了，归一化后几乎没有辨识力却照样带着先验去压别的解，实测把 <code>tv_arrange</code> T13 的末小节从 <code>Am</code> 掰成 <code>F</code>（旋律 <code>3-2-6</code> 明显更贴 Am）；<b>(c) 截断护栏</b>——跨度短于模板时只能用前几格，8 格的 <code>I-I-I-I-IV-IV-V-V</code> 截成 4 格就是 <code>I-I-I-I</code>，同样是拿静态主和弦冒充命中（两只老虎实测中招），故要求截断后仍有 ≥2 个不同和弦且至少用到一半格数。③ <b>另补一族导入库没有的</b>：<b>主属交替</b> <code>1-5-1-5</code>——流行向的进行库整族没有它，但儿歌与传统民歌大量在用。<b>不开旋转</b>：开了之后 <code>V-I-V-I</code> 这一相位会把属和弦放到乐句头上，实测把「玛丽有只小羊羔」从 8/8 打到 6/8。④ <b>试过但撤掉的一条，如实记下</b>：曾加「逐小节让步上限」（任一格丢掉超过该小节最佳契合度的 40% 就作废整条模板），本意是防硬套；实测<b>既没卡住目标案例</b>（两只老虎那处 G7 只比 C 差 12%，卡不住）<b>又误伤了正确命中</b>（铃儿响叮当那条逐格吻合的 8 小节套路被毙），<b>已撤除</b>。⑤ <b>成绩</b>：评测集级数准确率 <b>97.5% → 98.8%</b>、功能 <b>97.5% → 98.8%</b>，套路命中率 <b>40% → 60%</b>（大调 20% → 46.7%）；80 小节里只剩<b>一处红项</b>——欢乐颂第 4 小节的句尾半终止（<b>A2 未实现</b>）。评测地板同步上调到 98%（再错一小节即红）。<b>过程中有一次「聚合数字骗人」值得记一笔</b>：加主属交替族后总分停在 97.5% 没动，看着像没影响，逐曲一看才发现是<b>一换一</b>——欢乐颂第 8 小节修好了，两只老虎第 3 小节却被掰成 G7（同一条旋律的第 4 小节却配 C）。<b>只看聚合准确率会漏掉这种交换，必须逐曲看。</b>54 套件全绿。</div></li>
