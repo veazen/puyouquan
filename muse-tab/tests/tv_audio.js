@@ -514,6 +514,68 @@ const T = (ok, name, detail) => {
       };
     }
 
+    // ── T v60.10 修 v60.9 的两处回归（都是对抗式复核查出来的，不是猜的）──
+    {
+      const MIDI = 52, F0 = midiFreq(MIDI);
+      /* 两条都跑**真实 sfTryPlay**、再从波形反解出实际生效的 tau。
+         （最初 T1 写成「把公式在测试里再算一遍」——那是在测测试自己，抽掉修复照样绿，
+           等于没有防线；改成走生产代码。） */
+      const measureTau = async (name, midi, dur, useLoop) => {
+        const f0 = midiFreq(midi);
+        const keep = sfBanks[name], keepLp = SF_LOOPS[name];
+        const c = new OfflineAudioContext(2, SR * 4, SR);
+        const d1 = c.createGain(); d1.connect(c.destination);
+        const w1 = c.createGain(); w1.gain.value = 0; w1.connect(c.destination);
+        const b = c.createBuffer(1, Math.floor(SR * 2.0), SR), dd = b.getChannelData(0);
+        for (let i = 0; i < dd.length; i++) dd[i] = Math.sin(2 * Math.PI * f0 * i / SR) * 0.5;
+        sfBanks[name] = { status: 'ready', notes: { [midi]: 1 }, buf: {} };
+        sfBanks[name].buf[c.sampleRate + ':' + midi] = { b, g: 1, o: 0 };
+        if (!useLoop) SF_LOOPS[name] = {};             // 造出「持续音色但该音高没有循环点」
+        sfTryPlay(c, { dry: d1, wet: w1 }, name, f0, 0.05, dur, 0.9, null);
+        const ch = (await c.startRendering()).getChannelData(0);
+        sfBanks[name] = keep; SF_LOOPS[name] = keepLp;
+        const bd = stats(ch, SR * 0.3, SR * 1.5).rms;
+        const HI = bd * 1.2, LO = bd * 0.02;
+        let la = ch.length - 1; while (la > 0 && Math.abs(ch[la]) < LO) la--;
+        let s0 = la; while (s0 > 0 && Math.abs(ch[s0]) < HI) s0--;
+        return { tau: ((la - s0) / SR) / Math.log(HI / LO), body: bd };
+      };
+      /* T1 持续音色**缺循环点**时（choir_aahs 的 MIDI 22/25/27/30/31/32 确实没有，
+         是 v60.8 循环检测未通过的那 6 个）：dur ≥ 采样长度 → room 触底 0.02，
+         v60.9 会把 tau 压到 0.0025（20ms 从满幅收完，断音感）。下限应把它兜回 0.05。 */
+      const noLoop = await measureTau('choir_aahs', 22, 3.0, false);
+
+      /* T2 真实排程口径下的 let-ring 收音时长。
+         生产里非持续音色的非 damp 分支 dur 恒 ≥3s（TAB 末音 6.0 / 简谱末音 max(rhythm,6.0)），
+         于是 min(natLen,dur)=natLen、room 只剩 0.055——正是 T1 那条被压扁的路径。
+         这里就按生产口径传 dur=6.0，量收音从起点到静音跨了多久。 */
+      const keepMb = sfBanks['music_box'];
+      const ctx = new OfflineAudioContext(2, SR * 4, SR);
+      const dry = ctx.createGain(); dry.connect(ctx.destination);
+      const wet = ctx.createGain(); wet.gain.value = 0; wet.connect(ctx.destination);
+      {   // 等幅 2 秒采样：采样自身不衰减，量到的就是收音包络本身
+        const b = ctx.createBuffer(1, Math.floor(SR * 2.0), SR), d = b.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.sin(2 * Math.PI * F0 * i / SR) * 0.5;
+        sfBanks['music_box'] = { status: 'ready', notes: { [MIDI]: 1 }, buf: {} };
+        sfBanks['music_box'].buf[ctx.sampleRate + ':' + MIDI] = { b, g: 1, o: 0 };
+      }
+      sfTryPlay(ctx, { dry, wet }, 'music_box', F0, 0.05, 6.0, 0.9, null);
+      const ch2 = (await ctx.startRendering()).getChannelData(0);
+      sfBanks['music_box'] = keepMb;
+      /* 从末尾回溯量收音跨度，再反解出实际生效的 tau —— 直接以 tau 为单位断言，
+         比拍一个「跨度 ≥ 多少秒」的魔数清楚：指数衰减下，从 HI 倍幅跌到 LO 倍幅
+         耗时 = tau·ln(HI/LO)，所以 tau = 跨度 / ln(HI/LO)。 */
+      const body = stats(ch2, SR * 0.3, SR * 1.5).rms;
+      const HI = body * 1.2, LO = body * 0.02;
+      let last = ch2.length - 1; while (last > 0 && Math.abs(ch2[last]) < LO) last--;
+      let st = last; while (st > 0 && Math.abs(ch2[st]) < HI) st--;
+      const relSpan = (last - st) / SR;
+      const impliedTau = relSpan / Math.log(HI / LO);
+
+      out.T = { noLoopTau: +noLoop.tau.toFixed(4), noLoopBody: +noLoop.body.toFixed(4),
+        relSpan: +relSpan.toFixed(3), impliedTau: +impliedTau.toFixed(4), body: +body.toFixed(4) };
+    }
+
     return out;
   });
 
@@ -537,6 +599,13 @@ const T = (ok, name, detail) => {
     'flat=' + r.S.flatSoft + ' curve=' + r.S.curvSoft);
   T(r.S.relN === 12 && r.S.relAllMapped, 'S3a SF_REL 覆盖全部 12 音色且键名都是真实音色名', 'n=' + r.S.relN);
   T(r.S.flatAllMapped && r.S.flatNotSustain, 'S3b SF_VEL_FLAT 键名有效且不含持续音色（持续音色本就不过滤波器）', '');
+  /* T v60.10：修 v60.9 的回归 */
+  T(r.T.noLoopTau >= 0.045,
+    'T1 持续音色缺循环点且时值超采样长度时 tau 兜回 0.05（v60.9 曾塌到 0.0025＝20ms 硬收）',
+    '反解 tau=' + r.T.noLoopTau);
+  T(r.T.impliedTau >= 0.018,
+    'T2 生产口径（dur=6.0）下实际生效的 tau 不低于 0.02（v60.9 曾被压到 0.0069）',
+    '反解 tau=' + r.T.impliedTau + ' 跨度=' + r.T.relSpan + 's');
   T(r.A.dec && r.A.bodyPeak > 0.02, 'A1 采样路径有效（let-ring 主体有声）', 'peak=' + r.A.bodyPeak);
   T(r.A.tailRms < 0.001, 'A2 let-ring 收尾静音（buffer 耗尽后无残响）', 'tailRms=' + r.A.tailRms);
   T(r.A.clickRel < 0.3, 'A3 截断点无爆点（一阶差分相对主体峰值）', 'rel=' + r.A.clickRel);
