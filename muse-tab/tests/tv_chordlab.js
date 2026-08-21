@@ -23,7 +23,7 @@ const MEL = `
   await pg.goto(F); await pg.waitForTimeout(800);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });
   let pass = 0;
-  const N = 11;
+  const N = 14;
 
   // T1 打开与结构：格数=小节数、候选数=候选表大小、乐句行数=A3 切分数、拍位条=本小节拍数
   const t1 = await pg.evaluate(`(()=>{ ${MEL}
@@ -180,18 +180,85 @@ const MEL = `
     + ' 写回 song.mode=' + t8.mode + ' 出现小调和弦=' + t8.hasMinorChord);
   if (ok8) pass++;
 
-  // T9 取消不写回
+  // T9 取消不写回，且**有改动时先二次确认**（v60.23：误触取消＝整稿蒸发，不可接受）
   const t9 = await pg.evaluate(`(()=>{ ${MEL}
     loadSong(mk()); chordLabOpen();
     chordLab.sel=1; chordLab.selBeat=0; chordLabRender();
     [...document.querySelectorAll('[data-cl-pick]')].find(c=>c.dataset.clPick!==chordLabAt(1,0)).click();
+    document.getElementById('cl-cancel').click();                 // 第一次：只出确认，不关窗
+    const step1={ closed:!document.getElementById('modal-mask'), hasWarn:!!document.querySelector('.cl-warn'),
+                  hasKeep:!!document.getElementById('cl-keep') };
+    document.getElementById('cl-keep').click();                   // 继续编辑：改动必须还在
+    const kept=Object.keys(chordLab.picks).length;
     document.getElementById('cl-cancel').click();
+    document.getElementById('cl-cancel').click();                 // 第二次：放弃改动
     const any=song.measures.some(m=>(m.voxes[0]||[]).some(c=>c.chord));
-    return { any, closed:!document.getElementById('modal-mask'), labNull:chordLab===null };
+    return { step1, kept, any, closed:!document.getElementById('modal-mask'), labNull:chordLab===null };
   })()`);
-  const ok9 = !t9.any && t9.closed && t9.labNull;
-  console.log((ok9 ? '✅' : '❌') + ' T9 取消不写回: 谱面有和弦=' + t9.any + '(期望 false) 弹窗关闭=' + t9.closed);
+  const ok9 = !t9.step1.closed && t9.step1.hasWarn && t9.step1.hasKeep && t9.kept === 1
+    && !t9.any && t9.closed && t9.labNull;
+  console.log((ok9 ? '✅' : '❌') + ' T9 取消需确认: 首次点取消未关窗=' + !t9.step1.closed
+    + ' 出现确认条=' + t9.step1.hasWarn + ' 继续编辑后改动仍在=' + t9.kept
+    + ' 放弃后谱面有和弦=' + t9.any + '(期望 false) 弹窗关闭=' + t9.closed);
   if (ok9) pass++;
+
+  // T13 遮罩守卫：有未保存改动时，点弹窗外空白不许关窗（原行为：直接关、一字不写回、chordLab 残留脏全局）
+  const t13 = await pg.evaluate(`(()=>{ ${MEL}
+    loadSong(mk()); chordLabOpen();
+    chordLab.sel=1; chordLab.selBeat=0; chordLabRender();
+    [...document.querySelectorAll('[data-cl-pick]')].find(c=>c.dataset.clPick!==chordLabAt(1,0)).click();
+    const fire=()=>document.getElementById('modal-mask').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+    fire();
+    const dirty={ open:!!document.getElementById('modal-mask'), picks:Object.keys(chordLab.picks).length };
+    chordLab.picks={};                       // 清干净后，点遮罩应当正常关闭
+    fire();
+    const clean={ open:!!document.getElementById('modal-mask'), lab:chordLab };
+    return { dirty, cleanOpen:clean.open, cleanLab:clean.lab===null, guardCleared:modalGuard===null };
+  })()`);
+  const ok13 = t13.dirty.open && t13.dirty.picks === 1 && !t13.cleanOpen && t13.cleanLab && t13.guardCleared;
+  console.log((ok13 ? '✅' : '❌') + ' T13 遮罩守卫: 有改动时点遮罩仍开着=' + t13.dirty.open
+    + ' 改动保留=' + t13.dirty.picks + ' 无改动时点遮罩关闭=' + !t13.cleanOpen
+    + ' 关后 chordLab 已清=' + t13.cleanLab + ' 守卫已清=' + t13.guardCleared);
+  if (ok13) pass++;
+
+  // T14 重渲保留视图：整窗重建不许把滚动位置与焦点丢掉（32 小节 + 手机 = 第三层原本不可用）
+  const t14 = await pg.evaluate(`(()=>{ ${MEL}
+    const s=createSong('vocal',{nVox:1,lyr:0,beats:4,unit:4,key:'C',nMea:32});
+    for(let i=0;i<32;i++) s.measures[i].voxes[0]=rows[i%8].map(c=>Object.assign({},c));
+    loadSong(s); chordLabOpen();
+    const sc=document.querySelector('.cl-scroll'); sc.scrollTop=200;
+    const before=sc.scrollTop;
+    const btn=document.querySelector('[data-cl-beat="1"]'); btn.focus(); btn.click();
+    const M=document.getElementById('modal-mask');
+    return { before, after:M.querySelector('.cl-scroll').scrollTop,
+             inPanel:!!document.activeElement.closest('#modal-mask'),
+             role:(document.querySelector('.modal')||{}).getAttribute
+                  ? document.querySelector('.modal').getAttribute('role') : null };
+  })()`);
+  const ok14 = t14.before === 200 && Math.abs(t14.after - t14.before) < 4 && t14.inPanel && t14.role === 'dialog';
+  console.log((ok14 ? '✅' : '❌') + ' T14 重渲保留视图: scrollTop ' + t14.before + '→' + t14.after
+    + ' 焦点仍在面板内=' + t14.inPanel + ' .modal role=' + t14.role);
+  if (ok14) pass++;
+
+  // T15 无音头的拍不许配和弦：placeChordPlan 只能落在有音头的列上，落不下会被丢弃。
+  //     原行为：面板照样让你选、照样显示 C·G，应用后和弦没了、还报「已写入 N 个小节」——谎报成功比配错更坏。
+  const t15 = await pg.evaluate(`(()=>{ ${MEL}
+    const s=mk(); s.measures[3].voxes[0]=[Object.assign({},V(4,1))];   // 整小节一个全音符：只有第 1 拍有音头
+    loadSong(s); chordLabOpen();
+    chordLab.sel=3; chordLab.selBeat=2; chordLabRender();
+    const cell=document.querySelector('[data-cl-beat="2"]');
+    const blocked = chordLabSetBeat(3,2,'G')===false;
+    const posAfter = chordLabPos(3).length;
+    let msg=''; const _t=window.toast; window.toast=(m)=>{ msg=m; };
+    chordLabApply(); window.toast=_t;
+    const wrote=(song.measures[3].voxes[0]||[]).filter(c=>c.chord).length;
+    return { disabled:cell.disabled, dead:/dead/.test(cell.className), blocked, posAfter, wrote, msg };
+  })()`);
+  const ok15 = t15.disabled && t15.dead && t15.blocked && t15.posAfter === 1 && t15.wrote === 1
+    && !/未能落位/.test(t15.msg);
+  console.log((ok15 ? '✅' : '❌') + ' T15 无音头拍: 格子禁用=' + t15.disabled + ' 程序化写入被拦=' + t15.blocked
+    + ' 该小节和弦位=' + t15.posAfter + ' 实际写入=' + t15.wrote + ' 提示=' + t15.msg);
+  if (ok15) pass++;
 
   // T10 套路名显示：大调套路转成国内习惯的数字级数，小调保留罗马数字
   const t10 = await pg.evaluate(`(()=>({
