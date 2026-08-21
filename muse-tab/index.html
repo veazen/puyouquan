@@ -3042,13 +3042,47 @@ let chordLab = null;
 /* 套路名显示：导入条目用罗马级数命名（I-V-IV-vi），国内习惯是数字级数（1-5-4-6m）。
    仅大调转换——小调保留罗马数字（i / ♭VII / ♭VI 一眼看出调式）。 */
 const PROG_ROMAN2NUM = {I:'1', ii:'2m', iii:'3m', IV:'4', V:'5', V7:'5⁷', vi:'6m'};
-function progLabel(name){
-  const parts = String(name || '').split('-');
-  if(!parts.length || !parts.every(x => PROG_ROMAN2NUM[x] != null)) return name;
-  return parts.map(x => PROG_ROMAN2NUM[x]).join('-');
+/* v60.24 小调也转数字（产品负责人拍板）。级数空间与 CHORD_CANDS_MIN 的 deg 一致——
+   简谱惯例下小调歌沿用平行大调调号、主音落在 6，故 i=6m、♭VII=5、♭VI=4、V=3（和声小调导音）。
+   ♭ 前缀有无都收：13 条手写核心带 ♭，83 条导入的不带，两种拼法指同一个音级。 */
+const PROG_ROMAN2NUM_MIN = {
+  i:'6m', I:'6', 'III':'1', '♭III':'1', iv:'2m', IV:'2', v:'3m', V:'3', V7:'3⁷',
+  'VI':'4', '♭VI':'4', 'VII':'5', '♭VII':'5', ii0:'7dim', 'ii°':'7dim',
+};
+function progLabel(name, minor){
+  const map = minor ? PROG_ROMAN2NUM_MIN : PROG_ROMAN2NUM;
+  /* 专名前缀（如「安达卢西亚 i-♭VII-♭VI-V」）单独摘出来，只转后面的级数部分 */
+  const m = /^(\S*[\u4e00-\u9fa5]\S*)\s+(.*)$/.exec(String(name || ''));
+  const pre = m ? m[1] + ' ' : '', body = m ? m[2] : String(name || '');
+  const parts = body.split('-');
+  if(!parts.length || !parts.every(x => map[x] != null)) return name;
+  return pre + parts.map(x => map[x]).join('-');
 }
 
 /* 谱面已有的和弦位（全部，不只首个）——拍位取列头累计 beatsOf，与 placeChordPlan 同一根轴 */
+/* v60.24 数字级数反算。产品负责人定：**小调也用数字级数**——与简谱惯例一致
+   （小调歌沿用平行大调调号，主音落在 6，故 i-♭VII-♭VI 记作 6m-5-4）；
+   CHORD_CANDS_MIN 的 deg 本来就是「写作调号」空间，直接取即可，不必另建映射表。
+
+   为什么标签要从**实际和弦**反算而不是显示模板原名：progFitSpan 会枚举旋转相位取最优，
+   而面板一直显示未旋转的原名——实测 chip 上写 1-5-6-4，点下去实际写入 Am F C G（= 6m-4-1-5，
+   小室进行）。「1-5-6-4」「50s 进行」在国内都有确定所指，标错就是对用户说假话。
+   反算之后，旋转相位、手改、换套路后的现状，标签一律跟着变。 */
+function candDeg(c){
+  return c.deg + (c.m ? 'm' : '') + (c.suf === '7' ? '⁷' : (c.suf || ''));
+}
+/* [a,b] 上「当前生效的和弦」的数字级数串。不在候选表里的（副属、谱面已有的七和弦）原样显示和弦名。 */
+function chordLabDegs(a, b){
+  const r = chordLab.data, byName = {};
+  r.CAND.forEach(c => { byName[r.cname(c)] = c; });
+  const out = [];
+  for(let mi = a; mi <= b; mi++){
+    const pos = chordLabPos(mi);
+    if(!pos.length){ out.push('—'); continue; }
+    out.push(pos.map(p => { const c = byName[p.chord]; return c ? candDeg(c) : p.chord; }).join('/'));
+  }
+  return out.join('-');
+}
 function chordLabExisting(mi, vi){
   const vox = (song.measures[mi] || {}).voxes;
   const arr = (vox && vox[vi]) || [];
@@ -3141,7 +3175,11 @@ function chordLabTplRank(a, b){
     const f = progFitSpan(r.ctx, byId, a, b, t);
     if(!f) return null;
     const tg = progTags(t);
-    return { id: t.id, name: progLabel(t.name), score: f.sc, ids: f.ids, cad: f.cad,
+    /* name = 这条套路铺在本跨度上**实际**用的级数（含旋转相位）；fam = 模板自己的名字，
+       两者不同才作为副标显示（如「1-5-6-4 家族」「卡农进行」）。 */
+    const deg = f.ids.map(j => candDeg(r.CAND[j])).join('-');
+    const fam = progLabel(t.name, t.mode === 'm');
+    return { id: t.id, name: deg, fam: fam === deg ? '' : fam, score: f.sc, ids: f.ids, cad: f.cad,
              sty: tg.sty, emo: tg.emo };
   }).filter(Boolean).sort((x, y) => y.score - x.score);
 }
@@ -3154,7 +3192,7 @@ function chordLabTplApply(a, b, tplId){
   const hit = chordLabTplRank(a, b).find(t => t.id === tplId);
   if(!hit) return;
   hit.ids.forEach((j, t) => { L.picks[a + t] = [{ beat: 0, chord: r.cname(r.CAND[j]) }]; });
-  L.tpl[key] = hit.name + (hit.cad ? '·收主' : '');
+  L.tpl[key] = (hit.fam || hit.name) + (hit.cad ? '·末句收主和弦' : '');
 }
 
 function chordLabAudition(name){
@@ -3220,13 +3258,19 @@ function chordLabRender(){
         + '" data-cl-mi="' + mi + '"><span class="cl-no">' + (mi + 1) + '</span>'
         + '<span class="cl-ch">' + txt + '</span></button>');
     }
+    /* 行首标签一律描述**现状**：级数串从当前生效的和弦反算，来源作副标。
+       此前有两处会说假话：① 套路铺完再手改，标签仍显示套路名；② 8 小节卡农被合并跨度命中时，
+       同一个名字会贴到两个乐句行上，改了一行另一行还在说卡农。 */
+    const degs = chordLabDegs(a, b);
     const tplName = L.tpl[a + '-' + b];
-    const lab = tplName ? tplName : (edited ? '手改 ' + edited + ' 小节'
-      : (mk ? progLabel(mk.name) + (mk.cad ? '·收主' : '') : '自由解'));
+    const from = tplName ? (edited ? tplName + '（已改 ' + edited + ' 小节）' : tplName)
+      : (edited ? '手改 ' + edited + ' 小节'
+        : (mk ? progLabel(mk.name, r.minor) + (mk.cad ? '·末句收主和弦' : '') : '引擎自选'));
     return '<div class="cl-row"><button class="cl-lab' + (L.tplOpen === si ? ' on' : '')
       + '" data-cl-seg="' + si + '"><b>乐句 ' + (si + 1) + '</b>'
       + '<small>' + (a + 1) + '–' + (b + 1) + ' 小节</small>'
-      + '<em>' + esc(lab) + ' ▾</em></button>'
+      + '<em>' + esc(degs) + ' ▾</em>'
+      + '<u class="cl-from">' + esc(from) + '</u></button>'
       + '<div class="cl-cells">' + cells.join('') + '</div>'
       + (L.tplOpen === si ? chordLabTplPanel(a, b) : '') + '</div>';
   }).join('');
@@ -3304,8 +3348,11 @@ function chordLabTplPanel(a, b){
     + '<span class="cl-tplrow">'
     + '<button class="cl-chip free" data-cl-tpl="free" data-cl-a="' + a + '" data-cl-b="' + b + '">自由解</button>'
     + (shown.length ? shown.map(t => '<button class="cl-chip" data-cl-tpl="' + esc(t.id) + '" data-cl-a="' + a
-        + '" data-cl-b="' + b + '" title="' + esc(t.sty.concat(t.emo).join(' · ')) + '">' + esc(t.name)
-        + (t.emo.length ? '<i class="cl-tg">' + esc(t.emo[0]) + '</i>' : '') + '</button>').join('')
+        + '" data-cl-b="' + b + '" title="' + esc((t.fam ? t.fam + ' · ' : '') + t.sty.concat(t.emo).join(' · ')) + '">'
+        + '<b class="cl-cn">' + esc(t.name) + '</b>'
+        + '<i class="cl-tg">' + esc([t.fam ? '原型 ' + t.fam : '', t.cad ? '末句收主' : '', t.emo[0]]
+            .filter(Boolean).join(' · ')) + '</i>'
+        + '</button>').join('')
        : '<span class="cl-tt">这段旋律没有该分类下配得上的套路，换个筛选或用「自由解」</span>')
     + (rank.length > 6 ? '<button class="cl-chip more" data-cl-more="1">'
         + (L.tplMore ? '收起' : '更多 ' + (rank.length - 6)) + '</button>' : '')
@@ -3339,7 +3386,11 @@ function chordLabCSS(){
     + '.cl-tt{font-size:11.5px;color:var(--muted)}'
     + '.cl-chip{min-height:36px;padding:5px 10px;border:1px solid var(--border);border-radius:16px;'
     + 'background:var(--bg);font-size:12.5px;cursor:pointer}'
-    + '.cl-chip.free{border-style:dashed}.cl-chip.more{color:var(--muted)}'
+    + '.cl-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;line-height:1.25}'
+    + '.cl-chip .cl-cn{font-size:13px;font-weight:600}'
+    + '.cl-chip.free{border-style:dashed;justify-content:center}'
+    + '.cl-chip.more{color:var(--muted);justify-content:center}'
+    + '.cl-lab u{display:block;text-decoration:none;color:var(--muted);font-size:10.5px;line-height:1.3}'
     + '.cl-chip .cl-tg{font-style:normal;color:var(--muted);font-size:11px;margin-left:5px}'
     + '.cl-sel{min-height:36px;font-size:12.5px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}'
     + '.cl-tplrow{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center}'
@@ -18745,7 +18796,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.23';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.24';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -18768,6 +18819,7 @@ const APP_VER='v60.23';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.24</span><div><b>级数标签说真话：小调统一用数字级数，套路名改为从「实际写入的和弦」反算</b>（产品负责人拍板：<b>小调用数字</b>、<b>和弦重复照标</b>）。① <b>发现的问题</b>：<code>progFitSpan</code> 会枚举<b>旋转相位</b>取最优（同一组和弦从哪个音起步），但面板从头到尾显示的是<b>没旋转的模板原名</b>——实测 chip 上写着 <code>1-5-6-4</code>，点下去实际写入 <code>Am F C G</code>（那是 <code>6m-4-1-5</code>，小室进行）。<code>1-5-6-4</code>「50s 进行」在国内都有确定所指，标错就是对用户说假话。同类问题还有三处：套路铺完再手改，行首标签仍显示套路名；8 小节卡农被合并跨度命中时同一个名字贴到两个乐句行上，改了一行另一行还在说卡农；手写核心用裸 <code>6</code>、导入条目用 <code>6m</code>，同一屏里指同一个 Am 却两种写法。② <b>修法不是补映射表，是换数据源</b>：标签一律从<b>当前生效的和弦</b>反算级数（<code>chordLabDegs</code> / <code>candDeg</code>）——旋转相位、终止式替换、手改、换套路之后的现状，标签自动跟着变，不可能再对不上。模板自己的名字降为<b>副标「原型」</b>，两者不同才显示。③ <b>小调统一数字级数</b>：级数空间就是简谱的写作调号（小调歌沿用平行大调调号、主音落在 <code>6</code>），故 <code>i=6m</code>、<code>♭VII=5</code>、<code>♭VI=4</code>、<code>V=3</code>（和声小调导音）、<code>ii°=7dim</code>；<code>♭</code> 前缀有无都收——13 条手写核心带 <code>♭</code>、83 条导入的不带，指的是同一个音级。专名（<code>安达卢西亚</code>）保留并只转后面的级数部分。④ <b>顺带解释了一个看起来像 bug 的现象</b>：小调末句上四条不同套路会显示同一个结果级数，那是<b>终止式替换</b>把它们的末格都换成了主和弦——真实如此，现在 chip 副标注明「末句收主」并列出各自原型，四条仍可区分。⑤ <b>和弦重复照标</b>：按产品负责人决定，维持每小节都标注的现行做法，不做「只在改变处标」的选项。新增 <code>tv_chordlab</code> T16 <b>钉住「标签必须能由 ids 逐格反推」</b>并做变异验证（退回显示模板原名 → 39 条候选里 12 条不符，当场转红），T10 补强为覆盖小调映射的六个用例。15→<b>16 项</b>，<b>56 套件</b>全绿。</div></li>
     <li><span class="v">v60.23</span><div><b>配和弦工作台：三条会丢数据／谎报成功的阻断缺陷 + 一个从 v60.20 起就没渲染出来的边框</b>（三位专家并行审查面板：视觉、可用性、记谱专业性；本版只落其中<b>不改行为语义</b>的安全项，其余待逐条核实后分批做）。① <b>点弹窗外空白不再直接关窗丢稿</b>：此前 <code>showModal</code> 的遮罩点击一律直接关闭，工作台走同一条路——改了二十分钟，手机上拇指蹭到遮罩窄边就<b>整稿蒸发、一字不写回</b>，<code>chordLab</code> 还残留成脏全局。现新增<b>关闭守卫</b>（<code>modalGuard</code>）：有未保存改动时点遮罩只提示不关窗；「取消」也改为<b>二次确认</b>（继续编辑／放弃改动）。守卫随弹窗一起清，不会拦到别的弹窗。② <b>每次点击不再把滚动位置和焦点丢掉</b>：面板每次交互都整窗重建（<code>showModal</code> 第一件事是 <code>closeModal</code>），实测滚动位置 200 直接归 0、焦点退回 <code>body</code> 跑出面板——32 小节的谱在手机上滚动区只有三行高，点一个小节就弹回第一乐句，第三层等于不可用。现在渲染前记下「滚到哪儿、焦点在谁身上」，渲染后原样放回；<b>自动滚动只在选择真的变了时才做</b>（踩过一次：无条件把选中格拉进视野，正好把刚恢复的滚动位置又冲掉）。弹窗一并补上 <code>role=dialog</code>。③ <b>不再承诺写不进去的和弦，也不再谎报成功</b>：和弦只能落在<b>有音头的列</b>上，可面板的拍位格是按拍数无条件生成的——长音小节的第 3 拍照样可点、照样显示 <code>C·G</code>，应用后那个和弦被<b>静默丢弃</b>，提示却仍是「已写入 8 个小节的和弦」。现在无音头的拍<b>禁用并说明原因</b>，程序化写入也会被拦；应用后如实汇报有几处未能落位。<b>谎报成功比配错更坏</b>——用户看不出少了什么。④ <b>修一个我自己写的 bug</b>：面板 CSS 里 8 处写的是 <code>var(--line)</code>，而全项目根本没有这个变量（只有 <code>--border</code>）。CSS 中未定义变量会让整条 <code>border</code> 简写作废——<b>小节格／拍位格／筛选下拉／分数条轨道从 v60.20 起就一直没有边框</b>，只剩一层浅填充；我复核过两轮截图都没看出来，是同色填充骗过了眼睛。教训记在代码注释里：<b>写 CSS 变量前先 grep 确认它存在</b>。⑤ 顺带把成功提示改成「点顶栏 ↶ 或 Ctrl+Z」——手机上没有 Ctrl 键。<code>tv_chordlab</code> 12→<b>15 项</b>（T9 改写为「取消需确认」，新增 T13 遮罩守卫／T14 重渲保留视图／T15 无音头拍），<b>56 套件</b>全绿。</div></li>
     <li><span class="v">v60.22</span><div><b>套路词典：96 条和弦进行按「风格 / 情绪」分类，换套路时可筛</b>（用户指示：「和弦套路按音乐风格和情绪标签给出分类选项」）：套路库涨到 96 条之后，「换套路」列表按契合度排完还是一长串，想找「爵士味的」「忧伤的」只能一条条试。本版给每条套路打上两组标签，面板顶部加<b>风格</b>、<b>情绪</b>两个下拉，筛完仍按契合度排序。<b>① 两组标签的来源完全不同，产品里也分开讲</b>：<b>情绪是上游真数据</b>——free-midi-chords 的进行表本来就是「级数序列 = 情绪词」，导入时已原样存下（83 条全有，19 个英文词），本版只做「英文词 → 中文桶」的归并，归成<b>欢快／激昂／温柔／希望／怀旧／忧伤／暗色</b>七类；13 条手写核心套路上游没有，按同一套词汇手工补齐。<b>风格上游没有</b>，由和声内容<b>按规则推定</b>：词汇只用三个正三和弦→民谣；万能四和弦家族→流行；四五度连锁≥3 个和弦→爵士；顺阶模进含 iii 或小调用导音→古典；小调含 ♭VII 且无导音→中国风；判据都写在代码里可复核，一条进行同时属于两三种风格很正常（卡农既是流行也是古典），故为多标签。<b>② 两条错误规则被数据当场证伪，记下来免得再犯</b>：其一，本想判「摇滚」，判据取「含 ♭VII/♭VI」——96 条里 45 条中标，因为 <b>♭VII/♭VI 在小调里是自然音级</b>，根本不是摇滚标记；真正的摇滚标记是<b>大调里的模态借用</b>，而借用和弦还没进候选集，<b>现在根本没有可判的素材，故不设「摇滚」桶——宁可不给，也不给一个错的</b>。其二，本用「含 iii → 古典」，把 <code>4-5-3-6</code> 判成古典，可 4536 是国内流行的王道进行；改成「长度≥5 的顺阶模进，或含 iii 但不含 vi」，4536 才归回流行。<b>③ 下拉里只列这段旋律真配得上的标签并带条数</b>（如「爵士 4」），点了是空的选项不给列；筛完为空时给一句话出路，不留空白。套路 chip 上直接带首要情绪词（<code>1-5-6-4 希望</code>），不用打开下拉也看得见。<b>④ 手机上照样能点</b>：筛选下拉与套路 chip 一并抬到 <b>≥44px</b>，窄屏两个下拉平分一行；T11 新增断言把这两处也量进去。新增 <code>tv_prog</code> T9（<b>上游情绪词一个都不许被静默丢掉</b>——将来重跑导入若上游添了新词，没进映射表会悄悄消失，这条让它当场转红；外加五条众所周知的抽查：1-5-6-4→流行、4-5-3-6→流行、2-5-1→爵士、1-4-5-1→民谣、小调 6415→流行/中国风）与 <code>tv_chordlab</code> T12（筛选收窄候选、下拉条数与实算一致、清空复原），8→9 与 11→12 项，<b>55 套件</b>全绿。</div></li>
     <li><span class="v">v60.21</span><div><b>配和弦工作台二版：乐句级换套路 + 每拍逐格编辑，一套界面手机上照样用</b>（用户指示：「乐句级换套路；每拍和弦的逐格编辑。界面设计要符合智能／简单／高效，移动端通用」）：上一版只能<b>逐小节</b>换和弦——想让整句改走另一条进行得一格一格点，想在第三拍换和弦则根本做不到。本版把面板改成<b>三层</b>，越往下越细，默认只暴露最上面一层。① <b>乐句级换套路</b>：每个乐句行首的按钮显示该句现在用的是哪条进行（或「自由解」），点开列出<b>按契合度排好序</b>的候选套路，点一下整句换掉，再点「自由解」原样退回引擎的解。② <b>每拍逐格编辑</b>：点一个小节，下方展开该小节的<b>拍位条</b>（几拍就几格）；点某一拍，候选清单换成「<b>这一拍起</b>」的候选，点选即换并试听——半小节换和弦、第三拍插一个属七，现在都点得出来；小节格上会用 <code>C·G</code> 这样的写法显示一小节里的多个和弦。③ <b>分数仍然一份都不新写</b>：整小节口径用引擎的发射分 <code>emit</code>（Viterbi 挑和弦用的就是它），子区间口径用 <code>chordRangeScore</code>（引擎拆半小节用的同一把尺子），换套路的排序用 <code>progFitSpan</code>（这一版从 <code>applyProgTemplates</code> 里抽出来，自动挡和手动挡从此共用同一段代码）——所以<b>面板上排第一的，就是引擎自己会选的</b>；<code>tv_chordlab</code> T2／T3／T6 分别钉住这三条同源关系，其中 T3 特意挑了一个「整小节口径与后半段口径答案不同」的小节，面板若偷懒对所有拍都用整小节分数，这条立刻变红。④ <b>手机上是一等公民</b>：所有可点区域<b>≥44px</b>，栅格自动换行，不依赖 hover；窄屏下乐句标签占满整行把小节格让出完整宽度、隐藏次要的功能列（分数条已经表达了优先级）、底部按钮拉平。新增 T11 在 <b>360×740</b> 真窄屏视口里断言「横向零溢出 + 触控目标 ≥44px + 标签整行」。⑤ 上一版的四条约束一条没松：谱面已有和弦仍优先且分色标出、调式仍可手动覆盖并记进 <code>song.mode</code>、应用仍是一次可撤销的整体写入、取消仍一个字都不写。⑥ <b>两处只有截图才看得出来的毛病，顺手一并修了</b>：其一，标「来源=套路」的小节格类名与新加的套路条容器类名撞车（都叫 <code>cl-tpl</code>），被套路条的整行样式带得<b>每个小节格独占一行</b>——断言全绿、肉眼一看就不对，已改名并补上「同乐句的小节格必须排成一行」的几何断言；其二，手机上面板太高，<b>「应用到谱面」被挤出首屏</b>要滚动才够得着（360×780 溢出 67px），已压窄屏两个滚动区并加断言钉住。<code>tv_chordlab</code> 7→<b>11 项</b>，<b>55 套件</b>全绿。</div></li>

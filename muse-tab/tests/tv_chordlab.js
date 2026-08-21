@@ -23,7 +23,7 @@ const MEL = `
   await pg.goto(F); await pg.waitForTimeout(800);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });
   let pass = 0;
-  const N = 14;
+  const N = 15;
 
   // T1 打开与结构：格数=小节数、候选数=候选表大小、乐句行数=A3 切分数、拍位条=本小节拍数
   const t1 = await pg.evaluate(`(()=>{ ${MEL}
@@ -260,14 +260,43 @@ const MEL = `
     + ' 该小节和弦位=' + t15.posAfter + ' 实际写入=' + t15.wrote + ' 提示=' + t15.msg);
   if (ok15) pass++;
 
-  // T10 套路名显示：大调套路转成国内习惯的数字级数，小调保留罗马数字
+  // T10 级数显示：大调与**小调都转数字**（v60.24 产品负责人拍板）。
+  //     小调级数空间＝简谱写作调号（主音落在 6）：i=6m ♭VII=5 ♭VI=4 V=3（和声小调导音）。
+  //     ♭ 前缀有无都要收——13 条手写核心带 ♭、83 条导入的不带，指的是同一个音级。
   const t10 = await pg.evaluate(`(()=>({
-    a: progLabel('I-V-IV-vi'), b: progLabel('1-5-6-4'), c: progLabel('i-♭VII-♭VI-♭VII')
+    a: progLabel('I-V-IV-vi'), b: progLabel('1-5-6-4'),
+    c: progLabel('i-♭VII-♭VI-♭VII', true), d: progLabel('i-VII-VI-III', true),
+    e: progLabel('安达卢西亚 i-♭VII-♭VI-V', true), f: progLabel('i-ii0-v-i', true)
   }))()`);
-  const ok10 = t10.a === '1-5-4-6m' && t10.b === '1-5-6-4' && t10.c === 'i-♭VII-♭VI-♭VII';
-  console.log((ok10 ? '✅' : '❌') + ' T10 套路名显示: I-V-IV-vi→' + t10.a + ' 已是数字的不动=' + t10.b
-    + ' 小调保留=' + t10.c);
+  const ok10 = t10.a === '1-5-4-6m' && t10.b === '1-5-6-4' && t10.c === '6m-5-4-5'
+    && t10.d === '6m-5-4-1' && t10.e === '安达卢西亚 6m-5-4-3' && t10.f === '6m-7dim-3m-6m';
+  console.log((ok10 ? '✅' : '❌') + ' T10 级数显示: 大调 I-V-IV-vi→' + t10.a + ' 已是数字的不动=' + t10.b
+    + '｜小调 带♭→' + t10.c + ' 不带♭→' + t10.d + ' 专名→' + t10.e + ' 减三→' + t10.f);
   if (ok10) pass++;
+
+  // T16 旋转相位不许说假话：progFitSpan 会枚举旋转相位取最优，若标签仍显示模板原名，
+  //     chip 上写 1-5-6-4、点下去写入 Am F C G（=6m-4-1-5）——两条不同的进行，名字张冠李戴。
+  //     故断言：**每个候选的标签必须能由它自己的 ids 逐格反推出来**（含 rot:true 的条目）。
+  const t16 = await pg.evaluate(`(()=>{ ${MEL}
+    loadSong(mk()); chordLabOpen();
+    const [a,bb]=chordLab.data.segs[0], R=chordLab.data;
+    const rk=chordLabTplRank(a,bb);
+    let bad=0, nRot=0, ex='';
+    rk.forEach(t=>{
+      const want=t.ids.map(j=>candDeg(R.CAND[j])).join('-');
+      const tpl=PROG_TPL.find(x=>x.id===t.id); if(tpl && tpl.rot) nRot++;
+      if(t.name!==want){ bad++; if(!ex) ex=t.name+' vs 实际 '+want; }
+    });
+    // 同时确认样本里**确实有**被旋转的条目，否则这条断言等于没测
+    const rotated=rk.filter(t=>{ const tpl=PROG_TPL.find(x=>x.id===t.id);
+      return tpl && tpl.rot && t.fam && t.fam!==t.name; }).length;
+    return { n:rk.length, bad, nRot, rotated, ex };
+  })()`);
+  const ok16 = t16.bad === 0 && t16.nRot > 0 && t16.rotated > 0;
+  console.log((ok16 ? '✅' : '❌') + ' T16 旋转相位说真话: ' + t16.n + ' 条候选，标签与 ids 不符 = '
+    + t16.bad + '(期望 0)' + (t16.ex ? ' 例：' + t16.ex : '')
+    + '｜其中可旋转 ' + t16.nRot + ' 条、实际发生旋转 ' + t16.rotated + ' 条（需>0，否则测不出）');
+  if (ok16) pass++;
 
   // T12 分类筛选：风格/情绪下拉收窄候选，且下拉里只出现「这段旋律真配得上」的标签（带条数）
   const t12 = await pg.evaluate(`(()=>{ ${MEL}
