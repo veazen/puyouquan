@@ -13,3 +13,19 @@ node tv_head.js                   # 五线谱系统头部几何断言
 ```
 
 输出约定：每项 ✅/❌，末尾 `NO ERRORS` 表示无页面报错。截图输出到当前目录（不入库）。
+
+## CI 浏览器与本地二进制的差异（v60.26 教训）
+
+CI（deploy.yml）按 lockfile 装 playwright 1.61.1，其配套浏览器是 **chromium-1228 = Chrome 149**；
+而开发容器预装的 `/opt/pw-browsers/chromium` 是更旧的 chromium-1194。两者对「过渡何时启动」
+行为不同：class/主题刚切换后立即读带 `transition` 属性的计算样式，Chrome 149 会返回**过渡起始值**
+（tv_frame T16 曾因此只在 CI 红）。写计算样式断言前先注入 `transition:none!important` 并强制回流。
+
+本地要用 CI 同款浏览器复核时（`cdn.playwright.dev` 若被网络策略拦截，走 Google 官方 CDN）：
+
+```bash
+curl -o /tmp/cft.zip https://storage.googleapis.com/chrome-for-testing-public/149.0.7827.55/linux64/chrome-linux64.zip
+unzip /tmp/cft.zip -d /tmp && export CHROMIUM_PATH=/tmp/chrome-linux64/chrome
+```
+
+（版本号以 `node_modules/playwright-core/browsers.json` 里 chromium 的 `browserVersion` 为准。）

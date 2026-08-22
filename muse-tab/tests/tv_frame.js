@@ -262,13 +262,23 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const fullCol = ld.height > innerHeight * 0.6 && rd.height > innerHeight * 0.6;
     const innerScroll = getComputedStyle(sw).overflowY === 'auto' && sw.scrollHeight > sw.clientHeight;
     sw.scrollTop = 180; const scrolled = sw.scrollTop > 100; sw.scrollTop = 0;
-    /* v40.8 左轨：无新建按钮、纯图标（文字隐去）、选中朱砂底 */
+    /* v40.8 左轨：无新建按钮、纯图标（文字隐去）、选中朱砂底。
+       读色前必须禁掉 .ltab 的过渡并强制回流：.ltab 带 transition:all .15s，
+       class/主题刚切换时直接读计算样式会得到过渡起始值（纸白）而非终值——
+       过渡何时启动因引擎而异，Chrome 149(CI chromium-1228) 实测在此读到起始值，
+       本地旧版 chromium-1194 只是侥幸绿（v60.26 教训：计算样式断言先掐过渡）。 */
     const noNew = !document.querySelector('.ltab[data-act="new"]');
     const tabBtn = document.querySelector('.ltab[data-t="tab"]');
     const iconOnly = !!tabBtn.querySelector('.lic svg')
       && getComputedStyle(tabBtn.querySelector('.lb')).fontSize === '10px'
       && tabBtn.querySelector('.lb').textContent === '六线谱';
-    const onBg = getComputedStyle(document.querySelector('.ltab.on')).backgroundColor;
+    const noTr = document.createElement('style');
+    noTr.textContent = '.ltab{transition:none!important}';
+    document.head.appendChild(noTr);
+    const onEl = document.querySelector('.ltab.on');
+    void onEl.offsetWidth;
+    const onBg = getComputedStyle(onEl).backgroundColor;
+    noTr.remove();
     const m = /rgba?\((\d+), (\d+), (\d+)/.exec(onBg);
     const redOn = m && +m[1] > 150 && +m[1] > (+m[2] + 60) && +m[1] > (+m[3] + 60);
     document.getElementById('b-shell').click();   // → 经典
