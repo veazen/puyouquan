@@ -393,7 +393,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     /* v56.6 光标位置+节拍检查（em-toggle+beat-box）移入创作页；预提示移除；
        导入互操作(rt-mxl) 暂时隐藏（启动台/新建向导仍可达） */
     const ciInfo = !!document.querySelector('.rcard[data-rt="make"] #cursor-info');
-    const makeCards = !!document.querySelector('.rcard[data-rt="make"] #rt-sug')
+    const makeCards = !!document.querySelector('.rcard[data-rt="make"] #rt-midi')   /* v60.26 首项换导入MIDI */
       && !!document.querySelector('.rcard[data-rt="make"]#rc-beat')
       && !!document.querySelector('#rc-beat #em-toggle')
       && document.getElementById('beat-box').parentElement === document.getElementById('beat-host');

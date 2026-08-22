@@ -135,7 +135,7 @@ const T = (ok, name, detail) => {
     card.querySelector('.rc-h').click();
     const reopened = card.classList.contains('open') && bodyVis();
     /* 创作辅助卡：标题栏「创作辅助」可见，卡内重复大标题行隐藏（新版外壳） */
-    const sugCard = document.getElementById('rt-sug').closest('.rcard');
+    const sugCard = document.getElementById('rt-lab').closest('.rcard');   /* v60.26 rt-sug 撤位，锚点换工作台 */
     const sugTitle = sugCard.querySelector('.rc-h').textContent.trim() === '创作辅助'
       && !!sugCard.querySelector('.rc-h').offsetParent;
     const aihHidden = !sugCard.querySelector('.ai-h').offsetParent;

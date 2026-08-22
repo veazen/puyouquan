@@ -94,10 +94,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const vis = id => { const e = document.getElementById(id); if (!e) return false;
       let n = e; while (n && n !== document.body) { const c = getComputedStyle(n);
         if (c.display === 'none' || c.visibility === 'hidden') return false; n = n.parentElement; } return true; };
-    return { sug: vis('rt-sug'), arr: vis('rt-arr'), beat: vis('beat-status'), mask: !!document.getElementById('rsheet-mask') };
+    return { sug: vis('rt-midi'), arr: vis('rt-arr'), beat: vis('beat-status'), mask: !!document.getElementById('rsheet-mask') };   /* v60.26 首项=导入MIDI */
   });
   T(r.sug && r.arr && r.beat && r.mask,
-    'T7 智能抽屉：一键配和弦/一键配伴奏/节拍检查在手机可达', JSON.stringify(r));
+    'T7 智能抽屉：导入MIDI/一键配伴奏/节拍检查在手机可达', JSON.stringify(r));
 
   T(errs.length === 0, 'T3 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

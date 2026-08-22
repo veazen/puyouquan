@@ -106,7 +106,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     if (standOn) exitStand();
     return { stand: !!stand, rate025, feats, standOn };
   });
-  T(r.stand && r.rate025 && r.feats === 4 && r.standOn,   /* v55.8 导入组 4 入口：MusicXML/GuitarPro/MIDI/哼唱 */
+  T(r.stand && r.rate025 && r.feats === 3 && r.standOn,   /* v60.26 导入组 3 入口：MusicXML/GuitarPro/哼唱——MIDI 移出新建向导，
+       改为创作辅助第一项（替代一键配和弦）与启动台直达独立界面（产品负责人指定） */
     'T6 谱架入口/0.25×/向导提权', '谱架可进=' + r.standOn + ' 提权按钮=' + r.feats);
 
   const allErrs = errs1.concat(errs);

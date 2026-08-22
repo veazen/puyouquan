@@ -1515,7 +1515,7 @@ body.shell #left-flyout .rg-body .eb.ico .g svg{display:block}
 
   /* —— D2. 「智能」抽屉：把既有 #right-dock 原样升成底部半屏抽屉。
      不复制任何面板、不改任何 id/wiring——右栏「创作/信息」两页签里就是
-     一键配和弦(rt-sug) / 一键配伴奏(rt-arr) / 节拍检查(beat-host) / 曲谱信息(ri-edit)。 —— */
+     导入MIDI(rt-midi，v60.26 起替代一键配和弦) / 一键配伴奏(rt-arr) / 节拍检查(beat-host) / 曲谱信息(ri-edit)。 —— */
   body.shell:not(.stand):not(.viewer) #b-msmart{display:inline-flex;align-items:center;justify-content:center;
     min-height:40px;padding:0 12px;font-size:13px;font-weight:700;color:var(--accent-ink)}
   body.shell:not(.stand):not(.viewer).rsheet #right-dock{
@@ -1814,7 +1814,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <div class="rg-title">伴奏工具</div>
       <div class="rg-body">
         <button id="va-chord" title="标注和弦：级数为主构建（级数×类型扩展×转位低音），织体按和弦生成音符">标和弦…</button>
-        <button id="va-sug" title="按功能和声自动建议全曲和弦（已填的小节不覆盖）">一键配和弦</button>
+        <button id="va-midi" title="MIDI 导入独立界面：选谱类、音轨映射到对应声部（一键配和弦已并入工作台与伴奏织体弹窗）">导入MIDI</button>
         <button id="va-lab" title="配和弦工作台：逐小节候选与得分、乐句套路可见、可手动指定调式">配和弦工作台</button>
         <button id="va-tex" title="选伴奏织体，按已标注的和弦自动生成双手音符（可编辑、可逐段重生成）">伴奏织体…</button>
       </div>
@@ -2047,7 +2047,9 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <div class="ai-sec">
           <div class="ai-h"><span class="sp" data-svgi="sparkle"></span><b>创作辅助</b></div>
           <p class="ai-p">从旋律到伴奏，常规配置一键完成。</p>
-          <button id="rt-sug" class="aitem" title="按调式功能和声自动为全曲配和弦（已填小节不覆盖）"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>一键配和弦</b><small>按调式功能和声自动配置</small></span><span class="aiarr">›</span></button>
+          <!-- v60.26 产品负责人指定：MIDI 导入独立界面放创作辅助第一项，替代一键配和弦
+               （一键能力仍在：配和弦工作台「应用到谱面」与 伴奏织体弹窗「一键配和弦（建议）」两处可达） -->
+          <button id="rt-midi" class="aitem" title="MIDI 导入独立界面：选谱类（歌谱/钢琴/吉他/尤克里里）→ 音轨映射到对应声部；吉他自动指派弦品"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>选谱类 · 音轨映射声部 · DAW 工程直入</small></span><span class="aiarr">›</span></button>
           <button id="rt-lab" class="aitem" title="配和弦工作台：逐小节看候选与得分、按乐句显示命中的进行套路、可手动指定调式与逐格改和弦，确认后再写回谱面"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>配和弦工作台</b><small>逐小节推敲·候选评分·套路可见</small></span><span class="aiarr">›</span></button>
           <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
@@ -2058,7 +2060,6 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <div class="ai-h"><span class="sp" data-svgi="loop"></span><b>导入 · 互操作</b></div>
           <p class="ai-p">与 MuseScore / DAW / AI 转谱工具互通。</p>
           <button id="rt-mxl" class="aitem" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"><span class="aic" data-svgi="doc"></span><span class="ait"><b>导入 MusicXML…</b><small>专业制谱 / AI 转谱直入</small></span><span class="aiarr">›</span></button>
-          <button id="rt-midi" class="aitem" title="DAW / 编曲软件工程直入"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>DAW / 编曲工程直入</small></span><span class="aiarr">›</span></button>
         </div>
       </div>
     </div>
@@ -5604,7 +5605,7 @@ function renderDock(){
   /* v40.2 右栏库/智能页签入口按谱类显隐（与上方 b-acctex/b-arrange 同口径） */
   { const show=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display = on? '' : 'none'; };
     show('rt-arr',  ['vocal','teach','instr'].includes(dt));
-    show('rt-sug',  song.voxVoices.length>0);
+    show('rt-midi', true);                    /* v60.26 导入 MIDI 建的是新谱，与当前谱类无关，恒显 */
     show('rt-lab',  song.voxVoices.length>0);
     show('rt-fill', song.lyricLines>0);
     /* v40.8 库页签内的节奏型/伴奏织体面板 + 风格入口按谱类显隐（仅新版；经典版由 setRibbon 管理面板） */
@@ -9828,8 +9829,9 @@ function initStartPad(){
       div.addEventListener('click', ev=>{
         const b2=ev.target.closest('[data-im]'); if(!b2) return;
         const im=b2.dataset.im; closePop();
+        if(im==='midi'){ midiImportPick(); return; }   /* v60.26 直达独立界面，不经新建向导 */
         document.getElementById('b-new').click();
-        const x=document.getElementById(im==='mxl'?'nw-import':'nw-midi'); if(x) x.click();
+        const x=document.getElementById('nw-import'); if(x) x.click();
       });
     }
   });
@@ -12022,11 +12024,8 @@ document.getElementById('va-chord').onclick = e=>{
 document.getElementById('vf-edit').onclick = e=>{
   const r=e.target.getBoundingClientRect(); showVoxChordMenu(r.right+8, r.top-10);
 };
-document.getElementById('va-sug').onclick = ()=>{
-  let n; mutate(()=>{ n=applySuggestChords(); });
-  toast(n? '已按功能和声建议标注 '+n+' 个小节的和弦（已填的不覆盖，可再点「伴奏织体…」生成音符）'
-         : '没有可标注的小节（已填和弦或无参考音符）');
-};
+/* v60.26 一键配和弦按钮撤位（能力保留：工作台「应用到谱面」+ 织体弹窗「一键配和弦（建议）」） */
+{ const _vm=document.getElementById('va-midi'); if(_vm) _vm.onclick = ()=>midiImportPick(); }
 document.getElementById('va-lab').onclick = ()=>chordLabOpen();
 document.getElementById('va-tex').onclick = ()=>document.getElementById('b-acctex').click();
 document.getElementById('vf-names').onclick = ()=>{
@@ -14442,13 +14441,12 @@ function applyShell(){
   const go=(id,fn)=>{ const el=document.getElementById(id); if(el) el.onclick=fn; };
   const click=id=>{ const el=document.getElementById(id); if(el) el.click(); };
   go('rt-chorded',()=>click('b-chord-edit'));
-  go('rt-sug',    ()=>click('va-sug'));
   go('rt-lab',    ()=>click('va-lab'));
   go('rt-arr',    ()=>click('b-arrange'));
   go('rt-fill',   ()=>click('b-fill'));
   go('rt-hum',    ()=>{ click('b-new'); click('nw-hum'); });     // 新建向导即刻转入哼唱流程
   go('rt-mxl',    ()=>{ click('b-new'); click('nw-import'); });
-  go('rt-midi',   ()=>{ click('b-new'); click('nw-midi'); });
+  go('rt-midi',   ()=>midiImportPick());   /* v60.26 直达独立界面，不再经新建向导 */
   go('ri-edit',   ()=>click('b-meta'));   // v41.4 信息页摘要卡 → 曲谱信息弹窗
 })();
 document.getElementById('b-shell').onclick = ()=>{
@@ -14813,13 +14811,12 @@ function showNewWizard(){
     <span class="nw-feats-t">已有曲子？不用从零录入：</span>
     <button id="nw-import" class="nwf">${svgi('doc',15)} 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
     <button id="nw-gp" class="nwf">${svgi('guitar',15)} 导入 Guitar Pro<small>.gp / .gpx / .gp3 / .gp4 / .gp5 全版本</small></button>
-    <button id="nw-midi" class="nwf">${svgi('piano',15)} 导入 MIDI<small>DAW / 编曲软件工程直入</small></button>
     <button id="nw-hum" class="nwf">${svgi('mic',15)} 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
   </div>
   <div class="btns"><button id="nw-cancel">取消</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
   <input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" style="display:none">
-  <input type="file" id="nw-midifile" accept=".mid,.midi" style="display:none">`);
+`);
   /* v55.8 Guitar Pro (.gp) 导入入口 */
   document.getElementById('nw-gp').onclick = ()=>document.getElementById('nw-gpfile').click();
   document.getElementById('nw-gpfile').onchange = e=>{
@@ -14887,18 +14884,6 @@ function showNewWizard(){
       st('录音中…唱完点「停止并生成」（最长60秒）');
       setTimeout(()=>{ if(rec && rec.state==='recording') rec.stop(); }, 60000);
     };
-  };
-  document.getElementById('nw-midi').onclick = ()=>document.getElementById('nw-midifile').click();
-  document.getElementById('nw-midifile').onchange = e=>{
-    const file=e.target.files[0]; if(!file) return;
-    e.target.value='';
-    const rd=new FileReader();
-    rd.onload=()=>{
-      const smf=parseSMF(new Uint8Array(rd.result));
-      if(smf.error){ toast('导入失败：'+smf.error); return; }
-      showMidiImport(smf);
-    };
-    rd.readAsArrayBuffer(file);
   };
   document.getElementById('nw-import').onclick = ()=>document.getElementById('nw-mxlfile').click();
   document.getElementById('nw-mxlfile').onchange = e=>{
@@ -16687,6 +16672,28 @@ function midiTrackInfo(t2){
   const NM=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const nm=m=>NM[m%12]+(Math.floor(m/12)-1);
   return t2.notes.length? nm(lo)+'–'+nm(hi) : '空';
+}
+/* v60.26 独立导入界面的全局直达入口（创作辅助第一项 / 经典栏 / 启动台共用）：
+   产品负责人指定不放在新建向导——选文件即进 showMidiImport，选谱类在界面里做。 */
+function midiImportPick(){
+  let inp=document.getElementById('gi-midifile');
+  if(!inp){
+    inp=document.createElement('input');
+    inp.type='file'; inp.id='gi-midifile'; inp.accept='.mid,.midi'; inp.style.display='none';
+    document.body.appendChild(inp);
+    inp.onchange=e=>{
+      const file=e.target.files[0]; if(!file) return;
+      e.target.value='';
+      const rd=new FileReader();
+      rd.onload=()=>{
+        const smf=parseSMF(new Uint8Array(rd.result));
+        if(smf.error) return toast('导入失败：'+smf.error);
+        showMidiImport(smf);
+      };
+      rd.readAsArrayBuffer(file);
+    };
+  }
+  inp.click();
 }
 function showMidiImport(smf){
   const opts=smf.tracks.map((t2,i)=>`<option value="${i}">${esc(t2.name)}（${t2.notes.length}音 · ${midiTrackInfo(t2)}）</option>`).join('');
@@ -19056,7 +19063,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.25';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.26';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19079,6 +19086,7 @@ const APP_VER='v60.25';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.26</span><div><b>MIDI 导入入口重排：创作辅助第一项，替代一键配和弦；移出新建向导</b>（产品负责人指示：「导入 MIDI 的独立界面不要在新建，放在创作辅助第一个，替代一键配和弦」）。① <b>创作辅助（右栏创作页）第一项现在是「导入 MIDI…」</b>，点击直达独立导入界面（选谱类 → 音轨映射声部），不再经过新建向导；「一键配和弦」按钮从创作辅助与经典栏撤位——<b>能力没有删</b>：配和弦工作台的「应用到谱面」与伴奏织体弹窗里的「一键配和弦（建议）」两处仍可一键写入全曲和弦。② <b>新建向导的导入组从 4 入口减为 3</b>（MusicXML / Guitar Pro / 哼唱成谱），MIDI 不再出现在新建流程里；<b>启动台的「导入 MIDI」也改为直达独立界面</b>。③ 经典栏同位置换成「导入MIDI」按钮；导入入口不再按谱类显隐（导入建的是新谱，与当前谱类无关，恒显）。④ 测试跟随产品：<code>tv_safety</code> T6 向导入口数 4→3；<code>tv_dock</code> T9 的配和弦能力改经工作台「应用到谱面」验证并断言新按钮就位；<code>tv_detail1/tv_frame/tv_mobile/tv_emode</code> 的首项锚点同步更新。<b>顺带如实记录一笔陈旧债</b>：排查中发现 <code>tv_dock</code>/<code>tv_frame</code> 两套件<b>不在 run_all 的 CORE 门禁清单里</b>，其中 tv_dock 的 T1–T6 自 v59.1 左栏图标轨改版后就已失效（期望经典版语义、实际已是新轨）——与本版无关，列入待修清单，不悄悄绕过。56 套件（门禁集）全绿。</div></li>
     <li><span class="v">v60.25</span><div><b>MIDI 导入大升级：独立导入界面（选谱类·音轨映射声部）+ 左栏声部级导入 + 吉他 TAB 转谱</b>（产品负责人指示：「自动配和弦先置后，MIDI 导入先完善。独立界面，支持选谱类，声部导入到对应声部，支持旋律、吉他谱、钢琴谱，专业级别；左栏声部下方显示图标右边加 MIDI 导入」）。① <b>独立导入界面</b>：此前 MIDI 导入只有一个三选项小弹窗（单轨简谱/中央C分手/双轨钢琴）。现在是完整界面——先选<b>谱类</b>（歌谱/钢琴独奏/吉他独奏/尤克里里独奏），再把音轨映射到对应声部：歌谱可勾选 <b>1–4 条音轨各成一个旋律声部</b>；钢琴右手/左手各选一轨，或同轨按<b>分手点</b>拆（F3/C4/G4 可调，不再写死中央C）；吉他/尤克里里选单轨转 TAB。每条音轨带<b>音数与音域</b>——不给音域没法判断哪轨是旋律哪轨是伴奏。② <b>吉他 TAB 转谱（全项目第一份音高→弦/品指派器）</b>：MusicXML/GP 导入的弦品都来自文件自带标记，MIDI 没有——新写<b>束搜索 DP 指派器</b>，判据与真人排指法一致：和音各音不同弦、按品跨度 ≤4（空弦不计）、低把位与空弦优先、<b>跨和音把位连贯</b>（这就是要 DP 不能逐列贪心的原因）；尊重<b>调弦/变调夹/品数上限</b>（尤克里里 15 品）。超出指板音域的音<b>整八度折入并计数上报</b>，仍放不下的略去也计数——不静默。量化复用简谱同一份量化器的 raw 档（<b>不写第二份量化实现</b>），连音线与 GP 导入同口径（col.tie）。③ <b>左栏声部级导入</b>：声部下方「显示」图标行右侧新增 <b>MIDI</b> 按钮（简谱声部区、吉他声部区各一）——与独立界面的根本区别是<b>不新建谱</b>：选一条音轨，按<b>当前谱</b>的拍号/调号（TAB 还含调弦/变调夹）量化，<b>写进当前选中的那个声部</b>，小节不够自动补，MIDI 拍号与本谱不同会明确提示（按本谱切小节）；整体覆盖该声部、<b>一步可撤销</b>。④ <code>tv_midi</code> 8→<b>13 项</b>：吉他指派合法性（弦不重/品距≤4/空弦命中 6/6）、八度折入计数、独立界面结构、声部级导入（写对声部/别的声部不动/撤销还原/小节自动补）。「和音各音不同弦」断言做了<b>变异实证</b>——三音大三和弦绑不住这条约束（天然落三根弦），特意加了一对<b>两音最低把位都在五弦</b>的双音（A2+B2），去掉互斥约束后 legal 当场转红。56 套件全绿。</div></li>
     <li><span class="v">v60.24</span><div><b>级数标签说真话：小调统一用数字级数，套路名改为从「实际写入的和弦」反算</b>（产品负责人拍板：<b>小调用数字</b>、<b>和弦重复照标</b>）。① <b>发现的问题</b>：<code>progFitSpan</code> 会枚举<b>旋转相位</b>取最优（同一组和弦从哪个音起步），但面板从头到尾显示的是<b>没旋转的模板原名</b>——实测 chip 上写着 <code>1-5-6-4</code>，点下去实际写入 <code>Am F C G</code>（那是 <code>6m-4-1-5</code>，小室进行）。<code>1-5-6-4</code>「50s 进行」在国内都有确定所指，标错就是对用户说假话。同类问题还有三处：套路铺完再手改，行首标签仍显示套路名；8 小节卡农被合并跨度命中时同一个名字贴到两个乐句行上，改了一行另一行还在说卡农；手写核心用裸 <code>6</code>、导入条目用 <code>6m</code>，同一屏里指同一个 Am 却两种写法。② <b>修法不是补映射表，是换数据源</b>：标签一律从<b>当前生效的和弦</b>反算级数（<code>chordLabDegs</code> / <code>candDeg</code>）——旋转相位、终止式替换、手改、换套路之后的现状，标签自动跟着变，不可能再对不上。模板自己的名字降为<b>副标「原型」</b>，两者不同才显示。③ <b>小调统一数字级数</b>：级数空间就是简谱的写作调号（小调歌沿用平行大调调号、主音落在 <code>6</code>），故 <code>i=6m</code>、<code>♭VII=5</code>、<code>♭VI=4</code>、<code>V=3</code>（和声小调导音）、<code>ii°=7dim</code>；<code>♭</code> 前缀有无都收——13 条手写核心带 <code>♭</code>、83 条导入的不带，指的是同一个音级。专名（<code>安达卢西亚</code>）保留并只转后面的级数部分。④ <b>顺带解释了一个看起来像 bug 的现象</b>：小调末句上四条不同套路会显示同一个结果级数，那是<b>终止式替换</b>把它们的末格都换成了主和弦——真实如此，现在 chip 副标注明「末句收主」并列出各自原型，四条仍可区分。⑤ <b>和弦重复照标</b>：按产品负责人决定，维持每小节都标注的现行做法，不做「只在改变处标」的选项。新增 <code>tv_chordlab</code> T16 <b>钉住「标签必须能由 ids 逐格反推」</b>并做变异验证（退回显示模板原名 → 39 条候选里 12 条不符，当场转红），T10 补强为覆盖小调映射的六个用例。15→<b>16 项</b>，<b>56 套件</b>全绿。</div></li>
     <li><span class="v">v60.23</span><div><b>配和弦工作台：三条会丢数据／谎报成功的阻断缺陷 + 一个从 v60.20 起就没渲染出来的边框</b>（三位专家并行审查面板：视觉、可用性、记谱专业性；本版只落其中<b>不改行为语义</b>的安全项，其余待逐条核实后分批做）。① <b>点弹窗外空白不再直接关窗丢稿</b>：此前 <code>showModal</code> 的遮罩点击一律直接关闭，工作台走同一条路——改了二十分钟，手机上拇指蹭到遮罩窄边就<b>整稿蒸发、一字不写回</b>，<code>chordLab</code> 还残留成脏全局。现新增<b>关闭守卫</b>（<code>modalGuard</code>）：有未保存改动时点遮罩只提示不关窗；「取消」也改为<b>二次确认</b>（继续编辑／放弃改动）。守卫随弹窗一起清，不会拦到别的弹窗。② <b>每次点击不再把滚动位置和焦点丢掉</b>：面板每次交互都整窗重建（<code>showModal</code> 第一件事是 <code>closeModal</code>），实测滚动位置 200 直接归 0、焦点退回 <code>body</code> 跑出面板——32 小节的谱在手机上滚动区只有三行高，点一个小节就弹回第一乐句，第三层等于不可用。现在渲染前记下「滚到哪儿、焦点在谁身上」，渲染后原样放回；<b>自动滚动只在选择真的变了时才做</b>（踩过一次：无条件把选中格拉进视野，正好把刚恢复的滚动位置又冲掉）。弹窗一并补上 <code>role=dialog</code>。③ <b>不再承诺写不进去的和弦，也不再谎报成功</b>：和弦只能落在<b>有音头的列</b>上，可面板的拍位格是按拍数无条件生成的——长音小节的第 3 拍照样可点、照样显示 <code>C·G</code>，应用后那个和弦被<b>静默丢弃</b>，提示却仍是「已写入 8 个小节的和弦」。现在无音头的拍<b>禁用并说明原因</b>，程序化写入也会被拦；应用后如实汇报有几处未能落位。<b>谎报成功比配错更坏</b>——用户看不出少了什么。④ <b>修一个我自己写的 bug</b>：面板 CSS 里 8 处写的是 <code>var(--line)</code>，而全项目根本没有这个变量（只有 <code>--border</code>）。CSS 中未定义变量会让整条 <code>border</code> 简写作废——<b>小节格／拍位格／筛选下拉／分数条轨道从 v60.20 起就一直没有边框</b>，只剩一层浅填充；我复核过两轮截图都没看出来，是同色填充骗过了眼睛。教训记在代码注释里：<b>写 CSS 变量前先 grep 确认它存在</b>。⑤ 顺带把成功提示改成「点顶栏 ↶ 或 Ctrl+Z」——手机上没有 Ctrl 键。<code>tv_chordlab</code> 12→<b>15 项</b>（T9 改写为「取消需确认」，新增 T13 遮罩守卫／T14 重渲保留视图／T15 无音头拍），<b>56 套件</b>全绿。</div></li>

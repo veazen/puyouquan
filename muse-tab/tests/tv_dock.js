@@ -81,13 +81,15 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].voxes[0] = [ {dur:4,dotted:false,deg:1,acc:'',oct:0,lyrics:[]}, {dur:4,dotted:false,deg:3,acc:'',oct:0,lyrics:[]},
       {dur:4,dotted:false,deg:5,acc:'',oct:0,lyrics:[]}, {dur:4,dotted:false,deg:1,acc:'',oct:1,lyrics:[]} ];
     loadSong(s);
-    document.getElementById('va-sug').click();
+    /* v60.26 一键配和弦撤位（换成导入MIDI）：配和弦能力经工作台「应用到谱面」验证 */
+    chordLabOpen(); document.getElementById('cl-ok').click();
     const withChord = song.measures.filter(m => (m.voxes[0]||[]).some(c => c.chord)).length;
+    const hasMidi = !!document.getElementById('va-midi') && !document.getElementById('va-sug');
     const f0 = !!song.funcNames;
     document.getElementById('vf-names').click();
-    return { withChord, flipped: song.funcNames !== f0 };
+    return { withChord, hasMidi, flipped: song.funcNames !== f0 };
   });
-  T(r.withChord >= 1 && r.flipped, 'T9 专属按钮生效', '配和弦小节=' + r.withChord + ' 级数切换=' + r.flipped);
+  T(r.withChord >= 1 && r.hasMidi && r.flipped, 'T9 专属按钮生效', '配和弦(工作台)小节=' + r.withChord + ' MIDI钮就位=' + r.hasMidi + ' 级数切换=' + r.flipped);
 
   // T10 旧行为不回归：弹唱谱三页往返切换 + 面板 ID 完整（关键按钮都在）
   r = await pg.evaluate(() => {
