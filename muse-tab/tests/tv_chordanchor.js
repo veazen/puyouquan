@@ -41,19 +41,22 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   r = await pg.evaluate(() => ({ zone: !!document.querySelector('#score [data-zone="chord"]') }));
   T(!r.zone, 'T2 图带空白设和弦热区已撤销', JSON.stringify(r));
 
-  /* 图=编辑入口：点简谱锚定的和弦图 → 选中锚定列 + 级数构建器 */
+  /* 图=编辑入口：点简谱锚定的和弦图 → 选中锚定列 + 中间面板（v60.31 起不直接进编辑器，
+     「编辑和弦…」才进级数构建器——用户指示） */
   r = await pg.evaluate(() => {
     sel.mi = 0; sel.ci = 0; sel.row = 'tab';         // 先把选择挪走，验证点击会带回锚定列
     const g = document.querySelector('#score g[data-vchord="1:2:0"]');
     const bb = g.getBoundingClientRect();
     const ev = new PointerEvent('pointerdown', { bubbles: true, clientX: bb.x + bb.width / 2, clientY: bb.y + bb.height / 2, button: 0 });
     g.dispatchEvent(ev);
-    const menu = !!document.getElementById('vc-ok');
+    const hub = !!document.getElementById('vp-edit') && !document.getElementById('vc-ok');
     const selOK = sel.row === 'vox' && sel.mi === 1 && sel.ci === 2;
+    document.getElementById('vp-edit').click();
+    const menu = !!document.getElementById('vc-ok');
     closePop();
-    return { menu, selOK };
+    return { hub, menu, selOK };
   });
-  T(r.menu && r.selOK, 'T3 点击简谱锚定和弦图→选中该列+编辑器', JSON.stringify(r));
+  T(r.hub && r.menu && r.selOK, 'T3 点击简谱锚定和弦图→选中+中间面板→编辑器', JSON.stringify(r));
 
   /* 合并时间线：简谱锚定的和弦对 TAB 全链路生效（查询 + 节奏型取形实体化） */
   r = await pg.evaluate(() => {
