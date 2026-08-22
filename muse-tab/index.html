@@ -567,6 +567,11 @@ body.shell #rt-chorded:hover{border-color:var(--accent);color:var(--accent-ink)}
 .aitem .ait{display:flex;flex-direction:column;line-height:1.3;min-width:0}
 .aitem .ait b{font-size:12px;font-weight:600}
 .aitem .ait small{font-size:10px;color:var(--faint)}
+/* v60.28 创作辅助「和弦/标注」双图标行：并排各半宽；未选中音符时禁用置灰 */
+#ai-tools{display:flex;gap:4px}
+#ai-tools .aitem{flex:1;min-width:0}
+#ai-tools .aitem:disabled{opacity:.42;cursor:not-allowed}
+#ai-tools .aitem:disabled:hover{background:transparent}
 .aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px}
 /* v46.3 智能预提示卡：选中对象上下文提示（主）+ 整体建议（次级） */
 #rc-hints .hb-li{display:block;width:100%;text-align:left;font-size:11.5px;line-height:1.55;color:var(--text);
@@ -832,9 +837,7 @@ body.stand #standbar{display:flex}
   background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;
   padding:12px 20px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);font-size:13px}
 /* 功能谱：谱面空位「＋和弦」编辑提示（悬停出现） */
-#score .vcz text{opacity:0;transition:opacity .12s}
-#score .vcz:hover text{opacity:.8}
-#score .vcz:hover rect{fill:var(--accent);fill-opacity:.07;stroke:var(--accent);stroke-opacity:.5;stroke-width:1;stroke-dasharray:3 2.4}
+/* v60.28 .vcz「＋和弦」空位悬停样式随入口撤销一并移除（入口=创作辅助「和弦」图标） */
 /* 功能谱和弦编辑器（级数为主） */
 .vc-prev{display:flex;align-items:baseline;gap:12px;padding:9px 12px;margin:7px 0 9px;
   background:var(--toolbar);border-radius:11px}
@@ -1942,9 +1945,11 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <button id="ri-edit" class="fwide" title="编辑标题 / 词曲作者 / 调号拼写 / 拍号速度 / 变调夹">编辑曲谱信息…</button>
       </div>
     </div>
-    <!-- v58.0 标注（用户需求：固定标注=常用词一键标注 / 自由标注=任意文字；暂位于曲谱信息卡下方）。
-         标注挂在当前光标列（col.anno 增量字段），谱面显示在该列上方；再次标注覆盖、清除按钮移除 -->
-    <div class="rcard open rt-new" data-rt="info" id="rc-anno">
+    <!-- v58.0 标注（固定标注=常用词一键 / 自由标注=任意文字；col.anno 增量字段，显示在该列上方）。
+         v60.28 入口迁往创作辅助「标注」图标（showAnnoMenu 浮层，同 setAnno 写入）；
+         本卡隐藏但 DOM 保留——anno-fixed/anno-add/anno-del 启动期绑定与程序化路径（回归套件）依赖它 -->
+    <!-- 无 data-rt：setRTab 会给带 data-rt 的卡清空 display，挂着就会在信息页复现 -->
+    <div class="rcard open rt-new" id="rc-anno" style="display:none">
       <button class="rc-h" type="button">标注</button>
       <div class="rc-b">
         <div class="anno-t">固定标注（点击标在当前光标列上方）</div>
@@ -2054,6 +2059,12 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
           <button id="rt-hum" class="aitem" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
+          <!-- v60.28 和弦/标注双图标（产品负责人指示：编辑入口收到这里，选中音符时可用；
+               谱面不再留「＋和弦」空位点击区） -->
+          <div id="ai-tools">
+            <button id="rt-chord" class="aitem" title="在选中的音符上设置/编辑和弦：简谱音符=级数构建器，六线谱音符=指法编辑器；和弦图对齐该音符"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>和弦</b><small>选中音符设和弦</small></span></button>
+            <button id="rt-anno" class="aitem" title="在选中的音符上方标注文字：前奏/副歌/渐慢…或任意文字"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>标注</b><small>选中音符加标注</small></span></button>
+          </div>
         </div>
         <!-- v48.3 暂时隐藏：导入入口在启动台「导入」与新建向导内均可达，右栏不再重复 -->
         <div class="ai-sec" style="display:none">
@@ -5757,8 +5768,7 @@ function showQuickbar(cx, cy, force){
             btn('oct:+','8⁺','升八度（高音点）'), btn('oct:-','8₋','降八度（低音点）'),
             btn('tie','⌒','连音线'));
   }
-  /* v60.27 设和弦=选中音符设和弦（全谱类）：浮条统一入口，按选中行分派编辑器 */
-  bs.push(btn('chord','和弦','在此音符上设置/编辑和弦（和弦图对齐本音符）'));
+  /* v60.28 浮条「和弦」钮撤销：设和弦入口收敛为创作辅助「和弦」图标（产品负责人指示） */
   /* 猜你想做：按上一动作的转移统计预判（≥2 次才展示，避免噪声） */
   const nx=habitNext();
   if(nx && nx.n>=2 && habitApplicable(nx.act) && !bs.some(s=>s.indexOf('data-qb="'+nx.act+'"')>=0))
@@ -5779,10 +5789,6 @@ function showQuickbar(cx, cy, force){
     if(act==='off'){ try{ localStorage.setItem('musetab-quickbar','off'); }catch(_){}
       closeQuickbar(); toast('已关闭触屏自动弹出——鼠标右键点音符仍可唤出'); try{ renderHints(); }catch(_){} return; }
     if(act==='more'){ closeQuickbar(); openFlyout(sel.row==='tab'?'tab':'vox'); return; }
-    if(act==='chord'){ closeQuickbar();
-      if(sel.row==='vox') showVoxChordMenu(ev.clientX, ev.clientY);
-      else showChordEditor(sel.mi, sel.ci, sel.vi);
-      return; }
     habitDo(act); syncQuickbar();
   });
   syncQuickbar();
@@ -5794,7 +5800,6 @@ function syncQuickbar(){ const d=document.getElementById('quickbar'); if(!d) ret
     if(a.indexOf('dur:')===0) on = col.dur===+a.slice(4);
     else if(a==='dot') on=!!col.dotted;
     else if(a==='tie') on=!!col.tie;
-    else if(a==='chord') on=!!col.chord;
     else if(a.indexOf('acc:')===0) on = col.acc===a.slice(4);
     b.classList.toggle('on', on);
   });
@@ -7190,11 +7195,9 @@ function render(){
           const under = col.dur>=64?4 : col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
           /* 功能谱：和弦标注在音符上方——级数/音名一键切换；整名圆角框、常规字号；
              空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
+          /* v60.28 「＋和弦」空位悬停区撤销（产品负责人指示：谱面不留点击位，
+             设和弦入口=创作辅助「和弦」图标/选中音符编辑；已有和弦标注仍可点击编辑） */
           {
-            const mUu = meaMeter(lm.mi).unit;
-            const startB = cols.slice(0,ci).reduce((a,c2)=>a+beatsOf(c2,mUu),0);
-            const grid8 = mUu/8;
-            const onGrid = Math.abs(startB/grid8 - Math.round(startB/grid8)) < 1e-4;
             if(col.chord){
               if(diagMode==='inline' && song.tabVoices.length && !song.tabStaff){
                 /* v60.27 和弦图对齐锚定音符（用户指示）：简谱音符上设的和弦，其指法图画在
@@ -7211,12 +7214,6 @@ function render(){
                 <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(disp, 14)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
               }
-            }else if(onGrid && !song.chordOnly){
-              const cy2 = isStaff? staffT-15 : voxY-24;
-              p.push(`<g class="vcz" data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
-                <rect x="${clx+1}" y="${cy2-12}" width="${Math.max(cw-2,14)}" height="16" rx="5" fill="transparent"/>
-                <text x="${nx}" y="${cy2}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${cw<34?'＋':'＋和弦'}</text>
-                <title>标注和弦（最小单位：八分音符）</title></g>`);
             }
           }
           let addsZone='';   /* v53.3 和音纵列点击热区（列热区之后压顶推入，保证可点） */
@@ -8378,6 +8375,8 @@ function editModeSmart(){
 }
 function syncInputs(){
   const col = curCol();
+  /* v60.28 创作辅助「和弦/标注」图标可用态：选中到有效音符列才可点（随每次渲染同步） */
+  ['rt-chord','rt-anno'].forEach(id=>{ const b=document.getElementById(id); if(b) b.disabled=!col; });
   /* v47.5→v47.6 顶栏「音符」输入组按声部上下文切换（三态）：
        吉他谱   = 品位 0-9（连点两位）+ 0–24 全品位选择器 + × 闷音
        五线谱系 = 音名 C-B（由调号推出：按钮 k 显示 'CDEFGAB'[(Li+k-1)%7]，点击仍写音级 k，
@@ -9917,6 +9916,37 @@ document.getElementById('anno-input').addEventListener('keydown', e=>{
   e.stopPropagation();   /* 输入时不触发谱面快捷键 */
 });
 document.getElementById('anno-del').onclick = ()=>setAnno('');
+/* v60.28 标注浮层（创作辅助「标注」图标入口）：固定词 + 自由文字 + 清除，
+   写入全部委托 setAnno（与隐藏的 rc-anno 卡同一条路，不复制逻辑） */
+function showAnnoMenu(cx, cy){
+  if(!curCol()) return toast('请先在谱面选中一个音符');
+  closePop();
+  const cur=(curCol().anno)||'';
+  const words=['前奏','间奏','尾奏','副歌','慢起','渐慢','渐快','原速','自由地','扫弦','分解','加花'];
+  const div=document.createElement('div');
+  div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.max(8, Math.min(cx, innerWidth-300))+'px';
+  div.style.top=Math.min(cy+8, innerHeight-300)+'px';
+  div.innerHTML=`<div class="t">标注：<b>${esc(cur||'（无）')}</b>　<span style="font-weight:400;color:var(--muted)">标在选中音符上方</span></div>
+    <div class="row" style="flex-wrap:wrap;max-width:272px">${words.map(w=>`<button data-am="${w}" class="${cur===w?'on':''}">${w}</button>`).join('')}</div>
+    <div class="row"><input id="am-in" placeholder="任意文字…" maxlength="30" value="${esc(words.includes(cur)?'':cur)}" style="flex:1;min-width:120px">
+      <button id="am-ok" class="primary">标注</button><button id="am-del" title="移除选中音符上的标注">清除</button></div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{
+    const b=ev.target.closest('[data-am]');
+    if(b){ setAnno(b.dataset.am); closePop(); return; }
+    if(ev.target.closest('#am-ok')){
+      const v=div.querySelector('#am-in').value;
+      if(!v.trim()) return toast('请先输入标注文字');
+      setAnno(v); closePop(); return;
+    }
+    if(ev.target.closest('#am-del')){ setAnno(''); closePop(); }
+  });
+  div.addEventListener('keydown', ev=>{
+    ev.stopPropagation();
+    if(ev.target.id==='am-in' && ev.key==='Enter'){ ev.preventDefault(); div.querySelector('#am-ok').click(); }
+  });
+}
 
 /* ================= 键盘 ================= */
 /* v47.5 数字输入统一入口（键盘 / 顶栏「音符」组按钮共用）：
@@ -14497,6 +14527,17 @@ function applyShell(){
   go('rt-mxl',    ()=>{ click('b-new'); click('nw-import'); });
   go('rt-midi',   ()=>midiImportPick());   /* v60.26 直达独立界面，不再经新建向导 */
   go('ri-edit',   ()=>click('b-meta'));   // v41.4 信息页摘要卡 → 曲谱信息弹窗
+  /* v60.28 和弦/标注双图标：选中音符时可用，按选中行分派编辑器（浮层锚定在图标旁） */
+  go('rt-chord', e=>{
+    if(!curCol()) return toast('请先在谱面选中一个音符');
+    const r=e.currentTarget.getBoundingClientRect();
+    if(sel.row==='vox') showVoxChordMenu(r.left, r.top-10);
+    else showChordEditor(sel.mi, sel.ci, sel.vi);
+  });
+  go('rt-anno', e=>{
+    const r=e.currentTarget.getBoundingClientRect();
+    showAnnoMenu(r.left-260, r.top-10);
+  });
 })();
 document.getElementById('b-shell').onclick = ()=>{
   uiShell = !uiShell;
@@ -19112,7 +19153,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.27';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.28';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19135,6 +19176,7 @@ const APP_VER='v60.27';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.28</span><div><b>和弦/标注入口收敛为创作辅助双图标（哼唱成谱下方），谱面不再留「＋和弦」点击位</b>（产品负责人对 v60.27 的入口模型作出更正：「和弦编辑功能改成一个图标，在创作辅助哼唱成谱下方，选中音符时图标可用点击进入编辑。不用在谱上留有位置点击＋和弦。同时标注功能也做成一个图标在和弦图标旁」）。① <b>创作辅助新增「和弦」「标注」并排双图标</b>：选中到有效音符列时可用、否则置灰；「和弦」按选中行分派——简谱音符弹级数构建器、六线谱音符弹指法编辑器（和弦图对齐锚定音符的 v60.27 渲染规则不变）；「标注」弹出浮层（12 个固定词 + 任意文字 + 清除），写入与原标注卡同一条 <code>setAnno</code> 路径。② <b>谱面「＋和弦」空位悬停区全部撤销</b>（含功能谱/钢琴弹唱原有的）——谱面上只保留<b>已有</b>和弦图/和弦名的点击编辑；上一版加进快捷浮条的「和弦」按钮同步撤销，入口不再多头。③ <b>标注卡从信息页迁出</b>（v58.0 曾注「暂位于曲谱信息卡下方」，本版定位到创作辅助图标）；卡片 DOM 保留供程序化路径使用。④ 测试跟随：<code>tv_chordanchor</code> 改测双图标分派与「谱面无＋和弦位」；<code>tv_anno</code> T1 改测新入口；<code>tv_detail1</code> T37 浮条序列还原。<b>78 套件</b>全绿。</div></li>
     <li><span class="v">v60.27</span><div><b>设和弦改为「选中音符设和弦」（全谱类），和弦图对齐锚定音符；撤销六线谱上方点空白设和弦</b>（产品负责人指示，并附截图指出：选中简谱音符设的和弦，和弦图应对齐该音符）。① <b>入口统一为选中音符后设置</b>：快捷浮条（右键/触屏点音符）新增「和弦」按钮，简谱音符弹级数构建器、六线谱音符弹指法编辑器；左栏「和弦」面板的「编辑和弦…」与输入框同样跟随选中行，不再强制切到六线谱；简谱空位的「＋和弦」悬停提示从功能谱/钢琴弹唱<b>扩展到所有谱类</b>。六线谱上方图带的空白点击热区<b>撤销</b>——已有和弦图/和弦名本身即编辑入口（点击=选中锚定列并编辑）。② <b>和弦图对齐锚定音符</b>：弹唱/尤克里里谱在「随行图」模式下，简谱音符上设的和弦，其指法图画进六线谱上方图带并<b>横向对齐该音符所在列</b>（与六线谱列锚定同一口径），不再在简谱行画名字框；歌谱等无六线谱的谱类维持名字框原样。③ <b>和弦时间线全行合并</b>：生效和弦查询（<code>chordBefore/chordAtCol</code>）与 TAB 渲染取形改为按拍位合并简谱/六线谱两行的和弦变更——简谱音符上锚定的和弦，对六线谱的 ×实音化、扫弦音与<b>节奏型套用的取形实体化</b>同样生效（此前只认六线谱列上的和弦）。④ 新增 <code>tv_chordanchor</code> 10 项（对齐几何/热区撤销/点击编辑/合并时间线/浮条与面板分派/歌谱不回归），其中「图对齐本列」与「合并时间线」两条断言做了变异实证：锚点改回小节头、查询退回只扫六线谱行，各自当场转红。<b>78 套件</b>全绿。</div></li>
     <li><span class="v">v60.26</span><div><b>MIDI 导入入口重排：创作辅助第一项，替代一键配和弦；移出新建向导</b>（产品负责人指示：「导入 MIDI 的独立界面不要在新建，放在创作辅助第一个，替代一键配和弦」）。① <b>创作辅助（右栏创作页）第一项现在是「导入 MIDI…」</b>，点击直达独立导入界面（选谱类 → 音轨映射声部），不再经过新建向导；「一键配和弦」按钮从创作辅助与经典栏撤位——<b>能力没有删</b>：配和弦工作台的「应用到谱面」与伴奏织体弹窗里的「一键配和弦（建议）」两处仍可一键写入全曲和弦。② <b>新建向导的导入组从 4 入口减为 3</b>（MusicXML / Guitar Pro / 哼唱成谱），MIDI 不再出现在新建流程里；<b>启动台的「导入 MIDI」也改为直达独立界面</b>。③ 经典栏同位置换成「导入MIDI」按钮；导入入口不再按谱类显隐（导入建的是新谱，与当前谱类无关，恒显）。④ 测试跟随产品：<code>tv_safety</code> T6 向导入口数 4→3；<code>tv_dock</code> T9 的配和弦能力改经工作台「应用到谱面」验证并断言新按钮就位；<code>tv_detail1/tv_frame/tv_mobile/tv_emode</code> 的首项锚点同步更新。<b>顺带如实记录一笔陈旧债</b>：排查中发现 <code>tv_dock</code>/<code>tv_frame</code> 两套件<b>不在 run_all 的 CORE 门禁清单里</b>，其中 tv_dock 的 T1–T6 自 v59.1 左栏图标轨改版后就已失效（期望经典版语义、实际已是新轨）——与本版无关，列入待修清单，不悄悄绕过。56 套件（门禁集）全绿。</div></li>
     <li><span class="v">v60.25</span><div><b>MIDI 导入大升级：独立导入界面（选谱类·音轨映射声部）+ 左栏声部级导入 + 吉他 TAB 转谱</b>（产品负责人指示：「自动配和弦先置后，MIDI 导入先完善。独立界面，支持选谱类，声部导入到对应声部，支持旋律、吉他谱、钢琴谱，专业级别；左栏声部下方显示图标右边加 MIDI 导入」）。① <b>独立导入界面</b>：此前 MIDI 导入只有一个三选项小弹窗（单轨简谱/中央C分手/双轨钢琴）。现在是完整界面——先选<b>谱类</b>（歌谱/钢琴独奏/吉他独奏/尤克里里独奏），再把音轨映射到对应声部：歌谱可勾选 <b>1–4 条音轨各成一个旋律声部</b>；钢琴右手/左手各选一轨，或同轨按<b>分手点</b>拆（F3/C4/G4 可调，不再写死中央C）；吉他/尤克里里选单轨转 TAB。每条音轨带<b>音数与音域</b>——不给音域没法判断哪轨是旋律哪轨是伴奏。② <b>吉他 TAB 转谱（全项目第一份音高→弦/品指派器）</b>：MusicXML/GP 导入的弦品都来自文件自带标记，MIDI 没有——新写<b>束搜索 DP 指派器</b>，判据与真人排指法一致：和音各音不同弦、按品跨度 ≤4（空弦不计）、低把位与空弦优先、<b>跨和音把位连贯</b>（这就是要 DP 不能逐列贪心的原因）；尊重<b>调弦/变调夹/品数上限</b>（尤克里里 15 品）。超出指板音域的音<b>整八度折入并计数上报</b>，仍放不下的略去也计数——不静默。量化复用简谱同一份量化器的 raw 档（<b>不写第二份量化实现</b>），连音线与 GP 导入同口径（col.tie）。③ <b>左栏声部级导入</b>：声部下方「显示」图标行右侧新增 <b>MIDI</b> 按钮（简谱声部区、吉他声部区各一）——与独立界面的根本区别是<b>不新建谱</b>：选一条音轨，按<b>当前谱</b>的拍号/调号（TAB 还含调弦/变调夹）量化，<b>写进当前选中的那个声部</b>，小节不够自动补，MIDI 拍号与本谱不同会明确提示（按本谱切小节）；整体覆盖该声部、<b>一步可撤销</b>。④ <code>tv_midi</code> 8→<b>13 项</b>：吉他指派合法性（弦不重/品距≤4/空弦命中 6/6）、八度折入计数、独立界面结构、声部级导入（写对声部/别的声部不动/撤销还原/小节自动补）。「和音各音不同弦」断言做了<b>变异实证</b>——三音大三和弦绑不住这条约束（天然落三根弦），特意加了一对<b>两音最低把位都在五弦</b>的双音（A2+B2），去掉互斥约束后 legal 当场转红。56 套件全绿。</div></li>

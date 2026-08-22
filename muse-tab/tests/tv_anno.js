@@ -1,6 +1,7 @@
 /* v58.0 标注功能回归：固定标注（常用词一键）+ 自由标注（任意文字）落当前光标列（col.anno）
-   覆盖：信息页卡片存在与位置（曲谱信息卡下方）、固定/自由标注写入与覆盖、清除、
-   TAB/简谱渲染文本（转义防 XSS）、撤销、MusicXML 导出 words */
+   覆盖：入口（v60.28 起=创作辅助「标注」图标浮层；rc-anno 卡隐藏但 DOM 保留供程序化路径）、
+   固定/自由标注写入与覆盖、清除、TAB/简谱渲染文本（转义防 XSS）、撤销、MusicXML 导出 words。
+   T2+ 仍直接点隐藏卡里的 anno-fixed 按钮——那是 setAnno 的同一条写入路，入口浮层由 T1 覆盖 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -19,19 +20,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].voxes[0] = [0,1,2,3].map(()=>({dur:4,dotted:false,deg:1,acc:'',oct:0,lyrics:[],tie:false}));
     loadSong(s);`;
 
-  // T1 卡片存在于信息页、位于曲谱信息卡下方；含固定标注词与自由输入
+  // T1 入口=创作辅助「标注」图标（v60.28）：图标存在于哼唱成谱之后、浮层含 12 固定词+自由输入+清除；
+  //    rc-anno 卡隐藏但 DOM 保留（anno-fixed/anno-add/anno-del 程序化路径不断）
   let r = await pg.evaluate(() => {
     const card = document.getElementById('rc-anno');
-    const prev = card && card.previousElementSibling;
     setRTab('info');
-    const vis = !!card && !!card.offsetParent;
-    const chips = card? card.querySelectorAll('#anno-fixed [data-anno]').length : 0;
+    const cardHidden = !!card && !card.offsetParent;
     setRTab('make');
-    return { exists: !!card, afterInfo: prev && prev.id==='rc-songinfo', vis, chips,
-      hasInput: !!document.getElementById('anno-input'), hasDel: !!document.getElementById('anno-del') };
+    const ia = document.getElementById('rt-anno');
+    const afterHum = !!ia && ia.closest('#ai-tools') && ia.closest('#ai-tools').previousElementSibling
+      && ia.closest('#ai-tools').previousElementSibling.id === 'rt-hum';
+    loadSong(createSong('guitar', {title:'an0', beats:4, unit:4, key:'C', nMea:1, nTab:1, nVox:1, lyr:0}));
+    sel = { row:'tab', vi:0, mi:0, ci:0, si:5 }; render();
+    ia.click();
+    const pop = document.getElementById('popmenu');
+    const chips = pop? pop.querySelectorAll('[data-am]').length : 0;
+    const hasInput = !!(pop && pop.querySelector('#am-in')), hasDel = !!(pop && pop.querySelector('#am-del'));
+    closePop();
+    return { cardHidden, afterHum, chips, hasInput, hasDel,
+      keep: !!document.getElementById('anno-fixed') && !!document.getElementById('anno-add') && !!document.getElementById('anno-del') };
   });
-  T(r.exists && r.afterInfo && r.vis && r.chips===12 && r.hasInput && r.hasDel,
-    'T1 标注卡在曲谱信息下方（12 固定词+自由输入+清除）', JSON.stringify(r));
+  T(r.cardHidden && r.afterHum && r.chips===12 && r.hasInput && r.hasDel && r.keep,
+    'T1 标注入口=创作辅助图标（12 固定词+自由输入+清除；旧卡隐藏留 DOM）', JSON.stringify(r));
 
   // T2 固定标注写入 col.anno + 渲染文本；再次标注覆盖
   r = await pg.evaluate((code) => {

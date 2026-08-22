@@ -1,6 +1,8 @@
 /* tv_chordanchor —— v60.27「选中音符设和弦 + 和弦图对齐锚定音符」回归
    用户指示：设和弦改为选中音符后设置（全谱类），和弦图横向对齐该音符；
    撤销「六线谱上方点空白设和弦」热区。
+   v60.28 入口模型更正（产品负责人）：和弦/标注=创作辅助双图标（选中音符时可用），
+   谱面不留「＋和弦」点击位，浮条「和弦」钮撤销——T6/T8 随之改测新入口。
    断言口径：几何用数值坐标（getBBox / 热区 rect 区间），不看截图。
    变异实证（写入时验证过，红断言才算设防）：
    ── 把简谱锚定和弦图的 x 锚从 nx-10 改 mx+10（小节头）→ T1 当场红；
@@ -83,24 +85,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.g && r.pop && r.selOK, 'T5 TAB 锚定和弦图可点击编辑', JSON.stringify(r));
 
-  /* 快捷浮条统一入口：按选中行分派 */
+  /* v60.28 创作辅助「和弦」图标：选中音符时可用，按选中行分派编辑器；
+     浮条不再有「和弦」钮（入口收敛，产品负责人指示） */
   r = await pg.evaluate(() => {
     closePop(); sel.row = 'vox'; sel.vi = 0; sel.mi = 2; sel.ci = 1; render();
-    showQuickbar(400, 300, true);
-    const btn = document.querySelector('#quickbar [data-qb="chord"]');
-    if (!btn) return { btn: false };
-    btn.dispatchEvent(new PointerEvent('click', { bubbles: true, clientX: 400, clientY: 300 }));
+    const ic = document.getElementById('rt-chord');
+    if (!ic) return { ic: false };
+    const enabled = !ic.disabled;
+    ic.click();
     const voxMenu = !!document.getElementById('vc-ok');
     closePop();
     sel.row = 'tab'; sel.mi = 0; sel.ci = 0; render();
-    showQuickbar(400, 300, true);
-    const btn2 = document.querySelector('#quickbar [data-qb="chord"]');
-    btn2.dispatchEvent(new PointerEvent('click', { bubbles: true, clientX: 400, clientY: 300 }));
+    ic.click();
     const tabEditor = !!document.getElementById('ce-bass');
     closeModal(); closePop();
-    return { btn: true, voxMenu, tabEditor };
+    showQuickbar(400, 300, true);
+    const qbNoChord = !document.querySelector('#quickbar [data-qb="chord"]');
+    closeQuickbar();
+    return { ic: true, enabled, voxMenu, tabEditor, qbNoChord };
   });
-  T(r.btn && r.voxMenu && r.tabEditor, 'T6 快捷浮条「和弦」按行分派编辑器', JSON.stringify(r));
+  T(r.ic && r.enabled && r.voxMenu && r.tabEditor && r.qbNoChord,
+    'T6 创作辅助「和弦」图标按行分派（浮条无和弦钮）', JSON.stringify(r));
 
   /* 和弦层面板入口跟随选中行（不再强制切 tab） */
   r = await pg.evaluate(() => {
@@ -113,18 +118,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.voxMenu && r.rowKept, 'T7 和弦层面板入口跟随选中行', JSON.stringify(r));
 
-  /* ＋和弦悬停位扩展到弹唱谱（此前仅功能谱/钢琴弹唱） */
+  /* v60.28 谱面不留「＋和弦」点击位（全谱类，含功能谱原有的）+「标注」图标浮层 */
   r = await pg.evaluate(() => {
-    const z = document.querySelector('#score g.vcz[data-vchord]');
-    if (!z) return { z: false };
-    const seg = z.dataset.vchord.split(':').map(Number);
-    z.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 300, clientY: 200, button: 0 }));
-    const menu = !!document.getElementById('vc-ok');
-    const selOK = sel.row === 'vox' && sel.mi === seg[0] && sel.ci === seg[1];
+    const noVcz = !document.querySelector('#score .vcz') && !document.querySelector('#score g.vcz');
+    sel.row = 'vox'; sel.vi = 0; sel.mi = 2; sel.ci = 1; render();
+    const ia = document.getElementById('rt-anno');
+    if (!ia) return { noVcz, ia: false };
+    ia.click();
+    const pop = document.getElementById('popmenu');
+    const words = pop ? pop.querySelectorAll('[data-am]').length : 0;
+    const btn = pop && pop.querySelector('[data-am="副歌"]');
+    if (btn) btn.click();
+    const anno = (song.measures[2].voxes[0][1] || {}).anno;
+    setAnno('');   // 还原，避免干扰后续断言
     closePop();
-    return { z: true, menu, selOK };
+    return { noVcz, ia: true, words, anno };
   });
-  T(r.z && r.menu && r.selOK, 'T8 弹唱谱＋和弦悬停位可用', JSON.stringify(r));
+  T(r.noVcz && r.ia && r.words === 12 && r.anno === '副歌',
+    'T8 谱面无＋和弦位；「标注」图标浮层写入 col.anno', JSON.stringify(r));
 
   /* 歌谱（无 TAB）：简谱和弦仍为名字框（不出图带，谱类各安其位） */
   r = await pg.evaluate(() => {
