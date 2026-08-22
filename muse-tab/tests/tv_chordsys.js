@@ -76,7 +76,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.letterAfter && r.degBefore && r.htmlAfter, 'T5 变音记号顺序（音名后置/级数前置）', JSON.stringify(r));
 
-  /* 点击谱面和弦图 → 中间面板（编辑…/试听/清除），「编辑…」才进构建器 */
+  /* 点击谱面和弦图 → 中间面板（编辑…/试听/清除 + 节奏型库选择，v60.32 用户指正补回），
+     「编辑…」才进构建器；套用节奏型写入本小节六线谱（取形吃合并时间线里的这枚和弦） */
   r = await pg.evaluate(() => {
     const g = document.querySelector('#score g[data-vchord="0:0:0"]');
     if (!g) return { g: false };
@@ -84,12 +85,25 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     g.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: bb.x + 5, clientY: bb.y + 5, button: 0 }));
     const hub = !!document.getElementById('vp-edit');
     const noEditor = !document.getElementById('vc-ok');
+    const patN = document.querySelectorAll('#popmenu [data-vpp]').length;
+    const hasLib = !!document.getElementById('vp-lib');
+    /* 套用第一枚节奏型 → 本小节六线谱实体化，且音符全部落在该和弦（E7/G#）指法上 */
+    document.querySelector('#popmenu [data-vpp="0"]').click();
+    const shape = chordShape('E7/G#');
+    const notes = (song.measures[0].tabs[0] || []).flatMap(c => c.notes || []);
+    const patApplied = notes.length > 0 && notes.every(n => shapeString(shape, n.s) === n.f);
+    /* 重新打开面板走「编辑…」进构建器 */
+    sel.row = 'vox'; sel.vi = 0; sel.mi = 0; sel.ci = 0; render();
+    const g2 = document.querySelector('#score g[data-vchord="0:0:0"]');
+    const b2 = g2.getBoundingClientRect();
+    g2.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: b2.x + 5, clientY: b2.y + 5, button: 0 }));
     document.getElementById('vp-edit').click();
     const editor = !!document.getElementById('vc-ok');
     closePop();
-    return { g: true, hub, noEditor, editor };
+    return { g: true, hub, noEditor, patN, hasLib, patApplied, editor };
   });
-  T(r.g && r.hub && r.noEditor && r.editor, 'T6 点和弦图先出中间面板，编辑…再进构建器', JSON.stringify(r));
+  T(r.g && r.hub && r.noEditor && r.patN === 2 && r.hasLib && r.patApplied && r.editor,
+    'T6 中间面板：编辑…/试听/清除+节奏型库；套用实体化到六线谱', JSON.stringify(r));
 
   /* 构建器弹窗可拖动（标题把手） */
   r = await pg.evaluate(() => {

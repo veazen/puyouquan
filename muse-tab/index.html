@@ -12135,7 +12135,10 @@ function vcSnap8(){                                    // 和弦最小单位：�
   if(ci!==sel.ci){ sel.ci=ci; render(); toast('和弦最小单位为八分音符，已对齐到就近八分位'); }
 }
 /* v60.31 点击谱面和弦图/名 → 中间面板（用户指示：不直接进编辑器）：
-   当前和弦+级数+指法预览，编辑…/试听/清除三操作；「编辑…」才进级数构建器 */
+   当前和弦+级数+指法预览，编辑…/试听/清除；「编辑…」才进级数构建器。
+   v60.32 补节奏型库选择（用户指正「像之前的版本」——旧 TAB 弹窗带套用节奏型+库…）：
+   有六线谱声部时列两枚常用节奏型与「库…」，套用写入本小节六线谱
+   （取形走合并时间线，简谱锚定的和弦同样生效） */
 function showVoxChordPopup(cx, cy, q){
   if(sel.row!=='vox') return;
   q = q>0? q|0 : 0;
@@ -12147,17 +12150,26 @@ function showVoxChordPopup(cx, cy, q){
   div.style.left=Math.min(cx, innerWidth-250)+'px';
   div.style.top=(cy+8)+'px';
   const sh=chordShape(cur);
+  const hasTab = !!(song.tabVoices && song.tabVoices.length);
+  const recs=[TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2]];
   div.innerHTML=`<div class="t pm-drag" title="拖动可移动" style="cursor:move;touch-action:none">和弦：<b>${chordHtmlLabel(cur)||'（未设）'}</b>　<span style="font-weight:400;color:var(--muted)">级数 ${esc(chordDegree(cur))}${q>0?' · 第'+q+'拍位':''}</span></div>
     ${sh? `<div style="text-align:center;margin:2px 0"><svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,sh,true)}</svg></div>`:''}
     <div class="row"><button id="vp-edit" class="primary">编辑和弦…</button>
     <button id="vp-play" title="按吉他指法自低音弦琶音试听">▶ 试听</button>
-    <button id="vp-clear">清除</button></div>`;
+    <button id="vp-clear">清除</button></div>
+    ${hasTab? `<div class="t" style="margin-top:6px">套用节奏型（写入六线谱本小节）</div>
+    <div class="row">${recs.map((p2,i)=>`<button data-vpp="${i}" title="${esc(p2.name)}">${tabPatSVG(p2,54,34)}</button>`).join('')}
+    <button id="vp-lib">库…</button></div>`:''}`;
   document.body.appendChild(div);
   makeDraggableTitled(div, '.pm-drag');
+  const toTab=()=>{ sel.row='tab'; sel.vi=0; sel.ci=0; sel.si=sel.si||1; clampSel(); };   /* 节奏型作用于本小节六线谱 */
   div.addEventListener('click', ev=>{
     if(ev.target.closest('#vp-edit')){ closePop(); showVoxChordMenu(cx, cy, q); return; }
     if(ev.target.closest('#vp-play')){ auditionShape(chordShape(cur)); return; }
-    if(ev.target.closest('#vp-clear')){ setVoxChord('', false, q); closePop(); }
+    if(ev.target.closest('#vp-clear')){ setVoxChord('', false, q); closePop(); return; }
+    if(ev.target.closest('#vp-lib')){ closePop(); toTab(); render(); showPatternLib('tab'); return; }
+    const b=ev.target.closest('[data-vpp]');
+    if(b){ toTab(); applyTabPattern(recs[+b.dataset.vpp]); closePop(); }
   });
 }
 function showVoxChordMenu(cx, cy, q){
@@ -19339,7 +19351,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.31';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.32';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19362,6 +19374,7 @@ const APP_VER='v60.31';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.32</span><div><b>和弦操作面板补回节奏型库选择</b>（用户指正：「点击和弦或者和弦图要出现对应的和弦编辑以及节奏型库的选择，像之前的版本——现在只有编辑的选项」）。点击谱面和弦图/和弦名弹出的操作面板，在「编辑和弦…／试听／清除」之下补回<b>套用节奏型</b>区：两枚常用节奏型直选 + 「库…」进完整节奏型库（与旧 TAB 弹窗同款）；套用写入<b>本小节六线谱</b>并按当前生效和弦取形实体化——简谱音符上锚定的和弦经合并时间线同样生效；歌谱等无六线谱的谱类不显示该区。<code>tv_chordsys</code> T6 扩为验证「面板含节奏型区 + 套用实体化到六线谱且逐音落在该和弦指法上」。<b>80 套件</b>全绿。</div></li>
     <li><span class="v">v60.31</span><div><b>和弦系统修正：5⁷ˢᵘˢ／3⁷/♯5 这类和弦全链路可用 + 编辑弹窗可拖动 + 点和弦图先出操作面板</b>（用户报告「57sus 和 37/#5 没办法实现」并要求弹窗可移动、点图不直接进编辑）。① <b>级数直写</b>：级数构建器的自定义框与左栏和弦输入框现接受级数写法——<code>57sus</code>→G7sus4、<code>37/#5</code>→E7/G♯、<code>4m7</code>→Fm7、<code>#4dim</code>→F♯dim（1=当前调，别名 sus→sus4、7sus→7sus4、°→dim、ø→m7b5）。② <b>转位低音扩到全部 12 个半音</b>：构建器「转位」网格新增 ♯1 ♯2 ♯4 ♯5 ♭7 等变化音级（功能记谱惯用拼法），3⁷/♯5（E7/G♯，副属第一转位）从此可点选构建；音名拼写随级数字母走（♭7 在 1=C 是 B♭、1=D 是 C）。③ <b>级数显示按「写的字母」定级</b>：E7/G♯ 现在显示 3⁷/♯5（此前按半音查表显示成 ♭6——G♯ 与 A♭ 同音不同义，拼写即和声含义）；调内和弦显示不变。④ <b>音名变音记号移到字母后</b>：谱面/弹窗里 G♯ 不再画成「♯G」（级数保持 ♯5 前置惯例）。⑤ <b>级数构建器弹窗可拖动</b>（标题行为把手，与曲谱信息等弹窗同口径；指法编辑器本就可拖）。⑥ <b>点击谱面和弦图/和弦名先出操作面板</b>：当前和弦+级数+指法预览+「编辑和弦…／试听／清除」，点「编辑和弦…」才进构建器——不再一点就整窗弹出。⑦ 新增 <code>tv_chordsys</code> 8 项（级数直写/拼写定级/半音低音往返/网格点选/记号顺序/中间面板/拖动几何），「拼写定级」断言经变异实证（退回半音查表 → ♯5 变 ♭6 当场红）；<code>tv_chordanchor</code> T3 跟随中间面板流程。<b>80 套件</b>全绿。</div></li>
     <li><span class="v">v60.30</span><div><b>延长音（增时线「−」）可选中、可在其拍位设和弦</b>（用户指示并附截图：「延长音属于可选音符编辑和弦，目前没办法选中」）。① <b>每条增时线都是可点击的音符对象</b>：点击选中所属长音列并记住拍位（选中态在该「−」上画光标圈），创作辅助「和弦」图标即编辑<b>该拍位</b>的和弦；再点别处自动回到列头语义。② <b>长音中途换和弦不拆音符</b>（GB 简谱惯例：和弦标在「−」上方、音符保持一体）：新增列内拍位和弦 <code>col.chords=[{q,chord}]</code> 纯增量字段（q=第 q 条增时线，即列起后第 q 个四分拍位），级数构建器读写对应拍位槽（标题注明「延长音第 X 拍位」），列头和弦（<code>col.chord</code>）语义与数据不动。③ <b>渲染与和声全链路生效</b>：和弦名字框/弹唱谱图带和弦图画在该增时线正上方（对齐拍点 qxs，同列多和弦并存）；合并时间线（v60.27）收录拍位和弦——六线谱取形、节奏型套用、生效和弦查询都按真实拍位换算。<b>如实标注两处暂不覆盖</b>：MusicXML 导出与伴奏织体生成的时间线暂只读列头和弦（后续补）。④ <code>tv_chordanchor</code> 新增 T9b（槽写入/时间线拍位/图锚增时线/热区选中四合一），变异实证：时间线去掉拍位扫描 → 当场红。<b>79 套件</b>全绿。</div></li>
     <li><span class="v">v60.29</span><div><b>中途转调标记随播放/MIDI 导出生效 + 输入音符实时回响</b>（用户报告「转调时播放不会跟随不会转调」+ 指示「编辑时增加实时的声音，输入音符回响起对应的音高」）。① <b>查实转调不跟随的根因</b>：整体换调（顶栏快速换调/曲谱信息换调）播放本来就跟随（本版 T3 断言钉住防退化）；不跟随的是<b>中途转调标记「转 1=X」</b>——它此前只进渲染与 MusicXML 导出，播放全链路只读谱首调，标记后照旧按原调发声。现新增 <code>keyAt/keyRefAt</code>（第 mi 小节生效调=谱首调被 ≤mi 的最近一个转调标记覆盖），播放构建按小节取调：主音、前/后倚音、和音附加音、震音全部跟随；<b>MIDI 导出同口径跟随</b>（此前「转 1=X」后的音导出仍在原调），断言用「导出 → 自家 parseSMF 回读」闭环验证。六线谱品位是绝对音高，不受标记影响（记谱语义如此）。② <b>输入回响</b>：录入/修改音符即刻回放对应音高——简谱数字、五线谱音名、TAB 品位、变化音 ♯♭♮、八度点全部触发；与主播放同一音色引擎与八度口径（TAB=调弦+品+变调夹−12，简谱=生效调+级数+八度+变化音+变调夹联动，转调标记后的输入也按新调回响）；主播放进行中不插响，×闷音/休止不响；回响走会话级复用总线，不逐击新建混响。③ 新增 <code>tv_playkey</code> 8 项（生效调语义/播放跟随/导出回读闭环/整体换调防退化/两谱类回响口径/播放中静默/标记后回响），其中「播放跟随」与「输入回响」两断言做了变异实证：播放构建去掉小节语境、回响挂钩移除，各自当场转红。<b>79 套件</b>全绿。</div></li>
