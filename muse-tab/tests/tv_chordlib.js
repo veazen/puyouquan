@@ -187,12 +187,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.noOldFb && r.hasCdg && r.afterCell && r.afterTop && r.stepped,
     'T11 和弦图式创建器', '旧指板移除=' + r.noOldFb + ' 点格=' + r.afterCell + ' ×○切换=' + r.afterTop + ' 把位步进=' + r.stepped);
 
-  // T12 升降号在主音左上角：TAB 和弦名 / 功能谱级数 / 弹窗预览 三处
+  // T12 变音记号位置（v60.31 用户指正「♯G」画反）：音名=字母后上标（C♯m7），级数=前置（♭3）
   r = await pg.evaluate(() => {
     loadSong(PRESETS[0].make());
     mutate(() => { song.measures[0].tabs[0][0].chord = 'C#m7'; });
     const svg1 = document.getElementById('score').innerHTML;
-    const tabOk = /♯<\/tspan><tspan[^>]*>Cm7</.test(svg1) && !svg1.includes('>C#m7<');
+    const tabOk = />C<tspan[^>]*>♯<\/tspan><tspan[^>]*>m7</.test(svg1) && !svg1.includes('>C#m7<');
     loadSong(createSong('func', {nVox:1, beats:4, unit:4, key:'C', nMea:2, lyr:0}));
     song.funcNames = false;
     mutate(() => { song.measures[0].voxes[0][0].chord = 'Eb'; });   // 1=C 下 Eb = b3 级
@@ -207,7 +207,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('ce-cancel').click();
     return { tabOk, degOk, prevOk: !!prevOk };
   });
-  T(r.tabOk && r.degOk && r.prevOk, 'T12 升降号左上角', 'TAB=' + r.tabOk + ' 级数=' + r.degOk + ' 弹窗预览=' + r.prevOk);
+  T(r.tabOk && r.degOk && r.prevOk, 'T12 变音记号位置（音名后置/级数前置）', 'TAB=' + r.tabOk + ' 级数=' + r.degOk + ' 弹窗预览=' + r.prevOk);
 
   // T13 两位数把位在 56 宽小卡中不裁切（几何断言：文字左缘 >= 0）
   r = await pg.evaluate(() => {
