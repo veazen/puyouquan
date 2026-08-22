@@ -581,7 +581,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     let qb = document.getElementById('quickbar');
     const open = !!qb && noPopLeft && tapPop;
     const btns0 = qb ? [...qb.querySelectorAll('[data-qb]')].map(x => x.dataset.qb).join(',') : '';
-    const tabCtx = /dur:4,dur:8,dur:16,dot,tech:.+,tie,more,off/.test(btns0);
+    const tabCtx = /dur:4,dur:8,dur:16,dot,tech:.+,tie,chord,more,off/.test(btns0);   /* v60.27 浮条新增「和弦」入口（tie 之后） */
     // ② 浮条操作生效 + 习惯记录
     qb.querySelector('[data-qb="dur:8"]').click();
     const durOk = song.measures[0].tabs[0][0].dur === 8;
