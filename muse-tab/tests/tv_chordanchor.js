@@ -147,6 +147,39 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.g && r.hasBox, 'T9 歌谱和弦名字框不回归', JSON.stringify(r));
 
+  /* v60.30 延长音拍位和弦（用户指示：延长音属于可选音符可编辑和弦）：
+     col.chords=[{q,chord}] 槽写入 / 合并时间线拍位（列起+q 个四分拍）/
+     图带和弦图锚定该增时线 x / 增时线热区点击选中拍位（sel.q）。
+     变异实证：chordEvtsMea 去掉 col.chords 扫描 → 本条当场红（时间线丢 3:G）。 */
+  r = await pg.evaluate(() => {
+    loadSong(createSong('guitar', { title: 'q', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
+    mutate(() => {
+      song.measures[0].voxes[0] = [
+        { dur: 4, dotted: false, deg: 6, acc: '', oct: 0, lyrics: [], tie: false },
+        { dur: 2, dotted: true,  deg: 5, acc: '', oct: 0, lyrics: [], tie: false },   // 附点二分 → 2 条增时线
+      ];
+    });
+    sel.row = 'vox'; sel.vi = 0; sel.mi = 0; sel.ci = 1; sel.q = 0; render();
+    setVoxChord('C', true);        // 列头槽
+    setVoxChord('G', true, 2);     // 第 2 条增时线拍位槽
+    const evs = chordEvtsMea(0).map(e => e.beat + ':' + e.chord).join(',');
+    const g2 = document.querySelector('#score g[data-vchord="0:1:0:2"]');
+    const z2 = document.querySelector('#score rect[data-q="2"][data-mi="0"][data-ci="1"]');
+    let aligned = false;
+    if (g2 && z2) {
+      const gb = g2.getBBox(), zb = z2.getBBox(), zc = zb.x + zb.width / 2;
+      aligned = zc > gb.x - 2 && zc < gb.x + gb.width + 2;   // 拍位图横向罩住该增时线
+    }
+    if (z2) { const bb = z2.getBoundingClientRect();
+      z2.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: bb.x + 4, clientY: bb.y + 4, button: 0 })); }
+    const selQ = sel.q === 2 && sel.ci === 1 && sel.row === 'vox';
+    const slot = JSON.stringify((song.measures[0].voxes[0][1].chords || []));
+    closePop();
+    return { evs, g2: !!g2, z2: !!z2, aligned, selQ, slot };
+  });
+  T(r.evs === '1:C,3:G' && r.g2 && r.z2 && r.aligned && r.selQ,
+    'T9b 延长音拍位和弦（槽/时间线/图锚增时线/热区选中）', JSON.stringify(r));
+
   T(errs.length === 0, 'T10 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

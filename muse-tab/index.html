@@ -4804,7 +4804,11 @@ function shapeString(shape, s){ const ch = shape[shape.length-s]; return (ch==nu
 function chordEvtsMea(mi){
   const m=song.measures[mi]; if(!m) return [];
   const mU=meaMeter(mi).unit, out=[];
-  const scan=cols=>{ let b=0; (cols||[]).forEach(c=>{ if(c.chord) out.push({beat:b, chord:c.chord}); b+=beatsOf(c,mU); }); };
+  const scan=cols=>{ let b=0; (cols||[]).forEach(c=>{
+    if(c.chord) out.push({beat:b, chord:c.chord});
+    /* v60.30 延长音拍位和弦：第 q 条增时线=列起后第 q 个四分拍位（拍单位换算 ×mU/4） */
+    (c.chords||[]).forEach(x=>{ if(x && x.chord && x.q>0) out.push({beat:b + x.q*mU/4, chord:x.chord}); });
+    b+=beatsOf(c,mU); }); };
   (m.voxes||[]).forEach(scan);
   (m.tabs||[]).forEach(scan);
   return out.sort((a,b2)=>a.beat-b2.beat);
@@ -7210,26 +7214,36 @@ function render(){
              空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
           /* v60.28 「＋和弦」空位悬停区撤销（产品负责人指示：谱面不留点击位，
              设和弦入口=创作辅助「和弦」图标/选中音符编辑；已有和弦标注仍可点击编辑） */
+          /* v60.30 延长音拍位和弦（用户指示：延长音属于可选音符可编辑和弦）：
+             col.chords=[{q,chord}] 纯增量字段——q=本列第 q 条增时线（第 q 个四分拍位），
+             和弦标注/和弦图画在该增时线正上方（GB 惯例：长音中途换和弦标在「−」上方，不拆音符）。
+             data-vchord 第 4 段带 q，点击编辑对应拍位 */
           {
-            if(col.chord){
+            const chList=[];
+            if(col.chord) chList.push({q:0, chord:col.chord});
+            (col.chords||[]).forEach(x=>{ if(x && x.chord && x.q>0) chList.push(x); });
+            const qxC=(lay.qxs&&lay.qxs[ci])||[];
+            chList.forEach(ch=>{
+              const ax = ch.q>0? (qxC[ch.q-1]!=null? mx+qxC[ch.q-1] : nx) : nx;
+              const vtag = `${lm.mi}:${ci}:${vi}${ch.q>0? ':'+ch.q : ''}`;
               if(diagMode==='inline' && song.tabVoices.length && !song.tabStaff){
-                /* v60.27 和弦图对齐锚定音符（用户指示）：简谱音符上设的和弦，其指法图画在
-                   六线谱上方图带、横向对齐本列（与 TAB 列锚定同一 nx-10 口径），不再在
-                   简谱行重复画名字框；点击图即编辑（data-vchord 同一路由） */
-                p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">${chordDiagramSVG(col.chord, nx-10, oy+2, 0.95)}<title>${esc(col.chord)}（点击编辑）</title></g>`);
+                /* v60.27 和弦图对齐锚定音符：指法图画在六线谱上方图带、横向对齐锚定位置
+                   （列头=本列 nx / 拍位=该增时线 x，与 TAB 列锚定同一 −10 口径） */
+                p.push(`<g data-vchord="${vtag}" style="cursor:pointer">${chordDiagramSVG(ch.chord, ax-10, oy+2, 0.95)}<title>${esc(ch.chord)}（点击编辑）</title></g>`);
               }else{
               const cy2 = isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col);   /* v53.3 和弦框避让和音纵列 */
-              const disp = song.funcNames? col.chord : chordDegree(col.chord);
-              const alt  = song.funcNames? chordDegree(col.chord) : col.chord;
-              const w = vcDispW(col.chord);
-              p.push(`<g data-vchord="${lm.mi}:${ci}:${vi}" style="cursor:pointer">
-                <rect x="${(nx-w/2).toFixed(1)}" y="${(cy2-13.8).toFixed(1)}" width="${w.toFixed(1)}" height="18.5" rx="6" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="1"/>
-                <text x="${nx}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(disp, 14)}</text>
+              const disp = song.funcNames? ch.chord : chordDegree(ch.chord);
+              const alt  = song.funcNames? chordDegree(ch.chord) : ch.chord;
+              const w = vcDispW(ch.chord);
+              p.push(`<g data-vchord="${vtag}" style="cursor:pointer">
+                <rect x="${(ax-w/2).toFixed(1)}" y="${(cy2-13.8).toFixed(1)}" width="${w.toFixed(1)}" height="18.5" rx="6" fill="var(--paper)" stroke="var(--ink)" stroke-opacity="0.5" stroke-width="1"/>
+                <text x="${ax}" y="${cy2}" font-size="14" font-weight="600" text-anchor="middle" fill="var(--ink)">${chordSvgLabel(disp, 14)}</text>
                 <title>${esc(alt)}（点击编辑）</title></g>`);
               }
-            }
+            });
           }
           let addsZone='';   /* v53.3 和音纵列点击热区（列热区之后压顶推入，保证可点） */
+          let dashZone='';   /* v60.30 增时线拍位热区（同压顶） */
           if(song.chordOnly && !isStaff){
             /* 纯和弦谱：每拍一条节奏斜线（出版和弦格惯例），和弦标在斜线上方 */
             p.push(`<path d="M ${nx-5} ${voxY+1} L ${nx+5} ${voxY-11}" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round" fill="none"/>`);
@@ -7570,8 +7584,15 @@ function render(){
             const qx=(lay.qxs&&lay.qxs[ci])||[];
             const stepD = nDash===1? cw*0.42 : Math.min(cw*0.22, cw*0.66/Math.max(1,nDash));
             const dashX = d=> qx[d-1]!==undefined? mx+qx[d-1] : (nDash===1? nx+stepD : nx+stepD*d);
-            for(let d=1;d<=nDash;d++)
+            for(let d=1;d<=nDash;d++){
               p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+              /* v60.30 延长音拍位可选中（用户指示：延长音属于可选音符可编辑和弦）：
+                 每条增时线一个压顶热区（data-q=第几拍位），点击选中本列并记住拍位，
+                 创作辅助「和弦」图标即编辑该拍位的和弦；选中态在该增时线上画光标圈 */
+              dashZone += `<rect x="${(dashX(d)-9).toFixed(1)}" y="${voxY-16}" width="18" height="21" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-q="${d}" style="cursor:pointer"><title>延长音第 ${d} 拍位（点击选中，可在此拍设和弦）</title></rect>`;
+              if(isSel && (sel.q||0)===d)
+                p.push(`<circle cx="${dashX(d).toFixed(1)}" cy="${voxY-5}" r="8" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>`);
+            }
             if(q4-Math.floor(q4+1e-4)>1e-3)   /* 双附点余下半拍的补记附点：有下一拍点则记在该拍位，否则挂末条横线后 */
               p.push(`<circle cx="${(qx[nDash]!==undefined? mx+qx[nDash] : dashX(nDash)+7).toFixed(1)}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
           }
@@ -7599,6 +7620,7 @@ function render(){
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
           if(addsZone) p.push(addsZone);      // v53.3 和音纵列热区同置顶层
+          if(dashZone) p.push(dashZone);      // v60.30 增时线拍位热区同置顶层
           /* v51.1 小节内小谱号也可点击：直达该列谱号切换菜单（改/清除）——置于列热区之上 */
           if(isStaff && col.clef && CLEF_BOT[col.clef]){
             const chw2 = smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75;
@@ -10454,8 +10476,9 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(vcEl){
     const seg=vcEl.dataset.vchord.split(':').map(Number);
     sel.mi=seg[0]; sel.ci=seg[1]; sel.row='vox'; sel.vi=seg[2];
+    sel.q=seg[3]||0;   /* v60.30 拍位和弦：第 4 段=增时线拍位 */
     selRange=null; render();
-    showVoxChordMenu(e.clientX, e.clientY);
+    showVoxChordMenu(e.clientX, e.clientY, seg[3]||0);
     return;
   }
   /* v60.27 点击六线谱列锚定的和弦图/和弦名 → 选中锚定列并编辑（设和弦=选中音符设和弦） */
@@ -10589,6 +10612,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   selRange = null;
   dragSel = {row, vi, mi, ci};
   sel.mi=mi; sel.ci=ci; sel.row=row; sel.vi=vi;
+  sel.q = +(t.dataset.q||0);   /* v60.30 延长音拍位选中（增时线热区带 data-q；其余热区自动清零） */
   if(t.dataset.si && +t.dataset.si>0) sel.si=+t.dataset.si;
   if(t.dataset.line!==undefined) activeLyr=+t.dataset.line;
   pending.digits='';
@@ -12014,10 +12038,17 @@ document.getElementById('b-breath').onclick = ()=>{
   };
 });
 /* 功能谱智能和弦选择：本调常用库优先 + 常用扩展 + 最近使用 + 自定义输入 */
-function setVoxChord(name, quiet){
+function setVoxChord(name, quiet, q){
   mutate(()=>{ const c=curCol(); if(!c) return;
     const t=(name||'').trim();
-    if(t) c.chord=t; else delete c.chord;
+    if(q>0){
+      /* v60.30 延长音拍位和弦：col.chords=[{q,chord}] 纯增量字段（q=第 q 条增时线拍位） */
+      const a=(c.chords||[]).filter(x=>x && x.q!==q && x.chord);
+      if(t) a.push({q, chord:t});
+      a.sort((x,y)=>x.q-y.q);
+      if(a.length) c.chords=a; else delete c.chords;
+    }
+    else if(t) c.chord=t; else delete c.chord;
   });
   const t=(name||'').trim();
   if(t){
@@ -12057,12 +12088,15 @@ function vcSnap8(){                                    // 和弦最小单位：�
   while(ci>0 && Math.abs(startAt(ci)/grid8-Math.round(startAt(ci)/grid8))>1e-4) ci--;
   if(ci!==sel.ci){ sel.ci=ci; render(); toast('和弦最小单位为八分音符，已对齐到就近八分位'); }
 }
-function showVoxChordMenu(cx, cy){
+function showVoxChordMenu(cx, cy, q){
   if(sel.row!=='vox') return toast('请先在简谱选中要标注和弦的音符');
-  if(song.func) vcSnap8();
+  q = q>0? q|0 : 0;
+  if(song.func && !q) vcSnap8();
   const col=curCol(); if(!col) return;
   closePop();
-  const st = vcParse(col.chord) || {deg:-1, suf:'', bass:-1};
+  /* v60.30 拍位和弦：q>0 时读写本列第 q 条增时线拍位的槽（col.chords），列头槽不动 */
+  const cV=()=> q>0? (((col.chords||[]).find(x=>x&&x.q===q)||{}).chord||'') : (col.chord||'');
+  const st = vcParse(cV()) || {deg:-1, suf:'', bass:-1};
   const div=document.createElement('div');
   div.className='popmenu pm-follow'; div.id='popmenu';
   div.style.width='min(420px, 94vw)';
@@ -12073,9 +12107,9 @@ function showVoxChordMenu(cx, cy){
     return pm? `${chordHtmlLabel(pm[1])}${pm[2]?`<sup>${esc(pm[2])}</sup>`:''}${pm[3]?chordHtmlLabel(pm[3]):''}` : esc(d);
   };
   const draw=()=>{
-    const cur=vcBuild(st) || col.chord || '';
+    const cur=vcBuild(st) || cV() || '';
     const recent=(song.chordRecent||[]).slice(0,8);
-    div.innerHTML=`<div class="t" style="display:flex;align-items:center;gap:8px">和弦 · 1=${esc(song.key)}
+    div.innerHTML=`<div class="t" style="display:flex;align-items:center;gap:8px">和弦${q>0? ' · 延长音第'+q+'拍位':''} · 1=${esc(song.key)}
         <button id="vc-names" class="${song.funcNames?'on':''}" title="谱面所有和弦标注一键切换：级数 ↔ 音名">谱面显示：${song.funcNames?'音名':'级数'}</button></div>
       <div class="vc-prev" style="display:flex;align-items:center;gap:10px">${cur
         ? `<b>${supHtml(chordDegree(cur))}</b><span class="alt">音名 ${esc(cur)}</span>`
@@ -12085,7 +12119,7 @@ function showVoxChordMenu(cx, cy){
       <div class="t" style="opacity:.75">级数（1=${esc(song.key)}，默认调内性质）</div>
       <div class="vc-grid">${VC_SEMI.map((_,i)=>
         `<button data-vd="${i}" class="${st.deg===i?'on':''}">${i+1}${VC_DIA[i]?'<b style="font-size:10px">'+VC_DIA[i]+'</b>':''}<small>${esc(vcNote(i))}</small></button>`).join('')}
-        <button data-vd="-1" class="${st.deg<0&&!col.chord?'on':''}" title="清除标注">∅<small>无</small></button></div>
+        <button data-vd="-1" class="${st.deg<0&&!cV()?'on':''}" title="清除标注">∅<small>无</small></button></div>
       <div class="t" style="opacity:.75">类型 / 扩展</div>
       ${VC_SUFS.map(g=>`<div class="vc-grid sufs">${g.c.map(([lb,sf])=>
         `<button data-vs="${esc(sf)}" class="${st.suf===sf?'on':''}" title="${esc(g.t)}">${esc(lb)}</button>`).join('')}
@@ -12095,20 +12129,20 @@ function showVoxChordMenu(cx, cy){
         <button data-vb="-1" class="${st.bass<0?'on':''}">原位</button>
         ${VC_SEMI.map((_,i)=>`<button data-vb="${i}" class="${st.bass===i?'on':''}">/${i+1}<small>${esc(vcNote(i))}</small></button>`).join('')}</div>
       ${recent.length? `<div class="t" style="opacity:.75">最近使用</div><div class="row">${recent.map(c2=>
-        `<button data-vc="${esc(c2)}" class="${col.chord===c2?'on':''}">${esc(chordDegree(c2))}<span style="opacity:.55;font-size:10px;margin-left:3px">${esc(c2)}</span></button>`).join('')}</div>`:''}
+        `<button data-vc="${esc(c2)}" class="${cV()===c2?'on':''}">${esc(chordDegree(c2))}<span style="opacity:.55;font-size:10px;margin-left:3px">${esc(c2)}</span></button>`).join('')}</div>`:''}
       <div class="row" style="margin-top:7px">
-        <input id="vc-custom" placeholder="完整自定义：如 F#m7、Bb/D（调外和弦）" value="${esc(col.chord||'')}" style="flex:1;min-width:150px">
+        <input id="vc-custom" placeholder="完整自定义：如 F#m7、Bb/D（调外和弦）" value="${esc(cV())}" style="flex:1;min-width:150px">
         <button id="vc-ok" class="primary" style="padding:3px 13px">应用</button>
         <button id="vc-clr" style="padding:3px 10px">清除</button>
       </div>`;
   };
-  const apply=()=>{ setVoxChord(vcBuild(st), true); draw(); };
+  const apply=()=>{ setVoxChord(vcBuild(st), true, q); draw(); };
   draw();
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const vd=ev.target.closest('[data-vd]');
     if(vd){ const i=+vd.dataset.vd;
-      if(i<0){ st.deg=-1; st.suf=''; st.bass=-1; setVoxChord('', true); draw(); return; }
+      if(i<0){ st.deg=-1; st.suf=''; st.bass=-1; setVoxChord('', true, q); draw(); return; }
       if(st.deg<0 || st.deg!==i && st.suf===VC_DIA[st.deg]) st.suf=VC_DIA[i];   // 未自选类型时跟随调内性质
       st.deg=i; apply(); return; }
     const vs=ev.target.closest('[data-vs]');
@@ -12116,17 +12150,17 @@ function showVoxChordMenu(cx, cy){
     const vb=ev.target.closest('[data-vb]');
     if(vb){ st.bass=+vb.dataset.vb; if(st.deg<0&&st.bass>=0) st.deg=0; apply(); return; }
     const b2=ev.target.closest('[data-vc]');
-    if(b2){ setVoxChord(b2.dataset.vc); closePop(); return; }
+    if(b2){ setVoxChord(b2.dataset.vc, false, q); closePop(); return; }
     if(ev.target.closest('#vc-play')){
-      auditionShape(chordShape(vcBuild(st) || col.chord || '')); return; }
+      auditionShape(chordShape(vcBuild(st) || cV() || '')); return; }
     if(ev.target.closest('#vc-names')){
       song.funcNames=!song.funcNames; persist(); render(); draw(); return; }
-    if(ev.target.closest('#vc-ok')){ setVoxChord(div.querySelector('#vc-custom').value); closePop(); return; }
-    if(ev.target.closest('#vc-clr')){ setVoxChord(''); closePop(); return; }
+    if(ev.target.closest('#vc-ok')){ setVoxChord(div.querySelector('#vc-custom').value, false, q); closePop(); return; }
+    if(ev.target.closest('#vc-clr')){ setVoxChord('', false, q); closePop(); return; }
   });
   div.addEventListener('keydown', ev=>{
     ev.stopPropagation();
-    if(ev.target.id==='vc-custom' && ev.key==='Enter'){ setVoxChord(ev.target.value); closePop(); }
+    if(ev.target.id==='vc-custom' && ev.key==='Enter'){ setVoxChord(ev.target.value, false, q); closePop(); }
     if(ev.target.id==='vc-sufin' && ev.key==='Enter'){ st.suf=ev.target.value.trim(); if(st.deg<0) st.deg=0; apply(); }
   });
   div.addEventListener('change', ev=>{
@@ -14576,9 +14610,15 @@ function applyShell(){
   go('ri-edit',   ()=>click('b-meta'));   // v41.4 信息页摘要卡 → 曲谱信息弹窗
   /* v60.28 和弦/标注双图标：选中音符时可用，按选中行分派编辑器（浮层锚定在图标旁） */
   go('rt-chord', e=>{
-    if(!curCol()) return toast('请先在谱面选中一个音符');
+    const c=curCol();
+    if(!c) return toast('请先在谱面选中一个音符');
     const r=e.currentTarget.getBoundingClientRect();
-    if(sel.row==='vox') showVoxChordMenu(r.left, r.top-10);
+    if(sel.row==='vox'){
+      /* v60.30 延长音拍位：选中增时线时编辑该拍位的和弦；拍位越界（换列后残留）钳回列头 */
+      let q=sel.q||0;
+      if(q>0){ const nD=Math.max(0, Math.floor((4/c.dur)*dotFactor(c)+1e-4)-1); if(q>nD){ q=0; sel.q=0; } }
+      showVoxChordMenu(r.left, r.top-10, q);
+    }
     else showChordEditor(sel.mi, sel.ci, sel.vi);
   });
   go('rt-anno', e=>{
@@ -19206,7 +19246,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.29';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.30';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19229,6 +19269,7 @@ const APP_VER='v60.29';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.30</span><div><b>延长音（增时线「−」）可选中、可在其拍位设和弦</b>（用户指示并附截图：「延长音属于可选音符编辑和弦，目前没办法选中」）。① <b>每条增时线都是可点击的音符对象</b>：点击选中所属长音列并记住拍位（选中态在该「−」上画光标圈），创作辅助「和弦」图标即编辑<b>该拍位</b>的和弦；再点别处自动回到列头语义。② <b>长音中途换和弦不拆音符</b>（GB 简谱惯例：和弦标在「−」上方、音符保持一体）：新增列内拍位和弦 <code>col.chords=[{q,chord}]</code> 纯增量字段（q=第 q 条增时线，即列起后第 q 个四分拍位），级数构建器读写对应拍位槽（标题注明「延长音第 X 拍位」），列头和弦（<code>col.chord</code>）语义与数据不动。③ <b>渲染与和声全链路生效</b>：和弦名字框/弹唱谱图带和弦图画在该增时线正上方（对齐拍点 qxs，同列多和弦并存）；合并时间线（v60.27）收录拍位和弦——六线谱取形、节奏型套用、生效和弦查询都按真实拍位换算。<b>如实标注两处暂不覆盖</b>：MusicXML 导出与伴奏织体生成的时间线暂只读列头和弦（后续补）。④ <code>tv_chordanchor</code> 新增 T9b（槽写入/时间线拍位/图锚增时线/热区选中四合一），变异实证：时间线去掉拍位扫描 → 当场红。<b>79 套件</b>全绿。</div></li>
     <li><span class="v">v60.29</span><div><b>中途转调标记随播放/MIDI 导出生效 + 输入音符实时回响</b>（用户报告「转调时播放不会跟随不会转调」+ 指示「编辑时增加实时的声音，输入音符回响起对应的音高」）。① <b>查实转调不跟随的根因</b>：整体换调（顶栏快速换调/曲谱信息换调）播放本来就跟随（本版 T3 断言钉住防退化）；不跟随的是<b>中途转调标记「转 1=X」</b>——它此前只进渲染与 MusicXML 导出，播放全链路只读谱首调，标记后照旧按原调发声。现新增 <code>keyAt/keyRefAt</code>（第 mi 小节生效调=谱首调被 ≤mi 的最近一个转调标记覆盖），播放构建按小节取调：主音、前/后倚音、和音附加音、震音全部跟随；<b>MIDI 导出同口径跟随</b>（此前「转 1=X」后的音导出仍在原调），断言用「导出 → 自家 parseSMF 回读」闭环验证。六线谱品位是绝对音高，不受标记影响（记谱语义如此）。② <b>输入回响</b>：录入/修改音符即刻回放对应音高——简谱数字、五线谱音名、TAB 品位、变化音 ♯♭♮、八度点全部触发；与主播放同一音色引擎与八度口径（TAB=调弦+品+变调夹−12，简谱=生效调+级数+八度+变化音+变调夹联动，转调标记后的输入也按新调回响）；主播放进行中不插响，×闷音/休止不响；回响走会话级复用总线，不逐击新建混响。③ 新增 <code>tv_playkey</code> 8 项（生效调语义/播放跟随/导出回读闭环/整体换调防退化/两谱类回响口径/播放中静默/标记后回响），其中「播放跟随」与「输入回响」两断言做了变异实证：播放构建去掉小节语境、回响挂钩移除，各自当场转红。<b>79 套件</b>全绿。</div></li>
     <li><span class="v">v60.28</span><div><b>和弦/标注入口收敛为创作辅助双图标（哼唱成谱下方），谱面不再留「＋和弦」点击位</b>（产品负责人对 v60.27 的入口模型作出更正：「和弦编辑功能改成一个图标，在创作辅助哼唱成谱下方，选中音符时图标可用点击进入编辑。不用在谱上留有位置点击＋和弦。同时标注功能也做成一个图标在和弦图标旁」）。① <b>创作辅助新增「和弦」「标注」并排双图标</b>：选中到有效音符列时可用、否则置灰；「和弦」按选中行分派——简谱音符弹级数构建器、六线谱音符弹指法编辑器（和弦图对齐锚定音符的 v60.27 渲染规则不变）；「标注」弹出浮层（12 个固定词 + 任意文字 + 清除），写入与原标注卡同一条 <code>setAnno</code> 路径。② <b>谱面「＋和弦」空位悬停区全部撤销</b>（含功能谱/钢琴弹唱原有的）——谱面上只保留<b>已有</b>和弦图/和弦名的点击编辑；上一版加进快捷浮条的「和弦」按钮同步撤销，入口不再多头。③ <b>标注卡从信息页迁出</b>（v58.0 曾注「暂位于曲谱信息卡下方」，本版定位到创作辅助图标）；卡片 DOM 保留供程序化路径使用。④ 测试跟随：<code>tv_chordanchor</code> 改测双图标分派与「谱面无＋和弦位」；<code>tv_anno</code> T1 改测新入口；<code>tv_detail1</code> T37 浮条序列还原。<b>78 套件</b>全绿。</div></li>
     <li><span class="v">v60.27</span><div><b>设和弦改为「选中音符设和弦」（全谱类），和弦图对齐锚定音符；撤销六线谱上方点空白设和弦</b>（产品负责人指示，并附截图指出：选中简谱音符设的和弦，和弦图应对齐该音符）。① <b>入口统一为选中音符后设置</b>：快捷浮条（右键/触屏点音符）新增「和弦」按钮，简谱音符弹级数构建器、六线谱音符弹指法编辑器；左栏「和弦」面板的「编辑和弦…」与输入框同样跟随选中行，不再强制切到六线谱；简谱空位的「＋和弦」悬停提示从功能谱/钢琴弹唱<b>扩展到所有谱类</b>。六线谱上方图带的空白点击热区<b>撤销</b>——已有和弦图/和弦名本身即编辑入口（点击=选中锚定列并编辑）。② <b>和弦图对齐锚定音符</b>：弹唱/尤克里里谱在「随行图」模式下，简谱音符上设的和弦，其指法图画进六线谱上方图带并<b>横向对齐该音符所在列</b>（与六线谱列锚定同一口径），不再在简谱行画名字框；歌谱等无六线谱的谱类维持名字框原样。③ <b>和弦时间线全行合并</b>：生效和弦查询（<code>chordBefore/chordAtCol</code>）与 TAB 渲染取形改为按拍位合并简谱/六线谱两行的和弦变更——简谱音符上锚定的和弦，对六线谱的 ×实音化、扫弦音与<b>节奏型套用的取形实体化</b>同样生效（此前只认六线谱列上的和弦）。④ 新增 <code>tv_chordanchor</code> 10 项（对齐几何/热区撤销/点击编辑/合并时间线/浮条与面板分派/歌谱不回归），其中「图对齐本列」与「合并时间线」两条断言做了变异实证：锚点改回小节头、查询退回只扫六线谱行，各自当场转红。<b>78 套件</b>全绿。</div></li>
