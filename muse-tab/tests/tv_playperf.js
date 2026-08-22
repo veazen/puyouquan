@@ -1,0 +1,85 @@
+/* tv_playperf —— v60.33 播放性能修复回归（用户报告「播放很卡很多杂音」）
+   实测根因：启动时不建 AudioContext → 内嵌采样零解码 → 首次播放整曲一次性排程
+   逐音命中不了采样、全部落 KS 合成（32 小节扫弦谱实测 2304 次合成、主线程冻结 2.2s）。
+   修复三件：① sfEmbedInit 启动即建 suspended ctx 预解码内嵌采样；
+   ② ksBufferCached 同音高同时长桶复用 AudioBuffer（合成回落时不再逐音跑十万级环路）；
+   ③ makeImpulse IR 缓存（每次建总线不再重算 1.8s 双声道噪声）。
+   修后同谱实测：首播冻结 304ms、KS 合成 0 次。
+   断言口径给 CI 慢机留余量（阻塞预算 1200ms，抓的是 2000ms 级回归不是 50ms 抖动）。 */
+const { chromium } = require('playwright');
+const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+(async () => {
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
+    args: ['--autoplay-policy=no-user-gesture-required'] });
+  const pg = await b.newPage({ viewport: { width: 1280, height: 800 } });
+  const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
+  await pg.goto(F);
+  await pg.waitForTimeout(2500);   // 等启动预解码（真实用户打开→按播放也有间隔）
+  let pass = 0, total = 0; const T = (ok, n, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + n + (d ? ': ' + d : '')); };
+
+  /* T1 启动预解码：四个内嵌音色库在「没点过播放」的情况下就已有解码好的 buffer */
+  let r = await pg.evaluate(() => {
+    const out = {};
+    for (const name in SF_EMBED) {
+      const bk = sfBanks[name];
+      out[name] = bk ? Object.keys(bk.buf || {}).filter(k => k[0] !== 'p' && bk.buf[k]).length : -1;
+    }
+    return out;
+  });
+  T(Object.values(r).length === 4 && Object.values(r).every(n => n >= 8),
+    'T1 启动即预解码内嵌采样（无手势 suspended ctx）', JSON.stringify(r));
+
+  /* T2+T4 首播命中采样 + 阻塞预算：32 小节扫弦重负载 */
+  r = await pg.evaluate(async () => {
+    window.guardReplace = p => p();
+    loadSong(createSong('guitar', { title: 'pf', beats: 4, unit: 4, key: 'C', nMea: 32, nTab: 1, nVox: 1, lyr: 0 }));
+    mutate(() => {
+      song.measures.forEach(m => {
+        m.tabs[0] = Array.from({ length: 8 }, (_, i) => ({ dur: 8, dotted: false, chord: i === 0 ? 'C' : '', strum: i % 2 ? 'u' : 'd',
+          notes: [{ s: 5, f: 3 }, { s: 4, f: 2 }, { s: 3, f: 0 }, { s: 2, f: 1 }, { s: 1, f: 0 }], tech: '' }));
+        m.voxes[0] = [1, 2, 3, 5].map(d => ({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }));
+      });
+    });
+    let ksN = 0;
+    const _ks = ksBuffer;
+    window.ksBuffer = function (...a) { ksN++; return _ks.apply(this, a); };
+    const t0 = performance.now(); play(); const block = performance.now() - t0;
+    await new Promise(res => setTimeout(res, 400)); stopPlay();
+    window.ksBuffer = _ks;
+    return { ksN, block: +block.toFixed(0) };
+  });
+  T(r.ksN === 0, 'T2 首播整曲命中采样（KS 合成 0 次）', JSON.stringify(r));
+  T(r.block < 1200, 'T4 首播主线程阻塞预算（<1200ms；修复前 2171ms）', 'block=' + r.block + 'ms');
+
+  /* T3 KS 缓存：强制合成回落（hifi 关）连播两次，第二次全部命中缓存 */
+  r = await pg.evaluate(async () => {
+    hifiOn = false;
+    let ksN = 0;
+    const _ks = ksBuffer;
+    window.ksBuffer = function (...a) { ksN++; return _ks.apply(this, a); };
+    play(); await new Promise(res => setTimeout(res, 300)); stopPlay();
+    const first = ksN; ksN = 0;
+    play(); await new Promise(res => setTimeout(res, 200)); stopPlay();
+    const second = ksN;
+    window.ksBuffer = _ks; hifiOn = true;
+    return { first, second };
+  });
+  T(r.second === 0 && r.first > 0 && r.first < 200,
+    'T3 KS 缓冲缓存（合成回落首播仅算唯一音高，二播全命中）', JSON.stringify(r));
+
+  /* T5 IR 缓存：再建两条总线，makeImpulseRaw 不再被调用 */
+  r = await pg.evaluate(() => {
+    let raw = 0;
+    const _mr = makeImpulseRaw;
+    window.makeImpulseRaw = function (...a) { raw++; return _mr.apply(this, a); };
+    buildBus(audio.ctx); buildBus(audio.ctx);
+    window.makeImpulseRaw = _mr;
+    return { raw };
+  });
+  T(r.raw === 0, 'T5 混响脉冲缓存（重建总线零重算）', JSON.stringify(r));
+
+  T(errs.length === 0, 'T6 无报错', errs.join('|') || 'none');
+  console.log('PASS ' + pass + '/' + total);
+  await b.close();
+  process.exit(pass === total ? 0 : 1);
+})();

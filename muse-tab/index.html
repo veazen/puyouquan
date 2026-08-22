@@ -12149,11 +12149,10 @@ function showVoxChordPopup(cx, cy, q){
   div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.min(cx, innerWidth-250)+'px';
   div.style.top=(cy+8)+'px';
-  const sh=chordShape(cur);
   const hasTab = !!(song.tabVoices && song.tabVoices.length);
   const recs=[TAB_PATTERN_GROUPS[0].items[0], TAB_PATTERN_GROUPS[2].items[2]];
+  /* v60.33 面板不再重复画和弦图（用户指正：点的就是和弦图，预览冗余） */
   div.innerHTML=`<div class="t pm-drag" title="拖动可移动" style="cursor:move;touch-action:none">和弦：<b>${chordHtmlLabel(cur)||'（未设）'}</b>　<span style="font-weight:400;color:var(--muted)">级数 ${esc(chordDegree(cur))}${q>0?' · 第'+q+'拍位':''}</span></div>
-    ${sh? `<div style="text-align:center;margin:2px 0"><svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,sh,true)}</svg></div>`:''}
     <div class="row"><button id="vp-edit" class="primary">编辑和弦…</button>
     <button id="vp-play" title="按吉他指法自低音弦琶音试听">▶ 试听</button>
     <button id="vp-clear">清除</button></div>
@@ -13057,6 +13056,11 @@ function sfEmbedBank(name){
 function sfEmbedInit(){
   if(typeof SF_EMBED==='undefined') return;
   for(const name in SF_EMBED){ if(!sfBanks[name]) sfEmbedBank(name); }
+  /* v60.33 启动即建 suspended ctx 预解码内嵌采样（建 ctx 浏览器允许、出声等手势，
+     sfLoad 同款先例）：此前启动时无 ctx 就整个跳过解码 → 首次播放的整曲一次性排程
+     全部命中不了采样、逐音落合成器——实测 32 小节扫弦谱 2304 次 KS 合成、
+     主线程冻结 2.2 秒（用户报告「很卡+杂音」的主因之一） */
+  if(!audio.ctx){ try{ audio.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){ } }
   if(audio.ctx) for(const name in SF_EMBED){ const b=sfBanks[name]; if(b) sfPredecode(audio.ctx, b); }
 }
 async function sfLoad(instKey){
@@ -13398,7 +13402,15 @@ function updateHifiBtn(){
   else { b.innerHTML=svgi('headphone')+' 高保真'; b.classList.add('primary'); b.title='高保真采样音色：开（播放时自动加载）'; }
 }
 /* ---- 母线：混音 + 压缩 + 混响（提升真实感） ---- */
+/* v60.33 IR 缓存：同采样率同参数复用（AudioBuffer 可跨 ctx 复用），
+   每次 play()/试听建总线不再逐样重算 1.8s 双声道噪声 */
+const IMP_CACHE={};
 function makeImpulse(ctx,dur,decay){
+  const ck=ctx.sampleRate+'|'+dur+'|'+decay;
+  if(IMP_CACHE[ck]) return IMP_CACHE[ck];
+  return (IMP_CACHE[ck]=makeImpulseRaw(ctx,dur,decay));
+}
+function makeImpulseRaw(ctx,dur,decay){
   /* v48.7 评审后仅补一刀：IR 叠 ~180Hz 一阶高通（钢琴低音经混响易糊成一团，
      低频尾巴是元凶）+ predelay 12→18ms（干湿分离度，音头更清晰——跟练要听清音头）。
      双声道独立噪声（立体声去相关）与时变低通渐暗为既有实现，专家所荐恰与此同。 */
@@ -13474,6 +13486,29 @@ function ksBuffer(ctx,freq,ring,sp,mute){
   }
   return buf;
 }
+/* v60.33 KS 缓冲缓存：同乐器同音高同时长桶复用同一 AudioBuffer（多个 SourceNode 可共享）。
+   ksBuffer 每音要跑十万级样本环路（4.2s@44.1kHz≈18 万次迭代），扫弦谱一次排程数千音
+   把主线程冻住数秒——重复音高占绝对多数，缓存后只算首个。ring 向上取 50ms 桶：
+   缓存的 buffer 只会比需要的长，播放端 src.stop(when+ring) 按原时长截断，听感零差异。
+   FIFO 上限 96 条/乐器（最坏 ~70MB，常见 ~20MB）。 */
+const KS_CACHE=new WeakMap();
+function ksBufferCached(ctx,freq,ring,sp,mute){
+  /* 实测调度层给每个音都带微失谐/人性化（同一音高逐音频率略异），按精确频率做键
+     命中率≈0——改按 1/4 半音格缓存标准频率的弦体，播放端 playbackRate 补差
+     （±1.2% 变速对音色无感，采样通路本就如此）；时长向上归 0.25s 桶，
+     缓存的 buffer 只会更长，src.stop 按原时长截断 */
+  const fc=440*Math.pow(2, Math.round(Math.log2(freq/440)*24)/24);
+  const rq=Math.ceil(ring*4)/4;
+  let m=KS_CACHE.get(sp); if(!m){ m=new Map(); KS_CACHE.set(sp,m); }
+  const k=ctx.sampleRate+'|'+fc.toFixed(2)+'|'+rq+'|'+(mute?1:0);
+  let b=m.get(k);
+  if(!b){
+    b=ksBuffer(ctx,fc,rq,sp,mute);
+    m.set(k,b);
+    if(m.size>96){ m.delete(m.keys().next().value); }
+  }
+  return { buf:b, rate:freq/fc };
+}
 /* 琴体共鸣：按乐器缓存一条 peaking 滤波链（挂在 bus 上共用，省节点） */
 function bodyChain(ctx,bus,sp,key){
   if(!bus._body) bus._body={};
@@ -13492,7 +13527,8 @@ function bodyChain(ctx,bus,sp,key){
 function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   const damp = !!(opt && opt.damp);
   const ring = mute?0.18 : damp? Math.max(0.1,dur)+0.06 : Math.min(dur+1.6, 4.2);
-  const src=ctx.createBufferSource(); src.buffer=ksBuffer(ctx,freq,ring,sp,mute);
+  const kc=ksBufferCached(ctx,freq,ring,sp,mute);
+  const src=ctx.createBufferSource(); src.buffer=kc.buf; src.playbackRate.value=kc.rate;
   const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=sp.hp||70;
   const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=0.6;
   /* 力度联动亮度：弹得越重泛音越亮。v49.1 优先用调度层传入的音乐力度 opt.vel
@@ -13508,7 +13544,7 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
     g.gain.setValueAtTime(gain, when+Math.max(0.02, dur-0.05));
     g.gain.linearRampToValueAtTime(0.0001, when+dur);
   }
-  if(opt&&opt.fx) pitchFX(ctx, src, 1, when, when+ring, opt.fx);   /* v49.2 技法音高自动化（KS 通路） */
+  if(opt&&opt.fx) pitchFX(ctx, src, kc.rate, when, when+ring, opt.fx);   /* v49.2 技法音高自动化（KS 通路；基准=缓存格补差率） */
   src.connect(hp); hp.connect(lp);
   let out=lp;
   if(sp.drive){ const ws=shaperCurve(ctx, sp.drive); lp.connect(ws); out=ws; }
@@ -13519,10 +13555,11 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   audio.sources.push(src);
   /* 双弦层：+4 音分微失谐、低混入 → 真实琴弦的合唱厚度（闷音不加） */
   if(sp.dual && !mute){
-    const s2=ctx.createBufferSource(); s2.buffer=ksBuffer(ctx,freq*1.0023,ring,sp,false);
+    const kc2=ksBufferCached(ctx,freq*1.0023,ring,sp,false);
+    const s2=ctx.createBufferSource(); s2.buffer=kc2.buf; s2.playbackRate.value=kc2.rate;
     const g2=ctx.createGain(); g2.gain.value=gain*0.3;
     s2.connect(hp);
-    if(opt&&opt.fx) pitchFX(ctx, s2, 1, when, when+ring, opt.fx);   /* 双弦层随主弦同步滑/推/揉 */
+    if(opt&&opt.fx) pitchFX(ctx, s2, kc2.rate, when, when+ring, opt.fx);   /* 双弦层随主弦同步滑/推/揉 */
     s2.start(when); s2.stop(when+ring);
     audio.sources.push(s2);
   }
@@ -19351,7 +19388,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.32';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.33';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19374,6 +19411,7 @@ const APP_VER='v60.32';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.33</span><div><b>播放性能修复：首播主线程冻结 2.2 秒 → 0.16 秒，整曲命中真实采样</b>（用户报告「播放很卡很多杂音」；另按指正移除和弦操作面板里的指法图预览——点的就是图，重复显示冗余）。<b>实测定位根因</b>：启动时不建 AudioContext → 内嵌采样一个都没解码 → 首次按播放时整曲一次性排程逐音命中不了采样、<b>全部落回合成器</b>——32 小节扫弦谱实测 2304 次 Karplus-Strong 合成（每次十万级样本环路）、主线程冻结 2171ms，卡顿与「合成器质感的杂音」都来自这里。修复三件：① <b>启动即建 suspended AudioContext 预解码内嵌采样</b>（建 ctx 浏览器允许、出声等手势）——首次播放吉他/贝斯/钢琴直接是真实采样；② <b>KS 弦体缓存</b>：按 1/4 半音格缓存标准频率弦体、播放端 playbackRate 补差（调度层每个音都带微失谐，按精确频率做键命中率为零——实测同谱合成回落从 1887 次生成降到 10 次、二播 0 次）；③ <b>混响脉冲缓存</b>（每次建总线不再重算 1.8s 双声道噪声）。修后实测：首播冻结 2171ms→164ms、二播全缓存命中；技法音高（推弦/揉弦/摇把/滑弦）经 playbackRate 基准换算全数回归通过。新增 <code>tv_playperf</code> 6 项（启动预解码/采样命中/KS 缓存/阻塞预算/IR 缓存）。<b>81 套件</b>全绿。<b>音色库现状说明</b>：线上音色包由部署流水线直接供给站内（不依赖境外 CDN），MusyngKite/FluidR3 双库并存可切；弦乐/人声等无内嵌铺底的音色在全量包解码完成前仍走合成器，扩铺底会增大单文件体积，待产品拍板。</div></li>
     <li><span class="v">v60.32</span><div><b>和弦操作面板补回节奏型库选择</b>（用户指正：「点击和弦或者和弦图要出现对应的和弦编辑以及节奏型库的选择，像之前的版本——现在只有编辑的选项」）。点击谱面和弦图/和弦名弹出的操作面板，在「编辑和弦…／试听／清除」之下补回<b>套用节奏型</b>区：两枚常用节奏型直选 + 「库…」进完整节奏型库（与旧 TAB 弹窗同款）；套用写入<b>本小节六线谱</b>并按当前生效和弦取形实体化——简谱音符上锚定的和弦经合并时间线同样生效；歌谱等无六线谱的谱类不显示该区。<code>tv_chordsys</code> T6 扩为验证「面板含节奏型区 + 套用实体化到六线谱且逐音落在该和弦指法上」。<b>80 套件</b>全绿。</div></li>
     <li><span class="v">v60.31</span><div><b>和弦系统修正：5⁷ˢᵘˢ／3⁷/♯5 这类和弦全链路可用 + 编辑弹窗可拖动 + 点和弦图先出操作面板</b>（用户报告「57sus 和 37/#5 没办法实现」并要求弹窗可移动、点图不直接进编辑）。① <b>级数直写</b>：级数构建器的自定义框与左栏和弦输入框现接受级数写法——<code>57sus</code>→G7sus4、<code>37/#5</code>→E7/G♯、<code>4m7</code>→Fm7、<code>#4dim</code>→F♯dim（1=当前调，别名 sus→sus4、7sus→7sus4、°→dim、ø→m7b5）。② <b>转位低音扩到全部 12 个半音</b>：构建器「转位」网格新增 ♯1 ♯2 ♯4 ♯5 ♭7 等变化音级（功能记谱惯用拼法），3⁷/♯5（E7/G♯，副属第一转位）从此可点选构建；音名拼写随级数字母走（♭7 在 1=C 是 B♭、1=D 是 C）。③ <b>级数显示按「写的字母」定级</b>：E7/G♯ 现在显示 3⁷/♯5（此前按半音查表显示成 ♭6——G♯ 与 A♭ 同音不同义，拼写即和声含义）；调内和弦显示不变。④ <b>音名变音记号移到字母后</b>：谱面/弹窗里 G♯ 不再画成「♯G」（级数保持 ♯5 前置惯例）。⑤ <b>级数构建器弹窗可拖动</b>（标题行为把手，与曲谱信息等弹窗同口径；指法编辑器本就可拖）。⑥ <b>点击谱面和弦图/和弦名先出操作面板</b>：当前和弦+级数+指法预览+「编辑和弦…／试听／清除」，点「编辑和弦…」才进构建器——不再一点就整窗弹出。⑦ 新增 <code>tv_chordsys</code> 8 项（级数直写/拼写定级/半音低音往返/网格点选/记号顺序/中间面板/拖动几何），「拼写定级」断言经变异实证（退回半音查表 → ♯5 变 ♭6 当场红）；<code>tv_chordanchor</code> T3 跟随中间面板流程。<b>80 套件</b>全绿。</div></li>
     <li><span class="v">v60.30</span><div><b>延长音（增时线「−」）可选中、可在其拍位设和弦</b>（用户指示并附截图：「延长音属于可选音符编辑和弦，目前没办法选中」）。① <b>每条增时线都是可点击的音符对象</b>：点击选中所属长音列并记住拍位（选中态在该「−」上画光标圈），创作辅助「和弦」图标即编辑<b>该拍位</b>的和弦；再点别处自动回到列头语义。② <b>长音中途换和弦不拆音符</b>（GB 简谱惯例：和弦标在「−」上方、音符保持一体）：新增列内拍位和弦 <code>col.chords=[{q,chord}]</code> 纯增量字段（q=第 q 条增时线，即列起后第 q 个四分拍位），级数构建器读写对应拍位槽（标题注明「延长音第 X 拍位」），列头和弦（<code>col.chord</code>）语义与数据不动。③ <b>渲染与和声全链路生效</b>：和弦名字框/弹唱谱图带和弦图画在该增时线正上方（对齐拍点 qxs，同列多和弦并存）；合并时间线（v60.27）收录拍位和弦——六线谱取形、节奏型套用、生效和弦查询都按真实拍位换算。<b>如实标注两处暂不覆盖</b>：MusicXML 导出与伴奏织体生成的时间线暂只读列头和弦（后续补）。④ <code>tv_chordanchor</code> 新增 T9b（槽写入/时间线拍位/图锚增时线/热区选中四合一），变异实证：时间线去掉拍位扫描 → 当场红。<b>79 套件</b>全绿。</div></li>
