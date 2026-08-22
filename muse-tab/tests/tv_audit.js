@@ -27,7 +27,9 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   await pg.waitForTimeout(150);
   await pg.screenshot({path:'audit-1.png', clip:{x:330,y:170,width:820,height:300}});
 
-  // T3: 连音线贴符头（低音区下方弧、高音区上方弧）
+  // T3: 连音线贴符头（低音区下方弧、高音区上方弧）。
+  //     连音线画法已升级为出版级「填充双弧闭合路径」（M..Q..Q..Z fill，中粗端细的刻版 tie），
+  //     不再是 1px 描边单弧——本断言曾停在旧画法，且套件不在 CORE 门禁，静默失效至今。
   const t3 = await pg.evaluate(`(()=>{
     const V=(deg,dur,o)=>Object.assign({dur,dotted:false,deg,acc:'',oct:0,lyrics:[]},o||{});
     const s=createSong('staff',{title:'',beats:4,unit:4,key:'C',nMea:2,nVox:1,lyr:0});
@@ -35,7 +37,8 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     s.measures[1].voxes[0]=[V(1,2,{oct:1,tie:true}),V(1,2,{oct:1})];
     loadSong(s);
     const svg=document.getElementById('score').innerHTML;
-    const ties=[...svg.matchAll(/d="M [\\d.]+ ([\\d.]+) Q [\\d.]+ ([\\d.]+) [\\d.]+ [\\d.]+" fill="none" stroke="var\\(--ink\\)" stroke-width="1"/g)].map(m=>({y:+m[1],cp:+m[2]}));
+    const ties=[...svg.matchAll(/d="M ([\\d.]+) ([\\d.]+) Q [\\d.]+ ([\\d.]+) [\\d.]+ [\\d.]+ Q [\\d.]+ [\\d.]+ [\\d.]+ [\\d.]+ Z" fill="var\\(--ink\\)"/g)]
+      .map(m=>({x:+m[1], y:+m[2], cp:+m[3]}));
     const dHalf='d="'+SMUFL.noteheadHalf.d+'" transform="translate(';
     const heads=[]; let i=0;
     while((i=svg.indexOf(dHalf,i))>=0){ const m=svg.slice(i,i+dHalf.length+24).match(/translate\\(([\\d.-]+),([\\d.-]+)/); if(m) heads.push(+m[2]); i+=dHalf.length; }
@@ -43,15 +46,18 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   })()`);
   {
     const [lo,hi]=t3.ties, h1=t3.heads[0], h3=t3.heads[2];
-    const okLo = lo && Math.abs(lo.y-h1)<12 && lo.y>h1 && lo.cp>lo.y;
-    const okHi = hi && Math.abs(hi.y-h3)<12 && hi.y<h3 && hi.cp<hi.y;
+    const okLo = lo && Math.abs(lo.y-h1)<12 && lo.y>h1 && lo.cp>lo.y;   // 低音区：弧在符头下、弯向下
+    const okHi = hi && Math.abs(hi.y-h3)<12 && hi.y<h3 && hi.cp<hi.y;   // 高音区：弧在符头上、弯向上
     console.log('T3 连音线贴符头: 低音区', lo?JSON.stringify(lo):'无', '符头y='+h1, okLo?'✅':'❌', '| 高音区', hi?JSON.stringify(hi):'无', '符头y='+h3, okHi?'✅':'❌');
   }
   await pg.screenshot({path:'audit-2.png', clip:{x:330,y:170,width:820,height:260}});
 
   // T4: 左栏标签
-  const t4a = await pg.evaluate(()=>document.querySelector('.ltab[data-t="vox"]').textContent);
-  const t4b = await pg.evaluate(()=>{ loadSong(PRESETS[0].make()); return document.querySelector('.ltab[data-t="vox"]').textContent; });
+  /* v40.9 图标+小字结构后标签文本在 .lb 子节点（图标 SVG 内含字形文本，不能读整个 textContent——
+     tv_dock 早已按此口径，本套件没跟上） */
+  const lbTxt = `(()=>{ const el=document.querySelector('.ltab[data-t="vox"]'); const lb=el.querySelector('.lb'); return (lb||el).textContent; })()`;
+  const t4a = await pg.evaluate(lbTxt);
+  const t4b = await pg.evaluate(`(()=>{ loadSong(PRESETS[0].make()); return ${lbTxt}; })()`);
   console.log('T4 左栏标签: 五线谱曲谱→'+t4a, t4a==='五线谱'?'✅':'❌', '| 吉他预设→'+t4b, t4b==='简谱'?'✅':'❌');
 
   // T5: 联排记号进位

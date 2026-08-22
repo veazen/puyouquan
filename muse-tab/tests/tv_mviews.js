@@ -82,10 +82,11 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return {
       wrap: getComputedStyle(document.querySelector('#top .main-bar')).flexWrap,
       noCls, vzBoot, flyHidden,
-      shellBtn: getComputedStyle(document.getElementById('b-shell')).display!=='none',
+      /* v55.2 经典版退役：#b-shell 有意隐藏、仅保留给回归套件程序化切换——断言改为「存在但不可见」 */
+      shellBtn: !!document.getElementById('b-shell') && getComputedStyle(document.getElementById('b-shell')).display==='none',
       fitMax: getComputedStyle(document.getElementById('score')).maxWidth
     }; })()`);
-  T(r.wrap === 'wrap' && r.noCls && r.shellBtn && r.fitMax !== '100%', 'T4 桌面不受影响（wrap/无mzoom/经典版在/无fit上限）', JSON.stringify(r));
+  T(r.wrap === 'wrap' && r.noCls && r.shellBtn && r.fitMax !== '100%', 'T4 桌面不受影响（wrap/无mzoom/经典入口隐存/无fit上限）', JSON.stringify(r));
   T(r.vzBoot === 1.5 && r.flyHidden === false, 'T4b 桌面守护：存储缩放带入·左栏自动展开保持', JSON.stringify({ vzBoot: r.vzBoot, flyHidden: r.flyHidden }));
   T(errs2.length === 0, '桌面端无报错', errs2.join('|') || 'none');
   await pg2.close();

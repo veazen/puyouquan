@@ -24,7 +24,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     showHarmMenu(200,200);
     const hmN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
     /* v59.5 摇把 4 钮进「摇把」弹窗、打板 3 钮进「指弹」弹窗 → 直排只剩 let ring（n=1） */
-    showBarMenu(200,200);
+    showWhammyMenu(200,200);  /* 摇把弹窗改名避开小节线菜单重名（v37.2 教训的后续），本套件曾没跟上 */
     const barN=document.querySelectorAll('#popmenu [data-pki]').length; closePop();
     return {dt:docType(song), gt:song.gtype, tune:!!song.tuning, barN, hmN,
       hasLr:g.includes('tech:lr'), hasHand:document.querySelectorAll('#mark-body [data-hand]').length, n:g.length}; })()`);

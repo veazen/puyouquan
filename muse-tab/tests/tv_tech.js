@@ -1,4 +1,5 @@
 /* v38.7 揉弦随时值延长 + 闷音范围标记 回归 */
+/* v60.26 波形常量 2.8→3.2 跟随 v59.2 细节批次（波浪振幅调整，产品有意为之）——本套件曾不在 CORE 门禁，静默失效至今 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -9,7 +10,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
   let pass = 0, total = 0;
   const T = (ok, name, detail) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (detail ? ': ' + detail : '')); };
-  const WAVE = /q 1\.5 -2\.8 3 0/g;   // 每个波浪周期出现一次
+  const WAVE = /q 1\.5 -3\.2 3 0/g;   // 每个波浪周期出现一次
 
   // T1 揉弦波浪随时值延长：同一首谱里 全音符揉弦 的波峰数 > 八分音符揉弦
   let r = await pg.evaluate(() => {
@@ -20,7 +21,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
     /* 波浪按 path 分布：第一段（八分）短、第二段（全音符）长 */
-    const waves = (svg.match(/M [\d.]+ [\d.]+( q 1\.5 -2\.8 3 0 q 1\.5 2\.8 3 0)+/g) || []).map(w => (w.match(/-2\.8/g) || []).length);
+    const waves = (svg.match(/M [\d.]+ [\d.]+( q 1\.5 -3\.2 3 0 q 1\.5 3\.2 3 0)+/g) || []).map(w => (w.match(/-3\.2/g) || []).length);
     return { n: waves.length, waves };
   });
   T(r.n === 2 && r.waves[1] > r.waves[0] && r.waves[0] >= 1,
@@ -38,9 +39,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const n0 = song.measures[0].tabs[0][0].notes[0];
     const others = [1,2,3].map(ci => song.measures[0].tabs[0][ci].notes[0].tech || null);
     const svg = document.getElementById('score').innerHTML;
-    const wave = (svg.match(/M ([\d.]+) [\d.]+( q 1\.5 -2\.8 3 0 q 1\.5 2\.8 3 0)+/) || [])[0] || '';
+    const wave = (svg.match(/M ([\d.]+) [\d.]+( q 1\.5 -3\.2 3 0 q 1\.5 3\.2 3 0)+/) || [])[0] || '';
     const x0 = parseFloat((wave.match(/M ([\d.]+)/) || [])[1] || 0);
-    const span = (wave.match(/-2\.8/g) || []).length * 6;
+    const span = (wave.match(/-3\.2/g) || []).length * 6;
     const box = colBoxes['t0:0:3'] || null;   // 末音所在列格（几何参照）
     return { tech: n0.tech, tk: n0.tk, others, x0, span, box };
   });

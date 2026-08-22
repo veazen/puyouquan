@@ -11,7 +11,12 @@ const CORE = [
   'tv_mxl', 'tv_midi', 'tv_meter', 'tv_types', 'tv_trans',
   'tv_pub', 'tv_viewer', 'tv_publish', 'tv_site', 'tv_acct', 'tv_sync',
   'tv_acc', 'tv_arrange', 'tv_brace', 'tv_card', 'tv_combo', 'tv_qr', 'tv_mobile', 'tv_fav', 'tv_tabmxl', 'tv_member', 'tv_thumb',
-  'tv_detail1', 'tv_audio', 'tv_cursor', 'tv_rclick', 'tv_tuplet', 'tv_meaw', 'tv_d64', 'tv_fing', 'tv_grace', 'tv_bend', 'tv_adds', 'tv_capo', 'tv_clip', 'tv_dot', 'tv_lyr', 'tv_mixui', 'tv_gp', 'tv_mix', 'tv_emode', 'tv_xtone', 'tv_anno', 'tv_lpanel', 'tv_strumtie', 'tv_balance', 'tv_keytab', 'tv_prog', 'tv_eval', 'tv_holdout', 'tv_chordlab',
+  'tv_detail1', 'tv_audio',
+  /* v60.26 门禁补全：以下 21 个套件长期存在于目录却不在 CORE（tv_dock 的 T1–T6 自 v55.2 起静默失效都没人知道）。
+     全部修复后纳入——**新套件默认进 CORE**，除非注明原因。 */
+  'tv_audit', 'tv_chord2', 'tv_chordlib', 'tv_circle', 'tv_dblacc', 'tv_dock', 'tv_engrave', 'tv_frame',
+  'tv_gliss', 'tv_glyphsz', 'tv_gtech', 'tv_humming', 'tv_minelink', 'tv_mviews', 'tv_mxlfid', 'tv_ottava',
+  'tv_piano', 'tv_staff', 'tv_tech', 'tv_tempo', 'tv_trem', 'tv_cursor', 'tv_rclick', 'tv_tuplet', 'tv_meaw', 'tv_d64', 'tv_fing', 'tv_grace', 'tv_bend', 'tv_adds', 'tv_capo', 'tv_clip', 'tv_dot', 'tv_lyr', 'tv_mixui', 'tv_gp', 'tv_mix', 'tv_emode', 'tv_xtone', 'tv_anno', 'tv_lpanel', 'tv_strumtie', 'tv_balance', 'tv_keytab', 'tv_prog', 'tv_eval', 'tv_holdout', 'tv_chordlab',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 

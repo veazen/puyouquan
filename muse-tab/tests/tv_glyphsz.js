@@ -30,19 +30,22 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return {sharp14, flat14, x14, bb12, leftOf, noOld}; })()`);
   T(r.sharp14 && r.flat14 && r.x14 && r.bb12 && r.leftOf && r.noOld, 'T1 简谱变化音放大左置', JSON.stringify(r));
 
-  // T2 吉他分解 × 放大（font-size 12.5）
+  // T2 TAB 的 ×：闷音 × 15 号（v43.0 放到 12.5 → v45.6「仍偏小」再放到 15）；
+  //    弹唱分解和弦的 × 已于 v57.1 实音化（× 换成和弦内音的解析品位数字，不再画大号 ×）——
+  //    本断言原先停在 v43.0 语义（12.5），且套件不在 CORE 门禁，双重过时至今才发现。
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;
     const s=createSong('guitar',{title:'x',key:'C',beats:4,unit:4,nMea:1,nTab:1,nVox:1,lyr:0});
     s.measures[0].tabs[0]=[{dur:8,dotted:false,chord:'C',notes:[{s:5,f:3}],strum:'',tech:''},
-      {dur:8,dotted:false,chord:'',notes:[{s:2,f:1}],strum:'',tech:''},
+      {dur:8,dotted:false,chord:'',notes:[{s:6,f:3,x:true}],strum:'',tech:''},   /* 六弦不在 C 指法内：v57.9 解析不出品位 → 保持 × */
       {dur:8,dotted:false,chord:'',notes:[{s:4,f:2}],strum:'',tech:''},
       {dur:8,dotted:false,chord:'',notes:[{s:1,f:0}],strum:'',tech:''},
       {dur:2,dotted:false,chord:'',notes:[{s:3,f:0}],strum:'',tech:''}];
     loadSong(s); const h=document.getElementById('score').innerHTML;
-    const x125=/font-size="12.5"[^>]*>×<\\/text>/.test(h);
-    const noOldX=h.indexOf('font-size="10" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.4" stroke-linejoin="round" fill="var(--ink)">×</text>')<0;
-    return {x125, noOldX, anyX:h.indexOf('>×</text>')>=0}; })()`);
-  T(r.x125 && r.noOldX && r.anyX, 'T2 吉他分解 × 放大', JSON.stringify(r));
+    const x15=/font-size="15"[^>]*>×<\\/text>/.test(h);
+    const bigX=(h.match(/font-size="1[25][^"]*"[^>]*>×<\\/text>/g)||[]).length;
+    const noOldSizes=!/font-size="1[02]\\.?5?"[^>]*>×<\\/text>/.test(h);
+    return {x15, onlyMute: bigX===1, noOldSizes}; })()`);
+  T(r.x15 && r.onlyMute && r.noOldSizes, 'T2 闷音×15号·分解×已实音化', JSON.stringify(r));
 
   T(errs.length === 0, '全程无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

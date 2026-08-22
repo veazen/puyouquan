@@ -5,10 +5,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-  /* 本套件断言 DOCK_PANELS 的经典布局语义（新版外壳的图层注入由 tv_frame 覆盖） */
-  await pg.addInitScript(() => localStorage.setItem('musetab-shell', 'classic'));
+  /* 本套件断言 DOCK_PANELS 的经典布局语义（新版外壳的图层注入由 tv_frame 覆盖）。
+     v55.2 经典版退役后 musetab-shell 的 'classic' 值不再被读取——本套件曾因此静默失效
+     （又不在 CORE 门禁里，T1–T6 红了没人看见）。v55.2 拍板时明确「经典版代码路径保留，
+     回归套件仍覆盖，紧急可程序化切换」：故改用隐藏的 #b-shell 按钮程序化切到经典再测。 */
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
+  await pg.evaluate(() => { if (typeof uiShell !== 'undefined' && uiShell) document.getElementById('b-shell').click(); });
+  await pg.waitForTimeout(200);
   let pass = 0, total = 0;
   const T = (ok, name, detail) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (detail ? ': ' + detail : '')); };
 
