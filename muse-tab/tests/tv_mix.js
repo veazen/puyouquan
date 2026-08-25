@@ -19,6 +19,7 @@ const T = (ok, name, detail) => {
   const pg = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   pg.on('pageerror', e => errs.push(String(e.message)));
   await pg.goto(FILE); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
 
   const mk = () => pg.evaluate(() => {
     window.guardReplace = p => p();

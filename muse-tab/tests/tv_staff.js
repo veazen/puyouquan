@@ -5,6 +5,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const pg = await b.newPage({ viewport: { width: 1280, height: 900 } });
   const errs=[]; pg.on('pageerror',e=>errs.push('PAGEERR:'+e.message)); pg.on('console',m=>{if(m.type()==='error')errs.push('CONSOLE:'+m.text());});
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 单窗口化：测试内直通未保存确认对话（tv_safety 专测该对话）
 
   // T1: 建五线谱曲谱 + 填音符（含8分组、16分、附点、升降、高低八度、休止、连音线、三连音）

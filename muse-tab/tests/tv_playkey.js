@@ -15,6 +15,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const pg = await b.newPage({ viewport: { width: 1280, height: 900 } });
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
   let pass = 0, total = 0; const T = (ok, n, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + n + (d ? ': ' + d : '')); };
   const near = (a, b2) => Math.abs(a - b2) < 0.01;
 

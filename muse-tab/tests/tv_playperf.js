@@ -14,6 +14,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const pg = await b.newPage({ viewport: { width: 1280, height: 800 } });
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
   await pg.goto(F);
+  await pg.evaluate(() => { window.SF_PLAYWAIT = false; });   /* 其它用例不等在途包（T8 单独开） */
   await pg.waitForTimeout(2500);   // 等启动预解码（真实用户打开→按播放也有间隔）
   let pass = 0, total = 0; const T = (ok, n, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + n + (d ? ': ' + d : '')); };
 
@@ -40,6 +41,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
         m.voxes[0] = [1, 2, 3, 5].map(d => ({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }));
       });
     });
+    /* 钉住 bank 状态：CI runner 有外网，hifiPreload 会真去拉全量包 → v60.34 的
+       「播放前等待在途包」会让 play() 先延后——本测只测排程性能，标记 full 跳过加载 */
+    for (const n in sfBanks) { sfBanks[n].full = true; sfBanks[n].loading = false; }
     let ksN = 0;
     const _ks = ksBuffer;
     window.ksBuffer = function (...a) { ksN++; return _ks.apply(this, a); };
@@ -77,6 +81,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { raw };
   });
   T(r.raw === 0, 'T5 混响脉冲缓存（重建总线零重算）', JSON.stringify(r));
+
+  /* v60.34 ctx 不再被误杀：suspended ctx 手势 resume 保留同一实例（解码好的采样
+     与在途解码全部存活）；不再出现「Cannot resume a context that has been closed」 */
+  r = await pg.evaluate(() => {
+    const before = audio.ctx;
+    const a = ensureLiveCtx(); const b2 = ensureLiveCtx();
+    return { same: a === b2 && a === before && a === audio.ctx, state: a.state };
+  });
+  T(r.same, 'T7 ensureLiveCtx 保留同一 ctx（suspended 不重建）', JSON.stringify(r));
+  T(!errs.some(e => /resume a context/.test(e)), 'T7b 无「resume closed context」报错', errs.join('|') || 'none');
+
+  /* v60.34 播放前等待在途音色包：loading 中 play() 延后不排程；包就绪后自动开播 */
+  r = await pg.evaluate(async () => {
+    window.SF_PLAYWAIT = true;   // 本条测的就是等待本身
+    const bk = sfBanks['acoustic_guitar_steel'];
+    bk.full = false; bk.loading = true;
+    play();
+    const deferred = !audio.playing;
+    await new Promise(res => setTimeout(res, 400));
+    const stillWaiting = !audio.playing;
+    bk.loading = false; bk.full = true;
+    await new Promise(res => setTimeout(res, 400));
+    const started = audio.playing;
+    stopPlay(); window.SF_PLAYWAIT = false;
+    return { deferred, stillWaiting, started };
+  });
+  T(r.deferred && r.stillWaiting && r.started, 'T8 播放等待在途音色包，就绪即自动开播', JSON.stringify(r));
 
   T(errs.length === 0, 'T6 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

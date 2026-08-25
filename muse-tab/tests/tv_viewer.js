@@ -25,6 +25,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   const pg1 = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs1 = []; pg1.on('pageerror', e => errs1.push('PAGEERR:' + e.message));
   await pg1.goto('file://' + shared); await pg1.waitForTimeout(1000);
+  await pg1.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
   const t1 = await pg1.evaluate(() => ({
     viewer: document.body.classList.contains('viewer') && document.body.classList.contains('share'),
     title: song.title, docTitle: document.title,
@@ -68,6 +69,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   //    kaEl 会话保持起停
   const pg3 = await b.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
   await pg3.goto('file://' + shared); await pg3.waitForTimeout(1100);
+  await pg3.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
   const t8 = await pg3.evaluate(() => {
     const disp = id => { const el = document.getElementById(id); return el ? getComputedStyle(el).display : 'missing'; };
     const bar = document.querySelector('#mixer-dock .mx-bar');
@@ -139,7 +141,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
   const pg2 = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs2 = []; pg2.on('pageerror', e => errs2.push('PAGEERR:' + e.message));
   await pg2.goto(F); await pg2.waitForTimeout(900);
-  await pg2.evaluate(() => { window.guardReplace = (p) => p(); });   // v41.5 测试直通确认对话
+  await pg2.evaluate(() => { window.guardReplace = (p) => p(); window.SF_PLAYWAIT = false; });   // v41.5 测试直通确认对话
   const t5 = await pg2.evaluate(async () => {
     loadSong(PRESETS[0].make());
     let captured = null;

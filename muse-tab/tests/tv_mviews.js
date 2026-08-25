@@ -17,6 +17,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   const pg = await ctx.newPage();
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.SF_PLAYWAIT = false; });   /* v60.34 回归不等在途音色包 */
   await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; loadSong(PRESETS[0].make()); })()`);
   await pg.waitForTimeout(800);
   let r = await pg.evaluate(`(()=>({

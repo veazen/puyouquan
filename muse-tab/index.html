@@ -13067,6 +13067,7 @@ async function sfLoad(instKey){
   const name=SF_MAP[instKey]; if(!name) return null;
   let bank=sfBanks[name];
   if(bank && (bank.full || bank.loading)) return bank;
+  if(bank && bank.failedAt && Date.now()-bank.failedAt<60000) return bank;   /* v60.34 失败冷却 */
   if(!bank) bank=sfEmbedBank(name);                       // 先用内嵌铺底（若有）
   if(!bank) bank=sfBanks[name]={status:'loading', notes:null, buf:{}};
   bank.loading=true; updateHifiBtn();
@@ -13107,14 +13108,22 @@ async function sfLoad(instKey){
     if(audio.ctx){
       const shadow={notes, buf:{}};
       await sfDecodeAll(audio.ctx, shadow);
-      bank.notes=notes; bank.buf=shadow.buf;
+      /* v60.34 换装守卫：解码可能被环境打断（ctx 被关/设备内存回收），整表替换会把
+         已经好的内嵌 buffer 一起丢掉 → 整曲回落合成器。先验完整度、缺得多补一轮
+         （sfDecode 会跳过已有键，只补缺）；换装用合并（旧键保留、同键覆盖），
+         任何时序下可用面都不低于换装前 */
+      const good=()=>Object.keys(shadow.buf).filter(k2=>k2[0]!=='p'&&shadow.buf[k2]).length;
+      if(good() < Object.keys(notes).length-3) await sfDecodeAll(audio.ctx, shadow);
+      bank.notes=notes; bank.buf=Object.assign(bank.buf||{}, shadow.buf);
     } else {
-      bank.notes=notes; bank.buf={};
+      bank.notes=notes; bank.buf=bank.buf||{};
     }
     bank.status='ready'; bank.full=true; bank.embedded=false;
   }catch(_){
-    /* 升级失败：有内嵌采样则保持真实音色，否则标记错误回落合成器 */
+    /* 升级失败：有内嵌采样则保持真实音色，否则标记错误回落合成器。
+       v60.34 记失败时刻做 60s 冷却——播放前的「等在途音色包」不应反复等一个失败源 */
     bank.status = (bank.notes && Object.keys(bank.notes).length)? 'ready' : 'error';
+    bank.failedAt = Date.now();
   }
   bank.loading=false; updateHifiBtn();
   return bank;
@@ -14008,24 +14017,54 @@ function kaStart(){
 function kaStop(){ try{ if(audio.kaEl) audio.kaEl.pause(); }catch(_){ } }
 function ensureLiveCtx(){
   const AC=window.AudioContext||window.webkitAudioContext;
-  if(!audio.ctx){ try{ audio.ctx=new AC(); }catch(_){ return null; } }
+  /* v60.34 只在 ctx 不存在/已关闭/上次 resume 被拒时才重建。此前对 suspended ctx 是
+     「resume 后同步查状态 → 不是 running 就关闭重建」——resume() 是异步的，同步检查
+     永远还是 suspended，于是首播必走关闭重建。v60.33 启动即建 ctx 后这成了每次首播的
+     必经路径：① 控制台必现「Cannot resume a context that has been closed」（被关 ctx 上
+     悬着的 resume promise 拒绝）；② 若此刻音色包正在影子解码，关 ctx 会让剩余
+     decodeAudioData 全部拒绝、换装成残表 → 整曲落合成器（用户报告的音色倒退通路）。
+     健康的 suspended ctx 手势内 resume 即可；真僵尸（iOS 中断态）由 resume 拒绝标记
+     ctxDead，下一次调用换新 ctx（AudioBuffer 不绑 ctx，已解码采样全部继续可用）。 */
+  if(!audio.ctx || audio.ctx.state==='closed' || audio.ctxDead){
+    audio.ctxDead=false;
+    try{ audio.ctx=new AC(); }catch(_){ return null; }
+  }
   if(audio.ctx.state!=='running'){
-    try{ audio.ctx.resume(); }catch(_){ }
-    if(audio.ctx.state!=='running'){
-      try{ audio.ctx.close(); }catch(_){ }
-      try{ audio.ctx=new AC(); if(audio.ctx.resume) audio.ctx.resume(); }catch(_){ }
-    }
+    try{ const pr=audio.ctx.resume(); if(pr&&pr.catch) pr.catch(()=>{ audio.ctxDead=true; }); }
+    catch(_){ audio.ctxDead=true; }
   }
   return audio.ctx;
 }
+/* v60.34 所用音色里是否有全量包仍在加载/解码（失败冷却中的不算） */
+function sfPendingUsed(){
+  if(!hifiOn || !song) return false;
+  const used=new Set();
+  song.tabVoices.forEach((_,vi)=>used.add(trackCfg('tab',vi).inst));
+  song.voxVoices.forEach((_,vi)=>used.add(trackCfg('vox',vi).inst));
+  for(const k of used){ const n=SF_MAP[k]; if(n && sfBanks[n] && sfBanks[n].loading) return true; }
+  return false;
+}
 function play(){
   stopPlay();
+  clearTimeout(audio.sfWaitTimer);
   const ctx = ensureLiveCtx();
   if(!ctx) return toast('当前浏览器不支持音频播放');
   kaStart();   /* v55.0 iOS：手势内启动静音保持音轨，钉住媒体播放会话（绕开静音拨片） */
   audio.bus = buildBus(ctx);
   const bus = audio.bus;
   if(hifiOn) hifiPreload();
+  /* v60.34 音质优先：全量音色包还在加载/解码时最多等 2.8s 再开播——整曲是按下播放
+     那一刻一次性排程的，此刻命中不了的音整曲都不会再升级（「音色倒退」的直接体验）。
+     站内包 + Cache Storage 命中时这一步为 0；超时/加载失败按原兜底（内嵌采样/合成器）开播 */
+  if(window.SF_PLAYWAIT!==false && sfPendingUsed()){   /* SF_PLAYWAIT=false：调试/回归跳过等待 */
+    if(!audio.sfWaitFrom) audio.sfWaitFrom=performance.now();
+    if(performance.now()-audio.sfWaitFrom < 2800){
+      if(!audio.sfWaitToast){ audio.sfWaitToast=true; toast('正在加载高保真音色…'); }
+      audio.sfWaitTimer=setTimeout(play, 150);
+      return;
+    }
+  }
+  audio.sfWaitFrom=null; audio.sfWaitToast=false;
   audio.playing = true;
   setPlayBtn();
   const spb = 60/(song.tempo*playRate);   // 倍速只缩放拍长，谱面速度设置保持不变
@@ -14447,6 +14486,7 @@ function highlight(prefix,mi,ci,whole){
 }
 function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
+  clearTimeout(audio.sfWaitTimer);   /* v60.34 等音色包期间按停止：取消延后的自动开播 */
   /* v60.10 停播先给母线 12ms 淡出、再停源。
      直接 stop() 是把波形阶跃截断——此刻只要还有声音就会「啪」一下。
      这个老毛病（手动停止/切歌时一直存在）在 v60.9 变成必现：弦乐/人声的收音由
@@ -19388,7 +19428,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.33';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.34';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19411,6 +19451,7 @@ const APP_VER='v60.33';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.34</span><div><b>音色倒退修复：高保真采样不再被误杀回合成器</b>（用户报告「音色回到了最初的版本，表现的很糟糕」——查实是 v60.33 引入的真回退，不是音色包问题）。<b>A/B 复现定位根因</b>：v60.33 起「启动即建 suspended AudioContext」，但 <code>ensureLiveCtx</code> 沿用旧逻辑「先异步 resume、再同步看状态」——resume 还没生效状态仍是 suspended，就被判为不可用而<b>关闭重建</b>，控制台随之报「Cannot resume a context that has been closed」；关闭旧 ctx 会把<b>在途的全量音色包解码一并杀死</b>，解码残缺的包整包换入后逐音命中不了采样，<b>整曲落回合成器</b>——这正是用户听到的「回到最初的版本」。修三件：① <code>ensureLiveCtx</code> 不再关可恢复的 suspended ctx（仅 closed 或 resume 确认失败才重建）——启动预解码的采样与在途解码全部存活；② 全量包换入改为<b>合并交换 + 完整性校验</b>：解码不完整先补解一轮再换，仍失败进 60 秒冷却重试，不再用残包覆盖好包；③ <b>播放前等待在途高保真包</b>（≤2.8 秒，提示「正在加载高保真音色…」，就绪即自动开播；超时按现状开播）——首次点播放不再「前半合成器、后半采样」。<b>真实全量包 A/B 实测</b>：修复前每次播放报 resume-closed 错误、整曲合成器；修复后打开页面 0.3s／0.8s 就点播放也只等约 2 秒，整曲 576/576 音全部命中真实采样、零报错，≥1.6s 后点则零等待。<code>tv_playperf</code> 6→<b>9 项</b>（ctx 同一实例/无 resume-closed 报错/等待在途包语义），10 个含播放的套件补测试直通旗标。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.33</span><div><b>播放性能修复：首播主线程冻结 2.2 秒 → 0.16 秒，整曲命中真实采样</b>（用户报告「播放很卡很多杂音」；另按指正移除和弦操作面板里的指法图预览——点的就是图，重复显示冗余）。<b>实测定位根因</b>：启动时不建 AudioContext → 内嵌采样一个都没解码 → 首次按播放时整曲一次性排程逐音命中不了采样、<b>全部落回合成器</b>——32 小节扫弦谱实测 2304 次 Karplus-Strong 合成（每次十万级样本环路）、主线程冻结 2171ms，卡顿与「合成器质感的杂音」都来自这里。修复三件：① <b>启动即建 suspended AudioContext 预解码内嵌采样</b>（建 ctx 浏览器允许、出声等手势）——首次播放吉他/贝斯/钢琴直接是真实采样；② <b>KS 弦体缓存</b>：按 1/4 半音格缓存标准频率弦体、播放端 playbackRate 补差（调度层每个音都带微失谐，按精确频率做键命中率为零——实测同谱合成回落从 1887 次生成降到 10 次、二播 0 次）；③ <b>混响脉冲缓存</b>（每次建总线不再重算 1.8s 双声道噪声）。修后实测：首播冻结 2171ms→164ms、二播全缓存命中；技法音高（推弦/揉弦/摇把/滑弦）经 playbackRate 基准换算全数回归通过。新增 <code>tv_playperf</code> 6 项（启动预解码/采样命中/KS 缓存/阻塞预算/IR 缓存）。<b>81 套件</b>全绿。<b>音色库现状说明</b>：线上音色包由部署流水线直接供给站内（不依赖境外 CDN），MusyngKite/FluidR3 双库并存可切；弦乐/人声等无内嵌铺底的音色在全量包解码完成前仍走合成器，扩铺底会增大单文件体积，待产品拍板。</div></li>
     <li><span class="v">v60.32</span><div><b>和弦操作面板补回节奏型库选择</b>（用户指正：「点击和弦或者和弦图要出现对应的和弦编辑以及节奏型库的选择，像之前的版本——现在只有编辑的选项」）。点击谱面和弦图/和弦名弹出的操作面板，在「编辑和弦…／试听／清除」之下补回<b>套用节奏型</b>区：两枚常用节奏型直选 + 「库…」进完整节奏型库（与旧 TAB 弹窗同款）；套用写入<b>本小节六线谱</b>并按当前生效和弦取形实体化——简谱音符上锚定的和弦经合并时间线同样生效；歌谱等无六线谱的谱类不显示该区。<code>tv_chordsys</code> T6 扩为验证「面板含节奏型区 + 套用实体化到六线谱且逐音落在该和弦指法上」。<b>80 套件</b>全绿。</div></li>
     <li><span class="v">v60.31</span><div><b>和弦系统修正：5⁷ˢᵘˢ／3⁷/♯5 这类和弦全链路可用 + 编辑弹窗可拖动 + 点和弦图先出操作面板</b>（用户报告「57sus 和 37/#5 没办法实现」并要求弹窗可移动、点图不直接进编辑）。① <b>级数直写</b>：级数构建器的自定义框与左栏和弦输入框现接受级数写法——<code>57sus</code>→G7sus4、<code>37/#5</code>→E7/G♯、<code>4m7</code>→Fm7、<code>#4dim</code>→F♯dim（1=当前调，别名 sus→sus4、7sus→7sus4、°→dim、ø→m7b5）。② <b>转位低音扩到全部 12 个半音</b>：构建器「转位」网格新增 ♯1 ♯2 ♯4 ♯5 ♭7 等变化音级（功能记谱惯用拼法），3⁷/♯5（E7/G♯，副属第一转位）从此可点选构建；音名拼写随级数字母走（♭7 在 1=C 是 B♭、1=D 是 C）。③ <b>级数显示按「写的字母」定级</b>：E7/G♯ 现在显示 3⁷/♯5（此前按半音查表显示成 ♭6——G♯ 与 A♭ 同音不同义，拼写即和声含义）；调内和弦显示不变。④ <b>音名变音记号移到字母后</b>：谱面/弹窗里 G♯ 不再画成「♯G」（级数保持 ♯5 前置惯例）。⑤ <b>级数构建器弹窗可拖动</b>（标题行为把手，与曲谱信息等弹窗同口径；指法编辑器本就可拖）。⑥ <b>点击谱面和弦图/和弦名先出操作面板</b>：当前和弦+级数+指法预览+「编辑和弦…／试听／清除」，点「编辑和弦…」才进构建器——不再一点就整窗弹出。⑦ 新增 <code>tv_chordsys</code> 8 项（级数直写/拼写定级/半音低音往返/网格点选/记号顺序/中间面板/拖动几何），「拼写定级」断言经变异实证（退回半音查表 → ♯5 变 ♭6 当场红）；<code>tv_chordanchor</code> T3 跟随中间面板流程。<b>80 套件</b>全绿。</div></li>
