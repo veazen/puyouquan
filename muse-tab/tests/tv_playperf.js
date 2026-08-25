@@ -109,6 +109,44 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.deferred && r.stillWaiting && r.started, 'T8 播放等待在途音色包，就绪即自动开播', JSON.stringify(r));
 
+  /* v60.35 分窗排程：整曲一次性排程会把全部音符节点挂上音频图（负载随总音符数近乎
+     平方增长，32 小节谱实测 0.86× 实时→持续欠载=杂音+卡顿）。长曲 play() 只建
+     2 秒窗口内节点、泵滚动补图、停播清队列；每个源挂放完拆链钩（reapOnEnd）。
+     突变实证：对 v60.34 旧文件跑本组断言当场红（无 schedQ/无 onended/无 _comp 拆除）。 */
+  r = await pg.evaluate(async () => {
+    /* 拆链口径＝每个音符注册一个收割钩（reapOnEnd；钢琴等多源音色共用一个），
+       断言 spy 调用数而非逐源 onended */
+    let reapN = 0;
+    const _reap = reapOnEnd;
+    window.reapOnEnd = (...a) => { reapN++; return _reap(...a); };
+    play();                                  // 当前谱仍是 T2 的 32 小节扫弦谱（1152 音）
+    const winSrcs = audio.sources.length;
+    const qTotal = audio.schedQ ? audio.schedQ.q.length : -1;
+    await new Promise(res => setTimeout(res, 600));
+    const grew = audio.sources.length > winSrcs;
+    stopPlay();
+    window.reapOnEnd = _reap;
+    const cleared = !audio.schedQ;
+    return { winSrcs, qTotal, reapN, grew, cleared };
+  });
+  T(r.qTotal > 800 && r.winSrcs > 0 && r.winSrcs < 300, 'T9 分窗排程（长曲只建窗口内节点，图与曲长解耦）', JSON.stringify(r));
+  T(r.reapN > 20 && r.grew && r.cleared, 'T9b 放完拆链钩逐音注册 + 泵滚动补图 + 停播清队列', JSON.stringify(r));
+
+  /* v60.35 停播整套拆除总线图：每次播放新建的「母线+压缩器+卷积混响」若不拆，
+     反复播放会在图上累积 N 个永驻卷积器（会话内越播越卡）。压缩器是整图接触
+     destination 的唯一节点，断它即全图脱离。 */
+  r = await pg.evaluate(async () => {
+    play();
+    const comp = audio.bus && audio.bus._comp;
+    let disc = 0;
+    if (comp) { const d0 = comp.disconnect.bind(comp); comp.disconnect = (...a) => { disc++; return d0(...a); }; }
+    await new Promise(res => setTimeout(res, 100));
+    stopPlay();
+    await new Promise(res => setTimeout(res, 80));
+    return { hasComp: !!comp, disc };
+  });
+  T(r.hasComp && r.disc > 0, 'T10 停播整套拆除总线图（_comp 断开，反复播放不累积卷积器）', JSON.stringify(r));
+
   T(errs.length === 0, 'T6 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

@@ -13310,6 +13310,13 @@ function pitchFX(ctx, src, rate, when, endAt, fx){
     }
   }
 }
+/* v60.35 音符链路放完即拆：每个音的增益/滤波节点若一直挂在总线上，源结束后仍被
+   每个渲染量子遍历（实测 262 条放完的链路≈0.10× 实时负载），长曲播到后段负载线性
+   爬升。源 ended 时把链上「直连总线的末端节点」断开出边——WebAudio 按可达性拉取，
+   末端断开即整条子图脱离处理图并可回收。nodes 传链尾（可含中间节点，多断无害）。 */
+function reapOnEnd(src, nodes){
+  src.onended=()=>{ try{ src.disconnect(); }catch(_){ } nodes.forEach(n=>{ try{ n.disconnect(); }catch(_){ } }); };
+}
 /* 尝试用采样播放；缓存未命中则触发解码并返回 false（本次回落合成器） */
 function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const bank=sfBanks[name];
@@ -13390,6 +13397,7 @@ function sfTryPlay(ctx, bus, name, freq, when, dur, gain, opt){
   const ws=ctx.createGain(); ws.gain.value=0.5; tail.connect(ws); ws.connect(bus.wet);
   if(opt&&opt.fx) pitchFX(ctx, src, rate, when, Math.min(stopAt+0.02, bufEnd), opt.fx);   /* v49.2 技法音高自动化 */
   src.start(when, ent.o); src.stop(Math.min(stopAt+0.02, bufEnd));   /* onset 修剪：跳过编码器头部静音，起音更准 */
+  reapOnEnd(src, [g, tail, ws]);   /* v60.35 放完拆链 */
   audio.sources.push(src);
   return true;
 }
@@ -13458,7 +13466,7 @@ function buildBus(ctx){
   const conv=ctx.createConvolver(); conv.buffer=makeImpulse(ctx,1.8,2.4);
   const wet=ctx.createGain(); wet.gain.value=0.16;
   conv.connect(wet); wet.connect(comp);
-  return {dry:master, wet:conv};
+  return {dry:master, wet:conv, _comp:comp};   /* v60.35 _comp 暴露给 stopPlay 整套拆除 */
 }
 function shaperCurve(ctx,k){
   const n=1024, c=new Float32Array(n);
@@ -13561,6 +13569,7 @@ function ksPluck(ctx,bus,freq,when,dur,gain,sp,mute,opt){
   const dest = sp.body? bodyChain(ctx,bus,sp,sp.name||'b').in : null;
   if(dest){ g.connect(dest); } else { g.connect(bus.dry); g.connect(bus.wet); }
   src.start(when); src.stop(when+ring);
+  reapOnEnd(src, [g]);   /* v60.35 放完拆链：g 是链尾，断开即整链（含双弦层分支）脱图 */
   audio.sources.push(src);
   /* 双弦层：+4 音分微失谐、低混入 → 真实琴弦的合唱厚度（闷音不加） */
   if(sp.dual && !mute){
@@ -13589,12 +13598,14 @@ function pianoTone(ctx,bus,freq,when,dur,gain,sp,opt){
   lp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
   const end=when+decay+0.1;
   /* 三根弦微失谐 + 八度/十二度泛音层（幅度递减） */
+  let osc0=null;
   [[1,1],[1.0012,0.55],[0.9988,0.55],[2.001,0.22],[3.004,0.09]].forEach(([r,a])=>{
     const o=ctx.createOscillator(); o.type='triangle';
     o.frequency.value=freq*r;
     const og=ctx.createGain(); og.gain.value=a;
     o.connect(og); og.connect(lp);
     o.start(when); o.stop(end);
+    if(!osc0) osc0=o;
     audio.sources.push(o);
   });
   /* 琴槌击弦噪声（短促、随音高变亮；v49.1 轻触时槌噪同步减弱） */
@@ -13606,6 +13617,7 @@ function pianoTone(ctx,bus,freq,when,dur,gain,sp,opt){
   const ng=ctx.createGain(); ng.gain.value=gain*0.5*(0.3+0.7*velB);
   ns.connect(bp); bp.connect(ng); ng.connect(bus.dry);
   ns.start(when); audio.sources.push(ns);
+  if(osc0) reapOnEnd(osc0, [g, ng]);   /* v60.35 放完拆链（音体链尾 g + 槌噪链尾 ng） */
 }
 /* ---- FM 合成（钢琴/电钢/八音盒） ---- */
 function fmTone(ctx,bus,freq,when,dur,gain,sp){
@@ -13626,6 +13638,7 @@ function fmTone(ctx,bus,freq,when,dur,gain,sp){
   out.connect(g); g.connect(bus.dry); g.connect(bus.wet);
   const end=when+decay+0.1;
   car.start(when); mod.start(when); car.stop(end); mod.stop(end);
+  reapOnEnd(car, [g]);   /* v60.35 放完拆链 */
   audio.sources.push(car,mod);
 }
 /* ---- 锯齿弦乐群（弦乐/弦垫） ---- */
@@ -13647,6 +13660,7 @@ function sawStrings(ctx,bus,freq,when,dur,gain,sp){
   });
   const end=when+dur+r+0.05;
   oscs.forEach(o=>{o.start(when);o.stop(end);}); lfo.start(when); lfo.stop(end);
+  reapOnEnd(oscs[0], [g]);   /* v60.35 放完拆链 */
   audio.sources.push(lfo,...oscs);
 }
 /* ---- 长笛（正弦+泛音+气声+颤音） ---- */
@@ -13673,6 +13687,7 @@ function fluteTone(ctx,bus,freq,when,dur,gain,sp){
   const end=when+dur+r+0.05;
   osc.start(when);osc.stop(end); h.start(when);h.stop(end);
   lfo.start(when);lfo.stop(end); nsrc.start(when);nsrc.stop(end);
+  reapOnEnd(osc, [g]);   /* v60.35 放完拆链 */
   audio.sources.push(osc,h,lfo,nsrc);
 }
 /* ---- 人声“啊”（共振峰滤波，元音 /a/） ---- */
@@ -13694,6 +13709,7 @@ function voiceAh(ctx,bus,freq,when,dur,gain,sp){
   g.connect(bus.dry); g.connect(bus.wet);
   const end=when+dur+r+0.05;
   src.start(when);src.stop(end); lfo.start(when);lfo.stop(end);
+  reapOnEnd(src, [g]);   /* v60.35 放完拆链 */
   audio.sources.push(src,lfo);
 }
 /* ---- 闷音/打板噪声 ---- */
@@ -13705,7 +13721,7 @@ function chick(ctx,bus,when,gain){
   const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2000; bp.Q.value=0.7;
   const g=ctx.createGain(); g.gain.value=gain;
   src.connect(bp); bp.connect(g); g.connect(bus.dry); g.connect(bus.wet);
-  src.start(when); audio.sources.push(src);
+  src.start(when); reapOnEnd(src, [g]); audio.sources.push(src);
 }
 /* v49.4 打板/击板打击层（指弹 col.perc：bass 低/snare 高/golpe 击板）：
    噪声突发+带通塑形；低音板另叠 85Hz 短正弦「胸腔感」。确定性以外的噪声与
@@ -13720,14 +13736,14 @@ function percHit(ctx,bus,when,type,gain){
   const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=cfgP.f; bp.Q.value=cfgP.q;
   const g=ctx.createGain(); g.gain.value=gain*cfgP.g;
   src.connect(bp); bp.connect(g); g.connect(bus.dry);
-  src.start(when); audio.sources.push(src);
+  src.start(when); reapOnEnd(src, [g]); audio.sources.push(src);
   if(type==='bass'){                                  // 低音板：叠短正弦增强「胸腔感」
     const o=ctx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(110, when);
     o.frequency.exponentialRampToValueAtTime(70, when+0.09);
     const og=ctx.createGain(); og.gain.setValueAtTime(gain*0.9, when);
     og.gain.exponentialRampToValueAtTime(0.0001, when+0.12);
     o.connect(og); og.connect(bus.dry);
-    o.start(when); o.stop(when+0.14); audio.sources.push(o);
+    o.start(when); o.stop(when+0.14); reapOnEnd(o, [og]); audio.sources.push(o);
   }
 }
 /* ---- 音色分派 ---- */
@@ -13970,6 +13986,7 @@ function metroClick(ctx, bus, when, accent){
   g.gain.exponentialRampToValueAtTime(0.0001, when+0.055);
   o.connect(g); g.connect(bus.dry);
   o.start(when); o.stop(when+0.07);
+  reapOnEnd(o, [g]);   /* v60.35 放完拆链 */
   audio.sources.push(o);
   const sr=ctx.sampleRate, len=Math.floor(sr*0.012);
   const buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
@@ -13977,12 +13994,15 @@ function metroClick(ctx, bus, when, accent){
   const src=ctx.createBufferSource(); src.buffer=buf;
   const g2=ctx.createGain(); g2.gain.value=accent?0.16:0.1;
   src.connect(g2); g2.connect(bus.dry);
-  src.start(when); audio.sources.push(src);
+  src.start(when); reapOnEnd(src, [g2]); audio.sources.push(src);
 }
 function previewInst(instKey){
   const ctx=ensureLiveCtx(); if(!ctx) return;
   if(hifiOn) sfLoad(instKey);
-  const bus=buildBus(ctx);
+  /* v60.35 复用会话级回响总线（v60.29 同款缓存）：此前每次试听新建一套母线+卷积混响
+     且从不拆除——连点几个音色就在图上挂下几个永驻卷积器 */
+  if(!audio.echoBus || audio.echoCtx!==ctx){ audio.echoBus=buildBus(ctx); audio.echoCtx=ctx; }
+  const bus=audio.echoBus;
   const t=ctx.currentTime+0.05;
   [0,4,7,12].forEach((s,i)=>playInst(instKey,ctx,bus,midiFreq(60+s), t+i*0.17, 0.55, 0.9, false));
 }
@@ -14106,6 +14126,22 @@ function play(){
   const dynAt=(off)=>{ let g=1; for(let i=0;i<dynTL.length;i++){ if(dynTL[i].tm<=off+1e-6) g=dynTL[i].g; else break; } return g; };
   const HJ = humOn()? humJit : ()=>({fc:1,gc:1});   /* v48.9 精确档：随机微扰动归零（确定性塑形保留） */
   const soloPB = soloTabCtx(song);   /* v57.1 和弦隐含音：×实音化/扫弦补全仅弹唱语境 */
+  /* v60.35 分窗排程（「杂音+卡顿」根因修复）：此前整曲所有音的源+增益+滤波节点在按下
+     播放的瞬间全部建好挂上音频图，WebAudio 每个渲染量子都要遍历整张图——实测负载随
+     「总排程音符数」近乎平方增长（32 小节扫弦谱 1152 源＝0.86× 实时、KS 回落 1.77×），
+     音频线程跑不赢实时 → 持续缓冲欠载＝爆音+断续（离线渲染证明信号本身削波 0 爆点 0，
+     杂音全部来自欠载）。改法：构建期只把发声调用参数推入队列（构建逻辑零改动——掐弦链/
+     技法跨列解析仍在全曲视野内完成），泵定时器只建「未来 SCHED_AHEAD 秒」的节点，
+     图上任意时刻只挂几十个音，负载与曲长解耦（同谱实测 0.86×→0.10×）。
+     小曲（≤SCHED_NOW 个事件）与离线渲染仍一次排完——行为与旧版逐字一致，
+     回归套件的同步断言（playInst 记录器/audio.sources 计数）不受影响。 */
+  const _emit={playInst:window.playInst, chick:window.chick, percHit:window.percHit, metroClick:window.metroClick};
+  const _q=[];
+  window.playInst  =(...a)=>{ _q.push({k:'playInst',  w:a[4], a}); };
+  window.chick     =(...a)=>{ _q.push({k:'chick',     w:a[2], a}); };
+  window.percHit   =(...a)=>{ _q.push({k:'percHit',   w:a[2], a}); };
+  window.metroClick=(...a)=>{ _q.push({k:'metroClick',w:a[2], a}); };
+  try{
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
     const cfg = trackCfg('tab',vi);
@@ -14408,6 +14444,27 @@ function play(){
       for(let b=0; b*spb < secs-1e-4; b++) metroClick(ctx, bus, t+starts[oi]+b*spb, b===0);
     });
   }
+  }finally{   /* v60.35 构建结束：恢复真实发声函数（构建全程同步，不存在交错调用） */
+    window.playInst=_emit.playInst; window.chick=_emit.chick;
+    window.percHit=_emit.percHit; window.metroClick=_emit.metroClick;
+  }
+  /* v60.35 落图：小曲/离线一次排完（旧语义）；长曲按窗滚动。SCHED_AHEAD 必须大于
+     后台标签定时器的节流粒度（Chrome 有声页面仍可能被压到 1s/次），取 2 秒。 */
+  _q.sort((x,y)=>x.w-y.w);
+  const SCHED_NOW=400, SCHED_AHEAD=2.0, SCHED_TICK=450;
+  audio.schedQ={q:_q, i:0, e:_emit};
+  const flushTo=(hor)=>{
+    const S=audio.schedQ; if(!S) return;
+    while(S.i<S.q.length && S.q[S.i].w<hor){ const ev=S.q[S.i++]; try{ S.e[ev.k](...ev.a); }catch(_){ } }
+    if(S.i>=S.q.length){ audio.schedQ=null; clearInterval(audio.schedTimer); }
+  };
+  const offline = typeof OfflineAudioContext!=='undefined' && ctx instanceof OfflineAudioContext;
+  if(offline || _q.length<=SCHED_NOW) flushTo(Infinity);
+  else{
+    flushTo(ctx.currentTime+SCHED_AHEAD);
+    clearInterval(audio.schedTimer);
+    audio.schedTimer=setInterval(()=>flushTo(ctx.currentTime+SCHED_AHEAD), SCHED_TICK);
+  }
   startProgress(t, total||1, order, starts);
 }
 /* v56.5 播放光标参考轨：恰有一轨 SOLO=跟随该轨（单轨光标/滚动）；否则整谱模式——
@@ -14487,6 +14544,7 @@ function highlight(prefix,mi,ci,whole){
 function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
   clearTimeout(audio.sfWaitTimer);   /* v60.34 等音色包期间按停止：取消延后的自动开播 */
+  clearInterval(audio.schedTimer); audio.schedQ=null;   /* v60.35 分窗排程：停播弃掉未落图事件 */
   /* v60.10 停播先给母线 12ms 淡出、再停源。
      直接 stop() 是把波形阶跃截断——此刻只要还有声音就会「啪」一下。
      这个老毛病（手动停止/切歌时一直存在）在 v60.9 变成必现：弦乐/人声的收音由
@@ -14495,6 +14553,12 @@ function stopPlay(){
      淡母线一处顶所有源，不必逐源挂增益。停源延后到淡出之后执行；这个定时器
      刻意不进 audio.timers——它必须跑完，否则源永远停不掉。 */
   const srcs = audio.sources; audio.sources=[];
+  /* v60.35 整套拆除本次播放的总线图：此前每次 play() 新建「母线+压缩器+卷积混响+轨道
+     总线」接到 destination，旧的一套从不拆——反复播放/停止 N 次后页面上挂着 N 个卷积器
+     和全部历史音符链路同时被渲染线程遍历，越播越卡、杂音越多（会话内单调恶化）。
+     压缩器是整套图接触 destination 的唯一节点，断它一个即全图脱离处理图并可回收。 */
+  const oldBus = audio.bus;
+  const reapBus = ()=>{ try{ if(oldBus && oldBus._comp) oldBus._comp.disconnect(); }catch(_){ } };
   const hardStop = ()=>{ srcs.forEach(x=>{try{x.stop()}catch(_){}}); };
   const m = audio.bus && audio.bus.dry, ctx = audio.ctx;
   if(m && ctx && srcs.length){
@@ -14503,12 +14567,10 @@ function stopPlay(){
       m.gain.cancelScheduledValues(t);
       m.gain.setValueAtTime(g0, t);
       m.gain.linearRampToValueAtTime(0.0001, t+0.012);
-      setTimeout(()=>{ hardStop();
-        /* 复原增益：play() 会另建母线，这里改的是被弃用的那条，不影响新播放 */
-        try{ const n=ctx.currentTime; m.gain.cancelScheduledValues(n); m.gain.setValueAtTime(g0, n); }catch(_){}
-      }, 30);
-    }catch(_){ hardStop(); }
-  } else hardStop();
+      setTimeout(()=>{ hardStop(); reapBus(); }, 30);   /* 淡出完再拆整图（拆图前增益无需复原：图已弃用） */
+    }catch(_){ hardStop(); reapBus(); }
+  } else { hardStop(); reapBus(); }
+  audio.bus=null;
   audio.playing=false; audio.prog=null; audio.events=[]; audio.evIdx=0;
   audio.tracks=null; audio.evCtx=null;   /* v56.5 混音总线映射/光标时间轴上下文 */
   if(audio.paused && audio.ctx){ try{audio.ctx.resume();}catch(_){} }
@@ -19428,7 +19490,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.34';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.35';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19451,6 +19513,7 @@ const APP_VER='v60.34';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.35</span><div><b>播放杂音与卡顿根治：音频线程不再过载</b>（用户报告 v60.34 后「播放很多杂音和卡顿，无法分辨音质好坏」——定量排查证明<b>混音信号本身是干净的</b>：离线渲染整条总线输出，削波 0、爆点 0、峰值仅 0.42，杂音全部来自<b>音频线程跑不赢实时产生的缓冲欠载</b>，欠载=爆音+断续，正好同时是「杂音」和「卡顿」，且历代版本一直存在）。<b>实测定位三个互相叠加的病灶</b>：① 按下播放的瞬间<b>整曲所有音符的源+增益+滤波节点全部建好挂上音频图</b>，WebAudio 每个渲染量子都要遍历整张图——负载随「总音符数」近乎平方增长（32 小节扫弦谱 1152 个源实测 0.86× 实时、合成器回落时 1.77×，快机器都跑不赢，何况普通电脑手机）；② 放完的音符链路从不拆除，播到后段负载还在线性爬升；③ <b>每次播放都新建一套「母线+压缩器+卷积混响」且旧的从不拆</b>——反复播放/停止几次后页面上挂着 N 个卷积器同时在跑，<b>越播越卡杂音越多</b>（试听音色同病）。修三件：① <b>分窗排程</b>——构建期只登记发声参数，滚动地只把「未来 2 秒」的音建到图上，图上任意时刻只挂几十个音，<b>负载与曲长彻底解耦</b>（同谱实测 0.86×→&lt;0.10×，起播阻塞 164ms→75ms）；② <b>音符放完即拆链</b>；③ <b>停播整套拆除本次总线图</b>，试听/回响共用会话级总线。全链路对账：分窗后整曲 576/576 个发声事件一个不漏、时序不乱。<code>tv_playperf</code> 9→<b>12 项</b>（分窗/拆链/总线拆除，对 v60.34 旧文件跑当场三红=突变实证）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.34</span><div><b>音色倒退修复：高保真采样不再被误杀回合成器</b>（用户报告「音色回到了最初的版本，表现的很糟糕」——查实是 v60.33 引入的真回退，不是音色包问题）。<b>A/B 复现定位根因</b>：v60.33 起「启动即建 suspended AudioContext」，但 <code>ensureLiveCtx</code> 沿用旧逻辑「先异步 resume、再同步看状态」——resume 还没生效状态仍是 suspended，就被判为不可用而<b>关闭重建</b>，控制台随之报「Cannot resume a context that has been closed」；关闭旧 ctx 会把<b>在途的全量音色包解码一并杀死</b>，解码残缺的包整包换入后逐音命中不了采样，<b>整曲落回合成器</b>——这正是用户听到的「回到最初的版本」。修三件：① <code>ensureLiveCtx</code> 不再关可恢复的 suspended ctx（仅 closed 或 resume 确认失败才重建）——启动预解码的采样与在途解码全部存活；② 全量包换入改为<b>合并交换 + 完整性校验</b>：解码不完整先补解一轮再换，仍失败进 60 秒冷却重试，不再用残包覆盖好包；③ <b>播放前等待在途高保真包</b>（≤2.8 秒，提示「正在加载高保真音色…」，就绪即自动开播；超时按现状开播）——首次点播放不再「前半合成器、后半采样」。<b>真实全量包 A/B 实测</b>：修复前每次播放报 resume-closed 错误、整曲合成器；修复后打开页面 0.3s／0.8s 就点播放也只等约 2 秒，整曲 576/576 音全部命中真实采样、零报错，≥1.6s 后点则零等待。<code>tv_playperf</code> 6→<b>9 项</b>（ctx 同一实例/无 resume-closed 报错/等待在途包语义），10 个含播放的套件补测试直通旗标。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.33</span><div><b>播放性能修复：首播主线程冻结 2.2 秒 → 0.16 秒，整曲命中真实采样</b>（用户报告「播放很卡很多杂音」；另按指正移除和弦操作面板里的指法图预览——点的就是图，重复显示冗余）。<b>实测定位根因</b>：启动时不建 AudioContext → 内嵌采样一个都没解码 → 首次按播放时整曲一次性排程逐音命中不了采样、<b>全部落回合成器</b>——32 小节扫弦谱实测 2304 次 Karplus-Strong 合成（每次十万级样本环路）、主线程冻结 2171ms，卡顿与「合成器质感的杂音」都来自这里。修复三件：① <b>启动即建 suspended AudioContext 预解码内嵌采样</b>（建 ctx 浏览器允许、出声等手势）——首次播放吉他/贝斯/钢琴直接是真实采样；② <b>KS 弦体缓存</b>：按 1/4 半音格缓存标准频率弦体、播放端 playbackRate 补差（调度层每个音都带微失谐，按精确频率做键命中率为零——实测同谱合成回落从 1887 次生成降到 10 次、二播 0 次）；③ <b>混响脉冲缓存</b>（每次建总线不再重算 1.8s 双声道噪声）。修后实测：首播冻结 2171ms→164ms、二播全缓存命中；技法音高（推弦/揉弦/摇把/滑弦）经 playbackRate 基准换算全数回归通过。新增 <code>tv_playperf</code> 6 项（启动预解码/采样命中/KS 缓存/阻塞预算/IR 缓存）。<b>81 套件</b>全绿。<b>音色库现状说明</b>：线上音色包由部署流水线直接供给站内（不依赖境外 CDN），MusyngKite/FluidR3 双库并存可切；弦乐/人声等无内嵌铺底的音色在全量包解码完成前仍走合成器，扩铺底会增大单文件体积，待产品拍板。</div></li>
     <li><span class="v">v60.32</span><div><b>和弦操作面板补回节奏型库选择</b>（用户指正：「点击和弦或者和弦图要出现对应的和弦编辑以及节奏型库的选择，像之前的版本——现在只有编辑的选项」）。点击谱面和弦图/和弦名弹出的操作面板，在「编辑和弦…／试听／清除」之下补回<b>套用节奏型</b>区：两枚常用节奏型直选 + 「库…」进完整节奏型库（与旧 TAB 弹窗同款）；套用写入<b>本小节六线谱</b>并按当前生效和弦取形实体化——简谱音符上锚定的和弦经合并时间线同样生效；歌谱等无六线谱的谱类不显示该区。<code>tv_chordsys</code> T6 扩为验证「面板含节奏型区 + 套用实体化到六线谱且逐音落在该和弦指法上」。<b>80 套件</b>全绿。</div></li>
