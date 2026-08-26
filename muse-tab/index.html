@@ -1339,6 +1339,26 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 .kp-chip.ez i{color:#ffd76a;opacity:1}   /* CAGED 开放把位指法（C/A/G/E/D）高亮推荐 */
 .kp-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .kp-chip.on i{color:#fff;opacity:.9}
+/* v60.40 节拍器弹窗：纵排设置卡（拍点开关/数拍/重音+细分/音量），从底坞「节拍器」向上弹 */
+#metro-pop{flex-direction:column;align-items:stretch;gap:9px;width:min(324px,calc(100vw - 34px))}
+#metro-pop .mp-row{display:flex;align-items:center;gap:9px}
+#metro-pop .mp-row>small{flex:0 0 34px;color:rgba(239,233,216,.66);font-size:11.5px;white-space:nowrap}
+#metro-pop small.mp-gap{flex:0 0 auto;margin-left:8px;color:rgba(239,233,216,.66);font-size:11.5px}
+#mp-head{justify-content:space-between;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.12)}
+#mp-head>small{flex:0 0 auto;color:#efe9d8;font-size:13px;font-weight:700}
+.mp-pill{font-size:11.5px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.28);
+  background:transparent;color:#efe9d8;line-height:1;min-height:30px}
+.mp-pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.mp-chips{display:flex;gap:6px;flex-wrap:wrap}
+#metro-pop .kp-chip{min-height:30px;justify-content:center;padding:4px 9px}
+.mp-sl{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
+.mp-sl input{-webkit-appearance:none;appearance:none;flex:1;width:auto;height:4px;border-radius:2px;
+  outline:none;border:none;padding:0;cursor:pointer;
+  background:linear-gradient(90deg,var(--accent) var(--p,44%),rgba(255,255,255,.22) var(--p,44%))}
+.mp-sl input::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;
+  background:#fff;border:3px solid var(--accent);cursor:pointer}
+.mp-sl input::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer}
+.mp-sl b{font-size:13px;min-width:44px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
 .vh-pop.on{display:flex}
 .vh-pop .tp-nudge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;padding:0;line-height:1;
   border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#efe9d8;font-size:17px;font-weight:600}
@@ -2172,7 +2192,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
-    <button id="b-metro" data-svgi="metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用"> 节拍器</button>
+    <button id="b-metro" data-svgi="metro" title="节拍器：点击打开设置——拍点声 / 数拍预备拍 / 首拍重音 / 八分细分 / 音量"> 节拍器</button>
     <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
     <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
     <button id="b-vwset" data-svgi="gear" title="设置：显示效果 / 打印 / 成为创作者"></button>
@@ -2201,6 +2221,17 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
   </div>
   <div class="kp-row kp-capo" id="kp-eq"></div>
   <div class="kp-row kp-capo" id="kp-chips" title="夹位速选：唱调不变，点选变调夹品位，亮色=开放把位指法（CAGED）"></div>
+</div>
+<!-- v60.40 节拍器弹窗（产品指示：数拍并入节拍器，点「节拍器」打开设置）。
+     数拍=起播前预备拍（教学刚需），与拍点声独立开关：只要预备拍、全曲不要拍点=数拍开+拍点关。 -->
+<div id="metro-pop" class="vh-pop" title="节拍器设置">
+  <div class="mp-row" id="mp-head"><small>节拍器</small><button class="mp-pill" id="mp-on" title="拍点声：随播放逐拍发声，跟拍练习用">拍点声</button></div>
+  <div class="mp-row" title="数拍：起播前先打预备拍再进曲（学生跟弹的进入口令）；与拍点声独立——只要预备拍可单开数拍"><small>数拍</small><span class="mp-chips" id="mp-ci">
+    <button class="kp-chip" data-ci="0">关</button><button class="kp-chip" data-ci="1">1 小节</button><button class="kp-chip" data-ci="2">2 小节</button></span></div>
+  <div class="mp-row"><small>重音</small><button class="mp-pill" id="mp-acc" title="每小节第一拍高音重读（切分/弱起练习可关掉）">首拍重音</button>
+    <small class="mp-gap">细分</small><span class="mp-chips" id="mp-sub" title="八分：每拍加打后半拍轻点（慢速跟练稳节奏）">
+    <button class="kp-chip" data-sub="1">每拍</button><button class="kp-chip" data-sub="2">八分</button></span></div>
+  <div class="mp-row"><small>音量</small><span class="mp-sl"><input id="mp-vol" type="range" min="20" max="200" step="5"><b id="mp-vol-v"></b></span></div>
 </div>
 <div id="toast"></div>
 <!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
@@ -4044,9 +4075,23 @@ let meaBands = {};   /* v56.5 小节→所在系统纵带 {y,h}：整谱播放�
 let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, paused:false, raf:0, prog:null, loop:null, events:[], evIdx:0};
 let playRate = 1;      // 播放倍速：只作用于播放调度，不改动 song.tempo（v38.5）
 let metroOn = false;   // 节拍器开关：播放时叠加拍点声，首拍重音（v38.5）
-/* v60.8 数拍（count-in）：起播前先打满一小节空拍。教学场景刚需——学生跟弹要有预备拍才进得来。
-   与节拍器互相独立：只想要预备拍、全曲不要拍点声，是最常见的用法。 */
-let countInOn = false;   /* v60.36 产品指示撤下播放条「数拍」按钮；变量与排程路径保留（tv_audio 数拍口径断言仍在，入口后续另定） */
+/* v60.8 数拍（count-in）：起播前先打满预备拍空拍。教学场景刚需——学生跟弹要有预备拍才进得来。
+   与拍点声互相独立：只想要预备拍、全曲不要拍点声，是最常见的用法（弹窗里两项分开开关）。 */
+let countInOn = false;   /* v60.40 产品指示：数拍并入节拍器弹窗（v60.36 撤下的独立按钮不回归）；排程口径不变 */
+/* v60.40 节拍器设置（点「节拍器」弹窗）：vol 拍点音量倍率 0.2~2、acc 每小节首拍重音、
+   sub 每拍细分（1=每拍一下 / 2=八分两下，慢速跟练用）、ci 数拍小节数（1/2，配合 countInOn）。
+   设置持久于新键 musetab-metro；拍点开关 metroOn 本身随会话不持久（与旧行为一致）。 */
+let metroSet = {vol:1, acc:true, sub:1, ci:1};
+try{ const _ms=JSON.parse(localStorage.getItem('musetab-metro')||'null');
+  if(_ms && typeof _ms==='object'){
+    if(_ms.vol>=0.2 && _ms.vol<=2) metroSet.vol=_ms.vol;
+    if(typeof _ms.acc==='boolean') metroSet.acc=_ms.acc;
+    if(_ms.sub===2) metroSet.sub=2;
+    if(_ms.ci===2) metroSet.ci=2;
+    countInOn = !!_ms.ciOn;
+  } }catch(_){}
+function metroSave(){ try{ localStorage.setItem('musetab-metro',
+  JSON.stringify({vol:metroSet.vol, acc:metroSet.acc, sub:metroSet.sub, ci:metroSet.ci, ciOn:countInOn})); }catch(_){ } }
 let mix = {tab:true, vox:true};
 /* 每条声部对应一条音轨，配置（静音/独奏/音色/音量）随曲谱保存于 song.mixer */
 /* v60.13 声像读数：null=自动铺开、0=居中、负=左、正=右（按百分比给整数，便于对齐复述） */
@@ -14029,13 +14074,15 @@ function startProgress(t, dur, order, starts){
   };
   audio.raf = requestAnimationFrame(tick);
 }
-/* 节拍器拍点声：木鱼式短促点击（正弦骨架+噪声起振），首拍高音重读（v38.5） */
-function metroClick(ctx, bus, when, accent){
+/* 节拍器拍点声：木鱼式短促点击（正弦骨架+噪声起振），首拍高音重读（v38.5）。
+   v60.40 soft=细分轻拍倍率（八分后半拍），音量整体乘 metroSet.vol（弹窗设置） */
+function metroClick(ctx, bus, when, accent, soft){
+  const mv=(typeof metroSet!=='undefined'? (metroSet.vol||1) : 1)*(soft||1);
   const o=ctx.createOscillator(), g=ctx.createGain();
-  o.type='sine'; o.frequency.setValueAtTime(accent?1760:1175, when);
+  o.type='sine'; o.frequency.setValueAtTime(accent?1760:(soft?1568:1175), when);
   o.frequency.exponentialRampToValueAtTime(accent?1100:800, when+0.035);
   g.gain.setValueAtTime(0.0001, when);
-  g.gain.exponentialRampToValueAtTime(accent?0.42:0.26, when+0.0025);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0001,(accent?0.42:0.26)*mv), when+0.0025);
   g.gain.exponentialRampToValueAtTime(0.0001, when+0.055);
   o.connect(g); g.connect(bus.dry);
   o.start(when); o.stop(when+0.07);
@@ -14045,7 +14092,7 @@ function metroClick(ctx, bus, when, accent){
   const buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
   for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
   const src=ctx.createBufferSource(); src.buffer=buf;
-  const g2=ctx.createGain(); g2.gain.value=accent?0.16:0.1;
+  const g2=ctx.createGain(); g2.gain.value=(accent?0.16:0.1)*mv;
   src.connect(g2); g2.connect(bus.dry);
   src.start(when); reapOnEnd(src, [g2]); audio.sources.push(src);
 }
@@ -14145,7 +14192,9 @@ function play(){
      全部以 t 为原点，移 t 即可整体对齐，无需逐处加偏移。进度条 tick 有 Math.max(0,…)
      兜底，数拍期间光标停在起点不乱跑。 */
   const t0 = ctx.currentTime+0.15;
-  const ciBeats = countInOn ? Math.max(1, Math.min(12, song.beats||4)) : 0;
+  /* v60.40 数拍 1/2 小节（弹窗设置）：ciBeats = 拍号拍数 × 小节数 */
+  const ciMeaBeats = Math.max(1, Math.min(12, song.beats||4));
+  const ciBeats = countInOn ? ciMeaBeats*(metroSet.ci===2? 2:1) : 0;
   const t = t0 + ciBeats*spb;
   /* v55.0 无声自诊断：起播 1.2s 后引擎仍没走（挂起/被系统压掉）→ 给出可操作提示 */
   setTimeout(()=>{ try{
@@ -14488,13 +14537,19 @@ function play(){
     total=Math.max(total,starts.length?starts[starts.length-1]+measureSeconds(order[order.length-1],spb):0);
   });
   audio.events.sort((a,b)=>a.tm-b.tm);
-  /* v60.8 数拍空拍：首拍重音，其余轻拍（与节拍器同一发声函数，音色一致不割裂） */
-  for(let b=0; b<ciBeats; b++) metroClick(ctx, bus, t0+b*spb, b===0);
-  /* 节拍器：按小节实际时长逐拍布点（与倍速同缩放），每小节第一拍重音 */
+  /* v60.8 数拍空拍：每小节首拍重音，其余轻拍（与节拍器同一发声函数，音色一致不割裂）。
+     v60.40 支持 2 小节数拍（b 对小节拍数取模判重音）、重音随弹窗设置 */
+  for(let b=0; b<ciBeats; b++) metroClick(ctx, bus, t0+b*spb, b%ciMeaBeats===0 && metroSet.acc);
+  /* 节拍器：按小节实际时长逐拍布点（与倍速同缩放），每小节第一拍重音。
+     v60.40 重音开关 + 八分细分（后半拍轻一档、音高略抬——机械节拍器双音色惯例） */
   if(metroOn){
     order.forEach((mi,oi)=>{
       const secs=measureSeconds(mi,spb);
-      for(let b=0; b*spb < secs-1e-4; b++) metroClick(ctx, bus, t+starts[oi]+b*spb, b===0);
+      for(let b=0; b*spb < secs-1e-4; b++){
+        metroClick(ctx, bus, t+starts[oi]+b*spb, b===0 && metroSet.acc);
+        if(metroSet.sub===2 && b*spb+spb/2 < secs-1e-4)
+          metroClick(ctx, bus, t+starts[oi]+b*spb+spb/2, false, 0.55);
+      }
     });
   }
   }finally{   /* v60.35 构建结束：恢复真实发声函数（构建全程同步，不存在交错调用） */
@@ -14694,12 +14749,56 @@ document.getElementById('mx-rate').onchange = e=>{
   if(wasPlaying) play();                       // 播放中切倍速：按新倍速重新起播
   toast('播放倍速 '+playRate+'×（不改变曲谱速度设置）');
 };
-document.getElementById('b-metro').onclick = ()=>{
-  metroOn = !metroOn;
-  document.getElementById('b-metro').classList.toggle('on', metroOn);
-  if(audio.playing && !audio.paused) play();   // 播放中切换：重新调度以立即生效
-  toast(metroOn? '节拍器已开启：随播放发出拍点声，每小节第一拍重音' : '节拍器已关闭');
+/* v60.40 节拍器弹窗（产品指示：数拍并入节拍器，点击打开设置——拍点/数拍/重音/细分/音量）。
+   打开位置：播放坞在屏底，弹窗从按钮向上弹（vh-pop 家族其余成员从页首向下弹）。
+   变更即生效：影响播放中声音的项改动→按新设置重排程（旧开关同款语义）；
+   数拍只作用于下一次起播，播放中改动不打断。按钮亮=拍点或数拍任一开着。 */
+function updateMetroPop(){
+  document.getElementById('mp-on').classList.toggle('on', metroOn);
+  document.getElementById('mp-acc').classList.toggle('on', !!metroSet.acc);
+  const ciCur = countInOn? (metroSet.ci===2? 2:1) : 0;
+  document.querySelectorAll('#mp-ci .kp-chip').forEach(b=>b.classList.toggle('on', +b.dataset.ci===ciCur));
+  document.querySelectorAll('#mp-sub .kp-chip').forEach(b=>b.classList.toggle('on', +b.dataset.sub===(metroSet.sub===2?2:1)));
+  const v=Math.round((metroSet.vol||1)*100), sl=document.getElementById('mp-vol');
+  sl.value=v; sl.style.setProperty('--p', Math.round((v-20)/1.8)+'%');
+  document.getElementById('mp-vol-v').textContent=v+'%';
+  document.getElementById('b-metro').classList.toggle('on', metroOn||countInOn);
+}
+function metroApplyLive(){ if(audio.playing && !audio.paused) play(); }
+document.getElementById('b-metro').onclick = e=>{
+  e.stopPropagation();
+  const pop=document.getElementById('metro-pop'), btn=document.getElementById('b-metro');
+  const show=!pop.classList.contains('on');
+  document.querySelectorAll('.vh-pop.on').forEach(p=>p.classList.remove('on'));
+  if(!show) return;
+  updateMetroPop();
+  const r=btn.getBoundingClientRect();
+  pop.style.top='auto'; pop.style.bottom=(window.innerHeight-r.top+10)+'px';
+  pop.classList.add('on');
 };
+document.getElementById('mp-on').onclick = ()=>{
+  metroOn=!metroOn; updateMetroPop(); metroApplyLive();
+  toast(metroOn? '拍点声已开启：随播放逐拍发声' : '拍点声已关闭');
+};
+document.getElementById('mp-acc').onclick = ()=>{
+  metroSet.acc=!metroSet.acc; metroSave(); updateMetroPop(); metroApplyLive();
+};
+document.querySelectorAll('#mp-ci .kp-chip').forEach(b=>b.onclick=()=>{
+  const n=+b.dataset.ci;
+  countInOn=n>0; if(n) metroSet.ci=n;
+  metroSave(); updateMetroPop();
+  toast(n? '数拍已开启：起播前先打 '+n+' 小节预备拍再进曲' : '数拍已关闭');
+});
+document.querySelectorAll('#mp-sub .kp-chip').forEach(b=>b.onclick=()=>{
+  metroSet.sub=(+b.dataset.sub===2)?2:1; metroSave(); updateMetroPop(); metroApplyLive();
+});
+{ const sl=document.getElementById('mp-vol');
+  sl.addEventListener('input', e=>{ const v=Math.max(20,Math.min(200,+e.target.value||100));
+    metroSet.vol=v/100; sl.style.setProperty('--p', Math.round((v-20)/1.8)+'%');
+    document.getElementById('mp-vol-v').textContent=v+'%'; });
+  sl.addEventListener('change', ()=>{ metroSave(); metroApplyLive(); });
+}
+updateMetroPop();   /* 开机同步：持久化的数拍设置点亮按钮 */
 document.getElementById('b-stand').onclick = ()=>enterStand();   // v38.8 编辑器直入谱架（无需发布/导出）
 /* ================= v40.0 新版外壳开关（阶段1）与顶栏快速换调 ================= */
 /* v55.2 经典版界面退役（用户拍板：打开页面闪现经典版布局，删除经典版界面）：
@@ -19700,7 +19799,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.39';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.40';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19723,6 +19822,7 @@ const APP_VER='v60.39';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.40</span><div><b>数拍并入节拍器 + 节拍器设置弹窗</b>（产品负责人指示：数拍功能并入节拍器，完善节拍器功能，点开弹窗设置）。播放条「节拍器」按钮从单纯开关升级为<b>设置弹窗</b>：① <b>拍点声开关</b>——随播放逐拍发声（原开关语义）；② <b>数拍（预备拍）回归并入</b>：关 / 1 小节 / <b>2 小节</b>（新增）——起播前按拍号先打空拍再进曲，教学场景学生跟弹的「进入口令」；<b>与拍点声独立开关</b>：只要预备拍、全曲不要拍点（最常见用法）就开数拍关拍点；③ <b>首拍重音开关</b>——每小节第一拍高音重读，切分/弱起练习可关掉；④ <b>八分细分</b>——每拍后半拍加一记轻点（音色略抬、轻一档，机械节拍器双音色惯例），慢速跟练稳节奏；⑤ <b>拍点音量</b> 20%–200% 推子，与乐音音量独立。设置持久保存（新键 <code>musetab-metro</code>，数据红线安全）；数拍/重音等改动在播放中即时生效重排程。按钮亮起=拍点或数拍任一开启。弹窗与变调/拍速同一深色浮层家族，从播放坞向上弹出，点外部收起，手机/桌面/观看页/谱架同款可用。<code>tv_metro</code> 新套件 <b>6 项</b>（弹窗结构/开关联动/数拍 2 小节排程口径/细分排程口径/持久化恢复——对 v60.39 旧文件跑当场红=突变实证）。<b>82 套件</b>全绿。</div></li>
     <li><span class="v">v60.39</span><div><b>指法变调重排：和弦图与谱面演奏严格一致</b>（用户报告：变调+指法调整后和弦图与谱面演奏不匹配，并给出逻辑系统规格：①变调夹变调完全保持指法；②指法变调若保不住原演奏，自动按和弦图匹配指法）。<b>此前的问题</b>：指法变调=逐品平移+越界折八度——谱面音符平移了，和弦图显示的却是新调的标准指法图，图与演奏对不上，且平移出的把位不是人手会按的。<b>现在</b>：① <b>伴奏列随新和弦图取形</b>——列上的音都落在生效和弦指法上的（扫弦/分解/节奏型），逐弦换成新和弦图的品位；新图与原弦集不同时按<b>低→高弦序对应映射</b>（G 六弦满扫变 D 就成四弦满扫——真人换和弦弹同一织体正是这么做的），谱面演奏与和弦图从此严格一致；单音列是「分解伴奏」还是「旋律恰好路过和弦音」按小节语境判定（本小节多数列在图上才算伴奏）。② <b>旋律列走束搜索指派器整段重排把位</b>（v60.25 同一份实现：和音异弦/品距≤4/低把位空弦优先/跨列连贯），音高精确移调；放不下的整八度折入并计数、仍放不下退回平移——toast 如实播报，不静默。③ <b>变调夹路径指法零损有架构保证</b>：观看副本每次从原始发布数据重建，「唱+2 且 夹+2」这类经典夹用法净变调为零，原指法逐音原样。顺带补上 v60.30 拍位和弦在观看页移调时漏平移的缺口。<code>tv_viewer</code> 9→<b>10 项</b>（T8c 三合一断言，对 v60.38 平移版跑当场红=突变实证）。已知缺口如实记录：跨列技法指针（tk 弦号）在重排移弦后可能指偏，观看页试奏场景暂不重连。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.38</span><div><b>谱架模式控制条修正与优化</b>（用户报告截图：控制条出现两枚空白按钮）。<b>根因</b>：「退出谱架」带 <code>.primary</code>——它的白色文字生效了，朱砂底色却被 <code>#standbar button</code> 的高特异性规则覆盖成纸白，<b>白字白底完全隐形</b>；「自动卷谱」在卷动进行中被加上同一个类（变「⏸ 暂停」），同样隐形——截图里两枚空白钮正是这一个 bug 的两种表现。修正并顺带优化：① <b>自动卷谱升为主操作</b>——恒朱砂胶囊白字，卷动中转<b>深色按压态</b>＋「⏸ 暂停」文案，状态一眼可辨；② <b>退出谱架降为安静描边钮</b>（深字浅底，不再与主操作抢红）；③ 按钮触控高度提到 38px、条宽随内容不超屏、手机窄屏（≤560px）紧凑排布一屏放下、底部让出 iPhone 安全区。<code>tv_mviews</code> 12→<b>14 项</b>（T5 配色语义/T5b 按压态与复原——对 v60.37 旧文件跑当场红）。<b>过程中揪出一个 Chrome 149 测试坑记入 tests/README</b>：读过一次计算样式的元素，类变更后同任务甚至下一帧再读仍拿陈旧值（约 300ms 后才对）——「变更前后」断言必须拆两次读取跨真实 paint，与「先掐过渡」同族。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.37</span><div><b>观看页头部精简 + 吉他变调逻辑系统</b>（产品负责人指示：只显示变调和速度；变调点击弹窗设置，吉他谱的变调夹融合进弹窗；弹窗有原调显示与恢复原调；五线谱/简谱等其他谱类不显示变调夹）。① <b>头部三枚收为两枚</b>：「变调」（显示当前唱调，点击进设置弹窗）＋「拍速」；独立的变调夹入口撤销。② <b>变调弹窗</b>：首行<b>原调显示 + 恢复原调</b>（唱调与变调夹一并回到发布状态）；主行 ♭/♯ 调唱调。③ <b>吉他谱专属：一套自洽的变调逻辑</b>——核心等式「<b>唱调 ＝ 指法调 ＋ 变调夹</b>」直接画在弹窗里：调<b>唱调</b>（要更高更低的音）→ 指法随动、夹不动；调<b>变调夹</b>（要更好按的指法）→ <b>唱调锁定</b>、指法自动反向换算——夹上 2 品指法自动从 G 换算成 F，唱出来还是 G，这才是变调夹的本义；另有<b>夹位速选</b>一排（0–7 品，每格标注对应指法调，<b>C/A/G/E/D 开放把位金色高亮</b>——一眼挑出好按的夹位）。④ <b>谱类判定按发布数据的谱类声明</b>：五线谱/简谱/钢琴等谱类弹窗只有变调与恢复原调，不出现任何变调夹内容。全部即时生效、不改动原谱。<code>tv_viewer</code> 8→<b>9 项</b>（T8 改测 vocal 无夹 + 恢复原调，新增 T8b 吉他逻辑全流程——「唱调锁定换算」经突变实证：退回旧语义当场红）。<b>81 套件</b>全绿。</div></li>

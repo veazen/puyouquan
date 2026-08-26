@@ -130,7 +130,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     document.getElementById('vh-key').click();
     const capoShown = [...document.querySelectorAll('#key-pop .kp-capo')]
       .every(rw => getComputedStyle(rw).display !== 'none');
-    const chipsN = document.querySelectorAll('.kp-chip').length;
+    const chipsN = document.querySelectorAll('#kp-chips .kp-chip').length;   /* v60.40 起 .kp-chip 也用于节拍器弹窗，按容器数 */
     document.getElementById('cp-up').click(); document.getElementById('cp-up').click();   // 夹 2 品
     const hdr = () => document.getElementById('vh-key-v').textContent;
     const capoLock = song.capo === 2 && song.key === 'F' && hdr() === 'G调';   // 唱调锁定，指法换算
@@ -246,19 +246,24 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     + ' 注入唯一=' + t5.once + ' 应用完整=' + t5.appIntact + ' 曲名=' + t5.title + ' 小节=' + t5.mea);
   if (ok5) pass++;
 
-  // T6 导出弹窗双模式入口 + 播放条节拍器按钮态
+  // T6 导出弹窗双模式入口 + 节拍器弹窗（v60.40 产品指示：点击=打开设置弹窗，拍点开关移入弹窗）
   const t6 = await pg2.evaluate(() => {
     document.getElementById('b-print').click();
     const dual = !!document.getElementById('ex-card') && !!document.getElementById('ex-icard');
     document.getElementById('ex-cancel').click();
     document.getElementById('b-metro').click();
-    const on = metroOn && document.getElementById('b-metro').classList.contains('on');
-    document.getElementById('b-metro').click();
+    const popped = document.getElementById('metro-pop').classList.contains('on');
+    document.getElementById('mp-on').click();
+    const on = metroOn && document.getElementById('b-metro').classList.contains('on')
+      && document.getElementById('mp-on').classList.contains('on');
+    document.getElementById('mp-on').click();
     const off = !metroOn && !document.getElementById('b-metro').classList.contains('on');
-    return { dual, on, off };
+    document.getElementById('b-metro').click();   // 再点按钮：收起弹窗
+    const closed = !document.getElementById('metro-pop').classList.contains('on');
+    return { dual, popped, on, off, closed };
   });
-  const ok6 = t6.dual && t6.on && t6.off;
-  console.log((ok6 ? '✅' : '❌') + ' T6 双模式入口/节拍器开关: 双按钮=' + t6.dual + ' 开态=' + t6.on + ' 关态=' + t6.off);
+  const ok6 = t6.dual && t6.popped && t6.on && t6.off && t6.closed;
+  console.log((ok6 ? '✅' : '❌') + ' T6 双模式入口/节拍器弹窗开关: ' + JSON.stringify(t6));
   if (ok6) pass++;
   await pg2.close();
 
