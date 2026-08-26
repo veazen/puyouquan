@@ -18496,7 +18496,7 @@ function viewerBuildSong(){
   const data=JSON.parse(JSON.stringify(pb.data));
   if(!own) data.measures=data.measures.slice(0, Math.max(1, pb.preview||2));
   const s=migrate(data);
-  if(vwTrans) transposeSong(s, vwTrans);
+  window.VW_REFING = vwTrans? transposeSong(s, vwTrans) : null;   /* v60.39 指法重排统计（toast/测试用） */
   if(vwCapo!=null) s.capo=vwCapo;   /* v55.6 观看页变调夹覆盖：移调重建后仍保留 */
   return s;
 }
@@ -18509,15 +18509,117 @@ function shiftChordName(name, delta){
 }
 function transposeSong(s, delta){
   s.key = KEY_LIST[(((KEY_PC[s.key]||0)+delta)%12+12)%12];   // 简谱(可动do)随调号整体移调
+  /* ===== v60.39 指法变调重排（产品指示的变调逻辑系统第 2 条）=====
+     此前 TAB 指法变调=逐品平移+越界折八度：谱面音符平移了，和弦图显示的却是新调的
+     标准指法图——图与演奏不匹配，且平移出的把位不是人手会按的。现改为：
+     · 伴奏列（列上每个音都落在生效和弦的指法上——扫弦/分解/节奏型皆如此）：
+       按**新和弦的指法图取形**逐弦换品——谱面演奏与和弦图严格一致；
+     · 旋律列：目标音高（原音+delta）走 v60.25 的音高→弦/品束搜索指派器整段重排
+       （和音异弦/品距≤4/低把位空弦优先/跨列把位连贯），不写第二份指派实现；
+       放不下的音整八度折入并计数上报，仍放不下退回单音平移——不静默；
+     · 第 1 条（变调夹变调指法完全不变）由架构保证：观看副本每次从原始发布数据重建，
+       净 vwTrans=0（如「唱+2 且 夹+2」的经典夹用法）时本函数根本不做指法重排。
+     注意顺序：重排要用**平移前**的和弦名查生效和弦，故先重排指法、再平移和弦名。
+     已知缺口（如实记录）：跨列技法指针 tk.si 记的是弦号，重排移弦后可能指偏
+     （独奏谱推弦/滑弦到目标音的场景）；观看页变调属试奏用途，暂不重连指针。 */
+  const tun=tuningOf(), fMax=fretMaxOf();
+  const stats={shapeCols:0, melodic:0, octShift:0, dropped:0};
+  if(delta){
+    /* 平移前的全行合并和弦时间线（chordEvtsMea 同口径，但作用于观看副本 s） */
+    const flat=[];
+    s.measures.forEach((m,mi)=>{
+      const mU=m.unit||s.unit;
+      const scan=cols=>{ let b=0; (cols||[]).forEach(c=>{
+        if(c.chord) flat.push({mi, beat:b, chord:c.chord});
+        (c.chords||[]).forEach(x=>{ if(x && x.chord && x.q>0) flat.push({mi, beat:b + x.q*mU/4, chord:x.chord}); });
+        b+=beatsOf(c,mU); }); };
+      (m.voxes||[]).forEach(scan);
+      (m.tabs||[]).forEach(scan);
+    });
+    flat.sort((a,b2)=>a.mi-b2.mi || a.beat-b2.beat);
+    const foldNaive=n=>{ let f=n.f+delta; while(f<0) f+=12; while(f>fMax) f-=12; n.f=f; };
+    (s.tabVoices||[]).forEach((_,vi)=>{
+      let ei=0, cur='';                                  // 时间线指针 + 生效和弦
+      const seg=[];                                      // 待指派的旋律列连续段
+      const flushSeg=()=>{
+        if(!seg.length) return;
+        const r=tabAssignSeq(seg.map(e=>({ms:e.ms})), tun, 0, fMax);
+        stats.octShift+=r.octShift; stats.dropped+=r.dropped;
+        seg.forEach((e,i)=>{
+          const sh=r.shapes[i];
+          if(!sh){ e.refs.forEach(foldNaive); return; }  // 整列放不下：退回逐音平移
+          const pitch=n=>tun[n.s-1]+n.f;
+          const srcs=e.refs.slice().sort((a,b2)=>pitch(b2)-pitch(a));
+          const outs=sh.slice().sort((a,b2)=>pitch(b2)-pitch(a));
+          srcs.forEach((n,k)=>{ const o=outs[k]; if(o){ n.s=o.s; n.f=o.f; } else foldNaive(n); });
+        });
+        seg.length=0;
+      };
+      s.measures.forEach((m,mi)=>{
+        const mU=m.unit||s.unit;
+        const cols=((m.tabs||[])[vi]||[]);
+        /* 预扫本小节：逐列「是否整列落在生效和弦指法上」+ 占比。单音列落在和弦音上既可能是
+           分解伴奏也可能恰好路过的旋律音——按小节语境裁决：本小节多数列在图上(>0.6)才算伴奏 */
+        let pEi=ei, pCur=cur, pB=0;
+        const onShape=cols.map(c=>{
+          while(pEi<flat.length && (flat[pEi].mi<mi || (flat[pEi].mi===mi && flat[pEi].beat<=pB+1e-6))){ pCur=flat[pEi].chord; pEi++; }
+          pB+=beatsOf(c,mU);
+          const real=(c.notes||[]).filter(n=>!n.x && typeof n.f==='number');
+          if(!real.length) return null;
+          const sh=chordShape(pCur);
+          return { chord:pCur, on: !!sh && real.every(n=>shapeString(sh,n.s)===n.f) };
+        });
+        const noted=onShape.filter(Boolean);
+        const ratio=noted.length? noted.filter(o=>o.on).length/noted.length : 0;
+        let b=0;
+        cols.forEach((c,ci)=>{
+          while(ei<flat.length && (flat[ei].mi<mi || (flat[ei].mi===mi && flat[ei].beat<=b+1e-6))){ cur=flat[ei].chord; ei++; }
+          b+=beatsOf(c,mU);
+          const real=(c.notes||[]).filter(n=>!n.x && typeof n.f==='number');
+          if(!real.length) return;
+          const info=onShape[ci];
+          const isAccomp=info && info.on && (real.length>=2 || c.strum || ratio>0.6);
+          const newSh=isAccomp? chordShape(shiftChordName(cur,delta)) : null;
+          if(newSh){
+            flushSeg();
+            if(real.every(n=>shapeString(newSh,n.s)!=null)){
+              real.forEach(n=>{ n.f=shapeString(newSh,n.s); });     // 新图覆盖同弦集：逐弦换品
+            } else {
+              /* 新和弦图不覆盖原弦集（如 G 六弦满扫 → D 四弦）：按「低→高弦序 rank」映射到
+                 新图发声弦——真人换和弦弹同一织体就是这么做的；映射撞弦去重、多余音随图裁掉 */
+              const sounding=sh2=>{ const out=[]; for(let s2=tun.length;s2>=1;s2--){ if(shapeString(sh2,s2)!=null) out.push(s2); } return out; };
+              const oldSh=chordShape(cur);
+              const oldStr=sounding(oldSh), newStr=sounding(newSh);
+              const used=new Set(), mapped=[];
+              real.slice().sort((a,b2)=>b2.s-a.s).forEach(n=>{      // 低弦→高弦
+                const idx=Math.max(0, oldStr.indexOf(n.s));
+                let k=oldStr.length>1? Math.round(idx*(newStr.length-1)/(oldStr.length-1)) : 0;
+                while(k<newStr.length && used.has(newStr[k])) k++;
+                if(k<newStr.length){ used.add(newStr[k]); n.s=newStr[k]; n.f=shapeString(newSh,n.s); mapped.push(n); }
+              });
+              const keepX=(c.notes||[]).filter(n=>n.x || typeof n.f!=='number');
+              c.notes=keepX.concat(mapped.sort((a,b2)=>a.s-b2.s));
+            }
+            stats.shapeCols++;
+          } else {
+            seg.push({refs:real, ms:real.map(n=>tun[n.s-1]+n.f+delta)});
+            stats.melodic++;
+          }
+        });
+      });
+      flushSeg();
+    });
+  }
   s.measures.forEach(m=>{
-    (m.tabs||[]).forEach(cols=>cols.forEach(c=>{
+    const shiftCol=c=>{
       if(c.chord) c.chord=shiftChordName(c.chord, delta);
-      (c.notes||[]).forEach(n=>{ if(typeof n.f==='number'){    // TAB 绝对品位按半音位移，越界移八度保持可弹
-        let f=n.f+delta; while(f<0) f+=12; while(f>24) f-=12; n.f=f; } });
-    }));
-    (m.voxes||[]).forEach(cols=>cols.forEach(c=>{ if(c.chord) c.chord=shiftChordName(c.chord, delta); }));
+      (c.chords||[]).forEach(x=>{ if(x && x.chord) x.chord=shiftChordName(x.chord, delta); });   // v60.30 拍位和弦此前漏平移，一并补上
+    };
+    (m.tabs||[]).forEach(cols=>cols.forEach(shiftCol));
+    (m.voxes||[]).forEach(cols=>cols.forEach(shiftCol));
     if(m.keyTo && KEY_PC[m.keyTo]!=null) m.keyTo = KEY_LIST[((KEY_PC[m.keyTo]+delta)%12+12)%12];   // v41.3 转调标记同步
   });
+  return stats;
 }
 function updateVwKey(){
   const el=document.getElementById('vw-key'); if(!el) return;
@@ -18530,7 +18632,11 @@ function vwTranspose(delta){
   song=viewerBuildSong();
   sel=keep; clampSel(); render(); renderProgCells(); updateVwKey();
   window.scrollTo(0, sy);
-  toast(vwTrans===0? '已还原到原调 1='+song.key : '移调：1='+song.key+'（'+(vwTrans>0?'+':'')+vwTrans+' 半音）');
+  /* v60.39 指法重排结果如实播报（VW_REFING 由 viewerBuildSong 记录） */
+  const st=window.VW_REFING;
+  const extra = (vwTrans && st && (st.shapeCols||st.melodic))?
+    '（伴奏随和弦图取形、旋律重排把位'+(st.octShift? '，'+st.octShift+' 音折八度':'')+(st.dropped? '，'+st.dropped+' 音放不下按平移处理':'')+'）' : '';
+  toast(vwTrans===0? '已还原到原调 1='+song.key : '移调：1='+song.key+'（'+(vwTrans>0?'+':'')+vwTrans+' 半音）'+extra);
 }
 /* ===== v55.6 观看页头部 2.0（参考 GTP 手机排版，用户拍板）：
    左=指法/变调夹/拍速 三组数值控件（点击弹 .vh-pop 浮层），右=收藏/分享/谱库主页 圆形图标；
@@ -19594,7 +19700,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.38';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.39';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19617,6 +19723,7 @@ const APP_VER='v60.38';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.39</span><div><b>指法变调重排：和弦图与谱面演奏严格一致</b>（用户报告：变调+指法调整后和弦图与谱面演奏不匹配，并给出逻辑系统规格：①变调夹变调完全保持指法；②指法变调若保不住原演奏，自动按和弦图匹配指法）。<b>此前的问题</b>：指法变调=逐品平移+越界折八度——谱面音符平移了，和弦图显示的却是新调的标准指法图，图与演奏对不上，且平移出的把位不是人手会按的。<b>现在</b>：① <b>伴奏列随新和弦图取形</b>——列上的音都落在生效和弦指法上的（扫弦/分解/节奏型），逐弦换成新和弦图的品位；新图与原弦集不同时按<b>低→高弦序对应映射</b>（G 六弦满扫变 D 就成四弦满扫——真人换和弦弹同一织体正是这么做的），谱面演奏与和弦图从此严格一致；单音列是「分解伴奏」还是「旋律恰好路过和弦音」按小节语境判定（本小节多数列在图上才算伴奏）。② <b>旋律列走束搜索指派器整段重排把位</b>（v60.25 同一份实现：和音异弦/品距≤4/低把位空弦优先/跨列连贯），音高精确移调；放不下的整八度折入并计数、仍放不下退回平移——toast 如实播报，不静默。③ <b>变调夹路径指法零损有架构保证</b>：观看副本每次从原始发布数据重建，「唱+2 且 夹+2」这类经典夹用法净变调为零，原指法逐音原样。顺带补上 v60.30 拍位和弦在观看页移调时漏平移的缺口。<code>tv_viewer</code> 9→<b>10 项</b>（T8c 三合一断言，对 v60.38 平移版跑当场红=突变实证）。已知缺口如实记录：跨列技法指针（tk 弦号）在重排移弦后可能指偏，观看页试奏场景暂不重连。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.38</span><div><b>谱架模式控制条修正与优化</b>（用户报告截图：控制条出现两枚空白按钮）。<b>根因</b>：「退出谱架」带 <code>.primary</code>——它的白色文字生效了，朱砂底色却被 <code>#standbar button</code> 的高特异性规则覆盖成纸白，<b>白字白底完全隐形</b>；「自动卷谱」在卷动进行中被加上同一个类（变「⏸ 暂停」），同样隐形——截图里两枚空白钮正是这一个 bug 的两种表现。修正并顺带优化：① <b>自动卷谱升为主操作</b>——恒朱砂胶囊白字，卷动中转<b>深色按压态</b>＋「⏸ 暂停」文案，状态一眼可辨；② <b>退出谱架降为安静描边钮</b>（深字浅底，不再与主操作抢红）；③ 按钮触控高度提到 38px、条宽随内容不超屏、手机窄屏（≤560px）紧凑排布一屏放下、底部让出 iPhone 安全区。<code>tv_mviews</code> 12→<b>14 项</b>（T5 配色语义/T5b 按压态与复原——对 v60.37 旧文件跑当场红）。<b>过程中揪出一个 Chrome 149 测试坑记入 tests/README</b>：读过一次计算样式的元素，类变更后同任务甚至下一帧再读仍拿陈旧值（约 300ms 后才对）——「变更前后」断言必须拆两次读取跨真实 paint，与「先掐过渡」同族。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.37</span><div><b>观看页头部精简 + 吉他变调逻辑系统</b>（产品负责人指示：只显示变调和速度；变调点击弹窗设置，吉他谱的变调夹融合进弹窗；弹窗有原调显示与恢复原调；五线谱/简谱等其他谱类不显示变调夹）。① <b>头部三枚收为两枚</b>：「变调」（显示当前唱调，点击进设置弹窗）＋「拍速」；独立的变调夹入口撤销。② <b>变调弹窗</b>：首行<b>原调显示 + 恢复原调</b>（唱调与变调夹一并回到发布状态）；主行 ♭/♯ 调唱调。③ <b>吉他谱专属：一套自洽的变调逻辑</b>——核心等式「<b>唱调 ＝ 指法调 ＋ 变调夹</b>」直接画在弹窗里：调<b>唱调</b>（要更高更低的音）→ 指法随动、夹不动；调<b>变调夹</b>（要更好按的指法）→ <b>唱调锁定</b>、指法自动反向换算——夹上 2 品指法自动从 G 换算成 F，唱出来还是 G，这才是变调夹的本义；另有<b>夹位速选</b>一排（0–7 品，每格标注对应指法调，<b>C/A/G/E/D 开放把位金色高亮</b>——一眼挑出好按的夹位）。④ <b>谱类判定按发布数据的谱类声明</b>：五线谱/简谱/钢琴等谱类弹窗只有变调与恢复原调，不出现任何变调夹内容。全部即时生效、不改动原谱。<code>tv_viewer</code> 8→<b>9 项</b>（T8 改测 vocal 无夹 + 恢复原调，新增 T8b 吉他逻辑全流程——「唱调锁定换算」经突变实证：退回旧语义当场红）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.36</span><div><b>播放条精简 + 手机播放器界面升级</b>（产品负责人指示：去掉「第 X / Y 小节」标签与「数拍」按钮；手机端做美观的界面设计升级）。① <b>播放条全端撤下两个控件</b>：小节位置信息本就由小节走带高亮与循环选区承担，「数拍」入口撤下（排程能力保留，后续按教学场景另定入口）。② <b>手机播放器从「单行横滑」升级为三排卡片</b>——此前实测播放条内容宽 887px、屏幕只有 390px，<b>56% 的控件在屏外要横着划才够得着</b>。新布局：第一排<b>小节走带占满整行</b>（进度/点选循环更好点按）＋▦ 小节面板入口；第二排 ⏮ ＋ <b>大播放胶囊</b>（主操作给主视觉，高 46px）；第三排<b>速度/倍速/节拍器/谱架/音轨五枚等宽芯片</b>（全部 ≥40px 触控标准）；底坞顶角圆润化＋发丝分隔线。观看页保持 v55.0 拍板的精简布局不动；桌面端布局不变。三条底栏（播放器/图层轨/时值条）堆叠高度同步重算，<code>tv_mobile</code> 原有「两两零重叠」几何断言兜底，另新增 T8/T9（控件移除＋三排几何：走带整行/播放胶囊尺寸/芯片等宽/无横滚）。<b>81 套件</b>全绿。</div></li>

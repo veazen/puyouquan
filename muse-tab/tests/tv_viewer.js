@@ -149,6 +149,48 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     && t8b.sungUp && t8b.chip4 && t8b.back;
   console.log((ok8b ? '✅' : '❌') + ' T8b 吉他变调逻辑系统(唱调=指法+夹·唱调锁定换算·速选·恢复原调): ' + JSON.stringify(t8b));
   if (ok8b) pass++;
+
+  /* T8c v60.39 指法变调重排（产品指示：和弦图与谱面演奏必须匹配）。
+     此前指法变调=逐品平移+折八度：图是新调标准指法、谱面却是平移把位，图与演奏不匹配。
+     现在：伴奏列随新和弦图取形（弦集不同按低→高 rank 映射——G 六弦满扫→D 四弦满扫）；
+     旋律列走 v60.25 束搜索指派器重排把位、音高精确 +delta；
+     经典夹用法（唱+2 且 夹+2，净 vwTrans=0）从原始数据重建→原指法零损。
+     突变实证：对 v60.38 旧文件（逐品平移）跑本条当场红（strum 列不等于 D 图）。 */
+  const t8c = await pg3.evaluate(() => {
+    const mkShapeCol = (name, strum) => { const sh = chordShape(name), notes = [];
+      for (let s2 = 1; s2 <= 6; s2++) { const f = shapeString(sh, s2); if (f != null) notes.push({ s: s2, f }); }
+      return { dur: 4, dotted: false, chord: '', strum: strum || 'd', notes, tech: '' }; };
+    const s = createSong('guitar', { title: 'rf', beats: 4, unit: 4, key: 'G', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].tabs[0] = [0,1,2,3].map(i => { const c = mkShapeCol('G'); if (i === 0) c.chord = 'G'; return c; });
+    s.measures[1].tabs[0] = [ {dur:4,dotted:false,chord:'',strum:'',notes:[{s:3,f:0}],tech:''},
+      {dur:4,dotted:false,chord:'',strum:'',notes:[{s:3,f:2}],tech:''},
+      {dur:4,dotted:false,chord:'',strum:'',notes:[{s:2,f:0}],tech:''},
+      {dur:4,dotted:false,chord:'',strum:'',notes:[{s:2,f:1}],tech:''} ];
+    const tun = tuningOf();
+    const orig = JSON.parse(JSON.stringify(s));
+    const origMel = orig.measures[1].tabs[0].map(c => tun[c.notes[0].s-1]+c.notes[0].f);
+    enterShareViewer({ song: JSON.parse(JSON.stringify(s)) });
+    vwTranspose(-5);                                        // 指法 G→D
+    const dSh = chordShape('D');
+    const strumFollow = song.measures[0].tabs[0].every(c =>
+      c.notes.length === 4 && c.notes.every(n => shapeString(dSh, n.s) === n.f));
+    const melExact = song.measures[1].tabs[0].every((c,i) =>
+      tun[c.notes[0].s-1]+c.notes[0].f === origMel[i] - 5);
+    const st = window.VW_REFING || {};
+    const clean = !st.dropped && !st.octShift;
+    vwTranspose(5);                                          // 回原调
+    document.getElementById('kp-up').click(); document.getElementById('kp-up').click();   // 唱+2
+    document.getElementById('cp-up').click(); document.getElementById('cp-up').click();   // 夹+2 → 指法回 G
+    const capoKeeps = vwTrans === 0 && song.capo === 2 &&
+      song.measures[0].tabs[0].every((c,ci) => c.notes.every((n,k) => {
+        const o = orig.measures[0].tabs[0][ci].notes[k]; return o && n.s === o.s && n.f === o.f; })) &&
+      song.measures[1].tabs[0].every((c,ci) => {
+        const o = orig.measures[1].tabs[0][ci].notes[0]; return c.notes[0].s === o.s && c.notes[0].f === o.f; });
+    return { strumFollow, melExact, clean, capoKeeps };
+  });
+  const ok8c = t8c.strumFollow && t8c.melExact && t8c.clean && t8c.capoKeeps;
+  console.log((ok8c ? '✅' : '❌') + ' T8c 指法变调重排(伴奏随图取形·旋律精确移调·夹用法原指法零损): ' + JSON.stringify(t8c));
+  if (ok8c) pass++;
   await pg3.close();
 
   // T3 倍速：0.5× 总时长应为 1× 的 2 倍（只作用于播放调度）
@@ -222,8 +264,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
 
   fs.unlinkSync(shared);
   const errs = errs1.concat(errs2);
-  console.log('PASS ' + pass + '/9');
+  console.log('PASS ' + pass + '/10');
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === 9 && !errs.length ? 0 : 1);
+  process.exit(pass === 10 && !errs.length ? 0 : 1);
 })();
