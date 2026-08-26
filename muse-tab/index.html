@@ -823,16 +823,33 @@ body.stand #paywall{display:none!important}
 body.stand #stage{display:block;padding:10px 0 40vh}
 body.stand #score-wrap{margin:0 auto;max-width:min(1100px,96vw)}
 body.stand #paper{max-width:min(1060px,94vw)}
-#standbar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:80;display:none;
-  align-items:center;gap:8px;padding:8px 12px;background:var(--glass);border:1px solid var(--border-soft);
+#standbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  z-index:80;display:none;max-width:calc(100vw - 16px);
+  align-items:center;gap:7px;padding:8px 10px;background:var(--glass);border:1px solid var(--border-soft);
   -webkit-backdrop-filter:blur(22px) saturate(1.8);backdrop-filter:blur(22px) saturate(1.8);
   border-radius:980px;box-shadow:none}
 body.stand #standbar{display:flex}
 #standbar button{border:1px solid var(--border-soft);background:var(--panel);border-radius:980px;
-  padding:6px 13px;font-size:13px}
-#standbar .sb-go{min-width:74px}
-#standbar .sb-spd{font-size:12px;color:var(--muted);min-width:70px;text-align:center}
-#standbar .sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+  padding:0 14px;min-height:38px;font-size:13px;white-space:nowrap}
+#standbar button:hover{background:var(--hover)}
+/* v60.38 修白字白底：.primary 的白字存活、朱砂底却被上行 #standbar button（特异性 1,0,1）
+   盖成 var(--panel)——「退出谱架」恒隐形、「自动卷谱」在卷动中（JS 加 .primary）同样隐形。
+   同时理顺语义：自动卷谱=主操作恒朱砂胶囊，卷动中(.primary)转深色按压态；退出降为安静描边钮 */
+#standbar #sb-go{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#standbar #sb-go:hover{background:var(--accent-2)}
+/* 卷动态：状态类打在容器上（#standbar.going），startAutoScroll/stopAutoScroll 同步切换 */
+#standbar.going #sb-go{background:var(--accent-ink);border-color:var(--accent-ink)}
+#standbar button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+#standbar .sb-go{min-width:96px}
+#standbar .sb-spd{font-size:12px;color:var(--muted);min-width:64px;text-align:center;
+  font-variant-numeric:tabular-nums}
+#standbar .sep{width:1px;height:18px;background:var(--border);margin:0 1px}
+@media (max-width:560px){   /* 手机谱架：一屏放下不横溢 */
+  #standbar{gap:5px;padding:7px 8px}
+  #standbar button{padding:0 10px;font-size:12.5px}
+  #standbar .sb-go{min-width:0}
+  #standbar .sb-spd{min-width:52px;font-size:11.5px}
+}
 #paywall{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:45;
   background:var(--panel);border:1.5px solid var(--accent);border-radius:14px;
   padding:12px 20px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);font-size:13px}
@@ -18784,7 +18801,7 @@ function enterStand(){
     <button id="sb-fast" title="加速">＋</button>
     <span class="sep"></span>
     <button id="sb-top" title="回到顶部">⤒ 顶部</button>
-    <button id="sb-exit" class="primary" style="border-radius:980px">退出谱架</button>`;
+    <button id="sb-exit">退出谱架</button>`;
   const setSpd=()=>document.getElementById('sb-spd').textContent=standScroll.speed+' px/s';
   document.getElementById('sb-go').onclick=toggleAutoScroll;
   document.getElementById('sb-slow').onclick=()=>{ standScroll.speed=Math.max(8,standScroll.speed-6); setSpd(); };
@@ -18805,12 +18822,14 @@ function exitStand(){
 function toggleAutoScroll(){ standScroll.on? stopAutoScroll() : startAutoScroll(); }
 function startAutoScroll(){
   standScroll.on=true; standScroll.acc=0;
+  const sb=document.getElementById('standbar'); if(sb) sb.classList.add('going');   /* v60.38 卷动态样式挂容器 */
   const g=document.getElementById('sb-go'); if(g){ g.innerHTML=svgi('pause',12)+' 暂停'; g.classList.add('primary'); }
   cancelAnimationFrame(standScroll.raf);
   standScroll.raf=requestAnimationFrame(standTick);
 }
 function stopAutoScroll(){
   standScroll.on=false; cancelAnimationFrame(standScroll.raf);
+  const sb=document.getElementById('standbar'); if(sb) sb.classList.remove('going');
   const g=document.getElementById('sb-go'); if(g){ g.innerHTML='▶ 自动卷谱'; g.classList.remove('primary'); }
 }
 let standT=0;
@@ -19575,7 +19594,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.37';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.38';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19598,6 +19617,7 @@ const APP_VER='v60.37';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.38</span><div><b>谱架模式控制条修正与优化</b>（用户报告截图：控制条出现两枚空白按钮）。<b>根因</b>：「退出谱架」带 <code>.primary</code>——它的白色文字生效了，朱砂底色却被 <code>#standbar button</code> 的高特异性规则覆盖成纸白，<b>白字白底完全隐形</b>；「自动卷谱」在卷动进行中被加上同一个类（变「⏸ 暂停」），同样隐形——截图里两枚空白钮正是这一个 bug 的两种表现。修正并顺带优化：① <b>自动卷谱升为主操作</b>——恒朱砂胶囊白字，卷动中转<b>深色按压态</b>＋「⏸ 暂停」文案，状态一眼可辨；② <b>退出谱架降为安静描边钮</b>（深字浅底，不再与主操作抢红）；③ 按钮触控高度提到 38px、条宽随内容不超屏、手机窄屏（≤560px）紧凑排布一屏放下、底部让出 iPhone 安全区。<code>tv_mviews</code> 12→<b>14 项</b>（T5 配色语义/T5b 按压态与复原——对 v60.37 旧文件跑当场红）。<b>过程中揪出一个 Chrome 149 测试坑记入 tests/README</b>：读过一次计算样式的元素，类变更后同任务甚至下一帧再读仍拿陈旧值（约 300ms 后才对）——「变更前后」断言必须拆两次读取跨真实 paint，与「先掐过渡」同族。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.37</span><div><b>观看页头部精简 + 吉他变调逻辑系统</b>（产品负责人指示：只显示变调和速度；变调点击弹窗设置，吉他谱的变调夹融合进弹窗；弹窗有原调显示与恢复原调；五线谱/简谱等其他谱类不显示变调夹）。① <b>头部三枚收为两枚</b>：「变调」（显示当前唱调，点击进设置弹窗）＋「拍速」；独立的变调夹入口撤销。② <b>变调弹窗</b>：首行<b>原调显示 + 恢复原调</b>（唱调与变调夹一并回到发布状态）；主行 ♭/♯ 调唱调。③ <b>吉他谱专属：一套自洽的变调逻辑</b>——核心等式「<b>唱调 ＝ 指法调 ＋ 变调夹</b>」直接画在弹窗里：调<b>唱调</b>（要更高更低的音）→ 指法随动、夹不动；调<b>变调夹</b>（要更好按的指法）→ <b>唱调锁定</b>、指法自动反向换算——夹上 2 品指法自动从 G 换算成 F，唱出来还是 G，这才是变调夹的本义；另有<b>夹位速选</b>一排（0–7 品，每格标注对应指法调，<b>C/A/G/E/D 开放把位金色高亮</b>——一眼挑出好按的夹位）。④ <b>谱类判定按发布数据的谱类声明</b>：五线谱/简谱/钢琴等谱类弹窗只有变调与恢复原调，不出现任何变调夹内容。全部即时生效、不改动原谱。<code>tv_viewer</code> 8→<b>9 项</b>（T8 改测 vocal 无夹 + 恢复原调，新增 T8b 吉他逻辑全流程——「唱调锁定换算」经突变实证：退回旧语义当场红）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.36</span><div><b>播放条精简 + 手机播放器界面升级</b>（产品负责人指示：去掉「第 X / Y 小节」标签与「数拍」按钮；手机端做美观的界面设计升级）。① <b>播放条全端撤下两个控件</b>：小节位置信息本就由小节走带高亮与循环选区承担，「数拍」入口撤下（排程能力保留，后续按教学场景另定入口）。② <b>手机播放器从「单行横滑」升级为三排卡片</b>——此前实测播放条内容宽 887px、屏幕只有 390px，<b>56% 的控件在屏外要横着划才够得着</b>。新布局：第一排<b>小节走带占满整行</b>（进度/点选循环更好点按）＋▦ 小节面板入口；第二排 ⏮ ＋ <b>大播放胶囊</b>（主操作给主视觉，高 46px）；第三排<b>速度/倍速/节拍器/谱架/音轨五枚等宽芯片</b>（全部 ≥40px 触控标准）；底坞顶角圆润化＋发丝分隔线。观看页保持 v55.0 拍板的精简布局不动；桌面端布局不变。三条底栏（播放器/图层轨/时值条）堆叠高度同步重算，<code>tv_mobile</code> 原有「两两零重叠」几何断言兜底，另新增 T8/T9（控件移除＋三排几何：走带整行/播放胶囊尺寸/芯片等宽/无横滚）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.35</span><div><b>播放杂音与卡顿根治：音频线程不再过载</b>（用户报告 v60.34 后「播放很多杂音和卡顿，无法分辨音质好坏」——定量排查证明<b>混音信号本身是干净的</b>：离线渲染整条总线输出，削波 0、爆点 0、峰值仅 0.42，杂音全部来自<b>音频线程跑不赢实时产生的缓冲欠载</b>，欠载=爆音+断续，正好同时是「杂音」和「卡顿」，且历代版本一直存在）。<b>实测定位三个互相叠加的病灶</b>：① 按下播放的瞬间<b>整曲所有音符的源+增益+滤波节点全部建好挂上音频图</b>，WebAudio 每个渲染量子都要遍历整张图——负载随「总音符数」近乎平方增长（32 小节扫弦谱 1152 个源实测 0.86× 实时、合成器回落时 1.77×，快机器都跑不赢，何况普通电脑手机）；② 放完的音符链路从不拆除，播到后段负载还在线性爬升；③ <b>每次播放都新建一套「母线+压缩器+卷积混响」且旧的从不拆</b>——反复播放/停止几次后页面上挂着 N 个卷积器同时在跑，<b>越播越卡杂音越多</b>（试听音色同病）。修三件：① <b>分窗排程</b>——构建期只登记发声参数，滚动地只把「未来 2 秒」的音建到图上，图上任意时刻只挂几十个音，<b>负载与曲长彻底解耦</b>（同谱实测 0.86×→&lt;0.10×，起播阻塞 164ms→75ms）；② <b>音符放完即拆链</b>；③ <b>停播整套拆除本次总线图</b>，试听/回响共用会话级总线。全链路对账：分窗后整曲 576/576 个发声事件一个不漏、时序不乱。<code>tv_playperf</code> 9→<b>12 项</b>（分窗/拆链/总线拆除，对 v60.34 旧文件跑当场三红=突变实证）。<b>81 套件</b>全绿。</div></li>

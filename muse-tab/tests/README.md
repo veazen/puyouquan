@@ -29,3 +29,14 @@ unzip /tmp/cft.zip -d /tmp && export CHROMIUM_PATH=/tmp/chrome-linux64/chrome
 ```
 
 （版本号以 `node_modules/playwright-core/browsers.json` 里 chromium 的 `browserVersion` 为准。）
+
+## 计算样式断言第二坑：读过一次的元素，类变更后同任务/下帧再读仍是陈旧值（v60.38 实测）
+
+Chrome 149 下：对某元素调用过一次 `getComputedStyle(el).xxx` 后，再改它（或祖先）的
+class，**同一任务里再读、甚至下一帧 rAF 里再读**（rAF 先于样式重算）拿到的仍是旧值——
+实测约 300ms 后视觉与读数才恢复正确。tv_mviews T5b 曾因此假红：规则在场、类在场、
+特异性更高，`getComputedStyle` 却坚持返回旧背景色。
+
+**写法**：「变更前状态」与「变更后状态」拆成**两次 `pg.evaluate`，中间 `waitForTimeout`
+跨一次真实 paint** 再读；不要在一次 evaluate 里「读→改类→再读」。与首坑（先掐过渡）
+可能同时踩：跨 paint 后读到的还可能是过渡中间值，颜色断言尽量用「≠ 旧值」而非「== 目标值」。

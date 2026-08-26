@@ -91,6 +91,36 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     }; })()`);
   T(r.wrap === 'wrap' && r.noCls && r.shellBtn && r.fitMax !== '100%', 'T4 桌面不受影响（wrap/无mzoom/经典入口隐存/无fit上限）', JSON.stringify(r));
   T(r.vzBoot === 1.5 && r.flyHidden === false, 'T4b 桌面守护：存储缩放带入·左栏自动展开保持', JSON.stringify({ vzBoot: r.vzBoot, flyHidden: r.flyHidden }));
+  /* T5 v60.38 谱架栏配色语义（修「白字白底」：.primary 白字存活、朱砂底被 #standbar button
+     高特异性规则盖成 var(--panel)——退出谱架恒隐形、自动卷谱在卷动中隐形；v60.37 旧文件跑本条即红）。
+     断言：自动卷谱=朱砂胶囊白字、卷动中转深色按压态且文案变暂停、退出钮深字非白、无隐形（字色≠底色）。
+     ⚠ 读法（Chrome 149 实测坑，与 tv_frame T16「先掐过渡」同族）：同一元素读过一次计算样式后，
+     类变更在同任务/下一帧 rAF 里再读仍拿**陈旧值**（rAF 先于样式重算；实测约 300ms 后视觉才对）——
+     idle 与卷动态必须拆成两次 evaluate、中间跨真实 paint，否则断言假红。 */
+  r = await pg2.evaluate(`(()=>{
+    window.guardReplace = p => p();
+    loadSong(createSong('vocal', { title:'st', beats:4, unit:4, key:'C', nMea:30, nTab:0, nVox:1, lyr:0 }));
+    enterStand();
+    const cs = id => { const c = getComputedStyle(document.getElementById(id)); return { color:c.color, bg:c.backgroundColor }; };
+    const idle = { go: cs('sb-go'), exit: cs('sb-exit') };
+    startAutoScroll();
+    return idle;
+  })()`);
+  await pg2.waitForTimeout(120);
+  const r5b = await pg2.evaluate(`(()=>{
+    const c = getComputedStyle(document.getElementById('sb-go'));
+    const run = { bg: c.backgroundColor, color: c.color, txt: document.getElementById('sb-go').textContent.trim() };
+    stopAutoScroll();
+    const back = document.getElementById('sb-go').textContent.trim();
+    exitStand();
+    return { run, back };
+  })()`);
+  T(r.go.color === 'rgb(255, 255, 255)' && r.go.bg !== r.go.color
+    && r.exit.color !== 'rgb(255, 255, 255)' && r.exit.color !== r.exit.bg,
+    'T5 谱架栏：卷谱钮朱砂白字·退出钮深字（无白字白底隐形）', JSON.stringify(r));
+  T(/暂停/.test(r5b.run.txt) && r5b.run.bg !== r.go.bg && r5b.run.color === 'rgb(255, 255, 255)'
+    && /自动卷谱/.test(r5b.back),
+    'T5b 卷动中按压态（深色+暂停文案）·停止复原', JSON.stringify(r5b));
   T(errs2.length === 0, '桌面端无报错', errs2.join('|') || 'none');
   await pg2.close();
 
