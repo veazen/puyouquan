@@ -24,15 +24,20 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   const base = { beats: 4, unit: 4, key: 'C', tempo: 90, nMea: 2, singer: '', lyricist: '', composer: '', maker: '', capo: 0 };
   const vis = id => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
 
-  // T1 吉他轨：演奏技巧第二行 + 扫弦记号
+  // T1 吉他轨：扫弦/琶音记号在位、五线谱工具隐藏；切旋律轨后扫弦记号随轨隐藏（工具随轨对比）
+  //    （eb-ctx 技法第二行为经典版遗产，新版外壳技法在记号面板——断言按新版口径）
   let r = await pg.evaluate((base2) => {
     loadSong(createSong('tanchang', Object.assign({ inst: 'guitar', nTab: 1, nVox: 1, lyr: 1 }, base2)));
     setRibbon('tab'); sel.row = 'tab'; sel.vi = 0; render();
     const vis2 = id => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
-    return { tech: document.querySelectorAll('#eb-ctx [data-tech2]').length > 5,
-      strum: vis2('b-strum-d') && vis2('b-arp'), staffHidden: !vis2('b-ped-on') && !vis2('b-clef') };
+    const onTab = { strum: vis2('b-strum-d') && vis2('b-arp'), staffHidden: !vis2('b-ped-on') && !vis2('b-clef') };
+    setRibbon('vox'); sel.row = 'vox'; sel.vi = 0; render();
+    const onVox = { strumGone: !vis2('b-strum-d') };
+    setRibbon('tab'); sel.row = 'tab'; render();
+    return { onTab, onVox };
   }, base);
-  T(r.tech && r.strum && r.staffHidden, 'T1 吉他轨（技法行+扫弦记号+无五线谱工具）', JSON.stringify(r));
+  T(r.onTab.strum && r.onTab.staffHidden && r.onVox.strumGone,
+    'T1 吉他轨（扫弦记号在位+无五线谱工具+切旋律轨扫弦隐）', JSON.stringify(r));
 
   // T2 旋律轨·简谱显示：五线谱五件套全部隐藏（b-clef=P2 补缺口）
   r = await pg.evaluate((base2) => {
@@ -55,19 +60,20 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   });
   T(r.ped && r.fing && r.ott && r.clef, 'T3 旋律轨·五线谱（五件套齐现）', JSON.stringify(r));
 
-  // T4 钢琴轨：五件套在位；b-acctex 仅钢琴弹唱
+  // T4 钢琴轨：五件套在位；织体钮 b-acctex 的谱类显隐规则（右栏卡内元素，断言 renderDock 写的内联 display）
   r = await pg.evaluate((base2) => {
     loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2)));
     setRibbon('vox'); sel.row = 'vox'; sel.vi = 0; render();
     const vis2 = id => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
-    const solo = { ped: vis2('b-ped-on'), clef: vis2('b-clef'), tex: vis2('b-acctex') };
+    const texDisp = () => (document.getElementById('b-acctex') || {}).style.display;
+    const solo = { ped: vis2('b-ped-on'), clef: vis2('b-clef'), tex: texDisp() };
     loadSong(createSong('pianoacc', Object.assign({ lyr: 1 }, base2)));
     setRibbon('vox'); render();
-    const acc = { tex: vis2('b-acctex') };
+    const acc = { tex: texDisp() };
     return { solo, acc };
   }, base);
-  T(r.solo.ped && r.solo.clef && !r.solo.tex && r.acc.tex,
-    'T4 钢琴轨（五线谱工具+织体钮仅弹唱谱）', JSON.stringify(r));
+  T(r.solo.ped && r.solo.clef && r.solo.tex === 'none' && r.acc.tex === '',
+    'T4 钢琴轨（五线谱工具+织体钮谱类显隐规则）', JSON.stringify(r));
 
   // T5 功能谱轨：级数面板置顶可见
   r = await pg.evaluate((base2) => {
@@ -78,18 +84,21 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   }, base);
   T(r.fnVis && r.order === '0', 'T5 功能谱轨（级数面板置顶）', JSON.stringify(r));
 
-  // T6 图层轨随音轨增删（P1 闭环在图层轨侧的表现）
+  // T6 左轨音轨钮随音轨增删（v60.43 音轨最上级：rail 轨钮数=轨数；点轨钮切轨）
   r = await pg.evaluate((base2) => {
     loadSong(createSong('vocal', Object.assign({ nVox: 1, lyr: 1 }, base2)));
-    const tb = () => document.querySelector('.ltab[data-t="tab"]');
-    const before = getComputedStyle(tb()).display === 'none';
+    const nBtns = () => document.querySelectorAll('#rail-tracks .rtrk[data-trk]').length;
+    const before = nBtns() === 1;
     addVoice('tab');
-    const after = getComputedStyle(tb()).display !== 'none';
+    const after = nBtns() === 2;
+    document.querySelector('#rail-tracks .rtrk[data-trk="tv:0"]').click();
+    const picked = sel.row === 'tab' && activeTab === 'tab'
+      && document.querySelector('#rail-tracks .rtrk[data-trk="tv:0"]').classList.contains('on');
     delVoiceAt('tab', 0);
-    const gone = getComputedStyle(tb()).display === 'none' && sel.row === 'vox';
-    return { before, after, gone };
+    const gone = nBtns() === 1 && sel.row === 'vox';
+    return { before, after, picked, gone };
   }, base);
-  T(r.before && r.after && r.gone, 'T6 图层轨随音轨增删', JSON.stringify(r));
+  T(r.before && r.after && r.picked && r.gone, 'T6 左轨音轨钮随轨增删·点钮切轨', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

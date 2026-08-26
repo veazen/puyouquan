@@ -25,27 +25,30 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   });
   await pg.waitForTimeout(400);
 
-  // T1 统一列表结构
+  // T1 音轨最上级结构（v60.43 产品更正）：最左轨=全轨钮列表+＋；展开面板=仅「当前音轨」一行
   let r = await pg.evaluate(() => {
-    const q = (root, s) => document.querySelectorAll('#' + root + ' ' + s).length;
+    const railBtns = [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')].map(b => b.dataset.trk);
     return {
-      tabSideTv: q('tab-voices', '.trk[data-k="tv"]'), tabSideVv: q('tab-voices', '.trk[data-k="vv"]'),
-      voxSideTv: q('vox-voices', '.trk[data-k="tv"]'), voxSideVv: q('vox-voices', '.trk[data-k="vv"]'),
-      addBtns: document.querySelectorAll('.trk-add').length,
+      rail: railBtns.join(','), add: !!document.getElementById('rail-addtrk'),
+      layersHidden: ['tab', 'vox', 'lyr', 'chord'].every(k => {
+        const el = document.querySelector('.ltab[data-t="' + k + '"]'); return el && el.offsetParent === null; }),
+      curRows: document.querySelectorAll('#tab-voices .trk').length,
+      curIsTab: !!document.querySelector('#tab-voices .trk[data-k="tv"].on'),
       titles: [...document.querySelectorAll('#panel-tab-voice .rg-title, #panel-vox-voice .rg-title')].map(e => e.textContent)
     };
   });
-  T(r.tabSideTv === 1 && r.tabSideVv === 1 && r.voxSideTv === 1 && r.voxSideVv === 1
-    && r.addBtns === 2 && r.titles.every(t2 => t2 === '音轨'),
-    'T1 统一音轨列表（两容器同份全轨+＋音轨+标题）', JSON.stringify(r));
+  T(r.rail === 'tv:0,vv:0' && r.add && r.layersHidden && r.curRows === 1 && r.curIsTab
+    && r.titles.every(t2 => t2 === '当前音轨'),
+    'T1 音轨最上级（左轨全列表+图层钮撤+面板仅当前轨行）', JSON.stringify(r));
 
-  // T2 点行切图层
+  // T2 点左轨轨钮切轨切图层
   r = await pg.evaluate(() => {
     setRibbon('vox'); sel.row = 'vox'; sel.vi = 0; render();
-    document.querySelector('#vox-voices .trk[data-k="tv"]').click();
-    return { row: sel.row, tab: activeTab };
+    document.querySelector('#rail-tracks .rtrk[data-trk="tv:0"]').click();
+    return { row: sel.row, tab: activeTab,
+      lit: document.querySelector('#rail-tracks .rtrk[data-trk="tv:0"]').classList.contains('on') };
   });
-  T(r.row === 'tab' && r.tab === 'tab', 'T2 旋律语境点吉他轨行→自动切图层', JSON.stringify(r));
+  T(r.row === 'tab' && r.tab === 'tab' && r.lit, 'T2 点左轨吉他轨钮→选轨+切图层+点亮', JSON.stringify(r));
 
   // T3 歌谱↔弹唱闭环
   r = await pg.evaluate(() => {

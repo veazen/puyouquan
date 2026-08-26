@@ -71,17 +71,25 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.standOn && r.standOff, 'T5 谱架兼容', '进=' + r.standOn + ' 出=' + r.standOff);
 
-  // T6 v40.1 六图层轨：新版显示 和弦/小节/段落 图层按钮，经典版隐藏
+  // T6 左轨结构（v60.43 音轨最上级）：新版=音轨钮+小节/段落，谱类/歌词/和弦图层钮隐藏；经典版=旧三页签
   r = await pg.evaluate(() => {
     const vis = k => { const el = document.querySelector('.ltab[data-t="' + k + '"]'); return el && el.offsetParent !== null; };
-    const shellOn = ['chord', 'mea', 'sect'].every(vis);
+    const shellOn = ['mea', 'sect'].every(vis);
+    const layersOff = ['tab', 'vox', 'lyr', 'chord'].every(k => !vis(k));
+    const trkBtns = [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')];
+    const trkOn = trkBtns.length === (song.tabVoices.length + song.voxVoices.length)
+      && trkBtns.every(b => b.offsetParent !== null)
+      && !!document.getElementById('rail-addtrk');
     document.getElementById('b-shell').click();
     const classicOff = ['chord', 'mea', 'sect'].every(k => !vis(k));
     const classicBase = ['tab', 'vox', 'lyr'].every(vis);
+    const classicTrkOff = document.querySelectorAll('#rail-tracks .rtrk').length === 0
+      || document.querySelector('#rail-tracks .rtrk').offsetParent === null;
     document.getElementById('b-shell').click();
-    return { shellOn, classicOff, classicBase };
+    return { shellOn, layersOff, trkOn, classicOff, classicBase, classicTrkOff };
   });
-  T(r.shellOn && r.classicOff && r.classicBase, 'T6 六图层轨显隐', '新版6层=' + r.shellOn + ' 经典3页=' + (r.classicOff && r.classicBase));
+  T(r.shellOn && r.layersOff && r.trkOn && r.classicOff && r.classicBase && r.classicTrkOff,
+    'T6 左轨结构（音轨钮最上级/图层钮撤下/经典版照旧）', JSON.stringify(r));
 
   // T7 和弦层谱类感知：吉他谱→和弦输入面板；钢琴弹唱（无吉他声部）→级数和弦面板
   r = await pg.evaluate(() => {
