@@ -877,8 +877,29 @@ body.stand #standbar{display:flex}
 .fb-c.mk{background:color-mix(in srgb, var(--accent-soft) 45%, var(--paper))}
 .fb-c.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .fb-c.on.x{background:var(--muted);border-color:var(--muted)}
-/* 新建向导·类型卡片（大气现代，无图标） */
+/* 新建向导·类型卡片（大气现代，无图标）——v60.41 旧九卡下线，样式保留供程序化路径 */
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
+/* v60.41 音轨化新建向导：三意图卡（图标先行）+ 就地展开次级药丸 + 四项基础信息一屏 */
+.nw-ints{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 4px}
+.nw-int{display:flex;flex-direction:column;align-items:center;gap:3px;border:1.5px solid var(--border);
+  border-radius:14px;padding:13px 8px 10px;background:var(--paper);cursor:pointer;font:inherit;min-width:0}
+.nw-int svg{color:var(--accent-ink)}
+.nw-int b{font-size:14.5px;line-height:1.3}
+.nw-int span{font-size:11px;color:var(--muted);white-space:nowrap}
+.nw-int.on{border-color:var(--accent);box-shadow:0 0 0 2.5px var(--accent-soft)}
+.nw-subrow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:9px 0 0}
+.nw-lab{flex:0 0 34px;font-size:12px;color:var(--muted);font-weight:700}
+.nw-pill{border:1.5px solid var(--border);border-radius:999px;padding:5px 13px;font-size:12.5px;
+  background:var(--paper);cursor:pointer;font:inherit;line-height:1.35}
+.nw-pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.nw-basics{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:13px 0 2px}
+.nw-basics .nb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.nw-hint{font-size:11.5px;color:var(--muted);margin:7px 0 0}
+@media (max-width:560px){
+  .nw-ints{grid-template-columns:1fr}
+  .nw-int{flex-direction:row;justify-content:flex-start;gap:9px;padding:10px 14px}
+  .nw-int span{margin-left:auto}
+}
 /* v38.8 向导差异化入口提权：导入/哼唱不再与「取消」同权重 */
 .nw-feats{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:12px 0 2px;
   padding:10px 12px;border:1.5px dashed var(--accent);border-radius:12px;background:var(--accent-soft)}
@@ -1981,7 +2002,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div id="start-pad" class="hidden">
       <div class="spd-brand cc-logo"><span class="mark"></span>谱友圈 · 在线制谱</div>
       <div id="spd-cards">
-        <button class="spd-card" data-sp="new"><span class="ic" data-svgi="pencil"></span><b>新建</b><span>八类曲谱 · 新建向导</span></button>
+        <button class="spd-card" data-sp="new"><span class="ic" data-svgi="pencil"></span><b>新建</b><span>声乐 · 器乐 · 功能和声</span></button>
         <button class="spd-card" data-sp="open"><span class="ic" data-svgi="doc"></span><b>打开</b><span>打开曲谱文件</span></button>
         <button class="spd-card" data-sp="imp"><span class="ic" data-svgi="loop"></span><b>导入</b><span>MusicXML / MIDI</span></button>
         <button class="spd-card" data-sp="mine"><span class="ic" data-svgi="score"></span><b>我的</b><span>预设与我的曲谱</span></button>
@@ -5953,7 +5974,7 @@ function editHints(){
   if(typeof startPadOn==='function' && startPadOn())
     return {title:'欢迎使用谱友圈制谱', items:[
       it('从屏幕中央选择开始：新建 · 打开 · 导入 · 我的'),
-      it('新建向导覆盖八类曲谱：弹唱 / 尤克里里 / 独奏 / 钢琴 / 歌谱 / 教学对照 / 器乐五线 / 功能谱'),
+      it('新建三选一即进编辑器：声乐（独唱/合唱）· 器乐（吉他/尤克里里/钢琴/五线器乐，独奏或弹唱）· 功能和声（级数谱/和弦格）'),
       it('也可点「继续上次编辑」回到草稿')], subs:[]};
   let title='', items=[];
   const nt=(song.voxNotations||[])[sel.vi], st=isStaffNota(nt);
@@ -15344,29 +15365,98 @@ function createSong(type, o){
 function showNewWizard(){
   /* v46.9 启动台态不展示「当前曲谱《旧稿》…」状态行——新建应是全新曲谱，不见上次残留 */
   const st = (song && !startPadOn())? saveStatusText(song) : null;
-  showModal(`<h3>新建曲谱 · 第 1 步：选择曲谱类型</h3>
+  /* v60.41 音轨化改版 P0（产品拍板方案）：谱类＝音轨组合×显示方式。旧「九张版式卡＋第二步十项表单」
+     收敛为一屏——三意图卡（声乐/器乐/功能和声）就地展开次级药丸，基础信息只留 标题/调/拍号/速度，
+     其余智能默认、创建后随时改；全部组合仍落到既有 createSong 类型（数据/发布/谱库零感知）。
+     教学对照谱不再设卡（D1 拍板）＝声部「五线＋简谱」双显示；showNewForm 保留供程序化/回归。 */
+  const sels=(id,arr,def)=>'<select id="'+id+'">'+arr.map(v=>'<option value="'+v+'"'+(v===def?' selected':'')+'>'+v+'</option>').join('')+'</select>';
+  showModal(`<h3>新建曲谱</h3>
   ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前曲谱《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将<b>替换当前窗口</b>${st.saved?'':'（未入库的编辑会先询问）'}。</p>` : ''}
-  <div class="ntgrid">
-    <button class="ntcard ntype" data-nt="tanchang"><span class="nt-tag">弹唱</span><b>吉他弹唱谱</b><span>六线谱 TAB＋简谱＋歌词＋和弦图，吉他/尤克里里通用的标准弹唱版式（乐器下一步选）。</span></button>
-    <button class="ntcard ntype" data-nt="solo" data-gtype="lead"><span class="nt-tag">独奏</span><b>吉他独奏谱</b><span>六线＋五线联排（Guitar Pro 式），电吉他 solo 完整技法：推弦/摇把/滑音/泛音细分/点弦/let ring。</span></button>
-    <button class="ntcard ntype" data-nt="solo" data-gtype="finger"><span class="nt-tag">指弹</span><b>指弹吉他谱</b><span>木吉他指弹：六线＋五线联排，pima 右手指法、特殊调弦（Drop D/DADGAD/Open G）、打板与击勾滑。</span></button>
-    <button class="ntcard ntype" data-nt="pianoacc"><span class="nt-tag">伴奏</span><b>钢琴弹唱谱</b><span>大谱表纯伴奏：标注和弦、选伴奏织体自动生成双手音符——主旋律由演唱者担任。</span></button>
-    <button class="ntcard ntype" data-nt="piano"><span class="nt-tag">大谱表</span><b>钢琴独奏谱</b><span>高音+低音双谱表（右手/左手）花括线联排，双手各自独立录入。</span></button>
-    <button class="ntcard ntype" data-nt="vocal"><span class="nt-tag">简谱</span><b>歌谱</b><span>简谱＋多段歌词：独唱、合唱（1–4 声部）与二胡/古筝等民乐记谱通用。</span></button>
-    <button class="ntcard ntype" data-nt="teach"><span class="nt-tag">对照</span><b>教学对照谱</b><span>五线谱＋简谱行逐列对齐＋歌词，音乐课堂与考级教学的标配版式。</span></button>
-    <button class="ntcard ntype" data-nt="instr"><span class="nt-tag">五线谱</span><b>器乐五线谱</b><span>单谱表出版级刻版（高音/中音/低音谱号下一步选），器乐独奏与声部记谱。</span></button>
-    <button class="ntcard ntype" data-nt="func"><span class="nt-tag">乐队</span><b>功能谱</b><span>简谱＋级数和弦；或「纯和弦谱」——小节格内按拍放和弦，乐队排练与即兴伴奏两用。</span></button>
+  <div class="nw-ints">
+    <button class="nw-int" data-int="vocal" title="人声旋律轨：简谱＋歌词，独唱或 2–4 声部合唱；也适合二胡/古筝等民乐单旋律记谱">${svgi('mic',24)}<b>声乐</b><span>独唱 · 合唱</span></button>
+    <button class="nw-int" data-int="inst" title="乐器轨：吉他 / 尤克里里 / 钢琴 / 其他器乐；「伴奏」形态自动加一条人声旋律轨（弹唱）">${svgi('guitar',24)}<b>器乐</b><span>独奏 · 伴奏</span></button>
+    <button class="nw-int" data-int="func" title="和声框架：简谱＋级数和弦，或小节格和弦进行谱——乐队排练与即兴伴奏两用">${svgi('chordgrid',24)}<b>功能和声</b><span>级数谱 · 和弦格</span></button>
   </div>
+  <div id="nw-sub"></div>
+  <div class="nw-basics">
+    <input id="nw-title" value="未命名曲谱" style="flex:1 1 150px;min-width:120px" title="曲名（演唱/词曲/制谱署名创建后在「曲谱信息」补）">
+    <span class="nb">1=${sels('nw-key',KEY_LIST,'C')}</span>
+    <span class="nb">${sels('nw-beats',[2,3,4,6],4)}<b>/</b>${sels('nw-unit',[4,8],4)}</span>
+    <span class="nb">♩=<input id="nw-tempo" type="number" value="90" min="30" max="240" style="width:58px"></span>
+  </div>
+  <div class="nw-hint">小节数、歌词行、变调夹、定弦、词曲署名——创建后在「曲谱信息」与左栏随时改，先进编辑器。</div>
   <div class="nw-feats">
     <span class="nw-feats-t">已有曲子？不用从零录入：</span>
     <button id="nw-import" class="nwf">${svgi('doc',15)} 导入 MusicXML<small>MuseScore / AI 转谱直接进编辑器</small></button>
     <button id="nw-gp" class="nwf">${svgi('guitar',15)} 导入 Guitar Pro<small>.gp / .gpx / .gp3 / .gp4 / .gp5 全版本</small></button>
     <button id="nw-hum" class="nwf">${svgi('mic',15)} 哼唱成谱<small>清唱一段，自动出简谱草稿</small></button>
   </div>
-  <div class="btns"><button id="nw-cancel">取消</button></div>
+  <div class="btns"><button id="nw-cancel">取消</button><button id="nw-create" class="primary">创建，进入编辑</button></div>
   <input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" style="display:none">
   <input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" style="display:none">
 `);
+  /* 意图状态：默认 器乐·吉他·伴奏（最主流，一击可建）；换乐器时形态钳到该乐器合法集合 */
+  const NW={int:'inst', vocalN:1, instKey:'guitar', form:'acc', clef:'staff', ftype:'func'};
+  const pill=(k,v,lab,tip)=>'<button class="nw-pill" data-k="'+k+'" data-v="'+v+'"'+(tip?' title="'+tip+'"':'')+'>'+lab+'</button>';
+  const renderSub=()=>{
+    if(NW.instKey==='piano'){ if(NW.form!=='psolo'&&NW.form!=='pacc') NW.form='pacc'; }
+    else if(NW.instKey==='uku'){ NW.form='acc'; }
+    else if(NW.instKey==='guitar'){ if(NW.form!=='acc'&&NW.form!=='lead'&&NW.form!=='finger') NW.form='acc'; }
+    let h='';
+    if(NW.int==='vocal'){
+      h='<div class="nw-subrow"><span class="nw-lab">形式</span>'
+        +pill('vocalN',1,'独唱')+pill('vocalN',2,'合唱 2 声部')+pill('vocalN',3,'合唱 3 声部')+pill('vocalN',4,'合唱 4 声部')+'</div>';
+    } else if(NW.int==='func'){
+      h='<div class="nw-subrow"><span class="nw-lab">谱式</span>'
+        +pill('ftype','func','简谱＋级数和弦','选中音符后左栏「和弦/级数」标注')
+        +pill('ftype','chord','和弦格（小节格）','小节格内按拍放和弦、配节奏斜线，乐队排练一页纸')+'</div>';
+    } else {
+      h='<div class="nw-subrow"><span class="nw-lab">乐器</span>'
+        +pill('instKey','guitar','吉他')+pill('instKey','uku','尤克里里')+pill('instKey','piano','钢琴')+pill('instKey','other','其他器乐（五线谱）')+'</div>';
+      if(NW.instKey==='guitar')
+        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'
+          +pill('form','acc','伴奏（弹唱）· 自动加人声轨','六线谱＋简谱＋和弦图，标准弹唱版式')
+          +pill('form','lead','电吉他 Solo','六线＋五线联排，推弦/摇把/泛音等完整技法')
+          +pill('form','finger','指弹','六线＋五线联排，pima 指法/特殊调弦/打板击勾滑')+'</div>';
+      else if(NW.instKey==='uku')
+        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'+pill('form','acc','伴奏（弹唱）· 自动加人声轨','四线谱＋简谱＋和弦图')+'</div>';
+      else if(NW.instKey==='piano')
+        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'
+          +pill('form','pacc','伴奏（弹唱）· 织体自动生成','大谱表纯伴奏＋和弦名，主旋律由演唱者担任')
+          +pill('form','psolo','独奏（大谱表）','右手/左手双谱表独立录入')+'</div>';
+      else
+        h+='<div class="nw-subrow"><span class="nw-lab">谱号</span>'
+          +pill('clef','staff','高音谱表')+pill('clef','alto','中音谱表')+pill('clef','bass','低音谱表')+'</div>';
+    }
+    const sub=document.getElementById('nw-sub'); sub.innerHTML=h;
+    sub.querySelectorAll('.nw-pill').forEach(b=>{
+      const k=b.dataset.k;
+      b.classList.toggle('on', String(NW[k])===b.dataset.v);
+      b.onclick=()=>{ NW[k]= k==='vocalN'? +b.dataset.v : b.dataset.v; renderSub(); };
+    });
+    document.querySelectorAll('.nw-int').forEach(c=>c.classList.toggle('on', c.dataset.int===NW.int));
+  };
+  document.querySelectorAll('.nw-int').forEach(c=>c.onclick=()=>{ NW.int=c.dataset.int; renderSub(); });
+  renderSub();
+  document.getElementById('nw-create').onclick=()=>{
+    const V=id=>document.getElementById(id).value;
+    const o={ title:V('nw-title').trim()||'未命名曲谱', singer:'', lyricist:'', composer:'',
+      maker:(typeof profileLoad==='function'&&profileLoad().maker)||'',
+      beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:+V('nw-tempo')||90, nMea:8, capo:0 };
+    let type, tName;
+    if(NW.int==='vocal'){ type='vocal'; o.nVox=NW.vocalN; o.lyr=1; tName= NW.vocalN>1? '合唱歌谱（'+NW.vocalN+' 声部）':'歌谱'; }
+    else if(NW.int==='func'){ type='func'; o.ftype=NW.ftype; o.nVox=1; o.lyr=1; tName= NW.ftype==='chord'?'和弦格谱':'功能谱'; }
+    else if(NW.instKey==='piano'){ type= NW.form==='psolo'?'piano':'pianoacc'; o.lyr= type==='piano'?0:1; tName= type==='piano'?'钢琴独奏谱':'钢琴弹唱谱'; }
+    else if(NW.instKey==='other'){ type='instr'; o.clef=NW.clef; o.nVox=1; o.lyr=0; tName='器乐五线谱'; }
+    else if(NW.form==='lead'||NW.form==='finger'){ type='solo'; o.gtype=NW.form; o.nVox=0; o.lyr=0; tName= NW.form==='finger'?'指弹吉他谱':'吉他独奏谱'; }
+    else { type='tanchang'; o.inst=NW.instKey; o.nTab=1; o.nVox=1; o.lyr=1; tName= NW.instKey==='uku'?'尤克里里弹唱谱':'吉他弹唱谱'; }
+    closeModal();
+    pyqEvent('create_song', type);
+    addDoc(createSong(type,o), ()=>{
+      setRibbon(sel.row==='vox'?'vox':'tab');
+      toast('已新建'+tName+'（8 小节）——小节数/歌词行/变调夹等在曲谱信息随时改');
+    });
+  };
   /* v55.8 Guitar Pro (.gp) 导入入口 */
   document.getElementById('nw-gp').onclick = ()=>document.getElementById('nw-gpfile').click();
   document.getElementById('nw-gpfile').onchange = e=>{
@@ -15458,9 +15548,9 @@ function showNewWizard(){
       rd.readAsText(file);
     }
   };
-  document.querySelectorAll('.ntype').forEach(b=>b.onclick=()=>showNewForm(b.dataset.nt, b.dataset.gtype));
   document.getElementById('nw-cancel').onclick = closeModal;
 }
+/* v60.41 旧两步向导第二步：入口下线（一屏向导替代），函数保留供程序化/回归调用 */
 function showNewForm(type, gtype){
   const tName = (type==='solo' && gtype==='finger')? '指弹吉他谱' : (type==='solo' && gtype==='lead')? '吉他独奏谱' :
     {tanchang:'吉他弹唱谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱', vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱',
@@ -19799,7 +19889,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.40';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.41';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19822,6 +19912,7 @@ const APP_VER='v60.40';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.41</span><div><b>新建流程音轨化改版（P0）：三选一，一屏进编辑器</b>（产品负责人手稿拍板：谱类＝<b>音轨组合 × 显示方式</b>——用户先说要什么轨，谱面用简谱/五线谱/六线谱显示是每条轨随时可切的属性）。旧「九张版式卡 → 第二步十项表单」两页流程收敛为<b>一屏</b>：① 三张图标意图卡——<b>声乐</b>（独唱 / 合唱 2–4 声部）、<b>器乐</b>（吉他 / 尤克里里 / 钢琴 / 其他器乐五线谱，形态选独奏或伴奏——<b>伴奏自动加一条人声旋律轨</b>，即弹唱）、<b>功能和声</b>（简谱＋级数 / 和弦格）；点卡就地展开次级选项，不换页。② 基础信息只留<b>标题 / 调 / 拍号 / 速度</b>四项——小节数、歌词行、变调夹、定弦、词曲署名全部给智能默认，创建后在「曲谱信息」与左栏随时改：不该在还没写一个音时被逼着回答十个问题。③ 默认选中「器乐 · 吉他 · 伴奏」（最主流）——打开向导<b>一击「创建」即进编辑器</b>，任意组合最多三击。④ 全部组合仍落到既有谱类实现：发布、谱库、观看页、导入导出全链路零感知，老谱不受任何影响；<b>教学对照谱不再单设卡</b>——它本就是声部「五线谱＋简谱」双显示的组合，左栏点亮两盏显示灯即得同款版式。⑤ 导入三入口（MusicXML / Guitar Pro / 哼唱成谱）原样保留在向导底部。新增 <code>tv_newwiz</code> 套件 <b>6 项</b>（一屏结构 / 一击默认建谱 / <b>十一种组合与旧向导产物逐字段等价</b>自动比对 / 次级联动 / 基础信息生效 / 手机布局），对 v60.40 旧文件跑当场红＝突变实证。<b>83 套件</b>全绿。后续按方案推进：P1 左栏音轨卡 → P2 工具随轨 → P3 旋律轨↔六线谱把位映射。</div></li>
     <li><span class="v">v60.40</span><div><b>数拍并入节拍器 + 节拍器设置弹窗</b>（产品负责人指示：数拍功能并入节拍器，完善节拍器功能，点开弹窗设置）。播放条「节拍器」按钮从单纯开关升级为<b>设置弹窗</b>：① <b>拍点声开关</b>——随播放逐拍发声（原开关语义）；② <b>数拍（预备拍）回归并入</b>：关 / 1 小节 / <b>2 小节</b>（新增）——起播前按拍号先打空拍再进曲，教学场景学生跟弹的「进入口令」；<b>与拍点声独立开关</b>：只要预备拍、全曲不要拍点（最常见用法）就开数拍关拍点；③ <b>首拍重音开关</b>——每小节第一拍高音重读，切分/弱起练习可关掉；④ <b>八分细分</b>——每拍后半拍加一记轻点（音色略抬、轻一档，机械节拍器双音色惯例），慢速跟练稳节奏；⑤ <b>拍点音量</b> 20%–200% 推子，与乐音音量独立。设置持久保存（新键 <code>musetab-metro</code>，数据红线安全）；数拍/重音等改动在播放中即时生效重排程。按钮亮起=拍点或数拍任一开启。弹窗与变调/拍速同一深色浮层家族，从播放坞向上弹出，点外部收起，手机/桌面/观看页/谱架同款可用。<code>tv_metro</code> 新套件 <b>6 项</b>（弹窗结构/开关联动/数拍 2 小节排程口径/细分排程口径/持久化恢复——对 v60.39 旧文件跑当场红=突变实证）。<b>82 套件</b>全绿。</div></li>
     <li><span class="v">v60.39</span><div><b>指法变调重排：和弦图与谱面演奏严格一致</b>（用户报告：变调+指法调整后和弦图与谱面演奏不匹配，并给出逻辑系统规格：①变调夹变调完全保持指法；②指法变调若保不住原演奏，自动按和弦图匹配指法）。<b>此前的问题</b>：指法变调=逐品平移+越界折八度——谱面音符平移了，和弦图显示的却是新调的标准指法图，图与演奏对不上，且平移出的把位不是人手会按的。<b>现在</b>：① <b>伴奏列随新和弦图取形</b>——列上的音都落在生效和弦指法上的（扫弦/分解/节奏型），逐弦换成新和弦图的品位；新图与原弦集不同时按<b>低→高弦序对应映射</b>（G 六弦满扫变 D 就成四弦满扫——真人换和弦弹同一织体正是这么做的），谱面演奏与和弦图从此严格一致；单音列是「分解伴奏」还是「旋律恰好路过和弦音」按小节语境判定（本小节多数列在图上才算伴奏）。② <b>旋律列走束搜索指派器整段重排把位</b>（v60.25 同一份实现：和音异弦/品距≤4/低把位空弦优先/跨列连贯），音高精确移调；放不下的整八度折入并计数、仍放不下退回平移——toast 如实播报，不静默。③ <b>变调夹路径指法零损有架构保证</b>：观看副本每次从原始发布数据重建，「唱+2 且 夹+2」这类经典夹用法净变调为零，原指法逐音原样。顺带补上 v60.30 拍位和弦在观看页移调时漏平移的缺口。<code>tv_viewer</code> 9→<b>10 项</b>（T8c 三合一断言，对 v60.38 平移版跑当场红=突变实证）。已知缺口如实记录：跨列技法指针（tk 弦号）在重排移弦后可能指偏，观看页试奏场景暂不重连。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.38</span><div><b>谱架模式控制条修正与优化</b>（用户报告截图：控制条出现两枚空白按钮）。<b>根因</b>：「退出谱架」带 <code>.primary</code>——它的白色文字生效了，朱砂底色却被 <code>#standbar button</code> 的高特异性规则覆盖成纸白，<b>白字白底完全隐形</b>；「自动卷谱」在卷动进行中被加上同一个类（变「⏸ 暂停」），同样隐形——截图里两枚空白钮正是这一个 bug 的两种表现。修正并顺带优化：① <b>自动卷谱升为主操作</b>——恒朱砂胶囊白字，卷动中转<b>深色按压态</b>＋「⏸ 暂停」文案，状态一眼可辨；② <b>退出谱架降为安静描边钮</b>（深字浅底，不再与主操作抢红）；③ 按钮触控高度提到 38px、条宽随内容不超屏、手机窄屏（≤560px）紧凑排布一屏放下、底部让出 iPhone 安全区。<code>tv_mviews</code> 12→<b>14 项</b>（T5 配色语义/T5b 按压态与复原——对 v60.37 旧文件跑当场红）。<b>过程中揪出一个 Chrome 149 测试坑记入 tests/README</b>：读过一次计算样式的元素，类变更后同任务甚至下一帧再读仍拿陈旧值（约 300ms 后才对）——「变更前后」断言必须拆两次读取跨真实 paint，与「先掐过渡」同族。<b>81 套件</b>全绿。</div></li>

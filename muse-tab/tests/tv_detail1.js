@@ -931,7 +931,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   const t35 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    document.querySelector('.ntype[data-nt="vocal"]').click();
+    /* v60.41 一屏向导：点「声乐」意图卡（默认独唱）→ 创建 */
+    document.querySelector('.nw-int[data-int="vocal"]').click();
     document.getElementById('nw-create').click();
     return { padGone: document.getElementById('start-pad').classList.contains('hidden'),
       fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 8,
