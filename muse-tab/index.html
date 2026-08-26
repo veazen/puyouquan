@@ -1883,6 +1883,8 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
         <div class="nl-cap">显示</div>
         <button class="nlit on" id="nl-voxjp" title="简谱：当前声部以简谱显示；与五线谱同时点亮=五线谱下方附简谱行联排（同一数据自动互译）"><span class="lic" data-lic="jianpu"></span></button>
         <button class="nlit" id="nl-voxst" title="五线谱：当前声部以五线谱显示（同一数据自动翻译，可随时切回）；已点亮再点可换 高音/低音/中音 谱表或关闭"><span class="lic" data-lic="staff5"></span></button>
+        <!-- v60.44 音轨化 P3：旋律轨按把位映射成六线谱（生成独立吉他/尤克轨，原轨不动、一步可撤销） -->
+        <button class="nlit" id="nl-voxtab" title="六线谱：把这条旋律按所选把位生成一条吉他/尤克里里轨（低把位 / 中把位 / 跟随和弦图三档推荐；原旋律轨不动，可一步撤销）"><span class="lic" data-lic="tab6"></span></button>
         <!-- v60.25 声部级 MIDI 导入（产品负责人指定：显示图标右边）：导入到当前简谱/五线声部 -->
         <button class="nlit nl-midi" id="nl-voxmidi" title="MIDI 导入到当前声部：选一条音轨，按本谱拍号/调号量化为简谱列，覆盖该声部内容（可一步撤销）">MIDI</button>
       </div>
@@ -5811,6 +5813,9 @@ function renderDock(){
   if(lb) lb.style.display = song.lyricLines>0? '' : 'none';
   const vt=document.querySelector('#panel-vox-voice .rg-title');
   if(vt) vt.textContent = '当前音轨';   /* v60.43 音轨最上级：列表在最左轨，面板只留当前轨属性 */
+  /* v60.44 旋律轨「六」灯（生成把位轨）：钢琴/和弦格/功能谱不适用整体隐藏 */
+  { const nvt=document.getElementById('nl-voxtab');
+    if(nvt) nvt.style.display = (dt==='piano'||dt==='pianoacc'||dt==='chord'||dt==='func')? 'none':''; }
   const at=document.getElementById('b-acctex');
   if(at) at.style.display = song.pianoAcc? '' : 'none';
   const ar=document.getElementById('b-arrange');
@@ -10055,6 +10060,110 @@ function delVoiceAt(kind, vi){
 }
 /* v60.42 ＋音轨（P1，D3 拍板边界）：旋律轨/吉他轨自由增删；钢琴大谱表与和弦格保持整谱形态暂不加轨；
    功能谱只加旋律轨（其身份=和声框架）。加轨后选中新轨并切到对应图层。 */
+/* v60.44 音轨化 P3：旋律轨 → 吉他把位轨（手稿「换谱自动映射＋把位选择推荐」落地）。
+   生成一条独立吉他/尤克轨（原旋律轨零改动、单 mutate 一步撤销），逐列音高等价、时值/连音线随行复制。
+   mode：low=低把位（tabAssignSeq 内建 低把位/空弦优先，D4 默认）
+        mid=中把位（虚拟 capo+4：候选品收缩到 4 品起、空弦禁用——assigner 零改动，产出品位 +4 还原；
+            折八度域随之抬高属预期语义：中把位放不下的低音折高）
+        follow=跟随和弦图（逐列先在生效和弦 chordShape 上找同音直取——v60.39 伴奏随图同思想的单音版；
+            未命中列聚段回 assigner；D4：谱面有和弦标注时默认此档）
+   dry=true 只算统计不写数据（弹窗三档预览用）。 */
+function mapVoxToTab(vi, mode, dry){
+  const tun=tuningOf(), fMax=fretMaxOf(), capo=song.capo||0, NS=tun.length;
+  const uku=instOf()==='uku';
+  const items=[];
+  song.measures.forEach((mm,mi)=>{
+    const cols=mm.voxes[vi]||[]; const mU=meaMeter(mi).unit;
+    const evts=chordEvtsMea(mi); let start=0;
+    cols.forEach((c,ci)=>{
+      let run=''; evts.forEach(e=>{ if(e.beat<=start+1e-4) run=e.chord; });
+      items.push({mi,ci,c, m:(c.deg!=null&&c.deg>0)? voxMidi(c,mi):null, run, fixed:null});
+      start+=beatsOf(c,mU);
+    });
+  });
+  { let carry=''; items.forEach(it=>{ if(it.run) carry=it.run; else it.run=carry; }); }
+  let hit=0;
+  if(mode==='follow'){
+    items.forEach(it=>{
+      if(it.m==null) return;
+      const sh=chordShape(it.run); if(!sh) return;
+      let best=null;
+      for(let s=1;s<=NS;s++){ const f=shapeString(sh,s);
+        if(f!=null && tun[s-1]+capo+f===it.m && (best==null||f<best.f)) best={s,f}; }
+      if(best){ it.fixed=best; hit++; }
+    });
+  }
+  const segs=[]; let cur=null;
+  items.forEach(it=>{
+    if(it.m!=null && !it.fixed){ if(!cur){cur=[];segs.push(cur);} cur.push(it); }
+    else cur=null;
+  });
+  const vCapo = mode==='mid'? Math.min(4, Math.max(0,fMax-8)) : 0;
+  let octShift=0, dropped=0;
+  segs.forEach(sg=>{
+    const r=tabAssignSeq(sg.map(it=>({ms:[it.m]})), tun, capo+vCapo, fMax-vCapo);
+    octShift+=r.octShift; dropped+=r.dropped;
+    sg.forEach((it,i)=>{
+      const sh=r.shapes[i];
+      if(sh && sh.length) it.fixed={s:sh[0].s, f:sh[0].f+vCapo};
+      /* sh 为 null 时 assigner 的 fitOct 路径已计入 dropped，不重复计 */
+    });
+  });
+  const nNotes=items.filter(i=>i.m!=null).length;
+  if(dry) return {octShift, dropped, hit, nNotes};
+  const name=(uku?'尤克里里':'吉他')+'·'+((song.voxVoices[vi]||('旋律'+(vi+1))));
+  mutate(()=>{
+    song.tabVoices.push(name);
+    const ti=song.tabVoices.length-1;
+    song.measures.forEach(mm=>mm.tabs.push([]));
+    items.forEach(it=>{
+      const col={dur:it.c.dur, dotted:!!it.c.dotted, chord:'', notes:[], strum:'', tech:''};
+      if(it.c.tup) col.tup=it.c.tup;
+      if(it.c.tupM) col.tupM=it.c.tupM;
+      if(it.c.tie) col.tie=true;
+      if(it.fixed) col.notes=[{s:it.fixed.s, f:it.fixed.f}];
+      song.measures[it.mi].tabs[ti].push(col);
+    });
+  });
+  return {octShift, dropped, hit, nNotes, name};
+}
+/* 把位选择弹窗：三档统计现算预览；D4 默认——谱面有和弦标注→跟随和弦图，否则低把位 */
+function showVoxTabMenu(vi){
+  const dt=docType(song);
+  if(dt==='piano'||dt==='pianoacc'||dt==='chord'||dt==='func') return toast('该谱类不支持生成把位轨');
+  if(song.tabVoices.length>=MAX_VOICES) return toast((instOf()==='uku'?'尤克里里':'吉他')+'轨已达上限');
+  const anyNote = song.measures.some(m=>(m.voxes[vi]||[]).some(c=>c.deg!=null&&c.deg>0));
+  if(!anyNote) return toast('该旋律轨还没有音符');
+  const st={ low:mapVoxToTab(vi,'low',true), mid:mapVoxToTab(vi,'mid',true), follow:mapVoxToTab(vi,'follow',true) };
+  const hasChord = st.follow.hit>0;
+  const def = hasChord? 'follow' : 'low';
+  const stat=s2=>{ const p=[];
+    if(s2.octShift) p.push('折八度 '+s2.octShift);
+    if(s2.dropped) p.push('放不下 '+s2.dropped);
+    return p.length? p.join(' · ') : '全部原音高'; };
+  showModal(`<h3>${svgi(instOf()==='uku'?'notes':'guitar',15)} 生成把位轨 · ${esc(song.voxVoices[vi]||'旋律')}</h3>
+    <p style="font-size:12.5px;line-height:1.6">把这条旋律按所选把位生成一条${instOf()==='uku'?'尤克里里':'吉他'}轨（六线谱显示，原旋律轨不动，可一步撤销）。共 ${st.low.nNotes} 个音。</p>
+    <div class="trkadd">
+      <button id="vt-low"><b>低把位${def==='low'?' · 推荐':''}</b><span>开放弦优先 · ${stat(st.low)}</span></button>
+      <button id="vt-mid"><b>中把位</b><span>4 品起不用空弦 · ${stat(st.mid)}</span></button>
+      ${hasChord? `<button id="vt-follow"><b>跟随和弦图${def==='follow'?' · 推荐':''}</b><span>${st.follow.hit}/${st.follow.nNotes} 音落在和弦指法上 · ${stat(st.follow)}</span></button>`:''}
+    </div>
+    <div class="btns"><button id="vt-cancel">取消</button></div>`);
+  const go=mode=>{
+    closeModal();
+    const r=mapVoxToTab(vi, mode);
+    sel.row='tab'; sel.vi=song.tabVoices.length-1; sel.ci=0; sel.si=1; clampSel();
+    if(uiShell) setRibbon('tab');
+    render();
+    toast('已生成「'+r.name+'」：'+r.nNotes+' 音'
+      +(r.octShift? ' · 折八度 '+r.octShift:'')+(r.dropped? ' · 放不下 '+r.dropped:'')
+      +(mode==='follow'? ' · '+r.hit+' 音随和弦图':'')+'（可一步撤销）');
+  };
+  const bl=document.getElementById('vt-low'); if(bl) bl.onclick=()=>go('low');
+  const bm=document.getElementById('vt-mid'); if(bm) bm.onclick=()=>go('mid');
+  const bf=document.getElementById('vt-follow'); if(bf) bf.onclick=()=>go('follow');
+  document.getElementById('vt-cancel').onclick=closeModal;
+}
 function showAddTrackMenu(){
   const dt=docType(song);
   if(dt==='piano'||dt==='pianoacc'||dt==='chord') return toast('钢琴大谱表 / 和弦格保持整谱形态，暂不支持加轨');
@@ -10062,10 +10171,15 @@ function showAddTrackMenu(){
   const canVox = song.voxVoices.length<MAX_VOICES;
   if(!canTab && !canVox) return toast('音轨已达上限');
   const tabName = song.inst==='uku'? '尤克里里轨' : '吉他轨';
+  /* v60.44：有带音符的旋律轨时提供「从旋律生成把位」入口（生成对象=当前选中旋律轨，否则旋律1） */
+  const mapVi = sel.row==='vox'? sel.vi : 0;
+  const canMap = canTab && song.voxVoices.length>0
+    && song.measures.some(m=>(m.voxes[mapVi]||[]).some(c=>c.deg!=null&&c.deg>0));
   showModal(`<h3>＋ 音轨</h3>
     <div class="trkadd">
       ${canVox? `<button id="ta-vox">${svgi('mic',20)}<b>旋律轨</b><span>人声 / 单旋律 · 简谱或五线谱显示</span></button>`:''}
       ${canTab? `<button id="ta-tab">${svgi(song.inst==='uku'?'notes':'guitar',20)}<b>${tabName}</b><span>六线谱 · 和弦图 / 扫弦 / 技法</span></button>`:''}
+      ${canMap? `<button id="ta-map">${svgi('score',20)}<b>${tabName} · 从旋律生成把位</b><span>把「${esc(song.voxVoices[mapVi]||'旋律')}」映射成六线谱 · 低/中把位或跟随和弦图</span></button>`:''}
     </div>
     <div class="btns"><button id="ta-cancel">取消</button></div>`);
   const pick=(kind)=>{
@@ -10081,6 +10195,7 @@ function showAddTrackMenu(){
   };
   const tv2=document.getElementById('ta-vox'); if(tv2) tv2.onclick=()=>pick('vox');
   const tt2=document.getElementById('ta-tab'); if(tt2) tt2.onclick=()=>pick('tab');
+  const tm2=document.getElementById('ta-map'); if(tm2) tm2.onclick=()=>{ closeModal(); showVoxTabMenu(mapVi); };
   document.getElementById('ta-cancel').onclick=closeModal;
 }
 /* 声部/歌词段 chips 交互：面板位于左侧工具栏（历史上曾在页头，
@@ -12586,6 +12701,9 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
   const nlVM=$n('nl-voxmidi'), nlTM=$n('nl-tabmidi');
   if(nlVM) nlVM.onclick=()=>pvMidiOpen('vox');
   if(nlTM) nlTM.onclick=()=>pvMidiOpen('tab');
+  /* v60.44 音轨化 P3：旋律轨「六」灯 → 把位选择弹窗（生成把位轨） */
+  const nlVT=$n('nl-voxtab');
+  if(nlVT) nlVT.onclick=()=>showVoxTabMenu(sel.row==='vox'? sel.vi : 0);
 }
 /* v46.3 智能预提示：可点提示直达对应左栏图层 */
 { const hb=document.getElementById('hint-body');
@@ -20013,7 +20131,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.43';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.44';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20036,6 +20154,7 @@ const APP_VER='v60.43';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.44</span><div><b>旋律轨一键生成吉他把位轨（音轨化改版 P3 收官）</b>——手稿最后一层「任意轨可用六线谱显示，自动映射时给出把位选择推荐」落地。旋律轨显示灯行新增<b>「六」</b>：点击弹出把位选择——① <b>低把位</b>（开放弦优先，无和弦标注时默认推荐）；② <b>中把位</b>（4 品起、不用空弦——虚拟变调夹技巧复用同一指派器，零新算法）；③ <b>跟随和弦图</b>（谱面有和弦标注时出现并默认推荐：逐音先在生效和弦指法上找同音直取——弹唱伴奏里旋律音本就该落在按着的和弦上，v60.39 同思想的单音版；不在指法上的乐句回束搜索指派）。三档都<b>现算预览</b>：几个音、折八度几个、放不下几个，选之前就看得到。选定即生成一条<b>独立的吉他/尤克里里轨</b>（六线谱显示、逐音音高与旋律严格等价、时值/连音线随行复制）——<b>原旋律轨一个字不动</b>，两轨并存可对照可分头编辑，不想要一步撤销。「＋音轨」选择器同步新增「从旋律生成把位」入口。把位指派复用 v60.25 束搜索（和音异弦/品距≤4/跨列把位连贯），不写第二份实现。新增 <code>tv_voxtab</code> 套件 <b>6+1 项</b>（入口谱类显隐/低把位逐音等价/中把位 4 品起/跟随和弦图直取实证/原轨零损+一步撤销/统计如实），对 v60.43 旧文件跑当场红＝突变实证。<b>86 套件</b>全绿。至此音轨化四期（P0 向导 / P1 音轨最上级 / P2 工具随轨 / P3 把位映射）全部交付。</div></li>
     <li><span class="v">v60.43</span><div><b>音轨升为最左栏最上级 + 工具随轨声明表（音轨化改版 P2，产品更正指示：「最左边栏的六线谱/简谱/五线谱去掉，改换音轨——音轨是最上级；歌词和和弦也去除，右栏已有」）</b>。① <b>最左图标轨改为音轨列表</b>：每条音轨一枚图标钮（乐器图标＋轨名，当前轨朱砂高亮、切到小节/段落层也保持点亮——音轨是最上级导航，不随下级图层熄灭）＋「＋」加轨钮；<b>六线谱/简谱两枚谱类图层钮撤下</b>——点音轨钮即选中该轨并自动带出该轨的工具面板，「谱类」不再是需要用户手动切换的层级，它由音轨组合自动派生。② <b>歌词/和弦图层钮同步撤下</b>：和弦编辑走创作辅助图标与谱面点击和弦图（v60.28/31 口径），歌词走谱面点击与右栏智能填词；小节/段落/帮助钮保留。左栏展开面板随之只留<b>「当前音轨」</b>属性行（改名 / 删除）＋显示灯＋MIDI——列表导航不再出现在下级。经典版界面不受影响（四钮 DOM 保留，程序化路径与回归套件照旧）。③ <b>工具随轨按钮级声明表 <code>VOICE_TOOLS</code></b>：吉他轨=扫弦琶音技法、旋律轨简谱显示=八度点变化音、五线谱显示=<b>踏板/指法 1–5/八度线/谱号切换</b>、钢琴轨=五线谱工具＋织体（仅弹唱谱）、功能谱轨=级数置顶；<b>顺带补实测缺口</b>——「谱号切换」钮标注「仅五线谱声部」却在简谱声部也一直显示，现同口径隐藏。新增 <code>tv_paneltools</code> 套件 <b>6+1 项</b>（五种轨型工具集合＋音轨钮随轨增删），对 v60.42 旧文件跑当场红＝突变实证。<b>85 套件</b>全绿。</div></li>
     <li><span class="v">v60.42</span><div><b>左栏音轨卡（音轨化改版 P1）：一张列表管全部轨，跨类型加轨</b>（产品拍板方案第二期）。① <b>「吉他声部」「旋律声部」两组合并为统一「音轨」卡</b>：每轨一行——乐器图标（吉他/尤克里里/钢琴/五线器乐/简谱旋律自动区分）＋轨名＋删除；单击选中编辑、双击改名如旧；<b>从简谱语境点吉他轨行自动切换图层</b>，左栏工具与记号面板随轨跟随。② <b>「＋音轨」跨类型加轨</b>：点开选「旋律轨」或「吉他轨/尤克里里轨」——<b>歌谱上加一条吉他轨，即自动升级为弹唱形态</b>（和弦图/扫弦/节奏型立即可用）；弹唱谱删光吉他轨则回到歌谱形态——谱类本就由音轨组合派生，增删轨=改变谱面形态，这正是音轨模型的本义。③ <b>删轨边界（D3 拍板）</b>：旋律轨/吉他轨自由增删（总轨数≥1；旋律轨删到 0 仅限六线+五线联排的独奏形态）；钢琴大谱表与和弦格保持整谱形态，暂不增删。④ 加轨即选中新轨并落到对应图层，一步可撤销。新增 <code>tv_tracks</code> 套件 <b>6 项</b>（统一列表结构 / 点行切图层 / 歌谱加吉他轨升弹唱-删回歌谱闭环 / 删轨守卫 / 钢琴-和弦格锁定 / 改名保留），对 v60.41 旧文件跑当场红＝突变实证。<b>84 套件</b>全绿。</div></li>
     <li><span class="v">v60.41</span><div><b>新建流程音轨化改版（P0）：三选一，一屏进编辑器</b>（产品负责人手稿拍板：谱类＝<b>音轨组合 × 显示方式</b>——用户先说要什么轨，谱面用简谱/五线谱/六线谱显示是每条轨随时可切的属性）。旧「九张版式卡 → 第二步十项表单」两页流程收敛为<b>一屏</b>：① 三张图标意图卡——<b>声乐</b>（独唱 / 合唱 2–4 声部）、<b>器乐</b>（吉他 / 尤克里里 / 钢琴 / 其他器乐五线谱，形态选独奏或伴奏——<b>伴奏自动加一条人声旋律轨</b>，即弹唱）、<b>功能和声</b>（简谱＋级数 / 和弦格）；点卡就地展开次级选项，不换页。② 基础信息只留<b>标题 / 调 / 拍号 / 速度</b>四项——小节数、歌词行、变调夹、定弦、词曲署名全部给智能默认，创建后在「曲谱信息」与左栏随时改：不该在还没写一个音时被逼着回答十个问题。③ 默认选中「器乐 · 吉他 · 伴奏」（最主流）——打开向导<b>一击「创建」即进编辑器</b>，任意组合最多三击。④ 全部组合仍落到既有谱类实现：发布、谱库、观看页、导入导出全链路零感知，老谱不受任何影响；<b>教学对照谱不再单设卡</b>——它本就是声部「五线谱＋简谱」双显示的组合，左栏点亮两盏显示灯即得同款版式。⑤ 导入三入口（MusicXML / Guitar Pro / 哼唱成谱）原样保留在向导底部。新增 <code>tv_newwiz</code> 套件 <b>6 项</b>（一屏结构 / 一击默认建谱 / <b>十一种组合与旧向导产物逐字段等价</b>自动比对 / 次级联动 / 基础信息生效 / 手机布局），对 v60.40 旧文件跑当场红＝突变实证。<b>83 套件</b>全绿。后续按方案推进：P1 左栏音轨卡 → P2 工具随轨 → P3 旋律轨↔六线谱把位映射。</div></li>
