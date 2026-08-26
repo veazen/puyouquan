@@ -44,8 +44,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T3 钢琴弹唱：标签「钢琴伴奏」，伴奏工具置顶，无节奏型，无歌词页
   r = await probe("loadSong(createSong('pianoacc',{beats:4,unit:4,key:'C',nMea:2,lyr:0}));");
   T(r.rail.tab === null && r.rail.vox === '钢琴伴奏' && r.rail.lyr === null && r.active === 'vox'
-    && r.voxPanels.join() === 'acc,voice,notation,mark,col,lyradd' && r.voiceTitle === '钢琴声部',
-    'T3 钢琴弹唱', 'vox页=' + r.voxPanels.join('/') + ' 标题=' + r.voiceTitle);
+    && r.voxPanels.join() === 'acc,voice,notation,mark,col,lyradd' && r.voiceTitle === '音轨',
+    'T3 钢琴弹唱', 'vox页=' + r.voxPanels.join('/') + ' 标题=' + r.voiceTitle);   /* v60.42 音轨卡统一标题 */
 
   // T4 钢琴独奏：标签「钢琴」，无伴奏工具面板
   r = await probe("loadSong(createSong('piano',{beats:4,unit:4,key:'C',nMea:2,lyr:0}));");
@@ -64,9 +64,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t6a && r.rail.vox === '教学谱' && r.voxPanels.includes('arr') && !r.voxPanels.includes('lyradd'),
     'T6 功能谱/教学谱', '教学vox页=' + r.voxPanels.join('/'));
 
-  // T7 器乐五线谱：标签「五线谱」+ 声部标题「器乐声部」+ 无歌词时 lyradd 显示
+  // T7 器乐五线谱：标签「五线谱」+ 声部标题「音轨」（v60.42 统一，轨行图标带乐器语义）+ 无歌词时 lyradd 显示
   r = await probe("loadSong(createSong('instr',{nVox:1,clef:'alto',beats:4,unit:4,key:'D',nMea:2,lyr:0}));");
-  T(r.rail.vox === '五线谱' && r.rail.lyr === null && r.voiceTitle === '器乐声部' && r.voxPanels.includes('lyradd'),
+  T(r.rail.vox === '五线谱' && r.rail.lyr === null && r.voiceTitle === '音轨' && r.voxPanels.includes('lyradd'),
     'T7 器乐谱', 'vox页=' + r.voxPanels.join('/') + ' 标题=' + r.voiceTitle);
 
   // T8 ＋添加歌词行：点击后 lyricLines=1、歌词页出现并激活、lyradd 消失
