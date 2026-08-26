@@ -994,7 +994,7 @@ body.stand #standbar{display:flex}
 .mx-splabel{color:var(--muted);font-size:12px;white-space:nowrap}
 .tempo{width:74px;text-align:center}
 .rate{width:72px;text-align:center}
-#b-metro.on,#b-countin.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#b-metro.on{background:var(--accent);border-color:var(--accent);color:#fff}
 /* v39.1 和弦图式创建器 + 升降号左上角 */
 .cdg .cdgc{cursor:pointer}
 .cdg .cdgc:hover{fill:var(--accent-soft)}
@@ -1026,7 +1026,7 @@ body.shell #mixer-dock button:disabled{color:rgba(224,217,201,.4);background:tra
 body.shell #mixer-dock #b-play{background:var(--accent);color:#fff;border-color:transparent;
   box-shadow:none}
 body.shell #mixer-dock #b-metro.on{background:var(--accent);color:#fff;border-color:transparent}
-body.shell #mx-lbl,body.shell .mx-splabel{color:#cfc8b8}
+body.shell .mx-splabel{color:#cfc8b8}
 body.shell #mx-prog{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.12)}
 body.shell .mxc{background:rgba(255,255,255,.13)}
 body.shell .mxc span{color:#e0d9c9}
@@ -1050,7 +1050,6 @@ body.shell #hint{display:none}
 .mxc span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:9px;color:var(--muted);pointer-events:none;line-height:1}
 .mxc.cur span{color:var(--accent);font-weight:700}
-#mx-lbl{font-size:10.5px;color:var(--muted);min-width:88px;text-align:center;white-space:nowrap}
 /* 小节多时：进度条转为密集标尺（无编号），点击打开小节面板精确选择 */
 #mx-prog{position:relative}
 #mx-prog.dense{gap:0}
@@ -1205,16 +1204,32 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
     max-height:56vh;z-index:45;box-shadow:none}
   #left-flyout.hidden{display:none!important}
   #left-flyout #ribbon{max-height:56vh}
-  /* 播放条给底部抽屉让位；v51.0 手机适配：单行横滑、播放钮吸左恒可点、控件紧凑 */
+  /* 播放条给底部抽屉让位。
+     v60.36 手机播放器三排卡片（撤销 v51.0 单行横滑——实测 887px 内容 56% 在屏外要横划才够得着）：
+     ① 小节走带整行（进度/循环选区，加高好点按）＋▦ 面板入口
+     ② ⏮ ＋ 大播放胶囊（主操作给主视觉）
+     ③ 速度/倍速/节拍器/谱架/音轨 五枚等宽芯片（全部 ≥40px 触控）
+     观看页不套用（v55.0 用户拍板的精简布局保持原样），全部 :not(.viewer) 限定；
+     排序用 flex order 实现，HTML 结构零改动。 */
   #mixer-dock{bottom:64px;width:calc(100vw - 16px)}
-  .mx-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;gap:7px;padding:8px 10px}
-  .mx-bar::-webkit-scrollbar{display:none}
-  .mx-bar>*{flex:0 0 auto}
-  #b-play{position:sticky;left:0;z-index:2;min-height:40px}
-  #mx-prog{flex:1 1 130px;min-width:130px}
-  .tempo{width:56px}
-  .rate{width:64px}
-  #mx-lbl{font-size:11px}
+  body:not(.viewer) .mx-bar{flex-wrap:wrap;gap:8px 7px;padding:10px 10px 11px}
+  body:not(.viewer) #mx-prog{order:-2;flex:1 1 calc(100% - 48px);min-width:0;height:26px}
+  body:not(.viewer) #mx-prog .mxc{border-radius:4px}
+  body:not(.viewer) #b-mxgrid{order:-1;flex:0 0 40px;min-height:26px;padding:0}
+  body:not(.viewer) #b-restart{order:1;flex:0 0 46px;min-height:46px;min-width:46px;border-radius:999px}
+  body:not(.viewer) #b-play{order:2;flex:1 1 300px;min-height:46px;border-radius:999px;
+    font-size:15.5px;font-weight:700;letter-spacing:.12em}   /* flex-basis 300：把参数芯片挤去第三排 */
+  body:not(.viewer) .mx-splabel{display:none}
+  body:not(.viewer) .tempo{order:11}
+  body:not(.viewer) .rate{order:12}
+  body:not(.viewer) #b-metro{order:13}
+  body:not(.viewer) #b-stand{order:14}
+  body:not(.viewer) #mx-expand{order:15}
+  body:not(.viewer) #b-vwset{order:16}
+  body:not(.viewer) .tempo,body:not(.viewer) .rate,body:not(.viewer) #b-metro,
+  body:not(.viewer) #b-stand,body:not(.viewer) #mx-expand,body:not(.viewer) #b-vwset{
+    flex:1 1 58px;width:auto;min-width:0;min-height:40px;padding:0 2px;font-size:12px;
+    text-align:center;text-align-last:center;border-radius:10px;white-space:nowrap}
   #site-footer{margin-bottom:120px}
   /* 弹窗更满屏、可滚 */
   .modal{width:96%;max-height:88vh;padding:16px 15px}
@@ -1333,7 +1348,6 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
   body.viewer #vw-stand,body.viewer #mx-prog,body.viewer #b-stand,
   body.viewer .mx-splabel,body.viewer #i-tempo,body.viewer #mx-rate{display:none!important}
   body.viewer #mixer-dock .mx-bar{flex-wrap:wrap;gap:7px;padding:9px 10px;overflow-x:visible;justify-content:space-between}
-  body.viewer #mx-lbl{order:9;width:100%;text-align:center;font-size:10.5px;margin-top:-2px}   /* 小节信息独占第二行 */
   body.viewer #b-play{padding:7px 12px}
   body.viewer #b-metro{font-size:0;gap:0;padding:7px 9px}
   body.viewer #mx-expand{white-space:nowrap}
@@ -1460,9 +1474,9 @@ body.shell #left-flyout .rg-body .eb.ico .g svg{display:block}
 #b-mmenu{display:none}
 
 @media(max-width:820px){
-  :root{ --mob-b1:60px;              /* 播放条高（实测 59） */
-         --mob-b2:114px;             /* = b1 + 图层轨 52 + 2 分隔 */
-         --mob-b3:165px }            /* = b2 + 时值条 49 + 2 分隔 */
+  :root{ --mob-b1:148px;             /* 播放条高（v60.36 三排卡片实测 147） */
+         --mob-b2:204px;             /* = b1 + 图层轨 52 + 2 分隔 */
+         --mob-b3:255px }            /* = b2 + 时值条 49 + 2 分隔 */
   /* —— A. 顶栏单行：低频项收进 ☰，只留 品牌 / ☰ / 撤销重做 / 个人中心 —— */
   body.shell:not(.stand):not(.viewer) #b-mmenu{display:inline-flex;align-items:center;justify-content:center;
     min-width:40px;min-height:40px;font-size:17px;line-height:1;padding:0}
@@ -1504,7 +1518,8 @@ body.shell #left-flyout .rg-body .eb.ico .g svg{display:block}
      播放条实测高 59 也咬进上层 7px）。自下而上：播放条(--mob-b1 高) → 图层轨 → 时值条。
      数值为 390×844 实测高度 + 余量；tv_mobile 有两两交集为 0 的几何断言兜住后续改高。 */
   body.shell:not(.stand):not(.viewer) #mixer-dock{
-    z-index:46;bottom:calc(env(safe-area-inset-bottom,0px));left:0;right:0}
+    z-index:46;bottom:calc(env(safe-area-inset-bottom,0px));left:0;right:0;
+    border-radius:18px 18px 0 0;border-top:1px solid rgba(255,255,255,.09)}   /* v60.36 顶角圆润+发丝分隔 */
   body.shell:not(.stand):not(.viewer) #left-dock{
     z-index:44;bottom:calc(var(--mob-b1) + env(safe-area-inset-bottom,0px))}
 
@@ -2113,7 +2128,6 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <button id="b-restart" title="回到开头（停在最前，不自动播放）" aria-label="回到开头" data-svgi="prev" style="min-width:34px"></button>
     <div id="mx-prog" title="小节格：点击=单小节循环；拖动=多选循环选区；再点取消"></div>
     <button id="b-mxgrid" title="打开小节选择面板（小节多时精确选择循环区）">▦</button>
-    <span id="mx-lbl">第 1 小节</span>
     <label class="mx-splabel">速度</label>
     <input id="i-tempo" class="tempo" type="number" min="30" max="240">
     <select id="mx-rate" class="rate" title="播放倍速：只改播放快慢，不改曲谱速度设置（慢速跟练/快速过谱）">
@@ -2121,7 +2135,6 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
     <button id="b-metro" data-svgi="metro" title="节拍器：播放时叠加拍点声（每小节第一拍重音），跟拍练习用"> 节拍器</button>
-    <button id="b-countin" data-svgi="metro" title="数拍：起播前先打满一小节空拍作预备（教学跟弹用），不影响谱面与录制时长"> 数拍</button>
     <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
     <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
     <button id="b-vwset" data-svgi="gear" title="设置：显示效果 / 打印 / 成为创作者"></button>
@@ -3987,7 +4000,7 @@ let playRate = 1;      // 播放倍速：只作用于播放调度，不改动 so
 let metroOn = false;   // 节拍器开关：播放时叠加拍点声，首拍重音（v38.5）
 /* v60.8 数拍（count-in）：起播前先打满一小节空拍。教学场景刚需——学生跟弹要有预备拍才进得来。
    与节拍器互相独立：只想要预备拍、全曲不要拍点声，是最常见的用法。 */
-let countInOn = false;
+let countInOn = false;   /* v60.36 产品指示撤下播放条「数拍」按钮；变量与排程路径保留（tv_audio 数拍口径断言仍在，入口后续另定） */
 let mix = {tab:true, vox:true};
 /* 每条声部对应一条音轨，配置（静音/独奏/音色/音量）随曲谱保存于 song.mixer */
 /* v60.13 声像读数：null=自动铺开、0=居中、负=左、正=右（按百分比给整数，便于对齐复述） */
@@ -8693,10 +8706,6 @@ function syncInputs(){
       ? `<div class="err-hd"><span>修复建议 · ${errs.length} 处</span><button id="err-fixall">全部采纳</button></div>`
       : `<div class="err-hd"><span>时值检查 · ${errs.length} 处不符（点击定位）</span></div>`) + rows;
     ed.classList.remove('hidden');   // 独立框常显于状态提示下方
-  }
-  if(!audio.playing){
-    const mlbl=document.getElementById('mx-lbl');
-    if(mlbl) mlbl.textContent = `第 ${(sel.mi||0)+1} / ${song.measures.length} 小节`;
   }
   if(typeof mixerExpanded!=='undefined' && mixerExpanded) renderMixerDock();
 }
@@ -13948,7 +13957,6 @@ window.addEventListener('pointerup', ()=>{
 function startProgress(t, dur, order, starts){
   audio.prog = {t, dur, order, starts};
   cancelAnimationFrame(audio.raf);
-  const lbl=document.getElementById('mx-lbl');
   const tick=()=>{
     if(!audio.playing || !audio.prog){ return; }
     const e = Math.max(0, audio.ctx.currentTime - audio.prog.t);
@@ -13967,7 +13975,6 @@ function startProgress(t, dur, order, starts){
       c.classList.toggle('cur', mi===curMi);
       f.style.width = mi===curMi? (frac*100)+'%' : (played.has(mi)?'100%':'0%');
     });
-    if(lbl) lbl.textContent = `第 ${curMi+1} / ${song.measures.length} 小节`;
     if(e>=dur+0.45){
       if(audio.loop){ play(); return; }
       stopPlay(); return;
@@ -14640,11 +14647,6 @@ document.getElementById('mx-rate').onchange = e=>{
   const wasPlaying = audio.playing && !audio.paused;
   if(wasPlaying) play();                       // 播放中切倍速：按新倍速重新起播
   toast('播放倍速 '+playRate+'×（不改变曲谱速度设置）');
-};
-document.getElementById('b-countin').onclick = ()=>{
-  countInOn = !countInOn;
-  document.getElementById('b-countin').classList.toggle('on', countInOn);
-  toast(countInOn? ('数拍已开启：起播前先打 '+Math.max(1,Math.min(12,(song&&song.beats)||4))+' 拍预备') : '数拍已关闭');
 };
 document.getElementById('b-metro').onclick = ()=>{
   metroOn = !metroOn;
@@ -19490,7 +19492,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.35';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.36';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19513,6 +19515,7 @@ const APP_VER='v60.35';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.36</span><div><b>播放条精简 + 手机播放器界面升级</b>（产品负责人指示：去掉「第 X / Y 小节」标签与「数拍」按钮；手机端做美观的界面设计升级）。① <b>播放条全端撤下两个控件</b>：小节位置信息本就由小节走带高亮与循环选区承担，「数拍」入口撤下（排程能力保留，后续按教学场景另定入口）。② <b>手机播放器从「单行横滑」升级为三排卡片</b>——此前实测播放条内容宽 887px、屏幕只有 390px，<b>56% 的控件在屏外要横着划才够得着</b>。新布局：第一排<b>小节走带占满整行</b>（进度/点选循环更好点按）＋▦ 小节面板入口；第二排 ⏮ ＋ <b>大播放胶囊</b>（主操作给主视觉，高 46px）；第三排<b>速度/倍速/节拍器/谱架/音轨五枚等宽芯片</b>（全部 ≥40px 触控标准）；底坞顶角圆润化＋发丝分隔线。观看页保持 v55.0 拍板的精简布局不动；桌面端布局不变。三条底栏（播放器/图层轨/时值条）堆叠高度同步重算，<code>tv_mobile</code> 原有「两两零重叠」几何断言兜底，另新增 T8/T9（控件移除＋三排几何：走带整行/播放胶囊尺寸/芯片等宽/无横滚）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.35</span><div><b>播放杂音与卡顿根治：音频线程不再过载</b>（用户报告 v60.34 后「播放很多杂音和卡顿，无法分辨音质好坏」——定量排查证明<b>混音信号本身是干净的</b>：离线渲染整条总线输出，削波 0、爆点 0、峰值仅 0.42，杂音全部来自<b>音频线程跑不赢实时产生的缓冲欠载</b>，欠载=爆音+断续，正好同时是「杂音」和「卡顿」，且历代版本一直存在）。<b>实测定位三个互相叠加的病灶</b>：① 按下播放的瞬间<b>整曲所有音符的源+增益+滤波节点全部建好挂上音频图</b>，WebAudio 每个渲染量子都要遍历整张图——负载随「总音符数」近乎平方增长（32 小节扫弦谱 1152 个源实测 0.86× 实时、合成器回落时 1.77×，快机器都跑不赢，何况普通电脑手机）；② 放完的音符链路从不拆除，播到后段负载还在线性爬升；③ <b>每次播放都新建一套「母线+压缩器+卷积混响」且旧的从不拆</b>——反复播放/停止几次后页面上挂着 N 个卷积器同时在跑，<b>越播越卡杂音越多</b>（试听音色同病）。修三件：① <b>分窗排程</b>——构建期只登记发声参数，滚动地只把「未来 2 秒」的音建到图上，图上任意时刻只挂几十个音，<b>负载与曲长彻底解耦</b>（同谱实测 0.86×→&lt;0.10×，起播阻塞 164ms→75ms）；② <b>音符放完即拆链</b>；③ <b>停播整套拆除本次总线图</b>，试听/回响共用会话级总线。全链路对账：分窗后整曲 576/576 个发声事件一个不漏、时序不乱。<code>tv_playperf</code> 9→<b>12 项</b>（分窗/拆链/总线拆除，对 v60.34 旧文件跑当场三红=突变实证）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.34</span><div><b>音色倒退修复：高保真采样不再被误杀回合成器</b>（用户报告「音色回到了最初的版本，表现的很糟糕」——查实是 v60.33 引入的真回退，不是音色包问题）。<b>A/B 复现定位根因</b>：v60.33 起「启动即建 suspended AudioContext」，但 <code>ensureLiveCtx</code> 沿用旧逻辑「先异步 resume、再同步看状态」——resume 还没生效状态仍是 suspended，就被判为不可用而<b>关闭重建</b>，控制台随之报「Cannot resume a context that has been closed」；关闭旧 ctx 会把<b>在途的全量音色包解码一并杀死</b>，解码残缺的包整包换入后逐音命中不了采样，<b>整曲落回合成器</b>——这正是用户听到的「回到最初的版本」。修三件：① <code>ensureLiveCtx</code> 不再关可恢复的 suspended ctx（仅 closed 或 resume 确认失败才重建）——启动预解码的采样与在途解码全部存活；② 全量包换入改为<b>合并交换 + 完整性校验</b>：解码不完整先补解一轮再换，仍失败进 60 秒冷却重试，不再用残包覆盖好包；③ <b>播放前等待在途高保真包</b>（≤2.8 秒，提示「正在加载高保真音色…」，就绪即自动开播；超时按现状开播）——首次点播放不再「前半合成器、后半采样」。<b>真实全量包 A/B 实测</b>：修复前每次播放报 resume-closed 错误、整曲合成器；修复后打开页面 0.3s／0.8s 就点播放也只等约 2 秒，整曲 576/576 音全部命中真实采样、零报错，≥1.6s 后点则零等待。<code>tv_playperf</code> 6→<b>9 项</b>（ctx 同一实例/无 resume-closed 报错/等待在途包语义），10 个含播放的套件补测试直通旗标。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.33</span><div><b>播放性能修复：首播主线程冻结 2.2 秒 → 0.16 秒，整曲命中真实采样</b>（用户报告「播放很卡很多杂音」；另按指正移除和弦操作面板里的指法图预览——点的就是图，重复显示冗余）。<b>实测定位根因</b>：启动时不建 AudioContext → 内嵌采样一个都没解码 → 首次按播放时整曲一次性排程逐音命中不了采样、<b>全部落回合成器</b>——32 小节扫弦谱实测 2304 次 Karplus-Strong 合成（每次十万级样本环路）、主线程冻结 2171ms，卡顿与「合成器质感的杂音」都来自这里。修复三件：① <b>启动即建 suspended AudioContext 预解码内嵌采样</b>（建 ctx 浏览器允许、出声等手势）——首次播放吉他/贝斯/钢琴直接是真实采样；② <b>KS 弦体缓存</b>：按 1/4 半音格缓存标准频率弦体、播放端 playbackRate 补差（调度层每个音都带微失谐，按精确频率做键命中率为零——实测同谱合成回落从 1887 次生成降到 10 次、二播 0 次）；③ <b>混响脉冲缓存</b>（每次建总线不再重算 1.8s 双声道噪声）。修后实测：首播冻结 2171ms→164ms、二播全缓存命中；技法音高（推弦/揉弦/摇把/滑弦）经 playbackRate 基准换算全数回归通过。新增 <code>tv_playperf</code> 6 项（启动预解码/采样命中/KS 缓存/阻塞预算/IR 缓存）。<b>81 套件</b>全绿。<b>音色库现状说明</b>：线上音色包由部署流水线直接供给站内（不依赖境外 CDN），MusyngKite/FluidR3 双库并存可切；弦乐/人声等无内嵌铺底的音色在全量包解码完成前仍走合成器，扩铺底会增大单文件体积，待产品拍板。</div></li>

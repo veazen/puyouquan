@@ -40,10 +40,12 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return {zoomed, wideW, back, fitW, winW: window.innerWidth}; })()`);
   T(r.zoomed && r.wideW > r.winW && r.back && r.fitW <= r.winW, 'T3 手动缩放退出/恢复 fit-width', JSON.stringify(r));
   T(errs.length === 0, '手机端无报错', errs.join('|') || 'none');
-  // T3b v51.0 播放条横滑 + 播放键吸左
-  r = await pg.evaluate(`(()=>{ const s=getComputedStyle(document.querySelector('.mx-bar'));
-    return {ox:s.overflowX, wrap:s.flexWrap, sticky:getComputedStyle(document.getElementById('b-play')).position}; })()`);
-  T(r.ox === 'auto' && r.wrap === 'nowrap' && r.sticky === 'sticky', 'T3b 播放条横滑+播放键吸左', JSON.stringify(r));
+  // T3b v60.36 播放条三排卡片（撤 v51.0 单行横滑+吸左——56% 控件屏外要横划，产品拍板改版）：
+  //    折行布局、条内无横向滚动、播放键为大胶囊（细粒度几何断言在 tv_mobile T8/T9）
+  r = await pg.evaluate(`(()=>{ const bar=document.querySelector('.mx-bar');
+    const s=getComputedStyle(bar), p=document.getElementById('b-play').getBoundingClientRect();
+    return {wrap:s.flexWrap, noScroll:bar.scrollWidth<=bar.clientWidth+1, playH:Math.round(p.height)}; })()`);
+  T(r.wrap === 'wrap' && r.noScroll && r.playH >= 44, 'T3b 播放条三排卡片（折行无横滚+大播放胶囊）', JSON.stringify(r));
   // T3c v51.0 首次触摸解锁音频（audio.ctx 建立）
   await pg.tap('#score').catch(()=>{});
   await pg.waitForTimeout(300);

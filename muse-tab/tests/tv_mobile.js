@@ -100,6 +100,26 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.sug && r.arr && r.beat && r.mask,
     'T7 智能抽屉：导入MIDI/一键配伴奏/节拍检查在手机可达', JSON.stringify(r));
 
+  /* v60.36 产品指示：播放条撤下「第X/Y小节」标签与「数拍」按钮（全端）；
+     手机播放器三排卡片——①小节走带整行 ②大播放胶囊 ③参数芯片等宽（≥40px 触控）。
+     几何断言：走带行在播放行上方且占满宽、芯片同排等宽、条内无横向滚动。 */
+  r = await pg.evaluate(() => {
+    const g = id => document.getElementById(id);
+    const bar = document.querySelector('#mixer-dock .mx-bar');
+    const R = id => g(id).getBoundingClientRect();
+    const prog = R('mx-prog'), play = R('b-play'), metro = R('b-metro'), stand = R('b-stand'), exp = R('mx-expand');
+    return { lblGone: !g('mx-lbl'), ciGone: !g('b-countin'),
+      progRowAbove: prog.bottom <= play.top + 1,
+      progWide: prog.width >= bar.clientWidth * 0.75,
+      playBig: play.height >= 44 && play.width >= bar.clientWidth * 0.6,
+      chipsRow: Math.abs(metro.top - stand.top) < 1 && Math.abs(stand.top - exp.top) < 1 && metro.top >= play.bottom - 1,
+      chipsEq: Math.abs(metro.width - exp.width) < 2 && metro.height >= 40,
+      noScroll: bar.scrollWidth <= bar.clientWidth + 1 };
+  });
+  T(r.lblGone && r.ciGone, 'T8 播放条撤下小节标签与数拍按钮', JSON.stringify(r));
+  T(r.progRowAbove && r.progWide && r.playBig && r.chipsRow && r.chipsEq && r.noScroll,
+    'T9 手机播放器三排卡片（走带整行/大播放胶囊/芯片等宽无横滚）', JSON.stringify(r));
+
   T(errs.length === 0, 'T3 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();
