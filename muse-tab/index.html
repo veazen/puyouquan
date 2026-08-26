@@ -1301,6 +1301,27 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
   background:rgba(17,40,34,.96);border:1px solid rgba(255,255,255,.14);
   box-shadow:none;backdrop-filter:blur(14px) saturate(1.4)}
 #tempo-pop{width:min(330px,calc(100vw - 34px))}
+/* v60.37 变调弹窗：纵排卡片——原调行 / 唱调行 / 变调夹行 / 等式行 / 夹位速选（吉他区仅 TAB 谱类显示） */
+#key-pop{flex-direction:column;align-items:stretch;gap:8px;width:min(302px,calc(100vw - 34px))}
+#key-pop .kp-row{display:flex;align-items:center;justify-content:center;gap:10px}
+#key-pop .kp-row>b{font-size:14px;min-width:96px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
+#key-pop .kp-row>b small{color:rgba(239,233,216,.6);font-weight:400}
+#kp-orig-row{justify-content:space-between;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12)}
+#kp-orig-row small{color:rgba(239,233,216,.66);font-size:11.5px}
+#kp-orig-row b{color:#efe9d8;font-weight:700;margin-left:3px}
+#kp-reset{font-size:11.5px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);
+  background:transparent;color:#efe9d8;line-height:1}
+#kp-reset:disabled{opacity:.35}
+#kp-eq small{color:rgba(239,233,216,.66);font-size:11.5px;white-space:nowrap}
+#kp-eq b{color:#efe9d8}
+#kp-chips{flex-wrap:wrap;gap:6px}
+.kp-chip{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:31px;padding:4px 4px;
+  border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:#e6e0d2;
+  font-size:11px;line-height:1.15;cursor:pointer}
+.kp-chip i{font-style:normal;font-size:10px;opacity:.7}
+.kp-chip.ez i{color:#ffd76a;opacity:1}   /* CAGED 开放把位指法（C/A/G/E/D）高亮推荐 */
+.kp-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.kp-chip.on i{color:#fff;opacity:.9}
 .vh-pop.on{display:flex}
 .vh-pop .tp-nudge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;padding:0;line-height:1;
   border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#efe9d8;font-size:17px;font-weight:600}
@@ -1314,7 +1335,7 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 .vh-stat:hover{background:var(--hover)}
 .vh-stat b{font-size:15px;font-weight:700;color:var(--text);line-height:1.15;white-space:nowrap}
 #vh-key b{color:var(--accent-ink)}
-#vh-capo b::after,#vh-tempo b::after{content:'›';opacity:.45;font-weight:400;margin-left:2px}
+#vh-key b::after,#vh-tempo b::after{content:'›';opacity:.45;font-weight:400;margin-left:2px}
 .vh-stat small{font-size:10px;color:var(--muted);line-height:1}
 .vh-icons{display:flex;align-items:center;gap:7px}
 #viewerbar .vh-icons>*{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
@@ -2146,15 +2167,23 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
   <span id="tempo-sl-wrap"><input id="i-tempo-sl" type="range" min="40" max="240" step="1"><b id="i-tempo-sl-v">90</b></span>
   <button class="tp-nudge" id="tp-up" title="加 1 BPM">＋</button>
 </div>
-<div id="key-pop" class="vh-pop" title="指法调：即时移调，不改动原谱">
-  <button class="tp-nudge" id="kp-dn" title="降半音">♭</button>
-  <b id="kp-v" title="点击还原到原调"></b>
-  <button class="tp-nudge" id="kp-up" title="升半音">♯</button>
-</div>
-<div id="capo-pop" class="vh-pop" title="变调夹：播放音高同步，不改动原谱">
-  <button class="tp-nudge" id="cp-dn" title="减 1 品">−</button>
-  <b id="cp-v"></b>
-  <button class="tp-nudge" id="cp-up" title="加 1 品">＋</button>
+<!-- v60.37 变调弹窗（产品指示：头部只留变调/拍速，变调夹融合进弹窗，仅吉他类谱显示）。
+     吉他变调逻辑系统：唱调 ＝ 指法调 ＋ 变调夹。调唱调→指法随动、夹不动（要更高更低的音）；
+     调变调夹→唱调锁定、指法反向换算（要更好按的指法，音高不变）；夹位速选按 CAGED 开放把位高亮。 -->
+<div id="key-pop" class="vh-pop" title="变调：即时生效，不改动原谱">
+  <div class="kp-row" id="kp-orig-row"><small>原调 <b id="kp-orig-v"></b></small><button id="kp-reset">恢复原调</button></div>
+  <div class="kp-row">
+    <button class="tp-nudge" id="kp-dn" title="唱调降半音（指法随动，变调夹不动）">♭</button>
+    <b id="kp-v"></b>
+    <button class="tp-nudge" id="kp-up" title="唱调升半音（指法随动，变调夹不动）">♯</button>
+  </div>
+  <div class="kp-row kp-capo">
+    <button class="tp-nudge" id="cp-dn" title="变调夹减 1 品（唱调不变，指法自动升换算）">−</button>
+    <b id="cp-v"></b>
+    <button class="tp-nudge" id="cp-up" title="变调夹加 1 品（唱调不变，指法自动降换算）">＋</button>
+  </div>
+  <div class="kp-row kp-capo" id="kp-eq"></div>
+  <div class="kp-row kp-capo" id="kp-chips" title="夹位速选：唱调不变，点选变调夹品位，亮色=开放把位指法（CAGED）"></div>
 </div>
 <div id="toast"></div>
 <!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
@@ -12616,11 +12645,11 @@ document.getElementById('i-tempo').addEventListener('change', e=>{
   }
   document.getElementById('tp-dn').onclick = ()=>commit((+song.tempo||90)-1);
   document.getElementById('tp-up').onclick = ()=>commit((+song.tempo||90)+1);
-  /* 指法浮层：♭/♯ 即时移调（观看副本），点读数还原原调 */
-  document.getElementById('kp-dn').onclick = ()=>{ vwTranspose(-1); updateVwPopKey(); };
-  document.getElementById('kp-up').onclick = ()=>{ vwTranspose(1); updateVwPopKey(); };
-  document.getElementById('kp-v').onclick = ()=>{ if(vwTrans!==0){ vwTranspose(-vwTrans); updateVwPopKey(); } };
-  /* 变调夹浮层：0–12 品（观看副本，播放音高同步） */
+  /* v60.37 变调弹窗：♭/♯ 调唱调（指法随动、夹不动）；−/＋ 调变调夹（唱调锁定、指法换算）；
+     恢复原调=唱调与夹一并回发布状态。全部作用在观看副本，不改动原谱。 */
+  document.getElementById('kp-dn').onclick = ()=>{ vwTranspose(-1); updateVwHdr(); updateVwPopKey(); };
+  document.getElementById('kp-up').onclick = ()=>{ vwTranspose(1); updateVwHdr(); updateVwPopKey(); };
+  document.getElementById('kp-reset').onclick = ()=>vwResetKey();
   document.getElementById('cp-dn').onclick = ()=>vwSetCapo(-1);
   document.getElementById('cp-up').onclick = ()=>vwSetCapo(1);
   document.querySelectorAll('.vh-pop').forEach(p=>p.addEventListener('click', e=>e.stopPropagation()));
@@ -18492,8 +18521,7 @@ function vwTranspose(delta){
 function vwHeaderHTML(o){
   o=o||{};
   return `<div class="vh-stats">
-      <button class="vh-stat" id="vh-key" title="指法调：点击升降调（即时移调，不改动原谱）"><b id="vh-key-v"></b><small>指法</small></button>
-      <button class="vh-stat" id="vh-capo" title="变调夹：点击调整品位，播放音高同步（不改动原谱）"><b id="vh-capo-v"></b><small>变调夹</small></button>
+      <button class="vh-stat" id="vh-key" title="变调：点击设置唱调；吉他谱可在弹窗内设变调夹（即时生效，不改动原谱）"><b id="vh-key-v"></b><small>变调</small></button>
       <button class="vh-stat" id="vh-tempo" title="拍速：点击弹出推子调节，播放中即时生效"><b id="vh-tempo-v"></b><small>拍速</small></button>
     </div>
     <span style="flex:1"></span>
@@ -18503,10 +18531,27 @@ function vwHeaderHTML(o){
       <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',16)}</a>
     </div>`;
 }
+/* v60.37 吉他变调逻辑系统三量：唱调（实际音高，头部与弹窗主行）＝ 指法调（谱面写法 song.key）
+   ＋ 变调夹半音。仅含六线谱声部的谱类有夹（其余谱类唱调=song.key，弹窗不出夹区）。 */
+function vwHasCapo(){
+  /* 按分享/发布数据自带的谱类声明判定（migrate 会给旧数据补空吉他声部，
+     tabVoices.length 在 vocal 分享上会误报——实测踩过）；无声明才回退结构判定 */
+  const t=viewerCtx && viewerCtx.pb && viewerCtx.pb.type;
+  if(t) return t==='guitar'||t==='uku'||t==='solo';
+  return !!(song && song.tabVoices && song.tabVoices.length);
+}
+function vwSoundKey(){
+  const pc=KEY_PC[song.key]!=null? KEY_PC[song.key] : 0;
+  return vwHasCapo()? KEY_LIST[(pc+(song.capo||0))%12] : song.key;
+}
+function vwOrigKeys(){   /* 发布时的原始调与夹（恢复原调的目标） */
+  const d=viewerCtx && viewerCtx.pb && viewerCtx.pb.data || {};
+  const k=KEY_PC[d.key]!=null? d.key : 'C', c=vwHasCapo()? (d.capo||0) : 0;
+  return { key:k, capo:c, sound: KEY_LIST[((KEY_PC[k]||0)+c)%12] };
+}
 function updateVwHdr(){
   const kv=document.getElementById('vh-key-v'); if(!kv) return;
-  kv.textContent=(song.key||'C')+'调';
-  const cv=document.getElementById('vh-capo-v'); if(cv) cv.textContent=song.capo? song.capo+'品':'空';
+  kv.textContent=vwSoundKey()+'调';
   const tv=document.getElementById('vh-tempo-v'); if(tv) tv.textContent=song.tempo;
 }
 function vwPopToggle(pid, bid){
@@ -18521,19 +18566,57 @@ function vwPopToggle(pid, bid){
 }
 function updateVwPopKey(){
   const el=document.getElementById('kp-v'); if(!el) return;
-  el.innerHTML='1='+esc(song.key)+(vwTrans? ' <small>('+(vwTrans>0?'+':'')+vwTrans+')</small>':' <small>(原调)</small>');
-}
-function updateVwPopCapo(){
-  const el=document.getElementById('cp-v'); if(el) el.textContent=song.capo? song.capo+' 品':'无（空）';
+  const org=vwOrigKeys(), hasCapo=vwHasCapo(), snd=vwSoundKey();
+  const dSnd=((KEY_PC[snd]-KEY_PC[org.sound])%12+12)%12;
+  const off=dSnd===0? 0 : (dSnd>6? dSnd-12 : dSnd);   /* 半音偏移取近路显示（+7 显 −5） */
+  el.innerHTML=(hasCapo? '唱 ':'1=')+esc(snd)
+    +(off? ' <small>('+(off>0?'+':'')+off+')</small>':' <small>(原调)</small>');
+  const ov=document.getElementById('kp-orig-v');
+  if(ov) ov.textContent=org.sound+'调'+(hasCapo&&org.capo? '（'+org.key+'指法·夹'+org.capo+'品）':'');
+  const rs=document.getElementById('kp-reset');
+  if(rs) rs.disabled=(snd===org.sound && (!hasCapo || (song.capo||0)===org.capo));
+  /* 吉他区三行：夹值 / 等式 / 夹位速选（其余谱类整体隐藏） */
+  document.querySelectorAll('#key-pop .kp-capo').forEach(r=>{ r.style.display=hasCapo? '':'none'; });
+  if(!hasCapo) return;
+  const cv=document.getElementById('cp-v');
+  if(cv) cv.textContent='变调夹 '+(song.capo? song.capo+' 品':'无');
+  const eq=document.getElementById('kp-eq');
+  if(eq) eq.innerHTML='<small>指法 <b>'+esc(song.key)+'</b> ＋ 夹 <b>'+(song.capo||0)+'品</b> ＝ 唱 <b>'+esc(snd)+'</b></small>';
+  const ch=document.getElementById('kp-chips');
+  if(ch){
+    const sndPc=KEY_PC[snd]||0, open=new Set(['C','A','G','E','D']);   /* CAGED 开放把位 */
+    ch.innerHTML=Array.from({length:8},(_,c)=>{
+      const fk=KEY_LIST[((sndPc-c)%12+12)%12];
+      return '<button class="kp-chip'+(c===(song.capo||0)?' on':'')+(open.has(fk)?' ez':'')
+        +'" data-capo="'+c+'">'+c+'<i>'+esc(fk)+'</i></button>';
+    }).join('');
+    ch.querySelectorAll('.kp-chip').forEach(b=>{ b.onclick=()=>vwSetCapo(+b.dataset.capo-(song.capo||0)); });
+  }
 }
 let vwCapo=null;    /* 观看页变调夹覆盖值：作用在观看副本上，移调重建后仍保留；进出观看模式清空 */
 function vwSetCapo(d){
-  vwCapo=Math.max(0, Math.min(12, (song.capo||0)+d));
-  song.capo=vwCapo; render(); updateVwHdr(); updateVwPopCapo();
+  /* v60.37 唱调锁定：夹 +d 品 → 指法 −d 半音（同一唱调下换更好按的指法——变调夹的本义）。
+     要改音高走唱调 ♭/♯（kp-dn/kp-up：指法随动、夹不动）。 */
+  if(!d) return;
+  const cur=song.capo||0;
+  const next=Math.max(0, Math.min(12, cur+d));
+  if(next===cur) return;
+  vwCapo=next;
+  vwTranspose(cur-next);   /* 重建一次：夹与指法同时落位，唱调不变 */
+  updateVwPopKey();
+  toast('变调夹 '+(next||'无')+(next?' 品':'')+' · 指法 '+song.key+'（唱调不变 '+vwSoundKey()+'）');
+}
+function vwResetKey(){   /* v60.37 恢复原调：唱调与变调夹一并回到发布状态 */
+  const org=vwOrigKeys();
+  vwCapo=null; vwTrans=0;
+  const keep={mi:sel.mi, row:sel.row, vi:sel.vi, ci:sel.ci, si:sel.si};
+  song=viewerBuildSong();
+  sel=keep; clampSel(); render(); renderProgCells(); updateVwKey(); updateVwHdr();
+  updateVwPopKey();
+  toast('已恢复原调 '+org.sound+'调'+(vwHasCapo()&&org.capo? '（'+org.key+'指法·夹'+org.capo+'品）':''));
 }
 function vwHeaderWire(){
   const k=document.getElementById('vh-key'); if(k) k.onclick=e=>{ e.stopPropagation(); updateVwPopKey(); vwPopToggle('key-pop','vh-key'); };
-  const c=document.getElementById('vh-capo'); if(c) c.onclick=e=>{ e.stopPropagation(); updateVwPopCapo(); vwPopToggle('capo-pop','vh-capo'); };
   const t=document.getElementById('vh-tempo'); if(t) t.onclick=e=>{ e.stopPropagation(); vwPopToggle('tempo-pop','vh-tempo'); };
 }
 /* ===== v55.6 观看设置（底栏 ⚙）：显示效果 / 打印 / 成为创作者推广（内容后续按需扩展） ===== */
@@ -19492,7 +19575,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.36';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.37';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19515,6 +19598,7 @@ const APP_VER='v60.36';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.37</span><div><b>观看页头部精简 + 吉他变调逻辑系统</b>（产品负责人指示：只显示变调和速度；变调点击弹窗设置，吉他谱的变调夹融合进弹窗；弹窗有原调显示与恢复原调；五线谱/简谱等其他谱类不显示变调夹）。① <b>头部三枚收为两枚</b>：「变调」（显示当前唱调，点击进设置弹窗）＋「拍速」；独立的变调夹入口撤销。② <b>变调弹窗</b>：首行<b>原调显示 + 恢复原调</b>（唱调与变调夹一并回到发布状态）；主行 ♭/♯ 调唱调。③ <b>吉他谱专属：一套自洽的变调逻辑</b>——核心等式「<b>唱调 ＝ 指法调 ＋ 变调夹</b>」直接画在弹窗里：调<b>唱调</b>（要更高更低的音）→ 指法随动、夹不动；调<b>变调夹</b>（要更好按的指法）→ <b>唱调锁定</b>、指法自动反向换算——夹上 2 品指法自动从 G 换算成 F，唱出来还是 G，这才是变调夹的本义；另有<b>夹位速选</b>一排（0–7 品，每格标注对应指法调，<b>C/A/G/E/D 开放把位金色高亮</b>——一眼挑出好按的夹位）。④ <b>谱类判定按发布数据的谱类声明</b>：五线谱/简谱/钢琴等谱类弹窗只有变调与恢复原调，不出现任何变调夹内容。全部即时生效、不改动原谱。<code>tv_viewer</code> 8→<b>9 项</b>（T8 改测 vocal 无夹 + 恢复原调，新增 T8b 吉他逻辑全流程——「唱调锁定换算」经突变实证：退回旧语义当场红）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.36</span><div><b>播放条精简 + 手机播放器界面升级</b>（产品负责人指示：去掉「第 X / Y 小节」标签与「数拍」按钮；手机端做美观的界面设计升级）。① <b>播放条全端撤下两个控件</b>：小节位置信息本就由小节走带高亮与循环选区承担，「数拍」入口撤下（排程能力保留，后续按教学场景另定入口）。② <b>手机播放器从「单行横滑」升级为三排卡片</b>——此前实测播放条内容宽 887px、屏幕只有 390px，<b>56% 的控件在屏外要横着划才够得着</b>。新布局：第一排<b>小节走带占满整行</b>（进度/点选循环更好点按）＋▦ 小节面板入口；第二排 ⏮ ＋ <b>大播放胶囊</b>（主操作给主视觉，高 46px）；第三排<b>速度/倍速/节拍器/谱架/音轨五枚等宽芯片</b>（全部 ≥40px 触控标准）；底坞顶角圆润化＋发丝分隔线。观看页保持 v55.0 拍板的精简布局不动；桌面端布局不变。三条底栏（播放器/图层轨/时值条）堆叠高度同步重算，<code>tv_mobile</code> 原有「两两零重叠」几何断言兜底，另新增 T8/T9（控件移除＋三排几何：走带整行/播放胶囊尺寸/芯片等宽/无横滚）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.35</span><div><b>播放杂音与卡顿根治：音频线程不再过载</b>（用户报告 v60.34 后「播放很多杂音和卡顿，无法分辨音质好坏」——定量排查证明<b>混音信号本身是干净的</b>：离线渲染整条总线输出，削波 0、爆点 0、峰值仅 0.42，杂音全部来自<b>音频线程跑不赢实时产生的缓冲欠载</b>，欠载=爆音+断续，正好同时是「杂音」和「卡顿」，且历代版本一直存在）。<b>实测定位三个互相叠加的病灶</b>：① 按下播放的瞬间<b>整曲所有音符的源+增益+滤波节点全部建好挂上音频图</b>，WebAudio 每个渲染量子都要遍历整张图——负载随「总音符数」近乎平方增长（32 小节扫弦谱 1152 个源实测 0.86× 实时、合成器回落时 1.77×，快机器都跑不赢，何况普通电脑手机）；② 放完的音符链路从不拆除，播到后段负载还在线性爬升；③ <b>每次播放都新建一套「母线+压缩器+卷积混响」且旧的从不拆</b>——反复播放/停止几次后页面上挂着 N 个卷积器同时在跑，<b>越播越卡杂音越多</b>（试听音色同病）。修三件：① <b>分窗排程</b>——构建期只登记发声参数，滚动地只把「未来 2 秒」的音建到图上，图上任意时刻只挂几十个音，<b>负载与曲长彻底解耦</b>（同谱实测 0.86×→&lt;0.10×，起播阻塞 164ms→75ms）；② <b>音符放完即拆链</b>；③ <b>停播整套拆除本次总线图</b>，试听/回响共用会话级总线。全链路对账：分窗后整曲 576/576 个发声事件一个不漏、时序不乱。<code>tv_playperf</code> 9→<b>12 项</b>（分窗/拆链/总线拆除，对 v60.34 旧文件跑当场三红=突变实证）。<b>81 套件</b>全绿。</div></li>
     <li><span class="v">v60.34</span><div><b>音色倒退修复：高保真采样不再被误杀回合成器</b>（用户报告「音色回到了最初的版本，表现的很糟糕」——查实是 v60.33 引入的真回退，不是音色包问题）。<b>A/B 复现定位根因</b>：v60.33 起「启动即建 suspended AudioContext」，但 <code>ensureLiveCtx</code> 沿用旧逻辑「先异步 resume、再同步看状态」——resume 还没生效状态仍是 suspended，就被判为不可用而<b>关闭重建</b>，控制台随之报「Cannot resume a context that has been closed」；关闭旧 ctx 会把<b>在途的全量音色包解码一并杀死</b>，解码残缺的包整包换入后逐音命中不了采样，<b>整曲落回合成器</b>——这正是用户听到的「回到最初的版本」。修三件：① <code>ensureLiveCtx</code> 不再关可恢复的 suspended ctx（仅 closed 或 resume 确认失败才重建）——启动预解码的采样与在途解码全部存活；② 全量包换入改为<b>合并交换 + 完整性校验</b>：解码不完整先补解一轮再换，仍失败进 60 秒冷却重试，不再用残包覆盖好包；③ <b>播放前等待在途高保真包</b>（≤2.8 秒，提示「正在加载高保真音色…」，就绪即自动开播；超时按现状开播）——首次点播放不再「前半合成器、后半采样」。<b>真实全量包 A/B 实测</b>：修复前每次播放报 resume-closed 错误、整曲合成器；修复后打开页面 0.3s／0.8s 就点播放也只等约 2 秒，整曲 576/576 音全部命中真实采样、零报错，≥1.6s 后点则零等待。<code>tv_playperf</code> 6→<b>9 项</b>（ctx 同一实例/无 resume-closed 报错/等待在途包语义），10 个含播放的套件补测试直通旗标。<b>81 套件</b>全绿。</div></li>

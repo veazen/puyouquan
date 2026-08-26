@@ -36,7 +36,7 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     metro: !!document.getElementById('b-metro'), rate: !!document.getElementById('mx-rate')
   }));
   const ok1 = t1.viewer && t1.title === '小星星·互动测试' && t1.docTitle.includes('互动谱')
-    && t1.topHidden && t1.mixerShown && t1.home && t1.stats === 3 && t1.metro && t1.rate;
+    && t1.topHidden && t1.mixerShown && t1.home && t1.stats === 2 && t1.metro && t1.rate;   /* v60.37 头部两枚：变调/拍速 */
   console.log((ok1 ? '✅' : '❌') + ' T1 注入启动进观看模式: viewer=' + t1.viewer + ' 曲名=' + t1.title
     + ' 编辑栏隐藏=' + t1.topHidden + ' 播放条在=' + t1.mixerShown + ' 头部stats=' + t1.stats + ' 谱库链=' + t1.home);
   if (ok1) pass++;
@@ -86,12 +86,17 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     const nudge = song.tempo === 133 && document.getElementById('i-tempo-sl-v').textContent === '133';
     document.body.click();
     const popClosed1 = disp('tempo-pop') === 'none';                 // 点外部收起
-    document.getElementById('vh-capo').click();                      // 变调夹浮层：+2 品，移调后保留
-    const capoPop = disp('capo-pop') === 'flex' && disp('tempo-pop') === 'none';   // 互斥
-    document.getElementById('cp-up').click(); document.getElementById('cp-up').click();
-    const capo2 = song.capo === 2 && document.getElementById('vh-capo-v').textContent === '2品';
-    vwTranspose(1);
-    const capoKeep = song.capo === 2;                                // 移调重建后 vwCapo 覆盖仍在
+    /* v60.37 变调弹窗（产品指示：头部只留变调/拍速，变调夹融进弹窗且仅吉他类谱显示）。
+       本夹具是 vocal：夹区三行必须隐藏；唱调 ♭/♯ 与恢复原调正常。 */
+    document.getElementById('vh-key').click();
+    const keyPop = disp('key-pop') === 'flex' && disp('tempo-pop') === 'none';     // 互斥
+    const capoStatGone = !document.getElementById('vh-capo') && !document.getElementById('capo-pop');
+    const capoHidden = [...document.querySelectorAll('#key-pop .kp-capo')]
+      .every(rw => getComputedStyle(rw).display === 'none');
+    document.getElementById('kp-up').click(); document.getElementById('kp-up').click();
+    const key2 = song.key === 'D' && document.getElementById('vh-key-v').textContent === 'D调';
+    document.getElementById('kp-reset').click();                     // 恢复原调
+    const keyBack = song.key === 'C' && document.getElementById('kp-reset').disabled;
     document.body.click();
     document.getElementById('b-vwset').click();                      // ⚙ 设置面板
     const setOn = !!document.getElementById('vs-print') && !!document.getElementById('vs-make')
@@ -103,16 +108,47 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     setMixerExpanded(false);
     return { prog: disp('mx-prog'), rate: disp('mx-rate'), stand: disp('b-stand'), trk: disp('mx-expand'),
       tempo: disp('i-tempo'), vset: disp('b-vwset'), grid: disp('b-mxgrid'), vwStand: disp('vw-stand'),
-      popClosed0, popOpen, popClosed1, nudge, capoPop, capo2, capoKeep, setOn,
+      popClosed0, popOpen, popClosed1, nudge, keyPop, capoStatGone, capoHidden, key2, keyBack, setOn,
       fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2, slTempo, rowFit };
   });
   const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk !== 'none'
     && t8.tempo === 'none' && t8.vset !== 'none' && t8.grid !== 'none' && t8.vwStand === 'missing'
     && t8.popClosed0 && t8.popOpen && t8.popClosed1 && t8.nudge
-    && t8.capoPop && t8.capo2 && t8.capoKeep && t8.setOn
+    && t8.keyPop && t8.capoStatGone && t8.capoHidden && t8.key2 && t8.keyBack && t8.setOn
     && t8.fit && t8.ka1 && t8.ka2 && t8.slTempo && t8.rowFit;
-  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页(页首指法/变调夹/拍速+⚙设置): ' + JSON.stringify(t8));
+  console.log((ok8 ? '✅' : '❌') + ' T8 手机观看页(页首变调/拍速+⚙设置；vocal 无变调夹): ' + JSON.stringify(t8));
   if (ok8) pass++;
+
+  /* T8b v60.37 吉他变调逻辑系统：唱调 ＝ 指法 ＋ 变调夹。
+     调夹（−/＋/速选芯片）唱调锁定、指法反向换算；调唱调（♭/♯）夹不动、指法随动；
+     恢复原调=唱调与夹一并回发布状态。变异实证（写入时验证）：vwSetCapo 去掉
+     vwTranspose(cur-next) 换算 → capoLock 当场红（唱调跟着夹跑）。 */
+  const t8b = await pg3.evaluate(() => {
+    const s = createSong('guitar', { title: 'g', beats: 4, unit: 4, key: 'G', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures.forEach(m => { m.tabs[0] = [{ dur: 4, dotted: false, chord: 'G', strum: '', notes: [{ s: 5, f: 3 }], tech: '' }]; });
+    enterShareViewer({ song: s });
+    document.getElementById('vh-key').click();
+    const capoShown = [...document.querySelectorAll('#key-pop .kp-capo')]
+      .every(rw => getComputedStyle(rw).display !== 'none');
+    const chipsN = document.querySelectorAll('.kp-chip').length;
+    document.getElementById('cp-up').click(); document.getElementById('cp-up').click();   // 夹 2 品
+    const hdr = () => document.getElementById('vh-key-v').textContent;
+    const capoLock = song.capo === 2 && song.key === 'F' && hdr() === 'G调';   // 唱调锁定，指法换算
+    const eqOk = /指法 F/.test(document.getElementById('kp-eq').textContent)
+      && /唱 G/.test(document.getElementById('kp-eq').textContent);
+    const chipOn = (document.querySelector('.kp-chip.on') || {}).dataset || {};
+    document.getElementById('kp-up').click();                                              // 唱调 +1
+    const sungUp = song.capo === 2 && hdr() === 'Ab调';                        // 夹不动，唱调走
+    document.querySelector('.kp-chip[data-capo="4"]').click();                             // 速选 4 品
+    const chip4 = song.capo === 4 && song.key === 'E' && hdr() === 'Ab调';     // 唱调仍锁定
+    document.getElementById('kp-reset').click();
+    const back = song.capo === 0 && song.key === 'G' && hdr() === 'G调';
+    return { capoShown, chipsN, capoLock, eqOk, chipOn: chipOn.capo, sungUp, chip4, back };
+  });
+  const ok8b = t8b.capoShown && t8b.chipsN === 8 && t8b.capoLock && t8b.eqOk && t8b.chipOn === '2'
+    && t8b.sungUp && t8b.chip4 && t8b.back;
+  console.log((ok8b ? '✅' : '❌') + ' T8b 吉他变调逻辑系统(唱调=指法+夹·唱调锁定换算·速选·恢复原调): ' + JSON.stringify(t8b));
+  if (ok8b) pass++;
   await pg3.close();
 
   // T3 倍速：0.5× 总时长应为 1× 的 2 倍（只作用于播放调度）
@@ -186,8 +222,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
 
   fs.unlinkSync(shared);
   const errs = errs1.concat(errs2);
-  console.log('PASS ' + pass + '/8');
+  console.log('PASS ' + pass + '/9');
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === 8 && !errs.length ? 0 : 1);
+  process.exit(pass === 9 && !errs.length ? 0 : 1);
 })();

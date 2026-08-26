@@ -26,7 +26,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       fav: !!document.getElementById('vw-fav'), card: !!document.getElementById('vw-card'),
       scoreNonEmpty: scoreLen > 500 };
   });
-  T(r.viewer && r.cls && r.title === '云端小星星' && r.home && r.stats === 3 && r.fav && r.card && r.scoreNonEmpty, 'T1 观看模式渲染', JSON.stringify(r));
+  T(r.viewer && r.cls && r.title === '云端小星星' && r.home && r.stats === 2 && r.fav && r.card && r.scoreNonEmpty, 'T1 观看模式渲染', JSON.stringify(r));   /* v60.37 头部两枚：变调/拍速 */
 
   // T2 退出观看回到常规编辑
   r = await pg.evaluate(() => { exitViewer(); return { viewer: viewerMode, cls: document.body.classList.contains('viewer') }; });
