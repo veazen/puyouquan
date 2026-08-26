@@ -900,6 +900,17 @@ body.stand #standbar{display:flex}
   .nw-int{flex-direction:row;justify-content:flex-start;gap:9px;padding:10px 14px}
   .nw-int span{margin-left:auto}
 }
+/* v60.42 音轨卡（P1）：统一轨行列表（图标+轨名+删）纵排；＋音轨虚线行；加轨弹窗双大卡 */
+#tab-voices,#vox-voices{display:flex;flex-direction:column;gap:5px;align-items:stretch}
+.chip.trk{display:flex;align-items:center;gap:7px;width:100%;padding:6px 9px;border-radius:10px}
+.chip.trk svg{flex:0 0 auto;opacity:.85}
+.chip.trk .vname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.chip.trk-add{justify-content:center;border-style:dashed;color:var(--muted);font-weight:700}
+.trkadd{display:flex;gap:10px;margin:12px 0 4px}
+.trkadd button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:15px 10px;border-radius:12px;font:inherit}
+.trkadd button svg{color:var(--accent-ink)}
+.trkadd button b{font-size:14px}
+.trkadd button span{font-size:11px;color:var(--muted)}
 /* v38.8 向导差异化入口提权：导入/哼唱不再与「取消」同权重 */
 .nw-feats{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:12px 0 2px;
   padding:10px 12px;border:1.5px dashed var(--accent);border-radius:12px;background:var(--accent-soft)}
@@ -1785,7 +1796,9 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     </div></div>
     <!-- 吉他谱 -->
     <div class="rg panel-p" id="panel-tab-voice">
-      <div class="rg-title">吉他声部</div>
+      <!-- v60.42 音轨化 P1：吉他声部/旋律声部两组统一为「音轨」卡——两容器灌同一份全轨列表，
+           当前图层决定哪块面板可见（tab 层带吉他显示灯、vox 层带旋律显示灯），点行自动切图层 -->
+      <div class="rg-title">音轨</div>
       <div class="rg-body" id="tab-voices"></div>
       <!-- v59.1 记谱法点亮（声部下方）：图标点亮=显示该记谱视图，同源数据自动互译。
            v59.2 纯图标化（用户指示）：只用图标点击点亮，中文靠 title 悬停显示，标题改「显示」 -->
@@ -1848,7 +1861,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     </div>
     <!-- 简谱 -->
     <div class="rg panel-p" id="panel-vox-voice">
-      <div class="rg-title">旋律声部</div>
+      <div class="rg-title">音轨</div>
       <div class="rg-body" id="vox-voices"></div>
       <!-- v59.1 记谱法点亮（声部下方）：简谱/五线谱可叠亮（双亮=五线谱+简谱行联排），同源自动互译。
            v59.2 纯图标化：中文靠 title 悬停显示 -->
@@ -5779,7 +5792,7 @@ function renderDock(){
   const lb=document.querySelector('.ltab[data-t="lyr"]');
   if(lb) lb.style.display = song.lyricLines>0? '' : 'none';
   const vt=document.querySelector('#panel-vox-voice .rg-title');
-  if(vt) vt.textContent = ({piano:'钢琴声部',pianoacc:'钢琴声部',instr:'器乐声部'})[dt] || '旋律声部';
+  if(vt) vt.textContent = '音轨';   /* v60.42 音轨卡统一命名（原按谱类叫 钢琴声部/器乐声部/旋律声部，轨行图标已带乐器语义） */
   const at=document.getElementById('b-acctex');
   if(at) at.style.display = song.pianoAcc? '' : 'none';
   const ar=document.getElementById('b-arrange');
@@ -8671,12 +8684,28 @@ function syncInputs(){
       (col&&col.chord?`<div class="ci-row"><span class="ci-k">和弦</span><b>${esc(col.chord)}</b></div>`:'')+
       (selRange?`<div class="ci-row"><span class="ci-k">多选</span><b>${selRange.m1+1}–${selRange.m2+1} 小节</b></div>`:'');
   }
-  document.getElementById('tab-voices').innerHTML =
-    voiceChips(song.tabVoices, sel.row==='tab'?sel.vi:-1, 'tv') +
-    `<span class="chip" data-k="tv+" title="添加声部">＋</span>`;
-  document.getElementById('vox-voices').innerHTML =
-    voiceChips(song.voxVoices, sel.row==='vox'?sel.vi:-1, 'vv') +
-    `<span class="chip" data-k="vv+" title="添加声部">＋</span>`;
+  /* v60.42 音轨化 P1：两个声部容器灌同一份「全轨列表」（吉他轨+旋律轨統一），
+     行=图标+轨名+删（数据口径不变：tv/vv chips 语义沿用，chipHandler 兼容）；
+     ＋音轨 走意图选择器（trk+），跨类型加轨（歌谱加吉他轨→自动弹唱形态） */
+  { const dtT=docType(song);
+    const lockDoc = dtT==='piano'||dtT==='pianoacc'||dtT==='chord';   /* D3：整谱形态不增删轨 */
+    const trkRows=(list,kind)=>list.map((n,i)=>{
+      const on = sel.row===(kind==='tv'?'tab':'vox') && sel.vi===i;
+      const ic = kind==='tv'? svgi(song.inst==='uku'?'notes':'guitar',14)
+        : (dtT==='piano'||dtT==='pianoacc')? svgi('piano',14)
+        : isStaffNota((song.voxNotations||[])[i])? svgi('violin',14) : svgi('note',14);
+      const canDel = kind==='tv'? (song.tabVoices.length>1 || song.voxVoices.length>0)
+        : (!lockDoc && (song.voxVoices.length>1 || (song.tabVoices.length>0 && song.tabStaff)));
+      return `<span class="chip vchip trk ${on?'on':''}" data-idx="${i}" data-k="${kind}" title="单击选中编辑，双击改名">${ic}`+
+        `<span class="vname">${esc(n)}</span>`+
+        (canDel?`<span class="vdel" data-idx="${i}" data-k="${kind}del" title="删除该音轨">×</span>`:'')+
+      `</span>`;
+    }).join('');
+    const trkHtml = trkRows(song.tabVoices,'tv') + trkRows(song.voxVoices,'vv') +
+      `<span class="chip trk trk-add" data-k="trk+" title="添加音轨：旋律轨 / ${song.inst==='uku'?'尤克里里轨':'吉他轨'}">＋ 音轨</span>`;
+    document.getElementById('tab-voices').innerHTML = trkHtml;
+    document.getElementById('vox-voices').innerHTML = trkHtml;
+  }
   document.getElementById('lyr-lines').innerHTML =
     chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
     `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
@@ -9955,13 +9984,54 @@ function delVoice(kind){
 }
 function delVoiceAt(kind, vi){
   const names = kind==='tab'?song.tabVoices:song.voxVoices;
-  if(names.length<=1) return toast('至少保留一个'+(kind==='tab'?'吉他':'旋律')+'声部');
+  /* v60.42 音轨语义（D3 拍板）：吉他轨可删到 0（弹唱谱删光吉他轨=回歌谱形态，docType 数据派生自动跟随）；
+     旋律轨删到 0 仅限联排独奏形态（tabStaff）——其余谱类和弦/歌词/播放锚定旋律轨，至少留一条 */
+  if(kind==='tab' && names.length<=1 && !song.voxVoices.length) return toast('至少保留一条音轨');
+  if(kind==='vox' && names.length<=1 && !(song.tabVoices.length && song.tabStaff))
+    return toast('至少保留一条旋律轨（六线+五线联排的独奏形态才可无旋律轨）');
+  { const dtD=docType(song);
+    if(kind==='vox' && (dtD==='piano'||dtD==='pianoacc'||dtD==='chord'))
+      return toast('钢琴大谱表 / 和弦格保持整谱形态，声部不可删'); }
   mutate(()=>{
     names.splice(vi,1);
     song.measures.forEach(m=> (kind==='tab'?m.tabs:m.voxes).splice(vi,1));
-    if(sel.row===kind && sel.vi>=names.length) sel.vi=names.length-1;
+    if(sel.row===kind){
+      if(names.length) sel.vi=Math.min(sel.vi, names.length-1);
+      else { sel.row = kind==='tab'? 'vox':'tab'; sel.vi=0; }   /* 本类删光→光标落到另一类轨 */
+    }
   });
-  toast('已删除声部');
+  if(!names.length && uiShell && (activeTab==='tab'||activeTab==='vox')) setRibbon(kind==='tab'?'vox':'tab');
+  toast('已删除音轨');
+}
+/* v60.42 ＋音轨（P1，D3 拍板边界）：旋律轨/吉他轨自由增删；钢琴大谱表与和弦格保持整谱形态暂不加轨；
+   功能谱只加旋律轨（其身份=和声框架）。加轨后选中新轨并切到对应图层。 */
+function showAddTrackMenu(){
+  const dt=docType(song);
+  if(dt==='piano'||dt==='pianoacc'||dt==='chord') return toast('钢琴大谱表 / 和弦格保持整谱形态，暂不支持加轨');
+  const canTab = dt!=='func' && song.tabVoices.length<MAX_VOICES;
+  const canVox = song.voxVoices.length<MAX_VOICES;
+  if(!canTab && !canVox) return toast('音轨已达上限');
+  const tabName = song.inst==='uku'? '尤克里里轨' : '吉他轨';
+  showModal(`<h3>＋ 音轨</h3>
+    <div class="trkadd">
+      ${canVox? `<button id="ta-vox">${svgi('mic',20)}<b>旋律轨</b><span>人声 / 单旋律 · 简谱或五线谱显示</span></button>`:''}
+      ${canTab? `<button id="ta-tab">${svgi(song.inst==='uku'?'notes':'guitar',20)}<b>${tabName}</b><span>六线谱 · 和弦图 / 扫弦 / 技法</span></button>`:''}
+    </div>
+    <div class="btns"><button id="ta-cancel">取消</button></div>`);
+  const pick=(kind)=>{
+    const wasVocal = kind==='tab' && !song.tabVoices.length;
+    closeModal();
+    addVoice(kind);
+    sel.row = kind==='tab'? 'tab':'vox';
+    sel.vi = (kind==='tab'? song.tabVoices : song.voxVoices).length-1;
+    sel.ci=0; sel.si=1; clampSel();
+    if(uiShell) setRibbon(sel.row);
+    render();
+    toast(kind==='tab'? ('已添加'+tabName+(wasVocal? '：本谱升级为弹唱形态（和弦图/节奏型可用）':'')) : '已添加旋律轨');
+  };
+  const tv2=document.getElementById('ta-vox'); if(tv2) tv2.onclick=()=>pick('vox');
+  const tt2=document.getElementById('ta-tab'); if(tt2) tt2.onclick=()=>pick('tab');
+  document.getElementById('ta-cancel').onclick=closeModal;
 }
 /* 声部/歌词段 chips 交互：面板位于左侧工具栏（历史上曾在页头，
    两处都绑定以兼容），修复"＋添加声部"点击无效 */
@@ -9986,9 +10056,13 @@ const chipHandler = e=>{
     }
     lastChipClick = {k, idx, t:now};
   }
-  if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
-  else if(k==='vv'){ sel.row='vox'; sel.vi=+chip.dataset.idx; selRange=null; clampSel(); render(); }
+  /* v60.42 统一音轨卡：从旋律语境点吉他轨行（或反向）自动切图层，工具面板随轨跟随 */
+  if(k==='tv'){ sel.row='tab'; sel.vi=+chip.dataset.idx; selRange=null; clampSel();
+    if(uiShell && activeTab==='vox') setRibbon('tab'); render(); }
+  else if(k==='vv'){ sel.row='vox'; sel.vi=+chip.dataset.idx; selRange=null; clampSel();
+    if(uiShell && activeTab==='tab') setRibbon('vox'); render(); }
   else if(k==='ll'){ activeLyr=+chip.dataset.idx; syncInputs(); }
+  else if(k==='trk+') showAddTrackMenu();
   else if(k==='tv+') addVoice('tab');
   else if(k==='vv+') addVoice('vox');
   else if(k==='ll+'){
@@ -19889,7 +19963,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.41';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.42';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -19912,6 +19986,7 @@ const APP_VER='v60.41';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.42</span><div><b>左栏音轨卡（音轨化改版 P1）：一张列表管全部轨，跨类型加轨</b>（产品拍板方案第二期）。① <b>「吉他声部」「旋律声部」两组合并为统一「音轨」卡</b>：每轨一行——乐器图标（吉他/尤克里里/钢琴/五线器乐/简谱旋律自动区分）＋轨名＋删除；单击选中编辑、双击改名如旧；<b>从简谱语境点吉他轨行自动切换图层</b>，左栏工具与记号面板随轨跟随。② <b>「＋音轨」跨类型加轨</b>：点开选「旋律轨」或「吉他轨/尤克里里轨」——<b>歌谱上加一条吉他轨，即自动升级为弹唱形态</b>（和弦图/扫弦/节奏型立即可用）；弹唱谱删光吉他轨则回到歌谱形态——谱类本就由音轨组合派生，增删轨=改变谱面形态，这正是音轨模型的本义。③ <b>删轨边界（D3 拍板）</b>：旋律轨/吉他轨自由增删（总轨数≥1；旋律轨删到 0 仅限六线+五线联排的独奏形态）；钢琴大谱表与和弦格保持整谱形态，暂不增删。④ 加轨即选中新轨并落到对应图层，一步可撤销。新增 <code>tv_tracks</code> 套件 <b>6 项</b>（统一列表结构 / 点行切图层 / 歌谱加吉他轨升弹唱-删回歌谱闭环 / 删轨守卫 / 钢琴-和弦格锁定 / 改名保留），对 v60.41 旧文件跑当场红＝突变实证。<b>84 套件</b>全绿。</div></li>
     <li><span class="v">v60.41</span><div><b>新建流程音轨化改版（P0）：三选一，一屏进编辑器</b>（产品负责人手稿拍板：谱类＝<b>音轨组合 × 显示方式</b>——用户先说要什么轨，谱面用简谱/五线谱/六线谱显示是每条轨随时可切的属性）。旧「九张版式卡 → 第二步十项表单」两页流程收敛为<b>一屏</b>：① 三张图标意图卡——<b>声乐</b>（独唱 / 合唱 2–4 声部）、<b>器乐</b>（吉他 / 尤克里里 / 钢琴 / 其他器乐五线谱，形态选独奏或伴奏——<b>伴奏自动加一条人声旋律轨</b>，即弹唱）、<b>功能和声</b>（简谱＋级数 / 和弦格）；点卡就地展开次级选项，不换页。② 基础信息只留<b>标题 / 调 / 拍号 / 速度</b>四项——小节数、歌词行、变调夹、定弦、词曲署名全部给智能默认，创建后在「曲谱信息」与左栏随时改：不该在还没写一个音时被逼着回答十个问题。③ 默认选中「器乐 · 吉他 · 伴奏」（最主流）——打开向导<b>一击「创建」即进编辑器</b>，任意组合最多三击。④ 全部组合仍落到既有谱类实现：发布、谱库、观看页、导入导出全链路零感知，老谱不受任何影响；<b>教学对照谱不再单设卡</b>——它本就是声部「五线谱＋简谱」双显示的组合，左栏点亮两盏显示灯即得同款版式。⑤ 导入三入口（MusicXML / Guitar Pro / 哼唱成谱）原样保留在向导底部。新增 <code>tv_newwiz</code> 套件 <b>6 项</b>（一屏结构 / 一击默认建谱 / <b>十一种组合与旧向导产物逐字段等价</b>自动比对 / 次级联动 / 基础信息生效 / 手机布局），对 v60.40 旧文件跑当场红＝突变实证。<b>83 套件</b>全绿。后续按方案推进：P1 左栏音轨卡 → P2 工具随轨 → P3 旋律轨↔六线谱把位映射。</div></li>
     <li><span class="v">v60.40</span><div><b>数拍并入节拍器 + 节拍器设置弹窗</b>（产品负责人指示：数拍功能并入节拍器，完善节拍器功能，点开弹窗设置）。播放条「节拍器」按钮从单纯开关升级为<b>设置弹窗</b>：① <b>拍点声开关</b>——随播放逐拍发声（原开关语义）；② <b>数拍（预备拍）回归并入</b>：关 / 1 小节 / <b>2 小节</b>（新增）——起播前按拍号先打空拍再进曲，教学场景学生跟弹的「进入口令」；<b>与拍点声独立开关</b>：只要预备拍、全曲不要拍点（最常见用法）就开数拍关拍点；③ <b>首拍重音开关</b>——每小节第一拍高音重读，切分/弱起练习可关掉；④ <b>八分细分</b>——每拍后半拍加一记轻点（音色略抬、轻一档，机械节拍器双音色惯例），慢速跟练稳节奏；⑤ <b>拍点音量</b> 20%–200% 推子，与乐音音量独立。设置持久保存（新键 <code>musetab-metro</code>，数据红线安全）；数拍/重音等改动在播放中即时生效重排程。按钮亮起=拍点或数拍任一开启。弹窗与变调/拍速同一深色浮层家族，从播放坞向上弹出，点外部收起，手机/桌面/观看页/谱架同款可用。<code>tv_metro</code> 新套件 <b>6 项</b>（弹窗结构/开关联动/数拍 2 小节排程口径/细分排程口径/持久化恢复——对 v60.39 旧文件跑当场红=突变实证）。<b>82 套件</b>全绿。</div></li>
     <li><span class="v">v60.39</span><div><b>指法变调重排：和弦图与谱面演奏严格一致</b>（用户报告：变调+指法调整后和弦图与谱面演奏不匹配，并给出逻辑系统规格：①变调夹变调完全保持指法；②指法变调若保不住原演奏，自动按和弦图匹配指法）。<b>此前的问题</b>：指法变调=逐品平移+越界折八度——谱面音符平移了，和弦图显示的却是新调的标准指法图，图与演奏对不上，且平移出的把位不是人手会按的。<b>现在</b>：① <b>伴奏列随新和弦图取形</b>——列上的音都落在生效和弦指法上的（扫弦/分解/节奏型），逐弦换成新和弦图的品位；新图与原弦集不同时按<b>低→高弦序对应映射</b>（G 六弦满扫变 D 就成四弦满扫——真人换和弦弹同一织体正是这么做的），谱面演奏与和弦图从此严格一致；单音列是「分解伴奏」还是「旋律恰好路过和弦音」按小节语境判定（本小节多数列在图上才算伴奏）。② <b>旋律列走束搜索指派器整段重排把位</b>（v60.25 同一份实现：和音异弦/品距≤4/低把位空弦优先/跨列连贯），音高精确移调；放不下的整八度折入并计数、仍放不下退回平移——toast 如实播报，不静默。③ <b>变调夹路径指法零损有架构保证</b>：观看副本每次从原始发布数据重建，「唱+2 且 夹+2」这类经典夹用法净变调为零，原指法逐音原样。顺带补上 v60.30 拍位和弦在观看页移调时漏平移的缺口。<code>tv_viewer</code> 9→<b>10 项</b>（T8c 三合一断言，对 v60.38 平移版跑当场红=突变实证）。已知缺口如实记录：跨列技法指针（tk 弦号）在重排移弦后可能指偏，观看页试奏场景暂不重连。<b>81 套件</b>全绿。</div></li>
