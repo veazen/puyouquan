@@ -8,7 +8,11 @@
    T5 唱调锁定不伤别人：改参考轨夹位时，有自己夹位的轨**品位一个都不动**（发声不被改）
    T6 MusicXML：<capo> 是 staff-details 级，逐 part 各写各的
    T7 GP 导入不再丢数据：逐轨 capo 落进 tabCapos（此前只取第一条，其余轨被静默按错夹位播放）
-   对 v60.60 旧文件跑：T1/T2/T3/T5/T6 当场红（突变实证）。file:// 直载。 */
+   T8 观看页调夹位：参考轨换指法，有自己夹位的轨品位不动、发声不变（v60.63 补齐；
+      此前观看页 vwSetCapo 仍是整谱级，双吉他谱在观看页调夹位会把非参考轨一起改掉）
+   T9 观看页纯音高移调：两轨一起升——夹位轨只是不吃「夹位带来的位移」，不是永远不动
+   对 v60.60 旧文件跑：T1/T2/T3/T5/T6 当场红；对 v60.62 旧文件跑：T8 当场红（突变实证）。
+   file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
@@ -135,6 +139,49 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   })()`);
   T(r.same === undefined && r.diff.join() === '5,0' && r.diff3.join() === '0,3,0',
     'T7 GP 导入口径：各轨一致不产生字段，不一致逐轨落值', JSON.stringify(r));
+
+  // T8 观看页：调夹位不动「有自己夹位的轨」（v60.63；此前观看页仍是整谱一个数）
+  r = await pg.evaluate(HELP + `(()=>{
+    __mk2();
+    const data=JSON.parse(JSON.stringify(song));
+    viewerCtx={pb:{title:'t',author:'a',type:'guitar',data,price:0,preview:9999}, own:true, total:1};
+    viewerMode=true; vwTrans=0; vwCapo=null; vwCapoTrans=0;
+    song=viewerBuildSong();
+    sel={mi:0,row:'tab',vi:0,ci:0,si:3};
+    const frets=()=>song.measures[0].tabs.map(t=>t[0].notes.map(n=>n.s+':'+n.f).join()).join('|');
+    const hz=()=>{ const rec=[]; const orig=playInst;
+      playInst=(k,c,b2,f)=>{ rec.push(+f.toFixed(2)); };
+      try{ play(); } finally { stopPlay(); playInst=orig; }
+      return [...new Set(rec)].sort((x,y)=>x-y); };
+    const before={f:frets(), hz:hz()};
+    vwSetCapo(-2);                       // 夹 5 → 3（唱调锁定：跟随轨指法 +2）
+    const after={f:frets(), hz:hz(), capo:song.capo};
+    return {before, after};
+  })()`);
+  T(r.before.f === '3:0|3:0' && r.after.f === '3:2|3:0' && r.after.capo === 3
+    && r.before.hz.join() === r.after.hz.join(),
+    'T8 观看页调夹位：参考轨换指法、有自己夹位的轨品位不动，两轨发声一个都没变', JSON.stringify(r));
+
+  // T9 观看页纯音高移调：这次两轨都要动（别把 T8 修成「override 轨永远不动」）
+  r = await pg.evaluate(HELP + `(()=>{
+    __mk2();
+    const data=JSON.parse(JSON.stringify(song));
+    viewerCtx={pb:{title:'t',author:'a',type:'guitar',data,price:0,preview:9999}, own:true, total:1};
+    viewerMode=true; vwTrans=0; vwCapo=null; vwCapoTrans=0;
+    song=viewerBuildSong();
+    sel={mi:0,row:'tab',vi:0,ci:0,si:3};
+    const hz=()=>{ const rec=[]; const orig=playInst;
+      playInst=(k,c,b2,f)=>{ rec.push(+f.toFixed(2)); };
+      try{ play(); } finally { stopPlay(); playInst=orig; }
+      return [...new Set(rec)].sort((x,y)=>x-y); };
+    const a=hz();
+    vwTranspose(2);                      // 唱调 +2：与夹位无关，所有轨都该升
+    const b2=hz();
+    const semi=Math.pow(2,2/12);
+    return {a, b:b2, ratios:b2.map((v,i)=>+(v/a[i]).toFixed(4)), want:+semi.toFixed(4)};
+  })()`);
+  T(r.ratios.length === 2 && r.ratios.every(x=>Math.abs(x-r.want)<0.002),
+    'T9 观看页纯音高移调：两轨一起升 2 个半音（夹位轨也不例外）', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

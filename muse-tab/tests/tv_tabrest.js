@@ -1,11 +1,16 @@
 /* v60.60 六线谱时值线与空小节骨架（用户报告三项）：
-   T1 新建项目/新增小节：吉他谱空小节 = 每拍一个四分音符（此前每拍两个八分共 8 列）
-   T2 空小节渲染：一拍一条时值线、谱表内不画休止字形（「点击节奏时只出现时值线」）
+   T1 新建项目/新增小节：吉他谱空小节 = 跟拍号相等的休止列（4/4→4 个四分；此前每拍两个八分共 8 列）
+   T2 空小节渲染：**一根时值线都不画**、谱表内也不画休止字形
+      （v60.60 原为「一拍一条」，v60.63 产品指示「单独占一拍的休止符不需要时值线」→ 跟随改口径）
    T3 休止与实音同一拍：休止列也有时值线，并与同拍实音并进同一条符杠
    T4 倚音技巧字母＝普通两音技法字母同款（11px / 600 / 纸底描边 2.4），由 8px/700/2.2 放大
    T5 双倚音输入：空格分隔「5 7」两音；连写「57」也按两音；读不出品位时报错而**不静默删除**
    T6 护栏：简谱/五线谱声部的休止字形照旧（本版只动六线谱）
-   对 v60.59 旧文件跑：T1/T2/T3/T4/T5 当场红（突变实证）。file:// 直载。 */
+   T7 空小节按拍号：数量＝分子、时值＝分母（6/8＝6 个八分；旧版 6 个四分＝12 拍，超一倍）
+   T8 混合小节：同拍休止连杠 / 单独拍休止不画 / **单独四分音符的符干不被误伤**
+      （四分不进符杠组，若照组判会连它一起抹掉——本版实测 3→2 根，已用本项钉住）
+   对 v60.59 旧文件跑：T1/T3/T4/T5 当场红；对 v60.62 旧文件跑：T2/T7 当场红（突变实证）。
+   file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
@@ -21,12 +26,20 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   const HELP = `
     window.__tc=o=>Object.assign({dur:4,dotted:false,chord:'',notes:[],strum:'',tech:''},o);
     window.__svg=()=>document.getElementById('score');
-    /* 符干＝竖直 line stroke-width=1（小节线更长且成对，按长度过滤不掉，故按 x 聚合比对） */
-    window.__stemXs=()=>[...__svg().querySelectorAll('line')].filter(x=>
+    /* 符干＝竖直 line stroke-width=1。小节线同样是这种竖线，必须排掉，否则「几根符干」会多算：
+       小节线止于谱表底线，符干还要再往下 12px 到符杠基线 → 按 y2 区分。
+       基准取**最左那条竖线**＝行首小节线，它的 y2 就是谱表底线。
+       （v60.63 起需要绝对根数，旧写法按 x 聚合比对可以容忍小节线，现在不行了） */
+    window.__stemXs=()=>{
+      const vs=[...__svg().querySelectorAll('line')].filter(x=>
         Math.abs(+x.getAttribute('x1')-+x.getAttribute('x2'))<0.3
         && +x.getAttribute('stroke-width')===1
-        && Math.abs(+x.getAttribute('y2')-+x.getAttribute('y1'))>3)
-      .map(x=>+(+x.getAttribute('x1')).toFixed(1)).sort((a,c)=>a-c);
+        && Math.abs(+x.getAttribute('y2')-+x.getAttribute('y1'))>3);
+      if(!vs.length) return [];
+      const X=x=>+(+x.getAttribute('x1')).toFixed(1), Y2=x=>+(+x.getAttribute('y2')).toFixed(1);
+      const barY2=Y2(vs.reduce((a,c)=>X(c)<X(a)?c:a, vs[0]));
+      return vs.filter(x=>Y2(x)>barY2+1).map(X).sort((a,c)=>a-c);
+    };
     window.__beams=()=>[...__svg().querySelectorAll('rect')].filter(x=>+x.getAttribute('height')===2.2).length;
     /* 休止字形＝ smg 落地的带 transform 的 path */
     window.__restGlyphs=()=>__svg().querySelectorAll('path[transform]').length;
@@ -56,19 +69,19 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.added.join() === '4,4,4,4' && r.newTrk.join() === '4,4,4,4' && r.grew === 1,
     'T1 空吉他小节＝每拍一个四分（新建/新增小节/加轨口径一致）', JSON.stringify(r));
 
-  // T2 空小节：一拍一条时值线 + 谱表内无休止字形
+  // T2 空小节：一根时值线都不画（v60.63 改口径，见文件头说明）
   r = await pg.evaluate(HELP + `(()=>{
     __mkGuitar(1,4,4);
     const stems=__stemXs(), rests=__restGlyphs();
-    /* 与「同一张谱但四列都填上音符」对照：符干条数应一致（休止与实音同待遇） */
+    /* 对照组：四列都填上音符 → 四根符干照画（证明「不画」只针对独占一拍的休止，
+       不是把整套时值线机制关掉了） */
     song.measures[0].tabs[0].forEach(c=>{ c.notes=[{s:3,f:5}]; });
     blurSel=true; render();
     const stemsFilled=__stemXs();
-    return {nStem:stems.length, rests, nStemFilled:stemsFilled.length,
-      sameXs: stems.join()===stemsFilled.join()};
+    return {nStem:stems.length, rests, nStemFilled:stemsFilled.length};
   })()`);
-  T(r.rests === 0 && r.nStem === r.nStemFilled && r.sameXs && r.nStem >= 4,
-    'T2 空小节：一拍一条时值线、无休止字形（与填满音符时符干位置一致）', JSON.stringify(r));
+  T(r.rests === 0 && r.nStem === 0 && r.nStemFilled === 4,
+    'T2 空小节：独占一拍的休止不画时值线（填上音符则四根照画）', JSON.stringify(r));
 
   // T3 休止与实音同拍：休止列有时值线且并进同一条符杠
   r = await pg.evaluate(HELP + `(()=>{
@@ -82,7 +95,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const groups=beamGroups(song.measures[0].tabs[0], null, 4).map(g=>g.idx.join('-'));
     return {groups, beams:__beams(), rests:__restGlyphs(), nStem:__stemXs().length};
   })()`);
-  T(r.groups.join('|') === '0-1|2-3' && r.beams >= 2 && r.rests === 0 && r.nStem >= 6,
+  /* 5 根＝第1拍(音+休止)2 + 第2拍(两个八分)2 + 第3拍(四分音符)1；第4拍独占一拍的休止不画 */
+  T(r.groups.join('|') === '0-1|2-3' && r.beams >= 2 && r.rests === 0 && r.nStem === 5,
     'T3 休止与实音同拍：休止列有时值线并进同一条符杠', JSON.stringify(r));
 
   // T4 倚音技巧字母＝普通两音技法字母同款
@@ -121,6 +135,42 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   })()`);
   T(r.sep === '5 7' && r.joined === '5 7' && r.kept,
     'T5 双倚音输入：空格分隔/连写都两音；无效输入不静默删除', JSON.stringify(r));
+
+  // T7 复合拍号空小节：数量＝分子、时值＝分母（v60.63 修「6/8 空小节多出一倍」）
+  r = await pg.evaluate(HELP + `(()=>{
+    __mkGuitar(1,6,8);
+    const cols=song.measures[0].tabs[0];
+    const durs=cols.map(c=>c.dur);
+    const total=cols.reduce((a,c)=>a+beatsOf(c,8),0);
+    const stems=__stemXs().length, beams=__beams();
+    /* 对照 3/4 与 4/4：都应正好填满一小节 */
+    __mkGuitar(1,3,4);
+    const t34=song.measures[0].tabs[0].reduce((a,c)=>a+beatsOf(c,4),0);
+    __mkGuitar(1,4,4);
+    const t44=song.measures[0].tabs[0].reduce((a,c)=>a+beatsOf(c,4),0);
+    return {durs, total, want:6, stems, beams, t34, t44};
+  })()`);
+  T(r.durs.join() === '8,8,8,8,8,8' && Math.abs(r.total - 6) < 1e-6
+    && r.stems === 0 && r.beams === 0
+    && Math.abs(r.t34 - 3) < 1e-6 && Math.abs(r.t44 - 4) < 1e-6,
+    'T7 空小节按拍号：6/8＝6 个八分正好一小节（旧版 6 个四分＝12 拍，超一倍）', JSON.stringify(r));
+
+  // T8 不能误伤普通音符的符干：四分/二分音符本就不进符杠组，
+  //    若拿 beamGroups 的分组来判「该不该画时值线」会把它们的符干一并抹掉
+  r = await pg.evaluate(HELP + `(()=>{
+    __mkGuitar(1,4,4);
+    song.measures[0].tabs[0]=[
+      __tc({dur:8,notes:[{s:3,f:2}]}), __tc({dur:8}),   // 第1拍：音＋休止 → 两根符干＋一条杠
+      __tc({dur:4}),                                     // 第2拍：独占一拍的休止 → 不画
+      __tc({dur:4,notes:[{s:2,f:1}]}),                   // 第3拍：单独四分音符 → 必须有符干
+      __tc({dur:4})                                      // 第4拍：独占一拍的休止 → 不画
+    ];
+    blurSel=true; render();
+    const xs=__stemXs();
+    return {n:xs.length, beams:__beams(), rests:__restGlyphs(), xs};
+  })()`);
+  T(r.n === 3 && r.beams === 1 && r.rests === 0,
+    'T8 混合小节：同拍休止连杠、单独拍休止不画、单独四分音符符干不被误伤', JSON.stringify(r));
 
   // T6 护栏：简谱声部休止字形照旧（本版只动六线谱）
   r = await pg.evaluate(HELP + `(()=>{

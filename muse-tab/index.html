@@ -4349,15 +4349,22 @@ function tcol(){ return {dur:8, dotted:false, chord:'', notes:[], strum:'', tech
 /* v60.60 产品指示：新建项目/新增小节的吉他谱默认「一拍一个四分音符」的时值骨架。
    此前是每拍两个八分（4/4 共 8 列 dur=8），而空列又只画一个居中全休止——
    谱面上既看不出拍位、也没有时值线可点。总时值不变，只换列粒度与默认时值。 */
-function blankTabCols(beats){
+/* v60.63 产品指示「新建的六线谱每小节、以及新增小节，默认是跟拍号相等的休止音符」——
+   「跟拍号相等」是两层：**数量＝分子、时值＝分母**。v60.60 只做了数量、时值一律写死四分，
+   于是 6/8 拍的空小节是 6 个四分＝12 拍，比一小节整整多出一倍（beatsOf 里 unit/4 那个因子）。
+   现在 dur 取 unit：4/4→4 个四分、6/8→6 个八分、3/4→3 个四分，各自正好填满一小节。
+   这些列没有音＝休止；又因各自独占一拍，按新规则不画时值线，空小节谱面是干净的。 */
+function blankTabCols(beats, unit){
   const n = Math.max(1, Math.round(beats!=null? beats : ((typeof song!=='undefined' && song && song.beats) || 4)));
-  const a=[]; for(let i=0;i<n;i++){ const c=tcol(); c.dur=4; a.push(c); }
+  const u = (unit!=null? unit : ((typeof song!=='undefined' && song && song.unit) || 4));
+  const d = (u===8||u===4||u===2||u===16)? u : 4;
+  const a=[]; for(let i=0;i<n;i++){ const c=tcol(); c.dur=d; a.push(c); }
   return a;
 }
 function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false}; }
 function blankMeasure(){
   const m = {tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
-  song.tabVoices.forEach(()=>{ m.tabs.push(blankTabCols(song.beats)); });
+  song.tabVoices.forEach(()=>{ m.tabs.push(blankTabCols(song.beats, song.unit)); });
   song.voxVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
   return m;
 }
@@ -5978,6 +5985,27 @@ function voltaSVG(p, mea, mi, mx, bx, yV){
     p.push(`<text x="${mx+4}" y="${yV+9.5}" font-size="9" font-weight="700" fill="var(--ink)">${mea.volta}.</text>`);
   }
 }
+/* v60.63 六线谱哪些列该画时值线（产品指示「单独占一拍的休止符不需要时值线，
+   和其他音符连成一拍时就要连接时值线」）：**发声列一律画**；休止列只在「本拍里有发声」时才画。
+   拍的划分与 beamGroups 同源——复合拍号(unit=8)按附点四分＝3 个八分为一拍。
+   注意不能拿 beamGroups 的分组来判：它只收 dur>=8 的列，四分/二分音符根本不进组，
+   照组判会把普通四分音符的符干一并抹掉（本版实测：混合小节符干 3→2）。 */
+function tabStemSet(cols, unit){
+  unit = unit || song.unit;
+  const gLen = unit===8 ? 3 : 1;
+  const sounds = c => !!((c.notes||[]).length || c.strum || c.perc);
+  const st=[], en=[]; let cum=0;
+  cols.forEach(c=>{ st.push(cum); cum+=beatsOf(c,unit); en.push(cum); });
+  const bOf = t => Math.floor(t/gLen + 1e-4);
+  /* 有声拍：任何发声列（含跨拍长音覆盖到的拍）所在的拍 */
+  const loud = new Set();
+  cols.forEach((c,i)=>{ if(!sounds(c)) return;
+    const b0=bOf(st[i]), b1=bOf(Math.max(st[i], en[i]-1e-3));
+    for(let b=b0;b<=b1;b++) loud.add(b); });
+  const out = new Set();
+  cols.forEach((c,i)=>{ if(sounds(c) || loud.has(bOf(st[i]))) out.add(i); });
+  return out;
+}
 function beamGroups(cols, playable, unit){
   unit = unit || song.unit;   // v43.5 变拍子：本小节 unit（缺省 song 默认）
   /* v42.4 复合拍号(6/8·9/8·12/8，unit===8)按附点四分成组：beatsOf 令八分=1 单位，故组长=3 个八分；
@@ -6995,6 +7023,12 @@ function render(){
         /* v60.60 playable 由「本列有音才成杠」改为不过滤：休止列与同拍的实音并进一条符杠
            （用户报告：与有效音符同一拍的休止符也要时值线），空小节则整齐地一拍一条 */
         const bGroups = beamGroups(cols, null, meaMeter(lm.mi).unit);
+        /* v60.63 产品指示「单独占一拍的休止符不需要时值线，和其他音符连成一拍时才连上」：
+           以**符杠组**为单位判定——组里只要有一列发声，整组（含其中的休止列）都画时值线并连成一杠；
+           整组全是休止（典型就是空小节里各自独占一拍的那些列）则一根线都不画。
+           v60.60 是「休止列一律画」，空小节于是排出一列光秃秃的符干；现在空小节谱面干净，
+           而「八分音符＋八分休止」这种同拍组合仍旧连成一条杠——两个诉求都满足。 */
+        const stemOK = tabStemSet(cols, meaMeter(lm.mi).unit);
         const dotLv = new Map();
         bGroups.forEach(g=>{
           const maxD = Math.max(...g.idx.map(i2=>cols[i2].dur));
@@ -7448,9 +7482,9 @@ function render(){
             if(nD && q4-Math.floor(q4+1e-4)>1e-3)
               p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${dyC.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
           }
-          /* v60.60 产品指示：空列（休止）也要时值线——「与有效音符同一拍的休止符也要时值线」，
-             且新建/新增小节要能一眼看到一拍一条的四分骨架。符干不再要求本列有音。 */
-          if(col.dur>=2){
+          /* v60.60 空列（休止）也画时值线；v60.63 收紧为「本列所在的符杠组里有发声列才画」——
+             单独占一拍的休止不画（stemOK 在上方按组算好）。 */
+          if(col.dur>=2 && stemOK.has(ci)){
             /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁；空列自谱表底线起 */
             let sLow = 6;
             if(col.strum) sLow = strumSpan(col).bot;
@@ -7481,6 +7515,7 @@ function render(){
         });
         bendDecor.forEach(s=>p.push(s));   // 推弦圆圈/连线置于音符之上
         if(!simN) bGroups.forEach(g=>{
+          if(!g.idx.some(i2=>stemOK.has(i2))) return;   /* v60.63 整组全是「独占一拍的休止」：符杠/符尾都不画 */
           const xs = g.idx.map(i=>mx+lay.xs[i]);
           const x1=Math.min(...xs), x2=Math.max(...xs);
           if(g.idx.length>1){
@@ -10622,7 +10657,7 @@ function addVoice(kind){
   mutate(()=>{
     if(kind==='tab'){
       song.tabVoices.push('吉他'+(song.tabVoices.length+1));
-      song.measures.forEach((m,mi2)=>{ m.tabs.push(blankTabCols(meaMeter(mi2).beats)); });
+      song.measures.forEach((m,mi2)=>{ m.tabs.push(blankTabCols(meaMeter(mi2).beats, meaMeter(mi2).unit)); });
     }else{
       song.voxVoices.push('旋律'+(song.voxVoices.length+1));
       song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
@@ -11241,7 +11276,7 @@ function pasteMeasure(){
         newMs = srcs.map(srcM=>{
           const src=JSON.parse(JSON.stringify(srcM));
           const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
-          song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : blankTabCols(song.beats)); });
+          song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : blankTabCols(song.beats, song.unit)); });
           song.voxVoices.forEach((_,vi2)=>{ m.voxes.push(src.voxes&&src.voxes[vi2]? src.voxes[vi2] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
           return m;
         });
@@ -11271,7 +11306,7 @@ function pasteMeasure(){
         while(mi>=song.measures.length) song.measures.push(blankMeasure());
         const src=JSON.parse(JSON.stringify(srcM));
         const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
-        song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : blankTabCols(song.beats)); });
+        song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : blankTabCols(song.beats, song.unit)); });
         song.voxVoices.forEach((_,vi)=>{ m.voxes.push(src.voxes&&src.voxes[vi]? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
         song.measures[mi]=m;
       });
@@ -11339,7 +11374,7 @@ function pasteMeasure(){
     const m = {tabs:[], voxes:[], repeatStart:src.repeatStart, repeatEnd:src.repeatEnd};
     /* 对齐当前声部数量：不足补空、超出截断 */
     song.tabVoices.forEach((_,vi)=>{
-      m.tabs.push(src.tabs[vi] ? src.tabs[vi] : blankTabCols(song.beats));
+      m.tabs.push(src.tabs[vi] ? src.tabs[vi] : blankTabCols(song.beats, song.unit));
     });
     song.voxVoices.forEach((_,vi)=>{
       m.voxes.push(src.voxes[vi] ? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})());
@@ -16765,7 +16800,14 @@ function showNewWizard(){
   /* 意图状态：默认 器乐·吉他·伴奏（最主流，一击可建）；换乐器时形态钳到该乐器合法集合。
      v60.45 二级带图标（Apple 细线）；乐器选择改图标网格（INSTRUMENTS 数据驱动，
      后期加乐器只增一行、网格自动铺开）。 */
-  const NW={int:'inst', vocalN:1, instKey:'guitar', form:'acc', clef:'staff', ftype:'func'};
+  /* v60.65 记谱引导（产品原话：「假如我是一个擅长简谱的创作者，不懂吉他谱又想通过简谱制作吉他谱，
+     或者我只懂五线谱，通过五线谱制作吉他谱或者简谱，这个功能应该新建项目时提示」）。
+     know＝**你用哪种谱来写**，与「最终要出什么谱」解耦：
+       六线谱目标 + know=简谱/五线谱 → 建好后光标落在旋律轨、按你会的谱式显示，
+         吉他轨由左栏「显示 · 六线谱」一键按把位生成（v60.44 的 mapVoxToTab，原轨不动可撤销）；
+       声乐谱 + know=五线谱 → 旋律轨直接以五线谱显示（同源数据，简谱随时切回）。
+     不新增数据字段：落到既有的 voxNotations / 光标位置，老谱与发布链路零感知。 */
+  const NW={int:'inst', vocalN:1, instKey:'guitar', form:'acc', clef:'staff', ftype:'func', know:'auto'};
   /* v60.47 二级选项下拉化（产品指示：下拉选择、图标+文字、少占位）。
      菜单项保留 data-k/data-v 语义（回归套件与程序化路径同口径）；单选即重渲染、菜单自然收起。
      items: {v,lab,ic,tip} 选项 / {cap} 组标题（乐器菜单沿用 弹拨/键盘/管弦/民乐 分组）。 */
@@ -16791,6 +16833,9 @@ function showNewWizard(){
         {v:2,lab:'合唱 2 声部',ic:'choir'},
         {v:3,lab:'合唱 3 声部',ic:'choir'},
         {v:4,lab:'合唱 4 声部',ic:'choir'}]);
+      h+=dd('know','我会',[
+        {v:'auto',lab:'简谱',ic:'jianpu',tip:'默认；随时可在右栏「显示」切五线谱，同一份数据自动互译'},
+        {v:'staff',lab:'五线谱',ic:'staff5',tip:'只看得懂五线谱就选这个：旋律轨直接以五线谱录入，简谱行一键附加'}]);
     } else if(NW.int==='func'){
       h+=dd('ftype','谱式',[
         {v:'func',lab:'简谱＋级数和弦',ic:'degnum',tip:'选中音符后左栏「和弦/级数」标注'},
@@ -16809,6 +16854,17 @@ function showNewWizard(){
           {v:'finger',lab:'指弹',ic:'fingerpick',tip:'六线＋五线联排，pima 指法/特殊调弦/打板击勾滑'}]);
       else if(NW.instKey==='uku')
         h+=dd('form','形态',[{v:'acc',lab:'伴奏（弹唱）· 自动加人声轨',ic:'rhythm',tip:'四线谱＋简谱＋和弦图'}]);
+      if(NW.instKey==='guitar'||NW.instKey==='uku'){
+        h+=dd('know','我会',[
+          {v:'auto',lab:'六线谱（看得懂 TAB）',ic:'tab6',tip:'直接在六线谱上写弦位与品位'},
+          {v:'jianpu',lab:'简谱 → 生成六线谱',ic:'jianpu',tip:'不懂 TAB 也能做吉他谱：在简谱轨写旋律，再一键按把位生成吉他轨'},
+          {v:'staff',lab:'五线谱 → 生成六线谱',ic:'staff5',tip:'在五线谱上写旋律，再一键按把位生成吉他轨'}]);
+        if(NW.know!=='auto')
+          h+='<span class="nw-fhint">建好后光标落在<b>旋律轨</b>（按'
+            +(NW.know==='staff'?'五线谱':'简谱')+'显示）：先把旋律写完，再点左栏「显示 · 六线谱」'
+            +'按低把位/中把位/跟随和弦图生成'+(NW.instKey==='uku'?'尤克里里':'吉他')
+            +'轨——原旋律轨不动，一步可撤销。</span>';
+      }
       else if(cur.fam==='kbd')
         h+=dd('form','形态',[
           {v:'pacc',lab:'伴奏（弹唱）· 织体自动生成',ic:'rhythm',tip:'大谱表纯伴奏＋和弦名，主旋律由演唱者担任'},
@@ -16874,9 +16930,31 @@ function showNewWizard(){
       ns.instKey=NW.instKey;
       if(it.tim){ ns.mixer={}; ns.voxVoices.forEach((_,i)=>ns.mixer['vox:'+i]={on:true,solo:false,inst:it.tim,vol:1,pan:null}); }
     }
+    /* v60.65 记谱引导落位：按「我写谱用」把工作轨与显示谱式配好，光标直接落到能下笔的地方。
+       只动 voxNotations 与光标，不新增字段；know='auto' 时下面整段不执行＝老路径一字不变。 */
+    let guideMsg='';
+    if(NW.know==='jianpu'||NW.know==='staff'){
+      const wantTab = NW.int==='inst' && (NW.instKey==='guitar'||NW.instKey==='uku');
+      /* 独奏/指弹（solo）在 createSong 里被硬编码为 0 条旋律轨——引导模式下补一条可写的 */
+      if(!ns.voxVoices.length){
+        ns.voxVoices.push('旋律1');
+        ns.measures.forEach(m=>{ const a=[]; for(let i=0;i<ns.beats;i++) a.push(vcol()); m.voxes.push(a); });
+      }
+      ns.voxNotations = ns.voxNotations || [];
+      ns.voxNotations[0] = NW.know==='staff'? 'staff' : undefined;   /* undefined＝简谱（既有口径） */
+      guideMsg = wantTab
+        ? '——先在<b>旋律轨</b>（'+(NW.know==='staff'?'五线谱':'简谱')+'）写旋律，'
+          +'再点左栏「显示 · 六线谱」按把位生成'+(NW.instKey==='uku'?'尤克里里':'吉他')+'轨'
+        : '——旋律轨已按五线谱显示，右栏「显示」可随时切回简谱（同一份数据）';
+    }
     addDoc(ns, ()=>{
+      /* 引导模式下光标落到旋律轨；否则维持既有落位 */
+      if(NW.know==='jianpu'||NW.know==='staff'){
+        if(song.voxVoices && song.voxVoices.length){ sel.row='vox'; sel.vi=0; sel.ci=0; clampSel(); }
+      }
       setRibbon(sel.row==='vox'?'vox':'tab');
-      toast('已新建'+tName+'（8 小节）——小节数/歌词行/变调夹等在曲谱信息随时改');
+      if(guideMsg) render();
+      toast('已新建'+tName+'（8 小节）'+(guideMsg||'——小节数/歌词行/变调夹等在曲谱信息随时改'));
     });
   };
   /* v55.8 Guitar Pro (.gp) 导入入口 */
@@ -20108,7 +20186,7 @@ function exitViewer(){
   if(document.body.classList.contains('stand')) exitStand();
   const pw=document.getElementById('paywall'); if(pw) pw.remove();
   document.body.classList.remove('viewer');
-  viewerMode=false; viewerCtx=null; vwTrans=0; vwCapo=null;
+  viewerMode=false; viewerCtx=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
   stopPlay();
   if(viewerPrev){
     song=viewerPrev.song; sel=viewerPrev.sel; viewerPrev=null;
@@ -20122,7 +20200,25 @@ function viewerBuildSong(){
   const data=JSON.parse(JSON.stringify(pb.data));
   if(!own) data.measures=data.measures.slice(0, Math.max(1, pb.preview||2));
   const s=migrate(data);
+  /* v60.63 观看页逐轨变调夹（编辑器 v60.61 已做，观看页此前仍是整谱一个数）：
+     有自己夹位的轨不该吃「变调夹带来的那部分指法位移」——那是给跟随轨做唱调锁定用的。
+     transposeSong 是整谱引擎、没有按轨过滤的入口，故这些轨按**纯音高位移**
+     （vwTrans − vwCapoTrans）另建一份替换进来；每次重建都成立，
+     不像一次性快照回填那样会在下一次移调时被冲掉。
+     留底必须赶在 transposeSong 之前：migrate 是原地返回同一个对象，
+     移调会把 data 一起改掉，之后再深拷就已经是移调后的了（本版实测踩过）。 */
+  const ovrVi = (s.tabVoices||[]).map(function(_,vi){return vi;})
+    .filter(function(vi){ return vi>0 && s.tabCapos && s.tabCapos[vi]!=null; });
+  const ovrBase = (ovrVi.length && vwCapoTrans)? JSON.parse(JSON.stringify(s)) : null;
   window.VW_REFING = vwTrans? transposeSong(s, vwTrans) : null;   /* v60.39 指法重排统计（toast/测试用） */
+  if(ovrBase){
+    const d2 = vwTrans - vwCapoTrans;
+    if(d2) transposeSong(ovrBase, d2);
+    ovrVi.forEach(function(vi){ s.measures.forEach(function(m,mi){
+      const src = ovrBase.measures[mi] && ovrBase.measures[mi].tabs && ovrBase.measures[mi].tabs[vi];
+      if(src) m.tabs[vi]=src;
+    }); });
+  }
   if(vwCapo!=null) s.capo=vwCapo;   /* v55.6 观看页变调夹覆盖：移调重建后仍保留 */
   return s;
 }
@@ -20343,6 +20439,10 @@ function updateVwPopKey(){
   }
 }
 let vwCapo=null;    /* 观看页变调夹覆盖值：作用在观看副本上，移调重建后仍保留；进出观看模式清空 */
+/* v60.63 vwTrans 里「由变调夹带来的那部分指法位移」。变调夹的唱调锁定是 夹±d ↔ 指法∓d，
+   这部分只该作用在**跟随参考轨**的轨上；有自己夹位的轨不吃这部分（吃了就是改它的发声）。
+   纯音高移调（唱调 ♭/♯）则所有轨都吃。两者都并进 vwTrans，故要单独记住后者的份额。 */
+let vwCapoTrans=0;
 function vwSetCapo(d){
   /* v60.37 唱调锁定：夹 +d 品 → 指法 −d 半音（同一唱调下换更好按的指法——变调夹的本义）。
      要改音高走唱调 ♭/♯（kp-dn/kp-up：指法随动、夹不动）。 */
@@ -20351,13 +20451,18 @@ function vwSetCapo(d){
   const next=Math.max(0, Math.min(12, cur+d));
   if(next===cur) return;
   vwCapo=next;
+  vwCapoTrans += (cur-next);   /* v60.63 记下这部分是「夹位带来的」，有自己夹位的轨不吃 */
   vwTranspose(cur-next);   /* 重建一次：夹与指法同时落位，唱调不变 */
   updateVwPopKey();
-  toast('变调夹 '+(next||'无')+(next?' 品':'')+' · 指法 '+song.key+'（唱调不变 '+vwSoundKey()+'）');
+  /* v60.63 如实播报：有自己夹位的轨这次一个音都没动 */
+  const kept=(song.tabVoices||[]).filter(function(_,vi){
+    return vi>0 && song.tabCapos && song.tabCapos[vi]!=null; });
+  toast('变调夹 '+(next||'无')+(next?' 品':'')+' · 指法 '+song.key+'（唱调不变 '+vwSoundKey()+'）'
+    + (kept.length? '；'+kept.join('/')+' 有各自夹位，指法未动' : ''));
 }
 function vwResetKey(){   /* v60.37 恢复原调：唱调与变调夹一并回到发布状态 */
   const org=vwOrigKeys();
-  vwCapo=null; vwTrans=0;
+  vwCapo=null; vwTrans=0; vwCapoTrans=0;
   const keep={mi:sel.mi, row:sel.row, vi:sel.vi, ci:sel.ci, si:sel.si};
   song=viewerBuildSong();
   sel=keep; clampSel(); render(); renderProgCells(); updateVwKey(); updateVwHdr();
@@ -20400,7 +20505,7 @@ function enterShareViewer(share){
   viewerMode=true; viewerPrev=null;
   viewerCtx={pb:{title:data.title||'未命名曲谱', author:data.author||'佚名',
     type:data.docType||'guitar', data, price:0, preview:9999}, own:true, total:data.measures.length};
-  vwTrans=0; vwCapo=null;
+  vwTrans=0; vwCapo=null; vwCapoTrans=0;
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
@@ -20474,7 +20579,7 @@ async function openRemotePub(id, review){
   if(!data || !data.measures || !data.measures.length){ bootVeilDone(); toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
-  viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null;
+  viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
@@ -21326,7 +21431,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.62';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.63';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -21349,6 +21454,7 @@ const APP_VER='v60.62';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.63</span><div><b>四件事：记谱引导「会什么谱写什么谱」· 观看页逐轨变调夹 · 六线谱休止符时值线口径 · 空小节按拍号</b>（产品指示）。① <b>新建时记谱引导</b>——回应「擅长简谱但不懂吉他谱、只懂五线谱想做吉他谱或简谱」：向导新增<b>「我写谱用」</b>，把<b>用哪种谱写</b>和<b>最终出什么谱</b>拆开。选「简谱→生成六线谱」或「五线谱→生成六线谱」，建好后光标直接落在<b>旋律轨</b>并按你会的谱式显示；旋律写完点左栏<code>显示 · 六线谱</code>，按低把位/中把位/跟随和弦图生成吉他轨（原旋律轨不动、一步可撤销）。独奏/指弹本来一条旋律轨都没有，引导模式会补一条。声乐谱同样可选五线谱录入——「只懂五线谱也能做简谱」的另一半。<b>不新增数据字段</b>，落到既有的 <code>voxNotations</code> 与光标位置；默认档走的还是老路径，一字不变。② <b>观看页变调夹补齐逐轨</b>：编辑器 v60.61 已经是每轨一个夹位，<b>观看页却仍是整谱一个数</b>——双吉他谱在观看页调夹位时，<b>有自己夹位的那条轨会被一起改掉</b>（唱调锁定的「指法∓d」本只该作用在跟随轨上）。现在把 <code>vwTrans</code> 里「由夹位带来的那部分位移」单独记账，这些轨按<b>纯音高位移</b>另建一份；实测：夹 5→3 时两轨发声<b>一个赫兹都没变</b>，而唱调 +2 时两轨<b>一起</b>升 2 个半音（不是把它们焊死不动）。③ <b>六线谱休止符时值线改口径</b>：<b>单独占一拍的休止不画时值线</b>，<b>与音符同处一拍时照常连成一条杠</b>。v60.60 是「休止一律画」，空小节于是排出一列光秃秃的符干；现在空小节谱面干净，而「八分音符＋八分休止」仍旧连杠。实现上有个坑：判定<b>不能</b>拿符杠分组来做——分组只收八分及更短的列，四分/二分根本不进组，照组判会<b>把普通四分音符的符干一并抹掉</b>（本版实测混合小节符干 3→2，已被专项断言钉住）。④ <b>空小节按拍号</b>：「跟拍号相等的休止音符」是两层——<b>数量＝分子、时值＝分母</b>。v60.60 只做了数量、时值一律写死四分，于是 <b>6/8 拍的空小节是 6 个四分＝12 拍，整整多出一倍</b>；现在 6/8→6 个八分、3/4→3 个四分，各自正好填满。新增 <code>tv_guide</code> 套件 <b>6+1 项</b>（含闭环实证：简谱写 1 2 3 4 → 生成的吉他轨逐音发声完全一致，比音高不看截图），<code>tv_tabrest</code> 补 T7/T8、<code>tv_trkcapo</code> 补 T8/T9（观看页两项都用 <code>playInst</code> 记录器抓真实频率）。<b>旧断言如实跟随</b>（产品有意改口径、非缺陷）：<code>tv_tabrest</code> T2、<code>tv_detail1</code> T2/T14、<code>tv_dot</code> T11 四处改按新口径，注释写明来龙去脉。CORE 95→<b>96 套件</b>全绿。</div></li>
     <li><span class="v">v60.62</span><div><b>音符输入新增「吉他指板 + 钢琴全键盘」，一比一几何，播放时跟着亮</b>（产品指示）。过去落音只有两条路：吉他谱敲弦号+品位数字，简谱敲唱名数字——对<b>会弹但不熟记谱</b>的人来说，脑子里明明是「按这儿」，手上却要先翻译成数字。现在直接在板上点。① <b>指板是一比一的</b>：品位按十二平均律的物理位置 <code>d(n) = L·(1 − 2^(−n/12))</code> 画，所以<b>越往高把位品格越窄</b>、12 品正落在有效弦长的一半——和真琴一个样，不是「均分 22 格」那种示意图；弦径由 1 弦到 6 弦递增，标记点 3·5·7·9·15·17·19·21 单点、12·24 双点，按本轨的<b>定弦与变调夹</b>算音高。② <b>钢琴是全键盘</b>：88 键 A0–C8，白键宽 23.5mm、黑键宽 13.7mm、白键长 145mm、黑键长 95mm（国际通用琴键尺寸）等比缩放；黑键横向位置走<b>真实约束</b>——同一组里各白键「露头」等宽，于是 C♯ 偏左、G♯ 居中、A♯ 偏右，而不是把黑键简单地骑在白键交界上（那是大多数网页键盘的错法，弹惯琴的人一眼能看出别扭）。③ <b>点板即落音</b>：指板点某弦某品就写进当前列；键盘在旋律轨落唱名，在吉他轨自动挑<b>能弹到该音高且品位最低</b>的弦位。④ <b>播放动态跟随</b>：板上高亮跟着播放逐列走，而且跟的是<b>你正在看的这条轨</b>（不是光标那条参考轨）——双吉他谱里看主音轨，指板亮的就是主音轨的把位；停播回落到光标所在列，不留最后一个和弦干亮着。不播放时高亮＝光标所在列，边挪光标边看「这个音在哪儿」。⑤ <b>入口三处</b>：创作辅助栏（产品指定的归属）一个全局入口；吉他轨「当前音轨」行、旋律轨「显示」行各一个——<b>每条轨都能调出自己对应的板</b>，切轨自动换板（吉他轨→指板、旋律轨→键盘），也可手动切。面板浮在播放坞上方，横向可滚（88 键必然超屏）。新增 <code>tv_board</code> 套件 <b>8+1 项</b>（几何断言：逐品对物理公式求偏差 ≤0.05px、白/黑键宽比 13.7:23.5、黑键三处偏移方向；播放实证：时间线取板所在轨的列数而非参考轨），对 v60.61 旧文件跑当场红＝突变实证。CORE 94→<b>95 套件</b>全绿。</div></li>
     <li><span class="v">v60.61</span><div><b>变调夹改成「每轨一个」：伴奏吉他夹、主音吉他不夹，同一份谱里终于能表达</b>（产品提问 → 拍板）。此前变调夹是<b>整谱一个数</b>，所有吉他轨共用，「伴奏夹 5 品、主音不夹」根本写不出来——设 5 品则主音整轨高 5 个半音（要听对就得把品位全往下写 5 品，2 品变成 −3 品，物理上不存在）；设 0 品则伴奏写的 C/Am/F/G 把位会照着 C 调响，实际该响的 F/Dm/B♭/C 全错。现在每条吉他轨可以有<b>各自的变调夹</b>：发声 = 定弦 ＋ 品位 ＋ 本轨夹位。① <b>入口</b>：左栏「当前音轨」新增<b>变调夹</b>按钮，0–12 品速选，非参考轨还可选「跟随参考轨」。② <b>参考轨＝第一条吉他轨</b>（通常就是伴奏）：页头的 <code>1=X · 变调夹 N 品</code> 与简谱/歌词行的调仍按它算，弹唱谱的老习惯一点没变。③ <b>谱面标注</b>：只有<b>各轨夹位不一致</b>时才在行首逐轨标「夹5品／不夹」（Guitar Pro 惯例位置，就在竖排轨名旁）；全谱一致时一个都不标，<b>老谱观感分毫不变</b>。④ <b>唱调锁定不再误伤</b>：在页头变调弹窗改参考轨夹位时，会做「夹±d ↔ 指法∓d」的整体重排——有自己夹位的轨<b>品位一个都不动</b>（它的夹位没变，动品位就是改它的发声）。⑤ <b>顺手修掉一个正在丢数据的 bug</b>：GP 文件本来就是每轨一个夹位，解析器也早就读到了，但导入时<b>只取第一条轨的夹位</b>往下传——一份「伴奏夹 5、主音不夹」的 GP 导进来，主音会被按夹 5 播放、<b>整轨高 5 个半音且毫无提示</b>。现在逐轨落值。⑥ 播放／输入回响／MIDI 导出／MusicXML 全链路跟着走本轨夹位（<code>&lt;capo&gt;</code> 本就是谱表级，逐 part 各写各的）。<b>数据只增不改</b>：新增 <code>song.tabCapos</code> 稀疏数组，老谱没有这个键、所有轨回落原来的 <code>song.capo</code>，行为零变化。新增 <code>tv_trkcapo</code> 套件 <b>7+1 项</b>（含播放实证：同一个「3 弦 0 品」在夹 5 轨与不夹轨上实测相差正好 5 个半音），对 v60.60 旧文件跑当场红＝突变实证。CORE 93→<b>94 套件</b>全绿。</div></li>
     <li><span class="v">v60.60</span><div><b>六线谱时值线三项：休止也有时值线、空小节＝一拍一条四分骨架、倚音技巧符号放大对齐</b>（产品指示）。① <b>休止符也要时值线</b>：此前六线谱的符干/符杠只画给「有音的列」，所以一拍里「八分音符＋八分休止」会变成孤零零一个带钩的音符加一个光秃秃的休止符——<b>看不出这两个是同一拍</b>。现在休止列同样画符干、并与同拍的实音<b>并进同一条符杠</b>。② <b>空小节改成时值骨架</b>：新建项目、新增小节、新加音轨的吉他谱，此前是<b>每拍两个八分（4/4 共 8 列）</b>、谱面上却只画<b>一枚居中的全休止</b>——既看不出拍位，也没有时值线可点。现在改为<b>一拍一个四分音符</b>（3/4 就是 3 条，变拍小节按本小节拍号），谱面上一拍一条时值线，点哪一拍一目了然。③ <b>六线谱不再画休止字形</b>：按「点击节奏时只出现时值线，谱内不要标记也不要音符」——谱表内保持干净，<b>时值信息一点不丢</b>（符干/符杠照画，附点照样点在时值线上）。简谱/五线谱声部的休止<b>照旧不变</b>。④ <b>倚音技巧符号放大对齐</b>：v60.58 加的 h/p/sl 是 8px，比普通音符的技法字母小一圈；现在与普通两音技法<b>完全同款</b>（11px / 600 / 同款纸底描边），点击热区同步上扩，加了字母照样点得中。⑤ <b>双倚音输入修好了</b>：此前只认空格分隔——输入「<b>57</b>」想要两个倚音，会被读成一个 57 品、越界后<b>静默删掉整个倚音</b>，看起来就像不支持双倚音。现在连写也按逐位识别（<code>57</code>＝5 和 7），读不出品位时<b>明确报错并保留原倚音</b>，绝不静默删除。新增 <code>tv_tabrest</code> 套件 <b>6+1 项</b>，对 v60.59 旧文件跑 T1–T5 当场红＝突变实证。<b>旧断言跟随</b>（产品有意演进）：<code>tv_detail1</code> T2/T14 由「TAB 画 SMuFL 休止/居中全休止」改断言「不画字形、改画时值线」；<code>tv_dot</code> T11 符干数 4→5（多出的正是休止列）；<code>tv_sign</code> T15 不再按固定 8 列下标写测试数据；<code>tv_grace</code> T5/T18 跟随 <code>tk</code> 字段与新字号。CORE 92→<b>93 套件</b>全绿。</div></li>

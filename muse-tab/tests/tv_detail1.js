@@ -73,9 +73,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t1.mut && t1.perc && t1.noOld, 'T1 闷音×15/打板×16', JSON.stringify(t1));
 
-  /* T2 TAB 休止的表达方式（v60.60 产品指示改版）：谱表内**不画**休止字形（此前 v45.6 起画 SMuFL 字形），
-     时值改由下方时值线表达——「点击节奏时只出现时值线，谱内不要标记也不要音符」。
-     休止列照样有符干、附点照样画在时值线上，时值信息不丢。 */
+  /* T2 TAB 休止的表达方式（v60.60 起谱表内**不画**休止字形；v60.63 再收紧时值线口径）：
+     时值改由下方时值线表达；而时值线只画在「本拍里有发声」的列上——
+     产品指示「单独占一拍的休止符不需要时值线，和其他音符连成一拍时就要连接时值线」。
+     本例除首列外全是各自独占一拍的休止，故只有首列那根符干。 */
   const t2 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [
@@ -87,15 +88,21 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
     const restGlyphs = document.querySelectorAll('#score path[transform]').length;
-    const stems = [...document.querySelectorAll('#score line')].filter(x =>
+    /* 小节线也是 stroke-width=1 的竖线：它止于谱表底线，符干还要再往下 12px，按 y2 区分 */
+    const vs = [...document.querySelectorAll('#score line')].filter(x =>
       Math.abs(+x.getAttribute('x1') - +x.getAttribute('x2')) < 0.3
       && +x.getAttribute('stroke-width') === 1
-      && Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1')) > 3).length;
-    const dot = /circle[^>]*r="1\.6"/.test(svg);         // 附点仍画在时值线上
+      && Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1')) > 3);
+    const X = x => +x.getAttribute('x1'), Y2 = x => +x.getAttribute('y2');
+    const barY2 = vs.length ? Y2(vs.reduce((a, c) => X(c) < X(a) ? c : a, vs[0])) : 0;
+    const stems = vs.filter(x => Y2(x) > barY2 + 1).length;
+    const dot = /circle[^>]*r="1\.6"/.test(svg);
     return { noUni: !/[𝄻𝄼𝄽𝄾𝄿𝅀]/.test(svg), restGlyphs, stems, dot };
   });
-  T(t2.noUni && t2.restGlyphs === 0 && t2.stems >= 5 && t2.dot,
-    'T2 TAB 休止不画字形、改画时值线（附点仍在线上）', JSON.stringify(t2));
+  /* 首列是发声的四分音符 → 1 根符干；其余四列都是独占一拍的休止 → 一根不画。
+     附点也随之不画（附点是画在时值线上的，没有线就没有点）——这是 v60.63 口径的直接后果。 */
+  T(t2.noUni && t2.restGlyphs === 0 && t2.stems === 1 && !t2.dot,
+    'T2 TAB 休止不画字形；时值线只画在有发声的拍上', JSON.stringify(t2));
 
   // T3 拍弦=框内×
   const t3 = await pg.evaluate(() => {
@@ -271,8 +278,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t13.span >= 80, 'T13b 弹唱谱 TAB↔简谱行首相连', JSON.stringify(t13));
 
-  /* T14 TAB 全空小节（v60.60 产品指示改版）：此前画一枚居中全休止字形；
-     现改为逐列时值线——新建/新增小节一眼看得到「一拍一条」的四分骨架，谱表内无任何字形。 */
+  /* T14 TAB 全空小节：v45.6 画居中全休止字形 → v60.60 改逐列时值线骨架 →
+     v60.63 产品指示「单独占一拍的休止符不需要时值线」，于是空小节**字形和时值线都没有**，
+     谱表内彻底干净（小节仍是跟拍号相等的休止列，数据在、只是不画）。 */
   const t14 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
@@ -290,8 +298,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     }).map(x => +x.getAttribute('x1')).filter(x => x > x0 && x < x0 + lm2.L.w);
     return { glyphs, emptyCols: song.measures[1].tabs[0].length, stemsInEmpty: stemXs.length };
   });
-  T(t14.glyphs === 0 && t14.emptyCols === 4 && t14.stemsInEmpty === 4,
-    'T14 TAB 全空小节改一拍一条时值线（无休止字形）', JSON.stringify(t14));
+  T(t14.glyphs === 0 && t14.emptyCols === 4 && t14.stemsInEmpty === 0,
+    'T14 TAB 全空小节：无休止字形、也无时值线（列数仍＝拍号）', JSON.stringify(t14));
 
   // T15 v45.9 行首连线无同位双绘 + T16 TAB 字母入谱表
   const t15 = await pg.evaluate(() => {
