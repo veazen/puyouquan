@@ -463,7 +463,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s = createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 1, lyr: 0 });
     for(let mi=0; mi<4; mi++){
       const cols = s.measures[mi].tabs[0];
-      for(let k=0; k<8; k+=2){ cols[k].notes = [{s:3, f:0}]; }
+      /* v60.60 空吉他小节由 8 列八分改为「一拍一列四分」，不能再按固定 8 列下标写入 */
+      cols.forEach((c2,k)=>{ if(k%2===0) c2.notes = [{s:3, f:0}]; });
       cols[0].chord = ['G','C','D','G'][mi];
     }
     s.measures[2].volta = 1; s.measures[3].volta = 2;

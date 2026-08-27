@@ -99,10 +99,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     inp.value = '5 7';
     document.getElementById('ask-ok').click();
     const g = song.measures[0].tabs[0][0].grace;
-    return { btns, g: JSON.stringify(g) };
+    /* v60.58 起归一结果多一个 tk（倚音技巧）字段——本项核的是「入口按钮 + 品位输入落成双倚音」，
+       故只比 notes/dur；tk 的行为由 T17–T19 专门盯 */
+    return { btns, g: JSON.stringify({ notes: g.notes, dur: g.dur }), tk: g.tk };
   });
   T(r.btns === 2 && r.g === JSON.stringify({ notes: [{ s: 3, f: 5 }, { s: 3, f: 7 }], dur: 8 }),
-    'T5 入口按钮+品位输入', JSON.stringify(r));
+    'T5 入口按钮+品位输入（双倚音）', JSON.stringify(r));
 
   // T6 编辑弹窗：改弦位 / 品位± / 时值 / 删除
   r = await pg.evaluate(() => {
@@ -345,8 +347,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     { const cs=song.measures[0].tabs[0];
       cs[0].notes=[{s:3,f:7}]; cs[0].grace={notes:[{s:3,f:5}],dur:16}; }
     blurSel=true; render();
+    /* v60.60 倚音技巧字母由 8px 放大到 11px（与普通两音技法同款）——按字号取会漏，改按斜体取 */
     window.__ital=()=>[...document.querySelectorAll('#score text')]
-      .filter(x=>x.getAttribute('font-size')==='8' && x.getAttribute('font-style')==='italic')
+      .filter(x=>x.getAttribute('font-style')==='italic')
       .map(x=>x.textContent);
   `;
 

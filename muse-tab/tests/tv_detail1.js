@@ -73,22 +73,29 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t1.mut && t1.perc && t1.noOld, 'T1 闷音×15/打板×16', JSON.stringify(t1));
 
-  // T2 TAB 休止符 SMuFL 化：谱面无 Unicode 文本休止字符
+  /* T2 TAB 休止的表达方式（v60.60 产品指示改版）：谱表内**不画**休止字形（此前 v45.6 起画 SMuFL 字形），
+     时值改由下方时值线表达——「点击节奏时只出现时值线，谱内不要标记也不要音符」。
+     休止列照样有符干、附点照样画在时值线上，时值信息不丢。 */
   const t2 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [
       { dur: 4, notes: [{ s: 5, f: 3 }] },
       { dur: 4, notes: [] },                    // 四分休止
       { dur: 8, notes: [] }, { dur: 8, notes: [] },   // 八分休止×2
-      { dur: 4, dotted: true, notes: [] },      // 附点四分休止（v45.6 起附点也画出）
+      { dur: 4, dotted: true, notes: [] },      // 附点四分休止
     ];
-    loadSong(s);
+    loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
-    const nPath = (svg.match(/<path /g) || []).length;   // 4 枚 SMuFL 休止字形 path（符头为字形、符干为 line）
-    const dot = /circle[^>]*r="1\.6"/.test(svg);         // 附点休止的附点（v45.6 起 TAB 休止也画附点）
-    return { noUni: !/[𝄻𝄼𝄽𝄾𝄿𝅀]/.test(svg), paths: nPath, dot };
+    const restGlyphs = document.querySelectorAll('#score path[transform]').length;
+    const stems = [...document.querySelectorAll('#score line')].filter(x =>
+      Math.abs(+x.getAttribute('x1') - +x.getAttribute('x2')) < 0.3
+      && +x.getAttribute('stroke-width') === 1
+      && Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1')) > 3).length;
+    const dot = /circle[^>]*r="1\.6"/.test(svg);         // 附点仍画在时值线上
+    return { noUni: !/[𝄻𝄼𝄽𝄾𝄿𝅀]/.test(svg), restGlyphs, stems, dot };
   });
-  T(t2.noUni && t2.paths >= 4 && t2.dot, 'T2 TAB 休止符 SMuFL 字形+附点', JSON.stringify(t2));
+  T(t2.noUni && t2.restGlyphs === 0 && t2.stems >= 5 && t2.dot,
+    'T2 TAB 休止不画字形、改画时值线（附点仍在线上）', JSON.stringify(t2));
 
   // T3 拍弦=框内×
   const t3 = await pg.evaluate(() => {
@@ -264,23 +271,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t13.span >= 80, 'T13b 弹唱谱 TAB↔简谱行首相连', JSON.stringify(t13));
 
-  // T14 TAB 全空小节居中全休止：m1 部分空(2枚列位休止) + m2 全空(1枚居中全休止)
+  /* T14 TAB 全空小节（v60.60 产品指示改版）：此前画一枚居中全休止字形；
+     现改为逐列时值线——新建/新增小节一眼看得到「一拍一条」的四分骨架，谱表内无任何字形。 */
   const t14 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
-    s.measures[1].tabs[0] = [{ dur: 2, notes: [] }, { dur: 2, notes: [] }];
-    loadSong(s);
+    // m1 保持新建默认（全空，一拍一列四分）
+    loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
-    const xs = [];
-    const re = /transform="translate\((\d+(?:\.\d+)?),[\d.-]+\) scale\(6\.000\)"/g; let m2;
-    while ((m2 = re.exec(svg))) xs.push(+m2[1]);
-    // 期望 3 枚 TAB 休止（m1 两枚 + m2 一枚居中）；m2 的休止 x ≈ 小节中点
+    const glyphs = (svg.match(/scale\(6\.000\)/g) || []).length;   // TAB 休止字形（SG=6）
     const S2 = layoutSystems(); const lm2 = S2[0].measures[1];
-    const cx = 56 + STAFF_HEAD_W + lm2.x + lm2.L.w / 2;
-    const dev = Math.min(...xs.map(x => Math.abs(x - cx)));
-    return { n: xs.length, dev: +dev.toFixed(1) };
+    const x0 = 56 + STAFF_HEAD_W + lm2.x;
+    /* 符干长度约 10px（tabBot+2 → stemY）；小节线跨整个谱表（≈45px），按长度上限剔掉 */
+    const stemXs = [...document.querySelectorAll('#score line')].filter(x => {
+      const len = Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1'));
+      return Math.abs(+x.getAttribute('x1') - +x.getAttribute('x2')) < 0.3
+        && +x.getAttribute('stroke-width') === 1 && len > 3 && len < 30;
+    }).map(x => +x.getAttribute('x1')).filter(x => x > x0 && x < x0 + lm2.L.w);
+    return { glyphs, emptyCols: song.measures[1].tabs[0].length, stemsInEmpty: stemXs.length };
   });
-  T(t14.n === 3 && t14.dev < 10, 'T14 TAB 全空小节居中全休止', JSON.stringify(t14));
+  T(t14.glyphs === 0 && t14.emptyCols === 4 && t14.stemsInEmpty === 4,
+    'T14 TAB 全空小节改一拍一条时值线（无休止字形）', JSON.stringify(t14));
 
   // T15 v45.9 行首连线无同位双绘 + T16 TAB 字母入谱表
   const t15 = await pg.evaluate(() => {

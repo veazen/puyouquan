@@ -278,7 +278,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { nDash: dashes.length, ascending: dashes.every((v,i,a)=>!i||v>a[i-1]),
       noDot: dots.length === 0, nStem: stems.length, onString };
   });
-  T(r.nDash === 6 && r.ascending && r.noDot && r.nStem === 4 && r.onString,
+  /* v60.60 符干数 4→5：m0 的第三列是空列（休止），产品指示「休止符也要时值线」后它也有符干了
+     （2 音符干 + 1 休止符干 + m1 两条 = 5）。m2 的全音符仍无符干（dur=1 < 2，本项原意保持）。 */
+  T(r.nDash === 6 && r.ascending && r.noDot && r.nStem === 5 && r.onString,
     'T11 TAB增时线：二分1+附点二分2+全音符3条·附点不画点·全音符无干·横线压弦线', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);

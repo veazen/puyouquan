@@ -4298,10 +4298,18 @@ try{ tabNotation = localStorage.getItem('musetab-notation')||'num'; }catch(_){}
 function effNota(){ return (song && (song.tabNota==='x'||song.tabNota==='num'))? song.tabNota : tabNotation; }
 
 function tcol(){ return {dur:8, dotted:false, chord:'', notes:[], strum:'', tech:''}; }
+/* v60.60 产品指示：新建项目/新增小节的吉他谱默认「一拍一个四分音符」的时值骨架。
+   此前是每拍两个八分（4/4 共 8 列 dur=8），而空列又只画一个居中全休止——
+   谱面上既看不出拍位、也没有时值线可点。总时值不变，只换列粒度与默认时值。 */
+function blankTabCols(beats){
+  const n = Math.max(1, Math.round(beats!=null? beats : ((typeof song!=='undefined' && song && song.beats) || 4)));
+  const a=[]; for(let i=0;i<n;i++){ const c=tcol(); c.dur=4; a.push(c); }
+  return a;
+}
 function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false}; }
 function blankMeasure(){
   const m = {tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
-  song.tabVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats*2;i++) a.push(tcol()); m.tabs.push(a); });
+  song.tabVoices.forEach(()=>{ m.tabs.push(blankTabCols(song.beats)); });
   song.voxVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
   return m;
 }
@@ -5615,6 +5623,8 @@ function systemExtras(sys){
     if(vi===0) return;
     (cols||[]).forEach(c=>{
       if(c.chord) tab2Up=Math.max(tab2Up, 22);
+      /* v60.60 带技巧字母的倚音也挂在谱表上方（弧顶再上 11px 字），同样要预留 */
+      if((c.grace&&c.grace.tk)||(c.graceA&&c.graceA.tk)) tab2Up=Math.max(tab2Up, 24);
       (c.notes||[]).forEach(n=>{
         if(!n) return;
         if(n.tk && !n.tech) tab2Up=Math.max(tab2Up, 26);
@@ -6859,7 +6869,9 @@ function render(){
           p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="transparent" data-mi="${lm.mi}" data-ci="0" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"><title>小节反复 𝄎：演奏同前${simN}小节（本小节数据仍保留，小节面板可取消）</title></rect>`);
         }
         /* 符杠分组预计算：附点圆点需对齐该组由上至下的第一条时值线 */
-        const bGroups = beamGroups(cols, c2=>c2.notes.length||c2.strum, meaMeter(lm.mi).unit);
+        /* v60.60 playable 由「本列有音才成杠」改为不过滤：休止列与同拍的实音并进一条符杠
+           （用户报告：与有效音符同一拍的休止符也要时值线），空小节则整齐地一拍一条 */
+        const bGroups = beamGroups(cols, null, meaMeter(lm.mi).unit);
         const dotLv = new Map();
         bGroups.forEach(g=>{
           const maxD = Math.max(...g.idx.map(i2=>cols[i2].dur));
@@ -6868,8 +6880,10 @@ function render(){
         const bendDecor=[];   // 推弦圆圈/连线：列绘制完成后再上层绘制
         /* v45.8 TAB 整小节休止（出版惯例，与五线谱/联排同口径）：全空小节画一个居中全休止，
            不再逐列画休止符落在列位上（用户反馈全休止应居中）；列热区保留可继续输入 */
+        /* v60.60 产品指示「点击节奏时只出现时值线，谱内不要标记也不要音符」：
+           六线谱空列一律不画休止字形——时值由下方时值线（符干/符杠）表达，谱表内保持干净。
+           emptyTm 仍算，供下方逐列分支沿用同一判定。 */
         const emptyTm = !simN && cols.length>0 && !cols.some(c2=>(c2.notes||[]).length || c2.strum || c2.perc);
-        if(emptyTm) p.push(staffRestStr(mx+lm.L.w/2, tabTop+STAFF/2+12, 6, 1, false));
         /* v60.27 生效和弦按全行合并时间线推进：简谱音符上锚定的和弦在其拍位起
            对 TAB 取形（×实音化/扫弦音）同样生效；本列自带 chord 仍随后覆盖（同拍 tab 胜出） */
         const meaEvts = chordEvtsMea(lm.mi), mUch = meaMeter(lm.mi).unit;
@@ -7236,14 +7250,11 @@ function render(){
               const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
               p.push(`<text x="${nx}" y="${tabTop+STAFF/2+5}" font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
               p.push(`<text x="${nx}" y="${laneY()}" font-size="9.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);   /* v49.6 打板分区字母入标注带并放大 */
-            }else if(!col.notes.length && !emptyTm)
-              {
-                /* 空列（无音符/无扫弦）画休止符，让时值可见——
-                   v45.6 Unicode 文本字形（𝄽 等）随字体渲染过小，改用 SMuFL 出版字形（与五线谱同源），
-                   注册规则同 staffRestStr：TAB 中部为等效谱表中线（SG=6 略小于谱表、匹配 TAB 密度），附点同步显示；
-                   v45.8 全空小节不逐列画（居中全休止见小节级 emptyTm） */
-                p.push(staffRestStr(nx, tabTop+STAFF/2+12, 6, col.dur, col.dotted));
-              }
+            }
+            /* v60.60 产品指示：六线谱空列不再画休止字形（此前 v45.6 起画 SMuFL 休止、
+               v45.8 起整小节空画一个居中全休止）——时值改由下方时值线表达，谱表内保持干净，
+               「点击节奏时只出现时值线、谱内不要标记也不要音符」。休止的时值信息不丢：
+               符干/符杠照画（见上方 col.dur>=2 分支）。 */
           }
           /* 拍弦记号：需拍弦的音符用方框框住 */
           if(col.slap && col.notes.length){
@@ -7272,7 +7283,7 @@ function render(){
             });
             /* v52.8 产品拍板：TAB 行倚音不画斜杠（GP 同款——斜杠仅保留在五线谱行）；
                slY 仅作点击热区上缘预留 */
-            const slY = gyTop-6.5 - (g.tk? 5 : 0);   /* v60.58 技巧字母在弧顶上方，热区随之上扩 */
+            const slY = gyTop-6.5 - (g.tk? 8 : 0);   /* v60.58 技巧字母在弧顶上方，热区随之上扩（v60.60 字号放大→再扩） */
             /* 小连音弧：倚音组 ↔ 主音（优先同弦主音，其次首个主音） */
             const tgtN = (col.notes||[]).find(n2=>n2.s===g.notes[pre? g.notes.length-1 : 0].s) || (col.notes||[])[0];
             if(tgtN){
@@ -7280,11 +7291,14 @@ function render(){
               const gyA = tabTop+(g.notes[pre? g.notes.length-1 : 0].s-1)*STR;
               if(pre) p.push(tieSVG(gx0-2, gyA-4, nx-4.5, ty2-4, Math.min(gyA,ty2)-9, 1.1));
               else    p.push(tieSVG(nx+4.5, ty2-4, gx0+gW+2, gyA-4, Math.min(gyA,ty2)-9, 1.1));
-              /* v60.58 倚音技巧字母：标在小连音弧的弧顶（吉他惯例 h/p/sl）；纸底描边防压弦线 */
+              /* v60.58 倚音技巧字母：标在小连音弧的弧顶（吉他惯例 h/p/sl）；纸底描边防压弦线。
+                 v60.60 产品指示「倚音的技巧符号和正常音符一致，比目前放大一些」——
+                 与普通两音技法字母（mkTech 的弧顶字母）改为完全同款：11px / 600 / 描边 2.4，
+                 由 8px/700/2.2 放大而来。 */
               if(g.tk){
                 const kx = pre? (gx0-2+nx-4.5)/2 : (nx+4.5+gx0+gW+2)/2;
-                const ky = Math.min(gyA,ty2)-9.5;
-                p.push(`<text x="${kx.toFixed(1)}" y="${ky.toFixed(1)}" font-size="8" font-style="italic" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.2" stroke-linejoin="round" fill="var(--ink)">${g.tk}</text>`);
+                const ky = Math.min(gyA,ty2)-11;
+                p.push(`<text x="${kx.toFixed(1)}" y="${ky.toFixed(1)}" font-size="11" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.4" stroke-linejoin="round" fill="var(--ink)">${g.tk}</text>`);
               }
             }
             p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值/技巧 h·p·sl，最多3音）</title></rect>`);
@@ -7311,8 +7325,10 @@ function render(){
             if(nD && q4-Math.floor(q4+1e-4)>1e-3)
               p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${dyC.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
           }
-          if(hasEvt && col.dur>=2){
-            /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁 */
+          /* v60.60 产品指示：空列（休止）也要时值线——「与有效音符同一拍的休止符也要时值线」，
+             且新建/新增小节要能一眼看到一拍一条的四分骨架。符干不再要求本列有音。 */
+          if(col.dur>=2){
+            /* 符干自"需要演奏的音符"下方起，向下延伸到节奏横梁；空列自谱表底线起 */
             let sLow = 6;
             if(col.strum) sLow = strumSpan(col).bot;
             else if(col.notes.length) sLow = Math.max(...col.notes.map(n=>n.s));
@@ -10471,7 +10487,7 @@ function addVoice(kind){
   mutate(()=>{
     if(kind==='tab'){
       song.tabVoices.push('吉他'+(song.tabVoices.length+1));
-      song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats*2;i++) a.push(tcol()); m.tabs.push(a); });
+      song.measures.forEach((m,mi2)=>{ m.tabs.push(blankTabCols(meaMeter(mi2).beats)); });
     }else{
       song.voxVoices.push('旋律'+(song.voxVoices.length+1));
       song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
@@ -11090,7 +11106,7 @@ function pasteMeasure(){
         newMs = srcs.map(srcM=>{
           const src=JSON.parse(JSON.stringify(srcM));
           const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
-          song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})()); });
+          song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : blankTabCols(song.beats)); });
           song.voxVoices.forEach((_,vi2)=>{ m.voxes.push(src.voxes&&src.voxes[vi2]? src.voxes[vi2] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
           return m;
         });
@@ -11120,7 +11136,7 @@ function pasteMeasure(){
         while(mi>=song.measures.length) song.measures.push(blankMeasure());
         const src=JSON.parse(JSON.stringify(srcM));
         const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
-        song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})()); });
+        song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : blankTabCols(song.beats)); });
         song.voxVoices.forEach((_,vi)=>{ m.voxes.push(src.voxes&&src.voxes[vi]? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
         song.measures[mi]=m;
       });
@@ -11188,7 +11204,7 @@ function pasteMeasure(){
     const m = {tabs:[], voxes:[], repeatStart:src.repeatStart, repeatEnd:src.repeatEnd};
     /* 对齐当前声部数量：不足补空、超出截断 */
     song.tabVoices.forEach((_,vi)=>{
-      m.tabs.push(src.tabs[vi] ? src.tabs[vi] : (()=>{const a=[];for(let i=0;i<song.beats*2;i++)a.push(tcol());return a;})());
+      m.tabs.push(src.tabs[vi] ? src.tabs[vi] : blankTabCols(song.beats));
     });
     song.voxVoices.forEach((_,vi)=>{
       m.voxes.push(src.voxes[vi] ? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})());
@@ -12442,15 +12458,24 @@ function applyTabGrace(kind){
   askText((kind==='pre'?'前':'后')+'倚音品位（0–'+fretMaxOf()+'，最多3个用空格分隔如 5 7；留空清除）',
     prevG? prevG.notes.map(n=>n.f).join(' ') : '', tv=>{
       tv=(tv==null?'':String(tv)).trim();
+      const FMAX=fretMaxOf();
+      /* v60.60 双倚音输入容错（用户报告「支持双倚音」）：此前只认空格分隔——
+         「57」会被读成一个 57 品、越界后被静默过滤掉，结果**倚音直接消失**，
+         看起来就像不支持双倚音。现在：先按分隔符切；切不出有效品位、而整串又全是数字时，
+         按简谱倚音的口径**逐位当作一个倚音**（"57"＝5 和 7）；实在解析不出就报错，绝不静默删除。 */
+      let fs=tv.split(/[\s,，、]+/).map(x=>parseInt(x,10)).filter(v2=>!isNaN(v2)&&v2>=0&&v2<=FMAX);
+      if(!fs.length && /^[0-9]+$/.test(tv))
+        fs=tv.split('').map(Number).filter(v2=>v2>=0&&v2<=FMAX);
+      fs=fs.slice(0,3);
+      if(tv!=='' && !fs.length) return toast('没读出有效品位（0–'+FMAX+'）——多个倚音用空格分隔，如 5 7；原倚音未改动');
       mutate(()=>{
         const c2=curCol(); if(!c2) return;
         if(tv===''){ delete c2[key]; return; }
-        const fs=tv.split(/[\s,，、]+/).map(x=>parseInt(x,10)).filter(v2=>!isNaN(v2)&&v2>=0&&v2<=fretMaxOf()).slice(0,3);
-        if(!fs.length){ delete c2[key]; return; }
         const s0 = (c2.notes.some(n=>n.s===sel.si)? sel.si : c2.notes[0].s);
-        c2[key]={notes:fs.map(f=>({s:s0, f})), dur:(prevG&&prevG.dur)||8};
+        c2[key]={notes:fs.map(f=>({s:s0, f})), dur:(prevG&&prevG.dur)||8, tk:(prevG&&prevG.tk)||''};
       });
-      toast(tv?('已设置'+(kind==='pre'?'前':'后')+'倚音——点谱面倚音组可改弦位/时值'):'已清除倚音');
+      toast(tv? ('已设置'+(kind==='pre'?'前':'后')+'倚音 '+fs.join(' ')+(fs.length>1?'（'+fs.length+'音）':'')+'——点谱面倚音组可改弦位/时值/技巧')
+              : '已清除倚音');
     });
 }
 /* 按住左键拖动多选（同声部内，可跨小节）；
@@ -18283,7 +18308,7 @@ function buildSongFromMIDI(smf, sel){
   }
   const nMea=Math.max(1, ...voices.map(v=>v.length), tabVoxs?tabVoxs.length:1);
   const blank=()=>Array.from({length:beats},()=>({dur:unit,dotted:false,deg:0,acc:'',oct:0,lyrics:[],tie:false}));
-  const blankT=()=>Array.from({length:beats*2},()=>({dur:8,dotted:false,chord:'',notes:[],strum:'',tech:''}));
+  const blankT=()=>Array.from({length:beats},()=>({dur:4,dotted:false,chord:'',notes:[],strum:'',tech:''}));   /* v60.60 一拍一列四分骨架 */
   const out={v:3, title:(smf.tracks[sel.a].name&&!/^音轨/.test(smf.tracks[sel.a].name)? smf.tracks[sel.a].name:'导入 MIDI'),
     singer:'', lyricist:'', composer:'', maker:'', key, beats, unit,
     tempo:Math.max(30,Math.min(240,smf.tempo||120)), capo:0, customChords:{},
@@ -20885,7 +20910,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.59';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.60';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20908,6 +20933,7 @@ const APP_VER='v60.59';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.60</span><div><b>六线谱时值线三项：休止也有时值线、空小节＝一拍一条四分骨架、倚音技巧符号放大对齐</b>（产品指示）。① <b>休止符也要时值线</b>：此前六线谱的符干/符杠只画给「有音的列」，所以一拍里「八分音符＋八分休止」会变成孤零零一个带钩的音符加一个光秃秃的休止符——<b>看不出这两个是同一拍</b>。现在休止列同样画符干、并与同拍的实音<b>并进同一条符杠</b>。② <b>空小节改成时值骨架</b>：新建项目、新增小节、新加音轨的吉他谱，此前是<b>每拍两个八分（4/4 共 8 列）</b>、谱面上却只画<b>一枚居中的全休止</b>——既看不出拍位，也没有时值线可点。现在改为<b>一拍一个四分音符</b>（3/4 就是 3 条，变拍小节按本小节拍号），谱面上一拍一条时值线，点哪一拍一目了然。③ <b>六线谱不再画休止字形</b>：按「点击节奏时只出现时值线，谱内不要标记也不要音符」——谱表内保持干净，<b>时值信息一点不丢</b>（符干/符杠照画，附点照样点在时值线上）。简谱/五线谱声部的休止<b>照旧不变</b>。④ <b>倚音技巧符号放大对齐</b>：v60.58 加的 h/p/sl 是 8px，比普通音符的技法字母小一圈；现在与普通两音技法<b>完全同款</b>（11px / 600 / 同款纸底描边），点击热区同步上扩，加了字母照样点得中。⑤ <b>双倚音输入修好了</b>：此前只认空格分隔——输入「<b>57</b>」想要两个倚音，会被读成一个 57 品、越界后<b>静默删掉整个倚音</b>，看起来就像不支持双倚音。现在连写也按逐位识别（<code>57</code>＝5 和 7），读不出品位时<b>明确报错并保留原倚音</b>，绝不静默删除。新增 <code>tv_tabrest</code> 套件 <b>6+1 项</b>，对 v60.59 旧文件跑 T1–T5 当场红＝突变实证。<b>旧断言跟随</b>（产品有意演进）：<code>tv_detail1</code> T2/T14 由「TAB 画 SMuFL 休止/居中全休止」改断言「不画字形、改画时值线」；<code>tv_dot</code> T11 符干数 4→5（多出的正是休止列）；<code>tv_sign</code> T15 不再按固定 8 列下标写测试数据；<code>tv_grace</code> T5/T18 跟随 <code>tk</code> 字段与新字号。CORE 92→<b>93 套件</b>全绿。</div></li>
     <li><span class="v">v60.59</span><div><b>符杠按拍并组：同一拍内的带杠音符一律连成一条主梁</b>（产品拍板，截图二红圈处）。此前连音组是「每 N 个一块」独立成杠，所以<b>一拍里两组三连音（6 个十六分）会画成两截杠</b>——看上去像两拍。现在改为<b>整拍内一律并成一条主梁</b>：连音块与同一拍里的其他带杠音符连在一起，<b>连音括线仍按 N 分块</b>（该标几连音还标几连音，不受影响）。六线谱符杠、五线谱符杠、简谱减时线<b>三处共用同一套分组</b>，一并生效。<b>没有推翻 v51.6</b>：<code>8:7</code>／<code>4:3</code>／<code>7:6</code> 这类<b>跨拍的非整拍连音</b>，整块仍然独立成杠、不被拍界拦腰截断（v51.6 修的就是这个）——判据从「是不是连音」换成了「这一块是否整体落在同一拍内」。<b>零副作用实证</b>：整拍三连音、普通十六分、休止打断、6/8 大拍四种场景的分组<b>一字未变</b>（新旧两版跑同一组断言均绿）。踩到一个坑：分拍函数自带 <code>+1e-4</code> 容差，判「块末是否还在本拍内」时回退量若小于它，<b>正好落在拍尾</b>的块会被误判成跨拍——两组三连音因此没并上，回退量调到 <code>1e-3</code> 才对。<code>tv_tuplet</code> 18→<b>21 项</b>，对 v60.58 旧文件跑 T11/T19 当场红、T20/T21 两版同绿。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.58</span><div><b>倚音支持时值与技巧设置</b>（产品指示）。① <b>技巧（新增）</b>：吉他谱的倚音现在可以设 <b>击弦 h / 勾弦 p / 滑音 sl</b>（或「无」）——字母按吉他惯例标在<b>倚音↔主音那条小连音弧的弧顶</b>（Guitar Pro 同款位置），纸底描边不压弦线；点击谱面上的倚音即可设置，热区随字母自动上扩，加了字母也照样点得中。② <b>时值补齐</b>：吉他谱倚音的时值档此前只有 8/16/32 分，现补上 <b>4 分</b>，与简谱侧的档位一致。换时值不会把已设的技巧弄丢。③ <b>老谱完全兼容</b>：此前存的倚音没有技巧字段，读进来一律归为「无」、谱面一个字母都不多画，既有的倚音弧线分毫不变。<b>如实记录一处边界</b>：倚音技巧目前<b>不进 MusicXML 导出/导入</b>（弦位、品位、时值照常往返），需要跨软件传递技巧的话待后续补。<code>tv_grace</code> 16→<b>19 项</b>（弹窗档位／技巧写入数据并画在弧顶且换时值不丢／旧数据兼容护栏），对 v60.57 旧文件跑 T17 当场红、T18 直接崩＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.57</span><div><b>节奏型库支持连音线</b>（产品指示）。节奏型此前只是一串「时值＋弹哪根弦」，<b>连音线一律丢失</b>——切分、跨拍延音这类最常用的节奏写法在库里根本存不下来。现在整条链路都认连音线：① <b>库里画得出来</b>：节奏型卡的预览图直接画出连音弧（六线谱在上方、简谱在符头上方），选之前就看得见；② <b>套用落得下去</b>：吉他谱的连音线是「按音符」的指针，而节奏型是「按列」的时值骨架——套用时才知道落在哪个小节的哪一列，故按<b>同一根弦</b>把本列的音接到下一列的音上；下一列那根弦上没有音就<b>不画</b>（不会留下指向空处的野指针）。半小节/一拍节奏型套用时列号带偏移，接线同样准。简谱侧节奏型自带的连音线生效，且<b>不会抹掉旋律本来就有的连音线</b>；③ <b>自己做的也存得住</b>：在草稿小节里画的连音线，「保存到库」时一并入库，下次点「改」铺回草稿仍带着线。④ 两个库各<b>新增一条示例</b>：吉他「5323 切分延音（跨拍连音线）」、简谱「切分延音 ♪♪⌒♩ ♩」。数据格式只在末位<b>增加一位</b>标记（吉他 ev 第 4 位、简谱 durs 第 3 位），<b>老节奏型与已存的自定义节奏型原样可用</b>。<code>tv_custompat</code> 8→<b>11+1 项</b>（库示例与预览弧线／套用接同弦指针且无野指针／简谱不抹旧连音线／自定义往返），对 v60.56 旧文件跑当场红＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
