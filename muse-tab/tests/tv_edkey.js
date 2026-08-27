@@ -7,6 +7,9 @@
    T4 恢复原调：多步操作后一键回打开弹窗时快照（key/capo/逐列 notes 深比对）
    T5 夹位速选：8 chips、派生指法调标签、CAGED 金标、点选即落夹位
    T6 非吉他谱类：夹区整体隐藏、唱调行仍可用
+   —— v60.55 追加（产品指示：右上角变调功能删除，弹窗改由谱面上的调号点击打开、配色跟随谱面浅色）：
+   T7 谱面 1=X 真实点击开弹窗（顶栏 key-step 已撤下 / 不再产生调名平铺 popmenu / 就地锚在调号下方 / 再点收起）
+   T8 弹窗底色 = --panel 浅色（观看页 #key-pop 仍深色，作对照护栏）
    file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -133,6 +136,55 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return { hidden, kt, ok: k2===want };
   })()`);
   T(r.hidden && /1=/.test(r.kt) && r.ok, 'T6 非吉他谱夹区隐藏+唱调行可用', JSON.stringify(r));
+
+  /* ===== v60.55 追加（产品指示：顶栏变调组删除、改点谱面上的调号；弹窗跟随谱面浅色） ===== */
+
+  // T7 谱面 1=X 真实点击 → 开变调弹窗（不是旧的调名平铺 popmenu）；顶栏变调组已撤下；再点收起
+  //    真点（非 showHeadMenu 直调）才测得到：弹窗是 pointerdown 开的，随后的 click 冒到 document
+  //    会被「点外收起」当场关掉——popKeepOpen 放行该热区就是为这个。
+  await pg.evaluate(`loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:2,nTab:1,nVox:1,lyr:1})); render();`);
+  await pg.waitForTimeout(200);
+  {
+    const hz = await pg.$('#score [data-hd="key"]');
+    const box = hz && await hz.boundingBox();
+    const cx = box ? box.x + box.width / 2 : 0, cy = box ? box.y + box.height / 2 : 0;
+    if (box) await pg.mouse.click(cx, cy);
+    await pg.waitForTimeout(200);
+    const o1 = await pg.evaluate(() => {
+      const p = document.getElementById('ekey-pop'), ks = document.getElementById('key-step');
+      const pr = p.getBoundingClientRect();
+      return { hz: true, on: p.classList.contains('on'), disp: getComputedStyle(p).display,
+        topHidden: !ks || ks.offsetParent === null, noMenu: !document.getElementById('popmenu'),
+        chips: document.querySelectorAll('#ek-chips .kp-chip').length,
+        top: +pr.top.toFixed(1), w: +pr.width.toFixed(1) };
+    });
+    if (box) await pg.mouse.click(cx, cy);
+    await pg.waitForTimeout(200);
+    const closed = await pg.evaluate(() => !document.getElementById('ekey-pop').classList.contains('on'));
+    r = { ...o1, hz: !!box, closed, anchoredBelow: !!box && o1.top > cy - 4 };
+  }
+  T(r.hz && r.on && r.disp === 'flex' && r.topHidden && r.noMenu && r.chips === 8
+    && r.anchoredBelow && r.w > 200 && r.closed,
+    'T7 谱面 1=X 真实点击开变调弹窗（顶栏组撤下 / 无调名 popmenu / 再点收起）', JSON.stringify(r));
+
+  // T8 弹窗浅色化：底色取自 --panel（浅色主题下高亮度），不再是旧的深绿浮层；观看页 #key-pop 维持深色
+  r = await pg.evaluate(() => {
+    const lum = c => { const m = c.match(/[\d.]+/g).map(Number);
+      return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+    const ek = document.getElementById('ekey-pop'), kp = document.getElementById('key-pop');
+    const ekBg = getComputedStyle(ek).backgroundColor;
+    const panel = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+    const probe = document.createElement('div');
+    probe.style.cssText = 'background:var(--panel)'; document.body.appendChild(probe);
+    const panelRGB = getComputedStyle(probe).backgroundColor; probe.remove();
+    const chip = document.querySelector('#ek-chips .kp-chip');
+    return { ekBg, panelRGB, panel, sameAsPanel: ekBg === panelRGB, ekLum: +lum(ekBg).toFixed(3),
+      kpLum: +lum(getComputedStyle(kp).backgroundColor).toFixed(3),
+      chipColor: chip ? getComputedStyle(chip).color : null,
+      titleColor: getComputedStyle(document.getElementById('ek-v')).color };
+  });
+  T(r.sameAsPanel && r.ekLum > 0.8 && r.kpLum < 0.3,
+    'T8 变调弹窗改浅色（底色=--panel；观看页 key-pop 仍深色不受影响）', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

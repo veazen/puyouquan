@@ -31,8 +31,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const withCapo={ eb:h3.indexOf('1=Eb')>=0, note:h3.indexOf('变调夹 3 品（按 1=C 指法）')>=0,
       zMeta:z('meta'), zKey:z('key'), zMeter:z('meter'), zTempo:z('tempo'), zCapo:z('capo') };
     song.capo=0; render();
-    const h0=document.getElementById('score').innerHTML;
-    return { ...withCapo, c0:h0.indexOf('1=C')>=0 && h0.indexOf('变调夹')<0, nan:h3.includes('NaN') }; })()`);
+    /* v60.55：调号热区的 tooltip 里现在写着「…变调夹 / 夹位选指法…」，
+       原先拿 innerHTML 找「变调夹」会把提示文字也算进去。本项要断言的是**谱面上不画**变调夹标注，
+       故改扫可见文本节点（<text>），不再匹配 <title> 提示。 */
+    const vis0=[...document.querySelectorAll('#score text')].map(x=>x.textContent).join('|');
+    return { ...withCapo, c0:vis0.indexOf('1=C')>=0 && vis0.indexOf('变调夹')<0, nan:h3.includes('NaN') }; })()`);
   T(r.eb && r.note && r.zMeta && r.zKey && r.zMeter && r.zTempo && r.zCapo && r.c0 && !r.nan,
     'T1 页头热区+实际调显示', JSON.stringify(r));
 
@@ -52,7 +55,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { dGuitar:m3-m0, dVocal:mv-mv0 }; })()`);
   T(r.dGuitar === 3 && r.dVocal === 0, 'T2 voxCapo播放联动(+3/纯人声0)', JSON.stringify(r));
 
-  // T3 页头菜单：变调夹 5 品 / 拍号 3/4 / 调号 C→D（和弦自动移调）
+  /* T3 页头菜单：变调夹 5 品 / 拍号 3/4 / 调号 C→D（和弦自动移调）
+     v60.55 起「调号」不再是平铺 12 个调名的 popmenu，而是就地弹出变调弹窗（#ekey-pop）——
+     断言跟随：改经弹窗的唱调 ♯ 连点两次升 2 个半音到 D，顺带核对弹窗确实开了、popmenu 不再产生 */
   r = await pg.evaluate(`(()=>{
     const s=${mkGuitar}; s.capo=3; loadSong(s);
     showHeadMenu('capo', 200, 200);
@@ -61,11 +66,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     showHeadMenu('meter', 200, 200);
     document.querySelector('#popmenu [data-m="3:4"]').click();
     const m34=song.beats+'/'+song.unit;
+    song.capo=0;                                   // 夹位不参与本项换调核对
     showHeadMenu('key', 200, 200);
-    document.querySelector('#popmenu [data-k="D"]').click();
+    const popOn=document.getElementById('ekey-pop').classList.contains('on');
+    const noMenu=!document.getElementById('popmenu');
+    document.getElementById('ek-up').click();
+    document.getElementById('ek-up').click();
     const keyD=song.key, chD=song.measures[0].tabs[0][0].chord;
-    return { capo5, m34, keyD, chD }; })()`);
-  T(r.capo5 === 5 && r.m34 === '3/4' && r.keyD === 'D' && r.chD === 'D', 'T3 页头菜单设置+换调移调', JSON.stringify(r));
+    return { capo5, m34, keyD, chD, popOn, noMenu }; })()`);
+  T(r.capo5 === 5 && r.m34 === '3/4' && r.keyD === 'D' && r.chD === 'D' && r.popOn && r.noMenu,
+    'T3 页头菜单设置 + 调号改走变调弹窗换调移调', JSON.stringify(r));
 
   // T4 速度：askText 输入 120；热区点击路由（pointerdown 到 data-hd="tempo" 弹输入框）
   r = await pg.evaluate(`(()=>{
