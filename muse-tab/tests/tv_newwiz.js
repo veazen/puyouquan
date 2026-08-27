@@ -2,12 +2,14 @@
    T1 一屏结构：三意图卡在位、旧 .ntype 九卡不在、无第二步（nw-create 直接在首屏）、
       导入组 3 入口保留、基础信息四项在位；默认态=器乐卡亮+吉他/伴奏药丸亮
    T2 一击默认建谱：打开→直接点创建 → 吉他弹唱谱（吉他1+旋律1、8 小节、歌词 1 行）
-   T3 组合等价矩阵：11 种组合经 UI 创建的产物 与 直接调 createSong 的产物 逐字段一致
-      （tabVoices/voxVoices/voxNotations/lyricLines/tabStaff/gtype/pianoAcc/chordOnly/func/inst/小节数）
+   T3 组合等价矩阵：16 种组合经 UI 创建的产物 与 直接调 createSong 的产物 逐字段一致
+      （tabVoices/voxVoices/voxNotations/lyricLines/tabStaff/gtype/pianoAcc/chordOnly/func/inst/小节数；
+        v60.46 起含 民乐→简谱独奏 / 管弦→五线谱谱号预置 / 键盘族→大谱表）
    T4 次级联动：换意图/换乐器时次级行内容与钳形正确
    T5 基础信息生效：标题/调/拍号/速度落到 song
+   T7 乐器身份+音色预置（v60.46）：instKey 落谱面、混音台按乐器预置、吉他弹唱不受扰
    T6 手机视口：向导弹窗无横向溢出
-   对 v60.40 旧文件跑：无 .nw-int → T1 起当场红（突变实证）。file:// 直载。 */
+   对 v60.40 旧文件跑：无 .nw-int → T1 起当场红；对 v60.45 旧文件跑：无 .nw-grpcap/erhu → T1/T3 红（突变实证）。file:// 直载。 */
 const { chromium, devices } = require('playwright');
 const path = require('path');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
@@ -27,9 +29,10 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const q = s => document.querySelectorAll(s).length;
     return {
       ints: q('.nw-int'), oldCards: q('.ntype'), createHere: !!document.getElementById('nw-create'),
-      /* v60.45 导入区两卡（哼唱暂下）+ 乐器图标网格 + 二级图标 */
+      /* v60.45 导入区两卡（哼唱暂下）+ 乐器图标网格 + 二级图标；v60.46 扩编 21 乐器分组 */
       feats: q('.nw-imp .nwi'), humGone: !document.getElementById('nw-hum'),
-      instGrid: q('.nw-instgrid .nw-inst') >= 4,
+      instGrid: q('.nw-instgrid .nw-inst') >= 20,
+      instGrps: q('.nw-grpcap') >= 4,
       subIcons: q('#nw-sub .nw-pill svg') > 0,
       basics: !!document.getElementById('nw-title') && !!document.getElementById('nw-key')
         && !!document.getElementById('nw-beats') && !!document.getElementById('nw-unit') && !!document.getElementById('nw-tempo'),
@@ -39,9 +42,9 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     };
   });
   T(r.ints === 3 && r.oldCards === 0 && r.createHere && r.feats === 2 && r.humGone
-    && r.instGrid && r.subIcons && r.basics
+    && r.instGrid && r.instGrps && r.subIcons && r.basics
     && r.defInt === 'inst' && r.defInst && r.defForm,
-    'T1 一屏结构（三意图卡/乐器网格/二级图标/导入2卡哼唱撤/默认器乐·吉他·伴奏）', JSON.stringify(r));
+    'T1 一屏结构（三意图卡/21乐器分组网格/二级图标/导入2卡哼唱撤/默认器乐·吉他·伴奏）', JSON.stringify(r));
 
   // T2 一击默认建谱 = 吉他弹唱
   r = await pg.evaluate(() => {
@@ -75,6 +78,12 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
       ['inst', [['instKey', 'other'], ['clef', 'alto']], 'instr', { clef: 'alto', nVox: 1, lyr: 0 }],
       ['func', [], 'func', { ftype: 'func', nVox: 1, lyr: 1 }],
       ['func', [['ftype', 'chord']], 'func', { ftype: 'chord', nVox: 1, lyr: 1 }],
+      /* v60.46 扩编乐器：民乐→简谱独奏 / 管弦→五线谱(谱号预置) / 键盘族→大谱表 */
+      ['inst', [['instKey', 'erhu']], 'vocal', { nVox: 1, lyr: 0 }],
+      ['inst', [['instKey', 'violin']], 'instr', { clef: 'staff', nVox: 1, lyr: 0 }],
+      ['inst', [['instKey', 'trombone']], 'instr', { clef: 'bass', nVox: 1, lyr: 0 }],
+      ['inst', [['instKey', 'epiano'], ['form', 'psolo']], 'piano', { lyr: 0 }],
+      ['inst', [['instKey', 'accordion']], 'pianoacc', { lyr: 1 }],
     ];
     const bad = [];
     CASES.forEach(([intent, clicks, type, extra], i) => {
@@ -119,6 +128,29 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return { t: song.title, k: song.key, b: song.beats, tp: song.tempo };
   });
   T(r.t === '试验曲' && r.k === 'G' && r.b === 3 && r.tp === 120, 'T5 基础信息生效', JSON.stringify(r));
+
+  // T7 乐器身份与混音音色预置（v60.46）：instKey 落谱面、tim 预置、吉他弹唱不受扰
+  r = await pg.evaluate(() => {
+    showNewWizard();
+    document.querySelector('.nw-int[data-int="inst"]').click();
+    document.querySelector('[data-k="instKey"][data-v="erhu"]').click();
+    document.getElementById('nw-create').click();
+    const erhu = { ik: song.instKey, tim: ((song.mixer||{})['vox:0']||{}).inst,
+      live: trackCfg('vox',0).inst, icon: !!INST_ICON[song.instKey] };
+    showNewWizard();
+    document.querySelector('[data-k="instKey"][data-v="piano"]').click();
+    document.querySelector('[data-k="form"][data-v="psolo"]').click();
+    document.getElementById('nw-create').click();
+    const pn = { ik: song.instKey, t0: trackCfg('vox',0).inst, t1: trackCfg('vox',1).inst };
+    showNewWizard();
+    document.getElementById('nw-create').click();   // 默认 器乐·吉他·伴奏
+    const gt = { noIk: song.instKey===undefined, vox: trackCfg('vox',0).inst };
+    return { erhu, pn, gt };
+  });
+  T(r.erhu.ik==='erhu' && r.erhu.tim==='strings' && r.erhu.live==='strings' && r.erhu.icon
+    && r.pn.ik==='piano' && r.pn.t0==='piano' && r.pn.t1==='piano'
+    && r.gt.noIk && r.gt.vox==='ah',
+    'T7 乐器身份+音色预置（二胡→strings/钢琴双手→piano/弹唱人声轨仍 ah）', JSON.stringify(r));
   await pg.close();
 
   // T6 手机视口无横向溢出
