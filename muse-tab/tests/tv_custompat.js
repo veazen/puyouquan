@@ -10,7 +10,13 @@
    T6 取消流程 + 草稿期守卫：进入草稿 → guardReplace 被拦 → 取消 → 原曲谱原样恢复、备份键清
    T7 vox 流程：时值骨架（含附点）保存 → 套用重排时值、原音符保留
    T8 重载持久化：刷新后两库恢复、库出卡
-   对 v60.48 旧文件跑：无 #pm-go（步进编辑器无拍号弹窗）→ T2 当场红（突变实证）。file:// 直载。 */
+   —— v60.57 追加（产品指示：节奏型库支持使用连音线）：
+   T9  内置连音线节奏型：两库各有一条带连音线的示例；库预览卡画出弧线；拍数不变
+   T10 套用落地：TAB 侧按同弦接 n.tk 指针（接不上不产生野指针）、谱面真出现连音线弧；
+       简谱侧节奏型自带 tie 生效且不抹掉旋律原有的 tie
+   T11 自定义往返：草稿里画连音线 → 保存到库（ev 第 4 位 / durs 第 3 位）→「改」铺回草稿仍带线
+   对 v60.48 旧文件跑：无 #pm-go（步进编辑器无拍号弹窗）→ T2 当场红（突变实证）；
+   对 v60.56 旧文件跑 T9/T10/T11 当场红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
@@ -163,6 +169,91 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return { voxN: (st.vox || []).length, card };
   });
   T(r.voxN === 1 && r.card, 'T8 重载持久化（vox 自定义恢复+库出卡）', JSON.stringify(r));
+
+  /* ===== v60.57 追加：节奏型连音线 ===== */
+
+  // T9 内置连音线节奏型 + 库预览画出弧线
+  r = await pg.evaluate(() => {
+    const gT = TAB_PATTERN_GROUPS.find(x => x.cat.indexOf('4/4') >= 0);
+    const iT = gT.items.findIndex(it => (it.ev || []).some(e => e[3]));
+    const gV = VOX_PATTERN_GROUPS.find(x => x.cat.indexOf('组合') >= 0);
+    const iV = gV.items.findIndex(it => (it.durs || []).some(d => d[2]));
+    const beatsT = iT >= 0 ? +patBeats(gT.items[iT]).toFixed(2) : null;
+    const beatsV = iV >= 0 ? +patBeats(gV.items[iV]).toFixed(2) : null;
+    /* 库卡片里画出弧线（<path d 含 Q>）——预览看得见才叫「库支持」 */
+    showPatternLib('tab');
+    const cT = [...document.querySelectorAll('.pat-card')].find(c => (c.textContent || '').indexOf('切分延音') >= 0);
+    const arcT = cT ? [...cT.querySelectorAll('svg path')].filter(x => (x.getAttribute('d') || '').indexOf(' Q ') > 0).length : 0;
+    closeModal();
+    showPatternLib('vox');
+    const cV = [...document.querySelectorAll('.pat-card')].find(c => (c.textContent || '').indexOf('切分延音') >= 0);
+    const arcV = cV ? [...cV.querySelectorAll('svg path')].filter(x => (x.getAttribute('d') || '').indexOf(' Q ') > 0).length : 0;
+    closeModal();
+    return { iT, iV, beatsT, beatsV, arcT, arcV, nameT: iT >= 0 ? gT.items[iT].name : null };
+  });
+  T(r.iT >= 0 && r.iV >= 0 && r.beatsT === 4 && r.beatsV === 4 && r.arcT >= 1 && r.arcV >= 1,
+    'T9 两库各有连音线示例 + 预览卡画出弧线 + 拍数正确', JSON.stringify(r));
+
+  // T10 套用落地：TAB 接 n.tk 指针 + 谱面出弧；简谱 tie 生效且不抹旧 tie
+  r = await pg.evaluate(() => {
+    const gT = TAB_PATTERN_GROUPS.find(x => x.cat.indexOf('4/4') >= 0);
+    const pT = gT.items.find(it => (it.ev || []).some(e => e[3]));
+    loadSong(createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
+    song.measures[0].tabs[0][0].chord = 'C';
+    sel = { mi: 0, row: 'tab', vi: 0, ci: 0, si: 1 }; render();
+    applyTabPattern(pT);
+    const cols = song.measures[0].tabs[0];
+    const links = [];
+    cols.forEach((c, i) => (c.notes || []).forEach(n => { if (n.tk) links.push(i + '->' + n.tk.ci + ':s' + n.tk.si); }));
+    /* 野指针护栏：每条 tk 的目标列必须存在且该弦上确实有音 */
+    const sane = links.every(L => {
+      const a = +L.split('->')[0], ci = +L.split('->')[1].split(':')[0], si = +L.split(':s')[1];
+      const b2 = cols[ci];
+      return b2 && (b2.notes || []).some(n => n.s === si) && ci === a + 1;
+    });
+    blurSel = true; render();
+    const arcs = [...document.querySelectorAll('#score path')].filter(x => !x.getAttribute('transform'))
+      .map(x => x.getAttribute('d') || '').filter(d => d.slice(0, 2) === 'M ' && d.indexOf(' Q ') > 0);
+    // 简谱侧
+    const gV = VOX_PATTERN_GROUPS.find(x => x.cat.indexOf('组合') >= 0);
+    const pV = gV.items.find(it => (it.durs || []).some(d => d[2]));
+    loadSong(createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 1, nVox: 1, lyr: 0 }));
+    song.measures[0].voxes[0] = [1, 2, 3, 5, 6].map(d =>
+      Object.assign({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [], tie: false }));
+    song.measures[0].voxes[0][3].tie = true;          // 旋律本来就有一条 tie，套用后不该被抹掉
+    sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render();
+    applyVoxPattern(pV);
+    const vTies = song.measures[0].voxes[0].map(c => !!c.tie);
+    return { links, sane, arcOnScore: arcs.length, vTies };
+  });
+  T(r.links.length >= 1 && r.sane && r.arcOnScore >= 1 && r.vTies[1] === true && r.vTies[3] === true,
+    'T10 套用落地：TAB 接同弦指针+谱面出弧；简谱 tie 生效且不抹旧 tie', JSON.stringify(r));
+
+  // T11 自定义往返：草稿画连音线 → 入库 → 「改」铺回仍带线
+  r = await pg.evaluate(() => {
+    localStorage.removeItem('musetab-custompat');
+    window.askText = (t, d, cb) => cb('连音线自定义');
+    startPatEdit('tab', null, 4, 4);
+    const cs = song.measures[0].tabs[0];
+    cs.length = 0;
+    for (let i = 0; i < 8; i++) cs.push(Object.assign(tcol(), { dur: 8, notes: [{ s: 3, f: 0 }] }));
+    cs[0].chord = 'C';
+    cs[2].notes[0].tk = { mi: 0, ci: 3, si: 3 };       // 第 3 列连到第 4 列（3 弦）
+    render();
+    patEditSave();
+    const st = JSON.parse(localStorage.getItem('musetab-custompat') || '{}');
+    const ev = (st.tab || [])[0] ? st.tab[0].ev : null;
+    const savedTie = ev ? ev.map(e => e[3] ? 1 : 0) : null;
+    /* 「改」铺回草稿：连音线指针要还在 */
+    startPatEdit('tab', 0, 4, 4);
+    const back = song.measures[0].tabs[0];
+    const backTk = back.map((c, i) => (c.notes || []).some(n => n.tk && n.tk.ci === i + 1) ? 1 : 0);
+    endPatEdit();
+    return { savedTie, backTk, nEv: ev ? ev.length : 0 };
+  });
+  T(r.nEv === 8 && r.savedTie && r.savedTie[2] === 1 && r.savedTie.reduce((a, x) => a + x, 0) === 1
+    && r.backTk && r.backTk[2] === 1,
+    'T11 自定义往返：草稿连音线入库（ev 第 4 位）→「改」铺回仍带线', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

@@ -4128,6 +4128,9 @@ const TAB_PATTERN_GROUPS = [
     {name:'交替低音 5323 4323', ev:[['b',8],['s3',8],['s2',8],['s3',8],['B',8],['s3',8],['s2',8],['s3',8]]},
     {name:'慢速 5·32·1·32', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
     {name:'532123 + 长音', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8],['s1',4]]},
+    /* v60.57 连音线示例（产品指示：节奏型库支持使用连音线）：第 3 个八分连到第 4 个＝跨拍切分，
+       ev 第 4 位 1 = 本列连到下一列（套用时按同弦接 n.tk，接不上就不画） */
+    {name:'5323 切分延音（跨拍连音线）', ev:[['b',8],['s3',8],['s2',8,0,1],['s2',8],['b',8],['s3',8],['s1',8],['s3',8]]},
     {name:'低音+柱式 民歌伴奏', ev:[['b',4],['c',4],['B',4],['c',4]]},
     {name:'前八后十六 快速分解', ev:[['b',8],['s3',16],['s2',16],['s1',8],['s3',16],['s2',16],['B',8],['s3',16],['s2',16],['s1',8],['s3',16],['s2',16]]},
     {name:'十六分 流水分解', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16],['B',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
@@ -4201,6 +4204,8 @@ const VOX_PATTERN_GROUPS = [
     {name:'附点四分+八分 ×2', durs:[[4,1],[8],[4,1],[8]]},
     {name:'附点八分+十六 ×4', durs:[[8,1],[16],[8,1],[16],[8,1],[16],[8,1],[16]]},
     {name:'大切分 ♪♩♪ + ♩♩', durs:[[8],[4],[8],[4],[4]]},
+    /* v60.57 连音线示例：第 2 个八分连到第 3 个四分（durs 第 3 位 1 = 连到下一音） */
+    {name:'切分延音 ♪♪⌒♩ ♩（连音线）', durs:[[8],[8,0,1],[4],[4],[4]]},
     {name:'小切分×2 + ♩♩', durs:[[16],[8],[16],[16],[8],[16],[4],[4]]},
   ]},
   {cat:'3/4 6/8 拍', met:['34','68'], items:[
@@ -5158,6 +5163,12 @@ function rhythmSVG(durs, W, H, noLine){
     }
     if(t) p.push(`<circle cx="${x+6}" cy="${line-4}" r="1.4" fill="currentColor"/>`);
   });
+  /* v60.57 连音线（durs 第 3 位 tie=1）：弧从本音符头连到下一音符头上方，与谱面同语义 */
+  durs.forEach((e,i)=>{
+    if(!e[2] || i+1>=durs.length) return;
+    const x1=xs[i], x2=xs[i+1], xm=(x1+x2)/2, yTop=line-6.5;
+    p.push(`<path d="M ${x1.toFixed(1)} ${line-4} Q ${xm.toFixed(1)} ${yTop.toFixed(1)} ${x2.toFixed(1)} ${line-4}" fill="none" stroke="currentColor" stroke-width="1.1"/>`);
+  });
   /* 符杠 */
   for(let i=0;i<durs.length;i++){
     const [d]=durs[i];
@@ -5203,6 +5214,12 @@ function tabPatSVG(pat, W, H){
     p.push(`<line x1="4" y1="${top+i*gap}" x2="${W-4}" y2="${top+i*gap}" stroke="currentColor" stroke-width="0.6" opacity="0.65"/>`);
   if(divX!=null) p.push(`<line x1="${divX}" y1="${top-3}" x2="${divX}" y2="${bot+3}" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2 2" opacity="0.7"/>`);
   const head=(x,row)=>p.push(`<path d="M ${x-2.4} ${top+row*gap-2.4} L ${x+2.4} ${top+row*gap+2.4} M ${x-2.4} ${top+row*gap+2.4} L ${x+2.4} ${top+row*gap-2.4}" stroke="currentColor" stroke-width="1.2" fill="none"/>`);
+  /* v60.57 连音线（ev 第 4 位 tie=1）：画在六线谱上方，与谱面 TAB 连音线同位置语义 */
+  evs.forEach((e,i)=>{
+    if(!e[3] || i+1>=evs.length) return;
+    const x1=xs[i], x2=xs[i+1], xm=(x1+x2)/2;
+    p.push(`<path d="M ${x1.toFixed(1)} ${(top-2.5).toFixed(1)} Q ${xm.toFixed(1)} ${(top-8).toFixed(1)} ${x2.toFixed(1)} ${(top-2.5).toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1.1"/>`);
+  });
   evs.forEach((e,i)=>{
     const [t,d,dot]=e; const x=xs[i];
     if(t==='r'){
@@ -9591,6 +9608,22 @@ function evToCol([t,dur,dot], shape, fallback){
   }
   return c;
 }
+/* v60.57 节奏型连音线落地（产品指示：节奏型库支持使用连音线）。
+   TAB 的连音线是「按音符」的指针 n.tk={mi,ci,si}，而节奏型是「按列」的时值骨架——
+   ev 第 4 位标 tie 只说明「本列连到下一列」，指针要等套用后知道落在哪个小节的哪一列才能接。
+   base=本段在小节里的起始列号（整小节套用 base=0，半小节/一拍套用 base=startCi）。
+   只给「下一列同弦上确实有音」的音接线，接不上就不画（不产生指到空处的野指针）。 */
+function patLinkTies(cols, evs, mi, base){
+  evs.forEach((e,i)=>{
+    if(!e[3] || i+1>=cols.length) return;
+    const a=cols[i], b=cols[i+1];
+    (a.notes||[]).forEach(n=>{
+      if(!n || n.tech) return;                       /* 带技法字母的音走技法连线，不叠连音线 */
+      const t=(b.notes||[]).find(m=>m && m.s===n.s);
+      if(t) n.tk={mi, ci:base+i+1, si:t.s};
+    });
+  });
+}
 /* 某列生效的和弦（本小节内 ≤该列起拍的最后一次变更，否则向前找）。
    v60.27 起走全行合并时间线：简谱音符上锚定的和弦对 TAB 节奏型取形同样生效 */
 function chordAtCol(mi, vi, ci){
@@ -9621,6 +9654,7 @@ function applyTabPattern(pat){
         const removedChord = (cols.slice(startCi,end).find(c=>c.chord)||{}).chord;
         cols.splice(startCi, end-startCi, ...seg);
         if(removedChord) seg[0].chord = removedChord;   // 保留该半小节已有和弦
+        patLinkTies(seg, pat.ev, mi, startCi);          // v60.57 连音线（段内接线，列号带偏移）
         autoFixMeasure(mi, 'tab', tgt.vi);
       };
       if(selRange && selRange.row==='tab'){
@@ -9638,6 +9672,7 @@ function applyTabPattern(pat){
         const shape = chordShape(chord1);
         const cols = pat.ev.map(ev=>evToCol(ev, shape, fb));
         if(oldChord && cols.length) cols[0].chord = oldChord;
+        patLinkTies(cols, pat.ev, mi, 0);               // v60.57 连音线
         song.measures[mi].tabs[tgt.vi] = cols;
       });
     }
@@ -9651,12 +9686,13 @@ function applyVoxPattern(pat){
     tgt.list.forEach(mi=>{
       const old = (song.measures[mi].voxes[tgt.vi]||[]).filter(c=>c.deg>0);
       let oi=0;
-      const cols = pat.durs.map(([dur,dot])=>{
+      const cols = pat.durs.map(([dur,dot,tie])=>{
         const c = vcol(); c.dur=dur; c.dotted=!!dot;
         if(oi<old.length){
           const o = old[oi++];
           c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); c.tie=o.tie; if(o.chord)c.chord=o.chord;else delete c.chord;
         }
+        if(tie) c.tie=true;   /* v60.57 节奏型自带连音线（叠加，不抹掉旋律原有的 tie） */
         return c;
       });
       song.measures[mi].voxes[tgt.vi] = cols;
@@ -10246,11 +10282,15 @@ function startPatEdit(kind, editIdx, beats, unit){
   if(kind==='tab'){
     s=createSong('tanchang', Object.assign({}, o, {inst: song.inst==='uku'?'uku':'guitar', nTab:1, nVox:0, lyr:0}));
     const shape=chordShape('C');
-    if(old) s.measures[0].tabs[0]=old.ev.map(e=>evToCol(e, shape));
+    if(old){
+      s.measures[0].tabs[0]=old.ev.map(e=>evToCol(e, shape));
+      patLinkTies(s.measures[0].tabs[0], old.ev, 0, 0);   /* v60.57 「改」时连音线一并铺回草稿 */
+    }
     s.measures[0].tabs[0][0].chord='C';
   }else{
     s=createSong('vocal', Object.assign({}, o, {nVox:1, lyr:0}));
-    if(old) s.measures[0].voxes[0]=old.durs.map(([d,dot])=>{ const c=vcol(); c.dur=d; c.dotted=!!dot; return c; });
+    if(old) s.measures[0].voxes[0]=old.durs.map(([d,dot,tie])=>{
+      const c=vcol(); c.dur=d; c.dotted=!!dot; if(tie) c.tie=true; return c; });
   }
   docs=[{song:s, sel:null}]; curDocI=0; song=s;
   sel={mi:0, row:kind==='tab'?'tab':'vox', vi:0, ci:0, si:1};
@@ -10266,8 +10306,10 @@ function startPatEdit(kind, editIdx, beats, unit){
   document.getElementById('patsave').onclick=patEditSave;
   document.getElementById('patcancel').onclick=()=>endPatEdit(false);
 }
-function colToEv(c, shape){
-  const mk=t=> c.dotted? [t, c.dur, 1] : [t, c.dur];
+/* v60.57 tied：本列是否连到下一列（TAB 连音线是按音符的 n.tk 指针，存进节奏型时压成一位列级标记——
+   节奏型是时值骨架、套到别的和弦上音符会变，只记「这里有连音线」才是可复用的信息）。 */
+function colToEv(c, shape, tied){
+  const mk=t=> tied? [t, c.dur, c.dotted?1:0, 1] : (c.dotted? [t, c.dur, 1] : [t, c.dur]);
   const ns=c.notes||[];
   if(!ns.length) return mk('r');
   if(c.strum==='arp') return mk('a');
@@ -10287,13 +10329,17 @@ function patEditSave(){
   const kind=patEdit.kind;
   let entry;
   if(kind==='tab'){
-    const ev=song.measures[0].tabs[0].map(c=>colToEv(c, chordShape('C')));
+    const src=song.measures[0].tabs[0];
+    /* v60.57 连音线入库：草稿小节里某列有音带 n.tk 指向「下一列」＝该列连到下一列 */
+    const tiedAt=ci=> (src[ci].notes||[]).some(n=> n && n.tk && !n.tech && n.tk.mi===0 && n.tk.ci===ci+1);
+    const ev=src.map((c,ci)=>colToEv(c, chordShape('C'), tiedAt(ci)));
     if(!ev.some(e=>e[0]!=='r')) return toast('小节还是空的——先写点内容再保存');
     entry={name:'', ev};
   }else{
     const cols=song.measures[0].voxes[0];
     if(!cols.length) return toast('小节还是空的——先写点内容再保存');
-    entry={name:'', durs:cols.map(c=> c.dotted? [c.dur,1] : [c.dur])};
+    /* 简谱侧连音线就是列上的 c.tie（第 3 位；不写 dotted 时补 0 占位，保持位序） */
+    entry={name:'', durs:cols.map(c=> c.tie? [c.dur, c.dotted?1:0, 1] : (c.dotted? [c.dur,1] : [c.dur]))};
   }
   const defName = patEdit.editIdx!=null? cpatLoad()[kind][patEdit.editIdx].name
     : '自定义'+(cpatLoad()[kind].length+1);
@@ -20807,7 +20853,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.56';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.57';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20830,6 +20876,7 @@ const APP_VER='v60.56';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.57</span><div><b>节奏型库支持连音线</b>（产品指示）。节奏型此前只是一串「时值＋弹哪根弦」，<b>连音线一律丢失</b>——切分、跨拍延音这类最常用的节奏写法在库里根本存不下来。现在整条链路都认连音线：① <b>库里画得出来</b>：节奏型卡的预览图直接画出连音弧（六线谱在上方、简谱在符头上方），选之前就看得见；② <b>套用落得下去</b>：吉他谱的连音线是「按音符」的指针，而节奏型是「按列」的时值骨架——套用时才知道落在哪个小节的哪一列，故按<b>同一根弦</b>把本列的音接到下一列的音上；下一列那根弦上没有音就<b>不画</b>（不会留下指向空处的野指针）。半小节/一拍节奏型套用时列号带偏移，接线同样准。简谱侧节奏型自带的连音线生效，且<b>不会抹掉旋律本来就有的连音线</b>；③ <b>自己做的也存得住</b>：在草稿小节里画的连音线，「保存到库」时一并入库，下次点「改」铺回草稿仍带着线。④ 两个库各<b>新增一条示例</b>：吉他「5323 切分延音（跨拍连音线）」、简谱「切分延音 ♪♪⌒♩ ♩」。数据格式只在末位<b>增加一位</b>标记（吉他 ev 第 4 位、简谱 durs 第 3 位），<b>老节奏型与已存的自定义节奏型原样可用</b>。<code>tv_custompat</code> 8→<b>11+1 项</b>（库示例与预览弧线／套用接同弦指针且无野指针／简谱不抹旧连音线／自定义往返），对 v60.56 旧文件跑当场红＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.56</span><div><b>双吉他谱面修正：吉他1 的时值线点得中了、吉他2 的连音线与连音数字不再压别人</b>（用户截图报告三项，全部用命中测试与几何断言实测定位）。① <b>双吉他时点不中吉他1 的时值线</b>：根因不是时值线本身——每个 TAB 列在<b>谱表上方</b>还挂着一条 18px 的「选中本列」兜底热区，第二条吉他的这条带子整条落在<b>第一条吉他的符杠区里</b>（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉），而它后画、命中测试就归它。现在第二条起的这条带子<b>钳到上一条的时值线区之下</b>，不足 4px 就整条不画（本列仍可点弦格选中）。修后吉他1 <b>四拍时值线全部命中自己</b>。② <b>吉他2 的连音线压到吉他1</b>：连音线弧顶落在 <code>音符上方 9.5px 再减弧高</code>，1 弦上最坏到 <code>TAB顶线−24.5</code>，而两条吉他之间此前<b>只有 6px 空隙</b>（行间预留只认「第二条有没有和弦名」，连音线/技法/指法一概没算）。现在按第二条声部谱表上方<b>实际挂了什么</b>预留：和弦名 22 / 连音线 26 / 技法·左手指法·摇把 19。实测净距 <b>−18px → +18px</b>。③ <b>吉他2 的 6 连音数字与简谱 6 连音数字重叠</b>：TAB 连音括线的斜体数字挂在 <code>符干基线+9.5</code>，而每条 TAB 声部的行进量只留到 <code>+6</code>，<b>溢出 3.5px 顶进下一行</b>。注意这里不能靠加大符干区解决——那样数字跟着一起下移、净差分毫不变；本版单加一项<b>只增行进量、不动符干基线</b>的预留。实测净距 <b>−0.8px → +9.2px</b>。<b>行距按需增</b>：单吉他谱、以及第二条吉他没有上方元素时，行高<b>一分不变</b>（护栏断言实测 0px）。新增 <code>tv_tab2</code> 套件 <b>5+1 项</b>，对 v60.55 旧文件跑 T1/T2/T3/T5 当场红＝突变实证。CORE 91→<b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.55</span><div><b>变调入口收敛到谱面：点谱上的 1=X 就地开变调弹窗，右上角变调组撤下，弹窗改浅色</b>（产品指示）。① <b>右上角变调组撤下</b>：顶栏那组 <code>♭ 1=C ♯</code> 不再出现在界面上（DOM 保留供「更多功能」抽屉的快速换调与回归套件程序化调用，同 v55.2 经典版入口口径）。② <b>谱面调号点击＝变调弹窗</b>：此前点谱面上的 1=X 弹的是一张平铺 12 个调名的小菜单——只能换调名，夹位、恢复原调、选指法都够不着；现在改为就地弹出与顶栏同一个<b>变调弹窗</b>：打开时原调 + 一键<b>恢复原调</b> / 唱调 <code>♭♯</code>（指法随动重排、夹不动）/ 变调夹 <code>−＋</code>（唱调锁定换算）/ 等式行 / <b>夹位速选 0–7 品</b>（标派生指法调、CAGED 开放把位高亮＝「选指法」）。弹窗<b>左对齐锚在调号正下方</b>（不压左栏），下方放不下自动翻到上方；再点一次收起。③ <b>弹窗改浅色</b>：它现在是从浅色谱纸上弹出来的，原来的深绿浮层压在谱面上像块补丁——底色/描边/文字/chip 全部改走主题变量（<code>--panel</code>/<code>--border</code>/<code>--text</code>），夜间主题自动跟随；CAGED 高亮由金色改琥珀（浅底上金色不可读）。观看页的变调弹窗维持 v55.6 深色不动（那是深色播放坞一族）。<b>踩到的坑</b>：谱面热区是 <code>pointerdown</code> 开的弹窗，紧随其后的 <code>click</code> 冒泡到 document 会被两处「点外收起」当场关掉——加 <code>popKeepOpen</code> 断言放行该热区，开合交给弹窗自己 toggle。<code>tv_edkey</code> 7→<b>9 项</b>（新增：谱面真实点击开合＋顶栏组撤下＋无调名菜单＋就地锚定；弹窗底色＝<code>--panel</code> 且观看页仍深色作对照护栏），对 v60.54 旧文件跑两项当场红＝突变实证；<code>tv_capo</code> T3 换调路径跟随改走弹窗、T1 改扫可见文本（提示语里出现「变调夹」不该算进谱面标注）。CORE <b>91 套件</b>全绿。</div></li>
     <li><span class="v">v60.54</span><div><b>智能填词支持选声部／加声部 + 左栏「歌词」入口恢复（排在「小节」上方）</b>（产品指示两项）。① <b>智能填词加声部</b>：此前工具只认「当前选中的那条旋律轨」，合唱谱要给第二声部填词，得先退出弹窗、去左栏点那条轨、再重新打开。现弹窗顶部新增<b>声部行</b>：列出全部旋律声部，每个名字后面直接标<b>该声部的可填音位数</b>（一眼看出哪条有音符、哪条还是空的），点一下即切换填词对象——标题、已填词回填、对齐预览、谱面光标全部跟着走，原声部一个字不动。② <b>就地「＋声部」</b>：弹窗内可直接新增一条旋律声部。要点是新声部会<b>复制来源声部的音符骨架</b>（音高／时值／附点／连音线／连音符，<b>不带歌词</b>）——合唱惯例本就是各声部同节奏、各自一套词；而普通加轨产出的是全休止空轨，填词工具只认实音符，空轨的可填音位＝0、工具当场失效。复制后建好即可填词，音高随后照常改；整件事在一次操作内完成，<b>Ctrl+Z 一步撤销</b>。声部满 5 条时「＋声部」自动隐藏。③ <b>左栏歌词入口恢复</b>：歌词页自 v60.43 起在新版外壳被隐藏，现按指示恢复，并排在<b>「小节」正上方</b>（段落切换／逐字填词／智能填词／清空本段都在这一页）。显隐口径同时放宽：此前是「有歌词行才出现」——一段词都还没有时入口自己消失，恰恰是最需要它的时候；现跟随本项目既有的「本谱能不能加歌词行」政策（纯和弦格除外），<b>零段时面板里直接给「＋ 添加歌词行」</b>，入口不再是死路。新增 <code>tv_lyrvox</code> 套件 <b>7+1 项</b>（左轨顺序／零段空态／声部行与可填音位数／切声部填词互不串／＋声部复制骨架不带词且一步撤销／声部上限／空来源按各小节实际拍号铺列不错位），对 v60.53 旧文件跑 T1–T3 当场红、T4 起直接崩＝突变实证。CORE 90→<b>91 套件</b>全绿。</div></li>
