@@ -1242,6 +1242,16 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 .pat-card .nm{font-size:12px;text-align:center;line-height:1.25}
 .pat-card .bt{font-size:10.5px;color:var(--muted)}
 .pat-card svg{background:var(--panel);border-radius:6px}
+/* v60.51 节奏型库筛选条（类型/拍号 chips，默认按当前谱拍号收敛） */
+.pf-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 12px;
+  padding:9px 11px;border:1px solid var(--border-soft);border-radius:12px;background:var(--panel)}
+.pf-lab{font-size:11.5px;color:var(--muted);font-weight:600;margin-right:1px}
+.pf-sep{width:1px;height:16px;background:var(--border);margin:0 5px}
+.pf-chip{border:1px solid var(--border);border-radius:999px;padding:4px 12px;font:inherit;font-size:12px;
+  background:var(--paper);cursor:pointer;color:var(--text);line-height:1.3}
+.pf-chip:hover{border-color:var(--accent)}
+.pf-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pf-none{font-size:12.5px;color:var(--muted)}
 /* v60.48 自定义节奏型：库内自定义卡（改/删角标 + 新建虚线卡）与编辑器 */
 .pat-card{position:relative}
 .cp-ops{position:absolute;top:5px;right:6px;display:flex;gap:4px}
@@ -4080,12 +4090,12 @@ const DUR_COMBOS_X = [
 ];
 /* ---- 节奏型库（吉他）: b=根音 B=交替低音 sN=第N弦 c=柱式 d/u=扫弦 a=琶音 x=切音 r=休止 ---- */
 const TAB_PATTERN_GROUPS = [
-  {cat:'分解节奏型 · 2/4 4/4', items:[
+  /* v60.51 产品指示：库改筛选展示（typ 分解 brk/扫弦 strum；met 拍号数组，'free'=散拍不限拍号）；
+     53231323 十六分（2/4）自 4/4 组移入 2/4 分类，并增半小节（散拍）版；
+     组序不动第 0 组第 0 项（快捷钮与回归套件锚点=53231323 经典分解） */
+  {cat:'分解节奏型 · 4/4', typ:'brk', met:['44'], items:[
     {name:'53231323 经典分解', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8],['s2',8],['s3',8]]},
-    /* v60.47 产品指定补充：53231323 十六分版（4/4 一小节两遍；2/4 一小节一遍）——
-       与「十六分 流水分解」的区别：后半保持根音 b 不走交替低音 B */
     {name:'53231323 十六分（4/4）', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16],['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
-    {name:'53231323 十六分（2/4）', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
     {name:'交替低音 5323 4323', ev:[['b',8],['s3',8],['s2',8],['s3',8],['B',8],['s3',8],['s2',8],['s3',8]]},
     {name:'慢速 5·32·1·32', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
     {name:'532123 + 长音', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8],['s1',4]]},
@@ -4094,13 +4104,18 @@ const TAB_PATTERN_GROUPS = [
     {name:'十六分 流水分解', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16],['B',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
     {name:'琶音+高音收尾', ev:[['a',2],['s1',4],['s2',4]]},
   ]},
-  {cat:'分解节奏型 · 3/4 6/8', items:[
+  {cat:'分解节奏型 · 2/4', typ:'brk', met:['24'], items:[
+    {name:'53231323 十六分（2/4）', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
+    {name:'5323 八分（2/4）', ev:[['b',8],['s3',8],['s2',8],['s3',8]]},
+    {name:'低音+柱式（2/4）', ev:[['b',4],['c',4]]},
+  ]},
+  {cat:'分解节奏型 · 3/4 6/8', typ:'brk', met:['34','68'], items:[
     {name:'532313 华尔兹分解', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8]]},
     {name:'低音+两柱式 华尔兹', ev:[['b',4],['c',4],['c',4]]},
     {name:'5·32·13 慢三', ev:[['b',4],['s3',8],['s2',8],['s1',8],['s3',8]]},
     {name:'632123 六八分解', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8]]},
   ]},
-  {cat:'扫弦节奏型 · 2/4 4/4（无休止，切音=箭头带点）', items:[
+  {cat:'扫弦节奏型 · 4/4（无休止，切音=箭头带点）', typ:'strum', met:['44'], items:[
     {name:'四分下扫 ↓↓↓↓', ev:[['d',4],['d',4],['d',4],['d',4]]},
     {name:'八分下上 ↓↑×4', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
     {name:'↓ ↓↑ ↓ ↓↑', ev:[['d',4],['d',8],['u',8],['d',4],['d',8],['u',8]]},
@@ -4114,7 +4129,7 @@ const TAB_PATTERN_GROUPS = [
     {name:'十六分扫 ↓↑↓↑ ×4', ev:[['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16],['d',16],['u',16]]},
     {name:'切分 ↓· ↓↑ ↓· ↓↑', ev:[['md',8],['d',8],['u',8],['md',8],['d',8],['u',8],['d',8],['u',8]]},
   ]},
-  {cat:'扫弦节奏型 · 3/4（无休止）', items:[
+  {cat:'扫弦节奏型 · 3/4（无休止）', typ:'strum', met:['34'], items:[
     {name:'↓ ↓ ↓ 华尔兹', ev:[['d',4],['d',4],['d',4]]},
     {name:'↓ ↓↑ ↓↑', ev:[['d',4],['d',8],['u',8],['d',8],['u',8]]},
     {name:'↓ ↓· ↓·', ev:[['d',4],['md',4],['md',4]]},
@@ -4122,27 +4137,28 @@ const TAB_PATTERN_GROUPS = [
     {name:'↓↑ ↓↑ ↓↑', ev:[['d',8],['u',8],['d',8],['u',8],['d',8],['u',8]]},
     {name:'↓ ↑↓ ↑↓', ev:[['d',4],['u',8],['d',8],['u',8],['d',8]]},
   ]},
-  {cat:'半小节节奏型 · 2拍（填入所选起始半小节，可拼两段不同和弦）', partial:true, items:[
-    {name:'分解 5323', span:2, ev:[['b',8],['s3',8],['s2',8],['s3',8]]},
-    {name:'分解 5321', span:2, ev:[['b',8],['s3',8],['s2',8],['s1',8]]},
-    {name:'低音 + 柱式', span:2, ev:[['b',4],['c',4]]},
-    {name:'柱式 ×2', span:2, ev:[['c',4],['c',4]]},
-    {name:'扫弦 ↓ ↓↑', span:2, ev:[['d',4],['d',8],['u',8]]},
-    {name:'扫弦 ↓↑↓↑', span:2, ev:[['d',8],['u',8],['d',8],['u',8]]},
-    {name:'切音 ↓ ×', span:2, ev:[['d',4],['x',4]]},
-    {name:'琶音（2拍）', span:2, ev:[['a',2]]},
+  {cat:'半小节节奏型 · 2拍（散拍：填入所选起始半小节，可拼两段不同和弦）', met:['free'], partial:true, items:[
+    {name:'53231323 十六分（半小节）', typ:'brk', span:2, ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
+    {name:'分解 5323', typ:'brk', span:2, ev:[['b',8],['s3',8],['s2',8],['s3',8]]},
+    {name:'分解 5321', typ:'brk', span:2, ev:[['b',8],['s3',8],['s2',8],['s1',8]]},
+    {name:'低音 + 柱式', typ:'brk', span:2, ev:[['b',4],['c',4]]},
+    {name:'柱式 ×2', typ:'brk', span:2, ev:[['c',4],['c',4]]},
+    {name:'扫弦 ↓ ↓↑', typ:'strum', span:2, ev:[['d',4],['d',8],['u',8]]},
+    {name:'扫弦 ↓↑↓↑', typ:'strum', span:2, ev:[['d',8],['u',8],['d',8],['u',8]]},
+    {name:'切音 ↓ ×', typ:'strum', span:2, ev:[['d',4],['x',4]]},
+    {name:'琶音（2拍）', typ:'brk', span:2, ev:[['a',2]]},
   ]},
-  {cat:'一拍节奏型 · 1拍（填入所选一拍）', partial:true, items:[
-    {name:'分解 53', span:1, ev:[['b',8],['s3',8]]},
-    {name:'低音 + 高音', span:1, ev:[['b',8],['s1',8]]},
-    {name:'柱式（1拍）', span:1, ev:[['c',4]]},
-    {name:'扫弦 ↓↑', span:1, ev:[['d',8],['u',8]]},
-    {name:'前八后十六', span:1, ev:[['b',8],['s3',16],['s2',16]]},
+  {cat:'一拍节奏型 · 1拍（散拍：填入所选一拍）', met:['free'], partial:true, items:[
+    {name:'分解 53', typ:'brk', span:1, ev:[['b',8],['s3',8]]},
+    {name:'低音 + 高音', typ:'brk', span:1, ev:[['b',8],['s1',8]]},
+    {name:'柱式（1拍）', typ:'brk', span:1, ev:[['c',4]]},
+    {name:'扫弦 ↓↑', typ:'strum', span:1, ev:[['d',8],['u',8]]},
+    {name:'前八后十六', typ:'brk', span:1, ev:[['b',8],['s3',16],['s2',16]]},
   ]},
 ];
-/* ---- 节奏型库（简谱）: 时值组合 ---- */
+/* ---- 节奏型库（简谱）: 时值组合（met 拍号筛选标签同 TAB 库） ---- */
 const VOX_PATTERN_GROUPS = [
-  {cat:'基础时值 · 2/4 4/4', items:[
+  {cat:'基础时值 · 2/4 4/4', met:['24','44'], items:[
     {name:'四分 ×4', durs:[[4],[4],[4],[4]]},
     {name:'二分 ×2', durs:[[2],[2]]},
     {name:'全音符', durs:[[1]]},
@@ -4150,7 +4166,7 @@ const VOX_PATTERN_GROUPS = [
     {name:'二分+四分×2', durs:[[2],[4],[4]]},
     {name:'四分×2+二分', durs:[[4],[4],[2]]},
   ]},
-  {cat:'组合节奏 · 2/4 4/4', items:[
+  {cat:'组合节奏 · 2/4 4/4', met:['24','44'], items:[
     {name:'前八后十六 ×4', durs:[[8],[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16]]},
     {name:'前十六后八 ×4', durs:[[16],[16],[8],[16],[16],[8],[16],[16],[8],[16],[16],[8]]},
     {name:'附点四分+八分 ×2', durs:[[4,1],[8],[4,1],[8]]},
@@ -4158,7 +4174,7 @@ const VOX_PATTERN_GROUPS = [
     {name:'大切分 ♪♩♪ + ♩♩', durs:[[8],[4],[8],[4],[4]]},
     {name:'小切分×2 + ♩♩', durs:[[16],[8],[16],[16],[8],[16],[4],[4]]},
   ]},
-  {cat:'3/4 6/8 拍', items:[
+  {cat:'3/4 6/8 拍', met:['34','68'], items:[
     {name:'四分 ×3', durs:[[4],[4],[4]]},
     {name:'附点二分', durs:[[2,1]]},
     {name:'二分+四分', durs:[[2],[4]]},
@@ -10160,9 +10176,32 @@ function endPatEdit(saved, nm){
   if(saved){ toast('已保存到节奏型库：'+nm); showPatternLib(pe.kind); }
   else toast('已取消，回到原曲谱');
 }
-function showPatternLib(kind){
+/* v60.51 库筛选（产品指示：改筛选展示不全铺，方便查找）。
+   met：'24/34/44/68'=拍号、'free'=散拍（半小节/一拍，不限拍号）、'all'=全部；
+   typ（仅 TAB）：'brk'=分解 /'strum'=扫弦（半小节组内逐项标注）。
+   每次从外部打开按当前谱拍号收敛（keepFilter=筛选点击内部重渲染时保持）。 */
+let patFilter={typ:'all', met:'all'};
+function metKeyOf(beats, unit){ const k=''+beats+unit; return ['24','34','44','68'].includes(k)? k : null; }
+function showPatternLib(kind, keepFilter){
   const groups = kind==='tab'?TAB_PATTERN_GROUPS:VOX_PATTERN_GROUPS;
-  /* v60.48 自定义组置顶：用户自己的节奏型 + 新建入口；卡上「改/删」小钮 */
+  if(!keepFilter) patFilter={typ:'all', met: metKeyOf(song.beats, song.unit)||'all'};
+  const gShow=g=>{
+    if(patFilter.met==='all') return true;
+    const gm=g.met||[];
+    if(patFilter.met==='free') return gm[0]==='free';
+    return gm[0]!=='free' && gm.includes(patFilter.met);
+  };
+  const iShow=(g,p)=> kind!=='tab' || patFilter.typ==='all' || (p.typ||g.typ)===patFilter.typ;
+  const pfChip=(k,v,lab,on)=>'<button class="pf-chip'+(on?' on':'')+'" data-pf'+k+'="'+v+'">'+lab+'</button>';
+  const METS=[['all','全部'],['24','2/4'],['34','3/4'],['44','4/4'],['68','6/8'],['free','散拍']];
+  const fbar='<div class="pf-bar">'
+    +(kind==='tab'? '<span class="pf-lab">类型</span>'
+      +[['all','全部'],['brk','分解'],['strum','扫弦']].map(([v,l])=>pfChip('t',v,l,patFilter.typ===v)).join('')
+      +'<span class="pf-sep"></span>':'')
+    +'<span class="pf-lab">拍号</span>'
+    +METS.filter(([v])=>kind==='tab'||v!=='free').map(([v,l])=>pfChip('m',v,l,patFilter.met===v)).join('')
+    +'</div>';
+  /* v60.48 自定义组置顶：用户自己的节奏型 + 新建入口；卡上「改/删」小钮（不参与筛选，恒显） */
   const cust = cpatLoad()[kind];
   const custBody = `<h4>自定义 · 我的节奏型</h4><div class="pat-grid">`
     + cust.map((p,ci)=>{
@@ -10172,22 +10211,28 @@ function showPatternLib(kind){
         <div class="cp-ops"><span class="cp-edit" data-ce="${ci}" title="编辑该节奏型">改</span><span class="cp-del" data-cd="${ci}" title="删除该节奏型">删</span></div></div>`;
     }).join('')
     + `<div class="pat-card cpat-new" id="cpat-new"><span class="cpn-plus">＋</span><div class="nm">新建节奏型</div><div class="bt">${kind==='tab'?'自定义分解 / 扫弦':'自定义时值组合'}</div></div></div>`;
-  const body = groups.map((g,gi)=>
-    `<h4>${esc(g.cat)}</h4><div class="pat-grid">`+
-    g.items.map((p,pi)=>{
+  const body = groups.map((g,gi)=>{
+    if(!gShow(g)) return '';
+    const cards=g.items.map((p,pi)=>{
+      if(!iShow(g,p)) return '';
       const svg = kind==='tab'?tabPatSVG(p,140,62):rhythmSVG(p.durs,140,36);
       return `<div class="pat-card" data-g="${gi}" data-p="${pi}">
         ${svg}<div class="nm">${esc(p.name)}</div><div class="bt">${+patBeats(p).toFixed(2)} 拍</div></div>`;
-    }).join('')+`</div>`
-  ).join('');
+    }).join('');
+    return cards? `<h4>${esc(g.cat)}</h4><div class="pat-grid">${cards}</div>` : '';
+  }).join('') || '<p class="pf-none">当前筛选没有匹配的节奏型——点上方筛选放宽范围。</p>';
   const tip = selRange
     ? `将套用到第 ${selRange.m1+1}–${selRange.m2+1} 小节`
     : `将套用到第 ${sel.mi+1} 小节（可先 Shift+点击多选）`;
   showModal(`<h3>${kind==='tab'?'吉他节奏型库':'简谱节奏型库'}</h3>
     <p>${tip}。吉他节奏型在小节有和弦时按指法自动生成音符；拍数与拍号不符会被"节拍检查"标出。</p>
-    ${custBody}${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
+    ${fbar}${custBody}${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
   document.getElementById('lib-close').onclick = closeModal;
   document.querySelector('.modal').addEventListener('click', e=>{
+    const pt=e.target.closest('[data-pft]');
+    if(pt){ patFilter.typ=pt.dataset.pft; showPatternLib(kind, true); return; }
+    const pm=e.target.closest('[data-pfm]');
+    if(pm){ patFilter.met=pm.dataset.pfm; showPatternLib(kind, true); return; }
     if(e.target.closest('#cpat-new')){ showPatEditor(kind, null); return; }
     const ce=e.target.closest('[data-ce]'); if(ce){ showPatEditor(kind, +ce.dataset.ce); return; }
     const cd=e.target.closest('[data-cd]');
@@ -20542,7 +20587,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.50';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.51';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20565,6 +20610,7 @@ const APP_VER='v60.50';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.51</span><div><b>节奏型库筛选展示 + 53231323（2/4）归类调整</b>（产品指示：2 拍的十六分分解移到 2/4 拍分类和半小节分类；库改成筛选展示，不用全部展示方便查找）。① <b>筛选条</b>：库顶部两组 chips——<b>类型</b>（全部 / 分解 / 扫弦）＋<b>拍号</b>（全部 / 2/4 / 3/4 / 4/4 / 6/8 / <b>散拍</b>）；<b>打开即按当前谱拍号收敛</b>：4/4 谱只见 4/4 组、3/4 谱只见 3/4 组，不再全库铺开；「散拍」=不限拍号的半小节/一拍填充组；半小节组内逐款标注分解/扫弦参与类型筛选；自定义组恒显不参与筛选；简谱库同款拍号筛选。② <b>归类调整</b>：「53231323 十六分（2/4）」自 4/4 组移入新设「分解 · 2/4」组（顺手补 5323 八分与低音+柱式两款 2/4 基本款），并新增「53231323 十六分（半小节）」散拍版——2 拍填充可拼两段不同和弦。新增 <code>tv_patfilter</code> 套件。CORE 88→<b>89 套件</b>全绿。</div></li>
     <li><span class="v">v60.50</span><div><b>编辑器变调弹窗对齐观看页：选指法 / 恢复原调 / 变调夹一站式</b>（产品指示：吉他曲谱编辑时点击调号弹窗的功能应该和曲谱浏览时一样）。① <b>点顶栏调号 1=X 打开变调弹窗</b>——与观看页同款纵排卡：<b>原调行</b>（打开时的调与夹位，一键<b>恢复原调</b>——快照整体回填，试了几档不满意随时回起点）/ <b>唱调行</b> ♭ ♯（指法随动重排、变调夹不动）/ <b>变调夹行</b>（唱调锁定：夹 +2 品指法自动降 2 半音换算——变调夹的本义）/ <b>等式行</b>「指法＋夹＝唱调」/ <b>夹位速选</b> 0–7 品（每档标出派生指法调，<b>CAGED 开放把位金色推荐</b>——这就是「选指法」）。非吉他谱类自动只留唱调行。与观看页的区别一句话讲清：观看页变调只影响你看，<b>编辑器变调直接改谱</b>——全程单步 mutate，Ctrl+Z 一键撤销。② <b>编辑器换调引擎升级到 v60.39 重排</b>（此前编辑器还是旧「逐品平移+越界折八度」——和弦图与谱面演奏错位的根源在编辑器侧至此一并根治）：顶栏 ♭/♯、快捷换调、曲谱信息换调<b>三处入口统一</b>——伴奏列随新和弦图取形、旋律列束搜索重排把位、和弦名/拍位和弦/转调标记同步平移，折八度/放不下如实播报。旧 transposeEditor 平移实现删除。新增 <code>tv_edkey</code> 套件。CORE 87→<b>88 套件</b>全绿。</div></li>
     <li><span class="v">v60.49</span><div><b>自定义节奏型改在曲谱编辑器里写</b>（产品更正：新建节奏型直接根据谱类调到曲谱编辑器，只需设定拍号，编辑完有保存到库的按钮）。「＋新建 / 改」不再打开独立编辑器：① <b>只问一个拍号</b>（默认随本谱）→ 直接进入<b>曲谱编辑器</b>写一小节草稿——品位录入 / 扫弦琶音 / 时值连音 / 播放试听，<b>所有编辑工具全部可用</b>；吉他节奏型按谱类给六线谱（尤克里里谱四线），以 <b>C 和弦</b>为示例取品，保存时只记弦序与奏法、套用时按目标和弦自动换指法；简谱节奏型取时值骨架。② 顶部常驻浮条<b>「保存到库」</b>：起名即入库并回到原曲谱；「取消」原样返回。③ <b>原曲谱全程无恙</b>：进入时快照工作区并落<b>崩溃备份</b>——中途刷新/断电重开自动恢复到编辑前状态，未入库的编辑也不丢；草稿期间「新建 / 打开」被拦截防误切换。「改」同一流程：旧节奏型铺回小节接着改。<code>tv_custompat</code> 套件按新流程重写。<b>87 套件</b>全绿。</div></li>
     <li><span class="v">v60.48</span><div><b>自定义节奏型：库内新建 / 编辑 / 删除，吉他谱与简谱两谱类全支持</b>（产品指示：节奏型库增加自定义节奏型编辑功能，设计节奏型编辑界面，支持不同谱类）。节奏型库顶部新增<b>「自定义 · 我的节奏型」</b>组：① <b>「＋新建节奏型」</b>打开编辑器——选<b>时值</b>（2/4/8/16 分＋附点）、点<b>「加一步」托盘</b>逐步搭建：根音低/交替低/1–6 弦（尤克里里谱自动只出 4 根弦）/柱式/下扫/上扫/切音扫/琶音/切音×/休止——与内置节奏型同一套记谱语言；步序随点随删（每步 × / 退一步 / 清空），<b>教材式六线图实时预览</b>＋拍数即时统计（与本谱拍号对照，不符会提示由节拍检查标出）。② <b>简谱侧</b>同款编辑器：点时值即追加（附点先点亮），定义时值骨架，套用时保留小节已有音符。③ 保存即入库：自定义卡与内置卡<b>同样一键套用</b>（有和弦时按指法自动生成音符），卡上「改 / 删」随时维护；<b>持久保存</b>（新键 <code>musetab-custompat</code>，数据红线安全），换谱重开都在。套用/图示/拍数全部复用既有管线，不写第二份实现；钢琴伴奏织体走「伴奏织体」引擎，暂不在自定义范围（如实边界）。新增 <code>tv_custompat</code> 套件 <b>7+1 项</b>（两库自定义组/编辑器结构与 uku 弦数口径/构建保存/C 和弦套用逐列实证/编辑删除/简谱附点骨架/重载持久化）。CORE 86→<b>87 套件</b>全绿。</div></li>

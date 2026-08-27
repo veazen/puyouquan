@@ -163,7 +163,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   // T8 53231323 十六分两款（v60.47 产品指定）：数据口径 + C 和弦套用逐列实证
   r = await pg.evaluate(() => {
     showNewWizard(); document.getElementById('nw-create').click();   // 吉他弹唱 8 小节
-    const items = TAB_PATTERN_GROUPS[0].items;
+    /* v60.51 起（2/4）款移入「分解 · 2/4」组——跨组查找 */
+    const items = TAB_PATTERN_GROUPS.flatMap(g=>g.items);
     const p44 = items.find(p=>p.name==='53231323 十六分（4/4）');
     const p24 = items.find(p=>p.name==='53231323 十六分（2/4）');
     if(!p44||!p24) return {miss:1};
