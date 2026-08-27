@@ -30,16 +30,18 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const railBtns = [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')].map(b => b.dataset.trk);
     return {
       rail: railBtns.join(','), add: !!document.getElementById('rail-addtrk'),
-      layersHidden: ['tab', 'vox', 'lyr', 'chord'].every(k => {
+      /* v60.54 歌词页按产品指示恢复（排在「小节」上方）——只剩谱类/和弦三枚仍隐藏 */
+      layersHidden: ['tab', 'vox', 'chord'].every(k => {
         const el = document.querySelector('.ltab[data-t="' + k + '"]'); return el && el.offsetParent === null; }),
+      lyrBack: (() => { const el = document.querySelector('.ltab[data-t="lyr"]'); return !!el && el.offsetParent !== null; })(),
       curRows: document.querySelectorAll('#tab-voices .trk').length,
       curIsTab: !!document.querySelector('#tab-voices .trk[data-k="tv"].on'),
       titles: [...document.querySelectorAll('#panel-tab-voice .rg-title, #panel-vox-voice .rg-title')].map(e => e.textContent)
     };
   });
-  T(r.rail === 'tv:0,vv:0' && r.add && r.layersHidden && r.curRows === 1 && r.curIsTab
+  T(r.rail === 'tv:0,vv:0' && r.add && r.layersHidden && r.lyrBack && r.curRows === 1 && r.curIsTab
     && r.titles.every(t2 => t2 === '当前音轨'),
-    'T1 音轨最上级（左轨全列表+图层钮撤+面板仅当前轨行）', JSON.stringify(r));
+    'T1 音轨最上级（左轨全列表+谱类图层钮撤+歌词页恢复+面板仅当前轨行）', JSON.stringify(r));
 
   // T2 点左轨轨钮切轨切图层
   r = await pg.evaluate(() => {

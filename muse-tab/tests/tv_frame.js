@@ -71,11 +71,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.standOn && r.standOff, 'T5 谱架兼容', '进=' + r.standOn + ' 出=' + r.standOff);
 
-  // T6 左轨结构（v60.43 音轨最上级）：新版=音轨钮+小节/段落，谱类/歌词/和弦图层钮隐藏；经典版=旧三页签
+  // T6 左轨结构（v60.43 音轨最上级 + v60.54 歌词页恢复）：新版=音轨钮+歌词+小节/段落，
+  //    谱类/和弦图层钮仍隐藏（歌词按产品指示 v60.54 恢复并排在「小节」上方）；经典版=旧三页签
   r = await pg.evaluate(() => {
     const vis = k => { const el = document.querySelector('.ltab[data-t="' + k + '"]'); return el && el.offsetParent !== null; };
     const shellOn = ['mea', 'sect'].every(vis);
-    const layersOff = ['tab', 'vox', 'lyr', 'chord'].every(k => !vis(k));
+    const layersOff = ['tab', 'vox', 'chord'].every(k => !vis(k));
+    const lyrBack = vis('lyr');   // v60.54 产品指示恢复
     const trkBtns = [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')];
     const trkOn = trkBtns.length === (song.tabVoices.length + song.voxVoices.length)
       && trkBtns.every(b => b.offsetParent !== null)
@@ -86,10 +88,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const classicTrkOff = document.querySelectorAll('#rail-tracks .rtrk').length === 0
       || document.querySelector('#rail-tracks .rtrk').offsetParent === null;
     document.getElementById('b-shell').click();
-    return { shellOn, layersOff, trkOn, classicOff, classicBase, classicTrkOff };
+    return { shellOn, layersOff, lyrBack, trkOn, classicOff, classicBase, classicTrkOff };
   });
-  T(r.shellOn && r.layersOff && r.trkOn && r.classicOff && r.classicBase && r.classicTrkOff,
-    'T6 左轨结构（音轨钮最上级/图层钮撤下/经典版照旧）', JSON.stringify(r));
+  T(r.shellOn && r.layersOff && r.lyrBack && r.trkOn && r.classicOff && r.classicBase && r.classicTrkOff,
+    'T6 左轨结构（音轨钮最上级/谱类·和弦图层钮撤下/歌词页 v60.54 恢复/经典版照旧）', JSON.stringify(r));
 
   // T7 和弦层谱类感知：吉他谱→和弦输入面板；钢琴弹唱（无吉他声部）→级数和弦面板
   r = await pg.evaluate(() => {

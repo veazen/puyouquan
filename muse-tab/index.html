@@ -304,8 +304,9 @@ body.shell .ltab.shell-only{display:flex}
    四个谱类图层钮（六线/简谱/歌词/和弦）新版隐藏——DOM 保留供经典版与程序化回归 */
 #rail-tracks{display:contents}
 body:not(.shell) #rail-tracks{display:none}
+/* v60.54 产品指示：歌词入口恢复（移到「小节」上方，见 DOM 顺序）——新版外壳不再隐藏 lyr 页 */
 body.shell #left-rail .ltab[data-t="tab"],body.shell #left-rail .ltab[data-t="vox"],
-body.shell #left-rail .ltab[data-t="lyr"],body.shell #left-rail .ltab[data-t="chord"]{display:none}
+body.shell #left-rail .ltab[data-t="chord"]{display:none}
 body.shell .ltab.rtrk .lb{max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 body.shell .ltab.rtrk .lic{font-size:17px;line-height:1;font-weight:600}
 body.shell .ltab.rtrk-add{border-style:dashed;color:var(--muted)}
@@ -2088,9 +2089,11 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <div id="rail-tracks"></div>
       <button class="ltab on" data-t="tab"><span class="lic" data-lic="tab6"></span><span class="lb">吉他谱</span></button>
       <button class="ltab" data-t="vox"><span class="lic" data-lic="jianpu"></span><span class="lb">简谱</span></button>
-      <button class="ltab" data-t="lyr" title="歌词层"><span class="lic" data-lic="lyric"></span><span class="lb">歌词</span></button>
       <button class="ltab shell-only" data-t="chord" title="和弦层：输入 / 指法编辑 / 图示方式"><span class="lic" data-lic="chordgrid"></span><span class="lb">和弦</span></button>
       <div class="lsep"></div>
+      <!-- v60.54 产品指示「在左边栏小节上方恢复一个歌词功能」：歌词页自 v60.43 在新版外壳被隐藏，
+           现恢复并按指示改排在「小节」正上方（歌词段落切换 + 填词/智能填词/清空本段）。 -->
+      <button class="ltab" data-t="lyr" title="歌词层：段落切换 / 逐字填词 / 智能填词"><span class="lic" data-lic="lyric"></span><span class="lb">歌词</span></button>
       <!-- v46.7 音符/时值/节奏拆为三个独立图层（此前合于一个「音符」层） -->
       <!-- v47.3 音符/时值/节奏图层撤下（三组回顶栏，撤 v46.7 拆层） -->
       <button class="ltab shell-only" data-t="mea" title="小节：插入 / 删除"><span class="lic" data-lic="barline"></span><span class="lb">小节</span></button>
@@ -5939,8 +5942,16 @@ function renderDock(){
     if(licV) licV.innerHTML = svgi(anyStaff? 'staff5' : 'jianpu', 18);
     vb.title = vbName + '层';
   }
+  /* v60.54 歌词页显隐口径放宽（产品指示恢复入口）：此前「有歌词行才出现」＝一段词都还没有时
+     入口自己消失，恰恰是最需要它的时候。现口径改为跟随本项目既有的「本谱能不能加歌词行」政策
+     ——DOCK_PANELS.vox 里带 'lyradd' 的谱类（纯和弦格没有，故排除）就常驻，不另立第二套判据；
+     零段时面板内直接给「＋添加歌词行」，入口不再是死路。 */
   const lb=document.querySelector('.ltab[data-t="lyr"]');
-  if(lb) lb.style.display = song.lyricLines>0? '' : 'none';
+  if(lb){
+    const lyrSpec = DOCK_PANELS.vox[dt] || DOCK_PANELS.vox.guitar;
+    const canLyr = song.voxVoices.length>0 && lyrSpec.indexOf('lyradd')>=0;
+    lb.style.display = (canLyr || song.lyricLines>0)? '' : 'none';
+  }
   const vt=document.querySelector('#panel-vox-voice .rg-title');
   if(vt) vt.textContent = '当前音轨';   /* v60.43 音轨最上级：列表在最左轨，面板只留当前轨属性 */
   /* v60.44 旋律轨「六」灯（生成把位轨）：钢琴/和弦格/功能谱不适用整体隐藏 */
@@ -8689,6 +8700,9 @@ function setRibbon(t){
   /* 附加条件：已有歌词行时不再显示「＋添加歌词行」入口 */
   { const la=document.getElementById('panel-vox-lyradd');
     if(la && song && song.lyricLines>0) la.style.display='none'; }
+  /* v60.54 歌词页零段：填词面板暂隐（还没有段可写），先在上方添加歌词行 */
+  { const le=document.getElementById('panel-lyr-edit');
+    if(le && song && t==='lyr' && song.lyricLines===0) le.style.display='none'; }
   /* 编辑栏第二行按声部切换：吉他谱→演奏技巧，简谱→标识符号 */
   const ctx = document.getElementById('eb-ctx'), ctxT = document.getElementById('eb-ctx-t');
   const ctxKey = t+':'+((song&&song.gtype)||'');   // v42.3 缓存键含 gtype：切换独奏(电吉他)↔指弹时刷新专属技法面板
@@ -8917,9 +8931,12 @@ function syncInputs(){
       }
     }
   }
-  document.getElementById('lyr-lines').innerHTML =
-    chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
-    `<span class="chip" data-k="ll+">＋</span><span class="chip" data-k="ll-">−</span>`;
+  /* v60.54 零段空态：歌词页常驻后可能一段都没有——直接给「＋添加歌词行」（走 ll+ 同一处理），
+     不再是只有一个看不懂的「＋」孤零零挂着 */
+  document.getElementById('lyr-lines').innerHTML = song.lyricLines>0
+    ? chipHtml(Array.from({length:song.lyricLines},(_,i)=>'第'+(i+1)+'段'), activeLyr, 'll') +
+      `<span class="chip" data-k="ll+" title="新增一段歌词">＋</span><span class="chip" data-k="ll-" title="删除最后一段歌词">−</span>`
+    : `<span class="chip" data-k="ll+" title="为本谱添加第一行歌词">＋ 添加歌词行</span>`;
   { /* 记谱法切换按钮状态（当前旋律声部 / 吉他谱联排） */
     const vnJ=document.getElementById('vn-jp'), vnS=document.getElementById('vn-st');
     if(vnJ && vnS){
@@ -10330,6 +10347,35 @@ function addVoice(kind){
       song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
     }
   });
+}
+/* v60.54 智能填词内「＋声部」（产品指示：智能歌词要支持增加声部）：
+   合唱惯例是各声部同节奏、各自一套词——而 addVoice('vox') 产出的是全休止空轨，
+   smartSlots 只认 col.deg（休止不占字），空轨在填词工具里可填音位＝0、当场失效。
+   故这里复制来源声部的「音符骨架」（音高/时值/附点/连音线/连音符，不带歌词），
+   新声部一建好就能直接填词，音高随后可改；整件事在一个 mutate 内＝一步撤销。
+   来源声部无音符时退回空轨（按各小节实际拍号铺列，变拍谱不错位）。返回新声部索引，-1=已达上限。 */
+function addLyrVoice(srcVi){
+  if(song.voxVoices.length>=MAX_VOICES){ toast('旋律声部最多 5 个'); return -1; }
+  const hasNote = song.measures.some(m=>(m.voxes[srcVi]||[]).some(c=>c.deg));
+  mutate(()=>{
+    song.voxVoices.push('旋律'+(song.voxVoices.length+1));
+    song.measures.forEach((m,mi)=>{
+      let cols;
+      if(hasNote){
+        cols=(m.voxes[srcVi]||[]).map(c=>{
+          const n=vcol();
+          n.dur=c.dur; n.dotted=!!c.dotted; n.deg=c.deg; n.acc=c.acc||''; n.oct=c.oct||0; n.tie=!!c.tie;
+          if(c.tup) n.tup=c.tup;
+          if(c.tupM) n.tupM=c.tupM;
+          return n;
+        });
+      }else{
+        cols=[]; const nb=meaMeter(mi).beats; for(let i=0;i<nb;i++) cols.push(vcol());
+      }
+      m.voxes.push(cols);
+    });
+  });
+  return song.voxVoices.length-1;
 }
 function delVoice(kind){
   if(kind==='tab'){
@@ -13478,11 +13524,27 @@ function smartCompute(slots, tokens, phraseAlign){
   return vals;
 }
 document.getElementById('b-fill').onclick = ()=>{
-  const vi = sel.row==='vox'?sel.vi:0;
+  let vi = sel.row==='vox'?sel.vi:0;
+  if(vi>=song.voxVoices.length) vi=0;
   const segRow = song.lyricLines>1
     ? `<div class="sf-opts" id="sf-segs"><span>编辑段落：</span>${Array.from({length:song.lyricLines},(_,i)=>`<button class="cc-chip ${i===activeLyr?'on':''}" data-seg="${i}" style="padding:4px 13px">第${i+1}段</button>`).join('')}</div>`
     : '';
-  showModal(`<h3 id="sf-title">智能填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi])}）</h3>
+  /* v60.54 声部行（产品指示：智能歌词要支持增加声部）：合唱谱各声部各有一套词，
+     此前工具只认「当前选中的那条旋律轨」，换声部得先退出去点轨再重开。
+     现直接在弹窗里选声部（括号内=该声部可填音位数，一眼看出哪条有音符），
+     并可就地「＋声部」——新声部复制本声部音符骨架，建好即可填词（见 addLyrVoice）。 */
+  const voiceRowHtml = ()=>{
+    const chips = song.voxVoices.map((n,i)=>{
+      const nFill = smartSlots(i,0,0).filter(s=>s.kind==='fill').length;
+      return `<button class="cc-chip ${i===vi?'on':''}" data-sfv="${i}" style="padding:4px 13px" title="切到该声部填词">${esc(n)}<small style="opacity:.65"> ${nFill}</small></button>`;
+    }).join('');
+    const add = song.voxVoices.length<MAX_VOICES
+      ? `<button class="cc-chip" data-sfv="+" style="padding:4px 13px;border-style:dashed" title="新增一条旋律声部并复制本声部的音符骨架（音高/时值，不带歌词），建好即可填词；一步可撤销">＋声部</button>`
+      : '';
+    return `<span>声部：</span>${chips}${add}`;
+  };
+  showModal(`<h3 id="sf-title">智能填词（第${activeLyr+1}段 → ${esc(song.voxVoices[vi]||'旋律')}）</h3>
+    <div class="sf-opts" id="sf-voices">${voiceRowHtml()}</div>
     ${segRow}
     <p style="font-size:12.5px">逐字分配到每个可唱音；<b>自动跳过休止符与连音线延续音</b>；标点跟随前字；<b>-</b> 手动跳过一个音；英文单词整体成词。下方实时预览对齐结果。</p>
     <div class="sf-opts">
@@ -13561,14 +13623,35 @@ document.getElementById('b-fill').onclick = ()=>{
     renderPreview();
   });
   document.getElementById('sf-phrase').addEventListener('change', renderPreview);
+  const setTitle=()=>{ document.getElementById('sf-title').textContent=
+    '智能填词（第'+(activeLyr+1)+'段 → '+(song.voxVoices[vi]||'旋律')+'）'; };
   /* 顶部段落切换：改当前编辑段，重载该段已填歌词并刷新预览 */
   const segs=document.getElementById('sf-segs');
   if(segs) segs.addEventListener('click', ev=>{
     const bs=ev.target.closest('[data-seg]'); if(!bs) return;
     activeLyr=+bs.dataset.seg;
     segs.querySelectorAll('[data-seg]').forEach(x=>x.classList.toggle('on', +x.dataset.seg===activeLyr));
-    document.getElementById('sf-title').textContent='智能填词（第'+(activeLyr+1)+'段 → '+song.voxVoices[vi]+'）';
-    reloadTA(); renderPreview();
+    setTitle(); reloadTA(); renderPreview();
+  });
+  /* v60.54 声部切换 / ＋声部：起点回到谱首（换了声部原起点无意义），重载该声部该段词并重画预览。
+     ＋声部走 mutate（谱面即时出现新行、Ctrl+Z 一步撤销），弹窗不关、直接切到新声部继续填。 */
+  const vrow=document.getElementById('sf-voices');
+  if(vrow) vrow.addEventListener('click', ev=>{
+    const bv=ev.target.closest('[data-sfv]'); if(!bv) return;
+    if(bv.dataset.sfv==='+'){
+      const ni=addLyrVoice(vi);
+      if(ni<0) return;
+      vi=ni;
+      toast('已添加「'+song.voxVoices[vi]+'」（复制了音符骨架，可直接填词）');
+    }else{
+      vi=+bv.dataset.sfv;
+    }
+    /* 谱面光标跟到该声部：预览里点「从当前音符」才有意义，也让用户一眼看到在给哪行填词 */
+    sel.row='vox'; sel.vi=vi; sel.ci=0; selRange=null; clampSel(); render();
+    startAt={mi:0,ci:0};
+    const hr=document.querySelector('input[name=sf-start][value="head"]'); if(hr) hr.checked=true;
+    vrow.innerHTML=voiceRowHtml();
+    setTitle(); reloadTA(); renderPreview();
   });
   renderPreview();
   ta.focus();
@@ -20658,7 +20741,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.53';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.54';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20681,6 +20764,7 @@ const APP_VER='v60.53';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.54</span><div><b>智能填词支持选声部／加声部 + 左栏「歌词」入口恢复（排在「小节」上方）</b>（产品指示两项）。① <b>智能填词加声部</b>：此前工具只认「当前选中的那条旋律轨」，合唱谱要给第二声部填词，得先退出弹窗、去左栏点那条轨、再重新打开。现弹窗顶部新增<b>声部行</b>：列出全部旋律声部，每个名字后面直接标<b>该声部的可填音位数</b>（一眼看出哪条有音符、哪条还是空的），点一下即切换填词对象——标题、已填词回填、对齐预览、谱面光标全部跟着走，原声部一个字不动。② <b>就地「＋声部」</b>：弹窗内可直接新增一条旋律声部。要点是新声部会<b>复制来源声部的音符骨架</b>（音高／时值／附点／连音线／连音符，<b>不带歌词</b>）——合唱惯例本就是各声部同节奏、各自一套词；而普通加轨产出的是全休止空轨，填词工具只认实音符，空轨的可填音位＝0、工具当场失效。复制后建好即可填词，音高随后照常改；整件事在一次操作内完成，<b>Ctrl+Z 一步撤销</b>。声部满 5 条时「＋声部」自动隐藏。③ <b>左栏歌词入口恢复</b>：歌词页自 v60.43 起在新版外壳被隐藏，现按指示恢复，并排在<b>「小节」正上方</b>（段落切换／逐字填词／智能填词／清空本段都在这一页）。显隐口径同时放宽：此前是「有歌词行才出现」——一段词都还没有时入口自己消失，恰恰是最需要它的时候；现跟随本项目既有的「本谱能不能加歌词行」政策（纯和弦格除外），<b>零段时面板里直接给「＋ 添加歌词行」</b>，入口不再是死路。新增 <code>tv_lyrvox</code> 套件 <b>7+1 项</b>（左轨顺序／零段空态／声部行与可填音位数／切声部填词互不串／＋声部复制骨架不带词且一步撤销／声部上限／空来源按各小节实际拍号铺列不错位），对 v60.53 旧文件跑 T1–T3 当场红、T4 起直接崩＝突变实证。CORE 90→<b>91 套件</b>全绿。</div></li>
     <li><span class="v">v60.53</span><div><b>简谱刻版五项修正：变拍号分数式、波音改出版字形、波音让连音线、升降号贴主音、跨行连音线接成整弧</b>（用户报告截图逐项）。① <b>变拍号分数式</b>：临时变拍号此前写作斜杠式「2/4」，现改<b>上分子·横线·下分母</b>的出版惯例竖排形态，居中对齐，横线宽 12px。② <b>波音/颤音/回音改 SMuFL 字形</b>：简谱侧此前是<b>手绘锯齿折线</b>加「tr」「∽」文本——不是出版级符号；现与五线谱共用同一套 SMuFL 字形（上波音 <code>ornamentShortTrill</code>、下波音 <code>ornamentMordent</code>、颤音 <code>ornamentTrill</code>、回音 <code>ornamentTurn</code>），按简谱字号缩放 0.66／颤音 0.78。③ <b>波音与连音线不再重叠</b>：波音字形画在数字上方 15px 一带，而连音线基线在 16px——两者几乎同高必压；现连音线段内若含波音/颤音，弧基线再<b>让高 10px</b>（字形高约 8＋2px 净距），无波音时基线一分不动。④ <b>升降号贴近主音</b>：♯/♭ 与数字的净距由 1.9px 收到 <b>1.0px</b>，双升降号同步，符合歌本「变化音紧贴主音」的口径。⑤ <b>跨行连音线接成一条整弧</b>：换行处此前是<b>两个各自端点同高的独立小弧</b>；现行末只画<b>上升段</b>（终点停在弧顶高度不回落）、次行行首画<b>下降段</b>（起点即在弧顶高度），上下两半合起来正是一条完整弧线。另修 <b>32 分密集小节的整行压缩</b>：行宽压缩此前<b>等比压所有间距</b>，把保护净空的「刚杆」一起压扁，导致满小节 32 分时升降号仍重叠 <b>−3.6px</b>；现改为<b>只吃弹簧不吃刚杆</b>（弹簧不够才退回等比），同场景净空 −3.6→<b>+3.8px</b>。<code>tv_jpspace</code> 扩到 <b>10+1 项</b>全几何断言，对 v60.52 旧文件跑 T1/T2/T3/T8/T9/T10 当场红＝突变实证；CORE <b>90 套件</b>全绿。</div></li>
     <li><span class="v">v60.52</span><div><b>简谱横向避让修正：变拍号不再压小节线、音符自动让开升降号与倚音</b>（用户报告截图：简谱临时变拍号样式与小节线重叠；编辑时音符不会避开升降号和双倚音导致重叠）。① <b>变拍号压线</b>：简谱行的「2/4」小字此前<b>居中</b>画在小节线右 7px 处——字宽 21px 的左半直接压过小节线、糊在上一小节末尾；现改为<b>左对齐贴线右侧</b>，并按谱面实际字宽预留位置：此前只有五线谱/六线谱谱类预留 17px（还短于简谱字宽），<b>纯简谱谱更是零预留</b>，现变拍处按简谱 26px 取足。② <b>音符避让左伸记号</b>：谱面的<b>升降号</b>（画在数字左 10.5–13.5px）与<b>前倚音组</b>（含共用减时线，左伸约 20px、三倚音更宽）都长在音符<b>左侧</b>，而排版引擎的「刚杆」只保护音符<b>右侧</b>——升降号完全没进排版、前倚音还被记在了右侧，密集时值下必然压住前一个音符（实测双倚音重叠 <b>2.9px</b>、减时线 3.8px）。现按几何实测量出各记号的左伸宽度，记到<b>前一段</b>间距上；跨拍与跨小节两种边界情形同样补足（此前小节首列的双倚音距小节线仅剩 <b>1px</b>）。修后同场景净空：升降号 5.9→10.6px、双倚音 −2.9→13.4px、首列 1→15px；<b>无升降号/倚音的普通谱面排版一字不变</b>。新增 <code>tv_jpspace</code> 套件 <b>7+1 项</b>全几何断言（数值坐标，不看截图），对 v60.51 旧文件跑 T1–T4 当场红＝突变实证。CORE 89→<b>90 套件</b>全绿。</div></li>
     <li><span class="v">v60.51</span><div><b>节奏型库筛选展示 + 53231323（2/4）归类调整</b>（产品指示：2 拍的十六分分解移到 2/4 拍分类和半小节分类；库改成筛选展示，不用全部展示方便查找）。① <b>筛选条</b>：库顶部两组 chips——<b>类型</b>（全部 / 分解 / 扫弦）＋<b>拍号</b>（全部 / 2/4 / 3/4 / 4/4 / 6/8 / <b>散拍</b>）；<b>打开即按当前谱拍号收敛</b>：4/4 谱只见 4/4 组、3/4 谱只见 3/4 组，不再全库铺开；「散拍」=不限拍号的半小节/一拍填充组；半小节组内逐款标注分解/扫弦参与类型筛选；自定义组恒显不参与筛选；简谱库同款拍号筛选。② <b>归类调整</b>：「53231323 十六分（2/4）」自 4/4 组移入新设「分解 · 2/4」组（顺手补 5323 八分与低音+柱式两款 2/4 基本款），并新增「53231323 十六分（半小节）」散拍版——2 拍填充可拼两段不同和弦。新增 <code>tv_patfilter</code> 套件。CORE 88→<b>89 套件</b>全绿。</div></li>
