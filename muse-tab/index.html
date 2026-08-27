@@ -5854,26 +5854,45 @@ function voltaSVG(p, mea, mi, mx, bx, yV){
   }
 }
 function beamGroups(cols, playable, unit){
-  const groups=[]; let cur=null; let cum=0;
   unit = unit || song.unit;   // v43.5 变拍子：本小节 unit（缺省 song 默认）
   /* v42.4 复合拍号(6/8·9/8·12/8，unit===8)按附点四分成组：beatsOf 令八分=1 单位，故组长=3 个八分；
-     简单拍号(unit 4/2)组长=1（每拍成组），行为不变。五线谱符杠/TAB符杠/简谱减时线三处共用本函数一并受益 */
+     简单拍号(unit 4/2)组长=1（每拍成组）。五线谱符杠/TAB符杠/简谱减时线三处共用本函数。 */
   const gLen = unit===8 ? 3 : 1;
-  /* v51.6 连音组成杠（时值线修正）：N:M 连音时值非整拍（8:7/4:3/7:6…），按拍边界分组会把
-     连音组拦腰拆断或与相邻普通音并组——连音列改按「同标连续段、每 N 个一块」独立成杠
-     （与连音括线分块口径一致），普通音仍按拍成组 */
-  const tKey=c=> c.tup? ((c.tup===1?3:c.tup)+':'+(c.tupM||0)) : '';
+  const tN  = c=> c.tup===1? 3 : c.tup;
+  const tKey= c=> c.tup? (tN(c)+':'+(c.tupM||0)) : '';
+  /* 逐列起止拍位（连音已由 beatsOf 折算） */
+  const st=[], en=[]; let cum=0;
+  cols.forEach(c=>{ st.push(cum); cum+=beatsOf(c,unit); en.push(cum); });
+  const beatOf = t=> Math.floor(t/gLen + 1e-4);
+  /* v60.59 产品拍板「整拍内一律连成一杠」：连音块与同拍的其他带杠音并成一条主梁。
+     但不能简单退回「一律按拍切」——v51.6 修的正是这个：8:7 / 4:3 / 7:6 这类**非整拍**连音
+     按拍边界切会被拦腰截断。故按块判定：
+       连音块（与连音括线同一分块口径：同标连续段每 N 个一块）整体落在同一拍内 → 并入该拍；
+       块跨拍                                                     → 仍独立成杠（v51.6 口径保留）。 */
+  const gid = new Array(cols.length).fill(null);
+  let i2=0;
+  while(i2<cols.length){
+    const c=cols[i2];
+    if(!c.tup){ gid[i2]='b'+beatOf(st[i2]); i2++; continue; }
+    const k=tKey(c), n=tN(c);
+    let e=i2; while(e+1<cols.length && cols[e+1].tup && tKey(cols[e+1])===k) e++;
+    for(let a2=i2; a2<=e; a2+=n){
+      const b2=Math.min(a2+n-1, e);
+      /* 末端回退量必须大于 beatOf 自带的 +1e-4 容差，否则「正好落在拍尾」的块会被误判成跨拍
+         （实测：en=1.0 时 floor(1.0-1e-6+1e-4)=1，两组三连音因此没并杠） */
+      const sameBeat = beatOf(st[a2]) === beatOf(Math.max(st[a2], en[b2]-1e-3));
+      const g2 = sameBeat? ('b'+beatOf(st[a2])) : ('t'+a2);
+      for(let q=a2; q<=b2; q++) gid[q]=g2;
+    }
+    i2=e+1;
+  }
+  const groups=[]; let cur=null;
   cols.forEach((c,i)=>{
-    const b=beatsOf(c,unit);
     const ok = c.dur>=8 && (!playable || playable(c));
-    const beat = Math.floor(cum/gLen+1e-4);
-    const k = tKey(c);
-    if(ok){
-      const cont = cur && cur.key===k && (k? cur.idx.length<cur.n : cur.beat===beat);
-      if(cont) cur.idx.push(i);
-      else{ cur={beat, idx:[i], key:k, n:k? (c.tup===1?3:c.tup) : 0}; groups.push(cur); }
-    } else cur=null;
-    cum += b;
+    if(!ok){ cur=null; return; }
+    /* 同 gid 且紧邻才续组——中间夹了跨拍连音块时，同一拍会正确地断成两条梁 */
+    if(cur && cur.gid===gid[i]) cur.idx.push(i);
+    else { cur={gid:gid[i], beat:beatOf(st[i]), idx:[i]}; groups.push(cur); }
   });
   return groups;
 }
@@ -20866,7 +20885,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.58';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.59';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20889,6 +20908,7 @@ const APP_VER='v60.58';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.59</span><div><b>符杠按拍并组：同一拍内的带杠音符一律连成一条主梁</b>（产品拍板，截图二红圈处）。此前连音组是「每 N 个一块」独立成杠，所以<b>一拍里两组三连音（6 个十六分）会画成两截杠</b>——看上去像两拍。现在改为<b>整拍内一律并成一条主梁</b>：连音块与同一拍里的其他带杠音符连在一起，<b>连音括线仍按 N 分块</b>（该标几连音还标几连音，不受影响）。六线谱符杠、五线谱符杠、简谱减时线<b>三处共用同一套分组</b>，一并生效。<b>没有推翻 v51.6</b>：<code>8:7</code>／<code>4:3</code>／<code>7:6</code> 这类<b>跨拍的非整拍连音</b>，整块仍然独立成杠、不被拍界拦腰截断（v51.6 修的就是这个）——判据从「是不是连音」换成了「这一块是否整体落在同一拍内」。<b>零副作用实证</b>：整拍三连音、普通十六分、休止打断、6/8 大拍四种场景的分组<b>一字未变</b>（新旧两版跑同一组断言均绿）。踩到一个坑：分拍函数自带 <code>+1e-4</code> 容差，判「块末是否还在本拍内」时回退量若小于它，<b>正好落在拍尾</b>的块会被误判成跨拍——两组三连音因此没并上，回退量调到 <code>1e-3</code> 才对。<code>tv_tuplet</code> 18→<b>21 项</b>，对 v60.58 旧文件跑 T11/T19 当场红、T20/T21 两版同绿。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.58</span><div><b>倚音支持时值与技巧设置</b>（产品指示）。① <b>技巧（新增）</b>：吉他谱的倚音现在可以设 <b>击弦 h / 勾弦 p / 滑音 sl</b>（或「无」）——字母按吉他惯例标在<b>倚音↔主音那条小连音弧的弧顶</b>（Guitar Pro 同款位置），纸底描边不压弦线；点击谱面上的倚音即可设置，热区随字母自动上扩，加了字母也照样点得中。② <b>时值补齐</b>：吉他谱倚音的时值档此前只有 8/16/32 分，现补上 <b>4 分</b>，与简谱侧的档位一致。换时值不会把已设的技巧弄丢。③ <b>老谱完全兼容</b>：此前存的倚音没有技巧字段，读进来一律归为「无」、谱面一个字母都不多画，既有的倚音弧线分毫不变。<b>如实记录一处边界</b>：倚音技巧目前<b>不进 MusicXML 导出/导入</b>（弦位、品位、时值照常往返），需要跨软件传递技巧的话待后续补。<code>tv_grace</code> 16→<b>19 项</b>（弹窗档位／技巧写入数据并画在弧顶且换时值不丢／旧数据兼容护栏），对 v60.57 旧文件跑 T17 当场红、T18 直接崩＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.57</span><div><b>节奏型库支持连音线</b>（产品指示）。节奏型此前只是一串「时值＋弹哪根弦」，<b>连音线一律丢失</b>——切分、跨拍延音这类最常用的节奏写法在库里根本存不下来。现在整条链路都认连音线：① <b>库里画得出来</b>：节奏型卡的预览图直接画出连音弧（六线谱在上方、简谱在符头上方），选之前就看得见；② <b>套用落得下去</b>：吉他谱的连音线是「按音符」的指针，而节奏型是「按列」的时值骨架——套用时才知道落在哪个小节的哪一列，故按<b>同一根弦</b>把本列的音接到下一列的音上；下一列那根弦上没有音就<b>不画</b>（不会留下指向空处的野指针）。半小节/一拍节奏型套用时列号带偏移，接线同样准。简谱侧节奏型自带的连音线生效，且<b>不会抹掉旋律本来就有的连音线</b>；③ <b>自己做的也存得住</b>：在草稿小节里画的连音线，「保存到库」时一并入库，下次点「改」铺回草稿仍带着线。④ 两个库各<b>新增一条示例</b>：吉他「5323 切分延音（跨拍连音线）」、简谱「切分延音 ♪♪⌒♩ ♩」。数据格式只在末位<b>增加一位</b>标记（吉他 ev 第 4 位、简谱 durs 第 3 位），<b>老节奏型与已存的自定义节奏型原样可用</b>。<code>tv_custompat</code> 8→<b>11+1 项</b>（库示例与预览弧线／套用接同弦指针且无野指针／简谱不抹旧连音线／自定义往返），对 v60.56 旧文件跑当场红＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.56</span><div><b>双吉他谱面修正：吉他1 的时值线点得中了、吉他2 的连音线与连音数字不再压别人</b>（用户截图报告三项，全部用命中测试与几何断言实测定位）。① <b>双吉他时点不中吉他1 的时值线</b>：根因不是时值线本身——每个 TAB 列在<b>谱表上方</b>还挂着一条 18px 的「选中本列」兜底热区，第二条吉他的这条带子整条落在<b>第一条吉他的符杠区里</b>（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉），而它后画、命中测试就归它。现在第二条起的这条带子<b>钳到上一条的时值线区之下</b>，不足 4px 就整条不画（本列仍可点弦格选中）。修后吉他1 <b>四拍时值线全部命中自己</b>。② <b>吉他2 的连音线压到吉他1</b>：连音线弧顶落在 <code>音符上方 9.5px 再减弧高</code>，1 弦上最坏到 <code>TAB顶线−24.5</code>，而两条吉他之间此前<b>只有 6px 空隙</b>（行间预留只认「第二条有没有和弦名」，连音线/技法/指法一概没算）。现在按第二条声部谱表上方<b>实际挂了什么</b>预留：和弦名 22 / 连音线 26 / 技法·左手指法·摇把 19。实测净距 <b>−18px → +18px</b>。③ <b>吉他2 的 6 连音数字与简谱 6 连音数字重叠</b>：TAB 连音括线的斜体数字挂在 <code>符干基线+9.5</code>，而每条 TAB 声部的行进量只留到 <code>+6</code>，<b>溢出 3.5px 顶进下一行</b>。注意这里不能靠加大符干区解决——那样数字跟着一起下移、净差分毫不变；本版单加一项<b>只增行进量、不动符干基线</b>的预留。实测净距 <b>−0.8px → +9.2px</b>。<b>行距按需增</b>：单吉他谱、以及第二条吉他没有上方元素时，行高<b>一分不变</b>（护栏断言实测 0px）。新增 <code>tv_tab2</code> 套件 <b>5+1 项</b>，对 v60.55 旧文件跑 T1/T2/T3/T5 当场红＝突变实证。CORE 91→<b>92 套件</b>全绿。</div></li>

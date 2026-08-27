@@ -3,7 +3,12 @@
    - 自定 N:M：选中 N 个等时值音整体切换（M 任意 1–16）；单音拆分（M 须为 2 的幂）
    - beatsOf ×M/N；括线标 N:M、断口随标宽自适应；弹窗改标=连续同标组整组改
    - MusicXML：time-modification 真实 N:M 出/入往返（修 5/6/7 误写 3:2 的旧缺陷）
-   - 时值线（拍区）选中整拍 → 自定连音套用 */
+   - 时值线（拍区）选中整拍 → 自定连音套用
+   —— v60.59 追加（产品拍板：整拍内一律连成一杠）：
+   T19 一拍内两组 3 连音（6 个十六分）并成一条主梁——旧版按「每 N 个一块」拆成两截
+   T20 v51.6 口径保留护栏：跨拍的非整拍连音块（8:7）不得被拍界切断
+   T21 未涉及场景零变化：整拍三连音 / 普通十六分 / 休止打断 / 6-8 大拍 分组一字不动
+   对 v60.58 旧文件跑 T19 当场红（T20/T21 两版同绿＝零副作用实证）。 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -174,24 +179,27 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.n === 10 && r.tups.every(t => t === 7) && r.ms.every(m => m === 6) && r.first && r.empt
     && Math.abs(r.b1 - 0.5 * 6 / 7) < 1e-9 && r.lbl, 'T10 单音7:6→补齐6空拍', JSON.stringify({ n: r.n, b1: r.b1, lbl: r.lbl }));
 
-  // T11 v51.6 时值线（符杠）成组修正：连音组独立成杠、不被拍边界拆断、不与普通音并组
+  /* T11 时值线（符杠）成组：v51.6 立「连音组不被拍边界拆断」；
+     v60.59 产品拍板把「不与同拍普通音并组」这一半改掉——同一拍内一律并成一条主梁，
+     跨拍的连音块仍整块隔离（① 8:7 就是这一条的守护）。 */
   r = await pg.evaluate(() => {
     const mk = (dur, tup, tupM) => Object.assign({ dur, dotted: false, notes: [{ s: 1, f: 1 }] },
       tup ? { tup } : {}, tupM ? { tupM } : {});
     // ① 8:7 十六分×8：旧逻辑在 cum 跨 1.0 处拆断——应为一整组 8
     const g1 = beamGroups(Array.from({ length: 8 }, () => mk(16, 8, 7)), null, 4).map(g => g.idx.length);
-    // ② 4:3 十六分×4 + 普通八分×2：旧逻辑把首个八分并进连音组（同拍）——修后连音组隔离 [4,…]；
-    //   后两个八分起点 0.75/1.25 拍各跨真实拍界，按既有「不跨拍连杠」规则各自成组 → [4,1,1]
+    /* ② 4:3 十六分×4（0→0.75，整块在第 1 拍内）+ 普通八分×2（0.75→1.25、1.25→1.75）。
+       v51.6 曾把连音组与同拍普通音**隔离**成 [4,1,1]；v60.59 产品拍板「整拍内一律连成一杠」，
+       第 1 拍内的连音块与紧随的八分并成一条主梁 → [5,1]（连音括线仍按 N 分块，不受影响）。 */
     const g2 = beamGroups([mk(16, 4, 3), mk(16, 4, 3), mk(16, 4, 3), mk(16, 4, 3), mk(8), mk(8)], null, 4).map(g => g.idx.length);
-    // ③ 两组三连音八分×6：保持逐组分块 [3,3]（回归守护）
+    /* ③ 两组三连音八分×6：每组恰好占满一整拍 → 仍是 [3,3]（跨拍的两拍本就该断，回归守护） */
     const g3 = beamGroups(Array.from({ length: 6 }, () => mk(8, 3)), null, 4).map(g => g.idx.length);
     // ④ 普通四个十六分+四个十六分：按拍成组 [4,4] 不受影响（回归守护）
     const g4 = beamGroups(Array.from({ length: 8 }, () => mk(16)), null, 4).map(g => g.idx.length);
     return { g1, g2, g3, g4 };
   });
-  T(JSON.stringify(r.g1) === '[8]' && JSON.stringify(r.g2) === '[4,1,1]'
+  T(JSON.stringify(r.g1) === '[8]' && JSON.stringify(r.g2) === '[5,1]'
     && JSON.stringify(r.g3) === '[3,3]' && JSON.stringify(r.g4) === '[4,4]',
-    'T11 连音符杠成组修正', JSON.stringify(r));
+    'T11 连音符杠成组（跨拍块隔离保留 + v60.59 同拍并杠）', JSON.stringify(r));
 
   // T12 v51.6 预设只留三连音：5/6/7 按钮移除、N连音按钮在（mark/vmark 两宿主）
   r = await pg.evaluate(() => {
@@ -337,6 +345,42 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.found && r.lifted && r.mask,
     'T18 连音弧同tie样式(tieSVG+高八度让位+纸底断口)', JSON.stringify(r));
+
+  /* ===== v60.59 追加：符杠按拍并组 ===== */
+  const BG = `
+    loadSong(createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0}));
+    window.__C=(dur,o)=>Object.assign({dur,dotted:false,deg:1,acc:'',oct:0,lyrics:[],tie:false},o||{});
+    window.__G=(cols,u)=>beamGroups(cols,null,u||4).map(g=>g.idx.join('-'));
+  `;
+
+  // T19 一拍内两组 3 连音 → 一条主梁（产品拍板）
+  r = await pg.evaluate(BG + `(()=>{
+    const two3=__G([...Array(6)].map(()=>__C(16,{tup:3})));
+    const six =__G([...Array(6)].map(()=>__C(16,{tup:6})));
+    return {two3, six};
+  })()`);
+  T(r.two3.length === 1 && r.two3[0] === '0-1-2-3-4-5' && r.six.length === 1,
+    'T19 一拍内两组 3 连音并成一条杠（旧版拆两截）', JSON.stringify(r));
+
+  // T20 护栏：跨拍的非整拍连音块（8:7）不得被拍界切断（v51.6 口径）
+  r = await pg.evaluate(BG + `(()=>{
+    const alone=__G([...Array(8)].map(()=>__C(16,{tup:8,tupM:7})));
+    const after=__G([...[1,2].map(()=>__C(16)), ...Array(8).fill(0).map(()=>__C(16,{tup:8,tupM:7}))]);
+    return {alone, after};
+  })()`);
+  T(r.alone.join('|') === '0-1-2-3-4-5-6-7' && r.after.join('|') === '0-1|2-3-4-5-6-7-8-9',
+    'T20 护栏：8:7 跨拍连音块不被拍界切断（v51.6 口径保留）', JSON.stringify(r));
+
+  // T21 未涉及场景零变化
+  r = await pg.evaluate(BG + `(()=>({
+    tri:   __G([...[1,2,3].map(()=>__C(8,{tup:3})), ...[1,2,3,4].map(()=>__C(16))]),
+    plain: __G([...Array(8)].map(()=>__C(16))),
+    rest:  __G([__C(16),__C(16),Object.assign(__C(16),{deg:0,dur:4}),__C(16),__C(16)]),
+    six8:  __G([...Array(6)].map(()=>__C(8)), 8)
+  }))()`);
+  T(r.tri.join('|') === '0-1-2|3-4-5-6' && r.plain.join('|') === '0-1-2-3|4-5-6-7'
+    && r.rest.join('|') === '0-1|3-4' && r.six8.join('|') === '0-1-2|3-4-5',
+    'T21 零副作用：整拍三连音/普通十六分/休止打断/6-8 大拍 分组不变', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
