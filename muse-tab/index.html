@@ -908,18 +908,29 @@ body.stand #standbar{display:flex}
 .nw-pill svg{opacity:.7}
 .nw-pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .nw-pill.on svg{opacity:1}
-/* 乐器图标网格：NW_INSTS 数据驱动，auto-fill 自动铺开，后期加乐器无需改版式
-   v60.46 扩到 21 乐器：按 弹拨/键盘/管弦/民乐 分组，滚动容器保持弹窗一屏高度 */
-.nw-instwrap{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;max-height:248px;overflow-y:auto;padding-right:3px}
-.nw-grpcap{font-size:11px;color:var(--faint);font-weight:600;letter-spacing:.5px;margin:0 0 5px}
 .nw-fhint{font-size:12px;color:var(--muted);line-height:1.5}
-.nw-instgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;flex:1;min-width:0}
-.nw-inst{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--border);
-  border-radius:14px;padding:11px 4px 8px;background:var(--paper);cursor:pointer;font:inherit;font-size:12px;
-  color:var(--text);transition:border-color .14s, background .14s}
-.nw-inst svg{color:var(--muted);transition:color .14s}
-.nw-inst.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
-.nw-inst.on svg{color:var(--accent-ink)}
+/* v60.47 二级选项下拉（产品指示：下拉选择、图标+文字、少占位）。NW_INSTS 分组进菜单组标题 */
+.nw-dd{position:relative;display:inline-flex;min-width:0}
+.nw-ddbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:11px;
+  padding:7px 11px;font:inherit;font-size:12.5px;background:var(--paper);cursor:pointer;color:var(--text);
+  max-width:300px;transition:border-color .14s, box-shadow .14s}
+.nw-ddbtn:hover{border-color:var(--accent)}
+.nw-dd.open .nw-ddbtn{border-color:var(--accent);box-shadow:0 3px 10px rgba(0,0,0,.06)}
+.nw-ddbtn svg{color:var(--accent-ink);flex:0 0 auto}
+.nw-ddlab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nw-ddar{font-size:9px;color:var(--muted);margin-left:1px}
+.nw-ddmenu{display:none;position:absolute;top:calc(100% + 5px);left:0;z-index:70;background:var(--paper);
+  border:1px solid var(--border);border-radius:13px;box-shadow:0 10px 28px rgba(0,0,0,.13);
+  padding:6px;min-width:210px;max-width:min(320px, calc(100vw - 32px));max-height:300px;overflow-y:auto}
+.nw-dd.open .nw-ddmenu{display:block}
+.nw-dd.up .nw-ddmenu{top:auto;bottom:calc(100% + 5px)}
+.nw-ddcap{font-size:10.5px;color:var(--faint);font-weight:600;letter-spacing:.5px;padding:7px 9px 3px}
+.nw-dditem{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:9px;padding:7px 9px;
+  font:inherit;font-size:12.5px;background:transparent;cursor:pointer;color:var(--text);text-align:left}
+.nw-dditem svg{color:var(--muted);flex:0 0 auto}
+.nw-dditem:hover{background:var(--hover)}
+.nw-dditem.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+.nw-dditem.on svg{color:var(--accent-ink)}
 .nw-basics{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
 .nw-basics .nb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted);white-space:nowrap}
 .nw-hint{font-size:11.5px;color:var(--muted);margin:7px 0 0}
@@ -939,8 +950,8 @@ body.stand #standbar{display:flex}
   .nw-ints{grid-template-columns:1fr}
   .nw-int{flex-direction:row;justify-content:flex-start;gap:10px;padding:12px 15px}
   .nw-int span{margin-left:auto}
-  .nw-instgrid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}
-  .nw-instwrap{max-height:206px}
+  .nw-ddbtn{max-width:calc(100vw - 120px)}
+  .nw-ddmenu{max-height:250px}
   .nw-imp-cards{grid-template-columns:1fr}
 }
 /* v60.42 音轨卡（P1）：统一轨行列表（图标+轨名+删）纵排；＋音轨虚线行；加轨弹窗双大卡 */
@@ -4059,6 +4070,10 @@ const DUR_COMBOS_X = [
 const TAB_PATTERN_GROUPS = [
   {cat:'分解节奏型 · 2/4 4/4', items:[
     {name:'53231323 经典分解', ev:[['b',8],['s3',8],['s2',8],['s3',8],['s1',8],['s3',8],['s2',8],['s3',8]]},
+    /* v60.47 产品指定补充：53231323 十六分版（4/4 一小节两遍；2/4 一小节一遍）——
+       与「十六分 流水分解」的区别：后半保持根音 b 不走交替低音 B */
+    {name:'53231323 十六分（4/4）', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16],['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
+    {name:'53231323 十六分（2/4）', ev:[['b',16],['s3',16],['s2',16],['s3',16],['s1',16],['s3',16],['s2',16],['s3',16]]},
     {name:'交替低音 5323 4323', ev:[['b',8],['s3',8],['s2',8],['s3',8],['B',8],['s3',8],['s2',8],['s3',8]]},
     {name:'慢速 5·32·1·32', ev:[['b',4],['s3',8],['s2',8],['s1',4],['s3',8],['s2',8]]},
     {name:'532123 + 长音', ev:[['b',8],['s3',8],['s2',8],['s1',8],['s2',8],['s3',8],['s1',4]]},
@@ -15748,63 +15763,89 @@ function showNewWizard(){
      v60.45 二级带图标（Apple 细线）；乐器选择改图标网格（INSTRUMENTS 数据驱动，
      后期加乐器只增一行、网格自动铺开）。 */
   const NW={int:'inst', vocalN:1, instKey:'guitar', form:'acc', clef:'staff', ftype:'func'};
-  const pill=(k,v,lab,tip,ic)=>'<button class="nw-pill" data-k="'+k+'" data-v="'+v+'"'+(tip?' title="'+tip+'"':'')+'>'
-    +(ic? svgi(ic,14):'')+lab+'</button>';
+  /* v60.47 二级选项下拉化（产品指示：下拉选择、图标+文字、少占位）。
+     菜单项保留 data-k/data-v 语义（回归套件与程序化路径同口径）；单选即重渲染、菜单自然收起。
+     items: {v,lab,ic,tip} 选项 / {cap} 组标题（乐器菜单沿用 弹拨/键盘/管弦/民乐 分组）。 */
+  const dd=(k,lab0,items)=>{
+    const co=items.find(it=>it.v!==undefined && String(NW[k])===String(it.v)) || items.find(it=>it.v!==undefined);
+    return '<span class="nw-lab">'+lab0+'</span><div class="nw-dd" data-dd="'+k+'">'
+      +'<button type="button" class="nw-ddbtn">'+(co.ic?svgi(co.ic,15):'')+'<span class="nw-ddlab">'+co.lab+'</span><span class="nw-ddar">▾</span></button>'
+      +'<div class="nw-ddmenu">'+items.map(it=> it.cap!==undefined
+        ? '<div class="nw-ddcap">'+it.cap+'</div>'
+        : '<button type="button" class="nw-dditem" data-k="'+k+'" data-v="'+it.v+'"'+(it.tip?' title="'+it.tip+'"':'')+'>'
+          +(it.ic?svgi(it.ic,15):'')+'<span>'+it.lab+'</span></button>').join('')
+      +'</div></div>';
+  };
   const renderSub=()=>{
     const fam=nwInstOf(NW.instKey).fam;
     if(fam==='kbd'){ if(NW.form!=='psolo'&&NW.form!=='pacc') NW.form='pacc'; }
     else if(NW.instKey==='uku'){ NW.form='acc'; }
     else if(NW.instKey==='guitar'){ if(NW.form!=='acc'&&NW.form!=='lead'&&NW.form!=='finger') NW.form='acc'; }
-    let h='';
+    let h='<div class="nw-subrow">';
     if(NW.int==='vocal'){
-      h='<div class="nw-subrow"><span class="nw-lab">形式</span>'
-        +pill('vocalN',1,'独唱','','mic')+pill('vocalN',2,'合唱 2 声部','','choir')
-        +pill('vocalN',3,'合唱 3 声部','','choir')+pill('vocalN',4,'合唱 4 声部','','choir')+'</div>';
+      h+=dd('vocalN','形式',[
+        {v:1,lab:'独唱',ic:'mic'},
+        {v:2,lab:'合唱 2 声部',ic:'choir'},
+        {v:3,lab:'合唱 3 声部',ic:'choir'},
+        {v:4,lab:'合唱 4 声部',ic:'choir'}]);
     } else if(NW.int==='func'){
-      h='<div class="nw-subrow"><span class="nw-lab">谱式</span>'
-        +pill('ftype','func','简谱＋级数和弦','选中音符后左栏「和弦/级数」标注','degnum')
-        +pill('ftype','chord','和弦格（小节格）','小节格内按拍放和弦、配节奏斜线，乐队排练一页纸','chordgrid')+'</div>';
+      h+=dd('ftype','谱式',[
+        {v:'func',lab:'简谱＋级数和弦',ic:'degnum',tip:'选中音符后左栏「和弦/级数」标注'},
+        {v:'chord',lab:'和弦格（小节格）',ic:'chordgrid',tip:'小节格内按拍放和弦、配节奏斜线，乐队排练一页纸'}]);
     } else {
-      /* v60.46 分组乐器网格（组序=数据序；键盘/管弦/民乐 21 乐器编入，滚动容器保持弹窗高度） */
-      const grps=[]; NW_INSTS.forEach(it=>{ let g=grps.find(x=>x.n===it.grp); if(!g){ g={n:it.grp,list:[]}; grps.push(g); } g.list.push(it); });
-      h='<div class="nw-subrow"><span class="nw-lab">乐器</span><div class="nw-instwrap">'
-        +grps.map(g=>'<div class="nw-grp"><div class="nw-grpcap">'+g.n+'</div><div class="nw-instgrid">'
-          +g.list.map(it=>'<button class="nw-inst" data-k="instKey" data-v="'+it.k+'"'
-            +(it.hint?' title="'+it.hint+'"':'')+'>'+svgi(INST_ICON[it.k]||'violin',26)+'<span>'+it.name+'</span></button>').join('')
-          +'</div></div>').join('')
-        +'</div></div>';
+      /* 乐器下拉：沿用 v60.46 的 弹拨/键盘/管弦/民乐 分组（组标题即菜单分隔），21 乐器+其他 */
+      const items=[]; let lastG=null;
+      NW_INSTS.forEach(it=>{ if(it.grp!==lastG){ items.push({cap:it.grp}); lastG=it.grp; }
+        items.push({v:it.k,lab:it.name,ic:INST_ICON[it.k]||'violin',tip:it.hint}); });
+      h+=dd('instKey','乐器',items);
       const cur=nwInstOf(NW.instKey);
-      if(cur.fam==='staff')
-        h+='<div class="nw-subrow"><span class="nw-lab">形态</span><span class="nw-fhint">'+cur.name
-          +' 独奏 · 单谱表五线谱（'+(cur.clef==='bass'?'低音':'高音')+'谱号）——伴奏/人声轨创建后左栏「＋音轨」随时加</span></div>';
-      else if(cur.fam==='jianpu')
-        h+='<div class="nw-subrow"><span class="nw-lab">形态</span><span class="nw-fhint">'+cur.name
-          +' 独奏 · 简谱记谱（民乐惯例）——右栏「记谱法」可随时切五线谱显示</span></div>';
       if(NW.instKey==='guitar')
-        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'
-          +pill('form','acc','伴奏（弹唱）· 自动加人声轨','六线谱＋简谱＋和弦图，标准弹唱版式','rhythm')
-          +pill('form','lead','电吉他 Solo','六线＋五线联排，推弦/摇把/泛音等完整技法','pick')
-          +pill('form','finger','指弹','六线＋五线联排，pima 指法/特殊调弦/打板击勾滑','fingerpick')+'</div>';
+        h+=dd('form','形态',[
+          {v:'acc',lab:'伴奏（弹唱）· 自动加人声轨',ic:'rhythm',tip:'六线谱＋简谱＋和弦图，标准弹唱版式'},
+          {v:'lead',lab:'电吉他 Solo',ic:'pick',tip:'六线＋五线联排，推弦/摇把/泛音等完整技法'},
+          {v:'finger',lab:'指弹',ic:'fingerpick',tip:'六线＋五线联排，pima 指法/特殊调弦/打板击勾滑'}]);
       else if(NW.instKey==='uku')
-        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'+pill('form','acc','伴奏（弹唱）· 自动加人声轨','四线谱＋简谱＋和弦图','rhythm')+'</div>';
+        h+=dd('form','形态',[{v:'acc',lab:'伴奏（弹唱）· 自动加人声轨',ic:'rhythm',tip:'四线谱＋简谱＋和弦图'}]);
       else if(cur.fam==='kbd')
-        h+='<div class="nw-subrow"><span class="nw-lab">形态</span>'
-          +pill('form','pacc','伴奏（弹唱）· 织体自动生成','大谱表纯伴奏＋和弦名，主旋律由演唱者担任','rhythm')
-          +pill('form','psolo','独奏（大谱表）','右手/左手双谱表独立录入','piano')+'</div>';
+        h+=dd('form','形态',[
+          {v:'pacc',lab:'伴奏（弹唱）· 织体自动生成',ic:'rhythm',tip:'大谱表纯伴奏＋和弦名，主旋律由演唱者担任'},
+          {v:'psolo',lab:'独奏（大谱表）',ic:'piano',tip:'右手/左手双谱表独立录入'}]);
       else if(cur.fam==='other')
-        h+='<div class="nw-subrow"><span class="nw-lab">谱号</span>'
-          +pill('clef','staff','高音谱表')+pill('clef','alto','中音谱表')+pill('clef','bass','低音谱表')+'</div>';
+        h+=dd('clef','谱号',[{v:'staff',lab:'高音谱表',ic:'staff5'},{v:'alto',lab:'中音谱表',ic:'staff5'},{v:'bass',lab:'低音谱表',ic:'staff5'}]);
+      else if(cur.fam==='staff')
+        h+='<span class="nw-fhint">'+cur.name+' 独奏 · 单谱表五线谱（'+(cur.clef==='bass'?'低音':'高音')+'谱号）——伴奏/人声轨创建后左栏「＋音轨」随时加</span>';
+      else if(cur.fam==='jianpu')
+        h+='<span class="nw-fhint">'+cur.name+' 独奏 · 简谱记谱（民乐惯例）——右栏「记谱法」可随时切五线谱显示</span>';
     }
+    h+='</div>';
     const sub=document.getElementById('nw-sub'); sub.innerHTML=h;
     sub.querySelectorAll('[data-k]').forEach(b=>{
       const k=b.dataset.k;
       b.classList.toggle('on', String(NW[k])===b.dataset.v);
       b.onclick=()=>{ NW[k]= k==='vocalN'? +b.dataset.v : b.dataset.v; renderSub(); };
     });
+    sub.querySelectorAll('.nw-ddbtn').forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+      const w=b.parentElement, was=w.classList.contains('open');
+      sub.querySelectorAll('.nw-dd.open').forEach(x=>x.classList.remove('open'));
+      if(!was){
+        w.classList.add('open');
+        /* 菜单高度钳到弹窗可视余量，下方不足且上方更宽裕时向上翻——.modal overflow:auto
+           会裁 absolute 子元素（v60.47 实测桌面端菜单底部被裁），不动 modal 只调菜单 */
+        const menu=w.querySelector('.nw-ddmenu'), mb=document.querySelector('.modal').getBoundingClientRect(), bb=b.getBoundingClientRect();
+        const below=mb.bottom-bb.bottom-16, above=bb.top-mb.top-16;
+        const up = below<180 && above>below;
+        w.classList.toggle('up', up);
+        menu.style.maxHeight = Math.max(140, Math.min(300, up?above:below))+'px';
+      }
+    }; });
     document.querySelectorAll('.nw-int').forEach(c=>c.classList.toggle('on', c.dataset.int===NW.int));
   };
   document.querySelectorAll('.nw-int').forEach(c=>c.onclick=()=>{ NW.int=c.dataset.int; renderSub(); });
   renderSub();
+  /* 点下拉外任意处收起菜单（ddbtn 自身已 stopPropagation） */
+  document.querySelector('.modal').addEventListener('click', e=>{
+    if(!e.target.closest('.nw-dd')) document.querySelectorAll('.nw-dd.open').forEach(x=>x.classList.remove('open'));
+  });
   document.getElementById('nw-create').onclick=()=>{
     const V=id=>document.getElementById(id).value;
     const o={ title:V('nw-title').trim()||'未命名曲谱', singer:'', lyricist:'', composer:'',
@@ -20270,7 +20311,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.46';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.47';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20293,6 +20334,7 @@ const APP_VER='v60.46';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.47</span><div><b>新建向导二级选项下拉化 + 53231323 十六分分解两款</b>（产品指示：二级选项用下拉选择、图标加文字样式、不占太多位；节奏型库补 53231323 的 16 分 4/4 与 2/4 拍分解）。① <b>二级全部改下拉</b>：声乐「形式」、器乐「乐器/形态/谱号」、功能「谱式」统一为 图标＋文字 的下拉菜单——乐器菜单保留 弹拨/键盘/西洋管弦/民乐 组标题，21 种乐器一个下拉装下，原三行图标网格的占位收敛为一行；选中项在菜单内高亮，选择即收起。② <b>节奏型库新增两款分解</b>：「53231323 十六分（4/4）」（一小节两遍、后半保持根音——与既有「流水分解」交替低音版并存）与「53231323 十六分（2/4）」（一小节一遍），扫弦/分解图示与套用逻辑走既有管线。<code>tv_newwiz</code> 断言跟随下拉结构。<b>86 套件</b>全绿。</div></li>
     <li><span class="v">v60.46</span><div><b>乐器体系扩编：器乐谱编入 21 种乐器（图标＋名称，产品截图对照整理）</b>。① <b>乐器网格按族分组</b>——<b>弹拨</b>（吉他 / 尤克里里 / 贝斯）、<b>键盘</b>（钢琴 / 电钢琴 / 电子琴 / 手风琴）、<b>西洋管弦 · 五线谱</b>（小提琴 / 长笛 / 萨克斯 / 小号 / 圆号 / 长号）、<b>民乐 · 简谱</b>（二胡 / 笛子 / 葫芦丝 / 唢呐 / 古筝 / 琵琶 / 扬琴 / 口琴）＋「其他器乐」兜底，共 <b>16 枚新细线图标</b>入库，组内自动铺开、滚动容器保持弹窗一屏。② <b>每件乐器落到对应谱式</b>：键盘族=大谱表（独奏 / 弹唱织体两形态）；管弦族=单谱表五线谱、<b>谱号按乐器预置</b>（长号/贝斯自动低音谱号，不再要用户懂谱号）；民乐族=简谱独奏（民乐惯例，记谱法随时切五线谱显示）；吉他/尤克里里六线谱形态不变。③ <b>乐器身份随谱保存</b>（新增 <code>instKey</code> 字段，数据红线口径只增不动）：最左栏音轨钮与「当前音轨」行显示<b>所选乐器本尊图标</b>——二胡谱就是二胡，电钢琴就是电钢琴。④ <b>混音台默认音色随乐器预置</b>：长笛/笛子→长笛音色，二胡/小提琴→弦乐，古筝/琵琶→尼龙弦，钢琴/电钢琴→对应键盘音色——<b>顺手修正</b>此前新建钢琴/器乐谱声部默认落「人声啊」音色的旧疏漏；暂无专属采样的乐器先落最近似档，音色扩充在路线图。爵士鼓/架子鼓需鼓谱引擎（路线图后段），本轮不编入。<code>tv_newwiz</code> 断言跟随（分组结构 / 新乐器组合等价矩阵 / 音色预置）。<b>86 套件</b>全绿。</div></li>
     <li><span class="v">v60.45</span><div><b>新建界面 Apple 风格重做 + 乐器图标体系 + 导入区样式修复</b>（产品指示：整体苹果风格简约美观；一级三大图标以图标为主字体为辅；二级也带图标；乐器选择换可扩展形式；左栏图标对应；暂下哼唱成谱；修导入样式问题）。① <b>一级三大卡</b>：声乐谱 / 器乐谱 / 功能谱——32px 细线大图标为主、名称与副字为辅，悬停轻浮起、选中朱砂细框浅底（Apple 形制、产品配色）。② <b>二级选项全部带图标</b>：独唱（麦克风）/ 合唱（双人）/ 伴奏弹唱（节奏）/ 电吉他 Solo（拨片）/ 指弹（弦上拨弧）/ 级数谱 / 和弦格——新增四枚细线图标入库。③ <b>乐器选择改为图标网格</b>：吉他 / 尤克里里 / 钢琴 / 其他器乐 每格图标在上名称在下，<b>数据驱动、自动铺开</b>——后期上新乐器只加一行数据，版式零改动。④ <b>乐器图标三处统一</b>：新建网格、最左栏音轨钮、「当前音轨」行同一套映射——新建时选的什么乐器，左栏就是什么图标（人声旋律轨统一为麦克风）。⑤ <b>导入区重做</b>：旧虚线提权框内文字溢出截断（产品指出的样式问题）——改为「已有曲子？直接导入」两张干净卡片（MusicXML / Guitar Pro），图标＋标题＋单行省略说明，任何宽度不再溢出。⑥ <b>哼唱成谱全站暂下</b>（产品指示）：新建向导与创作辅助入口全部撤下；识别引擎与录音流程完整保留（程序化可达），恢复入口只需一行。<code>tv_newwiz</code> 断言跟随（乐器网格/二级图标/导入两卡）、<code>tv_safety</code>/<code>tv_frame</code>/<code>tv_humming</code> 口径更新。<b>86 套件</b>全绿。</div></li>
     <li><span class="v">v60.44</span><div><b>旋律轨一键生成吉他把位轨（音轨化改版 P3 收官）</b>——手稿最后一层「任意轨可用六线谱显示，自动映射时给出把位选择推荐」落地。旋律轨显示灯行新增<b>「六」</b>：点击弹出把位选择——① <b>低把位</b>（开放弦优先，无和弦标注时默认推荐）；② <b>中把位</b>（4 品起、不用空弦——虚拟变调夹技巧复用同一指派器，零新算法）；③ <b>跟随和弦图</b>（谱面有和弦标注时出现并默认推荐：逐音先在生效和弦指法上找同音直取——弹唱伴奏里旋律音本就该落在按着的和弦上，v60.39 同思想的单音版；不在指法上的乐句回束搜索指派）。三档都<b>现算预览</b>：几个音、折八度几个、放不下几个，选之前就看得到。选定即生成一条<b>独立的吉他/尤克里里轨</b>（六线谱显示、逐音音高与旋律严格等价、时值/连音线随行复制）——<b>原旋律轨一个字不动</b>，两轨并存可对照可分头编辑，不想要一步撤销。「＋音轨」选择器同步新增「从旋律生成把位」入口。把位指派复用 v60.25 束搜索（和音异弦/品距≤4/跨列把位连贯），不写第二份实现。新增 <code>tv_voxtab</code> 套件 <b>6+1 项</b>（入口谱类显隐/低把位逐音等价/中把位 4 品起/跟随和弦图直取实证/原轨零损+一步撤销/统计如实），对 v60.43 旧文件跑当场红＝突变实证。<b>86 套件</b>全绿。至此音轨化四期（P0 向导 / P1 音轨最上级 / P2 工具随轨 / P3 把位映射）全部交付。</div></li>

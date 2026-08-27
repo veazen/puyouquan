@@ -29,22 +29,30 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const q = s => document.querySelectorAll(s).length;
     return {
       ints: q('.nw-int'), oldCards: q('.ntype'), createHere: !!document.getElementById('nw-create'),
-      /* v60.45 导入区两卡（哼唱暂下）+ 乐器图标网格 + 二级图标；v60.46 扩编 21 乐器分组 */
+      /* v60.45 导入区两卡（哼唱暂下）+ 二级图标；v60.46 扩编 21 乐器分组；v60.47 二级下拉化 */
       feats: q('.nw-imp .nwi'), humGone: !document.getElementById('nw-hum'),
-      instGrid: q('.nw-instgrid .nw-inst') >= 20,
-      instGrps: q('.nw-grpcap') >= 4,
-      subIcons: q('#nw-sub .nw-pill svg') > 0,
+      instGrid: q('.nw-dd[data-dd="instKey"] .nw-dditem') >= 20,
+      instGrps: q('.nw-dd[data-dd="instKey"] .nw-ddcap') >= 4,
+      dds: q('#nw-sub .nw-dd') >= 2,
+      ddClosed: q('.nw-dd.open') === 0,
+      subIcons: q('#nw-sub .nw-dditem svg') > 0 && q('#nw-sub .nw-ddbtn svg') > 0,
       basics: !!document.getElementById('nw-title') && !!document.getElementById('nw-key')
         && !!document.getElementById('nw-beats') && !!document.getElementById('nw-unit') && !!document.getElementById('nw-tempo'),
       defInt: (document.querySelector('.nw-int.on') || {}).dataset ? document.querySelector('.nw-int.on').dataset.int : null,
-      defInst: !!document.querySelector('.nw-inst[data-v="guitar"].on'),
-      defForm: !!document.querySelector('.nw-pill[data-k="form"][data-v="acc"].on')
+      defInst: !!document.querySelector('.nw-dditem[data-k="instKey"][data-v="guitar"].on'),
+      defForm: !!document.querySelector('.nw-dditem[data-k="form"][data-v="acc"].on'),
+      /* 下拉钮开合与外点收起（v60.47 交互口径） */
+      ddFlow: (()=>{ const b=document.querySelector('.nw-dd[data-dd="instKey"] .nw-ddbtn');
+        b.click(); const opened=!!document.querySelector('.nw-dd[data-dd="instKey"].open');
+        document.querySelector('.nw-basics').click();
+        const closed=!document.querySelector('.nw-dd.open');
+        return opened && closed; })()
     };
   });
   T(r.ints === 3 && r.oldCards === 0 && r.createHere && r.feats === 2 && r.humGone
-    && r.instGrid && r.instGrps && r.subIcons && r.basics
+    && r.instGrid && r.instGrps && r.dds && r.ddClosed && r.ddFlow && r.subIcons && r.basics
     && r.defInt === 'inst' && r.defInst && r.defForm,
-    'T1 一屏结构（三意图卡/21乐器分组网格/二级图标/导入2卡哼唱撤/默认器乐·吉他·伴奏）', JSON.stringify(r));
+    'T1 一屏结构（三意图卡/二级下拉·乐器菜单分组/开合外点收起/导入2卡哼唱撤/默认器乐·吉他·伴奏）', JSON.stringify(r));
 
   // T2 一击默认建谱 = 吉他弹唱
   r = await pg.evaluate(() => {
@@ -105,13 +113,13 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     showNewWizard();
     const q = s => !!document.querySelector(s);
     document.querySelector('.nw-int[data-int="vocal"]').click();
-    const vocalRow = q('.nw-pill[data-k="vocalN"]') && !q('[data-k="instKey"]');
+    const vocalRow = q('.nw-dditem[data-k="vocalN"]') && !q('[data-k="instKey"]');
     document.querySelector('.nw-int[data-int="inst"]').click();
-    document.querySelector('.nw-pill[data-k="form"][data-v="lead"]').click();
+    document.querySelector('.nw-dditem[data-k="form"][data-v="lead"]').click();
     document.querySelector('[data-k="instKey"][data-v="piano"]').click();   // lead 对钢琴非法 → 钳回 pacc
-    const clamp = q('.nw-pill[data-k="form"][data-v="pacc"].on') && !q('.nw-pill[data-k="form"][data-v="lead"]');
+    const clamp = q('.nw-dditem[data-k="form"][data-v="pacc"].on') && !q('.nw-dditem[data-k="form"][data-v="lead"]');
     document.querySelector('[data-k="instKey"][data-v="other"]').click();
-    const clefRow = q('.nw-pill[data-k="clef"][data-v="staff"].on');
+    const clefRow = q('.nw-dditem[data-k="clef"][data-v="staff"].on');
     document.getElementById('nw-cancel').click();
     return { vocalRow, clamp, clefRow };
   });
@@ -151,6 +159,30 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.pn.ik==='piano' && r.pn.t0==='piano' && r.pn.t1==='piano'
     && r.gt.noIk && r.gt.vox==='ah',
     'T7 乐器身份+音色预置（二胡→strings/钢琴双手→piano/弹唱人声轨仍 ah）', JSON.stringify(r));
+
+  // T8 53231323 十六分两款（v60.47 产品指定）：数据口径 + C 和弦套用逐列实证
+  r = await pg.evaluate(() => {
+    showNewWizard(); document.getElementById('nw-create').click();   // 吉他弹唱 8 小节
+    const items = TAB_PATTERN_GROUPS[0].items;
+    const p44 = items.find(p=>p.name==='53231323 十六分（4/4）');
+    const p24 = items.find(p=>p.name==='53231323 十六分（2/4）');
+    if(!p44||!p24) return {miss:1};
+    const seq = ['b','s3','s2','s3','s1','s3','s2','s3'];
+    const tok44 = p44.ev.map(e=>e[0]).join()===seq.concat(seq).join() && p44.ev.every(e=>e[1]===16);
+    const tok24 = p24.ev.map(e=>e[0]).join()===seq.join() && p24.ev.every(e=>e[1]===16);
+    song.measures[0].tabs[0][0].chord='C';
+    sel={mi:1,row:'tab',vi:0,ci:0,si:1}; selRange=null;
+    applyTabPattern(p44);
+    const cols=song.measures[1].tabs[0];
+    const nn=c=>JSON.stringify(c.notes);
+    return { miss:0, tok44, tok24, b44:+patBeats(p44).toFixed(2), b24:+patBeats(p24).toFixed(2),
+      n:cols.length, allDur:cols.every(c=>c.dur===16),
+      root0:nn(cols[0]), s3:nn(cols[1]), s2:nn(cols[2]), s1:nn(cols[4]), root8:nn(cols[8]) };
+  });
+  T(!r.miss && r.tok44 && r.tok24 && r.b44===4 && r.b24===2 && r.n===16 && r.allDur
+    && r.root0==='[{"s":5,"f":3}]' && r.s3==='[{"s":3,"f":0}]' && r.s2==='[{"s":2,"f":1}]'
+    && r.s1==='[{"s":1,"f":0}]' && r.root8==='[{"s":5,"f":3}]',
+    'T8 53231323 十六分 4/4+2/4（后半保持根音非交替低音；C 指法逐列实证）', JSON.stringify(r));
   await pg.close();
 
   // T6 手机视口无横向溢出
