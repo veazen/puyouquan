@@ -1429,19 +1429,19 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
   box-shadow:none;backdrop-filter:blur(14px) saturate(1.4)}
 #tempo-pop{width:min(330px,calc(100vw - 34px))}
 /* v60.37 变调弹窗：纵排卡片——原调行 / 唱调行 / 变调夹行 / 等式行 / 夹位速选（吉他区仅 TAB 谱类显示） */
-#key-pop{flex-direction:column;align-items:stretch;gap:8px;width:min(302px,calc(100vw - 34px))}
-#key-pop .kp-row{display:flex;align-items:center;justify-content:center;gap:10px}
-#key-pop .kp-row>b{font-size:14px;min-width:96px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
-#key-pop .kp-row>b small{color:rgba(239,233,216,.6);font-weight:400}
-#kp-orig-row{justify-content:space-between;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12)}
-#kp-orig-row small{color:rgba(239,233,216,.66);font-size:11.5px}
-#kp-orig-row b{color:#efe9d8;font-weight:700;margin-left:3px}
-#kp-reset{font-size:11.5px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);
+#key-pop,#ekey-pop{flex-direction:column;align-items:stretch;gap:8px;width:min(302px,calc(100vw - 34px))}
+#key-pop .kp-row,#ekey-pop .kp-row{display:flex;align-items:center;justify-content:center;gap:10px}
+#key-pop .kp-row>b,#ekey-pop .kp-row>b{font-size:14px;min-width:96px;text-align:center;color:#efe9d8;font-weight:700;white-space:nowrap}
+#key-pop .kp-row>b small,#ekey-pop .kp-row>b small{color:rgba(239,233,216,.6);font-weight:400}
+#kp-orig-row,#ek-orig-row{justify-content:space-between;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.12)}
+#kp-orig-row small,#ek-orig-row small{color:rgba(239,233,216,.66);font-size:11.5px}
+#kp-orig-row b,#ek-orig-row b{color:#efe9d8;font-weight:700;margin-left:3px}
+#kp-reset,#ek-reset{font-size:11.5px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);
   background:transparent;color:#efe9d8;line-height:1}
-#kp-reset:disabled{opacity:.35}
-#kp-eq small{color:rgba(239,233,216,.66);font-size:11.5px;white-space:nowrap}
-#kp-eq b{color:#efe9d8}
-#kp-chips{flex-wrap:wrap;gap:6px}
+#kp-reset:disabled,#ek-reset:disabled{opacity:.35}
+#kp-eq small,#ek-eq small{color:rgba(239,233,216,.66);font-size:11.5px;white-space:nowrap}
+#kp-eq b,#ek-eq b{color:#efe9d8}
+#kp-chips,#ek-chips{flex-wrap:wrap;gap:6px}
 .kp-chip{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:31px;padding:4px 4px;
   border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:#e6e0d2;
   font-size:11px;line-height:1.15;cursor:pointer}
@@ -2351,6 +2351,24 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <button class="kp-chip" data-sub="1">每拍</button><button class="kp-chip" data-sub="2">八分</button></span></div>
   <div class="mp-row"><small>音量</small><span class="mp-sl"><input id="mp-vol" type="range" min="20" max="200" step="5"><b id="mp-vol-v"></b></span></div>
 </div>
+<!-- v60.50 编辑器变调弹窗（产品指示：吉他曲谱编辑时点击调号弹窗功能与曲谱浏览一致——
+     可选指法、恢复原调等）。与观看页 key-pop 同一族视觉；区别：直接修改谱面数据
+     （单步 mutate 可 Ctrl+Z），「原调」=本次打开弹窗时的快照。 -->
+<div id="ekey-pop" class="vh-pop" title="换调：直接修改谱面（和弦/指法自动重排），可 Ctrl+Z 撤销">
+  <div class="kp-row" id="ek-orig-row"><small>打开时 <b id="ek-orig-v"></b></small><button id="ek-reset">恢复原调</button></div>
+  <div class="kp-row">
+    <button class="tp-nudge" id="ek-dn" title="唱调降半音（指法随动重排，变调夹不动）">♭</button>
+    <b id="ek-v"></b>
+    <button class="tp-nudge" id="ek-up" title="唱调升半音（指法随动重排，变调夹不动）">♯</button>
+  </div>
+  <div class="kp-row kp-capo">
+    <button class="tp-nudge" id="ek-cdn" title="变调夹减 1 品（唱调不变，指法自动升换算）">−</button>
+    <b id="ek-cv"></b>
+    <button class="tp-nudge" id="ek-cup" title="变调夹加 1 品（唱调不变，指法自动降换算）">＋</button>
+  </div>
+  <div class="kp-row kp-capo" id="ek-eq"></div>
+  <div class="kp-row kp-capo" id="ek-chips" title="夹位速选（选指法）：唱调不变，点选变调夹品位，金标=开放把位指法（CAGED）"></div>
+</div>
 <div id="toast"></div>
 <!-- 打印预览：独立浏览视图（纸张适配 / 缩放 / 多页横排竖排） -->
 <div id="preview-ov">
@@ -2452,32 +2470,8 @@ const SEMI_DEG = [[1,''],[1,'#'],[2,''],[2,'#'],[3,''],[4,''],[4,'#'],[5,''],[5,
    吉他谱品位整体平移（越界时该音自动升/降八度补偿）；简谱唱名不变 ===== */
 const PC_SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const PC_FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-function transChordName(name, delta, useFlat){
-  return (name||'').replace(/([A-G])(#|b)?/g, (m,r,acc)=>{
-    const pc = ((KEY_PC[r+(acc||'')] + delta) % 12 + 12) % 12;
-    return (useFlat? PC_FLAT : PC_SHARP)[pc];
-  });
-}
-function transposeEditor(delta){   // 与曲谱库观看模式的 transposeSong(s,delta) 区分：编辑器内整体统一平移
-  const useFlat = (typeof KEYSIG!=='undefined' && (KEYSIG[song.key]||0)<0);
-  let nCh=0;
-  song.measures.forEach(m=>{
-    m.tabs.forEach(cols=>cols.forEach(c=>{ if(c.chord){ c.chord=transChordName(c.chord,delta,useFlat); nCh++; } }));
-    m.voxes.forEach(cols=>cols.forEach(c=>{ if(c.chord){ c.chord=transChordName(c.chord,delta,useFlat); nCh++; } }));
-    /* v41.3 中途转调标记随全曲换调同步平移 */
-    if(m.keyTo && KEY_PC[m.keyTo]!=null) m.keyTo = KEY_LIST[((KEY_PC[m.keyTo]+delta)%12+12)%12];
-  });
-  const notes=[];
-  song.measures.forEach(m=>m.tabs.forEach(cols=>cols.forEach(c=>(c.notes||[]).forEach(n=>{ if(typeof n.f==='number') notes.push(n); }))));
-  let shift=0, clamped=0;
-  if(notes.length){
-    const fits = sh=>notes.every(n=>n.f+sh>=0 && n.f+sh<=24);
-    shift = [delta, delta+12, delta-12].find(fits);   // 优先整体不越界的平移（必要时整体换八度）
-    if(shift==null) shift=delta;
-    notes.forEach(n=>{ let f=n.f+shift; if(f<0){f+=12;clamped++;} if(f>24){f-=12;clamped++;} n.f=f; });
-  }
-  return {nCh, nNotes:notes.length, shift, clamped};
-}
+/* v60.50 编辑器换调统一走 transposeSong（v60.39 重排引擎）：旧 transposeEditor
+   「逐品平移+越界折八度」及其 transChordName 已删——图与演奏错位的根源在编辑器侧一并根治。 */
 /* ===== 钢琴弹唱·伴奏织体：按和弦自动生成双手伴奏（生成即真音符，可编辑可重生成） =====
    模板以和弦内音级定义：1=根音 3=三音（大小和弦自适应）5=五音 8=高八度根音；
    左手基准八度≈C3、右手≈C4；和弦可在小节内任意拍更换，逐音取当拍生效和弦 */
@@ -11688,17 +11682,15 @@ function showHeadMenu(kind, cx, cy){
       const b2=ev.target.closest('[data-k]'); if(!b2) return;
       const nk=b2.dataset.k, oldKey=song.key;
       if(nk===oldKey){ closePop(); return; }
+      /* v60.50 统一 v60.39 重排引擎（transposeSong 自会移 key/和弦/指法；结束后按用户点选的拼写落 key） */
       let tr=null, dSemi=0;
       mutate(()=>{
-        song.key=nk;
         dSemi=((KEY_PC[nk]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
-        if(dSemi!==0) tr=transposeEditor(dSemi);
+        if(dSemi!==0) tr=transposeSong(song, dSemi);
+        song.key=nk;
       });
       closePop();
-      const bits=[];
-      if(tr && tr.nCh) bits.push(`${tr.nCh} 处和弦已移调`);
-      if(tr && tr.nNotes) bits.push(`吉他谱品位整体 ${tr.shift>0?'+':''}${tr.shift} 品`);
-      toast(`已换调 1=${oldKey} → 1=${nk}：${bits.join('，')||'简谱唱名不变'}，可 Ctrl+Z 撤销`);
+      toast(`已换调 1=${oldKey} → 1=${nk}${refingToast(tr)}，可 Ctrl+Z 撤销`);
     });
   } else if(kind==='meter'){
     const MS=[[2,4],[3,4],[4,4],[5,4],[6,4],[3,8],[6,8],[9,8],[12,8]];
@@ -13004,7 +12996,7 @@ document.getElementById('b-tie').onclick = toggleTie;
   sim('b-sim1',1); sim('b-sim2',2);
 })();
 /* v41.3 中途转调小菜单：从本小节起转入新调（一期为标注式——谱面「转1=X」，
-   五线谱调号/拼写保持谱首调；换调 transposeEditor 会同步平移 keyTo） */
+   五线谱调号/拼写保持谱首调；换调 transposeSong 会同步平移 keyTo） */
 function showKeyToMenu(){
   const m=curMea(); if(!m) return toast('请先选中一个小节');
   closePop();
@@ -13295,19 +13287,18 @@ document.getElementById('b-meta').onclick = ()=>{
       song.capo = Math.max(0, Math.min(12, +document.getElementById('mm-capo').value||0));
       song.tempoTerm = document.getElementById('mm-tempoterm').value.trim();   // v42.7 意大利速度术语
       song.pickup = document.getElementById('mm-pickup').checked;              // v42.7 弱起小节
-      /* 换调自动适应：和弦名与吉他谱品位整体移调（简谱唱名/歌词不变，可撤销） */
-      if(song.key !== oldKey){
-        dSemi = ((KEY_PC[song.key]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
-        if(dSemi!==0) tr = transposeEditor(dSemi);
+      /* 换调自动适应（v60.50 统一 v60.39 重排引擎：伴奏随和弦图取形、旋律重排把位）。
+         注意 mm-key 在上面已直接落 song.key——transposeSong 从当前 key 起算会二次移调，
+         故此处以 oldKey/newKey 差先回置再交给引擎，结束按用户选的拼写落 key */
+      const newKey = song.key;
+      if(newKey !== oldKey){
+        dSemi = ((KEY_PC[newKey]-KEY_PC[oldKey])%12+12)%12; if(dSemi>6) dSemi-=12;
+        if(dSemi!==0){ song.key=oldKey; tr = transposeSong(song, dSemi); }
+        song.key = newKey;
       }
     });
     closeModal();
-    if(tr){
-      const bits=[];
-      if(tr.nCh) bits.push(`${tr.nCh} 处和弦已移调`);
-      if(tr.nNotes) bits.push(`吉他谱品位整体 ${tr.shift>0?'+':''}${tr.shift} 品`+(tr.clamped? `（${tr.clamped} 音越界已按八度回折）`:''));
-      toast(`已换调 1=${oldKey} → 1=${song.key}（${dSemi>0?'+':''}${dSemi} 半音）：${bits.join('，')||'简谱唱名不变'}，可 Ctrl+Z 撤销`);
-    }
+    if(tr) toast(`已换调 1=${oldKey} → 1=${song.key}（${dSemi>0?'+':''}${dSemi} 半音）${refingToast(tr)}，可 Ctrl+Z 撤销`);
   };
 };
 
@@ -15495,15 +15486,107 @@ document.getElementById('b-shell').onclick = ()=>{
   applyShell();
   toast(uiShell? '已切换到新版界面（深色扁平顶栏/播放条）' : '已切换回经典版界面');
 };
+/* v60.50 编辑器换调统一 v60.39 重排引擎（transposeSong：伴奏随和弦图取形、旋律束搜索重排、
+   和弦名/拍位和弦/转调标记同步）——此前编辑器仍是旧「逐品平移」，图与演奏错位的问题
+   在编辑器侧至此一并根治。stats 如实播报，与观看页同口径。 */
+function refingToast(st){
+  return (st && (st.shapeCols||st.melodic))?
+    '（伴奏随和弦图取形、旋律重排把位'+(st.octShift? '，'+st.octShift+' 音折八度':'')
+    +(st.dropped? '，'+st.dropped+' 音放不下按平移处理':'')+'）' : '';
+}
 function stepKey(delta){
-  mutate(()=>{
-    transposeEditor(delta);
-    song.key = KEY_LIST[(((KEY_PC[song.key]||0)+delta)%12+12)%12];
-  });
-  toast('已换调 1='+song.key+'（和弦与品位自动移调；拼写与更多选项在「曲谱信息」）');
+  let st=null;
+  mutate(()=>{ st=transposeSong(song, delta); });
+  updateEdKeyPop();
+  toast('已换调 1='+song.key+refingToast(st)+'——可 Ctrl+Z 撤销');
 }
 document.getElementById('k-dn').onclick = ()=>stepKey(-1);
 document.getElementById('k-up').onclick = ()=>stepKey(1);
+/* v60.50 编辑器变调弹窗（产品指示：与曲谱浏览一致——选指法/恢复原调等）。
+   点顶栏调号 1=X 打开；「原调」=打开弹窗时快照（深拷贝 measures，恢复=整体回填，
+   重排不可逆故必须快照而非反向变换）；数据修改全部走单步 mutate。 */
+let ekBase=null;
+function edHasCapo(){ const dt=docType(song); return dt==='guitar'||dt==='uku'||dt==='solo'; }
+function edSoundKey(){ return KEY_LIST[(((KEY_PC[song.key]||0)+(edHasCapo()? (song.capo||0):0))%12+12)%12]; }
+function updateEdKeyPop(){
+  const el=document.getElementById('ek-v'); if(!el) return;
+  const pop=document.getElementById('ekey-pop');
+  if(!pop || !pop.classList.contains('on')) return;
+  const hasCapo=edHasCapo(), snd=edSoundKey();
+  const bSnd=ekBase? KEY_LIST[(((KEY_PC[ekBase.key]||0)+(hasCapo? ekBase.capo:0))%12+12)%12] : snd;
+  const dSnd=((KEY_PC[snd]-KEY_PC[bSnd])%12+12)%12;
+  const off=dSnd===0? 0 : (dSnd>6? dSnd-12 : dSnd);
+  el.innerHTML=(hasCapo? '唱 ':'1=')+esc(snd)+(off? ' <small>('+(off>0?'+':'')+off+')</small>':'');
+  const ov=document.getElementById('ek-orig-v');
+  if(ov && ekBase) ov.textContent=bSnd+'调'+(hasCapo&&ekBase.capo? '（'+ekBase.key+'指法·夹'+ekBase.capo+'品）':'');
+  const rs=document.getElementById('ek-reset');
+  if(rs) rs.disabled=!ekBase || !ekBase.dirty;
+  document.querySelectorAll('#ekey-pop .kp-capo').forEach(r=>{ r.style.display=hasCapo? '':'none'; });
+  if(!hasCapo) return;
+  const cv=document.getElementById('ek-cv');
+  if(cv) cv.textContent='变调夹 '+(song.capo? song.capo+' 品':'无');
+  const eq=document.getElementById('ek-eq');
+  if(eq) eq.innerHTML='<small>指法 <b>'+esc(song.key)+'</b> ＋ 夹 <b>'+(song.capo||0)+'品</b> ＝ 唱 <b>'+esc(snd)+'</b></small>';
+  const ch=document.getElementById('ek-chips');
+  if(ch){
+    const sndPc=KEY_PC[snd]||0, open=new Set(['C','A','G','E','D']);
+    ch.innerHTML=Array.from({length:8},(_,c)=>{
+      const fk=KEY_LIST[((sndPc-c)%12+12)%12];
+      return '<button class="kp-chip'+(c===(song.capo||0)?' on':'')+(open.has(fk)?' ez':'')
+        +'" data-ekcapo="'+c+'">'+c+'<i>'+esc(fk)+'</i></button>';
+    }).join('');
+    ch.querySelectorAll('.kp-chip').forEach(b=>{ b.onclick=()=>edSetCapo(+b.dataset.ekcapo); });
+  }
+}
+function edTranspose(delta){
+  let st=null;
+  mutate(()=>{ st=transposeSong(song, delta); });
+  if(ekBase) ekBase.dirty=true;
+  updateEdKeyPop();
+  toast('唱调 '+edSoundKey()+refingToast(st)+'——可 Ctrl+Z 撤销');
+}
+function edSetCapo(next){
+  const cur=song.capo||0;
+  next=Math.max(0, Math.min(12, next));
+  if(next===cur) return;
+  let st=null;
+  mutate(()=>{ song.capo=next; st=transposeSong(song, cur-next); });   /* 唱调锁定：夹±d ↔ 指法∓d */
+  if(ekBase) ekBase.dirty=true;
+  updateEdKeyPop();
+  toast('变调夹 '+(next? next+' 品':'取下')+' · 唱调不变，指法调 1='+song.key+refingToast(st));
+}
+function edKeyReset(){
+  if(!ekBase || !ekBase.dirty) return;
+  mutate(()=>{
+    song.measures=JSON.parse(ekBase.mea);
+    song.key=ekBase.key; song.capo=ekBase.capo;
+  });
+  ekBase.dirty=false;
+  updateEdKeyPop();
+  toast('已恢复到打开弹窗时：1='+song.key+(song.capo? ' · 夹'+song.capo+'品':''));
+}
+{ const kv=document.getElementById('k-val');
+  if(kv){
+    kv.style.cursor='pointer';
+    kv.title='点击打开变调弹窗：唱调 / 变调夹 / 夹位选指法 / 恢复原调';
+    kv.onclick=e=>{
+      e.stopPropagation();
+      const pop=document.getElementById('ekey-pop');
+      if(pop && !pop.classList.contains('on'))
+        ekBase={key:song.key, capo:song.capo||0, mea:JSON.stringify(song.measures), dirty:false};
+      vwPopToggle('ekey-pop','k-val');
+      updateEdKeyPop();
+    };
+  }
+  const on=(id,fn)=>{ const b=document.getElementById(id); if(b) b.onclick=fn; };
+  on('ek-dn', ()=>edTranspose(-1));
+  on('ek-up', ()=>edTranspose(1));
+  on('ek-cdn', ()=>edSetCapo((song.capo||0)-1));
+  on('ek-cup', ()=>edSetCapo((song.capo||0)+1));
+  on('ek-reset', edKeyReset);
+  document.getElementById('ekey-pop').addEventListener('click', e=>e.stopPropagation());
+  document.addEventListener('click', ()=>{ const p=document.getElementById('ekey-pop'); if(p) p.classList.remove('on'); });
+}
 document.getElementById('b-restart').onclick = ()=>{
   stopPlay();                              // 停止并复位（不自动播放）
   sel.mi = audio.loop? audio.loop.a : 0; sel.ci=0;
@@ -20459,7 +20542,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.49';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.50';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20482,6 +20565,7 @@ const APP_VER='v60.49';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.50</span><div><b>编辑器变调弹窗对齐观看页：选指法 / 恢复原调 / 变调夹一站式</b>（产品指示：吉他曲谱编辑时点击调号弹窗的功能应该和曲谱浏览时一样）。① <b>点顶栏调号 1=X 打开变调弹窗</b>——与观看页同款纵排卡：<b>原调行</b>（打开时的调与夹位，一键<b>恢复原调</b>——快照整体回填，试了几档不满意随时回起点）/ <b>唱调行</b> ♭ ♯（指法随动重排、变调夹不动）/ <b>变调夹行</b>（唱调锁定：夹 +2 品指法自动降 2 半音换算——变调夹的本义）/ <b>等式行</b>「指法＋夹＝唱调」/ <b>夹位速选</b> 0–7 品（每档标出派生指法调，<b>CAGED 开放把位金色推荐</b>——这就是「选指法」）。非吉他谱类自动只留唱调行。与观看页的区别一句话讲清：观看页变调只影响你看，<b>编辑器变调直接改谱</b>——全程单步 mutate，Ctrl+Z 一键撤销。② <b>编辑器换调引擎升级到 v60.39 重排</b>（此前编辑器还是旧「逐品平移+越界折八度」——和弦图与谱面演奏错位的根源在编辑器侧至此一并根治）：顶栏 ♭/♯、快捷换调、曲谱信息换调<b>三处入口统一</b>——伴奏列随新和弦图取形、旋律列束搜索重排把位、和弦名/拍位和弦/转调标记同步平移，折八度/放不下如实播报。旧 transposeEditor 平移实现删除。新增 <code>tv_edkey</code> 套件。CORE 87→<b>88 套件</b>全绿。</div></li>
     <li><span class="v">v60.49</span><div><b>自定义节奏型改在曲谱编辑器里写</b>（产品更正：新建节奏型直接根据谱类调到曲谱编辑器，只需设定拍号，编辑完有保存到库的按钮）。「＋新建 / 改」不再打开独立编辑器：① <b>只问一个拍号</b>（默认随本谱）→ 直接进入<b>曲谱编辑器</b>写一小节草稿——品位录入 / 扫弦琶音 / 时值连音 / 播放试听，<b>所有编辑工具全部可用</b>；吉他节奏型按谱类给六线谱（尤克里里谱四线），以 <b>C 和弦</b>为示例取品，保存时只记弦序与奏法、套用时按目标和弦自动换指法；简谱节奏型取时值骨架。② 顶部常驻浮条<b>「保存到库」</b>：起名即入库并回到原曲谱；「取消」原样返回。③ <b>原曲谱全程无恙</b>：进入时快照工作区并落<b>崩溃备份</b>——中途刷新/断电重开自动恢复到编辑前状态，未入库的编辑也不丢；草稿期间「新建 / 打开」被拦截防误切换。「改」同一流程：旧节奏型铺回小节接着改。<code>tv_custompat</code> 套件按新流程重写。<b>87 套件</b>全绿。</div></li>
     <li><span class="v">v60.48</span><div><b>自定义节奏型：库内新建 / 编辑 / 删除，吉他谱与简谱两谱类全支持</b>（产品指示：节奏型库增加自定义节奏型编辑功能，设计节奏型编辑界面，支持不同谱类）。节奏型库顶部新增<b>「自定义 · 我的节奏型」</b>组：① <b>「＋新建节奏型」</b>打开编辑器——选<b>时值</b>（2/4/8/16 分＋附点）、点<b>「加一步」托盘</b>逐步搭建：根音低/交替低/1–6 弦（尤克里里谱自动只出 4 根弦）/柱式/下扫/上扫/切音扫/琶音/切音×/休止——与内置节奏型同一套记谱语言；步序随点随删（每步 × / 退一步 / 清空），<b>教材式六线图实时预览</b>＋拍数即时统计（与本谱拍号对照，不符会提示由节拍检查标出）。② <b>简谱侧</b>同款编辑器：点时值即追加（附点先点亮），定义时值骨架，套用时保留小节已有音符。③ 保存即入库：自定义卡与内置卡<b>同样一键套用</b>（有和弦时按指法自动生成音符），卡上「改 / 删」随时维护；<b>持久保存</b>（新键 <code>musetab-custompat</code>，数据红线安全），换谱重开都在。套用/图示/拍数全部复用既有管线，不写第二份实现；钢琴伴奏织体走「伴奏织体」引擎，暂不在自定义范围（如实边界）。新增 <code>tv_custompat</code> 套件 <b>7+1 项</b>（两库自定义组/编辑器结构与 uku 弦数口径/构建保存/C 和弦套用逐列实证/编辑删除/简谱附点骨架/重载持久化）。CORE 86→<b>87 套件</b>全绿。</div></li>
     <li><span class="v">v60.47</span><div><b>新建向导二级选项下拉化 + 53231323 十六分分解两款</b>（产品指示：二级选项用下拉选择、图标加文字样式、不占太多位；节奏型库补 53231323 的 16 分 4/4 与 2/4 拍分解）。① <b>二级全部改下拉</b>：声乐「形式」、器乐「乐器/形态/谱号」、功能「谱式」统一为 图标＋文字 的下拉菜单——乐器菜单保留 弹拨/键盘/西洋管弦/民乐 组标题，21 种乐器一个下拉装下，原三行图标网格的占位收敛为一行；选中项在菜单内高亮，选择即收起。② <b>节奏型库新增两款分解</b>：「53231323 十六分（4/4）」（一小节两遍、后半保持根音——与既有「流水分解」交替低音版并存）与「53231323 十六分（2/4）」（一小节一遍），扫弦/分解图示与套用逻辑走既有管线。<code>tv_newwiz</code> 断言跟随下拉结构。<b>86 套件</b>全绿。</div></li>

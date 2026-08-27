@@ -258,7 +258,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const xml = exportMusicXML(song);
     const res = importMusicXML(xml);
     const rtOk = res.song && res.song.measures[1].keyTo === 'G' && !res.song.measures[0].keyTo;
-    mutate(() => { transposeEditor(2); song.key = KEY_LIST[((KEY_PC[song.key]+2)%12+12)%12]; });
+    /* v60.50 编辑器换调统一 transposeSong（旧 transposeEditor 已删；key/keyTo 由引擎自平移） */
+    mutate(() => { transposeSong(song, 2); });
     const transOk = song.measures[1].keyTo === 'A' && song.key === 'D';
     document.getElementById('b-keyto').click();
     document.querySelector('#popmenu [data-kt=""]').click();
