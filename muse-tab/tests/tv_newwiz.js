@@ -27,17 +27,21 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const q = s => document.querySelectorAll(s).length;
     return {
       ints: q('.nw-int'), oldCards: q('.ntype'), createHere: !!document.getElementById('nw-create'),
-      feats: q('.nw-feats .nwf'),
+      /* v60.45 导入区两卡（哼唱暂下）+ 乐器图标网格 + 二级图标 */
+      feats: q('.nw-imp .nwi'), humGone: !document.getElementById('nw-hum'),
+      instGrid: q('.nw-instgrid .nw-inst') >= 4,
+      subIcons: q('#nw-sub .nw-pill svg') > 0,
       basics: !!document.getElementById('nw-title') && !!document.getElementById('nw-key')
         && !!document.getElementById('nw-beats') && !!document.getElementById('nw-unit') && !!document.getElementById('nw-tempo'),
       defInt: (document.querySelector('.nw-int.on') || {}).dataset ? document.querySelector('.nw-int.on').dataset.int : null,
-      defInst: !!document.querySelector('.nw-pill[data-k="instKey"][data-v="guitar"].on'),
+      defInst: !!document.querySelector('.nw-inst[data-v="guitar"].on'),
       defForm: !!document.querySelector('.nw-pill[data-k="form"][data-v="acc"].on')
     };
   });
-  T(r.ints === 3 && r.oldCards === 0 && r.createHere && r.feats === 3 && r.basics
+  T(r.ints === 3 && r.oldCards === 0 && r.createHere && r.feats === 2 && r.humGone
+    && r.instGrid && r.subIcons && r.basics
     && r.defInt === 'inst' && r.defInst && r.defForm,
-    'T1 一屏结构（三意图卡/旧九卡撤/创建在首屏/导入3入口/默认器乐·吉他·伴奏）', JSON.stringify(r));
+    'T1 一屏结构（三意图卡/乐器网格/二级图标/导入2卡哼唱撤/默认器乐·吉他·伴奏）', JSON.stringify(r));
 
   // T2 一击默认建谱 = 吉他弹唱
   r = await pg.evaluate(() => {
@@ -76,7 +80,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     CASES.forEach(([intent, clicks, type, extra], i) => {
       showNewWizard();
       document.querySelector('.nw-int[data-int="' + intent + '"]').click();
-      clicks.forEach(([k, v]) => document.querySelector('.nw-pill[data-k="' + k + '"][data-v="' + v + '"]').click());
+      clicks.forEach(([k, v]) => document.querySelector('[data-k="' + k + '"][data-v="' + v + '"]').click());
       document.getElementById('nw-create').click();
       const got = sig(song);
       const want = sig(createSong(type, Object.assign({}, base, extra)));
@@ -92,12 +96,12 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     showNewWizard();
     const q = s => !!document.querySelector(s);
     document.querySelector('.nw-int[data-int="vocal"]').click();
-    const vocalRow = q('.nw-pill[data-k="vocalN"]') && !q('.nw-pill[data-k="instKey"]');
+    const vocalRow = q('.nw-pill[data-k="vocalN"]') && !q('[data-k="instKey"]');
     document.querySelector('.nw-int[data-int="inst"]').click();
     document.querySelector('.nw-pill[data-k="form"][data-v="lead"]').click();
-    document.querySelector('.nw-pill[data-k="instKey"][data-v="piano"]').click();   // lead 对钢琴非法 → 钳回 pacc
+    document.querySelector('[data-k="instKey"][data-v="piano"]').click();   // lead 对钢琴非法 → 钳回 pacc
     const clamp = q('.nw-pill[data-k="form"][data-v="pacc"].on') && !q('.nw-pill[data-k="form"][data-v="lead"]');
-    document.querySelector('.nw-pill[data-k="instKey"][data-v="other"]').click();
+    document.querySelector('[data-k="instKey"][data-v="other"]').click();
     const clefRow = q('.nw-pill[data-k="clef"][data-v="staff"].on');
     document.getElementById('nw-cancel').click();
     return { vocalRow, clamp, clefRow };

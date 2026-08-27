@@ -99,14 +99,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const stand = document.getElementById('b-stand');
     const rate025 = !!document.querySelector('#mx-rate option[value="0.25"]');
     document.getElementById('b-new').click();
-    const feats = document.querySelectorAll('.nw-feats .nwf').length;
+    const feats = document.querySelectorAll('.nw-imp .nwi').length;   /* v60.45 导入区两卡（MusicXML/GP，哼唱全站暂下） */
     const cancel = document.getElementById('nw-cancel'); if (cancel) cancel.click();
     stand.click();
     const standOn = document.body.classList.contains('stand');
     if (standOn) exitStand();
     return { stand: !!stand, rate025, feats, standOn };
   });
-  T(r.stand && r.rate025 && r.feats === 3 && r.standOn,   /* v60.26 导入组 3 入口：MusicXML/GuitarPro/哼唱——MIDI 移出新建向导，
+  T(r.stand && r.rate025 && r.feats === 2 && r.standOn,   /* v60.45 导入 2 入口：MusicXML/GuitarPro（哼唱暂下、MIDI 在创作辅助）；v60.26 旧口径：
        改为创作辅助第一项（替代一键配和弦）与启动台直达独立界面（产品负责人指定） */
     'T6 谱架入口/0.25×/向导提权', '谱架可进=' + r.standOn + ' 提权按钮=' + r.feats);
 

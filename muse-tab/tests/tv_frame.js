@@ -177,7 +177,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       libHidden: !libCard || libCard.offsetParent === null,
       leftNoPat: !document.querySelector('#left-flyout #panel-tab-pat') };
     document.querySelector('.rtab[data-p="make"]').click();
-    const a = { sug: vis('rt-midi'), fill: vis('rt-fill'), hum: vis('rt-hum'), arrHidden: !vis('rt-arr') };   /* v60.26 首项=导入MIDI */
+    const a = { sug: vis('rt-midi'), fill: vis('rt-fill'), hum: !vis('rt-hum'), arrHidden: !vis('rt-arr') };   /* v60.26 首项=导入MIDI；v60.45 哼唱暂下→hum=已隐藏 */
     /* 一键配伴奏按谱类显隐：show('rt-arr', dt∈{vocal,teach,instr})——故用歌谱验「显」，
        pianoacc 只验伴奏面板仍挂在 lib-host（结构未因隐藏库页签而丢失） */
     loadSong(createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 1 }));

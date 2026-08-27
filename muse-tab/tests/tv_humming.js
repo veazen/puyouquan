@@ -73,10 +73,12 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   console.log((t4.err?'✅':'❌')+' T4 无声输入优雅降级: error='+t4.err);
   if(t4.err) pass++;
   // T5 向导入口与弹窗
+  /* v60.45 哼唱全站暂下：向导内 nw-hum 撤下（has=不存在），弹窗流程经保留的 showHumModal 程序化可达 */
   const t5 = await pg.evaluate(()=>{
     document.getElementById('b-new').click();
-    const has=!!document.getElementById('nw-hum');
-    document.getElementById('nw-hum').click();
+    const has=!document.getElementById('nw-hum');
+    document.getElementById('nw-cancel').click();
+    showHumModal();
     const modal=!!document.getElementById('hm-rec') && !!document.getElementById('hm-file2') && !!document.getElementById('hm-bpm');
     document.getElementById('hm-cancel').click();
     return {has, modal};
