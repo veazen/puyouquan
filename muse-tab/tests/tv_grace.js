@@ -184,7 +184,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.nNat === 2 && r.nShp === 2 && Math.abs(r.delta - 9) < 0.6, 'T10 联排倚音让位升号(9px)', JSON.stringify(r));
 
-  // T11 vox 五线谱：主音带临时记号（F→F#）→ stGrace 前倚音组左移 9px（小符干 12px/0.9 宽）
+  /* T11 vox 五线谱：主音带临时记号（F→F#）→ stGrace 前倚音组相对主音左移 9px（小符干 12px/0.9 宽）。
+     v60.52 起断言取「相对主音列 x 的偏移」而非绝对 x：本版为左伸记号（变化音/前倚音）加宽了
+     列间距，带记号的列整体右移，绝对位置不再侵占前一列（正是用户报的重叠），
+     但让位量本身（gxc 的 −9）未变——语义跟随产品演进。 */
   r = await pg.evaluate(() => {
     const build = (acc) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
       const s = createSong('vocal', { title: 'gs', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
@@ -196,14 +199,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
         l.getAttribute('x1') === l.getAttribute('x2') && l.getAttribute('stroke-width') === '0.9'
         && Math.abs(Math.abs(+l.getAttribute('y1') - +l.getAttribute('y2')) - 12) < 0.11)
         .map(l => +l.getAttribute('x1'));
-      return { n: xs.length, x: Math.min(...xs) };
+      const lay = measureLayout(song.measures[0]).voxes[0];
+      return { n: xs.length, x: Math.min(...xs), nx: lay.xs[1] };
     };
     const nat = build(''), shp = build('#');
-    return { nNat: nat.n, nShp: shp.n, delta: +(nat.x - shp.x).toFixed(1) };
+    return { nNat: nat.n, nShp: shp.n,
+      delta: +((nat.x - nat.nx) - (shp.x - shp.nx)).toFixed(1) };
   });
-  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T11 五线谱倚音让位升号(9px)', JSON.stringify(r));
+  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T11 五线谱倚音相对主音让位升号(9px)', JSON.stringify(r));
 
-  // T12 简谱：主音带变化音 → drawGrace 倚音数字组左移 9px（倚音数字 font-size 8.5）
+  // T12 简谱：主音带变化音 → drawGrace 倚音数字组相对主音左移 9px（同 T11 的 v60.52 口径）
   r = await pg.evaluate(() => {
     const build = (acc) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
       const s = createSong('vocal', { title: 'gj', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
@@ -211,12 +216,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       s.measures[0].voxes[0][1].grace = { notes: [{ deg: 2, oct: 0 }], dur: 8 };
       loadSong(s); blurSel = true; render();
       const xs = [...document.querySelectorAll('#score text[font-size="8.5"]')].map(t => +t.getAttribute('x'));
-      return { n: xs.length, x: Math.min(...xs) };
+      const lay = measureLayout(song.measures[0]).voxes[0];
+      return { n: xs.length, x: Math.min(...xs), nx: lay.xs[1] };
     };
     const nat = build(''), shp = build('#');
-    return { nNat: nat.n, nShp: shp.n, delta: +(nat.x - shp.x).toFixed(1) };
+    return { nNat: nat.n, nShp: shp.n,
+      delta: +((nat.x - nat.nx) - (shp.x - shp.nx)).toFixed(1) };
   });
-  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T12 简谱倚音让位变化音(9px)', JSON.stringify(r));
+  T(r.nNat === 1 && r.nShp === 1 && Math.abs(r.delta - 9) < 0.6, 'T12 简谱倚音相对主音让位变化音(9px)', JSON.stringify(r));
 
   // T13 简谱连音线形状（v53.6 歌本标准）：弧横跨首末数字整体上方（端点=数字中心±1，
   //     短弧跨度≥数字宽、弧高 6-9 清晰可见）、长弧上限 15；主音带高八度点时基线上移 7.5 让位

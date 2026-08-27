@@ -5249,7 +5249,12 @@ function measureLayout(mea){
   /* 首小节/变拍处预留拍号横向空间：五线谱/联排谱在行首画叠置拍号，内容整体右移不重叠；
      v47.0 纯 TAB（弹唱/尤克里里）行首同样画拍号，此前未预留导致拍号紧贴首列内容 */
   const needTS = (song.voxNotations||[]).some(isStaffNota) || song.tabStaff || (song.tabVoices||[]).length>0;
-  const tsLead = (needTS && (mea===song.measures[0] || meterChanged))? 17 : 0;
+  /* v60.52 变拍号压小节线（用户报告）：简谱行的变拍号是「N/M」小字（宽约 21px），此前
+     ①纯简谱谱 needTS=false → 变拍处零预留；②有 TAB/五线谱时 tsLead=17 也短于简谱字宽。
+     故变拍处按谱面实际要画的字宽取：简谱行 26、仅五线谱/TAB（叠置字形，窄）沿用 17。 */
+  const hasJP = (mea.voxes||[]).some((_,vi2)=>!isStaffNota((song.voxNotations||[])[vi2])) && !song.chordOnly;
+  const tsLead = (mea===song.measures[0] && needTS)? 17
+    : meterChanged? Math.max(needTS?17:0, hasJP?26:0) : 0;
   const beatFloor = 7*hs;                     // 空拍最低宽（防塌陷）——不再用平地板，疏密由内容决定
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   /* 逐拍统计：每拍所需宽度 = max(该拍音符时值宽之和, 该拍歌词字数×字宽, 列数×最小列距) —
@@ -5261,6 +5266,7 @@ function measureLayout(mea){
   const beatLyrCnt = new Array(beats).fill(0);
   const beatColCnt = new Array(beats).fill(0);
   const beatVoxCnt = new Array(beats).fill(0);
+  const beatHeadLeft = new Array(beats).fill(0);   // v60.52 各拍首列的左伸需求（越拍界，见 scan）
   /* 弹簧-刚杆事件：每拍收集所有声部的列起点 t(0..1) 与该列最小刚性宽（带词=字宽、简谱数字、吉他列），
      供拍内分段映射使用——32分/三连音带逐字歌词时按刚杆撑开，不再按纯时值比例挤成一团 */
   const evts = Array.from({length:beats},()=>[]);
@@ -5274,19 +5280,34 @@ function measureLayout(mea){
              +(!isVox&&c.grace? 8+7*normTabGrace(c.grace).notes.length : 0)    /* v52.7 TAB 倚音占位 */
              +(!isVox&&c.graceA? 8+7*normTabGrace(c.graceA).notes.length : 0)
              +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-durW(c.dur)+4) : 0)
+             +(isVox&&c.acc? (c.acc.length>1?20:14) : 0)   /* v60.52 变化音左伸计入拍宽 */
              +(isVox&&c.clef? 20 : 0)   // v45.6 小节内换谱号：小谱号占位
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
       nB[bi]++;
       const hasLyr = isVox && c.lyrics && c.lyrics.some(x=>x&&x.trim());
       if(hasLyr) cB[bi]++;
       let cmin = isVox? (hasLyr? LYR_MIN : 12*hs) : MIN_COL;
-      if(isVox&&c.grace)  cmin += 5+6.5*normGrace(c.grace).notes.length;
+      /* v60.52 左伸元素净空（用户报告：简谱音符不避开升降号与双倚音导致重叠）：
+         刚杆 min 的语义是「本列→下一列」＝只保护列的**右**侧，而简谱变化音（画在 nx−10.5/−13.5）
+         与**前**倚音组（gxc=nx−10−gW−(acc?9:0)，另含减时线左伸 3.6）都长在列的**左**侧——
+         此前前倚音被错加进本列 cmin（保护错了方向）、变化音则完全没进布局，密集时值下必压前一列。
+         现按几何实测量出 leftW，交由下方 segs 记到**前一段**上；后倚音在右侧，仍留在 cmin。 */
+      let leftW = 0;
+      if(isVox){
+        if(c.acc) leftW = c.acc.length>1? 20 : 14;                      // ♭♭ 双字符左移更多
+        if(c.grace){ const gn=normGrace(c.grace).notes.length;
+          leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)); }     // 组宽+减时线左伸+让位变化音
+      }
       if(isVox&&c.graceA) cmin += 5+6.5*normGrace(c.graceA).notes.length;
       if(!isVox&&c.grace)  cmin += 8+7*normTabGrace(c.grace).notes.length;    /* v52.7 TAB 倚音占位 */
       if(!isVox&&c.graceA) cmin += 8+7*normTabGrace(c.graceA).notes.length;
       if(isVox&&c.chord)  cmin = Math.max(cmin, vcDispW(c.chord)+4);
       if(isVox&&c.clef)   cmin += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
-      evts[bi].push({t:Math.max(0,Math.min(1,cum-bi)), min:cmin});
+      { const tt=Math.max(0,Math.min(1,cum-bi));
+        evts[bi].push({t:tt, min:cmin, left:leftW});
+        /* 拍首列的左伸越过拍界，压的是上一拍末列（或小节线）——登记到拍级，下方并入上一拍宽 */
+        if(leftW>0 && tt<1e-4) beatHeadLeft[bi]=Math.max(beatHeadLeft[bi], leftW);
+      }
       /* v54.1 增时线占位刚杆（用户反馈：延长横线压行尾小节线）：长音的每条「–」在其
          四分拍位登记最小宽度事件——此前该拍若无任何声部的音符列，拍宽塌到 beatFloor(7px)，
          小于横线落点的 NOTE_OFF(10px) 偏移，横线就叠上小节线；登记后空拍与真实音符列同权撑开 */
@@ -5325,13 +5346,16 @@ function measureLayout(mea){
     const nodes=[];
     ev.forEach(e=>{                              // 合并跨声部同时刻节点，取最大刚杆
       const last=nodes[nodes.length-1];
-      if(last && e.t-last.t<1e-4) last.min=Math.max(last.min, e.min);
-      else nodes.push({t:e.t, min:e.min});
+      if(last && e.t-last.t<1e-4){ last.min=Math.max(last.min, e.min); last.left=Math.max(last.left, e.left||0); }
+      else nodes.push({t:e.t, min:e.min, left:e.left||0});
     });
     if(!nodes.length){ warps.push(null); continue; }
     const segs=[];
-    if(nodes[0].t>1e-4) segs.push({p:nodes[0].t, min:0});          // 拍首前导空段（长音延续等）
-    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t, min:n.min}));
+    /* v60.52 段宽 = 本列右侧刚杆 ＋ 下一列左伸需求（变化音/前倚音长在列左侧，吃的是前一段的空间） */
+    if(nodes[0].t>1e-4) segs.push({p:nodes[0].t, min:nodes[0].left});   // 拍首前导空段（长音延续等）
+    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t,
+      /* 扣 4：cmin 基线里已含下一列数字左半宽与基本字距，不重复计入 */
+      min:n.min + (k+1<nodes.length? Math.max(0, nodes[k+1].left-4) : 0)}));
     const minSum=segs.reduce((a,s)=>a+s.min,0);
     const total=Math.max(beatW[i], minSum);      // 刚杆撑破原拍宽 → 拍加宽（三连音带词即此情形）
     /* water-fill：有余量的段按时值比例分，份额不足刚杆的段被钉在刚杆宽 */
@@ -5354,6 +5378,11 @@ function measureLayout(mea){
     beatW[i]=xA;
     warps.push({T,X});
   }
+  /* v60.52 跨拍界的左伸：拍首列的变化音/前倚音压的是上一拍末列，拍间隙 BEAT_GAP 不够则补宽上一拍 */
+  for(let i=1;i<beats;i++){
+    const need = beatHeadLeft[i]-BEAT_GAP;
+    if(need>0){ beatW[i-1]+=need; const w2=warps[i-1]; if(w2) w2.X=w2.X.map((x,k)=>k===w2.X.length-1? x+need : x); }
+  }
   /* v51.8 单小节宽度系数 mea.wf（宽度手柄，默认 1）：缩放拍宽与拍内映射
      （同下方 rowMax 压缩机制）；weight 随之缩放 → 行内两端对齐按调整后内容量分配。
      v52.2 范围放宽 0.3–3（原 0.6 下限过早卡住缩窄） */
@@ -5367,7 +5396,10 @@ function measureLayout(mea){
     beatW=beatW.map(w=>w*k); inner=rowMax;
     warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
   }
-  const beatStart=[]; { let acc=pad+tsLead; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
+  /* v60.52 小节首列的左伸：可用净空只有 pad+NOTE_OFF（21px），双倚音（左伸 20.1）几乎贴上
+     小节线——不够的部分补进本小节左边距（留 3px 最小间隙） */
+  const padL = pad + Math.max(0, beatHeadLeft[0]-(pad+NOTE_OFF-3));
+  const beatStart=[]; { let acc=padL+tsLead; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
   /* 拍内 t(0..1) → 相对拍首 x：走分段映射；无节点的拍退回线性 */
   const warpX = (bi, tIn)=>{
     const w=warps[bi];
@@ -5399,14 +5431,14 @@ function measureLayout(mea){
       const qb=unit/4, qx=[];
       /* v54.1 右边界钳制：横线中心不越过小节右内边距（pos 上限=L.w-pad，+NOTE_OFF 后可探到
          小节线上——正常由占位刚杆撑开、此钳制兜底极端压缩 wf/超满小节） */
-      const qCap = pad+tsLead+inner+gapTotal-4;
+      const qCap = padL+tsLead+inner+gapTotal-4;
       for(let q=1; q*qb<b-1e-4; q++) qx.push(Math.min(pos(cum+q*qb)+NOTE_OFF, qCap));
       qxs.push(qx);
       cum+=b;
     });
     return {xs, ws, ls, qxs, rt:cols.reduce((a,c)=>a+beatsOf(c,unit),0)||1};
   };
-  return {w:inner+gapTotal+pad*2+tsLead, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  return {w:inner+gapTotal+padL+pad+tsLead, weight:inner, tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
 }
 function layoutSystems(){
   const systems=[]; let cur={measures:[],w:0};
@@ -7349,7 +7381,9 @@ function render(){
         if(lm.mi>0){ const pmM=meaMeter(lm.mi-1), cmM=meaMeter(lm.mi);
           if(pmM.beats!==cmM.beats || pmM.unit!==cmM.unit){
             if(isStaff){ p.push(tsigStr(cmM.beats, mx+8, staffB-3*SG, SG)); p.push(tsigStr(cmM.unit, mx+8, staffB-SG, SG)); }
-            else p.push(`<text x="${mx+7}" y="${voxY-3}" font-size="12" font-weight="700" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${cmM.beats}/${cmM.unit}</text>`);
+            /* v60.52 简谱变拍号左对齐贴小节线右侧（此前 anchor=middle 且 x=mx+7 → 字宽 21 的
+               「2/4」左半越过小节线压在上一小节末尾；layout tsLead 已按 26 预留） */
+            else p.push(`<text x="${mx+5}" y="${voxY-3}" font-size="12" font-weight="700" font-family="var(--font-num)" text-anchor="start" fill="var(--ink)">${cmM.beats}/${cmM.unit}</text>`);
           }
         }
         /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部；
@@ -20587,7 +20621,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.51';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.52';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20610,6 +20644,7 @@ const APP_VER='v60.51';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.52</span><div><b>简谱横向避让修正：变拍号不再压小节线、音符自动让开升降号与倚音</b>（用户报告截图：简谱临时变拍号样式与小节线重叠；编辑时音符不会避开升降号和双倚音导致重叠）。① <b>变拍号压线</b>：简谱行的「2/4」小字此前<b>居中</b>画在小节线右 7px 处——字宽 21px 的左半直接压过小节线、糊在上一小节末尾；现改为<b>左对齐贴线右侧</b>，并按谱面实际字宽预留位置：此前只有五线谱/六线谱谱类预留 17px（还短于简谱字宽），<b>纯简谱谱更是零预留</b>，现变拍处按简谱 26px 取足。② <b>音符避让左伸记号</b>：谱面的<b>升降号</b>（画在数字左 10.5–13.5px）与<b>前倚音组</b>（含共用减时线，左伸约 20px、三倚音更宽）都长在音符<b>左侧</b>，而排版引擎的「刚杆」只保护音符<b>右侧</b>——升降号完全没进排版、前倚音还被记在了右侧，密集时值下必然压住前一个音符（实测双倚音重叠 <b>2.9px</b>、减时线 3.8px）。现按几何实测量出各记号的左伸宽度，记到<b>前一段</b>间距上；跨拍与跨小节两种边界情形同样补足（此前小节首列的双倚音距小节线仅剩 <b>1px</b>）。修后同场景净空：升降号 5.9→10.6px、双倚音 −2.9→13.4px、首列 1→15px；<b>无升降号/倚音的普通谱面排版一字不变</b>。新增 <code>tv_jpspace</code> 套件 <b>7+1 项</b>全几何断言（数值坐标，不看截图），对 v60.51 旧文件跑 T1–T4 当场红＝突变实证。CORE 89→<b>90 套件</b>全绿。</div></li>
     <li><span class="v">v60.51</span><div><b>节奏型库筛选展示 + 53231323（2/4）归类调整</b>（产品指示：2 拍的十六分分解移到 2/4 拍分类和半小节分类；库改成筛选展示，不用全部展示方便查找）。① <b>筛选条</b>：库顶部两组 chips——<b>类型</b>（全部 / 分解 / 扫弦）＋<b>拍号</b>（全部 / 2/4 / 3/4 / 4/4 / 6/8 / <b>散拍</b>）；<b>打开即按当前谱拍号收敛</b>：4/4 谱只见 4/4 组、3/4 谱只见 3/4 组，不再全库铺开；「散拍」=不限拍号的半小节/一拍填充组；半小节组内逐款标注分解/扫弦参与类型筛选；自定义组恒显不参与筛选；简谱库同款拍号筛选。② <b>归类调整</b>：「53231323 十六分（2/4）」自 4/4 组移入新设「分解 · 2/4」组（顺手补 5323 八分与低音+柱式两款 2/4 基本款），并新增「53231323 十六分（半小节）」散拍版——2 拍填充可拼两段不同和弦。新增 <code>tv_patfilter</code> 套件。CORE 88→<b>89 套件</b>全绿。</div></li>
     <li><span class="v">v60.50</span><div><b>编辑器变调弹窗对齐观看页：选指法 / 恢复原调 / 变调夹一站式</b>（产品指示：吉他曲谱编辑时点击调号弹窗的功能应该和曲谱浏览时一样）。① <b>点顶栏调号 1=X 打开变调弹窗</b>——与观看页同款纵排卡：<b>原调行</b>（打开时的调与夹位，一键<b>恢复原调</b>——快照整体回填，试了几档不满意随时回起点）/ <b>唱调行</b> ♭ ♯（指法随动重排、变调夹不动）/ <b>变调夹行</b>（唱调锁定：夹 +2 品指法自动降 2 半音换算——变调夹的本义）/ <b>等式行</b>「指法＋夹＝唱调」/ <b>夹位速选</b> 0–7 品（每档标出派生指法调，<b>CAGED 开放把位金色推荐</b>——这就是「选指法」）。非吉他谱类自动只留唱调行。与观看页的区别一句话讲清：观看页变调只影响你看，<b>编辑器变调直接改谱</b>——全程单步 mutate，Ctrl+Z 一键撤销。② <b>编辑器换调引擎升级到 v60.39 重排</b>（此前编辑器还是旧「逐品平移+越界折八度」——和弦图与谱面演奏错位的根源在编辑器侧至此一并根治）：顶栏 ♭/♯、快捷换调、曲谱信息换调<b>三处入口统一</b>——伴奏列随新和弦图取形、旋律列束搜索重排把位、和弦名/拍位和弦/转调标记同步平移，折八度/放不下如实播报。旧 transposeEditor 平移实现删除。新增 <code>tv_edkey</code> 套件。CORE 87→<b>88 套件</b>全绿。</div></li>
     <li><span class="v">v60.49</span><div><b>自定义节奏型改在曲谱编辑器里写</b>（产品更正：新建节奏型直接根据谱类调到曲谱编辑器，只需设定拍号，编辑完有保存到库的按钮）。「＋新建 / 改」不再打开独立编辑器：① <b>只问一个拍号</b>（默认随本谱）→ 直接进入<b>曲谱编辑器</b>写一小节草稿——品位录入 / 扫弦琶音 / 时值连音 / 播放试听，<b>所有编辑工具全部可用</b>；吉他节奏型按谱类给六线谱（尤克里里谱四线），以 <b>C 和弦</b>为示例取品，保存时只记弦序与奏法、套用时按目标和弦自动换指法；简谱节奏型取时值骨架。② 顶部常驻浮条<b>「保存到库」</b>：起名即入库并回到原曲谱；「取消」原样返回。③ <b>原曲谱全程无恙</b>：进入时快照工作区并落<b>崩溃备份</b>——中途刷新/断电重开自动恢复到编辑前状态，未入库的编辑也不丢；草稿期间「新建 / 打开」被拦截防误切换。「改」同一流程：旧节奏型铺回小节接着改。<code>tv_custompat</code> 套件按新流程重写。<b>87 套件</b>全绿。</div></li>
