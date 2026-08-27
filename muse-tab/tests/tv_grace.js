@@ -4,7 +4,12 @@
      + 小连音弧 + 可点热区（v52.8：TAB 行不画斜杠，斜杠仅五线谱行）；联排五线谱同步小符头；布局宽度占位
    - showTabGraceMenu 弹窗逐音改弦/品/时值
    - MusicXML：<grace slash> + string/fret 出入往返
-   - vox 倚音（简谱/五线谱）行为不回归 */
+   - vox 倚音（简谱/五线谱）行为不回归
+   —— v60.58 追加（产品指示：倚音支持时值技巧设置）：
+   T17 弹窗结构：时值补 4 分档（与简谱侧一致）+ 新增技巧行（无/击弦 h/勾弦 p/滑音 sl）
+   T18 技巧落地：点选后写进 col.grace.tk、谱面在小连音弧的弧顶画出斜体字母；换时值不丢技巧
+   T19 兼容护栏：旧数据（无 tk）normTabGrace 归一为 ''、谱面不画字母，且不影响既有弧线
+   对 v60.57 旧文件跑 T17/T18 当场红。 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -127,10 +132,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const hasX = xml.includes('<grace slash="yes"/>') && /<grace slash="yes"\/>[\s\S]*?<type>16th<\/type>[\s\S]*?<string>2<\/string><fret>3<\/fret>/.test(xml);
     const r2 = importMusicXML(xml);
     const g = r2.song && r2.song.measures[0].tabs[0].map(c => c.grace ? normTabGrace(c.grace) : null).find(Boolean);
-    return { hasX, g: JSON.stringify(g), err: (r2 && r2.error) || '' };
+    /* v60.58 normTabGrace 归一结果新增 tk 字段（倚音技巧）——本项核的是 MusicXML 往返保住
+       「弦位/品位/时值」，故只比这两项；tk 目前不进 MusicXML（已知缺口，见 PROJECT.md） */
+    return { hasX, g: JSON.stringify(g && { notes: g.notes, dur: g.dur }),
+      tkAfter: g ? g.tk : null, err: (r2 && r2.error) || '' };
   });
   T(r.hasX && r.g === JSON.stringify({ notes: [{ s: 2, f: 3 }, { s: 2, f: 5 }], dur: 16 }) && !r.err,
-    'T7 MusicXML倚音往返', JSON.stringify(r));
+    'T7 MusicXML倚音往返（弦位/品位/时值；tk 暂不进 MusicXML）', JSON.stringify(r));
 
   // T8 vox 倚音回归：简谱倚音仍渲染 data-grace 热区（数据/交互不受 TAB 倚音改动影响）
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
@@ -330,6 +338,69 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.elbows === 0 && r.nArcs >= 3 && r.fixedW && r.depthOK && !r.nan,
     'T16 倚音连接线1/5弧线(无直角+固定线径0.9+弧深=弦长/5)', JSON.stringify(r));
+
+  /* ===== v60.58 追加：倚音时值 + 技巧 ===== */
+  const GSETUP = `
+    loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0}));
+    { const cs=song.measures[0].tabs[0];
+      cs[0].notes=[{s:3,f:7}]; cs[0].grace={notes:[{s:3,f:5}],dur:16}; }
+    blurSel=true; render();
+    window.__ital=()=>[...document.querySelectorAll('#score text')]
+      .filter(x=>x.getAttribute('font-size')==='8' && x.getAttribute('font-style')==='italic')
+      .map(x=>x.textContent);
+  `;
+
+  // T17 弹窗结构：时值 4 档 + 技巧 4 档
+  r = await pg.evaluate(GSETUP + `(()=>{
+    const hz=document.querySelector('[data-tabgrace]');
+    const seg=hz.dataset.tabgrace.split(':');
+    showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], 300, 300);
+    const durs=[...document.querySelectorAll('#popmenu [data-gt]')].map(x=>x.dataset.gt);
+    const tks=[...document.querySelectorAll('#popmenu [data-gk]')].map(x=>x.dataset.gk);
+    const title=hz.querySelector('title').textContent;
+    closePop();
+    return {durs, tks, title};
+  })()`);
+  T(r.durs.join() === '4,8,16,32' && r.tks.join() === ',h,p,sl' && r.title.indexOf('技巧') >= 0,
+    'T17 倚音弹窗：时值补 4 分档 + 技巧行（无/h/p/sl）', JSON.stringify(r));
+
+  // T18 技巧落地：写进数据 + 谱面弧顶画出字母 + 换时值不丢
+  r = await pg.evaluate(GSETUP + `(()=>{
+    const before=__ital();
+    const seg=document.querySelector('[data-tabgrace]').dataset.tabgrace.split(':');
+    showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], 300, 300);
+    document.querySelector('#popmenu [data-gk="p"]').click();
+    const tk1=song.measures[0].tabs[0][0].grace.tk;
+    closePop(); blurSel=true; render();
+    const after=__ital();
+    /* 字母落在弧顶：y 应在倚音/主音所在弦线之上 */
+    const lt=[...document.querySelectorAll('#score text')]
+      .filter(x=>x.getAttribute('font-style')==='italic' && x.textContent==='p')[0];
+    const num=[...document.querySelectorAll('#score text')]
+      .filter(x=>x.getAttribute('font-size')==='8' && x.textContent==='5')[0];
+    const above = lt && num? (lt.getBBox().y + lt.getBBox().height) <= num.getBBox().y + 0.5 : false;
+    /* 换时值不丢技巧 */
+    showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], 300, 300);
+    document.querySelector('#popmenu [data-gt="4"]').click();
+    const g=song.measures[0].tabs[0][0].grace;
+    closePop();
+    return {before, after, tk1, dur:g.dur, tk2:g.tk, above,
+      nan:document.getElementById('score').innerHTML.includes('NaN')};
+  })()`);
+  T(r.before.length === 0 && r.after.join() === 'p' && r.tk1 === 'p'
+    && r.dur === 4 && r.tk2 === 'p' && r.above && !r.nan,
+    'T18 技巧落地：写进 grace.tk + 弧顶画字母 + 换时值不丢', JSON.stringify(r));
+
+  // T19 兼容护栏：旧数据无 tk → '' 且不画字母，弧线照旧
+  r = await pg.evaluate(GSETUP + `(()=>{
+    const g0=normTabGrace({notes:[{s:2,f:3}],dur:8});
+    const letters=__ital();
+    const arcs=[...document.querySelectorAll('#score path')].filter(x=>{
+      const d=x.getAttribute('d')||''; return !x.getAttribute('transform') && d.slice(0,2)==='M ' && d.indexOf(' Q ')>0;});
+    return {tk:g0.tk, dur:g0.dur, nNotes:g0.notes.length, letters, nArc:arcs.length};
+  })()`);
+  T(r.tk === '' && r.dur === 8 && r.nNotes === 1 && r.letters.length === 0 && r.nArc >= 1,
+    'T19 兼容护栏：旧倚音归一 tk=\'\'、不画字母、弧线照旧', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

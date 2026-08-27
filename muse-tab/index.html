@@ -5028,9 +5028,13 @@ function normGrace(g){
 }
 /* v52.7 TAB 倚音数据：{notes:[{s,f}×1..3], dur}——与 vox 倚音同字段名（col.grace/graceA、纯增量），
    记弦位+品位而非唱名；倚音由此在所有谱类统一：TAB 行、联排五线谱、简谱/五线谱各自渲染同一份数据 */
+/* v60.58 倚音技巧 tk（产品指示：倚音支持时值技巧设置）：''=无 / 'h' 击弦 / 'p' 勾弦 / 'sl' 滑音——
+   吉他惯例，字母标在倚音↔主音那条小连音弧的弧顶（GP 同款）。纯记谱，不改播放。
+   旧数据无 tk → ''，与既有倚音完全兼容（字段只增不改，红线安全）。 */
 function normTabGrace(g){
   if(g==null) return null;
-  return {notes:(g.notes||[]).map(n=>({s:Math.max(1,n.s||1), f:Math.max(0,n.f||0)})).slice(0,3), dur:g.dur||8};
+  return {notes:(g.notes||[]).map(n=>({s:Math.max(1,n.s||1), f:Math.max(0,n.f||0)})).slice(0,3),
+    dur:g.dur||8, tk:g.tk||''};
 }
 /* v53.3 简谱和音纵列总高（像素）：每音槽位=数字 13.5 + 低八度点让位 + 高八度点让位；
    渲染堆叠与和弦标注避让共用同一算法，保证不重叠 */
@@ -7249,7 +7253,7 @@ function render(){
             });
             /* v52.8 产品拍板：TAB 行倚音不画斜杠（GP 同款——斜杠仅保留在五线谱行）；
                slY 仅作点击热区上缘预留 */
-            const slY = gyTop-6.5;
+            const slY = gyTop-6.5 - (g.tk? 5 : 0);   /* v60.58 技巧字母在弧顶上方，热区随之上扩 */
             /* 小连音弧：倚音组 ↔ 主音（优先同弦主音，其次首个主音） */
             const tgtN = (col.notes||[]).find(n2=>n2.s===g.notes[pre? g.notes.length-1 : 0].s) || (col.notes||[])[0];
             if(tgtN){
@@ -7257,8 +7261,14 @@ function render(){
               const gyA = tabTop+(g.notes[pre? g.notes.length-1 : 0].s-1)*STR;
               if(pre) p.push(tieSVG(gx0-2, gyA-4, nx-4.5, ty2-4, Math.min(gyA,ty2)-9, 1.1));
               else    p.push(tieSVG(nx+4.5, ty2-4, gx0+gW+2, gyA-4, Math.min(gyA,ty2)-9, 1.1));
+              /* v60.58 倚音技巧字母：标在小连音弧的弧顶（吉他惯例 h/p/sl）；纸底描边防压弦线 */
+              if(g.tk){
+                const kx = pre? (gx0-2+nx-4.5)/2 : (nx+4.5+gx0+gW+2)/2;
+                const ky = Math.min(gyA,ty2)-9.5;
+                p.push(`<text x="${kx.toFixed(1)}" y="${ky.toFixed(1)}" font-size="8" font-style="italic" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.2" stroke-linejoin="round" fill="var(--ink)">${g.tk}</text>`);
+              }
             }
-            p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值，最多3音）</title></rect>`);
+            p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值/技巧 h·p·sl，最多3音）</title></rect>`);
           });
           const hasEvt = col.notes.length || col.strum;
           /* v57.4 二分/全音符增时线（用户反馈：TAB 二分音符只有一根符干、与四分无区别看不出延长）：
@@ -11895,7 +11905,9 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
       ${rows}
       <div class="row" style="margin-top:5px">${g.notes.length<3?`<button data-ga="1">＋加音符</button>`:''}</div>
       <div class="t" style="margin-top:5px">时值（组内共用）</div>
-      <div class="row">${[[8,'8分'],[16,'16分'],[32,'32分']].map(([d,l])=>`<button data-gt="${d}" class="${g.dur===d?'on':''}">${l}</button>`).join('')}
+      <div class="row">${[[4,'4分'],[8,'8分'],[16,'16分'],[32,'32分']].map(([d,l])=>`<button data-gt="${d}" class="${g.dur===d?'on':''}">${l}</button>`).join('')}</div>
+      <div class="t" style="margin-top:5px">技巧（标在倚音↔主音的小连音弧上，吉他惯例；纯记谱不改播放）</div>
+      <div class="row">${[['','无'],['h','击弦 h'],['p','勾弦 p'],['sl','滑音 sl']].map(([k,l])=>`<button data-gk="${k}" class="${(g.tk||'')===k?'on':''}">${l}</button>`).join('')}
         <button data-gx="1" style="margin-left:12px">删除倚音</button></div>`;
   };
   rebuild();
@@ -11904,9 +11916,9 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
     const gs=ev.target.closest('[data-gs]'), gt=ev.target.closest('[data-gt]'),
           gp=ev.target.closest('[data-gp]'), gm=ev.target.closest('[data-gm]'),
           ga=ev.target.closest('[data-ga]'), gr=ev.target.closest('[data-gr]'),
-          gx=ev.target.closest('[data-gx]');
+          gk=ev.target.closest('[data-gk]'), gx=ev.target.closest('[data-gx]');
     if(gx){ mutate(()=>{ delete col[key]; }); closePop(); return; }
-    if(!gs && !gt && !gp && !gm && !ga && !gr) return;
+    if(!gs && !gt && !gp && !gm && !ga && !gr && !gk) return;
     mutate(()=>{
       const g=normTabGrace(col[key]);
       if(gs){ const [gi,s2]=gs.dataset.gs.split(':').map(Number); g.notes[gi].s=s2; }
@@ -11915,6 +11927,7 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
       if(ga && g.notes.length<3) g.notes.push({s:g.notes[g.notes.length-1].s, f:g.notes[g.notes.length-1].f});
       if(gr && g.notes.length>1) g.notes.splice(+gr.dataset.gr,1);
       if(gt) g.dur=+gt.dataset.gt;
+      if(gk) g.tk=gk.dataset.gk;          /* v60.58 倚音技巧 */
       col[key]=g;
     });
     rebuild();
@@ -20853,7 +20866,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.57';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.58';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20876,6 +20889,7 @@ const APP_VER='v60.57';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.58</span><div><b>倚音支持时值与技巧设置</b>（产品指示）。① <b>技巧（新增）</b>：吉他谱的倚音现在可以设 <b>击弦 h / 勾弦 p / 滑音 sl</b>（或「无」）——字母按吉他惯例标在<b>倚音↔主音那条小连音弧的弧顶</b>（Guitar Pro 同款位置），纸底描边不压弦线；点击谱面上的倚音即可设置，热区随字母自动上扩，加了字母也照样点得中。② <b>时值补齐</b>：吉他谱倚音的时值档此前只有 8/16/32 分，现补上 <b>4 分</b>，与简谱侧的档位一致。换时值不会把已设的技巧弄丢。③ <b>老谱完全兼容</b>：此前存的倚音没有技巧字段，读进来一律归为「无」、谱面一个字母都不多画，既有的倚音弧线分毫不变。<b>如实记录一处边界</b>：倚音技巧目前<b>不进 MusicXML 导出/导入</b>（弦位、品位、时值照常往返），需要跨软件传递技巧的话待后续补。<code>tv_grace</code> 16→<b>19 项</b>（弹窗档位／技巧写入数据并画在弧顶且换时值不丢／旧数据兼容护栏），对 v60.57 旧文件跑 T17 当场红、T18 直接崩＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.57</span><div><b>节奏型库支持连音线</b>（产品指示）。节奏型此前只是一串「时值＋弹哪根弦」，<b>连音线一律丢失</b>——切分、跨拍延音这类最常用的节奏写法在库里根本存不下来。现在整条链路都认连音线：① <b>库里画得出来</b>：节奏型卡的预览图直接画出连音弧（六线谱在上方、简谱在符头上方），选之前就看得见；② <b>套用落得下去</b>：吉他谱的连音线是「按音符」的指针，而节奏型是「按列」的时值骨架——套用时才知道落在哪个小节的哪一列，故按<b>同一根弦</b>把本列的音接到下一列的音上；下一列那根弦上没有音就<b>不画</b>（不会留下指向空处的野指针）。半小节/一拍节奏型套用时列号带偏移，接线同样准。简谱侧节奏型自带的连音线生效，且<b>不会抹掉旋律本来就有的连音线</b>；③ <b>自己做的也存得住</b>：在草稿小节里画的连音线，「保存到库」时一并入库，下次点「改」铺回草稿仍带着线。④ 两个库各<b>新增一条示例</b>：吉他「5323 切分延音（跨拍连音线）」、简谱「切分延音 ♪♪⌒♩ ♩」。数据格式只在末位<b>增加一位</b>标记（吉他 ev 第 4 位、简谱 durs 第 3 位），<b>老节奏型与已存的自定义节奏型原样可用</b>。<code>tv_custompat</code> 8→<b>11+1 项</b>（库示例与预览弧线／套用接同弦指针且无野指针／简谱不抹旧连音线／自定义往返），对 v60.56 旧文件跑当场红＝突变实证。CORE <b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.56</span><div><b>双吉他谱面修正：吉他1 的时值线点得中了、吉他2 的连音线与连音数字不再压别人</b>（用户截图报告三项，全部用命中测试与几何断言实测定位）。① <b>双吉他时点不中吉他1 的时值线</b>：根因不是时值线本身——每个 TAB 列在<b>谱表上方</b>还挂着一条 18px 的「选中本列」兜底热区，第二条吉他的这条带子整条落在<b>第一条吉他的符杠区里</b>（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉），而它后画、命中测试就归它。现在第二条起的这条带子<b>钳到上一条的时值线区之下</b>，不足 4px 就整条不画（本列仍可点弦格选中）。修后吉他1 <b>四拍时值线全部命中自己</b>。② <b>吉他2 的连音线压到吉他1</b>：连音线弧顶落在 <code>音符上方 9.5px 再减弧高</code>，1 弦上最坏到 <code>TAB顶线−24.5</code>，而两条吉他之间此前<b>只有 6px 空隙</b>（行间预留只认「第二条有没有和弦名」，连音线/技法/指法一概没算）。现在按第二条声部谱表上方<b>实际挂了什么</b>预留：和弦名 22 / 连音线 26 / 技法·左手指法·摇把 19。实测净距 <b>−18px → +18px</b>。③ <b>吉他2 的 6 连音数字与简谱 6 连音数字重叠</b>：TAB 连音括线的斜体数字挂在 <code>符干基线+9.5</code>，而每条 TAB 声部的行进量只留到 <code>+6</code>，<b>溢出 3.5px 顶进下一行</b>。注意这里不能靠加大符干区解决——那样数字跟着一起下移、净差分毫不变；本版单加一项<b>只增行进量、不动符干基线</b>的预留。实测净距 <b>−0.8px → +9.2px</b>。<b>行距按需增</b>：单吉他谱、以及第二条吉他没有上方元素时，行高<b>一分不变</b>（护栏断言实测 0px）。新增 <code>tv_tab2</code> 套件 <b>5+1 项</b>，对 v60.55 旧文件跑 T1/T2/T3/T5 当场红＝突变实证。CORE 91→<b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.55</span><div><b>变调入口收敛到谱面：点谱上的 1=X 就地开变调弹窗，右上角变调组撤下，弹窗改浅色</b>（产品指示）。① <b>右上角变调组撤下</b>：顶栏那组 <code>♭ 1=C ♯</code> 不再出现在界面上（DOM 保留供「更多功能」抽屉的快速换调与回归套件程序化调用，同 v55.2 经典版入口口径）。② <b>谱面调号点击＝变调弹窗</b>：此前点谱面上的 1=X 弹的是一张平铺 12 个调名的小菜单——只能换调名，夹位、恢复原调、选指法都够不着；现在改为就地弹出与顶栏同一个<b>变调弹窗</b>：打开时原调 + 一键<b>恢复原调</b> / 唱调 <code>♭♯</code>（指法随动重排、夹不动）/ 变调夹 <code>−＋</code>（唱调锁定换算）/ 等式行 / <b>夹位速选 0–7 品</b>（标派生指法调、CAGED 开放把位高亮＝「选指法」）。弹窗<b>左对齐锚在调号正下方</b>（不压左栏），下方放不下自动翻到上方；再点一次收起。③ <b>弹窗改浅色</b>：它现在是从浅色谱纸上弹出来的，原来的深绿浮层压在谱面上像块补丁——底色/描边/文字/chip 全部改走主题变量（<code>--panel</code>/<code>--border</code>/<code>--text</code>），夜间主题自动跟随；CAGED 高亮由金色改琥珀（浅底上金色不可读）。观看页的变调弹窗维持 v55.6 深色不动（那是深色播放坞一族）。<b>踩到的坑</b>：谱面热区是 <code>pointerdown</code> 开的弹窗，紧随其后的 <code>click</code> 冒泡到 document 会被两处「点外收起」当场关掉——加 <code>popKeepOpen</code> 断言放行该热区，开合交给弹窗自己 toggle。<code>tv_edkey</code> 7→<b>9 项</b>（新增：谱面真实点击开合＋顶栏组撤下＋无调名菜单＋就地锚定；弹窗底色＝<code>--panel</code> 且观看页仍深色作对照护栏），对 v60.54 旧文件跑两项当场红＝突变实证；<code>tv_capo</code> T3 换调路径跟随改走弹窗、T1 改扫可见文本（提示语里出现「变调夹」不该算进谱面标注）。CORE <b>91 套件</b>全绿。</div></li>
