@@ -1242,6 +1242,34 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:#ffcdbf}
 .pat-card .nm{font-size:12px;text-align:center;line-height:1.25}
 .pat-card .bt{font-size:10.5px;color:var(--muted)}
 .pat-card svg{background:var(--panel);border-radius:6px}
+/* v60.48 自定义节奏型：库内自定义卡（改/删角标 + 新建虚线卡）与编辑器 */
+.pat-card{position:relative}
+.cp-ops{position:absolute;top:5px;right:6px;display:flex;gap:4px}
+.cp-ops span{font-size:10.5px;padding:2px 7px;border-radius:8px;background:var(--hover);color:var(--muted)}
+.cp-ops span:hover{background:var(--accent);color:#fff}
+.cpat-new{border-style:dashed;justify-content:center;min-height:96px;color:var(--muted)}
+.cpat-new:hover{border-color:var(--accent);color:var(--accent-ink)}
+.cpn-plus{font-size:24px;line-height:1}
+.pe-row{display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;flex-wrap:wrap}
+.pe-lab{flex:0 0 46px;font-size:12px;color:var(--muted);font-weight:600;padding-top:7px}
+.pe-durs,.pe-pal{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:0}
+.pe-durs button,.pe-pal button,#pe-undo,#pe-clear{border:1px solid var(--border);border-radius:9px;
+  padding:5px 10px;font:inherit;font-size:12px;background:var(--paper);cursor:pointer;color:var(--text)}
+.pe-durs button:hover,.pe-pal button:hover,#pe-undo:hover,#pe-clear:hover{border-color:var(--accent)}
+.pe-durs button.on,#pe-dot.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#pe-steps{display:flex;gap:5px;flex-wrap:wrap;flex:1;min-width:0;min-height:32px;align-items:center;
+  border:1px dashed var(--border);border-radius:10px;padding:5px 8px}
+.pe-step{display:inline-flex;align-items:center;gap:5px;background:var(--hover);border-radius:8px;padding:3px 7px;font-size:12px}
+.pe-step .pe-x{cursor:pointer;color:var(--muted);font-weight:700}
+.pe-step .pe-x:hover{color:var(--accent-ink)}
+.pe-empty{font-size:12px;color:var(--faint)}
+#pe-undo,#pe-clear{align-self:center}
+.pe-prevrow{display:flex;align-items:center;gap:14px;margin:12px 0 0;border:1px solid var(--border-soft);
+  border-radius:12px;padding:10px 12px;flex-wrap:wrap}
+#pe-prev{flex:0 0 auto;color:var(--text)}
+.pe-meta{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px;min-width:0}
+.pe-meta b{font-size:14px;color:var(--text)}
+.pe-hint{font-size:12px;color:var(--muted);margin:9px 0 0;line-height:1.5}
 #toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);
   background:var(--text);color:var(--bg);padding:8px 18px;border-radius:20px;
   font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:60}
@@ -10036,8 +10064,98 @@ function openRhyLib(){
   }
   showPatternLib(sel.row==='vox'? 'vox' : 'tab');
 }
+/* ---- v60.48 自定义节奏型（产品指示：库增加自定义节奏型编辑，设计编辑界面，支持不同谱类） ----
+   存储新键 musetab-custompat={tab:[{name,ev}],vox:[{name,durs}]}（红线口径：新键只增）。
+   套用/图示/拍数全部走既有管线（applyTabPattern/applyVoxPattern/tabPatSVG/rhythmSVG/patBeats），
+   不写第二份实现；钢琴伴奏织体走织体引擎（b-acctex），不在节奏型库——如实边界。 */
+function cpatLoad(){ try{ const o=JSON.parse(localStorage.getItem('musetab-custompat'))||{}; return {tab:o.tab||[], vox:o.vox||[]}; }catch(_){ return {tab:[],vox:[]}; } }
+function cpatSave(o){ try{ localStorage.setItem('musetab-custompat', JSON.stringify(o)); }catch(_){ toast('自定义节奏型保存失败（本地存储可能已满）'); } }
+function showPatEditor(kind, editIdx){
+  const isTab = kind==='tab';
+  const store = cpatLoad();
+  const old = editIdx!=null? store[kind][editIdx] : null;
+  let steps = old? (isTab? old.ev.map(e=>e.slice()) : old.durs.map(e=>e.slice())) : [];
+  let curDur = 8;
+  /* 托盘 token 与 evToCol 同一套语言；弦号钮随当前谱弦数（uku 4 弦不出 5/6 弦） */
+  const TOKS = [
+    ['b','根音低','和弦根音所在低音弦（随和弦图自动取弦品）'],
+    ['B','交替低','根音相邻的另一低音弦（「53 23」里的交替 6 弦）'],
+    ...[1,2,3,4,5,6].filter(n=>n<=strN()).map(n=>['s'+n, n+'弦','固定第 '+n+' 弦（按和弦图取品）']),
+    ['c','柱式','和弦全部发声弦同时弹'],
+    ['d','下扫 ↓','低音弦扫向高音弦'],
+    ['u','上扫 ↑','高音弦扫向低音弦'],
+    ['md','切音扫 ↓·','下扫带切音（箭头带点）'],
+    ['a','琶音','慢滚分解'],
+    ['x','切音 ×','闷住琴弦的节奏击'],
+    ['r','休止','空拍'],
+  ];
+  const TOKLAB={b:'低',B:'低²',s1:'1弦',s2:'2弦',s3:'3弦',s4:'4弦',s5:'5弦',s6:'6弦',c:'柱',d:'↓',u:'↑',md:'↓·',a:'琶',x:'×',r:'休'};
+  showModal(`<h3>${old?'编辑':'新建'}自定义节奏型 · ${isTab?'六线谱（分解/扫弦）':'简谱（时值骨架）'}</h3>
+    <label class="f"><span>名称</span><input id="pe-name" value="${esc(old?old.name:('自定义'+(store[kind].length+1)))}" style="flex:1"></label>
+    <div class="pe-row"><span class="pe-lab">时值</span><div class="pe-durs">
+      ${[2,4,8,16].map(d=>`<button type="button" data-pd="${d}">${d} 分</button>`).join('')}
+      <button type="button" id="pe-dot" title="附点：该步时值 ×1.5">附点 ·</button></div></div>
+    ${isTab? `<div class="pe-row"><span class="pe-lab">加一步</span><div class="pe-pal">
+      ${TOKS.map(([t,lab,tip])=>`<button type="button" data-pt="${t}" title="${esc(tip)}">${lab}</button>`).join('')}</div></div>`
+    : `<div class="pe-hint">点上方时值即追加一步（要附点先点亮「附点 ·」）。简谱节奏型只定义时值骨架，套用时保留小节里已有的音符。</div>`}
+    <div class="pe-row"><span class="pe-lab">步序</span><div id="pe-steps"></div>
+      <button type="button" id="pe-undo" title="去掉最后一步">⌫</button>
+      <button type="button" id="pe-clear" title="清空重来">清空</button></div>
+    <div class="pe-prevrow"><div id="pe-prev"></div><div class="pe-meta"><b id="pe-beats"></b><span id="pe-fit"></span></div></div>
+    <div class="btns"><button id="pe-cancel">← 返回库</button><button id="pe-save" class="primary">保存到库</button></div>`);
+  const dotOn=()=>document.getElementById('pe-dot').classList.contains('on');
+  const upd=()=>{
+    const stepsEl=document.getElementById('pe-steps');
+    stepsEl.innerHTML = steps.length? steps.map((s,i)=>{
+      const lab = isTab? (TOKLAB[s[0]]||s[0])+' '+s[1]+(s[2]?'·':'') : s[0]+'分'+(s[1]?'·':'');
+      return `<span class="pe-step" data-i="${i}">${lab}<span class="pe-x" data-x="${i}" title="删除这一步">×</span></span>`;
+    }).join('') : '<span class="pe-empty">还没有步——'+(isTab?'选时值后点「加一步」':'点上方时值')+'开始</span>';
+    stepsEl.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>{ steps.splice(+x.dataset.x,1); upd(); });
+    const pat = isTab? {name:'', ev:steps} : {name:'', durs:steps};
+    const bts = steps.length? patBeats(pat) : 0;
+    document.getElementById('pe-beats').textContent = (+bts.toFixed(2))+' 拍';
+    const meaB = song.beats*4/(song.unit||4);
+    document.getElementById('pe-fit').textContent = steps.length?
+      ('本谱 '+song.beats+'/'+song.unit+(Math.abs(bts-meaB)<1e-3?' · 正好一小节':' · 一小节 '+(+meaB.toFixed(2))+' 拍，不符会被节拍检查标出')) : '';
+    document.getElementById('pe-prev').innerHTML = steps.length?
+      (isTab? tabPatSVG(pat,300,78) : rhythmSVG(steps,300,44)) : '<span class="pe-empty">实时预览</span>';
+    document.querySelectorAll('.pe-durs [data-pd]').forEach(b=>b.classList.toggle('on', isTab && +b.dataset.pd===curDur));
+  };
+  document.querySelectorAll('.pe-durs [data-pd]').forEach(b=>b.onclick=()=>{
+    if(isTab){ curDur=+b.dataset.pd; upd(); }
+    else { steps.push(dotOn()? [+b.dataset.pd,1] : [+b.dataset.pd]); upd(); }
+  });
+  document.getElementById('pe-dot').onclick=function(){ this.classList.toggle('on'); };
+  document.querySelectorAll('.pe-pal [data-pt]').forEach(b=>b.onclick=()=>{
+    steps.push(dotOn()? [b.dataset.pt,curDur,1] : [b.dataset.pt,curDur]); upd();
+  });
+  document.getElementById('pe-undo').onclick=()=>{ steps.pop(); upd(); };
+  document.getElementById('pe-clear').onclick=()=>{ steps=[]; upd(); };
+  document.getElementById('pe-cancel').onclick=()=>showPatternLib(kind);
+  document.getElementById('pe-save').onclick=()=>{
+    if(!steps.length) return toast('还没有任何步——先加几步再保存');
+    const name=document.getElementById('pe-name').value.trim()||('自定义'+(store[kind].length+1));
+    const entry = isTab? {name, ev:steps} : {name, durs:steps};
+    const st=cpatLoad();
+    if(old) st[kind][editIdx]=entry; else st[kind].push(entry);
+    cpatSave(st);
+    toast('已保存到节奏型库：'+name);
+    showPatternLib(kind);
+  };
+  upd();
+}
 function showPatternLib(kind){
   const groups = kind==='tab'?TAB_PATTERN_GROUPS:VOX_PATTERN_GROUPS;
+  /* v60.48 自定义组置顶：用户自己的节奏型 + 新建入口；卡上「改/删」小钮 */
+  const cust = cpatLoad()[kind];
+  const custBody = `<h4>自定义 · 我的节奏型</h4><div class="pat-grid">`
+    + cust.map((p,ci)=>{
+      const svg = kind==='tab'?tabPatSVG(p,140,62):rhythmSVG(p.durs,140,36);
+      return `<div class="pat-card cpat" data-ci="${ci}">${svg}<div class="nm">${esc(p.name)}</div>
+        <div class="bt">${+patBeats(p).toFixed(2)} 拍</div>
+        <div class="cp-ops"><span class="cp-edit" data-ce="${ci}" title="编辑该节奏型">改</span><span class="cp-del" data-cd="${ci}" title="删除该节奏型">删</span></div></div>`;
+    }).join('')
+    + `<div class="pat-card cpat-new" id="cpat-new"><span class="cpn-plus">＋</span><div class="nm">新建节奏型</div><div class="bt">${kind==='tab'?'自定义分解 / 扫弦':'自定义时值组合'}</div></div></div>`;
   const body = groups.map((g,gi)=>
     `<h4>${esc(g.cat)}</h4><div class="pat-grid">`+
     g.items.map((p,pi)=>{
@@ -10051,11 +10169,17 @@ function showPatternLib(kind){
     : `将套用到第 ${sel.mi+1} 小节（可先 Shift+点击多选）`;
   showModal(`<h3>${kind==='tab'?'吉他节奏型库':'简谱节奏型库'}</h3>
     <p>${tip}。吉他节奏型在小节有和弦时按指法自动生成音符；拍数与拍号不符会被"节拍检查"标出。</p>
-    ${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
+    ${custBody}${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
   document.getElementById('lib-close').onclick = closeModal;
   document.querySelector('.modal').addEventListener('click', e=>{
+    if(e.target.closest('#cpat-new')){ showPatEditor(kind, null); return; }
+    const ce=e.target.closest('[data-ce]'); if(ce){ showPatEditor(kind, +ce.dataset.ce); return; }
+    const cd=e.target.closest('[data-cd]');
+    if(cd){ if(confirm('删除该自定义节奏型？')){ const st=cpatLoad(); st[kind].splice(+cd.dataset.cd,1); cpatSave(st); showPatternLib(kind); } return; }
     const card = e.target.closest('.pat-card'); if(!card) return;
-    const pat = groups[+card.dataset.g].items[+card.dataset.p];
+    const pat = card.classList.contains('cpat')? cpatLoad()[kind][+card.dataset.ci]
+      : groups[+card.dataset.g].items[+card.dataset.p];
+    if(!pat) return;
     closeModal();
     if(kind==='tab') applyTabPattern(pat); else applyVoxPattern(pat);
   });
@@ -20311,7 +20435,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.47';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.48';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20334,6 +20458,7 @@ const APP_VER='v60.47';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.48</span><div><b>自定义节奏型：库内新建 / 编辑 / 删除，吉他谱与简谱两谱类全支持</b>（产品指示：节奏型库增加自定义节奏型编辑功能，设计节奏型编辑界面，支持不同谱类）。节奏型库顶部新增<b>「自定义 · 我的节奏型」</b>组：① <b>「＋新建节奏型」</b>打开编辑器——选<b>时值</b>（2/4/8/16 分＋附点）、点<b>「加一步」托盘</b>逐步搭建：根音低/交替低/1–6 弦（尤克里里谱自动只出 4 根弦）/柱式/下扫/上扫/切音扫/琶音/切音×/休止——与内置节奏型同一套记谱语言；步序随点随删（每步 × / 退一步 / 清空），<b>教材式六线图实时预览</b>＋拍数即时统计（与本谱拍号对照，不符会提示由节拍检查标出）。② <b>简谱侧</b>同款编辑器：点时值即追加（附点先点亮），定义时值骨架，套用时保留小节已有音符。③ 保存即入库：自定义卡与内置卡<b>同样一键套用</b>（有和弦时按指法自动生成音符），卡上「改 / 删」随时维护；<b>持久保存</b>（新键 <code>musetab-custompat</code>，数据红线安全），换谱重开都在。套用/图示/拍数全部复用既有管线，不写第二份实现；钢琴伴奏织体走「伴奏织体」引擎，暂不在自定义范围（如实边界）。新增 <code>tv_custompat</code> 套件 <b>7+1 项</b>（两库自定义组/编辑器结构与 uku 弦数口径/构建保存/C 和弦套用逐列实证/编辑删除/简谱附点骨架/重载持久化）。CORE 86→<b>87 套件</b>全绿。</div></li>
     <li><span class="v">v60.47</span><div><b>新建向导二级选项下拉化 + 53231323 十六分分解两款</b>（产品指示：二级选项用下拉选择、图标加文字样式、不占太多位；节奏型库补 53231323 的 16 分 4/4 与 2/4 拍分解）。① <b>二级全部改下拉</b>：声乐「形式」、器乐「乐器/形态/谱号」、功能「谱式」统一为 图标＋文字 的下拉菜单——乐器菜单保留 弹拨/键盘/西洋管弦/民乐 组标题，21 种乐器一个下拉装下，原三行图标网格的占位收敛为一行；选中项在菜单内高亮，选择即收起。② <b>节奏型库新增两款分解</b>：「53231323 十六分（4/4）」（一小节两遍、后半保持根音——与既有「流水分解」交替低音版并存）与「53231323 十六分（2/4）」（一小节一遍），扫弦/分解图示与套用逻辑走既有管线。<code>tv_newwiz</code> 断言跟随下拉结构。<b>86 套件</b>全绿。</div></li>
     <li><span class="v">v60.46</span><div><b>乐器体系扩编：器乐谱编入 21 种乐器（图标＋名称，产品截图对照整理）</b>。① <b>乐器网格按族分组</b>——<b>弹拨</b>（吉他 / 尤克里里 / 贝斯）、<b>键盘</b>（钢琴 / 电钢琴 / 电子琴 / 手风琴）、<b>西洋管弦 · 五线谱</b>（小提琴 / 长笛 / 萨克斯 / 小号 / 圆号 / 长号）、<b>民乐 · 简谱</b>（二胡 / 笛子 / 葫芦丝 / 唢呐 / 古筝 / 琵琶 / 扬琴 / 口琴）＋「其他器乐」兜底，共 <b>16 枚新细线图标</b>入库，组内自动铺开、滚动容器保持弹窗一屏。② <b>每件乐器落到对应谱式</b>：键盘族=大谱表（独奏 / 弹唱织体两形态）；管弦族=单谱表五线谱、<b>谱号按乐器预置</b>（长号/贝斯自动低音谱号，不再要用户懂谱号）；民乐族=简谱独奏（民乐惯例，记谱法随时切五线谱显示）；吉他/尤克里里六线谱形态不变。③ <b>乐器身份随谱保存</b>（新增 <code>instKey</code> 字段，数据红线口径只增不动）：最左栏音轨钮与「当前音轨」行显示<b>所选乐器本尊图标</b>——二胡谱就是二胡，电钢琴就是电钢琴。④ <b>混音台默认音色随乐器预置</b>：长笛/笛子→长笛音色，二胡/小提琴→弦乐，古筝/琵琶→尼龙弦，钢琴/电钢琴→对应键盘音色——<b>顺手修正</b>此前新建钢琴/器乐谱声部默认落「人声啊」音色的旧疏漏；暂无专属采样的乐器先落最近似档，音色扩充在路线图。爵士鼓/架子鼓需鼓谱引擎（路线图后段），本轮不编入。<code>tv_newwiz</code> 断言跟随（分组结构 / 新乐器组合等价矩阵 / 音色预置）。<b>86 套件</b>全绿。</div></li>
     <li><span class="v">v60.45</span><div><b>新建界面 Apple 风格重做 + 乐器图标体系 + 导入区样式修复</b>（产品指示：整体苹果风格简约美观；一级三大图标以图标为主字体为辅；二级也带图标；乐器选择换可扩展形式；左栏图标对应；暂下哼唱成谱；修导入样式问题）。① <b>一级三大卡</b>：声乐谱 / 器乐谱 / 功能谱——32px 细线大图标为主、名称与副字为辅，悬停轻浮起、选中朱砂细框浅底（Apple 形制、产品配色）。② <b>二级选项全部带图标</b>：独唱（麦克风）/ 合唱（双人）/ 伴奏弹唱（节奏）/ 电吉他 Solo（拨片）/ 指弹（弦上拨弧）/ 级数谱 / 和弦格——新增四枚细线图标入库。③ <b>乐器选择改为图标网格</b>：吉他 / 尤克里里 / 钢琴 / 其他器乐 每格图标在上名称在下，<b>数据驱动、自动铺开</b>——后期上新乐器只加一行数据，版式零改动。④ <b>乐器图标三处统一</b>：新建网格、最左栏音轨钮、「当前音轨」行同一套映射——新建时选的什么乐器，左栏就是什么图标（人声旋律轨统一为麦克风）。⑤ <b>导入区重做</b>：旧虚线提权框内文字溢出截断（产品指出的样式问题）——改为「已有曲子？直接导入」两张干净卡片（MusicXML / Guitar Pro），图标＋标题＋单行省略说明，任何宽度不再溢出。⑥ <b>哼唱成谱全站暂下</b>（产品指示）：新建向导与创作辅助入口全部撤下；识别引擎与录音流程完整保留（程序化可达），恢复入口只需一行。<code>tv_newwiz</code> 断言跟随（乐器网格/二级图标/导入两卡）、<code>tv_safety</code>/<code>tv_frame</code>/<code>tv_humming</code> 口径更新。<b>86 套件</b>全绿。</div></li>
