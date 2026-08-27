@@ -55,9 +55,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=createSong('vocal',{title:'x',key:'C',beats:4,unit:4,nMea:2,nVox:1,lyr:0});
     s.measures[0].voxes[0]=[V(1,4),V(2,4),V(3,4),V(4,4)];
     s.measures[1].beats=3; s.measures[1].unit=4; s.measures[1].voxes[0]=[V(1,4),V(2,4),V(3,4)];
-    loadSong(s); const h=document.getElementById('score').innerHTML;
-    return {jp34:h.indexOf('>3/4</text>')>=0, clean:h.indexOf('NaN')<0}; })()`);
-  T(r.jp34 && r.clean, 'T4 简谱中途变拍号标注', JSON.stringify(r));
+    loadSong(s); blurSel=true; render();
+    const h=document.getElementById('score').innerHTML;
+    /* v60.53 简谱变拍号改分数式上下叠置（产品指示），不再是斜杠文本「3/4」——
+       断言改为：小节头有上下两个数字 + 中间横线，且横向位置一致（同一分数） */
+    const ts=[...document.querySelectorAll('#score text')]
+      .filter(x=>x.getAttribute('font-size')==='11' && /^[0-9]+$/.test(x.textContent));
+    const at=x=>+x.getAttribute('x');
+    const num=ts.find(x=>x.textContent==='3'), den=ts.find(x=>x.textContent==='4' && Math.abs(at(x)-(num?at(num):1e9))<0.6);
+    const bar=[...document.querySelectorAll('#score line')].some(l=>
+      Math.abs(+l.getAttribute('y1')-+l.getAttribute('y2'))<0.3 && num
+      && Math.abs((+l.getAttribute('x1')+ +l.getAttribute('x2'))/2 - at(num))<1.5);
+    return {jp34: !!(num&&den&&bar), noSlash: h.indexOf('>3/4</text>')<0, clean:h.indexOf('NaN')<0}; })()`);
+  T(r.jp34 && r.noSlash && r.clean, 'T4 简谱中途变拍号=分数式上下叠置（v60.53 改样式）', JSON.stringify(r));
 
   // T5 measureSeconds 按本小节拍号
   r = await pg.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0;

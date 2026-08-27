@@ -5254,7 +5254,7 @@ function measureLayout(mea){
      故变拍处按谱面实际要画的字宽取：简谱行 26、仅五线谱/TAB（叠置字形，窄）沿用 17。 */
   const hasJP = (mea.voxes||[]).some((_,vi2)=>!isStaffNota((song.voxNotations||[])[vi2])) && !song.chordOnly;
   const tsLead = (mea===song.measures[0] && needTS)? 17
-    : meterChanged? Math.max(needTS?17:0, hasJP?26:0) : 0;
+    : meterChanged? Math.max(needTS?17:0, hasJP?20:0) : 0;   /* v60.53 分数式更窄：26→20 */
   const beatFloor = 7*hs;                     // 空拍最低宽（防塌陷）——不再用平地板，疏密由内容决定
   const gapTotal = BEAT_GAP*Math.max(0, beats-1);
   /* 逐拍统计：每拍所需宽度 = max(该拍音符时值宽之和, 该拍歌词字数×字宽, 列数×最小列距) —
@@ -5376,7 +5376,7 @@ function measureLayout(mea){
     segs.forEach((s,k)=>{ tA+=s.p; xA+=wseg[k]; T.push(Math.min(1,tA)); X.push(xA); });
     T[T.length-1]=1;
     beatW[i]=xA;
-    warps.push({T,X});
+    warps.push({T,X,M:segs.map(sg=>sg.min)});   /* v60.53 保留各段刚杆，供 rowMax 压缩区分弹簧 */
   }
   /* v60.52 跨拍界的左伸：拍首列的变化音/前倚音压的是上一拍末列，拍间隙 BEAT_GAP 不够则补宽上一拍 */
   for(let i=1;i<beats;i++){
@@ -5392,9 +5392,29 @@ function measureLayout(mea){
   /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
   const rowMax=(PAGE_W-2*MARGIN-STAFF_HEAD_W)-gapTotal-pad*2;
   if(inner>rowMax){
-    const k=rowMax/inner;
-    beatW=beatW.map(w=>w*k); inner=rowMax;
-    warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
+    /* v60.53 超宽小节压缩「只吃弹簧、不吃刚杆」（出版惯例：刚性宽度是下限）。
+       此前整体等比压缩把刚杆一起缩水——32 分满小节实测变化音压进前一个音符 3.6px；
+       现先扣各段超出 min 的余量，余量扣尽仍放不下才退回等比（物理确实放不下）。 */
+    const D = inner-rowMax;
+    let slackTotal = 0;
+    warps.forEach(w=>{ if(!w||!w.M) return;
+      for(let k2=0;k2<w.M.length;k2++) slackTotal += Math.max(0, (w.X[k2+1]-w.X[k2]) - w.M[k2]); });
+    if(slackTotal >= D-1e-6 && slackTotal > 1e-6){
+      const ratio = D/slackTotal;
+      warps.forEach((w,i)=>{ if(!w||!w.M) return;
+        const X2=[0]; let acc2=0;
+        for(let k2=0;k2<w.M.length;k2++){
+          const sw=w.X[k2+1]-w.X[k2], sl=Math.max(0, sw-w.M[k2]);
+          acc2 += sw - sl*ratio; X2.push(acc2);
+        }
+        w.X=X2; beatW[i]=acc2;
+      });
+      inner = beatW.reduce((a,b)=>a+b,0);
+    }else{
+      const k=rowMax/inner;
+      beatW=beatW.map(w=>w*k); inner=rowMax;
+      warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
+    }
   }
   /* v60.52 小节首列的左伸：可用净空只有 pad+NOTE_OFF（21px），双倚音（左伸 20.1）几乎贴上
      小节线——不够的部分补进本小节左边距（留 3px 最小间隙） */
@@ -7381,9 +7401,14 @@ function render(){
         if(lm.mi>0){ const pmM=meaMeter(lm.mi-1), cmM=meaMeter(lm.mi);
           if(pmM.beats!==cmM.beats || pmM.unit!==cmM.unit){
             if(isStaff){ p.push(tsigStr(cmM.beats, mx+8, staffB-3*SG, SG)); p.push(tsigStr(cmM.unit, mx+8, staffB-SG, SG)); }
-            /* v60.52 简谱变拍号左对齐贴小节线右侧（此前 anchor=middle 且 x=mx+7 → 字宽 21 的
-               「2/4」左半越过小节线压在上一小节末尾；layout tsLead 已按 26 预留） */
-            else p.push(`<text x="${mx+5}" y="${voxY-3}" font-size="12" font-weight="700" font-family="var(--font-num)" text-anchor="start" fill="var(--ink)">${cmM.beats}/${cmM.unit}</text>`);
+            /* v60.53 简谱变拍号改分数式上下叠置（产品指示；与页头 4/4 同款画法：
+               上分子·横线·下分母），不再写斜杠「2/4」；v60.52 左对齐贴线右侧口径保留 */
+            else {
+              const tcx = mx+11;
+              p.push(`<text x="${tcx}" y="${voxY-9}" font-size="11" font-weight="700" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${cmM.beats}</text>`);
+              p.push(`<line x1="${tcx-6}" y1="${voxY-6}" x2="${tcx+6}" y2="${voxY-6}" stroke="var(--ink)" stroke-width="0.9"/>`);
+              p.push(`<text x="${tcx}" y="${voxY+1}" font-size="11" font-weight="700" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${cmM.unit}</text>`);
+            }
           }
         }
         /* 小节号：非首行行首标注（出版惯例），只画在最上方的五线谱声部；
@@ -7545,7 +7570,10 @@ function render(){
                  推翻此前左上角小上标式摆放）；重降 ♭♭ 两字符略缩并再左移避免压数字 */
               const asym = col.acc==='#'?'♯':col.acc==='b'?'♭':col.acc==='x'?'×':col.acc==='bb'?'♭♭':'♮';
               const adbl = asym.length>1;
-              p.push(`<text x="${nx-(adbl?13.5:10.5)}" y="${voxY-2.5}" font-size="${adbl?12:14}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
+              /* v60.53 变化音贴近主音（产品指示）：单字符 10.5→9.6、双字符 13.5→12.6，
+                 与数字左缘净距收到约 1px（GB 简谱惯例：升降号紧贴其所属音符）；
+                 左侧净空由 v60.52 的 leftW 保证不会压到前一个音符 */
+              p.push(`<text x="${nx-(adbl?12.6:9.6)}" y="${voxY-2.5}" font-size="${adbl?12:14}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
             }
             p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
             /* v43.1 简谱震音杠：数字上方（避让高八度点），1-3 条斜杠 */
@@ -7702,16 +7730,13 @@ function render(){
                           col.orn==='tr'?'ornamentTrill':'ornamentTurn';
               const os = col.orn==='tr'? 0.85 : 0.72;
               p.push(smg(onm, nx-smw(onm)*SG*os/2, oy2+3, SG, {scale:os}));
-            }else if(col.orn==='up' || col.orn==='down'){
-              let d=`M ${nx-6} ${oy2}`;
-              for(let k2=0;k2<3;k2++) d+=` l 2 -3 l 2 3`;
-              p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1"/>`);
-              if(col.orn==='down')
-                p.push(`<line x1="${nx}" y1="${oy2-5.5}" x2="${nx}" y2="${oy2+2.5}" stroke="var(--ink)" stroke-width="1"/>`);
-            }else if(col.orn==='tr'){
-              p.push(`<text x="${nx}" y="${oy2+2}" font-size="10" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">tr</text>`);
-            }else if(col.orn==='turn'){
-              p.push(`<text x="${nx}" y="${oy2+3}" font-size="12" text-anchor="middle" fill="var(--ink)">∽</text>`);
+            }else{
+              /* v60.53 简谱波音/颤音/回音改 SMuFL 出版字形（产品指示：此前手绘锯齿折线与
+                 「tr」文本不是标准出版级符号）——与五线谱同一套字形，仅缩放略小以配简谱字号 */
+              const onmJ = col.orn==='up'?'ornamentShortTrill': col.orn==='down'?'ornamentMordent':
+                           col.orn==='tr'?'ornamentTrill':'ornamentTurn';
+              const osJ = col.orn==='tr'? 0.78 : 0.66;
+              p.push(smg(onmJ, nx-smw(onmJ)*SG*osJ/2, oy2+2, SG, {scale:osJ}));
             }
           }
           /* v41.1 演奏法四件套：五线谱=符头反符干侧（Gould）；简谱=数字上方 GB 形态（▼ · − >） */
@@ -7936,10 +7961,13 @@ function render(){
                 const x2i = mx+lay.xs[0]-6, x1i = Math.max(mx+2, x2i-18);
                 p.push(tieSVG(x1i, ty, x2i, ty, below? ty+3.5 : ty-3.5, 1.9));
               }else{
+                /* v60.53 行首续接改「下降段」：起点在弧顶高度、终点落到首音基线——
+                   与上一行末的「上升段」拼成一条完整弧线（此前两端同基线=独立小弧） */
                 const hiN0 = (cols[0].oct>0)? Math.min(3,cols[0].oct) : 0;
-                const tyB = voxY-16 - (hiN0? 7.5+(hiN0-1)*4.2 : 0);
+                const tyB = voxY-16 - (hiN0? 7.5+(hiN0-1)*4.2 : 0) - (cols[0].orn? 10 : 0);
                 const xBi = mx+lay.xs[0]-1, xAi = Math.max(mx+3, xBi-20);
-                p.push(tieSVG(xAi, tyB, xBi, tyB, tyB-Math.max(5, Math.min(8,(xBi-xAi)*0.5)), 1.9));
+                const rise0 = Math.max(5, Math.min(8,(xBi-xAi)*0.5));
+                p.push(tieSVG(xAi, tyB-rise0*0.92, xBi, tyB, tyB-rise0*1.02, 1.9));
               }
             }
           }
@@ -7977,15 +8005,24 @@ function render(){
                  端点挤在两数字之间的空隙里——x1/x2 从数字中心让出 5/6px，16分对只剩 ~8px 缝）。
                  GB 歌本惯例：弧横跨首末两个数字整体上方——端点落在数字中心 ±1，
                  弧高固定档（短弧 6、随跨度/跨列缓增至 9+增量），基线让过高八度点 */
-              let hiN=0;
-              for(let ci4=a3; ci4<=Math.min(b3+1, cols.length-1); ci4++){ const c4=cols[ci4]; if(c4&&c4.deg&&c4.oct>0) hiN=Math.max(hiN, Math.min(3,c4.oct)); }
+              let hiN=0, hasOrn=false;
+              for(let ci4=a3; ci4<=Math.min(b3+1, cols.length-1); ci4++){ const c4=cols[ci4];
+                if(c4&&c4.deg&&c4.oct>0) hiN=Math.max(hiN, Math.min(3,c4.oct));
+                if(c4&&c4.orn&&c4.deg) hasOrn=true; }   /* v60.53 段内有波音/颤音 → 弧基线让过 */
               const xA = mx+lay.xs[a3]+1;
               const xB = (b3+1<cols.length)? mx+lay.xs[b3+1]-1 : x2;   // 跨小节/行尾续接沿用既有终点
               /* v54.2 与数字留净距（用户反馈：连音线几乎贴着音符）：16.5 号数字顶≈voxY-12，
                  基线 voxY-13 只留 1px——提到 voxY-16 留 4px 净距（歌本口径）；高八度让位量不变 */
-              const tyB = voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0);
+              /* v60.53 波音让位（产品报告重叠）：波音字形画在 voxY−15 上下，与旧基线 voxY−16
+                 几乎同高必压；有波音时基线再抬 10px（波音字形高约 8 + 2px 净距） */
+              const tyB = voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0) - (hasOrn? 10 : 0);
               const rise = Math.min(9+Math.min(6,(b3-a3)*2), Math.max(6, (xB-xA)*0.35));
-              p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9));
+              /* v60.53 跨行连音线两段式接弧（产品指示：上下两半合起来是一条完整弧线，
+                 不是两个独立小弧）——行末出线只画「上升段」：终点停在弧顶高度不回落；
+                 与下一行行首的「下降段」拼合即成一条整弧。cBnext 为空且非行内续接=行末。 */
+              const toRowEnd = (b3+1>=cols.length) && !cBnext;
+              if(toRowEnd) p.push(tieSVG(xA, tyB, xB, tyB-rise*0.92, tyB-rise*1.02, 1.9));
+              else p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9));
             }
             a3=b3+1;
           }
@@ -20621,7 +20658,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.52';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.53';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20644,6 +20681,7 @@ const APP_VER='v60.52';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.53</span><div><b>简谱刻版五项修正：变拍号分数式、波音改出版字形、波音让连音线、升降号贴主音、跨行连音线接成整弧</b>（用户报告截图逐项）。① <b>变拍号分数式</b>：临时变拍号此前写作斜杠式「2/4」，现改<b>上分子·横线·下分母</b>的出版惯例竖排形态，居中对齐，横线宽 12px。② <b>波音/颤音/回音改 SMuFL 字形</b>：简谱侧此前是<b>手绘锯齿折线</b>加「tr」「∽」文本——不是出版级符号；现与五线谱共用同一套 SMuFL 字形（上波音 <code>ornamentShortTrill</code>、下波音 <code>ornamentMordent</code>、颤音 <code>ornamentTrill</code>、回音 <code>ornamentTurn</code>），按简谱字号缩放 0.66／颤音 0.78。③ <b>波音与连音线不再重叠</b>：波音字形画在数字上方 15px 一带，而连音线基线在 16px——两者几乎同高必压；现连音线段内若含波音/颤音，弧基线再<b>让高 10px</b>（字形高约 8＋2px 净距），无波音时基线一分不动。④ <b>升降号贴近主音</b>：♯/♭ 与数字的净距由 1.9px 收到 <b>1.0px</b>，双升降号同步，符合歌本「变化音紧贴主音」的口径。⑤ <b>跨行连音线接成一条整弧</b>：换行处此前是<b>两个各自端点同高的独立小弧</b>；现行末只画<b>上升段</b>（终点停在弧顶高度不回落）、次行行首画<b>下降段</b>（起点即在弧顶高度），上下两半合起来正是一条完整弧线。另修 <b>32 分密集小节的整行压缩</b>：行宽压缩此前<b>等比压所有间距</b>，把保护净空的「刚杆」一起压扁，导致满小节 32 分时升降号仍重叠 <b>−3.6px</b>；现改为<b>只吃弹簧不吃刚杆</b>（弹簧不够才退回等比），同场景净空 −3.6→<b>+3.8px</b>。<code>tv_jpspace</code> 扩到 <b>10+1 项</b>全几何断言，对 v60.52 旧文件跑 T1/T2/T3/T8/T9/T10 当场红＝突变实证；CORE <b>90 套件</b>全绿。</div></li>
     <li><span class="v">v60.52</span><div><b>简谱横向避让修正：变拍号不再压小节线、音符自动让开升降号与倚音</b>（用户报告截图：简谱临时变拍号样式与小节线重叠；编辑时音符不会避开升降号和双倚音导致重叠）。① <b>变拍号压线</b>：简谱行的「2/4」小字此前<b>居中</b>画在小节线右 7px 处——字宽 21px 的左半直接压过小节线、糊在上一小节末尾；现改为<b>左对齐贴线右侧</b>，并按谱面实际字宽预留位置：此前只有五线谱/六线谱谱类预留 17px（还短于简谱字宽），<b>纯简谱谱更是零预留</b>，现变拍处按简谱 26px 取足。② <b>音符避让左伸记号</b>：谱面的<b>升降号</b>（画在数字左 10.5–13.5px）与<b>前倚音组</b>（含共用减时线，左伸约 20px、三倚音更宽）都长在音符<b>左侧</b>，而排版引擎的「刚杆」只保护音符<b>右侧</b>——升降号完全没进排版、前倚音还被记在了右侧，密集时值下必然压住前一个音符（实测双倚音重叠 <b>2.9px</b>、减时线 3.8px）。现按几何实测量出各记号的左伸宽度，记到<b>前一段</b>间距上；跨拍与跨小节两种边界情形同样补足（此前小节首列的双倚音距小节线仅剩 <b>1px</b>）。修后同场景净空：升降号 5.9→10.6px、双倚音 −2.9→13.4px、首列 1→15px；<b>无升降号/倚音的普通谱面排版一字不变</b>。新增 <code>tv_jpspace</code> 套件 <b>7+1 项</b>全几何断言（数值坐标，不看截图），对 v60.51 旧文件跑 T1–T4 当场红＝突变实证。CORE 89→<b>90 套件</b>全绿。</div></li>
     <li><span class="v">v60.51</span><div><b>节奏型库筛选展示 + 53231323（2/4）归类调整</b>（产品指示：2 拍的十六分分解移到 2/4 拍分类和半小节分类；库改成筛选展示，不用全部展示方便查找）。① <b>筛选条</b>：库顶部两组 chips——<b>类型</b>（全部 / 分解 / 扫弦）＋<b>拍号</b>（全部 / 2/4 / 3/4 / 4/4 / 6/8 / <b>散拍</b>）；<b>打开即按当前谱拍号收敛</b>：4/4 谱只见 4/4 组、3/4 谱只见 3/4 组，不再全库铺开；「散拍」=不限拍号的半小节/一拍填充组；半小节组内逐款标注分解/扫弦参与类型筛选；自定义组恒显不参与筛选；简谱库同款拍号筛选。② <b>归类调整</b>：「53231323 十六分（2/4）」自 4/4 组移入新设「分解 · 2/4」组（顺手补 5323 八分与低音+柱式两款 2/4 基本款），并新增「53231323 十六分（半小节）」散拍版——2 拍填充可拼两段不同和弦。新增 <code>tv_patfilter</code> 套件。CORE 88→<b>89 套件</b>全绿。</div></li>
     <li><span class="v">v60.50</span><div><b>编辑器变调弹窗对齐观看页：选指法 / 恢复原调 / 变调夹一站式</b>（产品指示：吉他曲谱编辑时点击调号弹窗的功能应该和曲谱浏览时一样）。① <b>点顶栏调号 1=X 打开变调弹窗</b>——与观看页同款纵排卡：<b>原调行</b>（打开时的调与夹位，一键<b>恢复原调</b>——快照整体回填，试了几档不满意随时回起点）/ <b>唱调行</b> ♭ ♯（指法随动重排、变调夹不动）/ <b>变调夹行</b>（唱调锁定：夹 +2 品指法自动降 2 半音换算——变调夹的本义）/ <b>等式行</b>「指法＋夹＝唱调」/ <b>夹位速选</b> 0–7 品（每档标出派生指法调，<b>CAGED 开放把位金色推荐</b>——这就是「选指法」）。非吉他谱类自动只留唱调行。与观看页的区别一句话讲清：观看页变调只影响你看，<b>编辑器变调直接改谱</b>——全程单步 mutate，Ctrl+Z 一键撤销。② <b>编辑器换调引擎升级到 v60.39 重排</b>（此前编辑器还是旧「逐品平移+越界折八度」——和弦图与谱面演奏错位的根源在编辑器侧至此一并根治）：顶栏 ♭/♯、快捷换调、曲谱信息换调<b>三处入口统一</b>——伴奏列随新和弦图取形、旋律列束搜索重排把位、和弦名/拍位和弦/转调标记同步平移，折八度/放不下如实播报。旧 transposeEditor 平移实现删除。新增 <code>tv_edkey</code> 套件。CORE 87→<b>88 套件</b>全绿。</div></li>
