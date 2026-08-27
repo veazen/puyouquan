@@ -5584,11 +5584,29 @@ function systemExtras(sys){
     if(c.dur>=8 && (c.notes||[]).some(n=>n&&n.s===SN_low))
       tabLow=Math.max(tabLow, c.dur>=64?12 : c.dur>=32?8 : c.dur>=16?4 : 2);
   })));
-  /* 第二行及以后的 TAB 声部有和弦名时，行间需为其预留高度（否则压住上一行符杠） */
-  let tabChord2=false;
+  /* 第二条及以后的 TAB 声部「谱表上方」实际挂了多少东西——行间要按它预留，否则压住上一条的符杠。
+     v60.56 由「只认和弦名」扩到全部上方元素（用户报告：双吉他时吉他2的连音线压到吉他1、
+     吉他1 的时值线点不中）。实测口径：
+       和弦名 22；连音线弧顶 = min(音符y)-9.5-rise，1 弦上最坏 tabTop-24.5 → 26；
+       技法字母/左手指法/摇把标注带 ≈ tabTop-17 → 19。 */
+  let tab2Up=0;
   sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach((cols,vi)=>{
-    if(vi>0 && cols.some(c=>c.chord)) tabChord2=true;
+    if(vi===0) return;
+    (cols||[]).forEach(c=>{
+      if(c.chord) tab2Up=Math.max(tab2Up, 22);
+      (c.notes||[]).forEach(n=>{
+        if(!n) return;
+        if(n.tk && !n.tech) tab2Up=Math.max(tab2Up, 26);
+        else if(n.tech||n.hmT||n.tk||n.bar||n.lhF) tab2Up=Math.max(tab2Up, 19);
+      });
+    });
   }));
+  /* v60.56 TAB 连音括线下缘预留（用户报告：吉他2 的 6 连音数字与简谱 6 连音数字重叠）：
+     括线画在 stemY+4.5、斜体数字基线 stemY+7.3 → 字底 ≈ stemY+9.5，
+     而每条 TAB 声部的行进量只留到 stemY+6（beatzone 底），实测溢出 3.5px 顶进下一行。
+     tabExtra 不行——它同时抬 stemY（stemY=tabBot+12+tabExtra），数字跟着下移、净差不变；
+     必须是「只加行进量、不动 stemY」的单独一项。 */
+  const tabBotPad = tabTup? 10 : 0;
   /* v56.4 段落括线/跳转标记与行内和弦图重叠（用户截图：G 和弦图压住「1.」房子线）：
      TAB 行的 volta/segno/coda/排练标记画在 tabTop-15/-8 记号带，行内和弦图带（oy..oy+56）
      底缘≈oy+54 而 tabTop-15≈oy+47——同一行两者共存时和弦图带加高 16px，把记号带让到图下方；
@@ -5608,16 +5626,17 @@ function systemExtras(sys){
     if(hasDiag && hasStrumTie) diagExtra=Math.max(diagExtra, 14);
   }
   return {
-    tabGap2: tabChord2? 22 : 0,
+    tabGap2: tab2Up,
     topExtra: maxUp>=3 ? 16 : maxUp>=2 ? 11 : maxUp>=1 ? 7 : 0,
     botExtra: Math.max(maxDown>=3?16 : maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
     tabExtra: Math.max(tab32?5:0, tabTup?4:0, tabLow),
+    tabBotPad,
     diagExtra
   };
 }
-function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra){
+function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
-  topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0;
+  topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0; tabBotPad = tabBotPad||0;
   const vs = LAY_VS;                              // 纵向疏密系数：只缩放行间空白，不缩谱表/字号
   const vt = vs*LAY_RG.tab, vv = vs*LAY_RG.vox, vl = vs*LAY_RG.lyric;   // 手动行距：吉他谱/简谱/歌词
   /* v56.4 diagExtra：本行段落括线/跳转标记与行内和弦图共存时图带加高（记号带让到图下方） */
@@ -5656,7 +5675,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra){
     /* v54.8 TAB 下缘净距底线（用户反馈：无预留记号的行简谱顶进 TAB，换页后再现）：
        符干区(12px)与小节号带(≈14px)是固定像素、不随行距/疏密系数缩放——系数<1 时
        12*vt+6*vt 可缩到比固定内容还小，简谱直接压上符杠。夹 18px 无缩放底线 */
-    tabTops.push(y); y += staffH() + Math.max(12*vt + 6*vt, 18) + tabExtra;
+    /* v60.56 tabBotPad：连音括线的斜体数字挂在 stemY+9.5，比行进量留的 stemY+6 还深——
+       只加行进量、不动 stemY（动 stemY 数字跟着走，净差不变） */
+    tabTops.push(y); y += staffH() + Math.max(12*vt + 6*vt, 18) + tabExtra + tabBotPad;
   }
   /* 五线谱声部：按整曲实际音域为谱表上/下加线区自动扩展行距（防止相邻行内容交叠） */
   const K3 = (song.voxNotations||[]).some(isStaffNota)? staffKeyInfo() : null;
@@ -6305,7 +6326,7 @@ function render(){
   const HG = staffHeadGeom(); STAFF_HEAD_W = HG.w;
   const systems = layoutSystems();
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra); });
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
@@ -6455,6 +6476,8 @@ function render(){
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = staffH(), SN = strN();
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
+      /* v60.56 上一条 TAB 声部的时值线区（beatzone）下缘：本条挂在谱表上方的热区不得越过它 */
+      const prevBeatBot = vi>0? (oy+M.tabTops[vi-1]+STAFF+12+(M.tabExtra||0)+6) : -1e9;
       /* ===== TAB+五线谱 联排（Guitar Pro 式）：TAB 上方标准记谱，品位→音高按调拼写 ===== */
       const cSGt=7.5, cStaffB = song.tabStaff? oy+M.tabStaffB[vi] : 0, cStaffT = cStaffB-4*cSGt;
       const K2 = song.tabStaff? staffKeyInfo() : null;
@@ -7257,7 +7280,13 @@ function render(){
                 p.push(`<circle cx="${(nx+4.5+kD*4.6).toFixed(1)}" cy="${dy}" r="1.6" fill="var(--ink)"/>`);
             }
           }
-          p.push(`<rect x="${clx}" y="${tabTop-18}" width="${cw}" height="18" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`);
+          /* v60.56 列上方 18px「选中本列」热区：第二条及以后的 TAB 声部要钳到上一条的时值线区之下——
+             此前它整条盖在上一条的 beatzone 上（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉，
+             因为后画的赢命中测试），用户报告的「双吉他时无法选中吉他一时值线」就是这个。
+             钳完不足 4px 就整条不画：本列仍可点弦格选中，不需要这条兜底带。 */
+          { const upTop = vi>0? Math.max(tabTop-18, prevBeatBot) : tabTop-18;
+            if(tabTop-upTop >= 4)
+              p.push(`<rect x="${clx}" y="${upTop.toFixed(1)}" width="${cw}" height="${(tabTop-upTop).toFixed(1)}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`); }
           /* v60.27 图带空白热区（data-zone=chord）撤销（用户指示）：设和弦一律
              「选中音符→设和弦」（快捷浮条/和弦层面板/＋和弦提示），已有和弦图/名可直接点击编辑 */
           if(col.strum)
@@ -20778,7 +20807,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.55';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.56';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -20801,6 +20830,7 @@ const APP_VER='v60.55';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.56</span><div><b>双吉他谱面修正：吉他1 的时值线点得中了、吉他2 的连音线与连音数字不再压别人</b>（用户截图报告三项，全部用命中测试与几何断言实测定位）。① <b>双吉他时点不中吉他1 的时值线</b>：根因不是时值线本身——每个 TAB 列在<b>谱表上方</b>还挂着一条 18px 的「选中本列」兜底热区，第二条吉他的这条带子整条落在<b>第一条吉他的符杠区里</b>（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉），而它后画、命中测试就归它。现在第二条起的这条带子<b>钳到上一条的时值线区之下</b>，不足 4px 就整条不画（本列仍可点弦格选中）。修后吉他1 <b>四拍时值线全部命中自己</b>。② <b>吉他2 的连音线压到吉他1</b>：连音线弧顶落在 <code>音符上方 9.5px 再减弧高</code>，1 弦上最坏到 <code>TAB顶线−24.5</code>，而两条吉他之间此前<b>只有 6px 空隙</b>（行间预留只认「第二条有没有和弦名」，连音线/技法/指法一概没算）。现在按第二条声部谱表上方<b>实际挂了什么</b>预留：和弦名 22 / 连音线 26 / 技法·左手指法·摇把 19。实测净距 <b>−18px → +18px</b>。③ <b>吉他2 的 6 连音数字与简谱 6 连音数字重叠</b>：TAB 连音括线的斜体数字挂在 <code>符干基线+9.5</code>，而每条 TAB 声部的行进量只留到 <code>+6</code>，<b>溢出 3.5px 顶进下一行</b>。注意这里不能靠加大符干区解决——那样数字跟着一起下移、净差分毫不变；本版单加一项<b>只增行进量、不动符干基线</b>的预留。实测净距 <b>−0.8px → +9.2px</b>。<b>行距按需增</b>：单吉他谱、以及第二条吉他没有上方元素时，行高<b>一分不变</b>（护栏断言实测 0px）。新增 <code>tv_tab2</code> 套件 <b>5+1 项</b>，对 v60.55 旧文件跑 T1/T2/T3/T5 当场红＝突变实证。CORE 91→<b>92 套件</b>全绿。</div></li>
     <li><span class="v">v60.55</span><div><b>变调入口收敛到谱面：点谱上的 1=X 就地开变调弹窗，右上角变调组撤下，弹窗改浅色</b>（产品指示）。① <b>右上角变调组撤下</b>：顶栏那组 <code>♭ 1=C ♯</code> 不再出现在界面上（DOM 保留供「更多功能」抽屉的快速换调与回归套件程序化调用，同 v55.2 经典版入口口径）。② <b>谱面调号点击＝变调弹窗</b>：此前点谱面上的 1=X 弹的是一张平铺 12 个调名的小菜单——只能换调名，夹位、恢复原调、选指法都够不着；现在改为就地弹出与顶栏同一个<b>变调弹窗</b>：打开时原调 + 一键<b>恢复原调</b> / 唱调 <code>♭♯</code>（指法随动重排、夹不动）/ 变调夹 <code>−＋</code>（唱调锁定换算）/ 等式行 / <b>夹位速选 0–7 品</b>（标派生指法调、CAGED 开放把位高亮＝「选指法」）。弹窗<b>左对齐锚在调号正下方</b>（不压左栏），下方放不下自动翻到上方；再点一次收起。③ <b>弹窗改浅色</b>：它现在是从浅色谱纸上弹出来的，原来的深绿浮层压在谱面上像块补丁——底色/描边/文字/chip 全部改走主题变量（<code>--panel</code>/<code>--border</code>/<code>--text</code>），夜间主题自动跟随；CAGED 高亮由金色改琥珀（浅底上金色不可读）。观看页的变调弹窗维持 v55.6 深色不动（那是深色播放坞一族）。<b>踩到的坑</b>：谱面热区是 <code>pointerdown</code> 开的弹窗，紧随其后的 <code>click</code> 冒泡到 document 会被两处「点外收起」当场关掉——加 <code>popKeepOpen</code> 断言放行该热区，开合交给弹窗自己 toggle。<code>tv_edkey</code> 7→<b>9 项</b>（新增：谱面真实点击开合＋顶栏组撤下＋无调名菜单＋就地锚定；弹窗底色＝<code>--panel</code> 且观看页仍深色作对照护栏），对 v60.54 旧文件跑两项当场红＝突变实证；<code>tv_capo</code> T3 换调路径跟随改走弹窗、T1 改扫可见文本（提示语里出现「变调夹」不该算进谱面标注）。CORE <b>91 套件</b>全绿。</div></li>
     <li><span class="v">v60.54</span><div><b>智能填词支持选声部／加声部 + 左栏「歌词」入口恢复（排在「小节」上方）</b>（产品指示两项）。① <b>智能填词加声部</b>：此前工具只认「当前选中的那条旋律轨」，合唱谱要给第二声部填词，得先退出弹窗、去左栏点那条轨、再重新打开。现弹窗顶部新增<b>声部行</b>：列出全部旋律声部，每个名字后面直接标<b>该声部的可填音位数</b>（一眼看出哪条有音符、哪条还是空的），点一下即切换填词对象——标题、已填词回填、对齐预览、谱面光标全部跟着走，原声部一个字不动。② <b>就地「＋声部」</b>：弹窗内可直接新增一条旋律声部。要点是新声部会<b>复制来源声部的音符骨架</b>（音高／时值／附点／连音线／连音符，<b>不带歌词</b>）——合唱惯例本就是各声部同节奏、各自一套词；而普通加轨产出的是全休止空轨，填词工具只认实音符，空轨的可填音位＝0、工具当场失效。复制后建好即可填词，音高随后照常改；整件事在一次操作内完成，<b>Ctrl+Z 一步撤销</b>。声部满 5 条时「＋声部」自动隐藏。③ <b>左栏歌词入口恢复</b>：歌词页自 v60.43 起在新版外壳被隐藏，现按指示恢复，并排在<b>「小节」正上方</b>（段落切换／逐字填词／智能填词／清空本段都在这一页）。显隐口径同时放宽：此前是「有歌词行才出现」——一段词都还没有时入口自己消失，恰恰是最需要它的时候；现跟随本项目既有的「本谱能不能加歌词行」政策（纯和弦格除外），<b>零段时面板里直接给「＋ 添加歌词行」</b>，入口不再是死路。新增 <code>tv_lyrvox</code> 套件 <b>7+1 项</b>（左轨顺序／零段空态／声部行与可填音位数／切声部填词互不串／＋声部复制骨架不带词且一步撤销／声部上限／空来源按各小节实际拍号铺列不错位），对 v60.53 旧文件跑 T1–T3 当场红、T4 起直接崩＝突变实证。CORE 90→<b>91 套件</b>全绿。</div></li>
     <li><span class="v">v60.53</span><div><b>简谱刻版五项修正：变拍号分数式、波音改出版字形、波音让连音线、升降号贴主音、跨行连音线接成整弧</b>（用户报告截图逐项）。① <b>变拍号分数式</b>：临时变拍号此前写作斜杠式「2/4」，现改<b>上分子·横线·下分母</b>的出版惯例竖排形态，居中对齐，横线宽 12px。② <b>波音/颤音/回音改 SMuFL 字形</b>：简谱侧此前是<b>手绘锯齿折线</b>加「tr」「∽」文本——不是出版级符号；现与五线谱共用同一套 SMuFL 字形（上波音 <code>ornamentShortTrill</code>、下波音 <code>ornamentMordent</code>、颤音 <code>ornamentTrill</code>、回音 <code>ornamentTurn</code>），按简谱字号缩放 0.66／颤音 0.78。③ <b>波音与连音线不再重叠</b>：波音字形画在数字上方 15px 一带，而连音线基线在 16px——两者几乎同高必压；现连音线段内若含波音/颤音，弧基线再<b>让高 10px</b>（字形高约 8＋2px 净距），无波音时基线一分不动。④ <b>升降号贴近主音</b>：♯/♭ 与数字的净距由 1.9px 收到 <b>1.0px</b>，双升降号同步，符合歌本「变化音紧贴主音」的口径。⑤ <b>跨行连音线接成一条整弧</b>：换行处此前是<b>两个各自端点同高的独立小弧</b>；现行末只画<b>上升段</b>（终点停在弧顶高度不回落）、次行行首画<b>下降段</b>（起点即在弧顶高度），上下两半合起来正是一条完整弧线。另修 <b>32 分密集小节的整行压缩</b>：行宽压缩此前<b>等比压所有间距</b>，把保护净空的「刚杆」一起压扁，导致满小节 32 分时升降号仍重叠 <b>−3.6px</b>；现改为<b>只吃弹簧不吃刚杆</b>（弹簧不够才退回等比），同场景净空 −3.6→<b>+3.8px</b>。<code>tv_jpspace</code> 扩到 <b>10+1 项</b>全几何断言，对 v60.52 旧文件跑 T1/T2/T3/T8/T9/T10 当场红＝突变实证；CORE <b>90 套件</b>全绿。</div></li>
