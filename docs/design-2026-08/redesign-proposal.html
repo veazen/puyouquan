@@ -1,0 +1,1155 @@
+<title>谱友圈界面重构提案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+:root{
+  --ground:#eceef2; --surface:#ffffff; --surface-2:#f6f7fa;
+  --ink:#14161b; --muted:#5a6270; --faint:#8b93a3;
+  --rule:#d5d9e1; --rule-soft:#e6e9ef;
+  --bad:#b23c17; --bad-soft:rgba(178,60,23,.10);
+  --good:#0d7a6f; --good-soft:rgba(13,122,111,.10);
+  --shadow-1:0 1px 2px rgba(20,22,27,.06);
+  --shadow-2:0 6px 20px rgba(20,22,27,.10);
+  --r-sm:6px; --r-md:10px; --r-lg:16px;
+  --font-ui:'IBM Plex Sans','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  /* ── 样机内配色：默认＝现状（v40.6 素材配色）。切换器改 body[data-pal] ── */
+  --p-canvas:#f3f0e8; --p-bar:#f7f4ec; --p-panel:#fefdf9; --p-paper:#fbfaf5;
+  --p-line:#e4ddcd; --p-ink:#20211d; --p-mut:#6b6357; --p-faint:#a49c8d;
+  --p-acc:#c33a29; --p-accsoft:rgba(195,58,41,.10); --p-accink:#b02f20;
+  --p-dock:#26302b; --p-dockink:#e8e4d8; --p-staff:#141414;
+  --p-bad:#b45309; --p-ok:#157a43; --p-sacc:#c33a29;
+}
+body[data-pal="a"]{
+  --p-canvas:#e7eaef; --p-bar:#f1f3f7; --p-panel:#fafbfd; --p-paper:#ffffff;
+  --p-line:#ccd3de; --p-ink:#16191f; --p-mut:#545d6d; --p-faint:#616875;
+  --p-acc:#c33a29; --p-accsoft:rgba(195,58,41,.10); --p-accink:#a83324;
+  --p-dock:#1b2029; --p-dockink:#dfe4ec; --p-staff:#101215;
+  --p-bad:#5b3fb5; --p-ok:#10715a; --p-sacc:#c33a29;
+}
+body[data-pal="b"]{
+  --p-canvas:#eceef4; --p-bar:#f4f6fa; --p-panel:#fcfdff; --p-paper:#ffffff;
+  --p-line:#ced5e3; --p-ink:#14171d; --p-mut:#515a6b; --p-faint:#616875;
+  --p-acc:#2b4c9b; --p-accsoft:rgba(43,76,155,.10); --p-accink:#24428a;
+  --p-dock:#182036; --p-dockink:#dde3f0; --p-staff:#0f1116;
+  --p-bad:#2b4c9b; --p-ok:#106b4e; --p-sacc:#c33a29;
+}
+body[data-pal="c"]{
+  --p-canvas:#e9e9ea; --p-bar:#f3f3f4; --p-panel:#fbfbfc; --p-paper:#ffffff;
+  --p-line:#d2d3d6; --p-ink:#101112; --p-mut:#4e5052; --p-faint:#67696c;
+  --p-acc:#1b1d20; --p-accsoft:rgba(27,29,32,.08); --p-accink:#1b1d20;
+  --p-dock:#17181a; --p-dockink:#e4e5e7; --p-staff:#0c0d0e;
+  --p-bad:#5b3fb5; --p-ok:#17694a; --p-sacc:#c33a29;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101318; --surface:#191d24; --surface-2:#1f242c;
+    --ink:#e9ecf1; --muted:#a2abbb; --faint:#727c8e;
+    --rule:#2c333d; --rule-soft:#232931;
+    --bad:#e87a52; --bad-soft:rgba(232,122,82,.14);
+    --good:#4bbfae; --good-soft:rgba(75,191,174,.14);
+    --shadow-1:0 1px 2px rgba(0,0,0,.4);
+    --shadow-2:0 8px 26px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101318; --surface:#191d24; --surface-2:#1f242c;
+  --ink:#e9ecf1; --muted:#a2abbb; --faint:#727c8e;
+  --rule:#2c333d; --rule-soft:#232931;
+  --bad:#e87a52; --bad-soft:rgba(232,122,82,.14);
+  --good:#4bbfae; --good-soft:rgba(75,191,174,.14);
+  --shadow-1:0 1px 2px rgba(0,0,0,.4);
+  --shadow-2:0 8px 26px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}   /* .frame{display:flex} 会盖过 UA 的 [hidden] */
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--font-ui);font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3{text-wrap:balance;margin:0}
+a{color:inherit}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* ── 版面 ── */
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.shell{display:grid;grid-template-columns:196px minmax(0,1fr);gap:44px;align-items:start}
+@media (max-width:940px){ .shell{grid-template-columns:1fr;gap:0} .toc{display:none} }
+
+/* ── 页眉 ── */
+header.hd{padding:64px 0 40px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+h1{font-size:clamp(30px,4.6vw,44px);line-height:1.12;font-weight:600;letter-spacing:-.015em}
+.lede{margin-top:18px;max-width:58ch;color:var(--muted);font-size:16.5px}
+.verdict{margin-top:26px;padding:16px 18px;border-left:3px solid var(--bad);
+  background:var(--bad-soft);border-radius:0 var(--r-sm) var(--r-sm) 0;max-width:62ch}
+.verdict b{color:var(--bad)}
+
+/* ── 目录 ── */
+.toc{position:sticky;top:24px;padding-top:56px}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.toc a{display:block;padding:6px 10px;border-radius:var(--r-sm);text-decoration:none;
+  color:var(--muted);font-size:13.5px;border-left:2px solid transparent}
+.toc a:hover{background:var(--surface);color:var(--ink)}
+.toc a:focus-visible{outline:2px solid var(--good);outline-offset:1px}
+.toc .n{font-family:var(--font-mono);font-size:11px;color:var(--faint);margin-right:8px}
+
+/* ── 章节 ── */
+section{padding:52px 0;border-bottom:1px solid var(--rule-soft)}
+section:last-of-type{border-bottom:0}
+.sec-h{display:flex;align-items:baseline;gap:14px;margin-bottom:8px}
+.sec-n{font-family:var(--font-mono);font-size:12px;color:var(--faint);letter-spacing:.08em}
+h2{font-size:25px;font-weight:600;letter-spacing:-.01em}
+.sec-sub{color:var(--muted);margin:0 0 26px;max-width:62ch}
+h3{font-size:17px;font-weight:600;margin:32px 0 10px}
+p{margin:0 0 14px;max-width:64ch}
+
+/* ── 记分卡 ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(186px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-md);
+  padding:15px 16px;box-shadow:var(--shadow-1)}
+.card .lab{font-size:12px;color:var(--muted);margin-bottom:9px;min-height:2.4em}
+.card .row{display:flex;align-items:baseline;gap:9px;font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums}
+.card .now{font-size:24px;font-weight:600;color:var(--bad)}
+.card .arw{color:var(--faint);font-size:14px}
+.card .tgt{font-size:24px;font-weight:600;color:var(--good)}
+.card .unit{font-size:12px;color:var(--faint);font-family:var(--font-ui)}
+
+/* ── 表 ── */
+.tw{overflow-x:auto;margin:18px 0;border:1px solid var(--rule);border-radius:var(--r-md);
+  background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:520px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:11px;padding:1px 7px;
+  border-radius:999px;white-space:nowrap}
+.tag.b{background:var(--bad-soft);color:var(--bad)}
+.tag.g{background:var(--good-soft);color:var(--good)}
+
+/* ── 主张块 ── */
+.claim{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-lg);
+  padding:24px 26px;margin:18px 0;box-shadow:var(--shadow-1)}
+.claim-h{display:flex;gap:13px;align-items:flex-start;margin-bottom:12px}
+.claim-n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--surface);
+  font-family:var(--font-mono);font-size:12px;display:grid;place-items:center;margin-top:2px}
+.claim-t{font-size:18px;font-weight:600;line-height:1.35}
+.claim ul{margin:10px 0 0;padding-left:20px;color:var(--muted);font-size:14px}
+.claim li{margin:6px 0}
+.claim li b{color:var(--ink);font-weight:600}
+
+/* ── 配色方案卡 ── */
+.pals{display:grid;grid-template-columns:repeat(auto-fit,minmax(318px,1fr));gap:14px;margin:20px 0}
+.pal{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-lg);
+  padding:18px 18px 16px;box-shadow:var(--shadow-1);display:flex;flex-direction:column}
+.pal.sel{border-color:var(--good);box-shadow:0 0 0 1px var(--good),var(--shadow-1)}
+.pal-k{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;color:var(--faint)}
+.pal-n{font-size:17px;font-weight:600;margin:3px 0 8px}
+.pal-s{font-size:13.5px;color:var(--muted);margin:0 0 12px;flex:1}
+.strip{display:flex;height:30px;border-radius:5px;overflow:hidden;border:1px solid var(--rule);margin-bottom:6px}
+.strip i{flex:1}
+.strip i.w2{flex:2}
+.pal-legend{font-family:var(--font-mono);font-size:9.5px;color:var(--faint);
+  display:flex;justify-content:space-between;margin-bottom:12px}
+.pal dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;
+  font-size:12px;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.pal dt{color:var(--muted);font-family:var(--font-ui);font-size:12px}
+.pal dd{margin:0;text-align:right;color:var(--ink)}
+.pal dd.g{color:var(--good)}
+.pal dd.r{color:var(--bad)}
+.pal-use{margin-top:14px}
+.pal-use button{width:100%;border:1px solid var(--rule);background:var(--surface-2);
+  color:var(--ink);font-family:var(--font-ui);font-size:13px;padding:7px;
+  border-radius:var(--r-sm);cursor:pointer;transition:.16s}
+.pal-use button:hover{background:var(--ground)}
+.pal.sel .pal-use button{background:var(--good);border-color:var(--good);color:#fff}
+.pal-use button:focus-visible{outline:2px solid var(--good);outline-offset:2px}
+
+/* ── 令牌样例 ── */
+.swatches{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.sw{border:1px solid var(--rule);background:var(--surface);padding:9px 12px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--muted);display:flex;
+  align-items:center;gap:9px}
+.sw .box{width:26px;height:26px;background:var(--p-acc);flex:none}
+.scale{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:14px 0;
+  padding:16px;background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-md)}
+.scale span{font-weight:500}
+.scale i{font-family:var(--font-mono);font-size:10px;color:var(--faint);font-style:normal;
+  display:block;text-align:center}
+.states{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.st{padding:7px 15px;border-radius:8px;font-size:13px;border:1px solid transparent}
+.st.p{background:var(--p-acc);color:#fff}
+.st.s{background:var(--p-accsoft);color:var(--p-accink);border-color:var(--p-acc)}
+.st.t{color:var(--p-accink)}
+.st.o{background:var(--p-panel);color:var(--p-ink);border-color:var(--p-line)}
+
+/* ══ 样机 ══ */
+.spec{margin:26px 0 8px}
+.spec-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.spec-cap{font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.toggle{display:inline-flex;flex:none;background:var(--surface);border:1px solid var(--rule);
+  border-radius:999px;padding:2px;gap:2px}
+.toggle button{flex:none;border:0;background:transparent;color:var(--muted);font-family:var(--font-ui);
+  font-size:12.5px;padding:5px 15px;border-radius:999px;cursor:pointer;transition:.16s;white-space:nowrap}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.toggle button:focus-visible{outline:2px solid var(--good);outline-offset:2px}
+.toggle.palsw button{padding:5px 11px;font-size:12px}
+.metric{font-family:var(--font-mono);font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.metric b{color:var(--ink)}
+
+.bench{background:var(--surface-2);border:1px solid var(--rule);border-radius:var(--r-lg);
+  padding:22px;overflow-x:auto}
+.frame{background:var(--p-canvas);border-radius:8px;overflow:hidden;
+  box-shadow:var(--shadow-2);margin:0 auto;color:var(--p-ink);
+  font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC',sans-serif}
+.frame.desk{width:830px;min-width:830px;height:400px;display:flex;flex-direction:column}
+.frame.mob{width:250px;min-width:250px;height:520px;display:flex;flex-direction:column}
+
+/* 样机内部件 */
+.mk-top{background:var(--p-dock);color:var(--p-dockink);display:flex;align-items:center;gap:6px;
+  padding:0 10px;flex:none;font-size:9.5px}
+.mk-bar{background:var(--p-bar);border-bottom:1px solid var(--p-line);display:flex;
+  align-items:center;gap:4px;padding:0 8px;flex:none;font-size:8.5px;overflow:hidden}
+.mk-body{flex:1;display:flex;min-height:0}
+.mk-rail{background:var(--p-bar);border-right:1px solid var(--p-line);flex:none;
+  display:flex;flex-direction:column;gap:3px;padding:6px 4px;align-items:center}
+.mk-panel{background:var(--p-panel);border-right:1px solid var(--p-line);flex:none;
+  padding:7px 6px;overflow:hidden}
+.mk-paper{flex:1;background:var(--p-paper);margin:8px;border-radius:3px;
+  border:1px solid var(--p-line);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:9px;min-width:0;position:relative}
+.mk-right{background:var(--p-panel);border-left:1px solid var(--p-line);flex:none;
+  padding:7px 6px;overflow:hidden}
+.mk-dock{background:var(--p-dock);color:var(--p-dockink);display:flex;align-items:center;
+  gap:6px;padding:0 10px;flex:none;font-size:9px}
+.mk-status{background:var(--p-bar);border-top:1px solid var(--p-line);display:flex;
+  align-items:center;gap:12px;padding:0 10px;flex:none;font-size:8.5px;color:var(--p-mut)}
+.mk-lab{font-size:7.5px;color:var(--p-faint);margin-bottom:4px}
+
+.chip{background:var(--p-panel);border:1px solid var(--p-line);border-radius:4px;
+  padding:2px 5px;font-size:8px;white-space:nowrap;color:var(--p-ink)}
+.chip.on{background:var(--p-acc);border-color:var(--p-acc);color:#fff}
+.chip.on2{background:var(--p-accsoft);border-color:var(--p-acc);color:var(--p-accink)}
+.chip.dk{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.16);color:var(--p-dockink)}
+.chip.dk.on{background:var(--p-acc);border-color:var(--p-acc);color:#fff}
+.dot{width:14px;height:14px;border-radius:4px;background:var(--p-panel);
+  border:1px solid var(--p-line);flex:none}
+.dot.on{background:var(--p-acc);border-color:var(--p-acc)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.staff{width:86%;height:26px;border-top:1px solid var(--p-staff);border-bottom:1px solid var(--p-staff);
+  background:repeating-linear-gradient(to bottom,transparent 0 5px,var(--p-staff) 5px 5.6px);opacity:.72}
+.mnum{position:absolute;font-family:var(--font-mono);font-size:8px;color:var(--p-sacc);font-weight:600}
+/* 移动样机底部工具面：页签 22 ＋ 指板 48 ＋ 播放坞 26 ＝ 96px ＝ 真实 156px */
+.fbwrap{flex:none}
+.fb{background:var(--p-paper);height:48px;padding:3px 6px;border-top:1px solid var(--p-line);
+  display:flex;flex-direction:column;justify-content:space-between}
+.fbr{display:flex;align-items:center;gap:2px;height:6px}
+.fbr span{font-size:5px;line-height:1;width:7px;color:var(--p-faint);flex:none}
+.fbr i{flex:1;background:var(--p-staff);opacity:.72}
+.fbr b{position:absolute;left:26%;width:11px;height:11px;border-radius:50%;
+  background:var(--p-acc);color:#fff;font-size:6.5px;font-weight:400;line-height:1;
+  display:grid;place-items:center}
+.plabel{position:absolute;top:6px;left:8px;font-family:var(--font-mono);font-size:8px;
+  color:var(--p-faint);letter-spacing:.06em}
+.ann{position:absolute;font-family:var(--font-mono);font-size:8.5px;padding:1px 6px;
+  border-radius:3px;background:var(--good);color:#fff;white-space:nowrap}
+.ann.b{background:var(--bad)}
+.errm{position:absolute;font-family:var(--font-mono);font-size:8px;padding:1px 5px;
+  border-radius:3px;background:var(--p-bad);color:#fff;white-space:nowrap}
+
+/* 阶段 */
+.phase{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 18px;margin:20px 0}
+.ph-n{font-family:var(--font-mono);font-size:11px;color:var(--surface);background:var(--ink);
+  border-radius:999px;padding:2px 9px;height:fit-content;white-space:nowrap}
+.ph-b{padding-bottom:22px;border-left:1px solid var(--rule);margin-left:-9px;padding-left:26px}
+.phase:last-child .ph-b{border-left-color:transparent}
+.ph-t{font-weight:600;margin-bottom:4px}
+.ph-b p{font-size:14px;color:var(--muted);margin:0 0 8px}
+.ph-b code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);
+  padding:1px 5px;border-radius:3px;border:1px solid var(--rule-soft)}
+
+.ask{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--good);
+  border-radius:0 var(--r-md) var(--r-md) 0;padding:16px 20px;margin:12px 0}
+.ask-q{font-weight:600;margin-bottom:5px}
+.ask-a{font-size:14px;color:var(--muted);margin:0}
+.ask-a b{color:var(--good)}
+
+.note{font-size:13.5px;color:var(--muted);border-left:2px solid var(--rule);
+  padding-left:14px;margin:16px 0;max-width:62ch}
+
+footer{padding:40px 0 64px;color:var(--faint);font-size:13px}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+
+<div class="wrap">
+  <header class="hd">
+    <div class="eyebrow">界面重构提案 · v60.70 现状评估</div>
+    <h1>谱面只剩一半屏幕，<br>而手机上根本写不了谱</h1>
+    <p class="lede">
+      三处实测：桌面上<strong>谱面只占视口 51%</strong>，两侧工具比谱面还宽；
+      首屏同时铺着 <strong>118 个同权重按钮</strong>；
+      移动端因为一条 <code class="mono">display:none</code>，把品位按钮整组隐藏，
+      <strong>手机上没有任何录入音符的路径</strong>。
+    </p>
+    <div class="verdict">
+      <b>结论：结构是第一顺位，配色是第二顺位——两件都要做，但不要一起做。</b>
+      您说了配色也可以改，那就一起摆上台面：第 03 节给出三个方向，可以直接在样机上切换预览。
+      下面每一条都带可测的验收数字——这个项目有 99 个几何断言套件，改版目标写成数字才能被它们守住。
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="toc" aria-label="目录">
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>诊断</a></li>
+        <li><a href="#s2"><span class="n">02</span>结构四条主张</a></li>
+        <li><a href="#s3"><span class="n">03</span>配色三个方向</a></li>
+        <li><a href="#s4"><span class="n">04</span>令牌收敛</a></li>
+        <li><a href="#s5"><span class="n">05</span>桌面样机</a></li>
+        <li><a href="#s6"><span class="n">06</span>移动样机</a></li>
+        <li><a href="#s7"><span class="n">07</span>落地路线</a></li>
+        <li><a href="#s8"><span class="n">08</span>待拍板</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <!-- 01 诊断 -->
+      <section id="s1">
+        <div class="sec-h"><span class="sec-n">01</span><h2>诊断</h2></div>
+        <p class="sec-sub">全部为实测值，非估计。版面数字来自 Chromium（桌面 1440×900、移动 390×844 iPhone UA）；
+          配色数字由 WCAG 相对亮度公式直接算自 <span class="mono">index.html</span> 的令牌值。</p>
+
+        <div class="cards">
+          <div class="card">
+            <div class="lab">桌面谱面宽<br>占视口比例</div>
+            <div class="row"><span class="now">51</span><span class="unit">%</span>
+              <span class="arw">→</span><span class="tgt">72</span><span class="unit">%</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">首屏可见<br>按钮数</div>
+            <div class="row"><span class="now">118</span>
+              <span class="arw">→</span><span class="tgt">≤55</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">移动端底部固定<br>栏占屏高</div>
+            <div class="row"><span class="now">30</span><span class="unit">%</span>
+              <span class="arw">→</span><span class="tgt">≤24</span><span class="unit">%</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">手机录一个音符<br>最少触摸</div>
+            <div class="row"><span class="now">无</span>
+              <span class="arw">→</span><span class="tgt">2</span><span class="unit">次</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">相邻表面<br>对比（画布↔栏）</div>
+            <div class="row"><span class="now">1.04</span>
+              <span class="arw">→</span><span class="tgt">≥1.08</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">面板小标题<br>文字对比</div>
+            <div class="row"><span class="now">2.4</span><span class="unit">:1</span>
+              <span class="arw">→</span><span class="tgt">≥4.5</span><span class="unit">:1</span></div>
+          </div>
+        </div>
+
+        <h3>结构：两侧工具比谱面还宽</h3>
+        <p>
+          1440 视口下，左栏 <span class="mono">339</span> ＋ 右栏 <span class="mono">292</span>
+          ＝ <span class="mono">631px</span>，而谱面本体只有 <span class="mono">735px</span>。
+          纵向再被顶部两层栏吃掉 <span class="mono">125px</span>。
+          右栏「当前编辑位置」用五行表格显示声部／小节／列／时值／音符——这是状态信息，却占了一整张卡。
+        </p>
+
+        <h3>移动端：核心动作没有入口</h3>
+        <p>
+          <code class="mono">#editbar &gt; *:not(#ebu-eb-dur){display:none}</code>
+          把品位 0–9 整组隐藏（实测这 10 个按钮在 390 屏上 <span class="mono">width = 0</span>）。
+          点音符弹出的浮条只给时值、三个技法、连音线，<strong>不含品位</strong>。
+          唯一的触摸路径是指板面板，而它埋在「智能抽屉 → 创作辅助 → 指板/键盘」三层之下。
+        </p>
+
+        <h3>配色：四级表面挤在同一色相同一明度</h3>
+        <p>
+          现在的四级表面是 <span class="mono">--bg #f3f0e8</span> → <span class="mono">--toolbar #f7f4ec</span>
+          → <span class="mono">--paper #fbfaf5</span> → <span class="mono">--panel #fefdf9</span>。
+          它们的色相分别是 <span class="mono">44° / 44° / 50° / 48°</span>——四级本来就是同一片暖黄；
+          相邻对比只有 <span class="mono">1.036 / 1.052 / 1.027</span>，
+          <strong>谱纸与画布之间只差 1.09</strong>。层级完全靠 1px 描边撑着，
+          而描边对底色本身也只有 <span class="mono">1.19</span> 的对比。
+        </p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>配色项</th><th>实测</th><th>问题</th></tr></thead>
+            <tbody>
+              <tr><td>四级表面相邻对比</td><td class="num">1.03 / 1.05 / 1.03</td>
+                <td>层级不可见，谱纸没有「这是纸」的分离感</td></tr>
+              <tr><td><span class="mono">--faint #a49c8d</span></td>
+                <td class="num">2.39 : 1</td>
+                <td>低于 AA 4.5，甚至低于大字号 3.0<span class="tag b">不达标</span><br>
+                  而它正是全部面板小标题用的颜色</td></tr>
+              <tr><td>告警与强调的色相差</td><td class="num">19°</td>
+                <td><span class="mono">--danger #b45309</span>（26°）与
+                  <span class="mono">--accent #c33a29</span>（7°）<br>
+                  代码注释写着「错开色相避免混淆」，19° 不够</td></tr>
+              <tr><td>全站色相分布</td><td class="num">6–50° ＋ 一枚 147°</td>
+                <td>除了校验绿，所有颜色挤在 44° 宽的暖楔里</td></tr>
+              <tr><td>深色模式表面</td><td>已有完整主色板</td>
+                <td>谱纸另有 <span class="mono">score-invert</span> 手动开关，<br>
+                  但深色下是否默认反色从未定过</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          最要紧的一处在<strong>谱面上</strong>：小节时值错误的红底与 <span class="mono">!</span> 标记用
+          <span class="mono">--danger</span>，而被强调的小节号用 <span class="mono">--accent</span>——
+          两者在谱面上相隔 19° 色相，都是暖红橙。
+          <strong>「这小节拍数不对」和「这是重点小节」长得几乎一样。</strong>
+        </p>
+        <div class="note">
+          根因不是选错了颜色，是<b>一个 <span class="mono">--danger</span> 令牌同时干两件事</b>：
+          既做谱面上的编辑器批注（校验红底、<span class="mono">!</span>），又做界面上的破坏性操作（静音、删除）。
+          只要强调色是红族，这枚令牌就必然和它撞上。三个方案的分歧点，本质是<b>把红让给谁</b>。
+        </div>
+
+        <h3>一致性：令牌形同虚设</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>项目</th><th>现状</th><th>问题</th></tr></thead>
+            <tbody>
+              <tr><td>圆角取值</td><td class="num">20 种</td>
+                <td>令牌 <span class="mono">--radius</span> 全站只被引用 <b>1 次</b></td></tr>
+              <tr><td>字号</td><td class="num">26 种</td><td>无字阶，逐处微调累积</td></tr>
+              <tr><td>阴影</td><td class="num">20 处写死</td>
+                <td>令牌是 <span class="mono">--shadow:none</span></td></tr>
+              <tr><td>选中态</td><td class="num">4 种视觉</td>
+                <td>红字／红框／红底白字／<b>黑底白字</b>并存</td></tr>
+              <tr><td>浮层实现</td><td class="num">3 套</td><td>定位、关闭、层级各写各的</td></tr>
+              <tr><td>断点</td><td class="num">7 + 3</td>
+                <td>编辑器与官网只有 <span class="mono">820</span> 一个重合</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 02 主张 -->
+      <section id="s2">
+        <div class="sec-h"><span class="sec-n">02</span><h2>结构四条主张</h2></div>
+        <p class="sec-sub">按影响面排序。第 4 条最关键，也是唯一需要您先拍板定位的一条。</p>
+
+        <div class="claim">
+          <div class="claim-h"><div class="claim-n">1</div>
+            <div class="claim-t">工具跟随选中对象，不再全部常驻</div></div>
+          <p style="margin:0;color:var(--muted);font-size:14.5px">
+            制谱的操作天然是有上下文的：选中六线谱音符时，简谱的升降号和八度点毫无意义。
+            把「全都摆出来」换成「摆出此刻能用的」。</p>
+          <ul>
+            <li><b>顶栏合并单行</b>——文件类操作（新建/打开/保存/导出/打印/排版）收进「文件」菜单，
+              顶栏只留品牌、撤销重做、播放、个人中心</li>
+            <li><b>编辑栏改为上下文条</b>——选中 TAB 音符出「品位＋时值＋技法」，
+              选中简谱音符出「唱名＋升降＋八度」，选中小节出「拍号＋反复」，没选中则整条不占位</li>
+            <li><b>左栏面板浮出而非挤压</b>——图标轨常驻 <span class="mono">56px</span>，
+              点开的面板覆盖在谱面上方，松手即收</li>
+            <li><b>右栏默认收起</b>；「当前编辑位置」五行表压成底部状态条一行</li>
+          </ul>
+        </div>
+
+        <div class="claim">
+          <div class="claim-h"><div class="claim-n">2</div>
+            <div class="claim-t">一套令牌，四级圆角、七级字阶、一套三态</div></div>
+          <p style="margin:0;color:var(--muted);font-size:14.5px">
+            现在的令牌是「定义了但没在用」。收敛之后，任何新组件都不必再自己发明数值——
+            这也是防止今后再出现「同一个概念四种表达」的唯一办法。</p>
+          <ul>
+            <li>圆角 <b>20 → 4</b> 级；字号 <b>26 → 7</b> 级；阴影 3 级令牌，<b>禁止写死</b></li>
+            <li>选中态统一为一套三档：主态实心／次态浅底描边／三态仅文字色</li>
+            <li>断点 <b>10 → 4</b> 个，编辑器与官网共用</li>
+          </ul>
+        </div>
+
+        <div class="claim">
+          <div class="claim-h"><div class="claim-n">3</div>
+            <div class="claim-t">密度分层：常用常驻，长尾折叠</div></div>
+          <ul style="margin-top:2px">
+            <li>左栏 31 个双行图标钮 → <b>常用 8 个常驻</b> ＋ 其余进「更多」</li>
+            <li>编辑栏 41 → 上下文化后典型 <b>12–16</b> 个</li>
+            <li>首屏可见按钮 118 → <b>≤55</b></li>
+          </ul>
+        </div>
+
+        <div class="claim" style="border-color:var(--good)">
+          <div class="claim-h"><div class="claim-n" style="background:var(--good)">4</div>
+            <div class="claim-t">手机＝完整创作，但主录入面是指板／键盘</div></div>
+          <p style="margin:0;color:var(--muted);font-size:14.5px">
+            不要把桌面那排品位按钮塞进手机——那是 41 个按钮的思路。
+            吉他手在手机上最自然的输入面本来就是<strong>指板</strong>：看到哪按哪。
+            指板面板已经做好了（v60.62/70），只是埋得太深。把它提到底部主位即可。</p>
+          <ul>
+            <li>底部收为<b>单层可切换工具面</b>：时值／指板／键盘／技法 四页签共用一个面板</li>
+            <li>播放坞收为一行 <span class="mono">56px</span>，上滑才展开三排</li>
+            <li>录一个音符：<b>点谱面位置 → 点指板</b>，共 2 次触摸</li>
+            <li>三个写死的 <span class="mono">--mob-b1/b2/b3</span> 常量随之消失</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 03 配色 -->
+      <section id="s3">
+        <div class="sec-h"><span class="sec-n">03</span><h2>配色三个方向</h2></div>
+        <p class="sec-sub">三个方案都修掉了 01 里那四项实测缺陷（表面层级、辅助文字对比、告警撞色、色相单一）。
+          分歧只在一件事：<strong>红留给谁</strong>。点任一张卡，第 05／06 节的样机会立刻换色。
+          卡上的对比数字取<strong>最不利的底</strong>（画布），换到面板底上还会更高一些。</p>
+
+        <div class="pals">
+          <div class="pal" id="pal-now">
+            <div class="pal-k">CURRENT</div>
+            <div class="pal-n">现状 · 暖米朱砂</div>
+            <p class="pal-s">v40.6 素材配色。红同时承担品牌、选中、谱面重音；谱面批注是一枚 26° 琥珀，
+              和重音只差 19°。</p>
+            <div class="strip">
+              <i style="background:#f3f0e8"></i><i style="background:#f7f4ec"></i>
+              <i style="background:#fbfaf5"></i><i style="background:#fefdf9"></i>
+              <i style="background:#e4ddcd"></i><i class="w2" style="background:#c33a29"></i>
+              <i style="background:#b45309"></i><i style="background:#157a43"></i>
+              <i style="background:#20211d"></i>
+            </div>
+            <div class="pal-legend"><span>画布 → 谱纸</span><span>强调 · 批注 · 通过 · 墨</span></div>
+            <dl>
+              <dt>表面相邻对比</dt><dd class="r">1.04</dd>
+              <dt>辅助文字对比</dt><dd class="r">2.39 : 1</dd>
+              <dt>谱面重音↔批注</dt><dd class="r">19°</dd>
+              <dt>谱纸与画布</dt><dd class="r">1.09</dd>
+            </dl>
+            <div class="pal-use"><button onclick="setPal('now')">在样机上看现状</button></div>
+          </div>
+
+          <div class="pal" id="pal-a">
+            <div class="pal-k">方案 A</div>
+            <div class="pal-n">冷壳朱印</div>
+            <p class="pal-s"><b>红留给品牌与选中。</b>外壳全部转冷灰、谱纸转纯白，
+              朱砂在冷底上分离度最高；谱面批注让给靛紫——刻版软件里编辑器批注本就用冷色，
+              这样它天然读作「不是乐谱的一部分」。</p>
+            <div class="strip">
+              <i style="background:#e7eaef"></i><i style="background:#f1f3f7"></i>
+              <i style="background:#ffffff"></i><i style="background:#fafbfd"></i>
+              <i style="background:#ccd3de"></i><i class="w2" style="background:#c33a29"></i>
+              <i style="background:#5b3fb5"></i><i style="background:#10715a"></i>
+              <i style="background:#16191f"></i>
+            </div>
+            <div class="pal-legend"><span>画布 → 谱纸</span><span>强调 · 批注 · 通过 · 墨</span></div>
+            <dl>
+              <dt>表面相邻对比</dt><dd class="g">1.09</dd>
+              <dt>辅助文字对比</dt><dd class="g">4.65 : 1</dd>
+              <dt>谱面重音↔批注</dt><dd class="g">112°</dd>
+              <dt>谱纸与画布</dt><dd class="g">1.21</dd>
+            </dl>
+            <div class="pal-use"><button onclick="setPal('a')">在样机上看 A</button></div>
+          </div>
+
+          <div class="pal" id="pal-b">
+            <div class="pal-k">方案 B</div>
+            <div class="pal-n">靛与朱</div>
+            <p class="pal-s"><b>红只留给谱面。</b>界面的选中态改靛蓝——工具的「已激活」本就该克制；
+              朱砂退回品牌标与谱面重音（小节号、和弦名）。谱面批注也用靛蓝：
+              选中态不会画在谱纸上，两者不会照面。好处是满屏红的疲劳感消失。</p>
+            <div class="strip">
+              <i style="background:#eceef4"></i><i style="background:#f4f6fa"></i>
+              <i style="background:#ffffff"></i><i style="background:#fcfdff"></i>
+              <i style="background:#ced5e3"></i><i class="w2" style="background:#2b4c9b"></i>
+              <i style="background:#2b4c9b"></i><i style="background:#106b4e"></i>
+              <i style="background:#14171d"></i>
+            </div>
+            <div class="pal-legend"><span>画布 → 谱纸</span><span>强调 · 批注 · 通过 · 墨</span></div>
+            <dl>
+              <dt>表面相邻对比</dt><dd class="g">1.07</dd>
+              <dt>辅助文字对比</dt><dd class="g">4.83 : 1</dd>
+              <dt>谱面重音↔批注</dt><dd class="g">144°</dd>
+              <dt>白字压强调</dt><dd class="g">8.05 : 1</dd>
+            </dl>
+            <div class="pal-use"><button onclick="setPal('b')">在样机上看 B</button></div>
+          </div>
+
+          <div class="pal" id="pal-c">
+            <div class="pal-k">方案 C</div>
+            <div class="pal-n">墨稿</div>
+            <p class="pal-s"><b>界面不要彩色。</b>选中＝墨黑实心（现有四种选中态之一，本来就存在），
+              界面上再无第二种彩色；朱砂与靛紫全部退到谱面，一个做重音、一个做批注。
+              最像专业刻版工具，代价是暖意全无，与「教育／大众」的气质有距离。</p>
+            <div class="strip">
+              <i style="background:#e9e9ea"></i><i style="background:#f3f3f4"></i>
+              <i style="background:#ffffff"></i><i style="background:#fbfbfc"></i>
+              <i style="background:#d2d3d6"></i><i class="w2" style="background:#1b1d20"></i>
+              <i style="background:#5b3fb5"></i><i style="background:#17694a"></i>
+              <i style="background:#c33a29"></i>
+            </div>
+            <div class="pal-legend"><span>画布 → 谱纸</span><span>强调 · 批注 · 通过 · 谱面朱砂</span></div>
+            <dl>
+              <dt>表面相邻对比</dt><dd class="g">1.09</dd>
+              <dt>辅助文字对比</dt><dd class="g">4.54 : 1</dd>
+              <dt>谱面重音↔批注</dt><dd class="g">112°</dd>
+              <dt>白字压强调</dt><dd class="g">16.9 : 1</dd>
+            </dl>
+            <div class="pal-use"><button onclick="setPal('c')">在样机上看 C</button></div>
+          </div>
+        </div>
+
+        <div class="note">
+          三个方案里<b>谱面上的重音都还是朱砂</b>——变的只是外壳用不用它。
+          这是有意的：朱砂是这个产品被记住的那一笔，把它收进谱面反而更贵重。
+        </div>
+
+        <h3>换色的代价：接近零</h3>
+        <p>
+          我查了 99 个套件：只有 <span class="mono">tv_card.js</span> 与 <span class="mono">tv_clip.js</span>
+          触到颜色，而它们断言的是<strong>令牌名</strong>（<span class="mono">var(--accent)</span>、
+          <span class="mono">var(--danger)</span>），不是十六进制值。
+          所以<strong>改值不会红任何一条断言，改名会全红</strong>——
+          这正好和「<span class="mono">musetab-*</span> 键名永不改名」的红线是同一条规矩：
+          <b>值可以换，名字不能动。</b>
+        </p>
+
+        <h3>选中态：一套三档（跟随上面的方案切换）</h3>
+        <div class="states">
+          <span class="st p">主态 · 实心</span>
+          <span class="st s">次态 · 浅底描边</span>
+          <span class="st t">三态 · 仅文字色</span>
+          <span class="st o">未选中</span>
+        </div>
+        <p style="font-size:14px;color:var(--muted)">
+          规则：<b>同一组控件内只允许出现一个主态。</b>
+          分段控件若有两个维度（如已有的「编辑／演奏」与「指板／键盘」），
+          主维度用主态、次维度用次态——这条 v60.70 已经在指板面板上验证过了。
+        </p>
+
+        <div class="note">
+          这份文档本身的冷灰纸面<b>不是提案之一</b>。它刻意保持中性，
+          好让上面四条色带在同一块底上被公平比较——就像看色卡要在灰卡上看。
+        </div>
+      </section>
+
+      <!-- 04 令牌 -->
+      <section id="s4">
+        <div class="sec-h"><span class="sec-n">04</span><h2>令牌收敛</h2></div>
+        <p class="sec-sub">配色之外的数值型令牌。这一节与选哪个配色方案无关，三个方案都要做。</p>
+
+        <h3>圆角：20 种 → 4 级</h3>
+        <div class="swatches">
+          <div class="sw"><div class="box" style="border-radius:6px"></div>--r-sm 6px<br>控件内元素</div>
+          <div class="sw"><div class="box" style="border-radius:10px"></div>--r-md 10px<br>按钮 · 输入</div>
+          <div class="sw"><div class="box" style="border-radius:16px"></div>--r-lg 16px<br>卡片 · 面板</div>
+          <div class="sw"><div class="box" style="border-radius:999px"></div>--r-pill<br>胶囊 · 分段</div>
+        </div>
+
+        <h3>字阶：26 种 → 7 级</h3>
+        <div class="scale">
+          <span style="font-size:11px">11<i>标注</i></span>
+          <span style="font-size:12px">12<i>辅助</i></span>
+          <span style="font-size:13px">13<i>控件</i></span>
+          <span style="font-size:14px">14<i>正文</i></span>
+          <span style="font-size:16px">16<i>小标题</i></span>
+          <span style="font-size:20px">20<i>标题</i></span>
+          <span style="font-size:26px">26<i>页标题</i></span>
+        </div>
+
+        <h3>断点：10 → 4</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>断点</th><th>含义</th><th>取代现有</th></tr></thead>
+            <tbody>
+              <tr><td class="num">560</td><td>小手机</td><td class="num">520 / 560</td></tr>
+              <tr><td class="num">820</td><td>手机 → 平板</td><td class="num">640 / 720 / 820 / 580</td></tr>
+              <tr><td class="num">1180</td><td>平板 → 桌面</td><td class="num">960 / 1180 / 1200</td></tr>
+              <tr><td class="num">1440</td><td>宽屏加宽版心</td><td>新增</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>令牌拆分：<span class="mono">--danger</span> 一分为二</h3>
+        <p>
+          保留 <span class="mono">--danger</span> 这个名字给<strong>破坏性操作</strong>（删除、静音），
+          新增 <span class="mono">--annot</span> 给<strong>编辑器批注</strong>（谱面校验红底、
+          <span class="mono">!</span> 标记、时值错误小节号）。
+          旧名不删不改，只把谱面上那 4 处引用换成新令牌——两处 TAB、两处简谱，改动面很小。
+        </p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>令牌</th><th>用在哪</th><th>A</th><th>B</th><th>C</th></tr></thead>
+            <tbody>
+              <tr><td><span class="mono">--accent</span></td><td>界面选中态</td>
+                <td class="num">朱砂</td><td class="num">靛蓝</td><td class="num">墨黑</td></tr>
+              <tr><td>谱面重音</td><td>小节号 · 和弦名</td>
+                <td class="num">朱砂</td><td class="num">朱砂</td><td class="num">朱砂</td></tr>
+              <tr><td><span class="mono">--annot</span></td><td>谱面校验 · <span class="mono">!</span></td>
+                <td class="num">靛紫</td><td class="num">靛蓝</td><td class="num">靛紫</td></tr>
+              <tr><td><span class="mono">--danger</span></td><td>删除 · 静音</td>
+                <td class="num">深红</td><td class="num">深红</td><td class="num">深红</td></tr>
+              <tr><td><span class="mono">--ok</span></td><td>校验通过</td>
+                <td class="num">墨绿</td><td class="num">墨绿</td><td class="num">墨绿</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          A 有一处需要您认可：它的<b>选中态与破坏性操作同为红族</b>。
+          我认为可以接受——破坏性操作全站只有两处（删除按钮悬停、静音开启），
+          且它们靠图标语义识别；真正必须分开的是谱面上的批注，而那已经交给靛紫了。
+          若您不接受这一点，B 或 C 才是干净的选择。
+        </p>
+      </section>
+
+      <!-- 05 桌面样机 -->
+      <section id="s5">
+        <div class="sec-h"><span class="sec-n">05</span><h2>桌面样机</h2></div>
+        <p class="sec-sub">左边开关切换现状／提案的<strong>结构</strong>，右边开关切换<strong>配色</strong>——
+          两者独立，可以任意组合着看。样机是等比结构示意，比例按实测值绘制。</p>
+
+        <div class="spec">
+          <div class="spec-bar">
+            <span class="spec-cap">桌面 1440 × 900</span>
+            <span class="toggle" role="group" aria-label="桌面样机结构切换">
+              <button id="dBefore" aria-pressed="true" onclick="setDesk('before')">现状</button>
+              <button id="dAfter" aria-pressed="false" onclick="setDesk('after')">提案</button>
+            </span>
+            <span class="toggle palsw" role="group" aria-label="配色切换">
+              <button data-pk="now" aria-pressed="true" onclick="setPal('now')">现状色</button>
+              <button data-pk="a" aria-pressed="false" onclick="setPal('a')">A</button>
+              <button data-pk="b" aria-pressed="false" onclick="setPal('b')">B</button>
+              <button data-pk="c" aria-pressed="false" onclick="setPal('c')">C</button>
+            </span>
+            <span class="metric">谱面占比 <b id="dMetric">51%</b></span>
+          </div>
+
+          <div class="bench">
+            <!-- 现状 -->
+            <div class="frame desk" id="deskBefore">
+              <div class="mk-top" style="height:26px">
+                <span class="chip dk">谱友圈</span>
+                <span class="chip dk">智能</span><span class="chip dk">新建</span>
+                <span class="chip dk">打开</span><span class="chip dk">保存</span>
+                <span class="chip dk">导出</span><span class="chip dk">排版</span>
+                <span class="chip dk">预览</span><span class="chip dk">打印</span>
+                <span class="chip dk">预设</span><span class="chip dk">谱库</span>
+                <span style="margin-left:auto"></span><span class="chip dk on">个人中心</span>
+              </div>
+              <div class="mk-bar" style="height:30px">
+                <span class="chip">后插</span><span class="chip">前插</span><span class="chip">休止</span>
+                <span class="chip">清音</span><span class="chip">拆分</span><span class="chip">合并</span>
+                <span class="chip">删除</span>
+                <span style="width:6px"></span>
+                <span class="chip">0</span><span class="chip">1</span><span class="chip on">2</span>
+                <span class="chip">3</span><span class="chip">4</span><span class="chip">5</span>
+                <span class="chip">6</span><span class="chip">7</span><span class="chip">8</span>
+                <span class="chip">9</span><span class="chip">10-24</span>
+                <span style="width:6px"></span>
+                <span class="chip">𝅝</span><span class="chip">𝅗𝅥</span><span class="chip">♩</span>
+                <span class="chip on">♪</span><span class="chip">♬</span><span class="chip">𝅘𝅥𝅰</span>
+              </div>
+              <div class="mk-bar" style="height:26px">
+                <span class="chip">节奏</span><span class="chip">⊓</span><span class="chip">⊔</span>
+                <span class="chip">⊔⊔</span><span class="chip">⊓⊔</span><span class="chip">更多▾</span>
+                <span class="chip">节奏型库…</span>
+                <span style="width:6px"></span><span class="chip">↶</span><span class="chip">↷</span>
+                <span style="margin-left:auto"></span><span class="chip">100%</span>
+              </div>
+              <div class="mk-body">
+                <div class="mk-rail" style="width:28px">
+                  <div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+                  <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                </div>
+                <div class="mk-panel" style="width:167px">
+                  <div class="mk-lab">当前音轨</div>
+                  <div class="chip on2" style="display:block;margin-bottom:6px">吉他1</div>
+                  <div class="mk-lab">记号</div>
+                  <div class="grid4" style="margin-bottom:6px">
+                    <div class="dot"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                  </div>
+                  <div class="mk-lab">演奏技巧</div>
+                  <div class="grid4">
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                  </div>
+                </div>
+                <div class="mk-paper">
+                  <div class="plabel">谱面 735px / 51%</div>
+                  <div class="mnum" style="top:22px;left:36px">3</div>
+                  <div class="staff" style="width:423px"></div>
+                  <div class="staff" style="width:423px"></div>
+                  <div class="staff" style="width:423px"></div>
+                  <div class="errm" style="top:20px;right:56px">! 拍数不足</div>
+                  <div class="ann b" style="bottom:6px;right:8px">被两侧挤到一半</div>
+                </div>
+                <div class="mk-right" style="width:168px">
+                  <div style="display:flex;gap:4px;margin-bottom:6px">
+                    <span class="chip on2">创作</span><span class="chip">信息</span></div>
+                  <div class="mk-lab" style="margin-bottom:3px">当前编辑位置</div>
+                  <div style="font-size:7.5px;line-height:1.9;color:var(--p-mut)">
+                    声部　吉他谱·吉他1<br>小节　第 1 / 8<br>列　　第 3 / 6<br>
+                    时值　8分<br>音符　3弦 2品</div>
+                  <div class="mk-lab" style="margin:6px 0 3px">创作辅助</div>
+                  <div class="chip" style="display:block;margin-bottom:3px">导入 MIDI…</div>
+                  <div class="chip" style="display:block;margin-bottom:3px">配和弦工作台</div>
+                  <div class="chip" style="display:block">指板 / 键盘</div>
+                </div>
+              </div>
+              <div class="mk-dock" style="height:26px">
+                <span class="chip dk on">▶ 播放</span>
+                <span class="chip dk">1</span><span class="chip dk">2</span><span class="chip dk">3</span>
+                <span class="chip dk">4</span><span class="chip dk">5</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip dk">90</span><span class="chip dk">1×</span>
+                <span class="chip dk">节拍器</span><span class="chip dk">谱架</span><span class="chip dk">音轨</span>
+              </div>
+            </div>
+
+            <!-- 提案 -->
+            <div class="frame desk" id="deskAfter" hidden>
+              <div class="mk-top" style="height:30px">
+                <span class="chip dk">谱友圈</span>
+                <span class="chip dk">文件 ▾</span>
+                <span class="chip dk">↶</span><span class="chip dk">↷</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip dk on">▶ 播放</span>
+                <span class="chip dk">个人中心</span>
+              </div>
+              <div class="mk-bar" style="height:30px;background:var(--p-panel)">
+                <span style="font-size:8px;color:var(--p-faint);margin-right:4px">选中 · 六线谱音符</span>
+                <span class="chip">0</span><span class="chip">1</span><span class="chip on">2</span>
+                <span class="chip">3</span><span class="chip">4</span><span class="chip">5</span>
+                <span class="chip">…</span>
+                <span style="width:8px"></span>
+                <span class="chip">♩</span><span class="chip on">♪</span><span class="chip">♬</span>
+                <span style="width:8px"></span>
+                <span class="chip">h</span><span class="chip">p</span><span class="chip">b↑</span>
+                <span class="chip">⌒</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip">更多 ▾</span>
+              </div>
+              <div class="mk-body">
+                <div class="mk-rail" style="width:32px">
+                  <div class="dot on"></div><div class="dot"></div><div class="dot"></div>
+                  <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                </div>
+                <div class="mk-paper" style="margin:10px">
+                  <div class="plabel">谱面 1040px / 72%</div>
+                  <div class="mnum" style="top:24px;left:112px">3</div>
+                  <div class="staff" style="width:598px"></div>
+                  <div class="staff" style="width:598px"></div>
+                  <div class="staff" style="width:598px"></div>
+                  <div class="staff" style="width:598px"></div>
+                  <div class="errm" style="top:22px;right:86px">! 拍数不足</div>
+                  <div class="ann" style="bottom:6px;right:8px">＋41% 可视宽度</div>
+                </div>
+                <div class="mk-rail" style="width:32px;border-right:0;border-left:1px solid var(--p-line)">
+                  <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                </div>
+              </div>
+              <div class="mk-status" style="height:22px">
+                <span>吉他谱·吉他1</span><span>小节 1/8</span><span>列 3/6</span>
+                <span>8分</span><span>3弦 2品</span>
+                <span style="margin-left:auto;color:var(--p-ok)">● 所有小节时值正确</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3>变化说明</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th>区域</th><th>现状</th><th>提案</th></tr></thead>
+            <tbody>
+              <tr><td>顶部</td><td class="num">3 层 · 125px</td>
+                <td class="num">2 层 · 60px<span class="tag g">−52%</span></td></tr>
+              <tr><td>编辑栏</td><td>41 个按钮常驻</td>
+                <td>上下文条，典型 12–16 个</td></tr>
+              <tr><td>左栏</td><td class="num">339px 常驻</td>
+                <td class="num">56px 图标轨，面板浮出<span class="tag g">−83%</span></td></tr>
+              <tr><td>右栏</td><td class="num">292px 常驻</td>
+                <td class="num">56px，按需展开<span class="tag g">−81%</span></td></tr>
+              <tr><td>编辑位置</td><td>右栏五行表</td><td>底部状态条一行</td></tr>
+              <tr><td>谱面</td><td class="num">735px / 51%</td>
+                <td class="num">≈1040px / 72%<span class="tag g">＋41%</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          注意谱纸上那两个标记：左边小小的 <b>3</b> 是被强调的小节号，右边是<b>拍数不足的批注</b>。
+          切到「现状色」它们是同一族暖红，隔着 19° 色相；切到 A／B／C 就彻底分开了。
+        </p>
+      </section>
+
+      <!-- 06 移动样机 -->
+      <section id="s6">
+        <div class="sec-h"><span class="sec-n">06</span><h2>移动样机</h2></div>
+        <p class="sec-sub">问题最集中、收益也最大的一屏。</p>
+
+        <div class="spec">
+          <div class="spec-bar">
+            <span class="spec-cap">iPhone 390 × 844</span>
+            <span class="toggle" role="group" aria-label="移动样机结构切换">
+              <button id="mBefore" aria-pressed="true" onclick="setMob('before')">现状</button>
+              <button id="mAfter" aria-pressed="false" onclick="setMob('after')">提案</button>
+            </span>
+            <span class="toggle palsw" role="group" aria-label="配色切换">
+              <button data-pk="now" aria-pressed="true" onclick="setPal('now')">现状色</button>
+              <button data-pk="a" aria-pressed="false" onclick="setPal('a')">A</button>
+              <button data-pk="b" aria-pressed="false" onclick="setPal('b')">B</button>
+              <button data-pk="c" aria-pressed="false" onclick="setPal('c')">C</button>
+            </span>
+            <span class="metric">底部占屏 <b id="mMetric">30%</b></span>
+          </div>
+
+          <div class="bench" style="display:flex;gap:26px;justify-content:center;flex-wrap:wrap">
+            <!-- 现状 -->
+            <div class="frame mob" id="mobBefore">
+              <div class="mk-top" style="height:32px">
+                <span class="chip dk on">☰</span><span class="chip dk">☰</span>
+                <span class="chip dk">智能</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip dk">↶</span><span class="chip dk">↷</span>
+              </div>
+              <div class="mk-paper" style="margin:6px;justify-content:flex-start;padding-top:24px">
+                <div class="plabel">可视谱面 529px</div>
+                <div class="staff" style="width:90%"></div>
+                <div class="staff" style="width:90%"></div>
+                <div class="staff" style="width:90%"></div>
+              </div>
+              <div style="flex:none;background:var(--p-bar);border-top:1px solid var(--p-line);
+                          height:32px;display:flex;align-items:center;gap:2px;padding:0 6px">
+                <span class="chip">𝅝</span><span class="chip">𝅗𝅥</span><span class="chip">♩</span>
+                <span class="chip on">♪</span><span class="chip">♬</span><span class="chip">𝅘𝅥𝅰</span>
+              </div>
+              <div style="flex:none;background:var(--p-bar);border-top:1px solid var(--p-line);
+                          height:32px;display:flex;align-items:center;gap:3px;padding:0 6px">
+                <span class="chip on">吉..</span><span class="chip">旋..</span>
+                <span class="chip">＋</span><span class="chip">歌词</span><span class="chip">小节</span>
+              </div>
+              <div class="mk-dock" style="height:92px;flex-direction:column;justify-content:center;gap:5px;padding:6px 8px">
+                <div style="display:flex;gap:2px;width:100%">
+                  <span class="chip dk" style="flex:1;text-align:center">1</span>
+                  <span class="chip dk" style="flex:1;text-align:center">2</span>
+                  <span class="chip dk" style="flex:1;text-align:center">3</span>
+                  <span class="chip dk" style="flex:1;text-align:center">4</span>
+                  <span class="chip dk" style="flex:1;text-align:center">5</span>
+                </div>
+                <div class="chip dk on" style="width:100%;text-align:center;padding:5px">▶ 播放</div>
+                <div style="display:flex;gap:3px;width:100%">
+                  <span class="chip dk" style="flex:1;text-align:center">90</span>
+                  <span class="chip dk" style="flex:1;text-align:center">1×</span>
+                  <span class="chip dk" style="flex:1;text-align:center">节拍器</span>
+                  <span class="chip dk" style="flex:1;text-align:center">音轨</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 提案 -->
+            <div class="frame mob" id="mobAfter" hidden>
+              <div class="mk-top" style="height:32px">
+                <span class="chip dk">☰</span>
+                <span class="chip dk">吉他1 ▾</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip dk">↶</span><span class="chip dk">↷</span>
+                <span class="chip dk on">▶</span>
+              </div>
+              <div class="mk-paper" style="margin:6px;justify-content:flex-start;padding-top:24px">
+                <div class="plabel">可视谱面 642px</div>
+                <div class="staff" style="width:90%"></div>
+                <div class="staff" style="width:90%"></div>
+                <div class="staff" style="width:90%"></div>
+                <div class="staff" style="width:90%"></div>
+                <div class="ann" style="bottom:6px;right:8px">＋21%</div>
+              </div>
+              <div class="fbwrap">
+                <div style="flex:none;background:var(--p-bar);border-top:1px solid var(--p-line);
+                            height:22px;display:flex;align-items:center;gap:3px;padding:0 6px">
+                  <span class="chip on2">指板</span><span class="chip">键盘</span>
+                  <span class="chip">时值</span><span class="chip">技法</span>
+                  <span style="margin-left:auto"></span>
+                  <span style="font-size:7px;color:var(--p-faint)">3弦 2品</span>
+                </div>
+                <div class="fb">
+                  <div class="fbr"><span>1</span><i style="height:.8px"></i></div>
+                  <div class="fbr"><span>2</span><i style="height:.8px"></i></div>
+                  <div class="fbr" style="position:relative"><span>3</span><i style="height:1px"></i>
+                    <b>2</b></div>
+                  <div class="fbr"><span>4</span><i style="height:1.2px"></i></div>
+                  <div class="fbr"><span>5</span><i style="height:1.4px"></i></div>
+                  <div class="fbr"><span>6</span><i style="height:1.7px"></i></div>
+                </div>
+              </div>
+              <div class="mk-dock" style="height:26px">
+                <span class="chip dk on">▶</span>
+                <span style="font-size:8px">1 / 8</span>
+                <span style="margin-left:auto"></span>
+                <span class="chip dk">90</span><span class="chip dk">1×</span>
+                <span class="chip dk">⌃</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h3>录一个音符：现在与之后</h3>
+        <div class="tw">
+          <table>
+            <thead><tr><th></th><th>现状</th><th>提案</th></tr></thead>
+            <tbody>
+              <tr><td>路径</td>
+                <td>点「智能」→ 滚到创作辅助 → 点「指板/键盘」→ 面板浮出 → 点品位
+                  <span class="tag b">4 步以上</span></td>
+                <td>点谱面位置 → 点指板品位<span class="tag g">2 次触摸</span></td></tr>
+              <tr><td>底部固定栏</td>
+                <td class="num">3 层 · 253px · 30%</td>
+                <td class="num">2 层 · 156px · 18.5%<span class="tag g">−38%</span></td></tr>
+              <tr><td>可视谱面高</td><td class="num">529px</td>
+                <td class="num">642px<span class="tag g">＋21%</span></td></tr>
+              <tr><td>写死常量</td><td class="mono">--mob-b1/b2/b3</td>
+                <td>取消，单层面板自然流</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 07 落地 -->
+      <section id="s7">
+        <div class="sec-h"><span class="sec-n">07</span><h2>落地路线</h2></div>
+        <p class="sec-sub">四批。每批独立可发布、可回滚，且都带可测断言——不写成数字，99 个回归套件守不住。
+          <strong>不要把配色和结构放进同一批</strong>：万一用户抱怨，得能分清抱怨的是哪一件。</p>
+
+        <div class="phase">
+          <div class="ph-n">批 1</div>
+          <div class="ph-b">
+            <div class="ph-t">令牌收敛（零视觉风险）</div>
+            <p>纯 CSS 层：圆角、字阶、阴影、选中态、断点五项统一，外加
+              <code>--danger</code> 拆出 <code>--annot</code>。不动任何 DOM 结构与 JS，
+              因此不会触发几何断言。</p>
+            <p>验收：<code>圆角取值 ≤4</code> · <code>字号 ≤7</code> ·
+              <code>写死 box-shadow = 0</code> · <code>断点 = 4</code></p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="ph-n">批 2</div>
+          <div class="ph-b">
+            <div class="ph-t">配色换档（只改值，不改名）</div>
+            <p>选定 A／B／C 之一后，只替换令牌的十六进制值。
+              <code>tv_card</code>／<code>tv_clip</code> 断言的是令牌名不是色值，所以全绿。
+              建议同时补一条新套件，把「表面相邻对比 ≥1.08」「辅助文字 ≥4.5:1」
+              「强调↔告警色相差 ≥90°」写成可跑的断言，防止今后再漂回去。</p>
+            <p>验收：<code>相邻表面对比 ≥1.08</code> · <code>--faint 对比 ≥4.5</code> ·
+              <code>色相差 ≥90°</code> · <code>令牌名零改动</code></p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="ph-n">批 3</div>
+          <div class="ph-b">
+            <div class="ph-t">移动端重构（收益最大）</div>
+            <p>底部三层合一为可切换工具面，指板提到主位，播放坞收为一行。
+              这一批会推翻 <code>tv_mobile</code> 里那几条「三条底栏两两交集为 0」的几何断言——
+              那是有意的口径变更，需要按新版面重写。</p>
+            <p>验收：<code>底部占屏 ≤24%</code> · <code>录音符触摸数 ≤2</code> ·
+              <code>--mob-b* 常量消失</code></p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="ph-n">批 4</div>
+          <div class="ph-b">
+            <div class="ph-t">桌面结构重排（改动面最大）</div>
+            <p>顶栏合并、编辑栏上下文化、左右栏改浮出。建议加一个
+              <code>musetab-ui=classic</code> 开关保留旧版面一个版本周期，
+              让重度用户有退路——这也符合本项目「用户数据与习惯是红线」的一贯做法。</p>
+            <p>验收：<code>谱面占比 ≥72%</code> · <code>首屏按钮 ≤55</code> ·
+              <code>选中态视觉 = 1 套</code></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 08 待拍板 -->
+      <section id="s8">
+        <div class="sec-h"><span class="sec-n">08</span><h2>待您拍板</h2></div>
+        <p class="sec-sub">下面五条我都给了建议答案，但决定权在您——这几条会改变方案的形状，不是细节。</p>
+
+        <div class="ask">
+          <div class="ask-q">配色走哪个方向？</div>
+          <p class="ask-a">建议 <b>A · 冷壳朱印</b>。理由：它修掉全部四项实测缺陷，
+            却完全保住了朱砂这个品牌资产——改动感受最小、收益最实。
+            B 的画面最舒服但品牌辨识要靠 logo 撑；C 最专业也最冷，
+            如果主攻方向确定是「教师考编／艺考／师范」，C 的气质可能偏硬。</p>
+        </div>
+
+        <div class="ask">
+          <div class="ask-q">手机是完整创作端，还是只读看谱端？</div>
+          <p class="ask-a">建议 <b>完整创作</b>，但录入面用指板而非按钮阵。
+            若定为看谱端，批 3 会大幅简化——底部只剩播放，编辑能力明确下线，也是干净的取舍。</p>
+        </div>
+
+        <div class="ask">
+          <div class="ask-q">左右栏改浮出，重度用户会不会觉得「工具找不到了」？</div>
+          <p class="ask-a">建议加 <b>classic 开关</b>保留旧版面一个版本周期，并默认对老用户保持旧版面，
+            新用户用新版面。这样可以拿真实使用数据决定是否收掉旧版。</p>
+        </div>
+
+        <div class="ask">
+          <div class="ask-q">深色模式下，谱纸要不要跟着反色？</div>
+          <p class="ask-a">现在有 <span class="mono">score-invert</span> 手动开关，但没有默认策略。
+            建议 <b>默认不反色</b>——纸是纸，深色外壳＋白谱纸更接近真实谱台；
+            把反色留作夜间练习的显式选项。这是产品问题不是技术问题，需要您定。</p>
+        </div>
+
+        <div class="ask">
+          <div class="ask-q">官网与编辑器统一设计语言吗？</div>
+          <p class="ask-a">建议 <b>只统一令牌，不统一版式</b>。官网是营销语境、编辑器是工具语境，
+            版式本就该不同；但配色、圆角、字阶、断点、选中态应当共用一套，避免同一个品牌两种手感。</p>
+        </div>
+      </section>
+
+      <footer>
+        版面数字实测于 Chromium · 桌面 1440×900 / 移动 390×844（iPhone UA）·
+        配色数字按 WCAG 2.1 相对亮度公式算自 <span class="mono">index.html</span> 令牌值 ·
+        基线版本 v60.70 ·
+        配套现状参考与 12 张截图见仓库 <span class="mono">docs/design-2026-08/</span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script>
+function setDesk(v){
+  var isB = v === 'before';
+  document.getElementById('deskBefore').hidden = !isB;
+  document.getElementById('deskAfter').hidden = isB;
+  document.getElementById('dBefore').setAttribute('aria-pressed', isB);
+  document.getElementById('dAfter').setAttribute('aria-pressed', !isB);
+  document.getElementById('dMetric').textContent = isB ? '51%' : '72%';
+}
+function setMob(v){
+  var isB = v === 'before';
+  document.getElementById('mobBefore').hidden = !isB;
+  document.getElementById('mobAfter').hidden = isB;
+  document.getElementById('mBefore').setAttribute('aria-pressed', isB);
+  document.getElementById('mAfter').setAttribute('aria-pressed', !isB);
+  document.getElementById('mMetric').textContent = isB ? '30%' : '18.5%';
+}
+function setPal(k){
+  if(k === 'now') document.body.removeAttribute('data-pal');
+  else document.body.setAttribute('data-pal', k);
+  ['now','a','b','c'].forEach(function(x){
+    var card = document.getElementById('pal-' + x);
+    if(card) card.classList.toggle('sel', x === k);
+  });
+  document.querySelectorAll('.toggle.palsw button').forEach(function(btn){
+    btn.setAttribute('aria-pressed', btn.dataset.pk === k);
+  });
+}
+setPal('now');
+</script>
