@@ -35,7 +35,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const t2 = await pg.evaluate(()=>{
     sel.row='vox'; sel.vi=0;
     document.getElementById('vn-jp').click();
-    const jian=document.getElementById('score').innerHTML.includes('font-size="15"');
+    const jian=document.getElementById('score').innerHTML.includes('font-size="16" font-weight="500" font-family="var(--font-ui)"');
     document.getElementById('vn-st').click();
     const staff=document.getElementById('score').innerHTML.includes(SMUFL.noteheadBlack.d);
     return {切回简谱显示数字:jian, 再切五线谱显示符头:staff};

@@ -47,7 +47,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const ferms = [...document.querySelectorAll('#score path')]
       .filter(p2 => p2.getAttribute('d') === SMUFL.fermataAbove.d)
       .map(p2 => { const m = /translate\((-?[\d.]+),(-?[\d.]+)\)/.exec(p2.getAttribute('transform')); return {x:+m[1], y:+m[2]}; });
-    const digit = [...document.querySelectorAll('#score text')].find(t => t.getAttribute('font-size') === '15');
+    const digit = [...document.querySelectorAll('#score text')].find(t => t.getAttribute('font-size') === '16' && t.getAttribute('font-family') === 'var(--font-ui)');
     return { nFerm: ferms.length, fermY: ferms[0] ? ferms[0].y : 0,
       digitY: digit ? +digit.getAttribute('y') : 0,
       stacc: /<circle[^>]*r="1\.6"/.test(svg),
@@ -224,7 +224,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const box = [...document.querySelectorAll('#score rect[stroke-width="1.1"]')].find(r2 =>
       +r2.getAttribute('x') < tx && tx < +r2.getAttribute('x') + +r2.getAttribute('width')
       && +r2.getAttribute('y') < ty && r2.getAttribute('fill') === 'none');
-    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '15');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16' && t2.getAttribute('font-family') === 'var(--font-ui)');
     const xml = exportMusicXML(song);
     const res = importMusicXML(xml);
     const rtLabel = res.song && res.song.measures[1].label;
@@ -253,7 +253,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const dataOk = song.measures[1].keyTo === 'G';
     blurSel = true; render();
     const tEl = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === '转1=G');
-    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '15');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16' && t2.getAttribute('font-family') === 'var(--font-ui)');
     const above = tEl && digit ? +tEl.getAttribute('y') < +digit.getAttribute('y') - 12 : false;
     const xml = exportMusicXML(song);
     const res = importMusicXML(xml);
@@ -358,7 +358,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const src2 = simileSrc(2), src3 = simileSrc(3);
     const beatOk = beatErrors().length === 0;
     blurSel = true; render();
-    const digits = [...document.querySelectorAll('#score text')].filter(t2 => t2.getAttribute('font-size') === '15');
+    const digits = [...document.querySelectorAll('#score text')].filter(t2 => t2.getAttribute('font-size') === '16' && t2.getAttribute('font-family') === 'var(--font-ui)');
     const b2 = document.querySelector('#score rect[data-row="vox"][data-mi="2"][data-ci="0"]');
     const inM2 = digits.filter(t2 => b2 && +t2.getAttribute('x') >= +b2.getAttribute('x') - 2
       && +t2.getAttribute('x') <= +b2.getAttribute('x') + +b2.getAttribute('width') + 2);
@@ -445,7 +445,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
         return {x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)}; });
     /* 音符锚点取品位数字文本真实 x（列格中心与音符 x 有排版偏差） */
     const ft = [...document.querySelectorAll('#score text')].find(t2 =>
-      t2.textContent==='5' && t2.getAttribute('font-weight')==='600' &&   /* v60.71 品位数字减重 700→600 */
+      t2.textContent==='5' && t2.getAttribute('font-weight')==='500' &&   /* v60.72 品位数字减重至 500 */
       +t2.getAttribute('x') >= z0.x && +t2.getAttribute('x') <= z0.x+z0.w &&
       Math.abs(+t2.getAttribute('y') - yy) < 8);
     const nx = ft? +ft.getAttribute('x') : z0.x + z0.w/2;
