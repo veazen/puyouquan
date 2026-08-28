@@ -1,0 +1,1028 @@
+<title>冷壳朱印样机</title>
+
+<style>
+/* ══════════ 令牌 ══════════
+   方案 A「冷壳朱印」：外壳冷灰、谱纸纯白、朱砂只做强调、靛紫只做谱面批注。
+   浅色定义在裸 :root；深色在媒体查询与 [data-theme] 两处各覆写一遍。 */
+:root{
+  --canvas:#e7eaef; --bar:#f1f3f7; --panel:#fafbfd; --paper:#ffffff; --ctl:#ffffff;
+  --line:#ccd3de; --line-soft:#dde2ea;
+  --ink:#16191f; --mut:#545d6d; --faint:#616875;
+  --acc:#c33a29; --on-acc:#ffffff; --acc-soft:rgba(195,58,41,.10); --acc-ink:#a83324;
+  --annot:#5b3fb5; --annot-soft:rgba(91,63,181,.11);
+  --danger:#a8271a; --ok:#10715a;
+  --dock:#1b2029; --dock-ink:#dfe4ec; --dock-line:rgba(255,255,255,.14);
+  --hover:rgba(22,25,31,.055);
+  --score-ink:#101215; --score-mut:#5c6470;
+  --shell:#d9dde4; --shell-ink:#16191f; --shell-mut:#545d6d; --shell-line:#c3cad4;
+  --shadow:0 1px 2px rgba(16,19,24,.07),0 10px 30px rgba(16,19,24,.10);
+  --r1:4px; --r2:8px; --r3:14px; --rp:999px;
+  --f-ui:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','HarmonyOS Sans SC','Noto Sans SC','Source Han Sans SC',system-ui,sans-serif;
+  --f-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',Georgia,serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --canvas:#0d1014; --bar:#171b22; --panel:#1f242c; --paper:#ffffff; --ctl:#2b323c;
+    --line:#2f3742; --line-soft:#262c35;
+    --ink:#e7ebf2; --mut:#9aa4b4; --faint:#858f9f;
+    --acc:#f4795f; --on-acc:#24100a; --acc-soft:rgba(244,121,95,.18); --acc-ink:#f79880;
+    --annot:#a892f0; --annot-soft:rgba(168,146,240,.18);
+    --danger:#f4795f; --ok:#48b998;
+    --dock:#06080b; --dock-ink:#dfe4ec; --dock-line:rgba(255,255,255,.11);
+    --hover:rgba(255,255,255,.065);
+    --shell:#05070a; --shell-ink:#e7ebf2; --shell-mut:#9aa4b4; --shell-line:#20262e;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 34px rgba(0,0,0,.55);
+  }
+}
+:root[data-theme="dark"]{
+  --canvas:#0d1014; --bar:#171b22; --panel:#1f242c; --paper:#ffffff; --ctl:#2b323c;
+  --line:#2f3742; --line-soft:#262c35;
+  --ink:#e7ebf2; --mut:#9aa4b4; --faint:#858f9f;
+  --acc:#f4795f; --on-acc:#24100a; --acc-soft:rgba(244,121,95,.18); --acc-ink:#f79880;
+  --annot:#a892f0; --annot-soft:rgba(168,146,240,.18);
+  --danger:#f4795f; --ok:#48b998;
+  --dock:#06080b; --dock-ink:#dfe4ec; --dock-line:rgba(255,255,255,.11);
+  --hover:rgba(255,255,255,.065);
+  --shell:#05070a; --shell-ink:#e7ebf2; --shell-mut:#9aa4b4; --shell-line:#20262e;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 34px rgba(0,0,0,.55);
+}
+/* 谱纸反色（产品已有的 score-invert 开关；深色下是否默认开启＝待拍板第 4 条） */
+.sheet[data-invert="1"]{ --paper:#14171b; --score-ink:#eef1f5; --score-mut:#98a1ae; }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--shell);color:var(--shell-ink);font-family:var(--f-ui);
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+
+/* ══════════ 页面外壳 ══════════ */
+.wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+.pg-hd{padding:38px 0 22px}
+.pg-eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--shell-mut);margin-bottom:12px}
+.pg-hd h1{margin:0;font-size:27px;font-weight:600;letter-spacing:-.01em}
+.pg-hd p{margin:10px 0 0;max-width:62ch;color:var(--shell-mut);font-size:14.5px}
+.pg-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:20px}
+.seg{display:inline-flex;flex:none;background:var(--panel);border:1px solid var(--shell-line);
+  border-radius:var(--rp);padding:2px;gap:2px}
+.seg button{flex:none;border:0;background:transparent;color:var(--mut);font-size:12.5px;
+  padding:5px 14px;border-radius:var(--rp);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--canvas)}
+.readout{display:flex;flex-wrap:wrap;gap:6px}
+.rd{font-family:var(--f-mono);font-size:11.5px;padding:5px 10px;border-radius:var(--rp);
+  border:1px solid var(--shell-line);background:var(--ctl);color:var(--mut);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.rd b{color:var(--ok);font-weight:600}
+.rd.miss b{color:var(--danger)}
+
+h2.sec{margin:52px 0 6px;font-size:19px;font-weight:600}
+p.sec{margin:0 0 16px;color:var(--shell-mut);font-size:14px;max-width:70ch}
+p.sec code{font-family:var(--f-mono);font-size:12.5px;background:var(--panel);
+  border:1px solid var(--shell-line);border-radius:var(--r1);padding:1px 5px}
+
+/* ══════════ 应用外壳 ══════════ */
+.app{background:var(--canvas);border:1px solid var(--line);border-radius:var(--r3);
+  box-shadow:var(--shadow);overflow:hidden;color:var(--ink);min-width:880px;
+  display:flex;flex-direction:column;height:640px}
+.appwrap{overflow-x:auto}
+
+/* 顶栏：单行 */
+.topbar{flex:none;height:52px;display:flex;align-items:center;gap:4px;padding:0 12px;
+  background:var(--dock);color:var(--dock-ink)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;
+  letter-spacing:.03em;margin-right:10px;white-space:nowrap}
+.mark{width:24px;height:24px;border-radius:7px;background:var(--acc);position:relative;flex:none}
+.mark::before{content:"";position:absolute;inset:6px 4px;background:
+  linear-gradient(#fff,#fff) 0 1px/100% 1.3px no-repeat,
+  linear-gradient(#fff,#fff) 0 5.5px/100% 1.3px no-repeat,
+  linear-gradient(#fff,#fff) 0 10px/100% 1.3px no-repeat;opacity:.95}
+.topbar .mi{border:0;background:transparent;color:var(--dock-ink);font-size:13px;
+  padding:6px 11px;border-radius:var(--r2);opacity:.9}
+.topbar .mi:hover{background:rgba(255,255,255,.09);opacity:1}
+.topbar .ic{border:0;background:transparent;color:var(--dock-ink);width:30px;height:30px;
+  border-radius:var(--r2);font-size:15px;line-height:1;opacity:.85}
+.topbar .ic:hover{background:rgba(255,255,255,.09);opacity:1}
+.topbar .vsep{width:1px;height:20px;background:var(--dock-line);margin:0 7px;flex:none}
+.grow{flex:1}
+.transport{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);
+  border:1px solid var(--dock-line);border-radius:var(--rp);padding:3px 4px 3px 3px}
+.playbtn{width:26px;height:26px;border-radius:50%;border:0;background:var(--acc);color:var(--on-acc);
+  font-size:11px;display:grid;place-items:center;padding:0;line-height:1}
+.playbtn.on{background:var(--ok);color:#fff}
+.tempo{font-family:var(--f-num);font-size:12.5px;padding:0 4px;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.transport .ic{width:auto;padding:0 9px;height:26px;font-size:11.5px;border-radius:var(--rp)}
+.avatar{width:28px;height:28px;border-radius:50%;border:1px solid var(--dock-line);
+  background:rgba(255,255,255,.09);color:var(--dock-ink);font-size:11.5px;padding:0;flex:none}
+
+/* 上下文编辑条 */
+.ctxbar{flex:none;min-height:40px;display:flex;align-items:center;gap:5px;padding:0 12px;
+  background:var(--bar);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.ctxbar::-webkit-scrollbar{display:none}
+.ctxbar.empty{min-height:30px;background:var(--canvas);color:var(--faint);font-size:12px}
+.ctx-tag{font-size:11.5px;color:var(--acc-ink);background:var(--acc-soft);border:1px solid var(--acc);
+  border-radius:var(--rp);padding:2px 10px;white-space:nowrap;flex:none;margin-right:4px}
+.ctx-t{font-size:11.5px;color:var(--faint);flex:none;margin:0 2px 0 5px;white-space:nowrap}
+.eb{border:1px solid var(--line);background:var(--ctl);color:var(--ink);border-radius:var(--r1);
+  padding:4px 9px;font-size:12.5px;line-height:1.25;flex:none;white-space:nowrap}
+.eb:hover{background:var(--hover);border-color:var(--faint)}
+.eb.num{font-family:var(--f-num);min-width:26px;text-align:center;padding:4px 6px}
+.eb.on{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.eb.on2{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-ink)}
+.eb.gly{font-family:var(--f-num);font-size:15px;min-width:28px;text-align:center;padding:1px 6px 3px}
+.eb.tech{font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:700;
+  min-width:26px;text-align:center}
+.ebsep{width:1px;height:18px;background:var(--line);margin:0 6px;flex:none}
+
+/* 主体 */
+.body{flex:1;display:flex;min-height:0;position:relative}
+.rail{flex:none;width:56px;background:var(--bar);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;z-index:3}
+.rail.r{border-right:0;border-left:1px solid var(--line)}
+.rt{width:44px;border:0;background:transparent;border-radius:var(--r2);padding:5px 0 4px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--mut);
+  font-size:9.5px;line-height:1.15}
+.rt svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round}
+.rt:hover{background:var(--hover);color:var(--ink)}
+.rt.on{background:var(--acc-soft);color:var(--acc-ink)}
+.rail .rsep{width:26px;height:1px;background:var(--line);margin:5px 0;flex:none}
+
+.stage{flex:1;min-width:0;position:relative;overflow:auto;padding:20px 0 24px;
+  background:var(--canvas)}
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:var(--r1);
+  width:min(1040px,calc(100% - 48px));margin:0 auto;padding:6px 0 10px;
+  box-shadow:0 1px 3px rgba(16,19,24,.06)}
+.sheet svg{display:block;width:100%;height:auto}
+.hitn{cursor:pointer}
+.hitn rect.hz{fill:transparent}
+.hitn:hover rect.hz{fill:var(--acc);opacity:.09}
+
+/* 浮出面板：覆盖在谱面上，不挤压 */
+.scrim{position:absolute;inset:0;background:rgba(10,13,18,.22);z-index:4;
+  opacity:0;pointer-events:none;transition:opacity .16s}
+.scrim.on{opacity:1;pointer-events:auto}
+.fly{position:absolute;top:8px;bottom:8px;left:8px;width:264px;z-index:5;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r3);
+  box-shadow:var(--shadow);padding:12px;overflow:auto;
+  transform:translateX(-14px);opacity:0;pointer-events:none;
+  transition:transform .17s,opacity .17s}
+.fly.on{transform:none;opacity:1;pointer-events:auto}
+.fly.r{left:auto;right:8px;transform:translateX(14px)}
+.fly.r.on{transform:none}
+.fly h4{margin:0 0 8px;font-size:11.5px;font-weight:600;color:var(--faint);
+  letter-spacing:.05em}
+.fly h4+h4,.fly .grp+h4{margin-top:16px}
+.grp{display:flex;flex-wrap:wrap;gap:5px}
+.trk{display:flex;align-items:center;gap:8px;width:100%;border:1px solid var(--line);
+  background:var(--ctl);border-radius:var(--r2);padding:7px 9px;margin-bottom:5px;
+  font-size:12.5px;text-align:left}
+.trk.on{border-color:var(--acc);background:var(--acc-soft);color:var(--acc-ink)}
+.trk .ti{width:22px;height:22px;border-radius:var(--r1);background:var(--canvas);flex:none;
+  display:grid;place-items:center;font-size:11px}
+.trk.on .ti{background:var(--acc);color:var(--on-acc)}
+.trk small{margin-left:auto;color:var(--faint);font-size:10.5px;font-family:var(--f-mono)}
+.trk.on small{color:var(--acc-ink)}
+.nlit{width:36px;height:30px;border:1px solid var(--line);background:var(--ctl);
+  border-radius:var(--r1);font-family:var(--f-num);font-size:13px;color:var(--faint)}
+.nlit.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-ink)}
+.flynote{font-size:11.5px;color:var(--faint);margin:8px 0 0;line-height:1.55}
+
+/* 状态条 */
+.statusbar{flex:none;height:30px;display:flex;align-items:center;gap:0;padding:0 12px;
+  background:var(--bar);border-top:1px solid var(--line);font-size:11.5px;color:var(--mut)}
+.st{padding:0 10px;border-right:1px solid var(--line);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.st:first-child{padding-left:0}
+.st b{color:var(--ink);font-weight:600}
+.st.ok{color:var(--ok);border-right:0}
+.st.warn{color:var(--annot);border-right:0}
+.stbtn{border:1px solid transparent;background:transparent;color:var(--mut);font-size:11.5px;
+  padding:2px 9px;border-radius:var(--r1)}
+.stbtn:hover{background:var(--hover);color:var(--ink)}
+.stbtn.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-ink)}
+
+/* ══════════ 手机样机 ══════════ */
+.mrow{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+.phone{width:390px;height:844px;flex:none;background:var(--canvas);border-radius:34px;
+  border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;
+  display:flex;flex-direction:column;color:var(--ink)}
+.mtop{flex:none;height:56px;display:flex;align-items:center;gap:7px;padding:0 12px;
+  background:var(--dock);color:var(--dock-ink)}
+.mtop .ic{border:0;background:transparent;color:var(--dock-ink);width:34px;height:34px;
+  border-radius:var(--r2);font-size:16px;padding:0}
+.mtop .ic:hover{background:rgba(255,255,255,.1)}
+.mtrk{border:1px solid var(--dock-line);background:rgba(255,255,255,.07);color:var(--dock-ink);
+  border-radius:var(--rp);padding:5px 12px;font-size:12.5px}
+.mstage{flex:1;min-height:0;overflow:auto;padding:12px;background:var(--canvas)}
+.mtabs{flex:none;height:44px;display:flex;align-items:center;gap:5px;padding:0 10px;
+  background:var(--bar);border-top:1px solid var(--line)}
+.mtab{border:1px solid var(--line);background:var(--ctl);border-radius:var(--rp);
+  padding:5px 13px;font-size:12.5px;color:var(--ink)}
+.mtab.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-ink)}
+.mpos{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--faint);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.mcollapse{border:0;background:transparent;color:var(--faint);font-size:14px;
+  width:28px;height:28px;border-radius:var(--r1);padding:0}
+.board{flex:none;height:198px;background:var(--panel);border-top:1px solid var(--line);
+  padding:6px 6px 8px;display:flex;flex-direction:column}
+.board svg{display:block;width:100%;height:100%}
+.mdock{flex:none;height:56px;display:flex;align-items:center;gap:9px;padding:0 14px;
+  background:var(--dock);color:var(--dock-ink);font-size:12.5px}
+.mdock .playbtn{width:32px;height:32px;font-size:12px}
+.mdock .mm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12px;opacity:.85}
+.fcell{cursor:pointer}
+.fcell rect{fill:transparent}
+.fcell:hover rect{fill:var(--acc);opacity:.12}
+
+.mnotes{flex:1;min-width:280px}
+.mnotes h3{margin:0 0 10px;font-size:15px;font-weight:600}
+.mnotes ol{margin:0 0 18px;padding-left:20px;color:var(--shell-mut);font-size:13.5px}
+.mnotes li{margin:6px 0}
+.mnotes li b{color:var(--shell-ink)}
+.tbl{border:1px solid var(--shell-line);border-radius:var(--r2);overflow:hidden;background:var(--panel)}
+.tbl table{border-collapse:collapse;width:100%;font-size:12.5px}
+.tbl th,.tbl td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--shell-line)}
+.tbl th{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;color:var(--mut);
+  font-weight:500;background:var(--bar)}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:10.5px;padding:1px 7px;
+  border-radius:var(--rp);margin-left:6px}
+.pill.g{background:rgba(16,113,90,.12);color:var(--ok)}
+.pill.r{background:rgba(168,39,26,.12);color:var(--danger)}
+
+.callout{border-left:3px solid var(--annot);background:var(--annot-soft);
+  border-radius:0 var(--r2) var(--r2) 0;padding:13px 16px;margin:18px 0;max-width:76ch;
+  font-size:13.5px;color:var(--shell-ink)}
+.callout b{color:var(--annot)}
+footer{padding:44px 0 60px;color:var(--shell-mut);font-size:12.5px}
+</style>
+
+<div class="wrap">
+  <header class="pg-hd">
+    <div class="pg-eyebrow">方案 A · 冷壳朱印 · 可点样机</div>
+    <h1>冷壳朱印</h1>
+    <p>这不是截图，是能点的样机：点谱面上的音符会选中并换出对应的上下文工具条，
+      点品位会真的改写谱面，左右图标轨的面板浮在谱面上方而不挤压它。
+      谱面是真的 SVG 刻版——八小节 C 大调，简谱旋律行＋六线谱分解伴奏，同源联排。</p>
+    <div class="pg-tools">
+      <span class="seg" role="group" aria-label="明暗">
+        <button id="thL" aria-pressed="true" onclick="setTheme('light')">浅色</button>
+        <button id="thD" aria-pressed="false" onclick="setTheme('dark')">深色</button>
+      </span>
+      <span class="readout" id="readout"></span>
+    </div>
+  </header>
+
+  <div class="appwrap">
+    <div class="app" id="app">
+      <!-- ── 顶栏：单行 ── -->
+      <div class="topbar">
+        <span class="brand"><span class="mark"></span>谱友圈</span>
+        <button class="mi">文件</button>
+        <button class="mi">编辑</button>
+        <button class="mi">视图</button>
+        <span class="vsep"></span>
+        <button class="ic" title="撤销" aria-label="撤销">↶</button>
+        <button class="ic" title="重做" aria-label="重做">↷</button>
+        <span class="grow"></span>
+        <span class="transport">
+          <button class="playbtn" id="playBtn" onclick="togglePlay()" aria-label="播放">▶</button>
+          <span class="tempo">♩ 96</span>
+          <button class="ic">节拍器</button>
+        </span>
+        <span class="vsep"></span>
+        <button class="mi">分享</button>
+        <button class="avatar" aria-label="个人中心">谱</button>
+      </div>
+
+      <!-- ── 上下文编辑条：随选中对象整条换掉 ── -->
+      <div class="ctxbar" id="ctxbar"></div>
+
+      <!-- ── 主体 ── -->
+      <div class="body">
+        <nav class="rail" id="railL" aria-label="工具"></nav>
+
+        <div class="stage" id="stage">
+          <div class="sheet" id="sheet" data-invert="0"></div>
+          <div class="scrim" id="scrim" onclick="closeFly()"></div>
+          <aside class="fly" id="flyL"></aside>
+          <aside class="fly r" id="flyR"></aside>
+        </div>
+
+        <nav class="rail r" id="railR" aria-label="检查"></nav>
+      </div>
+
+      <!-- ── 状态条：右栏那张五行表压成一行 ── -->
+      <div class="statusbar" id="statusbar"></div>
+    </div>
+  </div>
+
+  <h2 class="sec">手机：指板是主录入面</h2>
+  <p class="sec">实际尺寸 390 × 844。点谱面上任一列 → 点指板 → 音符落位，共两次触摸。
+    右下角 <code>⌄</code> 可收起指板，看常驻底部到底占多少。</p>
+
+  <div class="mrow">
+    <div class="phone" id="phone">
+      <div class="mtop">
+        <button class="ic" aria-label="菜单">☰</button>
+        <button class="mtrk">吉他1 ▾</button>
+        <span class="grow"></span>
+        <button class="ic" aria-label="撤销">↶</button>
+        <button class="ic" aria-label="重做">↷</button>
+        <button class="playbtn" onclick="togglePlay()" aria-label="播放">▶</button>
+      </div>
+      <div class="mstage"><div class="sheet" id="msheet" data-invert="0"></div></div>
+      <div class="mtabs" id="mtabs">
+        <button class="mtab on" data-mt="fret" onclick="setMTab('fret')">指板</button>
+        <button class="mtab" data-mt="key" onclick="setMTab('key')">键盘</button>
+        <button class="mtab" data-mt="dur" onclick="setMTab('dur')">时值</button>
+        <button class="mtab" data-mt="tech" onclick="setMTab('tech')">技法</button>
+        <span class="mpos" id="mpos">第 1 列 · 5弦 3品</span>
+        <button class="mcollapse" id="mcol" onclick="toggleBoard()" aria-label="收起工具面">⌄</button>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="mdock">
+        <button class="playbtn" onclick="togglePlay()" aria-label="播放">▶</button>
+        <span class="mm" id="mdockPos">1 / 8</span>
+        <span class="grow"></span>
+        <span class="mm">♩96</span><span class="mm">1×</span>
+        <button class="ic" style="border:0;background:transparent;color:inherit;width:30px;height:30px;border-radius:8px;padding:0">⌃</button>
+      </div>
+    </div>
+
+    <div class="mnotes">
+      <h3>两次触摸，实测</h3>
+      <ol>
+        <li><b>点谱面上的某一列</b>——列头出现朱砂游标，指板同时亮出该列现有的按弦位置</li>
+        <li><b>点指板上的品位</b>——音符落到当前列，谱面立刻重绘，状态随之更新</li>
+      </ol>
+
+      <h3>底部占屏（本样机实测）</h3>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>状态</th><th>底部高</th><th>占 844 屏</th></tr></thead>
+          <tbody>
+            <tr><td>现状 · 三层常驻</td><td class="n">253px</td><td class="n">30.0%</td></tr>
+            <tr><td>本样机 · 指板收起</td><td class="n" id="mRest">—</td><td class="n" id="mRestP">—</td></tr>
+            <tr><td>本样机 · 指板展开</td><td class="n" id="mOpen">—</td><td class="n" id="mOpenP">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <b>一处要更正提案里的数字。</b>提案表格写的是「底部固定栏 2 层 · 156px · 18.5%」，
+        那是把指板算进常驻高度得出的。真做出来才发现：六根弦要能可靠点中，指板本身就得占约
+        <b>198px</b>，塞进常驻栏反而比现在更糟。
+        正确的做法是把指板当输入法看待——<b>常驻的只有页签条与播放坞，指板随选中出现、随取消收起</b>。
+        左边这台样机就是这么跑的，两个数字都由页面自己量出来填进上表。
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec">这台样机兑现了什么</h2>
+  <div class="tbl" style="max-width:900px">
+    <table>
+      <thead><tr><th>指标</th><th>现状</th><th>目标</th><th>本样机实测</th></tr></thead>
+      <tbody>
+        <tr><td>桌面谱面占宽</td><td class="n">51%</td><td class="n">≥72%</td>
+          <td class="n" id="mx1">—</td></tr>
+        <tr><td>首屏可见按钮</td><td class="n">118</td><td class="n">≤55</td>
+          <td class="n" id="mx2">—</td></tr>
+        <tr><td>顶部栏层数 · 高</td><td class="n">3 层 · 125px</td><td class="n">2 层 · ≤92px</td>
+          <td class="n" id="mx3">—</td></tr>
+        <tr><td>面板小标题文字对比</td><td class="n">2.39 : 1</td><td class="n">≥4.5 : 1</td>
+          <td class="n" id="mx4">—</td></tr>
+        <tr><td>相邻表面对比（画布↔栏）</td><td class="n">1.036</td><td class="n">≥1.08</td>
+          <td class="n" id="mx5">—</td></tr>
+        <tr><td>谱面重音 ↔ 批注 色相差</td><td class="n">19°</td><td class="n">≥90°</td>
+          <td class="n" id="mx6">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sec" style="margin-top:12px">上表的「本样机实测」由页面加载后自己量自己填，不是我手写的数字。
+    切到深色再看一遍，六项应当全部仍然达标。</p>
+
+  <footer>
+    方案 A 配色与结构主张出自界面重构提案第 02–04 节；B「靛与朱」、C「墨稿」两个方向可在那份提案里对照切换。<br>
+    样机不含真实音频与存储，播放键只做视觉演示。基线版本 v60.70。
+  </footer>
+</div>
+
+<script>
+/* ══════════ 曲谱数据 ══════════
+   四小节 C 大调示例：简谱旋律行 ＋ 六线谱 53231323 分解伴奏，和声 C | Am | F | G7。
+   TAB 品位取自各和弦真实按法：C(x32010) Am(x02210) F(xx3211) G7(320001)。 */
+var CHORDS = ['C','Am','F','G7','F','G7','Am','C'];
+var VOX = [
+  [{d:3,b:0,len:1,ly:'春'},{d:3,b:1,len:1,ly:'风'},{d:5,b:2,len:1,ly:'吹'},{d:6,b:3,len:1,ly:'过'}],
+  [{d:1,o:1,b:0,len:2,ly:'山'},{d:6,b:2,len:2,ly:'岗'}],
+  [{d:6,b:0,len:1,ly:'云'},{d:6,b:1,len:1,ly:'也'},{d:5,b:2,len:1,ly:'轻'},{d:3,b:3,len:1,ly:'轻'}],
+  [{d:2,b:0,len:4,ly:'唱'}],
+  [{d:6,b:0,len:1,ly:'走'},{d:6,b:1,len:1,ly:'过'},{d:5,b:2,len:1,ly:'长'},{d:3,b:3,len:1,ly:'街'}],
+  [{d:5,b:0,len:1,ly:'走'},{d:5,b:1,len:1,ly:'过'},{d:4,b:2,len:1,ly:'斜'},{d:2,b:3,len:1,ly:'阳'}],
+  [{d:3,b:0,len:1,ly:'一'},{d:3,b:1,len:1,ly:'步'},{d:2,b:2,len:1,ly:'一'},{d:1,b:3,len:1,ly:'步'}],
+  [{d:1,b:0,len:4,ly:'唱'}]
+];
+function mk(s,f){ return {s:s,f:f,tech:''}; }
+/* 53231323 分解：低音弦随和弦根音走，其余按各和弦真实按法
+   C(x32010) Am(x02210) F(xx3211) G7(320001) */
+function arp(bs, bf, s3, s2, s1){
+  return [mk(bs,bf),mk(3,s3),mk(2,s2),mk(3,s3),mk(1,s1),mk(3,s3),mk(2,s2),mk(3,s3)];
+}
+var TAB = [
+  arp(5,3, 0,1,0),   /* C  */  arp(5,0, 2,1,0),   /* Am */
+  arp(4,3, 2,1,1),   /* F  */  arp(6,3, 0,0,1),   /* G7 */
+  arp(4,3, 2,1,1),   /* F  */  arp(6,3, 0,0,1),   /* G7 */
+  arp(5,0, 2,1,0),   /* Am */  arp(5,3, 0,1,0)    /* C  */
+];
+var NMEA = 8;
+
+var sel = {kind:'tab', m:0, c:0};       /* 当前选中：tab 音符 / vox 音符 / bar 小节 */
+var showAnnot = false;                   /* 演示谱面批注（拍数校验） */
+var flyOpen = '';
+var playing = false;
+var boardOpen = true;
+var mTab = 'fret';
+
+/* ══════════ 刻版 ══════════ */
+var SX=52, MW=230, PAD=22, SPAN=190;
+var Y_CH=70, Y_JP=93, Y_DOT=80, Y_LY=112, TABTOP=134, LS=9, STEM=199;
+
+function xOf(m,b){ return SX + m*MW + PAD + (b/4)*SPAN; }
+function strY(s){ return TABTOP + (s-1)*LS; }
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function renderScore(host, perSys){
+  var sysN = Math.ceil(NMEA/perSys);
+  /* 一行的实体从和弦名顶(≈56)到符杠底(STEM=199)，高 143；加 12 行距＝行距 155。
+     首行另有标题占 y<56 的位置，正好落进上一行不存在的留白里。 */
+  var out = [], W = SX + perSys*MW + 14, ROW = 155;
+  for(var sy=0; sy<sysN; sy++){
+    out.push('<g transform="translate(0,'+(sy*ROW)+')">');
+    out.push(renderSystem(sy*perSys, perSys));
+    out.push('</g>');
+  }
+  var H = ROW*(sysN-1) + STEM + 8;
+  host.innerHTML =
+    '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="四小节示例谱：简谱旋律行与六线谱分解伴奏">'
+    + out.join('') + '</svg>';
+}
+
+function renderSystem(m0, n){
+  var p = [], i, m, k;
+  var last = Math.min(m0+n, NMEA);
+
+  /* 谱头：标题只画在第一行 */
+  if(m0===0){
+    p.push('<text x="'+((SX+n*MW)/2)+'" y="26" text-anchor="middle" font-size="15" font-weight="600"'
+      + ' fill="var(--score-ink)" font-family="var(--f-ui)">C 大调示例片段</text>');
+    p.push('<text x="'+((SX+n*MW)/2)+'" y="42" text-anchor="middle" font-size="9" '
+      + 'fill="var(--score-mut)" font-family="var(--f-ui)">分解伴奏 · 简谱与六线谱同源联排</text>');
+  }
+  /* 调号拍号：简谱惯例——只在曲首标一次 */
+  if(m0===0){
+    p.push('<text x="14" y="'+(Y_JP-4)+'" font-size="10.5" font-family="var(--f-num)" '
+      + 'fill="var(--score-ink)">1=C</text>');
+    p.push('<text x="14" y="'+(Y_JP+9)+'" font-size="10.5" font-family="var(--f-num)" '
+      + 'fill="var(--score-ink)">4/4</text>');
+  }
+
+  /* 六线谱五条…六条线 */
+  for(i=1;i<=6;i++)
+    p.push('<line x1="'+SX+'" y1="'+strY(i)+'" x2="'+(SX+(last-m0)*MW)+'" y2="'+strY(i)
+      + '" stroke="var(--score-ink)" stroke-width="0.7" opacity="0.62"/>');
+  if(m0===0)
+    p.push('<text x="'+(SX-6)+'" y="'+(strY(3)+4)+'" text-anchor="end" font-size="9.5"'
+      + ' font-family="var(--f-num)" fill="var(--score-mut)">TAB</text>');
+
+  for(m=m0; m<last; m++){
+    var mx = SX + (m-m0)*MW;
+    var bad = showAnnot && m===2;
+
+    /* 批注：拍数校验（用 --annot 靛紫，不是朱砂） */
+    if(bad){
+      p.push('<rect x="'+mx+'" y="'+(TABTOP-8)+'" width="'+MW+'" height="'+(5*LS+16)
+        + '" fill="var(--annot)" opacity="0.09"/>');
+      p.push('<text x="'+(mx+MW-9)+'" y="'+(TABTOP-11)+'" font-size="11" font-weight="700"'
+        + ' text-anchor="end" fill="var(--annot)" font-family="var(--f-num)">!</text>');
+    }
+
+    /* 小节线（简谱行与 TAB 行各一段） */
+    p.push('<line x1="'+mx+'" y1="'+(Y_JP-13)+'" x2="'+mx+'" y2="'+(Y_JP+4)
+      + '" stroke="var(--score-ink)" stroke-width="0.9" opacity="0.72"/>');
+    p.push('<line x1="'+mx+'" y1="'+strY(1)+'" x2="'+mx+'" y2="'+strY(6)
+      + '" stroke="var(--score-ink)" stroke-width="0.9" opacity="0.72"/>');
+    /* 小节号 */
+    p.push('<text x="'+(mx+3)+'" y="'+(TABTOP-11)+'" font-size="8" font-family="var(--f-mono)"'
+      + ' fill="'+(bad?'var(--annot)':'var(--score-mut)')+'">'+(m+1)+'</text>');
+
+    /* 和弦名（谱面重音——朱砂，三方案都保留） */
+    p.push('<text x="'+(mx+PAD-2)+'" y="'+Y_CH+'" font-size="11.5" font-weight="600"'
+      + ' fill="var(--acc)" font-family="var(--f-num)">'+CHORDS[m]+'</text>');
+
+    /* 简谱行 */
+    for(k=0;k<VOX[m].length;k++){
+      var v = VOX[m][k], vx = xOf(m,v.b) - (SX + m*MW) + mx;
+      var on = sel.kind==='vox' && sel.m===m && sel.c===k;
+      if(on) p.push('<rect x="'+(vx-9)+'" y="'+(Y_JP-14)+'" width="18" height="19" rx="3"'
+        + ' fill="var(--acc)" opacity="0.15"/>');
+      p.push('<g class="hitn" onclick="pick(\'vox\','+m+','+k+')">'
+        + '<rect class="hz" x="'+(vx-9)+'" y="'+(Y_JP-16)+'" width="18" height="23" rx="3"/>'
+        + '<text x="'+vx+'" y="'+Y_JP+'" text-anchor="middle" font-size="13.5"'
+        + ' font-family="var(--f-num)" fill="'+(on?'var(--acc)':'var(--score-ink)')+'">'+v.d+'</text>'
+        + '</g>');
+      if(v.o===1) p.push('<circle cx="'+vx+'" cy="'+Y_DOT+'" r="1.5" fill="'
+        + (on?'var(--acc)':'var(--score-ink)')+'"/>');
+      /* 增时线 */
+      for(i=1;i<v.len;i++){
+        var dx = xOf(m,v.b+i) - (SX + m*MW) + mx;
+        p.push('<line x1="'+(dx-5)+'" y1="'+(Y_JP-4.5)+'" x2="'+(dx+5)+'" y2="'+(Y_JP-4.5)
+          + '" stroke="var(--score-ink)" stroke-width="1.1"/>');
+      }
+      /* 歌词 */
+      p.push('<text x="'+vx+'" y="'+Y_LY+'" text-anchor="middle" font-size="10"'
+        + ' font-family="var(--f-ui)" fill="var(--score-mut)">'+esc(v.ly)+'</text>');
+    }
+
+    /* 六线谱：8 个八分，两两成组打符杠 */
+    for(k=0;k<8;k++){
+      var t = TAB[m][k], tx = xOf(m,k*0.5) - (SX + m*MW) + mx, ty = strY(t.s);
+      var onT = sel.kind==='tab' && sel.m===m && sel.c===k;
+      var onB = sel.kind==='bar' && sel.m===m;
+      if(onT) p.push('<rect x="'+(tx-8)+'" y="'+(TABTOP-6)+'" width="16" height="'+(5*LS+12)
+        + '" rx="3" fill="var(--acc)" opacity="0.13"/>');
+      /* 符干 */
+      p.push('<line x1="'+tx+'" y1="'+strY(6)+'" x2="'+tx+'" y2="'+STEM
+        + '" stroke="var(--score-ink)" stroke-width="0.9" opacity="0.78"/>');
+      /* 品位数字：底色挖空，压住谱线 */
+      p.push('<g class="hitn" onclick="pick(\'tab\','+m+','+k+')">'
+        + '<rect class="hz" x="'+(tx-8)+'" y="'+(ty-7)+'" width="16" height="14" rx="3"/>'
+        + '<rect x="'+(tx-5.4)+'" y="'+(ty-5)+'" width="10.8" height="10" fill="var(--paper)"/>'
+        + '<text x="'+tx+'" y="'+(ty+3.4)+'" text-anchor="middle" font-size="9.5"'
+        + ' font-family="var(--f-num)" fill="'+(onT?'var(--acc)':'var(--score-ink)')+'">'+t.f+'</text>'
+        + '</g>');
+      /* 技巧字母 */
+      if(t.tech) p.push('<text x="'+(tx+7)+'" y="'+(ty-6)+'" font-size="8.5" font-style="italic"'
+        + ' font-weight="700" font-family="Georgia,serif" fill="var(--score-ink)">'+t.tech+'</text>');
+      if(onB && k===0) p.push('<rect x="'+mx+'" y="'+(TABTOP-8)+'" width="'+MW+'" height="'+(5*LS+16)
+        + '" fill="var(--acc)" opacity="0.07"/>');
+    }
+    /* 符杠：每拍两个八分连一道 */
+    for(k=0;k<8;k+=2){
+      var x1 = xOf(m,k*0.5) - (SX + m*MW) + mx, x2 = xOf(m,(k+1)*0.5) - (SX + m*MW) + mx;
+      p.push('<rect x="'+x1+'" y="'+(STEM-2.4)+'" width="'+(x2-x1)+'" height="2.4"'
+        + ' fill="var(--score-ink)" opacity="0.78"/>');
+    }
+    /* 小节热区（点空白处＝选中小节） */
+    p.push('<g class="hitn" onclick="pick(\'bar\','+m+',0)">'
+      + '<rect class="hz" x="'+mx+'" y="'+(Y_CH-14)+'" width="'+MW+'" height="14"/></g>');
+  }
+  /* 行尾：最后一行画终止线，中间行只收一条普通小节线 */
+  var ex = SX + (last-m0)*MW, fin = (last===NMEA);
+  [[strY(1), 5*LS], [Y_JP-13, 17]].forEach(function(seg){
+    p.push('<line x1="'+(ex-(fin?3:0))+'" y1="'+seg[0]+'" x2="'+(ex-(fin?3:0))
+      + '" y2="'+(seg[0]+seg[1])+'" stroke="var(--score-ink)" stroke-width="0.9" opacity="0.72"/>');
+    if(fin) p.push('<rect x="'+(ex-1.6)+'" y="'+seg[0]+'" width="2.4" height="'+seg[1]
+      + '" fill="var(--score-ink)" opacity="0.78"/>');
+  });
+  return p.join('');
+}
+
+/* ══════════ 上下文编辑条：整条随选中对象换掉 ══════════ */
+function btn(label, cls, act){
+  return '<button class="eb '+(cls||'')+'"'+(act?' onclick="'+act+'"':'')+'>'+label+'</button>';
+}
+function renderCtx(){
+  var el = document.getElementById('ctxbar'), h = [];
+  el.className = 'ctxbar';
+  if(sel.kind==='tab'){
+    var t = TAB[sel.m][sel.c];
+    h.push('<span class="ctx-tag">六线谱音符</span>');
+    h.push('<span class="ctx-t">品位</span>');
+    for(var f=0; f<=9; f++)
+      h.push(btn(f,'num'+(t.f===f?' on':''),'setFret('+f+')'));
+    h.push(btn('0–24 ▾','num'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">时值</span>');
+    h.push(btn('𝅗𝅥','gly'), btn('♩','gly'), btn('♪','gly on'), btn('♬','gly'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">技法</span>');
+    ['h','p','b','s'].forEach(function(k){
+      h.push(btn(k,'tech'+(t.tech===k?' on':''),'setTech(\''+k+'\')'));
+    });
+    h.push(btn('⌒','gly'), btn('×','gly'));
+    h.push('<span class="grow"></span>', btn('更多 ▾'));
+  } else if(sel.kind==='vox'){
+    var v = VOX[sel.m][sel.c];
+    h.push('<span class="ctx-tag">简谱音符</span>');
+    h.push('<span class="ctx-t">唱名</span>');
+    [1,2,3,4,5,6,7,0].forEach(function(d){
+      h.push(btn(d,'num'+(v.d===d?' on':''),'setDeg('+d+')'));
+    });
+    h.push('<span class="ebsep"></span><span class="ctx-t">变音</span>');
+    h.push(btn('♯','gly'), btn('♭','gly'), btn('♮','gly'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">八度</span>');
+    h.push(btn('8ᵛᵃ','' + (v.o===1?' on2':''),'setOct(1)'));
+    h.push(btn('8ᵛᵇ','','setOct(-1)'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">时值</span>');
+    h.push(btn('𝅝','gly'+(v.len===4?' on':'')), btn('𝅗𝅥','gly'+(v.len===2?' on':'')),
+           btn('♩','gly'+(v.len===1?' on':'')), btn('♪','gly'));
+    h.push('<span class="grow"></span>', btn('歌词 ▾'), btn('更多 ▾'));
+  } else {
+    h.push('<span class="ctx-tag">第 '+(sel.m+1)+' 小节</span>');
+    h.push('<span class="ctx-t">拍号</span>', btn('4/4','num on'), btn('3/4','num'), btn('6/8','num'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">反复</span>');
+    h.push(btn('‖:','gly'), btn(':‖','gly'), btn('1.','gly'), btn('2.','gly'));
+    h.push('<span class="ebsep"></span><span class="ctx-t">小节</span>');
+    h.push(btn('前插'), btn('后插'), btn('清空'), btn('删除'));
+    h.push('<span class="grow"></span>', btn('段落 ▾'));
+  }
+  el.innerHTML = h.join('');
+}
+
+/* ══════════ 图标轨与浮出面板 ══════════ */
+var IC = {
+  track:'<path d="M3 5h13M3 10h9M3 15h13"/><circle cx="18.5" cy="10" r="2"/>',
+  note:'<circle cx="7" cy="15" r="3"/><path d="M10 15V4l7 2"/>',
+  sign:'<path d="M5 3v14M9 3v14M3 7h8M3 12h8"/><path d="M14 9h4M16 7v4"/>',
+  chord:'<rect x="3.5" y="3.5" width="13" height="13" rx="1.5"/><path d="M3.5 8h13M3.5 12h13M8 3.5v13M12 3.5v13"/>',
+  lyric:'<path d="M3 6h14M3 10h10M3 14h14"/>',
+  bar:'<path d="M4 3v14M16 3v14"/><path d="M7 6h6M7 10h6M7 14h6"/>',
+  check:'<circle cx="10" cy="10" r="7"/><path d="M7 10.5l2 2 4-4.5"/>',
+  info:'<circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.3v.5"/>',
+  aid:'<path d="M10 3v14M3 10h14"/><circle cx="10" cy="10" r="7"/>'
+};
+var RAILS = {
+  L:[['track','音轨'],['note','音符'],['sign','记号'],['chord','和弦'],['lyric','歌词'],['bar','小节']],
+  R:[['check','校验'],['aid','创作辅助'],['info','信息']]
+};
+function renderRails(){
+  ['L','R'].forEach(function(side){
+    var el = document.getElementById('rail'+side);
+    el.innerHTML = RAILS[side].map(function(r){
+      return '<button class="rt'+(flyOpen===side+':'+r[0]?' on':'')+'" onclick="openFly(\''+side+'\',\''+r[0]+'\')"'
+        + ' title="'+r[1]+'"><svg viewBox="0 0 20 20">'+IC[r[0]]+'</svg><span>'+r[1]+'</span></button>';
+    }).join('');
+  });
+}
+var PANELS = {
+  'L:track':
+    '<h4>音轨</h4>'
+    + '<button class="trk on"><span class="ti">吉</span>吉他1<small>TAB</small></button>'
+    + '<button class="trk"><span class="ti">旋</span>旋律1<small>简谱</small></button>'
+    + '<button class="trk"><span class="ti">＋</span>添加音轨</button>'
+    + '<h4>显示 · 当前音轨</h4><div class="grp">'
+    + '<button class="nlit on" title="六线谱">TAB</button>'
+    + '<button class="nlit" title="五线谱">&#119070;</button>'
+    + '<button class="nlit on" title="简谱">1 2</button>'
+    + '<button class="nlit" title="MIDI 导入">MIDI</button></div>'
+    + '<h4>变调夹 · 本轨</h4><div class="grp">'
+    + '<button class="eb">不夹</button><button class="eb">1</button><button class="eb">2</button>'
+    + '<button class="eb on2">3</button><button class="eb">4</button><button class="eb">5</button></div>'
+    + '<p class="flynote">第一条吉他轨＝参考轨，页头 1=X 与简谱行按它算。</p>'
+    + '<h4>输入面</h4><div class="grp"><button class="eb">指板 / 键盘…</button></div>',
+  'L:note':
+    '<h4>品位</h4><div class="grp" id="flyFrets"></div>'
+    + '<h4>时值</h4><div class="grp">'
+    + '<button class="eb gly">𝅝</button><button class="eb gly">𝅗𝅥</button>'
+    + '<button class="eb gly">♩</button><button class="eb gly on">♪</button>'
+    + '<button class="eb gly">♬</button><button class="eb gly">𝅘𝅥𝅰</button>'
+    + '<button class="eb">附点</button><button class="eb">三连音</button></div>'
+    + '<h4>节奏型</h4><div class="grp">'
+    + '<button class="eb on2">53231323</button><button class="eb">下上下上</button>'
+    + '<button class="eb">分解四拍</button><button class="eb">打开节奏型库…</button></div>',
+  'L:sign':
+    '<h4>音符记号</h4><div class="grp">'
+    + '<button class="eb gly">·</button><button class="eb gly">&gt;</button>'
+    + '<button class="eb gly">^</button><button class="eb gly">—</button>'
+    + '<button class="eb gly">𝆖</button><button class="eb gly">𝆕</button></div>'
+    + '<h4>演奏技巧</h4><div class="grp">'
+    + '<button class="eb tech">h</button><button class="eb tech">p</button>'
+    + '<button class="eb tech">b</button><button class="eb tech">s</button>'
+    + '<button class="eb">P.M.</button><button class="eb">泛音</button>'
+    + '<button class="eb">闷音</button><button class="eb">扫弦</button></div>'
+    + '<h4>力度</h4><div class="grp">'
+    + '<button class="eb tech">pp</button><button class="eb tech">p</button>'
+    + '<button class="eb tech">mf</button><button class="eb tech">f</button>'
+    + '<button class="eb tech">ff</button></div>',
+  'L:chord':
+    '<h4>和弦 · 当前小节</h4><div class="grp">'
+    + '<button class="eb on2">C</button><button class="eb">Dm</button><button class="eb">Em</button>'
+    + '<button class="eb">F</button><button class="eb">G</button><button class="eb">Am</button>'
+    + '<button class="eb">G7</button><button class="eb">更多 ▾</button></div>'
+    + '<h4>级数</h4><div class="grp">'
+    + '<button class="eb num on2">I</button><button class="eb num">ii</button>'
+    + '<button class="eb num">iii</button><button class="eb num">IV</button>'
+    + '<button class="eb num">V</button><button class="eb num">vi</button></div>'
+    + '<h4>智能配谱</h4><div class="grp"><button class="eb">按旋律配和弦…</button>'
+    + '<button class="eb">生成织体…</button></div>',
+  'L:lyric':
+    '<h4>歌词段落</h4><div class="grp">'
+    + '<button class="eb on2">第 1 段</button><button class="eb">第 2 段</button>'
+    + '<button class="eb">＋ 加段</button></div>'
+    + '<h4>填词</h4><p class="flynote">在谱面上点音符后直接打字，回车跳到下一个音。</p>'
+    + '<div class="grp"><button class="eb">批量粘贴歌词…</button><button class="eb">自动断字</button></div>',
+  'L:bar':
+    '<h4>小节操作</h4><div class="grp">'
+    + '<button class="eb">前插</button><button class="eb">后插</button>'
+    + '<button class="eb">清空</button><button class="eb">删除</button>'
+    + '<button class="eb">拆分</button><button class="eb">合并</button></div>'
+    + '<h4>段落 · 反复 · 跳转</h4><div class="grp">'
+    + '<button class="eb gly">‖:</button><button class="eb gly">:‖</button>'
+    + '<button class="eb">D.C.</button><button class="eb">D.S.</button>'
+    + '<button class="eb">Coda</button><button class="eb">Fine</button></div>',
+  'R:check':
+    '<h4>校验</h4>'
+    + '<p class="flynote" style="color:var(--ok)">● 8 个小节时值全部正确</p>'
+    + '<p class="flynote">● 无越界品位（本轨定弦 EADGBE，变调夹 3）</p>'
+    + '<p class="flynote">● 歌词与音符一一对位（24 / 24）</p>'
+    + '<h4>演示</h4><div class="grp">'
+    + '<button class="eb" onclick="toggleAnnot()">在第 3 小节放一条批注</button></div>'
+    + '<p class="flynote">批注用 <b style="color:var(--annot)">靛紫</b>，与谱面重音的朱砂差 112° 色相——'
+    + '现状里这两者只差 19°。</p>',
+  'R:aid':
+    '<h4>创作辅助</h4><div class="grp">'
+    + '<button class="eb">导入 MIDI…</button><button class="eb">导入 MusicXML…</button>'
+    + '<button class="eb">配和弦工作台</button><button class="eb">织体生成</button>'
+    + '<button class="eb">指板 / 键盘</button><button class="eb">移调</button></div>'
+    + '<h4>导出</h4><div class="grp">'
+    + '<button class="eb">PDF</button><button class="eb">PNG</button>'
+    + '<button class="eb">MusicXML</button><button class="eb">MIDI</button></div>',
+  'R:info':
+    '<h4>曲谱信息</h4>'
+    + '<p class="flynote">标题　C 大调示例片段<br>调号　1=C<br>拍号　4/4<br>速度　♩ = 96<br>'
+    + '音轨　吉他1（TAB）· 旋律1（简谱）<br>小节　8</p>'
+    + '<h4>谱纸</h4><div class="grp">'
+    + '<button class="eb" onclick="toggleInvert()">谱纸反色</button>'
+    + '<button class="eb">页面设置…</button></div>'
+};
+function openFly(side, key){
+  var id = side+':'+key;
+  if(flyOpen === id){ closeFly(); return; }
+  flyOpen = id;
+  var l = document.getElementById('flyL'), r = document.getElementById('flyR');
+  l.classList.toggle('on', side==='L'); r.classList.toggle('on', side==='R');
+  (side==='L'?l:r).innerHTML = PANELS[id] || '<h4>（面板）</h4>';
+  document.getElementById('scrim').classList.add('on');
+  if(id==='L:note') fillFlyFrets();
+  renderRails();
+}
+function closeFly(){
+  flyOpen = '';
+  document.getElementById('flyL').classList.remove('on');
+  document.getElementById('flyR').classList.remove('on');
+  document.getElementById('scrim').classList.remove('on');
+  renderRails(); measure();
+}
+function fillFlyFrets(){
+  var host = document.getElementById('flyFrets'); if(!host) return;
+  var cur = sel.kind==='tab' ? TAB[sel.m][sel.c].f : -1, h = '';
+  for(var f=0; f<=11; f++)
+    h += '<button class="eb num'+(cur===f?' on':'')+'" onclick="setFret('+f+')">'+f+'</button>';
+  host.innerHTML = h;
+}
+
+/* ══════════ 交互 ══════════ */
+function pick(kind, m, c){
+  sel = {kind:kind, m:m, c:c};
+  redraw();
+}
+function setFret(f){
+  if(sel.kind!=='tab'){ sel = {kind:'tab', m:sel.m, c:0}; }
+  TAB[sel.m][sel.c].f = f;
+  redraw();
+}
+function setTech(t){
+  if(sel.kind!=='tab') return;
+  var n = TAB[sel.m][sel.c];
+  n.tech = (n.tech===t) ? '' : t;
+  redraw();
+}
+function setDeg(d){ if(sel.kind==='vox'){ VOX[sel.m][sel.c].d = d; redraw(); } }
+function setOct(o){
+  if(sel.kind!=='vox') return;
+  var v = VOX[sel.m][sel.c];
+  v.o = (v.o===o) ? 0 : o;
+  redraw();
+}
+function toggleAnnot(){ showAnnot = !showAnnot; redraw(); }
+function toggleInvert(){
+  ['sheet','msheet'].forEach(function(id){
+    var s = document.getElementById(id);
+    s.dataset.invert = s.dataset.invert==='1' ? '0' : '1';
+  });
+  renderStatus();
+}
+function togglePlay(){
+  playing = !playing;
+  [].forEach.call(document.querySelectorAll('.playbtn'), function(b){
+    b.classList.toggle('on', playing);
+    b.textContent = playing ? '❚❚' : '▶';
+  });
+}
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('thL').setAttribute('aria-pressed', t==='light');
+  document.getElementById('thD').setAttribute('aria-pressed', t==='dark');
+  setTimeout(measure, 60);
+}
+function setMTab(t){
+  mTab = t;
+  [].forEach.call(document.querySelectorAll('.mtab'), function(b){
+    b.classList.toggle('on', b.dataset.mt===t);
+  });
+  renderBoard();
+}
+function toggleBoard(){
+  boardOpen = !boardOpen;
+  document.getElementById('board').hidden = !boardOpen;
+  document.getElementById('mcol').textContent = boardOpen ? '⌄' : '⌃';
+  measure();
+}
+
+/* ══════════ 状态条 ══════════ */
+function renderStatus(){
+  var el = document.getElementById('statusbar'), inv = document.getElementById('sheet').dataset.invert==='1';
+  var desc, pos;
+  if(sel.kind==='tab'){
+    var t = TAB[sel.m][sel.c];
+    desc = '吉他谱 · 吉他1'; pos = '第 '+(sel.c+1)+' 列　8分　'+t.s+'弦 '+t.f+'品'+(t.tech?'　'+t.tech:'');
+  } else if(sel.kind==='vox'){
+    var v = VOX[sel.m][sel.c];
+    desc = '简谱 · 旋律1';
+    pos = '第 '+(sel.c+1)+' 列　'+(v.len===4?'全音符':v.len===2?'二分':'四分')
+      + '　唱名 '+v.d+(v.o===1?'（高八度）':'')+'　「'+v.ly+'」';
+  } else { desc = '整小节'; pos = '4/4　和弦 '+CHORDS[sel.m]; }
+  el.innerHTML =
+    '<span class="st"><b>'+desc+'</b></span>'
+    + '<span class="st">小节 '+(sel.m+1)+' / '+NMEA+'</span>'
+    + '<span class="st">'+pos+'</span>'
+    + '<span class="grow"></span>'
+    + (showAnnot
+        ? '<span class="st warn">● 第 3 小节拍数不足</span>'
+        : '<span class="st ok">● 所有小节时值正确</span>')
+    + '<button class="stbtn'+(inv?' on':'')+'" onclick="toggleInvert()">谱纸反色</button>'
+    + '<button class="stbtn">100%</button>';
+}
+
+/* ══════════ 手机指板 ══════════ */
+function renderBoard(){
+  var host = document.getElementById('board');
+  if(mTab!=='fret'){
+    host.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start">'
+      + (mTab==='key'
+          ? '<p class="flynote" style="width:100%;margin:0 0 6px">钢琴全键盘（本样机只示意指板输入路径）</p>'
+            + renderMiniKeys()
+          : mTab==='dur'
+            ? ['𝅝','𝅗𝅥','♩','♪','♬','𝅘𝅥𝅰','附点','三连音'].map(function(g){
+                return '<button class="eb gly" style="min-width:44px;min-height:40px">'+g+'</button>'; }).join('')
+            : ['h','p','b','s','⌒','×','P.M.','泛音'].map(function(g){
+                return '<button class="eb" style="min-width:44px;min-height:40px">'+g+'</button>'; }).join(''))
+      + '</div>';
+    return;
+  }
+  /* 一比一指板：6 弦 × 开放位 + 5 品 */
+  var W=366, H=186, LB=26, FRETS=5, cw=(W-LB)/FRETS, sh=(H-20)/6;
+  var cur = TAB[sel.m][sel.kind==='tab' ? sel.c : 0];   /* 非 TAB 选中时退回本小节首列 */
+  var p = ['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="吉他指板输入面">'];
+  /* 品位数字条 */
+  for(var f=1; f<=FRETS; f++)
+    p.push('<text x="'+(LB+(f-0.5)*cw)+'" y="12" text-anchor="middle" font-size="9"'
+      + ' font-family="var(--f-mono)" fill="var(--faint)">'+f+'</text>');
+  p.push('<text x="'+(LB/2)+'" y="12" text-anchor="middle" font-size="9"'
+    + ' font-family="var(--f-mono)" fill="var(--faint)">0</text>');
+  /* 品丝 */
+  for(var f2=0; f2<=FRETS; f2++)
+    p.push('<line x1="'+(LB+f2*cw)+'" y1="18" x2="'+(LB+f2*cw)+'" y2="'+(18+6*sh)
+      + '" stroke="var(--line)" stroke-width="'+(f2===0?2.4:1)+'"/>');
+  /* 弦 */
+  for(var s=1; s<=6; s++){
+    var y = 18 + (s-0.5)*sh;
+    p.push('<line x1="0" y1="'+y+'" x2="'+W+'" y2="'+y+'" stroke="var(--ink)"'
+      + ' stroke-width="'+(0.6+s*0.16)+'" opacity="0.5"/>');
+    p.push('<text x="'+(LB/2)+'" y="'+(y+3.2)+'" text-anchor="middle" font-size="8.5"'
+      + ' font-family="var(--f-mono)" fill="var(--faint)">'+s+'</text>');
+    for(var f3=0; f3<=FRETS; f3++){
+      var cx = f3===0 ? LB/2 : LB+(f3-0.5)*cw;
+      var on = cur && cur.s===s && cur.f===f3;
+      p.push('<g class="fcell" onclick="boardTap('+s+','+f3+')">'
+        + '<rect x="'+(f3===0?0:LB+(f3-1)*cw)+'" y="'+(y-sh/2)+'" width="'+(f3===0?LB:cw)
+        + '" height="'+sh+'"/>'
+        + (on ? '<circle cx="'+cx+'" cy="'+y+'" r="'+Math.min(11,sh/2-1)+'" fill="var(--acc)"/>'
+              + '<text x="'+cx+'" y="'+(y+3.4)+'" text-anchor="middle" font-size="9.5"'
+              + ' font-family="var(--f-num)" fill="var(--on-acc)">'+f3+'</text>' : '')
+        + '</g>');
+    }
+  }
+  p.push('</svg>');
+  host.innerHTML = p.join('');
+}
+function renderMiniKeys(){
+  var h = '<div style="position:relative;width:100%;height:96px;display:flex">';
+  for(var i=0;i<14;i++)
+    h += '<div style="flex:1;border:1px solid var(--line);background:var(--ctl);'
+      + 'border-radius:0 0 4px 4px;margin-right:-1px"></div>';
+  h += '</div>';
+  return h;
+}
+function boardTap(s, f){
+  if(sel.kind!=='tab') sel = {kind:'tab', m:sel.m, c:0};
+  TAB[sel.m][sel.c] = {s:s, f:f, tech:TAB[sel.m][sel.c].tech};
+  redraw();
+}
+
+/* ══════════ 自测：样机量自己 ══════════ */
+function lum(rgb){
+  var m = rgb.match(/\d+(\.\d+)?/g).slice(0,3).map(Number);
+  var f = function(x){ x/=255; return x<=0.03928 ? x/12.92 : Math.pow((x+0.055)/1.055, 2.4); };
+  return 0.2126*f(m[0]) + 0.7152*f(m[1]) + 0.0722*f(m[2]);
+}
+function cr(a,b){ var x=lum(a), y=lum(b), hi=Math.max(x,y), lo=Math.min(x,y); return (hi+0.05)/(lo+0.05); }
+function hue(rgb){
+  var m = rgb.match(/\d+(\.\d+)?/g).slice(0,3).map(function(x){ return x/255; });
+  var mx=Math.max.apply(null,m), mn=Math.min.apply(null,m), d=mx-mn, h=0;
+  if(d){ if(mx===m[0]) h=((m[1]-m[2])/d)%6; else if(mx===m[1]) h=(m[2]-m[0])/d+2; else h=(m[0]-m[1])/d+4;
+    h*=60; if(h<0) h+=360; }
+  return h;
+}
+function dh(a,b){ var x=Math.abs(hue(a)-hue(b)); return Math.round(Math.min(x,360-x)); }
+function cs(el,p){ return getComputedStyle(el).getPropertyValue(p).trim(); }
+
+function measure(){
+  var app = document.getElementById('app'), sheet = document.getElementById('sheet');
+  var pct = Math.round(sheet.getBoundingClientRect().width / app.getBoundingClientRect().width * 100);
+  var btns = [].filter.call(app.querySelectorAll('button'), function(b){
+    var f = b.closest('.fly');
+    if(f && !f.classList.contains('on')) return false;   /* 收起的面板不算首屏 */
+    var r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0;
+  }).length;
+  var topH = Math.round(app.querySelector('.topbar').getBoundingClientRect().height
+    + document.getElementById('ctxbar').getBoundingClientRect().height);
+
+  var probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;color:var(--faint)';
+  app.appendChild(probe);
+  var faint = getComputedStyle(probe).color; probe.remove();
+  var canvas = getComputedStyle(document.getElementById('stage')).backgroundColor;
+  var bar = getComputedStyle(app.querySelector('.rail')).backgroundColor;
+  var panel = getComputedStyle(document.getElementById('flyL')).backgroundColor;
+
+  var probe2 = document.createElement('span');
+  probe2.style.cssText = 'position:absolute;visibility:hidden;color:var(--acc)';
+  app.appendChild(probe2);
+  var acc = getComputedStyle(probe2).color;
+  probe2.style.color = 'var(--annot)';
+  var annot = getComputedStyle(probe2).color; probe2.remove();
+
+  var faintCR = cr(faint, panel), surfCR = cr(canvas, bar), hueD = dh(acc, annot);
+  window.__dbg = {faint:faint, panel:panel, canvas:canvas, bar:bar, acc:acc, annot:annot, faintCR:faintCR};
+
+  set('mx1', pct+'%', pct>=72);
+  set('mx2', btns, btns<=55);
+  set('mx3', '2 层 · '+topH+'px', topH<=92);
+  set('mx4', faintCR.toFixed(2)+' : 1', faintCR>=4.5);
+  set('mx5', surfCR.toFixed(3), surfCR>=1.08);
+  set('mx6', hueD+'°', hueD>=90);
+
+  /* 手机底部占屏 */
+  var ph = document.getElementById('phone').getBoundingClientRect().height;
+  var tabs = document.querySelector('.mtabs').getBoundingClientRect().height;
+  var dock = document.querySelector('.mdock').getBoundingClientRect().height;
+  var bd = document.getElementById('board');
+  var bdH = bd.hidden ? 0 : bd.getBoundingClientRect().height;
+  var rest = Math.round(tabs + dock), open = Math.round(tabs + dock + (bdH || 198));
+  txt('mRest', rest+'px'); txt('mRestP', (rest/ph*100).toFixed(1)+'%');
+  txt('mOpen', open+'px'); txt('mOpenP', (open/ph*100).toFixed(1)+'%');
+
+  document.getElementById('readout').innerHTML =
+    rd('谱面占宽', pct+'%', pct>=72) + rd('首屏按钮', btns, btns<=55)
+    + rd('顶部', topH+'px', topH<=92) + rd('辅助文字', faintCR.toFixed(2)+':1', faintCR>=4.5)
+    + rd('重音↔批注', hueD+'°', hueD>=90);
+}
+function rd(k,v,ok){
+  return '<span class="rd'+(ok?'':' miss')+'">'+k+' <b>'+v+'</b></span>';
+}
+function set(id, v, ok){
+  var el = document.getElementById(id); if(!el) return;
+  el.innerHTML = v + '<span class="pill '+(ok?'g':'r')+'">'+(ok?'达标':'未达')+'</span>';
+}
+function txt(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; }
+
+/* ══════════ 启动 ══════════ */
+function redraw(){
+  renderScore(document.getElementById('sheet'), 4);
+  renderScore(document.getElementById('msheet'), 1);
+  renderCtx(); renderStatus(); renderBoard();
+  if(flyOpen==='L:note') fillFlyFrets();
+  txt('mpos', '第 '+(sel.c+1)+' 列 · '
+    + (sel.kind==='tab' ? TAB[sel.m][sel.c].s+'弦 '+TAB[sel.m][sel.c].f+'品' : '简谱'));
+  txt('mdockPos', (sel.m+1)+' / '+NMEA);
+  measure();
+}
+renderRails();
+redraw();
+addEventListener('resize', measure);
+</script>
