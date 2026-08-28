@@ -577,9 +577,15 @@ body.shell #rt-chorded:hover{border-color:var(--accent);color:var(--accent-ink)}
 .aitem .ait{display:flex;flex-direction:column;line-height:1.3;min-width:0}
 .aitem .ait b{font-size:12px;font-weight:600}
 .aitem .ait small{font-size:10px;color:var(--faint)}
-/* v60.28 创作辅助「和弦/标注」双图标行：并排各半宽；未选中音符时禁用置灰 */
-#ai-tools{display:flex;gap:4px}
-#ai-tools .aitem{flex:1;min-width:0}
+/* v60.28 创作辅助「和弦/标注」双图标行：并排各半宽；未选中音符时禁用置灰。
+   v60.70 改两列网格（产品报告「增加键盘后样式有问题」）：原先是 flex:1 均分，
+   按两项设计；v60.62 加进第三项后每项只剩 1/3 宽，图标 26 + 间隙 9 之后文字无处可去，
+   又没有截断规则 → 直接溢出卡片。现在两列铺排、第三项独占整行，
+   并给文字加省略号兜底——以后再加条目也不会再撑破。 */
+#ai-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+#ai-tools .aitem{min-width:0}
+#ai-tools .aitem.wide{grid-column:1/-1}
+.aitem .ait b,.aitem .ait small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #ai-tools .aitem:disabled{opacity:.42;cursor:not-allowed}
 #ai-tools .aitem:disabled:hover{background:transparent}
 .aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px}
@@ -1102,17 +1108,25 @@ body.stand #standbar{display:flex}
    密笔画字在 12.5px 下会糊成一团（合成粗体把笔画摊开叠到一起） */
 .bp-bar b{font-size:13px;color:var(--text);font-weight:600;letter-spacing:.7px;white-space:nowrap}
 .bp-bar small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bp-seg{display:flex;gap:3px;margin-left:auto;flex:0 0 auto}
+.bp-seg{display:flex;gap:3px;flex:0 0 auto}
+#bp-mode{margin-left:auto}   /* v60.70 模式段在前、板类段在后，两段右对齐成一组 */
 .bp-seg button{font-size:11.5px;padding:4px 10px;border:1px solid var(--border);background:var(--paper);
   color:var(--text);border-radius:8px;line-height:1;min-height:26px}
 .bp-seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+/* v60.70 模式段（编辑/演奏）做次级样式：与「指板/键盘」同为分段控件，但两段都用红底实心
+   会看成同一个维度的四个选项。模式段选中用浅色+描边，主次一眼可分。 */
+#bp-mode button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
 #bp-close{font-size:14px;padding:2px 8px;border:1px solid var(--border);background:var(--paper);
   color:var(--muted);border-radius:8px;line-height:1;min-height:26px}
-#bp-body{overflow-x:auto;overflow-y:hidden;padding:8px 10px 10px}
-/* 必须解掉全局 svg{max-width:100%}：88 键排开 1565px 远宽于面板，被压到容器宽会让
-   键盘缩到 0.79×、而指板（650px 放得下）保持 1.0×——两块板的物理尺度当场对不上，
-   「一比一」只在 SVG 坐标里成立、在屏幕像素上是假的。改成不压缩、由本容器横向滚动。 */
-#bp-body svg{display:block;max-width:none}
+#bp-body{overflow:hidden;padding:8px 10px 10px}   /* v60.70 不再横向滚动 */
+/* v60.70 产品指示「钢琴键盘宽度跟弹窗宽度匹配，不使用滚动条」：
+   v60.62 为守住「屏幕像素也一比一」而让本容器横向滚动（88 键排开 1568px）；
+   现按产品口径改为**按面板宽度自适应**——SVG 自带 viewBox，宽度给 100%、高度按比例，
+   于是**内部几何比例分毫不变**（品距定律、白/黑键宽长比、黑键位置全部照旧），
+   让出的只是「绝对物理尺寸 1:1」这一条。两块板同口径，都不再出现滚动条。 */
+/* 只缩不放：钢琴 88 键排开 1568px > 面板宽 → 等比缩到贴合（产品指示「不使用滚动条」）；
+   指板原生 758px 放得下 → 保持 v60.62 的一比一原尺寸，不被拉伸放大。 */
+#bp-body svg{display:block;width:auto;height:auto;max-width:100%}
 .bp-hit{cursor:pointer}
 @media(max-width:720px){ #board-pane{width:98vw} .bp-bar small{display:none} }
 #mixer-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:40;
@@ -2318,7 +2332,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <p class="ai-p">从旋律到伴奏，常规配置一键完成。</p>
           <!-- v60.26 产品负责人指定：MIDI 导入独立界面放创作辅助第一项，替代一键配和弦
                （一键能力仍在：配和弦工作台「应用到谱面」与 伴奏织体弹窗「一键配和弦（建议）」两处可达） -->
-          <button id="rt-midi" class="aitem" title="MIDI 导入独立界面：选谱类（歌谱/钢琴/吉他/尤克里里）→ 音轨映射到对应声部；吉他自动指派弦品"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>选谱类 · 音轨映射声部 · DAW 工程直入</small></span><span class="aiarr">›</span></button>
+          <button id="rt-midi" class="aitem" title="MIDI 导入独立界面：选谱类（歌谱/钢琴/吉他/尤克里里）→ 音轨映射到对应声部；吉他自动指派弦品"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>选谱类 · 音轨映射声部</small></span><span class="aiarr">›</span></button>
           <button id="rt-lab" class="aitem" title="配和弦工作台：逐小节看候选与得分、按乐句显示命中的进行套路、可手动指定调式与逐格改和弦，确认后再写回谱面"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>配和弦工作台</b><small>逐小节推敲·候选评分·套路可见</small></span><span class="aiarr">›</span></button>
           <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
@@ -2327,10 +2341,10 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <!-- v60.28 和弦/标注双图标（产品负责人指示：编辑入口收到这里，选中音符时可用；
                谱面不再留「＋和弦」空位点击区） -->
           <div id="ai-tools">
-            <button id="rt-chord" class="aitem" title="在选中的音符上设置/编辑和弦：简谱音符=级数构建器，六线谱音符=指法编辑器；和弦图对齐该音符"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>和弦</b><small>选中音符设和弦</small></span></button>
-            <button id="rt-anno" class="aitem" title="在选中的音符上方标注文字：前奏/副歌/渐慢…或任意文字"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>标注</b><small>选中音符加标注</small></span></button>
+            <button id="rt-chord" class="aitem" title="在选中的音符上设置/编辑和弦：简谱音符=级数构建器，六线谱音符=指法编辑器；和弦图对齐该音符"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>和弦</b><small>设和弦</small></span></button>
+            <button id="rt-anno" class="aitem" title="在选中的音符上方标注文字：前奏/副歌/渐慢…或任意文字"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>标注</b><small>加文字</small></span></button>
             <!-- v60.62 产品指示：指板/键盘输入归入创作辅助栏 -->
-            <button id="rt-board" class="aitem" title="吉他指板 / 钢琴全键盘（一比一比例）：点板上的品位或琴键即落音；播放时跟着高亮。跟随当前音轨自动切板，也可手动切"><span class="aic" data-svgi="guitar"></span><span class="ait"><b>指板/键盘</b><small>点板落音 · 播放跟随</small></span></button>
+            <button id="rt-board" class="aitem wide" title="吉他指板 / 钢琴全键盘：编辑模式点板落音，演奏模式只跟弹不改谱；播放时跟着高亮，跟随当前音轨自动切板"><span class="aic" data-svgi="guitar"></span><span class="ait"><b>指板 / 键盘</b><small>编辑模式落音 · 演奏模式跟弹</small></span></button>
           </div>
         </div>
         <!-- v48.3 暂时隐藏：导入入口在启动台「导入」与新建向导内均可达，右栏不再重复 -->
@@ -2377,6 +2391,9 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
 <div id="board-pane">
   <div class="bp-bar">
     <b id="bp-title">指板</b><small id="bp-sub"></small>
+    <span class="bp-seg" id="bp-mode">
+      <button data-bm="edit">编辑</button><button data-bm="play">演奏</button>
+    </span>
     <span class="bp-seg" id="bp-kind">
       <button data-bk="fret">指板</button><button data-bk="key">键盘</button>
     </span>
@@ -9077,7 +9094,7 @@ function syncInputs(){
   try{ syncTrkCapoLbl(); }catch(_){}   /* v60.61 当前轨夹位小字 */
   /* v60.62 指板/键盘跟随光标：不在播放时，板上高亮＝光标所在列；切轨自动换板 */
   try{
-    if(BOARD.on && !(typeof audio!=='undefined' && audio.playing)){
+    if(BOARD.on && BOARD.mode!=='play' && !(typeof audio!=='undefined' && audio.playing)){
       const row = (sel.row==='tab' && (song.tabVoices||[]).length)? 'tab':'vox';
       if(row!==BOARD.row || (sel.vi|0)!==BOARD.vi){
         BOARD.row=row; BOARD.vi=sel.vi|0; BOARD.kind=boardKindFor(row);
@@ -16209,7 +16226,10 @@ function edHasCapo(){ const dt=docType(song); return dt==='guitar'||dt==='uku'||
      同一组内各白键「露头」等宽：C-D-E 三键跨度里 3 个露头 + 2 个黑键，
      F-G-A-B 四键跨度里 4 个露头 + 3 个黑键。这样 C♯ 偏左、G♯ 居中、A♯ 偏右，与真琴一致，
      而不是把黑键简单地骑在白键交界上。 */
-const BOARD = {on:false, kind:'fret', row:'tab', vi:0, hl:[]};
+/* v60.70 mode（产品指示「增加编辑模式和演奏模式切换」）：
+   edit＝点板落音写进谱面（v60.62 的原行为）；play＝只试听不改谱、专心跟弹。
+   两种模式都跟随播放高亮——「自动跟弹」本来就是这块板的本职。 */
+const BOARD = {on:false, kind:'fret', row:'tab', vi:0, hl:[], mode:'edit'};
 const PIANO_W = 23.5, PIANO_B = 13.7, PIANO_LW = 145, PIANO_LB = 95;   // 国际通用琴键尺寸(mm)
 /* 两块板共用同一个 毫米→像素 尺度：这样「一比一」不只在各自板内成立，
    指板与键盘之间也是同一把尺子（切板时物理尺度不跳）。 */
@@ -16365,8 +16385,10 @@ function renderBoard(){
   const t=document.getElementById('bp-title'), sub=document.getElementById('bp-sub');
   if(t) t.textContent = BOARD.kind==='fret'? '吉他指板' : '钢琴键盘';
   if(sub) sub.textContent = '　当前音轨：'+boardTrackLabel()
-    + (BOARD.kind==='fret'? '（'+strN()+' 弦'+(capoOf(BOARD.vi)? ' · 夹'+capoOf(BOARD.vi)+'品':'')+'）' : '（88 键 A0–C8）');
+    + (BOARD.kind==='fret'? '（'+strN()+' 弦'+(capoOf(BOARD.vi)? ' · 夹'+capoOf(BOARD.vi)+'品':'')+'）' : '（88 键 A0–C8）')
+    + (BOARD.mode==='play'? ' · 演奏模式（只试听，不改谱）' : ' · 编辑模式（点板落音）');
   document.querySelectorAll('#bp-kind [data-bk]').forEach(b=>b.classList.toggle('on', b.dataset.bk===BOARD.kind));
+  document.querySelectorAll('#bp-mode [data-bm]').forEach(b=>b.classList.toggle('on', b.dataset.bm===BOARD.mode));
   const body=document.getElementById('bp-body');
   if(body) body.innerHTML = BOARD.kind==='fret'? fretboardSVG() : pianoSVG();
 }
@@ -16382,12 +16404,26 @@ function openBoard(kind){
 }
 function closeBoard(){ BOARD.on=false; BOARD.hl=[]; renderBoard(); }
 /* 板上落音：指板 → 定弦位；键盘 → 简谱唱名（旋律轨）或最近把位（吉他轨） */
+/* v60.70 演奏模式：点板只出声、不写谱（试听/跟弹用），高亮临时落在被点的位置 */
+function boardAudition(m){
+  try{
+    const ctx=ensureLiveCtx(); if(!ctx) return;
+    if(!audio.echoBus || audio.echoCtx!==ctx){ audio.echoBus=buildBus(ctx); audio.echoCtx=ctx; }
+    playInst(trackCfg(BOARD.row, BOARD.vi).inst, ctx, audio.echoBus, midiFreq(m-12),
+      ctx.currentTime+0.02, 0.55, 0.7, false, {damp:true, vel:0.85});
+  }catch(_){ }
+}
 function boardInputFret(sNo, f){
+  if(BOARD.mode==='play'){
+    const m = tuningOf()[sNo-1] + f + capoOf(BOARD.vi);
+    BOARD.hl=[{s:sNo, f, m}]; renderBoard(); boardAudition(m); return;
+  }
   if(sel.row!=='tab'){ toast('指板落音用于吉他谱声部——请先选中吉他音轨'); return; }
   sel.si = sNo; setFret(f);
   BOARD.hl = boardHLFromCol(sel.mi, sel.ci); renderBoard();
 }
 function boardInputMidi(m){
+  if(BOARD.mode==='play'){ BOARD.hl=[{m}]; renderBoard(); boardAudition(m); return; }
   if(sel.row==='vox'){
     mutate(()=>{ const c=curCol(); if(!c) return;
       const v=midiToVoxCol(m); c.deg=v.deg; c.acc=v.acc; c.oct=v.oct; });
@@ -16434,6 +16470,12 @@ function boardTick(e){
     pane.addEventListener('click', ev=>{
       const kb=ev.target.closest('[data-bk]');
       if(kb){ BOARD.kind=kb.dataset.bk; renderBoard(); return; }
+      const mb=ev.target.closest('[data-bm]');
+      if(mb){ BOARD.mode=mb.dataset.bm;
+        /* 切回编辑模式时高亮回到光标所在列（演奏模式下可能停在随手点的位置） */
+        if(BOARD.mode==='edit' && !(typeof audio!=='undefined' && audio.playing))
+          BOARD.hl=boardHLFromCol(sel.mi, sel.ci);
+        renderBoard(); return; }
       if(ev.target.closest('#bp-close')){ closeBoard(); return; }
       const hf=ev.target.closest('[data-bfs]');
       if(hf){ const [s2,f]=hf.dataset.bfs.split(':').map(Number); boardInputFret(s2,f); return; }
@@ -21593,7 +21635,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.69';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.70';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -21616,6 +21658,7 @@ const APP_VER='v60.69';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.70</span><div><b>创作辅助栏重排；指板/键盘加「编辑 / 演奏」双模式；钢琴键盘贴合面板不再有滚动条</b>（产品指示）。① <b>创作辅助栏样式修正</b>：那一行原本是<b>按两项设计</b>的（和弦/标注各占一半），v60.62 把「指板/键盘」塞进去后每项只剩三分之一宽——图标 26px 加间隙之后文字无处可去，又<b>没有截断规则</b>，于是直接溢出卡片（产品截图所示）。现在改成<b>两列网格</b>：和弦/标注并排一行、指板/键盘<b>独占整行</b>；文字加省略号兜底，以后再加条目也撑不破。副标题按实测可用宽度重写（半宽项 60px、整宽项 130px），默认栏宽下<b>一个字都不会被吃掉</b>。② <b>编辑 / 演奏双模式</b>：<b>编辑模式</b>点板落音写进谱面；<b>演奏模式</b>点板<b>只出声试听、不改谱面</b>，专心跟着播放弹——两种模式都跟随播放高亮，这本来就是这块板的本职。模式段用浅色描边、与「指板/键盘」的实心红区分开，一眼看得出是两个维度而不是四个并列选项。③ <b>钢琴键盘贴合面板宽、不再有滚动条</b>：v60.62 为守住「屏幕像素也一比一」让面板横向滚动（88 键排开 1568px）；现按产品口径改为<b>只缩不放</b>——钢琴等比缩到面板宽（1568→958px），指板原生 651px 放得下则<b>保持一比一不被拉伸</b>，两块板都不出滚动条。<b>让出的只是绝对物理尺寸这一条</b>：品距定律、白/黑键宽长比、黑键位置这些内部几何比例<b>分毫未变</b>（相关断言都在 SVG 坐标里，照旧成立）。<code>tv_board</code> T9 如实改钉新口径（旧口径实测 <code>scrollW 1588 &gt; clientW 978</code>＝那条滚动条），并补 T11（演奏模式不改谱）/ T12（创作辅助行无溢出无截断）。CORE <b>99 套件</b>全绿。</div></li>
     <li><span class="v">v60.69</span><div><b>简谱波音终于会响；波音两侧的间距修正；六线谱双倚音支持逐音击勾弦</b>（产品报告四项）。① <b>简谱的波音/颤音/回音此前只画不响</b>——这个字段在整个播放调度里<b>一次都没出现过</b>。现在：上波音 <b>主→上邻→主</b>、下波音 <b>主→下邻→主</b>、回音 <b>上→主→下→主</b>、颤音<b>主音与上邻快速交替铺满时值</b>。邻音取<b>随调的自然音级</b>而不是一律全音——C 调里 <code>1</code> 的下邻是 <code>7</code>（小二度）、<code>3</code> 的上邻是 <code>4</code>（小二度），写死半音数就唱错了。装饰音在拍头快速奏出、主音占满剩余时值并接回延音链，所以<b>总时长与不加装饰音时完全一致</b>，连音线与踏板逻辑照旧生效。② <b>波音离主音数字太近</b>：实测字形底与数字顶只有 <b>1px</b>，几乎贴脸；现抬到 <b>3.5px</b>。③ <b>连音线离波音太远</b>：v60.53 让位时按「波音字形高约 8px」估算抬了 10px，而实测字形只有 <b>4.9px</b> 高，多让了约 5px；现让位收到 7.5px，弧到字形顶的净距由 <b>8.1px → 3.1px</b>。④ <b>六线谱双倚音支持逐音击勾弦</b>：此前不管几个倚音都<b>只画一条「倚音组→主音」的弧、一个技巧字母</b>——写 <code>5h7h9</code> 只出现一个 h，而且它落在弧中点、<b>正压住第二个倚音数字</b>（实测字母 x=106.8、数字 x=107）。现在<b>每一段过渡各画一条弧、各标一个字母</b>（吉他惯例：每次击勾弦都要标）；带技巧时倚音步距由 7px 放到 13px，字母与数字最近距离由 0.2px 拉到 <b>5.8px</b>。<b>占位同步</b>：渲染步距与排版预留此前是两处各写的字面量，改抽成同一个函数——步距变宽时排版预留自动跟随，倚音不会溢出到相邻列。新增 <code>tv_orn</code> 套件 <b>7+1 项</b>，<code>tv_jpspace</code> T9 改为<b>两侧都钉</b>（离数字 3–5px、连音线让过 2–5px）——对 v60.68 旧文件跑，这两个数正好是 <b>1px</b> 与 <b>8.1px</b>，突变实证。CORE 98→<b>99 套件</b>全绿。</div></li>
     <li><span class="v">v60.68</span><div><b>扫弦终于认连音线；每一击不再一模一样；上扫听得出是上扫</b>（产品反馈四项）。① <b>连音线此前完全没被识别</b>——六线谱的连音线是逐弦记在音符上的，而播放调度里有一句「没有技法就跳过」，把<b>带连音线但没有其他技法</b>的音整个丢掉了；于是谱面画着连音线、加线时提示还写着「N 根弦保持不重扫」，播放却照样一次次重扫。现在被连的音<b>不再拨弦</b>、时值并入前一个音（实测：三次拨弦变两次，首和弦时长 0.67→1.33 秒，和弦真正贯穿过去）。口径与推弦目标音一致。② <b>每一击都不一样了</b>：真人不会两次扫弦速度完全相同，而此前六次扫弦只有<b>两种</b>展开（下扫全是 24.8ms、上扫全是 13.5ms），听感自然是机械复读。现在每一击的展开量按既有的<b>确定性微扰动</b>浮动约 ±18%，实测同一条 D-DU-UDU 的六击<b>六个互不相同</b>的展开；「复听一致」不受影响（同一份谱每次播放完全相同），<b>精确档仍然零扰动</b>。只改扫弦快慢、不动起拍点，光标对齐与任何时间轴都不受影响。③ <b>上扫收过头了，改回来</b>：v60.66 把上扫收到 13.5ms —— 这低于人耳分辨弦先后的阈值，上扫糊成一记块状和弦、与下扫失去对比，就是「听起来所有都是向下扫」的由来。基准由 4.5ms/弦 放回 <b>6.0ms/弦</b>（四弦 18ms），仍比下扫快、仍只碰高音侧 ≤4 弦，下重上轻的手感保留。<code>tv_strum</code> 补 T9/T10/T11，对 v60.67 旧文件跑三项全红＝突变实证（T9 尤其直白：旧版「带连音线」与「不带」的发声<b>完全相同</b>）。CORE <b>98 套件</b>全绿。</div></li>
     <li><span class="v">v60.67</span><div><b>琶音展开定为 138ms；顺带修好「下琶音其实没有向下」</b>（产品指定）。① <b>琶音总展开 138ms</b>：与扫弦的「每弦基准 × 弦数」不同，琶音记号的语义是<b>把这个和弦滚一遍</b>——滚多久与音数多少无关，音多就滚得密一些、总时长不变。所以 3 音、5 音、6 音和弦的琶音<b>一律 138ms</b>（此前是 50ms/弦，5 音 200ms、6 音 250ms，音越多拖得越长）。短音符仍按时值上限收紧（不超过时值的 72%），不会溢出到下一个音。② <b>下琶音方向修正</b>：左栏「下琶音」写的是<b>由高音向低音顺拨</b>、图标也画着向下的箭头，但播放里 <code>arp</code> 与 <code>arpd</code> 被并成同一档之后<b>弦序没有再按方向分岔</b>——实测两者音序完全相同（都是 A1→E3 由低到高），<b>下琶音等于没生效</b>。现在下琶音整条和弦倒序滚，与谱面记号一致。<code>tv_strum</code> 补 T8 逐音核对两个方向的音序与展开量，T4 改为钉住 138ms 定值口径；对 v60.66 旧文件跑 T4/T8 当场红＝突变实证。CORE <b>98 套件</b>全绿。</div></li>

@@ -10,8 +10,12 @@
    T6 随轨切换：吉他轨→指板、简谱轨→键盘；带变调夹的轨高亮音高含夹位（发声=定弦+品+夹）
    T7 停播回落到光标列、收起后清空高亮
    T8 两块板共用同一把 毫米→像素 尺度：指板与键盘之间也是一比一
-   T9 屏幕像素上也一比一：两块板都不被全局 svg{max-width:100%} 压缩，实测 mm→px 一致
+   T9 面板内不出滚动条（v60.70 改口径）：钢琴按面板宽自适应、指板只缩不放保持一比一。
+      原为「屏幕像素也一比一」＋横向滚动；产品指示不要滚动条后，让出的只是绝对物理尺寸，
+      内部几何比例（T1/T2/T8）分毫未变
    T10 三个入口：创作辅助栏（全局）+ 吉他轨 + 旋律轨，开着时齐亮
+   T11 编辑/演奏双模式：演奏模式点板只试听不改谱
+   T12 创作辅助行两列铺排，无溢出无截断（v60.62 加进第三项后曾撑破卡片）
    对 v60.61 旧文件跑：T1–T10 全红（BOARD 未定义）。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -196,33 +200,31 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   T(Math.abs(r.got - r.want) / r.want < 0.005 && Math.abs(r.mmFret - r.mmKey) < 0.004,
     'T8 两块板共用同一把尺子：像素比＝毫米比（648mm 弦长 : 23.5mm 白键宽）', JSON.stringify(r));
 
-  // T9 屏幕像素上也一比一（不是只在 SVG 坐标里）
-  //   全局有一条 svg{max-width:100%}：88 键排开 1565px 会被压到面板宽 → 键盘缩到 0.79×、
-  //   而指板放得下保持 1.0×，两块板的物理尺度当场对不上。SVG 属性断言看不见这件事，
-  //   必须量 getBoundingClientRect（CLAUDE.md：位置/尺度问题用几何断言）。
+  // T9 面板内不出滚动条：钢琴按面板宽自适应、指板保持一比一原生尺寸
+  //    v60.62 原本钉的是「屏幕像素也一比一」（两块板都不被压缩，靠横向滚动容纳 88 键）。
+  //    v60.70 产品指示「钢琴键盘宽度跟弹窗宽度匹配，不使用滚动条」——绝对物理尺寸让位于
+  //    贴合面板；**内部几何比例分毫未变**（品距定律 T1 / 键宽长比 T2 / 毫米比 T8 都在 SVG
+  //    坐标里，照旧成立）。指板原生 651px 放得下，只缩不放，仍是一比一。
   r = await pg.evaluate(HELP + `(()=>{
     __mk(); openBoard('key');
+    const body=document.getElementById('bp-body');
     const svgK=document.querySelector('#bp-body svg');
     const rK=svgK.getBoundingClientRect();
-    const scaleK=rK.width/(+svgK.getAttribute('width'));      // 渲染宽 ÷ 内禀宽 = 屏幕缩放
-    /* 白键的真实屏幕宽度：相邻两个 C 的中心距 ÷ 7 */
-    const cx=m=>{const e=[...document.querySelectorAll('[data-bkm]')].find(x=>+x.dataset.bkm===m);
-      const b2=e.getBoundingClientRect(); return b2.left+b2.width/2;};
-    const wPx=(cx(72)-cx(60))/7;
+    const key={ intrinsic:+svgK.getAttribute('width'), rend:+rK.width.toFixed(1),
+      scale:+(rK.width/(+svgK.getAttribute('width'))).toFixed(3),
+      scrollW:body.scrollWidth, clientW:body.clientWidth,
+      fits: rK.width <= body.clientWidth + 1 };
     openBoard();
     const svgF=document.querySelector('#bp-body svg');
     const rF=svgF.getBoundingClientRect();
-    const scaleF=rF.width/(+svgF.getAttribute('width'));
-    const xs=__fretXs(), Lsvg=2*(xs[12]-xs[0]);
-    const Lpx=Lsvg*scaleF;
-    return {scaleK:+scaleK.toFixed(4), scaleF:+scaleF.toFixed(4),
-      wPx:+wPx.toFixed(2), Lpx:+Lpx.toFixed(1),
-      mmKey:+(wPx/23.5).toFixed(4), mmFret:+(Lpx/648).toFixed(4),
-      svgW:+svgK.getAttribute('width'), rendW:+rK.width.toFixed(1)};
+    const fret={ intrinsic:+svgF.getAttribute('width'), rend:+rF.width.toFixed(1),
+      scale:+(rF.width/(+svgF.getAttribute('width'))).toFixed(3),
+      scrollW:body.scrollWidth, clientW:body.clientWidth };
+    return {key, fret};
   })()`);
-  T(Math.abs(r.scaleK - 1) < 0.01 && Math.abs(r.scaleF - 1) < 0.01
-    && Math.abs(r.mmKey - r.mmFret) < 0.006,
-    'T9 屏幕像素上也一比一：两块板都不被容器压缩，实测 mm→px 尺度一致', JSON.stringify(r));
+  T(r.key.fits && r.key.scrollW <= r.key.clientW + 1 && r.key.scale < 1
+    && r.fret.scrollW <= r.fret.clientW + 1 && Math.abs(r.fret.scale - 1) < 0.01,
+    'T9 面板不出滚动条：钢琴缩到贴合面板宽，指板只缩不放（仍是一比一原生尺寸）', JSON.stringify(r));
 
   // T10 三个入口：创作辅助栏（全局）+ 吉他轨 + 旋律轨，且开着时都点亮
   r = await pg.evaluate(HELP + `(()=>{
@@ -248,6 +250,50 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.k1 === 'fret' && r.off1.join() === '0,0,0' && r.open1 === false
     && r.k2 === 'fret' && r.on2 === true && r.k3 === 'key' && r.on3 === true && r.row3 === 'vox',
     'T10 三个入口都在（创作辅助栏 / 吉他轨 / 旋律轨），开着时齐亮、再点收起', JSON.stringify(r));
+
+  // T11 编辑 / 演奏 双模式（v60.70 产品指示）
+  r = await pg.evaluate(HELP + `(()=>{
+    __mk(); sel={mi:0,row:'tab',vi:0,ci:0,si:3}; render(); openBoard();
+    const seg=[...document.querySelectorAll('#bp-mode [data-bm]')].map(x=>x.dataset.bm);
+    const defOn=document.querySelector('#bp-mode [data-bm="edit"]').classList.contains('on');
+    /* 演奏模式：点板只试听不写谱 */
+    document.querySelector('#bp-mode [data-bm="play"]').click();
+    const before=JSON.stringify(song.measures[0].tabs[0][0].notes);
+    document.querySelector('[data-bfs="3:5"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    const afterPlay=JSON.stringify(song.measures[0].tabs[0][0].notes);
+    const hlPlay=JSON.stringify(BOARD.hl);
+    /* 编辑模式：照旧写谱 */
+    document.querySelector('#bp-mode [data-bm="edit"]').click();
+    document.querySelector('[data-bfs="3:5"]').dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    const afterEdit=JSON.stringify(song.measures[0].tabs[0][0].notes);
+    return {seg, defOn, before, afterPlay, afterEdit, hlPlay, mode:BOARD.mode};
+  })()`);
+  T(r.seg.join() === 'edit,play' && r.defOn
+    && r.afterPlay === r.before && r.afterEdit === '[{"s":3,"f":5}]'
+    && r.hlPlay.indexOf('"f":5') >= 0,
+    'T11 演奏模式点板只试听不改谱（高亮仍跟手）；编辑模式照旧落音；默认编辑', JSON.stringify(r));
+
+  // T12 创作辅助行不再溢出（v60.62 加进第三项后原 flex 均分撑破卡片）
+  r = await pg.evaluate(HELP + `(()=>{
+    __mk();
+    const host=document.getElementById('ai-tools');
+    const hb=host.getBoundingClientRect();
+    const items=[...host.querySelectorAll('.aitem')].map(x=>{
+      const q=x.getBoundingClientRect();
+      const bb=x.querySelector('.ait b'), sm=x.querySelector('.ait small');
+      return {id:x.id, w:+q.width.toFixed(1), top:+q.top.toFixed(0),
+        overR:+(q.right-hb.right).toFixed(1), overL:+(hb.left-q.left).toFixed(1),
+        clipB: bb.scrollWidth>bb.clientWidth+1,
+        clipS: sm? sm.scrollWidth>sm.clientWidth+1 : false};
+    });
+    const rows=[...new Set(items.map(x=>x.top))].length;
+    return {items, rows, hostW:+hb.width.toFixed(1)};
+  })()`);
+  T(r.items.every(x => x.overR <= 0.6 && x.overL <= 0.6)     // 一个都不越界
+    && r.items.every(x => !x.clipB && !x.clipS)              // 文案在默认栏宽下不被省略号吃掉
+    && r.rows === 2                                          // 两列 + 整宽项 = 两行
+    && Math.abs(r.items[2].w - r.hostW) < 1,                 // 指板/键盘独占整行
+    'T12 创作辅助行：两列铺排、指板/键盘独占整行，无溢出无截断', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
