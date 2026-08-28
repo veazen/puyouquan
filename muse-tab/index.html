@@ -6494,7 +6494,24 @@ function renderHints(){
     +h.items.map(li).join('')
     +(h.subs.length? '<div class="hb-sub">整体建议（次级）</div>'+h.subs.map(li).join('') : '')+'</div>';
 }
+/* v60.65 渲染合并（用户报告「键盘数字输入音符不灵敏而且有延迟」）。
+   实测 50 小节双吉他谱：一次 render 约 218ms，其中 #score 的 innerHTML 赋值就占 197ms
+   （整份谱 1.76MB 标记 / 10673 个节点，每次都全量重建）。而**一次数字键会渲染两次**——
+   setFret 的 mutate 渲一次（光标还在原位），markEntered→moveCol 再渲一次（光标已前进），
+   第一次的结果当场被丢弃；两位品位路径更是 4 次。
+   holdRender 期间把 render 降为「标脏」，退出时补一次：按键路径 2→1 次、两位品位 4→1 次。
+   注意仍是**同步**的——holdRender 返回前那一次已经渲完，调用方与回归套件看到的 DOM 一致。 */
+let RENDER_HOLD = 0, RENDER_DIRTY = false;
+function holdRender(fn){
+  RENDER_HOLD++;
+  try{ return fn(); }
+  finally{
+    RENDER_HOLD--;
+    if(!RENDER_HOLD && RENDER_DIRTY){ RENDER_DIRTY=false; render(); }
+  }
+}
 function render(){
+  if(RENDER_HOLD){ RENDER_DIRTY=true; return; }
   renderDock();
   const svg = document.getElementById('score');
   /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
@@ -9774,10 +9791,29 @@ function applyDurCombo(combo){ try{habit('combo');}catch(_){}
     const oldSpan = cols.slice(startCi, end);
     let seg;
     if(row==='tab'){
-      const chord = chordAtCol(mi,vi,startCi);
-      const shape = chordShape(chord);
-      const style = styleOfTab(oldSpan);
-      seg = combo.durs.map(([d,t],i)=>genTabCol(d,t,style,shape,i));
+      /* v60.65 产品指示「套用节奏时不要自动出现 X 标记，只要时值节奏」：
+         原实现按当前和弦指法合成整列音符（genTabCol）。这些音符的品位正好等于指法，
+         在×记谱模式下 render 会把它们逐个显示成 ×（见 xDisp：品位==指法且 f<=4 即显示 ×），
+         于是「套个节奏」凭空多出一片 × ，用户改完音符还得再删一遍。
+         改为与简谱分支同一口径——**只换时值，把原有的音按顺序搬过来**。
+         顺带修掉一处静默数据丢失：没有和弦时 shape=null，genTabCol 直接返回空列，
+         用户已经写好的品位被清空（实测 3弦11品 套用「八分×2」后一个音都不剩）。
+         需要按和弦生成伴奏音型的，走「节奏型库」——那才是它的活。 */
+      const src = oldSpan.filter(c=>(c.notes||[]).length || c.strum || c.perc);
+      let oi=0;
+      seg = combo.durs.map(([d,t])=>{
+        const c=tcol(); c.dur=d; c.dotted=!!t;
+        if(oi<src.length){
+          const o=src[oi++];
+          c.notes=(o.notes||[]).map(n=>Object.assign({},n));
+          if(o.strum) c.strum=o.strum;
+          if(o.tech)  c.tech=o.tech;
+          if(o.perc)  c.perc=o.perc;
+          if(o.slap)  c.slap=o.slap;
+          if(o.mute)  c.mute=o.mute;
+        }
+        return c;
+      });
       const oc=(oldSpan.find(c=>c.chord)||{}).chord;
       if(oc && seg[0]) seg[0].chord=oc;
     }else{
@@ -11091,7 +11127,8 @@ function atLanding(){
   return !!(lastEnt && lastEnt.pos && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
             && lastEnt.at.mi===sel.mi && lastEnt.at.ci===sel.ci);
 }
-function inputDigit(k){
+function inputDigit(k){ return holdRender(()=>inputDigit_(k)); }
+function inputDigit_(k){
   if(sel.row==='tab'){
     const now=Date.now(); const d=String(k);
     let comb=null;
@@ -21436,7 +21473,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.64';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.65';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -21459,6 +21496,7 @@ const APP_VER='v60.64';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.65</span><div><b>套用节奏不再凭空冒出 × · 键盘输入延迟砍掉六成</b>（用户报告两项）。① <b>套用节奏只给时值，不给音符</b>：顶栏「节奏」组合此前会<b>按当前和弦指法合成整列音符</b>；这些音符的品位正好等于指法，在 <b>×记谱模式</b>下会被逐个显示成 ×——于是「套个节奏」凭空多出一片 ×，改完音符还得再删一遍。现在与简谱分支同一口径：<b>只换时值，把原有的音按顺序搬过来</b>，不造新音。<b>顺手修掉一处静默数据丢失</b>：没有和弦时旧实现直接返回空列，<b>用户已经写好的品位会被清空</b>（实测 3 弦 11 品 套用「八分×2」后一个音都不剩）——现在原样保留。要按和弦生成伴奏音型请走<b>节奏型库</b>，那才是它的活。② <b>键盘数字输入不再卡顿</b>：先量后修——50 小节双吉他谱下，<code>#score</code> 是单个 SVG，一次全量重建要写 <b>1.76MB 标记 / 10673 个节点</b>，光 <code>innerHTML</code> 赋值就 197ms；而<b>敲一个数字会重建两次 DOM</b>（落音渲一次「光标还在原位」，自动前进再渲一次，<b>第一次当场作废</b>），两位品位更是 4 次。新增 <code>holdRender</code> 把一次按键内的多次渲染合并成一次：<b>单键 2→1 次、两位品位 4→2 次</b>；同机前后实测 <b>单键 551ms→211ms（−62%）、两位品位 1447ms→721ms（−50%）</b>。合并后仍是<b>同步</b>的——按键处理返回时谱面已经更新，不是靠 rAF 拖到之后（专项断言钉住）。<b>如实说明</b>：剩下的约 200ms 仍是「整份谱全量重建」本身，超长谱（几十小节以上）还会有可感延迟；要根治得做<b>按可视区域局部重绘</b>，那是一次较大的渲染引擎改造，本版没做。新增 <code>tv_rhythm</code> 套件 <b>7+1 项</b>（含数据丢失回归与渲染次数断言），对 v60.64 旧文件跑 T1/T2/T3/T6 当场红＝突变实证。CORE 96→<b>97 套件</b>全绿。</div></li>
     <li><span class="v">v60.64</span><div><b>六线谱恢复休止字形</b>（产品指示）。v60.60 撤掉了六线谱的休止符字形、改由时值线表达时值；v60.63 又按「单独占一拍的休止不要时值线」收紧，结果是<b>一个真休止和一个没填音的空槽在谱面上长得一模一样</b>，附点休止连附点都看不到。现在把字形画回来：沿用 v45.6 的 <b>SMuFL 出版字形</b>（与五线谱同源，非 Unicode 文本字形——后者随字体渲染过小），落在 TAB 中部的等效谱表中线上，字号比五线谱略小以匹配六线谱密度，<b>附点同步显示</b>，时值重新可辨。与同期两条口径不冲突：① 与音符同处一拍的休止<b>照旧连成一条符杠</b>，字形就骑在杠上（Guitar Pro 同款）；② <b>整小节全空的小节仍然一个字形都不画</b>——那是 v60.60「新建项目和新增小节谱内不要标记也不要音符」的落点，未经指示不反转，新建项目的谱面还是干净的。扫弦列、打板列不会被误当成休止。测试如实跟随四处旧断言（<code>tv_tabrest</code> T3/T8、<code>tv_detail1</code> T2/T14）：前三处由「不画」改为「按休止列数各画一枚、附点休止带点」，T14 把字形计数按 x 收窄到空小节那一段——本项要钉的本就是「<b>空</b>小节里一枚都没有」，全谱计数会把有音符小节里的休止误算进来。CORE <b>96 套件</b>全绿。</div></li>
     <li><span class="v">v60.63</span><div><b>四件事：记谱引导「会什么谱写什么谱」· 观看页逐轨变调夹 · 六线谱休止符时值线口径 · 空小节按拍号</b>（产品指示）。① <b>新建时记谱引导</b>——回应「擅长简谱但不懂吉他谱、只懂五线谱想做吉他谱或简谱」：向导新增<b>「我写谱用」</b>，把<b>用哪种谱写</b>和<b>最终出什么谱</b>拆开。选「简谱→生成六线谱」或「五线谱→生成六线谱」，建好后光标直接落在<b>旋律轨</b>并按你会的谱式显示；旋律写完点左栏<code>显示 · 六线谱</code>，按低把位/中把位/跟随和弦图生成吉他轨（原旋律轨不动、一步可撤销）。独奏/指弹本来一条旋律轨都没有，引导模式会补一条。声乐谱同样可选五线谱录入——「只懂五线谱也能做简谱」的另一半。<b>不新增数据字段</b>，落到既有的 <code>voxNotations</code> 与光标位置；默认档走的还是老路径，一字不变。② <b>观看页变调夹补齐逐轨</b>：编辑器 v60.61 已经是每轨一个夹位，<b>观看页却仍是整谱一个数</b>——双吉他谱在观看页调夹位时，<b>有自己夹位的那条轨会被一起改掉</b>（唱调锁定的「指法∓d」本只该作用在跟随轨上）。现在把 <code>vwTrans</code> 里「由夹位带来的那部分位移」单独记账，这些轨按<b>纯音高位移</b>另建一份；实测：夹 5→3 时两轨发声<b>一个赫兹都没变</b>，而唱调 +2 时两轨<b>一起</b>升 2 个半音（不是把它们焊死不动）。③ <b>六线谱休止符时值线改口径</b>：<b>单独占一拍的休止不画时值线</b>，<b>与音符同处一拍时照常连成一条杠</b>。v60.60 是「休止一律画」，空小节于是排出一列光秃秃的符干；现在空小节谱面干净，而「八分音符＋八分休止」仍旧连杠。实现上有个坑：判定<b>不能</b>拿符杠分组来做——分组只收八分及更短的列，四分/二分根本不进组，照组判会<b>把普通四分音符的符干一并抹掉</b>（本版实测混合小节符干 3→2，已被专项断言钉住）。④ <b>空小节按拍号</b>：「跟拍号相等的休止音符」是两层——<b>数量＝分子、时值＝分母</b>。v60.60 只做了数量、时值一律写死四分，于是 <b>6/8 拍的空小节是 6 个四分＝12 拍，整整多出一倍</b>；现在 6/8→6 个八分、3/4→3 个四分，各自正好填满。新增 <code>tv_guide</code> 套件 <b>6+1 项</b>（含闭环实证：简谱写 1 2 3 4 → 生成的吉他轨逐音发声完全一致，比音高不看截图），<code>tv_tabrest</code> 补 T7/T8、<code>tv_trkcapo</code> 补 T8/T9（观看页两项都用 <code>playInst</code> 记录器抓真实频率）。<b>旧断言如实跟随</b>（产品有意改口径、非缺陷）：<code>tv_tabrest</code> T2、<code>tv_detail1</code> T2/T14、<code>tv_dot</code> T11 四处改按新口径，注释写明来龙去脉。CORE 95→<b>96 套件</b>全绿。</div></li>
     <li><span class="v">v60.62</span><div><b>音符输入新增「吉他指板 + 钢琴全键盘」，一比一几何，播放时跟着亮</b>（产品指示）。过去落音只有两条路：吉他谱敲弦号+品位数字，简谱敲唱名数字——对<b>会弹但不熟记谱</b>的人来说，脑子里明明是「按这儿」，手上却要先翻译成数字。现在直接在板上点。① <b>指板是一比一的</b>：品位按十二平均律的物理位置 <code>d(n) = L·(1 − 2^(−n/12))</code> 画，所以<b>越往高把位品格越窄</b>、12 品正落在有效弦长的一半——和真琴一个样，不是「均分 22 格」那种示意图；弦径由 1 弦到 6 弦递增，标记点 3·5·7·9·15·17·19·21 单点、12·24 双点，按本轨的<b>定弦与变调夹</b>算音高。② <b>钢琴是全键盘</b>：88 键 A0–C8，白键宽 23.5mm、黑键宽 13.7mm、白键长 145mm、黑键长 95mm（国际通用琴键尺寸）等比缩放；黑键横向位置走<b>真实约束</b>——同一组里各白键「露头」等宽，于是 C♯ 偏左、G♯ 居中、A♯ 偏右，而不是把黑键简单地骑在白键交界上（那是大多数网页键盘的错法，弹惯琴的人一眼能看出别扭）。③ <b>点板即落音</b>：指板点某弦某品就写进当前列；键盘在旋律轨落唱名，在吉他轨自动挑<b>能弹到该音高且品位最低</b>的弦位。④ <b>播放动态跟随</b>：板上高亮跟着播放逐列走，而且跟的是<b>你正在看的这条轨</b>（不是光标那条参考轨）——双吉他谱里看主音轨，指板亮的就是主音轨的把位；停播回落到光标所在列，不留最后一个和弦干亮着。不播放时高亮＝光标所在列，边挪光标边看「这个音在哪儿」。⑤ <b>入口三处</b>：创作辅助栏（产品指定的归属）一个全局入口；吉他轨「当前音轨」行、旋律轨「显示」行各一个——<b>每条轨都能调出自己对应的板</b>，切轨自动换板（吉他轨→指板、旋律轨→键盘），也可手动切。面板浮在播放坞上方，横向可滚（88 键必然超屏）。新增 <code>tv_board</code> 套件 <b>8+1 项</b>（几何断言：逐品对物理公式求偏差 ≤0.05px、白/黑键宽比 13.7:23.5、黑键三处偏移方向；播放实证：时间线取板所在轨的列数而非参考轨），对 v60.61 旧文件跑当场红＝突变实证。CORE 94→<b>95 套件</b>全绿。</div></li>
