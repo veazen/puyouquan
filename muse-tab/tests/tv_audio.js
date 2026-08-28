@@ -370,7 +370,10 @@ const T = (ok, name, detail) => {
     {
       const d6 = strumPlan(6, 'd'), u4 = strumPlan(4, 'u');
       const span = p => p.length > 1 ? p[p.length - 1].dt : 0;
-      // 下扫：总展开 40–90ms、相邻间隔递减（加速）、弦内力度低→高递减
+      // 下扫：总展开 20–40ms、相邻间隔递减（加速）、弦内力度低→高递减
+      //   v60.66 由 40–90ms 收紧（产品反馈「扫弦音色很糟糕」）：旧值在 ♩=90 的八分扫弦上
+      //   占掉音符时长的 19%，听成竖琴琶音而非拨片刷弦；且写死不随时值变化。
+      //   现改为「每弦基准 × 弦数」再按时值收紧，六弦下扫 31ms。
       let dAccel = true, dGrad = true;
       for (let k = 2; k < d6.length; k++) if (d6[k].dt - d6[k - 1].dt > d6[k - 1].dt - d6[k - 2].dt + 1e-9) dAccel = false;
       for (let k = 1; k < d6.length; k++) if (d6[k].g >= d6[k - 1].g) dGrad = false;
@@ -620,7 +623,7 @@ const T = (ok, name, detail) => {
     'F 混响IR：predelay零区/去相关/渐暗/无低频泥', JSON.stringify(r.F));
   T(r.G.g > 1 && r.G.g <= 4.001 && r.G.onset >= 0 && r.G.onset < 0.05 && r.G.effPeak > 0.08 && r.G.effPeak < 0.45,
     'G 归一：系数(1,4]/onset<50ms/生效峰值合理区间', JSON.stringify(r.G));
-  T(r.H.dSpan > 0.04 && r.H.dSpan < 0.09 && r.H.dAccel && r.H.dGrad && r.H.uSpan <= 0.035 && r.H.uLight
+  T(r.H.dSpan > 0.02 && r.H.dSpan < 0.04 && r.H.dAccel && r.H.dGrad && r.H.uSpan <= 0.02 && r.H.uLight
     && r.H.acc.join() === '1.33,1.19,1,0.85,0.8,1.19',
     'H 扫弦力度型（下扫加速+梯度/上扫快而轻）+ 拍点重音表', JSON.stringify(r.H));
   T(r.I.softHigh < r.I.loudHigh * 0.65 && r.I.softLow > r.I.loudLow * 0.6,
