@@ -9,6 +9,7 @@
    T5 压缩不吃刚杆：允许的轻微压缩行里，歌词与简谱数字净距仍为正
    T6 复刻截图密度（八分逐字词、含双字音节、排满行）：歌词与简谱净距 ≥3px
    T7 极端密集谱护栏：三类文字均无负净距
+   T8 版面不变量：小节宽之和＝行宽、列不越出小节（初版在这里破过，见注）
    对改前文件（v60.72）跑 T1/T2/T4/T6 当场红＝突变实证；
    T3/T5/T7 是护栏项（旧版在这些构造下本就不红），如实标注。file:// 直载。 */
 const { chromium } = require('playwright');
@@ -167,6 +168,45 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   })()`);
   T(r.简谱.负===0 && r.歌词.负===0 && r.品位.负===0 && r.歌词.min >= 0 && r.品位.min >= 0,
     'T7 十六分逐字词＋双位数品位的极端密集谱：三类文字均无负净距', JSON.stringify(r));
+
+  // T8 版面不变量：任何一行的小节宽之和必须等于该行声明宽度，且不超过行宽上限
+  //    （v60.73 初版在这里破过：单个小节的刚杆宽过整行时压缩被硬兜底挡住，
+  //     sys.w 仍被置成行宽 → 谱线只画到行宽、内容伸出去 20px，产品截图里就是这一截）
+  r = await pg.evaluate(HELP + `(()=>{
+    const viol=[];
+    const check=(tag)=>{
+      const AV = PAGE_W - 2*MARGIN - STAFF_HEAD_W;
+      layoutSystems().forEach((sy,i)=>{
+        const sum = sy.measures.reduce((a,lm)=>a+lm.L.w,0);
+        if(sum - sy.w > 0.5) viol.push({tag,行:i,类型:'内容伸出谱线',差:+(sum-sy.w).toFixed(1)});
+        if(sy.w - AV > 0.5)  viol.push({tag,行:i,类型:'行宽超上限',差:+(sy.w-AV).toFixed(1)});
+        sy.measures.forEach(lm=>[...lm.L.tabs,...lm.L.voxes].forEach(rr=>{
+          if(rr && rr.xs && rr.xs.length && Math.max(...rr.xs) > lm.L.w + 1)
+            viol.push({tag,行:i,类型:'列超出小节宽',mi:lm.mi});
+        }));
+      });
+    };
+    PRESETS.forEach((P,i)=>{ loadSong(P.make()); blurSel=true; render(); check('预设'+i); });
+    [[1,1],[2,1],[2,2],[3,2]].forEach(([nTab,nVox])=>{
+      [900,1060,1400].forEach(pw=>{
+        loadSong(createSong('tanchang',{beats:4,unit:4,key:'C',nMea:16,nTab:nTab,nVox:nVox,lyr:2}));
+        PAGE_W = pw;
+        song.measures.forEach((m,mi)=>{
+          if(mi%5===0){ m.beats=2; m.unit=4; }
+          const nb=m.beats||4;
+          for(let v=0;v<nVox;v++) m.voxes[v]=Array.from({length:nb*4},(_,i)=>({dur:16,dotted:false,
+            deg:1+(i%7),acc:'',oct:0,tie:false,lyrics:[i%3===0?'阳光':'啊', i%4===0?'温暖':'呀']}));
+          for(let t=0;t<nTab;t++) m.tabs[t]=Array.from({length:nb*4},(_,i)=>({dur:16,dotted:false,
+            chord:i===0?'Dm':'',strum:'',tech:'',notes:[{s:1+(i%4), f:[9,11,12,14,16,13,11,10][i%8]}]}));
+        });
+        blurSel=true; render();
+        check('合成 tab'+nTab+' vox'+nVox+' pw'+pw);
+      });
+    });
+    PAGE_W = 1060;
+    return {违规数:viol.length, 样例:viol.slice(0,6)};
+  })()`);
+  T(r.违规数 === 0, 'T8 版面不变量：16 首预设 + 12 组合成密集谱，无一行内容伸出谱线/超出行宽', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
