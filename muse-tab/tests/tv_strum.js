@@ -16,7 +16,11 @@
       （旧版恒定 0.3*vol，两次完全相同）
    T8 下琶音要真的由高音向低音（v60.67）——此前 arp/arpd 并成一档后弦序没按方向分岔，
       谱面画着下箭头、播放却与上琶音完全相同（实测两者音序都是 33,40,45,48,52）
-   对 v60.65 旧文件跑 T1–T7 全红、v60.66 旧文件跑 T4/T8 全红（突变实证）。file:// 直载。 */
+   T9  连音线要被识别（v60.68）：被连的列不再重扫、时值并入前一个音
+   T10 每一击展开互不相同（层次感）且复听一致（确定性扰动，精确档归零）
+   T11 上扫展开回到人耳可辨弦序的区间——v60.66 收到 13.5ms 是收过头了
+   对 v60.65 跑 T1–T7 全红、v60.66 跑 T4/T8 全红、v60.67 跑 T9/T10/T11 全红（突变实证）。
+   file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const F = 'file://' + path.resolve(__dirname, '../index.html');
@@ -158,6 +162,65 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   T(r.up.order.join() === '33,40,45,48,52' && r.down.order.join() === '52,48,45,40,33'
     && Math.abs(r.up.span - 138) < 1 && Math.abs(r.down.span - 138) < 1,
     'T8 上琶音低→高、下琶音高→低（此前两者发声完全相同），展开都是 138ms', JSON.stringify(r));
+
+  // T9 连音线要被识别（产品反馈「没有识别连音线」）
+  //    TAB 的连音线是逐弦 n.tk={mi,ci,si}。此前调度里 `if(!it.tech && !it.bTy) return;`
+  //    把「有 tk 但没有 tech」的音整个丢掉——而那正是连音线，于是谱面画着线、
+  //    加线时 toast 还写着「N 根弦保持不重扫」，播放却照样逐次重扫。
+  r = await pg.evaluate(HELP + `(()=>{
+    const Am=()=>[{s:5,f:0},{s:4,f:2},{s:3,f:2},{s:2,f:1},{s:1,f:0}];
+    const mk=tie=>{
+      loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0}));
+      song.measures[0].tabs[0]=[__tc({dur:4,notes:Am()}), __tc({dur:4,notes:Am()}),
+        __tc({dur:4,notes:Am()}), __tc({dur:4})];
+      if(tie) song.measures[0].tabs[0][0].notes.forEach(n=>{ n.tk={mi:0,ci:1,si:n.s}; });
+      render();
+      const ev=[]; const o=playInst;
+      playInst=(k,c,bus,f,when,dur)=>ev.push({t:+when.toFixed(5), d:+(dur||0).toFixed(3)});
+      try{ play(); } finally { stopPlay(); playInst=o; }
+      ev.sort((a,b2)=>a.t-b2.t);
+      const t0=ev[0].t;
+      const ons=[...new Set(ev.map(e=>+(e.t-t0).toFixed(3)).map(x=>Math.round(x*10)/10))];
+      return {n:ev.length, onsets:ons, firstDur:ev[0].d};
+    };
+    return {tied:mk(true), plain:mk(false)};
+  })()`);
+  T(r.tied.n < r.plain.n && r.tied.onsets.length === 2 && r.plain.onsets.length === 3
+    && r.tied.firstDur > r.plain.firstDur,
+    'T9 连音线：被连的列不再重扫，时值并入前一个音（对照组照常三次拨弦）', JSON.stringify(r));
+
+  // T10 每一击不再一模一样（产品反馈「死板、没有层次感」）
+  //     确定性扰动：同一份谱复听结果必须完全一致，精确档则恒为定值。
+  r = await pg.evaluate(HELP + `(()=>{
+    const Am=()=>[{s:5,f:0},{s:4,f:2},{s:3,f:2},{s:2,f:1},{s:1,f:0}];
+    const dirs=['d','d','u','u','d','u'];
+    const run=()=>{
+      loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0}));
+      song.measures[0].tabs[0]=dirs.map((sd,i)=>__tc({dur:8, chord:i===0?'Am':'',
+        notes:Am(), strum:sd}));
+      render();
+      const ev=[]; const o=playInst;
+      playInst=(k,c,bus,f,when)=>ev.push(when);
+      try{ play(); } finally { stopPlay(); playInst=o; }
+      ev.sort((a,b2)=>a-b2);
+      const t0=ev[0]; const gs=[]; let cur=null;
+      ev.forEach(x=>{ const t=x-t0; if(!cur || t-cur.t0>0.1){ cur={t0:t, last:t}; gs.push(cur); } cur.last=t; });
+      return gs.map(g=>+((g.last-g.t0)*1000).toFixed(1));
+    };
+    const a=run(), b2=run();
+    const dn=a.filter((_,i)=>dirs[i]==='d'), up=a.filter((_,i)=>dirs[i]==='u');
+    return {spans:a, distinct:new Set(a).size, repeatable: a.join()===b2.join(),
+      minDown:Math.min(...dn), maxUp:Math.max(...up)};
+  })()`);
+  T(r.distinct >= 5 && r.repeatable && r.maxUp < r.minDown,
+    'T10 每一击展开互不相同（层次感）、复听完全一致（确定性）、上扫整体快于下扫', JSON.stringify(r));
+
+  // T11 上扫要回到人耳能听出弦序的区间（v60.66 收到 13.5ms 是收过头了）
+  r = await pg.evaluate(HELP + `(()=>{
+    return {u4:__span(strumPlan(4,'u')), u5:__span(strumPlan(5,'u')), d6:__span(strumPlan(6,'d'))};
+  })()`);
+  T(r.u4 >= 16 && r.u4 <= 22 && r.u4 < r.d6,
+    'T11 上扫展开回到可辨方向的区间（≥16ms），但仍快于下扫', JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
