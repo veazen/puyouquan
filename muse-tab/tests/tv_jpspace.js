@@ -187,33 +187,46 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   T(r.allHit && !r.oldTr && !r.nan,
     'T8 简谱波音/颤音/回音＝SMuFL 出版字形（旧 tr/∽ 文本已退役）', JSON.stringify(r));
 
-  // T9 波音与连音线不重叠（弧基线让过波音字形）
+  // T9 波音的两侧净距都要合理（v60.69 产品报告：「波音符号离主音符太近，
+  //    上方的连音线离波音符号又太远」）。改用 SVG 坐标量——屏幕坐标里 <text> 的
+  //    包围盒是字体 em 盒、不是数字墨迹顶，量出来会系统性偏小。
+  //    参照：16.5 号数字的墨迹顶 ≈ baseline−12；波音字形自锚点向上约 4.9px。
   r = await pg.evaluate(HELP + `(()=>{
     const build=(withOrn)=>{
       const s=createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0});
       s.measures[0].voxes[0]=[__V(1,withOrn?{orn:'up',tie:true}:{tie:true}),__V(1),__V(2),__V(3)];
       loadSong(s); blurSel=true; render();
-      const paths=[...document.querySelectorAll('#score path')];
-      const dOf=x=>x.getAttribute('d')||'';
-      /* 连音线＝tieSVG 输出：无 transform、以「M 」起、正好两个 Q 段 */
-      const tie=paths.filter(x=>!x.getAttribute('transform')
-        && dOf(x).slice(0,2)==='M ' && dOf(x).split(' Q ').length===3)[0];
-      const orn=paths.filter(x=>dOf(x)===SMUFL.ornamentShortTrill.d)[0];
-      /* smg 的 getBBox 不含自身 transform → 一律用屏幕坐标比 */
-      const R=el=>{const q=el.getBoundingClientRect();
-        return {top:+q.top.toFixed(1), bot:+q.bottom.toFixed(1)};};
-      /* 以首个数字顶边为参照系，抵消两次渲染的行高差异 */
-      const dig=__texts().filter(x=>x.getAttribute('font-size')==='16.5')[0];
-      const digTop=+dig.getBoundingClientRect().top.toFixed(1);
-      return {tie: tie? R(tie):null, orn: orn? R(orn):null, digTop,
-        clear: tie? +(digTop - R(tie).bot).toFixed(1) : null};
+      /* transform 用字符串切分取 translate 的 y——模板字符串会把正则里的 \\( 吃成 (，
+         正则在这里必失配（CLAUDE.md 记过的坑） */
+      const orn=[...document.querySelectorAll('#score path[transform]')].map(x=>{
+        const tf=x.getAttribute('transform')||'';
+        const i=tf.indexOf('translate('); if(i<0) return null;
+        const inner=tf.slice(i+10, tf.indexOf(')', i));
+        const parts=inner.split(inner.indexOf(',')>=0? ',' : ' ').map(v=>parseFloat(v));
+        return parts.length>1 && !isNaN(parts[1])? parts[1] : null;
+      }).filter(v=>v!=null)[0];
+      const dig=[...document.querySelectorAll('#score text')]
+        .filter(x=>x.getAttribute('font-size')==='16.5')
+        .map(x=>+x.getAttribute('y')).sort((a,b2)=>a-b2)[0];
+      const tie=[...document.querySelectorAll('#score path')].filter(x=>{
+        const d=x.getAttribute('d')||'';
+        return !x.getAttribute('transform') && d.slice(0,2)==='M ' && d.split(' Q ').length===3;
+      }).map(x=>parseFloat((x.getAttribute('d')||'').split(' ')[2]))[0];
+      return {ornY:orn, digBase:dig, tieY:tie};
     };
-    return {withOrn:build(true), noOrn:build(false)};
+    const a=build(true), b2=build(false);
+    const H=4.9;                                   // 波音字形自锚点向上的高度
+    return {
+      withOrn:a, noOrn:b2,
+      gapOrnToDigit: a.ornY!=null? +((a.digBase-12) - a.ornY).toFixed(1) : null,
+      gapTieToOrn:   (a.ornY!=null && a.tieY!=null)? +((a.ornY-H) - a.tieY).toFixed(1) : null,
+      plainTieLift:  +(b2.digBase - b2.tieY).toFixed(1)
+    };
   })()`);
-  T(r.withOrn.tie && r.withOrn.orn && r.noOrn.tie
-    && r.withOrn.tie.bot <= r.withOrn.orn.top + 0.5      // 弧整体落在波音字形之上
-    && r.withOrn.clear >= r.noOrn.clear + 8,             // 有波音时基线确实抬高（让位 10px）
-    'T9 波音与连音线不重叠（弧让到波音上方；无波音时不抬高）', JSON.stringify(r));
+  T(r.gapOrnToDigit >= 3 && r.gapOrnToDigit <= 5          // 不贴脸，也不飘太高
+    && r.gapTieToOrn >= 2 && r.gapTieToOrn <= 5           // 让过波音，但不过远
+    && Math.abs(r.plainTieLift - 16) < 0.6,               // 无波音时基线一分不动（voxY−16）
+    'T9 波音两侧净距：离主音数字 3–5px、连音线让过它 2–5px（无波音时基线不动）', JSON.stringify(r));
 
   // T10 跨行连音线＝上升段＋下降段拼成一条整弧（此前两段各自端点同高的独立小弧）
   r = await pg.evaluate(HELP + `(()=>{
