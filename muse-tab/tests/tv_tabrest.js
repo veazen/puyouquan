@@ -1,6 +1,7 @@
 /* v60.60 六线谱时值线与空小节骨架（用户报告三项）：
    T1 新建项目/新增小节：吉他谱空小节 = 跟拍号相等的休止列（4/4→4 个四分；此前每拍两个八分共 8 列）
-   T2 空小节渲染：**一根时值线都不画**、谱表内也不画休止字形
+   T2 空小节渲染：**一根时值线都不画**、谱表内也不画休止字形（全空小节的骨架保持干净，
+      v60.64 恢复休止字形时仍不反转这一条——见 tv_detail1 T2/T14）
       （v60.60 原为「一拍一条」，v60.63 产品指示「单独占一拍的休止符不需要时值线」→ 跟随改口径）
    T3 休止与实音同一拍：休止列也有时值线，并与同拍实音并进同一条符杠
    T4 倚音技巧字母＝普通两音技法字母同款（11px / 600 / 纸底描边 2.4），由 8px/700/2.2 放大
@@ -95,8 +96,9 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const groups=beamGroups(song.measures[0].tabs[0], null, 4).map(g=>g.idx.join('-'));
     return {groups, beams:__beams(), rests:__restGlyphs(), nStem:__stemXs().length};
   })()`);
-  /* 5 根＝第1拍(音+休止)2 + 第2拍(两个八分)2 + 第3拍(四分音符)1；第4拍独占一拍的休止不画 */
-  T(r.groups.join('|') === '0-1|2-3' && r.beams >= 2 && r.rests === 0 && r.nStem === 5,
+  /* 5 根＝第1拍(音+休止)2 + 第2拍(两个八分)2 + 第3拍(四分音符)1；第4拍独占一拍的休止不画。
+     v60.64 起休止字形恢复：本小节有音符，两个休止列各画一枚（不再是 0） */
+  T(r.groups.join('|') === '0-1|2-3' && r.beams >= 2 && r.rests === 2 && r.nStem === 5,
     'T3 休止与实音同拍：休止列有时值线并进同一条符杠', JSON.stringify(r));
 
   // T4 倚音技巧字母＝普通两音技法字母同款
@@ -169,8 +171,9 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const xs=__stemXs();
     return {n:xs.length, beams:__beams(), rests:__restGlyphs(), xs};
   })()`);
-  T(r.n === 3 && r.beams === 1 && r.rests === 0,
-    'T8 混合小节：同拍休止连杠、单独拍休止不画、单独四分音符符干不被误伤', JSON.stringify(r));
+  /* 三个休止列各一枚字形（v60.64 恢复）；时值线仍只在有发声的拍上 */
+  T(r.n === 3 && r.beams === 1 && r.rests === 3,
+    'T8 混合小节：同拍休止连杠、单独拍休止不画时值线（但休止字形照画）、四分音符符干不被误伤', JSON.stringify(r));
 
   // T6 护栏：简谱声部休止字形照旧（本版只动六线谱）
   r = await pg.evaluate(HELP + `(()=>{

@@ -73,10 +73,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(t1.mut && t1.perc && t1.noOld, 'T1 闷音×15/打板×16', JSON.stringify(t1));
 
-  /* T2 TAB 休止的表达方式（v60.60 起谱表内**不画**休止字形；v60.63 再收紧时值线口径）：
-     时值改由下方时值线表达；而时值线只画在「本拍里有发声」的列上——
-     产品指示「单独占一拍的休止符不需要时值线，和其他音符连成一拍时就要连接时值线」。
-     本例除首列外全是各自独占一拍的休止，故只有首列那根符干。 */
+  /* T2 TAB 休止的表达方式，三版口径叠加后的现状：
+     · v45.6 起画 SMuFL 休止字形 → v60.60 撤掉 → **v60.64 产品指示「恢复休止字形」画回来**；
+     · v60.63：时值线只画在「本拍里有发声」的列上（单独占一拍的休止不画线）。
+     所以本例：四个休止各有一枚字形（附点休止连附点一起，时值可辨），
+     而符干只有首列那个发声的四分音符一根。 */
   const t2 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [
@@ -101,8 +102,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   /* 首列是发声的四分音符 → 1 根符干；其余四列都是独占一拍的休止 → 一根不画。
      附点也随之不画（附点是画在时值线上的，没有线就没有点）——这是 v60.63 口径的直接后果。 */
-  T(t2.noUni && t2.restGlyphs === 0 && t2.stems === 1 && !t2.dot,
-    'T2 TAB 休止不画字形；时值线只画在有发声的拍上', JSON.stringify(t2));
+  T(t2.noUni && t2.restGlyphs === 4 && t2.stems === 1 && t2.dot,
+    'T2 TAB 休止画 SMuFL 字形（附点休止带点）；时值线只画在有发声的拍上', JSON.stringify(t2));
 
   // T3 拍弦=框内×
   const t3 = await pg.evaluate(() => {
@@ -279,17 +280,25 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(t13.span >= 80, 'T13b 弹唱谱 TAB↔简谱行首相连', JSON.stringify(t13));
 
   /* T14 TAB 全空小节：v45.6 画居中全休止字形 → v60.60 改逐列时值线骨架 →
-     v60.63 产品指示「单独占一拍的休止符不需要时值线」，于是空小节**字形和时值线都没有**，
-     谱表内彻底干净（小节仍是跟拍号相等的休止列，数据在、只是不画）。 */
+     v60.63「单独占一拍的休止不要时值线」后**字形和时值线都没有**，谱表内彻底干净。
+     v60.64 恢复休止字形时**只恢复有音符的小节**，全空小节这一条不反转——
+     它是 v60.60「新建项目/新增小节谱内不要标记」的落点（小节仍是跟拍号相等的休止列，
+     数据在、只是不画）。 */
   const t14 = await pg.evaluate(() => {
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 0, lyr: 0 });
     s.measures[0].tabs[0] = [{ dur: 4, notes: [{ s: 5, f: 2 }] }, { dur: 4, notes: [] }, { dur: 2, notes: [] }];
     // m1 保持新建默认（全空，一拍一列四分）
     loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
-    const glyphs = (svg.match(/scale\(6\.000\)/g) || []).length;   // TAB 休止字形（SG=6）
     const S2 = layoutSystems(); const lm2 = S2[0].measures[1];
     const x0 = 56 + STAFF_HEAD_W + lm2.x;
+    /* v60.64 休止字形恢复后，全谱计数会把 m0 里的休止也算进来——本项要的是
+       「**空小节**里一枚都没有」，故把字形按 x 收窄到 m1 这一段 */
+    const glyphs = [...document.querySelectorAll('#score path[transform]')].filter(el => {
+      const m = /translate\(([-0-9.]+)/.exec(el.getAttribute('transform') || '');
+      const x = m ? +m[1] : -1;
+      return x > x0 && x < x0 + lm2.L.w;
+    }).length;
     /* 符干长度约 10px（tabBot+2 → stemY）；小节线跨整个谱表（≈45px），按长度上限剔掉 */
     const stemXs = [...document.querySelectorAll('#score line')].filter(x => {
       const len = Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1'));
@@ -299,7 +308,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { glyphs, emptyCols: song.measures[1].tabs[0].length, stemsInEmpty: stemXs.length };
   });
   T(t14.glyphs === 0 && t14.emptyCols === 4 && t14.stemsInEmpty === 0,
-    'T14 TAB 全空小节：无休止字形、也无时值线（列数仍＝拍号）', JSON.stringify(t14));
+    'T14 TAB 全空小节：字形与时值线都没有（新建骨架保持干净，列数仍＝拍号）', JSON.stringify(t14));
 
   // T15 v45.9 行首连线无同位双绘 + T16 TAB 字母入谱表
   const t15 = await pg.evaluate(() => {
