@@ -45,8 +45,10 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
       cs[0]=__tc({notes:[{s:3,f:9}], grace:{notes:gnotes, dur:16, tk}});
       cs[1]=__tc({notes:[{s:3,f:7}]});
       blurSel=true; render();
-      const tx=[...document.querySelectorAll('#score text')].map(x=>({
-        t:x.textContent, x:+x.getAttribute('x'), fs:x.getAttribute('font-size'),
+      /* v60.71 小节号缩到 8px，与倚音数字同号——按 class 排除，否则倚音取样会混进小节号 */
+      const tx=[...document.querySelectorAll('#score text')]
+        .filter(x=>(x.getAttribute('class')||'').indexOf('mnum')<0)
+        .map(x=>({t:x.textContent, x:+x.getAttribute('x'), fs:x.getAttribute('font-size'),
         it:x.getAttribute('font-style')||''}));
       return {
         nums: tx.filter(x=>x.fs==='8').map(x=>({t:x.t, x:x.x})),

@@ -37,7 +37,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
       .filter(l=>Math.abs(+l.getAttribute('x1')-+l.getAttribute('x2'))<.3
         && Math.abs(+l.getAttribute('y2')-+l.getAttribute('y1'))>8)
       .map(l=>+(+l.getAttribute('x1')).toFixed(1)).sort((a,c)=>a-c);
-    window.__digits=()=>__texts().filter(x=>x.getAttribute('font-size')==='16.5').map(x=>({t:x.textContent,...__bb(x)}));
+    window.__digits=()=>__texts().filter(x=>x.getAttribute('font-size')==='15').map(x=>({t:x.textContent,...__bb(x)}));
     window.__prevDigit=x=>__digits().filter(d=>d.r<=x+3).sort((p,q)=>q.r-p.r)[0];
     window.__graceLines=()=>[...document.querySelectorAll('#score line')]
       .filter(l=>l.getAttribute('stroke-width')==='0.8' && Math.abs(+l.getAttribute('y1')-+l.getAttribute('y2'))<.3)
@@ -206,7 +206,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
         return parts.length>1 && !isNaN(parts[1])? parts[1] : null;
       }).filter(v=>v!=null)[0];
       const dig=[...document.querySelectorAll('#score text')]
-        .filter(x=>x.getAttribute('font-size')==='16.5')
+        .filter(x=>x.getAttribute('font-size')==='15')
         .map(x=>+x.getAttribute('y')).sort((a,b2)=>a-b2)[0];
       const tie=[...document.querySelectorAll('#score path')].filter(x=>{
         const d=x.getAttribute('d')||'';

@@ -27,21 +27,16 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   const HELP = `
     window.__tc=o=>Object.assign({dur:4,dotted:false,chord:'',notes:[],strum:'',tech:''},o);
     window.__svg=()=>document.getElementById('score');
-    /* 符干＝竖直 line stroke-width=1。小节线同样是这种竖线，必须排掉，否则「几根符干」会多算：
-       小节线止于谱表底线，符干还要再往下 12px 到符杠基线 → 按 y2 区分。
-       基准取**最左那条竖线**＝行首小节线，它的 y2 就是谱表底线。
-       （v60.63 起需要绝对根数，旧写法按 x 聚合比对可以容忍小节线，现在不行了） */
-    window.__stemXs=()=>{
-      const vs=[...__svg().querySelectorAll('line')].filter(x=>
+    /* 符干＝竖直 line stroke-width=0.85（v60.71 时值线减重）。
+       此前符干与小节线同为 1，必须再按 y2 把小节线剔出去；现在两者线径已不同，
+       0.85 这一条就唯一锁定符干，旧的「按最左竖线定谱表底线」启发式随之作废。 */
+    window.__stemXs=()=>
+      [...__svg().querySelectorAll('line')].filter(x=>
         Math.abs(+x.getAttribute('x1')-+x.getAttribute('x2'))<0.3
-        && +x.getAttribute('stroke-width')===1
-        && Math.abs(+x.getAttribute('y2')-+x.getAttribute('y1'))>3);
-      if(!vs.length) return [];
-      const X=x=>+(+x.getAttribute('x1')).toFixed(1), Y2=x=>+(+x.getAttribute('y2')).toFixed(1);
-      const barY2=Y2(vs.reduce((a,c)=>X(c)<X(a)?c:a, vs[0]));
-      return vs.filter(x=>Y2(x)>barY2+1).map(X).sort((a,c)=>a-c);
-    };
-    window.__beams=()=>[...__svg().querySelectorAll('rect')].filter(x=>+x.getAttribute('height')===2.2).length;
+        && +x.getAttribute('stroke-width')===0.85
+        && Math.abs(+x.getAttribute('y2')-+x.getAttribute('y1'))>3)
+      .map(x=>+(+x.getAttribute('x1')).toFixed(1)).sort((a,c)=>a-c);
+    window.__beams=()=>[...__svg().querySelectorAll('rect')].filter(x=>+x.getAttribute('height')===1.9).length;
     /* 休止字形＝ smg 落地的带 transform 的 path */
     window.__restGlyphs=()=>__svg().querySelectorAll('path[transform]').length;
     window.__mkGuitar=(nMea,beats,unit)=>{

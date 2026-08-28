@@ -89,14 +89,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s); blurSel = true; render();
     const svg = document.getElementById('score').innerHTML;
     const restGlyphs = document.querySelectorAll('#score path[transform]').length;
-    /* 小节线也是 stroke-width=1 的竖线：它止于谱表底线，符干还要再往下 12px，按 y2 区分 */
-    const vs = [...document.querySelectorAll('#score line')].filter(x =>
+    /* v60.71 符干减重到 0.85、小节线仍是 1 —— 线径已唯一锁定符干，
+       旧的「按最左竖线定谱表底线再按 y2 剔小节线」启发式随之作废 */
+    const stems = [...document.querySelectorAll('#score line')].filter(x =>
       Math.abs(+x.getAttribute('x1') - +x.getAttribute('x2')) < 0.3
-      && +x.getAttribute('stroke-width') === 1
-      && Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1')) > 3);
-    const X = x => +x.getAttribute('x1'), Y2 = x => +x.getAttribute('y2');
-    const barY2 = vs.length ? Y2(vs.reduce((a, c) => X(c) < X(a) ? c : a, vs[0])) : 0;
-    const stems = vs.filter(x => Y2(x) > barY2 + 1).length;
+      && +x.getAttribute('stroke-width') === 0.85
+      && Math.abs(+x.getAttribute('y2') - +x.getAttribute('y1')) > 3).length;
     const dot = /circle[^>]*r="1\.6"/.test(svg);
     return { noUni: !/[𝄻𝄼𝄽𝄾𝄿𝅀]/.test(svg), restGlyphs, stems, dot };
   });

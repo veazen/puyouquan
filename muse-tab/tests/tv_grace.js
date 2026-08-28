@@ -57,7 +57,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const h = document.getElementById('score').innerHTML;
     const pre = document.querySelector('[data-tabgrace="0:1:0:pre"]'), post = document.querySelector('[data-tabgrace="0:2:0:post"]');
     // 几何：前倚音数字 x < 主音 x；后倚音数字 x > 主音 x
-    const gx = [...document.querySelectorAll('#score text[font-size="8"]')].map(t => +t.getAttribute('x'));
+    /* v60.71 小节号缩到 8px（与倚音数字同号）——按 class 排除，否则倚音取样混进小节号 */
+    const gx = [...document.querySelectorAll('#score text[font-size="8"]')]
+      .filter(t => (t.getAttribute('class') || '').indexOf('mnum') < 0).map(t => +t.getAttribute('x'));
     const mainX1 = colBoxes['t0:0:1'].x + colBoxes['t0:0:1'].w / 2;
     return { pre: !!pre, post: !!post, n8: gx.length,
       preLeft: gx.length >= 2 && gx[0] < mainX1 && gx[1] < mainX1,
@@ -250,7 +252,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       s.measures[2].voxes[0] = [V(5, 1)];
       loadSong(s); blurSel = true; render();
       // 基线相对主音数字（voxY）测量——高八度点会触发行高预留使整行下移，绝对 y 不可比
-      const voxY = +document.querySelector('#score text[font-size="16.5"]').getAttribute('y');
+      const voxY = +document.querySelector('#score text[font-size="15"]').getAttribute('y');
       /* v56.1 跨行连音线两段式后，m1→m2 若被排到两行会多出行首进入半弧——
          本测只验 v53.6 弧形标准，池子限定第一行的弧（y 同行带内） */
       const ts = parseTies().filter(t => Math.abs(t.y1 - voxY) < 60);

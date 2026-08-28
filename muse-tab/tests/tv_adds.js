@@ -15,19 +15,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
-  // T1 显示样式：14.5 号和音数字 ×2、八度点（高+低各一枚）、♯ 左置、热区存在、无 NaN
+  // T1 显示样式：13.2 号和音数字 ×2、八度点（高+低各一枚）、♯ 左置、热区存在、无 NaN
   let r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
     const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
     const s = createSong('vocal', { title: 'a', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
     s.measures[0].voxes[0] = [V(1, 4, { adds: [{ deg: 3, acc: '#', oct: -1 }, { deg: 5, acc: '', oct: 1 }] }), V(2, 4), V(3, 4), V(5, 4)];
     loadSong(s); blurSel = true; render();
-    const digits = [...document.querySelectorAll('#score text[font-size="14.5"]')];
+    const digits = [...document.querySelectorAll('#score text[font-size="13.2"]')];
     const dots = [...document.querySelectorAll('#score circle[r="1.4"]')];
     const zone = document.querySelector('[data-vadds="0:0:0"]');
     const h = document.getElementById('score').innerHTML;
     // 几何：和音数字 y 全部高于主音基线（更小的 y）；低八度点 y 介于两数字之间
     const dy = digits.map(t => +t.getAttribute('y'));
-    const mainY = +[...document.querySelectorAll('#score text[font-size="16.5"]')][0].getAttribute('y');
+    const mainY = +[...document.querySelectorAll('#score text[font-size="15"]')][0].getAttribute('y');
     return { n145: digits.length, dots: dots.length, zone: !!zone,
       above: dy.every(y => y < mainY - 10), asc: dy.length === 2 && dy[1] < dy[0],
       sharp: h.indexOf('>♯</text>') >= 0, nan: h.includes('NaN') };

@@ -260,19 +260,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[2].tabs[0] = [Tc({dur:1, notes:[{s:3,f:0}]})];
     loadSong(s); blurSel = true; render();
     const dashEls = [...document.querySelectorAll('#score rect')]
-      .filter(el => el.getAttribute('width') === '9' && el.getAttribute('height') === '2.2');
+      .filter(el => el.getAttribute('width') === '9' && el.getAttribute('height') === '1.9');
     const dashes = dashEls.map(el => +el.getAttribute('x')).sort((a,b2)=>a-b2);
     /* v57.6 增时线固定在六线谱垂直居中（用户指示：不随音符弦位变动）：
        每条短横中心 y == 弦线带中点（三、四弦之间空隙），且所有短横同一 y */
     const strY = [...document.querySelectorAll('#score line')]
-      .filter(l2 => l2.getAttribute('stroke-width') === '0.7' && l2.getAttribute('y1') === l2.getAttribute('y2'))
+      .filter(l2 => l2.getAttribute('stroke-width') === '0.6' && l2.getAttribute('y1') === l2.getAttribute('y2'))
       .map(l2 => +l2.getAttribute('y1'));
     const midY = (Math.min(...strY) + Math.max(...strY)) / 2;
-    const dashYs = new Set(dashEls.map(el => (+el.getAttribute('y') + 1.1).toFixed(1)));
-    const onString = dashYs.size === 1 && dashEls.every(el => Math.abs((+el.getAttribute('y') + 1.1) - midY) < 0.7);
+    const dashYs = new Set(dashEls.map(el => (+el.getAttribute('y') + 0.95).toFixed(1)));
+    const onString = dashYs.size === 1 && dashEls.every(el => Math.abs((+el.getAttribute('y') + 0.95) - midY) < 0.7);
     const dots = [...document.querySelectorAll('#score circle')].filter(c2 => c2.getAttribute('r') === '1.6');
     const vl = [...document.querySelectorAll('#score line')].filter(l2 =>
-      l2.getAttribute('stroke-width') === '1' && l2.getAttribute('x1') === l2.getAttribute('x2'));
+      l2.getAttribute('stroke-width') === '0.85' && l2.getAttribute('x1') === l2.getAttribute('x2'));
     const maxY2 = Math.max(...vl.map(l2 => +l2.getAttribute('y2')));
     const stems = vl.filter(l2 => Math.abs(+l2.getAttribute('y2') - maxY2) < 0.5);   /* 符干统一延到节奏梁位 stemY=全谱最深竖线终点 */
     return { nDash: dashes.length, ascending: dashes.every((v,i,a)=>!i||v>a[i-1]),

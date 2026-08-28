@@ -5443,7 +5443,7 @@ function patBeats(pat){
 /* ================= 布局（按拍分配宽度，吉他谱与简谱逐拍对齐） ================= */
 function measureLayout(mea){
   const hs = LAY_HS;                          // 横向疏密系数（紧凑<1 / 宽松>1）——只缩放空白，不缩音符字形
-  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7*hs, LYR_MIN = 18.5*hs;   // 歌词字号提至 15.5 后同步加宽刚杆
+  const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7*hs, LYR_MIN = 18.5*hs;   // v60.71 歌词字号 15.5→14，刚杆维持 18.5：省下的字宽全部转为字距留白
   /* v43.5 变拍子：本小节有效拍号（mea 覆盖优先），并在拍号变化处预留拍号横向空间 */
   const {beats, unit} = mea.beats? {beats:mea.beats, unit:mea.unit||song.unit} : {beats:song.beats||4, unit:song.unit};
   const myIdx = song.measures.indexOf(mea);
@@ -6956,7 +6956,7 @@ function render(){
         p.push('</g>');
       }
       for(let i=0;i<SN;i++)
-        p.push(`<line x1="${oxH}" y1="${tabTop+i*STR}" x2="${ox+sys.w}" y2="${tabTop+i*STR}" stroke="var(--ink)" stroke-width="0.7"/>`);
+        p.push(`<line x1="${oxH}" y1="${tabTop+i*STR}" x2="${ox+sys.w}" y2="${tabTop+i*STR}" stroke="var(--ink)" stroke-width="0.6"/>`);
       /* T A B 标签：以谱表中线为轴分布（4弦尤克里里自动收紧）；
          v45.9 移入谱表内（行首竖线右侧的表头区，GP/出版 TAB 惯例——此前悬在页边距上） */
       ['T','A','B'].forEach((ch,i)=>
@@ -6994,7 +6994,7 @@ function render(){
           const numOn = meaOn;
           /* 小节编号：显示在吉他谱小节线正下方，悬停变色（.mnumg:hover） */
           const mnStr = meaNo(lm.mi);
-          p.push(`<g class="mnumg"><text class="mnum" x="${mx+2.5}" y="${tabBot+11}" font-size="${numOn?11:9}" font-weight="${numOn?'700':'600'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${mnStr}</text>`+
+          p.push(`<g class="mnumg"><text class="mnum" x="${mx+1.5}" y="${tabBot+9.5}" font-size="${numOn?10:8}" font-weight="${numOn?'600':'500'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${mnStr}</text>`+
             `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+mnStr.length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节 · 按住拖过其他小节号连选多小节（Ctrl+C/V 复制粘贴）</title></rect></g>`);
         }
         if(isErr)
@@ -7270,7 +7270,7 @@ function render(){
                  谱线在字形轮廓外 ~1.3px 处断开，紧贴字形、不成白块；反色时描边同为纸色亦成立 */
               if(xDisp){
                 /* v45.6 ×再放大（12.5 仍偏小）→ 15；拍弦列（col.slap）内音符一律记 ×（框内×，GP 惯例） */
-                p.push(`<text x="${nx}" y="${yy+4.8}" font-size="15" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="3" stroke-linejoin="round" fill="var(--ink)">×</text>`);
+                p.push(`<text x="${nx}" y="${yy+4.8}" font-size="15" font-weight="500" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="3" stroke-linejoin="round" fill="var(--ink)">×</text>`);
               }else{
                 /* v46.1 泛音两位数品位：菱形固定不变，数字缩号自适应框内（10.5→8）；
                    v53.1 推弦目标音圆圈 5.8→5（弦距 9 内退出邻弦数字带，用户反馈重叠）：
@@ -7279,7 +7279,7 @@ function render(){
                 const bkT = bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s);
                 const bkSm = fShow>=10 && bkT;
                 const fs = hmSm? 8 : bkSm? 6.8 : bkT? 8.6 : 10.5;
-                p.push(`<text x="${nx}" y="${yy+(bkSm?2.5:hmSm?2.8:bkT?3.1:3.6)}" font-size="${fs}" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkT)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${fShow}</text>`);
+                p.push(`<text x="${nx}" y="${yy+(bkSm?2.5:hmSm?2.8:bkT?3.1:3.6)}" font-size="${fs}" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkT)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${fShow}</text>`);
               }
               /* v49.6 技法文字标识统一进 TAB 上方标注带（mkTech，放大）；
                  此处只保留音符锚定的图形：泛音菱形/滑音斜杠/推弦弧线/连音弧线 */
@@ -7445,7 +7445,7 @@ function render(){
             /* v42.3 打板（指弹打击技法）：TAB 中部 × 符头 + 上方分区字母；打板列不画休止 */
             if(col.perc){
               const PSYM={bass:'低',snare:'高',golpe:'G',tambour:'闷'};
-              p.push(`<text x="${nx}" y="${tabTop+STAFF/2+5}" font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink)">×</text>`);
+              p.push(`<text x="${nx}" y="${tabTop+STAFF/2+5}" font-size="16" font-weight="500" text-anchor="middle" fill="var(--ink)">×</text>`);
               p.push(`<text x="${nx}" y="${laneY()}" font-size="9.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${PSYM[col.perc]||''}</text>`);   /* v49.6 打板分区字母入标注带并放大 */
             }
             /* v60.64 产品指示「恢复休止字形」：把 v60.60 撤掉的休止符画回来——
@@ -7527,7 +7527,7 @@ function render(){
             const dyC = tabTop + (SN-1)/2*STR;
             for(let d2=1; d2<=nD; d2++){
               const dx = qxT[d2-1]!==undefined? mx+qxT[d2-1] : nx+14*d2;
-              p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(dyC-1.1).toFixed(1)}" width="9" height="2.2" fill="var(--ink)"/>`);
+              p.push(`<rect x="${(dx-4.5).toFixed(1)}" y="${(dyC-0.95).toFixed(1)}" width="9" height="1.9" fill="var(--ink)"/>`);
             }
             if(nD && q4-Math.floor(q4+1e-4)>1e-3)
               p.push(`<circle cx="${(qxT[nD]!==undefined? mx+qxT[nD] : nx+14*nD+8).toFixed(1)}" cy="${dyC.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
@@ -7540,7 +7540,7 @@ function render(){
             if(col.strum) sLow = strumSpan(col).bot;
             else if(col.notes.length) sLow = Math.max(...col.notes.map(n=>n.s));
             const stemTop = Math.min(tabBot+2, tabTop+(sLow-1)*STR+6);
-            p.push(`<line x1="${nx}" y1="${stemTop}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="1"/>`);
+            p.push(`<line x1="${nx}" y1="${stemTop}" x2="${nx}" y2="${stemY}" stroke="var(--ink)" stroke-width="0.85"/>`);
             if(col.dotted && col.dur>=4){   /* v57.4 dur≤2 的附点并入增时线，不再画点 */
               /* 附点对齐该拍符杠组由上至下的第一条时值线（32分层/16分层/主梁）；v41.5 双附点两点并排 */
               const lv = dotLv.get(ci) || col.dur;
@@ -7569,7 +7569,7 @@ function render(){
           const xs = g.idx.map(i=>mx+lay.xs[i]);
           const x1=Math.min(...xs), x2=Math.max(...xs);
           if(g.idx.length>1){
-            p.push(`<rect x="${x1-0.5}" y="${stemY-2.2}" width="${x2-x1+1}" height="2.2" fill="var(--ink)"/>`);
+            p.push(`<rect x="${x1-0.5}" y="${stemY-1.9}" width="${x2-x1+1}" height="1.9" fill="var(--ink)"/>`);
             /* 16/32 分层：连续段画整梁；组内孤立的 16/32 分（如附点8+16）
                画一截短杠（断梁），朝向组内相邻音符 */
             [[16, stemY-6.2],[32, stemY-10.2],[64, stemY-14.2]].forEach(([lv,yy])=>{   /* v52.4 64分层 */
@@ -7577,24 +7577,24 @@ function render(){
                 if(cols[g.idx[a]].dur<lv) continue;
                 let b=a; while(b<g.idx.length-1 && cols[g.idx[b+1]].dur>=lv) b++;
                 if(b>a){
-                  p.push(`<rect x="${mx+lay.xs[g.idx[a]]-0.5}" y="${yy}" width="${lay.xs[g.idx[b]]-lay.xs[g.idx[a]]+1}" height="2.2" fill="var(--ink)"/>`);
+                  p.push(`<rect x="${mx+lay.xs[g.idx[a]]-0.5}" y="${yy}" width="${lay.xs[g.idx[b]]-lay.xs[g.idx[a]]+1}" height="1.9" fill="var(--ink)"/>`);
                 }else{
                   const x=mx+lay.xs[g.idx[a]];
                   const sx = a>0 ? x-7 : x-0.5;   // 短杠：跟在长音后→向左，居组首→向右
-                  p.push(`<rect x="${sx}" y="${yy}" width="7.5" height="2.2" fill="var(--ink)"/>`);
+                  p.push(`<rect x="${sx}" y="${yy}" width="7.5" height="1.9" fill="var(--ink)"/>`);
                 }
                 a=b;
               }
             });
           }else{
             const x=xs[0];
-            p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+            p.push(`<path d="M ${x} ${stemY} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
             if(cols[g.idx[0]].dur>=16)
-              p.push(`<path d="M ${x} ${stemY-5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+              p.push(`<path d="M ${x} ${stemY-5} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
             if(cols[g.idx[0]].dur>=32)
-              p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);
+              p.push(`<path d="M ${x} ${stemY-10} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
             if(cols[g.idx[0]].dur>=64)
-              p.push(`<path d="M ${x} ${stemY-15} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.6"/>`);   /* v52.4 64分第四钩 */
+              p.push(`<path d="M ${x} ${stemY-15} q 6 -3 8 -8" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);   /* v52.4 64分第四钩 */
           }
         });
         /* 连音标记（吉他谱）：时值符号下方刻度线括号，中间断开标斜体数字；
@@ -7909,9 +7909,12 @@ function render(){
               /* v60.53 变化音贴近主音（产品指示）：单字符 10.5→9.6、双字符 13.5→12.6，
                  与数字左缘净距收到约 1px（GB 简谱惯例：升降号紧贴其所属音符）；
                  左侧净空由 v60.52 的 leftW 保证不会压到前一个音符 */
-              p.push(`<text x="${nx-(adbl?12.6:9.6)}" y="${voxY-2.5}" font-size="${adbl?12:14}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
+              /* v60.71 数字 16.5→15 后变化音等比跟随（否则 ♯ 相对主音反而变大）：
+                 字号 ×15/16.5 → 单 14→12.7、双 12→11；左移量同比 9.6→8.7 / 12.6→11.5，
+                 「贴近主音」的 ~1px 净距口径不变；左侧 leftW 预留仍按旧值＝净空只增不减 */
+              p.push(`<text x="${nx-(adbl?11.5:8.7)}" y="${voxY-2.5}" font-size="${adbl?11:12.7}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
             }
-            p.push(`<text x="${nx}" y="${voxY}" font-size="16.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+            p.push(`<text x="${nx}" y="${voxY}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
             /* v43.1 简谱震音杠：数字上方（避让高八度点），1-3 条斜杠 */
             if(col.trem && !isStaff)
               p.push(tremSlashesSVG(nx, voxY-15-(col.oct>0? Math.min(3,col.oct)*4.2 : 0), col.trem, -1));
@@ -7923,7 +7926,7 @@ function render(){
               (col.adds||[]).forEach(a2=>{ if(!a2||!a2.deg) return;
                 const loN = a2.oct<0? Math.min(3,-a2.oct) : 0, hiN = a2.oct>0? Math.min(3,a2.oct) : 0;
                 const ay = yCur - (loN? 2.5+loN*3.8 : 0);   // 先给本音低八度点让位
-                p.push(`<text x="${nx}" y="${ay.toFixed(1)}" font-size="14.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
+                p.push(`<text x="${nx}" y="${ay.toFixed(1)}" font-size="13.2" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
                 if(a2.acc){
                   const as2 = a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮';
                   p.push(`<text x="${nx-(as2.length>1?11.5:9.5)}" y="${(ay-1.5).toFixed(1)}" font-size="${as2.length>1?10.5:12}" text-anchor="middle" fill="var(--ink)">${as2}</text>`);
@@ -8240,7 +8243,7 @@ function render(){
             const stepD = nDash===1? cw*0.42 : Math.min(cw*0.22, cw*0.66/Math.max(1,nDash));
             const dashX = d=> qx[d-1]!==undefined? mx+qx[d-1] : (nDash===1? nx+stepD : nx+stepD*d);
             for(let d=1;d<=nDash;d++){
-              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="13.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
               /* v60.30 延长音拍位可选中（用户指示：延长音属于可选音符可编辑和弦）：
                  每条增时线一个压顶热区（data-q=第几拍位），点击选中本列并记住拍位，
                  创作辅助「和弦」图标即编辑该拍位的和弦；选中态在该增时线上画光标圈 */
@@ -8263,10 +8266,10 @@ function render(){
               /* 标点旁挂：正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐 */
               const pm=/^([\s\S]*?)([，。！？、；：、·…—""''）)\]】》.,!?;:]+)$/.exec(ly);
               const base=pm?pm[1]:ly, punc=pm?pm[2]:'';
-              p.push(`<text x="${nx}" y="${yy}" font-size="15.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(base)}</text>`);
+              p.push(`<text x="${nx}" y="${yy}" font-size="14" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(base)}</text>`);
               if(punc){
-                const bw=[...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7.75:15.5),0);
-                p.push(`<text x="${(nx+bw/2+1).toFixed(1)}" y="${yy}" font-size="13" font-family="var(--font-ui)" text-anchor="start" fill="var(--ink)">${esc(punc)}</text>`);
+                const bw=[...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7:14),0);
+                p.push(`<text x="${(nx+bw/2+1).toFixed(1)}" y="${yy}" font-size="12" font-family="var(--font-ui)" text-anchor="start" fill="var(--ink)">${esc(punc)}</text>`);
               }
             }
           });
@@ -21635,7 +21638,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.70';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.71';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -21658,6 +21661,7 @@ const APP_VER='v60.70';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.71</span><div><b>谱面刻版减重：歌词不再挤成一团，简谱数字与小节号缩号，六线谱线径/时值线/品位数字全面减重</b>（产品指示：「文字有些重叠、简谱数字偏大可适当缩小、小节号字体变细稍微缩小靠近小节线、六线谱线径与时值线线径还有数字和 X 标记线径都缩小，整体更宽松更多留白」）。① <b>歌词重叠先实测再动手</b>：四分音符档量不出问题，换成截图那样的八分/十六分密度就现形了——相邻歌词字的水平净距<b>最小 1.8px、中位 3.3px</b>（字号 15.5，等于贴在一起）。现字号 <b>15.5→14</b>，而列间刚杆 <code>LYR_MIN</code> 维持 18.5 不动，省下的字宽<b>全部转成字距</b>：净距<b>最小 3.8px（+111%）、中位 4.8px（+45%）</b>，<b>谱宽一格未变</b>（实测 695→695，不是靠拉宽谱面换来的）。② <b>简谱数字 16.5→15，同族记号等比跟随</b>：变化音 ♯/♭/× <b>14→12.7</b>、♭♭ <b>12→11</b>（左移量同比 9.6→8.7 / 12.6→11.5，v60.53「贴近主音 ~1px」口径不变），和音数字 <b>14.5→13.2</b>，增时线 <b>15→13.5</b>——只缩主音不缩这些，♯ 相对主音反而变大，越改越挤。左侧 <code>leftW</code> 预留仍按旧值，净空只增不减。③ <b>小节号</b>：字号 9/11→<b>8/10</b>、字重 600/700→<b>500/600</b>，并贴近小节线（x +2.5→+1.5、y +11→+9.5）。④ <b>线径全面减重</b>：六线谱谱线 <b>0.7→0.6</b>；时值线家族——符干 <b>1→0.85</b>、符杠 <b>2.2→1.9</b>（<b>主梁与 16/32/64 副梁、断梁四处一起改</b>——初版只改了主梁，副梁反而比主梁粗，是 <code>tv_d64</code> T3「四层符杠」当场抓出来的真缺陷）、符尾钩 <b>1.6→1.4</b>、长音的梁位短横 <b>2.2→1.9</b>；品位数字字重 <b>700→600</b>，分解 × 与打板 × 字重 <b>700→500</b>。⑤ <b>11 个套件改的是选择器口径、不是行为回归</b>（<code>tv_jpspace</code> <code>tv_sign</code> <code>tv_adds</code> <code>tv_glyphsz</code> <code>tv_grace</code> <code>tv_staff</code> <code>tv_dot</code> <code>tv_tabrest</code> <code>tv_orn</code> <code>tv_d64</code> <code>tv_detail1</code>）：它们靠「font-size=16.5 找简谱数字」「stroke-width=1 找符干」「font-weight=700 找品位数字」这类<b>字面量当选择器</b>，值一改就抓空。已用改前文件复跑实证——<code>tv_sign</code> T14 在旧文件绿、在新文件红，改回选择器即绿，<b>弧线几何前后逐点相同</b>。顺带简化 <code>tv_tabrest.__stemXs</code>：符干与小节线过去同为线径 1，得再按 y2 把小节线剔出去；现在 0.85 与 1 天然可分，那段启发式作废。另有两处小节号是不同元素——本版改的是六线谱下方那个，五线谱行首入左边距的（9.5 / anchor=end）未动。CORE <b>99 套件</b>全绿。</div></li>
     <li><span class="v">v60.70</span><div><b>创作辅助栏重排；指板/键盘加「编辑 / 演奏」双模式；钢琴键盘贴合面板不再有滚动条</b>（产品指示）。① <b>创作辅助栏样式修正</b>：那一行原本是<b>按两项设计</b>的（和弦/标注各占一半），v60.62 把「指板/键盘」塞进去后每项只剩三分之一宽——图标 26px 加间隙之后文字无处可去，又<b>没有截断规则</b>，于是直接溢出卡片（产品截图所示）。现在改成<b>两列网格</b>：和弦/标注并排一行、指板/键盘<b>独占整行</b>；文字加省略号兜底，以后再加条目也撑不破。副标题按实测可用宽度重写（半宽项 60px、整宽项 130px），默认栏宽下<b>一个字都不会被吃掉</b>。② <b>编辑 / 演奏双模式</b>：<b>编辑模式</b>点板落音写进谱面；<b>演奏模式</b>点板<b>只出声试听、不改谱面</b>，专心跟着播放弹——两种模式都跟随播放高亮，这本来就是这块板的本职。模式段用浅色描边、与「指板/键盘」的实心红区分开，一眼看得出是两个维度而不是四个并列选项。③ <b>钢琴键盘贴合面板宽、不再有滚动条</b>：v60.62 为守住「屏幕像素也一比一」让面板横向滚动（88 键排开 1568px）；现按产品口径改为<b>只缩不放</b>——钢琴等比缩到面板宽（1568→958px），指板原生 651px 放得下则<b>保持一比一不被拉伸</b>，两块板都不出滚动条。<b>让出的只是绝对物理尺寸这一条</b>：品距定律、白/黑键宽长比、黑键位置这些内部几何比例<b>分毫未变</b>（相关断言都在 SVG 坐标里，照旧成立）。<code>tv_board</code> T9 如实改钉新口径（旧口径实测 <code>scrollW 1588 &gt; clientW 978</code>＝那条滚动条），并补 T11（演奏模式不改谱）/ T12（创作辅助行无溢出无截断）。CORE <b>99 套件</b>全绿。</div></li>
     <li><span class="v">v60.69</span><div><b>简谱波音终于会响；波音两侧的间距修正；六线谱双倚音支持逐音击勾弦</b>（产品报告四项）。① <b>简谱的波音/颤音/回音此前只画不响</b>——这个字段在整个播放调度里<b>一次都没出现过</b>。现在：上波音 <b>主→上邻→主</b>、下波音 <b>主→下邻→主</b>、回音 <b>上→主→下→主</b>、颤音<b>主音与上邻快速交替铺满时值</b>。邻音取<b>随调的自然音级</b>而不是一律全音——C 调里 <code>1</code> 的下邻是 <code>7</code>（小二度）、<code>3</code> 的上邻是 <code>4</code>（小二度），写死半音数就唱错了。装饰音在拍头快速奏出、主音占满剩余时值并接回延音链，所以<b>总时长与不加装饰音时完全一致</b>，连音线与踏板逻辑照旧生效。② <b>波音离主音数字太近</b>：实测字形底与数字顶只有 <b>1px</b>，几乎贴脸；现抬到 <b>3.5px</b>。③ <b>连音线离波音太远</b>：v60.53 让位时按「波音字形高约 8px」估算抬了 10px，而实测字形只有 <b>4.9px</b> 高，多让了约 5px；现让位收到 7.5px，弧到字形顶的净距由 <b>8.1px → 3.1px</b>。④ <b>六线谱双倚音支持逐音击勾弦</b>：此前不管几个倚音都<b>只画一条「倚音组→主音」的弧、一个技巧字母</b>——写 <code>5h7h9</code> 只出现一个 h，而且它落在弧中点、<b>正压住第二个倚音数字</b>（实测字母 x=106.8、数字 x=107）。现在<b>每一段过渡各画一条弧、各标一个字母</b>（吉他惯例：每次击勾弦都要标）；带技巧时倚音步距由 7px 放到 13px，字母与数字最近距离由 0.2px 拉到 <b>5.8px</b>。<b>占位同步</b>：渲染步距与排版预留此前是两处各写的字面量，改抽成同一个函数——步距变宽时排版预留自动跟随，倚音不会溢出到相邻列。新增 <code>tv_orn</code> 套件 <b>7+1 项</b>，<code>tv_jpspace</code> T9 改为<b>两侧都钉</b>（离数字 3–5px、连音线让过 2–5px）——对 v60.68 旧文件跑，这两个数正好是 <b>1px</b> 与 <b>8.1px</b>，突变实证。CORE 98→<b>99 套件</b>全绿。</div></li>
     <li><span class="v">v60.68</span><div><b>扫弦终于认连音线；每一击不再一模一样；上扫听得出是上扫</b>（产品反馈四项）。① <b>连音线此前完全没被识别</b>——六线谱的连音线是逐弦记在音符上的，而播放调度里有一句「没有技法就跳过」，把<b>带连音线但没有其他技法</b>的音整个丢掉了；于是谱面画着连音线、加线时提示还写着「N 根弦保持不重扫」，播放却照样一次次重扫。现在被连的音<b>不再拨弦</b>、时值并入前一个音（实测：三次拨弦变两次，首和弦时长 0.67→1.33 秒，和弦真正贯穿过去）。口径与推弦目标音一致。② <b>每一击都不一样了</b>：真人不会两次扫弦速度完全相同，而此前六次扫弦只有<b>两种</b>展开（下扫全是 24.8ms、上扫全是 13.5ms），听感自然是机械复读。现在每一击的展开量按既有的<b>确定性微扰动</b>浮动约 ±18%，实测同一条 D-DU-UDU 的六击<b>六个互不相同</b>的展开；「复听一致」不受影响（同一份谱每次播放完全相同），<b>精确档仍然零扰动</b>。只改扫弦快慢、不动起拍点，光标对齐与任何时间轴都不受影响。③ <b>上扫收过头了，改回来</b>：v60.66 把上扫收到 13.5ms —— 这低于人耳分辨弦先后的阈值，上扫糊成一记块状和弦、与下扫失去对比，就是「听起来所有都是向下扫」的由来。基准由 4.5ms/弦 放回 <b>6.0ms/弦</b>（四弦 18ms），仍比下扫快、仍只碰高音侧 ≤4 弦，下重上轻的手感保留。<code>tv_strum</code> 补 T9/T10/T11，对 v60.67 旧文件跑三项全红＝突变实证（T9 尤其直白：旧版「带连音线」与「不带」的发声<b>完全相同</b>）。CORE <b>98 套件</b>全绿。</div></li>

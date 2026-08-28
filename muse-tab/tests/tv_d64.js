@@ -45,13 +45,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.d1 === 32 && r.d2 === 64 && r.d3 === 64 && r.guard && r.noDot && r.dotGuard, 'T2 拆分链+附点守卫', JSON.stringify(r));
 
-  // T3 TAB 四层符杠（几何）：一组 4×64分 → 主梁+16+32+64 = 4 条杠 rect（height 2.2）
+  // T3 TAB 四层符杠（几何）：一组 4×64分 → 主梁+16+32+64 = 4 条杠 rect（height 1.9，v60.71 时值线减重）
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
     const s = createSong('guitar', { title: 'd64b', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
     const mk = (d) => ({ dur: d, dotted: false, chord: '', notes: [{ s: 2, f: 5 }], strum: '', tech: '' });
     s.measures[0].tabs[0] = [mk(64), mk(64), mk(64), mk(64), mk(4), mk(4), mk(4)];
     loadSong(s); blurSel = true; render();
-    const beams = (document.getElementById('score').innerHTML.match(/height="2\.2"/g) || []).length;
+    const beams = (document.getElementById('score').innerHTML.match(/height="1\.9"/g) || []).length;
     const nan = document.getElementById('score').innerHTML.includes('NaN');
     return { beams, nan };
   });
