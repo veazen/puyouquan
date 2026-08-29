@@ -47,7 +47,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const ferms = [...document.querySelectorAll('#score path')]
       .filter(p2 => p2.getAttribute('d') === SMUFL.fermataAbove.d)
       .map(p2 => { const m = /translate\((-?[\d.]+),(-?[\d.]+)\)/.exec(p2.getAttribute('transform')); return {x:+m[1], y:+m[2]}; });
-    const digit = [...document.querySelectorAll('#score text')].find(t => t.getAttribute('font-size') === '16' && t.getAttribute('font-family') === 'var(--font-ui)');
+    const digit = [...document.querySelectorAll('#score text')].find(t => t.getAttribute('font-size') === '17' && t.getAttribute('font-family') === 'var(--font-ui)');   /* v60.75 简谱主音 16→17 */
     return { nFerm: ferms.length, fermY: ferms[0] ? ferms[0].y : 0,
       digitY: digit ? +digit.getAttribute('y') : 0,
       stacc: /<circle[^>]*r="1\.6"/.test(svg),
@@ -224,7 +224,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const box = [...document.querySelectorAll('#score rect[stroke-width="1.1"]')].find(r2 =>
       +r2.getAttribute('x') < tx && tx < +r2.getAttribute('x') + +r2.getAttribute('width')
       && +r2.getAttribute('y') < ty && r2.getAttribute('fill') === 'none');
-    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16' && t2.getAttribute('font-family') === 'var(--font-ui)');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '17' && t2.getAttribute('font-family') === 'var(--font-ui)');   /* v60.75 简谱主音 16→17 */
     const xml = exportMusicXML(song);
     const res = importMusicXML(xml);
     const rtLabel = res.song && res.song.measures[1].label;
@@ -253,7 +253,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const dataOk = song.measures[1].keyTo === 'G';
     blurSel = true; render();
     const tEl = [...document.querySelectorAll('#score text')].find(t2 => t2.textContent === '转1=G');
-    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '16' && t2.getAttribute('font-family') === 'var(--font-ui)');
+    const digit = [...document.querySelectorAll('#score text')].find(t2 => t2.getAttribute('font-size') === '17' && t2.getAttribute('font-family') === 'var(--font-ui)');   /* v60.75 简谱主音 16→17 */
     const above = tEl && digit ? +tEl.getAttribute('y') < +digit.getAttribute('y') - 12 : false;
     const xml = exportMusicXML(song);
     const res = importMusicXML(xml);

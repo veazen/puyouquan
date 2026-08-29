@@ -9,7 +9,8 @@
    T5 压缩不吃刚杆：允许的轻微压缩行里，歌词与简谱数字净距仍为正
    T6 复刻截图密度（八分逐字词、含双字音节、排满行）：歌词与简谱净距 ≥3px
    T7 极端密集谱护栏：三类文字均无负净距
-   T8 版面不变量：小节宽之和＝行宽、列不越出小节（初版在这里破过，见注）
+   T8 版面不变量：小节宽之和＝行宽、列不越出小节、不越出纸面
+   T9 密度包络：单字 ≤24 字/小节、双字 ≤12 字/小节，两行净距全为正
    对改前文件（v60.72）跑 T1/T2/T4/T6 当场红＝突变实证；
    T3/T5/T7 是护栏项（旧版在这些构造下本就不红），如实标注。file:// 直载。 */
 const { chromium } = require('playwright');
@@ -44,8 +45,8 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
         for(let i=1;i<r.length;i++) g.push(+(r[i].x-(r[i-1].x+r[i-1].w)).toFixed(2)); });
       return g;
     };
-    window.__isJP=e=>e.fs===16 && e.fam==='var(--font-ui)';
-    window.__isLY=e=>e.fs===15;
+    window.__isJP=e=>e.fs===17 && e.fam==='var(--font-ui)';   /* v60.75 简谱主音 17 */
+    window.__isLY=e=>e.fs===16 && e.fam==='var(--font-ui)';   /* v60.75 歌词 16；页头 1=C 也是 16 但走 --font-num */
     window.__isFR=e=>e.fs===10.5;`;
 
   // T1 歌词刚杆随音节字数走
@@ -179,7 +180,10 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
       layoutSystems().forEach((sy,i)=>{
         const sum = sy.measures.reduce((a,lm)=>a+lm.L.w,0);
         if(sum - sy.w > 0.5) viol.push({tag,行:i,类型:'内容伸出谱线',差:+(sum-sy.w).toFixed(1)});
-        if(sy.w - AV > 0.5)  viol.push({tag,行:i,类型:'行宽超上限',差:+(sy.w-AV).toFixed(1)});
+        /* v60.75 起 sys.w 允许略超 avail（压到刚杆为止、借用页边距），
+           但绝不能越出纸面——viewBox 宽固定为 PAGE_W */
+        if(sy.w - (AV + Math.max(0, MARGIN-8)) > 0.5)
+          viol.push({tag,行:i,类型:'越出纸面',差:+(sy.w-AV-MARGIN+8).toFixed(1)});
         sy.measures.forEach(lm=>[...lm.L.tabs,...lm.L.voxes].forEach(rr=>{
           if(rr && rr.xs && rr.xs.length && Math.max(...rr.xs) > lm.L.w + 1)
             viol.push({tag,行:i,类型:'列超出小节宽',mi:lm.mi});
@@ -206,7 +210,89 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     PAGE_W = 1060;
     return {违规数:viol.length, 样例:viol.slice(0,6)};
   })()`);
-  T(r.违规数 === 0, 'T8 版面不变量：16 首预设 + 12 组合成密集谱，无一行内容伸出谱线/超出行宽', JSON.stringify(r));
+  T(r.违规数 === 0, 'T8 版面不变量：16 首预设 + 12 组合成密集谱，谱线与内容始终等宽、列不越出小节、不越出纸面', JSON.stringify(r));
+
+  // T9 密度包络：把「排得下」的边界钉住，越界时的兜底也要是压缩而不是画出纸面
+  //    实测（16 号歌词 / 17 号简谱）：单字音节撑到 24 字/小节仍为正，双字撑到 12 字/小节；
+  //    真实中文歌一小节至多 8–16 个字，故常用区间有充足余量。
+  r = await pg.evaluate(HELP + `(()=>{
+    const g=(fs)=>{ const arr=__gaps(e=>e.fs===fs && e.fam==='var(--font-ui)');
+      return arr.length? +Math.min(...arr).toFixed(2) : null; };
+    const run=(doc,n,word)=>{
+      loadSong(createSong(doc, doc==='vocal'
+        ? {beats:4,unit:4,key:'C',nMea:4,nVox:1,lyr:2}
+        : {beats:4,unit:4,key:'C',nMea:4,nTab:2,nVox:1,lyr:2}));
+      const dur = n<=4?4 : n<=8?8 : n<=16?16 : 32;
+      song.measures.forEach(m=>{
+        m.voxes[0]=Array.from({length:n},(_,i)=>({dur:dur,dotted:false,deg:1+(i%7),acc:'',oct:0,
+          tie:false,lyrics:[word,word]}));
+        (m.tabs||[]).forEach((_,t)=>{ m.tabs[t]=Array.from({length:8},(_,i)=>({dur:8,dotted:false,
+          chord:'',strum:'',tech:'',notes:[{s:3,f:i%5}]})); });
+      });
+      blurSel=true; render();
+      return {歌词:g(16), 简谱:g(17)};
+    };
+    const out={};
+    ['vocal','tanchang'].forEach(d=>{
+      [8,16,24].forEach(n=>{ out[d+'·单字'+n]=run(d,n,'啊'); });
+      [8,12].forEach(n=>{ out[d+'·双字'+n]=run(d,n,'阳光'); });
+    });
+    return out;
+  })()`);
+  T(Object.values(r).every(v=>v.歌词!==null && v.歌词 > 0 && v.简谱 > 0),
+    'T9 密度包络：单字 ≤24 字/小节、双字 ≤12 字/小节，歌词与简谱净距全为正', JSON.stringify(r));
+
+  /* T10 复刻产品送来的真实弹唱谱形制（《难忘的一天》56 小节：吉他1 十六分分解 16 列、
+     吉他2 8 列、简谱 1 声部 2 段歌词、20 处 pull=1、3 处 brk=1、3 处 wf≠1）。
+     这份谱在 v60.74 上一量：1280px 172 处负净距（最深 −5.91）、390px 264 处（最深 −7.34），
+     每行小节数在 1/2/3/5 之间乱跳——正是产品报告的三条。这里用等形制的合成谱钉住：
+     ① 三类文字在四档版宽下都无负净距；② 弹唱段每行至少排到两个小节（不再一行一小节）。
+     不落用户曲谱原文件，只复刻形制。 */
+  const T10 = HELP + `(()=>{
+    loadSong(createSong('tanchang',{beats:4,unit:4,key:'C',nMea:56,nTab:2,nVox:1,lyr:2}));
+    const LY1='难忘的一天阳光温暖照进我心里再一次拥进我怀里这是我难忘的一天在隐忍和冲动之间';
+    const LY2='走过我身边风吹起的青春年少那些甜蜜过往如果已经变成回忆就让它留在昨天里';
+    song.measures.forEach((m,mi)=>{
+      const 间奏 = mi>=38;                         // 后段是间奏/独奏：无词、双吉他各自密集
+      m.tabs[0]=Array.from({length:16},(_,i)=>({dur:16,dotted:false,
+        chord:i===0?['Am','Dm','G7','C','E'][mi%5]:'',strum:'',tech:'',
+        notes:[{s:1+(i%5), f:间奏? [9,11,12,14,10,13][i%6] : [0,2,1,2,0,3][i%6]}]}));
+      m.tabs[1]=Array.from({length:间奏?24:8},(_,i)=>({dur:间奏?32:8,dotted:false,chord:'',strum:'',tech:'',
+        notes:[{s:5+(i%2), f:间奏? [12,14,15][i%3] : [0,2,3][i%3]}]}));
+      const nV = 间奏? 14 : [4,8,10,12][mi%4];
+      m.voxes[0]=Array.from({length:nV},(_,i)=>{
+        /* 真实弹唱谱里并非每个音符都有字（原谱 8~13 列里 5~10 列带词），照此比例复刻 */
+        const 带词 = !间奏 && i%3!==1;
+        return {dur:nV<=4?4:nV<=8?8:16, dotted:false, deg:1+((mi+i)%7), acc:'', oct:0, tie:false,
+          lyrics: 带词? [LY1[(mi*3+i)%LY1.length], LY2[(mi*5+i)%LY2.length]] : ['','']};
+      });
+      if(mi%3===2) m.pull=1;                       // 复刻 20 处 pull
+      if(mi===45||mi===49||mi===51) m.brk=1;
+      if(mi===48) m.wf=1.28; if(mi===51) m.wf=0.81; if(mi===54) m.wf=0.66;
+    });
+    blurSel=true; render();
+    const f=g=>({n:g.length, min:g.length?+Math.min(...g).toFixed(2):null, 负:g.filter(v=>v<0).length});
+    const S=layoutSystems();
+    const 弹唱行=S.filter(sy=>sy.measures.every(lm=>lm.mi<38));
+    return {版宽:PAGE_W, 简谱:f(__gaps(__isJP)), 歌词:f(__gaps(__isLY)), 品位:f(__gaps(__isFR)),
+      行数:S.length,
+      弹唱段每行小节:+(弹唱行.reduce((a,sy)=>a+sy.measures.length,0)/Math.max(1,弹唱行.length)).toFixed(2)};
+  })()`;
+  const t10 = {};
+  for(const [w,h] of [[1280,950],[834,1112],[430,932]]){    // 桌面 / 平板 / 手机
+    await pg.setViewportSize({width:w, height:h});
+    await pg.waitForTimeout(120);
+    t10[w+'px'] = await pg.evaluate(T10);
+  }
+  await pg.setViewportSize({width:1280, height:950});
+  r = t10;
+  /* 每行小节数的门槛按版宽分档：手机版宽 382px 装不下两个十六分双吉他小节是物理事实，
+     不强求；桌面/平板必须至少排到 1.6（改前实测桌面 1.0＝一行一小节，或靠硬压出重叠）。 */
+  T(Object.values(r).every(v=>v.简谱.负===0 && v.歌词.负===0 && v.品位.负===0)
+    && r['1280px'].弹唱段每行小节 >= 1.6 && r['834px'].弹唱段每行小节 >= 1.6
+    && r['430px'].弹唱段每行小节 >= 1.3,
+    'T10 真实弹唱谱形制（56 小节·双吉他十六分·2 段词·pull/brk/wf 齐全）：桌面/平板/手机三档视口下三类文字零负净距，弹唱段每行 ≥1.6/1.6/1.3 小节',
+    JSON.stringify(r));
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

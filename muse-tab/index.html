@@ -5444,15 +5444,25 @@ function patBeats(pat){
 function measureLayout(mea){
   const hs = LAY_HS;                          // 横向疏密系数（紧凑<1 / 宽松>1）——只缩放空白，不缩音符字形
   const pad = 11, NOTE_OFF = 10, BEAT_GAP = 7*hs;
+  const PAD_FLR = 6, GAP_FLR = 3*hs;          // v60.76 小节留白/拍间隙的压缩地板（见 resize）
   /* v60.73 歌词刚杆：由常数 18.5 改为**按该列歌词实测字宽**逐列计算。
      旧口径两头都错——① 多字音节（「阳光」30px）也只给 18.5，必然重叠（实测最小净距 2.8px）；
      ② 没有歌词的简谱列（休止「0」）在拍级同样吃这条 18.5，于是全休止小节比逐字词小节还宽
      （实测 4 列休止 269px vs 8 列带词 288px＝每列 67px vs 36px）。这就是产品报告的
      「有歌词的靠得很近、没歌词的又有多余的地方」。
-     字宽口径与渲染同源：CJK 15px / 拉丁 9px（实测 'A'=11、平均取 9），
      末尾标点在渲染里是旁挂不占位，此处同样不计入。 */
-  const LYR_GAP = 4*hs;                       // 相邻歌词之间的净距
-  const VOX_MIN = Math.max(12*hs, 13.5);      // 简谱列（无词）刚杆＝数字宽 10.2 + 净距
+  /* v60.76 两档净距：舒适档决定**自然宽**（有地方时的观感），硬底档决定**刚杆**（压缩下限）。
+     此前两档是同一个数，于是 rigid≡w、小节完全压不动，DP 只能一行一小节（或强压穿字距）。 */
+  const LYR_GAP = 5*hs, LYR_FLR = 2;          // 歌词：舒适 5 / 硬底 2
+  /* v60.76 刚杆改「按行（band）分别算」。
+     此前所有声部的列刚杆在同一时刻被 max 合并成一根，于是
+     ① 歌词的「本列→下一列歌词」间距被扣在「本列→下一个吉他列」这一小段上（歌词列间常隔着
+        3 个吉他十六分列），一根杆按 1/2~1/4 的跨度算 → 带词小节凭空胖出 15%；
+     ② 六线谱品位数字与中文歌词被当成会相撞的一对——它们根本不在同一条基线上，永不相撞。
+     这就是产品说的「有歌词的音符靠得很近、没歌词的又有多余的地方」的根：宽度花错了地方。
+     现在每个 band（每条 TAB 音轨 / 每个简谱声部的音符行 / 其歌词行）各自记
+     「本 band 上一列 → 本列」的净距需求，跨越几段就摊到几段上。 */
+  const JP_HALF = 5.4;                        // 17 号简谱数字实测半宽
   const PUNC_TAIL = /[，。！？、；：·…—“”‘’）)\]】》.,!?;:]+$/;
   const lyrW = c=>{                           // 该列最宽的一段歌词的绘制宽度（居中绘制）
     if(!c || !c.lyrics) return 0;
@@ -5460,19 +5470,15 @@ function measureLayout(mea){
     for(const ly of c.lyrics){
       if(!ly || !String(ly).trim()) continue;
       const base = String(ly).replace(PUNC_TAIL, '') || String(ly);
+      /* 字宽与渲染同源：歌词 16 号（8431 行）。
+         v60.76 CJK 由 1.00em 改 1.06em——实测渲染出的**墨迹**宽度在 14~17.6 之间浮动
+         （「我」「怀」「忍」的撇捺越出字身框，getBBox 量到 17.58），按 1.00em 记账
+         会让这几个字彼此贴上（实测「次|拥」净距 −0.58）。1.06em 覆盖到最宽的一档。 */
       let w = 0;
-      for(const ch of base) w += /[\x00-\xff]/.test(ch)? 9 : 15;
+      for(const ch of base) w += /[\x00-\xff]/.test(ch)? 9.9 : 16.96;
       if(w > m) m = w;
     }
     return m;
-  };
-  /* 刚杆是「本列 → 下一列」的间距，而两列的字都是**居中**绘制，
-     所以需要的是 本列半宽 + 下一列半宽 + 净距，不是本列整宽。
-     只按本列整宽算，在「窄音节接宽音节」（如「啊」接「阳光」）时必然重叠——
-     实测该口径下密集谱出现 24 处负净距、最深 −3.5px。 */
-  const lyrPitch = (c, nx2)=>{
-    const a = lyrW(c), b2 = lyrW(nx2);
-    return (a || b2)? a/2 + b2/2 + LYR_GAP : 0;
   };
   /* v43.5 变拍子：本小节有效拍号（mea 覆盖优先），并在拍号变化处预留拍号横向空间 */
   const {beats, unit} = mea.beats? {beats:mea.beats, unit:mea.unit||song.unit} : {beats:song.beats||4, unit:song.unit};
@@ -5494,26 +5500,29 @@ function measureLayout(mea){
      MIN_W 为对数时值间距（时值减半宽度×0.72，出版谱惯例）：稀疏拍自然窄、密集拍自然宽，
      "某一拍挤满 16/32 分且逐字歌词"时该拍能独立撑开、歌词不挤压 */
   /* v60.73 TAB 列刚杆按品位位数分档：双位数品位字宽 13.4（单位数 6.7），
-     再算上纸色描边 2.6/侧，一律 13 会让相邻同弦的两位数字连成一片（产品手机端截图） */
-  const MIN_COL = Math.max(13*hs, 12);
-  const FRET_HALF = f=>(String(f==null?0:f).length>=2? 6.7 : 3.35) + 2.6;   // 半字宽 + 纸色描边
-  const fretHalf = c=>{
+     再算上纸色描边 2.6/侧，一律 13 会让相邻同弦的两位数字连成一片（产品手机端截图）。
+     v60.76 拆两档：舒适档含纸色描边（描边不叠＝谱线在两数字之间还留得住），
+     硬底档只保 **字形不相撞**（描边叠在一起也只是同一种纸色，看不出来）。 */
+  const FRET_INK = f=>(String(f==null?0:f).length>=2? 6.7 : 3.35);         // 纯字形半宽
+  const FRET_HALF = f=>FRET_INK(f) + 2.6;                                  // 半字宽 + 纸色描边
+  const colHalf = (c, ink)=>{
     let h = 0;
-    (c && c.notes || []).forEach(n=>{ const v = FRET_HALF(n && n.f); if(v>h) h=v; });
+    (c && c.notes || []).forEach(n=>{ const v = (ink? FRET_INK : FRET_HALF)(n && n.f); if(v>h) h=v; });
     return h;
   };
-  const tabColMin = (c, nx2)=>Math.max(MIN_COL, fretHalf(c) + fretHalf(nx2) + 4*hs);
+  const TAB_GAP = 4*hs, TAB_FLR = 2.5;        // 六线谱：舒适 4 / 硬底 2.5
+  const JP_GAP  = 4*hs, JP_FLR  = 2;          // 简谱数字：舒适 4 / 硬底 2
   const durW = d=>Math.max(11, (MIN_W[d]||14)*hs);   // 时值宽×疏密档位（下限防碰撞）
   const beatNoteW = new Array(beats).fill(0);
-  const beatMinSum = new Array(beats).fill(0);   // v60.73 各拍「逐列刚杆之和」（跨声部取最大）
   const beatHeadLeft = new Array(beats).fill(0);   // v60.52 各拍首列的左伸需求（越拍界，见 scan）
-  /* 弹簧-刚杆事件：每拍收集所有声部的列起点 t(0..1) 与该列最小刚性宽（带词=字宽、简谱数字、吉他列），
-     供拍内分段映射使用——32分/三连音带逐字歌词时按刚杆撑开，不再按纯时值比例挤成一团 */
+  /* 弹簧-刚杆事件：每拍收集所有声部的列起点 t(0..1)。
+     v60.76 每条事件带 **band 半宽**（hw 舒适 / hf 硬底）而不是「到下一列的间距」——
+     间距在合并节点之后按 band 逐对推导，跨越几段就摊到几段（见下方 warps 段）。 */
   const evts = Array.from({length:beats},()=>[]);
-  const scan = (cols, isVox)=>{
-    let cum=0; const wB=new Array(beats).fill(0), mB=new Array(beats).fill(0);
+  const scan = (cols, isVox, band)=>{
+    let cum=0; const wB=new Array(beats).fill(0);
+    const bandL = band+'L';                    // 该声部的歌词行：与音符行不同基线，永不相撞
     cols.forEach((c, ci)=>{
-      const nxc = cols[ci+1] || null;          // v60.73 前瞻下一列：刚杆＝两列半宽之和
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
       wB[bi]+=durW(c.dur)+dotLevel(c)*6
              +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
@@ -5524,29 +5533,43 @@ function measureLayout(mea){
              +(isVox&&c.acc? (c.acc.length>1?20:14) : 0)   /* v60.52 变化音左伸计入拍宽 */
              +(isVox&&c.clef? 20 : 0)   // v45.6 小节内换谱号：小谱号占位
              +(!isVox&&c.notes&&c.notes.some(nn=>(nn.tech==='b'||nn.tech==='bd')&&!nn.tk)?15:0);   // 旧式合成圆圈推弦预留空间
-      /* v60.73 逐列刚杆＝本列半宽 + 下一列半宽 + 净距（两者都居中绘制）：
-         带词列按音节实测字宽走，多字音节自然更宽；无词的简谱列只吃数字级的
-         VOX_MIN，不再被歌词档位撑开（旧口径两头都错，见文件头注释） */
-      let cmin = isVox? Math.max(lyrPitch(c, nxc), VOX_MIN) : tabColMin(c, nxc);
+      /* v60.76 本列在本 band 上的**半宽**（居中绘制，左右各占这么多）。
+         音符行：简谱数字半宽 / 和音记号半宽；六线谱：品位数字半宽（舒适档含纸色描边）。 */
+      let hw, hf;
+      if(isVox){
+        hw = hf = JP_HALF;
+        if(c.chord){ const ch=vcDispW(c.chord)/2; hw=Math.max(hw,ch); hf=Math.max(hf,ch); }
+      }else{
+        hw = Math.max(colHalf(c,false), 4.5*hs);   // 空列（×/休止）也占一点位
+        hf = Math.max(colHalf(c,true),  3);
+      }
+      /* 右侧附加占位（后倚音、行内换谱号）——只长在列的右边，记成本段的加项 */
+      let add = 0;
+      if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length;
+      if(!isVox&&c.grace)  add += tabGraceW(normTabGrace(c.grace));     /* v52.7 TAB 倚音占位；v60.69 共用 */
+      if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));
+      if(isVox&&c.clef)   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
       /* v60.52 左伸元素净空（用户报告：简谱音符不避开升降号与双倚音导致重叠）：
-         刚杆 min 的语义是「本列→下一列」＝只保护列的**右**侧，而简谱变化音（画在 nx−10.5/−13.5）
-         与**前**倚音组（gxc=nx−10−gW−(acc?9:0)，另含减时线左伸 3.6）都长在列的**左**侧——
-         此前前倚音被错加进本列 cmin（保护错了方向）、变化音则完全没进布局，密集时值下必压前一列。
-         现按几何实测量出 leftW，交由下方 segs 记到**前一段**上；后倚音在右侧，仍留在 cmin。 */
+         变化音（画在 nx−10.5/−13.5）与**前**倚音组（gxc=nx−10−gW−(acc?9:0)，另含减时线左伸 3.6）
+         都长在列的**左**侧，吃的是前一段的空间——交由下方 segs 记到前一段上。 */
       let leftW = 0;
       if(isVox){
         if(c.acc) leftW = c.acc.length>1? 20 : 14;                      // ♭♭ 双字符左移更多
         if(c.grace){ const gn=normGrace(c.grace).notes.length;
           leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)); }     // 组宽+减时线左伸+让位变化音
       }
-      if(isVox&&c.graceA) cmin += 5+6.5*normGrace(c.graceA).notes.length;
-      if(!isVox&&c.grace)  cmin += tabGraceW(normTabGrace(c.grace));    /* v52.7 TAB 倚音占位；v60.69 共用 */
-      if(!isVox&&c.graceA) cmin += tabGraceW(normTabGrace(c.graceA));
-      if(isVox&&c.chord)  cmin = Math.max(cmin, vcDispW(c.chord)+4);
-      if(isVox&&c.clef)   cmin += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
-      mB[bi] += cmin;
+      /* v60.76 半宽分左右两侧：左侧取「字形半宽」与「左伸元素外缘」的**大者**（变化音/前倚音
+         都画在主音左边，它们的外缘就是本列左侧真正的占位），右侧＝字形半宽 + 右侧附加占位。
+         左伸不是可加可减的余量、而是实打实的墨迹，故硬底档同样计入。 */
       { const tt=Math.max(0,Math.min(1,cum-bi));
-        evts[bi].push({t:tt, min:cmin, left:leftW});
+        evts[bi].push({t:tt, band, hwL:Math.max(hw,leftW), hwR:hw+add,
+          hfL:Math.max(hf,leftW), hfR:hf+add, left:leftW,
+          gap:isVox?JP_GAP:TAB_GAP, flr:isVox?JP_FLR:TAB_FLR});
+        /* 歌词是**另一条基线**上的一行字：与品位数字/别的声部永不相撞，单独立 band。
+           它的「本词→下一词」间距常跨好几个吉他十六分列，摊到这几段上而不是压在头一段。 */
+        if(isVox){ const lw = lyrW(c);
+          if(lw>0) evts[bi].push({t:tt, band:bandL, hwL:lw/2, hwR:lw/2, hfL:lw/2, hfR:lw/2, left:0,
+            gap:LYR_GAP, flr:LYR_FLR}); }
         /* 拍首列的左伸越过拍界，压的是上一拍末列（或小节线）——登记到拍级，下方并入上一拍宽 */
         if(leftW>0 && tt<1e-4) beatHeadLeft[bi]=Math.max(beatHeadLeft[bi], leftW);
       }
@@ -5559,46 +5582,106 @@ function measureLayout(mea){
           const tq=cum+q*qbD;
           if(tq>=beats-1e-4) break;
           const bq=Math.min(beats-1, Math.floor(tq+1e-4));
-          evts[bq].push({t:Math.max(0,Math.min(1,tq-bq)), min:12*hs});
+          evts[bq].push({t:Math.max(0,Math.min(1,tq-bq)), band,
+            hwL:5*hs, hwR:5*hs, hfL:3.5, hfR:3.5, left:0, gap:JP_GAP, flr:JP_FLR});
         }
       }
       cum+=beatsOf(c,unit);
     });
-    for(let i=0;i<beats;i++){
-      beatNoteW[i]=Math.max(beatNoteW[i],wB[i]);
-      beatMinSum[i]=Math.max(beatMinSum[i],mB[i]);
-    }
+    for(let i=0;i<beats;i++) beatNoteW[i]=Math.max(beatNoteW[i],wB[i]);
   };
-  mea.tabs.forEach(c=>scan(c,false));
-  mea.voxes.forEach(c=>scan(c,true));
+  mea.tabs.forEach((c,ti)=>scan(c,false,'t'+ti));
+  mea.voxes.forEach((c,vi)=>scan(c,true,'v'+vi));
   let beatW=[], inner=0;
   const coFloor = song.chordOnly? 44*hs : 0;   // 纯和弦谱：小节格均匀化
   for(let i=0;i<beats;i++){
-    /* v60.73 拍宽 = max(空拍地板, 纯和弦谱地板, 时值宽之和, 本拍逐列刚杆之和)。
-       此前是「歌词列数×18.5」「简谱列数×18.5」「吉他列数×13」三条并列的常数式，
-       既撑不开多字音节、又把休止列按歌词档位放大；现在一条式子按内容真实需要算。 */
-    const w=Math.max(beatFloor, coFloor, beatNoteW[i], beatMinSum[i]);
+    /* v60.73 拍宽 = max(空拍地板, 纯和弦谱地板, 时值宽之和)。
+       v60.76 「逐列刚杆之和」这一项撤掉——它按声部各自求和再取最大，与下方
+       按 band 逐对推导的段刚杆口径重复（且偏大）；真正的刚杆下限由 minSum 兜。 */
+    const w=Math.max(beatFloor, coFloor, beatNoteW[i]);
     beatW.push(w);
   }
   /* ===== 拍内弹簧-刚杆映射（LilyPond spring-rod 思路）=====
-     相邻列间距 = max(时值比例份额, 前一列最小刚性宽)；刚杆之和超过拍宽时拍自动加宽。
-     所有声部共用同一张 时值→x 映射表，拍内跨声部依然严格对齐。 */
+     相邻列间距 = max(时值比例份额, 段刚杆)；刚杆之和超过拍宽时拍自动加宽。
+     所有声部共用同一张 时值→x 映射表，拍内跨声部依然严格对齐。
+     v60.76 段刚杆改「按 band 逐对推导」：某一行上相邻的两个字/数字要求
+     半宽+半宽+净距，这段距离**跨几段就摊到几段**（按时值份额）。
+     好处有两条：① 歌词间距不再压在「本词→下一个吉他列」那一小段上（凭空胖 15%）；
+     ② 品位数字与歌词不再被当成会相撞的一对（它们不在同一条基线上）。 */
   const warps=[];
+  /* 阶段一：逐拍合并节点、搭段骨架 */
+  const nodesB=[], segsB=[], leadB=[];
   for(let i=0;i<beats;i++){
     const ev=evts[i].slice().sort((a,b)=>a.t-b.t);
     const nodes=[];
-    ev.forEach(e=>{                              // 合并跨声部同时刻节点，取最大刚杆
-      const last=nodes[nodes.length-1];
-      if(last && e.t-last.t<1e-4){ last.min=Math.max(last.min, e.min); last.left=Math.max(last.left, e.left||0); }
-      else nodes.push({t:e.t, min:e.min, left:e.left||0});
+    ev.forEach(e=>{                              // 合并同时刻节点；各 band 的左右半宽分别挂在节点上
+      let last=nodes[nodes.length-1];
+      if(!(last && e.t-last.t<1e-4)){ last={t:e.t, left:0, b:{}}; nodes.push(last); }
+      last.left=Math.max(last.left, e.left||0);
+      const q=last.b[e.band];
+      if(q){ q.hwL=Math.max(q.hwL,e.hwL); q.hwR=Math.max(q.hwR,e.hwR);
+             q.hfL=Math.max(q.hfL,e.hfL); q.hfR=Math.max(q.hfR,e.hfR); }
+      else last.b[e.band]={hwL:e.hwL, hwR:e.hwR, hfL:e.hfL, hfR:e.hfR, gap:e.gap, flr:e.flr};
     });
-    if(!nodes.length){ warps.push(null); continue; }
+    nodesB.push(nodes);
+    if(!nodes.length){ segsB.push(null); leadB.push(0); continue; }
     const segs=[];
-    /* v60.52 段宽 = 本列右侧刚杆 ＋ 下一列左伸需求（变化音/前倚音长在列左侧，吃的是前一段的空间） */
-    if(nodes[0].t>1e-4) segs.push({p:nodes[0].t, min:nodes[0].left});   // 拍首前导空段（长音延续等）
-    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t,
-      /* 扣 4：cmin 基线里已含下一列数字左半宽与基本字距，不重复计入 */
-      min:n.min + (k+1<nodes.length? Math.max(0, nodes[k+1].left-4) : 0)}));
+    const lead = nodes[0].t>1e-4? 1 : 0;
+    /* v60.52 拍首列的左伸（变化音/前倚音长在列左侧）吃的是前导空段的空间 */
+    if(lead) segs.push({p:nodes[0].t, min:nodes[0].left, flr:nodes[0].left});   // 拍首前导空段（长音延续等）
+    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t, min:0, flr:0}));
+    segsB.push(segs); leadB.push(lead);
+  }
+  /* 阶段二：逐 band 摊派——本 band 相邻两列的中心距 ≥ 半宽+半宽+净距，
+     这段距离跨几段就按时值份额摊到几段。**跨拍界的一对也要管**：
+     只按「本拍末段 + 拍间隙」算过（旧口径），两个分处拍界两侧的中文音节就只有
+     10+3=13px 中心距，16px 宽的字必然重叠（实测「是|怎」净距 −2.98）。 */
+  const spread = (i, s0, s1, needC, needF)=>{    // 把需求摊到第 i 拍的 [s0,s1) 段上
+    const segs = segsB[i]; if(!segs || s1<=s0) return;
+    let pSum=0; for(let s=s0;s<s1;s++) pSum+=segs[s].p;
+    for(let s=s0;s<s1;s++){
+      const sh = pSum>1e-9? segs[s].p/pSum : 1/(s1-s0);
+      segs[s].min = Math.max(segs[s].min, needC*sh);
+      segs[s].flr = Math.max(segs[s].flr, needF*sh);
+    }
+  };
+  { const seq = {};                              // band → 全小节按序的 {i,k}
+    for(let i=0;i<beats;i++) nodesB[i].forEach((n,k)=>{
+      for(const bk in n.b) (seq[bk]=seq[bk]||[]).push({i,k}); });
+    for(const bk in seq){
+      const ks = seq[bk];
+      for(let a=0;a<ks.length;a++){
+        const A=ks[a], Bn=ks[a+1];
+        const B1=nodesB[A.i][A.k].b[bk];
+        if(!Bn){                                 // 本 band 最后一列 → 小节右内边距：保右半宽 + 净距
+          spread(A.i, leadB[A.i]+A.k, segsB[A.i].length, B1.hwR+B1.gap, B1.hfR+B1.flr);
+          continue;
+        }
+        const B2 = nodesB[Bn.i][Bn.k].b[bk];
+        const needC = B1.hwR+B2.hwL+Math.max(B1.gap,B2.gap);
+        const needF = B1.hfR+B2.hfL+Math.max(B1.flr,B2.flr);
+        if(Bn.i===A.i){ spread(A.i, leadB[A.i]+A.k, leadB[A.i]+Bn.k, needC, needF); continue; }
+        if(Bn.i>A.i+1) continue;                 // 中间整整隔了一拍，间距必然够
+        /* 跨一个拍界：本拍尾段 + 拍间隙 + 下一拍头段 共同承担。
+           两档都只减 GAP_FLR（拍间隙的**地板**）而不是 BEAT_GAP：行内压缩会先把拍间隙
+           让到地板（resize 二级），若按 BEAT_GAP 记账，那 4px 让出去之后这一对就短了
+           4px——实测跨拍界的两个中文音节因此贴到 −0.58。按地板记账则任何压缩档都成立。 */
+        const tail = segsB[A.i], head = segsB[Bn.i];
+        const t0 = leadB[A.i]+A.k, t1 = tail.length, h1 = leadB[Bn.i]+Bn.k;
+        let pT=0; for(let s=t0;s<t1;s++) pT+=tail[s].p;
+        let pH=0; for(let s=0;s<h1;s++) pH+=head[s].p;
+        const pAll = pT+pH;
+        const shT = pAll>1e-9? pT/pAll : (h1>0? 0.5 : 1);
+        spread(A.i, t0, t1, Math.max(0,needC-GAP_FLR)*shT, Math.max(0,needF-GAP_FLR)*shT);
+        if(h1>0) spread(Bn.i, 0, h1, Math.max(0,needC-GAP_FLR)*(1-shT), Math.max(0,needF-GAP_FLR)*(1-shT));
+      }
+    }
+  }
+  /* 阶段三：逐拍 water-fill → 时值→x 映射 */
+  for(let i=0;i<beats;i++){
+    const nodes=nodesB[i], segs=segsB[i];
+    if(!segs){ warps.push(null); continue; }
+    segs.forEach(s=>{ if(s.flr>s.min) s.flr=s.min; });
     const minSum=segs.reduce((a,s)=>a+s.min,0);
     const total=Math.max(beatW[i], minSum);      // 刚杆撑破原拍宽 → 拍加宽（三连音带词即此情形）
     /* water-fill：有余量的段按时值比例分，份额不足刚杆的段被钉在刚杆宽 */
@@ -5619,7 +5702,8 @@ function measureLayout(mea){
     segs.forEach((s,k)=>{ tA+=s.p; xA+=wseg[k]; T.push(Math.min(1,tA)); X.push(xA); });
     T[T.length-1]=1;
     beatW[i]=xA;
-    warps.push({T,X,M:segs.map(sg=>sg.min)});   /* v60.53 保留各段刚杆，供 rowMax 压缩区分弹簧 */
+    /* v60.53 保留各段刚杆，供 rowMax 压缩区分弹簧；v60.76 再带一份 MF＝硬底（字形不相撞的极限） */
+    warps.push({T,X,M:segs.map(sg=>sg.min), MF:segs.map(sg=>sg.flr)});
   }
   /* v60.52 跨拍界的左伸：拍首列的变化音/前倚音压的是上一拍末列，拍间隙 BEAT_GAP 不够则补宽上一拍 */
   for(let i=1;i<beats;i++){
@@ -5630,7 +5714,19 @@ function measureLayout(mea){
      （同下方 rowMax 压缩机制）；weight 随之缩放 → 行内两端对齐按调整后内容量分配。
      v52.2 范围放宽 0.3–3（原 0.6 下限过早卡住缩窄） */
   const wf = Math.max(0.3, Math.min(3, mea.wf||1));
-  if(wf!==1){ beatW=beatW.map(w=>w*wf); warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*wf); }); }
+  /* v60.76 缩窄止步于硬底：此前只缩 X 不动 M/MF，wf<1 的小节段宽被缩到刚杆以下，
+     后续压缩再按旧刚杆判定「还有弹簧」，字就叠上了（实测 wf=0.66 的小节 简谱净距 −0.32）。
+     现在舒适刚杆跟着缩、硬底不缩，缩到字要相撞就停——手柄依然管用，只是不再压穿。 */
+  if(wf!==1){
+    warps.forEach((w,i)=>{
+      if(!w){ beatW[i]*=wf; return; }
+      const X2=[0]; let acc=0;
+      for(let k2=0;k2<w.M.length;k2++){
+        acc += Math.max((w.X[k2+1]-w.X[k2])*wf, w.MF[k2]); X2.push(acc);
+      }
+      w.X=X2; w.M=w.M.map((v,k2)=>Math.max(v*wf, w.MF[k2])); beatW[i]=acc;
+    });
+  }
   inner = beatW.reduce((a,b)=>a+b,0);
   /* 上限=整行：极密集小节可独占一行从容展开；仅当单小节自身超过整行时才等比压缩到刚好放下 */
   const rowMax=(PAGE_W-2*MARGIN-STAFF_HEAD_W)-gapTotal-pad*2;
@@ -5654,15 +5750,56 @@ function measureLayout(mea){
       });
       inner = beatW.reduce((a,b)=>a+b,0);
     }else{
-      const k=rowMax/inner;
-      beatW=beatW.map(w=>w*k); inner=rowMax;
-      warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
+      /* v60.76 第二级：舒适刚杆之外还差，就继续吃「舒适档→硬底档」这一段
+         （纸色描边可以叠、字距可以收到刚好不相撞），仍按余量比例扣。 */
+      warps.forEach((w,i)=>{ if(!w||!w.M) return;
+        const X2=[0]; let acc2=0;
+        for(let k2=0;k2<w.M.length;k2++){ acc2 += w.M[k2]; X2.push(acc2); }
+        w.X=X2; beatW[i]=acc2;
+      });
+      inner = beatW.reduce((a,b)=>a+b,0);
+      if(inner>rowMax){
+        const D2 = inner-rowMax;
+        let slack2 = 0;
+        warps.forEach(w=>{ if(!w||!w.MF) return;
+          for(let k2=0;k2<w.M.length;k2++) slack2 += Math.max(0, w.M[k2]-w.MF[k2]); });
+        const r2 = slack2>1e-6? Math.min(1, D2/slack2) : 0;
+        if(r2>0){
+          warps.forEach((w,i)=>{ if(!w||!w.MF) return;
+            const X2=[0]; let acc2=0;
+            for(let k2=0;k2<w.M.length;k2++){ acc2 += w.M[k2]-(w.M[k2]-w.MF[k2])*r2; X2.push(acc2); }
+            w.X=X2; beatW[i]=acc2;
+          });
+          inner = beatW.reduce((a,b)=>a+b,0);
+        }
+      }
+      /* v60.75 硬底也扣尽仍放不下：**就停在硬底**，不再等比压穿。
+         此前这里 k=rowMax/inner 把刚杆一起缩水——双字音节十六分满小节实测
+         歌词净距压到 −5px（产品报告的「相互挤压」）。现在小节宽可以超过 rowMax，
+         由 layoutSystems 让它独占一行并按实际宽度声明行宽（谱线随之等宽）。
+         兜底的兜底：连「行宽 + 可借的页边距」都放不下（极端构造），
+         才等比压最后一档——否则内容会画到纸面之外（viewBox 宽固定为 PAGE_W）。 */
+      const hardMax = rowMax + Math.max(0, MARGIN - 8);
+      if(inner > hardMax){
+        const k2=hardMax/inner;
+        beatW=beatW.map(w=>w*k2); inner=hardMax;
+        warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k2); });
+      }
     }
   }
   /* v60.52 小节首列的左伸：可用净空只有 pad+NOTE_OFF（21px），双倚音（左伸 20.1）几乎贴上
      小节线——不够的部分补进本小节左边距（留 3px 最小间隙） */
-  const padL = pad + Math.max(0, beatHeadLeft[0]-(pad+NOTE_OFF-3));
-  const beatStart=[]; { let acc=padL+tsLead; for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+BEAT_GAP; } }
+  const padL0 = pad + Math.max(0, beatHeadLeft[0]-(pad+NOTE_OFF-3));
+  /* v60.76 小节两侧留白与拍间隙也是**弹簧**，不是固定值：它们是全谱里最该先让步的空白。
+     此前它们被算进「固定部分」永不参与压缩，一个小节因此白白多占 20~30px，
+     一行本来装得下两个小节的地方只装得下一个。压缩时按下方 resize() 的第二级让到地板。 */
+  const padLFlr = Math.max(PAD_FLR, padL0-(pad-PAD_FLR)), padRFlr = PAD_FLR;
+  let padL = padL0, padR = pad, bGap = BEAT_GAP;
+  const fixedOf = (l,r,g)=>l+r+g*Math.max(0,beats-1)+tsLead;
+  let beatStart=[];
+  const mkStart = ()=>{ beatStart=[]; let acc=padL+tsLead;
+    for(let i=0;i<beats;i++){ beatStart.push(acc); acc+=beatW[i]+bGap; } };
+  mkStart();
   /* 拍内 t(0..1) → 相对拍首 x：走分段映射；无节点的拍退回线性 */
   const warpX = (bi, tIn)=>{
     const w=warps[bi];
@@ -5694,19 +5831,71 @@ function measureLayout(mea){
       const qb=unit/4, qx=[];
       /* v54.1 右边界钳制：横线中心不越过小节右内边距（pos 上限=L.w-pad，+NOTE_OFF 后可探到
          小节线上——正常由占位刚杆撑开、此钳制兜底极端压缩 wf/超满小节） */
-      const qCap = padL+tsLead+inner+gapTotal-4;
+      const qCap = padL+tsLead+inner+bGap*Math.max(0,beats-1)-4;
       for(let q=1; q*qb<b-1e-4; q++) qx.push(Math.min(pos(cum+q*qb)+NOTE_OFF, qCap));
       qxs.push(qx);
       cum+=b;
     });
     return {xs, ws, ls, qxs, rt:cols.reduce((a,c)=>a+beatsOf(c,unit),0)||1};
   };
-  /* v60.73 rigid＝本小节可压缩到的下限（各拍刚杆之和＋固定间隙/边距）。
-     行内压缩必须止步于此，否则压的就是歌词/数字之间的净距，字又贴到一起。 */
-  const rigidInner = beatMinSum.reduce((a,v)=>a+Math.max(beatFloor, v), 0);
-  return {w:inner+gapTotal+padL+pad+tsLead, weight:inner,
-          rigid:rigidInner+gapTotal+padL+pad+tsLead,
-          tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  /* v60.76 rigid＝本小节可压缩到的下限＝各段**硬底之和** ＋ 白边地板。
+     v60.75 试过同样的和法却压穿了字距，原因不在口径而在压缩方式：那时行内两端对齐
+     是把整个小节**等比**缩放，一段一段的余量根本不会被优先吃掉，最紧的那一段先被压穿。
+     现在压缩走下方 resize()——按段先吃弹簧、再让白边、再吃「舒适→硬底」，到硬底为止，
+     于是「和」就是真实下限，小节因此比等比口径能多压 20~30%，一行才装得下两个小节。 */
+  const flrInner = warps.reduce((a,w,i)=>a + (w&&w.MF? w.MF.reduce((x,v)=>x+v,0) : Math.min(beatW[i], beatFloor)), 0);
+  /* v60.76 行内两端对齐用：把本小节重排到目标宽度。
+     压缩＝三级台阶（段内余量 → 白边 → 舒适刚杆到硬底），到硬底为止；
+     拉伸＝内容区等比放大（白边不跟着放大，避免小节两头空出一截）。 */
+  const resize = newW=>{
+    let target = Math.max(1, newW-fixedOf(padL,padR,bGap));
+    if(target > inner){
+      const k = target/inner;
+      beatW = beatW.map(v=>v*k);
+      warps.forEach(w=>{ if(w) w.X = w.X.map(x=>x*k); });
+    }else if(target < inner-0.01){
+      const eat = (key, D)=>{                        // 把各段压到 key 指定的下限，按余量比例分摊
+        let slack = 0;
+        warps.forEach(w=>{ if(!w||!w[key]) return;
+          for(let k2=0;k2<w[key].length;k2++) slack += Math.max(0, (w.X[k2+1]-w.X[k2])-w[key][k2]); });
+        if(slack<=1e-6) return D;
+        const r = Math.min(1, D/slack);
+        warps.forEach((w,i)=>{ if(!w||!w[key]) return;
+          const X2=[0]; let acc=0;
+          for(let k2=0;k2<w[key].length;k2++){
+            const sw=w.X[k2+1]-w.X[k2];
+            acc += sw - Math.max(0, sw-w[key][k2])*r; X2.push(acc);
+          }
+          w.X=X2; beatW[i]=acc;
+        });
+        return D - slack*r;
+      };
+      let D = eat('M', inner-target);                // 一级：段内超出舒适刚杆的余量
+      if(D>1e-6){                                    // 二级：小节白边与拍间隙让到地板
+        const wsp = (padL-padLFlr)+(padR-padRFlr)+(bGap-GAP_FLR)*Math.max(0,beats-1);
+        if(wsp>1e-6){ const r=Math.min(1, D/wsp);
+          padL -= (padL-padLFlr)*r; padR -= (padR-padRFlr)*r; bGap -= (bGap-GAP_FLR)*r;
+          D -= wsp*r; }
+        target = Math.max(1, newW-fixedOf(padL,padR,bGap));
+      }
+      if(D>1e-6) D = eat('MF', D);                   // 三级：舒适刚杆 → 硬底
+      if(D>1e-6){                                    // 硬底也吃尽：等比压最后一档（不画出纸面）
+        const cur = beatW.reduce((a,v)=>a+v,0);
+        const k = Math.max(0.05, (cur-D)/Math.max(1,cur));
+        beatW = beatW.map(v=>v*k);
+        warps.forEach(w=>{ if(w) w.X=w.X.map(x=>x*k); });
+      }
+    }
+    inner = beatW.reduce((a,v)=>a+v,0);
+    mkStart();
+    L.w = inner+fixedOf(padL,padR,bGap);
+    L.weight = inner;
+    L.tabs = mea.tabs.map(fit); L.voxes = mea.voxes.map(fit);
+  };
+  const L = {w:inner+fixedOf(padL,padR,bGap), weight:inner, resize,
+             rigid:Math.min(inner, flrInner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
+             tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
+  return L;
 }
 function layoutSystems(){
   const availW = PAGE_W - 2*MARGIN - STAFF_HEAD_W;
@@ -5721,37 +5910,47 @@ function layoutSystems(){
      brk=1 在本小节后强制换行（DP 区间不得跨过该断点）。 */
   const systems=[];
   if(n){
-    const startOK = i => i===0 || song.measures[i].pull!==1;          // 能否当行首
+    /* v60.76 pull 由「硬约束」改为「强偏好」。
+       产品提供的真实谱《难忘的一天》56 小节里有 20 个 pull=1，DP 无条件遵从后
+       把三个小节（刚杆合计 884）钉进 485 的行里——两端对齐再压回来就是 1.8× 硬压，
+       歌词实测出现 45 处负净距、最深 −6.14（产品报告的「横向重叠」）。
+       现在：能排得下就照样并行（代价 0），排不下就宁可断行也不把字压重叠。 */
+    /* pull 是**强偏好**：代价 150 高于绝大多数断行 badness（单行 0~340），所以能排下就照做，
+       行尾「＋」按钮的手感不变（按钮本身另有容量守卫，不会把排不下的并进来）。
+       但不做死命令——产品送来的真实谱里 20 个 pull 是在更宽的版面下点出来的，
+       换到窄版宽后死守它们会逼出「一行 1 个、下一行 2 个」的锯齿（实测拉伸 σ 0.30、
+       首行只放 302px 的一个小节）；让 DP 在明显更差时可以不照做，σ 降到 0.25。 */
+    const PULL_PEN = 150;
     const fb = new Array(n).fill(0);                                  // fb[k]=1：k 之前必须断行
+    /* v52.0 语义：pull 覆盖 brk（本小节标了「并入上一行」，上一小节的强制换行作废） */
     for(let k=1;k<n;k++) fb[k] = (song.measures[k-1].brk===1 && song.measures[k].pull!==1)? 1 : 0;
     const P = new Array(n).fill(0);
     for(let k=1;k<n;k++) P[k] = P[k-1] + fb[k];
-    /* 允许最多 SQUEEZE 的轻微超宽——两端对齐会把它压回行宽。
-       没有这条容限，「229 + 347 = 576」这种只超 3% 的一对会被拆开，
-       结果是 229 独占一行被拉伸到 2.43×（产品说的「过宽」），而压缩 3% 肉眼几乎不可见。 */
-    const SQUEEZE = 1.06;
-    const PP = new Array(n).fill(0);              // pull 前缀：pull 链可能被迫超宽，放宽其上限
-    for(let k=1;k<n;k++) PP[k] = PP[k-1] + (song.measures[k].pull===1? 1 : 0);
+    /* v60.76 可行性判据由「自然宽不超过行宽的 1.06 倍」改为「**刚杆之和放得下**」。
+       固定 6% 容限是拍脑袋的：它既不敢让两个能压的小节同行（十六分分解小节自然宽 295、
+       硬底只有 150，两个完全排得下，却被 1.06 一票否决 → 一行一小节、拉伸到 1.5×），
+       又拦不住真压不下的组合（pull 强行并行时照样压穿）。现在直接问刚杆：
+       ① 刚杆之和 ≤ 行宽 → 一定能排下且不压穿，可行；② 否则不可行，宁可断行。 */
     const cost = new Array(n+1).fill(Infinity), prev = new Array(n+1).fill(-1);
     cost[0] = 0;
     const R = Ls.map(L=>L.rigid||L.w);
+    /* 代价＝「用掉多少弹簧」：压缩按可压区间 w−rigid 归一，拉伸按自然宽的一半归一，
+       三次方——轻微形变几乎不计，接近极限时代价陡增（Knuth 的 badness 思路）。 */
     for(let j=1;j<=n;j++){
       let w = 0, rg = 0;
       for(let i=j-1;i>=0;i--){
         w += W[i];
         rg += R[i];
-        const forced = i<n && (PP[j-1] - PP[i]) > 0;                 // 区间内含 pull＝可能被迫超宽
-        if(w > availW*(forced? 3 : SQUEEZE) && i < j-1) break;       // 再往左只会更宽
-        if(!startOK(i) || cost[i]===Infinity) continue;
-        if(P[j-1] - P[i] > 0) continue;                              // 区间内部跨了强制断点
-        /* 压缩式超宽的硬前提：刚杆总和必须塞得下整行，否则压缩就会压到字距上 */
-        if(w > availW && rg > availW && !forced) continue;
+        if(i < j-1 && rg > availW) break;    // 刚杆放不下＝排出来必然把字压重叠，再往左只会更挤
+        if(cost[i]===Infinity) continue;
+        if(P[j-1] - P[i] > 0) continue;      // 区间内部跨了强制断点
         let pen;
-        if(j===n && w <= availW) pen = 0;                            // 末行不拉伸，不计代价
-        else {
-          pen = 100*Math.pow(availW/Math.max(1,w) - 1, 2);           // 拉伸/压缩比偏离 1 的代价（对称）
-          if(w > availW*SQUEEZE) pen += 500 + 200*Math.pow(w/(availW*SQUEEZE) - 1, 2);   // 超出压缩容限：重罚但可行
-        }
+        if(j===n && w <= availW) pen = 0;    // 末行不拉伸，不计代价
+        else if(w <= availW){ const f=(availW-w)/Math.max(1, w*0.5);  // 拉伸：以自然宽的一半为量程
+          pen = 100*f*f*f; }
+        else { const f = (w-availW)/Math.max(1, w-rg);                // 压缩：要吃掉的弹簧 / 可吃的弹簧
+          pen = 100*Math.pow(Math.min(1.5, f), 3); }
+        if(i > 0 && song.measures[i].pull === 1) pen += PULL_PEN;    // 违反 pull：能不违反就不违反
         if(cost[i] + pen < cost[j]){ cost[j] = cost[i] + pen; prev[j] = i; }
       }
       if(cost[j]===Infinity){ cost[j] = cost[j-1] + 1e6; prev[j] = j-1; }     // 兜底：单小节成行
@@ -5785,26 +5984,43 @@ function layoutSystems(){
     const slack = lm2=>Math.max(0, lm2.L.w - (lm2.L.rigid||0));
     const totalSlack = sys.measures.reduce((a,lm2)=>a+slack(lm2), 0);
     const totalW = sys.measures.reduce((a,lm)=>a+Math.max(1,lm.L.weight), 0);
-    const springOK = free >= 0 || totalSlack >= -free - 1e-6;   // 弹簧够不够吸收这次压缩
-    const uniform = free < 0 && !springOK ? avail/Math.max(1, sys.w) : 0;
+    /* v60.75 弹簧不够时不再等比压穿刚杆（那会把字压重叠），改为**压到刚杆为止**，
+       行宽随之按实际内容声明——谱线与内容始终等宽（v60.74 钉的不变量不破），
+       只是这一行会略微伸进页边距。宁可一行略宽，也不让字叠在一起。 */
+    const springOK = free >= 0 || totalSlack >= -free - 1e-6;
     let xoff = 0;
     sys.measures.forEach(lm=>{
       const add = free >= 0
         ? free * (Math.max(1,lm.L.weight)/totalW)
-        : (springOK? free * (slack(lm)/totalSlack) : lm.L.w*(uniform-1));
+        : (springOK? free * (slack(lm)/totalSlack) : -slack(lm));
       const newW = Math.max(20, lm.L.w + add);
-      const s = newW/lm.L.w;
       lm.x = xoff;
-      lm.L.w = newW;
-      [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
-        r.xs = r.xs.map(v=>v*s);
-        r.ws = r.ws.map(v=>v*s);
-        r.ls = r.ls.map(v=>v*s);
-        r.qxs = r.qxs.map(a=>a.map(v=>v*s));   // v53.9 增时线拍点同步缩放
-      });
-      xoff += newW;
+      /* v60.76 交给小节自己重排（按段吃弹簧、到硬底为止），不再整体等比缩放。
+         等比缩放的毛病：一个小节里最紧的一段（比如两个相邻的中文音节）会跟着整体
+         被压到重叠，哪怕同小节的吉他段还空着一大截——「有歌词的挤、没歌词的空」正是这么来的。 */
+      if(lm.L.resize) lm.L.resize(newW);
+      else { const s=newW/lm.L.w; lm.L.w = newW;
+        [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
+          r.xs=r.xs.map(v=>v*s); r.ws=r.ws.map(v=>v*s);
+          r.ls=r.ls.map(v=>v*s); r.qxs=r.qxs.map(a=>a.map(v=>v*s)); }); }
+      xoff += lm.L.w;
     });
-    sys.w = avail;
+    /* v60.75 行宽＝实际内容宽（压到刚杆为止时会略超 avail，最多借用页边距）。
+       仍超上限则等比压最后一档，保证不画出纸面（viewBox 宽固定为 PAGE_W）。 */
+    const hardMax = avail + Math.max(0, MARGIN - 8);
+    if(xoff > hardMax + 0.5){
+      const k = hardMax/xoff; let x2 = 0;
+      sys.measures.forEach(lm=>{
+        lm.x = x2; lm.L.w *= k;
+        [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
+          r.xs = r.xs.map(v=>v*k); r.ws = r.ws.map(v=>v*k);
+          r.ls = r.ls.map(v=>v*k); r.qxs = r.qxs.map(a2=>a2.map(v=>v*k));
+        });
+        x2 += lm.L.w;
+      });
+      xoff = x2;
+    }
+    sys.w = xoff;
   });
   return systems;
 }
@@ -5905,7 +6121,15 @@ function systemExtras(sys){
   return {
     tabGap2: tab2Up,
     topExtra: maxUp>=3 ? 16 : maxUp>=2 ? 11 : maxUp>=1 ? 7 : 0,
-    botExtra: Math.max(maxDown>=3?16 : maxDown>=2?10 : maxDown>=1?4 : 0, maxUnder>=3?5 : maxUnder>=2?2 : 0),
+    /* v60.75 botExtra 由「分档常数」改为**简谱行真实墨迹深度**（相对 voxY）。
+       旧的 16/10/4 与 5/2 两档是拍脑袋定的，与实际绘制坐标脱节：
+         减时线画在 voxY+3.4+u*3.2（线宽 1.1）
+         低音点画在 voxY+5.5+under*3.1+d*4.2（半径 1.5）
+       32 分（3 条减时线）＋双低音点时真实深度 20.5，而旧档只给 10 —— 歌词顶压到
+       距墨迹 0.5px（产品报告的「手机端直接重叠」，字号再 +1 就是负的）。 */
+    botExtra: Math.max(
+      maxUnder? 3.4 + (maxUnder-1)*3.2 + 0.55 : 0,
+      maxDown ? 5.5 + maxUnder*3.1 + (maxDown-1)*4.2 + 1.5 : 0),
     tabExtra: Math.max(tab32?5:0, tabTup?4:0, tabLow),
     tabBotPad,
     diagExtra
@@ -5979,8 +6203,14 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad)
     /* v54.8 首个简谱声部紧邻 TAB 块时的上缘垫距：默认 15→20（数字顶到小节号带留 ≥8px，
        出版口径），并同样不随行距系数缩小——topExtra（连音线/倚音等预留）在此之上叠加 */
     y += (st? 48*vv + topExtra*1.8 + ledUp + (dual?26:0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
-    voxYs.push(y); lyricY0.push(y + 25 + botExtra + ledDn);
-    y += 25 + botExtra + ledDn + (nL-1)*21*vl + 9*vv;
+    /* v60.75 歌词基线 = 简谱行墨迹底 + 净空 + 歌词字的上伸高。
+       旧写法是常数 25 + 分档 botExtra，既不认字号也不认真实墨迹深度。
+       LYR_ASC 取 16 号中文字的上伸约 0.88em；LYR_CLEAR 取 7 —— 常见档
+       （八分、无低音点）的净空与旧版基本持平，只把压到 0.5px 的极端档拉回来。 */
+    const LYR_ASC = 16*0.88, LYR_CLEAR = 7;
+    const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC;
+    voxYs.push(y); lyricY0.push(y + lyrDrop + ledDn);
+    y += lyrDrop + ledDn + (nL-1)*21*vl + 9*vv;
   }
   return {diagH, tabTops, voxYs, lyricY0, tabStaffB, tabJpB, h:y+2, gap:9*vs, tabExtra};
 }
@@ -8010,12 +8240,12 @@ function render(){
               /* v60.53 变化音贴近主音（产品指示）：单字符 10.5→9.6、双字符 13.5→12.6，
                  与数字左缘净距收到约 1px（GB 简谱惯例：升降号紧贴其所属音符）；
                  左侧净空由 v60.52 的 leftW 保证不会压到前一个音符 */
-              /* v60.72 数字定为 16 后变化音按 16/16.5 从 v60.70 原值重算：
-                 单 14→13.6、双 12→11.6；左移量同比 9.6→9.3 / 12.6→12.2，
+              /* v60.75 数字定为 17 后变化音按 17/16.5 从 v60.70 原值重算：
+                 单 14→14.5、双 12→12.3；左移量同比 9.6→9.9 / 12.6→13，
                  「贴近主音」的 ~1px 净距口径不变；左侧 leftW 预留仍按旧值＝净空只增不减 */
-              p.push(`<text x="${nx-(adbl?12.2:9.3)}" y="${voxY-2.5}" font-size="${adbl?11.6:13.6}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
+              p.push(`<text x="${nx-(adbl?13:9.9)}" y="${voxY-2.5}" font-size="${adbl?12.3:14.5}" text-anchor="middle" fill="var(--ink)">${asym}</text>`);
             }
-            p.push(`<text x="${nx}" y="${voxY}" font-size="16" font-weight="500" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
+            p.push(`<text x="${nx}" y="${voxY}" font-size="17" font-weight="500" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${col.deg}</text>`);
             /* v43.1 简谱震音杠：数字上方（避让高八度点），1-3 条斜杠 */
             if(col.trem && !isStaff)
               p.push(tremSlashesSVG(nx, voxY-15-(col.oct>0? Math.min(3,col.oct)*4.2 : 0), col.trem, -1));
@@ -8027,7 +8257,7 @@ function render(){
               (col.adds||[]).forEach(a2=>{ if(!a2||!a2.deg) return;
                 const loN = a2.oct<0? Math.min(3,-a2.oct) : 0, hiN = a2.oct>0? Math.min(3,a2.oct) : 0;
                 const ay = yCur - (loN? 2.5+loN*3.8 : 0);   // 先给本音低八度点让位
-                p.push(`<text x="${nx}" y="${ay.toFixed(1)}" font-size="14.1" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
+                p.push(`<text x="${nx}" y="${ay.toFixed(1)}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${a2.deg}</text>`);
                 if(a2.acc){
                   const as2 = a2.acc==='#'?'♯':a2.acc==='b'?'♭':a2.acc==='x'?'×':a2.acc==='bb'?'♭♭':'♮';
                   p.push(`<text x="${nx-(as2.length>1?11.5:9.5)}" y="${(ay-1.5).toFixed(1)}" font-size="${as2.length>1?10.5:12}" text-anchor="middle" fill="var(--ink)">${as2}</text>`);
@@ -8344,7 +8574,7 @@ function render(){
             const stepD = nDash===1? cw*0.42 : Math.min(cw*0.22, cw*0.66/Math.max(1,nDash));
             const dashX = d=> qx[d-1]!==undefined? mx+qx[d-1] : (nDash===1? nx+stepD : nx+stepD*d);
             for(let d=1;d<=nDash;d++){
-              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="14.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="15.4" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
               /* v60.30 延长音拍位可选中（用户指示：延长音属于可选音符可编辑和弦）：
                  每条增时线一个压顶热区（data-q=第几拍位），点击选中本列并记住拍位，
                  创作辅助「和弦」图标即编辑该拍位的和弦；选中态在该增时线上画光标圈 */
@@ -8367,10 +8597,10 @@ function render(){
               /* 标点旁挂：正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐 */
               const pm=/^([\s\S]*?)([，。！？、；：、·…—""''）)\]】》.,!?;:]+)$/.exec(ly);
               const base=pm?pm[1]:ly, punc=pm?pm[2]:'';
-              p.push(`<text x="${nx}" y="${yy}" font-size="15" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(base)}</text>`);
+              p.push(`<text x="${nx}" y="${yy}" font-size="16" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${esc(base)}</text>`);
               if(punc){
-                const bw=[...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7.5:15),0);
-                p.push(`<text x="${(nx+bw/2+1).toFixed(1)}" y="${yy}" font-size="13" font-family="var(--font-ui)" text-anchor="start" fill="var(--ink)">${esc(punc)}</text>`);
+                const bw=[...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?8:16),0);
+                p.push(`<text x="${(nx+bw/2+1).toFixed(1)}" y="${yy}" font-size="14" font-family="var(--font-ui)" text-anchor="start" fill="var(--ink)">${esc(punc)}</text>`);
               }
             }
           });
@@ -21739,7 +21969,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.74';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.76';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -21762,6 +21992,8 @@ const APP_VER='v60.74';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.76</span><div><b>横向排版引擎重做：刚杆按行分别算 + 小节真正有弹簧</b>（产品送来真实曲谱并指出：电脑端没歌词的地方留白很多、有歌词的音符反而拥挤；手机端音符和歌词横向重叠；每行小节数量分布不合理）。<b>拿产品那份 56 小节的谱当尺子量</b>，三条报告全部复现：桌面 1280px <b>172 处负净距</b>（最深 −5.91）、平板 768px <b>126 处</b>（最深 −9.0）、手机 430px <b>233 处</b>、390px <b>264 处</b>（最深 −7.34）；每行小节数在 1/2/3/5 之间乱跳。<br>① <b>「有歌词的挤、没歌词的空」的根因</b>：列间刚杆过去是<b>跨声部合并成一根</b>的——同一时刻上，歌词、简谱数字、两条六线谱的品位数字被 <code>max</code> 成同一个数。两头都错：一是<b>歌词的「本字→下一字」间距常跨 2~4 个吉他十六分列，却被整根扣在头一小段上</b>，带词小节凭空胖出约 15%（宽度花错了地方，于是别处只好挤）；二是<b>品位数字与中文歌词被当成会相撞的一对</b>，可它们根本不在同一条基线上，永远不会相撞。现在改为<b>按行（band）分别记账</b>——每条 TAB 音轨、每个简谱声部的音符行、它的歌词行各算各的「上一列→本列」净距，跨几段就按时值份额<b>摊到几段</b>，<b>跨拍界的一对也一并管住</b>（旧口径下拍界两侧的两个中文音节只有 13px 中心距，16px 宽的字必然叠）。<br>② <b>「每行小节分布不合理」的根因</b>：过去 <code>rigid</code>（可压下限）和自然宽<b>是同一个数</b>，小节根本压不动——十六分分解小节自然宽 295px、刚杆也报 295px，两个明明排得下的小节被判定放不下，于是要么一行一个（拉伸到 1.5 倍），要么靠 pull 硬并、再被两端对齐压出重叠。现在分<b>两档净距</b>：舒适档决定自然宽（有地方时的观感），<b>硬底档</b>＝字形不相撞的极限决定刚杆（六线谱纸色描边可以叠、字距收到刚好不碰）。同一个小节的刚杆由 295 降到 <b>173</b>，一行装两个成为可能。<br>③ <b>行内两端对齐改「按段吃弹簧」</b>：此前是把整个小节<b>等比缩放</b>，于是最紧的那一段（比如两个相邻的中文音节）会跟着整体被压穿，哪怕同小节的吉他段还空着一大截。现在走三级台阶——段内超出舒适刚杆的余量 → 小节两侧留白与拍间隙让到地板 → 舒适刚杆压到硬底，<b>到硬底为止</b>；数学上每一段都不可能被压穿。<br>④ <b>断行 DP 的可行性判据</b>由「自然宽 ≤ 行宽×1.06」改为「<b>刚杆之和 ≤ 行宽</b>」，代价改为按<b>弹簧用量的三次方</b>计（轻微形变几乎不计、接近极限陡增）。固定 6% 容限是拍脑袋的：既不敢让两个能压的小节同行，又拦不住真压不下的组合。<br>⑤ <b>行尾「＋」（pull）由死命令改强偏好</b>：产品那份谱里的 20 个 pull 是在更宽版面下点出来的，换到窄版宽后死守它们会逼出「一行 1 个、下一行 2 个」的锯齿（实测拉伸 σ 0.30、首行只放一个 302px 的小节）。现在能排下就照做（按钮手感不变，其自带的容量守卫仍在），明显更差时允许不照做，σ 降到 0.25；<b>v52.0 的「pull 覆盖 brk」语义原样保留</b>。<br>⑥ <b>宽度手柄 <code>wf</code> 缩窄止步于硬底</b>：此前只缩坐标不动刚杆，<code>wf=0.66</code> 的小节实测简谱净距 −0.32。<br>⑦ <b>歌词字宽口径</b> CJK 1.00em→<b>1.06em</b>：实测渲染出的墨迹宽度在 14~17.6 之间浮动（「我」「怀」「忍」的撇捺越出字身框），按 1.00em 记账这几个字会彼此贴上。<br>⑧ <b>实测结果</b>（同一份真实谱）：四档视口<b>负净距全部归零</b>（172/126/233/264 → 0/0/0/0）；行数 768px <b>32→27</b>、1280px 36→38、手机 36→46（<b>手机行数变多是对的</b>——旧版那 36 行是靠把字压重叠换来的）；1280px 拉伸比标准差 <b>0.382→0.25</b>，每行小节数由 <code>121232121212…</code> 变为 <code>222212111121…</code>。<br>⑨ <b>测试</b>：<code>tv_layout</code> 新增 T10——复刻真实弹唱谱的形制（56 小节、双吉他十六分、2 段歌词、pull/brk/wf 齐全）在桌面/平板/手机三档视口下钉住「三类文字零负净距 + 弹唱段每行 ≥1.6/1.6/1.3 小节」，<b>只复刻形制、不把用户曲谱原文件放进仓库</b>；<code>tv_sign</code> <code>tv_glyphsz</code> <code>tv_grace</code> <code>tv_adds</code> <code>tv_jpspace</code> 五个套件把「font-size=16 找简谱数字」这类<b>字面量选择器</b>随 v60.75 的字号更新（口径变更，不是行为回归）；<code>tv_meaw</code> T9/T10 由「钉死具体分行」改为<b>相对断言</b>——每行容量变大后，旧用例的绝对分法量的是容量而不是它要测的 brk 清理机制。CORE <b>100 套件</b>全绿。</div></li>
+    <li><span class="v">v60.75</span><div><b>中文歌词与简谱数字各放大 1 号，并根治两者的相互挤压与纵向重叠</b>（产品指示）。① <b>字号</b>：歌词 15→<b>16</b>、简谱数字 16→<b>17</b>；同族记号按 17/16 等比跟随——变化音 13.6→<b>14.5</b>、♭♭ 11.6→<b>12.3</b>（左移量 9.3→9.9 / 12.2→13）、和音 14.1→<b>15</b>、增时线 14.5→<b>15.4</b>、歌词标点 13→14。② <b>横向「相互挤压」的根因</b>：两行共用同一套列位置，而列刚杆只按歌词算，简谱数字那一侧只吃一个常数 <code>VOX_MIN</code>；数字放大到 17（实测字宽 10.8）后常数就不够了。现在数字也<b>按半宽入账</b>，列刚杆取「歌词需要」与「数字需要」的<b>大者</b>——谁宽谁说了算。③ <b>纵向「手机端直接重叠」的根因</b>：歌词基线一直写成 <code>常数 25 + 分档 botExtra</code>，而那两档常数（16/10/4 与 5/2）是拍脑袋定的，与实际绘制坐标脱节——减时线画在 <code>voxY+3.4+u×3.2</code>、低音点画在 <code>voxY+5.5+under×3.1+d×4.2</code>，32 分（3 条减时线）＋双低音点的<b>真实墨迹深度是 20.5，而旧档只给 10</b>，歌词顶已经压到距墨迹 <b>0.5px</b>，字号再 +1 就是负的。现改为<b>按真实墨迹深度计算</b>：歌词基线＝简谱行墨迹底 ＋ 净空 7 ＋ 歌词上伸高。实测七种密度档纵向净空由 <b>0.5–7px 参差</b>变为<b>稳定 6.0–6.6px</b>。④ <b>压缩不再压穿刚杆</b>：<code>measureLayout</code> 的超宽压缩与行内两端对齐两处，此前余量扣尽后都会<b>等比压穿</b>（双字音节十六分实测歌词净距 −5px）。现在<b>压到刚杆为止就停</b>，小节/行宽按实际声明——谱线与内容始终等宽（v60.74 钉的不变量不破），只是这一行会略微借用页边距；连「行宽＋页边距」都放不下才等比压最后一档，保证不画出纸面。⑤ <b>如实记一次走错的路</b>：中途试过把 <code>rigid</code> 改从 <code>warps.M</code> 取（那才是真正约束排布的分段刚杆），结果<b>更差</b>——M 之和小于 <code>beatMinSum</code>，rigid 低估 → slack 高估 → 压缩判定「弹簧够」却压穿了，密集档歌词净距由 +3.0 掉到 −1.3。本版先退回偏保守的口径，字距零头由 <code>LYR_GAP</code> 4→5 补；<b>错的其实不是口径而是压缩方式</b>（等比缩放不会优先吃余量），v60.76 把压缩改成按段吃弹簧之后，「分段刚杆之和」才成立并被正式采用。⑥ 新增 <code>tv_layout</code> T9 <b>密度包络</b>：单字音节撑到 <b>24 字/小节</b>、双字撑到 <b>12 字/小节</b>，歌词与简谱净距全为正（真实中文歌一小节至多 8–16 字，余量充足）；越界时的兜底是压缩而非画出纸面。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.74</span><div><b>修 v60.73 引入的版面破相：内容伸出谱线</b>（产品截图：小节跑到谱表外面、两条吉他谱右端不齐）。<b>根因是我自己上一版留下的</b>：v60.73 给行内压缩加了「绝不吃刚杆」的硬兜底，可当<b>单个小节的刚杆本身就宽过整行</b>时（密集十六分逐字词就会这样），压缩被兜底挡住压不动，而 <code>sys.w</code> 仍被置成行宽——于是<b>谱线只画到行宽、内容却伸出去 20px</b>，正是截图里跑出谱表的那一截。现改为两段式：弹簧（各小节余量 w−rigid）够吸收就<b>只压弹簧、刚杆不动</b>；弹簧不够则<b>退回整体等比压缩</b>——宁可字距紧一点，也绝不让内容跑到谱线外面。新增 <code>tv_layout</code> T8 把这条钉成不变量：<b>16 首预设 + 12 组合成密集谱（1–3 条 TAB 轨 × 1–2 条简谱轨 × 三种页宽，含 2/4 变拍号）逐行核对「小节宽之和＝行宽声明值」「列不越出小节宽」</b>——修前实测 <b>36 处违规</b>，修后 0。v60.73 的三项收益全部保留（歌词最小净距 4.38px、DP 断行、密集谱无负净距）。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.73</span><div><b>排版引擎三项返修：歌词刚杆按实测字宽、无词列不再白占歌词档、断行改全局最优</b>（产品报告：「有歌词的音符靠得很近，没有歌词的音符又有多余的地方；手机端吉他谱数字、简谱和歌词都混成一团；每一行的小节分配不合理，有些太挤有些过宽」）。① <b>歌词刚杆由常数改为按该列歌词实测字宽</b>。旧口径 <code>LYR_MIN=18.5</code> 与音节字数无关，两头都错：多字音节（「阳光」实测 30px）也只给 18.5，<b>实测相邻歌词净距只剩 0.31px＝贴死</b>；而没有歌词的简谱列在拍级同样吃这条 18.5，于是<b>全休止小节反而比逐字词小节还宽</b>（实测 4 列休止 269px vs 8 列带词 288px＝每列 67px vs 36px）——这正是产品说的「有词的挤、没词的空」。现按字宽逐列算，字宽口径与渲染同源（CJK 15 / 拉丁 9，末尾标点旁挂不计入）。<b>八分逐字词排满行实测：歌词最小净距 0.31 → 4.38px（14 倍）</b>。② <b>刚杆改「本列半宽 + 下一列半宽 + 净距」</b>——两列的字都是<b>居中</b>绘制，只按本列整宽算，在「窄音节接宽音节」（「啊」接「阳光」）时仍会重叠：这是本版自己的新测试 T7 抓出来的，改口径前实测 <b>24 处负净距、最深 −3.5px</b>。TAB 品位同理按数字半宽相加（双位数半宽 6.7、单位数 3.35，另加纸色描边 2.6），高把位连奏不再粘成一片。③ <b>断行由贪心改为全局最优 DP</b>（Knuth-Plass 思路，代价＝各行拉伸比偏离 1 的平方和）。贪心「每行尽量塞满」的毛病是遇到下一小节特别宽就塞不下，当前行留一大块空白，两端对齐再把这块摊给本行——同一份谱里有的行几乎不拉伸、有的拉伸五成以上。另加 <b>6% 压缩容限</b>：只超 3% 的一对不该被拆开，压缩 3% 肉眼几乎不可见，但拆开会让前一小节被拉伸到 2.4×。<b>实测（真实预设曲谱）：欢乐颂 4 行拉伸 1.41–1.47 → 3 行 0.95–0.97；指弹技法示例 1.41 → 0.98；小星星 8 行 → 7 行。</b>④ <b>压缩绝不吃刚杆</b>：新增每小节的 <code>rigid</code>（各拍刚杆之和）；DP 只在「区间刚杆总和塞得下整行」时才允许压缩式超宽，两端对齐的压缩按各小节<b>余量</b>分摊并以 rigid 兜底——否则压掉的正好是字与字之间那点净距。⑤ 新增 <code>tv_layout</code> <b>7+1 项</b>，对 v60.72 旧文件跑 <b>T1/T2/T4/T6 当场红</b>＝突变实证；T3/T5/T7 是护栏项（旧版在这些构造下本就不红），<b>如实标注不冒充</b>。CORE 99→<b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.72</span><div><b>刻版微调三项：歌词 15px、品位数字字重 500、简谱数字 16 且加粗</b>（产品指定具体数值）。① <b>歌词 14→15</b>：v60.71 定 14 是为了把字距拉开，现按产品指定回到 15。<b>如实报代价</b>——同一份密集谱实测，相邻歌词字净距由 <b>最小 3.8 / 中位 4.8px</b> 回落到 <b>最小 2.8 / 中位 3.8px</b>；相对最初出问题的 15.5 号（1.8 / 3.3px）仍<b>净增 56% / 15%</b>，谱宽照旧 695 未变。若仍觉得挤，最小代价的做法是把刚杆 <code>LYR_MIN</code> 由 18.5 提到 19.5（字距回到约 3.8px，谱面加宽约 2%），一行改动，等指示。标点 12→13、宽度估算 7/14→7.5/15 同步。② <b>简谱数字 15→16 并加粗</b>：加 <code>font-weight=500</code>（此前无 weight＝400）。同族记号按 <b>16/16.5</b> 从 v60.70 原值重算，维持与主音的固有比例：变化音 ♯/♭/× <b>14→13.6</b>、♭♭ <b>12→11.6</b>（左移量 9.6→9.3 / 12.6→12.2），和音 <b>14.5→14.1</b>，增时线 <b>15→14.5</b>。③ <b>品位数字字重 600→500</b>（v60.71 已由 700 减到 600，本版再减一档）。④ <b>测试选择器换判据</b>：16 号现在同时有三种元素——页头 <code>1=C</code>（<code>--font-num</code>）、打板 ×（无 font-family）、简谱主音（<code>--font-ui</code>），只按字号选会串到页头调号。<code>tv_jpspace</code> <code>tv_sign</code> <code>tv_adds</code> <code>tv_grace</code> <code>tv_staff</code> 的主音选择器一律改为「<b>16 号 ＋ --font-ui</b>」双条件；<code>tv_glyphsz</code> 的变化音尺寸与 <code>tv_sign</code> T14 的品位字重同步。<code>tv_glyphsz</code> 第 44 行那个 15 号 × 是 <b>TAB 分解×</b>、不是简谱数字，特意没动。CORE <b>99 套件</b>全绿。</div></li>

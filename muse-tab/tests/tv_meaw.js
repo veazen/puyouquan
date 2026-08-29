@@ -148,31 +148,36 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       return true;
     };
     const rows = () => layoutSystems().map(sy => sy.measures.map(l => l.mi).join(','));
-    const r0 = rows();                                   // 自然 [0,1,2],[3]
-    const a1 = clickBtn('push:0:2'); const r1 = rows();  // → [0,1],[2,3]
-    const a2 = clickBtn('push:0:1'); const r2 = rows();  // → [0],[1,2,3]（m1 旧 brk 清除，剩余合并重排）
-    const staleClean = !song.measures[1].brk;
-    const a3 = clickBtn('pull:0:0'); const r3 = rows();  // + 拉回 → [0,1,...]（nm 旧 brk 一并清）
-    return { r0, a1, r1, a2, r2, staleClean, a3, first3: r3[0] };
+    /* v60.76 断言改为**相对**口径：排版引擎的每行容量随刚杆口径变化（同样宽度现在能多排一个），
+       钉死「自然 [0,1,2],[3]」这种绝对分法量的是容量而不是本用例要测的 brk 清理机制。 */
+    const len0 = () => rows()[0].split(',').length;
+    const r0 = rows(), n0 = len0();
+    const a1 = clickBtn('push:0:');  const r1 = rows(), n1 = len0();   // − 首行末位推到下一行
+    const pushed = song.measures.findIndex(m => m.brk === 1);
+    const a2 = clickBtn('push:0:');  const r2 = rows(), n2 = len0();   // 再推一个：上一次的 brk 应被清掉
+    const staleClean = song.measures.filter(m => m.brk === 1).length === 1 && !song.measures[pushed].brk;
+    const a3 = clickBtn('pull:0:');  const r3 = rows(), n3 = len0();   // + 拉回一个
+    return { r0, a1, r1, a2, r2, staleClean, a3, r3, n0, n1, n2, n3, pushed };
   });
-  T(JSON.stringify(r.r0) === '["0,1,2","3"]' && r.a1 && JSON.stringify(r.r1) === '["0,1","2,3"]'
-    && r.a2 && JSON.stringify(r.r2) === '["0","1,2,3"]' && r.staleClean
-    && r.a3 && r.first3.indexOf('0,1') === 0, 'T9 剩余小节自由重排', JSON.stringify(r));
+  T(r.a1 && r.n1 === r.n0 - 1 && r.a2 && r.n2 === r.n1 - 1 && r.staleClean
+    && r.a3 && r.n3 > r.n2, 'T9 剩余小节自由重排（旧 brk 不残留）', JSON.stringify(r));
 
   // T10 v52.3 拖柄缩窄 → 自然宽度腾出空间后，后续小节自动排入本行（无需手动 +）
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
-    const s = createSong('guitar', { title: 'd', beats: 4, unit: 4, key: 'C', nMea: 3, nTab: 1, nVox: 0, lyr: 0 });
+    /* v60.76 小节数 3→6：内容与 v52.3 原用例一样（八分×8 的六线谱小节），
+       但每行容量变大后 3 个已经一行放得下，len0 直接顶格就测不出「缩窄→多排入」了。 */
+    const s = createSong('guitar', { title: 'd', beats: 4, unit: 4, key: 'C', nMea: 6, nTab: 1, nVox: 0, lyr: 0 });
     const mk8 = (f) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
     s.measures.forEach(m => { m.tabs[0] = [mk8(3), mk8(5), mk8(7), mk8(5), mk8(3), mk8(5), mk8(7), mk8(5)]; });
     loadSong(s); blurSel = true; render();
-    const len0 = layoutSystems()[0].measures.length;      // 密集小节：首行自然放不下全部 3 个
-    song.measures[0].wf = 0.4; song.measures[1].wf = 0.4; render();
+    const len0 = layoutSystems()[0].measures.length;      // 密集小节：首行自然放不下全部 6 个
+    song.measures.forEach(m => { m.wf = 0.4; }); render();
     const len1 = layoutSystems()[0].measures.length;      // 缩窄后自然宽度和变小 → 自动多排入
-    delete song.measures[0].wf; delete song.measures[1].wf; render();
+    song.measures.forEach(m => { delete m.wf; }); render();
     const lenBack = layoutSystems()[0].measures.length;
     return { len0, len1, lenBack };
   });
-  T(r.len0 < 3 && r.len1 > r.len0 && r.lenBack === r.len0, 'T10 缩窄自动排入后续小节', JSON.stringify(r));
+  T(r.len0 < 6 && r.len1 > r.len0 && r.lenBack === r.len0, 'T10 缩窄自动排入后续小节', JSON.stringify(r));
 
   // T11 v52.3 「+」容量守卫：塞不下时按钮置灰（sysact 空）、点击守卫拒绝、pull 不落标志
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
