@@ -294,6 +294,50 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     'T10 真实弹唱谱形制（56 小节·双吉他十六分·2 段词·pull/brk/wf 齐全）：桌面/平板/手机三档视口下三类文字零负净距，弹唱段每行 ≥1.6/1.6/1.3 小节',
     JSON.stringify(r));
 
+  /* T11 × 记号不压小节线（产品截图：分解和弦最后一个 × 骑在小节线上）。
+     两个根因都钉住：① × 的字形比品位数字宽得多（15 号墨迹 9.0 / 打板 16 号 10.0，
+     而品位 10.5 号只有 6.0），过去列刚杆一律按品位数字给；② 音符画在「布局位置＋NOTE_OFF(10)」，
+     这 10px 全由右内边距买单，右边距压到 6 时末列到小节线只剩 3.3px。
+     改前实测：产品那份真实谱 23 处 × 与小节线相交。 */
+  r = await pg.evaluate(HELP + `(()=>{
+    const run=(kind)=>{
+      loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:12,nTab:1,nVox:0,lyr:0}));
+      song.measures.forEach(m=>{
+        m.tabs[0]=Array.from({length:16},(_,i)=>{
+          const c={dur:16,dotted:false,chord:'',strum:'',tech:'',notes:[{s:2+(i%3),f:0,x:true}]};
+          if(kind==='perc'){ c.perc='bass'; c.notes=[]; }
+          return c;
+        });
+      });
+      blurSel=true; render();
+      const svg=document.getElementById('score');
+      /* 小节线＝线粗 1 的竖线；符干与音符同 x，按设计如此，排除 */
+      const vl=[...svg.querySelectorAll('line')].map(l=>({x:+l.getAttribute('x1'),x2:+l.getAttribute('x2'),
+        y1:+l.getAttribute('y1'),y2:+l.getAttribute('y2'),sw:+(l.getAttribute('stroke-width')||1)}))
+        .filter(l=>Math.abs(l.x-l.x2)<0.3 && Math.abs(l.y2-l.y1)>10 && l.sw>=0.95 && l.sw<=1.05);
+      const xs=[...svg.querySelectorAll('text')].filter(t=>t.textContent==='×').map(t=>{
+        const q=t.getBBox();
+        return {fs:+t.getAttribute('font-size'), cx:+t.getAttribute('x'),
+          l:q.x, r:q.x+q.width, top:q.y, bot:q.y+q.height};});
+      let cross=0, minBar=99;
+      xs.forEach(e=>vl.forEach(l=>{
+        if(l.y2<e.top-1 || l.y1>e.bot+1) return;
+        if(Math.abs(l.x-e.cx)<0.4) return;
+        const d = l.x<e.l? e.l-l.x : (l.x>e.r? l.x-e.r : -1);
+        if(d<minBar) minBar=+d.toFixed(2);
+        if(d<0) cross++;
+      }));
+      /* 相邻 × 之间的净距（同一根弦上） */
+      const g=__gaps(e=>e.t==='×');
+      return {n:xs.length, 压线:cross, 离线最近:xs.length&&minBar<99? minBar:null,
+        相邻最小净距:g.length? +Math.min(...g).toFixed(2):null, 负:g.filter(v=>v<0).length};
+    };
+    return {分解x:run('x'), 打板x:run('perc')};
+  })()`);
+  T(r.分解x.压线===0 && r.打板x.压线===0 && r.分解x.负===0 && r.打板x.负===0
+    && r.分解x.离线最近 >= 1.5 && r.打板x.离线最近 >= 1.5,
+    'T11 × 记号（分解 15 号 / 打板 16 号）：十六分满小节下不压小节线、相邻不重叠', JSON.stringify(r));
+
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();
