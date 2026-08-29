@@ -338,6 +338,115 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     && r.分解x.离线最近 >= 1.5 && r.打板x.离线最近 >= 1.5,
     'T11 × 记号（分解 15 号 / 打板 16 号）：十六分满小节下不压小节线、相邻不重叠', JSON.stringify(r));
 
+  /* T12 六线谱**前**倚音画在主音左边，占位却一直记在右边（产品截图：双倚音压住前一列品位数字）。
+     改前实测：产品那份真实谱在 834px 视口下最小净距 −0.46（重叠），1280px 只剩 1.91。 */
+  r = await pg.evaluate(HELP + `(()=>{
+    const run=(nG,f0)=>{
+      loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:6,nTab:1,nVox:0,lyr:0}));
+      song.measures.forEach(m=>{
+        m.tabs[0]=Array.from({length:16},(_,i)=>{
+          const c={dur:16,dotted:false,chord:'',strum:'',tech:'',notes:[{s:3,f:i%2?12:11}]};
+          if(i%4===1) c.grace={notes:Array.from({length:nG},(_,k)=>({s:3,f:f0+k})),dur:16,tks:Array.from({length:nG},()=>'h')};
+          return c;
+        });
+      });
+      blurSel=true; render();
+      const bb=e=>{const q=e.getBBox(); return {l:q.x,r:q.x+q.width,t:q.y,b:q.y+q.height};};
+      const T2=[...document.querySelectorAll('#score text')];
+      const gr=T2.filter(t=>+t.getAttribute('font-size')===8 && t.getAttribute('font-weight')==='700').map(bb);
+      const fr=T2.filter(t=>+t.getAttribute('font-size')===10.5).map(bb);
+      let worst=99, n=0;
+      gr.forEach(g=>fr.forEach(f=>{ if(f.b<g.t-2||f.t>g.b+2||f.r>g.l+1) return;
+        const d=g.l-f.r; if(d<worst) worst=d; if(d<0) n++; }));
+      return {n倚音:gr.length, 最小净距:worst===99?null:+worst.toFixed(2), 负:n};
+    };
+    return {单倚音:run(1,9), 双倚音:run(2,9), 双倚音双位数:run(2,11)};
+  })()`);
+  T(Object.values(r).every(v=>v.负===0 && v.最小净距 >= 1.5),
+    'T12 六线谱前倚音（单/双/双位数）与前一列品位数字不重叠', JSON.stringify(r));
+
+  /* T13 反复结束/终止/段落线比普通小节线宽得多（反复结束的圆点左缘在 bx−11.3），
+     过去右内边距不加宽，末列音符/扫弦箭头就压在记号上（产品截图）。
+     改前实测：产品那份真实谱最小净距 0.36。 */
+  r = await pg.evaluate(HELP + `(()=>{
+    loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:8,nTab:1,nVox:0,lyr:0}));
+    song.measures.forEach((m,mi)=>{
+      m.tabs[0]=Array.from({length:16},(_,i)=>({dur:16,dotted:false,chord:'',strum:'',tech:'',
+        notes:[{s:2+(i%3),f:i%2?13:11}]}));
+      if(mi===1||mi===5) m.repeatEnd=true;
+      if(mi===2||mi===6) m.repeatStart=true;
+      if(mi===3) m.sectionBar=true;
+    });
+    song.measures[7].finalBar=true;
+    /* 另加一小节扫弦（产品截图正是扫弦小节的末音压反复记号） */
+    song.measures[5].tabs[0]=Array.from({length:8},(_,i)=>({dur:8,dotted:false,chord:i?'':'Am',
+      strum:i%2?'u':'d',tech:'',notes:[{s:5,f:0},{s:4,f:2},{s:3,f:2},{s:2,f:1},{s:1,f:0}]}));
+    blurSel=true; render();
+    const svg=document.getElementById('score');
+    const bb=e=>{const q=e.getBBox(); return {l:q.x,r:q.x+q.width,t:q.y,b:q.y+q.height};};
+    const dots=[...svg.querySelectorAll('circle')].filter(c=>+c.getAttribute('r')===1.8)
+      .map(c=>({x:+c.getAttribute('cx'), y:+c.getAttribute('cy')}));
+    const thick=[...svg.querySelectorAll('rect')].filter(x=>{const w=+x.getAttribute('width'); return w===2.4||w===2.6;})
+      .map(x=>({l:+x.getAttribute('x'), r:+x.getAttribute('x')+ +x.getAttribute('width'),
+        t:+x.getAttribute('y'), b:+x.getAttribute('y')+ +x.getAttribute('height')}));
+    const arrows=[...svg.querySelectorAll('path')].filter(x=>
+      +(x.getAttribute('stroke-width')||0)===1.1 && /^M [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+ L [\\d.-]+ [\\d.-]+$/.test(x.getAttribute('d')||'')).map(bb);
+    const digits=[...svg.querySelectorAll('text')].filter(t=>+t.getAttribute('font-size')===10.5).map(bb);
+    const ink=digits.concat(arrows);
+    let worst=99, n=0;
+    const chk=(l,r2,t,b2)=>ink.forEach(k=>{ if(k.b<t-1||k.t>b2+1) return;
+      const d = k.r<=l? l-k.r : (k.l>=r2? k.l-r2 : -1);
+      if(d<worst) worst=d; if(d<1) n++; });
+    dots.forEach(d=>chk(d.x-1.8, d.x+1.8, d.y-3, d.y+3));
+    thick.forEach(t=>chk(t.l, t.r, t.t, t.b));
+    return {反复圆点:dots.length, 粗线:thick.length, 箭头:arrows.length,
+      最小净距:worst===99?null:+worst.toFixed(2), 过近:n};
+  })()`);
+  T(r.反复圆点 >= 4 && r.粗线 >= 3 && r.箭头 >= 4 && r.过近 === 0 && r.最小净距 >= 1.5,
+    'T13 反复/终止/段落记号：末列品位数字与扫弦箭头都不压在记号上', JSON.stringify(r));
+
+  /* T14 段落房子记号与行内和弦图重叠（产品截图）。根因：让位判定 hasDiag 只看六线谱首轨，
+     而**简谱声部的和弦**同样画进这条图带——「和弦记在简谱行」的谱子整条让位机制不触发。
+     改前实测：产品那份真实谱 横线 12 处穿过图格、房子序号 4 处压在图格上。 */
+  r = await pg.evaluate(HELP + `(()=>{
+    const run=(where)=>{
+      loadSong(createSong('tanchang',{beats:4,unit:4,key:'C',nMea:6,nTab:1,nVox:1,lyr:1}));
+      diagMode='inline';
+      song.measures.forEach((m,mi)=>{
+        m.tabs[0]=Array.from({length:8},(_,i)=>({dur:8,dotted:false,strum:'',tech:'',
+          chord:(where==='tab'&&i===0)?['Am','Dm','G7','C','F','E'][mi]:'', notes:[{s:3,f:2}]}));
+        m.voxes[0]=Array.from({length:8},(_,i)=>({dur:8,dotted:false,deg:1+(i%7),acc:'',oct:0,tie:false,
+          lyrics:['啊'], chord:(where==='vox'&&i===0)?['Am','Dm','G7','C','F','E'][mi]:''}));
+        if(mi===2) m.volta=1;
+        if(mi===4) m.volta=2;
+      });
+      blurSel=true; render();
+      const svg=document.getElementById('score');
+      const grid=[...svg.querySelectorAll('line')].filter(l=>+(l.getAttribute('stroke-width')||1)===0.7)
+        .map(l=>({x:+l.getAttribute('x1'), lo:Math.min(+l.getAttribute('y1'),+l.getAttribute('y2')),
+          hi:Math.max(+l.getAttribute('y1'),+l.getAttribute('y2'))}));
+      const nums=[...svg.querySelectorAll('text')].filter(t=>/^\\d+\\.$/.test(t.textContent||'')
+        && t.getAttribute('font-size')==='9' && t.getAttribute('font-weight')==='700')
+        .map(t=>{const q=t.getBBox(); return {l:q.x,r:q.x+q.width,t:q.y,b:q.y+q.height};});
+      const hbars=[...svg.querySelectorAll('line')].filter(l=>+(l.getAttribute('stroke-width')||1)===1
+        && Math.abs(+l.getAttribute('y1') - +l.getAttribute('y2'))<0.3
+        && Math.abs(+l.getAttribute('x2') - +l.getAttribute('x1'))>30)
+        .map(l=>({x1:Math.min(+l.getAttribute('x1'),+l.getAttribute('x2')),
+          x2:Math.max(+l.getAttribute('x1'),+l.getAttribute('x2')), y:+l.getAttribute('y1')}));
+      let hit=0;
+      nums.forEach(v=>grid.forEach(g=>{ if(g.x<v.l-2||g.x>v.r+2) return;
+        if(g.hi<v.t-1||g.lo>v.b+1) return; hit++; }));
+      hbars.forEach(h=>grid.forEach(g=>{ if(g.x<h.x1-1||g.x>h.x2+1) return;
+        if(h.y>g.lo-1 && h.y<g.hi+1) hit++; }));
+      return {图格竖线:grid.length, 房子:nums.length, 相交:hit};
+    };
+    return {和弦在六线谱:run('tab'), 和弦在简谱:run('vox')};
+  })()`);
+  T(r.和弦在六线谱.图格竖线 > 0 && r.和弦在简谱.图格竖线 > 0
+    && r.和弦在六线谱.房子 === 2 && r.和弦在简谱.房子 === 2
+    && r.和弦在六线谱.相交 === 0 && r.和弦在简谱.相交 === 0,
+    'T14 段落房子记号让开行内和弦图（和弦记在六线谱或简谱行都算）', JSON.stringify(r));
+
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);
   await b.close();

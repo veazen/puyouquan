@@ -5115,12 +5115,27 @@ function normGrace(g){
    此前两边各写一个字面量 7（渲染 STEPG=7、排版 8+7*n），改一边就会走偏。
    带技巧字母时步距放到 13px：11 号斜体字母宽约 6px，7px 步距下字母会直接压住
    下一个倚音数字（实测双倚音 5h7：字母 h 落在 x=106.8，数字 7 在 x=107）。 */
-function tabGraceStep(g){ return (g && g.tk && ((g.notes||[]).length>1))? 13 : 7; }
+/* v60.78 TAB 两音技法的显示字母——普通音符与倚音**共用这一张表**。
+   此前倚音直接把数据值当字母画，于是滑音显示成「sl」，而普通音符显示的是「S」，
+   同一份谱里两种写法（产品指示：改成 S，与普通音符一致）。 */
+const TAB_TECH_SYM = {sl:'S', h:'h', p:'p', tp:'T'};
+function tabTechSym(t){ return t? (TAB_TECH_SYM[t] || t) : ''; }
+function tabGraceStep(g){
+  if(!g || (g.notes||[]).length<=1) return 7;
+  /* 归一化过的倚音看逐段 tks；未归一化的原始对象（外部直接调用）回退看组级 tk */
+  return (Array.isArray(g.tks)? g.tks.some(Boolean) : !!g.tk)? 13 : 7;
+}
 function tabGraceW(g){ const n=(g && g.notes||[]).length; return n? 8 + tabGraceStep(g)*n : 0; }
 function normTabGrace(g){
   if(g==null) return null;
-  return {notes:(g.notes||[]).map(n=>({s:Math.max(1,n.s||1), f:Math.max(0,n.f||0)})).slice(0,3),
-    dur:g.dur||8, tk:g.tk||''};
+  const notes=(g.notes||[]).map(n=>({s:Math.max(1,n.s||1), f:Math.max(0,n.f||0)})).slice(0,3);
+  /* v60.78 逐段技巧 tks（产品指示：双倚音要能分别设置击弦/勾弦，也要能一体设置）。
+     一组 n 个倚音恰好有 n 段过渡——前倚音 g0→g1→…→主音，后倚音 主音→g0→…→g(n−1)——
+     所以 tks 长度＝倚音个数。旧数据只有组级 tk：整组回退成同一个字母，观感与从前完全一致
+     （字段只增不改，红线安全）。 */
+  const raw = Array.isArray(g.tks)? g.tks : null;
+  const tks = notes.map((_,i)=>{ const v = raw? raw[i] : g.tk; return (v==='h'||v==='p'||v==='sl')? v : ''; });
+  return {notes, dur:g.dur||8, tk:g.tk||'', tks};
 }
 /* v53.3 简谱和音纵列总高（像素）：每音槽位=数字 13.5 + 低八度点让位 + 高八度点让位；
    渲染堆叠与和弦标注避让共用同一算法，保证不重叠 */
@@ -5558,8 +5573,7 @@ function measureLayout(mea){
       /* 右侧附加占位（后倚音、行内换谱号）——只长在列的右边，记成本段的加项 */
       let add = 0;
       if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length;
-      if(!isVox&&c.grace)  add += tabGraceW(normTabGrace(c.grace));     /* v52.7 TAB 倚音占位；v60.69 共用 */
-      if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));
+      if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));    /* v52.7 TAB 倚音占位；v60.69 共用 */
       if(isVox&&c.clef)   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
       /* v60.52 左伸元素净空（用户报告：简谱音符不避开升降号与双倚音导致重叠）：
          变化音（画在 nx−10.5/−13.5）与**前**倚音组（gxc=nx−10−gW−(acc?9:0)，另含减时线左伸 3.6）
@@ -5569,6 +5583,17 @@ function measureLayout(mea){
         if(c.acc) leftW = c.acc.length>1? 20 : 14;                      // ♭♭ 双字符左移更多
         if(c.grace){ const gn=normGrace(c.grace).notes.length;
           leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)); }     // 组宽+减时线左伸+让位变化音
+      }else if(c.grace){
+        /* v60.78 TAB **前**倚音也长在主音左侧（渲染 gx0 = nx−13−(n−1)×步距），
+           此前却和后倚音一样加进 add＝保护列的**右**侧——方向反了，于是双倚音
+           必然压住前一列的品位数字（产品截图）。现按渲染几何登记为左伸：
+           13（组到主音的间距）+ 组宽 + 最左那个 8 号小数字的半宽 2.4 + 纸底描边 1。 */
+        const gT = normTabGrace(c.grace);
+        /* 最左那个小数字的半宽：8 号字实测单位数 4.8 / 双位数 9.5，再加纸底描边 1/侧。
+           不按最宽的那个算——只有第 0 个决定组的左缘（后面的往主音方向排）。 */
+        const g0 = gT.notes[0] || {f:0};
+        leftW = 13 + (gT.notes.length-1)*tabGraceStep(gT)
+              + (String(g0.f).length>=2? 4.75 : 2.4) + 1;
       }
       /* v60.76 半宽分左右两侧：左侧取「字形半宽」与「左伸元素外缘」的**大者**（变化音/前倚音
          都画在主音左边，它们的外缘就是本列左侧真正的占位），右侧＝字形半宽 + 右侧附加占位。
@@ -5801,7 +5826,18 @@ function measureLayout(mea){
   }
   /* v60.52 小节首列的左伸：可用净空只有 pad+NOTE_OFF（21px），双倚音（左伸 20.1）几乎贴上
      小节线——不够的部分补进本小节左边距（留 3px 最小间隙） */
-  const padL0 = pad + Math.max(0, beatHeadLeft[0]-(pad+NOTE_OFF-3));
+  /* v60.78 小节两端「记号型小节线」的墨迹宽度（普通小节线只有一条 1px 竖线，这些宽得多）：
+     反复开始＝粗线 mx+1..3.4、细线 mx+6、圆点 cx=mx+10.5 r1.8 → 右缘 mx+12.3；
+     反复结束＝圆点 cx=bx−9.5 r1.8 → 左缘 bx−11.3、细线 bx−5、粗线 bx−2.4；
+     终止线＝细线 bx−5.5 起；段落双细线＝bx−4.5 起。
+     这段墨迹过去完全没进排版，末列音符/扫弦箭头就压在反复记号上（产品截图）。 */
+  const barInkR = mea.repeatEnd? 11.3
+    : (mea.finalBar || myIdx===song.measures.length-1)? 5.5
+    : mea.sectionBar? 4.5 : 0;
+  const barInkL = mea.repeatStart? 12.3 : 0;
+  /* v60.52 小节首列的左伸：可用净空只有 pad+NOTE_OFF（21px），双倚音（左伸 20.1）几乎贴上
+     小节线——不够的部分补进本小节左边距（留 3px 最小间隙） */
+  const padL0 = pad + Math.max(0, beatHeadLeft[0]-(pad+NOTE_OFF-3)) + barInkL;
   /* v60.76 小节两侧留白与拍间隙也是**弹簧**，不是固定值：它们是全谱里最该先让步的空白。
      此前它们被算进「固定部分」永不参与压缩，一个小节因此白白多占 20~30px，
      一行本来装得下两个小节的地方只装得下一个。压缩时按下方 resize() 的第二级让到地板。 */
@@ -5810,8 +5846,11 @@ function measureLayout(mea){
      于是这 10px 全部由**右**边距买单：末列到小节线的净空 ＝ padR + 末段刚杆 − NOTE_OFF。
      padR 压到 6 时这个净空只剩 3.3px（实测），比 × 的墨迹半宽 4.5 还小，字就骑在小节线上。
      把右边距的地板钉在 NOTE_OFF，末列净空就恒等于末段刚杆，与列间口径一致。 */
-  const padLFlr = Math.max(PAD_FLR, padL0-(pad-PAD_FLR)), padRFlr = Math.max(PAD_FLR, NOTE_OFF);
-  let padL = padL0, padR = pad, bGap = BEAT_GAP;
+  /* v60.78 记号型小节线的墨迹宽度整段加进右边距（左边距已并进 padL0）：
+     这样「末列字形中心 → 记号左缘」的净空恒等于末段刚杆，与列间口径一致。 */
+  const padLFlr = Math.max(PAD_FLR + barInkL, padL0-(pad-PAD_FLR));
+  const padRFlr = Math.max(PAD_FLR, NOTE_OFF) + barInkR;
+  let padL = padL0, padR = pad + barInkR, bGap = BEAT_GAP;
   const fixedOf = (l,r,g)=>l+r+g*Math.max(0,beats-1)+tsLead;
   let beatStart=[];
   const mkStart = ()=>{ beatStart=[]; let acc=padL+tsLead;
@@ -6123,7 +6162,16 @@ function systemExtras(sys){
      联排（tabStaff）记号带在五线谱↔TAB 之间、不与图带相交，不加 */
   let diagExtra=0;
   if(diagMode==='inline' && song.tabVoices.length && !song.tabStaff){
-    const hasDiag = sys.measures.some(lm=> ((song.measures[lm.mi].tabs||[])[0]||[]).some(c=>c.chord));
+    /* v60.78 行内和弦图不只由六线谱首轨产生——**简谱声部的和弦**（col.chord / col.chords 拍位和弦）
+       同样画进这条图带（见 8263 行）。此前 hasDiag 只看 tabs[0]，于是「和弦记在简谱行」的谱子
+       整条让位机制不触发，房子记号照旧画在图里（产品截图：段落括线穿过和弦图，实测
+       横线 6 处穿过图格、序号与图格底重叠 5px）。 */
+    const hasDiag = sys.measures.some(lm=>{
+      const m = song.measures[lm.mi];
+      return ((m.tabs||[])[0]||[]).some(c=>c.chord)
+        || (m.voxes||[]).some(cols=>(cols||[]).some(c=>
+             c.chord || (c.chords||[]).some(x=>x && x.chord)));
+    });
     const hasMark = sys.measures.some(lm=>{ const m=song.measures[lm.mi];
       return m.volta || m.segno || m.coda || m.label || m.keyTo; });
     if(hasDiag && hasMark) diagExtra=16;
@@ -7534,8 +7582,7 @@ function render(){
               /* v50.4 和弦滑音（同列多音符一起滑）只标一次：S 字母与弧线同样只挂最上方
                  （弦号最小=谱面最上）的滑音音符，其余弦只画各自的斜杠 */
               if(!(n.tech==='sl' && col.notes.some(m=>m!==n && m.tech==='sl' && m.s<n.s))){
-                const SYM={sl:'S',h:'h',p:'p',tp:'T'};
-                const sym=SYM[n.tech]||n.tech;
+                const sym=tabTechSym(n.tech);   /* v60.78 与倚音共用 TAB_TECH_SYM，滑音一律 S */
                 const g=slurGeo(n);
                 if(g && ['sl','h','p','tp'].includes(n.tech)){
                   /* v57.8 两音技法字母跟弧：置于短弧弧顶上方（教材式），纸底描边防压弦线/邻行元素 */
@@ -7833,7 +7880,7 @@ function render(){
             });
             /* v52.8 产品拍板：TAB 行倚音不画斜杠（GP 同款——斜杠仅保留在五线谱行）；
                slY 仅作点击热区上缘预留 */
-            const slY = gyTop-6.5 - (g.tk? 8 : 0);   /* v60.58 技巧字母在弧顶上方，热区随之上扩（v60.60 字号放大→再扩） */
+            const slY = gyTop-6.5 - (g.tks.some(Boolean)? 8 : 0);   /* v60.58 技巧字母在弧顶上方，热区随之上扩（v60.60 字号放大→再扩） */
             /* 小连音弧：v60.69 起改为**逐音相连的链**（产品指示「双倚音支持击勾弦技巧」）。
                此前无论几个倚音都只画「倚音组 ↔ 主音」一条弧、一个字母——
                双倚音写 5h7h9 时只出现一个 h，而且它落在弧的中点、正压住第二个倚音数字
@@ -7850,13 +7897,16 @@ function render(){
                 const ax = A.x + (A.main? 4.5 : 3), bx = B.x - (B.main? 4.5 : 3);
                 const top = Math.min(A.y, B.y) - 9;
                 p.push(tieSVG(ax, A.y-4, bx, B.y-4, top, 1.1));
-                /* v60.58 技巧字母标在弧顶（吉他惯例 h/p/sl）；纸底描边防压弦线。
-                   v60.60 与普通两音技法字母同款：11px / 600 / 描边 2.4。 */
-                if(g.tk)
-                  p.push(`<text x="${((ax+bx)/2).toFixed(1)}" y="${(top-2).toFixed(1)}" font-size="11" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.4" stroke-linejoin="round" fill="var(--ink)">${g.tk}</text>`);
+                /* v60.58 技巧字母标在弧顶（吉他惯例 h/p/S）；纸底描边防压弦线。
+                   v60.60 与普通两音技法字母同款：11px / 600 / 描边 2.4。
+                   v60.78 逐段取 tks[q]（双倚音可一段击弦一段勾弦），字母走与普通音符同一张表
+                   （滑音显示 S，不再是数据里的 sl）。 */
+                const symQ = tabTechSym(g.tks[q]);
+                if(symQ)
+                  p.push(`<text x="${((ax+bx)/2).toFixed(1)}" y="${(top-2).toFixed(1)}" font-size="11" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.4" stroke-linejoin="round" fill="var(--ink)">${symQ}</text>`);
               }
             }
-            p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值/技巧 h·p·sl，最多3音）</title></rect>`);
+            p.push(`<rect x="${(gx0-7).toFixed(1)}" y="${(slY-6).toFixed(1)}" width="${gW+14}" height="${(gyBot+7-(slY-6)).toFixed(1)}" fill="transparent" data-tabgrace="${lm.mi}:${ci}:${vi}:${pre?'pre':'post'}" style="cursor:pointer"><title>点击编辑倚音（弦位/品位/时值/技巧 h·p·S，可逐段分别设，最多3音）</title></rect>`);
           });
           const hasEvt = col.notes.length || col.strum;
           /* v57.4 二分/全音符增时线（用户反馈：TAB 二分音符只有一根符干、与四分无区别看不出延长）：
@@ -12536,9 +12586,26 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
       <div class="row" style="margin-top:5px">${g.notes.length<3?`<button data-ga="1">＋加音符</button>`:''}</div>
       <div class="t" style="margin-top:5px">时值（组内共用）</div>
       <div class="row">${[[4,'4分'],[8,'8分'],[16,'16分'],[32,'32分']].map(([d,l])=>`<button data-gt="${d}" class="${g.dur===d?'on':''}">${l}</button>`).join('')}</div>
-      <div class="t" style="margin-top:5px">技巧（标在倚音↔主音的小连音弧上，吉他惯例；纯记谱不改播放）</div>
-      <div class="row">${[['','无'],['h','击弦 h'],['p','勾弦 p'],['sl','滑音 sl']].map(([k,l])=>`<button data-gk="${k}" class="${(g.tk||'')===k?'on':''}">${l}</button>`).join('')}
-        <button data-gx="1" style="margin-left:12px">删除倚音</button></div>`;
+      <div class="t" style="margin-top:5px">技巧（标在小连音弧上，吉他惯例；纯记谱不改播放）</div>
+      ${(()=>{
+        /* v60.78 逐段设置（产品指示「双倚音要支持增加勾击弦一体或者可以单独设置勾击弦」）：
+           n 个倚音恰好有 n 段过渡——前倚音 倚1→倚2→…→主音，后倚音 主音→倚1→…；
+           先给一排「整组一致」的快捷键，再逐段各给一排。单音倚音只有一段，不重复显示。 */
+        const legName = q=>{
+          const nm = i=>'倚'+(i+1);
+          return kind==='pre'? (q<g.notes.length-1? nm(q)+'→'+nm(q+1) : nm(q)+'→主音')
+                             : (q===0? '主音→'+nm(0) : nm(q-1)+'→'+nm(q));
+        };
+        const btns = (attr, cur)=>[['','无'],['h','击弦 h'],['p','勾弦 p'],['sl','滑音 S']]
+          .map(([k,l])=>`<button data-${attr}="${k}" class="${cur===k?'on':''}">${l}</button>`).join('');
+        const uni = g.tks.every(v=>v===g.tks[0])? g.tks[0] : null;
+        let html = `<div class="row">${btns('gk', uni)}</div>`;
+        if(g.notes.length>1)
+          html += g.tks.map((v,q)=>`<div class="row" style="margin-top:3px">
+            <span style="font-size:12px;min-width:64px">${legName(q)}</span>${btns('gk'+q, v)}</div>`).join('');
+        return html;
+      })()}
+      <div class="row" style="margin-top:6px"><button data-gx="1">删除倚音</button></div>`;
   };
   rebuild();
   document.body.appendChild(div);
@@ -12547,17 +12614,23 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
           gp=ev.target.closest('[data-gp]'), gm=ev.target.closest('[data-gm]'),
           ga=ev.target.closest('[data-ga]'), gr=ev.target.closest('[data-gr]'),
           gk=ev.target.closest('[data-gk]'), gx=ev.target.closest('[data-gx]');
+    /* v60.78 逐段技巧按钮：data-gk0 / data-gk1 / data-gk2（gk 无后缀＝整组一致） */
+    let gkQ=null;
+    for(let q=0;q<3;q++){ const e2=ev.target.closest('[data-gk'+q+']'); if(e2){ gkQ={q, v:e2.dataset['gk'+q]}; break; } }
     if(gx){ mutate(()=>{ delete col[key]; }); closePop(); return; }
-    if(!gs && !gt && !gp && !gm && !ga && !gr && !gk) return;
+    if(!gs && !gt && !gp && !gm && !ga && !gr && !gk && !gkQ) return;
     mutate(()=>{
       const g=normTabGrace(col[key]);
       if(gs){ const [gi,s2]=gs.dataset.gs.split(':').map(Number); g.notes[gi].s=s2; }
       if(gp){ const gi=+gp.dataset.gp; g.notes[gi].f=Math.min(fretMaxOf(), g.notes[gi].f+1); }
       if(gm){ const gi=+gm.dataset.gm; g.notes[gi].f=Math.max(0, g.notes[gi].f-1); }
-      if(ga && g.notes.length<3) g.notes.push({s:g.notes[g.notes.length-1].s, f:g.notes[g.notes.length-1].f});
-      if(gr && g.notes.length>1) g.notes.splice(+gr.dataset.gr,1);
+      if(ga && g.notes.length<3){ g.notes.push({s:g.notes[g.notes.length-1].s, f:g.notes[g.notes.length-1].f});
+        g.tks.push(g.tks[g.tks.length-1]||''); }
+      if(gr && g.notes.length>1){ const gi=+gr.dataset.gr; g.notes.splice(gi,1); g.tks.splice(gi,1); }
       if(gt) g.dur=+gt.dataset.gt;
-      if(gk) g.tk=gk.dataset.gk;          /* v60.58 倚音技巧 */
+      if(gk) g.tks = g.notes.map(()=>gk.dataset.gk);        /* v60.58 倚音技巧；v60.78 整组一致 */
+      if(gkQ && gkQ.q < g.tks.length) g.tks[gkQ.q]=gkQ.v;   /* v60.78 逐段各设 */
+      g.tk = g.tks[0]||'';                                  /* 组级字段保留＝首段值（老版本读得懂） */
       col[key]=g;
     });
     rebuild();
@@ -13067,7 +13140,10 @@ function applyTabGrace(kind){
         const c2=curCol(); if(!c2) return;
         if(tv===''){ delete c2[key]; return; }
         const s0 = (c2.notes.some(n=>n.s===sel.si)? sel.si : c2.notes[0].s);
-        c2[key]={notes:fs.map(f=>({s:s0, f})), dur:(prevG&&prevG.dur)||8, tk:(prevG&&prevG.tk)||''};
+        /* v60.78 逐段技巧沿用原有设置（长度随音数对齐，多出的段沿用最后一段） */
+        const oldT = (prevG && prevG.tks) || [];
+        c2[key]={notes:fs.map(f=>({s:s0, f})), dur:(prevG&&prevG.dur)||8,
+          tk:(prevG&&prevG.tk)||'', tks:fs.map((_,i)=>oldT[i] || oldT[oldT.length-1] || '')};
       });
       toast(tv? ('已设置'+(kind==='pre'?'前':'后')+'倚音 '+fs.join(' ')+(fs.length>1?'（'+fs.length+'音）':'')+'——点谱面倚音组可改弦位/时值/技巧')
               : '已清除倚音');
@@ -21986,7 +22062,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.77';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.78';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22009,6 +22085,7 @@ const APP_VER='v60.77';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.78</span><div><b>六线谱记号五项返修</b>（产品截图逐条）。<br>① <b>双倚音压住前一列的品位数字</b>：TAB 的<b>前</b>倚音画在主音<b>左边</b>（<code>gx0 = nx − 13 − 组宽</code>），可它的占位一直和后倚音一样加在列的<b>右</b>侧——方向反了，前一列压根不知道左边有一组小数字要落脚。现按渲染几何登记为左伸（13 + 组宽 + 最左那个 8 号小数字的半宽，双位数品位另算）。实测产品那份真实谱：834px 视口最小净距 <b>−0.46（重叠）→ 2.78</b>、1280px <b>1.91 → 3.12</b>；技法字母离前一列 <b>1.7~3.9 → 7.7~9.6</b>。<br>② <b>双倚音的击弦/勾弦可以分别设置</b>（产品指示「一体或者单独设置」）：一组 n 个倚音恰好有 n 段过渡——前倚音 倚1→倚2→…→主音，后倚音 主音→倚1→…——新增逐段技巧 <code>tks</code>。弹窗里先给一排「整组一致」的快捷键，再逐段各给一排（标出「倚1→倚2」「倚2→主音」这样的段名）；谱面每段各画各的字母。旧数据只有组级 <code>tk</code>，整组回退成同一个字母，观感与从前完全一致（字段只增不改，红线安全）。<br>③ <b>倚音滑音字母 sl 改 S</b>（产品指示「和普通音符一致」）：普通两音技法本来就有一张 <code>{sl:'S', h:'h', p:'p', tp:'T'}</code> 的显示表，而倚音是直接把<b>数据值</b>当字母画出来的，于是同一份谱里一处写 S、一处写 sl。现在两边共用同一张表 <code>TAB_TECH_SYM</code>（数据仍存 <code>sl</code>，只改显示）。<br>④ <b>扫弦小节最后一个音符压在反复记号上</b>：反复结束记号的墨迹从 <code>bx−11.3</code>（圆点左缘）就开始了，而普通小节线只有一条 1px 竖线——这段宽度过去完全没进排版，右内边距一视同仁，末列音符/扫弦箭头自然骑上去。现在把「记号型小节线」的墨迹宽度整段加进两侧边距（反复开始 12.3 / 反复结束 11.3 / 终止 5.5 / 段落双线 4.5），末列字形到记号左缘的净空恒等于末段刚杆，与列间口径一致。实测真实谱最小净距 <b>0.36 → 4.32</b>。<br>⑤ <b>段落房子记号与和弦图重叠</b>：v56.4 本来就有「本行同时有和弦图与段落记号 → 图带加高 16px 把记号带让到图下方」的机制，可它的判定 <code>hasDiag</code> <b>只看六线谱首轨</b>——而<b>简谱声部的和弦</b>（<code>col.chord</code> / 拍位和弦 <code>col.chords</code>）同样画进这条图带。产品这份谱的和弦正是记在简谱行的，于是整条让位机制根本没触发。实测：房子横线 <b>12 处穿过图格</b>、序号 <b>4 处压在图格上</b> → 修后<b>全 0</b>。<br><b>测试</b>：<code>tv_layout</code> 新增 T12（前倚音 单/双/双位数 三档）、T13（反复/终止/段落记号 × 品位数字与扫弦箭头）、T14（房子记号让开和弦图，和弦记在六线谱或简谱行各跑一遍）；<code>tv_grace</code> 新增 T20（逐段技巧：整组一体 + 每段单独，谱面两段各画各的字母）、T21（滑音字母改 S）。对改前文件（v60.77）跑<b>五条全红</b>：T12 单倚音 24 处重叠、T13 记号被穿过、T14 简谱行和弦那一档 16 处相交、T20 逐段按钮不存在、T21 画的是 sl。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.77</span><div><b>× 记号与小节线重叠</b>（产品截图：分解和弦最后一个 × 压在小节线上）。两个根因叠在一起：<br>① <b>× 的字形比品位数字宽得多，可布局按品位数字记账</b>。实测墨迹宽度：分解/闷音 × 是 15 号＝<b>9.0</b>、打板 × 是 16 号＝<b>10.0</b>，而品位数字只有 10.5 号＝<b>6.0</b>；列刚杆过去一律按品位数字的半宽 3.35 给，× 的墨迹自然探出预留、压到小节线上，相邻的打板 × 之间也会重叠（合成用例实测 <b>144 处负净距</b>）。现在 × 列按自己的字形算宽（<code>isXCol</code> 与渲染同源：<code>n.x</code> / 拍弦列 / 教材式记谱下 ≤4 品的和弦内音；宁可当成 × 记宽，只会更宽不会更窄）。<br>② <b>右内边距被压到比音符自身的绘制偏移还小</b>。音符字形画在「本列布局位置 ＋ <code>NOTE_OFF</code>(10)」处，而列刚杆是按布局位置算的——这 10px 全部由**右**边距买单：末列到小节线的净空 ＝ 右边距 ＋ 末段刚杆 − 10。右边距压到 6 时净空只剩 <b>3.3px</b>，比 × 的墨迹半宽 4.5 还小。现在把右边距的地板钉在 <code>NOTE_OFF</code>，末列净空恒等于末段刚杆，与列间口径一致（实测末列净空 <b>3.3 → 13.2px</b>）。<br><b>实测</b>（产品那份真实谱，四档视口 × 两种记谱模式，统计「音符字形与小节线相交」的处数）：数字模式 15/12/18/11 → <b>全 0</b>，教材式 × 模式 23/23/33/11 → <b>全 0</b>。<b>代价如实记</b>：× 真的比数字宽，所以 × 模式下小节变宽——行数 1440px 27→29、1280px 38→42、834px 28→31、430px 46→53（数字模式几乎不变：27→27、38→39、28→28、46→47）。旧版之所以「不变宽」，是因为它根本没把 × 算进宽度，代价就是那 23 处压线和相邻重叠。<br><b>测试</b>：<code>tv_layout</code> 新增 T11——12 小节 × 每小节 16 个十六分 × 的满构造，分别跑分解 ×(15 号) 与打板 ×(16 号)，钉住「不与小节线相交、相邻不重叠」；对改前文件（v60.76）跑<b>当场红</b>：分解 × 9 处压线、打板 × 1 处压线 + 144 处相邻重叠。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.76</span><div><b>横向排版引擎重做：刚杆按行分别算 + 小节真正有弹簧</b>（产品送来真实曲谱并指出：电脑端没歌词的地方留白很多、有歌词的音符反而拥挤；手机端音符和歌词横向重叠；每行小节数量分布不合理）。<b>拿产品那份 56 小节的谱当尺子量</b>，三条报告全部复现：桌面 1280px <b>172 处负净距</b>（最深 −5.91）、平板 768px <b>126 处</b>（最深 −9.0）、手机 430px <b>233 处</b>、390px <b>264 处</b>（最深 −7.34）；每行小节数在 1/2/3/5 之间乱跳。<br>① <b>「有歌词的挤、没歌词的空」的根因</b>：列间刚杆过去是<b>跨声部合并成一根</b>的——同一时刻上，歌词、简谱数字、两条六线谱的品位数字被 <code>max</code> 成同一个数。两头都错：一是<b>歌词的「本字→下一字」间距常跨 2~4 个吉他十六分列，却被整根扣在头一小段上</b>，带词小节凭空胖出约 15%（宽度花错了地方，于是别处只好挤）；二是<b>品位数字与中文歌词被当成会相撞的一对</b>，可它们根本不在同一条基线上，永远不会相撞。现在改为<b>按行（band）分别记账</b>——每条 TAB 音轨、每个简谱声部的音符行、它的歌词行各算各的「上一列→本列」净距，跨几段就按时值份额<b>摊到几段</b>，<b>跨拍界的一对也一并管住</b>（旧口径下拍界两侧的两个中文音节只有 13px 中心距，16px 宽的字必然叠）。<br>② <b>「每行小节分布不合理」的根因</b>：过去 <code>rigid</code>（可压下限）和自然宽<b>是同一个数</b>，小节根本压不动——十六分分解小节自然宽 295px、刚杆也报 295px，两个明明排得下的小节被判定放不下，于是要么一行一个（拉伸到 1.5 倍），要么靠 pull 硬并、再被两端对齐压出重叠。现在分<b>两档净距</b>：舒适档决定自然宽（有地方时的观感），<b>硬底档</b>＝字形不相撞的极限决定刚杆（六线谱纸色描边可以叠、字距收到刚好不碰）。同一个小节的刚杆由 295 降到 <b>173</b>，一行装两个成为可能。<br>③ <b>行内两端对齐改「按段吃弹簧」</b>：此前是把整个小节<b>等比缩放</b>，于是最紧的那一段（比如两个相邻的中文音节）会跟着整体被压穿，哪怕同小节的吉他段还空着一大截。现在走三级台阶——段内超出舒适刚杆的余量 → 小节两侧留白与拍间隙让到地板 → 舒适刚杆压到硬底，<b>到硬底为止</b>；数学上每一段都不可能被压穿。<br>④ <b>断行 DP 的可行性判据</b>由「自然宽 ≤ 行宽×1.06」改为「<b>刚杆之和 ≤ 行宽</b>」，代价改为按<b>弹簧用量的三次方</b>计（轻微形变几乎不计、接近极限陡增）。固定 6% 容限是拍脑袋的：既不敢让两个能压的小节同行，又拦不住真压不下的组合。<br>⑤ <b>行尾「＋」（pull）由死命令改强偏好</b>：产品那份谱里的 20 个 pull 是在更宽版面下点出来的，换到窄版宽后死守它们会逼出「一行 1 个、下一行 2 个」的锯齿（实测拉伸 σ 0.30、首行只放一个 302px 的小节）。现在能排下就照做（按钮手感不变，其自带的容量守卫仍在），明显更差时允许不照做，σ 降到 0.25；<b>v52.0 的「pull 覆盖 brk」语义原样保留</b>。<br>⑥ <b>宽度手柄 <code>wf</code> 缩窄止步于硬底</b>：此前只缩坐标不动刚杆，<code>wf=0.66</code> 的小节实测简谱净距 −0.32。<br>⑦ <b>歌词字宽口径</b> CJK 1.00em→<b>1.06em</b>：实测渲染出的墨迹宽度在 14~17.6 之间浮动（「我」「怀」「忍」的撇捺越出字身框），按 1.00em 记账这几个字会彼此贴上。<br>⑧ <b>实测结果</b>（同一份真实谱）：四档视口<b>负净距全部归零</b>（172/126/233/264 → 0/0/0/0）；行数 768px <b>32→27</b>、1280px 36→38、手机 36→46（<b>手机行数变多是对的</b>——旧版那 36 行是靠把字压重叠换来的）；1280px 拉伸比标准差 <b>0.382→0.25</b>，每行小节数由 <code>121232121212…</code> 变为 <code>222212111121…</code>。<br>⑨ <b>测试</b>：<code>tv_layout</code> 新增 T10——复刻真实弹唱谱的形制（56 小节、双吉他十六分、2 段歌词、pull/brk/wf 齐全）在桌面/平板/手机三档视口下钉住「三类文字零负净距 + 弹唱段每行 ≥1.6/1.6/1.3 小节」，<b>只复刻形制、不把用户曲谱原文件放进仓库</b>；<code>tv_sign</code> <code>tv_glyphsz</code> <code>tv_grace</code> <code>tv_adds</code> <code>tv_jpspace</code> 五个套件把「font-size=16 找简谱数字」这类<b>字面量选择器</b>随 v60.75 的字号更新（口径变更，不是行为回归）；<code>tv_meaw</code> T9/T10 由「钉死具体分行」改为<b>相对断言</b>——每行容量变大后，旧用例的绝对分法量的是容量而不是它要测的 brk 清理机制。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.75</span><div><b>中文歌词与简谱数字各放大 1 号，并根治两者的相互挤压与纵向重叠</b>（产品指示）。① <b>字号</b>：歌词 15→<b>16</b>、简谱数字 16→<b>17</b>；同族记号按 17/16 等比跟随——变化音 13.6→<b>14.5</b>、♭♭ 11.6→<b>12.3</b>（左移量 9.3→9.9 / 12.2→13）、和音 14.1→<b>15</b>、增时线 14.5→<b>15.4</b>、歌词标点 13→14。② <b>横向「相互挤压」的根因</b>：两行共用同一套列位置，而列刚杆只按歌词算，简谱数字那一侧只吃一个常数 <code>VOX_MIN</code>；数字放大到 17（实测字宽 10.8）后常数就不够了。现在数字也<b>按半宽入账</b>，列刚杆取「歌词需要」与「数字需要」的<b>大者</b>——谁宽谁说了算。③ <b>纵向「手机端直接重叠」的根因</b>：歌词基线一直写成 <code>常数 25 + 分档 botExtra</code>，而那两档常数（16/10/4 与 5/2）是拍脑袋定的，与实际绘制坐标脱节——减时线画在 <code>voxY+3.4+u×3.2</code>、低音点画在 <code>voxY+5.5+under×3.1+d×4.2</code>，32 分（3 条减时线）＋双低音点的<b>真实墨迹深度是 20.5，而旧档只给 10</b>，歌词顶已经压到距墨迹 <b>0.5px</b>，字号再 +1 就是负的。现改为<b>按真实墨迹深度计算</b>：歌词基线＝简谱行墨迹底 ＋ 净空 7 ＋ 歌词上伸高。实测七种密度档纵向净空由 <b>0.5–7px 参差</b>变为<b>稳定 6.0–6.6px</b>。④ <b>压缩不再压穿刚杆</b>：<code>measureLayout</code> 的超宽压缩与行内两端对齐两处，此前余量扣尽后都会<b>等比压穿</b>（双字音节十六分实测歌词净距 −5px）。现在<b>压到刚杆为止就停</b>，小节/行宽按实际声明——谱线与内容始终等宽（v60.74 钉的不变量不破），只是这一行会略微借用页边距；连「行宽＋页边距」都放不下才等比压最后一档，保证不画出纸面。⑤ <b>如实记一次走错的路</b>：中途试过把 <code>rigid</code> 改从 <code>warps.M</code> 取（那才是真正约束排布的分段刚杆），结果<b>更差</b>——M 之和小于 <code>beatMinSum</code>，rigid 低估 → slack 高估 → 压缩判定「弹簧够」却压穿了，密集档歌词净距由 +3.0 掉到 −1.3。本版先退回偏保守的口径，字距零头由 <code>LYR_GAP</code> 4→5 补；<b>错的其实不是口径而是压缩方式</b>（等比缩放不会优先吃余量），v60.76 把压缩改成按段吃弹簧之后，「分段刚杆之和」才成立并被正式采用。⑥ 新增 <code>tv_layout</code> T9 <b>密度包络</b>：单字音节撑到 <b>24 字/小节</b>、双字撑到 <b>12 字/小节</b>，歌词与简谱净距全为正（真实中文歌一小节至多 8–16 字，余量充足）；越界时的兜底是压缩而非画出纸面。CORE <b>100 套件</b>全绿。</div></li>

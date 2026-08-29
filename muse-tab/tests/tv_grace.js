@@ -407,6 +407,56 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.tk === '' && r.dur === 8 && r.nNotes === 1 && r.letters.length === 0 && r.nArc >= 1,
     'T19 兼容护栏：旧倚音归一 tk=\'\'、不画字母、弧线照旧', JSON.stringify(r));
 
+  /* ===== v60.78 追加：逐段技巧 + 滑音字母统一 ===== */
+  const G2SETUP = `
+    loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0}));
+    { const cs=song.measures[0].tabs[0];
+      cs[0].notes=[{s:3,f:9}]; cs[0].grace={notes:[{s:3,f:5},{s:3,f:7}],dur:16}; }
+    blurSel=true; render();
+    window.__ital=()=>[...document.querySelectorAll('#score text')]
+      .filter(x=>x.getAttribute('font-style')==='italic').map(x=>x.textContent);
+    /* 对改前文件跑时按钮不存在——安全点击，让断言报 false 而不是抛异常中断整套 */
+    window.__hit=(sel)=>{ const e=document.querySelector(sel); if(e){ e.click(); return true; } return false; };
+  `;
+
+  // T20 双倚音逐段技巧（产品指示：勾击弦可一体设置、也可分别设置）
+  r = await pg.evaluate(G2SETUP + `(()=>{
+    const seg=document.querySelector('[data-tabgrace]').dataset.tabgrace.split(':');
+    showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], 300, 300);
+    const legRows=[0,1].map(q=>[...document.querySelectorAll('#popmenu [data-gk'+q+']')].map(x=>x.dataset['gk'+q]));
+    /* 一体设置：整组一致那一排 */
+    __hit('#popmenu [data-gk="h"]');
+    const uni=(song.measures[0].tabs[0][0].grace.tks||[]).join();
+    /* 分别设置：第 2 段改勾弦 */
+    __hit('#popmenu [data-gk1="p"]');
+    const mix=(song.measures[0].tabs[0][0].grace.tks||[]).join();
+    closePop(); blurSel=true; render();
+    return {legRows, uni, mix, letters:__ital(),
+      nan:document.getElementById('score').innerHTML.includes('NaN')};
+  })()`);
+  T(r.legRows[0].join() === ',h,p,sl' && r.legRows[1].join() === ',h,p,sl'
+    && r.uni === 'h,h' && r.mix === 'h,p' && r.letters.join() === 'h,p' && !r.nan,
+    'T20 双倚音逐段技巧：整组一体设置 + 每段单独设置，谱面两段各画各的字母', JSON.stringify(r));
+
+  // T21 滑音字母与普通音符统一为 S（此前倚音直接画数据值 sl）
+  r = await pg.evaluate(G2SETUP + `(()=>{
+    const seg=document.querySelector('[data-tabgrace]').dataset.tabgrace.split(':');
+    showTabGraceMenu(+seg[0], +seg[1], +seg[2], seg[3], 300, 300);
+    __hit('#popmenu [data-gk="sl"]');
+    closePop(); blurSel=true; render();
+    const grace=__ital();
+    /* 普通两音滑音：同一张表 */
+    loadSong(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:0,lyr:0}));
+    { const cs=song.measures[0].tabs[0];
+      cs[0].notes=[{s:3,f:5,tech:'sl',tk:{mi:0,ci:1,si:3}}]; cs[1].notes=[{s:3,f:7}]; }
+    blurSel=true; render();
+    const plain=__ital();
+    return {grace, plain, 存的还是sl:true};
+  })()`);
+  T(r.grace.length === 2 && r.grace.every(x=>x === 'S') && r.plain.indexOf('S') >= 0
+    && r.grace.indexOf('sl') < 0,
+    'T21 倚音滑音字母改 S（与普通音符同一张 TAB_TECH_SYM 表）', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
