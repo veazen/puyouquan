@@ -51,4 +51,16 @@ function needLogin() {
   try { return !wx.getStorageSync(K_PHONE) && !wx.getStorageSync('pyq_skip'); } catch (_) { return false; }
 }
 
-module.exports = { enterUrl, phoneLogin, needLogin, API };
+/** v60.79 从任意站内地址解析发布谱 ID：观看页 kanpu.html?pub=ID、SSR 落地页 /pub/ID、
+    静默登录 enter 链接（真实目标藏在 to= 参数里，先解出来再认）。解析不出返回 ''。
+    分享直达全靠它——微信在 onShareAppMessage 给的 webViewUrl / web-view bindload 给的 src
+    都是 URL，而观看页的 URL 本身就带着谱 ID，不需要网页配合。 */
+function pubIdFrom(url) {
+  let u = String(url || '');
+  const to = u.match(/[?&]to=([^&#]+)/);
+  if (to) { try { u = decodeURIComponent(to[1]); } catch (_) { } }
+  const m = u.match(/[?&]pub=([A-Za-z0-9_-]+)/) || u.match(/\/pub\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+
+module.exports = { enterUrl, phoneLogin, needLogin, pubIdFrom, API };
