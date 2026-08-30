@@ -209,7 +209,7 @@ function pubShape(row) {
      卡片一眼能判断「这份谱能不能用」，不用点进去。thumb 为 1 时前端换真实缩图。 */
   const mea = d.measures || [];
   return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
-    type: docTypeOf(d), price: 0, measures: mea.length, cover: coverOf(d),
+    type: docTypeOf(d), typeLabel: typeLabelOf(d), price: 0, measures: mea.length, cover: coverOf(d),
     /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
     thumb: row.thumb_at || 0,
@@ -274,13 +274,27 @@ function miniTicketConsume(t) {
    方案：/pub/:id 由本服务端出一张「可爬 + 可分享」的落地页（含元数据与静态谱面信息），真人再跳观看页；
    /pub/:id/cover.svg 出一张品牌封面供 og:image。三站 vhost 均 include 本 snippet，canonical 统一指向 puku 去重。*/
 const TYPE_CN_SSR = { guitar: '弹唱谱', uku: '尤克里里谱', solo: '独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', vocal: '歌谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
+/* v60.81 谱类细分标签（产品指示：弹唱谱说清吉他/钢琴、歌谱说清简谱/五线谱）。
+   与 muse-tab/index.html 的 docTypeLabel 同一张表——改一处必须同步另一处。 */
+const TYPE_FULL_SSR = { guitar: '吉他弹唱谱', uku: '尤克里里谱', solo: '吉他独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
+function typeLabelOf(d) {
+  const t = docTypeOf(d);
+  if (t === 'vocal') return '简谱歌谱';   /* docTypeOf 里 vocal 只会是简谱记谱 */
+  /* 五线谱写的歌在 docTypeOf 里归为 instr——按「有没有实际歌词」区分（与编辑器 docTypeLabel 同口径） */
+  if (t === 'instr') {
+    const hasLy = (d.measures || []).some(m => ((m || {}).voxes || []).some(cols => (cols || []).some(c =>
+      c && c.lyrics && c.lyrics.some(x => String(x || '').trim()))));
+    return hasLy ? '五线谱歌谱' : '器乐五线谱';
+  }
+  return TYPE_FULL_SSR[t] || TYPE_CN_SSR[t] || '曲谱';
+}
 const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PUB_CANON = process.env.PUB_CANON || 'https://puku.puyouquan.com';   // canonical/og 主机（去重用）
 const VIEW_HOST = process.env.VIEW_HOST || 'https://zhipu.puyouquan.com';  // 真人交互观看页主机
 function pubMeta(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
   const title = (row.title || '').trim() || '未命名曲谱';
-  const typeCn = TYPE_CN_SSR[docTypeOf(d)] || '曲谱';
+  const typeCn = typeLabelOf(d);   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
   const nMea = (d.measures || []).length;
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';

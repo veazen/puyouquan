@@ -268,7 +268,9 @@ window.PYQ_LIB = (function(){
   /* v58.8 家族色 data-fam + 进场 stagger；v60.6 封面换真实谱面缩图：
      刻版骨架留在底层当占位（缩图 lazy 加载中/老谱没缩图/图挂了都由它兜住），真缩图盖在上面。 */
   function card(item, idx){
-    const type = TYPE_CN[item.type]||'曲谱';
+    /* v60.81 谱类细分标签：优先用服务端算好的 typeLabel（吉他弹唱谱/简谱歌谱…），
+       旧接口没有该字段时回退粗分类——站点先发、接口后发也不破 */
+    const type = item.typeLabel || TYPE_CN[item.type] || '曲谱';
     const who = [item.singer?('演唱 '+item.singer):'', item.author?('制谱 '+item.author):''].filter(Boolean).join(' · ') || '佚名';
     const bits = metaBits(item);
     const tip = [item.title||'未命名曲谱', type, who].concat(bits).join(' · ');

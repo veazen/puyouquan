@@ -2561,6 +2561,22 @@ function tuningOf(){ return (typeof song!=='undefined' && song && song.tuning) |
 const TYPE_CN={guitar:'弹唱谱', uku:'尤克里里谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱',
   vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱',
   vox:'歌谱', staff:'器乐五线谱'};
+/* v60.81 谱类细分标签（产品指示：弹唱谱要说清吉他还是钢琴、歌谱要说清简谱还是五线谱）。
+   与 api/server.js 的 typeLabelOf 同一张表——改一处必须同步另一处（谱库卡片走服务端算好的）。 */
+const TYPE_FULL={guitar:'吉他弹唱谱', uku:'尤克里里谱', solo:'吉他独奏谱', pianoacc:'钢琴弹唱谱',
+  piano:'钢琴独奏谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱'};
+function docTypeLabel(s2){
+  const d=s2||song, t=docType(d);
+  if(t==='vocal') return '简谱歌谱';   /* docType 里 vocal 只会是简谱记谱 */
+  /* 五线谱写的歌在 docType 里归为 instr（器乐五线谱）——按「有没有实际歌词」区分：
+     带词的是给人唱的（五线谱歌谱），没词的才是器乐谱 */
+  if(t==='instr'){
+    const hasLy=(d.measures||[]).some(m=>(m.voxes||[]).some(cols=>(cols||[]).some(c=>
+      c && c.lyrics && c.lyrics.some(x=>String(x||'').trim()))));
+    return hasLy? '五线谱歌谱' : '器乐五线谱';
+  }
+  return TYPE_FULL[t] || TYPE_CN[t] || '曲谱';
+}
 function tuningLabel(){
   const t = (typeof song!=='undefined' && song && song.tuning); if(!t) return '';
   for(const k in TUNINGS){ const p=TUNINGS[k].t; if(p && p.length===t.length && p.every((v,i)=>v===t[i])) return TUNINGS[k].label; }
@@ -21046,10 +21062,10 @@ function vwHeaderHTML(o){
     </div>
     <span style="flex:1"></span>
     <div class="vh-icons">
-      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',16)}</button>`:''}
-      ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',16)}</button>`:''}
-      <button id="vh-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand',16)}</button>
-      <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',16)}</a>
+      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',21)}</button>`:''}
+      ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',17)}</button>`:''}
+      <button id="vh-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand',17)}</button>
+      <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',17)}</a>
     </div>`;
 }
 /* v60.37 吉他变调逻辑系统三量：唱调（实际音高，头部与弹窗主行）＝ 指法调（谱面写法 song.key）
@@ -21190,7 +21206,7 @@ function enterShareViewer(share){
   selRange=null; noteSel=[]; measureSel=null;
   blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer','share');
-  document.title=(song.title||'曲谱')+' · 谱友圈互动谱';
+  document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · 谱友圈互动谱';
   stopPlay(); audio.loop=null;
   clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
@@ -21216,7 +21232,7 @@ function wxShareCard(){
        摘要=调/变调夹/速度 + 制谱人 + 功能点；缩略图换 512 方形品牌图（og.png 为 1200×630 旧蓝横幅，
        微信中裁方块后文字糊成一团） */
     const info = {
-      title: '《'+(song.title||'未命名曲谱')+'》'+(TYPE_CN[docType(song)]||'曲谱'),
+      title: '《'+(song.title||'未命名曲谱')+'》'+(song.singer? song.singer+' · ' : '')+docTypeLabel(song),
       desc: ['1='+(song.key||'C')+(song.capo? ' · 变调夹'+song.capo+'品':''), '♩='+(song.tempo||90),
         ((viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)? '制谱 '+viewerCtx.pb.author : '')].filter(Boolean).join(' · ')
         +'｜谱友圈在线看谱 · 可播放 · 可移调',
@@ -21279,7 +21295,8 @@ async function openRemotePub(id, review){
   selRange=null; noteSel=[]; measureSel=null;
   blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer');
-  document.title=(song.title||'曲谱')+' · 谱友圈谱库';
+  /* v60.81 标题带演唱者与谱类细分（产品指示）：小程序/浏览器标签直接读它 */
+  document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabel(song)+' · 谱友圈谱库';
   stopPlay(); audio.loop=null; clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
   vb.innerHTML=vwHeaderHTML({fav:true, card:true});   /* v55.6 头部 2.0：指法/变调夹/拍速 + 收藏/分享/谱库主页图标 */
@@ -22124,7 +22141,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.80';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.81';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22147,6 +22164,7 @@ const APP_VER='v60.80';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.81</span><div><b>曲谱页/谱库信息升级：演唱者 + 谱类细分标签 + 收藏星放大</b>（产品指示）。<br>① <b>谱类细分标签</b>：不再只写「弹唱谱/歌谱」——弹唱谱说清乐器（<b>吉他弹唱谱</b>/钢琴弹唱谱）、歌谱说清记谱法（<b>简谱歌谱</b>/<b>五线谱歌谱</b>）。判定口径：docType 里 vocal 只会是简谱记谱＝简谱歌谱；五线谱写的歌归在 instr 里，按「<b>有没有实际歌词</b>」区分——带词的是给人唱的（五线谱歌谱），没词才是器乐五线谱。三端同一张表：编辑器 <code>docTypeLabel</code>、服务端 <code>typeLabelOf</code>（谱库列表接口新增 <code>typeLabel</code> 字段 + SSR 落地页/og 卡同步）、站点卡片 <code>pyq.js</code> 优先用服务端算好的标签、旧接口回退粗分类（站点先发、接口后发也不破）。<br>② <b>曲谱页标题带演唱者</b>：浏览器/小程序导航栏标题由「难忘的一天 · 谱友圈谱库」升级为「<b>难忘的一天 - 许巍 · 吉他弹唱谱</b> · 谱友圈谱库」；互动谱 HTML 与微信分享卡标题同口径（《难忘的一天》许巍 · 吉他弹唱谱）。谱库卡片本就有「演唱 xx」行，配合细分标签信息补齐。<br>③ <b>收藏五角星放大</b>（产品报告太小）：星形墨迹本就比方形图标显小，收藏星 16→<b>21</b>，其余头部图标 16→17。<br>④ <b>排查记录</b>：产品复报「重新保存发布后手机电脑显示仍不一致」——审计整条链（云端保存带整个 data、观看端深拷贝不丢字段、migrate 只增不删）代码是通的，根因是 <b>v60.80 尚未部署到线上</b>，线上编辑器还没有「载入即补 tabNota」这段码。线上现版本的立即解法：编辑器里点两次「记谱切换」（切过去再切回来）——切换动作本身就会把记谱风格写进谱（v58.2 起有），再保存/重新发布即可。<br><b>测试</b>：<code>tv_pub</code> 新增 T6（四档标签判定含「带词五线谱=歌谱」/标题含演唱者与细分标签/收藏星 21 其余 17）。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.80</span><div><b>手机看谱四项返修</b>（产品截图逐条）。<br>① <b>「电脑显示 ×、手机只显示数字」</b>：记谱风格字段 <code>tabNota</code> 此前只在手动切换时落盘，从未切换过的谱发布后没有该字段，观看端各自回退<b>本机</b>偏好（默认数字）——作者电脑上是 ×、别人手机上就成了数字。现在编辑器载入无此字段的老谱时按当前生效偏好补上（作者看到什么就存什么），之后的保存/发布自然带走；观看模式不补（不能拿观看者的本机偏好当作者意图）。<b>已发布的谱需在编辑器重新打开→保存→发布一次</b>，观看端才会统一成作者的记谱风格。<br>② <b>「第一行 1 个小节、第二行 2 个，什么逻辑」</b>：两种排法单看代价相近，DP 逐行取最便宜的就会随机交替，读起来忽松忽紧。现按行宽/行容比分四档（压缩/贴合/偏松/很松），<b>相邻两行档位差 &gt;1 记一笔惩罚</b>（TeX fitness class / adj_demerits 同思路）——密度要变就渐变，同一段落自然收敛成统一的每行小节数。实测产品那份真实谱：手机端行密度跳变 <b>19 次 → 6 次</b>（剩下的都在主歌↔间奏切换处，该跳），每行小节由 <code>12122…</code> 交替变成 <code>2222→1111</code> 成段过渡；合成用例 1280px 跳变 <b>15 → 3</b>。<br>③ <b>「一整页只显示一行内容」</b>：窄屏下一个系统（双吉他+简谱+歌词）高约 350px，固定 A4 页高 735px 常常只装得下一行——第二行差几十像素放不下就整页推下去，每页空白近半、24 页翻不完。观看等只读模式且窄屏（与 fit-to-width 同一断点 820px）改为<b>不分页的连续长卷</b>：一张长页、无页码，实测 <b>24 页 → 1 卷</b>；打印前自动切回分页渲染、打完还原（beforeprint/afterprint），长图导出本就要连续，编辑器分页照旧。<br>④ <b>谱架回到观看页头部</b>（产品指示）：v55.0 手机精简时撤下后只剩 ⚙ 设置里一处入口，太深——对谱练习是看谱页高频动作，现在头部图标一步直达（桌面/手机同一入口）。<br><b>测试</b>：<code>tv_layout</code> T10 改钉「行密度跳变 ≤8」（对改前文件当场红：跳变 15）；tabNota 补写/观看不补/谱架接线 六项探针全绿。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.79</span><div><b>小程序分享直达 + 朋友圈分享</b>（产品报告：分享曲谱链接给好友，点开不是谱的直达链接；曲谱无法分享到朋友圈）。<br>① <b>直达修正的根因</b>：小程序的分享卡片路径依赖网页 <code>postMessage</code> 上报谱 ID，而网页端<b>从没发过这条消息</b>——用户从谱库（首页 web-view）点进某首谱再分享，<code>onShareAppMessage</code> 拿不到 ID 就回落到谱库首页，好友点开自然不是那首谱。现在改成<b>以微信在分享时给的 <code>webViewUrl</code>（web-view 当前地址）为准</b>解析谱 ID（观看页地址本来就带着 <code>?pub=ID</code>，不需要网页配合），另用 <code>bindload</code> 逐次记下落地地址兜底；网页端 <code>wxShareCard</code> 在小程序环境下补发 <code>wx.miniProgram.postMessage({pubId,title})</code>，只用来给卡片补<b>歌名标题</b>（该消息微信在分享/后退时才送达，ID 不靠它）。<br>② <b>朋友圈分享</b>：首页与看谱页补上 <code>onShareTimeline</code> 并 <code>showShareMenu</code> 点亮入口（此前注释断言「web-view 页不支持朋友圈」——不准确，不支持的是朋友圈<b>单页模式渲染</b> web-view，分享本身可用）。朋友圈卡片以「本页+query」重开：看谱页带 <code>id=</code> 直达，首页收到 <code>id=</code> 时转看谱页；<b>单页模式（scene 1154）下渲染原生占位页</b>（「点击上方『前往小程序』查看完整曲谱」），微信自带按钮会以完整模式重开、query 原样带回。<br>③ 网页端在小程序 web-view 里<b>跳过 JS-SDK 签名</b>（<code>updateXxxShareData</code> 在该环境不生效，签名是白做的）。<br><b>注意</b>：小程序侧改动需管理员重新上传并<b>发布新版本</b>后才生效。<code>pubIdFrom</code> 8 组用例 node 单测全过（含 enter 换票链接的 <code>to=</code> 解包与非法字符拒收）。</div></li>
     <li><span class="v">v60.78</span><div><b>六线谱记号五项返修</b>（产品截图逐条）。<br>① <b>双倚音压住前一列的品位数字</b>：TAB 的<b>前</b>倚音画在主音<b>左边</b>（<code>gx0 = nx − 13 − 组宽</code>），可它的占位一直和后倚音一样加在列的<b>右</b>侧——方向反了，前一列压根不知道左边有一组小数字要落脚。现按渲染几何登记为左伸（13 + 组宽 + 最左那个 8 号小数字的半宽，双位数品位另算）。实测产品那份真实谱：834px 视口最小净距 <b>−0.46（重叠）→ 2.78</b>、1280px <b>1.91 → 3.12</b>；技法字母离前一列 <b>1.7~3.9 → 7.7~9.6</b>。<br>② <b>双倚音的击弦/勾弦可以分别设置</b>（产品指示「一体或者单独设置」）：一组 n 个倚音恰好有 n 段过渡——前倚音 倚1→倚2→…→主音，后倚音 主音→倚1→…——新增逐段技巧 <code>tks</code>。弹窗里先给一排「整组一致」的快捷键，再逐段各给一排（标出「倚1→倚2」「倚2→主音」这样的段名）；谱面每段各画各的字母。旧数据只有组级 <code>tk</code>，整组回退成同一个字母，观感与从前完全一致（字段只增不改，红线安全）。<br>③ <b>倚音滑音字母 sl 改 S</b>（产品指示「和普通音符一致」）：普通两音技法本来就有一张 <code>{sl:'S', h:'h', p:'p', tp:'T'}</code> 的显示表，而倚音是直接把<b>数据值</b>当字母画出来的，于是同一份谱里一处写 S、一处写 sl。现在两边共用同一张表 <code>TAB_TECH_SYM</code>（数据仍存 <code>sl</code>，只改显示）。<br>④ <b>扫弦小节最后一个音符压在反复记号上</b>：反复结束记号的墨迹从 <code>bx−11.3</code>（圆点左缘）就开始了，而普通小节线只有一条 1px 竖线——这段宽度过去完全没进排版，右内边距一视同仁，末列音符/扫弦箭头自然骑上去。现在把「记号型小节线」的墨迹宽度整段加进两侧边距（反复开始 12.3 / 反复结束 11.3 / 终止 5.5 / 段落双线 4.5），末列字形到记号左缘的净空恒等于末段刚杆，与列间口径一致。实测真实谱最小净距 <b>0.36 → 4.32</b>。<br>⑤ <b>段落房子记号与和弦图重叠</b>：v56.4 本来就有「本行同时有和弦图与段落记号 → 图带加高 16px 把记号带让到图下方」的机制，可它的判定 <code>hasDiag</code> <b>只看六线谱首轨</b>——而<b>简谱声部的和弦</b>（<code>col.chord</code> / 拍位和弦 <code>col.chords</code>）同样画进这条图带。产品这份谱的和弦正是记在简谱行的，于是整条让位机制根本没触发。实测：房子横线 <b>12 处穿过图格</b>、序号 <b>4 处压在图格上</b> → 修后<b>全 0</b>。<br><b>测试</b>：<code>tv_layout</code> 新增 T12（前倚音 单/双/双位数 三档）、T13（反复/终止/段落记号 × 品位数字与扫弦箭头）、T14（房子记号让开和弦图，和弦记在六线谱或简谱行各跑一遍）；<code>tv_grace</code> 新增 T20（逐段技巧：整组一体 + 每段单独，谱面两段各画各的字母）、T21（滑音字母改 S）。对改前文件（v60.77）跑<b>五条全红</b>：T12 单倚音 24 处重叠、T13 记号被穿过、T14 简谱行和弦那一档 16 处相交、T20 逐段按钮不存在、T21 画的是 sl。CORE <b>100 套件</b>全绿。</div></li>

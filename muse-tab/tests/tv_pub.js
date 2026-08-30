@@ -63,6 +63,35 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.changed, 'T5 观看移调生效', JSON.stringify(r));
   await pg.evaluate(() => exitViewer());
 
+  /* ===== v60.81 谱类细分标签 + 观看页标题带演唱者 + 收藏星放大 ===== */
+  r = await pg.evaluate(() => {
+    const mk=(fn)=>{ const s2=createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0});
+      if(fn) fn(s2); return docTypeLabel(s2); };
+    const lbG = docTypeLabel(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:1,lyr:0}));
+    const lbJP = mk();
+    const lbWX = mk(s2=>{ s2.voxNotations=['staff'];
+      s2.measures[0].voxes[0]=[{dur:4,dotted:false,deg:1,acc:'',oct:0,tie:false,lyrics:['词']}]; });
+    const lbQI = mk(s2=>{ s2.voxNotations=['staff']; });   /* 同为五线谱但无词＝器乐 */
+    /* 观看页标题：标题 - 演唱者 · 谱类细分 */
+    const s3=createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:1,lyr:0});
+    s3.title='测题'; s3.singer='测唱';
+    viewerMode=true;
+    viewerCtx={pb:{title:s3.title, author:'A', type:'guitar', data:s3, price:0, preview:9999}, own:true, total:1, pubId:'t1'};
+    song=viewerBuildSong();
+    document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabel(song)+' · 谱友圈谱库';
+    const titleOk = document.title.indexOf('测题 - 测唱') === 0 && document.title.indexOf('吉他弹唱谱') > 0;
+    /* 头部图标：收藏星 21 号（比其余 17 号大——星形墨迹本就显小），谱架在位 */
+    const vb=document.getElementById('viewerbar');
+    vb.innerHTML=vwHeaderHTML({fav:1,card:1});
+    const svgW=id=>{ const el=document.querySelector('#'+id+' svg'); return el? +el.getAttribute('width') : 0; };
+    const star=svgW('vw-fav'), share=svgW('vw-card'), stand=svgW('vh-stand');
+    vb.innerHTML=''; viewerMode=false; document.title='t';
+    return { lbG, lbJP, lbWX, lbQI, titleOk, star, share, stand };
+  });
+  T(r.lbG==='吉他弹唱谱' && r.lbJP==='简谱歌谱' && r.lbWX==='五线谱歌谱' && r.lbQI==='器乐五线谱'
+    && r.titleOk && r.star===21 && r.share===17 && r.stand===17,
+    'T6 谱类细分标签(吉他弹唱谱/简谱歌谱/五线谱歌谱·带词五线谱=歌谱) + 标题带演唱者 + 收藏星放大到21', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
