@@ -16,7 +16,7 @@
 4. **更新 `PROJECT.md`**（版本号/进度表/受影响章节）
 5. commit（中文、按版本号）+ push
 6. 重发编辑器 artifact 预览 + 截图验证发给用户
-7. **涉及 `miniprogram/` 的版本**：把整个目录打成 `puyouquan-miniprogram-vXX.zip` 用文件直接发给用户（产品指示：不自己去仓库下载），并注明「导入→上传→提审→发布」
+7. **涉及 `miniprogram/` 的版本**：把整个目录打成 `puyouquan-miniprogram-vXX.zip` 用文件直接发给用户（产品指示：不自己去仓库下载），并注明「导入→上传→提审→发布」；**上传版本号走小程序自己的 1.1.x 线**（当前 1.1.2＝v60.79，对照表见 `miniprogram/README.md`），zip 文件名才用仓库 vXX
 
 ## 常用入口（grep）
 `createSong` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation`
