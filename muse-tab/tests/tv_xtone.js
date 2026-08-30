@@ -146,19 +146,24 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       Tc({notes:[]})
     ];
     loadSong(s); blurSel = true;
-    tabNotation='num'; render();
+    /* v60.80 记谱风格随谱走：载入即补 song.tabNota（effNota 以谱字段优先），
+       切模式改切谱字段——只拨全局 tabNotation 已不再影响带字段的谱（有意为之） */
+    song.tabNota='num'; render();
     const digits = () => [...document.querySelectorAll('#score text')]
       .filter(t2 => t2.getAttribute('font-size')==='10.5' && /^\d+$/.test(t2.textContent)).map(t2=>t2.textContent);
     const xs = () => [...document.querySelectorAll('#score text')]
       .filter(t2 => t2.getAttribute('font-size')==='15' && t2.textContent==='×').length;
     const numD = digits().sort().join(','), numX = xs();
-    tabNotation='x'; render();
+    song.tabNota='x'; render();
     const eduD = digits().sort().join(','), eduX = xs();
+    /* v60.80 追加：谱字段优先于本机全局（分享/发布后在别人设备上也显示作者的记谱风格） */
     tabNotation='num'; render();
-    return { def, numD, numX, eduD, eduX };
+    const stickyX = xs();
+    song.tabNota='num'; render();
+    return { def, numD, numX, eduD, eduX, stickyX };
   });
-  T(r.def==='num' && r.numD==='0,3,3' && r.numX===0 && r.eduD==='' && r.eduX===3,
-    'T8 双模式互切：默认num(0品可见·×解析品位)/教材式全记×', JSON.stringify(r));
+  T(r.def==='num' && r.numD==='0,3,3' && r.numX===0 && r.eduD==='' && r.eduX===3 && r.stickyX===3,
+    'T8 双模式互切：默认num(0品可见·×解析品位)/教材式全记×，谱字段优先于本机全局(v60.80)', JSON.stringify(r));
 
   // T9 v58.5 记谱风格随曲谱走：song.tabNota 优先于本机偏好（分享观看端按制谱人风格显示）；
   //    toggle 把风格写入 song.tabNota（mutate 落盘）且可撤销

@@ -4106,6 +4106,7 @@ let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页
 const PAGE_MM = {A5:[148,210], A4:[210,297], A3:[297,420]};   // 纸张 [宽,高] mm（同比 1:√2）
 const LAY_PRESETS = {compact:0.76, standard:1, loose:1.28};   // 智能排版：行距/间距智能缩放档位
 let LAY_HS = 1, LAY_VS = 1;                     // 当前渲染用的横/纵疏密系数（render 时由 layoutCfg 写入）
+let PRINT_PAGING = false;                       // v60.80 打印期间强制分页（手机观看的连续长卷不适合直接送打印机）
 let LAY_RG = {tab:1, vox:1, lyric:1};           // 手动行距：吉他谱 / 简谱 / 歌词（各自倍率）
 function layoutCfg(){
   const d = {page:'A4', preset:'standard', density:1, scale:1, noteGap:1};
@@ -5987,31 +5988,55 @@ function layoutSystems(){
        硬底只有 150，两个完全排得下，却被 1.06 一票否决 → 一行一小节、拉伸到 1.5×），
        又拦不住真压不下的组合（pull 强行并行时照样压穿）。现在直接问刚杆：
        ① 刚杆之和 ≤ 行宽 → 一定能排下且不压穿，可行；② 否则不可行，宁可断行。 */
-    const cost = new Array(n+1).fill(Infinity), prev = new Array(n+1).fill(-1);
-    cost[0] = 0;
     const R = Ls.map(L=>L.rigid||L.w);
     /* 代价＝「用掉多少弹簧」：压缩按可压区间 w−rigid 归一，拉伸按自然宽的一半归一，
-       三次方——轻微形变几乎不计，接近极限时代价陡增（Knuth 的 badness 思路）。 */
+       三次方——轻微形变几乎不计，接近极限时代价陡增（Knuth 的 badness 思路）。
+       v60.80 再加 **相邻行密度档惩罚**（TeX fitness class / adj_demerits 同思路）：
+       产品在手机端看到「第一行 1 个小节、第二行 2 个」交替——两种排法单看代价相近，
+       DP 逐行取最便宜的就会随机交替，读起来忽松忽紧。现按行宽/行容比分四档
+       （0=压缩、1=贴合、2=偏松、3=很松），相邻两行档位差 >1 记一笔 ADJ_PEN——
+       密度要变就渐变，不许跳变；同一段落自然收敛成统一的每行小节数。 */
+    const NC = 4, ADJ_PEN = 55;
+    const clsOf = w=> w>availW? 0 : (w>=availW*0.87? 1 : (w>=availW*0.70? 2 : 3));
+    const cost = Array.from({length:n+1},()=>new Array(NC).fill(Infinity));
+    const prev = Array.from({length:n+1},()=>new Array(NC).fill(null));
+    cost[0][1] = 0;                          // 虚拟起点；i===0 时不计相邻惩罚，档位无所谓
     for(let j=1;j<=n;j++){
       let w = 0, rg = 0;
       for(let i=j-1;i>=0;i--){
         w += W[i];
         rg += R[i];
         if(i < j-1 && rg > availW) break;    // 刚杆放不下＝排出来必然把字压重叠，再往左只会更挤
-        if(cost[i]===Infinity) continue;
         if(P[j-1] - P[i] > 0) continue;      // 区间内部跨了强制断点
+        const lastFree = (j===n && w <= availW);   // 末行不拉伸，不计代价、不计相邻惩罚
         let pen;
-        if(j===n && w <= availW) pen = 0;    // 末行不拉伸，不计代价
+        if(lastFree) pen = 0;
         else if(w <= availW){ const f=(availW-w)/Math.max(1, w*0.5);  // 拉伸：以自然宽的一半为量程
           pen = 100*f*f*f; }
         else { const f = (w-availW)/Math.max(1, w-rg);                // 压缩：要吃掉的弹簧 / 可吃的弹簧
           pen = 100*Math.pow(Math.min(1.5, f), 3); }
         if(i > 0 && song.measures[i].pull === 1) pen += PULL_PEN;    // 违反 pull：能不违反就不违反
-        if(cost[i] + pen < cost[j]){ cost[j] = cost[i] + pen; prev[j] = i; }
+        const cj = clsOf(w);
+        for(let ci=0;ci<NC;ci++){
+          if(cost[i][ci]===Infinity) continue;
+          const adj = (i>0 && !lastFree && Math.abs(cj-ci)>1)? ADJ_PEN : 0;
+          if(cost[i][ci] + pen + adj < cost[j][cj]){
+            cost[j][cj] = cost[i][ci] + pen + adj; prev[j][cj] = {i, ci};
+          }
+        }
       }
-      if(cost[j]===Infinity){ cost[j] = cost[j-1] + 1e6; prev[j] = j-1; }     // 兜底：单小节成行
+      if(cost[j].every(v=>v===Infinity)){    // 兜底：单小节成行
+        let bc=0, bv=Infinity;
+        for(let c=0;c<NC;c++) if(cost[j-1][c]<bv){ bv=cost[j-1][c]; bc=c; }
+        cost[j][0] = bv + 1e6; prev[j][0] = {i:j-1, ci:bc};
+      }
     }
-    const cuts=[]; for(let j=n;j>0;j=prev[j]) cuts.unshift(prev[j]);
+    const cuts=[];
+    { let endC=0, best=Infinity;
+      for(let c=0;c<NC;c++) if(cost[n][c]<best){ best=cost[n][c]; endC=c; }
+      let j=n, c=endC;
+      while(j>0){ const pr=prev[j][c]; cuts.unshift(pr.i); c=pr.ci; j=pr.i; }
+    }
     cuts.push(n);
     for(let c=0;c<cuts.length-1;c++){
       const sys={measures:[], w:0};
@@ -7056,12 +7081,19 @@ function render(){
     }
   }))));
   /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
-  const PG_H = Math.round(PAGE_W*1.414);       // A4 整页高度（单位与宽度同比 210:297）
+  let PG_H = Math.round(PAGE_W*1.414);         // A4 整页高度（单位与宽度同比 210:297）
   const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
+  /* v60.80 手机观看改连续长卷（产品报告：一整页只显示一行内容）：
+     窄屏下一个系统（双吉他+简谱+歌词）高约 350px，固定 A4 页高 735px 常常只装得下
+     一行——第二行差几十像素放不下就整个推到下一页，每页空白近半、24 页翻不完。
+     观看等只读模式且窄屏（与 v44.3 fit-to-width 同一批场景、同一断点 820px）
+     **不分页**：一张长页连续排布、无页码。打印/PDF 走 window.print 时浏览器自行分页，
+     长图导出本就要连续，均不受影响；编辑器分页照旧（排版所见即所得）。 */
+  const noPaging = viewerMode && !PRINT_PAGING && (typeof innerWidth==='number' && innerWidth<=820);
   const sysY = []; let pageIdx = 0; let cursorY = top;
   systems.forEach((sys, si)=>{
     const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
-    if(si>0 && cursorY + sysM[si].h > pageBottom){
+    if(!noPaging && si>0 && cursorY + sysM[si].h > pageBottom){
       pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP;
     }
     sysY[si] = cursorY;
@@ -7071,6 +7103,8 @@ function render(){
   meaBands = {};
   systems.forEach((sys,si2)=>{ sys.measures.forEach(lm=>{ meaBands[lm.mi]={y:sysY[si2], h:sysM[si2].h}; }); });
   const nPages = pageIdx+1;
+  /* 连续长卷：单页高＝实际内容高（含底部留白），页码不画 */
+  if(noPaging) PG_H = Math.max(PG_H, Math.ceil(cursorY - M.gap + PG_PAD_BOT));
   /* 页面白底（衬在内容下方，页间留灰缝） */
   for(let pg=0; pg<nPages; pg++){
     const py = pg*(PG_H+PG_GAP);
@@ -17247,6 +17281,13 @@ function loadSong(s, after){
      v38.8 防静默覆盖语义由"另开窗口"改为"确认对话"）。after 同 addDoc：确认后才执行 */
   guardReplace(()=>{
     pushUndo(); song=s;
+    /* v60.80 记谱风格随谱走（产品报告：电脑显示 ×、手机只显示数字）：
+       tabNota 此前只在手动切换记谱风格时落盘，从未切换过的谱发布后没有该字段，
+       观看端各自回退**本机**偏好（默认 'num'）——作者电脑上是 ×、手机上就成了数字。
+       现在编辑器载入无此字段的老谱时按当前生效偏好补上（作者看到什么就存什么），
+       之后的保存/发布自然带走；观看模式不补（不能拿观看者的本机偏好当作者意图）。 */
+    if(!viewerMode && (song.tabVoices||[]).length && song.tabNota!=='x' && song.tabNota!=='num')
+      song.tabNota = effNota();
     if(docs[curDocI]) docs[curDocI].song = song; else { docs=[{song, sel:null}]; curDocI=0; }
     sel={mi:0,row:song.tabVoices&&song.tabVoices.length?'tab':'vox',vi:0,ci:0,si:1}; selRange=null;
     clampSel(); persist(); render();
@@ -20288,6 +20329,9 @@ document.getElementById('pv-stage').addEventListener('wheel', e=>{
   if(e.ctrlKey||e.metaKey){ e.preventDefault(); pvZoomStep(e.deltaY<0?+1:-1); }
 }, {passive:false});
 window.addEventListener('resize', ()=>{ const ov=document.getElementById('preview-ov'); if(ov.classList.contains('on') && PV.fit) pvBuild(); });
+/* v60.80 手机观看的连续长卷送打印会被打印机在任意高度腰斩——打印前临时切回分页渲染，打完还原 */
+window.addEventListener('beforeprint', ()=>{ if(viewerMode && innerWidth<=820){ PRINT_PAGING=true; render(); } });
+window.addEventListener('afterprint',  ()=>{ if(PRINT_PAGING){ PRINT_PAGING=false; render(); } });
 window.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('preview-ov').classList.contains('on')){ pvClose(); } });
 
 /* ================= 排版浮层（智能/手动疏密 + 内容大小 + 页面容量） ================= */
@@ -21004,6 +21048,7 @@ function vwHeaderHTML(o){
     <div class="vh-icons">
       ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',16)}</button>`:''}
       ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',16)}</button>`:''}
+      <button id="vh-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand',16)}</button>
       <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',16)}</a>
     </div>`;
 }
@@ -21103,6 +21148,9 @@ function vwResetKey(){   /* v60.37 恢复原调：唱调与变调夹一并回到
 function vwHeaderWire(){
   const k=document.getElementById('vh-key'); if(k) k.onclick=e=>{ e.stopPropagation(); updateVwPopKey(); vwPopToggle('key-pop','vh-key'); };
   const t=document.getElementById('vh-tempo'); if(t) t.onclick=e=>{ e.stopPropagation(); vwPopToggle('tempo-pop','vh-tempo'); };
+  /* v60.80 谱架回到观看页头部（产品指示）：v55.0 手机精简时撤下后只剩 ⚙ 设置里一处入口，
+     太深——对谱练习是看谱页高频动作，头部图标一步直达（桌面/手机同一入口） */
+  const st=document.getElementById('vh-stand'); if(st) st.onclick=enterStand;
 }
 /* ===== v55.6 观看设置（底栏 ⚙）：显示效果 / 打印 / 成为创作者推广（内容后续按需扩展） ===== */
 function showVwSettings(){
@@ -22076,7 +22124,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.79';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.80';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22099,6 +22147,7 @@ const APP_VER='v60.79';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.80</span><div><b>手机看谱四项返修</b>（产品截图逐条）。<br>① <b>「电脑显示 ×、手机只显示数字」</b>：记谱风格字段 <code>tabNota</code> 此前只在手动切换时落盘，从未切换过的谱发布后没有该字段，观看端各自回退<b>本机</b>偏好（默认数字）——作者电脑上是 ×、别人手机上就成了数字。现在编辑器载入无此字段的老谱时按当前生效偏好补上（作者看到什么就存什么），之后的保存/发布自然带走；观看模式不补（不能拿观看者的本机偏好当作者意图）。<b>已发布的谱需在编辑器重新打开→保存→发布一次</b>，观看端才会统一成作者的记谱风格。<br>② <b>「第一行 1 个小节、第二行 2 个，什么逻辑」</b>：两种排法单看代价相近，DP 逐行取最便宜的就会随机交替，读起来忽松忽紧。现按行宽/行容比分四档（压缩/贴合/偏松/很松），<b>相邻两行档位差 &gt;1 记一笔惩罚</b>（TeX fitness class / adj_demerits 同思路）——密度要变就渐变，同一段落自然收敛成统一的每行小节数。实测产品那份真实谱：手机端行密度跳变 <b>19 次 → 6 次</b>（剩下的都在主歌↔间奏切换处，该跳），每行小节由 <code>12122…</code> 交替变成 <code>2222→1111</code> 成段过渡；合成用例 1280px 跳变 <b>15 → 3</b>。<br>③ <b>「一整页只显示一行内容」</b>：窄屏下一个系统（双吉他+简谱+歌词）高约 350px，固定 A4 页高 735px 常常只装得下一行——第二行差几十像素放不下就整页推下去，每页空白近半、24 页翻不完。观看等只读模式且窄屏（与 fit-to-width 同一断点 820px）改为<b>不分页的连续长卷</b>：一张长页、无页码，实测 <b>24 页 → 1 卷</b>；打印前自动切回分页渲染、打完还原（beforeprint/afterprint），长图导出本就要连续，编辑器分页照旧。<br>④ <b>谱架回到观看页头部</b>（产品指示）：v55.0 手机精简时撤下后只剩 ⚙ 设置里一处入口，太深——对谱练习是看谱页高频动作，现在头部图标一步直达（桌面/手机同一入口）。<br><b>测试</b>：<code>tv_layout</code> T10 改钉「行密度跳变 ≤8」（对改前文件当场红：跳变 15）；tabNota 补写/观看不补/谱架接线 六项探针全绿。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.79</span><div><b>小程序分享直达 + 朋友圈分享</b>（产品报告：分享曲谱链接给好友，点开不是谱的直达链接；曲谱无法分享到朋友圈）。<br>① <b>直达修正的根因</b>：小程序的分享卡片路径依赖网页 <code>postMessage</code> 上报谱 ID，而网页端<b>从没发过这条消息</b>——用户从谱库（首页 web-view）点进某首谱再分享，<code>onShareAppMessage</code> 拿不到 ID 就回落到谱库首页，好友点开自然不是那首谱。现在改成<b>以微信在分享时给的 <code>webViewUrl</code>（web-view 当前地址）为准</b>解析谱 ID（观看页地址本来就带着 <code>?pub=ID</code>，不需要网页配合），另用 <code>bindload</code> 逐次记下落地地址兜底；网页端 <code>wxShareCard</code> 在小程序环境下补发 <code>wx.miniProgram.postMessage({pubId,title})</code>，只用来给卡片补<b>歌名标题</b>（该消息微信在分享/后退时才送达，ID 不靠它）。<br>② <b>朋友圈分享</b>：首页与看谱页补上 <code>onShareTimeline</code> 并 <code>showShareMenu</code> 点亮入口（此前注释断言「web-view 页不支持朋友圈」——不准确，不支持的是朋友圈<b>单页模式渲染</b> web-view，分享本身可用）。朋友圈卡片以「本页+query」重开：看谱页带 <code>id=</code> 直达，首页收到 <code>id=</code> 时转看谱页；<b>单页模式（scene 1154）下渲染原生占位页</b>（「点击上方『前往小程序』查看完整曲谱」），微信自带按钮会以完整模式重开、query 原样带回。<br>③ 网页端在小程序 web-view 里<b>跳过 JS-SDK 签名</b>（<code>updateXxxShareData</code> 在该环境不生效，签名是白做的）。<br><b>注意</b>：小程序侧改动需管理员重新上传并<b>发布新版本</b>后才生效。<code>pubIdFrom</code> 8 组用例 node 单测全过（含 enter 换票链接的 <code>to=</code> 解包与非法字符拒收）。</div></li>
     <li><span class="v">v60.78</span><div><b>六线谱记号五项返修</b>（产品截图逐条）。<br>① <b>双倚音压住前一列的品位数字</b>：TAB 的<b>前</b>倚音画在主音<b>左边</b>（<code>gx0 = nx − 13 − 组宽</code>），可它的占位一直和后倚音一样加在列的<b>右</b>侧——方向反了，前一列压根不知道左边有一组小数字要落脚。现按渲染几何登记为左伸（13 + 组宽 + 最左那个 8 号小数字的半宽，双位数品位另算）。实测产品那份真实谱：834px 视口最小净距 <b>−0.46（重叠）→ 2.78</b>、1280px <b>1.91 → 3.12</b>；技法字母离前一列 <b>1.7~3.9 → 7.7~9.6</b>。<br>② <b>双倚音的击弦/勾弦可以分别设置</b>（产品指示「一体或者单独设置」）：一组 n 个倚音恰好有 n 段过渡——前倚音 倚1→倚2→…→主音，后倚音 主音→倚1→…——新增逐段技巧 <code>tks</code>。弹窗里先给一排「整组一致」的快捷键，再逐段各给一排（标出「倚1→倚2」「倚2→主音」这样的段名）；谱面每段各画各的字母。旧数据只有组级 <code>tk</code>，整组回退成同一个字母，观感与从前完全一致（字段只增不改，红线安全）。<br>③ <b>倚音滑音字母 sl 改 S</b>（产品指示「和普通音符一致」）：普通两音技法本来就有一张 <code>{sl:'S', h:'h', p:'p', tp:'T'}</code> 的显示表，而倚音是直接把<b>数据值</b>当字母画出来的，于是同一份谱里一处写 S、一处写 sl。现在两边共用同一张表 <code>TAB_TECH_SYM</code>（数据仍存 <code>sl</code>，只改显示）。<br>④ <b>扫弦小节最后一个音符压在反复记号上</b>：反复结束记号的墨迹从 <code>bx−11.3</code>（圆点左缘）就开始了，而普通小节线只有一条 1px 竖线——这段宽度过去完全没进排版，右内边距一视同仁，末列音符/扫弦箭头自然骑上去。现在把「记号型小节线」的墨迹宽度整段加进两侧边距（反复开始 12.3 / 反复结束 11.3 / 终止 5.5 / 段落双线 4.5），末列字形到记号左缘的净空恒等于末段刚杆，与列间口径一致。实测真实谱最小净距 <b>0.36 → 4.32</b>。<br>⑤ <b>段落房子记号与和弦图重叠</b>：v56.4 本来就有「本行同时有和弦图与段落记号 → 图带加高 16px 把记号带让到图下方」的机制，可它的判定 <code>hasDiag</code> <b>只看六线谱首轨</b>——而<b>简谱声部的和弦</b>（<code>col.chord</code> / 拍位和弦 <code>col.chords</code>）同样画进这条图带。产品这份谱的和弦正是记在简谱行的，于是整条让位机制根本没触发。实测：房子横线 <b>12 处穿过图格</b>、序号 <b>4 处压在图格上</b> → 修后<b>全 0</b>。<br><b>测试</b>：<code>tv_layout</code> 新增 T12（前倚音 单/双/双位数 三档）、T13（反复/终止/段落记号 × 品位数字与扫弦箭头）、T14（房子记号让开和弦图，和弦记在六线谱或简谱行各跑一遍）；<code>tv_grace</code> 新增 T20（逐段技巧：整组一体 + 每段单独，谱面两段各画各的字母）、T21（滑音字母改 S）。对改前文件（v60.77）跑<b>五条全红</b>：T12 单倚音 24 处重叠、T13 记号被穿过、T14 简谱行和弦那一档 16 处相交、T20 逐段按钮不存在、T21 画的是 sl。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.77</span><div><b>× 记号与小节线重叠</b>（产品截图：分解和弦最后一个 × 压在小节线上）。两个根因叠在一起：<br>① <b>× 的字形比品位数字宽得多，可布局按品位数字记账</b>。实测墨迹宽度：分解/闷音 × 是 15 号＝<b>9.0</b>、打板 × 是 16 号＝<b>10.0</b>，而品位数字只有 10.5 号＝<b>6.0</b>；列刚杆过去一律按品位数字的半宽 3.35 给，× 的墨迹自然探出预留、压到小节线上，相邻的打板 × 之间也会重叠（合成用例实测 <b>144 处负净距</b>）。现在 × 列按自己的字形算宽（<code>isXCol</code> 与渲染同源：<code>n.x</code> / 拍弦列 / 教材式记谱下 ≤4 品的和弦内音；宁可当成 × 记宽，只会更宽不会更窄）。<br>② <b>右内边距被压到比音符自身的绘制偏移还小</b>。音符字形画在「本列布局位置 ＋ <code>NOTE_OFF</code>(10)」处，而列刚杆是按布局位置算的——这 10px 全部由**右**边距买单：末列到小节线的净空 ＝ 右边距 ＋ 末段刚杆 − 10。右边距压到 6 时净空只剩 <b>3.3px</b>，比 × 的墨迹半宽 4.5 还小。现在把右边距的地板钉在 <code>NOTE_OFF</code>，末列净空恒等于末段刚杆，与列间口径一致（实测末列净空 <b>3.3 → 13.2px</b>）。<br><b>实测</b>（产品那份真实谱，四档视口 × 两种记谱模式，统计「音符字形与小节线相交」的处数）：数字模式 15/12/18/11 → <b>全 0</b>，教材式 × 模式 23/23/33/11 → <b>全 0</b>。<b>代价如实记</b>：× 真的比数字宽，所以 × 模式下小节变宽——行数 1440px 27→29、1280px 38→42、834px 28→31、430px 46→53（数字模式几乎不变：27→27、38→39、28→28、46→47）。旧版之所以「不变宽」，是因为它根本没把 × 算进宽度，代价就是那 23 处压线和相邻重叠。<br><b>测试</b>：<code>tv_layout</code> 新增 T11——12 小节 × 每小节 16 个十六分 × 的满构造，分别跑分解 ×(15 号) 与打板 ×(16 号)，钉住「不与小节线相交、相邻不重叠」；对改前文件（v60.76）跑<b>当场红</b>：分解 × 9 处压线、打板 × 1 处压线 + 144 处相邻重叠。CORE <b>100 套件</b>全绿。</div></li>

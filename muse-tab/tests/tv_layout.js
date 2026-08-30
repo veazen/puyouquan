@@ -274,8 +274,12 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     const f=g=>({n:g.length, min:g.length?+Math.min(...g).toFixed(2):null, 负:g.filter(v=>v<0).length});
     const S=layoutSystems();
     const 弹唱行=S.filter(sy=>sy.measures.every(lm=>lm.mi<38));
+    /* v60.80 行密度跳变数：相邻两行「每行小节数」不同记一次——产品报告的
+       「第一行 1 个第二行 2 个」交替就是跳变高发；成段过渡只在段落切换处跳 1~2 次 */
+    const ns=弹唱行.map(sy=>sy.measures.length);
+    let 跳变=0; for(let i=1;i<ns.length;i++) if(ns[i]!==ns[i-1]) 跳变++;
     return {版宽:PAGE_W, 简谱:f(__gaps(__isJP)), 歌词:f(__gaps(__isLY)), 品位:f(__gaps(__isFR)),
-      行数:S.length,
+      行数:S.length, 跳变,
       弹唱段每行小节:+(弹唱行.reduce((a,sy)=>a+sy.measures.length,0)/Math.max(1,弹唱行.length)).toFixed(2)};
   })()`;
   const t10 = {};
@@ -287,11 +291,12 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   await pg.setViewportSize({width:1280, height:950});
   r = t10;
   /* 每行小节数的门槛按版宽分档：手机版宽 382px 装不下两个十六分双吉他小节是物理事实，
-     不强求；桌面/平板必须至少排到 1.6（改前实测桌面 1.0＝一行一小节，或靠硬压出重叠）。 */
+     不强求数量、但**行密度不许 1/2 交替跳变**（v60.80 相邻行密度档惩罚；改前实测跳变 12+ 次）；
+     桌面/平板必须至少排到 1.6（改前实测桌面 1.0＝一行一小节，或靠硬压出重叠）。 */
   T(Object.values(r).every(v=>v.简谱.负===0 && v.歌词.负===0 && v.品位.负===0)
     && r['1280px'].弹唱段每行小节 >= 1.6 && r['834px'].弹唱段每行小节 >= 1.6
-    && r['430px'].弹唱段每行小节 >= 1.3,
-    'T10 真实弹唱谱形制（56 小节·双吉他十六分·2 段词·pull/brk/wf 齐全）：桌面/平板/手机三档视口下三类文字零负净距，弹唱段每行 ≥1.6/1.6/1.3 小节',
+    && Object.values(r).every(v=>v.跳变 <= 8),
+    'T10 真实弹唱谱形制（56 小节·双吉他十六分·2 段词·pull/brk/wf 齐全）：三档视口零负净距，桌面/平板每行 ≥1.6，且行密度跳变 ≤8（改前 1/2 交替 15+ 次；段落切换处的真实跳变保留）',
     JSON.stringify(r));
 
   /* T11 × 记号不压小节线（产品截图：分解和弦最后一个 × 骑在小节线上）。
