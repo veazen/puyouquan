@@ -29,31 +29,43 @@ Page({
   /* v60.79 web-view 每次落地都上报地址——分享直达不再依赖网页 postMessage：
      用户从谱库点进某首谱（web-view 内同域跳转），这里立即知道当前在看哪首。 */
   onWvLoad(e) { const u = e.detail && e.detail.src; if (u) this.curUrl = u; },
-  onMsg(e) {  // 网页 postMessage 上报的谱 ID+标题（微信在分享/后退时才送达；用于补卡片标题）
+  onMsg(e) {  // 网页 postMessage 上报的分享素材（微信在分享/后退时才送达；用于补卡片标题/缩图）
     const list = (e.detail && e.detail.data) || [];
     const last = list[list.length - 1] || {};
     if (last.pubId) this.pubId = String(last.pubId).replace(/[^A-Za-z0-9_-]/g, '');
     if (last.title) this.pubTitle = String(last.title).slice(0, 30);
+    /* v60.84 完整标题（歌名 - 演唱者 · 谱类）与谱面缩略图直链（只认谱库域，防被嵌入页塞外链） */
+    if (last.share) this.pubShare = String(last.share).slice(0, 44);
+    if (last.img && /^https:\/\/puku\.puyouquan\.com\//.test(String(last.img))) this.pubImg = String(last.img);
   },
   onShareAppMessage(e) {
     /* v60.79 直达修正（产品报告：好友点开不是谱的直达链接）：
        以 webViewUrl（微信在分享时给的 web-view 当前地址）为准解析谱 ID。
        此前只认网页 postMessage 的 pubId，而网页端从没发过这条消息——
-       于是从谱库点进谱再分享，好友打开的永远是谱库首页而不是那首谱。 */
+       于是从谱库点进谱再分享，好友打开的永远是谱库首页而不是那首谱。
+       v60.84 卡片补图补题：imageUrl 必设——不设时微信自动截屏 web-view，结果常是
+       空白图（产品报告的「截图丢失」）；优先网页报来的谱面缩略图，回落品牌方图。 */
     const id = pubIdFrom(e && e.webViewUrl) || pubIdFrom(this.curUrl) || this.pubId || '';
     if (id) {
-      const t = (this.pubId === id && this.pubTitle) ? this.pubTitle : '给你分享一首谱';
-      return { title: t + ' - 谱友圈', path: '/pages/score/score?id=' + id };
+      const mine = this.pubId === id;
+      const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '给你分享一首谱 - 谱友圈');
+      return { title: t, path: '/pages/score/score?id=' + id,
+        imageUrl: (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png' };
     }
-    return { title: '谱友圈谱库 · 在线看谱/移调/跟谱', path: '/pages/index/index' };
+    return { title: '谱友圈谱库 · 在线看谱/移调/跟谱', path: '/pages/index/index',
+      imageUrl: 'https://www.puyouquan.com/share-icon.png' };
   },
-  /* v60.79 朋友圈分享。此前注释记的是「web-view 页面不支持分享到朋友圈」——不准确：
-     不支持的是朋友圈**单页模式渲染** web-view，分享入口本身可以点亮（showShareMenu +
-     本函数），单页模式由 onLoad 的原生占位页兜底。注意 onShareTimeline 没有参数，
-     拿不到 webViewUrl，谱 ID 只能取 bindload 记下的 curUrl。 */
+  /* 朋友圈分享（v60.84 实测修正）：微信对**含 web-view 组件的页面**整体禁分享朋友圈——
+     菜单置灰提示「当前页面不可分享」，showShareMenu + 本函数都改变不了（v60.79 记的
+     「入口可以点亮」在真机上不成立，平台限制）。本函数与 scene 1154 占位页保留：
+     若微信放开限制即自动生效，且不影响其他路径。朋友圈晒谱的可用通道是观看页
+     顶栏「分享卡」生成的长按保存图片（含二维码）。 */
   onShareTimeline() {
     const id = pubIdFrom(this.curUrl) || this.pubId || '';
-    const t = (id && this.pubId === id && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '谱友圈谱库 · 在线看谱/移调/跟谱';
-    return id ? { title: t, query: 'id=' + id } : { title: t };
+    const mine = !!id && this.pubId === id;
+    const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '谱友圈谱库 · 在线看谱/移调/跟谱');
+    const r = id ? { title: t, query: 'id=' + id } : { title: t };
+    r.imageUrl = (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png';
+    return r;
   },
 });

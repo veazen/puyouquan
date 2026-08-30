@@ -21254,17 +21254,23 @@ function wxShareCard(){
       imgUrl: 'https://www.puyouquan.com/share-icon.png'
     };
     /* v60.79 小程序 web-view 环境：分享卡由小程序层接管——onShareAppMessage/onShareTimeline
-       解析 web-view 当前地址就能得到谱 ID（不依赖本消息），这里只把 谱ID+标题 postMessage
-       给小程序层补卡片标题（微信在分享/后退时才把消息送达）。JS-SDK 的 updateXxxShareData
-       在小程序 web-view 里不生效，签名步骤整个跳过。 */
+       解析 web-view 当前地址就能得到谱 ID（不依赖本消息），这里 postMessage 给小程序层补
+       卡片素材（微信在分享/后退时才把消息送达）。JS-SDK 的 updateXxxShareData
+       在小程序 web-view 里不生效，签名步骤整个跳过。
+       v60.84 素材补齐（产品报告：好友卡片缺图、标题缺演唱者/谱类）：share=完整标题
+       （歌名 - 演唱者 · 谱类，与浏览器标签同款）；img=发布时上传的谱面缩略图直链
+       （2:1 横版栅格，thumb_at 兼做缓存指纹；无缩略图传空，小程序层回落品牌方图）。 */
     if(window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent)){
+      const pid=(viewerCtx&&viewerCtx.pubId)? String(viewerCtx.pubId) : '';
+      const tAt=(viewerCtx&&viewerCtx.pb&&viewerCtx.pb.thumbAt)||0;
       const s=document.createElement('script');
       s.src='https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
       s.onload=()=>{ try{ window.wx.miniProgram.postMessage({ data:{
-        pubId:(viewerCtx&&viewerCtx.pubId)? String(viewerCtx.pubId) : '',
-        title:(song.title||'未命名曲谱') } }); }catch(_){} };
+        pubId:pid, title:(song.title||'未命名曲谱'),
+        share:(song.title||'未命名曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabel(song),
+        img:(pid&&tAt)? 'https://puku.puyouquan.com/api/pub/'+pid+'/thumb?v='+tAt : '' } }); }catch(_){} };
       document.head.appendChild(s);
-      if(dbg) alert('小程序内嵌环境：谱ID已交给小程序层出直达卡片，跳过 JS-SDK 签名');
+      if(dbg) alert('小程序内嵌环境：谱ID/完整标题/缩图已交给小程序层出直达卡片，跳过 JS-SDK 签名');
       return;
     }
     apiCall('/wx/jssign?url='+encodeURIComponent(pageUrl)).then(cfg=>{
@@ -21302,7 +21308,8 @@ async function openRemotePub(id, review){
   data.author = sc.author || data.maker || '谱友圈';
   if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
   viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
-  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999}, own:true, total:data.measures.length, pubId:id};
+  /* v60.84 thumbAt 随谱带上：小程序分享卡要引服务端缩略图，URL 里 thumb_at 兼做缓存指纹 */
+  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999, thumbAt:sc.thumb_at||0}, own:true, total:data.measures.length, pubId:id};
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
@@ -22204,7 +22211,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.83';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.84';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22227,6 +22234,7 @@ const APP_VER='v60.83';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.84</span><div><b>小程序分享卡补图补题；朋友圈置灰如实定性为平台限制</b>（产品报告三项：新版上线朋友圈还是灰色、分享好友卡片截图丢失、分享标题要像曲谱链接标题那样带演唱者和谱类）。<br>① <b>好友卡片图空白的根因</b>：小程序的 <code>onShareAppMessage</code> 一直没设 <code>imageUrl</code>，微信就自动截屏当前页面——而页面是 web-view，截屏时机常常抓到空白。现在 <b>imageUrl 必设</b>：优先用<b>发布时上传的谱面缩略图</b>直链（<code>/api/pub/ID/thumb</code>，2:1 首屏栅格，thumb_at 做缓存指纹；观看页 <code>viewerCtx</code> 顺带带上 thumbAt），无缩略图回落品牌方图。小程序层只认谱库域名的图，防被嵌入页塞外链。<br>② <b>分享标题带演唱者与谱类</b>：网页端 <code>wxShareCard</code> 在小程序环境下 postMessage 的素材由「歌名」升级为<b>完整标题</b>（歌名 - 演唱者 · 谱类，与 v60.81 浏览器标签同款），好友卡与朋友圈卡同用；没收到素材时按旧口径回落歌名。<br>③ <b>朋友圈仍灰色——如实认账并修正 v60.79 的判断</b>：v60.79 记的「不支持的只是单页模式渲染，分享入口本身可以点亮」<b>在真机上不成立</b>——微信对<b>含 web-view 组件的页面</b>整体禁止分享到朋友圈（菜单置灰「当前页面不可分享」），<code>showShareMenu</code> 与 <code>onShareTimeline</code> 都改变不了，属平台限制、代码无法绕过。相关代码保留不删（微信若放开即自动生效），README 同步注记。<b>朋友圈晒谱的可用通道</b>：观看页顶栏「分享卡」生成含二维码的图片，长按保存后发图到朋友圈——扫码即达该谱。<br><b>注意</b>：小程序侧改动需管理员重新上传并发布新版本（1.1.3）后才生效。<br><b>测试</b>：新增 <code>tv_wxshare</code> 套件 10 项——node 侧直测小程序两页分享逻辑（完整标题优先/品牌图回落/外域图拒收），浏览器侧把编辑器伪装成 puku 真域名跑通 postMessage 素材链路（wxShareCard 有 origin 与微信 UA 双守卫，file:// 下测不到）；对改前文件（v60.83）跑<b>10 项全红</b>。CORE 100→<b>101 套件</b>全绿。</div></li>
     <li><span class="v">v60.83</span><div><b>创作者中心发布管理接通真实接口</b>（产品报告：前台一排「待审核」，真后台审核队列却是空的；管理员应免审直接上架）。<b>根因不是审核逻辑错，而是编辑器创作者中心还在跑「本机演示层」</b>——那排状态只读浏览器本地的 circlePubs 演示记录，和服务器完全是两套账：<br>① <b>状态显示改以服务器为准</b>：打开创作者页签拉一次 <code>/api/scores</code>（scoreList 本就回 status/review_note），行状态按服务器渲染（已上架/待审核/已驳回+原因/未发布）；本机演示记录只在离线/未登录时回落，并继续提供定价/销量等演示字段。产品截图那排「待审核」就是本机残留——服务器上这些谱其实是 <b>published 已上架</b>（管理员发布免审逻辑一直是对的），所以真后台审核队列当然是空的。<br>② <b>「更新」按钮此前是纯演示</b>：只改本机状态为 pending，<b>既没把最新内容推上云端、也没走发布接口</b>——「更新完还显示待审核」由此而来。现在在线时走真实链路：推最新内容（PUT）→ 重新发布（POST publish，管理员免审仍直接生效、普通创作者重新进审核）→ 顺带重传缩图。<br>③ <b>「下架」按钮此前也是纯演示</b>：只删本机记录，<b>服务器上那首谱还挂在谱库里</b>——这是实打实的运营风险（以为下架了其实没下）。现在在线时调真实 <code>/unpublish</code>（status→private，谱库立即不可见）。<br><b>测试</b>：<code>tv_publish</code> 新增 T7（状态真源=服务器：本机记错也显示已上架）/T8（更新走 PUT+publish、管理员不回炉）/T9（下架调 unpublish），对改前文件跑<b>三条全红</b>。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.82</span><div><b>全站 SEO 补齐</b>（产品指示）。先盘点：v44.6 的地基（robots.txt 双 sitemap、四垂类落地页带 FAQ 结构化数据、发布谱 SSR 落地页带 MusicComposition + og:music.song + canonical）都在且达标，本轮只补缺口：<br>① <b>五个站点页补 og 分享卡</b>（features/help/make/log/sponsors 此前 og=0，微信/QQ/微博分享出裸链接）：og:title/description/image/site_name + twitter:card 三件套补齐；首页与三个工具页补 <code>keywords</code>（百度仍读）。<br>② <b>编辑器（zhipu 与 puku/kanpu 共用同一文件）补 SEO 头</b>：canonical 锚点（静态指 zhipu 根；<b>kanpu?pub=ID 观看时由 openRemotePub 改写为 /pub/ID</b>——同一首谱的两个地址不去重会分散权重）、SoftwareApplication 结构化数据（免费、Web 应用）、og 卡与 keywords。<br>③ <b>发布谱动态 sitemap 带 &lt;lastmod&gt;</b>（epoch 秒 → ISO 日期）：搜索引擎按它安排重抓，重新发布过的谱更快刷新快照、没动过的不浪费抓取配额。<br>④ 语法闸升级：跳过 <code>application/ld+json</code> 数据块（JSON 按 JS 解析必假红）。<br><b>测试</b>：<code>tv_site</code> 新增 4 项（五页 og 卡/keywords 补位/编辑器 SEO 头含观看时 canonical 改写/动态 sitemap lastmod），33→37 项全绿。API 侧需随服务端发版重启 pyq-api。</div></li>
     <li><span class="v">v60.81</span><div><b>曲谱页/谱库信息升级：演唱者 + 谱类细分标签 + 收藏星放大</b>（产品指示）。<br>① <b>谱类细分标签</b>：不再只写「弹唱谱/歌谱」——弹唱谱说清乐器（<b>吉他弹唱谱</b>/钢琴弹唱谱）、歌谱说清记谱法（<b>简谱歌谱</b>/<b>五线谱歌谱</b>）。判定口径：docType 里 vocal 只会是简谱记谱＝简谱歌谱；五线谱写的歌归在 instr 里，按「<b>有没有实际歌词</b>」区分——带词的是给人唱的（五线谱歌谱），没词才是器乐五线谱。三端同一张表：编辑器 <code>docTypeLabel</code>、服务端 <code>typeLabelOf</code>（谱库列表接口新增 <code>typeLabel</code> 字段 + SSR 落地页/og 卡同步）、站点卡片 <code>pyq.js</code> 优先用服务端算好的标签、旧接口回退粗分类（站点先发、接口后发也不破）。<br>② <b>曲谱页标题带演唱者</b>：浏览器/小程序导航栏标题由「难忘的一天 · 谱友圈谱库」升级为「<b>难忘的一天 - 许巍 · 吉他弹唱谱</b> · 谱友圈谱库」；互动谱 HTML 与微信分享卡标题同口径（《难忘的一天》许巍 · 吉他弹唱谱）。谱库卡片本就有「演唱 xx」行，配合细分标签信息补齐。<br>③ <b>收藏五角星放大</b>（产品报告太小）：星形墨迹本就比方形图标显小，收藏星 16→<b>21</b>，其余头部图标 16→17。<br>④ <b>排查记录</b>：产品复报「重新保存发布后手机电脑显示仍不一致」——审计整条链（云端保存带整个 data、观看端深拷贝不丢字段、migrate 只增不删）代码是通的，根因是 <b>v60.80 尚未部署到线上</b>，线上编辑器还没有「载入即补 tabNota」这段码。线上现版本的立即解法：编辑器里点两次「记谱切换」（切过去再切回来）——切换动作本身就会把记谱风格写进谱（v58.2 起有），再保存/重新发布即可。<br><b>测试</b>：<code>tv_pub</code> 新增 T6（四档标签判定含「带词五线谱=歌谱」/标题含演唱者与细分标签/收藏星 21 其余 17）。CORE <b>100 套件</b>全绿。</div></li>

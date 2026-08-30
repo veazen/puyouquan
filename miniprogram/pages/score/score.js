@@ -19,23 +19,37 @@ Page({
   },
   /* v60.79 用户可能在 web-view 里又点开了别的谱——跟着落地地址更新，分享永远指向正在看的这首 */
   onWvLoad(e) { const nid = pubIdFrom(e.detail && e.detail.src); if (nid) this.id = nid; },
-  onMsg(e) {  // 网页 postMessage 上报的谱 ID+标题（分享/后退时送达；补卡片标题）
+  onMsg(e) {  // 网页 postMessage 上报的分享素材（分享/后退时送达；补卡片标题/缩图）
     const list = (e.detail && e.detail.data) || [];
     const last = list[list.length - 1] || {};
     if (last.pubId) this.pubId = String(last.pubId).replace(/[^A-Za-z0-9_-]/g, '');
     if (last.title) this.pubTitle = String(last.title).slice(0, 30);
+    /* v60.84 完整标题（歌名 - 演唱者 · 谱类）与谱面缩略图直链（只认谱库域，防外链） */
+    if (last.share) this.pubShare = String(last.share).slice(0, 44);
+    if (last.img && /^https:\/\/puku\.puyouquan\.com\//.test(String(last.img))) this.pubImg = String(last.img);
   },
   onShareAppMessage(e) {
     const id = pubIdFrom(e && e.webViewUrl) || this.id;   /* v60.79 以 web-view 当前地址为准 */
+    /* v60.84 imageUrl 必设：不设时微信自动截屏 web-view 常得空白图（产品报告「截图丢失」）；
+       优先网页报来的谱面缩略图，回落品牌方图。标题优先完整版（歌名 - 演唱者 · 谱类）。 */
     if (id) {
-      const t = (this.pubId === id && this.pubTitle) ? this.pubTitle : '给你分享一首谱';
-      return { title: t + ' - 谱友圈', path: '/pages/score/score?id=' + id };
+      const mine = this.pubId === id;
+      const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '给你分享一首谱 - 谱友圈');
+      return { title: t, path: '/pages/score/score?id=' + id,
+        imageUrl: (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png' };
     }
-    return { title: '谱友圈谱库', path: '/pages/index/index' };
+    return { title: '谱友圈谱库', path: '/pages/index/index',
+      imageUrl: 'https://www.puyouquan.com/share-icon.png' };
   },
-  onShareTimeline() {   /* v60.79 朋友圈卡片：本页 + id，单页模式由占位页兜底 */
+  /* 朋友圈（v60.84 实测修正）：微信对含 web-view 的页面整体禁分享朋友圈（菜单置灰
+     「当前页面不可分享」），平台限制无法绕过；本函数与 1154 占位页保留待微信放开。
+     朋友圈晒谱走观看页顶栏「分享卡」长按保存图片（含二维码）。 */
+  onShareTimeline() {
     const id = this.id || '';
-    const t = (id && this.pubId === id && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '谱友圈 · 在线曲谱';
-    return id ? { title: t, query: 'id=' + id } : { title: t };
+    const mine = !!id && this.pubId === id;
+    const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '谱友圈 · 在线曲谱');
+    const r = id ? { title: t, query: 'id=' + id } : { title: t };
+    r.imageUrl = (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png';
+    return r;
   },
 });
