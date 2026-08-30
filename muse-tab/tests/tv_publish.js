@@ -31,6 +31,15 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       }
       const sm = url.match(/^\/api\/scores\/([^/]+)$/);
       if (sm && method === 'PUT') { window.__remote[sm[1]] = 'saved'; return J({ saved: true, updated_at: body.updated_at }); }
+      const um = url.match(/^\/api\/scores\/([^/]+)\/unpublish$/);
+      if (um && method === 'POST') { window.__remote[um[1]] = 'private'; return J({ unpublished: true }); }
+      if (url === '/api/scores' && method === 'GET') {
+        /* v60.83 服务器状态列表：__remote 里的发布态回给创作者中心当真源 */
+        const scores = Object.entries(window.__remote)
+          .filter(([, st]) => st === 'published' || st === 'pending' || st === 'private')
+          .map(([id, st]) => ({ id, title: 't', singer: '', status: st, review_note: '' }));
+        return J({ scores });
+      }
       return J({});
     };
   });
@@ -168,7 +177,68 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.noCreator && r.done && r.online && r.status === 'approved', 'T6 管理员发布免自审', JSON.stringify(r));
 
-  T(errs.length === 0, 'T7 全程无报错', errs.join('|') || 'none');
+  // T7 v60.83 创作者中心状态以服务器为准：本机记成 pending、服务器是 published →
+  //    面板必须显示「已上架」（产品截图：前台一排待审核而真后台审核队列是空的，即两套账）
+  await setup();
+  r = await pg.evaluate(async () => {
+    if(document.getElementById('modal-mask')) closeModal();
+    window.PYQ_CLOUD = true; ACCT = { id: 'a1', nickname: '管理员', role: 'admin' };
+    localStorage.removeItem('musetab-library-v1'); localStorage.removeItem('musetab-circle-pub');
+    window.__srvScores = null; window.__srvScoresAt = 0;
+    loadSong(createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 1 }));
+    song.title = '真源谱'; saveToLibrary();
+    await new Promise(r => setTimeout(r, 60));
+    const e = libLoad()[0];
+    /* 本机演示层故意写错状态（复刻线上脱节现场），服务器记 published */
+    const l = circlePubs(); l.unshift({ pid: 'p1', libId: e.id, title: e.title, status: 'pending', price: 0, sales: 0, views: 0, data: e.data });
+    circlePubsSave(l);
+    window.__remote[e.id] = 'published';
+    openPersonal('creator');
+    await new Promise(r => setTimeout(r, 200));   // 等 /api/scores 拉取 + 重绘
+    const row = [...document.querySelectorAll('.pc-row')].find(x => x.textContent.indexOf('真源谱') >= 0);
+    const rt = row ? row.textContent : '';
+    const ok = /已上架/.test(rt) && !/待审核/.test(rt);
+    closeModal();
+    return { ok, rt: rt.replace(/\s+/g, ' ').slice(0, 50), srv: !!(window.__srvScores && window.__srvScores[e.id]) };
+  });
+  T(r.ok && r.srv, 'T7 状态真源=服务器（本机演示层记错也显示已上架）', JSON.stringify(r));
+
+  // T8 v60.83 「更新」在线走真实链路：PUT 推最新内容 + POST publish（管理员免审仍上架，不回炉）
+  r = await pg.evaluate(async () => {
+    window.__calls = [];
+    const e = libLoad()[0];
+    openPersonal('creator');
+    await new Promise(r => setTimeout(r, 200));
+    const btn = document.querySelector('[data-pub-upd]');
+    if (!btn) { closeModal(); return { noBtn: true }; }
+    btn.click();
+    await new Promise(r => setTimeout(r, 200));
+    const put = window.__calls.some(c => /^\/api\/scores\/[^/]+$/.test(c.url) && c.method === 'PUT');
+    const pub = window.__calls.some(c => /^\/api\/scores\/[^/]+\/publish$/.test(c.url) && c.method === 'POST');
+    const cp = circlePubs().find(x => x.libId === e.id);
+    closeModal();
+    return { put, pub, status: cp && cp.status, remote: window.__remote[e.id] };
+  });
+  T(r.put && r.pub && r.status === 'approved' && r.remote === 'published',
+    'T8 更新走真实链路（推内容+publish；管理员免审不回炉）', JSON.stringify(r));
+
+  // T9 v60.83 「下架」在线调 unpublish（此前只删本机记录，服务器上还挂着）
+  r = await pg.evaluate(async () => {
+    window.__calls = [];
+    const e = libLoad()[0];
+    openPersonal('creator');
+    await new Promise(r => setTimeout(r, 200));
+    const btn = document.querySelector('[data-pub-off]');
+    if (!btn) { closeModal(); return { noBtn: true }; }
+    btn.click();
+    await new Promise(r => setTimeout(r, 200));
+    const un = window.__calls.some(c => /\/unpublish$/.test(c.url) && c.method === 'POST');
+    closeModal();
+    return { un, remote: window.__remote[e.id], localGone: !circlePubs().some(x => x.libId === e.id) };
+  });
+  T(r.un && r.remote === 'private' && r.localGone, 'T9 下架调 unpublish（服务器真下架）', JSON.stringify(r));
+
+  T(errs.length === 0, 'T10 全程无报错', errs.join('|') || 'none');
 
   console.log('PASS ' + pass + '/' + total);
   await b.close();

@@ -20595,6 +20595,8 @@ function showPublishMenu(libEntry, rect){
         rec.status=online?'approved':'pending'; rec.cloudId=cloudId; rec.online=online;
         if(online) rec.url='https://puku.puyouquan.com/pub/'+cloudId;
         l.unshift(rec); circlePubsSave(l);
+        /* v60.83 服务器状态缓存同步（创作者中心状态真源），避免刚发布完面板还显示「未发布」 */
+        if(window.__srvScores) window.__srvScores[cloudId]={id:cloudId, status:online?'published':'pending', review_note:''};
         closePop();
         pyqEvent('publish');
         showPublishDone(libEntry.title||'未命名曲谱', cloudId, online);
@@ -21453,13 +21455,23 @@ function certBadgeHTML(cert, small){
 function pcCreatorHTML(){
   const cr=creatorLoad();
   const pubs=circlePubs();
+  /* v60.83 发布状态**以服务器为准**（产品截图：前台一排「待审核」而真后台审核队列是空的）。
+     根因：这张列表此前只读本机 circlePubs 演示层，「更新」又把本机状态改成 pending——
+     与服务器的真实状态（管理员发布=published 直接上架）完全脱节，两边各说各话。
+     在线时用 /api/scores 回的 status 渲染（见 openPersonal creator 页签的拉取），
+     本机 circlePubs 只在离线/未登录时回落，并继续提供定价/销量等演示字段。 */
+  const srv=(window.PYQ_CLOUD && ACCT && window.__srvScores) || null;   /* 与拉取门同条件（PYQ_CLOUD） */
   const pubRows=libLoad().map(e2=>{
     const pb=pubs.find(x=>x.libId===e2.id);
+    const sv=srv? srv[e2.id] : null;
+    const st=srv? ({published:'approved', pending:'pending', rejected:'rejected'}[sv&&sv.status]||null)
+                : (pb? (pb.status||'approved') : null);
+    const reason=srv? ((sv&&sv.review_note)||'') : ((pb&&pb.reason)||'');
     const ST={pending:svgi('clock',11)+' 待审核', approved:svgi('check',11)+' 已上架', rejected:svgi('ban',11)+' 已驳回'};
     return `<div class="pc-row">
       <span class="t1">${esc(e2.title||'未命名曲谱')}</span>
-      ${pb? `<span class="t2" title="${esc(pb.reason||'')}">${ST[pb.status||'approved']}${pb.status==='rejected'&&pb.reason?('：'+esc(pb.reason)):''} · ${pb.price>0?'¥'+pb.price:'免费'} · 已售${pb.sales||0} · ${svgi('eye',11)}${pb.views||0}</span>
-        <button data-pub-upd="${e2.id}" title="用当前库中最新内容更新（重新进入审核）">更新</button>
+      ${st? `<span class="t2" title="${esc(reason)}">${ST[st]}${st==='rejected'&&reason?('：'+esc(reason)):''} · ${(pb&&pb.price)>0?'¥'+pb.price:'免费'} · 已售${(pb&&pb.sales)||0} · ${svgi('eye',11)}${(pb&&pb.views)||0}</span>
+        <button data-pub-upd="${e2.id}" title="推送当前库中最新内容到谱库（普通创作者重新进入审核；管理员免审直接生效）">更新</button>
         <button data-pub-off="${e2.id}">下架</button>`
       : `<span class="t2">未发布</span><button data-pub-on="${e2.id}" class="primary">发布到谱友圈</button>`}
     </div>`;
@@ -21668,15 +21680,52 @@ function renderPersonal(tab){
       const e0=libLoad().find(x=>x.id===b2.dataset.pubOn); if(!e0) return;
       showPublishMenu(e0, b2.getBoundingClientRect());
     });
-    M.querySelectorAll('[data-pub-upd]').forEach(b2=>b2.onclick=()=>{
+    /* v60.83 在线时「更新/下架」走真实接口（此前只改本机演示层：更新既没推最新内容也没走审核流、
+       下架服务器上根本没下——运营真实风险）；离线/未登录保持本机演示行为不变 */
+    const canCloudCr=!!(window.PYQ_CLOUD && ACCT);
+    if(canCloudCr && Date.now()-(window.__srvScoresAt||0)>4000){
+      window.__srvScoresAt=Date.now();
+      apiCall('/scores').then(r=>{
+        const map={}; ((r&&r.scores)||[]).forEach(s2=>{ map[s2.id]=s2; });
+        window.__srvScores=map;
+        if(M.querySelector('[data-pub-upd],[data-pub-on]')) openPersonal('creator');   // 仍停在本页签才重绘
+      }).catch(()=>{});
+    }
+    M.querySelectorAll('[data-pub-upd]').forEach(b2=>b2.onclick=async ()=>{
       const e0=libLoad().find(x=>x.id===b2.dataset.pubUpd); if(!e0) return;
+      if(canCloudCr){
+        b2.disabled=true; b2.textContent='更新中…';
+        try{
+          const cloudId=await scoreCloudPush(e0.id);
+          if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
+          const pr=await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
+          const online=!!(pr && pr.published);
+          const l=circlePubs(); const pb=l.find(x=>x.libId===e0.id);
+          if(pb){ pb.title=e0.title; pb.pubAt=nowStamp(); pb.status=online?'approved':'pending'; pb.online=online; delete pb.reason; circlePubsSave(l); }
+          if(window.__srvScores && window.__srvScores[cloudId]) window.__srvScores[cloudId].status=online?'published':'pending';
+          scoreThumbUpload(cloudId, e0.data);   /* 内容变了缩图也该换；失败不影响结果 */
+          toast(online? '已更新并直接上架（管理员免审）' : '已更新 · 重新进入平台审核');
+        }catch(e){ toast('更新失败：'+(e.message||e)); }
+        openPersonal('creator'); return;
+      }
       const l=circlePubs(); const pb=l.find(x=>x.libId===e0.id);
       if(pb){ pb.data=JSON.parse(JSON.stringify(e0.data)); pb.title=e0.title; pb.pubAt=nowStamp(); pb.status='pending'; delete pb.reason; circlePubsSave(l); }
       toast('已更新内容 · 重新进入平台审核');
       openPersonal('creator');
     });
-    M.querySelectorAll('[data-pub-off]').forEach(b2=>b2.onclick=()=>{
-      const l=circlePubs().filter(x=>x.libId!==b2.dataset.pubOff);
+    M.querySelectorAll('[data-pub-off]').forEach(b2=>b2.onclick=async ()=>{
+      const id=b2.dataset.pubOff;
+      if(canCloudCr){
+        b2.disabled=true;
+        try{
+          await apiCall('/scores/'+id+'/unpublish',{method:'POST'});
+          if(window.__srvScores && window.__srvScores[id]) window.__srvScores[id].status='private';
+          circlePubsSave(circlePubs().filter(x=>x.libId!==id));
+          toast('已下架 · 谱库立即不可见');
+        }catch(e){ toast('下架失败：'+(e.message||e)); }
+        openPersonal('creator'); return;
+      }
+      const l=circlePubs().filter(x=>x.libId!==id);
       circlePubsSave(l); toast('已下架'); openPersonal('creator');
     });
     document.getElementById('cr-proof').onclick=async ()=>{
@@ -22155,7 +22204,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.82';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.83';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22178,6 +22227,7 @@ const APP_VER='v60.82';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.83</span><div><b>创作者中心发布管理接通真实接口</b>（产品报告：前台一排「待审核」，真后台审核队列却是空的；管理员应免审直接上架）。<b>根因不是审核逻辑错，而是编辑器创作者中心还在跑「本机演示层」</b>——那排状态只读浏览器本地的 circlePubs 演示记录，和服务器完全是两套账：<br>① <b>状态显示改以服务器为准</b>：打开创作者页签拉一次 <code>/api/scores</code>（scoreList 本就回 status/review_note），行状态按服务器渲染（已上架/待审核/已驳回+原因/未发布）；本机演示记录只在离线/未登录时回落，并继续提供定价/销量等演示字段。产品截图那排「待审核」就是本机残留——服务器上这些谱其实是 <b>published 已上架</b>（管理员发布免审逻辑一直是对的），所以真后台审核队列当然是空的。<br>② <b>「更新」按钮此前是纯演示</b>：只改本机状态为 pending，<b>既没把最新内容推上云端、也没走发布接口</b>——「更新完还显示待审核」由此而来。现在在线时走真实链路：推最新内容（PUT）→ 重新发布（POST publish，管理员免审仍直接生效、普通创作者重新进审核）→ 顺带重传缩图。<br>③ <b>「下架」按钮此前也是纯演示</b>：只删本机记录，<b>服务器上那首谱还挂在谱库里</b>——这是实打实的运营风险（以为下架了其实没下）。现在在线时调真实 <code>/unpublish</code>（status→private，谱库立即不可见）。<br><b>测试</b>：<code>tv_publish</code> 新增 T7（状态真源=服务器：本机记错也显示已上架）/T8（更新走 PUT+publish、管理员不回炉）/T9（下架调 unpublish），对改前文件跑<b>三条全红</b>。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.82</span><div><b>全站 SEO 补齐</b>（产品指示）。先盘点：v44.6 的地基（robots.txt 双 sitemap、四垂类落地页带 FAQ 结构化数据、发布谱 SSR 落地页带 MusicComposition + og:music.song + canonical）都在且达标，本轮只补缺口：<br>① <b>五个站点页补 og 分享卡</b>（features/help/make/log/sponsors 此前 og=0，微信/QQ/微博分享出裸链接）：og:title/description/image/site_name + twitter:card 三件套补齐；首页与三个工具页补 <code>keywords</code>（百度仍读）。<br>② <b>编辑器（zhipu 与 puku/kanpu 共用同一文件）补 SEO 头</b>：canonical 锚点（静态指 zhipu 根；<b>kanpu?pub=ID 观看时由 openRemotePub 改写为 /pub/ID</b>——同一首谱的两个地址不去重会分散权重）、SoftwareApplication 结构化数据（免费、Web 应用）、og 卡与 keywords。<br>③ <b>发布谱动态 sitemap 带 &lt;lastmod&gt;</b>（epoch 秒 → ISO 日期）：搜索引擎按它安排重抓，重新发布过的谱更快刷新快照、没动过的不浪费抓取配额。<br>④ 语法闸升级：跳过 <code>application/ld+json</code> 数据块（JSON 按 JS 解析必假红）。<br><b>测试</b>：<code>tv_site</code> 新增 4 项（五页 og 卡/keywords 补位/编辑器 SEO 头含观看时 canonical 改写/动态 sitemap lastmod），33→37 项全绿。API 侧需随服务端发版重启 pyq-api。</div></li>
     <li><span class="v">v60.81</span><div><b>曲谱页/谱库信息升级：演唱者 + 谱类细分标签 + 收藏星放大</b>（产品指示）。<br>① <b>谱类细分标签</b>：不再只写「弹唱谱/歌谱」——弹唱谱说清乐器（<b>吉他弹唱谱</b>/钢琴弹唱谱）、歌谱说清记谱法（<b>简谱歌谱</b>/<b>五线谱歌谱</b>）。判定口径：docType 里 vocal 只会是简谱记谱＝简谱歌谱；五线谱写的歌归在 instr 里，按「<b>有没有实际歌词</b>」区分——带词的是给人唱的（五线谱歌谱），没词才是器乐五线谱。三端同一张表：编辑器 <code>docTypeLabel</code>、服务端 <code>typeLabelOf</code>（谱库列表接口新增 <code>typeLabel</code> 字段 + SSR 落地页/og 卡同步）、站点卡片 <code>pyq.js</code> 优先用服务端算好的标签、旧接口回退粗分类（站点先发、接口后发也不破）。<br>② <b>曲谱页标题带演唱者</b>：浏览器/小程序导航栏标题由「难忘的一天 · 谱友圈谱库」升级为「<b>难忘的一天 - 许巍 · 吉他弹唱谱</b> · 谱友圈谱库」；互动谱 HTML 与微信分享卡标题同口径（《难忘的一天》许巍 · 吉他弹唱谱）。谱库卡片本就有「演唱 xx」行，配合细分标签信息补齐。<br>③ <b>收藏五角星放大</b>（产品报告太小）：星形墨迹本就比方形图标显小，收藏星 16→<b>21</b>，其余头部图标 16→17。<br>④ <b>排查记录</b>：产品复报「重新保存发布后手机电脑显示仍不一致」——审计整条链（云端保存带整个 data、观看端深拷贝不丢字段、migrate 只增不删）代码是通的，根因是 <b>v60.80 尚未部署到线上</b>，线上编辑器还没有「载入即补 tabNota」这段码。线上现版本的立即解法：编辑器里点两次「记谱切换」（切过去再切回来）——切换动作本身就会把记谱风格写进谱（v58.2 起有），再保存/重新发布即可。<br><b>测试</b>：<code>tv_pub</code> 新增 T6（四档标签判定含「带词五线谱=歌谱」/标题含演唱者与细分标签/收藏星 21 其余 17）。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.80</span><div><b>手机看谱四项返修</b>（产品截图逐条）。<br>① <b>「电脑显示 ×、手机只显示数字」</b>：记谱风格字段 <code>tabNota</code> 此前只在手动切换时落盘，从未切换过的谱发布后没有该字段，观看端各自回退<b>本机</b>偏好（默认数字）——作者电脑上是 ×、别人手机上就成了数字。现在编辑器载入无此字段的老谱时按当前生效偏好补上（作者看到什么就存什么），之后的保存/发布自然带走；观看模式不补（不能拿观看者的本机偏好当作者意图）。<b>已发布的谱需在编辑器重新打开→保存→发布一次</b>，观看端才会统一成作者的记谱风格。<br>② <b>「第一行 1 个小节、第二行 2 个，什么逻辑」</b>：两种排法单看代价相近，DP 逐行取最便宜的就会随机交替，读起来忽松忽紧。现按行宽/行容比分四档（压缩/贴合/偏松/很松），<b>相邻两行档位差 &gt;1 记一笔惩罚</b>（TeX fitness class / adj_demerits 同思路）——密度要变就渐变，同一段落自然收敛成统一的每行小节数。实测产品那份真实谱：手机端行密度跳变 <b>19 次 → 6 次</b>（剩下的都在主歌↔间奏切换处，该跳），每行小节由 <code>12122…</code> 交替变成 <code>2222→1111</code> 成段过渡；合成用例 1280px 跳变 <b>15 → 3</b>。<br>③ <b>「一整页只显示一行内容」</b>：窄屏下一个系统（双吉他+简谱+歌词）高约 350px，固定 A4 页高 735px 常常只装得下一行——第二行差几十像素放不下就整页推下去，每页空白近半、24 页翻不完。观看等只读模式且窄屏（与 fit-to-width 同一断点 820px）改为<b>不分页的连续长卷</b>：一张长页、无页码，实测 <b>24 页 → 1 卷</b>；打印前自动切回分页渲染、打完还原（beforeprint/afterprint），长图导出本就要连续，编辑器分页照旧。<br>④ <b>谱架回到观看页头部</b>（产品指示）：v55.0 手机精简时撤下后只剩 ⚙ 设置里一处入口，太深——对谱练习是看谱页高频动作，现在头部图标一步直达（桌面/手机同一入口）。<br><b>测试</b>：<code>tv_layout</code> T10 改钉「行密度跳变 ≤8」（对改前文件当场红：跳变 15）；tabNota 补写/观看不补/谱架接线 六项探针全绿。CORE <b>100 套件</b>全绿。</div></li>
