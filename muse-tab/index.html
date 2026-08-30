@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
+<!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
+     静态先指 zhipu 根；kanpu?pub=ID 观看时由 openRemotePub 改写为 /pub/ID（与 SSR 落地页去重） -->
+<link rel="canonical" href="https://zhipu.puyouquan.com/" id="pyq-canon">
+<meta name="keywords" content="在线制谱,制谱软件,吉他谱制作,简谱制作,五线谱制作,尤克里里谱,即兴伴奏,智能配谱">
+<meta property="og:type" content="website">
+<meta property="og:title" content="谱友圈 · 在线制谱">
+<meta property="og:description" content="在线制作吉他六线谱、简谱、五线谱、尤克里里谱与功能谱：三种记谱法同源互切、智能配谱即兴伴奏、真实音色播放、出版级排版打印。">
+<meta property="og:image" content="https://www.puyouquan.com/share-icon.png">
+<meta property="og:site_name" content="谱友圈">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"谱友圈在线制谱","url":"https://zhipu.puyouquan.com/","applicationCategory":"MultimediaApplication","operatingSystem":"Web","inLanguage":"zh-CN","description":"在线制作吉他六线谱、简谱、五线谱、尤克里里谱与功能谱：三种记谱法同源互切、智能配谱即兴伴奏、真实音色播放、出版级排版打印。","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}}</script>
 <style>
 :root{
   /* v40.6 素材配色（产品拍板）：朱砂强调 + 暖米三级表面（--bg 画布 < --toolbar 栏 < --panel 卡片）；
@@ -21297,6 +21308,9 @@ async function openRemotePub(id, review){
   document.body.classList.add('viewer');
   /* v60.81 标题带演唱者与谱类细分（产品指示）：小程序/浏览器标签直接读它 */
   document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabel(song)+' · 谱友圈谱库';
+  /* v60.82 SEO：观看页 canonical 指到本谱的 SSR 落地页（kanpu?pub=ID 与 /pub/ID 是同一首谱的
+     两个地址，不去重会分散权重；能执行 JS 的抓取端按此归一） */
+  try{ const c=document.getElementById('pyq-canon'); if(c && !review) c.href='https://puku.puyouquan.com/pub/'+encodeURIComponent(id); }catch(_){}
   stopPlay(); audio.loop=null; clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
   vb.innerHTML=vwHeaderHTML({fav:true, card:true});   /* v55.6 头部 2.0：指法/变调夹/拍速 + 收藏/分享/谱库主页图标 */
@@ -22141,7 +22155,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.81';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.82';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22164,6 +22178,7 @@ const APP_VER='v60.81';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.82</span><div><b>全站 SEO 补齐</b>（产品指示）。先盘点：v44.6 的地基（robots.txt 双 sitemap、四垂类落地页带 FAQ 结构化数据、发布谱 SSR 落地页带 MusicComposition + og:music.song + canonical）都在且达标，本轮只补缺口：<br>① <b>五个站点页补 og 分享卡</b>（features/help/make/log/sponsors 此前 og=0，微信/QQ/微博分享出裸链接）：og:title/description/image/site_name + twitter:card 三件套补齐；首页与三个工具页补 <code>keywords</code>（百度仍读）。<br>② <b>编辑器（zhipu 与 puku/kanpu 共用同一文件）补 SEO 头</b>：canonical 锚点（静态指 zhipu 根；<b>kanpu?pub=ID 观看时由 openRemotePub 改写为 /pub/ID</b>——同一首谱的两个地址不去重会分散权重）、SoftwareApplication 结构化数据（免费、Web 应用）、og 卡与 keywords。<br>③ <b>发布谱动态 sitemap 带 &lt;lastmod&gt;</b>（epoch 秒 → ISO 日期）：搜索引擎按它安排重抓，重新发布过的谱更快刷新快照、没动过的不浪费抓取配额。<br>④ 语法闸升级：跳过 <code>application/ld+json</code> 数据块（JSON 按 JS 解析必假红）。<br><b>测试</b>：<code>tv_site</code> 新增 4 项（五页 og 卡/keywords 补位/编辑器 SEO 头含观看时 canonical 改写/动态 sitemap lastmod），33→37 项全绿。API 侧需随服务端发版重启 pyq-api。</div></li>
     <li><span class="v">v60.81</span><div><b>曲谱页/谱库信息升级：演唱者 + 谱类细分标签 + 收藏星放大</b>（产品指示）。<br>① <b>谱类细分标签</b>：不再只写「弹唱谱/歌谱」——弹唱谱说清乐器（<b>吉他弹唱谱</b>/钢琴弹唱谱）、歌谱说清记谱法（<b>简谱歌谱</b>/<b>五线谱歌谱</b>）。判定口径：docType 里 vocal 只会是简谱记谱＝简谱歌谱；五线谱写的歌归在 instr 里，按「<b>有没有实际歌词</b>」区分——带词的是给人唱的（五线谱歌谱），没词才是器乐五线谱。三端同一张表：编辑器 <code>docTypeLabel</code>、服务端 <code>typeLabelOf</code>（谱库列表接口新增 <code>typeLabel</code> 字段 + SSR 落地页/og 卡同步）、站点卡片 <code>pyq.js</code> 优先用服务端算好的标签、旧接口回退粗分类（站点先发、接口后发也不破）。<br>② <b>曲谱页标题带演唱者</b>：浏览器/小程序导航栏标题由「难忘的一天 · 谱友圈谱库」升级为「<b>难忘的一天 - 许巍 · 吉他弹唱谱</b> · 谱友圈谱库」；互动谱 HTML 与微信分享卡标题同口径（《难忘的一天》许巍 · 吉他弹唱谱）。谱库卡片本就有「演唱 xx」行，配合细分标签信息补齐。<br>③ <b>收藏五角星放大</b>（产品报告太小）：星形墨迹本就比方形图标显小，收藏星 16→<b>21</b>，其余头部图标 16→17。<br>④ <b>排查记录</b>：产品复报「重新保存发布后手机电脑显示仍不一致」——审计整条链（云端保存带整个 data、观看端深拷贝不丢字段、migrate 只增不删）代码是通的，根因是 <b>v60.80 尚未部署到线上</b>，线上编辑器还没有「载入即补 tabNota」这段码。线上现版本的立即解法：编辑器里点两次「记谱切换」（切过去再切回来）——切换动作本身就会把记谱风格写进谱（v58.2 起有），再保存/重新发布即可。<br><b>测试</b>：<code>tv_pub</code> 新增 T6（四档标签判定含「带词五线谱=歌谱」/标题含演唱者与细分标签/收藏星 21 其余 17）。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.80</span><div><b>手机看谱四项返修</b>（产品截图逐条）。<br>① <b>「电脑显示 ×、手机只显示数字」</b>：记谱风格字段 <code>tabNota</code> 此前只在手动切换时落盘，从未切换过的谱发布后没有该字段，观看端各自回退<b>本机</b>偏好（默认数字）——作者电脑上是 ×、别人手机上就成了数字。现在编辑器载入无此字段的老谱时按当前生效偏好补上（作者看到什么就存什么），之后的保存/发布自然带走；观看模式不补（不能拿观看者的本机偏好当作者意图）。<b>已发布的谱需在编辑器重新打开→保存→发布一次</b>，观看端才会统一成作者的记谱风格。<br>② <b>「第一行 1 个小节、第二行 2 个，什么逻辑」</b>：两种排法单看代价相近，DP 逐行取最便宜的就会随机交替，读起来忽松忽紧。现按行宽/行容比分四档（压缩/贴合/偏松/很松），<b>相邻两行档位差 &gt;1 记一笔惩罚</b>（TeX fitness class / adj_demerits 同思路）——密度要变就渐变，同一段落自然收敛成统一的每行小节数。实测产品那份真实谱：手机端行密度跳变 <b>19 次 → 6 次</b>（剩下的都在主歌↔间奏切换处，该跳），每行小节由 <code>12122…</code> 交替变成 <code>2222→1111</code> 成段过渡；合成用例 1280px 跳变 <b>15 → 3</b>。<br>③ <b>「一整页只显示一行内容」</b>：窄屏下一个系统（双吉他+简谱+歌词）高约 350px，固定 A4 页高 735px 常常只装得下一行——第二行差几十像素放不下就整页推下去，每页空白近半、24 页翻不完。观看等只读模式且窄屏（与 fit-to-width 同一断点 820px）改为<b>不分页的连续长卷</b>：一张长页、无页码，实测 <b>24 页 → 1 卷</b>；打印前自动切回分页渲染、打完还原（beforeprint/afterprint），长图导出本就要连续，编辑器分页照旧。<br>④ <b>谱架回到观看页头部</b>（产品指示）：v55.0 手机精简时撤下后只剩 ⚙ 设置里一处入口，太深——对谱练习是看谱页高频动作，现在头部图标一步直达（桌面/手机同一入口）。<br><b>测试</b>：<code>tv_layout</code> T10 改钉「行密度跳变 ≤8」（对改前文件当场红：跳变 15）；tabNota 补写/观看不补/谱架接线 六项探针全绿。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.79</span><div><b>小程序分享直达 + 朋友圈分享</b>（产品报告：分享曲谱链接给好友，点开不是谱的直达链接；曲谱无法分享到朋友圈）。<br>① <b>直达修正的根因</b>：小程序的分享卡片路径依赖网页 <code>postMessage</code> 上报谱 ID，而网页端<b>从没发过这条消息</b>——用户从谱库（首页 web-view）点进某首谱再分享，<code>onShareAppMessage</code> 拿不到 ID 就回落到谱库首页，好友点开自然不是那首谱。现在改成<b>以微信在分享时给的 <code>webViewUrl</code>（web-view 当前地址）为准</b>解析谱 ID（观看页地址本来就带着 <code>?pub=ID</code>，不需要网页配合），另用 <code>bindload</code> 逐次记下落地地址兜底；网页端 <code>wxShareCard</code> 在小程序环境下补发 <code>wx.miniProgram.postMessage({pubId,title})</code>，只用来给卡片补<b>歌名标题</b>（该消息微信在分享/后退时才送达，ID 不靠它）。<br>② <b>朋友圈分享</b>：首页与看谱页补上 <code>onShareTimeline</code> 并 <code>showShareMenu</code> 点亮入口（此前注释断言「web-view 页不支持朋友圈」——不准确，不支持的是朋友圈<b>单页模式渲染</b> web-view，分享本身可用）。朋友圈卡片以「本页+query」重开：看谱页带 <code>id=</code> 直达，首页收到 <code>id=</code> 时转看谱页；<b>单页模式（scene 1154）下渲染原生占位页</b>（「点击上方『前往小程序』查看完整曲谱」），微信自带按钮会以完整模式重开、query 原样带回。<br>③ 网页端在小程序 web-view 里<b>跳过 JS-SDK 签名</b>（<code>updateXxxShareData</code> 在该环境不生效，签名是白做的）。<br><b>注意</b>：小程序侧改动需管理员重新上传并<b>发布新版本</b>后才生效。<code>pubIdFrom</code> 8 组用例 node 单测全过（含 enter 换票链接的 <code>to=</code> 解包与非法字符拒收）。</div></li>

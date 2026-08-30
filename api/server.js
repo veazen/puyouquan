@@ -811,7 +811,12 @@ const routes = [
   // 已发布谱动态 sitemap：每首谱一条 /pub/:id，供搜索引擎抓取（robots.txt 引用本地址）
   ['GET', /^\/pub\/sitemap\.xml$/, false, () => {
     const rows = q.pubList.all();
-    const urls = rows.map(r => `  <url><loc>${PUB_CANON}/pub/${escHtml(r.id)}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`).join('\n');
+    /* v60.82 SEO：带 <lastmod>（updated_at 是 epoch 秒）——搜索引擎按它安排重抓，
+       重新发布过的谱能更快刷新快照，没动过的不浪费抓取配额 */
+    const urls = rows.map(r => {
+      const lm = r.updated_at ? `<lastmod>${new Date(r.updated_at * 1000).toISOString().slice(0, 10)}</lastmod>` : '';
+      return `  <url><loc>${PUB_CANON}/pub/${escHtml(r.id)}</loc>${lm}<changefreq>weekly</changefreq><priority>0.6</priority></url>`;
+    }).join('\n');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
     return { ___raw: xml, ___ctype: 'application/xml; charset=utf-8', ___cache: 'public, max-age=600' };
   }],

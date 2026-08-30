@@ -20,6 +20,7 @@ for (const path of files) {
   let m, i = 0, bad = 0;
   while ((m = re.exec(html))) {
     if (/\bsrc\s*=/.test(m[1] || '')) continue;   // 外链脚本无正文，跳过
+    if (/type\s*=\s*["']application\/(ld\+)?json["']/i.test(m[1] || '')) continue;   // v60.82 JSON-LD 数据块不是 JS，按 JS 解析必假红
     i++;
     try { new vm.Script(m[2], { filename: path + ' [inline#' + i + ']' }); }
     catch (e) { bad++; console.error('❌ ' + path + ' 内联脚本 #' + i + ' 语法错误：' + e.message); }

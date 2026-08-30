@@ -407,6 +407,34 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
   T(pg._errs.length === 0, 'T11 扁平化页无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
+  /* ===== v60.82 全站 SEO 补齐 ===== */
+  {
+    // ① 此前缺 og 卡的五页：og:title/og:image/twitter 三件套到位
+    const need = ['features.html','help.html','make.html','log.html','sponsors.html'];
+    const miss = need.filter(f => {
+      const h = read(f);
+      return !(/property="og:title"/.test(h) && /property="og:image"/.test(h) && /twitter:card/.test(h));
+    });
+    T(miss.length === 0, 'S v60.82 五页补齐 og 卡（features/help/make/log/sponsors）', miss.join(',') || 'all ok');
+    // ② 关键词补位：首页 + 三个工具页
+    const kwMiss = ['index.html','features.html','help.html','make.html'].filter(f => !/name="keywords"/.test(read(f)));
+    T(kwMiss.length === 0, 'S v60.82 keywords 补位（index/features/help/make）', kwMiss.join(',') || 'all ok');
+    // ③ 编辑器（zhipu/kanpu 同文件）：canonical 锚点 + SoftwareApplication 结构化数据 + og
+    const ed = fs.readFileSync(P.resolve(__dirname, '../index.html'), 'utf8');
+    const edCanon = /<link rel="canonical" href="https:\/\/zhipu\.puyouquan\.com\/" id="pyq-canon">/.test(ed);
+    let edLd = false;
+    try { const m = ed.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+      const o = JSON.parse(m[1]); edLd = o['@type'] === 'SoftwareApplication' && /zhipu/.test(o.url); } catch (_) {}
+    const edPubCanon = /pyq-canon[\s\S]{0,200}?\/pub\/'\+encodeURIComponent\(id\)/.test(ed);
+    T(edCanon && edLd && /property="og:title"/.test(ed) && edPubCanon,
+      'S v60.82 编辑器 SEO 头（canonical 锚点/SoftwareApplication/og/观看时 canonical 改写 /pub/ID）',
+      JSON.stringify({ edCanon, edLd, edPubCanon }));
+    // ④ 服务端动态 sitemap 带 lastmod（源码级断言：epoch 秒 → ISO 日期）
+    const sv = fs.readFileSync(P.resolve(__dirname, '../../api/server.js'), 'utf8');
+    T(/<lastmod>\$\{new Date\(r\.updated_at \* 1000\)\.toISOString\(\)\.slice\(0, 10\)\}<\/lastmod>/.test(sv),
+      'S v60.82 /pub/sitemap.xml 带 lastmod', 'src-level');
+  }
+
   console.log('PASS ' + pass + '/' + total);
   await b.close();
   process.exit(pass === total ? 0 : 1);
