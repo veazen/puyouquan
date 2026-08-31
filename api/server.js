@@ -867,6 +867,58 @@ const routes = [
         nickname: ou ? ou.nickname : '', phone: (ou && PHONE_RE.test(ou.phone)) ? ou.phone.replace(/^(\d{3})\d{4}/, '$1****') : '' };
     }) };
   }],
+  /* -- v60.90 课程发布工作台（v1 仅管理员；官方自制先行，签约/UGC 开课复用同一模型再放开）-- */
+  ['GET', /^\/api\/admin\/courses$/, true, (m, b, u) => {
+    requireAdmin(u);
+    return { courses: q.courseAll.all() };
+  }],
+  ['GET', /^\/api\/admin\/courses\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const c = q.courseGet.get(m[1]);
+    if (!c) throw new ApiError(404, '课程不存在');
+    return { course: { ...c, data: JSON.parse(c.data || '{}') } };
+  }],
+  ['PUT', /^\/api\/admin\/courses\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const id = m[1];
+    if (!/^[a-z0-9-]{3,48}$/.test(id)) throw new ApiError(400, '课程 id 需为 3-48 位小写字母/数字/连字符');
+    const title = String(b.title || '').trim();
+    if (!title || title.length > 60) throw new ApiError(400, '课程标题需为 1-60 字');
+    const data = (b.data && typeof b.data === 'object') ? b.data : {};
+    const chapters = Array.isArray(data.chapters) ? data.chapters : [];
+    if (chapters.length > 30) throw new ApiError(400, '章节最多 30 个');
+    for (const ch of chapters) if (!ch || typeof ch !== 'object' || !String(ch.title || '').trim()) throw new ApiError(400, '每个章节都需要标题');
+    const raw = JSON.stringify(data);
+    if (raw.length > 200 * 1024) throw new ApiError(413, '课程内容过大（上限 200KB）');
+    const t = now();
+    const exist = q.courseGet.get(id);
+    q.courseUpsert.run(id, exist ? exist.user_id : u.id, title, String(b.subtitle || '').slice(0, 120),
+      String(b.instrument || '').slice(0, 20), String(b.level || '').slice(0, 20),
+      Math.max(0, Math.min(52, +b.weeks || 0)), String(b.intro || '').slice(0, 500),
+      Math.max(0, Math.min(999, +b.sort || 0)), raw, exist ? exist.created_at : t, t);
+    adminLog(u.id, 'course', id, (exist ? '更新' : '新建') + '课程 · ' + title);
+    return { saved: true, id, status: exist ? exist.status : 'draft' };
+  }],
+  ['POST', /^\/api\/admin\/courses\/([A-Za-z0-9_-]+)\/(publish|unpublish)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const c = q.courseGet.get(m[1]);
+    if (!c) throw new ApiError(404, '课程不存在');
+    const st = m[2] === 'publish' ? 'published' : 'draft';
+    if (st === 'published' && !(JSON.parse(c.data || '{}').chapters || []).length) throw new ApiError(400, '没有章节的课程不能发布');
+    q.courseSetStatus.run(st, now(), c.id);
+    adminLog(u.id, m[2] === 'publish' ? 'course-pub' : 'course-off', c.id, c.title);
+    return { ok: true, status: st };
+  }],
+  ['DELETE', /^\/api\/admin\/courses\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const c = q.courseGet.get(m[1]);
+    if (!c) throw new ApiError(404, '课程不存在');
+    if (c.status === 'published') throw new ApiError(400, '已发布课程需先下架再删除');
+    q.courseDelete.run(c.id);
+    adminLog(u.id, 'course-del', c.id, c.title);
+    return { ok: true };
+  }],
+
   /* 用户详情：权益 / 订单 / 曲谱分状态计数——点开用户行即看全貌，不用再去 CLI 查 */
   ['GET', /^\/api\/admin\/users\/([A-Za-z0-9_-]+)\/detail$/, true, (m, b, u) => {
     requireAdmin(u);
@@ -881,6 +933,16 @@ const routes = [
   ['GET', /^\/api\/admin\/logs$/, true, (m, b, u) => {
     requireAdmin(u);
     return { logs: q.adminLogList.all(50).map(l => ({ ...l, admin_phone: PHONE_RE.test(l.admin_phone) ? l.admin_phone.replace(/^(\d{3})\d{4}/, '$1****') : '' })) };
+  }],
+
+  /* -- v60.90 课程（公开读，无需登录）：章节=谱面+图文+练习任务，整包 JSON 出 -- */
+  ['GET', /^\/api\/courses$/, false, () => ({
+    courses: q.courseListPub.all().map(c => ({ ...c, data: JSON.parse(c.data || '{}') })),
+  })],
+  ['GET', /^\/api\/courses\/([A-Za-z0-9_-]+)$/, false, (m) => {
+    const c = q.courseGetPub.get(m[1]);
+    if (!c) throw new ApiError(404, '课程不存在或未发布');
+    return { course: { ...c, data: JSON.parse(c.data || '{}') } };
   }],
 
   /* -- 公开谱库（谱库 puku，无需登录）-- */

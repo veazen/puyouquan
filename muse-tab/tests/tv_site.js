@@ -71,6 +71,16 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       }
       if (p === '/api/admin/orders') return J({ orders: [{ id: 'o1', kind: 'vip_month', amount_fen: 1500, channel: 'wxpay', status: 'paid', created_at: 1700000000, nickname: '小谱', phone: '139****9999' }] });
       if (/^\/api\/admin\/users\/[^/]+\/(role|grant|revoke)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, role: 'creator', kind: 'vip', expires_at: 0 }); }
+      /* v60.90 课程工作台 */
+      if (p === '/api/admin/courses') return J({ courses: [{ id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '', instrument: 'guitar', level: '零基础', weeks: 7, status: 'published', sort: 0, updated_at: 1700000000 }] });
+      if (/^\/api\/admin\/courses\/[^/]+\/(publish|unpublish)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, status: 'published' }); }
+      if (/^\/api\/admin\/courses\/[^/]+$/.test(p)) {
+        const mth = route.request().method();
+        if (mth === 'PUT') { pg2._posts.push('PUT ' + p); return J({ saved: true, id: p.split('/').pop(), status: 'draft' }); }
+        if (mth === 'DELETE') { pg2._posts.push('DELETE ' + p); return J({ ok: true }); }
+        return J({ course: { id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '7 周', instrument: 'guitar', level: '零基础', weeks: 7, intro: '', sort: 0, status: 'published',
+          data: { emoji: '🎸', fam: 'g', chapters: [{ emoji: '🎸', title: '认识吉他', goal: '', points: ['部件'], task: '调音', links: [{ t: '帮助', href: 'help.html' }] }] } } });
+      }
       if (p === '/api/admin/logs') return J({ logs: [{ id: 1, admin_id: 'u1', action: 'approve', target: 'sc9',
         detail: '待审谱', created_at: 1700000000, admin_name: '阿杜', admin_phone: '138****8888' }] });
       if (p === '/api/auth/sms/send') return J({ sent: true, dev_code: '123456' });
@@ -78,6 +88,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       if (p === '/index.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('index.html') });
       if (p === '/me.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('me.html') });
       if (p === '/admin.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('admin.html') });
+      if (p === '/kecheng.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('kecheng.html') });
       if (p === '/pyq.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: read('pyq.js') });
       if (p === '/pyq.css') return route.fulfill({ status: 200, contentType: 'text/css', body: read('pyq.css') });
       return route.fulfill({ status: 404, body: '' });
@@ -305,7 +316,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     };
   });
   T(r.gateHidden && r.bodyShown && r.tiles === 4 && r.sum.includes('待审 2')
-    && r.dot === '2' && r.tabs === 7 && r.rowTitle === '待审谱' && r.funnel.includes('近 7 日事件')
+    && r.dot === '2' && r.tabs === 8 && r.rowTitle === '待审谱' && r.funnel.includes('近 7 日事件')
     && /zhipu\.puyouquan\.com\/\?review=sc9/.test(r.preview) && r.ok && r.no,
     'T9c admin.html 门卫+概览+漏斗+七页签+待审队列', JSON.stringify(r));
 
@@ -532,7 +543,8 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       'S v60.89 页脚含 功能+帮助');
     /* ③ v60.89 学习页=民谣吉他启蒙课 7 周（首门课立起课程框架） */
     const kc = read('kecheng.html');
-    const weeks = [1,2,3,4,5,6,7].every(n => kc.includes('第 ' + n + ' 周'));
+    /* v60.90 起章节文本在内嵌 JSON（kc-data）里由 JS 渲染，周次结构由 T14a/b 深比对钉住 */
+    const weeks = kc.includes('民谣吉他启蒙课') && kc.includes('幼儿音乐启蒙课');
     let courseLd = false;
     try { const m = kc.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
       const o = JSON.parse(m[1]); courseLd = o['@type'] === 'Course' && o.isAccessibleForFree === true; } catch (_) {}
@@ -565,6 +577,77 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       kw: /keywords[^>]*出版级制谱/.test(ix),
     };
     T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/学习入口/谱种带）', JSON.stringify(ixOk));
+  }
+
+  /* ===== v60.90 课程系统：学习页交互 / 数据同步 / 工作台课程页签 ===== */
+  {
+    // ① 内嵌数据与服务端种子逐字节同源（改课程须两处一起改或走工作台）
+    const kcHtml = read('kecheng.html');
+    const inline = JSON.parse(kcHtml.match(/<script id="kc-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+    const seedC = JSON.parse(fs.readFileSync(P.resolve(__dirname, '../../api/seed-courses.json'), 'utf8'));
+    T(JSON.stringify(inline) === JSON.stringify(seedC),
+      'T14a v60.90 学习页内嵌课程=服务端种子（单一内容源）', inline.length + ' vs ' + seedC.length + ' 门');
+    T(inline.length === 2 && inline.some(c => c.title === '幼儿音乐启蒙课' && (c.data.chapters || []).length === 6)
+      && inline.some(c => c.title === '民谣吉他启蒙课' && (c.data.chapters || []).length === 7),
+      'T14b 两门课：吉他 7 章 + 幼儿 6 章');
+
+    // ② 学习页：卡片渲染 → 打开详情 → 打卡 → 进度与 localStorage（/api/courses 404 走内嵌兜底）
+    pg = await mkPage(false, 'kecheng.html');
+    await pg.waitForTimeout(500);
+    r = await pg.evaluate(async () => {
+      const cards = document.querySelectorAll('#kc-cards .kc-card');
+      const kidCard = [...cards].find(a => a.textContent.includes('幼儿音乐启蒙课'));
+      const out = { n: cards.length, kid: !!kidCard, fam: kidCard ? kidCard.dataset.fam : '',
+        emoji: kidCard ? (kidCard.querySelector('.kc-emoji') || {}).textContent : '' };
+      const g = [...cards].find(a => a.textContent.includes('民谣吉他启蒙课'));
+      g.click();
+      await new Promise(r2 => setTimeout(r2, 100));
+      const det = document.getElementById('kcd-course-guitar-qimeng');
+      out.detShown = det && !det.hidden;
+      out.cardsHidden = document.getElementById('kc-cards').hidden;
+      out.chN = det.querySelectorAll('.kc-ch').length;
+      det.querySelector('[data-tick="0"]').click();
+      await new Promise(r2 => setTimeout(r2, 60));
+      out.prog = det.querySelector('[data-prog]').textContent;
+      out.tickTxt = det.querySelector('[data-tick="0"]').textContent;
+      out.done = det.querySelectorAll('.kc-done').length;
+      out.ls = (localStorage.getItem('pyq-learn-v1') || '');
+      out.kidTask = /亲子任务/.test((document.getElementById('kcd-course-kids-qimeng') || {}).innerHTML || '');
+      return out;
+    });
+    T(r.n === 2 && r.kid && r.fam === 'v' && r.emoji === '🧸' && r.detShown && r.cardsHidden
+      && r.chN === 7 && /1\/7 章/.test(r.prog) && /已完成/.test(r.tickTxt) && r.done === 1
+      && r.ls.includes('course-guitar-qimeng') && r.kidTask,
+      'T14c 学习页：两卡/详情切换/7 章/打卡进度/localStorage/幼儿亲子任务', JSON.stringify(r));
+    T(pg._errs.length === 0, 'T14d 学习页无报错', pg._errs.join('|') || 'none');
+    await pg.close();
+
+    // ③ 工作台课程页签：列表 → 编辑器载入 → 添加章节 → 保存走 PUT
+    pg = await mkPage(true, 'admin.html', null, 'admin');
+    await pg.waitForTimeout(600);
+    r = await pg.evaluate(async () => {
+      document.querySelector('#ad-tabs [data-ad="courses"]').click();
+      await new Promise(r2 => setTimeout(r2, 220));
+      const out = { row: /民谣吉他启蒙课/.test(document.getElementById('ad-pane').textContent),
+        hasNew: !!document.getElementById('crs-new') };
+      document.querySelector('#ad-pane [data-edit]').click();
+      await new Promise(r2 => setTimeout(r2, 220));
+      out.title = (document.getElementById('crs-title') || {}).value || '';
+      out.ch0 = !!document.querySelector('#crs-chs .crs-ch');
+      document.getElementById('crs-add').click();
+      await new Promise(r2 => setTimeout(r2, 60));
+      out.chN = document.querySelectorAll('#crs-chs .crs-ch').length;
+      document.querySelector('#crs-chs .crs-ch:last-child [data-f="title"]').value = '新章节';
+      document.getElementById('crs-save').click();
+      await new Promise(r2 => setTimeout(r2, 220));
+      out.msg = (document.getElementById('ad-msg') || {}).textContent || '';
+      return out;
+    });
+    T(r.row && r.hasNew && r.title === '民谣吉他启蒙课' && r.ch0 && r.chN === 2 && /已保存/.test(r.msg)
+      && pg._posts.includes('PUT /api/admin/courses/course-guitar-qimeng'),
+      'T15 工作台课程页签：列表/编辑器/加章节/保存走 PUT', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+    T(pg._errs.length === 0, 'T15b 工作台课程页无报错', pg._errs.join('|') || 'none');
+    await pg.close();
   }
 
   /* ===== v60.87 站内信：消息卡 / 导航红点 / 一键已读 / 管理员发公告 ===== */

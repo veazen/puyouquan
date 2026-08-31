@@ -87,6 +87,20 @@ CREATE INDEX IF NOT EXISTS idx_msgs_user ON messages(user_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS msg_reads(
   user_id TEXT NOT NULL, msg_id INTEGER NOT NULL REFERENCES messages(id),
   read_at INTEGER NOT NULL, PRIMARY KEY(user_id, msg_id));
+-- v60.90 课程数据模型：章节=谱面+图文+练习任务，章节数组存 data JSON（与 scores.data 同构思路：
+-- 结构化内容整体读写、无跨行一致性问题；迁移 PostgreSQL 时可平移为 jsonb）。
+-- data = { emoji, fam(g/p/v/f 配色族), chapters:[{emoji,title,goal,points[],task,links:[{t,href}],score_q?}] }
+CREATE TABLE IF NOT EXISTS courses(
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL, subtitle TEXT NOT NULL DEFAULT '',
+  instrument TEXT NOT NULL DEFAULT '',         -- guitar/piano/uku/vocal/kids…
+  level TEXT NOT NULL DEFAULT '',              -- 零基础/入门/进阶/亲子…
+  weeks INTEGER NOT NULL DEFAULT 0,
+  intro TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft',        -- draft/published（v1 工作台仅管理员，暂无 pending 审核档）
+  sort INTEGER NOT NULL DEFAULT 0,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 -- v60.0 平台管理：管理操作审计日志（谁 在何时 对谁 做了什么，永不删）
 CREATE TABLE IF NOT EXISTS admin_logs(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -249,6 +263,21 @@ const q = {
                              ORDER BY m.created_at DESC, m.id DESC LIMIT 50`),
   msgReadsDelByMsg: db.prepare('DELETE FROM msg_reads WHERE msg_id = ?'),
   msgDelBroadcast:  db.prepare('DELETE FROM messages WHERE id = ? AND user_id IS NULL'),
+  // v60.90 课程
+  courseListPub: db.prepare(`SELECT id,title,subtitle,instrument,level,weeks,intro,data,updated_at
+                             FROM courses WHERE status='published' ORDER BY sort, created_at, rowid`),
+  courseGetPub:  db.prepare(`SELECT id,title,subtitle,instrument,level,weeks,intro,data,updated_at
+                             FROM courses WHERE id = ? AND status='published'`),
+  courseGet:     db.prepare('SELECT * FROM courses WHERE id = ?'),
+  courseAll:     db.prepare('SELECT id,title,subtitle,instrument,level,weeks,status,sort,updated_at FROM courses ORDER BY sort, created_at, rowid'),
+  courseCount:   db.prepare('SELECT COUNT(*) AS n FROM courses'),
+  courseUpsert:  db.prepare(`INSERT INTO courses(id,user_id,title,subtitle,instrument,level,weeks,intro,sort,data,created_at,updated_at)
+                             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                             ON CONFLICT(id) DO UPDATE SET title=excluded.title, subtitle=excluded.subtitle,
+                               instrument=excluded.instrument, level=excluded.level, weeks=excluded.weeks,
+                               intro=excluded.intro, sort=excluded.sort, data=excluded.data, updated_at=excluded.updated_at`),
+  courseSetStatus: db.prepare('UPDATE courses SET status = ?, updated_at = ? WHERE id = ?'),
+  courseDelete:  db.prepare('DELETE FROM courses WHERE id = ?'),
   // v60.0 平台管理（全部只读或后台写，均需 role='admin'，见 server.js requireAdmin）
   userSearch:   db.prepare(`SELECT id,phone,nickname,avatar,role,created_at FROM users
                             WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC, rowid DESC LIMIT ?`),
@@ -379,5 +408,26 @@ function seedPublished(){
   console.log('已插入官方示例已发布谱：' + demos.length + ' 首');
 }
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
+
+/* ---------- v60.90 种子：官方课程（seed-courses.json 单一内容源；kecheng.html 内嵌同一份做
+   SEO/离线兜底，两处同步由 tv_site 测试钉住）。仅在 courses 表为空时插入——之后以工作台编辑为准，
+   重启不覆盖管理员的修改。 ---------- */
+function seedCourses(){
+  if(q.courseCount.get().n > 0) return;
+  let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
+  if(!sys){ const id = 'official0000';
+    q.userCreate.run(id, '00000000000', '谱友圈官方', now());
+    q.userSetRole.run('creator', id); sys = { id };
+  }
+  const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-courses.json'), 'utf8'));
+  const t = now();
+  list.forEach((c, i) => {
+    q.courseUpsert.run(c.id, sys.id, c.title, c.subtitle || '', c.instrument || '', c.level || '',
+      c.weeks | 0, c.intro || '', i, JSON.stringify(c.data || {}), t, t);
+    q.courseSetStatus.run('published', t, c.id);
+  });
+  console.log('已插入官方课程：' + list.length + ' 门');
+}
+try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 
 module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast };

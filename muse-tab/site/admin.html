@@ -40,6 +40,7 @@
       <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
       <button type="button" class="ad-tab" data-ad="done">已上架</button>
       <button type="button" class="ad-tab" data-ad="users">用户</button>
+      <button type="button" class="ad-tab" data-ad="courses">课程</button>
       <button type="button" class="ad-tab" data-ad="codes">兑换码</button>
       <button type="button" class="ad-tab" data-ad="bcast">公告</button>
       <button type="button" class="ad-tab" data-ad="orders">订单</button>
@@ -117,6 +118,7 @@
     if(adTab==='review') return adReviews('pending');
     if(adTab==='done')   return adReviews('published');
     if(adTab==='users')  return adUsers('');
+    if(adTab==='courses')return adCourses();
     if(adTab==='codes')  return adCodes();
     if(adTab==='bcast')  return adBroadcast();
     if(adTab==='orders') return adOrders();
@@ -232,6 +234,126 @@
     }).catch(function(e){ adPane(head+'<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
   }
 
+  /* ---- v60.90 课程发布工作台：列表 + 编辑器（章节=谱面+图文+练习任务）+ 发布/下架/删除 ----
+     数据模型见 api/db.js courses 表；学习页（kecheng.html）以 /api/courses 为准即时生效。 */
+  var CRS_INST={guitar:'吉他',piano:'钢琴',uku:'尤克里里',vocal:'唱歌/视唱',kids:'幼儿启蒙',other:'其他'};
+  function adCourses(){
+    api('/admin/courses').then(function(j){
+      var rows=j.courses||[];
+      adPane('<div class="ad-racts" style="justify-content:flex-end;margin-bottom:8px"><button class="ad-b ok" id="crs-new">＋ 新建课程</button></div>'
+        +(rows.length? rows.map(function(c){
+          return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(c.title)+'</b>'
+            +'<small>'+esc(CRS_INST[c.instrument]||c.instrument||'—')+' · '+esc(c.level||'—')+' · '+(c.weeks|0)+' 周 · 改于 '+FMT(c.updated_at)+'</small></div>'
+            +'<div class="ad-racts">'+(c.status==='published'?'<i class="k k-ok">已发布</i>':'<i class="k k-wait">草稿</i>')
+            +'<button class="ad-b" data-edit="'+esc(c.id)+'">编辑</button>'
+            +(c.status==='published'
+              ?'<button class="ad-b no" data-off="'+esc(c.id)+'">下架</button>'
+              :'<button class="ad-b ok" data-pub="'+esc(c.id)+'">发布</button><button class="ad-b no" data-del="'+esc(c.id)+'">删除</button>')
+            +'</div></div>'; }).join('')
+          : '<p class="pc-empty">还没有课程，点「新建课程」开始。</p>'));
+      var pane=document.getElementById('ad-pane');
+      document.getElementById('crs-new').onclick=function(){ crsEdit(null); };
+      pane.querySelectorAll('[data-edit]').forEach(function(b){ b.onclick=function(){
+        api('/admin/courses/'+encodeURIComponent(b.dataset.edit)).then(function(j2){ crsEdit(j2.course); })
+          .catch(function(e){ adMsg(e.message||'读取失败'); }); }; });
+      pane.querySelectorAll('[data-pub]').forEach(function(b){ b.onclick=function(){
+        adMsg('发布中…');
+        api('/admin/courses/'+encodeURIComponent(b.dataset.pub)+'/publish',{method:'POST'})
+          .then(function(){ adMsg('已发布，学习页即时可见'); adCourses(); }).catch(function(e){ adMsg(e.message||'发布失败'); }); }; });
+      pane.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){
+        if(!confirm('下架这门课程？学习页将不再显示（内容保留为草稿）。')) return;
+        adMsg('下架中…');
+        api('/admin/courses/'+encodeURIComponent(b.dataset.off)+'/unpublish',{method:'POST'})
+          .then(function(){ adMsg('已下架'); adCourses(); }).catch(function(e){ adMsg(e.message||'下架失败'); }); }; });
+      pane.querySelectorAll('[data-del]').forEach(function(b){ b.onclick=function(){
+        if(!confirm('永久删除这门草稿课程？不可恢复。')) return;
+        api('/admin/courses/'+encodeURIComponent(b.dataset.del),{method:'DELETE'})
+          .then(function(){ adMsg('已删除'); adCourses(); }).catch(function(e){ adMsg(e.message||'删除失败'); }); }; });
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+  /* 课程编辑器：章节可增删/上移；内容点与配套链接按行填写（链接格式：文字|地址） */
+  function crsEdit(c){
+    c=c||{ id:'', title:'', subtitle:'', instrument:'guitar', level:'', weeks:0, intro:'', sort:0, status:'draft', data:{emoji:'🎼',fam:'g',chapters:[]} };
+    var d=(c.data&&typeof c.data==='object')?c.data:{};
+    var chs=(d.chapters||[]).map(function(x){ return JSON.parse(JSON.stringify(x)); });
+    function chBlock(ch,i){
+      return '<fieldset class="crs-ch" data-ci="'+i+'"><legend>第 '+(i+1)+' 章'
+        +'<button type="button" class="ad-b" data-chup="'+i+'" '+(i?'':'disabled')+'>↑</button>'
+        +'<button type="button" class="ad-b no" data-chdel="'+i+'">删除</button></legend>'
+        +'<div class="ad-search" style="margin:0 0 8px"><input data-f="emoji" value="'+esc(ch.emoji||'')+'" placeholder="表情" style="max-width:70px">'
+        +'<input data-f="title" value="'+esc(ch.title||'')+'" placeholder="章节标题（必填）"></div>'
+        +'<input data-f="goal" value="'+esc(ch.goal||'')+'" placeholder="学习目标（一句话）">'
+        +'<textarea data-f="points" rows="3" placeholder="内容点：一行一条">'+esc((ch.points||[]).join('\n'))+'</textarea>'
+        +'<input data-f="task" value="'+esc(ch.task||'')+'" placeholder="练习任务（可量化：次数/拍速/时长）">'
+        +'<textarea data-f="links" rows="2" placeholder="配套谱/资源：一行一条，格式 文字|地址（如 谱库《小星星》|index.html?q=小星星）">'
+        +esc((ch.links||[]).map(function(l){ return (l.t||'')+'|'+(l.href||''); }).join('\n'))+'</textarea></fieldset>';
+    }
+    function draw(){
+      adPane('<div class="ad-bcast">'
+        +'<div class="ad-search" style="margin:0"><input id="crs-id" value="'+esc(c.id)+'" placeholder="课程 id（小写字母/数字/-，如 course-uku-qimeng）" '+(c.id&&c.status?'readonly':'')+'>'
+        +'<select id="crs-inst" class="ad-sel">'+Object.keys(CRS_INST).map(function(k){
+            return '<option value="'+k+'"'+(c.instrument===k?' selected':'')+'>'+CRS_INST[k]+'</option>'; }).join('')+'</select></div>'
+        +'<div class="ad-search" style="margin:0"><input id="crs-title" value="'+esc(c.title)+'" placeholder="课程标题（必填）">'
+        +'<input id="crs-emoji" value="'+esc(d.emoji||'🎼')+'" placeholder="封面表情" style="max-width:90px">'
+        +'<select id="crs-fam" class="ad-sel"><option value="g"'+(d.fam==='g'?' selected':'')+'>朱砂（吉他族）</option><option value="p"'+(d.fam==='p'?' selected':'')+'>墨蓝（钢琴族）</option><option value="v"'+(d.fam==='v'?' selected':'')+'>墨绿（人声/幼儿）</option><option value="f"'+(d.fam==='f'?' selected':'')+'>赭金（综合）</option></select></div>'
+        +'<input id="crs-sub" value="'+esc(c.subtitle||'')+'" placeholder="一句话副标题">'
+        +'<div class="ad-search" style="margin:0"><input id="crs-level" value="'+esc(c.level||'')+'" placeholder="难度/人群（如 零基础、3-6 岁·亲子）">'
+        +'<input id="crs-weeks" inputmode="numeric" value="'+(c.weeks|0)+'" placeholder="周数" style="max-width:90px">'
+        +'<input id="crs-sort" inputmode="numeric" value="'+(c.sort|0)+'" placeholder="排序" style="max-width:90px"></div>'
+        +'<textarea id="crs-intro" rows="2" maxlength="500" placeholder="课程简介">'+esc(c.intro||'')+'</textarea>'
+        +'<div id="crs-chs">'+chs.map(chBlock).join('')+'</div>'
+        +'<div class="ad-racts"><button class="ad-b" id="crs-add">＋ 添加章节</button>'
+        +'<span style="flex:1"></span>'
+        +'<button class="ad-b" id="crs-back">返回列表</button>'
+        +'<button class="ad-b ok" id="crs-save">保存草稿</button>'
+        +'<button class="ad-b ok" id="crs-savepub">保存并发布</button></div>'
+        +'<p class="pc-empty" style="text-align:left">章节模型＝谱面（配套链接指向谱库/观看页/帮助）+ 图文（目标与内容点）+ 练习任务；保存后学习页以服务端数据为准即时生效。</p></div>');
+      collectWire();
+    }
+    function collect(){
+      document.querySelectorAll('#crs-chs .crs-ch').forEach(function(f,i){
+        var g=function(n){ var el=f.querySelector('[data-f="'+n+'"]'); return el? el.value:''; };
+        chs[i]={ emoji:g('emoji').trim(), title:g('title').trim(), goal:g('goal').trim(),
+          points:g('points').split('\n').map(function(x){ return x.trim(); }).filter(Boolean),
+          task:g('task').trim(),
+          links:g('links').split('\n').map(function(x){ var m2=x.split('|'); return { t:(m2[0]||'').trim(), href:(m2[1]||'').trim() }; })
+            .filter(function(l){ return l.t&&l.href; }) };
+      });
+    }
+    function collectWire(){
+      document.getElementById('crs-add').onclick=function(){ collect(); chs.push({emoji:'🎵',title:'',points:[],links:[]}); draw(); };
+      document.querySelectorAll('[data-chdel]').forEach(function(b){ b.onclick=function(){
+        collect(); chs.splice(+b.dataset.chdel,1); draw(); }; });
+      document.querySelectorAll('[data-chup]').forEach(function(b){ b.onclick=function(){
+        collect(); var i=+b.dataset.chup; if(i>0){ var t=chs[i-1]; chs[i-1]=chs[i]; chs[i]=t; } draw(); }; });
+      document.getElementById('crs-back').onclick=function(){ if(confirm('未保存的修改将丢失，返回列表？')) adCourses(); };
+      var save=function(alsoPub){
+        collect();
+        var id=document.getElementById('crs-id').value.trim();
+        var body={ title:document.getElementById('crs-title').value.trim(),
+          subtitle:document.getElementById('crs-sub').value.trim(),
+          instrument:document.getElementById('crs-inst').value,
+          level:document.getElementById('crs-level').value.trim(),
+          weeks:+document.getElementById('crs-weeks').value||0,
+          sort:+document.getElementById('crs-sort').value||0,
+          intro:document.getElementById('crs-intro').value.trim(),
+          data:{ emoji:document.getElementById('crs-emoji').value.trim()||'🎼',
+                 fam:document.getElementById('crs-fam').value, chapters:chs } };
+        if(!/^[a-z0-9-]{3,48}$/.test(id)) return adMsg('课程 id 需为 3-48 位小写字母/数字/连字符');
+        if(!body.title) return adMsg('课程标题必填');
+        adMsg('保存中…');
+        api('/admin/courses/'+encodeURIComponent(id),{method:'PUT',body:body}).then(function(){
+          if(!alsoPub){ adMsg('已保存草稿'); c.id=id; c.status=c.status||'draft'; return; }
+          return api('/admin/courses/'+encodeURIComponent(id)+'/publish',{method:'POST'})
+            .then(function(){ adMsg('已保存并发布，学习页即时可见'); adCourses(); });
+        }).catch(function(e){ adMsg(e.message||'保存失败'); });
+      };
+      document.getElementById('crs-save').onclick=function(){ save(false); };
+      document.getElementById('crs-savepub').onclick=function(){ save(true); };
+    }
+    draw();
+  }
+
   /* ---- 兑换码（v60.88 HTTP 化：此前只有服务器 CLI）---- */
   function adCodes(){
     api('/admin/codes').then(function(j){
@@ -319,7 +441,8 @@
 
   /* ---- 审计日志 ---- */
   var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益',
-    broadcast:'发布公告', 'bcast-del':'撤回公告', codes:'生成兑换码', 'cli:set-role':'服务器改角色'};
+    broadcast:'发布公告', 'bcast-del':'撤回公告', codes:'生成兑换码',
+    course:'编辑课程', 'course-pub':'发布课程', 'course-off':'下架课程', 'course-del':'删除课程', 'cli:set-role':'服务器改角色'};
   function adLogs(){
     api('/admin/logs').then(function(j){
       var rows=j.logs||[];

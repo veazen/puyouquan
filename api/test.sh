@@ -125,6 +125,24 @@ chk 用户详情含权益与订单 '"entitlements"' "$(J2 "http://127.0.0.1:3199
 chk 审计记录生成码 '"action":"codes"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 chk 审计记录撤回公告 '"action":"bcast-del"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 
+# v60.90 课程：种子两门公开可读；工作台 建/改/发布/下架/删除；章节模型与权限
+chk 课程种子含吉他课 '民谣吉他启蒙课' "$(curl -s http://127.0.0.1:3199/api/courses)"
+chk 课程种子含幼儿课 '幼儿音乐启蒙课' "$(curl -s http://127.0.0.1:3199/api/courses)"
+chk 课程详情含章节内容 '第一批和弦' "$(curl -s http://127.0.0.1:3199/api/courses/course-guitar-qimeng)"
+chk 幼儿课含亲子任务 '亲子任务' "$(curl -s http://127.0.0.1:3199/api/courses/course-kids-qimeng)"
+chk 未发布课程404 '不存在' "$(curl -s http://127.0.0.1:3199/api/courses/nope-course)"
+chk 非管理员不能建课程 '需要平台管理员权限' "$(J -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-1 -d '{"title":"x"}')"
+chk 工作台建课程草稿 '"saved":true' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-1 -d '{"title":"测试课","weeks":2,"data":{"chapters":[{"title":"第一章","task":"练 10 分钟"}]}}')"
+nchk 草稿不进公开列表 '测试课' "$(curl -s http://127.0.0.1:3199/api/courses)"
+chk 非法课程id被拒 '小写字母' "$(J2 -X PUT 'http://127.0.0.1:3199/api/admin/courses/BAD_ID' -d '{"title":"x"}')"
+chk 无章节课程不能发布 '不能发布' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-2 -d '{"title":"空课"}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-2/publish)"
+chk 发布课程 '"status":"published"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/publish)"
+chk 发布后公开可见 '测试课' "$(curl -s http://127.0.0.1:3199/api/courses)"
+chk 已发布课程不能直删 '先下架' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
+chk 下架课程 '"status":"draft"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/unpublish)"
+chk 删除草稿课程 '"ok":true' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
+chk 审计记录课程发布 '"action":"course-pub"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+
 # v60.5 微信账号补绑真实手机号（方案A 横幅的落点）：合成占位号可绑、真号不可改、被占用不静默合并
 R3=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13700003456"}')
 CODE3=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R3" | grep -oE '[0-9]{6}')
