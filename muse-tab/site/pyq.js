@@ -71,14 +71,15 @@ window.PYQ_AV = (function(){
 /* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ----------
    v58.7 搜索型定位：菜单收敛为 4 项（找谱=首页即谱库；谱库/日志/赞助商入页脚），
    个人中心升级独立页 me.html（登录后头像直达） */
+/* v60.86 产品拍板：定位话术回归「专业曲谱平台」；导航加「课程」（学习课程模块框架先行） */
 const MENU = [
-  ['index.html','找谱'],['make.html','制谱'],['features.html','功能'],['help.html','帮助'],
+  ['index.html','找谱'],['make.html','制谱'],['kecheng.html','课程'],['features.html','功能'],['help.html','帮助'],
 ];
 const page = document.body.dataset.page || '';
 const navEl = document.getElementById('site-nav');
 if(navEl){
   navEl.innerHTML = `<nav id="nav"><div class="bar">
-    <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">智能曲谱平台</span></a>
+    <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
     <div id="menu">${MENU.map(([h,t,k])=>`<a href="${h}" class="${(k||h.replace('.html',''))===page?'on':''}">${t}</a>`).join('')}</div>
     <div class="nav-r">
       <button id="theme-btn" title="明暗切换">${ICONS.moon}</button>
@@ -92,7 +93,7 @@ if(footEl){
   /* v58.8 极简页脚（用户点名去冗）：品牌+slogan 一行 5 链 + 备案行；场景内链移居首页 .scene-strip */
   footEl.innerHTML = `<footer id="foot"><div class="wrap">
     <div class="f-line">
-      <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">智能曲谱平台</span></a>
+      <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
       <nav class="f-links">
         <a href="//zhipu.puyouquan.com/">在线制谱</a>
         <a href="help.html">帮助</a>
@@ -102,7 +103,7 @@ if(footEl){
       </nav>
     </div>
     <div class="beian">
-      <span>© 2026 谱友圈 puyouquan.com · 智能曲谱平台</span>
+      <span>© 2026 谱友圈 puyouquan.com · 专业曲谱平台</span>
       <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a>
     </div>
   </div></footer>`;

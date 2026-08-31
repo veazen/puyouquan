@@ -93,7 +93,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     && r.meta === '1=C|4/4|♩=92|4 小节|2 段词'
     && r.fam === 'v' && r.seal === false /* vocal 无印章件，仅水印 */ && r.skGone
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
-    && r.search && r.chips >= 3 && r.tools === 3 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
+    && r.search && r.chips >= 3 && r.tools === 4 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
   // T1c v60.6 曲谱实例缩图：有缩图的谱出 .cc-shot 真截图（刻版骨架留底层占位），无缩图的只剩骨架
   r = await pg.evaluate(() => {
     const a = document.querySelector('.cc-card[href*="seedaaa111"]');
@@ -353,7 +353,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       tools: document.querySelectorAll('.tool-card').length,
     };
   });
-  T(r.noHScroll && r.chipNowrap && r.cardCols === 2 && r.navH < 45 && r.searchH >= 48 && r.tools === 3,
+  T(r.noHScroll && r.chipNowrap && r.cardCols === 2 && r.navH < 45 && r.searchH >= 48 && r.tools === 4,
     'T10 380px 移动端适配（v60.6 卡片双列）', JSON.stringify(r));
   await pg.close();
 
@@ -377,7 +377,8 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
   const idx = read('index.html');
   T(LAND.every(n => idx.includes(n + '.html')) && /rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页内链四落地页+SEO头');
   const js2 = read('pyq.js');
-  T(js2.includes('智能曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 页脚含 slogan+备案（v58.8 场景链移居首页 scene-strip）');
+  /* v60.86 产品拍板：slogan 回归「专业曲谱平台」 */
+  T(js2.includes('专业曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 页脚含 slogan+备案（v60.86 slogan=专业曲谱平台）');
   const vh = read('view.html');
   T(/canonical" href="https:\/\/www\.puyouquan\.com\/"/.test(vh) && /http-equiv="refresh"/.test(vh) && /noindex/.test(vh), 'S view.html 跳转占位（谱库并入主站）');
 
@@ -433,6 +434,38 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     const sv = fs.readFileSync(P.resolve(__dirname, '../../api/server.js'), 'utf8');
     T(/<lastmod>\$\{new Date\(r\.updated_at \* 1000\)\.toISOString\(\)\.slice\(0, 10\)\}<\/lastmod>/.test(sv),
       'S v60.82 /pub/sitemap.xml 带 lastmod', 'src-level');
+  }
+
+  /* ===== v60.86 产品拍板：专业曲谱平台 + 课程模块框架 + 首页布局 ===== */
+  {
+    // ① 旧口径「智能曲谱平台」全站清零（历史更新日志除外——只查站点文件）
+    const sweep = ['pyq.js','index.html','features.html','me.html','make.html','help.html','kecheng.html'];
+    const stale = sweep.filter(f => read(f).includes('智能曲谱平台'));
+    T(stale.length === 0, 'S v60.86 站点无「智能曲谱平台」旧口径', stale.join(',') || 'clean');
+    // ② 导航含课程入口
+    T(/kecheng\.html','课程'/.test(js2), 'S v60.86 导航含「课程」');
+    // ③ 课程页框架：SEO 头 + 三种来源（自制/签约/UGC）+ 合作 CTA
+    const kc = read('kecheng.html');
+    const kcOk = {
+      canon: kc.includes('<link rel="canonical" href="https://www.puyouquan.com/kecheng.html">'),
+      og: /property="og:title"/.test(kc) && /property="og:image"/.test(kc),
+      kw: /name="keywords"/.test(kc),
+      src3: kc.includes('官方自制') && kc.includes('名师签约') && kc.includes('创作者开课'),
+      cta: /mailto:support@puyouquan\.com/.test(kc),
+      folk: kc.includes('民族乐器'),
+    };
+    T(Object.values(kcOk).every(Boolean), 'S v60.86 课程页框架（SEO/三来源/CTA/民族乐器）', JSON.stringify(kcOk));
+    T(sm.includes('/kecheng.html'), 'S v60.86 sitemap 含课程页');
+    // ④ 首页：定位话术 + 出版级 + 工具带 4 格含课程 + 谱种带（民族乐器筹备中）
+    const ix = read('index.html');
+    const ixOk = {
+      hero: ix.includes('专业曲谱平台'),
+      pub: ix.includes('出版级'),
+      course: ix.includes('kecheng.html') && ix.includes('学习课程'),
+      folk: ix.includes('民族乐器'),
+      kw: /keywords[^>]*出版级制谱/.test(ix),
+    };
+    T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/课程入口/谱种带）', JSON.stringify(ixOk));
   }
 
   console.log('PASS ' + pass + '/' + total);
