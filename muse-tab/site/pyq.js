@@ -71,9 +71,10 @@ window.PYQ_AV = (function(){
 /* ---------- 导航 / 页脚（各页共用，data-page 定当前项） ----------
    v58.7 搜索型定位：菜单收敛为 4 项（找谱=首页即谱库；谱库/日志/赞助商入页脚），
    个人中心升级独立页 me.html（登录后头像直达） */
-/* v60.86 产品拍板：定位话术回归「专业曲谱平台」；导航加「课程」（学习课程模块框架先行） */
+/* v60.86 产品拍板：定位话术回归「专业曲谱平台」；v60.89 产品指示：主菜单收敛为
+   找谱/制谱/学习 三项（「课程」改「学习」直达课程内容；功能/帮助收进页脚） */
 const MENU = [
-  ['index.html','找谱'],['make.html','制谱'],['kecheng.html','课程'],['features.html','功能'],['help.html','帮助'],
+  ['index.html','找谱'],['make.html','制谱'],['kecheng.html','学习'],
 ];
 const page = document.body.dataset.page || '';
 const navEl = document.getElementById('site-nav');
@@ -96,6 +97,7 @@ if(footEl){
       <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
       <nav class="f-links">
         <a href="//zhipu.puyouquan.com/">在线制谱</a>
+        <a href="features.html">功能</a>
         <a href="help.html">帮助</a>
         <a href="log.html">更新日志</a>
         <a href="sponsors.html">赞助商</a>

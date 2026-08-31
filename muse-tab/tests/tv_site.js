@@ -525,30 +525,46 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     const sweep = ['pyq.js','index.html','features.html','me.html','make.html','help.html','kecheng.html'];
     const stale = sweep.filter(f => read(f).includes('智能曲谱平台'));
     T(stale.length === 0, 'S v60.86 站点无「智能曲谱平台」旧口径', stale.join(',') || 'clean');
-    // ② 导航含课程入口
-    T(/kecheng\.html','课程'/.test(js2), 'S v60.86 导航含「课程」');
-    // ③ 课程页框架：SEO 头 + 三种来源（自制/签约/UGC）+ 合作 CTA
+    /* ② v60.89 主菜单收敛：找谱/制谱/学习 三项；功能/帮助收进页脚 */
+    T(/kecheng\.html','学习'/.test(js2) && !/features\.html','功能'/.test(js2) && !/help\.html','帮助'/.test(js2),
+      'S v60.89 主菜单=找谱/制谱/学习（功能/帮助撤出）');
+    T(/f-links[\s\S]{0,400}features\.html/.test(js2) && /f-links[\s\S]{0,400}help\.html/.test(js2),
+      'S v60.89 页脚含 功能+帮助');
+    /* ③ v60.89 学习页=民谣吉他启蒙课 7 周（首门课立起课程框架） */
     const kc = read('kecheng.html');
+    const weeks = [1,2,3,4,5,6,7].every(n => kc.includes('第 ' + n + ' 周'));
+    let courseLd = false;
+    try { const m = kc.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+      const o = JSON.parse(m[1]); courseLd = o['@type'] === 'Course' && o.isAccessibleForFree === true; } catch (_) {}
     const kcOk = {
       canon: kc.includes('<link rel="canonical" href="https://www.puyouquan.com/kecheng.html">'),
       og: /property="og:title"/.test(kc) && /property="og:image"/.test(kc),
       kw: /name="keywords"/.test(kc),
-      src3: kc.includes('官方自制') && kc.includes('名师签约') && kc.includes('创作者开课'),
+      course: kc.includes('民谣吉他启蒙课') && weeks, courseLd,
+      task: kc.includes('练习任务'), res: kc.includes('53231323') && kc.includes('大横按'),
       cta: /mailto:support@puyouquan\.com/.test(kc),
       folk: kc.includes('民族乐器'),
     };
-    T(Object.values(kcOk).every(Boolean), 'S v60.86 课程页框架（SEO/三来源/CTA/民族乐器）', JSON.stringify(kcOk));
+    T(Object.values(kcOk).every(Boolean), 'S v60.89 学习页=7 周民谣吉他启蒙课（SEO/Course LD/周次/任务/CTA）', JSON.stringify(kcOk));
+    /* ③b 课程介绍并入功能页：形态 + 三种开课方式 + 新定位 */
+    const ft = read('features.html');
+    const ftOk = {
+      src3: ft.includes('官方自制') && ft.includes('名师签约') && ft.includes('创作者开课'),
+      lesson: ft.includes('互动谱课时') && ft.includes('kecheng.html'),
+      pos: ft.includes('科教级') && ft.includes('民族乐器'),
+    };
+    T(Object.values(ftOk).every(Boolean), 'S v60.89 功能页并入课程介绍+新定位', JSON.stringify(ftOk));
     T(sm.includes('/kecheng.html'), 'S v60.86 sitemap 含课程页');
-    // ④ 首页：定位话术 + 出版级 + 工具带 4 格含课程 + 谱种带（民族乐器筹备中）
+    // ④ 首页：定位话术 + 出版级 + 工具带 4 格含学习入口 + 谱种带（民族乐器筹备中）
     const ix = read('index.html');
     const ixOk = {
       hero: ix.includes('专业曲谱平台'),
       pub: ix.includes('出版级'),
-      course: ix.includes('kecheng.html') && ix.includes('学习课程'),
+      course: ix.includes('kecheng.html') && ix.includes('民谣吉他启蒙课'),
       folk: ix.includes('民族乐器'),
       kw: /keywords[^>]*出版级制谱/.test(ix),
     };
-    T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/课程入口/谱种带）', JSON.stringify(ixOk));
+    T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/学习入口/谱种带）', JSON.stringify(ixOk));
   }
 
   /* ===== v60.87 站内信：消息卡 / 导航红点 / 一键已读 / 管理员发公告 ===== */
