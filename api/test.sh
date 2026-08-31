@@ -108,6 +108,23 @@ chk 一键全部已读 '"ok":true' "$(J -X POST http://127.0.0.1:3199/api/messag
 chk 已读后未读清零 '"unread_msgs":0' "$(J http://127.0.0.1:3199/api/me)"
 chk 审计日志记录公告 '"action":"broadcast"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 
+# v60.88 管理控制台强化：公告历史/撤回（连同已读记录级联删）、兑换码 HTTP 化、订单、用户详情
+chk 公告历史含已发布 '课程模块筹备公告' "$(J2 http://127.0.0.1:3199/api/admin/broadcasts)"
+chk 公告历史含已读人数 '"reads":1' "$(J2 http://127.0.0.1:3199/api/admin/broadcasts)"
+BCID=$(J2 http://127.0.0.1:3199/api/admin/broadcasts | grep -oE '"id":[0-9]+' | head -1 | grep -oE '[0-9]+')
+chk 非管理员不能撤回公告 '需要平台管理员权限' "$(J -X DELETE http://127.0.0.1:3199/api/admin/broadcasts/$BCID)"
+chk 公告可撤回 '"ok":true' "$(J2 -X DELETE "http://127.0.0.1:3199/api/admin/broadcasts/$BCID")"
+nchk 撤回后用户不再可见 '课程模块筹备公告' "$(J http://127.0.0.1:3199/api/messages)"
+chk 非管理员不能生成兑换码 '需要平台管理员权限' "$(J -X POST http://127.0.0.1:3199/api/admin/codes -d '{"kind":"vip","count":1}')"
+chk 非法kind被拒 '权益类型' "$(J2 -X POST http://127.0.0.1:3199/api/admin/codes -d '{"kind":"VIP!","count":1}')"
+chk 生成兑换码 'PYQ-' "$(J2 -X POST http://127.0.0.1:3199/api/admin/codes -d '{"kind":"vip","days":30,"count":2}')"
+chk 兑换码列表 '"code":"PYQ-' "$(J2 http://127.0.0.1:3199/api/admin/codes)"
+chk 订单列表接口可用 '"orders"' "$(J2 http://127.0.0.1:3199/api/admin/orders)"
+chk 用户详情含曲谱计数 '"total"' "$(J2 "http://127.0.0.1:3199/api/admin/users/$UID1/detail")"
+chk 用户详情含权益与订单 '"entitlements"' "$(J2 "http://127.0.0.1:3199/api/admin/users/$UID1/detail")"
+chk 审计记录生成码 '"action":"codes"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+chk 审计记录撤回公告 '"action":"bcast-del"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+
 # v60.5 微信账号补绑真实手机号（方案A 横幅的落点）：合成占位号可绑、真号不可改、被占用不静默合并
 R3=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13700003456"}')
 CODE3=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R3" | grep -oE '[0-9]{6}')
@@ -215,6 +232,8 @@ chk 无效码被拒 '无效' "$(J -X POST http://127.0.0.1:3199/api/redeem -d '{
 chk 兑换成功 '"kind":"vip"' "$(J -X POST http://127.0.0.1:3199/api/redeem -d "{\"code\":\"$CODE_VIP\"}")"
 chk 二次兑换被拒 '已被使用' "$(J -X POST http://127.0.0.1:3199/api/redeem -d "{\"code\":\"$CODE_VIP\"}")"
 chk 兑换后为会员 '"vip":true' "$(J http://127.0.0.1:3199/api/me/entitlements)"
+chk 管理订单列表含兑换订单与用户 '"channel":"redeem"' "$(J2 http://127.0.0.1:3199/api/admin/orders)"
+chk 管理订单列表带昵称 '"nickname":"小谱"' "$(J2 http://127.0.0.1:3199/api/admin/orders)"
 chk 会员配额2000 '"quota":2000' "$(J http://127.0.0.1:3199/api/me/entitlements)"
 chk 埋点白名单事件 '"ok":true' "$(curl -s -X POST http://127.0.0.1:3199/api/events -H 'Content-Type: application/json' -d '{"name":"visit"}')"
 # v45.4 微信支付（未配置环境）：价目表可读、下单 503、回调 FAIL 不发货

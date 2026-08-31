@@ -242,6 +242,13 @@ const q = {
   msgReadAll:db.prepare(`INSERT OR IGNORE INTO msg_reads(user_id,msg_id,read_at)
                          SELECT ?, m.id, ? FROM messages m
                          WHERE (m.user_id = ? OR (m.user_id IS NULL AND m.created_at >= ?))`),
+  /* v60.88 管理控制台：公告历史（含已读人数）与撤回 */
+  msgBroadcasts: db.prepare(`SELECT m.id,m.title,m.body,m.link,m.created_at,COUNT(r.user_id) AS reads
+                             FROM messages m LEFT JOIN msg_reads r ON r.msg_id = m.id
+                             WHERE m.user_id IS NULL GROUP BY m.id
+                             ORDER BY m.created_at DESC, m.id DESC LIMIT 50`),
+  msgReadsDelByMsg: db.prepare('DELETE FROM msg_reads WHERE msg_id = ?'),
+  msgDelBroadcast:  db.prepare('DELETE FROM messages WHERE id = ? AND user_id IS NULL'),
   // v60.0 平台管理（全部只读或后台写，均需 role='admin'，见 server.js requireAdmin）
   userSearch:   db.prepare(`SELECT id,phone,nickname,avatar,role,created_at FROM users
                             WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC, rowid DESC LIMIT ?`),
@@ -325,6 +332,18 @@ function deleteScoreCascade(id, userId) {
   } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
 }
 
+/* v60.88 撤回公告（事务）：先清已读记录（外键）再删本体；只删广播行（user_id IS NULL 条件在 SQL 里），
+   定向消息不可经此删除。返回是否真的删了。 */
+function retractBroadcast(id) {
+  db.exec('BEGIN');
+  try {
+    q.msgReadsDelByMsg.run(id);
+    const r = q.msgDelBroadcast.run(id);
+    db.exec('COMMIT');
+    return r.changes > 0;
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+}
+
 /* ---------- 种子：官方示例已发布谱（谱库开箱即有内容，先于短信登录上线） ----------
    官方账号 phone='00000000000'（占位、非真实手机号，不走登录）；仅在无任何已发布谱时插入。 */
 function seedPublished(){
@@ -361,4 +380,4 @@ function seedPublished(){
 }
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
-module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder };
+module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast };

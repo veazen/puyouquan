@@ -4,7 +4,7 @@
 // 部署：systemd 服务 pyq-api，nginx 各 vhost include snippets/pyq-api.conf 反代 /api/。
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { q, now, deleteScoreCascade, redeemApply, fulfillOrder } = require('./db');
+const { q, now, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast } = require('./db');
 const { sendSms } = require('./sms');
 const wx = require('./wx');
 const wxpay = require('./wxpay');
@@ -819,6 +819,64 @@ const routes = [
     notify(null, 'announce', title, body, link);
     adminLog(u.id, 'broadcast', '', title);
     return { ok: true };
+  }],
+  /* -- v60.88 管理控制台强化（admin.html 独立页）-- */
+  /* 公告历史（含已读人数）与撤回：撤回=连读记录一并删（事务），全站消息卡即刻消失 */
+  ['GET', /^\/api\/admin\/broadcasts$/, true, (m, b, u) => {
+    requireAdmin(u);
+    return { broadcasts: q.msgBroadcasts.all() };
+  }],
+  ['DELETE', /^\/api\/admin\/broadcasts\/(\d+)$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const msg = q.msgGet.get(+m[1]);
+    if (!msg || msg.user_id != null) throw new ApiError(404, '公告不存在');
+    if (!retractBroadcast(+m[1])) throw new ApiError(404, '公告不存在');
+    adminLog(u.id, 'bcast-del', String(m[1]), msg.title || '');
+    return { ok: true };
+  }],
+  /* 兑换码 HTTP 化（此前只有服务器 CLI）：生成 + 最近列表。码面与 CLI 同一格式（PYQ-XXXX-XXXX-XXXX） */
+  ['POST', /^\/api\/admin\/codes$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const kind = String(b.kind || '').trim();
+    if (!/^[a-z0-9_]{2,32}$/.test(kind)) throw new ApiError(400, '权益类型需为 2-32 位小写字母/数字/下划线（如 vip / pack_kaobian）');
+    const days = Math.max(0, Math.min(3650, +b.days || 0));
+    const count = Math.max(1, Math.min(200, +b.count || 1));
+    const AB = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const gen = () => 'PYQ-' + Array.from({ length: 3 }, () =>
+      Array.from(crypto.randomBytes(4)).map(x => AB[x % AB.length]).join('')).join('-');
+    const t = now(), codes = [];
+    for (let i = 0; i < count; i++) {
+      let code; do { code = gen(); } while (q.redeemGet.get(code));
+      q.redeemAdd.run(code, kind, days, t);
+      codes.push(code);
+    }
+    adminLog(u.id, 'codes', '', kind + ' ×' + count + '（' + (days > 0 ? days + ' 天' : '永久') + '）');
+    return { codes, kind, days };
+  }],
+  ['GET', /^\/api\/admin\/codes$/, true, (m, b, u) => {
+    requireAdmin(u);
+    return { codes: q.redeemList.all(100) };
+  }],
+  /* 订单列表：带用户昵称与打码手机号（运营对账用） */
+  ['GET', /^\/api\/admin\/orders$/, true, (m, b, u) => {
+    requireAdmin(u);
+    return { orders: q.orderList.all(50).map(o => {
+      const ou = q.userById.get(o.user_id);
+      return { id: o.id, kind: o.kind, amount_fen: o.amount_fen, channel: o.channel, status: o.status,
+        created_at: o.created_at, paid_at: o.paid_at,
+        nickname: ou ? ou.nickname : '', phone: (ou && PHONE_RE.test(ou.phone)) ? ou.phone.replace(/^(\d{3})\d{4}/, '$1****') : '' };
+    }) };
+  }],
+  /* 用户详情：权益 / 订单 / 曲谱分状态计数——点开用户行即看全貌，不用再去 CLI 查 */
+  ['GET', /^\/api\/admin\/users\/([A-Za-z0-9_-]+)\/detail$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const target = needUser(m[1]);
+    const byStatus = {};
+    q.scoreList.all(target.id).forEach(s => { byStatus[s.status] = (byStatus[s.status] || 0) + 1; });
+    return { user: pubUser(target),
+      entitlements: q.entList.all(target.id),
+      orders: q.orderByUser.all(target.id).slice(0, 10),
+      scores: { total: q.scoreCount.get(target.id).n, byStatus } };
   }],
   ['GET', /^\/api\/admin\/logs$/, true, (m, b, u) => {
     requireAdmin(u);

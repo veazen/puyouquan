@@ -51,12 +51,25 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       /* v60.0 平台管理中心（仅 role='admin' 页面用到）：概览/审核队列/用户/审计日志 + 审核写操作 */
       if (p === '/api/admin/overview') return J({ users: 12, roles: { user: 9, creator: 2, admin: 1 }, scores: 20,
         scoreStatus: { private: 15, pending: 2, published: 3 }, pending: 2, published: 3,
-        orders: { paid: 4, amount_fen: 39200 }, funnel: [] });
+        orders: { paid: 4, amount_fen: 39200 }, funnel: [{ name: 'visit', n: 123 }, { name: 'open_pub', n: 45 }] });
       if (p === '/api/admin/users') return J({ users: [{ id: 'u2', phone: '139****9999', nickname: '小谱', avatar: '', role: 'creator', created_at: 1700000000 }] });
       if (p === '/api/admin/reviews') return J({ status: u.searchParams.get('status') || 'pending',
         scores: [{ id: 'sc9', title: '待审谱', singer: '', status: 'pending', review_note: '', updated_at: 1700000000,
                    user_id: 'u2', author: '小谱', phone: '139****9999' }] });
       if (/^\/api\/admin\/scores\/[^/]+\/review$/.test(p)) { pg2._posts.push(p); return J({ ok: true, status: 'published' }); }
+      /* v60.88 管理控制台独立页新接口 */
+      if (/^\/api\/admin\/users\/[^/]+\/detail$/.test(p)) return J({
+        user: { id: 'u2', nickname: '小谱', phone: '139****9999', role: 'creator', created_at: 1700000000 },
+        entitlements: [{ kind: 'vip', expires_at: 0, source: 'admin', created_at: 1700000000 }],
+        orders: [{ id: 'o1', kind: 'vip', amount_fen: 0, channel: 'redeem', status: 'paid', created_at: 1700000000 }],
+        scores: { total: 3, byStatus: { published: 1, pending: 1, private: 1 } } });
+      if (p === '/api/admin/broadcasts') return J({ broadcasts: [{ id: 9, title: '课程模块筹备公告', body: '敬请期待', link: '', created_at: 1700000000, reads: 3 }] });
+      if (/^\/api\/admin\/broadcasts\/\d+$/.test(p)) { pg2._posts.push('DELETE ' + p); return J({ ok: true }); }
+      if (p === '/api/admin/codes') {
+        if (route.request().method() === 'POST') { pg2._posts.push(p); return J({ codes: ['PYQ-TEST-TEST-TEST'], kind: 'vip', days: 30 }); }
+        return J({ codes: [{ code: 'PYQ-AAAA-BBBB-2345', kind: 'vip', days: 30, created_at: 1700000000, used_by: null, used_at: null }] });
+      }
+      if (p === '/api/admin/orders') return J({ orders: [{ id: 'o1', kind: 'vip_month', amount_fen: 1500, channel: 'wxpay', status: 'paid', created_at: 1700000000, nickname: '小谱', phone: '139****9999' }] });
       if (/^\/api\/admin\/users\/[^/]+\/(role|grant|revoke)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, role: 'creator', kind: 'vip', expires_at: 0 }); }
       if (p === '/api/admin/logs') return J({ logs: [{ id: 1, admin_id: 'u1', action: 'approve', target: 'sc9',
         detail: '待审谱', created_at: 1700000000, admin_name: '阿杜', admin_phone: '138****8888' }] });
@@ -64,6 +77,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       if (p === '/api/auth/sms/verify') return J({ user: { id:'u1', phone:'138****8888', nickname:'阿杜', role:'creator' } });
       if (p === '/index.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('index.html') });
       if (p === '/me.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('me.html') });
+      if (p === '/admin.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('admin.html') });
       if (p === '/pyq.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: read('pyq.js') });
       if (p === '/pyq.css') return route.fulfill({ status: 200, contentType: 'text/css', body: read('pyq.css') });
       return route.fulfill({ status: 404, body: '' });
@@ -219,7 +233,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     return { badge: !badgeEl.hidden,
       shown: el && !el.hidden, h: el ? (el.querySelector('.me-h')||{}).textContent||'' : '',
       count: (document.getElementById('cr-count')||{}).textContent||'',
-      adminHidden: getComputedStyle(document.getElementById('me-admin')).display === 'none',   /* v60.0 创作者看不到平台管理 */
+      adminHidden: !document.getElementById('me-admin'),   /* v60.88 管理中心独立成页，me.html 不再内嵌 */
       bindHidden: getComputedStyle(document.getElementById('me-bind')).display === 'none',      /* v60.5 已有真手机号→无绑定横幅 */
       goadHidden: getComputedStyle(document.getElementById('me-goad')).display === 'none',
       rowHref: (document.querySelector('#cr-list .pc-row')||{getAttribute:()=>''} ).getAttribute('href')||'',
@@ -270,19 +284,18 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
   T(pg._errs.length === 0, 'T9b me.html(user) 无报错', pg._errs.join('|') || 'none');
   await pg.close();
 
-  /* T9c v60.0 平台管理中心（role='admin'）：入口双通道 + 概览四格 + 待审队列（预览/通过/驳回）
-     + 用户页签（搜索框 + 角色下拉）+ 审计日志；写操作确实打到 /api/admin/*。 */
-  pg = await mkPage(true, 'me.html', null, 'admin');
-  pg.on('dialog', d => d.accept('内容不完整'));           // 驳回原因 prompt / 下架 confirm 一律接受
+  /* T9c v60.88 管理控制台独立页 admin.html（role='admin'）：门卫放行 + 概览四格 + 7 日漏斗
+     + 七页签 + 待审队列（预览/通过/驳回弹窗）；写操作确实打到 /api/admin/*。 */
+  pg = await mkPage(true, 'admin.html', null, 'admin');
+  pg.on('dialog', d => d.accept());                        // 下架/生成/发布的 confirm 一律接受
   await pg.waitForTimeout(500);
   r = await pg.evaluate(() => {
-    const card = document.getElementById('me-admin');
     const row = document.querySelector('#ad-pane .ad-row');
     return {
-      cardShown: getComputedStyle(card).display !== 'none',
-      goadShown: getComputedStyle(document.getElementById('me-goad')).display !== 'none',
-      badgeShown: getComputedStyle(document.getElementById('me-ad-badge')).display !== 'none',
+      gateHidden: document.getElementById('ad-gate').hidden,
+      bodyShown: !document.getElementById('ad-body').hidden,
       tiles: document.querySelectorAll('#ad-stats .ad-stat').length,
+      funnel: (document.getElementById('ad-funnel')||{}).textContent||'',
       sum: (document.getElementById('ad-sum')||{}).textContent||'',
       dot: (document.getElementById('ad-dot')||{}).textContent||'',
       tabs: document.querySelectorAll('#ad-tabs .ad-tab').length,
@@ -291,31 +304,93 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       ok: !!(row && row.querySelector('[data-ok]')), no: !!(row && row.querySelector('[data-no]')),
     };
   });
-  T(r.cardShown && r.goadShown && r.badgeShown && r.tiles === 4 && r.sum === '待审 2 · 已上架 3'
-    && r.dot === '2' && r.tabs === 5 && r.rowTitle === '待审谱'
+  T(r.gateHidden && r.bodyShown && r.tiles === 4 && r.sum.includes('待审 2')
+    && r.dot === '2' && r.tabs === 7 && r.rowTitle === '待审谱' && r.funnel.includes('近 7 日事件')
     && /zhipu\.puyouquan\.com\/\?review=sc9/.test(r.preview) && r.ok && r.no,
-    'T9c 管理中心入口+概览+待审队列', JSON.stringify(r));
+    'T9c admin.html 门卫+概览+漏斗+七页签+待审队列', JSON.stringify(r));
 
+  /* 驳回改弹窗（v60.88 替代 prompt）：常用原因 chip 快填 → 确认驳回 → POST review */
   r = await pg.evaluate(async () => {
-    document.querySelector('#ad-pane [data-ok]').click();       // 通过
+    document.querySelector('#ad-pane [data-no]').click();
+    await new Promise(r=>setTimeout(r,60));
+    const mk = document.getElementById('rj-mask');
+    const chips = mk ? mk.querySelectorAll('.fchip').length : 0;
+    if (mk) { mk.querySelector('.fchip').click(); document.getElementById('rj-go').click(); }
     await new Promise(r=>setTimeout(r,220));
-    const okMsg = (document.getElementById('ad-msg')||{}).textContent||'';
+    return { modal: !!mk, chips, closed: !document.getElementById('rj-mask'),
+      msg: (document.getElementById('ad-msg')||{}).textContent||'' };
+  });
+  T(r.modal && r.chips >= 4 && r.closed && r.msg.includes('已驳回')
+    && pg._posts.some(x => x === '/api/admin/scores/sc9/review'),
+    'T9d 驳回弹窗（常用原因快填）走真实接口', JSON.stringify(r));
+
+  /* 用户页签：搜索 + 角色下拉 + 详情展开（权益/订单/曲谱计数） */
+  r = await pg.evaluate(async () => {
     document.querySelector('#ad-tabs [data-ad="users"]').click();
     await new Promise(r=>setTimeout(r,220));
     const hasSearch = !!document.getElementById('ad-q');
     const sel = document.querySelector('#ad-pane [data-role]');
     const roles = sel ? Array.from(sel.options).map(o=>o.value).join(',') : '';
-    const grant = !!document.querySelector('#ad-pane [data-grant]');
+    const dt = document.querySelector('#ad-pane [data-detail]');
+    if (dt) dt.click();
+    await new Promise(r=>setTimeout(r,220));
+    const detail = (document.querySelector('#ad-pane .ad-detail:not([hidden])')||{}).textContent||'';
+    return { hasSearch, roles, grant: !!document.querySelector('#ad-pane [data-grant]'),
+      detail: detail.includes('已上架') && detail.includes('vip') };
+  });
+  T(r.hasSearch && r.roles === 'user,creator,admin' && r.grant && r.detail,
+    'T9d2 用户页签+详情展开（权益/订单/曲谱计数）', JSON.stringify(r));
+
+  /* 兑换码页签：生成走 POST /api/admin/codes，历史列表在 */
+  r = await pg.evaluate(async () => {
+    document.querySelector('#ad-tabs [data-ad="codes"]').click();
+    await new Promise(r=>setTimeout(r,220));
+    const listHas = ((document.getElementById('cd-list')||{}).textContent||'').includes('PYQ-AAAA');
+    document.getElementById('cd-go').click();
+    await new Promise(r=>setTimeout(r,220));
+    const out = ((document.getElementById('cd-out')||{}).textContent||'');
+    return { listHas, gen: out.includes('PYQ-TEST') };
+  });
+  T(r.listHas && r.gen && pg._posts.includes('/api/admin/codes'),
+    'T9d3 兑换码页签：历史列表+生成走真实接口', JSON.stringify(r));
+
+  /* 公告页签：历史（含已读人数）+ 撤回走 DELETE */
+  r = await pg.evaluate(async () => {
+    document.querySelector('#ad-tabs [data-ad="bcast"]').click();
+    await new Promise(r=>setTimeout(r,220));
+    const hist = ((document.getElementById('ad-pane')||{}).textContent||'');
+    const del = document.querySelector('#ad-pane [data-del]');
+    if (del) del.click();
+    await new Promise(r=>setTimeout(r,220));
+    return { composer: !!document.getElementById('bc-title'),
+      hist: hist.includes('课程模块筹备公告') && hist.includes('3 人已读'), hadDel: !!del };
+  });
+  T(r.composer && r.hist && r.hadDel && pg._posts.includes('DELETE /api/admin/broadcasts/9'),
+    'T9d4 公告页签：历史+已读数+撤回走真实接口', JSON.stringify(r));
+
+  /* 订单 + 审计日志页签 */
+  r = await pg.evaluate(async () => {
+    document.querySelector('#ad-tabs [data-ad="orders"]').click();
+    await new Promise(r=>setTimeout(r,220));
+    const order = ((document.getElementById('ad-pane')||{}).textContent||'');
     document.querySelector('#ad-tabs [data-ad="logs"]').click();
     await new Promise(r=>setTimeout(r,220));
     const log = (document.querySelector('#ad-pane .ad-log')||{}).textContent||'';
-    return { okMsg, hasSearch, roles, grant, log, onTab: (document.querySelector('#ad-tabs .ad-tab.on')||{}).dataset.ad };
+    return { order: order.includes('vip_month') && order.includes('¥15.00') && order.includes('小谱'),
+      log: log.includes('审核通过') && log.includes('阿杜') };
   });
-  T(r.okMsg === '已通过并上架' && r.hasSearch && r.roles === 'user,creator,admin' && r.grant
-    && r.log.includes('审核通过') && r.log.includes('阿杜') && r.onTab === 'logs'
-    && pg._posts.some(x => x === '/api/admin/scores/sc9/review'),
-    'T9d 审核通过+用户页签+审计日志', JSON.stringify(r) + ' posts=' + JSON.stringify(pg._posts));
-  T(pg._errs.length === 0, 'T9e me.html(admin) 无报错', pg._errs.join('|') || 'none');
+  T(r.order && r.log, 'T9d5 订单+审计日志页签', JSON.stringify(r));
+  T(pg._errs.length === 0, 'T9e admin.html 无报错', pg._errs.join('|') || 'none');
+  await pg.close();
+
+  /* 门卫：非管理员进 admin.html 被拦在门外 */
+  pg = await mkPage(true, 'admin.html', null, 'user');
+  await pg.waitForTimeout(400);
+  r = await pg.evaluate(() => ({
+    gate: !document.getElementById('ad-gate').hidden,
+    body: document.getElementById('ad-body').hidden,
+    msg: (document.getElementById('gate-msg')||{}).textContent||'' }));
+  T(r.gate && r.body && r.msg.includes('仅平台管理员'), 'T9f2 非管理员被门卫拦下', JSON.stringify(r));
   await pg.close();
 
   /* T9f v60.5 绑手机号横幅：微信/小程序建的号 phone 为空 → 横幅出现、可关、可绑；
@@ -497,13 +572,14 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     T(pg._errs.length === 0, 'T12c 消息卡页无报错', pg._errs.join('|') || 'none');
     await pg.close();
 
-    pg = await mkPage(true, 'me.html', null, 'admin');
+    pg = await mkPage(true, 'admin.html', null, 'admin');   /* v60.88 管理独立成页，发公告随迁 */
     await pg.waitForTimeout(600);
-    r = await pg.evaluate(() => {
+    r = await pg.evaluate(async () => {
       window.confirm = () => true;
       const tab = [...document.querySelectorAll('#ad-tabs .ad-tab')].find(b => b.dataset.ad === 'bcast');
       if (!tab) return { tab: false };
       tab.click();
+      await new Promise(r2 => setTimeout(r2, 220));
       const t = document.getElementById('bc-title');
       if (!t) return { tab: true, form: false };
       t.value = '测试公告';
@@ -512,7 +588,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     });
     await pg.waitForTimeout(300);
     T(r.tab && r.form && pg._posts.includes('/api/admin/broadcast'),
-      'T13 v60.87 管理员「发公告」页签走真实广播接口', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+      'T13 v60.87 管理员发公告走真实广播接口（admin.html）', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
     await pg.close();
   }
 

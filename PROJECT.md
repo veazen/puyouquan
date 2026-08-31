@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-31 · 当前版本 **v60.87**（编辑器 APP_VER=v60.87） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-31 · 当前版本 **v60.88**（编辑器 APP_VER=v60.88） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -464,6 +464,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v60.88 平台管理独立成页 admin.html 并强化（产品指示）**：管理中心自 me.html 内嵌卡独立为 `site/admin.html`（noindex；门卫两态，/api/admin/* 服务端仍逐条 requireAdmin），me.html 瘦身约 150 行。页签 5→7：待审核（**驳回弹窗+常用原因快填**替代 prompt）、用户（**详情展开**：权益/订单/曲谱分状态，接口 `/api/admin/users/:id/detail`）、**兑换码 HTTP 化**（生成/列表，此前仅 CLI）、公告（**历史含已读人数+撤回**，撤回=事务级联删已读，db.js `retractBroadcast`）、**订单流水**（带用户）、审计日志（新动作 codes/bcast-del）；概览补 7 日事件漏斗展示。api/test.sh 144→**160 项**、tv_site 46→**51 项**（管理测试整体迁 admin.html），CORE **102 套件**全绿。APP_VER→v60.88。
+>
 > **v60.87 站内信上线（产品指示：用户操作提醒 + 官方信息发布）**：**①** 库表 `messages`（user_id 空＝广播）+ `msg_reads`（按用户记已读，广播不做行扩散）；接口 GET `/api/messages`、POST `/api/messages/read`（单条/all）、POST `/api/admin/broadcast`（requireAdmin+审计+站内链校验）；未读数随 `/api/me` 带出（`unread_msgs`，零新增请求）；广播可见窗 90 天。**②** 审核通过/驳回/下架自动通知谱主（notify 旁路永不抛错；管理员审自己的谱不发）。**③** me.html「消息」卡（未读加粗红点/类型角标/点行即读/全部已读）+ pyq.js 导航头像红点 + 管理中心「发公告」页签。**测试**：api/test.sh 131→**144 项**、tv_site 42→**46 项**（管理页签数断言 4→5）、CORE **102 套件**全绿。服务端随部署自动重启。APP_VER→v60.87。
 >
 > **v60.86 定位话术回归「专业曲谱平台」+ 课程框架上站 + 首页布局与 SEO（产品拍板 2026-08-31）**：拍板四点——三层结构认可（前提=先完善曲谱制作，出版级·科教级）、课程内容来源=自制/签约/UGC 三轨、「智能曲谱平台」改回**「专业曲谱平台」**、本次仅做网站布局+SEO。落地：**①** slogan 全站换（pyq.js 导航/页脚、首页 hero/title/og/JSON-LD、me/features、小程序登录页；历史日志不改）；**②** 新建 `site/kecheng.html` 课程框架页（互动谱课时/练习任务/章节达标 + 官方自制/名师签约/创作者开课 + 合作 CTA，如实标注筹备中），导航加「课程」；**③** 首页工具带 3→4 格（专业制谱/配伴奏/考编/学习课程）+「支持谱种」带（含民族乐器筹备中）；**④** SEO：首页与课程页整套头部重写、sitemap 加课程页、编辑器 keywords 补词。`tv_site` 37→42 项（工具带断言按拍板改钉 4）。拍板记录落 docs/plan-2026-09-platform.md + CLAUDE.md；**四阶段工程未启动**。CORE **102 套件**全绿。APP_VER→v60.86。

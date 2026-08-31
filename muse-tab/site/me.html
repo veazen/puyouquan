@@ -64,20 +64,7 @@
       </section>
     </div>
     <div class="me-main">
-      <!-- v60.0 平台管理中心：仅 role='admin' 显示；前端隐藏只是入口，/api/admin/* 服务端逐条 requireAdmin 二次鉴权 -->
-      <section class="me-card ad-card" id="me-admin" hidden>
-        <h3 class="me-h">平台管理中心<span class="lib-count" id="ad-sum"></span></h3>
-        <div class="ad-stats" id="ad-stats"></div>
-        <div class="ad-tabs" id="ad-tabs">
-          <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
-          <button type="button" class="ad-tab" data-ad="done">已上架</button>
-          <button type="button" class="ad-tab" data-ad="users">用户</button>
-          <button type="button" class="ad-tab" data-ad="bcast">发公告</button>
-          <button type="button" class="ad-tab" data-ad="logs">审计日志</button>
-        </div>
-        <p class="ad-msg" id="ad-msg"></p>
-        <div class="ad-pane" id="ad-pane"><p class="pc-empty">加载中…</p></div>
-      </section>
+      <!-- v60.88 平台管理中心独立成页 admin.html（本页只留入口：管理员徽章/按钮直达） -->
       <!-- v60.87 站内信：审核结果等操作提醒 + 官方公告，未读加粗带点，导航头像同步红点 -->
       <section class="me-card" id="me-msgs">
         <h3 class="me-h">消息<span class="lib-count" id="msg-count"></span><button type="button" class="pc-more msg-ra" id="msg-readall" hidden>全部标为已读</button></h3>
@@ -247,10 +234,10 @@
     document.getElementById('me-phone').textContent=u.phone||'';
     /* v59.4 创作者入口双通道：头部「创作者中心」按钮 + 可点徽章 → 同一 gotoCreator（定位并高亮卡片） */
     function gotoCreator(){ flashCard('me-creator'); }   /* 定位并高亮卡片（连点两次能重放：见 flashCard 的强制重排） */
-    /* v60.0 管理员天然含创作者权限；平台管理入口与创作者入口同为「徽章 + 头部按钮」双通道 */
+    /* v60.0 管理员天然含创作者权限；v60.88 平台管理独立成页，入口直达 admin.html */
     function isCreator(){ return u.role==='creator'||u.role==='admin'; }
     function isAdmin(){ return u.role==='admin'; }
-    function gotoAdmin(){ flashCard('me-admin'); }
+    function gotoAdmin(){ location.href='admin.html'; }
     function flashCard(id){
       var c=document.getElementById(id);
       if(!c || c.hidden) return;
@@ -440,153 +427,7 @@
     }
     renderCreator();
 
-    /* ===== v60.0 平台管理中心 =====
-       四个页签：待审核（通过/驳回）· 已上架（可下架）· 用户（搜索 / 改角色 / 发撤权益）· 审计日志。
-       全部走 /api/admin/*，服务端逐条 requireAdmin 鉴权、写操作落 admin_logs；本页隐藏只是入口收敛。 */
-    var adTab='review';
-    function adMsg(t){ var el=document.getElementById('ad-msg'); if(el) el.textContent=t||''; }
-    function adPane(html){ document.getElementById('ad-pane').innerHTML=html; }
-    function adRole(r){ return r==='admin'?'管理员':(r==='creator'?'创作者':'普通用户'); }
-    function renderAdmin(){
-      if(!isAdmin()) return;
-      document.getElementById('me-admin').hidden=false;
-      api('/admin/overview').then(function(j){
-        var r=j.roles||{}, o=j.orders||{};
-        document.getElementById('ad-sum').textContent='待审 '+(j.pending|0)+' · 已上架 '+(j.published|0);
-        document.getElementById('ad-stats').innerHTML=[
-          ['用户', j.users|0, (r.creator|0)+' 创作者 · '+(r.admin|0)+' 管理员'],
-          ['曲谱', j.scores|0, (j.published|0)+' 已上架'],
-          ['待审核', j.pending|0, (j.pending?'需要处理':'队列已清空')],
-          ['已支付订单', o.paid|0, '¥'+(((o.amount_fen|0)/100).toFixed(2))]
-        ].map(function(t){ return '<div class="ad-stat" title="'+esc(t[0]+'：'+t[1]+'（'+t[2]+'）')+'"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
-        var d=document.getElementById('ad-dot');
-        d.hidden=!(j.pending|0); d.textContent=j.pending|0;
-      }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
-      Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(b){
-        b.onclick=function(){
-          Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(x){ x.classList.toggle('on', x===b); });
-          adTab=b.dataset.ad; adMsg(''); adLoad();
-        };
-      });
-      adLoad();
-    }
-    function adLoad(){
-      adPane('<p class="pc-empty">加载中…</p>');
-      if(adTab==='review') return adReviews('pending');
-      if(adTab==='done')   return adReviews('published');
-      if(adTab==='users')  return adUsers('');
-      if(adTab==='bcast')  return adBroadcast();
-      return adLogs();
-    }
-    /* v60.87 官方公告（广播站内信）：全站用户可见（近 90 天窗口），发布落审计日志 */
-    function adBroadcast(){
-      adPane('<div class="ad-bcast">'
-        +'<input id="bc-title" maxlength="80" placeholder="公告标题（必填，1-80 字）">'
-        +'<textarea id="bc-body" maxlength="2000" rows="4" placeholder="公告正文（可空，最多 2000 字）"></textarea>'
-        +'<input id="bc-link" placeholder="附带链接（可空，仅限站内地址，如 https://www.puyouquan.com/kecheng.html）">'
-        +'<div class="ad-racts" style="justify-content:flex-end"><button class="ad-b ok" id="bc-go">发布公告</button></div>'
-        +'<p class="pc-empty" style="text-align:left">发布后即出现在全站用户「个人中心 → 消息」，导航头像亮红点；公告展示 90 天。</p></div>');
-      document.getElementById('bc-go').onclick=function(){
-        var t=document.getElementById('bc-title').value.trim();
-        if(!t) return adMsg('公告标题必填');
-        if(!confirm('确定向全站用户发布这条公告？\n\n'+t)) return;
-        adMsg('发布中…');
-        api('/admin/broadcast',{method:'POST',body:{title:t,
-          body:document.getElementById('bc-body').value.trim(),
-          link:document.getElementById('bc-link').value.trim()}})
-          .then(function(){ adMsg('公告已发布'); renderMsgs(); })
-          .catch(function(e){ adMsg(e.message||'发布失败'); });
-      };
-    }
-    /* 审核队列 / 已上架：同一列表两种状态，动作按钮不同 */
-    function adReviews(status){
-      api('/admin/reviews?status='+status).then(function(j){
-        var rows=j.scores||[];
-        if(!rows.length) return adPane('<p class="pc-empty">'+(status==='pending'?'待审核队列已清空 🎉':'还没有已上架的曲谱')+'</p>');
-        adPane(rows.map(function(s){
-          var acts=status==='pending'
-            ? '<button class="ad-b ok" data-ok="'+esc(s.id)+'">通过</button><button class="ad-b no" data-no="'+esc(s.id)+'">驳回</button>'
-            : '<button class="ad-b no" data-off="'+esc(s.id)+'">下架</button>';
-          return '<div class="ad-row"><div class="ad-rmain">'
-            +'<b>'+esc(s.title||'未命名曲谱')+'</b>'
-            +'<small>'+esc(s.author||'佚名')+(s.phone?(' · '+esc(s.phone)):'')+' · '+FMTS(s.updated_at)
-            +(s.review_note?(' · 上次驳回：'+esc(s.review_note)):'')+'</small></div>'
-            +'<div class="ad-racts"><a class="ad-b" href="//zhipu.puyouquan.com/?review='+encodeURIComponent(s.id)+'" target="_blank" rel="noopener">预览谱面</a>'+acts+'</div></div>';
-        }).join(''));
-        var pane=document.getElementById('ad-pane');
-        pane.querySelectorAll('[data-ok]').forEach(function(b){ b.onclick=function(){ adReview(b.dataset.ok,'approve',''); }; });
-        pane.querySelectorAll('[data-no]').forEach(function(b){ b.onclick=function(){
-          var note=prompt('驳回原因（会展示给创作者，必填）',''); if(note==null) return;
-          note=note.trim(); if(!note) return adMsg('驳回必须填写原因');
-          adReview(b.dataset.no,'reject',note); }; });
-        pane.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){
-          if(!confirm('确定把这首谱从谱库下架？（回到创作者的私有状态）')) return;
-          adReview(b.dataset.off,'unpublish',''); }; });
-      }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'列表加载失败')+'</p>'); });
-    }
-    function adReview(id, action, note){
-      adMsg('处理中…');
-      api('/admin/scores/'+encodeURIComponent(id)+'/review',{method:'POST',body:{action:action,note:note}})
-        .then(function(){ adMsg(action==='approve'?'已通过并上架':(action==='reject'?'已驳回，原因已通知创作者':'已下架')); renderAdmin(); })
-        .catch(function(e){ adMsg(e.message||'操作失败'); });
-    }
-    /* 用户：手机号/昵称搜索（默认最近注册 50）→ 改角色 / 发放·撤销权益 */
-    function adUsers(kw){
-      var head='<div class="ad-search"><input id="ad-q" placeholder="按手机号或昵称搜索" value="'+esc(kw)+'"><button class="ad-b" id="ad-qgo">搜索</button></div>';
-      api('/admin/users'+(kw?('?q='+encodeURIComponent(kw)):'')).then(function(j){
-        var rows=j.users||[];
-        adPane(head+(rows.length? rows.map(function(x){
-          return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(x.nickname||'谱友')+'</b>'
-            +'<small>'+esc(x.phone||'（微信登录）')+' · 注册 '+FMT(x.created_at)+' · '+adRole(x.role)+'</small></div>'
-            +'<div class="ad-racts">'
-            +'<select class="ad-sel" data-role="'+esc(x.id)+'">'
-            +['user','creator','admin'].map(function(r){ return '<option value="'+r+'"'+(x.role===r?' selected':'')+'>'+adRole(r)+'</option>'; }).join('')
-            +'</select>'
-            +'<button class="ad-b" data-grant="'+esc(x.id)+'">发权益</button>'
-            +'<button class="ad-b no" data-revoke="'+esc(x.id)+'">撤权益</button></div></div>';
-        }).join('') : '<p class="pc-empty">没有匹配的用户</p>'));
-        var pane=document.getElementById('ad-pane');
-        document.getElementById('ad-qgo').onclick=function(){ adUsers(document.getElementById('ad-q').value.trim()); };
-        document.getElementById('ad-q').onkeydown=function(e){ if(e.key==='Enter') document.getElementById('ad-qgo').click(); };
-        pane.querySelectorAll('[data-role]').forEach(function(s){ s.onchange=function(){
-          var id=s.dataset.role, r=s.value;
-          if(!confirm('确定把该用户的角色改为「'+adRole(r)+'」？')) return adUsers(kw);
-          adMsg('处理中…');
-          api('/admin/users/'+encodeURIComponent(id)+'/role',{method:'POST',body:{role:r}})
-            .then(function(){ adMsg('角色已更新为 '+adRole(r)); adUsers(kw); })
-            .catch(function(e){ adMsg(e.message||'角色修改失败'); adUsers(kw); });
-        }; });
-        pane.querySelectorAll('[data-grant]').forEach(function(b){ b.onclick=function(){
-          var kind=prompt('权益类型（vip = 会员；pack_kaobian = 考编内容包）','vip'); if(kind==null) return;
-          kind=kind.trim(); if(!kind) return;
-          var days=prompt('有效天数（留空 = 永久）','365'); if(days==null) return;
-          adMsg('处理中…');
-          api('/admin/users/'+encodeURIComponent(b.dataset.grant)+'/grant',{method:'POST',body:{kind:kind,days:+days||0}})
-            .then(function(j){ adMsg('已发放 '+kind+'（'+(j.expires_at?('到期 '+FMT(j.expires_at)):'永久')+'）'); })
-            .catch(function(e){ adMsg(e.message||'发放失败'); });
-        }; });
-        pane.querySelectorAll('[data-revoke]').forEach(function(b){ b.onclick=function(){
-          var kind=prompt('要撤销的权益类型','vip'); if(kind==null) return;
-          kind=kind.trim(); if(!kind) return;
-          adMsg('处理中…');
-          api('/admin/users/'+encodeURIComponent(b.dataset.revoke)+'/revoke',{method:'POST',body:{kind:kind}})
-            .then(function(){ adMsg('已撤销 '+kind); }).catch(function(e){ adMsg(e.message||'撤销失败'); });
-        }; });
-      }).catch(function(e){ adPane(head+'<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
-    }
-    var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益', broadcast:'发布公告', 'cli:set-role':'服务器改角色'};
-    function adLogs(){
-      api('/admin/logs').then(function(j){
-        var rows=j.logs||[];
-        adPane(rows.length? rows.map(function(l){
-          return '<div class="ad-log"><span class="ad-t">'+FMTS(l.created_at)+'</span>'
-            +'<b>'+esc(l.admin_name||l.admin_phone||'管理员')+'</b>'
-            +'<i>'+esc(AD_ACT[l.action]||l.action)+'</i>'
-            +'<span class="ad-d">'+esc(l.detail||l.target||'')+'</span></div>';
-        }).join('') : '<p class="pc-empty">还没有管理操作记录</p>');
-      }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
-    }
-    renderAdmin();
+    /* v60.88 平台管理中心已独立成页 admin.html（含审核/用户详情/兑换码/公告撤回/订单），本页不再内嵌 */
 
     /* 我的收藏：favorites 与 pub/scores 联查出完整卡片 */
     Promise.all([

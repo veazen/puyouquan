@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>平台管理 · 谱友圈</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="pyq.css">
+</head>
+<body data-page="admin">
+<div id="site-nav"></div>
+
+<!-- 门卫：未登录/非管理员都停在这里；前端隐藏只是入口收敛，/api/admin/* 服务端逐条 requireAdmin 二次鉴权 -->
+<main id="ad-gate" class="me-auth" hidden>
+  <div class="auth-card">
+    <div class="brand"><span class="mark" style="width:40px;height:40px;border-radius:12px"></span></div>
+    <h2>平台管理</h2>
+    <p class="lg-sub" id="gate-msg">正在确认身份…</p>
+    <a class="lg-go" id="gate-go" href="me.html" style="display:block;text-align:center;text-decoration:none" hidden>去登录 →</a>
+  </div>
+</main>
+
+<!-- v60.88 管理控制台（自 me.html 内嵌卡独立成页）：
+     待审核/已上架/用户(详情)/兑换码/公告(历史+撤回)/订单/审计日志 七个页签 -->
+<main id="ad-body" class="me-wrap" hidden>
+  <header class="me-head">
+    <div class="me-id">
+      <h1 class="me-nick"><span>平台管理中心</span><span class="cr-badge ad-badge" style="display:inline-block">管理员</span></h1>
+      <p class="me-sub" id="ad-sum"></p>
+    </div>
+    <div class="me-hbtns">
+      <a class="btn me-gocr" href="me.html">← 个人中心</a>
+      <a class="btn me-openzp" href="//zhipu.puyouquan.com/">打开编辑器</a>
+    </div>
+  </header>
+
+  <section class="me-card ad-card">
+    <div class="ad-stats" id="ad-stats"></div>
+    <p class="ad-funnel" id="ad-funnel"></p>
+    <div class="ad-tabs" id="ad-tabs">
+      <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
+      <button type="button" class="ad-tab" data-ad="done">已上架</button>
+      <button type="button" class="ad-tab" data-ad="users">用户</button>
+      <button type="button" class="ad-tab" data-ad="codes">兑换码</button>
+      <button type="button" class="ad-tab" data-ad="bcast">公告</button>
+      <button type="button" class="ad-tab" data-ad="orders">订单</button>
+      <button type="button" class="ad-tab" data-ad="logs">审计日志</button>
+    </div>
+    <p class="ad-msg" id="ad-msg"></p>
+    <div class="ad-pane" id="ad-pane"><p class="pc-empty">加载中…</p></div>
+  </section>
+</main>
+
+<div id="site-foot"></div>
+<script src="pyq.js"></script>
+<script>
+(function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  function api(path,opts){ opts=opts||{};
+    return fetch('/api'+path,{method:opts.method||'GET',credentials:'include',
+      headers:opts.body?{'Content-Type':'application/json'}:{},body:opts.body?JSON.stringify(opts.body):undefined})
+      .then(function(r){ return r.json().catch(function(){return {};}).then(function(j){
+        if(!r.ok){ var e=new Error(j.error||('请求失败（'+r.status+'）')); e.status=r.status; throw e; } return j; }); }); }
+  var FMT=function(t){ if(!t) return '—'; var d=new Date(t*1000);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  var FMTS=function(t){ if(!t) return '—'; var d=new Date(t*1000);
+    return FMT(t)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  var adTab='review';
+  function adMsg(t){ document.getElementById('ad-msg').textContent=t||''; }
+  function adPane(html){ document.getElementById('ad-pane').innerHTML=html; }
+  function adRole(r){ return r==='admin'?'管理员':(r==='creator'?'创作者':'普通用户'); }
+
+  /* ---- 门卫 ---- */
+  function gate(msgText, canLogin){
+    document.getElementById('ad-gate').hidden=false;
+    document.getElementById('ad-body').hidden=true;
+    document.getElementById('gate-msg').textContent=msgText;
+    document.getElementById('gate-go').hidden=!canLogin;
+  }
+  api('/me').then(function(j){
+    var u=(j&&j.user)||{};
+    if(u.role!=='admin') return gate('此页面仅平台管理员可用。', false);
+    document.getElementById('ad-gate').hidden=true;
+    document.getElementById('ad-body').hidden=false;
+    boot();
+  }).catch(function(){ gate('请先登录后再访问平台管理。', true); });
+
+  /* ---- 概览 + 页签 ---- */
+  function loadOverview(){
+    api('/admin/overview').then(function(j){
+      var r=j.roles||{}, o=j.orders||{};
+      document.getElementById('ad-sum').textContent='待审 '+(j.pending|0)+' · 已上架 '+(j.published|0)+' · 用户 '+(j.users|0);
+      document.getElementById('ad-stats').innerHTML=[
+        ['用户', j.users|0, (r.creator|0)+' 创作者 · '+(r.admin|0)+' 管理员'],
+        ['曲谱', j.scores|0, (j.published|0)+' 已上架'],
+        ['待审核', j.pending|0, (j.pending?'需要处理':'队列已清空')],
+        ['已支付订单', o.paid|0, '¥'+(((o.amount_fen|0)/100).toFixed(2))]
+      ].map(function(t){ return '<div class="ad-stat"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
+      var d=document.getElementById('ad-dot');
+      d.hidden=!(j.pending|0); d.textContent=j.pending|0;
+      /* v60.88 近 7 日事件漏斗上墙（接口早就返回，此前从未展示） */
+      var fn=(j.funnel||[]).slice(0,6).map(function(x){ return esc(x.name)+' '+x.n; }).join(' · ');
+      document.getElementById('ad-funnel').textContent = fn? ('近 7 日事件：'+fn) : '';
+    }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
+  }
+  function boot(){
+    loadOverview();
+    Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(b){
+      b.onclick=function(){
+        Array.prototype.forEach.call(document.querySelectorAll('#ad-tabs .ad-tab'), function(x){ x.classList.toggle('on', x===b); });
+        adTab=b.dataset.ad; adMsg(''); adLoad();
+      };
+    });
+    adLoad();
+  }
+  function adLoad(){
+    adPane('<p class="pc-empty">加载中…</p>');
+    if(adTab==='review') return adReviews('pending');
+    if(adTab==='done')   return adReviews('published');
+    if(adTab==='users')  return adUsers('');
+    if(adTab==='codes')  return adCodes();
+    if(adTab==='bcast')  return adBroadcast();
+    if(adTab==='orders') return adOrders();
+    return adLogs();
+  }
+
+  /* ---- 审核 / 已上架 ---- */
+  function adReviews(status){
+    api('/admin/reviews?status='+status).then(function(j){
+      var rows=j.scores||[];
+      if(!rows.length) return adPane('<p class="pc-empty">'+(status==='pending'?'待审核队列已清空 🎉':'还没有已上架的曲谱')+'</p>');
+      adPane(rows.map(function(s){
+        var acts=status==='pending'
+          ? '<button class="ad-b ok" data-ok="'+esc(s.id)+'">通过</button><button class="ad-b no" data-no="'+esc(s.id)+'" data-t="'+esc(s.title||'')+'">驳回</button>'
+          : '<button class="ad-b no" data-off="'+esc(s.id)+'">下架</button>';
+        return '<div class="ad-row"><div class="ad-rmain">'
+          +'<b>'+esc(s.title||'未命名曲谱')+'</b>'
+          +'<small>'+esc(s.author||'佚名')+(s.phone?(' · '+esc(s.phone)):'')+' · '+FMTS(s.updated_at)
+          +(s.review_note?(' · 上次驳回：'+esc(s.review_note)):'')+'</small></div>'
+          +'<div class="ad-racts"><a class="ad-b" href="//zhipu.puyouquan.com/?review='+encodeURIComponent(s.id)+'" target="_blank" rel="noopener">预览谱面</a>'+acts+'</div></div>';
+      }).join(''));
+      var pane=document.getElementById('ad-pane');
+      pane.querySelectorAll('[data-ok]').forEach(function(b){ b.onclick=function(){ adReview(b.dataset.ok,'approve',''); }; });
+      pane.querySelectorAll('[data-no]').forEach(function(b){ b.onclick=function(){ rejectModal(b.dataset.no, b.dataset.t); }; });
+      pane.querySelectorAll('[data-off]').forEach(function(b){ b.onclick=function(){
+        if(!confirm('确定把这首谱从谱库下架？（回到创作者的私有状态，会站内信通知谱主）')) return;
+        adReview(b.dataset.off,'unpublish',''); }; });
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'列表加载失败')+'</p>'); });
+  }
+  /* v60.88 驳回弹窗替代 prompt：常用原因一键选 + 自由补充，原因会随站内信发给创作者 */
+  var REJECTS=['谱面音符/节拍错误较多','歌词与旋律对位有误','曲谱信息不完整（标题/演唱者/调号）','与谱库已有曲谱重复','涉嫌侵权风险，请确认授权'];
+  function rejectModal(id, title){
+    var mk=document.createElement('div'); mk.className='pyq-mask'; mk.id='rj-mask';
+    mk.innerHTML='<div class="pyq-modal"><h3>驳回《'+esc(title||'未命名曲谱')+'》</h3>'
+      +'<p class="lg-sub">原因会通过站内信发给创作者（必填）</p>'
+      +'<div class="ad-rjchips">'+REJECTS.map(function(t,i){ return '<button type="button" class="fchip" data-i="'+i+'">'+t+'</button>'; }).join('')+'</div>'
+      +'<textarea id="rj-note" rows="3" maxlength="200" placeholder="驳回原因，可点上方常用原因快速填入后修改"></textarea>'
+      +'<div class="btns"><button id="rj-x" class="btn ghost" style="padding:9px 16px;font-size:13px">取消</button>'
+      +'<button id="rj-go" class="lg-go" style="margin:0;width:auto;padding:11px 22px">确认驳回</button></div></div>';
+    document.body.appendChild(mk);
+    mk.addEventListener('click',function(e){ if(e.target===mk) mk.remove(); });
+    mk.querySelectorAll('.fchip').forEach(function(c){ c.onclick=function(){ document.getElementById('rj-note').value=REJECTS[+c.dataset.i]; }; });
+    document.getElementById('rj-x').onclick=function(){ mk.remove(); };
+    document.getElementById('rj-go').onclick=function(){
+      var note=document.getElementById('rj-note').value.trim();
+      if(!note) return adMsg('驳回必须填写原因');
+      mk.remove(); adReview(id,'reject',note);
+    };
+  }
+  function adReview(id, action, note){
+    adMsg('处理中…');
+    api('/admin/scores/'+encodeURIComponent(id)+'/review',{method:'POST',body:{action:action,note:note}})
+      .then(function(){ adMsg(action==='approve'?'已通过并上架（已站内信通知谱主）':(action==='reject'?'已驳回，原因已站内信通知创作者':'已下架（已站内信通知谱主）')); loadOverview(); adLoad(); })
+      .catch(function(e){ adMsg(e.message||'操作失败'); });
+  }
+
+  /* ---- 用户（v60.88 增详情展开：权益 / 订单 / 曲谱分状态计数）---- */
+  function adUsers(kw){
+    var head='<div class="ad-search"><input id="ad-q" placeholder="按手机号或昵称搜索" value="'+esc(kw)+'"><button class="ad-b" id="ad-qgo">搜索</button></div>';
+    api('/admin/users'+(kw?('?q='+encodeURIComponent(kw)):'')).then(function(j){
+      var rows=j.users||[];
+      adPane(head+(rows.length? rows.map(function(x){
+        return '<div class="ad-row" data-uid="'+esc(x.id)+'"><div class="ad-rmain"><b>'+esc(x.nickname||'谱友')+'</b>'
+          +'<small>'+esc(x.phone||'（微信登录）')+' · 注册 '+FMT(x.created_at)+' · '+adRole(x.role)+'</small></div>'
+          +'<div class="ad-racts">'
+          +'<button class="ad-b" data-detail="'+esc(x.id)+'">详情</button>'
+          +'<select class="ad-sel" data-role="'+esc(x.id)+'">'
+          +['user','creator','admin'].map(function(r){ return '<option value="'+r+'"'+(x.role===r?' selected':'')+'>'+adRole(r)+'</option>'; }).join('')
+          +'</select>'
+          +'<button class="ad-b" data-grant="'+esc(x.id)+'">发权益</button>'
+          +'<button class="ad-b no" data-revoke="'+esc(x.id)+'">撤权益</button></div></div>'
+          +'<div class="ad-detail" id="dt-'+esc(x.id)+'" hidden></div>';
+      }).join('') : '<p class="pc-empty">没有匹配的用户</p>'));
+      var pane=document.getElementById('ad-pane');
+      document.getElementById('ad-qgo').onclick=function(){ adUsers(document.getElementById('ad-q').value.trim()); };
+      document.getElementById('ad-q').onkeydown=function(e){ if(e.key==='Enter') document.getElementById('ad-qgo').click(); };
+      pane.querySelectorAll('[data-detail]').forEach(function(b){ b.onclick=function(){
+        var box=document.getElementById('dt-'+b.dataset.detail);
+        if(!box.hidden){ box.hidden=true; return; }
+        box.hidden=false; box.innerHTML='<p class="pc-empty">加载中…</p>';
+        api('/admin/users/'+encodeURIComponent(b.dataset.detail)+'/detail').then(function(d){
+          var st=d.scores&&d.scores.byStatus||{};
+          var ents=(d.entitlements||[]).map(function(e2){ return esc(e2.kind)+'（'+(e2.expires_at?('至 '+FMT(e2.expires_at)):'永久')+'）'; }).join('、')||'无';
+          var ords=(d.orders||[]).map(function(o){ return FMT(o.created_at)+' '+esc(o.kind)+' ¥'+((o.amount_fen|0)/100).toFixed(2)+' '+esc(o.status); }).join('<br>')||'无';
+          box.innerHTML='<div><b>曲谱</b> 共 '+(d.scores?d.scores.total:0)+' 首：已上架 '+(st.published|0)+' · 待审 '+(st.pending|0)+' · 驳回 '+(st.rejected|0)+' · 私有 '+(st.private|0)+'</div>'
+            +'<div><b>权益</b> '+ents+'</div><div><b>订单</b> '+ords+'</div>';
+        }).catch(function(e){ box.innerHTML='<p class="pc-empty">'+esc(e.message||'详情加载失败')+'</p>'; });
+      }; });
+      pane.querySelectorAll('[data-role]').forEach(function(s){ s.onchange=function(){
+        var id=s.dataset.role, r=s.value;
+        if(!confirm('确定把该用户的角色改为「'+adRole(r)+'」？')) return adUsers(kw);
+        adMsg('处理中…');
+        api('/admin/users/'+encodeURIComponent(id)+'/role',{method:'POST',body:{role:r}})
+          .then(function(){ adMsg('角色已更新为 '+adRole(r)); adUsers(kw); })
+          .catch(function(e){ adMsg(e.message||'角色修改失败'); adUsers(kw); });
+      }; });
+      pane.querySelectorAll('[data-grant]').forEach(function(b){ b.onclick=function(){
+        var kind=prompt('权益类型（vip = 会员；pack_kaobian = 考编内容包）','vip'); if(kind==null) return;
+        kind=kind.trim(); if(!kind) return;
+        var days=prompt('有效天数（留空 = 永久）','365'); if(days==null) return;
+        adMsg('处理中…');
+        api('/admin/users/'+encodeURIComponent(b.dataset.grant)+'/grant',{method:'POST',body:{kind:kind,days:+days||0}})
+          .then(function(j2){ adMsg('已发放 '+kind+'（'+(j2.expires_at?('到期 '+FMT(j2.expires_at)):'永久')+'）'); })
+          .catch(function(e){ adMsg(e.message||'发放失败'); });
+      }; });
+      pane.querySelectorAll('[data-revoke]').forEach(function(b){ b.onclick=function(){
+        var kind=prompt('要撤销的权益类型','vip'); if(kind==null) return;
+        kind=kind.trim(); if(!kind) return;
+        adMsg('处理中…');
+        api('/admin/users/'+encodeURIComponent(b.dataset.revoke)+'/revoke',{method:'POST',body:{kind:kind}})
+          .then(function(){ adMsg('已撤销 '+kind); }).catch(function(e){ adMsg(e.message||'撤销失败'); });
+      }; });
+    }).catch(function(e){ adPane(head+'<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+
+  /* ---- 兑换码（v60.88 HTTP 化：此前只有服务器 CLI）---- */
+  function adCodes(){
+    api('/admin/codes').then(function(j){
+      var rows=j.codes||[];
+      adPane('<div class="ad-bcast">'
+        +'<div class="ad-search" style="margin:0">'
+        +'<select id="cd-kind" class="ad-sel"><option value="vip">vip（会员）</option><option value="pack_kaobian">pack_kaobian（考编包）</option></select>'
+        +'<input id="cd-days" inputmode="numeric" placeholder="天数（0=永久）" value="30" style="max-width:130px">'
+        +'<input id="cd-count" inputmode="numeric" placeholder="数量" value="5" style="max-width:90px">'
+        +'<button class="ad-b ok" id="cd-go">生成</button></div>'
+        +'<div id="cd-out"></div></div>'
+        +'<div id="cd-list">'+(rows.length? rows.map(function(c){
+          return '<div class="ad-row"><div class="ad-rmain"><b class="ad-code">'+esc(c.code)+'</b>'
+            +'<small>'+esc(c.kind)+' · '+(c.days>0?(c.days+' 天'):'永久')+' · '+FMT(c.created_at)+'</small></div>'
+            +'<div class="ad-racts">'+(c.used_by?'<i class="k k-no">已用 '+FMT(c.used_at)+'</i>':'<i class="k k-ok">未用</i>')+'</div></div>'; }).join('')
+          : '<p class="pc-empty">还没有兑换码，用上方表单生成。</p>')+'</div>');
+      document.getElementById('cd-go').onclick=function(){
+        var kind=document.getElementById('cd-kind').value, days=+document.getElementById('cd-days').value||0, count=+document.getElementById('cd-count').value||1;
+        if(!confirm('生成 '+count+' 个「'+kind+'」兑换码（'+(days>0?days+' 天':'永久')+'）？')) return;
+        adMsg('生成中…');
+        api('/admin/codes',{method:'POST',body:{kind:kind,days:days,count:count}}).then(function(j2){
+          adMsg('已生成 '+(j2.codes||[]).length+' 个');
+          document.getElementById('cd-out').innerHTML='<textarea rows="'+Math.min(8,(j2.codes||[]).length)+'" readonly onclick="this.select()" style="width:100%;box-sizing:border-box;font-family:ui-monospace,monospace;font-size:12.5px">'+(j2.codes||[]).join('\n')+'</textarea><p class="pc-empty" style="text-align:left">点击文本框全选复制；列表刷新见下方。</p>';
+          adCodesRefresh();
+        }).catch(function(e){ adMsg(e.message||'生成失败'); });
+      };
+      function adCodesRefresh(){ api('/admin/codes').then(function(j2){
+        var rows2=j2.codes||[];
+        document.getElementById('cd-list').innerHTML=rows2.map(function(c){
+          return '<div class="ad-row"><div class="ad-rmain"><b class="ad-code">'+esc(c.code)+'</b>'
+            +'<small>'+esc(c.kind)+' · '+(c.days>0?(c.days+' 天'):'永久')+' · '+FMT(c.created_at)+'</small></div>'
+            +'<div class="ad-racts">'+(c.used_by?'<i class="k k-no">已用 '+FMT(c.used_at)+'</i>':'<i class="k k-ok">未用</i>')+'</div></div>'; }).join('');
+      }).catch(function(){}); }
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+
+  /* ---- 公告（composer + 历史 + 撤回）---- */
+  function adBroadcast(){
+    api('/admin/broadcasts').then(function(j){
+      var rows=j.broadcasts||[];
+      adPane('<div class="ad-bcast">'
+        +'<input id="bc-title" maxlength="80" placeholder="公告标题（必填，1-80 字）">'
+        +'<textarea id="bc-body" maxlength="2000" rows="4" placeholder="公告正文（可空，最多 2000 字）"></textarea>'
+        +'<input id="bc-link" placeholder="附带链接（可空，仅限站内地址，如 https://www.puyouquan.com/kecheng.html）">'
+        +'<div class="ad-racts" style="justify-content:flex-end"><button class="ad-b ok" id="bc-go">发布公告</button></div>'
+        +'<p class="pc-empty" style="text-align:left">发布后即出现在全站用户「个人中心 → 消息」，导航头像亮红点；公告展示 90 天，可随时撤回。</p></div>'
+        +'<h3 class="me-h" style="margin-top:14px">已发布公告</h3>'
+        +(rows.length? rows.map(function(x){
+          return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(x.title)+'</b>'
+            +'<small>'+FMTS(x.created_at)+' · '+(x.reads|0)+' 人已读'+(x.body?(' · '+esc(x.body.slice(0,60))):'')+'</small></div>'
+            +'<div class="ad-racts"><button class="ad-b no" data-del="'+(+x.id)+'">撤回</button></div></div>'; }).join('')
+          : '<p class="pc-empty">还没有发布过公告。</p>'));
+      document.getElementById('bc-go').onclick=function(){
+        var t=document.getElementById('bc-title').value.trim();
+        if(!t) return adMsg('公告标题必填');
+        if(!confirm('确定向全站用户发布这条公告？\n\n'+t)) return;
+        adMsg('发布中…');
+        api('/admin/broadcast',{method:'POST',body:{title:t,
+          body:document.getElementById('bc-body').value.trim(),
+          link:document.getElementById('bc-link').value.trim()}})
+          .then(function(){ adMsg('公告已发布'); adBroadcast(); })
+          .catch(function(e){ adMsg(e.message||'发布失败'); });
+      };
+      document.querySelectorAll('#ad-pane [data-del]').forEach(function(b){ b.onclick=function(){
+        if(!confirm('撤回这条公告？所有用户的消息列表将不再显示它。')) return;
+        adMsg('撤回中…');
+        api('/admin/broadcasts/'+b.dataset.del,{method:'DELETE'})
+          .then(function(){ adMsg('已撤回'); adBroadcast(); })
+          .catch(function(e){ adMsg(e.message||'撤回失败'); });
+      }; });
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+
+  /* ---- 订单 ---- */
+  function adOrders(){
+    api('/admin/orders').then(function(j){
+      var rows=j.orders||[];
+      adPane(rows.length? rows.map(function(o){
+        return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(o.kind)+' · ¥'+((o.amount_fen|0)/100).toFixed(2)+'</b>'
+          +'<small>'+esc(o.nickname||'谱友')+(o.phone?(' · '+esc(o.phone)):'')+' · '+esc(o.channel||'-')+' · '+FMTS(o.created_at)+'</small></div>'
+          +'<div class="ad-racts"><i class="k '+(o.status==='paid'?'k-ok':'k-wait')+'">'+esc(o.status)+'</i></div></div>'; }).join('')
+        : '<p class="pc-empty">还没有订单记录。</p>');
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+
+  /* ---- 审计日志 ---- */
+  var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益',
+    broadcast:'发布公告', 'bcast-del':'撤回公告', codes:'生成兑换码', 'cli:set-role':'服务器改角色'};
+  function adLogs(){
+    api('/admin/logs').then(function(j){
+      var rows=j.logs||[];
+      adPane(rows.length? rows.map(function(l){
+        return '<div class="ad-log"><span class="ad-t">'+FMTS(l.created_at)+'</span>'
+          +'<b>'+esc(l.admin_name||l.admin_phone||'管理员')+'</b>'
+          +'<i>'+esc(AD_ACT[l.action]||l.action)+'</i>'
+          +'<span class="ad-d">'+esc(l.detail||l.target||'')+'</span></div>';
+      }).join('') : '<p class="pc-empty">还没有管理操作记录</p>');
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
+  }
+})();
+</script>
+</body>
+</html>
