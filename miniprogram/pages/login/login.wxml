@@ -10,15 +10,25 @@
     <view class="p2">与网页端同一个账号</view>
   </view>
 
-  <button class="go" open-type="getPhoneNumber" bindgetphonenumber="onPhone" loading="{{busy}}" disabled="{{busy}}">
-    微信一键登录
+  <!-- v60.85 过审整改（1.1.3 驳回原因2）：按钮不得出现「微信」字样/官方元素，
+       按审核修改指引改为「手机号快捷登录」。
+       过审整改（驳回原因1）：未勾选协议时不渲染 open-type 按钮（渲染了点击就会直接弹授权，
+       等于默认同意）——未勾选点的是普通按钮，只提示去勾选。 -->
+  <button wx:if="{{agreed}}" class="go" open-type="getPhoneNumber" bindgetphonenumber="onPhone" loading="{{busy}}" disabled="{{busy}}">
+    手机号快捷登录
   </button>
+  <button wx:else class="go" bindtap="needAgree">手机号快捷登录</button>
   <view class="err" wx:if="{{err}}">{{err}}</view>
 
-  <!-- v60.4 兜底通道：一键登录依赖微信「手机号快速验证」付费能力，未开通/不可用时走这条。
+  <!-- v60.4 兜底通道：快捷登录依赖微信「手机号快速验证」付费能力，未开通/不可用时走这条。
        网页端本就有完整的短信验证码登录，账号体系一致，不是降级方案而是等价方案。 -->
   <button class="alt" bindtap="onSms">手机号验证码登录</button>
   <view class="skip" bindtap="onSkip">先随便看看</view>
 
-  <view class="tos">登录即表示同意<text class="lk" bindtap="onTos">用户协议</text>与<text class="lk" bindtap="onPri">隐私政策</text></view>
+  <!-- v60.85 勾选框默认不勾（1.1.3 驳回原因1：「登录即表示同意」属默认强制同意）；
+       链接 catchtap 阻断冒泡，点链接只看协议不改勾选态 -->
+  <view class="tos" bindtap="toggleAgree">
+    <view class="box {{agreed ? 'on' : ''}}">{{agreed ? '✓' : ''}}</view>
+    <text>我已阅读并同意</text><text class="lk" catchtap="onTos">《用户协议》</text><text>与</text><text class="lk" catchtap="onPri">《隐私政策》</text>
+  </view>
 </view>

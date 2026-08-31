@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-08-30 · 当前版本 **v60.84**（编辑器 APP_VER=v60.84） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-08-31 · 当前版本 **v60.85**（编辑器 APP_VER=v60.85） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -464,6 +464,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v60.85 小程序 1.1.3 审核驳回整改（微信官方两条驳回）**：**① 隐私默认同意**（「登录即表示同意」死句）→ 登录页改**默认不勾的勾选框**，未勾时 open-type 快捷登录按钮不渲染（渲染了点击即弹授权=仍是默认同意）、短信通道同样把关；**② 「微信一键登录」混淆腾讯官方元素** → 按审核指引改「手机号快捷登录」，错误提示同步去「微信」字样；**③ 隐患顺手排掉**：协议链接此前只复制链接打不开正文 → 新建 `site/terms.html`/`site/privacy.html`（与编辑器协议弹窗同口径，support@puyouquan.com），小程序内 pages/web 直开；编辑器隐私弹窗补小程序收集项（手机号快捷验证/剪切板），LEGAL_UPD→2026 年 8 月。新增 `tv_mplogin` 11 项（对 v60.84 旧文件 8 红），CORE 101→**102 套件**全绿。**上线顺序：先部署网站（协议页上线）再传小程序 1.1.4 提审**。APP_VER→v60.85。
+>
 > **v60.84 小程序分享卡补图补题；朋友圈置灰定性为平台限制（产品报告三项）**：**① 好友卡片图空白根因**＝小程序 `onShareAppMessage` 没设 `imageUrl`，微信自动截屏 web-view 常抓到空白；现 imageUrl 必设——优先发布缩略图直链 `/api/pub/ID/thumb?v=thumb_at`（`viewerCtx.pb` 新增 thumbAt 字段随谱带上），回落品牌方图 share-icon.png；小程序层只认 puku 域的图防外链注入。**② 分享标题带演唱者与谱类**：`wxShareCard` 小程序分支 postMessage 新增 `share`（歌名 - 演唱者 · 谱类，与 v60.81 浏览器标签同款）与 `img` 字段；两页 onMsg 收下、onShareAppMessage/onShareTimeline 采用。**③ 朋友圈仍灰——修正 v60.79 判断**：微信对**含 web-view 的页面**整体禁分享朋友圈（「当前页面不可分享」），平台限制代码无法绕过；onShareTimeline/1154 占位页保留待放开，README 如实注记；朋友圈晒谱可用通道＝观看页「分享卡」长按保存图（含二维码）。小程序上传版本号 **1.1.3**。新增 `tv_wxshare` 套件 10 项（node 直测小程序两页分享逻辑 + Playwright route 伪装 puku 域跑通 postMessage 素材链路），对改前文件跑 10 项全红。CORE 100→**101 套件**全绿。APP_VER→v60.84。
 >
 > **v60.83 创作者中心发布管理接通真实接口（产品报告：前台一排待审核、真后台审核队列为空）**：根因＝编辑器创作者中心还在跑**本机演示层**（circlePubs localStorage），与服务器两套账。**① 状态真源改服务器**（打开页签拉 `/api/scores`，按 status/review_note 渲染四态；离线才回落演示层）——截图那排「待审核」是本机残留，服务器上实为 published（管理员免审一直正确）；**② 「更新」此前纯演示**（不推内容不走审核流），现在线走 PUT 推最新内容 + POST publish（管理员免审直接生效、创作者回炉）+ 重传缩图；**③ 「下架」此前纯演示**（服务器上还挂着＝运营风险），现调真实 `/unpublish`。`tv_publish` 新增 T7/T8/T9，对改前文件三条全红。CORE **100 套件**全绿。APP_VER→v60.83。

@@ -22211,7 +22211,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.84';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.85';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22234,6 +22234,7 @@ const APP_VER='v60.84';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.85</span><div><b>小程序 1.1.3 审核驳回整改：登录页协议改主动勾选 + 去「微信」字样 + 协议正文上线</b>（微信审核两条驳回逐条修）。<br>① <b>驳回原因 1「默认自动同意协议」</b>：登录页底部原是「登录即表示同意用户协议与隐私政策」死句——属默认强制同意。现改为<b>默认不勾的勾选框</b>「我已阅读并同意《用户协议》与《隐私政策》」：未勾选时「手机号快捷登录」渲染为普通按钮（渲染 open-type 按钮点了就直接弹授权＝仍是默认同意），点击只提示去勾选；「手机号验证码登录」同样把关。<br>② <b>驳回原因 2「混淆腾讯官方元素」</b>：按钮文案「微信一键登录」按审核指引改为<b>「手机号快捷登录」</b>；错误提示同步去「微信」字样。<br>③ <b>顺手排掉的隐患</b>：《用户协议》《隐私政策》链接此前只是复制链接——<b>审核员点不开正文，重审必再挨</b>。现新建 <code>site/terms.html</code> 与 <code>site/privacy.html</code>（与编辑器内协议弹窗同一口径：本地优先原则、手机号/微信标识收集、阿里云短信、support@puyouquan.com），小程序内走 pages/web 直接打开；编辑器隐私弹窗同步补小程序收集项（手机号快捷验证、剪切板写入），更新日期升 2026 年 8 月。<br><b>测试</b>：新增 <code>tv_mplogin</code> 套件 11 项（勾选默认态/双通道把关/协议真打开/全部 wxml 渲染文本无「微信」/站点正文要点），对 v60.84 旧文件跑 <b>8 项红</b>。CORE 101→<b>102 套件</b>全绿。<br><b>注意</b>：需<b>先部署网站</b>（terms/privacy 页上线），再上传小程序（版本号 <b>1.1.4</b>）提审——审核员会点开协议链接看正文。</div></li>
     <li><span class="v">v60.84</span><div><b>小程序分享卡补图补题；朋友圈置灰如实定性为平台限制</b>（产品报告三项：新版上线朋友圈还是灰色、分享好友卡片截图丢失、分享标题要像曲谱链接标题那样带演唱者和谱类）。<br>① <b>好友卡片图空白的根因</b>：小程序的 <code>onShareAppMessage</code> 一直没设 <code>imageUrl</code>，微信就自动截屏当前页面——而页面是 web-view，截屏时机常常抓到空白。现在 <b>imageUrl 必设</b>：优先用<b>发布时上传的谱面缩略图</b>直链（<code>/api/pub/ID/thumb</code>，2:1 首屏栅格，thumb_at 做缓存指纹；观看页 <code>viewerCtx</code> 顺带带上 thumbAt），无缩略图回落品牌方图。小程序层只认谱库域名的图，防被嵌入页塞外链。<br>② <b>分享标题带演唱者与谱类</b>：网页端 <code>wxShareCard</code> 在小程序环境下 postMessage 的素材由「歌名」升级为<b>完整标题</b>（歌名 - 演唱者 · 谱类，与 v60.81 浏览器标签同款），好友卡与朋友圈卡同用；没收到素材时按旧口径回落歌名。<br>③ <b>朋友圈仍灰色——如实认账并修正 v60.79 的判断</b>：v60.79 记的「不支持的只是单页模式渲染，分享入口本身可以点亮」<b>在真机上不成立</b>——微信对<b>含 web-view 组件的页面</b>整体禁止分享到朋友圈（菜单置灰「当前页面不可分享」），<code>showShareMenu</code> 与 <code>onShareTimeline</code> 都改变不了，属平台限制、代码无法绕过。相关代码保留不删（微信若放开即自动生效），README 同步注记。<b>朋友圈晒谱的可用通道</b>：观看页顶栏「分享卡」生成含二维码的图片，长按保存后发图到朋友圈——扫码即达该谱。<br><b>注意</b>：小程序侧改动需管理员重新上传并发布新版本（1.1.3）后才生效。<br><b>测试</b>：新增 <code>tv_wxshare</code> 套件 10 项——node 侧直测小程序两页分享逻辑（完整标题优先/品牌图回落/外域图拒收），浏览器侧把编辑器伪装成 puku 真域名跑通 postMessage 素材链路（wxShareCard 有 origin 与微信 UA 双守卫，file:// 下测不到）；对改前文件（v60.83）跑<b>10 项全红</b>。CORE 100→<b>101 套件</b>全绿。</div></li>
     <li><span class="v">v60.83</span><div><b>创作者中心发布管理接通真实接口</b>（产品报告：前台一排「待审核」，真后台审核队列却是空的；管理员应免审直接上架）。<b>根因不是审核逻辑错，而是编辑器创作者中心还在跑「本机演示层」</b>——那排状态只读浏览器本地的 circlePubs 演示记录，和服务器完全是两套账：<br>① <b>状态显示改以服务器为准</b>：打开创作者页签拉一次 <code>/api/scores</code>（scoreList 本就回 status/review_note），行状态按服务器渲染（已上架/待审核/已驳回+原因/未发布）；本机演示记录只在离线/未登录时回落，并继续提供定价/销量等演示字段。产品截图那排「待审核」就是本机残留——服务器上这些谱其实是 <b>published 已上架</b>（管理员发布免审逻辑一直是对的），所以真后台审核队列当然是空的。<br>② <b>「更新」按钮此前是纯演示</b>：只改本机状态为 pending，<b>既没把最新内容推上云端、也没走发布接口</b>——「更新完还显示待审核」由此而来。现在在线时走真实链路：推最新内容（PUT）→ 重新发布（POST publish，管理员免审仍直接生效、普通创作者重新进审核）→ 顺带重传缩图。<br>③ <b>「下架」按钮此前也是纯演示</b>：只删本机记录，<b>服务器上那首谱还挂在谱库里</b>——这是实打实的运营风险（以为下架了其实没下）。现在在线时调真实 <code>/unpublish</code>（status→private，谱库立即不可见）。<br><b>测试</b>：<code>tv_publish</code> 新增 T7（状态真源=服务器：本机记错也显示已上架）/T8（更新走 PUT+publish、管理员不回炉）/T9（下架调 unpublish），对改前文件跑<b>三条全红</b>。CORE <b>100 套件</b>全绿。</div></li>
     <li><span class="v">v60.82</span><div><b>全站 SEO 补齐</b>（产品指示）。先盘点：v44.6 的地基（robots.txt 双 sitemap、四垂类落地页带 FAQ 结构化数据、发布谱 SSR 落地页带 MusicComposition + og:music.song + canonical）都在且达标，本轮只补缺口：<br>① <b>五个站点页补 og 分享卡</b>（features/help/make/log/sponsors 此前 og=0，微信/QQ/微博分享出裸链接）：og:title/description/image/site_name + twitter:card 三件套补齐；首页与三个工具页补 <code>keywords</code>（百度仍读）。<br>② <b>编辑器（zhipu 与 puku/kanpu 共用同一文件）补 SEO 头</b>：canonical 锚点（静态指 zhipu 根；<b>kanpu?pub=ID 观看时由 openRemotePub 改写为 /pub/ID</b>——同一首谱的两个地址不去重会分散权重）、SoftwareApplication 结构化数据（免费、Web 应用）、og 卡与 keywords。<br>③ <b>发布谱动态 sitemap 带 &lt;lastmod&gt;</b>（epoch 秒 → ISO 日期）：搜索引擎按它安排重抓，重新发布过的谱更快刷新快照、没动过的不浪费抓取配额。<br>④ 语法闸升级：跳过 <code>application/ld+json</code> 数据块（JSON 按 JS 解析必假红）。<br><b>测试</b>：<code>tv_site</code> 新增 4 项（五页 og 卡/keywords 补位/编辑器 SEO 头含观看时 canonical 改写/动态 sitemap lastmod），33→37 项全绿。API 侧需随服务端发版重启 pyq-api。</div></li>
@@ -22630,7 +22631,7 @@ document.getElementById('b-changelog').onclick = ()=>{
   document.getElementById('log-ok').onclick = closeModal;
 };
 /* ===== 关于 / 用户协议 / 隐私政策（国内合规页面） ===== */
-const LEGAL_UPD = '2026 年 7 月';
+const LEGAL_UPD = '2026 年 8 月';   /* v60.85 补小程序收集项（手机号快捷登录/剪切板），与 site/privacy.html 同口径 */
 function showAbout(){
   showModal(`<h3>关于谱友圈</h3>
   <div class="legal">
@@ -22695,7 +22696,8 @@ function showPrivacy(){
     <h5>一、我们如何收集和使用信息</h5>
     <ul>
       <li><b>本地存储数据</b>：无论是否登录，你创作的曲谱、界面偏好等都会保存在浏览器本地存储（localStorage），用于自动保存与离线使用。</li>
-      <li><b>账号信息</b>：使用<b>手机验证码登录</b>时收集你的<b>手机号</b>（用于登录、账号识别与防滥用）；使用<b>微信登录</b>时，经你授权收集微信的 <b>OpenID/UnionID、昵称、头像</b>（用于创建与识别账号）。登录状态通过 Cookie 在 puyouquan.com 各子站间保持。</li>
+      <li><b>账号信息</b>：使用<b>手机验证码登录</b>，或在小程序内使用<b>「手机号快捷登录」</b>（微信手机号快速验证组件，需你在弹窗中明确授权）时，收集你的<b>手机号</b>（用于登录、账号识别与防滥用）；使用<b>微信登录</b>时，经你授权收集微信的 <b>OpenID/UnionID、昵称、头像</b>（用于创建与识别账号）。登录状态通过 Cookie 在 puyouquan.com 各子站间保持。</li>
+      <li><b>剪切板（仅小程序、仅写入）</b>：你在小程序内主动点击「复制链接」时，我们向剪切板写入站内页面链接，便于你在浏览器打开；我们不读取你的剪切板内容。</li>
       <li><b>云端曲谱与个人数据</b>：登录后，你保存并选择同步的曲谱，以及收藏、谱架、谱集、个人资料（昵称/署名）会存储在我们的服务器用于跨设备同步；你发布到「谱库」的曲谱及署名将<b>公开展示</b>。你可随时删除或取消发布。</li>
     </ul>
     <h5>二、第三方服务</h5>
