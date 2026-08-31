@@ -73,6 +73,20 @@ CREATE TABLE IF NOT EXISTS events(
   name TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at);
+-- v60.87 站内信：messages（user_id 为 NULL＝官方广播，全体可见）+ msg_reads（按用户记已读）。
+-- 广播不给每个用户插行（用户量大时是笛卡尔积），已读表只在用户真读过时才有行。
+CREATE TABLE IF NOT EXISTS messages(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,                                -- NULL=官方广播；否则定向某用户
+  kind TEXT NOT NULL DEFAULT 'system',         -- 'review' 审核结果 / 'announce' 官方公告 / 'system' 其他
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  link TEXT NOT NULL DEFAULT '',               -- 站内跳转地址（可空）
+  created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_msgs_user ON messages(user_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS msg_reads(
+  user_id TEXT NOT NULL, msg_id INTEGER NOT NULL REFERENCES messages(id),
+  read_at INTEGER NOT NULL, PRIMARY KEY(user_id, msg_id));
 -- v60.0 平台管理：管理操作审计日志（谁 在何时 对谁 做了什么，永不删）
 CREATE TABLE IF NOT EXISTS admin_logs(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,6 +225,23 @@ const q = {
   redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC, rowid DESC LIMIT ?'),
   eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
   eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
+  /* v60.87 站内信。广播可见窗口＝近 90 天（server.js 传 cutoff）：老公告对所有人自然过期、
+     新注册用户也能看到近期公告（若按注册时间过滤，注册前一天发的公告会被冤枉地藏掉）。
+     read 用 LEFT JOIN 已读表判定；列表/未读数/一键已读三条 SQL 的可见范围口径必须一致。 */
+  msgAdd:    db.prepare('INSERT INTO messages(user_id,kind,title,body,link,created_at) VALUES(?,?,?,?,?,?)'),
+  msgGet:    db.prepare('SELECT * FROM messages WHERE id = ?'),
+  msgList:   db.prepare(`SELECT m.id,m.kind,m.title,m.body,m.link,m.created_at,
+                           CASE WHEN r.msg_id IS NULL THEN 0 ELSE 1 END AS read
+                         FROM messages m LEFT JOIN msg_reads r ON r.msg_id = m.id AND r.user_id = ?
+                         WHERE (m.user_id = ? OR (m.user_id IS NULL AND m.created_at >= ?))
+                         ORDER BY m.created_at DESC, m.id DESC LIMIT ?`),
+  msgUnread: db.prepare(`SELECT COUNT(*) AS n
+                         FROM messages m LEFT JOIN msg_reads r ON r.msg_id = m.id AND r.user_id = ?
+                         WHERE r.msg_id IS NULL AND (m.user_id = ? OR (m.user_id IS NULL AND m.created_at >= ?))`),
+  msgRead:   db.prepare('INSERT OR IGNORE INTO msg_reads(user_id,msg_id,read_at) VALUES(?,?,?)'),
+  msgReadAll:db.prepare(`INSERT OR IGNORE INTO msg_reads(user_id,msg_id,read_at)
+                         SELECT ?, m.id, ? FROM messages m
+                         WHERE (m.user_id = ? OR (m.user_id IS NULL AND m.created_at >= ?))`),
   // v60.0 平台管理（全部只读或后台写，均需 role='admin'，见 server.js requireAdmin）
   userSearch:   db.prepare(`SELECT id,phone,nickname,avatar,role,created_at FROM users
                             WHERE phone LIKE ? OR nickname LIKE ? ORDER BY created_at DESC, rowid DESC LIMIT ?`),

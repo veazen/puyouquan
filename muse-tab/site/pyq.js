@@ -307,6 +307,7 @@ window.PYQ_LIB = (function(){
 window.PYQ_ACCT = (function(){
   const API_ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
   let acct=null;
+  let unreadMsgs=0;   /* v60.87 未读站内信数（随 /api/me 带出，导航头像红点） */
   /* v58.4 微信登录能力探测：wx_web=扫码（开放平台）、wx_mp=公众号网页授权（微信内免扫码） */
   let wxWeb=false, wxMp=false;
   const inWx=/MicroMessenger/i.test(navigator.userAgent);
@@ -321,7 +322,8 @@ window.PYQ_ACCT = (function(){
     if(!API_ON){ el.innerHTML=''; return; }
     if(acct){
       /* v58.7 个人中心升级独立页：头像 chip 直达 me.html（下拉菜单废除；退出等操作入 me.html） */
-      el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心">${PYQ_AV(acct)}<span class="acct-nm">${_esc(acct.nickname||'')}</span></a>`;
+      /* v60.87 未读站内信红点：点头像进 me.html 的「消息」卡即可读 */
+      el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心${unreadMsgs?(' · '+unreadMsgs+' 条未读消息'):''}">${PYQ_AV(acct)}<span class="acct-nm">${_esc(acct.nickname||'')}</span>${unreadMsgs?'<span class="acct-dot"></span>':''}</a>`;
     }else{
       el.innerHTML=`<button class="nav-login" id="nav-login">登录 / 注册</button>`;
       document.getElementById('nav-login').onclick=openLogin;
@@ -381,7 +383,7 @@ window.PYQ_ACCT = (function(){
       if(wl){ history.replaceState(null,'',location.pathname+location.hash);
         if(wl!=='ok') setTimeout(()=>{ openLogin(); const e=document.getElementById('lg-msg'); if(e) e.textContent='微信登录未完成，请重试'; },50); }
     }catch(_){}
-    try{ const j=await api('/me'); acct=j.user; }catch(_){ acct=null; }
+    try{ const j=await api('/me'); acct=j.user; unreadMsgs=j.unread_msgs|0; }catch(_){ acct=null; unreadMsgs=0; }
     renderNav();
   }
   init();

@@ -72,10 +72,16 @@
           <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
           <button type="button" class="ad-tab" data-ad="done">已上架</button>
           <button type="button" class="ad-tab" data-ad="users">用户</button>
+          <button type="button" class="ad-tab" data-ad="bcast">发公告</button>
           <button type="button" class="ad-tab" data-ad="logs">审计日志</button>
         </div>
         <p class="ad-msg" id="ad-msg"></p>
         <div class="ad-pane" id="ad-pane"><p class="pc-empty">加载中…</p></div>
+      </section>
+      <!-- v60.87 站内信：审核结果等操作提醒 + 官方公告，未读加粗带点，导航头像同步红点 -->
+      <section class="me-card" id="me-msgs">
+        <h3 class="me-h">消息<span class="lib-count" id="msg-count"></span><button type="button" class="pc-more msg-ra" id="msg-readall" hidden>全部标为已读</button></h3>
+        <div class="pc-list" id="msg-list"><p class="pc-empty">加载中…</p></div>
       </section>
       <section class="me-card" id="me-scores">
         <h3 class="me-h">我的云端曲谱<a class="pc-more" href="//zhipu.puyouquan.com/">在编辑器中管理全部 →</a></h3>
@@ -338,6 +344,46 @@
         el.innerHTML='<b>免费版</b><p>云端曲谱 '+(j.quota|0)+' 首<br>扩容云端曲谱，解锁专业功能</p><a class="btn ghost" style="padding:8px 16px;font-size:12.5px" href="//zhipu.puyouquan.com/">了解会员 →</a>';
       }
     }).catch(function(){ document.getElementById('me-vip').innerHTML='<b>会员状态</b><p>暂时无法获取</p>'; });
+    /* ===== v60.87 站内信：审核结果/官方公告。未读加粗带点，点行即读（带链则跳转）；
+       全部已读后同步刷新导航头像红点（PYQ_ACCT.refresh 重拉 /me 的 unread_msgs）。 ===== */
+    var MSG_KIND={review:'审核', announce:'公告', system:'系统'};
+    function renderMsgs(){
+      api('/messages').then(function(j){
+        var rows=j.messages||[], el=document.getElementById('msg-list');
+        var unread=rows.filter(function(x){ return !x.read; }).length;
+        var c=document.getElementById('msg-count');
+        if(c) c.textContent=rows.length? (unread? (unread+' 条未读'):(rows.length+' 条')) : '';
+        document.getElementById('msg-readall').hidden = !unread;
+        el.innerHTML=rows.length? rows.slice(0,20).map(function(x){
+          var tag='<i class="k '+(x.kind==='announce'?'k-wait':'k-ok')+'">'+(MSG_KIND[x.kind]||'消息')+'</i>';
+          return '<a class="pc-row msg-row'+(x.read?'':' msg-unread')+'" data-mid="'+(+x.id)+'"'
+            +(x.link?(' href="'+esc(x.link)+'"'):' href="javascript:void(0)"')+'>'
+            +'<span class="t">'+(x.read?'':'<span class="msg-dot"></span>')+esc(x.title)
+            +(x.body?'<small class="cr-note">'+esc(x.body)+'</small>':'')+'</span>'
+            +tag+'<span class="d">'+FMTS(x.created_at)+'</span></a>'; }).join('')
+          : '<p class="pc-empty">还没有消息。曲谱审核结果和官方公告会出现在这里。</p>';
+        el.querySelectorAll('.msg-row').forEach(function(a){
+          a.addEventListener('click', function(){
+            if(a.classList.contains('msg-unread')){
+              api('/messages/read',{method:'POST',body:{ids:[+a.dataset.mid]}}).then(function(){
+                try{ if(window.PYQ_ACCT&&PYQ_ACCT.refresh) PYQ_ACCT.refresh(); }catch(_){}
+              }).catch(function(){});
+              a.classList.remove('msg-unread');
+              var d=a.querySelector('.msg-dot'); if(d) d.remove();
+            }
+          });
+        });
+      }).catch(function(){ document.getElementById('msg-list').innerHTML='<p class="pc-empty">消息暂时无法加载</p>'; });
+    }
+    document.getElementById('msg-readall').onclick=function(){
+      var self=this; self.disabled=true;
+      api('/messages/read',{method:'POST',body:{all:true}}).then(function(){
+        self.disabled=false; renderMsgs();
+        try{ if(window.PYQ_ACCT&&PYQ_ACCT.refresh) PYQ_ACCT.refresh(); }catch(_){}
+      }).catch(function(){ self.disabled=false; msg('操作失败，请重试'); });
+    };
+    renderMsgs();
+
     /* 我的云端曲谱（共享 promise，创作者中心复用）+ 上次来过差异徽标（新键 pyq-me-seen） */
     var seen=0; try{ seen=+localStorage.getItem('pyq-me-seen')||0; }catch(_){}
     var scoresP=api('/scores');
@@ -429,7 +475,28 @@
       if(adTab==='review') return adReviews('pending');
       if(adTab==='done')   return adReviews('published');
       if(adTab==='users')  return adUsers('');
+      if(adTab==='bcast')  return adBroadcast();
       return adLogs();
+    }
+    /* v60.87 官方公告（广播站内信）：全站用户可见（近 90 天窗口），发布落审计日志 */
+    function adBroadcast(){
+      adPane('<div class="ad-bcast">'
+        +'<input id="bc-title" maxlength="80" placeholder="公告标题（必填，1-80 字）">'
+        +'<textarea id="bc-body" maxlength="2000" rows="4" placeholder="公告正文（可空，最多 2000 字）"></textarea>'
+        +'<input id="bc-link" placeholder="附带链接（可空，仅限站内地址，如 https://www.puyouquan.com/kecheng.html）">'
+        +'<div class="ad-racts" style="justify-content:flex-end"><button class="ad-b ok" id="bc-go">发布公告</button></div>'
+        +'<p class="pc-empty" style="text-align:left">发布后即出现在全站用户「个人中心 → 消息」，导航头像亮红点；公告展示 90 天。</p></div>');
+      document.getElementById('bc-go').onclick=function(){
+        var t=document.getElementById('bc-title').value.trim();
+        if(!t) return adMsg('公告标题必填');
+        if(!confirm('确定向全站用户发布这条公告？\n\n'+t)) return;
+        adMsg('发布中…');
+        api('/admin/broadcast',{method:'POST',body:{title:t,
+          body:document.getElementById('bc-body').value.trim(),
+          link:document.getElementById('bc-link').value.trim()}})
+          .then(function(){ adMsg('公告已发布'); renderMsgs(); })
+          .catch(function(e){ adMsg(e.message||'发布失败'); });
+      };
     }
     /* 审核队列 / 已上架：同一列表两种状态，动作按钮不同 */
     function adReviews(status){
@@ -507,7 +574,7 @@
         }; });
       }).catch(function(e){ adPane(head+'<p class="pc-empty">'+esc(e.message||'加载失败')+'</p>'); });
     }
-    var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益', 'cli:set-role':'服务器改角色'};
+    var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益', broadcast:'发布公告', 'cli:set-role':'服务器改角色'};
     function adLogs(){
       api('/admin/logs').then(function(j){
         var rows=j.logs||[];

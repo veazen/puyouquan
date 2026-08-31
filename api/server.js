@@ -250,6 +250,17 @@ const adminLog = (adminId, action, target, detail) => {
 };
 const needUser = id => { const u = q.userById.get(String(id || '')); if (!u) throw new ApiError(404, '用户不存在'); return u; };
 
+/* ---------- v60.87 站内信 ----------
+   notify 永不抛错——通知是主流程的旁路（审核照常生效，通知失败只记日志）；
+   MSG_WIN=广播可见窗口 90 天（三条 SQL 口径一致，见 db.js msgList 注释）。 */
+const MSG_WIN = 90 * 86400;
+const notify = (userId, kind, title, body, link) => {
+  try { q.msgAdd.run(userId, kind, String(title || '').slice(0, 80), String(body || '').slice(0, 2000), String(link || '').slice(0, 300), now()); }
+  catch (e) { console.error('notify', e.message); }
+};
+/* 站内信 link 只认站内（相对路径或 *.puyouquan.com）——防管理号被盗后广播钓鱼外链 */
+const SITE_LINK = /^(\/|https:\/\/([a-z0-9-]+\.)*puyouquan\.com\/)/i;
+
 /* ---------- v60.1 小程序换票（内存态，进程重启即清空——120s 有效期内的登录重来一次即可）----------
    一次性：consume 后立刻删除，重放拿不到第二次 Cookie。签发时顺带清过期票，上限兜住异常刷量。 */
 const MINI_TICKET_TTL = 120;
@@ -512,7 +523,24 @@ const routes = [
   ['GET', /^\/api\/me$/, true, (m, b, u) => ({
     user: pubUser(u),
     stats: { scores: q.scoreCount.get(u.id).n, collections: q.collCount.get(u.id).n },
+    /* v60.87 未读站内信数随 /me 带出——各页本就拉 /me，导航红点零新增请求 */
+    unread_msgs: q.msgUnread.get(u.id, u.id, now() - MSG_WIN).n,
   })],
+
+  /* -- v60.87 站内信（用户操作提醒 + 官方公告）-- */
+  ['GET', /^\/api\/messages$/, true, (m, b, u) => ({
+    messages: q.msgList.all(u.id, u.id, now() - MSG_WIN, 50),
+  })],
+  ['POST', /^\/api\/messages\/read$/, true, (m, b, u) => {
+    const t = now();
+    if (b && b.all) { q.msgReadAll.run(u.id, t, u.id, t - MSG_WIN); return { ok: true }; }
+    const ids = Array.isArray(b && b.ids) ? b.ids.slice(0, 100) : [];
+    for (const id of ids) {
+      const msg = q.msgGet.get(+id || 0);
+      if (msg && (msg.user_id === u.id || msg.user_id == null)) q.msgRead.run(u.id, msg.id, t);   // 只能读自己可见的
+    }
+    return { ok: true };
+  }],
   ['PATCH', /^\/api\/me$/, true, (m, b, u) => {
     /* v58.9 支持改头像：avatar 为 data:image/*（前端压到 96×96 JPEG，服务端封顶 40KB 字符）
        或空串清除；nickname/avatar 至少给一个，各自独立校验独立落库 */
@@ -770,7 +798,27 @@ const routes = [
     const st = act === 'approve' ? 'published' : act === 'reject' ? 'rejected' : 'private';
     q.scoreReview.run(st, act === 'approve' ? '' : note, s.id);
     adminLog(u.id, act, s.id, (s.title || '') + (note ? ' · ' + note : ''));
+    /* v60.87 审核结果发站内信给谱主（管理员审自己的谱不发，免自言自语）。
+       通过→附谱库直达链；驳回/下架→附编辑器打开链，正文带原因。 */
+    if (s.user_id !== u.id) {
+      const nm = '《' + (s.title || '未命名曲谱') + '》';
+      if (act === 'approve') notify(s.user_id, 'review', '你的曲谱' + nm + '已通过审核并上架', '现在所有人都能在谱库看到它了。', 'https://puku.puyouquan.com/kanpu.html?pub=' + encodeURIComponent(s.id));
+      else if (act === 'reject') notify(s.user_id, 'review', '你的曲谱' + nm + '未通过审核', '驳回原因：' + note + '。修改后可重新提交发布。', 'https://zhipu.puyouquan.com/?mine=' + encodeURIComponent(s.id));
+      else notify(s.user_id, 'review', '你的曲谱' + nm + '已被平台下架', (note ? '下架原因：' + note + '。' : '') + '曲谱已回到你的私有状态，可修改后重新发布。', 'https://zhipu.puyouquan.com/?mine=' + encodeURIComponent(s.id));
+    }
     return { ok: true, status: st };
+  }],
+  /* v60.87 官方公告（广播站内信）：全体用户可见（近 90 天窗口），落审计日志 */
+  ['POST', /^\/api\/admin\/broadcast$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const title = String(b.title || '').trim();
+    if (!title || title.length > 80) throw new ApiError(400, '公告标题需为 1-80 个字符');
+    const body = String(b.body || '').trim().slice(0, 2000);
+    const link = String(b.link || '').trim();
+    if (link && !SITE_LINK.test(link)) throw new ApiError(400, '链接只能是站内地址（puyouquan.com）');
+    notify(null, 'announce', title, body, link);
+    adminLog(u.id, 'broadcast', '', title);
+    return { ok: true };
   }],
   ['GET', /^\/api\/admin\/logs$/, true, (m, b, u) => {
     requireAdmin(u);

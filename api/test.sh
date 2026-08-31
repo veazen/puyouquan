@@ -93,6 +93,21 @@ chk 审计日志记录改角色 '"action":"role"' "$(J2 http://127.0.0.1:3199/ap
 chk 审计日志记录CLI任命 'cli:set-role' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
 chk CLI查审计日志 'approve' "$(DB_PATH="$DIR/t.db" node admin.js logs 5 2>&1)"
 
+# v60.87 站内信：审核结果自动通知谱主（上文已发生 1 次驳回 + 1 次通过）+ 官方广播 + 已读
+chk 未读数随me带出 '"unread_msgs":2' "$(J http://127.0.0.1:3199/api/me)"
+chk 消息含驳回通知与原因 '歌词第2段缺字' "$(J http://127.0.0.1:3199/api/messages)"
+chk 消息含上架通知 '已通过审核并上架' "$(J http://127.0.0.1:3199/api/messages)"
+chk 未登录不能看消息 '请先登录' "$(curl -s http://127.0.0.1:3199/api/messages)"
+chk 非管理员不能发公告 '需要平台管理员权限' "$(J -X POST http://127.0.0.1:3199/api/admin/broadcast -d '{"title":"x"}')"
+chk 公告标题必填 '标题' "$(J2 -X POST http://127.0.0.1:3199/api/admin/broadcast -d '{"title":""}')"
+chk 公告拒绝站外链接 '站内地址' "$(J2 -X POST http://127.0.0.1:3199/api/admin/broadcast -d '{"title":"通知","link":"https://evil.example.com/"}')"
+chk 管理员发布公告 '"ok":true' "$(J2 -X POST http://127.0.0.1:3199/api/admin/broadcast -d '{"title":"课程模块筹备公告","body":"敬请期待","link":"https://www.puyouquan.com/kecheng.html"}')"
+chk 广播对用户可见 '课程模块筹备公告' "$(J http://127.0.0.1:3199/api/messages)"
+chk 未读数含广播 '"unread_msgs":3' "$(J http://127.0.0.1:3199/api/me)"
+chk 一键全部已读 '"ok":true' "$(J -X POST http://127.0.0.1:3199/api/messages/read -d '{"all":true}')"
+chk 已读后未读清零 '"unread_msgs":0' "$(J http://127.0.0.1:3199/api/me)"
+chk 审计日志记录公告 '"action":"broadcast"' "$(J2 http://127.0.0.1:3199/api/admin/logs)"
+
 # v60.5 微信账号补绑真实手机号（方案A 横幅的落点）：合成占位号可绑、真号不可改、被占用不静默合并
 R3=$(J3 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13700003456"}')
 CODE3=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R3" | grep -oE '[0-9]{6}')

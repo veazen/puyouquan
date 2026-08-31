@@ -38,8 +38,16 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       /* v60.5 绑手机号：横幅只在 phone 为空（微信/小程序合成占位号）时出现 */
       if (p === '/api/me/bind-phone') return J({ user: { id:'u1', phone:'137****7777', nickname:'微信用户', role:'user', wx:true } });
       if (p === '/api/me') return loggedIn ? J({ user: { id:'u1', phone: (role === 'wxonly' ? '' : '138****8888'), nickname:'阿杜',
-          role: role === 'wxonly' ? 'user' : (role || 'creator'), wx: role === 'wxonly' }, stats:{} })
+          role: role === 'wxonly' ? 'user' : (role || 'creator'), wx: role === 'wxonly' }, stats:{},
+          unread_msgs: 1 })   /* v60.87 未读站内信数随 /me 带出 */
         : route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+      /* v60.87 站内信：一条未读审核通知 + 一条已读公告；read/broadcast 写操作记入 _posts */
+      if (p === '/api/messages') return J({ messages: [
+        { id: 1, kind: 'review', title: '你的曲谱《小星星》已通过审核并上架', body: '现在所有人都能在谱库看到它了。', link: 'https://puku.puyouquan.com/kanpu.html?pub=seedaaa111', created_at: 1700000100, read: 0 },
+        { id: 2, kind: 'announce', title: '课程模块筹备公告', body: '敬请期待', link: '', created_at: 1700000000, read: 1 },
+      ] });
+      if (p === '/api/messages/read') { pg2._posts.push(p); return J({ ok: true }); }
+      if (p === '/api/admin/broadcast') { pg2._posts.push(p); return J({ ok: true }); }
       /* v60.0 平台管理中心（仅 role='admin' 页面用到）：概览/审核队列/用户/审计日志 + 审核写操作 */
       if (p === '/api/admin/overview') return J({ users: 12, roles: { user: 9, creator: 2, admin: 1 }, scores: 20,
         scoreStatus: { private: 15, pending: 2, published: 3 }, pending: 2, published: 3,
@@ -284,7 +292,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     };
   });
   T(r.cardShown && r.goadShown && r.badgeShown && r.tiles === 4 && r.sum === '待审 2 · 已上架 3'
-    && r.dot === '2' && r.tabs === 4 && r.rowTitle === '待审谱'
+    && r.dot === '2' && r.tabs === 5 && r.rowTitle === '待审谱'
     && /zhipu\.puyouquan\.com\/\?review=sc9/.test(r.preview) && r.ok && r.no,
     'T9c 管理中心入口+概览+待审队列', JSON.stringify(r));
 
@@ -466,6 +474,46 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       kw: /keywords[^>]*出版级制谱/.test(ix),
     };
     T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/课程入口/谱种带）', JSON.stringify(ixOk));
+  }
+
+  /* ===== v60.87 站内信：消息卡 / 导航红点 / 一键已读 / 管理员发公告 ===== */
+  {
+    pg = await mkPage(true, 'me.html');
+    await pg.waitForTimeout(500);
+    r = await pg.evaluate(() => ({
+      card: !!document.getElementById('me-msgs'),
+      n: document.querySelectorAll('#msg-list .msg-row').length,
+      unread: document.querySelectorAll('#msg-list .msg-unread').length,
+      cnt: (document.getElementById('msg-count') || {}).textContent || '',
+      ra: !document.getElementById('msg-readall').hidden,
+      dot: !!document.querySelector('#nav-acct .acct-dot'),
+      body: /敬请期待/.test((document.getElementById('msg-list') || {}).textContent || ''),
+    }));
+    T(r.card && r.n === 2 && r.unread === 1 && /1 条未读/.test(r.cnt) && r.ra && r.dot && r.body,
+      'T12 v60.87 消息卡（两条/1 未读/计数/全部已读钮/导航红点/正文）', JSON.stringify(r));
+    await pg.evaluate(() => document.getElementById('msg-readall').click());
+    await pg.waitForTimeout(300);
+    T(pg._posts.includes('/api/messages/read'), 'T12b 全部已读走真实接口', pg._posts.join(','));
+    T(pg._errs.length === 0, 'T12c 消息卡页无报错', pg._errs.join('|') || 'none');
+    await pg.close();
+
+    pg = await mkPage(true, 'me.html', null, 'admin');
+    await pg.waitForTimeout(600);
+    r = await pg.evaluate(() => {
+      window.confirm = () => true;
+      const tab = [...document.querySelectorAll('#ad-tabs .ad-tab')].find(b => b.dataset.ad === 'bcast');
+      if (!tab) return { tab: false };
+      tab.click();
+      const t = document.getElementById('bc-title');
+      if (!t) return { tab: true, form: false };
+      t.value = '测试公告';
+      document.getElementById('bc-go').click();
+      return { tab: true, form: true };
+    });
+    await pg.waitForTimeout(300);
+    T(r.tab && r.form && pg._posts.includes('/api/admin/broadcast'),
+      'T13 v60.87 管理员「发公告」页签走真实广播接口', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+    await pg.close();
   }
 
   console.log('PASS ' + pass + '/' + total);
