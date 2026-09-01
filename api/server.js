@@ -64,7 +64,7 @@ const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另�
 const MAX_SCORES = 500, MAX_COLLS = 50, MAX_COLL_ITEMS = 500;
 const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第一个真实权益开关）
 /* v45.3 埋点白名单（客户端 8 + 服务端 4：signup/login/redeem_ok/order_paid 由 handler 直写） */
-const EVENT_NAMES = new Set(['visit', 'create_song', 'export', 'publish', 'open_pub', 'paywall_view', 'fav', 'share_card',
+const EVENT_NAMES = new Set(['visit', 'create_song', 'export', 'publish', 'open_pub', 'paywall_view', 'fav', 'like', 'share_card',
   'signup', 'login', 'redeem_ok', 'order_paid']);
 let evHour = 0; const evCount = new Map();       // 每 IP 每小时事件计数（内存态，重启清零可接受）
 let thumbHour = 0; const thumbCount = new Map(); // v60.7 每用户每小时缩图上传计数（同上，内存态）
@@ -948,9 +948,13 @@ const routes = [
   /* -- 公开谱库（谱库 puku，无需登录）-- */
   ['GET', /^\/api\/pub\/scores$/, false, () => ({ scores: q.pubList.all().map(pubShape) })],
   ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {
+    /* v60.97 浏览数：公开详情每次拉取 +1（先加后读，返回值即含本次）；
+       stats 随谱带回（views/likes/favs），观看页头部直接显示 */
+    q.viewInc.run(m[1]);
     const s = q.pubGet.get(m[1]);
     if (!s) throw new ApiError(404, '曲谱不存在或未发布');
-    return { score: { ...s, data: JSON.parse(s.data) } };
+    return { score: { ...s, data: JSON.parse(s.data) },
+      stats: { views: s.views || 0, likes: s.likes || 0, favs: s.favs || 0 } };
   }],
 
   /* -- 已发布谱 SSR 落地页 + og 封面（无需登录，供搜索引擎/社交爬虫收录）-- */
@@ -997,6 +1001,15 @@ const routes = [
     q.favPut.run(u.id, s.id, now()); return { ok: true };
   }],
   ['DELETE', /^\/api\/favorites\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => { q.favDel.run(u.id, m[1]); return { ok: true }; }],
+
+  /* -- v60.97 点赞（结构同收藏；计数在公开详情 stats 里带回）-- */
+  ['GET', /^\/api\/likes$/, true, (m, b, u) => ({ likes: q.likeList.all(u.id) })],
+  ['PUT', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+    const s = needScore(m[1]);
+    if (s.status !== 'published') throw new ApiError(403, '仅可点赞已发布的谱面');
+    q.likePut.run(u.id, s.id, now()); return { ok: true };
+  }],
+  ['DELETE', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => { q.likeDel.run(u.id, m[1]); return { ok: true }; }],
 
   /* -- 谱架（练习清单，带进度）-- */
   ['GET', /^\/api\/shelf$/, true, (m, b, u) => ({ shelf: q.shelfList.all(u.id) })],

@@ -111,7 +111,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
       popClosed0, popOpen, popClosed1, nudge, keyPop, capoStatGone, capoHidden, key2, keyBack, setOn,
       fit: bar.scrollWidth <= bar.clientWidth + 1, ka1, ka2, slTempo, rowFit };
   });
-  const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand === 'none' && t8.trk !== 'none'
+  /* v60.97 口径更新：谱架钮回归手机底栏（产品指示「谱架功能按钮移到底栏」）——stand 由 none 改为可见 */
+  const ok8 = t8.prog === 'none' && t8.rate === 'none' && t8.stand !== 'none' && t8.trk !== 'none'
     && t8.tempo === 'none' && t8.vset !== 'none' && t8.grid !== 'none' && t8.vwStand === 'missing'
     && t8.popClosed0 && t8.popOpen && t8.popClosed1 && t8.nudge
     && t8.keyPop && t8.capoStatGone && t8.capoHidden && t8.key2 && t8.keyBack && t8.setOn

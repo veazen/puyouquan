@@ -78,6 +78,11 @@
         <h3 class="me-h">我的收藏<span class="lib-count" id="fav-count"></span></h3>
         <div class="grid g2" id="fav-grid"><p class="pc-empty">加载中…</p></div>
       </section>
+      <!-- v60.97 点赞记录（产品指示：曲谱有浏览数和收藏点赞功能和记录） -->
+      <section class="me-card" id="me-likes">
+        <h3 class="me-h">我的点赞<span class="lib-count" id="like-count"></span></h3>
+        <div class="grid g2" id="like-grid"><p class="pc-empty">加载中…</p></div>
+      </section>
     </div>
   </div>
 </main>
@@ -429,10 +434,11 @@
 
     /* v60.88 平台管理中心已独立成页 admin.html（含审核/用户详情/兑换码/公告撤回/订单），本页不再内嵌 */
 
-    /* 我的收藏：favorites 与 pub/scores 联查出完整卡片 */
+    /* 我的收藏 + v60.97 我的点赞：各与 pub/scores 本地联查出完整卡片 */
     Promise.all([
       api('/favorites').catch(function(){ return {favorites:[]}; }),
-      fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:[]}; }).catch(function(){ return {scores:[]}; })
+      fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:[]}; }).catch(function(){ return {scores:[]}; }),
+      api('/likes').catch(function(){ return {likes:[]}; })
     ]).then(function(rs){
       var favIds={}; (rs[0].favorites||[]).forEach(function(f){ favIds[f.score_id||f.id||f]=1; });
       var cards=(rs[1].scores||[]).filter(function(s){ return favIds[s.id]; });
@@ -440,6 +446,12 @@
       el.dataset.ready='1'; el.innerHTML=cards.length? cards.map(PYQ_LIB.card).join('')
         : '<div class="lib-empty" style="padding:24px 0"><b>收藏夹还是空的</b>点 ♥ 收藏喜欢的谱，跨设备随时打开。<br><a class="btn ghost" href="index.html" style="margin-top:14px">去谱库逛逛 →</a></div>';
       var c=document.getElementById('fav-count'); if(c) c.textContent=cards.length? (cards.length+' 首'):'';
+      var likeIds={}; ((rs[2]||{}).likes||[]).forEach(function(l){ likeIds[l.score_id||l.id||l]=1; });
+      var lcards=(rs[1].scores||[]).filter(function(s){ return likeIds[s.id]; });
+      var le=document.getElementById('like-grid');
+      le.dataset.ready='1'; le.innerHTML=lcards.length? lcards.map(PYQ_LIB.card).join('')
+        : '<div class="lib-empty" style="padding:24px 0"><b>还没点赞过</b>看谱时点 ♥ 为创作者加油，记录都在这里。</div>';
+      var lc=document.getElementById('like-count'); if(lc) lc.textContent=lcards.length? (lcards.length+' 首'):'';
     });
     /* 账号操作 */
     document.getElementById('op-nick').onclick=function(){

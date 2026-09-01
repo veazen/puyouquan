@@ -187,6 +187,17 @@ chk 种子官方谱存在 '谱友圈官方' "$(curl -s http://127.0.0.1:3199/api
 chk 列表含类型与封面字段 '"type"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 chk 列表含封面数据 '"cover"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 
+# v60.97 浏览数 + 点赞：详情每拉一次 +1（上面已拉 1 次，此处再拉 → ≥2）；点赞结构同收藏
+chk 详情带统计字段 '"stats"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 浏览数随拉取递增 '"views":4' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345 > /dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 点赞已发布谱 '"ok":true' "$(J -X PUT http://127.0.0.1:3199/api/likes/song_abc12345)"
+chk 点赞幂等 '"ok":true' "$(J -X PUT http://127.0.0.1:3199/api/likes/song_abc12345)"
+chk 点赞记录列表 '"title":"小星星"' "$(J http://127.0.0.1:3199/api/likes)"
+chk 详情点赞计数为1 '"likes":1' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+nchk 点赞未登录被拒 '"ok":true' "$(curl -s -X PUT http://127.0.0.1:3199/api/likes/song_abc12345)"
+chk 取消点赞 '"ok":true' "$(J -X DELETE http://127.0.0.1:3199/api/likes/song_abc12345)"
+chk 取消后计数为0 '"likes":0' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+
 # 已发布谱最小 SSR：落地页可爬 + og 封面（title/description/canonical/og/JSON-LD/真人跳转）
 SSR=$(curl -s http://127.0.0.1:3199/pub/song_abc12345)
 chk SSR落地页标题 '<title>小星星' "$SSR"

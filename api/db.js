@@ -31,6 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id, updated_at DESC);
 CREATE TABLE IF NOT EXISTS favorites(
   user_id TEXT NOT NULL REFERENCES users(id), score_id TEXT NOT NULL REFERENCES scores(id),
   created_at INTEGER NOT NULL, PRIMARY KEY(user_id, score_id));
+CREATE TABLE IF NOT EXISTS likes(
+  user_id TEXT NOT NULL REFERENCES users(id), score_id TEXT NOT NULL REFERENCES scores(id),
+  created_at INTEGER NOT NULL, PRIMARY KEY(user_id, score_id));
 CREATE TABLE IF NOT EXISTS shelf(
   user_id TEXT NOT NULL REFERENCES users(id), score_id TEXT NOT NULL REFERENCES scores(id),
   progress TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0,
@@ -125,6 +128,8 @@ try { db.exec("ALTER TABLE scores ADD COLUMN review_note TEXT NOT NULL DEFAULT '
 for (const col of ['thumb BLOB', 'thumb_mime TEXT', 'thumb_at INTEGER']) {
   try { db.exec('ALTER TABLE scores ADD COLUMN ' + col); } catch { /* 列已存在 */ }
 }
+/* v60.97 浏览数（产品指示：曲谱有浏览数和收藏点赞记录）：详情每次公开拉取 +1，列只增不改名 */
+try { db.exec('ALTER TABLE scores ADD COLUMN views INTEGER NOT NULL DEFAULT 0'); } catch { /* 列已存在 */ }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -182,12 +187,17 @@ const q = {
   // 公开谱库（谱库 puku，无需登录）
   // 含 data 以便服务端算封面/类型；库规模变大时可另建轻量查询（见 server.js pubShape 注释）
   // thumb_at 只取时间戳不取 BLOB——列表接口若带上二进制会撑爆 JSON
-  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.thumb_at,s.data
+  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.thumb_at,s.data,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.status = 'published' ORDER BY s.updated_at DESC, s.rowid DESC LIMIT 200`),
-  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at,s.thumb_at
+  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at,s.thumb_at,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.id = ? AND s.status = 'published'`),
+  viewInc:      db.prepare("UPDATE scores SET views = views + 1 WHERE id = ? AND status = 'published'"),
   pubCount:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published'"),
   scoreUnref:   db.prepare(`DELETE FROM favorites WHERE score_id = ?;`),
   // 收藏
@@ -197,6 +207,13 @@ const q = {
   favPut:       db.prepare('INSERT OR IGNORE INTO favorites(user_id,score_id,created_at) VALUES(?,?,?)'),
   favDel:       db.prepare('DELETE FROM favorites WHERE user_id = ? AND score_id = ?'),
   favDelByScore:   db.prepare('DELETE FROM favorites WHERE score_id = ?'),
+  // v60.97 点赞（结构同收藏：user_id+score_id 主键幂等）
+  likeList:     db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.updated_at,l.created_at AS liked_at
+                            FROM likes l JOIN scores s ON s.id = l.score_id
+                            WHERE l.user_id = ? ORDER BY l.created_at DESC`),
+  likePut:      db.prepare('INSERT OR IGNORE INTO likes(user_id,score_id,created_at) VALUES(?,?,?)'),
+  likeDel:      db.prepare('DELETE FROM likes WHERE user_id = ? AND score_id = ?'),
+  likeDelByScore:  db.prepare('DELETE FROM likes WHERE score_id = ?'),
   // 谱架
   shelfList:    db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.updated_at,h.progress,h.sort,h.created_at AS added_at
                             FROM shelf h JOIN scores s ON s.id = h.score_id
@@ -354,6 +371,7 @@ function deleteScoreCascade(id, userId) {
   try {
     q.collItemsDelByScore.run(id);
     q.favDelByScore.run(id);
+    q.likeDelByScore.run(id);
     q.shelfDelByScore.run(id);
     const r = q.scoreDelete.run(id, userId);
     db.exec('COMMIT');
