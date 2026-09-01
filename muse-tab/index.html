@@ -6613,7 +6613,9 @@ function chordImpliedNotes(col, shape, solo){
       const f = shapeString(shape, n.s);
       return f==null? n : Object.assign({}, n, {f, x:false});
     });
-  if(col.strum){
+  /* v60.92 自定义音符琶音：列内有 lit（弹窗逐弦写入）音符＝用户已完整指定发声弦，
+     覆盖范围内留空的弦是有意不发声，不再按和弦指法补实音 */
+  if(col.strum && !out.some(n=>n && n.lit)){
     const sp = strumSpan(col), add=[];
     for(let s2=sp.top; s2<=sp.bot; s2++){
       if(out.some(n=>n.s===s2)) continue;
@@ -7691,16 +7693,35 @@ function render(){
             }
             col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 扫弦列技法标注带 */
           }else if(col.strum==='arp' || col.strum==='arpd'){
-            /* 上琶音：波浪线+顶端向上箭头；下琶音：波浪线+底端向下箭头 */
+            /* 上琶音：波浪线+顶端向上箭头；下琶音：波浪线+底端向下箭头。
+               v60.92 自定义音符琶音（产品指示）：列内有 lit（弹窗逐弦写入的）音符时，
+               数字照常画在列位上、波浪线左移让位（出版惯例：波浪线紧贴数字列左侧）；
+               随和弦的琶音列（无 lit）保持只画波浪线，存量谱面零变化。 */
             const sp = strumSpan(col);
+            const hasLit = (col.notes||[]).some(n=>n && n.lit);
+            const wx = hasLit? nx-9 : nx;
             const yT = tabTop+(sp.top-1)*STR-2, yB = tabTop+(sp.bot-1)*STR+2;
-            let d = `M ${nx} ${yT}`;
+            let d = `M ${wx} ${yT}`;
             for(let yy=yT; yy<yB-4; yy+=8) d += ` q 3.5 4 0 8`;
             p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`);
             if(col.strum==='arp')
-              p.push(`<path d="M ${nx-2.8} ${yT+5} L ${nx} ${yT-1} L ${nx+2.8} ${yT+5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+              p.push(`<path d="M ${wx-2.8} ${yT+5} L ${wx} ${yT-1} L ${wx+2.8} ${yT+5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
             else
-              p.push(`<path d="M ${nx-2.8} ${yB-5} L ${nx} ${yB+1} L ${nx+2.8} ${yB-5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+              p.push(`<path d="M ${wx-2.8} ${yB-5} L ${wx} ${yB+1} L ${wx+2.8} ${yB-5}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
+            if(hasLit) col.notes.forEach(n=>{
+              const yy = tabTop+(n.s-1)*STR;
+              p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="500" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${n.x?'×':n.f}</text>`);
+            });
+            /* v60.92 琶音长时值出版记法（产品指示）：两拍及以上不再像五线谱那样只靠一个音符表达——
+               琶音后方画延音弧，弧长盖满本列的时值跨度（cw=版面按拍分配的列宽），
+               出版惯例同扫弦延留：整个和弦收一条弧（不逐弦），画在六线谱上方。 */
+            const arpBts = beatsOf(col, meaMeter(lm.mi).unit);
+            if(arpBts >= 2-1e-3){
+              const abY = yT - 8;
+              const axEnd = nx + Math.max(18, cw-6);
+              const aRise = Math.min(9, Math.max(6, (axEnd-nx)*0.3));
+              p.push(tieSVG(nx+5, abY, axEnd, abY, abY-aRise, 1.9));
+            }
             col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 琶音列技法标注带 */
           }else{
             /* 分解/单音：×（和弦内音记法/哑音）显示 ×，显式品位显示数字 */
@@ -7714,7 +7735,8 @@ function render(){
               const soloCtx = song.tabStaff && !(song.voxVoices||[]).length;
               let xDisp = n.x || col.slap, fShow = n.f;
               if(effNota()==='x'){
-                if(!n.x && !col.slap && !soloCtx && shape && n.f<=4 && shapeString(shape, n.s)===n.f) xDisp = true;
+                /* v60.92 n.lit=用户显式输入 → 教材式也保数字（以编辑为准），不折成和弦内音 × */
+                if(!n.x && !n.lit && !col.slap && !soloCtx && shape && n.f<=4 && shapeString(shape, n.s)===n.f) xDisp = true;
               }else if(n.x && !col.slap && !col.mute && !soloCtx && shape){
                 const fr = shapeString(shape, n.s);
                 if(fr!=null){ xDisp=false; fShow=fr; }
@@ -9957,12 +9979,15 @@ function pingMod(){
 function setFret(f){
   if(sel.row!=='tab') return;
   if(f!=null){ f=Math.max(0, Math.min(fretMaxOf(), f|0)); }   // v47.7 越界守卫（此前 setFret(99) 直接写脏）
+  /* v60.92 lit=用户显式输入的品位（产品指示：和弦内手输数字以编辑为准——
+     教材式把「与和弦指法一致的 ≤4 品实音」画成 ×，用户特意写的 0/2 也被吞成 ×；
+     带 lit 的音在教材式下仍显示数字。节奏型/和弦变换生成的音不带 lit，× 惯例不变。 */
   mutate(()=>{
     const col=curCol();
     const i = col.notes.findIndex(n=>n.s===sel.si);
     if(f==null){ if(i>=0) col.notes.splice(i,1); }
-    else if(i>=0){ col.notes[i].f=f; col.notes[i].x=false; }
-    else col.notes.push({s:sel.si, f});
+    else if(i>=0){ col.notes[i].f=f; col.notes[i].x=false; col.notes[i].lit=1; }
+    else col.notes.push({s:sel.si, f, lit:1});
   });
   if(f!=null) pingCol('tab', sel.vi, sel.mi, curCol(), sel.si);   /* v60.29 输入回响 */
 }
@@ -11006,25 +11031,31 @@ function cpatSave(o){ try{ localStorage.setItem('musetab-custompat', JSON.string
 let patEdit=null;   /* {kind, editIdx, docs, curDocI, sel} —— 编辑期工作区快照 */
 function showPatEditor(kind, editIdx){
   const old = editIdx!=null? cpatLoad()[kind][editIdx] : null;
-  const gb = old? Math.max(2, Math.min(6, Math.round(patBeats(old)))) : song.beats;
+  const gb = old? Math.max(1, Math.min(6, Math.round(patBeats(old)))) : song.beats;   /* v60.92 散拍条目可到 1 拍 */
   const sels=(id,arr,def)=>'<select id="'+id+'">'+arr.map(v=>'<option value="'+v+'"'+(v===def?' selected':'')+'>'+v+'</option>').join('')+'</select>';
+  /* v60.92 散拍自定义节奏型（产品指示）：勾选散拍＝不入整小节口径，
+     入库带 span（实际拍数），套用走库内散拍同一条 pat.span 管线（从所选列起填入、可拼段）；
+     简谱侧节奏型库与套用管线无散拍口径（applyVoxPattern 整小节替换），如实只在六线谱提供。 */
+  const freeOld = !!(old && old.span);
   showModal(`<h3>${old?'编辑':'新建'}自定义节奏型 · ${kind==='tab'?'六线谱':'简谱'}</h3>
     <p style="font-size:12.5px;line-height:1.6">定好拍号后直接进<b>曲谱编辑器</b>写这一小节——所有输入工具都能用、可播放试听；写完点顶部「保存到库」。${kind==='tab'?'吉他节奏型以 <b>C 和弦</b>为示例取品，套用时按目标和弦自动换指法。':'简谱节奏型只取<b>时值骨架</b>，套用时保留小节里已有的音符。'}</p>
-    <label class="f"><span>拍号</span>${sels('pm-beats',[2,3,4,6], old? gb : song.beats)}<b>/</b>${sels('pm-unit',[4,8], song.unit)}</label>
+    <label class="f"><span>拍号</span>${sels('pm-beats',[1,2,3,4,6], old? gb : song.beats)}<b>/</b>${sels('pm-unit',[4,8], song.unit)}</label>
+    ${kind==='tab'? `<label class="f"><span>散拍</span><span style="width:auto;flex:1;text-align:left;font-size:12.5px;line-height:1.5;display:flex;align-items:center;gap:6px"><input type="checkbox" id="pm-free"${freeOld?' checked':''} style="flex:0 0 auto">不限拍号——套用时从所选列起填入所写拍数（可拼段；1 拍常配散拍用）</span></label>`:''}
     <div class="btns"><button id="pm-cancel">← 返回库</button><button id="pm-go" class="primary">进入编辑器</button></div>`);
   document.getElementById('pm-cancel').onclick=()=>showPatternLib(kind);
   document.getElementById('pm-go').onclick=()=>{
     const beats=+document.getElementById('pm-beats').value, unit=+document.getElementById('pm-unit').value;
+    const free = kind==='tab' && !!(document.getElementById('pm-free')||{}).checked;
     closeModal();
-    startPatEdit(kind, editIdx, beats, unit);
+    startPatEdit(kind, editIdx, beats, unit, free);
   };
 }
-function startPatEdit(kind, editIdx, beats, unit){
+function startPatEdit(kind, editIdx, beats, unit, free){
   const old = editIdx!=null? cpatLoad()[kind][editIdx] : null;
   stopPlay();
   /* 工作区快照（内存）+ 崩溃备份（localStorage 新键）：草稿会覆写 LS_DOCS，
      中途刷新/崩溃时 init 从备份键恢复原工作区，未入库的编辑不丢 */
-  patEdit={kind, editIdx, docs, curDocI, sel:JSON.parse(JSON.stringify(sel))};
+  patEdit={kind, editIdx, docs, curDocI, free:!!free, sel:JSON.parse(JSON.stringify(sel))};
   try{ localStorage.setItem('musetab-patedit-bak', JSON.stringify({cur:curDocI, docs:docs.map(d=>d.song)})); }catch(_){}
   const o={title:'节奏型草稿', singer:'', lyricist:'', composer:'', maker:'',
     beats, unit, key:'C', tempo:90, nMea:1, capo:0};
@@ -11048,7 +11079,7 @@ function startPatEdit(kind, editIdx, beats, unit){
   setRibbon(kind==='tab'?'tab':'vox');
   const bar=document.createElement('div');
   bar.id='patedit-bar';
-  bar.innerHTML=`<span class="peb-t">${svgi('pencil',13)} 自定义节奏型 · ${beats}/${unit}${kind==='tab'?' · C 和弦示例（套用时随目标和弦取品）':' · 时值骨架'}</span>
+  bar.innerHTML=`<span class="peb-t">${svgi('pencil',13)} 自定义节奏型 · ${free? '散拍 '+beats+' 拍' : beats+'/'+unit}${kind==='tab'?' · C 和弦示例（套用时随目标和弦取品）':' · 时值骨架'}</span>
     <button id="patsave" class="primary">保存到库</button><button id="patcancel">取消</button>`;
   document.body.appendChild(bar);
   /* 挂在顶栏下沿（顶栏高度随行数变化，进场时校准一次；手机端媒体查询改挂底部） */
@@ -11085,6 +11116,8 @@ function patEditSave(){
     const ev=src.map((c,ci)=>colToEv(c, chordShape('C'), tiedAt(ci)));
     if(!ev.some(e=>e[0]!=='r')) return toast('小节还是空的——先写点内容再保存');
     entry={name:'', ev};
+    /* v60.92 散拍入库：带 span（草稿实际拍数）走库内散拍同一条 pat.span 套用管线 */
+    if(patEdit.free) entry.span = +patBeats(entry).toFixed(2);
   }else{
     const cols=song.measures[0].voxes[0];
     if(!cols.length) return toast('小节还是空的——先写点内容再保存');
@@ -11146,7 +11179,7 @@ function showPatternLib(kind, keepFilter){
     + cust.map((p,ci)=>{
       const svg = kind==='tab'?tabPatSVG(p,140,62):rhythmSVG(p.durs,140,36);
       return `<div class="pat-card cpat" data-ci="${ci}">${svg}<div class="nm">${esc(p.name)}</div>
-        <div class="bt">${+patBeats(p).toFixed(2)} 拍</div>
+        <div class="bt">${+patBeats(p).toFixed(2)} 拍${p.span?' · 散拍':''}</div>
         <div class="cp-ops"><span class="cp-edit" data-ce="${ci}" title="编辑该节奏型">改</span><span class="cp-del" data-cd="${ci}" title="删除该节奏型">删</span></div></div>`;
     }).join('')
     + `<div class="pat-card cpat-new" id="cpat-new"><span class="cpn-plus">＋</span><div class="nm">新建节奏型</div><div class="bt">${kind==='tab'?'自定义分解 / 扫弦':'自定义时值组合'}</div></div></div>`;
@@ -12561,10 +12594,43 @@ function showStrumMenu(cx, cy){
   div.classList.add('pm-follow'); div.style.top=(cy+scrollY)+'px'; div.style.left=(parseFloat(div.style.left)+scrollX)+'px';
   const NAME={d:'扫弦 ↓', u:'扫弦 ↑', arp:'上琶音', arpd:'下琶音'};
   const sp=strumSpan(col);
+  /* v60.92 自定义音符琶音（产品指示：点击琶音支持设置每根弦的音符）：
+     琶音弹窗加逐弦品位输入——写入的音带 lit 标记，谱面画数字、发声按所写，
+     留空的弦不发声（不再按和弦指法补音）；「恢复随和弦」一键回到跟指法取音的老行为。 */
+  const isArp = col.strum==='arp'||col.strum==='arpd';
+  const shapeA = isArp? chordShape(chordAtCol(sel.mi, sel.vi, sel.ci)) : null;
+  const fEd = !isArp? '' : `<div class="t" style="margin-top:7px">每弦音符 · 品位（留空＝该弦不发声；写入后按所写显示与发声）</div>
+    <div class="row">${Array.from({length:sp.bot-sp.top+1},(_,i)=>sp.top+i).map(s=>{
+      const n=(col.notes||[]).find(m=>m&&m.s===s);
+      const v=n&&!n.x? n.f : (n&&n.x? '' : (shapeA? (shapeString(shapeA,s)!=null? shapeString(shapeA,s) : '') : ''));
+      return `<label style="font-size:12px">${s}弦 <input data-sf="${s}" value="${v===''?'':v}" size="2" inputmode="numeric" style="width:34px;text-align:center"></label>`;
+    }).join('')}</div>
+    <div class="row"><button data-arp-apply class="primary">写入音符</button><button data-arp-reset title="清除自定义音符，回到按当前和弦指法取音">恢复随和弦</button></div>`;
   div.innerHTML=`<div class="t">${NAME[col.strum]||col.strum} · 编辑覆盖琴弦（点选，取所选弦的连续范围）</div>
-    <div class="row">${Array.from({length:strN()},(_,i)=>i+1).map(s=>`<button data-s="${s}" class="${(s>=sp.top&&s<=sp.bot)?'on':''}">${s}弦</button>`).join('')}</div>`;
+    <div class="row">${Array.from({length:strN()},(_,i)=>i+1).map(s=>`<button data-s="${s}" class="${(s>=sp.top&&s<=sp.bot)?'on':''}">${s}弦</button>`).join('')}</div>${fEd}`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
+    if(ev.target.closest('[data-arp-apply]')){
+      const vals=[...div.querySelectorAll('[data-sf]')].map(x=>({s:+x.dataset.sf, v:x.value.trim()}));
+      const bad=vals.find(x=>x.v!=='' && !(/^\d{1,2}$/.test(x.v) && +x.v<=fretMaxOf()));
+      if(bad) return toast(bad.s+'弦品位无效——写 0–'+fretMaxOf()+' 的数字或留空');
+      if(!vals.some(x=>x.v!=='')) return toast('至少给一根弦写品位（全空＝没有音可弹）');
+      mutate(()=>{ const c=curCol();
+        vals.forEach(({s,v})=>{
+          const i=c.notes.findIndex(m=>m&&m.s===s);
+          if(v===''){ if(i>=0) c.notes.splice(i,1); }
+          else if(i>=0){ const m=c.notes[i]; m.f=+v; m.x=false; m.lit=1; delete m.xf; }
+          else c.notes.push({s, f:+v, lit:1});
+        });
+      });
+      closePop(); toast('已写入琶音音符（留空弦不发声）'); return;
+    }
+    if(ev.target.closest('[data-arp-reset]')){
+      mutate(()=>{ const c=curCol();
+        c.notes = shapeA? shapeSounded(shapeA).map(n=>({s:n.s, f:n.f})) : c.notes.map(n=>{ const m={...n}; delete m.lit; return m; });
+      });
+      closePop(); toast('已恢复随和弦取音'); return;
+    }
     const b=ev.target.closest('[data-s]'); if(!b) return;
     b.classList.toggle('on');
     const selStrs=[...div.querySelectorAll('[data-s].on')].map(x=>+x.dataset.s);
@@ -22242,7 +22308,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.91';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.92';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22265,6 +22331,7 @@ const APP_VER='v60.91';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.92</span><div><b>六线谱四项修正：散拍自定义节奏型 · 琶音长时值延音弧 · 自定义音符琶音 · 手输数字优先</b>（产品指示逐条落地）。<br>① <b>自定义节奏型可选散拍</b>：新建/编辑弹窗勾「散拍」——不限拍号，拍数可 1–6 自由写，入库后与库内「半小节/一拍」散拍同一条管线：<b>套用时从所选列起填入所写拍数</b>，一小节可拼两段不同节奏（各自和弦独立）；卡片带「散拍」角标。简谱侧套用管线是整小节替换、暂不提供散拍（如实边界）。<br>② <b>琶音长时值出版记法</b>：两拍/三拍/四拍的琶音列不再像五线谱那样只靠一个音符表达——琶音后方自动画<b>延音弧</b>，弧长盖满该列的时值跨度（一拍琶音不画），出版惯例同扫弦延留：整个和弦收一条弧。<br>③ <b>自定义音符琶音</b>：点琶音列（或记号钮）打开的弹窗里，除覆盖弦范围外新增<b>逐弦品位输入</b>——写入后谱面在琶音波浪线右侧画出每弦数字（波浪线左移让位，同出版谱样式），发声按所写；<b>留空的弦不发声</b>（不再按和弦指法补音）；「恢复随和弦」一键回老行为。<br>④ <b>和弦内手输数字以编辑为准</b>：教材式记谱把「与和弦指法一致的 ≤4 品实音」折成 ×，用户特意输入的 0/2 也被吞成 ×——现在<b>凡是手输的品位（键盘/弹窗/指板面板）都带「显式」标记，教材式下保数字不折 ×</b>；节奏型与和弦变换生成的音不受影响，× 惯例照旧。<br><b>测试</b>：新增 <code>tv_arpfix</code> 套件 6 项（散拍入库与 2 拍局部套用/延音弧几何/lit 数字与不补空弦/弹窗逐弦写入/教材式手输保数字），对旧版文件复跑 <b>0/6 全红</b>实证。CORE 103→<b>104 套件</b>全绿。</div></li>
     <li><span class="v">v60.91</span><div><b>简谱记号面板新增「升八度 / 降八度」批量操作</b>（产品指示）。<br>① <b>有选中 → 只动选中</b>：Ctrl 多选或框选若干音符后点「升八度/降八度」，选中列整体移一个八度——<b>和音、倚音随主音一起移</b>，相对音高不变；<b>选区保留可连击</b>，再点一次再移一个八度。<br>② <b>未选中 → 全曲整体移</b>：当前声部所有音符（含和音/倚音）一键升/降八度，休止不动——录完发现整体偏高/偏低时一步归位，不必逐音加点。<br>③ <b>出版级保护</b>：任一音已带 3 个八度点（记谱上限）时<b>整体拒绝执行</b>并提示，绝不让部分音在上限处折返打乱旋律轮廓；操作入撤销栈，一步可回。<br>④ <b>入口分工</b>：左栏记号面板钮＝批量（新版外壳恢复显示，此前被当作重复入口隐藏）；顶栏 8ᵛᵃ/8ᵛᵇ 与快捷键 +/− 仍是单音加高/低音点，语义不变。<br><b>测试</b>：新增 <code>tv_octbatch</code> 套件 7 项（全曲/多选/框选/越界拒绝/面板可见/单音不回归/撤销），对旧版文件复跑 <b>5 项红</b>实证有效。CORE 102→<b>103 套件</b>全绿。</div></li>
     <li><span class="v">v60.90</span><div><b>课程体系落库：新增《幼儿音乐启蒙课》+ 课程工作台 + 打卡进度</b>（产品指示：视觉化 / 互动化 / 趣味化）。<br>① <b>第二门课《幼儿音乐启蒙课》上线</b>：<b>3-6 岁亲子 · 6 周</b>不认字也能上的音乐游戏课——听！世界的声音 → 身体是乐器 → 会唱 do re mi → 数字会唱歌（1-5 简谱启蒙）→ 家里的小乐队 → 我们的小音乐会；每章配<b>亲子任务</b>（声音捉迷藏/全家打稳定拍/高低音蹲跳猜歌…）与谱库互动资源（《小星星》变速、《欢乐颂》跟练），结课有「小小音乐家奖状」仪式感文案。<br>② <b>课程数据模型落库</b>：新增 <code>courses</code> 表——<b>章节 = 谱面（互动谱链接）+ 图文（目标/内容点）+ 练习任务</b>三件套；内容单一来源 <code>seed-courses.json</code>（服务端首启自动播种，页面内嵌同一份作 SEO/离线兜底，测试强制两处逐字一致）；公开接口 <code>/api/courses</code>（列表/详情），线上改课不再动代码。<br>③ <b>课程发布工作台</b>：管理控制台新增<b>「课程」页签</b>（7→8）——新建/编辑课程（乐器分类/emoji/配色族/周数/简介），<b>章节可视化编排</b>（每章 emoji/标题/目标/内容点/练习任务/互动资源链接，上移/删除/追加），保存草稿与<b>一键保存并发布</b>；草稿不公开、无章节不能发布、已发布须先下架才能删，全程落审计日志。<br>④ <b>学习页展示框架重做</b>：课程卡（<b>分族渐变封面 + 大 emoji</b>🎸🧸 + 免费/难度/周数章数徽章 + 进度条）→ 点开课程详情（每章 emoji 编号卡）→ <b>「完成打卡」</b>逐章记进度（本地存储，进度条实时涨，完课章节整卡变淡打勾）→ 全部完成触发<b>结课庆祝</b>（幼儿课发奖状文案）；支持 <code>#课程id</code> 深链直达。存量吉他课同步升级为新框架（每章 emoji/打卡/进度）。<br><b>测试</b>：<code>api/test.sh</code> 160→<b>176 项</b>（种子两门/工作台增删改/发布门槛/权限/审计）；<code>tv_site</code> 53→<b>59 项</b>（内嵌数据与种子文件逐字一致/两课卡片/打卡进度与本地存储/工作台真实 PUT）。CORE <b>102 套件</b>全绿。服务端随本版部署自动重启建表播种。</div></li>
     <li><span class="v">v60.89</span><div><b>主菜单改版：「学习」直达首门课《民谣吉他启蒙课》（7 周）；功能/帮助收进页脚</b>（产品指示逐条落地）。<br>① <b>主菜单收敛为三项</b>：找谱 / 制谱 / <b>学习</b>（「课程」改「学习」）；「功能」「帮助」撤出主菜单、收进页脚（页脚新增「功能」链接，「帮助」原本就在）。<br>② <b>首门课立起课程框架</b>：官方自制<b>《民谣吉他启蒙课》</b>上线「学习」页——<b>7 周从第一次抱琴到完整弹唱一首歌</b>：认识吉他与调音 → 单音旋律 → C/Am/Em/G 四和弦 → 扫弦入门弹唱 → 分解和弦 53231323 → F 大横按与 1645 → 结课完整弹唱。每周固定结构＝<b>学习目标 + 内容点 + 练习任务 + 配套互动资源</b>（零基础第一课/谱库跟练《小星星》《欢乐颂》/编辑器节奏型库与节拍器/观看页变速循环移调）——课程框架即按这套周次结构建立，后续课程按同款结构生产。免费，Course 结构化数据（SEO 可收录为课程）。<br>③ <b>原课程介绍并入功能页</b>：课程形态（互动谱课时/练习任务与达标/三种开课方式：官方自制·名师签约·创作者开课）移入 features.html 新「学习课程」区块；功能页头部按最新定位重写（出版级·科教级、乐器覆盖含民族乐器筹备、标题与 keywords 同步）。<br>④ 首页「学习」卡文案随真课更新（民谣吉他启蒙课 7 周 · 免费）。<br><b>测试</b>：<code>tv_site</code> 51→<b>53 项</b>（主菜单三项且功能/帮助撤出/页脚含功能帮助/学习页 7 周结构+Course LD+练习任务/功能页并入课程介绍与新定位）。CORE <b>102 套件</b>全绿。</div></li>

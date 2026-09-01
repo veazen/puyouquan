@@ -122,7 +122,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const c=song.measures[0].voxes[0][0];
     return {tabNotes, kindNow, deg:c.deg, oct:c.oct||0, acc:c.acc||''};
   })()`);
-  T(r.tabNotes === '[{"s":3,"f":5}]' && r.kindNow === 'key' && r.deg === 1 && r.oct === 0 && r.acc === '',
+  /* v60.92 口径更新：指板点按走 setFret＝用户显式输入，音符带 lit:1（教材式下保数字不折 ×） */
+  T(r.tabNotes === '[{"s":3,"f":5,"lit":1}]' && r.kindNow === 'key' && r.deg === 1 && r.oct === 0 && r.acc === '',
     'T4 点板落音：指板 3弦5品 落进当前列，键盘 C4 在简谱轨落中音 1', JSON.stringify(r));
 
   // T5 播放跟随：时间线跟板所在那条轨（不是光标参考轨）
@@ -269,7 +270,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return {seg, defOn, before, afterPlay, afterEdit, hlPlay, mode:BOARD.mode};
   })()`);
   T(r.seg.join() === 'edit,play' && r.defOn
-    && r.afterPlay === r.before && r.afterEdit === '[{"s":3,"f":5}]'
+    && r.afterPlay === r.before && r.afterEdit === '[{"s":3,"f":5,"lit":1}]'   /* v60.92 指板落音带 lit（显式输入标记） */
     && r.hlPlay.indexOf('"f":5') >= 0,
     'T11 演奏模式点板只试听不改谱（高亮仍跟手）；编辑模式照旧落音；默认编辑', JSON.stringify(r));
 
