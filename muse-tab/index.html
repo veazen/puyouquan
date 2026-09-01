@@ -494,8 +494,9 @@ body.shell #editbar .eb .dg{display:inline;font-size:14px;line-height:1}
 body.shell #eb-dur .eb .dg{font-size:15px;font-family:var(--font-num)}
 body.shell #editbar .eb .dn{display:none}
 body.shell #eb-dur .eb,body.shell #editbar .eb:has(.dg){min-width:30px;justify-content:center}
-/* v41.5 「编辑」组（原音符组）在新版外壳恢复中文显示（其余组保持字形）；八度并入本组，
-   简谱面板原 8度± 按钮在新版外壳隐藏去重（经典版保留原入口） */
+/* v41.5 「编辑」组（原音符组）在新版外壳恢复中文显示（其余组保持字形）；八度并入本组。
+   v60.91 简谱面板 升/降八度 钮在新版外壳恢复显示：语义已与顶栏单音钮分工——
+   面板钮=批量（选中音符/全曲），顶栏 8ᵛᵃ/8ᵛᵇ=当前单音，不再是重复入口 */
 body.shell #editbar #eb-edit .eb .dg{display:none}
 body.shell #editbar #eb-edit .eb .dn{display:inline}
 /* v48.0 「×分解」补中文小字：品位组里数字自解释，唯独 × 是纯符号认不出含义，故字形+中文并排显示 */
@@ -504,7 +505,6 @@ body.shell #editbar #eb-mute-n .dn{display:inline;font-size:11px;margin-left:3px
 body.shell #editbar #eb-edit .eb{min-width:0;padding:3px 5px}
 body.shell #editbar .eb-sep{margin:0 5px}
 body.shell #editbar .eb.ico{padding:2px 5px 3px}
-body.shell #b-octup,body.shell #b-octdn{display:none}
 body.shell #editbar{gap:5px}
 body.shell #editbar .eb-grp{gap:3px}
 body.shell #editbar .eb.ico span{display:none}
@@ -2064,7 +2064,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <div class="rg-title">音符记号</div>
       <div class="rg-body" id="vmark-body">
         <button id="b-sharp">♯</button><button id="b-flat">♭</button><button id="b-natural">♮</button>
-        <button id="b-octup">8度+</button><button id="b-octdn">8度−</button>
+        <button id="b-octup" title="升八度：Ctrl/框选选中音符时整体升八度（含和音、倚音）；未选中时本声部全曲整体升。任一音已带 3 个高音点则整体不动（保住相对音高）。单音加高音点用顶栏 8ᵛᵃ 或快捷键 +">升八度</button><button id="b-octdn" title="降八度：Ctrl/框选选中音符时整体降八度（含和音、倚音）；未选中时本声部全曲整体降。任一音已带 3 个低音点则整体不动（保住相对音高）。单音加低音点用顶栏 8ᵛᵇ 或快捷键 −">降八度</button>
         <button id="b-ottava" title="八度线（8va/8vb）：仅五线谱——把选中乐句按记谱移低/高八度收拢下加线，谱表上/下方画虚线括线，实际音高与播放不变。Ctrl/Shift 选首末两音标注整句（再点清除）">八度线8va</button>
         <button id="b-clef" title="谱号切换（仅五线谱声部）：自当前音起切换 高音/中音/低音谱号，支持小节内切换；仅换记谱位置，音高与播放不变；选「恢复」清除本列切换">谱号切换</button>
         <button id="b-tie">连音线</button>
@@ -13317,6 +13317,36 @@ function toggleGliss(){ if(sel.row!=='vox') return toast('滑音用于旋律声�
   mutate(()=>{ const c=curCol(); if(!c||!c.deg) return; if(c.gliss) delete c.gliss; else c.gliss=true; });
   const c=curCol(); toast(c&&c.gliss? '已加滑音（直线滑到下一个音）' : '已取消滑音'); }
 function bumpOct(d){ if(sel.row!=='vox')return; try{habit('oct:'+(d>0?'+':'-'));}catch(_){} mutate(()=>{ const c=modCol(); if(!c) return;   /* v48.0 同上 */ c.oct=Math.max(-3,Math.min(3,(c.oct||0)+d)); }); pingMod(); }
+/* v60.91 记号面板 升/降八度（批量）：有选中（Ctrl 多选或区域选区）→ 只动选中列；无选中 → 本声部全曲。
+   列整体移位：主音 + 和音 adds + 倚音 grace 的 oct 同步 ±1；
+   与单音 bumpOct 的钳制不同，批量做整体越界预检——任一音已在 ±3（三个八度点）上限即整体拒绝，
+   否则部分音折返会打乱选区/全曲的相对音高轮廓（出版级红线） */
+function octShiftBatch(d){
+  if(sel.row!=='vox'){ toast('八度用于简谱/五线谱声部——请先选中旋律声部音符'); return; }
+  const picks = selNotes().filter(q=>q.row==='vox');
+  const targets=[];
+  if(picks.length){
+    const seen={};
+    picks.forEach(q=>{ const k=q.vi+':'+q.mi+':'+q.ci; if(!seen[k]){ seen[k]=1; targets.push(q); } });
+  }else{
+    const vi=sel.vi||0;
+    (song.measures||[]).forEach((m,mi)=>{ (((m||{}).voxes||[])[vi]||[]).forEach((c,ci)=>{
+      if(c && (c.deg || (c.adds||[]).some(a=>a&&a.deg) || (c.grace&&(c.grace.notes||[]).length))) targets.push({mi,ci,vi}); }); });
+    if(!targets.length){ toast('本声部还没有音符——先录入再整体移八度'); return; }
+  }
+  const cols = targets.map(t=>((((song.measures[t.mi]||{}).voxes||[])[t.vi]||[])[t.ci])).filter(Boolean);
+  const over = o=>{ const x=(o||0)+d; return x>3||x<-3; };
+  let block=0, n=0;
+  cols.forEach(c=>{ if(c.deg){ n++; if(over(c.oct)) block++; }
+    (c.adds||[]).forEach(a=>{ if(a&&a.deg){ n++; if(over(a.oct)) block++; } });
+    ((c.grace&&c.grace.notes)||[]).forEach(g=>{ n++; if(over(g.oct)) block++; }); });
+  if(!n){ toast('选中范围没有可移八度的音符'); return; }
+  if(block){ toast((d>0?'升':'降')+'八度未执行：'+block+' 个音已带 3 个'+(d>0?'高':'低')+'音点（八度上限），整体再移会打乱相对音高'); return; }
+  mutate(()=>{ cols.forEach(c=>{ if(c.deg) c.oct=(c.oct||0)+d;
+    (c.adds||[]).forEach(a=>{ if(a&&a.deg) a.oct=(a.oct||0)+d; });
+    ((c.grace&&c.grace.notes)||[]).forEach(g=>{ g.oct=(g.oct||0)+d; }); }); });
+  toast((picks.length? '选中 ':'全曲（本声部）')+n+' 个音已'+(d>0?'升':'降')+'八度');
+}
 function toggleTie(){ try{habit('tie');}catch(_){}
   /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用；
      v54.4 区域选区同样可用（selNotes 展开，首尾音相连） */
@@ -13969,8 +13999,9 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
 document.getElementById('b-sharp').onclick = ()=>accBump(1);     // v47.7 五线谱走目标音高模型，简谱内部仍走 toggleAcc
 document.getElementById('b-flat').onclick = ()=>accBump(-1);
 document.getElementById('b-natural').onclick = ()=>accNat();
-document.getElementById('b-octup').onclick = ()=>bumpOct(1);
-document.getElementById('b-octdn').onclick = ()=>bumpOct(-1);
+/* v60.91 记号面板八度钮升级为批量语义（选中→选中音符；未选→本声部全曲）；单音加点仍走顶栏 8ᵛᵃ/8ᵛᵇ 或快捷键 +/- */
+document.getElementById('b-octup').onclick = ()=>octShiftBatch(1);
+document.getElementById('b-octdn').onclick = ()=>octShiftBatch(-1);
 { const ob=document.getElementById('b-ottava'); if(ob) ob.onclick = (ev)=>showOttavaMenu(ev.clientX, ev.clientY); }
 { const cb=document.getElementById('b-clef'); if(cb) cb.onclick = (ev)=>showClefMenu(ev.clientX, ev.clientY); }
 document.getElementById('b-tie').onclick = toggleTie;
@@ -22211,7 +22242,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.90';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.91';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22234,6 +22265,7 @@ const APP_VER='v60.90';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.91</span><div><b>简谱记号面板新增「升八度 / 降八度」批量操作</b>（产品指示）。<br>① <b>有选中 → 只动选中</b>：Ctrl 多选或框选若干音符后点「升八度/降八度」，选中列整体移一个八度——<b>和音、倚音随主音一起移</b>，相对音高不变；<b>选区保留可连击</b>，再点一次再移一个八度。<br>② <b>未选中 → 全曲整体移</b>：当前声部所有音符（含和音/倚音）一键升/降八度，休止不动——录完发现整体偏高/偏低时一步归位，不必逐音加点。<br>③ <b>出版级保护</b>：任一音已带 3 个八度点（记谱上限）时<b>整体拒绝执行</b>并提示，绝不让部分音在上限处折返打乱旋律轮廓；操作入撤销栈，一步可回。<br>④ <b>入口分工</b>：左栏记号面板钮＝批量（新版外壳恢复显示，此前被当作重复入口隐藏）；顶栏 8ᵛᵃ/8ᵛᵇ 与快捷键 +/− 仍是单音加高/低音点，语义不变。<br><b>测试</b>：新增 <code>tv_octbatch</code> 套件 7 项（全曲/多选/框选/越界拒绝/面板可见/单音不回归/撤销），对旧版文件复跑 <b>5 项红</b>实证有效。CORE 102→<b>103 套件</b>全绿。</div></li>
     <li><span class="v">v60.90</span><div><b>课程体系落库：新增《幼儿音乐启蒙课》+ 课程工作台 + 打卡进度</b>（产品指示：视觉化 / 互动化 / 趣味化）。<br>① <b>第二门课《幼儿音乐启蒙课》上线</b>：<b>3-6 岁亲子 · 6 周</b>不认字也能上的音乐游戏课——听！世界的声音 → 身体是乐器 → 会唱 do re mi → 数字会唱歌（1-5 简谱启蒙）→ 家里的小乐队 → 我们的小音乐会；每章配<b>亲子任务</b>（声音捉迷藏/全家打稳定拍/高低音蹲跳猜歌…）与谱库互动资源（《小星星》变速、《欢乐颂》跟练），结课有「小小音乐家奖状」仪式感文案。<br>② <b>课程数据模型落库</b>：新增 <code>courses</code> 表——<b>章节 = 谱面（互动谱链接）+ 图文（目标/内容点）+ 练习任务</b>三件套；内容单一来源 <code>seed-courses.json</code>（服务端首启自动播种，页面内嵌同一份作 SEO/离线兜底，测试强制两处逐字一致）；公开接口 <code>/api/courses</code>（列表/详情），线上改课不再动代码。<br>③ <b>课程发布工作台</b>：管理控制台新增<b>「课程」页签</b>（7→8）——新建/编辑课程（乐器分类/emoji/配色族/周数/简介），<b>章节可视化编排</b>（每章 emoji/标题/目标/内容点/练习任务/互动资源链接，上移/删除/追加），保存草稿与<b>一键保存并发布</b>；草稿不公开、无章节不能发布、已发布须先下架才能删，全程落审计日志。<br>④ <b>学习页展示框架重做</b>：课程卡（<b>分族渐变封面 + 大 emoji</b>🎸🧸 + 免费/难度/周数章数徽章 + 进度条）→ 点开课程详情（每章 emoji 编号卡）→ <b>「完成打卡」</b>逐章记进度（本地存储，进度条实时涨，完课章节整卡变淡打勾）→ 全部完成触发<b>结课庆祝</b>（幼儿课发奖状文案）；支持 <code>#课程id</code> 深链直达。存量吉他课同步升级为新框架（每章 emoji/打卡/进度）。<br><b>测试</b>：<code>api/test.sh</code> 160→<b>176 项</b>（种子两门/工作台增删改/发布门槛/权限/审计）；<code>tv_site</code> 53→<b>59 项</b>（内嵌数据与种子文件逐字一致/两课卡片/打卡进度与本地存储/工作台真实 PUT）。CORE <b>102 套件</b>全绿。服务端随本版部署自动重启建表播种。</div></li>
     <li><span class="v">v60.89</span><div><b>主菜单改版：「学习」直达首门课《民谣吉他启蒙课》（7 周）；功能/帮助收进页脚</b>（产品指示逐条落地）。<br>① <b>主菜单收敛为三项</b>：找谱 / 制谱 / <b>学习</b>（「课程」改「学习」）；「功能」「帮助」撤出主菜单、收进页脚（页脚新增「功能」链接，「帮助」原本就在）。<br>② <b>首门课立起课程框架</b>：官方自制<b>《民谣吉他启蒙课》</b>上线「学习」页——<b>7 周从第一次抱琴到完整弹唱一首歌</b>：认识吉他与调音 → 单音旋律 → C/Am/Em/G 四和弦 → 扫弦入门弹唱 → 分解和弦 53231323 → F 大横按与 1645 → 结课完整弹唱。每周固定结构＝<b>学习目标 + 内容点 + 练习任务 + 配套互动资源</b>（零基础第一课/谱库跟练《小星星》《欢乐颂》/编辑器节奏型库与节拍器/观看页变速循环移调）——课程框架即按这套周次结构建立，后续课程按同款结构生产。免费，Course 结构化数据（SEO 可收录为课程）。<br>③ <b>原课程介绍并入功能页</b>：课程形态（互动谱课时/练习任务与达标/三种开课方式：官方自制·名师签约·创作者开课）移入 features.html 新「学习课程」区块；功能页头部按最新定位重写（出版级·科教级、乐器覆盖含民族乐器筹备、标题与 keywords 同步）。<br>④ 首页「学习」卡文案随真课更新（民谣吉他启蒙课 7 周 · 免费）。<br><b>测试</b>：<code>tv_site</code> 51→<b>53 项</b>（主菜单三项且功能/帮助撤出/页脚含功能帮助/学习页 7 周结构+Course LD+练习任务/功能页并入课程介绍与新定位）。CORE <b>102 套件</b>全绿。</div></li>
     <li><span class="v">v60.88</span><div><b>平台管理独立成页 admin.html 并强化</b>（产品指示）。<br>① <b>独立控制台页</b>：管理中心从个人中心内嵌卡搬到独立页 <code>admin.html</code>（noindex 不进搜索）——门卫先行（未登录/非管理员拦在门外，服务端 /api/admin/* 仍逐条鉴权），概览四格 + <b>近 7 日事件漏斗上墙</b>（接口早就返回、此前从未展示）；me.html 撤掉内嵌卡瘦身约 150 行，「平台管理」按钮/徽章直达新页。<br>② <b>页签 5→7 并强化</b>：<b>待审核</b>——驳回由 prompt 换成<b>弹窗 + 常用原因一键快填</b>（音符错误/歌词对位/信息不完整/重复/侵权风险五条，可改后提交）；<b>用户</b>——新增「详情」展开：权益、订单、曲谱分状态计数一屏看全（新接口 <code>/api/admin/users/:id/detail</code>），不用再上服务器 CLI 查；<b>兑换码</b>（新）——生成与列表 HTTP 化（此前只有服务器 CLI），码面同 CLI 格式，生成后文本框一键全选复制；<b>公告</b>——发布之外新增<b>历史列表（含已读人数）与撤回</b>（撤回连同已读记录事务级联删，全站消息即刻消失）；<b>订单</b>（新）——带用户昵称/打码手机号的订单流水。<br>③ <b>新接口五个</b>（全部 requireAdmin + 写操作落审计）：broadcasts 列表/DELETE 撤回、codes 生成/列表、orders、users/:id/detail；审计日志新增 生成兑换码/撤回公告 动作。<br><b>测试</b>：<code>api/test.sh</code> 144→<b>160 项</b>全绿（公告历史含已读数/撤回级联/非管理员 403/非法 kind 拒绝/订单带用户）；<code>tv_site</code> 46→<b>51 项</b>（门卫两态/七页签/驳回弹窗/详情展开/兑换码/公告撤回/订单，管理测试整体迁至 admin.html）。CORE <b>102 套件</b>全绿。</div></li>
