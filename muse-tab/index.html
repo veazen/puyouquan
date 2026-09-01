@@ -4331,6 +4331,7 @@ let undoStack = [], redoStack = [];
 let pending = {digits:'', time:0};
 let colBoxes = {};
 let meaBands = {};   /* v56.5 小节→所在系统纵带 {y,h}：整谱播放光标（贯穿所有声部行）用 */
+let meaBoxes = {};   /* v60.93 小节→横向盒 {x,w}：播放中整小节变色 + 竖线在小节右缘收束用 */
 let audio = {ctx:null, bus:null, sources:[], timers:[], playing:false, paused:false, raf:0, prog:null, loop:null, events:[], evIdx:0};
 let playRate = 1;      // 播放倍速：只作用于播放调度，不改动 song.tempo（v38.5）
 let metroOn = false;   // 节拍器开关：播放时叠加拍点声，首拍重音（v38.5）
@@ -7128,9 +7129,13 @@ function render(){
     sysY[si] = cursorY;
     cursorY += sysM[si].h + M.gap;
   });
-  /* v56.5 小节纵带：整谱播放光标覆盖本小节所在系统的全部声部行 */
-  meaBands = {};
-  systems.forEach((sys,si2)=>{ sys.measures.forEach(lm=>{ meaBands[lm.mi]={y:sysY[si2], h:sysM[si2].h}; }); });
+  /* v56.5 小节纵带：整谱播放光标覆盖本小节所在系统的全部声部行；
+     v60.93 顺带记横向盒（ox=MARGIN+STAFF_HEAD_W 恒定，见系统循环）——播放中小节整块变色用 */
+  meaBands = {}; meaBoxes = {};
+  systems.forEach((sys,si2)=>{ sys.measures.forEach(lm=>{
+    meaBands[lm.mi]={y:sysY[si2], h:sysM[si2].h};
+    meaBoxes[lm.mi]={x:MARGIN+STAFF_HEAD_W+lm.x, w:lm.L.w};
+  }); });
   const nPages = pageIdx+1;
   /* 连续长卷：单页高＝实际内容高（含底部留白），页码不画 */
   if(noPaging) PG_H = Math.max(PG_H, Math.ceil(cursorY - M.gap + PG_PAD_BOT));
@@ -8997,6 +9002,8 @@ function render(){
     });
   });
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--accent)" opacity="0" pointer-events="none"/>`);
+  /* v60.93 播放竖线（产品指示：小节变色+滚动竖线，参考出版播放器样式）：rAF 逐帧插值平滑移动 */
+  p.push(`<line id="playline" x1="0" y1="0" x2="0" y2="0" stroke="var(--accent)" stroke-width="1.6" opacity="0" pointer-events="none"/>`);
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
   /* 供打印预览取用：页宽、单页高、页间距、页数（内容随 #score 快照读取） */
   PV_GEO = {W:PAGE_W, pgH:PG_H, gap:PG_GAP, n:nPages};
@@ -15740,6 +15747,32 @@ function startProgress(t, dur, order, starts){
     while(audio.evIdx<audio.events.length && e>=audio.events[audio.evIdx].tm){
       const ev=audio.events[audio.evIdx++]; highlight(ev.pre, ev.mi, ev.ci, ev.whole);
     }
+    /* v60.93 播放竖线逐帧平滑：当前列左缘 → 下一列左缘线性插值；
+       小节最后一列（或曲末）推到本小节右缘收束，跨行时新小节的事件会把线拉回行首 */
+    {
+      const cur = audio.events[audio.evIdx-1];
+      const pl = document.getElementById('playline');
+      const b1 = cur && colBoxes[cur.pre+':'+cur.mi+':'+cur.ci];
+      if(pl && b1){
+        const nxt = audio.events[audio.evIdx];
+        const mb = meaBoxes[cur.mi];
+        let x2, t2;
+        if(nxt && nxt.mi===cur.mi){
+          const b2=colBoxes[nxt.pre+':'+nxt.mi+':'+nxt.ci];
+          x2 = b2? b2.x : (mb? mb.x+mb.w-2 : b1.x+b1.w); t2 = nxt.tm;
+        }else{
+          x2 = mb? mb.x+mb.w-2 : b1.x+b1.w;
+          t2 = nxt? nxt.tm : (audio.prog? audio.prog.dur : cur.tm+1);
+        }
+        const f = t2>cur.tm? Math.max(0, Math.min(1, (e-cur.tm)/(t2-cur.tm))) : 0;
+        const lx = (b1.x + (x2-b1.x)*f).toFixed(1);
+        const band = cur.whole? meaBands[cur.mi] : null;
+        pl.setAttribute('x1', lx); pl.setAttribute('x2', lx);
+        pl.setAttribute('y1', band? band.y : b1.y);
+        pl.setAttribute('y2', band? band.y+band.h : b1.y+b1.h);
+        pl.setAttribute('opacity','0.9');
+      }
+    }
     try{ boardTick(e); }catch(_){ }   /* v60.62 指板/键盘播放跟随 */
     let oi=0;
     for(let i=0;i<starts.length;i++){ if(e>=starts[i]) oi=i; else break; }
@@ -16378,11 +16411,14 @@ function highlight(prefix,mi,ci,whole){
   const b = colBoxes[prefix+':'+mi+':'+ci];
   const ph = document.getElementById('playhead');
   if(!b||!ph) return;
-  /* v56.5 整谱模式：光标纵向贯穿本小节所在系统全部声部行（单轨 SOLO 时只罩该轨行） */
+  /* v56.5 整谱模式：光标纵向贯穿本小节所在系统全部声部行（单轨 SOLO 时只罩该轨行）。
+     v60.93 播放样式改版（产品指示，参考出版播放器）：色块从「列」放大为**整小节**变色，
+     列级行进改由 #playline 竖线表达（rAF 平滑插值，见 startProgress）。y/h 口径不变。 */
   const band = whole? meaBands[mi] : null;
-  ph.setAttribute('x',b.x); ph.setAttribute('y', band? band.y : b.y);
-  ph.setAttribute('width',b.w); ph.setAttribute('height', band? band.h : b.h);
-  ph.setAttribute('opacity','0.16');
+  const mb = meaBoxes[mi];
+  ph.setAttribute('x', mb? mb.x : b.x); ph.setAttribute('y', band? band.y : b.y);
+  ph.setAttribute('width', mb? mb.w : b.w); ph.setAttribute('height', band? band.h : b.h);
+  ph.setAttribute('opacity','0.12');
   if(ci===0){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
@@ -16437,6 +16473,7 @@ function stopPlay(){
   setPlayBtn();
   document.querySelectorAll('#mx-prog .mxc').forEach(c=>{ c.classList.remove('cur'); c.firstElementChild.style.width='0%'; });
   const ph=document.getElementById('playhead'); if(ph) ph.setAttribute('opacity','0');
+  const pl=document.getElementById('playline'); if(pl) pl.setAttribute('opacity','0');   /* v60.93 竖线同步隐藏 */
 }
 /* 播放键单键三态：▶播放 → ⏸暂停 → ▶继续 */
 function setPlayBtn(){
@@ -22308,7 +22345,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.92';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.93';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22331,6 +22368,7 @@ const APP_VER='v60.92';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.93</span><div><b>播放样式改版：当前小节整块变色 + 平滑滚动竖线</b>（产品指示，参考出版播放器样式）。<br>① <b>小节变色</b>：播放到哪个小节，哪个小节整块罩上淡色底——此前色块只罩当前列（一格一格跳），现在一眼看清「正在弹第几小节」；整谱模式罩本小节所在行的全部声部，单轨 SOLO 时只罩该轨行（纵向口径不变）。<br>② <b>滚动竖线</b>：新增一条纵向竖线随播放<b>逐帧平滑移动</b>（不是逐列跳格）——列与列之间按时值线性插值，小节最后一列走到小节右缘收束，换行时自动回到下一行行首；停止播放即隐藏。自动滚屏、循环播放、播放中切 SOLO/静音等既有行为全部不动。<br><b>测试</b>：新增 <code>tv_playline</code> 套件 3 项（竖线存在与几何/播放中两次采样单调前进+停播隐藏/SOLO 模式小节宽×单轨行高），对旧版文件复跑 <b>0/3 全红</b>实证；<code>tv_mix</code> 播放头几何口径不回归。CORE 104→<b>105 套件</b>全绿。</div></li>
     <li><span class="v">v60.92</span><div><b>六线谱四项修正：散拍自定义节奏型 · 琶音长时值延音弧 · 自定义音符琶音 · 手输数字优先</b>（产品指示逐条落地）。<br>① <b>自定义节奏型可选散拍</b>：新建/编辑弹窗勾「散拍」——不限拍号，拍数可 1–6 自由写，入库后与库内「半小节/一拍」散拍同一条管线：<b>套用时从所选列起填入所写拍数</b>，一小节可拼两段不同节奏（各自和弦独立）；卡片带「散拍」角标。简谱侧套用管线是整小节替换、暂不提供散拍（如实边界）。<br>② <b>琶音长时值出版记法</b>：两拍/三拍/四拍的琶音列不再像五线谱那样只靠一个音符表达——琶音后方自动画<b>延音弧</b>，弧长盖满该列的时值跨度（一拍琶音不画），出版惯例同扫弦延留：整个和弦收一条弧。<br>③ <b>自定义音符琶音</b>：点琶音列（或记号钮）打开的弹窗里，除覆盖弦范围外新增<b>逐弦品位输入</b>——写入后谱面在琶音波浪线右侧画出每弦数字（波浪线左移让位，同出版谱样式），发声按所写；<b>留空的弦不发声</b>（不再按和弦指法补音）；「恢复随和弦」一键回老行为。<br>④ <b>和弦内手输数字以编辑为准</b>：教材式记谱把「与和弦指法一致的 ≤4 品实音」折成 ×，用户特意输入的 0/2 也被吞成 ×——现在<b>凡是手输的品位（键盘/弹窗/指板面板）都带「显式」标记，教材式下保数字不折 ×</b>；节奏型与和弦变换生成的音不受影响，× 惯例照旧。<br><b>测试</b>：新增 <code>tv_arpfix</code> 套件 6 项（散拍入库与 2 拍局部套用/延音弧几何/lit 数字与不补空弦/弹窗逐弦写入/教材式手输保数字），对旧版文件复跑 <b>0/6 全红</b>实证。CORE 103→<b>104 套件</b>全绿。</div></li>
     <li><span class="v">v60.91</span><div><b>简谱记号面板新增「升八度 / 降八度」批量操作</b>（产品指示）。<br>① <b>有选中 → 只动选中</b>：Ctrl 多选或框选若干音符后点「升八度/降八度」，选中列整体移一个八度——<b>和音、倚音随主音一起移</b>，相对音高不变；<b>选区保留可连击</b>，再点一次再移一个八度。<br>② <b>未选中 → 全曲整体移</b>：当前声部所有音符（含和音/倚音）一键升/降八度，休止不动——录完发现整体偏高/偏低时一步归位，不必逐音加点。<br>③ <b>出版级保护</b>：任一音已带 3 个八度点（记谱上限）时<b>整体拒绝执行</b>并提示，绝不让部分音在上限处折返打乱旋律轮廓；操作入撤销栈，一步可回。<br>④ <b>入口分工</b>：左栏记号面板钮＝批量（新版外壳恢复显示，此前被当作重复入口隐藏）；顶栏 8ᵛᵃ/8ᵛᵇ 与快捷键 +/− 仍是单音加高/低音点，语义不变。<br><b>测试</b>：新增 <code>tv_octbatch</code> 套件 7 项（全曲/多选/框选/越界拒绝/面板可见/单音不回归/撤销），对旧版文件复跑 <b>5 项红</b>实证有效。CORE 102→<b>103 套件</b>全绿。</div></li>
     <li><span class="v">v60.90</span><div><b>课程体系落库：新增《幼儿音乐启蒙课》+ 课程工作台 + 打卡进度</b>（产品指示：视觉化 / 互动化 / 趣味化）。<br>① <b>第二门课《幼儿音乐启蒙课》上线</b>：<b>3-6 岁亲子 · 6 周</b>不认字也能上的音乐游戏课——听！世界的声音 → 身体是乐器 → 会唱 do re mi → 数字会唱歌（1-5 简谱启蒙）→ 家里的小乐队 → 我们的小音乐会；每章配<b>亲子任务</b>（声音捉迷藏/全家打稳定拍/高低音蹲跳猜歌…）与谱库互动资源（《小星星》变速、《欢乐颂》跟练），结课有「小小音乐家奖状」仪式感文案。<br>② <b>课程数据模型落库</b>：新增 <code>courses</code> 表——<b>章节 = 谱面（互动谱链接）+ 图文（目标/内容点）+ 练习任务</b>三件套；内容单一来源 <code>seed-courses.json</code>（服务端首启自动播种，页面内嵌同一份作 SEO/离线兜底，测试强制两处逐字一致）；公开接口 <code>/api/courses</code>（列表/详情），线上改课不再动代码。<br>③ <b>课程发布工作台</b>：管理控制台新增<b>「课程」页签</b>（7→8）——新建/编辑课程（乐器分类/emoji/配色族/周数/简介），<b>章节可视化编排</b>（每章 emoji/标题/目标/内容点/练习任务/互动资源链接，上移/删除/追加），保存草稿与<b>一键保存并发布</b>；草稿不公开、无章节不能发布、已发布须先下架才能删，全程落审计日志。<br>④ <b>学习页展示框架重做</b>：课程卡（<b>分族渐变封面 + 大 emoji</b>🎸🧸 + 免费/难度/周数章数徽章 + 进度条）→ 点开课程详情（每章 emoji 编号卡）→ <b>「完成打卡」</b>逐章记进度（本地存储，进度条实时涨，完课章节整卡变淡打勾）→ 全部完成触发<b>结课庆祝</b>（幼儿课发奖状文案）；支持 <code>#课程id</code> 深链直达。存量吉他课同步升级为新框架（每章 emoji/打卡/进度）。<br><b>测试</b>：<code>api/test.sh</code> 160→<b>176 项</b>（种子两门/工作台增删改/发布门槛/权限/审计）；<code>tv_site</code> 53→<b>59 项</b>（内嵌数据与种子文件逐字一致/两课卡片/打卡进度与本地存储/工作台真实 PUT）。CORE <b>102 套件</b>全绿。服务端随本版部署自动重启建表播种。</div></li>
