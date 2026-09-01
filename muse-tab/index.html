@@ -5314,6 +5314,7 @@ function bassOf(shape){
 }
 function beatErrors(){
   const errs=[];
+  if(song && song.freeMeter) return errs;   /* v60.94 散拍草稿（自定义节奏型编辑器）：不限拍数，节拍检查豁免 */
   song.measures.forEach((m,mi)=>{
     if(m.simile) return;   // v41.3 小节反复省写小节：节拍校验豁免（演奏内容取自源小节）
     const {beats:target, unit} = meaMeter(mi);   // v43.5 变拍子：本小节有效拍号
@@ -7045,9 +7046,14 @@ function render(){
   const dispKey = capoShift? KEY_LIST[(KEY_PC[song.key]+capoShift)%12] : song.key;
   if(!pureStaff){
     p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">1=${esc(dispKey)}</text>`);
-    p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
-    p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
-    p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
+    /* v60.94 散拍草稿（自定义节奏型编辑器）：页头标「散拍」，不画拍号分数 */
+    if(song.freeMeter)
+      p.push(`<text x="${MARGIN+48}" y="${headY+22}" font-size="12.5" fill="var(--ink)">散拍</text>`);
+    else{
+      p.push(`<text x="${MARGIN+52}" y="${headY+15}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.beats}</text>`);
+      p.push(`<line x1="${MARGIN+48}" y1="${headY+18}" x2="${MARGIN+62}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
+      p.push(`<text x="${MARGIN+52}" y="${headY+28}" font-size="11" font-family="var(--font-num)" fill="var(--ink)">${song.unit}</text>`);
+    }
   }
   /* v53.4 页头位段结构化 {t,act}：act=点击直改动作（capo/tempo），null=纯标注；估宽定热区 */
   const capoBits=[];
@@ -7435,7 +7441,7 @@ function render(){
         const cvi = capoOf(vi);
         p.push(`<text x="${oxH-12}" y="${tabTop+STAFF/2}" font-size="8.5" text-anchor="middle" fill="var(--ink)" opacity="0.72" transform="rotate(-90 ${oxH-12} ${tabTop+STAFF/2})">${cvi? '夹'+cvi+'品' : '不夹'}</text>`);
       }
-      if(sIdx===0 && vi===0){
+      if(sIdx===0 && vi===0 && !song.freeMeter){   /* v60.94 散拍草稿不画行首拍号 */
         const hmT = meaMeter(sys.measures[0].mi);   // v47.0 变拍子：首小节有效拍号（与五线谱口径一致）
         p.push(`<text x="${ox+8}" y="${tabTop+STAFF*0.4+3}" font-size="14" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${hmT.beats}</text>`);
         p.push(`<text x="${ox+8}" y="${tabTop+STAFF*0.8+3}" font-size="14" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${hmT.unit}</text>`);
@@ -7717,16 +7723,8 @@ function render(){
               const yy = tabTop+(n.s-1)*STR;
               p.push(`<text x="${nx}" y="${yy+3.6}" font-size="10.5" font-weight="500" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${n.x?'×':n.f}</text>`);
             });
-            /* v60.92 琶音长时值出版记法（产品指示）：两拍及以上不再像五线谱那样只靠一个音符表达——
-               琶音后方画延音弧，弧长盖满本列的时值跨度（cw=版面按拍分配的列宽），
-               出版惯例同扫弦延留：整个和弦收一条弧（不逐弦），画在六线谱上方。 */
-            const arpBts = beatsOf(col, meaMeter(lm.mi).unit);
-            if(arpBts >= 2-1e-3){
-              const abY = yT - 8;
-              const axEnd = nx + Math.max(18, cw-6);
-              const aRise = Math.min(9, Math.max(6, (axEnd-nx)*0.3));
-              p.push(tieSVG(nx+5, abY, axEnd, abY, abY-aRise, 1.9));
-            }
+            /* v60.94 产品更正：琶音长时值不用延音弧（v60.92 记法撤销）——
+               与普通音符同口径走增时线「－」（见下方 v57.4 增时线块，条件已放宽到扫弦/琶音列） */
             col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 琶音列技法标注带 */
           }else{
             /* 分解/单音：×（和弦内音记法/哑音）显示 ×，显式品位显示数字 */
@@ -8001,10 +7999,12 @@ function render(){
              教材/GB 惯例同简谱「X –」——条数=整拍数−1（二分1条、附点二分2条、全音符3条）；
              拍点 x 用 measureLayout 预计算的 qxs（全声部同源映射，与简谱增时线/邻行音符列严格纵向对齐）；
              附点时值并入横线条数，dur≤2 不再另画附点圆点（同简谱附点二分记 2 条横线不记点的口径）；
-             双附点二分余下半拍以一枚附点补记于下一拍点（同简谱口径）；休止/无音符列不接增时线。
+             双附点二分余下半拍以一枚附点补记于下一拍点（同简谱口径）；休止列不接增时线。
              v57.5 位置修正（用户指示）：增时线画在六线谱内——跟在音符后、压在其所在弦线上的短粗横
-             （每个发声音符的弦各画一组），不画在谱表下方的节奏梁位 */
-          if(hasEvt && col.dur<=2 && col.notes.length){
+             （每个发声音符的弦各画一组），不画在谱表下方的节奏梁位。
+             v60.94 产品更正：扫弦/琶音列（含只有箭头/波浪线、音符随和弦隐含的列）同样接增时线——
+             琶音长时值与普通音符同口径，不再用延音弧（v60.92 记法撤销） */
+          if(hasEvt && col.dur<=2 && (col.notes.length || col.strum)){
             const q4=(4/col.dur)*dotFactor(col);
             const nD=Math.max(0, Math.floor(q4+1e-4)-1);
             const qxT=(lay.qxs&&lay.qxs[ci])||[];
@@ -10509,7 +10509,7 @@ function applyVoxPattern(pat){
   ebDur.innerHTML = DUR_SINGLE.map(d=>
     `<button class="eb" data-dur="${d.dur}" title="${d.name}" aria-label="${d.name}"><span class="dg">${durIconSVG(d.dur)}</span><span class="dn">${d.name}</span></button>`
   ).join('') + `<button class="eb" id="eb-dot" title="附点：循环 无→附点(×1.5)→双附点(×1.75)→无；单附点限32分及以上、双附点限16分及以上（64分不可附点）" aria-label="附点"><span class="dg">${durIconSVG(4,true)}</span><span class="dn">附点</span></button>`
-  + `<button class="eb" id="eb-ext" title="增时线：当前音延长一拍（1拍→2拍→3拍→4拍，简谱按 GB 惯例画增时线「－」，自动吸收其后的休止时值）；快捷键 D，Shift+D 缩短一拍。各谱类通用" aria-label="增时线"><span class="dg">5－</span><span class="dn">增时线</span></button>`;
+  + `<button class="eb" id="eb-ext" title="增时线：当前音延长一拍（1拍→2拍→3拍→4拍，简谱按 GB 惯例画增时线「－」，自动吸收其后的休止时值）；快捷键 D，Shift+D 缩短一拍。各谱类通用" aria-label="增时线"><span class="dg">－</span><span class="dn">增时线</span></button>`;
   ebDur.addEventListener('click', e=>{
     const b=e.target.closest('.eb'); if(!b) return;
     if(b.id==='eb-dot') toggleDot(); else if(b.id==='eb-ext') extendBeat(1); else setDur(+b.dataset.dur);
@@ -11069,6 +11069,10 @@ function startPatEdit(kind, editIdx, beats, unit, free){
   let s;
   if(kind==='tab'){
     s=createSong('tanchang', Object.assign({}, o, {inst: song.inst==='uku'?'uku':'guitar', nTab:1, nVox:0, lyr:0}));
+    /* v60.94 散拍草稿（产品报障：勾了散拍还显示 4/4 预设）：草稿曲谱打临时旗标——
+       页头显示「散拍」、TAB 行首不画拍号、节拍检查豁免（散拍本就不限拍数）。
+       旗标只存在于草稿工作区，不入库、不进正式曲谱。 */
+    if(free) s.freeMeter=true;
     const shape=chordShape('C');
     if(old){
       s.measures[0].tabs[0]=old.ev.map(e=>evToCol(e, shape));
@@ -11099,9 +11103,12 @@ function startPatEdit(kind, editIdx, beats, unit, free){
 function colToEv(c, shape, tied){
   const mk=t=> tied? [t, c.dur, c.dotted?1:0, 1] : (c.dotted? [t, c.dur, 1] : [t, c.dur]);
   const ns=c.notes||[];
-  if(!ns.length) return mk('r');
-  if(c.strum==='arp') return mk('a');
+  /* v60.94 扫弦/琶音判定提前到「无音符=休止」之前（产品报障：草稿里点扫弦钮只落箭头不落音符
+     ——setStrum 不写 notes、发声靠和弦隐含——保存时被当成整小节休止拒收）。
+     下琶音此前落到柱式 'c'，一并归 'a'（token 语言不加新字，琶音方向套用时按上琶音取形） */
+  if(c.strum==='arp'||c.strum==='arpd') return mk('a');
   if(c.strum==='d'||c.strum==='u') return mk(c.mute? 'm'+c.strum : c.strum);
+  if(!ns.length) return mk('r');
   if(c.mute || ns.some(n=>n.x)) return mk('x');
   if(ns.length>1) return mk('c');
   const sounded=shapeSounded(shape);
@@ -22345,7 +22352,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.93';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.94';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22368,6 +22375,7 @@ const APP_VER='v60.93';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.94</span><div><b>两项更正：琶音长时值改增时线 · 散拍节奏型编辑器修复</b>（产品指示逐条落地）。<br>① <b>琶音长时值＝增时线</b>（更正 v60.92 的延音弧记法）：两拍/三拍/四拍的琶音与普通音符同口径——在六线谱中线位画增时线「－」（二分 1 条、全音符 3 条），延音弧撤销；此前只有带显式音符的列画增时线，<b>纯箭头/波浪线列（音符随和弦隐含）此前不画、现在同样画</b>。顶栏时值组的增时线按钮同步改为<b>只显横杠「－」不带数字</b>。<br>② <b>散拍节奏型编辑器修复</b>（勾了散拍进编辑器还显示 4/4 + 写了扫弦保存却提示「小节还是空的」）：<b>散拍草稿不再显示拍号</b>——页头标「散拍」、六线谱行首不画 4/4，节拍检查整体豁免（散拍本就不限拍数，右下角不再冒红）；<b>保存报空是真 bug</b>——点「下扫/上扫/琶音」只落箭头不落音符（发声靠和弦隐含），入库转换却把无音符列一律当休止，整小节扫弦保存直接被拒；现在扫弦/琶音判定提前，<b>纯箭头列照常入库</b>（下琶音顺带并入琶音记法，此前被存成柱式）。<br><b>测试</b>：<code>tv_arpfix</code> 6→<b>7 项</b>（T3 改增时线口径＋无延音弧断言、新增 T7 散拍旗标/页头/免检/纯箭头保存/按钮无数字），对 v60.93 文件复跑 <b>T3/T7 两项红</b>实证。CORE <b>105 套件</b>全绿。</div></li>
     <li><span class="v">v60.93</span><div><b>播放样式改版：当前小节整块变色 + 平滑滚动竖线</b>（产品指示，参考出版播放器样式）。<br>① <b>小节变色</b>：播放到哪个小节，哪个小节整块罩上淡色底——此前色块只罩当前列（一格一格跳），现在一眼看清「正在弹第几小节」；整谱模式罩本小节所在行的全部声部，单轨 SOLO 时只罩该轨行（纵向口径不变）。<br>② <b>滚动竖线</b>：新增一条纵向竖线随播放<b>逐帧平滑移动</b>（不是逐列跳格）——列与列之间按时值线性插值，小节最后一列走到小节右缘收束，换行时自动回到下一行行首；停止播放即隐藏。自动滚屏、循环播放、播放中切 SOLO/静音等既有行为全部不动。<br><b>测试</b>：新增 <code>tv_playline</code> 套件 3 项（竖线存在与几何/播放中两次采样单调前进+停播隐藏/SOLO 模式小节宽×单轨行高），对旧版文件复跑 <b>0/3 全红</b>实证；<code>tv_mix</code> 播放头几何口径不回归。CORE 104→<b>105 套件</b>全绿。</div></li>
     <li><span class="v">v60.92</span><div><b>六线谱四项修正：散拍自定义节奏型 · 琶音长时值延音弧 · 自定义音符琶音 · 手输数字优先</b>（产品指示逐条落地）。<br>① <b>自定义节奏型可选散拍</b>：新建/编辑弹窗勾「散拍」——不限拍号，拍数可 1–6 自由写，入库后与库内「半小节/一拍」散拍同一条管线：<b>套用时从所选列起填入所写拍数</b>，一小节可拼两段不同节奏（各自和弦独立）；卡片带「散拍」角标。简谱侧套用管线是整小节替换、暂不提供散拍（如实边界）。<br>② <b>琶音长时值出版记法</b>：两拍/三拍/四拍的琶音列不再像五线谱那样只靠一个音符表达——琶音后方自动画<b>延音弧</b>，弧长盖满该列的时值跨度（一拍琶音不画），出版惯例同扫弦延留：整个和弦收一条弧。<br>③ <b>自定义音符琶音</b>：点琶音列（或记号钮）打开的弹窗里，除覆盖弦范围外新增<b>逐弦品位输入</b>——写入后谱面在琶音波浪线右侧画出每弦数字（波浪线左移让位，同出版谱样式），发声按所写；<b>留空的弦不发声</b>（不再按和弦指法补音）；「恢复随和弦」一键回老行为。<br>④ <b>和弦内手输数字以编辑为准</b>：教材式记谱把「与和弦指法一致的 ≤4 品实音」折成 ×，用户特意输入的 0/2 也被吞成 ×——现在<b>凡是手输的品位（键盘/弹窗/指板面板）都带「显式」标记，教材式下保数字不折 ×</b>；节奏型与和弦变换生成的音不受影响，× 惯例照旧。<br><b>测试</b>：新增 <code>tv_arpfix</code> 套件 6 项（散拍入库与 2 拍局部套用/延音弧几何/lit 数字与不补空弦/弹窗逐弦写入/教材式手输保数字），对旧版文件复跑 <b>0/6 全红</b>实证。CORE 103→<b>104 套件</b>全绿。</div></li>
     <li><span class="v">v60.91</span><div><b>简谱记号面板新增「升八度 / 降八度」批量操作</b>（产品指示）。<br>① <b>有选中 → 只动选中</b>：Ctrl 多选或框选若干音符后点「升八度/降八度」，选中列整体移一个八度——<b>和音、倚音随主音一起移</b>，相对音高不变；<b>选区保留可连击</b>，再点一次再移一个八度。<br>② <b>未选中 → 全曲整体移</b>：当前声部所有音符（含和音/倚音）一键升/降八度，休止不动——录完发现整体偏高/偏低时一步归位，不必逐音加点。<br>③ <b>出版级保护</b>：任一音已带 3 个八度点（记谱上限）时<b>整体拒绝执行</b>并提示，绝不让部分音在上限处折返打乱旋律轮廓；操作入撤销栈，一步可回。<br>④ <b>入口分工</b>：左栏记号面板钮＝批量（新版外壳恢复显示，此前被当作重复入口隐藏）；顶栏 8ᵛᵃ/8ᵛᵇ 与快捷键 +/− 仍是单音加高/低音点，语义不变。<br><b>测试</b>：新增 <code>tv_octbatch</code> 套件 7 项（全曲/多选/框选/越界拒绝/面板可见/单音不回归/撤销），对旧版文件复跑 <b>5 项红</b>实证有效。CORE 102→<b>103 套件</b>全绿。</div></li>

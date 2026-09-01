@@ -56,28 +56,30 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.total === 4 && r.arp === 'arp' && r.restKept, 'T2 散拍套用只占 2 拍、其余保留', JSON.stringify(r));
 
-  // T3 琶音长时值延音弧：全音符琶音画弧（弧长≈列宽）、四分琶音不画
+  // T3 琶音长时值＝增时线（v60.94 产品更正，撤 v60.92 延音弧口径——对 v60.92/93 文件复跑本项应红）：
+  //    全音符琶音（纯箭头无显式音符）画 3 条增时线「－」、不画延音弧；四分琶音 0 条
   r = await pg.evaluate(() => {
     const arcRe = /<path d="M ([\d.]+) ([\d.]+) Q [\d.]+ [\d.]+ ([\d.]+) [\d.]+ Q/g;
     const build = (dur) => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
       const s = createSong('tanchang', { title: 'p3', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
-      const shape = chordShape('C');
-      const c = tcol(); c.dur = dur; c.notes = shapeSounded(shape).map(n => ({ s: n.s, f: n.f })); c.strum = 'arp'; c.chord = 'C';
+      const c = tcol(); c.dur = dur; c.strum = 'arp'; c.chord = 'C';   // 纯箭头列：音符随和弦隐含（setStrum 真实路径）
       const r4 = tcol(); r4.dur = 4;
       s.measures[0].tabs[0] = dur === 1 ? [c] : [c, r4, r4, r4];
       loadSong(s); blurSel = true; render();
       const h = document.getElementById('score').innerHTML;
       const wave = h.match(/<path d="M ([\d.]+) ([\d.]+)(?: q 3\.5 4 0 8)+/);
       const wx = wave ? +wave[1] : -1;
-      let arcs = 0, arcLen = 0, m2;
-      arcRe.lastIndex = 0;
-      while ((m2 = arcRe.exec(h))) { const x1 = +m2[1], x2 = +m2[3]; if (Math.abs(x1 - wx) < 30 && x2 > x1 + 12) { arcs++; arcLen = x2 - x1; } }
-      return { wx, arcs, arcLen };
+      // 已知坑：SVG innerHTML 把 /> 序列化为 ></rect>，断言不匹配自闭合斜杠
+      const dashes = [...h.matchAll(/<rect x="([\d.]+)" y="[\d.]+" width="9" height="1\.9" fill="var\(--ink\)">/g)]
+        .filter(m2 => +m2[1] > wx).length;
+      let arcs = 0, m3; arcRe.lastIndex = 0;
+      while ((m3 = arcRe.exec(h))) { const x1 = +m3[1], x2 = +m3[3]; if (Math.abs(x1 - wx) < 30 && x2 > x1 + 12) arcs++; }
+      return { wx, dashes, arcs };
     };
     const whole = build(1), quarter = build(4);
-    return { wArcs: whole.arcs, wLen: +whole.arcLen.toFixed(0), qArcs: quarter.arcs, wx: whole.wx };
+    return { wDash: whole.dashes, wArcs: whole.arcs, qDash: quarter.dashes, wx: whole.wx };
   });
-  T(r.wArcs >= 1 && r.wLen > 60 && r.qArcs === 0, 'T3 全音符琶音画长延音弧、四分不画', JSON.stringify(r));
+  T(r.wDash === 3 && r.wArcs === 0 && r.qDash === 0, 'T3 全音符琶音=3条增时线且无延音弧、四分0条', JSON.stringify(r));
 
   // T4 自定义音符琶音渲染：lit 音画数字、波浪线左移；发声不按和弦补空弦
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
@@ -146,6 +148,37 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.xBefore >= 1 && r.lit && r.digitNow && r.xAfter === r.xBefore - 1,
     'T6 教材式：手输数字以编辑为准不折 ×（音符 × 消失、和弦图 × 不动）', JSON.stringify(r));
+
+  // T7 散拍草稿修正（v60.94 产品报障）：freeMeter 旗标——页头「散拍」、TAB 无行首拍号、节拍检查豁免；
+  //    纯扫弦箭头（setStrum 不落音符）的草稿能保存、colToEv 记为 d/u 不再当休止；顶栏增时线钮只剩横杠
+  r = await pg.evaluate(() => { try {
+    const s0 = createSong('tanchang', { title: 't7', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+    loadSong(s0);
+    startPatEdit('tab', null, 4, 4, true);
+    const freeFlag = !!song.freeMeter;
+    // 草稿写 2 个二分扫弦：只设方向不落音符（真实按钮路径 setStrum）
+    const c1 = tcol(); c1.dur = 2; c1.strum = 'd';
+    const c2 = tcol(); c2.dur = 2; c2.strum = 'u';
+    song.measures[0].tabs[0] = [c1, c2]; render();
+    const h = document.getElementById('score').innerHTML;
+    const headFree = h.includes('>散拍</text>');
+    const noTS = !/font-size="14" font-family="var\(--font-num\)" font-weight="bold"/.test(h);
+    const noErr = beatErrors().length === 0;
+    window.askText = (t, d, cb) => cb('散拍扫弦');
+    patEditSave();
+    closeModal();
+    const st = cpatLoad().tab, entry = st[st.length - 1];
+    const evs = entry ? entry.ev.map(e => e[0]).join(',') : '';
+    // 顶栏增时线钮：只剩横杠不带数字
+    const ext = document.getElementById('eb-ext');
+    const extTxt = ext ? (ext.querySelector('.dg') || {}).textContent : '';
+    // 清理：删掉两条测试条目（T1 的 + 本条）
+    st.pop(); const i1 = st.findIndex(p2 => p2.name === '散拍测试'); if (i1 >= 0) st.splice(i1, 1);
+    cpatSave({ tab: st, vox: cpatLoad().vox });
+    return { freeFlag, headFree, noTS, noErr, saved: !!entry, evs, span: entry && entry.span, extTxt };
+  } catch (e) { return { err: String(e && e.message || e) }; } });
+  T(r.freeFlag && r.headFree && r.noTS && r.noErr && r.saved && r.evs === 'd,u' && r.span === 4 && r.extTxt === '－',
+    'T7 散拍草稿：旗标/页头/无拍号/豁免检查/纯箭头可保存/增时线钮无数字', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
