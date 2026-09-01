@@ -7,7 +7,7 @@ const SITE = P.resolve(__dirname, '../site');
 const read = f => fs.readFileSync(P.join(SITE, f), 'utf8');
 /* v60.6：seedaaa111 有实例缩图（thumb:1）、seedbbb222 没有——两条路径同屏可验 */
 const seed = [
-  { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, thumb:1, key:'C', tempo:92, beats:4, unit:4, verses:2, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
+  { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, thumb:1, key:'C', tempo:92, beats:4, unit:4, verses:2, views:12345, favs:67, likes:3, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
   { id:'seedbbb222', title:'欢乐颂', singer:'贝多芬', author:'谱友圈官方', updated_at:99, type:'guitar', price:0, measures:4, thumb:0, key:'G', tempo:0, beats:3, unit:4, verses:0, cover:[{deg:3,oct:0,ly:'欢'},{deg:3,oct:0,ly:'乐'}] },
 ];
 /* 1×1 PNG：缩图字节由 route 兜住，测试不打真网络 */
@@ -123,7 +123,7 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     };
   });
   T(r.apiOn && r.n === 2 && r.cover && r.type === '歌谱' && r.noFree
-    && r.meta === '1=C|4/4|♩=92|4 小节|2 段词'
+    && r.meta === '1=C|4/4|♩=92|4 小节|2 段词|1.2万 浏览|67 收藏'   /* v60.98 卡上显示浏览/收藏数（产品指示） */
     && r.fam === 'v' && r.seal === false /* vocal 无印章件，仅水印 */ && r.skGone
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
     && r.search && r.chips >= 3 && r.tools === 4 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));

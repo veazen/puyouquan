@@ -217,7 +217,9 @@ function pubShape(row) {
     beats: +d.beats || 0, unit: +d.unit || 0,
     /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
        「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
-    verses: Math.max(0, Math.min(9, +d.lyricLines || 0)) };
+    verses: Math.max(0, Math.min(9, +d.lyricLines || 0)),
+    /* v60.98 卡片带浏览/收藏数（产品指示：计数在谱库曲谱卡上显示；likes 一并透传备用） */
+    views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0 };
 }
 /* v60.6 曲谱实例缩图：只收栅格图（webp/jpeg/png），按魔数硬校验后落库。
    收栅格不收 SVG 是安全取舍——SVG 同源直开会执行内嵌脚本，栅格没有脚本面。 */

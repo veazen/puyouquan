@@ -1247,6 +1247,10 @@ body.shell #hint{display:none}
 #mixer-dock .mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:#fff}
 #mixer-dock .mx-btn.solo.on:hover{background:#ffc21f;color:#3a2c00}
 #mixer-dock .mx-btn.mute.on:hover{background:#e2574a;color:#fff}
+/* v60.98 触屏拖选小节格（产品报障：手机音轨里拖不动）：不禁触摸手势的话，
+   pointermove 一动就被浏览器判成页面滚动、拖选序列被掐断 */
+.mx-cells{touch-action:none}
+#mx-prog{touch-action:none}
 /* v60.13 声像滑杆：与音量条同宽同高，但轨道底色左右对称（中心=默认位），
    读数固定 26px 宽避免「自动/L100」切换时整行抖动 */
 .mx-pan{display:flex;align-items:center;gap:5px;width:104px;flex:none}
@@ -1571,24 +1575,26 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 #vh-key b{color:var(--accent-ink)}
 #vh-key b::after,#vh-tempo b::after{content:'›';opacity:.45;font-weight:400;margin-left:2px}
 .vh-stat small{font-size:10px;color:var(--muted);line-height:1}
-.vh-icons{display:flex;align-items:center;gap:7px}
+/* v60.98 头部图标改「幽灵钮」（产品反馈「拙劣、太大个」，UI 专家规格）：
+   默认无边框无底色、视觉只剩 21px 图标；40×40 盒天然满足触控热区，按压才浮出圆形底色；
+   图标用介于 --text 与 --muted 之间的灰墨，让左侧数值位保持主角；组右移 8px 光学对齐页缘 */
+.vh-icons{display:flex;align-items:center;gap:2px;margin-right:-8px}
 #viewerbar .vh-icons>*{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
-  width:34px;height:34px;padding:0;margin:0;border:1px solid var(--border);border-radius:50%;
-  background:var(--panel);color:var(--text);cursor:pointer;font-size:0}
-#viewerbar .vh-icons>*:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--hover)}
-/* v58.4 收藏=星标：已收藏亮琥珀色实心星（原桃心红） */
-#viewerbar .vh-icons #vw-fav.on{color:#f0a020;border-color:#f0a020}
-#viewerbar .vh-icons #vw-fav.on svg{fill:#f0a020}
-/* v60.97 点赞桃心 + 计数角标（收藏/点赞钮右下小圆牌，浏览数在头部只读位） */
-#viewerbar .vh-icons>*{position:relative}
-#viewerbar .vh-icons #vw-like:hover{border-color:#e0395a;color:#e0395a}
-#viewerbar .vh-icons #vw-like.on{color:#e0395a;border-color:#e0395a}
-#viewerbar .vh-icons #vw-like.on svg{fill:#e0395a}
-.vh-cnt{position:absolute;bottom:-5px;right:-7px;font-style:normal;font-size:9.5px;line-height:1;
-  padding:2.5px 5px;border-radius:99px;background:var(--accent);color:#fff;font-weight:700;
-  pointer-events:none;font-family:var(--font-num)}
-.vh-stat.vh-ro{cursor:default}
-.vh-stat.vh-ro:hover{background:transparent}
+  width:40px;height:40px;padding:0;margin:0;border:none;border-radius:50%;
+  background:transparent;color:#7d7563;cursor:pointer;font-size:0;
+  transition:background .12s,color .12s,transform .12s}
+#viewerbar .vh-icons>*:hover{background:var(--hover);color:var(--text)}
+#viewerbar .vh-icons>*:active{transform:scale(.9)}
+/* v60.98 收藏点亮=朱砂实心红星（产品拍板；同色描边让实心星光学略胖一圈，点亮感更足）；
+   切换时一次 1→1.3→1 回弹（仅此一处动效，其余克制） */
+/* 旧文字胶囊规则（836 行 #viewerbar #vw-fav，双 ID）在图标模式下压过幽灵钮——此处以 (2,1,0) 反制；
+   分享页的「♡ 收藏」文字胶囊不在 .vh-icons 内，不受影响 */
+#viewerbar .vh-icons #vw-fav{border:none;background:transparent;font-size:0;border-radius:50%;padding:0}
+#viewerbar .vh-icons #vw-fav:hover{border:none;color:var(--text);background:var(--hover)}
+#viewerbar .vh-icons #vw-fav.on{color:var(--accent)}
+#viewerbar .vh-icons #vw-fav.on svg{fill:var(--accent);stroke:var(--accent)}
+@keyframes favpop{0%{transform:scale(1)}45%{transform:scale(1.3)}100%{transform:scale(1)}}
+#viewerbar .vh-icons #vw-fav.pop svg{animation:favpop .28s cubic-bezier(.34,1.56,.64,1)}
 /* v55.6 观看设置（底栏 ⚙）：观看模式可见 */
 #b-vwset{display:none}
 body.viewer #b-vwset{display:inline-flex;align-items:center}
@@ -1627,8 +1633,8 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
   body.viewer .mx-row .mx-cells{grid-column:1/5;min-width:0}
   /* ===== v60.97 手机观看页改版（产品指示）===== */
   /* ① 收藏/点赞图标放大（报障：五角星太小）：按钮 44px、字形 25px、角标随钮 */
-  body.viewer #viewerbar .vh-icons>*{width:44px;height:44px;padding:0}
-  body.viewer #viewerbar .vh-icons svg{width:25px;height:25px;max-width:none}   /* 全局 svg max-width:100% 会被钮内边距压扁 */
+  /* v60.98 手机三钮字形统一 21px（收藏星本为 21，分享/主页 17 拉齐；max-width:none 防全局 svg 约束压扁） */
+  body.viewer #viewerbar .vh-icons svg{width:21px;height:21px;max-width:none}
   /* ② 底栏 UI：等高 46px、圆角与间距统一、播放主钮加宽突出、谱架图标钮并入 */
   body.viewer #mixer-dock .mx-bar{gap:8px;padding:10px 12px}
   body.viewer #mixer-dock .mx-bar>button{flex:1;min-height:46px;border-radius:13px;
@@ -17345,11 +17351,17 @@ function renderMixerDock(){
     cells.addEventListener('pointerdown', e=>{
       const c=e.target.closest('.mxtc'); if(!c) return;
       dragC={a:+c.dataset.mi, b:+c.dataset.mi, moved:false};
+      /* v60.98 触屏捕获指针：手指离开格子行也持续收 pointermove（配合 touch-action:none） */
+      try{ cells.setPointerCapture(e.pointerId); }catch(_){}
       e.preventDefault();
     });
     cells.addEventListener('pointermove', e=>{
       if(!dragC) return;
-      const c=e.target.closest('.mxtc'); if(!c) return;
+      /* v60.98 双路取格：常规事件 target 直取；指针捕获态 e.target 恒为 cells 本身（触屏），
+         回退按坐标 elementFromPoint 取格 */
+      let c = e.target && e.target.closest && e.target.closest('.mxtc');
+      if(!c){ const at=document.elementFromPoint(e.clientX, e.clientY); c=at && at.closest && at.closest('.mxtc'); }
+      if(!c || !cells.contains(c)) return;
       const mi=+c.dataset.mi;
       if(mi!==dragC.b){
         dragC.b=mi; dragC.moved=true;
@@ -21271,17 +21283,16 @@ function vwTranspose(delta){
    标题/作者/谱库/去制谱按钮移出头部（标题谱面自带，去制谱入 ⚙ 设置推广位） ===== */
 function vwHeaderHTML(o){
   o=o||{};
-  /* v60.97 产品指示：曲谱有浏览数与收藏/点赞——头部加 浏览 只读位、点赞钮；
-     收藏/点赞钮带计数角标（数据随公开详情 stats 带回，见 updateVwStats） */
+  /* v60.98 产品拍板：手机头部右上只留 收藏（点亮红星）/分享/主页 三钮——
+     点赞心与计数角标撤下（浏览/收藏数改在谱库曲谱卡上显示），浏览只读位撤下。
+     谱架钮桌面保留（手机由底栏 #b-stand 承担，≤640 隐藏）。 */
   return `<div class="vh-stats">
       <button class="vh-stat" id="vh-key" title="变调：点击设置唱调；吉他谱可在弹窗内设变调夹（即时生效，不改动原谱）"><b id="vh-key-v"></b><small>变调</small></button>
       <button class="vh-stat" id="vh-tempo" title="拍速：点击弹出推子调节，播放中即时生效"><b id="vh-tempo-v"></b><small>拍速</small></button>
-      ${(viewerCtx&&viewerCtx.stats)? `<span class="vh-stat vh-ro" id="vh-views" title="浏览次数"><b id="vh-views-v">–</b><small>浏览</small></span>`:''}
     </div>
     <span style="flex:1"></span>
     <div class="vh-icons">
-      ${o.fav? `<button id="vw-like" data-ic="1" title="点赞这首谱">${svgi('heart',21)}<i class="vh-cnt" id="vw-like-n" hidden></i></button>`:''}
-      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',21)}<i class="vh-cnt" id="vw-fav-n" hidden></i></button>`:''}
+      ${o.fav? `<button id="vw-fav" data-ic="1" title="收藏这首谱">${svgi('star',21)}</button>`:''}
       ${o.card? `<button id="vw-card" title="生成分享卡图片（含直达本谱二维码），长按保存转发">${svgi('share',17)}</button>`:''}
       <button id="vh-stand" title="谱架模式：全屏沉浸 + 自动卷谱，适合看谱演奏">${svgi('stand',17)}</button>
       <a id="vh-home" href="//puku.puyouquan.com/" title="谱库主页">${svgi('home',17)}</a>
@@ -21531,9 +21542,8 @@ async function openRemotePub(id, review){
   vb.innerHTML=vwHeaderHTML({fav:true, card:true});   /* v55.6 头部 2.0：指法/变调夹/拍速 + 收藏/分享/谱库主页图标 */
   updateVwHdr(); vwHeaderWire();
   document.getElementById('vw-fav').onclick=()=>vwToggleFav();
-  { const vl=document.getElementById('vw-like'); if(vl) vl.onclick=()=>vwToggleLike(); }   // v60.97 点赞
   { const vc=document.getElementById('vw-card'); if(vc) vc.onclick=showShareCardModal; }   // v45.5 H5 分享卡
-  updateVwFav(); updateVwStats(); vwSyncLiked();
+  updateVwFav();
   wxShareCard();   /* v55.3 微信内转发出自定义卡片 */
   window.scrollTo(0,0);
   bootVeilDone();   /* v58.4 谱面就绪才揭幕：分享页不再闪现编辑器外壳 */
@@ -21560,55 +21570,14 @@ function vwToggleFav(){
     return;
   }
   const on=!isFav(id); setFav(id,on); updateVwFav();
+  /* v60.98 点亮回弹（UI 专家规格：仅此一处动效）：重触发前先清类强制重排 */
+  if(on){ const b=document.getElementById('vw-fav'); if(b){ b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); } }
   cloudFav(id,on);
   if(on) pyqEvent('fav', id);
-  /* v60.97 收藏计数就地增减（服务端以详情 stats 为准，下次打开校正） */
-  vwBumpStat('favs', on?1:-1);
   toast(on?'已收藏':'已取消收藏');
 }
-/* ===== v60.97 浏览数 / 点赞（产品指示：曲谱有浏览数和收藏点赞功能和记录）=====
-   浏览数：公开详情每次拉取服务端 +1，随 stats 带回只读显示；
-   点赞：结构同收藏（登录钩子/云同步 PUT·DELETE /api/likes/:id），头部桃心，计数角标就地增减。 */
-function fmtCnt(n){ n=+n||0; return n>=10000? (n/10000).toFixed(n>=100000?0:1)+'万' : String(n); }
-function vwBumpStat(k, d){
-  const st=viewerCtx&&viewerCtx.stats; if(!st) return;
-  st[k]=Math.max(0,(st[k]||0)+d); updateVwStats();
-}
-function updateVwStats(){
-  const st=(viewerCtx&&viewerCtx.stats)||null;
-  const vv=document.getElementById('vh-views-v');
-  if(vv){ vv.textContent=st? fmtCnt(st.views) : '–';
-    const w=document.getElementById('vh-views'); if(w) w.style.display=st?'':'none'; }
-  const setN=(id2,n)=>{ const el=document.getElementById(id2); if(!el) return;
-    el.hidden=!(st&&n>0); if(st&&n>0) el.textContent=fmtCnt(n); };
-  setN('vw-like-n', st?st.likes:0); setN('vw-fav-n', st?st.favs:0);
-}
-let vwLiked=false;
-function updateVwLike(){
-  const b=document.getElementById('vw-like'); if(!b) return;
-  b.classList.toggle('on', !!vwLiked);
-  b.title=vwLiked?'取消点赞':'点赞这首谱';
-}
-async function vwSyncLiked(){   /* 登录态下拉一次点赞记录，校正桃心亮灭 */
-  vwLiked=false; updateVwLike();
-  const id=viewerCtx&&viewerCtx.pubId;
-  if(!(window.PYQ_CLOUD && ACCT) || !id) return;
-  try{ const r=await apiCall('/likes'); vwLiked=(r.likes||[]).some(x=>x.id===id); updateVwLike(); }catch(_){ }
-}
-async function cloudLike(id, on){ if(!(window.PYQ_CLOUD && ACCT) || !id) return; try{ await apiCall('/likes/'+id, {method: on?'PUT':'DELETE'}); }catch(_){} }
-function vwToggleLike(){
-  const id=viewerCtx&&viewerCtx.pubId; if(!id) return;
-  if(window.PYQ_CLOUD && !ACCT){                          // 未登录：同收藏，接住登录时机
-    openLogin({ hint:'登录后即可点赞这首谱，为创作者加油。',
-      onDone:(ok)=>{ if(ok && ACCT){ vwLiked=true; updateVwLike(); vwBumpStat('likes',1); cloudLike(id,true); pyqEvent('like', id); toast('已点赞'); } } });
-    return;
-  }
-  vwLiked=!vwLiked; updateVwLike();
-  vwBumpStat('likes', vwLiked?1:-1);
-  cloudLike(id, vwLiked);
-  if(vwLiked) pyqEvent('like', id);
-  toast(vwLiked?'已点赞':'已取消点赞');
-}
+/* v60.98 产品拍板：观看页头部点赞心/计数角标/浏览位撤下——浏览数与收藏数改在谱库曲谱卡显示
+   （服务端 views/likes/favs 统计与 /api/likes 接口保留，个人中心「我的点赞」照常）。 */
 /* ===== 谱架模式：全屏沉浸 + 自动卷谱 ===== */
 let standScroll={on:false, speed:26, raf:0, acc:0};
 function enterStand(){
@@ -22463,7 +22432,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.97';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.98';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22486,6 +22455,7 @@ const APP_VER='v60.97';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.98</span><div><b>观看页头部按 UI 专家规格重做 + 计数移谱库卡 + 手机拖选小节修复</b>（产品指示逐条落地）。<br>① <b>头部右上只留三钮</b>：收藏 / 分享 / 主页——点赞心、计数角标、浏览只读位全部撤下；<b>收藏点亮＝朱砂实心红星</b>（注册用户登录后云同步），点亮带一次回弹动效。<br>② <b>按 UI 设计专家规格重做「拙劣、太大个」的图标钮</b>：改「幽灵钮」——默认无边框无底色、视觉只剩 21px 字形（此前是 44px 描边圆片反客为主），40×40 盒保住触控热区、按压才浮出圆形底色；图标用灰墨色让左侧数值位保持主角，整组右移 8px 与页缘光学对齐。<br>③ <b>浏览数与收藏数改在谱库曲谱卡上显示</b>（信息条追加「N 浏览 · N 收藏」，过万缩写 N.N万）——首页/谱库/个人中心卡片同源全部生效；观看页头部浏览位不再显示（上一版在部分机型上也确实渲染不出）。<br>④ <b>手机音轨面板拖选小节修复</b>：此前手指一拖就被浏览器判成页面滚动、拖选序列被掐断——小节格加 <code>touch-action:none</code> + 指针捕获 + 按坐标取格，触屏拖动选段循环与桌面一致。<br><b>测试</b>：<code>tv_vwmob</code> 重写为 <b>5 项</b>（三钮幽灵样式/红星回弹/点外部收起/底栏轨卡/触屏拖选落选区），对 v60.97 文件复跑 <b>3 项红</b>实证；<code>tv_site</code> 卡片信息条断言追加浏览/收藏数。CORE <b>107 套件</b>全绿。</div></li>
     <li><span class="v">v60.97</span><div><b>手机观看页改版 + 曲谱浏览数/点赞体系上线</b>（产品指示逐条落地）。<br>① <b>收藏星放大</b>：头部图标钮 40→44px、字形 21→25px（此前被按钮内边距压到 18px 的问题一并根治）。<br>② <b>谱架钮移到底栏</b>：头部谱架图标撤下、底栏恢复「谱架」钮；<b>底栏 UI 统一</b>——按钮等高 46px、圆角一致、播放主钮加宽突出。<br>③ <b>音轨面板点外部自动收起</b>：点面板外任意处即收起，不必再点「音轨」钮（点面板内部/弹窗不误收）。<br>④ <b>音轨面板升级</b>：每轨改卡片式浮出（圆角底色）、音色下拉与 S/M 钮统一深色圆角；声像滑杆撤出手机版（过于专业）。<br>⑤ <b>浏览数 + 点赞 + 收藏记录</b>：谱库详情每次打开服务端计一次<b>浏览</b>，头部只读位显示（过万显示 1.2万）；新增<b>点赞</b>（桃心，登录后云同步，未登录点击就地拉起登录）；收藏/点赞钮带<b>计数角标</b>，点按即时增减；个人中心新增<b>「我的点赞」记录卡</b>（与「我的收藏」并列）；服务端新增 <code>likes</code> 表与 <code>views</code> 计数列、公开详情带 stats、点赞三接口（列表/点/取消），删谱级联清点赞。<br><b>测试</b>：<code>api/test.sh</code> 176→<b>185 项</b>（统计字段/浏览递增/点赞幂等与权限/计数增减）；新增 <code>tv_vwmob</code> 套件 4 项（统计显示与 44px 图标/点赞即时反馈/点外部收起/底栏与轨卡几何断言），对旧版文件复跑 <b>0/4 全红</b>实证。CORE 106→<b>107 套件</b>全绿。服务端随本版部署自动重启建表。</div></li>
     <li><span class="v">v60.96</span><div><b>琶音改「滚入拍点」：音头不再拖后</b>（产品反馈「琶音的音头延迟过多」）。<br>此前琶音<b>从拍点起滚</b>、总展开 138ms（v60.67 定值）——收尾那个音（旋律侧）要比拍点晚 138ms 才响，慢速曲子里听感就是整个音头拖后了。现改为演奏惯例的<b>「滚入拍点」：提前起手、最后一个音正落在拍点上</b>（与前倚音的提前口径同款）；下琶音同理（目标低音落拍）。滚奏的 138ms 手感、力度层次、光标与时间轴对齐全部不变——只是整组发声时刻前移；从头起播的第一列琶音按可用提前量收缩（不会早于播放起点）。<br><b>测试</b>：<code>tv_arpfix</code> 7→<b>8 项</b>（新增 T8：提前量=138ms 跨度/起点收缩/扫弦与普通和弦不受影响），对旧版文件复跑 <b>T8 红</b>实证；<code>tv_audio</code> 39 项全绿（strumPlan 口径未动）。CORE <b>106 套件</b>全绿。</div></li>
     <li><span class="v">v60.95</span><div><b>页头出版级改版 + 信息弹窗修正</b>（产品指示）。<br>① <b>词曲信息不再压和弦图</b>：作词/作曲/制谱列此前画在固定位置，首行行内和弦图一多就撞上（用户截图）——现在<b>版面自动让位</b>：首行谱面永远从词曲列底部之下起排，无词曲信息的谱面版式不变。<br>② <b>页头按歌本出版惯例重排</b>：标题字距放宽居中、演唱者小字加距；<b>词曲/制谱列右对齐，首行与左侧 1=X 信息行同基线</b>（左调右词曲同排起笔，出版歌本惯例），行距统一 18，「作词/作曲/制谱」标签弱化墨色、名字保持正墨——版面层次一眼分明；词曲列本身也可<b>点击直接打开曲谱信息弹窗</b>改这些字段。<br>③ <b>曲谱信息弹窗「弱起小节」提示修复</b>：说明文字此前被 56px 标签列宽压成一字一行的竖排（看着像乱码）——弹窗表单说明文字统一横排样式（「散拍」勾选项同款根治）。<br><b>测试</b>：新增 <code>tv_headart</code> 套件 3 项（词曲同基线/18 行距/系统让位几何断言、无词曲版式零回归、词曲热区开弹窗+弱起提示横排），对旧版文件复跑 <b>0/3 全红</b>实证。CORE 105→<b>106 套件</b>全绿。</div></li>

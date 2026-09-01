@@ -266,6 +266,10 @@ window.PYQ_LIB = (function(){
     if(item.tempo>0) b.push('♩='+item.tempo);
     if(item.measures>0) b.push(item.measures+' 小节');
     if(item.verses>1) b.push(item.verses+' 段词');
+    /* v60.98 产品指示：浏览数与收藏数在曲谱卡上显示（过万缩写 N.N万） */
+    const cnt = n => n>=10000 ? (n/10000).toFixed(n>=100000?0:1)+'万' : String(n);
+    if(item.views>0) b.push(cnt(item.views)+' 浏览');
+    if(item.favs>0) b.push(cnt(item.favs)+' 收藏');
     return b;
   }
   /* v58.8 家族色 data-fam + 进场 stagger；v60.6 封面换真实谱面缩图：

@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-09-01 · 当前版本 **v60.97**（编辑器 APP_VER=v60.97） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-09-01 · 当前版本 **v60.98**（编辑器 APP_VER=v60.98） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -464,6 +464,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v60.98 头部三钮幽灵化（UI 专家规格）+ 计数移谱库卡 + 触屏拖选修复（产品指示）**：①头部只留 收藏/分享/主页，撤 `#vw-like`/`.vh-cnt`/`#vh-views` 及其 JS（likes API/我的点赞保留）；幽灵钮 40×40 无边框透明底、字形 21px、灰墨 #7d7563、hover 浮 `--hover` 圆底、`:active scale(.9)`；收藏点亮 `fill+stroke var(--accent)` 朱砂红星 + favpop 回弹（836 行双 ID 旧胶囊规则以 `(2,1,0)` 反制）。②谱库卡信息条追加「N 浏览/N 收藏」（`pubShape` 透传 views/likes/favs、pyq.js `metaBits` 过万缩写）。③手机拖选小节：`.mx-cells/#mx-prog{touch-action:none}` + `setPointerCapture` + 捕获态 `elementFromPoint` 取格（capture 后 e.target 恒为容器）。`tv_vwmob` 重写 5 项（对 v60.97 复跑 3 红）；`tv_site` 卡片断言追加计数。CORE **107 套件**全绿。APP_VER→v60.98。
+>
 > **v60.97 手机观看页改版 + 浏览/点赞体系（产品指示）**：①头部图标钮 44px/字形 25px（`padding:0`+`max-width:none` 根治全局 `svg{max-width:100%}` 被钮内边距压扁）；②谱架钮从头部 `#vh-stand` 移回底栏 `#b-stand`（≤640 隐藏清单摘除）；底栏等高 46px/圆角 13px/主钮 flex:1.7；③音轨面板点外部收起（捕获期 pointerdown，`#mixer-dock/.modal-mask/.popmenu/#quickbar/.vh-pop` 内不收）；④轨行卡片化+声像手机撤下；⑤**浏览/点赞**——`scores.views` 列（公开详情先加后读）、`likes` 表（结构同 favorites，删谱级联清）、公开详情带 `stats{views,likes,favs}`、`GET/PUT/DELETE /api/likes(:id)`（仅已发布可赞）、观看页桃心+计数角标+浏览只读位（`fmtCnt` 过万显示 N.N万，未登录点赞拉起登录）、me.html 新增「我的点赞」记录卡；events 白名单 +'like'。`api/test.sh` 176→**185 项**；新增 `tv_vwmob` 4 项（旧文件复跑 0/4 全红）；CORE 106→**107 套件**全绿。APP_VER→v60.97。
 >
 > **v60.96 琶音滚入拍点（产品反馈「音头延迟过多」）**：v60.67 起琶音自拍点起滚、138ms 定值展开→收尾音（旋律侧）晚拍点 138ms。新增纯函数 `arpLead(plan, kind, off)`（非琶音恒 0；提前量=组跨度、`Math.min(span, off)` 不越过播放起点），调度处 `when = t+off+plan[k].dt−aLead`——收尾音正落拍点，`strumPlan`/`ctimes`/光标时间轴全部未动。`tv_arpfix` 7→**8 项**（T8 纯函数断言；旧文件复跑 T8 红）；`tv_audio` 39 项不回归。CORE **106 套件**全绿。APP_VER→v60.96。
