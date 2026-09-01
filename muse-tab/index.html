@@ -717,6 +717,9 @@ svg text{user-select:none}
 .modal td.k{color:var(--accent);white-space:nowrap;font-family:ui-monospace,monospace}
 .modal label.f{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 .modal label.f span{width:56px;color:var(--muted);text-align:right}
+/* v60.95 弹窗表单行的说明文字（勾选项右侧长句）：不吃 56px 标签列宽——
+   此前「弱起小节」「散拍」的提示被压成一字一行的竖排（用户报障「乱码」） */
+.modal label.f .fnote{width:auto;flex:1;text-align:left;line-height:1.5}
 /* 使用帮助/特色功能/更新日志 弹窗排版 */
 .modal .steps{display:flex;flex-direction:column;gap:7px;margin:8px 0}
 .modal .step{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.55}
@@ -7022,20 +7025,21 @@ function render(){
   const MM = PAGE_W/wmm;                    // 1mm 对应的 SVG 单位（真实 px/mm，随页面尺寸/内容大小变化）
   const topMargin = Math.round(12*MM);      // 标题上方留 12mm 边距
   let headY = topMargin + 22;
-  p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="27" font-weight="800" letter-spacing="2" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
-  headY += 23;
+  /* v60.95 出版级页头改版（产品指示）：标题字距放宽、演唱者小字加距居中，
+     词曲/制谱列右对齐且首行与左侧 1=X 信息行**同基线**（歌本出版惯例：左调右词曲同排起笔），
+     标签「作词/作曲/制谱」弱化墨色、名字保持正墨；行距 18 统一节奏 */
+  p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="28" font-weight="800" letter-spacing="3" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
+  headY += 24;
   if(song.singer){
-    p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="13.5" letter-spacing="1" text-anchor="middle" fill="var(--muted)">${esc(song.singer)}</text>`);
+    p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="13" letter-spacing="2" text-anchor="middle" fill="var(--muted)">${esc(song.singer)}</text>`);
     headY += 7;
   }
   const credits=[];
-  if(song.lyricist) credits.push('作词：'+song.lyricist);
-  if(song.composer) credits.push('作曲：'+song.composer);
-  if(song.maker) credits.push('制谱：'+song.maker);
-  /* 词曲作者信息：置于标题（及演唱者）下方右侧，与调号/速度行同排，
-     水平位置不超过（不高于）标题 */
-  credits.forEach((t,i)=>
-    p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+8+i*17}" font-size="12.5" text-anchor="end" fill="var(--ink)">${esc(t)}</text>`));
+  if(song.lyricist) credits.push(['作词：', song.lyricist]);
+  if(song.composer) credits.push(['作曲：', song.composer]);
+  if(song.maker) credits.push(['制谱：', song.maker]);
+  credits.forEach(([k,v],i)=>
+    p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+22+i*18}" font-size="12.5" letter-spacing="0.4" text-anchor="end"><tspan fill="var(--muted)">${k}</tspan><tspan fill="var(--ink)">${esc(v)}</tspan></text>`));
   /* 纯五线谱/钢琴谱：调性由调号表达、拍号在谱表上——页头不再重复 1=X 与 4/4，
      只保留速度记号（出版惯例）；含简谱/TAB 的谱面维持原页头 */
   const pureStaff = !song.tabVoices.length && song.voxVoices.length>0 &&
@@ -7081,8 +7085,13 @@ function render(){
         b2.act==='capo'? '点击设置变调夹（简谱实际调与播放同步联动）' : '点击设置速度 ♩=X');
       cx2 += w2 + 12.5;
     });
+    /* v60.95 词曲/制谱列同样可点开曲谱信息弹窗（它就是这些字段的编辑入口） */
+    if(credits.length) hz(PAGE_W-MARGIN-160, headY+8, 164, credits.length*18+8, 'meta', '点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）');
   }
-  let top = headY + 42;
+  /* v60.95 版面自动让位（产品报障：词曲信息压到首行行内和弦图）：
+     top 按词曲块实际高度取大——首行系统（含 diagH 和弦图带）永远从词曲列底部之下起排；
+     无词曲信息时维持原 42px（存量谱面零变化） */
+  let top = headY + Math.max(42, credits.length? 22+credits.length*18+16 : 42);
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
@@ -14415,7 +14424,7 @@ document.getElementById('b-meta').onclick = ()=>{
     <label class="f"><span>变调夹</span><input id="mm-capo" class="short" type="number" min="0" max="12" value="${song.capo}"> 品</label>
     <label class="f"><span>速度术语</span><input id="mm-tempoterm" class="mid" list="mm-tempoterms" value="${esc(song.tempoTerm||'')}" placeholder="如 Andante 行板（可留空）" autocomplete="off">
       <datalist id="mm-tempoterms">${TEMPO_TERMS.map(([t,cn])=>`<option value="${esc(t)}">${esc(cn)}</option>`).join('')}</datalist></label>
-    <label class="f" style="align-items:center"><span>弱起小节</span><input id="mm-pickup" type="checkbox" ${song.pickup?'checked':''} style="width:auto;margin:0 6px 0 0"><span style="font-weight:400;color:var(--muted);font-size:12.5px">首小节为弱起（不足拍不报错、不编号）</span></label>
+    <label class="f" style="align-items:center"><span>弱起小节</span><input id="mm-pickup" type="checkbox" ${song.pickup?'checked':''} style="width:auto;margin:0 6px 0 0"><span class="fnote" style="font-weight:400;color:var(--muted);font-size:12.5px">首小节为弱起（不足拍不报错、不编号）</span></label>
     <div class="btns"><button id="mm-cancel">取消</button><button id="mm-ok" class="primary">确定</button></div>`);
   /* v53.4 文本字段实时预览：输入即上谱；取消恢复原值；确定前先回滚预览值，
      再走 mutate 整体应用——撤销快照因此是「修改前」状态，一次 Ctrl+Z 全撤 */
@@ -22352,7 +22361,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.94';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v60.95';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22375,6 +22384,7 @@ const APP_VER='v60.94';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v60.95</span><div><b>页头出版级改版 + 信息弹窗修正</b>（产品指示）。<br>① <b>词曲信息不再压和弦图</b>：作词/作曲/制谱列此前画在固定位置，首行行内和弦图一多就撞上（用户截图）——现在<b>版面自动让位</b>：首行谱面永远从词曲列底部之下起排，无词曲信息的谱面版式不变。<br>② <b>页头按歌本出版惯例重排</b>：标题字距放宽居中、演唱者小字加距；<b>词曲/制谱列右对齐，首行与左侧 1=X 信息行同基线</b>（左调右词曲同排起笔，出版歌本惯例），行距统一 18，「作词/作曲/制谱」标签弱化墨色、名字保持正墨——版面层次一眼分明；词曲列本身也可<b>点击直接打开曲谱信息弹窗</b>改这些字段。<br>③ <b>曲谱信息弹窗「弱起小节」提示修复</b>：说明文字此前被 56px 标签列宽压成一字一行的竖排（看着像乱码）——弹窗表单说明文字统一横排样式（「散拍」勾选项同款根治）。<br><b>测试</b>：新增 <code>tv_headart</code> 套件 3 项（词曲同基线/18 行距/系统让位几何断言、无词曲版式零回归、词曲热区开弹窗+弱起提示横排），对旧版文件复跑 <b>0/3 全红</b>实证。CORE 105→<b>106 套件</b>全绿。</div></li>
     <li><span class="v">v60.94</span><div><b>两项更正：琶音长时值改增时线 · 散拍节奏型编辑器修复</b>（产品指示逐条落地）。<br>① <b>琶音长时值＝增时线</b>（更正 v60.92 的延音弧记法）：两拍/三拍/四拍的琶音与普通音符同口径——在六线谱中线位画增时线「－」（二分 1 条、全音符 3 条），延音弧撤销；此前只有带显式音符的列画增时线，<b>纯箭头/波浪线列（音符随和弦隐含）此前不画、现在同样画</b>。顶栏时值组的增时线按钮同步改为<b>只显横杠「－」不带数字</b>。<br>② <b>散拍节奏型编辑器修复</b>（勾了散拍进编辑器还显示 4/4 + 写了扫弦保存却提示「小节还是空的」）：<b>散拍草稿不再显示拍号</b>——页头标「散拍」、六线谱行首不画 4/4，节拍检查整体豁免（散拍本就不限拍数，右下角不再冒红）；<b>保存报空是真 bug</b>——点「下扫/上扫/琶音」只落箭头不落音符（发声靠和弦隐含），入库转换却把无音符列一律当休止，整小节扫弦保存直接被拒；现在扫弦/琶音判定提前，<b>纯箭头列照常入库</b>（下琶音顺带并入琶音记法，此前被存成柱式）。<br><b>测试</b>：<code>tv_arpfix</code> 6→<b>7 项</b>（T3 改增时线口径＋无延音弧断言、新增 T7 散拍旗标/页头/免检/纯箭头保存/按钮无数字），对 v60.93 文件复跑 <b>T3/T7 两项红</b>实证。CORE <b>105 套件</b>全绿。</div></li>
     <li><span class="v">v60.93</span><div><b>播放样式改版：当前小节整块变色 + 平滑滚动竖线</b>（产品指示，参考出版播放器样式）。<br>① <b>小节变色</b>：播放到哪个小节，哪个小节整块罩上淡色底——此前色块只罩当前列（一格一格跳），现在一眼看清「正在弹第几小节」；整谱模式罩本小节所在行的全部声部，单轨 SOLO 时只罩该轨行（纵向口径不变）。<br>② <b>滚动竖线</b>：新增一条纵向竖线随播放<b>逐帧平滑移动</b>（不是逐列跳格）——列与列之间按时值线性插值，小节最后一列走到小节右缘收束，换行时自动回到下一行行首；停止播放即隐藏。自动滚屏、循环播放、播放中切 SOLO/静音等既有行为全部不动。<br><b>测试</b>：新增 <code>tv_playline</code> 套件 3 项（竖线存在与几何/播放中两次采样单调前进+停播隐藏/SOLO 模式小节宽×单轨行高），对旧版文件复跑 <b>0/3 全红</b>实证；<code>tv_mix</code> 播放头几何口径不回归。CORE 104→<b>105 套件</b>全绿。</div></li>
     <li><span class="v">v60.92</span><div><b>六线谱四项修正：散拍自定义节奏型 · 琶音长时值延音弧 · 自定义音符琶音 · 手输数字优先</b>（产品指示逐条落地）。<br>① <b>自定义节奏型可选散拍</b>：新建/编辑弹窗勾「散拍」——不限拍号，拍数可 1–6 自由写，入库后与库内「半小节/一拍」散拍同一条管线：<b>套用时从所选列起填入所写拍数</b>，一小节可拼两段不同节奏（各自和弦独立）；卡片带「散拍」角标。简谱侧套用管线是整小节替换、暂不提供散拍（如实边界）。<br>② <b>琶音长时值出版记法</b>：两拍/三拍/四拍的琶音列不再像五线谱那样只靠一个音符表达——琶音后方自动画<b>延音弧</b>，弧长盖满该列的时值跨度（一拍琶音不画），出版惯例同扫弦延留：整个和弦收一条弧。<br>③ <b>自定义音符琶音</b>：点琶音列（或记号钮）打开的弹窗里，除覆盖弦范围外新增<b>逐弦品位输入</b>——写入后谱面在琶音波浪线右侧画出每弦数字（波浪线左移让位，同出版谱样式），发声按所写；<b>留空的弦不发声</b>（不再按和弦指法补音）；「恢复随和弦」一键回老行为。<br>④ <b>和弦内手输数字以编辑为准</b>：教材式记谱把「与和弦指法一致的 ≤4 品实音」折成 ×，用户特意输入的 0/2 也被吞成 ×——现在<b>凡是手输的品位（键盘/弹窗/指板面板）都带「显式」标记，教材式下保数字不折 ×</b>；节奏型与和弦变换生成的音不受影响，× 惯例照旧。<br><b>测试</b>：新增 <code>tv_arpfix</code> 套件 6 项（散拍入库与 2 拍局部套用/延音弧几何/lit 数字与不补空弦/弹窗逐弦写入/教材式手输保数字），对旧版文件复跑 <b>0/6 全红</b>实证。CORE 103→<b>104 套件</b>全绿。</div></li>
