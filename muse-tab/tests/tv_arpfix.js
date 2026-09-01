@@ -180,6 +180,20 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.freeFlag && r.headFree && r.noTS && r.noErr && r.saved && r.evs === 'd,u' && r.span === 4 && r.extTxt === '－',
     'T7 散拍草稿：旗标/页头/无拍号/豁免检查/纯箭头可保存/增时线钮无数字', JSON.stringify(r));
 
+  // T8 琶音滚入拍点（v60.96 产品反馈「音头延迟过多」）：提前量=整组跨度（收尾音正落拍点），
+  //    不越过播放起点（off 不足按可用量收缩）；扫弦/普通和弦不提前；138ms 定值口径不变
+  r = await pg.evaluate(() => { try {
+    const plan = strumPlan(5, 'arp', 2, 1);
+    const span = +plan[plan.length - 1].dt.toFixed(3);
+    const full = +arpLead(plan, 'arp', 10).toFixed(3);     // 曲中列：足量提前=跨度
+    const clamp = +arpLead(plan, 'arp', 0.05).toFixed(3);  // 距播放起点仅 50ms：收缩到 0.05
+    const zero = arpLead(plan, 'd', 10) === 0 && arpLead(plan, 'chord', 10) === 0
+      && arpLead([], 'arp', 10) === 0;
+    return { span, full, clamp, zero };
+  } catch (e) { return { err: String(e && e.message || e) }; } });
+  T(r.span === 0.138 && r.full === 0.138 && r.clamp === 0.05 && r.zero,
+    'T8 琶音收尾音落拍：提前=138ms 跨度、起点收缩、非琶音不动', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
