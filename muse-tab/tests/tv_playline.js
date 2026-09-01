@@ -29,22 +29,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   } catch (e) { return { err: String(e && e.message || e) }; } });
   T(r.hasPl && r.off && r.meaX && r.bandY && r.wider, 'T1 竖线存在+色块罩整小节（宽于列盒）', JSON.stringify(r));
 
-  // T2 播放中竖线平滑前进：两次采样 x 单调增、可见；停播后隐藏
+  // T2 播放中竖线平滑前进：假时钟驱动 startProgress 的真实帧逻辑（确定性——
+  //    CI 无声环境下 AudioContext 时钟不走、真实 play() 不可靠，v60.93/94 两次 CI 均折在这里）；
+  //    两次采样 x 单调增、可见；停播后隐藏
   r = await pg.evaluate(async () => { try {
-    play();
-    await new Promise(z => setTimeout(z, 700));
+    const wait = (ms) => new Promise(z => setTimeout(z, ms));
+    // 手工搭光标时间轴：spb=0.5s/拍，走 buildPlayEvents 真实管线
+    audio.playing = true; audio.paused = false;
+    audio.ctx = { currentTime: 0.05 };            // 假时钟（tick 每帧读 currentTime）
+    const order = song.measures.map((_, i) => i);
+    const starts = order.map(i => i * 4 * 0.5);
+    audio.evCtx = { order, starts, spb: 0.5 };
+    audio.events = buildPlayEvents(); audio.evIdx = 0;
+    startProgress(0, starts.length * 2, order, starts);
+    await wait(150);
     const pl = document.getElementById('playline');
     const x1 = +pl.getAttribute('x1'), op1 = pl.getAttribute('opacity');
-    await new Promise(z => setTimeout(z, 500));
+    audio.ctx.currentTime = 1.3;                  // 拨快到第 1 小节第 3 拍中段
+    await wait(150);
     const x2 = +pl.getAttribute('x1');
     const ph = document.getElementById('playhead');
     const tintOn = +ph.getAttribute('opacity') > 0;
     stopPlay();
     const opOff = document.getElementById('playline').getAttribute('opacity') === '0'
       && document.getElementById('playhead').getAttribute('opacity') === '0';
-    return { x1: +x1.toFixed(1), x2: +x2.toFixed(1), moved: x2 > x1 + 3, op1, tintOn, opOff };
+    return { x1: +x1.toFixed(1), x2: +x2.toFixed(1), moved: x2 > x1 + 3, op1, tintOn, opOff, nEv: audio.events ? 0 : 0 };
   } catch (e) { try { stopPlay(); } catch (_) {} return { err: String(e && e.message || e) }; } });
-  T(r.moved && r.op1 === '0.9' && r.tintOn && r.opOff, 'T2 竖线播放中平滑前进、停播隐藏', JSON.stringify(r));
+  T(r.moved && r.op1 === '0.9' && r.tintOn && r.opOff, 'T2 竖线播放中平滑前进、停播隐藏（假时钟）', JSON.stringify(r));
 
   // T3 单轨 SOLO：色块仍罩整小节宽、但只罩该轨行高（y/h=列盒，tv_mix T5 口径）
   r = await pg.evaluate(() => { try {
