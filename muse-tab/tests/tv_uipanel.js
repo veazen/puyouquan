@@ -1,11 +1,12 @@
-/* v60.99 左栏/上栏视觉升级验收（UI 专家规格 + 制谱专家 IA，几何断言驱动——位置/对齐不看截图）：
-   T1 吉他记号面板：四列网格、每行≤4 钮、钮高恒 46、子标题分组序=拨奏/时值装饰指法/连奏与音高/制音与音色
-   T2 拨奏组按钮序（制谱专家 G1：下拨→上拨→下扫→上扫→下琶音→上琶音→切音→拍弦）
-   T3 简谱侧分组序（J1 音高与谱号/J2 连接与和声/J3 奏法·力度/J4 力度·装饰音）+ EB_ORNS 力度置首清除恒尾
+/* v60.99 左栏/上栏视觉升级验收（UI 专家规格 + 制谱专家 IA，几何断言驱动——位置/对齐不看截图）；
+   v61.0 产品更正：面板统一叫「记号」内部不分类——子标题撤销（断言=零 .rg-sub）、专家排序保留：
+   T1 吉他记号面板：四列网格、每行≤4 钮、钮高恒 46、无分类子标题
+   T2 拨奏族按钮序（制谱专家：下拨→上拨→下扫→上扫→下琶音→上琶音→切音→拍弦…）
+   T3 简谱侧无子标题 + 专家序（音高谱号族在前）+ EB_ORNS 力度置首清除恒尾
    T4 图形区 22px 定高 + 标签 10px/500（跨钮基线对齐的根据）
    T5 上栏：控件行高统一 28、1280 视口不超过 2 行（预置换行兜底口径）、分隔线 16px
    T6 左轨页签 56px 定宽、圆角 10（桌面断点）
-   对 v60.98 旧文件跑：T1/T2/T3 当场红（无 .rg-sub、顺序为旧平铺序）——突变实证。 */
+   突变实证：对 v60.98 跑 T1 红（无网格/钮高不一）+T2/T3 红（旧平铺序）；对 v60.99 跑 T1/T3 红（有子标题）。 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -21,18 +22,20 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     window.guardReplace = p => p();
     const s = createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
     loadSong(s); hideStartPad(); setRibbon('tab');
-    const subs = [...document.querySelectorAll('#sign-host-tab .rg-sub')].map(x => x.textContent);
-    const grid = ['mark-body', 'tech-host'].every(id =>
-      getComputedStyle(document.getElementById(id)).display === 'grid' &&
-      getComputedStyle(document.getElementById(id)).gridTemplateColumns.split(' ').length === 4);
+    const subs = document.querySelectorAll('#sign-host-tab .rg-sub').length;   // v61.0 不分类=恒 0
+    // v61.0 连续平铺：网格挂 sign 宿主、子 body display:contents 融入——跨 body 不留半行缺口
+    const host = getComputedStyle(document.getElementById('sign-host-tab'));
+    const grid = host.display === 'grid' && host.gridTemplateColumns.split(' ').length === 4
+      && ['mark-body', 'tech-host'].every(id => getComputedStyle(document.getElementById(id)).display === 'contents');
     const btns = [...document.querySelectorAll('#sign-host-tab .eb')].filter(x => getComputedStyle(x).display !== 'none');
     const hs = [...new Set(btns.map(x => Math.round(x.getBoundingClientRect().height)))];
     const byRow = {}; btns.forEach(x => { const y = Math.round(x.getBoundingClientRect().top); (byRow[y] = byRow[y] || []).push(1); });
-    const maxRow = Math.max(...Object.values(byRow).map(a => a.length));
-    return { subs: subs.join('|'), grid, hs: hs.join(','), maxRow, n: btns.length };
+    const rows = Object.values(byRow).map(a => a.length);
+    const seamless = rows.length === Math.ceil(btns.length / 4) && rows.slice(0, -1).every(v => v === 4);
+    return { subs, grid, hs: hs.join(','), seamless, rows: rows.join(','), n: btns.length };
   } catch (e) { return { err: String(e && e.message || e) }; } });
-  T(r.subs === '拨奏|时值 · 装饰 · 指法|连奏与音高|制音与音色' && r.grid && r.hs === '46' && r.maxRow === 4 && r.n >= 30,
-    'T1 四列网格+46px 定高+分组序', JSON.stringify(r));
+  T(r.subs === 0 && r.grid && r.hs === '46' && r.seamless && r.n >= 30,
+    'T1 四列连续平铺+46px 定高+无分类子标题', JSON.stringify(r));
 
   // T2 拨奏组序（G1）+ 简谱面板组内序头（J1 前三钮）
   r = await pg.evaluate(() => { try {
@@ -50,15 +53,15 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T3 简谱侧分组 + EB_ORNS 序
   r = await pg.evaluate(() => { try {
     setRibbon('vox');
-    const subs = [...document.querySelectorAll('#sign-host-vox .rg-sub')].map(x => x.textContent);
+    const subs = document.querySelectorAll('#sign-host-vox .rg-sub').length;
     const orn = [...document.getElementById('orn-host').children].filter(x => x.tagName === 'BUTTON').map(x => x.dataset.orn);
     const vb = [...document.getElementById('vmark-body').children].filter(x => x.tagName === 'BUTTON').map(x => x.id || 'tup');
-    return { subs: subs.join('|'), orn: orn.join(','), j1: vb.slice(0, 7).join(',') };
+    return { subs, orn: orn.join(','), j1: vb.slice(0, 7).join(',') };
   } catch (e) { return { err: String(e && e.message || e) }; } });
-  T(r.subs === '音高与谱号|连接与和声|奏法 · 力度|力度 · 装饰音'
+  T(r.subs === 0
     && r.orn === 'dyn,grace,gracea,tr,up,down,turn,clr'
     && r.j1 === 'b-sharp,b-flat,b-natural,b-octup,b-octdn,b-ottava,b-clef',
-    'T3 简谱分组+力度置首清除恒尾', JSON.stringify(r));
+    'T3 简谱无子标题+专家序+力度置首清除恒尾', JSON.stringify(r));
 
   // T4 图形区 22px 定高 + 标签 10px/500（跨钮标签基线对齐）
   r = await pg.evaluate(() => { try {

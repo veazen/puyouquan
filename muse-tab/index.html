@@ -523,9 +523,9 @@ body.shell #eb-zoom button{min-width:26px;padding:3px 6px}
 body.shell #left-flyout .rg .rg-title,body.shell #right-dock .rg .rg-title{order:-1;text-align:left;
   margin:0 0 6px;font-size:10.5px;letter-spacing:.1em;color:var(--faint);text-transform:none}
 body.shell #left-flyout .rg-body,body.shell #right-dock .rg .rg-body{justify-content:flex-start;max-width:none}
-/* v60.99 记号宿主 ::before 伪元素小标题撤销——改为真实 .rg-sub 子标题（制谱专家分组：
-   拨奏/时值装饰指法/连奏与音高/制音与音色…），样式统一见文末 v60.99 段 */
-body.shell #sign-host-tab,body.shell #sign-host-vox{row-gap:7px}
+/* v60.99 记号宿主 ::before 伪元素小标题撤销；v61.0 产品更正：面板统一叫「记号」、
+   内部不再分类（子标题全部撤销，制谱专家的功能族排序保留）——网格样式见文末 v60.99 段 */
+body.shell #sign-host-tab,body.shell #sign-host-vox{row-gap:4px}   /* v61.0 与宿主网格 4px 间隙一致——两子 body 视觉连成一片平铺 */
 /* v45.7 记谱风格已移入「记谱法 · 谱号」分组（panel-tab-notation），不再混排于音符记号 */
 body.shell #left-flyout .sp-sec{border:none;background:transparent;padding:0;margin:0 0 9px}
 body.shell #left-flyout .sp-sec:last-child{margin-bottom:0}
@@ -1762,20 +1762,15 @@ body.shell #left-flyout .rg .rg-title,body.shell #right-dock .rg .rg-title{
   color:var(--faint);text-transform:none;display:flex;align-items:center;gap:8px}
 body.shell #left-flyout .rg .rg-title::after,body.shell #right-dock .rg .rg-title::after{
   content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border-soft),transparent)}
-/* ② 记号/技巧四宿主：四列网格 + .rg-sub 子标题（制谱专家分组）+ 46px 定高钮 + 22px 图形区。
-   经典版：.rg-sub 默认隐藏、宿主保持 flex 流式（选择器全部 body.shell 作用域） */
-.rg-sub{display:none}
+/* ② 记号面板：四列网格 + 46px 定高钮 + 22px 图形区（经典版宿主保持 flex 流式，
+   选择器全部 body.shell 作用域）。v61.0 产品更正：内部分类子标题（.rg-sub）撤销、
+   统一一个「记号」面板连续平铺——网格挂在 sign 宿主上、两个子 body 以 display:contents
+   融入，跨 body 也不留半行缺口；制谱专家的功能族排序保留。非 sign 语境（节奏型草稿等
+   面板集不含 sign 时）宿主自身兜底成同款网格 */
+body.shell #sign-host-tab,body.shell #sign-host-vox,
 body.shell #mark-body,body.shell #vmark-body,body.shell #tech-host,body.shell #orn-host{
   display:grid;grid-template-columns:repeat(4,1fr);gap:4px;width:100%}
-body.shell #mark-body .rg-sub,body.shell #vmark-body .rg-sub,
-body.shell #tech-host .rg-sub,body.shell #orn-host .rg-sub{
-  display:flex;align-items:center;gap:8px;grid-column:1/-1;min-width:0;margin:3px 0 0;
-  font-style:normal;font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
-body.shell #mark-body .rg-sub::after,body.shell #vmark-body .rg-sub::after,
-body.shell #tech-host .rg-sub::after,body.shell #orn-host .rg-sub::after{
-  content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border-soft),transparent)}
-body.shell #mark-body .rg-sub:first-child,body.shell #vmark-body .rg-sub:first-child,
-body.shell #tech-host .rg-sub:first-child,body.shell #orn-host .rg-sub:first-child{margin-top:0}
+body.shell #sign-host-tab>.rg-body,body.shell #sign-host-vox>.rg-body{display:contents}
 body.shell #left-flyout #mark-body .eb,body.shell #left-flyout #vmark-body .eb,
 body.shell #left-flyout #tech-host .eb,body.shell #left-flyout #orn-host .eb{
   height:46px;min-height:46px;min-width:0;width:auto;margin:0;padding:4px 2px 5px;border-radius:8px;
@@ -9686,7 +9681,7 @@ function setRibbon(t){
        「连奏与音高」击弦→勾弦→击勾弦→滑音→推弦→回落→揉弦→摇把→点弦；
        「制音与音色」闷音 P.M.→哑音→let ring→泛音→指弹。
        v59.1/v59.5 收纳弹窗钮（滑音/泛音/摇把/指弹）不变；EB_TECHS/EB_GTECH 数组保持原样
-       （标签查找/习惯学习仍引用）；.rg-sub 子标题仅新版外壳显示（经典版隐藏零变化） */
+       （标签查找/习惯学习仍引用） */
     const SLIDE_KEYS=['sl','su','sd','ou','od'];
     const tKey = k=>tBtn(EB_TECHS.find(e=>e[0]===k));
     const slideBtn = `<button class="eb ico" data-slidemenu title="滑音类：滑弦 S（两音相连）/ 无头上滑 ⟋S / 无头下滑 ⟍S / 无尾上滑 S⟋ / 无尾下滑 S⟍——点击弹窗选择"><b class="g"><i class="gt">S</i>⟋</b><span>滑音</span></button>`;
@@ -9694,10 +9689,9 @@ function setRibbon(t){
     /* v59.6 图标统一为线性 SVG（禁 Emoji）：摇把=摇杆+俯冲弧箭头；指弹=击板箭头+面板线+震动纹 */
     const barBtn   = `<button class="eb ico" data-barmenu title="摇把（颤音系统）：俯冲 ↘ / 上滑 ↗ / 下点 ∨ / 颤音 ≈——点击弹窗选择（谱面标注带显示 w/bar）"><b class="g"><svg width="18" height="17" viewBox="0 0 20 19"><path d="M3.4 4.6 h6.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><circle cx="3.4" cy="4.6" r="1.5" fill="currentColor"/><path d="M9.6 4.6 q5.2 0.6 5.6 8.4" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M12.8 11.6 L15.2 14.6 L17.2 11.2" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></b><span>摇把</span></button>`;
     const fingBtn  = `<button class="eb ico" data-fingmenu title="指弹技巧：打板·低音区 B / 打板·高音区 S / 击板 G——点击弹窗选择（作用于当前列）"><b class="g"><svg width="18" height="17" viewBox="0 0 20 19"><path d="M10 2.6 v6.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/><path d="M7.4 6.4 L10 9.2 L12.6 6.4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.2 12.4 h13.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M5.4 16.2 l1.5-2.2 M14.6 16.2 l-1.5-2.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none" opacity="0.72"/></svg></b><span>指弹</span></button>`;
-    const techHtml = ()=>'<i class="rg-sub">连奏与音高</i>'
-      + ['h','p','hp'].map(tKey).join('') + slideBtn
+    /* v61.0 产品更正：面板统一叫「记号」、内部不再分类——子标题撤销，专家排序保留 */
+    const techHtml = ()=>['h','p','hp'].map(tKey).join('') + slideBtn
       + ['b','bd','v'].map(tKey).join('') + barBtn + tKey('tp')
-      + '<i class="rg-sub">制音与音色</i>'
       + ['pm','mute'].map(tKey).join('') + gtechHtml() + harmBtn + fingBtn;
     /* v42.3 原按 song.gtype 过滤；v52.6 产品拍板统一全量显示。
        v59.1：泛音细分（hmA/hmP/hmT）收进「泛音」弹窗、pima（rhP/rhI/rhM/rhA）收进记号层「右手指法」弹窗——
@@ -9707,8 +9701,7 @@ function setRibbon(t){
         .filter(([k])=>!['hmA','hmP','hmT','rhP','rhI','rhM','rhA','bDive','bScoop','bDip','bShake','pcB','pcS','pcG'].includes(k))
         .map(([k,l,g,ctx,kind,val])=>`<button class="eb ico" data-gtech="${kind}:${val}" title="${l}（${kind==='perc'?'作用于当前列':'作用于选中音符'}）"><b class="g">${g}</b><span>${l}</span></button>`).join('');
     /* v60.99 力度/速度置首（制谱专家：紧接奏法组之后）+ 图形包 .g 盒（四列网格 22px 图形区对齐） */
-    const ornHtml = ()=>'<i class="rg-sub">力度 · 装饰音</i>'
-      + EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}"><b class="g">${ornSVG(k)}</b><span>${l}</span></button>`).join('');
+    const ornHtml = ()=>EB_ORNS.map(([k,l])=>`<button class="eb ico" data-orn="${k}" title="${l}"><b class="g">${ornSVG(k)}</b><span>${l}</span></button>`).join('');
     if(uiShell){
       /* v40.3 新版：技法/记号渲染进左栏图层面板，编辑栏第二行留空（CSS 已隐藏） */
       ctxT.textContent=''; ctx.innerHTML='';
@@ -10702,27 +10695,22 @@ function applyVoxPattern(pat){
       +`<button class="eb ico" data-tabgr="pre" title="前倚音（品位制，最多3音，如输入 5 7 表示两个倚音；TAB 与联排五线谱同步显示，点谱面倚音组可改弦位/品位/时值；留空清除）"><b class="g">${ornSVG('grace')}</b><span>前倚音</span></button>`
       +`<button class="eb ico" data-tabgr="post" title="后倚音（品位制，最多3音；TAB 与联排五线谱同步显示，点谱面倚音组可改弦位/品位/时值；留空清除）"><b class="g">${ornSVG('gracea')}</b><span>后倚音</span></button>`;
     if(mb) mb.insertAdjacentHTML('beforeend', fingBtns);
-    /* v60.99 制谱专家 IA：记号面板按功能分组重排（对应 GP8/MuseScore 惯例），
-       appendChild 逐个搬到尾部即得目标序（委托监听不受 DOM 移动影响）；.rg-sub 子标题
-       仅新版外壳显示。×标记与「哑音」同为死音记号，受 mark-body/tech-host 两宿主
-       结构限制无法跨体相邻，置于本组尾部紧邻「制音与音色」组（功能不合并，title 已互注）。 */
-    const orderBody=(hostId, groups)=>{
+    /* v60.99 制谱专家 IA：记号面板按功能族重排（对应 GP8/MuseScore 惯例）——
+       拨奏→时值·装饰·指法（吉他）/ 音高谱号→连接和声→奏法力度（简谱），
+       appendChild 逐个搬到尾部即得目标序（委托监听不受 DOM 移动影响）。
+       v61.0 产品更正：面板统一叫「记号」、内部不再显示分类子标题——仅保留专家排序。 */
+    const orderBody=(hostId, sels)=>{
       const el=document.getElementById(hostId); if(!el) return;
-      groups.forEach(([cap,sels])=>{
-        if(cap){ const t=document.createElement('i'); t.className='rg-sub'; t.textContent=cap; el.appendChild(t); }
-        sels.forEach(q=>{ const b2=el.querySelector(q); if(b2) el.appendChild(b2); });
-      });
+      sels.forEach(q=>{ const b2=el.querySelector(q); if(b2) el.appendChild(b2); });
     };
-    orderBody('mark-body', [
-      ['拨奏', ['[data-pk="d"]','[data-pk="u"]','#b-strum-d','#b-strum-u','#b-arpd','#b-arp','#b-smute','#b-slap']],
-      ['时值 · 装饰 · 指法', ['#b-tie-t','[data-tup="3"]','[data-tupcustom]','#b-ferm-t',
-        '[data-tabgr="pre"]','[data-tabgr="post"]','[data-hand="lh"]','[data-hand="rh"]','#b-mute']],
-    ]);
-    orderBody('vmark-body', [
-      ['音高与谱号', ['#b-sharp','#b-flat','#b-natural','#b-octup','#b-octdn','#b-ottava','#b-clef']],
-      ['连接与和声', ['#b-tie','[data-tup="3"]','[data-tupcustom]','#b-ferm-v','#b-trem','#b-gliss','#b-addnote','#b-vchord']],
-      ['奏法 · 力度', ['#b-art-stcc','#b-art-stacc','#b-art-ten','#b-art-acc','#b-art-marc','#b-breath','#b-fing','#b-ped-on','#b-ped-off']],
-    ]);
+    orderBody('mark-body',
+      ['[data-pk="d"]','[data-pk="u"]','#b-strum-d','#b-strum-u','#b-arpd','#b-arp','#b-smute','#b-slap',
+       '#b-tie-t','[data-tup="3"]','[data-tupcustom]','#b-ferm-t',
+       '[data-tabgr="pre"]','[data-tabgr="post"]','[data-hand="lh"]','[data-hand="rh"]','#b-mute']);
+    orderBody('vmark-body',
+      ['#b-sharp','#b-flat','#b-natural','#b-octup','#b-octdn','#b-ottava','#b-clef',
+       '#b-tie','[data-tup="3"]','[data-tupcustom]','#b-ferm-v','#b-trem','#b-gliss','#b-addnote','#b-vchord',
+       '#b-art-stcc','#b-art-stacc','#b-art-ten','#b-art-acc','#b-art-marc','#b-breath','#b-fing','#b-ped-on','#b-ped-off']);
   }
   /* 编辑栏两行共享处理：音符增删 + 记号 + 上下文（技巧/标识） */
   const ebHandler = e=>{
@@ -22608,7 +22596,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v60.99';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v61.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22631,6 +22619,7 @@ const APP_VER='v60.99';   /* 须与更新日志首条版本一致——check-syn
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v61.0</span><div><b>记号面板去分类</b>（产品更正）。左栏面板统一叫「记号」，内部不再显示「音高与谱号 / 连接与和声」等分类小标题——全部记号在一个面板里连续平铺（v60.99 制谱专家的按同族相邻排序保留，找记号仍顺手）；吉他侧原「音符记号 + 演奏技巧」两段间距也收齐，视觉上就是一整片。<br><b>测试</b>：<code>tv_uipanel</code> 断言改「零子标题 + 排序保留」口径（对 v60.99 复跑 2 项红实证）。CORE 109 套件全绿。</div></li>
     <li><span class="v">v60.99</span><div><b>编辑器左栏/上栏专业级升级 + 多开项目回归</b>（产品指示：调用制谱专家与 UI 专家）。<br>① <b>记号/技巧面板按制谱惯例重新分组</b>（制谱专家方案，对应 Guitar Pro 8 / MuseScore 4 习惯）：吉他侧分「拨奏」（下拨/上拨/下扫/上扫/琶音/切音/拍弦）「时值 · 装饰 · 指法」「连奏与音高」（击勾弦/滑音/推弦/揉弦/摇把/点弦）「制音与音色」（P.M./哑音/let ring/泛音/指弹）四组；简谱侧分「音高与谱号」「连接与和声」「奏法 · 力度」「力度 · 装饰音」四组——每组带小标题，找记号不再靠记位置。<br>② <b>面板按钮全面精细化</b>（UI 专家规格）：四列等宽网格、46px 定高按钮、22px 图形区+10px 标签两段式——图形基线跨钮对齐、每行齐平；字母系字形统一衬线斜体、悬停中性灰、选中朱砂描边，排列乱/图标粗糙的问题根治。<br>③ <b>上栏归整</b>：全部控件统一 28px 行高（时值组不再独高一截）、组内 2px/组间 8px 双档间距、数字等宽字体对齐、分隔线统一淡化。<br>④ <b>左轨页签 56px 定宽</b>圆角统一，按下有微沉反馈，键盘焦点可见。<br>⑤ <b>多开项目回归</b>：顶部项目页签条复活——「＋新窗口」直达新建向导另开项目，页签带谱类图标/入库状态点（绿=已入库、琥珀=未入库本机自动保存）/关闭钮；<b>窗口互不干扰</b>（各自撤销栈），<b>关闭未入库窗口自动存入「我的曲谱」绝不丢谱</b>，刷新后全部页签原样恢复；新建/导入（MusicXML/GP/MIDI/哼唱/一键配伴奏）一律另开新窗口，当前工作不再被替换。手机窄屏与观看/谱架模式不显示页签条。<br><b>测试</b>：新增 <code>tv_multidoc</code>（6 项：页签渲染/窗口隔离/关闭转存/不重复入库/启动恢复/向导直达）与 <code>tv_uipanel</code>（6 项：四列网格 46px 定高/组内序/图形区 22px/上栏 28px 行高/左轨 56px 几何断言）两套件，对 v60.98 文件复跑 <b>12 项全红</b>实证；<code>tv_safety</code> T1 改多开口径。CORE 107→<b>109 套件</b>全绿。</div></li>
     <li><span class="v">v60.98</span><div><b>观看页头部按 UI 专家规格重做 + 计数移谱库卡 + 手机拖选小节修复</b>（产品指示逐条落地）。<br>① <b>头部右上只留三钮</b>：收藏 / 分享 / 主页——点赞心、计数角标、浏览只读位全部撤下；<b>收藏点亮＝朱砂实心红星</b>（注册用户登录后云同步），点亮带一次回弹动效。<br>② <b>按 UI 设计专家规格重做「拙劣、太大个」的图标钮</b>：改「幽灵钮」——默认无边框无底色、视觉只剩 21px 字形（此前是 44px 描边圆片反客为主），40×40 盒保住触控热区、按压才浮出圆形底色；图标用灰墨色让左侧数值位保持主角，整组右移 8px 与页缘光学对齐。<br>③ <b>浏览数与收藏数改在谱库曲谱卡上显示</b>（信息条追加「N 浏览 · N 收藏」，过万缩写 N.N万）——首页/谱库/个人中心卡片同源全部生效；观看页头部浏览位不再显示（上一版在部分机型上也确实渲染不出）。<br>④ <b>手机音轨面板拖选小节修复</b>：此前手指一拖就被浏览器判成页面滚动、拖选序列被掐断——小节格加 <code>touch-action:none</code> + 指针捕获 + 按坐标取格，触屏拖动选段循环与桌面一致。<br><b>测试</b>：<code>tv_vwmob</code> 重写为 <b>5 项</b>（三钮幽灵样式/红星回弹/点外部收起/底栏轨卡/触屏拖选落选区），对 v60.97 文件复跑 <b>3 项红</b>实证；<code>tv_site</code> 卡片信息条断言追加浏览/收藏数。CORE <b>107 套件</b>全绿。</div></li>
     <li><span class="v">v60.97</span><div><b>手机观看页改版 + 曲谱浏览数/点赞体系上线</b>（产品指示逐条落地）。<br>① <b>收藏星放大</b>：头部图标钮 40→44px、字形 21→25px（此前被按钮内边距压到 18px 的问题一并根治）。<br>② <b>谱架钮移到底栏</b>：头部谱架图标撤下、底栏恢复「谱架」钮；<b>底栏 UI 统一</b>——按钮等高 46px、圆角一致、播放主钮加宽突出。<br>③ <b>音轨面板点外部自动收起</b>：点面板外任意处即收起，不必再点「音轨」钮（点面板内部/弹窗不误收）。<br>④ <b>音轨面板升级</b>：每轨改卡片式浮出（圆角底色）、音色下拉与 S/M 钮统一深色圆角；声像滑杆撤出手机版（过于专业）。<br>⑤ <b>浏览数 + 点赞 + 收藏记录</b>：谱库详情每次打开服务端计一次<b>浏览</b>，头部只读位显示（过万显示 1.2万）；新增<b>点赞</b>（桃心，登录后云同步，未登录点击就地拉起登录）；收藏/点赞钮带<b>计数角标</b>，点按即时增减；个人中心新增<b>「我的点赞」记录卡</b>（与「我的收藏」并列）；服务端新增 <code>likes</code> 表与 <code>views</code> 计数列、公开详情带 stats、点赞三接口（列表/点/取消），删谱级联清点赞。<br><b>测试</b>：<code>api/test.sh</code> 176→<b>185 项</b>（统计字段/浏览递增/点赞幂等与权限/计数增减）；新增 <code>tv_vwmob</code> 套件 4 项（统计显示与 44px 图标/点赞即时反馈/点外部收起/底栏与轨卡几何断言），对旧版文件复跑 <b>0/4 全红</b>实证。CORE 106→<b>107 套件</b>全绿。服务端随本版部署自动重启建表。</div></li>
