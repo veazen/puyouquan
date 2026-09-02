@@ -117,15 +117,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(!r.nan && !r.undef && r.dia1 && r.dia2, 'T7 谱面渲染冒烟', '无NaN=' + !r.nan + ' 和弦图可得=' + (r.dia1 && r.dia2));
 
-  // T8 编辑和弦弹窗（v39.2 单页版）：主音标签/无搜索/无调内条/无自定义指法行/22类型/试听/单页无滚动
+  // T8 编辑和弦弹窗（v39.2 单页版 → v61.2 GP 级分区卡版）：命名卡（主音/性质/低音同卡）/
+  //    无搜索/无调内条/无自定义指法行/22类型/试听/单页无滚动
   r = await pg.evaluate(() => {
     loadSong(PRESETS[0].make());
     sel = {mi:0, row:'tab', vi:0, ci:0, si:1};
     showChordEditor(0, 0, 0);
     const modal = document.querySelector('.modal');
-    const h4s = [...modal.querySelectorAll('h4')].map(h => h.textContent);
-    const hasZhuyin = h4s.some(t => t.startsWith('主音'));
-    const noGenyin = !h4s.some(t => t.startsWith('根音'));
+    const secs = [...modal.querySelectorAll('.ce-sec>b')].map(h => h.textContent);
+    const hasNaming = secs.some(t => t.startsWith('命名')) && !!modal.querySelector('.ce-roots [data-cr]');
+    const noGenyin = !secs.some(t => t.startsWith('根音'));
     const removed = !document.getElementById('ce-search') && !document.querySelector('[data-cdia]')
       && !document.querySelector('.ce-fret');
     const quals = document.querySelectorAll('[data-cq]').length;
@@ -133,10 +134,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const noNullCard = !document.querySelector('[data-cpos][data-shape="null"]');
     const onePage = modal.scrollHeight <= modal.clientHeight + 2;
     document.getElementById('ce-cancel').click();
-    return { hasZhuyin, noGenyin, removed, quals, hasPlay, noNullCard, onePage };
+    return { hasNaming, noGenyin, removed, quals, hasPlay, noNullCard, onePage };
   });
-  T(r.hasZhuyin && r.noGenyin && r.removed && r.quals >= 20 && r.hasPlay && r.noNullCard && r.onePage,
-    'T8 单页弹窗', '主音=' + r.hasZhuyin + ' 已精简=' + r.removed + ' 类型=' + r.quals + ' 无滚动=' + r.onePage);
+  T(r.hasNaming && r.noGenyin && r.removed && r.quals >= 20 && r.hasPlay && r.noNullCard && r.onePage,
+    'T8 单页弹窗（v61.2 分区卡）', '命名卡=' + r.hasNaming + ' 已精简=' + r.removed + ' 类型=' + r.quals + ' 无滚动=' + r.onePage);
 
   // T9 功能谱菜单：和弦图预览+试听入口出现
   r = await pg.evaluate(() => {
