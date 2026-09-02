@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-09-01 · 当前版本 **v60.98**（编辑器 APP_VER=v60.98） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-09-02 · 当前版本 **v60.99**（编辑器 APP_VER=v60.99） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -286,7 +286,9 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_viewer | 互动谱+节拍器：Node 侧打包注入→观看模式启动/移调不改原数据/倍速时长比/节拍器源增量/导出自打包完整性/双模式入口——6项 |
 | tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
-| tv_safety | 数据安全：迁移逐条容错（v41.5 单窗口化：历史多文档取 cur、其余转存「我的曲谱」）/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（v41.5 起=确认对话：取消保留·确认替换·已入库直接替换）/谱架·0.25×·向导提权——6项 |
+| tv_safety | 数据安全：迁移逐条容错（v60.99 多开回归：历史多文档全部恢复为页签、坏档只丢该条）/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（确认对话：取消保留·确认替换·已入库直接替换）/谱架·0.25×·向导提权——6项 |
+| tv_multidoc | v60.99 多开项目：页签渲染+addDoc 另开切换/窗口隔离+撤销栈不跨窗/关闭未入库自动转存「我的曲谱」/已入库关闭不重复入库/LS_DOCS 多文档启动恢复/＋新窗口直达向导+窄屏隐藏——6项 |
+| tv_uipanel | v60.99 左栏/上栏视觉验收（几何断言）：四列网格 46px 定高+分组序/拨奏·技巧组内序（GP8 惯例）/简谱分组+EB_ORNS 序/图形区 22px+标签 10px·500/上栏 28px 统一行高+16px 分隔线/左轨 56px 定宽圆角 10——6项 |
 | tv_dot | v41.5 双附点：循环+邻音联动/16·32分档位限制+setDur收敛/拍值1.75×·旧值兼容·播放时长/五线谱两点几何/简谱增时线新形态/MusicXML 双dot往返——6项 |
 | tv_acct | v41.7 账号系统：本机 API_ON=false 降级提示、登录弹窗结构、手机号校验拦截、stub fetch 走通登录落地、账号态/函数完备、退出清账号、既有 localStorage 键零污染——7项 |
 | tv_sync | v41.8 我的曲谱云同步：未登录不触网、保存推送云端、短id升级、登录拉取云端、mtime双向合并（本地新推云/云新覆盖本地）、删除传播、413不抛错——7项 |
@@ -464,6 +466,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v60.99 编辑器左栏/上栏专业级升级 + 多开项目回归（产品指示：调用制谱专家与 UI 专家）**：①**IA 重排（制谱专家，对应 GP8/MuseScore4 惯例）**——吉他记号面板分「拨奏（下拨/上拨/下扫/上扫/下琶音/上琶音/切音/拍弦）/时值·装饰·指法/连奏与音高/制音与音色」四组、简谱分「音高与谱号/连接与和声/奏法·力度/力度·装饰音」四组：`techHtml` 改显式键序分组输出、`EB_ORNS` 调序（dyn 置首/clr 恒尾，数组本身仅重排不改结构）、静态+动态按钮由新 `orderBody()`（10615 后）按目标序 appendChild 重排并插 `.rg-sub` 子标题（委托监听不受 DOM 移动影响；×标记受 mark-body/tech-host 两宿主限制置 G4 尾、无法与哑音跨体相邻，title 已互注）。②**视觉规格（UI 专家，全 body.shell 作用域+文末追加段书写序取胜；.ltab/上栏几何以 min-width:821px 护栏防砸手机断点）**——四宿主 `repeat(4,1fr)` 网格 4px 隙、按钮 46px 定高（22px 图形区 flex 居中+2px 隙+10px/500 标签单行省略）、字母字形 Georgia italic 700 13.5px/sup 9px/svg max-height 20（SMuFL smIcoSVG 尺寸不动）、hover 中性 `--hover`、.on=accent-soft/accent 边/accent-ink；卡 10px 圆角+`10px 11px 9px` 内距、微标题 10px/600/.08em+右侧渐隐线一个口径（.rg-title/.rg-sub/.nl-cap/.eb-t）；上栏 .eb 统一 28px（`#eb-dur .dg svg` 16×22 收进行高）、组内 2px/组间 8px、sep 16px `color-mix(border 55%)`、数字 tabular-nums 13px；左轨 `.ltab` 56px 定宽/圆角 10/图标盒 18px/rtrk .lic 15px/`.lsep` 32px；`:active translateY(.5px) scale(.98)`+`:focus-visible` accent-soft 外框；538 行 ltab:hover 朱砂边改中性（朱砂只留激活态/主行动钮/AI 徽标）；旧 362-363 横排规则与 526-532 `::before` 伪元素标题废除。**「1280 上栏单行」验收项未达**：品位 0-9+组合 7 枚内容宽约 1740px，单行需砍功能（品位折叠/组合收纳），属功能取舍留产品拍板——现状=换行兜底 2 行、行高与行内对齐已归一。③**多开项目回归（v41.5 单窗口化撤销）**——`#doc-tabs` 页签条复活（深墨绿 #1f3a34、谱类图标+标题+入库态点[绿=已入库/琥珀=未入库]+关闭×+「＋新窗口」→新建向导；observer/stand/启动台/≤820 隐藏）；`renderDocTabs` 真身+`switchDocTo`（存回 song/sel→切换→resetDocState 清撤销栈→persist/render）+`closeDocAt`（未入库有内容→自动 `newId` 存「我的曲谱」+toast，数据红线不丢谱）+委托 click；`addDoc` 改 push 另开（新建/MusicXML/GP/MIDI/哼唱/配伴奏全走此路，当前项目不再被替换，guardReplace 撤出该路径）；boot 恢复多文档（v41.5 坍缩+转存块删除，LS_DOCS 结构未变）；`loadSong` 仍替换当前页签+guardReplace 确认（既有海量套件语义不动）。**测试**：新增 `tv_multidoc` 6 项（页签渲染/窗口隔离+撤销栈不跨窗/关闭转存/不重复入库/LS_DOCS 恢复/向导直达+窄屏隐藏）+`tv_uipanel` 6 项（四列网格 46px/组内序/图形区 22px+标签 10px/上栏 28px+16px sep/左轨 56px 几何断言）——对 v60.98 文件复跑 **12 项全红**实证；`tv_safety` T1 由「单窗口收敛」改「多开页签恢复」口径。CORE 107→**109 套件**全绿。APP_VER→v60.99。
+>
 > **v60.98 头部三钮幽灵化（UI 专家规格）+ 计数移谱库卡 + 触屏拖选修复（产品指示）**：①头部只留 收藏/分享/主页，撤 `#vw-like`/`.vh-cnt`/`#vh-views` 及其 JS（likes API/我的点赞保留）；幽灵钮 40×40 无边框透明底、字形 21px、灰墨 #7d7563、hover 浮 `--hover` 圆底、`:active scale(.9)`；收藏点亮 `fill+stroke var(--accent)` 朱砂红星 + favpop 回弹（836 行双 ID 旧胶囊规则以 `(2,1,0)` 反制）。②谱库卡信息条追加「N 浏览/N 收藏」（`pubShape` 透传 views/likes/favs、pyq.js `metaBits` 过万缩写）。③手机拖选小节：`.mx-cells/#mx-prog{touch-action:none}` + `setPointerCapture` + 捕获态 `elementFromPoint` 取格（capture 后 e.target 恒为容器）。`tv_vwmob` 重写 5 项（对 v60.97 复跑 3 红）；`tv_site` 卡片断言追加计数。CORE **107 套件**全绿。APP_VER→v60.98。
 >
 > **v60.97 手机观看页改版 + 浏览/点赞体系（产品指示）**：①头部图标钮 44px/字形 25px（`padding:0`+`max-width:none` 根治全局 `svg{max-width:100%}` 被钮内边距压扁）；②谱架钮从头部 `#vh-stand` 移回底栏 `#b-stand`（≤640 隐藏清单摘除）；底栏等高 46px/圆角 13px/主钮 flex:1.7；③音轨面板点外部收起（捕获期 pointerdown，`#mixer-dock/.modal-mask/.popmenu/#quickbar/.vh-pop` 内不收）；④轨行卡片化+声像手机撤下；⑤**浏览/点赞**——`scores.views` 列（公开详情先加后读）、`likes` 表（结构同 favorites，删谱级联清）、公开详情带 `stats{views,likes,favs}`、`GET/PUT/DELETE /api/likes(:id)`（仅已发布可赞）、观看页桃心+计数角标+浏览只读位（`fmtCnt` 过万显示 N.N万，未登录点赞拉起登录）、me.html 新增「我的点赞」记录卡；events 白名单 +'like'。`api/test.sh` 176→**185 项**；新增 `tv_vwmob` 4 项（旧文件复跑 0/4 全红）；CORE 106→**107 套件**全绿。APP_VER→v60.97。

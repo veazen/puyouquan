@@ -19,15 +19,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       good('完好一'), {v:2, title:'损坏文档', measures:'不是数组'}, good('完好二')]}));
   });
   await pg1.goto(F); await pg1.waitForTimeout(1600);
-  /* v41.5 单窗口化：损坏文档仍只丢该条；当前窗口=cur 文档，其余完好文档转存「我的曲谱」可继续访问 */
+  /* v60.99 多开回归（v41.5 单窗口收敛撤销）：损坏文档仍只丢该条；其余历史窗口
+     全部恢复为项目页签（不再转存「我的曲谱」），页签条可见、切换后内容完好 */
   let r = await pg1.evaluate(() => {
-    const lib = JSON.parse(localStorage.getItem('musetab-library-v1') || '[]');
-    return { n: docs.length, cur: song.title, inLib: lib.some(x => x.title === '完好二'),
-      docTabsHidden: document.getElementById('doc-tabs').offsetParent === null,
+    hideStartPad();   // 启动台态页签条按设计隐藏——离开启动台后应可见
+    const tabs = document.querySelectorAll('#doc-tabs .dtab').length;
+    const visible = document.getElementById('doc-tabs').offsetParent !== null;
+    const cur = song.title;
+    switchDocTo(1);
+    return { n: docs.length, cur, tabs, visible, second: song.title,
       toast: document.getElementById('toast').textContent };
   });
-  T(r.n === 1 && r.cur === '完好一' && r.inLib && r.docTabsHidden,
-    'T1 损坏容错+单窗口收敛', '当前=' + r.cur + ' 其余入库=' + r.inLib + ' 标签栏隐藏=' + r.docTabsHidden);
+  T(r.n === 2 && r.cur === '完好一' && r.tabs === 2 && r.visible && r.second === '完好二',
+    'T1 损坏容错+多开页签恢复', '当前=' + r.cur + ' 页签=' + r.tabs + '(可见=' + r.visible + ') 切换后=' + r.second);
   await pg1.close();
 
   // 之后的用例用干净页面
