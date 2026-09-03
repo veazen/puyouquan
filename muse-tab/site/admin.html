@@ -236,14 +236,19 @@
 
   /* ---- v60.90 课程发布工作台：列表 + 编辑器（章节=谱面+图文+练习任务）+ 发布/下架/删除 ----
      数据模型见 api/db.js courses 表；学习页（kecheng.html）以 /api/courses 为准即时生效。 */
-  var CRS_INST={guitar:'吉他',piano:'钢琴',uku:'尤克里里',vocal:'唱歌/视唱',kids:'幼儿启蒙',other:'其他'};
+  var CRS_INST={guitar:'吉他',piano:'钢琴',uku:'尤克里里',vocal:'唱歌/视唱',theory:'乐理/识谱',kids:'幼儿启蒙',other:'其他'};
   function adCourses(){
     api('/admin/courses').then(function(j){
       var rows=j.courses||[];
       adPane('<div class="ad-racts" style="justify-content:flex-end;margin-bottom:8px"><button class="ad-b ok" id="crs-new">＋ 新建课程</button></div>'
         +(rows.length? rows.map(function(c){
+          /* v61.8 列表补内容体量：章节数与闯关题数一眼可见 */
+          var st2={chs:0,qs:0};
+          try{ var dd=JSON.parse(c.data||'{}'); st2.chs=(dd.chapters||[]).length;
+            (dd.chapters||[]).forEach(function(ch){ st2.qs+=(ch.quiz||[]).length; }); }catch(_){}
           return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(c.title)+'</b>'
-            +'<small>'+esc(CRS_INST[c.instrument]||c.instrument||'—')+' · '+esc(c.level||'—')+' · '+(c.weeks|0)+' 周 · 改于 '+FMT(c.updated_at)+'</small></div>'
+            +'<small>'+esc(CRS_INST[c.instrument]||c.instrument||'—')+' · '+esc(c.level||'—')+' · '+(c.weeks|0)+' 周 · '
+            +st2.chs+' 章'+(st2.qs?(' · '+st2.qs+' 题'):'')+' · 改于 '+FMT(c.updated_at)+'</small></div>'
             +'<div class="ad-racts">'+(c.status==='published'?'<i class="k k-ok">已发布</i>':'<i class="k k-wait">草稿</i>')
             +'<button class="ad-b" data-edit="'+esc(c.id)+'">编辑</button>'
             +(c.status==='published'
@@ -277,16 +282,22 @@
     var d=(c.data&&typeof c.data==='object')?c.data:{};
     var chs=(d.chapters||[]).map(function(x){ return JSON.parse(JSON.stringify(x)); });
     function chBlock(ch,i){
+      /* v61.8 闯关题序列化：一行一题 题干|选项…|答案序号|解析（解析可空；[[1' 2_]] 记号语法见占位提示） */
+      var quizTxt=(ch.quiz||[]).map(function(t){
+        return [t.q].concat(t.opts||[]).concat([(t.a|0)+1, t.why||'']).join('|'); }).join('\n');
       return '<fieldset class="crs-ch" data-ci="'+i+'"><legend>第 '+(i+1)+' 章'
         +'<button type="button" class="ad-b" data-chup="'+i+'" '+(i?'':'disabled')+'>↑</button>'
+        +'<button type="button" class="ad-b" data-chdn="'+i+'">↓</button>'
         +'<button type="button" class="ad-b no" data-chdel="'+i+'">删除</button></legend>'
         +'<div class="ad-search" style="margin:0 0 8px"><input data-f="emoji" value="'+esc(ch.emoji||'')+'" placeholder="表情" style="max-width:70px">'
         +'<input data-f="title" value="'+esc(ch.title||'')+'" placeholder="章节标题（必填）"></div>'
-        +'<input data-f="goal" value="'+esc(ch.goal||'')+'" placeholder="学习目标（一句话）">'
-        +'<textarea data-f="points" rows="3" placeholder="内容点：一行一条">'+esc((ch.points||[]).join('\n'))+'</textarea>'
+        +'<input data-f="goal" value="'+esc(ch.goal||'')+'" placeholder="学习目标（一句话；发布要求必填）">'
+        +'<textarea data-f="points" rows="3" placeholder="内容点：一行一条（发布要求至少 1 条）">'+esc((ch.points||[]).join('\n'))+'</textarea>'
         +'<input data-f="task" value="'+esc(ch.task||'')+'" placeholder="练习任务（可量化：次数/拍速/时长）">'
         +'<textarea data-f="links" rows="2" placeholder="配套谱/资源：一行一条，格式 文字|地址（如 谱库《小星星》|index.html?q=小星星）">'
-        +esc((ch.links||[]).map(function(l){ return (l.t||'')+'|'+(l.href||''); }).join('\n'))+'</textarea></fieldset>';
+        +esc((ch.links||[]).map(function(l){ return (l.t||'')+'|'+(l.href||''); }).join('\n'))+'</textarea>'
+        +'<textarea data-f="quiz" rows="3" placeholder="闯关题（学习页自动变成闯关打卡）：一行一题，格式 题干|选项1|选项2|…|答案序号|解析。选项 2-4 个；题干/选项/解析里可用 [[1\' 2_ 3-]] 写简谱记号（\'=高音点 ,=低音点 -=增时线 _=减时线 .=附点）">'
+        +esc(quizTxt)+'</textarea></fieldset>';
     }
     function draw(){
       adPane('<div class="ad-bcast">'
@@ -303,21 +314,34 @@
         +'<textarea id="crs-intro" rows="2" maxlength="500" placeholder="课程简介">'+esc(c.intro||'')+'</textarea>'
         +'<div id="crs-chs">'+chs.map(chBlock).join('')+'</div>'
         +'<div class="ad-racts"><button class="ad-b" id="crs-add">＋ 添加章节</button>'
+        +'<button class="ad-b" id="crs-preview">🔍 预览草稿</button>'
         +'<span style="flex:1"></span>'
         +'<button class="ad-b" id="crs-back">返回列表</button>'
         +'<button class="ad-b ok" id="crs-save">保存草稿</button>'
         +'<button class="ad-b ok" id="crs-savepub">保存并发布</button></div>'
-        +'<p class="pc-empty" style="text-align:left">章节模型＝谱面（配套链接指向谱库/观看页/帮助）+ 图文（目标与内容点）+ 练习任务；保存后学习页以服务端数据为准即时生效。</p></div>');
+        +'<p class="pc-empty" style="text-align:left">章节模型＝谱面（配套链接指向谱库/观看页/帮助）+ 图文（目标与内容点）+ 练习任务 + 闯关题（填了题目学习页自动变成闯关打卡：逐章解锁、答题通关得星）；「预览草稿」不落库先看效果，保存后学习页以服务端数据为准即时生效。</p></div>');
       collectWire();
     }
     function collect(){
       document.querySelectorAll('#crs-chs .crs-ch').forEach(function(f,i){
         var g=function(n){ var el=f.querySelector('[data-f="'+n+'"]'); return el? el.value:''; };
+        /* v61.8 闯关题解析：最后一个纯数字字段=答案序号（1 起），其后全部并回解析——
+           选项数 2-4 由此自然可变；坏行保留原文并打 _bad 标记，保存时定位报错 */
+        var quiz=g('quiz').split('\n').map(function(x){ return x.trim(); }).filter(Boolean).map(function(x){
+          var ps=x.split('|').map(function(s){ return s.trim(); });
+          var ai=-1;
+          for(var k=ps.length-1;k>=1;k--){ if(/^[1-9][0-9]*$/.test(ps[k])){ ai=k; break; } }
+          if(ai<3) return { _bad:x };   /* 至少 题干+2 选项+序号 → 序号最早在下标 3 */
+          var opts=ps.slice(1,ai), a=(+ps[ai])-1, why=ps.slice(ai+1).join('|');
+          if(!ps[0]||opts.length<2||opts.length>4||a<0||a>=opts.length) return { _bad:x };
+          var t={ q:ps[0], opts:opts, a:a }; if(why) t.why=why; return t;
+        });
         chs[i]={ emoji:g('emoji').trim(), title:g('title').trim(), goal:g('goal').trim(),
           points:g('points').split('\n').map(function(x){ return x.trim(); }).filter(Boolean),
           task:g('task').trim(),
           links:g('links').split('\n').map(function(x){ var m2=x.split('|'); return { t:(m2[0]||'').trim(), href:(m2[1]||'').trim() }; })
             .filter(function(l){ return l.t&&l.href; }) };
+        if(quiz.length) chs[i].quiz=quiz;
       });
     }
     function collectWire(){
@@ -326,11 +350,11 @@
         collect(); chs.splice(+b.dataset.chdel,1); draw(); }; });
       document.querySelectorAll('[data-chup]').forEach(function(b){ b.onclick=function(){
         collect(); var i=+b.dataset.chup; if(i>0){ var t=chs[i-1]; chs[i-1]=chs[i]; chs[i]=t; } draw(); }; });
+      document.querySelectorAll('[data-chdn]').forEach(function(b){ b.onclick=function(){
+        collect(); var i=+b.dataset.chdn; if(i<chs.length-1){ var t=chs[i+1]; chs[i+1]=chs[i]; chs[i]=t; } draw(); }; });
       document.getElementById('crs-back').onclick=function(){ if(confirm('未保存的修改将丢失，返回列表？')) adCourses(); };
-      var save=function(alsoPub){
-        collect();
-        var id=document.getElementById('crs-id').value.trim();
-        var body={ title:document.getElementById('crs-title').value.trim(),
+      var mkBody=function(){
+        return { title:document.getElementById('crs-title').value.trim(),
           subtitle:document.getElementById('crs-sub').value.trim(),
           instrument:document.getElementById('crs-inst').value,
           level:document.getElementById('crs-level').value.trim(),
@@ -339,8 +363,27 @@
           intro:document.getElementById('crs-intro').value.trim(),
           data:{ emoji:document.getElementById('crs-emoji').value.trim()||'🎼',
                  fam:document.getElementById('crs-fam').value, chapters:chs } };
+      };
+      /* v61.8 预览草稿：当前编辑内容（含未保存修改）放本机 localStorage，学习页 ?preview=1 只渲染这一门 */
+      document.getElementById('crs-preview').onclick=function(){
+        collect();
+        var id=document.getElementById('crs-id').value.trim()||'crs-preview';
+        try{ localStorage.setItem('pyq-crs-preview', JSON.stringify(Object.assign({id:id}, mkBody()))); }catch(_){}
+        window.open('kecheng.html?preview=1','_blank');
+      };
+      var save=function(alsoPub){
+        collect();
+        var id=document.getElementById('crs-id').value.trim();
+        var body=mkBody();
         if(!/^[a-z0-9-]{3,48}$/.test(id)) return adMsg('课程 id 需为 3-48 位小写字母/数字/连字符');
         if(!body.title) return adMsg('课程标题必填');
+        /* v61.8 保存前校验：闯关题坏行随时拦；目标/内容点只在「保存并发布」时强制（草稿放行） */
+        for(var vi=0; vi<chs.length; vi++){
+          var bad=(chs[vi].quiz||[]).find(function(t){ return t._bad; });
+          if(bad) return adMsg('第 '+(vi+1)+' 章闯关题格式不对：「'+bad._bad.slice(0,40)+'…」——需 题干|选项×2-4|答案序号|解析');
+          if(alsoPub && (!chs[vi].goal || !(chs[vi].points||[]).length))
+            return adMsg('第 '+(vi+1)+' 章缺「学习目标」或「内容点」——发布要求每章都有');
+        }
         adMsg('保存中…');
         api('/admin/courses/'+encodeURIComponent(id),{method:'PUT',body:body}).then(function(){
           if(!alsoPub){ adMsg('已保存草稿'); c.id=id; c.status=c.status||'draft'; return; }

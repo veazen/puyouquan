@@ -959,7 +959,23 @@ const routes = [
     const c = q.courseGet.get(m[1]);
     if (!c) throw new ApiError(404, '课程不存在');
     const st = m[2] === 'publish' ? 'published' : 'draft';
-    if (st === 'published' && !(JSON.parse(c.data || '{}').chapters || []).length) throw new ApiError(400, '没有章节的课程不能发布');
+    /* v61.8 发布校验强化：除「须有章节」外，闯关题结构非法（题干空/选项不在 2-4 个/答案序号越界）
+       一律拒发并定位到章与题——防把坏题发到学习页让闯关卡死。草稿随便存，发布才把关。 */
+    if (st === 'published') {
+      const chs = (JSON.parse(c.data || '{}').chapters || []);
+      if (!chs.length) throw new ApiError(400, '没有章节的课程不能发布');
+      chs.forEach((ch, i) => {
+        const qz = ch && ch.quiz;
+        if (qz == null) return;
+        if (!Array.isArray(qz)) throw new ApiError(400, '第 ' + (i + 1) + ' 章闯关题格式不对（需为数组）');
+        qz.forEach((t, j) => {
+          if (!t || typeof t !== 'object' || !String(t.q || '').trim()
+            || !Array.isArray(t.opts) || t.opts.length < 2 || t.opts.length > 4
+            || !Number.isInteger(t.a) || t.a < 0 || t.a >= t.opts.length)
+            throw new ApiError(400, '第 ' + (i + 1) + ' 章第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+        });
+      });
+    }
     q.courseSetStatus.run(st, now(), c.id);
     adminLog(u.id, m[2] === 'publish' ? 'course-pub' : 'course-off', c.id, c.title);
     return { ok: true, status: st };

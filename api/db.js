@@ -286,7 +286,8 @@ const q = {
   courseGetPub:  db.prepare(`SELECT id,title,subtitle,instrument,level,weeks,intro,data,updated_at
                              FROM courses WHERE id = ? AND status='published'`),
   courseGet:     db.prepare('SELECT * FROM courses WHERE id = ?'),
-  courseAll:     db.prepare('SELECT id,title,subtitle,instrument,level,weeks,status,sort,updated_at FROM courses ORDER BY sort, created_at, rowid'),
+  /* v61.8 工作台列表带 data：渲染「N 章 · N 题」体量列（列表页量级小，整列带回可接受） */
+  courseAll:     db.prepare('SELECT id,title,subtitle,instrument,level,weeks,status,sort,data,updated_at FROM courses ORDER BY sort, created_at, rowid'),
   courseCount:   db.prepare('SELECT COUNT(*) AS n FROM courses'),
   courseUpsert:  db.prepare(`INSERT INTO courses(id,user_id,title,subtitle,instrument,level,weeks,intro,sort,data,created_at,updated_at)
                              VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
@@ -428,23 +429,25 @@ function seedPublished(){
 try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响启动）:', e.message); }
 
 /* ---------- v60.90 种子：官方课程（seed-courses.json 单一内容源；kecheng.html 内嵌同一份做
-   SEO/离线兜底，两处同步由 tv_site 测试钉住）。仅在 courses 表为空时插入——之后以工作台编辑为准，
-   重启不覆盖管理员的修改。 ---------- */
+   SEO/离线兜底，两处同步由 tv_site 测试钉住）。
+   v61.8 改「按 id 补种」：只插入库里还没有的课程 id——存量服务器也能拿到随发版新增的官方课
+   （此前「表非空即跳过」导致新课永远到不了生产库）；已存在的 id 一律不动，重启不覆盖管理员的修改。 ---------- */
 function seedCourses(){
-  if(q.courseCount.get().n > 0) return;
+  const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-courses.json'), 'utf8'));
+  const missing = list.filter(c => !q.courseGet.get(c.id));
+  if(!missing.length) return;
   let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
   if(!sys){ const id = 'official0000';
     q.userCreate.run(id, '00000000000', '谱友圈官方', now());
     q.userSetRole.run('creator', id); sys = { id };
   }
-  const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-courses.json'), 'utf8'));
   const t = now();
-  list.forEach((c, i) => {
+  missing.forEach(c => {
     q.courseUpsert.run(c.id, sys.id, c.title, c.subtitle || '', c.instrument || '', c.level || '',
-      c.weeks | 0, c.intro || '', i, JSON.stringify(c.data || {}), t, t);
+      c.weeks | 0, c.intro || '', list.indexOf(c), JSON.stringify(c.data || {}), t, t);
     q.courseSetStatus.run('published', t, c.id);
   });
-  console.log('已插入官方课程：' + list.length + ' 门');
+  console.log('已补种官方课程：' + missing.length + ' 门');
 }
 try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 

@@ -138,6 +138,12 @@ chk 非法课程id被拒 '小写字母' "$(J2 -X PUT 'http://127.0.0.1:3199/api/
 chk 无章节课程不能发布 '不能发布' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-2 -d '{"title":"空课"}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-2/publish)"
 chk 发布课程 '"status":"published"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/publish)"
 chk 发布后公开可见 '测试课' "$(curl -s http://127.0.0.1:3199/api/courses)"
+# v61.8 认识简谱课程（按 id 补种）+ 闯关题发布校验
+chk 课程种子含认识简谱 'course-jianpu-renshi' "$(curl -s http://127.0.0.1:3199/api/courses)"
+chk 简谱课含闯关题 '"quiz"' "$(curl -s http://127.0.0.1:3199/api/courses/course-jianpu-renshi)"
+chk 简谱课六关齐全 '连线、反复与你的第一首谱' "$(curl -s http://127.0.0.1:3199/api/courses/course-jianpu-renshi)"
+chk 坏闯关题拒发并定位 '第 1 章第 1 题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-3 -d '{"title":"闯关校验","data":{"chapters":[{"title":"一","quiz":[{"q":"","opts":["a"],"a":5}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-3/publish)"
+chk 修好闯关题可发布 '"status":"published"' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-3 -d '{"title":"闯关校验","data":{"chapters":[{"title":"一","quiz":[{"q":"1+1=?","opts":["1","2"],"a":1,"why":"basic"}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-3/publish)"
 chk 已发布课程不能直删 '先下架' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
 chk 下架课程 '"status":"draft"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/unpublish)"
 chk 删除草稿课程 '"ok":true' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
