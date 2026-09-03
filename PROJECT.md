@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-09-02 · 当前版本 **v61.2**（编辑器 APP_VER=v61.2） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-09-02 · 当前版本 **v61.3**（编辑器 APP_VER=v61.3） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -287,7 +287,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_dock | 左栏谱类感知：8类型页签/面板集合与排序断言、＋歌词行流程、专属按钮真实生效、旧控件齐全——10项 |
 | tv_tech | 揉弦/闷音：波峰数随时值、扩选范围几何断言（波浪/虚线末端落在末音列格）、单音兼容、滑弦成链兼容——5项 |
 | tv_safety | 数据安全：迁移逐条容错（v60.99 多开回归：历史多文档全部恢复为页签、坏档只丢该条）/渲染异常不落盘自动撤销/配额失败提示/loadSong 防覆盖（确认对话：取消保留·确认替换·已入库直接替换）/谱架·0.25×·向导提权——6项 |
-| tv_chordgp | v61.2 和弦 GP 级强化：chordIvOf 解析引擎（组合后缀/括号/兜底）/组合和弦 algoShape 出图+音集/变化音四行+空性质括号命名/省略内音+推导卡+两音守卫/构成音度数拼写（Ddim7→D F A♭ C♭）/弹窗拖动+应用往返拆回——6项 |
+| tv_chordgp | v61.2 和弦 GP 级强化：chordIvOf 解析引擎（组合后缀/括号/兜底）/组合和弦 algoShape 出图+音集/变化音四行+空性质括号命名/省略内音+推导卡+两音守卫/构成音度数拼写（Ddim7→D F A♭ C♭）/弹窗拖动+应用往返拆回/v61.3 分卡+♯♭异名切换+69+多把位滚动——7项 |
 | tv_nowrap | v61.1 不换行模式（横向长带）：编辑态长带几何（单行/自然宽单调/单页无页码/页头留左端首屏）/打印强制回分页/播放横向跟滚/关闭还原/观看态独立开关+手机 fit 豁免/缩图恒按分页烤 2:1——6项 |
 | tv_multidoc | v60.99 多开项目：页签渲染+addDoc 另开切换/窗口隔离+撤销栈不跨窗/关闭未入库自动转存「我的曲谱」/已入库关闭不重复入库/LS_DOCS 多文档启动恢复/＋新窗口直达向导+窄屏隐藏——6项 |
 | tv_uipanel | v60.99→v61.0 左栏/上栏视觉验收（几何断言）：四列连续平铺（sign 宿主网格+子 body contents、零分类子标题、seamless 行分布）46px 定高/拨奏·技巧组内序（GP8 惯例）/EB_ORNS 序/图形区 22px+标签 10px·500/上栏 28px 统一行高+16px 分隔线/左轨 56px 定宽圆角 10——6项 |
@@ -468,6 +468,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v61.3 和弦构建器四项强化（产品指示）**：①主音/类型拆两卡；②♯/♭ 异名切换——`ceState.accPref`（''混合/'sharp'/'flat'）驱动整排拼法（复用 2774 行既有 `PC_SHARP/PC_FLAT`——**又踩了 v37.2 重名坑**：先在 4167 重复声明白屏、语法闸不拦运行时重复 const，grep 后改复用）、主音/低音同步换等音名、`chordShape` 等音兜底（D#m→Ebm 库图）；③69 和弦：`CHORD_QUALS` 加 chip（QUAL_INTERVALS['69'] v61.2 已有）；④把位方案滚动网格：新引擎 `algoShapes(opens,rootPc,iv,cap)` 沿指板 1→12 品逐 4 品窗口枚举（**坑**：高把位窗口必须禁空弦——音集含多个空弦音时所有窗口先命中空弦、12 窗口去重后只剩 2 个方案，实测 C69），与库图/CAGED 混排去重、`.ce-poswrap` max-height 218 滚动、撤 v39.6「3 张+更多」折叠。`tv_chordgp` 6→7 项（对 v61.2 复跑 T7 红）；`tv_chordlib` T8/T14 随口径更新。CORE **111 套件**全绿。APP_VER→v61.3。
+>
 > **v61.2 和弦功能 GP 级强化（产品指示：参考 Guitar Pro 面板逻辑、弹窗可拖动、自家风格 UI）**：①理论层——`QUAL_INTERVALS` 补 17 个延伸/变化类型（m11/maj13/m13/69/add11/aug7/7b5/7#5/7b9/7#9/9b5/9#5/maj7b5/maj7#5/7#11/maj7#11/7b13）+ 新引擎 `chordIvOf(suffix)`：最长基础后缀匹配 + 变化 token（b5/#5/b9/add9/#9/add11/#11/b13/add13/sus…）逐个应用、括号跳过（GP 书写 C7(b9) 兼容），残渣不识别时 known=false→调用方按旧「兜底大三」口径（老谱零回归）；`chordTones`（播放）与 `chordShape`（谱面图，模板缺型走 algoShape 推导）同源接入。②构建器（showChordEditor）分区卡重构：命名/延伸·变化音四行（每行互斥再点取消）/构成音（`ceSpell` 按度数拼写——Ddim7→D·F·A♭·C♭，点击省略、至少留两音守卫）/创建和弦四卡 + 右栏大图/构成音行/把位方案（新增「推导」卡=`ceEffIv()` 变化+省略后的实际音集 algoShape 搜索）；`ceSplitQual` 把既有组合名拆回点亮态。**命名歧义坑（实测踩过）**：空性质裸拼 Cb9/C#9 会被 root 正则读成 C♭/C♯ 和弦——空性质时变化 token 必须括号包 `C(b9)`（`ceFullQual`），chordIvOf/ceSplitQual 均认括号。③弹窗拖动：showModal h3 把手既有，标题栏加「⠿ 按住标题可拖动」提示 + setPointerCapture 容错；右栏和弦名改 `#ce-title`（`.ce-sec>b` 卡标题会截胡旧 `.modal b` 选择器——实测踩过）。新增 `tv_chordgp` 6 项（对 v61.1 复跑 0/6 全红实证）；`tv_chordlib` T8 随分区卡布局更新口径。CORE 110→**111 套件**全绿。APP_VER→v61.2。
 >
 > **v61.1 不换行模式：横向长带编辑与看谱（产品指示）**：全部小节排成一条横向长带（GP/MuseScore 连续视图惯例）。实现＝最小侵入三件套：① `noWrapOn()/setNoWrap()`（4268 区，编辑/观看各记各键 `musetab-nowrap`/`musetab-nowrap-view` 新增键；PRINT_PAGING 或谱架态恒 false）；② `layoutSystems` 开头单系统分支——自然宽直排、断行 DP/两端对齐/拉压全不走；③ `render()` 内 `CONTENT_W`（局部量，`PAGE_W` 本身不动——页头/和弦带仍按标准版宽居中在长带左端首屏，fitViewWidth/排版参数照旧），pagebg/viewBox/svg width/PV_GEO 全走 CONTENT_W；noPaging 并入 nowrap（页高=恰好内容高）。**坑（实测踩过）**：`body.nwrap` 类必须在 render 量 `#paper.clientWidth` **之前**同步——`width:max-content` 会把 clientWidth 撑到内容宽，关闭后类还挂着版宽会按膨胀值错算一帧（870→1320）。配套：播放光标 `highlight()` ci===0 改横向跟滚（#score-wrap.scrollTo left，走近右缘前移）；`beforeprint` 强制分页扩到 nowrap；`buildThumbCanvas` 借用期 `PRINT_PAGING=true`（缩图恒按分页烤，keep.pp 还原）；fit-to-width 两处（413/420 区）加 `:not(.nwrap)` 豁免——手机长带按原比例横滑不缩屏；文末 CSS `body.nwrap #paper{width:max-content}` + `#score-wrap{overflow-x:auto}`（编辑器外壳滚动条改可见细条）。入口：编辑=顶栏缩放旁 `#eb-nowrap` ↔ 钮（ebHandler 委托、render 同步 .on）；观看=⚙ 观看设置 `#vs-nowrap`。新增 `tv_nowrap` 6 项（长带几何/打印兜底/横向跟滚/关闭还原/观看独立键+fit 豁免/缩图 2:1），对 v61.0 复跑 **0/6 全红**实证。CORE 109→**110 套件**全绿。APP_VER→v61.1。

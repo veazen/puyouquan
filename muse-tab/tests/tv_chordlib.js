@@ -125,7 +125,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     showChordEditor(0, 0, 0);
     const modal = document.querySelector('.modal');
     const secs = [...modal.querySelectorAll('.ce-sec>b')].map(h => h.textContent);
-    const hasNaming = secs.some(t => t.startsWith('命名')) && !!modal.querySelector('.ce-roots [data-cr]');
+    /* v61.3 产品指示「主音和类型要区分开来」：命名卡拆成 主音/类型 两卡 */
+    const hasNaming = secs.some(t => t.startsWith('主音')) && secs.some(t => t.startsWith('类型'))
+      && !!modal.querySelector('.ce-roots [data-cr]');
     const noGenyin = !secs.some(t => t.startsWith('根音'));
     const removed = !document.getElementById('ce-search') && !document.querySelector('[data-cdia]')
       && !document.querySelector('.ce-fret');
@@ -137,7 +139,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { hasNaming, noGenyin, removed, quals, hasPlay, noNullCard, onePage };
   });
   T(r.hasNaming && r.noGenyin && r.removed && r.quals >= 20 && r.hasPlay && r.noNullCard && r.onePage,
-    'T8 单页弹窗（v61.2 分区卡）', '命名卡=' + r.hasNaming + ' 已精简=' + r.removed + ' 类型=' + r.quals + ' 无滚动=' + r.onePage);
+    'T8 单页弹窗（v61.3 主音/类型分卡）', '分卡=' + r.hasNaming + ' 已精简=' + r.removed + ' 类型=' + r.quals + ' 无滚动=' + r.onePage);
 
   // T9 功能谱菜单：和弦图预览+试听入口出现
   r = await pg.evaluate(() => {
@@ -222,7 +224,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.ok && r.num === '10' && r.fits, 'T13 两位数把位不裁切', '把位=' + r.num + ' 左缘=' + (r.leftEdge != null && r.leftEdge.toFixed(1)));
 
-  // T14 v39.5/39.6：用户库停用（残留不顶掉标准C）+ CAGED 排序 + 3张默认「更多」展开 + 主音单行
+  // T14 v39.5/39.6：用户库停用（残留不顶掉标准C）+ CAGED 排序 + 主音单行；
+  //     v61.3 产品指示「更多把位方案（滚动条）」：3张+「更多」折叠撤销 → 全量渲染 + 滚动容器
   r = await pg.evaluate(() => {
     localStorage.setItem('musetab-userchords', JSON.stringify({C: '8aa988'}));   // 模拟历史残留
     loadSong(PRESETS[0].make());
@@ -232,19 +235,19 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const vs = positionVariants();
     const sorted = vs.every((v, i) => i === 0 || vs[i-1].pos <= v.pos);
     const caged = ['A型','G型','E型','D型'].every(f => vs.some(v => v.label.includes(f)));
-    const shown3 = document.querySelectorAll('[data-cpos]').length === 3;
-    const moreBtn = document.getElementById('ce-posmore');
-    moreBtn.click();
-    const expanded = document.querySelectorAll('[data-cpos]').length === vs.length;
+    const shownAll = document.querySelectorAll('[data-cpos]').length === vs.length;
+    const noMore = !document.getElementById('ce-posmore');
+    const pw = document.getElementById('ce-pos');
+    const scrollable = getComputedStyle(pw).overflowY === 'auto';
     const tops = [...document.querySelectorAll('[data-cr]')].map(b => b.offsetTop);
     const oneRow = tops.every(t => t === tops[0]);
     document.getElementById('ce-cancel').click();
     localStorage.removeItem('musetab-userchords');
-    return { cStd, noUser, sorted, caged, n: vs.length, shown3, expanded, oneRow,
+    return { cStd, noUser, sorted, caged, n: vs.length, shownAll, noMore, scrollable, oneRow,
       order: vs.map(v => v.label + '@' + v.pos).join(' ') };
   });
-  T(r.cStd && r.noUser && r.sorted && r.caged && r.n >= 5 && r.shown3 && r.expanded && r.oneRow,
-    'T14 CAGED排序/3+更多/主音单行', 'C标准=' + r.cStd + ' 默认3张=' + r.shown3 + ' 展开=' + r.expanded + ' 单行=' + r.oneRow + ' | ' + r.order);
+  T(r.cStd && r.noUser && r.sorted && r.caged && r.n >= 8 && r.shownAll && r.noMore && r.scrollable && r.oneRow,
+    'T14 CAGED排序/全量+滚动/主音单行', 'C标准=' + r.cStd + ' 全量=' + r.shownAll + '(' + r.n + '张) 滚动=' + r.scrollable + ' 单行=' + r.oneRow);
 
   // T15 v39.6 创建流：点按钮→空白→命名→保存
   r = await pg.evaluate(() => {

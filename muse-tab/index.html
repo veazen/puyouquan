@@ -1862,6 +1862,14 @@ body.shell.nwrap:not(.stand):not(.viewer) #score-wrap::-webkit-scrollbar-thumb{
 .chip.ce-tone.off b{text-decoration:line-through}
 .ce-toneline{font-size:12px;color:var(--muted);letter-spacing:.06em;margin-top:2px;
   font-variant-numeric:tabular-nums}
+/* v61.3 主音卡 ♯/♭ 切换（标题行右侧）与把位方案滚动网格 */
+.ce-accw{display:inline-flex;gap:3px;margin-left:auto}
+.ce-accw .chip.ce-acc{min-width:26px;padding:1px 7px;font-size:13px;line-height:1.4}
+.ce-poswrap{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:4px;
+  max-height:218px;overflow-y:auto;overscroll-behavior:contain;
+  scrollbar-width:thin;padding-right:2px}
+.ce-poswrap::-webkit-scrollbar{width:7px}
+.ce-poswrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--border) 85%,transparent);border-radius:4px}
 @media print{
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
@@ -4155,13 +4163,15 @@ const CHORD_SHAPES = {
 };
 /* 和弦分类（编辑器网格用） */
 const CHORD_ROOTS = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+/* v61.3 异名同音切换（产品指示：♯G＝♭A 可切换）：构建器主音区 ♯/♭ 整排换拼法——
+   复用 2774 行既有 PC_SHARP/PC_FLAT 常量（v37.2 教训：先 grep 再命名，这里真撞过一次） */
 const CHORD_QUALS = [
   {suf:'', label:'大三'},{suf:'m', label:'小三'},{suf:'7', label:'属七'},
   {suf:'maj7', label:'大七'},{suf:'m7', label:'小七'},{suf:'6', label:'六'},
   {suf:'sus4', label:'挂四'},{suf:'sus2', label:'挂二'},{suf:'add9', label:'加九'},
   {suf:'dim', label:'减'},{suf:'aug', label:'增'},{suf:'9', label:'九'},
   /* v39.0 与功能谱后缀口径统一（模板引擎全支持） */
-  {suf:'m6', label:'小六'},{suf:'dim7', label:'减七'},{suf:'m7b5', label:'半减'},
+  {suf:'m6', label:'小六'},{suf:'69', label:'六九'},{suf:'dim7', label:'减七'},{suf:'m7b5', label:'半减'},
   {suf:'maj9', label:'大九'},{suf:'m9', label:'小九'},{suf:'11', label:'十一'},
   {suf:'13', label:'十三'},{suf:'5', label:'强力'},{suf:'7sus4', label:'七挂四'},
   {suf:'mmaj7', label:'小大七'}
@@ -4214,7 +4224,16 @@ function chordShape(n){
   /* 1) 人工精修库优先（开放把位手感最好） 2) 未命中 → 可移调模板推导 3) 再兜底通用搜索
      —— 12 根音 × 20+ 类型 × 任意斜杠低音全覆盖（v39.0） */
   const uku = instOf()==='uku';
-  const std = uku? UKU_SHAPES[n] : CHORD_SHAPES[n];
+  let std = uku? UKU_SHAPES[n] : CHORD_SHAPES[n];
+  /* v61.3 异名同音兜底：D#m 查不到库图时按 Ebm 再查——精修库键用混合拼法（C#/Eb/F#/Ab/Bb），
+     ♯/♭ 切换出的等音拼法同样拿到手感最好的库图 */
+  if(!std){
+    const em = /^([A-G][#b])(.*)$/.exec(n);
+    if(em && NOTE_PC[em[1]]!=null){
+      const alt = CHORD_ROOTS[NOTE_PC[em[1]]];
+      if(alt !== em[1]) std = uku? UKU_SHAPES[alt+em[2]] : CHORD_SHAPES[alt+em[2]];
+    }
+  }
   if(std) return std;
   const p = parseChordName(n);
   if(!p) return null;
@@ -4301,6 +4320,33 @@ function algoShape(opens, rootPc, iv){
       return frets.map(fr=> fr==null?'x':FRET_36(fr)).join('');
   }
   return null;
+}
+/* v61.3 把位枚举（GP「选取」网格同型）：沿指板逐窗口搜索可按组合，产出多个把位方案。
+   与 algoShape 同一判据（含根音、≥3 个不同音、≥3 弦可按），按 4 品窗口自 1 品扫到 12 品，
+   shape 去重；供构建器「把位方案」滚动网格使用 */
+function algoShapes(opens, rootPc, iv, cap){
+  const pcSet = new Set(Object.values(iv).map(v=>(rootPc+v)%12));
+  const need = Math.min(3, pcSet.size);
+  const out=[], seen=new Set();
+  for(let base=1; base<=12; base++){
+    const frets=[], got=new Set();
+    for(const op of opens){
+      let pick=null;
+      /* 1 品窗口允许空弦（开放把位）；高把位窗口只在窗口内取音——否则音集含多个空弦音时
+         所有窗口都先命中空弦、产出同一方案（实测 C69 十二个窗口去重后只剩 2 个） */
+      for(let fr=(base===1?0:base); fr<=base+3; fr++){
+        if(fr!==0 && fr<base) continue;
+        if(pcSet.has((op+fr)%12)){ pick=fr; break; }
+      }
+      if(pick==null){ frets.push(null); continue; }
+      frets.push(pick); got.add((op+pick)%12);
+    }
+    if(!got.has(rootPc%12) || got.size<need) continue;
+    if(frets.filter(x=>x!=null).length < Math.min(3,opens.length)) continue;
+    const sh = frets.map(fr=> fr==null?'x':FRET_36(fr)).join('');
+    if(!seen.has(sh)){ seen.add(sh); out.push(sh); if(out.length>=(cap||10)) break; }
+  }
+  return out;
 }
 const UKU_OPEN_PC = [7,0,4,9];   // 尤克里里 GCEA（按指法串字符序 4弦→1弦）
 /* 和弦名 → {rootPc, qual, bassPc}；解析失败返回 null */
@@ -12617,9 +12663,11 @@ function showChordEditor(mi, ci, vi){
   const existing = song.measures[mi].tabs[vi][ci].chord || chordBefore(mi,vi) || 'C';
   const m = existing.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
   const sq = ceSplitQual((m&&m[2])||'');
+  const root0 = (m&&NOTE_PC[m[1]]!=null)? m[1]:'C';
   ceState = { mi, ci, vi,
-    root: (m&&NOTE_PC[m[1]]!=null)? m[1]:'C',
-    qual: sq.base, alt: sq.alt, omit:{},
+    root: root0, qual: sq.base, alt: sq.alt, omit:{},
+    /* v61.3 拼法偏好初始化：库外拼法（D#/Gb…）按其变音进对应系，否则习惯混合拼法 */
+    accPref: CHORD_ROOTS.includes(root0)? '' : (root0.includes('#')? 'sharp':'flat'),
     bass: (m&&m[3])||'', shape:null, custom:null, cname:null };
   renderChordEditor();
 }
@@ -12702,11 +12750,13 @@ function positionVariants(){
     add('D型把位', movableShape(r,q,'D'));
   }
   /* v61.2 推导方案：按变化/省略后的生效音程集通用搜索——组合和弦（7b9 等）与
-     省略内音（GP 逻辑：省略影响候选指法）在模板体系之外的兜底入口 */
+     省略内音（GP 逻辑：省略影响候选指法）在模板体系之外的兜底入口。
+     v61.3 产品指示「每个和弦提供更多把位方案」：单卡改沿指板逐窗口枚举多卡（algoShapes），
+     与库图/CAGED 模板混排去重，方案区改滚动网格 */
   { const eff = ceEffIv();
     if(Object.keys(eff).length>=2){
       const opens = instOf()==='uku'? UKU_OPEN_PC : [4,9,2,7,11,4];
-      add('推导', algoShape(opens, r, eff));
+      algoShapes(opens, r, eff, 10).forEach(sh=>add('推导', sh));
     } }
   vs.sort((a,b)=>a.pos-b.pos);
   return vs;
@@ -12731,21 +12781,23 @@ function diatonicChords(){
   return [0,2,4,5,7,9,11].map((s,i)=> KEY_LIST[(key+s)%12]+Q[i]);
 }
 function renderChordEditor(){
-  const rootBtns = CHORD_ROOTS.map(r=>
-    `<button class="chip ${r===ceState.root?'on':''}" data-cr="${r}">${r}</button>`).join('');
+  /* v61.3 异名同音切换：♯ 系 / ♭ 系整排拼法（默认混合习惯拼法），当前主音随切换换拼法 */
+  const roots = ceState.accPref==='sharp'? PC_SHARP : ceState.accPref==='flat'? PC_FLAT : CHORD_ROOTS;
+  const rootBtns = roots.map(r=>
+    `<button class="chip ${r===ceState.root?'on':''}" data-cr="${r}">${chordHtmlLabel(r)}</button>`).join('');
+  const accBtns = [['sharp','♯'],['flat','♭']].map(([k,l])=>
+    `<button class="chip ce-acc ${ceState.accPref===k?'on':''}" data-cacc="${k}" title="整排按${l}系拼写（♯G＝♭A 等异名同音，再点回习惯拼法）">${l}</button>`).join('');
   const qualBtns = CHORD_QUALS.map(q=>
     `<button class="chip ${q.suf===ceState.qual?'on':''}" data-cq="${q.suf}" title="${q.label}">${q.suf||'大'}</button>`).join('');
   const bassOpts = ['<option value="">（原位）</option>']
-    .concat(CHORD_ROOTS.map(b=>`<option value="${b}" ${b===ceState.bass?'selected':''}>/${b}</option>`)).join('');
+    .concat(roots.map(b=>`<option value="${b}" ${b===ceState.bass?'selected':''}>/${b}</option>`)).join('');
   const shape = ceShape();
-  /* v39.6 把位方案：默认展示前三个（已按把位升序），「更多」展开其余 */
+  /* v61.3 把位方案全量渲染（撤 v39.6 三张+「更多」折叠）：方案区改滚动网格，方案更多也一屏可翻 */
   const vsAll = positionVariants();
-  const vsShown = ceState.posMore? vsAll : vsAll.slice(0,3);
-  const posVars = vsShown.map((v,i)=>
+  const posVars = vsAll.map((v,i)=>
     `<div class="pat-card" data-cpos="${i}" data-shape="${v.shape}">
       <svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,v.shape,true)}</svg>
-      <div class="bt">${esc(v.label)}${v.pos>1?` · ${v.pos}品`:''}</div></div>`).join('')
-    + (vsAll.length>3? `<button id="ce-posmore" class="chip" style="align-self:center">${ceState.posMore?'收起 ▴':'更多 ▾'}</button>`:'');
+      <div class="bt">${esc(v.label)}${v.pos>1?` · ${v.pos}品`:''}</div></div>`).join('');
   const SN=strN();
   const blank='x'.repeat(SN);
   const custom = (ceState.custom||shape||blank);
@@ -12799,9 +12851,11 @@ function renderChordEditor(){
   showModal(`<h3>编辑和弦<span class="ce-drag">⠿ 按住标题可拖动</span></h3>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div style="flex:1;min-width:300px;max-width:390px">
-        <div class="ce-sec"><b>命名</b>
+        <div class="ce-sec"><b>主音<span class="ce-accw">${accBtns}</span></b>
           <div class="row ce-roots">${rootBtns}</div>
-          <div class="row" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${qualBtns}</div>
+        </div>
+        <div class="ce-sec"><b>类型</b>
+          <div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
           <div style="display:flex;align-items:center;gap:7px;margin-top:7px">
             <span class="ce-alt-cap">转位 / 低音</span><select id="ce-bass">${bassOpts}</select>
           </div>
@@ -12833,7 +12887,7 @@ function renderChordEditor(){
           <button id="ce-play" title="试听当前和弦（按指法自低音弦琶音）">▶ 试听</button>
         </div>
         <div class="ce-sec" style="text-align:left"><b>把位方案 · 点卡换指法</b>
-          <div id="ce-pos" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:4px">${posVars}</div>
+          <div id="ce-pos" class="ce-poswrap">${posVars}</div>
         </div>
         <div style="font-size:10.5px;color:var(--muted);margin-top:4px;white-space:nowrap">点格改音 · 顶部切 ×/○ · 图即所得</div>
       </div>
@@ -12845,7 +12899,14 @@ function renderChordEditor(){
     { const ni=document.getElementById('ce-name');
       if(ni && ceState.creating) ceState.cname = ni.value.trim(); }
     if(ev.target.closest('#ce-play')){ auditionShape(ceState.custom||ceShape()); return; }
-    if(ev.target.closest('#ce-posmore')){ ceState.posMore=!ceState.posMore; rerender(); return; }
+    /* v61.3 ♯/♭ 异名切换：整排换拼法、当前主音/低音同步换等音名（再点回习惯拼法） */
+    const cc=ev.target.closest('[data-cacc]');
+    if(cc){ const k=cc.dataset.cacc;
+      ceState.accPref = ceState.accPref===k? '' : k;
+      const tbl = ceState.accPref==='sharp'? PC_SHARP : ceState.accPref==='flat'? PC_FLAT : CHORD_ROOTS;
+      if(NOTE_PC[ceState.root]!=null) ceState.root = tbl[NOTE_PC[ceState.root]];
+      if(ceState.bass && NOTE_PC[ceState.bass]!=null) ceState.bass = tbl[NOTE_PC[ceState.bass]];
+      ceState.custom=null; ceState.cname=null; rerender(); return; }
     /* v39.6 创建流：点按钮 → 空白和弦图 + 命名 → 保存 */
     if(ev.target.closest('#ce-create')){
       ceState.creating=true; ceState.custom='x'.repeat(strN());
@@ -22827,7 +22888,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v61.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v61.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22850,6 +22911,7 @@ const APP_VER='v61.2';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v61.3</span><div><b>和弦构建器四项强化</b>（产品指示逐条）。<br>① <b>主音与类型分开</b>：原「命名」卡拆成「主音」「类型」两张独立卡，选音选性质互不干扰。<br>② <b>♯/♭ 异名同音切换</b>：主音卡右上新增 ♯ / ♭ 切换——整排换拼法（♯ 系 C♯ D♯ F♯ G♯ A♯ ↔ ♭ 系 D♭ E♭ G♭ A♭ B♭），当前主音与转位低音同步换等音名（♯G＝♭A、♯C＝♭D），再点回习惯混合拼法；D♯m 等异名拼法也能拿到 E♭m 的精修库指法图。<br>③ <b>六九和弦（6/9）</b>：类型区新增「69」——大三度+六度+九度（C·E·G·A·D），谱面записи为 C69，发声/和弦图/构成音全链路支持。<br>④ <b>把位方案更多 + 滚动条</b>：撤销「3 张+更多」折叠，改为<b>全量滚动网格</b>——库图/CAGED 五型之外新增沿指板逐窗口枚举的推导方案（1→12 品逐把位搜索），常用和弦可选方案 9-12 个，滚动条翻看。<br><b>测试</b>：<code>tv_chordgp</code> 6→7 项（分卡/异名往返/69 音集/多把位滚动/等音库图，对 v61.2 复跑红实证）；<code>tv_chordlib</code> T8/T14 随分卡与滚动口径更新。CORE <b>111 套件</b>全绿。</div></li>
     <li><span class="v">v61.2</span><div><b>和弦功能 GP 级强化</b>（产品指示：参考 Guitar Pro 和弦面板逻辑、弹窗可拖动、自家风格 UI）。<br>① <b>编辑和弦弹窗全新分区卡布局</b>（暖米/朱砂自家风格）：命名（主音/性质/转位低音）→ 延伸·变化音 → 构成音 → 创建和弦 四张卡，右侧大图实时预览；<b>标题栏按住可拖动</b>（右上角有提示）。<br>② <b>延伸·变化音四行</b>（GP 同款）：5 度 ♭5/♯5、9 度 ♭9/加9/♯9、11 度 加11/♯11、13 度 ♭13/加13——点亮即入和弦名（如 C7♭9、Cmaj7♯11；空性质自动括号 C(♭9) 防歧义），再点取消；已存的组合和弦重开弹窗自动拆回点亮态。<br>③ <b>构成音显示与省略</b>（GP「省略和弦内音」逻辑）：按<b>度数正确拼写</b>列出构成音（Ddim7 → D·F·A♭·C♭，♭9 不会拼成 ♯8 系），点击即省略/恢复——省略后「推导」把位方案不含该音（至少保留两音）。<br>④ <b>播放与谱面同源受益</b>：新增 7♭9/9♯5/maj7♯11 等 17 个延伸/变化类型 + 组合后缀解析引擎，这些和弦的<b>伴奏发声、和弦图推导</b>全部正确（此前未知后缀一律按大三和弦响、无图可画）；老谱未知写法仍按旧口径兜底，零回归。<br>⑤ 把位方案区新增<b>「推导」卡</b>：按当前变化/省略后的实际音集在指板搜索指法，模板库没有的组合和弦也有图可用。<br><b>测试</b>：新增 <code>tv_chordgp</code> 套件 6 项（解析引擎/推导出图/变化音行/省略+守卫/度数拼写/拖动+应用往返），对 v61.1 文件复跑 <b>0/6 全红</b>实证；<code>tv_chordlib</code> T8 随分区卡布局更新口径。CORE 110→<b>111 套件</b>全绿。</div></li>
     <li><span class="v">v61.1</span><div><b>不换行模式：横向长带编辑与看谱</b>（产品指示）。<br>① <b>编辑不换行</b>：顶栏缩放旁新增 <b>↔ 切换钮</b>——全部小节排成一条横向长带（Guitar Pro / MuseScore「连续视图」惯例），断行与两端对齐停用、每小节保持自然宽，左右滚动编辑，长句时值关系一目了然；再点回到分页排版。<br>② <b>看谱不换行</b>：观看页 ⚙ 设置新增「不换行看谱（横向长带）」——手机上按原比例横向滑动看谱（不再缩到屏宽），适合跟奏时单行推进。<br>③ <b>配套行为</b>：播放光标改为横向跟滚（当前小节走近右缘自动前移）；打印/导出 PDF、谱库卡片缩图自动按分页排版输出（长带只是屏上视图，出版产物不受影响）；编辑与看谱的开关各自记忆、互不影响；谱架模式维持自动卷谱不适用。<br><b>测试</b>：新增 <code>tv_nowrap</code> 套件 6 项（长带几何/打印兜底/横向跟滚/关闭还原/观看独立开关+手机不缩屏/缩图不受影响），对 v61.0 文件复跑 <b>0/6 全红</b>实证。CORE 109→<b>110 套件</b>全绿。</div></li>
     <li><span class="v">v61.0</span><div><b>记号面板去分类</b>（产品更正）。左栏面板统一叫「记号」，内部不再显示「音高与谱号 / 连接与和声」等分类小标题——全部记号在一个面板里连续平铺（v60.99 制谱专家的按同族相邻排序保留，找记号仍顺手）；吉他侧原「音符记号 + 演奏技巧」两段间距也收齐，视觉上就是一整片。<br><b>测试</b>：<code>tv_uipanel</code> 断言改「零子标题 + 排序保留」口径（对 v60.99 复跑 2 项红实证）。CORE 109 套件全绿。</div></li>

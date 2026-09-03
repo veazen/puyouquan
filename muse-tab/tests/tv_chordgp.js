@@ -100,6 +100,33 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.moved && r.applied === 'C7b9' && r.reQual === '7' && r.reAlt === 'b' && r.reOn,
     'T6 拖动+应用+变化音拆回', JSON.stringify(r));
 
+  // T7 v61.3：主音/类型分卡 + ♯/♭ 异名切换 + 69 和弦 + 多把位滚动 + 等音库图兜底
+  r = await pg.evaluate(() => { try {
+    showChordEditor(0, 0, 0);
+    const secs = [...document.querySelectorAll('.ce-sec>b')].map(x => x.textContent.replace(/[♯♭]/g, ''));
+    const split = secs[0].startsWith('主音') && secs[1].startsWith('类型');
+    document.querySelector('[data-cacc="sharp"]').click();
+    const sharpRow = [...document.querySelectorAll('[data-cr]')].map(x => x.dataset.cr).join(',') === PC_SHARP.join(',');
+    document.querySelector('[data-cr="G#"]').click();
+    document.querySelector('[data-cacc="flat"]').click();
+    const enh = ceState.root === 'Ab';                                  // ♯G → ♭A 异名转换
+    document.querySelector('[data-cacc="flat"]').click();               // 再点回混合拼法
+    const mixRow = [...document.querySelectorAll('[data-cr]')].map(x => x.dataset.cr).join(',') === CHORD_ROOTS.join(',');
+    document.querySelector('[data-cr="C"]').click();
+    const b9on = document.querySelector('[data-calt="9:b"]');
+    if (b9on.classList.contains('on')) b9on.click();                    // 清掉 T6 残留的 ♭9（换类型保留变化音是设计行为）
+    document.querySelector('[data-cq="69"]').click();                   // 六九和弦
+    const n69 = document.getElementById('ce-title').textContent === 'C69';
+    const iv = chordIvOf('69').iv, ok69 = iv[6] === 9 && iv[9] === 14;
+    const nPos = document.querySelectorAll('#ce-pos [data-cpos]').length;
+    const scroll = getComputedStyle(document.getElementById('ce-pos')).overflowY === 'auto';
+    const enhShape = chordShape('D#m') === chordShape('Ebm') && !!chordShape('D#m');
+    document.getElementById('ce-cancel').click();
+    return { split, sharpRow, enh, mixRow, n69, ok69, nPos, scroll, enhShape };
+  } catch (e2) { return { err: String(e2 && e2.message || e2) }; } });
+  T(r.split && r.sharpRow && r.enh && r.mixRow && r.n69 && r.ok69 && r.nPos >= 6 && r.scroll && r.enhShape,
+    'T7 分卡+异名切换+69+多把位滚动', JSON.stringify(r));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
