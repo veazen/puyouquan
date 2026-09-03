@@ -91,21 +91,18 @@ if(navEl){
 }
 const footEl = document.getElementById('site-foot');
 if(footEl){
-  /* v58.8 极简页脚（用户点名去冗）：品牌+slogan 一行 5 链 + 备案行；场景内链移居首页 .scene-strip */
+  /* v61.6 产品指示：页脚再精简——品牌块/「在线制谱」链/© 行域名口号全部撤除，
+     只留 5 链一排 + © 与备案一行，整体居中（导航已有品牌与制谱入口，页脚不重复） */
   footEl.innerHTML = `<footer id="foot"><div class="wrap">
-    <div class="f-line">
-      <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
-      <nav class="f-links">
-        <a href="//zhipu.puyouquan.com/">在线制谱</a>
-        <a href="features.html">功能</a>
-        <a href="help.html">帮助</a>
-        <a href="log.html">更新日志</a>
-        <a href="sponsors.html">赞助商</a>
-        <a href="mailto:support@puyouquan.com">联系我们</a>
-      </nav>
-    </div>
+    <nav class="f-links">
+      <a href="features.html">功能</a>
+      <a href="help.html">帮助</a>
+      <a href="log.html">更新日志</a>
+      <a href="sponsors.html">赞助商</a>
+      <a href="mailto:support@puyouquan.com">联系我们</a>
+    </nav>
     <div class="beian">
-      <span>© 2026 谱友圈 puyouquan.com · 专业曲谱平台</span>
+      <span>© 2026 谱友圈</span>
       <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a>
     </div>
   </div></footer>`;

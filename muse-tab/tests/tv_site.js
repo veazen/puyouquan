@@ -126,7 +126,8 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     && r.meta === '1=C|4/4|♩=92|4 小节|2 段词|1.2万 浏览|67 收藏'   /* v60.98 卡上显示浏览/收藏数（产品指示） */
     && r.fam === 'v' && r.seal === false /* vocal 无印章件，仅水印 */ && r.skGone
     && /puku\.puyouquan\.com\/kanpu\.html\?pub=seedaaa111/.test(r.href)
-    && r.search && r.chips >= 3 && r.tools === 4 && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
+    && r.search && r.chips >= 3 && r.tools === 0 /* v61.6 产品指示：首页工具带撤除 */
+    && r.login, 'T1 搜索首页结构+卡片', JSON.stringify(r));
   // T1c v60.6 曲谱实例缩图：有缩图的谱出 .cc-shot 真截图（刻版骨架留底层占位），无缩图的只剩骨架
   r = await pg.evaluate(() => {
     const a = document.querySelector('.cc-card[href*="seedaaa111"]');
@@ -447,8 +448,8 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       tools: document.querySelectorAll('.tool-card').length,
     };
   });
-  T(r.noHScroll && r.chipNowrap && r.cardCols === 2 && r.navH < 45 && r.searchH >= 48 && r.tools === 4,
-    'T10 380px 移动端适配（v60.6 卡片双列）', JSON.stringify(r));
+  T(r.noHScroll && r.chipNowrap && r.cardCols === 2 && r.navH < 45 && r.searchH >= 48 && r.tools === 0,
+    'T10 380px 移动端适配（v60.6 卡片双列；v61.6 工具带撤除）', JSON.stringify(r));
   await pg.close();
 
   // v44.6 SEO 基建 + 四垂类落地页（静态文件断言）
@@ -469,10 +470,11 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
   const sm = read('sitemap.xml');
   T(sm.includes('<urlset') && LAND.every(n => sm.includes('/' + n + '.html')), 'S sitemap.xml 含四落地页');
   const idx = read('index.html');
-  T(LAND.every(n => idx.includes(n + '.html')) && /rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页内链四落地页+SEO头');
+  /* v61.6 产品指示：首页工具带/谱种带/场景带撤除——落地页首页内链不再要求（sitemap 钉住收录） */
+  T(/rel="canonical"/.test(idx) && /og:image/.test(idx), 'S 首页 SEO 头');
   const js2 = read('pyq.js');
-  /* v60.86 产品拍板：slogan 回归「专业曲谱平台」 */
-  T(js2.includes('专业曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 页脚含 slogan+备案（v60.86 slogan=专业曲谱平台）');
+  /* v60.86 产品拍板：slogan 回归「专业曲谱平台」；v61.6 起 slogan 只留导航品牌区（页脚撤） */
+  T(js2.includes('专业曲谱平台') && js2.includes('beian.miit.gov.cn'), 'S 导航含 slogan+页脚备案');
   const vh = read('view.html');
   T(/canonical" href="https:\/\/www\.puyouquan\.com\/"/.test(vh) && /http-equiv="refresh"/.test(vh) && /noindex/.test(vh), 'S view.html 跳转占位（谱库并入主站）');
 
@@ -567,16 +569,49 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     };
     T(Object.values(ftOk).every(Boolean), 'S v60.89 功能页并入课程介绍+新定位', JSON.stringify(ftOk));
     T(sm.includes('/kecheng.html'), 'S v60.86 sitemap 含课程页');
-    // ④ 首页：定位话术 + 出版级 + 工具带 4 格含学习入口 + 谱种带（民族乐器筹备中）
+    // ④ 首页：定位话术 + 出版级（v61.6 工具带/谱种带撤除——学习入口走主菜单「学习」，民族乐器留 description）
     const ix = read('index.html');
     const ixOk = {
       hero: ix.includes('专业曲谱平台'),
       pub: ix.includes('出版级'),
-      course: ix.includes('kecheng.html') && ix.includes('民谣吉他启蒙课'),
       folk: ix.includes('民族乐器'),
       kw: /keywords[^>]*出版级制谱/.test(ix),
     };
-    T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位与布局（专业/出版级/学习入口/谱种带）', JSON.stringify(ixOk));
+    T(Object.values(ixOk).every(Boolean), 'S v60.86 首页定位（专业/出版级/民族乐器口径）', JSON.stringify(ixOk));
+  }
+
+  /* ===== v61.6 产品指示：官网页脚重设计 + 红框内容去除 ===== */
+  {
+    // ① 首页三段撤除：工具带 4 卡 / 支持谱种带 / 专属场景带
+    const ix6 = read('index.html');
+    T(!ix6.includes('tool-band') && !ix6.includes('scene-strip') && !ix6.includes('tool-card'),
+      'S v61.6 首页工具带/谱种带/场景带撤除');
+    // ② 页脚模板：无品牌块、无「在线制谱」链、© 行只留「© 2026 谱友圈」（域名+口号撤）
+    const fm = js2.match(/footEl\.innerHTML[\s\S]*?<\/footer>/);
+    const ftpl = fm ? fm[0] : '';
+    T(!!ftpl && !ftpl.includes('brand') && !ftpl.includes('在线制谱')
+      && ftpl.includes('© 2026 谱友圈<') && !ftpl.includes('puyouquan.com ·'),
+      'S v61.6 页脚模板去品牌块/在线制谱/域名口号');
+    // 静态兜底同口径（ICP 核验行保留备案号链接）
+    T(!ix6.includes('puyouquan.com ·') && !read('me.html').includes('puyouquan.com ·')
+      && ix6.includes('beian.miit.gov.cn'),
+      'S v61.6 静态兜底 © 行同口径+备案保留');
+    // ③ 渲染几何：页脚无品牌块、5 链与 © 行水平居中（数值坐标口径）
+    pg = await mkPage(false);
+    r = await pg.evaluate(() => {
+      const f = document.getElementById('foot');
+      const links = f.querySelector('.f-links');
+      const wrap = f.querySelector('.wrap').getBoundingClientRect();
+      const centered = el => { const c = el.getBoundingClientRect();
+        return Math.abs((c.left - wrap.left) - (wrap.right - c.right)) < 8; };
+      return { noBrand: !f.querySelector('.brand'), n: links.querySelectorAll('a').length,
+        cLinks: centered(links), cBeian: centered(f.querySelector('.beian')),
+        beianTxt: f.querySelector('.beian').textContent.trim() };
+    });
+    T(r.noBrand && r.n === 5 && r.cLinks && r.cBeian
+      && /^© 2026 谱友圈/.test(r.beianTxt) && !r.beianTxt.includes('puyouquan.com'),
+      'S v61.6 页脚渲染：无品牌块+5 链居中+© 行净化', JSON.stringify(r));
+    await pg.close();
   }
 
   /* ===== v60.90 课程系统：学习页交互 / 数据同步 / 工作台课程页签 ===== */
