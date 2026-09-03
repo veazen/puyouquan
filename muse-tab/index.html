@@ -1905,6 +1905,47 @@ body.shell.nwrap:not(.stand):not(.viewer) #score-wrap::-webkit-scrollbar-thumb{
 #audio-loading .eq i:nth-child(4){animation-delay:.42s;background:#d24a37}
 @keyframes alEq{0%,100%{height:5px}50%{height:16px}}
 @media (prefers-reduced-motion:reduce){ #audio-loading .eq i{animation:none;height:10px} }
+/* ===== v61.5 「当前音轨」卡排版升级（UI 专家规格，body.shell 作用域）：
+   三条等高水平行——身份行（去朱砂胶囊）/ 显示行（分段控件）/ 变调夹工具排 ===== */
+/* ① 身份行：卡标题已写明语义，常亮朱砂描边不承载信息——撤胶囊改通栏行，
+   乐器图标包 24×24 朱砂淡底徽标块（品牌锚点唯一保留处） */
+body.shell #tab-voices .vchip.trk,body.shell #vox-voices .vchip.trk{
+  border:0;background:transparent;border-radius:8px;padding:3px 4px;width:100%;
+  display:flex;align-items:center;gap:8px;min-height:30px;color:var(--text)}
+body.shell #tab-voices .vchip.trk:hover,body.shell #vox-voices .vchip.trk:hover{background:var(--hover)}
+.trk-ic{display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:24px;height:24px;border-radius:7px;background:var(--accent-soft);color:var(--accent)}
+.trk-ic .svgi{width:16px;height:16px;margin:0}
+body.shell .vchip.trk .vname{font-size:12.5px;font-weight:600;color:var(--text);cursor:text;max-width:170px}
+body.shell .vchip.trk .vdel{margin-left:auto;color:var(--faint);width:20px;height:20px;
+  display:inline-flex;align-items:center;justify-content:center}
+/* ② 显示行：标签行内化 + 三记谱钮分段控件（相邻并边、端部圆角）+ MIDI/键盘动作钮靠右 */
+body.shell #tab-nota-lit,body.shell #vox-nota-lit{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;width:100%}
+body.shell #tab-nota-lit .nl-cap,body.shell #vox-nota-lit .nl-cap{
+  flex:none;flex-basis:auto;width:auto;margin:0 3px 0 0;letter-spacing:1px}
+body.shell #left-flyout .nlit{opacity:1}   /* 废整钮压虚：未点亮改用色彩层次表达 */
+body.shell #left-flyout .nlit:not(.nl-midi){
+  width:32px;height:28px;min-height:28px;justify-content:center;padding:0;flex:none;
+  border:1px solid var(--border-soft);background:var(--panel);border-radius:0;color:var(--faint)}
+body.shell #left-flyout .nlit:not(.nl-midi):hover{background:var(--hover);color:var(--muted)}
+body.shell #left-flyout .nl-cap + .nlit{border-radius:8px 0 0 8px}
+body.shell #left-flyout .nlit + .nlit:not(.nl-midi){margin-left:-1px}
+body.shell #left-flyout .nlit:not(.nl-midi):has(+ .nl-midi){border-radius:0 8px 8px 0}
+body.shell #left-flyout .nlit.on{position:relative;z-index:1;background:var(--accent-soft);
+  border-color:var(--accent);color:var(--accent)}
+body.shell #left-flyout .nlit.nl-midi{min-height:28px;border-radius:8px;border-color:var(--faint);
+  padding:0 8px;margin-left:auto}
+body.shell #left-flyout .nlit.nl-midi + .nlit.nl-midi{margin-left:0}
+/* ③ 变调夹工具排：一行收齐 [变调夹][夹位状态]──[指板/键盘]；.shell-note 的整行占位在此覆盖 */
+body.shell #tab-capo-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin-top:7px;width:100%}
+body.shell #tab-capo-row .shell-note{display:inline;width:auto;margin:0;line-height:28px;font-size:10.5px}
+body.shell #tab-capo-row #trkcapo-lbl.on{background:var(--accent-soft);color:var(--accent-ink);
+  padding:1px 7px;border-radius:20px;line-height:1.7}
+body.shell #tab-capo-row button{min-height:28px;padding:0 9px;border-radius:8px}
+body.shell #tab-capo-row #b-trkboard{margin-left:auto}
+/* ④ 行间节奏统一 7px（tab/vox 两卡共用口径） */
+body.shell #panel-tab-voice .rg-body,body.shell #panel-vox-voice .rg-body{margin:0 0 7px}
+body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-body:last-child{margin-bottom:0}
 @media print{
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
   body{background:#fff;padding-bottom:0}
@@ -5566,7 +5607,8 @@ function syncTrkCapoLbl(){
   row.style.display = on? '' : 'none';
   if(!on) return;
   const c=capoOf(sel.vi);
-  lbl.textContent = (c? c+' 品' : '不夹') + (capoMixed()? '（本谱各轨夹位不同）' : '');
+  lbl.textContent = (c? '夹 '+c+' 品' : '不夹') + (capoMixed()? '（各轨不同）' : '');
+  lbl.classList.toggle('on', !!c);   /* v61.5 UI 专家：夹了=激活态徽章（朱砂淡底），不夹=faint 裸文字 */
 }
 /* 各轨夹位是否不一致——只有不一致时才在行首逐轨标注（一致时维持旧观感：页头标一次即可） */
 function capoMixed(){
@@ -10066,7 +10108,7 @@ function syncInputs(){
     const canDel = curKind==='tv'? (song.tabVoices.length>1 || song.voxVoices.length>0)
       : (!lockDoc && (song.voxVoices.length>1 || (song.tabVoices.length>0 && song.tabStaff)));
     const trkHtml = curList.length?
-      `<span class="chip vchip trk on" data-idx="${curI}" data-k="${curKind}" title="当前音轨：双击改名">${curIc}`+
+      `<span class="chip vchip trk on" data-idx="${curI}" data-k="${curKind}" title="当前音轨：双击改名"><span class="trk-ic">${curIc}</span>`+
         `<span class="vname">${esc(curList[curI]||'')}</span>`+
         (canDel?`<span class="vdel" data-idx="${curI}" data-k="${curKind}del" title="删除该音轨">×</span>`:'')+
       `</span>` : '';
@@ -17126,13 +17168,13 @@ const SVGI = {
   fingerpick:'<path d="M6 4v8.5M12 4v8.5M18 4v8.5"/><path d="M4.5 16.5c2.6 2.6 4.8 3.7 7.5 3.7s4.9-1.1 7.5-3.7"/>',
   degnum:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M12 5v14M4 12h16"/><path d="M7.2 9.8l1.3-1v3M15 8.5h2.2l-2 3.2"/>',
   /* v60.46 乐器图标扩编（产品截图 21 乐器；同一套细线风格，键盘/管弦/民乐全覆盖） */
-  bass:'<ellipse cx="9" cy="15.5" rx="4.6" ry="5.2"/><circle cx="9" cy="15.5" r="1.2"/><path d="M12.4 11.7 21 3.2M19.3 1.8l2.9 2.9"/>',
+  bass:'<g transform="rotate(45 12 12)"><rect x="10.8" y="0.8" width="2.5" height="2.5" rx="0.7"/><path d="M11.3 3.3v8M12.7 3.3v8"/><path d="M12.7 11.3c1.2.2 2.5.8 2.5 2.3 0 .8-.3 1.5-.8 2.2-.4.6-.5 1.2-.2 1.9.3.6.4 1.2.4 1.7 0 1.7-1.2 2.7-2.9 2.7s-3.1-1-3.1-2.9c0-.9.3-1.8.9-2.7.5-.7.5-1.4 0-2.1-.4-.6-.6-1.2-.5-1.8.2-1 1.2-1.4 2.3-1.5z"/><path d="M10.4 15.2h3.2"/><circle cx="13.3" cy="18.2" r="0.4" fill="currentColor"/></g>',
   epiano:'<rect x="3.5" y="6.5" width="17" height="8.5" rx="1.5"/><path d="M8 6.5v5.5M12 6.5v5.5M16 6.5v5.5"/><path d="M6 15v5M18 15v5"/>',
   accordion:'<rect x="3" y="5.5" width="4.6" height="13" rx="1.2"/><rect x="16.4" y="5.5" width="4.6" height="13" rx="1.2"/><path d="M9.6 7v10M12 7v10M14.4 7v10"/>',
   yangqin:'<path d="M7.5 6.5h9L21 17.5H3z"/><path d="M8.6 9.8h6.8M6.9 13.2h10.2"/>',
   guzheng:'<path d="M3 8.8c6-2.6 12-2.6 18 0v6.4c-6-2.6-12-2.6-18 0z"/><path d="m7.4 11.2 1.4 1.3M11.3 10.7l1.4 1.3M15.2 11.2l1.4 1.3"/>',
-  pipa:'<path d="M10.6 3.2h2.8M12 3.2v4.2"/><path d="M12 7.4c-3.9 1-6.2 3.5-6.2 7a6.2 6.2 0 0 0 12.4 0c0-3.5-2.3-6-6.2-7z"/><path d="M12 10.5v7.5"/>',
-  erhu:'<rect x="8.8" y="13.6" width="6" height="4.9" rx="1.2"/><path d="M11 13.6V3.4M11 4.6h3M11 6.6h3"/><path d="M16.6 7.5c2 2.4 2.9 5.6 2.7 9.6"/>',
+  pipa:'<path d="M12.2 2.4l-1.7 1 1.5 2.6"/><path d="M10.9 3.1l1.5-.4M11.5 4.2l1.5-.4"/><path d="M12 6c-.8 2-4.9 3.6-4.9 8.1a4.9 5.6 0 0 0 9.8 0C16.9 9.6 12.8 8 12 6z"/><path d="M10.6 9.8h2.8M10 11.8h4"/><path d="M12 12.6v7"/>',
+  erhu:'<path d="M9.3 16h4.6l-.9 4.2h-2.8z"/><path d="M11.6 16V3M11.6 20.2v1.3"/><path d="M11.6 4.4H8.9M11.6 6.4H8.9"/><path d="M16.9 7c2.1 2.9 2.9 6.6 2.5 11"/>',
   dizi:'<rect x="2.5" y="9.8" width="19" height="4.4" rx="2.2"/><path d="M5.9 10.9v2.2"/><circle cx="9.6" cy="12" r=".75" fill="currentColor" stroke="none"/><circle cx="12.8" cy="12" r=".75" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r=".75" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r=".75" fill="currentColor" stroke="none"/>',
   flute:'<g transform="rotate(-20 12 12)"><rect x="1.8" y="10.2" width="20.4" height="3.6" rx="1.8"/><circle cx="9.5" cy="12" r=".75" fill="currentColor" stroke="none"/><circle cx="13" cy="12" r=".75" fill="currentColor" stroke="none"/><circle cx="16.5" cy="12" r=".75" fill="currentColor" stroke="none"/><path d="M5.2 10.9v2.2"/></g>',
   hulusi:'<path d="M12 2.8v1.9"/><circle cx="12" cy="6.2" r="1.7"/><path d="M10.6 7.4C9 8.4 8 9.9 8 11.6a4 4 0 0 0 8 0c0-1.7-1-3.2-2.6-4.2"/><path d="M12 15.6V21M9.4 15.2v4M14.6 15.2v4"/>',
@@ -17142,7 +17184,7 @@ const SVGI = {
   trumpet:'<path d="M3 10.6h10.4M3 13.4h10.4"/><path d="M13.4 10.6c2.6-.2 4.7-1.5 6.1-3.4v9.6c-1.4-1.9-3.5-3.2-6.1-3.4z"/><path d="M6.8 8.8v5M9.2 8.8v5M11.6 8.8v5"/>',
   horn:'<circle cx="10.8" cy="13.4" r="6.1"/><path d="M10.8 7.3c3.4 0 6.3-1.2 8.3-3.3.9 3.3.1 6.9-2.3 9.4"/><path d="M4.8 5.2l3 3.2"/>',
   trombone:'<path d="M3 10.4h13.6M3 13.6h10.2"/><path d="M13.2 13.6h1.9a1.9 1.9 0 0 0 1.9-1.9v-1.3"/><path d="M16.6 10.4c1.9-.3 3.4-1.4 4.4-3.1v9.4c-1-1.7-2.5-2.8-4.4-3.1"/><path d="M5.4 8.9v3"/>',
-  ukulele:'<circle cx="9.8" cy="15.8" r="4.4"/><circle cx="9.8" cy="15.8" r="1.2"/><path d="M13 12.6 19.8 5.8M18.4 4.4l2.4 2.4M17.3 7.9l1.6 1.6"/>',
+  ukulele:'<g transform="rotate(30 12 12)"><path d="M12 2.6c-.9 0-1.6.6-1.6 1.5 0 .8.7 1.4 1.6 1.4s1.6-.6 1.6-1.4c0-.9-.7-1.5-1.6-1.5z"/><path d="M11.2 5.5v3M12.8 5.5v3"/><path d="M12 8.5c-2.1 0-3.9.8-3.9 2.7 0 .9.4 1.5.9 2.1.4.5.5 1.1.1 1.7-.5.8-.8 1.6-.8 2.4 0 2.3 1.6 3.4 3.7 3.4s3.7-1.1 3.7-3.4c0-.8-.3-1.6-.8-2.4-.4-.6-.3-1.2.1-1.7.5-.6.9-1.2.9-2.1 0-1.9-1.8-2.7-3.9-2.7z"/><circle cx="12" cy="12.4" r="1.4"/></g>',
   doc:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/>',
   score:'<path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14.5 3v4.5H19"/><circle cx="10.6" cy="15.6" r="1.7"/><path d="M12.3 15.6V10l3.2 1.2"/>',
   headphone:'<path d="M4 14.5v-2.3a8 8 0 0 1 16 0v2.3"/><rect x="3" y="14" width="4.2" height="6" rx="1.6"/><rect x="16.8" y="14" width="4.2" height="6" rx="1.6"/>',
@@ -17163,8 +17205,8 @@ const SVGI = {
   notes:'<path d="M10 17.5V5.5l7-1.8V15"/><circle cx="7.6" cy="17.5" r="2.4"/><circle cx="14.6" cy="15" r="2.4"/>',
   book:'<path d="M12 6c-1.8-1.3-4.4-1.8-7.5-1.8v14.6c3.1 0 5.7.5 7.5 1.8 1.8-1.3 4.4-1.8 7.5-1.8V4.2c-3.1 0-5.7.5-7.5 1.8v16"/>',
   /* v60.46 小提琴改琴身本尊形（旧「竖线+圆」辨识弱）：8字腰身+琴颈+弦轴 */
-  violin:'<circle cx="12" cy="16.8" r="3.9"/><circle cx="12" cy="11.4" r="3"/><path d="M12 8.4V2.8M10.4 4.2h3.2M10.4 6h3.2"/>',
-  guitar:'<circle cx="9.5" cy="14.5" r="5.5"/><circle cx="9.5" cy="14.5" r="1.4"/><path d="M13.5 10.5 20 4M18 2.5 21.5 6"/>',
+  violin:'<path d="M12 8.8c-1.3 0-2.9.5-2.9 2 0 .8.5 1.3 1.1 1.8.3.2.3.5 0 .7-.8.6-1.3 1.6-1.3 2.8 0 2.2 1.4 3.7 3.1 3.7s3.1-1.5 3.1-3.7c0-1.2-.5-2.2-1.3-2.8-.3-.2-.3-.5 0-.7.6-.5 1.1-1 1.1-1.8 0-1.5-1.6-2-2.9-2z"/><path d="M9.1 12.6l.5 1M14.9 12.6l-.5 1"/><path d="M10.4 13.9v2M13.6 13.9v2"/><path d="M12 8.8V4.4"/><path d="M12 4.4c0-1.1.5-2 1.3-2 .5 0 .9.4.9.9 0 .5-.5.9-1 .8"/><path d="M10.4 5.4h-1M14.6 5.4h-1"/>',
+  guitar:'<g transform="rotate(45 12 12)"><rect x="10.4" y="1.5" width="3.2" height="2.8" rx="0.7" transform="rotate(-12 12 2.9)"/><path d="M11.1 4.4v3.8M12.9 4.4v3.8"/><path d="M12 8.2c-2 0-4.1.9-4.1 3 0 1.1.6 1.9 1.3 2.6.6.6.7 1.3.2 2.1-.8 1.1-1.2 2.1-1.2 3.2 0 2.6 1.7 3.5 3.8 3.5s3.8-.9 3.8-3.5c0-1.1-.4-2.1-1.2-3.2-.5-.8-.4-1.5.2-2.1.7-.7 1.3-1.5 1.3-2.6 0-2.1-2.1-3-4.1-3z"/><circle cx="12" cy="12.4" r="1.5"/></g>',
   print:'<path d="M7 8V3.5h10V8"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M7 13h10v7H7z"/>',
   folder:'<path d="M3.5 6.5h6l2 2h9V19h-17z"/>',
   loop:'<path d="M16.5 4.5 20 8l-3.5 3.5"/><path d="M20 8H8.5A4.5 4.5 0 0 0 4 12.5"/><path d="M7.5 19.5 4 16l3.5-3.5"/><path d="M4 16h11.5A4.5 4.5 0 0 0 20 11.5"/>',
@@ -22943,7 +22985,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v61.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v61.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -22966,6 +23008,7 @@ const APP_VER='v61.4';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v61.5</span><div><b>「当前音轨」卡排版升级 + 乐器图标重绘</b>（产品指示：UI 专家规格）。<br>① <b>身份行去胶囊改徽标</b>：撤销常亮朱砂描边胶囊（卡标题已写明语义，描边不承载信息），乐器图标改包 24×24 朱砂淡底<b>徽标块</b>，轨名 12.5px 加粗、删除钮靠右——一条通栏行干净收齐。<br>② <b>显示行改分段控件</b>：「显示」标签行内化不再独占一行；三枚记谱钮（六线/五线/简谱）32×28 相邻并边、端部圆角的<b>分段控件</b>，点亮项朱砂淡底描边；MIDI 导入/键盘两枚动作钮虚线描边靠右——一眼分清「切显示」与「做动作」。<br>③ <b>变调夹工具排单行收齐</b>：[变调夹][夹位状态]──[指板/键盘] 一行排开，夹位状态设夹时变朱砂<b>徽章</b>（如「夹 2 品」），不再整行占位换行。<br>④ <b>六枚乐器图标重绘</b>（吉他/尤克里里/贝斯/小提琴/二胡/琵琶）：按乐器真实构造重画——吉他 8 字腰身 45° 斜置带音孔、尤克里里圆头短琴、贝斯长颈拾音器无音孔、小提琴 C 腰角尖+涡卷头、二胡六边琴筒+弓、琵琶梨形折颈；14px 小尺寸下六枚互认不混淆（此前圆圈+斜线画法互相难分）。<br><b>测试</b>：<code>tv_uipanel</code> 6→8 项（T7 音轨卡几何：徽标 24px/分段 28px 并边/工具排同行坐标；T8 图标构图签名），对 v61.3 复跑 T7/T8 红实证。CORE <b>112 套件</b>全绿。</div></li>
     <li><span class="v">v61.4</span><div><b>LOADING 动画：曲谱打开 + 音色加载</b>（产品指示：美观精致）。<br>① <b>曲谱打开中</b>：启动遮罩升级——品牌方块下新增「五线谱三音符起伏」动画（三枚朱砂渐变符头带符干在五线上依次跳动）、文字呼吸；从分享/谱库链接打开时文案直说「曲谱加载中…」，谱面就绪才揭幕。<br>② <b>音色加载中</b>：点播放但高保真采样还在加载时，播放条上方浮出深色圆角胶囊——四根朱砂渐变<b>均衡条跳动</b> + 「高保真音色加载中…」，音色就绪自动开播、胶囊自隐（替代原来的一条 toast 文字）；按停止立即收起。<br>③ 两处动画均遵循系统「减少动态效果」设置自动降级；<b>顺手修</b>：等待音色期间手动停止后再播，此前会被误判「已超时」跳过音色等待拿不到高保真音色——现计时随停止归零。<br><b>测试</b>：新增 <code>tv_loading</code> 套件 4 项（遮罩动画+深链文案/胶囊等待→就绪开播自隐/停止收起+计时归零/reduced-motion 降级），对 v61.3 复跑 <b>0/4 全红</b>实证。CORE 111→<b>112 套件</b>全绿。</div></li>
     <li><span class="v">v61.3</span><div><b>和弦构建器四项强化</b>（产品指示逐条）。<br>① <b>主音与类型分开</b>：原「命名」卡拆成「主音」「类型」两张独立卡，选音选性质互不干扰。<br>② <b>♯/♭ 异名同音切换</b>：主音卡右上新增 ♯ / ♭ 切换——整排换拼法（♯ 系 C♯ D♯ F♯ G♯ A♯ ↔ ♭ 系 D♭ E♭ G♭ A♭ B♭），当前主音与转位低音同步换等音名（♯G＝♭A、♯C＝♭D），再点回习惯混合拼法；D♯m 等异名拼法也能拿到 E♭m 的精修库指法图。<br>③ <b>六九和弦（6/9）</b>：类型区新增「69」——大三度+六度+九度（C·E·G·A·D），谱面записи为 C69，发声/和弦图/构成音全链路支持。<br>④ <b>把位方案更多 + 滚动条</b>：撤销「3 张+更多」折叠，改为<b>全量滚动网格</b>——库图/CAGED 五型之外新增沿指板逐窗口枚举的推导方案（1→12 品逐把位搜索），常用和弦可选方案 9-12 个，滚动条翻看。<br><b>测试</b>：<code>tv_chordgp</code> 6→7 项（分卡/异名往返/69 音集/多把位滚动/等音库图，对 v61.2 复跑红实证）；<code>tv_chordlib</code> T8/T14 随分卡与滚动口径更新。CORE <b>111 套件</b>全绿。</div></li>
     <li><span class="v">v61.2</span><div><b>和弦功能 GP 级强化</b>（产品指示：参考 Guitar Pro 和弦面板逻辑、弹窗可拖动、自家风格 UI）。<br>① <b>编辑和弦弹窗全新分区卡布局</b>（暖米/朱砂自家风格）：命名（主音/性质/转位低音）→ 延伸·变化音 → 构成音 → 创建和弦 四张卡，右侧大图实时预览；<b>标题栏按住可拖动</b>（右上角有提示）。<br>② <b>延伸·变化音四行</b>（GP 同款）：5 度 ♭5/♯5、9 度 ♭9/加9/♯9、11 度 加11/♯11、13 度 ♭13/加13——点亮即入和弦名（如 C7♭9、Cmaj7♯11；空性质自动括号 C(♭9) 防歧义），再点取消；已存的组合和弦重开弹窗自动拆回点亮态。<br>③ <b>构成音显示与省略</b>（GP「省略和弦内音」逻辑）：按<b>度数正确拼写</b>列出构成音（Ddim7 → D·F·A♭·C♭，♭9 不会拼成 ♯8 系），点击即省略/恢复——省略后「推导」把位方案不含该音（至少保留两音）。<br>④ <b>播放与谱面同源受益</b>：新增 7♭9/9♯5/maj7♯11 等 17 个延伸/变化类型 + 组合后缀解析引擎，这些和弦的<b>伴奏发声、和弦图推导</b>全部正确（此前未知后缀一律按大三和弦响、无图可画）；老谱未知写法仍按旧口径兜底，零回归。<br>⑤ 把位方案区新增<b>「推导」卡</b>：按当前变化/省略后的实际音集在指板搜索指法，模板库没有的组合和弦也有图可用。<br><b>测试</b>：新增 <code>tv_chordgp</code> 套件 6 项（解析引擎/推导出图/变化音行/省略+守卫/度数拼写/拖动+应用往返），对 v61.1 文件复跑 <b>0/6 全红</b>实证；<code>tv_chordlib</code> T8 随分区卡布局更新口径。CORE 110→<b>111 套件</b>全绿。</div></li>

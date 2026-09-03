@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-09-02 · 当前版本 **v61.4**（编辑器 APP_VER=v61.4） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-09-03 · 当前版本 **v61.5**（编辑器 APP_VER=v61.5） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 
 ---
 
@@ -291,7 +291,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_loading | v61.4 LOADING 动画：启动遮罩（五线三符头动画+深链文案+不透明+8s 兜底）/音色胶囊（等待显示→就绪开播自隐）/停止收起+sfWaitFrom 归零/reduced-motion 降级——4项 |
 | tv_nowrap | v61.1 不换行模式（横向长带）：编辑态长带几何（单行/自然宽单调/单页无页码/页头留左端首屏）/打印强制回分页/播放横向跟滚/关闭还原/观看态独立开关+手机 fit 豁免/缩图恒按分页烤 2:1——6项 |
 | tv_multidoc | v60.99 多开项目：页签渲染+addDoc 另开切换/窗口隔离+撤销栈不跨窗/关闭未入库自动转存「我的曲谱」/已入库关闭不重复入库/LS_DOCS 多文档启动恢复/＋新窗口直达向导+窄屏隐藏——6项 |
-| tv_uipanel | v60.99→v61.0 左栏/上栏视觉验收（几何断言）：四列连续平铺（sign 宿主网格+子 body contents、零分类子标题、seamless 行分布）46px 定高/拨奏·技巧组内序（GP8 惯例）/EB_ORNS 序/图形区 22px+标签 10px·500/上栏 28px 统一行高+16px 分隔线/左轨 56px 定宽圆角 10——6项 |
+| tv_uipanel | v60.99→v61.5 左栏/上栏视觉验收（几何断言）：四列连续平铺（sign 宿主网格+子 body contents、零分类子标题、seamless 行分布）46px 定高/拨奏·技巧组内序（GP8 惯例）/EB_ORNS 序/图形区 22px+标签 10px·500/上栏 28px 统一行高+16px 分隔线/左轨 56px 定宽圆角 10/当前音轨卡（徽标 24px+分段控件 28px 并边+变调夹工具排同行坐标；flex blockification——不断言 display 断言 margin/宽度/居中几何）/乐器图标构图签名——8项 |
 | tv_dot | v41.5 双附点：循环+邻音联动/16·32分档位限制+setDur收敛/拍值1.75×·旧值兼容·播放时长/五线谱两点几何/简谱增时线新形态/MusicXML 双dot往返——6项 |
 | tv_acct | v41.7 账号系统：本机 API_ON=false 降级提示、登录弹窗结构、手机号校验拦截、stub fetch 走通登录落地、账号态/函数完备、退出清账号、既有 localStorage 键零污染——7项 |
 | tv_sync | v41.8 我的曲谱云同步：未登录不触网、保存推送云端、短id升级、登录拉取云端、mtime双向合并（本地新推云/云新覆盖本地）、删除传播、413不抛错——7项 |
@@ -469,6 +469,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
 
+> **v61.5 当前音轨卡排版升级 + 乐器图标重绘（产品指示：UI 专家规格）**：UI Designer agent 出规格后逐条落地（body.shell 作用域，经典版不动）。①身份行：撤 `.vchip.trk` 朱砂描边胶囊（卡标题已写语义，常亮描边不承载信息）改通栏行，乐器图标包 `.trk-ic` 24×24 朱砂淡底徽标块（品牌锚点唯一保留处），vname 12.5px/600、vdel margin-left:auto。②显示行：`.nl-cap` 行内化，三记谱钮 32×28 分段控件（`.nl-cap+.nlit` 左端圆角/`.nlit+.nlit` margin-left:-1px 并边/`:has(+.nl-midi)` 右端圆角），`.on` 朱砂淡底描边升 z-index，`.nl-midi` 虚线钮 margin-left:auto 靠右（第二枚归 0）。③变调夹行：`#tab-capo-row` flex 单行，`.shell-note` 作用域覆盖（width:auto/margin:0/line-height:28px），`syncTrkCapoLbl` 文案改「夹 N 品/不夹」+ `.on` 朱砂徽章，`#b-trkboard` 靠右。④SVGI 六图标按真实构造重绘：吉他 8 字腰身 45°+双线颈+音孔、尤克里里 rotate(30) 圆头、贝斯长颈拾音器无音孔、小提琴 C 腰角尖+涡卷、二胡六边筒+左双轴+弓、琵琶梨形折颈——三稿迭代按「14px 六枚互认不混淆」验收（48/18/14 三档截图）。**测试口径坑**：`#tab-capo-row` 是 flex 容器→子项 `display:inline` 被 **blockification** 计算为 block，几何断言不能读 display——改断言覆盖声明的实效（margin 归零/宽度自适应/与钮垂直居中坐标）。`tv_uipanel` 6→8 项（T7 音轨卡几何/T8 图标构图签名，对 v61.3 复跑 T7/T8 红实证）。CORE **112 套件**全绿。APP_VER→v61.5。
+>
 > **v61.4 LOADING 动画（产品指示：曲谱打开/音色加载，美观精致）**：①启动遮罩（v57.7 静态版）升级：`.bv-staff` 五线+三符头（CSS keyframes bvNote 起伏、bvPulse 文字呼吸；主样式表先于 body 解析可直接用类）；深链 `?pub|mine|review=` 时遮罩早期脚本改文案「曲谱加载中…」（bootVeilDone 揭幕机制不变）。②音色胶囊 `#audio-loading`（深色圆角+四根均衡条 alEq）：`play()` 的 v60.34 音色等待分支由 toast 改 `audioLoadingShow()`（幂等），就绪/超时开播与 `stopPlay` 均 hide；**顺手修**：stopPlay 归零 `sfWaitFrom/sfWaitToast`——此前残留旧起点，手动停止后再播被判「已超时」跳过音色等待。③两处 `prefers-reduced-motion` 降级。**测试环境坑**：file:// 下真实采样包 fetch 失败前恒 loading→sfPendingUsed 恒 true，「就绪」须整表设 `full:true`（防 sfLoad 重拉）；播放断言只看标志位不碰音频时钟（CI 无声教训）。新增 `tv_loading` 4 项（对 v61.3 复跑 0/4 全红）。CORE 111→**112 套件**全绿。APP_VER→v61.4。
 >
 > **v61.3 和弦构建器四项强化（产品指示）**：①主音/类型拆两卡；②♯/♭ 异名切换——`ceState.accPref`（''混合/'sharp'/'flat'）驱动整排拼法（复用 2774 行既有 `PC_SHARP/PC_FLAT`——**又踩了 v37.2 重名坑**：先在 4167 重复声明白屏、语法闸不拦运行时重复 const，grep 后改复用）、主音/低音同步换等音名、`chordShape` 等音兜底（D#m→Ebm 库图）；③69 和弦：`CHORD_QUALS` 加 chip（QUAL_INTERVALS['69'] v61.2 已有）；④把位方案滚动网格：新引擎 `algoShapes(opens,rootPc,iv,cap)` 沿指板 1→12 品逐 4 品窗口枚举（**坑**：高把位窗口必须禁空弦——音集含多个空弦音时所有窗口先命中空弦、12 窗口去重后只剩 2 个方案，实测 C69），与库图/CAGED 混排去重、`.ce-poswrap` max-height 218 滚动、撤 v39.6「3 张+更多」折叠。`tv_chordgp` 6→7 项（对 v61.2 复跑 T7 红）；`tv_chordlib` T8/T14 随口径更新。CORE **111 套件**全绿。APP_VER→v61.3。
