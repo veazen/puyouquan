@@ -304,6 +304,44 @@ function typeLabelOf(d) {
 const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PUB_CANON = process.env.PUB_CANON || 'https://puku.puyouquan.com';   // canonical/og 主机（去重用）
 const VIEW_HOST = process.env.VIEW_HOST || 'https://zhipu.puyouquan.com';  // 真人交互观看页主机
+/* v61.7 百度主动推送（收录提速）：谱面上架（直发/过审）时把落地页 URL 推给百度站长平台。
+   token 走服务器环境变量 BAIDU_PUSH_TOKEN（凭据不入代码/仓库），未配置即静默跳过；
+   旁路 fire-and-forget：推送失败只记日志，绝不影响发布主流程。 */
+const BAIDU_PUSH_TOKEN = process.env.BAIDU_PUSH_TOKEN || '';
+function baiduPush(ids) {
+  if (!BAIDU_PUSH_TOKEN || !ids.length) return;
+  try {
+    fetch(`http://data.zz.baidu.com/urls?site=${encodeURIComponent(PUB_CANON)}&token=${encodeURIComponent(BAIDU_PUSH_TOKEN)}`, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: ids.map(id => `${PUB_CANON}/pub/${id}`).join('\n'),
+      signal: AbortSignal.timeout(8000),
+    }).then(r => r.text()).then(t => console.log('[baidu-push]', ids.length, '条：', t.slice(0, 160)))
+      .catch(e => console.error('[baidu-push]', e.message));
+  } catch (e) { console.error('[baidu-push]', e.message); }
+}
+/* v61.7 收录加厚：落地页可爬正文的歌词节选与和弦进行（薄内容+秒跳转会被当「桥页」拒收） */
+function lyricExcerpt(d, cap) {
+  let out = '';
+  for (const m of (d.measures || [])) for (const cols of ((m || {}).voxes || [])) for (const c of (cols || [])) {
+    const w = String(((c || {}).lyrics || [])[0] || '').trim();
+    if (w) { out += w; if (out.length >= cap) return out.slice(0, cap); }
+  }
+  return out;
+}
+function chordSeq(d, cap) {
+  const seq = [];
+  for (const m of (d.measures || [])) for (const cols of ((m || {}).voxes || [])) for (const c of (cols || [])) {
+    if (!c) continue;
+    const names = [];
+    if (typeof c.chord === 'string' && c.chord.trim()) names.push(c.chord.trim());
+    if (Array.isArray(c.chords)) for (const x of c.chords) {
+      const n = x && (typeof x === 'string' ? x : x.name);
+      if (n && String(n).trim()) names.push(String(n).trim());
+    }
+    for (const n of names) { if (seq[seq.length - 1] !== n) seq.push(n); if (seq.length >= cap) return seq; }
+  }
+  return seq;
+}
 function pubMeta(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
   const title = (row.title || '').trim() || '未命名曲谱';
@@ -312,9 +350,11 @@ function pubMeta(row) {
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
-  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: row.thumb_at || 0 };
+  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: row.thumb_at || 0,
+    key: String(d.key || '').slice(0, 6), beats: +d.beats || 0, unit: +d.unit || 0, tempo: +d.tempo || 0,
+    lyric: lyricExcerpt(d, 140), chords: chordSeq(d, 16) };
 }
-function pubSsrHtml(row) {
+function pubSsrHtml(row, related) {
   const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`;
   /* v60.6 og:image 优先用真实谱面缩图（栅格）：微信/微博等抓取端对 SVG 支持参差，
      且真谱面比品牌封面更能说明这首谱长什么样；没生成过缩图的老谱仍回落 cover.svg。
@@ -355,17 +395,28 @@ h1{font-size:28px;margin:.4em 0 .2em}.meta{color:var(--muted);margin-bottom:1.4e
 .cta{display:inline-block;margin:1em .4em;padding:12px 28px;border-radius:24px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
 .cta.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .tip{color:var(--muted);font-size:13px;margin-top:1.6em}a{color:var(--accent)}
+.crumbs{font-size:13px;color:var(--muted);margin-bottom:1.2em}.crumbs a{color:var(--muted)}
+.lyr,.chords{font-size:14px;color:var(--muted);max-width:520px;margin:1.1em auto 0;line-height:1.9}
+.lyr b,.chords b{color:var(--ink);font-weight:600;margin-right:.4em}
+.rel{margin-top:2.4em;padding-top:1.4em;border-top:1px solid var(--border);text-align:left}
+.rel b{display:block;text-align:center;margin-bottom:.7em;color:var(--ink)}
+.rel ul{list-style:none;margin:0;padding:0;columns:2;column-gap:24px;font-size:14px;line-height:2}
+.rel a{color:var(--muted)}.rel a:hover{color:var(--accent)}
 </style></head><body>
 <div class="wrap">
 <div class="brand">谱友圈 · 谱库</div>
+<div class="crumbs"><a href="${escHtml(PUB_CANON)}/pub/">谱库目录</a> › ${escHtml(p.typeCn)}</div>
 <h1>${escHtml(p.title)}</h1>
-<div class="meta">${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}</div>
+<div class="meta">${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}${p.key ? ' · 1=' + escHtml(p.key) : ''}${p.beats && p.unit ? ' · ' + p.beats + '/' + p.unit : ''}${p.tempo ? ' · ♩=' + p.tempo : ''}</div>
 ${coverRow ? '<div class="cover">' + coverRow + '</div>' : ''}
 <a class="cta" href="${escHtml(viewUrl)}">▶ 在线观看 / 移调 / 跟谱</a>
 <a class="cta ghost" href="${escHtml(VIEW_HOST)}/">免费制谱</a>
-<p class="tip">正在进入在线观看页…若未自动跳转，请点上方按钮。<br>谱友圈 —— AI 时代的智能制谱 / 配谱工具</p>
+${p.lyric ? '<p class="lyr"><b>歌词节选</b>' + escHtml(p.lyric) + '…</p>' : ''}
+${p.chords.length ? '<p class="chords"><b>和弦进行</b>' + p.chords.map(escHtml).join(' · ') + '</p>' : ''}
+${(related || []).length ? '<div class="rel"><b>相关曲谱</b><ul>' + related.map(r =>
+    `<li><a href="${escHtml(PUB_CANON)}/pub/${escHtml(r.id)}">${escHtml((r.title || '未命名曲谱') + (r.singer ? ' - ' + r.singer : ''))}</a></li>`).join('') + '</ul></div>' : ''}
+<p class="tip">点上方按钮进入在线观看：即时移调 · 变速循环 · 跟谱播放。<br>谱友圈 —— 专业曲谱平台 · 出版级在线制谱</p>
 </div>
-<script>setTimeout(function(){location.replace(${JSON.stringify(viewUrl)})},1200);</script>
 </body></html>`;
 }
 function pubCoverSvg(row) {
@@ -705,6 +756,7 @@ const routes = [
     if (!isCreator(u)) throw new ApiError(403, '请先在个人中心「成为创作者」');
     const st = u.role === 'admin' ? 'published' : 'pending';
     q.scoreReview.run(st, '', s.id);
+    if (st === 'published') baiduPush([s.id]);   /* v61.7 直发上架即推百度（未配 token 静默跳过） */
     return { published: st === 'published', status: st, pending: st === 'pending' };
   }],
   /* v60.6 曲谱实例缩图上传：制谱器把真实渲染的谱面首行光栅化后回传，谱库卡片直接当截图展示。
@@ -800,6 +852,7 @@ const routes = [
     const st = act === 'approve' ? 'published' : act === 'reject' ? 'rejected' : 'private';
     q.scoreReview.run(st, act === 'approve' ? '' : note, s.id);
     adminLog(u.id, act, s.id, (s.title || '') + (note ? ' · ' + note : ''));
+    if (act === 'approve') baiduPush([s.id]);   /* v61.7 过审上架即推百度（未配 token 静默跳过） */
     /* v60.87 审核结果发站内信给谱主（管理员审自己的谱不发，免自言自语）。
        通过→附谱库直达链；驳回/下架→附编辑器打开链，正文带原因。 */
     if (s.user_id !== u.id) {
@@ -960,10 +1013,46 @@ const routes = [
   }],
 
   /* -- 已发布谱 SSR 落地页 + og 封面（无需登录，供搜索引擎/社交爬虫收录）-- */
+  /* v61.7 谱库目录页（收录工程）：全部已发布谱的纯 HTML 链接清单。动机：谱库首页卡片是 JS 渲染，
+     爬虫抓 raw HTML 只见骨架、拿不到任何 /pub/ 链接，收录只能靠跨主机 sitemap 声明（百度基本不认）——
+     本页由 www 首页静态内链引入，形成「首页 → 目录 → 每首谱」的可爬路径。 */
+  ['GET', /^\/pub\/?$/, false, () => {
+    const rows = q.pubList.all();
+    const lis = rows.map(r =>
+      `  <li><a href="/pub/${escHtml(r.id)}">${escHtml((r.title || '未命名曲谱') + (r.singer ? ' - ' + r.singer : ''))}</a></li>`).join('\n');
+    const html = `<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>曲谱目录（共 ${rows.length} 首）- 谱友圈谱库</title>
+<meta name="description" content="谱友圈谱库全部曲谱目录：吉他谱、钢琴谱、简谱、五线谱、尤克里里谱免费在线看，一键移调、跟谱播放。">
+<link rel="canonical" href="${PUB_CANON}/pub/">
+<style>
+body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#141414;background:#faf8f4}
+.wrap{max-width:760px;margin:0 auto;padding:36px 20px}
+.brand{color:#8a8a8a;font-size:13px;letter-spacing:.1em}
+h1{font-size:24px;margin:.4em 0 1em}
+ul{list-style:none;margin:0;padding:0;columns:2;column-gap:28px}
+li{break-inside:avoid}a{color:#3a5ce0;text-decoration:none}a:hover{text-decoration:underline}
+.foot{margin-top:2.4em;padding-top:1.2em;border-top:1px solid #e5e2dc;font-size:13px;color:#8a8a8a}
+.foot a{color:#8a8a8a;margin-right:16px}
+@media (max-width:560px){ul{columns:1}}
+</style></head><body><div class="wrap">
+<div class="brand">谱友圈 · 谱库</div>
+<h1>曲谱目录（共 ${rows.length} 首）</h1>
+<ul>
+${lis}
+</ul>
+<div class="foot"><a href="https://www.puyouquan.com/">谱友圈首页</a><a href="${VIEW_HOST}/">免费在线制谱</a></div>
+</div></body></html>`;
+    return { ___raw: html, ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=600' };
+  }],
   ['GET', /^\/pub\/([A-Za-z0-9_-]+)$/, false, (m, b, u, req, res) => {
     const s = q.pubGet.get(m[1]);
     if (!s) return { ___raw: '<!doctype html><meta charset="utf-8"><title>曲谱不存在 - 谱友圈</title><body style="font:16px sans-serif;text-align:center;padding:60px">该曲谱不存在或已下架。<a href="//puku.puyouquan.com/">返回谱库</a>', ___ctype: 'text/html; charset=utf-8', ___cache: 'no-store', ___status: 404 };
-    return { ___raw: pubSsrHtml(s), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
+    /* v61.7 相关曲谱内链（同歌手优先，再补最新）：谱页彼此互链成网，收录不再只靠目录单点 */
+    const others = q.pubList.all().filter(r => r.id !== s.id);
+    const same = s.singer ? others.filter(r => r.singer === s.singer) : [];
+    const related = same.concat(others.filter(r => !same.includes(r))).slice(0, 8);
+    return { ___raw: pubSsrHtml(s, related), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
   }],
   ['GET', /^\/pub\/([A-Za-z0-9_-]+)\/cover\.svg$/, false, (m) => {
     const s = q.pubGet.get(m[1]);
@@ -987,10 +1076,12 @@ const routes = [
     const rows = q.pubList.all();
     /* v60.82 SEO：带 <lastmod>（updated_at 是 epoch 秒）——搜索引擎按它安排重抓，
        重新发布过的谱能更快刷新快照，没动过的不浪费抓取配额 */
-    const urls = rows.map(r => {
-      const lm = r.updated_at ? `<lastmod>${new Date(r.updated_at * 1000).toISOString().slice(0, 10)}</lastmod>` : '';
-      return `  <url><loc>${PUB_CANON}/pub/${escHtml(r.id)}</loc>${lm}<changefreq>weekly</changefreq><priority>0.6</priority></url>`;
-    }).join('\n');
+    /* v61.7 目录页也进 sitemap（daily：每次上新它都变） */
+    const urls = [`  <url><loc>${PUB_CANON}/pub/</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`]
+      .concat(rows.map(r => {
+        const lm = r.updated_at ? `<lastmod>${new Date(r.updated_at * 1000).toISOString().slice(0, 10)}</lastmod>` : '';
+        return `  <url><loc>${PUB_CANON}/pub/${escHtml(r.id)}</loc>${lm}<changefreq>weekly</changefreq><priority>0.6</priority></url>`;
+      })).join('\n');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
     return { ___raw: xml, ___ctype: 'application/xml; charset=utf-8', ___cache: 'public, max-age=600' };
   }],

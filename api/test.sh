@@ -198,20 +198,29 @@ nchk 点赞未登录被拒 '"ok":true' "$(curl -s -X PUT http://127.0.0.1:3199/a
 chk 取消点赞 '"ok":true' "$(J -X DELETE http://127.0.0.1:3199/api/likes/song_abc12345)"
 chk 取消后计数为0 '"likes":0' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 
-# 已发布谱最小 SSR：落地页可爬 + og 封面（title/description/canonical/og/JSON-LD/真人跳转）
+# 已发布谱最小 SSR：落地页可爬 + og 封面（title/description/canonical/og/JSON-LD）
 SSR=$(curl -s http://127.0.0.1:3199/pub/song_abc12345)
 chk SSR落地页标题 '<title>小星星' "$SSR"
 chk SSR含描述meta 'name="description"' "$SSR"
 chk SSR含canonical 'rel="canonical"' "$SSR"
 chk SSR含og:image '/pub/song_abc12345/cover.svg' "$SSR"
 chk SSR含JSON-LD 'MusicComposition' "$SSR"
-chk SSR真人跳转观看页 'location.replace' "$SSR"
+# v61.7 收录工程：自动跳转是「桥页」信号（搜索引擎拒收薄跳转页）——改真人点击 CTA，落地页自身可收录
+nchk SSR无自动跳转防桥页 'location.replace' "$SSR"
+chk SSR含目录内链 '谱库目录' "$SSR"
+chk SSR含相关曲谱内链 '相关曲谱' "$SSR"
 chk SSR封面SVG 'svg xmlns' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345/cover.svg)"
 chk SSR封面ContentType 'image/svg' "$(curl -sD - -o /dev/null http://127.0.0.1:3199/pub/song_abc12345/cover.svg)"
 chk SSR未发布谱不出SSR '不存在' "$(curl -s http://127.0.0.1:3199/pub/nonexistent1234)"
 SM=$(curl -s http://127.0.0.1:3199/pub/sitemap.xml)
 chk SSR站点地图列出发布谱 '/pub/song_abc12345' "$SM"
 chk SSR站点地图XML '<urlset' "$SM"
+# v61.7 谱库目录页：全部已发布谱纯 HTML 链接清单（首页→目录→每首谱的可爬路径）
+PDIR=$(curl -s http://127.0.0.1:3199/pub/)
+chk 目录页列出发布谱 '/pub/song_abc12345' "$PDIR"
+chk 目录页标题 '曲谱目录' "$PDIR"
+chk 目录页canonical 'rel="canonical"' "$PDIR"
+chk 站点地图含目录页 '<loc>https://puku.puyouquan.com/pub/</loc>' "$SM"
 
 # v60.6 曲谱实例缩图：制谱器渲染真谱面 → 光栅化上传 → 卡片/og:image 当截图用
 PNG1='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='

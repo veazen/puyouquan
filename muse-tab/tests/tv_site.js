@@ -614,6 +614,17 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     await pg.close();
   }
 
+  /* ===== v61.7 收录工程（站点侧）：四垂类收进功能页场景区块 + 首页静态目录内链 ===== */
+  {
+    const ft7 = read('features.html');
+    T(ft7.includes('专属场景') && LAND.every(n => ft7.includes(n + '.html')),
+      'S v61.7 功能页场景区块内链四垂类落地页');
+    /* 首页卡片是 JS 渲染、爬虫拿不到 /pub/ 链接——静态 HTML 里必须有一条到谱库目录页的可爬内链 */
+    const ix7 = read('index.html');
+    T(ix7.includes('puku.puyouquan.com/pub/') && ix7.includes('曲谱目录'),
+      'S v61.7 首页静态内链谱库目录页（首页→目录→每首谱可爬路径）');
+  }
+
   /* ===== v60.90 课程系统：学习页交互 / 数据同步 / 工作台课程页签 ===== */
   {
     // ① 内嵌数据与服务端种子逐字节同源（改课程须两处一起改或走工作台）
