@@ -285,10 +285,13 @@
       /* v61.8 闯关题序列化：一行一题 题干|选项…|答案序号|解析（解析可空；[[1' 2_]] 记号语法见占位提示） */
       var quizTxt=(ch.quiz||[]).map(function(t){
         return [t.q].concat(t.opts||[]).concat([(t.a|0)+1, t.why||'']).join('|'); }).join('\n');
+      var nsec=(ch.sections||[]).length;   /* v61.9 2.0 小节树：本版只读提示，小节编辑器下一版上线 */
       return '<fieldset class="crs-ch" data-ci="'+i+'"><legend>第 '+(i+1)+' 章'
         +'<button type="button" class="ad-b" data-chup="'+i+'" '+(i?'':'disabled')+'>↑</button>'
         +'<button type="button" class="ad-b" data-chdn="'+i+'">↓</button>'
         +'<button type="button" class="ad-b no" data-chdel="'+i+'">删除</button></legend>'
+        +(nsec?('<p class="crs-secnote" data-secnote="'+i+'">📚 本章含 <b>'+nsec+' 个小节</b>（学习/练习/测试三模块，课程 2.0 结构）——'
+          +'小节内容的可视化编辑器将在下一版上线；<b>在此保存不会影响小节内容</b>，本页改的是章标题与章级字段。</p>'):'')
         +'<div class="ad-search" style="margin:0 0 8px"><input data-f="emoji" value="'+esc(ch.emoji||'')+'" placeholder="表情" style="max-width:70px">'
         +'<input data-f="title" value="'+esc(ch.title||'')+'" placeholder="章节标题（必填）"></div>'
         +'<input data-f="goal" value="'+esc(ch.goal||'')+'" placeholder="学习目标（一句话；发布要求必填）">'
@@ -336,12 +339,16 @@
           if(!ps[0]||opts.length<2||opts.length>4||a<0||a>=opts.length) return { _bad:x };
           var t={ q:ps[0], opts:opts, a:a }; if(why) t.why=why; return t;
         });
-        chs[i]={ emoji:g('emoji').trim(), title:g('title').trim(), goal:g('goal').trim(),
-          points:g('points').split('\n').map(function(x){ return x.trim(); }).filter(Boolean),
-          task:g('task').trim(),
-          links:g('links').split('\n').map(function(x){ var m2=x.split('|'); return { t:(m2[0]||'').trim(), href:(m2[1]||'').trim() }; })
-            .filter(function(l){ return l.t&&l.href; }) };
-        if(quiz.length) chs[i].quiz=quiz;
+        /* v61.9 只覆盖本编辑器管的字段，其余（如 2.0 的 sections 小节树）原样留在对象里——
+           否则管理员在本页保存一次，整棵小节内容就被这次重建抹掉了（数据红线） */
+        var keep=chs[i]||{};
+        keep.emoji=g('emoji').trim(); keep.title=g('title').trim(); keep.goal=g('goal').trim();
+        keep.points=g('points').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+        keep.task=g('task').trim();
+        keep.links=g('links').split('\n').map(function(x){ var m2=x.split('|'); return { t:(m2[0]||'').trim(), href:(m2[1]||'').trim() }; })
+          .filter(function(l){ return l.t&&l.href; });
+        if(quiz.length) keep.quiz=quiz; else delete keep.quiz;
+        chs[i]=keep;
       });
     }
     function collectWire(){

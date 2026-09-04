@@ -12,6 +12,10 @@ const seed = [
 ];
 /* 1×1 PNG：缩图字节由 route 兜住，测试不打真网络 */
 const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+/* v61.9 工作台桩里放一门真实的 2.0 课程（直接取种子文件）：验证章级编辑器保存不丢小节树。
+   注意列表接口的 data 是**字符串**（courseAll 直出 TEXT 列），详情接口才是对象（服务端已 parse）——桩要同口径。 */
+const SEED_COURSES = JSON.parse(fs.readFileSync(P.resolve(__dirname, '../../api/seed-courses.json'), 'utf8'));
+const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch.sections || []).length)) || null;
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -72,12 +76,19 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       if (p === '/api/admin/orders') return J({ orders: [{ id: 'o1', kind: 'vip_month', amount_fen: 1500, channel: 'wxpay', status: 'paid', created_at: 1700000000, nickname: '小谱', phone: '139****9999' }] });
       if (/^\/api\/admin\/users\/[^/]+\/(role|grant|revoke)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, role: 'creator', kind: 'vip', expires_at: 0 }); }
       /* v60.90 课程工作台 */
-      if (p === '/api/admin/courses') return J({ courses: [{ id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '', instrument: 'guitar', level: '零基础', weeks: 7, status: 'published', sort: 0, updated_at: 1700000000 }] });
+      if (p === '/api/admin/courses') return J({ courses: [
+        { id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '', instrument: 'guitar', level: '零基础', weeks: 7, status: 'published', sort: 0, updated_at: 1700000000 },
+        ...(SEC_COURSE ? [{ id: SEC_COURSE.id, title: SEC_COURSE.title, subtitle: SEC_COURSE.subtitle, instrument: SEC_COURSE.instrument,
+          level: SEC_COURSE.level, weeks: SEC_COURSE.weeks, status: 'published', sort: 1, updated_at: 1700000000,
+          data: JSON.stringify(SEC_COURSE.data) }] : []),
+      ] });
       if (/^\/api\/admin\/courses\/[^/]+\/(publish|unpublish)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, status: 'published' }); }
       if (/^\/api\/admin\/courses\/[^/]+$/.test(p)) {
         const mth = route.request().method();
         if (mth === 'PUT') { pg2._posts.push('PUT ' + p); return J({ saved: true, id: p.split('/').pop(), status: 'draft' }); }
         if (mth === 'DELETE') { pg2._posts.push('DELETE ' + p); return J({ ok: true }); }
+        if (SEC_COURSE && p.endsWith('/' + SEC_COURSE.id))   // v61.9 2.0 课程详情：data 为对象（同服务端口径）
+          return J({ course: Object.assign({ sort: 1, status: 'published' }, SEC_COURSE) });
         return J({ course: { id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '7 周', instrument: 'guitar', level: '零基础', weeks: 7, intro: '', sort: 0, status: 'published',
           data: { emoji: '🎸', fam: 'g', chapters: [{ emoji: '🎸', title: '认识吉他', goal: '', points: ['部件'], task: '调音', links: [{ t: '帮助', href: 'help.html' }] }] } } });
       }
@@ -633,11 +644,17 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
     const seedC = JSON.parse(fs.readFileSync(P.resolve(__dirname, '../../api/seed-courses.json'), 'utf8'));
     T(JSON.stringify(inline) === JSON.stringify(seedC),
       'T14a v60.90 学习页内嵌课程=服务端种子（单一内容源）', inline.length + ' vs ' + seedC.length + ' 门');
+    /* v61.9 课程 2.0：认识简谱细化到小节——每小节 学习块 / 练习（打卡）/ 测试题 三件齐备 */
+    const jpC = inline.find(c => c.title === '认识简谱');
+    const jpSecs = (jpC ? jpC.data.chapters : []).reduce((a, ch) => a.concat(ch.sections || []), []);
     T(inline.length === 3 && inline.some(c => c.title === '幼儿音乐启蒙课' && (c.data.chapters || []).length === 6)
       && inline.some(c => c.title === '民谣吉他启蒙课' && (c.data.chapters || []).length === 7)
-      && inline.some(c => c.title === '认识简谱' && (c.data.chapters || []).length === 6
-          && c.data.chapters.every(ch => (ch.quiz || []).length >= 3)),
-      'T14b 三门课：吉他 7 章 + 幼儿 6 章 + 认识简谱 6 关（每关 ≥3 闯关题）');
+      && jpC && jpC.data.chapters.length === 6 && jpSecs.length >= 14
+      && jpSecs.every(s => (s.learn.blocks || []).length >= 3 && s.practice.checkin === true
+          && (s.test.items || []).length >= 4 && s.test.items.every(t =>
+            t.kind === 'choice' && t.q && t.opts.length >= 2 && t.opts.length <= 4
+            && Number.isInteger(t.a) && t.a >= 0 && t.a < t.opts.length && t.why)),
+      'T14b 三门课 + 认识简谱 2.0：6 章 ' + jpSecs.length + ' 小节，每节 学习块≥3 / 打卡 / 测试题≥4 且结构合法');
 
     // ② 学习页：卡片渲染 → 打开详情 → 打卡 → 进度与 localStorage（/api/courses 404 走内嵌兜底）
     pg = await mkPage(false, 'kecheng.html');
@@ -652,7 +669,10 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       await new Promise(r2 => setTimeout(r2, 100));
       const det = document.getElementById('kcd-course-guitar-qimeng');
       out.detShown = det && !det.hidden;
-      out.cardsHidden = document.getElementById('kc-cards').hidden;
+      /* v61.9 既有 bug 修复回归：hidden 属性会被 .kc-cards{display:grid} 压过——
+         必须断言「算出来真的不显示」，光看 .hidden 属性抓不到（v58.7 .me-auth 同款坑） */
+      out.cardsHidden = document.getElementById('kc-cards').hidden
+        && getComputedStyle(document.getElementById('kc-cards')).display === 'none';
       out.chN = det.querySelectorAll('.kc-ch').length;
       det.querySelector('[data-tick="0"]').click();
       await new Promise(r2 => setTimeout(r2, 60));
@@ -724,46 +744,199 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
       'T15c v61.8 发布强化：闯关题编辑/坏题拦截定位/下移/预览草稿', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
     await pg.close();
 
-    // v61.8 闯关打卡游戏：逐关解锁 → 答题（对错即判+解析）→ 通关自动打卡+星级 → 解锁下一关
-    pg = await mkPage(false, 'kecheng.html');
-    await pg.waitForTimeout(500);
+    // T15d v61.9 数据红线：章级编辑器保存 2.0 课程时，小节树（sections）必须原样留存
+    pg = await mkPage(true, 'admin.html', null, 'admin');
+    await pg.waitForTimeout(600);
     r = await pg.evaluate(async () => {
-      const data = JSON.parse(document.getElementById('kc-data').textContent);
-      const jc = data.find(c => c.title === '认识简谱');
-      const out = { id: jc.id };
-      document.querySelector('[data-open="' + jc.id + '"]').click();
-      await new Promise(r2 => setTimeout(r2, 120));
-      const det = document.getElementById('kcd-' + jc.id);
+      const out = {};
+      let sent = null;
+      const realFetch = window.fetch;
+      window.fetch = (u, o) => {                      // 截获 PUT body 看 sections 有没有被抹掉
+        if (/\/admin\/courses\//.test(String(u)) && o && o.method === 'PUT') { try { sent = JSON.parse(o.body); } catch (_) {} }
+        return realFetch(u, o);
+      };
+      document.querySelector('#ad-tabs [data-ad="courses"]').click();
+      await new Promise(r2 => setTimeout(r2, 220));
+      const row = [...document.querySelectorAll('#ad-pane [data-edit]')]
+        .find(b => b.closest('.ad-row').textContent.includes('认识简谱'));
+      out.rowFound = !!row;
+      if (!row) { window.fetch = realFetch; return out; }   // 无 2.0 课程时报红而不是崩进程（突变跑口径）
+      out.rowTxt = row.closest('.ad-row').querySelector('small').textContent;
+      row.click();
+      await new Promise(r2 => setTimeout(r2, 260));
+      out.note = !!document.querySelector('[data-secnote="0"]');
+      document.getElementById('crs-title').value = '认识简谱';   // 只动章级字段就保存
+      document.getElementById('crs-save').click();
+      await new Promise(r2 => setTimeout(r2, 260));
+      const chs = sent && sent.data && sent.data.chapters || [];
+      out.chN = chs.length;
+      out.secKept = chs.length ? chs.every(ch => (ch.sections || []).length > 0) : false;
+      out.secN = chs.reduce((a, ch) => a + (ch.sections || []).length, 0);
+      out.blocksKept = !!(((chs[0] || {}).sections || [])[0] || {}).learn;
+      window.fetch = realFetch;
+      return out;
+    });
+    T(r.rowFound && /6 章/.test(r.rowTxt) && r.note && r.chN === 6 && r.secKept && r.secN >= 14 && r.blocksKept,
+      'T15d v61.9 章级编辑器保存不丢小节树（数据红线）+ 小节只读提示', JSON.stringify(r));
+    await pg.close();
+
+    // v61.8 闯关打卡（章级 quiz 口径，老课程路径）：用合成课程验证——认识简谱已升级到 2.0 小节结构
+    pg = await mkPage(false, 'kecheng.html');
+    await pg.waitForTimeout(400);
+    r = await pg.evaluate(async () => {
+      /* 章级 quiz 是老课程/简易课程的合法写法（工作台仍可这样出题），走 ?preview= 通道注入验证 */
+      localStorage.setItem('pyq-crs-preview', JSON.stringify({ id: 'legacy-quiz-course', title: '章级闯关课',
+        subtitle: '', instrument: 'other', level: '', weeks: 1, intro: '',
+        data: { emoji: '🎯', fam: 'g', chapters: [
+          { emoji: '1️⃣', title: '第一关', goal: '目标一', points: ['要点 [[1]] [[5_]]'], quiz: [
+            { q: '[[1]] 的唱名？', opts: ['do', 're'], a: 0, why: '1 是 do' },
+            { q: '[[5]] 的唱名？', opts: ['fa', 'sol'], a: 1, why: '5 是 sol' },
+            { q: '[[0]] 是？', opts: ['休止', '低音'], a: 0, why: '0 是休止符' }] },
+          { emoji: '2️⃣', title: '第二关', goal: '目标二', points: ['要点'] }] } }));
+      location.search = '?preview=1';
+    });
+    await pg.waitForTimeout(600);
+    r = await pg.evaluate(async () => {
+      const out = {};
+      const det = document.getElementById('kcd-legacy-quiz-course');
+      out.shown = !!det && !det.hidden;
       out.lock1 = det.querySelector('.kc-ch[data-ci="1"]').classList.contains('kc-lock');
       out.qbtn = (det.querySelector('[data-quiz="0"]') || {}).textContent || '';
       det.querySelector('[data-quiz="0"]').click();
       await new Promise(r2 => setTimeout(r2, 60));
-      const quiz = jc.data.chapters[0].quiz;
       const host = det.querySelector('[data-qhost="0"]');
-      out.qN = quiz.length;
-      for (let k = 0; k < quiz.length; k++) {
-        host.querySelector('.kq-opt[data-oi="' + quiz[k].a + '"]').click();
-        await new Promise(r2 => setTimeout(r2, 30));
+      for (let k = 0; k < 3; k++) {
+        host.querySelector('.kq-opt[data-oi="' + [0, 1, 0][k] + '"]').click();
+        await new Promise(r2 => setTimeout(r2, 25));
         if (k === 0) out.why0 = !host.querySelector('.kq-why').hidden;
         host.querySelector('[data-next]').click();
-        await new Promise(r2 => setTimeout(r2, 30));
+        await new Promise(r2 => setTimeout(r2, 25));
       }
       out.pass = /通关/.test((host.querySelector('.kq-result') || {}).textContent || '');
       out.stars = (host.querySelector('.kq-star') || {}).textContent || '';
       host.querySelector('[data-cont]').click();
-      await new Promise(r2 => setTimeout(r2, 60));
+      await new Promise(r2 => setTimeout(r2, 80));
       out.done0 = det.querySelector('.kc-ch[data-ci="0"]').classList.contains('kc-done');
       out.unlock1 = !det.querySelector('.kc-ch[data-ci="1"]').classList.contains('kc-lock');
-      const ls = JSON.parse(localStorage.getItem('pyq-learn-v1') || '{}');
-      out.lsDone = (ls[jc.id] || []).indexOf(0) >= 0;
-      out.lsStar = +((ls['s:' + jc.id] || {})['0'] || 0);
       out.jp = !!det.querySelector('.jpn');
       return out;
     });
-    T(r.lock1 && /闯关/.test(r.qbtn) && r.qN >= 3 && r.why0 && r.pass && r.stars === '★★★'
-      && r.done0 && r.unlock1 && r.lsDone && r.lsStar === 3 && r.jp,
-      'T16 闯关打卡：锁→答题→三星通关→自动打卡+解锁下一关+记号渲染', JSON.stringify(r));
+    T(r.shown && r.lock1 && /闯关/.test(r.qbtn) && r.why0 && r.pass && r.stars === '★★★'
+      && r.done0 && r.unlock1 && r.jp,
+      'T16 章级闯关（老课程路径零回归）：锁→答题→三星通关→打卡+解锁+记号渲染', JSON.stringify(r));
     T(pg._errs.length === 0, 'T16b 闯关页无报错', pg._errs.join('|') || 'none');
+    await pg.close();
+
+    /* ===== v61.9 课程 2.0：小节化 + 学/练/测三模块 + 五星解锁链 ===== */
+    // T17 小节流程：锁小节 → 练习打卡 → 测试不及格不解锁 → 重测通关 → 解锁并自动展开下一节
+    pg = await mkPage(false, 'kecheng.html');
+    await pg.waitForTimeout(500);
+    r = await pg.evaluate(async () => {
+      const out = {};
+      const data = JSON.parse(document.getElementById('kc-data').textContent);
+      const jc = data.find(c => c.title === '认识简谱');
+      const s0 = ((jc.data.chapters[0] || {}).sections || [])[0];
+      if (!s0) return { noSections: true };   // 课程未小节化时报红而不是崩进程（突变跑口径）
+      const items = s0.test.items;
+      document.querySelector('[data-open="' + jc.id + '"]').click();
+      await new Promise(r2 => setTimeout(r2, 120));
+      const det = document.getElementById('kcd-' + jc.id);
+      out.secs = det.querySelectorAll('.kc-sec').length;
+      out.groups = det.querySelectorAll('.kc-chgroup').length;
+      if (!out.secs) return out;   // 无小节结构时报红而不是崩进程（突变跑口径）
+      out.open0 = det.querySelector('.kc-sec[data-sk="0.0"]').classList.contains('open');
+      out.lock01 = det.querySelector('.kc-sec[data-sk="0.1"]').classList.contains('kc-lock');
+      out.mods = det.querySelectorAll('.kc-sec[data-sk="0.0"] .kc-mod').length;   // 学/练/测 三模块
+      // 练习打卡
+      det.querySelector('[data-checkin="0.0"]').click();
+      await new Promise(r2 => setTimeout(r2, 40));
+      out.ckTxt = det.querySelector('[data-ckn="0.0"]').textContent;
+      const run = pickWrong => {
+        const host = det.querySelector('[data-thost="0.0"]');
+        return (async () => {
+          for (let k = 0; k < items.length; k++) {
+            const oi = pickWrong(k) ? (items[k].a + 1) % items[k].opts.length : items[k].a;
+            host.querySelector('.kq-opt[data-oi="' + oi + '"]').click();
+            await new Promise(r2 => setTimeout(r2, 20));
+            host.querySelector('[data-next]').click();
+            await new Promise(r2 => setTimeout(r2, 20));
+          }
+          return host;
+        })();
+      };
+      // ① 错 3 题 → 不及格、不解锁、不记星
+      det.querySelector('[data-sectest="0.0"]').click();
+      await new Promise(r2 => setTimeout(r2, 40));
+      let host = await run(k => k < 3);
+      out.failTxt = (host.querySelector('.kq-result') || {}).textContent || '';
+      out.failStar = +(((JSON.parse(localStorage.getItem('pyq-learn-v1')) || {})['sec:' + jc.id] || {})['0.0'] || {}).stars || 0;
+      out.stillLock = det.querySelector('.kc-sec[data-sk="0.1"]').classList.contains('kc-lock');
+      // ② 重测错 1 题 → 4 星通关
+      host.querySelector('[data-retry]').click();
+      await new Promise(r2 => setTimeout(r2, 40));
+      host = await run(k => k === 0);
+      out.passTxt = (host.querySelector('.kq-result') || {}).textContent || '';
+      out.stars = (host.querySelector('.kq-star') || {}).textContent || '';
+      const ls = JSON.parse(localStorage.getItem('pyq-learn-v1')) || {};
+      out.lsStar = ((ls['sec:' + jc.id] || {})['0.0'] || {}).stars;
+      out.lsDays = (((ls['sec:' + jc.id] || {})['0.0'] || {}).days || []).length;
+      out.legacyUntouched = ls[jc.id] === undefined && ls['s:' + jc.id] === undefined;
+      host.querySelector('[data-cont]').click();
+      await new Promise(r2 => setTimeout(r2, 120));
+      out.unlock01 = !det.querySelector('.kc-sec[data-sk="0.1"]').classList.contains('kc-lock');
+      out.openNext = det.querySelector('.kc-sec[data-sk="0.1"]').classList.contains('open');
+      out.bar = det.querySelector('[data-prog]').textContent;
+      return out;
+    });
+    T(r.secs >= 14 && r.groups === 6 && r.open0 && r.lock01 && r.mods === 3
+      && /已打卡 1 天/.test(r.ckTxt)
+      && /★★☆☆☆/.test(r.failTxt) && r.failStar === 0 && r.stillLock
+      && /通关/.test(r.passTxt) && r.stars === '★★★★☆' && r.lsStar === 4 && r.lsDays === 1
+      && r.legacyUntouched && r.unlock01 && r.openNext && /1\/\d+ 小节 · ★ 4\//.test(r.bar),
+      'T17 v61.9 小节流程：三模块/打卡/不及格不解锁/重测四星通关/解锁并展开下一节', JSON.stringify(r));
+
+    // T18 内容块渲染白名单：text(md+记号)/jp 谱行/score/image/video(自托管 mp4)/code；非白名单 src 一律不渲染
+    r = await pg.evaluate(async () => {
+      localStorage.setItem('pyq-crs-preview', JSON.stringify({ id: 'block-demo', title: '块渲染样例',
+        subtitle: '', instrument: 'other', level: '', weeks: 1, intro: '',
+        data: { emoji: '🧱', fam: 'f', chapters: [{ emoji: '🧱', title: '块', goal: '', sections: [
+          { title: '全部块型', learn: { blocks: [
+            { t: 'text', md: '### 标题\n- 列表项 **粗体** [[1\' 2_]]\n> 引用' },
+            { t: 'jp', line: "1 2 3 | 5 - ~ 5 ||", cap: '谱例' },
+            { t: 'score', q: '小星星', title: '《小星星》', note: '跟谱' },
+            { t: 'image', src: '/og.png', cap: '图' },
+            { t: 'image', src: 'javascript:alert(1)', cap: '坏图' },
+            { t: 'video', src: '/media/demo.mp4', cap: '视频' },
+            { t: 'video', src: 'https://evil.example.com/x.mp4', cap: '坏视频' },
+            { t: 'code', lang: 'js', src: 'const a = 1 < 2;' }] },
+            practice: { blocks: [{ t: 'text', md: '练一练' }], tip: '提示', checkin: true },
+            test: { items: [{ kind: 'choice', q: 'x?', opts: ['a', 'b'], a: 0, why: 'w' }] } }] }] } }));
+      location.search = '?preview=1';
+    });
+    await pg.waitForTimeout(600);
+    r = await pg.evaluate(() => {
+      const det = document.getElementById('kcd-block-demo');
+      const learn = det && det.querySelector('.kc-mod');
+      if (!learn) return { noRender: true };   // 无块渲染器时报红而不是崩进程（突变跑口径）
+      return { h4: !!learn.querySelector('h4'), li: !!learn.querySelector('li'),
+        bold: !!learn.querySelector('li b'), jpTok: !!learn.querySelector('li .jpn'),
+        quote: !!learn.querySelector('blockquote'),
+        jpline: !!learn.querySelector('.jpline'), bar: !!learn.querySelector('.jpbar'),
+        endbar: !!learn.querySelector('.jpbar.end'), tie: !!learn.querySelector('.jptie'),
+        score: !!learn.querySelector('.lb-score'),
+        imgs: learn.querySelectorAll('.lb-img img').length,
+        vids: learn.querySelectorAll('.lb-video video').length,
+        vsrc: (learn.querySelector('.lb-video video') || {}).getAttribute
+          ? learn.querySelector('.lb-video video').getAttribute('src') : '',
+        code: (learn.querySelector('.lb-code code') || {}).textContent || '',
+        rawHtml: /<script|javascript:/i.test(det.innerHTML) };
+    });
+    T(r.h4 && r.li && r.bold && r.jpTok && r.quote && r.jpline && r.bar && r.endbar && r.tie
+      && r.score && r.imgs === 1 && r.vids === 1 && r.vsrc === '/media/demo.mp4'
+      && r.code === 'const a = 1 < 2;' && !r.rawHtml,
+      'T18 v61.9 内容块：md 子集/谱行(小节线·终止线·延音线)/互动谱/图/自托管 mp4/代码 + 非白名单拒渲染',
+      JSON.stringify(r));
+    T(pg._errs.length === 0, 'T18b 课程 2.0 页面无报错', pg._errs.join('|') || 'none');
     await pg.close();
   }
 
