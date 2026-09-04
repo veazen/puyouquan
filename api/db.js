@@ -434,21 +434,41 @@ try{ seedPublished(); }catch(e){ console.error('种子插入失败（不影响�
    （此前「表非空即跳过」导致新课永远到不了生产库）；已存在的 id 一律不动，重启不覆盖管理员的修改。 ---------- */
 function seedCourses(){
   const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-courses.json'), 'utf8'));
-  const missing = list.filter(c => !q.courseGet.get(c.id));
-  if(!missing.length) return;
+  /* v61.9 补种 + **内容随发版刷新**：官方课程的内容源在仓库里（随版本演进，如 v61.9 把《认识简谱》
+     细化到小节）。判定「这行有没有被人改过」＝ updated_at > created_at：
+       · 从没被改过（种子写入时两者相等）→ 内容与种子不一致就刷新，新版内容才能真正到线上；
+       · 被管理员在工作台改过 → **一律不动**，绝不覆盖人的编辑（改坏了可在工作台重编）。 */
+  const seedNew = list.filter(c => !q.courseGet.get(c.id));
+  const stale = [];
+  list.forEach(c => {
+    const row = q.courseGet.get(c.id);
+    if(!row) return;
+    if(row.updated_at > row.created_at) return;                       // 人改过，尊重人的版本
+    if(row.data === JSON.stringify(c.data || {})) return;             // 已是最新，不做无谓写入
+    stale.push({ c, row });
+  });
+  if(!seedNew.length && !stale.length) return;
   let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
   if(!sys){ const id = 'official0000';
     q.userCreate.run(id, '00000000000', '谱友圈官方', now());
     q.userSetRole.run('creator', id); sys = { id };
   }
   const t = now();
-  missing.forEach(c => {
+  seedNew.forEach(c => {
     q.courseUpsert.run(c.id, sys.id, c.title, c.subtitle || '', c.instrument || '', c.level || '',
       c.weeks | 0, c.intro || '', list.indexOf(c), JSON.stringify(c.data || {}), t, t);
     q.courseSetStatus.run('published', t, c.id);
   });
-  console.log('已补种官方课程：' + missing.length + ' 门');
+  /* 刷新时 created_at/updated_at 都写成原 created_at——保持「未被人改过」这个不变量，
+     否则刷新一次之后就再也认不出这行是官方原样了 */
+  stale.forEach(({ c, row }) => {
+    q.courseUpsert.run(c.id, row.user_id, c.title, c.subtitle || '', c.instrument || '', c.level || '',
+      c.weeks | 0, c.intro || '', list.indexOf(c), JSON.stringify(c.data || {}), row.created_at, row.created_at);
+  });
+  if(seedNew.length) console.log('已补种官方课程：' + seedNew.length + ' 门');
+  if(stale.length) console.log('已按仓库内容刷新官方课程：' + stale.map(x => x.c.id).join(', '));
 }
 try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 
-module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast };
+/* seedCourses 导出供 db.test.js 直接驱动（测真实函数而不是复刻一遍判定逻辑） */
+module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast, seedCourses };

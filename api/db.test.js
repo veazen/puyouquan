@@ -106,6 +106,46 @@ T('orderByUser：同秒 6 单 —— 订单记录按下单序倒排，不随机�
   assert.deepStrictEqual(rows.map(r => r.id), ['od5', 'od4', 'od3', 'od2', 'od1', 'od0']);
 });
 
+/* v61.9 官方课程播种：新课补种 / 内容随发版刷新 / 但绝不覆盖管理员的编辑。
+   直接复刻 db.js seedCourses 的判定（同一套 q 语句），三种状态各验一次。 */
+T('seedCourses：未被改过的官方课随发版刷新内容，被改过的一律不动（v61.9）', () => {
+  const { seedCourses } = require('./db');
+  const seedList = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-courses.json'), 'utf8'));
+  const seedC = seedList.find(c => c.id === 'course-jianpu-renshi');
+  assert.ok(seedList.length >= 3 && seedC, '种子应含 3 门官方课（含《认识简谱》）');
+  const jp = q.courseGet.get(seedC.id);
+  assert.ok(jp, '启动时应已播种《认识简谱》');
+  // ① 播种写入后 updated_at == created_at —— 「没被人改过」的判定依据，破了刷新逻辑就失效
+  assert.strictEqual(jp.updated_at, jp.created_at, '播种行的 updated_at 必须等于 created_at');
+  const secN = JSON.parse(jp.data).chapters.reduce((a, ch) => a + (ch.sections || []).length, 0);
+  assert.ok(secN >= 14, '播种内容应为 2.0 小节结构，实得 ' + secN);
+
+  // ② 把行退回旧版本内容（模拟线上还停在 v61.8）→ 跑真实 seedCourses → 必须被刷新成最新
+  const OLD = JSON.stringify({ emoji: '🔢', fam: 'f', chapters: [{ title: '旧章', quiz: [] }] });
+  q.courseUpsert.run(jp.id, jp.user_id, jp.title, jp.subtitle, jp.instrument, jp.level,
+    jp.weeks, jp.intro, jp.sort, OLD, jp.created_at, jp.created_at);
+  seedCourses();
+  let row = q.courseGet.get(jp.id);
+  assert.strictEqual(row.data, JSON.stringify(seedC.data), '未被改过的官方课应刷新到仓库最新内容');
+  assert.strictEqual(row.updated_at, row.created_at, '刷新不得破坏「未被改过」不变量');
+
+  // ③ 管理员改过（updated_at 被抬高）→ 再跑 seedCourses → 人的编辑必须原样留住
+  const MINE = JSON.stringify({ emoji: '🔢', fam: 'f', chapters: [{ title: '我改的章', sections: [] }] });
+  q.courseUpsert.run(row.id, row.user_id, row.title, row.subtitle, row.instrument, row.level,
+    row.weeks, row.intro, row.sort, MINE, row.created_at, row.created_at + 100);
+  seedCourses();
+  row = q.courseGet.get(jp.id);
+  assert.strictEqual(row.data, MINE, '被管理员改过的课程内容绝不能被种子覆盖');
+
+  // ④ 缺课时补种：删掉再跑，应重新插入且状态为已发布
+  q.courseDelete.run(seedC.id);
+  assert.strictEqual(q.courseGet.get(seedC.id), undefined, '删除后应查不到');
+  seedCourses();
+  row = q.courseGet.get(seedC.id);
+  assert.ok(row && row.status === 'published', '缺失的官方课应被补种并发布');
+  assert.strictEqual(row.data, JSON.stringify(seedC.data), '补种内容应与种子一致');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);
