@@ -171,6 +171,10 @@ const c=JSON.parse(b).course;const n=c.data.chapters.reduce((a,ch)=>a+(ch.sectio
 console.log(n===16?"\"sections\" 16 ok":"BAD "+n);});});')"
 chk 坏闯关题拒发并定位 '第 1 章第 1 题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-3 -d '{"title":"闯关校验","data":{"chapters":[{"title":"一","quiz":[{"q":"","opts":["a"],"a":5}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-3/publish)"
 chk 修好闯关题可发布 '"status":"published"' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-3 -d '{"title":"闯关校验","data":{"chapters":[{"title":"一","quiz":[{"q":"1+1=?","opts":["1","2"],"a":1,"why":"basic"}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-3/publish)"
+# v62.0 2.0 小节结构的发布校验（此前只校章级 quiz，小节 test.items 一条不校验就能发布，坏题让学员闯关卡死）
+chk 小节坏题拒发并定位 '第 1.1 节第 1 题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"","opts":["a"],"a":9}]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-4/publish)"
+chk 小节缺标题拒发 '缺标题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-5 -d '{"title":"小节校验2","data":{"chapters":[{"title":"一","sections":[{"title":"","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-5/publish)"
+chk 小节题目合法可发布 '"status":"published"' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"1+1=?","opts":["1","2"],"a":1,"why":"w"}]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-4/publish)"
 chk 已发布课程不能直删 '先下架' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
 chk 下架课程 '"status":"draft"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/unpublish)"
 chk 删除草稿课程 '"ok":true' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"

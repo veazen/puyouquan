@@ -1079,15 +1079,29 @@ const routes = [
     if (st === 'published') {
       const chs = (JSON.parse(c.data || '{}').chapters || []);
       if (!chs.length) throw new ApiError(400, '没有章节的课程不能发布');
+      const badQ = (t) => !t || typeof t !== 'object' || !String(t.q || '').trim()
+        || !Array.isArray(t.opts) || t.opts.length < 2 || t.opts.length > 4
+        || !Number.isInteger(t.a) || t.a < 0 || t.a >= t.opts.length;
       chs.forEach((ch, i) => {
         const qz = ch && ch.quiz;
-        if (qz == null) return;
-        if (!Array.isArray(qz)) throw new ApiError(400, '第 ' + (i + 1) + ' 章闯关题格式不对（需为数组）');
-        qz.forEach((t, j) => {
-          if (!t || typeof t !== 'object' || !String(t.q || '').trim()
-            || !Array.isArray(t.opts) || t.opts.length < 2 || t.opts.length > 4
-            || !Number.isInteger(t.a) || t.a < 0 || t.a >= t.opts.length)
-            throw new ApiError(400, '第 ' + (i + 1) + ' 章第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+        if (qz != null) {
+          if (!Array.isArray(qz)) throw new ApiError(400, '第 ' + (i + 1) + ' 章闯关题格式不对（需为数组）');
+          qz.forEach((t, j) => {
+            if (badQ(t)) throw new ApiError(400, '第 ' + (i + 1) + ' 章第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+          });
+        }
+        /* v62.0 2.0 小节结构同款校验：此前只校章级 quiz，小节里的 test.items 一条不校验就能发布，
+           坏题会让学员在闯关处卡死（前端清单挡不住直接打 API）。 */
+        const secs = (ch && ch.sections) || [];
+        if (secs.length && !Array.isArray(secs)) throw new ApiError(400, '第 ' + (i + 1) + ' 章小节格式不对（需为数组）');
+        secs.forEach((s, k) => {
+          const where = '第 ' + (i + 1) + '.' + (k + 1) + ' 节';
+          if (!s || typeof s !== 'object' || !String(s.title || '').trim()) throw new ApiError(400, where + '缺标题');
+          const items = ((s.test || {}).items) || [];
+          if (!Array.isArray(items)) throw new ApiError(400, where + '测试题格式不对（需为数组）');
+          items.forEach((t, j) => {
+            if (badQ(t)) throw new ApiError(400, where + '第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+          });
         });
       });
     }

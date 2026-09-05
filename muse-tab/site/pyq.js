@@ -409,3 +409,103 @@ window.PYQ_DOCS = function(defaultSec){
   show(new URLSearchParams(location.search).get('section')||defaultSec);
 };
 })();
+
+/* ---------- v62.0 课程内容渲染器（单一来源）----------
+   学习页（kecheng.html）与后台课程编辑器（admin.html）**共用同一份**：编辑器的实时预览
+   由构造保证与前台逐字节一致，不会随时间漂移；校验用的白名单正则也和渲染用的是同一份。
+   受限 Markdown 子集 + 简谱记号 + 六种内容块；一律 esc 后拼接，不接受原始 HTML。 */
+window.PYQ_KC = (function(){
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  /* v61.8 简谱记号迷你渲染器：文案里 [[…]] 段落按 token 渲染成简谱记号。
+     token＝数字 0-7 + 修饰：' 高八度点 ／ , 低八度点 ／ - 增时线 ／ _ 减时线 ／ = 双减时线 ／ . 附点 */
+  function jpTok(t){
+    var m=/^([0-7])([',]*)([-_=.]*)$/.exec(t);
+    if(!m) return esc(t);
+    var up=(m[2].match(/'/g)||[]).length, dn=(m[2].match(/,/g)||[]).length;
+    var tail=m[3]||'', ul=tail.indexOf('=')>=0?2:(tail.indexOf('_')>=0?1:0);
+    var dot=function(n){ var s='';(n=n||1);for(var k=0;k<n;k++)s+='<b></b>';return s; };
+    var out='<span class="jpn'+(ul?' u'+ul:'')+'">'
+      +'<i class="jd'+(up?'':' off')+'">'+dot(up)+'</i>'
+      +'<span class="jg">'+m[1]+'</span>'
+      +'<i class="jd'+(dn?'':' off')+'">'+dot(dn)+'</i></span>';
+    var da=(tail.match(/-/g)||[]).length;
+    for(var k2=0;k2<da;k2++) out+='<span class="jpd">—</span>';
+    if(tail.indexOf('.')>=0) out+='<span class="jpp">·</span>';
+    return out;
+  }
+  function jpq(s){
+    return String(s==null?'':s).split(/\[\[(.*?)\]\]/).map(function(seg,i2){
+      if(i2%2===0) return esc(seg);
+      return '<span class="jpx">'+seg.trim().split(/\s+/).map(jpTok).join('')+'</span>';
+    }).join('');
+  }
+
+  /* ---------- 内容块渲染（学习/练习通用）：受限 Markdown 子集 + 谱例 + 互动谱 + 图片 + 视频 + 代码。
+     一律走 esc 后再拼，不接受原始 HTML；图片/视频 src 走白名单（视频＝自托管 mp4，产品拍板）。 ---------- */
+  var VID_OK=/^(\/[\w\-./]+|https:\/\/[\w.-]*puyouquan\.com\/[\w\-./]+)\.mp4$/i;
+  var IMG_OK=/^(\/[\w\-./%]+|https:\/\/[\w.-]+\/[\w\-./%]+)\.(png|jpe?g|webp|svg)$/i;
+  function mdInline(s){
+    return jpq(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');
+  }
+  function mdBlock(md){
+    var out='', ul=null;
+    function flush(){ if(ul){ out+='<ul>'+ul.join('')+'</ul>'; ul=null; } }
+    String(md==null?'':md).split('\n').forEach(function(ln){
+      var t=ln.trim();
+      if(!t){ flush(); return; }
+      if(t.indexOf('### ')===0){ flush(); out+='<h4>'+mdInline(t.slice(4))+'</h4>'; return; }
+      if(t.indexOf('> ')===0){ flush(); out+='<blockquote>'+mdInline(t.slice(2))+'</blockquote>'; return; }
+      if(/^[-*] /.test(t)){ (ul=ul||[]).push('<li>'+mdInline(t.slice(2))+'</li>'); return; }
+      flush(); out+='<p>'+mdInline(t)+'</p>';
+    });
+    flush(); return out;
+  }
+  /* 整行谱例：空格分 token，| 小节线、|| 终止线、~ 延音线，其余交给 jpTok */
+  function jpLine(line){
+    var out='';
+    String(line==null?'':line).trim().split(/\s+/).forEach(function(t){
+      if(t==='|') out+='<span class="jpbar"></span>';
+      else if(t==='||') out+='<span class="jpbar end"></span>';
+      else if(t==='~') out+='<span class="jptie">⌒</span>';
+      /* v62.0 独立成符的增时线：简谱惯例里「1 - -」的横线本就与音符分写，
+         此前落到 jpTok 的兜底分支当纯文本画出来（看着像，但既不是记号也过不了校验） */
+      else if(/^-+$/.test(t)) for(var i=0;i<t.length;i++) out+='<span class="jpd">—</span>';
+      else out+=jpTok(t);
+    });
+    return '<span class="jpx jpline">'+out+'</span>';
+  }
+  function blockHtml(b){
+    if(!b||typeof b!=='object') return '';
+    if(b.t==='text') return '<div class="lb lb-text">'+mdBlock(b.md)+'</div>';
+    if(b.t==='jp') return '<figure class="lb lb-jp">'+jpLine(b.line)
+      +(b.cap?'<figcaption>'+mdInline(b.cap)+'</figcaption>':'')+'</figure>';
+    if(b.t==='score'){
+      var href=b.pubId? ('//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(b.pubId))
+        : ('index.html?q='+encodeURIComponent(b.q||''));
+      return '<a class="lb lb-score" href="'+esc(href)+'" target="_blank" rel="noopener">'
+        +'<span class="lbs-ic">🎼</span><span class="lbs-tx"><b>'+esc(b.title||'互动谱')+'</b>'
+        +'<small>'+esc(b.note||'跟谱播放 · 一键移调 · 变速循环')+'</small></span>'
+        +'<span class="lbs-go">打开 →</span></a>';
+    }
+    if(b.t==='image'){
+      if(!IMG_OK.test(String(b.src||''))) return '';
+      return '<figure class="lb lb-img"><img src="'+esc(b.src)+'" alt="'+esc(b.cap||'')+'" loading="lazy">'
+        +(b.cap?'<figcaption>'+esc(b.cap)+'</figcaption>':'')+'</figure>';
+    }
+    if(b.t==='video'){
+      if(!VID_OK.test(String(b.src||''))) return '';
+      return '<figure class="lb lb-video"><video src="'+esc(b.src)+'" controls preload="none" playsinline'
+        +(IMG_OK.test(String(b.poster||''))?(' poster="'+esc(b.poster)+'"'):'')+'></video>'
+        +(b.cap?'<figcaption>'+esc(b.cap)+'</figcaption>':'')+'</figure>';
+    }
+    if(b.t==='code') return '<figure class="lb lb-code"><figcaption>'+esc(b.lang||'code')+'</figcaption>'
+      +'<pre><code>'+esc(b.src||'')+'</code></pre></figure>';
+    return '';
+  }
+
+
+  return { esc:esc, jpTok:jpTok, jpq:jpq, mdInline:mdInline, mdBlock:mdBlock, jpLine:jpLine,
+           blockHtml:blockHtml, IMG_OK:IMG_OK, VID_OK:VID_OK,
+           /* token 合法性（编辑器逐 token 校验用，与 jpTok 的判定同源） */
+           jpTokOk:function(t){ return t==='|'||t==='||'||t==='~'||/^-+$/.test(t)||/^[0-7][',]*[-_=.]*$/.test(t); } };
+})();
