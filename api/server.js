@@ -304,6 +304,7 @@ function typeLabelOf(d) {
 const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PUB_CANON = process.env.PUB_CANON || 'https://puku.puyouquan.com';   // canonical/og 主机（去重用）
 const VIEW_HOST = process.env.VIEW_HOST || 'https://zhipu.puyouquan.com';  // 真人交互观看页主机
+const SITE_HOST = process.env.SITE_HOST || 'https://www.puyouquan.com';    // v62.0 官网主机（课程页所在）
 /* v61.7 百度主动推送（收录提速）：谱面上架（直发/过审）时把落地页 URL 推给百度站长平台。
    token 走服务器环境变量 BAIDU_PUSH_TOKEN（凭据不入代码/仓库），未配置即静默跳过；
    旁路 fire-and-forget：推送失败只记日志，绝不影响发布主流程。 */
@@ -418,6 +419,120 @@ ${(related || []).length ? '<div class="rel"><b>相关曲谱</b><ul>' + related.
 <p class="tip">点上方按钮进入在线观看：即时移调 · 变速循环 · 跟谱播放。<br>谱友圈 —— 专业曲谱平台 · 出版级在线制谱</p>
 </div>
 </body></html>`;
+}
+/* ---------- v62.0 课程独立页（产品指示：每门课程打开进入独立页面）----------
+   /course/<id>：服务端渲染的课程落地页——真实 URL、可分享、可被搜索引擎收录（课程正文本来只存在于
+   前端 JSON 里，爬虫读不到）。真人点 CTA 进 kecheng.html?c=<id> 学习（不做自动跳转，v61.7 桥页教训）。
+   /course/：全部已发布课程的目录页。 */
+const CRS_INST_CN = { guitar: '吉他', piano: '钢琴', uku: '尤克里里', vocal: '唱歌/视唱', theory: '乐理/识谱', kids: '幼儿启蒙', other: '综合' };
+function courseShape(row) {
+  let d = {}; try { d = JSON.parse(row.data || '{}'); } catch (_) {}
+  const chs = d.chapters || [];
+  const secs = chs.reduce((a, ch) => a.concat((ch.sections || []).map(s => ({ ch, s }))), []);
+  const nQ = secs.reduce((a, x) => a + (((x.s.test || {}).items) || []).length, 0);
+  return { id: row.id, title: (row.title || '').trim() || '未命名课程', subtitle: (row.subtitle || '').trim(),
+    intro: (row.intro || '').trim(), level: (row.level || '').trim(), weeks: row.weeks | 0,
+    inst: CRS_INST_CN[row.instrument] || '', emoji: d.emoji || '🎼', chapters: chs, nSec: secs.length, nQuiz: nQ };
+}
+/* 小节学习块里的纯文本节选——给爬虫与摘要用（谱例/图片/视频块跳过） */
+function courseTextOf(sec, cap) {
+  let out = '';
+  for (const b of (((sec.learn || {}).blocks) || [])) {
+    if (b && b.t === 'text' && b.md) out += String(b.md).replace(/[#>*`\-]/g, '').replace(/\[\[(.*?)\]\]/g, '$1').replace(/\s+/g, ' ').trim() + ' ';
+    if (out.length >= cap) break;
+  }
+  return out.slice(0, cap).trim();
+}
+function courseSsrHtml(row) {
+  const c = courseShape(row), canon = `${SITE_HOST}/course/${c.id}`;
+  const learnUrl = `${SITE_HOST}/kecheng.html?c=${encodeURIComponent(c.id)}`;
+  const desc = c.intro || `${c.title}：${c.subtitle}`;
+  const pageTitle = `${c.title}${c.subtitle ? ' · ' + c.subtitle : ''} - 谱友圈学习`;
+  const ld = { '@context': 'https://schema.org', '@type': 'Course', name: c.title, url: canon,
+    description: desc, inLanguage: 'zh-CN', isAccessibleForFree: true,
+    provider: { '@type': 'Organization', name: '谱友圈', url: SITE_HOST },
+    hasCourseInstance: { '@type': 'CourseInstance', courseMode: 'online', courseWorkload: 'P' + Math.max(1, c.weeks) + 'W' } };
+  const chapHtml = c.chapters.map((ch, i) => {
+    const secs = (ch.sections || []);
+    return `<section class="ch"><h2><span class="no">第 ${i + 1} 章</span>${escHtml(ch.title || '')}</h2>`
+      + (ch.goal ? `<p class="goal">${escHtml(ch.goal)}</p>` : '')
+      + (secs.length ? '<ol class="secs">' + secs.map((s, j) => `<li><b>${i + 1}.${j + 1}　${escHtml(s.title || '')}</b>`
+          + `<span class="meta">${(((s.test || {}).items) || []).length} 题测试${(s.practice || {}).checkin ? ' · 练习打卡' : ''}</span>`
+          + (courseTextOf(s, 90) ? `<p>${escHtml(courseTextOf(s, 90))}…</p>` : '') + '</li>').join('') + '</ol>'
+        : ((ch.points || []).length ? '<ul class="pts">' + ch.points.map(p => `<li>${escHtml(p)}</li>`).join('') + '</ul>' : ''))
+      + '</section>';
+  }).join('');
+  return `<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(pageTitle)}</title>
+<meta name="description" content="${escHtml(desc.slice(0, 150))}">
+<link rel="canonical" href="${escHtml(canon)}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escHtml(c.title)}">
+<meta property="og:description" content="${escHtml(desc.slice(0, 150))}">
+<meta property="og:url" content="${escHtml(canon)}">
+<meta property="og:image" content="${SITE_HOST}/og.png">
+<meta property="og:site_name" content="谱友圈">
+<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>
+<style>
+:root{--ink:#20211d;--muted:#6b6357;--accent:#c33a29;--bg:#f3f0e8;--panel:#fefdf9;--border:#e4ddcd}
+*{box-sizing:border-box}body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:760px;margin:0 auto;padding:38px 20px 60px}
+.crumbs{font-size:13px;color:var(--muted);margin-bottom:18px}.crumbs a{color:var(--muted)}
+h1{font-size:30px;margin:.2em 0 .3em;letter-spacing:1px}
+.sub{color:var(--muted);margin:0 0 14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.chips i{font-style:normal;font-size:12.5px;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:4px 12px;background:var(--panel)}
+.intro{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;font-size:14.5px;margin-bottom:22px}
+.cta{display:inline-block;margin:0 0 30px;padding:13px 32px;border-radius:26px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700}
+.ch{margin-bottom:26px}
+.ch h2{font-size:18px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.no{font-size:12px;font-weight:700;color:var(--accent);background:rgba(195,58,41,.10);border-radius:6px;padding:3px 9px}
+.goal{font-size:14px;color:var(--muted);margin:0 0 10px}
+.secs{margin:0;padding-left:1.3em}.secs li{margin:.5em 0;font-size:14.5px}
+.secs b{font-weight:600}.secs .meta{font-size:12.5px;color:var(--muted);margin-left:10px}
+.secs p{margin:.2em 0 0;font-size:13.5px;color:var(--muted)}
+.pts{margin:0;padding-left:1.3em;font-size:14px;color:var(--muted)}
+.foot{margin-top:34px;padding-top:18px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+.foot a{color:var(--muted);margin-right:16px}
+a{color:var(--accent)}
+</style></head><body><div class="wrap">
+<div class="crumbs"><a href="${SITE_HOST}/">谱友圈</a> › <a href="${SITE_HOST}/course/">学习课程</a> › ${escHtml(c.title)}</div>
+<h1>${escHtml(c.emoji)} ${escHtml(c.title)}</h1>
+<p class="sub">${escHtml(c.subtitle)}</p>
+<div class="chips"><i>免费</i>${c.level ? `<i>${escHtml(c.level)}</i>` : ''}${c.inst ? `<i>${escHtml(c.inst)}</i>` : ''}<i>${c.weeks} 周 · ${c.chapters.length} 章${c.nSec ? ' · ' + c.nSec + ' 小节' : ''}</i>${c.nQuiz ? `<i>${c.nQuiz} 道闯关题</i>` : ''}</div>
+${c.intro ? `<div class="intro">${escHtml(c.intro)}</div>` : ''}
+<a class="cta" href="${escHtml(learnUrl)}">开始学习 →</a>
+${chapHtml}
+<div class="foot"><a href="${SITE_HOST}/course/">全部课程</a><a href="${SITE_HOST}/">谱库找谱</a><a href="${VIEW_HOST}/">免费在线制谱</a></div>
+</div></body></html>`;
+}
+function courseIndexHtml(rows) {
+  const items = rows.map(r => {
+    const c = courseShape(r);
+    return `<li><a href="${SITE_HOST}/course/${escHtml(c.id)}"><b>${escHtml(c.emoji)} ${escHtml(c.title)}</b></a>`
+      + `<span class="m">${escHtml(c.subtitle)}</span>`
+      + `<span class="m2">${c.weeks} 周 · ${c.chapters.length} 章${c.nSec ? ' · ' + c.nSec + ' 小节' : ''}${c.nQuiz ? ' · ' + c.nQuiz + ' 题' : ''}</span></li>`;
+  }).join('');
+  return `<!doctype html><html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>学习课程（共 ${rows.length} 门）- 谱友圈</title>
+<meta name="description" content="谱友圈官方自制课程，全部免费：认识简谱、民谣吉他启蒙、幼儿音乐启蒙——每个小节都是「学习 + 练习打卡 + 闯关测试」的完整闭环。">
+<link rel="canonical" href="${SITE_HOST}/course/">
+<style>
+body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#20211d;background:#f3f0e8}
+.wrap{max-width:720px;margin:0 auto;padding:38px 20px 60px}
+h1{font-size:26px;margin:.3em 0 1em}
+ul{list-style:none;margin:0;padding:0}
+li{background:#fefdf9;border:1px solid #e4ddcd;border-radius:12px;padding:15px 18px;margin-bottom:12px}
+a{color:#c33a29;text-decoration:none}a:hover{text-decoration:underline}
+b{font-size:17px}.m,.m2{display:block;font-size:13.5px;color:#6b6357}.m2{font-size:12.5px;margin-top:4px}
+.foot{margin-top:26px;font-size:13px;color:#6b6357}.foot a{color:#6b6357;margin-right:16px}
+</style></head><body><div class="wrap">
+<h1>学习课程（共 ${rows.length} 门）</h1>
+<ul>${items}</ul>
+<div class="foot"><a href="${SITE_HOST}/kecheng.html">进入学习页</a><a href="${SITE_HOST}/">谱友圈首页</a></div>
+</div></body></html>`;
 }
 function pubCoverSvg(row) {
   const p = pubMeta(row);
@@ -1026,6 +1141,27 @@ const routes = [
     if (!s) throw new ApiError(404, '曲谱不存在或未发布');
     return { score: { ...s, data: JSON.parse(s.data) },
       stats: { views: s.views || 0, likes: s.likes || 0, favs: s.favs || 0 } };
+  }],
+
+  /* -- v62.0 课程独立页（SSR，无需登录）：/course/ 目录 · /course/<id> 课程页 · /course/sitemap.xml -- */
+  ['GET', /^\/course\/sitemap\.xml$/, false, () => {
+    const rows = q.courseListPub.all();
+    const urls = [`  <url><loc>${SITE_HOST}/course/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`]
+      .concat(rows.map(r => {
+        const lm = r.updated_at ? `<lastmod>${new Date(r.updated_at * 1000).toISOString().slice(0, 10)}</lastmod>` : '';
+        return `  <url><loc>${SITE_HOST}/course/${escHtml(r.id)}</loc>${lm}<changefreq>monthly</changefreq><priority>0.7</priority></url>`;
+      })).join('\n');
+    return { ___raw: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`,
+      ___ctype: 'application/xml; charset=utf-8', ___cache: 'public, max-age=600' };
+  }],
+  ['GET', /^\/course\/?$/, false, () => ({
+    ___raw: courseIndexHtml(q.courseListPub.all()), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=600',
+  })],
+  ['GET', /^\/course\/([A-Za-z0-9_-]+)$/, false, (m) => {
+    const c = q.courseGetPub.get(m[1]);
+    if (!c) return { ___status: 404, ___cache: 'no-store', ___ctype: 'text/html; charset=utf-8',
+      ___raw: '<!doctype html><meta charset="utf-8"><title>课程不存在 - 谱友圈</title><body style="font:16px sans-serif;text-align:center;padding:60px">该课程不存在或尚未发布。<a href="' + SITE_HOST + '/course/">全部课程</a>' };
+    return { ___raw: courseSsrHtml(c), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=600' };
   }],
 
   /* -- 已发布谱 SSR 落地页 + og 封面（无需登录，供搜索引擎/社交爬虫收录）-- */

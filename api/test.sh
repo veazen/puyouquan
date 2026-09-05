@@ -140,6 +140,24 @@ chk 发布课程 '"status":"published"' "$(J2 -X POST http://127.0.0.1:3199/api/
 chk 发布后公开可见 '测试课' "$(curl -s http://127.0.0.1:3199/api/courses)"
 # v61.8 认识简谱课程（按 id 补种）+ 闯关题发布校验
 chk 课程种子含认识简谱 'course-jianpu-renshi' "$(curl -s http://127.0.0.1:3199/api/courses)"
+# v62.0 课程独立页 SSR：/course/ 目录、/course/<id> 落地页、/course/sitemap.xml
+CIDX=$(curl -s http://127.0.0.1:3199/course/)
+chk 课程目录页列出课程 '/course/course-jianpu-renshi' "$CIDX"
+chk 课程目录页标题 '学习课程' "$CIDX"
+chk 课程目录页canonical 'rel="canonical"' "$CIDX"
+CSSR=$(curl -s http://127.0.0.1:3199/course/course-jianpu-renshi)
+chk 课程页标题 '<title>认识简谱' "$CSSR"
+chk 课程页含canonical 'rel="canonical"' "$CSSR"
+chk 课程页含CourseLD '"@type":"Course"' "$CSSR"
+chk 课程页列出小节 '1.1' "$CSSR"
+chk 课程页含学习CTA 'kecheng.html?c=course-jianpu-renshi' "$CSSR"
+nchk 课程页无自动跳转防桥页 'location.replace' "$CSSR"
+chk 未发布课程页404 '不存在' "$(curl -s http://127.0.0.1:3199/course/nope-course-x)"
+CSM=$(curl -s http://127.0.0.1:3199/course/sitemap.xml)
+chk 课程站点地图含课程 '/course/course-jianpu-renshi' "$CSM"
+chk 课程站点地图含目录 "<loc>https://www.puyouquan.com/course/</loc>" "$CSM"
+chk robots含课程地图 'course/sitemap.xml' "$(cat ../muse-tab/site/robots.txt)"
+
 # v61.9 课程 2.0：小节树（学习块/练习打卡/测试题）随接口整块下发
 JPC=$(curl -s http://127.0.0.1:3199/api/courses/course-jianpu-renshi)
 chk 简谱课含小节树 '"sections"' "$JPC"
