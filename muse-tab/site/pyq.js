@@ -504,8 +504,99 @@ window.PYQ_KC = (function(){
   }
 
 
+  /* ===== v62.1 矢量图形集（产品指示：排版改用矢量插图，不再堆 emoji）=====
+     全部 currentColor 描边 + var(--fam) 低透明填充：两套主题、四个课程色族自动适配，
+     不需要为暗色单独出一套资源。学习页与后台工作台同源调用。 */
+  var ICON={
+    learn:'<path d="M12 6.4C10.3 5 8 4.4 5 4.6v11.8c3-.2 5.3.4 7 1.8 1.7-1.4 4-2 7-1.8V4.6c-3-.2-5.3.4-7 1.8Z"/><path d="M12 6.4v12"/>',
+    prac:'<path d="M4 19.2 8.1 18l9.4-9.4a1.9 1.9 0 0 0 0-2.7l-1.4-1.4a1.9 1.9 0 0 0-2.7 0L4 13.9Z"/><path d="M12.6 6.6 17.4 11.4"/>',
+    test:'<circle cx="12" cy="12" r="7.6"/><circle cx="12" cy="12" r="3.6"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
+    lock:'<rect x="4.8" y="10.6" width="14.4" height="9" rx="2.4"/><path d="M8.4 10.6V8a3.6 3.6 0 0 1 7.2 0v2.6"/>',
+    unlock:'<rect x="4.8" y="10.6" width="14.4" height="9" rx="2.4"/><path d="M8.4 10.6V8a3.6 3.6 0 0 1 6.9-1.3"/>',
+    check:'<path d="m5.4 12.6 4.2 4.2 9-9.6"/>',
+    star:'<path d="m12 4.2 2.5 5.1 5.6.8-4.05 3.95.95 5.58L12 17l-5 2.63.95-5.58L3.9 10.1l5.6-.8Z"/>',
+    flame:'<path d="M12 3.4c.5 3-1.3 4-2.7 5.6-1.5 1.7-2.4 3.2-2.4 5.2a5.1 5.1 0 0 0 10.2 0c0-2.6-1.6-4.2-2.6-5.6-.6 1-1.3 1.5-2 1.7.4-2.4-.2-4.9-.5-6.9Z"/>',
+    play:'<path d="M9 6.6 18 12l-9 5.4Z"/>',
+    chev:'<path d="m6 9.6 6 6 6-6"/>',
+    note:'<circle cx="8" cy="17" r="2.8"/><path d="M10.8 17V5.2l8-1.6v11"/><circle cx="16" cy="14.6" r="2.8"/>',
+    book:'<path d="M5 4.8h9.2a3.4 3.4 0 0 1 3.4 3.4v11H8.4A3.4 3.4 0 0 1 5 15.8Z"/><path d="M5 15.8a3.4 3.4 0 0 1 3.4-3.4h9.2"/>'
+  };
+  function icon(n,cls){
+    var d=ICON[n]; if(!d) return '';
+    return '<svg class="kci'+(cls?' '+cls:'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+      +' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+d+'</svg>';
+  }
+  /* 章节主题插画（简谱教学母题）：112×80，无文字依赖，缩放到 64px 仍可读 */
+  var ART={
+    scale:'<path class="a-l" d="M8 62h14V50h14V38h14V26h14V14h14"/>'
+      +'<circle class="a-d" cx="15" cy="62" r="3.4"/><circle class="a-d" cx="29" cy="50" r="3.4"/>'
+      +'<circle class="a-d" cx="43" cy="38" r="3.4"/><circle class="a-d" cx="57" cy="26" r="3.4"/>'
+      +'<circle class="a-d" cx="71" cy="14" r="3.4"/>'
+      +'<path class="a-l" d="M8 70h94" opacity=".35"/>',
+    /* 调号牌「1=C」：调号是简谱的门槛概念，直接把它画出来 */
+    key:'<rect class="a-f" x="16" y="14" width="80" height="52" rx="10" opacity=".1"/>'
+      +'<rect class="a-l" x="16" y="14" width="80" height="52" rx="10"/>'
+      +'<path class="a-l" d="M31 30l6-4v28M28 54h18"/>'
+      +'<path class="a-l" d="M54 34h12M54 44h12"/>'
+      +'<path class="a-l" d="M88 34a12 12 0 1 0 0 12"/>',
+    tie:'<path class="a-l" d="M20 46h72"/>'
+      +'<circle class="a-d" cx="38" cy="46" r="6"/><circle class="a-d" cx="66" cy="46" r="6"/>'
+      +'<path class="a-l" d="M38 34c7-9 21-9 28 0"/>'
+      +'<path class="a-l" d="M14 22v48"/><path class="a-l" d="M22 22v48" stroke-width="5"/>'
+      +'<circle class="a-d" cx="30" cy="38" r="2.4"/><circle class="a-d" cx="30" cy="54" r="2.4"/>',
+    guitar:'<path class="a-l" d="M46 34c-10 0-16 7-16 16 0 9 6 16 15 16 6 0 8-4 13-4s7 4 13 4c9 0 15-7 15-16 0-9-6-16-16-16-6 0-8 4-12 4s-6-4-12-4Z"/>'
+      +'<circle class="a-l" cx="56" cy="50" r="7"/>'
+      +'<path class="a-l" d="M56 34V14M50 14h12"/>'
+      +'<path class="a-f" d="M46 34c-10 0-16 7-16 16 0 9 6 16 15 16 6 0 8-4 13-4s7 4 13 4c9 0 15-7 15-16 0-9-6-16-16-16-6 0-8 4-12 4s-6-4-12-4Z" opacity=".1"/>',
+    chord:'<rect class="a-l" x="30" y="16" width="52" height="48" rx="4"/>'
+      +'<path class="a-l" d="M43 16v48M56 16v48M69 16v48M30 32h52M30 48h52"/>'
+      +'<circle class="a-d" cx="43" cy="24" r="4.6"/><circle class="a-d" cx="69" cy="24" r="4.6"/>'
+      +'<circle class="a-d" cx="56" cy="40" r="4.6"/>',
+    strum:'<path class="a-l" d="M22 20h68M22 32h68M22 44h68M22 56h68"/>'
+      +'<path class="a-l" d="M40 14v50l-6-8m6 8 6-8" stroke-width="3.4"/>'
+      +'<path class="a-l" d="M74 64V14l-6 8m6-8 6 8" stroke-width="3.4"/>',
+    ear:'<path class="a-l" d="M42 68c0-10-8-12-8-26a16 16 0 0 1 32 0c0 8-10 8-10 16"/>'
+      +'<circle class="a-l" cx="50" cy="40" r="6"/>'
+      +'<path class="a-l" d="M74 28a18 18 0 0 1 0 24M84 20a30 30 0 0 1 0 40"/>',
+    drum:'<ellipse class="a-l" cx="56" cy="34" rx="26" ry="10"/>'
+      +'<path class="a-l" d="M30 34v18c0 6 12 10 26 10s26-4 26-10V34"/>'
+      +'<path class="a-l" d="M34 40l44 10M78 40 34 50"/>'
+      +'<path class="a-l" d="M26 20 40 8M86 20 72 8" stroke-width="3.4"/>'
+      +'<path class="a-f" d="M30 34c0 5.5 11.6 10 26 10s26-4.5 26-10v18c0 6-12 10-26 10s-26-4-26-10Z" opacity=".1"/>',
+    octave:'<path class="a-l" d="M20 40h72"/>'
+      +'<circle class="a-d" cx="34" cy="40" r="6"/><circle class="a-d" cx="56" cy="40" r="6"/><circle class="a-d" cx="78" cy="40" r="6"/>'
+      +'<circle class="a-d" cx="56" cy="24" r="2.6"/><circle class="a-d" cx="78" cy="24" r="2.6"/><circle class="a-d" cx="78" cy="16" r="2.6"/>'
+      +'<circle class="a-d" cx="34" cy="56" r="2.6"/>',
+    beat:'<rect class="a-l" x="14" y="18" width="84" height="44" rx="8"/>'
+      +'<path class="a-l" d="M35 18v44M56 18v44M77 18v44"/>'
+      +'<path class="a-f" d="M14 26a8 8 0 0 1 8-8h13v44H22a8 8 0 0 1-8-8Z" opacity=".14"/>'
+      +'<circle class="a-d" cx="24.5" cy="40" r="4"/>',
+    dur:'<path class="a-l" d="M18 34h20M18 46h20"/>'
+      +'<circle class="a-d" cx="28" cy="40" r="5.4"/>'
+      +'<path class="a-l" d="M52 40h34"/><path class="a-l" d="M62 52h8M74 52h8"/>'
+      +'<circle class="a-d" cx="66" cy="40" r="5.4"/><circle class="a-d" cx="78" cy="40" r="5.4"/>',
+    rest:'<circle class="a-l" cx="40" cy="40" r="15"/>'
+      +'<path class="a-l" d="M74 18v44"/><path class="a-l" d="M86 18v44" stroke-width="5"/>'
+      +'<path class="a-f" d="M25 40a15 15 0 1 1 30 0 15 15 0 0 1-30 0Z" opacity=".1"/>',
+    sing:'<path class="a-l" d="M56 16a10 10 0 0 1 10 10v14a10 10 0 0 1-20 0V26a10 10 0 0 1 10-10Z"/>'
+      +'<path class="a-l" d="M38 38v3a18 18 0 0 0 36 0v-3M56 59v9M44 68h24"/>'
+      +'<path class="a-f" d="M46 26a10 10 0 0 1 20 0v14a10 10 0 0 1-20 0Z" opacity=".12"/>',
+    hand:'<path class="a-l" d="M44 60V30a5 5 0 0 1 10 0v14V22a5 5 0 0 1 10 0v22V28a5 5 0 0 1 10 0v30a14 14 0 0 1-14 14h-8L38 54a5.6 5.6 0 0 1 8-8Z"/>'
+  };
+  var ART_SEQ=['scale','key','octave','beat','dur','rest','tie','sing','hand','guitar','chord','strum','ear','drum'];
+  function art(name,cls){
+    var d=ART[name]||ART[ART_SEQ[0]];
+    return '<svg class="kcart'+(cls?' '+cls:'')+'" viewBox="0 0 112 80" fill="none" stroke="currentColor"'
+      +' stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'+d+'</svg>';
+  }
+  function artFor(ch,ci){   /* 章可用 art 字段指定；否则按章序循环，同一门课不会连着两章同图 */
+    var k=ch&&ch.art; if(k&&ART[k]) return k;
+    return ART_SEQ[(ci|0)%ART_SEQ.length];
+  }
+
   return { esc:esc, jpTok:jpTok, jpq:jpq, mdInline:mdInline, mdBlock:mdBlock, jpLine:jpLine,
            blockHtml:blockHtml, IMG_OK:IMG_OK, VID_OK:VID_OK,
+           icon:icon, art:art, artFor:artFor, ART_SEQ:ART_SEQ,
            /* token 合法性（编辑器逐 token 校验用，与 jpTok 的判定同源） */
            jpTokOk:function(t){ return t==='|'||t==='||'||t==='~'||/^-+$/.test(t)||/^[0-7][',]*[-_=.]*$/.test(t); } };
 })();

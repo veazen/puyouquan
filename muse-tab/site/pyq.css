@@ -921,9 +921,14 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcp-hsub{color:var(--muted);font-size:14.5px;margin:0 0 8px}
 .kcp-hintro{color:var(--muted);font-size:13.5px;line-height:1.85;max-width:36em;margin:0}
 .kcp-hstat{display:flex;align-items:center;gap:16px}
-.kcp-ring{--pct:0;position:relative;width:88px;height:88px;border-radius:50%;flex:none;
-  background:conic-gradient(var(--fam) calc(var(--pct)*1%),var(--border-soft) 0)}
-.kcp-ring::after{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--bg)}
+/* v62.1 进度环改 SVG 描边：conic-gradient 无法过渡，进度变化时是硬跳；
+   stroke-dashoffset 可补间，进页面还能画一圈出来 */
+.kcp-ring{--pct:0;position:relative;width:88px;height:88px;flex:none}
+.kcp-ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block}
+.kcp-ring .kcr-bg{fill:none;stroke:var(--border-soft);stroke-width:7}
+.kcp-ring .kcr-fg{fill:none;stroke:var(--fam);stroke-width:7;stroke-linecap:round;
+  stroke-dasharray:var(--circ);stroke-dashoffset:calc(var(--circ) - var(--circ) * var(--pct) / 100);
+  transition:stroke-dashoffset .8s cubic-bezier(.32,.86,.36,1)}
 .kcp-ringtx{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   z-index:1;line-height:1.15}
 .kcp-ringtx b{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -971,14 +976,46 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcp-dwbody{overflow:auto}
 .kcp-dwbody .kcp-ritem{min-height:44px}
 
-.kcp-chg{--fam:inherit;margin-bottom:26px}
-.kcp-chh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
-.kcp-chh b{font-size:17px}
-.kcp-chem{font-size:20px}
-.kcp-chno{font-size:11.5px;font-weight:800;color:var(--fam);background:color-mix(in srgb,var(--fam) 12%,transparent);
-  border-radius:6px;padding:3px 9px}
-.kcp-chstar{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--star);white-space:nowrap}
-.kcp-goal{font-size:14px;color:var(--muted);margin:0 0 10px}
+/* v62.1 章 = 一张带主题插画的分区（此前章头只有一行小字，16 个小节连成一条长流没有段落感） */
+.kcp-chg{--fam:inherit;margin-bottom:34px}
+.kcp-chh{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;
+  padding:18px 20px;margin-bottom:14px;border-radius:16px;overflow:hidden;
+  background:linear-gradient(115deg,color-mix(in srgb,var(--fam) 9%,var(--panel)),var(--panel) 68%);
+  border:1px solid color-mix(in srgb,var(--fam) 22%,var(--border-soft))}
+.kcp-chh h2{font-size:19px;font-weight:800;margin:4px 0 0;letter-spacing:-.2px;text-wrap:balance}
+.kcp-chno{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--fam-ink);
+  background:color-mix(in srgb,var(--fam) 16%,transparent);border-radius:999px;padding:3px 10px}
+.kcp-chstar{font-size:12.5px;font-weight:700;color:var(--star);white-space:nowrap}
+.kcp-goal{font-size:13.5px;color:var(--muted);margin:7px 0 0;line-height:1.7;max-width:34em}
+.kcp-chart{flex:none;width:112px;color:var(--fam)}
+.kcp-chart .kcart{width:112px;height:80px;display:block}
+.kcp-chart .a-f{fill:currentColor;stroke:none}
+.kcp-chart .a-d{fill:currentColor;stroke:none}
+/* 章进度条：小节完成度，比「★ 12/25」更快读 */
+.kcp-chbar{--p:0;height:5px;border-radius:3px;background:color-mix(in srgb,var(--fam) 14%,var(--border-soft));
+  margin:12px 0 7px;max-width:320px;overflow:hidden}
+.kcp-chbar i{display:block;height:100%;width:calc(var(--p)*1%);border-radius:3px;background:var(--fam);
+  transition:width .7s cubic-bezier(.32,.86,.36,1)}
+.kcp-chfoot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+/* 锁定章：整章一块，不再每个小节重复一遍锁文案 */
+.kcp-chg[data-lock="1"] .kcp-chh{background:var(--panel);border-style:dashed;
+  border-color:var(--border);color:var(--muted)}
+.kcp-chg[data-lock="1"] .kcp-chart{color:var(--faint);opacity:.6}
+.kcp-chg[data-lock="1"] .kcp-chh h2{color:var(--muted)}
+.kcp-chlock{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 18px;border-radius:14px;
+  background:var(--panel);border:1px dashed var(--border);margin-bottom:10px}
+.kcp-lockic{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:12px;color:var(--faint);
+  background:color-mix(in srgb,var(--faint) 12%,transparent)}
+.kcp-lockic .kci{width:20px;height:20px}
+.kcp-locktx{flex:1;min-width:180px;font-size:13.5px;line-height:1.7;color:var(--muted)}
+.kcp-locktx b{color:var(--text)}
+.kcp-lockgo{min-height:40px;padding:0 16px;border-radius:20px;font:inherit;font-size:13px;font-weight:700;
+  border:1px solid var(--fam);background:transparent;color:var(--fam-ink);cursor:pointer;white-space:nowrap}
+.kcp-lockgo:hover{background:color-mix(in srgb,var(--fam) 10%,transparent)}
+@media(max-width:640px){
+  .kcp-chh{grid-template-columns:minmax(0,1fr);gap:10px;padding:16px}
+  .kcp-chart{order:-1;width:88px}.kcp-chart .kcart{width:88px;height:63px}
+}
 .kcp-empty{background:var(--panel);border:1px dashed var(--border);border-radius:14px;padding:40px 24px;
   text-align:center;color:var(--muted);font-size:14.5px}
 .kcp-empty a{color:var(--accent);font-weight:700}
@@ -993,10 +1030,16 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   font:700 12px/1 var(--font-ui);font-variant-numeric:tabular-nums;
   color:var(--fam);background:color-mix(in srgb,var(--fam) 12%,transparent)}
 .kcs-t{flex:1;min-width:0;font-size:15.5px;font-weight:600;line-height:1.45}
-.kcs-arw{flex:none;width:20px;text-align:center;color:var(--faint);font-size:11px;transition:transform .18s}
+.kcs-arw{flex:none;display:grid;place-items:center;width:22px;height:22px;color:var(--faint);
+  transition:transform .24s cubic-bezier(.3,.9,.35,1)}
+.kcs-arw .kci{width:16px;height:16px}
 .kcs.is-open .kcs-arw{transform:rotate(180deg)}
-.kcs-body{display:none;padding:0 16px 18px;border-top:1px solid var(--border-soft)}
-.kcs.is-open .kcs-body{display:block}
+/* v62.1 展开用 grid-template-rows 0fr→1fr 补间（内容高度未知，max-height 猜值会顿一下） */
+.kcs-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.3,.9,.35,1)}
+.kcs.is-open .kcs-wrap{grid-template-rows:1fr}
+.kcs-wrap > .kcs-body{overflow:hidden;min-height:0}
+.kcs-body{padding:0 16px;border-top:1px solid transparent}
+.kcs.is-open .kcs-body{border-top-color:var(--border-soft);padding-bottom:18px}
 .kcs--pass{border-color:color-mix(in srgb,var(--fam) 38%,var(--border))}
 .kcs--pass .kcs-no{color:var(--fam-on);background:var(--fam-ink)}
 .kcs--now{border-color:var(--fam);box-shadow:inset 3px 0 0 var(--fam)}
@@ -1008,31 +1051,58 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcs--lock .kcs-head:hover{background:transparent}
 .kcs--lock .kcs-no{color:var(--faint);background:color-mix(in srgb,var(--faint) 14%,transparent)}
 .kcs--lock .kcs-t{color:var(--muted);font-weight:500;font-size:14.5px}
-.kcs-lockmk{flex:none;font-size:11.5px;color:var(--faint);white-space:nowrap}
+.kcs-lockmk{flex:none;display:grid;place-items:center;color:var(--faint)}
+.kcs-lockmk .kci{width:15px;height:15px}
 .kcs-hint{padding:0 16px 11px 56px;margin:0;font-size:12.5px;line-height:1.6;color:var(--muted)}
-.kcs--next.pulse{animation:kcsPulse .5s ease-out 2}
-@keyframes kcsPulse{0%,100%{border-color:var(--border)}50%{border-color:var(--fam)}}
+/* 点了锁住的小节 → 把本章的解锁说明脉冲一次（v62.1 起锁的是章，提示只有一处） */
+.kcp-chlock.pulse{animation:kcsPulse .5s ease-out 2}
+@keyframes kcsPulse{0%,100%{border-color:var(--border)}50%{border-color:var(--fam);background:color-mix(in srgb,var(--fam) 7%,var(--panel))}}
+
+/* v62.1 学/练/测改分段标签：此前一节展开就是三大段纵向堆叠，一屏读不完，正是「排版混乱」的根源 */
+.kcs-tabs{position:relative;display:flex;gap:2px;margin:14px 0 4px;border-bottom:1px solid var(--border-soft)}
+.kcs-tab{display:inline-flex;align-items:center;gap:7px;min-height:42px;padding:0 14px;border:0;background:transparent;
+  font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:10px 10px 0 0;
+  transition:color .18s,background .18s}
+.kcs-tab:hover{color:var(--text);background:var(--hover)}
+.kcs-tab[aria-selected="true"]{color:var(--fam-ink);font-weight:800}
+.kcs-tab .kci{width:17px;height:17px;flex:none}
+.kcs-tabn{font-size:11px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
+.kcs-tab[aria-selected="true"] .kcs-tabn{color:var(--fam)}
+.kcs-tabdot{width:6px;height:6px;border-radius:50%;background:var(--fam);flex:none}
+.kcs-tabink{position:absolute;left:0;bottom:-1px;height:2px;border-radius:2px;background:var(--fam);
+  width:var(--w,0px);transform:translateX(var(--x,0px));
+  transition:transform .26s cubic-bezier(.3,.9,.35,1),width .26s cubic-bezier(.3,.9,.35,1)}
+.kcm[data-mod]{animation:kcFadeUp .3s cubic-bezier(.25,.9,.35,1) both}
+@keyframes kcFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(max-width:560px){.kcs-tab{padding:0 10px;font-size:12.5px;gap:5px}}
 .kcs-stars{flex:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .kcs-stars i{font-style:normal;font-size:13.5px;letter-spacing:1px;color:var(--star)}
 .kcs-stars i em{font-style:normal;color:var(--star-off)}
 .kcs-stars b{font-size:11.5px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
-/* 测试专注态：同节的学习/练习折叠成一行，答题不被上下文淹没 */
-.kcs.is-testing .kcm[data-mod="learn"],.kcs.is-testing .kcm[data-mod="prac"]{max-height:0;padding-top:0;
-  margin-top:0;border-top:0;overflow:hidden;opacity:0}
-.kcs.is-testing ~ .kcs--lock{opacity:.5;pointer-events:none}
-.kcm[data-mod]{transition:max-height .18s ease,opacity .18s ease}
+/* 测试专注态：分段标签已把学习/练习收起来，这里只再压暗周边，把注意力钉在题上 */
+.kcs.is-testing{box-shadow:0 0 0 2px color-mix(in srgb,var(--fam) 34%,transparent)}
+.kcs.is-testing ~ .kcs{opacity:.45;pointer-events:none;transition:opacity .25s}
+.kcs.is-testing .kcs-tabs{opacity:.55}
 
-.kcm{padding-top:18px}
-.kcm + .kcm{margin-top:18px;border-top:1px solid var(--border-soft)}
+.kcm{padding-top:16px}
 .kcm-h{display:flex;align-items:center;gap:9px;margin:0 0 12px;font-size:13px;font-weight:800;
   letter-spacing:.06em;color:var(--fam)}
-.kcm-ic{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:7px;font-size:12px;
+.kcm-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:8px;color:var(--fam-ink);
   background:color-mix(in srgb,var(--fam) 13%,transparent)}
+.kcm-ic .kci{width:15px;height:15px}
+/* 矢量图形基线：随文字色，缩放不失真，暗色主题不用换资源 */
+.kci{display:block;width:18px;height:18px;flex:none}
 .kcm-h .kcs-stars{margin-left:auto}
 .kcm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.7}
 .kcm-note b{color:var(--star)}
 .kcm-nq{margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft)}
-.kcp-ptip{font-size:13px;color:var(--muted);background:var(--bg);border-radius:8px;padding:8px 12px;margin:10px 0 0}
+.kcp-ptip{font-size:13px;color:var(--muted);background:var(--bg);border-radius:0 8px 8px 0;padding:9px 13px;margin:12px 0 0;
+  border-left:3px solid color-mix(in srgb,var(--fam) 45%,transparent)}
+/* v62.1 图标随所在处的字号收缩（图标统一 18px 基线，这些位置要更小） */
+.kcs-no .kci{width:16px;height:16px}
+.kcp-rmk .kci{width:13px;height:13px}
+.kcp-streak .kci{width:14px;height:14px}
+.kcp-ritem[data-st="now"] .kcp-rmk .kci{color:var(--fam)}
 .kcp-check{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
 .kcp-ckbtn{min-height:44px;padding:0 22px;border-radius:22px;font:inherit;font-size:14px;font-weight:700;
   cursor:pointer;border:1.5px solid var(--fam);background:transparent;color:var(--fam-ink);
@@ -1104,6 +1174,40 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   animation:kcqPop .9s cubic-bezier(.22,.9,.3,1) forwards}
 @keyframes kcqPop{0%{transform:translate(-50%,-50%) scale(.5);opacity:0}20%{opacity:1}
   100%{transform:translate(calc(-50% + var(--dx,0px)),-98px) scale(1.05) rotate(var(--dr,0deg));opacity:0}}
+/* ===== v62.1 交互动画（产品指示：尽量用交互动画排版）=====
+   全部只动 transform/opacity/stroke-dashoffset——不触发重排；末尾统一被 reduced-motion 关掉 */
+.kcp-chg{opacity:0;transform:translateY(16px)}
+.kcp-chg.is-in{animation:kcRise .5s cubic-bezier(.22,.9,.32,1) forwards}
+@keyframes kcRise{to{opacity:1;transform:none}}
+.kcp-chg.is-in .kcart{animation:kcDraw .8s ease-out .12s both}
+@keyframes kcDraw{from{opacity:0;transform:scale(.9) translateY(6px)}to{opacity:1;transform:none}}
+/* 章解锁：锁开一下再让位给内容，学员知道刚刚发生了什么 */
+.kcp-chg.just-unlocked .kcp-chh{animation:kcPop .55s cubic-bezier(.22,1.2,.4,1)}
+@keyframes kcPop{0%{transform:scale(.985)}55%{transform:scale(1.012)}100%{transform:none}}
+/* 星级逐颗弹出（结算页）：一次全亮读不出「拿了几颗」 */
+.kcq-res-stars i{display:inline-block;font-style:normal;animation:kcStar .42s cubic-bezier(.22,1.3,.4,1) both;
+  animation-delay:calc(var(--k,0) * .085s)}
+@keyframes kcStar{from{opacity:0;transform:scale(.2) rotate(-25deg)}to{opacity:1;transform:none}}
+/* 判定反馈：对=描一笔勾，错=横向轻抖（色彩之外再给一层非色觉编码） */
+.kcq-opt.is-ok{animation:kcOk .34s ease-out}
+@keyframes kcOk{0%{transform:none}45%{transform:translateX(2px) scale(1.012)}100%{transform:none}}
+.kcq-opt.is-bad{animation:kcShake .34s cubic-bezier(.36,.07,.19,.97)}
+@keyframes kcShake{10%,90%{transform:translateX(-2px)}30%,70%{transform:translateX(4px)}50%{transform:translateX(-4px)}}
+/* 打卡：当天格子弹起 + 火苗脉冲 */
+.kcp-wd.on{animation:kcCell .38s cubic-bezier(.22,1.3,.4,1)}
+@keyframes kcCell{from{transform:scale(.4);opacity:.2}to{transform:none;opacity:1}}
+.kcp-ckbtn.is-on{animation:kcPop .4s cubic-bezier(.22,1.2,.4,1)}
+.kcp-streak .kci{animation:kcFlame 1.6s ease-in-out infinite}
+@keyframes kcFlame{0%,100%{transform:scale(1)}50%{transform:scale(1.14) rotate(-4deg)}}
+/* 侧导航当前项：小圆点滑到位，而不是整块闪一下 */
+.kcp-ritem.is-here .kcp-rmk{animation:kcPop .34s cubic-bezier(.22,1.2,.4,1)}
+@media (prefers-reduced-motion: reduce){
+  .kcp-chg,.kcp-chg.is-in,.kcp-chg.is-in .kcart,.kcp-chg.just-unlocked .kcp-chh,
+  .kcq-res-stars i,.kcq-opt.is-ok,.kcq-opt.is-bad,.kcp-wd.on,.kcp-ckbtn.is-on,
+  .kcp-streak .kci,.kcp-ritem.is-here .kcp-rmk,.kcm[data-mod]{animation:none!important;opacity:1;transform:none}
+  .kcs-wrap,.kcs-tabink,.kcp-ring .kcr-fg,.kcp-chbar i,.kcs-arw{transition:none!important}
+}
+
 /* 固定导航 62px：滚动定位不能把标题压在导航底下 */
 .kcs,.kcq,.kcp-hero{scroll-margin-top:78px}
 @media(max-width:899px){.kcs,.kcq{scroll-margin-top:126px}}
@@ -1114,7 +1218,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 @media (prefers-reduced-motion:reduce){
   .kcs,.kcs-arw,.kcq-opt,.kcp-ckbtn,.kcq-seg i,.kcm[data-mod]{transition:none}
   .kcq-burst{display:none}
-  .kcs--next.pulse{animation:none}
+  .kcp-chlock.pulse{animation:none}
 }
 
 /* ===== v61.9 课程 2.0：章组 / 小节 / 学·练·测三模块 / 内容块 ===== */
@@ -1221,8 +1325,16 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-live{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0;padding:10px 14px;font-size:12.5px;
   line-height:1.7;color:var(--muted);background:var(--accent-soft);border-left:3px solid var(--accent)}
 .crs-live b{color:var(--accent-ink)}
-.crs-grid{display:grid;grid-template-columns:264px minmax(0,1fr) 396px;
+/* v62.1 两栏（大纲 + 主区）：三栏时主区只剩 ~500px，一行谱例都放不下还要横滚；
+   预览改成主区「编辑/预览」二选一，同一块地方全宽显示 */
+.crs-grid{display:grid;grid-template-columns:264px minmax(0,1fr);
   border:1px solid var(--border);border-top:0;border-radius:0 0 12px 12px;overflow:hidden;min-height:520px}
+.crs-seg{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:var(--bg);border:1px solid var(--border-soft)}
+.crs-seg button{min-height:32px;padding:0 15px;border:0;border-radius:8px;background:transparent;color:var(--muted);
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.crs-seg button:hover{color:var(--text)}
+.crs-seg button.on{background:var(--panel);color:var(--accent-ink);font-weight:700;
+  box-shadow:inset 0 0 0 1px var(--border-soft)}
 .crs-tree{background:var(--toolbar);border-right:1px solid var(--border);overflow:auto;max-height:74vh;padding:8px}
 .crs-tch,.crs-tsec{display:flex;align-items:center;gap:8px;min-height:40px;padding:10px 12px;border-radius:9px;
   cursor:pointer;font-size:13.5px;line-height:1.4}
@@ -1230,7 +1342,17 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-tch:hover,.crs-tsec:hover{background:var(--hover)}
 .crs-tch.on,.crs-tsec.on{background:var(--accent-soft);color:var(--text);font-weight:700;
   box-shadow:inset 2px 0 0 var(--accent)}
-.crs-tem{flex:none}
+.crs-tem{flex:none;display:grid;place-items:center;width:26px;height:20px;color:var(--accent-ink);opacity:.85}
+.crs-tem .kcart{width:26px;height:19px}
+.crs-tem .a-f,.crs-tem .a-d{fill:currentColor;stroke:none}
+/* 章头插画选择器：换图即时预览（前台章头就是这张） */
+.crs-artrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:4px;padding:12px 14px;
+  border:1px solid var(--border-soft);border-radius:12px;background:var(--bg)}
+.crs-artpv{flex:none;display:grid;place-items:center;width:112px;height:80px;color:var(--accent)}
+.crs-artpv .kcart{width:112px;height:80px}
+.crs-artpv .a-f,.crs-artpv .a-d{fill:currentColor;stroke:none}
+.crs-artlb{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.crs-artlb .ad-sel{min-height:40px}
 .crs-tt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .crs-tn,.crs-tcnt{flex:none;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
 .crs-tno{flex:none;width:28px;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
@@ -1248,8 +1370,10 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-secbar>b{font-size:14px;font-variant-numeric:tabular-nums}
 .crs-bc{font-size:12.5px;color:var(--muted)}
 .crs-chips{display:inline-flex;gap:6px}
-.crs-chips i{font-style:normal;font-size:11.5px;color:var(--muted);border:1px solid var(--border-soft);
-  border-radius:980px;padding:3px 9px;background:var(--bg)}
+.crs-chips i{display:inline-flex;align-items:center;gap:5px;font-style:normal;font-size:11.5px;color:var(--muted);
+  border:1px solid var(--border-soft);border-radius:980px;padding:3px 9px;background:var(--bg);
+  font-variant-numeric:tabular-nums}
+.crs-chips i .kci{width:13px;height:13px}
 .crs-chips i.off{border-style:dashed;color:var(--faint)}
 .crs-pane{padding:16px 20px 26px}
 .crs-sect{width:100%;box-sizing:border-box;min-height:44px;padding:10px 13px;border:1px solid var(--border);
@@ -1258,8 +1382,11 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-mod:first-of-type{border-top:0}
 .crs-modh{display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:13px;font-weight:800;
   letter-spacing:.06em;color:var(--accent)}
-.crs-modic{font-size:14px}
+.crs-modic{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;color:var(--accent-ink);
+  background:var(--accent-soft)}
+.crs-modic .kci{width:14px;height:14px}
 .crs-modn{font-size:11.5px;font-weight:600;color:var(--muted)}
+.crs-add .ad-b{letter-spacing:0;font-weight:600;min-height:36px;padding:7px 11px;font-size:12.5px}
 .crs-none{font-size:12.5px;color:var(--muted);line-height:1.75;margin:0 0 10px}
 .crs-blk,.crs-q{border:1px solid var(--border-soft);border-radius:12px;background:var(--panel);margin-bottom:10px}
 .crs-blk:focus-within,.crs-q:focus-within{border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
@@ -1300,19 +1427,31 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-ck{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-height:40px}
 .crs-ck input{width:auto;min-height:auto}
 .crs-chacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.crs-pvwrap{border-left:1px solid var(--border);background:var(--bg);overflow:auto;max-height:74vh;padding:12px}
-.crs-pvh{font-size:11px;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
-.crs-pvbody{width:375px;max-width:100%;margin:0 auto;font-size:14px}
+/* v62.1 预览页签：主区全宽渲染整节，宽度贴近学员在桌面看到的实际排版 */
+.crs-pvwide{background:var(--bg);min-height:100%;padding:16px 20px 30px}
+.crs-pvh{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px}
+.crs-pvbody{width:100%;max-width:760px;margin:0 auto;font-size:14px}
+.crs-pvq{font-size:13px;line-height:1.8;color:var(--text);padding:9px 12px;border-radius:9px;background:var(--panel);
+  border:1px solid var(--border-soft);margin-bottom:7px}
+.crs-pvq span{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.crs-pvq i{font-style:normal;font-size:12px;color:var(--muted);border:1px solid var(--border-soft);
+  border-radius:980px;padding:3px 10px;background:var(--bg)}
+.crs-pvq i.on{color:var(--ok);border-color:var(--ok);background:var(--ok-soft);font-weight:700}
+/* 加块入口：常用三类平铺 + 更多下拉（撤销六选一弹窗） */
+.crs-add{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.crs-more{position:relative;display:inline-flex}
+.crs-morem{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:190px;display:flex;flex-direction:column;
+  padding:6px;border-radius:12px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}
+.crs-morem button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:44px;padding:7px 11px;
+  border:0;border-radius:9px;background:transparent;color:var(--text);font:inherit;font-size:13.5px;font-weight:600;
+  text-align:left;cursor:pointer;letter-spacing:0}
+.crs-morem button:hover{background:var(--hover);color:var(--accent-ink)}
+.crs-morem small{font-size:11px;font-weight:400;color:var(--faint)}
 .crs-metaform{display:flex;flex-direction:column;gap:8px;padding:14px;border:1px solid var(--border);
   border-top:0;border-radius:0 0 12px 12px;background:var(--panel)}
 .crs-metaform input,.crs-metaform textarea{width:100%;box-sizing:border-box;min-height:40px;padding:9px 12px;
   border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;font-size:14px}
-.crs-types{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
-.crs-type{display:flex;flex-direction:column;gap:2px;align-items:flex-start;min-height:62px;padding:11px 13px;
-  border:1px solid var(--border-soft);border-radius:10px;background:var(--bg);cursor:pointer;font:inherit;text-align:left}
-.crs-type:hover{border-color:var(--accent)}
-.crs-type b{font-size:13.5px}
-.crs-type small{font-size:11px;color:var(--muted)}
+/* v62.1 .crs-types/.crs-type（块类型六选一弹窗）随 crsPickType 一并撤除 */
 .crs-imprep{max-height:220px;overflow:auto;margin:10px 0}
 .crs-imptb{width:100%;border-collapse:collapse;font-size:12px}
 .crs-imptb th,.crs-imptb td{border-bottom:1px solid var(--border-soft);padding:5px 6px;text-align:left}

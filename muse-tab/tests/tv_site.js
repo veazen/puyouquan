@@ -756,16 +756,24 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       out.pubBlocked = mask ? !mask.querySelector('#crs-pubgo') : false;   // 有阻塞项时没有确认发布按钮
       out.sizeBar = mask ? /字符/.test(mask.textContent) : false;
       if (mask) mask.remove();
+      /* v62.1 整课草稿预览入口从顶栏移进「预览」页签内（顶栏改成 编辑/预览 二选一） */
       window.open = u => { out.openedUrl = String(u); return null; };
-      document.getElementById('crs-preview').click();
+      const pvTab = document.getElementById('crs-mode-pv');
+      out.pvTab = !!pvTab;
+      if (!pvTab) return out;            // 无预览页签时报红而不是崩进程（突变跑口径）
+      pvTab.click();
+      await new Promise(r2 => setTimeout(r2, 200));
+      const full = document.querySelector('[data-pvfull]');
+      out.pvFullBtn = !!full;
+      if (full) full.click();
       await new Promise(r2 => setTimeout(r2, 80));
       out.pvLs = !!localStorage.getItem('pyq-crs-preview');
       return out;
     });
     T(r.rowFound && r.hasQ && r.checklist && /1\.1|第 1\.1 节/.test(r.hardTxt) && r.pubBlocked && r.sizeBar
-      && /preview=1/.test(r.openedUrl || '') && r.pvLs
+      && r.pvFullBtn && /preview=1/.test(r.openedUrl || '') && r.pvLs
       && !pg._posts.some(p => /PUT \/api\/admin\/courses/.test(p)),
-      'T15c v62.0 发布前检查：坏题阻塞发布+定位到章.节+体量条+预览草稿', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+      'T15c v62.1 发布前检查：坏题阻塞发布+定位到章.节+体量条+预览页签内整课草稿', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
     await pg.close();
 
     // T15d 数据红线：保存 2.0 课程时，小节树（sections + 三模块 + 稳定 sid）必须完整随 PUT 上行
@@ -852,38 +860,59 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     await pg.close();
 
     /* ===== v62.0 课程独立页 + 学习页重设计（UI 专家规格）===== */
-    // T17 小节流程：独立页直达 → 锁小节 → 打卡（可撤销）→ 不及格不解锁 → 重测通关 → 解锁下一节
+    // T17 小节流程（v62.1 锁章不锁节）：章内小节全开 → 打卡（可撤销）→ 学/练/测页签 →
+    //     不及格不记星 → 重测通关 → 本章没做完时下一章仍锁 → 做完整章才解锁下一章
     pg = await mkPage(false, 'kecheng.html?c=course-jianpu-renshi');
     await pg.waitForTimeout(600);
     r = await pg.evaluate(async () => {
       const out = {};
       const data = JSON.parse(document.getElementById('kc-data').textContent);
       const jc = data.find(c => c.title === '认识简谱');
-      const s0 = ((jc.data.chapters[0] || {}).sections || [])[0];
+      const chs = jc.data.chapters || [];
+      const s0 = ((chs[0] || {}).sections || [])[0];
       if (!s0) return { noSections: true };   // 课程未小节化时报红而不是崩进程（突变跑口径）
-      const items = s0.test.items;
       const det = document.querySelector('.kc-detail');
       out.secs = det.querySelectorAll('.kcs').length;
       out.groups = det.querySelectorAll('.kcp-chg').length;
       if (!out.secs) return out;
-      const K0 = det.querySelectorAll('.kcs')[0].getAttribute('data-sk');
-      const K1 = det.querySelectorAll('.kcs')[1].getAttribute('data-sk');
+      const sk = g => [...g.querySelectorAll('.kcs')].map(s => s.getAttribute('data-sk'));
+      const g0 = det.querySelector('.kcp-chg[data-ci="0"]'), g1 = det.querySelector('.kcp-chg[data-ci="1"]');
+      out.chIndexed = !!g0 && !!g1;
+      if (!out.chIndexed) return out;    // 章未按 data-ci 分组时报红而不是崩（突变跑口径）
+      const K = sk(g0), K0 = K[0], K1 = K[K.length - 1], N0 = K.length;
+      if (!K0) return out;
       out.sidKey = /^s_/.test(K0);            // 进度键用稳定 sid，插节不再错位学员进度
       out.open0 = det.querySelector('.kcs[data-sk="' + K0 + '"]').classList.contains('is-open');
-      out.lock01 = det.querySelector('.kcs[data-sk="' + K1 + '"]').classList.contains('kcs--lock');
-      out.mods = det.querySelectorAll('.kcs[data-sk="' + K0 + '"] .kcm').length;   // 学/练/测 三模块
-      out.lockHints = det.querySelectorAll('.kcs-hint').length;                    // 解锁文案只留一条
+      // 锁章不锁节：第 1 章内一节不锁；第 2 章整章锁，解锁说明每章只有一处
+      out.ch0Locked = g0.querySelectorAll('.kcs--lock').length;
+      out.ch1Locked = g1.querySelectorAll('.kcs--lock').length;
+      out.ch1All = g1.querySelectorAll('.kcs').length;
+      out.lockPanels = det.querySelectorAll('.kcp-chlock').length;
+      out.secHints = det.querySelectorAll('.kcs-hint').length;   // 逐节重复的解锁文案已撤
+      out.arts = det.querySelectorAll('.kcp-chart .kcart').length;
+      // 学/练/测三页签：三块面板，一次只显示一块
+      const c0 = det.querySelector('.kcs[data-sk="' + K0 + '"]');
+      out.mods = c0.querySelectorAll('.kcm[data-mod]').length;
+      out.tabs = c0.querySelectorAll('.kcs-tab').length;
+      out.shown = [...c0.querySelectorAll('.kcm[data-mod]')].filter(p => !p.hidden).length;
+      const pTab = c0.querySelector('.kcs-tab[data-mtab="prac"]');
+      if (!pTab) return out;             // 无模块页签时报红而不是崩（突变跑口径）
+      pTab.click();
+      await new Promise(r2 => setTimeout(r2, 120));
+      out.pracOn = !c0.querySelector('.kcm[data-mod="prac"]').hidden
+        && c0.querySelector('.kcm[data-mod="learn"]').hidden;
       // 练习打卡 + 撤销入口
       det.querySelector('[data-checkin]').click();
       await new Promise(r2 => setTimeout(r2, 60));
       out.ckOn = !!det.querySelector('.kcp-ckbtn.is-on');
       out.undo = !!det.querySelector('[data-undo]');
       out.weekOn = det.querySelectorAll('.kcp-wd.on').length;
-      const run = pickWrong => {
-        const host = det.querySelector('[data-thost="' + K0 + '"]');
+      const run = (key, pickWrong) => {
+        const its = (((K.indexOf(key) >= 0 ? chs[0].sections[K.indexOf(key)] : {}).test) || {}).items || [];
+        const host = det.querySelector('[data-thost="' + key + '"]');
         return (async () => {
-          for (let k = 0; k < items.length; k++) {
-            const oi = pickWrong(k) ? (items[k].a + 1) % items[k].opts.length : items[k].a;
+          for (let k = 0; k < its.length; k++) {
+            const oi = pickWrong(k) ? (its[k].a + 1) % its[k].opts.length : its[k].a;
             host.querySelector('.kcq-opt[data-oi="' + oi + '"]').click();
             await new Promise(r2 => setTimeout(r2, 20));
             host.querySelector('[data-next]').click();
@@ -892,21 +921,20 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
           return host;
         })();
       };
-      // ① 错 3 题 → 不及格、不解锁、不记星
+      // ① 错 3 题 → 不及格、不记星
       det.querySelector('[data-sectest="' + K0 + '"]').click();
       await new Promise(r2 => setTimeout(r2, 60));
       out.focus = det.querySelector('.kcs[data-sk="' + K0 + '"]').classList.contains('is-testing');
       out.segs = det.querySelectorAll('.kcq-seg i').length;
-      let host = await run(k => k < 3);
+      let host = await run(K0, k => k < 3);
       out.failTxt = (host.querySelector('.kcq-res') || {}).textContent || '';
       out.missList = host.querySelectorAll('.kcq-missit').length;   // 未通关给错题清单+回看
       out.review = !!host.querySelector('[data-review]');
       out.failStar = +(((JSON.parse(localStorage.getItem('pyq-learn-v1')) || {})['sec:' + jc.id] || {})[K0] || {}).stars || 0;
-      out.stillLock = det.querySelector('.kcs[data-sk="' + K1 + '"]').classList.contains('kcs--lock');
-      // ② 重测错 1 题 → 4 星通关
+      // ② 重测错 1 题 → 4 星通关；本章还有没做完的节，下一章必须仍然锁着
       host.querySelector('[data-retry]').click();
       await new Promise(r2 => setTimeout(r2, 60));
-      host = await run(k => k === 0);
+      host = await run(K0, k => k === 0);
       out.passTxt = (host.querySelector('.kcq-res') || {}).textContent || '';
       out.stars = (host.querySelector('.kcq-res-stars') || {}).textContent || '';
       const ls = JSON.parse(localStorage.getItem('pyq-learn-v1')) || {};
@@ -914,20 +942,44 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       out.lsDays = (((ls['sec:' + jc.id] || {})[K0] || {}).days || []).length;
       out.legacyUntouched = ls[jc.id] === undefined && ls['s:' + jc.id] === undefined;
       host.querySelector('[data-cont]').click();
-      await new Promise(r2 => setTimeout(r2, 150));
-      const d2 = document.querySelector('.kc-detail');
-      out.unlock01 = !d2.querySelector('.kcs[data-sk="' + K1 + '"]').classList.contains('kcs--lock');
+      await new Promise(r2 => setTimeout(r2, 200));
+      let d2 = document.querySelector('.kc-detail');
+      out.chLockedAfter1 = d2.querySelector('.kcp-chg[data-ci="1"]').getAttribute('data-lock');
       out.pass0 = d2.querySelector('.kcs[data-sk="' + K0 + '"]').classList.contains('kcs--pass');
       out.ring = (d2.querySelector('.kcp-ringtx b') || {}).textContent;
+      // ③ 把第 1 章剩下的节也做完 → 第 2 章解锁
+      for (let i = 1; i < N0; i++) {
+        d2 = document.querySelector('.kc-detail');
+        const bt = d2.querySelector('[data-sectest="' + K[i] + '"]');
+        if (bt) {
+          bt.click(); await new Promise(r2 => setTimeout(r2, 60));
+          const h = await run(K[i], () => false);
+          h.querySelector('[data-cont]').click();
+        } else {                       // 无测试题的小节：打卡即通过
+          d2.querySelector('[data-checkin="' + K[i] + '"]').click();
+        }
+        await new Promise(r2 => setTimeout(r2, 220));
+      }
+      d2 = document.querySelector('.kc-detail');
+      out.chOpenAfterAll = d2.querySelector('.kcp-chg[data-ci="1"]').getAttribute('data-lock');
+      out.ch1LockedAfter = d2.querySelectorAll('.kcp-chg[data-ci="1"] .kcs--lock').length;
+      out.lockPanelsAfter = d2.querySelectorAll('.kcp-chlock').length;
+      out.lastK = K1;
       return out;
     });
-    T(r.secs >= 14 && r.groups === 6 && r.sidKey && r.open0 && r.lock01 && r.mods === 3 && r.lockHints === 1
+    T(r.secs >= 14 && r.groups === 6 && r.sidKey && r.open0
+      && r.ch0Locked === 0 && r.ch1Locked === r.ch1All && r.ch1All > 0
+      && r.lockPanels === 5 && r.secHints === 0 && r.arts === 6
+      && r.mods === 3 && r.tabs === 3 && r.shown === 1 && r.pracOn
       && r.ckOn && r.undo && r.weekOn === 1
       && r.focus && r.segs === 5
-      && /★★☆☆☆/.test(r.failTxt) && r.missList === 3 && r.review && r.failStar === 0 && r.stillLock
+      && /★★☆☆☆/.test(r.failTxt) && r.missList === 3 && r.review && r.failStar === 0
       && /通关/.test(r.passTxt) && r.stars === '★★★★☆' && r.lsStar === 4 && r.lsDays === 1
-      && r.legacyUntouched && r.unlock01 && r.pass0 && /^1\//.test(r.ring),
-      'T17 v62.0 小节全流程：独立页/稳定 sid/三模块/打卡可撤销/专注态/错题回看/四星通关解锁', JSON.stringify(r));
+      && r.legacyUntouched && r.pass0 && /^1\//.test(r.ring)
+      && r.chLockedAfter1 === '1' && r.chOpenAfterAll === '0'
+      && r.ch1LockedAfter === 0 && r.lockPanelsAfter === 4,
+      'T17 v62.1 锁章不锁节：章内全开/整章一处锁说明/学练测页签/打卡可撤销/专注态/错题回看/做完整章才开下一章',
+      JSON.stringify(r));
 
     // T17b 课程独立页外壳：站点 hero 与列表都不渲染、标题与 canonical 随课程、侧导航与进度环
     r = await pg.evaluate(() => {
@@ -1016,24 +1068,57 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       out.dots = document.querySelectorAll('.crs-tsec .crs-dots').length;   // 齐备度三点
       out.blocks = document.querySelectorAll('.crs-blk').length;     // 内容块卡片
       out.qs = document.querySelectorAll('.crs-q').length;           // 题目卡
-      out.pvIn = document.querySelectorAll('.crs-pvin .lb').length;  // 块内实时预览
-      out.pvPhone = !!document.querySelector('.crs-pvbody .lb');     // 右栏整节预览
       out.live = !!document.querySelector('.crs-live');              // 已发布课「保存即生效」红线提示
       out.warn0 = document.querySelectorAll('.crs-warn').length;     // 官方课内容零校验告警
-      // 正确答案 radio 已标记
-      out.radioOn = document.querySelectorAll('.crs-opt.on').length;
-      // 改块内容 → 预览实时跟随 + 变脏
+      out.radioOn = document.querySelectorAll('.crs-opt.on').length; // 正确答案 radio 已标记
+      /* v62.1 简化：两栏（大纲+主区），右侧常驻预览栏撤除；块内预览只留谱例块 */
+      out.cols = getComputedStyle(document.querySelector('.crs-grid')).gridTemplateColumns.split(' ').length;
+      out.noAside = !document.querySelector('.crs-pvwrap');
+      const jpCards = [...document.querySelectorAll('.crs-blk')].filter(c => c.querySelector('[data-bf="line"]'));
+      out.jpN = jpCards.length;
+      out.pvInJp = jpCards.filter(c => c.querySelector('.crs-pvin')).length;
+      out.pvInOther = [...document.querySelectorAll('.crs-blk')]
+        .filter(c => !c.querySelector('[data-bf="line"]') && c.querySelector('.crs-pvin')).length;
+      /* v62.1 加块一步到位：按钮自带类型，不再弹六选一 */
+      const before = document.querySelectorAll('.crs-mod[data-modsec="learn"] .crs-blk').length;
+      const addText = document.querySelector('.crs-mod[data-modsec="learn"] [data-addblk][data-bt="text"]');
+      out.addTyped = !!addText;
+      if (!addText) return out;          // 加块按钮不带类型时报红而不是崩（突变跑口径）
+      addText.click();
+      await new Promise(r2 => setTimeout(r2, 150));
+      out.addNoModal = !document.getElementById('ad-mask');
+      out.added = document.querySelectorAll('.crs-mod[data-modsec="learn"] .crs-blk').length - before;
+      document.querySelector('[data-moretog]').click();
+      await new Promise(r2 => setTimeout(r2, 100));
+      out.moreItems = [...document.querySelectorAll('.crs-morem')].filter(m => !m.hidden)
+        .reduce((a, m) => a + m.querySelectorAll('button').length, 0);
+      // 改块内容 → 谱例块内预览实时跟随 + 变脏
       const ta = document.querySelector('.crs-blk [data-bf="md"]');
       ta.value = '### 改过的标题'; ta.dispatchEvent(new Event('input'));
       await new Promise(r2 => setTimeout(r2, 80));
-      out.pvLive = /改过的标题/.test(document.querySelector('.crs-blk .crs-pvin').innerHTML);
       out.dirty = /未保存/.test(document.getElementById('crs-state').textContent);
       out.stash = !!localStorage.getItem('pyq-crs-draft:course-jianpu-renshi') || true;
-      // 谱例块非法 token 就地报错
-      const jp = [...document.querySelectorAll('.crs-blk')].find(c => c.querySelector('[data-bf="line"]'));
-      if (jp) { const inp = jp.querySelector('[data-bf="line"]'); inp.value = '1 8 3'; inp.dispatchEvent(new Event('input'));
+      // 谱例块：改内容 → 块内预览跟随；非法 token 就地报错
+      const jp = jpCards[0];
+      if (jp) {
+        const inp = jp.querySelector('[data-bf="line"]');
+        inp.value = '1 2 3'; inp.dispatchEvent(new Event('input'));
+        await new Promise(r2 => setTimeout(r2, 80));
+        out.pvLive = !!jp.querySelector('.crs-pvin .jpline');
+        inp.value = '1 8 3'; inp.dispatchEvent(new Event('input'));
         await new Promise(r2 => setTimeout(r2, 60));
-        out.jpErr = /不合法/.test(jp.textContent); }
+        out.jpErr = /不合法/.test(jp.textContent);
+      }
+      // 预览页签：主区整节全宽预览（含题目清单）
+      document.getElementById('crs-mode-pv').click();
+      await new Promise(r2 => setTimeout(r2, 220));
+      out.pvBody = !!document.querySelector('.crs-pvbody .lb');
+      out.pvQ = document.querySelectorAll('.crs-pvq').length;
+      out.pvWide = document.querySelector('.crs-pvbody')
+        ? Math.round(document.querySelector('.crs-pvbody').getBoundingClientRect().width) : 0;
+      document.getElementById('crs-mode-edit').click();
+      await new Promise(r2 => setTimeout(r2, 180));
+      out.backToEdit = !!document.querySelector('.crs-mod');
       // 切换小节
       document.querySelectorAll('.crs-tsec')[1].click();
       await new Promise(r2 => setTimeout(r2, 150));
@@ -1041,24 +1126,29 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       return out;
     });
     T(r.rowFound && r.wb && r.wide && r.tree >= 14 && r.chs === 6 && r.dots >= 14
-      && r.blocks >= 3 && r.qs >= 4 && r.pvIn >= 3 && r.pvPhone && r.live && r.warn0 === 0
-      && r.radioOn >= 4 && r.pvLive && r.dirty && r.jpErr && r.sec2,
-      'T19 v62.0 课程工作台：大纲树+齐备度/块卡片/题卡/块内与整节预览/已发布红线/实时校验/切节', JSON.stringify(r));
+      && r.blocks >= 3 && r.qs >= 4 && r.live && r.warn0 === 0 && r.radioOn >= 4
+      && r.cols === 2 && r.noAside && r.jpN >= 1 && r.pvInJp === r.jpN && r.pvInOther === 0
+      && r.addNoModal && r.added === 1 && r.moreItems === 3
+      && r.dirty && r.pvLive && r.jpErr
+      && r.pvBody && r.pvQ >= 4 && r.pvWide > 500 && r.backToEdit && r.sec2,
+      'T19 v62.1 工作台简化：两栏+预览页签/加块一步到位/块内预览只留谱例/大纲齐备度/实时校验/切节', JSON.stringify(r));
 
-    // T19b 脏守卫：有未保存修改时切页签不能静默丢稿（此前直接覆写面板）
+    // T19b 离开＝静默暂存（v62.1 撤销三选一弹窗）：切页签不弹窗、不丢稿，本机草稿落盘
     r = await pg.evaluate(async () => {
+      localStorage.removeItem('pyq-crs-draft:course-jianpu-renshi');
+      const ta = document.querySelector('.crs-blk [data-bf="md"], .crs-sect');
+      if (ta) { ta.value = '离开前的改动'; ta.dispatchEvent(new Event('input')); }
+      await new Promise(r2 => setTimeout(r2, 80));
       document.querySelector('#ad-tabs [data-ad="users"]').click();
-      await new Promise(r2 => setTimeout(r2, 200));
-      const mask = document.getElementById('ad-mask');
-      const out = { guard: !!mask, wbAlive: !!document.getElementById('crs-wb') };
-      if (mask) { const keep = [...mask.querySelectorAll('button')].find(b => /继续编辑/.test(b.textContent));
-        out.keepBtn = !!keep; if (keep) keep.click(); }
-      await new Promise(r2 => setTimeout(r2, 120));
-      out.stillWb = !!document.getElementById('crs-wb');
-      return out;
+      await new Promise(r2 => setTimeout(r2, 260));
+      const raw = localStorage.getItem('pyq-crs-draft:course-jianpu-renshi') || '';
+      return { noModal: !document.getElementById('ad-mask'),
+        leftWb: !document.getElementById('crs-wb'),
+        stashed: /离开前的改动/.test(raw),
+        toast: /暂存/.test((document.getElementById('ad-msg') || {}).textContent || '') };
     });
-    T(r.guard && r.wbAlive && r.keepBtn && r.stillWb,
-      'T19c v62.0 脏守卫：未保存时切页签弹三选一，选「继续编辑」内容不丢', JSON.stringify(r));
+    T(r.noModal && r.leftWb && r.stashed && r.toast,
+      'T19c v62.1 离开静默暂存：切页签不弹窗、改动落本机草稿、给一行提示', JSON.stringify(r));
     T(pg._errs.length === 0, 'T19d 工作台无报错', pg._errs.join('|') || 'none');
     await pg.close();
   }

@@ -238,6 +238,10 @@
   /* ---- v60.90 课程发布工作台：列表 + 编辑器（章节=谱面+图文+练习任务）+ 发布/下架/删除 ----
      数据模型见 api/db.js courses 表；学习页（kecheng.html）以 /api/courses 为准即时生效。 */
   var CRS_INST={guitar:'吉他',piano:'钢琴',uku:'尤克里里',vocal:'唱歌/视唱',theory:'乐理/识谱',kids:'幼儿启蒙',other:'其他'};
+  /* v62.1 章节主题插画：前台章头用矢量插画取代表情，作者在这里挑一张 */
+  var CRS_ART={ scale:'音阶阶梯',key:'调号牌 1=C',octave:'八度点',beat:'拍子网格',dur:'增/减时线',
+    rest:'休止与小节线',tie:'连线与反复',sing:'唱歌/话筒',hand:'手型/指法',guitar:'吉他',
+    chord:'和弦图',strum:'扫弦',ear:'听辨',drum:'打击乐' };
   function adCourses(){
     api('/admin/courses').then(function(j){
       var rows=j.courses||[];
@@ -346,7 +350,7 @@
       var secs=ch.sections||[], bad=0;
       secs.forEach(function(s){ if(crsSecErrs(s).length) bad++; });
       out+='<div class="crs-tch'+(sel.ci===ci&&sel.si<0?' on':'')+'" data-selch="'+ci+'">'
-        +'<span class="crs-tem">'+esc(ch.emoji||'📘')+'</span>'
+        +'<span class="crs-tem">'+PYQ_KC.art(PYQ_KC.artFor(ch,ci))+'</span>'
         +'<span class="crs-tt">'+esc(ch.title||'（未命名章）')+'</span>'
         +'<span class="crs-tn">'+secs.length+' 节'+(bad?' <i class="crs-warn">⚠'+bad+'</i>':'')+'</span></div>';
       secs.forEach(function(s,si){
@@ -423,6 +427,9 @@
     else if(b.t==='code') f='<input data-bf="lang" value="'+esc(b.lang||'')+'" placeholder="语言标签（如 abc / musicxml，仅作标注）" style="max-width:220px">'
       +'<textarea class="crs-mono" data-bf="src" rows="5" spellcheck="false" placeholder="代码内容">'+esc(b.src||'')+'</textarea>';
     var err=crsBlockErr(b), meta=CRS_BT[b.t]||['未知',''];
+    /* v62.1 块内预览只留谱例：文字/图片/视频/代码「写的就是看到的」，多一份渲染只是把表单挤长；
+       谱例是唯一「输入记号 ≠ 屏幕字形」的类型，边写边看才有意义 */
+    var showPv=b.t==='jp'&&!err;
     return '<div class="crs-blk'+(err?' is-bad':'')+'" data-mod="'+mod+'" data-bi="'+i+'">'
       +'<div class="crs-bh"><span class="crs-bt">'+esc(meta[0])+'</span>'
       +'<span class="crs-bsum">'+esc(crsBlkSum(b))+'</span>'
@@ -430,8 +437,9 @@
       +'<button type="button" data-bdup title="复制">⧉</button><button type="button" data-bdel title="删除">✕</button></div>'
       +'<div class="crs-bbody">'+f
       +(err?'<p class="crs-err" role="alert">⚠ '+esc(err)+'</p>':'')
-      +'<div class="crs-pvin"><div class="kc-detail" data-fam="'+esc((CRS.c.data||{}).fam||'g')+'">'
-        +(err?'':PYQ_KC.blockHtml(b))+'</div></div></div></div>';
+      +(showPv?('<div class="crs-pvin"><div class="kc-detail" data-fam="'+esc((CRS.c.data||{}).fam||'g')+'">'
+        +PYQ_KC.blockHtml(b)+'</div></div>'):'')
+      +'</div></div>';
   }
   function crsBlkSum(b){
     if(b.t==='text') return String(b.md||'').replace(/[#>*`-]/g,'').replace(/\s+/g,' ').slice(0,40);
@@ -468,9 +476,14 @@
       var is10=!(ch.sections||[]).length && ((ch.points||[]).length||ch.task||(ch.quiz||[]).length);
       return '<div class="crs-secbar"><b>第 '+(sel.ci+1)+' 章</b><span class="crs-bc">章信息</span></div>'
         +'<div class="crs-pane"><div class="ad-search" style="margin:0 0 10px">'
-        +'<input data-chf="emoji" value="'+esc(ch.emoji||'')+'" placeholder="表情" style="max-width:80px">'
         +'<input data-chf="title" value="'+esc(ch.title||'')+'" placeholder="章标题（必填）"></div>'
         +'<input data-chf="goal" value="'+esc(ch.goal||'')+'" placeholder="本章目标（一句话，前台章头显示）">'
+        /* 章头插画：换图即时在右侧预览块看到（前台章头就是这张图） */
+        +'<div class="crs-artrow"><span class="crs-artpv">'+PYQ_KC.art(PYQ_KC.artFor(ch,sel.ci))+'</span>'
+        +'<label class="crs-artlb">章头插画<select class="ad-sel" data-chf="art">'
+        +Object.keys(CRS_ART).map(function(k){
+            return '<option value="'+k+'"'+(PYQ_KC.artFor(ch,sel.ci)===k?' selected':'')+'>'+CRS_ART[k]+'</option>'; }).join('')
+        +'</select></label></div>'
         +(is10?('<p class="crs-live">⚠ 本章还是 1.0 结构（内容点/任务/闯关题），而课程已用小节结构——'
           +'<b>前台只渲染小节，这些内容不会显示</b>。<button type="button" class="ad-b ok" id="crs-up10">一键升级为小节</button></p>'):'')
         +'<div class="crs-chacts"><button type="button" class="ad-b" data-chup2>↑ 上移章</button>'
@@ -479,53 +492,78 @@
     }
     var s=(ch.sections||[])[sel.si]; if(!s) return '<p class="pc-empty">这一节不存在。</p>';
     var n=crsCount(s);
+    /* v62.1 加块入口收敛：常用三类直接给按钮（此前统一弹一个六选一弹窗，
+       加一段文字要「点添加 → 等弹窗 → 选类型 → 关弹窗」四步），其余进「更多」下拉 */
+    var addBtns=function(key){
+      return '<span class="crs-add"><button type="button" class="ad-b" data-addblk="'+key+'" data-bt="text">＋ 文字</button>'
+        +'<button type="button" class="ad-b" data-addblk="'+key+'" data-bt="jp">＋ 谱例</button>'
+        +'<button type="button" class="ad-b" data-addblk="'+key+'" data-bt="image">＋ 图片</button>'
+        +'<span class="crs-more"><button type="button" class="ad-b" data-moretog aria-expanded="false">更多 ▾</button>'
+        +'<span class="crs-morem" hidden>'
+        +['score','video','code'].map(function(t){
+            return '<button type="button" data-addblk="'+key+'" data-bt="'+t+'">'+CRS_BT[t][0]
+              +'<small>'+CRS_BT[t][1]+'</small></button>'; }).join('')
+        +'</span></span></span>';
+    };
     var mod=function(key,ic,name,cnt,inner,extra){
       return '<div class="crs-mod" data-modsec="'+key+'"><div class="crs-modh"><span class="crs-modic">'+ic+'</span>'
         +name+'<span class="crs-modn">'+cnt+'</span><span style="flex:1"></span>'+(extra||'')
-        +'<button type="button" class="ad-b" data-addblk="'+key+'">＋ 添加块</button></div>'+inner+'</div>';
+        +(key==='test'?'':addBtns(key))+'</div>'+inner+'</div>';
     };
     return '<div class="crs-secbar"><b>'+(sel.ci+1)+'.'+(sel.si+1)+'</b>'
       +'<span class="crs-bc">'+esc(ch.title||'')+'</span>'
-      +'<span class="crs-chips"><i'+(n.L?'':' class="off"')+'>📖 '+n.L+'</i><i'+(n.P?'':' class="off"')+'>✍️ '+n.P+'</i><i'+(n.Q?'':' class="off"')+'>🎯 '+n.Q+'</i></span>'
+      +'<span class="crs-chips"><i'+(n.L?'':' class="off"')+'>'+PYQ_KC.icon('learn')+n.L+'</i><i'+(n.P?'':' class="off"')+'>'+PYQ_KC.icon('prac')+n.P+'</i><i'+(n.Q?'':' class="off"')+'>'+PYQ_KC.icon('test')+n.Q+'</i></span>'
       +'<span style="flex:1"></span>'
       +'<button type="button" class="ad-b" data-secprev>‹ 上一节</button>'
       +'<button type="button" class="ad-b" data-secnext>下一节 ›</button>'
       +'<button type="button" class="ad-b no" data-secdel>删除本节</button></div>'
       +'<div class="crs-pane">'
       +'<input class="crs-sect" data-secf="title" value="'+esc(s.title||'')+'" placeholder="小节标题（前台标题行，必填）">'
-      +mod('learn','📖','学习',n.L+' 块',(((s.learn||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'learn',i); }).join('')
+      +mod('learn',PYQ_KC.icon('learn'),'学习',n.L+' 块',(((s.learn||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'learn',i); }).join('')
           ||'<p class="crs-none">还没有内容块，点右上「＋ 添加块」。</p>')
-      +mod('prac','✍️','练习',n.P+' 块',(((s.practice||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'prac',i); }).join('')
+      +mod('prac',PYQ_KC.icon('prac'),'练习',n.P+' 块',(((s.practice||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'prac',i); }).join('')
           +'<input data-secf="ptip" value="'+esc((s.practice||{}).tip||'')+'" placeholder="练习提示（前台 💡 一行，可空）">'
           +'<label class="crs-ck"><input type="checkbox" data-secf="checkin"'+(((s.practice||{}).checkin)!==false?' checked':'')+'> 显示每日打卡按钮</label>')
-      +mod('test','🎯','测试',n.Q+' 题',
+      +mod('test',PYQ_KC.icon('test'),'测试',n.Q+' 题',
           '<p class="crs-none">'+(n.Q?('本节 '+n.Q+' 题 · 最多允许错 '+Math.max(0,Math.min(2,n.Q-Math.ceil(n.Q*0.5)))+' 题通关（满分 5 星，每错 1 题 −1 星，★★★ 通关）'):'还没有题目——没有题目的小节改为「打卡即通过」。')+'</p>'
           +(((s.test||{}).items)||[]).map(crsQCard).join(''),
           '<button type="button" class="ad-b" data-qimport>批量导入</button><button type="button" class="ad-b" data-qadd>＋ 添加题</button>')
       +'</div>';
   }
+  /* v62.1 预览＝主区整节前台视图（与学习页同一套渲染器与样式，含学/练/测三页签的静态形态） */
   function crsPreview(){
     var ch=CRS.chs[CRS.sel.ci]||{}, s=(ch.sections||[])[CRS.sel.si];
     if(!s) return '<p class="crs-none">选中一个小节后可预览。</p>';
-    var fam=esc((CRS.c.data||{}).fam||'g');
-    return '<div class="kc-detail crs-pvbody" data-fam="'+fam+'"><section class="kcs kcs--now is-open">'
+    var fam=esc((CRS.c.data||{}).fam||'g'), K=PYQ_KC;
+    var items=(((s.test||{}).items)||[]);
+    return '<div class="crs-pvwide">'
+      +'<div class="crs-pvh">前台预览 · 第 '+(CRS.sel.ci+1)+'.'+(CRS.sel.si+1)+' 节'
+      +'<span style="flex:1"></span>'
+      +'<button type="button" class="ad-b" data-pvfull>在学习页打开整课草稿 ↗</button></div>'
+      +'<div class="kc-detail crs-pvbody kcp" data-fam="'+fam+'">'
+      +'<section class="kcs kcs--now is-open">'
       +'<div class="kcs-head"><span class="kcs-no">'+(CRS.sel.ci+1)+'.'+(CRS.sel.si+1)+'</span>'
       +'<span class="kcs-t">'+esc(s.title||'（未命名小节）')+'</span></div>'
-      +'<div class="kcs-body">'
-      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">📖</span>学习</h4>'
-        +(((s.learn||{}).blocks)||[]).map(PYQ_KC.blockHtml).join('')+'</div>'
-      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">✍️</span>练习</h4>'
-        +(((s.practice||{}).blocks)||[]).map(PYQ_KC.blockHtml).join('')
-        +((s.practice||{}).tip?'<p class="kcp-ptip">💡 '+PYQ_KC.mdInline(s.practice.tip)+'</p>':'')+'</div>'
-      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">🎯</span>测试</h4>'
-        +'<p class="kcm-note">'+((((s.test||{}).items)||[]).length||0)+' 道题</p></div>'
-      +'</div></section></div>';
+      +'<div class="kcs-wrap"><div class="kcs-body">'
+      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">'+K.icon('learn')+'</span>学习</h4>'
+        +(((s.learn||{}).blocks)||[]).map(K.blockHtml).join('')+'</div>'
+      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">'+K.icon('prac')+'</span>练习</h4>'
+        +(((s.practice||{}).blocks)||[]).map(K.blockHtml).join('')
+        +((s.practice||{}).tip?'<p class="kcp-ptip">'+K.mdInline(s.practice.tip)+'</p>':'')+'</div>'
+      +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">'+K.icon('test')+'</span>测试</h4>'
+        +'<p class="kcm-note">'+items.length+' 道题</p>'
+        +items.map(function(t,i){
+          return '<div class="crs-pvq"><b>'+(i+1)+'.</b> '+K.mdInline(t.q||'')
+            +'<span>'+(t.opts||[]).map(function(o,oi){
+              return '<i'+(t.a===oi?' class="on"':'')+'>'+K.esc(o||'')+'</i>'; }).join('')+'</span></div>';
+        }).join('')
+      +'</div></div></div></section></div></div>';
   }
 
   function crsDraw(part){
     if(part!=='main'){ var t=document.getElementById('crs-tree'); if(t) t.innerHTML=crsTree(); }
-    var m=document.getElementById('crs-main'); if(m) m.innerHTML=crsMain();
-    var p=document.getElementById('crs-pv'); if(p) p.innerHTML=crsPreview();
+    var m=document.getElementById('crs-main');
+    if(m) m.innerHTML=(CRS.mode==='pv')?crsPreview():crsMain();
     crsWire();
   }
   function crsSec(){ var ch=CRS.chs[CRS.sel.ci]||{}; return (ch.sections||[])[CRS.sel.si]; }
@@ -555,9 +593,18 @@
       CRS.chs.push({ chid:'c_'+Math.random().toString(36).slice(2,8), emoji:'📘', title:'新章', goal:'', sections:[] });
       CRS.sel={ci:CRS.chs.length-1,si:-1}; mark(); crsDraw(); };
     /* 章级字段 */
-    root.querySelectorAll('[data-chf]').forEach(function(e){ e.oninput=function(){
-      CRS.chs[CRS.sel.ci][e.getAttribute('data-chf')]=e.value; mark();
-      var t=document.getElementById('crs-tree'); if(t) t.innerHTML=crsTree(); crsWire(); }; });
+    root.querySelectorAll('[data-chf]').forEach(function(e){
+      var apply=function(){
+        var f=e.getAttribute('data-chf');
+        CRS.chs[CRS.sel.ci][f]=e.value; mark();
+        if(f==='art'){    /* 换插画：就地换掉预览那张图，不整块重绘（重绘会丢焦点） */
+          var pv=root.querySelector('.crs-artpv');
+          if(pv) pv.innerHTML=PYQ_KC.art(e.value);
+        }
+        var t=document.getElementById('crs-tree'); if(t) t.innerHTML=crsTree(); crsWire();
+      };
+      e.oninput=apply; e.onchange=apply;
+    });
     var up10=root.querySelector('#crs-up10');
     if(up10) up10.onclick=function(){
       var ch=CRS.chs[CRS.sel.ci], bl=[];
@@ -608,16 +655,30 @@
         }
       };
     });
-    /* 内容块 */
+    /* 内容块：类型直接写在按钮上，点一下就加（v62.1 撤销六选一弹窗） */
     root.querySelectorAll('[data-addblk]').forEach(function(e){ e.onclick=function(){
-      crsPickType(function(t){
-        var b={t:t};
-        if(t==='text') b.md=''; else if(t==='jp'){ b.line=''; b.cap=''; }
-        else if(t==='score'){ b.q=''; b.title=''; b.note=''; }
-        else if(t==='image'||t==='video'){ b.src=''; b.cap=''; }
-        else if(t==='code'){ b.lang='text'; b.src=''; }
-        crsBlocks(e.getAttribute('data-addblk')).push(b); mark(); crsDraw('main');
-      });
+      var t=e.getAttribute('data-bt')||'text', b={t:t};
+      if(t==='text') b.md=''; else if(t==='jp'){ b.line=''; b.cap=''; }
+      else if(t==='score'){ b.q=''; b.title=''; b.note=''; }
+      else if(t==='image'||t==='video'){ b.src=''; b.cap=''; }
+      else if(t==='code'){ b.lang='text'; b.src=''; }
+      crsBlocks(e.getAttribute('data-addblk')).push(b); mark(); crsDraw('main');
+      var last=root.querySelectorAll('.crs-mod[data-modsec="'+e.getAttribute('data-addblk')+'"] .crs-blk');
+      var el=last[last.length-1], inp=el&&el.querySelector('textarea,input');
+      if(el) el.scrollIntoView({block:'nearest'});
+      if(inp) inp.focus();
+    }; });
+    var pvf=root.querySelector('[data-pvfull]');
+    if(pvf) pvf.onclick=function(){
+      var idEl=document.getElementById('crs-id'), id=(idEl?idEl.value.trim():'')||'crs-preview';
+      try{ localStorage.setItem('pyq-crs-preview', JSON.stringify(Object.assign({id:id}, crsBody()))); }catch(_){}
+      window.open('kecheng.html?preview=1','_blank');
+    };
+    root.querySelectorAll('[data-moretog]').forEach(function(e){ e.onclick=function(){
+      var m=e.nextElementSibling, on=m.hidden;
+      root.querySelectorAll('.crs-morem').forEach(function(x){ x.hidden=true; });
+      root.querySelectorAll('[data-moretog]').forEach(function(x){ x.setAttribute('aria-expanded','false'); });
+      m.hidden=!on; e.setAttribute('aria-expanded', on?'true':'false');
     }; });
     root.querySelectorAll('.crs-blk').forEach(function(card){
       var mod=card.getAttribute('data-mod'), i=+card.getAttribute('data-bi'), arr=crsBlocks(mod);
@@ -683,15 +744,7 @@
     };
     setTimeout(function(){ if(d.parentNode) d.remove(); },5000);
   }
-  function crsPickType(cb){
-    var html='<h3>选择内容块类型</h3><div class="crs-types">'
-      +Object.keys(CRS_BT).map(function(k){
-        return '<button type="button" class="crs-type" data-t="'+k+'"><b>'+CRS_BT[k][0]+'</b><small>'+CRS_BT[k][1]+'</small></button>';
-      }).join('')+'</div>';
-    adModal(html, function(box){
-      box.querySelectorAll('[data-t]').forEach(function(b){ b.onclick=function(){ adModalClose(); cb(b.getAttribute('data-t')); }; });
-    });
-  }
+  /* v62.1 crsPickType（六选一弹窗）已撤：块类型直接写在「＋ 文字 / ＋ 谱例 / ＋ 图片 / 更多」按钮上 */
   /* 批量导入：一行一题 题干|选项…|答案序号|解析（沿用 1.0 行格式，存量题可直接粘） */
   function crsImport(){
     adModal('<h3>批量导入题目</h3>'
@@ -770,21 +823,23 @@
            data:{emoji:'🎼',fam:'g',chapters:[]} };
     var d=(c.data&&typeof c.data==='object')?c.data:{};
     var chs=crsMintIds((d.chapters||[]).map(function(x){ return JSON.parse(JSON.stringify(x)); }));
-    CRS={ c:c, chs:chs, sel:{ci:0,si:(chs[0]&&(chs[0].sections||[]).length)?0:-1}, dirty:false, saved:'' };
+    CRS={ c:c, chs:chs, sel:{ci:0,si:(chs[0]&&(chs[0].sections||[]).length)?0:-1}, dirty:false, saved:'', mode:'edit' };
     var body=document.getElementById('ad-body'); if(body) body.classList.add('crs-open');
     adPane('<div id="crs-wb" class="crs-wb">'
       +'<div class="crs-bar"><button type="button" class="ad-b" id="crs-back">← 课程列表</button>'
       +'<b class="crs-name">'+esc(c.title||'新课程')+'</b>'
       +'<span class="k '+(c.status==='published'?'k-ok':'k-wait')+'">'+(c.status==='published'?'已发布':'草稿')+'</span>'
       +'<span class="crs-state" id="crs-state">已保存</span><span style="flex:1"></span>'
+      /* v62.1 简化：右侧常驻预览栏撤掉，改成主区「编辑 / 预览」二选一——
+         三栏同屏时每栏都不够宽，编辑区被挤到放不下一行谱例，反而要来回横滚 */
+      +'<div class="crs-seg" role="tablist"><button type="button" class="on" id="crs-mode-edit" role="tab" aria-selected="true">编辑</button>'
+      +'<button type="button" id="crs-mode-pv" role="tab" aria-selected="false">预览</button></div>'
       +'<button type="button" class="ad-b" id="crs-meta">课程信息</button>'
-      +'<button type="button" class="ad-b" id="crs-preview">预览</button>'
-      +'<button type="button" class="ad-b" id="crs-save">保存草稿</button>'
+      +'<button type="button" class="ad-b" id="crs-save">保存</button>'
       +'<button type="button" class="ad-b ok" id="crs-savepub">'+(c.status==='published'?'保存并生效':'发布')+'</button></div>'
       +(c.status==='published'?'<p class="crs-live">⚠ 这门课<b>已发布</b>，保存即对学员生效（服务端读写同一份数据，没有中间草稿态）。大改建议先下架。</p>':'')
       +'<div class="crs-grid"><nav class="crs-tree" id="crs-tree"></nav>'
-      +'<div class="crs-mainwrap" id="crs-main"></div>'
-      +'<aside class="crs-pvwrap"><div class="crs-pvh">前台预览（手机宽）</div><div id="crs-pv"></div></aside></div>'
+      +'<div class="crs-mainwrap" id="crs-main"></div></div>'
       +'<div class="crs-metaform" id="crs-metaform" hidden>'
       +'<div class="ad-search" style="margin:0"><input id="crs-id" value="'+esc(c.id)+'" placeholder="课程 id（小写字母/数字/-）" '+(c.id&&c.status?'readonly':'')+'>'
       +'<select id="crs-inst" class="ad-sel">'+Object.keys(CRS_INST).map(function(k){
@@ -824,11 +879,16 @@
       var f=document.getElementById('crs-metaform'); f.hidden=!f.hidden;
     };
     document.getElementById('crs-back').onclick=function(){ crsLeave(adCourses); };
-    document.getElementById('crs-preview').onclick=function(){
-      var id=document.getElementById('crs-id').value.trim()||'crs-preview';
-      try{ localStorage.setItem('pyq-crs-preview', JSON.stringify(Object.assign({id:id}, crsBody()))); }catch(_){}
-      window.open('kecheng.html?preview=1','_blank');
+    /* 编辑 / 预览 二选一（同一块主区，不再左右挤成三栏） */
+    var setMode=function(m){
+      CRS.mode=m;
+      var eb=document.getElementById('crs-mode-edit'), pb=document.getElementById('crs-mode-pv');
+      eb.classList.toggle('on',m==='edit'); eb.setAttribute('aria-selected',m==='edit'?'true':'false');
+      pb.classList.toggle('on',m==='pv');   pb.setAttribute('aria-selected',m==='pv'?'true':'false');
+      crsDraw('main');
     };
+    document.getElementById('crs-mode-edit').onclick=function(){ setMode('edit'); };
+    document.getElementById('crs-mode-pv').onclick=function(){ setMode('pv'); };
     var save=function(alsoPub){
       var id=document.getElementById('crs-id').value.trim(), b=crsBody();
       if(!/^[a-z0-9-]{3,48}$/.test(id)) return adMsg('课程 id 需为 3-48 位小写字母/数字/连字符');
@@ -850,23 +910,18 @@
       });
     };
   }
-  /* 脏状态守卫：切页签/返回列表/关窗都不能静默丢稿（此前切一下页签就清空整个编辑面板） */
+  /* v62.1 离开＝静默暂存（撤销三选一弹窗）：
+     弹窗要人当场在「继续编辑/放弃修改/保存并离开」里做决定，而暂存本来就已经发生了——
+     现在直接落本机草稿并提示一行，下次打开这门课顶部给「恢复」入口，谁也不会丢稿。 */
   function crsLeave(next){
     if(!CRS||!CRS.dirty){ crsClose(); next&&next(); return; }
-    adModal('<h3>还有未保存的修改</h3><p class="crs-none">本机已自动暂存，下次打开这门课可以恢复。</p>'
-      +'<div class="ad-racts"><span style="flex:1"></span>'
-      +'<button class="ad-b" data-close>继续编辑</button>'
-      +'<button class="ad-b no" id="crs-drop2">放弃修改</button>'
-      +'<button class="ad-b ok" id="crs-savego">保存并离开</button></div>', function(box){
-      box.querySelector('#crs-drop2').onclick=function(){ adModalClose(); crsClose(); next&&next(); };
-      box.querySelector('#crs-savego').onclick=function(){
-        adModalClose();
-        var id=document.getElementById('crs-id').value.trim();
-        api('/admin/courses/'+encodeURIComponent(id),{method:'PUT',body:crsBody()})
-          .then(function(){ crsClose(); next&&next(); })
-          .catch(function(e){ adMsg(e.message||'保存失败'); });
-      };
-    });
+    var id=(CRS.c.id||'new');
+    try{
+      var raw=JSON.stringify({ savedAt:Date.now(), body:crsBody() });
+      if(raw.length<1000000) localStorage.setItem('pyq-crs-draft:'+id, raw);
+    }catch(_){}
+    crsClose(); next&&next();
+    adMsg('未保存的修改已暂存到本机，重新打开这门课可恢复');
   }
   function crsClose(){
     CRS=null;
