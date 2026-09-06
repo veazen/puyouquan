@@ -901,6 +901,31 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 }
 @media (prefers-reduced-motion:reduce){ .kq-burst i{animation:none;opacity:0} }
 
+/* ===== v62.2 少儿科普风（产品指示：课程页风格与色调偏向少儿科普）=====
+   做法是「一章一色」——像科普读物每个单元有自己的颜色；六个色相循环，
+   直接改的是既有的 --fam 令牌，所以小节边框/页签/按钮/插画全部跟着换色，不用另写组件样式。
+   明暗两套各定义一遍（暗色下提亮 + 降饱和，保证正文对比度）。 */
+:root{
+  --kh0:#dd6427; --kh0i:#b84c14;   /* 橘 */
+  --kh1:#1a8b7e; --kh1i:#0f6f64;   /* 青绿 */
+  --kh2:#6154c2; --kh2i:#4b3ea8;   /* 靛紫 */
+  --kh3:#cc3a58; --kh3i:#a92742;   /* 莓红 */
+  --kh4:#2273c6; --kh4i:#1259a4;   /* 天蓝 */
+  --kh5:#c1860d; --kh5i:#9a6805;   /* 琥珀 */
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --kh0:#f2914f; --kh0i:#f7ab72; --kh1:#43c2b1; --kh1i:#63d6c6;
+    --kh2:#948ae9; --kh2i:#aea6f2; --kh3:#f0748c; --kh3i:#f593a6;
+    --kh4:#5ea9ef; --kh4i:#84c1f6; --kh5:#e3b243; --kh5i:#eec569;
+  }
+}
+:root[data-theme="dark"]{
+  --kh0:#f2914f; --kh0i:#f7ab72; --kh1:#43c2b1; --kh1i:#63d6c6;
+  --kh2:#948ae9; --kh2i:#aea6f2; --kh3:#f0748c; --kh3i:#f593a6;
+  --kh4:#5ea9ef; --kh4i:#84c1f6; --kh5:#e3b243; --kh5i:#eec569;
+}
+
 /* ===== v62.0 课程独立页（UI 专家规格）：课程头 + 进度环 + 侧边章节导航 + 三态小节 ===== */
 .kcp{--fam:var(--fam-g);--fam-ink:var(--fam-g-ink)}
 .kcp .kc-detail[data-fam="p"],.kcp[data-fam="p"]{--fam:var(--fam-p);--fam-ink:var(--fam-p-ink)}
@@ -942,8 +967,22 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   .kcp-ringtx b{font-size:15px}.kcp-ringtx small{font-size:9.5px}}
 
 .kcp-grid{display:grid;grid-template-columns:220px minmax(0,760px);gap:40px;justify-content:center}
+/* v62.2 侧栏可收起（产品指示）：收起后正文居中铺开，状态记在本机，下次进来还是这个宽度 */
+.kcp-grid.is-narrow{grid-template-columns:minmax(0,860px)}
 .kcp-rail{position:sticky;top:78px;align-self:start;max-height:calc(100vh - 96px);overflow:auto;
   padding-right:6px;scrollbar-width:thin}
+.kcp-railhd{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:11.5px;font-weight:800;
+  letter-spacing:.1em;color:var(--muted)}
+.kcp-railtog{margin-left:auto;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;
+  border:1px solid var(--border);background:var(--panel);color:var(--muted);cursor:pointer}
+.kcp-railtog:hover{border-color:var(--fam);color:var(--fam-ink)}
+.kcp-railtog .kci{width:16px;height:16px;transition:transform .22s}
+/* 收起后的重新展开按钮：贴在正文左上角，不占版心 */
+.kcp-railopen{position:sticky;top:78px;z-index:20;display:inline-flex;align-items:center;gap:7px;
+  min-height:38px;padding:0 14px;margin:0 0 12px;border-radius:999px;border:1px solid var(--border);
+  background:var(--panel);color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.kcp-railopen:hover{border-color:var(--fam);color:var(--fam-ink)}
+.kcp-railopen .kci{width:15px;height:15px}
 .kcp-rch{font-size:11.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);margin:16px 0 6px;padding-left:10px}
 .kcp-rch:first-child{margin-top:0}
 .kcp-ritem{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;padding:6px 10px;border:0;
@@ -1037,7 +1076,11 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 /* v62.1 展开用 grid-template-rows 0fr→1fr 补间（内容高度未知，max-height 猜值会顿一下） */
 .kcs-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.3,.9,.35,1)}
 .kcs.is-open .kcs-wrap{grid-template-rows:1fr}
-.kcs-wrap > .kcs-body{overflow:hidden;min-height:0}
+/* 折叠态的内容不能还能被 Tab 进去（v62.2 修：谱例音符/打卡钮/测试钮都可聚焦，
+   16 个小节全折叠时键盘用户要按几十次 Tab 才走得出去）。visibility 把它整块移出焦点序，
+   收起时延到高度动画结束再切，展开时立刻可见 */
+.kcs-wrap > .kcs-body{overflow:hidden;min-height:0;visibility:hidden;transition:visibility 0s linear .3s}
+.kcs.is-open .kcs-wrap > .kcs-body{visibility:visible;transition:visibility 0s}
 .kcs-body{padding:0 16px;border-top:1px solid transparent}
 .kcs.is-open .kcs-body{border-top-color:var(--border-soft);padding-bottom:18px}
 .kcs--pass{border-color:color-mix(in srgb,var(--fam) 38%,var(--border))}
@@ -1206,6 +1249,115 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   .kcq-res-stars i,.kcq-opt.is-ok,.kcq-opt.is-bad,.kcp-wd.on,.kcp-ckbtn.is-on,
   .kcp-streak .kci,.kcp-ritem.is-here .kcp-rmk,.kcm[data-mod]{animation:none!important;opacity:1;transform:none}
   .kcs-wrap,.kcs-tabink,.kcp-ring .kcr-fg,.kcp-chbar i,.kcs-arw{transition:none!important}
+}
+
+/* ===== v62.2 少儿科普形态：一章一色 + 更圆更大 + 插画加粗 ===== */
+.kcp-chg[data-hue="0"]{--fam:var(--kh0);--fam-ink:var(--kh0i)}
+.kcp-chg[data-hue="1"]{--fam:var(--kh1);--fam-ink:var(--kh1i)}
+.kcp-chg[data-hue="2"]{--fam:var(--kh2);--fam-ink:var(--kh2i)}
+.kcp-chg[data-hue="3"]{--fam:var(--kh3);--fam-ink:var(--kh3i)}
+.kcp-chg[data-hue="4"]{--fam:var(--kh4);--fam-ink:var(--kh4i)}
+.kcp-chg[data-hue="5"]{--fam:var(--kh5);--fam-ink:var(--kh5i)}
+/* 主行动钮取目的地那一章的颜色 */
+.kcp-cta[data-hue="0"]{--fam:var(--kh0);--fam-ink:var(--kh0i)}
+.kcp-cta[data-hue="1"]{--fam:var(--kh1);--fam-ink:var(--kh1i)}
+.kcp-cta[data-hue="2"]{--fam:var(--kh2);--fam-ink:var(--kh2i)}
+.kcp-cta[data-hue="3"]{--fam:var(--kh3);--fam-ink:var(--kh3i)}
+.kcp-cta[data-hue="4"]{--fam:var(--kh4);--fam-ink:var(--kh4i)}
+.kcp-cta[data-hue="5"]{--fam:var(--kh5);--fam-ink:var(--kh5i)}
+/* 课程简介：默认收到 4 行，点一下展开（首屏别被一整段说明吃掉） */
+.kcp-hintro.is-clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.kcp-more{margin-top:6px;min-height:34px;padding:0 2px;border:0;background:transparent;font:inherit;
+  font-size:12.5px;font-weight:700;color:var(--fam-ink);cursor:pointer}
+.kcp-more:hover{text-decoration:underline}
+.kcp-main{font-size:15.5px}
+.kcp-main p,.kcp-main li{line-height:1.95}
+/* 章头：方格本底纹（科普读物的纸感），圆角放大 */
+.kcp-chh{border-radius:22px;border-width:1.5px;padding:22px 24px}
+.kcp-chh::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(circle at 1px 1px, color-mix(in srgb,var(--fam) 26%,transparent) 1px, transparent 0);
+  background-size:16px 16px;
+  -webkit-mask-image:linear-gradient(105deg,#000 0 34%,transparent 62%);
+  mask-image:linear-gradient(105deg,#000 0 34%,transparent 62%)}
+.kcp-chh > *{position:relative}
+.kcp-chh h2{font-size:21px}
+.kcp-chart .kcart{stroke-width:3.1}
+.kcs{border-radius:18px;border-width:1.5px}
+.kcs-head{min-height:62px;gap:14px}
+.kcs-no{width:34px;height:34px;border-radius:50%;font-size:13px}
+.kcs-t{font-size:16.5px;font-weight:700}
+.kcs--now{box-shadow:inset 4px 0 0 var(--fam)}
+.kcs-tab{min-height:46px;font-size:14px;border-radius:14px 14px 0 0}
+.kcs-tab[aria-selected="true"]{background:color-mix(in srgb,var(--fam) 11%,transparent)}
+.kcs-tabink{height:3px}
+.kcp-cta,.kcp-testbtn,.kcp-ckbtn,.kcq-next{border-radius:999px;min-height:48px;font-size:14.5px}
+.kcp-lockgo{border-radius:999px;min-height:44px}
+.kcq{border-radius:18px}
+.kcq-opt{border-radius:16px;border-width:1.5px;min-height:56px;font-size:15px}
+.kcq-q{font-size:17px}
+@media(max-width:560px){
+  .kcp-main{font-size:15px}.kcs-t{font-size:15.5px}.kcs-head{min-height:56px;gap:11px}
+  .kcp-chh{padding:18px 16px;border-radius:18px}.kcp-chh h2{font-size:19px}
+}
+
+/* ===== v62.2 谱例发声：点数字出声、整行跟读 ===== */
+.lb-jp{position:relative}
+.jp-play{position:absolute;right:10px;top:10px;display:inline-flex;align-items:center;gap:6px;
+  min-height:36px;padding:0 14px;border-radius:999px;border:1.5px solid var(--fam);
+  background:var(--panel);color:var(--fam-ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+  transition:background .15s,color .15s}
+.jp-play .kci{width:15px;height:15px}
+.jp-play:hover{background:color-mix(in srgb,var(--fam) 12%,var(--panel))}
+.jp-play.is-playing{background:var(--fam-ink);color:var(--fam-on);border-color:var(--fam-ink)}
+.jp-play.is-playing .kci{animation:kcBeat .7s ease-in-out infinite}
+@keyframes kcBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.22)}}
+.lb-jp .jpline{padding-right:118px}
+@media(max-width:560px){
+  .jp-play{position:static;margin:0 auto 10px;display:flex;width:max-content}
+  .lb-jp .jpline{padding-right:0}
+}
+.jpn[data-jt]{cursor:pointer;border-radius:8px;padding:2px 3px;margin:0 -1px;
+  transition:background .14s,transform .14s}
+.jpn[data-jt]:hover{background:color-mix(in srgb,var(--fam) 14%,transparent)}
+.jpn[data-jt]:focus-visible{outline:2px solid var(--fam);outline-offset:1px}
+.jpn.is-ring{background:color-mix(in srgb,var(--fam) 26%,transparent);color:var(--fam-ink);
+  animation:kcRing .42s cubic-bezier(.22,1.2,.4,1)}
+@keyframes kcRing{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(1)}}
+
+/* ===== v62.2 练习录音：本机录一段，回放对照（不上传） ===== */
+.kcrec{margin-top:14px;padding:14px 16px;border-radius:16px;border:1.5px dashed var(--border);
+  background:var(--panel)}
+.kcrec.is-rec{border-style:solid;border-color:var(--bad);
+  background:color-mix(in srgb,var(--bad) 5%,var(--panel))}
+.kcrec-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.kcrec-btn{display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:0 20px;border-radius:999px;
+  border:1.5px solid var(--fam);background:transparent;color:var(--fam-ink);font:inherit;font-size:14px;
+  font-weight:700;cursor:pointer}
+.kcrec-btn:hover{background:color-mix(in srgb,var(--fam) 10%,transparent)}
+.kcrec-dot{width:12px;height:12px;border-radius:50%;background:var(--bad);flex:none}
+.kcrec-btn.is-rec{border-color:var(--bad);color:var(--bad);background:var(--bad-soft)}
+.kcrec-btn.is-rec .kcrec-dot{animation:kcRecDot 1s ease-in-out infinite}
+@keyframes kcRecDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}
+.kcrec-lv{display:inline-flex;align-items:center;gap:3px;height:30px}
+.kcrec-lv i{display:block;width:4px;height:26px;border-radius:2px;background:var(--fam);opacity:.5;
+  transform:scaleY(.12);transform-origin:center;transition:transform .06s linear}
+.kcrec.is-rec .kcrec-lv i{background:var(--bad);opacity:.9}
+.kcrec-time{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto}
+.kcrec-tip{margin:10px 0 0;font-size:12.5px;line-height:1.75;color:var(--muted)}
+.kcrec-tip b{color:var(--text);font-weight:700}
+.kcrec-out{margin-top:12px}
+.kcrec-out audio{width:100%;max-width:420px;display:block}
+.kcrec-acts{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+.kcrec-again,.kcrec-use{min-height:42px;padding:0 18px;border-radius:999px;font:inherit;font-size:13px;
+  font-weight:700;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted)}
+.kcrec-again:hover{border-color:var(--fam);color:var(--fam-ink)}
+.kcrec-use{border-color:transparent;background:var(--fam-ink);color:var(--fam-on)}
+.kcrec-use:hover{filter:brightness(1.06)}
+.kcrec--off{border-style:dashed;opacity:.9}
+
+@media (prefers-reduced-motion: reduce){
+  .jpn.is-ring,.jp-play.is-playing .kci,.kcrec-btn.is-rec .kcrec-dot{animation:none!important}
+  .kcrec-lv i,.kcp-railtog .kci{transition:none!important}
 }
 
 /* 固定导航 62px：滚动定位不能把标题压在导航底下 */

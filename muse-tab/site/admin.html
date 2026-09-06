@@ -522,8 +522,11 @@
       +mod('learn',PYQ_KC.icon('learn'),'学习',n.L+' 块',(((s.learn||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'learn',i); }).join('')
           ||'<p class="crs-none">还没有内容块，点右上「＋ 添加块」。</p>')
       +mod('prac',PYQ_KC.icon('prac'),'练习',n.P+' 块',(((s.practice||{}).blocks)||[]).map(function(b,i){ return crsBlkForm(b,'prac',i); }).join('')
-          +'<input data-secf="ptip" value="'+esc((s.practice||{}).tip||'')+'" placeholder="练习提示（前台 💡 一行，可空）">'
-          +'<label class="crs-ck"><input type="checkbox" data-secf="checkin"'+(((s.practice||{}).checkin)!==false?' checked':'')+'> 显示每日打卡按钮</label>')
+          +'<input data-secf="ptip" value="'+esc((s.practice||{}).tip||'')+'" placeholder="练习提示（前台单独一行，可空）">'
+          +'<label class="crs-ck"><input type="checkbox" data-secf="checkin"'+(((s.practice||{}).checkin)!==false?' checked':'')+'> 显示每日打卡按钮</label>'
+          /* v62.2 录音练习：学员录一段回放对照（录音只在学员本机，不上传） */
+          +'<label class="crs-ck"><input type="checkbox" data-secf="record"'+(((s.practice||{}).record)?' checked':'')+'> 显示录音练习</label>'
+          +'<input data-secf="recordTip" value="'+esc((s.practice||{}).recordTip||'')+'" placeholder="录音任务说明（如：唱一遍 1-7 录下来，回放对照唱名）">')
       +mod('test',PYQ_KC.icon('test'),'测试',n.Q+' 题',
           '<p class="crs-none">'+(n.Q?('本节 '+n.Q+' 题 · 最多允许错 '+Math.max(0,Math.min(2,n.Q-Math.ceil(n.Q*0.5)))+' 题通关（满分 5 星，每错 1 题 −1 星，★★★ 通关）'):'还没有题目——没有题目的小节改为「打卡即通过」。')+'</p>'
           +(((s.test||{}).items)||[]).map(crsQCard).join(''),
@@ -549,7 +552,9 @@
         +(((s.learn||{}).blocks)||[]).map(K.blockHtml).join('')+'</div>'
       +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">'+K.icon('prac')+'</span>练习</h4>'
         +(((s.practice||{}).blocks)||[]).map(K.blockHtml).join('')
-        +((s.practice||{}).tip?'<p class="kcp-ptip">'+K.mdInline(s.practice.tip)+'</p>':'')+'</div>'
+        +((s.practice||{}).tip?'<p class="kcp-ptip">'+K.mdInline(s.practice.tip)+'</p>':'')
+        +((s.practice||{}).record?('<p class="kcm-note">🎙 本节显示录音练习'
+          +((s.practice||{}).recordTip?('：'+K.esc(s.practice.recordTip)):'')+'</p>'):'')+'</div>'
       +'<div class="kcm"><h4 class="kcm-h"><span class="kcm-ic">'+K.icon('test')+'</span>测试</h4>'
         +'<p class="kcm-note">'+items.length+' 道题</p>'
         +items.map(function(t,i){
@@ -635,8 +640,9 @@
         if(f==='title'){ s.title=e.value; var t=document.getElementById('crs-tree'); if(t){ t.innerHTML=crsTree(); crsWire(); } }
         else if(f==='ptip'){ s.practice=s.practice||{}; s.practice.tip=e.value; }
         else if(f==='checkin'){ s.practice=s.practice||{}; s.practice.checkin=e.checked; }
+        else if(f==='record'){ s.practice=s.practice||{}; s.practice.record=e.checked; }
+        else if(f==='recordTip'){ s.practice=s.practice||{}; s.practice.recordTip=e.value; }
         mark();
-        var p=document.getElementById('crs-pv'); if(p) p.innerHTML=crsPreview();
       };
       e.oninput=h; e.onchange=h;
     });

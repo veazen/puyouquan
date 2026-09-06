@@ -1003,6 +1003,112 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       && r.scrollMargin === '78px',
       'T17b v62.0 独立页外壳：无站点 hero/标题与 canonical 随课程/侧导航/返回热区/滚动让开固定导航', JSON.stringify(r));
 
+    // T17c v62.2 少儿科普风：一章一色（六色循环）+ 主行动钮取目的地章的色 + 圆角放大
+    r = await pg.evaluate(() => {
+      const det = document.querySelector('.kc-detail');
+      const hue = i => {
+        const g = det.querySelector('.kcp-chg[data-ci="' + i + '"]');
+        return g ? { h: g.getAttribute('data-hue'), fam: getComputedStyle(g).getPropertyValue('--fam').trim() } : null;
+      };
+      const h0 = hue(0), h1 = hue(1), h5 = hue(5);
+      const cta = det.querySelector('.kcp-cta');
+      const sec = det.querySelector('.kcs');
+      /* 主钮的色＝它要去的那一节所在章的色（不是写死第 1 章：做完一章后按钮会指向下一章） */
+      let ctaMatch = false, ctaHue = '';
+      if (cta) {
+        ctaHue = cta.getAttribute('data-hue');
+        const target = det.querySelector('.kcs[data-sk="' + cta.getAttribute('data-goto') + '"]');
+        const g = target && target.closest('.kcp-chg');
+        ctaMatch = !!g && g.getAttribute('data-hue') === ctaHue;
+      }
+      return {
+        hues: [...det.querySelectorAll('.kcp-chg')].map(g => g.getAttribute('data-hue')).join(','),
+        distinct: !!(h0 && h1 && h0.fam && h1.fam && h0.fam !== h1.fam && h5 && h5.fam !== h0.fam),
+        secFam: getComputedStyle(sec).getPropertyValue('--fam').trim() === (h0 || {}).fam,   // 小节继承本章色
+        ctaHue: ctaHue, ctaMatch: ctaMatch,
+        radius: sec ? getComputedStyle(sec).borderRadius : '',
+        clamp: !!det.querySelector('.kcp-hintro.is-clamp') && !!det.querySelector('[data-intromore]'),
+      };
+    });
+    T(r.hues === '0,1,2,3,4,5' && r.distinct && r.secFam && r.ctaMatch && /^[0-5]$/.test(r.ctaHue)
+      && r.radius === '18px' && r.clamp,
+      'T17c v62.2 少儿科普风：一章一色循环+小节继承章色+主钮取目的地章色+简介先收起', JSON.stringify(r));
+
+    // T17d v62.2 谱例发声：整行播放钮 + 单音可点 + 播放态与高亮 + 音高换算（1=C 大调）
+    r = await pg.evaluate(async () => {
+      const det = document.querySelector('.kc-detail');
+      const out = { sup: !!(window.PYQ_SND && window.PYQ_SND.supported()),
+        playBtn: det.querySelectorAll('[data-jpplay]').length,
+        notes: det.querySelectorAll('.jpn[data-jt]').length };
+      if (!out.sup || !out.notes) return out;    // 无发声引擎时报红而不是崩（突变跑口径）
+      out.f1 = Math.round(PYQ_SND.freqOf(1, 0));
+      out.f5 = Math.round(PYQ_SND.freqOf(5, 0));
+      out.f1up = Math.round(PYQ_SND.freqOf(1, 1));
+      out.dash = JSON.stringify(PYQ_SND.parse('1--'));      // 增时线：两根＝3 拍
+      out.half = JSON.stringify(PYQ_SND.parse("5'_"));      // 高八度 sol 的八分音符
+      out.rest = PYQ_SND.freqOf(0, 0);                      // 0 是休止：不发声
+      const n = det.querySelector('.jpn[data-jt]');
+      n.click();
+      await new Promise(r2 => setTimeout(r2, 60));
+      out.ring = n.classList.contains('is-ring');
+      const pb = det.querySelector('[data-jpplay]');
+      pb.click();
+      await new Promise(r2 => setTimeout(r2, 120));
+      out.playing = pb.classList.contains('is-playing');
+      PYQ_SND.stop();
+      await new Promise(r2 => setTimeout(r2, 40));
+      out.stopped = !pb.classList.contains('is-playing') && !det.querySelector('.jpn.is-ring');
+      return out;
+    });
+    T(r.sup && r.playBtn >= 1 && r.notes >= 5
+      && r.f1 === 262 && r.f5 === 392 && r.f1up === 523
+      && r.dash === '{"deg":1,"oct":0,"beats":3}' && r.half === '{"deg":5,"oct":1,"beats":0.5}' && r.rest === 0
+      && r.ring && r.playing && r.stopped,
+      'T17d v62.2 谱例发声：整行播放/单音可点/播放态与高亮/1=C 音高与时值换算', JSON.stringify(r));
+
+    // T17e v62.2 侧栏可收起：收起后正文铺开、给回展开入口、状态落本机
+    r = await pg.evaluate(async () => {
+      const det = document.querySelector('.kc-detail');
+      const tog = det.querySelector('[data-railtog]'), grid = det.querySelector('[data-grid]'),
+            rail = det.querySelector('[data-rail]'), open = det.querySelector('[data-railopen]');
+      const out = { tog: !!tog, open0: open ? open.hidden : null };
+      if (!tog) return out;                       // 无收起按钮时报红而不是崩（突变跑口径）
+      tog.click();
+      await new Promise(r2 => setTimeout(r2, 80));
+      out.hidden = rail.hidden;
+      out.narrow = grid.classList.contains('is-narrow');
+      out.cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+      out.openShown = !open.hidden;
+      out.ls = localStorage.getItem('pyq-kc-rail');
+      open.click();
+      await new Promise(r2 => setTimeout(r2, 80));
+      out.back = !rail.hidden && !grid.classList.contains('is-narrow');
+      out.ls2 = localStorage.getItem('pyq-kc-rail');
+      return out;
+    });
+    T(r.tog && r.open0 === true && r.hidden && r.narrow && r.cols === 1 && r.openShown
+      && r.ls === '1' && r.back && r.ls2 === '0',
+      'T17e v62.2 侧栏收起：正文单列铺开+给回展开入口+状态记本机', JSON.stringify(r));
+
+    // T17f v62.2 练习录音：宿主挂载、不上传承诺可见、录完给回放与「用这段打卡」
+    r = await pg.evaluate(async () => {
+      const det = document.querySelector('.kc-detail');
+      const out = { sup: !!(window.PYQ_REC && window.PYQ_REC.supported()),
+        wrap: det.querySelectorAll('[data-recwrap]').length };
+      const host = det.querySelector('[data-recwrap]');
+      if (!host) return out;                      // 没有录音练习时报红而不是崩（突变跑口径）
+      out.mounted = host.dataset.mounted === '1';
+      out.btn = !!host.querySelector('[data-recgo]');
+      out.lvBars = host.querySelectorAll('.kcrec-lv i').length;
+      out.noUpload = /不会上传/.test(host.textContent || '');
+      out.taskTip = /录下来|录一遍|录 ?\d|录下/.test(host.textContent || '');
+      out.max = window.PYQ_REC.MAXS;
+      return out;
+    });
+    T(r.sup && r.wrap >= 1 && r.mounted && r.btn && r.lvBars === 9
+      && r.noUpload && r.taskTip && r.max === 60,
+      'T17f v62.2 练习录音：挂载/电平条/不上传承诺/任务说明', JSON.stringify(r));
+
     // T18 内容块渲染白名单：text(md+记号)/jp 谱行/score/image/video(自托管 mp4)/code；非白名单 src 一律不渲染
     r = await pg.evaluate(async () => {
       localStorage.setItem('pyq-crs-preview', JSON.stringify({ id: 'block-demo', title: '块渲染样例',

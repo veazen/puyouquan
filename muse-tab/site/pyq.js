@@ -424,7 +424,8 @@ window.PYQ_KC = (function(){
     var up=(m[2].match(/'/g)||[]).length, dn=(m[2].match(/,/g)||[]).length;
     var tail=m[3]||'', ul=tail.indexOf('=')>=0?2:(tail.indexOf('_')>=0?1:0);
     var dot=function(n){ var s='';(n=n||1);for(var k=0;k<n;k++)s+='<b></b>';return s; };
-    var out='<span class="jpn'+(ul?' u'+ul:'')+'">'
+    /* v62.2 每个音符带上原 token：点一下就能听见它（发声与高亮见 PYQ_SND） */
+    var out='<span class="jpn'+(ul?' u'+ul:'')+'" data-jt="'+esc(t)+'" role="button" tabindex="0">'
       +'<i class="jd'+(up?'':' off')+'">'+dot(up)+'</i>'
       +'<span class="jg">'+m[1]+'</span>'
       +'<i class="jd'+(dn?'':' off')+'">'+dot(dn)+'</i></span>';
@@ -477,7 +478,11 @@ window.PYQ_KC = (function(){
   function blockHtml(b){
     if(!b||typeof b!=='object') return '';
     if(b.t==='text') return '<div class="lb lb-text">'+mdBlock(b.md)+'</div>';
-    if(b.t==='jp') return '<figure class="lb lb-jp">'+jpLine(b.line)
+    /* v62.2 谱例块可听：整行播放按钮 + 单音点击发声（发声与高亮见 PYQ_SND，事件用全局委托） */
+    if(b.t==='jp') return '<figure class="lb lb-jp" data-jpfig>'
+      +'<button type="button" class="jp-play" data-jpplay aria-label="播放这行谱例">'
+      +icon('play')+'<span>听一听</span></button>'
+      +jpLine(b.line)
       +(b.cap?'<figcaption>'+mdInline(b.cap)+'</figcaption>':'')+'</figure>';
     if(b.t==='score'){
       var href=b.pubId? ('//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(b.pubId))
@@ -518,6 +523,8 @@ window.PYQ_KC = (function(){
     flame:'<path d="M12 3.4c.5 3-1.3 4-2.7 5.6-1.5 1.7-2.4 3.2-2.4 5.2a5.1 5.1 0 0 0 10.2 0c0-2.6-1.6-4.2-2.6-5.6-.6 1-1.3 1.5-2 1.7.4-2.4-.2-4.9-.5-6.9Z"/>',
     play:'<path d="M9 6.6 18 12l-9 5.4Z"/>',
     chev:'<path d="m6 9.6 6 6 6-6"/>',
+    menu:'<path d="M4.6 7h14.8M4.6 12h14.8M4.6 17h14.8"/>',
+    mic:'<rect x="9" y="3.4" width="6" height="11" rx="3"/><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0M12 17.8v2.8M8.4 20.6h7.2"/>',
     note:'<circle cx="8" cy="17" r="2.8"/><path d="M10.8 17V5.2l8-1.6v11"/><circle cx="16" cy="14.6" r="2.8"/>',
     book:'<path d="M5 4.8h9.2a3.4 3.4 0 0 1 3.4 3.4v11H8.4A3.4 3.4 0 0 1 5 15.8Z"/><path d="M5 15.8a3.4 3.4 0 0 1 3.4-3.4h9.2"/>'
   };
@@ -599,4 +606,259 @@ window.PYQ_KC = (function(){
            icon:icon, art:art, artFor:artFor, ART_SEQ:ART_SEQ,
            /* token 合法性（编辑器逐 token 校验用，与 jpTok 的判定同源） */
            jpTokOk:function(t){ return t==='|'||t==='||'||t==='~'||/^-+$/.test(t)||/^[0-7][',]*[-_=.]*$/.test(t); } };
+})();
+
+
+/* ===================================================================
+   v62.2 简谱发声（PYQ_SND）：点一个音符就听见它，整行谱例可跟读播放。
+   —— 纯 WebAudio 合成，不加载任何音频资源；浏览器策略要求用户手势后才出声，
+      因此 AudioContext 懒创建、每次播放前 resume。
+   音高：唱名 1-7 = 大调音阶，' 高八度、, 低八度；调号由 setKey 决定（默认 1=C）。
+   时值：基础一拍 0.5s（120），- 加一拍、_ 半拍、= 四分之一拍、. 附点。
+   =================================================================== */
+window.PYQ_SND = (function(){
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ctx=null, bus=null, timer=null, stopFns=[], keyShift=0, BEAT=0.5;
+  var STEP=[0,2,4,5,7,9,11];            /* 唱名 1-7 → 半音数 */
+  var A4=440, C4=A4*Math.pow(2,-9/12);  /* 1=C 时的中央 C */
+
+  function supported(){ return !!AC; }
+  function ac(){
+    if(!AC) return null;
+    if(!ctx){
+      ctx=new AC();
+      bus=ctx.createGain(); bus.gain.value=0.9;
+      var lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600; lp.Q.value=.4;
+      bus.connect(lp); lp.connect(ctx.destination);
+    }
+    if(ctx.state==='suspended') ctx.resume();
+    return ctx;
+  }
+  /* token → {deg, oct, beats}；deg=0 表示休止 */
+  function parse(t){
+    var m=/^([0-7])([',]*)([-_=.]*)$/.exec(String(t||'').trim());
+    if(!m) return null;
+    var up=(m[2].match(/'/g)||[]).length, dn=(m[2].match(/,/g)||[]).length, tail=m[3]||'';
+    var beats=1;
+    if(tail.indexOf('=')>=0) beats=0.25; else if(tail.indexOf('_')>=0) beats=0.5;
+    beats+= (tail.match(/-/g)||[]).length;          /* 增时线：每根加一拍 */
+    if(tail.indexOf('.')>=0) beats*=1.5;            /* 附点 */
+    return { deg:+m[1], oct:up-dn, beats:beats };
+  }
+  function freqOf(deg,oct){
+    if(!deg) return 0;
+    return C4*Math.pow(2, (STEP[deg-1]+12*(oct||0)+keyShift)/12);
+  }
+  /* 一枚音：正弦基频 + 三角泛音，短起振长收尾——像音乐盒，久听不刺耳 */
+  function voice(f,t0,dur,vol){
+    var c=ac(); if(!c||!f) return;
+    var g=c.createGain(), o1=c.createOscillator(), o2=c.createOscillator(), g2=c.createGain();
+    o1.type='sine'; o1.frequency.value=f;
+    o2.type='triangle'; o2.frequency.value=f*2; g2.gain.value=0.16;
+    var v=(vol==null?0.28:vol), a=0.014, d=0.10, s=v*0.55, rel=0.22;
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(v,t0+a);
+    g.gain.exponentialRampToValueAtTime(Math.max(s,0.0002),t0+a+d);
+    g.gain.setValueAtTime(Math.max(s,0.0002),t0+Math.max(dur,a+d));
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+Math.max(dur,a+d)+rel);
+    o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(bus);
+    o1.start(t0); o2.start(t0);
+    var end=t0+Math.max(dur,a+d)+rel+0.02;
+    o1.stop(end); o2.stop(end);
+    stopFns.push(function(){ try{ o1.stop(); o2.stop(); }catch(_){} });
+  }
+  /* halt 只停声音与排程；stop 额外清 UI 态。
+     playLine 内部只能用 halt——用 stop 会把调用方刚点亮的播放按钮又熄掉。 */
+  function halt(){
+    clearTimeout(timer); timer=null;
+    stopFns.forEach(function(f){ f(); }); stopFns=[];
+    document.querySelectorAll('.jpn.is-ring').forEach(function(e){ e.classList.remove('is-ring'); });
+  }
+  function stop(){
+    halt();
+    document.querySelectorAll('[data-jpplay].is-playing').forEach(function(e){ e.classList.remove('is-playing'); });
+  }
+  function ring(el){
+    if(!el) return;
+    el.classList.remove('is-ring'); void el.offsetWidth; el.classList.add('is-ring');
+    setTimeout(function(){ el.classList.remove('is-ring'); }, 420);
+  }
+  /* 单音：点谱面上的数字 */
+  function playTok(t,el){
+    var c=ac(); if(!c) return;
+    var n=parse(t); if(!n) return;
+    if(n.deg) voice(freqOf(n.deg,n.oct), c.currentTime+0.01, Math.min(n.beats,2)*BEAT*0.9);
+    ring(el);
+  }
+  /* 整行：逐音发声 + 逐音高亮（高亮走 setTimeout，与排程时钟同一个起点） */
+  function playLine(els,onDone){
+    var c=ac(); if(!c) return;
+    halt();
+    var t=c.currentTime+0.06, i, wait=[];
+    for(i=0;i<els.length;i++){
+      var n=parse(els[i].getAttribute('data-jt'));
+      if(!n) continue;
+      var dur=n.beats*BEAT;
+      if(n.deg) voice(freqOf(n.deg,n.oct), t, dur*0.92);
+      wait.push({el:els[i], at:(t-c.currentTime)*1000, ms:dur*1000});
+      t+=dur;
+    }
+    var total=(t-c.currentTime)*1000;
+    wait.forEach(function(w){
+      var id=setTimeout(function(){
+        w.el.classList.add('is-ring');
+        setTimeout(function(){ w.el.classList.remove('is-ring'); }, Math.max(w.ms-40,120));
+      }, w.at);
+      stopFns.push(function(){ clearTimeout(id); });
+    });
+    timer=setTimeout(function(){ onDone&&onDone(); }, total+180);
+    return total;
+  }
+  function setKey(semitones){ keyShift=+semitones||0; }
+  function setTempo(bpm){ BEAT=60/Math.max(40,Math.min(200,+bpm||120)); }
+
+  /* 事件委托装一次：内容随时重绘（学习页/工作台预览）都不用重新绑定 */
+  var wired=false;
+  function install(){
+    if(wired||!supported()) return; wired=true;
+    document.addEventListener('click', function(e){
+      var pb=e.target.closest&&e.target.closest('[data-jpplay]');
+      if(pb){
+        e.preventDefault();
+        var fig=pb.closest('[data-jpfig]')||pb.parentNode;
+        if(pb.classList.contains('is-playing')){ stop(); return; }
+        stop(); pb.classList.add('is-playing');
+        var els=[].slice.call(fig.querySelectorAll('.jpn[data-jt]'));
+        playLine(els, function(){ pb.classList.remove('is-playing'); });
+        return;
+      }
+      var n=e.target.closest&&e.target.closest('.jpn[data-jt]');
+      if(n){ playTok(n.getAttribute('data-jt'), n); }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key!=='Enter'&&e.key!==' ') return;
+      var n=e.target&&e.target.classList&&e.target.classList.contains('jpn')?e.target:null;
+      if(!n||!n.getAttribute('data-jt')) return;
+      e.preventDefault(); playTok(n.getAttribute('data-jt'), n);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', install);
+  else install();
+
+  return { supported:supported, playTok:playTok, playLine:playLine, stop:stop,
+           setKey:setKey, setTempo:setTempo, parse:parse, freqOf:freqOf, ctx:function(){ return ctx; } };
+})();
+
+
+/* ===================================================================
+   v62.2 练习录音（PYQ_REC）：学员把自己唱/弹的一段录下来，回放对照。
+   —— 录音**只存在这台设备的浏览器里**（内存 + blob URL），不上传、不落服务端；
+      离开页面即释放。麦克风必须由用户点按钮触发，权限被拒时给出可读提示。
+   =================================================================== */
+window.PYQ_REC = (function(){
+  var MAXS=60;   /* 单段上限 60 秒：够唱一小节，也不至于录到失控 */
+  function supported(){
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  }
+  function fmt(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+  function bars(n){ var s='',i; for(i=0;i<n;i++) s+='<i></i>'; return s; }
+
+  function mount(host, opts){
+    if(!host) return null;
+    opts=opts||{};
+    if(!supported()){
+      host.innerHTML='<div class="kcrec kcrec--off"><p class="kcrec-tip">'
+        +'这个浏览器不支持录音（需要 HTTPS + 较新的浏览器）。可以先用手机自带的录音机录一段，再回来对照。</p></div>';
+      return null;
+    }
+    host.innerHTML='<div class="kcrec">'
+      +'<div class="kcrec-row">'
+      +'<button type="button" class="kcrec-btn" data-recgo><span class="kcrec-dot"></span><span data-reclb>开始录音</span></button>'
+      +'<span class="kcrec-lv" aria-hidden="true">'+bars(9)+'</span>'
+      +'<span class="kcrec-time" data-rectime>0:00</span>'
+      +'</div>'
+      +'<p class="kcrec-tip" data-rectip>'+(opts.tip||'录一段自己唱的，回放时对照谱例。')
+      +'<b>录音只留在你的浏览器里，不会上传。</b></p>'
+      +'<div class="kcrec-out" data-recout hidden></div></div>';
+
+    var root=host.querySelector('.kcrec');   /* 录音态挂在 .kcrec 上（host 只是宿主容器） */
+    var btn=host.querySelector('[data-recgo]'), lb=host.querySelector('[data-reclb]'),
+        tEl=host.querySelector('[data-rectime]'), out=host.querySelector('[data-recout]'),
+        lv=host.querySelector('.kcrec-lv'), lvBars=[].slice.call(host.querySelectorAll('.kcrec-lv i'));
+    var rec=null, stream=null, chunks=[], t0=0, raf=0, tick=0, url='', actx=null, an=null;
+
+    function level(){
+      if(!an){ raf=0; return; }
+      var buf=new Uint8Array(an.frequencyBinCount);
+      an.getByteTimeDomainData(buf);
+      var peak=0,i; for(i=0;i<buf.length;i++){ var d=Math.abs(buf[i]-128)/128; if(d>peak) peak=d; }
+      lvBars.forEach(function(b,k){
+        var w=Math.max(0.12, Math.min(1, peak*(1.5-Math.abs(k-(lvBars.length-1)/2)/lvBars.length)*2.4));
+        b.style.transform='scaleY('+w.toFixed(3)+')';
+      });
+      raf=requestAnimationFrame(level);
+    }
+    function clearLevel(){ cancelAnimationFrame(raf); raf=0; lvBars.forEach(function(b){ b.style.transform='scaleY(.12)'; }); }
+    function release(){
+      if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+      if(actx){ try{ actx.close(); }catch(_){} actx=null; an=null; }
+      clearInterval(tick); tick=0; clearLevel();
+    }
+    function done(blob,secs){
+      if(url) URL.revokeObjectURL(url);
+      url=URL.createObjectURL(blob);
+      out.hidden=false;
+      out.innerHTML='<audio controls src="'+url+'"></audio>'
+        +'<div class="kcrec-acts"><button type="button" class="kcrec-again" data-recagain>重录</button>'
+        +(opts.ctaLabel?('<button type="button" class="kcrec-use" data-recuse>'+opts.ctaLabel+'</button>'):'')+'</div>';
+      out.querySelector('[data-recagain]').onclick=function(){ out.hidden=true; start(); };
+      var use=out.querySelector('[data-recuse]');
+      if(use) use.onclick=function(){ opts.onUse&&opts.onUse(blob,secs); };
+      opts.onDone&&opts.onDone(blob,secs);
+    }
+    function stop(){
+      if(rec&&rec.state!=='inactive'){ try{ rec.stop(); }catch(_){} }
+    }
+    function start(){
+      if(host.dataset.busy==='1') return;
+      host.dataset.busy='1';
+      lb.textContent='请求麦克风…';
+      navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+        stream=s; chunks=[];
+        try{
+          var AC=window.AudioContext||window.webkitAudioContext;
+          actx=new AC(); an=actx.createAnalyser(); an.fftSize=512;
+          actx.createMediaStreamSource(s).connect(an);
+          if(!raf) raf=requestAnimationFrame(level);
+        }catch(_){}
+        rec=new MediaRecorder(s);
+        rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
+        rec.onstop=function(){
+          var secs=(Date.now()-t0)/1000;
+          release(); host.dataset.busy='';
+          root.classList.remove('is-rec'); btn.classList.remove('is-rec');
+          lb.textContent='重新录音'; tEl.textContent=fmt(secs);
+          if(chunks.length) done(new Blob(chunks,{type:(rec&&rec.mimeType)||'audio/webm'}), secs);
+        };
+        t0=Date.now(); rec.start();
+        root.classList.add('is-rec'); btn.classList.add('is-rec'); lb.textContent='停止';
+        out.hidden=true;
+        tick=setInterval(function(){
+          var s2=(Date.now()-t0)/1000;
+          tEl.textContent=fmt(s2);
+          if(s2>=MAXS) stop();
+        },200);
+      }).catch(function(err){
+        host.dataset.busy=''; lb.textContent='开始录音';
+        var tip=host.querySelector('[data-rectip]');
+        tip.innerHTML=(String(err&&err.name)==='NotAllowedError'
+          ? '麦克风被拒绝了。想录音的话，在浏览器地址栏的权限里把麦克风改成「允许」再试一次。'
+          : '拿不到麦克风（'+(err&&err.name||'未知原因')+'）。换个浏览器或检查一下设备设置。');
+      });
+    }
+    btn.onclick=function(){ if(root.classList.contains('is-rec')) stop(); else start(); };
+    clearLevel();
+    return { stop:stop, release:function(){ stop(); release(); if(url) URL.revokeObjectURL(url); } };
+  }
+  return { supported:supported, mount:mount, MAXS:MAXS };
 })();
