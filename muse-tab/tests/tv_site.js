@@ -4,7 +4,13 @@
 const { chromium } = require('playwright');
 const fs = require('fs'), P = require('path');
 const SITE = P.resolve(__dirname, '../site');
-const read = f => fs.readFileSync(P.join(SITE, f), 'utf8');
+/* 页面不存在时给一张空壳而不是抛异常：突变跑（对改前树复跑新用例）要的是「用例报红」，
+   抛在 route 处理里会变成 goto 失败 → 未捕获拒绝 → 整个进程死掉，后面的用例全看不到 */
+const read = f => {
+  const p = P.join(SITE, f);
+  if (!fs.existsSync(p)) return '<!doctype html><meta charset="utf-8"><title>缺页：' + f + '</title><body></body>';
+  return fs.readFileSync(p, 'utf8');
+};
 /* v60.6：seedaaa111 有实例缩图（thumb:1）、seedbbb222 没有——两条路径同屏可验 */
 const seed = [
   { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, thumb:1, key:'C', tempo:92, beats:4, unit:4, verses:2, views:12345, favs:67, likes:3, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
@@ -17,6 +23,24 @@ const PNG1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
 const SITE_URL = p => 'https://www.puyouquan.com/' + p;   // v62.0 课程独立页要带 ?c= 直接导航
 const SEED_COURSES = JSON.parse(fs.readFileSync(P.resolve(__dirname, '../../api/seed-courses.json'), 'utf8'));
 const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch.sections || []).length)) || null;
+/* v62.3 体检桩：一门刻意做坏的草稿课，钉住「跨课程内容体检」认得出四类问题
+   （章缺标题 / 小节缺标题 / 题目不合法 / 无测试题又关了打卡＝学员永远完不成这节） */
+const BAD_COURSE = {
+  id: 'course-bad-demo', title: '体检样例课', subtitle: '', instrument: 'theory', level: '',
+  weeks: 1, intro: '', sort: 9, status: 'draft', updated_at: 1700000000,
+  data: { emoji: '🧪', fam: 'f', chapters: [
+    { chid: 'c_bad1', title: '', sections: [                     // 章缺标题
+      { sid: 's_bad1', title: '', learn: { blocks: [] },          // 小节缺标题 + 没有学习块
+        practice: { blocks: [], tip: '', checkin: false },        // 关了打卡
+        test: { items: [] } },                                    // 又没有题 → 死锁
+    ] },
+    { chid: 'c_bad2', title: '有题但题坏了', sections: [
+      { sid: 's_bad2', title: '坏题小节', learn: { blocks: [{ t: 'text', md: '正文' }] },
+        practice: { blocks: [], tip: '', checkin: true },
+        test: { items: [{ q: '', opts: ['a'], a: 5 }] } },        // 空题干 + 选项不足 + 答案越界
+    ] },
+  ] },
+};
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -82,6 +106,7 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
         ...(SEC_COURSE ? [{ id: SEC_COURSE.id, title: SEC_COURSE.title, subtitle: SEC_COURSE.subtitle, instrument: SEC_COURSE.instrument,
           level: SEC_COURSE.level, weeks: SEC_COURSE.weeks, status: 'published', sort: 1, updated_at: 1700000000,
           data: JSON.stringify(SEC_COURSE.data) }] : []),
+        { ...BAD_COURSE, data: JSON.stringify(BAD_COURSE.data) },
       ] });
       if (/^\/api\/admin\/courses\/[^/]+\/(publish|unpublish)$/.test(p)) { pg2._posts.push(p); return J({ ok: true, status: 'published' }); }
       if (/^\/api\/admin\/courses\/[^/]+$/.test(p)) {
@@ -90,6 +115,7 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
         if (mth === 'DELETE') { pg2._posts.push('DELETE ' + p); return J({ ok: true }); }
         if (SEC_COURSE && p.endsWith('/' + SEC_COURSE.id))   // v61.9 2.0 课程详情：data 为对象（同服务端口径）
           return J({ course: Object.assign({ sort: 1, status: 'published' }, SEC_COURSE) });
+        if (p.endsWith('/' + BAD_COURSE.id)) return J({ course: BAD_COURSE });
         return J({ course: { id: 'course-guitar-qimeng', title: '民谣吉他启蒙课', subtitle: '7 周', instrument: 'guitar', level: '零基础', weeks: 7, intro: '', sort: 0, status: 'published',
           data: { emoji: '🎸', fam: 'g', chapters: [{ emoji: '🎸', title: '认识吉他', goal: '', points: ['部件'], task: '调音', links: [{ t: '帮助', href: 'help.html' }] }] } } });
       }
@@ -100,6 +126,7 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       if (p === '/index.html' || p === '/') return route.fulfill({ status: 200, contentType: 'text/html', body: read('index.html') });
       if (p === '/me.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('me.html') });
       if (p === '/admin.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('admin.html') });
+      if (p === '/kcadmin.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('kcadmin.html') });
       if (p === '/kecheng.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('kecheng.html') });
       if (p === '/pyq.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: read('pyq.js') });
       if (p === '/pyq.css') return route.fulfill({ status: 200, contentType: 'text/css', body: read('pyq.css') });
@@ -702,13 +729,13 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     await pg.close();
 
     // ③ v62.0 课程工作台：列表 → 工作台载入 → 加小节 → 保存走 PUT（口径随编辑器重设计更新）
-    pg = await mkPage(true, 'admin.html', { width: 1440, height: 950 }, 'admin');
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
     await pg.waitForTimeout(600);
     r = await pg.evaluate(async () => {
-      document.querySelector('#ad-tabs [data-ad="courses"]').click();
       await new Promise(r2 => setTimeout(r2, 250));
+      if (!document.getElementById('ad-pane')) return { noPage: true };   // 页面缺失时报红而不是崩（突变跑口径）
       const out = { row: /民谣吉他启蒙课/.test(document.getElementById('ad-pane').textContent),
-        hasNew: !!document.getElementById('crs-new') };
+        hasNew: !!document.getElementById('ka-new') };
       document.querySelector('#ad-pane [data-edit]').click();
       await new Promise(r2 => setTimeout(r2, 350));
       out.wb = !!document.getElementById('crs-wb');
@@ -727,16 +754,16 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     T(r.row && r.hasNew && r.wb && r.title === '民谣吉他启蒙课' && r.chs === 1
       && r.secN === 1 && r.selNew && /已保存/.test(r.msg)
       && pg._posts.includes('PUT /api/admin/courses/course-guitar-qimeng'),
-      'T15 v62.0 工作台：列表/载入/加小节/保存走 PUT', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+      'T15 v62.3 课程管理中心：课程列表/载入工作台/加小节/保存走 PUT', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
     T(pg._errs.length === 0, 'T15b 工作台无报错', pg._errs.join('|') || 'none');
     await pg.close();
 
     // T15c v62.0 发布前检查清单：坏题阻塞发布并定位到「章.节」，预览草稿仍走 ?preview=1
-    pg = await mkPage(true, 'admin.html', { width: 1440, height: 950 }, 'admin');
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
     await pg.waitForTimeout(600);
     r = await pg.evaluate(async () => {
       const out = {};
-      document.querySelector('#ad-tabs [data-ad="courses"]').click();
+      if (!document.getElementById('ad-pane')) return { noPage: true };   // 页面缺失时报红而不是崩（突变跑口径）
       await new Promise(r2 => setTimeout(r2, 250));
       const row = [...document.querySelectorAll('#ad-pane [data-edit]')]
         .find(b => b.closest('.ad-row').textContent.includes('认识简谱'));
@@ -777,17 +804,18 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     await pg.close();
 
     // T15d 数据红线：保存 2.0 课程时，小节树（sections + 三模块 + 稳定 sid）必须完整随 PUT 上行
-    pg = await mkPage(true, 'admin.html', { width: 1440, height: 950 }, 'admin');
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
     await pg.waitForTimeout(600);
     r = await pg.evaluate(async () => {
       const out = {};
+      if (!document.getElementById('ad-pane')) return { noPage: true };   // 页面缺失时报红而不是崩（突变跑口径）
+      if (!document.getElementById('ad-pane')) return { noPage: true };   // 页面缺失时报红而不是崩（突变跑口径）
       let sent = null;
       const realFetch = window.fetch;
       window.fetch = (u, o) => {
         if (/\/admin\/courses\//.test(String(u)) && o && o.method === 'PUT') { try { sent = JSON.parse(o.body); } catch (_) {} }
         return realFetch(u, o);
       };
-      document.querySelector('#ad-tabs [data-ad="courses"]').click();
       await new Promise(r2 => setTimeout(r2, 250));
       const row = [...document.querySelectorAll('#ad-pane [data-edit]')]
         .find(b => b.closest('.ad-row').textContent.includes('认识简谱'));
@@ -1154,11 +1182,11 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     await pg.close();
 
     /* ===== v62.0 课程工作台（后台编辑器重设计 + 小节级块编辑器）===== */
-    pg = await mkPage(true, 'admin.html', { width: 1440, height: 950 }, 'admin');
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
     await pg.waitForTimeout(700);
     r = await pg.evaluate(async () => {
       const out = {};
-      document.querySelector('#ad-tabs [data-ad="courses"]').click();
+      if (!document.getElementById('ad-pane')) return { noPage: true };   // 页面缺失时报红而不是崩（突变跑口径）
       await new Promise(r2 => setTimeout(r2, 250));
       const row = [...document.querySelectorAll('#ad-pane [data-edit]')]
         .find(b => b.closest('.ad-row').textContent.includes('认识简谱'));
@@ -1245,8 +1273,10 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
       const ta = document.querySelector('.crs-blk [data-bf="md"], .crs-sect');
       if (ta) { ta.value = '离开前的改动'; ta.dispatchEvent(new Event('input')); }
       await new Promise(r2 => setTimeout(r2, 80));
-      document.querySelector('#ad-tabs [data-ad="users"]').click();
-      await new Promise(r2 => setTimeout(r2, 260));
+      const tab = document.querySelector('#ka-tabs [data-ka="audit"]');
+      if (!tab) return { noTab: true };     // 无控制台页签时报红而不是崩（突变跑口径）
+      tab.click();
+      await new Promise(r2 => setTimeout(r2, 300));
       const raw = localStorage.getItem('pyq-crs-draft:course-jianpu-renshi') || '';
       return { noModal: !document.getElementById('ad-mask'),
         leftWb: !document.getElementById('crs-wb'),
@@ -1256,6 +1286,105 @@ const SEC_COURSE = SEED_COURSES.find(c => (c.data.chapters || []).some(ch => (ch
     T(r.noModal && r.leftWb && r.stashed && r.toast,
       'T19c v62.1 离开静默暂存：切页签不弹窗、改动落本机草稿、给一行提示', JSON.stringify(r));
     T(pg._errs.length === 0, 'T19d 工作台无报错', pg._errs.join('|') || 'none');
+    await pg.close();
+
+    /* ===== v62.3 课程管理中心：概览统计 / 搜索筛选 / 批量 / 内容体检直达 ===== */
+    // T20 控制台：五格概览 + 搜索与状态筛选 + 勾选出批量条 + 批量发布逐门发请求
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
+    await pg.waitForTimeout(700);
+    r = await pg.evaluate(async () => {
+      const pane = () => document.getElementById('ad-pane');
+      if (!pane() || !document.getElementById('ka-dot')) return { noPage: true };   // 页面缺失时报红而不是崩
+      const out = { stats: document.querySelectorAll('.ka-st').length,
+        sum: (document.getElementById('ka-sum') || {}).textContent || '',
+        rows: pane().querySelectorAll('.ka-row').length,
+        badDot: !document.getElementById('ka-dot').hidden };   // 有阻塞问题 → 体检页签亮红点
+      const q = document.getElementById('ka-q');
+      if (!q) return out;                       // 无工具条时报红而不是崩（突变跑口径）
+      q.value = '认识简谱'; q.dispatchEvent(new Event('input'));
+      await new Promise(r2 => setTimeout(r2, 120));
+      out.searched = pane().querySelectorAll('.ka-row').length;
+      document.getElementById('ka-q').value = ''; document.getElementById('ka-q').dispatchEvent(new Event('input'));
+      await new Promise(r2 => setTimeout(r2, 120));
+      const st = document.getElementById('ka-st');
+      st.value = 'draft'; st.dispatchEvent(new Event('change'));
+      await new Promise(r2 => setTimeout(r2, 120));
+      out.drafts = pane().querySelectorAll('.ka-row').length;
+      document.getElementById('ka-st').value = ''; document.getElementById('ka-st').dispatchEvent(new Event('change'));
+      await new Promise(r2 => setTimeout(r2, 120));
+      // 勾两门 → 批量条出现 → 批量发布
+      const cks = [...pane().querySelectorAll('[data-sel]')].slice(0, 2);
+      for (const c of cks) { c.checked = true; c.dispatchEvent(new Event('change')); await new Promise(r2 => setTimeout(r2, 90)); }
+      out.batchBar = !!pane().querySelector('.ka-batch');
+      out.batchTxt = (pane().querySelector('.ka-batch') || {}).textContent || '';
+      const bp = pane().querySelector('[data-bpub]');
+      out.hasBatchPub = !!bp;
+      if (bp) { bp.click(); await new Promise(r2 => setTimeout(r2, 600)); }
+      out.msg = (document.getElementById('ad-msg') || {}).textContent || '';
+      return out;
+    });
+    T(r.stats === 5 && /门课程/.test(r.sum) && r.rows === 3 && r.badDot
+      && r.searched === 1 && r.drafts === 1
+      && r.batchBar && /已选\s*2\s*门/.test(r.batchTxt.replace(/\s+/g, ' ')) && r.hasBatchPub
+      && /成功 2 门/.test(r.msg)
+      && pg._posts.filter(p => /\/publish$/.test(p)).length === 2,
+      'T20 v62.3 课程控制台：五格概览/搜索/状态筛选/批量发布逐门下发', JSON.stringify(r) + ' posts=' + pg._posts.join(','));
+    await pg.close();
+
+    // T21 内容体检：跨课程扫描认得出四类问题（含「无题又关打卡＝该节永远完不成」死锁），点「去修」直达那一节
+    pg = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
+    await pg.waitForTimeout(700);
+    r = await pg.evaluate(async () => {
+      const tab = document.querySelector('#ka-tabs [data-ka="audit"]');
+      const out = { tab: !!tab };
+      if (!tab) return out;                     // 无体检页签时报红而不是崩（突变跑口径）
+      tab.click();
+      await new Promise(r2 => setTimeout(r2, 400));
+      const pane = document.getElementById('ad-pane');
+      const txt = pane.textContent || '';
+      out.groups = pane.querySelectorAll('.ka-aud').length;
+      out.hard = pane.querySelectorAll('.ka-iss.ka-hard').length;
+      out.soft = pane.querySelectorAll('.ka-iss.ka-soft').length;
+      out.chNoTitle = /章缺标题/.test(txt);
+      out.secNoTitle = /小节缺标题/.test(txt);
+      out.badQ = /第 1 题/.test(txt);
+      out.deadlock = /永久锁死/.test(txt);      // 无测试题 + 关掉打卡 → 整章锁死
+      // 只看阻塞
+      const ho = document.getElementById('ka-hardonly');
+      ho.checked = true; ho.dispatchEvent(new Event('change'));
+      await new Promise(r2 => setTimeout(r2, 200));
+      out.softAfter = document.getElementById('ad-pane').querySelectorAll('.ka-iss.ka-soft').length;
+      // 「去修」直达：点死锁那条，工作台应停在第 1.1 节
+      const fix = [...document.getElementById('ad-pane').querySelectorAll('.ka-iss')]
+        .find(e => /永久锁死/.test(e.textContent)).querySelector('[data-fix]');
+      out.fixTo = fix.getAttribute('data-fix') + '#' + fix.getAttribute('data-ci') + '.' + fix.getAttribute('data-si');
+      fix.click();
+      await new Promise(r2 => setTimeout(r2, 500));
+      out.wb = !!document.getElementById('crs-wb');
+      out.at = ((document.querySelector('.crs-secbar') || {}).textContent || '').slice(0, 6);
+      return out;
+    });
+    T(r.tab && r.groups >= 1 && r.hard >= 4 && r.soft >= 1
+      && r.chNoTitle && r.secNoTitle && r.badQ && r.deadlock
+      && r.softAfter === 0 && r.fixTo === 'course-bad-demo#0.0'
+      && r.wb && /1\.1/.test(r.at),
+      'T21 v62.3 跨课程内容体检：四类问题识别（含死锁）+ 只看阻塞 + 去修直达小节', JSON.stringify(r));
+    T(pg._errs.length === 0, 'T21b 课程管理中心无报错', pg._errs.join('|') || 'none');
+    await pg.close();
+
+    // T22 admin.html 的课程页签改成入口（全站只留一份工作台实现，不再两处各改一半）
+    pg = await mkPage(true, 'admin.html', { width: 1200, height: 900 }, 'admin');
+    await pg.waitForTimeout(600);
+    r = await pg.evaluate(async () => {
+      document.querySelector('#ad-tabs [data-ad="courses"]').click();
+      await new Promise(r2 => setTimeout(r2, 350));
+      const a = document.querySelector('#ad-pane .ad-entry');
+      return { entry: !!a, href: a ? a.getAttribute('href') : '',
+        txt: a ? a.textContent.replace(/\s+/g, ' ') : '',
+        noWb: !document.getElementById('crs-wb') && !document.querySelector('.crs-tree') };
+    });
+    T(r.entry && r.href === 'kcadmin.html' && /门课程/.test(r.txt) && r.noWb,
+      'T22 v62.3 平台管理的课程页签＝课程管理中心入口（工作台不再内嵌）', JSON.stringify(r));
     await pg.close();
   }
 
