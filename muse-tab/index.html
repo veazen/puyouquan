@@ -668,6 +668,9 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
   filter:none;}   /* ≈A4 纵向宽度(96dpi) */
 #paper svg{max-width:none}   /* 放大时允许超出容器，容器内滚动查看 */
 #paper.wide{max-width:1180px}
+#print-pages{display:none}   /* v62.6 A2 打印专用切片容器：只在 beforeprint→afterprint 之间存在，且只在 print 媒体显示 */
+#print-pages .pp-defs{position:absolute;width:0;height:0;overflow:hidden}
+@page{margin:0}   /* v62.6 A2 缺省也归零（setPrintPage 选纸后另写 size）；虚拟页自带版心边距 */
 /* 曲谱反色：深色纸张 + 浅色音符（覆写谱面用到的 CSS 变量，只作用于纸面、不改 UI） */
 #paper.score-invert{
   --paper:#17181a; --ink:#eef0f2; --muted:#b6b8bd; --border:#565a60;
@@ -1955,6 +1958,14 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   body.shell:not(.stand):not(.viewer) #stage{display:block;flex:none;min-height:0;margin:0;padding:0}
   body.shell:not(.stand):not(.viewer) #score-wrap{display:block;flex:none;height:auto;min-height:0;overflow:visible;margin:0;padding:0;max-width:none}
   body.shell:not(.stand):not(.viewer) #paper{max-width:none;overflow:visible}
+  /* v62.6 A2 逐页切片：打印时只出 #print-pages（beforeprint 生成，afterprint 移除），每页一张纸 */
+  body.printing > *:not(#print-pages){display:none!important}
+  body.printing{background:#fff!important;padding:0!important;margin:0!important;height:auto!important;overflow:visible!important;display:block!important}
+  #print-pages{display:block!important}
+  #print-pages .pp{break-after:page;page-break-after:always;width:100%;height:100vh;overflow:hidden;margin:0;padding:0}
+  #print-pages .pp:last-child{break-after:auto;page-break-after:auto}
+  #print-pages .pp > svg{display:block;width:100%;height:100%;max-width:none}
+  #print-pages{--paper:#fff;--ink:#000}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -4465,6 +4476,7 @@ const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; const MARGIN = 56;
 let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页几何，供打印预览使用 */
+let SYS_GEO = [];   /* v62.6 A2 最近一次 render 的每个系统纵向范围 [{y0,y1}]（谱面坐标）：分享卡按系统边界裁切、打印「系统不跨页」断言 */
 /* ===== 排版（engraving）参数：随曲谱保存，决定"内容大小 / 疏密 / 页面容量" =====
    与显示缩放(viewZoom)、打印预览缩放完全独立：这里改的是版面本身——
    页面越大(A5→A4→A3) 容纳内容越多；内容越大 每页容纳越少；疏密只调空白不改字号。*/
@@ -9432,6 +9444,7 @@ function render(){
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
   /* 供打印预览取用：页宽、单页高、页间距、页数（内容随 #score 快照读取） */
   PV_GEO = {W:CONTENT_W, pgH:PG_H, gap:PG_GAP, n:nPages};
+  SYS_GEO = sysY.map((y,si)=>({y0:y, y1:y+sysM[si].h}));
   svg.setAttribute('viewBox', `0 0 ${CONTENT_W} ${totalH}`);
   /* 显示尺寸 = 引擎尺寸 × 用户缩放 × 内容大小：内容大小放大内容，纸张外框在屏幕上保持定尺 */
   const dz = viewZoom * cfg.scale;
@@ -17305,10 +17318,12 @@ function svgi(name, size){
   const s = size || 13;
   return `<svg class="svgi" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SVGI[name]||''}</svg>`;
 }
-document.querySelectorAll('[data-svgi]').forEach(el=>el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi)));
+/* v62.6 A2（P3-21）注入幂等：离线互动谱可能取自 DOM 快照（托管环境禁 fetch 自身源码时的兜底），快照里图标已注入过，
+   打开时再注入一次就成了每个按钮两枚图标——已有就跳过 */
+document.querySelectorAll('[data-svgi]').forEach(el=>{ if(!el.querySelector(':scope > svg.svgi')) el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi)); });
 document.querySelectorAll('.lic[data-lic]').forEach(el=>{ el.innerHTML = svgi(el.dataset.lic, 18); });
 /* v41.4 语义图标（data-sic）：包一层 .sicon 仅新版外壳显示，经典版视觉不变（属性名避开谱面热区的 data-si） */
-document.querySelectorAll('[data-sic]').forEach(el=>el.insertAdjacentHTML('afterbegin','<span class="sicon">'+svgi(el.dataset.sic,12)+'</span>'));
+document.querySelectorAll('[data-sic]').forEach(el=>{ if(!el.querySelector(':scope > .sicon')) el.insertAdjacentHTML('afterbegin','<span class="sicon">'+svgi(el.dataset.sic,12)+'</span>'); });
 /* v40.4 滚动器感知：新版通栏框架下制版台内部滚动（#score-wrap），经典/谱架/观看仍走窗口滚动 */
 function scoreScroller(){
   const c=document.body.classList;
@@ -18706,7 +18721,8 @@ function setPrintPage(size){
     LetterL:'letter landscape', fit:'auto' }[size] || 'A4 portrait';
   const wide = (size==='A4L'||size==='LetterL'||size==='fit');
   document.getElementById('paper').classList.toggle('wide', wide);
-  s.textContent = `@page{ size:${rule}; margin:${size==='fit'?'8mm':'12mm'}; }`;
+  /* v62.6 A2：逐页切片打印——虚拟页自带版心边距，纸张边距归零才能一张虚拟页对一张纸 */
+  s.textContent = `@page{ size:${rule}; margin:0; }`;
   render();   // 重排以适配新纸张宽度
 }
 /* v62.4 A0-2 成品出口统一去编辑痕迹：打印/存 PDF、PNG、分享卡、打印预览此前各清各的——
@@ -18723,10 +18739,19 @@ function cleanSnapRestore(k){
   blurSel = k.blur; noteSel = k.note; selRange = k.rng; measureSel = k.mSel; measureRange = k.mRng;
   meaHandleOn = k.mHnd; lyrSel = k.lyr; barSel = k.bar;
 }
-function withCleanSnap(fn){
+function withCleanSnap(fn, opts){
   const k = cleanSnapSave();
+  /* v62.6 A2：opts.paging＝成品按分页排版取样（不换行模式的横向长带不适合裁成卡片，同 buildThumbCanvas 口径） */
+  const pp = PRINT_PAGING;
+  if(opts && opts.paging) PRINT_PAGING = true;
   try{ render(); return fn(); }
-  finally{ cleanSnapRestore(k); try{ render(); }catch(_){} }
+  finally{ PRINT_PAGING = pp; cleanSnapRestore(k); try{ render(); }catch(_){} }
+}
+/* v62.6 A2：成品取样用的谱面克隆——去掉屏幕专用的页框/页码/播放头（打印切片同口径），原 #score 不动 */
+function scoreExportClone(){
+  const c=document.getElementById('score').cloneNode(true);
+  c.querySelectorAll('.pagebg, .pageno, #playhead, #playline').forEach(e=>e.remove());
+  return c;
 }
 function exportPNG(scale){
   const svg = document.getElementById('score');
@@ -18735,7 +18760,7 @@ function exportPNG(scale){
      #3a5ce0）；② 墨色不再取当前主题的计算值——深色主题下导出的图曾是浅墨压白纸，几乎看不见。 */
   let vb = null;
   const xml = withCleanSnap(()=>{ const v = svg.viewBox.baseVal; vb = {width:v.width, height:v.height};
-    return svgResolveVars(new XMLSerializer().serializeToString(svg)); });
+    return svgResolveVars(new XMLSerializer().serializeToString(scoreExportClone())); });
   const k = scale||2;
   const img = new Image();
   const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
@@ -20876,17 +20901,26 @@ function shareCardURL(){
   return "https://puyouquan.com";
 }
 function buildShareCardSVG(){
-  let vb=null;
+  let vb=null, sys=[];
   const inner=withCleanSnap(()=>{ const s=document.getElementById('score'), v=s.viewBox.baseVal;
-    vb={width:v.width, height:v.height}; return s.innerHTML; });
-  const W=750,H=1000, boxX=25,boxY=96,boxW=700,boxH=790;
-  const cropW=vb.width, cropH=cropW*boxH/boxW;
+    vb={width:v.width, height:v.height}; sys=SYS_GEO.slice(); return scoreExportClone().innerHTML; }, {paging:true});
+  /* v62.6 A2 分享卡版式（P2-07/P2-08）：①谱框底边在页脚遮罩之上（此前遮罩从 870 起、谱框到 886，底部 16 单位被盖、系统被切）；
+     ②裁切高度落在**最后一个完整系统**的下沿——按框比例硬裁会把一行谱拦腰截断；③二维码块整体上移 10，说明文字不再贴底边 */
+  const W=750,H=1000, FOOT=130, boxX=25,boxY=96,boxW=700, boxH=H-FOOT-boxY-12;
+  const cropW=vb.width; let cropH=cropW*boxH/boxW;
+  const fit=sys.filter(g=>g.y1+6<=cropH);
+  if(fit.length){                                   /* 下沿留白不超过与下一系统间距的一半，免得露出下一行谱的顶边 */
+    const last=fit[fit.length-1], nxt=sys[fit.length];
+    const pad=nxt? Math.max(2, Math.min(16, (nxt.y0-last.y1)/2)) : 16;
+    cropH=Math.min(cropH, last.y1+pad);
+  }
+  const drawH=Math.min(boxH, cropH*boxW/cropW);
   /* 真二维码：已发布谱→zhipu/?pub=ID（可扫码直达看谱），否则官网。零依赖 qrModules 生成，白底 quiet zone。 */
   let qr='';
   const _url=shareCardURL();
   let _qm=null; try{ _qm=qrModules(_url); }catch(_){}
   if(_qm){
-    const qn=_qm.length, qpx=100, qcell=qpx/qn, qx=W-28-qpx, qyy=H-118;
+    const qn=_qm.length, qpx=100, qcell=qpx/qn, qx=W-28-qpx, qyy=H-128;
     qr+=`<rect x="${qx-7}" y="${qyy-7}" width="${qpx+14}" height="${qpx+14}" rx="4" fill="#ffffff" stroke="#e5e2dc"/>`;
     for(let r=0;r<qn;r++) for(let c=0;c<qn;c++) if(_qm[r][c])
       qr+=`<rect x="${(qx+c*qcell).toFixed(2)}" y="${(qyy+r*qcell).toFixed(2)}" width="${(qcell+0.4).toFixed(2)}" height="${(qcell+0.4).toFixed(2)}" fill="#1c1c1c"/>`;
@@ -20896,16 +20930,16 @@ function buildShareCardSVG(){
     .filter(Boolean).join('　');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" font-family="system-ui,'PingFang SC','Microsoft YaHei',sans-serif">
   <defs><linearGradient id="cgrad" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0" stop-color="var(--accent)"/><stop offset="0.55" stop-color="#6d5cff"/><stop offset="1" stop-color="#b45cff"/>
+    <stop offset="0" stop-color="var(--accent)"/><stop offset="0.55" stop-color="#d24a37"/><stop offset="1" stop-color="#e2705d"/>
   </linearGradient></defs>
   <rect width="${W}" height="${H}" fill="#faf9f6"/>
   <rect width="${W}" height="10" fill="url(#cgrad)"/>
   <text x="28" y="56" font-size="27" font-weight="800" fill="#1c1c1c">谱友圈</text>
-  <text x="124" y="56" font-size="13" fill="#8a8a8a">人人都能做谱 · puyouquan.com</text>
+  <text x="124" y="56" font-size="13" fill="#8a8a8a">专业曲谱平台 · puyouquan.com</text>
   <text x="${W-28}" y="56" font-size="13" text-anchor="end" fill="#8a8a8a">${xesc(TYPE_CN[docType(song)]||'曲谱')}</text>
   <line x1="28" y1="72" x2="${W-28}" y2="72" stroke="#e5e2dc" stroke-width="1"/>
-  <rect x="${boxX-3}" y="${boxY-6}" width="${boxW+6}" height="${boxH+12}" rx="10" fill="#ffffff" stroke="#e5e2dc"/>
-  <svg x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" viewBox="0 0 ${cropW.toFixed(0)} ${cropH.toFixed(0)}" preserveAspectRatio="xMidYMin meet">${inner}</svg>
+  <rect x="${boxX-3}" y="${boxY-6}" width="${boxW+6}" height="${(drawH+12).toFixed(0)}" rx="10" fill="#ffffff" stroke="#e5e2dc"/>
+  <svg x="${boxX}" y="${boxY}" width="${boxW}" height="${drawH.toFixed(0)}" viewBox="0 0 ${cropW.toFixed(0)} ${cropH.toFixed(0)}" preserveAspectRatio="xMidYMin meet">${inner}</svg>
   <rect x="0" y="${H-130}" width="${W}" height="130" fill="#faf9f6"/>
   <line x1="28" y1="${H-128}" x2="${W-28}" y2="${H-128}" stroke="#e5e2dc" stroke-width="1"/>
   <text x="28" y="${H-88}" font-size="21" font-weight="700" fill="#1c1c1c">${xesc(song.title||'未命名曲谱')}</text>
@@ -20958,8 +20992,13 @@ function svgResolveVars(xml){
     .replace(/var\(--panel\)/g,'#ffffff').replace(/var\(--bg\)/g,'#ffffff')
     /* 字体名一律用单引号：这些值要落进 SVG 的 font-family="…" 里，
        用双引号会当场把属性闭合掉 → XML「attributes construct error」→ 整张图光栅化失败 */
-    .replace(/var\(--font-num\)/g, "Georgia,'Times New Roman',serif")
-    .replace(/var\(--font-ui\)/g, "system-ui,'PingFang SC','Microsoft YaHei',sans-serif");
+    /* v62.6 A2（P3-21）：字体栈取页面现行令牌（与屏幕同源），双引号换单引号；取不到时回落原硬编码 */
+    .replace(/var\(--font-num\)/g, svgFontVar('--font-num', "Georgia,'Times New Roman',serif"))
+    .replace(/var\(--font-ui\)/g, svgFontVar('--font-ui', "system-ui,'PingFang SC','Microsoft YaHei',sans-serif"));
+}
+function svgFontVar(name, fb){
+  try{ const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v? v.replace(/"/g,"'") : fb; }catch(_){ return fb; }
 }
 /* 把任意曲谱数据渲染成缩图 canvas。会临时占用全局 song/选区并复原——与 buildShareCardSVG
    同一套「换状态 → render → 取样 → 换回 → render」手法，全程 try/finally 保证不会把编辑器留在别人的谱上。 */
@@ -21134,9 +21173,9 @@ function gridZoom(cur, dir){
 function pvOpen(){
   /* 快照为纯净成品谱：暂时清除全部编辑装饰（光标/选区/多选/小节选中/段序号高亮） */
   withCleanSnap(()=>{                              /* v62.4：与打印/PNG/分享卡同一张清单（原先漏了小节范围/拖柄/歌词选中） */
-    PV.content = document.getElementById('score').innerHTML;
+    PV.content = scoreExportClone().innerHTML;      /* v62.6 A2：预览与打印成品同口径（无屏幕页框外的播放头等） */
     PV.geo = {...PV_GEO};
-  });
+  }, {paging:true});                               /* v62.6 A2：不换行模式下预览也按分页排版——与打印页数一致 */
   PV.fit = null; PV.zoom = 1;                     /* 预览默认 100%（纸张真实物理尺寸） */
   document.getElementById('preview-ov').classList.add('on');
   pvSyncBar(); pvBuild();
@@ -21201,12 +21240,39 @@ window.addEventListener('resize', ()=>{ const ov=document.getElementById('previe
 /* v61.1 不换行长带同样不适合直接送打印机——打印前一并切回分页排版 */
 /* v62.4 A0-2：打印（含 Ctrl+P、打印预览「打印/导出」、页面菜单打印）一律先去编辑痕迹再出纸，打完复原 */
 let PRINT_SNAP = null;
+/* v62.6 A2 逐页切片打印（P0-3 余项）：屏幕上整谱是一张长 SVG（虚拟页首尾相接），交给浏览器打印时它按纸高硬切——
+   系统被拦腰截断、每页漂移约 14px、页数与屏幕虚拟页对不上。现在打印前按 PV_GEO 逐页开窗：
+   每张纸一个 <svg viewBox="0 页顶 宽 页高">，谱面内容只存一份（<defs> 里的 <g>，各页 <use> 引用，不随页数翻倍），
+   页框/页码不进成品；@page 边距归零，虚拟页本身已含版心边距，一张虚拟页＝一张纸。 */
+function buildPrintPages(){
+  removePrintPages();
+  const src=document.getElementById('score'), g=PV_GEO;
+  if(!src || !g || !g.n) return;
+  const box=document.createElement('div'); box.id='print-pages'; box.setAttribute('aria-hidden','true');
+  const pages=[];
+  for(let i=0;i<g.n;i++){
+    const vy=i*(g.pgH+g.gap);
+    pages.push(`<div class="pp"><svg viewBox="0 ${vy} ${g.W} ${g.pgH}" preserveAspectRatio="xMidYMin meet"><use href="#pp-src"/></svg></div>`);
+  }
+  box.innerHTML=`<svg class="pp-defs" width="0" height="0"><defs><g id="pp-src">${src.innerHTML}</g></defs></svg>`+pages.join('');
+  box.querySelectorAll('#pp-src .pagebg, #pp-src .pageno, #pp-src #playhead, #pp-src #playline').forEach(e=>e.remove());
+  /* id 去重：副本里的元素 id 与 #score 里的同名，留着会让 getElementById 拿错对象 */
+  box.querySelectorAll('#pp-src [id]').forEach(e=>e.removeAttribute('id'));
+  document.body.appendChild(box);
+  document.body.classList.add('printing');
+}
+function removePrintPages(){
+  const b=document.getElementById('print-pages'); if(b) b.remove();
+  document.body.classList.remove('printing');
+}
 window.addEventListener('beforeprint', ()=>{
   if(noWrapOn() || (viewerMode && innerWidth<=820)) PRINT_PAGING=true;
   if(!PRINT_SNAP) PRINT_SNAP = cleanSnapSave();
   render();
+  try{ buildPrintPages(); }catch(e){ console.error('打印分页失败，回落整张打印', e); removePrintPages(); }
 });
 window.addEventListener('afterprint',  ()=>{
+  removePrintPages();
   PRINT_PAGING=false;
   if(PRINT_SNAP){ cleanSnapRestore(PRINT_SNAP); PRINT_SNAP=null; }
   render();
@@ -23110,7 +23176,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v62.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v62.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23133,6 +23199,7 @@ const APP_VER='v62.6';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v62.7</span><div><b>打印与导出：一张屏幕页就是一张纸 · 成品干净 · 分享卡不切谱</b>（2026-10 评审团 A2）。<br>① <b>打印逐页对齐</b>：v62.4 修好了「只打出第 1 页」，但浏览器仍是把整首谱当一张长图、按纸高硬切——一行谱会被拦腰切成两半，越往后越错位，打出来的页数也和屏幕上看到的不一样。现在打印前按屏幕上的每一页单独出一张纸：<b>屏幕上几页，打出来就是几页，每一行谱都完整</b>。打印预览里的「打印 / 导出」、Ctrl+P、看谱页打印都走这条路；不换行模式下打印预览与打印同样按分页排，页数一致。<br>② <b>导出 PNG</b>：不再带屏幕上的页框线、「第 x / y 页」页码和播放竖线；图里的数字/文字字体与屏幕显示一致（此前导出图会换成另一种衬线字体）。<br>③ <b>分享卡</b>：谱面只截到<b>最后一行完整的谱</b>，不再半行半行地截；谱框底边移到页脚之上（此前底部被页脚盖住一截）；二维码和「扫码」说明整体上移，不再贴着卡片底边；卡片口号换成「专业曲谱平台」，顶部色条随品牌改为朱砂色。<br>④ <b>分享出去的互动谱</b>在某些网页环境里另存时，按钮图标会重复出现两枚，已修正。<br><b>测试</b>：新增 <code>tv_print</code> <b>13 项</b>（PDF 页数＝屏幕页数 / 系统不跨页 / 看谱页打印 / 不换行模式预览与打印一致 / PNG 无页框页码与字体同源 / 分享卡四项 / 互动谱图标不重复），对改前文件复跑 <b>10 项红</b>。</div></li>
     <li><span class="v">v62.6</span><div><b>小程序登录不再把你换成空账号 · 合并旧账号要你点头 · 接口限流与安全响应头补齐</b>（2026-10 评审团 A1c / A1d）。<br>① <b>小程序每次打开都把手机号登录「顶掉」</b>：小程序每次冷启动都会静默登录一次，如果你最早用小程序时它替你建过一个没绑手机号的账号，之后每次打开都会被切回那个空账号——老用户在小程序里永远看不到自己的谱。现在：网页里已经登录手机号账号时，静默登录<b>不再覆盖</b>；那个空账号如果什么都没有，会自动并进你的手机号账号，此后小程序一打开就是你本人。<br>② <b>旧账号里有东西时，问你再合并</b>：用「手机号快捷登录」时，如果发现旧的小程序账号里有谱或收藏，会弹框列出有多少，由你选「合并」或「暂不」——绝不替你静默合并。<br>③ <b>登录链接不能被别人借用</b>：小程序换来的一次性登录票据只在小程序里生效（普通浏览器打开带票链接不会登进任何账号），有效期从 2 分钟缩短到 30 秒。<br>④ <b>官网个人中心在小程序里打开时</b>，「去绑定手机号」改为跳回小程序自己的登录页，不再停在一个绑完也回不到小程序的网页表单里。<br>⑤ <b>服务器加固</b>：接口与公开谱页按 IP 限流（正常使用碰不到，专防整库抓取）；编辑器主页此前因为服务器配置的继承规则，<b>防「被别的网站套进框里」的安全响应头其实没有生效</b>，本版补上，并在每次部署后的自动验收里逐站检查。<br><b>小程序</b>：本版改了小程序代码，上传版本号 <b>1.1.5</b>。<br><b>测试</b>：api/test.sh 247→<b>264 项</b>（本地模拟微信接口，端到端跑通静默登录 / 手机号登录 / 空号自动并入 / 有数据号确认合并 / 会话不被覆盖 / 普通浏览器不发票据 Cookie；顺带修正两条用 HEAD 请求而空过的老断言），对改前服务端复跑 <b>12 项红</b>；<code>tv_mplogin</code> 11→<b>15 项</b>（合并确认框，对改前小程序复跑 4 项红）；<code>tv_pubsnap</code> 7→<b>9 项</b>（小程序里「去绑定」跳原生页）。</div></li>
     <li><span class="v">v62.5</span><div><b>存储型脚本注入根治 · 发布快照：过审后再改要重新审</b>（2026-10 评审团 A1a / A1b）。<br>v62.4 先堵住了「从别人的深链打开」这一条路；但被投毒的谱一旦进过你的本机（上次编辑的谱、「我的曲谱」里的旧条目），刷新页面就会再次触发——这一版从根上解决。<br>① <b>一个入口统管</b>：启动时恢复上次的谱、打开「我的曲谱」、云端同步拉下来的谱、MusicXML/MIDI 导入、看谱页、发布缩图，全部经过同一道按字段的规范化：音级、品位、弦号、房子号等数字一律转成数字；技法、升降号、和弦名等短代码去掉尖括号；渐强/渐弱楔形照常保留；<b>曲名、歌词、段落标记等文字一个字都不改</b>（这些在显示时已全部转义）。全部预设规范化前后逐字节不变。<br>② <b>逐键实测</b>：对谱面里的 78 种字段逐一注入两类攻击载荷，打开、渲染后零命中；而改前的版本里，被投毒的上次编辑谱刷新即执行。<br>③ <b>服务端同口径把关</b>：云端保存时，数字字段必须是数字、已知短代码不得含尖括号，否则拒收并告诉你是哪一处；歌词、曲名不限字符，<b>编辑器以后新增的字段一律放行</b>，不会因为服务端没登记就拒收。<br>④ <b>云端拒收不再静默</b>：以前保存被拒你完全不知道；现在会提示一次「云端未保存……本机副本已保留」。<br>⑤ <b>存量扫描</b>：管理员可在服务器上一键扫描全部云端谱面，命中的已发布谱可直接打回驳回并写明原因（谱主在个人中心可见，重新打开保存即可恢复）。<br><b>测试</b>：新增 <code>tv_xss</code> <b>9 项</b>（零误杀 / 逐键注入 / 启动恢复 / 本机库 / 缩图 / 拒收提示），对改前文件复跑 <b>6 项红</b>（其中两条路径脚本真实执行）；api/test.sh 219→<b>228 项</b>（危险字段拒收 / 楔形与歌词放行 / 数字串放行 / 未知字段透传 / 存量扫描与隔离）。<br><b>发布快照（产品拍板「发布快照，修订另审」）</b>：此前谱子一旦过审，作者再改曲谱、改标题、换缩图、甚至改昵称，谱库里都<b>立刻</b>变成新内容——审核等于可以绕过。现在过审那一刻把谱面、标题、署名、缩图<b>冻结成一份快照</b>，谱库、分享落地页、站点地图只展示快照：<br>⑥ 作者之后的修改（包括编辑器每几秒一次的自动保存）只改自己的草稿，<b>谱子不会下架</b>，谱库照常展示上一版；改完点「<b>提交更新</b>」进入审核，通过后自动替换。被驳回时谱库继续展示上一版，原因发到站内消息。<br>⑦ 个人中心、创作者中心的状态行会写明「有未发布的修改」「更新审核中」「更新被驳回：原因」；没有改动时点提交会直接告诉你「谱库里已经是这一版」。<br>⑧ 署名在审核时固定，之后改昵称不影响已上架的谱；管理员改自己的谱免审直接生效。<br>⑨ 管理后台：待审数包含更新审核，队列里这类条目带「更新审核」角标。<br><b>测试</b>：新增 <code>tv_pubsnap</code> <b>7 项</b>（对改前文件复跑全红）；api/test.sh 228→<b>247 项</b>（过审后改谱/改标题/改昵称/换缩图公开端不变 · 更新审核通过与驳回 · 无改动不送审）。</div></li>
     <li><span class="v">v62.4</span><div><b>热修周：打印只出 1 页 · 成品带光标 · 弹窗点不中/按键穿透 · 楔形被清洗误删 · 他人谱深链 · 登录弹窗关不掉</b>（2026-10 十三角色评审团 A0 段，产品指示「A 段 B 段先做」）。<br>① <b>多页谱打印/存 PDF 只出第 1 页</b>：新版外壳把页面钉成一屏高、超出部分隐藏，它的样式优先级压过了打印复位，于是打印机只看得到第一屏。现在打印时用同等优先级把整页放开，多页谱完整打出；观看页打印也不再把顶部那条操作栏印在第 1 页上。（打印分页与屏幕虚拟页逐页对齐放在下一阶段做。）<br>② <b>成品不再带编辑光标</b>：打印、存 PDF、导出 PNG、分享卡、打印预览五个出口统一先熄灭全部编辑装饰——光标列的朱砂底色、弦位红圈、小节选中框、歌词选中框、小节拖柄——出完再原样恢复。此前打印一项都不清，分享卡只清了一半。<br>③ <b>弹窗打开时不再盲改背后的谱面</b>：之前弹窗开着按 Delete、数字键、方向键照样改谱；现在只有 Esc（关窗）和 Tab（在弹窗里移动焦点）有效，<b>Esc 终于能关掉弹窗</b>，有未保存改动的配和弦工作台照旧会拦下。<br>④ <b>手机「智能」抽屉不再压住弹窗</b>：从抽屉里点开的一键配伴奏、智能填词、曲谱信息、更新日志，「生成」「确定」等按钮之前被抽屉盖住点不到；现在弹窗一出现抽屉自动收起。<br>⑤ <b>渐强/渐弱楔形不再被安全清洗删掉</b>：防脚本注入的清洗过去把所有文字里的尖括号一律去掉，而楔形恰好就存成 <code>&lt;</code> / <code>&gt;</code>——<b>所有已发布谱在看谱页、分享出去的互动谱、审核预览里的楔形其实一直是丢的</b>。清洗改为按字段：音级、品位、弦号等数字一律转成数字（连引号逃逸也一并堵上），楔形按白名单保留，曲名歌词等文字只去尖括号。全部预设清洗前后零差异。<br>⑥ <b>他人的谱不能再从「我的曲谱」深链打开</b>：服务端「我的曲谱」接口只给谱主本人；打开别人的谱自动改走谱库看谱页（经安全清洗、只读、不写进你的本机库）。从文件打开谱也先经同样的清洗。<br>⑦ <b>登录弹窗</b>：在个人中心里登录成功、或点「取消」，弹窗都会关掉了；在编辑器里点「取消」只是关窗，不再把你带进个人中心。<br><b>测试</b>：新增 <code>tv_a0</code> <b>22 项</b>（打印 PDF 页数 / 打印时零编辑痕迹 / PNG·分享卡·预览零痕迹 / 弹窗按键不改谱 / 抽屉弹窗可点中 / 清洗零差异与楔形保真 / 注入零事件属性 / 他人谱改走看谱页 / 登录弹窗三态），对改前文件复跑 <b>14 项红</b>实证；api/test.sh 216→<b>219 项</b>（非谱主读「我的曲谱」被拒，对改前服务端复跑 2 项红）。</div></li>
