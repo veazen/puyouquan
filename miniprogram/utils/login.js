@@ -4,7 +4,7 @@
 //   一键：getPhoneNumber → code → POST /api/wx/mini/phone      （拿真实手机号，与网页短信登录同一个账号）
 //   两者都回 ticket → 把 /api/wx/mini/enter?t=…&to=… 交给 <web-view>
 //     → 服务端校验并作废票据 → Set-Cookie pyq_token → 302 到目标页。网页端零改动，落地即登录态。
-// 票据 120s、用一次即焚，所以每次进页面都重新换一张，不缓存。
+// 票据 30s（v62.6 由 120s 缩短）、用一次即焚，所以每次进页面都重新换一张，不缓存。
 // 登录拿不到（网络差/未配置/审核环境）时回落到直开目标页——只是没登录态，不能白屏。
 const API = 'https://www.puyouquan.com';
 const K_PHONE = 'pyq_phone_ok';   // 已完成一键登录（仅作是否再弹登录页的判断，不存任何凭据）
@@ -34,16 +34,22 @@ async function enterUrl(target) {
   } catch (_) { return target; }
 }
 
-/** 微信一键登录：getPhoneNumber 的 code → 真实手机号账号。成功返回 true 并留一张待用票据 */
+/** 手机号快捷登录：getPhoneNumber 的 code → 真实手机号账号。成功返回服务端结果（含 merge 合并提议）并留一张待用票据，失败返回 false
+    v62.6：若这台手机之前用小程序时建过一个没绑手机号的账号、且里面有谱/收藏，服务端不静默合并，回一个 merge 提议由登录页确认 */
 async function phoneLogin(phoneCode) {
   try {
-    const loginCode = await wxLoginCode();   // 一并带上，服务端顺手把微信身份绑到该手机号账号
+    const loginCode = await wxLoginCode();   // 一并带上，服务端顺手把小程序身份绑到该手机号账号
     const j = await post('/api/wx/mini/phone', { code: phoneCode, loginCode: loginCode || '' });
     if (!j || !j.ticket) return false;
     wx.setStorageSync(K_PHONE, 1);
     wx.setStorageSync('pyq_enter', API + '/api/wx/mini/enter?t=' + encodeURIComponent(j.ticket));
-    return true;
+    return j;
   } catch (_) { return false; }
+}
+/** v62.6 用户在确认框里选「合并」：把旧账号的谱/收藏/谱架并入手机号账号 */
+async function mergeAccount(token) {
+  const j = await post('/api/wx/mini/merge', { token });
+  return !!(j && j.merged);
 }
 
 /** 是否该先弹登录页：没一键登录过、且本次安装内没点过「先随便看看」 */
@@ -63,4 +69,4 @@ function pubIdFrom(url) {
   return m ? m[1] : '';
 }
 
-module.exports = { enterUrl, phoneLogin, needLogin, pubIdFrom, API };
+module.exports = { enterUrl, phoneLogin, mergeAccount, needLogin, pubIdFrom, API };

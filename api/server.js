@@ -4,7 +4,7 @@
 // 部署：systemd 服务 pyq-api，nginx 各 vhost include snippets/pyq-api.conf 反代 /api/。
 const http = require('node:http');
 const crypto = require('node:crypto');
-const { q, now, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast } = require('./db');
+const { q, now, mergeUserInto, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast } = require('./db');
 const { sendSms } = require('./sms');
 const wx = require('./wx');
 const wxpay = require('./wxpay');
@@ -266,7 +266,18 @@ const SITE_LINK = /^(\/|https:\/\/([a-z0-9-]+\.)*puyouquan\.com\/)/i;
 
 /* ---------- v60.1 小程序换票（内存态，进程重启即清空——120s 有效期内的登录重来一次即可）----------
    一次性：consume 后立刻删除，重放拿不到第二次 Cookie。签发时顺带清过期票，上限兜住异常刷量。 */
-const MINI_TICKET_TTL = 120;
+const MINI_TICKET_TTL = 30;   // v62.6 A1c 120→30s：票据只用于「换到即进 web-view」这一跳，窗口越短越难被截获重放
+/* v62.6 A1c 占位号合并确认票：手机号登录时发现微信身份挂在一个**有数据**的占位号上，不静默合并（v60.5 原则），
+   发一张 10 分钟的确认票给小程序，用户在确认页点「合并」才执行 */
+const mergeOffers = new Map();
+function mergeOfferIssue(fromId, toId, wxIds) {
+  const nowMs = Date.now();
+  for (const [k, v] of mergeOffers) if (v.exp <= nowMs) mergeOffers.delete(k);
+  if (mergeOffers.size > 2000) mergeOffers.clear();
+  const t = crypto.randomBytes(24).toString('base64url');
+  mergeOffers.set(t, { fromId, toId, wxIds, exp: nowMs + 600000 });
+  return t;
+}
 const miniTickets = new Map();
 function miniTicketIssue(uid) {
   const nowMs = Date.now();
@@ -654,17 +665,40 @@ const routes = [
     }
     /* 顺带绑微信身份：同一个人之后用微信扫码登录网页时能命中同一账号（COALESCE 不清空已有值） */
     const lc = String(b.loginCode || '').trim();
+    let merge = null, merged = false;
     if (/^[A-Za-z0-9_-]{8,128}$/.test(lc)) {
       try {
         const prof = await wx.miniSession(lc, { appid: WX_MINI_APPID, secret: WX_MINI_SECRET });
         const owner = (prof.unionid && q.userByUnionid.get(prof.unionid)) || (prof.openid && q.userByWxOpenid.get(prof.openid));
-        if (!owner) q.userBindWx.run(prof.openid || null, prof.unionid || null, u.id);   // 已属他号则不抢占
+        if (!owner) q.userBindWx.run(prof.openid || null, prof.unionid || null, u.id);
+        /* v62.6 A1c（P1-35）：微信身份挂在一个小程序静默登录建的**占位号**上（没有真实手机号）——
+           此前「已属他号则不抢占」，于是每次冷启动静默登录都回到那个空号，手机号会话被覆盖、老用户永远找不回自己的谱。
+           占位号零数据 → 直接并入手机号账号并作废；有数据 → 不静默合并（v60.5 原则），发确认票让用户自己选 */
+        else if (owner.id !== u.id && !PHONE_RE.test(owner.phone)) {
+          const c = q.userDataCount.get(owner.id);
+          const wxIds = { openid: prof.openid || null, unionid: prof.unionid || null };
+          if (!c.scores && !c.marks && !c.paid) { mergeUserInto(owner.id, u.id, wxIds); merged = true; }
+          else merge = { token: mergeOfferIssue(owner.id, u.id, wxIds), scores: c.scores, marks: c.marks, paid: c.paid };
+        }
+        /* owner 是另一个真实手机号账号：两个真人账号，不动 */
       } catch (e) { console.error('mini bind wx:', e.message); }                          // 绑定失败不影响登录
     }
     q.eventAdd.run(u.id, fresh ? 'signup' : 'login', 'mini_phone', now());
     const t = miniTicketIssue(u.id);
-    return { ticket: t, expires_in: MINI_TICKET_TTL, user: pubUser(u), fresh,
+    return { ticket: t, expires_in: MINI_TICKET_TTL, user: pubUser(u), fresh, merged, merge,
       enter_url: 'https://www.puyouquan.com/api/wx/mini/enter?t=' + t };
+  }],
+  /* v62.6 A1c：用户在小程序确认页选「合并」——把占位号里的谱/收藏/谱架/谱集/权益并入手机号账号 */
+  ['POST', /^\/api\/wx\/mini\/merge$/, false, (m, b) => {
+    const k = String(b.token || '');
+    const o = mergeOffers.get(k);
+    mergeOffers.delete(k);
+    if (!o || o.exp <= Date.now()) throw new ApiError(400, '合并确认已过期，请重新登录后再试');
+    const from = q.userById.get(o.fromId), to = q.userById.get(o.toId);
+    if (!from || !to || from.deleted_at || to.deleted_at) throw new ApiError(400, '账号状态已变化，未合并');
+    mergeUserInto(o.fromId, o.toId, o.wxIds);
+    q.eventAdd.run(o.toId, 'login', 'mini_merge', now());
+    return { merged: true };
   }],
   ['GET', /^\/api\/wx\/mini\/enter$/, false, (m, b, _u, req, res) => {
     const sp = new URL(req.url, 'http://x').searchParams;
@@ -672,8 +706,18 @@ const routes = [
     const dest = /^https:\/\/([a-z0-9-]+\.)*puyouquan\.com(\/|$|\?)/i.test(to) ? to : 'https://www.puyouquan.com/';
     const uid = miniTicketConsume(sp.get('t') || '');
     if (!uid) return { ___redirect: dest };                    // 票据过期/已用：不报错，按未登录进站
+    /* v62.6 A1c ②：只在小程序 web-view 里下发 Cookie——普通浏览器打开带票链接（被诱导点击）不会被登进别人的号（登录 CSRF） */
+    if (!/miniProgram/i.test(String(req.headers['user-agent'] || ''))) return { ___redirect: dest };
     const u = q.userById.get(uid);
-    if (!u) return { ___redirect: dest };
+    if (!u || u.deleted_at) return { ___redirect: dest };
+    /* v62.6 A1c ①（P1-35）：web-view 已登录真实手机号账号时，静默登录换来的**占位号**票据不覆盖会话——
+       此前每次冷启动都被换回空号。占位号零数据就顺手并入当前手机号账号，此后静默登录直接命中手机号账号 */
+    const cur = authUser(req);
+    if (cur && cur.id !== u.id && PHONE_RE.test(cur.phone) && !PHONE_RE.test(u.phone)) {
+      const c = q.userDataCount.get(u.id);
+      if (!c.scores && !c.marks && !c.paid) mergeUserInto(u.id, cur.id, { openid: u.wx_openid, unionid: u.wx_unionid });
+      return { ___redirect: dest };
+    }
     setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
     return { ___redirect: dest };
   }],

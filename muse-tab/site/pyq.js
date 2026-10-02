@@ -862,3 +862,25 @@ window.PYQ_REC = (function(){
   }
   return { supported:supported, mount:mount, MAXS:MAXS };
 })();
+
+/* v62.6 小程序 web-view 环境判断与原生页跳转（A1c ⑤；A4 小程序环境一次性适配复用同一个判断）。
+   判断口径与编辑器一致：window.__wxjs_environment==='miniprogram'（JS-SDK 注入）或 UA 含 miniProgram。
+   nav(path) 跳小程序原生页——网页里的表单在小程序内是孤岛（登录态只能经原生页换票带进来）。 */
+window.PYQ_MP = (function(){
+  function is(){ try{ return window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent||''); }catch(_){ return false; } }
+  var loading=null;
+  function sdk(){
+    if(window.wx && window.wx.miniProgram) return Promise.resolve(window.wx);
+    if(loading) return loading;
+    loading=new Promise(function(res, rej){
+      var s=document.createElement('script'); s.src='https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
+      s.onload=function(){ (window.wx && window.wx.miniProgram)? res(window.wx) : rej(new Error('no sdk')); };
+      s.onerror=function(){ rej(new Error('sdk load failed')); };
+      document.head.appendChild(s);
+    });
+    return loading;
+  }
+  function nav(path){ return sdk().then(function(w){ return new Promise(function(res, rej){
+    w.miniProgram.navigateTo({ url: path, success: function(){ res(true); }, fail: function(e){ rej(e); } }); }); }); }
+  return { is: is, nav: nav };
+})();

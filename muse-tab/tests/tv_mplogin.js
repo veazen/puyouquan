@@ -100,5 +100,41 @@ T(/用户协议/.test(terms) && /support@puyouquan\.com/.test(terms) && /知识�
 T(/隐私政策/.test(priv) && /手机号/.test(priv) && /剪切板/.test(priv) && /support@puyouquan\.com/.test(priv),
   'T11 privacy.html 正文齐全（含小程序收集项）');
 
-console.log(pass === total ? ('PASS ' + pass + '/' + total) : ('FAIL ' + pass + '/' + total));
-process.exit(pass === total ? 0 : 1);
+/* ===== v62.6 A1c：手机号快捷登录发现「有数据的旧占位号」——弹确认框，用户点「合并」才调合并接口（不替用户做主） ===== */
+(async () => {
+  const reqs = [], modals = [];
+  let mergeOk = true;
+  Object.assign(global.wx, {
+    login: o => o && o.success && o.success({ code: 'logincode_1' }),
+    request: o => {
+      reqs.push(o.url);
+      const ok = d => o.success && o.success({ statusCode: 200, data: d });
+      if (/\/api\/wx\/mini\/phone$/.test(o.url)) return ok({ ticket: 'tk', merge: { token: 'mtok', scores: 2, marks: 1, paid: 0 } });
+      if (/\/api\/wx\/mini\/merge$/.test(o.url)) return ok(mergeOk ? { merged: true } : {});
+      return ok({});
+    },
+    showModal: o => { modals.push(o); },
+  });
+  const ctx = mkCtx(); ctx.setData({ agreed: true });
+  calls.redirect.length = 0;
+  let threw = '';
+  try { ctx.onPhone({ detail: { code: 'phonecode_1' } }); } catch (e) { threw = e.message; }
+  await new Promise(r => setTimeout(r, 50));
+  const md = modals[0] || {};
+  T(!threw && modals.length === 1 && /2 首曲谱/.test(md.content || '') && md.confirmText === '合并' && !/微信/.test((md.title || '') + (md.content || '')),
+    'T12 旧占位号有数据：弹确认框（列出谱数、不出现「微信」字样），不自动合并', threw || JSON.stringify({ n: modals.length, t: md.title, c: (md.content || '').slice(0, 40) }));
+  T(!reqs.some(u => /mini\/merge/.test(u)) && calls.redirect.length === 0, 'T12b 用户确认前不调合并接口、不离开登录页', JSON.stringify(reqs));
+  if (md.success) md.success({ confirm: true });
+  await new Promise(r => setTimeout(r, 1100));
+  T(reqs.some(u => /mini\/merge/.test(u)) && calls.redirect.some(u => /pages\/index\/index/.test(u)), 'T12c 点「合并」后调合并接口并回首页', JSON.stringify({ reqs, redirect: calls.redirect }));
+  /* T13 选「暂不」：不合并、直接进首页 */
+  modals.length = 0; reqs.length = 0; calls.redirect.length = 0;
+  const ctx2 = mkCtx(); ctx2.setData({ agreed: true });
+  try { ctx2.onPhone({ detail: { code: 'phonecode_2' } }); } catch (_) {}
+  await new Promise(r => setTimeout(r, 50));
+  if (modals[0] && modals[0].success) modals[0].success({ confirm: false });
+  await new Promise(r => setTimeout(r, 50));
+  T(modals.length === 1 && !reqs.some(u => /mini\/merge/.test(u)) && calls.redirect.some(u => /pages\/index\/index/.test(u)), 'T13 选「暂不」不合并，直接进首页', JSON.stringify({ reqs, redirect: calls.redirect }));
+  console.log(pass === total ? ('PASS ' + pass + '/' + total) : ('FAIL ' + pass + '/' + total));
+  process.exit(pass === total ? 0 : 1);
+})();

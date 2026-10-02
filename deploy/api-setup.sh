@@ -96,6 +96,9 @@ systemctl enable pyq-api
 mkdir -p /etc/nginx/snippets
 # snippet 内容取自仓库 deploy/pyq-api.conf（含 /api 反代 + 安全响应头），setup 步骤已 scp 到 /tmp
 cp /tmp/pyq-api.conf /etc/nginx/snippets/pyq-api.conf
+# v62.6 A1d：安全响应头单独成片（pyq-api.conf 与自带 add_header 的 location 共同 include）+ http 层限流区
+cp /tmp/pyq-headers.conf /etc/nginx/snippets/pyq-headers.conf
+cp /tmp/pyq-ratelimit.conf /etc/nginx/conf.d/00-pyq-ratelimit.conf
 if ! grep -q 'snippets/pyq-api.conf' /etc/nginx/conf.d/pu8.conf; then
   sed -i 's|^server {|server {\n    include snippets/pyq-api.conf;|' /etc/nginx/conf.d/pu8.conf
 fi

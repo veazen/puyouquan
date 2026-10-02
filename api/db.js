@@ -131,6 +131,8 @@ for (const col of ['thumb BLOB', 'thumb_mime TEXT', 'thumb_at INTEGER']) {
 /* v60.97 浏览数（产品指示：曲谱有浏览数和收藏点赞记录）：详情每次公开拉取 +1，列只增不改名 */
 try { db.exec('ALTER TABLE scores ADD COLUMN views INTEGER NOT NULL DEFAULT 0'); } catch { /* 列已存在 */ }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
+/* v62.6 A1c 小程序占位号合并：被合并掉的占位号软删除（openid/unionid 已迁走、谁也登不进去），列只增 */
+try { db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER'); } catch { /* 列已存在 */ }
 /* v62.5 A1b 发布快照（评审团 P0-2 审核 TOCTOU；D-02 拍板「发布快照，修订另审」）：
    过审那一刻把 data/标题/演唱/署名/缩图冻结进 pub_* 列，公开端（谱库列表/详情/SSR/sitemap/缩图）只读快照；
    作者此后的保存（含编辑器每 6 秒的自动保存）只改草稿列，**主动「提交更新审核」**才进 rev_status='pending'，
@@ -159,7 +161,14 @@ const q = {
      绑定后该账号即与网页短信登录同号。UNIQUE 约束由调用方先查重后再写，冲突不静默覆盖。 */
   userSetPhone: db.prepare('UPDATE users SET phone = ? WHERE id = ?'),
   userSetRole:  db.prepare('UPDATE users SET role = ? WHERE id = ?'),
-  userBumpTokVer: db.prepare('UPDATE users SET tok_ver = tok_ver + 1 WHERE id = ?'),   // 退出所有设备/风控：作废该用户全部已签发 JWT
+  userBumpTokVer: db.prepare('UPDATE users SET tok_ver = tok_ver + 1 WHERE id = ?'),
+  /* v62.6 A1c：占位号（小程序静默登录建的、没有真实手机号的号）有没有数据——零数据才自动并入手机号账号 */
+  userDataCount: db.prepare(`SELECT (SELECT COUNT(*) FROM scores WHERE user_id = ?1) AS scores,
+                               (SELECT COUNT(*) FROM favorites WHERE user_id = ?1) + (SELECT COUNT(*) FROM likes WHERE user_id = ?1)
+                               + (SELECT COUNT(*) FROM shelf WHERE user_id = ?1) + (SELECT COUNT(*) FROM collections WHERE user_id = ?1) AS marks,
+                               (SELECT COUNT(*) FROM entitlements WHERE user_id = ?1) + (SELECT COUNT(*) FROM orders WHERE user_id = ?1) AS paid`),
+  userRetire:   db.prepare('UPDATE users SET wx_openid = NULL, wx_unionid = NULL, deleted_at = ?, tok_ver = tok_ver + 1 WHERE id = ?'),
+  userTakeWx:   db.prepare('UPDATE users SET wx_openid = COALESCE(?, wx_openid), wx_unionid = COALESCE(?, wx_unionid) WHERE id = ?'),   // 退出所有设备/风控：作废该用户全部已签发 JWT
   // v43.6 微信登录（unionid 优先匹配，openid 兜底；合成占位 phone 满足 NOT NULL/UNIQUE）
   userByUnionid:  db.prepare('SELECT * FROM users WHERE wx_unionid = ?'),
   userByWxOpenid: db.prepare('SELECT * FROM users WHERE wx_openid = ?'),
@@ -397,6 +406,27 @@ function fulfillOrder(orderId, entKind, days) {
 /* Sprint0 安全：删除自有谱（事务）。调用方必须已校验 userId 拥有该谱。
    先清他人对该谱的收藏/谱架/谱集引用（外键完整性要求），再删本体；scoreDelete 带 user_id 二次保险。
    修复：原 DELETE 路由的级联删除按 score_id 全局执行且先于所有权校验，任意登录用户可清空所有人对任意公开谱的收藏/谱架。 */
+/* v62.6 A1c 小程序占位号并入手机号账号（D-06：空号自动迁移；有数据的由用户在小程序确认页点「合并」才执行）。
+   一个事务里搬完：谱面/谱集/权益/订单整行改归属；收藏/点赞/谱架/已读按主键去重并入；
+   然后先废占位号（清 openid/unionid——unionid 有唯一索引，必须先腾位）、再把微信身份挂到手机号账号。 */
+function mergeUserInto(oldId, newId, wxIds) {
+  if (!oldId || !newId || oldId === newId) return false;
+  const t = now();
+  db.exec('BEGIN');
+  try {
+    for (const tb of ['scores', 'collections', 'entitlements', 'orders', 'events', 'messages'])
+      db.prepare(`UPDATE ${tb} SET user_id = ? WHERE user_id = ?`).run(newId, oldId);
+    db.prepare('INSERT OR IGNORE INTO favorites(user_id,score_id,created_at) SELECT ?,score_id,created_at FROM favorites WHERE user_id = ?').run(newId, oldId);
+    db.prepare('INSERT OR IGNORE INTO likes(user_id,score_id,created_at) SELECT ?,score_id,created_at FROM likes WHERE user_id = ?').run(newId, oldId);
+    db.prepare('INSERT OR IGNORE INTO shelf(user_id,score_id,progress,sort,created_at) SELECT ?,score_id,progress,sort,created_at FROM shelf WHERE user_id = ?').run(newId, oldId);
+    db.prepare('INSERT OR IGNORE INTO msg_reads(user_id,msg_id,read_at) SELECT ?,msg_id,read_at FROM msg_reads WHERE user_id = ?').run(newId, oldId);
+    for (const tb of ['favorites', 'likes', 'shelf', 'msg_reads']) db.prepare(`DELETE FROM ${tb} WHERE user_id = ?`).run(oldId);
+    q.userRetire.run(t, oldId);
+    if (wxIds && (wxIds.openid || wxIds.unionid)) q.userTakeWx.run(wxIds.openid || null, wxIds.unionid || null, newId);
+    db.exec('COMMIT');
+    return true;
+  } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+}
 function deleteScoreCascade(id, userId) {
   db.exec('BEGIN');
   try {
@@ -501,4 +531,4 @@ function seedCourses(){
 try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 
 /* seedCourses 导出供 db.test.js 直接驱动（测真实函数而不是复刻一遍判定逻辑） */
-module.exports = { db, q, now, today, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast, seedCourses };
+module.exports = { db, q, now, today, mergeUserInto, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast, seedCourses };

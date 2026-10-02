@@ -279,6 +279,9 @@
       document.getElementById('me-bind').hidden=true;
     };
     document.getElementById('bb-go').onclick=function(){
+      /* v62.6 A1c ⑤（P2-60）：小程序里不在网页表单绑定——网页登录态只能由原生页换票带进 web-view，
+         在这里绑完回不到小程序会话。改跳小程序原生登录页（手机号快捷登录 + 旧账号合并确认都在那里） */
+      if(window.PYQ_MP && PYQ_MP.is()){ PYQ_MP.nav('/pages/login/login').catch(function(){ msg('请回到小程序首页，从「登录」进入绑定'); }); return; }
       const mk=document.createElement('div'); mk.id='bind-mask'; mk.className='pyq-mask';
       mk.innerHTML='<div class="pyq-modal"><h3>绑定手机号</h3>'
         +'<p class="lg-sub">绑定后，用「手机号 + 验证码」在任意设备登录都是这个账号，曲谱和收藏跟着走。</p>'

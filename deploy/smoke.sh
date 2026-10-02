@@ -87,7 +87,16 @@ done
 redir puyouquan.com
 redir zhipu.puyouquan.com
 redir puku.puyouquan.com
-# 安全响应头（软校验：缺失仅告警不阻断部署——snippet 刷新/nginx include 可能待首次 setup）
-xfo=$(curl -sI --max-time 15 --connect-to "zhipu.puyouquan.com:443:$H:443" "https://zhipu.puyouquan.com/" 2>/dev/null | grep -ci 'X-Frame-Options' || true)
-[ "${xfo:-0}" -ge 1 ] && echo "✅ 安全响应头 X-Frame-Options 已生效" || echo "⚠️ 未检测到 X-Frame-Options（snippet/include 待确认，不阻断）"
+# 安全响应头（v62.6 A1d 起硬校验）：zhipu 的 / 会内部跳到 location = /index.html，那里自带 Cache-Control 的 add_header，
+# 曾因 nginx「location 有 add_header 就不继承上层」而丢掉全部安全头；部署步骤已给它补 include，这里逐站钉住
+hdr(){ # hdr 虚拟主机 路径
+  local vhost=$1 path=$2 h
+  h=$(curl -sI --max-time 15 --connect-to "$vhost:443:$H:443" "https://$vhost$path" 2>/dev/null || true)
+  if grep -qi '^x-frame-options: *sameorigin' <<< "$h" && grep -qi '^x-content-type-options: *nosniff' <<< "$h"; then
+    echo "✅ $vhost$path 带安全响应头（X-Frame-Options / nosniff）"
+  else echo "❌ $vhost$path 缺安全响应头（X-Frame-Options 或 nosniff）"; fail=1; fi
+}
+hdr zhipu.puyouquan.com /
+hdr www.puyouquan.com /
+hdr puku.puyouquan.com /kanpu.html
 exit $fail

@@ -3,6 +3,7 @@
    T2 管理后台（admin.html）：待审数含更新审核；队列里更新审核行带「更新审核」角标
    T3 编辑器发布：已上架谱再发布＝提交更新审核（弹窗讲明「通过前谱库仍展示上一版」）；没改动＝提示无需再提交
    T4 编辑器创作者中心：状态行带更新审核态，按钮改叫「提交更新」
+   T5 v62.6 小程序 web-view 里 me.html「去绑定」跳原生登录页（P2-60），普通浏览器照旧弹表单
    服务端口径见 api/test.sh「发布快照」段（过审后改谱/改标题/改昵称/换缩图公开端都不变）。 */
 const { chromium } = require('playwright');
 const fs = require('fs'), P = require('path');
@@ -21,14 +22,16 @@ const read = f => { const p = P.join(SITE, f); return fs.existsSync(p) ? fs.read
     { id: 'sc_dty', title: '改过没提交的谱', singer: '', status: 'published', rev_status: '', rev_note: '', pub_dirty: 1, updated_at: 1700000100 },
     { id: 'sc_ok', title: '干净的已上架谱', singer: '', status: 'published', rev_status: '', rev_note: '', pub_dirty: 0, updated_at: 1700000000 },
   ];
-  const site = async (page, role) => {
-    const pg = await b.newPage({ viewport: { width: 1200, height: 900 } });
+  const site = async (page, role, opt) => {
+    opt = opt || {};
+    const pg = await b.newPage({ viewport: { width: 1200, height: 900 }, userAgent: opt.ua });
+    if (opt.init) await pg.addInitScript(opt.init);
     pg.on('pageerror', e => errs.push(page + ':' + e.message));
     await pg.route('**/*', route => {
       const u = new URL(route.request().url()), p = u.pathname;
       const J = o => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
       if (p === '/api/health') return J({ ok: true });
-      if (p === '/api/me') return J({ user: { id: 'u1', phone: '138****8888', nickname: '阿杜', role }, stats: {}, unread_msgs: 0 });
+      if (p === '/api/me') return J({ user: { id: 'u1', phone: opt.phone !== undefined ? opt.phone : '138****8888', nickname: '阿杜', role, wx: opt.phone === '' }, stats: {}, unread_msgs: 0 });
       if (p === '/api/scores') return J({ scores: MY });
       if (p === '/api/favorites' || p === '/api/likes') return J({ favorites: [], likes: [] });
       if (p === '/api/me/entitlements') return J({ entitlements: [], vip: false, quota: 500 });
@@ -67,6 +70,23 @@ const read = f => { const p = P.join(SITE, f); return fs.existsSync(p) ? fs.read
     T(/待审 3/.test(r.sum || '') && /含 2 条更新审核/.test(r.stat || ''), 'T2 管理后台待审数含更新审核', JSON.stringify({ sum: r.sum, stat: r.stat }));
     T(/更新审核中的谱\s*更新审核/.test(r.pane || '') && !/首次发布的谱\s*更新审核/.test(r.pane || ''), 'T2b 队列里只有更新审核行带「更新审核」角标', (r.pane || '').replace(/\s+/g, ' ').slice(0, 160));
     await pg.close();
+  }
+
+  /* ---------- T5 v62.6 A1c ⑤ 小程序 web-view 里「去绑定」跳原生登录页（网页表单在小程序里是孤岛） ---------- */
+  {
+    const pg = await site('me.html', 'user', { phone: '', ua: 'Mozilla/5.0 (iPhone) MicroMessenger/8.0 miniProgram',
+      init: `window.__navs=[]; window.wx={ miniProgram:{ navigateTo:function(o){ window.__navs.push(o.url); o.success&&o.success(); } } };` });
+    const r = await pg.evaluate(async () => { const bb = document.getElementById('me-bind'); const go = document.getElementById('bb-go');
+      if (!bb || bb.hidden || !go) return { banner: false };
+      go.click(); await new Promise(r2 => setTimeout(r2, 200));
+      return { banner: true, navs: window.__navs, modal: !!document.getElementById('bind-mask') }; }).catch(e => ({ err: e.message }));
+    T(r.banner && (r.navs || []).includes('/pages/login/login') && !r.modal, 'T5 小程序里点「去绑定」跳原生登录页，不弹网页表单', JSON.stringify(r));
+    await pg.close();
+    const pg2 = await site('me.html', 'user', { phone: '' });
+    const r2 = await pg2.evaluate(async () => { const go = document.getElementById('bb-go'); if (!go) return { go: false };
+      go.click(); await new Promise(r3 => setTimeout(r3, 200)); return { modal: !!document.getElementById('bind-mask') }; }).catch(e => ({ err: e.message }));
+    T(r2.modal, 'T5b 普通浏览器里「去绑定」照旧弹手机号绑定表单', JSON.stringify(r2));
+    await pg2.close();
   }
 
   /* ---------- T3 / T4 编辑器 ---------- */

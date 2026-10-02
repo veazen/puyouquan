@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 谱友圈 API 本地端到端测试：DEV_OTP 模式跑完 登录→资料→谱面同步→收藏/谱架/谱集 全链路
 set -uo pipefail
-DIR=$(mktemp -d); trap 'kill $SRV 2>/dev/null; rm -rf "$DIR"' EXIT
+DIR=$(mktemp -d); SRV=; SRV2=; MOCK=; trap 'kill $SRV $SRV2 $MOCK 2>/dev/null; rm -rf "$DIR"' EXIT
 cd "$(dirname "$0")"
 
 PORT=3199 DB_PATH="$DIR/t.db" JWT_SECRET=testsecret COOKIE_DOMAIN= DEV_OTP=1 \
@@ -366,7 +366,7 @@ EN2=$(curl -s -o /dev/null -w '%{redirect_url}' 'http://127.0.0.1:3199/api/wx/mi
 chk 站外to被拒回落主站 '^https://www.puyouquan.com/$' "$EN2"
 EN3=$(curl -s -o /dev/null -w '%{redirect_url}' 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com.evil.com%2F')
 chk 相似域名不误判 '^https://www.puyouquan.com/$' "$EN3"
-nchk 坏票据不下发Cookie 'pyq_token=ey' "$(curl -sI 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com%2F')"
+nchk 坏票据不下发Cookie 'pyq_token=ey' "$(curl -s -D - -o /dev/null -A 'miniProgram' 'http://127.0.0.1:3199/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com%2F')"
 
 chk 删除谱面级联 '"deleted":true' "$(J -X DELETE http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 删除后谱架为空 '"shelf":\[\]' "$(J http://127.0.0.1:3199/api/shelf)"
@@ -380,6 +380,52 @@ node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(pr
 chk 存量扫描只读命中 'song_evil0001.*deg（应为数字）' "$(DB_PATH=$DIR/t.db node admin.js scan-xss)"
 chk 存量扫描隔离 '已隔离' "$(DB_PATH=$DIR/t.db node admin.js scan-xss --quarantine)"
 chk 隔离后谱库不可见 '不存在\|无权\|未上架\|找不到' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_evil0001)"
+
+# v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
+node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!
+PORT=3197 DB_PATH="$DIR/t2.db" JWT_SECRET=testsecret COOKIE_DOMAIN= DEV_OTP=1 WX_API_BASE=http://127.0.0.1:3196 \
+  WX_MINI_APPID=wxtest WX_MINI_SECRET=s node server.js > "$DIR/srv2.log" 2>&1 & SRV2=$!
+for i in $(seq 1 30); do curl -sf http://127.0.0.1:3197/api/health >/dev/null 2>&1 && break; sleep 0.2; done
+B=http://127.0.0.1:3197
+MPUA='Mozilla/5.0 (iPhone) MicroMessenger/8.0.50 miniProgram/wx0'
+M(){ curl -s -b "$DIR/m_$1" -c "$DIR/m_$1" -H 'Content-Type: application/json' -A "$MPUA" "${@:2}"; }   # M 罐名 curl参数…（小程序 UA）
+tk(){ grep -oE '"ticket":"[^"]+"' <<< "$1" | cut -d'"' -f4; }
+enter(){ M "$1" -o /dev/null "$B/api/wx/mini/enter?t=$2&to=https%3A%2F%2Fwww.puyouquan.com%2F"; }
+R=$(M a -X POST $B/api/wx/mini/login -d '{"code":"useraaaa_1"}')
+chk 票据有效期30秒 '"expires_in":30' "$R"
+T1=$(tk "$R")
+# 注意用 GET（-D - -o /dev/null）而不是 -I：HEAD 不匹配任何路由→404→「没有 Cookie」会空过（v62.6 发现老用例同病）
+nchk 普通浏览器打开带票链接不下发Cookie 'pyq_token=ey' "$(curl -s -D - -o /dev/null "$B/api/wx/mini/enter?t=$T1&to=https%3A%2F%2Fwww.puyouquan.com%2F")"
+chk 普通浏览器仍正常回跳 'Location: https://www.puyouquan.com/' "$(curl -s -D - -o /dev/null "$B/api/wx/mini/enter?t=bogus&to=https%3A%2F%2Fwww.puyouquan.com%2F")"
+R=$(M a -X POST $B/api/wx/mini/login -d '{"code":"useraaaa_2"}'); enter a "$(tk "$R")"
+chk 小程序内静默登录得到占位号 '"phone":""' "$(M a $B/api/me)"
+# ④ 空占位号：手机号快捷登录时自动并入
+R=$(M a -X POST $B/api/wx/mini/phone -d '{"code":"ph13900001111_1","loginCode":"useraaaa_3"}')
+chk 空占位号自动并入手机号账号 '"merged":true' "$R"
+enter a "$(tk "$R")"
+chk 进入后是手机号账号 '139\*\*\*\*1111' "$(M a $B/api/me)"
+R=$(M a -X POST $B/api/wx/mini/login -d '{"code":"useraaaa_4"}')
+chk 之后冷启动静默登录直接命中手机号账号 '139\*\*\*\*1111' "$R"
+enter a "$(tk "$R")"
+chk 冷启动后会话仍是手机号账号 '139\*\*\*\*1111' "$(M a $B/api/me)"
+# ① 已登录手机号会话：另一个占位号票据不覆盖会话
+R=$(M c -X POST $B/api/wx/mini/login -d '{"code":"usercccc_1"}')
+enter a "$(tk "$R")"
+chk 占位号票据不覆盖已登录的手机号会话 '139\*\*\*\*1111' "$(M a $B/api/me)"
+chk 被顶替的空占位号已并入 '139\*\*\*\*1111' "$(M c -X POST $B/api/wx/mini/login -d '{"code":"usercccc_2"}')"
+# ④ 有数据的占位号：不静默合并，给确认票；确认后谱随人走
+R=$(M b -X POST $B/api/wx/mini/login -d '{"code":"userbbbb_1"}'); enter b "$(tk "$R")"
+M b -X PUT $B/api/scores/song_mpb00001 -d '{"title":"小程序里做的谱","updated_at":10,"data":{"v":3,"measures":[]}}' >/dev/null
+R=$(M b -X POST $B/api/wx/mini/phone -d '{"code":"ph13900002222_1","loginCode":"userbbbb_2"}')
+chk 有数据的占位号给合并确认 '"merge":{"token":' "$R"
+chk 合并提议带谱数 '"scores":1' "$R"
+MT=$(grep -oE '"merge":\{"token":"[^"]+"' <<< "$R" | grep -oE '[A-Za-z0-9_-]{20,}')
+chk 未确认前占位号原样保留 '"phone":""' "$(M b -X POST $B/api/wx/mini/login -d '{"code":"userbbbb_3"}')"
+chk 确认合并 '"merged":true' "$(M b -X POST $B/api/wx/mini/merge -d "{\"token\":\"$MT\"}")"
+chk 合并票一次性 '已过期' "$(M b -X POST $B/api/wx/mini/merge -d "{\"token\":\"$MT\"}")"
+R=$(M b -X POST $B/api/wx/mini/login -d '{"code":"userbbbb_4"}'); enter b "$(tk "$R")"
+chk 合并后静默登录命中手机号账号 '139\*\*\*\*2222' "$(M b $B/api/me)"
+chk 占位号的谱随人并入手机号账号 'song_mpb00001' "$(M b $B/api/scores)"
 
 echo; echo "通过 $pass / $((pass+fail))"
 [ $fail -eq 0 ]

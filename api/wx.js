@@ -1,4 +1,6 @@
 'use strict';
+/* v62.6 微信接口根地址可经环境变量覆盖——只给 api/test.sh 的本地模拟微信服务用（默认官方地址，生产不设） */
+const WX_API = process.env.WX_API_BASE || 'https://api.weixin.qq.com';
 // 谱友圈 API · 微信登录纯逻辑（零依赖，可独立单测）
 // A 开放平台·网站应用扫码登录（snsapi_login）：state 签名防 CSRF + code 换 openid/unionid + 拉资料。
 // 不含 DB / HTTP；fetch 可注入以便单测。凭据（AppID/Secret）由调用方从服务器环境传入，不落代码。
@@ -51,7 +53,7 @@ function buildMpAuthUrl({ appid, redirect, state, scope = 'snsapi_userinfo' }) {
 
 /* ---- code → access_token(+openid+unionid) → userinfo（fetchFn 可注入以便单测）---- */
 async function webExchange(code, { appid, secret, fetchFn = fetch }) {
-  const tUrl = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appid)}`
+  const tUrl = `${WX_API}/sns/oauth2/access_token?appid=${encodeURIComponent(appid)}`
     + `&secret=${encodeURIComponent(secret)}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
   const tRes = await fetchFn(tUrl, { signal: AbortSignal.timeout(10000) });
   const t = await tRes.json().catch(() => ({}));
@@ -60,7 +62,7 @@ async function webExchange(code, { appid, secret, fetchFn = fetch }) {
   }
   let info = {};
   try {
-    const iUrl = `https://api.weixin.qq.com/sns/userinfo?access_token=${encodeURIComponent(t.access_token)}`
+    const iUrl = `${WX_API}/sns/userinfo?access_token=${encodeURIComponent(t.access_token)}`
       + `&openid=${encodeURIComponent(t.openid)}&lang=zh_CN`;
     const iRes = await fetchFn(iUrl, { signal: AbortSignal.timeout(10000) });
     const j = await iRes.json().catch(() => ({}));
@@ -80,7 +82,7 @@ async function webExchange(code, { appid, secret, fetchFn = fetch }) {
    没绑定就只有 openid，会与网页微信登录建成两个账号（upsertWxUser 按 unionid 优先合并）。
    session_key 是解密手机号/敏感数据用的，本项目不用，**不落库不外传**（拿到即丢）。 */
 async function miniSession(code, { appid, secret, fetchFn = fetch }) {
-  const u = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(appid)}`
+  const u = `${WX_API}/sns/jscode2session?appid=${encodeURIComponent(appid)}`
     + `&secret=${encodeURIComponent(secret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
   const r = await fetchFn(u, { signal: AbortSignal.timeout(10000) });
   const j = await r.json().catch(() => ({}));
@@ -99,13 +101,13 @@ async function jsapiTicket({ appid, secret, fetchFn = fetch, cache = _jsCache, n
   const now = nowFn();
   if (cache.tic && now < cache.ticExp) return cache.tic;
   if (!cache.tok || now >= cache.tokExp) {
-    const r = await fetchFn(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential`
+    const r = await fetchFn(`${WX_API}/cgi-bin/token?grant_type=client_credential`
       + `&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`, { signal: AbortSignal.timeout(10000) });
     const j = await r.json().catch(() => ({}));
     if (!j.access_token) { const e = new Error('获取公众号 access_token 失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e; }
     cache.tok = j.access_token; cache.tokExp = now + Math.min(j.expires_in || 7200, 7200) - 300;
   }
-  const r2 = await fetchFn(`https://api.weixin.qq.com/cgi-bin/ticket/getticket`
+  const r2 = await fetchFn(`${WX_API}/cgi-bin/ticket/getticket`
     + `?access_token=${encodeURIComponent(cache.tok)}&type=jsapi`, { signal: AbortSignal.timeout(10000) });
   const j2 = await r2.json().catch(() => ({}));
   if (j2.errcode || !j2.ticket) { const e = new Error('获取 jsapi_ticket 失败: ' + (j2.errmsg || j2.errcode || 'unknown')); e.status = 502; throw e; }
@@ -131,7 +133,7 @@ const _miniCache = { tok: '', tokExp: 0 };
 async function miniAccessToken({ appid, secret, fetchFn = fetch, cache = _miniCache, nowFn = nowSec }) {
   const now = nowFn();
   if (cache.tok && now < cache.tokExp) return cache.tok;
-  const r = await fetchFn(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential`
+  const r = await fetchFn(`${WX_API}/cgi-bin/token?grant_type=client_credential`
     + `&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`, { signal: AbortSignal.timeout(10000) });
   const j = await r.json().catch(() => ({}));
   if (!j.access_token) { const e = new Error('获取小程序 access_token 失败: ' + (j.errmsg || j.errcode || 'unknown')); e.status = 502; throw e; }
@@ -140,7 +142,7 @@ async function miniAccessToken({ appid, secret, fetchFn = fetch, cache = _miniCa
 }
 async function miniPhone(code, { appid, secret, fetchFn = fetch, cache = _miniCache, nowFn = nowSec }) {
   const tok = await miniAccessToken({ appid, secret, fetchFn, cache, nowFn });
-  const r = await fetchFn(`https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(tok)}`,
+  const r = await fetchFn(`${WX_API}/wxa/business/getuserphonenumber?access_token=${encodeURIComponent(tok)}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }), signal: AbortSignal.timeout(10000) });
   const j = await r.json().catch(() => ({}));
   const info = j && j.phone_info;
