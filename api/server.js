@@ -833,7 +833,10 @@ const routes = [
   ['GET', /^\/api\/scores$/, true, (m, b, u) => ({ scores: q.scoreList.all(u.id) })],
   ['GET', /^\/api\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
     const s = needScore(m[1]);
-    if (s.user_id !== u.id && s.status !== 'published') throw new ApiError(403, '无权访问');
+    /* v62.4 A0-5：「我的曲谱」接口只给谱主本人。此前已发布谱对任意登录用户放行，
+       编辑器 ?mine= 深链走这条路且不经 XSS 清洗→恶意谱可在受害者会话里执行脚本并写进其本机库。
+       他人发布谱一律走 /api/pub/scores/:id（观看端会经 sanitizeUntrusted 清洗）。 */
+    if (s.user_id !== u.id) throw new ApiError(403, '无权访问：这不是你的曲谱');
     return { score: { ...s, data: JSON.parse(s.data) } };
   }],
   ['PUT', /^\/api\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {

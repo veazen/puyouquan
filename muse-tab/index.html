@@ -1947,7 +1947,14 @@ body.shell #tab-capo-row #b-trkboard{margin-left:auto}
 body.shell #panel-tab-voice .rg-body,body.shell #panel-vox-voice .rg-body{margin:0 0 7px}
 body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-body:last-child{margin-bottom:0}
 @media print{
-  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov{display:none!important}
+  #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov,#viewerbar{display:none!important}
+  /* v62.4 A0-1：v40.4 通栏框架 body.shell:not(.stand):not(.viewer)（0,3,1；含 #paper 时 1,3,1）把 body 钉成 100vh+overflow:hidden、
+     #paper 限宽 900，权重压过下面的打印复位——多页谱打印/存 PDF 只出第 1 页。这里用**同权重选择器**复位，
+     且放在 ≤820px 手机框架规则之后（A4 打印视口约 794px，手机媒体查询在打印时同样命中）。 */
+  body.shell:not(.stand):not(.viewer){display:block;height:auto;overflow:visible;padding-bottom:0}
+  body.shell:not(.stand):not(.viewer) #stage{display:block;flex:none;min-height:0;margin:0;padding:0}
+  body.shell:not(.stand):not(.viewer) #score-wrap{display:block;flex:none;height:auto;min-height:0;overflow:visible;margin:0;padding:0;max-width:none}
+  body.shell:not(.stand):not(.viewer) #paper{max-width:none;overflow:visible}
   body{background:#fff;padding-bottom:0}
   #stage{display:block;padding:0;margin:0;max-width:none}
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
@@ -5689,10 +5696,28 @@ const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 /* Sprint0 安全（存储型 XSS 防线）：清洗不可信来源的谱面（他人发布谱 /pub、外部分享互动谱）——
    递归去掉字符串字段里的尖括号。render() 把 deg/品位f/指法 等数值/短字段裸拼进 #score 的 SVG innerHTML，
    合法谱面任何字段都不含 <>，故对正常数据无损；数字/布尔原样保留。杜绝「打开恶意谱即被注入脚本」。 */
-function sanitizeUntrusted(v){
-  if(typeof v==='string') return v.replace(/[<>]/g,'');
-  if(Array.isArray(v)) return v.map(sanitizeUntrusted);
-  if(v && typeof v==='object'){ const o={}; for(const k in v) o[k]=sanitizeUntrusted(v[k]); return o; }
+/* v62.4 A0-4 改为按字段：旧版一刀切剥掉所有字符串里的 <>，而渐强/渐弱楔形恰以 dyn:'<'/'>' 存储——
+   所有已发布谱在观看页、外部互动谱、审核预览里楔形全部丢失（终审 P1-38 实测 6→4 个楔形元素）。
+   ① 数值字段（音级/品位/弦/八度/时值/房子号…）一律 Number()：渲染把它们裸拼进 SVG，
+      字符串值哪怕不含尖括号也能用引号逃出属性（" onmouseover=…），只剥 <> 防不住；非有限数值归 0。
+   ② 合法值本身带尖括号的枚举（dyn）走白名单原样保留；
+   ③ 自由文本（曲名/署名/歌词/段落标记/声部名…）只剥 <>，保住全角/半角引号等正常标点（输出点另有 esc）；
+   ④ 其余短码字段（技法/升降/装饰/演奏法/和弦名…）合法值不含引号，连同引号与反引号一起剥。
+   只用于不可信来源（他人发布谱 /pub、外部分享互动谱、审核预览）；对合法数据无损。 */
+const SAN_NUM = new Set(['v','beats','unit','tempo','capo','lyricLines','dur','deg','oct','s','f','volta','simile','tup','mi','ci','vi','li','si','q']);
+const SAN_ENUM_KEEP = {dyn:new Set(['<','>'])};
+const SAN_FREE = new Set(['title','singer','lyricist','composer','maker','lyrics','label','anno','text','name','tabVoices','voxVoices','intro','desc','note','tempoTerm','author']);
+function sanitizeUntrusted(v, key){
+  if(typeof v==='string'){
+    if(key && SAN_NUM.has(key)){ const n=Number(v); return Number.isFinite(n)? n : 0; }
+    if(key && SAN_ENUM_KEEP[key] && SAN_ENUM_KEEP[key].has(v)) return v;
+    if(key && SAN_FREE.has(key)) return v.replace(/[<>]/g,'');
+    return v.replace(/[<>"'`]/g,'');
+  }
+  if(Array.isArray(v)) return v.map(x=>sanitizeUntrusted(x, key));
+  if(v && typeof v==='object'){ const o={};   /* 键名同样不可信（customChords 以和弦名为键，会被渲染） */
+    for(const k in v) o[String(k).replace(/[<>"'`]/g,'')]=sanitizeUntrusted(v[k], k); return o; }
+  if(typeof v==='number' && key && SAN_NUM.has(key) && !Number.isFinite(v)) return 0;
   return v;
 }
 function evBeatsRaw(dur, dot){ return (4/dur)*(dot?1.5:1); }
@@ -12123,6 +12148,15 @@ window.addEventListener('keydown', e=>{
     return;
   }
   if(e.key==='Escape' && document.getElementById('popmenu')){ e.preventDefault(); closePop(); return; }   // v47.7 Esc 关弹窗
+  /* v62.4 A0-3：弹窗打开时不改背后的谱面——此前 Delete/数字键/方向键仍穿透到编辑器，盲改谱面；
+     Esc 也关不掉任何 showModal 弹窗。现在只放行 Esc（先过关闭守卫 modalGuard，有未保存改动的工作台照旧拦下）
+     与 Tab（原生焦点走查），其余按键一律不进编辑器。弹窗内输入框在上面的 INPUT 分支已提前处理。 */
+  if(document.getElementById('modal-mask')){
+    if(e.key==='Escape'){ e.preventDefault();
+      if(typeof modalGuard==='function' && modalGuard()===false) return;
+      closeModal(); }
+    return;
+  }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
@@ -18148,6 +18182,8 @@ document.getElementById('file-in').addEventListener('change', e=>{
     try{
       let s = JSON.parse(r.result);
       if(!s.measures) throw 0;
+      /* v62.4 A0-5：外来文件与他人发布谱同属不可信来源，先经按字段清洗（对合法谱面零差异，tv_xss 钉住） */
+      s = sanitizeUntrusted(s);
       /* v41.5 文件打开也走 loadSong：单窗口替换 + 未入库编辑确认对话（此前为静默覆盖） */
       loadSong(s, ()=>toast('已打开：'+(s.title||f.name)));
     }catch(_){ toast('文件格式无法识别'); }
@@ -18646,13 +18682,33 @@ function setPrintPage(size){
   s.textContent = `@page{ size:${rule}; margin:${size==='fit'?'8mm':'12mm'}; }`;
   render();   // 重排以适配新纸张宽度
 }
+/* v62.4 A0-2 成品出口统一去编辑痕迹：打印/存 PDF、PNG、分享卡、打印预览此前各清各的——
+   分享卡只清 blurSel/noteSel、打印一项都不清，成品带出朱砂光标列、r=8 弦位圈、小节选中框、
+   歌词选中框、小节拖柄。清单与 buildThumbCanvas 同口径（它另要换谱，不复用）。
+   cleanSnapSave() 清零并返回现场，cleanSnapRestore(k) 复原；withCleanSnap(fn) 是同步出口的便捷包装。 */
+function cleanSnapSave(){
+  const k = {blur:blurSel, note:noteSel, rng:selRange, mSel:measureSel, mRng:measureRange, mHnd:meaHandleOn, lyr:lyrSel, bar:barSel};
+  blurSel = true; noteSel = []; selRange = null; measureSel = null; measureRange = null; meaHandleOn = false; lyrSel = null; barSel = null;
+  return k;
+}
+function cleanSnapRestore(k){
+  if(!k) return;
+  blurSel = k.blur; noteSel = k.note; selRange = k.rng; measureSel = k.mSel; measureRange = k.mRng;
+  meaHandleOn = k.mHnd; lyrSel = k.lyr; barSel = k.bar;
+}
+function withCleanSnap(fn){
+  const k = cleanSnapSave();
+  try{ render(); return fn(); }
+  finally{ cleanSnapRestore(k); try{ render(); }catch(_){} }
+}
 function exportPNG(scale){
   const svg = document.getElementById('score');
-  const vb = svg.viewBox.baseVal;
   /* 解析 CSS 变量为具体色（脱离页面后 var() 不生效）。
      v60.6 起统一走 svgResolveVars：① 强调色跟上 v40.6 的朱砂（此前一直硬编码着改版前的蓝
      #3a5ce0）；② 墨色不再取当前主题的计算值——深色主题下导出的图曾是浅墨压白纸，几乎看不见。 */
-  const xml = svgResolveVars(new XMLSerializer().serializeToString(svg));
+  let vb = null;
+  const xml = withCleanSnap(()=>{ const v = svg.viewBox.baseVal; vb = {width:v.width, height:v.height};
+    return svgResolveVars(new XMLSerializer().serializeToString(svg)); });
   const k = scale||2;
   const img = new Image();
   const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
@@ -20793,10 +20849,9 @@ function shareCardURL(){
   return "https://puyouquan.com";
 }
 function buildShareCardSVG(){
-  const kb=blurSel, ks=noteSel; blurSel=true; noteSel=[]; render();
-  const inner=document.getElementById('score').innerHTML;
-  const vb=document.getElementById('score').viewBox.baseVal;
-  blurSel=kb; noteSel=ks; render();
+  let vb=null;
+  const inner=withCleanSnap(()=>{ const s=document.getElementById('score'), v=s.viewBox.baseVal;
+    vb={width:v.width, height:v.height}; return s.innerHTML; });
   const W=750,H=1000, boxX=25,boxY=96,boxW=700,boxH=790;
   const cropW=vb.width, cropH=cropW*boxH/boxW;
   /* 真二维码：已发布谱→zhipu/?pub=ID（可扫码直达看谱），否则官网。零依赖 qrModules 生成，白底 quiet zone。 */
@@ -21051,12 +21106,10 @@ function gridZoom(cur, dir){
 }
 function pvOpen(){
   /* 快照为纯净成品谱：暂时清除全部编辑装饰（光标/选区/多选/小节选中/段序号高亮） */
-  const save={blurSel, selRange, noteSel, measureSel};
-  blurSel=true; selRange=null; noteSel=[]; measureSel=null;
-  render();
-  PV.content = document.getElementById('score').innerHTML;
-  PV.geo = {...PV_GEO};
-  ({blurSel, selRange, noteSel, measureSel}=save); render();   /* 恢复编辑器视图 */
+  withCleanSnap(()=>{                              /* v62.4：与打印/PNG/分享卡同一张清单（原先漏了小节范围/拖柄/歌词选中） */
+    PV.content = document.getElementById('score').innerHTML;
+    PV.geo = {...PV_GEO};
+  });
   PV.fit = null; PV.zoom = 1;                     /* 预览默认 100%（纸张真实物理尺寸） */
   document.getElementById('preview-ov').classList.add('on');
   pvSyncBar(); pvBuild();
@@ -21119,8 +21172,18 @@ document.getElementById('pv-stage').addEventListener('wheel', e=>{
 window.addEventListener('resize', ()=>{ const ov=document.getElementById('preview-ov'); if(ov.classList.contains('on') && PV.fit) pvBuild(); });
 /* v60.80 手机观看的连续长卷送打印会被打印机在任意高度腰斩——打印前临时切回分页渲染，打完还原 */
 /* v61.1 不换行长带同样不适合直接送打印机——打印前一并切回分页排版 */
-window.addEventListener('beforeprint', ()=>{ if(noWrapOn() || (viewerMode && innerWidth<=820)){ PRINT_PAGING=true; render(); } });
-window.addEventListener('afterprint',  ()=>{ if(PRINT_PAGING){ PRINT_PAGING=false; render(); } });
+/* v62.4 A0-2：打印（含 Ctrl+P、打印预览「打印/导出」、页面菜单打印）一律先去编辑痕迹再出纸，打完复原 */
+let PRINT_SNAP = null;
+window.addEventListener('beforeprint', ()=>{
+  if(noWrapOn() || (viewerMode && innerWidth<=820)) PRINT_PAGING=true;
+  if(!PRINT_SNAP) PRINT_SNAP = cleanSnapSave();
+  render();
+});
+window.addEventListener('afterprint',  ()=>{
+  PRINT_PAGING=false;
+  if(PRINT_SNAP){ cleanSnapRestore(PRINT_SNAP); PRINT_SNAP=null; }
+  render();
+});
 window.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('preview-ov').classList.contains('on')){ pvClose(); } });
 
 /* ================= 排版浮层（智能/手动疏密 + 内容大小 + 页面容量） ================= */
@@ -22666,7 +22729,12 @@ function pcxHeroHTML(){
    opts.hint：自定义副标题文案；opts.pendingFav：微信整页跳转前暂存待收藏 id，回跳后补收藏。 */
 function openLogin(opts){
   opts=opts||{};
-  const _fin=(ok)=>{ if(opts.onDone){ closeModal(); opts.onDone(ok); } else openPersonal('profile'); };
+  /* v62.4 A0-6：任何分支先关登录弹窗。此前无 onDone 时只调 openPersonal——个人中心已打开的情况下
+     enterPersonal 不会 closeModal，登录成功后弹窗挂着不走、「取消」也关不掉，只能点遮罩。
+     取消且不在个人中心时只关窗，不再把人拽进个人中心。 */
+  const _fin=(ok)=>{ closeModal();
+    if(opts.onDone) opts.onDone(ok);
+    else if(ok || document.getElementById('pcenter')) openPersonal('profile'); };
   showModal(`<h3>登录 / 注册</h3>
     <p style="font-size:12.5px;color:var(--muted);margin:2px 0 14px">${esc(opts.hint||'未注册的手机号将自动创建账号。登录后曲谱、收藏、谱架云端同步。')}</p>
     <label class="f"><span>手机号</span><input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号" style="flex:1"></label>
@@ -22824,6 +22892,9 @@ let modalPos=null;
 let modalGuard=null;
 function showModal(html, keepPos){
   closeModal();
+  /* v62.4 A0-3：手机「智能」抽屉（#right-dock z61 / 遮罩 z60）压在弹窗遮罩（z50）之上——从抽屉里点开的
+     一键配伴奏/智能填词/曲谱信息等弹窗主按钮全部点不中。弹窗出现即收起抽屉（任务已从抽屉转交给弹窗）。 */
+  if(document.body.classList.contains('rsheet') && typeof toggleSmartSheet==='function') toggleSmartSheet(false);
   if(!keepPos) modalPos=null;
   modalGuard=null;
   const mask=document.createElement('div');
@@ -22985,7 +23056,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v62.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v62.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23008,6 +23079,7 @@ const APP_VER='v62.3';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v62.4</span><div><b>热修周：打印只出 1 页 · 成品带光标 · 弹窗点不中/按键穿透 · 楔形被清洗误删 · 他人谱深链 · 登录弹窗关不掉</b>（2026-10 十三角色评审团 A0 段，产品指示「A 段 B 段先做」）。<br>① <b>多页谱打印/存 PDF 只出第 1 页</b>：新版外壳把页面钉成一屏高、超出部分隐藏，它的样式优先级压过了打印复位，于是打印机只看得到第一屏。现在打印时用同等优先级把整页放开，多页谱完整打出；观看页打印也不再把顶部那条操作栏印在第 1 页上。（打印分页与屏幕虚拟页逐页对齐放在下一阶段做。）<br>② <b>成品不再带编辑光标</b>：打印、存 PDF、导出 PNG、分享卡、打印预览五个出口统一先熄灭全部编辑装饰——光标列的朱砂底色、弦位红圈、小节选中框、歌词选中框、小节拖柄——出完再原样恢复。此前打印一项都不清，分享卡只清了一半。<br>③ <b>弹窗打开时不再盲改背后的谱面</b>：之前弹窗开着按 Delete、数字键、方向键照样改谱；现在只有 Esc（关窗）和 Tab（在弹窗里移动焦点）有效，<b>Esc 终于能关掉弹窗</b>，有未保存改动的配和弦工作台照旧会拦下。<br>④ <b>手机「智能」抽屉不再压住弹窗</b>：从抽屉里点开的一键配伴奏、智能填词、曲谱信息、更新日志，「生成」「确定」等按钮之前被抽屉盖住点不到；现在弹窗一出现抽屉自动收起。<br>⑤ <b>渐强/渐弱楔形不再被安全清洗删掉</b>：防脚本注入的清洗过去把所有文字里的尖括号一律去掉，而楔形恰好就存成 <code>&lt;</code> / <code>&gt;</code>——<b>所有已发布谱在看谱页、分享出去的互动谱、审核预览里的楔形其实一直是丢的</b>。清洗改为按字段：音级、品位、弦号等数字一律转成数字（连引号逃逸也一并堵上），楔形按白名单保留，曲名歌词等文字只去尖括号。全部预设清洗前后零差异。<br>⑥ <b>他人的谱不能再从「我的曲谱」深链打开</b>：服务端「我的曲谱」接口只给谱主本人；打开别人的谱自动改走谱库看谱页（经安全清洗、只读、不写进你的本机库）。从文件打开谱也先经同样的清洗。<br>⑦ <b>登录弹窗</b>：在个人中心里登录成功、或点「取消」，弹窗都会关掉了；在编辑器里点「取消」只是关窗，不再把你带进个人中心。<br><b>测试</b>：新增 <code>tv_a0</code> <b>22 项</b>（打印 PDF 页数 / 打印时零编辑痕迹 / PNG·分享卡·预览零痕迹 / 弹窗按键不改谱 / 抽屉弹窗可点中 / 清洗零差异与楔形保真 / 注入零事件属性 / 他人谱改走看谱页 / 登录弹窗三态），对改前文件复跑 <b>14 项红</b>实证；api/test.sh 216→<b>219 项</b>（非谱主读「我的曲谱」被拒，对改前服务端复跑 2 项红）。</div></li>
     <li><span class="v">v62.3</span><div><b>课程管理中心独立成页 · 跨课程内容体检 · 列表批量与筛选</b>（产品指示：课程编辑和管理独立页面，并强化功能、系统化功能）。<br>① <b>课程管理独立成页</b>：课程的列表、编辑、发布从平台管理的一个小页签里搬出来，成为独立的<b>课程管理中心</b>（<code>kcadmin.html</code>）——顶部一排概览（课程数 / 章节数 / 闯关题数 / <b>阻塞问题数</b> / 待完善数），下面三个页签：<b>课程</b>、<b>内容体检</b>、<b>发布记录</b>。平台管理里的「课程」页签改成一张入口卡，<b>全站只留一份工作台实现</b>，不会出现两处各改一半。<br>② <b>跨课程内容体检（系统化）</b>：一次扫完所有课程，把问题按严重度摊开——<b>阻塞</b>（服务端会拒绝发布，或会让学员卡死）与<b>建议</b>（能发布但内容不完整）分开标，每条都写清楚是哪门课第几章第几节、什么毛病，点「去修」<b>直接跳进工作台的那一小节</b>。可以一键「只看阻塞项」。查的项目包括：章/小节缺标题、题目不合法、内容块填错、本章还是 1.0 结构而课程已小节化（前台压根不渲染）、小节没有学习内容、题目没写解析、课程缺简介，以及一条真正的死锁——<b>某一小节既没有测试题、又关掉了打卡，学员没有任何办法完成它</b>，而 v62.1 起「做完整章才解锁下一章」，于是这一章连同后面所有章会被<b>永久锁死</b>。<br>③ <b>列表强化</b>：按标题/id 搜索，按状态与乐器筛选，按排序号/最近更新/标题/问题多少排序；勾选后可<b>批量发布、批量下架、批量删除草稿</b>（逐门下发并报告成功与失败）；每门课直接显示<b>体量</b>（几章几节、几个内容块几道题、多大）与<b>体检徽标</b>；可以<b>上移下移</b>调整学习页里的课程顺序，也可以<b>复制</b>一门课再改（副本先只在编辑器里，按保存才真正入库，点错不会多出一门空课）。新建课程时可以选「空白」或直接从某门现有课程复制。<br>④ <b>发布记录</b>：谁在什么时候编辑、发布、下架、删除了哪门课，单独一页可查。<br>⑤ <b>一处数据红线</b>：课程列表接口不返回<b>简介</b>字段，所以调整排序/复制这类「只改一个字段」的操作，一律先读回整门课再写，否则会把简介连带清空。<br><b>测试</b>：<code>tv_site</code> 81→<b>85 项</b>（工作台用例整体迁到新页 + 控制台概览与批量 + 体检四类问题识别与直达 + 平台管理入口卡），对改前树复跑 <b>8 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
     <li><span class="v">v62.2</span><div><b>《认识简谱》升级成「能听、能录、能玩」的示例课 · 少儿科普风改版 · 侧栏可收起</b>（产品指示：以认识简谱为示例全面升级为声音/录音/动画交互，页面简洁互动性强，风格偏少儿科普）。<br>① <b>谱例会响了</b>：课程里的每一行谱例都多了「听一听」——按一下整行按简谱时值唱出来，<b>唱到哪个音，哪个数字就亮一下</b>；单独点某个数字也会单独发声。音高按谱首调号算（1=C 时 1 就是中央 C），增时线加拍、减时线减半、附点一拍半都照实播。全部是网页现场合成的音，<b>不下载任何音频文件</b>，打开即用。<br>② <b>练习可以录音</b>：每一节的练习里新增录音条——点一下开始，屏幕上有跳动的电平和计时，录完当场回放，可以「重录」，也可以<b>用这段直接完成今天的打卡</b>。16 个小节都配了具体的录音任务（比如第 3.2 节：唱一个撑满四拍的长音，回放数数自己有没有偷拍）。<b>录音只留在你自己的浏览器里，不上传、不进服务器</b>，关掉页面就没了。浏览器不支持或麦克风被拒时会给出可读的说明，而不是静默失灵。<br>③ <b>少儿科普风改版</b>：课程页改成<b>一章一色</b>——六个色相循环，像科普读物每个单元有自己的颜色，本章的小节卡、页签、按钮、插画全部跟着换色；主行动钮取<b>它要去的那一章</b>的颜色，一眼就能和章卡对上。章头加了方格本底纹，圆角加大、正文字号与行距放宽、按钮加粗，整体更适合小朋友和零基础成人。<br>④ <b>侧栏可以收起</b>：左侧章节目录一键收起，正文单列铺开；收起后正文左上角留一个「目录」按钮随时叫回来，<b>宽窄状态记在本机</b>，下次进课程还是你上次的样子。课程简介默认收到 4 行，点「展开介绍」再看全文。<br>⑤ <b>工作台跟上</b>：小节的练习模块新增「显示录音练习」开关与录音任务说明，作者可以逐节决定要不要让学员录。<br>⑥ <b>修一个键盘可达性问题</b>：折叠起来的小节，里面的按钮和音符仍然能被 Tab 键选中——16 个小节全折叠时，键盘用户要按几十次 Tab 才走得出去。现在折叠内容整块移出焦点序列。<br><b>测试</b>：<code>tv_site</code> 77→<b>81 项</b>（发声换算与播放态 / 侧栏收起与记忆 / 录音挂载与不上传承诺 / 一章一色），对改前树复跑 <b>4 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
     <li><span class="v">v62.1</span><div><b>课程排版改矢量插画 + 交互动画 · 编辑器化繁为简 · 解锁改成「锁章不锁节」</b>（产品指示三件套）。<br>① <b>锁章不锁节</b>：解锁单位从小节上移到<b>章</b>——一章开了，章里所有小节都能读、能练、能测，想先看后面一节或跳过某节的测试都不再被挡；<b>把一章的小节全部完成，下一章自动解锁</b>。解锁说明也从「每个锁住的小节各写一遍」收成<b>每章一处</b>，并给出「还差几节」与直达按钮。学员已有的星级与打卡进度<b>一条不动</b>。<br>② <b>课程页重排</b>：一节展开不再是「学习 / 练习 / 测试」三大段纵向长流——改成<b>三个页签</b>，默认停在学习，可用 ←/→ 键切换，页签上直接标着有几块内容、几道题、今天打没打卡。章不再只是一行小标题，而是<b>带主题插画的分区卡</b>，配本章完成度进度条。<br>③ <b>全部换成矢量插画</b>：学习/练习/测试/锁/勾/连续天数等表情符号统一换成<b>描线图标</b>，章头配<b>14 张简谱教学插画</b>（音阶阶梯、调号牌 1=C、八度点、拍子网格、增减时线、休止与小节线、连线反复、和弦图、扫弦…），随课程色族与深浅主题自动着色，放大不糊。作者可在工作台<b>为每章挑插画</b>。<br>④ <b>交互动画</b>：章卡滚入视口升起、小节展开高度补间、页签下划线滑动、进度环描边补间、结算星级逐颗弹出、答对描一笔答错轻抖、打卡格子弹起与连续天数火苗脉冲、章解锁时整块弹一下。系统开了「减少动态效果」时全部自动关闭。<br>⑤ <b>编辑器化繁为简</b>：三栏挤成一团 → <b>两栏 + 顶部「编辑 / 预览」二选一</b>（此前主区被挤到放不下一行谱例）；加内容块从「点添加 → 等弹窗 → 选类型 → 关弹窗」四步变成<b>按钮直接写着类型，点一下就加</b>（文字 / 谱例 / 图片，其余进「更多」）；块内预览只保留<b>谱例</b>（其余类型写的就是看到的，多一份渲染只是把表单撑长）；离开页面不再弹「继续编辑 / 放弃 / 保存并离开」三选一，<b>直接静默暂存到本机</b>并提示一行，重新打开这门课可一键恢复。<br>⑥ <b>修 v62.0 遗留</b>：课程独立页顶部的面包屑被固定导航压住（手机上整行看不见）。<br><b>测试</b>：<code>tv_site</code> <b>77 项</b>（锁章不锁节全流程与工作台简化口径重写），对改前树复跑 <b>4 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
@@ -23700,7 +23772,13 @@ async function openRemoteMine(id){
   const e0 = libLoad().find(x=>x.id===id);
   if(e0 && e0.data){ loadSong(JSON.parse(JSON.stringify(e0.data)), ()=>toast('已打开：'+(e0.title||''))); bootVeilDone(); return; }
   try{
-    const r = await apiCall('/scores/'+id);
+    let r;
+    try{ r = await apiCall('/scores/'+id); }
+    catch(e1){
+      /* v62.4 A0-5：服务端只把「我的曲谱」给谱主本人；他人的谱改走谱库观看页（经 XSS 清洗、只读、不写进本机库） */
+      if(e1 && e1.status===403 && typeof openRemotePub==='function'){ bootVeilDone(); openRemotePub(id); return; }
+      throw e1;
+    }
     const d = r && r.score && r.score.data;
     if(!d || !d.measures) throw new Error('曲谱数据为空');
     d.id = id;

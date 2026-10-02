@@ -74,6 +74,10 @@ chk 创作者看到驳回原因 '歌词第2段缺字' "$(J http://127.0.0.1:3199
 chk 重新提交回到待审 '"status":"pending"' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
 chk 重提清空旧驳回原因 '"review_note":""' "$(J2 http://127.0.0.1:3199/api/admin/scores/song_abc12345)"
 chk 审核通过即上架 '"status":"published"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}')"
+# v62.4 A0-5：「我的曲谱」接口只给谱主本人——已发布的他人谱也不放行（他人谱走 /api/pub/scores/:id，观看端经清洗）
+chk 非谱主读已发布谱的我的曲谱接口被拒 '这不是你的曲谱' "$(J2 http://127.0.0.1:3199/api/scores/song_abc12345)"
+nchk 非谱主拿不到谱面数据 '"v":3' "$(J2 http://127.0.0.1:3199/api/scores/song_abc12345)"
+chk 谱主本人仍可读 '"v":3' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 管理员看用户列表 '"nickname":"小谱"' "$(J2 http://127.0.0.1:3199/api/admin/users)"
 chk 用户搜索按手机号 '"role":"creator"' "$(J2 'http://127.0.0.1:3199/api/admin/users?q=13800001234')"
 chk 用户列表手机号打码 '138\*\*\*\*1234' "$(J2 http://127.0.0.1:3199/api/admin/users)"
