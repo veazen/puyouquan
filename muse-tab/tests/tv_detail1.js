@@ -924,7 +924,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const t27 = await pg2.evaluate(() => {
     const sp = document.getElementById('start-pad');
     const vis = sp && !sp.classList.contains('hidden');
-    const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].map(c => c.dataset.sp).join(',');
+    const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.sp).join(',');   // v63.1 手机专用卡（看示例/发到电脑继续）桌面不显示
     const flyClosed = document.getElementById('left-flyout').classList.contains('hidden');
     const paperHidden = getComputedStyle(document.getElementById('paper')).visibility === 'hidden';
     // v46.6 默认页 → v56.6：启动台右栏停「创作」页（预提示卡已移除，欢迎语随之取消）

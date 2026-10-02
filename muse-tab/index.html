@@ -663,6 +663,15 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
 #spd-cont:hover{color:var(--accent-ink)}
 #spd-cont:empty{display:none}
 @media(max-width:720px){ #spd-cards{grid-template-columns:repeat(2,132px)} }
+/* v63.0 A3-④ 手机启动台＝只读引导（D-07 ②）：手机上录不了音高，「新建/导入」换成「看示例 / 发到电脑继续」 */
+.spd-card.spd-mob{display:none}
+#spd-mnote{display:none;max-width:300px;font-size:12.5px;line-height:1.6;color:var(--muted);text-align:center}
+@media(max-width:820px){ .spd-card.spd-desk{display:none} .spd-card.spd-mob{display:flex} #spd-mnote{display:block} }
+/* v63.0 A3-① 启动台态编辑区 inert（点不中、不进 Tab 序），视觉上同步淡出 */
+body.startpad #editbar, body.startpad #editbar2, body.startpad #left-dock, body.startpad #right-dock,
+body.startpad #key-step, body.startpad #seg-undo, body.startpad #b-layout{opacity:.45}
+/* v63.0 A3-⑤ 浮层菜单不超过视口宽（位置另由 clampPopIntoView 夹回） */
+.popmenu{max-width:calc(100vw - 16px)}
 #paper{background:transparent;border:none;box-shadow:none;padding:0;
   width:100%;max-width:820px;margin:0 auto;overflow:auto;
   filter:none;}   /* ≈A4 纵向宽度(96dpi) */
@@ -2470,11 +2479,14 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div id="start-pad" class="hidden">
       <div class="spd-brand cc-logo"><span class="mark"></span>谱友圈 · 在线制谱</div>
       <div id="spd-cards">
-        <button class="spd-card" data-sp="new"><span class="ic" data-svgi="pencil"></span><b>新建</b><span>声乐 · 器乐 · 功能和声</span></button>
+        <button class="spd-card spd-desk" data-sp="new"><span class="ic" data-svgi="pencil"></span><b>新建</b><span>声乐 · 器乐 · 功能和声</span></button>
+        <button class="spd-card spd-mob" data-sp="demo"><span class="ic" data-svgi="eye"></span><b>看示例</b><span>预设曲谱 · 可播放</span></button>
+        <button class="spd-card spd-mob" data-sp="pc"><span class="ic" data-svgi="share"></span><b>发到电脑继续</b><span>复制制谱链接</span></button>
         <button class="spd-card" data-sp="open"><span class="ic" data-svgi="doc"></span><b>打开</b><span>打开曲谱文件</span></button>
-        <button class="spd-card" data-sp="imp"><span class="ic" data-svgi="loop"></span><b>导入</b><span>MusicXML / MIDI</span></button>
+        <button class="spd-card spd-desk" data-sp="imp"><span class="ic" data-svgi="loop"></span><b>导入</b><span>MusicXML / MIDI</span></button>
         <button class="spd-card" data-sp="mine"><span class="ic" data-svgi="score"></span><b>我的</b><span>预设与我的曲谱</span></button>
       </div>
+      <div id="spd-mnote">手机上可以看谱、播放、移调；写谱请在电脑浏览器打开 zhipu.puyouquan.com 继续。</div>
       <div id="spd-cont" data-sp="cont"></div>
     </div>
   <div id="paper"><svg id="score"></svg></div></div>
@@ -4486,6 +4498,7 @@ const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11, 64:9};   /* v52.4 最小时
 const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; const MARGIN = 56;
+let LAST_PAPER_W = 0;   // v63.0 A3-② 上次排版所用的 #paper 宽（ResizeObserver 据此判断是否需要重排）
 let PV_GEO = {W:1060, pgH:1499, gap:26, n:1};   /* 最近一次 render 的分页几何，供打印预览使用 */
 let SYS_GEO = [];   /* v62.6 A2 最近一次 render 的每个系统纵向范围 [{y0,y1}]（谱面坐标）：分享卡按系统边界裁切、打印「系统不跨页」断言 */
 /* ===== 排版（engraving）参数：随曲谱保存，决定"内容大小 / 疏密 / 页面容量" =====
@@ -7447,6 +7460,7 @@ function render(){
      版宽会按膨胀值错算一帧（实测 870→1320） */
   try{ document.body.classList.toggle('nwrap', noWrapOn()); }catch(_){}
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
+  LAST_PAPER_W = paperW;
   const baseA4 = Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽
   /* 引擎版宽随"内容大小"反向缩放：内容越大 → 有效版宽越小 → 每页容纳越少；
      纸张外框(=PAGE_W×scale)在屏幕上保持固定尺寸（显示缩放已乘 scale 补偿）。*/
@@ -10378,7 +10392,9 @@ function syncInputs(){
 }
 
 /* ================= 编辑核心 ================= */
+let lyrUndoKey=null;   // v63.0 A3-③ 当前歌词撤销步对应的音（mi:vi:ci:段）；任何别的入栈/撤销/重做都会结束这一步
 function pushUndo(){
+  lyrUndoKey=null;
   undoStack.push(JSON.stringify(song));
   if(undoStack.length>200) undoStack.shift();
   redoStack=[];
@@ -10397,6 +10413,7 @@ function mutate(fn){
 }
 function undo(){
   if(!undoStack.length) return toast('没有可撤销的操作');
+  lyrUndoKey=null;
   redoStack.push(JSON.stringify(song));
   song = JSON.parse(undoStack.pop());
   if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
@@ -10404,6 +10421,7 @@ function undo(){
 }
 function redo(){
   if(!redoStack.length) return toast('没有可重做的操作');
+  lyrUndoKey=null;
   undoStack.push(JSON.stringify(song));
   song = JSON.parse(redoStack.pop());
   if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
@@ -12012,19 +12030,30 @@ function openFlyout(t){
 function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
 /* ===== v46.5 启动台（打开制谱页默认空白 + 左栏收起 + 居中四入口）===== */
 function startPadOn(){ const sp=document.getElementById('start-pad'); return !!(sp && !sp.classList.contains('hidden')); }
+/* v63.0 A3-①（P1-02）启动台态编辑区 inert：此前启动台盖住谱面，但工具栏按钮与全局快捷键仍然有效，
+   会在看不见的情况下改动「上次编辑」的曲谱并落盘。顶栏的新建/打开/预设/会员等不在其列 */
+const STARTPAD_INERT=['editbar','editbar2','left-dock','right-dock','key-step','seg-undo','b-layout'];
+function setStartPadInert(on){
+  document.body.classList.toggle('startpad', !!on);
+  STARTPAD_INERT.forEach(id=>{ const e=document.getElementById(id); if(e) e.inert=!!on; });
+}
 function hideStartPad(reopen){
   const sp=document.getElementById('start-pad'); if(!sp || sp.classList.contains('hidden')) return;
-  sp.classList.add('hidden');
+  sp.classList.add('hidden'); setStartPadInert(false);
   /* v51.0 手机不自动展开左栏面板：窄屏浮层会盖住谱面（产品反馈），用户点左栏页签再开 */
   if(reopen!==false && window.innerWidth>820){ const fly=document.getElementById('left-flyout');
     if(fly && fly.classList.contains('hidden')) openFlyout(activeTab); }
+  /* v63.0 A3-②（P1-04）面板展开后 #paper 变窄——此前沿用启动台下的版宽，首帧谱面右侧被裁 111–242px。
+     宽度已变就当场重排（不等 ResizeObserver 的下一帧，避免闪一帧裁切） */
+  try{ const pw=(document.getElementById('paper')||{}).clientWidth||0;
+    if(pw && LAST_PAPER_W && Math.abs(pw-LAST_PAPER_W)>=2 && !noWrapOn()){ render(); alignHeader(); } }catch(_){}
   try{ renderHints(); syncInputs(); }catch(_){}   // v46.6 离开启动台恢复正常提示/光标信息
 }
 function initStartPad(){
   const sp=document.getElementById('start-pad'); if(!sp) return;
   if(document.body.classList.contains('viewer') || document.body.classList.contains('stand')) return;
   if(/[?&](pub|wxlogin|mine)=/.test(location.search)) return;   // 深链直达不出启动台（v50.7 +mine 云端曲谱直达）
-  sp.classList.remove('hidden');
+  sp.classList.remove('hidden'); setStartPadInert(true);
   closeFlyout();   // 左边栏默认收起
   /* v46.6→v48.3 未选状态右栏默认页停信息页；v56.6 创作页置首为默认（光标+节拍检查随编辑流） */
   try{ setRTab('make'); }catch(_){}
@@ -12040,6 +12069,8 @@ function initStartPad(){
        「继续上次编辑」是显示旧稿的唯一入口 */
     if(k==='cont'){ hideStartPad(); return; }
     if(k==='new') document.getElementById('b-new').click();
+    else if(k==='demo') document.getElementById('b-library').click();   // v63.0 A3-④ 手机：看示例
+    else if(k==='pc') copyLinkForPc('https://zhipu.puyouquan.com/', '制谱链接');   // v63.0 A3-④ 手机：发到电脑继续
     else if(k==='open') document.getElementById('b-open').click();
     else if(k==='mine') document.getElementById('b-library').click();
     else if(k==='imp'){
@@ -12218,6 +12249,12 @@ window.addEventListener('keydown', e=>{
     if(e.key==='Escape'){ e.preventDefault();
       if(typeof modalGuard==='function' && modalGuard()===false) return;
       closeModal(); }
+    return;
+  }
+  /* v63.0 A3-①（P1-02）启动台：谱面不可见时任何编辑快捷键都不生效（此前数字/删除/Ctrl+Z/Ctrl+V 会盲改上次的谱）。
+     只放行 Ctrl+O 打开文件（Ctrl+N 被浏览器保留为新窗口，网页拦不住，不做） */
+  if(startPadOn()){
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='o'){ e.preventDefault(); document.getElementById('b-open').click(); }
     return;
   }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
@@ -14884,6 +14921,10 @@ if(_bAutofix) _bAutofix.onclick = ()=>{
 document.getElementById('i-lyric').addEventListener('input', e=>{
   if(sel.row!=='vox') return;
   const col=curCol(); if(!col) return;
+  /* v63.0 A3-③（P1-09）歌词进撤销栈：每换一个音入栈一次，同一个音里连续输入合并为一步。
+     此前只 persist+render——一次 Ctrl+Z 会抹掉自上次改音以来的整批歌词并连带撤掉那次改音，再编辑一次重做栈即清空 */
+  const lk=sel.mi+':'+sel.vi+':'+sel.ci+':'+activeLyr;
+  if(lyrUndoKey!==lk){ pushUndo(); lyrUndoKey=lk; }
   const v = e.target.value;
   /* 输入了词但当前段不存在（如功能谱默认 0 段）→ 自动补足歌词段，否则内容存进去却不显示 */
   if(v.trim() && activeLyr>=song.lyricLines) song.lyricLines = activeLyr+1;
@@ -18108,8 +18149,9 @@ function addDoc(s, after){
   song = s;
   sel = {mi:0, row:s.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   resetDocState();
-  clampSel(); persist(); render();
-  hideStartPad();   // v46.9 向导新建/导入路径不走 loadSong，此处补关启动台
+  clampSel(); persist();
+  hideStartPad();   // v46.9 向导新建/导入路径不走 loadSong，此处补关启动台；v63.0 A3 先关台（面板展开、#paper 定宽）再排版
+  render();
   if(after) after();
 }
 function persist(){
@@ -23268,7 +23310,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.1';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23291,6 +23333,7 @@ const APP_VER='v63.0';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.1</span><div><b>不会在看不见的地方改谱 · 面板开合后谱面不再被裁 · 歌词一个字一个字能撤销</b>（2026-10 评审团 A3 编辑会话安全；手机编辑按拍板先做「只读 + 发到电脑继续」）。<br>① <b>启动台上不会再误改上次的谱</b>：之前启动台盖住了谱面，但工具栏按钮和快捷键仍然有效——按个数字、Delete 或 Ctrl+Z，看不见的「上次编辑」就被改了并自动保存。现在启动台上编辑区点不中（淡出显示），编辑快捷键一律不生效，只保留 Ctrl+O 打开文件。<br>② <b>谱面右侧不再被裁</b>：新建谱、点「继续上次编辑」或开合左栏面板后，谱面沿用旧宽度，右边被裁掉 100–240 像素且滚动不过去。现在编辑区宽度一变就重新排版。<br>③ <b>歌词可以逐个音撤销</b>：之前逐字填歌词不进撤销记录，按一次 Ctrl+Z 会抹掉一整批歌词还连带撤掉前一次改音，再编辑一次就再也找不回。现在每换一个音记一步，同一个音里连续输入算一步，Ctrl+Z 只退最后一个音的词，Ctrl+Y 可以重做。<br>④ <b>手机启动台改为只读引导</b>：手机上还录不了音高，原来点「新建」会进入写不了谱的死胡同。现在手机上显示「看示例」「发到电脑继续」（复制制谱链接）「打开」「我的」，并说明写谱请到电脑上继续。<br>⑤ <b>小节线菜单不出屏</b>：菜单原来按估算宽度定位，实际更宽，手机上右侧出屏还会撑出横向滚动。现在所有浮层菜单出现时都会夹回屏幕内。<br>新套件 <code>tv_a3</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.0</span><div><b>不再生成或导入拍子、音高错的谱</b>（2026-10 评审团 A8 出错谱止血）。<br>① <b>伴奏织体按拍号严格匹配</b>：之前只看每小节几拍，不看以什么音符为一拍——6/4 拍的谱会被套上 6/8 的织体，3/8 套上 3/4，2/2 套上 2/4，生成出来时值整体错位。现在拍数和单位都要对上；没有合适的织体会直接提示「当前拍号 X/Y 暂无内置织体」，不再弹出一个生成错谱的窗口。变拍子的谱，拍号不符的小节会跳过并告诉你跳过了几个。<br>② <b>导入带转调的 MusicXML，音高不再错</b>：之前整份文件都按开头的调来换算简谱，C 大调转到 G 大调之后的音，简谱唱名全错、播放也整体偏高。现在每个小节按它当时的调换算，多声部同样生效；导入后播放的每个音都与原文件一致。<br>③ <b>新建 3/8、6/8、2/2 的谱一打开就是对的</b>：之前空小节一律用四分音符填，6/8 每小节变成 12 拍、2/2 只有 1 拍，满屏红色拍数提示。现在空小节、插入小节、加声部、粘贴补空都按拍号的单位生成。<br>④ <b>单音推弦的目标圈写对品位</b>：之前圈里照抄起始品位（7 品推弦圈里也写 7），读谱的人会推错。现在写起始品位加推弦幅度：全音推弦 7 → 9，半音 8 → 9；回落仍写落回的原品位。<br>新套件 <code>tv_a8</code>（6 项，旧文件 5 项报红）。</div></li>
     <li><span class="v">v62.9</span><div><b>不卖还没有的东西 · 登录先同意协议 · 小程序里不出现价格 · 可以举报</b>（2026-10 评审团 A4；产品拍板「考编包停售改预约」）。<br>① <b>考编内容包停售，改为免费预约</b>：内容还在筹备，之前却能付款、能兑换，兑换后什么都拿不到。现在支付入口下线（服务器也不再接新单），权益页改成「免费预约」，上线后站内消息通知；卡片不再写「30 套」「常考」这类还兑现不了的承诺。已经付过款或兑换过的照常有效。<br>② <b>会员文案只写现在就有的</b>：云端扩容到 2000 首、专属标识、优先答疑；「后续功能上线即享」「解锁专业功能」这类说法撤掉；开通了微信支付时不再同时显示「在线支付即将上线」。个人中心的会员入口直达权益页。<br>③ <b>登录前须主动勾选同意《用户协议》《隐私政策》</b>（默认不勾）：编辑器、官网弹窗、个人中心三个登录入口同一规则，不勾选时获取验证码、登录、微信登录都只提示不放行。<br>④ <b>小程序里打开时</b>：不出现任何价格、会员购买、赞助价目；不出现扫码登录（改为「回小程序用手机号快捷登录」）；点到制谱器等小程序打不开的链接，改为<b>复制链接、提示去电脑浏览器打开</b>；页脚邮箱和备案号变成纯文字。<br>⑤ <b>举报这首谱</b>：看谱页 ⚙ 设置里新增「举报这首谱」（侵权 / 谱面错误 / 广告 / 违规 / 其他），未登录也能举报；管理后台新增「举报」页签，可预览、下架（站内信通知谱主）或标记已处理。<br>⑥ <b>隐私政策同步</b>：如实写明访问统计用的匿名设备标识、登录后与账号关联、举报信息的处理方式（更新日期 2026 年 10 月）。<br>⑦ 新账号默认昵称不再带手机号后四位（公开署名会泄露号码片段），改为随机编号；线上发布菜单里不再出现无效的「定价 / 试读」输入框。<br><b>测试</b>：新增 <code>tv_a4</code> <b>17 项</b>，对改前文件与官网复跑 <b>16 项红</b>；<code>tv_acct</code> 增「协议默认不勾、不勾不发验证码」；api/test.sh 275→<b>292 项</b>（考编包拒新单 / 预约 / 举报去重与处理 / 管理员核查已售 / 随机昵称）。</div></li>
     <li><span class="v">v62.8</span><div><b>数据不再只靠一块硬盘 · 谱库过 200 首也搜得到、收得全</b>（2026-10 评审团 A6）。<br>① <b>异地备份</b>：数据库每天的快照除了存在服务器本盘，现在可以再自动传一份到云对象存储（腾讯云 COS、阿里云 OSS 等，按兼容接口实现），异地保留最近 30 份、本盘保留 7 份——服务器硬盘坏了也丢不了账号和曲谱。另配一个<b>恢复演练</b>脚本：从云上取回最新一份、自动做完整性校验并报出用户数和曲谱数，不碰线上数据。（需要管理员在服务器配置里填好对象存储的桶和密钥后生效；不填就和以前一样只存本盘。）<br>② <b>谱库过 200 首的连锁问题</b>：此前谱库各处都只取最新的 200 首——第 201 首起<b>搜不到</b>、<b>不进搜索引擎的站点地图和目录</b>，你收藏或点赞过的老谱还会从个人中心<b>消失</b>。现在：站点地图和曲谱目录收录全部已上架的谱；首页搜索在谱库超过首批时自动去全库查找；个人中心的收藏、点赞直接按你的记录列出，不再受数量限制；谱页底部的「相关曲谱」也改成按需查询，不再每打开一次就把最新 200 首整份读一遍。<br><b>测试</b>：新增 <code>api/s3.test.js</code> <b>7 项</b>（签名与官方示例逐字一致 / 上传 / 异地超量清理 / 恢复演练 / 未配置时不变）；api/test.sh 264→<b>275 项</b>（241 首规模：站点地图与目录全量、第 201 首起可搜、搜索通配符按字面、老收藏带卡片、相关推荐同歌手优先），对改前服务端复跑 <b>7 项红</b>；<code>tv_pubsnap</code> 9→<b>11 项</b>，对改前官网复跑 2 项红。</div></li>
@@ -23978,8 +24021,35 @@ function alignHeader(){
     const ro = new ResizeObserver(()=>alignHeader());
     ro.observe(document.getElementById('left-dock'));
     ro.observe(document.getElementById('stage'));
+    /* v63.0 A3-②（P1-04）#paper 宽一变就重排：开合左栏面板、右栏、新建/继续编辑后的首帧此前都沿用旧版宽，
+       谱面右侧被裁且无法滚动查看。rAF 去抖；只认「与上次排版所用宽度不同」，render 改高度不会再触发；
+       不换行长带（#paper 宽＝内容宽）、打印期间、启动台态不参与；1 秒内最多 3 次，防滚动条出没造成的来回振荡 */
+    const paperEl=document.getElementById('paper'); let rafP=0, nP=0, tP=0;
+    if(paperEl) new ResizeObserver(()=>{ if(rafP) return; rafP=requestAnimationFrame(()=>{ rafP=0;
+      const w=paperEl.clientWidth;
+      if(!w || Math.abs(w-LAST_PAPER_W)<2) return;
+      if(noWrapOn() || PRINT_PAGING || document.body.classList.contains('printing') || startPadOn()) return;   // 启动台：谱面不可见，离台时 hideStartPad 自会同步重排
+      const now=Date.now(); if(now-tP>1000){ tP=now; nP=0; } if(++nP>3) return;
+      try{ render(); alignHeader(); }catch(_){}
+    }); }).observe(paperEl);
   }
+  /* v63.0 A3-⑤（P3-31）浮层菜单出现或尺寸变化时夹回视口：各菜单按 innerWidth-250/280/320 估宽定位，
+     小节线菜单实宽约 370px——手机上右侧出屏并撑出横向滚动，桌面贴右缘时同样出屏 */
+  { const roPop = window.ResizeObserver? new ResizeObserver(es=>es.forEach(en=>clampPopIntoView(en.target))) : null;
+    new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{
+      if(n.nodeType===1 && n.classList && n.classList.contains('popmenu')){ clampPopIntoView(n); if(roPop) roPop.observe(n); }
+    }))).observe(document.body, {childList:true}); }
 })();
+function clampPopIntoView(div){
+  if(!div || !div.isConnected) return;
+  const vw=document.documentElement.clientWidth, r=div.getBoundingClientRect();
+  if(!r.width) return;
+  let dx=0;
+  if(r.right > vw-8) dx=(vw-8)-r.right;
+  if(r.left+dx < 8) dx=8-r.left;
+  if(Math.abs(dx)<0.5) return;
+  div.style.left=((parseFloat(getComputedStyle(div).left)||0)+dx)+'px';
+}
 /* v58.4 启动遮罩揭幕（幂等）：普通启动在主初始化尾调用；?pub=/?mine=/?review= 深链推迟到谱面就绪/失败时调 */
 function bootVeilDone(){
   const bv=document.getElementById('boot-veil');
