@@ -448,14 +448,15 @@
       fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:[]}; }).catch(function(){ return {scores:[]}; }),
       api('/likes').catch(function(){ return {likes:[]}; })
     ]).then(function(rs){
+      /* v62.7 A6（P1-34）：优先用收藏/点赞接口自带的完整卡片（不受谱库首页 200 首上限影响，老收藏不再消失）；老接口无 cards 时回落联查 */
       var favIds={}; (rs[0].favorites||[]).forEach(function(f){ favIds[f.score_id||f.id||f]=1; });
-      var cards=(rs[1].scores||[]).filter(function(s){ return favIds[s.id]; });
+      var cards=rs[0].cards? rs[0].cards : (rs[1].scores||[]).filter(function(s){ return favIds[s.id]; });
       var el=document.getElementById('fav-grid');
       el.dataset.ready='1'; el.innerHTML=cards.length? cards.map(PYQ_LIB.card).join('')
         : '<div class="lib-empty" style="padding:24px 0"><b>收藏夹还是空的</b>点 ♥ 收藏喜欢的谱，跨设备随时打开。<br><a class="btn ghost" href="index.html" style="margin-top:14px">去谱库逛逛 →</a></div>';
       var c=document.getElementById('fav-count'); if(c) c.textContent=cards.length? (cards.length+' 首'):'';
       var likeIds={}; ((rs[2]||{}).likes||[]).forEach(function(l){ likeIds[l.score_id||l.id||l]=1; });
-      var lcards=(rs[1].scores||[]).filter(function(s){ return likeIds[s.id]; });
+      var lcards=(rs[2]||{}).cards? rs[2].cards : (rs[1].scores||[]).filter(function(s){ return likeIds[s.id]; });
       var le=document.getElementById('like-grid');
       le.dataset.ready='1'; le.innerHTML=lcards.length? lcards.map(PYQ_LIB.card).join('')
         : '<div class="lib-empty" style="padding:24px 0"><b>还没点赞过</b>看谱时点 ♥ 为创作者加油，记录都在这里。</div>';

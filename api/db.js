@@ -141,6 +141,7 @@ for (const col of ['pub_data TEXT', 'pub_title TEXT', 'pub_singer TEXT', 'pub_au
   'pub_thumb_at INTEGER', 'pub_at INTEGER', "rev_status TEXT NOT NULL DEFAULT ''", "rev_note TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec('ALTER TABLE scores ADD COLUMN ' + col); } catch { /* 列已存在 */ }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_scores_pub ON scores(status, pub_at DESC)');   /* v62.7 A6 公开索引/排序 */
 /* 老库回填：快照上线前已发布的谱以当前内容为快照（无从得知过审时的原版），幂等——只补 pub_data 为空的行 */
 db.exec(`UPDATE scores SET pub_data = data, pub_title = title, pub_singer = singer,
   pub_author = (SELECT nickname FROM users WHERE users.id = scores.user_id),
@@ -232,6 +233,32 @@ const q = {
                             (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
                             FROM scores s JOIN users u ON u.id = s.user_id
                             WHERE s.id = ? AND s.status = 'published' AND s.pub_data IS NOT NULL`),
+  /* v62.7 A6（P1-34）谱库 200 首上限止血：目录/sitemap 走不带 LIMIT、不取 data 的轻量索引；相关推荐/搜索/收藏卡片各走带条件的小查询，
+     不再每次把最新 200 份谱面整份解析一遍（第 201 首起搜不到、不进 sitemap、老收藏从个人中心消失） */
+  pubIndex:     db.prepare(`SELECT id, pub_title AS title, pub_singer AS singer, pub_at AS updated_at FROM scores
+                            WHERE status = 'published' AND pub_data IS NOT NULL ORDER BY pub_at DESC, rowid DESC`),
+  pubRelated:   db.prepare(`SELECT id, pub_title AS title, pub_singer AS singer FROM scores
+                            WHERE status = 'published' AND pub_data IS NOT NULL AND id <> ?1
+                            ORDER BY (?2 <> '' AND pub_singer = ?2) DESC, pub_at DESC, rowid DESC LIMIT 8`),
+  pubSearch:    db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
+                            FROM scores s WHERE s.status = 'published' AND s.pub_data IS NOT NULL
+                              AND (s.pub_title LIKE ?1 ESCAPE '\\' OR s.pub_singer LIKE ?1 ESCAPE '\\' OR s.pub_author LIKE ?1 ESCAPE '\\')
+                            ORDER BY s.pub_at DESC, s.rowid DESC LIMIT ?2 OFFSET ?3`),
+  pubSearchCount: db.prepare(`SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL
+                              AND (pub_title LIKE ?1 ESCAPE '\\' OR pub_singer LIKE ?1 ESCAPE '\\' OR pub_author LIKE ?1 ESCAPE '\\')`),
+  pubTotal:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL"),
+  favCards:     db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f2 WHERE f2.score_id=s.id) AS favs
+                            FROM favorites f JOIN scores s ON s.id = f.score_id
+                            WHERE f.user_id = ? AND s.status = 'published' AND s.pub_data IS NOT NULL ORDER BY f.created_at DESC LIMIT 500`),
+  likeCards:    db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
+                            (SELECT COUNT(*) FROM likes l2 WHERE l2.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
+                            FROM likes l JOIN scores s ON s.id = l.score_id
+                            WHERE l.user_id = ? AND s.status = 'published' AND s.pub_data IS NOT NULL ORDER BY l.created_at DESC LIMIT 500`),
   viewInc:      db.prepare("UPDATE scores SET views = views + 1 WHERE id = ? AND status = 'published'"),
   pubCount:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published'"),
   scoreUnref:   db.prepare(`DELETE FROM favorites WHERE score_id = ?;`),

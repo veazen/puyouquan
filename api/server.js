@@ -266,6 +266,16 @@ const SITE_LINK = /^(\/|https:\/\/([a-z0-9-]+\.)*puyouquan\.com\/)/i;
 
 /* ---------- v60.1 小程序换票（内存态，进程重启即清空——120s 有效期内的登录重来一次即可）----------
    一次性：consume 后立刻删除，重放拿不到第二次 Cookie。签发时顺带清过期票，上限兜住异常刷量。 */
+/* v62.7 A6 相关推荐缓存：每首谱一份，10 分钟过期；上限兜内存 */
+const relCache = new Map();
+function pubRelatedCached(id, singer) {
+  const k = id + '|' + singer, hit = relCache.get(k), t = Date.now();
+  if (hit && hit.exp > t) return hit.rows;
+  if (relCache.size > 5000) relCache.clear();
+  const rows = q.pubRelated.all(id, singer);
+  relCache.set(k, { rows, exp: t + 600000 });
+  return rows;
+}
 const MINI_TICKET_TTL = 30;   // v62.6 A1c 120→30s：票据只用于「换到即进 web-view」这一跳，窗口越短越难被截获重放
 /* v62.6 A1c 占位号合并确认票：手机号登录时发现微信身份挂在一个**有数据**的占位号上，不静默合并（v60.5 原则），
    发一张 10 分钟的确认票给小程序，用户在确认页点「合并」才执行 */
@@ -1224,7 +1234,16 @@ const routes = [
   }],
 
   /* -- 公开谱库（谱库 puku，无需登录）-- */
-  ['GET', /^\/api\/pub\/scores$/, false, () => ({ scores: q.pubList.all().map(pubShape) })],
+  /* v62.7 A6（P1-34）：不带参数＝首页最新 200 首（附 total 供前端判断是否被截断）；
+     ?q= 关键词（标题/演唱/署名）在**全库**里分页搜索——第 201 首起也搜得到 */
+  ['GET', /^\/api\/pub\/scores$/, false, (m, b, u, req) => {
+    const sp = new URL(req.url, 'http://x').searchParams;
+    const kw = String(sp.get('q') || '').trim().slice(0, 40);
+    if (!kw) return { scores: q.pubList.all().map(pubShape), total: q.pubTotal.get().n };
+    const size = Math.min(60, Math.max(1, +sp.get('size') || 40)), page = Math.max(0, Math.min(200, +sp.get('page') || 0));
+    const like = '%' + kw.replace(/[\\%_]/g, c => '\\' + c) + '%';
+    return { q: kw, page, size, total: q.pubSearchCount.get(like).n, scores: q.pubSearch.all(like, size, page * size).map(pubShape) };
+  }],
   ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {
     /* v60.97 浏览数：公开详情每次拉取 +1（先加后读，返回值即含本次）；
        stats 随谱带回（views/likes/favs），观看页头部直接显示 */
@@ -1261,7 +1280,7 @@ const routes = [
      爬虫抓 raw HTML 只见骨架、拿不到任何 /pub/ 链接，收录只能靠跨主机 sitemap 声明（百度基本不认）——
      本页由 www 首页静态内链引入，形成「首页 → 目录 → 每首谱」的可爬路径。 */
   ['GET', /^\/pub\/?$/, false, () => {
-    const rows = q.pubList.all();
+    const rows = q.pubIndex.all();   // v62.7 A6：全量、不取 data
     const lis = rows.map(r =>
       `  <li><a href="/pub/${escHtml(r.id)}">${escHtml((r.title || '未命名曲谱') + (r.singer ? ' - ' + r.singer : ''))}</a></li>`).join('\n');
     const html = `<!doctype html><html lang="zh-CN"><head>
@@ -1293,9 +1312,8 @@ ${lis}
     const s = q.pubGet.get(m[1]);
     if (!s) return { ___raw: '<!doctype html><meta charset="utf-8"><title>曲谱不存在 - 谱友圈</title><body style="font:16px sans-serif;text-align:center;padding:60px">该曲谱不存在或已下架。<a href="//puku.puyouquan.com/">返回谱库</a>', ___ctype: 'text/html; charset=utf-8', ___cache: 'no-store', ___status: 404 };
     /* v61.7 相关曲谱内链（同歌手优先，再补最新）：谱页彼此互链成网，收录不再只靠目录单点 */
-    const others = q.pubList.all().filter(r => r.id !== s.id);
-    const same = s.singer ? others.filter(r => r.singer === s.singer) : [];
-    const related = same.concat(others.filter(r => !same.includes(r))).slice(0, 8);
+    /* v62.7 A6：相关推荐改带条件的小查询（同歌手优先，再补最新），按谱 10 分钟缓存——此前每次打开都整份解析最新 200 份谱面 */
+    const related = pubRelatedCached(s.id, s.singer || '');
     return { ___raw: pubSsrHtml(s, related), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
   }],
   ['GET', /^\/pub\/([A-Za-z0-9_-]+)\/cover\.svg$/, false, (m) => {
@@ -1317,7 +1335,7 @@ ${lis}
   }],
   // 已发布谱动态 sitemap：每首谱一条 /pub/:id，供搜索引擎抓取（robots.txt 引用本地址）
   ['GET', /^\/pub\/sitemap\.xml$/, false, () => {
-    const rows = q.pubList.all();
+    const rows = q.pubIndex.all();   // v62.7 A6：全量收录（此前只收最新 200 首）
     /* v60.82 SEO：带 <lastmod>（updated_at 是 epoch 秒）——搜索引擎按它安排重抓，
        重新发布过的谱能更快刷新快照，没动过的不浪费抓取配额 */
     /* v61.7 目录页也进 sitemap（daily：每次上新它都变） */
@@ -1331,7 +1349,8 @@ ${lis}
   }],
 
   /* -- 收藏 -- */
-  ['GET', /^\/api\/favorites$/, true, (m, b, u) => ({ favorites: q.favList.all(u.id) })],
+  /* v62.7 A6：顺带返回已发布收藏的完整卡片（cards，与谱库卡片同构）——个人中心不必再拿最新 200 首联查，老收藏不再消失 */
+  ['GET', /^\/api\/favorites$/, true, (m, b, u) => ({ favorites: q.favList.all(u.id), cards: q.favCards.all(u.id).map(pubShape) })],
   ['PUT', /^\/api\/favorites\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id && s.status !== 'published') throw new ApiError(403, '仅可收藏已发布的谱面');
@@ -1340,7 +1359,7 @@ ${lis}
   ['DELETE', /^\/api\/favorites\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => { q.favDel.run(u.id, m[1]); return { ok: true }; }],
 
   /* -- v60.97 点赞（结构同收藏；计数在公开详情 stats 里带回）-- */
-  ['GET', /^\/api\/likes$/, true, (m, b, u) => ({ likes: q.likeList.all(u.id) })],
+  ['GET', /^\/api\/likes$/, true, (m, b, u) => ({ likes: q.likeList.all(u.id), cards: q.likeCards.all(u.id).map(pubShape) })],
   ['PUT', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.status !== 'published') throw new ApiError(403, '仅可点赞已发布的谱面');

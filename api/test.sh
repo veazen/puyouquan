@@ -381,6 +381,26 @@ chk 存量扫描只读命中 'song_evil0001.*deg（应为数字）' "$(DB_PATH=$
 chk 存量扫描隔离 '已隔离' "$(DB_PATH=$DIR/t.db node admin.js scan-xss --quarantine)"
 chk 隔离后谱库不可见 '不存在\|无权\|未上架\|找不到' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_evil0001)"
 
+# v62.7 A6 谱库超过 200 首（P1-34）：sitemap/目录全量收录、第 201 首起搜得到、老收藏卡片不消失、相关推荐走小查询
+node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);const uid=process.argv[2];
+const ins=d.prepare(\"INSERT INTO scores(id,user_id,title,singer,status,data,updated_at,created_at,pub_data,pub_title,pub_singer,pub_author,pub_at) VALUES(?,?,?,?,'published',?,?,?,?,?,?,'批量',?)\");
+for(let i=0;i<241;i++){ const id='bulk'+String(i).padStart(5,'0')+'xx'; const t='批量谱'+i; const sg=i%7?'歌手'+(i%5):'独特歌手'; const dt=JSON.stringify({v:3,title:t,measures:[{}]});
+  ins.run(id,uid,t,sg,dt,1000+i,1000+i,dt,t,sg,1000+i); }" "$DIR/t.db" "$UIDX"
+SM=$(curl -s http://127.0.0.1:3199/pub/sitemap.xml)
+chk sitemap全量收录超过200首 '/pub/bulk00000xx<' "$SM"
+chk sitemap含最新一首 '/pub/bulk00240xx<' "$SM"
+chk 目录页全量 'bulk00000xx' "$(curl -s http://127.0.0.1:3199/pub/)"
+chk 首页列表附total '"total":2' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+nchk 首页列表仍只取最新一批 'bulk00000xx' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 第201首起搜得到 '"id":"bulk00000xx"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E6%89%B9%E9%87%8F%E8%B0%B10')"
+chk 搜索按演唱者 '"total":35' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E7%8B%AC%E7%89%B9%E6%AD%8C%E6%89%8B')"
+chk 搜索通配符按字面匹配 '"total":0' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%25')"
+J2 -X PUT http://127.0.0.1:3199/api/favorites/bulk00000xx >/dev/null   # 主会话已在上文登出，用管理员会话
+chk 老收藏带完整卡片 '"cards":\[{"id":"bulk00000xx"' "$(J2 http://127.0.0.1:3199/api/favorites)"
+REL=$(curl -s http://127.0.0.1:3199/pub/bulk00000xx)
+chk 相关推荐同歌手优先 'bulk00238xx' "$REL"
+nchk 相关推荐不被非同歌手的最新谱挤掉 'bulk00240xx' "$REL"
+
 # v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
 node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!
 PORT=3197 DB_PATH="$DIR/t2.db" JWT_SECRET=testsecret COOKIE_DOMAIN= DEV_OTP=1 WX_API_BASE=http://127.0.0.1:3196 \

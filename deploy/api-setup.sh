@@ -62,6 +62,14 @@ WXPAY_SERIAL=
 WXPAY_APIV3_KEY=
 WXPAY_KEY_PATH=/etc/puyouquan/wxpay_key.pem
 WXPAY_NOTIFY_URL=https://www.puyouquan.com/api/pay/notify
+# v62.7 异地备份（可选，留空＝只存本盘）：S3 兼容对象存储（腾讯云 COS / 阿里云 OSS 的 S3 兼容端点）。
+# 建议用子账号密钥、只授权该桶 pyq-db/ 前缀的读写删。填好后 systemctl start pyq-backup 验证，
+# 恢复演练见 api/db-restore-s3.js 文件头。
+BACKUP_S3_ENDPOINT=
+BACKUP_S3_BUCKET=
+BACKUP_S3_REGION=
+BACKUP_S3_KEY=
+BACKUP_S3_SECRET=
 EOF
   chmod 600 /etc/puyouquan/api.env
   echo "已生成 /etc/puyouquan/api.env（短信参数待填写）"

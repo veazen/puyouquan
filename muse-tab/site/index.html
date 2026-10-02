@@ -60,6 +60,9 @@
   var NORM={vox:'vocal', staff:'instr'};
   var PAGE=12;
   var all=[], favs={}, st={q:'', cat:'all', favOnly:false, shown:PAGE};
+  /* v62.7 A6（P1-34）：首页只拉最新一批（接口附 total）；被截断时，搜索与「♥ 收藏」从服务端补齐全库结果，
+     第 201 首起也搜得到、老收藏也在。extra＝不在首批里的补充卡片（按 id 去重） */
+  var total=0, extra={}, remoteQ='', rtimer=0;
   var grid=document.getElementById('lib-grid'), cats=document.getElementById('lib-cats'),
       qIn=document.getElementById('lib-q'), moreWrap=document.getElementById('lib-more'),
       title=document.getElementById('lib-title');
@@ -74,9 +77,19 @@
       return '<button class="fchip lg'+(st.cat===c[0]&&!st.favOnly?' on':'')+'" data-cat="'+c[0]+'">'+c[1]+'</button>'; }).join('')
       +'<button class="fchip lg fav'+(st.favOnly?' on':'')+'" data-fav>♥ 收藏</button>';
   }
+  function pool(){ var have={}; all.forEach(function(s){ have[s.id]=1; });
+    return all.concat(Object.keys(extra).map(function(k){ return extra[k]; }).filter(function(s){ return !have[s.id]; })); }
+  function remoteSearch(){
+    var q=st.q.trim(); if(!q || total<=all.length || q===remoteQ) return;
+    clearTimeout(rtimer);
+    rtimer=setTimeout(function(){ remoteQ=q;
+      fetch('/api/pub/scores?q='+encodeURIComponent(q),{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
+        .then(function(j){ if(!j || st.q.trim()!==q) return; (j.scores||[]).forEach(function(s){ extra[s.id]=s; }); draw(); })
+        .catch(function(){}); }, 300);
+  }
   function filtered(){
     var q=st.q.trim().toLowerCase();
-    return all.filter(function(s){
+    return pool().filter(function(s){
       if(st.favOnly && !favs[s.id]) return false;
       if(st.cat!=='all' && typeOf(s)!==st.cat) return false;
       if(q){ var hay=((s.title||'')+' '+(s.singer||'')+' '+(s.author||'')).toLowerCase();
@@ -126,7 +139,7 @@
     chips(); draw();
   });
   qIn.addEventListener('input', function(){
-    st.q=qIn.value; draw();
+    st.q=qIn.value; draw(); remoteSearch();
     try{ history.replaceState(null,'', st.q.trim()? ('?q='+encodeURIComponent(st.q.trim())) : location.pathname); }catch(_){}
   });
   document.getElementById('lib-more-btn').onclick=function(){ st.shown+=PAGE; draw(); };
@@ -145,7 +158,7 @@
   var PH=['搜曲名 / 歌手，如：小星星','试试：晴天','试试：考编 即兴伴奏','搜歌手名也可以'], phi=0;
   setInterval(function(){ if(document.activeElement!==qIn && !qIn.value) qIn.placeholder=PH[++phi%PH.length]; },4000);
   var CK='pyq-pub-cache';
-  function useData(list, fresh){ all=list||[]; chips(); draw(); renderRecent();
+  function useData(list, fresh, tot){ all=list||[]; if(tot) total=tot; chips(); draw(); renderRecent(); remoteSearch();
     /* 上新徽章：对比上次见到的谱库总数（键 pyq-seen-n） */
     if(fresh){ try{ var prev=+localStorage.getItem('pyq-seen-n')||0, d=all.length-prev;
       var bg=document.getElementById('lib-newbadge');
@@ -157,11 +170,12 @@
     if(o && o.t && Date.now()-o.t<300000 && o.scores){ cached=o.scores; } } }catch(_){}
   if(cached) useData(cached);
   fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:cached||[]}; })
-    .then(function(j){ useData(j.scores||[], true);
+    .then(function(j){ useData(j.scores||[], true, j.total||0);
       try{ sessionStorage.setItem(CK, JSON.stringify({t:Date.now(), scores:j.scores||[]})); }catch(_){} })
     .catch(function(){ if(!cached) grid.innerHTML='<p style="color:var(--muted)">刷新试试，谱库马上回来。</p>'; });
   fetch('/api/favorites',{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
-    .then(function(j){ if(!j) return; (j.favorites||[]).forEach(function(f){ favs[f.score_id||f.id||f]=1; }); })
+    .then(function(j){ if(!j) return; (j.favorites||[]).forEach(function(f){ favs[f.score_id||f.id||f]=1; });
+      (j.cards||[]).forEach(function(c){ extra[c.id]=c; }); if(st.favOnly) draw(); })
     .catch(function(){});
 })();
 </script>

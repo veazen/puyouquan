@@ -4,6 +4,7 @@
    T3 编辑器发布：已上架谱再发布＝提交更新审核（弹窗讲明「通过前谱库仍展示上一版」）；没改动＝提示无需再提交
    T4 编辑器创作者中心：状态行带更新审核态，按钮改叫「提交更新」
    T5 v62.6 小程序 web-view 里 me.html「去绑定」跳原生登录页（P2-60），普通浏览器照旧弹表单
+   T6 v62.7 A6 谱库被截断（total>首批）时首页搜索去全库补齐；T7 个人中心收藏/点赞用接口自带卡片（老收藏不再因 200 首上限消失）
    服务端口径见 api/test.sh「发布快照」段（过审后改谱/改标题/改昵称/换缩图公开端都不变）。 */
 const { chromium } = require('playwright');
 const fs = require('fs'), P = require('path');
@@ -22,6 +23,9 @@ const read = f => { const p = P.join(SITE, f); return fs.existsSync(p) ? fs.read
     { id: 'sc_dty', title: '改过没提交的谱', singer: '', status: 'published', rev_status: '', rev_note: '', pub_dirty: 1, updated_at: 1700000100 },
     { id: 'sc_ok', title: '干净的已上架谱', singer: '', status: 'published', rev_status: '', rev_note: '', pub_dirty: 0, updated_at: 1700000000 },
   ];
+  const card = (id, title) => ({ id, title, singer: '测试', author: '谱友', updated_at: 1700000000, type: 'vocal', price: 0, measures: 4, thumb: 0,
+    key: 'C', tempo: 90, beats: 4, unit: 4, verses: 0, cover: [{ deg: 1, oct: 0 }], views: 0, likes: 0, favs: 0 });
+  const NEW1 = card('new0001', '最新上架的谱'), OLD201 = card('old201', '第二百零一首老谱');
   const site = async (page, role, opt) => {
     opt = opt || {};
     const pg = await b.newPage({ viewport: { width: 1200, height: 900 }, userAgent: opt.ua });
@@ -33,10 +37,13 @@ const read = f => { const p = P.join(SITE, f); return fs.existsSync(p) ? fs.read
       if (p === '/api/health') return J({ ok: true });
       if (p === '/api/me') return J({ user: { id: 'u1', phone: opt.phone !== undefined ? opt.phone : '138****8888', nickname: '阿杜', role, wx: opt.phone === '' }, stats: {}, unread_msgs: 0 });
       if (p === '/api/scores') return J({ scores: MY });
-      if (p === '/api/favorites' || p === '/api/likes') return J({ favorites: [], likes: [] });
+      if (p === '/api/favorites') return J({ favorites: [{ id: 'old201' }], cards: [OLD201] });
+      if (p === '/api/likes') return J({ likes: [{ id: 'old201' }], cards: [OLD201] });
+      if (p === '/api/pub/scores' && u.searchParams.get('q')) { pg._q = (pg._q || []).concat(u.searchParams.get('q'));
+        return J({ q: u.searchParams.get('q'), total: 1, scores: /老谱/.test(u.searchParams.get('q')) ? [OLD201] : [] }); }
+      if (p === '/api/pub/scores') return J({ scores: [NEW1], total: 241 });
       if (p === '/api/me/entitlements') return J({ entitlements: [], vip: false, quota: 500 });
       if (p === '/api/messages') return J({ messages: [] });
-      if (p === '/api/pub/scores') return J({ scores: [] });
       if (p === '/api/admin/overview') return J({ users: 3, roles: { user: 1, creator: 1, admin: 1 }, scores: 9,
         scoreStatus: { pending: 1, published: 4 }, pending: 1, published: 4, revisions: 2, orders: { paid: 0, amount_fen: 0 }, funnel: [] });
       if (p === '/api/admin/reviews') return J({ status: 'pending', scores: [
@@ -86,6 +93,21 @@ const read = f => { const p = P.join(SITE, f); return fs.existsSync(p) ? fs.read
     const r2 = await pg2.evaluate(async () => { const go = document.getElementById('bb-go'); if (!go) return { go: false };
       go.click(); await new Promise(r3 => setTimeout(r3, 200)); return { modal: !!document.getElementById('bind-mask') }; }).catch(e => ({ err: e.message }));
     T(r2.modal, 'T5b 普通浏览器里「去绑定」照旧弹手机号绑定表单', JSON.stringify(r2));
+    await pg2.close();
+  }
+
+  /* ---------- T6 / T7 v62.7 A6 谱库超过首批 ---------- */
+  {
+    const pg = await site('index.html', 'creator');
+    await pg.fill('#lib-q', '老谱').catch(() => {});
+    await pg.waitForTimeout(900);
+    const r = await pg.evaluate(() => ({ grid: (document.getElementById('lib-grid') || {}).innerText || '' })).catch(e => ({ err: e.message }));
+    T(/第二百零一首老谱/.test(r.grid || '') && (pg._q || []).includes('老谱'), 'T6 谱库被截断时首页搜索去全库补齐（第 201 首起也搜得到）', JSON.stringify({ q: pg._q, g: (r.grid || '').slice(0, 60) }));
+    await pg.close();
+    const pg2 = await site('me.html', 'creator');
+    await pg2.waitForTimeout(500);
+    const r2 = await pg2.evaluate(() => ({ fav: (document.getElementById('fav-grid') || {}).innerText || '' })).catch(e => ({ err: e.message }));
+    T(/第二百零一首老谱/.test(r2.fav || ''), 'T7 个人中心收藏用接口自带卡片（不在首批 200 首里的老收藏也在）', (r2.fav || r2.err || '').slice(0, 60));
     await pg2.close();
   }
 
