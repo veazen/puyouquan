@@ -45,8 +45,11 @@ for (const path of files) {
   }
   /* v59.2 教训：APP_VER 忘随更新日志递增 → 线上版本角标停在旧版 + smoke 版本落位两边读同一常量成假绿。
      闸：APP_VER 必须等于更新日志首条 <span class="v">vX.Y</span>，不一致即拦截发版。 */
-  const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];
+  const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];   // 与 smoke.sh 线上版本落位同一写法，故不放宽
   const cl = (html.match(/<span class="v">(v[\d.]+)<\/span>/) || [])[1];
+  /* v63.0：有更新日志却读不到 APP_VER（例如写成带空格的 const APP_VER = '…'）＝闸与 smoke 版本落位双双失效，
+     同样拦截——此前会静默跳过 */
+  if (cl && !av) { console.error('❌ ' + path + ' 有更新日志但未找到 APP_VER 常量（写法须为 const APP_VER=\'vX.Y\'）'); bad++; }
   if (av && cl) {
     if (av !== cl) { console.error('❌ ' + path + ' 版本不一致：APP_VER=' + av + '，更新日志首条=' + cl + '（发版须同步递增 APP_VER）'); bad++; }
     else console.log('✅ ' + path + '：版本一致（APP_VER=' + av + ' = 更新日志首条）');

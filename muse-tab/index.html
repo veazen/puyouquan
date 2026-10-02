@@ -2957,6 +2957,10 @@ const PIANO_TEX = [
   L:[{d:8,t:'1'},{d:8,t:null},{d:8,t:null},{d:8,t:'5'},{d:8,t:null},{d:8,t:null}],
   R:[{d:8,t:null},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:null},{d:8,t:'3'},{d:8,t:'5'}]},
 ];
+/* v63.0 A8 织体按「拍数 + 单位」双重匹配（P1-26）：模板时值按织体自身的单位写（6/8 织体 unit=8，其余 unit=4）。
+   此前两个弹窗只比拍数——6/4 谱被套上 6/8 织体、3/8 套 3/4、2/2 套 2/4，生成的伴奏时值整体错位却不提示。 */
+const texUnit = t=> t.unit || (t.beats===6? 8 : 4);
+function texAvail(beats, unit){ return PIANO_TEX.filter(t=>t.beats===beats && texUnit(t)===unit); }
 /* v39.0 和弦类型 → 音程表（半音）：与 CHORD_TEMPLATES 同一份 qual 口径。
    槽位 1/3/5/8 永远存在（11 套织体事件表只引用这四个槽），sus/11/5 等无三音类型
    的 3 槽放其"色彩音"（挂留音/纯五度），织体引擎零改动即正确发声；7/9/6 为增量槽。 */
@@ -3028,9 +3032,12 @@ function genAccompaniment(texId, m1, m2, opt){
   song.measures.forEach((m,mi)=>{ let cum=0; (m.voxes[cVi]||[]).forEach(c=>{ if(c.chord) timeline.push({mi, beat:cum, chord:c.chord}); cum+=beatsOf(c); }); });
   const chordAt=(mi,beat)=>{ let cur=null;
     for(const e of timeline){ if(e.mi>mi || (e.mi===mi && e.beat>beat+1e-4)) break; cur=e.chord; } return cur; };
-  let done=0, noChord=0;
+  let done=0, noChord=0, skipMeter=0;
   for(let mi=Math.max(0,m1); mi<=Math.min(m2, song.measures.length-1); mi++){
     const mea = song.measures[mi];
+    /* v63.0 A8：本小节有效拍号（含变拍子）与织体不符 → 跳过，不生成时值错误的伴奏 */
+    const mm = meaMeter(mi);
+    if(mm.beats!==tex.beats || mm.unit!==texUnit(tex)){ skipMeter++; continue; }
     if(!chordAt(mi,0)){ noChord++; continue; }
     /* 原右手列上的 和弦标注/歌词/力度 按拍位回填到新列 */
     const keep={}; let cum=0;
@@ -3050,14 +3057,14 @@ function genAccompaniment(texId, m1, m2, opt){
         }
         const k=keep[at.toFixed(3)];
         if(octBase===1 && k) Object.assign(col, {chord:k.chord, lyrics:k.lyrics||[], dyn:k.dyn});
-        cols.push(col); at += song.unit/ev.d;
+        cols.push(col); at += mm.unit/ev.d;
       });
       return cols; };
     mea.voxes[rVi] = build(tex.R, 1);
     mea.voxes[lVi] = build(tex.L, 0);
     done++;
   }
-  return {done, noChord};
+  return {done, noChord, skipMeter, mismatch: !done && skipMeter>0};
 }
 /* ===== 配和弦建议（P1-A）：大调自然音级功能和声 =====
    逐小节给旋律（默认声部0）配 I/IV/V/vi/ii/iii：按"音符时值×强拍权重×和弦内音
@@ -3655,8 +3662,9 @@ function arrangeAccompaniment(melody, opt){
   out.funcNames=true;
   out.tabVoices=[]; delete out.tabStaff; delete out.func; delete out.chordOnly;
   out.measures.forEach((m,mi)=>{ m.voxes=[mel[mi]||blank(), blank(), blank()]; m.tabs=[]; });
-  const gen=genAccompaniment(opt.texId||'slow', 0, out.measures.length-1, {chordVi:0, rhVi:1, lhVi:2});
-  out.texId=opt.texId||'slow';
+  const texId0 = opt.texId || (texAvail(out.beats, out.unit)[0]||{}).id || 'slow';   // v63.0 A8 缺省织体按拍号挑
+  const gen=genAccompaniment(texId0, 0, out.measures.length-1, {chordVi:0, rhVi:1, lhVi:2});
+  out.texId=texId0;
   song=o0;
   if(opt.pure){                            // 纯伴奏：去旋律声部、和弦按拍位移到右手
     const o1=song; song=out;
@@ -4778,10 +4786,19 @@ function blankTabCols(beats, unit){
   return a;
 }
 function vcol(){ return {dur:4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false}; }
+/* v63.0 A8 简谱/五线谱声部空列同 blankTabCols 口径按 unit 生成（P1-11）：此前一律四分——
+   新建 6/8 谱每小节 6 个四分＝12 拍、3/8 是 6 拍、2/2 只有 1 拍，一打开就满屏拍数错误。 */
+function blankVoxCols(beats, unit){
+  const n = Math.max(1, Math.round(beats!=null? beats : ((typeof song!=='undefined' && song && song.beats) || 4)));
+  const u = (unit!=null? unit : ((typeof song!=='undefined' && song && song.unit) || 4));
+  const d = (u===8||u===4||u===2||u===16)? u : 4;
+  const a=[]; for(let i=0;i<n;i++){ const c=vcol(); c.dur=d; a.push(c); }
+  return a;
+}
 function blankMeasure(){
   const m = {tabs:[], voxes:[], repeatStart:false, repeatEnd:false};
   song.tabVoices.forEach(()=>{ m.tabs.push(blankTabCols(song.beats, song.unit)); });
-  song.voxVoices.forEach(()=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
+  song.voxVoices.forEach(()=>{ m.voxes.push(blankVoxCols(song.beats, song.unit)); });
   return m;
 }
 function blankSong(){
@@ -8254,7 +8271,10 @@ function render(){
                   bendDecor.push(`<text x="${nx.toFixed(1)}" y="${(topY-3).toFixed(1)}" font-size="12.5" font-weight="700" font-style="italic" text-anchor="middle" fill="var(--ink)">${sym2}</text>`);
                 }else{
                   /* 兼容旧数据（bt 目标品位）/单音式：右侧合成圆圈目标音 + 短连音线 */
-                  const bt = n.bt!=null? n.bt : n.f;
+                  /* v63.0 A8 单音推弦目标圈＝起始品位＋幅度（缺省全音＝+2 品、½ 音 +1；P1-24）——此前圈内照抄起始品位，
+                     读谱者会以为「推到同一品」；回落 bd 圈内仍是落回的原品位；¼ 音等非整品幅度不折成品位 */
+                  const semiB = bendSemi(n.bAmt);
+                  const bt = n.bt!=null? n.bt : (n.tech==='b' && Number.isInteger(semiB)? n.f+semiB : n.f);
                   const gx2 = nx+15;
                   bendDecor.push(`<circle cx="${gx2}" cy="${yy}" r="5" fill="var(--paper)" stroke="var(--ink)" stroke-width="0.9"/>`);
                   bendDecor.push(`<text x="${gx2}" y="${yy+(bt>=10?2.4:2.9)}" font-size="${bt>=10?6.8:8.6}" font-weight="600" text-anchor="middle" fill="var(--ink)">${bt}</text>`);   /* v53.1 圆圈 5.8→5，数字同步缩号 */
@@ -11709,7 +11729,7 @@ function addVoice(kind){
       song.measures.forEach((m,mi2)=>{ m.tabs.push(blankTabCols(meaMeter(mi2).beats, meaMeter(mi2).unit)); });
     }else{
       song.voxVoices.push('旋律'+(song.voxVoices.length+1));
-      song.measures.forEach(m=>{ const a=[]; for(let i=0;i<song.beats;i++) a.push(vcol()); m.voxes.push(a); });
+      song.measures.forEach((m,mi)=>{ const mm=meaMeter(mi); m.voxes.push(blankVoxCols(mm.beats, mm.unit)); });
     }
   });
 }
@@ -11735,7 +11755,7 @@ function addLyrVoice(srcVi){
           return n;
         });
       }else{
-        cols=[]; const nb=meaMeter(mi).beats; for(let i=0;i<nb;i++) cols.push(vcol());
+        const mm=meaMeter(mi); cols=blankVoxCols(mm.beats, mm.unit);
       }
       m.voxes.push(cols);
     });
@@ -12336,7 +12356,7 @@ function pasteMeasure(){
           const src=JSON.parse(JSON.stringify(srcM));
           const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
           song.tabVoices.forEach((_,vi2)=>{ m.tabs.push(src.tabs&&src.tabs[vi2]? src.tabs[vi2] : blankTabCols(song.beats, song.unit)); });
-          song.voxVoices.forEach((_,vi2)=>{ m.voxes.push(src.voxes&&src.voxes[vi2]? src.voxes[vi2] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
+          song.voxVoices.forEach((_,vi2)=>{ m.voxes.push(src.voxes&&src.voxes[vi2]? src.voxes[vi2] : blankVoxCols(song.beats, song.unit)); });
           return m;
         });
       }else{
@@ -12366,7 +12386,7 @@ function pasteMeasure(){
         const src=JSON.parse(JSON.stringify(srcM));
         const m={tabs:[], voxes:[], repeatStart:!!src.repeatStart, repeatEnd:!!src.repeatEnd};
         song.tabVoices.forEach((_,vi)=>{ m.tabs.push(src.tabs&&src.tabs[vi]? src.tabs[vi] : blankTabCols(song.beats, song.unit)); });
-        song.voxVoices.forEach((_,vi)=>{ m.voxes.push(src.voxes&&src.voxes[vi]? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})()); });
+        song.voxVoices.forEach((_,vi)=>{ m.voxes.push(src.voxes&&src.voxes[vi]? src.voxes[vi] : blankVoxCols(song.beats, song.unit)); });
         song.measures[mi]=m;
       });
     });
@@ -12436,7 +12456,7 @@ function pasteMeasure(){
       m.tabs.push(src.tabs[vi] ? src.tabs[vi] : blankTabCols(song.beats, song.unit));
     });
     song.voxVoices.forEach((_,vi)=>{
-      m.voxes.push(src.voxes[vi] ? src.voxes[vi] : (()=>{const a=[];for(let i=0;i<song.beats;i++)a.push(vcol());return a;})());
+      m.voxes.push(src.voxes[vi] ? src.voxes[vi] : blankVoxCols(song.beats, song.unit));
     });
     song.measures[mi] = m;
   });
@@ -18477,7 +18497,7 @@ function showNewWizard(){
       /* 独奏/指弹（solo）在 createSong 里被硬编码为 0 条旋律轨——引导模式下补一条可写的 */
       if(!ns.voxVoices.length){
         ns.voxVoices.push('旋律1');
-        ns.measures.forEach(m=>{ const a=[]; for(let i=0;i<ns.beats;i++) a.push(vcol()); m.voxes.push(a); });
+        ns.measures.forEach(m=>{ m.voxes.push(blankVoxCols(m.beats||ns.beats, m.unit||ns.unit)); });
       }
       ns.voxNotations = ns.voxNotations || [];
       ns.voxNotations[0] = NW.know==='staff'? 'staff' : undefined;   /* undefined＝简谱（既有口径） */
@@ -18648,8 +18668,8 @@ function showNewForm(type, gtype){
 }
 /* 智能配谱弹窗（主旋律 → 即兴伴奏成品谱） */
 document.getElementById('b-arrange').onclick = ()=>{
-  const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
-  if(!avail.length){ toast('当前拍号暂无内置织体（支持 2/4、3/4、4/4、6/8）'); return; }
+  const avail = texAvail(song.beats, song.unit);   // v63.0 A8 拍数+单位双重匹配
+  if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>智能配谱 · 主旋律 → 即兴伴奏谱</h3>
     <p style="font-size:12.5px;line-height:1.6">对当前旋律：空小节自动配和弦（功能和声，已填的不覆盖）→ 按所选织体生成双手伴奏。<b>生成的伴奏谱将替换当前窗口；原旋律谱自动存入「我的曲谱」</b>，可随时打开；生成后可继续改和弦、逐段重生成、一键换调。</p>
     ${TEX_LV.map(lv=>{
@@ -18677,6 +18697,7 @@ document.getElementById('b-arrange').onclick = ()=>{
       setRibbon('vox');
       toast('已生成《'+r.song.title+'》：'+r.gen.done+' 小节伴奏'
         +(r.gen.noChord? '，'+r.gen.noChord+' 小节无和弦跳过':'')
+        +(r.gen.skipMeter? '，'+r.gen.skipMeter+' 小节拍号与织体不符跳过':'')
         +'；可点和弦修改后用「伴奏织体」重生成'+(pure?'':'，「记谱法」可调对照行'));
     });
   };
@@ -18687,7 +18708,7 @@ document.getElementById('b-acctex').onclick = ()=>{
   /* v47.8 放宽：原限定钢琴弹唱谱(pianoAcc)；钢琴独奏谱等大谱表同样适用（genAccompaniment 只需右手/左手两声部 + 和弦），
      顶栏「伴奏织体…」按谱类路由到此，故这里按能力判定而非谱种判定 */
   if(!song.pianoAcc && (song.voxVoices||[]).length<2) return;
-  const avail = PIANO_TEX.filter(t=>t.beats===song.beats);
+  const avail = texAvail(song.beats, song.unit);   // v63.0 A8 拍数+单位双重匹配
   if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
     <p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（点谱面「＋和弦」空位），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>
@@ -18712,7 +18733,8 @@ document.getElementById('b-acctex').onclick = ()=>{
     let r;
     mutate(()=>{ r=genAccompaniment(texId,m1,m2); song.texId=texId; });
     closeModal();
-    toast(r.done? `已生成 ${r.done} 小节伴奏`+(r.noChord? `，${r.noChord} 小节无和弦跳过`:'')+'（可编辑，Ctrl+Z 撤销）'
+    toast(r.done? `已生成 ${r.done} 小节伴奏`+(r.noChord? `，${r.noChord} 小节无和弦跳过`:'')+(r.skipMeter? `，${r.skipMeter} 小节拍号与织体不符跳过`:'')+'（可编辑，Ctrl+Z 撤销）'
+                : r.mismatch? '未生成：所选范围的拍号与该织体不符'
                 : '未生成：所选范围没有标注和弦——先在右手谱表点「＋和弦」');
   };
 };
@@ -19769,7 +19791,11 @@ function importMusicXML(xmlStr){
   let unit  = +(txt(firstAttr,'time > beat-type')||4) || 4;
   if(unit!==4 && unit!==8){ skip.other++; unit=4; }
   beats = Math.max(1, Math.min(12, beats));
-  const ref = (()=>{ let r=60+(KEY_PC[key]||0); if(r>66) r-=12; return r; })();
+  /* v63.0 A8 外部转调（P1-10）：转调之后的小节按该小节生效调算音级（与播放 keyRefAt 同口径）。
+     此前整份文件按谱首调算——C→G 之后的音在简谱里唱名全错、播放整体偏移（G 大调段高出纯四度）。
+     keyToMap 由首个声部的 <key> 变更登记（attributes 先于本小节音符），其余声部读同一张表。 */
+  const refOfKey = k=>{ let r=60+(KEY_PC[k]||0); if(r>66) r-=12; return r; };
+  const keyEffAt = mi=>{ let k=key; for(let i=0;i<=mi;i++) if(keyToMap[i]) k=keyToMap[i]; return k; };
   const L_IDX={C:0,D:1,E:2,F:3,G:4,A:5,B:6};
   const midiOf = pe=>{
     const li=L_IDX[txt(pe,'step')||'C']||0;
@@ -19929,7 +19955,7 @@ function importMusicXML(xmlStr){
         if(tag!=='note') return;
         if(q(el,'grace')){                                            // v44.8 前倚音：累积到 pendGrace，挂给下一个主音（normGrace 仅存 deg/oct）
           const pe0=q(el,'pitch');
-          if(pe0 && !q(el,'chord') && pendGrace.length<3){ const rel0=midiOf(pe0)-ref, pc0=((rel0%12)+12)%12; pendGrace.push({deg:SEMI_DEG[pc0][0], oct:Math.floor(rel0/12)}); }
+          if(pe0 && !q(el,'chord') && pendGrace.length<3){ const rel0=midiOf(pe0)-refOfKey(keyEffAt(mi2)), pc0=((rel0%12)+12)%12; pendGrace.push({deg:SEMI_DEG[pc0][0], oct:Math.floor(rel0/12)}); }
           return;
         }
         const vc=txt(el,'voice');
@@ -19982,13 +20008,14 @@ function importMusicXML(xmlStr){
         }
         const pe=q(el,'pitch');
         if(!pe){ skip.notes++; return; }
+        const kEff = keyEffAt(mi2), ref = refOfKey(kEff);
         const rel = midiOf(pe)-ref;
         const pc=((rel%12)+12)%12;
         /* v43.4 双变音导入拼写保真：源含 alter=±2 时直接映射 step→deg + acc='x'/'bb'（否则沿用升号系拼写，音高一致） */
         const alt2=+(txt(pe,'alter')||0);
         let noteObj;
         if(Math.abs(alt2)===2){
-          const deg=((L_IDX[txt(pe,'step')||'C']-L_IDX[key[0]]+7)%7)+1, acc=alt2===2?'x':'bb';
+          const deg=((L_IDX[txt(pe,'step')||'C']-L_IDX[kEff[0]]+7)%7)+1, acc=alt2===2?'x':'bb';
           const oct=Math.round((midiOf(pe)-ref-DEG_SEMI[deg]-accSemi(acc))/12);
           noteObj={deg, acc, oct};
         }else noteObj={deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct:Math.floor(rel/12)};
@@ -23241,7 +23268,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v62.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23264,6 +23291,7 @@ const APP_VER='v62.9';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.0</span><div><b>不再生成或导入拍子、音高错的谱</b>（2026-10 评审团 A8 出错谱止血）。<br>① <b>伴奏织体按拍号严格匹配</b>：之前只看每小节几拍，不看以什么音符为一拍——6/4 拍的谱会被套上 6/8 的织体，3/8 套上 3/4，2/2 套上 2/4，生成出来时值整体错位。现在拍数和单位都要对上；没有合适的织体会直接提示「当前拍号 X/Y 暂无内置织体」，不再弹出一个生成错谱的窗口。变拍子的谱，拍号不符的小节会跳过并告诉你跳过了几个。<br>② <b>导入带转调的 MusicXML，音高不再错</b>：之前整份文件都按开头的调来换算简谱，C 大调转到 G 大调之后的音，简谱唱名全错、播放也整体偏高。现在每个小节按它当时的调换算，多声部同样生效；导入后播放的每个音都与原文件一致。<br>③ <b>新建 3/8、6/8、2/2 的谱一打开就是对的</b>：之前空小节一律用四分音符填，6/8 每小节变成 12 拍、2/2 只有 1 拍，满屏红色拍数提示。现在空小节、插入小节、加声部、粘贴补空都按拍号的单位生成。<br>④ <b>单音推弦的目标圈写对品位</b>：之前圈里照抄起始品位（7 品推弦圈里也写 7），读谱的人会推错。现在写起始品位加推弦幅度：全音推弦 7 → 9，半音 8 → 9；回落仍写落回的原品位。<br>新套件 <code>tv_a8</code>（6 项，旧文件 5 项报红）。</div></li>
     <li><span class="v">v62.9</span><div><b>不卖还没有的东西 · 登录先同意协议 · 小程序里不出现价格 · 可以举报</b>（2026-10 评审团 A4；产品拍板「考编包停售改预约」）。<br>① <b>考编内容包停售，改为免费预约</b>：内容还在筹备，之前却能付款、能兑换，兑换后什么都拿不到。现在支付入口下线（服务器也不再接新单），权益页改成「免费预约」，上线后站内消息通知；卡片不再写「30 套」「常考」这类还兑现不了的承诺。已经付过款或兑换过的照常有效。<br>② <b>会员文案只写现在就有的</b>：云端扩容到 2000 首、专属标识、优先答疑；「后续功能上线即享」「解锁专业功能」这类说法撤掉；开通了微信支付时不再同时显示「在线支付即将上线」。个人中心的会员入口直达权益页。<br>③ <b>登录前须主动勾选同意《用户协议》《隐私政策》</b>（默认不勾）：编辑器、官网弹窗、个人中心三个登录入口同一规则，不勾选时获取验证码、登录、微信登录都只提示不放行。<br>④ <b>小程序里打开时</b>：不出现任何价格、会员购买、赞助价目；不出现扫码登录（改为「回小程序用手机号快捷登录」）；点到制谱器等小程序打不开的链接，改为<b>复制链接、提示去电脑浏览器打开</b>；页脚邮箱和备案号变成纯文字。<br>⑤ <b>举报这首谱</b>：看谱页 ⚙ 设置里新增「举报这首谱」（侵权 / 谱面错误 / 广告 / 违规 / 其他），未登录也能举报；管理后台新增「举报」页签，可预览、下架（站内信通知谱主）或标记已处理。<br>⑥ <b>隐私政策同步</b>：如实写明访问统计用的匿名设备标识、登录后与账号关联、举报信息的处理方式（更新日期 2026 年 10 月）。<br>⑦ 新账号默认昵称不再带手机号后四位（公开署名会泄露号码片段），改为随机编号；线上发布菜单里不再出现无效的「定价 / 试读」输入框。<br><b>测试</b>：新增 <code>tv_a4</code> <b>17 项</b>，对改前文件与官网复跑 <b>16 项红</b>；<code>tv_acct</code> 增「协议默认不勾、不勾不发验证码」；api/test.sh 275→<b>292 项</b>（考编包拒新单 / 预约 / 举报去重与处理 / 管理员核查已售 / 随机昵称）。</div></li>
     <li><span class="v">v62.8</span><div><b>数据不再只靠一块硬盘 · 谱库过 200 首也搜得到、收得全</b>（2026-10 评审团 A6）。<br>① <b>异地备份</b>：数据库每天的快照除了存在服务器本盘，现在可以再自动传一份到云对象存储（腾讯云 COS、阿里云 OSS 等，按兼容接口实现），异地保留最近 30 份、本盘保留 7 份——服务器硬盘坏了也丢不了账号和曲谱。另配一个<b>恢复演练</b>脚本：从云上取回最新一份、自动做完整性校验并报出用户数和曲谱数，不碰线上数据。（需要管理员在服务器配置里填好对象存储的桶和密钥后生效；不填就和以前一样只存本盘。）<br>② <b>谱库过 200 首的连锁问题</b>：此前谱库各处都只取最新的 200 首——第 201 首起<b>搜不到</b>、<b>不进搜索引擎的站点地图和目录</b>，你收藏或点赞过的老谱还会从个人中心<b>消失</b>。现在：站点地图和曲谱目录收录全部已上架的谱；首页搜索在谱库超过首批时自动去全库查找；个人中心的收藏、点赞直接按你的记录列出，不再受数量限制；谱页底部的「相关曲谱」也改成按需查询，不再每打开一次就把最新 200 首整份读一遍。<br><b>测试</b>：新增 <code>api/s3.test.js</code> <b>7 项</b>（签名与官方示例逐字一致 / 上传 / 异地超量清理 / 恢复演练 / 未配置时不变）；api/test.sh 264→<b>275 项</b>（241 首规模：站点地图与目录全量、第 201 首起可搜、搜索通配符按字面、老收藏带卡片、相关推荐同歌手优先），对改前服务端复跑 <b>7 项红</b>；<code>tv_pubsnap</code> 9→<b>11 项</b>，对改前官网复跑 2 项红。</div></li>
     <li><span class="v">v62.7</span><div><b>打印与导出：一张屏幕页就是一张纸 · 成品干净 · 分享卡不切谱</b>（2026-10 评审团 A2）。<br>① <b>打印逐页对齐</b>：v62.4 修好了「只打出第 1 页」，但浏览器仍是把整首谱当一张长图、按纸高硬切——一行谱会被拦腰切成两半，越往后越错位，打出来的页数也和屏幕上看到的不一样。现在打印前按屏幕上的每一页单独出一张纸：<b>屏幕上几页，打出来就是几页，每一行谱都完整</b>。打印预览里的「打印 / 导出」、Ctrl+P、看谱页打印都走这条路；不换行模式下打印预览与打印同样按分页排，页数一致。<br>② <b>导出 PNG</b>：不再带屏幕上的页框线、「第 x / y 页」页码和播放竖线；图里的数字/文字字体与屏幕显示一致（此前导出图会换成另一种衬线字体）。<br>③ <b>分享卡</b>：谱面只截到<b>最后一行完整的谱</b>，不再半行半行地截；谱框底边移到页脚之上（此前底部被页脚盖住一截）；二维码和「扫码」说明整体上移，不再贴着卡片底边；卡片口号换成「专业曲谱平台」，顶部色条随品牌改为朱砂色。<br>④ <b>分享出去的互动谱</b>在某些网页环境里另存时，按钮图标会重复出现两枚，已修正。<br><b>测试</b>：新增 <code>tv_print</code> <b>13 项</b>（PDF 页数＝屏幕页数 / 系统不跨页 / 看谱页打印 / 不换行模式预览与打印一致 / PNG 无页框页码与字体同源 / 分享卡四项 / 互动谱图标不重复），对改前文件复跑 <b>10 项红</b>。</div></li>
