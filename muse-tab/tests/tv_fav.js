@@ -63,7 +63,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const loginShown = !!document.getElementById('lg-go');
     const noFavYet = !window.__calls.some(c => /\/api\/favorites\//.test(c.url));
     // 驱动短信登录
-    document.getElementById('lg-phone').value = '13800000000';
+    (document.getElementById('lg-agree')||{}).checked=true; document.getElementById('lg-phone').value = '13800000000';
     document.getElementById('lg-send').click(); await new Promise(r => setTimeout(r, 50));
     document.getElementById('lg-code').value = '123456';
     document.getElementById('lg-go').click(); await new Promise(r => setTimeout(r, 160));

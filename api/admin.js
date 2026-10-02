@@ -16,6 +16,9 @@
      node admin.js codes [n]                        最近 n 个兑换码（默认 50）
      node admin.js orders [n]                       最近 n 笔订单（默认 50）
      node admin.js stats [天数]                     总量 + 近 N 天事件漏斗（默认 7）
+     node admin.js sold <kind>                      v62.9 某权益已付款订单 + 已兑换码明细（如 sold pack_kaobian，核查零交付）
+     node admin.js reserves                         v62.9 各内容预约登记人数
+     node admin.js reports [n]                      v62.9 最近 n 条未处理举报（默认 50）
      node admin.js scan-xss [--quarantine]          v62.5 扫描全部云端谱面的危险字段（与 PUT 校验同口径）；
                                                     加 --quarantine 把命中的已发布/待审谱打回「驳回」并写明原因（谱主在个人中心可见）
    kind 约定：vip=会员(配额2000) / pack_kaobian=考编内容包 / 其他自定义。
@@ -130,6 +133,17 @@ const cmds = {
     q.orderList.all(Math.min(500, +n || 50)).forEach(o =>
       console.log(`${fmtTs(o.created_at)}  ${o.kind}  ¥${(o.amount_fen / 100).toFixed(2)}  ${o.channel}  ${o.status}  user=${o.user_id.slice(0, 8)}`));
   },
+  sold(kind) {
+    if (!kind) { console.error('用法：node admin.js sold <kind>'); process.exit(1); }
+    const os = q.entSoldOrders.all(kind), cs = q.entUsedCodes.all(kind);
+    os.forEach(o => console.log(`订单 ${o.id}  user=${String(o.user_id).slice(0, 8)}  ¥${(o.amount_fen / 100).toFixed(2)}  ${o.channel}  付款 ${fmtTs(o.paid_at)}`));
+    cs.forEach(c => console.log(`兑换码 ${c.code}  user=${String(c.used_by).slice(0, 8)}  兑换 ${fmtTs(c.used_at)}`));
+    console.log(`${kind}：已付款订单 ${os.length} 笔（合计 ¥${(os.reduce((a, o) => a + o.amount_fen, 0) / 100).toFixed(2)}），已兑换码 ${cs.length} 个`);
+  },
+  reserves() { const r = q.reserveCount.all(); if (!r.length) console.log('还没有预约'); r.forEach(x => console.log(`${x.kind}  ${x.n} 人`)); },
+  reports(n) {
+    q.reportOpen.all(Math.min(500, +n || 50)).forEach(r => console.log(`${fmtTs(r.created_at)}  ${r.score_id}  《${r.title || ''}》  ${r.reason}  ${r.note || ''}  （该谱未处理 ${r.n} 条）`));
+  },
   'scan-xss'(flag) {
     const quarantine = flag === '--quarantine';
     const rows = db.prepare('SELECT id, user_id, title, status, data FROM scores').all();
@@ -157,7 +171,7 @@ const cmds = {
 };
 
 if (!cmds[cmd]) {
-  console.log('可用命令：user / users / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats / scan-xss（详见文件头注释）');
+  console.log('可用命令：user / users / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats / sold / reserves / reports / scan-xss（详见文件头注释）');
   process.exit(cmd ? 1 : 0);
 }
 cmds[cmd](...args);

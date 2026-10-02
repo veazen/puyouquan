@@ -220,6 +220,7 @@ const BAD_COURSE = {
 
   // T3 走通登录 → 账号 chip
   r = await pg.evaluate(async () => {
+    (document.getElementById('lg-agree')||{}).checked = true;   /* v62.9 A4：协议须主动勾选 */
     document.getElementById('lg-phone').value = '13888888888';
     document.getElementById('lg-send').click(); await new Promise(r=>setTimeout(r,50));
     document.getElementById('lg-code').value = '123456';
@@ -356,7 +357,7 @@ const BAD_COURSE = {
     };
   });
   T(r.gateHidden && r.bodyShown && r.tiles === 4 && r.sum.includes('待审 2')
-    && r.dot === '2' && r.tabs === 8 && r.rowTitle === '待审谱' && r.funnel.includes('近 7 日事件')
+    && r.dot === '2' && r.tabs === 9 && r.rowTitle === '待审谱' && r.funnel.includes('近 7 日事件')
     && /zhipu\.puyouquan\.com\/\?review=sc9/.test(r.preview) && r.ok && r.no,
     'T9c admin.html 门卫+概览+漏斗+七页签+待审队列', JSON.stringify(r));
 

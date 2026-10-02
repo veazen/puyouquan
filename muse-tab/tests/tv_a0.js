@@ -178,7 +178,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
         openPersonal('profile'); out.pc=!!document.getElementById('pcenter');
         openLogin(); document.getElementById('lg-cancel').click();
         out.pcCancelClosed=!document.getElementById('modal-mask');
-        openLogin(); document.getElementById('lg-phone').value='13800001111'; document.getElementById('lg-code').value='123456';
+        openLogin(); (document.getElementById('lg-agree')||{}).checked=true; document.getElementById('lg-phone').value='13800001111'; document.getElementById('lg-code').value='123456';
         document.getElementById('lg-go').click(); await new Promise(r=>setTimeout(r,200));
         out.pcLoginClosed=!document.getElementById('modal-mask');
       }finally{ apiCall=orig; try{ acctSave(null); }catch(_){} }

@@ -39,6 +39,7 @@
     <div class="ad-tabs" id="ad-tabs">
       <button type="button" class="ad-tab on" data-ad="review">待审核<span class="ad-dot" id="ad-dot" hidden></span></button>
       <button type="button" class="ad-tab" data-ad="done">已上架</button>
+      <button type="button" class="ad-tab" data-ad="reports">举报<span class="ad-dot" id="ad-rdot" hidden></span></button>
       <button type="button" class="ad-tab" data-ad="users">用户</button>
       <button type="button" class="ad-tab" data-ad="courses">课程</button>
       <button type="button" class="ad-tab" data-ad="codes">兑换码</button>
@@ -100,6 +101,7 @@
       ].map(function(t){ return '<div class="ad-stat"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
       var d=document.getElementById('ad-dot');
       d.hidden=!pend; d.textContent=pend;
+      var rd=document.getElementById('ad-rdot'); if(rd){ rd.hidden=!(j.reports|0); rd.textContent=j.reports|0; }
       /* v60.88 近 7 日事件漏斗上墙（接口早就返回，此前从未展示） */
       var fn=(j.funnel||[]).slice(0,6).map(function(x){ return esc(x.name)+' '+x.n; }).join(' · ');
       document.getElementById('ad-funnel').textContent = fn? ('近 7 日事件：'+fn) : '';
@@ -120,6 +122,7 @@
     adPane('<p class="pc-empty">加载中…</p>');
     if(adTab==='review') return adReviews('pending');
     if(adTab==='done')   return adReviews('published');
+    if(adTab==='reports')return adReports();
     if(adTab==='users')  return adUsers('');
     if(adTab==='courses')return adCourses();
     if(adTab==='codes')  return adCodes();
@@ -177,6 +180,31 @@
     api('/admin/scores/'+encodeURIComponent(id)+'/review',{method:'POST',body:{action:action,note:note}})
       .then(function(){ adMsg(action==='approve'?'已通过并上架（已站内信通知谱主）':(action==='reject'?'已驳回，原因已站内信通知创作者':'已下架（已站内信通知谱主）')); loadOverview(); adLoad(); })
       .catch(function(e){ adMsg(e.message||'操作失败'); });
+  }
+
+  /* ---- v62.9 A4 ⑥ 举报：按谱聚合，可预览、下架（走审核下架接口，站内信通知谱主）或标记已处理 ---- */
+  var RP_CN={copyright:'侵犯版权', wrong:'谱面错误多', spam:'广告/无关', illegal:'违法违规', other:'其他'};
+  function adReports(){
+    api('/admin/reports').then(function(j){
+      var seen={}, rows=(j.reports||[]).filter(function(r){ if(seen[r.score_id]) return false; seen[r.score_id]=1; return true; });
+      if(!rows.length) return adPane('<p class="pc-empty">没有待处理的举报</p>');
+      adPane(rows.map(function(r){
+        return '<div class="ad-row"><div class="ad-rmain"><b>'+esc(r.title||r.score_id)+' <i class="k k-no">'+(r.n|0)+' 条举报</i></b>'
+          +'<small>'+esc(RP_CN[r.reason]||r.reason)+(r.note?(' · '+esc(r.note)):'')+' · '+FMTS(r.created_at)+(r.status!=='published'?' · 当前未上架':'')+'</small></div>'
+          +'<div class="ad-racts"><a class="ad-b" href="//zhipu.puyouquan.com/?review='+encodeURIComponent(r.score_id)+'" target="_blank" rel="noopener">预览谱面</a>'
+          +(r.status==='published'? '<button class="ad-b no" data-rp-off="'+esc(r.score_id)+'">下架</button>' : '')
+          +'<button class="ad-b" data-rp-close="'+esc(r.score_id)+'">标记已处理</button></div></div>';
+      }).join(''));
+      var pane=document.getElementById('ad-pane');
+      pane.querySelectorAll('[data-rp-off]').forEach(function(b){ b.onclick=function(){
+        var note=prompt('下架原因（会站内信通知谱主）','经用户举报核实：'); if(note==null) return;
+        api('/admin/scores/'+encodeURIComponent(b.dataset.rpOff)+'/review',{method:'POST',body:{action:'unpublish',note:note}})
+          .then(function(){ return api('/admin/reports/'+encodeURIComponent(b.dataset.rpOff)+'/close',{method:'POST'}); })
+          .then(function(){ adMsg('已下架并关闭相关举报'); loadOverview(); adLoad(); }).catch(function(e){ adMsg(e.message||'操作失败'); }); }; });
+      pane.querySelectorAll('[data-rp-close]').forEach(function(b){ b.onclick=function(){
+        api('/admin/reports/'+encodeURIComponent(b.dataset.rpClose)+'/close',{method:'POST'})
+          .then(function(){ adMsg('已标记处理'); loadOverview(); adLoad(); }).catch(function(e){ adMsg(e.message||'操作失败'); }); }; });
+    }).catch(function(e){ adPane('<p class="pc-empty">'+esc(e.message||'列表加载失败')+'</p>'); });
   }
 
   /* ---- 用户（v60.88 增详情展开：权益 / 订单 / 曲谱分状态计数）---- */
@@ -342,7 +370,7 @@
   }
 
   /* ---- 审计日志 ---- */
-  var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', 'rev-approve':'通过更新', 'rev-reject':'驳回更新', role:'改角色', grant:'发放权益', revoke:'撤销权益',
+  var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', 'rev-approve':'通过更新', 'rev-reject':'驳回更新', 'report-close':'处理举报', role:'改角色', grant:'发放权益', revoke:'撤销权益',
     broadcast:'发布公告', 'bcast-del':'撤回公告', codes:'生成兑换码',
     course:'编辑课程', 'course-pub':'发布课程', 'course-off':'下架课程', 'course-del':'删除课程', 'cli:set-role':'服务器改角色'};
   function adLogs(){

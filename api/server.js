@@ -56,7 +56,8 @@ const wxpayOn = () => !!WXPAY.privateKey;
 const PRICES = {
   vip_month:    { fen: 1500, ent: 'vip',          days: 31,  desc: '谱友圈会员 · 月卡' },
   vip_year:     { fen: 9800, ent: 'vip',          days: 366, desc: '谱友圈会员 · 年卡' },
-  pack_kaobian: { fen: 3900, ent: 'pack_kaobian', days: 0,   desc: '谱友圈 · 考编内容包（买断）' },
+  /* v62.9 A4（D-01 拍板「停售改预约」）：内容尚未交付，不再接新单——条目保留供已付款订单的回调/查单照常履约 */
+  pack_kaobian: { fen: 3900, ent: 'pack_kaobian', days: 0,   desc: '谱友圈 · 考编内容包（买断）', sale: false },
 };
 
 const VER = 'wx-1';
@@ -276,6 +277,10 @@ function pubRelatedCached(id, singer) {
   relCache.set(k, { rows, exp: t + 600000 });
   return rows;
 }
+/* v62.9 A4 ⑧：默认昵称不再用手机号后四位（公开署名会泄露号码片段），改随机 4 位字母数字 */
+function randNick() { return '谱友' + crypto.randomBytes(3).toString('hex').slice(0, 4).toUpperCase(); }
+const RESERVE_KINDS = new Set(['pack_kaobian']);
+const REPORT_REASONS = new Set(['copyright', 'wrong', 'spam', 'illegal', 'other']);
 const MINI_TICKET_TTL = 30;   // v62.6 A1c 120→30s：票据只用于「换到即进 web-view」这一跳，窗口越短越难被截获重放
 /* v62.6 A1c 占位号合并确认票：手机号登录时发现微信身份挂在一个**有数据**的占位号上，不静默合并（v60.5 原则），
    发一张 10 分钟的确认票给小程序，用户在确认页点「合并」才执行 */
@@ -612,7 +617,7 @@ const routes = [
     let u = q.userByPhone.get(phone);
     if (!u) {
       const id = crypto.randomUUID();
-      q.userCreate.run(id, phone, '谱友' + phone.slice(-4), now());
+      q.userCreate.run(id, phone, randNick(), now());
       u = q.userById.get(id);
       q.eventAdd.run(u.id, 'signup', 'sms', now());     // v45.3 埋点
     } else q.eventAdd.run(u.id, 'login', 'sms', now());
@@ -670,7 +675,7 @@ const routes = [
     let u = q.userByPhone.get(phone), fresh = false;
     if (!u) {
       const id = crypto.randomUUID();
-      q.userCreate.run(id, phone, '谱友' + phone.slice(-4), now());
+      q.userCreate.run(id, phone, randNick(), now());
       u = q.userById.get(id); fresh = true;
     }
     /* 顺带绑微信身份：同一个人之后用微信扫码登录网页时能命中同一账号（COALESCE 不清空已有值） */
@@ -833,9 +838,10 @@ const routes = [
     prices: Object.fromEntries(Object.entries(PRICES).map(([k, v]) => [k, { fen: v.fen, desc: v.desc }])),
   })],
   ['POST', /^\/api\/pay\/create$/, true, async (m, b, u) => {
-    if (!wxpayOn()) throw new ApiError(503, '微信支付未配置');
     const p = PRICES[String(b.kind || '')];
     if (!p) throw new ApiError(400, '未知商品');
+    if (p.sale === false) throw new ApiError(400, '该内容还在筹备中，暂不开放购买——可在权益页免费预约，上线后第一时间通知你');
+    if (!wxpayOn()) throw new ApiError(503, '微信支付未配置');
     const t = now();
     const otn = ('P' + t + crypto.randomBytes(6).toString('hex')).slice(0, 32);   // 商户单号：≤32 位字母数字
     const orderId = crypto.randomUUID();
@@ -971,6 +977,25 @@ const routes = [
     return { unpublished: true };
   }],
 
+  /* -- v62.9 A4 预约登记（筹备中的内容：不收钱，上线后站内通知）-- */
+  ['POST', /^\/api\/reserve$/, true, (m, b, u) => {
+    const kind = String(b.kind || '');
+    if (!RESERVE_KINDS.has(kind)) throw new ApiError(400, '该内容不支持预约');
+    q.reserveAdd.run(u.id, kind, now());
+    return { reserved: true, kind };
+  }],
+  ['GET', /^\/api\/me\/reserves$/, true, (m, b, u) => ({ reserves: q.reserveMine.all(u.id) })],
+  /* -- v62.9 A4 ⑥ 举报（看谱页 ⚙「举报这首谱」；未登录也能举报，按 登录号/IP 摘要 + 理由 去重）-- */
+  ['POST', /^\/api\/report$/, false, (m, b, _u, req) => {
+    const sid = String(b.score_id || ''), reason = String(b.reason || '');
+    if (!ID_RE.test(sid) && !/^seed[a-z0-9]{6,}$/.test(sid)) throw new ApiError(400, '曲谱 id 不合法');
+    if (!REPORT_REASONS.has(reason)) throw new ApiError(400, '请选择举报理由');
+    if (!q.scoreGet.get(sid)) throw new ApiError(404, '曲谱不存在');
+    const u = authUser(req);
+    const who = u ? 'u:' + u.id : 'ip:' + sha256(ipOf(req) + '|rep').slice(0, 16);
+    q.reportAdd.run(sid, u ? u.id : null, who, reason, String(b.note || '').slice(0, 300), now());
+    return { reported: true };
+  }],
   /* -- v60.0 平台管理（全部需 role='admin'；写操作一律记 admin_logs 审计）-- */
   ['GET', /^\/api\/admin\/overview$/, true, (m, b, u) => {
     requireAdmin(u);
@@ -979,6 +1004,7 @@ const routes = [
     const paid = q.orderPaidAgg.get();
     return { users: q.userCount.get().n, roles, scores: q.scoreCountAll.get().n, scoreStatus: sts,
       pending: sts.pending || 0, published: sts.published || 0, revisions: q.revPendingCount.get().n,
+      reports: q.reportOpenCount.get().n, reserves: Object.fromEntries(q.reserveCount.all().map(r => [r.kind, r.n])),
       orders: { paid: paid.n, amount_fen: paid.fen },
       funnel: q.eventStats.all(now() - 7 * 86400) };
   }],
@@ -1022,6 +1048,14 @@ const routes = [
     const st = (new URL(req.url, 'http://x').searchParams.get('status') || 'pending');
     if (!['pending', 'published', 'rejected'].includes(st)) throw new ApiError(400, '状态不合法');
     return { status: st, scores: q.reviewList.all(st, 50).map(r => ({ ...r, phone: PHONE_RE.test(r.phone) ? r.phone.replace(/^(\d{3})\d{4}/, '$1****') : '' })) };
+  }],
+  /* v62.9 A4 举报处理：列未处理举报（按谱聚合计数）；处理＝关闭该谱全部未处理举报（下架另走审核下架接口） */
+  ['GET', /^\/api\/admin\/reports$/, true, (m, b, u) => { requireAdmin(u); return { reports: q.reportOpen.all(100) }; }],
+  ['POST', /^\/api\/admin\/reports\/([A-Za-z0-9_-]+)\/close$/, true, (m, b, u) => {
+    requireAdmin(u);
+    const r = q.reportClose.run(now(), u.id, m[1]);
+    adminLog(u.id, 'report-close', m[1], '处理举报 ' + r.changes + ' 条');
+    return { closed: r.changes };
   }],
   /* 审核预览：管理员按 id 读任意谱（含未上架的 pending），供编辑器 ?review=ID 进观看模式核对谱面 */
   ['GET', /^\/api\/admin\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {

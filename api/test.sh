@@ -28,7 +28,9 @@ chk 发送验证码 '"sent":true' "$R"
 CODE=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R" | grep -oE '[0-9]{6}')
 chk 频控-60秒内重发被拒 '频繁' "$(J -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13800001234"}')"
 chk 错误验证码被拒 '不正确' "$(J -X POST http://127.0.0.1:3199/api/auth/sms/verify -d "{\"phone\":\"13800001234\",\"code\":\"000000\"}")"
-chk 登录成功 '"nickname":"谱友1234"' "$(J -X POST http://127.0.0.1:3199/api/auth/sms/verify -d "{\"phone\":\"13800001234\",\"code\":\"$CODE\"}")"
+LG=$(J -X POST http://127.0.0.1:3199/api/auth/sms/verify -d "{\"phone\":\"13800001234\",\"code\":\"$CODE\"}")
+chk 登录成功 '"nickname":"谱友[0-9A-F][0-9A-F][0-9A-F][0-9A-F]"' "$LG"
+nchk v62.9 默认昵称不含手机号后四位 '"nickname":"谱友1234"' "$LG"
 chk 手机号打码 '138\*\*\*\*1234' "$(J http://127.0.0.1:3199/api/me)"
 chk 改昵称 '"nickname":"小谱"' "$(J -X PATCH http://127.0.0.1:3199/api/me -d '{"nickname":"小谱"}')"
 chk 升级创作者 '"role":"creator"' "$(J -X POST http://127.0.0.1:3199/api/me/creator)"
@@ -381,7 +383,7 @@ chk 存量扫描只读命中 'song_evil0001.*deg（应为数字）' "$(DB_PATH=$
 chk 存量扫描隔离 '已隔离' "$(DB_PATH=$DIR/t.db node admin.js scan-xss --quarantine)"
 chk 隔离后谱库不可见 '不存在\|无权\|未上架\|找不到' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_evil0001)"
 
-# v62.7 A6 谱库超过 200 首（P1-34）：sitemap/目录全量收录、第 201 首起搜得到、老收藏卡片不消失、相关推荐走小查询
+（P1-34）：sitemap/目录全量收录、第 201 首起搜得到、老收藏卡片不消失、相关推荐走小查询
 node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);const uid=process.argv[2];
 const ins=d.prepare(\"INSERT INTO scores(id,user_id,title,singer,status,data,updated_at,created_at,pub_data,pub_title,pub_singer,pub_author,pub_at) VALUES(?,?,?,?,'published',?,?,?,?,?,?,'批量',?)\");
 for(let i=0;i<241;i++){ const id='bulk'+String(i).padStart(5,'0')+'xx'; const t='批量谱'+i; const sg=i%7?'歌手'+(i%5):'独特歌手'; const dt=JSON.stringify({v:3,title:t,measures:[{}]});
@@ -400,6 +402,24 @@ chk 老收藏带完整卡片 '"cards":\[{"id":"bulk00000xx"' "$(J2 http://127.0.
 REL=$(curl -s http://127.0.0.1:3199/pub/bulk00000xx)
 chk 相关推荐同歌手优先 'bulk00238xx' "$REL"
 nchk 相关推荐不被非同歌手的最新谱挤掉 'bulk00240xx' "$REL"
+
+# v62.9 A4 合规：考编包停售改预约（D-01）、举报、管理员核查
+chk 考编包不再接新单 '筹备中' "$(J2 -X POST http://127.0.0.1:3199/api/pay/create -d '{"kind":"pack_kaobian"}')"
+chk 预约须登录 '请先登录' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
+chk 预约登记 '"reserved":true' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
+chk 预约幂等 '"reserved":true' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"pack_kaobian"}')"
+chk 我的预约 '"kind":"pack_kaobian"' "$(J2 http://127.0.0.1:3199/api/me/reserves)"
+chk 非预约品类被拒 '不支持预约' "$(J2 -X POST http://127.0.0.1:3199/api/reserve -d '{"kind":"vip"}')"
+chk 匿名可举报 '"reported":true' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/report -d '{"score_id":"bulk00001xx","reason":"copyright","note":"<b>未授权</b>"}')"
+chk 举报去重 '"reported":true' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/report -d '{"score_id":"bulk00001xx","reason":"copyright"}')"
+chk 举报理由必选 '请选择举报理由' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/report -d '{"score_id":"bulk00001xx","reason":"x"}')"
+chk 举报不存在的谱 '曲谱不存在' "$(curl -s -X POST -H 'Content-Type: application/json' http://127.0.0.1:3199/api/report -d '{"score_id":"nosuch0000","reason":"spam"}')"
+chk 管理员看举报 '"score_id":"bulk00001xx"' "$(J2 http://127.0.0.1:3199/api/admin/reports)"
+chk 举报按谱去重计数 '"n":1' "$(J2 http://127.0.0.1:3199/api/admin/reports)"
+chk 概览含未处理举报与预约 '"reports":1' "$(J2 http://127.0.0.1:3199/api/admin/overview)"
+chk 处理举报 '"closed":1' "$(J2 -X POST http://127.0.0.1:3199/api/admin/reports/bulk00001xx/close)"
+chk 管理员核查已售出 '已付款订单 0 笔' "$(DB_PATH=$DIR/t.db node admin.js sold pack_kaobian)"
+chk 管理员看预约人数 'pack_kaobian  1 人' "$(DB_PATH=$DIR/t.db node admin.js reserves)"
 
 # v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
 node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!

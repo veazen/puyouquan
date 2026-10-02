@@ -1,6 +1,8 @@
 /* ================================================================
    谱友圈官网 · 共享脚本：线性图标库 / 导航页脚注入 / 主题 / 进场动画 / 文档路由
    ================================================================ */
+/* v62.9 A4 ④ 小程序 web-view 环境越早标记越好（页面首屏渲染前）：html.is-mp 驱动 CSS 隐藏价格/购买、外链转纯文本 */
+(function(){ try{ if(window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent||'')) document.documentElement.classList.add('is-mp'); }catch(_){} })();
 (function(){
 'use strict';
 
@@ -99,11 +101,11 @@ if(footEl){
       <a href="help.html">帮助</a>
       <a href="log.html">更新日志</a>
       <a href="sponsors.html">赞助商</a>
-      <a href="mailto:support@puyouquan.com">联系我们</a>
+      <a href="mailto:support@puyouquan.com" class="mp-text">联系我们</a>
     </nav>
     <div class="beian">
       <span>© 2026 谱友圈</span>
-      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a>
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" class="mp-text">粤ICP备2026100396号-1</a>
     </div>
   </div></footer>`;
 }
@@ -340,27 +342,32 @@ window.PYQ_ACCT = (function(){
     /* v58.4 微信登录入口：微信内走公众号网页授权（免扫码），微信外走开放平台扫码。
        v58.6 网页授权需认证服务号（订阅号无此能力，wx_mp 默认关）——微信内回落扫码通道时
        提示长按二维码识别（同一部手机扫不了自己的屏） */
-    const wxBtn=(wxWeb||wxMp)? `<div class="lg-or">— 或 —</div>
+    const wxBtn=((wxWeb||wxMp) && !(window.PYQ_MP && PYQ_MP.is()))? `<div class="lg-or">— 或 —</div>
       <button id="lg-wx" class="lg-wx">${(inWx&&wxMp)?'微信一键登录':'微信扫码登录'}</button>
       ${(inWx&&!wxMp)?'<div class="lg-wxtip">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':''}` : '';
     m.innerHTML=`<div class="pyq-modal"><h3>登录 / 注册</h3>
       <p class="lg-sub">输入手机号即登录，新号自动注册，跨端同步。</p>
       <input id="lg-phone" inputmode="numeric" maxlength="11" placeholder="11 位手机号">
       <div class="lg-row"><input id="lg-code" inputmode="numeric" maxlength="6" placeholder="6 位验证码"><button id="lg-send">获取验证码</button></div>
+      <label class="lg-agree"><input type="checkbox" id="lg-agree"> 我已阅读并同意<a href="terms.html" target="_blank" rel="noopener">《用户协议》</a>和<a href="privacy.html" target="_blank" rel="noopener">《隐私政策》</a></label>
       <div id="lg-msg" class="lg-msg"></div>
       ${wxBtn}
       <div class="lg-btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div></div>`;
     document.body.appendChild(m);
     m.addEventListener('click',e=>{ if(e.target===m) m.remove(); });
     const msg=t=>{ const e=document.getElementById('lg-msg'); if(e) e.textContent=t||''; };
+    /* v62.9 A4 ①（P1-05）协议须主动勾选（默认不勾），三个登录通道同一把关 */
+    const agreed=()=>{ const a=document.getElementById('lg-agree'); if(a && a.checked) return true; msg('请先阅读并勾选同意《用户协议》和《隐私政策》'); return false; };
     let timer=0;
     { const wxb=document.getElementById('lg-wx'); if(wxb) wxb.onclick=async function(){
+        if(!agreed()) return;
         this.disabled=true;
         try{ const r=await api('/wx/'+((inWx&&wxMp)?'mp':'web')+'/login-url?return='+encodeURIComponent(location.href));
           if(r.url) location.href=r.url; else { this.disabled=false; msg('微信登录暂不可用'); } }
         catch(e){ this.disabled=false; msg(e.status===503?'微信登录尚未开通':(e.message||'微信登录暂不可用')); } }; }
     document.getElementById('lg-cancel').onclick=()=>{ if(timer)clearInterval(timer); m.remove(); };
     document.getElementById('lg-send').onclick=async function(){
+      if(!agreed()) return;
       const phone=document.getElementById('lg-phone').value.trim();
       if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
       this.disabled=true;
@@ -371,6 +378,7 @@ window.PYQ_ACCT = (function(){
       }catch(e){ this.disabled=false; msg(e.message); }
     };
     document.getElementById('lg-go').onclick=async()=>{
+      if(!agreed()) return;
       const phone=document.getElementById('lg-phone').value.trim(), code=document.getElementById('lg-code').value.trim();
       if(!/^1[3-9]\d{9}$/.test(phone)) return msg('请输入正确的手机号');
       if(!/^\d{6}$/.test(code)) return msg('请输入 6 位验证码');
@@ -882,5 +890,20 @@ window.PYQ_MP = (function(){
   }
   function nav(path){ return sdk().then(function(w){ return new Promise(function(res, rej){
     w.miniProgram.navigateTo({ url: path, success: function(){ res(true); }, fail: function(e){ rej(e); } }); }); }); }
-  return { is: is, nav: nav };
+  /* v62.9 A4 ④：小程序里制谱器（zhipu）不在业务域名白名单——点到这类链接改为复制链接、提示去电脑打开（隐私政策已声明：仅写入剪切板） */
+  function note(t){ var n=document.createElement('div'); n.className='mp-note'; n.textContent=t; document.body.appendChild(n);
+    setTimeout(function(){ n.remove(); }, 3200); }
+  function copy(url, what){
+    var done=function(){ note('已复制'+(what||'链接')+'，请在电脑浏览器粘贴打开'); };
+    function legacy(){ try{ var t=document.createElement('textarea'); t.value=url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
+      document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }catch(_){ note('请手动复制：'+url); } }
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done, legacy); return; } }catch(_){}
+    legacy();
+  }
+  if(is()) document.addEventListener('click', function(e){
+    var a=e.target.closest && e.target.closest('a[href]'); if(!a) return;
+    var h=a.getAttribute('href')||'';
+    if(/^(https?:)?\/\/zhipu\.puyouquan\.com/i.test(h)){ e.preventDefault(); copy(a.href, '制谱链接'); }
+  }, true);
+  return { is: is, nav: nav, copy: copy };
 })();

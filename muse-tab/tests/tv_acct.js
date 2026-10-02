@@ -30,7 +30,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T3 手机号校验：非法号码点「获取验证码」→ 提示错误且不发请求
   r = await pg.evaluate(async () => {
     let called = 0; const of = window.fetch; window.fetch = () => { called++; return of.apply(window, arguments); };
-    openLogin();
+    openLogin(); (document.getElementById('lg-agree')||{}).checked=true; 
     document.getElementById('lg-phone').value = '123';
     document.getElementById('lg-send').click();
     await new Promise(r => setTimeout(r, 50));
@@ -39,6 +39,20 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { msg, called };
   });
   T(/手机号/.test(r.msg) && r.called === 0, 'T3 手机号校验拦截', JSON.stringify(r));
+
+  // T3x v62.9 A4 ①：协议勾选默认不勾；不勾选时「获取验证码」只提示、不发请求
+  r = await pg.evaluate(async () => {
+    let called = 0; const of = window.fetch; window.fetch = () => { called++; return of.apply(window, arguments); };
+    openLogin();
+    const box = document.getElementById('lg-agree');
+    document.getElementById('lg-phone').value = '13800000000';
+    document.getElementById('lg-send').click();
+    await new Promise(r => setTimeout(r, 50));
+    const msg = document.getElementById('lg-msg').textContent;
+    window.fetch = of; closeModal();
+    return { has: !!box, def: box ? box.checked : null, msg, called };
+  });
+  T(r.has && r.def === false && /同意/.test(r.msg) && r.called === 0, 'T3x 协议默认不勾、不勾选不发验证码', JSON.stringify(r));
 
   // T4 stub fetch 走通「发送验证码 → 登录」：ACCT 落地、账号卡显示昵称与退出
   r = await pg.evaluate(async () => {
@@ -49,7 +63,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       if (url.endsWith('/auth/sms/verify')) return J({ user: { id: 'u1', phone: '138****0000', nickname: '谱友0000', role: 'user' }, is_new: true });
       return J({});
     };
-    openLogin();
+    openLogin(); (document.getElementById('lg-agree')||{}).checked=true; 
     document.getElementById('lg-phone').value = '13800000000';
     document.getElementById('lg-send').click();
     await new Promise(r => setTimeout(r, 60));

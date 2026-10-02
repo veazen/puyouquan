@@ -131,6 +131,17 @@ for (const col of ['thumb BLOB', 'thumb_mime TEXT', 'thumb_at INTEGER']) {
 /* v60.97 浏览数（产品指示：曲谱有浏览数和收藏点赞记录）：详情每次公开拉取 +1，列只增不改名 */
 try { db.exec('ALTER TABLE scores ADD COLUMN views INTEGER NOT NULL DEFAULT 0'); } catch { /* 列已存在 */ }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
+/* v62.9 A4 合规：①预约登记（考编包等「筹备中、不收钱」的内容先登记，上线后站内通知；D-01）；
+   ②举报（看谱页 ⚙「举报这首谱」，P2-64 小程序 UGC 审核硬要求）。表只增 */
+db.exec(`CREATE TABLE IF NOT EXISTS reservations(
+  user_id TEXT NOT NULL REFERENCES users(id), kind TEXT NOT NULL, created_at INTEGER NOT NULL,
+  PRIMARY KEY(user_id, kind));
+CREATE TABLE IF NOT EXISTS reports(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, score_id TEXT NOT NULL, user_id TEXT, who TEXT NOT NULL,
+  reason TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open',
+  created_at INTEGER NOT NULL, handled_at INTEGER, handled_by TEXT);
+CREATE INDEX IF NOT EXISTS idx_reports_open ON reports(status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_dedupe ON reports(score_id, who, reason);`);
 /* v62.6 A1c 小程序占位号合并：被合并掉的占位号软删除（openid/unionid 已迁走、谁也登不进去），列只增 */
 try { db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER'); } catch { /* 列已存在 */ }
 /* v62.5 A1b 发布快照（评审团 P0-2 审核 TOCTOU；D-02 拍板「发布快照，修订另审」）：
@@ -249,6 +260,20 @@ const q = {
   pubSearchCount: db.prepare(`SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL
                               AND (pub_title LIKE ?1 ESCAPE '\\' OR pub_singer LIKE ?1 ESCAPE '\\' OR pub_author LIKE ?1 ESCAPE '\\')`),
   pubTotal:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL"),
+  /* v62.9 A4 */
+  reserveAdd:   db.prepare('INSERT OR IGNORE INTO reservations(user_id,kind,created_at) VALUES(?,?,?)'),
+  reserveMine:  db.prepare('SELECT kind, created_at FROM reservations WHERE user_id = ?'),
+  reserveCount: db.prepare('SELECT kind, COUNT(*) AS n FROM reservations GROUP BY kind'),
+  reportAdd:    db.prepare('INSERT OR IGNORE INTO reports(score_id,user_id,who,reason,note,created_at) VALUES(?,?,?,?,?,?)'),
+  reportOpen:   db.prepare(`SELECT r.id, r.score_id, r.reason, r.note, r.created_at, s.pub_title AS title, s.status,
+                              (SELECT COUNT(*) FROM reports r2 WHERE r2.score_id = r.score_id AND r2.status = 'open') AS n
+                            FROM reports r LEFT JOIN scores s ON s.id = r.score_id
+                            WHERE r.status = 'open' ORDER BY r.created_at DESC, r.id DESC LIMIT ?`),
+  reportOpenCount: db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'"),
+  reportClose:  db.prepare("UPDATE reports SET status = 'closed', handled_at = ?, handled_by = ? WHERE score_id = ? AND status = 'open'"),
+  /* 某权益已售出/已兑换的明细（负责人核查考编包零交付订单用） */
+  entSoldOrders: db.prepare("SELECT id, user_id, amount_fen, channel, status, created_at, paid_at FROM orders WHERE kind = ? AND status = 'paid' ORDER BY created_at"),
+  entUsedCodes: db.prepare('SELECT code, used_by, used_at FROM redeem_codes WHERE kind = ? AND used_by IS NOT NULL ORDER BY used_at'),
   favCards:     db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
                             (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
                             (SELECT COUNT(*) FROM favorites f2 WHERE f2.score_id=s.id) AS favs
