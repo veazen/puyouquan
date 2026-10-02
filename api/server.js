@@ -109,6 +109,7 @@ function authUser(req) {
 
 /* ---------- 请求辅助 ---------- */
 class ApiError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
+const { scoreDataDanger } = require('./scoredata');   // v62.5 A1a 谱面数据按字段校验（admin.js scan-xss 共用）
 const ipOf = req => req.headers['x-real-ip'] || req.socket.remoteAddress || '';
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -843,6 +844,7 @@ const routes = [
     const id = m[1];
     if (!ID_RE.test(id)) throw new ApiError(400, '谱面 id 不合法');
     if (typeof b.data !== 'object' || b.data === null) throw new ApiError(400, '缺少谱面数据');
+    { const bad = scoreDataDanger(b.data, '', 'data', 0); if (bad) throw new ApiError(400, '谱面数据不合法：' + bad); }
     const data = JSON.stringify(b.data);
     if (data.length > 2 * 1024 * 1024) throw new ApiError(413, '谱面过大');
     const t = Math.floor(+b.updated_at || now());
@@ -855,6 +857,8 @@ const routes = [
       if (q.scoreCount.get(u.id).n >= cap) throw new ApiError(403, `云端谱面数量已达上限（${cap}${cap === MAX_SCORES ? '，开通会员可扩容至 ' + MAX_SCORES_VIP : ''}）`);
     }
     q.scoreUpsert.run(id, u.id, String(b.title || '').slice(0, 120), String(b.singer || '').slice(0, 60), data, t, now());
+    /* v62.5 A1b：已发布谱的保存只改草稿（公开端读快照）；管理员改自己的谱免审，直接刷新快照 */
+    if (exist && exist.status === 'published' && u.role === 'admin') q.scoreSnap.run(now(), id);
     return { saved: true, updated_at: t };
   }],
   ['DELETE', /^\/api\/scores\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
@@ -872,9 +876,17 @@ const routes = [
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '只能发布自己的曲谱');
     if (!isCreator(u)) throw new ApiError(403, '请先在个人中心「成为创作者」');
+    /* v62.5 A1b 已发布谱再点发布＝「提交更新审核」：公开端在通过前一直是旧快照；
+       草稿与快照相同则无事可审（返回 unchanged）；管理员免审直接刷新快照 */
+    if (s.status === 'published') {
+      if (!s.pub_dirty) return { published: true, status: 'published', unchanged: true };
+      if (u.role === 'admin') { q.scoreSnap.run(now(), s.id); baiduPush([s.id]); return { published: true, status: 'published', revision: 'applied' }; }
+      q.scoreRevSet.run('pending', '', s.id);
+      return { published: true, status: 'published', revision: 'pending' };
+    }
     const st = u.role === 'admin' ? 'published' : 'pending';
     q.scoreReview.run(st, '', s.id);
-    if (st === 'published') baiduPush([s.id]);   /* v61.7 直发上架即推百度（未配 token 静默跳过） */
+    if (st === 'published') { q.scoreSnap.run(now(), s.id); baiduPush([s.id]); }   /* v61.7 直发上架即推百度（未配 token 静默跳过） */
     return { published: st === 'published', status: st, pending: st === 'pending' };
   }],
   /* v60.6 曲谱实例缩图上传：制谱器把真实渲染的谱面首行光栅化后回传，谱库卡片直接当截图展示。
@@ -892,12 +904,16 @@ const routes = [
     if (c > 40) throw new ApiError(429, '缩图上传过于频繁，请稍后再试');
     const { buf, mime } = decodeThumb(b && b.data);
     q.scoreThumbSet.run(buf, mime, now(), s.id, u.id);
+    /* v62.5 A1b：缩图同属发布快照——已发布谱换图只进草稿，随下次更新审核通过才外发；
+       管理员直发的谱（快照在发布那一刻已建好、缩图随后才传上来）与管理员自己的谱免审同步 */
+    if (s.status === 'published' && u.role === 'admin') q.scorePubThumb.run(s.id);
     return { saved: true, bytes: buf.length, mime };
   }],
   ['POST', /^\/api\/scores\/([A-Za-z0-9_-]+)\/unpublish$/, true, (m, b, u) => {
     const s = needScore(m[1]);
     if (s.user_id !== u.id) throw new ApiError(403, '无权操作');
     q.scoreSetStatus.run('private', s.id, u.id);
+    q.scoreRevSet.run('', '', s.id);   // v62.5 下架连带清掉进行中的更新审核
     return { unpublished: true };
   }],
 
@@ -908,7 +924,7 @@ const routes = [
     const sts = {}; q.scoreCountBySt.all().forEach(r => { sts[r.status] = r.n; });
     const paid = q.orderPaidAgg.get();
     return { users: q.userCount.get().n, roles, scores: q.scoreCountAll.get().n, scoreStatus: sts,
-      pending: sts.pending || 0, published: sts.published || 0,
+      pending: sts.pending || 0, published: sts.published || 0, revisions: q.revPendingCount.get().n,
       orders: { paid: paid.n, amount_fen: paid.fen },
       funnel: q.eventStats.all(now() - 7 * 86400) };
   }],
@@ -958,7 +974,8 @@ const routes = [
     requireAdmin(u);
     const s = needScore(m[1]), au = q.userById.get(s.user_id);
     return { score: { id: s.id, title: s.title, singer: s.singer, author: au ? au.nickname : '',
-      status: s.status, review_note: s.review_note || '', updated_at: s.updated_at, data: JSON.parse(s.data) } };
+      status: s.status, review_note: s.review_note || '', updated_at: s.updated_at, data: JSON.parse(s.data),
+      revision: s.status === 'published' && s.rev_status === 'pending' ? 1 : 0, rev_status: s.rev_status || '' } };
   }],
   ['POST', /^\/api\/admin\/scores\/([A-Za-z0-9_-]+)\/review$/, true, (m, b, u) => {
     requireAdmin(u);
@@ -967,8 +984,22 @@ const routes = [
     if (!['approve', 'reject', 'unpublish'].includes(act)) throw new ApiError(400, '操作只能是 approve / reject / unpublish');
     const note = String(b.note || '').slice(0, 200);
     if (act === 'reject' && !note) throw new ApiError(400, '驳回需填写原因（会展示给创作者）');
+    /* v62.5 A1b 更新审核（已发布谱的修订）：通过＝用草稿刷新快照；驳回＝只记修订驳回原因，谱库继续展示上一版、谱不下架 */
+    if (s.status === 'published' && s.rev_status === 'pending' && act !== 'unpublish') {
+      if (act === 'approve') { q.scoreSnap.run(now(), s.id); baiduPush([s.id]); }
+      else q.scoreRevSet.run('rejected', note, s.id);
+      adminLog(u.id, act === 'approve' ? 'rev-approve' : 'rev-reject', s.id, (s.title || '') + (note ? ' · ' + note : ''));
+      if (s.user_id !== u.id) {
+        const nm = '《' + (s.title || '未命名曲谱') + '》';
+        if (act === 'approve') notify(s.user_id, 'review', '你的曲谱' + nm + '的更新已通过审核', '谱库已换成你的最新版本。', 'https://puku.puyouquan.com/kanpu.html?pub=' + encodeURIComponent(s.id));
+        else notify(s.user_id, 'review', '你的曲谱' + nm + '的更新未通过审核', '驳回原因：' + note + '。谱库仍展示上一版；修改后可再次提交更新审核。', 'https://zhipu.puyouquan.com/?mine=' + encodeURIComponent(s.id));
+      }
+      return { ok: true, status: 'published', revision: act === 'approve' ? 'applied' : 'rejected' };
+    }
     const st = act === 'approve' ? 'published' : act === 'reject' ? 'rejected' : 'private';
     q.scoreReview.run(st, act === 'approve' ? '' : note, s.id);
+    if (st === 'published') q.scoreSnap.run(now(), s.id);   // v62.5 过审即冻结快照
+    else q.scoreRevSet.run('', '', s.id);
     adminLog(u.id, act, s.id, (s.title || '') + (note ? ' · ' + note : ''));
     if (act === 'approve') baiduPush([s.id]);   /* v61.7 过审上架即推百度（未配 token 静默跳过） */
     /* v60.87 审核结果发站内信给谱主（管理员审自己的谱不发，免自言自语）。

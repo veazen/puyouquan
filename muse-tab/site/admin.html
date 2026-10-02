@@ -89,15 +89,17 @@
   function loadOverview(){
     api('/admin/overview').then(function(j){
       var r=j.roles||{}, o=j.orders||{};
-      document.getElementById('ad-sum').textContent='待审 '+(j.pending|0)+' · 已上架 '+(j.published|0)+' · 用户 '+(j.users|0);
+      /* v62.5 A1b：待审数含「已上架谱的更新审核」 */
+      var pend=(j.pending|0)+(j.revisions|0);
+      document.getElementById('ad-sum').textContent='待审 '+pend+' · 已上架 '+(j.published|0)+' · 用户 '+(j.users|0);
       document.getElementById('ad-stats').innerHTML=[
         ['用户', j.users|0, (r.creator|0)+' 创作者 · '+(r.admin|0)+' 管理员'],
         ['曲谱', j.scores|0, (j.published|0)+' 已上架'],
-        ['待审核', j.pending|0, (j.pending?'需要处理':'队列已清空')],
+        ['待审核', pend, (pend?((j.revisions|0)?('含 '+(j.revisions|0)+' 条更新审核'):'需要处理'):'队列已清空')],
         ['已支付订单', o.paid|0, '¥'+(((o.amount_fen|0)/100).toFixed(2))]
       ].map(function(t){ return '<div class="ad-stat"><b>'+t[1]+'</b><span>'+t[0]+'</span><i>'+esc(t[2])+'</i></div>'; }).join('');
       var d=document.getElementById('ad-dot');
-      d.hidden=!(j.pending|0); d.textContent=j.pending|0;
+      d.hidden=!pend; d.textContent=pend;
       /* v60.88 近 7 日事件漏斗上墙（接口早就返回，此前从未展示） */
       var fn=(j.funnel||[]).slice(0,6).map(function(x){ return esc(x.name)+' '+x.n; }).join(' · ');
       document.getElementById('ad-funnel').textContent = fn? ('近 7 日事件：'+fn) : '';
@@ -135,8 +137,9 @@
         var acts=status==='pending'
           ? '<button class="ad-b ok" data-ok="'+esc(s.id)+'">通过</button><button class="ad-b no" data-no="'+esc(s.id)+'" data-t="'+esc(s.title||'')+'">驳回</button>'
           : '<button class="ad-b no" data-off="'+esc(s.id)+'">下架</button>';
+        /* v62.5 A1b 更新审核：谱已在谱库（展示上一版），这次审的是作者的新草稿；驳回不下架 */
         return '<div class="ad-row"><div class="ad-rmain">'
-          +'<b>'+esc(s.title||'未命名曲谱')+'</b>'
+          +'<b>'+esc(s.title||'未命名曲谱')+(s.revision?' <i class="k k-wait" title="谱已上架，这次审的是作者提交的修改；通过才替换谱库里的版本，驳回不下架">更新审核</i>':'')+'</b>'
           +'<small>'+esc(s.author||'佚名')+(s.phone?(' · '+esc(s.phone)):'')+' · '+FMTS(s.updated_at)
           +(s.review_note?(' · 上次驳回：'+esc(s.review_note)):'')+'</small></div>'
           +'<div class="ad-racts"><a class="ad-b" href="//zhipu.puyouquan.com/?review='+encodeURIComponent(s.id)+'" target="_blank" rel="noopener">预览谱面</a>'+acts+'</div></div>';
@@ -339,7 +342,7 @@
   }
 
   /* ---- 审计日志 ---- */
-  var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', role:'改角色', grant:'发放权益', revoke:'撤销权益',
+  var AD_ACT={approve:'审核通过', reject:'驳回', unpublish:'下架', 'rev-approve':'通过更新', 'rev-reject':'驳回更新', role:'改角色', grant:'发放权益', revoke:'撤销权益',
     broadcast:'发布公告', 'bcast-del':'撤回公告', codes:'生成兑换码',
     course:'编辑课程', 'course-pub':'发布课程', 'course-off':'下架课程', 'course-del':'删除课程', 'cli:set-role':'服务器改角色'};
   function adLogs(){

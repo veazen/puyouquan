@@ -37,6 +37,14 @@ chk 上传谱面 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/son
 chk 旧版本冲突409 '"conflict":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"旧","updated_at":1000,"data":{"v":3}}')"
 chk 谱面列表 '"title":"小星星"' "$(J http://127.0.0.1:3199/api/scores)"
 chk 谱面详情含数据 '"v":3' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+# v62.5 A1a 服务端按字段校验：拒绝危险、不拒绝陌生
+chk 危险音级被拒 '谱面数据不合法' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00001 -d '{"title":"x","updated_at":10,"data":{"v":3,"measures":[{"voxes":[[{"deg":"<img src=x onerror=alert(1)>"}]]}]}}')"
+chk 危险技法被拒 'tech（含非法字符）' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00001 -d '{"title":"x","updated_at":10,"data":{"v":3,"measures":[{"tabs":[[{"notes":[{"s":1,"f":3,"tech":"<svg onload=alert(1)>"}]}]]}]}}')"
+chk 危险键名被拒 '键名含尖括号' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00001 -d '{"title":"x","updated_at":10,"data":{"v":3,"customChords":{"<b>":[0,1]}}}')"
+chk 楔形与歌词尖括号放行 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00002 -d '{"title":"<3","updated_at":10,"data":{"v":3,"title":"a<b","measures":[{"voxes":[[{"deg":1,"dyn":"<","lyrics":["<3"]},{"deg":2,"dyn":">"}]]}]}}')"
+chk 旧版数字串放行 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00003 -d '{"title":"t","updated_at":10,"data":{"v":3,"tempo":"90","measures":[]}}')"
+chk 未知字段透传 '"futureField":"<x>"' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_xss00004 -d '{"title":"t","updated_at":10,"data":{"v":3,"futureField":"<x>","measures":[]}}' >/dev/null; J http://127.0.0.1:3199/api/scores/song_xss00004)"
+for X in song_xss00002 song_xss00003 song_xss00004; do J -X DELETE http://127.0.0.1:3199/api/scores/$X >/dev/null; done
 
 chk 加入谱架 '"ok":true' "$(J -X PUT http://127.0.0.1:3199/api/shelf/song_abc12345 -d '{"progress":"练到第8小节"}')"
 chk 谱架列表含进度 '练到第8小节' "$(J http://127.0.0.1:3199/api/shelf)"
@@ -274,6 +282,12 @@ chk 拒绝声明与内容不符 '不符' "$(J -X PUT http://127.0.0.1:3199/api/s
 chk 拒绝超大缩图 '缩图过大' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d @"$DIR/big.json")"
 chk 非本人不能改他人缩图 '只能为自己的曲谱生成缩图' "$(J2 -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/png;base64,$PNG1\"}")"
 chk 本人上传缩图成功 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/png;base64,$PNG1\"}")"
+# v62.5 A1b 发布快照：已发布谱换缩图只进草稿，须「提交更新审核」→ 管理员通过才外发
+chk 已发布谱换缩图不立即外发 '404' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/api/pub/song_abc12345/thumb)"
+chk 换缩图算未发布修改 '"pub_dirty":1' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+chk 提交更新审核 '"revision":"pending"' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+chk 待审队列含更新审核 '"revision":1' "$(J2 'http://127.0.0.1:3199/api/admin/reviews?status=pending')"
+chk 管理员通过更新审核 '"revision":"applied"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}')"
 TH=$(curl -s -D - -o /dev/null http://127.0.0.1:3199/api/pub/song_abc12345/thumb)
 chk 缩图ContentType 'image/png' "$TH"
 chk 缩图带nosniff 'X-Content-Type-Options: nosniff' "$TH"
@@ -290,7 +304,27 @@ nchk 谱面详情不外发缩图二进制 '"thumb":{' "$(J http://127.0.0.1:3199
 # v60.7 复核修复回归
 # ① verses 读真实字段 lyricLines（此前读不存在的 d.verses 恒为 0——死代码）
 chk 更新谱面带歌词段数 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星","singer":"测试","updated_at":2100,"data":{"v":3,"title":"小星星","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}')"
+# v62.5 A1b 审核 TOCTOU：过审后改谱/改标题/改昵称，公开端不变；更新审核驳回仍展示上一版；通过后才换新
+nchk 过审后改谱公开端仍是旧快照 '"verses":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 草稿已有未发布修改 '"pub_dirty":1' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+chk 改标题不立即上墙 '"title":"小星星"' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"违规标题","singer":"测试","updated_at":2101,"data":{"v":3,"title":"违规标题","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}' >/dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+nchk SSR也不露草稿标题 '违规标题' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
+chk 改昵称前署名 '"author":"小谱"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+J -X PATCH http://127.0.0.1:3199/api/me -d '{"nickname":"改过的昵称"}' >/dev/null
+chk 改昵称不影响已发布署名 '"author":"小谱"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 改标题后提交更新审核 '"revision":"pending"' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+chk 驳回更新须填原因 '驳回需填写原因' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"reject"}')"
+chk 驳回更新 '"revision":"rejected"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"reject","note":"标题不当"}')"
+chk 驳回更新后谱不下架 '"title":"小星星"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 驳回原因谱主可见 '"rev_note":"标题不当"' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星","singer":"测试","updated_at":2102,"data":{"v":3,"title":"小星星","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}' >/dev/null
+J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish >/dev/null
+J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}' >/dev/null
 chk 列表段词取自lyricLines '"verses":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 更新通过后署名取审核时昵称 '"author":"改过的昵称"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
+chk 更新通过后无未发布修改 '"pub_dirty":0' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
+chk 无改动再提交返回unchanged '"unchanged":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
+J -X PATCH http://127.0.0.1:3199/api/me -d '{"nickname":"小谱"}' >/dev/null
 # ② WebP 魔数按字节精确比对：高位伪造（0xD2C9C6C6…0xD7C5C2D0 经 ascii 解码假冒 RIFF/WEBP）必须被拒
 FAKE=$( { printf '\xd2\xc9\xc6\xc6\x00\x00\x00\x00\xd7\xc5\xc2\xd0'; head -c 52 /dev/zero; } | base64 | tr -d '\n')
 chk 拒绝高位伪造的WebP魔数 '不符' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345/thumb -d "{\"data\":\"data:image/webp;base64,$FAKE\"}")"
@@ -339,6 +373,13 @@ chk 删除后谱架为空 '"shelf":\[\]' "$(J http://127.0.0.1:3199/api/shelf)"
 chk 未登录被拒 '请先登录' "$(curl -s http://127.0.0.1:3199/api/scores)"
 chk 登出 '"ok":true' "$(J -X POST http://127.0.0.1:3199/api/auth/logout)"
 chk 登出后被拒 '请先登录' "$(J http://127.0.0.1:3199/api/me)"
+
+# v62.5 A1a 存量扫描：绕过 API 直接塞一条带载荷的已发布谱（模拟校验上线前的历史数据），scan-xss 只读扫出、--quarantine 打回驳回
+UIDX=$(node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);console.log(d.prepare('SELECT id FROM users LIMIT 1').get().id)" "$DIR/t.db")
+node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);d.prepare(\"INSERT INTO scores(id,user_id,title,status,data,updated_at,created_at) VALUES('song_evil0001',?,'恶意','published',?,1,1)\").run(process.argv[2], JSON.stringify({v:3,measures:[{voxes:[[{deg:'<img src=x onerror=alert(1)>'}]]}]}))" "$DIR/t.db" "$UIDX"
+chk 存量扫描只读命中 'song_evil0001.*deg（应为数字）' "$(DB_PATH=$DIR/t.db node admin.js scan-xss)"
+chk 存量扫描隔离 '已隔离' "$(DB_PATH=$DIR/t.db node admin.js scan-xss --quarantine)"
+chk 隔离后谱库不可见 '不存在\|无权\|未上架\|找不到' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_evil0001)"
 
 echo; echo "通过 $pass / $((pass+fail))"
 [ $fail -eq 0 ]

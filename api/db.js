@@ -131,6 +131,19 @@ for (const col of ['thumb BLOB', 'thumb_mime TEXT', 'thumb_at INTEGER']) {
 /* v60.97 浏览数（产品指示：曲谱有浏览数和收藏点赞记录）：详情每次公开拉取 +1，列只增不改名 */
 try { db.exec('ALTER TABLE scores ADD COLUMN views INTEGER NOT NULL DEFAULT 0'); } catch { /* 列已存在 */ }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_unionid ON users(wx_unionid) WHERE wx_unionid IS NOT NULL');
+/* v62.5 A1b 发布快照（评审团 P0-2 审核 TOCTOU；D-02 拍板「发布快照，修订另审」）：
+   过审那一刻把 data/标题/演唱/署名/缩图冻结进 pub_* 列，公开端（谱库列表/详情/SSR/sitemap/缩图）只读快照；
+   作者此后的保存（含编辑器每 6 秒的自动保存）只改草稿列，**主动「提交更新审核」**才进 rev_status='pending'，
+   管理员通过后才用草稿刷新快照。署名在审核时固化，改昵称不会影响已发布谱。列只增不改名（数据红线）。 */
+for (const col of ['pub_data TEXT', 'pub_title TEXT', 'pub_singer TEXT', 'pub_author TEXT', 'pub_thumb BLOB', 'pub_thumb_mime TEXT',
+  'pub_thumb_at INTEGER', 'pub_at INTEGER', "rev_status TEXT NOT NULL DEFAULT ''", "rev_note TEXT NOT NULL DEFAULT ''"]) {
+  try { db.exec('ALTER TABLE scores ADD COLUMN ' + col); } catch { /* 列已存在 */ }
+}
+/* 老库回填：快照上线前已发布的谱以当前内容为快照（无从得知过审时的原版），幂等——只补 pub_data 为空的行 */
+db.exec(`UPDATE scores SET pub_data = data, pub_title = title, pub_singer = singer,
+  pub_author = (SELECT nickname FROM users WHERE users.id = scores.user_id),
+  pub_thumb = thumb, pub_thumb_mime = thumb_mime, pub_thumb_at = thumb_at, pub_at = updated_at
+  WHERE status = 'published' AND pub_data IS NULL`);
 
 const now = () => Math.floor(Date.now() / 1000);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -170,10 +183,22 @@ const q = {
      叠加 LIMIT 就会从窗口里随机丢行（管理端少看到一条订单/一次审计）。
      rowid 是插入序，既确定又正好等于「谁先发生」。 */
   // 谱面
-  scoreList:    db.prepare('SELECT id,title,singer,status,review_note,updated_at,created_at,thumb_at FROM scores WHERE user_id = ? ORDER BY updated_at DESC'),
+  /* v62.5 A1b：pub_dirty＝已发布且草稿与快照不同（「有未发布修改」）；rev_status/rev_note＝更新审核状态与驳回原因 */
+  scoreList:    db.prepare(`SELECT id,title,singer,status,review_note,updated_at,created_at,thumb_at,rev_status,rev_note,
+                              CASE WHEN status = 'published' AND (pub_data IS NOT data OR pub_title IS NOT title OR pub_singer IS NOT singer OR pub_thumb_at IS NOT thumb_at) THEN 1 ELSE 0 END AS pub_dirty
+                            FROM scores WHERE user_id = ? ORDER BY updated_at DESC`),
   /* v60.6 起显式列而非 SELECT *：thumb 是 BLOB，随 `{...s}` 进 JSON 会被序列化成
      {"0":82,"1":73,…} 的巨型对象（体积翻十几倍且客户端无用）。只取 thumb_at 供前端判断有无缩图。 */
-  scoreGet:     db.prepare('SELECT id,user_id,title,singer,status,review_note,data,updated_at,created_at,thumb_at FROM scores WHERE id = ?'),
+  scoreGet:     db.prepare(`SELECT id,user_id,title,singer,status,review_note,data,updated_at,created_at,thumb_at,rev_status,rev_note,
+                              CASE WHEN status = 'published' AND (pub_data IS NOT data OR pub_title IS NOT title OR pub_singer IS NOT singer OR pub_thumb_at IS NOT thumb_at) THEN 1 ELSE 0 END AS pub_dirty
+                            FROM scores WHERE id = ?`),
+  /* 用草稿刷新快照（过审 / 管理员直发 / 管理员改自己已发布的谱），同时清掉更新审核状态 */
+  scoreSnap:    db.prepare(`UPDATE scores SET pub_data = data, pub_title = title, pub_singer = singer,
+                              pub_author = (SELECT nickname FROM users WHERE users.id = scores.user_id),
+                              pub_thumb = thumb, pub_thumb_mime = thumb_mime, pub_thumb_at = thumb_at, pub_at = ?,
+                              rev_status = '', rev_note = '' WHERE id = ?`),
+  scoreRevSet:  db.prepare('UPDATE scores SET rev_status = ?, rev_note = ? WHERE id = ?'),
+  scorePubThumb:db.prepare('UPDATE scores SET pub_thumb = thumb, pub_thumb_mime = thumb_mime, pub_thumb_at = thumb_at WHERE id = ?'),
   scoreCount:   db.prepare('SELECT COUNT(*) AS n FROM scores WHERE user_id = ?'),
   scoreUpsert:  db.prepare(`INSERT INTO scores(id,user_id,title,singer,data,updated_at,created_at)
                             VALUES(?,?,?,?,?,?,?)
@@ -183,20 +208,21 @@ const q = {
   scoreSetStatus: db.prepare('UPDATE scores SET status = ? WHERE id = ? AND user_id = ?'),
   /* v60.6 缩图：写入只认本人（server.js 先查 ownership），读取按发布态放行 */
   scoreThumbSet: db.prepare('UPDATE scores SET thumb = ?, thumb_mime = ?, thumb_at = ? WHERE id = ? AND user_id = ?'),
-  scoreThumbGet: db.prepare("SELECT thumb,thumb_mime,thumb_at FROM scores WHERE id = ? AND status = 'published'"),
+  scoreThumbGet: db.prepare("SELECT pub_thumb AS thumb, pub_thumb_mime AS thumb_mime, pub_thumb_at AS thumb_at FROM scores WHERE id = ? AND status = 'published'"),   /* v62.5 只外发快照缩图 */
   // 公开谱库（谱库 puku，无需登录）
   // 含 data 以便服务端算封面/类型；库规模变大时可另建轻量查询（见 server.js pubShape 注释）
   // thumb_at 只取时间戳不取 BLOB——列表接口若带上二进制会撑爆 JSON
-  pubList:      db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.updated_at,s.thumb_at,s.data,s.views,
+  /* v62.5 A1b：公开端一律读快照列（标题/演唱/署名/谱面/缩图/上架时间），不受作者此后的草稿与改昵称影响 */
+  pubList:      db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
                             (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
                             (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
                             FROM scores s JOIN users u ON u.id = s.user_id
-                            WHERE s.status = 'published' ORDER BY s.updated_at DESC, s.rowid DESC LIMIT 200`),
-  pubGet:       db.prepare(`SELECT s.id,s.title,s.singer,u.nickname AS author,s.data,s.updated_at,s.thumb_at,s.views,
+                            WHERE s.status = 'published' AND s.pub_data IS NOT NULL ORDER BY s.pub_at DESC, s.rowid DESC LIMIT 200`),
+  pubGet:       db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_data AS data,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.views,
                             (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
                             (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
                             FROM scores s JOIN users u ON u.id = s.user_id
-                            WHERE s.id = ? AND s.status = 'published'`),
+                            WHERE s.id = ? AND s.status = 'published' AND s.pub_data IS NOT NULL`),
   viewInc:      db.prepare("UPDATE scores SET views = views + 1 WHERE id = ? AND status = 'published'"),
   pubCount:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published'"),
   scoreUnref:   db.prepare(`DELETE FROM favorites WHERE score_id = ?;`),
@@ -304,11 +330,15 @@ const q = {
   userCountRole:db.prepare('SELECT role, COUNT(*) AS n FROM users GROUP BY role'),
   scoreCountAll:db.prepare('SELECT COUNT(*) AS n FROM scores'),
   scoreCountBySt:db.prepare('SELECT status, COUNT(*) AS n FROM scores GROUP BY status'),
+  revPendingCount: db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND rev_status = 'pending'"),
   // 审核队列：待审 + 最近处理（含作者昵称/手机号，便于甄别）
-  reviewList:   db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.review_note,s.updated_at,
+  /* v62.5 A1b：待审队列同时列出「已发布谱的更新审核」（revision=1，审的是草稿，公开端仍是旧快照） */
+  reviewList:   db.prepare(`SELECT s.id,s.title,s.singer,s.status,s.review_note,s.updated_at,s.rev_status,s.rev_note,
+                              CASE WHEN s.status = 'published' AND s.rev_status = 'pending' THEN 1 ELSE 0 END AS revision,
                               u.id AS user_id,u.nickname AS author,u.phone
                             FROM scores s JOIN users u ON u.id = s.user_id
-                            WHERE s.status = ? ORDER BY s.updated_at DESC, s.rowid DESC LIMIT ?`),
+                            WHERE s.status = ?1 OR (?1 = 'pending' AND s.status = 'published' AND s.rev_status = 'pending')
+                            ORDER BY s.updated_at DESC, s.rowid DESC LIMIT ?2`),
   scoreReview:  db.prepare('UPDATE scores SET status = ?, review_note = ? WHERE id = ?'),   // 管理员改状态：不带 user_id 约束
   orderPaidAgg: db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_fen),0) AS fen FROM orders WHERE status='paid'"),
   adminLogAdd:  db.prepare('INSERT INTO admin_logs(admin_id,action,target,detail,created_at) VALUES(?,?,?,?,?)'),

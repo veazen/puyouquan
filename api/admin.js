@@ -16,10 +16,13 @@
      node admin.js codes [n]                        最近 n 个兑换码（默认 50）
      node admin.js orders [n]                       最近 n 笔订单（默认 50）
      node admin.js stats [天数]                     总量 + 近 N 天事件漏斗（默认 7）
+     node admin.js scan-xss [--quarantine]          v62.5 扫描全部云端谱面的危险字段（与 PUT 校验同口径）；
+                                                    加 --quarantine 把命中的已发布/待审谱打回「驳回」并写明原因（谱主在个人中心可见）
    kind 约定：vip=会员(配额2000) / pack_kaobian=考编内容包 / 其他自定义。
    注意：生产执行需 sudo -u pyq 或 root（DB 文件属 pyq）；本工具不经 HTTP、无认证面。 */
 const crypto = require('node:crypto');
 const { db, q, now } = require('./db');
+const { scoreDataDanger } = require('./scoredata');
 
 const [, , cmd, ...args] = process.argv;
 const fmtTs = s => s ? new Date(s * 1000).toISOString().replace('T', ' ').slice(0, 19) : '-';
@@ -127,6 +130,23 @@ const cmds = {
     q.orderList.all(Math.min(500, +n || 50)).forEach(o =>
       console.log(`${fmtTs(o.created_at)}  ${o.kind}  ¥${(o.amount_fen / 100).toFixed(2)}  ${o.channel}  ${o.status}  user=${o.user_id.slice(0, 8)}`));
   },
+  'scan-xss'(flag) {
+    const quarantine = flag === '--quarantine';
+    const rows = db.prepare('SELECT id, user_id, title, status, data FROM scores').all();
+    let bad = 0;
+    for (const r of rows) {
+      let d; try { d = JSON.parse(r.data); } catch (_) { console.log(`${r.id}  [${r.status || '私有'}]  无法解析`); bad++; continue; }
+      const why = scoreDataDanger(d, '', 'data', 0);
+      if (!why) continue;
+      bad++;
+      console.log(`${r.id}  [${r.status || '私有'}]  user=${String(r.user_id).slice(0, 8)}  《${r.title || ''}》  ${why}`);
+      if (quarantine && (r.status === 'published' || r.status === 'pending')) {
+        db.prepare("UPDATE scores SET status = 'rejected', review_note = ? WHERE id = ?").run('安全扫描隔离：谱面含不合法数据（' + why.slice(0, 80) + '），请在编辑器重新打开保存后再提交审核', r.id);
+        console.log('    → 已隔离（打回驳回）');
+      }
+    }
+    console.log(`共扫描 ${rows.length} 首，命中 ${bad} 首${quarantine ? '' : '（只读扫描；加 --quarantine 隔离已发布/待审谱）'}`);
+  },
   stats(days) {
     const d = Math.max(1, +days || 7);
     const c = t => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
@@ -137,7 +157,7 @@ const cmds = {
 };
 
 if (!cmds[cmd]) {
-  console.log('可用命令：user / users / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats（详见文件头注释）');
+  console.log('可用命令：user / users / set-role / admins / logs / grant / revoke / gen-codes / codes / orders / stats / scan-xss（详见文件头注释）');
   process.exit(cmd ? 1 : 0);
 }
 cmds[cmd](...args);

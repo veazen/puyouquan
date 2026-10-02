@@ -5238,7 +5238,37 @@ const PRESETS = [
   {name:'和弦进行示例（纯和弦谱）', desc:'小节格每拍节奏斜线；卡农＋4536 进行，含 slash/七和弦，级数↔音名切换、可即时移调', make:presetChordChart},
   {name:'流行副歌（功能谱·进阶）', desc:'简谱旋律＋级数和弦；下行贝斯 line cliché＋转位＋副属和弦 D7，旋律与和声对齐', make:presetFuncPop},
 ];
+/* v62.5 A1a 存储型 XSS 根治：所有加载路径（loadSong / 启动恢复 / 云端拉取 / 各导入器 / 观看页 / 缩图）都经 migrate()，
+   在这一个入口按字段规范化——对合法数据零改动（全部预设 JSON 逐字节不变，tv_xss 钉住）：
+   ① 数值字段一律有限数值：字符串转 Number，非数字或非有限归 0（渲染把它们裸拼进 SVG）；
+   ② 短码字段（技法/升降/装饰/和弦名…）剥 <>（合法取值不含尖括号；dyn 楔形 '<'/'>' 白名单保留）；
+   ③ 自由文本（曲名/歌词/段落标记…）**不改存储**——全部输出点已 esc()（模糊注入实测：逐叶子键注入引号/尖括号，只有
+      音级/品位/技法/房子号四个字段能产出可执行属性，均由 ①② 覆盖）；④ 对象键名剥 <>（customChords 以和弦名为键）。
+   与 sanitizeUntrusted 的分工：那是**不可信来源**的严格版（另剥引号、自由文本也剥 <>），这里是自有数据的无损版。
+   常量放在 migrate 之前：顶层 const 有暂时性死区，不能让 migrate 引用到声明在它后面的常量。 */
+const SAN_NUM = new Set(['v','beats','unit','tempo','capo','lyricLines','dur','deg','oct','s','f','volta','simile','tup','mi','ci','vi','li','si','q']);
+const SAN_ENUM_KEEP = {dyn:new Set(['<','>'])};
+const SAN_FREE = new Set(['title','singer','lyricist','composer','maker','lyrics','label','anno','text','name','tabVoices','voxVoices','intro','desc','note','tempoTerm','author']);
+function normalizeSongFields(v, key){
+  if(Array.isArray(v)){ for(let i=0;i<v.length;i++) v[i]=normalizeSongFields(v[i], key); return v; }
+  if(v && typeof v==='object'){
+    for(const k of Object.keys(v)){
+      const val=normalizeSongFields(v[k], k);
+      if(/[<>]/.test(k)){ delete v[k]; v[k.replace(/[<>]/g,'')]=val; } else v[k]=val;
+    }
+    return v;
+  }
+  if(typeof v==='string'){
+    if(key && SAN_NUM.has(key)){ const n=Number(v); return Number.isFinite(n)? n : 0; }
+    if(key && SAN_FREE.has(key)) return v;
+    if(key && SAN_ENUM_KEEP[key] && SAN_ENUM_KEEP[key].has(v)) return v;
+    return /[<>]/.test(v)? v.replace(/[<>]/g,'') : v;
+  }
+  if(typeof v==='number' && key && SAN_NUM.has(key) && !Number.isFinite(v)) return 0;
+  return v;
+}
 function migrate(s){
+  if(s && typeof s==='object') normalizeSongFields(s);   /* v62.5 A1a：单一入口按字段规范化 */
   if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
@@ -5704,9 +5734,6 @@ const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
    ③ 自由文本（曲名/署名/歌词/段落标记/声部名…）只剥 <>，保住全角/半角引号等正常标点（输出点另有 esc）；
    ④ 其余短码字段（技法/升降/装饰/演奏法/和弦名…）合法值不含引号，连同引号与反引号一起剥。
    只用于不可信来源（他人发布谱 /pub、外部分享互动谱、审核预览）；对合法数据无损。 */
-const SAN_NUM = new Set(['v','beats','unit','tempo','capo','lyricLines','dur','deg','oct','s','f','volta','simile','tup','mi','ci','vi','li','si','q']);
-const SAN_ENUM_KEEP = {dyn:new Set(['<','>'])};
-const SAN_FREE = new Set(['title','singer','lyricist','composer','maker','lyrics','label','anno','text','name','tabVoices','voxVoices','intro','desc','note','tempoTerm','author']);
 function sanitizeUntrusted(v, key){
   if(typeof v==='string'){
     if(key && SAN_NUM.has(key)){ const n=Number(v); return Number.isFinite(n)? n : 0; }
@@ -20948,7 +20975,7 @@ function buildThumbCanvas(data, cb, onErr){
   let inner='', vw=0, cy=0;
   try{
     PRINT_PAGING = true;   /* v61.1 缩图恒按分页排版烤：不换行模式的横向长带不适合做 2:1 卡片缩图 */
-    song = JSON.parse(JSON.stringify(data));
+    song = migrate(JSON.parse(JSON.stringify(data)));   /* v62.5 A1a：缩图借谱同样过单一入口规范化 */
     blurSel = true; noteSel = []; barSel = null; selRange = null;
     measureSel = null; measureRange = null; meaHandleOn = false;
     sel = {mi:0, row:'tab', vi:0, ci:0, si:1};    /* 光标归零：借来的谱未必有原光标指向的小节 */
@@ -21416,6 +21443,18 @@ function showPublishMenu(libEntry, rect){
         if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
         /* v60.0 审核流：普通创作者提交后落 pending（谱库尚不可见），管理员发布免自审直接上架 */
         const pr=await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
+        /* v62.5 A1b 发布快照：已上架的谱再点发布＝提交更新审核（通过前谱库仍展示上一版）；没改动则无事可审 */
+        if(pr && pr.unchanged){ closePop(); toast('谱库里已经是这一版，无需再次提交'); return; }
+        if(pr && pr.revision==='pending'){
+          if(window.__srvScores) window.__srvScores[cloudId]=Object.assign({}, window.__srvScores[cloudId]||{}, {id:cloudId, status:'published', rev_status:'pending', pub_dirty:1});
+          closePop(); pyqEvent('publish');
+          scoreThumbUpload(cloudId, libEntry.data);   /* 新缩图随这次更新一并送审 */
+          showModal(`<h3>${svgi('check',18)} 更新已提交审核</h3>
+            <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(libEntry.title||'未命名曲谱')}》已在谱库上架，这次的修改已提交平台审核。<b>审核通过前，谱库里展示的仍是上一版</b>；通过后自动替换。审核结果会发到你的站内消息。</p>
+            <div class="btns"><a class="btn" href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener">查看审核进度</a><button id="pd-ok" class="primary">知道了</button></div>`);
+          const ok=document.getElementById('pd-ok'); if(ok) ok.onclick=()=>closeModal();
+          return;
+        }
         const online=!!(pr && pr.published);
         rec.status=online?'approved':'pending'; rec.cloudId=cloudId; rec.online=online;
         if(online) rec.url='https://puku.puyouquan.com/pub/'+cloudId;
@@ -22312,10 +22351,14 @@ function pcCreatorHTML(){
                 : (pb? (pb.status||'approved') : null);
     const reason=srv? ((sv&&sv.review_note)||'') : ((pb&&pb.reason)||'');
     const ST={pending:svgi('clock',11)+' 待审核', approved:svgi('check',11)+' 已上架', rejected:svgi('ban',11)+' 已驳回'};
+    /* v62.5 A1b 发布快照：已上架谱的修改走「更新审核」，谱库在通过前展示上一版——状态行把这件事讲清楚 */
+    const rev=(st==='approved' && sv)? (sv.rev_status==='pending'? ' · '+svgi('clock',11)+' 更新审核中'
+      : sv.rev_status==='rejected'? ' · 更新被驳回'+(sv.rev_note?('：'+esc(sv.rev_note)):'')
+      : sv.pub_dirty? ' · 有未发布的修改' : '') : '';
     return `<div class="pc-row">
       <span class="t1">${esc(e2.title||'未命名曲谱')}</span>
-      ${st? `<span class="t2" title="${esc(reason)}">${ST[st]}${st==='rejected'&&reason?('：'+esc(reason)):''} · ${(pb&&pb.price)>0?'¥'+pb.price:'免费'} · 已售${(pb&&pb.sales)||0} · ${svgi('eye',11)}${(pb&&pb.views)||0}</span>
-        <button data-pub-upd="${e2.id}" title="推送当前库中最新内容到谱库（普通创作者重新进入审核；管理员免审直接生效）">更新</button>
+      ${st? `<span class="t2" title="${esc(reason)}">${ST[st]}${st==='rejected'&&reason?('：'+esc(reason)):''}${rev} · ${(pb&&pb.price)>0?'¥'+pb.price:'免费'} · 已售${(pb&&pb.sales)||0} · ${svgi('eye',11)}${(pb&&pb.views)||0}</span>
+        <button data-pub-upd="${e2.id}" title="${st==='approved'?'把这次的修改提交更新审核——通过前谱库仍展示上一版（管理员免审直接生效）':'推送当前库中最新内容到谱库（普通创作者进入审核；管理员免审直接生效）'}">${st==='approved'?'提交更新':'更新'}</button>
         <button data-pub-off="${e2.id}">下架</button>`
       : `<span class="t2">未发布</span><button data-pub-on="${e2.id}" class="primary">发布到谱友圈</button>`}
     </div>`;
@@ -22543,12 +22586,15 @@ function renderPersonal(tab){
           const cloudId=await scoreCloudPush(e0.id);
           if(!cloudId) throw new Error('云端保存失败，请检查网络后重试');
           const pr=await apiCall('/scores/'+cloudId+'/publish',{method:'POST'});
+          /* v62.5 A1b：已上架谱的更新走「更新审核」——谱不下架，通过前谱库展示上一版（此前会整首退回待审、谱库直接看不到） */
+          if(pr && pr.unchanged){ toast('谱库里已经是这一版，无需再次提交'); openPersonal('creator'); return; }
+          const rev=pr && pr.revision;
           const online=!!(pr && pr.published);
           const l=circlePubs(); const pb=l.find(x=>x.libId===e0.id);
           if(pb){ pb.title=e0.title; pb.pubAt=nowStamp(); pb.status=online?'approved':'pending'; pb.online=online; delete pb.reason; circlePubsSave(l); }
-          if(window.__srvScores && window.__srvScores[cloudId]) window.__srvScores[cloudId].status=online?'published':'pending';
+          if(window.__srvScores && window.__srvScores[cloudId]) Object.assign(window.__srvScores[cloudId], {status:online?'published':'pending', rev_status:rev==='pending'?'pending':'', pub_dirty:rev==='pending'?1:0});
           scoreThumbUpload(cloudId, e0.data);   /* 内容变了缩图也该换；失败不影响结果 */
-          toast(online? '已更新并直接上架（管理员免审）' : '已更新 · 重新进入平台审核');
+          toast(rev==='pending'? '更新已提交审核 · 通过前谱库仍展示上一版' : online? '已更新并直接上架（管理员免审）' : '已提交 · 进入平台审核');
         }catch(e){ toast('更新失败：'+(e.message||e)); }
         openPersonal('creator'); return;
       }
@@ -22840,6 +22886,14 @@ async function scoreCloudPush(id){
       }
       return;
     }
+    /* v62.5 A1a：服务端按字段校验拒收（数值字段非数字 / 短码含尖括号）——此前静默吞掉，用户以为已同步。
+       本机副本原样保留；同一首谱本次会话只提示一次，免得后台去抖反复弹。 */
+    if(err.status===400){
+      window.__pyqRej = window.__pyqRej || new Set();
+      if(!window.__pyqRej.has(id)){ window.__pyqRej.add(id);
+        if(typeof toast==='function') toast('云端未保存「'+(e.title||'未命名曲谱')+'」：'+(err.message||'数据格式不合法')+'。本机副本已保留'); }
+      return;
+    }
     return;   // 其他错误静默（后台去抖/同步不受影响）
   }
 }
@@ -23056,7 +23110,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v62.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v62.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23079,6 +23133,7 @@ const APP_VER='v62.4';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v62.5</span><div><b>存储型脚本注入根治 · 发布快照：过审后再改要重新审</b>（2026-10 评审团 A1a / A1b）。<br>v62.4 先堵住了「从别人的深链打开」这一条路；但被投毒的谱一旦进过你的本机（上次编辑的谱、「我的曲谱」里的旧条目），刷新页面就会再次触发——这一版从根上解决。<br>① <b>一个入口统管</b>：启动时恢复上次的谱、打开「我的曲谱」、云端同步拉下来的谱、MusicXML/MIDI 导入、看谱页、发布缩图，全部经过同一道按字段的规范化：音级、品位、弦号、房子号等数字一律转成数字；技法、升降号、和弦名等短代码去掉尖括号；渐强/渐弱楔形照常保留；<b>曲名、歌词、段落标记等文字一个字都不改</b>（这些在显示时已全部转义）。全部预设规范化前后逐字节不变。<br>② <b>逐键实测</b>：对谱面里的 78 种字段逐一注入两类攻击载荷，打开、渲染后零命中；而改前的版本里，被投毒的上次编辑谱刷新即执行。<br>③ <b>服务端同口径把关</b>：云端保存时，数字字段必须是数字、已知短代码不得含尖括号，否则拒收并告诉你是哪一处；歌词、曲名不限字符，<b>编辑器以后新增的字段一律放行</b>，不会因为服务端没登记就拒收。<br>④ <b>云端拒收不再静默</b>：以前保存被拒你完全不知道；现在会提示一次「云端未保存……本机副本已保留」。<br>⑤ <b>存量扫描</b>：管理员可在服务器上一键扫描全部云端谱面，命中的已发布谱可直接打回驳回并写明原因（谱主在个人中心可见，重新打开保存即可恢复）。<br><b>测试</b>：新增 <code>tv_xss</code> <b>9 项</b>（零误杀 / 逐键注入 / 启动恢复 / 本机库 / 缩图 / 拒收提示），对改前文件复跑 <b>6 项红</b>（其中两条路径脚本真实执行）；api/test.sh 219→<b>228 项</b>（危险字段拒收 / 楔形与歌词放行 / 数字串放行 / 未知字段透传 / 存量扫描与隔离）。<br><b>发布快照（产品拍板「发布快照，修订另审」）</b>：此前谱子一旦过审，作者再改曲谱、改标题、换缩图、甚至改昵称，谱库里都<b>立刻</b>变成新内容——审核等于可以绕过。现在过审那一刻把谱面、标题、署名、缩图<b>冻结成一份快照</b>，谱库、分享落地页、站点地图只展示快照：<br>⑥ 作者之后的修改（包括编辑器每几秒一次的自动保存）只改自己的草稿，<b>谱子不会下架</b>，谱库照常展示上一版；改完点「<b>提交更新</b>」进入审核，通过后自动替换。被驳回时谱库继续展示上一版，原因发到站内消息。<br>⑦ 个人中心、创作者中心的状态行会写明「有未发布的修改」「更新审核中」「更新被驳回：原因」；没有改动时点提交会直接告诉你「谱库里已经是这一版」。<br>⑧ 署名在审核时固定，之后改昵称不影响已上架的谱；管理员改自己的谱免审直接生效。<br>⑨ 管理后台：待审数包含更新审核，队列里这类条目带「更新审核」角标。<br><b>测试</b>：新增 <code>tv_pubsnap</code> <b>7 项</b>（对改前文件复跑全红）；api/test.sh 228→<b>247 项</b>（过审后改谱/改标题/改昵称/换缩图公开端不变 · 更新审核通过与驳回 · 无改动不送审）。</div></li>
     <li><span class="v">v62.4</span><div><b>热修周：打印只出 1 页 · 成品带光标 · 弹窗点不中/按键穿透 · 楔形被清洗误删 · 他人谱深链 · 登录弹窗关不掉</b>（2026-10 十三角色评审团 A0 段，产品指示「A 段 B 段先做」）。<br>① <b>多页谱打印/存 PDF 只出第 1 页</b>：新版外壳把页面钉成一屏高、超出部分隐藏，它的样式优先级压过了打印复位，于是打印机只看得到第一屏。现在打印时用同等优先级把整页放开，多页谱完整打出；观看页打印也不再把顶部那条操作栏印在第 1 页上。（打印分页与屏幕虚拟页逐页对齐放在下一阶段做。）<br>② <b>成品不再带编辑光标</b>：打印、存 PDF、导出 PNG、分享卡、打印预览五个出口统一先熄灭全部编辑装饰——光标列的朱砂底色、弦位红圈、小节选中框、歌词选中框、小节拖柄——出完再原样恢复。此前打印一项都不清，分享卡只清了一半。<br>③ <b>弹窗打开时不再盲改背后的谱面</b>：之前弹窗开着按 Delete、数字键、方向键照样改谱；现在只有 Esc（关窗）和 Tab（在弹窗里移动焦点）有效，<b>Esc 终于能关掉弹窗</b>，有未保存改动的配和弦工作台照旧会拦下。<br>④ <b>手机「智能」抽屉不再压住弹窗</b>：从抽屉里点开的一键配伴奏、智能填词、曲谱信息、更新日志，「生成」「确定」等按钮之前被抽屉盖住点不到；现在弹窗一出现抽屉自动收起。<br>⑤ <b>渐强/渐弱楔形不再被安全清洗删掉</b>：防脚本注入的清洗过去把所有文字里的尖括号一律去掉，而楔形恰好就存成 <code>&lt;</code> / <code>&gt;</code>——<b>所有已发布谱在看谱页、分享出去的互动谱、审核预览里的楔形其实一直是丢的</b>。清洗改为按字段：音级、品位、弦号等数字一律转成数字（连引号逃逸也一并堵上），楔形按白名单保留，曲名歌词等文字只去尖括号。全部预设清洗前后零差异。<br>⑥ <b>他人的谱不能再从「我的曲谱」深链打开</b>：服务端「我的曲谱」接口只给谱主本人；打开别人的谱自动改走谱库看谱页（经安全清洗、只读、不写进你的本机库）。从文件打开谱也先经同样的清洗。<br>⑦ <b>登录弹窗</b>：在个人中心里登录成功、或点「取消」，弹窗都会关掉了；在编辑器里点「取消」只是关窗，不再把你带进个人中心。<br><b>测试</b>：新增 <code>tv_a0</code> <b>22 项</b>（打印 PDF 页数 / 打印时零编辑痕迹 / PNG·分享卡·预览零痕迹 / 弹窗按键不改谱 / 抽屉弹窗可点中 / 清洗零差异与楔形保真 / 注入零事件属性 / 他人谱改走看谱页 / 登录弹窗三态），对改前文件复跑 <b>14 项红</b>实证；api/test.sh 216→<b>219 项</b>（非谱主读「我的曲谱」被拒，对改前服务端复跑 2 项红）。</div></li>
     <li><span class="v">v62.3</span><div><b>课程管理中心独立成页 · 跨课程内容体检 · 列表批量与筛选</b>（产品指示：课程编辑和管理独立页面，并强化功能、系统化功能）。<br>① <b>课程管理独立成页</b>：课程的列表、编辑、发布从平台管理的一个小页签里搬出来，成为独立的<b>课程管理中心</b>（<code>kcadmin.html</code>）——顶部一排概览（课程数 / 章节数 / 闯关题数 / <b>阻塞问题数</b> / 待完善数），下面三个页签：<b>课程</b>、<b>内容体检</b>、<b>发布记录</b>。平台管理里的「课程」页签改成一张入口卡，<b>全站只留一份工作台实现</b>，不会出现两处各改一半。<br>② <b>跨课程内容体检（系统化）</b>：一次扫完所有课程，把问题按严重度摊开——<b>阻塞</b>（服务端会拒绝发布，或会让学员卡死）与<b>建议</b>（能发布但内容不完整）分开标，每条都写清楚是哪门课第几章第几节、什么毛病，点「去修」<b>直接跳进工作台的那一小节</b>。可以一键「只看阻塞项」。查的项目包括：章/小节缺标题、题目不合法、内容块填错、本章还是 1.0 结构而课程已小节化（前台压根不渲染）、小节没有学习内容、题目没写解析、课程缺简介，以及一条真正的死锁——<b>某一小节既没有测试题、又关掉了打卡，学员没有任何办法完成它</b>，而 v62.1 起「做完整章才解锁下一章」，于是这一章连同后面所有章会被<b>永久锁死</b>。<br>③ <b>列表强化</b>：按标题/id 搜索，按状态与乐器筛选，按排序号/最近更新/标题/问题多少排序；勾选后可<b>批量发布、批量下架、批量删除草稿</b>（逐门下发并报告成功与失败）；每门课直接显示<b>体量</b>（几章几节、几个内容块几道题、多大）与<b>体检徽标</b>；可以<b>上移下移</b>调整学习页里的课程顺序，也可以<b>复制</b>一门课再改（副本先只在编辑器里，按保存才真正入库，点错不会多出一门空课）。新建课程时可以选「空白」或直接从某门现有课程复制。<br>④ <b>发布记录</b>：谁在什么时候编辑、发布、下架、删除了哪门课，单独一页可查。<br>⑤ <b>一处数据红线</b>：课程列表接口不返回<b>简介</b>字段，所以调整排序/复制这类「只改一个字段」的操作，一律先读回整门课再写，否则会把简介连带清空。<br><b>测试</b>：<code>tv_site</code> 81→<b>85 项</b>（工作台用例整体迁到新页 + 控制台概览与批量 + 体检四类问题识别与直达 + 平台管理入口卡），对改前树复跑 <b>8 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
     <li><span class="v">v62.2</span><div><b>《认识简谱》升级成「能听、能录、能玩」的示例课 · 少儿科普风改版 · 侧栏可收起</b>（产品指示：以认识简谱为示例全面升级为声音/录音/动画交互，页面简洁互动性强，风格偏少儿科普）。<br>① <b>谱例会响了</b>：课程里的每一行谱例都多了「听一听」——按一下整行按简谱时值唱出来，<b>唱到哪个音，哪个数字就亮一下</b>；单独点某个数字也会单独发声。音高按谱首调号算（1=C 时 1 就是中央 C），增时线加拍、减时线减半、附点一拍半都照实播。全部是网页现场合成的音，<b>不下载任何音频文件</b>，打开即用。<br>② <b>练习可以录音</b>：每一节的练习里新增录音条——点一下开始，屏幕上有跳动的电平和计时，录完当场回放，可以「重录」，也可以<b>用这段直接完成今天的打卡</b>。16 个小节都配了具体的录音任务（比如第 3.2 节：唱一个撑满四拍的长音，回放数数自己有没有偷拍）。<b>录音只留在你自己的浏览器里，不上传、不进服务器</b>，关掉页面就没了。浏览器不支持或麦克风被拒时会给出可读的说明，而不是静默失灵。<br>③ <b>少儿科普风改版</b>：课程页改成<b>一章一色</b>——六个色相循环，像科普读物每个单元有自己的颜色，本章的小节卡、页签、按钮、插画全部跟着换色；主行动钮取<b>它要去的那一章</b>的颜色，一眼就能和章卡对上。章头加了方格本底纹，圆角加大、正文字号与行距放宽、按钮加粗，整体更适合小朋友和零基础成人。<br>④ <b>侧栏可以收起</b>：左侧章节目录一键收起，正文单列铺开；收起后正文左上角留一个「目录」按钮随时叫回来，<b>宽窄状态记在本机</b>，下次进课程还是你上次的样子。课程简介默认收到 4 行，点「展开介绍」再看全文。<br>⑤ <b>工作台跟上</b>：小节的练习模块新增「显示录音练习」开关与录音任务说明，作者可以逐节决定要不要让学员录。<br>⑥ <b>修一个键盘可达性问题</b>：折叠起来的小节，里面的按钮和音符仍然能被 Tab 键选中——16 个小节全折叠时，键盘用户要按几十次 Tab 才走得出去。现在折叠内容整块移出焦点序列。<br><b>测试</b>：<code>tv_site</code> 77→<b>81 项</b>（发声换算与播放态 / 侧栏收起与记忆 / 录音挂载与不上传承诺 / 一章一色），对改前树复跑 <b>4 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>

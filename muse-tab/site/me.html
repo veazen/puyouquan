@@ -126,6 +126,10 @@
   /* v60.0 审核流状态角标：published 已上架 / pending 审核中 / rejected 已驳回（原因进 title 与创作者中心正文） */
   function stChip(s){
     var st=s.status;
+    /* v62.5 A1b 发布快照：已上架谱的修改走「更新审核」，谱库在通过前展示上一版 */
+    if((st==='published'||st==='pub') && s.rev_status==='pending') return '<i class="k k-ok">已发布</i><i class="k k-wait">更新审核中</i>';
+    if((st==='published'||st==='pub') && s.rev_status==='rejected') return '<i class="k k-ok">已发布</i><i class="k k-no" title="'+esc(s.rev_note||'')+'">更新被驳回</i>';
+    if((st==='published'||st==='pub') && s.pub_dirty) return '<i class="k k-ok">已发布</i><i class="k k-wait" title="编辑器里改过但还没提交更新审核，谱库展示的仍是上一版">有未发布修改</i>';
     if(st==='published'||st==='pub') return '<i class="k k-ok">已发布</i>';
     if(st==='pending') return '<i class="k k-wait">审核中</i>';
     if(st==='rejected') return '<i class="k k-no" title="'+esc(s.review_note||'')+'">已驳回</i>';
@@ -425,6 +429,7 @@
           return '<a class="pc-row" href="'+href+'">'
             +'<span class="t">'+esc(s.title||'未命名曲谱')
             +(s.status==='rejected'&&s.review_note? '<small class="cr-note" title="'+esc(s.review_note)+'">驳回原因：'+esc(s.review_note)+'</small>':'')
+            +(isPub&&s.rev_status==='rejected'&&s.rev_note? '<small class="cr-note" title="'+esc(s.rev_note)+'">更新驳回原因：'+esc(s.rev_note)+'（谱库仍展示上一版）</small>':'')
             +'</span>'+stChip(s)
             +'<span class="pc-see">'+(isPub?'在谱库查看':'去编辑器修改')+'</span></a>'; }).join('')
           : '<p class="pc-empty"><b>还没发布过谱</b><br>在编辑器打开曲谱，点「发布」提交审核，通过后自动上架谱库</p><a class="btn" style="padding:9px 18px;font-size:13px" href="//zhipu.puyouquan.com/?pc=creator">去发布第一份谱 →</a>';
