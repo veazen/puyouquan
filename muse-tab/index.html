@@ -220,6 +220,7 @@ input.short{width:54px} input.mid{width:150px}
 #err-drop .err-fix{font-size:11.5px;padding:3px 13px;font-weight:600;border-radius:999px;
   border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
 #err-drop .err-fix:hover{background:var(--ok);color:#fff}
+#err-drop .err-fix.err-alt{font-weight:500;opacity:.85}   /* v63.6 B1 ④ 删减降为次选 */
 #suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
@@ -9659,7 +9660,7 @@ const TEMPO_TERMS=[['Grave','庄板·极慢'],['Largo','广板·宽广'],['Lento
   ['Allegro con brio','辉煌的快板'],['Andante cantabile','如歌的行板'],['Tempo rubato','自由速度']];
 function showDynMenu(cx, cy){
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音符');
-  const col=curCol(); if(!col) return;
+  const col=modCol(); if(!col) return;   // v63.6 B1 ① 落音后打开：力度标在刚落的音上
   closePop();
   const div=document.createElement('div');
   div.className='popmenu'; div.id='popmenu';
@@ -9686,7 +9687,7 @@ function showDynMenu(cx, cy){
         closePop(); return;
       }
     }
-    mutate(()=>{ const c=curCol(); if(!c) return;
+    mutate(()=>{ const c=col; if(!c) return;
       if(d){ c.dyn=d; delete c.dynTo; } else { delete c.dyn; delete c.dynTo; } });
     toast(d? '已标记 '+d+(isRange? '（Ctrl 选首末两音再选可拉出范围括线）':'') : '已清除力度记号');
     closePop();
@@ -10411,7 +10412,10 @@ function syncInputs(){
       return `<div class="err" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">
         <div class="err-desc">${svgi('warn',11)} 第${e.mi+1}小节 · ${esc(vn)}：${+e.b.toFixed(3)}/${e.target} 拍</div>
         ${sg?`<div class="err-sug">${svgi('bulb',11)} ${esc(sg.text)}</div>`:''}
-        ${emSmart?`<button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>`:''}
+        ${emSmart? (sg && sg.kind==='carry'
+          ? `<button class="err-fix" data-act="carry" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">顺延到下一小节</button>
+             <button class="err-fix err-alt" data-act="trim" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}" title="从末尾删掉多余的音">删掉末尾：${esc(sg.trim||'')}</button>`
+          : `<button class="err-fix" data-mi="${e.mi}" data-row="${e.row}" data-vi="${e.vi}">一键采纳</button>`) : ''}
       </div>`;
     }).join('');
     const ed = document.getElementById('err-drop');
@@ -10609,6 +10613,75 @@ function autoFixMeasure(mi, row, vi){
 }
 /* 智能修复建议：按曲谱风格/形式匹配补齐或删减方案，供一键采纳 */
 function fmtBeats(x){ return (+x.toFixed(3)).toString(); }
+/* v63.6 B1 ④（评审团 P1-07）超拍修复首选「顺延到下一小节」：超出拍号的尾部音原样挪到下一小节开头，
+   跨小节线的音拆成两半用连音线连起（简谱/五线谱行；时值能精确拆开才拆），下一小节从末尾扣掉同样多的休止。
+   顺延只到下一小节为止：下一小节末尾的休止不够扣（会把真实音符挤出去）就不顺延，提示手动处理——不在全曲连锁。
+   原来的「从末尾删减」降为次选，并先列出将删掉的音。TAB 行列间有技法/连音的索引引用，挪列会断，只给删减。 */
+function overflowCarry(mi, row, vi, apply){
+  if(row!=='vox') return {ok:false, why:'六线谱行只能删减'};
+  const m=song.measures[mi]; const cols=m && m.voxes[vi]; if(!cols) return null;
+  const {beats:target, unit}=meaMeter(mi);
+  let acc=0, cut=-1, split=null;
+  for(let i=0;i<cols.length;i++){
+    const b=beatsOf(cols[i],unit);
+    if(acc>=target-1e-4){ cut=i; break; }
+    if(acc+b>target+1e-4){
+      const keep=target-acc, rest=acc+b-target;
+      const hk=fitDurTo(keep,true,unit), hr=fitDurTo(rest,true,unit);
+      if(cols[i].tup || !hk || !hr || Math.abs(beatsOf(hk,unit)-keep)>1e-4 || Math.abs(beatsOf(hr,unit)-rest)>1e-4)
+        return {ok:false, why:'第 '+(mi+1)+' 小节有个音跨过了小节线、拆不成两个整时值'};
+      split={i, hk, hr}; cut=i+1; break;
+    }
+    acc+=b;
+  }
+  if(cut<0) return null;
+  const moving=cols.slice(cut);
+  const carried=moving.reduce((a,c)=>a+beatsOf(c,unit),0) + (split? beatsOf(split.hr,unit) : 0);
+  if(carried<1e-4) return null;
+  const nm=song.measures[mi+1];
+  if(nm && meaMeter(mi+1).unit!==unit) return {ok:false, why:'下一小节拍号单位不同'};
+  /* 下一小节末尾的连续休止够不够扣 */
+  const ncols = nm? (nm.voxes[vi]||[]) : null;
+  if(ncols){
+    let tail=0; for(let i=ncols.length-1;i>=0 && !ncols[i].deg && !ncols[i].tup;i--) tail+=beatsOf(ncols[i],unit);
+    const nTotal=ncols.reduce((a,c)=>a+beatsOf(c,unit),0), room=meaMeter(mi+1).beats-nTotal;
+    if(tail+Math.max(0,room) < carried-1e-4) return {ok:false, why:'顺延后第 '+(mi+2)+' 小节会超拍（末尾休止不够），请手动调整'};
+  }
+  const notes=moving.filter(c=>c.deg).length + (split?1:0);
+  if(!apply) return {ok:true, notes, beats:carried};
+  if(!nm) song.measures.splice(mi+1, 0, blankMeasure());
+  const tgt=song.measures[mi+1].voxes[vi];
+  const head=[];
+  if(split){
+    const src=cols[split.i], tail2=JSON.parse(JSON.stringify(src));
+    src.dur=split.hk.dur; src.dotted=split.hk.dotted; if(src.deg) src.tie=true;
+    tail2.dur=split.hr.dur; tail2.dotted=split.hr.dotted; tail2.lyrics=[];   // 连音线延续的后半个音不再挂字
+    ['dyn','dynTo','chord','ferm','breath','artic','grace','graceA','orn'].forEach(k=>delete tail2[k]);
+    head.push(tail2);
+  }
+  head.push(...cols.splice(cut));
+  tgt.unshift(...head);
+  /* 从下一小节末尾扣掉同样多的休止 */
+  let over=tgt.reduce((a,c)=>a+beatsOf(c,unit),0)-meaMeter(mi+1).beats;
+  for(let i=tgt.length-1;i>=0 && over>1e-4;i--){
+    const c=tgt[i]; if(c.deg || c.tup) break;
+    const b=beatsOf(c,unit);
+    if(b<=over+1e-4){ tgt.splice(i,1); over-=b; }
+    else { const hit=fitDurTo(b-over,true,unit); if(hit && Math.abs(beatsOf(hit,unit)-(b-over))<1e-4){ c.dur=hit.dur; c.dotted=hit.dotted; over=0; } break; }
+  }
+  return {ok:true, notes, beats:carried};
+}
+/* 删减方案预演：列出 autoFixMeasure 会删掉/缩短的音（不动数据） */
+function trimPreview(mi, row, vi){
+  const {beats:target, unit}=meaMeter(mi);
+  const cols=row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
+  if(!cols) return '';
+  const c2=JSON.parse(JSON.stringify(cols)); let sum=c2.reduce((a,c)=>a+beatsOf(c,unit),0); const gone=[];
+  while(c2.length>1 && sum>target+1e-4){ const lb=beatsOf(c2[c2.length-1],unit); if(sum-lb>=target-1e-4){ gone.unshift(c2.pop()); sum-=lb; } else break; }
+  const nm=c=> row==='tab'? ((c.notes||[]).map(n=>n.f).join('/')||'×') : (c.deg? String(c.deg)+(c.acc==='#'?'♯':c.acc==='b'?'♭':'') : '0');
+  const parts=gone.map(nm); if(sum>target+1e-4 && c2.length) parts.push(nm(c2[c2.length-1])+'（缩短）');
+  return parts.join(' ');
+}
 function suggestFix(mi, row, vi){
   const {beats:target, unit} = meaMeter(mi);   // v43.5 变拍子
   const cols = row==='tab'? song.measures[mi].tabs[vi] : song.measures[mi].voxes[vi];
@@ -10616,7 +10689,11 @@ function suggestFix(mi, row, vi){
   const sum = cols.reduce((a,c)=>a+beatsOf(c,unit),0);
   const diff = +(target - sum).toFixed(3);
   if(Math.abs(diff) < 1e-3) return null;
-  if(diff < 0) return { kind:'trim', text:`超出 ${fmtBeats(-diff)} 拍 → 从末尾删减多余音` };
+  if(diff < 0){
+    const cy=overflowCarry(mi,row,vi,false), tp=trimPreview(mi,row,vi);
+    if(cy && cy.ok) return { kind:'carry', text:`超出 ${fmtBeats(-diff)} 拍 → 首选：把多出的 ${cy.notes} 个音顺延到下一小节`, trim:tp };
+    return { kind:'trim', text:`超出 ${fmtBeats(-diff)} 拍 → 从末尾删减（将删掉：${tp||'—'}）`+(cy&&cy.why?`；不能顺延：${cy.why}`:''), trim:tp };
+  }
   /* 欠拍：依风格给出补充方案 */
   let style;
   if(row==='vox'){
@@ -10645,7 +10722,10 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
     toast('已批量替换时值（与拍号不符时会提示，可按需一键修复）');
     return;
   }
-  const c=curCol(); if(c) mutate(()=>{ const c2=curCol(); c2.dur=d; clampDot(c2); });
+  /* v63.6 B1 ③（P2-25）在空列上把时值改长（先选时值再落音的 GP 习惯）：吸收其后连续的休止，不再整小节溢出 */
+  const c=curCol(); if(c) mutate(()=>{ const c2=curCol(); c2.dur=d; clampDot(c2);
+    const emp = sel.row==='tab'? !((c2.notes||[]).length || c2.strum || c2.perc) : !c2.deg;
+    if(emp){ const cols=curRowCols(); if(cols) absorbRestsAfter(cols, sel.ci, sel.mi, sel.row); } });
 }
 /* 判断某列是否为"一拍中的最后一个音符"（其结束点恰落在整数拍上） */
 function isBeatLastCol(cols, ci, unit){
@@ -10672,7 +10752,8 @@ function dotLink(cols, ci, wasBeatLast){
    延长所需时值自动从其后连续的休止列吸收（整列删除 / 长休止精确缩短），小节总时值保持不变；
    本小节腾不出 1 拍（后面是音符/连音组/到头）则拒绝并提示。extendBeat(-1)：缩短一拍，原位补 1 拍休止。
    简谱行按 GB 惯例逐拍画增时线「－」，五线谱行/TAB 行同一操作落成对应时值——各谱类通用（同一列模型）。 */
-function extendBeat(dir){
+function extendBeat(dir){ return postMod(()=>extendBeat_(dir)); }   // v63.6 B1 ① 落音后按 D：延长刚落的音
+function extendBeat_(dir){
   const cols=curRowCols(); const col=cols&&cols[sel.ci];
   if(!col){ toast('先选中一个音'); return; }
   if(col.tup){ toast('连音组内的音不能做增时线操作'); return; }
@@ -11342,7 +11423,7 @@ function bendFromBar(t){
 /* 编辑栏简谱标识符号：前/后倚音、上/下波音、颤音、回音 */
 function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
   if(sel.row!=='vox') return toast('请先在简谱选中一个音');
-  const col=curCol(); if(!col) return;
+  const col=modCol(); if(!col) return;   // v63.6 B1 ① 装饰音同样回落到刚落的音
   if(k==='grace' || k==='gracea'){
     if(!col.deg) return toast('倚音需加在有唱名的音上');
     const cur = k==='grace'? col.grace : col.graceA;
@@ -12218,6 +12299,39 @@ function atLanding(){
   return !!(lastEnt && lastEnt.pos && lastEnt.at.row===sel.row && lastEnt.at.vi===sel.vi
             && lastEnt.at.mi===sel.mi && lastEnt.at.ci===sel.ci);
 }
+/* v63.6 B1 ①（评审团 P1-07）后置修饰统一回落：落音后光标已前进到下一个空列，此时按 D（增时线）、~（连音线）
+   这类要「按位置」操作的修饰，先把光标退回刚落的那个音，做完再前进到它后面——
+   此前直接作用在前进后的空列上：「5 D」把后面的休止延长成二分休止，「3 ~」把连音线挂在下一小节的空列上。
+   只按列打标记的修饰（延长号/换气/演奏法/力度/踏板/装饰音）走 modCol()，光标不动。 */
+function landBack(){
+  if(!atLanding() || !lastEnt.pos) return ()=>{};
+  const P=lastEnt.pos;
+  sel.row=P.row; sel.vi=P.vi; sel.mi=P.mi; sel.ci=P.ci; if(P.si!=null) sel.si=P.si;
+  return ()=>{
+    if(sel.row!==P.row || sel.vi!==P.vi || sel.mi!==P.mi || sel.ci!==P.ci) return;   // 操作自己挪过光标：尊重它
+    const col=curCol(); if(!col) return;
+    const pos={row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci, si:sel.si};
+    moveCol(1);
+    lastEnt={col, pos, at:{row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}};
+    render();
+  };
+}
+function postMod(fn){ const back=landBack(); try{ return fn(); } finally{ back(); } }
+/* v63.6 B1 ③ 吸收后续连续休止：列变长后小节超拍，就从它后面紧邻的连续休止里扣回来（整列删 / 精确缩短），
+   扣不回的部分照常报节拍错误（不碰真实音符） */
+function absorbRestsAfter(cols, ci, mi, row){
+  const {beats:cap, unit}=meaMeter(mi);
+  let over=cols.reduce((a,c)=>a+beatsOf(c,unit),0)-cap;
+  const empty=c=> row==='tab'? !((c.notes||[]).length || c.strum || c.perc) : !c.deg;
+  let i=ci+1;
+  while(over>1e-4 && i<cols.length && empty(cols[i]) && !cols[i].tup){
+    const b=beatsOf(cols[i],unit);
+    if(b<=over+1e-4){ cols.splice(i,1); over-=b; continue; }
+    const hit=fitDurTo(b-over, true, unit);
+    if(hit && Math.abs(beatsOf(hit,unit)-(b-over))<1e-4){ cols[i].dur=hit.dur; cols[i].dotted=hit.dotted; over=0; }
+    break;
+  }
+}
 function inputDigit(k){ return holdRender(()=>inputDigit_(k)); }
 function inputDigit_(k){
   if(sel.row==='tab'){
@@ -12352,7 +12466,11 @@ window.addEventListener('keydown', e=>{
     case '#': if(sel.row==='vox') accBump(1); break;
     case 'b': if(sel.row==='vox') accBump(-1); break;
     case '+': case '=': if(sel.row==='vox') bumpOct(1); break;
-    case '-': if(sel.row==='vox') bumpOct(-1); break;
+    case '-': if(sel.row==='vox'){
+      /* v63.6 B1 ⑤：简谱课程与工具栏里「－」是增时线，键盘「-」却是降八度——刚落音时按「-」提示一次（语义不变） */
+      if(atLanding()){ let seen=false; try{ seen=localStorage.getItem('musetab-hint-dash')==='1'; localStorage.setItem('musetab-hint-dash','1'); }catch(_){}
+        if(!seen) setTimeout(()=>toast('键盘「-」是降八度（刚输入的音已降一个八度）；要写增时线请按 D 键'), 0); }
+      bumpOct(-1); } break;
     case '~': if(sel.row==='vox') toggleTie(); break;
     case 'x': if(sel.row==='tab') toggleMute(); break;
     case 'd': extendBeat(1); break;    /* v56.0 增时线：延长一拍 */
@@ -14130,7 +14248,8 @@ function octShiftBatch(d){
     ((c.grace&&c.grace.notes)||[]).forEach(g=>{ g.oct=(g.oct||0)+d; }); }); });
   toast((picks.length? '选中 ':'全曲（本声部）')+n+' 个音已'+(d>0?'升':'降')+'八度');
 }
-function toggleTie(){ try{habit('tie');}catch(_){}
+function toggleTie(){ return postMod(toggleTie_); }   // v63.6 B1 ① 落音后按 ~：连音线挂在刚落的音上
+function toggleTie_(){ try{habit('tie');}catch(_){}
   /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用；
      v54.4 区域选区同样可用（selNotes 展开，首尾音相连） */
   const tiePool = selNotes();
@@ -14225,6 +14344,9 @@ function toggleTie(){ try{habit('tie');}catch(_){}
   }
   /* 单选：自动连到相邻的下一个音符 */
   if(sel.row==='vox'){
+    /* v63.6 B1 ②：连音线不挂在空列（休止）上——此前挂上后谱面画出连向休止的线，播放也无从延长 */
+    const c0=curCol();
+    if(!c0 || (!c0.deg && !c0.tie)){ toast('连音线要挂在音符上：先输入音，再按 ~ 连到下一个音'); return; }
     mutate(()=>{ const c=curCol(); c.tie=!c.tie; });
     return;
   }
@@ -14419,15 +14541,15 @@ document.getElementById('b-slap').onclick = ()=>{
 /* v41.1 延长号/演奏法四件套/换气记号：列级可选字段（只增不改），再次点击取消 */
 document.getElementById('b-ferm-t').onclick = ()=>{
   if(sel.row!=='tab') return toast('请先在吉他谱选中要标记的列');
-  const col=curCol(); if(!col) return;
-  mutate(()=>{ const c=curCol(); if(c.ferm) delete c.ferm; else c.ferm=true; });
-  toast(curCol().ferm? '已加延长号（自由延长该音）' : '已取消延长号');
+  const col=modCol(); if(!col) return;   // v63.6 B1 ① 落音后点：标在刚落的那一列
+  mutate(()=>{ if(col.ferm) delete col.ferm; else col.ferm=true; });
+  toast(col.ferm? '已加延长号（自由延长该音）' : '已取消延长号');
 };
 document.getElementById('b-ferm-v').onclick = ()=>{
   if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
-  const col=curCol(); if(!col) return;
-  mutate(()=>{ const c=curCol(); if(c.ferm) delete c.ferm; else c.ferm=true; });
-  toast(curCol().ferm? '已加延长号 𝄐（自由延长该音）' : '已取消延长号');
+  const col=modCol(); if(!col) return;   // v63.6 B1 ①
+  mutate(()=>{ if(col.ferm) delete col.ferm; else col.ferm=true; });
+  toast(col.ferm? '已加延长号 𝄐（自由延长该音）' : '已取消延长号');
 };
 /* v41.3 钢琴踏板：ped:'on'|'off' 点式成对（渲染为 Ped.____*），仅五线谱记谱声部显示 */
 const pedBtn=(id, v)=>{
@@ -14435,9 +14557,9 @@ const pedBtn=(id, v)=>{
     if(sel.row!=='vox') return toast('请先选中一个音符列');
     if(!isStaffNota((song.voxNotations||[])[sel.vi]))
       return toast('踏板记号只在五线谱记谱声部显示——先在「声部」把记谱法切到五线谱/大谱表');
-    const c=curCol(); if(!c) return;
+    const c=modCol(); if(!c) return;   // v63.6 B1 ①
     mutate(()=>{ if(c.ped===v) delete c.ped; else c.ped=v; });
-    toast(curCol().ped===v? (v==='on'? '已标踏板踩下 Ped.（在收踏板的列点「踏板收*」）' : '已标踏板抬起 *（Ped. 延续线到此收尾）')
+    toast(c.ped===v? (v==='on'? '已标踏板踩下 Ped.（在收踏板的列点「踏板收*」）' : '已标踏板抬起 *（Ped. 延续线到此收尾）')
                           : '已取消踏板记号');
   };
 };
@@ -14452,9 +14574,9 @@ document.getElementById('b-fing').onclick = ()=>{
 };
 document.getElementById('b-breath').onclick = ()=>{
   if(sel.row!=='vox') return toast('请先在简谱选中换气前的最后一个音');
-  const col=curCol(); if(!col) return;
-  mutate(()=>{ const c=curCol(); if(c.breath) delete c.breath; else c.breath=true; });
-  toast(curCol().breath? '已加换气记号 v（本音之后换气）' : '已取消换气记号');
+  const col=modCol(); if(!col) return;   // v63.6 B1 ①
+  mutate(()=>{ if(col.breath) delete col.breath; else col.breath=true; });
+  toast(col.breath? '已加换气记号 v（本音之后换气）' : '已取消换气记号');
 };
 { const tb=document.getElementById('b-trem'); if(tb) tb.onclick = toggleTrem; }
 { const gb=document.getElementById('b-gliss'); if(gb) gb.onclick = toggleGliss; }
@@ -14462,10 +14584,10 @@ document.getElementById('b-breath').onclick = ()=>{
  ['b-art-ten','tenuto','保持音'],['b-art-acc','accent','重音'],['b-art-marc','marcato','顿强']].forEach(([id,val,nm])=>{
   document.getElementById(id).onclick = ()=>{
     if(sel.row!=='vox') return toast('请先在简谱选中要标记的音');
-    const col=curCol(); if(!col) return;
+    const col=modCol(); if(!col) return;   // v63.6 B1 ①
     if(!col.deg) return toast('演奏法记号需加在有唱名的音上');
-    mutate(()=>{ const c=curCol(); if(c.artic===val) delete c.artic; else c.artic=val; });
-    toast(curCol().artic===val? '已标记'+nm : '已取消'+nm);
+    mutate(()=>{ if(col.artic===val) delete col.artic; else col.artic=val; });
+    toast(col.artic===val? '已标记'+nm : '已取消'+nm);
   };
 });
 /* 功能谱智能和弦选择：本调常用库优先 + 常用扩展 + 最近使用 + 自定义输入 */
@@ -15078,15 +15200,25 @@ document.getElementById('beat-status').onclick = ()=>{
 document.getElementById('err-drop').addEventListener('click', e=>{
   /* 全部采纳：按智能建议一次性补齐/删减所有不符小节 */
   if(e.target.closest('#err-fixall')){
-    const errs = beatErrors();
-    mutate(()=>{ errs.forEach(er=>autoFixMeasure(er.mi, er.row, er.vi)); });
-    toast('已按建议采纳全部修复');
+    /* v63.6 B1 ④ 全部采纳：超拍能顺延的一律顺延（从后往前，避免前面的顺延改变后面的判定），欠拍照旧补齐；
+       超拍又不能顺延的不再静默删音，留给人手处理 */
+    const errs = beatErrors().slice().sort((a,b)=>b.mi-a.mi);
+    let carried=0, left=0;
+    mutate(()=>{ errs.forEach(er=>{
+      if(er.b>er.target+1e-4){ const r=overflowCarry(er.mi, er.row, er.vi, false); if(r && r.ok){ overflowCarry(er.mi, er.row, er.vi, true); carried++; } else left++; }
+      else autoFixMeasure(er.mi, er.row, er.vi); }); });
+    toast('已采纳修复'+(carried?'（'+carried+' 处顺延到下一小节）':'')+(left?'；'+left+' 处超拍需手动处理（顺延不了，避免误删音）':''));
     return;
   }
   /* 单条一键采纳 */
   const fx = e.target.closest('.err-fix');
   if(fx){
     const mi=+fx.dataset.mi, row=fx.dataset.row, vi=+fx.dataset.vi;
+    if(fx.dataset.act==='carry'){
+      let r=null; mutate(()=>{ r=overflowCarry(mi, row, vi, true); });
+      toast(r && r.ok? `已把第 ${mi+1} 小节多出的 ${r.notes} 个音顺延到第 ${mi+2} 小节` : '顺延失败：'+((r&&r.why)||'无超拍'));
+      return;
+    }
     mutate(()=>autoFixMeasure(mi, row, vi));
     toast(`已修复第 ${mi+1} 小节`);
     return;
@@ -23398,7 +23530,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23421,6 +23553,7 @@ const APP_VER='v63.5';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.6</span><div><b>录谱不再掉进陷阱：增时线、连音线、延长号都落在刚输入的音上</b>（2026-10 评审团 B1 录入零陷阱第一批）。<br>① <b>先落音、再加记号</b>：输入一个音后光标会自动前进到下一格，之前紧接着按 D（增时线）、~（连音线），或点延长号、换气、演奏法、力度、装饰音，记号都落到了前进后的那个空格上——「5 D」把后面的休止拉长，提示却说「已延长」。现在这些记号都作用在刚输入的音上，光标仍停在它后面，可以接着往下录。实测：录《小星星》8 小节只需按 32 个键（28 个音 + 4 个 D），不用任何修正键。<br>② <b>连音线不挂在休止上</b>：光标停在空格时按 ~ 会提示「先输入音」，不再画出连向空白的线。<br>③ <b>先选时值再落音不溢出</b>：在空格上先按二分、全音等更长的时值，会自动吸收后面紧邻的休止，小节不再超拍。<br>④ <b>超拍修复首选「顺延到下一小节」</b>：多出来的音原样挪到下一小节开头，跨过小节线的音拆成两半用连音线连起；下一小节放不下（会把真实音符挤出去）就不顺延，提示手动处理，绝不在全曲连锁移动。原来的「从末尾删掉」降为次选，并先列出会删掉哪几个音；「全部采纳」也不再静默删音。<br>⑤ <b>「-」的一次性提示</b>：简谱里刚输入音时按键盘「-」，会提示一次「这是降八度，增时线请按 D 键」，按键含义不变。<br>新套件 <code>tv_b1a</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.5</span><div><b>粘贴不再抹掉转调 · 页头写成 1=♭B · 新建可选 9/8、12/8</b>（2026-10 评审团 B2a 调性纯缺陷，Sprint B 第一项）。<br>① <b>整小节粘贴保留目标小节的设置</b>：之前把一个小节粘到带「转 1=G」标记的小节上，转调标记会被抹掉，后面所有小节的调都跟着变回去；排练标记、房子、变拍子也一样丢。现在覆盖粘贴只换音符，目标小节原有的这些设置都保留。<br>② <b>拍号不一样时先问一句</b>：复制来的小节和要覆盖的小节拍号不同，会问「是否同时应用源小节的拍号」；点小节线插入的新小节沿用源小节自己的拍号。<br>③ <b>页头调号写法规范</b>：1=Bb、1=C# 改为简谱惯例的 1=♭B、1=♯C（顶栏、曲谱信息、看谱页同步）；拍号按调号文字的实际宽度排在其后，1=♯C、1=♯F 不再和拍号挤在一起；12/8 这类两位数拍号的分数线随之加宽。<br>④ <b>新建向导的拍号与曲谱信息一致</b>：分子新增 5、7、9、12，可以直接新建 5/4、7/8、9/8、12/8。<br>⑤ 内部：简谱 1 的八度换算规则从散落 8 处收成一处，语法闸禁止再散写。新套件 <code>tv_b2a</code>（6 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.4</span><div><b>能回答「多少人做出了成品、从哪里来」：一方度量地基</b>（2026-10 评审团 A7；按拍板只用第一方统计，不接第三方）。<br>① <b>匿名访客标识</b>：服务端在 puyouquan.com 下发一个随机的匿名标识（Cookie <code>pyq_anon</code>），官网、制谱器、谱库三站共用，不含手机号等个人信息；登录后与账号关联，「访问 → 注册 → 使用」才能算作同一个人。隐私政策已于 v62.9 披露。<br>② <b>关键事件补齐</b>：按评审团清单补上配伴奏、生成织体、换调、导入（带拍数检查结果）、打印、导出图片 / 互动谱 / MusicXML / MIDI、登录弹窗、下单、点赞，以及官网的访问、落地页、去制谱器的点击、谱库零结果搜索，课程的进入、深链、过关。<br>③ <b>来源与传播</b>：访问事件记首触来源（广告参数或站外来源网站）和落地页；分享出去的链接带渠道标记（分享卡二维码 / 微信卡片 / 发布后复制 / 小程序），好友打开时记一次「分享打开」。<br>④ <b>后台数字按人去重</b>：管理后台概览的事件漏斗显示「人数 / 次数」，新增北极星（7 天内做出成品谱的人数：配伴奏、打印、导出图片、发布任一）与次日、第 7 天留存；<code>node admin.js stats</code> 同口径。<br>⑤ <b>统计不再被共用网络压低</b>：限流从「每个 IP 每小时 300 条」改为「每个访客每小时 300 条」（同一 IP 另设 3000 条上限），学校机房这类共用出口的访客不再被整体少算。<br>⑥ 课程页支持 <code>?s=小节</code> 深链直达某一节。小程序同版更新到 1.1.6（发起转发记 <code>mp_share</code>，卡片带渠道标记）。新套件 <code>tv_a7</code>（6 项，旧文件全部报红）；接口测试 318 项。</div></li>
     <li><span class="v">v63.3</span><div><b>课程测验不能再靠蒙 · 课程内容勘误 · 全站文案对账</b>（2026-10 评审团 A5 内容纠错第二批）。<br>① <b>测验选项每次打乱</b>：之前选项照原顺序排，七成题目的答案都是 B，一路选 B 就能过关。现在每次出题都打乱顺序，题库里的答案位置也重新均衡。<br>② <b>已发布课程不能再把坏题直接上线</b>：之前已发布的课保存时不做发布校验，一道空题就能让学员卡在本节、后面整章全锁。现在保存已发布的课和点发布走同一道检查；保存后的提示也如实说明「学员立即看到新内容」还是「草稿，学员看不到」。<br>③ <b>《认识简谱》勘误</b>：「改成 1=G 每个音都升高」改为「整体搬到以 G 为 do 的高度」；「单独一个数字＝一拍」限定在以四分音符为一拍的拍子里；53231323 分解型的时值说法改正；去掉不规范的「1 - .」写法；「一小节要凑满」挪到讲完小节线和拍号之后（学习进度不受影响）。<br>④ <b>课程小毛病</b>：通关最后一章不再提示「第 7 章已解锁」（全课只有 6 章）；课程页反复刷新不再叠加按键监听；课程里的「互动谱」卡直达同名谱的观看页，不再停在搜索页。<br>⑤ <b>文案对账</b>：撤掉已下线的「哼唱成谱」、过时的「九种场景 / 八场景」「单窗口」「新建会替换当前窗口」「点谱面＋和弦」，「11 套织体」改为如实的 21 套（4/4 拍 15 套，2/4、3/4、6/8 各 2 套），删去「不懂五线谱也能」「为吉他爱好者打造」等旧口号；新增文案禁止词检查，发版时自动拦截。<br>⑥ <b>谱库官方示例谱</b>：《小星星》句末改为「5 -」「1 -」，与课程教的一致；《欢乐颂》换成示范词。线上已有的这两首需管理员在服务器执行一次 <code>node admin.js seed-fix</code> 修订（只改从未被人动过的官方谱）。新库建好后示例谱也会立即出现在谱库里。<br>新套件 <code>tv_a5b</code>（7 项，旧文件全部报红）；接口测试 302 项。</div></li>
