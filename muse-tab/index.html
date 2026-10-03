@@ -2840,6 +2840,12 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     </div>
   </div>
   <div class="lp-row">
+    <div class="lp-lab"><span>版宽</span></div>
+    <div class="lp-seg" id="lp-fix" title="固定版宽：断行与页数按纸张算，换电脑、换窗口、打印都一样；随窗口：按当前窗口宽度排">
+      <button data-fix="1">固定（与打印一致）</button><button data-fix="0">随窗口</button>
+    </div>
+  </div>
+  <div class="lp-row">
     <div class="lp-lab"><span>② 智能排版</span></div>
     <div class="lp-seg" id="lp-preset">
       <button data-preset="compact">紧凑</button><button data-preset="standard">标准</button><button data-preset="loose">宽松</button>
@@ -4557,6 +4563,17 @@ const PAGE_MM = {A5:[148,210], A4:[210,297], A3:[297,420]};   // 纸张 [宽,高
 const LAY_PRESETS = {compact:0.76, standard:1, loose:1.28};   // 智能排版：行距/间距智能缩放档位
 let LAY_HS = 1, LAY_VS = 1;                     // 当前渲染用的横/纵疏密系数（render 时由 layoutCfg 写入）
 let PRINT_PAGING = false;                       // v60.80 打印期间强制分页（手机观看的连续长卷不适合直接送打印机）
+/* v64.5 B8 ①（P1-18，D-09 拍板「新建谱固定纸宽」）固定版宽：song.layout.fixed 的谱按 A4 标准版宽 FIXED_A4 排版——
+   作者、读者、打印三方断行与页数一致，屏幕只缩放显示（最低 80%，再窄就横向滚动）；
+   手机（视口 ≤820）仍走独立的窄屏重排；打印/导出时一律按固定版宽。新建向导出的谱默认开启，存量谱在「排版」里自愿开启 */
+const FIXED_A4 = 1060;
+let PRINTING_NOW = false, LAY_FIXED_NOW = false;
+function fixedLayOn(cfg){ return !!(cfg||layoutCfg()).fixed && (window.innerWidth>820 || PRINTING_NOW || PRINT_PAGING); }
+function fitKOf(contentW, scale){
+  if(!LAY_FIXED_NOW || noWrapOn()) return 1;
+  const avail = Math.max(200, (LAST_PAPER_W||1040) - 4);
+  return Math.max(0.8, Math.min(1, avail / Math.max(1, contentW*viewZoom*scale)));
+}
 /* v61.1 不换行模式（产品指示：曲谱增加不换行编辑模式和看谱模式）：
    全部小节排成一条横向长带（GP/MuseScore「连续视图」惯例）——断行 DP、两端对齐、
    拉伸压缩全部停用，小节保持自然宽，横向滚动查看/编辑。编辑与观看各记各的开关
@@ -4590,7 +4607,7 @@ function setViewZoom(z){
   localStorage.setItem('musetab-zoom', viewZoom);
   const svg=document.getElementById('score'), vb=svg&&svg.viewBox.baseVal;
   /* 显示缩放 = 用户缩放 × 内容大小：内容大小放大内容、但纸张外框在屏幕上保持固定尺寸 */
-  const dz = viewZoom * layoutCfg().scale;
+  const dz = viewZoom * layoutCfg().scale * (vb&&vb.width? fitKOf(vb.width, layoutCfg().scale) : 1);
   if(vb&&vb.width){ svg.setAttribute('width',Math.round(vb.width*dz)); svg.setAttribute('height',Math.round(vb.height*dz)); }
   const zl=document.getElementById('zoom-lbl'); if(zl) zl.textContent=Math.round(viewZoom*100)+'%';
   /* v50.9 手机编辑态 fit-width 联动：手动缩放≠100% 退出屏宽适配（回容器内滚动），
@@ -7595,7 +7612,8 @@ function render(){
   try{ document.body.classList.toggle('nwrap', noWrapOn()); }catch(_){}
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
   LAST_PAPER_W = paperW;
-  const baseA4 = Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽
+  LAY_FIXED_NOW = fixedLayOn(cfg);
+  const baseA4 = LAY_FIXED_NOW? FIXED_A4 : Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽（v64.5 固定版宽谱恒为 1060）
   /* 引擎版宽随"内容大小"反向缩放：内容越大 → 有效版宽越小 → 每页容纳越少；
      纸张外框(=PAGE_W×scale)在屏幕上保持固定尺寸（显示缩放已乘 scale 补偿）。*/
   PAGE_W = Math.round(baseA4 * (wmm/210) / cfg.scale);
@@ -9664,7 +9682,7 @@ function render(){
   SYS_GEO = sysY.map((y,si)=>({y0:y, y1:y+sysM[si].h}));
   svg.setAttribute('viewBox', `0 0 ${CONTENT_W} ${totalH}`);
   /* 显示尺寸 = 引擎尺寸 × 用户缩放 × 内容大小：内容大小放大内容，纸张外框在屏幕上保持定尺 */
-  const dz = viewZoom * cfg.scale;
+  const dz = viewZoom * cfg.scale * fitKOf(CONTENT_W, cfg.scale);   // v64.5 B8 ① 固定版宽：显示按可视宽缩放（最低 80%）
   svg.setAttribute('width', Math.round(CONTENT_W*dz));
   svg.setAttribute('height', Math.round(totalH*dz));
   const zl = document.getElementById('zoom-lbl');
@@ -19107,6 +19125,7 @@ function showNewWizard(){
     closeModal();
     pyqEvent('create_song', type);
     const ns=createSong(type,o);
+    ns.layout = Object.assign({}, ns.layout||{}, {fixed:true});   // v64.5 B8 ①（D-09）新建谱默认固定版宽
     if(type==='vocal' && (ns.voxVoices||[]).length>1) ns.voxGroups=[{type:'bracket', from:0, to:ns.voxVoices.length-1}];   // v64.4 B4e 合唱声部显式分组
     /* v60.46 乐器身份落谱面（新增字段，红线口径只增不动）：instKey 驱动左栏轨图标；
        tim 预置混音台默认音色（此前键盘/器乐新谱声部一律落 'ah' 人声——顺手修正）。
@@ -19287,7 +19306,8 @@ function showNewForm(type, gtype){
     if(type==='solo'){ o.nVox=0; }
     closeModal();
     pyqEvent('create_song', type);
-    addDoc(createSong(type, o), ()=>{
+    const ns2=createSong(type, o); ns2.layout = Object.assign({}, ns2.layout||{}, {fixed:true});   // v64.5 B8 ①（D-09）
+    addDoc(ns2, ()=>{
       setRibbon(sel.row==='vox'?'vox':'tab');
       toast('已新建'+tName+'：'+o.nMea+' 小节');
     });
@@ -21935,6 +21955,7 @@ function removePrintPages(){
 }
 window.addEventListener('beforeprint', ()=>{
   pyqEvent('print_dialog', viewerMode?'viewer':'editor');   /* v63.4 A7 北极星成品事件（取消打印也会触发 afterprint——口径偏高，见 §9.1） */
+  PRINTING_NOW = true;   /* v64.5 B8 ① 固定版宽谱打印一律按标准版宽（与窗口宽无关） */
   if(noWrapOn() || (viewerMode && innerWidth<=820)) PRINT_PAGING=true;
   if(!PRINT_SNAP) PRINT_SNAP = cleanSnapSave();
   render();
@@ -21942,7 +21963,7 @@ window.addEventListener('beforeprint', ()=>{
 });
 window.addEventListener('afterprint',  ()=>{
   removePrintPages();
-  PRINT_PAGING=false;
+  PRINT_PAGING=false; PRINTING_NOW=false;
   if(PRINT_SNAP){ cleanSnapRestore(PRINT_SNAP); PRINT_SNAP=null; }
   render();
 });
@@ -21961,6 +21982,7 @@ function laySync(){
   const c = layoutCfg();
   document.querySelectorAll('#lp-preset button').forEach(b=>b.classList.toggle('on', b.dataset.preset===c.preset));
   document.querySelectorAll('#lp-page button').forEach(b=>b.classList.toggle('on', b.dataset.page===c.page));
+  document.querySelectorAll('#lp-fix button').forEach(b=>b.classList.toggle('on', (b.dataset.fix==='1')===!!c.fixed));
   document.querySelectorAll('#lp-rgtar button').forEach(b=>b.classList.toggle('on', b.dataset.rg===layRgTarget));
   const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
   set('lp-scale', c.scale); set('lp-rowgap', c.rowGap[layRgTarget]); set('lp-notegap', c.noteGap);
@@ -21989,6 +22011,9 @@ document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('bu
   layApply({preset:b.dataset.preset, density:LAY_PRESETS[b.dataset.preset]}); };
 document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layApply({page:b.dataset.page}); };
+document.getElementById('lp-fix').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;   /* v64.5 B8 ① */
+  layApply({fixed: b.dataset.fix==='1'}, {fit:false});
+  toast(b.dataset.fix==='1'? '已固定版宽：断行与页数按纸张算，换窗口、换电脑、打印都一样' : '已改为随窗口排版（打印时的断行可能与屏幕不同）'); };
 /* 手动滑杆：拖动时实时重排（render 内的显示缩放已随 scale 补偿，纸张外框不变）；松手保存 */
 function laySlider(id, key){
   const el=document.getElementById(id), lab=document.getElementById({scale:'lp-sval',rowgap:'lp-rgval',notegap:'lp-ngval'}[id.replace('lp-','')]||'');
@@ -24040,7 +24065,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -24063,6 +24088,7 @@ const APP_VER='v64.4';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.5</span><div><b>新建谱固定版宽：换电脑、换窗口、打印，断行和页数都一样</b>（2026-10 评审团 B8 版面与显示解耦第一批；负责人拍板 D-09「新建谱固定纸宽」）。<br>① 以前谱面按当前窗口宽度排版：同一首谱，作者在大屏上排成 8 行，学生在笔记本上看是 14 行 2 页，打印出来又是另一种断行。现在<b>新建的谱按 A4 标准版宽排版</b>，屏幕上只按可视宽度缩放显示（最低 80%，再窄就左右滚动），作者、读者、打印三方的断行与页数一致。<br>② <b>老谱不受影响</b>，想统一的话在顶栏「排版」里把「版宽」切到「固定（与打印一致）」，随时可切回「随窗口」。<br>③ 手机（屏宽 820 以内）仍按手机屏宽重排，字不会被缩得看不清；用手机打印固定版宽的谱时，照样按标准版宽出纸。<br>新套件 <code>tv_b8a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.4</span><div><b>合唱谱用方括号、钢琴谱用花括号 · 二声部合唱不再被当成钢琴谱</b>（2026-10 评审团 B4e 声部分组与谱类判定）。<br>① <b>声部分组括线</b>：四声部合唱切到五线谱后，S、A、T、B 四行左侧是一条合唱方括号（以前 T、B 两行被加上钢琴花括号，S、A 什么都没有）；钢琴谱仍是花括号。合唱谱的小节线各谱表各画一段，留出歌词位置；钢琴谱的小节线照旧贯穿上下两行。<br>② <b>谱类判定</b>：高音谱表＋低音谱表的二声部合唱（有歌词）现在算「歌谱」，不再判成钢琴独奏谱——加轨、智能配谱面板都恢复可用，发布到谱库的分类也正确（显示为「五线谱合唱谱」）。没有歌词的两行谱仍是钢琴谱；钢琴弹唱、器乐重奏不受影响。新建向导选「合唱 2–4 声部」时会记下分组，以后切到五线谱也认得是合唱。<br>③ 服务端谱库分类与编辑器同一套规则。<br>新套件 <code>tv_b4e</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.3</span><div><b>刻版小修：七和弦数字上标 · 延音不重复写升降号 · 五线谱和弦合规 · 联排谱技法字母与小节号各归其位</b>（2026-10 评审团 B4a 刻版小修第二批 + B4b 五线谱和弦）。<br>① <b>和弦扩展音上标</b>：Am7、Cmaj7、G9、Dsus4 的数字部分改为上标（Am⁷、Cmaj⁷、Bm⁷♭⁵），性质字母（m、maj、sus）保持正常字号；级数写法 57、6m7 同样处理；斜杠和弦（C7/E）的低音落回基线。<br>② <b>跨小节延音不重复写升降号</b>：上一小节延音过来的同一个音，下一小节开头不再重复写 ♯/♭；本小节后面再出现同一个音时仍会照规范重写。<br>③ <b>TAB＋简谱联排行</b>：有击弦、勾弦、滑音等技法字母时，简谱行和六线谱之间多留一条标注带，字母不再落进简谱数字中间（以前读起来像「5h6」）。<br>④ <b>联排谱小节号只写一处</b>：换行后的行首小节号已标在五线谱左侧，六线谱下方不再重复显示（点它选中整小节的功能不变）。<br>⑤ <b>五线谱和弦刻版合规</b>：二度音程的错位以符干为轴——符干朝上时上方音放右侧，朝下时下方音放左侧（以前一律往右，干朝下的和弦符头会压到符干另一边）；加线跨过错位的符头；和弦里多个升降号从最高音起错开分列，不再叠成一团；附点和弦每个音都有附点（线上的音附点写在上方间内）。<br>新套件 <code>tv_b4a2</code>（4 项）、<code>tv_b4b</code>（3 项），旧文件全部报红。</div></li>
     <li><span class="v">v64.2</span><div><b>刻版小修：教学对照谱页头齐全 · 反复记号不再压拍号 · 歌谱行距收紧</b>（2026-10 评审团 B4a 刻版小修第一批）。<br>① <b>教学对照谱（五线谱＋简谱行）</b>：页头补上 1=X 和拍号（简谱行要按首调读，原先缺了），点 1=X 可直接打开变调弹窗，转调后跟着变；简谱行补上自己的小节线、延音弧和三连音弧——一键配伴奏默认出的就是这种谱，课堂、说课都用得上。<br>② <b>首小节的反复记号排到拍号之后</b>：五线谱、六线谱、联排谱都改了，反复点不再被拍号盖住（自带预设《小步舞曲》就中招）；变拍号的小节同样处理。联排谱上方的五线谱也画出反复线、终止线和段落线（原先只有普通小节线）。<br>③ <b>和弦图的空白只在需要时留</b>：以前只要「和弦图：随行」，每一行都预留 56 个单位的图带，歌谱、五线谱这些根本不画和弦图的谱，行与行之间空出一大截；现在只有本行真画了和弦图才留。<br>新套件 <code>tv_b4a</code>（4 项，旧文件全部报红）。</div></li>
