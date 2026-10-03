@@ -5874,10 +5874,25 @@ function rhythmSVG(durs, W, H, noLine){
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${p.join('')}</svg>`;
 }
 function patEvs(pat){ return pat.ev || (pat.halves? pat.halves.flat() : []); }
-/* 六线节奏型图（吉他节奏型库，教材风格：×在弦上+符干符杠+∧∨方向） */
+/* v63.9 B5 ⑥（P3-23）尤克里里与吉他共用一套 token（b 根音 / B 交替低音 / sN 第 N 弦），但型名里的弦序数字
+   是按吉他写的（53231323 的 5＝吉他五弦根音）。尤克里里显示时按 token 逐位改写：b→4、B→3、sN→N；
+   拍号写法（4/4）、单个数字（×4、2拍）不动。自定义节奏型的名字是用户起的，原样显示。 */
+function patLabel(p){
+  if(!p) return '';
+  if(instOf()!=='uku') return p.name;
+  const digs=[];
+  patEvs(p).forEach(e=>{ const t=e[0];
+    if(t==='b') digs.push('4'); else if(t==='B') digs.push('3');
+    else if(/^s[1-6]$/.test(t)) digs.push(String(Math.min(+t[1],4))); });
+  let k=0;
+  return p.name.replace(/(^|[^\d\/·])([1-6](?:·?[1-6])+)(?![\d\/])/g,
+    (m0,pre,run)=>pre+run.replace(/[1-6]/g, d=>k<digs.length? digs[k++] : d));
+}
+/* 六线节奏型图（吉他节奏型库，教材风格：×在弦上+符干符杠+∧∨方向；v63.9 尤克里里画四线） */
 function tabPatSVG(pat, W, H){
   W=W||140; H=H||64;
-  const top=12, gap=5.6, bot=top+5*gap, stemY=H-8;
+  const NS=instOf()==='uku'? 4 : 6;
+  const top=12, gap=5.6, bot=top+(NS-1)*gap, stemY=H-8;
   const evs = patEvs(pat);
   const total = evs.reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0);
   let cum=0; const xs=[];
@@ -5886,7 +5901,7 @@ function tabPatSVG(pat, W, H){
   let divX=null;
   if(pat.halves){ const h1=pat.halves[0].reduce((a,e)=>a+evBeatsRaw(e[1],e[2]),0); divX=10+h1/total*(W-20); }
   const p=[];
-  for(let i=0;i<6;i++)
+  for(let i=0;i<NS;i++)
     p.push(`<line x1="4" y1="${top+i*gap}" x2="${W-4}" y2="${top+i*gap}" stroke="currentColor" stroke-width="0.6" opacity="0.65"/>`);
   if(divX!=null) p.push(`<line x1="${divX}" y1="${top-3}" x2="${divX}" y2="${bot+3}" stroke="currentColor" stroke-width="0.8" stroke-dasharray="2 2" opacity="0.7"/>`);
   const head=(x,row)=>p.push(`<path d="M ${x-2.4} ${top+row*gap-2.4} L ${x+2.4} ${top+row*gap+2.4} M ${x-2.4} ${top+row*gap+2.4} L ${x+2.4} ${top+row*gap-2.4}" stroke="currentColor" stroke-width="1.2" fill="none"/>`);
@@ -5902,13 +5917,13 @@ function tabPatSVG(pat, W, H){
       p.push(`<path d="M ${x-2} ${top+gap*1.6} q 3 2 0 4 q -3 2 0 4" fill="none" stroke="currentColor" stroke-width="1.1"/>`);
       return;
     }
-    if(t==='b') head(x,4);
-    else if(t==='B') head(x,3);
-    else if(t[0]==='s' && t!=='u') head(x,+t[1]-1);
+    if(t==='b') head(x,NS===4? 3 : 4);
+    else if(t==='B') head(x,NS===4? 2 : 3);
+    else if(t[0]==='s' && t!=='u') head(x,Math.min(+t[1],NS)-1);
     else if(t==='d'||t==='u'||t==='md'||t==='mu'){
       /* 教材式扫弦：向下扫=∧(箭头朝上)、向上扫=∨(箭头朝下)；切音(md/mu)箭头带一个点，细线 */
       const down = (t==='d'||t==='md');
-      const yT=top-1, yB=top+5*gap+1;
+      const yT=top-1, yB=bot+1;
       p.push(`<line x1="${x}" y1="${yT+3}" x2="${x}" y2="${yB-1}" stroke="currentColor" stroke-width="1.05"/>`);
       if(down) p.push(`<path d="M ${x-2.4} ${yT+7} L ${x} ${yT+2} L ${x+2.4} ${yT+7}" fill="none" stroke="currentColor" stroke-width="1.05"/>`);
       else p.push(`<path d="M ${x-2.4} ${yB-6} L ${x} ${yB-1} L ${x+2.4} ${yB-6}" fill="none" stroke="currentColor" stroke-width="1.05"/>`);
@@ -5916,7 +5931,7 @@ function tabPatSVG(pat, W, H){
     }
     else if(t==='a'){
       let dd=`M ${x} ${top}`;
-      for(let yy=top; yy<top+5*gap-4; yy+=7) dd+=` q 3 3.5 0 7`;
+      for(let yy=top; yy<bot-4; yy+=7) dd+=` q 3 3.5 0 7`;
       p.push(`<path d="${dd}" fill="none" stroke="currentColor" stroke-width="1.1"/>`);
     }
     else{ head(x,1); head(x,2); head(x,3);
@@ -7471,6 +7486,9 @@ function holdRender(fn){
 }
 function render(){
   if(RENDER_HOLD){ RENDER_DIRTY=true; return; }
+  /* v63.9 B5 ⑤ 和弦图位置随谱保存（song.diagPos：inline 随行 / top 曲首 / off 隐藏；老谱无字段＝随行） */
+  { const dp=song && song.diagPos; diagMode=(dp==='top'||dp==='off')? dp : 'inline';
+    const bd=document.getElementById('b-diag'); if(bd) bd.textContent='图:'+(diagMode==='inline'?'随行':diagMode==='top'?'曲首':'隐藏'); }
   renderDock();
   const svg = document.getElementById('score');
   /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
@@ -10184,10 +10202,20 @@ function syncInputs(){
     /* v47.8 节奏型库钮文案随谱类：五线谱＝钢琴伴奏织体 */
     { const libTxt = isSt? '伴奏织体…' : '节奏型库…';
       const libTip = isSt? '常用钢琴节奏型（伴奏织体）：按已标注的和弦自动生成双手音符'
-                         : (isTab? '吉他节奏型库：扫弦 / 分解节奏型，一键套用到当前小节'
+                         : (isTab? (instOf()==='uku'?'尤克里里':'吉他')+'节奏型库：扫弦 / 分解节奏型，一键套用到当前小节'
                                  : '简谱节奏型库：一键套用到当前小节');
       [document.getElementById('eb-lib'), document.getElementById('b-rhylib')].forEach(el=>{
         if(el){ el.textContent=libTxt; el.title=libTip; } });
+      /* v63.9 B5 ⑥ 六线谱节奏型卡标题与「常用」图示随乐器（尤克里里四线） */
+      const uk=instOf()==='uku';
+      const pt=document.querySelector('#panel-tab-pat .rg-title');
+      if(pt) pt.textContent=(uk?'尤克里里':'吉他')+'节奏型 · Shift + 点小节上方条带可区域选择';
+      const tq=document.getElementById('tab-quick');
+      if(tq && tq.dataset.inst!==instOf()){
+        tq.dataset.inst=instOf();
+        const q0=TAB_PATTERN_GROUPS[0].items[0], b0=tq.querySelector('[data-tq="0"]');
+        if(b0){ b0.title=patLabel(q0); b0.innerHTML=tabPatSVG(q0,60,38)+'<span>常用</span>'; }
+      }
     }
   }
   const ci = document.getElementById('cursor-info');
@@ -11827,15 +11855,16 @@ function showPatternLib(kind, keepFilter){
       if(!iShow(g,p)) return '';
       const svg = kind==='tab'?tabPatSVG(p,140,62):rhythmSVG(p.durs,140,36);
       return `<div class="pat-card" data-g="${gi}" data-p="${pi}">
-        ${svg}<div class="nm">${esc(p.name)}</div><div class="bt">${+patBeats(p).toFixed(2)} 拍</div></div>`;
+        ${svg}<div class="nm">${esc(kind==='tab'? patLabel(p) : p.name)}</div><div class="bt">${+patBeats(p).toFixed(2)} 拍</div></div>`;
     }).join('');
     return cards? `<h4>${esc(g.cat)}</h4><div class="pat-grid">${cards}</div>` : '';
   }).join('') || '<p class="pf-none">当前筛选没有匹配的节奏型——点上方筛选放宽范围。</p>';
   const tip = selRange
     ? `将套用到第 ${selRange.m1+1}–${selRange.m2+1} 小节`
     : `将套用到第 ${sel.mi+1} 小节（Shift + 点小节上方条带可区域选择多个小节）`;
-  showModal(`<h3>${kind==='tab'?'吉他节奏型库':'简谱节奏型库'}</h3>
-    <p>${tip}。吉他节奏型在小节有和弦时按指法自动生成音符；拍数与拍号不符会被"节拍检查"标出。</p>
+  const instN = instOf()==='uku'? '尤克里里' : '吉他';   /* v63.9 B5 ⑥ 标题随乐器 */
+  showModal(`<h3>${kind==='tab'? instN+'节奏型库' : '简谱节奏型库'}</h3>
+    <p>${tip}。${kind==='tab'? instN : '简谱'}节奏型在小节有和弦时按指法自动生成音符；拍数与拍号不符会被"节拍检查"标出。</p>
     ${fbar}${custBody}${body}<div class="btns"><button id="lib-close">关闭</button></div>`);
   document.getElementById('lib-close').onclick = closeModal;
   document.querySelector('.modal').addEventListener('click', e=>{
@@ -12466,6 +12495,7 @@ window.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copyMeasure(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteMeasure(); return; }
+  if((e.ctrlKey||e.metaKey) && !e.altKey && e.key.toLowerCase()==='k'){ e.preventDefault(); showChordQuick(); return; }   // v63.9 B5 ⑤
   /* v52.5 GP 式左手指法快捷键：Ctrl+Alt+T/1-4/0（吉他谱当前弦位音） */
   if(e.ctrlKey && e.altKey && sel.row==='tab'){
     const kf=e.key.toLowerCase();
@@ -15131,11 +15161,49 @@ document.getElementById('b-chord-edit').onclick = e=>{
   showChordEditor(sel.mi, sel.ci, sel.vi);
 };
 document.getElementById('b-diag').onclick = ()=>{
-  diagMode = diagMode==='inline'?'top':(diagMode==='top'?'off':'inline');
-  document.getElementById('b-diag').textContent =
-    '图:'+(diagMode==='inline'?'随行':diagMode==='top'?'曲首':'隐藏');
-  render();
+  setDiagPos(diagMode==='inline'?'top':(diagMode==='top'?'off':'inline'));
 };
+/* v63.9 B5 ⑤ 和弦图位置写进谱（可撤销、随保存/发布走）；观看页只改本次显示 */
+function setDiagPos(v){
+  if(!song) return;
+  if(viewerMode){ song.diagPos=v; render(); return; }
+  mutate(()=>{ song.diagPos=v; });
+}
+/* v63.9 B5 ⑤（P2-27 无需拍板部分）Ctrl+K 直接输入和弦：写到光标所在处（六线谱列 / 简谱音符），
+   输入框只带「这一处已有的和弦」，不继承前一个和弦的性质；级数写法（6m、57sus）照样认。
+   写入走 i-chord 同一条路径（六线谱按新和弦适配指法、简谱锚定该音符），不写第二份实现。
+   和弦图位置开关（随行 / 曲首 / 隐藏）一并放进来，选择存进谱里。 */
+function showChordQuick(){
+  if(sel.row!=='tab' && sel.row!=='vox') return toast('和弦写在六线谱列或简谱音符上——先点选位置');
+  const col=curCol(); if(!col) return toast('先点选要写和弦的位置');
+  closePop();
+  const dp=diagMode;
+  const div=document.createElement('div'); div.className='popmenu'; div.id='popmenu';
+  div.style.left=Math.max(12, Math.round(innerWidth/2-170))+'px';
+  div.style.top=Math.round(innerHeight*0.22)+'px';
+  div.innerHTML=`<div class="t">和弦 · 第 ${sel.mi+1} 小节（Enter 写入 · 留空按 Enter 清除 · Esc 关闭）</div>
+    <div class="row"><input id="ck-in" list="chord-list" autocomplete="off" placeholder="如 Am7、G/B、6m、57sus" value="${esc(col.chord||'')}" style="width:300px;font-size:15px;padding:6px 8px"></div>
+    ${(song.tabVoices||[]).length? `<div class="row" id="ck-diag"><span style="font-size:12px;opacity:.75;margin-right:6px">和弦图</span>${[['inline','随行'],['top','曲首'],['off','隐藏']].map(([v,l])=>`<button data-ckd="${v}" class="${dp===v?'on':''}">${l}</button>`).join('')}</div>` : ''}`;
+  document.body.appendChild(div);
+  const inp=document.getElementById('ck-in');
+  try{ rebuildChordList(); }catch(_){}
+  inp.focus(); inp.select();
+  inp.addEventListener('keydown', ev=>{
+    if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); closePop(); return; }
+    if(ev.key!=='Enter') return;
+    ev.preventDefault(); ev.stopPropagation();
+    const ic=document.getElementById('i-chord'); const v=inp.value.trim(); ic.value=v;
+    closePop();
+    ic.dispatchEvent(new Event('change'));
+    if(!v) toast('已清除这一处的和弦');
+  });
+  div.addEventListener('click', ev=>{
+    const b=ev.target.closest('[data-ckd]'); if(!b) return;
+    setDiagPos(b.dataset.ckd);
+    div.querySelectorAll('[data-ckd]').forEach(x=>x.classList.toggle('on', x===b));
+    inp.focus();
+  });
+}
 document.getElementById('i-chord').addEventListener('change', e=>{
   const degN = degChordName(e.target.value);   /* v60.31 级数写法直入（57sus、37/#5…） */
   if(degN) e.target.value = degN;
@@ -23690,6 +23758,7 @@ document.getElementById('b-help').onclick = ()=>{
       ['时值 / 节奏','单时值（<kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd><kbd>T</kbd>）与常用节奏组合；「附点」把下一音变半时值；「节奏型库」整小节套用（可 <kbd>Shift</kbd> 跨小节多选后批量）'],
       ['音符','＋后插 / ＋前插（<kbd>Insert</kbd>）任意位置加音；<b>休止符</b>整列休止（吉他谱按时值显示对应休止符）、清单音（<kbd>Backspace</kbd>）只清当前弦位；拆分 / 合并 / 删音符。自由编辑优先，状态条给绿色修复建议'],
       ['记号','连音线：单选自动连相邻音，<kbd>Ctrl</kbd> 选两音跨中间相连；3/5/6/7 连音原地拆分、总时值不变'],
+      ['和弦','<kbd>Ctrl+K</kbd> 在光标处直接输入和弦（Am7、G/B、级数 6m 都行），留空回车清除；同一面板可切换和弦图位置（随行 / 曲首 / 隐藏，随谱保存）'],
     ])}
     ${sec(svgi('score',15),'小节与段落 · 反复记号',[
       ['右栏面板','插入/删除小节常驻；展开「段落·反复·跳转记号」设 |: :| 反复、第一/二段（开口括线）、D.C./D.S./Segno/Fine/Coda、段落线/终止线，作用于当前小节'],
@@ -23762,7 +23831,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23785,6 +23854,7 @@ const APP_VER='v63.8';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.9</span><div><b>Ctrl+K 直接输入和弦 · 和弦图位置随谱保存 · 尤克里里有了自己的节奏型库</b>（2026-10 评审团 B5 TAB 正确性第二批）。<br>① <b>Ctrl+K 写和弦</b>：在六线谱的列或简谱的音符上按 Ctrl+K，弹出和弦输入框，打 Am7、G/B 或级数写法 6m、57sus，回车写到光标处；输入框只带这一处已有的和弦，<b>不再沿用前一个和弦的性质</b>；留空回车清除。六线谱照旧按新和弦适配本小节的分解/扫弦指法。<br>② <b>和弦图位置随谱保存</b>：「随行 / 曲首 / 隐藏」放进 Ctrl+K 面板，选择写进曲谱，保存、分享、发布后观看端一致，可撤销；老谱默认随行。<br>③ <b>尤克里里节奏型库</b>：标题改为「尤克里里节奏型库」，型名里的弦序按四弦改写（如 53231323 显示为 43231323、交替低音 5323 4323 显示为 4323 3323），示意图画四条线。吉他谱不变。<br>帮助页「顶部编辑栏」补上 Ctrl+K 一行。新套件 <code>tv_b5b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.8</span><div><b>变调不再出错谱：唱高再夹回去与原谱一模一样 · 伴奏不丢根音 · 技法不再「弹不出」</b>（2026-10 评审团 B5 TAB 正确性第一批）。<br>① <b>变调按「净变了多少」从原谱重算</b>：以前每点一次就在上一次的结果上再重排，换弦换把位回不去——+2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也面目全非。现在每一步都从原谱按净移调量重算一次，净量为 0 就直接回到原谱，<b>逐音相同</b>；关掉弹窗再打开、Ctrl+Z 撤销后接着变调都一样。中途你在谱面上手改过的音不会被回滚。<br>② <b>伴奏锁定低音</b>：C 换到 G 时，低音不再落到 5 弦 2 品（变成 G/B），而是落到 6 弦 3 品的根音；从低音扫起的柱式/扫弦改从新和弦的低音弦扫；斜杠和弦（如 F/A→C/E）低音落到斜杠音上。<br>③ <b>跨列技法跟着音走</b>：击弦、勾弦、滑音、推弦、连音线的目标音被重排到别的弦时，连线会重新指向它；被拆成跨弦击勾、空弦滑音这类弹不出的写法时，自动挪回同一根弦。<br>④ <b>实在放不下就明说</b>：哪根弦都摆不下的技法，提示「x 处技法失效（连线已保留，请检查）」，不静默。<br>新套件 <code>tv_b5</code>（6 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.7</span><div><b>多声部录谱更顺手 · 合唱同一拍一次标完 · 可选 GP 键位</b>（2026-10 评审团 B1 录入零陷阱第二批）。<br>① <b>声部之间用键盘移动</b>：Alt+↑/↓ 在各声部之间逐个移动，光标落到同一拍上；合唱谱在低音声部按 ↑ 会到上一个声部，不再直接跳回第一个声部。<br>② <b>跨声部一次标记号</b>：Ctrl/Shift 选中几个声部同一拍的音（或框选一段），点延长号、换气、演奏法、力度，一次全部标好，Ctrl+Z 一步撤回。<br>③ <b>套用技法后自动取消多选</b>，下一步操作不会把刚标好的技法覆盖掉；节奏型库的提示改为「Shift + 点小节上方条带可区域选择」（这是现有的操作方式）。<br>④ <b>八度按钮不再误改整首</b>：没选中音时，记号面板的升/降八度会作用于整个声部——现在先弹出确认，写明会改多少个音。<br>⑤ <b>名字说人话</b>：「智能编辑」改叫「修复建议」；配和弦工作台的候选从原始分值改为「契合度」百分比。<br>⑥ <b>末尾空小节提醒</b>：打印 / 导出和发布前，如果谱子末尾有自动续出来的空小节，会提示并可一键删除。<br>⑦ <b>可选「GP / 简谱大师键位」</b>（默认关闭，在右栏「创作」页的提示里开启）：「-」作增时线、Shift+点击作区域选择、六线谱 H/P/S/B 作击弦/勾弦/滑弦/推弦。<br>新套件 <code>tv_b1b</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.6</span><div><b>录谱不再掉进陷阱：增时线、连音线、延长号都落在刚输入的音上</b>（2026-10 评审团 B1 录入零陷阱第一批）。<br>① <b>先落音、再加记号</b>：输入一个音后光标会自动前进到下一格，之前紧接着按 D（增时线）、~（连音线），或点延长号、换气、演奏法、力度、装饰音，记号都落到了前进后的那个空格上——「5 D」把后面的休止拉长，提示却说「已延长」。现在这些记号都作用在刚输入的音上，光标仍停在它后面，可以接着往下录。实测：录《小星星》8 小节只需按 32 个键（28 个音 + 4 个 D），不用任何修正键。<br>② <b>连音线不挂在休止上</b>：光标停在空格时按 ~ 会提示「先输入音」，不再画出连向空白的线。<br>③ <b>先选时值再落音不溢出</b>：在空格上先按二分、全音等更长的时值，会自动吸收后面紧邻的休止，小节不再超拍。<br>④ <b>超拍修复首选「顺延到下一小节」</b>：多出来的音原样挪到下一小节开头，跨过小节线的音拆成两半用连音线连起；下一小节放不下（会把真实音符挤出去）就不顺延，提示手动处理，绝不在全曲连锁移动。原来的「从末尾删掉」降为次选，并先列出会删掉哪几个音；「全部采纳」也不再静默删音。<br>⑤ <b>「-」的一次性提示</b>：简谱里刚输入音时按键盘「-」，会提示一次「这是降八度，增时线请按 D 键」，按键含义不变。<br>新套件 <code>tv_b1a</code>（7 项，旧文件全部报红）。</div></li>
