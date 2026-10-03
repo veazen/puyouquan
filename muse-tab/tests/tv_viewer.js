@@ -100,7 +100,8 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     document.body.click();
     document.getElementById('b-vwset').click();                      // ⚙ 设置面板
     const setOn = !!document.getElementById('vs-print') && !!document.getElementById('vs-make')
-      && document.querySelectorAll('#vs-zoom button').length === 3 && !!document.getElementById('vs-stand');
+      /* v64.6 B8 ② 手机端显示效果改为重排档「标准字号 / 跟练大字」（桌面仍是三档缩放） */
+      && document.querySelectorAll('#vs-big button').length === 2 && !!document.getElementById('vs-stand');
     closeModal();
     setMixerExpanded(true);
     const row = document.querySelector('#mx-tracks .mx-row');
