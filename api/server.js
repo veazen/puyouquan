@@ -223,13 +223,27 @@ async function wxCallbackFlow(req, res, appid, secret) {
 }
 // 谱库列表卡片元信息（类型/封面/小节数）——与编辑器 docType/ccCover 同源，供官网复刻同款卡片。
 // 注：pubList 目前含 data 逐条解析；库规模大后可改存发布时快照的 type/cover 列避免每次解析。
+/* v64.4 B4e 合唱判定（与编辑器 isChoir 同一口径）：显式 voxGroups 有方括号组即合唱；否则从第一个五线谱声部起的
+   连续五线谱声部 ≥2 行、组里确有歌词、且不是钢琴弹唱 → 合唱（谱类归 vocal） */
+function isChoirOf(d) {
+  const vn = d.voxNotations || [], n = (d.voxVoices || []).length, staff = x => x === 'staff' || x === 'bass' || x === 'alto';
+  if (Array.isArray(d.voxGroups) && d.voxGroups.length)
+    return d.voxGroups.some(g => g && g.type === 'bracket' && g.from >= 0 && g.to < n && g.to > g.from);
+  let a = -1; for (let i = 0; i < n; i++) if (staff(vn[i])) { a = i; break; }
+  if (a < 0) return false;
+  let b = a; while (b + 1 < n && staff(vn[b + 1])) b++;
+  if (b === a) return false;
+  const lyr = (d.measures || []).some(m => ((m && m.voxes) || []).some((cols, vi) => vi >= a && vi <= b && (cols || []).some(c =>
+    c && c.lyrics && c.lyrics.some(x => String(x || '').trim()))));
+  return !d.pianoAcc && lyr;   /* 推断时：确有歌词才算合唱（三行以上的器乐重奏仍是器乐谱） */
+}
 function docTypeOf(d) {
   const vn = d.voxNotations || [], staff = n => n === 'staff' || n === 'bass' || n === 'alto';
   if ((d.tabVoices || []).length) { if (d.tabStaff && !(d.voxVoices || []).length) return 'solo'; return d.inst === 'uku' ? 'uku' : 'guitar'; }
   if (d.chordOnly) return 'chord';
   if (d.func) return 'func';
-  if (vn[0] === 'staff' && vn[1] === 'bass') return d.pianoAcc ? 'pianoacc' : 'piano';
-  if (staff(vn[0])) return (d.voxDual || [])[0] ? 'teach' : 'instr';
+  if (vn[0] === 'staff' && vn[1] === 'bass') return d.pianoAcc ? 'pianoacc' : (isChoirOf(d) ? 'vocal' : 'piano');
+  if (staff(vn[0])) return (d.voxDual || [])[0] ? 'teach' : (isChoirOf(d) ? 'vocal' : 'instr');
   return 'vocal';
 }
 function coverOf(d) {
@@ -353,7 +367,7 @@ const TYPE_CN_SSR = { guitar: '弹唱谱', uku: '尤克里里谱', solo: '独奏
 const TYPE_FULL_SSR = { guitar: '吉他弹唱谱', uku: '尤克里里谱', solo: '吉他独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
 function typeLabelOf(d) {
   const t = docTypeOf(d);
-  if (t === 'vocal') return '简谱歌谱';   /* docTypeOf 里 vocal 只会是简谱记谱 */
+  if (t === 'vocal') { const v0 = (d.voxNotations || [])[0]; return (v0 === 'staff' || v0 === 'bass' || v0 === 'alto') ? '五线谱合唱谱' : '简谱歌谱'; }   /* v64.4 B4e */
   /* 五线谱写的歌在 docTypeOf 里归为 instr——按「有没有实际歌词」区分（与编辑器 docTypeLabel 同口径） */
   if (t === 'instr') {
     const hasLy = (d.measures || []).some(m => ((m || {}).voxes || []).some(cols => (cols || []).some(c =>

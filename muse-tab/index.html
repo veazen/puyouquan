@@ -2896,7 +2896,7 @@ const TYPE_FULL={guitar:'吉他弹唱谱', uku:'尤克里里谱', solo:'吉他�
   piano:'钢琴独奏谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱'};
 function docTypeLabel(s2){
   const d=s2||song, t=docType(d);
-  if(t==='vocal') return '简谱歌谱';   /* docType 里 vocal 只会是简谱记谱 */
+  if(t==='vocal') return isStaffNota((d.voxNotations||[])[0])? '五线谱合唱谱' : '简谱歌谱';   /* v64.4 B4e 五线谱合唱也归 vocal */
   /* 五线谱写的歌在 docType 里归为 instr（器乐五线谱）——按「有没有实际歌词」区分：
      带词的是给人唱的（五线谱歌谱），没词的才是器乐谱 */
   if(t==='instr'){
@@ -8748,6 +8748,9 @@ function render(){
         }
       });
     });
+    /* v64.4 B4e 声部分组：vGrpOf[vi]=所在组，vGrpEnd[vi]=以该行收尾的组（括线画在组内最后一行） */
+    const vGrps = voxGroupsOf(song), vGrpOf = [], vGrpEnd = [];
+    vGrps.forEach(g=>{ for(let k=g.from;k<=g.to;k++) vGrpOf[k]=g; vGrpEnd[g.to]=g; });
     song.voxVoices.forEach((vname, vi)=>{
       const voxY = oy+M.voxYs[vi], lyr0 = oy+M.lyricY0[vi];
       /* 五线谱声部：同一数据换记谱视图。谱表画在 voxY 上方（底线 voxY-6，线距 7.5）
@@ -8792,13 +8795,23 @@ function render(){
           p.push(tsigStr(hm.beats, ox+9, staffB-3*SG, SG));
           p.push(tsigStr(hm.unit,  ox+9, staffB-SG,   SG));
         }
-        /* 大谱表连谱括线：上一声部为高音谱表、本声部为低音谱表 → 左端花括线相连 */
-        if(isBass && (song.voxNotations||[])[vi-1]==='staff'){
-          const prevT = oy+M.voxYs[vi-1]-6-4*SG;
-          const brH = SMUFL.brace.bb[3]-SMUFL.brace.bb[1];
-          const brS = (staffB-prevT)/brH;
-          p.push(smg('brace', oxH-3-SMUFL.brace.bb[2]*Math.min(brS,30), staffB, SG, {sx:Math.min(brS,30), sy:brS}));
-          if(!sysConnected) p.push(`<line x1="${oxH}" y1="${prevT}" x2="${oxH}" y2="${staffB}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画（防同位双绘色差）
+        /* v64.4 B4e（P1-17）声部分组括线：在组内最后一行画——钢琴花括号 / 合唱方括号（此前只认「高音谱表下接低音谱表」，
+           SATB 的 T、B 两行被当成钢琴加了花括号，S、A 没有方括号） */
+        { const g = vGrpEnd[vi];
+          if(g){
+            const prevT = oy+M.voxYs[g.from]-6-((song.voxDual||[])[g.from]?26:0)-4*SG;
+            if(g.type==='brace'){
+              const brH = SMUFL.brace.bb[3]-SMUFL.brace.bb[1];
+              const brS = (staffB-prevT)/brH;
+              p.push(smg('brace', oxH-3-SMUFL.brace.bb[2]*Math.min(brS,30), staffB, SG, {sx:Math.min(brS,30), sy:brS}));
+            } else {
+              const bx0=oxH-9, t0=prevT-2, b0=staffB+2;
+              p.push(`<rect x="${bx0}" y="${t0}" width="3" height="${(b0-t0).toFixed(1)}" fill="var(--ink)" data-grp="bracket"/>`);
+              p.push(`<path d="M ${bx0} ${t0} L ${bx0+3} ${t0} Q ${bx0+6} ${t0-1} ${bx0+10} ${t0-6} Q ${bx0+6} ${t0-3.4} ${bx0} ${t0-0.6} Z" fill="var(--ink)"/>`);
+              p.push(`<path d="M ${bx0} ${b0} L ${bx0+3} ${b0} Q ${bx0+6} ${b0+1} ${bx0+10} ${b0+6} Q ${bx0+6} ${b0+3.4} ${bx0} ${b0+0.6} Z" fill="var(--ink)"/>`);
+            }
+            if(!sysConnected) p.push(`<line x1="${oxH}" y1="${prevT}" x2="${oxH}" y2="${staffB}" stroke="var(--ink)" stroke-width="1"/>`);   // v45.9 有系统连线时不重复画（防同位双绘色差）
+          }
         }
       }
       /* v47.2 简谱行不再画独立的行首起始小节线：多行谱由系统连体线（oxH）充当开头小节线，
@@ -8869,8 +8882,9 @@ function render(){
         const vNextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
         /* v42.4 大谱表低音声部：小节线/终止线上延至上方高音谱表顶线，贯穿上下谱表（Gould 键盘大谱表惯例），
            而非各谱表各画一段留 41px 间隙——与左端花括线端点 prevT 一致 */
-        const gsBass = isStaff && isBass && (song.voxNotations||[])[vi-1]==='staff';
-        const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
+        /* v64.4 B4e 钢琴花括号组：组内下方各行的小节线上延到组首谱表顶线（贯穿）；合唱方括号组各谱表各画一段 */
+        const gB = vGrpOf[vi], gsBass = isStaff && !!gB && gB.type==='brace' && vi>gB.from;
+        const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-((song.voxDual||[])[vi-1]?26:0)-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
         /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
         const dotY1 = isStaff? staffB-SG*1.5 : voxY-6, dotY2 = isStaff? staffB-SG*2.5 : voxY-0.5;
         /* v64.2 B4a ②（P1-13）首小节/变拍处的反复开始记号排在拍号之后（此前压在拍号上，反复点被盖住）；
@@ -18557,6 +18571,31 @@ const LS_LIB = 'musetab-library-v1';
 const LS_DOCS = 'musetab-docs-v1';
 /* ================= 多窗口：同时编辑多个（可不同类型的）曲谱 ================= */
 let docs = [], curDocI = 0;
+/* v64.4 B4e（P1-17）声部分组：合唱用方括号、钢琴用花括号。song.voxGroups=[{type:'bracket'|'brace', from, to}]
+   为新可选字段（只增，显式优先）；没写时按谱面推断——从第一个五线谱声部起的连续五线谱声部（≥2 行）：
+   钢琴弹唱、或「高音谱表＋低音谱表」恰好两行且没有歌词 → 钢琴花括号；其余（有歌词 / 三行以上）→ 方括号。
+   docType 与服务端 docTypeOf（api/server.js）同一口径：合唱（显式方括号组，或推断组里有歌词）算歌谱（vocal），不再被当成钢琴独奏谱。 */
+function voxHasLyrics(s, a, b){
+  return (s.measures||[]).some(m=>((m&&m.voxes)||[]).some((cols,vi)=> vi>=a && vi<=b && (cols||[]).some(c=>
+    c && c.lyrics && c.lyrics.some(x=>String(x||'').trim()))));
+}
+function voxGroupsOf(s){
+  const n=(s.voxVoices||[]).length, vn=s.voxNotations||[];
+  if(Array.isArray(s.voxGroups) && s.voxGroups.length)
+    return s.voxGroups.filter(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from);
+  let a=-1; for(let i=0;i<n;i++) if(isStaffNota(vn[i])){ a=i; break; }
+  if(a<0) return [];
+  let b=a; while(b+1<n && isStaffNota(vn[b+1])) b++;
+  if(b===a) return [];
+  const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && !voxHasLyrics(s,a,b));
+  return [{type: piano? 'brace' : 'bracket', from:a, to:b}];
+}
+/* 谱类口径比括线更严：显式方括号组，或推断出的五线谱组里确有歌词，才算合唱（三行以上的器乐重奏照样方括号，但仍是器乐谱） */
+function isChoir(s){
+  if(Array.isArray(s.voxGroups) && s.voxGroups.length) return voxGroupsOf(s).some(g=>g.type==='bracket');
+  if(s.pianoAcc) return false;
+  return voxGroupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
+}
 function docType(s){
   const vn=s.voxNotations||[];
   if(s.tabVoices.length){
@@ -18565,8 +18604,8 @@ function docType(s){
   }
   if(s.chordOnly) return 'chord';
   if(s.func) return 'func';
-  if(vn[0]==='staff' && vn[1]==='bass') return s.pianoAcc? 'pianoacc':'piano';
-  if(isStaffNota(vn[0])) return (s.voxDual||[])[0]? 'teach':'instr';
+  if(vn[0]==='staff' && vn[1]==='bass') return s.pianoAcc? 'pianoacc' : (isChoir(s)? 'vocal' : 'piano');   /* v64.4 B4e 二声部合唱不是钢琴谱 */
+  if(isStaffNota(vn[0])) return (s.voxDual||[])[0]? 'teach' : (isChoir(s)? 'vocal' : 'instr');
   return 'vocal';
 }
 function docIcon(s){ return svgi({guitar:'guitar',uku:'ukulele',solo:'guitar',vocal:'note',func:'piano',chord:'chordgrid',piano:'piano',pianoacc:'piano',teach:'book',instr:'violin'}[docType(s)] || 'score', 12); }
@@ -19068,6 +19107,7 @@ function showNewWizard(){
     closeModal();
     pyqEvent('create_song', type);
     const ns=createSong(type,o);
+    if(type==='vocal' && (ns.voxVoices||[]).length>1) ns.voxGroups=[{type:'bracket', from:0, to:ns.voxVoices.length-1}];   // v64.4 B4e 合唱声部显式分组
     /* v60.46 乐器身份落谱面（新增字段，红线口径只增不动）：instKey 驱动左栏轨图标；
        tim 预置混音台默认音色（此前键盘/器乐新谱声部一律落 'ah' 人声——顺手修正）。
        吉他/尤克里里身份已在 song.inst（六线轨），人声旋律轨保持 mic/'ah' 不动。 */
@@ -24000,7 +24040,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -24023,6 +24063,7 @@ const APP_VER='v64.3';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.4</span><div><b>合唱谱用方括号、钢琴谱用花括号 · 二声部合唱不再被当成钢琴谱</b>（2026-10 评审团 B4e 声部分组与谱类判定）。<br>① <b>声部分组括线</b>：四声部合唱切到五线谱后，S、A、T、B 四行左侧是一条合唱方括号（以前 T、B 两行被加上钢琴花括号，S、A 什么都没有）；钢琴谱仍是花括号。合唱谱的小节线各谱表各画一段，留出歌词位置；钢琴谱的小节线照旧贯穿上下两行。<br>② <b>谱类判定</b>：高音谱表＋低音谱表的二声部合唱（有歌词）现在算「歌谱」，不再判成钢琴独奏谱——加轨、智能配谱面板都恢复可用，发布到谱库的分类也正确（显示为「五线谱合唱谱」）。没有歌词的两行谱仍是钢琴谱；钢琴弹唱、器乐重奏不受影响。新建向导选「合唱 2–4 声部」时会记下分组，以后切到五线谱也认得是合唱。<br>③ 服务端谱库分类与编辑器同一套规则。<br>新套件 <code>tv_b4e</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.3</span><div><b>刻版小修：七和弦数字上标 · 延音不重复写升降号 · 五线谱和弦合规 · 联排谱技法字母与小节号各归其位</b>（2026-10 评审团 B4a 刻版小修第二批 + B4b 五线谱和弦）。<br>① <b>和弦扩展音上标</b>：Am7、Cmaj7、G9、Dsus4 的数字部分改为上标（Am⁷、Cmaj⁷、Bm⁷♭⁵），性质字母（m、maj、sus）保持正常字号；级数写法 57、6m7 同样处理；斜杠和弦（C7/E）的低音落回基线。<br>② <b>跨小节延音不重复写升降号</b>：上一小节延音过来的同一个音，下一小节开头不再重复写 ♯/♭；本小节后面再出现同一个音时仍会照规范重写。<br>③ <b>TAB＋简谱联排行</b>：有击弦、勾弦、滑音等技法字母时，简谱行和六线谱之间多留一条标注带，字母不再落进简谱数字中间（以前读起来像「5h6」）。<br>④ <b>联排谱小节号只写一处</b>：换行后的行首小节号已标在五线谱左侧，六线谱下方不再重复显示（点它选中整小节的功能不变）。<br>⑤ <b>五线谱和弦刻版合规</b>：二度音程的错位以符干为轴——符干朝上时上方音放右侧，朝下时下方音放左侧（以前一律往右，干朝下的和弦符头会压到符干另一边）；加线跨过错位的符头；和弦里多个升降号从最高音起错开分列，不再叠成一团；附点和弦每个音都有附点（线上的音附点写在上方间内）。<br>新套件 <code>tv_b4a2</code>（4 项）、<code>tv_b4b</code>（3 项），旧文件全部报红。</div></li>
     <li><span class="v">v64.2</span><div><b>刻版小修：教学对照谱页头齐全 · 反复记号不再压拍号 · 歌谱行距收紧</b>（2026-10 评审团 B4a 刻版小修第一批）。<br>① <b>教学对照谱（五线谱＋简谱行）</b>：页头补上 1=X 和拍号（简谱行要按首调读，原先缺了），点 1=X 可直接打开变调弹窗，转调后跟着变；简谱行补上自己的小节线、延音弧和三连音弧——一键配伴奏默认出的就是这种谱，课堂、说课都用得上。<br>② <b>首小节的反复记号排到拍号之后</b>：五线谱、六线谱、联排谱都改了，反复点不再被拍号盖住（自带预设《小步舞曲》就中招）；变拍号的小节同样处理。联排谱上方的五线谱也画出反复线、终止线和段落线（原先只有普通小节线）。<br>③ <b>和弦图的空白只在需要时留</b>：以前只要「和弦图：随行」，每一行都预留 56 个单位的图带，歌谱、五线谱这些根本不画和弦图的谱，行与行之间空出一大截；现在只有本行真画了和弦图才留。<br>新套件 <code>tv_b4a</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.1</span><div><b>手机上谱面更大 · 弹奏时屏幕不熄 · 导出按用途分组 · 预设库看得到谱面</b>（2026-10 评审团 B7 体验小修包第二批）。<br>① <b>手机迷你播放条</b>：编辑时底部播放区默认收成 56px 一行（⏮、播放、小节走带、⋯），速度、倍速、节拍器、谱架、音轨收进「⋯」，点开回到原来的三排，再点收起。手机上固定控件合计 209px，只占 844 屏高的 24.8%（原先 300px、35.5%），谱面多出约 90px。<br>② <b>谱架和播放时屏幕常亮</b>：进谱架或开始播放时请求浏览器保持屏幕常亮，退出谱架、停止播放后恢复；切到后台再回来会自动续上；浏览器不支持就照旧，不报错。<br>③ <b>「打印 / 导出」按用途分三组</b>：打印存档（打印 / 存 PDF、PNG 图片）、分享（分享卡、互动谱）、专业格式（MusicXML、MIDI、曲谱文件）；「取消」单独放到左下角，不再夹在一排按钮中间。<br>④ 顶栏原来叫「导出」的按钮实际是下载曲谱文件，改名为「<b>存为文件</b>」（Ctrl+S 照旧）。<br>⑤ <b>预设库改成缩略卡</b>：每张卡上直接看到谱面首屏（打开后陆续生成），整张卡点一下就打开；原来 16 个红色主按钮改为普通按钮。<br>新套件 <code>tv_b7b</code>（4 项，旧文件全部报红）。</div></li>
