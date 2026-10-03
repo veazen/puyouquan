@@ -14,6 +14,8 @@
   --shadow:none; --shadow-sm:none;
   --r:18px;
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--accent-2) 55%,var(--accent-3) 110%);
+  --btn-pri:#c33a29; --btn-pri-h:#b02f20;   /* v64.0 B7 ③ 实底主按钮：白字 5.31:1（渐变尾色仅 3.13:1） */
+  --focus:#c33a29;
   --font-ui:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','HarmonyOS Sans SC','Noto Sans SC','Source Han Sans SC','WenQuanYi Micro Hei','Segoe UI',system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
@@ -73,10 +75,12 @@ h1,h2,h3{letter-spacing:-.3px;line-height:1.2}
 #theme-btn{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;
   width:35px;height:35px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
 #theme-btn:hover{background:var(--accent-soft)}
-.btn{display:inline-flex;align-items:center;gap:8px;background:var(--grad);color:#fff;font-weight:700;
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--btn-pri);color:#fff;font-weight:700;
   border-radius:980px;padding:10px 22px;font-size:13.5px;border:none;cursor:pointer;white-space:nowrap;
   box-shadow:none;transition:transform .14s,box-shadow .22s,filter .2s}
-.btn:hover{transform:translateY(-1.5px);filter:brightness(1.06)}
+.btn:hover{transform:translateY(-1.5px);background:var(--btn-pri-h)}
+/* v64.0 B7 ④ 焦点环实色 + 外偏移（全站兜底；局部更具体的规则仍优先） */
+:is(a,button,[tabindex],select,summary):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .btn.big{padding:14px 32px;font-size:15px}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);box-shadow:none}
 .btn.ghost:hover{background:var(--accent-soft);filter:none}
@@ -200,7 +204,7 @@ a.card .go{display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-s
 .tier.hot{border-color:transparent;background:
   linear-gradient(var(--panel),var(--panel)) padding-box, var(--grad) border-box;border:1.5px solid transparent;
   box-shadow:none}
-.tier .tag2{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--grad);color:#fff;
+.tier .tag2{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--btn-pri);color:#fff;
   font-size:11px;font-weight:800;border-radius:980px;padding:3.5px 15px;letter-spacing:1.5px}
 .tier .nm{font-size:15px;font-weight:800}
 .tier .pr{font-size:30px;font-weight:800;margin:10px 0 0;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -318,7 +322,7 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .pyq-modal .lg-wxtip{font-size:11px;color:var(--muted);text-align:center;margin:-4px 0 10px}
 .pyq-modal .lg-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}
 .pyq-modal .lg-btns button{border:1px solid var(--border);background:transparent;border-radius:10px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer;color:var(--text)}
-.pyq-modal .lg-btns .primary{background:var(--grad);color:#fff;border:none}
+.pyq-modal .lg-btns .primary{background:var(--btn-pri);color:#fff;border:none}
 
 /* ============ 个人中心弹窗卡（www/puku 共享，v3.2）============ */
 .pc-modal{max-width:460px}
@@ -406,7 +410,7 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .me-av{width:64px;height:64px;font-size:26px;flex:0 0 auto}
 .me-nick{font-size:22px;font-weight:800;margin:0;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .me-sub{font-size:13px;color:var(--muted);margin:6px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.vip-badge{display:inline-flex;font-size:11px;font-weight:800;padding:3px 10px;border-radius:980px;background:var(--grad);color:#fff}
+.vip-badge{display:inline-flex;font-size:11px;font-weight:800;padding:3px 10px;border-radius:980px;background:var(--btn-pri);color:#fff}
 .vip-badge.free{background:transparent;border:1px solid var(--border);color:var(--muted)}
 .wx-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 12px;border-radius:980px;
   color:#07c160;border:1px solid rgba(7,193,96,.35)}
@@ -459,7 +463,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .auth-card .lg-wx{width:100%;background:#07c160;color:#fff;border:1px solid #07c160;border-radius:10px;
   padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;font-family:inherit}
 .auth-card .lg-wxtip{font-size:11px;color:var(--muted);text-align:center;margin:-4px 0 10px}
-.auth-card .lg-go{width:100%;border:none;border-radius:10px;background:var(--grad);color:#fff;
+.auth-card .lg-go{width:100%;border:none;border-radius:10px;background:var(--btn-pri);color:#fff;
   font-size:14.5px;font-weight:700;padding:13px 0;cursor:pointer;font-family:inherit}
 /* --- 移动端 --- */
 @media(max-width:580px){
@@ -513,7 +517,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   --fam-f:#a8762a;        /* 功能族 func/instr：赭金 */
   /* v62.0 令牌补齐（UI 专家审计）：以下三个此前**被引用却从未定义**——
      .kc-secarrow/.kc-barnum 取到正文黑、.kc-sechead:hover 完全没有反馈。 */
-  --faint:#867e6e;                 /* 3.95:1，第三级文字 */
+  --faint:#746c5e;                 /* v64.0 B7 ② 第三级文字 ≥4.55:1（原 #867e6e 3.95:1） */
   --hover:rgba(80,65,40,.06);
   --accent-ink:#b02f20;
   /* 星级：原先三处三个金色且最高只有 2.54:1，统一到一个达标色 + 空心星装饰色 */
@@ -529,14 +533,14 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a;
-  --faint:#8f887a; --hover:rgba(255,255,255,.06); --accent-ink:#ef8471;
+  --faint:#9a9284; --hover:rgba(255,255,255,.06); --accent-ink:#ef8471; --focus:#ef8471;
   --star:#e5b45a; --star-off:#565a50;
   --ok:#6fc98d; --ok-soft:rgba(111,201,141,.14);
   --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
   --fam-on:#181a17;                /* 深色下族色变亮，实心块改用深墨字 */
   --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f); }}
 :root[data-theme="dark"]{ --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a;
-  --faint:#8f887a; --hover:rgba(255,255,255,.06); --accent-ink:#ef8471;
+  --faint:#9a9284; --hover:rgba(255,255,255,.06); --accent-ink:#ef8471; --focus:#ef8471;
   --star:#e5b45a; --star-off:#565a50;
   --ok:#6fc98d; --ok-soft:rgba(111,201,141,.14);
   --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);

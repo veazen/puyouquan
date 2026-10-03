@@ -1,6 +1,8 @@
 /* ================================================================
    谱友圈官网 · 共享脚本：线性图标库 / 导航页脚注入 / 主题 / 进场动画 / 文档路由
    ================================================================ */
+/* v64.0 B7 ⑦ 记住的明暗主题越早套用越好（少闪一下） */
+try{ const t0=localStorage.getItem('musetab-theme'); if(t0==='light'||t0==='dark') document.documentElement.dataset.theme=t0; }catch(_){}
 /* v62.9 A4 ④ 小程序 web-view 环境越早标记越好（页面首屏渲染前）：html.is-mp 驱动 CSS 隐藏价格/购买、外链转纯文本 */
 (function(){ try{ if(window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent||'')) document.documentElement.classList.add('is-mp'); }catch(_){} })();
 (function(){
@@ -110,14 +112,16 @@ if(footEl){
   </div></footer>`;
 }
 
-/* ---------- 主题切换 ---------- */
+/* ---------- 主题切换（v64.0 B7 ⑦ 记住选择：musetab-theme，与编辑器同名键） ---------- */
 const tb = document.getElementById('theme-btn');
 if(tb) tb.onclick = ()=>{
   const r=document.documentElement;
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
     : window.matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme = isDark?'light':'dark';
+  try{ localStorage.setItem('musetab-theme', r.dataset.theme); }catch(_){}
 };
+if(tb) tb.setAttribute('aria-label','明暗切换');
 
 /* ---------- 图标占位替换：<i data-i="name"></i> ---------- */
 document.querySelectorAll('i[data-i]').forEach(el=>{ el.outerHTML = ICONS[el.dataset.i]||''; });

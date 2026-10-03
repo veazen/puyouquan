@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>/* v64.0 B7 ⑦（P2-35）明暗主题持久化：musetab-theme（新键，只增），首屏前套用 */
+try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(_){}</script>
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
@@ -20,9 +22,11 @@
 :root{
   /* v40.6 素材配色（产品拍板）：朱砂强调 + 暖米三级表面（--bg 画布 < --toolbar 栏 < --panel 卡片）；
      --paper 谱纸暖米白（打印分支强制回 #fff）；danger 与朱砂错开色相改琥珀，避免告警与选中混淆 */
-  --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#a49c8d;
+  --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#746c5e;   /* v64.0 B7 ② 第三级文字 ≥4.55:1（原 #a49c8d 仅 2.39:1） */
   --border:#e4ddcd; --border-soft:#ece6d8;
   --accent:#c33a29; --accent-2:#d24a37; --accent-soft:rgba(195,58,41,.10); --accent-ink:#b02f20;
+  --btn-pri:#c33a29; --btn-pri-h:#b02f20;   /* v64.0 B7 ③ 主按钮实底：白字 5.31:1 / 6.42:1（渐变尾色仅 3.13:1） */
+  --focus:#c33a29;                          /* v64.0 B7 ④ 焦点环实色 */
   --paper:#fbfaf5; --ink:#141414; --toolbar:#f7f4ec; --hover:rgba(80,65,40,.06);
   --glass:rgba(251,250,245,.82);
   --danger:#b45309; --ok:#157a43;   /* danger=琥珀（4.6:1 AA），与朱砂强调保持可区分 */
@@ -34,21 +38,21 @@
   --font-num:'DejaVu Serif','Noto Serif SC','Source Han Serif SC',serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#7d766a;
-    --border:#3b3e37; --border-soft:#33362f;
+  :root{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#9a9284;
+    --border:#3b3e37; --border-soft:#33362f; --focus:#ef8471;
     --accent:#df5a45; --accent-2:#e86a55; --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
     --toolbar:#1e211d; --hover:rgba(255,255,255,.06); --glass:rgba(24,26,23,.78);
     --danger:#ffa424; --ok:#30d158;
     --shadow:none; }
 }
-:root[data-theme="light"]{ --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#a49c8d;
-  --border:#e4ddcd; --border-soft:#ece6d8;
+:root[data-theme="light"]{ --bg:#f3f0e8; --panel:#fefdf9; --text:#20211d; --muted:#6b6357; --faint:#746c5e;
+  --border:#e4ddcd; --border-soft:#ece6d8; --focus:#c33a29;
   --accent:#c33a29; --accent-2:#d24a37; --accent-soft:rgba(195,58,41,.10); --accent-ink:#b02f20;
   --paper:#fbfaf5; --toolbar:#f7f4ec; --hover:rgba(80,65,40,.06); --glass:rgba(251,250,245,.82);
   --danger:#b45309; --ok:#157a43;   /* danger=琥珀，与朱砂强调可区分 */
   --shadow:none; }
-:root[data-theme="dark"]{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#7d766a;
-  --border:#3b3e37; --border-soft:#33362f;
+:root[data-theme="dark"]{ --bg:#181a17; --panel:#262924; --text:#edefe8; --muted:#a89f90; --faint:#9a9284;
+  --border:#3b3e37; --border-soft:#33362f; --focus:#ef8471;
   --accent:#df5a45; --accent-2:#e86a55; --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
   --toolbar:#1e211d; --hover:rgba(255,255,255,.06); --glass:rgba(24,26,23,.78);
   --danger:#ffa424; --ok:#30d158;
@@ -129,23 +133,26 @@ body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
 .seg button:last-child{border-right:none}
 .seg button:hover{background:var(--hover)}
 .seg button.seg-accent{color:var(--accent-ink);font-weight:600}
-.seg button.seg-accent:hover{background:var(--grad);color:#fff}
+.seg button.seg-accent:hover{background:var(--btn-pri);color:#fff}
 button{background:var(--panel);color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;white-space:nowrap;
   font-family:var(--font-ui);transition:border-color .15s, background .15s, color .15s, box-shadow .15s;}
 button:hover{background:var(--hover)}
 button:active{transform:scale(.985)}
-button.primary{background:var(--grad);border-color:transparent;border-radius:980px;
+button.primary{background:var(--btn-pri);border-color:transparent;border-radius:980px;
   padding:5px 15px;font-weight:600;color:#fff;
   box-shadow:none}
-button.primary:hover{background:var(--grad);color:#fff;filter:brightness(1.07);transform:translateY(-1px)}
+button.primary:hover{background:var(--btn-pri-h);color:#fff;transform:translateY(-1px)}
+/* v64.0 B7 ④（P2-34）焦点环：实色 2px + 2px 外偏移（原为 10% 透明度朱砂，看不见）；只在键盘聚焦时出现 */
+:is(button,a,[tabindex],select,summary):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 button.ghost{border-color:transparent;background:transparent}
 button.ghost:hover{background:var(--accent-soft)}
 input,select,textarea{background:var(--panel);color:var(--text);
   border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:13px;
   font-family:var(--font-ui);}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
+input:focus,select:focus,textarea:focus{border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft)}
 input.short{width:54px} input.mid{width:150px}
 /* 分页标签 */
@@ -1029,7 +1036,7 @@ body:has(#start-pad:not(.hidden)) #doc-tabs{display:none}
   border-radius:9px 9px 0 0;background:rgba(255,255,255,.07);cursor:pointer;font-size:12.5px;
   color:#c6bead;max-width:200px;flex:0 0 auto;transition:background .12s,color .12s}
 .dtab:hover{background:rgba(255,255,255,.14);color:#f3efe4}
-.dtab.on{background:var(--bg);color:var(--ink);font-weight:600}
+.dtab.on{background:var(--bg);color:var(--text);font-weight:600}   /* v64.0 B7 ①（P2-29）--ink 是谱面墨色，深色主题下 1.05:1 */
 .dtab .svgi{opacity:.8;flex:none}
 .dtab .dt-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dtab .dt-dot{width:6px;height:6px;border-radius:50%;background:#e8a13a;flex:0 0 6px}
@@ -1826,7 +1833,7 @@ body.shell #editbar .eb,body.shell #left-flyout .rg-body button,body.shell .ltab
   transition:background .12s,border-color .12s,color .12s,transform .08s}
 body.shell #editbar .eb:active,body.shell #left-flyout .rg-body button:active,body.shell .ltab:active{
   transform:translateY(.5px) scale(.98)}
-body.shell button:focus-visible{outline:2px solid var(--accent-soft);outline-offset:1px}
+body.shell button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* ③④ 上栏双档间距 + 左轨 56px 定宽（桌面专属几何，护栏防砸 ≤820 移动端布局） */
 @media (min-width:821px){
   body.shell #editbar{gap:8px}
@@ -2490,7 +2497,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
       <div id="spd-mnote">手机上可以看谱、播放、移调；写谱请在电脑浏览器打开 zhipu.puyouquan.com 继续。</div>
       <div id="spd-cont" data-sp="cont"></div>
     </div>
-  <div id="paper"><svg id="score"></svg></div></div>
+  <div id="paper"><svg id="score" role="application" aria-roledescription="曲谱" aria-label="曲谱谱面：方向键移动光标，数字键录入，Tab 切换声部"></svg></div></div>
 
   <aside id="right-dock">
     <!-- v40.2 新版右栏四页签（经典版隐藏页签条、卡片全显） -->
@@ -12544,7 +12551,11 @@ window.addEventListener('keydown', e=>{
       /* v63.7 B1 ⑦ 修：简谱多声部（SATB）从 B 按 ↑ 直接跳回 S（switchRow 到不存在的六线谱再钳回 0）——改为逐个声部向上 */
       else moveVoice(-1);
       break;
-    case 'Tab': e.preventDefault(); switchRow(); break;
+    case 'Tab': {
+      /* v64.0 B7 ⑤（P2-34）焦点在谱面（body / #paper）时 Tab 仍切换声部；焦点在面板按钮、浮层里时放行原生 Tab 走查 */
+      const ae=document.activeElement;
+      if(ae && ae!==document.body && ae!==document.documentElement && !(ae.closest && ae.closest('#paper'))) return;
+      e.preventDefault(); switchRow(); break; }
     case 'Backspace':
       e.preventDefault(); pending.digits='';
       if(sel.row==='tab') setFret(null); else setDeg(0);
@@ -21851,6 +21862,7 @@ document.getElementById('b-theme').onclick = ()=>{
   const isDark = r.dataset.theme ? r.dataset.theme==='dark'
     : window.matchMedia('(prefers-color-scheme: dark)').matches;
   r.dataset.theme = isDark?'light':'dark';
+  try{ localStorage.setItem('musetab-theme', r.dataset.theme); }catch(_){}   // v64.0 B7 ⑦ 刷新/换页不丢
 };
 /* 曲谱反色：深色纸张 + 浅色音符（作用于纸面，随本机记忆） */
 function applyScoreInvert(on){
@@ -23831,7 +23843,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23854,6 +23866,7 @@ const APP_VER='v63.9';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.0</span><div><b>看得清、键盘能用、主题记得住</b>（2026-10 评审团 B7 体验小修包第一批）。<br>① <b>浅灰小字看得清了</b>：第三级文字颜色加深，浅色主题、深色主题对各级底色都达到 4.5:1 以上（原先浅色只有 2.39:1）；官网同步。<br>② <b>当前文档页签</b>文字改用正文色，深色主题下不再「黑字黑底」。<br>③ <b>主按钮改为实底朱砂</b>：白字对比度 5.31:1（渐变尾端只有 3.13:1）；官网的主按钮、登录按钮、会员角标一并改。<br>④ <b>键盘焦点看得见</b>：用键盘走到按钮、链接、输入框时，出现 2px 实色外框并留出 2px 间距（原先是 10% 透明度，几乎看不见）。<br>⑤ <b>Tab 不再全局劫持</b>：焦点在谱面上时 Tab 照旧切换声部；焦点在面板按钮、弹窗、菜单里时，Tab 按浏览器原生方式在控件之间移动。<br>⑥ <b>读屏可用</b>：谱面标注为「曲谱」编辑区并说明操作方式；♭ ♯ ◐ 这类符号按钮补上文字说明，弹出的菜单同样处理。<br>⑦ <b>明暗主题记住了</b>：点过明暗切换后，刷新或换页都保持；官网同样记住。<br>新套件 <code>tv_b7a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.9</span><div><b>Ctrl+K 直接输入和弦 · 和弦图位置随谱保存 · 尤克里里有了自己的节奏型库</b>（2026-10 评审团 B5 TAB 正确性第二批）。<br>① <b>Ctrl+K 写和弦</b>：在六线谱的列或简谱的音符上按 Ctrl+K，弹出和弦输入框，打 Am7、G/B 或级数写法 6m、57sus，回车写到光标处；输入框只带这一处已有的和弦，<b>不再沿用前一个和弦的性质</b>；留空回车清除。六线谱照旧按新和弦适配本小节的分解/扫弦指法。<br>② <b>和弦图位置随谱保存</b>：「随行 / 曲首 / 隐藏」放进 Ctrl+K 面板，选择写进曲谱，保存、分享、发布后观看端一致，可撤销；老谱默认随行。<br>③ <b>尤克里里节奏型库</b>：标题改为「尤克里里节奏型库」，型名里的弦序按四弦改写（如 53231323 显示为 43231323、交替低音 5323 4323 显示为 4323 3323），示意图画四条线。吉他谱不变。<br>帮助页「顶部编辑栏」补上 Ctrl+K 一行。新套件 <code>tv_b5b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.8</span><div><b>变调不再出错谱：唱高再夹回去与原谱一模一样 · 伴奏不丢根音 · 技法不再「弹不出」</b>（2026-10 评审团 B5 TAB 正确性第一批）。<br>① <b>变调按「净变了多少」从原谱重算</b>：以前每点一次就在上一次的结果上再重排，换弦换把位回不去——+2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也面目全非。现在每一步都从原谱按净移调量重算一次，净量为 0 就直接回到原谱，<b>逐音相同</b>；关掉弹窗再打开、Ctrl+Z 撤销后接着变调都一样。中途你在谱面上手改过的音不会被回滚。<br>② <b>伴奏锁定低音</b>：C 换到 G 时，低音不再落到 5 弦 2 品（变成 G/B），而是落到 6 弦 3 品的根音；从低音扫起的柱式/扫弦改从新和弦的低音弦扫；斜杠和弦（如 F/A→C/E）低音落到斜杠音上。<br>③ <b>跨列技法跟着音走</b>：击弦、勾弦、滑音、推弦、连音线的目标音被重排到别的弦时，连线会重新指向它；被拆成跨弦击勾、空弦滑音这类弹不出的写法时，自动挪回同一根弦。<br>④ <b>实在放不下就明说</b>：哪根弦都摆不下的技法，提示「x 处技法失效（连线已保留，请检查）」，不静默。<br>新套件 <code>tv_b5</code>（6 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.7</span><div><b>多声部录谱更顺手 · 合唱同一拍一次标完 · 可选 GP 键位</b>（2026-10 评审团 B1 录入零陷阱第二批）。<br>① <b>声部之间用键盘移动</b>：Alt+↑/↓ 在各声部之间逐个移动，光标落到同一拍上；合唱谱在低音声部按 ↑ 会到上一个声部，不再直接跳回第一个声部。<br>② <b>跨声部一次标记号</b>：Ctrl/Shift 选中几个声部同一拍的音（或框选一段），点延长号、换气、演奏法、力度，一次全部标好，Ctrl+Z 一步撤回。<br>③ <b>套用技法后自动取消多选</b>，下一步操作不会把刚标好的技法覆盖掉；节奏型库的提示改为「Shift + 点小节上方条带可区域选择」（这是现有的操作方式）。<br>④ <b>八度按钮不再误改整首</b>：没选中音时，记号面板的升/降八度会作用于整个声部——现在先弹出确认，写明会改多少个音。<br>⑤ <b>名字说人话</b>：「智能编辑」改叫「修复建议」；配和弦工作台的候选从原始分值改为「契合度」百分比。<br>⑥ <b>末尾空小节提醒</b>：打印 / 导出和发布前，如果谱子末尾有自动续出来的空小节，会提示并可一键删除。<br>⑦ <b>可选「GP / 简谱大师键位」</b>（默认关闭，在右栏「创作」页的提示里开启）：「-」作增时线、Shift+点击作区域选择、六线谱 H/P/S/B 作击弦/勾弦/滑弦/推弦。<br>新套件 <code>tv_b1b</code>（7 项，旧文件全部报红）。</div></li>
@@ -24567,8 +24580,23 @@ function alignHeader(){
   { const roPop = window.ResizeObserver? new ResizeObserver(es=>es.forEach(en=>clampPopIntoView(en.target))) : null;
     new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{
       if(n.nodeType===1 && n.classList && n.classList.contains('popmenu')){ clampPopIntoView(n); if(roPop) roPop.observe(n); }
+      if(n.nodeType===1) ariaGlyphs(n);   // v64.0 B7 ⑥ 浮层/弹窗里的字形按钮
     }))).observe(document.body, {childList:true}); }
+  ariaGlyphs(document);
 })();
+/* v64.0 B7 ⑥（P2-34）字形按钮（♭ ♯ ◐ − ＋ ↶ 纯图标等）读屏只念出符号或什么都不念：补 aria-label，
+   取 title 的主语部分（冒号/括号前）；按钮文字里已有中文或英文单词的不动。 */
+function ariaGlyphs(root){
+  if(!root || !root.querySelectorAll) return;
+  const list=[...root.querySelectorAll('button:not([aria-label])')];
+  if(root.tagName==='BUTTON' && !root.hasAttribute('aria-label')) list.push(root);
+  list.forEach(b=>{
+    const t=(b.textContent||'').trim();
+    if(/[\u4e00-\u9fa5]|[A-Za-z]{2,}/.test(t)) return;
+    const lab=(b.getAttribute('title')||'').split(/[：:（(·—]/)[0].trim();
+    if(lab) b.setAttribute('aria-label', lab);
+  });
+}
 function clampPopIntoView(div){
   if(!div || !div.isConnected) return;
   const vw=document.documentElement.clientWidth, r=div.getBoundingClientRect();
