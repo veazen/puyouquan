@@ -1,0 +1,64 @@
+/* 谱友圈编辑器 · 视觉升级提案 v2（专家团整合版；注入真实编辑器出效果图）
+   三支笔：墨绿钢笔＝结构/主操作/选中；荧光笔＝当前项/播放/考点；朱砂红笔＝谱面编辑标记/录制/收藏/印章。
+   --font-ui / --font-num 冻结（谱面数字依赖），本文件不覆盖。 */
+:root,:root[data-theme="light"]{
+  --bg:#f5f1e6; --toolbar:#f9f6ee; --panel:#fcfaf5; --text:#1a3300; --muted:#4d5643; --faint:#5f6a52;
+  --border:#c9c2b0; --border-soft:#e6dfcf;
+  --accent:#1a3300; --accent-2:#2b4d0c; --accent-ink:#1a3300; --accent-soft:#d5f5c2;
+  --btn-pri:#1a3300; --btn-pri-h:#2b4d0c; --focus:#1a3300;
+  --paper:#ffffff; --ink:#141414; --hover:rgba(26,51,0,.06); --glass:rgba(252,250,245,.9);
+  --danger:#a64c07; --ok:#157a43; --grad:linear-gradient(0deg,#1a3300,#1a3300);
+  --on-accent:#fcfaf5; --mark:#ffe95c; --pen:#c33a29; --line:#8a8370;
+  --chrome:#fcfaf5; --chrome-ink:#1a3300; --chrome-line:#c9c2b0;
+  --bar-bg:#fcfaf5; --bar-sep:rgba(26,51,0,.12); --tap:rgba(26,51,0,.06);
+}
+body{background:var(--bg)!important;color:var(--text)}
+/* —— 谱面令牌隔离层：谱面编辑标记保留朱砂红笔，文字中性，纸纯白 —— */
+#paper{--accent:#c33a29;--accent-2:#d24a37;--accent-ink:#b02f20;--accent-soft:rgba(195,58,41,.10);
+  --muted:#5c5c5c;--faint:#6b6b6b;--border:#ddd6c6;--danger:#b45309;--paper:#ffffff;
+  background:#ffffff!important;box-shadow:inset 0 0 0 1px #ddd6c6!important;border-radius:4px}
+/* 播放：荧光笔划过当前小节（正片叠底，不冲淡墨色）+ 朱砂竖线 */
+#paper:not(.score-invert) #score #playhead[opacity="0.12"]{fill:#ffe95c;opacity:.55;mix-blend-mode:multiply}
+#score #playline{stroke-width:2}
+/* —— 顶栏：浅色框架（高度不变） —— */
+body.shell #top .main-bar{background:var(--chrome)!important;border-bottom:1px solid var(--chrome-line)!important}
+body.shell .main-bar .logo{color:var(--chrome-ink)!important}
+body.shell .main-bar .logo small{color:var(--faint)!important}
+body.shell .main-bar button{color:var(--chrome-ink)!important;background:transparent!important;border-color:var(--border-soft)!important}
+body.shell .main-bar button:hover{background:var(--hover)!important}
+body.shell .main-bar .seg{background:var(--panel)!important;border:1px solid var(--border-soft)!important;border-radius:6px!important}
+body.shell .main-bar .seg-accent{color:var(--chrome-ink)!important;font-weight:600}
+body.shell .main-bar #k-val{color:var(--chrome-ink)!important}
+body.shell .main-bar #b-member{background:var(--btn-pri)!important;color:var(--on-accent)!important;border-radius:6px!important}
+/* Logo：荧光黄方块 + 墨绿三条谱线 + 音符点（结构不变，只换色，线条略手绘） */
+.logo .mark,.cc-logo .mark{background:var(--mark) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26' fill='none' stroke='%231a3300' stroke-width='1.9' stroke-linecap='round'%3E%3Cpath d='M3.6 9.4c4.4-.3 9 .3 13.2-.1'/%3E%3Cpath d='M3.4 13.3c4.8.2 9.6-.3 13.6.1'/%3E%3Cpath d='M3.7 17.2c3.6-.2 7.2.3 10.4-.1'/%3E%3Cellipse cx='18.1' cy='17.4' rx='3.1' ry='2.4' transform='rotate(-22 18.1 17.4)' fill='%231a3300' stroke='none'/%3E%3Cpath d='M20.9 16.4V5.2c1.6.6 2.6 1.6 2.8 3' stroke-width='2'/%3E%3C/svg%3E") center/22px no-repeat!important;border-radius:6px!important}
+.logo .mark::before,.logo .mark::after,.cc-logo .mark::before,.cc-logo .mark::after{display:none!important}
+/* 文档页签：当前页 = 纸面 + 顶部荧光索引条 */
+#doc-tabs{background:var(--bg)!important;border-bottom:1px solid var(--border-soft)}
+#doc-tabs .dtab{background:transparent!important;color:var(--muted)!important;border-radius:6px 6px 0 0!important}
+#doc-tabs .dtab.on{background:var(--panel)!important;color:var(--text)!important;box-shadow:inset 0 0 0 1px var(--border-soft),inset 0 3px 0 var(--mark)!important}
+#doc-tabs button:not(.dtab){color:var(--muted)!important;border-color:var(--border-soft)!important;background:transparent!important}
+/* 功能区 */
+#ribbon,#editbar,#editbar2{background:var(--toolbar)!important;border-color:var(--border-soft)!important}
+button{border-radius:6px}
+/* 唯一的选中语言：薄荷底 + 墨绿 1px 内描边 + 600 */
+button.on,.seg button.on,.chip.on,.eb.on{background:var(--accent-soft)!important;color:var(--text)!important;border-color:transparent!important;box-shadow:inset 0 0 0 1px var(--accent)!important;font-weight:600}
+#left-dock .on,#left-dock button.on{background:var(--accent-soft)!important;color:var(--text)!important;box-shadow:inset 0 0 0 1px var(--accent)!important}
+/* 右栏页签：当前项下方一道荧光短划 */
+.rtab,.rtab.on{background-color:transparent!important;border-bottom:3px solid transparent!important;box-shadow:none!important}
+.rtab.on{color:var(--text)!important;font-weight:700;border-bottom-color:transparent!important;
+  background:linear-gradient(var(--mark),var(--mark)) no-repeat 50% calc(100% - 2px)/44% 5px!important}
+/* 卡片：12px、发丝线、零投影 */
+.rcard{border-radius:12px!important;border-color:var(--border-soft)!important;background:var(--panel)!important;box-shadow:none!important}
+.rc-h{font-weight:600!important;color:var(--text)!important;background:transparent!important}
+/* —— 播放坞：浅色框架，播放钮墨绿实底，当前小节格荧光 —— */
+body.shell #mixer-dock{background:var(--chrome)!important;border-top:1px solid var(--chrome-line)!important}
+body.shell #mixer-dock button{color:var(--chrome-ink)!important;border-color:var(--border-soft)!important;background:transparent!important}
+body.shell #mixer-dock #b-play{background:var(--btn-pri)!important;color:var(--on-accent)!important;border-color:transparent!important;font-weight:600;border-radius:6px!important}
+body.shell .mx-splabel{color:var(--muted)!important}
+body.shell #mx-prog{background:var(--toolbar)!important;border-color:var(--border-soft)!important}
+body.shell .mxc{background:#ece6d6!important}
+body.shell .mxc span{color:var(--muted)!important}
+body.shell .mxc.cur{background:var(--mark)!important}
+body.shell .mxc.cur span{color:#1a3300!important;font-weight:700}
+body.shell #i-tempo,body.shell #mx-rate{background:var(--panel)!important;border-color:var(--border-soft)!important;color:var(--text)!important}

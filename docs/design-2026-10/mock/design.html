@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>谱友圈设计系统 · 老师的谱本</title>
+<link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="tokens.css">
+<style>
+body{padding:56px 0 72px}
+.w{max-width:1280px;margin:0 auto;padding:0 40px}
+h1{font:900 56px/1.1 var(--font-display);letter-spacing:.04em;margin:18px 0 12px}
+.lead{font:400 18px/1.6 var(--font-ui);color:var(--ink-2);max-width:760px;margin:0}
+h2{font:900 28px/1.2 var(--font-display);letter-spacing:.03em;margin:56px 0 18px;display:flex;align-items:baseline;gap:14px}
+h2 small{font:400 13px/1 var(--font-mono);color:var(--ink-3);letter-spacing:.04em}
+.pens{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pen{border:1px solid var(--ink);border-radius:var(--r-card);padding:22px;background:var(--paper)}
+.pen .sw{height:64px;border-radius:8px;margin-bottom:16px;display:flex;align-items:flex-end;padding:10px 12px;font:500 13px/1 var(--font-mono)}
+.pen h3{font:700 19px/1.3 var(--font-ui);margin:0 0 8px}
+.pen p{font:400 14px/1.6 var(--font-ui);color:var(--ink-2);margin:0}
+.pal{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.pal .box{border-radius:var(--r-card);padding:18px;border:1px solid var(--hair)}
+.pal .box.dark{background:#121810;border-color:#2c3527;color:#eef1e4}
+.pal .box h4{font:600 14px/1 var(--font-ui);margin:0 0 14px}
+.chips{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.c{border-radius:8px;height:78px;padding:9px 10px;display:flex;flex-direction:column;justify-content:space-between;font:500 12px/1.2 var(--font-ui)}
+.c code{font:400 11px/1 var(--font-mono)}
+.c b{font:500 11px/1 var(--font-mono);opacity:.85}
+.type{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:20px}
+.tcard{border:1px solid var(--hair);border-radius:var(--r-card);padding:22px;background:var(--paper)}
+.tcard .lb{font:400 12px/1 var(--font-mono);color:var(--ink-3);letter-spacing:.04em}
+.tcard .s1{font:900 44px/1.1 var(--font-display);letter-spacing:.04em;margin:14px 0 8px}
+.tcard .s2{font:400 16px/1.7 var(--font-ui);margin:14px 0 8px}
+.tcard .s3{font:400 15px/1.8 var(--font-mono);margin:14px 0 8px}
+.tcard p{font:400 13px/1.6 var(--font-ui);color:var(--ink-3);margin:8px 0 0}
+.comp{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.cc{border:1px solid var(--hair);border-radius:var(--r-card);padding:20px;background:var(--paper);display:flex;flex-direction:column;gap:12px}
+.cc .lb{font:400 12px/1 var(--font-mono);color:var(--ink-3);letter-spacing:.04em}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--hair);border-radius:var(--r-btn);padding:3px;gap:3px;background:var(--cream)}
+.seg span{font:500 13px/1 var(--font-ui);padding:8px 12px;border-radius:4px;color:var(--ink-2)}
+.seg span.on{background:var(--mint);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
+.tabs{display:flex;gap:26px;border-bottom:1px solid var(--hair)}
+.tabs span{font:500 14px/1 var(--font-ui);padding:10px 0 12px;color:var(--ink-3)}
+.tabs span.on{color:var(--ink);font-weight:700;background:linear-gradient(var(--marker),var(--marker)) no-repeat 50% calc(100% - 3px)/70% 5px}
+.inp{display:flex;align-items:center;border:1px solid #8a8370;border-radius:var(--r-btn);padding:10px 12px;font:400 14px/1 var(--font-ui);color:var(--ink-3);background:#fff}
+.inp.f{border-color:var(--ink);box-shadow:0 0 0 3px var(--mint);color:var(--ink)}
+.toast{display:flex;align-items:center;gap:12px;background:var(--mint);border:1px solid var(--ink);border-radius:10px;padding:10px 12px;font:500 13px/1.3 var(--font-ui)}
+.toast u{text-decoration:none;font-weight:700;border-bottom:2px solid var(--marker)}
+.dlg{border:1px solid var(--ink);border-radius:16px;padding:18px;background:var(--cream)}
+.dlg h5{font:700 16px/1.35 var(--font-ui);margin:0 0 6px}
+.dlg p{font:400 13px/1.55 var(--font-ui);color:var(--ink-2);margin:0 0 14px}
+.btn.danger{background:transparent;color:#9a3f17;border-color:#9a3f17}
+.marks{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.mk{border:1px solid var(--hair);border-radius:var(--r-card);background:#fff;padding:16px}
+.mk .lb{font:600 14px/1.3 var(--font-ui);margin-top:10px}
+.mk p{font:400 12.5px/1.55 var(--font-ui);color:var(--ink-3);margin:4px 0 0}
+.mk svg text{font-family:'Noto Sans SC',sans-serif;font-size:19px;fill:#141414}
+.mo{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+table{width:100%;border-collapse:collapse;font:400 13.5px/1.5 var(--font-ui)}
+th{font:500 12px/1 var(--font-mono);color:var(--ink-3);text-align:left;padding:10px 12px;border-bottom:1px solid var(--ink);letter-spacing:.04em}
+td{padding:10px 12px;border-bottom:1px solid var(--hair);vertical-align:top}
+td code{font:500 12.5px/1 var(--font-mono);background:var(--cream-2);padding:3px 6px;border-radius:4px}
+.tb{border:1px solid var(--hair);border-radius:var(--r-card);background:var(--paper);overflow:hidden}
+.no{background:#fff;border:1px dashed #b4481c;border-radius:var(--r-card);padding:16px 18px}
+.no h4{font:700 15px/1 var(--font-ui);color:#9a3f17;margin:0 0 10px}
+.no li{font:400 13.5px/1.7 var(--font-ui);color:var(--ink-2)}
+</style></head><body><div class="w">
+<span class="tag">✦ 视觉升级提案 · 设计系统</span>
+<h1>老师的<mark class="hl">谱本</mark></h1>
+<p class="lead">奶油纸是谱本，墨绿钢笔写结构，荧光笔划重点，朱砂红笔做批改。谱面本身始终是白纸黑字的印刷页——界面换肤，不进谱面。</p>
+
+<h2>三支笔<small>COLOR ROLES</small></h2>
+<div class="pens">
+  <div class="pen"><div class="sw" style="background:#1a3300;color:#fcfaf5">#1a3300 森林墨绿</div><h3>钢笔：结构与主操作</h3><p>正文、图标、主按钮、选中态描边。界面 90% 的分量都在它身上。奶油纸上 13.3:1。</p></div>
+  <div class="pen"><div class="sw" style="background:#ffe95c">#ffe95c 荧光黄</div><h3>荧光笔：当前与重点</h3><p>首屏关键词、播放到的小节、当前页签短划、「新 / 考点 / AI」徽章。<b>永远不做按钮底</b>，同屏只出现一处。</p></div>
+  <div class="pen"><div class="sw" style="background:#c33a29;color:#fff">#c33a29 朱砂红笔</div><h3>红笔：批改与印章</h3><p>谱面上的光标、选区、播放竖线（保持现状），录制、收藏星、分享卡与证书上的朱砂方印。品牌传承不丢。</p></div>
+</div>
+
+<h2>色板<small>LIGHT · DARK · 对比度按 WCAG 实算</small></h2>
+<div class="pal">
+  <div class="box" style="background:#fcfaf5"><h4>浅色 · 白天的谱本</h4><div class="chips">
+    <div class="c" style="background:#fcfaf5;box-shadow:inset 0 0 0 1px #e3ddcc">奶油纸 面板<code>#fcfaf5</code></div>
+    <div class="c" style="background:#f5f1e6">画布<code>#f5f1e6</code></div>
+    <div class="c" style="background:#fff;box-shadow:inset 0 0 0 1px #e3ddcc">谱纸（白）<code>#ffffff</code><b>墨 18.4:1</b></div>
+    <div class="c" style="background:#1a3300;color:#fcfaf5">墨绿 文字/主色<code>#1a3300</code><b>13.3:1</b></div>
+    <div class="c" style="background:#4d5643;color:#fcfaf5">次级文字<code>#4d5643</code><b>6.8:1</b></div>
+    <div class="c" style="background:#5f6a52;color:#fcfaf5">三级文字<code>#5f6a52</code><b>5.1:1</b></div>
+    <div class="c" style="background:#d5f5c2">薄荷 = 选中底<code>#d5f5c2</code><b>墨绿字 11.6:1</b></div>
+    <div class="c" style="background:#ffe95c">荧光黄<code>#ffe95c</code><b>墨绿字 11.2:1</b></div>
+    <div class="c" style="background:#a8e5e5">青 便签<code>#a8e5e5</code></div>
+    <div class="c" style="background:#f6d0ff">粉 便签<code>#f6d0ff</code></div>
+    <div class="c" style="background:#f3d5c4">淡赤陶 便签<code>#f3d5c4</code></div>
+    <div class="c" style="background:#fff;box-shadow:inset 0 0 0 1px #8a8370">控件边线<code>#8a8370</code><b>3.6:1</b></div>
+  </div></div>
+  <div class="box dark"><h4>深色 · 夜里的书桌（谱纸仍是亮纸）</h4><div class="chips">
+    <div class="c" style="background:#121810;box-shadow:inset 0 0 0 1px #2c3527">桌面<code>#121810</code></div>
+    <div class="c" style="background:#1e271b">面板<code>#1e271b</code></div>
+    <div class="c" style="background:#ffffff;color:#141414">谱纸（亮）<code>#ffffff</code><b>墨 18.4:1</b></div>
+    <div class="c" style="background:#eef1e4;color:#1a3300">文字<code>#eef1e4</code><b>13.5:1</b></div>
+    <div class="c" style="background:#b6bda8;color:#121810">次级文字<code>#b6bda8</code><b>8.0:1</b></div>
+    <div class="c" style="background:#9ea690;color:#121810">三级文字<code>#9ea690</code><b>6.1:1</b></div>
+    <div class="c" style="background:#c5eeb0;color:#1a3300">亮薄荷 主按钮<code>#c5eeb0</code><b>墨绿字 10.7:1</b></div>
+    <div class="c" style="background:#ffe95c;color:#1a3300">焦点环<code>#ffe95c</code><b>12.5:1</b></div>
+    <div class="c" style="background:#26361f">薄荷便签<code>#26361f</code></div>
+    <div class="c" style="background:#3a2740">粉便签<code>#3a2740</code></div>
+    <div class="c" style="background:#1d3838">青便签<code>#1d3838</code></div>
+    <div class="c" style="background:#ef8471;color:#121810">红笔（界面）<code>#ef8471</code><b>7.1:1</b></div>
+  </div></div>
+</div>
+
+<h2>字体<small>中国大陆可用 · 全部自托管或系统字体</small></h2>
+<div class="type">
+  <div class="tcard"><span class="lb">展示 · 思源黑体 Heavy 子集 + Bricolage Grotesque（数字/字母）</span><div class="s1">专业曲谱 <mark class="hl">2026</mark></div><p>只用于官网标题与编辑器的启动台、空状态；全站固定标题约 374 字，子集约 69 KB。曲名等用户内容不套展示字体。</p></div>
+  <div class="tcard"><span class="lb">正文 · 系统字体栈（不变）</span><div class="s2">苹方 / 鸿蒙黑体 / 微软雅黑。界面字体变量冻结——简谱数字直接依赖它，换字体会改变谱面。</div><p>0 KB；中文粗标题字距 +0.04em，正文不加字距。</p></div>
+  <div class="tcard"><span class="lb">等宽 · JetBrains Mono</span><div class="s3">1=C · 4/4 · ♩=88<br>KAOBIAN · 第 3/8 小节</div><p>微标签、调号拍号、状态条；ASCII 子集 4.7 KB。</p></div>
+</div>
+
+<h2>组件<small>圆角只用 6 / 12 / 16 / 全圆 · 零阴影 · 唯一选中语言</small></h2>
+<div class="comp">
+  <div class="cc"><span class="lb">按钮：主 / 次 / 便签</span><div class="row"><span class="btn pri sm">→ 开始制谱</span><span class="btn out sm">打开</span><span class="btn note sm">看示例</span></div><div class="row"><span class="tag">✦ 考点</span><span class="pill">弹唱</span><span class="pill">1=C · 4/4</span></div></div>
+  <div class="cc"><span class="lb">选中：薄荷底 + 墨绿细边</span><div class="seg"><span>自由编辑</span><span class="on">修复建议</span></div><div class="tabs"><span class="on">智能</span><span>曲谱信息</span><span>谱库</span></div></div>
+  <div class="cc"><span class="lb">输入：常态 / 聚焦</span><div class="inp">曲名</div><div class="inp f">送别</div></div>
+  <div class="cc"><span class="lb">提示条：可撤销、播报给读屏</span><div class="toast">已删除第 3 小节第 2 个音 <u>撤销</u></div><div class="toast" style="background:#fcfaf5">已入库 · 已同步到云端</div></div>
+  <div class="cc" style="grid-column:span 2"><span class="lb">确认：只给不可逆操作；后果写进标题，默认焦点在「取消」</span><div class="dlg"><h5>删除《送别》？删除后无法从「我的曲谱」找回</h5><p>本机与云端的这份曲谱会一起删除。已发布到谱库的版本不受影响。</p><div class="row" style="justify-content:flex-end"><span class="btn out sm" style="box-shadow:0 0 0 2px #fcfaf5,0 0 0 4px #1a3300">取消</span><span class="btn danger sm">删除</span></div></div></div>
+</div>
+
+<h2>谱面标记<small>谱面是印刷品：几何零改动，只换覆盖层；打印 / 导出一律白纸纯黑</small></h2>
+<div class="marks">
+  <div class="mk"><svg width="250" height="70"><rect x="47" y="12" width="26" height="48" rx="4" fill="#c33a29" opacity=".12"/><text x="18" y="44">3</text><text x="54" y="44">3</text><text x="90" y="44">4</text><text x="126" y="44">5</text><text x="160" y="44">|</text><text x="182" y="44">5</text><text x="218" y="44">4</text></svg><div class="lb">光标列 · 朱砂红笔</div><p>保持现状（tv_a0 靠 0.12 识别成品干净），红色投影仪可见。</p></div>
+  <div class="mk"><svg width="250" height="70"><rect x="12" y="12" width="132" height="48" rx="3" fill="#c33a29" opacity=".14"/><text x="18" y="44">3</text><text x="54" y="44">3</text><text x="90" y="44">4</text><text x="126" y="44">5</text><text x="160" y="44">|</text><text x="182" y="44">5</text><text x="218" y="44">4</text></svg><div class="lb">选区 · 红笔圈画</div><p>区域选择、多选、小节选中同一色相，靠「填充 / 虚线 / 描边」区分。</p></div>
+  <div class="mk"><svg width="250" height="70"><rect x="172" y="8" width="78" height="56" fill="#ffe95c" opacity=".55" style="mix-blend-mode:multiply"/><line x1="203" y1="8" x2="203" y2="64" stroke="#c33a29" stroke-width="2"/><text x="18" y="44">3</text><text x="54" y="44">3</text><text x="90" y="44">4</text><text x="126" y="44">5</text><text x="160" y="44">|</text><text x="182" y="44">5</text><text x="218" y="44">4</text></svg><div class="lb">播放 · 荧光笔划过本小节</div><p>正片叠底不冲淡墨色（14.6:1）；配 2px 红笔竖线，投影仪与色盲都看得见。</p></div>
+  <div class="mk"><svg width="250" height="70"><rect x="10" y="10" width="140" height="52" rx="3" fill="#b45309" opacity=".07" stroke="#b45309" stroke-dasharray="5 3"/><text x="18" y="44">3</text><text x="54" y="44">3</text><text x="90" y="44">4</text><text x="126" y="44">5</text><text x="138" y="26" style="font-size:14px;fill:#b45309;font-weight:700">!</text><text x="160" y="44">|</text><text x="182" y="44">5</text><text x="218" y="44">4</text></svg><div class="lb">节拍错误 · 琥珀虚框 + 「!」</div><p>形状编码，不靠颜色和红笔区分；出成品时自动熄灭（修缺陷 D2）。</p></div>
+</div>
+
+<h2>动效<small>用笔触，不用弹簧 · 自动化测试环境默认关闭 · 谱面内零动画</small></h2>
+<div class="mo">
+  <div class="tb"><table><tr><th>令牌</th><th>值</th><th>用在</th></tr>
+    <tr><td><code>--m-dur-1</code></td><td>80ms</td><td>按下、颜色变化</td></tr>
+    <tr><td><code>--m-dur-2</code></td><td>140ms</td><td>悬停、弹出菜单、提示条、页签内容</td></tr>
+    <tr><td><code>--m-dur-3</code></td><td>200ms</td><td>弹窗进场、卡片悬停、保存对勾</td></tr>
+    <tr><td><code>--m-dur-4</code></td><td>280ms</td><td>手机抽屉、启动台「揭开纸面」</td></tr>
+    <tr><td><code>--m-dur-ink</code></td><td>600ms</td><td>官网首屏马克笔划出（只播一次）</td></tr>
+    <tr><td><code>--m-ease-marker</code></td><td>(.6,.05,.25,1)</td><td>起笔略迟、中段快、收笔顿</td></tr></table></div>
+  <div class="no"><h4>不做的动效</h4><ul>
+    <li>谱面 SVG 内逐音符、逐小节动画（每次重排整张重建，60–125 ms）</li>
+    <li>移调时音符位移补间、整谱交叉淡化、View Transitions</li>
+    <li>面板 / 播放条宽高过渡（会触发重排闸）、弹性过冲、3D、加深阴影、遮罩模糊</li>
+    <li>视差、滚动绑定动画、长文页渐显、每次按键都弹提示</li>
+    <li>开关：<code>prefers-reduced-motion</code> 降到 ≤120ms 淡入；<code>navigator.webdriver</code> 下自动关闭，147 个测试套件零改动</li></ul></div>
+</div>
+</div></body></html>
