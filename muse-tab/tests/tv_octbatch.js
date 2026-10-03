@@ -25,6 +25,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 3 }; noteSel = []; selRange = null; render();
     undoStack.length = 0;   // loadSong 链路自带一条快照，清掉只量本操作
     document.getElementById('b-octup').click();
+    /* v63.7 B1 ⑨ 无选区＝全曲，先弹确认 */
+    const ask = !!document.getElementById('oc-yes'); if (ask) document.getElementById('oc-yes').click();
     const m0 = song.measures[0].voxes[0], m1 = song.measures[1].voxes[0];
     return { o0: m0[0].oct, rest: m0[1].oct, o2: m0[2].oct, add: m0[2].adds[0].oct,
       g: m1[0].grace.notes[0].oct, o10: m1[0].oct, o11: m1[1].oct, undoN: undoStack.length };
