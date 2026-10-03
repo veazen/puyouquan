@@ -4,7 +4,7 @@
    T3 智能填词声部行：列出全部旋律声部 + 各自可填音位数（一眼看出哪条有音符）
    T4 切声部填词：词写进目标声部、原声部一字不动
    T5 ＋声部：复制来源声部音符骨架（音高/时值/附点/连音线/连音符）、不带歌词、一步撤销
-   T6 上限：满 5 声部后「＋声部」chip 消失
+   T6 上限：满 8 声部（v65.2 MAX_VOICES）后「＋声部」chip 消失
    T7 空来源退回空轨：来源声部无音符时按各小节实际拍号铺列（变拍谱不错位）
    突变实证（对 v60.53 旧文件跑）：T1/T2/T3 当场红，T4 起因「声部 chip 根本不存在」直接崩。
    file:// 直载。 */
@@ -127,10 +127,10 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.title.indexOf('旋律2') >= 0 && r.nUndo === 1 && r.srcLyr === '原',
     'T5 ＋声部：复制骨架不带词 + 一步撤销 + 来源零改动', JSON.stringify(r));
 
-  // T6 上限：满 5 声部后「＋声部」chip 消失
+  // T6 上限：满 8 声部后「＋声部」chip 消失
   r = await pg.evaluate(HELP + `(()=>{
     __mk(1);
-    while(song.voxVoices.length<5) addVoice('vox');
+    while(song.voxVoices.length<MAX_VOICES) addVoice('vox');   /* v65.2 B3a ③ 上限 5→8，按常量取 */
     render();
     document.getElementById('b-fill').click();
     const n=song.voxVoices.length;
@@ -139,8 +139,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     closeModal();
     return {n, hasAdd, nChip};
   })()`);
-  T(r.n === 5 && !r.hasAdd && r.nChip === 5,
-    'T6 声部上限：满 5 条后「＋声部」隐藏', JSON.stringify(r));
+  T(r.n === 8 && !r.hasAdd && r.nChip === 8,
+    'T6 声部上限：满 8 条后「＋声部」隐藏', JSON.stringify(r));
 
   // T7 空来源退回空轨：按各小节实际拍号铺列（变拍谱不错位）
   r = await pg.evaluate(HELP + `(()=>{

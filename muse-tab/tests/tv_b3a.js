@@ -6,7 +6,7 @@
    T5 第三方写法导入：words「D.C. al Fine」+sound dacapo → dc；words Fine + sound fine → fine；ending number="1" 跨两小节 → 两小节 volta=1；bar-style light-light → sectionBar；末小节 light-heavy 不当 finalBar
    T6 和弦类型导出：Am7→minor-seventh、G7sus4→suspended-fourth+degree 7 -1 add、C69→major-sixth+add 9、F#m7b5→half-diminished（root-alter 1）、Bb7b9→dominant+degree 9 -1（root-alter -1）、Dmaj7#11→major-seventh+add 11 +1
    T7 和弦类型导入（无 text）：half-diminished→m7b5、dominant+♭9 add→7b9、suspended-fourth+♭7 add→7sus4、major-sixth+add 9→69、augmented-seventh→aug7；有 text 以 text 为准
-   T8 跳过分项：6 个 part 只取 4 → skip.parts=2 且 partNames 点名、第二 voice 音符 → skip.voices、第 4 行歌词 → skip.lyrics；skipText 文案逐项点名
+   T8 跳过分项：10 个 part 只取 8（v65.2 上限）→ skip.parts=2 且 partNames 点名、第二 voice 音符 → skip.voices、第 4 行歌词 → skip.lyrics；skipText 文案逐项点名
    突变实证：对 v65.1 之前的文件复跑，T1–T8 全部报红。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -105,10 +105,10 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   r = await EV(() => { const mk = (id, name) => ({ id, name, measures: [N('C', 4) + N('D', 4) + N('E', 4) + N('F', 4)] });
     const p1 = { id: 'P1', name: '女高', measures: [N('C', 4, '', '') + N('D', 4) + N('E', 4, '<lyric number="4"><text>四</text></lyric>') + N('F', 4) +
       '<backup><duration>16</duration></backup>' + N('A', 3).replace('<voice>1</voice>', '<voice>2</voice>') + N('G', 3).replace('<voice>1</voice>', '<voice>2</voice>')] };
-    const xml = MX([p1, mk('P2', '女低'), mk('P3', '男高'), mk('P4', '男低'), mk('P5', '钢琴右手'), mk('P6', '钢琴左手')]);
+    const xml = MX([p1, mk('P2', '女低'), mk('P3', '男高'), mk('P4', '男低'), mk('P5', '声部5'), mk('P6', '声部6'), mk('P7', '声部7'), mk('P8', '声部8'), mk('P9', '钢琴右手'), mk('P10', '钢琴左手')]);   /* v65.2 上限 8：第 9、10 个被点名 */
     const res = importMusicXML(xml); if (!res.song) return { err: res.error };
     return { nv: res.song.voxVoices.length, parts: res.skip.parts, names: (res.skip.partNames || []).join('/'), voices: res.skip.voices, lyrics: res.skip.lyrics, txt: skipText(res.skip) }; });
-  T(!r.err && r.nv === 4 && r.parts === 2 && r.names === '钢琴右手/钢琴左手' && r.voices === 2 && r.lyrics === 1 && /声部 2 个（钢琴右手、钢琴左手）/.test(r.txt) && /第二声部音符 2/.test(r.txt) && /歌词 1/.test(r.txt), 'T8 跳过分项计数 + 文案点名', JSON.stringify(r));
+  T(!r.err && r.nv === 8 && r.parts === 2 && r.names === '钢琴右手/钢琴左手' && r.voices === 2 && r.lyrics === 1 && /声部 2 个（钢琴右手、钢琴左手）/.test(r.txt) && /第二声部音符 2/.test(r.txt) && /歌词 1/.test(r.txt), 'T8 跳过分项计数 + 文案点名', JSON.stringify(r));
 
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
