@@ -195,7 +195,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(PRESETS[0].make());
     mutate(() => { song.measures[0].tabs[0][0].chord = 'C#m7'; });
     const svg1 = document.getElementById('score').innerHTML;
-    const tabOk = />C<tspan[^>]*>♯<\/tspan><tspan[^>]*>m7</.test(svg1) && !svg1.includes('>C#m7<');
+    /* v64.3 B4a ⑤ 扩展音数字再上标：C + ♯（上标）+ m（回基线）+ 7（上标） */
+    const tabOk = />C<tspan[^>]*>♯<\/tspan><tspan[^>]*>m<\/tspan><tspan[^>]*>7</.test(svg1) && !svg1.includes('>C#m7<');
     loadSong(createSong('func', {nVox:1, beats:4, unit:4, key:'C', nMea:2, lyr:0}));
     song.funcNames = false;
     mutate(() => { song.measures[0].voxes[0][0].chord = 'Eb'; });   // 1=C 下 Eb = b3 级
