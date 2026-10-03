@@ -6825,6 +6825,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
      （推弦弧/技法字母/泛音标注，按所在弦位折算）之和；上方净空 = 顶线以上加线深度。
      谱号可选（v45.7 song.tabClef='bass'）时按对应底线谱级计算 */
   let tLedUp=0, tGapDn=14*vs;
+  const jpTechBand = !!song.tabJp && song.measures.some(m=>(m.tabs||[]).some(cols=>(cols||[]).some(c=>(c.notes||[]).some(n=>n.tech||n.hmT||n.bar))));
   if(song.tabStaff && nT){
     const Kt = staffKeyInfo(), SNt = strN();
     const SBt = song.tabClef==='bass'? 25 : 37;
@@ -6847,7 +6848,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     else tabStaffB.push(0);
     /* v59.1 简谱联排行（song.tabJp）：TAB 上方（联排五线谱之下）一行首调简谱翻译。
        基线上方 22px 容纳高八度点、下方 18px 容纳减时线+低八度点 */
-    if(song.tabJp){ tabJpB.push(y+22); y += 40; }
+    /* v64.2 B4a ④（P2-11）有技法字母（h/p/S/推弦等，画在 TAB 顶线上方）时，简谱联排行与 TAB 之间
+       另留 14px 独立标注带——此前字母落进简谱数字带，读起来像「5h6」 */
+    if(song.tabJp){ tabJpB.push(y+22); y += 40 + (jpTechBand? 14 : 0); }
     else tabJpB.push(0);
     /* v54.8 TAB 下缘净距底线（用户反馈：无预留记号的行简谱顶进 TAB，换页后再现）：
        符干区(12px)与小节号带(≈14px)是固定像素、不随行距/疏密系数缩放——系数<1 时
@@ -6906,18 +6909,37 @@ function chordSvgLabel(disp, fs){
   const AC = a=> a==='#'?'♯':'♭';
   const sup = t=>`<tspan font-size="${Math.round(fs*0.8)}" dy="${(-fs*0.34).toFixed(1)}">${t}</tspan>`;
   const back= t=>`<tspan dy="${(fs*0.34).toFixed(1)}">${esc(t)}</tspan>`;
+  /* v64.2 B4a ⑤（P3-01）扩展音数字上标：和弦性质字母（m / maj / sus / add / dim / aug）正常字号，
+     从第一个数字（或紧贴数字的 ♭♯）起整段上标——Am⁷、Cmaj⁷、Bm⁷♭⁵、G⁹、Dsus⁴（流行歌本与 Gould 惯例）。
+     raised 记录本段结尾是否停在上标高度：斜杠低音前要先落回基线 */
+  let raised=false;
+  const tail = (rest, lead)=>{       // lead：本段开头已有的上标（变音）需要先回基线
+    const k = rest.search(/[#b]?\d/);
+    if(k<0){ raised=false; return rest? (lead? back(rest) : esc(rest)) : ''; }
+    const base = rest.slice(0,k), ext = rest.slice(k).replace(/b(?=\d)/g,'♭').replace(/#(?=\d)/g,'♯');
+    raised = true;
+    if(lead) return (base? back(base) : `<tspan dy="${(fs*0.34).toFixed(1)}"></tspan>`)+sup(esc(ext));
+    return esc(base)+sup(esc(ext));
+  };
   const seg = part=>{
-    let m;
-    if((m=/^(#|b)([1-7])(.*)$/.exec(part)))          /* 级数：变音前置（功能记谱惯例 ♯5） */
-      return sup(AC(m[1]))+back(m[2]+(m[3]||''));
+    let m; raised=false;
+    if((m=/^(#|b)([1-7])(.*)$/.exec(part))){        /* 级数：变音前置（功能记谱惯例 ♯5） */
+      const rest=m[3]||''; const k=rest.search(/[#b]?\d/);
+      if(k<0) return sup(AC(m[1]))+back(m[2]+rest);
+      return sup(AC(m[1]))+back(m[2]+rest.slice(0,k))+(raised=true, sup(esc(rest.slice(k).replace(/b(?=\d)/g,'♭').replace(/#(?=\d)/g,'♯'))));
+    }
+    if((m=/^([1-7])(.*)$/.exec(part)) && m[2]) return esc(m[1])+tail(m[2], false);   /* 级数：57 → 5⁷、6m7 → 6m⁷ */
     m=/^([A-G])(#|b)(.*)$/.exec(part);
     if(!m){ const w=/^(#|b)([A-G])(.*)$/.exec(part); if(w) m=[w[0],w[2],w[1],w[3]]; }
     if(m)                                            /* v60.31 音名：变音后置上标（G♯，此前画成 ♯G） */
-      return esc(m[1])+sup(AC(m[2]))+(m[3]? back(m[3]) : '');
+      return esc(m[1])+sup(AC(m[2]))+(m[3]? tail(m[3], true) : (raised=true, ''));
+    if((m=/^([A-G])(.*)$/.exec(part)) && m[2]) return esc(m[1])+tail(m[2], false);
     return esc(part);
   };
   const i = disp.indexOf('/');
-  return i<0? seg(disp) : seg(disp.slice(0,i))+'/'+seg(disp.slice(i+1));
+  if(i<0) return seg(disp);
+  const a = seg(disp.slice(0,i)), up = raised;
+  return a + (up? back('/') : '/') + seg(disp.slice(i+1));
 }
 /* HTML 版（弹窗/菜单预览用） */
 function chordHtmlLabel(disp){
@@ -8056,7 +8078,9 @@ function render(){
           const numOn = meaOn;
           /* 小节编号：显示在吉他谱小节线正下方，悬停变色（.mnumg:hover） */
           const mnStr = meaNo(lm.mi);
-          p.push(`<g class="mnumg"><text class="mnum" x="${mx+1.5}" y="${tabBot+9.5}" font-size="${numOn?10:8}" font-weight="${numOn?'600':'500'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:0.85}">${mnStr}</text>`+
+          /* v64.2 B4a ⑦（P3-09）联排谱非首行：行首小节号已标在五线谱左侧，TAB 下方这一处不再重复显示（点选热区保留，选中时照常亮） */
+          const mnDup = !!song.tabStaff && lmIdx===0 && sIdx>0;
+          p.push(`<g class="mnumg"><text class="mnum" x="${mx+1.5}" y="${tabBot+9.5}" font-size="${numOn?10:8}" font-weight="${numOn?'600':'500'}" fill="${isErr?'var(--danger)':(numOn?'var(--accent)':'var(--muted)')}" opacity="${numOn?1:(mnDup?0:0.85)}">${mnStr}</text>`+
             `<rect class="measnum" x="${mx-2}" y="${tabBot+1}" width="${9+mnStr.length*6}" height="13" rx="3" fill="transparent" data-measuresel="${lm.mi}" style="cursor:pointer"><title>点击选中整小节 · 按住拖过其他小节号连选多小节（Ctrl+C/V 复制粘贴）</title></rect></g>`);
         }
         if(isErr)
@@ -9012,22 +9036,46 @@ function render(){
             const ns = chNotes(col);
             const stLo=ns[0].st, stHi=ns[ns.length-1].st;
             const lw = col.dur===1? 9.2 : 6.6;   // 加线比符头两侧各多出约0.4线距（全音符更宽）
+            const tiedIn0 = ci===0 && lm.mi>0 && (()=>{ const pc=(song.measures[lm.mi-1].voxes||[])[vi]||[], l=pc[pc.length-1];
+              return !!(l && l.tie && l.deg===col.deg && (l.oct||0)===(col.oct||0) && (l.acc||'')===(col.acc||'')); })();
+            /* v64.3 B4b（P1-14）和弦刻版：① 二度错位以符干为轴——符干朝上时自下而上扫、二度的上方音放符干右侧；
+               符干朝下时自上而下扫、二度的下方音放符干左侧（此前一律往右翻，干朝下的和弦符头压到符干另一边）；
+               ② 加线跨过错位后的符头；③ 临时记号从最高音起分列：与本列已有记号相距不足六度就再往左一列，
+               有符头错到左侧时整组先让过它；④ 附点每个音都有（线上音的附点挪到上方间内，同一间合并）。 */
+            /* 符干方向与符干/符杠绘制同口径：在符杠组里按组内主音平均位置定，否则按本列首末音 */
+            const stemUp0 = (()=>{ const g0=vGroups.find(g2=>g2.idx.length>1 && g2.idx.includes(ci));
+              const nts = g0? g0.idx.filter(i=>cols[i].deg>0) : [];
+              if(nts.length>=2){ setClefCtx(nts[0]); const up=(nts.reduce((a,i)=>a+staffStep(cols[i],K),0)/nts.length) < S_MID; setClefCtx(ci); return up; }
+              return (stLo+stHi)/2 < S_MID; })();
+            const disp = ns.map(()=>0);
+            if(stemUp0){ let f=false; for(let k=1;k<ns.length;k++){ f=(ns[k].st-ns[k-1].st===1)? !f : false; if(f) disp[k]=1; } }
+            else { let f=false; for(let k=ns.length-2;k>=0;k--){ f=(ns[k+1].st-ns[k].st===1)? !f : false; if(f) disp[k]=-1; } }
+            const anyL = disp.some(d=>d<0), anyR = disp.some(d=>d>0);
+            const lwL = lw+(anyL?6.6:0), lwR = lw+(anyR?6.6:0);
             for(let L2=S_BOT+10; L2<=stHi; L2+=2)
-              p.push(`<line x1="${nx-lw}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lw}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+              p.push(`<line x1="${nx-lwL}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lwR}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             for(let L2=S_BOT-2; L2>=stLo; L2-=2)
-              p.push(`<line x1="${nx-lw}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lw}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+              p.push(`<line x1="${nx-lwL}" y1="${stepY(L2).toFixed(1)}" x2="${nx+lwR}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             const hnm = col.dur===1?'noteheadWhole': col.dur===2?'noteheadHalf':'noteheadBlack';
-            let prevSt=null, flip=false;
-            ns.forEach(n2=>{
-              flip = (prevSt!=null && n2.st-prevSt===1)? !flip : false; prevSt=n2.st;
-              const hx = nx + (flip? 6.6 : 0);      // 二度音程：上方音翻转到符干另一侧
+            const accs=[];
+            ns.forEach((n2,k)=>{
+              const hx = nx + disp[k]*6.6;
               const hy2 = stepY(n2.st);
               p.push(smg(hnm, hx-smw(hnm)*SG/2, hy2, SG));
               const ln=(K.Li+n2.deg-1)%7, keyAlt=K.alt[ln]||0;
               const av=accSemi(n2.acc);
+              /* v64.2 B4a ⑥ 本小节首音是上一小节延音过来的同一个音：不写变音记号、也不记入本小节进位
+                 （本小节后面再出现同音仍要重写——Gould《Behind Bars》惯例） */
+              if(ci===0 && tiedIn0 && n2===ns[0] && ns.length===1) return;
               const sym=accCarry(accSt, n2.st, keyAlt+av, keyAlt);
-              if(sym){ p.push(accG(sym, nx, hy2, SG)); stAccDrawn=true; }
+              if(sym) accs.push({sym, hy:hy2, st:n2.st});
             });
+            { const colsA=[], ax0 = nx - (anyL? 6.6 : 0);
+              accs.sort((a,b2)=>b2.st-a.st).forEach(a=>{
+                let c=0; while(colsA[c] && colsA[c].some(st=>Math.abs(st-a.st)<6)) c++;
+                (colsA[c]=colsA[c]||[]).push(a.st);
+                p.push(accG(a.sym, ax0 - c*SG*1.3, a.hy, SG)); stAccDrawn=true;
+              }); }
             /* v43.1 震音杠：符干中段（有符干）或符头上方（全音符）画 1-3 条斜杠 */
             if(col.trem){
               const up2=(stLo+stHi)/2 < S_MID, sx=nx+(up2?4.2:-4.2);
@@ -9036,10 +9084,13 @@ function render(){
               else                   p.push(tremSlashesSVG(sx, stepY(stLo)+SG*1.7, col.trem, 1));
             }
             if(col.dotted){
-              const stP=staffStep(col,K), hyP=stepY(stP);
-              const dy2 = (stP%2===1)? hyP-SG/2 : hyP;   // 符头在线上→附点写在上方间内
-              for(let kD=0;kD<dotLevel(col);kD++)        // v41.5 双附点两点并排
-                p.push(`<circle cx="${(nx+8+kD*4.6).toFixed(1)}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+              /* v64.3 B4b ④ 和弦每个音都有附点：线上音挪到上方间内，同一间只画一次；有符头错到右侧时附点一并右移 */
+              const dys=[...new Set(ns.map(n2=>{ const hyP=stepY(n2.st); return +((n2.st%2===1)? hyP-SG/2 : hyP).toFixed(1); }))];
+              const dx0 = nx+8+(anyR? 6.6 : 0);
+              dys.forEach(dy2=>{
+                for(let kD=0;kD<dotLevel(col);kD++)        // v41.5 双附点两点并排
+                  p.push(`<circle cx="${(dx0+kD*4.6).toFixed(1)}" cy="${dy2.toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
+              });
             }
             /* v41.3 指法数字（Gould：小号无衬线数字）：高/中音谱表在符头上方（让过符干），
                低音谱表在符头下方；和音多指按音高次序纵向堆叠；简谱行不标（键盘指法非简谱惯例） */
@@ -23949,7 +24000,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23972,6 +24023,7 @@ const APP_VER='v64.2';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.3</span><div><b>刻版小修：七和弦数字上标 · 延音不重复写升降号 · 五线谱和弦合规 · 联排谱技法字母与小节号各归其位</b>（2026-10 评审团 B4a 刻版小修第二批 + B4b 五线谱和弦）。<br>① <b>和弦扩展音上标</b>：Am7、Cmaj7、G9、Dsus4 的数字部分改为上标（Am⁷、Cmaj⁷、Bm⁷♭⁵），性质字母（m、maj、sus）保持正常字号；级数写法 57、6m7 同样处理；斜杠和弦（C7/E）的低音落回基线。<br>② <b>跨小节延音不重复写升降号</b>：上一小节延音过来的同一个音，下一小节开头不再重复写 ♯/♭；本小节后面再出现同一个音时仍会照规范重写。<br>③ <b>TAB＋简谱联排行</b>：有击弦、勾弦、滑音等技法字母时，简谱行和六线谱之间多留一条标注带，字母不再落进简谱数字中间（以前读起来像「5h6」）。<br>④ <b>联排谱小节号只写一处</b>：换行后的行首小节号已标在五线谱左侧，六线谱下方不再重复显示（点它选中整小节的功能不变）。<br>⑤ <b>五线谱和弦刻版合规</b>：二度音程的错位以符干为轴——符干朝上时上方音放右侧，朝下时下方音放左侧（以前一律往右，干朝下的和弦符头会压到符干另一边）；加线跨过错位的符头；和弦里多个升降号从最高音起错开分列，不再叠成一团；附点和弦每个音都有附点（线上的音附点写在上方间内）。<br>新套件 <code>tv_b4a2</code>（4 项）、<code>tv_b4b</code>（3 项），旧文件全部报红。</div></li>
     <li><span class="v">v64.2</span><div><b>刻版小修：教学对照谱页头齐全 · 反复记号不再压拍号 · 歌谱行距收紧</b>（2026-10 评审团 B4a 刻版小修第一批）。<br>① <b>教学对照谱（五线谱＋简谱行）</b>：页头补上 1=X 和拍号（简谱行要按首调读，原先缺了），点 1=X 可直接打开变调弹窗，转调后跟着变；简谱行补上自己的小节线、延音弧和三连音弧——一键配伴奏默认出的就是这种谱，课堂、说课都用得上。<br>② <b>首小节的反复记号排到拍号之后</b>：五线谱、六线谱、联排谱都改了，反复点不再被拍号盖住（自带预设《小步舞曲》就中招）；变拍号的小节同样处理。联排谱上方的五线谱也画出反复线、终止线和段落线（原先只有普通小节线）。<br>③ <b>和弦图的空白只在需要时留</b>：以前只要「和弦图：随行」，每一行都预留 56 个单位的图带，歌谱、五线谱这些根本不画和弦图的谱，行与行之间空出一大截；现在只有本行真画了和弦图才留。<br>新套件 <code>tv_b4a</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.1</span><div><b>手机上谱面更大 · 弹奏时屏幕不熄 · 导出按用途分组 · 预设库看得到谱面</b>（2026-10 评审团 B7 体验小修包第二批）。<br>① <b>手机迷你播放条</b>：编辑时底部播放区默认收成 56px 一行（⏮、播放、小节走带、⋯），速度、倍速、节拍器、谱架、音轨收进「⋯」，点开回到原来的三排，再点收起。手机上固定控件合计 209px，只占 844 屏高的 24.8%（原先 300px、35.5%），谱面多出约 90px。<br>② <b>谱架和播放时屏幕常亮</b>：进谱架或开始播放时请求浏览器保持屏幕常亮，退出谱架、停止播放后恢复；切到后台再回来会自动续上；浏览器不支持就照旧，不报错。<br>③ <b>「打印 / 导出」按用途分三组</b>：打印存档（打印 / 存 PDF、PNG 图片）、分享（分享卡、互动谱）、专业格式（MusicXML、MIDI、曲谱文件）；「取消」单独放到左下角，不再夹在一排按钮中间。<br>④ 顶栏原来叫「导出」的按钮实际是下载曲谱文件，改名为「<b>存为文件</b>」（Ctrl+S 照旧）。<br>⑤ <b>预设库改成缩略卡</b>：每张卡上直接看到谱面首屏（打开后陆续生成），整张卡点一下就打开；原来 16 个红色主按钮改为普通按钮。<br>新套件 <code>tv_b7b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.0</span><div><b>看得清、键盘能用、主题记得住</b>（2026-10 评审团 B7 体验小修包第一批）。<br>① <b>浅灰小字看得清了</b>：第三级文字颜色加深，浅色主题、深色主题对各级底色都达到 4.5:1 以上（原先浅色只有 2.39:1）；官网同步。<br>② <b>当前文档页签</b>文字改用正文色，深色主题下不再「黑字黑底」。<br>③ <b>主按钮改为实底朱砂</b>：白字对比度 5.31:1（渐变尾端只有 3.13:1）；官网的主按钮、登录按钮、会员角标一并改。<br>④ <b>键盘焦点看得见</b>：用键盘走到按钮、链接、输入框时，出现 2px 实色外框并留出 2px 间距（原先是 10% 透明度，几乎看不见）。<br>⑤ <b>Tab 不再全局劫持</b>：焦点在谱面上时 Tab 照旧切换声部；焦点在面板按钮、弹窗、菜单里时，Tab 按浏览器原生方式在控件之间移动。<br>⑥ <b>读屏可用</b>：谱面标注为「曲谱」编辑区并说明操作方式；♭ ♯ ◐ 这类符号按钮补上文字说明，弹出的菜单同样处理。<br>⑦ <b>明暗主题记住了</b>：点过明暗切换后，刷新或换页都保持；官网同样记住。<br>新套件 <code>tv_b7a</code>（5 项，旧文件全部报红）。</div></li>
