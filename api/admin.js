@@ -19,12 +19,14 @@
      node admin.js sold <kind>                      v62.9 某权益已付款订单 + 已兑换码明细（如 sold pack_kaobian，核查零交付）
      node admin.js reserves                         v62.9 各内容预约登记人数
      node admin.js reports [n]                      v62.9 最近 n 条未处理举报（默认 50）
+     node admin.js seed-fix [--apply] [--force]     v63.3 官方示例谱（小星星/欢乐颂）按仓库新内容修订：默认只列计划；
+                                                    --apply 写入并刷新发布快照；只动官方账号、从未被人改过的同名谱（--force 连改过的也覆盖）
      node admin.js scan-xss [--quarantine]          v62.5 扫描全部云端谱面的危险字段（与 PUT 校验同口径）；
                                                     加 --quarantine 把命中的已发布/待审谱打回「驳回」并写明原因（谱主在个人中心可见）
    kind 约定：vip=会员(配额2000) / pack_kaobian=考编内容包 / 其他自定义。
    注意：生产执行需 sudo -u pyq 或 root（DB 文件属 pyq）；本工具不经 HTTP、无认证面。 */
 const crypto = require('node:crypto');
-const { db, q, now } = require('./db');
+const { db, q, now, seedDemoScores } = require('./db');
 const { scoreDataDanger } = require('./scoredata');
 
 const [, , cmd, ...args] = process.argv;
@@ -41,6 +43,29 @@ const genCode = () => 'PYQ-' + Array.from({ length: 3 }, () =>
   Array.from(crypto.randomBytes(4)).map(b => AB[b % AB.length]).join('')).join('-');
 
 const cmds = {
+  /* v63.3 A5（P2-69 / D-05）：种子谱只在空库时写入，线上存量要靠这条命令修订（评审团：「发版后需负责人在后台逐项确认，
+     或运行一次性管理员修订脚本」）。判定「没被人改过」＝ updated_at = created_at（种子写入时两者相等）。 */
+  'seed-fix'(...flags) {
+    const apply = flags.includes('--apply'), force = flags.includes('--force');
+    const sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
+    if (!sys) { console.log('没有官方账号（库里从未写入过种子），无需修订'); return; }
+    let plan = 0, done = 0;
+    for (const d of seedDemoScores()) {
+      const rows = db.prepare('SELECT id, title, status, data, created_at, updated_at, pub_at FROM scores WHERE user_id = ? AND title = ?').all(sys.id, d.title);
+      if (!rows.length) { console.log(`《${d.title}》：库里没有官方同名谱，跳过`); continue; }
+      const want = JSON.stringify(d.data);
+      for (const r of rows) {
+        if (r.data === want) { console.log(`《${d.title}》 ${r.id}：已是最新`); continue; }
+        if (r.updated_at !== r.created_at && !force) { console.log(`《${d.title}》 ${r.id}：被人改过（updated_at≠created_at），不动；确需覆盖加 --force`); continue; }
+        plan++;
+        if (!apply) { console.log(`《${d.title}》 ${r.id}：待修订（${r.status}）——加 --apply 执行`); continue; }
+        db.prepare('UPDATE scores SET data = ? WHERE id = ?').run(want, r.id);
+        if (r.status === 'published') q.scoreSnap.run(r.pub_at || now(), r.id);   // 刷新外发快照，保持原上架时间与排序
+        done++; console.log(`《${d.title}》 ${r.id}：已修订${r.status === 'published' ? '并刷新发布快照' : ''}`);
+      }
+    }
+    console.log(apply ? `完成：修订 ${done} 首` : `计划：${plan} 首待修订（未写入）`);
+  },
   user(phone) {
     const u = findUser(phone);
     console.log(`id=${u.id}\n昵称=${u.nickname}  角色=${u.role}  注册=${fmtTs(u.created_at)}  微信=${u.wx_openid ? '已绑' : '未绑'}`);

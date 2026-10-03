@@ -1024,10 +1024,11 @@
       if(!/^[a-z0-9-]{3,48}$/.test(id)) return adMsg('课程 id 需为 3-48 位小写字母/数字/连字符');
       if(!b.title) return adMsg('课程标题必填');
       adMsg('保存中…');
-      return api('/admin/courses/'+encodeURIComponent(id),{method:'PUT',body:b}).then(function(){
+      return api('/admin/courses/'+encodeURIComponent(id),{method:'PUT',body:b}).then(function(r){
         CRS.c.id=id; CRS.saved=new Date().toTimeString().slice(0,5); crsDirty(false);
         try{ localStorage.removeItem('pyq-crs-draft:'+id); }catch(_){}
-        if(!alsoPub){ adMsg('已保存草稿'); return; }
+        /* v63.3 A5 ④（P1-33）如实告知：已发布的课保存即对学员生效（服务端已按发布校验把关），不是「草稿」 */
+        if(!alsoPub){ adMsg(r&&r.live? '已保存，学员立即看到新内容（本课已发布）' : '已保存草稿（未发布，学员看不到）'); return; }
         return api('/admin/courses/'+encodeURIComponent(id)+'/publish',{method:'POST'})
           .then(function(){ adMsg('已发布，学习页即时可见'); kaBack(); });
       }).catch(function(e){ adMsg(e.message||'保存失败'); });   /* 失败保留 dirty 与本机草稿 */

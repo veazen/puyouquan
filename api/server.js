@@ -587,6 +587,39 @@ ${noteSvg}
 
 /* ---------- 路由表 ---------- */
 // [method, 正则, 需登录, handler(m, body, user, req, res) -> 返回对象或 {___status, ...}]
+/* v61.8/v62.0 课程发布校验（章节非空、闯关题/小节测试题结构合法）。v63.3 A5 ④（评审团 P1-33）抽成函数：
+   此前只在 publish 时执行——已发布课程走 PUT 保存就能把坏题直接上线，学员卡死在本节、后续章节全锁。
+   现在「发布」与「保存已发布课程」同一道闸；草稿照旧随便存。 */
+function courseCheck(data) {
+  const chs = (data && data.chapters) || [];
+  if (!chs.length) throw new ApiError(400, '没有章节的课程不能发布');
+  const badQ = (t) => !t || typeof t !== 'object' || !String(t.q || '').trim()
+    || !Array.isArray(t.opts) || t.opts.length < 2 || t.opts.length > 4
+    || !Number.isInteger(t.a) || t.a < 0 || t.a >= t.opts.length;
+  chs.forEach((ch, i) => {
+    const qz = ch && ch.quiz;
+    if (qz != null) {
+      if (!Array.isArray(qz)) throw new ApiError(400, '第 ' + (i + 1) + ' 章闯关题格式不对（需为数组）');
+      qz.forEach((t, j) => {
+        if (badQ(t)) throw new ApiError(400, '第 ' + (i + 1) + ' 章第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+      });
+    }
+    /* v62.0 2.0 小节结构同款校验：此前只校章级 quiz，小节里的 test.items 一条不校验就能发布，
+       坏题会让学员在闯关处卡死（前端清单挡不住直接打 API）。 */
+    const secs = (ch && ch.sections) || [];
+    if (secs.length && !Array.isArray(secs)) throw new ApiError(400, '第 ' + (i + 1) + ' 章小节格式不对（需为数组）');
+    secs.forEach((s, k) => {
+      const where = '第 ' + (i + 1) + '.' + (k + 1) + ' 节';
+      if (!s || typeof s !== 'object' || !String(s.title || '').trim()) throw new ApiError(400, where + '缺标题');
+      const items = ((s.test || {}).items) || [];
+      if (!Array.isArray(items)) throw new ApiError(400, where + '测试题格式不对（需为数组）');
+      items.forEach((t, j) => {
+        if (badQ(t)) throw new ApiError(400, where + '第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
+      });
+    });
+  });
+}
+
 const routes = [
   ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wx_mini: !!(WX_MINI_APPID && WX_MINI_SECRET), wxpay: wxpayOn() })],
 
@@ -1184,12 +1217,16 @@ const routes = [
     if (raw.length > 200 * 1024) throw new ApiError(413, '课程内容过大（上限 200KB）');
     const t = now();
     const exist = q.courseGet.get(id);
+    if (exist && exist.status === 'published') {
+      try { courseCheck(data); }
+      catch (e) { if (e instanceof ApiError) throw new ApiError(e.status, '这门课已发布，保存即对学员生效，须先通过发布校验：' + e.message); throw e; }
+    }
     q.courseUpsert.run(id, exist ? exist.user_id : u.id, title, String(b.subtitle || '').slice(0, 120),
       String(b.instrument || '').slice(0, 20), String(b.level || '').slice(0, 20),
       Math.max(0, Math.min(52, +b.weeks || 0)), String(b.intro || '').slice(0, 500),
       Math.max(0, Math.min(999, +b.sort || 0)), raw, exist ? exist.created_at : t, t);
     adminLog(u.id, 'course', id, (exist ? '更新' : '新建') + '课程 · ' + title);
-    return { saved: true, id, status: exist ? exist.status : 'draft' };
+    return { saved: true, id, status: exist ? exist.status : 'draft', live: !!(exist && exist.status === 'published') };
   }],
   ['POST', /^\/api\/admin\/courses\/([A-Za-z0-9_-]+)\/(publish|unpublish)$/, true, (m, b, u) => {
     requireAdmin(u);
@@ -1197,36 +1234,8 @@ const routes = [
     if (!c) throw new ApiError(404, '课程不存在');
     const st = m[2] === 'publish' ? 'published' : 'draft';
     /* v61.8 发布校验强化：除「须有章节」外，闯关题结构非法（题干空/选项不在 2-4 个/答案序号越界）
-       一律拒发并定位到章与题——防把坏题发到学习页让闯关卡死。草稿随便存，发布才把关。 */
-    if (st === 'published') {
-      const chs = (JSON.parse(c.data || '{}').chapters || []);
-      if (!chs.length) throw new ApiError(400, '没有章节的课程不能发布');
-      const badQ = (t) => !t || typeof t !== 'object' || !String(t.q || '').trim()
-        || !Array.isArray(t.opts) || t.opts.length < 2 || t.opts.length > 4
-        || !Number.isInteger(t.a) || t.a < 0 || t.a >= t.opts.length;
-      chs.forEach((ch, i) => {
-        const qz = ch && ch.quiz;
-        if (qz != null) {
-          if (!Array.isArray(qz)) throw new ApiError(400, '第 ' + (i + 1) + ' 章闯关题格式不对（需为数组）');
-          qz.forEach((t, j) => {
-            if (badQ(t)) throw new ApiError(400, '第 ' + (i + 1) + ' 章第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
-          });
-        }
-        /* v62.0 2.0 小节结构同款校验：此前只校章级 quiz，小节里的 test.items 一条不校验就能发布，
-           坏题会让学员在闯关处卡死（前端清单挡不住直接打 API）。 */
-        const secs = (ch && ch.sections) || [];
-        if (secs.length && !Array.isArray(secs)) throw new ApiError(400, '第 ' + (i + 1) + ' 章小节格式不对（需为数组）');
-        secs.forEach((s, k) => {
-          const where = '第 ' + (i + 1) + '.' + (k + 1) + ' 节';
-          if (!s || typeof s !== 'object' || !String(s.title || '').trim()) throw new ApiError(400, where + '缺标题');
-          const items = ((s.test || {}).items) || [];
-          if (!Array.isArray(items)) throw new ApiError(400, where + '测试题格式不对（需为数组）');
-          items.forEach((t, j) => {
-            if (badQ(t)) throw new ApiError(400, where + '第 ' + (j + 1) + ' 题不完整：需题干、2-4 个选项、有效答案序号');
-          });
-        });
-      });
-    }
+       一律拒发并定位到章与题——防把坏题发到学习页让闯关卡死。草稿随便存，发布才把关（v63.3 起已发布课程的保存同样把关，见 courseCheck）。 */
+    if (st === 'published') courseCheck(JSON.parse(c.data || '{}'));
     q.courseSetStatus.run(st, now(), c.id);
     adminLog(u.id, m[2] === 'publish' ? 'course-pub' : 'course-off', c.id, c.title);
     return { ok: true, status: st };

@@ -189,6 +189,11 @@ chk 修好闯关题可发布 '"status":"published"' "$(J2 -X PUT http://127.0.0.
 chk 小节坏题拒发并定位 '第 1.1 节第 1 题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"","opts":["a"],"a":9}]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-4/publish)"
 chk 小节缺标题拒发 '缺标题' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-5 -d '{"title":"小节校验2","data":{"chapters":[{"title":"一","sections":[{"title":"","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-5/publish)"
 chk 小节题目合法可发布 '"status":"published"' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"1+1=?","opts":["1","2"],"a":1,"why":"w"}]}}]}]}}' >/dev/null; J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-4/publish)"
+# v63.3 A5 ④（P1-33）已发布课程的保存与发布同一道闸：坏题不能经 PUT 直接上线；保存回执如实告知是否对学员生效
+chk 已发布课程保存坏题被拒 '这门课已发布' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"","opts":["a"],"a":9}]}}]}]}}')"
+chk 被拒后线上内容不变 '"q":"1+1=?"' "$(J2 http://127.0.0.1:3199/api/admin/courses/course-test-4)"
+chk 已发布课程保存合法内容即生效 '"live":true' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-4 -d '{"title":"小节校验","data":{"chapters":[{"title":"一","sections":[{"title":"1.1","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[{"q":"2+2=?","opts":["4","5"],"a":0,"why":"w"}]}}]}]}}')"
+chk 草稿保存回执不算生效 '"live":false' "$(J2 -X PUT http://127.0.0.1:3199/api/admin/courses/course-test-5 -d '{"title":"小节校验2","data":{"chapters":[{"title":"一","sections":[{"title":"","learn":{"blocks":[]},"practice":{"blocks":[]},"test":{"items":[]}}]}]}}')"
 chk 已发布课程不能直删 '先下架' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
 chk 下架课程 '"status":"draft"' "$(J2 -X POST http://127.0.0.1:3199/api/admin/courses/course-test-1/unpublish)"
 chk 删除草稿课程 '"ok":true' "$(J2 -X DELETE http://127.0.0.1:3199/api/admin/courses/course-test-1)"
@@ -382,6 +387,17 @@ node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(pr
 chk 存量扫描只读命中 'song_evil0001.*deg（应为数字）' "$(DB_PATH=$DIR/t.db node admin.js scan-xss)"
 chk 存量扫描隔离 '已隔离' "$(DB_PATH=$DIR/t.db node admin.js scan-xss --quarantine)"
 chk 隔离后谱库不可见 '不存在\|无权\|未上架\|找不到' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_evil0001)"
+
+# v63.3 A5（P2-69 / D-05）官方示例谱：新库种子即拍发布快照（谱库立即可见）；存量旧版内容用 seed-fix 修订（只动没被人改过的）
+chk 新库种子谱库立即可见 '"title":"小星星"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E5%B0%8F%E6%98%9F%E6%98%9F')"
+chk 种子已是最新 '已是最新' "$(DB_PATH=$DIR/t.db node admin.js seed-fix)"
+node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);const old=JSON.stringify({v:3,title:'小星星',measures:[{voxes:[[{dur:4,deg:5},{dur:4,deg:0}]]}]});
+d.prepare(\"UPDATE scores SET data=?, pub_data=? WHERE title='小星星' AND user_id=(SELECT id FROM users WHERE phone='00000000000')\").run(old,old);
+d.prepare(\"UPDATE scores SET data=?, updated_at=updated_at+5 WHERE title='欢乐颂' AND user_id=(SELECT id FROM users WHERE phone='00000000000')\").run(old)" "$DIR/t.db"
+chk 旧版种子列入计划 '小星星.*待修订' "$(DB_PATH=$DIR/t.db node admin.js seed-fix)"
+chk 被人改过的不动 '欢乐颂.*被人改过' "$(DB_PATH=$DIR/t.db node admin.js seed-fix)"
+chk 修订并刷新快照 '已修订并刷新发布快照' "$(DB_PATH=$DIR/t.db node admin.js seed-fix --apply)"
+chk 线上快照已是新版 '"dur":2' "$(node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);console.log(d.prepare(\"SELECT pub_data FROM scores WHERE title='小星星' AND user_id=(SELECT id FROM users WHERE phone='00000000000')\").get().pub_data)" "$DIR/t.db")"
 
 （P1-34）：sitemap/目录全量收录、第 201 首起搜得到、老收藏卡片不消失、相关推荐走小查询
 node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);const uid=process.argv[2];

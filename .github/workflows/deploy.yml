@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: '22'
       - name: 语法闸（内联脚本解析，阻止白屏版本上线）
-        run: node deploy/check-syntax.js muse-tab/index.html
+        run: node deploy/check-syntax.js muse-tab/index.html && node deploy/check-wording.js   # v63.3 文案禁止词 lint 同级拦截
       - name: API 单测 + 端到端（零依赖 node:sqlite）
         env:
           NODE_OPTIONS: --experimental-sqlite   # 兼容 CI 上需显式开启 node:sqlite 的 node 版本（含 test.sh 内 node server.js）

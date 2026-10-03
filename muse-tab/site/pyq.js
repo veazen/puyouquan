@@ -484,6 +484,26 @@ window.PYQ_KC = (function(){
     });
     return '<span class="jpx jpline">'+out+'</span>';
   }
+  /* v63.3 同名谱直达：同步 window.open 先占住新标签页（不被弹窗拦截），查到后改址；查不到/离线回到搜索页 */
+  var scqWired=false;
+  function wireScoreCards(){
+    if(scqWired||typeof document==='undefined') return; scqWired=true;
+    document.addEventListener('click',function(e){
+      var a=e.target.closest&&e.target.closest('a.lb-score[data-scq]'); if(!a) return;
+      if(e.ctrlKey||e.metaKey||e.shiftKey||e.button) return;   /* 中键/修饰键：交给浏览器按原链接处理 */
+      var qq=a.getAttribute('data-scq')||''; if(!qq) return;
+      e.preventDefault();
+      var fb=a.getAttribute('href'), w=window.open('about:blank','_blank');
+      var go=function(u){ if(w&&!w.closed) w.location.href=u; else location.href=u; };
+      fetch('/api/pub/scores?q='+encodeURIComponent(qq)+'&size=20',{credentials:'include'})
+        .then(function(r){ return r.ok? r.json():null; })
+        .then(function(j){
+          var hit=((j&&j.scores)||[]).filter(function(x){ return String(x.title||'').trim()===qq.trim(); })
+            .sort(function(x,y){ return (/官方/.test(y.author||'')?1:0)-(/官方/.test(x.author||'')?1:0); })[0];
+          go(hit? ('//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(hit.id)) : fb);
+        }).catch(function(){ go(fb); });
+    });
+  }
   function blockHtml(b){
     if(!b||typeof b!=='object') return '';
     if(b.t==='text') return '<div class="lb lb-text">'+mdBlock(b.md)+'</div>';
@@ -494,9 +514,12 @@ window.PYQ_KC = (function(){
       +jpLine(b.line)
       +(b.cap?'<figcaption>'+mdInline(b.cap)+'</figcaption>':'')+'</figure>';
     if(b.t==='score'){
+      wireScoreCards();
       var href=b.pubId? ('//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(b.pubId))
         : ('index.html?q='+encodeURIComponent(b.q||''));
-      return '<a class="lb lb-score" href="'+esc(href)+'" target="_blank" rel="noopener">'
+      /* v63.3 A5（评审团 P2-69）只给了曲名的卡：点击时先到谱库按曲名找**同名谱**直达观看页，找不到才落到搜索页
+         （种子谱 id 是建库时随机生成的，内容里写不死）——此前一律跳搜索页，命中哪一版还取决于谱库存量 */
+      return '<a class="lb lb-score" href="'+esc(href)+'" target="_blank" rel="noopener"'+(b.pubId?'':' data-scq="'+esc(b.q||'')+'"')+'>'
         +'<span class="lbs-ic">🎼</span><span class="lbs-tx"><b>'+esc(b.title||'互动谱')+'</b>'
         +'<small>'+esc(b.note||'跟谱播放 · 一键移调 · 变速循环')+'</small></span>'
         +'<span class="lbs-go">打开 →</span></a>';

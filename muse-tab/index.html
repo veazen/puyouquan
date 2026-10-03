@@ -2397,7 +2397,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rg panel-p" id="panel-vox-arr">
       <div class="rg-title">智能配谱</div>
       <div class="rg-body">
-        <button id="varr-go" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（替换当前窗口，原旋律谱自动存入我的曲谱）">一键配伴奏…</button>
+        <button id="varr-go" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（伴奏谱在新窗口打开，原旋律谱保留）">一键配伴奏…</button>
       </div>
     </div>
     <div class="rg panel-p" id="panel-vox-lyradd">
@@ -2543,7 +2543,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <div class="rcard" data-rt="info">
       <button class="rc-h rc-btn" id="b-meta">曲谱信息</button>
       <button class="rc-h rc-btn" id="b-acctex" style="display:none" title="按已标注的和弦，用所选伴奏织体自动生成双手音符（可编辑、可逐段重生成）">伴奏织体</button>
-      <button class="rc-h rc-btn" id="b-arrange" style="display:none" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（替换当前窗口，原旋律谱自动存入我的曲谱）">智能配谱</button>
+      <button class="rc-h rc-btn" id="b-arrange" style="display:none" title="主旋律一键配伴奏：自动配和弦→织体生成双手伴奏，产出教学对照谱或纯伴奏钢琴谱（伴奏谱在新窗口打开，原旋律谱保留）">智能配谱</button>
     </div>
     <div class="rcard open" id="rc-measec" data-rt="info">
       <button class="rc-h" type="button">小节与段落</button>
@@ -2633,7 +2633,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
           <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
           <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
           <!-- v60.45 哼唱成谱全站暂下（产品指示）：入口隐藏，DOM 与程序化路径保留（showHumModal），将来恢复摘 display 即可 -->
-          <button id="rt-hum" class="aitem" style="display:none" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
+          <button id="rt-hum" class="aitem" style="display:none" data-wording-ok="入口已下线、按钮常隐" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
           <!-- v60.28 和弦/标注双图标（产品负责人指示：编辑入口收到这里，选中音符时可用；
                谱面不再留「＋和弦」空位点击区） -->
           <div id="ai-tools">
@@ -18380,7 +18380,7 @@ function showNewWizard(){
      教学对照谱不再设卡（D1 拍板）＝声部「五线＋简谱」双显示；showNewForm 保留供程序化/回归。 */
   const sels=(id,arr,def)=>'<select id="'+id+'">'+arr.map(v=>'<option value="'+v+'"'+(v===def?' selected':'')+'>'+v+'</option>').join('')+'</select>';
   showModal(`<h3>新建曲谱</h3>
-  ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前曲谱《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱将<b>替换当前窗口</b>${st.saved?'':'（未入库的编辑会先询问）'}。</p>` : ''}
+  ${st? `<p style="font-size:12.5px">${svgi(st.saved?'check':'warn',12)} 当前曲谱《${esc(song.title||'未命名曲谱')}》：${st.text}。新曲谱会在<b>新窗口</b>打开，当前曲谱原样保留。</p>` : ''}
   <div class="nw-ints">
     <button class="nw-int" data-int="vocal" title="人声旋律轨：简谱＋歌词，独唱或 2–4 声部合唱；也适合二胡/古筝等民乐单旋律记谱">${svgi('mic',32)}<b>声乐谱</b><span>独唱 · 合唱</span></button>
     <button class="nw-int" data-int="inst" title="乐器轨：弹拨 / 键盘 / 西洋管弦 / 民乐 21 种乐器；「伴奏」形态自动加一条人声旋律轨（弹唱）">${svgi('guitar',32)}<b>器乐谱</b><span>独奏 · 伴奏</span></button>
@@ -18609,7 +18609,7 @@ function showNewWizard(){
    （引擎 hummingToSong 不动；程序化/回归经此可达，将来恢复入口只需接回按钮） */
 function showHumModal(){
     let rec=null, chunks=[], stream=null;
-    showModal(`<h3>哼唱成谱 · 录一段清唱出简谱草稿</h3>
+    showModal(`<h3>哼唱成谱 · 录一段清唱出简谱草稿</h3>   <!-- wording-ok：入口已下线，仅程序化可达 -->
       <p style="font-size:12.5px;line-height:1.6">对着麦克风<b>清唱单音旋律</b>（哼「啦」最准），尽量跟稳节拍。生成的是<b>草稿</b>：自动识别音高并定调、按16分网格量化，导入编辑器后请核对精修。也可直接上传一段清唱录音文件。</p>
       <label class="f"><span>速度</span><select id="hm-bpm">${[60,72,80,90,100,110,120].map(v=>`<option ${v===90?'selected':''}>${v}</option>`).join('')}</select><span style="width:auto">BPM（跟这个速度唱）</span></label>
       <div class="btns" style="justify-content:flex-start">
@@ -18722,7 +18722,7 @@ document.getElementById('b-arrange').onclick = ()=>{
   const avail = texAvail(song.beats, song.unit);   // v63.0 A8 拍数+单位双重匹配
   if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>智能配谱 · 主旋律 → 即兴伴奏谱</h3>
-    <p style="font-size:12.5px;line-height:1.6">对当前旋律：空小节自动配和弦（功能和声，已填的不覆盖）→ 按所选织体生成双手伴奏。<b>生成的伴奏谱将替换当前窗口；原旋律谱自动存入「我的曲谱」</b>，可随时打开；生成后可继续改和弦、逐段重生成、一键换调。</p>
+    <p style="font-size:12.5px;line-height:1.6">对当前旋律：空小节自动配和弦（功能和声，已填的不覆盖）→ 按所选织体生成双手伴奏。<b>生成的伴奏谱在新窗口打开，原旋律谱保留</b>，可随时打开；生成后可继续改和弦、逐段重生成、一键换调。</p>
     ${TEX_LV.map(lv=>{
       const g=avail.filter(t=>t.level===lv);
       return g.length? `<p style="margin:8px 0 2px;font-size:12px;color:var(--muted)"><b>${lv}</b></p>`+
@@ -18762,7 +18762,7 @@ document.getElementById('b-acctex').onclick = ()=>{
   const avail = texAvail(song.beats, song.unit);   // v63.0 A8 拍数+单位双重匹配
   if(!avail.length){ toast('当前拍号 '+song.beats+'/'+song.unit+' 暂无内置织体（已支持 2/4、3/4、4/4、6/8）'); return; }
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
-    <p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（点谱面「＋和弦」空位），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>
+    <p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（选中右手的音，点右栏「创作」页的「和弦」），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>
     ${TEX_LV.map(lv=>{
       const g=avail.filter(t=>t.level===lv);
       return g.length? `<p style="margin:8px 0 2px;font-size:12px;color:var(--muted)"><b>${lv}</b>${lv==='入门'?'（考编/幼师即兴伴奏常用）':''}</p>`+
@@ -18786,7 +18786,7 @@ document.getElementById('b-acctex').onclick = ()=>{
     closeModal();
     toast(r.done? `已生成 ${r.done} 小节伴奏`+(r.noChord? `，${r.noChord} 小节无和弦跳过`:'')+(r.skipMeter? `，${r.skipMeter} 小节拍号与织体不符跳过`:'')+'（可编辑，Ctrl+Z 撤销）'
                 : r.mismatch? '未生成：所选范围的拍号与该织体不符'
-                : '未生成：所选范围没有标注和弦——先在右手谱表点「＋和弦」');
+                : '未生成：所选范围没有标注和弦——先选中右手的音，在右栏「创作」页点「和弦」标注');
   };
 };
 /* ---- 打印 / 导出（纸张尺寸可选 + PNG） ---- */
@@ -22558,7 +22558,7 @@ function pcCreatorHTML(){
       <p>你是平台管理员。曲谱审核队列、用户与角色、权益发放、审计日志都在个人中心。
       <a style="color:var(--accent)" href="https://www.puyouquan.com/me.html" target="_blank" rel="noopener">打开平台管理中心 →</a></p></div>` : '';
   return `${adCard}<div class="pcx-card"><h4>谱友圈 · 发布管理</h4>
-  <p>选择哪些曲谱推送到谱友圈；付费谱可设定价与试读小节数，C端购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱友圈 →</a></p>
+  <p>选择哪些曲谱推送到谱友圈；付费谱可设定价与试读小节数，读者购买后收益归创作者（正式支付上线后分账）。<a style="cursor:pointer;color:var(--accent)" id="cr-gocircle">前往谱友圈 →</a></p>
   ${pubRows || '<p>先在制谱器里「保存」曲谱到我的曲谱，再到这里发布。</p>'}</div>
   <div class="pcx-card"><h4>版权登记辅助（原创作品时间戳存证）</h4>
   <p>对当前曲谱内容生成 SHA-256 指纹并记录时间戳，可导出凭证文件；内容修改后指纹即变化，可证明"此时刻已存在此内容"。（接入公证时间戳/区块链存证为规划功能）</p>
@@ -23233,7 +23233,7 @@ document.getElementById('b-help').onclick = ()=>{
         <div class="ds">吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱 —— 录入、排版、试听、打印导出一站完成</div></div>
     </div>
     <div class="hd-steps">
-      <div class="hd-step"><div class="n">1</div><b>建谱</b><p>启动台「新建」选谱类（九种场景），填标题/调号/拍号；「导入」收 MusicXML/MIDI，「我的」有预设可改编。单窗口工作流：做完「保存」进我的曲谱再开下一首。</p></div>
+      <div class="hd-step"><div class="n">1</div><b>建谱</b><p>启动台「新建」三选一（声乐谱 / 器乐谱 / 功能谱），填标题/调号/拍号；「导入」收 MusicXML/MIDI，「我的」有预设可改编。新建与导入都在新窗口打开，可多首并排；做完「保存」进我的曲谱。</p></div>
       <div class="hd-step"><div class="n">2</div><b>录入</b><p>只按数字键：TAB 敲品位、简谱敲 <kbd>0</kbd>–<kbd>7</kbd>，<b>落音自动跳下一个音</b>（两位品位连敲两键；先落音再点♯♭/附点照常生效）。选中音符按 <kbd>Enter</kbd> 填词，一字一回车。</p></div>
       <div class="hd-step"><div class="n">3</div><b>排版打印</b><p>「排版」调纸张疏密、<kbd>空格</kbd>试听、「预览」看成品，「打印」出 A4/PDF。改动实时自动保存。</p></div>
     </div>
@@ -23258,7 +23258,7 @@ document.getElementById('b-help').onclick = ()=>{
       ['小节格进度条','一格一小节：点击=单小节循环，拖动=选区循环，再点取消；小节多时变密集标尺，点 ▦ 打开大格选择面板'],
     ])}
     ${sec(svgi('save',15),'保存与云同步',[
-      ['单窗口','新建/打开/导入会替换当前谱面；有未入库修改先弹确认，可一键存入我的曲谱再继续，不丢稿'],
+      ['多窗口','新建/导入在新窗口打开、当前曲谱原样保留；打开已有曲谱替换当前窗口，有未入库修改先弹确认，可一键存入我的曲谱再继续，不丢稿'],
       ['保存 / 导出','实时自动保存本机；「保存」存入我的曲谱（登录后云端同步）；<kbd>Ctrl+S</kbd> 导出文件；个人中心管理曲谱与版权存证'],
       ['版本号','右栏「信息」页更新日志下方；与公告不符时强制刷新（Ctrl+F5）取新版'],
     ])}
@@ -23290,7 +23290,7 @@ document.getElementById('b-feat').onclick = ()=>{
   <div class="featdoc">
     <div class="hd-hero">
       <div class="lg">${svgi('sparkle',22)}</div>
-      <div><div class="tt">为吉他爱好者打造的制谱工具</div>
+      <div><div class="tt">专业曲谱平台 · 在线制谱</div>
         <div class="ds">出版级排版 · 真实音色试听 · 一处编辑五种谱面</div></div>
     </div>
     <div class="fg">排版与输出</div>
@@ -23319,7 +23319,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23342,6 +23342,7 @@ const APP_VER='v63.2';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.3</span><div><b>课程测验不能再靠蒙 · 课程内容勘误 · 全站文案对账</b>（2026-10 评审团 A5 内容纠错第二批）。<br>① <b>测验选项每次打乱</b>：之前选项照原顺序排，七成题目的答案都是 B，一路选 B 就能过关。现在每次出题都打乱顺序，题库里的答案位置也重新均衡。<br>② <b>已发布课程不能再把坏题直接上线</b>：之前已发布的课保存时不做发布校验，一道空题就能让学员卡在本节、后面整章全锁。现在保存已发布的课和点发布走同一道检查；保存后的提示也如实说明「学员立即看到新内容」还是「草稿，学员看不到」。<br>③ <b>《认识简谱》勘误</b>：「改成 1=G 每个音都升高」改为「整体搬到以 G 为 do 的高度」；「单独一个数字＝一拍」限定在以四分音符为一拍的拍子里；53231323 分解型的时值说法改正；去掉不规范的「1 - .」写法；「一小节要凑满」挪到讲完小节线和拍号之后（学习进度不受影响）。<br>④ <b>课程小毛病</b>：通关最后一章不再提示「第 7 章已解锁」（全课只有 6 章）；课程页反复刷新不再叠加按键监听；课程里的「互动谱」卡直达同名谱的观看页，不再停在搜索页。<br>⑤ <b>文案对账</b>：撤掉已下线的「哼唱成谱」、过时的「九种场景 / 八场景」「单窗口」「新建会替换当前窗口」「点谱面＋和弦」，「11 套织体」改为如实的 21 套（4/4 拍 15 套，2/4、3/4、6/8 各 2 套），删去「不懂五线谱也能」「为吉他爱好者打造」等旧口号；新增文案禁止词检查，发版时自动拦截。<br>⑥ <b>谱库官方示例谱</b>：《小星星》句末改为「5 -」「1 -」，与课程教的一致；《欢乐颂》换成示范词。线上已有的这两首需管理员在服务器执行一次 <code>node admin.js seed-fix</code> 修订（只改从未被人动过的官方谱）。新库建好后示例谱也会立即出现在谱库里。<br>新套件 <code>tv_a5b</code>（7 项，旧文件全部报红）；接口测试 302 项。</div></li>
     <li><span class="v">v63.2</span><div><b>官方示例谱纠错：《送别》按原曲重录 · 《欢乐颂》换成自有歌词 · 课程「听一听」时值听得出来了</b>（2026-10 评审团 A5 内容纠错第一批）。<br>① <b>《送别》按公版原曲重录</b>：之前的旋律与原曲多处对不上，还把「天之涯」当成第二段词套在第一句的旋律上，「拂」「柳」两个字之间误画了连线。现在是完整的 16 小节（长亭外 → 晚风拂柳 → 天之涯 → 一壶浊酒），一字多音的地方（亭、草、连、风、阳……）用圆滑线连起来，后一个音不再挂字。<br>② <b>两份《欢乐颂》换成谱友圈自己写的示范词</b>：原先用的通行中文译词没有署译配者、权属待核，按拍板改用与四部合唱同一份示范词（让我们来齐声歌唱……），署名不再写「席勒」；教学对照谱里「女」「神」两个字之间的连线一并去掉。<br>③ <b>独奏示例页头不再显示「1=Am」</b>：a 小调按 C 调号记写。<br>④ <b>制谱页五线谱演示画对了</b>：「一闪一闪亮晶晶」后五个音之前画在 B、C 的位置，与旁边的简谱和六线谱对不上；现在是 C C G G A A G。<br>⑤ <b>课程谱例「听一听」时值正确</b>：分开写的增时线「1 -」「1 - -」「1 - - -」之前听起来都只有 1 拍，「5 - ~ 5」还响两次；现在分别是 2、3、4 拍，延音线两端同音只响一次。<br>新套件 <code>tv_a5</code>（6 项，旧文件全部报红）；<code>tv_playperf</code> 的等待用例钉住其余音色包，CI 外网下载不再造成偶发红。</div></li>
     <li><span class="v">v63.1</span><div><b>不会在看不见的地方改谱 · 面板开合后谱面不再被裁 · 歌词一个字一个字能撤销</b>（2026-10 评审团 A3 编辑会话安全；手机编辑按拍板先做「只读 + 发到电脑继续」）。<br>① <b>启动台上不会再误改上次的谱</b>：之前启动台盖住了谱面，但工具栏按钮和快捷键仍然有效——按个数字、Delete 或 Ctrl+Z，看不见的「上次编辑」就被改了并自动保存。现在启动台上编辑区点不中（淡出显示），编辑快捷键一律不生效，只保留 Ctrl+O 打开文件。<br>② <b>谱面右侧不再被裁</b>：新建谱、点「继续上次编辑」或开合左栏面板后，谱面沿用旧宽度，右边被裁掉 100–240 像素且滚动不过去。现在编辑区宽度一变就重新排版。<br>③ <b>歌词可以逐个音撤销</b>：之前逐字填歌词不进撤销记录，按一次 Ctrl+Z 会抹掉一整批歌词还连带撤掉前一次改音，再编辑一次就再也找不回。现在每换一个音记一步，同一个音里连续输入算一步，Ctrl+Z 只退最后一个音的词，Ctrl+Y 可以重做。<br>④ <b>手机启动台改为只读引导</b>：手机上还录不了音高，原来点「新建」会进入写不了谱的死胡同。现在手机上显示「看示例」「发到电脑继续」（复制制谱链接）「打开」「我的」，并说明写谱请到电脑上继续。<br>⑤ <b>小节线菜单不出屏</b>：菜单原来按估算宽度定位，实际更宽，手机上右侧出屏还会撑出横向滚动。现在所有浮层菜单出现时都会夹回屏幕内。<br>新套件 <code>tv_a3</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.0</span><div><b>不再生成或导入拍子、音高错的谱</b>（2026-10 评审团 A8 出错谱止血）。<br>① <b>伴奏织体按拍号严格匹配</b>：之前只看每小节几拍，不看以什么音符为一拍——6/4 拍的谱会被套上 6/8 的织体，3/8 套上 3/4，2/2 套上 2/4，生成出来时值整体错位。现在拍数和单位都要对上；没有合适的织体会直接提示「当前拍号 X/Y 暂无内置织体」，不再弹出一个生成错谱的窗口。变拍子的谱，拍号不符的小节会跳过并告诉你跳过了几个。<br>② <b>导入带转调的 MusicXML，音高不再错</b>：之前整份文件都按开头的调来换算简谱，C 大调转到 G 大调之后的音，简谱唱名全错、播放也整体偏高。现在每个小节按它当时的调换算，多声部同样生效；导入后播放的每个音都与原文件一致。<br>③ <b>新建 3/8、6/8、2/2 的谱一打开就是对的</b>：之前空小节一律用四分音符填，6/8 每小节变成 12 拍、2/2 只有 1 拍，满屏红色拍数提示。现在空小节、插入小节、加声部、粘贴补空都按拍号的单位生成。<br>④ <b>单音推弦的目标圈写对品位</b>：之前圈里照抄起始品位（7 品推弦圈里也写 7），读谱的人会推错。现在写起始品位加推弦幅度：全音推弦 7 → 9，半音 8 → 9；回落仍写落回的原品位。<br>新套件 <code>tv_a8</code>（6 项，旧文件 5 项报红）。</div></li>
