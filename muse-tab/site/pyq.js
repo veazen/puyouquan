@@ -475,10 +475,11 @@ window.PYQ_KC = (function(){
     String(line==null?'':line).trim().split(/\s+/).forEach(function(t){
       if(t==='|') out+='<span class="jpbar"></span>';
       else if(t==='||') out+='<span class="jpbar end"></span>';
-      else if(t==='~') out+='<span class="jptie">⌒</span>';
+      else if(t==='~') out+='<span class="jptie" data-jx="~">⌒</span>';
       /* v62.0 独立成符的增时线：简谱惯例里「1 - -」的横线本就与音符分写，
-         此前落到 jpTok 的兜底分支当纯文本画出来（看着像，但既不是记号也过不了校验） */
-      else if(/^-+$/.test(t)) for(var i=0;i<t.length;i++) out+='<span class="jpd">—</span>';
+         此前落到 jpTok 的兜底分支当纯文本画出来（看着像，但既不是记号也过不了校验）
+         v63.2 A5 独立增时线带 data-jx="-"：播放按 token 序列排程，每根给前一个音加一拍（P1-31） */
+      else if(/^-+$/.test(t)) for(var i=0;i<t.length;i++) out+='<span class="jpd" data-jx="-">—</span>';
       else out+=jpTok(t);
     });
     return '<span class="jpx jpline">'+out+'</span>';
@@ -699,16 +700,34 @@ window.PYQ_SND = (function(){
     ring(el);
   }
   /* 整行：逐音发声 + 逐音高亮（高亮走 setTimeout，与排程时钟同一个起点） */
+  /* v63.2 A5（P1-31）按 token 序列排程：els 含音符（data-jt）与独立记号（data-jx）——
+     独立「-」给前一个音加一拍；「~」两端同音高合并为一次起音（延音线），异音照常各自起音。
+     此前只取音符元素：「1 -」「1 - -」「1 - - -」都只响 1 拍，「5 - ~ 5」起音两次。 */
+  var lastPlan=[];
   function playLine(els,onDone){
     var c=ac(); if(!c) return;
     halt();
-    var t=c.currentTime+0.06, i, wait=[];
+    var plan=[], i;
     for(i=0;i<els.length;i++){
+      var jx=els[i].getAttribute('data-jx');
+      var prev=plan[plan.length-1];
+      if(jx==='-'){ if(prev) prev.beats+=1; continue; }
+      if(jx==='~'){ if(prev) prev.tieNext=true; continue; }
       var n=parse(els[i].getAttribute('data-jt'));
       if(!n) continue;
-      var dur=n.beats*BEAT;
-      if(n.deg) voice(freqOf(n.deg,n.oct), t, dur*0.92);
-      wait.push({el:els[i], at:(t-c.currentTime)*1000, ms:dur*1000});
+      var it={el:els[i], deg:n.deg, oct:n.oct, beats:n.beats, attack:true};
+      if(prev && prev.tieNext && prev.deg && prev.deg===n.deg && prev.oct===n.oct) it.attack=false;
+      plan.push(it);
+    }
+    lastPlan=plan;
+    var t=c.currentTime+0.06, wait=[];
+    for(i=0;i<plan.length;i++){
+      var p=plan[i], dur=p.beats*BEAT;
+      if(p.deg && p.attack){   /* 起音：连同其后被延音线并入的同音一起算时值 */
+        var sum=dur; for(var j=i+1;j<plan.length && !plan[j].attack;j++) sum+=plan[j].beats*BEAT;
+        voice(freqOf(p.deg,p.oct), t, sum*0.92);
+      }
+      wait.push({el:p.el, at:(t-c.currentTime)*1000, ms:dur*1000});
       t+=dur;
     }
     var total=(t-c.currentTime)*1000;
@@ -736,7 +755,7 @@ window.PYQ_SND = (function(){
         var fig=pb.closest('[data-jpfig]')||pb.parentNode;
         if(pb.classList.contains('is-playing')){ stop(); return; }
         stop(); pb.classList.add('is-playing');
-        var els=[].slice.call(fig.querySelectorAll('.jpn[data-jt]'));
+        var els=[].slice.call(fig.querySelectorAll('.jpn[data-jt], [data-jx]'));
         playLine(els, function(){ pb.classList.remove('is-playing'); });
         return;
       }
@@ -754,7 +773,8 @@ window.PYQ_SND = (function(){
   else install();
 
   return { supported:supported, playTok:playTok, playLine:playLine, stop:stop,
-           setKey:setKey, setTempo:setTempo, parse:parse, freqOf:freqOf, ctx:function(){ return ctx; } };
+           setKey:setKey, setTempo:setTempo, parse:parse, freqOf:freqOf, ctx:function(){ return ctx; },
+           plan:function(){ return lastPlan.map(function(x){ return {deg:x.deg, oct:x.oct, beats:x.beats, attack:x.attack}; }); } };
 })();
 
 

@@ -95,6 +95,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   /* v60.34 播放前等待在途音色包：loading 中 play() 延后不排程；包就绪后自动开播 */
   r = await pg.evaluate(async () => {
     window.SF_PLAYWAIT = true;   // 本条测的就是等待本身
+    /* v63.2 先把其余音色包全部钉成就绪：CI 有外网，曲谱用到的别的包（如人声轨的钢琴）可能真在下载，
+       play() 会一直等到 2.8s 上限——本条只测「这一个包」的等待与就绪开播（v63.1 CI 偶发红） */
+    for (const n in sfBanks) { sfBanks[n].loading = false; sfBanks[n].full = true; }
     const bk = sfBanks['acoustic_guitar_steel'];
     bk.full = false; bk.loading = true;
     play();
