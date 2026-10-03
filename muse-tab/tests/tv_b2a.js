@@ -27,7 +27,7 @@ const ROOT = path.resolve(__dirname, '../..');
     const src = fs.readFileSync(FILE, 'utf8');
     const n = (src.match(/[A-Za-z_$][\w$]*\s*>\s*66\b/g) || []).length;
     const tmp = path.join(os.tmpdir(), 'b2a-gate-' + process.pid + '.html');
-    fs.writeFileSync(tmp, src.replace('function keyRefOf(k){', 'function bad66(k){ let r2=1; if(r2>66) r2-=12; return r2; }\nfunction keyRefOf(k){'));
+    fs.writeFileSync(tmp, src.replace(/function keyRefOf\(/, 'function bad66(k){ let r2=1; if(r2>66) r2-=12; return r2; }\nfunction keyRefOf('));   // v65.0 B2c 后签名为 keyRefOf(k, ro)
     let gate = 0; try { cp.execFileSync('node', [path.join(ROOT, 'deploy/check-syntax.js'), tmp], { stdio: 'pipe' }); } catch (e) { gate = e.status || 1; }
     fs.unlinkSync(tmp);
     T(n === 1 && gate !== 0, 'T1 八度折叠规则只写一处，散写被语法闸拦截', JSON.stringify({ n, gate }));

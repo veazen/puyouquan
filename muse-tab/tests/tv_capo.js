@@ -82,9 +82,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s=${mkGuitar}; loadSong(s); blurSel=true; render();
     const z=document.querySelector('[data-hd="tempo"]');
     z.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:200}));
-    const inp=document.getElementById('ask-in');
+    const inp=document.getElementById('tp-val');   /* v65.0 B2c 速度改「数值＋单位」弹窗（#tp-val / #tp-ok），不再走 askText */
     if(!inp) return {noPopup:true};
-    inp.value='120'; document.getElementById('ask-ok').click();
+    inp.value='120'; document.getElementById('tp-ok').click();
     return { tempo:song.tempo }; })()`);
   T(r.tempo === 120, 'T4 速度热区+输入', JSON.stringify(r));
 
