@@ -105,6 +105,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
      几何断言：走带行在播放行上方且占满宽、芯片同排等宽、条内无横向滚动。 */
   r = await pg.evaluate(() => {
     const g = id => document.getElementById(id);
+    /* v64.1 B7 ⑧ 默认是 56px 迷你条，三排卡片要点「⋯」展开后再量 */
+    if (g('mx-more') && !document.body.classList.contains('mxfull')) g('mx-more').click();
     const bar = document.querySelector('#mixer-dock .mx-bar');
     const R = id => g(id).getBoundingClientRect();
     const prog = R('mx-prog'), play = R('b-play'), metro = R('b-metro'), stand = R('b-stand'), exp = R('mx-expand');

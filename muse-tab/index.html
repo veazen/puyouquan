@@ -155,6 +155,16 @@ input,select,textarea{background:var(--panel);color:var(--text);
 input:focus,select:focus,textarea:focus{border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft)}
 input.short{width:54px} input.mid{width:150px}
+/* v64.1 B7 ⑩ 导出弹窗分组 */
+.modal .ex-grp{border-top:1px solid var(--border-soft);padding:10px 0 4px;margin-top:6px}
+.modal .ex-grp h4{margin:0 0 7px;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.06em}
+.modal .ex-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.modal .btns.ex-foot{justify-content:flex-start}
+/* v64.1 B7 ⑩ 预设库缩略卡 */
+.song-card .sc-thumb{aspect-ratio:2/1;border-radius:8px;background:#fff;border:1px solid var(--border-soft);overflow:hidden;margin:-2px 0 8px}
+.song-card .sc-thumb img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+.song-card .sc-thumb:empty{background:linear-gradient(90deg,var(--toolbar),var(--panel),var(--toolbar));background-size:200% 100%}
+.song-card[data-preset]{cursor:pointer}
 /* 分页标签 */
 .tab-bar{padding:0 16px;gap:4px;background:var(--toolbar);border-bottom:1px solid var(--border)}
 .rtab{border:none;background:transparent;padding:9px 15px 8px;font-size:13.5px;color:var(--muted);
@@ -2008,11 +2018,23 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   --bar-bg:#1e211d; --bar-sep:rgba(255,255,255,.13); --tap:rgba(255,255,255,.10) }}
 :root[data-theme="dark"]{ --bar-bg:#1e211d; --bar-sep:rgba(255,255,255,.13); --tap:rgba(255,255,255,.10) }
 #b-mmenu{display:none}
+#mx-more{display:none}
 
 @media(max-width:820px){
-  :root{ --mob-b1:148px;             /* 播放条高（v60.36 三排卡片实测 147） */
-         --mob-b2:204px;             /* = b1 + 图层轨 52 + 2 分隔 */
-         --mob-b3:255px }            /* = b2 + 时值条 49 + 2 分隔 */
+  :root{ --mob-b1:56px;              /* v64.1 B7 ⑧ 播放条默认收成 56px 迷你条（原三排卡片 147，固定控件占屏 35.5%） */
+         --mob-b2:110px;             /* = b1 + 图层轨 52 + 2 分隔 */
+         --mob-b3:161px }            /* = b2 + 时值条 49 + 2 分隔 */
+  body.mxfull{ --mob-b1:148px; --mob-b2:204px; --mob-b3:255px }   /* 点「⋯」展开回三排卡片 */
+  /* 迷你条：⏮ ＋ 播放胶囊 ＋ 小节走带 ＋ ⋯ 一行；速度/倍速/节拍器/谱架/音轨/设置收进「⋯」 */
+  body.shell:not(.stand):not(.viewer):not(.mxfull) #mixer-dock .mx-bar{flex-wrap:nowrap;height:55px;box-sizing:border-box;padding:5px 10px;gap:7px}   /* 55 + 顶部发丝线 1 = 56 */
+  body.shell:not(.stand):not(.viewer):not(.mxfull) #mixer-dock :is(#b-mxgrid,.tempo,.rate,#b-metro,#b-stand,#mx-expand,#b-vwset,.mx-tracks){display:none!important}
+  body.shell:not(.stand):not(.viewer):not(.mxfull) #mixer-dock #b-restart{order:0;flex:0 0 44px;min-height:44px;min-width:44px}
+  body.shell:not(.stand):not(.viewer):not(.mxfull) #mixer-dock #b-play{order:1;flex:0 0 auto;min-height:44px;padding:0 18px;letter-spacing:.04em}
+  body.shell:not(.stand):not(.viewer):not(.mxfull) #mixer-dock #mx-prog{order:2;flex:1 1 auto;min-width:0;height:26px}
+  body.shell:not(.stand):not(.viewer) #mixer-dock #mx-more{display:inline-flex;align-items:center;justify-content:center;order:3;flex:0 0 44px;min-height:44px;padding:0;font-size:18px}
+  /* 展开态：收起钮排在播放胶囊右侧（第二排正好占满：⏮46 + 胶囊 + 收起40 + 两个间距），不多占一排、参数芯片仍在第三排 */
+  body.shell:not(.stand):not(.viewer).mxfull #mixer-dock #b-play{flex-basis:calc(100% - 100px)}
+  body.shell:not(.stand):not(.viewer).mxfull #mixer-dock #mx-more{order:3;flex:0 0 40px;min-height:46px;border-radius:999px;font-size:15px}
   /* —— A. 顶栏单行：低频项收进 ☰，只留 品牌 / ☰ / 撤销重做 / 个人中心 —— */
   body.shell:not(.stand):not(.viewer) #b-mmenu{display:inline-flex;align-items:center;justify-content:center;
     min-width:40px;min-height:40px;font-size:17px;line-height:1;padding:0}
@@ -2124,7 +2146,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     </span>
     <span class="seg">
       <button id="b-savemine" title="保存到我的曲谱">保存</button>
-      <button id="b-save" title="导出为 .mtab.json 文件">导出</button>
+      <button id="b-save" title="下载曲谱文件 .mtab.json（Ctrl+S）：完整保留数据，换电脑可打开继续编辑">存为文件</button>
     </span>
     <span class="seg">
       <button id="b-layout" title="排版：智能/手动疏密、内容大小、页面尺寸(A5/A4/A3 容量)">排版</button>
@@ -2722,6 +2744,7 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     <button id="b-stand" data-svgi="stand" title="谱架模式：全屏沉浸 + 自动卷谱，编好谱直接对谱练习"> 谱架</button>
     <button id="mx-expand" title="展开/收起音轨"> 音轨 ▴</button>
     <button id="b-vwset" data-svgi="gear" title="设置：显示效果 / 打印 / 成为创作者"></button>
+    <button id="mx-more" title="更多播放设置：速度 / 倍速 / 节拍器 / 谱架 / 音轨" aria-label="更多播放设置" aria-expanded="false">⋯</button>
   </div>
 </div>
 <!-- v55.6 观看页浮层组（.vh-pop）：页首「指法/变调夹/拍速」点击弹出，点外部收起 -->
@@ -17529,9 +17552,29 @@ function stopPlay(){
 }
 /* 播放键单键三态：▶播放 → ⏸暂停 → ▶继续 */
 function setPlayBtn(){
-  const b=document.getElementById('b-play'); if(!b) return;
+  const b=document.getElementById('b-play'); if(b)
   b.innerHTML = !audio.playing ? '▶ 播放' : (audio.paused ? '▶ 继续' : svgi('pause',12)+' 暂停');
+  wakeSync();
 }
+/* v64.1 B7 ⑨（P2-63）谱架与播放时屏幕常亮：Screen Wake Lock API；浏览器不支持就静默跳过。
+   切到后台时系统会自动释放，回到前台若仍在谱架/播放中就重新申请。 */
+let wakeLk=null, wakePend=false;
+function wakeWanted(){ return document.body.classList.contains('stand') || (!!audio.playing && !audio.paused); }
+function wakeSync(){
+  try{
+    if(!('wakeLock' in navigator) || !navigator.wakeLock) return;
+    if(wakeWanted()){
+      if(wakeLk || wakePend || document.visibilityState==='hidden') return;
+      wakePend=true;
+      navigator.wakeLock.request('screen').then(l=>{
+        wakePend=false; wakeLk=l;
+        l.addEventListener('release', ()=>{ if(wakeLk===l) wakeLk=null; });
+        if(!wakeWanted()){ wakeLk=null; l.release().catch(()=>{}); }
+      }).catch(()=>{ wakePend=false; });
+    } else if(wakeLk){ const l=wakeLk; wakeLk=null; l.release().catch(()=>{}); }
+  }catch(_){ wakePend=false; }
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') wakeSync(); });
 function togglePlay(){
   if(!audio.playing){ play(); return; }
   if(!audio.ctx) return;
@@ -17540,6 +17583,11 @@ function togglePlay(){
   setPlayBtn();
 }
 document.getElementById('b-play').onclick = togglePlay;
+/* v64.1 B7 ⑧ 手机迷你播放条 ⇄ 三排卡片 */
+{ const mm=document.getElementById('mx-more');
+  if(mm) mm.onclick=()=>{ const on=document.body.classList.toggle('mxfull');
+    mm.textContent=on? '▾' : '⋯'; mm.setAttribute('aria-expanded', on? 'true':'false');
+    mm.setAttribute('aria-label', on? '收起播放设置' : '更多播放设置'); mm.title=on? '收起成迷你播放条' : '更多播放设置：速度 / 倍速 / 节拍器 / 谱架 / 音轨'; }; }
 /* v51.0 移动端音频解锁（手机播放无声修复）：
    ① 首次触摸/指针手势内创建并 resume AudioContext + 播 1 采样静音 buffer（自动播放策略解锁）；
    ② 同手势播一段静音 <audio>——iOS 把音频会话切到 playback 类别，静音拨片打开时 WebAudio 才发声；
@@ -18631,12 +18679,33 @@ document.getElementById('b-save').onclick = exportSong;
 document.getElementById('b-savemine').onclick = saveToLibrary;
 /* ---- 曲谱库管理器（预设曲谱 + 我的曲谱） ---- */
 let libTab = 'preset';
+const PRESET_THUMB = [];   /* v64.1 B7 ⑩ 预设缩图缓存（dataURL，仅本次会话） */
+function presetThumbsFill(){
+  const todo=PRESETS.map((_,i)=>i).filter(i=>!PRESET_THUMB[i]);
+  const step=()=>{
+    const box0=document.querySelector('.sc-thumb[data-th]'); if(!box0 || !todo.length) return;   // 弹窗关了/切走就停
+    const i=todo.shift();
+    let data=null; try{ data=PRESETS[i].make(); }catch(_){}
+    if(!data){ setTimeout(step, 0); return; }
+    buildThumbCanvas(data, cv=>{
+      try{ const s=document.createElement('canvas'); s.width=320; s.height=160;
+        s.getContext('2d').drawImage(cv,0,0,320,160); PRESET_THUMB[i]=s.toDataURL('image/jpeg',0.82); }catch(_){}
+      const box=document.querySelector('.sc-thumb[data-th="'+i+'"]');
+      if(box && PRESET_THUMB[i] && !box.firstChild){ const im=new Image(); im.alt=''; im.src=PRESET_THUMB[i]; box.appendChild(im); }
+      setTimeout(step, 30);
+    }, ()=>setTimeout(step, 30));
+  };
+  setTimeout(step, 60);
+}
 function showLibrary(){
+  /* v64.1 B7 ⑩（P3-14）预设库改缩略卡：卡片上直接看到谱面首屏（buildThumbCanvas 同一套缩图管线，懒生成、本次会话缓存）；
+     整张卡可点，原 16 个渐变主按钮改为普通「打开」 */
   const presetCards = PRESETS.map((p,i)=>
-    `<div class="song-card" data-preset="${i}">
+    `<div class="song-card" data-preset="${i}" data-load-preset="${i}" tabindex="0" role="button" aria-label="打开预设：${esc(p.name)}">
+       <div class="sc-thumb" data-th="${i}">${PRESET_THUMB[i]? `<img alt="" src="${PRESET_THUMB[i]}">` : ''}</div>
        <div class="sc-title">${esc(p.name)}</div>
        <div class="sc-desc">${esc(p.desc)}</div>
-       <div class="sc-act"><button class="primary" data-load-preset="${i}">打开</button></div>
+       <div class="sc-act"><button data-load-preset="${i}">打开</button></div>
      </div>`).join('');
   const lib = libLoad();
   const mineCards = lib.length ? lib.map(e=>
@@ -18657,6 +18726,8 @@ function showLibrary(){
     <div class="btns"><button id="lib-close">关闭</button></div>`);
   const modal=document.querySelector('.modal');
   modal.querySelectorAll('.lib-tab').forEach(b=>b.onclick=()=>{ libTab=b.dataset.lt; closeModal(); showLibrary(); });
+  if(libTab==='preset') presetThumbsFill();
+  modal.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const c=e.target.closest && e.target.closest('.song-card[data-load-preset]'); if(c && e.target===c){ e.preventDefault(); c.click(); } } });
   modal.addEventListener('click', e=>{
     const lp=e.target.closest('[data-load-preset]');
     if(lp){ const s=PRESETS[+lp.dataset.loadPreset].make(); s.id=undefined; closeModal(); loadSong(s, ()=>toast('已打开预设：'+s.title)); return; }
@@ -21597,27 +21668,30 @@ async function exportInteractiveCard(){
 }
 document.getElementById('b-print').onclick = ()=>{
   const teN = trailingEmptyN();   /* v63.7 B1 ⑨（P3-18）末尾空小节提示 */
+  /* v64.1 B7 ⑩（P3-14）按用途分三组：打印存档 / 分享 / 专业格式；「取消」移到页脚左侧，不再夹在动作中间 */
   showModal(`<h3>打印 / 导出</h3>
-    <p>选择纸张尺寸后打印；在打印对话框里选择"目标：另存为 PDF"即可导出 PDF。
-    也可直接导出为高清 PNG 图片。</p>
+    <p>打印时在打印对话框里选「目标：另存为 PDF」即可存 PDF。</p>
     ${teN? `<p class="te-note" style="font-size:12.5px;background:var(--panel-2,rgba(0,0,0,.04));padding:6px 10px;border-radius:8px">${svgi('warn',12)} 末尾有 ${teN} 个空小节，会一起打印和导出。<button id="ex-trim" style="margin-left:6px">删除这 ${teN} 个空小节</button></p>` : ''}
-    <label class="f"><span>纸张</span>
-      <select id="ex-size">
-        <option value="A4">A4 纵向 (210×297mm)</option>
-        <option value="A4L">A4 横向 (297×210mm)</option>
-        <option value="Letter">信纸 Letter 纵向</option>
-        <option value="fit">自适应内容尺寸</option>
-      </select></label>
-    <div class="btns">
-      <button id="ex-png">导出 PNG 图片</button>
-      <button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">导出 MusicXML</button>
-      <button id="ex-mid" title="导出标准 MIDI：可导入 DAW/编曲软件，或用于跟弹练习">导出 MIDI</button>
-      <button id="ex-card" title="静态分享卡：竖版品牌谱面卡 PNG，微信/朋友圈/小红书直接转发">分享卡 PNG</button>
-      <button id="ex-icard" title="动态互动谱：自包含单文件 HTML，对方打开即可播放/倍速/节拍器/移调/谱架学习">互动谱 HTML</button>
-      <button id="ex-cancel">取消</button>
-      <button id="ex-print" class="primary">打印 / 存 PDF</button>
-    </div>`);
+    <div class="ex-grp" data-grp="print"><h4>打印存档</h4>
+      <label class="f"><span>纸张</span>
+        <select id="ex-size">
+          <option value="A4">A4 纵向 (210×297mm)</option>
+          <option value="A4L">A4 横向 (297×210mm)</option>
+          <option value="Letter">信纸 Letter 纵向</option>
+          <option value="fit">自适应内容尺寸</option>
+        </select></label>
+      <div class="ex-row"><button id="ex-print" class="primary">打印 / 存 PDF</button>
+        <button id="ex-png" title="高清 PNG 图片（整页谱面）">PNG 图片</button></div></div>
+    <div class="ex-grp" data-grp="share"><h4>分享</h4>
+      <div class="ex-row"><button id="ex-card" title="静态分享卡：竖版品牌谱面卡 PNG，微信/朋友圈/小红书直接转发">分享卡 PNG</button>
+        <button id="ex-icard" title="动态互动谱：自包含单文件 HTML，对方打开即可播放/倍速/节拍器/移调/谱架学习">互动谱 HTML</button></div></div>
+    <div class="ex-grp" data-grp="pro"><h4>专业格式</h4>
+      <div class="ex-row"><button id="ex-mxl" title="导出 MusicXML：可导入 MuseScore/Finale/Sibelius 等专业软件继续编辑或印刷">MusicXML</button>
+        <button id="ex-mid" title="导出标准 MIDI：可导入 DAW/编曲软件，或用于跟弹练习">MIDI</button>
+        <button id="ex-mtab" title="谱友圈曲谱文件 .mtab.json：完整保留全部数据，可在别的电脑上打开继续编辑（Ctrl+S）">曲谱文件</button></div></div>
+    <div class="btns ex-foot"><button id="ex-cancel">取消</button></div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
+  document.getElementById('ex-mtab').onclick = ()=>{ closeModal(); exportSong(); };
   { const tb=document.getElementById('ex-trim'); if(tb) tb.onclick=()=>{ let n=0; mutate(()=>{ n=trimTrailing(); }); const nt=tb.closest('.te-note'); if(nt) nt.remove(); toast('已删除末尾 '+n+' 个空小节（Ctrl+Z 可撤销）'); }; }
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); pyqEvent('export_png'); exportPNG(2); };
   document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); pyqEvent('export_mxl'); downloadMusicXML(); };
@@ -22963,11 +23037,13 @@ function enterStand(){
   const el=document.documentElement;
   if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
   window.scrollTo(0,0);
+  wakeSync();   // v64.1 B7 ⑨ 谱架时屏幕常亮
   toast('谱架模式：▶ 自动卷谱可调速；Esc 或「退出谱架」返回');
 }
 function exitStand(){
   stopAutoScroll();
   document.body.classList.remove('stand');
+  wakeSync();
   if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
   const sb=document.getElementById('standbar'); if(sb) sb.remove();
 }
@@ -23843,7 +23919,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.1';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23866,6 +23942,7 @@ const APP_VER='v64.0';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.1</span><div><b>手机上谱面更大 · 弹奏时屏幕不熄 · 导出按用途分组 · 预设库看得到谱面</b>（2026-10 评审团 B7 体验小修包第二批）。<br>① <b>手机迷你播放条</b>：编辑时底部播放区默认收成 56px 一行（⏮、播放、小节走带、⋯），速度、倍速、节拍器、谱架、音轨收进「⋯」，点开回到原来的三排，再点收起。手机上固定控件合计 209px，只占 844 屏高的 24.8%（原先 300px、35.5%），谱面多出约 90px。<br>② <b>谱架和播放时屏幕常亮</b>：进谱架或开始播放时请求浏览器保持屏幕常亮，退出谱架、停止播放后恢复；切到后台再回来会自动续上；浏览器不支持就照旧，不报错。<br>③ <b>「打印 / 导出」按用途分三组</b>：打印存档（打印 / 存 PDF、PNG 图片）、分享（分享卡、互动谱）、专业格式（MusicXML、MIDI、曲谱文件）；「取消」单独放到左下角，不再夹在一排按钮中间。<br>④ 顶栏原来叫「导出」的按钮实际是下载曲谱文件，改名为「<b>存为文件</b>」（Ctrl+S 照旧）。<br>⑤ <b>预设库改成缩略卡</b>：每张卡上直接看到谱面首屏（打开后陆续生成），整张卡点一下就打开；原来 16 个红色主按钮改为普通按钮。<br>新套件 <code>tv_b7b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.0</span><div><b>看得清、键盘能用、主题记得住</b>（2026-10 评审团 B7 体验小修包第一批）。<br>① <b>浅灰小字看得清了</b>：第三级文字颜色加深，浅色主题、深色主题对各级底色都达到 4.5:1 以上（原先浅色只有 2.39:1）；官网同步。<br>② <b>当前文档页签</b>文字改用正文色，深色主题下不再「黑字黑底」。<br>③ <b>主按钮改为实底朱砂</b>：白字对比度 5.31:1（渐变尾端只有 3.13:1）；官网的主按钮、登录按钮、会员角标一并改。<br>④ <b>键盘焦点看得见</b>：用键盘走到按钮、链接、输入框时，出现 2px 实色外框并留出 2px 间距（原先是 10% 透明度，几乎看不见）。<br>⑤ <b>Tab 不再全局劫持</b>：焦点在谱面上时 Tab 照旧切换声部；焦点在面板按钮、弹窗、菜单里时，Tab 按浏览器原生方式在控件之间移动。<br>⑥ <b>读屏可用</b>：谱面标注为「曲谱」编辑区并说明操作方式；♭ ♯ ◐ 这类符号按钮补上文字说明，弹出的菜单同样处理。<br>⑦ <b>明暗主题记住了</b>：点过明暗切换后，刷新或换页都保持；官网同样记住。<br>新套件 <code>tv_b7a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.9</span><div><b>Ctrl+K 直接输入和弦 · 和弦图位置随谱保存 · 尤克里里有了自己的节奏型库</b>（2026-10 评审团 B5 TAB 正确性第二批）。<br>① <b>Ctrl+K 写和弦</b>：在六线谱的列或简谱的音符上按 Ctrl+K，弹出和弦输入框，打 Am7、G/B 或级数写法 6m、57sus，回车写到光标处；输入框只带这一处已有的和弦，<b>不再沿用前一个和弦的性质</b>；留空回车清除。六线谱照旧按新和弦适配本小节的分解/扫弦指法。<br>② <b>和弦图位置随谱保存</b>：「随行 / 曲首 / 隐藏」放进 Ctrl+K 面板，选择写进曲谱，保存、分享、发布后观看端一致，可撤销；老谱默认随行。<br>③ <b>尤克里里节奏型库</b>：标题改为「尤克里里节奏型库」，型名里的弦序按四弦改写（如 53231323 显示为 43231323、交替低音 5323 4323 显示为 4323 3323），示意图画四条线。吉他谱不变。<br>帮助页「顶部编辑栏」补上 Ctrl+K 一行。新套件 <code>tv_b5b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.8</span><div><b>变调不再出错谱：唱高再夹回去与原谱一模一样 · 伴奏不丢根音 · 技法不再「弹不出」</b>（2026-10 评审团 B5 TAB 正确性第一批）。<br>① <b>变调按「净变了多少」从原谱重算</b>：以前每点一次就在上一次的结果上再重排，换弦换把位回不去——+2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也面目全非。现在每一步都从原谱按净移调量重算一次，净量为 0 就直接回到原谱，<b>逐音相同</b>；关掉弹窗再打开、Ctrl+Z 撤销后接着变调都一样。中途你在谱面上手改过的音不会被回滚。<br>② <b>伴奏锁定低音</b>：C 换到 G 时，低音不再落到 5 弦 2 品（变成 G/B），而是落到 6 弦 3 品的根音；从低音扫起的柱式/扫弦改从新和弦的低音弦扫；斜杠和弦（如 F/A→C/E）低音落到斜杠音上。<br>③ <b>跨列技法跟着音走</b>：击弦、勾弦、滑音、推弦、连音线的目标音被重排到别的弦时，连线会重新指向它；被拆成跨弦击勾、空弦滑音这类弹不出的写法时，自动挪回同一根弦。<br>④ <b>实在放不下就明说</b>：哪根弦都摆不下的技法，提示「x 处技法失效（连线已保留，请检查）」，不静默。<br>新套件 <code>tv_b5</code>（6 项，旧文件全部报红）。</div></li>
