@@ -21270,13 +21270,15 @@ function parseSMF(u8){
         if(hi===0x90 || hi===0x80){
           const note=u8[p++], vel=u8[p++];
           const k=ch*128+note;
-          if(hi===0x90 && vel>0){ if(!on[k]) on[k]={start:tick}; }
-          else if(on[k]){ notes.push({midi:note, start:on[k].start, dur:Math.max(1,tick-on[k].start), ch}); delete on[k]; }
+          /* v65.5 B3b ①（P1-39）同音高重叠按 FIFO 配对：第二个 note-on 入队、note-off 结最早的那个
+             （此前 if(!on[k]) 直接丢第二个 on，后一个音被吞成休止：C C E E → 1:4 0:4 3:4 3:4） */
+          if(hi===0x90 && vel>0){ (on[k]||(on[k]=[])).push({start:tick}); }
+          else if(on[k] && on[k].length){ const o=on[k].shift(); notes.push({midi:note, start:o.start, dur:Math.max(1,tick-o.start), ch}); if(!on[k].length) delete on[k]; }
         }else if(hi===0xC0 || hi===0xD0) p+=1;
         else p+=2;
       }
     }
-    Object.keys(on).forEach(k=>notes.push({midi:(+k)%128, start:on[k].start, dur:division, ch:Math.floor((+k)/128)}));
+    Object.keys(on).forEach(k=>on[k].forEach(o=>notes.push({midi:(+k)%128, start:o.start, dur:division, ch:Math.floor((+k)/128)})));
     notes.sort((a,b2)=>a.start-b2.start || a.midi-b2.midi);
     if(notes.length) tracks.push({name:name||('音轨'+(tracks.length+1)), notes});
     p=end;
@@ -21301,6 +21303,25 @@ function quantizeToCols(notes, tpq, beats, unit, ref, opt){
   if(legato) evs.forEach((ev,i)=>{                     // 连奏：音尾延到下一音起点
     if(i+1<evs.length && evs[i+1].s-ev.e>0 && evs[i+1].s-ev.e<legato) ev.e=evs[i+1].s;
   });
+  if(opt&&opt.clean){
+    /* v65.5 B3b ②（P1-39）AI 转谱产物 / 真人演奏 MIDI 清洗（MIDI 导入各路都开；哼唱走 legato 不变）：
+       · 音长占到下一起音间隔 ≥72% → 补满到下一起音（AI 输出的音普遍偏短，85% 的二分音此前碎成「4.~ 16 0:16」）
+       · 否则把长度吸附到最近的干净时值（基础值优先于附点值；容差 = max(一格, 该值 18%)），宁可补齐不出 16 分碎片
+       · 音尾越过小节线不足一格的收回到小节线（±40 tick 抖动此前多出一小节） */
+    const base=[], dots=[]; [1,2,4,8,16].forEach(d=>{ base.push(unit/d); dots.push(unit/d*1.5); });
+    const snap=len=>{ const pick=vs=>{ let best=null; vs.forEach(v=>{ const tol=Math.max(grid, 0.18*v);
+        if(Math.abs(len-v)<=tol+1e-9 && (best==null || Math.abs(len-v)<Math.abs(len-best))) best=v; }); return best; };
+      if(base.concat(dots).some(v=>Math.abs(len-v)<1e-6)) return len;
+      const b2=pick(base); if(b2!=null) return b2; const d2=pick(dots); return d2!=null? d2 : len; };
+    evs.forEach((ev,i)=>{
+      const nx = i+1<evs.length? evs[i+1].s : null;
+      if(nx!=null && ev.e<nx && (ev.e-ev.s) >= 0.72*(nx-ev.s)) ev.e = nx;
+      else { ev.e = ev.s+snap(ev.e-ev.s); if(nx!=null && ev.e>nx) ev.e=nx; }
+      const bEnd=(Math.floor(ev.s/beats+1e-9)+1)*beats;
+      if(ev.e>bEnd && ev.e-bEnd<grid+1e-6 && (nx==null || nx>=ev.e)) ev.e=bEnd;
+      if(nx==null && ev.e<bEnd && bEnd-ev.e<=grid+1e-6) ev.e=bEnd;   // 末音离小节线不足一格也补满
+    });
+  }
   const segs=[];
   evs.forEach((ev,i)=>{
     const cap = i+1<evs.length? Math.min(ev.e, evs[i+1].s) : ev.e;
@@ -21429,7 +21450,7 @@ function tabAssignSeq(chords, tuning, capo, fretMax){
 function buildTabColsFromMIDI(notes, tpq, beats, unit, opt){
   opt=opt||{};
   const tuning=opt.tuning||TUNING, capo=opt.capo||0, fretMax=opt.fretMax||24;
-  const q=quantizeToCols(notes, tpq, beats, unit, 0, {raw:true});
+  const q=quantizeToCols(notes, tpq, beats, unit, 0, {raw:true, clean:true});   /* v65.5 B3b ② MIDI→TAB 同样清洗 */
   const flat=[]; q.measures.forEach(cols=>cols.forEach(c=>flat.push(c)));
   /* 发声事件分组：前一列 tie=true 说明本列是同一事件的延续（quantizeToCols 的 tie 语义） */
   const events=[]; const evOf=new Array(flat.length).fill(-1);
@@ -21459,6 +21480,25 @@ function buildTabColsFromMIDI(notes, tpq, beats, unit, opt){
   return {measures:out, skipped:q.skipped, octShift:asg.octShift, dropped:asg.dropped+restDrop};
 }
 const MIDI_F2K={0:'C',1:'G',2:'D',3:'A',4:'E',5:'B',6:'F#',7:'C#','-1':'F','-2':'Bb','-3':'Eb','-4':'Ab','-5':'Db','-6':'Gb','-7':'B'};
+/* v65.5 B3b ④ 事件级比对（导入成品率 / AI 产物回归用）：两份谱的第 vi 旋律声部按「小节:拍位:MIDI」展开成事件集
+   （连音线延续列不单算），返回 {notes, notesB, same, missing, extra, meaA, meaB, score}；score＝same / max(notes, notesB) */
+function songCompare(a, b, vi){
+  vi=vi|0;
+  const evs=s2=>{ const out=[]; const o0=song; song=s2;
+    try{ s2.measures.forEach((m,mi)=>{ let pos=0, prevTie=false, prevM=null;
+      (m.voxes[vi]||[]).forEach(c=>{
+        if(c.deg){ const md=voxMidi(c, mi);
+          if(!(prevTie && prevM===md)){ out.push(mi+':'+(+pos.toFixed(3))+':'+md); (c.adds||[]).forEach(ad=>{ if(ad&&ad.deg) out.push(mi+':'+(+pos.toFixed(3))+':'+voxMidi(ad, mi)); }); }
+          prevTie=!!c.tie; prevM=md; }
+        else { prevTie=false; prevM=null; }
+        pos+=beatsOf(c); }); }); }
+    finally{ song=o0; }
+    return out; };
+  const A=evs(a), B=evs(b); const cnt=new Map(); B.forEach(k=>cnt.set(k,(cnt.get(k)||0)+1));
+  let same=0; A.forEach(k=>{ const n=cnt.get(k); if(n){ same++; cnt.set(k,n-1); } });
+  return {notes:A.length, notesB:B.length, same, missing:A.length-same, extra:B.length-same, meaA:a.measures.length, meaB:b.measures.length,
+    score: (A.length||B.length)? same/Math.max(A.length,B.length) : 1};
+}
 function buildSongFromMIDI(smf, sel){
   const beats=Math.max(1,Math.min(12,smf.ts.beats));
   const unit=(smf.ts.unit===8||smf.ts.unit===2)? smf.ts.unit : 4;   /* v65.4 x/2 */
@@ -21479,18 +21519,18 @@ function buildSongFromMIDI(smf, sel){
     const sp=sel.split||60;                          /* v60.25 分手点可调（默认中央C） */
     if(sel.mode==='piano'){ hi=smf.tracks[sel.a].notes; lo=smf.tracks[sel.b].notes; }
     else{ const ns=smf.tracks[sel.a].notes; hi=ns.filter(n=>n.midi>=sp); lo=ns.filter(n=>n.midi<sp); }
-    const qh=quantizeToCols(hi, smf.division, beats, unit, ref);
-    const ql=quantizeToCols(lo, smf.division, beats, unit, ref);
+    const qh=quantizeToCols(hi, smf.division, beats, unit, ref, {clean:true});   /* v65.5 B3b ② */
+    const ql=quantizeToCols(lo, smf.division, beats, unit, ref, {clean:true});
     skipped=qh.skipped+ql.skipped;
     voices=[qh.measures, ql.measures]; notations=['staff','bass']; names=['右手','左手'];
   }else if(sel.mode==='vocal' && sel.tracks && sel.tracks.length>1){
     /* v60.25 多声部歌谱：每条选中音轨一个旋律声部（≤4） */
     const ts2=sel.tracks.slice(0,4);
-    voices=ts2.map(ti=>{ const q1=quantizeToCols(smf.tracks[ti].notes, smf.division, beats, unit, ref);
+    voices=ts2.map(ti=>{ const q1=quantizeToCols(smf.tracks[ti].notes, smf.division, beats, unit, ref, {clean:true});
       skipped+=q1.skipped; return q1.measures; });
     notations=undefined; names=ts2.map((_,i)=>'旋律'+(i+1));
   }else{
-    const q1=quantizeToCols(smf.tracks[sel.a].notes, smf.division, beats, unit, ref);
+    const q1=quantizeToCols(smf.tracks[sel.a].notes, smf.division, beats, unit, ref, {clean:true});   /* v65.5 B3b ② */
     skipped=q1.skipped;
     voices=[q1.measures]; notations=undefined; names=['旋律1'];
   }
@@ -21664,7 +21704,7 @@ function pvMidiApply(smf, ti){
     if(r.octShift) extra+='；'+r.octShift+' 个音超出指板音域按八度折入';
     if(r.dropped)  extra+='；'+r.dropped+' 个音无法落指板已略去';
   }else{
-    q=quantizeToCols(notes, smf.division, song.beats, song.unit, keyRef());
+    q=quantizeToCols(notes, smf.division, song.beats, song.unit, keyRef(), {clean:true});   /* v65.5 B3b ② */
   }
   if(q.skipped) extra+='；量化简化 '+q.skipped+' 处';
   const nMea=q.measures.length;
@@ -24528,6 +24568,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v65.5</span><div><b>MIDI 导入不再丢音：AI 转谱产物清洗</b>（2026-10 评审团 B3b AI 产物入口）。<br>① 同音高两个音轻微重叠时（AI 转谱、真人演奏常见），后一个音以前被吞成休止，现在按先后配对两个都在。<br>② 音长只按满 85% 的二分、四分音符以前碎成「附点八分＋十六分休止」，现在吸附到干净时值，宁可补齐也不生成十六分碎片；±40 tick 的时间抖动不再多出小节。<br>③ 新增 <code>songCompare</code> 事件级比对（两份谱按小节·拍位·音高逐音对照，给出相同 / 缺失 / 多出与成品率），用于导入回归。哼唱转谱走原有连奏量化不受影响。<br>新套件 <code>tv_b3b</code>（4 项，旧文件 0/4）。</div></li>
     <li><span class="v">v65.4</span><div><b>2/2 拍、弱起、移调乐器与 MIDI 导出补全</b>（2026-10 评审团 B3a 互操作保真·四；负责人拍板 D-14 ②）。<br>① <b>2/2 等 x/2 拍号</b>：新建向导、变拍子菜单、曲谱信息都能选 2；MusicXML / MIDI / Guitar Pro 导入不再把 2/2 改成 4/4。<br>② <b>弱起小节</b>随 MusicXML 出入（首小节标 implicit，编号从下一小节起算）。<br>③ <b>移调乐器</b>（小号、圆号、萨克斯……）：导入带 transpose 的分谱保持记谱音显示，播放与 MIDI 按实音发声，页头标「移调乐器」，再导出 transpose 不丢。<br>④ <b>MIDI 导出</b>：Drop D 等自定义定弦按实际定弦写音高（此前一律标准定弦）；变拍子、中途转调逐小节写拍号 / 调号；每条音轨带轨名，音色按混音台里选的乐器映射到 GM 音色（长笛、弦乐、失真电吉他……）。<br>新套件 <code>tv_b3a4</code>（6 项，旧文件 0/6）。</div></li>
     <li><span class="v">v65.3</span><div><b>弹唱谱的和弦与技法随 MusicXML 出入</b>（2026-10 评审团 B3a 互操作保真·三）。<br>① <b>TAB 列和弦</b>：六线谱上标的和弦名随文件导出（附指法图 frame：MuseScore / Guitar Pro 打开能看到和弦图），导入第三方文件里挂在 TAB 声部的和弦也能读回。<br>② <b>技法</b>：击弦 h、勾弦 p、滑音、点弦、推弦（含幅度与回推）、自然 / 人工 / 拨片 / 点弦泛音、闷音 P.M.、揉弦、延音、滑入滑出、摇把全部写进 MusicXML technical，导入时按同一张表还原，两音技法自动接回落点音。<br>新套件 <code>tv_b3a3</code>（4 项，旧文件 0/4）。</div></li>
     <li><span class="v">v65.2</span><div><b>钢琴大谱表随 MusicXML 完整出入 · 声部上限提到 8</b>（2026-10 评审团 B3a 互操作保真·二；负责人拍板 D-12 ①）。<br>① <b>钢琴谱导出</b>：右手、左手写进同一件乐器的两个谱表（以前拆成两件独立乐器，MuseScore 打开没有花括号、两手对不齐）。<br>② <b>钢琴谱导入</b>：MuseScore / Sibelius / Dorico 导出的大谱表 part 按谱表拆成右手、左手两个声部，左手不再被当成「第二声部」整只丢掉；踏板等记号跟到左手。<br>③ <b>合唱＋钢琴</b>：SATB 四个声部加钢琴双手共 6 行全部保留，钢琴自动成花括号组、合唱成方括号组。<br>④ <b>声部上限</b>：旋律声部、吉他轨各最多 8 条，总轨数不超过 15（MIDI 通道上限）；导入时超出的声部逐个点名。<br>新套件 <code>tv_b3a2</code>（6 项，旧文件 0/6）。</div></li>
@@ -24546,7 +24587,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v65.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v65.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
