@@ -17794,15 +17794,59 @@ document.getElementById('b-shell').onclick = ()=>{
    和弦名/拍位和弦/转调标记同步）——此前编辑器仍是旧「逐品平移」，图与演奏错位的问题
    在编辑器侧至此一并根治。stats 如实播报，与观看页同口径。 */
 function refingToast(st){
-  return (st && (st.shapeCols||st.melodic))?
+  if(st && st.back) return '（指法回到原谱，逐音相同）';
+  return ((st && (st.shapeCols||st.melodic))?
     '（伴奏随和弦图取形、旋律重排把位'+(st.octShift? '，'+st.octShift+' 音折八度':'')
-    +(st.dropped? '，'+st.dropped+' 音放不下按平移处理':'')+'）' : '';
+    +(st.dropped? '，'+st.dropped+' 音放不下按平移处理':'')+'）' : '')
+    +(st && st.techLost? ' · '+st.techLost+' 处技法失效（连线已保留，请检查）' : '');
+}
+/* v63.8 B5 ①（P1-23）编辑器变调一律按「净移调量」从基准重算。
+   此前每点一次就在上一次的重排结果上再重排；重排会换弦换把位，不可逆——
+   +2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也已面目全非。现在：
+   · 基准＝第一次变调前的谱（深拷贝）；每步只累加两个净量：指法净移 net、发声净移 snd（夹位变化只改 net）；
+   · 每步都从基准重算一次；net=0 直接回填基准——与原谱逐音相同；
+   · 走过的每个状态记下签名→净量，撤销/重做/关了弹窗再开都能接着按净量算；
+   · 谱面在别处被改过（签名不在表里）就以当前谱重立基准，绝不把用户的改动回滚掉。 */
+let ekCalc=null;
+function ekSig(){
+  const t=song.key+'|'+(song.capo||0)+'|'+JSON.stringify(song.measures);
+  let h=2166136261;
+  for(let i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619); }
+  return t.length+':'+(h>>>0).toString(36);
+}
+function ekMove(dNet, dSnd, capoNext){
+  const sig0=ekSig();
+  if(!ekCalc || !ekCalc.hist.has(sig0)){
+    ekCalc={key:song.key, capo:song.capo, mea:JSON.stringify(song.measures), hist:new Map([[sig0,[0,0]]])};
+  }
+  const [n0,s0]=ekCalc.hist.get(sig0);
+  const net=n0+dNet, snd=s0+dSnd;
+  /* 有自己夹位的轨（tabCapos）只跟发声走：夹位变化不动它的指法，唱调变化它照样跟着移 */
+  const ovr=[]; (song.tabVoices||[]).forEach((_,vi)=>{ if(vi>0 && song.tabCapos && song.tabCapos[vi]!=null) ovr.push(vi); });
+  let st=null;
+  mutate(()=>{
+    song.measures=JSON.parse(ekCalc.mea); song.key=ekCalc.key;
+    if(capoNext!=null || song.capo!=null) song.capo=capoNext;
+    if(net) st=transposeSong(song, net);
+    else st={back:true};
+    if(ovr.length && snd!==net){
+      const s2=JSON.parse(JSON.stringify(song)); s2.measures=JSON.parse(ekCalc.mea); s2.key=ekCalc.key;
+      if(snd) transposeSong(s2, snd);
+      ovr.forEach(vi=>song.measures.forEach((m,mi)=>{ const t2=s2.measures[mi] && s2.measures[mi].tabs; if(t2 && t2[vi]) m.tabs[vi]=t2[vi]; }));
+    }
+  });
+  if(ekCalc.hist.size>60) ekCalc.hist.delete(ekCalc.hist.keys().next().value);
+  ekCalc.hist.set(ekSig(), [net, snd]);
+  return st;
+}
+function ekDirty(){
+  if(!ekBase) return;
+  ekBase.dirty=!(song.key===ekBase.key && (song.capo||0)===ekBase.capo && JSON.stringify(song.measures)===ekBase.mea);
 }
 function stepKey(delta){
-  let st=null;
-  mutate(()=>{ st=transposeSong(song, delta); });
+  const st=ekMove(delta, delta, song.capo);
   pyqEvent('transpose', 'bar:'+delta);   // v63.4 A7
-  updateEdKeyPop();
+  ekDirty(); updateEdKeyPop();
   toast('已换调 1='+song.key+refingToast(st)+'——可 Ctrl+Z 撤销');
 }
 document.getElementById('k-dn').onclick = ()=>stepKey(-1);
@@ -18117,33 +18161,21 @@ function updateEdKeyPop(){
   }
 }
 function edTranspose(delta){
-  let st=null;
-  mutate(()=>{ st=transposeSong(song, delta); });
+  const st=ekMove(delta, delta, song.capo);   /* v63.8 B5 ① 按净量从基准重算 */
   pyqEvent('transpose', 'pop:'+delta);   // v63.4 A7
-  if(ekBase) ekBase.dirty=true;
-  updateEdKeyPop();
+  ekDirty(); updateEdKeyPop();
   toast('唱调 '+edSoundKey()+refingToast(st)+'——可 Ctrl+Z 撤销');
 }
 function edSetCapo(next){
   const cur=song.capo||0;
   next=Math.max(0, Math.min(12, next));
   if(next===cur) return;
-  let st=null;
-  /* v60.61 有自己夹位的轨必须保持原声：唱调锁定的「指法∓d」只该作用在**跟随参考轨**的轨上。
-     transposeSong 是整谱引擎、没有按轨过滤的入口——故先把带覆盖夹位的轨快照下来，
-     引擎跑完把这些轨原样放回（它们的夹位没变，品位就一个字都不能动，否则发声被改）。 */
+  /* v60.61 有自己夹位的轨必须保持原声：唱调锁定的「指法∓d」只该作用在**跟随参考轨**的轨上——
+     v63.8 起由 ekMove 按轨区分净量（这些轨只跟发声净量 snd 走，夹位变化不动它们）。 */
   const ovr=[];
-  (song.tabVoices||[]).forEach((_,vi)=>{
-    if(vi>0 && song.tabCapos && song.tabCapos[vi]!=null)
-      ovr.push({vi, mea:JSON.stringify(song.measures.map(m=>m.tabs[vi]))});
-  });
-  mutate(()=>{
-    song.capo=next; st=transposeSong(song, cur-next);   /* 唱调锁定：夹±d ↔ 指法∓d */
-    ovr.forEach(o=>{ const back=JSON.parse(o.mea);
-      song.measures.forEach((m,mi)=>{ if(back[mi]) m.tabs[o.vi]=back[mi]; }); });
-  });
-  if(ekBase) ekBase.dirty=true;
-  updateEdKeyPop();
+  (song.tabVoices||[]).forEach((_,vi)=>{ if(vi>0 && song.tabCapos && song.tabCapos[vi]!=null) ovr.push({vi}); });
+  const st=ekMove(cur-next, 0, next);   /* 唱调锁定：夹±d ↔ 指法∓d */
+  ekDirty(); updateEdKeyPop();
   toast('变调夹 '+(next? next+' 品':'取下')+' · 唱调不变，指法调 1='+song.key+refingToast(st)
     + (ovr.length? '（'+ovr.map(o=>song.tabVoices[o.vi]).join('/')+' 有各自夹位，指法未动）' : ''));
 }
@@ -22254,6 +22286,66 @@ function shiftChordName(name, delta){
   if(m[3] && KEY_PC[m[3]]!=null) out+='/'+KEY_LIST[((KEY_PC[m[3]]+delta)%12+12)%12];
   return out;
 }
+/* v63.8 B5 ② 和弦图的低音弦：斜杠低音 > 根音所在的最低发声弦 > 最低发声弦 */
+function shapeBassStr(sh, name, tun){
+  if(!sh) return null;
+  const p=parseChordName(name);
+  const want=p? (p.bassPc!=null? p.bassPc : p.rootPc) : null;
+  let low=null;
+  for(let s2=tun.length;s2>=1;s2--){
+    const f=shapeString(sh,s2); if(f==null) continue;
+    if(low==null) low=s2;
+    if(want==null) return s2;
+    if(((tun[s2-1]+f)%12+12)%12===want) return s2;
+  }
+  return low;
+}
+/* v63.8 B5 ③④ 重排后的跨列技法：tk.si 按目标音对象重连；必须同弦的技法（击弦 h、勾弦 p、滑音 sl、推弦 b/bd、
+   连音线）若被拆到两根弦、或成了空弦滑音/空弦推弦，就把这一对挪到同一根弦（先试原弦）；
+   哪根弦都放不下才算「技法失效」——连线保留、如实计数，不静默。返回失效处数。 */
+const LINK_SAME_STR=new Set(['h','p','sl','b','bd']);
+function tabLinkFix(links, tun, fMax){
+  const has=(col,n)=>!!col && (col.notes||[]).includes(n);
+  const needSame=n=>!n.tech || LINK_SAME_STR.has(n.tech);
+  const legalF=(n,fn,ft)=>{
+    if(fn<0||fn>fMax||ft<0||ft>fMax) return false;
+    if(n.tech==='sl' && (fn<1||ft<1)) return false;            // 空弦滑不了
+    if((n.tech==='b'||n.tech==='bd') && fn<1) return false;    // 空弦推不了
+    return true;
+  };
+  const okNow=L=>{
+    const {n,T}=L;
+    if(!needSame(n)) return true;
+    if(n.s!==T.s || !legalF(n,n.f,T.f)) return false;
+    return !!n.tech || n.f===T.f;                              // 连音线：同弦同品
+  };
+  const free=(col,s2,self)=>!(col.notes||[]).some(x=>x!==self && x.s===s2);
+  links.forEach(L=>{
+    const {n,T}=L;
+    if(!has(L.sc,n) || !has(L.tc,T)) return;
+    if(okNow(L)){ n.tk.si=T.s; return; }
+    const pn=tun[n.s-1]+n.f, pt=tun[T.s-1]+T.f;
+    if(!n.tech && pn!==pt){ n.tk.si=T.s; return; }
+    const cands=[n.s, T.s, L.os, L.ots];                       // 先试就近（当前弦），再退回原弦
+    for(let s2=1;s2<=tun.length;s2++) cands.push(s2);
+    for(const s2 of cands){
+      const fn=pn-tun[s2-1], ft=pt-tun[s2-1];
+      if(!legalF(n,fn,ft) || !free(L.sc,s2,n) || !free(L.tc,s2,T)) continue;
+      if(n.tech!=='sl' && fn>0 && ft>0 && Math.abs(fn-ft)>5) continue;   // 击勾跨 5 品以上弹不出
+      n.s=s2; n.f=fn; T.s=s2; T.f=ft; break;
+    }
+    n.tk.si=T.s;
+  });
+  /* 链上后继被挪弦后，前驱指针按对象再连一遍，并复核 */
+  let lost=0;
+  links.forEach(L=>{
+    if(!has(L.sc,L.n)) return;
+    if(!has(L.tc,L.T)){ lost++; return; }
+    L.n.tk.si=L.T.s;
+    if(!okNow(L)) lost++;
+  });
+  return lost;
+}
 function transposeSong(s, delta){
   s.key = KEY_LIST[(((KEY_PC[s.key]||0)+delta)%12+12)%12];   // 简谱(可动do)随调号整体移调
   /* ===== v60.39 指法变调重排（产品指示的变调逻辑系统第 2 条）=====
@@ -22267,10 +22359,11 @@ function transposeSong(s, delta){
      · 第 1 条（变调夹变调指法完全不变）由架构保证：观看副本每次从原始发布数据重建，
        净 vwTrans=0（如「唱+2 且 夹+2」的经典夹用法）时本函数根本不做指法重排。
      注意顺序：重排要用**平移前**的和弦名查生效和弦，故先重排指法、再平移和弦名。
-     已知缺口（如实记录）：跨列技法指针 tk.si 记的是弦号，重排移弦后可能指偏
-     （独奏谱推弦/滑弦到目标音的场景）；观看页变调属试奏用途，暂不重连指针。 */
+     v63.8 B5 补齐两处缺口：② 伴奏列锁定低音（根音/斜杠低音所在弦，不再 C→G 变成 G/B）；
+     ③④ 跨列技法指针 tk.si 重排后按目标音重连，非法技法（跨弦击勾、空弦滑音）挪回同弦，放不下如实计数。 */
   const tun=tuningOf(), fMax=fretMaxOf();
-  const stats={shapeCols:0, melodic:0, octShift:0, dropped:0};
+  const uku=instOf()==='uku';
+  const stats={shapeCols:0, melodic:0, octShift:0, dropped:0, techLost:0};
   if(delta){
     /* 平移前的全行合并和弦时间线（chordEvtsMea 同口径，但作用于观看副本 s） */
     const flat=[];
@@ -22286,6 +22379,15 @@ function transposeSong(s, delta){
     flat.sort((a,b2)=>a.mi-b2.mi || a.beat-b2.beat);
     const foldNaive=n=>{ let f=n.f+delta; while(f<0) f+=12; while(f>fMax) f-=12; n.f=f; };
     (s.tabVoices||[]).forEach((_,vi)=>{
+      /* ③ 先记下本轨所有跨列技法指针（源音对象 → 目标音对象），重排后按对象重连 */
+      const colAt=(mi,ci)=>{ const m=s.measures[mi]; return m && m.tabs && m.tabs[vi] && m.tabs[vi][ci]; };
+      const links=[];
+      s.measures.forEach(m=>((m.tabs||[])[vi]||[]).forEach(c=>(c.notes||[]).forEach(n=>{
+        if(!n.tk || n.x || typeof n.f!=='number') return;
+        const tc=colAt(n.tk.mi, n.tk.ci);
+        const T=tc && (tc.notes||[]).find(x=>x.s===n.tk.si && !x.x && typeof x.f==='number');
+        if(T && T!==n) links.push({n, T, sc:c, tc, os:n.s, ots:T.s});
+      })));
       let ei=0, cur='';                                  // 时间线指针 + 生效和弦
       const seg=[];                                      // 待指派的旋律列连续段
       const flushSeg=()=>{
@@ -22329,12 +22431,43 @@ function transposeSong(s, delta){
           const newSh=isAccomp? chordShape(shiftChordName(cur,delta)) : null;
           if(newSh){
             flushSeg();
-            if(real.every(n=>shapeString(newSh,n.s)!=null)){
+            /* ② 锁定低音：本列弹到了旧图的低音弦（根音/斜杠低音）→ 必须落到新图的低音弦 */
+            const sounding=sh2=>{ const out=[]; for(let s2=tun.length;s2>=1;s2--){ if(shapeString(sh2,s2)!=null) out.push(s2); } return out; };
+            const oldSh0=chordShape(cur), newName=shiftChordName(cur,delta);
+            const oB=uku? null : shapeBassStr(oldSh0, cur, tun), nB=uku? null : shapeBassStr(newSh, newName, tun);
+            const bassN=(oB!=null && nB!=null && oB!==nB)? real.find(n=>n.s===oB) : null;
+            if(bassN){
+              const oldStr=sounding(oldSh0), newStr=sounding(newSh);
+              const top=Math.min(...real.map(n=>n.s));
+              const run=oldStr.filter(s2=>s2<=oB && s2>=top);
+              const keepX=(c.notes||[]).filter(n=>n.x || typeof n.f!=='number');
+              if(real.length>=2 && run.length===real.length && run.every(s2=>real.some(n=>n.s===s2))){
+                /* 从低音扫到第 top 弦（扫弦/柱式）：新图同样从它的低音扫到同一根最高弦 */
+                let tgt=newStr.filter(s2=>s2<=nB && s2>=top); if(!tgt.length) tgt=[nB];
+                const srcs=real.slice().sort((a,b2)=>b2.s-a.s);
+                const outs=tgt.map((s2,k)=>{
+                  let n=srcs[k];
+                  if(!n){ n=JSON.parse(JSON.stringify(srcs[srcs.length-1])); delete n.tk; delete n.tech; }
+                  n.s=s2; n.f=shapeString(newSh,s2); return n;
+                });
+                c.notes=keepX.concat(outs.sort((a,b2)=>a.s-b2.s));
+              } else {
+                /* 低音＋其他音（分解/交替低音）：低音换到新低音弦，其余音在新低音之上逐弦换品，放不下按弦序映射 */
+                const used=new Set([nB]); bassN.s=nB; bassN.f=shapeString(newSh,nB);
+                const mapped=[bassN];
+                const avail=newStr.filter(s2=>s2<nB);
+                real.filter(n=>n!==bassN).sort((a,b2)=>b2.s-a.s).forEach(n=>{
+                  if(n.s<nB && shapeString(newSh,n.s)!=null && !used.has(n.s)){ used.add(n.s); n.f=shapeString(newSh,n.s); mapped.push(n); return; }
+                  const k=avail.find(s2=>!used.has(s2) && s2<=n.s) || avail.find(s2=>!used.has(s2));
+                  if(k!=null){ used.add(k); n.s=k; n.f=shapeString(newSh,k); mapped.push(n); }
+                });
+                c.notes=keepX.concat(mapped.sort((a,b2)=>a.s-b2.s));
+              }
+            } else if(real.every(n=>shapeString(newSh,n.s)!=null)){
               real.forEach(n=>{ n.f=shapeString(newSh,n.s); });     // 新图覆盖同弦集：逐弦换品
             } else {
               /* 新和弦图不覆盖原弦集（如 G 六弦满扫 → D 四弦）：按「低→高弦序 rank」映射到
                  新图发声弦——真人换和弦弹同一织体就是这么做的；映射撞弦去重、多余音随图裁掉 */
-              const sounding=sh2=>{ const out=[]; for(let s2=tun.length;s2>=1;s2--){ if(shapeString(sh2,s2)!=null) out.push(s2); } return out; };
               const oldSh=chordShape(cur);
               const oldStr=sounding(oldSh), newStr=sounding(newSh);
               const used=new Set(), mapped=[];
@@ -22355,6 +22488,7 @@ function transposeSong(s, delta){
         });
       });
       flushSeg();
+      stats.techLost+=tabLinkFix(links, tun, fMax);   // ③④
     });
   }
   s.measures.forEach(m=>{
@@ -23628,7 +23762,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23651,6 +23785,7 @@ const APP_VER='v63.7';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.8</span><div><b>变调不再出错谱：唱高再夹回去与原谱一模一样 · 伴奏不丢根音 · 技法不再「弹不出」</b>（2026-10 评审团 B5 TAB 正确性第一批）。<br>① <b>变调按「净变了多少」从原谱重算</b>：以前每点一次就在上一次的结果上再重排，换弦换把位回不去——+2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也面目全非。现在每一步都从原谱按净移调量重算一次，净量为 0 就直接回到原谱，<b>逐音相同</b>；关掉弹窗再打开、Ctrl+Z 撤销后接着变调都一样。中途你在谱面上手改过的音不会被回滚。<br>② <b>伴奏锁定低音</b>：C 换到 G 时，低音不再落到 5 弦 2 品（变成 G/B），而是落到 6 弦 3 品的根音；从低音扫起的柱式/扫弦改从新和弦的低音弦扫；斜杠和弦（如 F/A→C/E）低音落到斜杠音上。<br>③ <b>跨列技法跟着音走</b>：击弦、勾弦、滑音、推弦、连音线的目标音被重排到别的弦时，连线会重新指向它；被拆成跨弦击勾、空弦滑音这类弹不出的写法时，自动挪回同一根弦。<br>④ <b>实在放不下就明说</b>：哪根弦都摆不下的技法，提示「x 处技法失效（连线已保留，请检查）」，不静默。<br>新套件 <code>tv_b5</code>（6 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.7</span><div><b>多声部录谱更顺手 · 合唱同一拍一次标完 · 可选 GP 键位</b>（2026-10 评审团 B1 录入零陷阱第二批）。<br>① <b>声部之间用键盘移动</b>：Alt+↑/↓ 在各声部之间逐个移动，光标落到同一拍上；合唱谱在低音声部按 ↑ 会到上一个声部，不再直接跳回第一个声部。<br>② <b>跨声部一次标记号</b>：Ctrl/Shift 选中几个声部同一拍的音（或框选一段），点延长号、换气、演奏法、力度，一次全部标好，Ctrl+Z 一步撤回。<br>③ <b>套用技法后自动取消多选</b>，下一步操作不会把刚标好的技法覆盖掉；节奏型库的提示改为「Shift + 点小节上方条带可区域选择」（这是现有的操作方式）。<br>④ <b>八度按钮不再误改整首</b>：没选中音时，记号面板的升/降八度会作用于整个声部——现在先弹出确认，写明会改多少个音。<br>⑤ <b>名字说人话</b>：「智能编辑」改叫「修复建议」；配和弦工作台的候选从原始分值改为「契合度」百分比。<br>⑥ <b>末尾空小节提醒</b>：打印 / 导出和发布前，如果谱子末尾有自动续出来的空小节，会提示并可一键删除。<br>⑦ <b>可选「GP / 简谱大师键位」</b>（默认关闭，在右栏「创作」页的提示里开启）：「-」作增时线、Shift+点击作区域选择、六线谱 H/P/S/B 作击弦/勾弦/滑弦/推弦。<br>新套件 <code>tv_b1b</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.6</span><div><b>录谱不再掉进陷阱：增时线、连音线、延长号都落在刚输入的音上</b>（2026-10 评审团 B1 录入零陷阱第一批）。<br>① <b>先落音、再加记号</b>：输入一个音后光标会自动前进到下一格，之前紧接着按 D（增时线）、~（连音线），或点延长号、换气、演奏法、力度、装饰音，记号都落到了前进后的那个空格上——「5 D」把后面的休止拉长，提示却说「已延长」。现在这些记号都作用在刚输入的音上，光标仍停在它后面，可以接着往下录。实测：录《小星星》8 小节只需按 32 个键（28 个音 + 4 个 D），不用任何修正键。<br>② <b>连音线不挂在休止上</b>：光标停在空格时按 ~ 会提示「先输入音」，不再画出连向空白的线。<br>③ <b>先选时值再落音不溢出</b>：在空格上先按二分、全音等更长的时值，会自动吸收后面紧邻的休止，小节不再超拍。<br>④ <b>超拍修复首选「顺延到下一小节」</b>：多出来的音原样挪到下一小节开头，跨过小节线的音拆成两半用连音线连起；下一小节放不下（会把真实音符挤出去）就不顺延，提示手动处理，绝不在全曲连锁移动。原来的「从末尾删掉」降为次选，并先列出会删掉哪几个音；「全部采纳」也不再静默删音。<br>⑤ <b>「-」的一次性提示</b>：简谱里刚输入音时按键盘「-」，会提示一次「这是降八度，增时线请按 D 键」，按键含义不变。<br>新套件 <code>tv_b1a</code>（7 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.5</span><div><b>粘贴不再抹掉转调 · 页头写成 1=♭B · 新建可选 9/8、12/8</b>（2026-10 评审团 B2a 调性纯缺陷，Sprint B 第一项）。<br>① <b>整小节粘贴保留目标小节的设置</b>：之前把一个小节粘到带「转 1=G」标记的小节上，转调标记会被抹掉，后面所有小节的调都跟着变回去；排练标记、房子、变拍子也一样丢。现在覆盖粘贴只换音符，目标小节原有的这些设置都保留。<br>② <b>拍号不一样时先问一句</b>：复制来的小节和要覆盖的小节拍号不同，会问「是否同时应用源小节的拍号」；点小节线插入的新小节沿用源小节自己的拍号。<br>③ <b>页头调号写法规范</b>：1=Bb、1=C# 改为简谱惯例的 1=♭B、1=♯C（顶栏、曲谱信息、看谱页同步）；拍号按调号文字的实际宽度排在其后，1=♯C、1=♯F 不再和拍号挤在一起；12/8 这类两位数拍号的分数线随之加宽。<br>④ <b>新建向导的拍号与曲谱信息一致</b>：分子新增 5、7、9、12，可以直接新建 5/4、7/8、9/8、12/8。<br>⑤ 内部：简谱 1 的八度换算规则从散落 8 处收成一处，语法闸禁止再散写。新套件 <code>tv_b2a</code>（6 项，旧文件全部报红）。</div></li>
