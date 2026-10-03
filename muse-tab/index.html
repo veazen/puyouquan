@@ -2846,6 +2846,12 @@ if(matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){var _bv=docum
     </div>
   </div>
   <div class="lp-row">
+    <div class="lp-lab"><span>简谱小节号</span></div>
+    <div class="lp-seg" id="lp-bar" title="纯简谱谱面的小节号（有六线谱/五线谱时由它们标注）">
+      <button data-bn="">不印</button><button data-bn="row">行首</button><button data-bn="all">每小节</button>
+    </div>
+  </div>
+  <div class="lp-row">
     <div class="lp-lab"><span>② 智能排版</span></div>
     <div class="lp-seg" id="lp-preset">
       <button data-preset="compact">紧凑</button><button data-preset="standard">标准</button><button data-preset="loose">宽松</button>
@@ -4568,6 +4574,26 @@ let PRINT_PAGING = false;                       // v60.80 打印期间强制分�
    手机（视口 ≤820）仍走独立的窄屏重排；打印/导出时一律按固定版宽。新建向导出的谱默认开启，存量谱在「排版」里自愿开启 */
 const FIXED_A4 = 1060;
 let PRINTING_NOW = false, LAY_FIXED_NOW = false, LAY_BIGK = 1;
+/* v64.8 B4c ③（P2-05）歌词行按各声部实际用到的段数预留：此前每个声部都按全曲段数 song.lyricLines 留行，
+   SATB 只有女高写了词，其余三行下面也各空出两行歌词位；现在没写词的声部不留歌词行、不印段序号，
+   写了 1 段的只留 1 行。全曲一个字都没有时照旧按段数留（新谱要有地方点进去填词）；
+   编辑器切到「歌词」图层时全部声部展开，方便点选任一声部填词。 */
+let LYR_USED = [], LYR_ANY = false, LYR_ALL = false;
+/* v64.9 B4c ④（P2-14）对照谱谱表↔简谱行间隙：26 ＋ 本声部谱表下方加线深度（sysMetrics 按全曲音域算出，渲染各处同源） */
+let DUAL_GAP = [];
+function dualGapOf(vi){ return (song.voxDual||[])[vi]? (DUAL_GAP[vi]!=null? DUAL_GAP[vi] : 26) : 0; }
+function lyrScan(){
+  LYR_USED = (song.voxVoices||[]).map(()=>0);
+  (song.measures||[]).forEach(m=>(m.voxes||[]).forEach((cols,vi)=>(cols||[]).forEach(c=>
+    (c && c.lyrics||[]).forEach((x,li)=>{ if(String(x||'').trim() && li+1>(LYR_USED[vi]||0)) LYR_USED[vi]=li+1; }))));
+  LYR_ANY = LYR_USED.some(n=>n>0);
+  LYR_ALL = !viewerMode && activeTab==='lyr' && !PRINTING_NOW && !PRINT_PAGING;
+}
+function lyrRowsOf(vi){
+  const nL = song.lyricLines||0;
+  if(!nL || LYR_ALL || !LYR_ANY) return nL;
+  return Math.min(nL, LYR_USED[vi]||0);
+}
 /* v64.6 B8 ②（P2-09）手机窄屏重排：视口 ≤820 时版宽贴屏宽、页边距 12——此前版宽下限 520 再缩到屏宽，
    TAB 品位只剩约 7.6px、和弦名 7.5px；现在显示比例接近 100%（品位 ≥10px）。「跟练大字」再把内容放大 1.2 倍
    （品位、和弦名 ≥12px），仍是重排而非放大显示，不出现横向滚动。偏好存本机（musetab-bigtext，新键只增） */
@@ -6232,6 +6258,13 @@ function measureLayout(mea){
     const w=Math.max(beatFloor, coFloor, beatNoteW[i]);
     beatW.push(w);
   }
+  /* v64.8 B4c ②（P2-03）拍宽均匀：整拍都被前面的长音占着的拍（简谱里只有一条增时线）此前只拿空拍地板，
+     「5 –」挤成一团、下一拍又很宽；现在这种拍不窄于本小节有音起拍的拍平均宽的 60% */
+  { const hasStart=new Array(beats).fill(false);
+    const mark=cols=>{ let t=0; (cols||[]).forEach(c=>{ const bi=Math.floor(t+1e-6); if(bi>=0 && bi<beats) hasStart[bi]=true; t+=beatsOf(c, unit); }); };
+    (mea.tabs||[]).forEach(mark); (mea.voxes||[]).forEach(mark);
+    const fw=beatW.filter((_,i)=>hasStart[i]), avg=fw.length? fw.reduce((a,b)=>a+b,0)/fw.length : 0;
+    if(avg) beatW=beatW.map((w,i)=> hasStart[i]? w : Math.max(w, avg*0.6)); }
   /* ===== 拍内弹簧-刚杆映射（LilyPond spring-rod 思路）=====
      相邻列间距 = max(时值比例份额, 段刚杆)；刚杆之和超过拍宽时拍自动加宽。
      所有声部共用同一张 时值→x 映射表，拍内跨声部依然严格对齐。
@@ -6731,7 +6764,7 @@ function systemExtras(sys){
        跨多列长弧（弧高上限 15）更高 → 单跨记 1 档、连跨记 2 档；五线谱行的连音线贴符头不占行高，不计 */
     if(c.tie && !isStaffNota((song.voxNotations||[])[vv2]))
       maxUp=Math.max(maxUp, (cols[ci2+1]&&cols[ci2+1].tie)? 2 : 1);
-    if(c.ferm) maxUp=Math.max(maxUp, 2);                         // v41.1 延长号需上方空间（休止上也可标）
+    if(c.ferm) maxUp=Math.max(maxUp, (c.chord? 3 : 2));          // v41.1 延长号需上方空间（休止上也可标）；v64.9 同列有和弦框时再抬一档
     if(c.breath) maxUp=Math.max(maxUp, 1);
     if(c.ped) maxDown=Math.max(maxDown, 2);                      // v41.3 踏板 Ped.____* 需谱表下方空间
     if(!c.deg) return;
@@ -6918,15 +6951,20 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     }
     /* v54.8 首个简谱声部紧邻 TAB 块时的上缘垫距：默认 15→20（数字顶到小节号带留 ≥8px，
        出版口径），并同样不随行距系数缩小——topExtra（连音线/倚音等预留）在此之上叠加 */
-    y += (st? 48*vv + topExtra*1.8 + ledUp + (dual?26:0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
+    DUAL_GAP[i] = dual? 26 + ledDn + (ledDn? 8 : 0) : 0;   // v64.9 B4c ④ 低音区加线落在谱表与简谱行之间（另留 8：最低符头下半 + 净距）
+    y += (st? 48*vv + topExtra*1.8 + ledUp + (dual? DUAL_GAP[i] : 0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
     /* v60.75 歌词基线 = 简谱行墨迹底 + 净空 + 歌词字的上伸高。
        旧写法是常数 25 + 分档 botExtra，既不认字号也不认真实墨迹深度。
        LYR_ASC 取 16 号中文字的上伸约 0.88em；LYR_CLEAR 取 7 —— 常见档
        （八分、无低音点）的净空与旧版基本持平，只把压到 0.5px 的极端档拉回来。 */
     const LYR_ASC = 16*0.88, LYR_CLEAR = 7;
-    const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC;
-    voxYs.push(y); lyricY0.push(y + lyrDrop + ledDn);
-    y += lyrDrop + ledDn + (nL-1)*21*vl + 9*vv;
+    /* v64.9 B4c ①（P2-03）本声部有力度/表情记号时歌词再下移一条记号带（此前力度写死在数字下方 14px，压到歌词）；
+       对照谱的加线深度已放进谱表↔简谱行间隙，歌词不再重复让 */
+    const dynBand = (song.measures||[]).some(m=>((m.voxes||[])[i]||[]).some(c=>c && c.dyn))? 12 : 0;
+    const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC + dynBand;
+    const ledL = dual? 0 : ledDn;
+    voxYs.push(y); lyricY0.push(y + lyrDrop + ledL);
+    y += lyrDrop + ledL + (lyrRowsOf(i)-1)*21*vl + 9*vv;   // v64.8 按本声部实际段数
   }
   return {diagH, tabTops, voxYs, lyricY0, tabStaffB, tabJpB, h:y+2, gap:9*vs, tabExtra};
 }
@@ -7611,6 +7649,7 @@ function render(){
   { const dp=song && song.diagPos; diagMode=(dp==='top'||dp==='off')? dp : 'inline';
     const bd=document.getElementById('b-diag'); if(bd) bd.textContent='图:'+(diagMode==='inline'?'随行':diagMode==='top'?'曲首':'隐藏'); }
   renderDock();
+  lyrScan();   // v64.8 B4c ③
   const svg = document.getElementById('score');
   /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
      圆圈（圆圈大小不变，同泛音菱形 v46.1 方案）——绘制数字时需先知道自己是否目标音 */
@@ -7834,7 +7873,7 @@ function render(){
       song.voxVoices.forEach((_,vi2)=>{
         const nt2=(song.voxNotations||[])[vi2], dual2=(song.voxDual||[])[vi2];
         const vy=oy+M.voxYs[vi2];
-        if(isStaffNota(nt2)){ const sb=vy-6-(dual2?26:0); segs.push([sb-30, dual2? vy+4 : sb]); }
+        if(isStaffNota(nt2)){ const sb=vy-6-(dual2? dualGapOf(vi2) : 0); segs.push([sb-30, dual2? vy+4 : sb]); }
         else segs.push([vy-13, vy+4]);
       });
       sysConnected = segs.length>=2;
@@ -8813,7 +8852,7 @@ function render(){
       const isStaff = isStaffNota(nota);
       const isBass = nota==='bass', isAlto = nota==='alto';
       const dual = isStaff && (song.voxDual||[])[vi];   // 五线谱+简谱行联排
-      const SG=7.5, staffB=voxY-6-(dual?26:0), staffT=staffB-4*SG;
+      const SG=7.5, staffB=voxY-6-(dual? dualGapOf(vi) : 0), staffT=staffB-4*SG;
       /* v45.6 小节内换谱号：clefCur=当前生效谱号（自曲首沿列顺序推进到本行行首），
          S_BOT/S_MID 改为可变、随列切换；行首谱号与调号音位按行首生效谱号绘制 */
       let clefCur = isStaff? nota : 'staff';
@@ -8824,7 +8863,7 @@ function render(){
       const K = isStaff? staffKeyInfo() : null;
       const stepY = st=> staffB - (st-S_BOT)*(SG/2);
       const rowT = isStaff? staffT-8 : voxY-22;        // 选区/错误框顶
-      const rowH = isStaff? 44+(dual?26:0) : 30;
+      const rowH = isStaff? 44+(dual? dualGapOf(vi) : 0) : 30;
       if(isStaff){
         /* 谱线自系统左端(oxH)起，覆盖谱号/调号头部区（出版标准） */
         for(let i=0;i<5;i++)
@@ -8853,7 +8892,7 @@ function render(){
            SATB 的 T、B 两行被当成钢琴加了花括号，S、A 没有方括号） */
         { const g = vGrpEnd[vi];
           if(g){
-            const prevT = oy+M.voxYs[g.from]-6-((song.voxDual||[])[g.from]?26:0)-4*SG;
+            const prevT = oy+M.voxYs[g.from]-6-dualGapOf(g.from)-4*SG;
             if(g.type==='brace'){
               const brH = SMUFL.brace.bb[3]-SMUFL.brace.bb[1];
               const brS = (staffB-prevT)/brH;
@@ -8872,10 +8911,20 @@ function render(){
          单行歌谱按 GB 简谱出版惯例行首直接起谱（此前在 ox 处多画一条，与连体线成双线） */
       if(song.voxVoices.length>1)
         if(!isStaff) p.push(`<text x="${oxH-24}" y="${voxY-2}" font-size="10" text-anchor="middle" fill="var(--ink)" opacity="0.6">${esc(vname)}</text>`);
+      /* v64.8 B4c ⑤ 简谱小节号（song.barNums：'row' 非首行行首 / 'all' 每小节；默认不印）：只标在第一个简谱声部，
+         有六线谱或五线谱时由它们标（避免重复）。行首号收进左页边距、贴数字行上半；每小节号放小节左上角 */
+      if(!isStaff && song.barNums && !song.tabVoices.length && vi===song.voxVoices.findIndex((_,k)=>!isStaffNota((song.voxNotations||[])[k]))
+         && !(song.voxNotations||[]).some(isStaffNota)){
+        sys.measures.forEach((lmB, lbI)=>{
+          if(lmB.mi===0) return;
+          if(song.barNums==='row'){ if(lbI===0 && sIdx>0) p.push(`<text class="jbarno" x="${oxH-4}" y="${voxY-9}" font-size="9.5" text-anchor="end" fill="var(--ink)" opacity="0.65">${meaNo(lmB.mi)}</text>`); }
+          else if(song.barNums==='all') p.push(`<text class="jbarno" x="${(ox+lmB.x+2).toFixed(1)}" y="${voxY-23}" font-size="8.5" fill="var(--muted)">${meaNo(lmB.mi)}</text>`);
+        });
+      }
       /* 多段歌词段序号：标在该段歌词起始字的左侧（v54.2 用户拍板：在歌词开始位置、不在行首；
          v54.0 起不再每行重复——各段在自己起始字所在的系统标注一次）。
          整段无词时退回首系统行首占位（保留点击选段入口） */
-      if(song.lyricLines>1) for(let li=0; li<song.lyricLines; li++){
+      if(lyrRowsOf(vi)>1) for(let li=0; li<lyrRowsOf(vi); li++){   /* v64.8 无词声部不印段序号 */
         let start=null;
         for(let mi2=0; mi2<song.measures.length && !start; mi2++){
           const cs2=song.measures[mi2].voxes[vi]||[];
@@ -8938,7 +8987,7 @@ function render(){
            而非各谱表各画一段留 41px 间隙——与左端花括线端点 prevT 一致 */
         /* v64.4 B4e 钢琴花括号组：组内下方各行的小节线上延到组首谱表顶线（贯穿）；合唱方括号组各谱表各画一段 */
         const gB = vGrpOf[vi], gsBass = isStaff && !!gB && gB.type==='brace' && vi>gB.from;
-        const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-((song.voxDual||[])[vi-1]?26:0)-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
+        const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-dualGapOf(vi-1)-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
         /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
         const dotY1 = isStaff? staffB-SG*1.5 : voxY-6, dotY2 = isStaff? staffB-SG*2.5 : voxY-0.5;
         /* v64.2 B4a ②（P1-13）首小节/变拍处的反复开始记号排在拍号之后（此前压在拍号上，反复点被盖住）；
@@ -9044,7 +9093,8 @@ function render(){
                    （列头=本列 nx / 拍位=该增时线 x，与 TAB 列锚定同一 −10 口径） */
                 p.push(`<g data-vchord="${vtag}" style="cursor:pointer">${chordDiagramSVG(ch.chord, ax-10, oy+2, 0.95)}<title>${esc(ch.chord)}（点击编辑）</title></g>`);
               }else{
-              const cy2 = isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col);   /* v53.3 和弦框避让和音纵列 */
+              const cy2 = (isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col))   /* v53.3 和弦框避让和音纵列 */
+                - ((col.ferm && !(ch.q>0))? 11 : 0);   /* v64.9 B4c ①（P2-03）延长号在框下方让出位置——此前延长号压进和弦名框 */
               const disp = song.funcNames? ch.chord : chordDegree(ch.chord);
               const alt  = song.funcNames? chordDegree(ch.chord) : ch.chord;
               const w = vcDispW(ch.chord);
@@ -9324,7 +9374,9 @@ function render(){
               p.push(`<circle cx="${(nx+11+kD*4.5).toFixed(1)}" cy="${voxY-4}" r="1.7" fill="var(--ink)"/>`);
           /* 力度/速度记号：音符下方（避让减时线与低音点），渐强/渐弱画折线 */
           if(col.dyn){
-            const dyY = (isStaff && !dual)? staffB+16 : voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
+            /* v64.9 B4c ①（P2-03）五线谱力度不再写死在谱表下 16：低于谱表的音（含加线）再往下让 14 */
+            const dyY = (isStaff && !dual)? Math.max(staffB+16, col.deg? (()=>{ setClefCtx(ci); return stepY(chNotes(col)[0].st)+14; })() : 0)
+              : voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
             /* v41.2 渐强渐弱范围括线：dynTo 指向终点列 → 起列至终列开口楔形（cresc < / dim >），
                终点在下一行时画到行末断开、续行起继续，开口度沿总长线性过渡（仿 pm 断行思路）；
                cresc./dim. 文字形态则为 文字+虚线延长 */
@@ -9379,7 +9431,7 @@ function render(){
               }else{
                 dash(dstart, ox+sys.w, lineY);
                 const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];       // 终点系统 voxY
-                const sB2 = vy2-6-(dual?26:0), sT2 = sB2-4*SG, oyO2 = above? sT2-13 : sB2+15;
+                const sB2 = vy2-6-(dual? dualGapOf(vi) : 0), sT2 = sB2-4*SG, oyO2 = above? sT2-13 : sB2+15;
                 const lineY2 = above? oyO2-3.5 : oyO2-1;
                 dash(ox, ep.x+3, lineY2); endHook(ep.x+3, lineY2);
               }
@@ -9407,7 +9459,7 @@ function render(){
             }else if(ep2){
               lineP(nx+18, ox+sys.w, pyB-3);
               const vy2 = sysY[ep2.sys]+sysM[ep2.sys].voxYs[vi];
-              const pyB2 = vy2-6-(dual?26:0)+22;
+              const pyB2 = vy2-6-(dual? dualGapOf(vi) : 0)+22;
               lineP(ox, ep2.x-(end.star?7:5), pyB2-3);
               if(end.star) star(ep2.x, pyB2-3);
             }else{
@@ -9430,7 +9482,8 @@ function render(){
             const stepD = nDash===1? cw*0.42 : Math.min(cw*0.22, cw*0.66/Math.max(1,nDash));
             const dashX = d=> qx[d-1]!==undefined? mx+qx[d-1] : (nDash===1? nx+stepD : nx+stepD*d);
             for(let d=1;d<=nDash;d++){
-              p.push(`<text x="${dashX(d).toFixed(1)}" y="${voxY-1}" font-size="15.4" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">–</text>`);
+              /* v64.8 B4c ②（P2-03）增时线画成几何线段（长 9、粗 1.4、与数字中线齐）——字符「–」随字体变长变短、粗细不一 */
+              { const dx=dashX(d); p.push(`<line class="jdash" data-x="${dx.toFixed(1)}" x1="${(dx-4.5).toFixed(1)}" y1="${voxY-6}" x2="${(dx+4.5).toFixed(1)}" y2="${voxY-6}" stroke="var(--ink)" stroke-width="1.4"/>`); }
               /* v60.30 延长音拍位可选中（用户指示：延长音属于可选音符可编辑和弦）：
                  每条增时线一个压顶热区（data-q=第几拍位），点击选中本列并记住拍位，
                  创作辅助「和弦」图标即编辑该拍位的和弦；选中态在该增时线上画光标圈 */
@@ -9461,7 +9514,7 @@ function render(){
             }
           });
           p.push(`<rect x="${clx}" y="${rowT-2}" width="${cw}" height="${rowH+8}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}"${isStaff?` data-staffb="${staffB.toFixed(1)}" data-sbot="${S_BOT}"`:''} style="cursor:pointer"${isStaff?`><title>点击选中；再次点击线/间可直接定音高</title></rect`:'/'}>`);
-          for(let li=0;li<song.lyricLines;li++)
+          for(let li=0;li<lyrRowsOf(vi);li++)
             p.push(`<rect x="${clx}" y="${lyr0+li*21-15}" width="${cw}" height="20" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-zone="lyric" data-line="${li}" style="cursor:pointer"/>`);
           graceZones.forEach(z=>p.push(z));   // 倚音热区置顶层，保证可点击
           if(addsZone) p.push(addsZone);      // v53.3 和音纵列热区同置顶层
@@ -9740,7 +9793,7 @@ function render(){
     if(song.voxVoices.length){
       const nt2=(song.voxNotations||[])[0], dual2=(song.voxDual||[])[0];
       const vy2=oy2+M2.voxYs[0];
-      if(isStaffNota(nt2)){ const sb2=vy2-6-(dual2?26:0); cand.push([sb2-30, dual2? vy2+4 : sb2]); }
+      if(isStaffNota(nt2)){ const sb2=vy2-6-(dual2? dualGapOf(0) : 0); cand.push([sb2-30, dual2? vy2+4 : sb2]); }
       else cand.push([vy2-13, vy2+4]);
     }
     cand.forEach(c=>{ if(c[0]<rT){ rT=c[0]; rB=c[1]; } });
@@ -12436,6 +12489,8 @@ document.querySelectorAll('.ltab').forEach(b=>b.onclick = ()=>{
   const isOpen = !fly.classList.contains('hidden');
   if(isOpen && activeTab===b.dataset.t){ closeFlyout(); }
   else { openFlyout(b.dataset.t); }
+  /* v64.8 B4c ③ 进出「歌词」图层：无词声部的歌词行要展开/收起，立即重排一次 */
+  if((activeTab==='lyr') !== LYR_ALL && LYR_ANY) render();
 });
 /* 右侧信息栏折叠卡片（曲谱信息/使用帮助为按钮，直接触发其自身弹窗） */
 document.querySelectorAll('#right-dock .rc-h:not(.rc-btn)').forEach(h=>h.onclick = ()=>{
@@ -22019,6 +22074,7 @@ function laySync(){
   document.querySelectorAll('#lp-preset button').forEach(b=>b.classList.toggle('on', b.dataset.preset===c.preset));
   document.querySelectorAll('#lp-page button').forEach(b=>b.classList.toggle('on', b.dataset.page===c.page));
   document.querySelectorAll('#lp-fix button').forEach(b=>b.classList.toggle('on', (b.dataset.fix==='1')===!!c.fixed));
+  document.querySelectorAll('#lp-bar button').forEach(b=>b.classList.toggle('on', b.dataset.bn===(song.barNums||'')));
   document.querySelectorAll('#lp-rgtar button').forEach(b=>b.classList.toggle('on', b.dataset.rg===layRgTarget));
   const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
   set('lp-scale', c.scale); set('lp-rowgap', c.rowGap[layRgTarget]); set('lp-notegap', c.noteGap);
@@ -22047,6 +22103,8 @@ document.getElementById('lp-preset').onclick = e=>{ const b=e.target.closest('bu
   layApply({preset:b.dataset.preset, density:LAY_PRESETS[b.dataset.preset]}); };
 document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;
   layApply({page:b.dataset.page}); };
+document.getElementById('lp-bar').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;   /* v64.8 B4c ⑤ */
+  mutate(()=>{ if(b.dataset.bn) song.barNums=b.dataset.bn; else delete song.barNums; }); laySync(); };
 document.getElementById('lp-fix').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;   /* v64.5 B8 ① */
   layApply({fixed: b.dataset.fix==='1'}, {fit:false});
   toast(b.dataset.fix==='1'? '已固定版宽：断行与页数按纸张算，换窗口、换电脑、打印都一样' : '已改为随窗口排版（打印时的断行可能与屏幕不同）'); };
@@ -24112,7 +24170,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -24135,6 +24193,7 @@ const APP_VER='v64.7';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.8</span><div><b>谱面更紧凑、记号不再打架</b>（2026-10 评审团 B4c 间距与避让）。<br>① <b>歌词行按各声部实际用到的段数留</b>：只有女高写了词的四声部合唱，其余三行下面不再各空两行歌词位，也不再印孤零零的段序号「1 2」（钢琴伴奏谱里曾印进花括号内）；写了一段词的声部只留一行。编辑时切到左侧「歌词」图层，所有声部的歌词行会展开，方便点进去填词。<br>② <b>增时线等距</b>：长音后面的「－」以前挤在一起（四拍宽 62.8 / 18.8 / 14.5 / 16.1），现在只有增时线的拍不再被压窄；「－」改为几何线段，导出 PDF / 图片后粗细长短一致。<br>③ <b>简谱小节号</b>：顶栏「排版」里新增「简谱小节号：不印 / 行首 / 每小节」，排练时可以说「从第 17 小节起」。<br>④ <b>记号避让</b>：简谱力度记号不再压到歌词（有力度的声部歌词下移一条记号带）；五线谱力度遇到低音区加线音时自动下移；延长号不再压进和弦名框。<br>⑤ <b>教学对照谱低音区</b>：五线谱下加线音不再压住下方简谱数字（1=G 时曾重叠 9px），谱表与简谱行之间按实际音域留空。<br>新套件 <code>tv_b4c</code>（5 项）、<code>tv_b4c2</code>（3 项），旧文件全部报红；<code>tv_dot</code> 改数几何增时线。</div></li>
     <li><span class="v">v64.7</span><div><b>纯和弦谱按乐句换行</b>（2026-10 评审团 B8 版面与显示解耦第三批）。<br>① 纯和弦谱（小节格里只写和弦）以前只按宽度换行，16 小节常被排成 3+3+3+3+3+1，读的时候乐句被拆散；现在优先每行 4 小节（排不下时 2 小节），一行一个乐句。<br>② 段落标记、反复记号、房子、段落线处另起一行，乐句从那里重新数（弱起谱从第二小节起数）。<br>③ 只作用于纯和弦谱，歌谱、弹唱谱等的换行不变。<br>新套件 <code>tv_b8c</code>（3 项，旧文件前两项报红，第三项为歌谱不回归护栏）。</div></li>
     <li><span class="v">v64.6</span><div><b>手机看谱字号回到正常大小 · 新增「跟练大字」</b>（2026-10 评审团 B8 版面与显示解耦第二批）。<br>① <b>手机按屏宽重新排版</b>：以前手机上是把至少 520 宽的版面缩到屏幕宽，TAB 品位只剩约 7.6px、和弦名 7.5px，跟练时看不清；现在屏宽 820 以内按手机屏宽重排、页边距收窄，品位约 11px、和弦名约 13px，不需要左右滑动。小节特别密的谱（十六分＋两段歌词）会按最宽那一小节的需要略放宽版面，宁可稍小也不让音符互相压住。<br>② <b>跟练大字</b>：手机「观看设置」→「显示效果」里新增「标准字号 / 跟练大字」，跟练大字把品位、和弦名放到 13px 以上，仍按屏宽排、不出现横向滚动，选择会记住。<br>③ 电脑上的版面与打印不受影响。<br>新套件 <code>tv_b8b</code>（3 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.5</span><div><b>新建谱固定版宽：换电脑、换窗口、打印，断行和页数都一样</b>（2026-10 评审团 B8 版面与显示解耦第一批；负责人拍板 D-09「新建谱固定纸宽」）。<br>① 以前谱面按当前窗口宽度排版：同一首谱，作者在大屏上排成 8 行，学生在笔记本上看是 14 行 2 页，打印出来又是另一种断行。现在<b>新建的谱按 A4 标准版宽排版</b>，屏幕上只按可视宽度缩放显示（最低 80%，再窄就左右滚动），作者、读者、打印三方的断行与页数一致。<br>② <b>老谱不受影响</b>，想统一的话在顶栏「排版」里把「版宽」切到「固定（与打印一致）」，随时可切回「随窗口」。<br>③ 手机（屏宽 820 以内）仍按手机屏宽重排，字不会被缩得看不清；用手机打印固定版宽的谱时，照样按标准版宽出纸。<br>新套件 <code>tv_b8a</code>（5 项，旧文件全部报红）。</div></li>

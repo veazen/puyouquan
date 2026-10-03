@@ -97,7 +97,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   r = await pg.evaluate(() => {
     const Vc = (deg, dur, dot) => ({dur, dotted:dot||false, deg, acc:'', oct:0, lyrics:[], tie:false});
     const s = createSong('vocal', {beats:4, unit:4, key:'C', nMea:1, nVox:1, lyr:0});
-    const dash = svg => (svg.match(/>–<\/text>/g) || []).length;
+    const dash = svg => (svg.match(/class="jdash"/g) || []).length;   // v64.8 增时线改几何线段
     const jdot = svg => (svg.match(/r="1\.7"/g) || []).length;
     const probe = cols => {
       song.measures[0].voxes[0] = cols; blurSel = true; render();
@@ -147,7 +147,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].voxes[0] = [Vc(6,1)];                                              // 全音符 → 3 条增时线
     loadSong(s); blurSel = true; render();
     const html = () => document.getElementById('score').innerHTML;
-    const dashXs = h => [...h.matchAll(/<text x="([\d.]+)"[^>]*>–<\/text>/g)].map(m => +m[1]);
+    const dashXs = h => [...h.matchAll(/class="jdash" data-x="([\d.]+)"/g)].map(m => +m[1]);   // v64.8 几何线段中心
     const tabX = (h, f) => { const m = h.match(new RegExp('<text x="([\\d.]+)"[^>]*>' + f + '</text>')); return m ? +m[1] : NaN; };
     let h = html();
     const whole = { d: dashXs(h), t: [tabX(h,13), tabX(h,14), tabX(h,15)] };
@@ -171,7 +171,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const L = measureLayout(song.measures[0]);
     const qx = L.voxes[0].qxs[0];
     const mono = qx.every((v, i) => !i || v > qx[i-1] + 8);       // 三条横线保持间距（空拍被撑开）
-    const nDash = (document.getElementById('score').innerHTML.match(/>–<\/text>/g) || []).length;
+    const nDash = (document.getElementById('score').innerHTML.match(/class="jdash"/g) || []).length;
     return { n: qx.length, mono, inside: qx[2] <= L.w - 14, edge: (L.w - qx[2]).toFixed(1), nDash };
   });
   T(r.n === 3 && r.mono && r.inside && r.nDash === 3, 'T7 行尾空拍增时线不压小节线', JSON.stringify(r));
@@ -215,7 +215,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     extendBeat(1); out.b3 = st();               // 2,true,2
     extendBeat(1); out.b4 = st();               // 1,false,1（全音符独占小节）
     extendBeat(1); out.cap = st();              // 拒绝：仍 1,false,1
-    const dash = (document.getElementById('score').innerHTML.match(/>–</g)||[]).length;
+    const dash = (document.getElementById('score').innerHTML.match(/class="jdash"/g)||[]).length;
     out.dash3 = dash;                            // 4 拍=3 条增时线
     extendBeat(-1); out.shrink = st()+';'+(cols()[1] && !cols()[1].deg ? 'rest' : 'x');   // 缩回 3 拍+补休止
     return out;
