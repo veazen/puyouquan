@@ -74,7 +74,7 @@ const ROOT = process.env.MUSETAB_ROOT || path.resolve(__dirname, '../..');
     const link = /<li><span class="v">更早<\/span><div>[^<]*<a href="https:\/\/www\.puyouquan\.com\/log-full\.html"/.test(src);
     const fullP = path.join(path.dirname(FILE), 'site', 'log-full.html'); const full = fs.existsSync(fullP) ? fs.readFileSync(fullP, 'utf8') : '';
     const vers = [...full.matchAll(/<li><span class="v">(v[\d.]+)<\/span>/g)].map(m => m[1]);
-    T(inline <= 40 && inline >= 20 && link && vers.includes('v37.1') && new Set(vers).size === vers.length && vers.length >= 300, 'T6 更新日志瘦身：内联 ≤40 条 + 完整日志页', JSON.stringify({ inline, link, nFull: vers.length })); }
+    T(inline <= 60 && inline >= 20 && link && vers.includes('v37.1') && new Set(vers).size === vers.length && vers.length >= 300, 'T6 更新日志瘦身：内联 ≤60 条（超出即跑归档脚本）+ 完整日志页', JSON.stringify({ inline, link, nFull: vers.length })); }
 
   /* T7 */
   await EV(() => { loadSong(big(3)); mutate(() => { song.title = '关页前改的标题'; }); });

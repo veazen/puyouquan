@@ -12,7 +12,7 @@
 ## 发版流水线（每个版本）
 1. 改 `muse-tab/index.html`
 2. `node deploy/check-syntax.js muse-tab/index.html`（语法闸）→ `cd muse-tab/tests && node tv_matrix.js`（+ 涉及功能的专项套件；Playwright chromium 路径 env `CHROMIUM_PATH`）
-3. 应用内更新日志加 `<li>`（搜 `b-changelog`，版本号递增）+ **同步递增 `APP_VER` 常量**（线上版本角标与冒烟落位都读它；语法闸会拦不一致——v59.2 教训）
+3. 应用内更新日志加 `<li>`（搜 `b-changelog`，版本号递增）+ **同步递增 `APP_VER` 常量**（线上版本角标与冒烟落位都读它；语法闸会拦不一致——v59.2 教训）；内联日志超过 60 条时先跑 `node deploy/changelog-archive.js --keep=40`（更早的搬到 `muse-tab/site/log-full.html`，v65.6 起）
 4. **更新 `PROJECT.md`**（版本号/进度表/受影响章节）
 5. commit（中文、按版本号）+ push
 6. 重发编辑器 artifact 预览 + 截图验证发给用户
