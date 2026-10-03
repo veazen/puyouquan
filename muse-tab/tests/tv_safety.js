@@ -60,6 +60,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     Storage.prototype.setItem = function(){ throw new DOMException('QuotaExceededError'); };
     persist._warned = false;
     mutate(() => { song.title = '配额测试'; });
+    persistNow();   /* v65.6 B6a ② 落盘防抖：写盘在 350ms 后合并执行，这里立即 flush 触发配额异常 */
     Storage.prototype.setItem = old;
     return { toast: document.getElementById('toast').textContent };
   });

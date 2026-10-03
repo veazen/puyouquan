@@ -32,10 +32,12 @@ for (const path of files) {
      语法闸查不出、只有 CI 的 tv_rclick 拦下。闸：顶层 `function 名(` 重复即拦截发版。 */
   {
     const seen = new Map(), dups = [];
-    const fnRe = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+    /* v65.6 B6a ⑤：也盖住 async function 与顶层 const/let/var 箭头函数常量——同一 <script> 内重复 const 本是语法错，
+       但四段内联脚本各自解析，跨段同名常量要到运行时才炸（Identifier has already been declared），这里一并拦 */
+    const fnRe = /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\b|\([^)\n]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/gm;
     let fm;
     while ((fm = fnRe.exec(html))) {
-      const name = fm[1];
+      const name = fm[1] || fm[2];
       const line = html.slice(0, fm.index).split('\n').length;
       if (seen.has(name)) dups.push(name + '（行 ' + seen.get(name) + ' 与 ' + line + '）');
       else seen.set(name, line);
