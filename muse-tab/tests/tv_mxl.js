@@ -113,7 +113,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const c=r.song.measures[0].voxes[0];
     return { key:r.song.key, beats:r.song.beats, clef:r.song.voxNotations[0],
       cols:c.map(x=>x.deg+':'+x.dur+(x.dotted?'.':'')).join(' '),
-      skipped:r.skip.notes, renderOK:h.length>1000 && !h.includes('NaN') };
+      skipped:(r.skip.voices||0)+r.skip.notes,   /* v65.1 B3a ⑥ 第二声部音符改计入 skip.voices */ renderOK:h.length>1000 && !h.includes('NaN') };
   })()`);
   const ok5 = !t5.error && t5.key==='Eb' && t5.beats===3 && t5.clef==='bass' && t5.cols==='1:4 3:4. 0:8' && t5.skipped===1 && t5.renderOK;
   console.log((ok5?'✅':'❌')+' 第三方fixture: key='+t5.key+'(Eb) beats='+t5.beats+' 谱号='+t5.clef+' 列='+t5.cols+'(期望 1:4 3:4. 0:8) 跳过voice2='+t5.skipped+' 渲染='+t5.renderOK);
