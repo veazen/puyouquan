@@ -105,6 +105,7 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     const res=[];
     PRESETS.forEach((P,i)=>{
       loadSong(P.make()); blurSel=true; render();
+      if(song.chordOnly) return;   /* v64.7 B8 ③ 纯和弦谱按乐句断行（4/2 小节）优先于拉伸均匀度，不参与「DP 不劣于贪心」的纯宽度比较 */
       const AV=PAGE_W-2*MARGIN-STAFF_HEAD_W;
       const nat=song.measures.map(m=>measureLayout(m).w);
       if(nat.length<4) return;

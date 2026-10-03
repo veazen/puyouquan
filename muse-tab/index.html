@@ -6596,13 +6596,28 @@ function layoutSystems(){
        （0=压缩、1=贴合、2=偏松、3=很松），相邻两行档位差 >1 记一笔 ADJ_PEN——
        密度要变就渐变，不许跳变；同一段落自然收敛成统一的每行小节数。 */
     const NC = 4, ADJ_PEN = 55;
+    /* v64.7 B8 ③（P3-08）纯和弦谱按乐句断行：此前 DP 只看宽度，16 小节排成 3+3+3+3+3+1。
+       行尾不落在 4 小节乐句边界记 120、落在 2 小节边界记 35（弱起谱从第 2 小节起数）；
+       段落标记、反复开始/结束、段落线、房子处是段落起点：在那里断行不罚、乐句从那里重新数，
+       一行跨过段落起点（起点落在行中间）另记 120 */
+    const secSt = song.measures.map((m,k)=>{ if(k===0) return true; const pm=song.measures[k-1];
+      return !!(m.repeatStart || m.label || m.volta || (pm && (pm.repeatEnd || pm.sectionBar || pm.finalBar))); });
+    const phrPen = j=>{                       // 乐句计数从最近一个段落起点重新起算
+      if(!song.chordOnly || j>=n || secSt[j]) return 0;
+      let a=j; while(a>0 && !secSt[a]) a--;
+      const k = j - a - ((a===0 && song.pickup)? 1 : 0);
+      return k%4===0? 0 : k%2===0? 35 : 120;
+    };
     const clsOf = w=> w>availW? 0 : (w>=availW*0.87? 1 : (w>=availW*0.70? 2 : 3));
     const cost = Array.from({length:n+1},()=>new Array(NC).fill(Infinity));
     const prev = Array.from({length:n+1},()=>new Array(NC).fill(null));
     cost[0][1] = 0;                          // 虚拟起点；i===0 时不计相邻惩罚，档位无所谓
     for(let j=1;j<=n;j++){
       let w = 0, rg = 0;
+      const pPen = phrPen(j);
+      let innerSec = false;                   // 本行（i..j-1）中间是否夹着段落起点
       for(let i=j-1;i>=0;i--){
+        if(i < j-1 && secSt[i+1]) innerSec = true;
         w += W[i];
         rg += R[i];
         if(i < j-1 && rg > availW) break;    // 刚杆放不下＝排出来必然把字压重叠，再往左只会更挤
@@ -6615,6 +6630,7 @@ function layoutSystems(){
         else { const f = (w-availW)/Math.max(1, w-rg);                // 压缩：要吃掉的弹簧 / 可吃的弹簧
           pen = 100*Math.pow(Math.min(1.5, f), 3); }
         if(i > 0 && song.measures[i].pull === 1) pen += PULL_PEN;    // 违反 pull：能不违反就不违反
+        pen += pPen + (song.chordOnly && innerSec? 120 : 0);          // v64.7 纯和弦谱乐句断行
         const cj = clsOf(w);
         for(let ci=0;ci<NC;ci++){
           if(cost[i][ci]===Infinity) continue;
@@ -24096,7 +24112,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -24119,6 +24135,7 @@ const APP_VER='v64.6';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.7</span><div><b>纯和弦谱按乐句换行</b>（2026-10 评审团 B8 版面与显示解耦第三批）。<br>① 纯和弦谱（小节格里只写和弦）以前只按宽度换行，16 小节常被排成 3+3+3+3+3+1，读的时候乐句被拆散；现在优先每行 4 小节（排不下时 2 小节），一行一个乐句。<br>② 段落标记、反复记号、房子、段落线处另起一行，乐句从那里重新数（弱起谱从第二小节起数）。<br>③ 只作用于纯和弦谱，歌谱、弹唱谱等的换行不变。<br>新套件 <code>tv_b8c</code>（3 项，旧文件前两项报红，第三项为歌谱不回归护栏）。</div></li>
     <li><span class="v">v64.6</span><div><b>手机看谱字号回到正常大小 · 新增「跟练大字」</b>（2026-10 评审团 B8 版面与显示解耦第二批）。<br>① <b>手机按屏宽重新排版</b>：以前手机上是把至少 520 宽的版面缩到屏幕宽，TAB 品位只剩约 7.6px、和弦名 7.5px，跟练时看不清；现在屏宽 820 以内按手机屏宽重排、页边距收窄，品位约 11px、和弦名约 13px，不需要左右滑动。小节特别密的谱（十六分＋两段歌词）会按最宽那一小节的需要略放宽版面，宁可稍小也不让音符互相压住。<br>② <b>跟练大字</b>：手机「观看设置」→「显示效果」里新增「标准字号 / 跟练大字」，跟练大字把品位、和弦名放到 13px 以上，仍按屏宽排、不出现横向滚动，选择会记住。<br>③ 电脑上的版面与打印不受影响。<br>新套件 <code>tv_b8b</code>（3 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.5</span><div><b>新建谱固定版宽：换电脑、换窗口、打印，断行和页数都一样</b>（2026-10 评审团 B8 版面与显示解耦第一批；负责人拍板 D-09「新建谱固定纸宽」）。<br>① 以前谱面按当前窗口宽度排版：同一首谱，作者在大屏上排成 8 行，学生在笔记本上看是 14 行 2 页，打印出来又是另一种断行。现在<b>新建的谱按 A4 标准版宽排版</b>，屏幕上只按可视宽度缩放显示（最低 80%，再窄就左右滚动），作者、读者、打印三方的断行与页数一致。<br>② <b>老谱不受影响</b>，想统一的话在顶栏「排版」里把「版宽」切到「固定（与打印一致）」，随时可切回「随窗口」。<br>③ 手机（屏宽 820 以内）仍按手机屏宽重排，字不会被缩得看不清；用手机打印固定版宽的谱时，照样按标准版宽出纸。<br>新套件 <code>tv_b8a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.4</span><div><b>合唱谱用方括号、钢琴谱用花括号 · 二声部合唱不再被当成钢琴谱</b>（2026-10 评审团 B4e 声部分组与谱类判定）。<br>① <b>声部分组括线</b>：四声部合唱切到五线谱后，S、A、T、B 四行左侧是一条合唱方括号（以前 T、B 两行被加上钢琴花括号，S、A 什么都没有）；钢琴谱仍是花括号。合唱谱的小节线各谱表各画一段，留出歌词位置；钢琴谱的小节线照旧贯穿上下两行。<br>② <b>谱类判定</b>：高音谱表＋低音谱表的二声部合唱（有歌词）现在算「歌谱」，不再判成钢琴独奏谱——加轨、智能配谱面板都恢复可用，发布到谱库的分类也正确（显示为「五线谱合唱谱」）。没有歌词的两行谱仍是钢琴谱；钢琴弹唱、器乐重奏不受影响。新建向导选「合唱 2–4 声部」时会记下分组，以后切到五线谱也认得是合唱。<br>③ 服务端谱库分类与编辑器同一套规则。<br>新套件 <code>tv_b4e</code>（4 项，旧文件全部报红）。</div></li>
