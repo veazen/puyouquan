@@ -437,6 +437,36 @@ chk 处理举报 '"closed":1' "$(J2 -X POST http://127.0.0.1:3199/api/admin/repo
 chk 管理员核查已售出 '已付款订单 0 笔' "$(DB_PATH=$DIR/t.db node admin.js sold pack_kaobian)"
 chk 管理员看预约人数 'pack_kaobian  1 人' "$(DB_PATH=$DIR/t.db node admin.js reserves)"
 
+# v63.4 A7 度量地基：一方匿名标识 pyq_anon、事件白名单补齐、首触来源、注册缝合、按访客+IP 限流、去重漏斗与留存、分享渠道
+J4(){ curl -s -b "$DIR/jar4" -c "$DIR/jar4" -H 'Content-Type: application/json' "$@"; }
+SQL(){ node -e "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync(process.argv[1]);const r=d.prepare(process.argv[2]).all();console.log(JSON.stringify(r))" "$DIR/t.db" "$1"; }
+H1=$(curl -s -D - -o /dev/null -b "$DIR/jar4" -c "$DIR/jar4" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"visit","meta":"kaobian","src":"utm:bd/cpc/kb","landing":"www/kaobian.html"}')
+chk 首个事件下发匿名标识 'pyq_anon=' "$H1"
+chk 匿名标识HttpOnly '[Hh]ttp[Oo]nly' "$(grep -i 'pyq_anon' <<< "$H1")"
+H2=$(curl -s -D - -o /dev/null -b "$DIR/jar4" -c "$DIR/jar4" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"cta_click","meta":"kaobian:开始制谱"}')
+nchk 已有标识不重发 'pyq_anon=' "$H2"
+ANON=$(grep -oE 'pyq_anon\s+[A-Za-z0-9_-]+' "$DIR/jar4" | awk '{print $2}')
+chk 首触来源与落地页入库 'utm:bd/cpc/kb.*www/kaobian.html' "$(SQL "SELECT src,landing FROM events WHERE anon_id='$ANON' AND name='visit'")"
+chk 新增事件名被接收 '"name":"cta_click"' "$(SQL "SELECT name FROM events WHERE anon_id='$ANON'")"
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"signup","meta":"forged"}' >/dev/null
+chk 客户端不能伪造注册事件 '\[\]' "$(SQL "SELECT id FROM events WHERE meta='forged'")"
+R4=$(J4 -X POST http://127.0.0.1:3199/api/auth/sms/send -d '{"phone":"13800007777"}'); C4=$(grep -oE '"dev_code":"[0-9]{6}"' <<< "$R4" | grep -oE '[0-9]{6}')
+J4 -X POST http://127.0.0.1:3199/api/auth/sms/verify -d "{\"phone\":\"13800007777\",\"code\":\"$C4\"}" >/dev/null
+chk 注册事件缝合匿名标识 "\"anon_id\":\"$ANON\"" "$(SQL "SELECT anon_id FROM events WHERE name='signup' AND meta='sms' ORDER BY id DESC LIMIT 1")"
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"arrange_done","meta":"slow:teach"}' >/dev/null
+chk 登录后事件同时带账号与匿名标识 '"user_id":"[^"]\+","anon_id":"'"$ANON" "$(SQL "SELECT user_id,anon_id FROM events WHERE name='arrange_done' ORDER BY id DESC LIMIT 1")"
+OV=$(J2 http://127.0.0.1:3199/api/admin/overview)
+chk 漏斗带去重人数 '"name":"visit","n":[0-9]*,"u":[0-9]' "$OV"
+chk 北极星与留存 '"metrics":{"north7":[1-9]' "$OV"
+chk 匿名与账号缝合为同一人 '"name":"cta_click","n":1,"u":1' "$OV"
+chk CLI统计带人数与北极星 '北极星' "$(DB_PATH=$DIR/t.db node admin.js stats)"
+for i in $(seq 1 305); do curl -s -o /dev/null -b "$DIR/jar5" -c "$DIR/jar5" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"transpose","meta":"flood"}'; done
+curl -s -o /dev/null -b "$DIR/jar6" -c "$DIR/jar6" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"transpose","meta":"flood2"}'
+chk 单访客每小时300条封顶 '"n":300' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE meta='flood'")"
+chk 同IP的其他访客不受牵连 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE meta='flood2'")"
+chk 落地页分享渠道带进观看页 'kanpu.html?pub=bulk00238xx&amp;f=card' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=card')"
+nchk 非法渠道不带 'f=%3Cx' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=%3Cx%3E')"
+
 # v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
 node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!
 PORT=3197 DB_PATH="$DIR/t2.db" JWT_SECRET=testsecret COOKIE_DOMAIN= DEV_OTP=1 WX_API_BASE=http://127.0.0.1:3196 \

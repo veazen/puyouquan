@@ -41,7 +41,7 @@ for (const rel of ['index/index.js', 'score/score.js']) {
   let ctx = { curUrl: 'https://puku.puyouquan.com/kanpu.html?pub=abc123', id: 'abc123' };
   pg.onMsg.call(ctx, msg({ pubId: 'abc123', title: '难忘的一天', share: '难忘的一天 - 许巍 · 吉他弹唱谱', img: IMG }));
   let r = pg.onShareAppMessage.call(ctx, { webViewUrl: 'https://puku.puyouquan.com/kanpu.html?pub=abc123' });
-  T(r.title === '难忘的一天 - 许巍 · 吉他弹唱谱' && r.path === '/pages/score/score?id=abc123' && r.imageUrl === IMG,
+  T(r.title === '难忘的一天 - 许巍 · 吉他弹唱谱' && r.path === '/pages/score/score?id=abc123&f=mp' && r.imageUrl === IMG,
     tag + ' 好友卡：完整标题+缩略图', JSON.stringify(r));
   let rt = pg.onShareTimeline.call(ctx);
   T(rt.title === '难忘的一天 - 许巍 · 吉他弹唱谱' && rt.query === 'id=abc123' && rt.imageUrl === IMG,
@@ -50,7 +50,7 @@ for (const rel of ['index/index.js', 'score/score.js']) {
   // 没收到素材：标题回落、imageUrl 必设品牌图（不设时微信自动截屏 web-view＝空白图）
   ctx = { curUrl: 'https://puku.puyouquan.com/kanpu.html?pub=zzz9', id: 'zzz9' };
   r = pg.onShareAppMessage.call(ctx, { webViewUrl: 'https://puku.puyouquan.com/kanpu.html?pub=zzz9' });
-  T(r.imageUrl === BRAND && /谱友圈/.test(r.title) && r.path === '/pages/score/score?id=zzz9',
+  T(r.imageUrl === BRAND && /谱友圈/.test(r.title) && r.path === '/pages/score/score?id=zzz9&f=mp',
     tag + ' 无素材回落品牌图', JSON.stringify(r));
 
   // 外域图片拒收（防嵌入页塞外链）；旧 title 仍收

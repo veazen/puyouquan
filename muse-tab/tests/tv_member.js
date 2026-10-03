@@ -94,7 +94,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     viewerMode = o.vm; viewerCtx = o.ctx;
     return { url, fn: typeof showShareCardModal === 'function', helper: typeof shareCardCanvas === 'function' };
   });
-  T(t5.url === 'https://puku.puyouquan.com/pub/abc12345' && t5.fn && t5.helper, 'T5 看谱页分享卡(URL优先当前谱)', JSON.stringify(t5));
+  T(t5.url === 'https://puku.puyouquan.com/pub/abc12345?f=card' && t5.fn && t5.helper, 'T5 看谱页分享卡(URL优先当前谱)', JSON.stringify(t5));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

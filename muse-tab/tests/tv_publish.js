@@ -171,7 +171,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const urlEl = document.getElementById('pd-url'); const cp = circlePubs()[0];
     return {
       noCreator: !window.__calls.some(c => c.url === '/api/me/creator'),   // admin 不该再去开创作者
-      done: urlEl ? urlEl.value === 'https://puku.puyouquan.com/pub/' + e.id : false,
+      done: urlEl ? urlEl.value === 'https://puku.puyouquan.com/pub/' + e.id + '?f=link' : false,   // v63.4 A7 链接带分享渠道
       online: !!(cp && cp.online), status: cp && cp.status,
     };
   });

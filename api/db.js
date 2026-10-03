@@ -148,6 +148,12 @@ try { db.exec('ALTER TABLE users ADD COLUMN deleted_at INTEGER'); } catch { /* �
    过审那一刻把 data/标题/演唱/署名/缩图冻结进 pub_* 列，公开端（谱库列表/详情/SSR/sitemap/缩图）只读快照；
    作者此后的保存（含编辑器每 6 秒的自动保存）只改草稿列，**主动「提交更新审核」**才进 rev_status='pending'，
    管理员通过后才用草稿刷新快照。署名在审核时固化，改昵称不会影响已发布谱。列只增不改名（数据红线）。 */
+/* v63.4 A7 ② 事件表加列：anon_id（一方匿名标识）、src（首触来源：utm/referrer）、landing（落地页）——meta 只有 120 字放不下 */
+for (const col of ['anon_id TEXT', 'src TEXT', 'landing TEXT']) {
+  try { db.exec('ALTER TABLE events ADD COLUMN ' + col); } catch { /* 列已存在 */ }
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_events_time ON events(created_at)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_events_anon ON events(anon_id)');
 for (const col of ['pub_data TEXT', 'pub_title TEXT', 'pub_singer TEXT', 'pub_author TEXT', 'pub_thumb BLOB', 'pub_thumb_mime TEXT',
   'pub_thumb_at INTEGER', 'pub_at INTEGER', "rev_status TEXT NOT NULL DEFAULT ''", "rev_note TEXT NOT NULL DEFAULT ''"]) {
   try { db.exec('ALTER TABLE scores ADD COLUMN ' + col); } catch { /* 列已存在 */ }
@@ -343,6 +349,10 @@ const q = {
   redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC, rowid DESC LIMIT ?'),
   eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
   eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
+  /* v63.4 A7：带去重人数 u（user_id 优先，否则 anon_id；都没有的历史行不计人数） */
+  eventStatsU:  db.prepare("SELECT name, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC"),
+  eventScan:    db.prepare('SELECT user_id, anon_id, name, created_at FROM events WHERE created_at > ? ORDER BY created_at'),
+  eventAddX:    db.prepare('INSERT INTO events(user_id,name,meta,created_at,anon_id,src,landing) VALUES(?,?,?,?,?,?,?)'),
   /* v60.87 站内信。广播可见窗口＝近 90 天（server.js 传 cutoff）：老公告对所有人自然过期、
      新注册用户也能看到近期公告（若按注册时间过滤，注册前一天发的公告会被冤枉地藏掉）。
      read 用 LEFT JOIN 已读表判定；列表/未读数/一键已读三条 SQL 的可见范围口径必须一致。 */

@@ -17533,6 +17533,7 @@ function refingToast(st){
 function stepKey(delta){
   let st=null;
   mutate(()=>{ st=transposeSong(song, delta); });
+  pyqEvent('transpose', 'bar:'+delta);   // v63.4 A7
   updateEdKeyPop();
   toast('已换调 1='+song.key+refingToast(st)+'——可 Ctrl+Z 撤销');
 }
@@ -17850,6 +17851,7 @@ function updateEdKeyPop(){
 function edTranspose(delta){
   let st=null;
   mutate(()=>{ st=transposeSong(song, delta); });
+  pyqEvent('transpose', 'pop:'+delta);   // v63.4 A7
   if(ekBase) ekBase.dirty=true;
   updateEdKeyPop();
   toast('唱调 '+edSoundKey()+refingToast(st)+'——可 Ctrl+Z 撤销');
@@ -18588,6 +18590,7 @@ function showNewWizard(){
       closeModal();
       addDoc(r.song, ()=>{
         setRibbon('vox');
+        pyqImportDone('mxl');
         const sk=r.skip.notes+r.skip.other;
         toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节'
           +(sk? '；跳过 '+sk+' 处暂不支持的记号（详见帮助）':'')
@@ -18744,6 +18747,7 @@ document.getElementById('b-arrange').onclick = ()=>{
     /* v41.5 单窗口化：产出谱替换当前窗口——原旋律谱若未入库先自动存入「我的曲谱」，
        保证素材不因替换丢失（此前靠"另开窗口"保留） */
     if(!song.id) saveToLibrary();
+    pyqEvent('arrange_done', (texId||'')+(pure?':pure':':teach'));   // v63.4 A7 北极星成品事件
     addDoc(r.song, ()=>{
       setRibbon('vox');
       toast('已生成《'+r.song.title+'》：'+r.gen.done+' 小节伴奏'
@@ -18784,6 +18788,7 @@ document.getElementById('b-acctex').onclick = ()=>{
     let r;
     mutate(()=>{ r=genAccompaniment(texId,m1,m2); song.texId=texId; });
     closeModal();
+    if(r && r.done) pyqEvent('tex_gen', texId+':'+r.done);   // v63.4 A7
     toast(r.done? `已生成 ${r.done} 小节伴奏`+(r.noChord? `，${r.noChord} 小节无和弦跳过`:'')+(r.skipMeter? `，${r.skipMeter} 小节拍号与织体不符跳过`:'')+'（可编辑，Ctrl+Z 撤销）'
                 : r.mismatch? '未生成：所选范围的拍号与该织体不符'
                 : '未生成：所选范围没有标注和弦——先选中右手的音，在右栏「创作」页点「和弦」标注');
@@ -19802,6 +19807,7 @@ function showGPTrackModal(gp){
     closeModal();
     addDoc(r.song, ()=>{
       setRibbon(defaultLayer());
+      pyqImportDone('gp');
       const sk=r.skip.notes+r.skip.other;
       toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节 · '+selIdx.length+' 条音轨'
         +(sk? '；简化/跳过 '+sk+' 处（多声部/打击乐/暂不支持记号）':'')
@@ -20549,6 +20555,7 @@ function showMidiImport(smf){
     closeModal();
     addDoc(r.song, ()=>{
       setRibbon(r.song.tabVoices.length? 'tab':'vox');
+      pyqImportDone('mid');
       toast('已导入 MIDI 草稿：'+r.song.measures.length+' 小节'
         +(r.skipped? '；量化简化 '+r.skipped+' 处（和音超限/超细时值）':'')
         +(r.octShift? '；'+r.octShift+' 个音超出指板音域按八度折入':'')
@@ -20630,6 +20637,7 @@ function pvMidiApply(smf, ti){
     }
   });
   const names = row==='tab'? song.tabVoices : song.voxVoices;
+  pyqImportDone('voice');
   toast('已导入到「'+((names&&names[vi])||'声部')+'」：'+nMea+' 小节'+extra+'（Ctrl+Z 或顶栏 ↶ 可撤销）');
 }
 /* ===== MIDI 导出（P0-D）=====
@@ -20977,8 +20985,8 @@ function qrModules(text, ecc) {
 /* 分享卡链接：已发布谱→ puku/pub/ID（可被搜索引擎/微信收录的 SSR 落地页，扫码后自动转在线观看），否则官网。
    v45.5 观看模式：正在看的发布谱（viewerCtx.pubId）优先——看谱人生成的分享卡直达这首谱。 */
 function shareCardURL(){
-  try{ if(typeof viewerMode!=='undefined' && viewerMode && viewerCtx && viewerCtx.pubId) return "https://puku.puyouquan.com/pub/"+viewerCtx.pubId; }catch(_){}
-  try{ const rec=circlePubs().find(p=>p&&p.online&&p.cloudId&&p.libId===song.id); if(rec) return "https://puku.puyouquan.com/pub/"+rec.cloudId; }catch(_){}
+  try{ if(typeof viewerMode!=='undefined' && viewerMode && viewerCtx && viewerCtx.pubId) return "https://puku.puyouquan.com/pub/"+viewerCtx.pubId+"?f=card"; }catch(_){}   // v63.4 A7 ?f= 渠道
+  try{ const rec=circlePubs().find(p=>p&&p.online&&p.cloudId&&p.libId===song.id); if(rec) return "https://puku.puyouquan.com/pub/"+rec.cloudId+"?f=card"; }catch(_){}
   return "https://puyouquan.com";
 }
 function buildShareCardSVG(){
@@ -21227,11 +21235,11 @@ document.getElementById('b-print').onclick = ()=>{
       <button id="ex-print" class="primary">打印 / 存 PDF</button>
     </div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
-  document.getElementById('ex-png').onclick = ()=>{ closeModal(); exportPNG(2); };
-  document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); pyqEvent('export','mxl'); downloadMusicXML(); };
-  document.getElementById('ex-mid').onclick = ()=>{ closeModal(); pyqEvent('export','mid'); downloadMIDI(); };
+  document.getElementById('ex-png').onclick = ()=>{ closeModal(); pyqEvent('export_png'); exportPNG(2); };
+  document.getElementById('ex-mxl').onclick = ()=>{ closeModal(); pyqEvent('export_mxl'); downloadMusicXML(); };
+  document.getElementById('ex-mid').onclick = ()=>{ closeModal(); pyqEvent('export_mid'); downloadMIDI(); };
   document.getElementById('ex-card').onclick = ()=>{ closeModal(); pyqEvent('share_card'); exportShareCard(); };
-  document.getElementById('ex-icard').onclick = ()=>{ closeModal(); exportInteractiveCard(); };
+  document.getElementById('ex-icard').onclick = ()=>{ closeModal(); pyqEvent('export_icard'); exportInteractiveCard(); };
   document.getElementById('ex-print').onclick = ()=>{
     setPrintPage(document.getElementById('ex-size').value);
     closeModal();
@@ -21347,6 +21355,7 @@ function removePrintPages(){
   document.body.classList.remove('printing');
 }
 window.addEventListener('beforeprint', ()=>{
+  pyqEvent('print_dialog', viewerMode?'viewer':'editor');   /* v63.4 A7 北极星成品事件（取消打印也会触发 afterprint——口径偏高，见 §9.1） */
   if(noWrapOn() || (viewerMode && innerWidth<=820)) PRINT_PAGING=true;
   if(!PRINT_SNAP) PRINT_SNAP = cleanSnapSave();
   render();
@@ -21504,8 +21513,24 @@ async function entRefresh(){
 /* v45.3 埋点（fire-and-forget；仅线上生效，file://预览/测试环境 no-op） */
 function pyqEvent(name, meta){
   if(!API_ON) return;
-  try{ apiCall('/events',{method:'POST',body:{name, meta:meta||''}}).catch(()=>{}); }catch(_){}
+  const body={name, meta:String(meta==null?'':meta)};
+  /* v63.4 A7 ③ 首触来源：访问事件带上 utm / 站外 referrer / 落地页（服务端 src、landing 两列；匿名标识 pyq_anon 由服务端 Cookie 下发） */
+  if(name==='visit'){ const t=pyqTouch(); body.src=t.src; body.landing=t.landing; }
+  try{ apiCall('/events',{method:'POST',body}).catch(()=>{}); }catch(_){}
 }
+function pyqTouch(){
+  let src='', landing='';
+  try{
+    const sp=new URLSearchParams(location.search);
+    const utm=['utm_source','utm_medium','utm_campaign'].map(k=>sp.get(k)||'').join('/');
+    if(utm.replace(/\//g,'')) src='utm:'+utm;
+    else if(document.referrer){ const h=new URL(document.referrer).hostname; if(h && !/(^|\.)puyouquan\.com$/i.test(h)) src='ref:'+h; }
+    landing=location.hostname.split('.')[0]+location.pathname+(sp.get('start')?('?start='+sp.get('start')):'');
+  }catch(_){}
+  return {src, landing};
+}
+/* v63.4 A7 导入完成：带节拍检查结果，供「导入成品率」口径（§9.2：导入后 beatErrors=0 且随后被导出或发布） */
+function pyqImportDone(kind){ try{ pyqEvent('import_done', kind+':be'+beatErrors().length); }catch(_){} }
 /* ================= 个人中心：个人资料 / 创作者中心 / 我的曲谱 / 我的权益 ================= */
 const PROFILE_KEY = 'musetab-profile';
 const CREATOR_KEY = 'musetab-creator';
@@ -21642,7 +21667,7 @@ function showPublishDone(title, cloudId, online){
     const ok=document.getElementById('pd-ok'); if(ok) ok.onclick=()=>closeModal();
     return;
   }
-  const url='https://puku.puyouquan.com/pub/'+cloudId;
+  const url='https://puku.puyouquan.com/pub/'+cloudId+'?f=link';   // v63.4 A7 ?f= 渠道
   showModal(`<h3>${svgi('check',18)} 发布成功</h3>
     <p style="font-size:13px;color:var(--muted);margin:2px 0 12px">《${esc(title)}》已上架在线谱库，任何人都能通过下方链接在线观看、移调、跟谱。</p>
     <label class="f"><span>公开链接</span><input id="pd-url" readonly value="${esc(url)}" style="flex:1" onclick="this.select()"></label>
@@ -22069,6 +22094,7 @@ function updateVwKey(){
 }
 function vwTranspose(delta){
   vwTrans=Math.max(-11, Math.min(11, vwTrans+delta));
+  pyqEvent('transpose', 'viewer:'+delta);   // v63.4 A7
   const keep={mi:sel.mi, row:sel.row, vi:sel.vi, ci:sel.ci, si:sel.si};
   const sy=window.scrollY;
   song=viewerBuildSong();
@@ -22306,7 +22332,7 @@ function wxShareCard(){
         ((viewerCtx&&viewerCtx.pb&&viewerCtx.pb.author)? '制谱 '+viewerCtx.pb.author : '')].filter(Boolean).join(' · ')
         +'｜谱友圈在线看谱 · 可播放 · 可移调',
       /* v58.4 卡片链接统一 puku 谱库域（用户拍板）：/pub/ID 落地页可爬可分享，真人自动转观看页 */
-      link: (viewerCtx&&viewerCtx.pubId)? 'https://puku.puyouquan.com/pub/'+viewerCtx.pubId : pageUrl,
+      link: (viewerCtx&&viewerCtx.pubId)? 'https://puku.puyouquan.com/pub/'+viewerCtx.pubId+'?f=wx' : pageUrl,
       imgUrl: 'https://www.puyouquan.com/share-icon.png'
     };
     /* v60.79 小程序 web-view 环境：分享卡由小程序层接管——onShareAppMessage/onShareTimeline
@@ -22363,6 +22389,8 @@ async function openRemotePub(id, review){
   if(!data || !data.measures || !data.measures.length){ bootVeilDone(); toast('曲谱数据异常'); return; }
   data.author = sc.author || data.maker || '谱友圈';
   if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
+  /* v63.4 A7 传播：分享出去的链接带 ?f=渠道（card 分享卡二维码 / wx 微信卡片 / link 发布后复制 / mp 小程序），落地即记 share_open */
+  if(!review){ try{ const f=new URLSearchParams(location.search).get('f')||''; if(/^[a-z]{2,8}$/.test(f)) pyqEvent('share_open', f+':'+id); }catch(_){} }
   viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
   /* v60.84 thumbAt 随谱带上：小程序分享卡要引服务端缩略图，URL 里 thumb_at 兼做缓存指纹 */
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999, thumbAt:sc.thumb_at||0}, own:true, total:data.measures.length, pubId:id, stats:pubStats};
@@ -22974,6 +23002,7 @@ function pcxHeroHTML(){
    opts.hint：自定义副标题文案；opts.pendingFav：微信整页跳转前暂存待收藏 id，回跳后补收藏。 */
 function openLogin(opts){
   opts=opts||{};
+  pyqEvent('signup_prompt', String(opts.hint||'').slice(0,24));   // v63.4 A7 注册漏斗入口
   /* v62.4 A0-6：任何分支先关登录弹窗。此前无 onDone 时只调 openPersonal——个人中心已打开的情况下
      enterPersonal 不会 closeModal，登录成功后弹窗挂着不走、「取消」也关不掉，只能点遮罩。
      取消且不在个人中心时只关窗，不再把人拽进个人中心。 */
@@ -23319,7 +23348,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v63.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v63.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23342,6 +23371,7 @@ const APP_VER='v63.3';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v63.4</span><div><b>能回答「多少人做出了成品、从哪里来」：一方度量地基</b>（2026-10 评审团 A7；按拍板只用第一方统计，不接第三方）。<br>① <b>匿名访客标识</b>：服务端在 puyouquan.com 下发一个随机的匿名标识（Cookie <code>pyq_anon</code>），官网、制谱器、谱库三站共用，不含手机号等个人信息；登录后与账号关联，「访问 → 注册 → 使用」才能算作同一个人。隐私政策已于 v62.9 披露。<br>② <b>关键事件补齐</b>：按评审团清单补上配伴奏、生成织体、换调、导入（带拍数检查结果）、打印、导出图片 / 互动谱 / MusicXML / MIDI、登录弹窗、下单、点赞，以及官网的访问、落地页、去制谱器的点击、谱库零结果搜索，课程的进入、深链、过关。<br>③ <b>来源与传播</b>：访问事件记首触来源（广告参数或站外来源网站）和落地页；分享出去的链接带渠道标记（分享卡二维码 / 微信卡片 / 发布后复制 / 小程序），好友打开时记一次「分享打开」。<br>④ <b>后台数字按人去重</b>：管理后台概览的事件漏斗显示「人数 / 次数」，新增北极星（7 天内做出成品谱的人数：配伴奏、打印、导出图片、发布任一）与次日、第 7 天留存；<code>node admin.js stats</code> 同口径。<br>⑤ <b>统计不再被共用网络压低</b>：限流从「每个 IP 每小时 300 条」改为「每个访客每小时 300 条」（同一 IP 另设 3000 条上限），学校机房这类共用出口的访客不再被整体少算。<br>⑥ 课程页支持 <code>?s=小节</code> 深链直达某一节。小程序同版更新到 1.1.6（发起转发记 <code>mp_share</code>，卡片带渠道标记）。新套件 <code>tv_a7</code>（6 项，旧文件全部报红）；接口测试 318 项。</div></li>
     <li><span class="v">v63.3</span><div><b>课程测验不能再靠蒙 · 课程内容勘误 · 全站文案对账</b>（2026-10 评审团 A5 内容纠错第二批）。<br>① <b>测验选项每次打乱</b>：之前选项照原顺序排，七成题目的答案都是 B，一路选 B 就能过关。现在每次出题都打乱顺序，题库里的答案位置也重新均衡。<br>② <b>已发布课程不能再把坏题直接上线</b>：之前已发布的课保存时不做发布校验，一道空题就能让学员卡在本节、后面整章全锁。现在保存已发布的课和点发布走同一道检查；保存后的提示也如实说明「学员立即看到新内容」还是「草稿，学员看不到」。<br>③ <b>《认识简谱》勘误</b>：「改成 1=G 每个音都升高」改为「整体搬到以 G 为 do 的高度」；「单独一个数字＝一拍」限定在以四分音符为一拍的拍子里；53231323 分解型的时值说法改正；去掉不规范的「1 - .」写法；「一小节要凑满」挪到讲完小节线和拍号之后（学习进度不受影响）。<br>④ <b>课程小毛病</b>：通关最后一章不再提示「第 7 章已解锁」（全课只有 6 章）；课程页反复刷新不再叠加按键监听；课程里的「互动谱」卡直达同名谱的观看页，不再停在搜索页。<br>⑤ <b>文案对账</b>：撤掉已下线的「哼唱成谱」、过时的「九种场景 / 八场景」「单窗口」「新建会替换当前窗口」「点谱面＋和弦」，「11 套织体」改为如实的 21 套（4/4 拍 15 套，2/4、3/4、6/8 各 2 套），删去「不懂五线谱也能」「为吉他爱好者打造」等旧口号；新增文案禁止词检查，发版时自动拦截。<br>⑥ <b>谱库官方示例谱</b>：《小星星》句末改为「5 -」「1 -」，与课程教的一致；《欢乐颂》换成示范词。线上已有的这两首需管理员在服务器执行一次 <code>node admin.js seed-fix</code> 修订（只改从未被人动过的官方谱）。新库建好后示例谱也会立即出现在谱库里。<br>新套件 <code>tv_a5b</code>（7 项，旧文件全部报红）；接口测试 302 项。</div></li>
     <li><span class="v">v63.2</span><div><b>官方示例谱纠错：《送别》按原曲重录 · 《欢乐颂》换成自有歌词 · 课程「听一听」时值听得出来了</b>（2026-10 评审团 A5 内容纠错第一批）。<br>① <b>《送别》按公版原曲重录</b>：之前的旋律与原曲多处对不上，还把「天之涯」当成第二段词套在第一句的旋律上，「拂」「柳」两个字之间误画了连线。现在是完整的 16 小节（长亭外 → 晚风拂柳 → 天之涯 → 一壶浊酒），一字多音的地方（亭、草、连、风、阳……）用圆滑线连起来，后一个音不再挂字。<br>② <b>两份《欢乐颂》换成谱友圈自己写的示范词</b>：原先用的通行中文译词没有署译配者、权属待核，按拍板改用与四部合唱同一份示范词（让我们来齐声歌唱……），署名不再写「席勒」；教学对照谱里「女」「神」两个字之间的连线一并去掉。<br>③ <b>独奏示例页头不再显示「1=Am」</b>：a 小调按 C 调号记写。<br>④ <b>制谱页五线谱演示画对了</b>：「一闪一闪亮晶晶」后五个音之前画在 B、C 的位置，与旁边的简谱和六线谱对不上；现在是 C C G G A A G。<br>⑤ <b>课程谱例「听一听」时值正确</b>：分开写的增时线「1 -」「1 - -」「1 - - -」之前听起来都只有 1 拍，「5 - ~ 5」还响两次；现在分别是 2、3、4 拍，延音线两端同音只响一次。<br>新套件 <code>tv_a5</code>（6 项，旧文件全部报红）；<code>tv_playperf</code> 的等待用例钉住其余音色包，CI 外网下载不再造成偶发红。</div></li>
     <li><span class="v">v63.1</span><div><b>不会在看不见的地方改谱 · 面板开合后谱面不再被裁 · 歌词一个字一个字能撤销</b>（2026-10 评审团 A3 编辑会话安全；手机编辑按拍板先做「只读 + 发到电脑继续」）。<br>① <b>启动台上不会再误改上次的谱</b>：之前启动台盖住了谱面，但工具栏按钮和快捷键仍然有效——按个数字、Delete 或 Ctrl+Z，看不见的「上次编辑」就被改了并自动保存。现在启动台上编辑区点不中（淡出显示），编辑快捷键一律不生效，只保留 Ctrl+O 打开文件。<br>② <b>谱面右侧不再被裁</b>：新建谱、点「继续上次编辑」或开合左栏面板后，谱面沿用旧宽度，右边被裁掉 100–240 像素且滚动不过去。现在编辑区宽度一变就重新排版。<br>③ <b>歌词可以逐个音撤销</b>：之前逐字填歌词不进撤销记录，按一次 Ctrl+Z 会抹掉一整批歌词还连带撤掉前一次改音，再编辑一次就再也找不回。现在每换一个音记一步，同一个音里连续输入算一步，Ctrl+Z 只退最后一个音的词，Ctrl+Y 可以重做。<br>④ <b>手机启动台改为只读引导</b>：手机上还录不了音高，原来点「新建」会进入写不了谱的死胡同。现在手机上显示「看示例」「发到电脑继续」（复制制谱链接）「打开」「我的」，并说明写谱请到电脑上继续。<br>⑤ <b>小节线菜单不出屏</b>：菜单原来按估算宽度定位，实际更宽，手机上右侧出屏还会撑出横向滚动。现在所有浮层菜单出现时都会夹回屏幕内。<br>新套件 <code>tv_a3</code>（7 项，旧文件全部报红）。</div></li>

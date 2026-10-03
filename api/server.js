@@ -64,10 +64,20 @@ const VER = 'wx-1';
 const MAX_BODY = 3 * 1024 * 1024;      // 谱面 JSON 上限 3MB（nginx 侧另有 4m）
 const MAX_SCORES = 500, MAX_COLLS = 50, MAX_COLL_ITEMS = 500;
 const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第一个真实权益开关）
-/* v45.3 埋点白名单（客户端 8 + 服务端 4：signup/login/redeem_ok/order_paid 由 handler 直写） */
-const EVENT_NAMES = new Set(['visit', 'create_song', 'export', 'publish', 'open_pub', 'paywall_view', 'fav', 'like', 'share_card',
-  'signup', 'login', 'redeem_ok', 'order_paid']);
-let evHour = 0; const evCount = new Map();       // 每 IP 每小时事件计数（内存态，重启清零可接受）
+/* v45.3 埋点白名单（客户端 8 + 服务端 4：signup/login/redeem_ok/order_paid 由 handler 直写）
+   v63.4 A7 按评审团 §9.1 关键事件清单补齐（新增事件名必须同时加在这里，否则静默丢弃）。
+   客户端可报：访问与落地 / 制谱 / 导出与发布 / 传播 / 课程；signup/login/pay_create/order_paid/redeem_ok 只由服务端写。 */
+const EVENT_CLIENT = ['visit', 'landing_view', 'cta_click', 'zero_result',
+  'create_song', 'arrange_done', 'tex_gen', 'transpose', 'import_done',
+  'print_dialog', 'export_png', 'export_icard', 'export_mxl', 'export_mid', 'share_card', 'publish', 'export',
+  'share_open', 'mp_share', 'open_pub', 'paywall_view', 'fav', 'signup_prompt',
+  'course_view', 'lesson_done', 'lesson_deeplink'];
+const EVENT_SERVER_ONLY = new Set(['signup', 'login', 'redeem_ok', 'order_paid', 'pay_create', 'like']);
+const EVENT_NAMES = new Set([...EVENT_CLIENT, ...EVENT_SERVER_ONLY]);
+/* 北极星「做出成品谱」口径（§9.1）：7 天内去重访客/用户产生过任一成品事件 */
+const EVENT_DONE = ['arrange_done', 'print_dialog', 'export_png', 'publish'];
+let evHour = 0; const evCount = new Map();       // 每 访客+IP 每小时事件计数（内存态，重启清零可接受）
+const evIpCount = new Map();                     // v63.4 每 IP 每小时总量硬上限（防轮换 cookie 刷量）
 let thumbHour = 0; const thumbCount = new Map(); // v60.7 每用户每小时缩图上传计数（同上，内存态）
 const PHONE_RE = /^1[3-9]\d{9}$/;
 const ID_RE = /^[A-Za-z0-9_-]{8,40}$/;  // 客户端生成的谱面 id
@@ -91,14 +101,37 @@ function jwtVerify(tok) {
     return pl.exp > now() ? pl : null;
   } catch { return null; }
 }
+/* v63.4 同一响应可能要下发多枚 Cookie（登录 + 匿名标识）：追加而不是覆盖 */
+function addCookie(res, c) {
+  const prev = res.getHeader('Set-Cookie');
+  res.setHeader('Set-Cookie', prev ? [].concat(prev, c) : c);
+}
 function setAuthCookie(res, token) {
   const dom = COOKIE_DOMAIN ? `; Domain=${COOKIE_DOMAIN}; Secure` : '';
-  res.setHeader('Set-Cookie', `pyq_token=${token}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax${dom}`);
+  addCookie(res, `pyq_token=${token}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax${dom}`);
 }
 function clearAuthCookie(res) {
   const dom = COOKIE_DOMAIN ? `; Domain=${COOKIE_DOMAIN}; Secure` : '';
-  res.setHeader('Set-Cookie', `pyq_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${dom}`);
+  addCookie(res, `pyq_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${dom}`);
 }
+/* v63.4 A7 ① 一方匿名标识 pyq_anon：随机 16 位、不含任何个人信息（隐私政策「访问统计与设备标识」已披露），
+   Domain=.puyouquan.com 让 www / zhipu / puku 三站同一访客同一标识；两年有效，清 Cookie 即重置。
+   只在打事件时下发（首个 visit 即带上）；登录后事件同时记 user_id 与 anon_id＝匿名身份与账号的缝合。 */
+const ANON_RE = /^[A-Za-z0-9_-]{12,40}$/;
+function anonOf(req) {
+  const m = /(?:^|;\s*)pyq_anon=([^;]+)/.exec((req && req.headers && req.headers.cookie) || '');
+  return m && ANON_RE.test(m[1]) ? m[1] : '';
+}
+function ensureAnon(req, res) {
+  const a = anonOf(req);
+  if (a) return a;
+  const n = crypto.randomBytes(12).toString('base64url');
+  const dom = COOKIE_DOMAIN ? `; Domain=${COOKIE_DOMAIN}; Secure` : '';
+  addCookie(res, `pyq_anon=${n}; Max-Age=63072000; Path=/; HttpOnly; SameSite=Lax${dom}`);
+  return n;
+}
+/* 服务端直写事件（signup/login/pay_create…）也带上匿名标识，供漏斗按人去重与注册缝合 */
+function evt(req, uid, name, meta) { q.eventAddX.run(uid || null, name, String(meta || '').slice(0, 120), now(), anonOf(req) || null, '', ''); }
 function authUser(req) {
   const m = /(?:^|;\s*)pyq_token=([^;]+)/.exec(req.headers.cookie || '');
   if (!m) return null;
@@ -183,6 +216,7 @@ async function wxCallbackFlow(req, res, appid, secret) {
   try {
     const prof = await wx.webExchange(code, { appid, secret });
     const u = upsertWxUser(prof);
+    evt(req, u.id, u.created_at >= now() - 5 ? 'signup' : 'login', 'wx');   // v63.4 微信网页登录此前不记事件
     setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
     return { ___redirect: withFlag('ok') };
   } catch (e) { console.error('微信登录失败:', e.message); return { ___redirect: withFlag('fail') }; }
@@ -382,7 +416,7 @@ function pubMeta(row) {
     key: String(d.key || '').slice(0, 6), beats: +d.beats || 0, unit: +d.unit || 0, tempo: +d.tempo || 0,
     lyric: lyricExcerpt(d, 140), chords: chordSeq(d, 16) };
 }
-function pubSsrHtml(row, related) {
+function pubSsrHtml(row, related, from) {
   const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`;
   /* v60.6 og:image 优先用真实谱面缩图（栅格）：微信/微博等抓取端对 SVG 支持参差，
      且真谱面比品牌封面更能说明这首谱长什么样；没生成过缩图的老谱仍回落 cover.svg。
@@ -390,7 +424,8 @@ function pubSsrHtml(row, related) {
   const img = p.thumb ? `${PUB_CANON}/api/pub/${p.id}/thumb?v=${p.thumb}` : `${canon}/cover.svg`;
   /* v58.5 观看页驻 puku 域（用户要求分享链路地址栏全程 puku）：跳 site/kanpu.html（发布落位时
      由编辑器单文件复制而来），不再跳 zhipu；免费制谱 CTA 仍指 zhipu 编辑器 */
-  const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}`;
+  /* v63.4 A7 分享渠道 ?f= 原样带进观看页（观看页据此记 share_open）；canonical 不带，避免同谱多 URL 分散收录 */
+  const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}${from ? '&f=' + from : ''}`;
   const pageTitle = `${p.title}${p.singer ? ' · ' + p.singer : ''} ${p.typeCn} - 谱友圈谱库`;
   const ld = {
     '@context': 'https://schema.org', '@type': 'MusicComposition',
@@ -620,6 +655,29 @@ function courseCheck(data) {
   });
 }
 
+/* v63.4 A7 ⑤ 去重漏斗与留存：访客键＝user_id（登录后）否则 anon_id；同一 anon 一旦与账号缝合（任一事件同时带两者），
+   其登录前的匿名事件也归到该账号——「访问→注册→使用」才算同一个人。
+   北极星：近 7 天产生过任一成品事件（EVENT_DONE）的去重人数；D1/D7：按首次出现日分组，次日/第 7 天仍有事件的比例
+   （只统计已过观察期的分组，近 21 天窗口）。纯内存聚合，事件表规模大后改物化表。 */
+function eventMetrics() {
+  const t = now(), day = x => Math.floor(x / 86400);
+  const rows = q.eventScan.all(t - 21 * 86400);
+  const link = {};
+  rows.forEach(r => { if (r.user_id && r.anon_id) link[r.anon_id] = r.user_id; });
+  const key = r => r.user_id || (r.anon_id && link[r.anon_id]) || (r.anon_id ? 'a:' + r.anon_id : null);
+  const days = new Map(), done = new Set();
+  rows.forEach(r => {
+    const k = key(r); if (!k) return;
+    if (!days.has(k)) days.set(k, new Set());
+    days.get(k).add(day(r.created_at));
+    if (EVENT_DONE.includes(r.name) && r.created_at > t - 7 * 86400) done.add(k);
+  });
+  const today = day(t), ret = n => { let base = 0, back = 0;
+    days.forEach(ds => { const first = Math.min(...ds); if (first > today - n) return; base++; if (ds.has(first + n)) back++; });
+    return { base, back, rate: base ? Math.round(back * 1000 / base) / 10 : null }; };
+  return { north7: done.size, visitors7: [...days.values()].filter(ds => Math.max(...ds) > today - 7).length, d1: ret(1), d7: ret(7) };
+}
+
 const routes = [
   ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wx_mini: !!(WX_MINI_APPID && WX_MINI_SECRET), wxpay: wxpayOn() })],
 
@@ -652,8 +710,8 @@ const routes = [
       const id = crypto.randomUUID();
       q.userCreate.run(id, phone, randNick(), now());
       u = q.userById.get(id);
-      q.eventAdd.run(u.id, 'signup', 'sms', now());     // v45.3 埋点
-    } else q.eventAdd.run(u.id, 'login', 'sms', now());
+      evt(req, u.id, 'signup', 'sms');     // v45.3 埋点；v63.4 带 anon＝注册缝合
+    } else evt(req, u.id, 'login', 'sms');
     setAuthCookie(res, jwtSign({ uid: u.id, tv: u.tok_ver }));
     return { user: pubUser(u), is_new: u.created_at >= now() - 5 };
   }],
@@ -824,7 +882,7 @@ const routes = [
      phone 是合成占位（wx+hash），换设备就接不上。这里用同一套短信验证码把真号绑上，
      绑定后与网页短信登录是同一个账号。
      不做账号合并：目标号已被占用时明确拒绝并指路，绝不静默改写任何一方的数据。 */
-  ['POST', /^\/api\/me\/bind-phone$/, true, (m, b, u) => {
+  ['POST', /^\/api\/me\/bind-phone$/, true, (m, b, u, req) => {
     if (PHONE_RE.test(u.phone)) throw new ApiError(400, '该账号已绑定手机号');
     const phone = String(b.phone || ''), code = String(b.code || '');
     if (!PHONE_RE.test(phone) || !/^\d{6}$/.test(code)) throw new ApiError(400, '参数不正确');
@@ -839,7 +897,7 @@ const routes = [
     }
     q.otpDelete.run(phone);
     q.userSetPhone.run(phone, u.id);
-    q.eventAdd.run(u.id, 'login', 'bind_phone', now());
+    evt(req, u.id, 'login', 'bind_phone');
     return { user: pubUser(q.userById.get(u.id)) };
   }],
   ['POST', /^\/api\/me\/creator$/, true, (m, b, u) => {   // 创作者开放注册
@@ -862,7 +920,7 @@ const routes = [
     q.ipQuotaBump.run('rd:' + ip, day);
     const r = redeemApply(code, u.id);
     if (!r) throw new ApiError(400, '兑换码无效或已被使用');
-    q.eventAdd.run(u.id, 'redeem_ok', r.kind, now());
+    evt(req, u.id, 'redeem_ok', r.kind);
     return { ok: true, kind: r.kind, expires_at: r.expires_at };
   }],
   /* -- v45.4 微信支付（Native 扫码）：下单→前端出码→轮询 status；发货一律以主动查单 SUCCESS 为准 -- */
@@ -870,7 +928,7 @@ const routes = [
     wxpay: wxpayOn(),
     prices: Object.fromEntries(Object.entries(PRICES).map(([k, v]) => [k, { fen: v.fen, desc: v.desc }])),
   })],
-  ['POST', /^\/api\/pay\/create$/, true, async (m, b, u) => {
+  ['POST', /^\/api\/pay\/create$/, true, async (m, b, u, req) => {
     const p = PRICES[String(b.kind || '')];
     if (!p) throw new ApiError(400, '未知商品');
     if (p.sale === false) throw new ApiError(400, '该内容还在筹备中，暂不开放购买——可在权益页免费预约，上线后第一时间通知你');
@@ -879,6 +937,7 @@ const routes = [
     const otn = ('P' + t + crypto.randomBytes(6).toString('hex')).slice(0, 32);   // 商户单号：≤32 位字母数字
     const orderId = crypto.randomUUID();
     q.orderCreate.run(orderId, u.id, b.kind, p.fen, 'wxpay', otn, 'pending', t, null);
+    evt(req, u.id, 'pay_create', b.kind);   // v63.4 A7 付费漏斗：下单
     const codeUrl = await wxpay.nativePrepay({ description: p.desc, outTradeNo: otn, totalFen: p.fen, notifyUrl: WXPAY.notifyUrl }, WXPAY);
     return { order_id: orderId, code_url: codeUrl, amount_fen: p.fen };
   }],
@@ -911,15 +970,23 @@ const routes = [
     } catch (e) { console.error('支付回调处理失败:', e.message); return { ___status: 500, code: 'FAIL', message: 'retry' }; }
   }],
 
-  ['POST', /^\/api\/events$/, false, (m, b, u, req) => {
+  ['POST', /^\/api\/events$/, false, (m, b, u, req, res) => {
     const name = String(b.name || '');
-    if (!EVENT_NAMES.has(name)) return { ok: true };                  // 未知事件静默丢弃（不给探测面）
+    if (!EVENT_NAMES.has(name) || EVENT_SERVER_ONLY.has(name)) return { ok: true };   // 未知/服务端专属事件静默丢弃（不给探测面、不许伪造注册）
+    const anon = ensureAnon(req, res);
     const ip = ipOf(req);
     const h = Math.floor(Date.now() / 3600000);
-    if (evHour !== h) { evHour = h; evCount.clear(); }
-    const c = (evCount.get(ip) || 0) + 1; evCount.set(ip, c);
-    if (c > 300) return { ok: true };                                 // 每 IP 每小时 300 条上限，超出静默丢弃
-    q.eventAdd.run(u ? u.id : null, name, String(b.meta || '').slice(0, 120), now());
+    if (evHour !== h) { evHour = h; evCount.clear(); evIpCount.clear(); }
+    /* v63.4 A7 ⑥ 限流按「访客+IP」计 300 条/时：学校机房、公司共用出口 IP 时不再整体被压到 300 条（系统性低估）；
+       每 IP 另设 3000 条/时硬上限，防清 Cookie 轮换刷量 */
+    const k = ip + '|' + anon, c = (evCount.get(k) || 0) + 1, ci = (evIpCount.get(ip) || 0) + 1;
+    evCount.set(k, c); evIpCount.set(ip, ci);
+    if (c > 300 || ci > 3000) return { ok: true };
+    /* 首次触达的来源与落地页只认访问类事件（meta 只有 120 字，放不下 referrer + utm，故单列） */
+    const touch = name === 'visit' || name === 'landing_view';
+    const src = touch ? String(b.src || '').replace(/[\u0000-\u001f]/g, '').slice(0, 160) : '';
+    const landing = touch ? String(b.landing || '').replace(/[\u0000-\u001f]/g, '').slice(0, 200) : '';
+    q.eventAddX.run(u ? u.id : null, name, String(b.meta || '').slice(0, 120), now(), anon, src, landing);
     return { ok: true };
   }],
 
@@ -1039,7 +1106,7 @@ const routes = [
       pending: sts.pending || 0, published: sts.published || 0, revisions: q.revPendingCount.get().n,
       reports: q.reportOpenCount.get().n, reserves: Object.fromEntries(q.reserveCount.all().map(r => [r.kind, r.n])),
       orders: { paid: paid.n, amount_fen: paid.fen },
-      funnel: q.eventStats.all(now() - 7 * 86400) };
+      funnel: q.eventStatsU.all(now() - 7 * 86400), metrics: eventMetrics() };
   }],
   ['GET', /^\/api\/admin\/users$/, true, (m, b, u, req) => {
     requireAdmin(u);
@@ -1357,7 +1424,8 @@ ${lis}
     /* v61.7 相关曲谱内链（同歌手优先，再补最新）：谱页彼此互链成网，收录不再只靠目录单点 */
     /* v62.7 A6：相关推荐改带条件的小查询（同歌手优先，再补最新），按谱 10 分钟缓存——此前每次打开都整份解析最新 200 份谱面 */
     const related = pubRelatedCached(s.id, s.singer || '');
-    return { ___raw: pubSsrHtml(s, related), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
+    const f = new URL(req.url, 'http://x').searchParams.get('f') || '';
+    return { ___raw: pubSsrHtml(s, related, /^[a-z]{2,8}$/.test(f) ? f : ''), ___ctype: 'text/html; charset=utf-8', ___cache: 'public, max-age=300' };
   }],
   ['GET', /^\/pub\/([A-Za-z0-9_-]+)\/cover\.svg$/, false, (m) => {
     const s = q.pubGet.get(m[1]);
@@ -1403,10 +1471,10 @@ ${lis}
 
   /* -- v60.97 点赞（结构同收藏；计数在公开详情 stats 里带回）-- */
   ['GET', /^\/api\/likes$/, true, (m, b, u) => ({ likes: q.likeList.all(u.id), cards: q.likeCards.all(u.id).map(pubShape) })],
-  ['PUT', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => {
+  ['PUT', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u, req) => {
     const s = needScore(m[1]);
     if (s.status !== 'published') throw new ApiError(403, '仅可点赞已发布的谱面');
-    q.likePut.run(u.id, s.id, now()); return { ok: true };
+    q.likePut.run(u.id, s.id, now()); evt(req, u.id, 'like', s.id); return { ok: true };   // v63.4 A7 点赞由服务端记（此前白名单有名、无人上报）
   }],
   ['DELETE', /^\/api\/likes\/([A-Za-z0-9_-]+)$/, true, (m, b, u) => { q.likeDel.run(u.id, m[1]); return { ok: true }; }],
 

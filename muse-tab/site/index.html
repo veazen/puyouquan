@@ -77,6 +77,7 @@
       return '<button class="fchip lg'+(st.cat===c[0]&&!st.favOnly?' on':'')+'" data-cat="'+c[0]+'">'+c[1]+'</button>'; }).join('')
       +'<button class="fchip lg fav'+(st.favOnly?' on':'')+'" data-fav>♥ 收藏</button>';
   }
+  var zrLast='';
   function pool(){ var have={}; all.forEach(function(s){ have[s.id]=1; });
     return all.concat(Object.keys(extra).map(function(k){ return extra[k]; }).filter(function(s){ return !have[s.id]; })); }
   function remoteSearch(){
@@ -108,6 +109,9 @@
         +'<br><a class="btn" id="empty-make" href="//zhipu.puyouquan.com/">自己配一份谱 →</a>'
         +'<br><a href="mailto:support@puyouquan.com?subject=想要的谱" style="display:inline-block;margin-top:12px;font-size:12.5px;color:var(--muted)">告诉我们你想要的谱 →</a></div>';
     var c=document.getElementById('lib-count'); if(c) c.textContent=list.length+' 首';
+    /* v63.4 A7 零结果搜索（带 query）：等全库补搜也落空才记，同一个词只记一次——这是「用户想要但谱库没有」的清单 */
+    var zq=st.q.trim();
+    if(!list.length && zq && !st.favOnly && (total<=all.length || remoteQ===zq) && zq!==zrLast && window.PYQ_EV){ zrLast=zq; PYQ_EV.send('zero_result', zq.slice(0,60)); }
     moreWrap.hidden = searching() || list.length<=st.shown;
     mobileMakeLinks();
     if(show.length && !grid.dataset.ready) requestAnimationFrame(function(){ grid.dataset.ready='1'; });

@@ -190,8 +190,18 @@ const cmds = {
     const d = Math.max(1, +days || 7);
     const c = t => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
     console.log(`用户=${c('users')}  曲谱=${c('scores')}  已发布=${q.pubCount.get().n}  订单=${c('orders')}  权益=${c('entitlements')}  未用码=${db.prepare('SELECT COUNT(*) AS n FROM redeem_codes WHERE used_by IS NULL').get().n}`);
-    console.log(`近 ${d} 天事件：`);
-    q.eventStats.all(now() - d * 86400).forEach(e => console.log(`  ${e.name}  ${e.n}`));
+    console.log(`近 ${d} 天事件（次数 / 去重人数）：`);
+    q.eventStatsU.all(now() - d * 86400).forEach(e => console.log(`  ${e.name}  ${e.n} / ${e.u}`));
+    /* v63.4 A7 北极星与留存（口径见 server.js eventMetrics；此处同源复算，不经 HTTP） */
+    const rows = q.eventScan.all(now() - 21 * 86400), link = {}, day = x => Math.floor(x / 86400), t = now();
+    rows.forEach(r => { if (r.user_id && r.anon_id) link[r.anon_id] = r.user_id; });
+    const key = r => r.user_id || (r.anon_id && link[r.anon_id]) || (r.anon_id ? 'a:' + r.anon_id : null);
+    const act = new Map(), done = new Set();
+    rows.forEach(r => { const k = key(r); if (!k) return; if (!act.has(k)) act.set(k, new Set()); act.get(k).add(day(r.created_at));
+      if (['arrange_done', 'print_dialog', 'export_png', 'publish'].includes(r.name) && r.created_at > t - 7 * 86400) done.add(k); });
+    const ret = n => { let base = 0, back = 0; act.forEach(ds => { const f = Math.min(...ds); if (f > day(t) - n) return; base++; if (ds.has(f + n)) back++; });
+      return base ? `${back}/${base}（${(back * 100 / base).toFixed(1)}%）` : '样本不足'; };
+    console.log(`北极星（近 7 天做出成品谱的人数）=${done.size}   D1 留存=${ret(1)}   D7 留存=${ret(7)}`);
   },
 };
 

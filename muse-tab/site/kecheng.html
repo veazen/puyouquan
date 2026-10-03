@@ -2090,6 +2090,7 @@
   /* 读进度：新键（sid）miss 时回落到老的位置键，v61.9 及更早存的进度继续有效 */
   var SEC_PK={};
   var KC_DRAWER=null, KC_ESC=false, KC_IO=null;   /* v63.3 页面级单例：Esc 监听与滚动观察器不随重绘叠加 */
+  var KC_VIEWED='', KC_DEEP='';   /* v63.4 A7 course_view 每门课只记一次；深链小节待渲染完成后定位 */
   function secRec(cid,k){ var m=secP(cid); return m[k]||(SEC_PK[k]?m[SEC_PK[k]]:null)||{}; }
   function secSet(cid,k,patch){
     var p=prog(), m=p['sec:'+cid]||{}, r=m[k]||{}, x;
@@ -2449,6 +2450,9 @@
       if(cn) cn.href='https://www.puyouquan.com/course/'+encodeURIComponent(c.id);
       /* 老的 #hash 链接（v61.9 及更早分享出去的）统一换成 ?c= 形式 */
       if(!PREVIEW && location.hash) try{ history.replaceState(null,'','kecheng.html?c='+encodeURIComponent(c.id)); }catch(_){}
+      /* v63.4 A7 课程漏斗：进课程页记 course_view；带 ?s=<小节 sid> 的深链（E1/分享直达某一节）记 lesson_deeplink 并直接定位 */
+      if(!PREVIEW && window.PYQ_EV && KC_VIEWED!==c.id){ KC_VIEWED=c.id; PYQ_EV.send('course_view', c.id);
+        var dsid=qParam('s'); if(dsid && /^[A-Za-z0-9_]{2,40}$/.test(dsid)){ PYQ_EV.send('lesson_deeplink', c.id+':'+dsid); KC_DEEP=dsid; } }
       wireCourse(c); wireCoursePage(c);
       return;
     }
@@ -2478,6 +2482,7 @@
     root.querySelectorAll('[data-goto]').forEach(function(b){
       b.onclick=function(){ if(b.getAttribute('aria-disabled')==='true') return; gotoSec(b.getAttribute('data-goto')); };
     });
+    if(KC_DEEP){ var dk=KC_DEEP; KC_DEEP=''; setTimeout(function(){ gotoSec(dk); }, 60); }   /* v63.4 A7 ?s= 深链定位到小节 */
     if(drawer){
       var toc=root.querySelector('[data-toc]'), cls=root.querySelector('[data-dwclose]');
       if(toc) toc.onclick=function(){ drawer.hidden=false; };
@@ -2714,6 +2719,7 @@
       if(right/items.length<0.5) stars=Math.min(stars,2);
       var was=secStar(c.id,k);
       if(stars>=3) secSet(c.id,k,{stars:Math.max(was,stars)});
+      if(stars>=3 && !PREVIEW && window.PYQ_EV) PYQ_EV.send('lesson_done', c.id+':'+k+':'+stars);   /* v63.4 A7 */
       if(card) card.classList.remove('is-testing');
       if(stars>=3){
         /* v62.1 通关文案随「锁章不锁节」改口径：本节过关只是本章的一格，整章做完才开下一章 */

@@ -914,6 +914,45 @@ window.PYQ_REC = (function(){
   return { supported:supported, mount:mount, MAXS:MAXS };
 })();
 
+/* v63.4 A7 ④ 官网埋点：与编辑器 pyqEvent 同一接口与白名单（server.js EVENT_NAMES）。匿名标识由服务端
+   Cookie pyq_anon（Domain=.puyouquan.com）下发，www / zhipu / puku 三站同一访客同一标识，页面里读不到也不用读。
+   每页自动记 visit（带首触来源与落地页）；垂类/功能落地页另记 landing_view；去制谱器的链接记 cta_click。 */
+window.PYQ_EV = (function(){
+  var ON=/(^|\.)puyouquan\.com$/i.test(location.hostname);
+  function touch(){
+    var src='', landing='';
+    try{
+      var sp=new URLSearchParams(location.search);
+      var utm=['utm_source','utm_medium','utm_campaign'].map(function(k){ return sp.get(k)||''; }).join('/');
+      if(utm.replace(/\//g,'')) src='utm:'+utm;
+      else if(document.referrer){ var h=new URL(document.referrer).hostname; if(h && !/(^|\.)puyouquan\.com$/i.test(h)) src='ref:'+h; }
+      landing=location.hostname.split('.')[0]+location.pathname;
+    }catch(_){}
+    return {src:src, landing:landing};
+  }
+  function send(name, meta, extra){
+    if(!ON) return;
+    var body={name:name, meta:String(meta==null?'':meta).slice(0,120)}, k;
+    if(extra) for(k in extra) body[k]=extra[k];
+    try{ fetch('/api/events',{method:'POST',credentials:'include',keepalive:true,
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(function(){}); }catch(_){}
+  }
+  var LANDING={kaobian:1,jixing:1,shifan:1,yikao:1,make:1,features:1};
+  function boot(){
+    var pg=(document.body&&document.body.getAttribute('data-page'))||'';
+    if(pg==='admin'||pg==='kcadmin') return;   /* 后台不计入访问 */
+    var t=touch();
+    send('visit', pg, t);
+    if(LANDING[pg]) send('landing_view', pg, t);
+    document.addEventListener('click', function(e){
+      var a=e.target.closest&&e.target.closest('a[href]'); if(!a) return;
+      if(/zhipu\.puyouquan\.com/.test(a.getAttribute('href')||'')) send('cta_click', pg+':'+(a.textContent||'').replace(/\s+/g,' ').trim().slice(0,30));
+    }, true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  return { send:send };
+})();
+
 /* v62.6 小程序 web-view 环境判断与原生页跳转（A1c ⑤；A4 小程序环境一次性适配复用同一个判断）。
    判断口径与编辑器一致：window.__wxjs_environment==='miniprogram'（JS-SDK 注入）或 UA 含 miniProgram。
    nav(path) 跳小程序原生页——网页里的表单在小程序内是孤岛（登录态只能经原生页换票带进来）。 */

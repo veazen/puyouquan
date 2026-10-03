@@ -69,4 +69,7 @@ function pubIdFrom(url) {
   return m ? m[1] : '';
 }
 
-module.exports = { enterUrl, phoneLogin, mergeAccount, needLogin, pubIdFrom, API };
+/* v63.4 A7 传播埋点：发起转发时记 mp_share（用户中途取消也会记，口径偏高；小程序侧读不到网页的匿名标识，只记曲谱 id；失败静默，不影响分享） */
+function track(name, meta) { post('/api/events', { name, meta: String(meta || '').slice(0, 120) }); }
+
+module.exports = { enterUrl, phoneLogin, mergeAccount, needLogin, pubIdFrom, track, API };

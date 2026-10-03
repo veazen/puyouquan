@@ -2,7 +2,7 @@
 // 直接开 puku 的观看页 kanpu.html（同域、不跳转）；不用 /pub/:id SSR 落地页——那是给爬虫的，
 // 真人要等 1.2s 再 location.replace，web-view 里白等一次跳转。无 id 时回落主站谱库首页。
 // v60.1：同样先换静默登录票据，进来就是登录态（收藏/谱架能直接用）。
-const { enterUrl, pubIdFrom } = require('../../utils/login');
+const { enterUrl, pubIdFrom, track } = require('../../utils/login');
 
 Page({
   data: { src: '', spa: false },
@@ -14,7 +14,9 @@ Page({
     const scene = (wx.getEnterOptionsSync ? wx.getEnterOptionsSync() : wx.getLaunchOptionsSync()).scene;
     if (scene === 1154) { this.setData({ spa: true }); return; }
     wx.showShareMenu({ withShareTicket: false, menus: ['shareAppMessage', 'shareTimeline'] });   // v60.79 点亮朋友圈
-    const target = id ? ('https://puku.puyouquan.com/kanpu.html?pub=' + id) : 'https://www.puyouquan.com/';
+    /* v63.4 A7：从好友卡片进来的带 f=mp，观看页据此记 share_open（渠道＝小程序） */
+    const f = /^[a-z]{2,8}$/.test(String((q && q.f) || '')) ? q.f : '';
+    const target = id ? ('https://puku.puyouquan.com/kanpu.html?pub=' + id + (f ? '&f=' + f : '')) : 'https://www.puyouquan.com/';
     enterUrl(target).then(src => this.setData({ src }));
   },
   /* v60.79 用户可能在 web-view 里又点开了别的谱——跟着落地地址更新，分享永远指向正在看的这首 */
@@ -35,9 +37,11 @@ Page({
     if (id) {
       const mine = this.pubId === id;
       const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '给你分享一首谱 - 谱友圈');
-      return { title: t, path: '/pages/score/score?id=' + id,
+      track('mp_share', id);
+      return { title: t, path: '/pages/score/score?id=' + id + '&f=mp',
         imageUrl: (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png' };
     }
+    track('mp_share', 'home');
     return { title: '谱友圈谱库', path: '/pages/index/index',
       imageUrl: 'https://www.puyouquan.com/share-icon.png' };
   },

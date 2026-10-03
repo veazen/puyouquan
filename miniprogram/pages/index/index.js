@@ -3,7 +3,7 @@
 //    web-view 里跳到未加白的域名，微信直接报「不支持打开 …」。故此处必须指向**不会跳转**的真身：
 //    www.puyouquan.com 首页即搜索型谱库。业务域名白名单需同时含 www / puku（卡片链观看页在 puku）。
 // v60.1：先换静默登录票据再喂 src，落地即登录态（换票失败自动回落直开，不阻塞看谱）。
-const { enterUrl, pubIdFrom } = require('../../utils/login');
+const { enterUrl, pubIdFrom, track } = require('../../utils/login');
 const TARGET = 'https://www.puyouquan.com/';
 
 Page({
@@ -16,7 +16,7 @@ Page({
     /* v60.79 朋友圈卡片是「本页 + query」重开的（onShareTimeline 不能指定 path）——
        带 id 进来说明用户点的是曲谱卡，转真正的看谱页。 */
     const id = String((q && q.id) || '').replace(/[^A-Za-z0-9_-]/g, '');
-    if (id) { wx.redirectTo({ url: '/pages/score/score?id=' + id }); return; }
+    if (id) { wx.redirectTo({ url: '/pages/score/score?id=' + id + '&f=mp' }); return; }
     /* v60.5 撤销开屏登录门（方案A）：进来直接进谱库。
        ① 静默登录已在 enterUrl 里完成——用户一进来就是登录态，收藏/云同步本就能用，
           真正缺的只是「绑真实手机号以便换设备接得上」，那用个人中心的提示条更合适；
@@ -49,9 +49,11 @@ Page({
     if (id) {
       const mine = this.pubId === id;
       const t = (mine && this.pubShare) || ((mine && this.pubTitle) ? this.pubTitle + ' - 谱友圈' : '给你分享一首谱 - 谱友圈');
-      return { title: t, path: '/pages/score/score?id=' + id,
+      track('mp_share', id);   // v63.4 A7
+      return { title: t, path: '/pages/score/score?id=' + id + '&f=mp',
         imageUrl: (mine && this.pubImg) || 'https://www.puyouquan.com/share-icon.png' };
     }
+    track('mp_share', 'home');
     return { title: '谱友圈谱库 · 在线看谱/移调/跟谱', path: '/pages/index/index',
       imageUrl: 'https://www.puyouquan.com/share-icon.png' };
   },
