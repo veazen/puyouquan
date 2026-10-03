@@ -23,12 +23,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     s.measures[0].voxes[0]=Array.from({length:4},(_,i)=>({dur:4,dotted:false,deg:i+1,acc:'',oct:0,lyrics:[],tie:false}));
     return s; })()`;
 
-  // T1 页头热区 + capo 显示联动：capo=3 → 1=Eb + 变调夹注指法 + capo 热区；capo=0 → 1=C 无变调夹
+  // T1 页头热区 + capo 显示联动：capo=3 → 1=♭E（v63.5 写法） + 变调夹注指法 + capo 热区；capo=0 → 1=C 无变调夹
   let r = await pg.evaluate(`(()=>{
     const s=${mkGuitar}; s.capo=3; loadSong(s); blurSel=true; render();
     const h3=document.getElementById('score').innerHTML;
     const z=(k)=>!!document.querySelector('[data-hd="'+k+'"]');
-    const withCapo={ eb:h3.indexOf('1=Eb')>=0, note:h3.indexOf('变调夹 3 品（按 1=C 指法）')>=0,
+    const withCapo={ eb:h3.indexOf('1=♭E')>=0, note:h3.indexOf('变调夹 3 品（按 1=C 指法）')>=0,
       zMeta:z('meta'), zKey:z('key'), zMeter:z('meter'), zTempo:z('tempo'), zCapo:z('capo') };
     song.capo=0; render();
     /* v60.55：调号热区的 tooltip 里现在写着「…变调夹 / 夹位选指法…」，

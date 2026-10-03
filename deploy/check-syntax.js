@@ -43,6 +43,12 @@ for (const path of files) {
     if (dups.length) { console.error('❌ ' + path + ' 顶层函数重名（后声明会静默覆盖前者）：' + dups.join('；')); bad++; }
     else console.log('✅ ' + path + '：顶层函数无重名（' + seen.size + ' 个）');
   }
+  /* v63.5 B2a ①：简谱 1 的八度折叠规则（主音高于 F♯ 折回下一个八度）只许写在 keyRefOf 一处——
+     此前散写在 8 处，改一处漏七处。别处出现「> 66」的折叠写法即拦截。 */
+  {
+    const hits = (html.match(/[A-Za-z_$][\w$]*\s*>\s*66\b/g) || []).length;
+    if (/function keyRefOf\(/.test(html) && hits > 1) { console.error('❌ ' + path + ' 八度折叠规则（>66）散写了 ' + hits + ' 处，只许在 keyRefOf 里写一次——换调参考音一律调 keyRefOf(key)'); bad++; }
+  }
   /* v59.2 教训：APP_VER 忘随更新日志递增 → 线上版本角标停在旧版 + smoke 版本落位两边读同一常量成假绿。
      闸：APP_VER 必须等于更新日志首条 <span class="v">vX.Y</span>，不一致即拦截发版。 */
   const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];   // 与 smoke.sh 线上版本落位同一写法，故不放宽
