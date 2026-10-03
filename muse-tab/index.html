@@ -5512,6 +5512,30 @@ function staffHeadGeom(){
   const clefX = 5, accX = clefX+clefW+6, accAdv = accW+1.2;
   return {w: Math.round(accX + n*accAdv + (n?5:2)), clefX, accX, accAdv, n, sig};
 }
+/* v64.2 B4a ② 五线谱类小节线记号（反复开始/结束、终止线、段落双线、普通线）：
+   五线谱声部、简谱声部、对照谱的简谱行、联排五线谱共用一套几何（v57.0 粗线右缘与谱线端齐平）。
+   o={rsX 反复开始记号起点（首小节/变拍处=拍号之后）, bx 小节右缘, yT, yB, d1/d2 反复点, last 末小节, plain 是否补普通小节线} */
+function staffBarMarks(p, mea, o){
+  const {bx, yT, yB, d1, d2} = o, h = yB-yT;
+  if(mea.repeatStart){
+    p.push(`<rect x="${o.rsX+1}" y="${yT}" width="2" height="${h}" fill="var(--ink)"/>`);
+    p.push(`<line x1="${o.rsX+5}" y1="${yT}" x2="${o.rsX+5}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+    p.push(`<circle cx="${o.rsX+8.5}" cy="${d1}" r="1.4" fill="var(--ink)"/><circle cx="${o.rsX+8.5}" cy="${d2}" r="1.4" fill="var(--ink)"/>`);
+  }
+  if(mea.repeatEnd){
+    p.push(`<circle cx="${bx-8}" cy="${d1}" r="1.4" fill="var(--ink)"/><circle cx="${bx-8}" cy="${d2}" r="1.4" fill="var(--ink)"/>`);
+    p.push(`<line x1="${bx-4.5}" y1="${yT}" x2="${bx-4.5}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+    p.push(`<rect x="${bx-2}" y="${yT}" width="2" height="${h}" fill="var(--ink)"/>`);
+  }else if(o.last || mea.finalBar){
+    p.push(`<line x1="${bx-4.4}" y1="${yT}" x2="${bx-4.4}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+    p.push(`<rect x="${bx-2.4}" y="${yT}" width="2.4" height="${h}" fill="var(--ink)"/>`);
+  }else if(mea.sectionBar){
+    p.push(`<line x1="${bx-4}" y1="${yT}" x2="${bx-4}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+    p.push(`<line x1="${bx}" y1="${yT}" x2="${bx}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+  }else if(o.plain){
+    p.push(`<line x1="${bx}" y1="${yT}" x2="${bx}" y2="${yB}" stroke="var(--ink)" stroke-width="1"/>`);
+  }
+}
 /* 变音记号符号→SMuFL 字形名 */
 const ACC_G = {'♯':'accidentalSharp','♭':'accidentalFlat','♮':'accidentalNatural','×':'accidentalDoubleSharp','♭♭':'accidentalDoubleFlat'};
 /* 变音记号：右缘对齐到符头左缘留 0.22 线距空隙，y=音符所在线/间（SMuFL 注册） */
@@ -6497,7 +6521,7 @@ function measureLayout(mea){
     L.weight = inner;
     L.tabs = mea.tabs.map(fit); L.voxes = mea.voxes.map(fit);
   };
-  const L = {w:inner+fixedOf(padL,padR,bGap), weight:inner, resize,
+  const L = {w:inner+fixedOf(padL,padR,bGap), weight:inner, resize, tsLead,
              rigid:Math.min(inner, flrInner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
              tabs:mea.tabs.map(fit), voxes:mea.voxes.map(fit)};
   return L;
@@ -6740,6 +6764,13 @@ function systemExtras(sys){
      底缘≈oy+54 而 tabTop-15≈oy+47——同一行两者共存时和弦图带加高 16px，把记号带让到图下方；
      联排（tabStaff）记号带在五线谱↔TAB 之间、不与图带相交，不加 */
   let diagExtra=0;
+  /* v64.2 B4a ③（P2-04）行内和弦图带只在本行确实画和弦图时预留 56：图只画在有 TAB 的谱上——
+     六线谱首轨列和弦（联排同样画）＋非联排时的简谱声部和弦。没有和弦图的谱类/行退回 12 */
+  const diagOn = diagMode==='inline' && song.tabVoices.length>0 && sys.measures.some(lm=>{
+    const m = song.measures[lm.mi];
+    return ((m.tabs||[])[0]||[]).some(c=>c.chord)
+      || (!song.tabStaff && (m.voxes||[]).some(cols=>(cols||[]).some(c=> c.chord || (c.chords||[]).some(x=>x && x.chord))));
+  });
   if(diagMode==='inline' && song.tabVoices.length && !song.tabStaff){
     /* v60.78 行内和弦图不只由六线谱首轨产生——**简谱声部的和弦**（col.chord / col.chords 拍位和弦）
        同样画进这条图带（见 8263 行）。此前 hasDiag 只看 tabs[0]，于是「和弦记在简谱行」的谱子
@@ -6776,16 +6807,17 @@ function systemExtras(sys){
       maxDown ? 5.5 + maxUnder*3.1 + (maxDown-1)*4.2 + 1.5 : 0),
     tabExtra: Math.max(tab32?5:0, tabTup?4:0, tabLow),
     tabBotPad,
-    diagExtra
+    diagExtra,
+    diagOn
   };
 }
-function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad){
+function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0; tabBotPad = tabBotPad||0;
   const vs = LAY_VS;                              // 纵向疏密系数：只缩放行间空白，不缩谱表/字号
   const vt = vs*LAY_RG.tab, vv = vs*LAY_RG.vox, vl = vs*LAY_RG.lyric;   // 手动行距：吉他谱/简谱/歌词
   /* v56.4 diagExtra：本行段落括线/跳转标记与行内和弦图共存时图带加高（记号带让到图下方） */
-  const diagH = (diagMode==='inline' ? 56 : 12) + (diagExtra||0);   // 行内和弦图区加高，避免与一弦数字重叠
+  const diagH = ((diagMode==='inline' && diagOn!==false) ? 56 : 12) + (diagExtra||0);   // 行内和弦图区加高，避免与一弦数字重叠（v64.2 本行无图不预留）
   let y = diagH + 6*vs;
   const tabTops=[], voxYs=[], lyricY0=[], tabStaffB=[], tabJpB=[];
   /* v45.6→v45.7 联排五线谱与 TAB 间距按整曲内容"像素级"自适应（此前谱级阈值口径低估，实测仍可重叠）：
@@ -7553,7 +7585,7 @@ function render(){
     ? Math.max(PAGE_W, Math.ceil(2*MARGIN + STAFF_HEAD_W + systems[0].w)) : PAGE_W;
   try{ const nb=document.getElementById('eb-nowrap'); if(nb) nb.classList.toggle('on', noWrapOn()); }catch(_){}
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad); });
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad, e.diagOn); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
@@ -7581,8 +7613,9 @@ function render(){
     p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+22+i*18}" font-size="12.5" letter-spacing="0.4" text-anchor="end"><tspan fill="var(--muted)">${k}</tspan><tspan fill="var(--ink)">${esc(v)}</tspan></text>`));
   /* 纯五线谱/钢琴谱：调性由调号表达、拍号在谱表上——页头不再重复 1=X 与 4/4，
      只保留速度记号（出版惯例）；含简谱/TAB 的谱面维持原页头 */
+  /* v64.2 B4a ①（P1-15）教学对照谱（五线谱＋简谱行 voxDual）的简谱行要读首调：页头必须有 1=X 与拍号，调号热区可点 */
   const pureStaff = !song.tabVoices.length && song.voxVoices.length>0 &&
-    song.voxVoices.every((_,i2)=>isStaffNota((song.voxNotations||[])[i2]));
+    song.voxVoices.every((_,i2)=>isStaffNota((song.voxNotations||[])[i2]) && !(song.voxDual||[])[i2]);
   /* v53.4 变调夹联动简谱显示：有 TAB 且设夹时，1=X 标「实际调」（歌声调=指法调+capo，
      与播放同步，见 voxCapo），变调夹位注明按什么指法（歌本惯例：1=bE 变调夹3品 按C指法） */
   const capoShift = (song.tabVoices.length && song.capo>0 && !pureStaff)? song.capo : 0;
@@ -7775,7 +7808,10 @@ function render(){
           const cols = song.measures[lm.mi].tabs[vi]||[];
           const lay = lm.L.tabs[vi];
           const mx2 = ox+lm.x, bx2 = mx2+lm.L.w;
-          p.push(`<line x1="${bx2}" y1="${cStaffT}" x2="${bx2}" y2="${cStaffB}" stroke="var(--ink)" stroke-width="1"/>`);
+          /* v64.2 B4a ②（P1-13）联排五线谱也画反复/终止/段落线（此前只有普通小节线） */
+          { const meaJ=song.measures[lm.mi], nRepJ=song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
+            staffBarMarks(p, meaJ, {rsX:mx2+((lm.L && lm.L.tsLead)||0), bx:bx2, yT:cStaffT, yB:cStaffB, d1:cStaffB-cSGt*1.5, d2:cStaffB-cSGt*2.5,
+              last:lm.mi===song.measures.length-1, plain:!nRepJ || lm===sys.measures[sys.measures.length-1]}); }
           /* v43.5 变拍子：本小节拍号≠上一小节 → 联排五线谱表头画新拍号 */
           if(lm.mi>0){ const pmC=meaMeter(lm.mi-1), cmC=meaMeter(lm.mi);
             if(pmC.beats!==cmC.beats || pmC.unit!==cmC.unit){
@@ -8037,10 +8073,11 @@ function render(){
             p.push(`<text x="${mx+8}" y="${tabTop+STAFF*0.8+3}" font-size="14" font-family="var(--font-num)" font-weight="bold" fill="var(--ink)">${cmT.unit}</text>`);
           }
         }
-        if(mea.repeatStart){
-          p.push(`<rect x="${mx+1}" y="${tabTop}" width="2.4" height="${STAFF}" fill="var(--ink)"/>`);
-          p.push(`<line x1="${mx+6}" y1="${tabTop}" x2="${mx+6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<circle cx="${mx+10.5}" cy="${tabTop+STAFF/2-STR/2}" r="1.8" fill="var(--ink)"/><circle cx="${mx+10.5}" cy="${tabTop+STAFF/2+STR/2}" r="1.8" fill="var(--ink)"/>`);
+        if(mea.repeatStart){   /* v64.2 B4a ② 首小节/变拍处排在拍号之后 */
+          const rx=mx+((lm.L && lm.L.tsLead)||0);
+          p.push(`<rect x="${rx+1}" y="${tabTop}" width="2.4" height="${STAFF}" fill="var(--ink)"/>`);
+          p.push(`<line x1="${rx+6}" y1="${tabTop}" x2="${rx+6}" y2="${tabBot}" stroke="var(--ink)" stroke-width="1"/>`);
+          p.push(`<circle cx="${rx+10.5}" cy="${tabTop+STAFF/2-STR/2}" r="1.8" fill="var(--ink)"/><circle cx="${rx+10.5}" cy="${tabTop+STAFF/2+STR/2}" r="1.8" fill="var(--ink)"/>`);
         }
         const bx = mx+lm.L.w;
         const nextRep = song.measures[lm.mi+1] && song.measures[lm.mi+1].repeatStart;
@@ -8812,25 +8849,11 @@ function render(){
         const yT2 = gsBass? (oy+M.voxYs[vi-1]-6-4*SG) : (isStaff? staffT : voxY-13), yB2 = isStaff? staffB : voxY+4;
         /* 反复开始：小节左侧 粗线+细线+两点（显式绘制，不用字体字形） */
         const dotY1 = isStaff? staffB-SG*1.5 : voxY-6, dotY2 = isStaff? staffB-SG*2.5 : voxY-0.5;
-        if(mea.repeatStart){
-          p.push(`<rect x="${mx+1}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
-          p.push(`<line x1="${mx+5}" y1="${yT2}" x2="${mx+5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<circle cx="${mx+8.5}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${mx+8.5}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
-        }
-        /* v57.0 同 TAB 行口径：粗线右缘与谱线端(bx)齐平（五线谱线不再冒头） */
-        if(mea.repeatEnd){
-          p.push(`<circle cx="${bx-8}" cy="${dotY1}" r="1.4" fill="var(--ink)"/><circle cx="${bx-8}" cy="${dotY2}" r="1.4" fill="var(--ink)"/>`);
-          p.push(`<line x1="${bx-4.5}" y1="${yT2}" x2="${bx-4.5}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-2}" y="${yT2}" width="2" height="${yB2-yT2}" fill="var(--ink)"/>`);
-        }else if(isLast || mea.finalBar){
-          p.push(`<line x1="${bx-4.4}" y1="${yT2}" x2="${bx-4.4}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<rect x="${bx-2.4}" y="${yT2}" width="2.4" height="${yB2-yT2}" fill="var(--ink)"/>`);
-        }else if(mea.sectionBar){   // 段落重复线：双细线
-          p.push(`<line x1="${bx-4}" y1="${yT2}" x2="${bx-4}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-          p.push(`<line x1="${bx}" y1="${yT2}" x2="${bx}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-        }else if(!vNextRep || isRowEnd){   // 行尾始终补小节线
-          p.push(`<line x1="${bx}" y1="${yT2}" x2="${bx}" y2="${yB2}" stroke="var(--ink)" stroke-width="1"/>`);
-        }
+        /* v64.2 B4a ②（P1-13）首小节/变拍处的反复开始记号排在拍号之后（此前压在拍号上，反复点被盖住）；
+           小节线记号抽成 staffBarMarks，对照谱的简谱行（①）同样画一套 */
+        const bmO = {rsX:mx+((lm.L && lm.L.tsLead)||0), bx, last:isLast, plain:!vNextRep || isRowEnd};
+        staffBarMarks(p, mea, Object.assign({yT:yT2, yB:yB2, d1:dotY1, d2:dotY2}, bmO));
+        if(dual) staffBarMarks(p, mea, Object.assign({yT:voxY-13, yB:voxY+4, d1:voxY-6, d2:voxY-0.5}, bmO));
         /* 小节线热区：点击=选中小节线设置符号；按住=选中本小节简谱声部 */
         {
           /* v51.9 高亮限定被点击的声部行（同 TAB 行口径） */
@@ -9346,7 +9369,8 @@ function render(){
                 const ty = below? yB+5.2 : yB-5.2;
                 const x2i = mx+lay.xs[0]-6, x1i = Math.max(mx+2, x2i-18);
                 p.push(tieSVG(x1i, ty, x2i, ty, below? ty+3.5 : ty-3.5, 1.9));
-              }else{
+              }
+              if(!isStaff || dual){   /* v64.2 B4a ① 对照谱的简谱行同样画（此前五线谱/简谱二选一） */
                 /* v60.53 行首续接改「下降段」：起点在弧顶高度、终点落到首音基线——
                    与上一行末的「上升段」拼成一条完整弧线（此前两端同基线=独立小弧） */
                 const hiN0 = (cols[0].oct>0)? Math.min(3,cols[0].oct) : 0;
@@ -9386,7 +9410,8 @@ function render(){
               const bow = Math.max(2.5, Math.min(7+Math.min(6,(b3-a3)*2), (x2-x1)*0.55));
               const yp = below? ty+bow : ty-bow;
               p.push(tieSVG(x1, ty, x2, ty, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
-            }else{
+            }
+            if(!isStaff || dual){   /* v64.2 B4a ① 对照谱的简谱行同样画延音弧 */
               /* v53.6 简谱连音线按歌本标准重画（v53.5 短弧过扁近不可见，用户两轮反馈的共同根因：
                  端点挤在两数字之间的空隙里——x1/x2 从数字中心让出 5/6px，16分对只剩 ~8px 缝）。
                  GB 歌本惯例：弧横跨首末两个数字整体上方——端点落在数字中心 ±1，
@@ -9455,22 +9480,27 @@ function render(){
                    组内最大高八度点数让位（同 v53.6/v54.2 tie 规则）；五线谱仍取组内最高符头上方；
                    弧高同 tie 随跨度缓增。数字置弧顶中央纸底断口（quad 中点=基线-弧高/2） */
                 const x1=mx+lay.xs[s]+1, x2=mx+lay.xs[e]-1, xm=(x1+x2)/2;
-                let y0;
+                /* v64.2 B4a ① 对照谱：五线谱一条、简谱行一条（此前二选一，简谱行没有连音弧） */
+                const y0s=[];
                 if(isStaff){
-                  y0 = staffT-7;
+                  let y0 = staffT-7;
                   for(let k3=s;k3<=e;k3++){ const c3=cols[k3];
                     if(c3.deg>0){ setClefCtx(k3); y0 = Math.min(y0, stepY(staffStep(c3,K)) - SG*2.9 - 5); } }
-                }else{
+                  y0s.push(y0);
+                }
+                if(!isStaff || dual){
                   let hiN=0;
                   for(let k3=s;k3<=e;k3++){ const c3=cols[k3]; if(c3&&c3.deg&&c3.oct>0) hiN=Math.max(hiN, Math.min(3,c3.oct)); }
-                  y0 = voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0);
+                  y0s.push(voxY-16 - (hiN? 7.5+(hiN-1)*4.2 : 0));
                 }
+                y0s.forEach(y0=>{
                 const rise = Math.min(9+Math.min(6,(e-s)*2), Math.max(6,(x2-x1)*0.35));
                 p.push(tieSVG(x1, y0, x2, y0, y0-rise, 1.9));
                 const yA = y0 - rise/2;                        // 二次曲线中点高度
                 const half = 2.5 + lbl.length*2.8;
                 p.push(`<rect x="${(xm-half).toFixed(1)}" y="${(yA-4.6).toFixed(1)}" width="${(half*2).toFixed(1)}" height="9" fill="var(--paper)"/>`);
                 p.push(`<text x="${xm}" y="${(yA+3).toFixed(1)}" font-size="8.5" font-style="italic" font-weight="700" text-anchor="middle" fill="var(--ink)">${lbl}</text>`);
+                });
               }
               a2=b3+1;
             } else a2++;
@@ -23919,7 +23949,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v64.1';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v64.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -23942,6 +23972,7 @@ const APP_VER='v64.1';   /* 须与更新日志首条版本一致——check-synt
 document.getElementById('b-changelog').onclick = ()=>{
   showModal(`<h3>谱友圈 · 更新日志</h3>
   <ul class="vlog">
+    <li><span class="v">v64.2</span><div><b>刻版小修：教学对照谱页头齐全 · 反复记号不再压拍号 · 歌谱行距收紧</b>（2026-10 评审团 B4a 刻版小修第一批）。<br>① <b>教学对照谱（五线谱＋简谱行）</b>：页头补上 1=X 和拍号（简谱行要按首调读，原先缺了），点 1=X 可直接打开变调弹窗，转调后跟着变；简谱行补上自己的小节线、延音弧和三连音弧——一键配伴奏默认出的就是这种谱，课堂、说课都用得上。<br>② <b>首小节的反复记号排到拍号之后</b>：五线谱、六线谱、联排谱都改了，反复点不再被拍号盖住（自带预设《小步舞曲》就中招）；变拍号的小节同样处理。联排谱上方的五线谱也画出反复线、终止线和段落线（原先只有普通小节线）。<br>③ <b>和弦图的空白只在需要时留</b>：以前只要「和弦图：随行」，每一行都预留 56 个单位的图带，歌谱、五线谱这些根本不画和弦图的谱，行与行之间空出一大截；现在只有本行真画了和弦图才留。<br>新套件 <code>tv_b4a</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.1</span><div><b>手机上谱面更大 · 弹奏时屏幕不熄 · 导出按用途分组 · 预设库看得到谱面</b>（2026-10 评审团 B7 体验小修包第二批）。<br>① <b>手机迷你播放条</b>：编辑时底部播放区默认收成 56px 一行（⏮、播放、小节走带、⋯），速度、倍速、节拍器、谱架、音轨收进「⋯」，点开回到原来的三排，再点收起。手机上固定控件合计 209px，只占 844 屏高的 24.8%（原先 300px、35.5%），谱面多出约 90px。<br>② <b>谱架和播放时屏幕常亮</b>：进谱架或开始播放时请求浏览器保持屏幕常亮，退出谱架、停止播放后恢复；切到后台再回来会自动续上；浏览器不支持就照旧，不报错。<br>③ <b>「打印 / 导出」按用途分三组</b>：打印存档（打印 / 存 PDF、PNG 图片）、分享（分享卡、互动谱）、专业格式（MusicXML、MIDI、曲谱文件）；「取消」单独放到左下角，不再夹在一排按钮中间。<br>④ 顶栏原来叫「导出」的按钮实际是下载曲谱文件，改名为「<b>存为文件</b>」（Ctrl+S 照旧）。<br>⑤ <b>预设库改成缩略卡</b>：每张卡上直接看到谱面首屏（打开后陆续生成），整张卡点一下就打开；原来 16 个红色主按钮改为普通按钮。<br>新套件 <code>tv_b7b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v64.0</span><div><b>看得清、键盘能用、主题记得住</b>（2026-10 评审团 B7 体验小修包第一批）。<br>① <b>浅灰小字看得清了</b>：第三级文字颜色加深，浅色主题、深色主题对各级底色都达到 4.5:1 以上（原先浅色只有 2.39:1）；官网同步。<br>② <b>当前文档页签</b>文字改用正文色，深色主题下不再「黑字黑底」。<br>③ <b>主按钮改为实底朱砂</b>：白字对比度 5.31:1（渐变尾端只有 3.13:1）；官网的主按钮、登录按钮、会员角标一并改。<br>④ <b>键盘焦点看得见</b>：用键盘走到按钮、链接、输入框时，出现 2px 实色外框并留出 2px 间距（原先是 10% 透明度，几乎看不见）。<br>⑤ <b>Tab 不再全局劫持</b>：焦点在谱面上时 Tab 照旧切换声部；焦点在面板按钮、弹窗、菜单里时，Tab 按浏览器原生方式在控件之间移动。<br>⑥ <b>读屏可用</b>：谱面标注为「曲谱」编辑区并说明操作方式；♭ ♯ ◐ 这类符号按钮补上文字说明，弹出的菜单同样处理。<br>⑦ <b>明暗主题记住了</b>：点过明暗切换后，刷新或换页都保持；官网同样记住。<br>新套件 <code>tv_b7a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.9</span><div><b>Ctrl+K 直接输入和弦 · 和弦图位置随谱保存 · 尤克里里有了自己的节奏型库</b>（2026-10 评审团 B5 TAB 正确性第二批）。<br>① <b>Ctrl+K 写和弦</b>：在六线谱的列或简谱的音符上按 Ctrl+K，弹出和弦输入框，打 Am7、G/B 或级数写法 6m、57sus，回车写到光标处；输入框只带这一处已有的和弦，<b>不再沿用前一个和弦的性质</b>；留空回车清除。六线谱照旧按新和弦适配本小节的分解/扫弦指法。<br>② <b>和弦图位置随谱保存</b>：「随行 / 曲首 / 隐藏」放进 Ctrl+K 面板，选择写进曲谱，保存、分享、发布后观看端一致，可撤销；老谱默认随行。<br>③ <b>尤克里里节奏型库</b>：标题改为「尤克里里节奏型库」，型名里的弦序按四弦改写（如 53231323 显示为 43231323、交替低音 5323 4323 显示为 4323 3323），示意图画四条线。吉他谱不变。<br>帮助页「顶部编辑栏」补上 Ctrl+K 一行。新套件 <code>tv_b5b</code>（4 项，旧文件全部报红）。</div></li>

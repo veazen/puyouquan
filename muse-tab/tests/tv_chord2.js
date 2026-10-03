@@ -39,8 +39,11 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   // 改为几何断言：和音数字个数 + 与主音同 x、y 更小（叠在主音上方）——与字号脱钩。
   const t2 = await pg.evaluate(()=>{
     document.getElementById('vn-jp').click();
+    /* v64.2 起无和弦图的谱不再预留 56 图带、谱面整体上移——改为「页头 1=X 之下」，不写死 y>150 */
+    const kt=[...document.getElementById('score').querySelectorAll('text')].find(t=>/^1=/.test(t.textContent||''));
+    const yMin=(kt? +kt.getAttribute('y') : 0)+10;
     const ts=[...document.getElementById('score').querySelectorAll('text')]
-      .filter(t=>/^[1-7]$/.test((t.textContent||'').trim()) && +t.getAttribute('y')>150);
+      .filter(t=>/^[1-7]$/.test((t.textContent||'').trim()) && +t.getAttribute('y')>yMin);
     const fs=t=>+t.getAttribute('font-size'), X=t=>+t.getAttribute('x'), Y=t=>+t.getAttribute('y');
     const top=Math.max.apply(null, ts.map(fs));
     const mains=ts.filter(t=>fs(t)===top), adds=ts.filter(t=>fs(t)<top);
