@@ -15,7 +15,10 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
       || (n.deviceMemory && n.deviceMemory<=4) || (n.hardwareConcurrency && n.hardwareConcurrency<=4)
       || (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches)
       || !(window.CSS && CSS.supports && (CSS.supports('backdrop-filter','blur(1px)') || CSS.supports('-webkit-backdrop-filter','blur(1px)'))));
-    if(ng) d.classList.add('noglass'); }catch(_){} })();</script>
+    if(ng) d.classList.add('noglass'); }catch(_){}
+  /* v66.2 编辑器新布局预览：?skin=next 开（记住，musetab-skin 新键只增）、?skin=off 关 */
+  try{ if(/[?&]skin=next/.test(q)) localStorage.setItem('musetab-skin','next'); else if(/[?&]skin=(off|classic)/.test(q)) localStorage.removeItem('musetab-skin');
+    if(localStorage.getItem('musetab-skin')==='next') d.classList.add('skin-next'); }catch(_){} })();</script>
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
@@ -2303,6 +2306,100 @@ body.shell #mx-rate option{color:var(--text);background:var(--panel)}
 /* 字重：标题类 700/800 收拢为 600（苹方 Semibold；其他平台无 600 时回落 Bold，视觉不变） */
 .logo{font-weight:600}
 .rtab.on,.modal h3,.rc-h{font-weight:600}
+/* ================= v66.2 v4「画廊」三期：编辑器 Apple 生产力布局（预览：?skin=next，签字后切默认）=================
+   工具栏 52（左：文档名 · 保存状态｜中：播放控制 + 信息窗｜右：撤销重做 · 智能 · 导出 · 检查器 · 个人中心 · 更多）；
+   上下文条 40（轨 ▾ + 当前图层的工具组）；左栏收起、其工具面板并入右侧检查器「格式」页；右检查器 280，视口 <1366 默认收起、打开时浮层。
+   一律只搬节点不删节点（id / class 钩子仍在 DOM），只在 body.sn 下生效；手机与经典版不受影响。 */
+body.sn #top .main-bar{height:52px;min-height:52px;flex-wrap:nowrap;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:0 12px 0 14px}
+body.sn #top .main-bar > :not(.sn-l):not(.sn-c):not(.sn-r){display:none!important}
+body.sn .sn-l,body.sn .sn-c,body.sn .sn-r{display:flex;align-items:center;gap:4px;min-width:0}
+body.sn .sn-l{justify-self:start}
+body.sn .sn-c{justify-self:center;gap:12px}
+body.sn .sn-r{justify-self:end}
+body.sn .sn-l .logo{margin-right:6px}
+body.sn .sn-l .logo small{display:none}
+body.sn .sn-l .logo .lt{display:none}
+body.sn #sn-doc{max-width:260px;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:14px;padding:0 10px;height:32px;border-radius:8px}
+body.sn #sn-doc .ch{opacity:.55;margin-left:4px;font-weight:400}
+body.sn #sn-save{font-size:12px;color:var(--faint);white-space:nowrap;padding:0 6px;cursor:pointer}
+body.sn #sn-save.busy{color:var(--muted)}
+body.sn #sn-save.err{color:var(--danger)}
+body.sn .sn-r .sn-sep{width:1px;height:18px;background:var(--border);margin:0 6px;flex:none}
+body.sn .sn-r #seg-undo{background:transparent;border:0}
+body.sn #sn-export{background:var(--btn-pri);color:#fff;border-radius:980px;padding:0 16px;height:30px;margin:0 4px}
+body.sn #sn-export:hover{background:var(--btn-pri-h);color:#fff}
+body.sn #sn-insp.on{background:var(--hover)}
+body.sn .sn-r #b-member{max-width:120px}
+body.sn .sn-r #b-mmenu{display:inline-flex!important;align-items:center;justify-content:center;width:32px;height:32px;padding:0}
+/* 播放控制：#mixer-dock 整节点搬进工具栏中段 */
+body.sn #mixer-dock{position:static!important;left:auto;right:auto;bottom:auto;transform:none;width:auto;max-width:none;height:auto;
+  background:transparent!important;box-shadow:none!important;border:0!important;border-radius:0;z-index:auto}
+body.sn #mixer-dock::before{display:none}
+body.sn #mixer-dock .mx-bar{padding:0;gap:2px;height:auto;border:0;background:transparent;flex-wrap:nowrap}
+body.sn #mixer-dock #mx-prog,body.sn #mixer-dock .mx-splabel,body.sn #mixer-dock #i-tempo,body.sn #mixer-dock #mx-rate,body.sn #mixer-dock #mx-expand,body.sn #mixer-dock #b-mxgrid,body.sn #mixer-dock #mx-more{display:none!important}
+body.sn #mixer-dock button{height:32px;min-width:32px;padding:0 10px;border-radius:8px}
+body.sn #mixer-dock #b-play{border-radius:980px;padding:0 16px}
+body.sn:not(.stand):not(.viewer) #stage{margin:0!important}
+body.sn{padding-bottom:0}
+#sn-lcd{display:none}
+body.sn #sn-lcd{display:inline-flex;align-items:center;gap:12px;height:32px;padding:0 14px;border-radius:8px;background:var(--fill);
+  font:500 13px/1 var(--font-chrome);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+body.sn #sn-lcd i{width:1px;height:14px;background:var(--border)}
+body.sn #sn-lcd [data-h]{cursor:pointer;border-radius:4px;padding:3px 2px}
+body.sn #sn-lcd [data-h]:hover{background:var(--hover)}
+body.sn #sn-lcd .pos{font-weight:600;min-width:52px}
+/* 上下文条：一行 40，轨 ▾ 在最前；节奏组合进检查器 */
+body.sn #editbar{flex-wrap:nowrap;height:40px;padding:4px 14px;overflow:hidden}
+body.sn #editbar #ebu-eb-combo,body.sn #editbar2{display:none!important}
+body.sn #sn-trk{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;background:var(--fill);font-weight:600;font-size:13px;margin-right:8px;flex:none;white-space:nowrap}
+body.sn #sn-trk .ch{opacity:.55;font-weight:400}
+body.sn #editbar #eb-nowrap{margin-left:auto}
+/* 左栏收起；检查器 280 */
+body.sn #left-dock{display:none!important}
+body.sn:not(.stand):not(.viewer) #right-dock{width:280px}
+body.sn.sn-insp-off #right-dock{display:none!important}
+body.sn.sn-insp-over:not(.sn-insp-off) #right-dock{position:fixed!important;right:0;top:92px;bottom:0;z-index:45;box-shadow:var(--shadow-pop)}
+body.sn #right-dock .rcard[data-rt="fmt"]{border:0;background:transparent}
+body.sn #right-dock .rcard[data-rt="fmt"] #ribbon{display:flex;flex-direction:column;gap:8px;padding:0}
+body.sn #right-dock .rcard[data-rt="fmt"] .rg{width:100%}
+body.sn #doc-tabs{display:none}
+body.sn:not(.stand):not(.viewer) #paper{max-width:1000px}
+body.sn.sn-multi #doc-tabs{display:flex}
+
+/* ================= v66.2 v4「画廊」手机看谱：Apple Music 式迷你播放胶囊 + 底部面板 + 播放中界面退场 =================
+   平时：底部悬浮胶囊（实心蓝播放｜曲名 + 小节 · 速度｜从头｜⋯），2px 进度线内嵌；点「⋯」→ 胶囊展开成底部面板（原三排控件）；
+   播放中下滑或 3 秒无触摸：页首收起、胶囊缩到 168 宽；上滑 / 触碰 / 停播即复原（测试环境不自动收起） */
+#vw-mini{display:none}
+@media(max-width:820px){
+  body.viewer #viewerbar{background:var(--glass)!important;-webkit-backdrop-filter:saturate(1.8) blur(20px);backdrop-filter:saturate(1.8) blur(20px);box-shadow:0 .5px 0 var(--border);border-bottom:0!important;transition:transform var(--fx-panel) var(--ease-smooth)}
+  html.noglass body.viewer #viewerbar{background:var(--glass-solid)!important;-webkit-backdrop-filter:none;backdrop-filter:none}
+  body.viewer #viewerbar .vh-stat{background:var(--fill);border:0;border-radius:980px;padding:0 12px;flex-direction:row;gap:6px;align-items:center;height:36px}
+  body.viewer #viewerbar .vh-stat small{order:-1;margin:0;font-size:12px;color:var(--muted)}
+  body.viewer #viewerbar .vh-stat b,body.viewer #viewerbar #vh-key-v,body.viewer #viewerbar #vh-tempo-v{font-size:15px;font-weight:600;color:var(--text)}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded){left:12px!important;right:12px!important;bottom:calc(12px + env(safe-area-inset-bottom))!important;width:auto!important;border-radius:980px!important;
+    box-shadow:var(--shadow-pop)!important;overflow:hidden;transition:left var(--fx-panel) var(--ease-smooth)}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) .mx-bar{height:64px;padding:0 8px 0 8px;gap:4px;flex-wrap:nowrap!important;align-items:center}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) :is(#b-mxgrid,.tempo,.rate,#b-metro,#mx-expand,#b-vwset,.mx-tracks,#mx-prog,.mx-splabel){display:none!important}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #b-stand{order:2;flex:0 0 44px;min-height:44px;width:44px;padding:0;font-size:0;background:transparent}   /* v60.97 产品指示：谱架留在底栏 */
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #b-stand .svgi{margin:0}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #b-play{order:0;flex:0 0 48px;width:48px;height:48px;min-height:48px;padding:0;border-radius:50%;font-size:0;background:var(--btn-pri);color:#fff;position:relative}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #b-play::after{content:"";position:absolute;left:19px;top:16px;border-left:13px solid #fff;border-top:8px solid transparent;border-bottom:8px solid transparent}
+  body.viewer.vw-playing:not(.mxfull) #mixer-dock:not(.expanded) #b-play::after{left:16px;top:16px;width:5px;height:16px;border:0;border-radius:1px;background:#fff;box-shadow:9px 0 0 #fff}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #vw-mini{display:flex;flex-direction:column;justify-content:center;order:1;flex:1 1 auto;min-width:0;padding:0 6px;line-height:1.25}
+  #vw-mini b{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #vw-mini span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  #vw-mini i{position:absolute;left:28px;right:28px;bottom:6px;height:2px;border-radius:1px;background:var(--fill)}
+  #vw-mini i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--p,0%);border-radius:1px;background:var(--text)}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #b-restart{order:2;flex:0 0 44px;min-height:44px;background:transparent}
+  body.viewer:not(.mxfull) #mixer-dock:not(.expanded) #mx-more{order:3;flex:0 0 44px;min-height:44px;background:transparent;width:44px}
+  body.viewer.mxfull #mixer-dock,body.viewer #mixer-dock.expanded{left:0!important;right:0!important;bottom:0!important;border-radius:18px 18px 0 0!important;padding-top:14px;box-shadow:var(--shadow-pop)!important}
+  body.viewer.mxfull #mixer-dock::after,body.viewer #mixer-dock.expanded::after{content:"";position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:var(--fill-2)}
+  body.viewer.vw-quiet #viewerbar{transform:translateY(-100%)}
+  body.viewer.vw-quiet:not(.mxfull) #mixer-dock:not(.expanded){left:calc(100% - 176px)!important}
+  body.viewer.vw-quiet:not(.mxfull) #mixer-dock:not(.expanded) :is(#b-restart,#mx-more,#b-stand){display:none!important}
+  body.viewer.vw-quiet #vw-mini b{display:none}
+  body.viewer.vw-quiet #vw-mini span .tp{display:none}
+}
 </style>
 </head>
 <body class="shell"><!-- v55.2 首帧即新版外壳：脚本在文末执行前浏览器已按 HTML+CSS 首绘，
@@ -10091,6 +10188,8 @@ function renderCore(){
   svg.setAttribute('width', Math.round(CONTENT_W*dz));
   svg.setAttribute('height', Math.round(totalH*dz));
   paperFitGuard(CONTENT_W, cfg.scale);   // v66.0 D7
+  if(SN_ON) snSync();
+  if(document.body.classList.contains('viewer')) try{ vwMiniSync(); }catch(_){}
   const zl = document.getElementById('zoom-lbl');
   if(zl) zl.textContent = Math.round(viewZoom*100)+'%';
   barZones.forEach(z=>p.push(z));
@@ -12755,7 +12854,7 @@ function initStartPad(){
   sp.classList.remove('hidden'); setStartPadInert(true);
   closeFlyout();   // 左边栏默认收起
   /* v46.6→v48.3 未选状态右栏默认页停信息页；v56.6 创作页置首为默认（光标+节拍检查随编辑流） */
-  try{ setRTab('make'); }catch(_){}
+  try{ setRTab(SN_ON? 'fmt' : 'make'); }catch(_){}
   document.querySelectorAll('.ltab').forEach(b=>b.classList.remove('on'));
   try{ renderHints(); syncInputs(); }catch(_){}
   const ct=document.getElementById('spd-cont');
@@ -18004,6 +18103,8 @@ function applyMixLive(){
 function highlight(prefix,mi,ci,whole){
   const b = colBoxes[prefix+':'+mi+':'+ci];
   const ph = document.getElementById('playhead');
+  if(SN_ON && ci===0) snSync(mi);
+  if(ci===0 && document.body.classList.contains('viewer')){ audio.lastMi=mi; vwMiniSync(mi); if(!document.body.classList.contains('vw-quiet') && VW_AUTOHIDE && !vwQuietTm) vwQuiet(false); }
   if(!b||!ph) return;
   /* v56.5 整谱模式：光标纵向贯穿本小节所在系统全部声部行（单轨 SOLO 时只罩该轨行）。
      v60.93 播放样式改版（产品指示，参考出版播放器）：色块从「列」放大为**整小节**变色，
@@ -18048,10 +18149,37 @@ function audioLoadingShow(txt){
 function audioLoadingHide(){
   const el=document.getElementById('audio-loading'); if(el) el.classList.remove('on');
 }
+
+/* v66.2 手机看谱迷你胶囊：曲名 / 小节 / 速度 + 进度线；播放中界面退场（自动化测试环境不自动收起，?autohide=1 可开） */
+const VW_AUTOHIDE = !navigator.webdriver || /[?&]autohide=1/.test(location.search);
+let vwQuietTm = 0, vwLastY = 0;
+function vwMiniSync(mi){
+  if(!document.body.classList.contains('viewer')) return;
+  const dock=document.querySelector('#mixer-dock .mx-bar'); if(!dock) return;
+  let el=document.getElementById('vw-mini');
+  if(!el){ el=document.createElement('div'); el.id='vw-mini'; el.innerHTML='<b></b><span></span><i></i>'; dock.appendChild(el); }
+  const n=(song.measures||[]).length||1, m=(mi!=null? mi : (audio.playing && audio.lastMi!=null? audio.lastMi : 0));
+  el.querySelector('b').textContent=song.title||'';
+  el.querySelector('span').innerHTML='第 '+(m+1)+' / '+n+' 小节<span class="tp"> · '+esc(tempoGlyph(song)+' = '+song.tempo)+'</span>';
+  el.querySelector('i').style.setProperty('--p', Math.round(100*(m+1)/n)+'%');
+  document.body.classList.toggle('vw-playing', !!audio.playing);
+  if(!audio.playing) vwQuiet(false);
+}
+function vwQuiet(on){
+  clearTimeout(vwQuietTm);
+  const B=document.body; if(!B.classList.contains('viewer') || window.innerWidth>820) return;
+  if(!on || B.classList.contains('mxfull')){ B.classList.remove('vw-quiet'); if(audio.playing && VW_AUTOHIDE) vwQuietTm=setTimeout(()=>vwQuiet(true), 3000); return; }
+  if(VW_AUTOHIDE && audio.playing) B.classList.add('vw-quiet');
+}
+window.addEventListener('scroll', ()=>{ if(!document.body.classList.contains('viewer')) return; const y=window.scrollY;
+  if(audio.playing && !audio.autoScrolling && y-vwLastY>24) vwQuiet(true); else if(vwLastY-y>24) vwQuiet(false); vwLastY=y; }, {passive:true});
+document.addEventListener('touchstart', e=>{ if(!document.body.classList.contains('vw-quiet')) { if(audio.playing) vwQuiet(false); return; }
+  vwQuiet(false); if(e.target.closest && e.target.closest('#score')){ e.stopPropagation(); } }, {capture:true, passive:true});
 function stopPlay(){
   audio.timers.forEach(clearTimeout); audio.timers=[];
   clearTimeout(audio.sfWaitTimer);   /* v60.34 等音色包期间按停止：取消延后的自动开播 */
   audioLoadingHide();                /* v61.4 等待胶囊随停止收起 */
+  setTimeout(()=>{ try{ vwMiniSync(); }catch(_){} }, 0);   /* v66.2 迷你胶囊回到停止态、界面复原 */
   /* v61.4 顺手修：等待计时随停止归零——此前残留旧起点，手动停止后再播会被判「已超时」
      直接跳过音色等待（下一次播放又拿不到高保真音色） */
   audio.sfWaitFrom=null; audio.sfWaitToast=false;
@@ -18420,6 +18548,94 @@ function setRTab(p){
 document.getElementById('rtabs').onclick = e=>{
   const b=e.target.closest('.rtab'); if(b) setRTab(b.dataset.p);
 };
+/* ===== v66.2 v4「画廊」三期：编辑器 Apple 生产力布局（预览开关 ?skin=next / musetab-skin=next；签字后改为默认）=====
+   只搬节点不删节点：#mixer-dock 整个搬进工具栏中段（#mixer-dock button 选择器照常命中）、#ribbon 搬进右栏新「格式」页、
+   #seg-undo / #b-msmart / #b-member / #b-mmenu 搬进工具栏右段；其余顶栏按钮仍在 DOM（隐藏），经「更多」菜单可达。 */
+function skinNextWanted(){
+  try{ return document.documentElement.classList.contains('skin-next') && uiShell && !viewerMode
+    && !document.body.classList.contains('stand') && !document.body.classList.contains('viewer') && window.innerWidth>1024; }catch(_){ return false; }
+}
+let SN_ON=false;
+function applySkinNext(){
+  if(SN_ON || !skinNextWanted()) return;
+  const $=id=>document.getElementById(id), mb=document.querySelector('#top .main-bar'); if(!mb) return;
+  const mk=(tag,cls,html)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(html!=null) e.innerHTML=html; return e; };
+  const L=mk('div','sn-l'), C=mk('div','sn-c'), R=mk('div','sn-r');
+  const logo=mb.querySelector('.logo'); if(logo) L.appendChild(logo);
+  const doc=mk('button','ghost'); doc.id='sn-doc'; doc.type='button'; doc.title='曲谱信息：标题、作者、调号拍号速度'; L.appendChild(doc);
+  const sv=mk('span',''); sv.id='sn-save'; sv.title='点按存入「我的曲谱」'; L.appendChild(sv);
+  const dock=$('mixer-dock'); if(dock) C.appendChild(dock);
+  const lcd=mk('span','', '<b class="pos"></b><i></i><span data-h="tempo"></span><i></i><span data-h="key"></span><i></i><span data-h="meter"></span>'); lcd.id='sn-lcd'; C.appendChild(lcd);
+  const su=$('seg-undo'); if(su) R.appendChild(su);
+  R.appendChild(mk('span','sn-sep'));
+  const sm=$('b-msmart'); if(sm) R.appendChild(sm);
+  const ex=mk('button','', '导出'); ex.id='sn-export'; ex.type='button'; ex.title='打印 / PDF / 图片 / MusicXML / MIDI'; R.appendChild(ex);
+  const ins=mk('button','ghost', '<svg class="svgi" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M15 4.5v15"/></svg>'); ins.id='sn-insp'; ins.type='button'; ins.title='显示 / 隐藏检查器'; ins.setAttribute('aria-label','检查器'); R.appendChild(ins);
+  const mem=$('b-member'); if(mem) R.appendChild(mem);
+  const mm=$('b-mmenu'); if(mm) R.appendChild(mm);
+  mb.appendChild(L); mb.appendChild(C); mb.appendChild(R);
+  /* 上下文条：轨 ▾ */
+  const eb=$('editbar'); const trk=mk('button','', ''); trk.id='sn-trk'; trk.type='button'; trk.title='切换音轨 / 图层';
+  if(eb) eb.insertBefore(trk, eb.firstChild);
+  /* 右栏「格式」页：承接左栏工具面板 */
+  const rt=$('rtabs'), rd=$('right-dock'), rib=$('ribbon');
+  if(rt && rd && rib){
+    const tb=mk('button','rtab','格式'); tb.dataset.p='fmt'; rt.insertBefore(tb, rt.firstChild);
+    const card=mk('div','rcard open'); card.dataset.rt='fmt'; card.id='rc-fmt';
+    const host=rt.nextElementSibling; rd.insertBefore(card, host); card.appendChild(rib);
+  }
+  document.body.classList.add('sn'); SN_ON=true;
+  doc.onclick=()=>{ const m=$('b-meta'); if(m && m.onclick) m.onclick(); };
+  sv.onclick=()=>{ const b=$('b-savemine'); if(b) b.click(); };
+  ex.onclick=()=>{ const b=$('b-print'); if(b) b.click(); };
+  ins.onclick=()=>{ const off=!document.body.classList.contains('sn-insp-off'); document.body.classList.toggle('sn-insp-off', off);
+    try{ localStorage.setItem('musetab-insp', off?'0':'1'); }catch(_){} snSync(); setTimeout(()=>{ try{ render(); }catch(_){} }, 0); };
+  trk.onclick=(e)=>{ e.stopPropagation(); snTrackMenu(trk); };
+  lcd.addEventListener('click', e=>{ const h=e.target.closest('[data-h]'); if(!h) return; const r=h.getBoundingClientRect(); showHeadMenu(h.dataset.h, r.left+r.width/2, r.bottom+6); });
+  let pref=null; try{ pref=localStorage.getItem('musetab-insp'); }catch(_){}
+  document.body.classList.toggle('sn-insp-off', pref==='0' || (pref==null && window.innerWidth<1366));
+  try{ setRTab('fmt'); }catch(_){}
+  snResize(); snSync();
+  try{ render(); alignHeader(); }catch(_){}
+}
+function snResize(){ if(!SN_ON) return; document.body.classList.toggle('sn-insp-over', window.innerWidth<1366); }
+function snTrackMenu(anchor){
+  closePop();
+  /* 左轨上可见的条目（音轨 + 图层；隐藏的图层不列），点击即代点左轨（复用其全部逻辑） */
+  const tabs=[...document.querySelectorAll('#left-rail .ltab')].filter(b=>!b.dataset.act && getComputedStyle(b).display!=='none');
+  const div=document.createElement('div'); div.className='popmenu'; div.id='popmenu';
+  const r=anchor.getBoundingClientRect(); div.style.left=Math.round(r.left)+'px'; div.style.top=Math.round(r.bottom+6)+'px';
+  div.innerHTML='<div class="row" style="flex-direction:column;align-items:stretch;gap:2px">'
+    + tabs.map((b,i)=>`<button data-sn-t="${i}" class="${b.classList.contains('on')?'on':''}">${esc((b.querySelector('.lb')||b).textContent.trim())}</button>`).join('')
+    + '</div>';
+  document.body.appendChild(div);
+  div.addEventListener('click', ev=>{ const x=ev.target.closest('[data-sn-t]'); if(!x) return; const b=tabs[+x.dataset.snT]; closePop(); if(b) b.click(); setRTab('fmt'); snSync(); });
+}
+function snSync(mi){
+  if(!SN_ON) return;
+  const $=id=>document.getElementById(id);
+  try{
+    const d=$('sn-doc'); if(d) d.innerHTML=esc(song.title||'未命名曲谱')+'<span class="ch">▾</span>';
+    const on=document.querySelector('#left-rail .ltab.rtrk.on')||document.querySelector('#left-rail .ltab.on'); const t=$('sn-trk');
+    if(t) t.innerHTML=esc(on? (on.querySelector('.lb')||on).textContent.trim() : '图层')+'<span class="ch">▾</span>';
+    const lcd=$('sn-lcd');
+    if(lcd){ const m = (mi!=null? mi : (sel && sel.mi!=null? sel.mi : 0));
+      lcd.querySelector('.pos').textContent='小节 '+(m+1);
+      lcd.querySelector('[data-h="tempo"]').textContent=tempoGlyph(song)+' = '+song.tempo;
+      lcd.querySelector('[data-h="key"]').textContent='1 = '+(song.key||'C');
+      lcd.querySelector('[data-h="meter"]').textContent=song.beats+'/'+song.unit; }
+    document.body.classList.toggle('sn-multi', (docs||[]).length>=2);
+    const ins=$('sn-insp'); if(ins) ins.classList.toggle('on', !document.body.classList.contains('sn-insp-off'));
+    snSaveState(persist.pending? 'busy' : 'ok');
+  }catch(_){}
+}
+function snSaveState(st){
+  const sv=document.getElementById('sn-save'); if(!sv) return;
+  let inLib=false; try{ inLib=!!(song && song.id && libLoad().some(x=>x.id===song.id)); }catch(_){}
+  sv.classList.toggle('busy', st==='busy'); sv.classList.toggle('err', st==='err');
+  sv.textContent = st==='busy'? '正在保存…' : st==='err'? '保存失败 · 重试' : inLib? '已存「我的曲谱」' : '已存本机';
+}
+
 function applyShell(){
   document.body.classList.toggle('shell', uiShell);
   const b=document.getElementById('b-shell');
@@ -19177,7 +19393,7 @@ function persist(){
   try{ renderDocTabs(); }catch(_){}
   try{ if(!audio.playing) renderProgCells(); }catch(_){}
   if(docs.length && docs[curDocI]) docs[curDocI].song = song;
-  persist.pending=true;
+  persist.pending=true; if(SN_ON) snSaveState('busy');
   if(persistTimer) clearTimeout(persistTimer);
   persistTimer=setTimeout(persistNow, 350);
 }
@@ -19185,7 +19401,7 @@ function persistFlush(){ if(persist.pending) persistNow(); }
 function docsSig(){ return docs.length+':'+curDocI+':'+docs.map(d=>(d.song&&(d.song.id||d.song.title))||'').join('\u0001'); }
 function persistNow(){
   if(persistTimer){ clearTimeout(persistTimer); persistTimer=0; }
-  persist.pending=false;
+  persist.pending=false; if(SN_ON) setTimeout(()=>snSaveState('ok'),0);
   if(viewerMode) return;
   try{
     localStorage.setItem(LS_KEY, JSON.stringify(song));
@@ -25227,6 +25443,7 @@ function alignHeader(){
   sfEmbedInit();
   updateHifiBtn();
   applyResponsive();
+  try{ applySkinNext(); }catch(e){ console.error('新布局初始化失败', e); }
   alignHeader();
   /* v57.7 启动遮罩淡出：面板搬移/图标/启动台全部就绪后再露出界面（防加载期乱版闪现）。
      v58.4 观看/云谱深链（?pub= / ?mine=）此处不揭幕——远端拉谱期间会露出编辑器外壳（用户反馈
@@ -25235,7 +25452,7 @@ function alignHeader(){
   if(!/[?&](pub|mine|review)=/.test(location.search)) bootVeilDone();
   /* 响应式：窗口尺寸变化时重排谱面（自适配宽度）并校准页头对齐 */
   let rzTimer=null;
-  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ applyResponsive(); render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });
+  window.addEventListener('resize', ()=>{ clearTimeout(rzTimer); rzTimer=setTimeout(()=>{ applyResponsive(); snResize(); render(); alignHeader(); if(!audio.playing) renderProgCells(); }, 120); });
   if(window.ResizeObserver){
     const ro = new ResizeObserver(()=>alignHeader());
     ro.observe(document.getElementById('left-dock'));
