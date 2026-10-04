@@ -963,7 +963,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { padGone: document.getElementById('start-pad').classList.contains('hidden'),
       fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 8,
       paperVis: getComputedStyle(document.getElementById('paper')).visibility === 'visible',
-      flyBack: !document.getElementById('left-flyout').classList.contains('hidden') };
+      /* v66.0 D7：1400 宽下固定版宽（向导新建）左右面板全开放不下 → 左栏自动收起一次让宽给谱面；
+         此时「左栏恢复」以「谱面完整可见」代替（面板仍可从左轨再打开，改浮层不挤谱面） */
+      flyBack: !document.getElementById('left-flyout').classList.contains('hidden')
+        || (FLY_AUTO_CLOSED && +document.getElementById('score').getAttribute('width') <= document.getElementById('paper').clientWidth + 1) };
   });
   T(t35a.padBack && t35.padGone && t35.fresh && t35.paperVis && t35.flyBack,
     'T35 向导创建=全新曲谱(取消回台/创建关台/无残留)', JSON.stringify(Object.assign({}, t35a, t35)));

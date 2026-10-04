@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script>/* v64.0 B7 ⑦（P2-35）明暗主题持久化：musetab-theme（新键，只增），首屏前套用 */
 try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(_){}</script>
+<script>/* v66.0 v4「画廊」一期：动效与材质开关（首屏前定档，CSS 只读 html 上的类）。
+   html.fx：允许动效——自动化测试（navigator.webdriver）默认关闭，?fx=1 强开、?fx=0 强关；系统「减弱动态」再加 fx-rm。
+   html.noglass：毛玻璃降级为实底——测试环境（?glass=1 可开）、微信安卓 / 小程序 web-view、低内存或低核数、系统「减弱透明度」 */
+(function(){ var d=document.documentElement, q=location.search, n=navigator, ua=n.userAgent||'';
+  try{ if(!/[?&]fx=0/.test(q) && (!n.webdriver || /[?&]fx=1/.test(q))){ d.classList.add('fx');
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) d.classList.add('fx-rm'); } }catch(_){}
+  try{ var ng = /[?&]glass=1/.test(q)? false : (n.webdriver || (/MicroMessenger/i.test(ua) && /Android/i.test(ua)) || /miniProgram/i.test(ua)
+      || (n.deviceMemory && n.deviceMemory<=4) || (n.hardwareConcurrency && n.hardwareConcurrency<=4)
+      || (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches)
+      || !(window.CSS && CSS.supports && (CSS.supports('backdrop-filter','blur(1px)') || CSS.supports('-webkit-backdrop-filter','blur(1px)'))));
+    if(ng) d.classList.add('noglass'); }catch(_){} })();</script>
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
@@ -62,6 +73,24 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%)}
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--grad-2:#e86a55;--grad-3:#f08874} }
 :root[data-theme="dark"]{--grad-2:#e86a55;--grad-3:#f08874}
+/* v66.0 v4「画廊」一期（零视觉变化）：
+   ① 谱面令牌隔离层——谱面只读 --sc-*，此版仍指向界面现值；二期换肤时界面色改了，谱面编辑笔 / 刻版灰字另行定值、不随主题漂移
+   ② --font-chrome：界面白名单元素的字体令牌（此版＝--font-ui；谱面 SVG 文字继续继承 --font-ui，冻结不动）
+   ③ 动效令牌：缺省全 0（测试读到的永远是终态），只有 html.fx 才赋真实值 */
+:root{--sc-pen:var(--accent);--sc-pen-2:var(--accent-2);--sc-pen-soft:var(--accent-soft);--sc-pen-ink:var(--accent-ink);
+  --sc-muted:var(--muted);--sc-faint:var(--faint);--sc-border:var(--border);--sc-danger:var(--danger);
+  --font-chrome:var(--font-ui);
+  --fx-tap:0ms;--fx-fast:0ms;--fx-base:0ms;--fx-pop:0ms;--fx-panel:0ms;--fx-sheet:0ms;--fx-reveal:0ms;--fx-dist:0px;
+  --ease-out:cubic-bezier(.25,.1,.25,1);--ease-in:cubic-bezier(.4,0,1,1);
+  --ease-snappy:cubic-bezier(.2,.9,.3,1);--ease-smooth:cubic-bezier(.32,.72,0,1)}
+html.fx{--fx-tap:100ms;--fx-fast:150ms;--fx-base:200ms;--fx-pop:340ms;--fx-panel:420ms;--fx-sheet:590ms;--fx-reveal:800ms;--fx-dist:24px}
+@supports (transition-timing-function: linear(0, 1)){
+  html.fx{--ease-snappy:linear(0,.028 3%,.098 6%,.54 19%,.712 25%,.846 31.5%,.932 38%,.986 45.5%,1.012 55%,1);
+    --ease-smooth:linear(0,.023 2.5%,.079 5%,.465 17%,.637 23.5%,.763 30%,.86 37.5%,.93 47%,.971 58.5%,1)} }
+html.fx.fx-rm{--fx-pop:150ms;--fx-panel:150ms;--fx-sheet:150ms;--fx-reveal:150ms;--fx-dist:0px;--ease-snappy:var(--ease-out);--ease-smooth:var(--ease-out)}
+#paper,#print-pages{--accent:var(--sc-pen);--accent-2:var(--sc-pen-2);--accent-soft:var(--sc-pen-soft);--accent-ink:var(--sc-pen-ink);
+  --muted:var(--sc-muted);--faint:var(--sc-faint);--border:var(--sc-border);--danger:var(--sc-danger)}
+button,input,select,textarea,#top,#mixer-dock,#left-dock,#right-dock,.modal,.popmenu,#toast{font-family:var(--font-chrome)}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font-ui);
@@ -419,6 +448,10 @@ body.shell .ltab[data-act="new"]:hover{filter:brightness(1.07)}
   body.shell #stage{margin:0}
   body.shell #score-wrap{overflow:visible;height:auto;padding:0}
 }
+body.shell:not(.stand):not(.viewer) #paper.paper-xs{overflow-x:auto}   /* v66.0 D7 兜底：放大到放不下时横向滚动，不裁谱 */
+body.shell.paper-tight:not(.stand):not(.viewer) #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;
+    width:262px;height:auto;max-height:none;overflow-y:auto;z-index:40;box-shadow:var(--shadow);
+    margin:0;border:1px solid var(--border-soft);border-radius:14px}   /* v66.0 D7 宽屏放不下固定版宽时，面板改浮层（同 ≤1180） */
 @media(max-width:1180px){
   body.shell:not(.stand):not(.viewer) #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;
     width:262px;height:auto;max-height:none;overflow-y:auto;z-index:40;box-shadow:var(--shadow);
@@ -2002,7 +2035,8 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   #paper{border:none;box-shadow:none;border-radius:0;padding:0;max-width:none;width:auto;filter:none}
   #paper svg{width:100%!important;height:auto!important}
   #score .pagebg{stroke:none!important} #score .pageno{display:none!important}
-  :root{--paper:#fff;--ink:#000}
+  :root{--paper:#fff;--ink:#000;--sc-muted:#6b6357;--sc-faint:#746c5e;--sc-border:#e4ddcd;
+    --sc-pen:#c33a29;--sc-pen-2:#d24a37;--sc-pen-soft:rgba(195,58,41,.10);--sc-pen-ink:#b02f20;--sc-danger:#b45309}   /* v66.0 深色主题打印：刻版灰字不再印成深色主题浅灰 */
   /* 反色只用于屏幕浏览；打印/导出 PDF 一律回到白纸黑字（省墨、成品规范） */
   #paper.score-invert{--paper:#fff;--ink:#000;--muted:#555;--border:#000;--accent:#c33a29;--accent-ink:#b02f20;--danger:#b45309}
 }
@@ -4605,7 +4639,32 @@ function fixedLayOn(cfg){ return !!(cfg||layoutCfg()).fixed && (window.innerWidt
 function fitKOf(contentW, scale){
   if(!LAY_FIXED_NOW || noWrapOn()) return 1;
   const avail = Math.max(200, (LAST_PAPER_W||1040) - 4);
-  return Math.max(0.8, Math.min(1, avail / Math.max(1, contentW*viewZoom*scale)));
+  return Math.max(fitFloor(), Math.min(1, avail / Math.max(1, contentW*viewZoom*scale)));
+}
+/* v66.0 D7（评审复核：向导新建的固定版宽谱在 1366×768 右侧被裁 118px、1440×900 裁 44px，末小节线看不见也滚不到——
+   #paper 不出横向滚动条，而 fitKOf 的 80% 下限在左栏面板常开时仍放不下）：
+   ① 宽屏编辑态（>1180、新版外壳）显示缩放下限 80%→70%：1440×900 左右面板全开也能整行放下；
+   ② 70% 仍放不下（≈1366 宽）时左栏面板自动收起一次，把宽度让给谱面；用户再打开时面板改浮层（同 ≤1180 样式），
+      不再把谱面挤窄——判定用「面板停靠时的可用宽」，类挂上后不会来回抖动；
+   ③ 仍放不下（用户手动放大）时 #paper 允许横向滚动兜底，不再裁掉。手机重排、不换行模式、打印分页不受影响 */
+let FLY_DOCK_W = 0, FLY_AUTO_CLOSED = false;
+function shellWideEdit(){ const B=document.body; return !!B && B.classList.contains('shell') && !B.classList.contains('stand') && !B.classList.contains('viewer') && window.innerWidth>1180 && !PRINTING_NOW && !PRINT_PAGING; }
+function fitFloor(){ return shellWideEdit()? 0.7 : 0.8; }
+function paperFitGuard(contentW, scale){
+  const P = document.getElementById('paper'), sv = document.getElementById('score'), B = document.body;
+  if(!P || !sv || !B) return;
+  const fly = document.getElementById('left-flyout');
+  const flyOpen = !!(fly && !fly.classList.contains('hidden'));
+  let tight = false;
+  if(shellWideEdit() && LAY_FIXED_NOW && !noWrapOn() && flyOpen && !startPadOn()){
+    if(!B.classList.contains('paper-tight')){ const r = fly.getBoundingClientRect(); if(r.width>0) FLY_DOCK_W = Math.round(r.width); }
+    const dockW = B.classList.contains('paper-tight')? LAST_PAPER_W - (FLY_DOCK_W||272) : LAST_PAPER_W;
+    tight = contentW*Math.min(1, viewZoom)*scale*fitFloor() > dockW - 4;   // 只按 ≤100% 判定：用户主动放大走横滚兜底，不动面板
+    if(tight && !FLY_AUTO_CLOSED){ FLY_AUTO_CLOSED = true; closeFlyout(); tight = false; }
+  }
+  if(B.classList.contains('paper-tight') !== tight) B.classList.toggle('paper-tight', tight);
+  const sw = +sv.getAttribute('width') || 0;
+  P.classList.toggle('paper-xs', !noWrapOn() && sw > (P.clientWidth||0) + 1);
 }
 /* v61.1 不换行模式（产品指示：曲谱增加不换行编辑模式和看谱模式）：
    全部小节排成一条横向长带（GP/MuseScore「连续视图」惯例）——断行 DP、两端对齐、
@@ -4641,7 +4700,8 @@ function setViewZoom(z){
   const svg=document.getElementById('score'), vb=svg&&svg.viewBox.baseVal;
   /* 显示缩放 = 用户缩放 × 内容大小：内容大小放大内容、但纸张外框在屏幕上保持固定尺寸 */
   const dz = viewZoom * layoutCfg().scale * LAY_BIGK * (vb&&vb.width? fitKOf(vb.width, layoutCfg().scale) : 1);
-  if(vb&&vb.width){ svg.setAttribute('width',Math.round(vb.width*dz)); svg.setAttribute('height',Math.round(vb.height*dz)); }
+  if(vb&&vb.width){ svg.setAttribute('width',Math.round(vb.width*dz)); svg.setAttribute('height',Math.round(vb.height*dz));
+    try{ paperFitGuard(vb.width, layoutCfg().scale); }catch(_){} }   // v66.0 D7 放大后兜底横滚
   const zl=document.getElementById('zoom-lbl'); if(zl) zl.textContent=Math.round(viewZoom*100)+'%';
   /* v50.9 手机编辑态 fit-width 联动：手动缩放≠100% 退出屏宽适配（回容器内滚动），
      点缩放标签回 100% 恢复适配；桌面宽度下该类无 CSS 效果 */
@@ -9873,6 +9933,7 @@ function renderCore(){
   const dz = viewZoom * cfg.scale * LAY_BIGK * fitKOf(CONTENT_W, cfg.scale);   // v64.5 B8 ① 固定版宽：显示按可视宽缩放（最低 80%）；v64.6 跟练大字
   svg.setAttribute('width', Math.round(CONTENT_W*dz));
   svg.setAttribute('height', Math.round(totalH*dz));
+  paperFitGuard(CONTENT_W, cfg.scale);   // v66.0 D7
   const zl = document.getElementById('zoom-lbl');
   if(zl) zl.textContent = Math.round(viewZoom*100)+'%';
   barZones.forEach(z=>p.push(z));
@@ -24645,6 +24706,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v66.0</span><div><b>修复：新建曲谱在 1366 / 1440 宽屏幕上右侧被裁掉、末小节看不见</b>（v4「画廊」界面升级第一期）。<br>① 向导新建的曲谱用固定版宽，此前左右面板都展开时按 80% 也放不下，最后一个小节线被裁掉且滚不过去。现在宽屏下最低缩到 70%，1440 宽面板全开也能整行放下；再窄（约 1366）时左侧面板自动收起一次，把宽度让给谱面，之后再打开面板改为浮层，不挤窄谱面。<br>② 手动放大到放不下时，谱面可以横向滚动，不再裁掉。<br>③ 深色主题下打印，谱面上的作曲 / 制谱 / 小节号等灰字不再印成浅灰。<br>④ 为界面升级做准备（外观不变）：谱面颜色单独一层、界面字体令牌、动效与毛玻璃开关（测试环境与「减弱动态」下自动关闭）。<br>新套件 <code>tv_v66a</code>。</div></li>
     <li><span class="v">v65.7</span><div><b>MusicXML 往返覆盖率 100%：简谱声部、纯和弦谱、文字术语、× 闷音、推弦目标全部保真</b>（2026-10 评审团 B3a ⑨ 覆盖率计分）。<br>① 自家导出的文件再导入时，简谱声部不再变成五线谱、教学对照谱与钢琴弹唱谱类保持原样。<br>② 纯和弦谱的和弦随文件出入；rit. / a tempo / cresc. 等文字术语、单音渐强渐弱、标注文字都能导出并读回；独奏谱（纯六线谱）的速度不再丢。<br>③ 推弦目标音随文件出入；MuseScore 以二分音符标速度的文件按四分口径换算。<br>④ 「指弹技法示例」预设第 3 小节滑音目标列越界的老数据修正（弧线此前画不出）。<br>新套件 <code>tv_mxlcov</code>：16 首预设 + 3 首合成谱 × 36 项特性逐项计分，覆盖率 221/221。</div></li>
     <li><span class="v">v65.6</span><div><b>大谱编辑更顺手：按住键连发只画一次、落盘合并、撤销栈限量</b>（2026-10 评审团 B6a 性能）。<br>① 按住数字键 / 方向键连发时，谱面合并到下一帧只重画一次（单次按键仍即时重画）。<br>② 本机自动保存改为 350 毫秒内合并写一次；切后台、关页、刷新前立即写盘不丢；多开窗口时不再每次按键都整份重写全部窗口。<br>③ 撤销栈按内存大小封顶（12 MB，至少保留 20 步），大谱长时间编辑不再越编越卡。<br>④ 发版语法闸也盖住 <code>async function</code> 与跨脚本段同名箭头常量重名。<br>⑤ 应用内更新日志只保留最近 40 版，更早的 400 多条移到官网「完整更新日志」页（编辑器文件瘦 190 KB）。<br>新套件 <code>tv_b6a</code>（8 项，旧文件 1/8）。</div></li>
     <li><span class="v">v65.5</span><div><b>MIDI 导入不再丢音：AI 转谱产物清洗</b>（2026-10 评审团 B3b AI 产物入口）。<br>① 同音高两个音轻微重叠时（AI 转谱、真人演奏常见），后一个音以前被吞成休止，现在按先后配对两个都在。<br>② 音长只按满 85% 的二分、四分音符以前碎成「附点八分＋十六分休止」，现在吸附到干净时值，宁可补齐也不生成十六分碎片；±40 tick 的时间抖动不再多出小节。<br>③ 新增 <code>songCompare</code> 事件级比对（两份谱按小节·拍位·音高逐音对照，给出相同 / 缺失 / 多出与成品率），用于导入回归。哼唱转谱走原有连奏量化不受影响。<br>新套件 <code>tv_b3b</code>（4 项，旧文件 0/4）。</div></li>
@@ -24666,7 +24728,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v65.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v66.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

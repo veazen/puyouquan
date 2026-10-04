@@ -1,7 +1,7 @@
 /* v64.5 B8 ① 版面与显示解耦（2026-10 评审团 §6.3 B8 ①：P1-18；D-09 拍板「新建谱固定纸宽」）
    T1 新建向导出的谱默认固定版宽（song.layout.fixed=true）
    T2 固定版宽谱在 1100 / 1280 / 1440 / 1920 四种桌面宽度下版宽都是 1060，行数与页数一致；手机 390 仍走窄屏重排
-   T3 显示随可视宽缩放：窄于版宽时缩小显示（最低 80%），宽时不放大
+   T3 显示随可视宽缩放：窄于版宽时缩小显示（v66.0 起宽屏最低 70%、不超出纸宽），宽时不放大
    T4 存量谱在「排版」里自愿开启/关闭固定版宽
    T5 打印：固定版宽谱在 1280 窗口打印时按 1060 排版，与 1920 窗口断行相同
    突变实证：对 v64.5 之前的文件复跑，T1–T5 全部报红（0/5）。 */
@@ -45,8 +45,9 @@ const MK = `window.mkLong=(fixed)=>{ const s=createSong('vocal',{title:'长谱',
   const ws = [1100, 1280, 1440, 1920].map(w => res[w]);
   T(ws.every(x => x && x.PAGE_W === 1060) && ws.every(x => x.sys === ws[0].sys && x.n === ws[0].n) && res.m390.PAGE_W < 1060,
     'T2 四种桌面宽度版宽 1060、行数页数一致；手机窄屏重排', JSON.stringify(res));
-  T(ws.every(x => x.svgW <= Math.max(x.paper, Math.round(1060 * 0.8)) + 1 && x.svgW >= Math.round(1060 * 0.8) - 1),
-    'T3 显示按可视宽缩放（不放大、最低 80%）', JSON.stringify(ws.map(x => ({ paper: x.paper, svgW: x.svgW }))));
+  /* v66.0 D7：宽屏编辑态下限 80%→70%，且显示宽不再超出纸宽（此前 80% 下限会把末小节线裁掉） */
+  T(ws.every(x => x.svgW <= x.paper + 1 && x.svgW >= Math.round(1060 * 0.7) - 1),
+    'T3 显示按可视宽缩放（不放大、最低 70%、不超出纸宽）', JSON.stringify(ws.map(x => ({ paper: x.paper, svgW: x.svgW }))));
 
   /* T4 */
   { const pg = await open(1440, 900);
