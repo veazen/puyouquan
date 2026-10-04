@@ -1,10 +1,13 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>谱友圈 · 首页提案 v3</title>
+<title>谱友圈 · 首页提案 v3b</title>
 <link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="tokens.css">
 <style>
-.nav{position:absolute;top:0;left:0;right:0;z-index:10;height:56px;display:flex;align-items:center;padding:0 32px}
-.nav.w{color:#fff}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* 顶栏：56 高、白底；滚过首屏后加 1px 发丝线（动效 200ms linear） */
+.nav{position:sticky;top:0;z-index:5;height:56px;background:#fff;display:flex;align-items:center;padding:0 32px}
+.nav.solid{box-shadow:0 1px 0 var(--line-2)}
 .wm{display:flex;align-items:center;gap:10px;color:var(--onyx);text-decoration:none}
 .wm .mk{width:24px;height:24px;border-radius:5px;background:var(--onyx);position:relative;display:block}
 .wm .mk i{position:absolute;left:5px;right:7px;height:1.6px;background:#fff;border-radius:1px}
@@ -12,150 +15,150 @@
 .wm .mk b{position:absolute;right:4px;top:5px;width:4px;height:4px;border-radius:50%;background:#fff}
 .wm span{font:500 15px/1 var(--font);letter-spacing:.32em}
 .nav .links{display:flex;gap:4px;margin:0 auto}
-.nav .links a{font:500 14px/1 var(--font);color:var(--onyx);text-decoration:none;padding:8px 14px;border-radius:var(--r-btn)}
-.nav .links a.hv{background:rgba(23,26,32,.06)}
-.nav .rt{display:flex;gap:4px;align-items:center}
-.nav .rt a{width:34px;height:34px;display:grid;place-items:center;border-radius:var(--r-btn);color:var(--onyx)}
-.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.nav .links a{font:500 14px/1 var(--font);color:var(--onyx);text-decoration:none;padding:9px 14px;border-radius:var(--r-btn)}
+.nav .links a.on{box-shadow:inset 0 -2px 0 var(--onyx);border-radius:0}
+.nav .rt{display:flex;gap:8px;align-items:center}
+.nav .rt a.t{font:500 14px/1 var(--font);color:var(--onyx);text-decoration:none;padding:9px 12px}
 
-.scene{position:relative;height:900px;overflow:hidden}
-.scene .hd{position:absolute;z-index:3;top:118px;left:0;right:0;text-align:center}
-.scene h1,.scene h2{font:500 40px/1.2 var(--font);color:var(--onyx);margin:0;letter-spacing:.02em}
-.scene .sub{font:400 15px/1.5 var(--font);color:var(--char);margin-top:8px}
-.scene .sub u{text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px}
-.scene .acts{position:absolute;z-index:3;bottom:84px;left:0;right:0;display:flex;gap:24px;justify-content:center}
-.scene .more{position:absolute;bottom:30px;left:50%;translate:-50% 0;z-index:3;color:var(--onyx);opacity:.7}
-.dots{position:absolute;bottom:40px;right:40px;z-index:3;display:flex;gap:8px}
-.dots i{width:6px;height:6px;border-radius:50%;background:rgba(23,26,32,.22)} .dots i.on{background:var(--onyx)}
-
-/* 纸：裁到内容区（谱面四周保留刻版页边），带极淡的纸面受光 */
-.paper{position:absolute;background:#fff;overflow:hidden;border-radius:1px}
-.paper img{position:absolute;left:0;top:0;width:100%}
-.paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(170deg,rgba(255,255,255,0) 35%,rgba(0,0,0,.035) 100%)}
-
-/* S1 浅灰展台：同一首欢乐颂的三种记谱法，一字排开（车型阵列）+ 地面倒影 */
-.s1{background:linear-gradient(180deg,#f8f8f8 0%,#f1f1f1 70%,#e3e3e3 70.1%,#ebebeb 100%)}
-.s1 .floor{position:absolute;left:0;right:0;top:70%;bottom:0;background:radial-gradient(70% 60% at 50% 0%,rgba(255,255,255,.75),rgba(255,255,255,0))}
-.s1 .row{position:absolute;left:0;right:0;top:318px;height:440px;perspective:2400px;perspective-origin:50% 30%}
-.s1 .paper{top:0;height:300px;box-shadow:0 1px 0 rgba(0,0,0,.04),0 20px 30px -18px rgba(0,0,0,.35);-webkit-box-reflect:below 2px linear-gradient(transparent 55%,rgba(255,255,255,.28))}
-.s1 .p1{width:470px;left:calc(50% - 760px);transform:rotateY(26deg);transform-origin:100% 50%}
-.s1 .p2{width:500px;left:calc(50% - 250px);top:-18px;height:328px;z-index:2}
-.s1 .p3{width:470px;left:calc(50% + 290px);transform:rotateY(-26deg);transform-origin:0 50%}
-.s1 .tag{position:absolute;top:338px;width:300px;text-align:center;font:500 12px/1 var(--font);color:var(--steel);letter-spacing:.14em}
-.s1 .tag.t2{width:300px;left:calc(50% - 150px);color:var(--onyx)}
-.s1 .tag.t1{left:calc(50% - 650px)} .s1 .tag.t3{left:calc(50% + 360px)}
-
-.s1 .q{margin:22px auto 0;width:440px;height:40px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(255,255,255,.9);border-radius:var(--r-btn);box-shadow:inset 0 0 0 1px var(--line-2);color:var(--steel);font:400 14px/1 var(--font)}
-.s1 .q .ic{width:18px;height:18px} .s1 .q span{color:var(--mute)} .s1 .q kbd{margin-left:auto;font:500 11px/1 var(--font);color:var(--steel);padding:4px 6px;border-radius:3px;background:var(--off)}
-/* S2 深色展台 */
-.s2{background:radial-gradient(70% 60% at 50% 46%,#30343b 0%,#1c1f25 45%,#0f1114 100%)}
-.s2 h2{color:#fff} .s2 .sub{color:#c9cacc}
-.s2 .spot{position:absolute;left:50%;top:150px;width:900px;height:760px;translate:-50% 0;background:radial-gradient(closest-side,rgba(255,255,255,.10),rgba(255,255,255,0));pointer-events:none}
-.s2 .paper{left:50%;top:248px;width:520px;height:440px;translate:-50% 0;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.04)}
-.s2 .paper.bk{translate:-50% 0;rotate:-6deg;top:270px;left:calc(50% - 210px);width:440px;height:400px;filter:brightness(.42)}
-.s2 .paper.bk2{rotate:5deg;top:276px;left:calc(50% + 210px);width:440px;height:400px;filter:brightness(.42)}
-.s2 .more{color:#fff} .s2 .dots i{background:rgba(255,255,255,.28)} .s2 .dots i.on{background:#fff}
-
-/* S3 微距：钢琴伴奏，中景清晰、前后景虚化 */
-.s3{background:#fff}
-.s3 .pg{position:absolute;left:50%;top:-430px;width:2200px;translate:-50% 0;rotate:-4deg}
-.s3 .pg img{display:block;width:100%}
-.s3 .soft{filter:blur(6px);opacity:.85}
-.s3 .sharp{-webkit-mask-image:linear-gradient(180deg,transparent 0,transparent 660px,#000 760px,#000 940px,transparent 1040px);mask-image:linear-gradient(180deg,transparent 0,transparent 660px,#000 760px,#000 940px,transparent 1040px)}
-.s3 .fade{position:absolute;inset:0;background:linear-gradient(180deg,#fff 0%,rgba(255,255,255,.93) 21%,rgba(255,255,255,0) 33%,rgba(255,255,255,0) 60%,rgba(255,255,255,.94) 74%,#fff 84%)}
-.s3 .spec{position:absolute;z-index:3;bottom:172px;left:0;right:0;display:flex;justify-content:center;gap:96px}
-.s3 .spec div{text-align:center} .s3 .spec b{display:block;font:500 28px/1.2 var(--font);color:var(--onyx)} .s3 .spec span{font:400 13px/1.4 var(--font);color:var(--steel)}
-
-/* S4 俯拍平铺（flat lay）：石色台面上的弹唱谱 + 指弹谱 + 拨片 */
-.s4{background:radial-gradient(80% 70% at 50% 55%,#efede9 0%,#e5e3df 60%,#d9d7d2 100%)}
-.s4 .paper{box-shadow:0 1px 1px rgba(0,0,0,.08),0 14px 28px -10px rgba(0,0,0,.28)}
-.s4 .a{width:470px;height:560px;left:calc(50% - 470px);top:250px;rotate:-6deg}
-.s4 .b{width:440px;height:520px;left:calc(50% + 40px);top:276px;rotate:4.5deg}
-.s4 .pick{position:absolute;left:calc(50% + 420px);top:600px;width:54px;height:62px;background:linear-gradient(150deg,#2b2e34,#121418);border-radius:48% 48% 50% 50%/38% 38% 62% 62%;rotate:24deg;box-shadow:0 8px 14px rgba(0,0,0,.28)}
-.s4 .capo{position:absolute;left:calc(50% - 560px);top:640px;width:120px;height:26px;border-radius:13px;background:linear-gradient(180deg,#3a3d43,#191b1f);rotate:-28deg;box-shadow:0 8px 14px rgba(0,0,0,.25)}
-.s4 .capo::after{content:"";position:absolute;right:-18px;top:6px;width:34px;height:14px;border-radius:7px;background:#2a2d33}
-.s4 .fadeb{position:absolute;left:0;right:0;bottom:0;height:300px;background:linear-gradient(180deg,rgba(229,227,223,0),rgba(229,227,223,.94) 62%,#e2e0dc)}
-.s4 .fadet{position:absolute;left:0;right:0;top:0;height:250px;background:linear-gradient(180deg,#e9e7e3 30%,rgba(233,231,227,0))}
-
-.s4 .pencil{position:absolute;left:calc(50% - 600px);top:560px;width:260px;height:14px;rotate:-34deg;border-radius:2px;background:linear-gradient(180deg,#2c2f35 0%,#4a4e55 45%,#1b1d21 100%);box-shadow:0 10px 14px -4px rgba(0,0,0,.35)}
-.s4 .pencil::before{content:"";position:absolute;right:-30px;top:0;border-left:30px solid #d8cfbf;border-top:7px solid transparent;border-bottom:7px solid transparent}
-.s4 .pencil::after{content:"";position:absolute;right:-30px;top:5px;border-left:10px solid #2a2a2a;border-top:2px solid transparent;border-bottom:2px solid transparent}
-.s4 .pencil i{position:absolute;left:-14px;top:0;width:16px;height:14px;border-radius:3px 0 0 3px;background:#bfbfbf}
-/* S5 谱库 */
-.s5{background:#fff;padding:96px 0 80px}
-.s5 .hd2{text-align:center} .s5 h2{font:500 40px/1.2 var(--font);color:var(--onyx);margin:0}
-.s5 .sub{font:400 15px/1.5 var(--font);color:var(--char);margin-top:8px}
-.search{margin:28px auto 0;width:620px;height:48px;display:flex;align-items:center;gap:12px;padding:0 6px 0 18px;background:var(--off);border-radius:var(--r-btn);color:var(--steel)}
-.search input{flex:1;border:0;background:transparent;font:400 15px/1 var(--font);color:var(--onyx);outline:none}
+/* 首屏：白底、居中说明牌；没有插画、没有荧光笔 */
+.hero{text-align:center;padding:96px 0 72px}
+.hero h1 .gap{display:inline-block;width:1em}
+.eyebrow{font:500 12px/1 var(--font);letter-spacing:.2em;color:var(--steel)}
+.hero h1{font:500 48px/1.17 var(--font);color:var(--onyx);margin:18px 0 0;letter-spacing:.02em}
+.hero .sub{font:400 17px/1.65 var(--font);color:var(--char);max-width:620px;margin:16px auto 0;text-wrap:balance}
+.search{display:flex;align-items:center;gap:10px;max-width:640px;height:52px;margin:36px auto 0;background:#fff;border-radius:var(--r-btn);box-shadow:inset 0 0 0 1px #8e8e8e;padding:0 6px 0 16px;color:var(--steel)}
+.search.f{box-shadow:inset 0 0 0 1.5px var(--onyx)}
+.search input{flex:1;border:0;background:transparent;font:400 16px/1 var(--font);color:var(--onyx);outline:none}
 .search input::placeholder{color:var(--mute)}
-.cats{display:flex;gap:8px;justify-content:center;margin-top:16px}
-.cats span{font:500 13px/1 var(--font);padding:9px 14px;border-radius:var(--r-btn);color:var(--char);background:var(--off)}
-.cats span.on{background:var(--onyx);color:#fff}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;width:1200px;margin:40px auto 0}
-.card{border-radius:var(--r-card);overflow:hidden;background:#fff}
-.card .th{height:236px;background:var(--off);position:relative;overflow:hidden}
-.card .th .paper{left:22px;right:22px;top:22px;bottom:-4px;box-shadow:0 6px 16px rgba(0,0,0,.08)}
-.card .bd{padding:14px 2px 0}
-.card h4{font:500 15px/1.35 var(--font);color:var(--onyx);margin:0 0 4px}
-.card p{font:400 12.5px/1.4 var(--font);color:var(--steel);margin:0}
-.s5 .acts{display:flex;justify-content:center;margin-top:40px}
-footer{background:#fff;padding:22px 0 30px;display:flex;justify-content:center;gap:24px;font:400 12px/1 var(--font);color:var(--steel)}
+.search .go{height:40px;padding:0 20px;border-radius:var(--r-btn);background:var(--onyx);color:#fff;font:500 14px/40px var(--font)}
+.chips{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.chips span{font:500 13px/1 var(--font);padding:9px 14px;border-radius:var(--r-btn);background:var(--off);color:var(--char)}
+.chips span.on{background:var(--onyx);color:#fff}
+.cta{display:flex;gap:16px;justify-content:center;margin-top:36px}
+.cta .btn{min-width:240px}
+.reassure{font:400 12px/1 var(--font);color:var(--steel);margin-top:16px;letter-spacing:.04em}
 
-.s1{height:792px}
-.s1 .acts{bottom:64px}
-.s1 .row{top:290px}
-.s1 .paper{height:276px}
-.s1 .p1{width:440px;left:calc(50% - 690px)}
-.s1 .p2{height:300px;top:-12px;width:480px;left:calc(50% - 240px)}
-.s1 .p3{width:440px;left:calc(50% + 250px)}
-.s1 .tag{top:304px}
-.s1 .tag.t1{left:calc(50% - 620px)} .s1 .tag.t3{left:calc(50% + 330px)}
-.s1{background:linear-gradient(180deg,#f8f8f8 0%,#f1f1f1 71%,#e3e3e3 71.1%,#ebebeb 100%)}
-.s1 .floor{top:71%}
-.s1 .more{display:none}
-.s5{padding-top:56px}
-.s5 .hd2{display:flex;align-items:baseline;justify-content:space-between;width:1200px;margin:0 auto;text-align:left}
-.s5 h2{font-size:28px}
-.s5 .hd2 .sub{margin:0}
-.s5 .search{display:none}
-.cats{justify-content:flex-start;width:1200px;margin:16px auto 0}
-</style></head><body>
+/* 三谱同源：左说明牌，右三张谱条（同一小节同步走） */
+.tri{display:grid;grid-template-columns:460px 1fr;gap:64px;align-items:center;padding:80px 0;border-top:1px solid var(--line-2)}
+.tri h2{font:500 40px/1.2 var(--font);color:var(--onyx);margin:14px 0 0;text-wrap:balance}
+.tri p{font:400 15px/1.7 var(--font);color:var(--char);margin:16px 0 0}
+.spec{list-style:none;padding:0;margin:28px 0 0;border-top:1px solid var(--line-2)}
+.spec li{display:flex;gap:16px;padding:14px 0;border-bottom:1px solid var(--line-2);font:400 14px/1.55 var(--font);color:var(--char)}
+.spec li b{flex:none;width:88px;font-weight:500;color:var(--onyx)}
+.strips{display:flex;flex-direction:column;gap:14px;position:relative}
+.strip{background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.05);padding:14px 0 10px;position:relative}
+.strip img{display:block;width:100%}
+.strip .k{position:absolute;left:16px;top:-9px;background:#fff;padding:0 6px;font:500 11px/18px var(--font);letter-spacing:.14em;color:var(--steel)}
+.tip{position:absolute;right:-12px;top:-46px;background:var(--onyx);color:#fff;font:400 13px/1.45 var(--font);padding:9px 12px;border-radius:var(--r-btn)}
+.tip::after{content:"";position:absolute;left:24px;bottom:-6px;border:6px solid transparent;border-bottom:0;border-top-color:var(--onyx)}
+.tip b{font-weight:500;color:#fff}
+.stage{background:var(--off);border-radius:var(--r-card);padding:40px 32px 32px}
+
+/* 场景：信息卡（#F4F4F4、8px、24 内距），顶部一条真实谱面 */
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 24px}
+.sec-h h2{font:500 28px/1.29 var(--font);color:var(--onyx);margin:0}
+.sec-h a{font:500 14px/1 var(--font);color:var(--onyx);text-decoration:none;box-shadow:inset 0 -1px 0 var(--onyx);padding-bottom:3px}
+.scenes{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.sc{background:var(--off);border-radius:var(--r-card);overflow:hidden;display:flex;flex-direction:column}
+.sc .th{height:132px;position:relative;overflow:hidden;margin:16px 16px 0}
+.sc .th div{position:absolute;inset:0 0 -8px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.06);overflow:hidden}
+.sc .th img{position:absolute;left:-2%;width:104%}
+.sc .bd{padding:20px 24px 24px;display:flex;flex-direction:column;flex:1}
+.sc .k{font:500 11px/1 var(--font);letter-spacing:.16em;color:var(--steel)}
+.sc h3{font:500 20px/1.4 var(--font);color:var(--onyx);margin:10px 0 8px;text-wrap:balance}
+.sc p{font:400 14px/1.6 var(--font);color:var(--char);margin:0 0 20px}
+.sc .go{margin-top:auto;font:500 14px/1 var(--font);color:var(--onyx);display:inline-flex;gap:6px;align-items:center}
+.sc.hv{box-shadow:inset 0 0 0 1px var(--onyx)}
+.blk{padding:80px 0 0}
+
+/* 最新上架 */
+.lib{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card .th{height:220px;background:var(--off);border-radius:var(--r-card);position:relative;overflow:hidden}
+.card .th div{position:absolute;left:28px;right:28px;top:24px;bottom:-6px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.07),0 6px 16px rgba(0,0,0,.06);overflow:hidden}
+.card .th img{position:absolute;left:0;top:-1%;width:100%}
+.card.hv .th div{box-shadow:0 0 0 1px #8e8e8e,0 6px 16px rgba(0,0,0,.06)}
+.card .bd{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 2px 0}
+.card h4{font:500 15px/1.35 var(--font);color:var(--onyx);margin:0 0 4px}
+.card .meta{font:400 13px/1.4 var(--font);color:var(--steel)}
+.card .fav{color:var(--onyx)}
+footer{margin-top:96px;border-top:1px solid var(--line-2);padding:28px 0 40px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;font:400 12px/1 var(--font);color:var(--steel)}
+footer nav{display:flex;gap:24px} footer nav a{color:var(--steel);text-decoration:none}
+@media (max-width:640px){
+ .wrap{padding:0 16px}
+ .nav{padding:0 16px}.nav .links{display:none}.nav .rt{margin-left:auto}.nav .rt .btn{display:none}
+ .hero{padding:40px 0 40px}.hero h1{font-size:32px;line-height:1.25}.hero h1 span{display:block}.hero h1 .gap{display:none}.card .th{height:180px}
+ .hero .sub{font-size:15px}.search{height:48px;margin-top:24px}.search .go{display:none}
+ .chips{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;margin:12px -16px 0;padding:0 16px}.chips span{flex:none}
+ .cta{flex-direction:column;gap:12px;margin-top:24px}.cta .btn{width:100%;height:48px;min-width:0}
+ .tri{grid-template-columns:1fr;gap:28px;padding:40px 0}.tri h2{font-size:24px}.stage{padding:28px 12px 16px;margin:0 -16px;border-radius:0}.tip{right:8px;top:-40px;font-size:12px}
+ .spec li b{width:76px}
+ .blk{padding:48px 0 0}.sec-h h2{font-size:20px}
+ .scenes{grid-template-columns:1fr 1fr;gap:12px}.sc .th{height:88px;margin:12px 12px 0}.sc .bd{padding:14px 14px 16px}.sc h3{font-size:16px}.sc p{display:none}
+ .lib{grid-template-columns:1fr;gap:20px}
+ footer .wrap{flex-direction:column;gap:16px;align-items:flex-start}
+}
+</style></head>
+<body>
 <svg width="0" height="0" style="position:absolute"><defs>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
-<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></symbol>
-<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
-<symbol id="i-dn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></symbol>
+<symbol id="i-arr" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
 </defs></svg>
 <nav class="nav">
   <a class="wm" href="#"><i class="mk"><i></i><i></i><i></i><b></b></i><span>谱友圈</span></a>
-  <div class="links"><a href="#" class="hv">找谱</a><a href="#">制谱</a><a href="#">考编</a><a href="#">艺考</a><a href="#">师范</a><a href="#">学习</a></div>
-  <div class="rt"><a href="#"><svg class="ic"><use href="#i-search"/></svg></a><a href="#"><svg class="ic"><use href="#i-globe"/></svg></a><a href="#"><svg class="ic"><use href="#i-user"/></svg></a></div>
+  <div class="links"><a class="on" href="#">找谱</a><a href="#">制谱</a><a href="#">学习</a><a href="#">考编 · 艺考 · 师范</a><a href="#">帮助</a></div>
+  <div class="rt"><a class="t" href="#">登录</a><a class="btn sec sm" href="#" style="background:var(--off)">开始制谱</a></div>
 </nav>
 
-<section class="scene s1" id="s1">
-  <div class="floor"></div>
-  <div class="hd"><h1>专业曲谱平台</h1><div class="sub">一份数据，三种记谱法同源互切　<u>出版级刻版</u></div><div class="q"><svg class="ic"><use href="#i-search"/></svg><span>搜索 12,000+ 首曲谱：歌名、作者、和弦进行</span><kbd>/</kbd></div></div>
-  <div class="row">
-    <div class="paper p1"><img src="../assets/page-jp.png" alt="" style="top:-4%"></div>
-    <div class="paper p2"><img src="../assets/page-staff.png" alt="" style="top:-3%"></div>
-    <div class="paper p3"><img src="../assets/page-tab.png" alt="" style="top:-4%"></div>
-    <div class="tag t1">简谱</div><div class="tag t2">五线谱</div><div class="tag t3">六线谱</div>
-  </div>
-  <div class="acts"><a class="btn pri" href="#">开始制谱</a><a class="btn sec" href="#">浏览谱库</a></div>
-  <svg class="ic more"><use href="#i-dn"/></svg>
-</section>
+<main class="wrap">
+  <section class="hero">
+    <div class="eyebrow">出版级 · 科教级制谱</div>
+    <h1><span>谱友圈</span><i class="gap"></i><span>专业曲谱平台</span></h1>
+    <p class="sub">把一条旋律写成考场能用的谱：简谱、五线谱、六线谱同一份数据一键互切，出版级刻版、智能配伴奏。给考编、艺考、师范的老师和学生，也给每一位弹唱的人。</p>
+    <label class="search"><svg class="ic"><use href="#i-search"/></svg><input placeholder="搜曲名 / 歌手，如：送别、小星星"><span class="go">找谱</span></label>
+    <div class="chips"><span class="on">全部</span><span>弹唱</span><span>钢琴弹唱</span><span>歌谱</span><span>教学对照</span><span>功能谱</span><span>收藏</span></div>
+    <div class="cta"><a class="btn pri" href="#">开始制谱，免费</a><a class="btn sec" href="#" style="background:var(--off)">看 2 分钟演示</a></div>
+    <div class="reassure">打开浏览器就能用 · 免注册 · 本地实时保存</div>
+  </section>
 
-<section class="s5" id="s5">
-  <div class="hd2"><h2>谱库</h2><div class="sub">每一份都可以改调、换记谱法、打印</div></div>
-  <div class="search"><svg class="ic"><use href="#i-search"/></svg><input placeholder="搜索歌名、作者或和弦进行"></div>
-  <div class="cats"><span class="on">全部</span><span>弹唱</span><span>钢琴</span><span>合唱</span><span>简谱</span><span>考编曲目</span><span>尤克里里</span></div>
-  <div class="grid">
-    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-songbie.png" alt=""></div></div><div class="bd"><h4>送别</h4><p>简谱歌谱 · F 调 · 4/4</p></div></div>
-    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-minuet.png" alt=""></div></div><div class="bd"><h4>小步舞曲</h4><p>钢琴独奏 · G 大调 · 3/4</p></div></div>
-    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-satb.png" alt=""></div></div><div class="bd"><h4>欢乐颂 · 四部合唱</h4><p>五线谱合唱 · SATB</p></div></div>
-    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-canon.png" alt=""></div></div><div class="bd"><h4>卡农进行</h4><p>钢琴弹唱伴奏 · D 调</p></div></div>
-  </div>
-  <div class="acts"><a class="btn ghost" href="#">进入谱库</a></div>
-</section>
-<footer><span>谱友圈 © 2026</span><span>隐私与条款</span><span>联系我们</span><span>更新日志</span><span>粤ICP备2026100396号-1</span></footer>
+  <section class="tri">
+    <div>
+      <div class="eyebrow">三谱同源</div>
+      <h2>写一遍，三种谱同时就绪</h2>
+      <p>简谱录入、五线谱交作业、六线谱给吉他手——它们是同一份数据的三种视图。改一个音，三处同步，移调不用重抄。</p>
+      <ul class="spec">
+        <li><b>一键互切</b>简谱 · 五线谱 · 六线谱，教学对照谱逐列对齐</li>
+        <li><b>出版级刻版</b>符干、符杠、间距按《Behind Bars》与国标简谱惯例</li>
+        <li><b>互通</b>MusicXML / MIDI 进出无损，MuseScore、Sibelius 直接打开</li>
+      </ul>
+    </div>
+    <div class="stage"><div class="strips">
+      <div class="tip">播放到第 2 小节，<b>三张谱同步走</b></div>
+      <div class="strip"><span class="k">六线谱 · 弹唱</span><img src="../assets/tri-tab.png" alt="欢乐颂六线谱，第 2 小节高亮"></div>
+      <div class="strip"><span class="k">五线谱</span><img src="../assets/tri-staff.png" alt="欢乐颂五线谱，第 2 小节高亮"></div>
+      <div class="strip"><span class="k">简谱 · 1=C</span><img src="../assets/tri-jp.png" alt="欢乐颂简谱，第 2 小节高亮"></div>
+    </div></div>
+  </section>
+
+  <section class="blk">
+    <div class="sec-h"><h2>为这些课堂和考场而做</h2><a href="#">全部 8 种谱类</a></div>
+    <div class="scenes">
+      <div class="sc hv"><div class="th"><div><img src="../assets/page-canon.png" alt="" style="top:-1%"></div></div><div class="bd"><span class="k">教师考编</span><h3>一段旋律，自动配好伴奏</h3><p>即兴伴奏、弹唱与说课谱。21 套考试标准织体，生成的是可改的真音符。</p><span class="go">进入考编工作台 <svg class="ic" style="width:16px;height:16px"><use href="#i-arr"/></svg></span></div></div>
+      <div class="sc"><div class="th"><div><img src="../assets/page-minuet.png" alt="" style="top:-1%"></div></div><div class="bd"><span class="k">音乐艺考</span><h3>视唱、视奏与伴奏谱，一站出</h3><p>视唱练耳谱例、器乐视奏五线谱、声乐考试伴奏谱，一份数据三种出法。</p><span class="go">看艺考用法 <svg class="ic" style="width:16px;height:16px"><use href="#i-arr"/></svg></span></div></div>
+      <div class="sc"><div class="th"><div><img src="../assets/page-teach.png" alt="" style="top:-1%"></div></div><div class="bd"><span class="k">师范生</span><h3>弹唱伴奏与课堂谱，轻松做</h3><p>儿歌弹唱、见习课堂范谱、五线谱＋简谱＋歌词的教学对照讲义。</p><span class="go">做一份课堂谱 <svg class="ic" style="width:16px;height:16px"><use href="#i-arr"/></svg></span></div></div>
+      <div class="sc"><div class="th"><div><img src="../assets/page-func.png" alt="" style="top:-1%"></div></div><div class="bd"><span class="k">即兴伴奏</span><h3>旋律进，双手伴奏谱出</h3><p>自动配和弦，选织体生成可编辑的钢琴伴奏；级数与音名一键互切。</p><span class="go">试一条旋律 <svg class="ic" style="width:16px;height:16px"><use href="#i-arr"/></svg></span></div></div>
+    </div>
+  </section>
+
+  <section class="blk">
+    <div class="sec-h"><h2>最新上架</h2><a href="#">全部曲谱目录</a></div>
+    <div class="lib">
+      <div class="card hv"><div class="th"><div><img src="../assets/page-songbie.png" alt=""></div></div><div class="bd"><div><h4>送别</h4><div class="meta">歌谱 · 1=C · 4/4 · 李叔同 词</div></div><svg class="ic fav"><use href="#i-heart"/></svg></div></div>
+      <div class="card"><div class="th"><div><img src="../assets/page-teach.png" alt=""></div></div><div class="bd"><div><h4>欢乐颂（教学对照）</h4><div class="meta">教学对照 · 1=C · 4/4 · 音乐课</div></div><svg class="ic fav"><use href="#i-heart"/></svg></div></div>
+      <div class="card"><div class="th"><div><img src="../assets/page-guitar.png" alt=""></div></div><div class="bd"><div><h4>小星星（弹唱）</h4><div class="meta">弹唱 · 1=C · 4/4 · 吉他</div></div><svg class="ic fav"><use href="#i-heart"/></svg></div></div>
+    </div>
+  </section>
+</main>
+<footer><div class="wrap"><span>© 2026 谱友圈 · 专业曲谱平台</span><nav><a href="#">功能</a><a href="#">帮助</a><a href="#">更新日志</a><a href="#">赞助商</a><a href="#">联系我们</a></nav></div></footer>
 </body></html>
