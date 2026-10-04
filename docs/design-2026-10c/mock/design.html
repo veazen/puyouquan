@@ -1,0 +1,122 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>谱友圈 · 设计规范 v4</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{--canvas:#f5f5f7;--ink:#1d1d1f;--ink2:#6e6e73;--ink3:#86868b;--hair:#d2d2d7;--fill:rgba(118,118,128,.12);--blue:#0071e3;--link:#0066cc;--font:'Inter','PingFang SC','Noto Sans SC',system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:400 17px/1.47 var(--font);letter-spacing:-.01em}
+.wrap{max-width:1180px;margin:0 auto;padding:72px 40px 80px}
+.hero{text-align:center;padding-bottom:56px}
+.hero h1{font:600 56px/1.07 var(--font);margin:0;letter-spacing:-.005em}
+.hero p{font:400 21px/1.38 var(--font);color:var(--ink);margin:14px auto 0;max-width:720px}
+.band{background:#fff;border-radius:18px;padding:36px 40px;margin-top:20px}
+h2{font:600 28px/1.14 var(--font);margin:0 0 6px}
+.cap{font:400 14px/1.5 var(--font);color:var(--ink2);margin:0 0 24px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.sw{width:128px}.sw i{display:block;height:88px;border-radius:14px;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12)}
+.sw b{display:block;font:600 13px/1.3 var(--font);margin-top:10px}.sw span{display:block;font:400 12px/1.45 var(--font);color:var(--ink2)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid2 .band{margin-top:20px}
+.ts div{display:flex;align-items:baseline;gap:20px;padding:10px 0;border-bottom:.5px solid var(--hair)}
+.ts div:last-child{border-bottom:0}
+.ts small{width:120px;flex:none;font:400 12px/1 var(--font);color:var(--ink2);font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 22px;border-radius:980px;font:400 15px/1 var(--font);text-decoration:none;white-space:nowrap}
+.pill.f{background:var(--blue);color:#fff}.pill.o{box-shadow:inset 0 0 0 1px var(--link);color:var(--link)}.pill.g{background:var(--fill);color:var(--ink)}
+.pill.d{box-shadow:inset 0 0 0 1px #2997ff;color:#2997ff}
+.lnk{color:var(--link);font-size:17px;text-decoration:none}
+.seg{display:inline-flex;background:var(--fill);border-radius:9px;padding:2px}
+.seg span{font:400 13px/1 var(--font);padding:8px 16px;border-radius:7px;color:#6e6e73}
+.seg span.on{color:var(--ink)}
+.tool{display:inline-flex;gap:2px}.tool span{min-width:32px;height:30px;padding:0 8px;display:grid;place-items:center;border-radius:8px;font:400 14px/1 var(--font)}.tool span.on{background:#e6f1fc;color:#0066cc;box-shadow:inset 0 0 0 1px #0066cc}.tool span.hv{background:rgba(0,0,0,.04)}
+.seg span.on{background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04);font-weight:600}
+.tg{width:51px;height:31px;border-radius:980px;background:#0066cc;position:relative;display:inline-block}
+.tg.off{background:rgba(120,120,128,.16)}
+.tg i{position:absolute;top:2px;right:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15),0 3px 1px rgba(0,0,0,.06)}.tg.off i{right:auto;left:2px}
+.search{display:flex;align-items:center;gap:8px;height:44px;width:360px;padding:0 16px;border-radius:980px;background:var(--fill);color:var(--ink2);font:400 15px/1 var(--font)}
+.toast{display:inline-flex;align-items:center;gap:14px;background:rgba(29,29,31,.86);color:#fff;border-radius:980px;padding:11px 20px;font:400 14px/1 var(--font)}
+.toast a{color:#2997ff;text-decoration:none}
+.pop{position:relative;width:260px;background:rgba(255,255,255,.92);border-radius:14px;box-shadow:0 0 0 .5px rgba(0,0,0,.1),0 12px 40px rgba(0,0,0,.14);padding:6px}
+.pop::before{content:"";position:absolute;top:-7px;left:40px;width:14px;height:14px;background:#fff;transform:rotate(45deg);box-shadow:-.5px -.5px 0 rgba(0,0,0,.08)}
+.pop div{position:relative;font:400 14px/1 var(--font);padding:10px 12px;border-radius:8px;display:flex;justify-content:space-between}
+.pop div.on{background:var(--blue);color:#fff}
+.pop div small{color:var(--ink3);font-size:12px}.pop div.on small{color:rgba(255,255,255,.8)}
+.sheet{width:300px;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 -8px 30px rgba(0,0,0,.08);padding:8px 20px 20px}
+.sheet .h{width:36px;height:5px;border-radius:3px;background:rgba(60,60,67,.3);margin:0 auto 14px}
+.sheet b{font:600 17px/1.3 var(--font)}.sheet p{font:400 14px/1.5 var(--font);color:var(--ink2);margin:6px 0 14px}
+.paperbox{background:#fff;height:180px;position:relative;box-shadow:0 1px 1px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.07)}
+.paperbox svg{position:absolute;inset:0}
+table{border-collapse:collapse;width:100%;font:400 13px/1.5 var(--font)}
+th{text-align:left;font-weight:600;color:var(--ink2);font-size:12px;padding:8px 8px;border-bottom:.5px solid var(--hair)}
+td{padding:9px 8px;border-bottom:.5px solid var(--hair);vertical-align:top}td code{font:500 12px/1 'Inter',monospace;background:var(--canvas);padding:3px 6px;border-radius:6px}
+.lbl{font:400 13px/1.55 var(--font);color:var(--ink2);margin-top:12px}
+.dark{background:#000;border-radius:14px;padding:16px 20px;display:inline-flex;gap:12px}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>谱面在光里。</h1><p>界面退成一面浅雾色的墙，谱面像展品一样悬浮其上。整页只有一种实心蓝，留给你要做的那一件事。</p></div>
+
+<div class="band"><h2>色彩</h2><p class="cap">界面无彩。实心蓝 #0071E3 每个视图只出现一处（主操作）；线和字的蓝 #0066CC 给链接、描边按钮、当前工具与焦点。</p>
+<div class="row">
+ <div class="sw"><i style="background:#f5f5f7"></i><b>雾白 #F5F5F7</b><span>画布、页面底、页脚</span></div>
+ <div class="sw"><i style="background:#fff"></i><b>纯白 #FFFFFF</b><span>谱纸、面板、顶栏底</span></div>
+ <div class="sw"><i style="background:rgba(118,118,128,.12)"></i><b>控件填充</b><span>rgba(118,118,128,.12)：分段轨、次按钮、搜索</span></div>
+ <div class="sw"><i style="background:#d2d2d7"></i><b>发丝 #D2D2D7</b><span>0.5px 分隔（仅控件内）</span></div>
+ <div class="sw"><i style="background:#6e6e73"></i><b>三级 #6E6E73</b><span>占位、图注 5.1:1</span></div>
+ <div class="sw"><i style="background:#515154"></i><b>次要 #515154</b><span>说明文字 7.9:1</span></div>
+ <div class="sw"><i style="background:#1d1d1f"></i><b>曜黑 #1D1D1F</b><span>标题、正文 16.8:1</span></div>
+ <div class="sw"><i style="background:#0071e3"></i><b>品牌蓝 #0071E3</b><span>实心主按钮；谱面编辑笔</span></div>
+ <div class="sw"><i style="background:#0066cc"></i><b>链接蓝 #0066CC</b><span>描边按钮、文字链接 5.6:1</span></div>
+ <div class="sw"><i style="background:#2997ff"></i><b>夜蓝 #2997FF</b><span>深色底上的链接与描边</span></div>
+ <div class="sw"><i style="background:linear-gradient(180deg,#e8f1fc,#f5f5f7)"></i><b>天光洗色</b><span>#AAD0F6 的 25% 渐变：区块分隔，不用分隔线</span></div>
+ <div class="sw"><i style="background:#d70015"></i><b>信号 · 错误</b><span>#D70015 只做图标与文字，配形状；成功 #008009、警示 #B64400</span></div>
+</div></div>
+
+<div class="grid2">
+<div class="band"><h2>字阶</h2><p class="cap">标题 600，正文 400；中文字距 0 至 −0.01em；最小 12px。</p>
+<div class="ts">
+ <div><small>56 / 600 首屏</small><span style="font:600 56px/1.07 var(--font);white-space:nowrap">曲谱平台</span></div>
+ <div><small>40 / 600 区块</small><span style="font:600 40px/1.1 var(--font)">即兴伴奏</span></div>
+ <div><small>28 / 600 卡片组</small><span style="font:600 28px/1.14 var(--font)">最新上架</span></div>
+ <div><small>21 / 400 副标题</small><span style="font:400 21px/1.38 var(--font)">一份数据，三种记谱法同源互切</span></div>
+ <div><small>17 / 400 正文</small><span style="font:400 17px/1.47 var(--font)">旋律进来，伴奏出去。速度 92</span></div>
+ <div><small>14 / 400 控件</small><span style="font:400 14px/1.43 var(--font)">后插 · 休止 · 第 6 / 15 小节</span></div>
+ <div><small>12 / 400 图注</small><span style="font:400 12px/1.33 var(--font);color:#6e6e73">已存本机 · 刚刚</span></div>
+</div></div>
+<div class="band"><h2>按钮与控件</h2><p class="cap">动作类（主按钮、描边按钮、chip、提示条、播放条）用胶囊；密集工具钮用 8px；容器 12 / 18。</p>
+<div class="row" style="gap:10px"><a class="pill f">开始制谱</a><a class="pill o">浏览谱库</a><a class="pill g">看演示</a><a class="lnk" style="align-self:center">了解更多 ›</a></div>
+<div class="lbl">实心蓝（每屏 1 处）· 描边蓝（与实心成对出现，8px 间距）· 灰胶囊（工具内的次操作）· 文字链接</div>
+<div class="row" style="gap:14px;margin-top:22px;align-items:center"><span class="seg"><span class="on">编辑</span><span>演奏</span></span><span class="seg"><span>四分</span><span class="on">八分</span><span>十六分</span></span><span class="tg"><i></i></span><span class="tg off"><i></i></span></div>
+<div class="row" style="gap:14px;margin-top:18px;align-items:center"><span class="tool"><span>0</span><span class="hv">1</span><span class="on">2</span><span>3</span><span>后插</span><span class="on">休止</span></span></div>
+<div class="lbl">工具钮（工具条、技巧、图层）：8px 圆角；当前笔＝淡蓝底 #E6F1FC ＋ 链接蓝字 ＋ 1px 内描边；选中不加粗</div>
+<div class="lbl">分段控件（模式）：中性灰轨 + 白托 · 开关与复选框：链接蓝（不用 iOS 绿，免得和「成功」撞色）</div>
+<div class="row" style="gap:12px;margin-top:22px;align-items:center"><span class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6e6e73" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>搜索曲谱</span><div class="dark"><a class="pill d" style="height:34px;padding:0 16px;font-size:14px">听一段示范</a></div></div>
+</div>
+</div>
+
+<div class="grid2">
+<div class="band"><h2>浮层</h2><p class="cap">弹出菜单带箭头，面板与提示条是半透明材质（降级为实色）。</p>
+<div class="row" style="gap:28px;align-items:flex-start;margin-top:18px">
+ <div class="pop"><div>C 大调<small>原调</small></div><div class="on">D 大调<small>+2</small></div><div>E 大调<small>+4</small></div><div>降 B 大调<small>−2</small></div></div>
+ <div class="sheet"><div class="h"></div><b>播放设置</b><p>速度、倍速、节拍器与循环，拖动把手可展开到全屏。</p><span class="seg"><span>0.75×</span><span class="on">1×</span><span>1.25×</span></span></div>
+</div>
+<div style="margin-top:22px"><span class="toast">已删除 2 个小节 <a href="#">撤销</a></span></div>
+<div class="lbl">提示条：深色半透明胶囊，带「撤销」链接；可撤销的操作不再弹确认框。</div>
+</div>
+<div class="band"><h2>谱面上的编辑笔</h2><p class="cap">纸面单独一层令牌，不随主题变；打印、PDF、图片导出全部剥掉。</p>
+<div class="paperbox"><svg viewBox="0 0 520 180" font-family="DejaVu Serif,serif">
+ <rect x="40" y="36" width="34" height="80" fill="rgba(0,113,227,.12)"/><rect x="40" y="36" width="2" height="80" fill="#0071e3"/>
+ <rect x="150" y="34" width="150" height="84" rx="6" fill="rgba(0,113,227,.10)"/>
+ <rect x="326" y="32" width="170" height="88" rx="6" fill="rgba(0,0,0,.06)"/><line x1="392" y1="36" x2="392" y2="116" stroke="#0071e3" stroke-width="1.6"/>
+ <g font-size="22" fill="#141414" text-anchor="middle"><text x="57" y="86">5</text><text x="100" y="86">3</text><text x="175" y="86">5</text><text x="215" y="86">1</text><text x="260" y="86">6</text><text x="350" y="86">2</text><text x="388" y="86">3</text><text x="430" y="86">4</text><text x="470" y="86">7</text></g>
+ <g stroke="#141414" stroke-width="1.2"><line x1="128" y1="62" x2="128" y2="96"/><line x1="314" y1="62" x2="314" y2="96"/><line x1="508" y1="62" x2="508" y2="96"/></g>
+ <g font-size="12" fill="#6e6e73" font-family="Inter,sans-serif" text-anchor="middle"><text x="57" y="150">光标</text><text x="225" y="150">选区</text><text x="410" y="150">播放：无彩小节带 + 蓝线</text></g>
+</svg></div>
+<div class="lbl">谱纸是直角白纸，悬浮在雾白画布上：只有极淡的照片式落影，没有边框。</div>
+</div>
+</div>
+<div class="band" id="motion"><h2>动效</h2><p class="cap">弹簧只给界面框架；谱面、进度条、遮罩都不用弹簧，谱面内部不做任何逐元素动画。</p>
+<table id="mt"><tr><th>令牌</th><th>值</th><th>用于</th></tr>
+<tr><td><code>--ease-out</code></td><td>cubic-bezier(.25,.1,.25,1)：悬停 100ms，退场 150ms</td><td>按钮悬停与按下、菜单即现即收</td></tr>
+<tr><td><code>--ease-snappy</code></td><td>弹簧（回弹 1.5%）340ms，linear() 采样；不支持时 cubic-bezier(.2,.9,.3,1)</td><td>弹出菜单从箭头尖 .92→1 长出、分段滑块、开关</td></tr>
+<tr><td><code>--ease-smooth</code></td><td>弹簧（无回弹）420 / 590ms；回退 cubic-bezier(.32,.72,0,1)</td><td>检查器与底部面板 420ms；手机上滑面板 590ms，松手按速度吸附最近停靠点</td></tr>
+<tr><td><code>scroll-timeline</code></td><td>animation-timeline: view()，淡入并上移 24px，可逆</td><td>官网区块标题与谱面；「三谱同源」粘性区块按阈值交叉淡化切换谱种</td></tr>
+<tr><td><code>减弱动态</code></td><td>位移与弹簧全部改为 150ms 交叉淡化</td><td>系统「减少动态效果」开启时</td></tr>
+<tr><td><code>测试环境</code></td><td>弹簧、滚动驱动、自动隐藏计时器全部关闭，时长为 0</td><td>147 个回归套件读到的永远是终态</td></tr>
+</table></div>
+</div></body></html>

@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>谱友圈首页</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+/* ── 令牌：画廊式。唯一实色蓝 #0071e3 只给区块实心主按钮与播放线；描边按钮 / 文字链接 #0066cc ── */
+:root{
+  --canvas:#f5f5f7; --white:#fff; --ink:#1d1d1f; --ink-2:#6e6e73; --ink-3:#424245; --hair:#d2d2d7; --fill:#e8e8ed;
+  --night:#000; --night-ink:#f5f5f7; --night-2:#86868b; --night-3:#2c2c2e;
+  --blue:#0071e3; --link:#0066cc;
+  --sans:'Inter','Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif;
+  /* 谱纸：直角白纸 + 照片式落影（环境光 + 接触影），不是卡片框 */
+  --paper-shadow:0 0 0 .5px rgba(0,0,0,.035),0 1px 2px rgba(0,0,0,.04),0 8px 18px -10px rgba(0,0,0,.13),0 22px 34px -24px rgba(0,0,0,.18);
+  --ease-in-slow:cubic-bezier(0,0,.2,1);   /* 慢入 */
+  --ease-out-fast:cubic-bezier(.4,0,1,1);  /* 快出 */
+  --col:980px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--canvas);color:var(--ink);font:400 17px/1.65 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"kern"}
+a{color:inherit;text-decoration:none}
+img{display:block;width:100%;height:auto}
+figure,h1,h2,h3,h4,p,ul{margin:0}
+ul{padding:0;list-style:none}
+h1,h2,h3{text-wrap:balance}
+p{text-wrap:pretty}
+:focus-visible{outline:2px solid var(--link);outline-offset:3px;border-radius:4px}
+.col{width:var(--col);max-width:calc(100% - 44px);margin:0 auto}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* 胶囊按钮 980px：实心主按钮 #0071e3、描边 #0066cc；零投影 */
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border-radius:980px;font:400 17px/1 var(--sans);white-space:nowrap;border:1px solid transparent;transition:background-color 200ms var(--ease-in-slow),color 200ms var(--ease-in-slow)}
+.btn.pri{background:var(--blue);color:#fff}
+.btn.pri:hover{background:var(--link)}
+.btn.out{border-color:var(--link);color:var(--link)}
+.btn.out:hover{background:var(--link);color:#fff}
+.pair{display:flex;justify-content:center;gap:12px}
+/* 文字链接「… >」 */
+.more{display:inline-flex;align-items:center;gap:2px;color:var(--link);font:400 17px/1.4 var(--sans)}
+.more .chev{width:7px;height:12px;margin-left:4px;stroke-width:1.6;transition:transform 200ms var(--ease-in-slow)}
+.more:hover{text-decoration:underline;text-underline-offset:3px}
+.more:hover .chev{transform:translateX(2px)}
+
+/* 区块标题组：标题 600、副标题 21、居中 */
+.head{text-align:center}
+.head h2{font:600 40px/1.1 var(--sans);letter-spacing:0}
+.head .tag{font:400 21px/1.48 var(--sans);margin-top:12px}
+.head .more{margin-top:16px}
+
+/* 谱纸 */
+.paper{background:#fff;box-shadow:var(--paper-shadow);border-radius:0}
+
+/* ── 顶栏 44：白 72% + 毛玻璃，无投影 ── */
+.gnav{position:sticky;top:0;z-index:10;height:44px;background:rgba(255,255,255,.72);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+.gnav .col{height:44px;display:flex;align-items:center;justify-content:space-between;max-width:calc(100% - 44px)}
+.gnav a{font:400 12px/44px var(--sans);color:var(--ink);opacity:.88;transition:opacity 200ms var(--ease-in-slow)}
+.gnav a:hover{opacity:1}
+.gnav .logo{display:flex;align-items:center;gap:7px;opacity:1}
+.gnav .logo svg{width:18px;height:18px;flex:none;color:var(--ink)}
+.gnav .logo .mk{stroke:var(--mk,#fff);fill:none}.gnav .logo .mkn{fill:var(--mk,#fff);stroke:currentColor}
+.gnav .logo span{font:600 14px/44px var(--sans);letter-spacing:.06em}
+.gnav .ico{display:grid;place-items:center;width:28px;height:44px}
+.gnav .ico .ic{width:15px;height:15px;stroke-width:1.6}
+.gnav .mob{display:none}
+.gnav{transition:background-color 300ms var(--ease-in-slow)}
+.gnav.dark{background:rgba(22,22,23,.8);--mk:#161617}
+.gnav.dark a,.gnav.dark .logo svg{color:#e8e8ed}
+
+/* ── 首屏：#f5f5f7 画布，居中说明牌，谱面悬浮 ── */
+.hero{padding:44px 0 96px;text-align:center}
+.hero h1{font:600 56px/1.07 var(--sans);letter-spacing:-.005em}
+.hero .tag{font:400 28px/1.14 var(--sans);letter-spacing:.007em;margin-top:8px}
+.hero .lede{font:400 17px/1.65 var(--sans);color:var(--ink);margin-top:16px}
+.search{display:flex;align-items:center;gap:10px;width:560px;max-width:100%;height:48px;margin:24px auto 0;padding:0 6px 0 18px;border-radius:980px;background:#fff;border:1px solid var(--hair);color:var(--ink-2);transition:border-color 200ms var(--ease-in-slow)}
+.search:focus-within{border-color:var(--ink-2)}
+.search .ic{width:17px;height:17px}
+.search input{flex:1;min-width:0;border:0;background:transparent;font:400 17px/1 var(--sans);color:var(--ink);outline:none;padding:0}
+.search input::placeholder{color:var(--ink-2)}
+.search button{height:36px;padding:0 16px;border:0;border-radius:980px;background:var(--fill);color:var(--ink);font:400 14px/1 var(--sans);cursor:pointer}
+.chips{display:flex;justify-content:center;gap:8px;margin-top:14px}
+.chips a{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 15px;border-radius:980px;border:1px solid var(--hair);font:400 14px/1 var(--sans);color:var(--ink);white-space:nowrap;transition:border-color 200ms var(--ease-in-slow)}
+.chips a:hover{border-color:var(--ink-2)}
+.chips a.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.chips .ic{width:13px;height:13px}
+.hero .pair{margin-top:24px}
+.reassure{font:400 12px/1.33 var(--sans);color:var(--ink-2);margin-top:14px}
+.stage-hero{width:980px;max-width:calc(100% - 44px);margin:36px auto 0}
+.stage-hero .paper{padding:24px 40px}
+.figcap{font:400 12px/1.33 var(--sans);color:var(--ink-2);margin-top:26px;text-align:center}
+.figcap b{font-weight:600;color:var(--ink)}
+.mb{display:none}
+.nb{display:inline-block}
+
+/* ── 三谱同源：黑带。白纸谱条在暗场里像灯箱，同一小节同步高亮 ── */
+.tri{background:var(--night);color:var(--night-ink);padding:112px 0 120px}
+.tri .head .tag{color:var(--night-ink)}
+.tri .body{font:400 17px/1.65 var(--sans);color:var(--night-2);max-width:640px;margin:16px auto 0}
+.tri .pair{margin-top:28px}
+.stack{width:784px;max-width:100%;margin:64px auto 0;display:flex;flex-direction:column;gap:28px}
+.strip .lab{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font:400 12px/1.33 var(--sans);color:var(--night-2)}
+.strip .lab b{font:600 14px/1.33 var(--sans);color:var(--night-ink);margin-right:8px}
+.strip .paper{padding:20px 24px;box-shadow:none}
+.strip .jpi{width:89.67%;margin-left:10.27%}
+.transport{display:flex;align-items:center;gap:14px;margin-top:4px;font:400 12px/1.33 var(--sans);color:var(--night-2)}
+.transport .pp{width:36px;height:36px;border-radius:50%;background:var(--night-3);display:grid;place-items:center;flex:none}
+.transport .pp i{display:block;width:9px;height:11px;border-left:3px solid var(--night-ink);border-right:3px solid var(--night-ink)}
+.transport .now{font:600 14px/1.33 var(--sans);color:var(--night-ink)}
+.transport .bar{flex:1;height:3px;border-radius:3px;background:var(--night-3);position:relative;overflow:hidden}
+.transport .bar i{position:absolute;inset:0 auto 0 0;width:18%;background:var(--night-ink);border-radius:3px}
+.transport time{font-feature-settings:"tnum";white-space:nowrap}
+.specs{width:784px;max-width:100%;margin:72px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;text-align:center}
+.specs h3{font:600 17px/1.4 var(--sans);color:var(--night-ink)}
+.specs p{font:400 14px/1.57 var(--sans);color:var(--night-2);margin-top:6px}
+
+/* ── 场景：#f5f5f7，四张谱纸并排悬浮（同一缩放，谱表大小一致） ── */
+.scenes{padding:112px 0 120px}
+.lineup{width:var(--col);max-width:calc(100% - 44px);margin:64px auto 0;display:grid;grid-template-columns:repeat(4,1fr);column-gap:20px;text-align:center}
+.lineup{grid-template-rows:repeat(6,auto)}
+.sc{display:grid;grid-row:span 6;grid-template-rows:subgrid;row-gap:0;justify-items:center}
+.sc>a:first-child{justify-self:stretch}
+.sc .paper{height:184px;display:grid;place-items:center}
+.sc .paper img{width:auto}
+.sc .src{font:400 12px/1.33 var(--sans);color:var(--ink-2);margin-top:24px}
+.sc h3{font:600 21px/1.24 var(--sans);margin-top:24px}
+.sc .tl{font:400 17px/1.47 var(--sans);margin-top:6px}
+.sc .ds{font:400 14px/1.57 var(--sans);color:var(--ink-2);margin:10px auto 0;max-width:220px}
+.sc .more{margin-top:14px;align-self:start}
+
+/* ── 最新上架：淡蓝洗色，三张页首悬浮 ── */
+.lib{padding:112px 0 128px;background:linear-gradient(180deg,#eef5fd 0%,#e2eefb 38%,#cfe3f8 72%,#bfdaf6 100%)}
+.shelf{width:var(--col);max-width:calc(100% - 44px);margin:64px auto 0;display:grid;grid-template-columns:repeat(3,300px);justify-content:space-between;text-align:center}
+.pg .paper{width:300px;padding:6px 14px 0}
+.pg h3{font:600 17px/1.4 var(--sans);margin-top:24px}
+.pg p{font:400 14px/1.43 var(--sans);color:var(--ink-3);margin-top:4px}
+
+/* ── 页脚：Apple 式多列目录，#f5f5f7，12px ── */
+footer{background:var(--canvas);font:400 12px/1.33 var(--sans);color:var(--ink-2)}
+footer .col{padding:20px 0 24px}
+.notes{padding-bottom:16px;border-bottom:1px solid var(--hair)}
+.notes p+p{margin-top:8px}
+.dir{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;padding:24px 0 28px}
+.dir h4{font:600 12px/1.33 var(--sans);color:var(--ink);margin-bottom:10px}
+.dir h4 button{all:unset;cursor:default}
+.dir h4 .ic{display:none}
+.dir li{margin-top:9px}
+.dir a{color:var(--ink-3)}
+.dir a:hover{text-decoration:underline}
+.legal{display:flex;justify-content:space-between;gap:20px;padding-top:12px;border-top:1px solid var(--hair)}
+.legal nav{display:flex}
+.legal nav a{color:var(--ink-3);padding:0 10px;border-left:1px solid var(--hair)}
+.legal nav a:first-child{border-left:0}
+.legal .cp{display:flex;gap:6px}
+
+/* 动效（建议实现）：区块级「慢入」淡入上移；谱面内部不做逐元素动画；测试环境 / 减弱动态下由 JS 不挂 .motion，全部静止可见 */
+.motion .rv{opacity:0;transform:translateY(28px);transition:opacity 900ms var(--ease-in-slow),transform 900ms var(--ease-in-slow)}
+.motion .rv.in{opacity:1;transform:none}
+.motion .rv.d1{transition-delay:80ms}.motion .rv.d2{transition-delay:160ms}.motion .rv.d3{transition-delay:240ms}
+
+/* ── 中屏 735–1068（Apple 断点） ── */
+@media (max-width:1068px){
+  :root{--col:692px}
+  .hero h1{font-size:48px}
+  .hero .tag{font-size:24px}
+  .head h2{font-size:32px;line-height:1.125}
+  .lineup{grid-template-columns:repeat(2,1fr);row-gap:56px;width:560px}
+  .shelf{grid-template-columns:repeat(3,1fr);gap:24px}
+  .pg .paper{width:100%}
+  .stage-hero .paper{padding:20px 24px}
+}
+
+/* ── 手机 ≤734：谱面全部用引擎窄屏重排出图（不缩桌面图），16px 边距 ── */
+@media (max-width:734px){
+  :root{--col:calc(100% - 32px)}
+  .col{max-width:calc(100% - 32px)}
+  .gnav,.gnav .col{height:48px}
+  .gnav .col{max-width:calc(100% - 32px)}
+  .gnav a{line-height:48px}
+  .gnav .dk{display:none}
+  .gnav .mob{display:grid}
+  .gnav .rt{display:flex;margin-right:-6px}
+  .gnav .ico{width:40px;height:48px}
+  .gnav .ico .ic{width:17px;height:17px}
+  .hero{padding:40px 0 64px}
+  .hero h1{font-size:40px;line-height:1.1}
+  .hero .tag{font-size:21px;line-height:1.24;margin-top:6px}
+  .hero .lede{margin-top:14px}
+  .hero .lede br{display:none}
+  .search{height:44px;margin-top:24px;padding-right:4px}
+  .search button{display:none}
+  .chips{justify-content:flex-start;overflow-x:auto;margin:12px -16px 0;padding:0 16px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chips a{flex:none}
+  .hero .pair{margin-top:24px;gap:10px}
+  .btn{height:44px;padding:0 20px}
+  .stage-hero{margin-top:32px;max-width:calc(100% - 32px)}
+  .stage-hero .paper{padding:16px 12px}
+  .figcap{margin-top:14px;padding:0 8px}
+  .dk{display:none}.mb{display:inline}
+  .tri{padding:64px 0 72px}
+  .tri .col{display:flex;flex-direction:column}
+  .tri .pair{order:5;margin-top:40px}
+  .specs{order:4}
+  .head h2{font-size:32px}
+  .head .tag{font-size:19px;line-height:1.42;margin-top:10px}
+  .tri .body{font-size:17px}
+  .stack{margin-top:64px;gap:22px}
+  .strip .lab .d{display:none}
+  .strip .paper{padding:12px}
+  .strip .jpi{width:81.74%;margin-left:18.29%}
+  .transport{flex-wrap:wrap;row-gap:10px}
+  .transport .bar{order:4;flex-basis:100%}
+  .transport time{margin-left:auto}
+  .specs{grid-template-columns:1fr;gap:24px;margin-top:48px}
+  .scenes{padding:64px 0 64px}
+  .lineup{display:flex;width:auto;max-width:none;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;gap:16px;margin:56px 0 0;padding:0 16px 8px;scrollbar-width:none}
+  .lineup::-webkit-scrollbar{display:none}
+  .sc{flex:0 0 272px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center}
+  .sc>a:first-child{align-self:stretch}
+  .sc .more{margin-top:auto;padding-top:14px;align-self:center}
+  .sc .paper{height:176px}
+  .sc h3{margin-top:22px}
+  .lib{padding:64px 0 80px}
+  .shelf{display:flex;width:auto;max-width:none;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;gap:16px;margin:36px 0 0;padding:0 16px 8px;scrollbar-width:none}
+  .shelf::-webkit-scrollbar{display:none}
+  .pg{flex:0 0 272px;scroll-snap-align:start}
+  .pg .paper{width:272px;padding:5px 12px 0}
+  footer .col{padding:16px 0 24px}
+  .dir{grid-template-columns:1fr;gap:0;padding:8px 0 20px}
+  .dir section{border-bottom:1px solid var(--hair)}
+  .dir h4{margin:0}
+  .dir h4 button{display:flex;justify-content:space-between;align-items:center;width:100%;padding:12px 0;cursor:pointer;font:400 14px/1.43 var(--sans);color:var(--ink)}
+  .dir h4 .ic{display:block;width:12px;height:12px;color:var(--ink-2);transition:transform 200ms var(--ease-in-slow)}
+  .dir ul{display:none;padding:0 0 12px 14px}
+  .dir .open ul{display:block}
+  .dir .open h4 .ic{transform:rotate(180deg)}
+  .dir li{margin-top:0;padding:5px 0}
+  .dir a{font-size:14px}
+  .legal{flex-direction:column;gap:8px;border-top:0;padding-top:0}
+  .legal nav{flex-wrap:wrap;row-gap:6px}
+}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></symbol>
+<symbol id="i-chev" viewBox="0 0 7 12"><path d="M1 1l5 5-5 5"/></symbol>
+<symbol id="i-down" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16"/></symbol>
+</defs></svg>
+
+<header class="gnav" role="banner"><nav class="col" aria-label="全局导航">
+  <a class="logo" href="#" aria-label="谱友圈首页"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5.5" fill="currentColor"/><path class="mk" d="M5 8.5h14M5 12h14M5 15.5h14" stroke-width="1.3"/><ellipse class="mkn" cx="12.6" cy="13.75" rx="2.75" ry="2" transform="rotate(-22 12.6 13.75)" stroke-width="1.1"/><path class="mk" d="M15.1 13.2V5.4" stroke-width="1.35" stroke-linecap="round"/></svg><span>谱友圈</span></a>
+  <a class="dk" href="#">找谱</a>
+  <a class="dk" href="#">制谱</a>
+  <a class="dk" href="#">智能配伴奏</a>
+  <a class="dk" href="#">考编 · 艺考 · 师范</a>
+  <a class="dk" href="#">学习</a>
+  <a class="dk" href="#">帮助</a>
+  <a class="ico dk" href="#" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></a>
+  <a class="dk" href="#">登录</a>
+  <span class="rt mob"><a class="ico" href="#" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></a><a class="ico" href="#" aria-label="菜单"><svg class="ic"><use href="#i-menu"/></svg></a></span>
+</nav></header>
+
+<main>
+  <!-- 首屏 -->
+  <section class="hero" aria-labelledby="h-hero"><div class="col">
+    <h1 id="h-hero" class="rv">谱友圈</h1>
+    <p class="tag rv"><span class="nb">专业曲谱平台。</span><span class="nb">出版级、科教级制谱。</span></p>
+    <p class="lede rv d1"><span class="nb">简谱、五线谱、六线谱</span><span class="nb">同一份数据一键互切，</span><span class="nb">智能配伴奏。</span><br><span class="nb">给考编、艺考、师范的</span><span class="nb">老师和学生，</span><span class="nb">也给每一位弹唱的人。</span></p>
+    <form class="search rv d1" role="search" onsubmit="return false"><svg class="ic"><use href="#i-search"/></svg><input aria-label="搜索曲谱" placeholder="搜曲名 / 歌手，如：送别、小星星"><button type="submit">找谱</button></form>
+    <div class="chips rv d1" aria-label="谱种"><a class="on" href="#" aria-current="true">全部</a><a href="#">弹唱</a><a href="#">钢琴弹唱</a><a href="#">歌谱</a><a href="#">教学对照</a><a href="#">功能谱</a><a href="#"><svg class="ic"><use href="#i-heart"/></svg>收藏</a></div>
+    <div class="pair rv d2"><a class="btn pri" href="#">开始制谱，免费</a><a class="btn out" href="#">看 2 分钟演示</a></div>
+    <p class="reassure rv d2">打开浏览器就能用 · 免注册 · 本地实时保存</p>
+  </div>
+    <figure class="stage-hero rv d3">
+      <div class="paper"><picture><source media="(max-width:734px)" srcset="img/m-hero.png"><img src="img/hero.png" width="900" height="330" alt="送别伴奏对照谱第 1 至 4 小节：旋律五线谱、简谱与歌词，下方为自动生成的钢琴双手伴奏，和弦 C G C G"></picture></div>
+      <figcaption class="figcap"><b>送别 · 伴奏对照谱</b>　第 1–<span class="dk">4</span><span class="mb">2</span> 小节。一条简谱旋律输入，和弦与双手织体自动生成，刻版引擎直出。</figcaption>
+    </figure>
+  </section>
+
+  <!-- 三谱同源 -->
+  <section class="tri" aria-labelledby="h-tri"><div class="col">
+    <div class="head">
+      <h2 id="h-tri" class="rv">三谱同源</h2>
+      <p class="tag rv">写一遍，三种谱同时就绪。</p>
+      <p class="body rv d1"><span class="nb">简谱录入、</span><span class="nb">五线谱交作业、</span><span class="nb">六线谱给吉他手，</span><span class="nb">它们是同一份数据的三种视图。</span><br class="dk"><span class="nb">改一个音，三处同步；</span><span class="nb">移调不用重抄。</span></p>
+    </div>
+    <div class="pair rv d1"><a class="btn pri" href="#">打开这份欢乐颂</a></div>
+    <div class="stack rv d2">
+      <figure class="strip"><figcaption class="lab"><span><b>六线谱</b>弹唱</span><span class="d">TAB · 和弦图 · 简谱歌词</span></figcaption>
+        <div class="paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-tab.png"><img src="img/tri-tab.png" width="736" height="214" alt="欢乐颂六线谱弹唱，第 2 小节播放高亮"></picture></div></figure>
+      <figure class="strip"><figcaption class="lab"><span><b>五线谱</b>旋律</span><span class="d">高音谱号 · 4/4 · 歌词</span></figcaption>
+        <div class="paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-staff.png"><img src="img/tri-staff.png" width="736" height="148" alt="欢乐颂五线谱，第 2 小节播放高亮"></picture></div></figure>
+      <figure class="strip"><figcaption class="lab"><span><b>简谱</b>1=C</span><span class="d">首调唱名 · 歌词</span></figcaption>
+        <div class="paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-jp.png"><img class="jpi" src="img/tri-jp.png" width="660" height="109" alt="欢乐颂简谱，第 2 小节播放高亮"></picture></div></figure>
+      <div class="transport" aria-label="播放状态"><span class="pp" aria-hidden="true"><i></i></span><span><span class="now">播放中 · 第 2 小节</span>　三张谱同一时间轴</span><span class="bar"><i></i></span><time>0:04 / 0:22</time></div>
+    </div>
+    <div class="specs rv">
+      <div><h3>一键互切</h3><p>简谱、五线谱、六线谱互切，<br>教学对照谱逐列对齐。</p></div>
+      <div><h3>出版级刻版</h3><p>符干、符杠与间距遵循<br>《Behind Bars》与国标简谱惯例。</p></div>
+      <div><h3>无损互通</h3><p>MusicXML、MIDI 进出，<br>MuseScore、Sibelius 直接打开。</p></div>
+    </div>
+  </div></section>
+
+  <!-- 场景 -->
+  <section class="scenes" aria-labelledby="h-sc">
+    <div class="col head">
+      <h2 id="h-sc" class="rv">为这些课堂和考场而做</h2>
+      <p class="tag rv"><span class="nb">考编、艺考、师范与即兴伴奏，</span><span class="nb">各有一套现成的工作台。</span></p>
+      <a class="more rv d1" href="#">了解全部 8 种谱类<svg class="ic chev"><use href="#i-chev"/></svg></a>
+    </div>
+    <div class="lineup">
+      <article class="sc rv"><a href="#" tabindex="-1" aria-hidden="true"><div class="paper"><img src="img/sc-canon.png" style="width:176px" alt=""></div></a>
+        <p class="src">卡农进行 · 钢琴弹唱伴奏</p>
+        <h3>教师考编</h3><p class="tl">一段旋律，自动配好伴奏。</p>
+        <p class="ds">即兴伴奏、弹唱与说课谱，<br>21 套标准织体，真音符可改。</p>
+        <a class="more" href="#">进入考编工作台<svg class="ic chev"><use href="#i-chev"/></svg></a></article>
+      <article class="sc rv d1"><a href="#" tabindex="-1" aria-hidden="true"><div class="paper"><img src="img/sc-minuet.png" style="width:207px" alt=""></div></a>
+        <p class="src">小步舞曲 · G 大调</p>
+        <h3>音乐艺考</h3><p class="tl">视唱视奏与伴奏谱，一站出。</p>
+        <p class="ds">视唱练耳、视奏与声乐伴奏谱，<br>一份数据三种出法。</p>
+        <a class="more" href="#">看艺考用法<svg class="ic chev"><use href="#i-chev"/></svg></a></article>
+      <article class="sc rv d2"><a href="#" tabindex="-1" aria-hidden="true"><div class="paper"><img src="img/sc-tiger.png" style="width:200px" alt=""></div></a>
+        <p class="src">两只老虎 · 教学对照</p>
+        <h3>师范生</h3><p class="tl">弹唱伴奏与课堂谱，轻松做。</p>
+        <p class="ds">儿歌弹唱、见习课堂范谱，<br>五线谱＋简谱＋歌词对照讲义。</p>
+        <a class="more" href="#">做一份课堂谱<svg class="ic chev"><use href="#i-chev"/></svg></a></article>
+      <article class="sc rv d3"><a href="#" tabindex="-1" aria-hidden="true"><div class="paper"><img src="img/sc-func.png" style="width:196px" alt=""></div></a>
+        <p class="src">流行副歌 · 功能谱</p>
+        <h3>即兴伴奏</h3><p class="tl">旋律进，双手伴奏谱出。</p>
+        <p class="ds">自动配和弦，选织体生成伴奏；<br>级数与音名一键互切。</p>
+        <a class="more" href="#">试一条旋律<svg class="ic chev"><use href="#i-chev"/></svg></a></article>
+    </div>
+  </section>
+
+  <!-- 最新上架 -->
+  <section class="lib" aria-labelledby="h-lib">
+    <div class="col head">
+      <h2 id="h-lib" class="rv">最新上架</h2>
+      <p class="tag rv">新收录的曲谱，打开就能移调、<span class="nb">换谱种、打印。</span></p>
+      <a class="more rv d1" href="#">浏览全部曲谱<svg class="ic chev"><use href="#i-chev"/></svg></a>
+    </div>
+    <div class="shelf">
+      <a class="pg rv" href="#"><div class="paper"><img src="img/lib-songbie.png" width="300" height="287" alt="送别简谱首页：标题、调号与前两行"></div>
+        <h3>送别</h3><p>歌谱 · 1=C · 4/4 · 李叔同 词</p></a>
+      <a class="pg rv d1" href="#"><div class="paper"><img src="img/lib-piano.png" width="300" height="287" alt="欢乐颂钢琴独奏首页：标题与第一行大谱表"></div>
+        <h3>欢乐颂（钢琴独奏）</h3><p>钢琴谱 · C 大调 · 4/4 · 贝多芬 曲</p></a>
+      <a class="pg rv d2" href="#"><div class="paper"><img src="img/lib-twinkle.png" width="300" height="287" alt="小星星弹唱首页：标题、和弦图与第一行六线谱"></div>
+        <h3>小星星（弹唱）</h3><p>弹唱 · 1=C · 4/4 · 吉他</p></a>
+    </div>
+  </section>
+</main>
+
+<footer><div class="col">
+  <div class="notes">
+    <p>本页所示谱面均由谱友圈刻版引擎实时排版输出，未经后期修饰。</p>
+    <p>MusicXML、MIDI 导入导出兼容 MuseScore、Sibelius 等主流打谱软件；本地实时保存的数据只存在你的浏览器里。</p>
+  </div>
+  <div class="dir">
+    <section><h4><button aria-expanded="false">找谱<svg class="ic"><use href="#i-down"/></svg></button></h4><ul><li><a href="#">曲谱目录</a></li><li><a href="#">弹唱</a></li><li><a href="#">钢琴弹唱</a></li><li><a href="#">歌谱</a></li><li><a href="#">教学对照</a></li><li><a href="#">功能谱</a></li></ul></section>
+    <section><h4><button aria-expanded="false">制谱<svg class="ic"><use href="#i-down"/></svg></button></h4><ul><li><a href="#">简谱</a></li><li><a href="#">五线谱</a></li><li><a href="#">六线谱</a></li><li><a href="#">智能配伴奏</a></li><li><a href="#">MusicXML / MIDI</a></li></ul></section>
+    <section><h4><button aria-expanded="false">考编 · 艺考 · 师范<svg class="ic"><use href="#i-down"/></svg></button></h4><ul><li><a href="#">教师考编</a></li><li><a href="#">音乐艺考</a></li><li><a href="#">师范生</a></li><li><a href="#">即兴伴奏</a></li></ul></section>
+    <section><h4><button aria-expanded="false">学习<svg class="ic"><use href="#i-down"/></svg></button></h4><ul><li><a href="#">课程</a></li><li><a href="#">帮助中心</a></li><li><a href="#">2 分钟演示</a></li><li><a href="#">更新日志</a></li></ul></section>
+    <section><h4><button aria-expanded="false">关于谱友圈<svg class="ic"><use href="#i-down"/></svg></button></h4><ul><li><a href="#">联系我们</a></li><li><a href="#">赞助商</a></li><li><a href="#">隐私政策</a></li><li><a href="#">用户协议</a></li></ul></section>
+  </div>
+  <div class="legal">
+    <div class="cp"><span>Copyright © 2026 谱友圈。保留所有权利。</span></div>
+    <nav aria-label="法律信息"><a href="#">隐私政策</a><a href="#">用户协议</a><a href="#">网站地图</a><a href="#">粤ICP备2026100396号-1</a></nav>
+  </div>
+</div></footer>
+
+<script>
+/* 顶栏：压在黑带上时换深色毛玻璃（无投影） */
+(function(){var n=document.querySelector('.gnav'),t=document.querySelector('.tri');function f(){var r=t.getBoundingClientRect(),h=n.offsetHeight;n.classList.toggle('dark',r.top<h/2&&r.bottom>h/2)}addEventListener('scroll',f,{passive:true});addEventListener('resize',f);f();})();
+/* 页脚目录：手机端折叠（Apple 式） */
+document.querySelectorAll('.dir h4 button').forEach(function(b){b.addEventListener('click',function(){if(!matchMedia('(max-width:734px)').matches)return;var s=b.closest('section');var o=s.classList.toggle('open');b.setAttribute('aria-expanded',o)})});
+/* 动效：区块进场（慢入 900ms）。自动化测试（navigator.webdriver）与「减弱动态」下不启用，页面静止全可见 */
+(function(){
+  if(navigator.webdriver||!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  document.documentElement.classList.add('motion');
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv').forEach(function(el){io.observe(el)});
+})();
+</script>
+</body></html>
