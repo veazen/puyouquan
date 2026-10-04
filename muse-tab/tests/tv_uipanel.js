@@ -5,7 +5,7 @@
    T3 简谱侧无子标题 + 专家序（音高谱号族在前）+ EB_ORNS 力度置首清除恒尾
    T4 图形区 22px 定高 + 标签 10px/500（跨钮基线对齐的根据）
    T5 上栏：控件行高统一 28、1280 视口不超过 2 行（预置换行兜底口径）、分隔线 16px
-   T6 左轨页签 56px 定宽、圆角 10（桌面断点）
+   T6 左轨页签 56px 定宽、圆角 12（桌面断点；v66.1 起 10→12）
    v61.5 当前音轨卡（T7 几何：去胶囊徽标行/分段显示行/变调夹单行工具排；T8 图标构图签名）
    突变实证：对 v60.98 跑 T1 红（无网格/钮高不一）+T2/T3 红（旧平铺序）；对 v60.99 跑 T1/T3 红（有子标题）；
    对 v61.3 跑 T7/T8 红（无 .trk-ic/旧图标）。 */
@@ -98,7 +98,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const hOk = ts.every(x => x.getBoundingClientRect().height >= 45);
     return { ws: ws.join(','), br, hOk };
   } catch (e) { return { err: String(e && e.message || e) }; } });
-  T(r.ws === '56' && r.br === '10px' && r.hOk, 'T6 左轨 56px 定宽+圆角 10', JSON.stringify(r));
+  /* v66.1 v4「画廊」：容器类圆角 12（此前 10） */
+  T(r.ws === '56' && r.br === '12px' && r.hOk, 'T6 左轨 56px 定宽+圆角 12', JSON.stringify(r));
 
   // T7 v61.5「当前音轨」卡（UI 专家规格）：身份行去胶囊+徽标块 / 显示行分段控件单行 / 变调夹工具排单行
   r = await pg.evaluate(() => { try {

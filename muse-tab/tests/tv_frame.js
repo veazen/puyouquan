@@ -289,8 +289,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     void onEl.offsetWidth;
     const onBg = getComputedStyle(onEl).backgroundColor;
     noTr.remove();
-    const m = /rgba?\((\d+), (\d+), (\d+)/.exec(onBg);
-    const redOn = m && +m[1] > 150 && +m[1] > (+m[2] + 60) && +m[1] > (+m[3] + 60);
+    /* v66.1 v4「画廊」：当前图层＝淡蓝底（--accent-soft #e6f1fc）＋蓝字，不再是朱砂实底 */
+    const redOn = onBg === 'rgb(230, 241, 252)' && getComputedStyle(onEl).color === 'rgb(0, 102, 204)';
     document.getElementById('b-shell').click();   // → 经典
     const back = {
       bodyScroll: getComputedStyle(document.body).overflow !== 'hidden',
@@ -304,7 +304,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && r.noNew && r.iconOnly && r.redOn
     && r.back.bodyScroll && r.back.centered && r.back.actHidden,
     'T16 通栏框架+图标轨', '贴边=' + (r.flushL && r.flushR) + ' 内滚=' + (r.innerScroll && r.scrolled)
-    + ' 纯图标=' + r.iconOnly + ' 朱砂选中=' + r.redOn + ' 经典还原=' + JSON.stringify(r.back));
+    + ' 纯图标=' + r.iconOnly + ' 淡蓝选中=' + r.redOn + ' 经典还原=' + JSON.stringify(r.back));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

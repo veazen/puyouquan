@@ -45,7 +45,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const off = !fav.classList.contains('on');
     return { on, pop, fill, off };
   } catch (e) { return { err: String(e && e.message || e) }; } });
-  T(r.on && r.pop && r.fill === 'rgb(195, 58, 41)' && r.off, 'T2 红星点亮+回弹（朱砂 #c33a29）', JSON.stringify(r));
+  /* v66.1 v4「画廊」：收藏改墨色实心（朱砂退出界面，只留站外「印」），去掉过冲回弹（负责人 2026-10-04 拍板） */
+  T(r.on && r.fill === 'rgb(29, 29, 31)' && r.off, 'T2 收藏点亮（墨色实心）', JSON.stringify(r));
 
   // T3 音轨面板：点外部自动收起、点面板内不收
   r = await pg.evaluate(() => { try {
@@ -72,8 +73,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const bg = row ? getComputedStyle(row).backgroundColor : '';
     const panHid = ![...document.querySelectorAll('.mx-row .mx-pan')].some(x => getComputedStyle(x).display !== 'none');
     return { playH: Math.round(play.height),
-      radiiOk: radii.length > 3 && radii.every(v => v === '13px' || v === '14px'),
-      cardBg: bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent', panHid };
+      /* v66.1 v4「画廊」形状语言：工具钮 8、动作胶囊 980 / 圆钮 50%（此前统一 13–14） */
+      radiiOk: radii.length > 3 && radii.every(v => v === '8px' || v === '980px' || v === '50%'),
+      radii, cardBg: bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent', panHid };
   } catch (e) { return { err: String(e && e.message || e) }; } });
   T(r.playH >= 44 && r.radiiOk && r.cardBg && r.panHid, 'T4 底栏等高圆角+轨行卡片化+声像撤下', JSON.stringify(r));
 
