@@ -1,0 +1,97 @@
+/* 谱友圈编辑器 · 提案 v3「谱面即展品」皮肤（注入真实编辑器出效果图；落地时改为令牌层，不加 !important） */
+:root,:root[data-theme="light"]{
+  --bg:#f4f4f4; --panel:#ffffff; --toolbar:#ffffff; --text:#171a20; --muted:#5c5e62; --faint:#757575;
+  --border:#d0d1d2; --border-soft:#e6e6e6; --hover:rgba(23,26,32,.05); --glass:#ffffff;
+  --accent:#171a20; --accent-2:#393c41; --accent-soft:#eeeeee; --accent-ink:#171a20;
+  --btn-pri:#171a20; --btn-pri-h:#393c41; --focus:#171a20; --grad:linear-gradient(0deg,#171a20,#171a20);
+  --paper:#ffffff; --danger:#b45309; --ok:#157a43; --radius:4px;
+  --bar-bg:#ffffff; --bar-sep:#e6e6e6; --tap:rgba(23,26,32,.05);
+  --cta:#3e6ae1; --cta-h:#3457b1;
+}
+html body{background:#f4f4f4!important;background-image:none!important;color:var(--text);padding-bottom:0!important;
+  font-family:'Inter','PingFang SC','Noto Sans SC','Microsoft YaHei',system-ui,sans-serif}
+/* 谱面令牌隔离：编辑笔（光标/选区/播放线）＝与 CTA 同一种蓝（推荐方案；备选＝保留朱砂，待拍板）；播放小节带改无彩灰 */
+#paper{--accent:#3e6ae1;--accent-2:#3e6ae1;--accent-ink:#2f55c0;--accent-soft:rgba(62,106,225,.14);--paper:#fff;--muted:#5c5c5c;--faint:#6b6b6b;--border:#d6d6d6;
+  max-width:1000px!important;
+  background:transparent!important;border-radius:0!important;box-shadow:none!important;border:0!important}
+#score .pagebg{stroke:rgba(0,0,0,.09)!important;rx:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.05)) drop-shadow(0 6px 18px rgba(0,0,0,.05))}
+#score-wrap{background:#f4f4f4!important}
+
+/* ── 顶栏：一行 48，白底发丝线，无毛玻璃 ── */
+#top{background:#fff!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-bottom:1px solid #e6e6e6!important}
+body.shell #top .main-bar{background:#fff!important;border:0!important;height:48px!important;min-height:48px;padding:0 12px 0 16px!important;gap:6px!important;align-items:center}
+body.shell .main-bar .logo{color:#171a20!important;gap:10px}
+body.shell .main-bar .logo small,body.shell .main-bar .logo .sub{display:none!important}
+.logo .mark,.cc-logo .mark{background:#171a20 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M5 8h11M5 12h11M5 16h11'/%3E%3Ccircle cx='18.5' cy='7' r='1.8' fill='%23fff' stroke='none'/%3E%3C/svg%3E") center/20px no-repeat!important;border-radius:5px!important;width:24px!important;height:24px!important}
+.logo .mark::before,.logo .mark::after{display:none!important}
+body.shell .main-bar .logo b,body.shell .main-bar .logo .nm{font-weight:500!important;letter-spacing:.32em;font-size:15px!important;color:#171a20!important}
+body.shell .main-bar button{color:#393c41!important;background:transparent!important;border:0!important;box-shadow:none!important;font-weight:500!important;border-radius:4px!important;height:32px}
+body.shell .main-bar button:hover{background:rgba(23,26,32,.05)!important}
+body.shell .main-bar .seg{background:transparent!important;border:0!important;box-shadow:none!important}
+body.shell .main-bar .seg-accent{color:#393c41!important}
+/* 导出＝次按钮（白钮）；唯一的蓝给「播放」 */
+body.shell .main-bar button.v3-cta{background:#f4f4f4!important;color:#171a20!important;padding:0 20px!important;min-width:88px}
+.v3-doc{display:flex;align-items:center;gap:10px;margin-left:18px;padding-left:18px;border-left:1px solid #e6e6e6;height:24px}
+.v3-doc b{font:500 14px/1 inherit;color:#171a20;font-family:inherit}
+.v3-doc .v3-more{font:400 12px/1 inherit;color:#5c5e62;font-family:inherit}
+.v3-save{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:4px;background:#f4f4f4;color:#5c5e62;font:500 12px/1 inherit;font-family:inherit}
+.v3-save i{width:6px;height:6px;border-radius:50%;background:#5c5e62}
+.v3-sep{width:1px;height:20px;background:#e6e6e6;margin:0 6px}
+.v3-av{width:30px;height:30px;border-radius:50%;background:#e5e3df;display:grid;place-items:center;font:500 12px/1 inherit;color:#393c41;font-family:inherit}
+.v3-ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── 上下文条：一行 40，当前图层 ≤12 个常用 + 更多 ── */
+#editbar{background:#fff!important;border:0!important;border-bottom:1px solid #e6e6e6!important;height:44px!important;min-height:44px!important;padding:6px 16px!important;flex-wrap:nowrap!important;overflow:hidden;gap:6px!important;box-shadow:none!important}
+#editbar .eb-unit:not(.v3-keep),#editbar #eb-nowrap,#editbar #seg-undo,#editbar .eb-sep{display:none!important}
+#editbar .eb-unit{background:transparent!important;border:0!important;padding:0!important;box-shadow:none!important}
+#editbar .eb-unit > :not(.eb-grp){display:none!important}
+#editbar .eb,#editbar #eb-zoom button{background:transparent!important;border:0!important;box-shadow:none!important;color:#393c41!important;border-radius:4px!important;height:32px!important;min-width:32px;font-weight:500}
+#editbar .eb:hover{background:rgba(23,26,32,.05)!important}
+#editbar .eb.on{background:#eeeeee!important;color:#171a20!important;box-shadow:inset 0 0 0 1.5px #171a20!important;font-weight:600}
+#editbar .eb-grp{gap:2px!important;background:transparent!important;border:0!important}
+.v3-lab{font:500 11px/1 inherit;font-family:inherit;color:#757575;letter-spacing:.12em;margin:0 6px 0 0;white-space:nowrap}
+.v3-vsep{width:1px;height:20px;background:#e6e6e6;margin:0 10px;flex:none}
+#editbar #eb-zoom{margin-left:auto!important}
+#editbar #eb-zoom #zoom-lbl{color:#5c5e62!important}
+#doc-tabs{display:none!important}
+
+/* ── 左：图标栏 56 常驻，抽屉收起 ── */
+#left-dock{width:56px!important;min-width:56px!important;background:#fff!important;border-right:1px solid #e6e6e6!important}
+#left-flyout{display:none!important}
+#left-rail{left:0!important;top:0;width:56px!important;padding:10px 4px!important;background:#fff!important}
+#left-rail .ltab{width:48px!important;height:48px!important;border-radius:4px!important;background:transparent!important;color:#5c5e62!important;border:0!important;box-shadow:none!important;font-size:11px!important}
+#left-rail .ltab.on{background:#eeeeee!important;color:#171a20!important;box-shadow:inset 0 0 0 1.5px #171a20!important}
+#left-rail .ltab svg,#left-rail .ltab .ic{color:currentColor!important;stroke:currentColor}
+#left-rail .ltab .add,#left-rail .ltab.add{border:0!important}
+
+/* ── 右：检查器默认收起 ── */
+#right-dock{display:none!important}
+.v3-insp{position:fixed;right:16px;top:108px;z-index:30;display:flex;flex-direction:column;gap:2px;background:#fff;border-radius:8px;padding:4px;box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06)}
+.v3-insp button{all:unset;width:40px;height:40px;display:grid;place-items:center;border-radius:4px;color:#393c41;cursor:pointer}
+.v3-insp button:hover{background:rgba(23,26,32,.05)}
+.v3-insp .tip{position:absolute}
+
+/* ── 播放：底部居中浮动条（8px 圆角，不用胶囊大圆角） ── */
+body.shell #mixer-dock{position:fixed!important;left:50%!important;right:auto!important;bottom:20px!important;translate:-50% 0;width:auto!important;background:#fff!important;border:0!important;border-radius:8px!important;
+  box-shadow:0 1px 2px rgba(0,0,0,.08),0 8px 24px rgba(0,0,0,.10)!important;padding:0 8px!important}
+body.shell #mixer-dock .mx-bar{height:52px!important;background:transparent!important;gap:6px!important;padding:0!important;border:0!important}
+body.shell #mixer-dock button{color:#393c41!important;border:0!important;background:transparent!important;box-shadow:none!important;border-radius:4px!important;font-weight:500}
+body.shell #mixer-dock #b-play{width:36px!important;min-width:36px!important;height:36px!important;border-radius:50%!important;background:#3e6ae1!important;color:#fff!important;padding:0!important;font-size:0!important;position:relative}
+body.shell #mixer-dock #b-play::after{content:"";position:absolute;left:14px;top:11px;border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}
+body.shell #mixer-dock #b-play.v3-on::after{left:12px;top:12px;width:4px;height:12px;border:0;background:#fff;box-shadow:7px 0 0 #fff}
+body.shell #mx-prog{background:transparent!important;border:0!important;width:520px!important;flex:none!important}
+body.shell .mxc{background:#eeeeee!important;border:0!important;height:4px!important;min-height:4px!important;margin-top:13px;border-radius:2px}
+body.shell .mxc span{display:none!important}
+body.shell .mxc.cur,body.shell .mxc.done{background:#171a20!important}
+body.shell #i-tempo,body.shell #mx-rate{background:#f4f4f4!important;border:0!important;color:#171a20!important;border-radius:4px!important;height:32px}
+body.shell .mx-splabel{color:#5c5e62!important}
+body.shell #mx-expand{display:none!important}
+body.shell:not(.stand):not(.viewer) #stage{margin:0!important}
+body.shell:not(.stand):not(.viewer) #left-dock{padding:8px 4px!important}
+body.shell:not(.stand):not(.viewer) #left-rail{padding:0!important;width:48px!important}
+#score-wrap{padding-bottom:96px!important}
+.v3-seg{display:inline-flex;background:#f4f4f4;border-radius:4px;padding:2px;gap:2px;margin-right:4px}
+.v3-seg span{font:500 12.5px/1 inherit;font-family:inherit;color:#5c5e62;padding:7px 12px;border-radius:3px}
+.v3-seg span.on{background:#fff;color:#171a20;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+#paper:not(.score-invert) #score #playhead{fill:#000!important;opacity:.07!important}
+#score #playline{stroke:#3e6ae1!important;stroke-width:1.6}

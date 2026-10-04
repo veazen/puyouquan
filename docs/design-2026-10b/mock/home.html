@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>谱友圈 · 首页提案 v3</title>
+<link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="tokens.css">
+<style>
+.nav{position:absolute;top:0;left:0;right:0;z-index:10;height:56px;display:flex;align-items:center;padding:0 32px}
+.nav.w{color:#fff}
+.wm{display:flex;align-items:center;gap:10px;color:var(--onyx);text-decoration:none}
+.wm .mk{width:24px;height:24px;border-radius:5px;background:var(--onyx);position:relative;display:block}
+.wm .mk i{position:absolute;left:5px;right:7px;height:1.6px;background:#fff;border-radius:1px}
+.wm .mk i:nth-child(1){top:7px}.wm .mk i:nth-child(2){top:11px}.wm .mk i:nth-child(3){top:15px}
+.wm .mk b{position:absolute;right:4px;top:5px;width:4px;height:4px;border-radius:50%;background:#fff}
+.wm span{font:500 15px/1 var(--font);letter-spacing:.32em}
+.nav .links{display:flex;gap:4px;margin:0 auto}
+.nav .links a{font:500 14px/1 var(--font);color:var(--onyx);text-decoration:none;padding:8px 14px;border-radius:var(--r-btn)}
+.nav .links a.hv{background:rgba(23,26,32,.06)}
+.nav .rt{display:flex;gap:4px;align-items:center}
+.nav .rt a{width:34px;height:34px;display:grid;place-items:center;border-radius:var(--r-btn);color:var(--onyx)}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+.scene{position:relative;height:900px;overflow:hidden}
+.scene .hd{position:absolute;z-index:3;top:118px;left:0;right:0;text-align:center}
+.scene h1,.scene h2{font:500 40px/1.2 var(--font);color:var(--onyx);margin:0;letter-spacing:.02em}
+.scene .sub{font:400 15px/1.5 var(--font);color:var(--char);margin-top:8px}
+.scene .sub u{text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:1px}
+.scene .acts{position:absolute;z-index:3;bottom:84px;left:0;right:0;display:flex;gap:24px;justify-content:center}
+.scene .more{position:absolute;bottom:30px;left:50%;translate:-50% 0;z-index:3;color:var(--onyx);opacity:.7}
+.dots{position:absolute;bottom:40px;right:40px;z-index:3;display:flex;gap:8px}
+.dots i{width:6px;height:6px;border-radius:50%;background:rgba(23,26,32,.22)} .dots i.on{background:var(--onyx)}
+
+/* 纸：裁到内容区（谱面四周保留刻版页边），带极淡的纸面受光 */
+.paper{position:absolute;background:#fff;overflow:hidden;border-radius:1px}
+.paper img{position:absolute;left:0;top:0;width:100%}
+.paper::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(170deg,rgba(255,255,255,0) 35%,rgba(0,0,0,.035) 100%)}
+
+/* S1 浅灰展台：同一首欢乐颂的三种记谱法，一字排开（车型阵列）+ 地面倒影 */
+.s1{background:linear-gradient(180deg,#f8f8f8 0%,#f1f1f1 70%,#e3e3e3 70.1%,#ebebeb 100%)}
+.s1 .floor{position:absolute;left:0;right:0;top:70%;bottom:0;background:radial-gradient(70% 60% at 50% 0%,rgba(255,255,255,.75),rgba(255,255,255,0))}
+.s1 .row{position:absolute;left:0;right:0;top:318px;height:440px;perspective:2400px;perspective-origin:50% 30%}
+.s1 .paper{top:0;height:300px;box-shadow:0 1px 0 rgba(0,0,0,.04),0 20px 30px -18px rgba(0,0,0,.35);-webkit-box-reflect:below 2px linear-gradient(transparent 55%,rgba(255,255,255,.28))}
+.s1 .p1{width:470px;left:calc(50% - 760px);transform:rotateY(26deg);transform-origin:100% 50%}
+.s1 .p2{width:500px;left:calc(50% - 250px);top:-18px;height:328px;z-index:2}
+.s1 .p3{width:470px;left:calc(50% + 290px);transform:rotateY(-26deg);transform-origin:0 50%}
+.s1 .tag{position:absolute;top:338px;width:300px;text-align:center;font:500 12px/1 var(--font);color:var(--steel);letter-spacing:.14em}
+.s1 .tag.t2{width:300px;left:calc(50% - 150px);color:var(--onyx)}
+.s1 .tag.t1{left:calc(50% - 650px)} .s1 .tag.t3{left:calc(50% + 360px)}
+
+.s1 .q{margin:22px auto 0;width:440px;height:40px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(255,255,255,.9);border-radius:var(--r-btn);box-shadow:inset 0 0 0 1px var(--line-2);color:var(--steel);font:400 14px/1 var(--font)}
+.s1 .q .ic{width:18px;height:18px} .s1 .q span{color:var(--mute)} .s1 .q kbd{margin-left:auto;font:500 11px/1 var(--font);color:var(--steel);padding:4px 6px;border-radius:3px;background:var(--off)}
+/* S2 深色展台 */
+.s2{background:radial-gradient(70% 60% at 50% 46%,#30343b 0%,#1c1f25 45%,#0f1114 100%)}
+.s2 h2{color:#fff} .s2 .sub{color:#c9cacc}
+.s2 .spot{position:absolute;left:50%;top:150px;width:900px;height:760px;translate:-50% 0;background:radial-gradient(closest-side,rgba(255,255,255,.10),rgba(255,255,255,0));pointer-events:none}
+.s2 .paper{left:50%;top:248px;width:520px;height:440px;translate:-50% 0;box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.04)}
+.s2 .paper.bk{translate:-50% 0;rotate:-6deg;top:270px;left:calc(50% - 210px);width:440px;height:400px;filter:brightness(.42)}
+.s2 .paper.bk2{rotate:5deg;top:276px;left:calc(50% + 210px);width:440px;height:400px;filter:brightness(.42)}
+.s2 .more{color:#fff} .s2 .dots i{background:rgba(255,255,255,.28)} .s2 .dots i.on{background:#fff}
+
+/* S3 微距：钢琴伴奏，中景清晰、前后景虚化 */
+.s3{background:#fff}
+.s3 .pg{position:absolute;left:50%;top:-430px;width:2200px;translate:-50% 0;rotate:-4deg}
+.s3 .pg img{display:block;width:100%}
+.s3 .soft{filter:blur(6px);opacity:.85}
+.s3 .sharp{-webkit-mask-image:linear-gradient(180deg,transparent 0,transparent 660px,#000 760px,#000 940px,transparent 1040px);mask-image:linear-gradient(180deg,transparent 0,transparent 660px,#000 760px,#000 940px,transparent 1040px)}
+.s3 .fade{position:absolute;inset:0;background:linear-gradient(180deg,#fff 0%,rgba(255,255,255,.93) 21%,rgba(255,255,255,0) 33%,rgba(255,255,255,0) 60%,rgba(255,255,255,.94) 74%,#fff 84%)}
+.s3 .spec{position:absolute;z-index:3;bottom:172px;left:0;right:0;display:flex;justify-content:center;gap:96px}
+.s3 .spec div{text-align:center} .s3 .spec b{display:block;font:500 28px/1.2 var(--font);color:var(--onyx)} .s3 .spec span{font:400 13px/1.4 var(--font);color:var(--steel)}
+
+/* S4 俯拍平铺（flat lay）：石色台面上的弹唱谱 + 指弹谱 + 拨片 */
+.s4{background:radial-gradient(80% 70% at 50% 55%,#efede9 0%,#e5e3df 60%,#d9d7d2 100%)}
+.s4 .paper{box-shadow:0 1px 1px rgba(0,0,0,.08),0 14px 28px -10px rgba(0,0,0,.28)}
+.s4 .a{width:470px;height:560px;left:calc(50% - 470px);top:250px;rotate:-6deg}
+.s4 .b{width:440px;height:520px;left:calc(50% + 40px);top:276px;rotate:4.5deg}
+.s4 .pick{position:absolute;left:calc(50% + 420px);top:600px;width:54px;height:62px;background:linear-gradient(150deg,#2b2e34,#121418);border-radius:48% 48% 50% 50%/38% 38% 62% 62%;rotate:24deg;box-shadow:0 8px 14px rgba(0,0,0,.28)}
+.s4 .capo{position:absolute;left:calc(50% - 560px);top:640px;width:120px;height:26px;border-radius:13px;background:linear-gradient(180deg,#3a3d43,#191b1f);rotate:-28deg;box-shadow:0 8px 14px rgba(0,0,0,.25)}
+.s4 .capo::after{content:"";position:absolute;right:-18px;top:6px;width:34px;height:14px;border-radius:7px;background:#2a2d33}
+.s4 .fadeb{position:absolute;left:0;right:0;bottom:0;height:300px;background:linear-gradient(180deg,rgba(229,227,223,0),rgba(229,227,223,.94) 62%,#e2e0dc)}
+.s4 .fadet{position:absolute;left:0;right:0;top:0;height:250px;background:linear-gradient(180deg,#e9e7e3 30%,rgba(233,231,227,0))}
+
+.s4 .pencil{position:absolute;left:calc(50% - 600px);top:560px;width:260px;height:14px;rotate:-34deg;border-radius:2px;background:linear-gradient(180deg,#2c2f35 0%,#4a4e55 45%,#1b1d21 100%);box-shadow:0 10px 14px -4px rgba(0,0,0,.35)}
+.s4 .pencil::before{content:"";position:absolute;right:-30px;top:0;border-left:30px solid #d8cfbf;border-top:7px solid transparent;border-bottom:7px solid transparent}
+.s4 .pencil::after{content:"";position:absolute;right:-30px;top:5px;border-left:10px solid #2a2a2a;border-top:2px solid transparent;border-bottom:2px solid transparent}
+.s4 .pencil i{position:absolute;left:-14px;top:0;width:16px;height:14px;border-radius:3px 0 0 3px;background:#bfbfbf}
+/* S5 谱库 */
+.s5{background:#fff;padding:96px 0 80px}
+.s5 .hd2{text-align:center} .s5 h2{font:500 40px/1.2 var(--font);color:var(--onyx);margin:0}
+.s5 .sub{font:400 15px/1.5 var(--font);color:var(--char);margin-top:8px}
+.search{margin:28px auto 0;width:620px;height:48px;display:flex;align-items:center;gap:12px;padding:0 6px 0 18px;background:var(--off);border-radius:var(--r-btn);color:var(--steel)}
+.search input{flex:1;border:0;background:transparent;font:400 15px/1 var(--font);color:var(--onyx);outline:none}
+.search input::placeholder{color:var(--mute)}
+.cats{display:flex;gap:8px;justify-content:center;margin-top:16px}
+.cats span{font:500 13px/1 var(--font);padding:9px 14px;border-radius:var(--r-btn);color:var(--char);background:var(--off)}
+.cats span.on{background:var(--onyx);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;width:1200px;margin:40px auto 0}
+.card{border-radius:var(--r-card);overflow:hidden;background:#fff}
+.card .th{height:236px;background:var(--off);position:relative;overflow:hidden}
+.card .th .paper{left:22px;right:22px;top:22px;bottom:-4px;box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.card .bd{padding:14px 2px 0}
+.card h4{font:500 15px/1.35 var(--font);color:var(--onyx);margin:0 0 4px}
+.card p{font:400 12.5px/1.4 var(--font);color:var(--steel);margin:0}
+.s5 .acts{display:flex;justify-content:center;margin-top:40px}
+footer{background:#fff;padding:22px 0 30px;display:flex;justify-content:center;gap:24px;font:400 12px/1 var(--font);color:var(--steel)}
+
+.s1{height:792px}
+.s1 .acts{bottom:64px}
+.s1 .row{top:290px}
+.s1 .paper{height:276px}
+.s1 .p1{width:440px;left:calc(50% - 690px)}
+.s1 .p2{height:300px;top:-12px;width:480px;left:calc(50% - 240px)}
+.s1 .p3{width:440px;left:calc(50% + 250px)}
+.s1 .tag{top:304px}
+.s1 .tag.t1{left:calc(50% - 620px)} .s1 .tag.t3{left:calc(50% + 330px)}
+.s1{background:linear-gradient(180deg,#f8f8f8 0%,#f1f1f1 71%,#e3e3e3 71.1%,#ebebeb 100%)}
+.s1 .floor{top:71%}
+.s1 .more{display:none}
+.s5{padding-top:56px}
+.s5 .hd2{display:flex;align-items:baseline;justify-content:space-between;width:1200px;margin:0 auto;text-align:left}
+.s5 h2{font-size:28px}
+.s5 .hd2 .sub{margin:0}
+.s5 .search{display:none}
+.cats{justify-content:flex-start;width:1200px;margin:16px auto 0}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+<symbol id="i-dn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+</defs></svg>
+<nav class="nav">
+  <a class="wm" href="#"><i class="mk"><i></i><i></i><i></i><b></b></i><span>谱友圈</span></a>
+  <div class="links"><a href="#" class="hv">找谱</a><a href="#">制谱</a><a href="#">考编</a><a href="#">艺考</a><a href="#">师范</a><a href="#">学习</a></div>
+  <div class="rt"><a href="#"><svg class="ic"><use href="#i-search"/></svg></a><a href="#"><svg class="ic"><use href="#i-globe"/></svg></a><a href="#"><svg class="ic"><use href="#i-user"/></svg></a></div>
+</nav>
+
+<section class="scene s1" id="s1">
+  <div class="floor"></div>
+  <div class="hd"><h1>专业曲谱平台</h1><div class="sub">一份数据，三种记谱法同源互切　<u>出版级刻版</u></div><div class="q"><svg class="ic"><use href="#i-search"/></svg><span>搜索 12,000+ 首曲谱：歌名、作者、和弦进行</span><kbd>/</kbd></div></div>
+  <div class="row">
+    <div class="paper p1"><img src="../assets/page-jp.png" alt="" style="top:-4%"></div>
+    <div class="paper p2"><img src="../assets/page-staff.png" alt="" style="top:-3%"></div>
+    <div class="paper p3"><img src="../assets/page-tab.png" alt="" style="top:-4%"></div>
+    <div class="tag t1">简谱</div><div class="tag t2">五线谱</div><div class="tag t3">六线谱</div>
+  </div>
+  <div class="acts"><a class="btn pri" href="#">开始制谱</a><a class="btn sec" href="#">浏览谱库</a></div>
+  <svg class="ic more"><use href="#i-dn"/></svg>
+</section>
+
+<section class="s5" id="s5">
+  <div class="hd2"><h2>谱库</h2><div class="sub">每一份都可以改调、换记谱法、打印</div></div>
+  <div class="search"><svg class="ic"><use href="#i-search"/></svg><input placeholder="搜索歌名、作者或和弦进行"></div>
+  <div class="cats"><span class="on">全部</span><span>弹唱</span><span>钢琴</span><span>合唱</span><span>简谱</span><span>考编曲目</span><span>尤克里里</span></div>
+  <div class="grid">
+    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-songbie.png" alt=""></div></div><div class="bd"><h4>送别</h4><p>简谱歌谱 · F 调 · 4/4</p></div></div>
+    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-minuet.png" alt=""></div></div><div class="bd"><h4>小步舞曲</h4><p>钢琴独奏 · G 大调 · 3/4</p></div></div>
+    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-satb.png" alt=""></div></div><div class="bd"><h4>欢乐颂 · 四部合唱</h4><p>五线谱合唱 · SATB</p></div></div>
+    <div class="card"><div class="th"><div class="paper"><img src="../assets/page-canon.png" alt=""></div></div><div class="bd"><h4>卡农进行</h4><p>钢琴弹唱伴奏 · D 调</p></div></div>
+  </div>
+  <div class="acts"><a class="btn ghost" href="#">进入谱库</a></div>
+</section>
+<footer><span>谱友圈 © 2026</span><span>隐私与条款</span><span>联系我们</span><span>更新日志</span><span>粤ICP备2026100396号-1</span></footer>
+</body></html>
