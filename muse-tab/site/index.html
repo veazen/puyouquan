@@ -2,23 +2,6 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<script>/* v66.x v4「画廊」：动效与材质开关（与编辑器同一段，首屏前定档，CSS 只读 html 上的类）。
-   html.fx：允许动效——自动化测试（navigator.webdriver）默认关闭，?fx=1 强开、?fx=0 强关；系统「减弱动态」再加 fx-rm（改为纯淡入）。
-   html.noglass：毛玻璃降级为实底——测试环境（?glass=1 可开）、微信安卓 / 小程序 web-view、低内存或低核数、系统「减弱透明度」 */
-(function(){ var d=document.documentElement, q=location.search, n=navigator, ua=n.userAgent||'';
-  try{ if(!/[?&]fx=0/.test(q) && (!n.webdriver || /[?&]fx=1/.test(q))){ d.classList.add('fx');
-    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) d.classList.add('fx-rm'); } }catch(_){}
-  try{ var ng = /[?&]glass=1/.test(q)? false : (n.webdriver || (/MicroMessenger/i.test(ua) && /Android/i.test(ua)) || /miniProgram/i.test(ua)
-      || (n.deviceMemory && n.deviceMemory<=4) || (n.hardwareConcurrency && n.hardwareConcurrency<=4)
-      || (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches)
-      || !(window.CSS && CSS.supports && (CSS.supports('backdrop-filter','blur(1px)') || CSS.supports('-webkit-backdrop-filter','blur(1px)'))));
-    if(ng) d.classList.add('noglass'); }catch(_){} })();
-/* 谱库模式首屏前定档：小程序 web-view、带 ?q= / ?cat= / #lib 的访问直接进谱库（营销区块不渲染，免得先闪一下）。
-   html.is-mp 与 pyq.js 同一判断口径，这里提前标记 */
-(function(){ var d=document.documentElement;
-  try{ var mp=window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent||'');
-    if(mp) d.classList.add('is-mp');
-    if(mp || /[?&](q|cat)=[^&]/.test(location.search) || location.hash==='#lib') d.classList.add('lib-mode'); }catch(_){} })();</script>
 <title>谱友圈 — 专业曲谱平台｜吉他谱 钢琴谱 简谱 尤克里里谱免费在线看 · 出版级在线制谱</title>
 <meta name="description" content="谱友圈是专业曲谱平台：出版级·科教级在线制谱，支持吉他谱、钢琴谱、简谱、五线谱、尤克里里谱，更多乐器（含民族乐器）陆续支持；曲谱免费在线看、一键移调、跟谱播放，乐器学习课程筹备中。">
 <link rel="canonical" href="https://www.puyouquan.com/">
@@ -37,134 +20,36 @@
 </script>
 <link rel="stylesheet" href="pyq.css">
 </head>
-<body data-page="index" class="gl">
+<body data-page="index">
 <div id="site-nav"></div>
 
-<!-- v66.x v4「画廊」首页（负责人 2026-10-04 拍板；效果稿 docs/design-2026-10c/home/home.html）：
-     雾白首屏（搜索＋谱种＋按钮对＋悬浮谱面）→ 黑带「三谱同源」→ 雾白「场景」→ 淡蓝洗色「最新上架」（真实谱库）→ 多列页脚。
-     谱面图均为刻版引擎实出（img/）；谱库模式（html.lib-mode）只留首屏搜索与谱库。 -->
-<main>
-<section class="gl-hero" aria-labelledby="h-hero"><div class="gl-col">
-  <h1 id="h-hero">谱友圈</h1>
-  <p class="gl-tag"><span class="gl-nb">专业曲谱平台。</span><span class="gl-nb">出版级、科教级制谱。</span></p>
-  <p class="gl-lede gl-hide-lib"><span class="gl-nb">简谱、五线谱、六线谱</span><span class="gl-nb">同一份数据一键互切，</span><span class="gl-nb">智能配伴奏。</span><br><span class="gl-nb">给考编、艺考、师范的</span><span class="gl-nb">老师和学生，</span><span class="gl-nb">也给每一位弹唱的人。</span></p>
-  <form class="lib-search xl gl-search" id="lib-form" role="search" action="index.html">
-    <i data-i="search"></i><input id="lib-q" name="q" type="search" placeholder="搜曲名 / 歌手，如：送别、小星星" autocomplete="off" aria-label="搜索曲谱">
-    <button type="submit" class="gl-find">找谱</button>
-  </form>
-  <div class="chip-row" id="lib-cats" aria-label="谱种"></div>
-  <div class="gl-pair gl-hide-lib"><a class="btn" id="hero-make" href="//zhipu.puyouquan.com/">开始制谱，免费</a><a class="btn ghost" href="help.html?section=getting-started">看 2 分钟演示</a></div>
-  <p class="gl-reassure gl-hide-lib">打开浏览器就能用 · 免注册 · 本地实时保存</p>
-</div>
-  <figure class="gl-stage gl-hide-lib">
-    <div class="gl-paper"><picture><source media="(max-width:734px)" srcset="img/m-hero.png" width="334" height="263"><img src="img/hero.png" width="900" height="330" fetchpriority="high" decoding="async" alt="送别伴奏对照谱第 1 至 4 小节：旋律五线谱、简谱与歌词，下方为自动生成的钢琴双手伴奏，和弦 C G C G"></picture></div>
-    <figcaption class="gl-cap"><b>送别 · 伴奏对照谱</b>　第 1–<span class="gl-dk">4</span><span class="gl-mb">2</span> 小节。一条简谱旋律输入，和弦与双手织体自动生成，刻版引擎直出。</figcaption>
-  </figure>
-</section>
+<header class="home-hero"><div class="wrap">
+  <h1 class="home-brand"><span class="mark"></span>谱友圈 <span class="grad">专业曲谱平台</span></h1>
+  <p class="home-sub">出版级 · 科教级在线制谱｜免费看谱 · 一键移调 · 跟谱播放</p>
+  <div class="lib-search xl"><i data-i="scan"></i><input id="lib-q" type="search" placeholder="搜曲名 / 歌手，如：小星星" autocomplete="off"></div>
+  <div class="chip-row" id="lib-cats"></div>
+</div></header>
 
-<section class="gl-tri gl-mkt" data-nav-dark aria-labelledby="h-tri"><div class="gl-col">
-  <div class="gl-head">
-    <h2 id="h-tri" class="gl-rv">三谱同源</h2>
-    <p class="gl-tag gl-rv">写一遍，三种谱同时就绪。</p>
-    <p class="gl-tri-body gl-rv d1"><span class="gl-nb">简谱录入、</span><span class="gl-nb">五线谱交作业、</span><span class="gl-nb">六线谱给吉他手，</span><span class="gl-nb">它们是同一份数据的三种视图。</span><br class="gl-dk"><span class="gl-nb">改一个音，三处同步；</span><span class="gl-nb">移调不用重抄。</span></p>
+<section class="sec" id="lib-sec" style="padding-top:30px"><div class="wrap">
+  <div id="recent-sec" hidden>
+    <div class="lib-head"><b>最近看过</b></div>
+    <div id="recent-grid" class="grid g3"></div>
   </div>
-  <div class="gl-pair gl-rv d1"><a class="btn" id="tri-open" href="index.html?q=%E6%AC%A2%E4%B9%90%E9%A2%82" data-scq="欢乐颂">打开这份欢乐颂</a></div>
-  <div class="gl-stack gl-rv d2">
-    <figure class="gl-strip"><figcaption><span><b>六线谱</b>弹唱</span><span class="d">TAB · 和弦图 · 简谱歌词</span></figcaption>
-      <div class="gl-paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-tab.png" width="334" height="173"><img src="img/tri-tab.png" width="736" height="214" loading="lazy" decoding="async" alt="欢乐颂六线谱弹唱，第 2 小节播放高亮"></picture></div></figure>
-    <figure class="gl-strip"><figcaption><span><b>五线谱</b>旋律</span><span class="d">高音谱号 · 4/4 · 歌词</span></figcaption>
-      <div class="gl-paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-staff.png" width="334" height="120"><img src="img/tri-staff.png" width="736" height="148" loading="lazy" decoding="async" alt="欢乐颂五线谱，第 2 小节播放高亮"></picture></div></figure>
-    <figure class="gl-strip"><figcaption><span><b>简谱</b>1=C</span><span class="d">首调唱名 · 歌词</span></figcaption>
-      <div class="gl-paper"><picture><source media="(max-width:734px)" srcset="img/m-tri-jp.png" width="273" height="88"><img class="gl-jpi" src="img/tri-jp.png" width="660" height="109" loading="lazy" decoding="async" alt="欢乐颂简谱，第 2 小节播放高亮"></picture></div></figure>
-    <div class="gl-transport" aria-label="播放状态示意"><span class="pp" aria-hidden="true"><i></i></span><span><span class="now">播放中 · 第 2 小节</span>　三张谱同一时间轴</span><span class="bar" aria-hidden="true"><i></i></span><time>0:04 / 0:22</time></div>
+  <div class="lib-head"><b id="lib-title">最新上架</b><span id="lib-newbadge" class="lib-new" hidden></span><span class="lib-count" id="lib-count"></span></div>
+  <div id="lib-grid" class="grid g3">
+    <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
+    <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
   </div>
-  <div class="gl-specs gl-rv">
-    <div><h3>一键互切</h3><p>简谱、五线谱、六线谱互切，<br>教学对照谱逐列对齐。</p></div>
-    <div><h3>出版级刻版</h3><p>符干、符杠与间距遵循<br>《Behind Bars》与国标简谱惯例。</p></div>
-    <div><h3>无损互通</h3><p>MusicXML、MIDI 进出，<br>MuseScore、Sibelius 直接打开。</p></div>
-  </div>
+  <div class="lib-more" id="lib-more" hidden><button class="btn ghost" id="lib-more-btn">加载更多</button></div>
+  <!-- v61.7 收录工程：上面的卡片是 JS 渲染、爬虫抓不到曲谱链接——这条静态内链把爬虫引到
+       谱库目录页（纯 HTML 全量曲谱清单），形成 首页 → 目录 → 每首谱 的可爬路径 -->
+  <p class="lib-dirlink"><a href="//puku.puyouquan.com/pub/">全部曲谱目录 →</a></p>
 </div></section>
 
-<section class="gl-scenes gl-mkt" aria-labelledby="h-sc">
-  <div class="gl-col gl-head">
-    <h2 id="h-sc" class="gl-rv">为这些课堂和考场而做</h2>
-    <p class="gl-tag gl-rv"><span class="gl-nb">考编、艺考、师范与即兴伴奏，</span><span class="gl-nb">各有一套现成的工作台。</span></p>
-    <a class="gl-more gl-rv d1" href="make.html">了解全部 8 种谱类<i data-i="chev"></i></a>
-  </div>
-  <div class="gl-lineup">
-    <article class="gl-sc gl-rv"><a href="kaobian.html" tabindex="-1" aria-hidden="true"><div class="gl-paper"><img src="img/sc-canon.png" width="176" height="140" loading="lazy" decoding="async" alt=""></div></a>
-      <p class="gl-src">卡农进行 · 钢琴弹唱伴奏</p>
-      <h3>教师考编</h3><p class="gl-tl">一段旋律，自动配好伴奏。</p>
-      <p class="gl-ds">即兴伴奏、弹唱与说课谱，<br>21 套标准织体，真音符可改。</p>
-      <a class="gl-more" href="kaobian.html">进入考编工作台<i data-i="chev"></i></a></article>
-    <article class="gl-sc gl-rv d1"><a href="yikao.html" tabindex="-1" aria-hidden="true"><div class="gl-paper"><img src="img/sc-minuet.png" width="207" height="143" loading="lazy" decoding="async" alt=""></div></a>
-      <p class="gl-src">小步舞曲 · G 大调</p>
-      <h3>音乐艺考</h3><p class="gl-tl">视唱视奏与伴奏谱，一站出。</p>
-      <p class="gl-ds">视唱练耳、视奏与声乐伴奏谱，<br>一份数据三种出法。</p>
-      <a class="gl-more" href="yikao.html">看艺考用法<i data-i="chev"></i></a></article>
-    <article class="gl-sc gl-rv d2"><a href="shifan.html" tabindex="-1" aria-hidden="true"><div class="gl-paper"><img src="img/sc-tiger.png" width="200" height="88" loading="lazy" decoding="async" alt=""></div></a>
-      <p class="gl-src">两只老虎 · 教学对照</p>
-      <h3>师范生</h3><p class="gl-tl">弹唱伴奏与课堂谱，轻松做。</p>
-      <p class="gl-ds">儿歌弹唱、见习课堂范谱，<br>五线谱＋简谱＋歌词对照讲义。</p>
-      <a class="gl-more" href="shifan.html">做一份课堂谱<i data-i="chev"></i></a></article>
-    <article class="gl-sc gl-rv d3"><a href="jixing.html" tabindex="-1" aria-hidden="true"><div class="gl-paper"><img src="img/sc-func.png" width="196" height="114" loading="lazy" decoding="async" alt=""></div></a>
-      <p class="gl-src">流行副歌 · 功能谱</p>
-      <h3>即兴伴奏</h3><p class="gl-tl">旋律进，双手伴奏谱出。</p>
-      <p class="gl-ds">自动配和弦，选织体生成伴奏；<br>级数与音名一键互切。</p>
-      <a class="gl-more" href="jixing.html">试一条旋律<i data-i="chev"></i></a></article>
-  </div>
-</section>
+<!-- v61.6 产品指示：首页工具带/支持谱种带/专属场景带撤除（学习与制谱入口走主菜单；落地页收录由 sitemap 钉住） -->
 
-<!-- 最新上架：真实谱库（/api/pub/scores）渲染，搜索 / 谱种 / 收藏 / 加载更多都落在这一区 -->
-<section class="gl-lib" id="lib-sec" aria-labelledby="lib-title">
-  <div class="gl-col gl-head">
-    <h2 id="lib-title" class="gl-rv">最新上架</h2>
-    <p class="gl-tag gl-rv">新收录的曲谱，打开就能移调、<span class="gl-nb">换谱种、打印。</span></p>
-    <p class="gl-libmeta"><span id="lib-newbadge" class="lib-new" hidden></span><span class="lib-count" id="lib-count"></span></p>
-    <!-- v61.7 收录工程：卡片是 JS 渲染、爬虫抓不到曲谱链接——这条静态内链把爬虫引到谱库目录页
-         （纯 HTML 全量曲谱清单），形成 首页 → 目录 → 每首谱 的可爬路径 -->
-    <a class="gl-more lib-dirlink" href="//puku.puyouquan.com/pub/">浏览全部曲谱目录<i data-i="chev"></i></a>
-  </div>
-  <div class="gl-col gl-shelf">
-    <div id="recent-sec" hidden>
-      <div class="lib-head"><b>最近看过</b></div>
-      <div id="recent-grid" class="grid g3"></div>
-    </div>
-    <div id="lib-grid" class="grid g3">
-      <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
-      <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
-    </div>
-    <div class="lib-more" id="lib-more" hidden><button class="btn ghost" id="lib-more-btn">加载更多</button></div>
-  </div>
-</section>
-</main>
-
-<!-- v66.x Apple 式多列页脚：静态写在页里（data-keep，pyq.js 不覆盖）——爬虫 / ICP 核验抓原始 HTML 即可见全部内链与备案号；
-     小程序里邮件与备案链接走 .mp-text 转纯文本（非业务域名打不开） -->
-<div id="site-foot" data-keep><footer id="foot" class="gfoot"><div class="gl-col">
-  <div class="gfoot-notes">
-    <p>本页所示谱面均由谱友圈刻版引擎实时排版输出，未经后期修饰。</p>
-    <p>MusicXML、MIDI 导入导出兼容 MuseScore、Sibelius 等主流打谱软件；本地实时保存的数据只存在你的浏览器里。</p>
-  </div>
-  <nav class="gfoot-dir" aria-label="网站目录">
-    <section><h4><button type="button" aria-expanded="false">找谱<i data-i="chev"></i></button></h4><ul>
-      <li><a href="//puku.puyouquan.com/pub/">曲谱目录</a></li><li><a href="index.html?cat=guitar">弹唱</a></li><li><a href="index.html?cat=pianoacc">钢琴弹唱</a></li>
-      <li><a href="index.html?cat=vocal">歌谱</a></li><li><a href="index.html?cat=teach">教学对照</a></li><li><a href="index.html?cat=func">功能谱</a></li></ul></section>
-    <section><h4><button type="button" aria-expanded="false">制谱<i data-i="chev"></i></button></h4><ul>
-      <li><a href="make.html">在线制谱</a></li><li><a href="help.html?section=score-types">八种谱类</a></li><li><a href="jixing.html">智能配伴奏</a></li>
-      <li><a href="help.html?section=import-export">MusicXML / MIDI</a></li><li><a href="features.html">全部功能</a></li></ul></section>
-    <section><h4><button type="button" aria-expanded="false">考编 · 艺考 · 师范<i data-i="chev"></i></button></h4><ul>
-      <li><a href="kaobian.html">教师考编</a></li><li><a href="yikao.html">音乐艺考</a></li><li><a href="shifan.html">师范生</a></li><li><a href="jixing.html">即兴伴奏</a></li></ul></section>
-    <section><h4><button type="button" aria-expanded="false">学习<i data-i="chev"></i></button></h4><ul>
-      <li><a href="kecheng.html">课程</a></li><li><a href="help.html">帮助中心</a></li><li><a href="help.html?section=getting-started">2 分钟演示</a></li><li><a href="log.html">更新日志</a></li></ul></section>
-    <section><h4><button type="button" aria-expanded="false">关于谱友圈<i data-i="chev"></i></button></h4><ul>
-      <li><a href="mailto:support@puyouquan.com" class="mp-text">联系我们</a></li><li><a href="sponsors.html">赞助商</a></li><li><a href="privacy.html">隐私政策</a></li><li><a href="terms.html">用户协议</a></li></ul></section>
-  </nav>
-  <div class="gfoot-legal">
-    <span>© 2026 谱友圈。保留所有权利。</span>
-    <nav aria-label="法律信息"><a href="privacy.html">隐私政策</a><a href="terms.html">用户协议</a><a href="sitemap.xml">网站地图</a><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" class="mp-text">粤ICP备2026100396号-1</a></nav>
-  </div>
-</div></footer></div>
+<!-- 静态备案号兜底：pyq.js 运行时替换为完整页脚；curl/爬虫/ICP 核验抓原始 HTML 必须可见 -->
+<div id="site-foot"><div style="text-align:center;padding:20px 0;font-size:13px;opacity:.75">© 2026 谱友圈 · <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a></div></div>
 <script src="pyq.js"></script>
 <script>
 /* 搜索型首页：一次拉取 /api/pub/scores（sessionStorage 5 分钟缓存），本地即时过滤 +
@@ -180,20 +65,15 @@
   var total=0, extra={}, remoteQ='', rtimer=0;
   var grid=document.getElementById('lib-grid'), cats=document.getElementById('lib-cats'),
       qIn=document.getElementById('lib-q'), moreWrap=document.getElementById('lib-more'),
-      title=document.getElementById('lib-title'), docEl=document.documentElement;
+      title=document.getElementById('lib-title');
 
-  /* v66.x 谱库模式：小程序 / ?q= / ?cat= / #lib 进来一直保持（head 已提前标记）；首页里一旦开始搜索或筛选也切过去——
-     结果直接接在搜索框下面，不用越过三谱同源与场景两屏去找 */
-  var stickyLib=docEl.classList.contains('lib-mode');
-  try{ var sp=new URLSearchParams(location.search), q0=sp.get('q'), c0=sp.get('cat');
-    if(q0){ st.q=q0; qIn.value=q0; }
-    if(c0 && CATS.some(function(c){ return c[0]===c0; })) st.cat=c0; }catch(_){}
+  try{ var q0=new URLSearchParams(location.search).get('q'); if(q0){ st.q=q0; qIn.value=q0; } }catch(_){}
   if(!('ontouchstart' in window) && !st.q) try{ qIn.focus({preventScroll:true}); }catch(_){}
 
   function typeOf(s){ return NORM[s.type]||s.type; }
   function chips(){
     var counts={}; all.forEach(function(s){ var t=typeOf(s); counts[t]=(counts[t]||0)+1; });
-    cats.innerHTML = CATS.filter(function(c){ return c[0]==='all' || counts[c[0]] || c[0]===st.cat; }).map(function(c){
+    cats.innerHTML = CATS.filter(function(c){ return c[0]==='all' || counts[c[0]]; }).map(function(c){
       return '<button class="fchip lg'+(st.cat===c[0]&&!st.favOnly?' on':'')+'" data-cat="'+c[0]+'">'+c[1]+'</button>'; }).join('')
       +'<button class="fchip lg fav'+(st.favOnly?' on':'')+'" data-fav>♥ 收藏</button>';
   }
@@ -219,20 +99,15 @@
     });
   }
   function searching(){ return !!(st.q.trim() || st.cat!=='all' || st.favOnly); }
-  function syncMode(){
-    var on=stickyLib || searching();
-    if(on!==docEl.classList.contains('lib-mode')){ docEl.classList.toggle('lib-mode', on); if(window.PYQ_NAVSYNC) PYQ_NAVSYNC(); }
-  }
   function draw(){
     var list=filtered();
-    syncMode();
     title.textContent = st.favOnly? '我的收藏' : (st.q.trim()? '搜索结果' : (st.cat!=='all'? '筛选结果' : '最新上架'));
     var show = searching()? list : list.slice(0, st.shown);
     grid.innerHTML = show.length? show.map(PYQ_LIB.card).join('')
       : '<div class="lib-empty"><b>'+(st.favOnly?'收藏夹还是空的':'没有找到相关曲谱')+'</b>'
         +(st.favOnly?'点 ♥ 收藏喜欢的谱，跨设备随时打开。':'换个关键词试试，或用智能配谱自己出一份。')
         +'<br><a class="btn" id="empty-make" href="//zhipu.puyouquan.com/">自己配一份谱 →</a>'
-        +'<br><a href="mailto:support@puyouquan.com?subject=想要的谱" class="lib-ask">告诉我们你想要的谱 →</a></div>';
+        +'<br><a href="mailto:support@puyouquan.com?subject=想要的谱" style="display:inline-block;margin-top:12px;font-size:12.5px;color:var(--muted)">告诉我们你想要的谱 →</a></div>';
     var c=document.getElementById('lib-count'); if(c) c.textContent=list.length+' 首';
     /* v63.4 A7 零结果搜索（带 query）：等全库补搜也落空才记，同一个词只记一次——这是「用户想要但谱库没有」的清单 */
     var zq=st.q.trim();
@@ -255,7 +130,7 @@
     var sec=document.getElementById('recent-sec'), rg=document.getElementById('recent-grid');
     if(!sec||!all.length) return;
     var byId={}; all.forEach(function(s){ byId[s.id]=s; });
-    var cards=recGet().map(function(r){ return byId[r.id]; }).filter(Boolean).slice(0,4);
+    var cards=recGet().map(function(r){ return byId[r.id]; }).filter(Boolean).slice(0,3);
     if(cards.length){ rg.innerHTML=cards.map(PYQ_LIB.card).join(''); rg.dataset.ready='1'; sec.hidden=false; }
   }
   cats.addEventListener('click', function(e){
@@ -271,43 +146,20 @@
     st.q=qIn.value; draw(); remoteSearch();
     try{ history.replaceState(null,'', st.q.trim()? ('?q='+encodeURIComponent(st.q.trim())) : location.pathname); }catch(_){}
   });
-  /* 回车 / 「找谱」：不整页刷新（结果本来就随输入即时出），只把谱库滚进视野 */
-  document.getElementById('lib-form').addEventListener('submit', function(e){
-    e.preventDefault();
-    if(!st.q.trim()) stickyLib=true;
-    draw();
-    try{ document.getElementById('lib-sec').scrollIntoView({block:'start', behavior:'smooth'}); }catch(_){}
-  });
   document.getElementById('lib-more-btn').onclick=function(){ st.shown+=PAGE; draw(); };
-  /* 顶栏搜索钮（index.html#lib）：在首页里点它＝进谱库模式并聚焦搜索框 */
-  window.addEventListener('hashchange', function(){
-    if(location.hash!=='#lib') return;
-    stickyLib=true; draw();
-    try{ window.scrollTo({top:0}); qIn.focus({preventScroll:true}); }catch(_){}
-  });
-
-  /* 黑带「打开这份欢乐颂」：谱库里有同名谱就直达观看页（官方版优先），没有再落到搜索结果 */
-  var triOpen=document.getElementById('tri-open');
-  if(triOpen) triOpen.addEventListener('click', function(e){
-    if(e.ctrlKey||e.metaKey||e.shiftKey||e.button) return;
-    var t=triOpen.getAttribute('data-scq')||'';
-    var hit=pool().filter(function(s){ return String(s.title||'').trim()===t; })
-      .sort(function(x,y){ return (/官方/.test(y.author||'')?1:0)-(/官方/.test(x.author||'')?1:0); })[0];
-    if(hit){ e.preventDefault(); location.href='//puku.puyouquan.com/kanpu.html?pub='+encodeURIComponent(hit.id); }
-  });
 
   /* 手机端制谱入口统一落 make.html（编辑器手机体验有限，先进承接页） */
   function isMobile(){ return matchMedia('(max-width:580px)').matches; }
   function mobileMakeLinks(){
     if(!isMobile()) return;
-    ['hero-make','empty-make'].forEach(function(id){   /* v66.x 首屏「开始制谱」同口径（v61.6 工具带撤除后 strip-make 已不存在） */
+    ['strip-make','empty-make'].forEach(function(id){   /* v61.6 工具带撤除，tool-make 不复存在 */
       var a=document.getElementById(id); if(a) a.href='make.html'; });
   }
   mobileMakeLinks();
 
   chips();
   /* 搜索占位轮播（未聚焦未输入时 4s 一换） */
-  var PH=['搜曲名 / 歌手，如：送别、小星星','试试：晴天','试试：考编 即兴伴奏','搜歌手名也可以'], phi=0;
+  var PH=['搜曲名 / 歌手，如：小星星','试试：晴天','试试：考编 即兴伴奏','搜歌手名也可以'], phi=0;
   setInterval(function(){ if(document.activeElement!==qIn && !qIn.value) qIn.placeholder=PH[++phi%PH.length]; },4000);
   var CK='pyq-pub-cache';
   function useData(list, fresh, tot){ all=list||[]; if(tot) total=tot; chips(); draw(); renderRecent(); remoteSearch();
@@ -321,36 +173,14 @@
   try{ var raw=sessionStorage.getItem(CK); if(raw){ var o=JSON.parse(raw);
     if(o && o.t && Date.now()-o.t<300000 && o.scores){ cached=o.scores; } } }catch(_){}
   if(cached) useData(cached);
-  syncMode();
   fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:cached||[]}; })
     .then(function(j){ useData(j.scores||[], true, j.total||0);
       try{ sessionStorage.setItem(CK, JSON.stringify({t:Date.now(), scores:j.scores||[]})); }catch(_){} })
-    .catch(function(){ if(!cached) grid.innerHTML='<p class="lib-empty">刷新试试，谱库马上回来。</p>'; });
+    .catch(function(){ if(!cached) grid.innerHTML='<p style="color:var(--muted)">刷新试试，谱库马上回来。</p>'; });
   fetch('/api/favorites',{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
     .then(function(j){ if(!j) return; (j.favorites||[]).forEach(function(f){ favs[f.score_id||f.id||f]=1; });
       (j.cards||[]).forEach(function(c){ extra[c.id]=c; }); if(st.favOnly) draw(); })
     .catch(function(){});
-})();
-
-/* v66.x v4 画廊：区块进场（首屏以下的区块标题 / 谱面随滚动淡入上移 24px、800ms 慢入；首屏本身不做进场——
-   首屏谱面是 LCP，不让它等动画；只在 html.fx 下生效——
-   自动化测试与 ?fx=0 下页面一开始就是终态，没有透明残留）＋ 手机页脚目录折叠（Apple 式） */
-(function(){
-  var d=document.documentElement;
-  if(d.classList.contains('fx')){
-    if(!('IntersectionObserver' in window)) d.classList.remove('fx');
-    else{
-      var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); },
-        {rootMargin:'0px 0px -8% 0px'});
-      document.querySelectorAll('.gl-rv').forEach(function(el){ io.observe(el); });
-    }
-  }
-  document.querySelectorAll('.gfoot-dir h4 button').forEach(function(b){
-    b.addEventListener('click', function(){
-      if(!matchMedia('(max-width:734px)').matches) return;
-      var s=b.closest('section'), o=s.classList.toggle('open'); b.setAttribute('aria-expanded', o?'true':'false');
-    });
-  });
 })();
 </script>
 </body>

@@ -38,10 +38,6 @@ const ICONS = {
   moon:     P('<path d="M20 13.5A8.5 8.5 0 0 1 10.5 4 8.5 8.5 0 1 0 20 13.5Z"/>'),
   scan:     P('<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/>'),
   wand:     P('<path d="m14 6 4 4L6 22l-4-4Z"/><path d="M12 8l4 4M15 3v2M19 7h2M18 4l1-1"/>'),
-  /* v66.x v4 画廊：顶栏搜索 / 手机汉堡菜单 / 文字链接箭头 */
-  search:   P('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/>'),
-  menu:     P('<path d="M4 9h16M4 15h16"/>'),
-  chev:     '<svg class="icon chev" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l5 5-5 5"/></svg>',
 };
 window.PYQ_ICON = n => ICONS[n]||'';
 
@@ -81,52 +77,24 @@ window.PYQ_AV = (function(){
    个人中心升级独立页 me.html（登录后头像直达） */
 /* v60.86 产品拍板：定位话术回归「专业曲谱平台」；v60.89 产品指示：主菜单收敛为
    找谱/制谱/学习 三项（「课程」改「学习」直达课程内容；功能/帮助收进页脚） */
-/* v66.3 v4 画廊：44 高毛玻璃顶栏，文字导航均分一行 + 搜索 + 明暗 + 登录 + 「开始制谱 ›」蓝色文字链接
-   （顶栏不放实心按钮：实心蓝每个区块只一处，首页实心「开始制谱」在首屏）。菜单仍按 v60.89 产品指示只留
-   找谱 / 制谱 / 学习 三项（效果稿六项菜单与该指示相反，未经负责人另行拍板不改）。第三项＝高亮该项的 data-page，多页用 | 分隔。 */
 const MENU = [
   ['index.html','找谱'],['make.html','制谱'],['kecheng.html','学习'],
 ];
 const page = document.body.dataset.page || '';
 const navEl = document.getElementById('site-nav');
 if(navEl){
-  navEl.innerHTML = `<nav id="nav" aria-label="全局导航"><div class="bar">
-    <a class="brand" href="index.html" aria-label="谱友圈首页"><span class="mark" aria-hidden="true"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
-    <div id="menu">${MENU.map(([h,t,k])=>{ const on=(k||h.replace('.html','')).split('|').indexOf(page)>=0;
-      return `<a href="${h}"${on?' class="on" aria-current="page"':''}>${t}</a>`; }).join('')}</div>
+  navEl.innerHTML = `<nav id="nav"><div class="bar">
+    <a class="brand" href="index.html"><span class="mark"></span>谱友圈<span class="sub">专业曲谱平台</span></a>
+    <div id="menu">${MENU.map(([h,t,k])=>`<a href="${h}" class="${(k||h.replace('.html',''))===page?'on':''}">${t}</a>`).join('')}</div>
     <div class="nav-r">
-      <a class="nav-ico" id="nav-search" href="index.html#lib" aria-label="找谱">${ICONS.search}</a>
-      <button id="theme-btn" class="nav-ico" title="明暗切换">${ICONS.moon}</button>
+      <button id="theme-btn" title="明暗切换">${ICONS.moon}</button>
       <span id="nav-acct"></span>
-      <a class="nav-cta" href="//zhipu.puyouquan.com/">开始制谱<span aria-hidden="true"> ›</span></a>
-      <button id="nav-tog" class="nav-ico" type="button" aria-label="菜单" aria-expanded="false" aria-controls="menu">${ICONS.menu}</button>
+      <a class="btn" href="//zhipu.puyouquan.com/">开始制谱 ${ICONS.arrow}</a>
     </div>
   </div></nav>`;
 }
-/* 顶栏行为：滚动后出发丝线；压在黑带（[data-nav-dark]）上换深色玻璃；手机汉堡菜单（Esc / 点外面收起） */
-const navBar = document.getElementById('nav');
-if(navBar){
-  let rafN=0;
-  const darks=[...document.querySelectorAll('[data-nav-dark]')];
-  const syncNav=()=>{ rafN=0;
-    navBar.classList.toggle('scrolled', (window.scrollY||document.documentElement.scrollTop||0)>2);
-    const mid=navBar.offsetHeight/2;
-    navBar.classList.toggle('on-dark', darks.some(el=>{ if(!el.offsetParent) return false;
-      const r=el.getBoundingClientRect(); return r.top<=mid && r.bottom>=mid; }));
-  };
-  const req=()=>{ if(!rafN) rafN=requestAnimationFrame(syncNav); };
-  window.addEventListener('scroll', req, {passive:true}); window.addEventListener('resize', req);
-  window.PYQ_NAVSYNC=req;   /* 页面改了版面（如首页进出谱库模式）后可主动重算一次 */
-  syncNav();
-  const tog=document.getElementById('nav-tog');
-  const setOpen=o=>{ navBar.classList.toggle('open',o); if(tog) tog.setAttribute('aria-expanded',o?'true':'false'); };
-  if(tog) tog.onclick=e=>{ e.stopPropagation(); setOpen(!navBar.classList.contains('open')); };
-  document.addEventListener('click', e=>{ if(navBar.classList.contains('open') && !navBar.contains(e.target)) setOpen(false); });
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && navBar.classList.contains('open')){ setOpen(false); if(tog) tog.focus(); } });
-}
 const footEl = document.getElementById('site-foot');
-/* v66.x 首页自带静态多列页脚（data-keep：爬虫 / ICP 核验抓原始 HTML 即完整），这里不覆盖；其余页仍注入精简页脚 */
-if(footEl && !footEl.hasAttribute('data-keep')){
+if(footEl){
   /* v61.6 产品指示：页脚再精简——品牌块/「在线制谱」链/© 行域名口号全部撤除，
      只留 5 链一排 + © 与备案一行，整体居中（导航已有品牌与制谱入口，页脚不重复） */
   footEl.innerHTML = `<footer id="foot"><div class="wrap">
@@ -366,8 +334,7 @@ window.PYQ_ACCT = (function(){
       /* v60.87 未读站内信红点：点头像进 me.html 的「消息」卡即可读 */
       el.innerHTML=`<a class="acct-chip" id="acct-chip" href="me.html" title="个人中心${unreadMsgs?(' · '+unreadMsgs+' 条未读消息'):''}">${PYQ_AV(acct)}<span class="acct-nm">${_esc(acct.nickname||'')}</span>${unreadMsgs?'<span class="acct-dot"></span>':''}</a>`;
     }else{
-      /* v66.x v4：顶栏只写「登录」（弹窗里说明新号自动注册） */
-      el.innerHTML=`<button class="nav-login" id="nav-login" title="登录 / 注册">登录</button>`;
+      el.innerHTML=`<button class="nav-login" id="nav-login">登录 / 注册</button>`;
       document.getElementById('nav-login').onclick=openLogin;
     }
   }

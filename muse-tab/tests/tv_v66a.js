@@ -4,9 +4,9 @@
    T3 D7：手动放大到放不下 → #paper.paper-xs 可横向滚动，滚到底末小节线可见
    T4 非固定版宽预设不受影响：无 paper-tight、无 paper-xs，面板保持停靠
    T5 动效 / 材质开关：测试环境无 html.fx、有 html.noglass，--fx-pop=0ms；?fx=1 → html.fx 且 --fx-pop=340ms；?glass=1 → 无 noglass
-   T6 谱面令牌隔离层：谱面笔色 / 刻版灰不随主题漂移；改 :root --sc-pen 只改谱面不改界面
-   T7 打印：深色主题下打印，谱面刻版灰字＝浅色主题值（此前印成深色主题浅灰 #a89f90）
-   T8 界面元素统一走 --font-chrome；正文字体（--font-ui）冻结
+   T6 谱面令牌隔离层：#paper 的 --accent / --muted 与界面相同（零视觉变化，浅深两套）；改 :root --sc-pen 只改谱面不改界面
+   T7 打印：深色主题下打印，谱面刻版灰字回到浅色值 #6b6357（此前印成深色主题浅灰 #a89f90）
+   T8 --font-chrome：按钮与顶栏字体＝正文字体（此版零变化）
    突变实证：对 v65.7 文件复跑，T1–T3、T5–T7 报红。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -60,19 +60,17 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   r = await pg.evaluate(() => { const v = (el, n) => getComputedStyle(el).getPropertyValue(n).trim(); const P = document.getElementById('paper'), R = document.documentElement, top = document.getElementById('top');
     const out = {}; for (const th of ['light', 'dark']) { R.dataset.theme = th; out[th] = { pa: v(P, '--accent'), ra: v(top, '--accent'), pm: v(P, '--muted'), rm: v(top, '--muted'), pb: v(P, '--border'), rb: v(top, '--border') }; }
     R.dataset.theme = 'light'; R.style.setProperty('--sc-pen', '#0071e3'); out.iso = { pa: v(P, '--accent'), ta: v(top, '--accent') }; R.style.removeProperty('--sc-pen'); return out; });
-  /* v66.1 起谱面层定值（与界面色脱钩）：断言改为与版本无关的不变式——谱面笔色 / 刻版灰不随主题漂移，改 --sc-pen 只动谱面 */
-  T(r.light.pa === r.dark.pa && r.light.pm === r.dark.pm && r.iso.pa === '#0071e3' && r.iso.ta === r.light.ra, 'T6 谱面令牌隔离层：谱面色不随主题漂移；改 --sc-pen 只动谱面', JSON.stringify(r));
+  const same = (o) => o.pa === o.ra && o.pm === o.rm && o.pb === o.rb;
+  T(same(r.light) && same(r.dark) && r.dark.pa !== r.light.pa && r.iso.pa === '#0071e3' && r.iso.ta === r.light.ra, 'T6 谱面令牌隔离层：零视觉变化；改 --sc-pen 只动谱面', JSON.stringify(r));
   /* T7 */
-  const lightMuted = await pg.evaluate(() => { document.documentElement.dataset.theme = 'light'; return getComputedStyle(document.getElementById('paper')).getPropertyValue('--muted').trim(); });
   await pg.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
   await pg.emulateMedia({ media: 'print' });
   r = await pg.evaluate(() => getComputedStyle(document.getElementById('paper')).getPropertyValue('--muted').trim());
   await pg.emulateMedia({ media: 'screen' });
-  T(r === lightMuted && r !== '#a89f90', 'T7 深色主题打印：刻版灰字＝浅色主题值', JSON.stringify({ print: r, lightMuted }));
+  T(r === '#6b6357', 'T7 深色主题打印：刻版灰字回浅色值', r);
   /* T8 */
   r = await pg.evaluate(() => { document.documentElement.dataset.theme = 'light'; const f = el => getComputedStyle(el).fontFamily; return { body: f(document.body), btn: f(document.getElementById('b-new')), top: f(document.getElementById('top')) }; });
-  /* 界面元素统一走 --font-chrome；正文（谱面 SVG 文字继承源）仍是冻结的 --font-ui（中文字体前置） */
-  T(r.btn === r.top && /^"PingFang SC"/.test(r.body), 'T8 界面字体走 --font-chrome，正文字体冻结', JSON.stringify(r));
+  T(r.body === r.btn && r.body === r.top, 'T8 --font-chrome 此版零变化', JSON.stringify(r));
   await pg.close();
   T(!errs.length, '无页面脚本错误', errs.slice(0, 3).join(' | '));
   console.log(`\nPASS ${pass}/${total}`); await b.close(); process.exit(pass === total ? 0 : 1);

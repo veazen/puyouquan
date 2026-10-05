@@ -130,9 +130,6 @@ const BAD_COURSE = {
       if (p === '/kecheng.html') return route.fulfill({ status: 200, contentType: 'text/html', body: read('kecheng.html') });
       if (p === '/pyq.js') return route.fulfill({ status: 200, contentType: 'application/javascript', body: read('pyq.js') });
       if (p === '/pyq.css') return route.fulfill({ status: 200, contentType: 'text/css', body: read('pyq.css') });
-      /* v66.x v4 画廊首页：谱面图（引擎实出 PNG）走站点 img/，要能断言「首屏谱面图加载成功」 */
-      if (/^\/img\/[\w-]+\.png$/.test(p) && fs.existsSync(P.join(SITE, p.slice(1))))
-        return route.fulfill({ status: 200, contentType: 'image/png', body: fs.readFileSync(P.join(SITE, p.slice(1))) });
       return route.fulfill({ status: 404, body: '' });
     });
     pg._errs = errs;
@@ -183,10 +180,8 @@ const BAD_COURSE = {
       w: a ? Math.round(a.getBoundingClientRect().width) : 0 };
   });
   T(r.shotA && r.srcA === '/api/pub/seedaaa111/thumb?v=1' && r.lazyA === 'lazy' && r.skelA
-    /* v66.x v4 画廊：「最新上架」改白纸悬浮、980 栏宽 4 列（列宽 227，原 ≤210 的瘦身口径随之放宽到 200–250；
-       2:1 封面定比不变）（负责人 2026-10-04 拍板） */
-    && !r.shotC && r.skelC && Math.abs(r.ratio - 2) < 0.06 && r.w >= 200 && r.w <= 250,
-    'T1c 实例缩图 + 骨架占位 + 2:1 封面（v66.x 画廊 4 列，列宽 200–250）', JSON.stringify(r));
+    && !r.shotC && r.skelC && Math.abs(r.ratio - 2) < 0.06 && r.w <= 210,
+    'T1c 实例缩图 + 骨架占位 + 卡片瘦身（2:1 封面/列宽≤210）', JSON.stringify(r));
   // T1a v58.8 刻版封面：guitar 卡有 TAB 印章 + data-fam=g + 家族色变量生效
   r = await pg.evaluate(() => {
     const g = [...document.querySelectorAll('#lib-grid .cc-card')].find(c => c.dataset.fam === 'g');
@@ -583,18 +578,9 @@ const BAD_COURSE = {
     const sweep = ['pyq.js','index.html','features.html','me.html','make.html','help.html','kecheng.html'];
     const stale = sweep.filter(f => read(f).includes('智能曲谱平台'));
     T(stale.length === 0, 'S v60.86 站点无「智能曲谱平台」旧口径', stale.join(',') || 'clean');
-    /* ② v60.89 主菜单收敛：找谱/制谱/学习 三项；功能/帮助收进页脚。
-       v66.3 v4 画廊：效果稿的六项菜单与 v60.89 指示相反，未另行拍板前仍只留三项；顶栏不放实心按钮
-       （每个区块只一处实心蓝），「开始制谱 ›」改为线和字的蓝文字链接，全站入口保留 */
-    {
-      const mm = js2.match(/const MENU = \[([\s\S]*?)\];/);
-      const menu = mm ? [...mm[1].matchAll(/\['([\w.]+)','([^']+)'/g)].map(x => x[2]) : [];
-      const navTpl = (js2.match(/navEl\.innerHTML = `[\s\S]*?<\/nav>`/) || [''])[0];
-      T(menu.join('|') === '找谱|制谱|学习' && !/features\.html','功能'/.test(js2) && !/help\.html','帮助'/.test(js2)
-        && !!navTpl && !/class="btn/.test(navTpl) && /class="nav-cta" href="\/\/zhipu\.puyouquan\.com\/"/.test(navTpl)
-        && /nav-search/.test(navTpl) && /theme-btn/.test(navTpl) && /nav-acct/.test(navTpl),
-        'S v60.89 主菜单=找谱/制谱/学习（功能/帮助撤出）；顶栏无实心按钮、「开始制谱 ›」文字链接保留', menu.join('|'));
-    }
+    /* ② v60.89 主菜单收敛：找谱/制谱/学习 三项；功能/帮助收进页脚 */
+    T(/kecheng\.html','学习'/.test(js2) && !/features\.html','功能'/.test(js2) && !/help\.html','帮助'/.test(js2),
+      'S v60.89 主菜单=找谱/制谱/学习（功能/帮助撤出）');
     T(/f-links[\s\S]{0,400}features\.html/.test(js2) && /f-links[\s\S]{0,400}help\.html/.test(js2),
       'S v60.89 页脚含 功能+帮助');
     /* ③ v60.89 学习页=民谣吉他启蒙课 7 周（首门课立起课程框架） */
@@ -637,14 +623,9 @@ const BAD_COURSE = {
   /* ===== v61.6 产品指示：官网页脚重设计 + 红框内容去除 ===== */
   {
     // ① 首页三段撤除：工具带 4 卡 / 支持谱种带 / 专属场景带
-    /* v66.x v4 画廊：首页恢复「为这些课堂和考场而做」4 场景区块（无框白纸谱面＋居中文字＋蓝色文字链接，
-       链到四垂类落地页）；工具带 / 旧谱种带仍撤除（负责人 2026-10-04 拍板） */
     const ix6 = read('index.html');
-    const scLinks = ((ix6.match(/<section class="gl-scenes[\s\S]*?<\/section>/) || [''])[0].match(/class="gl-more" href="(\w+)\.html"/g) || [])
-      .map(x => x.match(/href="(\w+)\.html"/)[1]);
-    T(!ix6.includes('tool-band') && !ix6.includes('scene-strip') && !ix6.includes('tool-card')
-      && scLinks.join(',') === 'kaobian,yikao,shifan,jixing',
-      'S v66.x 首页场景区块＝考编/艺考/师范/即兴伴奏四链（工具带/旧谱种带仍撤除）', scLinks.join(','));
+    T(!ix6.includes('tool-band') && !ix6.includes('scene-strip') && !ix6.includes('tool-card'),
+      'S v61.6 首页工具带/谱种带/场景带撤除');
     // ② 页脚模板：无品牌块、无「在线制谱」链、© 行只留「© 2026 谱友圈」（域名+口号撤）
     const fm = js2.match(/footEl\.innerHTML[\s\S]*?<\/footer>/);
     const ftpl = fm ? fm[0] : '';
@@ -656,9 +637,7 @@ const BAD_COURSE = {
       && ix6.includes('beian.miit.gov.cn'),
       'S v61.6 静态兜底 © 行同口径+备案保留');
     // ③ 渲染几何：页脚无品牌块、5 链与 © 行水平居中（数值坐标口径）
-    /* v66.x v4 画廊：首页改 Apple 式多列页脚（静态写在 index.html，data-keep），精简页脚只留给其余页——
-       几何口径改在学习页（同由 pyq.js 注入）上量；首页多列页脚由下方 G 组断言（负责人 2026-10-04 拍板） */
-    pg = await mkPage(false, 'kecheng.html');
+    pg = await mkPage(false);
     r = await pg.evaluate(() => {
       const f = document.getElementById('foot');
       const links = f.querySelector('.f-links');
@@ -671,180 +650,7 @@ const BAD_COURSE = {
     });
     T(r.noBrand && r.n === 5 && r.cLinks && r.cBeian
       && /^© 2026 谱友圈/.test(r.beianTxt) && !r.beianTxt.includes('puyouquan.com'),
-      'S v61.6 页脚渲染（v66.x 起量学习页）：无品牌块+5 链居中+© 行净化', JSON.stringify(r));
-    await pg.close();
-  }
-
-  /* ===== v66.x v4「画廊」首页（负责人 2026-10-04 拍板；效果稿 docs/design-2026-10c/home/home.html）=====
-     G1 结构与顺序 / G2 首屏谱面图加载 / G3 每区块实心蓝 ≤1 / G4 令牌 / G5 顶栏 / G6 测试环境无透明残留 /
-     G7 页脚多列＋备案 / G8 谱库模式（?q= / 小程序 / 搜索中）/ G9 手机 390 / G10 最小字号 */
-  {
-    const SOLID = 'rgb(0, 113, 227)';
-    // G1 + G2 + G3 + G4 + G6 + G7 + G10（桌面 1440×900）
-    pg = await mkPage(false, '', { width: 1440, height: 900 });
-    await pg.waitForTimeout(300);
-    r = await pg.evaluate(async () => {
-      const q = s => document.querySelector(s), cs = el => getComputedStyle(el);
-      const order = [...document.querySelectorAll('main > section')].map(s => s.className.split(' ')[0]);
-      const hero = q('.gl-stage img');
-      /* 首屏谱面图：加载成功、高优先级、写明宽高；其余谱面图懒加载 + 异步解码 + 宽高 */
-      await new Promise(res => { if (!hero || hero.complete) res(); else { hero.onload = res; hero.onerror = res; } });
-      const rest = [...document.querySelectorAll('main img:not(.cc-shot)')].filter(i => i !== hero);   /* 上架卡缩图在 2:1 定比盒里，另由 T1c 管 */
-      const heroRect = hero ? hero.getBoundingClientRect() : { bottom: 9999 };
-      /* 每个区块（含顶栏、页脚）实心蓝 ≤1：按计算背景色数 */
-      const blocks = [q('#nav'), ...document.querySelectorAll('main > section'), q('#foot')];
-      const solid = blocks.map(bk => [...bk.querySelectorAll('*')].filter(el => cs(el).backgroundColor === 'rgb(0, 113, 227)'
-        && el.getBoundingClientRect().width > 0).length);
-      /* 测试环境（navigator.webdriver）：没有 fx、没有透明残留（svg 内部的刻版透明度不算） */
-      const ghosts = [...document.body.querySelectorAll('*')].filter(el => !el.closest('svg') && el.getClientRects().length
-        && parseFloat(cs(el).opacity) < 0.05).map(el => el.tagName + '.' + el.className);
-      const rvOk = [...document.querySelectorAll('.gl-rv')].every(el => cs(el).opacity === '1' && cs(el).transform === 'none');
-      /* 最小字号 12：可见文字节点所在元素 */
-      const small = [];
-      const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      for (let n = tw.nextNode(); n; n = tw.nextNode()) {
-        const el = n.parentElement; if (!n.textContent.trim() || !el || el.closest('svg,script,style,[hidden]')) continue;
-        if (!el.getClientRects().length) continue;
-        if (parseFloat(cs(el).fontSize) < 12) small.push(el.tagName + '.' + el.className + ':' + cs(el).fontSize);
-      }
-      const root = cs(document.documentElement), tok = k => root.getPropertyValue(k).trim().toLowerCase();
-      const f = q('#foot');
-      return {
-        order: order.join(','),
-        heroOk: !!hero && hero.complete && hero.naturalWidth > 0, heroPri: hero ? hero.getAttribute('fetchpriority') : '',
-        heroWH: !!hero && hero.getAttribute('width') === '900' && hero.getAttribute('height') === '330',
-        heroInFold: Math.round(heroRect.bottom),
-        restLazy: rest.length >= 7 && rest.every(i => i.getAttribute('loading') === 'lazy' && i.getAttribute('decoding') === 'async'
-          && +i.getAttribute('width') > 0 && +i.getAttribute('height') > 0),
-        solid: solid.join(','), heroSolid: solid[1], triSolid: solid[2],
-        noFx: !document.documentElement.classList.contains('fx'), ghosts: ghosts.slice(0, 5), rvOk,
-        small: small.slice(0, 5),
-        tok: [tok('--bg'), tok('--text'), tok('--muted'), tok('--faint'), tok('--border'), tok('--btn-pri'), tok('--accent')].join(' '),
-        bodyBg: cs(document.body).backgroundColor, font: cs(document.body).fontFamily.slice(0, 40),
-        ctaR: parseFloat(cs(q('#hero-make')).borderRadius), outline: cs(q('.gl-pair .btn.ghost')).borderColor,
-        h1w: cs(q('.gl-hero h1')).fontWeight, h1ls: cs(q('.gl-hero h1')).letterSpacing,
-        cards: document.querySelectorAll('#lib-grid .cc-card').length,
-        cols: f ? f.querySelectorAll('.gfoot-dir > section').length : 0,
-        beian: f ? !!f.querySelector('a[href^="https://beian.miit.gov.cn"]') && f.textContent.includes('粤ICP备2026100396号-1') : false,
-        ftBrand: f ? !f.querySelector('.brand') : false,
-      };
-    });
-    T(r.order === 'gl-hero,gl-tri,gl-scenes,gl-lib' && r.cards === 2,
-      'G1 首页顺序：首屏→黑带三谱同源→场景→最新上架（上架卡由真实谱库数据渲染）', r.order + ' cards=' + r.cards);
-    T(r.heroOk && r.heroPri === 'high' && r.heroWH && r.heroInFold <= 900 && r.restLazy,
-      'G2 首屏谱面图加载成功＋fetchpriority=high＋写明宽高、900 高首屏内完整可见；其余谱面图 lazy/async/宽高', JSON.stringify(r));
-    T(/^[01](,[01])*$/.test(r.solid) && r.heroSolid === 1 && r.triSolid === 1,
-      'G3 每个区块（顶栏/首屏/黑带/场景/上架/页脚）实心蓝 ≤1，首屏与黑带各恰 1 处', r.solid);
-    T(r.tok === '#f5f5f7 #1d1d1f #515154 #6e6e73 #d2d2d7 #0071e3 #0066cc' && r.bodyBg === 'rgb(245, 245, 247)'
-      && /^-apple-system/.test(r.font) && r.ctaR >= 400 && r.outline === 'rgb(0, 102, 204)' && r.h1w === '600' && (r.h1ls === 'normal' || r.h1ls === '0px'),
-      'G4 令牌：画布/正文/次要/三级/发丝/实心蓝/线蓝＋系统字体栈＋胶囊按钮＋标题 600 字距 0', JSON.stringify({ tok: r.tok, bg: r.bodyBg, font: r.font, ctaR: r.ctaR, outline: r.outline, h1w: r.h1w, ls: r.h1ls }));
-    T(r.noFx && r.ghosts.length === 0 && r.rvOk, 'G6 测试环境无动效开关、无透明残留（页面即终态）', JSON.stringify({ noFx: r.noFx, ghosts: r.ghosts, rvOk: r.rvOk }));
-    T(r.cols === 5 && r.beian && r.ftBrand, 'G7 Apple 式多列页脚：5 列目录＋备案号 粤ICP备2026100396号-1', JSON.stringify({ cols: r.cols, beian: r.beian }));
-    T(r.small.length === 0, 'G10 首页可见文字最小 12px', r.small.join(' ; ') || 'ok');
-    // G5 顶栏：44 高；测试环境毛玻璃退实底；滚动后出发丝线；压在黑带上换深色
-    r = await pg.evaluate(async () => {
-      const nav = document.getElementById('nav'), bf = getComputedStyle(nav, '::before');
-      const out = { h: Math.round(nav.getBoundingClientRect().height), noglass: document.documentElement.classList.contains('noglass'),
-        solid: bf.backgroundColor, blur: bf.backdropFilter, line0: getComputedStyle(nav, '::after').backgroundColor };
-      window.scrollTo({ top: 200, behavior: 'instant' }); await new Promise(res => setTimeout(res, 450));   /* 等 .2–.3s 的底色过渡走完 */
-      out.line1 = getComputedStyle(nav, '::after').backgroundColor;
-      const tri = document.querySelector('.gl-tri');
-      window.scrollTo({ top: tri.getBoundingClientRect().top + window.scrollY + 100, behavior: 'instant' }); await new Promise(res => setTimeout(res, 450));   /* 等 .2–.3s 的底色过渡走完 */
-      out.dark = nav.classList.contains('on-dark'); out.darkBg = getComputedStyle(nav, '::before').backgroundColor;
-      window.scrollTo({ top: 0, behavior: 'instant' }); await new Promise(res => setTimeout(res, 450));   /* 等 .2–.3s 的底色过渡走完 */
-      out.back = !nav.classList.contains('on-dark') && !nav.classList.contains('scrolled');
-      return out;
-    });
-    T(r.h === 44 && r.noglass && r.solid === 'rgba(250, 250, 252, 0.96)' && r.blur === 'none'
-      && r.line0 === 'rgba(0, 0, 0, 0)' && r.line1 === 'rgb(210, 210, 215)' && r.dark && r.darkBg === 'rgba(22, 22, 23, 0.96)' && r.back,
-      'G5 顶栏 44：测试环境退实底、滚动出发丝线、压黑带换深色、回顶复原', JSON.stringify(r));
-    T(pg._errs.length === 0, 'G 首页无报错', pg._errs.join('|') || 'none');
-    // G8a 搜索中进谱库模式、清空复原
-    r = await pg.evaluate(async () => {
-      const q = document.getElementById('lib-q'), vis = s => getComputedStyle(document.querySelector(s)).display !== 'none';
-      const before = vis('.gl-tri') && vis('.gl-scenes') && vis('.gl-stage');
-      q.value = '欢乐'; q.dispatchEvent(new Event('input')); await new Promise(res => setTimeout(res, 30));
-      const during = { tri: vis('.gl-tri'), sc: vis('.gl-scenes'), stage: vis('.gl-stage'), lib: vis('#lib-sec'),
-        mode: document.documentElement.classList.contains('lib-mode'), n: document.querySelectorAll('#lib-grid .cc-card').length };
-      q.value = ''; q.dispatchEvent(new Event('input')); await new Promise(res => setTimeout(res, 30));
-      return { before, during, after: vis('.gl-tri') && vis('.gl-scenes') && !document.documentElement.classList.contains('lib-mode') };
-    });
-    T(r.before && !r.during.tri && !r.during.sc && !r.during.stage && r.during.lib && r.during.mode && r.during.n === 1 && r.after,
-      'G8a 首页一开始搜索即进谱库模式（营销区块与首屏谱面让位），清空复原', JSON.stringify(r));
-    await pg.close();
-    // G8b ?q= 访问：直接谱库模式
-    pg = await mkPage(false, '?q=%E5%B0%8F', { width: 1440, height: 900 });
-    r = await pg.evaluate(() => {
-      const vis = s => getComputedStyle(document.querySelector(s)).display !== 'none';
-      return { mode: document.documentElement.classList.contains('lib-mode'), tri: vis('.gl-tri'), sc: vis('.gl-scenes'),
-        stage: vis('.gl-stage'), q: document.getElementById('lib-q').value, title: document.getElementById('lib-title').textContent,
-        n: document.querySelectorAll('#lib-grid .cc-card').length };
-    });
-    T(r.mode && !r.tri && !r.sc && !r.stage && r.q === '小' && r.title === '搜索结果' && r.n === 1,
-      'G8b ?q= 进来直接谱库模式：三谱同源 / 场景不显示，结果接在搜索框下', JSON.stringify(r));
-    await pg.close();
-    // G8c 小程序 web-view（UA 含 miniProgram）：html.is-mp ＋ 谱库模式；页脚备案转纯文本
-    {
-      const ctx = await b.newContext({ viewport: { width: 390, height: 844 },
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 MicroMessenger/8.0.50 miniProgram' });
-      const mp = await ctx.newPage(); const mpErr = []; mp.on('pageerror', e => mpErr.push(e.message));
-      await mp.route('**/*', route => {
-        const p = new URL(route.request().url()).pathname;
-        if (p === '/api/pub/scores') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ scores: seed }) });
-        if (p.startsWith('/api/')) return route.fulfill({ status: 401, contentType: 'application/json', body: '{}' });
-        if (p === '/' || p === '/pyq.js' || p === '/pyq.css') {
-          const f = p === '/' ? 'index.html' : p.slice(1);
-          return route.fulfill({ status: 200, contentType: f.endsWith('.js') ? 'application/javascript' : f.endsWith('.css') ? 'text/css' : 'text/html', body: read(f) });
-        }
-        return route.fulfill({ status: 404, body: '' });
-      });
-      await mp.goto('https://www.puyouquan.com/'); await mp.waitForTimeout(600);
-      r = await mp.evaluate(() => {
-        const vis = s => getComputedStyle(document.querySelector(s)).display !== 'none';
-        const bei = document.querySelector('#foot a[href^="https://beian.miit.gov.cn"]');
-        return { mp: document.documentElement.classList.contains('is-mp'), mode: document.documentElement.classList.contains('lib-mode'),
-          tri: vis('.gl-tri'), sc: vis('.gl-scenes'), n: document.querySelectorAll('#lib-grid .cc-card').length,
-          beiPe: bei ? getComputedStyle(bei).pointerEvents : '?' };
-      });
-      T(r.mp && r.mode && !r.tri && !r.sc && r.n === 2 && r.beiPe === 'none' && mpErr.length === 0,
-        'G8c 小程序 web-view：is-mp＋谱库模式，营销区块不显示，备案链接转纯文本', JSON.stringify(r) + (mpErr.length ? ' ERR ' + mpErr.join('|') : ''));
-      await ctx.close();
-    }
-    // G9 手机 390：无横向溢出、按钮全宽 48、chip 横滑、场景横滑、触控目标 ≥44、手机谱面图换窄屏重排图
-    pg = await mkPage(false, '', { width: 390, height: 844 });
-    await pg.waitForTimeout(300);
-    r = await pg.evaluate(() => {
-      const doc = document.documentElement, q = s => document.querySelector(s), R = el => el.getBoundingClientRect();
-      const col = R(q('.gl-hero .gl-col'));
-      const btns = [...document.querySelectorAll('.gl-hero .gl-pair .btn')].map(R);
-      const chips = q('#lib-cats'), lineup = q('.gl-lineup');
-      const targets = [...document.querySelectorAll('#nav .nav-ico:not([hidden]), #nav-login, #nav .nav-cta, #lib-cats .fchip, .gl-pair .btn, .gl-more, .gfoot-dir h4 button, .gfoot-legal a')]
-        .filter(el => el.getClientRects().length).map(el => ({ k: (el.id || el.className || el.tagName).toString().slice(0, 16), h: Math.round(R(el).height) }));
-      const hero = q('.gl-stage img');
-      return {
-        noH: doc.scrollWidth <= doc.clientWidth + 1,
-        btnFull: btns.length === 2 && btns.every(b2 => Math.round(b2.height) === 48 && Math.abs(b2.width - col.width) < 1.5),
-        chipNowrap: getComputedStyle(chips).flexWrap === 'nowrap' && getComputedStyle(chips).overflowX === 'auto',
-        sceneScroll: getComputedStyle(lineup).overflowX === 'auto' && lineup.scrollWidth > lineup.clientWidth,
-        small: targets.filter(t => t.h < 44), nT: targets.length,
-        searchH: Math.round(R(q('#lib-q')).height), navH: Math.round(R(q('#nav')).height),
-        mImg: hero ? /m-hero\.png$/.test(hero.currentSrc) : false,
-      };
-    });
-    T(r.noH && r.btnFull && r.chipNowrap && r.sceneScroll && r.small.length === 0 && r.nT >= 15 && r.searchH >= 48 && r.navH === 48 && r.mImg,
-      'G9 手机 390：无横向溢出/按钮全宽 48/chip 与场景横滑/触控目标 ≥44/手机谱面换窄屏图', JSON.stringify(r));
-    // G9b 手机汉堡菜单：展开 3 项整宽下拉、Esc 收起
-    r = await pg.evaluate(async () => {
-      const tog = document.getElementById('nav-tog'), menu = document.getElementById('menu');
-      const hidden0 = getComputedStyle(menu).display === 'none';
-      tog.click(); await new Promise(res => setTimeout(res, 30));
-      const open = getComputedStyle(menu).display !== 'none', items = menu.querySelectorAll('a').length,
-        rowH = Math.round(menu.querySelector('a').getBoundingClientRect().height), exp = tog.getAttribute('aria-expanded');
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await new Promise(res => setTimeout(res, 30));
-      return { hidden0, open, items, rowH, exp, closed: getComputedStyle(menu).display === 'none' };
-    });
-    T(r.hidden0 && r.open && r.items === 3 && r.rowH >= 44 && r.exp === 'true' && r.closed, 'G9b 手机汉堡菜单：3 项下拉、行高 ≥44、Esc 收起', JSON.stringify(r));
-    T(pg._errs.length === 0, 'G9c 手机首页无报错', pg._errs.join('|') || 'none');
+      'S v61.6 页脚渲染：无品牌块+5 链居中+© 行净化', JSON.stringify(r));
     await pg.close();
   }
 
