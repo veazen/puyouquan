@@ -30,9 +30,10 @@
   --glow:rgba(56,205,240,.16);                     /* CTA 右上角极淡青色径向光（只走 background-image，不用 box-shadow——tv_site T11） */
   --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
   --danger:#c0392b; --warn:#b7791f;                /* 驳回红保持（v66.5 拍板：不随方案改琥珀，否则与待审 --warn 撞色） */
+  --site-warn-ink:#895b17;                         /* v66.6 琥珀小字（待审角标 / 体检 ⚠ 计数）：--warn 作字仅 3.64:1，字改深一档琥珀 ≥4.5，描边仍用 --warn */
   --ok:#157a43; --ok-soft:rgba(21,122,67,.10);
   --bad:#b02f20; --bad-soft:rgba(176,47,32,.09);
-  --star:#8f6a1e; --star-off:#c9c8d9;
+  --star:#86631b; --star-off:#7e7c97;            /* v66.6 星色在章头淡底上 ≥4.5（原 #8f6a1e 4.24）；空心星＝图形 ≥3:1（原 #c9c8d9 1.5） */
   /* 谱类四族：吉他＝品牌靛紫 / 钢琴钢蓝 / 人声极光青 / 功能琥珀。描边/淡底/小图标用 --fam；实心底用 --fam-*-ink、其上文字用 --fam-on */
   --fam-g:var(--accent); --fam-p:#2e62a3; --fam-v:#0e7380; --fam-f:#965a00; --fam-on:#fff;
   --fam-g-ink:var(--btn-pri); --fam-p-ink:#2e62a3; --fam-v-ink:#0e7380; --fam-f-ink:#8a5300;
@@ -73,9 +74,10 @@
   --glow:rgba(56,205,240,.14);
   --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
   --danger:#ef7060; --warn:#e5b45a;
+  --site-warn-ink:var(--warn);
   --ok:#30d158; --ok-soft:rgba(48,209,88,.14);
   --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
-  --star:#e5b45a; --star-off:#4a4960;
+  --star:#e5b45a; --star-off:#7d7b98;
   --fam-g:var(--accent); --fam-p:#7fb0ee; --fam-v:#48c3cf; --fam-f:#e8a838; --fam-on:#0e0d1d;   /* 深色下族色变亮，实心块改用深墨字 */
   --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
   --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
@@ -115,9 +117,10 @@
   --glow:rgba(56,205,240,.14);
   --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
   --danger:#ef7060; --warn:#e5b45a;
+  --site-warn-ink:var(--warn);
   --ok:#30d158; --ok-soft:rgba(48,209,88,.14);
   --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
-  --star:#e5b45a; --star-off:#4a4960;
+  --star:#e5b45a; --star-off:#7d7b98;
   --fam-g:var(--accent); --fam-p:#7fb0ee; --fam-v:#48c3cf; --fam-f:#e8a838; --fam-on:#0e0d1d;   /* 深色下族色变亮，实心块改用深墨字 */
   --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
   --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
@@ -174,6 +177,9 @@ h1,h2,h3{letter-spacing:-.3px;line-height:1.2}
 #menu a{padding:7px 13px;border-radius:10px;font-size:13.5px;color:var(--chrome-muted);white-space:nowrap;font-weight:500;transition:.15s}
 #menu a:hover{background:var(--chrome-2);color:var(--chrome-text)}
 #menu a.on{color:var(--site-nav-on);font-weight:700;background:rgba(236,234,255,.12)}
+/* v66.6 #menu{overflow-x:auto} 连带 overflow-y 也是 auto，菜单高＝链接高——外偏移焦点环上下两边（首项连左边）都被裁掉。
+   不动版式：菜单项焦点环改内缩（画在链接边框内侧 2px），颜色仍是框架焦点色 --site-frame-focus（当前项淡底上 ≥3:1） */
+#menu a:focus-visible{outline-offset:-2px}
 .nav-r{margin-left:auto;display:flex;align-items:center;gap:10px}
 #theme-btn{border:1px solid var(--site-on-chrome-line);background:transparent;color:var(--chrome-text);border-radius:10px;
   width:35px;height:35px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
@@ -424,7 +430,9 @@ details.faq p{margin:0 0 16px;font-size:13px;color:var(--muted)}
 .pyq-modal .lg-row button{white-space:nowrap;border:1px solid var(--border);background:transparent;border-radius:10px;padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);margin-bottom:10px}
 .pyq-modal .lg-msg{font-size:12px;color:var(--accent);min-height:16px;margin-bottom:6px}
 /* v58.4 微信登录钮（微信内=网页授权一键登录；微信外=扫码） */
-.pyq-modal .lg-or{text-align:center;color:var(--muted);font-size:12px;opacity:.7;margin:4px 0 8px}
+.pyq-modal .lg-or{text-align:center;color:var(--faint);font-size:12px;margin:4px 0 8px}   /* v66.6 原 muted×opacity .7 仅 3.29:1 → --faint 实色 ≥4.5 */
+/* 微信登录钮 #07c160 白字（2.38:1）：微信开放平台登录按钮官方规范样式（品牌绿 + 白字），用户靠这个识别「微信登录」，
+   v66.6 对比度复核时保留不改；按钮文字 14px 粗体，另有「— 或 —」分隔与上方手机号登录作主路径 */
 .pyq-modal .lg-wx{width:100%;background:#07c160;color:#fff;border:1px solid #07c160;border-radius:10px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px}
 .pyq-modal .lg-wx:hover{filter:brightness(1.05)}
 .pyq-modal .lg-wx:disabled{opacity:.6;cursor:default}
@@ -568,7 +576,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .auth-card .lg-row button{white-space:nowrap;border:1px solid var(--border);background:transparent;border-radius:10px;
   padding:0 14px;font-size:13px;cursor:pointer;color:var(--text);margin-bottom:10px;font-family:inherit}
 .auth-card .lg-msg{font-size:12px;color:var(--accent);min-height:16px;margin-bottom:6px;text-align:left}
-.auth-card .lg-or{text-align:center;color:var(--muted);font-size:12px;opacity:.7;margin:4px 0 8px}
+.auth-card .lg-or{text-align:center;color:var(--faint);font-size:12px;margin:4px 0 8px}
 .auth-card .lg-wx{width:100%;background:#07c160;color:#fff;border:1px solid #07c160;border-radius:10px;
   padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;font-family:inherit}
 .auth-card .lg-wxtip{font-size:11px;color:var(--muted);text-align:center;margin:-4px 0 10px}
@@ -582,9 +590,10 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   .lib-search.xl input{height:50px;line-height:48px;font-size:16px;padding-left:46px}
   .lib-search.xl .icon{left:16px;width:18px;height:18px}
   .chip-row{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;margin:14px -20px 0;padding:2px 20px;
-    scrollbar-width:none;-ms-overflow-style:none}
+    scrollbar-width:none;-ms-overflow-style:none;scroll-padding-inline:20px}   /* v66.6 键盘聚焦滚入时留出两侧内距 */
   .chip-row::-webkit-scrollbar{display:none}
   .chip-row .fchip{flex:0 0 auto}
+  .chip-row .fchip:focus-visible{outline-offset:0}   /* v66.6 横滑条上下内距仅 2px：焦点环贴边（2px 宽正好落在内距里），不再被裁 */
   .tool-band{margin-top:20px}
   .tool-strip,.tool-strip.c3{grid-template-columns:1fr 1fr}   /* .c3 双类特异性更高，窄屏需并列点名 */
   .tool-card{padding:12px 14px}
@@ -816,7 +825,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .ad-log .ad-d{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 曲谱状态角标（个人中心「我的云端曲谱」/创作者中心共用；沿用 .pc-row .k 描边样式） */
 .k-ok{border-color:var(--accent)!important;color:var(--accent)!important}
-.k-wait{border-color:var(--warn)!important;color:var(--warn)!important}
+.k-wait{border-color:var(--warn)!important;color:var(--site-warn-ink)!important}   /* v66.6 字用深一档琥珀（3.64→≥4.5），描边不变 */
 .k-no{border-color:var(--danger)!important;color:var(--danger)!important}
 .cr-note{display:block;font-size:11px;color:var(--danger);margin-top:2px;font-weight:500;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -943,9 +952,13 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kc-fin a{color:var(--accent);font-weight:700}
 
 /* ===== v61.8 闯关打卡游戏 ===== */
+/* v66.6 锁定卡整卡 opacity .72（虚线框 + 🔒 + 变淡＝锁定，保留）：卡内小字按淡化后的实际色达标——
+   字色各提一档，淡化后落在原来的视觉层级（说明/未解锁 ≈ muted 灰，周次胶囊仍是靛紫），对比度 ≥4.5 */
 .kc-lock{opacity:.72;border-style:dashed}
-.kc-lock .kc-tick{cursor:default;color:var(--faint)}
+.kc-lock .kc-tick{cursor:default;color:var(--text)}
+.kc-lock .kc-no{color:var(--accent-ink);color:color-mix(in srgb,var(--accent-ink) 60%,var(--text))}
 .kc-lockmsg{font-size:13px;color:var(--muted);margin:.4em 0 0}
+.kc-lock .kc-lockmsg{color:var(--text)}
 .kc-quizbtn.pass{background:var(--fam);border-color:var(--fam);color:var(--fam-on)}
 .kc-quizbtn .kq-star{color:#f6c445;letter-spacing:1px;font-style:normal}
 .k-star{color:#c99a1f;border-color:currentColor}
@@ -985,12 +998,12 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
    直接改的是既有的 --fam 令牌，所以小节边框/页签/按钮/插画全部跟着换色，不用另写组件样式。
    明暗两套各定义一遍（暗色下提亮 + 降饱和，保证正文对比度）。 */
 :root{
-  --kh0:#dd6427; --kh0i:#b84c14;   /* 橘 */
-  --kh1:#1a8b7e; --kh1i:#0f6f64;   /* 青绿 */
+  --kh0:#dd6427; --kh0i:#a34312;   /* 橘（v66.6 字色 i 档加深：章号胶囊 3.90→≥4.5，同色相） */
+  --kh1:#1a8b7e; --kh1i:#0e6b60;   /* 青绿（v66.6 4.49→≥4.5） */
   --kh2:#6154c2; --kh2i:#4b3ea8;   /* 靛紫 */
   --kh3:#cc3a58; --kh3i:#a92742;   /* 莓红 */
   --kh4:#2273c6; --kh4i:#1259a4;   /* 天蓝 */
-  --kh5:#c1860d; --kh5i:#9a6805;   /* 琥珀 */
+  --kh5:#c1860d; --kh5i:#855a04;   /* 琥珀（v66.6 3.78→≥4.5） */
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -1008,10 +1021,16 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 /* ===== v62.0 课程独立页（UI 专家规格）：课程头 + 进度环 + 侧边章节导航 + 三态小节 ===== */
 .kcp{--fam:var(--fam-g);--fam-ink:var(--fam-g-ink)}
 .kcp .kc-detail[data-fam="p"],.kcp[data-fam="p"]{--fam:var(--fam-p);--fam-ink:var(--fam-p-ink)}
-.kcp .kc-detail[data-fam="v"]{--fam:var(--fam-v);--fam-ink:var(--fam-v-ink)}
-.kcp .kc-detail[data-fam="f"]{--fam:var(--fam-f);--fam-ink:var(--fam-f-ink)}
+/* v66.6 工作台整节预览的容器同时是 .kcp 与 .kc-detail（同一元素），原先只有 p 族补了 .kcp[data-fam] 写法，
+   v/f 族课程预览里 --fam-ink 仍是吉他靛紫（淡底琥珀、字靛紫）——补齐 */
+.kcp .kc-detail[data-fam="v"],.kcp[data-fam="v"]{--fam:var(--fam-v);--fam-ink:var(--fam-v-ink)}
+.kcp .kc-detail[data-fam="f"],.kcp[data-fam="f"]{--fam:var(--fam-f);--fam-ink:var(--fam-f-ink)}
 .kcp .kc-detail[data-fam="p"]{--fam:var(--fam-p);--fam-ink:var(--fam-p-ink)}
 .kcp :is(button,a,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+/* v66.6 滚动 / 裁切容器里的焦点环改内缩：侧栏目录与手机目录抽屉（overflow:auto）、小节头（.kcs 圆角 overflow:hidden）
+   外偏移的环会被容器边缘裁掉；小节头的环跟随卡片圆角，四角不被卡片圆角剪掉 */
+:is(.kcp-rail,.kcp-dwbody) :is(button,a,[tabindex]):focus-visible{outline-offset:-2px}
+.kcs > .kcs-head:focus-visible{outline-offset:-2px;border-radius:inherit}
 .kcp-crumb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 0 0;font-size:12.5px;color:var(--muted)}
 .kcp-crumbtx a{color:var(--muted)}
 .kcp-back{display:inline-flex;align-items:center;min-height:40px;padding:0 12px;margin-left:-12px;
@@ -1084,7 +1103,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
     -webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--border-soft)}
   .kcp-nowbar b{flex:1;min-width:0;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
-.kcp-nowno{flex:none;font-size:11px;font-weight:800;color:var(--fam);border-radius:6px;padding:4px 7px;
+.kcp-nowno{flex:none;font-size:11px;font-weight:800;color:var(--fam-ink,var(--fam));border-radius:6px;padding:4px 7px;
   background:color-mix(in srgb,var(--fam) 12%,transparent)}
 .kcp-toc{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--border);
   background:transparent;color:var(--muted);font-size:15px;cursor:pointer}
@@ -1147,7 +1166,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcs-head:hover{background:var(--hover)}
 .kcs-no{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;
   font:700 12px/1 var(--font-ui);font-variant-numeric:tabular-nums;
-  color:var(--fam);background:color-mix(in srgb,var(--fam) 12%,transparent)}
+  color:var(--fam-ink,var(--fam));background:color-mix(in srgb,var(--fam) 12%,transparent)}   /* v66.6 字取章色深一档 --fam-ink（橘章 2.93→≥4.5），淡底仍是章色 */
 .kcs-t{flex:1;min-width:0;font-size:15.5px;font-weight:600;line-height:1.45}
 .kcs-arw{flex:none;display:grid;place-items:center;width:22px;height:22px;color:var(--faint);
   transition:transform .24s cubic-bezier(.3,.9,.35,1)}
@@ -1172,7 +1191,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcs--lock{background:transparent;border-style:dashed;margin-bottom:8px}
 .kcs--lock .kcs-head{cursor:not-allowed;min-height:44px;padding:9px 16px}
 .kcs--lock .kcs-head:hover{background:transparent}
-.kcs--lock .kcs-no{color:var(--faint);background:color-mix(in srgb,var(--faint) 14%,transparent)}
+.kcs--lock .kcs-no{color:var(--muted);background:color-mix(in srgb,var(--faint) 14%,transparent)}   /* v66.6 灰底灰字仍是锁定，字 faint→muted（4.07→≥4.5） */
 .kcs--lock .kcs-t{color:var(--muted);font-weight:500;font-size:14.5px}
 .kcs-lockmk{flex:none;display:grid;place-items:center;color:var(--faint)}
 .kcs-lockmk .kci{width:15px;height:15px}
@@ -1190,7 +1209,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .kcs-tab[aria-selected="true"]{color:var(--fam-ink);font-weight:800}
 .kcs-tab .kci{width:17px;height:17px;flex:none}
 .kcs-tabn{font-size:11px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
-.kcs-tab[aria-selected="true"] .kcs-tabn{color:var(--fam)}
+.kcs-tab[aria-selected="true"] .kcs-tabn{color:var(--fam-ink,var(--fam))}   /* v66.6 同 .kcs-no：章色作小字取深一档（橘章 3.12→≥4.5） */
 .kcs-tabdot{width:6px;height:6px;border-radius:50%;background:var(--fam);flex:none}
 .kcs-tabink{position:absolute;left:0;bottom:-1px;height:2px;border-radius:2px;background:var(--fam);
   width:var(--w,0px);transform:translateX(var(--x,0px));
@@ -1238,8 +1257,8 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
   color:var(--muted);text-decoration:underline;cursor:pointer}
 .kcp-week{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px}
 .kcp-wd{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:10px;
-  color:var(--faint);background:var(--fill-2)}
-.kcp-wd.on{background:var(--fam);color:var(--fam-on);font-weight:700}
+  color:var(--muted);background:var(--fill-2)}   /* v66.6 一周打卡格：faint 在 fill-2 上 4.42 → muted */
+.kcp-wd.on{background:var(--fam-ink,var(--fam));color:var(--fam-on);font-weight:700}   /* v66.6 实心底按令牌约定取 --fam-ink（橘章白字 3.6→≥4.5） */
 .kcp-wd.today{box-shadow:inset 0 0 0 1.5px var(--fam)}
 .kcp-wtx{margin-left:8px;font-size:12px;color:var(--muted)}
 .kcp-testbtn{min-height:44px;padding:0 24px;border-radius:22px;font:inherit;font-size:13.5px;font-weight:700;
@@ -1517,7 +1536,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .lbs-tx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
 .lbs-tx b{font-size:14px}
 .lbs-tx small{font-size:12px;color:var(--muted)}
-.lbs-go{flex:none;font-size:12.5px;font-weight:700;color:var(--fam)}
+.lbs-go{flex:none;font-size:12.5px;font-weight:700;color:var(--fam-ink,var(--fam))}   /* v66.6 同上（琥珀章 2.87→≥4.5）；工作台块内预览无 --fam-ink 时仍取 --fam */
 .lb-img img,.lb-video video{width:100%;border-radius:10px;display:block}
 .lb-code{background:var(--site-code-bg);border-radius:10px;overflow:hidden}
 .lb-code figcaption{font-size:11px;letter-spacing:1px;color:var(--site-code-muted);padding:7px 14px;background:rgba(255,255,255,.05);margin:0}
@@ -1591,7 +1610,7 @@ button.wx-chip:hover{background:var(--accent-soft);color:var(--text)}
 .crs-dots{flex:none;display:inline-flex;gap:3px}
 .crs-dots i{width:6px;height:6px;border-radius:2px;border:1px solid var(--border);display:inline-block}
 .crs-dots i.on{background:var(--accent);border-color:var(--accent)}
-.crs-warn{flex:none;color:var(--warn);font-style:normal;font-size:11px}
+.crs-warn{flex:none;color:var(--site-warn-ink);font-style:normal;font-size:11px}
 .crs-tadd{display:block;width:100%;min-height:40px;margin:4px 0 10px;border:1px dashed var(--border);
   border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer}
 .crs-tadd:hover{border-color:var(--accent);color:var(--accent)}

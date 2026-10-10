@@ -42,7 +42,8 @@ const ICONS = {
 window.PYQ_ICON = n => ICONS[n]||'';
 
 /* ---------- v58.9 头像系统：统一渲染器 + 8 枚预设（四族社色×2，SVG→base64 data URI） ----------
-   v66.5 预设随四族色重配（吉他靛紫 / 钢琴钢蓝 / 人声极光青 / 功能琥珀；浅→深渐变）。已存进账号的旧 data URI 原样保留。
+   v66.5 预设随四族色重配（吉他靛紫 / 钢琴钢蓝 / 人声极光青 / 功能琥珀；浅→深渐变）。已存进账号的旧 data URI 原样保留，
+   v66.6 起显示时映射成现色同款（avShow）。
    判定一条：avatar 非空即 <img>（data:/http: 均可，onerror 回退首字），为空即首字渐变圆。
    值只进 <img src> 属性（esc），绝不 innerHTML——SVG 在 img 上下文脚本惰性。 */
 window.PYQ_AV = (function(){
@@ -63,13 +64,28 @@ window.PYQ_AV = (function(){
     ['#a76b0e','#965a00','<path d="M9 3v7a3 3 0 0 0 6 0V3"/><path d="M12 13v7M9 20.5h6"/>'],
   ];
   const PRESETS = P8.map(a=>'data:image/svg+xml;base64,'+btoa(AV_SVG(a[0],a[1],a[2])));
+  /* v66.6 旧预设显示映射：账号里存的是选中当时的预设 data URI（v66.5 前为旧四族色）。预设图形没变、只换了渐变色，
+     所以把 SVG 去掉 stop-color 取「骨架」，认出是第几枚预设就显示现色同款。只在显示时换，存储不改写（用户再选一次才写新值）；
+     骨架对不上的（本地上传的 JPEG、微信头像外链、其他 SVG）原样显示。 */
+  const AV_B64='data:image/svg+xml;base64,';
+  const avSkel = s => s.replace(/stop-color="[^"]*"/g,'stop-color=""');
+  const SKELS = P8.map(a=>avSkel(AV_SVG(a[0],a[1],a[2])));
+  const avMemo = {};
+  function avShow(av){
+    av = av==null ? '' : String(av);
+    if(av.slice(0,AV_B64.length)!==AV_B64 || PRESETS.indexOf(av)>=0) return av;
+    if(Object.prototype.hasOwnProperty.call(avMemo,av)) return avMemo[av];
+    let i=-1; try{ i=SKELS.indexOf(avSkel(atob(av.slice(AV_B64.length)))); }catch(_){}
+    return (avMemo[av] = i<0 ? av : PRESETS[i]);
+  }
   function html(u, cls){
-    const av=(u&&u.avatar)||'', ch=eA(((u&&u.nickname)||'谱').charAt(0));
+    const av=avShow((u&&u.avatar)||''), ch=eA(((u&&u.nickname)||'谱').charAt(0));
     if(av && (av.slice(0,11)==='data:image/' || av.slice(0,4)==='http'))
       return `<span class="${cls||'acct-av'} has-img"><img src="${eA(av)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.parentNode.textContent='${ch}'"></span>`;
     return `<span class="${cls||'acct-av'}">${ch}</span>`;
   }
   html.PRESETS = PRESETS;
+  html.show = avShow;      /* v66.6 显示用头像值（旧预设→现色同款；其余原样）：me.html 头像与「已选中」判断共用 */
   return html;
 })();
 
@@ -123,6 +139,23 @@ if(tb) tb.onclick = ()=>{
   try{ localStorage.setItem('musetab-theme', r.dataset.theme); }catch(_){}
 };
 if(tb) tb.setAttribute('aria-label','明暗切换');
+
+/* v66.6 手机地址栏色跟随站内明暗：页内两条静态 meta theme-color 只认系统配色；站内切主题（含记住的选择）后，
+   把当前 media 命中的那条改成 --chrome（官网顶栏就是深色框架）。系统配色变化时重算；不新增本地存储键 */
+function syncSiteThemeColor(){
+  const c=getComputedStyle(document.documentElement).getPropertyValue('--chrome').trim(); if(!c) return;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{
+    const q=m.getAttribute('media'); if(!q || window.matchMedia(q).matches) m.setAttribute('content', c); });
+}
+syncSiteThemeColor();
+try{ new MutationObserver(syncSiteThemeColor).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']}); }catch(_){}
+try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncSiteThemeColor); }catch(_){}
+
+/* v66.6 手机横滑筛选条：键盘聚焦到只露出一半的 chip 时，Chrome 不会自动横向滚动——滚进可视区（配合 scroll-padding-inline） */
+document.addEventListener('focusin', e=>{
+  const el=e.target, row=el && el.closest && el.closest('.chip-row');
+  if(row && row.scrollWidth>row.clientWidth && el.matches(':focus-visible')) el.scrollIntoView({inline:'nearest', block:'nearest'});
+});
 
 /* ---------- 图标占位替换：<i data-i="name"></i> ---------- */
 document.querySelectorAll('i[data-i]').forEach(el=>{ el.outerHTML = ICONS[el.dataset.i]||''; });

@@ -58,6 +58,10 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
   /* 语义：告警琥珀（与靛紫色相拉开）/ 成功绿 / 观看页收藏红星（产品拍板的语义红，不随品牌） */
   --danger:#b45309; --ok:#157a43; --ed-fav-star:#c33a29;
+  /* v66.6 压在 --danger / --ok 实底上的字（深色主题两者提亮，白字仅 1.98 / 2.02，改深墨字）；--ed-danger-h＝告警实底悬停（浅压深、深提亮） */
+  --ed-on-danger:#fff; --ed-on-ok:#fff; --ed-danger-h:#9c4a0a;
+  /* v66.6 次级图形（收藏空心心、搜索放大镜等次于主信息的小图标）：用不透明色代替叠加透明度，对 --panel / --bg ≥3 */
+  --ed-icon-soft:#85849a;
   /* 深色框架（主栏 main-bar / 文档页签 doc-tabs / 播放坞 mixer-dock / 观看页深色浮层；tv_frame T1 要求 RGB 均值 <80） */
   --chrome:#161433; --chrome-2:rgba(236,234,255,.11); --chrome-line:rgba(236,234,255,.12);
   --chrome-text:#eeedf8; --chrome-muted:#aeacca;
@@ -83,6 +87,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#6a5bf8; --focus:#a396ff; --ed-on-accent:#0e0d1d;
   --grad-2:#5b9cff; --grad-3:#38cdf0;
   --danger:#ffa424; --ok:#30d158; --ed-fav-star:#df5a45;
+  --ed-on-danger:#0e0d1d; --ed-on-ok:#0e0d1d; --ed-danger-h:#ffb95a; --ed-icon-soft:#75748c;
   --chrome:#1c1a3d;
 } }
 :root[data-theme="light"]{
@@ -95,6 +100,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#4b3cdc; --focus:#5b4cf0; --ed-on-accent:#fff;
   --grad-2:#3366ee; --grad-3:#0891b2;
   --danger:#b45309; --ok:#157a43; --ed-fav-star:#c33a29;
+  --ed-on-danger:#fff; --ed-on-ok:#fff; --ed-danger-h:#9c4a0a; --ed-icon-soft:#85849a;
   --chrome:#161433;
 }
 :root[data-theme="dark"]{
@@ -107,6 +113,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#6a5bf8; --focus:#a396ff; --ed-on-accent:#0e0d1d;
   --grad-2:#5b9cff; --grad-3:#38cdf0;
   --danger:#ffa424; --ok:#30d158; --ed-fav-star:#df5a45;
+  --ed-on-danger:#0e0d1d; --ed-on-ok:#0e0d1d; --ed-danger-h:#ffb95a; --ed-icon-soft:#75748c;
   --chrome:#1c1a3d;
 }
 /* 主题无关常量＝浅色强调族与刻版灰：打印、打印预览纸、导出 / 分享卡色表（svgResolveVars 运行时读这一组）、
@@ -127,6 +134,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --ed-chrome-muted-2:var(--chrome-muted);  /* 播放坞标签、轨道组标、音量读数 */
   --ed-chrome-muted-3:color-mix(in srgb,var(--chrome-text) 50%,var(--chrome-muted));  /* 轨道小节格编号（8.5px 小字压在 13% 叠层上，比 --chrome-muted 提一档保 ≥4.5） */
   --ed-chrome-accent:color-mix(in srgb,var(--accent) 30%,#fff);   /* 框架上的强调字（预设/谱库、当前小节号、循环格） */
+  --ed-dtab-x:color-mix(in srgb,var(--chrome-muted) 66%,var(--chrome));   /* v66.6 非当前页签的关闭 ✕（原 opacity .55，深色 2.97 → ≥3.3，仍暗于页签名） */
   --ed-chrome-pop:color-mix(in srgb,color-mix(in srgb,var(--chrome) 72%,#000) 96%,transparent);   /* 观看页深色浮层底 */
   --ed-chrome-pill:var(--chrome);           /* 音色加载胶囊底 */
   /* 表面 / 强调派生 */
@@ -324,7 +332,7 @@ input.short{width:54px} input.mid{width:150px}
   font-size:11.5px;font-weight:600;color:var(--ok);padding:2px 4px 7px;
   border-bottom:1px solid color-mix(in srgb,var(--ok) 22%,transparent);margin-bottom:6px}
 #err-fixall{font-size:11.5px;padding:3px 12px;font-weight:600;border-radius:999px;
-  border:1px solid var(--ok);color:#fff;background:var(--ok)}
+  border:1px solid var(--ok);color:var(--ed-on-ok);background:var(--ok)}   /* v66.6 深色 --ok 提亮，白字 2.02 → 深墨字 */
 #err-fixall:hover{filter:brightness(1.08)}
 #err-drop .err{cursor:pointer;padding:7px 8px;border-radius:9px;font-size:12px;margin:4px 0;
   border:1px solid color-mix(in srgb,var(--ok) 20%,var(--border-soft));background:var(--panel)}
@@ -333,8 +341,8 @@ input.short{width:54px} input.mid{width:150px}
 #err-drop .err-sug{color:color-mix(in srgb,var(--ok) 72%,var(--text));font-size:11.5px;margin:3px 0 6px;line-height:1.4}
 #err-drop .err-fix{font-size:11.5px;padding:3px 13px;font-weight:600;border-radius:999px;
   border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
-#err-drop .err-fix:hover{background:var(--ok);color:#fff}
-#err-drop .err-fix.err-alt{font-weight:500;opacity:.85}   /* v63.6 B1 ④ 删减降为次选 */
+#err-drop .err-fix:hover{background:var(--ok);color:var(--ed-on-ok)}
+#err-drop .err-fix.err-alt{font-weight:500}   /* v63.6 B1 ④ 删减降为次选（字重区分）；v66.6 去 opacity .85（浅色 3.64 → 4.76） */
 #suggest,#techbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 18px;
   background:var(--accent-soft);border-bottom:1px solid var(--border);font-size:12.5px}
 #suggest .ib{background:var(--panel)}
@@ -366,6 +374,9 @@ input.short{width:54px} input.mid{width:150px}
 #sp-more.hidden{display:none}
 .popmenu .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .popmenu .t{color:var(--muted);font-size:11.5px}
+/* v66.6 浮层按钮内的次级注释字（力度/八度中文名、最近和弦原名）：原内联 opacity .55–.65（选中态 3.1 / 3.6）→ --faint；选中态跟随按钮字色 */
+.popmenu .pm-sub{color:var(--faint)}
+.popmenu button.on .pm-sub{color:inherit}
 /* v47.1 音符快捷浮条：紧凑药丸条（点击音符自动弹出常用可选项） */
 #quickbar{padding:5px 6px;border-radius:11px}
 #quickbar button{min-width:30px;padding:4px 7px;font-size:13.5px;line-height:1.1}
@@ -941,16 +952,19 @@ svg text{user-select:none}
 .cc-tools{max-width:1080px;margin:16px auto 0;padding:0 26px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .cc-search{flex:1;min-width:180px;max-width:340px;position:relative}
 .cc-search input{width:100%;border-radius:980px;padding:7px 14px 7px 32px;font-size:13px}
-.cc-search::before{content:'';width:12px;height:12px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c5b73' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.2'/%3E%3Cpath d='M15.3 15.3 21 21'/%3E%3C/svg%3E") center/contain no-repeat;position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
+.cc-search::before{content:'';width:12px;height:12px;background-color:var(--ed-icon-soft);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c5b73' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.2'/%3E%3Cpath d='M15.3 15.3 21 21'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c5b73' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.2'/%3E%3Cpath d='M15.3 15.3 21 21'/%3E%3C/svg%3E") center/contain no-repeat;position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px}   /* v66.6 放大镜：同一 SVG 改作 mask，色读 --ed-icon-soft 随主题（原 data-URI 写死冷灰 + opacity .6，深色 1.72） */
 .cc-chip{border:1px solid var(--border);background:var(--panel);border-radius:980px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--muted)}
 .cc-chip:hover{background:var(--hover)}
 .cc-chip.on{background:var(--text);color:var(--panel);border-color:transparent;font-weight:600}   /* v50.8 回谱友圈原版实底选中 */
 .cc-chip.fav.on{background:#e0395a;color:#fff}
 .cc-count{font-size:11.5px;color:var(--muted);margin-left:auto}
+/* v66.6 智能填词声部钮的可填音位数：原内联 opacity .65（2.97 / 3.75）→ 不透明色；选中态（--text 实底）取 65% 底色混合，观感同原 */
+.cc-chip .sf-vn{color:var(--faint)}
+.cc-chip.on .sf-vn{color:color-mix(in srgb,var(--panel) 65%,var(--text))}
 /* 卡片收藏心 */
 .cc-fav{font-size:16px;line-height:1;cursor:pointer;flex:none;
-  border:none;background:none;padding:2px 0 0;color:var(--muted);opacity:.55;transition:opacity .12s,transform .12s}
-.cc-fav:hover{opacity:1;transform:scale(1.15)}
+  border:none;background:none;padding:2px 0 0;color:var(--ed-icon-soft);transition:color .12s,transform .12s}   /* v66.6 原 --muted + opacity .55（2.44 / 3.07）→ 不透明次级图形色 ≥3 */
+.cc-fav:hover{color:var(--muted);transform:scale(1.15)}
 .cc-fav.on{opacity:1;color:#e0395a}
 /* 观看模式 */
 body.viewer #top, body.viewer #doc-tabs, body.viewer #left-dock, body.viewer #right-dock,
@@ -1028,7 +1042,7 @@ body.stand #standbar{display:flex}
 .vc-grid button{padding:3px 2px;min-width:38px;text-align:center;font-size:12.5px;border-radius:8px;line-height:1.25}
 .vc-grid button small{display:block;font-size:9px;color:var(--muted);font-weight:400}
 .vc-grid button.on{background:var(--accent);border-color:var(--accent);color:var(--ed-on-accent)}
-.vc-grid button.on small{color:color-mix(in srgb,var(--ed-on-accent) 75%,transparent)}
+.vc-grid button.on small{color:var(--ed-on-accent)}   /* v66.6 原 75% 透明（9px 小字 3.88 / 4.37），层级靠字号字重 */
 .vc-grid.sufs button{min-width:44px;padding:4px 6px}
 #vc-names{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:980px}
 /* 和弦编辑器·指板创建 */
@@ -1154,9 +1168,12 @@ body:has(#start-pad:not(.hidden)) #doc-tabs{display:none}
 .dtab .dt-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dtab .dt-dot{width:6px;height:6px;border-radius:50%;background:#e8a13a;flex:0 0 6px}
 .dtab .dt-dot.saved{background:#2eaf64}
-.dtab .dt-x{border:none;background:none;cursor:pointer;font-size:11px;color:inherit;opacity:.55;
+.dtab .dt-x{border:none;background:none;cursor:pointer;font-size:11px;color:var(--ed-dtab-x);
   padding:1px 5px;border-radius:4px;line-height:1}
-.dtab .dt-x:hover{opacity:1;background:var(--danger);color:#fff}
+/* v66.6 ✕ 去 opacity .55，三态各用不透明色、恒暗于同态页签名：非当前＝--ed-dtab-x / 悬停页签＝--chrome-muted / 当前页签＝--faint */
+.dtab:hover .dt-x{color:var(--chrome-muted)}
+.dtab.on .dt-x{color:var(--faint)}
+.dtab .dt-x:hover{background:var(--danger);color:var(--ed-on-danger)}   /* v66.6 深色 --danger 提亮，白字 1.98 → 深墨字 */
 #dt-add{border:1px dashed rgba(var(--ed-chrome-ov),.28);background:none;border-radius:8px;padding:5px 11px;
   cursor:pointer;color:var(--chrome-muted);font-size:12px;margin:0 0 6px;flex:0 0 auto;white-space:nowrap}
 #dt-add:hover{color:#fff;border-color:rgba(var(--ed-chrome-ov),.55)}
@@ -1381,7 +1398,7 @@ body.shell #hint{display:none}
 .mx-row select{padding:3px 5px;font-size:12px}
 .mx-btn{padding:3px 0;font-size:10.5px;font-weight:700;border-radius:6px}
 .mx-btn.solo.on{background:#f5b301;border-color:#f5b301;color:#3a2c00}
-.mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:var(--ed-on-danger)}
 /* v60.13 S/M 点了没反应（用户反馈）：上面两条只有 (0,3,0) 优先级，被
    `body.shell #mixer-dock button{background:transparent}`（(1,1,2)，含 ID）整条压掉——
    类再多也赢不过一个 ID。状态其实是对的（.on 加上了、applyMixLive 也生效），纯粹是**看不见**。
@@ -1389,9 +1406,9 @@ body.shell #hint{display:none}
    且不限定 body.shell，编辑器/观看器两种外壳都覆盖。
    旁证：同一个坞里的节拍器高亮一直正常——因为它写的是 #b-metro.on，本来就带 ID。 */
 #mixer-dock .mx-btn.solo.on{background:#f5b301;border-color:#f5b301;color:#3a2c00}
-#mixer-dock .mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:#fff}
+#mixer-dock .mx-btn.mute.on{background:var(--danger);border-color:var(--danger);color:var(--ed-on-danger)}
 #mixer-dock .mx-btn.solo.on:hover{background:#ffc21f;color:#3a2c00}
-#mixer-dock .mx-btn.mute.on:hover{background:#e2574a;color:#fff}
+#mixer-dock .mx-btn.mute.on:hover{background:var(--ed-danger-h);color:var(--ed-on-danger)}   /* v66.6 原写死旧朱砂悬停 #e2574a 白字（3.69） */
 /* v60.98 触屏拖选小节格（产品报障：手机音轨里拖不动）：不禁触摸手势的话，
    pointermove 一动就被浏览器判成页面滚动、拖选序列被掐断 */
 .mx-cells{touch-action:none}
@@ -1493,10 +1510,11 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accen
   border-radius:7px;background:var(--panel);border:1px solid var(--border-soft);font-size:14px;line-height:1}
 .sf-prev .n.empty{color:var(--muted);opacity:.45;font-size:11px}
 .sf-prev .n.cont{background:transparent;border-style:dashed;opacity:.5;font-size:11px}
-.sf-prev .n.before{opacity:.4}
+.sf-prev .n.before{color:var(--faint);background:color-mix(in srgb,var(--panel) 40%,transparent);border-color:color-mix(in srgb,var(--border-soft) 40%,transparent)}   /* v66.6 起点前原词：原 opacity .4（2.5）→ 框照旧淡出、字读 --faint */
 .sf-prev .n.start{border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent-soft)}
 .sf-prev .n.pick{cursor:pointer}
 .sf-prev .n.pick:hover{border-color:var(--accent);background:var(--accent-soft)}
+.sf-prev .n.before.pick:hover{border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent-soft) 40%,transparent)}   /* v66.6 起点前原词悬停框仍按原 40% 淡出（原整块 opacity .4） */
 .sf-prev .none{color:var(--muted);font-size:12px}
 .sf-prev-tip{font-size:11px;color:var(--muted);margin:2px 0 0}
 /* ================= 响应式断点（桌面 ≥1200 保持原样） ================= */
@@ -1678,7 +1696,7 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 #ek-eq b{color:var(--text)}
 #ekey-pop .kp-chip{border:1px solid var(--border);color:var(--text);background:var(--ed-raise)}
 #ekey-pop .kp-chip:hover{border-color:var(--accent);color:var(--accent-ink)}
-#ekey-pop .kp-chip i{color:var(--faint)}
+#ekey-pop .kp-chip i{color:var(--faint);opacity:1}   /* v66.6 去继承的 opacity .7（2.88 / 3.45 → 5.2 / 5.6），层级靠 --faint 与字号 */
 #ekey-pop .kp-chip.ez i{color:var(--danger)}      /* CAGED 开放把位：浅底上金色不可读，改琥珀 */
 #ekey-pop .kp-chip.on{background:var(--accent);border-color:var(--accent);color:var(--ed-on-accent)}
 #ekey-pop .kp-chip.on i{color:var(--ed-on-accent);opacity:.9}
@@ -1995,7 +2013,9 @@ body.shell.nwrap:not(.stand):not(.viewer) #score-wrap::-webkit-scrollbar-thumb{
   min-width:40px;padding:4px 7px;line-height:1.1}
 .chip.ce-tone b{font-size:12.5px;font-weight:700}
 .chip.ce-tone i{font-style:normal;font-size:9px;color:var(--muted)}
-.chip.ce-tone.off{opacity:.45}
+.chip.ce-tone.off{border-color:color-mix(in srgb,var(--border) 45%,transparent);background:color-mix(in srgb,var(--panel) 45%,transparent)}
+.chip.ce-tone.off:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.chip.ce-tone.off b,.chip.ce-tone.off i{color:var(--faint)}   /* v66.6 已省略的构成音：原整钮 opacity .45（字 2.0–2.9）→ 框线照旧淡出、字读 --faint */
 .chip.ce-tone.off b{text-decoration:line-through}
 .ce-toneline{font-size:12px;color:var(--muted);letter-spacing:.06em;margin-top:2px;
   font-variant-numeric:tabular-nums}
@@ -10153,7 +10173,7 @@ function showDynMenu(cx, cy){
   div.style.left=Math.min(cx, innerWidth-330)+'px';
   div.style.top=(cy+6)+'px';
   div.innerHTML=`<div class="t">力度 / 速度 / 表情术语（标在音符下方；力度影响该处起播放音量，速度与表情术语仅记谱不改音量；Ctrl 选首末两音再选 &lt; / &gt; 可拉出渐强渐弱范围括线）</div>
-    <div class="row" style="max-width:340px">${DYN_LIST.map(([d,cn])=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</i><span style="font-size:10px;opacity:.65;margin-left:4px">${esc(cn)}</span></button>`).join('')}
+    <div class="row" style="max-width:340px">${DYN_LIST.map(([d,cn])=>`<button data-dy="${esc(d)}" class="${col.dyn===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${d==='<'?'&lt;':d==='>'?'&gt;':esc(d)}</i><span class="pm-sub" style="font-size:10px;margin-left:4px">${esc(cn)}</span></button>`).join('')}
     <button data-dy="">清除</button></div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
@@ -10255,7 +10275,7 @@ function showOttavaMenu(cx, cy){
   div.style.left=Math.min(cx, innerWidth-320)+'px';
   div.style.top=(cy+6)+'px';
   div.innerHTML=`<div class="t">八度记号 ottava（仅五线谱：按记谱移位收拢下加线，实际音高与播放不变；Ctrl 选首末两音标注整句，单选标注单音；再点清除）</div>
-    <div class="row" style="max-width:320px">${OTTS.map(([d,cn])=>`<button data-ot="${esc(d)}" class="${col.ott===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${esc(d)}</i><span style="font-size:10px;opacity:.65;margin-left:4px">${esc(cn)}</span></button>`).join('')}
+    <div class="row" style="max-width:320px">${OTTS.map(([d,cn])=>`<button data-ot="${esc(d)}" class="${col.ott===d?'on':''}" title="${esc(cn)}"><i style="font-style:italic;font-weight:700;font-family:Georgia,serif">${esc(d)}</i><span class="pm-sub" style="font-size:10px;margin-left:4px">${esc(cn)}</span></button>`).join('')}
     <button data-ot="">清除</button></div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
@@ -14251,7 +14271,7 @@ function showAddsMenu(mi, ci, vi, cx, cy){
         <button data-ap="${ai}" title="八度+">8度+</button></div>
       <div class="row">${ACCL.map(([v,l])=>`<button data-aa="${ai}:${v}" class="${(a2.acc||'')===v?'on':''}">${l}</button>`).join('')}</div>`).join('');
     div.innerHTML=`<div class="t">和音 · 主音 ${col.deg} 上的叠加音（最多3个，纵列显示；五线谱另可 Ctrl+点击线/间加减）</div>
-      ${rows||'<div class="t" style="opacity:.72">尚无叠加音——点下方「＋加音符」开始</div>'}
+      ${rows||'<div class="t" style="color:var(--faint)">尚无叠加音——点下方「＋加音符」开始</div>'}
       <div class="row" style="margin-top:6px">${(col.adds||[]).filter(a=>a&&a.deg).length<3?`<button data-aab="1">＋加音符（自动取上方三度）</button>`:''}
         ${(col.adds||[]).filter(a=>a&&a.deg).length?`<button data-ax="1" style="margin-left:10px">清空和音</button>`:''}</div>`;
   };
@@ -15333,20 +15353,20 @@ function showVoxChordMenu(cx, cy, q){
           +((s2=>s2? `<svg width="46" height="56" viewBox="0 0 56 66" style="flex:none">${chordDiagramSVG('',6,2,0.95,s2,true)}</svg>`:'')(chordShape(cur)))
           +`<button id="vc-play" title="试听该和弦（按吉他指法自低音弦琶音）" style="padding:3px 10px">▶ 试听</button>`
         : `<span class="none">未标注 —— 点下方级数开始</span>`}</div>
-      <div class="t" style="opacity:.75">级数（1=${esc(song.key)}，默认调内性质）</div>
+      <div class="t" style="color:var(--faint)">级数（1=${esc(song.key)}，默认调内性质）</div>
       <div class="vc-grid">${VC_SEMI.map((_,i)=>
         `<button data-vd="${i}" class="${st.deg===i?'on':''}">${i+1}${VC_DIA[i]?'<b style="font-size:10px">'+VC_DIA[i]+'</b>':''}<small>${esc(vcNote(i))}</small></button>`).join('')}
         <button data-vd="-1" class="${st.deg<0&&!cV()?'on':''}" title="清除标注">∅<small>无</small></button></div>
-      <div class="t" style="opacity:.75">类型 / 扩展</div>
+      <div class="t" style="color:var(--faint)">类型 / 扩展</div>
       ${VC_SUFS.map(g=>`<div class="vc-grid sufs">${g.c.map(([lb,sf])=>
         `<button data-vs="${esc(sf)}" class="${st.suf===sf?'on':''}" title="${esc(g.t)}">${esc(lb)}</button>`).join('')}
         ${g.t==='扩展'? `<input id="vc-sufin" placeholder="自定义后缀" value="${esc(VC_SUFS.some(g2=>g2.c.some(c2=>c2[1]===st.suf))?'':st.suf)}" style="width:88px;font-size:12px;padding:3px 8px">`:''}</div>`).join('')}
-      <div class="t" style="opacity:.75">转位（斜杠低音·含变化音级）</div>
+      <div class="t" style="color:var(--faint)">转位（斜杠低音·含变化音级）</div>
       <div class="vc-grid">
         <button data-vb="-1" class="${st.bass<0?'on':''}">原位</button>
         ${VC_BASS.map(([s2,lab])=>`<button data-vb="${s2}" class="${st.bass===s2?'on':''}">/${esc(lab)}<small>${esc(vcBassName(s2))}</small></button>`).join('')}</div>
-      ${recent.length? `<div class="t" style="opacity:.75">最近使用</div><div class="row">${recent.map(c2=>
-        `<button data-vc="${esc(c2)}" class="${cV()===c2?'on':''}">${esc(chordDegree(c2))}<span style="opacity:.55;font-size:10px;margin-left:3px">${esc(c2)}</span></button>`).join('')}</div>`:''}
+      ${recent.length? `<div class="t" style="color:var(--faint)">最近使用</div><div class="row">${recent.map(c2=>
+        `<button data-vc="${esc(c2)}" class="${cV()===c2?'on':''}">${esc(chordDegree(c2))}<span class="pm-sub" style="font-size:10px;margin-left:3px">${esc(c2)}</span></button>`).join('')}</div>`:''}
       <div class="row" style="margin-top:7px">
         <input id="vc-custom" placeholder="自定义：F#m7、Bb/D 或级数 57sus、37/#5" value="${esc(cV())}" style="flex:1;min-width:150px">
         <button id="vc-ok" class="primary" style="padding:3px 13px">应用</button>
@@ -16021,7 +16041,7 @@ document.getElementById('b-fill').onclick = ()=>{
   const voiceRowHtml = ()=>{
     const chips = song.voxVoices.map((n,i)=>{
       const nFill = smartSlots(i,0,0).filter(s=>s.kind==='fill').length;
-      return `<button class="cc-chip ${i===vi?'on':''}" data-sfv="${i}" style="padding:4px 13px" title="切到该声部填词">${esc(n)}<small style="opacity:.65"> ${nFill}</small></button>`;
+      return `<button class="cc-chip ${i===vi?'on':''}" data-sfv="${i}" style="padding:4px 13px" title="切到该声部填词">${esc(n)}<small class="sf-vn"> ${nFill}</small></button>`;
     }).join('');
     const add = trackRoom('vox')
       ? `<button class="cc-chip" data-sfv="+" style="padding:4px 13px;border-style:dashed" title="新增一条旋律声部并复制本声部的音符骨架（音高/时值，不带歌词），建好即可填词；一步可撤销">＋声部</button>`
@@ -22810,6 +22830,65 @@ document.getElementById('b-theme').onclick = ()=>{
   r.dataset.theme = isDark?'light':'dark';
   try{ localStorage.setItem('musetab-theme', r.dataset.theme); }catch(_){}   // v64.0 B7 ⑦ 刷新/换页不丢
 };
+/* v66.6 手机地址栏色（meta theme-color）跟随应用内明暗与当前页面（v66.5 只有 media 静态两条，只随系统配色）。
+   规则：取「页面最上方那条栏」的实际底色——视口顶边（y=1）水平居中处由上往下命中的元素栈，跳过临时层
+   （启动遮罩 #boot-veil / 弹窗遮罩 .modal-mask / 弹出菜单 .popmenu / 浮层 .vh-pop），逐层把半透明底色
+   （如毛玻璃 --glass，不计模糊）叠到下层上，直到不透明为止，兜底 html 底色 / 白。由此：
+     编辑器 / 启动台＝主栏 --chrome（浅 #161433 / 深 #1c1a3d）；观看页（含手机）页首 #viewerbar＝--panel（浅色主题即白）；
+     谱库页首 .cc-top＝--panel；个人中心页首 .pcx-top＝--glass 叠 --bg；谱架模式无页首＝--bg。
+   页面已滚动时仍量文档顶边那条栏（不随滚动变色，见函数内注释）。
+   时机：html[data-theme] 变化（应用内明暗切换，任何入口）、系统配色变化、body 换模式（class）或增删整页层
+   （#circle / #pcenter / 遮罩，均为 body 直接子节点），requestAnimationFrame 合并为一次。
+   只改写当前 media 命中的那一条 meta；另一条保留静态默认，系统配色切到它时再量（无 JS 时静态两条照旧）。不新增 localStorage 键。 */
+function syncThemeColor(){
+  const metas=[...document.querySelectorAll('meta[name="theme-color"]')]; if(!metas.length) return;
+  const meta=metas.find(m=>{ const q=m.getAttribute('media'); try{ return !q || matchMedia(q).matches; }catch(_){ return false; } });
+  if(!meta) return;
+  const col=s=>{ s=String(s||''); let m=s.match(/^rgba?\(([^)]+)\)/);
+    if(m){ const p=m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return [p[0],p[1],p[2],p.length>3?p[3]:1]; }
+    m=s.match(/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)/);
+    return m? [m[1]*255,m[2]*255,m[3]*255,m[4]==null?1:+m[4]] : null; };
+  const SKIP='#boot-veil,.modal-mask,.popmenu,.vh-pop';
+  let stack=[];
+  const cx=Math.max(0,Math.floor(innerWidth/2));
+  try{ stack=document.elementsFromPoint(cx, 1); }catch(_){}
+  /* 与滚动位置无关：窗口已滚动、且顶边命中的是随文档滚走的内容（手机观看页 html/body 的 overflow-x:hidden
+     使页首 sticky 不吸顶，滚下去后顶边是谱面）时，改量文档顶边那条栏（body 直接子节点中文档坐标覆盖 y=1 者）；
+     命中 fixed / 已吸顶 sticky 层（谱库 / 个人中心页首、桌面观看页页首）照旧按命中栈 */
+  const sy=window.scrollY||0;
+  if(sy>0){
+    const first=stack.find(el=>!(el.closest && el.closest(SKIP)));
+    let pinned=false;
+    for(let e=first; e && e!==document.body && e!==document.documentElement; e=e.parentElement){
+      const p=getComputedStyle(e).position; if(p==='fixed'||p==='sticky'){ pinned=true; break; } }
+    if(!pinned){
+      const head=[...document.body.children].find(el=>{ if(el.matches(SKIP)) return false;
+        const r=el.getBoundingClientRect(); return r.width>0 && r.height>0 && r.top+sy<=1 && r.bottom+sy>1 && r.left<=cx && r.right>cx; });
+      if(head) stack=[head, document.body, document.documentElement];
+    }
+  }
+  const layers=[];
+  for(const el of stack){
+    if(el.closest && el.closest(SKIP)) continue;
+    const c=col(getComputedStyle(el).backgroundColor); if(!c || c[3]<=0) continue;
+    layers.push(c); if(c[3]>=1) break;
+  }
+  let base=[255,255,255];
+  if(!layers.length || layers[layers.length-1][3]<1){ const h=col(getComputedStyle(document.documentElement).backgroundColor); if(h && h[3]>=1) base=h.slice(0,3); }
+  for(let i=layers.length-1;i>=0;i--){ const c=layers[i]; base=base.map((v,k)=>c[k]*c[3]+v*(1-c[3])); }
+  const hex='#'+base.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+  if(meta.getAttribute('content')!==hex) meta.setAttribute('content', hex);
+}
+let _tcRaf=0;
+function schedThemeColor(){ if(_tcRaf) return; _tcRaf=requestAnimationFrame(()=>{ _tcRaf=0; syncThemeColor(); }); }
+try{
+  const mo=new MutationObserver(schedThemeColor);
+  mo.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+  mo.observe(document.body, { attributes:true, attributeFilter:['class'], childList:true });
+  const mq=matchMedia('(prefers-color-scheme: dark)');
+  if(mq.addEventListener) mq.addEventListener('change', schedThemeColor); else if(mq.addListener) mq.addListener(schedThemeColor);
+}catch(_){}
+schedThemeColor();
 /* 曲谱反色：深色纸张 + 浅色音符（作用于纸面，随本机记忆） */
 function applyScoreInvert(on){
   const paper=document.getElementById('paper'); if(paper) paper.classList.toggle('score-invert', !!on);
@@ -24428,6 +24507,37 @@ if(API_ON){ const _wb=new URLSearchParams(location.search).get('wxbind');
     if(_wb==='ok'){ acctRefresh().then(()=>{ try{ toast('微信绑定成功，下次可扫码登录'); }catch(_){}; try{ openPersonal('profile'); }catch(_){} }); }
     else if(_wb==='conflict'){ try{ toast('该微信已绑定其他账号，请先在原账号解绑'); }catch(_){} }
     else { try{ toast('微信绑定未完成，请重试'); }catch(_){} } } }
+/* v66.6 旧预设头像显示映射：官网 8 枚预设头像（site/pyq.js 的 PYQ_AV，v58.9 起）是 SVG→base64 data URI，
+   v66.5 随四族色重配（吉他靛紫 / 钢琴钢蓝 / 人声极光青 / 功能琥珀），但账号里已存的仍是旧色 URI。
+   这里只在显示时把「逐字等于某枚旧预设」的值换成同位新预设；ACCT 与账号存储一律不改写，其余头像（上传图 / http）原样返回。
+   模板、图标与新旧色须与 pyq.js 逐字一致（tv_v66e T6 对拍 pyq.js 现行预设表）。 */
+function avShow(av){   /* 函数声明（提升），首次遇到 SVG data URI 才建表 */
+  if(typeof av!=='string' || av.slice(0,26)!=='data:image/svg+xml;base64,') return av;
+  if(!avShow.map){
+    const SVG=(c1,c2,inner)=>'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
+      +'<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+      +`<stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>`
+      +'<circle cx="48" cy="48" r="48" fill="url(#g)"/>'
+      +`<g transform="translate(26 26) scale(1.83)" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</g></svg>`;
+    const ICON=[
+      '<path d="M11 20 q-3.4 -.6 -3.6 -3.4 q-.2 -2.4 2 -2.6 q2.2 -.2 2.4 2.2 L9.4 3.5 q-.4 -3 1.8 -3.3 q2 2 1.3 4.6 q-.6 2.6 -3.6 5.2 q-3.2 2.8 -3.2 5.6 q0 3.4 3.4 3.8 q3.4 .4 3.9 -2.6 q.4 -2.8 -2.2 -3.5"/>',
+      '<path d="m20 4-3.5 3.5"/><path d="M15.5 8.5 12 12"/><circle cx="8.5" cy="15.5" r="5.5"/><circle cx="8.5" cy="15.5" r="1.6"/>',
+      '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v7M12 6v7M16 6v7"/>',
+      '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+      '<rect x="9" y="3" width="6" height="10" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/>',
+      '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="2"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="2"/>',
+      '<path d="M9.5 3h5L18 20H6z"/><path d="M12 16.5L16.8 7"/><circle cx="16.8" cy="7" r="1.4"/>',
+      '<path d="M9 3v7a3 3 0 0 0 6 0V3"/><path d="M12 13v7M9 20.5h6"/>',
+    ];
+    /* 每族两枚：[旧 c1, 旧 c2, 新 c1, 新 c2]（旧＝v58.9–v66.4 素材配色，新＝v66.5 C「极光靛紫」四族） */
+    const FAM=[['#d24a37','#c33a29','#6a5bf8','#5b4cf0'],['#44688c','#33587a','#3f72b5','#2e62a3'],
+      ['#3c7f5f','#2f6d4f','#1b8590','#0e7380'],['#b98738','#a8762a','#a76b0e','#965a00']];
+    const URI=s=>'data:image/svg+xml;base64,'+btoa(s);
+    const map=new Map(); try{ ICON.forEach((ic,i)=>{ const f=FAM[i>>1]; map.set(URI(SVG(f[0],f[1],ic)), URI(SVG(f[2],f[3],ic))); }); }catch(_){}
+    avShow.map=map;
+  }
+  return avShow.map.get(av) || av;
+}
 /* v59.0 独立页常驻页头（原 pcAcctHTML 账号卡上移）：账号三态照搬——本机提示 / 已登录身份区 / 未登录登录钮；
    账号类操作（换头像/绑微信/全下线）仍统一在 www 的 me.html，此处只留展示+直达+登录/退出/成为创作者 */
 function pcxHeroHTML(){
@@ -24438,7 +24548,7 @@ function pcxHeroHTML(){
     const badge=isCreator?'<span class="pcx-badge">创作者</span>':'';
     const become=isCreator?'':'<button id="acct-creator" style="white-space:nowrap">成为创作者</button>';
     const wxTag=ACCT.wx?' · <span style="color:#07c160">已绑定微信</span>':'';
-    const av=ACCT.avatar||'';
+    const av=avShow(ACCT.avatar||'');   /* v66.6 旧预设头像显示映射为新色（ACCT / 账号存储不改） */
     const avHTML=(av && (av.slice(0,11)==='data:image/'||av.slice(0,4)==='http'))
       ? `<div class="pc-avatar has-img"><img src="${esc(av)}" alt="" onerror="this.parentNode.classList.remove('has-img');this.parentNode.textContent='${esc((ACCT.nickname||'谱').charAt(0))}'"></div>`
       : `<div class="pc-avatar">${esc((ACCT.nickname||'谱').charAt(0))}</div>`;
@@ -24474,7 +24584,7 @@ function openLogin(opts){
       <button id="lg-send" style="white-space:nowrap">获取验证码</button></label>
     <label class="lg-agree"><input type="checkbox" id="lg-agree"> 我已阅读并同意<a href="javascript:void 0" id="lg-tos">《用户协议》</a>和<a href="javascript:void 0" id="lg-pri">《隐私政策》</a></label>
     <div id="lg-msg" style="font-size:12px;color:var(--accent);min-height:16px;margin-top:6px"></div>
-    ${API_ON && (window.PYQ_WX_WEB||window.PYQ_WX_MP) && !isMpEnv()? `<div style="text-align:center;margin:12px 0 8px;color:var(--muted);font-size:12px;opacity:.7">— 或 —</div>
+    ${API_ON && (window.PYQ_WX_WEB||window.PYQ_WX_MP) && !isMpEnv()? `<div style="text-align:center;margin:12px 0 8px;color:var(--faint);font-size:12px">— 或 —</div>
     <button id="lg-wx" style="width:100%;background:#07c160;color:#fff;border-color:#07c160">${/MicroMessenger/i.test(navigator.userAgent)&&window.PYQ_WX_MP?'微信一键登录':'微信扫码登录'}</button>
     ${/MicroMessenger/i.test(navigator.userAgent)&&!window.PYQ_WX_MP?'<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">微信内点击后，<b>长按页面上的二维码</b>即可识别登录</div>':''}`:''}
     <div class="btns"><button id="lg-cancel">取消</button><button id="lg-go" class="primary">登录</button></div>`, true);
@@ -24793,6 +24903,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v66.6</span><div><b>换色后的可读性收尾 + 小程序换新色</b>。<br>① 深色主题下，页签关闭、静音、「全部采纳」等红绿实底按钮上的字改为深色，不再看不清。谱库收藏心、搜索放大镜、变调弹窗里的音名，以及几处菜单和浮层的小字，原来靠半透明变淡，现在改成清楚的实色；放大镜也会跟着深浅主题变色。<br>② 手机浏览器地址栏的颜色跟着页面走：编辑器取主栏色，手机看谱页取页首色；在应用内或官网里切换明暗时，地址栏也一起变。<br>③ 换色前选的预设头像，现在显示为同款新配色；账号里保存的头像不变。<br>④ 官网：用键盘切换焦点时，顶部菜单、谱库筛选条、课程目录的焦点框不再被切掉一截；手机筛选条聚焦到只露出一半的标签时会自动滚进来。「审核中」角标、少儿课程章号与小节号、锁定关卡说明、登录框里的「或」、空心星都加深到看得清，原有颜色含义不变。<br>⑤ 小程序同步换成极光靛紫：导航条、登录页按钮与链接、预览占位页（上传版本 1.1.7）。<br>新套件 <code>tv_v66e</code>。</div></li>
     <li><span class="v">v66.5</span><div><b>全站换新色调：极光靛紫</b>。编辑器、看谱页、官网和分享页一起换色：深色框架由墨绿改为靛黑，强调色由朱砂改为靛紫，界面底色由暖米改为微紫冷白；版式、按钮位置和操作方式都不变。<br>① 主栏、页签条、底部播放条是靛黑框架，底边一条细靛紫线，官网顶栏也换成同样的靛黑；框架里的按钮获得焦点时显示浅紫描边。<br>② 谱面：选中音符和光标用靛紫，播放高亮带与播放竖线改用极光蓝，和选中区分开；谱纸为冷白，打印和导出仍是白纸黑字。<br>③ 深色主题一并修好几处看不清的地方：强调色按钮上的字改为深色，新建向导、帮助等窗口不再出现白卡浅字，输入框提示字、谱库卡片曲名、播放条上的声像读数和小节编号都清楚了。<br>④ 导出图片、分享卡、谱库缩图换成新配色。深色主题下谱面上的作曲、制谱、小节号等灰字更清楚；手动选了浅色主题时打印纸不再是米白；「系统深色 + 手动选浅色」时启动画面不再错成深色。<br>收藏星和收藏心、告警、成功等提示色保持原样。新套件 <code>tv_v66d</code>。</div></li>
     <li><span class="v">v66.4</span><div><b>界面恢复原样</b>：撤回 v66.1–v66.3 的界面改版，编辑器、看谱页和官网恢复到 v66.0 的外观与操作方式。<br>撤回的内容包括：Apple 风格配色与圆角、编辑器新布局预览（<code>?skin=next</code>）、手机看谱底部迷你播放条、官网画廊式首页，以及随改版加入的「删除后可撤销」提示条和自定义确认框。<br>v66.0 的修复保留：新建曲谱在 1366 / 1440 宽屏幕上不再被裁掉右侧，深色主题下打印的灰字不再变浅。</div></li>
     <li><span class="v">v66.0</span><div><b>修复：新建曲谱在 1366 / 1440 宽屏幕上右侧被裁掉、末小节看不见</b>。<br>① 向导新建的曲谱用固定版宽，此前左右面板都展开时按 80% 也放不下，最后一个小节线被裁掉且滚不过去。现在宽屏下最低缩到 70%，1440 宽面板全开也能整行放下；再窄（约 1366）时左侧面板自动收起一次，把宽度让给谱面，之后再打开面板改为浮层，不挤窄谱面。<br>② 手动放大到放不下时，谱面可以横向滚动，不再裁掉。<br>③ 深色主题下打印，谱面上的作曲 / 制谱 / 小节号等灰字不再印成浅灰。<br>④ 内部整理（外观不变）：谱面颜色单独一层、界面字体令牌、动效与毛玻璃开关（测试环境与「减弱动态」下自动关闭）。<br>新套件 <code>tv_v66a</code>。</div></li>
@@ -24817,7 +24928,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v66.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v66.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

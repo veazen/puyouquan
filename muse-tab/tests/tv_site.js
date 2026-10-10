@@ -1664,6 +1664,371 @@ const BAD_COURSE = {
       T(ok(out.light) && ok(out.dark) && noCr >= 4.5, 'C9 v66.5 深色框架内焦点环＝--site-frame-focus（顶栏/CTA/toast）、toast 撤销钮 ≥4.5、SSR 课程章号 ≥4.5',
         JSON.stringify({ out, no, noCr }));
     }
+
+    /* ===== v66.6 v66.5 遗留修复（负责人「继续推进」）=====
+       D1 滚动/裁切容器里的焦点环不被裁（几何：环外框 ⊂ 所有 overflow 祖先的 padding box）——顶部菜单（桌面 + 手机）、
+          手机谱库筛选横滑条、课程侧栏目录 / 手机目录抽屉、小节头
+       D2 同一批焦点环四边实拍可见：失焦→聚焦同一像素变化 ≥3:1（截图取环带中线像素；浅 + 深）
+       D3 账号里存的旧预设头像（v66.5 前 8 枚）显示时映射成现色同款：顶栏头像 / 个人中心头像 / 换头像浮层「已选中」；
+          不改写存储（无 PATCH）；上传图 / 外链 / 现色预设原样
+       D4 语义 / 豁免小字对比度（按祖先 opacity 合成后的实际色）：待审琥珀角标、登录分隔「或」、章号胶囊 + 小节号 + 页签计数 + 谱例「打开」
+          + 一周打卡格（六章色 × 浅深，章色各不相同）、锁定小节号、星数、空心星（图形 ≥3）、锁定卡周次 / 说明 / 未解锁；语义保留（琥珀仍琥珀、锁定仍淡化虚线）；
+          微信绿登录钮按官方样式保留 */
+    {
+      const DCU = `window.__eff=el=>{ const lv=[]; for(let e=el;e&&e.nodeType===1;e=e.parentElement){ const cs=getComputedStyle(e);
+          let bg=__pc(cs.backgroundColor); if((!bg||bg[3]===0)&&/gradient/.test(cs.backgroundImage)) bg=__pc((cs.backgroundImage.match(/(color\\(srgb[^)]+\\)|rgba?\\([^)]+\\))/)||[])[0]);
+          lv.push({bg:bg&&bg[3]>0?bg:null,op:+cs.opacity}); }
+        const fg=__pc(getComputedStyle(el).color);
+        const paint=(k,base,txt)=>{ const L=lv[k]; const c=L.bg?__ov(L.bg,base):base; const inner=k>0?paint(k-1,c,txt):(txt?__ov(fg,c):c);
+          return L.op<1?[0,1,2].map(i=>inner[i]*L.op+base[i]*(1-L.op)).concat(1):inner; };
+        const W=[255,255,255,1], f=paint(lv.length-1,W,true), g=paint(lv.length-1,W,false);
+        return { cr:__cr(f,g), fg:f.slice(0,3).map(Math.round), bg:g.slice(0,3).map(Math.round) }; };
+        window.__hue=c=>{ const [r,g,b2]=c.map(x=>x/255); const mx=Math.max(r,g,b2), mn=Math.min(r,g,b2); if(mx===mn) return -1;
+          const d=mx-mn; const h=mx===r?(g-b2)/d+(g<b2?6:0):mx===g?(b2-r)/d+2:(r-g)/d+4; return Math.round(h*60); };`;
+      const hueDist = (a, b2) => { const x = Math.abs(a - b2) % 360; return Math.min(x, 360 - x); };
+      const __crN = (a, b2) => { const L = v => { const f = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; return 0.2126 * f(v[0]) + 0.7152 * f(v[1]) + 0.0722 * f(v[2]); };
+        const l1 = L(a), l2 = L(b2); return +((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)).toFixed(2); };
+      const NOANIM = 'html,*{scroll-behavior:auto!important}*,*::before,*::after{animation:none!important;transition:none!important}.rv{opacity:1!important;transform:none!important}.kcp-chg{opacity:1!important;transform:none!important}';
+      /* 自带路由 + 可选登录态：o.user 给了就当已登录（/api/me 返回它），所有 API 请求记进 _reqs（D3 核对不发 PATCH） */
+      const dPage = async (page, o) => {
+        o = o || {};
+        const ctx = await b.newContext({ viewport: o.vp || { width: 1280, height: 860 }, colorScheme: o.scheme || 'light', deviceScaleFactor: o.dpr || 1 });
+        const p2 = await ctx.newPage(); const errs = []; p2.on('pageerror', e => errs.push(e.message)); p2._reqs = [];
+        await p2.route('**/*', route => {
+          const u = new URL(route.request().url()); const p = u.pathname, m = route.request().method();
+          if (u.hostname !== 'www.puyouquan.com') return route.fulfill({ status: 200, body: '' });
+          const J = x => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(x) });
+          if (p.startsWith('/api/')) {
+            p2._reqs.push(m + ' ' + p);
+            if (p === '/api/pub/scores') return J({ scores: seed });
+            if (/^\/api\/pub\/[A-Za-z0-9_-]+\/thumb$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/png', body: PNG1 });
+            if (p === '/api/health') return J({ ok: true, wx_web: true, wx_mp: false });
+            if (!o.user) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+            if (p === '/api/me') return J({ user: o.user, stats: {}, unread_msgs: 0 });
+            if (p === '/api/me/entitlements') return J({ entitlements: [], vip: false, quota: 20 });
+            if (p === '/api/scores') return J({ scores: o.scores || [] });
+            if (p === '/api/favorites') return J({ favorites: [] });
+            if (p === '/api/messages') return J({ messages: [] });
+            return J({ ok: false });
+          }
+          const f = p === '/' ? 'index.html' : p.slice(1);
+          if (/\.png$/.test(f)) { const fp = P.join(SITE, f); return fs.existsSync(fp) ? route.fulfill({ status: 200, contentType: 'image/png', body: fs.readFileSync(fp) }) : route.fulfill({ status: 404, body: '' }); }
+          const ct = /\.css$/.test(f) ? 'text/css' : /\.js$/.test(f) ? 'application/javascript' : 'text/html; charset=utf-8';
+          return route.fulfill({ status: 200, contentType: ct, body: read(f) });
+        });
+        try { await p2.goto(SITE_URL(page)); } catch (e) { errs.push('goto ' + e.message); }
+        await p2.waitForTimeout(700);
+        await p2.evaluate(t => { try { localStorage.removeItem('musetab-theme'); } catch (_) {}
+          if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }, o.theme || '').catch(() => {});
+        await p2.addStyleTag({ content: NOANIM }).catch(() => {});
+        await p2.evaluate(CU + DCU).catch(() => {});
+        await p2.waitForTimeout(120);
+        p2._errs = errs; p2._ctx = ctx; return p2;
+      };
+      const M390 = { width: 390, height: 844 };
+      const openDrawer = p2 => p2.evaluate(() => { const t = document.querySelector('.kcp-toc'); if (t) t.click(); }).then(() => p2.waitForTimeout(250));
+
+      /* D1 几何：完整露在容器里的元素，聚焦后焦点环外框也必须完整露在所有 overflow≠visible 祖先里 */
+      {
+        const GEO = sels => {
+          const out = [];
+          for (const sel of sels) for (const e of document.querySelectorAll(sel)) {
+            const r0 = e.getBoundingClientRect(); if (!(r0.width > 0 && r0.height > 0)) continue;
+            const anc = []; for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) {
+              const ac = getComputedStyle(a); if (ac.overflowX === 'visible' && ac.overflowY === 'visible') continue;
+              const ar = a.getBoundingClientRect();
+              anc.push({ a, cx: ac.overflowX !== 'visible', cy: ac.overflowY !== 'visible', l: ar.left + parseFloat(ac.borderLeftWidth), t: ar.top + parseFloat(ac.borderTopWidth),
+                r: ar.right - parseFloat(ac.borderRightWidth), b: ar.bottom - parseFloat(ac.borderBottomWidth) }); }
+            /* 元素本身被滚出容器（横滑条右侧、目录下半截）不算焦点环问题 */
+            if (anc.some(x => (x.cx && (r0.left < x.l - 0.5 || r0.right > x.r + 0.5)) || (x.cy && (r0.top < x.t - 0.5 || r0.bottom > x.b + 0.5)))) continue;
+            e.focus({ preventScroll: true });
+            if (document.activeElement !== e) continue;                  // 不可聚焦（锁定小节头是 div）
+            const cs = getComputedStyle(e), ow = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0, oo = parseFloat(cs.outlineOffset) || 0;
+            const r = e.getBoundingClientRect(), d = ow + oo;
+            let cut = 0, by = '';
+            for (const x of anc) { const c = Math.max(x.cx ? x.l - (r.left - d) : 0, x.cx ? (r.right + d) - x.r : 0, x.cy ? x.t - (r.top - d) : 0, x.cy ? (r.bottom + d) - x.b : 0);
+              if (c > cut) { cut = c; by = x.a.id || String(x.a.className).split(' ')[0]; } }
+            out.push({ sel, t: (e.textContent || '').trim().slice(0, 6), fv: e.matches(':focus-visible'), ow, cut: +cut.toFixed(1), by });
+            e.blur();
+          }
+          return out;
+        };
+        const res = [];
+        const run = async (page, vp, sels, pre) => {
+          const p2 = await dPage(page, { vp });
+          if (pre) await pre(p2);
+          await p2.keyboard.press('Shift');                       // 键盘交互 → 之后的 focus() 走 :focus-visible
+          const r2 = await p2.evaluate(GEO, sels).catch(e => [{ sel: 'ERR ' + e.message, cut: 99 }]);
+          res.push(...r2.map(x => Object.assign({ page: page.split('?')[0] + '@' + (vp ? vp.width : 1280) }, x)));
+          await p2._ctx.close();
+        };
+        await run('index.html', null, ['#menu a']);
+        await run('index.html', M390, ['#menu a', '#lib-cats .fchip']);
+        await run('kecheng.html?c=course-jianpu-renshi', null, ['.kcp-rail button', '.kcs > .kcs-head']);
+        await run('kecheng.html?c=course-jianpu-renshi', M390, ['#menu a', '.kcs > .kcs-head', '.kcp-dwbody .kcp-ritem'], openDrawer);
+        const bad = res.filter(x => !(x.fv && x.ow >= 2 && x.cut <= 0.5));
+        const kinds = new Set(res.map(x => x.page + ' ' + x.sel));
+        const per = {}; for (const x of res) per[x.page + ' ' + x.sel] = (per[x.page + ' ' + x.sel] || 0) + 1;
+        T(bad.length === 0 && kinds.size >= 8 && res.length >= 20,
+          'D1 v66.6 焦点环不被滚动/裁切容器剪掉（顶部菜单桌面+手机、手机筛选横滑条、课程侧栏目录、手机目录抽屉、小节头；' + res.length + ' 个元素）',
+          bad.length ? bad.slice(0, 5).map(x => x.page + ' ' + x.sel + '「' + x.t + '」 cut=' + x.cut + ' by ' + x.by + ' fv=' + x.fv).join(' | ') : 'ok ' + JSON.stringify(per));
+      }
+
+      /* D2 实拍：失焦 / 聚焦两张截图，取焦点环带中线（边框外 outline-offset + 宽/2 处）上、下、左、右中点像素，变化 ≥3:1 */
+      {
+        const DPR = 2;
+        const CASES = [
+          ['index.html', null, 'light', '#menu a.on', 'tblr'], ['index.html', null, 'light', '#menu a:not(.on)', 'tblr'],
+          ['index.html', null, 'dark', '#menu a.on', 'tblr'], ['make.html', null, 'dark', '#menu a:not(.on)', 'tblr'],
+          ['index.html', M390, 'light', '#menu a.on', 'tblr'], ['index.html', M390, 'dark', '#menu a:last-child', 'tblr'],
+          ['index.html', M390, 'light', '#lib-cats .fchip.on', 'tblr'], ['index.html', M390, 'dark', '#lib-cats .fchip:nth-child(2)', 'tblr'],
+          ['kecheng.html?c=course-jianpu-renshi', null, 'light', '.kcs--now > .kcs-head', 'tbr'],   // 左缘是「当前」章色竖条（inset 阴影），不计
+          ['kecheng.html?c=course-jianpu-renshi', null, 'dark', '.kcs--now > .kcs-head', 'tbr'],
+          /* 目录当前项左缘是 2px 章色竖条（同亮度的琥珀→靛紫变化不足 3:1，但环在淡底上清楚），左边不计 */
+          ['kecheng.html?c=course-jianpu-renshi', null, 'light', '.kcp-rail .kcp-ritem', 'tbr'], ['kecheng.html?c=course-jianpu-renshi', null, 'dark', '.kcp-railtog', 'tblr'],
+          ['kecheng.html?c=course-jianpu-renshi', M390, 'light', '.kcp-dwbody .kcp-ritem', 'tbr'], ['kecheng.html?c=course-jianpu-renshi', M390, 'dark', '.kcp-dwbody .kcp-ritem[data-st="lock"]', 'tblr'],
+        ];
+        const out = [];
+        for (const [page, vp, th, sel, sides] of CASES) {
+          const p2 = await dPage(page, { vp, theme: th, dpr: DPR });
+          if (/kcp-dwbody/.test(sel)) await openDrawer(p2);
+          await p2.keyboard.press('Shift');
+          const h = await p2.$(sel);
+          if (!h) { out.push({ page, th, sel, min: 0, err: 'no el' }); await p2._ctx.close(); continue; }
+          await h.evaluate(e => { e.scrollIntoView({ block: 'center', inline: 'nearest' }); if (document.activeElement) document.activeElement.blur(); });
+          await p2.waitForTimeout(80);
+          const box = await h.evaluate(e => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; });
+          const clip = { x: Math.max(0, Math.floor(box.l) - 8), y: Math.max(0, Math.floor(box.t) - 8), width: Math.ceil(box.r - box.l) + 16, height: Math.ceil(box.b - box.t) + 16 };
+          const before = (await p2.screenshot({ clip })).toString('base64');
+          const ring = await h.evaluate(e => { e.focus({ preventScroll: true }); const cs = getComputedStyle(e);
+            return { fv: e.matches(':focus-visible'), ow: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0, oo: parseFloat(cs.outlineOffset) || 0 }; });
+          await p2.waitForTimeout(250);              // 留够重绘时间：毛玻璃顶栏里的焦点环偶有一帧未上屏（实测 100ms 内截图会漏环，误报红）
+          const after = (await p2.screenshot({ clip })).toString('base64');
+          const d = ring.oo + ring.ow / 2;            // 环带中线到边框边缘的距离（负＝在元素内侧）
+          const cx = (box.l + box.r) / 2, cy = (box.t + box.b) / 2;
+          const pts = { t: [cx, box.t - d], b: [cx, box.b + d], l: [box.l - d, cy], r: [box.r + d, cy] };
+          const want = sides.split('').map(k => [k, (pts[k][0] - clip.x) * DPR, (pts[k][1] - clip.y) * DPR]);
+          const px = await p2.evaluate(async ([A, B, W]) => {
+            const dec = async s => { const im = new Image(); im.src = 'data:image/png;base64,' + s; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+              const x = c.getContext('2d'); x.drawImage(im, 0, 0); return x; };
+            const a = await dec(A), z = await dec(B);
+            return W.map(([k, x, y]) => { const X = Math.round(x - 0.5), Y = Math.round(y - 0.5);
+              return [k, [...a.getImageData(X, Y, 1, 1).data].slice(0, 3), [...z.getImageData(X, Y, 1, 1).data].slice(0, 3)]; });
+          }, [before, after, want]);
+          const crs = px.map(([k, c0, c1]) => [k, __crN(c0, c1)]);
+          out.push({ page: page.split('?')[0] + (vp ? '@390' : ''), th, sel, fv: ring.fv, oo: ring.oo, min: Math.min(...crs.map(x => x[1])), crs: crs.map(x => x[0] + x[1]).join(' ') });
+          await p2._ctx.close();
+        }
+        const bad = out.filter(x => !(x.fv && x.min >= 3));
+        T(bad.length === 0 && out.length === CASES.length,
+          'D2 v66.6 焦点环四边实拍可见（失焦→聚焦同一像素 ≥3:1；菜单当前项/普通项 桌面+手机 浅+深、筛选横滑条、小节头、侧栏目录、目录抽屉）',
+          (bad.length ? 'FAIL ' + bad.slice(0, 4).map(x => x.page + ' ' + x.th + ' ' + x.sel + ' ' + (x.err || x.crs) + ' off=' + x.oo).join(' | ') : 'ok')
+          + ' · min=' + Math.min(...out.map(x => x.min)).toFixed(2));
+      }
+
+      /* D3 旧预设头像显示映射。旧 8 枚＝现行 8 枚同一 SVG 骨架、只换回 v66.5 前的渐变色（与 v66.5 前 pyq.js 逐字节同源） */
+      {
+        const OLD_STOPS = [['#d24a37', '#c33a29'], ['#d24a37', '#c33a29'], ['#44688c', '#33587a'], ['#44688c', '#33587a'],
+          ['#3c7f5f', '#2f6d4f'], ['#3c7f5f', '#2f6d4f'], ['#b98738', '#a8762a'], ['#b98738', '#a8762a']];
+        const vm = require('vm');
+        const avSrc = (read('pyq.js').match(/window\.PYQ_AV = \(function\(\)\{[\s\S]*?\n\}\)\(\);/) || [''])[0];
+        const box = { window: {}, btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary') };
+        let NEW = [];
+        try { vm.runInNewContext(avSrc, box); NEW = box.window.PYQ_AV.PRESETS.slice(); } catch (e) { NEW = []; }
+        const HEAD = 'data:image/svg+xml;base64,';
+        const OLD = NEW.map((u, i) => { let k = 0; return HEAD + box.btoa(box.atob(u.slice(HEAD.length)).replace(/stop-color="[^"]*"/g, () => 'stop-color="' + OLD_STOPS[i][k++] + '"')); });
+        const sane = NEW.length === 8 && OLD.every((o, i) => o !== NEW[i]) && /stop-color="#d24a37"/.test(box.atob(OLD[0].slice(HEAD.length)));
+        const out = { sane };
+        const JPG = 'data:image/png;base64,' + PNG1.toString('base64');   // 本地上传图（真实是 96² JPEG；这里用能解码的 1×1 PNG，免得 onerror 回退首字）
+        const user = av => ({ id: 'u1', phone: '138****8888', nickname: '阿杜', role: 'creator', wx: false, avatar: av });
+        /* ① 顶栏头像：旧朱砂吉他（0）→ 现色 0 */
+        let p2 = await dPage('index.html', { user: user(OLD[0]) });
+        await p2.waitForTimeout(300);
+        Object.assign(out, await p2.evaluate(([O, N, J]) => {
+          const img = document.querySelector('#acct-chip img');
+          const sh = window.PYQ_AV && PYQ_AV.show;
+          return { nav: !!img && img.getAttribute('src') === N[0],
+            all8: !!sh && O.every((o, i) => sh(o) === N[i]),
+            keep: !!sh && sh(J) === J && sh('https://thirdwx.qlogo.cn/a/b/132') === 'https://thirdwx.qlogo.cn/a/b/132' && N.every(n => sh(n) === n) && sh('') === '' };
+        }, [OLD, NEW, JPG]).catch(e => ({ err: e.message })));
+        out.patch1 = p2._reqs.filter(x => /^(PATCH|PUT|POST) \/api\/me/.test(x)).length;
+        await p2._ctx.close();
+        /* ② 个人中心：旧墨绿话筒（4）→ 头像显示现色 4，换头像浮层里恰好第 4 枚「已选中」；仍不发写请求 */
+        for (const [k, tag] of [[4, 'me4'], [7, 'me7']]) {
+          p2 = await dPage('me.html', { user: user(OLD[k]) });
+          await p2.waitForTimeout(400);
+          out[tag] = await p2.evaluate(async ([N, k2]) => {
+            const img = document.querySelector('#me-av img'); const src = img ? img.getAttribute('src') : '';
+            const av = document.getElementById('me-av'); if (av) av.click();
+            await new Promise(r2 => setTimeout(r2, 120));
+            const on = [...document.querySelectorAll('#av-mask .av-opt.on')].map(e => +e.dataset.i);
+            const m = document.getElementById('av-mask'); if (m) m.remove();
+            return { img: src === N[k2], on: on.length === 1 && on[0] === k2, onList: on.join(',') };
+          }, [NEW, k]).catch(e => ({ err: e.message }));
+          out[tag].writes = p2._reqs.filter(x => /^(PATCH|PUT|POST) \/api\/me/.test(x)).length;
+          await p2._ctx.close();
+        }
+        /* ③ 自定义上传图原样：头像 src 不变、浮层无「已选中」 */
+        p2 = await dPage('me.html', { user: user(JPG) });
+        await p2.waitForTimeout(400);
+        out.jpg = await p2.evaluate(async J => { const img = document.querySelector('#me-av img'); const ok = !!img && img.getAttribute('src') === J;
+          document.getElementById('me-av').click(); await new Promise(r2 => setTimeout(r2, 120));
+          const n = document.querySelectorAll('#av-mask .av-opt.on').length; return ok && n === 0; }, JPG).catch(() => false);
+        await p2._ctx.close();
+        const ok = out.sane && out.nav && out.all8 && out.keep && out.patch1 === 0 && ['me4', 'me7'].every(t => out[t].img && out[t].on && out[t].writes === 0) && out.jpg;
+        T(ok, 'D3 v66.6 账号里的旧预设头像显示为现色同款（顶栏 / 个人中心 / 换头像「已选中」，8 枚全映射），不改写存储，上传图与外链原样', JSON.stringify(out));
+      }
+
+      /* D4 语义 / 豁免小字对比度（实际合成色：祖先 opacity、半透明淡底、渐变首色标都算进去） */
+      {
+        const res = {}; const fails = [];
+        const need = (name, v, min) => { res[name] = v; if (!(v && v.cr >= min)) fails.push(name + '=' + (v ? v.cr : 'none')); };
+        for (const th of ['light', 'dark']) {
+          /* 待审琥珀角标（个人中心「审核中」）+ 工作台体检 ⚠ 计数：字 ≥4.5、仍是琥珀（色相 25–50°），描边仍是 --warn */
+          let p2 = await dPage('me.html', { theme: th, user: { id: 'u1', phone: '138****8888', nickname: '阿杜', role: 'creator', wx: false },
+            scores: [{ id: 'sc2', title: '待审', status: 'pending', updated_at: 1700000000 }] });
+          await p2.waitForTimeout(400);
+          const kw = await p2.evaluate(() => { const e = document.querySelector('.k-wait'); if (!e) return null; const v = __eff(e);
+            const tree = document.createElement('div'); tree.className = 'crs-tree'; tree.innerHTML = '<div class="crs-tch on"><span class="crs-tt">章</span><i class="crs-warn">⚠2</i></div>';
+            document.body.appendChild(tree); const w = __eff(tree.querySelector('.crs-warn')); tree.remove();
+            return Object.assign(v, { hue: __hue(v.fg), border: __pc(getComputedStyle(e).borderTopColor).slice(0, 3).map(Math.round).join(','), warn: __tokc('--warn').slice(0, 3).map(Math.round).join(','), crsWarn: w.cr, crsHue: __hue(w.fg) }); }).catch(() => null);
+          need(th + ' k-wait', kw, 4.5); need(th + ' crs-warn', kw && { cr: kw.crsWarn }, 4.5);
+          if (kw && !(kw.hue >= 25 && kw.hue <= 50 && kw.crsHue >= 25 && kw.crsHue <= 50 && kw.border === kw.warn)) fails.push(th + ' k-wait 琥珀/描边 ' + JSON.stringify(kw));
+          await p2._ctx.close();
+          /* 登录分隔「— 或 —」：首页登录弹窗 + 个人中心登录卡 */
+          p2 = await dPage('index.html', { theme: th });
+          await p2.evaluate(() => { const bt = document.getElementById('nav-login'); if (bt) bt.click(); }); await p2.waitForTimeout(200);
+          const or1 = await p2.evaluate(() => { const e = document.querySelector('.pyq-modal .lg-or'); const w = document.querySelector('.pyq-modal .lg-wx');
+            return e ? Object.assign(__eff(e), { wx: w ? getComputedStyle(w).backgroundColor + '|' + getComputedStyle(w).color : '' }) : null; }).catch(() => null);
+          need(th + ' lg-or(弹窗)', or1, 4.5);
+          if (or1 && or1.wx !== 'rgb(7, 193, 96)|rgb(255, 255, 255)') fails.push(th + ' 微信钮样式变了 ' + or1.wx);
+          await p2._ctx.close();
+          p2 = await dPage('me.html', { theme: th });
+          need(th + ' lg-or(登录卡)', await p2.evaluate(() => { const e = document.querySelector('.auth-card .lg-or'); return e && e.getBoundingClientRect().width ? __eff(e) : null; }).catch(() => null), 4.5);
+          await p2._ctx.close();
+          /* 课程页六章色：首章（解锁）逐个换 data-hue，章号胶囊 / 小节号（当前态 + 悬停）/ 星数；锁定章的章号 + 锁定小节号；空心星为图形 ≥3 */
+          for (const vp of [null, M390]) {
+            p2 = await dPage('kecheng.html?c=course-jianpu-renshi', { theme: th, vp });
+            const hues = await p2.evaluate(async () => {
+              const g = document.querySelector('.kcp-chg[data-lock="0"]'), gl = document.querySelector('.kcp-chg[data-lock="1"]'); if (!g || !gl) return null;
+              /* 展开首节、切到「练」页签：一周打卡格、页签计数、谱例「打开 →」都在这里 */
+              const s1 = g.querySelector('.kcs:not(.kcs--lock)'); if (s1 && !s1.classList.contains('is-open')) { s1.querySelector('.kcs-head').click(); await new Promise(r2 => setTimeout(r2, 60)); }
+              const tabs = s1 ? s1.querySelectorAll('.kcs-tab') : []; if (tabs[1]) { tabs[1].click(); await new Promise(r2 => setTimeout(r2, 60)); }
+              const o = [];
+              for (let h = 0; h < 6; h++) {
+                g.dataset.hue = h; gl.dataset.hue = h; await new Promise(r2 => requestAnimationFrame(r2));
+                const no = g.querySelector('.kcs--now .kcs-no') || g.querySelector('.kcs-no'), chno = g.querySelector('.kcp-chno'), star = g.querySelector('.kcp-chstar');
+                const em = g.querySelector('.kcs-stars em'), lchno = gl.querySelector('.kcp-chno'), lno = gl.querySelector('.kcs--lock .kcs-no');
+                const head = no.closest('.kcs-head'); head.style.background = 'var(--hover)'; const hov = __eff(no).cr; head.style.background = '';
+                const v = __eff(no);
+                /* 一周打卡格（未打卡灰字 + 打过卡的实心章色白字：往格子上临时加 .on）、选中页签计数、谱例「打开 →」 */
+                const wd = g.querySelector('.kcp-wd'), wdc = wd ? __eff(wd).cr : 0; let wdOn = 0;
+                if (wd) { const had = wd.classList.contains('on'); wd.classList.add('on'); wdOn = __eff(wd).cr; if (!had) wd.classList.remove('on'); }
+                const tn = g.querySelector('.kcs-tab[aria-selected="true"] .kcs-tabn'), go = g.querySelector('.lbs-go');
+                o.push({ h, no: Math.min(v.cr, hov), noHue: __hue(v.fg), kh: __hue(__tokc('--kh' + h)), chno: __eff(chno).cr, chnoHue: __hue(__eff(chno).fg),
+                  star: star ? __eff(star).cr : 9, em: em ? __eff(em).cr : 9, lchno: lchno ? __eff(lchno).cr : 0, lno: lno ? __eff(lno).cr : 9,
+                  wd: wdc, wdOn, tabn: tn ? __eff(tn).cr : 9, go: go ? __eff(go).cr : 9 });
+              }
+              const nb = document.querySelector('.kcp-nowno'); const nbv = nb && nb.getBoundingClientRect().width ? __eff(nb).cr : 9;
+              return { o, nb: nbv };
+            }).catch(e => ({ err: e.message }));
+            const tag = th + (vp ? '@390' : '');
+            if (!hues || !hues.o) { fails.push(tag + ' 课程页 ' + JSON.stringify(hues)); await p2._ctx.close(); continue; }
+            res[tag + ' hues'] = hues.o.map(x => x.h + ':' + [x.no, x.chno, x.star, x.em, x.lchno, x.lno, x.wd, x.wdOn, x.tabn, x.go].join('/')).join(' ') + ' nowno=' + hues.nb;
+            for (const x of hues.o) {
+              for (const k of ['no', 'chno', 'star', 'lchno', 'lno', 'wd', 'wdOn', 'tabn', 'go']) if (!(x[k] >= 4.5)) fails.push(tag + ' 章色' + x.h + ' ' + k + '=' + x[k]);
+              if (!(x.em >= 3)) fails.push(tag + ' 章色' + x.h + ' 空心星=' + x.em);
+              if (hueDist(x.noHue, x.kh) > 20 || hueDist(x.chnoHue, x.kh) > 20) fails.push(tag + ' 章色' + x.h + ' 色相偏 ' + x.noHue + '/' + x.chnoHue + ' vs ' + x.kh);
+            }
+            const hs = hues.o.map(x => x.noHue);
+            if (hs.some((a, i) => hs.some((c, j) => j > i && hueDist(a, c) < 15))) fails.push(tag + ' 六章色相未拉开 ' + hs.join(','));
+            if (!(hues.nb >= 4.5)) fails.push(tag + ' nowno=' + hues.nb);
+            await p2._ctx.close();
+          }
+          /* 七周闯关课的锁定卡：整卡仍淡化 + 虚线（锁定观感保留），卡内周次 / 说明 / 未解锁 合成后 ≥4.5，周次胶囊仍是靛紫 */
+          p2 = await dPage('kecheng.html?c=course-guitar-qimeng', { theme: th });
+          const lk = await p2.evaluate(() => { const c = document.querySelector('.kc-lock'); if (!c) return null; const cs = getComputedStyle(c);
+            const no = __eff(c.querySelector('.kc-no')), msg = __eff(c.querySelector('.kc-lockmsg')), tick = __eff(c.querySelector('.kc-tick'));
+            return { op: +cs.opacity, dash: cs.borderTopStyle, no: no.cr, noHue: __hue(no.fg), acc: __hue(__tokc('--accent')), msg: msg.cr, tick: tick.cr }; }).catch(() => null);
+          res[th + ' kc-lock'] = lk;
+          if (!lk) fails.push(th + ' 无锁定卡');
+          else {
+            for (const k of ['no', 'msg', 'tick']) if (!(lk[k] >= 4.5)) fails.push(th + ' kc-lock ' + k + '=' + lk[k]);
+            if (!(lk.op < 1 && lk.dash === 'dashed' && hueDist(lk.noHue, lk.acc) <= 20)) fails.push(th + ' 锁定观感/靛紫 ' + JSON.stringify(lk));
+          }
+          await p2._ctx.close();
+        }
+        /* 课程工作台「整节预览」：容器同时是 .kcp 与 .kc-detail，小节号取的 --fam-ink 必须是本课程族色（不是吉他靛紫）且 ≥4.5 */
+        for (const th of ['light', 'dark']) {
+          const pg2 = await mkPage(true, 'kcadmin.html', { width: 1440, height: 950 }, 'admin');
+          await pg2.evaluate(CU + DCU).catch(() => {});
+          const pv = await pg2.evaluate(async t => {
+            document.documentElement.dataset.theme = t;
+            await new Promise(r2 => setTimeout(r2, 250));
+            const row = [...document.querySelectorAll('#ad-pane [data-edit]')].find(b2 => b2.closest('.ad-row').textContent.includes('认识简谱'));
+            if (!row) return { noRow: true }; row.click(); await new Promise(r2 => setTimeout(r2, 400));
+            const tab = document.getElementById('crs-mode-pv'); if (!tab) return { noTab: true }; tab.click(); await new Promise(r2 => setTimeout(r2, 250));
+            const box = document.querySelector('.crs-pvbody'), no = box && box.querySelector('.kcs-no'); if (!no) return { noNo: true };
+            const v = __eff(no); return { fam: box.dataset.fam, cr: v.cr, hue: __hue(v.fg), want: __hue(__tokc('--fam-' + box.dataset.fam)) };
+          }, th).catch(e => ({ err: e.message }));
+          res[th + ' 工作台预览'] = pv;
+          if (!(pv && pv.cr >= 4.5 && pv.want >= 0 && hueDist(pv.hue, pv.want) <= 20)) fails.push(th + ' 工作台预览小节号 ' + JSON.stringify(pv));
+          await pg2.close();
+        }
+        /* 上面逐项实测走的是显式 data-theme；本版改动的令牌在 pyq.css 里浅 / 系统深 / 显式深三处块各写一遍——
+           钉住「系统深色＝显式深色」「系统深色 + 显式浅＝浅色」，免得日后只改一处块、系统深色用户看到旧值 */
+        {
+          const TK = ['--site-warn-ink', '--warn', '--star', '--star-off', '--kh0i', '--kh1i', '--kh2i', '--kh3i', '--kh4i', '--kh5i'];
+          const rd = async (scheme, theme) => { const p2 = await dPage('index.html', { scheme, theme });
+            const v = await p2.evaluate(ks => ks.map(k => getComputedStyle(document.documentElement).getPropertyValue(k).trim().toLowerCase()), TK).catch(() => []);
+            await p2._ctx.close(); return v.join(' '); };
+          const four = { sysDark: await rd('dark', ''), dark: await rd('light', 'dark'), sysDarkLight: await rd('dark', 'light'), light: await rd('light', 'light') };
+          res['令牌四态'] = four;
+          if (!(four.dark && four.sysDark === four.dark && four.sysDarkLight === four.light && four.light !== four.dark)) fails.push('令牌四态不一致 ' + JSON.stringify(four));
+        }
+        T(fails.length === 0, 'D4 v66.6 语义/豁免小字 ≥4.5（待审琥珀、登录「或」、六章色章号/小节号/星数/页签计数/打开/打卡格、锁定小节号、锁定卡周次/说明/未解锁、工作台预览小节号随课程族色；空心星图形 ≥3；浅+深+手机；改动令牌系统深＝显式深），语义色相保留，微信钮官方样式不动',
+          fails.length ? fails.slice(0, 8).join(' | ') : JSON.stringify(res).slice(0, 600));
+      }
+      /* D5 v66.6 主会话补：① 手机地址栏色跟随站内明暗——站内切主题后，当前 media 命中的 meta theme-color ＝ 新主题的 --chrome
+         （系统浅切深、系统深切浅、系统深+点切换钮各一次）；② 手机横滑筛选条：键盘聚焦到半露的 chip，滚进可视区（整枚可见） */
+      {
+        const out = {}; let ok = true;
+        const meta = p2 => p2.evaluate(() => { const ms = [...document.querySelectorAll('meta[name="theme-color"]')];
+          const m = ms.find(x => !x.getAttribute('media') || matchMedia(x.getAttribute('media')).matches);
+          return { meta: m && m.getAttribute('content').toLowerCase(), chrome: getComputedStyle(document.documentElement).getPropertyValue('--chrome').trim().toLowerCase() }; });
+        for (const [scheme, theme] of [['light', 'dark'], ['dark', 'light'], ['light', 'light'], ['dark', '']]) {
+          const p2 = await dPage('index.html', { scheme, theme }); await p2.waitForTimeout(80);
+          const v = await meta(p2); out[scheme + '+' + (theme || '系统')] = v; if (!(v.meta && v.meta === v.chrome)) ok = false;
+          if (scheme === 'dark' && !theme) {   /* 系统深 + 点站内切换钮 → 浅色 */
+            await p2.evaluate(() => document.getElementById('theme-btn').click()); await p2.waitForTimeout(80);
+            const v2 = await meta(p2); out['系统深+点钮'] = v2; if (!(v2.meta === v2.chrome && v2.chrome === '#161433')) ok = false;
+          }
+          await p2._ctx.close();
+        }
+        T(ok && out['light+dark'].meta === '#1c1a3d' && out['dark+light'].meta === '#161433',
+          'D5a v66.6 手机地址栏色跟随站内明暗（当前命中的 meta theme-color ＝ 新主题 --chrome；系统浅切深 / 系统深切浅 / 点切换钮）', JSON.stringify(out));
+        const p3 = await dPage('index.html', { vp: M390 }); await p3.waitForTimeout(300);
+        const r = await p3.evaluate(async () => {
+          const row = document.getElementById('lib-cats'); if (!row) return { noRow: true };
+          /* 桩数据谱种少，390 宽下不溢出：照最后一枚 chip 补克隆直到横向溢出（行为由 .chip-row 上的通用 focusin 处理，与 chip 来源无关） */
+          let guard = 0; while (row.scrollWidth <= row.clientWidth && guard++ < 12) { const c = row.querySelector('.fchip:last-of-type').cloneNode(true); c.removeAttribute('id'); c.dataset.clone = '1'; row.appendChild(c); }
+          const chips = [...row.querySelectorAll('.fchip')]; const R = el => el.getBoundingClientRect();
+          const rr = R(row); const half = chips.find(c => { const b2 = R(c); return b2.left < rr.right && b2.right > rr.right; }) || chips[chips.length - 1];
+          if (!half) return { noChip: true };
+          return { n: chips.length, overflow: row.scrollWidth > row.clientWidth, idx: chips.indexOf(half) };
+        });
+        let vis = null;
+        if (r && r.overflow && r.idx >= 0) {
+          await p3.evaluate(i => { const row = document.getElementById('lib-cats'); row.scrollLeft = 0; const c = row.querySelectorAll('.fchip')[i]; if (c.previousElementSibling) c.previousElementSibling.focus(); }, r.idx);
+          await p3.keyboard.press('Tab'); await p3.waitForTimeout(150);
+          vis = await p3.evaluate(() => { const row = document.getElementById('lib-cats'), a = document.activeElement; if (!a || !row.contains(a)) return { focusOut: true, tag: a && a.tagName };
+            const rr = row.getBoundingClientRect(), b2 = a.getBoundingClientRect(); return { left: Math.round(b2.left - rr.left), right: Math.round(rr.right - b2.right), sl: row.scrollLeft, fv: a.matches(':focus-visible') }; });
+        }
+        await p3._ctx.close();
+        T(!!(r && r.overflow && vis && !vis.focusOut && vis.fv && vis.left >= 0 && vis.right >= 0 && vis.sl > 0),
+          'D5b v66.6 手机横滑筛选条：键盘 Tab 聚焦到半露的 chip 自动滚进可视区（整枚可见）', JSON.stringify({ r, vis }));
+      }
+    }
   }
 
   console.log('PASS ' + pass + '/' + total);

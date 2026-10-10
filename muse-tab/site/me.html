@@ -192,7 +192,7 @@
     var AV_EDIT='<span class="av-edit"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13.5" r="3.5"/></svg></span>';
     var meAv=document.getElementById('me-av');
     function renderAv(){
-      var av=u.avatar||'', ch=esc((u.nickname||'谱').charAt(0));
+      var av=PYQ_AV.show(u.avatar||''), ch=esc((u.nickname||'谱').charAt(0));   /* v66.6 旧预设显示为现色同款（不改存储） */
       if(av && (av.slice(0,11)==='data:image/'||av.slice(0,4)==='http')){
         meAv.classList.add('has-img');
         meAv.innerHTML='<img src="'+esc(av)+'" alt="">'+AV_EDIT;
@@ -213,7 +213,7 @@
       mk.innerHTML='<div class="pyq-modal av-modal"><h3>更换头像</h3>'
         +'<p class="lg-sub">选一个预设，或上传本地图片（自动裁成正方形）</p>'
         +'<div class="av-grid">'+PYQ_AV.PRESETS.map(function(pv,i){
-          return '<button class="av-opt'+(u.avatar===pv?' on':'')+'" data-i="'+i+'"><img src="'+pv+'" alt=""></button>'; }).join('')+'</div>'
+          return '<button class="av-opt'+(PYQ_AV.show(u.avatar||'')===pv?' on':'')+'" data-i="'+i+'"><img src="'+pv+'" alt=""></button>'; }).join('')+'</div>'
         +'<div class="lg-msg" id="av-msg"></div>'
         +'<div class="av-actions"><button class="btn ghost" id="av-up" style="padding:9px 16px;font-size:13px">上传图片</button>'
         +'<input type="file" id="av-file" accept="image/jpeg,image/png,image/webp" hidden>'
