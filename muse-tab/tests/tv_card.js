@@ -28,12 +28,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   const t2 = await pg.evaluate(`(new Promise(res=>{
     loadSong(PRESETS[0].make());
     let xml=buildShareCardSVG();
-    const cs=getComputedStyle(document.documentElement);
-    xml=xml.replace(/var\\(--ink\\)/g,(cs.getPropertyValue('--ink')||'#141414').trim())
-      .replace(/var\\(--paper\\)/g,'#ffffff').replace(/var\\(--accent\\)/g,'#3a5ce0')
-      .replace(/var\\(--muted\\)/g,'#8a8a8a').replace(/var\\(--border\\)/g,'#e5e2dc')
-      .replace(/var\\(--danger\\)/g,'#e0483a').replace(/var\\(--font-num\\)/g,'serif')
-      .replace(/var\\(--font-ui\\)/g,'sans-serif');
+    xml=svgResolveVars(xml);   /* v66.5：走页面真实的印刷色表（原为测试自带的旧蓝/暖米替换表，与成品路径脱节） */
     const img=new Image();
     img.onload=()=>{ const cv=document.createElement('canvas'); cv.width=750; cv.height=1000;
       const g=cv.getContext('2d'); g.drawImage(img,0,0);

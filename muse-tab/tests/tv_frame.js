@@ -272,7 +272,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const fullCol = ld.height > innerHeight * 0.6 && rd.height > innerHeight * 0.6;
     const innerScroll = getComputedStyle(sw).overflowY === 'auto' && sw.scrollHeight > sw.clientHeight;
     sw.scrollTop = 180; const scrolled = sw.scrollTop > 100; sw.scrollTop = 0;
-    /* v40.8 左轨：无新建按钮、纯图标（文字隐去）、选中朱砂底。
+    /* v40.8 左轨：无新建按钮、纯图标（文字隐去）、选中强调色实底（v66.5 起断言改为版本无关：
+       背景＝:root --accent 的计算色，不再按「朱砂＝R 通道明显偏大」判色相——换品牌色不必再改这条）。
        读色前必须禁掉 .ltab 的过渡并强制回流：.ltab 带 transition:all .15s，
        class/主题刚切换时直接读计算样式会得到过渡起始值（纸白）而非终值——
        过渡何时启动因引擎而异，Chrome 149(CI chromium-1228) 实测在此读到起始值，
@@ -289,8 +290,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     void onEl.offsetWidth;
     const onBg = getComputedStyle(onEl).backgroundColor;
     noTr.remove();
-    const m = /rgba?\((\d+), (\d+), (\d+)/.exec(onBg);
-    const redOn = m && +m[1] > 150 && +m[1] > (+m[2] + 60) && +m[1] > (+m[3] + 60);
+    const probe = document.createElement('i'); probe.style.background = 'var(--accent)'; document.body.appendChild(probe);
+    const accBg = getComputedStyle(probe).backgroundColor; probe.remove();
+    const redOn = onBg === accBg && !/rgba\(0, 0, 0, 0\)/.test(onBg);
     document.getElementById('b-shell').click();   // → 经典
     const back = {
       bodyScroll: getComputedStyle(document.body).overflow !== 'hidden',
@@ -304,7 +306,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     && r.noNew && r.iconOnly && r.redOn
     && r.back.bodyScroll && r.back.centered && r.back.actHidden,
     'T16 通栏框架+图标轨', '贴边=' + (r.flushL && r.flushR) + ' 内滚=' + (r.innerScroll && r.scrolled)
-    + ' 纯图标=' + r.iconOnly + ' 朱砂选中=' + r.redOn + ' 经典还原=' + JSON.stringify(r.back));
+    + ' 纯图标=' + r.iconOnly + ' 强调选中=' + r.redOn + ' 经典还原=' + JSON.stringify(r.back));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

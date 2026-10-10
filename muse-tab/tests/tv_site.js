@@ -1430,6 +1430,242 @@ const BAD_COURSE = {
     await pg.close();
   }
 
+  /* ===== v66.5 全站换色 C「极光靛紫」（负责人拍板「用C方案」；官网 --danger 保持红、收藏心语义色不随品牌）=====
+     C1 令牌四态取值（系统浅/深 × 显式 light/dark）  C2 顶部导航＝深色框架（底色/字/当前项对比度）
+     C3 首页 + 考编页全页旧品牌色残留 0（朱砂/墨绿/暖米探针，红绿灯红点除外）  C4 --danger 仍为红且与 --warn 分得开
+     C5 主按钮实底白字 ≥4.5（两主题，不得渐变）  C6 各页 meta theme-color＝--chrome 两档
+     C7 官网 / 服务端模板源码无旧品牌色字面量（令牌块外）  C8 品牌位图 og.png / share-icon.png 已换靛紫 */
+  {
+    const C_LIGHT = { '--bg': '#f4f4f9', '--panel': '#ffffff', '--toolbar': '#f8f8fc', '--text': '#1b1a2e', '--muted': '#5c5b73',
+      '--faint': '#6a6981', '--border': '#e1e0ec', '--accent': '#5b4cf0', '--accent-ink': '#4a3ad6', '--btn-pri': '#5b4cf0',
+      '--focus': '#5b4cf0', '--chrome': '#161433', '--danger': '#c0392b', '--warn': '#b7791f', '--ok': '#157a43',
+      '--fam-p': '#2e62a3', '--fam-v': '#0e7380', '--fam-f': '#965a00', '--site-on-accent': '#fff', '--paper': '#fdfdff' };
+    const C_DARK = { '--bg': '#0f0f17', '--panel': '#1b1b28', '--toolbar': '#14141e', '--text': '#ecebf6', '--muted': '#a6a4c0',
+      '--faint': '#9392ae', '--border': '#2f2e44', '--accent': '#9384ff', '--accent-ink': '#b0a7ff', '--btn-pri': '#5b4cf0',
+      '--focus': '#a396ff', '--chrome': '#1c1a3d', '--danger': '#ef7060', '--warn': '#e5b45a', '--ok': '#30d158',
+      '--fam-p': '#7fb0ee', '--fam-v': '#48c3cf', '--fam-f': '#e8a838', '--site-on-accent': '#0e0d1d', '--paper': '#fdfdff' };
+    /* 页面内通用取色/对比度工具：兼容 rgb()/rgba() 与 color-mix 产出的 color(srgb …) */
+    const CU = `window.__pc=s=>{ let m=String(s).match(/color\\(srgb ([\\d.e-]+) ([\\d.e-]+) ([\\d.e-]+)(?: \\/ ([\\d.e-]+))?\\)/);
+        if(m) return [m[1]*255,m[2]*255,m[3]*255,m[4]==null?1:+m[4]];
+        m=String(s).match(/rgba?\\(([^)]+)\\)/); if(!m) return null; const p=m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number);
+        return [p[0],p[1],p[2],p.length>3?p[3]:1]; };
+      window.__ov=(top,under)=>{ const a=top[3]; return [0,1,2].map(i=>top[i]*a+under[i]*(1-a)).concat(1); };
+      window.__cr=(a,b2)=>{ const L=v=>{ const f=c=>{ c/=255; return c<=0.03928? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+        return 0.2126*f(v[0])+0.7152*f(v[1])+0.0722*f(v[2]); }; const l1=L(a), l2=L(b2);
+        return +((Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05)).toFixed(2); };
+      window.__tokc=n=>{ const d=document.createElement('div'); d.style.color='var('+n+')'; document.body.appendChild(d);
+        const c=getComputedStyle(d).color; d.remove(); return __pc(c); };`;
+    /* 自带路由：任何官网静态文件都从 SITE 目录出（考编页等不在 mkPage 白名单里），API 只给谱库种子 */
+    const cPage = async (page, scheme, theme, vp) => {
+      const ctx = await b.newContext({ viewport: vp || { width: 1280, height: 860 }, colorScheme: scheme || 'light' });
+      const p2 = await ctx.newPage(); const errs = []; p2.on('pageerror', e => errs.push(e.message));
+      await p2.route('**/*', route => {
+        const u = new URL(route.request().url()); const p = u.pathname;
+        if (u.hostname !== 'www.puyouquan.com') return route.fulfill({ status: 200, body: '' });
+        if (p === '/api/pub/scores') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ scores: seed }) });
+        if (/^\/api\/pub\/[A-Za-z0-9_-]+\/thumb$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/png', body: PNG1 });
+        if (p.startsWith('/api/')) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+        const f = p === '/' ? 'index.html' : p.slice(1);
+        if (/\.png$/.test(f)) { const fp = P.join(SITE, f); return fs.existsSync(fp) ? route.fulfill({ status: 200, contentType: 'image/png', body: fs.readFileSync(fp) }) : route.fulfill({ status: 404, body: '' }); }
+        const ct = /\.css$/.test(f) ? 'text/css' : /\.js$/.test(f) ? 'application/javascript' : 'text/html; charset=utf-8';
+        return route.fulfill({ status: 200, contentType: ct, body: read(f) });
+      });
+      try { await p2.goto(SITE_URL(page)); } catch (e) { errs.push('goto ' + e.message); }
+      await p2.waitForTimeout(500);
+      await p2.evaluate(t => { try { localStorage.removeItem('musetab-theme'); } catch (_) {}
+        if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }, theme || '').catch(() => {});
+      await p2.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}.rv{opacity:1!important;transform:none!important}' }).catch(() => {});
+      await p2.evaluate(CU).catch(() => {});
+      await p2.waitForTimeout(150);
+      p2._errs = errs; p2._ctx = ctx; return p2;
+    };
+    const tokOf = (p2, names) => p2.evaluate(ns => Object.fromEntries(ns.map(n => [n,
+      getComputedStyle(document.documentElement).getPropertyValue(n).trim().toLowerCase()])), names).catch(() => ({}));
+
+    /* C1 令牌四态 */
+    {
+      const names = Object.keys(C_LIGHT);
+      const states = [['light', '', C_LIGHT, '系统浅'], ['light', 'dark', C_DARK, '系统浅+显式深'],
+        ['dark', '', C_DARK, '系统深'], ['dark', 'light', C_LIGHT, '系统深+显式浅']];
+      const bad = [];
+      for (const [sch, th, want, nm] of states) {
+        const p2 = await cPage('index.html', sch, th);
+        const got = await tokOf(p2, names);
+        for (const n of names) if (got[n] !== want[n]) bad.push(nm + ' ' + n + '=' + got[n] + '≠' + want[n]);
+        await p2._ctx.close();
+      }
+      T(bad.length === 0, 'C1 v66.5 令牌四态取值＝C「极光靛紫」（浅/深/系统深/系统深+显式浅）', bad.slice(0, 6).join('; ') || 'ok');
+    }
+
+    /* C2 顶部导航＝深色框架 */
+    {
+      const out = {};
+      for (const th of ['light', 'dark']) {
+        const p2 = await cPage('index.html', 'light', th);   // 首页＝菜单「找谱」为当前项
+        out[th] = await p2.evaluate(() => {
+          const nav = document.getElementById('nav'); if (!nav) return { nav: false };
+          const bg = __pc(getComputedStyle(nav).backgroundColor), page = __tokc('--bg'), chrome = __tokc('--chrome');
+          const solid = __ov(bg, page);
+          const brand = nav.querySelector('.brand'), on = nav.querySelector('#menu a.on'), off = nav.querySelector('#menu a:not(.on)');
+          const tb = document.getElementById('theme-btn'), lg = document.getElementById('nav-login');
+          const cOf = el => el ? __pc(getComputedStyle(el).color) : null;
+          const crOn = el => { if (!el) return 0; const cs = getComputedStyle(el); const b2 = __pc(cs.backgroundColor);
+            return __cr(__pc(cs.color), b2 && b2[3] > 0 ? __ov(b2, solid) : solid); };
+          return { nav: true, alpha: bg[3], mean: Math.round((solid[0] + solid[1] + solid[2]) / 3),
+            nearChrome: (e => Math.max(...[0, 1, 2].map(i => Math.abs(solid[i] - e[i]))) <= 3)(__ov(chrome.slice(0, 3).concat(0.96), page)),   // ＝chrome 96% 叠在画布上
+            brand: brand ? __cr(cOf(brand), solid) : 0, off: off ? __cr(cOf(off), solid) : 0, on: crOn(on),
+            theme: tb ? __cr(cOf(tb), solid) : 0, login: lg ? __cr(cOf(lg), solid) : 0,
+            line: getComputedStyle(nav).borderBottomColor };
+        });
+        await p2._ctx.close();
+      }
+      const ok = o => o.nav && o.alpha >= 0.9 && o.mean < 60 && o.nearChrome && o.brand >= 4.5 && o.off >= 4.5 && o.on >= 4.5 && o.theme >= 4.5 && o.login >= 4.5;
+      T(ok(out.light) && ok(out.dark), 'C2 v66.5 顶部导航并入深色框架（浅/深两主题底色≈--chrome、品牌字/菜单/当前项/明暗钮/登录钮 ≥4.5）', JSON.stringify(out));
+    }
+
+    /* C3 首页 + 考编页全页旧色残留 0（探针口径同方案 harness；红绿灯三点为语义保留） */
+    {
+      const PROBE = () => {
+        const hsl = ([r, g, b2]) => { r /= 255; g /= 255; b2 /= 255; const mx = Math.max(r, g, b2), mn = Math.min(r, g, b2), l = (mx + mn) / 2; let h = 0, s = 0;
+          if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b2) / d + (g < b2 ? 6 : 0) : mx === g ? (b2 - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; };
+        const cls = c => { const [h, s, l] = hsl(c); if ((h < 14 || h > 350) && s > .45 && l > .3 && l < .75) return 'cinnabar';
+          if (h > 145 && h < 180 && l < .3 && s > .15) return 'ink-green'; if (h > 33 && h < 56 && s > .12 && l > .84 && l < .985) return 'warm-cream'; return null; };
+        const hits = [];
+        for (const el of document.querySelectorAll('body *')) {
+          const rc = el.getBoundingClientRect(); if (!(rc.width > 0 && rc.height > 0)) continue;
+          if (el.closest('.shot .tbar, .window .tbar')) continue;          // macOS 红绿灯（语义保留）
+          for (const ps of ['', '::before', '::after']) {
+            const cs = getComputedStyle(el, ps || null);
+            if (ps && (cs.content === 'none' || cs.content === 'normal')) continue;
+            if (cs.visibility === 'hidden') continue;
+            for (const prop of ['color', 'backgroundColor', 'borderTopColor', 'borderBottomColor', 'fill', 'stroke']) {
+              if (prop.startsWith('border') && parseFloat(cs[prop.replace('Color', 'Width')]) === 0) continue;
+              if (prop === 'color' && !ps && !(el.childNodes.length && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))) continue;
+              const c = __pc(cs[prop]); if (!c || c[3] === 0) continue; const k = cls(c);
+              if (k) hits.push(k + ' ' + prop + ' ' + el.tagName.toLowerCase() + (el.className && el.className.baseVal == null ? '.' + String(el.className).split(' ')[0] : '') + ps);
+            }
+            const bi = cs.backgroundImage;
+            if (bi && bi !== 'none') for (const m of bi.match(/(rgba?|color)\([^)]+\)/g) || []) { const c = __pc(m); if (c && c[3] > 0 && cls(c)) hits.push(cls(c) + ' background-image ' + el.tagName.toLowerCase() + ps); }
+          }
+        }
+        return hits;
+      };
+      const res = {};
+      for (const pgName of ['index.html', 'kaobian.html']) for (const th of ['light', 'dark']) {
+        const p2 = await cPage(pgName, 'light', th);
+        res[pgName + ':' + th] = await p2.evaluate(PROBE).catch(e => ['ERR ' + e.message]);
+        await p2._ctx.close();
+      }
+      const all = Object.entries(res).flatMap(([k, v]) => v.map(x => k + ' ' + x));
+      T(all.length === 0, 'C3 v66.5 首页/考编页（浅+深，全页含伪元素）朱砂·墨绿·暖米旧色残留 0', all.slice(0, 6).join(' | ') || 'ok');
+    }
+
+    /* C4 --danger 仍为红（拍板：不随方案改琥珀），且与 --warn 色相拉开 ≥20° */
+    {
+      const out = {};
+      for (const th of ['light', 'dark']) {
+        const p2 = await cPage('index.html', 'light', th);
+        out[th] = await p2.evaluate(() => {
+          const hue = c => { const [r, g, b2] = c.map(x => x / 255); const mx = Math.max(r, g, b2), mn = Math.min(r, g, b2); if (mx === mn) return 0;
+            const d = mx - mn; let h = mx === r ? (g - b2) / d + (g < b2 ? 6 : 0) : mx === g ? (b2 - r) / d + 2 : (r - g) / d + 4; return Math.round(h * 60); };
+          const dg = __tokc('--danger'), wn = __tokc('--warn'), ac = __tokc('--accent');
+          const dist = (a, b2) => { const x = Math.abs(a - b2) % 360; return Math.min(x, 360 - x); };
+          return { danger: getComputedStyle(document.documentElement).getPropertyValue('--danger').trim(), hD: hue(dg), hW: hue(wn), dW: dist(hue(dg), hue(wn)), dA: dist(hue(dg), hue(ac)) };
+        });
+        await p2._ctx.close();
+      }
+      const red = o => (o.hD <= 15 || o.hD >= 345) && o.dW >= 20 && o.dA >= 60;
+      T(out.light.danger === '#c0392b' && out.dark.danger === '#ef7060' && red(out.light) && red(out.dark),
+        'C4 v66.5 官网 --danger 保持红（#c0392b / #ef7060），与待审 --warn 琥珀、靛紫强调色相分开', JSON.stringify(out));
+    }
+
+    /* C5 主按钮实底白字 ≥4.5（两主题；不得渐变——同 tv_b7a 口径） */
+    {
+      const out = {};
+      for (const th of ['light', 'dark']) {
+        const p2 = await cPage('index.html', 'light', th);
+        out[th] = await p2.evaluate(() => [...document.querySelectorAll('.btn:not(.ghost)')].filter(e => e.getBoundingClientRect().width > 0).map(e => {
+          const cs = getComputedStyle(e); const c = __pc(cs.color), bg = __pc(cs.backgroundColor);
+          return { white: c && c[0] === 255 && c[1] === 255 && c[2] === 255, img: cs.backgroundImage, cr: bg && bg[3] > 0 ? __cr(c, bg) : 0 }; }));
+        await p2._ctx.close();
+      }
+      const ok = a => a.length > 0 && a.every(x => x.white && x.img === 'none' && x.cr >= 4.5);
+      T(ok(out.light) && ok(out.dark), 'C5 v66.5 主按钮 --btn-pri 实底白字 ≥4.5:1（浅 + 深）', JSON.stringify({ light: out.light.slice(0, 3), dark: out.dark.slice(0, 3) }));
+    }
+
+    /* C6 各页 meta theme-color＝--chrome 两档（手机地址栏随深色框架） */
+    {
+      const PAGES = ['index.html', 'make.html', 'kecheng.html', 'kaobian.html', 'yikao.html', 'shifan.html', 'jixing.html', 'features.html',
+        'help.html', 'log.html', 'log-full.html', 'sponsors.html', 'me.html', 'admin.html', 'kcadmin.html', 'privacy.html', 'terms.html'];
+      const bad = [];
+      for (const f of PAGES) {
+        const h = read(f);
+        const l = h.match(/<meta name="theme-color" content="(#[0-9a-f]{6})" media="\(prefers-color-scheme: light\)">/i);
+        const d = h.match(/<meta name="theme-color" content="(#[0-9a-f]{6})" media="\(prefers-color-scheme: dark\)">/i);
+        if (!l || l[1].toLowerCase() !== C_LIGHT['--chrome'] || !d || d[1].toLowerCase() !== C_DARK['--chrome']) bad.push(f);
+      }
+      T(bad.length === 0, 'C6 v66.5 全部 ' + PAGES.length + ' 页 meta theme-color 浅 #161433 / 深 #1c1a3d（＝--chrome）', bad.join(',') || 'ok');
+    }
+
+    /* C7 源码层：令牌块外不得再出现旧品牌字面量（朱砂族 / 墨绿 / 暖米表面 / 旧蓝）。
+       白名单＝语义色：驳回红 --danger #c0392b 仅在令牌块、答错 --bad #b02f20 仅在令牌块、少儿章色 --kh* 不含这些值 */
+    {
+      const OLD = /#c33a29|#d24a37|#e2705d|#df5a45|#e86a55|#f08874|#1f3a34|#16281f|#f3f0e8|#fefdf9|#f7f4ec|#fbfaf5|#e4ddcd|#ece6d8|#6b6357|#746c5e|#20211d|#181a17|#262924|#3a5ce0|#faf8f4|#e5e2dc|#e6e2d8|#6b4a1a|rgba\(195, ?58, ?41|rgba\(246, ?243, ?234|rgba\(20, ?18, ?15|rgba\(80, ?65, ?40/i;
+      const css = read('pyq.css');
+      const cssBody = css.replace(/^[\s\S]*?\n:root\[data-theme="dark"\]\{[\s\S]*?\n\}\n/, '');   // 去掉文件头四态令牌块
+      const files = { 'pyq.css(令牌块外)': cssBody, 'pyq.js': read('pyq.js') };
+      for (const f of fs.readdirSync(SITE).filter(x => /\.html$/.test(x))) files[f] = read(f);
+      const srvP = P.resolve(__dirname, '../../api/server.js');
+      files['api/server.js'] = fs.existsSync(srvP) ? fs.readFileSync(srvP, 'utf8') : '';
+      const hits = Object.entries(files).map(([k, s]) => { const m = s.match(OLD); return m ? k + ':' + m[0] : ''; }).filter(Boolean);
+      const headOk = (css.match(/:root,:root\[data-theme="light"\]\{/) || []).length === 1 && /--chrome:#161433/.test(css) && /--chrome:#1c1a3d/.test(css);
+      T(hits.length === 0 && headOk, 'C7 v66.5 官网 + 服务端模板源码无旧品牌色字面量（令牌头四态唯一）', hits.join(' | ') || 'ok');
+    }
+
+    /* C8 品牌位图已换靛紫：og.png 顶条 / share-icon.png 左上角取色（尺寸不变） */
+    {
+      const p2 = await cPage('index.html', 'light', '');
+      r = await p2.evaluate(async () => {
+        const px = (src, pts) => new Promise(res => { const im = new Image(); im.onload = () => { const c = document.createElement('canvas');
+          c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+          res({ w: im.naturalWidth, h: im.naturalHeight, c: pts.map(([a, b2]) => [...x.getImageData(a, b2, 1, 1).data].slice(0, 3)) }); };
+          im.onerror = () => res({ w: 0, h: 0, c: [] }); im.src = src; });
+        return { og: await px('og.png', [[600, 4], [1180, 600]]), ic: await px('share-icon.png', [[2, 2], [256, 256]]) };
+      }).catch(e => ({ err: e.message }));
+      await p2._ctx.close();
+      const near = (c, h) => c && Math.max(...[0, 1, 2].map(i => Math.abs(c[i] - parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16)))) <= 6;
+      T(r.og && r.og.w === 1200 && r.og.h === 630 && near(r.og.c[0], '#5b4cf0') && near(r.og.c[1], '#fdfdff')
+        && r.ic && r.ic.w === 512 && r.ic.h === 512 && near(r.ic.c[0], '#5b4cf0') && r.ic.c[1] && r.ic.c[1][2] > r.ic.c[1][0] + 60,
+        'C8 v66.5 og.png（1200×630 顶条靛紫 / 冷白底）与 share-icon.png（512² 靛紫→蓝渐变）已重出', JSON.stringify(r));
+    }
+
+    /* C9 深色框架容器（顶栏 / CTA 横幅 / 课程工作台 toast）焦点环统一 --site-frame-focus；toast 撤销钮读框架强调字 ≥4.5；
+       SSR 课程页章号（淡底上的强调字）≥4.5 */
+    {
+      const out = {};
+      for (const th of ['light', 'dark']) {
+        const p2 = await cPage('kaobian.html', 'light', th);
+        await p2.keyboard.press('Tab');   // 键盘交互后 focus() 才走 :focus-visible
+        out[th] = await p2.evaluate(() => {
+          const d = document.createElement('div'); d.className = 'crs-toast'; d.innerHTML = '已删除 1 道题 <button type="button">撤销</button>'; document.body.appendChild(d);
+          const ring = sel => { const e = document.querySelector(sel); if (!e) return null; e.focus(); return getComputedStyle(e).outlineColor; };
+          const bt = d.querySelector('button'), tbg = __pc(getComputedStyle(d).backgroundColor);
+          return { frame: __tokc('--site-frame-focus').slice(0, 3).map(Math.round).join(','), nav: ring('#nav .brand'), cta: ring('.cta-band .btn'), toast: ring('.crs-toast button'),
+            toastCr: __cr(__pc(getComputedStyle(bt).color), tbg) };
+        });
+        await p2._ctx.close();
+      }
+      const L = h => { const f = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return 0.2126 * f(v[0]) + 0.7152 * f(v[1]) + 0.0722 * f(v[2]); };
+      const srv = fs.readFileSync(P.resolve(__dirname, '../../api/server.js'), 'utf8');
+      const no = (srv.match(/\.no\{[^}]*?color:(#[0-9a-f]{6});background:rgba\(91,76,240,\.10\)/i) || [])[1];
+      const bgc = '#' + [91, 76, 240].map((c, i) => Math.round(c * 0.1 + [244, 244, 249][i] * 0.9).toString(16).padStart(2, '0')).join('');   // 淡底叠在 --bg #f4f4f9
+      const noCr = no ? +((Math.max(L(no), L(bgc)) + 0.05) / (Math.min(L(no), L(bgc)) + 0.05)).toFixed(2) : 0;
+      const ok = o => ['nav', 'cta', 'toast'].every(k => o[k] && o[k].replace(/\s/g, '') === 'rgb(' + o.frame + ')') && o.toastCr >= 4.5;
+      T(ok(out.light) && ok(out.dark) && noCr >= 4.5, 'C9 v66.5 深色框架内焦点环＝--site-frame-focus（顶栏/CTA/toast）、toast 撤销钮 ≥4.5、SSR 课程章号 ≥4.5',
+        JSON.stringify({ out, no, noCr }));
+    }
+  }
+
   console.log('PASS ' + pass + '/' + total);
   await b.close();
   process.exit(pass === total ? 0 : 1);

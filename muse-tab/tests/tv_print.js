@@ -117,7 +117,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     T(res.every(x => x && x.cut === 0), 'T6 分享卡裁切落在完整系统下沿（无系统被拦腰截断）', JSON.stringify(res.map(x => x && (x.err || x.cut))));
     T(res.every(x => x && x.boxBottom <= 1000 - 130), 'T6b 谱框底边在页脚之上（不被页脚遮罩盖住）', JSON.stringify(res.map(x => x && x.boxBottom)));
     T(res.every(x => x && (x.qrText === null || x.qrText <= 1000 - 10)), 'T6c 二维码说明文字不贴底边', JSON.stringify(res.map(x => x && x.qrText)));
-    T(res.every(x => x && x.slogan && !x.old), 'T6d 卡片口号「专业曲谱平台」、朱砂渐变（旧口号与蓝紫色撤除）', JSON.stringify(res.map(x => x && [x.slogan, x.old])));
+    T(res.every(x => x && x.slogan && !x.old), 'T6d 卡片口号「专业曲谱平台」（旧口号与旧蓝紫 #6d5cff 撤除）', JSON.stringify(res.map(x => x && [x.slogan, x.old])));
     await pg.close();
   }
 

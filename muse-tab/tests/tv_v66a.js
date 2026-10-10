@@ -4,8 +4,10 @@
    T3 D7：手动放大到放不下 → #paper.paper-xs 可横向滚动，滚到底末小节线可见
    T4 非固定版宽预设不受影响：无 paper-tight、无 paper-xs，面板保持停靠
    T5 动效 / 材质开关：测试环境无 html.fx、有 html.noglass，--fx-pop=0ms；?fx=1 → html.fx 且 --fx-pop=340ms；?glass=1 → 无 noglass
-   T6 谱面令牌隔离层：#paper 的 --accent / --muted 与界面相同（零视觉变化，浅深两套）；改 :root --sc-pen 只改谱面不改界面
-   T7 打印：深色主题下打印，谱面刻版灰字回到浅色值 #6b6357（此前印成深色主题浅灰 #a89f90）
+   T6 谱面令牌隔离层：#paper 的 --accent / --muted / --border 取纸面常量（＝:root --ed-brand / --ed-print-muted / --ed-print-border），
+      浅深两主题相同（谱纸恒浅）、界面 #top 随主题变；改 :root --sc-pen 只改谱面不改界面
+      （v66.5 换色前本条断言「#paper 与界面相同」——那是 v66.0 零视觉变化期的过渡状态，v66.5 起谱面定纸面值）
+   T7 打印：深色主题下打印，谱面刻版灰字回到纸面值（＝--ed-print-muted，不是深色主题浅灰；v66.5 前期望值写死 #6b6357）
    T8 --font-chrome：按钮与顶栏字体＝正文字体（此版零变化）
    突变实证：对 v65.7 文件复跑，T1–T3、T5–T7 报红。 */
 const { chromium } = require('playwright');
@@ -59,15 +61,18 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   pg = await open(1440, 900);
   r = await pg.evaluate(() => { const v = (el, n) => getComputedStyle(el).getPropertyValue(n).trim(); const P = document.getElementById('paper'), R = document.documentElement, top = document.getElementById('top');
     const out = {}; for (const th of ['light', 'dark']) { R.dataset.theme = th; out[th] = { pa: v(P, '--accent'), ra: v(top, '--accent'), pm: v(P, '--muted'), rm: v(top, '--muted'), pb: v(P, '--border'), rb: v(top, '--border') }; }
+    out.k = { pen: v(R, '--ed-brand'), muted: v(R, '--ed-print-muted'), border: v(R, '--ed-print-border') };
     R.dataset.theme = 'light'; R.style.setProperty('--sc-pen', '#0071e3'); out.iso = { pa: v(P, '--accent'), ta: v(top, '--accent') }; R.style.removeProperty('--sc-pen'); return out; });
-  const same = (o) => o.pa === o.ra && o.pm === o.rm && o.pb === o.rb;
-  T(same(r.light) && same(r.dark) && r.dark.pa !== r.light.pa && r.iso.pa === '#0071e3' && r.iso.ta === r.light.ra, 'T6 谱面令牌隔离层：零视觉变化；改 --sc-pen 只动谱面', JSON.stringify(r));
+  const paperK = (o) => !!r.k.pen && o.pa === r.k.pen && o.pm === r.k.muted && o.pb === r.k.border;
+  T(paperK(r.light) && paperK(r.dark) && r.dark.ra !== r.light.ra && r.dark.rm !== r.light.rm && r.iso.pa === '#0071e3' && r.iso.ta === r.light.ra,
+    'T6 谱面令牌隔离层：谱面取纸面常量、两主题不漂移，界面随主题变；改 --sc-pen 只动谱面', JSON.stringify(r));
   /* T7 */
-  await pg.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+  const k7 = await pg.evaluate(() => { const R = document.documentElement; R.dataset.theme = 'dark'; const v = n => getComputedStyle(R).getPropertyValue(n).trim();
+    return { printMuted: v('--ed-print-muted'), darkMuted: v('--muted') }; });
   await pg.emulateMedia({ media: 'print' });
   r = await pg.evaluate(() => getComputedStyle(document.getElementById('paper')).getPropertyValue('--muted').trim());
   await pg.emulateMedia({ media: 'screen' });
-  T(r === '#6b6357', 'T7 深色主题打印：刻版灰字回浅色值', r);
+  T(!!k7.printMuted && r === k7.printMuted && r !== k7.darkMuted, 'T7 深色主题打印：刻版灰字回纸面值（--ed-print-muted）', JSON.stringify({ r, k7 }));
   /* T8 */
   r = await pg.evaluate(() => { document.documentElement.dataset.theme = 'light'; const f = el => getComputedStyle(el).fontFamily; return { body: f(document.body), btn: f(document.getElementById('b-new')), top: f(document.getElementById('top')) }; });
   T(r.body === r.btn && r.body === r.top, 'T8 --font-chrome 此版零变化', JSON.stringify(r));

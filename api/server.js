@@ -463,7 +463,7 @@ function pubSsrHtml(row, related, from) {
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">${jsonLd}</script>
 <style>
-:root{--ink:#141414;--muted:#8a8a8a;--accent:#3a5ce0;--paper:#faf8f4;--border:#e5e2dc}
+:root{--ink:#141414;--muted:#5c5b73;--accent:#5b4cf0;--paper:#fdfdff;--border:#e1e0ec}
 *{box-sizing:border-box}body{margin:0;font:16px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper)}
 .wrap{max-width:680px;margin:0 auto;padding:40px 20px;text-align:center}
 .brand{color:var(--muted);font-size:13px;letter-spacing:.1em}
@@ -551,7 +551,7 @@ function courseSsrHtml(row) {
 <meta property="og:site_name" content="谱友圈">
 <script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>
 <style>
-:root{--ink:#20211d;--muted:#6b6357;--accent:#c33a29;--bg:#f3f0e8;--panel:#fefdf9;--border:#e4ddcd}
+:root{--ink:#1b1a2e;--muted:#5c5b73;--accent:#5b4cf0;--bg:#f4f4f9;--panel:#ffffff;--border:#e1e0ec}
 *{box-sizing:border-box}body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg)}
 .wrap{max-width:760px;margin:0 auto;padding:38px 20px 60px}
 .crumbs{font-size:13px;color:var(--muted);margin-bottom:18px}.crumbs a{color:var(--muted)}
@@ -563,7 +563,7 @@ h1{font-size:30px;margin:.2em 0 .3em;letter-spacing:1px}
 .cta{display:inline-block;margin:0 0 30px;padding:13px 32px;border-radius:26px;background:var(--accent);color:#fff;text-decoration:none;font-weight:700}
 .ch{margin-bottom:26px}
 .ch h2{font-size:18px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
-.no{font-size:12px;font-weight:700;color:var(--accent);background:rgba(195,58,41,.10);border-radius:6px;padding:3px 9px}
+.no{font-size:12px;font-weight:700;color:#4a3ad6;background:rgba(91,76,240,.10);border-radius:6px;padding:3px 9px}
 .goal{font-size:14px;color:var(--muted);margin:0 0 10px}
 .secs{margin:0;padding-left:1.3em}.secs li{margin:.5em 0;font-size:14.5px}
 .secs b{font-weight:600}.secs .meta{font-size:12.5px;color:var(--muted);margin-left:10px}
@@ -596,14 +596,14 @@ function courseIndexHtml(rows) {
 <meta name="description" content="谱友圈官方自制课程，全部免费：认识简谱、民谣吉他启蒙、幼儿音乐启蒙——每个小节都是「学习 + 练习打卡 + 闯关测试」的完整闭环。">
 <link rel="canonical" href="${SITE_HOST}/course/">
 <style>
-body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#20211d;background:#f3f0e8}
+body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#1b1a2e;background:#f4f4f9}
 .wrap{max-width:720px;margin:0 auto;padding:38px 20px 60px}
 h1{font-size:26px;margin:.3em 0 1em}
 ul{list-style:none;margin:0;padding:0}
-li{background:#fefdf9;border:1px solid #e4ddcd;border-radius:12px;padding:15px 18px;margin-bottom:12px}
-a{color:#c33a29;text-decoration:none}a:hover{text-decoration:underline}
-b{font-size:17px}.m,.m2{display:block;font-size:13.5px;color:#6b6357}.m2{font-size:12.5px;margin-top:4px}
-.foot{margin-top:26px;font-size:13px;color:#6b6357}.foot a{color:#6b6357;margin-right:16px}
+li{background:#ffffff;border:1px solid #e1e0ec;border-radius:12px;padding:15px 18px;margin-bottom:12px}
+a{color:#5b4cf0;text-decoration:none}a:hover{text-decoration:underline}
+b{font-size:17px}.m,.m2{display:block;font-size:13.5px;color:#5c5b73}.m2{font-size:12.5px;margin-top:4px}
+.foot{margin-top:26px;font-size:13px;color:#5c5b73}.foot a{color:#5c5b73;margin-right:16px}
 </style></head><body><div class="wrap">
 <h1>学习课程（共 ${rows.length} 门）</h1>
 <ul>${items}</ul>
@@ -615,22 +615,22 @@ function pubCoverSvg(row) {
   const W = 1200, H = 630;
   const notes = p.cover.slice(0, 7);
   const cw = 120, x0 = W / 2 - (notes.length - 1) * cw / 2, cy = 400;
-  const dot = (cx, y, n) => Array.from({ length: n }, (_, i) => `<circle cx="${cx}" cy="${y + (y < cy ? -i * 14 : i * 14)}" r="4" fill="#3a5ce0"/>`).join('');
+  const dot = (cx, y, n) => Array.from({ length: n }, (_, i) => `<circle cx="${cx}" cy="${y + (y < cy ? -i * 14 : i * 14)}" r="4" fill="#5b4cf0"/>`).join('');
   const noteSvg = notes.map((c, i) => {
     const cx = x0 + i * cw;
     const up = (c.oct || 0) > 0 ? dot(cx, cy - 78, c.oct) : '';
     const dn = (c.oct || 0) < 0 ? dot(cx, cy + 20, -c.oct) : '';
-    const ly = c.ly ? `<text x="${cx}" y="${cy + 70}" font-size="30" fill="#8a8a8a" text-anchor="middle">${escHtml(c.ly)}</text>` : '';
+    const ly = c.ly ? `<text x="${cx}" y="${cy + 70}" font-size="30" fill="#5c5b73" text-anchor="middle">${escHtml(c.ly)}</text>` : '';
     return `${up}<text x="${cx}" y="${cy}" font-family="Georgia,serif" font-size="88" fill="#141414" text-anchor="middle">${escHtml(c.deg || 0)}</text>${dn}${ly}`;
   }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<rect width="${W}" height="${H}" fill="#faf8f4"/>
-<rect x="0" y="0" width="${W}" height="10" fill="#3a5ce0"/>
-<text x="${W / 2}" y="120" font-size="30" fill="#8a8a8a" text-anchor="middle" letter-spacing="6">谱友圈 · 谱库</text>
+<rect width="${W}" height="${H}" fill="#fdfdff"/>
+<rect x="0" y="0" width="${W}" height="10" fill="#5b4cf0"/>
+<text x="${W / 2}" y="120" font-size="30" fill="#5c5b73" text-anchor="middle" letter-spacing="6">谱友圈 · 谱库</text>
 <text x="${W / 2}" y="210" font-size="72" font-weight="700" fill="#141414" text-anchor="middle">${escHtml(p.title.slice(0, 16))}</text>
-<text x="${W / 2}" y="270" font-size="34" fill="#8a8a8a" text-anchor="middle">${escHtml((p.singer ? p.singer + ' 演唱 · ' : '') + p.typeCn + (p.nMea ? ' · ' + p.nMea + ' 小节' : ''))}</text>
+<text x="${W / 2}" y="270" font-size="34" fill="#5c5b73" text-anchor="middle">${escHtml((p.singer ? p.singer + ' 演唱 · ' : '') + p.typeCn + (p.nMea ? ' · ' + p.nMea + ' 小节' : ''))}</text>
 ${noteSvg}
-<text x="${W / 2}" y="580" font-size="28" fill="#3a5ce0" text-anchor="middle">扫码或点击 · 在线观看 / 移调 / 跟谱 · puyouquan.com</text>
+<text x="${W / 2}" y="580" font-size="28" fill="#5b4cf0" text-anchor="middle">扫码或点击 · 在线观看 / 移调 / 跟谱 · puyouquan.com</text>
 </svg>`;
 }
 
@@ -1413,14 +1413,14 @@ const routes = [
 <meta name="description" content="谱友圈谱库全部曲谱目录：吉他谱、钢琴谱、简谱、五线谱、尤克里里谱免费在线看，一键移调、跟谱播放。">
 <link rel="canonical" href="${PUB_CANON}/pub/">
 <style>
-body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#141414;background:#faf8f4}
+body{margin:0;font:16px/1.8 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#141414;background:#fdfdff}
 .wrap{max-width:760px;margin:0 auto;padding:36px 20px}
-.brand{color:#8a8a8a;font-size:13px;letter-spacing:.1em}
+.brand{color:#5c5b73;font-size:13px;letter-spacing:.1em}
 h1{font-size:24px;margin:.4em 0 1em}
 ul{list-style:none;margin:0;padding:0;columns:2;column-gap:28px}
-li{break-inside:avoid}a{color:#3a5ce0;text-decoration:none}a:hover{text-decoration:underline}
-.foot{margin-top:2.4em;padding-top:1.2em;border-top:1px solid #e5e2dc;font-size:13px;color:#8a8a8a}
-.foot a{color:#8a8a8a;margin-right:16px}
+li{break-inside:avoid}a{color:#5b4cf0;text-decoration:none}a:hover{text-decoration:underline}
+.foot{margin-top:2.4em;padding-top:1.2em;border-top:1px solid #e1e0ec;font-size:13px;color:#5c5b73}
+.foot a{color:#5c5b73;margin-right:16px}
 @media (max-width:560px){ul{columns:1}}
 </style></head><body><div class="wrap">
 <div class="brand">谱友圈 · 谱库</div>

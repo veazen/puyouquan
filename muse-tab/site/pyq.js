@@ -42,6 +42,7 @@ const ICONS = {
 window.PYQ_ICON = n => ICONS[n]||'';
 
 /* ---------- v58.9 头像系统：统一渲染器 + 8 枚预设（四族社色×2，SVG→base64 data URI） ----------
+   v66.5 预设随四族色重配（吉他靛紫 / 钢琴钢蓝 / 人声极光青 / 功能琥珀；浅→深渐变）。已存进账号的旧 data URI 原样保留。
    判定一条：avatar 非空即 <img>（data:/http: 均可，onerror 回退首字），为空即首字渐变圆。
    值只进 <img src> 属性（esc），绝不 innerHTML——SVG 在 img 上下文脚本惰性。 */
 window.PYQ_AV = (function(){
@@ -52,14 +53,14 @@ window.PYQ_AV = (function(){
     +'<circle cx="48" cy="48" r="48" fill="url(#g)"/>'
     +`<g transform="translate(26 26) scale(1.83)" fill="none" stroke="#fff" stroke-opacity=".95" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</g></svg>`;
   const P8=[
-    ['#d24a37','#c33a29','<path d="M11 20 q-3.4 -.6 -3.6 -3.4 q-.2 -2.4 2 -2.6 q2.2 -.2 2.4 2.2 L9.4 3.5 q-.4 -3 1.8 -3.3 q2 2 1.3 4.6 q-.6 2.6 -3.6 5.2 q-3.2 2.8 -3.2 5.6 q0 3.4 3.4 3.8 q3.4 .4 3.9 -2.6 q.4 -2.8 -2.2 -3.5"/>'],
-    ['#d24a37','#c33a29','<path d="m20 4-3.5 3.5"/><path d="M15.5 8.5 12 12"/><circle cx="8.5" cy="15.5" r="5.5"/><circle cx="8.5" cy="15.5" r="1.6"/>'],
-    ['#44688c','#33587a','<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v7M12 6v7M16 6v7"/>'],
-    ['#44688c','#33587a','<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'],
-    ['#3c7f5f','#2f6d4f','<rect x="9" y="3" width="6" height="10" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/>'],
-    ['#3c7f5f','#2f6d4f','<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="2"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="2"/>'],
-    ['#b98738','#a8762a','<path d="M9.5 3h5L18 20H6z"/><path d="M12 16.5L16.8 7"/><circle cx="16.8" cy="7" r="1.4"/>'],
-    ['#b98738','#a8762a','<path d="M9 3v7a3 3 0 0 0 6 0V3"/><path d="M12 13v7M9 20.5h6"/>'],
+    ['#6a5bf8','#5b4cf0','<path d="M11 20 q-3.4 -.6 -3.6 -3.4 q-.2 -2.4 2 -2.6 q2.2 -.2 2.4 2.2 L9.4 3.5 q-.4 -3 1.8 -3.3 q2 2 1.3 4.6 q-.6 2.6 -3.6 5.2 q-3.2 2.8 -3.2 5.6 q0 3.4 3.4 3.8 q3.4 .4 3.9 -2.6 q.4 -2.8 -2.2 -3.5"/>'],
+    ['#6a5bf8','#5b4cf0','<path d="m20 4-3.5 3.5"/><path d="M15.5 8.5 12 12"/><circle cx="8.5" cy="15.5" r="5.5"/><circle cx="8.5" cy="15.5" r="1.6"/>'],
+    ['#3f72b5','#2e62a3','<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 6v7M12 6v7M16 6v7"/>'],
+    ['#3f72b5','#2e62a3','<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'],
+    ['#1b8590','#0e7380','<rect x="9" y="3" width="6" height="10" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/>'],
+    ['#1b8590','#0e7380','<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="2"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="2"/>'],
+    ['#a76b0e','#965a00','<path d="M9.5 3h5L18 20H6z"/><path d="M12 16.5L16.8 7"/><circle cx="16.8" cy="7" r="1.4"/>'],
+    ['#a76b0e','#965a00','<path d="M9 3v7a3 3 0 0 0 6 0V3"/><path d="M12 13v7M9 20.5h6"/>'],
   ];
   const PRESETS = P8.map(a=>'data:image/svg+xml;base64,'+btoa(AV_SVG(a[0],a[1],a[2])));
   function html(u, cls){
