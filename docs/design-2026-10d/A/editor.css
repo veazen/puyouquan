@@ -1,0 +1,360 @@
+/* ================================================================
+   谱友圈编辑器 · 方向 A「深空蓝」色调方案（editor.css）
+   - 基于色调骨架 editor-skel.css：§1 四态令牌已换成深空蓝色板，§3 现色钉值已删除，
+     §2 派生令牌按公式跟随；末尾 §5 为本方案追加的「只改颜色」规则
+   - 适用：muse-tab/index.html（追加在页面全部 <style> 之后；同优先级后者胜）
+   - 只改颜色类属性，不动版式、尺寸、圆角、字体、字重；方案期文件，不进仓库
+   ================================================================ */
+
+
+/* ================= §1 四态令牌（设计师只改这里） =================
+   注意：--paper 只放 :root 与 data-theme="light" 两块、--ink 只放 :root（谱纸恒浅；与原文件同构——
+   打印分支 :root{--paper:#fff;--ink:#000} 只有 (0,1,0)，深色块或 [data-theme] 块若再写会在打印时盖掉白纸黑墨）。 */
+/* @@TOKENS-BEGIN */
+/* ---- 浅色（缺省） ---- */
+:root{
+  /* 表面（画布 < 栏 < 卡片）与谱纸：冷石板 + 纯白卡片 + 冷白谱纸 */
+  --bg:#f3f5f9; --toolbar:#f8fafc; --panel:#ffffff; --paper:#fcfdff; --ink:#141414;
+  --glass:rgba(248,250,252,.82); --hover:rgba(15,23,42,.05);
+  /* 文字：墨蓝黑 / 石板灰两级 */
+  --text:#0f172a; --muted:#475569; --faint:#5e6d82;
+  /* 描边 */
+  --border:#dde3ec; --border-soft:#e8ecf2;
+  --fill:var(--toolbar); --fill-2:var(--bg);
+  /* 强调：电光蓝 */
+  --accent:#2858f5; --accent-2:#2250ec; --accent-soft:rgba(40,88,245,.10); --accent-ink:#1d4ed8;
+  --btn-pri:#2858f5; --btn-pri-h:#1f4be6; --focus:#2858f5;
+  /* 品牌渐变：电光蓝 → 天青 → 深青 */
+  --grad-2:#1f86f2; --grad-3:#0098c4;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  /* 语义 */
+  --danger:#c8203f; --ok:#1d7a40; --ed-fav-star:#c33a29;
+  --ed-on-accent:#fff; --ed-on-btn:#fff; --ed-on-danger:#fff; --ed-danger-h:#a91a35;
+  /* 深色框架：深空海军蓝 */
+  --chrome:#0f1a30; --chrome-2:rgba(255,255,255,.10); --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e7edf7; --chrome-muted:#9eb0cc;
+  --ed-chrome-ov:255,255,255; --ed-chrome-edge:rgba(0,0,0,.30);
+  /* 谱面播放带：青（与电光蓝选中区分）；框架发丝线：一线蓝光 */
+  --play-band:#00a3cf; --glow:rgba(102,148,255,.22);
+  --bar-bg:var(--toolbar);
+}
+/* ---- 深色：系统深色且未显式选浅 ---- */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0b0f17; --toolbar:#0f141e; --panel:#151b27;
+  --glass:rgba(11,15,23,.78); --hover:rgba(255,255,255,.06);
+  --text:#e6ebf3; --muted:#9aa5b8; --faint:#8792a6;
+  --border:#283246; --border-soft:#1e2635;
+  --fill:var(--toolbar); --fill-2:var(--bg);
+  --accent:#6694ff; --accent-2:#82a8ff; --accent-soft:rgba(102,148,255,.16); --accent-ink:#8eb0ff;
+  --btn-pri:#3a68f2; --btn-pri-h:#2c58e0; --focus:#8eb0ff;
+  --grad-2:#3fa0ff; --grad-3:#22c7e6;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  --danger:#ff6f8e; --ok:#3ccf7e; --ed-fav-star:#df5a45;
+  --ed-on-accent:#06102a; --ed-on-btn:#fff; --ed-on-danger:#1c0710; --ed-danger-h:#ff86a0;
+  --chrome:#101b33; --chrome-2:rgba(255,255,255,.10); --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e7edf7; --chrome-muted:#9eb0cc;
+  --ed-chrome-ov:255,255,255; --ed-chrome-edge:rgba(0,0,0,.45);
+  --play-band:#00a3cf; --glow:rgba(102,148,255,.26);
+  --bar-bg:var(--toolbar);
+}}
+/* ---- 显式浅色 ---- */
+:root[data-theme="light"]{
+  --bg:#f3f5f9; --toolbar:#f8fafc; --panel:#ffffff; --paper:#fcfdff;
+  --glass:rgba(248,250,252,.82); --hover:rgba(15,23,42,.05);
+  --text:#0f172a; --muted:#475569; --faint:#5e6d82;
+  --border:#dde3ec; --border-soft:#e8ecf2;
+  --fill:var(--toolbar); --fill-2:var(--bg);
+  --accent:#2858f5; --accent-2:#2250ec; --accent-soft:rgba(40,88,245,.10); --accent-ink:#1d4ed8;
+  --btn-pri:#2858f5; --btn-pri-h:#1f4be6; --focus:#2858f5;
+  --grad-2:#1f86f2; --grad-3:#0098c4;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  --danger:#c8203f; --ok:#1d7a40; --ed-fav-star:#c33a29;
+  --ed-on-accent:#fff; --ed-on-btn:#fff; --ed-on-danger:#fff; --ed-danger-h:#a91a35;
+  --chrome:#0f1a30; --chrome-2:rgba(255,255,255,.10); --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e7edf7; --chrome-muted:#9eb0cc;
+  --ed-chrome-ov:255,255,255; --ed-chrome-edge:rgba(0,0,0,.30);
+  --play-band:#00a3cf; --glow:rgba(102,148,255,.22);
+  --bar-bg:var(--toolbar);
+}
+/* ---- 显式深色 ---- */
+:root[data-theme="dark"]{
+  --bg:#0b0f17; --toolbar:#0f141e; --panel:#151b27;
+  --glass:rgba(11,15,23,.78); --hover:rgba(255,255,255,.06);
+  --text:#e6ebf3; --muted:#9aa5b8; --faint:#8792a6;
+  --border:#283246; --border-soft:#1e2635;
+  --fill:var(--toolbar); --fill-2:var(--bg);
+  --accent:#6694ff; --accent-2:#82a8ff; --accent-soft:rgba(102,148,255,.16); --accent-ink:#8eb0ff;
+  --btn-pri:#3a68f2; --btn-pri-h:#2c58e0; --focus:#8eb0ff;
+  --grad-2:#3fa0ff; --grad-3:#22c7e6;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  --danger:#ff6f8e; --ok:#3ccf7e; --ed-fav-star:#df5a45;
+  --ed-on-accent:#06102a; --ed-on-btn:#fff; --ed-on-danger:#1c0710; --ed-danger-h:#ff86a0;
+  --chrome:#101b33; --chrome-2:rgba(255,255,255,.10); --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e7edf7; --chrome-muted:#9eb0cc;
+  --ed-chrome-ov:255,255,255; --ed-chrome-edge:rgba(0,0,0,.45);
+  --play-band:#00a3cf; --glow:rgba(102,148,255,.26);
+  --bar-bg:var(--toolbar);
+}
+/* §1b 主题无关常量＝浅色强调族与刻版灰（打印 / 导出预览 / 启动遮罩 / 音色加载条） */
+:root{
+  --ed-brand:#2858f5; --ed-brand-2:#1f86f2; --ed-brand-3:#0098c4; --ed-brand-ink:#1d4ed8; --ed-brand-soft:rgba(40,88,245,.10);
+  --ed-print-muted:#556173; --ed-print-faint:#5e6d82; --ed-print-border:#dde3ec; --ed-print-danger:#c8203f;
+}
+/* @@TOKENS-END */
+
+/* ================= §2 派生令牌（一处定义，随 §1 自动跟随；一般不用改） ================= */
+:root{
+  /* 谱面令牌隔离层（v66.0）：谱面只读 --sc-*；想让谱面编辑笔与界面强调分家时改这里 */
+  --sc-pen:var(--accent); --sc-pen-2:var(--accent-2); --sc-pen-soft:var(--accent-soft); --sc-pen-ink:var(--accent-ink);
+  --sc-muted:var(--muted); --sc-faint:var(--faint); --sc-border:var(--border); --sc-danger:var(--danger);
+  /* 框架上的各级字色（现色分得很碎：主栏钮 / 播放坞钮 / 标题 / 输入框各有一档暖米） */
+  --ed-chrome-title:var(--chrome-text);     /* Logo 字、文档页签悬停字、手机观看页轨名 */
+  --ed-chrome-btn:var(--chrome-text);       /* 主栏按钮字 */
+  --ed-dock-btn:var(--chrome-text);         /* 播放坞按钮字、小节格编号 */
+  --ed-chrome-hi:var(--chrome-text);        /* 主栏调号读数 #k-val */
+  --ed-chrome-chip:var(--chrome-text);      /* 观看页变调浮层夹位芯片 */
+  --ed-chrome-input:var(--chrome-text);     /* 播放坞速度/倍速/音色下拉 */
+  --ed-chrome-input-2:var(--chrome-text);   /* 手机观看页音色下拉 */
+  --ed-chrome-muted-2:var(--chrome-muted);  /* 播放坞标签、轨道组标、音量读数 */
+  --ed-chrome-muted-3:var(--chrome-muted);  /* 轨道小节格编号 */
+  --ed-chrome-accent:color-mix(in srgb,var(--accent) 30%,#fff);   /* 框架上的强调字（预设/谱库、当前小节号、循环格） */
+  --ed-chrome-pop:color-mix(in srgb,color-mix(in srgb,var(--chrome) 72%,#000) 96%,transparent);   /* 观看页深色浮层底 */
+  --ed-chrome-pill:var(--chrome);           /* 音色加载胶囊底 */
+  /* 表面 / 强调派生 */
+  --ed-halo:color-mix(in srgb,var(--accent) 7%,transparent);        /* body / 个人中心顶部径向光晕 */
+  --ed-accent-tint:color-mix(in srgb,var(--accent) 7%,transparent); /* 记谱法点亮钮、收纳弹窗当前项底 */
+  --ed-icon:var(--muted);                   /* 观看页头部幽灵图标 */
+  --ed-pop-shadow:rgba(0,0,0,.16);          /* 指板/键盘面板、编辑器变调浮层投影色 */
+  --ed-veil-line:color-mix(in srgb,var(--muted) 32%,transparent);  /* 启动遮罩五线 */
+  --ed-play-line:var(--play-band);          /* 播放竖线 #playline */
+  --ed-brand-grad:linear-gradient(96deg,var(--ed-brand) 0%,var(--ed-brand-2) 55%,var(--ed-brand-3) 110%);
+  --ed-invert-pen:var(--ed-brand-3);        /* 反色谱纸（#paper.score-invert）上的编辑笔 */
+  --ed-invert-pen-ink:color-mix(in srgb,var(--ed-brand-3) 72%,#fff);
+  --ed-pv-pen:var(--ed-brand); --ed-pv-pen-ink:var(--ed-brand-ink); --ed-pv-danger:var(--ed-print-danger);   /* 打印预览纸面 */
+}
+
+/* ================= §3 现色钉值（零变化专用：换肤时整段删除） =================
+   下列值＝现行写死字面量，钉住以保证套骨架后像素零差；删除后回落 §2 公式。 */
+/* @@PINS 已删除：§2 派生令牌按公式跟随 §1（方向 A 不保留现色钉值） */
+
+/* ================= §4 覆盖规则（热点 → 令牌；选择器与原规则同形，行号见 EDITOR-MAP.md） ================= */
+/* --- 光晕（L96-99 / L1096-1098） --- */
+@media screen{
+  body{background-image:radial-gradient(900px 360px at 50% -150px, var(--ed-halo), transparent 70%)}
+}
+#pcenter{background-image:radial-gradient(900px 360px at 50% -150px, var(--ed-halo), transparent 70%)}
+
+/* --- 文档页签条 doc-tabs（L1071-1092） --- */
+#doc-tabs{background-color:var(--chrome);border-bottom-color:var(--ed-chrome-edge);box-shadow:inset 0 -1px 0 var(--glow)}
+.dtab{background-color:rgba(var(--ed-chrome-ov),.07);color:var(--chrome-muted)}
+.dtab:not(.on):hover{background-color:rgba(var(--ed-chrome-ov),.14);color:var(--ed-chrome-title)}
+#dt-add{border-color:rgba(var(--ed-chrome-ov),.28);color:var(--chrome-muted)}
+#dt-add:hover{border-color:rgba(var(--ed-chrome-ov),.55)}
+
+/* --- 主栏 main-bar（L1237-1248） --- */
+body.shell #top .main-bar{background-color:var(--chrome);border-bottom-color:var(--ed-chrome-edge);box-shadow:inset 0 -1px 0 var(--glow)}
+body.shell .main-bar .logo{color:var(--ed-chrome-title)}
+body.shell .main-bar .logo small{color:var(--chrome-muted)}
+body.shell .main-bar button{color:var(--ed-chrome-btn);border-color:var(--chrome-line)}
+body.shell .main-bar button:hover{background-color:var(--chrome-2)}
+body.shell .main-bar .seg{background-color:rgba(var(--ed-chrome-ov),.06);border-color:var(--chrome-line)}
+body.shell .main-bar .seg-accent{color:var(--ed-chrome-accent)}
+body.shell .main-bar #k-val{color:var(--ed-chrome-hi)}
+
+/* --- 播放坞 mixer-dock（L1249-1267、L1356-1367） --- */
+body.shell #mixer-dock{background-color:var(--chrome);border-top-color:var(--ed-chrome-edge);box-shadow:inset 0 1px 0 var(--glow)}
+body.shell #mixer-dock button{color:var(--ed-dock-btn);border-color:var(--chrome-line)}
+body.shell #mixer-dock button:hover{background-color:var(--chrome-2)}
+body.shell #mixer-dock button:disabled{color:color-mix(in srgb,var(--ed-dock-btn) 40%,transparent)}
+body.shell .mx-splabel{color:var(--ed-chrome-muted-2)}
+body.shell #mx-prog{background-color:rgba(var(--ed-chrome-ov),.09);border-color:rgba(var(--ed-chrome-ov),.12)}
+body.shell .mxc{background-color:rgba(var(--ed-chrome-ov),.13)}
+body.shell .mxc span{color:var(--ed-dock-btn)}
+body.shell .mxc.cur span{color:var(--ed-chrome-accent)}
+body.shell #mixer-dock .mxc .f{background-color:rgba(var(--ed-chrome-ov),.22)}
+body.shell #i-tempo,body.shell #mx-rate{background-color:rgba(var(--ed-chrome-ov),.08);border-color:rgba(var(--ed-chrome-ov),.12);color:var(--ed-chrome-input)}
+body.shell .mx-grp{color:var(--ed-chrome-muted-2)}
+body.shell .mx-row .mx-nm{color:var(--chrome-text)}
+body.shell .mx-row:hover{background-color:rgba(var(--ed-chrome-ov),.05)}
+body.shell .mx-row select{background-color:rgba(var(--ed-chrome-ov),.08);border-color:rgba(var(--ed-chrome-ov),.14);color:var(--ed-chrome-input)}
+body.shell .mx-vol input{--mxtrk:rgba(var(--ed-chrome-ov),.22)}
+body.shell .mx-vol .vv{color:var(--ed-chrome-muted-2)}
+body.shell .mx-cells{background-color:rgba(var(--ed-chrome-ov),.07);border-color:rgba(var(--ed-chrome-ov),.12)}
+body.shell .mxtc{background-color:rgba(var(--ed-chrome-ov),.13)}
+body.shell .mxtc span{color:var(--ed-chrome-muted-3)}
+body.shell .mxtc.loop{background-color:color-mix(in srgb,var(--ed-chrome-accent) 28%,transparent)}
+body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accent)}
+
+/* --- 观看页深色浮层 .vh-pop：变调 #key-pop / 节拍器 #metro-pop / 拍速 #tempo-pop（L1568-1642、L1683-1688）
+       只写 #key-pop 一侧：#ekey-pop 是编辑器浅色版，原文件靠后续同权重规则改回浅色，这里不能盖回去 --- */
+.vh-pop{background-color:var(--ed-chrome-pop);border-color:rgba(var(--ed-chrome-ov),.14)}
+#key-pop .kp-row>b{color:var(--chrome-text)}
+#key-pop .kp-row>b small{color:color-mix(in srgb,var(--chrome-text) 60%,transparent)}
+#kp-orig-row{border-bottom-color:rgba(var(--ed-chrome-ov),.12)}
+#kp-orig-row small{color:color-mix(in srgb,var(--chrome-text) 66%,transparent)}
+#kp-orig-row b{color:var(--chrome-text)}
+#kp-reset{border-color:rgba(var(--ed-chrome-ov),.28);color:var(--chrome-text)}
+#kp-eq small{color:color-mix(in srgb,var(--chrome-text) 66%,transparent)}
+#kp-eq b{color:var(--chrome-text)}
+.kp-chip{border-color:rgba(var(--ed-chrome-ov),.16);color:var(--ed-chrome-chip)}
+#metro-pop .mp-row>small{color:color-mix(in srgb,var(--chrome-text) 66%,transparent)}
+#metro-pop small.mp-gap{color:color-mix(in srgb,var(--chrome-text) 66%,transparent)}
+#mp-head{border-bottom-color:rgba(var(--ed-chrome-ov),.12)}
+#mp-head>small{color:var(--chrome-text)}
+.mp-pill{border-color:rgba(var(--ed-chrome-ov),.28);color:var(--chrome-text)}
+.mp-sl input{background-image:linear-gradient(90deg,var(--accent) var(--p,44%),rgba(var(--ed-chrome-ov),.22) var(--p,44%))}
+.mp-sl b{color:var(--chrome-text)}
+.vh-pop .tp-nudge{border-color:rgba(var(--ed-chrome-ov),.2);background-color:rgba(var(--ed-chrome-ov),.08);color:var(--chrome-text)}
+.vh-pop .tp-nudge:active{background-color:rgba(var(--ed-chrome-ov),.2)}
+.vh-pop>b{color:var(--chrome-text)}
+.vh-pop>b small{color:color-mix(in srgb,var(--chrome-text) 60%,transparent)}
+#tempo-sl-wrap input{--mxtrk:rgba(var(--ed-chrome-ov),.22)}
+#tempo-sl-wrap b{color:var(--chrome-text)}
+
+/* --- 音色加载胶囊（L1962-1971） --- */
+#audio-loading{background-color:var(--ed-chrome-pill);color:var(--chrome-text);border-color:rgba(var(--ed-chrome-ov),.07)}
+#audio-loading .eq i{background-color:var(--ed-brand-3)}
+#audio-loading .eq i:nth-child(2){background-color:var(--ed-brand-2)}
+#audio-loading .eq i:nth-child(3){background-color:var(--ed-brand)}
+#audio-loading .eq i:nth-child(4){background-color:var(--ed-brand-2)}
+
+/* --- 启动遮罩（L2156-2168 内联 + JS；L1942-1951 类样式）——内联色只能 !important 兜底，落地建议直接改内联 --- */
+#boot-veil{background-color:var(--bg)!important}
+#boot-veil>span:first-child{background-image:var(--ed-brand-grad)!important}
+#bv-txt{color:var(--text)!important}
+#boot-veil .bv-staff i{background-color:var(--ed-veil-line)}
+#boot-veil .bv-staff b{background-color:var(--ed-brand)}
+#boot-veil .bv-staff b::after{background-color:var(--ed-brand)}
+#boot-veil .bv-staff b:nth-of-type(2){background-color:var(--ed-brand-2)}
+#boot-veil .bv-staff b:nth-of-type(2)::after{background-color:var(--ed-brand-2)}
+#boot-veil .bv-staff b:nth-of-type(3){background-color:var(--ed-brand-3)}
+#boot-veil .bv-staff b:nth-of-type(3)::after{background-color:var(--ed-brand-3)}
+
+/* --- 浅色表面上的写死色 --- */
+#viewerbar .vh-icons>*{color:var(--ed-icon)}                                   /* L1658 */
+#viewerbar .vh-icons #vw-fav.on{color:var(--ed-fav-star)}                      /* L1668 收藏星（语义色，不随品牌） */
+#viewerbar .vh-icons #vw-fav.on svg{fill:var(--ed-fav-star);stroke:var(--ed-fav-star)}
+.nlit.on{background-color:var(--ed-accent-tint)}                                /* L1807 */
+.popmenu .pickpop button.on{background-color:var(--ed-accent-tint)}            /* L1819 */
+#board-pane{box-shadow:0 10px 28px var(--ed-pop-shadow)}                       /* L1192 */
+#ekey-pop{box-shadow:0 10px 28px var(--ed-pop-shadow)}                         /* L1598 */
+/* 中性填充（原读 --toolbar / --bg） */
+.rc-h{background-color:var(--fill)}                                             /* L677 */
+.aitem .aic{background-color:var(--fill-2)}                                     /* L634 */
+.vc-prev{background-color:var(--fill)}                                          /* L953 */
+.sf-prev{background-color:var(--fill)}                                          /* L1417 */
+.legal .note{background-color:var(--fill)}                                      /* L762 */
+#layout-pop .lp-seg{background-color:var(--fill)}                              /* L1784 */
+
+/* --- 谱面：播放带 / 播放竖线 / 反色纸 / 打印预览纸（L9924-9926 SVG 属性、L735-737、L1759-1760） --- */
+#playhead{fill:var(--play-band)}
+#playline{stroke:var(--ed-play-line)}
+#paper.score-invert{--accent:var(--ed-invert-pen);--accent-ink:var(--ed-invert-pen-ink);--play-band:var(--accent);--ed-play-line:var(--accent)}
+#pv-pages{--accent:var(--ed-pv-pen);--accent-ink:var(--ed-pv-pen-ink);--danger:var(--ed-pv-danger)}
+
+/* --- 强调实底上的字色（40 处 color:#fff 写死；现值白字在深色主题 --accent #df5a45 上仅 3.69:1） --- */
+#editbar .eb.on,#editbar2 .eb.on{color:var(--ed-on-accent)}                    /* L108 */
+.seg button.seg-accent:hover{color:var(--ed-on-accent)}                         /* L165 */
+button.primary{color:var(--ed-on-accent)}                                       /* L172 */
+button.primary:hover{color:var(--ed-on-accent)}                                 /* L174 */
+.sp-grid button.on{color:var(--ed-on-accent)}                                   /* L294 */
+body.shell .ltab.on{color:var(--ed-on-accent)}                                  /* L359 */
+body.shell .ltab[data-act="new"]{color:var(--ed-on-accent)}                     /* L444 */
+body.shell .ltab.on:hover{color:var(--ed-on-accent)}                            /* L587 */
+body.shell .rtab[data-p="ai"]::before{color:var(--ed-on-accent)}                /* L603 */
+.fwide:hover{color:var(--ed-on-accent)}                                         /* L667 */
+.modal .step .n{color:var(--ed-on-accent)}                                      /* L789 */
+.hd-hero .lg{color:var(--ed-on-accent)}                                         /* L805 */
+.hd-step .n{color:var(--ed-on-accent)}                                          /* L810 */
+#standbar #sb-go{color:var(--ed-on-accent)}                                     /* L931 */
+#standbar button.primary{color:var(--ed-on-accent)}                             /* L935 */
+.vc-grid button.on{color:var(--ed-on-accent)}                                   /* L961 */
+.vc-grid button.on small{color:color-mix(in srgb,var(--ed-on-accent) 75%,transparent)}   /* L962 */
+.fb-c.on{color:var(--ed-on-accent)}                                             /* L971 */
+.nw-pill.on{color:var(--ed-on-accent)}                                          /* L993 */
+.pc-avatar{color:var(--ed-on-accent)}                                           /* L1165 */
+.mb-tag{color:var(--ed-on-accent)}                                              /* L1177 */
+.bp-seg button.on{color:var(--ed-on-accent)}                                    /* L1203 */
+#b-metro.on{color:var(--ed-on-accent)}                                          /* L1228 */
+body.shell .main-bar #b-member{color:var(--ed-on-accent)}                       /* L1245 */
+body.shell #mixer-dock #b-play{color:var(--ed-on-accent)}                       /* L1257 */
+body.shell #mixer-dock #b-metro.on{color:var(--ed-on-accent)}                   /* L1259 */
+.pf-chip.on{color:var(--ed-on-accent)}                                          /* L1385 */
+.cp-ops span:hover{color:var(--ed-on-accent)}                                   /* L1391 */
+#patedit-bar button.primary{color:var(--ed-on-accent)}                          /* L1403 */
+.kp-chip.on{color:var(--ed-on-accent)}                                          /* L1592 */
+.kp-chip.on i{color:var(--ed-on-accent)}                                        /* L1593 */
+#ekey-pop .kp-chip.on{color:var(--ed-on-accent)}                                /* L1612 */
+#ekey-pop .kp-chip.on i{color:var(--ed-on-accent)}                              /* L1613 */
+.mp-pill.on{color:var(--ed-on-accent)}                                          /* L1626 */
+#vs-zoom button.on{color:var(--ed-on-accent)}                                   /* L1679 */
+#pv-bar .pv-seg button.on{color:var(--ed-on-accent)}                            /* L1745 */
+#pv-bar #pv-print{color:var(--ed-on-accent)}                                    /* L1752 */
+#layout-pop .lp-seg button.on{color:var(--ed-on-accent)}                        /* L1787 */
+#layout-pop .lp-foot .prim{color:var(--ed-on-accent)}                           /* L1797 */
+#vs-nowrap.on{color:var(--ed-on-accent)}                                        /* L1911 */
+/* JS 生成 SVG 里压在强调圆/键上的白字：属性选择器够得着（CSS fill 优先于 fill 属性） */
+svg.cdg text[fill="#fff"]{fill:var(--ed-on-accent)}                            /* L13718 和弦图式创建器指位数字 */
+#bp-body text[fill="#fff"]{fill:var(--ed-on-accent)}                           /* L18459 / L18508 指板/键盘点亮音名 */
+
+/* --- 手机断点（与原文件同断点、同顺序重申，保证同权重规则的先后关系不变） --- */
+@media(max-width:820px){
+  body.shell:not(.stand):not(.viewer) #mixer-dock{border-top-color:rgba(var(--ed-chrome-ov),.09)}   /* L2114 */
+}
+@media (max-width:640px){   /* L1721-1728 手机观看页音轨面板 */
+  body.viewer .mx-tracks{border-bottom-color:rgba(var(--ed-chrome-ov),.10)}
+  body.viewer .mx-row{background-color:rgba(var(--ed-chrome-ov),.07)}
+  body.viewer .mx-row:hover{background-color:rgba(var(--ed-chrome-ov),.10)}
+  body.viewer .mx-grp{color:var(--ed-chrome-muted-2)}
+  body.viewer .mx-row .mx-nm{color:var(--ed-chrome-title)}
+  body.viewer .mx-row select{background-color:rgba(var(--ed-chrome-ov),.08);border-color:rgba(var(--ed-chrome-ov),.14);color:var(--ed-chrome-input-2)}
+}
+
+/* --- 打印（L2038-2041）：必须排在 §1/§2 与上面的 #paper.score-invert 之后 --- */
+@media print{
+  :root{--paper:#fff;--ink:#000;
+    --sc-muted:var(--ed-print-muted);--sc-faint:var(--ed-print-faint);--sc-border:var(--ed-print-border);
+    --sc-pen:var(--ed-brand);--sc-pen-2:var(--ed-brand-2);--sc-pen-soft:var(--ed-brand-soft);--sc-pen-ink:var(--ed-brand-ink);--sc-danger:var(--ed-print-danger)}
+  #paper.score-invert{--accent:var(--ed-brand);--accent-ink:var(--ed-brand-ink);--danger:var(--ed-print-danger)}
+}
+
+/* ================= §5 方向 A 追加（只改颜色；选择器与原规则同形或更高） ================= */
+/* 主按钮实底读 --btn-pri（深色主题 #3a68f2，白字 4.73）；强调实底读 --accent（深色主题提亮到 #6694ff，
+   字改深海军 --ed-on-accent）——两者分开，避免深色主题主按钮出现深字 */
+button.primary,button.primary:hover{color:var(--ed-on-btn)}                     /* L172 / L174 */
+.seg button.seg-accent:hover{color:var(--ed-on-btn)}                             /* L165 */
+
+/* 危险实底上的字：浅色白字；深色主题 --danger 提亮为玫红 #ff6f8e，字改深色 */
+.dtab .dt-x:hover{color:var(--ed-on-danger)}                                     /* L1089 */
+.mx-btn.mute.on{color:var(--ed-on-danger)}                                       /* L1313 */
+#mixer-dock .mx-btn.mute.on{color:var(--ed-on-danger)}                           /* L1321 */
+#mixer-dock .mx-btn.mute.on:hover{background-color:var(--ed-danger-h);color:var(--ed-on-danger)}   /* L1323 原 #e2574a：浅色加深 / 深色提亮 */
+
+/* 框架上的焦点环：电光蓝在海军蓝上仅 3.14:1 → 改冰蓝 --ed-chrome-accent（11:1），仍为 2px 实色（tv_b7a T2） */
+#doc-tabs :focus-visible,body.shell #top .main-bar :focus-visible,body.shell #mixer-dock :focus-visible{outline-color:var(--ed-chrome-accent)}
+
+/* §5b（审查修订）谱纸两主题恒浅 → 谱面编辑笔与刻版灰取「浅纸值」，不随深色主题漂移。
+   原方案深色主题下谱面读界面深色令牌：页头「作曲：/儿歌」、小节号 #9aa5b8 压冷白谱纸仅 2.4:1，
+   光标/选区笔 #6694ff 压谱纸 2.9:1（图形 <3）。这正是 v66.0 --sc-* 隔离层的预留用途（L77 注释）。
+   浅色主题取值与原方案逐值相同＝零变化；包在 @media screen 内，打印仍由 print 分支定值；反色纸自带令牌不受影响。
+   落地须同步改 tv_v66a T6（原断言「#paper 内外 --accent/--muted 相等」是 v66.0 零变化脚手架断言）。 */
+@media screen{
+  :root{--sc-pen:var(--ed-brand);--sc-pen-2:#2250ec;--sc-pen-soft:var(--ed-brand-soft);--sc-pen-ink:var(--ed-brand-ink);
+    --sc-muted:#475569;--sc-faint:var(--ed-print-faint);--sc-border:var(--ed-print-border);--sc-danger:var(--ed-print-danger)}
+  /* 打印预览纸（L1757–1760）：中性灰 #6e6e73/#c9c9cf/#e6e6e9 是 Apple 改版遗留，改与打印刻版灰同值 */
+  #pv-pages{--muted:var(--ed-print-muted);--border:var(--ed-print-border);--border-soft:#e8ecf2}
+  /* 反色纸（L735）只重定了 --muted/--border，--faint 落回谱面浅纸值 #5e6d82，压深纸 #17181a 仅 3.37 → 补一档冷灰 6.97 */
+  #paper.score-invert{--faint:#9aa3b0}
+}
+
+/* §5c（审查修订）深色主题：框架上的主行动（个人中心、▶ 播放、节拍器开）改读 --btn-pri 实底 + 白字。
+   原方案读提亮后的 --accent #6694ff + 深海军字，压在海军蓝框架上发粉、像禁用态，且与 button.primary、
+   官网「开始制谱」（都是 #3a68f2 白字）不是同一支蓝。左轨选中等「状态」仍用提亮实底，与「行动」分层。 */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) body.shell .main-bar #b-member,
+  :root:not([data-theme="light"]) body.shell #mixer-dock #b-play,
+  :root:not([data-theme="light"]) body.shell #mixer-dock #b-metro.on{background-color:var(--btn-pri);color:var(--ed-on-btn)}
+}
+:root[data-theme="dark"] body.shell .main-bar #b-member,
+:root[data-theme="dark"] body.shell #mixer-dock #b-play,
+:root[data-theme="dark"] body.shell #mixer-dock #b-metro.on{background-color:var(--btn-pri);color:var(--ed-on-btn)}

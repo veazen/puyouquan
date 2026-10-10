@@ -1,0 +1,191 @@
+/* ================================================================
+   谱友圈官网 · 色调骨架（site-skel.css）
+   - 适用：muse-tab/site/ 全部页面（pyq.css + 页面内联 <style>）
+   - 用法：追加在 pyq.css 与页面内联样式之后；只改颜色类属性，不动版式/尺寸/圆角/字体
+   - 令牌值＝现行「素材配色」现色 → 套上后零视觉变化；换色只改下方令牌块（浅/深两份）
+   - 与编辑器骨架同名约定：--chrome* / --fill* / --play-band / --glow / --grad-2 / --grad-3
+   - 官网独有令牌一律 --site- 前缀（见 SITE-MAP.md）
+   ================================================================ */
+
+/* @@TOKENS-BEGIN */
+/* ---- 浅色（两态：系统浅色 + 显式 data-theme="light"） ---- */
+:root,:root[data-theme="light"]{
+  /* 表面 */
+  --bg:#f3f0e8; --panel:#fefdf9; --toolbar:#f7f4ec; --paper:#fbfaf5; --ink:#141414;
+  --glass:rgba(251,250,245,.82); --hover:rgba(80,65,40,.06);
+  /* 文字 */
+  --text:#20211d; --muted:#6b6357; --faint:#746c5e;
+  /* 描边 */
+  --border:#e4ddcd; --border-soft:#ece6d8;
+  /* 中性填充（替代暖米字面量 / 轨道底） */
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  /* 强调 */
+  --accent:#c33a29; --accent-2:#d24a37; --accent-3:#e2705d;
+  --accent-soft:rgba(195,58,41,.10); --accent-ink:#b02f20;
+  --btn-pri:#c33a29; --btn-pri-h:#b02f20; --focus:#c33a29;
+  --grad-2:#d24a37; --grad-3:#e2705d;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  /* 深色框架（CTA 横幅 / 课程工作台 toast） */
+  --chrome:#1f3a34;
+  --chrome-2:rgba(246,243,234,.12);
+  --chrome-line:color-mix(in srgb,var(--chrome) 70%,var(--border-soft));
+  --chrome-text:#f6f3ea;
+  --chrome-muted:rgba(246,243,234,.72);
+  /* 微光 / 播放带（官网暂无播放高亮带，保留同名） */
+  --glow:transparent;
+  --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
+  /* 状态（语义） */
+  --danger:#c0392b; --warn:#b7791f;
+  --ok:#1d7a40; --ok-soft:rgba(29,122,64,.10);
+  --bad:#b02f20; --bad-soft:rgba(176,47,32,.09);
+  --star:#8f6a1e; --star-off:#c4b9a0;
+  /* 谱类四族（分类色；--fam-g 跟随强调色） */
+  --fam-g:var(--accent); --fam-p:#33587a; --fam-v:#2f6d4f; --fam-f:#a8762a; --fam-on:#fff;
+  --fam-g-ink:var(--btn-pri); --fam-p-ink:#33587a; --fam-v-ink:#2f6d4f; --fam-f-ink:#8a6410;
+  /* 官网独有 */
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 82%,var(--accent));
+  --site-on-chrome-line:rgba(246,243,234,.4);
+  --site-toast-text:#f2efe6;
+  --site-code-bg:#20241f; --site-code-text:#e8e4d8; --site-code-muted:#9aa08f;
+  --site-scrim:rgba(20,18,15,.42);
+  --site-free:#2f9e57;
+  --site-paper-muted:#6b6357; --site-paper-fill:rgba(20,20,20,.05);
+  --site-paper-line:rgba(20,20,20,.1); --site-paper-raise:#fff;
+  --site-log-line:#e6e2d8;
+}
+/* ---- 深色（两态：系统深色未显式选浅 + 显式 data-theme="dark"）——两块内容保持一致 ---- */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#181a17; --panel:#262924; --toolbar:#1e211d; --paper:#fbfaf5; --ink:#141414;
+  --glass:rgba(24,26,23,.78); --hover:rgba(255,255,255,.06);
+  --text:#edefe8; --muted:#a89f90; --faint:#9a9284;
+  --border:#3b3e37; --border-soft:#33362f;
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  --accent:#df5a45; --accent-2:#e86a55; --accent-3:#f08874;
+  --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
+  --btn-pri:#c33a29; --btn-pri-h:#b02f20; --focus:#ef8471;
+  --grad-2:#e86a55; --grad-3:#f08874;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  --chrome:#16281f;
+  --chrome-2:rgba(246,243,234,.12);
+  --chrome-line:color-mix(in srgb,var(--chrome) 70%,var(--border-soft));
+  --chrome-text:#f6f3ea;
+  --chrome-muted:rgba(246,243,234,.72);
+  --glow:transparent;
+  --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
+  --danger:#ef7060; --warn:#e5b45a;
+  --ok:#6fc98d; --ok-soft:rgba(111,201,141,.14);
+  --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
+  --star:#e5b45a; --star-off:#565a50;
+  --fam-g:var(--accent); --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a; --fam-on:#181a17;
+  --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 82%,var(--accent));
+  --site-on-chrome-line:rgba(246,243,234,.4);
+  --site-toast-text:#f2efe6;
+  --site-code-bg:#20241f; --site-code-text:#e8e4d8; --site-code-muted:#9aa08f;
+  --site-scrim:rgba(20,18,15,.42);
+  --site-free:#2f9e57;
+  --site-paper-muted:#6b6357; --site-paper-fill:rgba(20,20,20,.05);
+  --site-paper-line:rgba(20,20,20,.1); --site-paper-raise:#fff;
+  --site-log-line:#e6e2d8;
+}}
+:root[data-theme="dark"]{
+  --bg:#181a17; --panel:#262924; --toolbar:#1e211d; --paper:#fbfaf5; --ink:#141414;
+  --glass:rgba(24,26,23,.78); --hover:rgba(255,255,255,.06);
+  --text:#edefe8; --muted:#a89f90; --faint:#9a9284;
+  --border:#3b3e37; --border-soft:#33362f;
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  --accent:#df5a45; --accent-2:#e86a55; --accent-3:#f08874;
+  --accent-soft:rgba(223,90,69,.16); --accent-ink:#ef8471;
+  --btn-pri:#c33a29; --btn-pri-h:#b02f20; --focus:#ef8471;
+  --grad-2:#e86a55; --grad-3:#f08874;
+  --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
+  --chrome:#16281f;
+  --chrome-2:rgba(246,243,234,.12);
+  --chrome-line:color-mix(in srgb,var(--chrome) 70%,var(--border-soft));
+  --chrome-text:#f6f3ea;
+  --chrome-muted:rgba(246,243,234,.72);
+  --glow:transparent;
+  --play-band:color-mix(in srgb,var(--accent) 12%,transparent);
+  --danger:#ef7060; --warn:#e5b45a;
+  --ok:#6fc98d; --ok-soft:rgba(111,201,141,.14);
+  --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
+  --star:#e5b45a; --star-off:#565a50;
+  --fam-g:var(--accent); --fam-p:#7ea6c9; --fam-v:#6fae8b; --fam-f:#cfa05a; --fam-on:#181a17;
+  --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 82%,var(--accent));
+  --site-on-chrome-line:rgba(246,243,234,.4);
+  --site-toast-text:#f2efe6;
+  --site-code-bg:#20241f; --site-code-text:#e8e4d8; --site-code-muted:#9aa08f;
+  --site-scrim:rgba(20,18,15,.42);
+  --site-free:#2f9e57;
+  --site-paper-muted:#6b6357; --site-paper-fill:rgba(20,20,20,.05);
+  --site-paper-line:rgba(20,20,20,.1); --site-paper-raise:#fff;
+  --site-log-line:#e6e2d8;
+}
+/* @@TOKENS-END */
+
+/* ================================================================
+   覆盖规则：把写死热点改读令牌（只动颜色类属性；选择器同 pyq.css 或更高特异性）
+   页面内联 <style>（make.html / log-full.html）的覆盖统一加 body 前缀，
+   并入 pyq.css 后仍能压过在其之后加载的内联块。
+   ================================================================ */
+
+/* H1 pyq.css:50 页面顶部光晕 */
+body{background-image:radial-gradient(1200px 500px at 50% -180px,var(--site-halo),transparent 70%)}
+
+/* H2 pyq.css:236–242 CTA 横幅（深色框架区）：底、描边、标题/正文、幽灵钮 + 可选微光层（默认透明） */
+.cta-band{background-image:radial-gradient(520px 260px at 86% 0%,var(--glow),transparent 72%),
+    linear-gradient(120deg,var(--chrome),var(--site-cta-end));
+  border-color:var(--chrome-line)}
+.cta-band h2{color:var(--chrome-text)}
+.cta-band p{color:var(--chrome-muted)}
+.cta-band .btn.ghost{color:var(--chrome-text);border-color:var(--site-on-chrome-line)}
+.cta-band .btn.ghost:hover{background-color:var(--chrome-2)}
+
+/* H3 pyq.css:1677–1680 课程工作台 toast（深色框架） */
+.crs-toast{background-color:var(--chrome);color:var(--site-toast-text)}
+.crs-toast button{color:var(--accent-2)}
+
+/* H4 pyq.css:650/666/698 描边强调钮 hover 洗色（原写死朱砂 rgba，两主题同值 → 读 --btn-pri） */
+.cr-badge:hover{background-color:color-mix(in srgb,var(--btn-pri) 9%,transparent)}
+.me-gocr:hover,.me-goad:hover{background-color:color-mix(in srgb,var(--btn-pri) 8%,transparent)}
+
+/* H5 pyq.css:669–674 创作者中心定位脉冲（同名 @keyframes 后者覆盖） */
+@keyframes crFlash{
+  0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--btn-pri) 42%,transparent); border-color:var(--accent)}
+  70%{box-shadow:0 0 0 9px color-mix(in srgb,var(--btn-pri) 0%,transparent); border-color:var(--accent)}
+  100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--btn-pri) 0%,transparent)}
+}
+
+/* H6 pyq.css:308 登录/弹窗遮罩（暖黑） */
+.pyq-mask{background-color:var(--site-scrim)}
+
+/* H7 pyq.css:286 谱卡「免费」价签 */
+.cc-price.free{color:var(--site-free)}
+
+/* H8 pyq.css:1447–1450 课程内容「代码块」深底 */
+.lb-code{background-color:var(--site-code-bg)}
+.lb-code figcaption{color:var(--site-code-muted)}
+.lb-code code{color:var(--site-code-text)}
+
+/* H9 中性填充：谱种 chip 静底、进度轨道、打卡周格、进度环底、章进度条 */
+.fchip{background-color:var(--fill)}
+.kc-bar{background-color:var(--fill-2)}
+.kcp-wd{background-color:var(--fill-2)}
+.kcp-ring .kcr-bg{stroke:var(--fill-2)}
+.kcp-chbar{background-color:color-mix(in srgb,var(--fam) 14%,var(--fill-2))}
+
+/* H10 make.html:31–34 三记谱法演示窗（坐在常亮谱纸 --paper 上，两主题同值） */
+body .window .demo-head .cap{color:var(--site-paper-muted)}
+body .window .seg{background-color:var(--site-paper-fill);border-color:var(--site-paper-line)}
+body .window .seg button{color:var(--site-paper-muted)}
+body .window .seg button.on{background-color:var(--site-paper-raise);color:var(--accent)}
+
+/* H11 log-full.html:14 完整更新日志分隔线（原 var(--line,#e6e2d8)：--line 未定义，走暖米兜底） */
+body .logfull li{border-bottom-color:var(--site-log-line)}

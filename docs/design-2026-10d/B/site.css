@@ -1,0 +1,231 @@
+/* ================================================================
+   谱友圈官网 · 方案 B「石墨青」（由 skel/site-skel.css 生成，见 B/gen.py）
+   - 适用：muse-tab/site/ 全部页面（pyq.css + 页面内联 <style>）
+   - 用法：追加在 pyq.css 与页面内联样式之后；只改颜色类属性，不动版式/尺寸/圆角/字体
+   - 令牌值＝方案 B「石墨青」（与编辑器同名令牌同值，色板说明见 B/palette.md）；末尾 H12–H15 为本方案增补的只改颜色规则
+   - 与编辑器骨架同名约定：--chrome* / --fill* / --play-band / --glow / --grad-2 / --grad-3
+   - 官网独有令牌一律 --site- 前缀（见 SITE-MAP.md）
+   ================================================================ */
+
+/* @@TOKENS-BEGIN（方案 B · 石墨青） */
+/* ---- 浅色（两态：系统浅色 + 显式 data-theme="light"） ---- */
+:root,:root[data-theme="light"]{
+  --bg:#eff2f4; --panel:#ffffff; --toolbar:#f6f8f9; --paper:#fcfdfd; --ink:#141414;
+  --glass:rgba(252,253,253,.82); --hover:rgba(16,36,52,.06);
+  --text:#12171c; --muted:#525c67; --faint:#5a6570;
+  --border:#d8dee3; --border-soft:#e4e8ec;
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  --accent:#08788a; --accent-2:#06697a; --accent-3:#12a59a;
+  --accent-soft:rgba(8,120,138,.10); --accent-ink:#055a68;
+  --btn-pri:#08788a; --btn-pri-h:#066574; --focus:#08788a;
+  --grad-2:#0a8390; --grad-3:#0a888a;
+  --grad:linear-gradient(96deg,var(--accent-2) 0%,var(--accent) 50%,var(--grad-3) 110%);
+  --grad-text:var(--grad);
+  --chrome:#171b21;
+  --chrome-2:rgba(255,255,255,.10);
+  --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e6eaee;
+  --chrome-muted:#9ba6b1;
+  --glow:rgba(103,227,240,.16);
+  --play-band:var(--accent);
+  --danger:#c2410c; --warn:#b7791f;
+  --ok:#127a3a; --ok-soft:rgba(18,122,58,.10);
+  --bad:#b02f20; --bad-soft:rgba(176,47,32,.09);
+  --star:#8f6a1e; --star-off:#c3c9d0;
+  --fam-g:var(--accent); --fam-p:#4656b8; --fam-v:#7a4bb0; --fam-f:#a3367f; --fam-on:#fff;
+  --fam-g-ink:var(--btn-pri); --fam-p-ink:#4656b8; --fam-v-ink:#7a4bb0; --fam-f-ink:#a3367f;
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 80%,var(--btn-pri));
+  --site-on-chrome-line:rgba(230,234,238,.4);
+  --site-toast-text:#e6eaee;
+  --site-chrome-accent:#67e3f0;
+  --site-nav-bg:rgba(23,27,33,.94);   /* 审查修订：顶部导航＝石墨框架（写成 rgba，不依赖 color-mix，老浏览器也不会退回浅色毛玻璃而浅字压浅底） */
+  --site-nav-on:rgba(103,227,240,.12);
+  --site-on-accent:#fff;
+  --site-code-bg:#11151a; --site-code-text:#dce3ea; --site-code-muted:#8e9aa6;
+  --site-scrim:rgba(8,12,16,.45);
+  --site-free:#127a3a;
+  --site-paper-muted:#525c67; --site-paper-pen:#08788a; --site-paper-fill:rgba(15,25,35,.05);
+  --site-paper-line:rgba(15,25,35,.1); --site-paper-raise:#fff;
+  --site-log-line:var(--border-soft);
+}
+/* ---- 深色（两态：系统深色未显式选浅 + 显式 data-theme="dark"）——两块内容保持一致 ---- */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1215; --panel:#1a1f25; --toolbar:#14181c; --paper:#fcfdfd; --ink:#141414;
+  --glass:rgba(15,18,21,.78); --hover:rgba(255,255,255,.06);
+  --text:#e4e9ee; --muted:#9aa5b1; --faint:#8d98a4;
+  --border:#2c333b; --border-soft:#232930;
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  --accent:#2bc8dc; --accent-2:#5ad5e5; --accent-3:#4fdcc4;
+  --accent-soft:rgba(43,200,220,.14); --accent-ink:#74dcea;
+  --btn-pri:#087a8c; --btn-pri-h:#066776; --focus:#5ad5e5;
+  --grad-2:#0a8390; --grad-3:#0a888a;
+  --grad:linear-gradient(96deg,var(--btn-pri-h) 0%,var(--btn-pri) 50%,var(--grad-3) 110%);
+  --grad-text:linear-gradient(96deg,var(--accent) 0%,#38d3c9 55%,#5fe0bb 110%);
+  --chrome:#22282f;
+  --chrome-2:rgba(255,255,255,.10);
+  --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e6eaee;
+  --chrome-muted:#9ba6b1;
+  --glow:rgba(103,227,240,.16);
+  --play-band:var(--accent);
+  --danger:#ff8f57; --warn:#e5b45a;
+  --ok:#4ade80; --ok-soft:rgba(74,222,128,.14);
+  --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
+  --star:#e5b45a; --star-off:#3d454e;
+  --fam-g:var(--accent); --fam-p:#9ea9f2; --fam-v:#c09ced; --fam-f:#f0a3d4; --fam-on:#0f1215;
+  --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 80%,var(--btn-pri));
+  --site-on-chrome-line:rgba(230,234,238,.4);
+  --site-toast-text:#e6eaee;
+  --site-chrome-accent:#67e3f0;
+  --site-nav-bg:rgba(34,40,47,.94);   /* 审查修订：顶部导航＝石墨框架（写成 rgba，不依赖 color-mix，老浏览器也不会退回浅色毛玻璃而浅字压浅底） */
+  --site-nav-on:rgba(103,227,240,.12);
+  --site-on-accent:#04181c;
+  --site-code-bg:#0a0d10; --site-code-text:#dce3ea; --site-code-muted:#8e9aa6;
+  --site-scrim:rgba(8,12,16,.45);
+  --site-free:#4ade80;
+  --site-paper-muted:#525c67; --site-paper-pen:#08788a; --site-paper-fill:rgba(15,25,35,.05);
+  --site-paper-line:rgba(15,25,35,.1); --site-paper-raise:#fff;
+  --site-log-line:var(--border-soft);
+}}
+:root[data-theme="dark"]{
+  --bg:#0f1215; --panel:#1a1f25; --toolbar:#14181c; --paper:#fcfdfd; --ink:#141414;
+  --glass:rgba(15,18,21,.78); --hover:rgba(255,255,255,.06);
+  --text:#e4e9ee; --muted:#9aa5b1; --faint:#8d98a4;
+  --border:#2c333b; --border-soft:#232930;
+  --fill:color-mix(in srgb,var(--text) 5%,transparent);
+  --fill-2:var(--border-soft);
+  --accent:#2bc8dc; --accent-2:#5ad5e5; --accent-3:#4fdcc4;
+  --accent-soft:rgba(43,200,220,.14); --accent-ink:#74dcea;
+  --btn-pri:#087a8c; --btn-pri-h:#066776; --focus:#5ad5e5;
+  --grad-2:#0a8390; --grad-3:#0a888a;
+  --grad:linear-gradient(96deg,var(--btn-pri-h) 0%,var(--btn-pri) 50%,var(--grad-3) 110%);
+  --grad-text:linear-gradient(96deg,var(--accent) 0%,#38d3c9 55%,#5fe0bb 110%);
+  --chrome:#22282f;
+  --chrome-2:rgba(255,255,255,.10);
+  --chrome-line:rgba(255,255,255,.12);
+  --chrome-text:#e6eaee;
+  --chrome-muted:#9ba6b1;
+  --glow:rgba(103,227,240,.16);
+  --play-band:var(--accent);
+  --danger:#ff8f57; --warn:#e5b45a;
+  --ok:#4ade80; --ok-soft:rgba(74,222,128,.14);
+  --bad:#ef8471; --bad-soft:rgba(239,132,113,.15);
+  --star:#e5b45a; --star-off:#3d454e;
+  --fam-g:var(--accent); --fam-p:#9ea9f2; --fam-v:#c09ced; --fam-f:#f0a3d4; --fam-on:#0f1215;
+  --fam-g-ink:var(--fam-g); --fam-p-ink:var(--fam-p); --fam-v-ink:var(--fam-v); --fam-f-ink:var(--fam-f);
+  --site-halo:color-mix(in srgb,var(--accent) 7%,transparent);
+  --site-cta-end:color-mix(in srgb,var(--chrome) 80%,var(--btn-pri));
+  --site-on-chrome-line:rgba(230,234,238,.4);
+  --site-toast-text:#e6eaee;
+  --site-chrome-accent:#67e3f0;
+  --site-nav-bg:rgba(34,40,47,.94);   /* 审查修订：顶部导航＝石墨框架（写成 rgba，不依赖 color-mix，老浏览器也不会退回浅色毛玻璃而浅字压浅底） */
+  --site-nav-on:rgba(103,227,240,.12);
+  --site-on-accent:#04181c;
+  --site-code-bg:#0a0d10; --site-code-text:#dce3ea; --site-code-muted:#8e9aa6;
+  --site-scrim:rgba(8,12,16,.45);
+  --site-free:#4ade80;
+  --site-paper-muted:#525c67; --site-paper-pen:#08788a; --site-paper-fill:rgba(15,25,35,.05);
+  --site-paper-line:rgba(15,25,35,.1); --site-paper-raise:#fff;
+  --site-log-line:var(--border-soft);
+}
+/* @@TOKENS-END */
+
+/* ================================================================
+   覆盖规则：把写死热点改读令牌（只动颜色类属性；选择器同 pyq.css 或更高特异性）
+   页面内联 <style>（make.html / log-full.html）的覆盖统一加 body 前缀，
+   并入 pyq.css 后仍能压过在其之后加载的内联块。
+   ================================================================ */
+
+/* H1 pyq.css:50 页面顶部光晕 */
+body{background-image:radial-gradient(1200px 500px at 50% -180px,var(--site-halo),transparent 70%)}
+
+/* H2 pyq.css:236–242 CTA 横幅（深色框架区）：底、描边、标题/正文、幽灵钮 + 可选微光层（默认透明） */
+.cta-band{background-image:radial-gradient(520px 260px at 86% 0%,var(--glow),transparent 72%),
+    linear-gradient(120deg,var(--chrome),var(--site-cta-end));
+  border-color:var(--chrome-line)}
+.cta-band h2{color:var(--chrome-text)}
+.cta-band p{color:var(--chrome-muted)}
+.cta-band .btn.ghost{color:var(--chrome-text);border-color:var(--site-on-chrome-line)}
+.cta-band .btn.ghost:hover{background-color:var(--chrome-2)}
+
+/* H3 pyq.css:1677–1680 课程工作台 toast（深色框架） */
+.crs-toast{background-color:var(--chrome);color:var(--site-toast-text)}
+.crs-toast button{color:var(--accent-2)}
+
+/* H4 pyq.css:650/666/698 描边强调钮 hover 洗色（原写死朱砂 rgba，两主题同值 → 读 --btn-pri） */
+.cr-badge:hover{background-color:color-mix(in srgb,var(--btn-pri) 9%,transparent)}
+.me-gocr:hover,.me-goad:hover{background-color:color-mix(in srgb,var(--btn-pri) 8%,transparent)}
+
+/* H5 pyq.css:669–674 创作者中心定位脉冲（同名 @keyframes 后者覆盖） */
+@keyframes crFlash{
+  0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--btn-pri) 42%,transparent); border-color:var(--accent)}
+  70%{box-shadow:0 0 0 9px color-mix(in srgb,var(--btn-pri) 0%,transparent); border-color:var(--accent)}
+  100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--btn-pri) 0%,transparent)}
+}
+
+/* H6 pyq.css:308 登录/弹窗遮罩（暖黑） */
+.pyq-mask{background-color:var(--site-scrim)}
+
+/* H7 pyq.css:286 谱卡「免费」价签 */
+.cc-price.free{color:var(--site-free)}
+
+/* H8 pyq.css:1447–1450 课程内容「代码块」深底 */
+.lb-code{background-color:var(--site-code-bg)}
+.lb-code figcaption{color:var(--site-code-muted)}
+.lb-code code{color:var(--site-code-text)}
+
+/* H9 中性填充：谱种 chip 静底、进度轨道、打卡周格、进度环底、章进度条 */
+.fchip{background-color:var(--fill)}
+.kc-bar{background-color:var(--fill-2)}
+.kcp-wd{background-color:var(--fill-2)}
+.kcp-ring .kcr-bg{stroke:var(--fill-2)}
+.kcp-chbar{background-color:color-mix(in srgb,var(--fam) 14%,var(--fill-2))}
+
+/* H10 make.html:31–34 三记谱法演示窗（坐在常亮谱纸 --paper 上，两主题同值） */
+body .window .demo-head .cap{color:var(--site-paper-muted)}
+body .window .seg{background-color:var(--site-paper-fill);border-color:var(--site-paper-line)}
+body .window .seg button{color:var(--site-paper-muted)}
+body .window .seg button.on{background-color:var(--site-paper-raise);color:var(--accent)}
+
+/* H11 log-full.html:14 完整更新日志分隔线（原 var(--line,#e6e2d8)：--line 未定义，走暖米兜底） */
+body .logfull li{border-bottom-color:var(--site-log-line)}
+
+/* ================================================================
+   方案 B 增补（只改颜色）
+   ================================================================ */
+/* H12 渐变字（标题「专业曲谱平台」、价格、数据）：深色主题读更亮的 --grad-text；
+   Logo 方块 / 步骤序号 / 头像底这类压白字白线的实块仍读 --grad（深青，白线可辨） */
+.page-hero h1 .grad,.home-brand .grad,.tier .pr,.stat b{background-image:var(--grad-text)}
+/* H3 补：课程工作台 toast 上的操作字在石墨底上读框架信号青 */
+.crs-toast button{color:var(--site-chrome-accent)}
+/* H13 压在 --accent 实底上的字（管理台页签/徽数/通过钮）：深色主题强调提亮为信号青后改深字（＝编辑器 --ed-on-accent） */
+.ad-tab.on,.ad-dot,.ad-b.ok,.ad-b.ok:hover{color:var(--site-on-accent)}
+.ad-tab.on .ad-dot{background-color:var(--site-on-accent);color:var(--accent)}
+/* H14 旧版课程压在 --fam 实底上的字：原写死 #fff，深色主题族色/章色全是提亮色（白字 2–3.7:1），改读 --fam-on（浅色仍是 #fff） */
+.kc-done .kc-tick,.kc-quizbtn.pass,.kq-next,.kc-ckbtn.on,.kc-testbtn{color:var(--fam-on)}
+/* H15 顶部导航当前项：强调字压在 --accent-soft 淡底上，改读加深的 --accent-ink（浅 4.35→6.6:1） */
+#menu a.on{color:var(--accent-ink)}
+/* H10 补：演示窗坐在常亮谱纸上，选中段的字用纸面笔色（深色主题的信号青压白纸只有 2.0:1） */
+body .window .seg button.on{color:var(--site-paper-pen)}
+/* H16（审查修订）顶部导航并入石墨框架：与编辑器主栏同一块深色框架，底边同一条信号青发丝线（border 改色，几何不变）。
+   原浅色毛玻璃顶栏＋灰白底＝已否决 Apple v4 的两项特征；只改颜色，撤销＝删本段 */
+#nav{background-color:var(--site-nav-bg);border-bottom-color:var(--glow);--focus:var(--site-chrome-accent)}   /* 焦点环在石墨导航上改信号青（浅色 --focus 压导航只有 2.9:1） */
+#nav .brand{color:var(--chrome-text)}
+#nav .brand .sub{color:var(--chrome-muted)}
+#nav #menu a{color:var(--chrome-muted)}
+#nav #menu a:hover{background-color:var(--chrome-2);color:var(--chrome-text)}
+#nav #menu a.on{color:var(--site-chrome-accent);background-color:var(--site-nav-on)}
+#nav #theme-btn{border-color:var(--chrome-line);color:var(--chrome-text)}
+#nav #theme-btn:hover{background-color:var(--chrome-2)}
+#nav .nav-login{color:var(--chrome-text);border-color:var(--site-on-chrome-line)}
+#nav .nav-login:hover{background-color:var(--chrome-2)}
+#nav .acct-chip{color:var(--chrome-text);border-color:var(--chrome-line)}
+#nav .acct-chip:hover{background-color:var(--chrome-2)}
+#nav .acct-dot{background-color:var(--site-chrome-accent);border-color:var(--chrome)}
+/* H17（审查修订）输入框占位字：原走浏览器默认 #757575，深色主题压 --panel 只有 3.6:1（首页搜索框「搜曲名 / 歌手」、登录框）→ 读 --faint */
+::placeholder{color:var(--faint)}
