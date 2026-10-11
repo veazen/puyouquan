@@ -342,7 +342,7 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
   T(!t10.error && t10.kind === 'bin' && t10.ver === '5.10' && t10.title === 'T5测试' && t10.singer === '歌手5'
     && t10.tempo === 100 && t10.key === 'D' && t10.capo === 1 && t10.nMea === 2 && t10.repS === true
     && t10.n0 && t10.n0.s === 1 && t10.n0.f === 7 && t10.tie0 === true && t10.rest
-    && t10.n1 && t10.n1.f === 9 && t10.tuningStd, 'T10 GP5 二进制导入', JSON.stringify(t10));
+    && t10.n1 && t10.n1.f === 7 && t10.tuningStd, 'T10 GP5 二进制导入（v66.8 延音目标音品位取同弦上一音：夹具写 9、应读 7）', JSON.stringify(t10));
 
   // T10b v66.7 GP5 末小节缺「换行标记」字节（转谱站导出的 GP5 常见，PyGuitarPro 按可缺省读）：去掉文件最后 1 字节仍完整导入、
   //   结果与原文件一致；去掉 3 字节（真截断，缺的是音符数据）仍报「文件截断」，不静默吞掉

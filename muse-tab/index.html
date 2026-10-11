@@ -6978,6 +6978,256 @@ function layoutSystems(){
   });
   return systems;
 }
+/* v66.8 TAB 延续线段（let ring / P.M.）排版规划——出版惯例（Guitar Pro / Hal Leonard / Behind Bars）：
+   同一 TAB 声部里连续的 let ring 音只在段首写一次「let ring」，其后一条虚线延伸到段内最后一个音、末端短竖钩；
+   段跨小节线不断开，遇休止列 / 无该技法的列 / 𝄎 省写小节断开；被换行截断的段行尾不收钩，
+   新行行首写「(let ring)」续接（Behind Bars 延续线惯例：换行后括号重写指示；MuseScore 的 let ring / palm mute
+   线默认续行文字同为「(let ring)」「(P.M.)」）。P.M. 同理。
+   此前每个音各写一个「let ring」并逐个占标注带槽位，GP 导入的整段 let ring（逐音标记）挤成一团。
+   · 判列：该列有音且至少一个音为该技法；紧跟在段内列之后的「延音续音列」（上一列 col.tie，或本列全部音都是
+     段内纯连音线 tk 的目标）视为同一个音在延续，不断段（GP 导入的延音目标音不带 let ring 标记）。
+   · tk 范围（用户手动拉出）语义保留：段终点取「连续段末」与「tk 终点」中较远者；与后一段重叠时合并。
+   · 孤立单列（不跨行）观感与旧版一致：同列多音同标只写一次，tk 取最远者，几何沿用旧口径（lr 无钩、pm 有 tk 才画线+钩）。
+   · 标注带让位：段占它覆盖范围内最低的标注槽（默认 tabTop−9，与旧 laneY 首槽同高）；范围内若有固定装饰
+     （文字式和弦名、延长号、圆滑线/连音线弧及弧顶字母、推弦弧与 b↑、倚音弧、扫弦延留弧、房子括线、段落/导航记号）
+     则整段抬到其上方；lr 与 pm 范围重叠时各占一槽（相距 11.5）。覆盖范围内其他列的标注带元素
+     （技法字母/标注/摇把/左手指法/拨片方向/打板字母）改从段之上一槽开始堆叠——start[mi:ci] 即该列首槽偏移。
+   · ex：本系统该声部标注带比旧口径（每列一槽）多出的高度——sysMetrics 在 TAB 顶线之上照此加高，
+     最高一层仍落在旧首槽的高度，和弦图让位/联排间距/上一行净空都不被挤占。
+   结果挂在 sys.ring[vi] = {pieces, start, ex}（偏移量均相对 tabTop，向上为负）。 */
+function tabRingPlan(systems){
+  const nT = (song.tabVoices||[]).length, OX = MARGIN + STAFF_HEAD_W, STR = STR_GAP;
+  const pos = {};
+  systems.forEach((sys, si)=>{
+    sys.ring = Array.from({length:nT}, ()=>({pieces:[], start:{}, ex:0}));
+    sys.measures.forEach(lm=> (lm.L.tabs||[]).forEach((lay, vi)=> (lay.xs||[]).forEach((x, ci)=>{
+      pos[vi+':'+lm.mi+':'+ci] = {x:OX+lm.x+x, si, w:lay.ws[ci], r:OX+lm.x+(lay.ls[ci]||0)+(lay.ws[ci]||0)}; })));
+  });
+  if(!nT || !systems.length) return;
+  const posT = (vi, t)=> t? pos[vi+':'+t.mi+':'+t.ci] : null;
+  const estW = (s, px)=> [...String(s)].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)? px*0.58 : px), 0);
+  const isSim = mi=> simileSrc(mi)!=null && !!song.measures[mi].simile;
+  /* 跨行纯连音线的「进入半弧」目标（与渲染 tieInX 同口径） */
+  const tieIn = new Set();
+  song.measures.forEach((mea,mi)=> (mea.tabs||[]).forEach((cols,vi)=> (cols||[]).forEach((c,ci)=> (c.notes||[]).forEach(n=>{
+    if(n && n.tk && !n.tech){ const a=pos[vi+':'+mi+':'+ci], d=posT(vi, n.tk);
+      if(a && d && a.si!==d.si) tieIn.add(vi+':'+n.tk.mi+':'+n.tk.ci+':'+n.tk.si); }
+  }))));
+  const SLUR_EXCL = ['hm','su','sd','ou','od','v','pm','lr','b','bd'];
+  /* 某系统某声部 TAB 顶线上方的固定装饰（不走标注带槽位的那些）：{xL,xR,top}，top=墨迹最高点偏移 */
+  const obstOf = (sys, si, vi)=>{
+    const O=[]; const add=(a,b,top)=>O.push({xL:Math.min(a,b), xR:Math.max(a,b), top});
+    const textChord = !(diagMode==='inline' && vi===0);
+    sys.measures.forEach(lm=>{
+      const mea = song.measures[lm.mi], mx = OX+lm.x, bx = mx+lm.L.w;
+      if(vi===0){   /* 房子括线（tabTop−15）与小节头导航/段落/转调记号（navMarkSVG yTop=tabTop−8） */
+        if(mea.volta) add(mx, bx, -15.5);
+        if(mea.segno) add(mx+2, mx+16, -21.5);                                   /* SMuFL bb：segno 高 3.04 空×5.2 */
+        if(mea.coda) add(mx+(mea.segno?26:3), mx+(mea.segno?48:25), -24.5);       /* coda 高 3.59 空×5.2 */
+        let mk = mx + ((mea.segno&&mea.coda)? 51 : (mea.segno||mea.coda)? 27 : 2);
+        if(mea.label){ const tw=estW(mea.label, 10.5); add(mk, mk+tw+10, -18); mk += tw+18; }
+        if(mea.keyTo) add(mk, mk+14+estW('转1='+mea.keyTo, 11), -16);
+      }
+      if(isSim(lm.mi)) return;
+      const cols = ((mea.tabs||[])[vi])||[];
+      cols.forEach((col, ci)=>{
+        const e = pos[vi+':'+lm.mi+':'+ci]; if(!e) return;
+        const nx = e.x, ns = (col.notes||[]).filter(Boolean);
+        if(col.chord && textChord){ const w=estW(col.chord, 12.5)+4; add(nx-w/2, nx+w/2, -18.5); }
+        if(col.ferm) add(nx-7, nx+7, -((col.chord && textChord)? 22 : 11) - 7);   /* fermataAbove 高 1.32 空×4.65 */
+        if(col.strum==='d' || col.strum==='u'){
+          const sp = strumSpan(Object.assign({}, col, {notes:ns})), yT = (sp.top-1)*STR-4;
+          if(col.mute) add(nx-2.5, nx+2.5, yT-5);
+          const nTie = ns.find(n=>n.tk && !n.tech), t = nTie && posT(vi, nTie.tk);
+          if(t && t.si===si && t.x>nx){
+            const ink = col.mute? yT-5 : (col.strum==='d'? yT+1 : yT+3), bY = ink-6;
+            add(nx, t.x, bY - Math.min(9, Math.max(6, (t.x-nx)*0.35))/2 - 1.5);
+          }
+        }else if(col.strum!=='arp' && col.strum!=='arpd'){
+          ns.forEach(n=>{
+            const yy = (n.s-1)*STR, t = n.tk? posT(vi, n.tk) : null;
+            if(n.tech==='b' || n.tech==='bd'){
+              const pre = (n.bendType||'')==='pre';
+              if(t && t.si===si){ const y2=(n.tk.si-1)*STR, yPk=Math.min(yy,y2)-12;
+                add(nx, t.x, Math.min(Math.min(-11.5, yPk-2.5)-10, pre? Math.min(-12, yy-14) : 0)); }
+              else if(t) add(nx, nx+28, yy-26);
+              else if(pre){ const topY=Math.min(-12, yy-15); add(nx-10, nx+10, topY-13); }
+              else add(nx, nx+25, Math.min(-11, yy-13)-10);
+            }else if((n.tech && !SLUR_EXCL.includes(n.tech)) || (n.tk && !n.tech)){
+              if(t && t.si===si){
+                const y2=(n.tk.si-1)*STR, xA=nx+1, xB=t.x-1, tyB=Math.min(yy,y2)-9.5;
+                const gapC=(n.tk.mi===lm.mi)? Math.max(0, n.tk.ci-ci-1) : 1;
+                const rise=Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35));
+                const letter = !!n.tech && ['sl','h','p','tp'].includes(n.tech);
+                add(xA, xB, letter? tyB-rise-2.8-9 : tyB-rise/2-1.5);
+              }else if(t) add(nx, nx+24, yy-17);
+            }
+            if(tieIn.has(vi+':'+lm.mi+':'+ci+':'+n.s)) add(nx-24, nx, yy-17);
+          });
+          if(col.mute && ns.some(n=>n.x)) add(nx-2.5, nx+2.5, (Math.min(...ns.map(n=>n.s))-1)*STR-11);
+        }
+        ['grace','graceA'].forEach(gk=>{
+          const gR=col[gk]; if(!gR) return;
+          const g=normTabGrace(gR); if(!g || !g.notes.length) return;
+          const pre = gk==='grace', STEPG=tabGraceStep(g), gW=(g.notes.length-1)*STEPG;
+          const gx0 = pre? nx-13-gW : nx+13;
+          const tgtN = ns.find(n2=>n2.s===g.notes[pre? g.notes.length-1 : 0].s) || ns[0];
+          if(!tgtN) return;
+          const yMin = Math.min(...g.notes.map(gn=>(gn.s-1)*STR), (tgtN.s-1)*STR);
+          add(Math.min(gx0, nx)-4, Math.max(gx0+gW, nx)+4, g.tks.some(Boolean)? yMin-9-2-9 : yMin-9);
+        });
+      });
+    });
+    return O;
+  };
+  /* 某列在标注带里要堆几层（与渲染 laneY() 调用一一对应，段本身除外），及其横向占位半宽 */
+  const itemsOf = (col, vi, si, nx, cw)=>{
+    let k=0, hl=8, hr=8;
+    const wid = w=>{ hl=Math.max(hl, w/2); hr=Math.max(hr, w/2); };
+    const reg = !(col.strum==='d' || col.strum==='u' || col.strum==='arp' || col.strum==='arpd');
+    const ns = (col.notes||[]).filter(Boolean);
+    if(col.anno){ k++; wid(estW(col.anno, 10.5)+4); }
+    ns.forEach(n=>{
+      if(n.tech==='hm' && n.hmT){ k++; wid(22); }
+      else if(n.tech==='su' || n.tech==='sd' || n.tech==='ou' || n.tech==='od') k++;
+      else if(n.tech==='v'){ k++;
+        const t=posT(vi, n.tk), x1=(t && t.si===si)? t.x+6 : nx+Math.max(10, cw-8);
+        hl=Math.max(hl, 5); hr=Math.max(hr, x1-nx+1); }
+      else if(n.tech && !SLUR_EXCL.includes(n.tech)){
+        if(!(n.tech==='sl' && ns.some(m=>m!==n && m.tech==='sl' && m.s<n.s))){
+          const t=posT(vi, n.tk), same = t && t.si===si;
+          if(!(same && ['sl','h','p','tp'].includes(n.tech))){
+            k++;
+            if(same){ const tx=(nx+t.x)/2; hl=Math.max(hl, nx-tx+6); hr=Math.max(hr, tx-nx+6); }
+          }
+        }
+      }
+      if(n.bar){ k++; wid(36); }
+      if(reg && n.lhF) k++;
+    });
+    if(reg && col.pk) k++;
+    if(reg && col.perc) k++;
+    return {k, hl, hr};
+  };
+  const SLOT = 11.5, GAP_OB = 3.5;
+  for(let vi=0; vi<nT; vi++){
+    /* 声部内全部列的线性序列（null=断点：𝄎 省写小节 / 空小节 / 未排版列） */
+    const L=[], idx={};
+    song.measures.forEach((m, mi)=>{
+      const cols = ((m.tabs||[])[vi])||[];
+      if(isSim(mi) || !cols.length){ L.push(null); return; }
+      cols.forEach((c, ci)=>{ const p0=pos[vi+':'+mi+':'+ci];
+        if(!p0){ L.push(null); return; }
+        idx[mi+':'+ci]=L.length; L.push({mi, ci, col:c, p:p0}); });
+    });
+    const segs=[];
+    ['pm','lr'].forEach(K=>{
+      const on = new Array(L.length).fill(false), tieT = new Set();
+      for(let i=0; i<L.length; i++){
+        const e=L[i]; if(!e) continue;
+        const ns=(e.col.notes||[]).filter(Boolean); if(!ns.length) continue;
+        let o = ns.some(n=>n.tech===K);
+        if(!o && i>0 && on[i-1]) o = !!L[i-1].col.tie || ns.every(n=>tieT.has(e.mi+':'+e.ci+':'+n.s));
+        if(!o) continue;
+        on[i] = true;
+        ns.forEach(n=>{ if(n.tk && !n.tech) tieT.add(n.tk.mi+':'+n.tk.ci+':'+n.tk.si); });
+      }
+      const runs=[]; let cur=null;
+      for(let i=0; i<=L.length; i++){
+        if(i<L.length && on[i]){ if(cur) cur.b=i; else cur={a:i, b:i}; }
+        else if(cur){ runs.push(cur); cur=null; }
+      }
+      const out=[];
+      runs.forEach(r=>{
+        r.len = r.b-r.a+1;
+        let end = r.b;
+        for(let i=r.a; i<=r.b; i++) (L[i].col.notes||[]).forEach(n=>{
+          if(n && n.tech===K && n.tk){ const t=idx[n.tk.mi+':'+n.tk.ci]; if(t!=null && t>end) end=t; } });
+        r.b = end;
+        const last = out[out.length-1];
+        if(last && r.a<=last.b){ last.b=Math.max(last.b, r.b); last.merged=true; }
+        else out.push(r);
+      });
+      out.forEach(r=>{ r.K=K; segs.push(r); });
+    });
+    segs.forEach(S=>{
+      const K=S.K, lr = K==='lr';
+      const eA=L[S.a], eB=L[S.b];
+      const legacy = S.len===1 && !S.merged && eA.p.si===eB.p.si;
+      let rep=null;
+      if(legacy){   /* 孤立列：同列多音同标只写一次，tk 取最远者 */
+        const ks=(eA.col.notes||[]).filter(n=>n && n.tech===K);
+        const tkI = n=> (n.tk && idx[n.tk.mi+':'+n.tk.ci]!=null)? idx[n.tk.mi+':'+n.tk.ci] : -1;
+        rep = ks.reduce((b0,n)=> (!b0 || tkI(n)>tkI(b0))? n : b0, null);
+      }
+      let i=S.a;
+      while(i<=S.b){
+        if(!L[i]){ i++; continue; }
+        const si=L[i].p.si; let j=i;
+        while(j+1<=S.b && (!L[j+1] || L[j+1].p.si===si)) j++;
+        let jj=j; while(jj>i && !L[jj]) jj--;
+        const sys=systems[si], cont = i!==S.a, trunc = jj!==S.b;
+        const xA=L[i].p.x, xB=L[jj].p.x, cw=L[i].p.w;
+        const txt = cont? (lr? '(let ring)' : '(P.M.)') : (lr? 'let ring' : 'P.M.');
+        const tx = xA-6, tw = lr? (cont? 51 : 42) : (cont? 37 : 26);
+        const lx = tx + (lr? 46 : 28) + (cont? (lr? 9 : 11) : 0);
+        let xe, line, hook;
+        if(legacy){
+          const t = rep && rep.tk && posT(vi, rep.tk);
+          xe = (t && t.si===si)? t.x+5 : xA+Math.max(lr? 20 : 16, cw-4);
+          line = (lr || !!(rep && rep.tk)) && xe>lx+2;
+          hook = !lr && line;
+        }else{
+          xe = trunc? OX+sys.w-3 : xB+5;
+          /* 段末音离段首文字太近（续段只落在行首一个长音上等）：虚线放宽到末音所在列的右缘，仍不够长才只写文字 */
+          if(!trunc && xe<=lx+2) xe = Math.max(xe, L[jj].p.r-3);
+          line = xe>lx+2;
+          hook = line && !trunc;
+        }
+        sys.ring[vi].pieces.push({K, vi, si, mi:L[i].mi, ci:L[i].ci, txt, tx, lx, xe, line, hook, cont, trunc, legacy,
+          xL:tx, xR:Math.max(tx+tw, line? xe+1 : 0), y:-9});
+        i=j+1;
+      }
+    });
+    systems.forEach((sys, si)=>{
+      const R = sys.ring[vi];
+      const O = R.pieces.length? obstOf(sys, si, vi) : [];
+      /* 槽位：段按起点排序（同起点 P.M. 在下、let ring 在上），取不碰固定装饰、与已排重叠段相距一槽的最低位置 */
+      const ord = R.pieces.slice().sort((a,b)=> a.xL-b.xL || (a.K===b.K? 0 : a.K==='pm'? -1 : 1));
+      const placed=[];
+      const ov = (a,b)=> a.xR+4>b.xL && b.xR+4>a.xL;
+      ord.forEach(Pc=>{
+        let lim=-9;
+        O.forEach(o=>{ if(o.xR>Pc.xL && o.xL<Pc.xR) lim=Math.min(lim, o.top-GAP_OB); });
+        const nb = placed.filter(q=>ov(Pc,q));
+        const cands = [lim].concat(nb.map(q=>q.y-SLOT)).filter(c=>c<=lim+1e-6).sort((a,b)=>b-a);
+        Pc.y = cands.find(c=> nb.every(q=> Math.abs(c-q.y)>=SLOT-1e-6));
+        if(Pc.y==null) Pc.y = Math.min(lim, ...nb.map(q=>q.y-SLOT));
+        placed.push(Pc);
+      });
+      /* 覆盖列的标注带首槽 + 本系统标注带超出旧口径的高度 */
+      let ex=0;
+      sys.measures.forEach(lm=>{
+        if(isSim(lm.mi)) return;
+        (((song.measures[lm.mi].tabs||[])[vi])||[]).forEach((col, ci)=>{
+          const e=pos[vi+':'+lm.mi+':'+ci]; if(!e) return;
+          const base = (col.chord && !(diagMode==='inline' && vi===0))? -22 : -9;
+          const it = itemsOf(col, vi, si, e.x, e.w);
+          let cap=null;
+          R.pieces.forEach(Pc=>{ if(Pc.xR>e.x-it.hl && Pc.xL<e.x+it.hr) cap = cap==null? Pc.y : Math.min(cap, Pc.y); });
+          let top = it.k? base-(it.k-1)*SLOT : base;
+          if(cap!=null){
+            const st = Math.min(base, cap-SLOT);
+            R.start[lm.mi+':'+ci] = st;
+            top = Math.min(cap, it.k? st-(it.k-1)*SLOT : cap);
+          }
+          ex = Math.max(ex, base-top);
+        });
+      });
+      R.ex = Math.round(ex*10)/10;
+    });
+  }
+}
 /* 逐系统扫描：仅当该系统的简谱含倍高音/倍低音/16·32分减时线时，才为其预留额外
    纵向空间；不含这些符号的系统保持默认行距 → 按需自适配、不浪费。 */
 function systemExtras(sys){
@@ -7103,10 +7353,11 @@ function systemExtras(sys){
     tabExtra: Math.max(tab32?5:0, tabTup?4:0, tabLow),
     tabBotPad,
     diagExtra,
-    diagOn
+    diagOn,
+    ringEx: (sys.ring||[]).map(r=>r.ex||0)   /* v66.8 延续线段/标注带堆叠超出旧口径的高度（tabRingPlan） */
   };
 }
-function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn){
+function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn, ringEx){
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0; tabBotPad = tabBotPad||0;
   const vs = LAY_VS;                              // 纵向疏密系数：只缩放行间空白，不缩谱表/字号
@@ -7152,6 +7403,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
        12*vt+6*vt 可缩到比固定内容还小，简谱直接压上符杠。夹 18px 无缩放底线 */
     /* v60.56 tabBotPad：连音括线的斜体数字挂在 stemY+9.5，比行进量留的 stemY+6 还深——
        只加行进量、不动 stemY（动 stemY 数字跟着走，净差不变） */
+    /* v66.8 标注带（技法字母 / let ring·P.M. 延续线）比每列一槽多出的高度：加在 TAB 顶线正上方——
+       上方是和弦图带 / 联排五线谱 / 简谱联排行 / 上一条 TAB 声部，它们的位置与旧版一致，多出的层落在它们与 TAB 之间 */
+    y += (ringEx && ringEx[i]) || 0;
     tabTops.push(y); y += staffH() + Math.max(12*vt + 6*vt, 18) + tabExtra + tabBotPad;
   }
   /* 五线谱声部：按整曲实际音域为谱表上/下加线区自动扩展行距（防止相邻行内容交叠） */
@@ -7933,13 +8187,14 @@ function renderCore(){
   PAGE_W = Math.round(baseA4 * (narrowRe? 1 : wmm/210) / (cfg.scale*LAY_BIGK));   // 手机重排不按纸张比例（贴屏宽）
   const HG = staffHeadGeom(); STAFF_HEAD_W = HG.w;
   const systems = layoutSystems();
+  tabRingPlan(systems);   /* v66.8 let ring / P.M. 延续线段 + 标注带让位（需在 systemExtras 之前：纵向预留读 sys.ring） */
   /* v61.1 不换行：画布宽=内容宽（PAGE_W 本身不动——页头/和弦图带仍按标准版宽
      排在长带左端首屏，fitViewWidth/排版参数照旧）；body.nwrap 供滚动容器 CSS 用 */
   const CONTENT_W = (noWrapOn() && systems.length)
     ? Math.max(PAGE_W, Math.ceil(2*MARGIN + STAFF_HEAD_W + systems[0].w)) : PAGE_W;
   try{ const nb=document.getElementById('eb-nowrap'); if(nb) nb.classList.toggle('on', noWrapOn()); }catch(_){}
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad, e.diagOn); });
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad, e.diagOn, e.ringEx); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
@@ -8122,6 +8377,7 @@ function renderCore(){
     song.tabVoices.forEach((vname, vi)=>{
       const STR = STR_GAP, STAFF = staffH(), SN = strN();
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
+      const ringV = (sys.ring||[])[vi] || {pieces:[], start:{}};   /* v66.8 本行本声部的 let ring / P.M. 延续线段（tabRingPlan） */
       /* v60.56 上一条 TAB 声部的时值线区（beatzone）下缘：本条挂在谱表上方的热区不得越过它 */
       const prevBeatBot = vi>0? (oy+M.tabTops[vi-1]+STAFF+12+(M.tabExtra||0)+6) : -1e9;
       /* ===== TAB+五线谱 联排（Guitar Pro 式）：TAB 上方标准记谱，品位→音高按调拼写 ===== */
@@ -8533,7 +8789,8 @@ function renderCore(){
                    TAB 顶部标注带（laneY，与行内和弦图同一高度带），不再限于一弦——
                    任意弦上带技法的音符都参与横向重叠判定 */
                 const dL=nx-14, dR=nx+38;
-                const clash = cols.some((c2,ci2)=>{
+                /* v66.8 延续线段（可能从前面小节延伸进来、覆盖不带技法的延音续音列）横向压到图带同样缩小 */
+                const clash = ringV.pieces.some(Pc=> Pc.xR > dL && Pc.xL < dR) || cols.some((c2,ci2)=>{
                   /* v58.0 标注文字同带避让：标注列与图带横向重叠也触发缩小 */
                   if(c2.anno){ const ax=mx+lay.xs[ci2]; if(ax+22 > dL && ax-16 < dR) return true; }
                   return c2.notes && c2.notes.some(nn=>{
@@ -8556,7 +8813,10 @@ function renderCore(){
              有和弦名（文字式）时整带上移让位（同延长号 −22 口径）。
              扫弦列此前完全不显示技法文字（扫弦分支只画箭头、不跑逐音循环）——一并补上。 */
           let mkN=0;
-          const laneY=()=>((col.chord && !(diagMode==='inline'&&vi===0))? tabTop-22 : tabTop-9) - (mkN++)*11.5;
+          /* v66.8 被 let ring / P.M. 延续线段覆盖的列：标注带改从段之上一槽起堆叠（ringV.start＝首槽偏移） */
+          const ringS = ringV.start[lm.mi+':'+ci];
+          const laneB = ringS!=null? tabTop+ringS : ((col.chord && !(diagMode==='inline'&&vi===0))? tabTop-22 : tabTop-9);
+          const laneY=()=> laneB - (mkN++)*11.5;
           /* v58.0 标注（col.anno）：TAB 行上方居中斜体文字——占一个标注带槽位（与技法字母同带堆叠避让） */
           if(col.anno)
             p.push(`<text x="${nx}" y="${laneY()}" font-size="10.5" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${esc(col.anno)}</text>`);
@@ -8587,23 +8847,9 @@ function renderCore(){
               let d=`M ${x0.toFixed(1)} ${wy.toFixed(1)}`;
               for(let w2=0;w2<k;w2++) d+=' q 1.5 -3.2 3 0 q 1.5 3.2 3 0';
               p.push(`<path d="${d}" fill="none" stroke="var(--ink)" stroke-width="1.1"/>`);
-            }else if(n.tech==='pm'){
-              const wy=laneY();
-              p.push(`<text x="${nx-6}" y="${wy}" font-size="11" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">P.M.</text>`);
-              if(n.tk){
-                const tpm=tabPos[vi+':'+n.tk.mi+':'+n.tk.ci];
-                const xEnd=(tpm&&tpm.sys===sIdx)? tpm.x+5 : nx+Math.max(16,cw-4), xd=nx+22;
-                if(xEnd>xd+2){
-                  p.push(`<line x1="${xd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy-3.5}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
-                  p.push(`<line x1="${xEnd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy+2}" stroke="var(--ink)" stroke-width="1"/>`);
-                }
-              }
-            }else if(n.tech==='lr'){
-              const wy=laneY();
-              p.push(`<text x="${nx-6}" y="${wy}" font-size="10" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">let ring</text>`);
-              const tlr=n.tk? tabPos[vi+':'+n.tk.mi+':'+n.tk.ci] : null;
-              const xEnd=(tlr&&tlr.sys===sIdx)? tlr.x+5 : nx+Math.max(20,cw-4), xd=nx+40;
-              if(xEnd>xd+2) p.push(`<line x1="${xd}" y1="${wy-3.5}" x2="${xEnd}" y2="${wy-3.5}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
+            }else if(n.tech==='pm' || n.tech==='lr'){
+              /* v66.8 P.M. / let ring 改由本行延续线段统一绘制（tabRingPlan → ringV.pieces：连续段只写一次、虚线到段末收钩、
+                 换行续段行首写「(let ring)」）——逐音不再各写一个、不再占标注带槽位 */
             }else if(n.tech && n.tech!=='b' && n.tech!=='bd' && n.tech!=='hm'){
               /* v50.4 和弦滑音（同列多音符一起滑）只标一次：S 字母与弧线同样只挂最上方
                  （弦号最小=谱面最上）的滑音音符，其余弦只画各自的斜杠 */
@@ -9082,6 +9328,15 @@ function renderCore(){
           });
         }
       });
+      /* v66.8 let ring / P.M. 延续线段：段首文字（续段为括号写法）+ 虚线 + 段末短竖钩（被换行截断的段行尾不收钩） */
+      ringV.pieces.forEach(Pc=>{
+        const wy = tabTop+Pc.y;
+        p.push(`<text class="ringtx" data-ring="${Pc.K}" x="${Pc.tx.toFixed(1)}" y="${wy.toFixed(1)}" font-size="${Pc.K==='lr'?10:11}" font-weight="600" font-style="italic" text-anchor="start" fill="var(--ink)">${Pc.txt}</text>`);
+        if(Pc.line)
+          p.push(`<line class="ringln" data-ring="${Pc.K}" x1="${Pc.lx.toFixed(1)}" y1="${(wy-3.5).toFixed(1)}" x2="${Pc.xe.toFixed(1)}" y2="${(wy-3.5).toFixed(1)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3.5 2.6"/>`);
+        if(Pc.hook)
+          p.push(`<line class="ringhk" data-ring="${Pc.K}" x1="${Pc.xe.toFixed(1)}" y1="${(wy-3.5).toFixed(1)}" x2="${Pc.xe.toFixed(1)}" y2="${(wy+2).toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`);
+      });
     });
     /* v64.4 B4e 声部分组：vGrpOf[vi]=所在组，vGrpEnd[vi]=以该行收尾的组（括线画在组内最后一行） */
     const vGrps = voxGroupsOf(song), vGrpOf = [], vGrpEnd = [];
@@ -9342,7 +9597,10 @@ function renderCore(){
               if(diagMode==='inline' && song.tabVoices.length && !song.tabStaff){
                 /* v60.27 和弦图对齐锚定音符：指法图画在六线谱上方图带、横向对齐锚定位置
                    （列头=本列 nx / 拍位=该增时线 x，与 TAB 列锚定同一 −10 口径） */
-                p.push(`<g data-vchord="${vtag}" style="cursor:pointer">${chordDiagramSVG(ch.chord, ax-10, oy+2, 0.95)}<title>${esc(ch.chord)}（点击编辑）</title></g>`);
+                /* v66.8 首条 TAB 的 let ring / P.M. 延续线段（tabRingPlan）横向压到本图时，同 TAB 列和弦图口径缩小让位
+                   （0.75、顶到 oy）——简谱行和弦图此前从不缩小，延续线整行连贯后虚线会穿过每张图的底边 */
+                const ringC = (((sys.ring||[])[0]||{}).pieces||[]).some(Pc=> Pc.xR > ax-14 && Pc.xL < ax+38);
+                p.push(`<g data-vchord="${vtag}" style="cursor:pointer">${chordDiagramSVG(ch.chord, ax-10, oy+(ringC?0:2), ringC?0.75:0.95)}<title>${esc(ch.chord)}（点击编辑）</title></g>`);
               }else{
               const cy2 = (isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col))   /* v53.3 和弦框避让和音纵列 */
                 - ((col.ferm && !(ch.q>0))? 11 : 0);   /* v64.9 B4c ①（P2-03）延长号在框下方让出位置——此前延长号压进和弦名框 */
@@ -20573,6 +20831,7 @@ function parseGP345(u8){
       }
     };
     const DUR_MAP={'-2':1,'-1':2,'0':4,'1':8,'2':16,'3':32,'4':64};
+    let tieMem=null;                           /* v66.8 当前音轨当前声部的「弦→上一个实音品位」 */
     const readNote=stringNo=>{
       const fl=B(); const r={};
       let type=1;
@@ -20583,6 +20842,9 @@ function parseGP345(u8){
       if(fl&0x20) fret=SB();
       if(fl&0x80) SKIP(2);                     // 指法
       if(is5){ if(fl&0x01) SKIP(8); SKIP(1); }
+      /* v66.8 延音目标音品位取同弦上一个音（TuxGuitar / PyGuitarPro 的 getTiedNoteValue 同口径）：
+         转谱站导出的 GP 常把延音音符的品位字节写成 0，原样读会把「2 延 2」显示成「2 → 0」 */
+      if(tieMem){ if(type===2){ if(tieMem[stringNo]!=null) fret=tieMem[stringNo]; } else if(type===1) tieMem[stringNo]=fret; }
       const n={s:stringNo, f:Math.max(0,Math.min(24,fret))};
       if(type===3) n.x=1;
       if(type===2) r.tieDest=true;
@@ -20628,6 +20890,7 @@ function parseGP345(u8){
     };
     /* 逐小节×逐音轨（GP5 双声部：取声部1，声部2 有内容计数丢弃） */
     const colsData=[];
+    const tieMems=tracks.map(()=>[{},{}]);    /* v66.8 [音轨][声部][弦]→上一个实音品位（延音目标取值用） */
     for(let mi=0; mi<measureCount; mi++){
       const row=[];
       for(let ti=0; ti<trackCount; ti++){
@@ -20635,6 +20898,7 @@ function parseGP345(u8){
         let cols=[];
         const nV=is5?2:1;
         for(let v=0; v<nV; v++){
+          tieMem=tieMems[ti][v];
           const nB=I();
           if(nB<0||nB>128) throw new Error('拍数异常（小节 '+(mi+1)+'）');
           const vcols=[];
@@ -24907,6 +25171,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v66.8</span><div><b>六线谱 let ring / P.M. 改为出版写法 + 修正导入谱的延音品位</b>。<br>① 连续的 let ring 只在开头写一次，后面一条虚线延到最后一个音、末端一个小竖钩；跨小节线不断开，遇到休止或换行才分段，换行后新一行开头写「(let ring)」接着画。P.M.（闷音）同样处理。以前每个音各写一个「let ring」并往上叠，从吉他谱网站导入的谱挤成一团（实测一首 73 小节的谱，「let ring」从 712 个减到 32 个，重叠从 571 处减到 0）。单独标注的音和手动拉出的范围显示不变。<br>② 虚线经过的地方，其他技法字母、标注、指法自动让到虚线上方；碰到和弦名、延长号、击勾弦弧线等时整段抬高，和弦图会缩小让位；同一列标注叠了两层以上时，这一行会自动加高，不再压到上面的内容。<br>③ 导入 Guitar Pro 谱时，延音（连音线）接着的音以前常被读成 0 品，现在取同一根弦上一个音的品位，如「2 延 2」不再显示成「2、0」。<br>新套件 <code>tv_lrspan</code>。</div></li>
     <li><span class="v">v66.7</span><div><b>修复：部分 Guitar Pro 5 文件导入报「文件截断」</b>。<br>① 有些吉他谱网站导出的 .gp5 文件，最后一小节末尾少了一个可有可无的字节，以前会整份导入失败；现在能完整导入。文件中途真的缺了内容时，仍会提示「文件截断」。<br>② Guitar Pro 5.00 格式里带「混音 / 变速」设置的拍，以前读完后面的音符会错位；现在按正确位置读取。</div></li>
     <li><span class="v">v66.6</span><div><b>换色后的可读性收尾 + 小程序换新色</b>。<br>① 深色主题下，页签关闭、静音、「全部采纳」等红绿实底按钮上的字改为深色，不再看不清。谱库收藏心、搜索放大镜、变调弹窗里的音名，以及几处菜单和浮层的小字，原来靠半透明变淡，现在改成清楚的实色；放大镜也会跟着深浅主题变色。<br>② 手机浏览器地址栏的颜色跟着页面走：编辑器取主栏色，手机看谱页取页首色；在应用内或官网里切换明暗时，地址栏也一起变。<br>③ 换色前选的预设头像，现在显示为同款新配色；账号里保存的头像不变。<br>④ 官网：用键盘切换焦点时，顶部菜单、谱库筛选条、课程目录的焦点框不再被切掉一截；手机筛选条聚焦到只露出一半的标签时会自动滚进来。「审核中」角标、少儿课程章号与小节号、锁定关卡说明、登录框里的「或」、空心星都加深到看得清，原有颜色含义不变。<br>⑤ 小程序同步换成极光靛紫：导航条、登录页按钮与链接、预览占位页（上传版本 1.1.7）。<br>新套件 <code>tv_v66e</code>。</div></li>
     <li><span class="v">v66.5</span><div><b>全站换新色调：极光靛紫</b>。编辑器、看谱页、官网和分享页一起换色：深色框架由墨绿改为靛黑，强调色由朱砂改为靛紫，界面底色由暖米改为微紫冷白；版式、按钮位置和操作方式都不变。<br>① 主栏、页签条、底部播放条是靛黑框架，底边一条细靛紫线，官网顶栏也换成同样的靛黑；框架里的按钮获得焦点时显示浅紫描边。<br>② 谱面：选中音符和光标用靛紫，播放高亮带与播放竖线改用极光蓝，和选中区分开；谱纸为冷白，打印和导出仍是白纸黑字。<br>③ 深色主题一并修好几处看不清的地方：强调色按钮上的字改为深色，新建向导、帮助等窗口不再出现白卡浅字，输入框提示字、谱库卡片曲名、播放条上的声像读数和小节编号都清楚了。<br>④ 导出图片、分享卡、谱库缩图换成新配色。深色主题下谱面上的作曲、制谱、小节号等灰字更清楚；手动选了浅色主题时打印纸不再是米白；「系统深色 + 手动选浅色」时启动画面不再错成深色。<br>收藏星和收藏心、告警、成功等提示色保持原样。新套件 <code>tv_v66d</code>。</div></li>
@@ -24933,7 +25198,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v66.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v66.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
