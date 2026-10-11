@@ -86,6 +86,22 @@ wx.login() → code
 > 开发者工具里调试时可临时勾选「不校验合法域名」，但真机/体验版仍以后台白名单为准——
 > **工具里能开、手机上打不开**，基本都是白名单没配或校验文件没落位。
 
+## 自动上传（v66.7 起，不用开开发者工具）
+推送时 `deploy/mp-release.json` 有变化（递增 `version`），GitHub 工作流 `.github/workflows/mp-upload.yml` 就用
+`miniprogram-ci` 把本目录上传为**开发版本**（上传者显示为「ci 机器人 1」，等同开发者工具里点「上传」）。
+负责人只需在 mp.weixin.qq.com「管理 → 版本管理 → 开发版本」点「提交审核」，审核通过后在「审核版本」点「发布」。
+
+**一次性设置（小程序管理员）**：
+1. mp.weixin.qq.com →「开发 → 开发管理 → 开发设置 → 小程序代码上传」→ 生成并下载代码上传密钥（`private.<appid>.key`）。
+2. 同一处的 **IP 白名单关闭**（不限制 IP）：GitHub 的上传机器 IP 不固定，开着会被拦。
+3. 仓库 Settings → Secrets and variables → Actions → New repository secret：Name 填 `MP_UPLOAD_KEY`，
+   Secret 粘贴密钥文件全文（含 `-----BEGIN` / `-----END` 两行）。密钥**不进聊天、不进仓库**（`.gitignore` 已排除 `*.key`）。
+
+**以后发小程序**：改 `miniprogram/` → 在 `deploy/mp-release.json` 递增 `version`（1.1.x 线）并写 `desc`、`repo` → 推送部署分支。
+也可在 GitHub「Actions → 小程序自动上传 → Run workflow」手动重传（勾 dry 只编译不上传）。
+没配密钥时工作流只出警告不失败，此时仍按老办法打 zip 交开发者工具上传。
+上传失败看工作流日志：提示 IP 相关＝白名单没关；提示签名 / key 相关＝secret 内容不完整或密钥已在后台重置。
+
 ## 版本对照（小程序版本号自成一线，与网页端 v60.x 不同步）
 | 小程序版本 | 对应仓库 | 内容 |
 |---|---|---|

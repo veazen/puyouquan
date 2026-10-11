@@ -1,0 +1,50 @@
+name: 小程序自动上传
+# v66.7 起：小程序新版本由这里上传（对应开发者工具的「上传」），负责人只需去 mp.weixin.qq.com
+# 「管理 → 版本管理 → 开发版本」点「提交审核」，审核通过后点「发布」。
+# 触发：推送到开发分支且 deploy/mp-release.json 变了（递增 version＝要发小程序新版本），或手动触发。
+# 前提：仓库 secret MP_UPLOAD_KEY＝小程序后台「开发 → 开发管理 → 开发设置 → 小程序代码上传」下载的密钥全文；
+#       同一处的 IP 白名单须关闭（GitHub 机器 IP 不固定）。未配置密钥时只出警告、不失败。
+on:
+  push:
+    branches: [ claude/guitar-tab-software-analysis-zqm0ua ]
+    paths: [ 'deploy/mp-release.json' ]
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: '只编译检查，不上传'
+        type: boolean
+        default: false
+
+concurrency: { group: mp-upload, cancel-in-progress: false }
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: 检查密钥
+        id: key
+        env:
+          MP_UPLOAD_KEY: ${{ secrets.MP_UPLOAD_KEY }}
+        run: |
+          if [ -z "$MP_UPLOAD_KEY" ]; then
+            echo "::warning::未配置仓库 secret MP_UPLOAD_KEY，本次跳过上传（配置方法见 miniprogram/README.md「自动上传」）"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 安装 miniprogram-ci
+        if: steps.key.outputs.skip != '1'
+        run: npm i --no-save --no-audit --no-fund --no-package-lock miniprogram-ci@2.1.31
+      - name: 上传到微信后台（开发版本）
+        if: steps.key.outputs.skip != '1'
+        env:
+          MP_UPLOAD_KEY: ${{ secrets.MP_UPLOAD_KEY }}
+        run: node deploy/mp-upload.js ${{ inputs.dry && '--dry' || '' }}
+      - name: 下一步提示
+        if: steps.key.outputs.skip != '1' && success() && !inputs.dry
+        run: |
+          V=$(node -p "require('./deploy/mp-release.json').version")
+          echo "### 小程序 $V 已上传为开发版本" >> "$GITHUB_STEP_SUMMARY"
+          echo "去 mp.weixin.qq.com →「管理 → 版本管理 → 开发版本」点「提交审核」，审核通过后在「审核版本」点「发布」。" >> "$GITHUB_STEP_SUMMARY"
