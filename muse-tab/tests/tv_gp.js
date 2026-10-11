@@ -256,6 +256,37 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
     w.i(0); w.b(0);
     return Buffer.from(w.arr);
   })();
+  /* v66.7 GP5.00 夹具：5.00 与 5.10 的布局差异（无 RSE 主效果 / 无 hideTempo / 每轨前导字节 / 乐器 effectNumber=short+1 / 轨后 skip2），
+     外加一个带混音变化（变速 120）的拍：混音块按 TuxGuitar readMixChange 的写法「乐器号 + 16 字节」写，不照抄读取器结构——
+     读取器若少读 1 字节，后面的音符就会错位 */
+  const gp500Buf = (() => {
+    const w = mkW();
+    w.bss('FICHIER GUITAR PRO v5.00', 30);
+    ['T500测试', '', '歌手500', '', '词', '曲', '', '制谱', ''].forEach(s => w.ibs(s)); w.i(0);
+    w.i(0); for (let i = 0; i < 5; i++) { w.i(0); w.iss(''); }
+    w.z(30); for (let i = 0; i < 10; i++) w.ibs('');
+    w.ibs(''); w.i(90);                                               // 速度文本 + tempo（5.00 无 hideTempo）
+    w.b(0); w.i(0);
+    for (let i = 0; i < 64; i++) { w.i(0); w.z(8); }
+    w.z(42);
+    w.i(1); w.i(1);                                                   // 1 小节 1 轨
+    w.b(0x03); w.b(4); w.b(4); w.z(4); w.z(1); w.b(0);
+    w.z(1); w.b(0);                                                   // 轨前导字节（5.00 每轨都有）+ flags
+    w.bss('Lead', 40); w.i(6); [64, 59, 55, 50, 45, 40, 0].forEach(v => w.i(v));
+    w.i(1); w.i(1); w.i(2); w.i(24); w.i(0); w.i(0);
+    w.z(29);
+    w.i(0); w.i(0); w.i(0); w.sh(0); w.z(1);                          // RSE 乐器：3 ints + short + 1（5.00）
+    w.z(2);                                                           // 全部轨后 skip(2)（5.00）
+    w.i(2);
+    /* 拍1：带混音变化（flags 0x10）——乐器号 -1 + 16 字节 + 6 项数值全 -1 + 速度文本 + tempo 120 + 速度过渡 + 标志 + wah；音符 弦1品5 */
+    w.b(0x10); w.b(0);
+    w.b(0xFF); w.z(16); for (let i = 0; i < 6; i++) w.b(0xFF); w.ibs(''); w.i(120); w.b(0); w.b(0); w.b(0xFF);
+    w.b(0x40); w.b(0x20); w.b(1); w.b(5); w.z(1); w.sh(0);
+    /* 拍2：普通音符 弦1品7 */
+    w.b(0x00); w.b(0); w.b(0x40); w.b(0x20); w.b(1); w.b(7); w.z(1); w.sh(0);
+    w.i(0);                                                           // 声部2：0 拍；末小节不写换行标记（同转谱站文件）
+    return Buffer.from(w.arr);
+  })();
   const gp4Buf = (() => {
     const w = mkW();
     w.bss('FICHIER GUITAR PRO v4.06', 30);
@@ -312,6 +343,29 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
     && t10.tempo === 100 && t10.key === 'D' && t10.capo === 1 && t10.nMea === 2 && t10.repS === true
     && t10.n0 && t10.n0.s === 1 && t10.n0.f === 7 && t10.tie0 === true && t10.rest
     && t10.n1 && t10.n1.f === 9 && t10.tuningStd, 'T10 GP5 二进制导入', JSON.stringify(t10));
+
+  // T10b v66.7 GP5 末小节缺「换行标记」字节（转谱站导出的 GP5 常见，PyGuitarPro 按可缺省读）：去掉文件最后 1 字节仍完整导入、
+  //   结果与原文件一致；去掉 3 字节（真截断，缺的是音符数据）仍报「文件截断」，不静默吞掉
+  const t10b = await pg.evaluate((s) => {
+    const u8 = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    const full = parseGP(u8.buffer), cut1 = parseGP(u8.slice(0, u8.length - 1).buffer), cut3 = parseGP(u8.slice(0, u8.length - 3).buffer);
+    const sum = r => { if (r.error) return { error: r.error }; const br = buildSongFromGP345(r.gp, [0]); if (br.error) return { error: br.error };
+      return JSON.stringify(br.song.measures.map(m => m.tabs[0].map(c => (c.notes || []).map(n => n.s + ':' + n.f).join('+') + '/' + c.dur))); };
+    return { full: sum(full), cut1: sum(cut1), cut3err: cut3.error || null };
+  }, gp5Buf.toString('base64'));
+  T(typeof t10b.full === 'string' && t10b.cut1 === t10b.full && /文件截断/.test(t10b.cut3err || ''),
+    'T10b GP5 末小节缺换行标记字节仍可导入（与完整文件结果一致），真截断仍报错', JSON.stringify(t10b).slice(0, 300));
+
+  // T10c v66.7 GP5.00：混音变化之后的音符不错位（5.00 乐器号后 16 字节，此前少读 1 字节）+ 5.00 布局整体可读 + 末尾无换行标记
+  const t10c = await pg.evaluate((s) => {
+    const u8 = Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    const r = parseGP(u8.buffer); if (r.error) return { error: r.error };
+    const br = buildSongFromGP345(r.gp, [0]); if (br.error) return { error: br.error };
+    const cs = br.song.measures[0].tabs[0];
+    return { ver: r.gp.ver, title: br.song.title, tempo: br.song.tempo, n: cs.map(c => (c.notes[0] || {}).f), s: cs.map(c => (c.notes[0] || {}).s) };
+  }, gp500Buf.toString('base64'));
+  T(!t10c.error && t10c.ver === '5.0' && t10c.title === 'T500测试' && t10c.tempo === 90 && JSON.stringify(t10c.n) === '[5,7]' && JSON.stringify(t10c.s) === '[1,1]',
+    'T10c GP5.00 混音变化后的音符不错位（乐器号后 16 字节）、5.00 布局与缺换行标记都可读', JSON.stringify(t10c));
 
   // T11 GP4 二进制：3/4 拍号 + 弦2 音符
   const t11 = await pg.evaluate((s) => {
