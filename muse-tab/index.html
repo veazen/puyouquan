@@ -3072,6 +3072,185 @@ function headTextW(t, px, kind){
   if(!w) w=[...t].reduce((a,ch)=>a+px*(/[0-9=]/.test(ch)?0.6:/[♭♯]/.test(ch)?0.5:0.68),0);
   return (HEAD_TW[k]=w);
 }
+/* ===== v66.9 页头自适应排版·量宽与断行工具（产品报障：手机看《独库公路G217》页头「♩=67」压住「作词：林意梵」）=====
+   hdTextW：排版降级判定用的量宽。canvas measureText 按谱面 SVG 的实际计算字体量一次，再按通用衬线体量一次**取大**——
+   导出 PNG / 分享卡 / 缩图把 SVG 当图片光栅化时不带页面 CSS，文字回落浏览器默认（衬线）字体；两者取大＝屏幕与导出
+   两条出口都放得下（保守系数）。字距 ls 按 SVG 语义每字计入（字距加在每个字形之后，含末字）。
+   固定按 100px 量再线性换算（canvas 量宽不做 hinting，与字号成正比），缓存按字重/斜体/字体/文本。
+   无 canvas（极旧环境）时按字符类保守估算：CJK/全角 1em、其余 0.62em。
+   headTextW（1=X 量宽）保持原样不动：拍号位置依赖它，改了会让存量谱面变化。 */
+const HD_TW = {};
+let HD_FAM = '';
+function hdFamNow(){
+  try{ const el=document.getElementById('score')||document.body; const f=getComputedStyle(el).fontFamily; if(f) return f; }catch(_){}
+  return 'sans-serif';
+}
+function hdTextW(t, px, o){
+  o = o||{}; t = String(t==null?'':t);
+  const n = [...t].length;
+  const fam = o.fam || HD_FAM || (HD_FAM = hdFamNow());
+  const key = (o.w||400)+'|'+(o.it?'i':'')+'|'+fam+'|'+t;
+  let w = HD_TW[key];
+  if(w==null){
+    w = 0;
+    try{
+      const c = headTextW.c || (headTextW.c = document.createElement('canvas').getContext('2d'));
+      (o.fam? [fam] : [fam, 'serif']).forEach(f=>{
+        c.font = (o.it?'italic ':'')+(o.w||400)+' 100px '+f;
+        w = Math.max(w, c.measureText(t).width);
+      });
+    }catch(_){ w = 0; }
+    if(!(w>0) && n) w = [...t].reduce((a,ch)=>a+(/[\u2e80-\u9fff\uf900-\ufaff\ufe30-\ufe4f\uff00-\uffef\u3000-\u303f]/.test(ch)? 100 : 62), 0);
+    HD_TW[key] = w;
+  }
+  return w*px/100 + (o.ls||0)*n;
+}
+/* 断行罚分（中文排版禁则 + 标题习惯）：在第 i 个字之前断行的代价，按「愿意为避开这个断点牺牲多少字号」计（0.1≈10%）。
+   理想（0）：空格之后、左括号/书名号/引号之前、破折号「——」之前（副标题另起一行的出版写法）、间隔号/冒号/逗号/顿号/斜杠等之后；
+   次选：「——」之后 0.15；两个汉字之间、汉字与西文/数字交界 0.1（无分词，同为次选时靠均衡挑位置）；
+   避免：空格之前 0.5（与「空格之后」视觉等价，只为去重）、西文单词/数字内部 0.5；行首落右括号或句读、行尾落左括号、拆开「——」1。
+   括号内部的断点另加 0.1（hdBreakK 计层深）：「独库公路G217（Live 版）」宁断在「（」前，不断在「Live」与「版」之间。 */
+const HD_OPEN = '（(《〈「『【〔[{“‘', HD_CLOSE = '）)》〉」』】〕]}”’，。、；：！？,.;:!?%·・';
+function hdBreakPen(a, b){
+  if(/\s/.test(a)) return 0;
+  if(/\s/.test(b)) return 0.5;
+  if(a==='—' && b==='—') return 1;
+  if(HD_CLOSE.includes(b) || HD_OPEN.includes(a)) return 1;
+  if(HD_OPEN.includes(b) || b==='—') return 0;
+  if('·・•｜|/／，、；：！？,;:!?'.includes(a)) return 0;
+  if(a==='—') return 0.15;
+  const cjk = ch=>/[⺀-鿿豈-﫿＀-￯　-〿]/.test(ch);
+  if(cjk(a) || cjk(b)) return 0.1;
+  return 0.5;
+}
+/* 把 t 断成 k 行（cw＝逐字字宽，与 lim 同单位；行首/行尾空格不计）：每行宽 ≤ lim 的前提下**断点罚分之和最小**，
+   同分取「最宽一行最窄」，再同分取各行宽平方和最小（最均衡：汉字等宽，最宽行相同的断法很多，不让末行独短）。
+   两遍动态规划：第一遍字典序（罚分和, 最宽行），第二遍以所得最宽行为上限求（罚分和, 平方和）——两者都满足最优子结构，精确求解。
+   pf(i, ch)＝在第 i 字前断行的罚分（≥99＝禁断；缺省＝hdBreakPen 标题规则＋括号内 0.1）。
+   返回 {lines, P, W}（P＝罚分和，W＝按 cw 计的最宽行），不可行返回 null。
+   内层只回看一行装得下的字（行宽随起点前移单调不减，超 lim 即停）：O(k·n·每行字数)，长署名也不卡。
+   （v66.9 验收改写：初版最小化「最宽行 ×（1＋该行末断点罚分）」，罚分只乘在非末行上——各断点同罚时末行被推到其余行的
+   1＋罚分 倍：汉字人名内部罚 3 ⇒ 末行 4 倍长、署名碎成十几行；且回看无界，240 字署名单次排版 2 s。） */
+function hdBreakK(t, k, cw, pf, lim, sq){
+  const ch = [...t], n = ch.length;
+  if(n < k || k < 1) return null;
+  if(lim == null) lim = Infinity;
+  const pre = [0]; for(let i=0;i<n;i++) pre.push(pre[i] + (cw[i]||0));
+  const sp = ch.map(c=>/\s/.test(c));
+  const lineW = (a,b)=>{ while(a<b && sp[a]) a++; while(b>a && sp[b-1]) b--; return pre[b]-pre[a]; };
+  const pen = new Array(n+1).fill(0);
+  let dep = 0;
+  for(let i=1;i<n;i++){
+    const c0 = ch[i-1];
+    if(HD_OPEN.includes(c0)) dep++; else if('）)》〉」』】〕]}”’'.includes(c0)) dep = Math.max(0, dep-1);
+    pen[i] = pf? pf(i, ch) : hdBreakPen(c0, ch[i]) + (dep>0? 0.1 : 0);
+  }
+  let P = new Array(n+1).fill(Infinity), Wd = new Array(n+1).fill(Infinity);
+  P[0] = 0; Wd[0] = 0;
+  const from = [];
+  for(let j=1;j<=k;j++){
+    const nP = new Array(n+1).fill(Infinity), nW = new Array(n+1).fill(Infinity), fr = new Array(n+1).fill(-1);
+    const iA = j===k? n : j, iB = j===k? n : n-(k-j);
+    for(let i=iA;i<=iB;i++){
+      const pi = pen[i];
+      if(pi >= 99) continue;
+      for(let q=i-1;q>=j-1;q--){
+        const w = lineW(q, i);
+        if(w > lim) break;
+        if(P[q] === Infinity || !(w > 0)) continue;
+        const p = P[q] + pi, ww = sq? Wd[q] + w*w : Math.max(Wd[q], w);
+        if(p < nP[i]-1e-9 || (p < nP[i]+1e-9 && ww < nW[i]-1e-9)){ nP[i] = p; nW[i] = ww; fr[i] = q; }
+      }
+    }
+    from.push(fr); P = nP; Wd = nW;
+  }
+  if(P[n] === Infinity) return null;
+  const cuts = [n]; let i = n;
+  for(let j=k;j>=1;j--){ i = from[j-1][i]; if(i < 0) return null; cuts.unshift(i); }
+  if(!sq){ const r2 = hdBreakK(t, k, cw, pf, Wd[n] + 1e-6, true); if(r2) return Object.assign(r2, {W:Wd[n]}); }
+  const lines = [];
+  for(let m=0;m<k;m++) lines.push(ch.slice(cuts[m], cuts[m+1]).join('').trim());
+  return lines.some(s=>!s)? null : {lines, P:P[n], W:Wd[n]};
+}
+/* 居中标题行（歌名 / 演唱者）的自适应：放得下＝原样（orig，调用方走 v66.8 原写法、逐字节不变）；
+   放不下依次 ① 收字距（线性收到 0）→ ② 等比缩字号（字距 0，不低于 o.min）→
+   ③ 折成 k=2,3… 行居中（取最少可行行数）。每个 k 先求纯均衡下界 W*（不计罚分时最宽行的最小值），再在一组行宽上限
+      （「o.cap 字号放得下」及 W*×1／1.04／1.08／1.15／1.25）下各求罚分最小的断法，按「字号 ×（1－罚分和）」取优：
+      cap 字号放得下时一定挑最合适的断点（「即兴伴奏 · 功能谱示例 /（考编常用）」，不为均衡断成「…功能 / 谱示例…」）；
+      放不下时断点好坏与字号互相折算。字号取「最宽一行放得下」与 o.cap 的较小值，不低于 o.min →
+   ④ 兜底（>160 字或 8 行仍放不下）：o.min 字号逐字贪心折行。返回 {orig} 或 {lines, px, ls, lh}。 */
+function hdFitCenter(t, o){
+  t = String(t==null?'':t);
+  const W = (s, px, ls)=>hdTextW(s, px, {w:o.w, ls});
+  if(W(t, o.px, o.ls) <= o.av) return {orig:true};
+  const n = [...t].length, w1 = W(t, 1, 0);
+  const lhOf = px=>Math.round(px*o.lhk);
+  if(w1*o.px <= o.av) return {lines:[t], px:o.px, ls:Math.max(0, Math.min(o.ls, Math.floor((o.av - w1*o.px)/n*10)/10)), lh:lhOf(o.px)};
+  const fit = (mw, cap)=>Math.min(cap, Math.floor(o.av/mw*2)/2);
+  const px = fit(w1, o.px);
+  if(px >= o.min) return {lines:[t], px, ls:0, lh:lhOf(px)};
+  if(n <= 160){
+    const cw = [...t].map(c=>W(c, 1, 0));
+    for(let k=2;k<=8 && k<=n;k++){
+      let best = null;
+      for(let s0=o.cap; s0>=o.min-1e-9; s0-=0.5){          // 逐档字号（与 fit 的 0.5 取整同档）：行宽上限＝该字号下的版心宽
+        const r = hdBreakK(t, k, cw, null, o.av/s0 + 1e-6);
+        if(!r) continue;                                    // 本档字号下断不成 k 行：放宽到下一档
+        const s = fit(Math.max(...r.lines.map(s2=>W(s2, 1, 0))), o.cap);
+        if(s < o.min) continue;
+        const sc = s*Math.max(0.05, 1 - r.P);
+        if(!best || sc > best.sc + 1e-9) best = {sc, lines:r.lines, px:s};
+        if(r.P < 1e-9) break;                               // 全是理想断点：更小字号不会更好
+      }
+      if(best) return {lines:best.lines, px:best.px, ls:0, lh:lhOf(best.px)};
+    }
+  }
+  const lines = []; let cur = '';
+  [...t].forEach(c=>{ if(cur && W(cur+c, o.min, 0) > o.av){ lines.push(cur.trim()); cur = ''; } cur += c; });
+  if(cur.trim()) lines.push(cur.trim());
+  return {lines: lines.filter(Boolean), px:o.min, ls:0, lh:lhOf(o.min)};
+}
+/* 词曲署名一项（「作词：」＋人名）超过右栏限宽 WR 时折行：与歌名同一套断行（hdBreakK，行宽上限 WR），
+   行数取放得下的最少行；若多折一行能换掉「拆人名」的断点（罚分差 > 0.35）就多折一行。
+   断点罚分：/ 、 ， ; & 等分隔符之后 0；西文人名内部空格 0.15；分隔符或空格之前 0.5；汉字人名内部、西文单词内部 0.6（兜底）；
+   标签「作词：」不单独成行（禁断）。同罚分时取最均衡，不会把末一个名字甩成孤行。
+   续行不重复标签、与首行一同右对齐（右对齐署名栏的出版写法）。 */
+function hdWrapCred(k, v, WR){
+  const W = s=>hdTextW(s, 12.5, {ls:0.4});
+  v = String(v==null?'':v);
+  const t = k+v;
+  if(W(t) <= WR) return [{k, v, w:W(t)}];
+  const SEPC = '/／、，,;；&＆|｜·・', L = [...k].length;
+  const pf = (i, ch)=>{
+    if(i <= L) return 99;
+    const a = ch[i-1], b = ch[i];
+    if(SEPC.includes(a) || (/\s/.test(a) && SEPC.includes(ch[i-2]||''))) return 0;
+    if(SEPC.includes(b) || /\s/.test(b)) return 0.5;
+    if(/\s/.test(a)) return 0.15;
+    return 0.6;
+  };
+  const cw = [...t].map(c=>W(c));
+  const N = cw.length;
+  let best = null, nf = 0;
+  const n0 = Math.max(2, Math.ceil(W(t)/WR));
+  for(let n=n0; n<=N-L && n<=n0+60; n++){
+    if(nf && n > nf+1) break;
+    const r = hdBreakK(t, n, cw, pf, WR);
+    if(!r) continue;
+    const out = r.lines.map((s2,i)=>{ const vv = i? s2 : s2.slice(k.length); return {k:i? '' : k, v:vv, w:W((i? '' : k)+vv)}; });
+    if(!out.every(x=>x.w <= WR)) continue;      // 整行实测复核（逐字累加与整串量宽差在亚像素级）
+    if(!nf) nf = n;
+    const sc = r.P + 0.35*(n - nf);
+    if(!best || sc < best.sc - 1e-9) best = {sc, out};
+    if(r.P < 1e-9) break;
+  }
+  if(best) return best.out;
+  /* 兜底（理论上到不了：每行一字必然放得下）：逐字贪心 */
+  const out = []; let lk = k, cur = '';
+  [...v].forEach(c=>{ if(cur && W(lk+cur+c) > WR){ out.push({k:lk, v:cur.trim(), w:W(lk+cur.trim())}); lk = ''; cur = ''; } cur += c; });
+  out.push({k:lk, v:cur.trim(), w:W(lk+cur.trim())});
+  return out;
+}
 const DEG_SEMI = [null,0,2,4,5,7,9,11];
 const SEMI_DEG = [[1,''],[1,'#'],[2,''],[2,'#'],[3,''],[4,''],[4,'#'],[5,''],[5,'#'],[6,''],[6,'#'],[7,'']];
 /* ===== 整体移调（换调自动适应）：和弦名按半音差换根音/斜杠低音，
@@ -8208,18 +8387,45 @@ function renderCore(){
   /* v60.95 出版级页头改版（产品指示）：标题字距放宽、演唱者小字加距居中，
      词曲/制谱列右对齐且首行与左侧 1=X 信息行**同基线**（歌本出版惯例：左调右词曲同排起笔），
      标签「作词/作曲/制谱」弱化墨色、名字保持正墨；行距 18 统一节奏 */
-  p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="28" font-weight="800" letter-spacing="3" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
-  headY += 24;
+  /* v66.9 页头自适应排版（产品报障：手机看《独库公路G217》左侧「…♩=67」与右侧「作词：林意梵」同基线互压）。
+     原则：任何版宽、任何长度下页头元素互不重叠、不越出版心 [MARGIN, PAGE_W−MARGIN]；**放得下时一律走 v66.8 原写法**
+     （桌面常见宽度下的存量谱面逐字节不变，tv_header 钉住）。量宽走 hdTextW（屏幕字体与导出回落字体取大）。
+     ① 歌名（28 号 / 字距 3）：放不下先收字距 → 再等比缩字号（下限 18）→ 仍放不下按断点（空格后、括号前、「——」前、
+        间隔号/冒号/斜杠后，其次汉字之间）均衡折成 2 行及以上居中，折行字号不超过 24、不低于 18；
+        演唱者行（13 号 / 字距 2）同理：收字距 → 缩到 11 → 折行。
+     ② 左信息块（1=X 拍号＋变调夹/调弦/速度术语/♩=X）与右词曲块（作词/作曲/制谱）逐行碰撞检测：
+        左行实宽 ＋ 安全距 12 ＋ 右行实宽 ≤ 版心宽。原样（左一行、右 18 行距、首行同基线）放不下时按以下**固定顺序**降级，
+        两栏改用共同的 20px 行距网格（左首行 16 号调号带拍号分数，18 会让下一行字顶贴住分母）：
+        D1 左块分行、两栏并排：首行保留「1=X 拍号」并尽量紧跟速度组（术语＋♩=X，GB 简谱惯例速度随拍号；
+           首行放不下时速度组独占第二行——「1=F 4/4」下一行写「中速」同样是简谱出版物常见写法），
+           变调夹、调弦等演奏设置随后逐项下移（与 1=X 左对齐起笔，同行放得下就并排；不与被挤下来的速度组同行）；
+           右栏每项限宽为版心 60%，超出则均衡折行（断在 / 、 ， 等分隔处，同一人名尽量不拆）、续行右对齐；
+        D2 错行：右栏照排，左块整体下移、首行与右栏末行同基线（GB 简谱出版物「调号拍号与署名末行齐」的写法）；
+        D3 上下分栏：左块整体排在右栏之下，每行独占版心宽（必然放得下）。
+        单项比整个版心还宽（极端长的术语/调弦名）时该项按比例缩字号（下限 8）。
+     ③ 首行系统起点 top（及其后的曲首和弦图带）按页头实际末行下移；点击直改热区按实际位置与实测宽度生成。 */
+  HD_FAM = hdFamNow();
+  const HDA = PAGE_W - 2*MARGIN;            // 版心宽
+  const hdT = hdFitCenter(song.title, {px:28, w:800, ls:3, min:18, cap:24, av:HDA, lhk:1.25});
+  if(hdT.orig){
+    p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="28" font-weight="800" letter-spacing="3" text-anchor="middle" fill="var(--ink)">${esc(song.title)}</text>`);
+    headY += 24;
+  }else{
+    hdT.lines.forEach((ln,i)=>{ if(i) headY += hdT.lh;
+      p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="${hdT.px}" font-weight="800" letter-spacing="${hdT.ls}" text-anchor="middle" fill="var(--ink)">${esc(ln)}</text>`); });
+    headY += Math.round(18 + 6*hdT.px/28);
+  }
   if(song.singer){
-    p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="13" letter-spacing="2" text-anchor="middle" fill="var(--muted)">${esc(song.singer)}</text>`);
+    const hdS = hdFitCenter(song.singer, {px:13, w:400, ls:2, min:11, cap:13, av:HDA, lhk:1.3});
+    if(hdS.orig) p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="13" letter-spacing="2" text-anchor="middle" fill="var(--muted)">${esc(song.singer)}</text>`);
+    else hdS.lines.forEach((ln,i)=>{ if(i) headY += hdS.lh;
+      p.push(`<text x="${PAGE_W/2}" y="${headY}" font-size="${hdS.px}" letter-spacing="${hdS.ls}" text-anchor="middle" fill="var(--muted)">${esc(ln)}</text>`); });
     headY += 7;
   }
   const credits=[];
   if(song.lyricist) credits.push(['作词：', song.lyricist]);
   if(song.composer) credits.push(['作曲：', song.composer]);
   if(song.maker) credits.push(['制谱：', song.maker]);
-  credits.forEach(([k,v],i)=>
-    p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+22+i*18}" font-size="12.5" letter-spacing="0.4" text-anchor="end"><tspan fill="var(--muted)">${k}</tspan><tspan fill="var(--ink)">${esc(v)}</tspan></text>`));
   /* 纯五线谱/钢琴谱：调性由调号表达、拍号在谱表上——页头不再重复 1=X 与 4/4，
      只保留速度记号（出版惯例）；含简谱/TAB 的谱面维持原页头 */
   /* v64.2 B4a ①（P1-15）教学对照谱（五线谱＋简谱行 voxDual）的简谱行要读首调：页头必须有 1=X 与拍号，调号热区可点 */
@@ -8229,55 +8435,151 @@ function renderCore(){
      与播放同步，见 voxCapo），变调夹位注明按什么指法（歌本惯例：1=bE 变调夹3品 按C指法） */
   const capoShift = (song.tabVoices.length && song.capo>0 && !pureStaff)? song.capo : 0;
   const dispKey = capoShift? KEY_LIST[(KEY_PC[song.key]+capoShift)%12] : song.key;
-  if(!pureStaff){
-    /* v63.5 B2a ③（P2-12）1=♭B / 1=♯C 写法；拍号按「1=X」的实测宽度排在其后（此前钉死在 MARGIN+48：1=C♯ 越线、1=F♯ 贴死），
-       分数线随分子分母位数加宽、数字居中（9/8、12/8） */
-    const keyTxt='1='+keyLabel(dispKey), keyW=headTextW(keyTxt, 16, 'num');
-    p.push(`<text x="${MARGIN}" y="${headY+22}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">${esc(keyTxt)}</text>`);
-    const tsX = MARGIN + Math.max(42, Math.ceil(keyW) + 7);
+  /* v63.5 B2a ③（P2-12）1=♭B / 1=♯C 写法；拍号按「1=X」的实测宽度排在其后（此前钉死在 MARGIN+48：1=C♯ 越线、1=F♯ 贴死），
+     分数线随分子分母位数加宽、数字居中（9/8、12/8）。v66.9 抽成按基线 yb 绘制（降级时调号行可下移） */
+  const keyTxt='1='+keyLabel(dispKey), keyW=headTextW(keyTxt, 16, 'num');
+  const tsX = MARGIN + Math.max(42, Math.ceil(keyW) + 7);
+  const tsW = Math.max(14, 7*Math.max(String(song.beats).length, String(song.unit).length)+4);
+  const drawKey = yb=>{
+    if(pureStaff) return;
+    p.push(`<text x="${MARGIN}" y="${yb}" font-size="16" font-family="var(--font-num)" fill="var(--ink)">${esc(keyTxt)}</text>`);
     /* v60.94 散拍草稿（自定义节奏型编辑器）：页头标「散拍」，不画拍号分数 */
     if(song.freeMeter)
-      p.push(`<text x="${tsX}" y="${headY+22}" font-size="12.5" fill="var(--ink)">散拍</text>`);
+      p.push(`<text x="${tsX}" y="${yb}" font-size="12.5" fill="var(--ink)">散拍</text>`);
     else{
-      const tw = Math.max(14, 7*Math.max(String(song.beats).length, String(song.unit).length)+4), tc = tsX + tw/2;
-      p.push(`<text x="${tc}" y="${headY+15}" font-size="11" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${song.beats}</text>`);
-      p.push(`<line x1="${tsX}" y1="${headY+18}" x2="${tsX+tw}" y2="${headY+18}" stroke="var(--ink)" stroke-width="0.9"/>`);
-      p.push(`<text x="${tc}" y="${headY+28}" font-size="11" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${song.unit}</text>`);
+      const tc = tsX + tsW/2;
+      p.push(`<text x="${tc}" y="${yb-7}" font-size="11" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${song.beats}</text>`);
+      p.push(`<line x1="${tsX}" y1="${yb-4}" x2="${tsX+tsW}" y2="${yb-4}" stroke="var(--ink)" stroke-width="0.9"/>`);
+      p.push(`<text x="${tc}" y="${yb+6}" font-size="11" font-family="var(--font-num)" text-anchor="middle" fill="var(--ink)">${song.unit}</text>`);
     }
-  }
-  /* v53.4 页头位段结构化 {t,act}：act=点击直改动作（capo/tempo），null=纯标注；估宽定热区 */
+  };
+  /* v53.4 页头位段结构化 {t,act}：act=点击直改动作（capo/tempo），null=纯标注；v66.9 另记纯文本 p 与实测宽 w */
   const capoBits=[];
-  if(song.capo>0 && !pureStaff) capoBits.push({t:esc(`变调夹 ${song.capo} 品（按 1=${song.key} 指法）`), act:'capo'});
+  if(song.capo>0 && !pureStaff){ const s2=`变调夹 ${song.capo} 品（按 1=${song.key} 指法）`; capoBits.push({t:esc(s2), act:'capo', p:s2}); }
   /* 未设夹不占谱面（打印纯净）：capo 从曲谱信息弹窗（点标题区）或变调夹菜单（设过后可点）进入 */
-  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push({t:esc(tl), act:null}); }   // v42.3 特殊调弦谱首标注
+  { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push({t:esc(tl), act:null, p:tl}); }   // v42.3 特殊调弦谱首标注
   /* v42.7 意大利速度术语：与 ♩=X 并排，斜体加粗（出版惯例）；五线谱/器乐谱同样显示 */
-  if(song.tempoTerm) capoBits.push({t:`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`, act:'tempo'});
-  capoBits.push({t:`${tempoGlyph(song)}=${esc(song.tempo)}`, act:'tempo'});   /* v65.0 B2c 页头按速度单位写 ♩= / ♪= / ♩.= */
+  if(song.tempoTerm) capoBits.push({t:`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`, act:'tempo', p:String(song.tempoTerm), it:true});
+  capoBits.push({t:`${tempoGlyph(song)}=${esc(song.tempo)}`, act:'tempo', p:`${tempoGlyph(song)}=${song.tempo}`});   /* v65.0 B2c 页头按速度单位写 ♩= / ♪= / ♩.= */
   const cbX0 = pureStaff? MARGIN : MARGIN+78;
-  p.push(`<text x="${cbX0}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.map(b2=>b2.t).join('　')}</text>`);
-  /* v53.4 页头直改热区：标题/词曲区→曲谱信息弹窗；调号/拍号/变调夹/速度→就地菜单 */
-  {
-    const hz=(x,y,w2,h2,act,tip)=>p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w2.toFixed(1)}" height="${h2.toFixed(1)}" fill="transparent" data-hd="${act}" style="cursor:pointer"><title>${tip}</title></rect>`);
-    hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', '点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）');
+  const hdWt = pureStaff? 700 : 400;
+  capoBits.forEach(b2=>{ b2.w = b2.it? hdTextW(b2.p, 12.5, {w:700, it:true, fam:'Georgia,serif'}) : hdTextW(b2.p, 12.5, {w:hdWt}); });
+  const HDG = 12, HSP = hdTextW('　', 12.5, {w:hdWt});            // 左右块安全距 / 全角空格宽
+  const credW = credits.map(([k,v])=>hdTextW(k+v, 12.5, {ls:0.4}));
+  const left0 = (cbX0-MARGIN) + capoBits.reduce((a,b2,i)=>a+b2.w+(i?HSP:0), 0);
+  /* 拍号分母下探到下一行的字顶（分母基线 +6、下一行字顶约 +8）：右栏第二行若长到伸进拍号上方，同样算相撞 */
+  const kExt = pureStaff? 0 : (tsX-MARGIN) + (song.freeMeter? hdTextW('散拍', 12.5) : tsW);
+  const kDrop = !pureStaff && !song.freeMeter;
+  const hdOrig = left0 <= HDA && (!credits.length || left0 + HDG + credW[0] <= HDA) && credW.every(w2=>w2<=HDA)
+    && !(kDrop && credits.length>1 && kExt + HDG + credW[1] > HDA);
+  const hz=(x,y,w2,h2,act,tip)=>p.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w2.toFixed(1)}" height="${h2.toFixed(1)}" fill="transparent" data-hd="${act}" style="cursor:pointer"><title>${tip}</title></rect>`);
+  const TIP_META='点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）';
+  const TIP_KEY='点击打开变调弹窗：唱调 ♭♯ / 变调夹 / 夹位选指法 / 恢复原调（和弦与指法自动重排，可 Ctrl+Z）';
+  const TIP_METER='点击设置全曲拍号（单个小节变拍：点击该小节拍号区）';
+  const tipOf = act=> act==='capo'? '点击设置变调夹（简谱实际调与播放同步联动）' : '点击设置速度 ♩=X';
+  let top;
+  if(hdOrig){
+    credits.forEach(([k,v],i)=>
+      p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+22+i*18}" font-size="12.5" letter-spacing="0.4" text-anchor="end"><tspan fill="var(--muted)">${k}</tspan><tspan fill="var(--ink)">${esc(v)}</tspan></text>`));
+    drawKey(headY+22);
+    p.push(`<text x="${cbX0}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.map(b2=>b2.t).join('　')}</text>`);
+    /* v53.4 页头直改热区：标题/词曲区→曲谱信息弹窗；调号/拍号/变调夹/速度→就地菜单 */
+    hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', TIP_META);
     if(!pureStaff){
-      hz(MARGIN-4, headY+6, 50, 22, 'key', '点击打开变调弹窗：唱调 ♭♯ / 变调夹 / 夹位选指法 / 恢复原调（和弦与指法自动重排，可 Ctrl+Z）');
-      hz(MARGIN+42, headY+2, 26, 30, 'meter', '点击设置全曲拍号（单个小节变拍：点击该小节拍号区）');
+      hz(MARGIN-4, headY+6, 50, 22, 'key', TIP_KEY);
+      hz(MARGIN+42, headY+2, 26, 30, 'meter', TIP_METER);
     }
+    /* 热区定宽：只有「♩=X」一项时沿用 v53.4 字符类估宽（与字形几乎等宽，存量谱面逐字节不变）；
+       多项并排时估宽误差会逐项累积（v66.8 实测变调夹＋速度时速度热区右偏 12px、左段落进变调夹热区）→ v66.9 改实测宽 */
     const estW = s2=>[...String(s2).replace(/<[^>]*>/g,'')].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7:12.5),0);
+    /* 同一行 <text> 里的字按屏幕字体排，热区定位只取屏幕字体量宽（不取大，免得逐项右漂） */
+    const scrW = b2=>b2.it? b2.w : hdTextW(b2.p, 12.5, {w:hdWt, fam:HD_FAM});
+    const scrSP = hdTextW('　', 12.5, {w:hdWt, fam:HD_FAM});
     let cx2=cbX0;
     capoBits.forEach(b2=>{
-      const w2=estW(b2.t);
-      if(b2.act) hz(cx2-2, headY+9, w2+5, 18, b2.act,
-        b2.act==='capo'? '点击设置变调夹（简谱实际调与播放同步联动）' : '点击设置速度 ♩=X');
-      cx2 += w2 + 12.5;
+      const w2 = capoBits.length>1? scrW(b2) : estW(b2.t);
+      if(b2.act) hz(cx2-2, headY+9, w2+5, 18, b2.act, tipOf(b2.act));
+      cx2 += w2 + (capoBits.length>1? scrSP : 12.5);
     });
-    /* v60.95 词曲/制谱列同样可点开曲谱信息弹窗（它就是这些字段的编辑入口） */
-    if(credits.length) hz(PAGE_W-MARGIN-160, headY+8, 164, credits.length*18+8, 'meta', '点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）');
+    /* v60.95 词曲/制谱列同样可点开曲谱信息弹窗（它就是这些字段的编辑入口）；
+       v66.9 左行较长时热区左缘让到左行之后（此前定宽 160 会盖住速度热区，点 ♩=X 弹出信息卡）；
+       有署名比这块热区宽时（长署名，定宽 160 只盖住右段、左段点不中）改为逐行按实测宽出热区——常规长度仍走单块原写法 */
+    if(credits.length){ const cx3 = Math.max(PAGE_W-MARGIN-160, MARGIN+left0+HDG/2);
+      if(Math.max(...credW) <= PAGE_W-MARGIN-cx3-2) hz(cx3, headY+8, PAGE_W-MARGIN+4-cx3, credits.length*18+8, 'meta', TIP_META);
+      else credW.forEach((w2,i)=>{ const x3 = Math.max(PAGE_W-MARGIN-w2-4, MARGIN+(i? kExt : left0)+HDG/2);
+        hz(x3, headY+8+i*18, PAGE_W-MARGIN+4-x3, i===credits.length-1? 26 : 18, 'meta', TIP_META); }); }
+    /* v60.95 版面自动让位（产品报障：词曲信息压到首行行内和弦图）：
+       top 按词曲块实际高度取大——首行系统（含 diagH 和弦图带）永远从词曲列底部之下起排；
+       无词曲信息时维持原 42px（存量谱面零变化） */
+    top = headY + Math.max(42, credits.length? 22+credits.length*18+16 : 42);
+  }else{
+    /* v66.9 降级排版（顺序见本段开头注释 ②）：共同行距网格 yR(r)＝headY+22+20r */
+    const yR = r=>headY + 22 + 20*r;
+    const WR = Math.max(120, Math.round(HDA*0.6));
+    const right = [];
+    credits.forEach(([k,v])=>right.push(...hdWrapCred(k, v, WR)));
+    const nR = right.length;
+    /* 左块单元：速度组（术语＋♩=X 不拆，除非合起来比版心还宽）在前，变调夹、调弦在后 */
+    const tg = capoBits.filter(b2=>b2.act==='tempo'), setB = capoBits.filter(b2=>b2.act!=='tempo');
+    const unitOf = parts=>({parts, w:parts.reduce((a,b2,i)=>a+b2.w+(i?HSP:0), 0), px:12.5});
+    const units = [];
+    const tgU = unitOf(tg);
+    if(tg.length>1 && tgU.w > HDA) tg.forEach(b2=>units.push(unitOf([b2]))); else if(tg.length) units.push(tgU);
+    setB.forEach((b2,i)=>{
+      /* 版心比整条变调夹说明还窄（A5＋内容放大、手机大字＋内容放大）：在「（按 1=X 指法）」前折开（括注另起一行的出版写法），
+         两段各自是变调夹热区；不再整条缩字号 */
+      if(b2.act==='capo' && b2.w > HDA){
+        const pa = `变调夹 ${song.capo} 品`, pc = `（按 1=${song.key} 指法）`;
+        units.push(Object.assign(unitOf([{t:esc(pa), act:'capo', p:pa, w:hdTextW(pa, 12.5, {w:hdWt})}]), {set1:i===0}),
+          unitOf([{t:esc(pc), act:'capo', p:pc, w:hdTextW(pc, 12.5, {w:hdWt})}]));
+      }else units.push(Object.assign(unitOf([b2]), {set1:i===0}));
+    });
+    units.forEach(u=>{ if(u.w > HDA){ u.px = Math.max(8, Math.floor(12.5*HDA/u.w*2)/2); u.w = u.w*u.px/12.5; } });
+    const avAt = r=>HDA - (r<nR? right[r].w + HDG : 0);
+    const flow = s=>{
+      if(!pureStaff && kExt > avAt(s)) return null;
+      if(kDrop && s+1<nR && kExt + HDG + right[s+1].w > HDA) return null;   // 拍号分母 × 下一行右栏
+      const rows = []; let cur = {r:s, k:!pureStaff, us:[], w:pureStaff? 0 : cbX0-MARGIN};
+      for(const u of units){
+        /* 演奏设置（变调夹/调弦）可以跟在调号行，但不与「被挤下来的速度组」同行：速度组独占一行，设置另起 */
+        if(u.set1 && !cur.k && cur.us.length){ rows.push(cur); cur = {r:cur.r+1, k:false, us:[], w:0}; }
+        let need = cur.us.length? cur.w + HSP + u.w : cur.w + u.w;
+        if(need > avAt(cur.r)){
+          if(!cur.us.length && !cur.k) return null;           // 空行也放不下：本档失败（不留空洞）
+          rows.push(cur); cur = {r:cur.r+1, k:false, us:[], w:0}; need = u.w;
+          if(need > avAt(cur.r)) return null;
+        }
+        cur.us.push(u); cur.w = need;
+      }
+      rows.push(cur);
+      return rows;
+    };
+    const tiers = [0]; if(nR>=2) tiers.push(nR-1); if(nR>=1) tiers.push(nR);
+    let rows = null, s0 = 0;
+    for(const s of tiers){ rows = flow(s); if(rows){ s0 = s; break; } }
+    if(!rows){ s0 = nR; rows = [{r:nR, k:!pureStaff, us:units, w:0}]; }   // 防御兜底（D3 按构造必成）
+    right.forEach((ln,r)=>p.push(`<text x="${PAGE_W-MARGIN}" y="${yR(r)}" font-size="12.5" letter-spacing="0.4" text-anchor="end">${ln.k? `<tspan fill="var(--muted)">${ln.k}</tspan>` : ''}<tspan fill="var(--ink)">${esc(ln.v)}</tspan></text>`));
+    drawKey(yR(s0));
+    rows.forEach(row=>{
+      let x = row.k? cbX0 : MARGIN; const y = yR(row.r);
+      row.us.forEach((u,ui)=>{
+        if(ui) x += HSP;
+        u.x = x; u.y = y;
+        p.push(`<text x="${+x.toFixed(1)}" y="${y}" font-size="${u.px}" font-weight="${hdWt}" fill="var(--ink)">${u.parts.map(b2=>b2.t).join('　')}</text>`);
+        x += u.w;
+      });
+    });
+    hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', TIP_META);
+    if(!pureStaff){ const yk = yR(s0);
+      hz(MARGIN-4, yk-16, 50, 22, 'key', TIP_KEY);
+      hz(MARGIN+42, yk-20, 26, 30, 'meter', TIP_METER);
+    }
+    rows.forEach(row=>row.us.forEach(u=>{ const act = u.parts[0].act;
+      if(act) hz(u.x-2, u.y-13, u.w+5, 18, act, tipOf(act)); }));
+    right.forEach((ln,r)=>hz(PAGE_W-MARGIN-ln.w-4, yR(r)-14, ln.w+8, 20, 'meta', TIP_META));
+    const rMax = Math.max(nR-1, rows.length? rows[rows.length-1].r : s0);
+    top = Math.max(headY + 42, yR(rMax) + 34);
   }
-  /* v60.95 版面自动让位（产品报障：词曲信息压到首行行内和弦图）：
-     top 按词曲块实际高度取大——首行系统（含 diagH 和弦图带）永远从词曲列底部之下起排；
-     无词曲信息时维持原 42px（存量谱面零变化） */
-  let top = headY + Math.max(42, credits.length? 22+credits.length*18+16 : 42);
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
@@ -25171,6 +25473,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v66.9</span><div><b>谱面页头自适应排版：手机上不再压字</b>。<br>① 歌名太长时先收紧字距、再缩小字号，仍放不下就在空格、括号或「——」前折成两行居中；演唱者一行同样处理。<br>② 左边的调号、拍号、变调夹、速度和右边的作词、作曲、制谱会先检查是否撞在一起：放得下就照旧排；放不下时速度跟在拍号后面，变调夹和特殊调弦另起一行；作词、作曲名单太长时在「/」「、」等处折行；再放不下就把调号一行和署名最后一行对齐，或整体排到署名下面。<br>③ 下面的乐谱和曲首和弦图会跟着页头实际高度往下排；点击页头直接修改的位置也跟着走（顺带修好了点变调夹后半截会打开曲谱信息的问题）。打印、导出图片、分享卡、谱架同样生效；电脑上放得下的谱面和以前完全一样。<br>新套件 <code>tv_header</code>。</div></li>
     <li><span class="v">v66.8</span><div><b>六线谱 let ring / P.M. 改为出版写法 + 修正导入谱的延音品位</b>。<br>① 连续的 let ring 只在开头写一次，后面一条虚线延到最后一个音、末端一个小竖钩；跨小节线不断开，遇到休止或换行才分段，换行后新一行开头写「(let ring)」接着画。P.M.（闷音）同样处理。以前每个音各写一个「let ring」并往上叠，从吉他谱网站导入的谱挤成一团（实测一首 73 小节的谱，「let ring」从 712 个减到 32 个，重叠从 571 处减到 0）。单独标注的音和手动拉出的范围显示不变。<br>② 虚线经过的地方，其他技法字母、标注、指法自动让到虚线上方；碰到和弦名、延长号、击勾弦弧线等时整段抬高，和弦图会缩小让位；同一列标注叠了两层以上时，这一行会自动加高，不再压到上面的内容。<br>③ 导入 Guitar Pro 谱时，延音（连音线）接着的音以前常被读成 0 品，现在取同一根弦上一个音的品位，如「2 延 2」不再显示成「2、0」。<br>新套件 <code>tv_lrspan</code>。</div></li>
     <li><span class="v">v66.7</span><div><b>修复：部分 Guitar Pro 5 文件导入报「文件截断」</b>。<br>① 有些吉他谱网站导出的 .gp5 文件，最后一小节末尾少了一个可有可无的字节，以前会整份导入失败；现在能完整导入。文件中途真的缺了内容时，仍会提示「文件截断」。<br>② Guitar Pro 5.00 格式里带「混音 / 变速」设置的拍，以前读完后面的音符会错位；现在按正确位置读取。</div></li>
     <li><span class="v">v66.6</span><div><b>换色后的可读性收尾 + 小程序换新色</b>。<br>① 深色主题下，页签关闭、静音、「全部采纳」等红绿实底按钮上的字改为深色，不再看不清。谱库收藏心、搜索放大镜、变调弹窗里的音名，以及几处菜单和浮层的小字，原来靠半透明变淡，现在改成清楚的实色；放大镜也会跟着深浅主题变色。<br>② 手机浏览器地址栏的颜色跟着页面走：编辑器取主栏色，手机看谱页取页首色；在应用内或官网里切换明暗时，地址栏也一起变。<br>③ 换色前选的预设头像，现在显示为同款新配色；账号里保存的头像不变。<br>④ 官网：用键盘切换焦点时，顶部菜单、谱库筛选条、课程目录的焦点框不再被切掉一截；手机筛选条聚焦到只露出一半的标签时会自动滚进来。「审核中」角标、少儿课程章号与小节号、锁定关卡说明、登录框里的「或」、空心星都加深到看得清，原有颜色含义不变。<br>⑤ 小程序同步换成极光靛紫：导航条、登录页按钮与链接、预览占位页（上传版本 1.1.7）。<br>新套件 <code>tv_v66e</code>。</div></li>
@@ -25198,7 +25501,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v66.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v66.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
