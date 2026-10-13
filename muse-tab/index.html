@@ -860,6 +860,15 @@ svg text{user-select:none}
 /* v60.95 弹窗表单行的说明文字（勾选项右侧长句）：不吃 56px 标签列宽——
    此前「弱起小节」「散拍」的提示被压成一字一行的竖排（用户报障「乱码」） */
 .modal label.f .fnote{width:auto;flex:1;text-align:left;line-height:1.5}
+/* v67.0 导入弹窗「调」+「简谱记法」（GP 音轨 / MIDI 共用）：与 label.f 同列宽，单选两项可折行 */
+.modal .kc-box{margin-top:10px;padding-top:8px;border-top:1px solid var(--border-soft)}
+.modal .kc-box select{flex:1;min-width:0}
+.modal .kc-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin:6px 0;font-size:13px}
+.modal .kc-lab{flex:0 0 56px;color:var(--muted);text-align:right}
+.modal .kc-opt{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--text)}
+.modal .kc-opt input{width:auto;margin:0}
+.modal .kc-tip{margin:4px 0 0 64px;line-height:1.5}
+@media (max-width:480px){ .modal .kc-tip{margin-left:0} }
 .modal .lg-agree{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:8px 0 0;cursor:pointer}
 .modal .lg-agree input{margin:0;width:15px;height:15px;flex:none}
 .modal .lg-agree a{color:var(--accent-ink)}
@@ -1700,6 +1709,15 @@ body.shell #mixer-dock,body.viewer #mixer-dock{padding-bottom:env(safe-area-inse
 #ekey-pop .kp-chip.ez i{color:var(--danger)}      /* CAGED 开放把位：浅底上金色不可读，改琥珀 */
 #ekey-pop .kp-chip.on{background:var(--accent);border-color:var(--accent);color:var(--ed-on-accent)}
 #ekey-pop .kp-chip.on i{color:var(--ed-on-accent);opacity:.9}
+/* v67.0 改记谱调（音不变）：开合按钮 + 12 个调 / 固定调速选（chip 复用 .kp-chip，标「当前 / 检测」） */
+#ek-resp-row{padding-top:6px;border-top:1px solid var(--border-soft)}
+#ek-resp-tg{font-size:11.5px;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--accent-ink);line-height:1;min-height:28px}
+#ek-resp-tg:hover,#ek-resp-tg[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent)}
+#ek-resp{flex-wrap:wrap;gap:5px}
+#ek-resp[hidden]{display:none}
+#ek-resp .kp-chip{min-width:38px}
+#ek-resp .kp-chip.kp-fixed{min-width:64px}
+#ek-resp small{flex:0 0 100%;text-align:center;font-size:11px;color:var(--muted);line-height:1.45}
 #ekey-pop .tp-nudge{border:1px solid var(--border);background:var(--ed-raise);color:var(--text)}
 #ekey-pop .tp-nudge:hover{border-color:var(--accent);color:var(--accent-ink)}
 #ekey-pop .tp-nudge:active{background:var(--accent-soft)}
@@ -2925,6 +2943,10 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
   </div>
   <div class="kp-row kp-capo" id="ek-eq"></div>
   <div class="kp-row kp-capo" id="ek-chips" title="夹位速选（选指法）：唱调不变，点选变调夹品位，金标=开放把位指法（CAGED）"></div>
+  <!-- v67.0 改记谱调（音不变）：只换简谱 1=X 的写法，音高 / 六线谱品位 / 和弦名都不变 -->
+  <div class="kp-row" id="ek-resp-row"><button id="ek-resp-tg" type="button" aria-expanded="false" aria-controls="ek-resp"
+    title="只改简谱 1=X 的写法：每个音的音高、六线谱品位、和弦名都不变（功能谱级数随新调重算），可 Ctrl+Z 撤销">改记谱调（音不变）</button></div>
+  <div class="kp-row" id="ek-resp" hidden></div>
 </div>
 <div id="toast"></div>
 <!-- v61.4 音色加载胶囊：播放触发但采样包未就绪时浮出，四根均衡条跳动，就绪自动开播即隐 -->
@@ -3400,8 +3422,8 @@ function chordTones(name){
   const r = chordIvOf(m[2]||'');
   return {pc:KEY_PC[m[1]], iv: r.known? r.iv : QUAL_INTERVALS['']};
 }
-function midiToVoxCol(midi){
-  const rel = midi - keyRef();
+function midiToVoxCol(midi, ref){   /* v67.0 ref 可选（简谱联排行按小节生效调传 keyRefAt(mi)；缺省谱首调，旧调用零改动） */
+  const rel = midi - (ref!=null? ref : keyRef());
   const oct = Math.floor(rel/12), pc = ((rel%12)+12)%12;
   return {deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct};
 }
@@ -5762,8 +5784,14 @@ function normalizeSongFields(v, key){
   if(typeof v==='number' && key && SAN_NUM.has(key) && !Number.isFinite(v)) return 0;
   return v;
 }
+/* v67.0 新增可选字段（只增不改；旧谱没有＝原义，migrate 不需转换，旧版本打开时忽略、回落调内音）：
+   倚音音符 acc（col.grace / col.graceA 的 notes[i].acc，调外倚音）、col.ornAcc / col.ornAccLo（装饰音上 / 下邻音的变音）——
+   只由「改记谱调（音不变）」respellSongKey 在换调号会改变它们音高时写入；MusicXML 导入的调外倚音也带 acc。 */
 function migrate(s){
   if(s && typeof s==='object') normalizeSongFields(s);   /* v62.5 A1a：单一入口按字段规范化 */
+  /* v67.0 新可选字段 TAB 音符 note.tieIn（逐音连音线终点＝同声部同弦前一音的延音，见 tabTieMap）：旧谱无此键＝无此类连音，
+     不迁移、不补默认值；旧谱 TAB 列级 col.tie（v55.8–v66.9 GP / MIDI 导入写的）与纯连音线 tk 原样保留、不改写成 tieIn——
+     改写会改变旧谱观感（列级 col.tie 在 TAB 上从来不画、不影响播放），红线是旧谱逐字节不变 */
   if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
@@ -6085,11 +6113,14 @@ function staffRestStr(nx, staffB, SG, dur, dotted){
 }
 /* 倚音数据：{notes:[{deg,oct}×1..3], dur}，组内共用时值（减时线）；
    兼容旧格式：纯数字 / {deg,dur,oct} 单音对象 */
+/* v67.0 倚音音符可带 acc（新增可选字段，只有「改记谱调」把调内倚音拼成调外音时才写；老数据没有＝调内音，观感零变化）：
+   播放 / MusicXML 导出加上它的半音，简谱 / 五线谱倚音画小号变音记号 */
 function normGrace(g){
   if(g==null) return null;
+  const A=n=>(n && n.acc && n.acc!=='n')? {acc:n.acc} : {};
   if(typeof g==='number') return {notes:[{deg:g, oct:0}], dur:8};
-  if(g.deg!=null) return {notes:[{deg:g.deg, oct:g.oct||0}], dur:g.dur||8};
-  return {notes:(g.notes||[]).map(n=>({deg:n.deg, oct:n.oct||0})).slice(0,3), dur:g.dur||8};
+  if(g.deg!=null) return {notes:[Object.assign({deg:g.deg, oct:g.oct||0}, A(g))], dur:g.dur||8};
+  return {notes:(g.notes||[]).map(n=>Object.assign({deg:n.deg, oct:n.oct||0}, A(n))).slice(0,3), dur:g.dur||8};
 }
 /* v52.7 TAB 倚音数据：{notes:[{s,f}×1..3], dur}——与 vox 倚音同字段名（col.grace/graceA、纯增量），
    记弦位+品位而非唱名；倚音由此在所有谱类统一：TAB 行、联排五线谱、简谱/五线谱各自渲染同一份数据 */
@@ -6587,6 +6618,8 @@ function measureLayout(mea){
       }else{
         hw = Math.max(colHalf(c,false), 4.5*hs);   // 空列（×/休止）也占一点位
         hf = Math.max(colHalf(c,true),  3);
+        /* v67.0 小节首列的连音线终点写「(2)」：括号左右各多 3.9（与渲染 tieFretHalf 同源；旧谱无 tieIn 不变） */
+        if(ci===0 && (c.notes||[]).some(n=>n && n.tieIn && !n.x)){ hw+=3.9; hf+=3.9; }
       }
       /* 右侧附加占位（后倚音、行内换谱号）——只长在列的右边，记成本段的加项 */
       let add = 0;
@@ -7157,6 +7190,148 @@ function layoutSystems(){
   });
   return systems;
 }
+/* ===== v67.0 TAB 逐音连音线（note.tieIn）=====
+   负责人：「导入谱时要考虑……另外连音线要映射进去」。此前 GP 导入把延音落成「前一列 col.tie=true」（列级），
+   ① 一拍里只有部分弦延音时表达不了（整列都算连）；② TAB 只画音符级纯连音线（n.tk 且无 n.tech），列级 col.tie
+   在 TAB / 简谱联排行都不画、播放照样重拨；③ tk 又兼作 let ring / P.M. / 揉弦的范围终点，起点音带 lr 时放不下纯连音线。
+   新字段（只增、可选，旧谱无此键）：TAB 音符 note.tieIn=true ＝ 本音是**同一 TAB 声部、同一根弦上前一个音**的延音
+   （连音线终点）：不重新拨弦、时值并入前音。标在终点上——与 GP「Tie destination」、MusicXML tie stop 同侧；
+   起点由相对位置推出，插删列 / 复制粘贴小节不会留下指错地方的绝对坐标；不占 tech / tk，起点音照样可以带 lr / P.M. / 揉弦。
+   有效性（本函数）：沿声部按小节→列线性扫描，每根弦记「上一个实音」——没有显式音的列（休止，及只靠和弦隐含音发声的扫弦列）、
+   𝄎 省写小节、空小节全弦清零；有显式音的扫弦 / 琶音列只保留本列显式音的弦（隐含音会重拨其余弦）；终点品位须与起点相同、两端都不是 ×。
+   无效的 tieIn 一律当普通音（画数字、照常拨弦）——改了任一端品位连音线自动失效，数据不丢（改回即恢复）。
+   兼容（migrate 不改写）：旧谱的 TAB 列级 col.tie（v55.8–v66.9 GP / MIDI 导入）与纯连音线 tk 原样保留，渲染与播放逐字节不变；
+   新导入（GP3/4/5、GPIF、MusicXML TAB 声部、MIDI→TAB）只写 tieIn、不再写 TAB 列级 col.tie。
+   返回 {to:{起点'mi:ci:s'→终点{mi,ci,s}}, from:{终点键→起点{mi,ci,s}}}；只读，不改数据。 */
+function tabTieMap(s2, vi){
+  s2 = s2 || song;
+  const to = {}, from = {}, last = {};
+  const clear = ()=>{ for(const k in last) delete last[k]; };
+  (s2.measures||[]).forEach((m, mi)=>{
+    const cols = ((m && m.tabs || [])[vi]) || [];
+    if(!m || m.simile || !cols.length){ clear(); return; }
+    cols.forEach((c, ci)=>{
+      const ns = ((c && c.notes) || []).filter(Boolean);
+      if(!ns.length){ clear(); return; }
+      if(c.strum){ const keep = new Set(ns.map(n=>n.s)); for(const k in last) if(!keep.has(+k)) delete last[k]; }
+      /* 验收补：同弦倚音＝重新拨弦——终点列的前倚音、起点列的后倚音都会打断这根弦上的延音
+         （与播放 prevS 判定同口径；此前谱面画弧、播放却重拨，两边不一致） */
+      if(c.grace) (normTabGrace(c.grace)||{notes:[]}).notes.forEach(g=>{ delete last[g.s]; });
+      ns.forEach(n=>{
+        const L = last[n.s];
+        if(n.tieIn && L && !n.x && !L.n.x && (+L.n.f||0)===(+n.f||0)){
+          to[L.mi+':'+L.ci+':'+n.s] = {mi, ci, s:n.s};
+          from[mi+':'+ci+':'+n.s] = {mi:L.mi, ci:L.ci, s:n.s};
+        }
+        last[n.s] = {mi, ci, n};
+      });
+      if(c.graceA) (normTabGrace(c.graceA)||{notes:[]}).notes.forEach(g=>{ delete last[g.s]; });
+    });
+  });
+  return {to, from};
+}
+/* v67.0 逐音连音线弧的画法（渲染与 tabRingPlan 让位共用；posOf(mi,ci)→{x,sys}|null）：
+   · 'above'：音符上方居中短弧，几何与纯连音线（v57.6/57.7 简谱口径）逐项相同——同一份谱里手画的与导入的连音线长得一样；
+   · 'skip' ：整和弦延留（起点列与终点列的音一一相连、≥2 音）只在最高音上画一条弧，其余弦不另画——
+     与 v60.11 扫弦延留「整个和弦被延留时出版惯例是一条弧」同口径，避免一摞弧压住上一根弦的数字；
+   · 'inline'：只有部分弦延音、且起点 / 终点列（或同行跨过的中间列）在上一根弦上有数字时，上方弧必压那个数字——
+     改画在本弦线上两数字之间、向下弯的小弧（Guitar Pro TAB 连音弧的位置），不碰邻弦数字、不进标注带。
+   返回 {byO:{起点键→P}, byT:{终点键→P}}，P={o,t,mode,same}（same＝两端同一系统） */
+function tabTiePlan(s2, vi, TM, posOf){
+  const colAt = (mi,ci)=> ((((s2.measures[mi]||{}).tabs||[])[vi])||[])[ci] || {notes:[]};
+  const byO = {}, byT = {}, grp = {};
+  /* 验收补：本声部 TAB 顶线上方各项墨迹的横向占位 {sys,xL,xR}（与渲染 mkTech / bendDecor / 和弦名 / 行内和弦图 / 小节头记号同位）。
+     all=false 只取和弦名 / 和弦图（2 弦长弧的弧顶只够得着这一层）。懒计算、只在有连音对时才走 */
+  const BS = {};
+  const bandSpans = all=>{
+    const key = all? 'a' : 'c'; if(BS[key]) return BS[key];
+    const out = [];
+    const put = (sy, a, b)=> out.push({sys:sy, xL:Math.min(a,b), xR:Math.max(a,b)});
+    (s2.measures||[]).forEach((m, mi)=>{
+      const cs = ((m && m.tabs || [])[vi]) || [];
+      const ps = cs.map((_,ci)=> posOf(mi, ci));
+      const p0 = ps.find(Boolean); if(!p0) return;
+      if(all && vi===0){
+        const pL = ps.filter(Boolean), xF = pL[0].x, xE = pL[pL.length-1].x;
+        if(m.volta) put(p0.sys, xF-14, xE+14);
+        if(m.segno || m.coda || m.label || m.keyTo) put(p0.sys, xF-16, xF+44);
+      }
+      cs.forEach((c, ci)=>{
+        const e = ps[ci]; if(!e || !c) return;
+        const x = e.x, tX = t=>{ const q = t && posOf(t.mi, t.ci); return (q && q.sys===e.sys)? q.x : null; };
+        if(c.chord){ if(diagMode==='inline' && vi===0) put(e.sys, x-9, x+30);
+          else { const w = [...String(c.chord)].length*4.2+3; put(e.sys, x-w, x+w); } }
+        if(!all) return;
+        if(c.anno) put(e.sys, x-22, x+22);
+        if(c.pk || c.perc) put(e.sys, x-6, x+6);
+        if((c.grace && c.grace.tk) || (c.graceA && c.graceA.tk)) put(e.sys, x-24, x+24);
+        (c.notes||[]).forEach(n=>{
+          if(!n) return;
+          const te = n.tech, tx = tX(n.tk);
+          if(te==='v') put(e.sys, x-4, tx!=null? tx+6 : x+34);
+          else if(te==='h' || te==='p' || te==='tp' || te==='sl') put(e.sys, x-6, tx!=null? tx+6 : x+6);
+          else if(te==='b' || te==='bd' || n.bendType) put(e.sys, x-3, tx!=null? tx+3 : x+22);
+          else if(te==='su' || te==='sd' || te==='ou' || te==='od' || (te==='hm' && n.hmT)) put(e.sys, x-11, x+11);
+          if(n.bar) put(e.sys, x-18, x+18);
+          if(n.lhF) put(e.sys, x-5, x+5);
+          /* let ring / P.M. 段（v66.8 延续线）贴在 TAB 顶线上方：1 弦上方弧要么把整段虚线抬一槽（行距变大、手机上多一页），
+             要么改画弦线内小弧——取后者（段内每个技法音左右各半格 18） */
+          if(te==='lr' || te==='pm') put(e.sys, x-18, x+18);
+        });
+      });
+    });
+    return (BS[key] = out);
+  };
+  Object.keys(TM.to).forEach(ok=>{
+    const t = TM.to[ok], a = ok.split(':').map(Number);
+    const g = a[0]+':'+a[1]+'>'+t.mi+':'+t.ci;
+    (grp[g] = grp[g] || []).push({o:{mi:a[0], ci:a[1], s:a[2]}, t});
+  });
+  Object.keys(grp).forEach(g=>{
+    const L = grp[g], o0 = L[0].o, t0 = L[0].t;
+    const nO = (colAt(o0.mi,o0.ci).notes||[]).filter(Boolean), nT = (colAt(t0.mi,t0.ci).notes||[]).filter(Boolean);
+    const whole = L.length>=2 && L.length===nO.length && L.length===nT.length;
+    const top = Math.min(...L.map(x=>x.o.s));
+    const pa = posOf(o0.mi,o0.ci), pb = posOf(t0.mi,t0.ci);
+    const same = !!(pa && pb && pa.sys===pb.sys);
+    /* 同行跨过的中间列上有哪些弦——上方弧（基线在本弦上方 9.5、弧顶再高 ≤7.5）会压住上一、二根弦上的数字 */
+    const midS = new Set();
+    if(same){
+      for(let mi=o0.mi; mi<=t0.mi; mi++){
+        const cs = ((((s2.measures[mi]||{}).tabs||[])[vi])||[]);
+        for(let ci=(mi===o0.mi? o0.ci+1 : 0); ci<(mi===t0.mi? t0.ci : cs.length); ci++)
+          ((cs[ci]&&cs[ci].notes)||[]).forEach(n=>{ if(n) midS.add(n.s); });
+      }
+    }
+    const midClash = s=> midS.has(s-1) || midS.has(s-2);
+    /* 验收补：上方弧的弧顶（相对 TAB 顶线）——同渲染几何：基线 (s−1)×9−9.5、rise 同纯连音线公式、外缘再高线宽 1.14 */
+    const apexOff = s=>{
+      if(!same) return (s-1)*9-17;                 // 跨行半弧（自 −9.5 升到 −15.5、控制点 −18）的弧顶≈本弦上方 16.1，再加线宽
+      const xA=pa.x+1, xB=pb.x-1, gapC=(t0.mi===o0.mi)? Math.max(0, t0.ci-o0.ci-1) : 1;
+      return (s-1)*9-9.5-Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35))/2-1.2; };
+    /* 1 弦（及长跨度的 2 弦）上方弧会顶进 TAB 上方标注带——与揉弦波浪、h/p/S/b↑ 字母、和弦名 / 行内和弦图、标注、
+       房子括线等横向相交时改画弦线内小弧（'inline'）。弧的横向范围：同行＝两音之间，跨行＝行末出线 / 行首进入半弧各 23 */
+    const busyOver = s=>{
+      const ap = apexOff(s); if(ap > -7.5) return false;
+      const deep = ap < -9.5;                      // 弧顶进入标注带（≤tabTop−9.5）→ 标注带全部墨迹都算；否则只算和弦名 / 和弦图
+      const rs = same? [[pa.sys, pa.x+1, pb.x-1]] : [pa && [pa.sys, pa.x, pa.x+23], pb && [pb.sys, pb.x-23, pb.x]].filter(Boolean);
+      return rs.some(([sy, xa, xb])=> bandSpans(deep).some(b=> b.sys===sy && b.xR > xa+0.5 && b.xL < xb-0.5)); };
+    L.forEach(x=>{
+      const s = x.o.s;
+      let mode = 'above';
+      if(whole){ if(s!==top) mode='skip'; else if(midClash(s) || busyOver(s)) mode='inline'; }
+      else if(nO.some(n=>n.s===s-1) || nT.some(n=>n.s===s-1) || midClash(s) || busyOver(s)) mode='inline';
+      /* lowMid：同行跨过的中间列在下一根弦上有数字——'inline' 小弧须压浅，弧底不碰那个数字的字顶 */
+      const P = {o:x.o, t:x.t, mode, same, lowMid: same && midS.has(s+1)};
+      byO[x.o.mi+':'+x.o.ci+':'+s] = P; byT[x.t.mi+':'+x.t.ci+':'+s] = P;
+    });
+  });
+  return {byO, byT};
+}
+/* v67.0 逐音连音线：TAB 品位数字的半宽（与 measureLayout FRET_INK 同源）；终点音落在小节首列时写成「(2)」——
+   Guitar Pro / alphaTab（tie destination 落在小节首拍写括号品位）与 Hal Leonard（换行后行首的延音写括号）同惯例：
+   括号＝此处不拨弦、是上一小节 / 上一行的延续；小节内的终点照常写数字（与纯连音线一致，教学读谱不会把空位误读成休止）。 */
+function tieFretHalf(f, paren){ return (String(f==null?0:f).length>=2? 6.7 : 3.35) + (paren? 3.9 : 0); }
 /* v66.8 TAB 延续线段（let ring / P.M.）排版规划——出版惯例（Guitar Pro / Hal Leonard / Behind Bars）：
    同一 TAB 声部里连续的 let ring 音只在段首写一次「let ring」，其后一条虚线延伸到段内最后一个音、末端短竖钩；
    段跨小节线不断开，遇休止列 / 无该技法的列 / 𝄎 省写小节断开；被换行截断的段行尾不收钩，
@@ -7193,6 +7368,9 @@ function tabRingPlan(systems){
       if(a && d && a.si!==d.si) tieIn.add(vi+':'+n.tk.mi+':'+n.tk.ci+':'+n.tk.si); }
   }))));
   const SLUR_EXCL = ['hm','su','sd','ou','od','v','pm','lr','b','bd'];
+  /* v67.0 逐音连音线（note.tieIn）：有效连音对与弧的画法——与渲染同一份 tabTieMap / tabTiePlan */
+  const TMs = Array.from({length:nT}, (_,vi)=> tabTieMap(song, vi));
+  const TPs = TMs.map((TM,vi)=> tabTiePlan(song, vi, TM, (mi,ci)=>{ const e=pos[vi+':'+mi+':'+ci]; return e? {x:e.x, sys:e.si} : null; }));
   /* 某系统某声部 TAB 顶线上方的固定装饰（不走标注带槽位的那些）：{xL,xR,top}，top=墨迹最高点偏移 */
   const obstOf = (sys, si, vi)=>{
     const O=[]; const add=(a,b,top)=>O.push({xL:Math.min(a,b), xR:Math.max(a,b), top});
@@ -7217,7 +7395,9 @@ function tabRingPlan(systems){
         if(col.strum==='d' || col.strum==='u'){
           const sp = strumSpan(Object.assign({}, col, {notes:ns})), yT = (sp.top-1)*STR-4;
           if(col.mute) add(nx-2.5, nx+2.5, yT-5);
-          const nTie = ns.find(n=>n.tk && !n.tech), t = nTie && posT(vi, nTie.tk);
+          const nTie = ns.find(n=>n.tk && !n.tech);
+          const oTie = !nTie && ns.map(n=>TPs[vi].byO[lm.mi+':'+ci+':'+n.s]).find(P=>P && P.mode!=='skip');
+          const t = nTie? posT(vi, nTie.tk) : oTie? pos[vi+':'+oTie.t.mi+':'+oTie.t.ci] : null;
           if(t && t.si===si && t.x>nx){
             const ink = col.mute? yT-5 : (col.strum==='d'? yT+1 : yT+3), bY = ink-6;
             add(nx, t.x, bY - Math.min(9, Math.max(6, (t.x-nx)*0.35))/2 - 1.5);
@@ -7242,6 +7422,18 @@ function tabRingPlan(systems){
               }else if(t) add(nx, nx+24, yy-17);
             }
             if(tieIn.has(vi+':'+lm.mi+':'+ci+':'+n.s)) add(nx-24, nx, yy-17);
+            /* v67.0 逐音连音线的上方弧（'inline' 小弧在谱线内，不占标注带） */
+            const PO = TPs[vi].byO[lm.mi+':'+ci+':'+n.s], PT = TPs[vi].byT[lm.mi+':'+ci+':'+n.s];
+            if(PO && PO.mode==='above' && !(n.tk && !n.tech && n.tk.mi===PO.t.mi && n.tk.ci===PO.t.ci && n.tk.si===PO.t.s)){
+              const t2 = pos[vi+':'+PO.t.mi+':'+PO.t.ci];
+              if(t2 && t2.si===si){
+                const xA=nx+1, xB=t2.x-1, tyB=yy-9.5;
+                const gapC=(PO.t.mi===lm.mi)? Math.max(0, PO.t.ci-ci-1) : 1;
+                const rise=Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35));
+                add(xA, xB, tyB-rise/2-1.5);
+              }else if(t2) add(nx, nx+24, yy-17);
+            }
+            if(PT && PT.mode==='above' && !PT.same) add(nx-24, nx, yy-17);
           });
           if(col.mute && ns.some(n=>n.x)) add(nx-2.5, nx+2.5, (Math.min(...ns.map(n=>n.s))-1)*STR-11);
         }
@@ -7306,7 +7498,8 @@ function tabRingPlan(systems){
         const e=L[i]; if(!e) continue;
         const ns=(e.col.notes||[]).filter(Boolean); if(!ns.length) continue;
         let o = ns.some(n=>n.tech===K);
-        if(!o && i>0 && on[i-1]) o = !!L[i-1].col.tie || ns.every(n=>tieT.has(e.mi+':'+e.ci+':'+n.s));
+        if(!o && i>0 && on[i-1]) o = !!L[i-1].col.tie || ns.every(n=>tieT.has(e.mi+':'+e.ci+':'+n.s))
+          || ns.every(n=>!!TMs[vi].from[e.mi+':'+e.ci+':'+n.s]);   /* v67.0 本列全是逐音连音线终点（note.tieIn）＝延音续入 */
         if(!o) continue;
         on[i] = true;
         ns.forEach(n=>{ if(n.tk && !n.tech) tieT.add(n.tk.mi+':'+n.tk.ci+':'+n.tk.si); });
@@ -7464,6 +7657,9 @@ function systemExtras(sys){
        和弦名 22；连音线弧顶 = min(音符y)-9.5-rise，1 弦上最坏 tabTop-24.5 → 26；
        技法字母/左手指法/摇把标注带 ≈ tabTop-17 → 19。 */
   let tab2Up=0;
+  /* v67.0 逐音连音线上方弧按弦算真实高度（同纯连音线几何：弧顶＝(s−1)×9−9.5−rise/2−线宽，rise≤15；跨行半弧顶 (s−1)×9−18），
+     +2 净距：1 弦 20、2 弦 11、3 弦起弧顶已在谱线内不占行间；不照搬纯连音线的一律 26（一律 26 会让只在 2 弦连音的轨也多空一截） */
+  const tieUp = s2=> s2===1? 20 : s2===2? 11 : 0;
   sys.measures.forEach(lm=> (song.measures[lm.mi].tabs||[]).forEach((cols,vi)=>{
     if(vi===0) return;
     (cols||[]).forEach(c=>{
@@ -7474,9 +7670,14 @@ function systemExtras(sys){
         if(!n) return;
         if(n.tk && !n.tech) tab2Up=Math.max(tab2Up, 26);
         else if(n.tech||n.hmT||n.tk||n.bar||n.lhF) tab2Up=Math.max(tab2Up, 19);
+        if(n.tieIn) tab2Up=Math.max(tab2Up, tieUp(n.s));   /* v67.0 逐音连音线弧（终点；跨行时起点行见下） */
       });
     });
   }));
+  /* v67.0 跨行逐音连音线的起点行（行末出线半弧）：下一行行首列有 tieIn 终点 */
+  { const lmL = sys.measures[sys.measures.length-1], nm = lmL? song.measures[lmL.mi+1] : null;
+    if(nm) (nm.tabs||[]).forEach((cols,vi)=>{ const c0=(cols||[])[0];
+      if(vi>0 && c0) (c0.notes||[]).forEach(n=>{ if(n && n.tieIn) tab2Up=Math.max(tab2Up, tieUp(n.s)); }); }); }
   /* v60.56 TAB 连音括线下缘预留（用户报告：吉他2 的 6 连音数字与简谱 6 连音数字重叠）：
      括线画在 stemY+4.5、斜体数字基线 stemY+7.3 → 字底 ≈ stemY+9.5，
      而每条 TAB 声部的行进量只留到 stemY+6（beatzone 底），实测溢出 3.5px 顶进下一行。
@@ -7512,9 +7713,12 @@ function systemExtras(sys){
     /* v60.12 扫弦连音线改画在六线谱**上方**（用户指示）：弧要走到箭头尖再往上约 6px，
        与行内和弦图带底缘只剩几 px，必撞（v60.11 就是因为这个才先放的下方）。
        沿用 v56.4 同一条让位机制：本行同时有和弦图与扫弦连音线时，图带加高 14px 让出弧位。 */
+    /* 验收补：逐音连音线（note.tieIn）的扫弦延留同样画这条弧（渲染 oTie）——起点扫弦列在 tabTieMap 里有连音对也算
+       （懒算、只在本行有扫弦列时才走；旧谱无 tieIn → 连音对表为空，结果不变） */
+    const TMx = {}, tmOf = vi=> TMx[vi] || (TMx[vi] = tabTieMap(song, vi));
     const hasStrumTie = sys.measures.some(lm=>
-      (song.measures[lm.mi].tabs||[]).some(cols=>
-        (cols||[]).some(c=> c.strum && (c.notes||[]).some(n=> n.tk && !n.tech))));
+      (song.measures[lm.mi].tabs||[]).some((cols,vi)=>
+        (cols||[]).some((c,ci)=> c.strum && (c.notes||[]).some(n=> (n.tk && !n.tech) || (n && tmOf(vi).to[lm.mi+':'+ci+':'+n.s])))));
     if(hasDiag && hasStrumTie) diagExtra=Math.max(diagExtra, 14);
   }
   return {
@@ -7550,7 +7754,8 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
      （推弦弧/技法字母/泛音标注，按所在弦位折算）之和；上方净空 = 顶线以上加线深度。
      谱号可选（v45.7 song.tabClef='bass'）时按对应底线谱级计算 */
   let tLedUp=0, tGapDn=14*vs;
-  const jpTechBand = !!song.tabJp && song.measures.some(m=>(m.tabs||[]).some(cols=>(cols||[]).some(c=>(c.notes||[]).some(n=>n.tech||n.hmT||n.bar))));
+  /* v67.0 逐音连音线（note.tieIn）的上方弧同样挂在 TAB 顶线上方（1 弦弧顶≈tabTop−19），与技法字母同享这条标注带（旧谱无 tieIn 不变） */
+  const jpTechBand = !!song.tabJp && song.measures.some(m=>(m.tabs||[]).some(cols=>(cols||[]).some(c=>(c.notes||[]).some(n=>n.tech||n.hmT||n.bar||n.tieIn))));
   if(song.tabStaff && nT){
     const Kt = staffKeyInfo(), SNt = strN();
     const SBt = song.tabClef==='bass'? 25 : 37;
@@ -7561,7 +7766,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
       if(st2>SBt+8) upPx=Math.max(upPx, (st2-(SBt+8))*3.75);
       if(st2<SBt)   dnPx=Math.max(dnPx, (SBt-st2)*3.75);
       /* v49.6 技法标注带统一锚定 TAB 顶线上方（不再随弦位折算）：推弦弧+幅度≈26、其余技法标注≈17 */
-      const reach = (n.tech==='b'||n.tech==='bd'||n.bendType)? 26 : (n.hmT||n.tech||n.tk||n.bar)? 17 : 0;
+      const reach = (n.tech==='b'||n.tech==='bd'||n.bendType)? 26 : (n.hmT||n.tech||n.tk||n.bar||n.tieIn)? 17 : 0;   /* v67.0 tieIn 弧同纯连音线 */
       if(reach) decPx=Math.max(decPx, reach);
     }))));
     tLedUp = upPx? upPx+6 : 0;
@@ -8613,6 +8818,9 @@ function renderCore(){
       if(a && d && a.sys!==d.sys) tieInX.add(vi+':'+n.tk.mi+':'+n.tk.ci+':'+n.tk.si);
     }
   }))));
+  /* v67.0 逐音连音线（note.tieIn）：每条 TAB 声部的有效连音对 + 弧的画法（tabTiePlan）；旧谱无 tieIn → 全空，渲染逐字节不变 */
+  const tieMaps = (song.tabVoices||[]).map((_,vi)=> tabTieMap(song, vi));
+  const tiePlans = tieMaps.map((TM,vi)=> tabTiePlan(song, vi, TM, (mi,ci)=> tabPos[vi+':'+mi+':'+ci]||null));
   /* ===== 多页 A4：内容超过一页高度即换到下一页，系统不跨页断裂 ===== */
   let PG_H = Math.round(PAGE_W*1.414);         // A4 整页高度（单位与宽度同比 210:297）
   const PG_GAP = 26, PG_PAD_TOP = 44, PG_PAD_BOT = 22;
@@ -8680,6 +8888,7 @@ function renderCore(){
       const STR = STR_GAP, STAFF = staffH(), SN = strN();
       const tabTop = oy+M.tabTops[vi], tabBot = tabTop+STAFF, stemY = tabBot+12+(M.tabExtra||0);
       const ringV = (sys.ring||[])[vi] || {pieces:[], start:{}};   /* v66.8 本行本声部的 let ring / P.M. 延续线段（tabRingPlan） */
+      const TPv = tiePlans[vi] || {byO:{}, byT:{}};                /* v67.0 本声部逐音连音线的画法（tabTiePlan） */
       /* v60.56 上一条 TAB 声部的时值线区（beatzone）下缘：本条挂在谱表上方的热区不得越过它 */
       const prevBeatBot = vi>0? (oy+M.tabTops[vi-1]+STAFF+12+(M.tabExtra||0)+6) : -1e9;
       /* ===== TAB+五线谱 联排（Guitar Pro 式）：TAB 上方标准记谱，品位→音高按调拼写 ===== */
@@ -8748,9 +8957,13 @@ function renderCore(){
           const colSteps = ci=>{
             const ns=impNs[ci].filter(n=>n.s>=1 && n.s<=SN);
             /* v42.6 吉他移调谱号 treble-8vb：记谱升八度(+12)、实音低八度——收拢低音弦大量下加线（出版惯例） */
-            return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2).step, sym:'', x:true}
-                              : midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2));
+            return ns.map(n=> n.x? {step:midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2).step, sym:'', x:true, s:n.s}
+                              : Object.assign(midiToStaff(TUNING[n.s-1]+(n.f||0)+12, K2), {s:n.s}));   /* 验收补：带弦号（连音终点判定用） */
           };
+          /* 验收补：联排五线谱上逐音连音线终点的临时记号——Gould《Behind Bars》：延音跨过小节线时**不重复**临时记号，
+             且它不为本小节后面的同音级立规（后面的同音照常写记号）→ 同行跨小节线的终点既不画、也不改进位状态；
+             跨行（新一行行首）照惯例重写记号，进入半弧收在记号左缘之前（accL 记录记号左缘，供下方连音弧让位） */
+          const accL = {};
           const drawHeads = (ci)=>{
             const nx2 = mx2+lay.xs[ci], col2=cols[ci];
             const sts = colSteps(ci);
@@ -8772,8 +8985,11 @@ function renderCore(){
                 const hnm2 = col2.dur===1?'noteheadWhole': col2.dur===2?'noteheadHalf':'noteheadBlack';
                 p.push(smg(hnm2, hx-smw(hnm2)*cSGt/2, hy, cSGt));
               }
-              const sym2 = o.x? '' : accCarry(accSt2, o.step, o.alt, K2.alt[o.Li]||0);
-              if(sym2){ p.push(accG(sym2, hx, hy, cSGt, 0.94)); accCols2.add(ci); }
+              const PTa = !o.x && TPv.byT[lm.mi+':'+ci+':'+o.s];
+              const tieOver = !!(PTa && PTa.same && PTa.o.mi!==lm.mi);
+              const sym2 = (o.x || tieOver)? '' : accCarry(accSt2, o.step, o.alt, K2.alt[o.Li]||0);
+              if(sym2){ p.push(accG(sym2, hx, hy, cSGt, 0.94)); accCols2.add(ci);
+                if(PTa) accL[ci+':'+o.s] = hx - 0.83*cSGt - smw(ACC_G[sym2])*cSGt*0.94; }
             });
             for(let kD=0;kD<dotLevel(col2);kD++) p.push(`<circle cx="${(nx2+8.5+kD*4.6).toFixed(1)}" cy="${(stepYt(sts[sts.length-1].step)-(sts[sts.length-1].step%2?cSGt/2:0)).toFixed(1)}" r="1.6" fill="var(--ink)"/>`);
             return sts;
@@ -8887,6 +9103,37 @@ function renderCore(){
               p.push(`<line x1="${gx0-1.5}" y1="${(topYG+7).toFixed(1)}" x2="${gx0+6}" y2="${(topYG+1.5).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             });
           });
+          /* v67.0 逐音连音线 → 联排五线谱同源连音弧（此前联排五线谱没有任何连音线）。五线谱惯例：和弦里每个被连的音各一条
+             （TAB 上的「整和弦一条」只是六线谱的省写）；弧贴符头、弯向符干反侧——单音按中线判（中线以下符干朝上→弧在下），
+             多音列最高音向上、最低音向下；跨小节同行直连，跨行两段式（行末出线弧 + 行首进入弧，与简谱声部五线谱口径一致） */
+          if(!simT){
+            const TPs2 = tiePlans[vi] || {byO:{}, byT:{}};
+            const stepOf = (c2, s2)=>{ const n2=((c2&&c2.notes)||[]).find(x=>x && x.s===s2); return n2? midiToStaff(TUNING[s2-1]+(n2.f||0)+12, K2).step : null; };
+            const tieDir = (c2, st)=>{ const ss=((c2&&c2.notes)||[]).filter(x=>x && !x.x && x.s>=1 && x.s<=SN).map(x=>midiToStaff(TUNING[x.s-1]+(x.f||0)+12, K2).step);
+              if(ss.length>=2){ if(st>=Math.max(...ss)) return false; if(st<=Math.min(...ss)) return true; }
+              return st < SMt; };   // true＝弧在符头下方
+            const arcAt = (x1, x2, st, below, mode)=>{
+              const hy=stepYt(st), ty=below? hy+5.2 : hy-5.2;
+              const bow=Math.max(2.5, Math.min(6, (x2-x1)*0.5));
+              if(mode==='out') p.push(tieSVG(x1, ty, x2, ty+(below?bow*0.9:-bow*0.9), below? ty+bow : ty-bow, 1.7).replace('<path ','<path class="sttie" '));
+              else if(mode==='in') p.push(tieSVG(x1, ty+(below?bow*0.9:-bow*0.9), x2, ty, below? ty+bow : ty-bow, 1.7).replace('<path ','<path class="sttie" '));
+              else p.push(tieSVG(x1, ty, x2, ty, below? ty+bow : ty-bow, 1.7).replace('<path ','<path class="sttie" '));
+            };
+            Object.keys(TPs2.byO).forEach(k=>{
+              const P=TPs2.byO[k]; if(P.o.mi!==lm.mi) return;
+              const cO=cols[P.o.ci], st=stepOf(cO, P.o.s); if(st==null) return;
+              const below=tieDir(cO, st), x1=mx2+lay.xs[P.o.ci]+5+dotLevel(cO)*4.6;
+              const tp=tabPos[vi+':'+P.t.mi+':'+P.t.ci];
+              if(tp && tp.sys===sIdx) arcAt(x1, tp.x-6, st, below, 'full');
+              else if(tp){ const xe=mx2+lm.L.w-2; if(xe>x1+3) arcAt(x1, xe, st, below, 'out'); }
+            });
+            Object.keys(TPs2.byT).forEach(k=>{
+              const P=TPs2.byT[k]; if(P.t.mi!==lm.mi || P.same || !tabPos[vi+':'+P.o.mi+':'+P.o.ci]) return;
+              const cT=cols[P.t.ci], st=stepOf(cT, P.t.s); if(st==null) return;
+              const aL=accL[P.t.ci+':'+P.t.s], x2=Math.min(mx2+lay.xs[P.t.ci]-6, aL!=null? aL-1.5 : 1e9);
+              arcAt(Math.max(mx2-5, Math.min(mx2+2, x2-9)), x2, st, tieDir(cT, st), 'in');   /* 验收补：行首重写了临时记号时进入弧至少 9 宽（可伸进行首留白 5） */
+            });
+          }
         });
       }
       /* ===== v59.1 TAB+简谱 联排行（song.tabJp）：TAB 上方一行首调简谱翻译——
@@ -8897,6 +9144,27 @@ function renderCore(){
         const jpY = oy+M.tabJpB[vi];
         const soloJ = soloTabCtx(song);
         p.push(`<g data-tabjp="${vi}">`);
+        /* v67.0 简谱联排行同源显示逐音连音线：本列唱名取自的那个音（最高发声音）是 note.tieIn 终点、起点恰是上一列的最高发声音
+           （同弦同品＝同一唱名）→ 两个唱名之间画简谱连音弧（与简谱声部 col.tie 同口径：数字中心 ±1、基线让过高八度点、
+           跨小节同行直连、跨行两段式「行末上升段 + 行首下降段」）。只认相邻两列：中间隔着别的唱名时简谱上无从表达。 */
+        const TMj = tieMaps[vi] || {from:{}};
+        const jpTop = (mi2, ci2)=>{
+          const c2 = ((((song.measures[mi2]||{}).tabs||[])[vi])||[])[ci2]; if(!c2) return null;
+          let b=null;
+          chordImpliedNotes(c2, chordShape(chordAtCol(mi2, vi, ci2)), soloJ).forEach(n=>{
+            if(!(n.s>=1 && n.s<=strN()) || n.x) return;
+            const m2=TUNING[n.s-1]+(n.f||0); if(!b || m2>b.m) b={s:n.s, m:m2}; });
+          return b; };
+        const jpPrev = (mi2, ci2)=>{ if(ci2>0) return {mi:mi2, ci:ci2-1};
+          const pm = song.measures[mi2-1], pc = pm && !pm.simile && ((pm.tabs||[])[vi]||[]);
+          return (pc && pc.length)? {mi:mi2-1, ci:pc.length-1} : null; };
+        const jpTieFrom = (mi2, ci2)=>{   // 本列唱名是否由上一列连音而来 → 上一列位置
+          const b=jpTop(mi2, ci2); if(!b) return null;
+          const o=TMj.from[mi2+':'+ci2+':'+b.s], pv=jpPrev(mi2, ci2);
+          if(!o || !pv || o.mi!==pv.mi || o.ci!==pv.ci) return null;
+          const bp=jpTop(pv.mi, pv.ci);
+          return (bp && bp.s===b.s)? {pv, m:b.m} : null; };
+        const jpTyB = m2=>{ const o2=midiToVoxCol(m2).oct||0; return jpY-12.5-(o2>0? 4+(Math.min(3,o2)-1)*4 : 0); };
         sys.measures.forEach(lm=>{
           const colsJ = song.measures[lm.mi].tabs[vi]||[];
           const layJ = lm.L.tabs[vi];
@@ -8908,8 +9176,8 @@ function renderCore(){
             const nsJ = chordImpliedNotes(cJ, chordShape(chordAtCol(lm.mi, vi, ciJ)), soloJ).filter(n=>n.s>=1&&n.s<=strN()&&!n.x);
             let digit='0', vcJ=null;
             if(nsJ.length){
-              const topM = Math.max(...nsJ.map(n=>TUNING[n.s-1]+(n.f||0)));
-              vcJ = midiToVoxCol(topM); digit=String(vcJ.deg);
+              const topM = Math.max(...nsJ.map(n=>tuningOf()[n.s-1]+(n.f||0)));   /* v67.0 按本谱定弦（尤克里里 / Drop D 此前按吉他标准弦算错唱名）＋本小节生效调（中途转调跟随） */
+              vcJ = midiToVoxCol(topM+capoOf(vi)-(song.capo||0), keyRefAt(lm.mi)); digit=String(vcJ.deg);   /* 有自己夹位的轨（tabCapos）按与参考轨的夹位差折算，同一个发声音读同一个唱名 */
             }
             p.push(`<text x="${nxJ.toFixed(1)}" y="${jpY.toFixed(1)}" font-size="13" font-family="var(--font-num)" font-weight="600" text-anchor="middle" fill="var(--ink)">${digit}</text>`);
             if(vcJ && vcJ.acc) p.push(`<text x="${(nxJ-8.5).toFixed(1)}" y="${(jpY-4).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--ink)">${vcJ.acc==='#'?'♯':'♭'}</text>`);
@@ -8927,6 +9195,27 @@ function renderCore(){
             }
             for(let kD=0;kD<dotLevel(cJ);kD++)
               p.push(`<circle cx="${(nxJ+7.5+kD*4).toFixed(1)}" cy="${(jpY-3.5).toFixed(1)}" r="1.4" fill="var(--ink)"/>`);
+            /* v67.0 连音弧：本列是终点 → 同行画整弧（起点在上一行则画行首下降段）；本列是行末且下一行行首连自本列 → 画行末上升段 */
+            if(vcJ){
+              const tf = jpTieFrom(lm.mi, ciJ);
+              if(tf){
+                const pp = tabPos[vi+':'+tf.pv.mi+':'+tf.pv.ci], tyB = jpTyB(tf.m);
+                if(pp && pp.sys===sIdx){
+                  const xA=pp.x+1, xB=nxJ-1, rise=Math.min(7, Math.max(4.5, (xB-xA)*0.3));
+                  p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.6).replace('<path ','<path class="jptie" '));
+                }else if(pp){
+                  const xB=nxJ-1, xA=Math.max(mxJ+3, xB-18), rise=Math.max(4.5, Math.min(6.5,(xB-xA)*0.4));
+                  p.push(tieSVG(xA, tyB-rise*0.92, xB, tyB, tyB-rise*1.02, 1.6).replace('<path ','<path class="jptie" '));
+                }
+              }
+              if(lm===sys.measures[sys.measures.length-1] && ciJ===colsJ.length-1 && song.measures[lm.mi+1]){
+                const tn = jpTieFrom(lm.mi+1, 0);
+                if(tn && tn.pv.mi===lm.mi && tn.pv.ci===ciJ){
+                  const tyB=jpTyB(tn.m), xA=nxJ+1, xB=mxJ+lm.L.w-2, rise=Math.max(4.5, Math.min(6.5,(xB-xA)*0.4));
+                  if(xB>xA+3) p.push(tieSVG(xA, tyB, xB, tyB-rise*0.92, tyB-rise*1.02, 1.6).replace('<path ','<path class="jptie" '));
+                }
+              }
+            }
           });
           p.push(`<line x1="${(mxJ+lm.L.w).toFixed(1)}" y1="${(jpY-10.5).toFixed(1)}" x2="${(mxJ+lm.L.w).toFixed(1)}" y2="${(jpY+3.5).toFixed(1)}" stroke="var(--ink)" stroke-width="0.8" opacity="0.55"/>`);
         });
@@ -9190,7 +9479,9 @@ function renderCore(){
                数据仍逐弦记 tk（播放引擎按弦判延音），只是视觉收成一条。 */
             {
               const nTie = col.notes.find(n2=>n2.tk && !n2.tech);
-              const tpS = nTie && tabPos[vi+':'+nTie.tk.mi+':'+nTie.tk.ci];
+              /* v67.0 扫弦列上的逐音连音线（note.tieIn 起点）同样收成一条弧（纯连音线优先，二者不重画） */
+              const oTie = !nTie && col.notes.map(n2=>TPv.byO[lm.mi+':'+ci+':'+n2.s]).find(P=>P && P.mode!=='skip');
+              const tpS = nTie? tabPos[vi+':'+nTie.tk.mi+':'+nTie.tk.ci] : oTie? tabPos[vi+':'+oTie.t.mi+':'+oTie.t.ci] : null;
               if(tpS && tpS.sys===sIdx && tpS.x>nx){
                 /* v60.12 改画在六线谱**上方**（用户指示；v60.11 曾放下方以躲和弦图）。
                    基线取本列最高的墨再往上让 6px：下扫箭头尖在 yT+1、上扫顶端是竖线 yT+3、
@@ -9199,7 +9490,8 @@ function renderCore(){
                 const inkTop = col.mute ? (yT-5) : (col.strum==='d' ? yT+1 : yT+3);
                 const baseY = inkTop - 6;
                 const rise = Math.min(9, Math.max(6, (tpS.x-nx)*0.35));
-                p.push(tieSVG(nx+1, baseY, tpS.x-1, baseY, baseY-rise, 1.9));
+                { const sv2=tieSVG(nx+1, baseY, tpS.x-1, baseY, baseY-rise, 1.9);   /* 验收补：逐音连音线的扫弦弧同挂 tiea 类（纯连音线弧保持原样、旧谱逐字节不变） */
+                  p.push(nTie? sv2 : sv2.replace('<path ','<path class="tiea" ')); }
               }
             }
             col.notes.forEach(n=>{ if(n.tech||n.bar) mkTech(n); });   /* v49.6 扫弦列技法标注带 */
@@ -9260,7 +9552,9 @@ function renderCore(){
                 const bkT = bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s);
                 const bkSm = fShow>=10 && bkT;
                 const fs = hmSm? 8 : bkSm? 6.8 : bkT? 8.6 : 10.5;
-                p.push(`<text x="${nx}" y="${yy+(bkSm?2.5:hmSm?2.8:bkT?3.1:3.6)}" font-size="${fs}" font-weight="500" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkT)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)">${fShow}</text>`);
+                /* v67.0 逐音连音线终点落在小节首列：品位写成「(2)」（tieFretHalf 注释的 GP / Hal Leonard 惯例） */
+                const tParen = ci===0 && !hmSm && !bkT && !!TPv.byT[lm.mi+':'+ci+':'+n.s];
+                p.push(`<text x="${nx}" y="${yy+(bkSm?2.5:hmSm?2.8:bkT?3.1:3.6)}" font-size="${fs}" font-weight="500" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="${(hmSm||bkT)?2.2:2.6}" stroke-linejoin="round" fill="var(--ink)"${tParen?' class="tiep"':''}>${tParen? '('+fShow+')' : fShow}</text>`);
               }
               /* v49.6 技法文字标识统一进 TAB 上方标注带（mkTech，放大）；
                  此处只保留音符锚定的图形：泛音菱形/滑音斜杠/推弦弧线/连音弧线 */
@@ -9404,6 +9698,44 @@ function renderCore(){
               if(tieInX.has(vi+':'+lm.mi+':'+ci+':'+n.s)){
                 const xi = Math.max(mx-8, nx-23);
                 p.push(tieSVG(xi, yy-15.5, nx-1, yy-9.5, yy-18, 1.5));
+              }
+              /* v67.0 逐音连音线（note.tieIn，导入映射）：起点画弧到终点、跨行两段式续接（行末出线半弧 + 新行进入半弧）。
+                 'above' 几何与上面的纯连音线逐项相同；'inline' 画在本弦线两数字之间（tabTiePlan 注释）。
+                 起点同时带纯连音线且指向同一终点时不重画；let ring / P.M. 虚线由 tabRingPlan 把这些弧当固定装饰让位。 */
+              { const kT = lm.mi+':'+ci+':'+n.s, PO = TPv.byO[kT], PT = TPv.byT[kT];
+                if(PO && PO.mode!=='skip' && !(n.tk && !n.tech && n.tk.mi===PO.t.mi && n.tk.ci===PO.t.ci && n.tk.si===PO.t.s)){
+                  const tp = tabPos[vi+':'+PO.t.mi+':'+PO.t.ci];
+                  const tc = (((song.measures[PO.t.mi]||{}).tabs||[])[vi]||[])[PO.t.ci];
+                  const tn = tc && (tc.notes||[]).find(x=>x && x.s===n.s);
+                  if(PO.mode==='above'){
+                    if(tp && tp.sys===sIdx){
+                      const xA=nx+1, xB=tp.x-1, tyB=yy-9.5;
+                      const gapC=(PO.t.mi===lm.mi)? Math.max(0, PO.t.ci-ci-1) : 1;
+                      const rise=Math.min(9+Math.min(6, gapC*2), Math.max(6, (xB-xA)*0.35));
+                      p.push(tieSVG(xA, tyB, xB, tyB, tyB-rise, 1.9).replace('<path ','<path class="tiea" '));
+                    }else if(tp) p.push(tieSVG(nx+1, yy-9.5, nx+23, yy-15.5, yy-18, 1.5).replace('<path ','<path class="tiea" '));
+                  }else{
+                    /* 验收补：起点是单音式推弦（右侧合成圆圈目标 nx+15、半径 5）时小弧从圆圈右缘之后起，不穿圆圈与圈内数字 */
+                    const bendO = (n.tech==='b' || n.tech==='bd') && (n.bendType||'')!=='pre' && !(n.tk && tabPos[vi+':'+n.tk.mi+':'+n.tk.ci]);
+                    /* 验收补：起点本身是小节首列的连音终点（写成「(2)」）时按括号半宽起弧，不压右括号 */
+                    const oParen = ci===0 && !xDisp && !(n.tech==='hm' && fShow>=10) && !bendTks.has(vi+':'+lm.mi+':'+ci+':'+n.s) && !!PT;   // 同 tParen 判定
+                    const y0=yy+(PO.lowMid? 1.9 : 2.4), xA=bendO? nx+21.6 : nx+tieFretHalf(fShow, oParen)+1.6;
+                    if(tp && tp.sys===sIdx){
+                      let xB=tp.x-tieFretHalf(tn? tn.f : n.f, PO.t.ci===0)-(PO.t.ci===0? 2.6 : 1.6);   /* 括号「(」左下弯离字身更近，多让 1 */
+                      let a=xA; if(xB<a+3){ const m2=(a+xB)/2; a=m2-1.5; xB=m2+1.5; }
+                      /* 验收补：跨过的中间列在下一根弦上有数字时整条上提 0.5、弧深压到 1.9（弧底 yy+3.8，下一弦数字字顶≈yy+5.0，留 1.2 净距） */
+                      const dep=PO.lowMid? 1.9 : Math.min(3.6, Math.max(2, (xB-a)*0.22));
+                      p.push(tieSVG(a, y0, xB, y0, y0+dep*2, 1.3).replace('<path ','<path class="tiea" '));
+                    }else if(tp) p.push(tieSVG(xA, y0, xA+12, y0+3, y0+4.2, 1.2).replace('<path ','<path class="tiea" '));
+                  }
+                }
+                /* 跨行终点：本行行首画进入半弧（与上一行末的出线半弧拼成一条） */
+                if(PT && !PT.same && PT.mode!=='skip' && tabPos[vi+':'+PT.o.mi+':'+PT.o.ci]){
+                  if(PT.mode==='above'){ const xi = Math.max(mx-8, nx-23);
+                    p.push(tieSVG(xi, yy-15.5, nx-1, yy-9.5, yy-18, 1.5).replace('<path ','<path class="tiea" ')); }
+                  else { const y0=yy+2.4, xB=nx-tieFretHalf(fShow, ci===0)-1.6;
+                    p.push(tieSVG(Math.max(mx-6, xB-12), y0+3, xB, y0, y0+4.2, 1.2).replace('<path ','<path class="tiea" ')); }
+                }
               }
               /* v49.6 摇把 w/bar 已并入标注带（mkTech）；
                  指弹右手指法 p i m a 保持品位数字下方（指法惯例位置，非技巧标识），仅放大 */
@@ -10064,6 +10396,7 @@ function renderCore(){
             g.notes.forEach((gn,gi)=>{
               const x=gxc+gi*STEP;
               p.push(`<text x="${x}" y="${gyb}" font-size="8.5" font-family="var(--font-ui)" text-anchor="middle" fill="var(--ink)">${gn.deg}</text>`);
+              if(gn.acc) p.push(`<text x="${(x-4.4).toFixed(1)}" y="${(gyb-3.4).toFixed(1)}" font-size="6.5" text-anchor="middle" fill="var(--ink)">${gn.acc==='#'?'♯':gn.acc==='b'?'♭':gn.acc==='x'?'×':'♭♭'}</text>`);   /* v67.0 调外倚音 */
               for(let d2=0; d2<Math.min(3, Math.abs(gn.oct||0)); d2++){
                 if(gn.oct>0) p.push(`<circle cx="${x}" cy="${gyb-8-d2*DSP}" r="1" fill="var(--ink)"/>`);
                 else p.push(`<circle cx="${x}" cy="${gyb+2.6+gu*LSP+d2*DSP}" r="1" fill="var(--ink)"/>`);
@@ -10093,6 +10426,8 @@ function renderCore(){
               const st2=staffStep({deg:gn.deg||1, oct:gn.oct||0}, K), hy2=stepY(st2);
               const x=gx0+gi*STEP;
               p.push(smg('noteheadBlack', x-smw('noteheadBlack')*SG*0.62/2, hy2, SG, {scale:0.62}));
+              if(gn.acc){ const ln=((K.Li+(gn.deg||1)-1)%7+7)%7, ka=K.alt[ln]||0, ta=((K.tAlt||K.alt)[ln]||0)+accSemi(gn.acc);   /* v67.0 调外倚音：小号临时记号 */
+                if(ta!==ka) p.push(accG(ta===1?'♯':ta===-1?'♭':ta===0?'♮':ta===2?'×':'♭♭', x+0.23*SG, hy2, SG, 0.62)); }
               p.push(`<line x1="${x+2.7}" y1="${(hy2-1).toFixed(1)}" x2="${x+2.7}" y2="${(hy2-13).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
               topY=Math.min(topY, hy2-13);
             });
@@ -10127,6 +10462,17 @@ function renderCore(){
                  （数字顶≈voxY−12，字形基线原在 voxY−13）。基线抬到 voxY−15.5，净距回到 3.5px。 */
               p.push(smg(onmJ, nx-smw(onmJ)*SG*osJ/2, oy2-0.5, SG, {scale:osJ}));
             }
+            /* v67.0 邻音变音：上邻音写在记号上方、回音的下邻音写在记号下方（小号）。
+               简谱写相对唱名的 ♯/♭；五线谱写相对调号的实际变音（调号里是 ♭、邻音要本音 → ♮），与调号相同则不写 */
+            const oaSym=v=>v===1?'♯':v===-1?'♭':v===2?'×':v===-2?'♭♭':'♮';
+            const oaTxt=(a, d2)=>{ if(!a) return '';
+              if(!isStaff) return oaSym(accSemi(a));
+              let d=col.deg+d2; if(d>7) d-=7; if(d<1) d+=7;
+              const ln=((K.Li+d-1)%7+7)%7, ka=K.alt[ln]||0, ta=((K.tAlt||K.alt)[ln]||0)+accSemi(a);
+              return ta===ka? '' : oaSym(ta); };
+            const oyB = isStaff? oy2+3 : oy2-0.5, oaU=oaTxt(col.ornAcc, 1), oaL=oaTxt(col.ornAccLo, -1);
+            if(oaU) p.push(`<text x="${nx.toFixed(1)}" y="${(oyB-SG*0.95).toFixed(1)}" font-size="7" text-anchor="middle" fill="var(--ink)" data-ornacc="up">${oaU}</text>`);
+            if(oaL) p.push(`<text x="${nx.toFixed(1)}" y="${(oyB+6.5).toFixed(1)}" font-size="7" text-anchor="middle" fill="var(--ink)" data-ornacc="lo">${oaL}</text>`);
           }
           /* v41.1 演奏法四件套：五线谱=符头反符干侧（Gould）；简谱=数字上方 GB 形态（▼ · − >） */
           if(col.artic && col.deg && !song.chordOnly){
@@ -11282,7 +11628,8 @@ function syncInputs(){
         if(shX){ const fX=shapeString(shX, n.s); if(fX!=null) xTone=fX; }
       }
       if(n) noteTxt=(n.x? (xTone!=null? '× 和弦内音（'+n.s+'弦'+xTone+'品）' : '× 闷音（'+n.s+'弦）') : (n.s+'弦 '+n.f+'品'))
-        +(n.tech?(' · '+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',bd:'回落',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音P.M.',su:'上滑',sd:'下滑',ou:'上滑',od:'下滑',lr:'let ring'}[n.tech]||n.tech)):'');
+        +(n.tech?(' · '+({sl:'滑弦',h:'击弦',p:'勾弦',b:'推弦',bd:'回落',v:'揉弦',hm:'泛音',tp:'点弦',pm:'闷音P.M.',su:'上滑',sd:'下滑',ou:'上滑',od:'下滑',lr:'let ring'}[n.tech]||n.tech)):'')
+        +((n.tieIn && tabTieMap(song, sel.vi).from[sel.mi+':'+sel.ci+':'+n.s])? ' · 连音线延音（不重拨）' : '');   /* v67.0 */
       else if(col.strum) noteTxt='扫弦'+(col.strum==='d'?' ↑':' ↓');
       else if(col.perc) noteTxt='打板';
       else noteTxt='休止';
@@ -11593,7 +11940,11 @@ function setFret(f){
     const col=curCol();
     const i = col.notes.findIndex(n=>n.s===sel.si);
     if(f==null){ if(i>=0) col.notes.splice(i,1); }
-    else if(i>=0){ col.notes[i].f=f; col.notes[i].x=false; col.notes[i].lit=1; }
+    else if(i>=0){
+      /* 验收补：在连音线终点上改写成别的品位＝用户重新写了这个音——连入本音的逐音连音线（tieIn）一并去掉
+         （GP 同口径），不留「改回同品又悄悄连上」的隐藏状态；写回同一品位时不动 */
+      if(col.notes[i].tieIn && col.notes[i].f!==f) delete col.notes[i].tieIn;
+      col.notes[i].f=f; col.notes[i].x=false; col.notes[i].lit=1; }
     else col.notes.push({s:sel.si, f, lit:1});
   });
   if(f!=null) pingCol('tab', sel.vi, sel.mi, curCol(), sel.si);   /* v60.29 输入回响 */
@@ -12515,7 +12866,11 @@ function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
         mutate(()=>{
           if(tv===''){ if(k==='grace') delete col.grace; else delete col.graceA; }
           else if(/^[1-7]{1,3}$/.test(tv)){
-            const g={notes:[...tv].map((ch,i2)=>({deg:+ch, oct:prevG&&prevG.notes[i2]?prevG.notes[i2].oct:0})),
+            /* v67.0 倚音 oct 是绝对八度（谱面 / MusicXML / 播放同口径）：新输入的倚音默认取离主音最近的八度——
+               此前一律 0，1̇ 上输「2」画在中音区、（旧播放误加主音 oct）却在高音区响；现在画哪儿响哪儿，默认就落在主音旁边 */
+            const mainS=DEG_SEMI[col.deg]+accSemi(col.acc)+12*(col.oct||0);
+            const nearOct=d=>{ let bo=col.oct||0, bd=99; [0,-1,1].forEach(k=>{ const o=(col.oct||0)+k, df=Math.abs(DEG_SEMI[d]+12*o-mainS); if(df<bd){ bd=df; bo=o; } }); return Math.max(-3, Math.min(3, bo)); };
+            const g={notes:[...tv].map((ch,i2)=>({deg:+ch, oct:prevG&&prevG.notes[i2]?prevG.notes[i2].oct:nearOct(+ch)})),
                      dur:prevG?prevG.dur:8};   // 默认8分
             if(k==='grace') col.grace=g; else col.graceA=g;
           }
@@ -12525,9 +12880,9 @@ function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
     }
     return;
   }
-  if(k==='clr'){ mutate(()=>{ delete col.orn; delete col.grace; delete col.graceA; }); toast('已清除标识符号'); return; }
+  if(k==='clr'){ mutate(()=>{ delete col.orn; delete col.ornAcc; delete col.ornAccLo; delete col.grace; delete col.graceA; }); toast('已清除标识符号'); return; }
   if(!col.deg) return toast('记号需加在有唱名的音上');
-  mutate(()=>{ if(col.orn===k) delete col.orn; else col.orn=k; });
+  mutate(()=>{ if(col.orn===k){ delete col.orn; delete col.ornAcc; delete col.ornAccLo; } else col.orn=k; });   /* v67.0 ornAcc/ornAccLo 随记号一起清 */
 }
 /* n连音（3/5/6/7 预设 + v51.4 N:M 自定）：选中n个等时值音→整体切换；否则把当前音拆分为n连音（总时值不变）
    三连音=3音占2音时值（dur×2）；5/6/7连音=n音占4音时值（dur×4）；
@@ -14669,7 +15024,7 @@ function showGraceMenu(mi, ci, vi, kind, cx, cy){
     if(!gd && !gt && !gp && !gm && !ga && !gr) return;
     mutate(()=>{
       const g=normGrace(col[key]);
-      if(gd){ const [gi,d]=gd.dataset.gd.split(':').map(Number); g.notes[gi].deg=d; }
+      if(gd){ const [gi,d]=gd.dataset.gd.split(':').map(Number); g.notes[gi].deg=d; delete g.notes[gi].acc; }   /* v67.0 改了唱名，调外 acc 不再适用 */
       if(gp){ const gi=+gp.dataset.gp; g.notes[gi].oct=Math.min(3,(g.notes[gi].oct||0)+1); }
       if(gm){ const gi=+gm.dataset.gm; g.notes[gi].oct=Math.max(-3,(g.notes[gi].oct||0)-1); }
       if(ga && g.notes.length<3) g.notes.push({deg:g.notes[g.notes.length-1].deg, oct:g.notes[g.notes.length-1].oct});
@@ -15053,7 +15408,7 @@ function applyTech(tech){
       return cols && cols[q.ci] && cols[q.ci].notes.find(n=>n.s===q.si);
     };
     if(!tech){
-      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; delete n.bar; delete n.hmT; delete n.rhFing; delete n.lhF; } });
+      list.forEach(q=>{ const n=noteAt(q); if(n){ delete n.tech; delete n.tk; delete n.bt; delete n.bAmt; delete n.bendType; delete n.bar; delete n.hmT; delete n.rhFing; delete n.lhF; delete n.tieIn; } });   /* v67.0 清除记号同时清掉连入本音的逐音连音线（与纯连音线 tk 同进退） */
       return;
     }
     /* 揉弦/闷音是「范围记号」：扩选多个音符时首音直连末音，
@@ -15486,14 +15841,17 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
           if(!ca||!cb) continue;
           A.ss.forEach(s=>{
             const na=(ca.notes||[]).find(x=>x.s===s), nb=(cb.notes||[]).find(x=>x.s===s);
-            if(na && nb) pairs.push({na, tgt:{mi:B.mi, ci:B.ci, si:s}});   // 只连两列都按着的弦
+            if(na && nb) pairs.push({na, nb, o:{mi:A.mi, ci:A.ci}, tgt:{mi:B.mi, ci:B.ci, si:s}});   // 只连两列都按着的弦
           });
         }
         if(!pairs.length) return toast('相邻两列没有同一根弦上的音，无法逐弦相连');
-        const allOn=pairs.every(p=>!p.na.tech && p.na.tk &&
-          p.na.tk.mi===p.tgt.mi && p.na.tk.ci===p.tgt.ci && p.na.tk.si===p.tgt.si);
+        /* v67.0 导入的逐音连音线（note.tieIn）也算「已相连」：再点一次取消时连同终点的 tieIn 一起去掉（起点的 lr / P.M. 范围 tk 不动） */
+        const TMe=tabTieMap(song, q0.vi);
+        const pureOn=p=>!p.na.tech && p.na.tk && p.na.tk.mi===p.tgt.mi && p.na.tk.ci===p.tgt.ci && p.na.tk.si===p.tgt.si;
+        const inOn=p=>{ const t=TMe.to[p.o.mi+':'+p.o.ci+':'+p.tgt.si]; return !!(t && t.mi===p.tgt.mi && t.ci===p.tgt.ci); };
+        const allOn=pairs.every(p=>pureOn(p) || inOn(p));
         mutate(()=>{ pairs.forEach(p=>{
-          if(allOn){ delete p.na.tk; }
+          if(allOn){ if(pureOn(p)) delete p.na.tk; delete p.nb.tieIn; }
           else { delete p.na.tech; delete p.na.bt; delete p.na.bAmt; delete p.na.bendType;
             p.na.tk={mi:p.tgt.mi, ci:p.tgt.ci, si:p.tgt.si}; }
         }); });
@@ -15507,6 +15865,15 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
       if(!n0.tech && n0.tk && n0.tk.mi===q1.mi && n0.tk.ci===q1.ci){
         mutate(()=>{ delete n0.tk; });
         noteSel=[]; render(); toast('已取消连音线'); return;
+      }
+      { /* v67.0 两音之间已是导入的逐音连音线（终点 tieIn）→ 再连一次＝取消 */
+        const t=tabTieMap(song, q0.vi).to[q0.mi+':'+q0.ci+':'+q0.si];
+        const c1=song.measures[q1.mi] && song.measures[q1.mi].tabs[q0.vi] && song.measures[q1.mi].tabs[q0.vi][q1.ci];
+        const n1=c1 && c1.notes.find(x=>x.s===q1.si);
+        if(t && n1 && t.mi===q1.mi && t.ci===q1.ci && t.s===q1.si){
+          mutate(()=>{ delete n1.tieIn; });
+          noteSel=[]; render(); toast('已取消连音线'); return;
+        }
       }
       mutate(()=>{ delete n0.tech; delete n0.bt; delete n0.bAmt; delete n0.bendType; n0.tk={mi:q1.mi, ci:q1.ci, si:q1.si}; });
       noteSel=[]; render();
@@ -15536,6 +15903,12 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
     if(!col || !col.notes.length) return toast('当前列没有音符，先输入品位数字');
     const n = col.notes.find(x=>x.s===sel.si) || col.notes[0];
     if(!n.tech && n.tk){ mutate(()=>{ delete n.tk; }); toast('已取消连音线'); return; }
+    { /* v67.0 本音是导入的逐音连音线起点 → 取消（去掉终点 tieIn；本音的 lr / P.M. 等技法不动） */
+      const t=tabTieMap(song, sel.vi).to[sel.mi+':'+sel.ci+':'+n.s];
+      const tc=t && song.measures[t.mi] && song.measures[t.mi].tabs[sel.vi] && song.measures[t.mi].tabs[sel.vi][t.ci];
+      const tn=tc && tc.notes.find(x=>x.s===t.s);
+      if(tn){ mutate(()=>{ delete tn.tieIn; }); toast('已取消连音线'); return; }
+    }
     const cols=curRowCols();
     let done=false;
     mutate(()=>{
@@ -16838,11 +17211,13 @@ function arpLead(plan, kind, off){
    由调用方按「主/上邻快速交替」铺满时值。
    邻音取**自然音级**（deg±1 带八度进位、随调走），不跟主音的临时升降号——简谱惯例。
    base = 本小节生效调的主音 MIDI（已含变调夹）；返回 MIDI 数组，末位一定是主音。 */
+/* v67.0 col.ornAcc / col.ornAccLo（新增可选字段）：上 / 下邻音的变音（「改记谱调」换了调号时写入，保住邻音原音高；
+   谱面在装饰记号上方 / 下方画小号变音记号，出版惯例）。老数据没有＝自然音级，行为零变化 */
 function ornSeqMidis(col, base){
   if(!col || !col.orn || !col.deg) return null;
   const nb = d2 => { let d=col.deg+d2, o=col.oct||0;
     if(d>7){ d-=7; o++; } if(d<1){ d+=7; o--; }
-    return base + DEG_SEMI[d] + o*12; };
+    return base + DEG_SEMI[d] + o*12 + accSemi(d2>0? col.ornAcc : col.ornAccLo); };
   const m = base + DEG_SEMI[col.deg] + accSemi(col.acc) + (col.oct||0)*12;
   if(col.orn==='up')   return [m, nb(1), m];
   if(col.orn==='down') return [m, nb(-1), m];
@@ -18067,6 +18442,7 @@ function play(){
        同一根弦被再次弹响才掐断旧音（自然响到那一刻再快速阻尼）；
        否则让弦自然延音到采样衰减结束。音符时值只决定下一个音何时开始。 */
     const insts=[];
+    const TMp = tabTieMap(song, vi);   /* v67.0 逐音连音线（note.tieIn）有效连音对——内容小节坐标（𝄎 省写按源小节） */
     const ctimes={}, octx={};   /* v49.2 技法发声：列时刻表 + 内容小节→order 下标（tk 跨小节解析；simile 展开后 tk.mi 指源小节） */
     order.forEach((mi,oi)=>{ const c2=simileSrc(mi); const cmi=c2!=null?c2:mi; (octx[cmi]=octx[cmi]||[]).push(oi); });
     order.forEach((mi,oi)=>{
@@ -18111,7 +18487,7 @@ function play(){
           gG.notes.forEach((gn,gi)=>{
             insts.push({ when:Math.max(t, t+off-per*(gG.notes.length-gi)), s:gn.s, x:false, mute:false,
               freq:midiFreq(tuningOf()[gn.s-1]+gn.f+capoOf(vi)-12), gain:vol*dg*0.55/chordDiv,
-              vel:dg*0.55, oi, ci, dsec:per });
+              vel:dg*0.55, oi, ci, dsec:per, grace:true });
           });
         }
         ord2.forEach((n,k)=>{
@@ -18128,7 +18504,8 @@ function play(){
             freq:fq*jj.fc, gain:vol*dg*plan[k].g*jj.gc/chordDiv,
             vel:dg*plan[k].g*vmul,                 /* v49.0 音乐力度（明暗联动用，与音量增益解耦） */
             legato:leg||undefined, bar:n.bar, slap:!!col.slap,
-            oi, ci, dsec:durSec, tech:n.tech, tk:n.tk, bAmt:n.bAmt, bTy:n.bendType });   /* v49.2 技法字段 */
+            oi, ci, dsec:durSec, tech:n.tech, tk:n.tk, bAmt:n.bAmt, bTy:n.bendType,   /* v49.2 技法字段 */
+            tieO: TMp.from[(smi!=null?smi:mi)+':'+ci+':'+n.s] });   /* v67.0 本音是逐音连音线终点 → 起点 {mi,ci,s}（内容小节坐标） */
         });
         /* v52.7 TAB 后倚音播放：主音末尾的短促小音符（时刻在主音之后，数组序天然一致） */
         if(col.graceA && ord2.length){
@@ -18137,7 +18514,7 @@ function play(){
           gG.notes.forEach((gn,gi)=>{
             insts.push({ when:t+off+durSec-per*(gG.notes.length-gi), s:gn.s, x:false, mute:false,
               freq:midiFreq(tuningOf()[gn.s-1]+gn.f+capoOf(vi)-12), gain:vol*dg*0.5/chordDiv,
-              vel:dg*0.5, oi, ci, dsec:per });
+              vel:dg*0.5, oi, ci, dsec:per, grace:true });
           });
         }
         if(col.slap && ord2.length) chick(ctx, tbus, t+off, 0.4*vol);      /* v49.4 拍弦：附加拍击噪声 */
@@ -18152,8 +18529,32 @@ function play(){
       it.cut=null;
       const pv=lastByStr[it.s];
       if(pv!=null) insts[pv].cut=it.when;                 // 前一同弦音在本音起始处被掐断
+      it.prevS=pv;                                        /* v67.0 同弦上一个发声（逐音连音线找起点用） */
       lastByStr[it.s]=idx;
     });
+    /* v67.0 逐音连音线（note.tieIn）发声：终点不拨弦（silent），起点（链首）的掐断点顺延到终点之后、时值并到终点末——
+       与纯连音线 / 推弦圆圈目标同一口径（silent + 顺延 cut + 延长 dsec）。按时间序处理，链式连音（A→B→C）一律归到链首 tieHead。
+       起点必须是**演奏顺序上**紧挨着的那次出现：从终点所在演奏小节往回走，途经的演奏小节须是谱面上连续的小节（反复跳转 / 𝄎
+       省写处断开），且同弦上一个发声恰是该起点音（中间夹着同弦倚音等再次拨弦则不连）；两端音高相同（1% 内，与纯连音线同）。 */
+    { const cmOf=o=>{ const c2=simileSrc(order[o]); return c2!=null? c2 : order[o]; };
+      insts.forEach(it=>{
+        const O=it.tieO; if(!O || it.x || !(it.freq>0) || it.prevS==null) return;
+        const P=insts[it.prevS];
+        if(!P || P.grace || P.x || !(P.freq>0) || P.ci!==O.ci || P.s!==O.s) return;
+        let o=it.oi, hit=-1;
+        while(o>=0){ const cm=cmOf(o); if(cm===O.mi){ hit=o; break; } if(o===0 || cmOf(o-1)!==cm-1) break; o--; }
+        if(hit<0 || P.oi!==hit) return;
+        if(Math.abs(P.freq-it.freq) >= it.freq*0.01) return;
+        /* 验收补：终点自己带改变音高的技法（推弦 / 回落 / 预推、连线滑音、滑出）——这些音效要在终点处才发生，
+           静默就把推弦 / 滑音整个吞掉（此前实测：延音接推弦只剩平音）。同 v53.0 推弦中继音口径：保留发声但去音头连奏
+           （不重新拨弦的听感），起点照常响到终点处由它接续 */
+        if(it.tech==='b' || it.tech==='bd' || it.bTy || it.tech==='sl' || it.tech==='ou' || it.tech==='od'){ it.legato=true; it.vel*=0.6; return; }
+        const H=P.tieHead||P;
+        it.silent=true; it.tieHead=H;
+        if(H.cut!=null && Math.abs(H.cut-it.when)<1e-6) H.cut=it.cut;
+        H.dsec=Math.max(H.dsec, it.when-H.when+it.dsec);
+        if(it.tech==='v'){ H.fx=H.fx||{}; H.fx.vib=true; }   // 延音段上的揉弦落到发声的链首
+      }); }
     /* v49.2 技法发声解析（记谱数据早已齐全，此前只画不响）：
        推弦 b/bd/预推（bAmt 幅度画音高曲线）、连线滑弦 sl（临近目标滑到目标音高+目标连奏）、
        滑进 su/sd·滑出 ou/od（±2 品）、击弦 h/勾弦 p/点弦 tp（目标音连奏去音头）、
@@ -18182,8 +18583,10 @@ function play(){
           /* 连音线两端必须同音高（不同音高是滑音/推弦，不走这里） */
           if(tgt0 && !tgt0.silent && tgt0.freq>0 && Math.abs(tgt0.freq-it.freq) < it.freq*0.01){
             tgt0.silent=true;
-            if(it.cut!=null && Math.abs(it.cut-tgt0.when)<1e-6) it.cut=tgt0.cut;
-            it.dsec=Math.max(it.dsec, tgt0.when-it.when+tgt0.dsec);
+            /* v67.0 本音若是逐音连音线终点（已静默），延音归到链首 tieHead；旧谱无 tieHead → S2=it，逐事件不变 */
+            const S2=it.tieHead||it;
+            if(S2.cut!=null && Math.abs(S2.cut-tgt0.when)<1e-6) S2.cut=tgt0.cut;
+            S2.dsec=Math.max(S2.dsec, tgt0.when-S2.when+tgt0.dsec);
           }
         }
         return;
@@ -18298,7 +18701,7 @@ function play(){
           const g = normGrace(col.grace);
           const per = Math.min(0.12, durSec*0.35/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
-            const gm = keyRefAt(mi) + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12 + voxCapo();   /* v53.4 变调夹联动；v60.29 keyTo 跟随 */
+            const gm = keyRefAt(mi) + DEG_SEMI[gn.deg] + accSemi(gn.acc) + (gn.oct||0)*12 + voxCapo();   /* v53.4 变调夹联动；v60.29 keyTo 跟随；v67.0 倚音 oct 是绝对八度（与谱面、MusicXML、整列移八度同口径——此前误加主音 oct，《小步舞曲》的倚音 E5 播成 E6），acc 为调外倚音 */
             playInst(cfg.inst, ctx, tbus, midiFreq(gm), t+off+gi*per, per, vol*0.7, false, {damp:true, vel:0.7});
           });
         }
@@ -18307,7 +18710,7 @@ function play(){
           const g = normGrace(col.graceA);
           const per = Math.min(0.1, durSec*0.3/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
-            const gm2 = keyRefAt(mi) + DEG_SEMI[gn.deg] + (col.oct + (gn.oct||0))*12 + voxCapo();   /* v53.4 变调夹联动；v60.29 keyTo 跟随 */
+            const gm2 = keyRefAt(mi) + DEG_SEMI[gn.deg] + accSemi(gn.acc) + (gn.oct||0)*12 + voxCapo();   /* v53.4 变调夹联动；v60.29 keyTo 跟随；v67.0 同上 */
             playInst(cfg.inst, ctx, tbus, midiFreq(gm2), t+off+durSec-per*(g.notes.length-gi), per, vol*0.65, false, {damp:true, vel:0.65});
           });
         }
@@ -18332,7 +18735,7 @@ function play(){
           if(col.orn==='tr'){
             /* 颤音：主音与上邻音快速交替铺满时值（同 trem 的逐次发音口径） */
             let d=col.deg+1, o=col.oct||0; if(d>7){ d-=7; o++; }
-            const up1 = base + DEG_SEMI[d] + o*12;
+            const up1 = base + DEG_SEMI[d] + o*12 + accSemi(col.ornAcc);   /* v67.0 上邻音变音 */
             const step = Math.max(0.055, Math.min(0.09, durSec/8));
             const nrep = Math.max(2, Math.round(durSec/step));
             for(let r2=0;r2<nrep;r2++){
@@ -18989,7 +19392,7 @@ function ekMove(dNet, dSnd, capoNext){
     ekCalc={key:song.key, capo:song.capo, refOct:song.refOct, mea:JSON.stringify(song.measures), hist:new Map([[sig0,[0,0]]])};
   }
   const [n0,s0]=ekCalc.hist.get(sig0);
-  const net=n0+dNet, snd=s0+dSnd;
+  const net=n0+dNet, snd=s0+dSnd, resp0=ekRespOf();   // v67.0 改记谱调的调名差随状态带走
   /* 有自己夹位的轨（tabCapos）只跟发声走：夹位变化不动它的指法，唱调变化它照样跟着移 */
   const ovr=[]; (song.tabVoices||[]).forEach((_,vi)=>{ if(vi>0 && song.tabCapos && song.tabCapos[vi]!=null) ovr.push(vi); });
   let st=null;
@@ -19007,6 +19410,7 @@ function ekMove(dNet, dSnd, capoNext){
   });
   if(ekCalc.hist.size>60) ekCalc.hist.delete(ekCalc.hist.keys().next().value);
   ekCalc.hist.set(ekSig(), [net, snd]);
+  if(resp0) ekRespSet(resp0);
   return st;
 }
 function ekDirty(){
@@ -19300,13 +19704,46 @@ function boardTick(e){
   const vb=document.getElementById('nl-voxboard'); if(vb) vb.onclick=()=>openBoard('key');
 }
 function edSoundKey(){ return KEY_LIST[(((KEY_PC[song.key]||0)+(edHasCapo()? (song.capo||0):0))%12+12)%12]; }
+/* v67.0 改记谱调（音不变）速选：12 个调（页头口径的实际调）＋「固定调 1=C」；检测结果打「检测」小标 */
+function ekRespRender(){
+  const box=document.getElementById('ek-resp'), tg=document.getElementById('ek-resp-tg');
+  if(!box || !tg) return;
+  const open=!box.hidden; tg.setAttribute('aria-expanded', open? 'true':'false');
+  if(!open) return;
+  let det=null; try{ det=detectKey(songKeyEvents(song)); }catch(_){}
+  const hk=headKeyOf(song), noKt=!song.measures.some(m=>m.keyTo);
+  box.innerHTML=KEY_LIST.map(k=>{ const on=k===hk, dk=!!(det && !det.empty && det.key===k);
+      return '<button type="button" class="kp-chip'+(on?' on':'')+'" data-ekresp="'+k+'" title="'+(on? '当前记谱调' : '改为 1='+keyLabel(k)+'（音高不变）')
+        +(dk? '；按内容检测为 '+esc(keyModeLabel(det)) : '')+'">'+esc(keyLabel(k))+'<i>'+(on? '当前' : dk? '检测' : '&nbsp;')+'</i></button>'; }).join('')
+    +'<button type="button" class="kp-chip kp-fixed'+(hk==='C' && noKt? ' on':'')+'" data-ekresp="fixed" title="固定调：简谱一律 1=C，调外音写 ♯/♭（中途转调标记一并取消）">固定调<i>1=C</i></button>'
+    +'<small>只换简谱 1=X 的写法：音高、六线谱品位、和弦名都不变</small>';
+  box.querySelectorAll('[data-ekresp]').forEach(b=>{ b.onclick=()=>edRespell(b.dataset.ekresp); });
+}
+/* 验收补强：弹窗的「唱 X (+n)」是按打开时的调算的调名差——改记谱调只换写法、音没动，这段调名差要扣掉
+   （否则 C→D 后显示「唱 D (+2)」像升了两个半音）。差值按谱面状态签名 ekSig 记账：撤销回到哪一步就取哪一步的值，
+   之后再移调 / 换夹（ekMove）把当前值带到新状态上 */
+function ekRespOf(){ return (ekBase && ekBase.respBy && ekBase.respBy.get(ekSig())) || 0; }
+function ekRespSet(v){ if(!ekBase) return; if(!ekBase.respBy) ekBase.respBy=new Map(); ekBase.respBy.set(ekSig(), ((v%12)+12)%12); }
+function edRespell(k){
+  const fixed=k==='fixed', snd=fixed? 'C' : k;
+  if(KEY_PC[snd]==null) return;
+  if(headKeyOf(song)===snd && (!fixed || !song.measures.some(m=>m.keyTo))) return toast('已经是 1='+keyLabel(snd));
+  let st=null; const pc0=KEY_PC[headKeyOf(song)], r0=ekRespOf();
+  mutate(()=>{ st=respellSongKey(song, snd, {fixed}); });
+  ekRespSet(r0+KEY_PC[headKeyOf(song)]-pc0);
+  ekDirty(); updateEdKeyPop();
+  pyqEvent('transpose', 'respell:'+(fixed? 'fixed' : snd));
+  toast('已改记谱调 1='+keyLabel(headKeyOf(song))+(fixed? '（固定调）' : '')+'：音高不变，六线谱品位与和弦名不动'
+    +(st && st.notes? '，'+st.notes+' 个音重新拼写' : '')+'——可 Ctrl+Z 撤销');
+}
 function updateEdKeyPop(){
   const el=document.getElementById('ek-v'); if(!el) return;
   const pop=document.getElementById('ekey-pop');
   if(!pop || !pop.classList.contains('on')) return;
+  ekRespRender();
   const hasCapo=edHasCapo(), snd=edSoundKey();
   const bSnd=ekBase? KEY_LIST[(((KEY_PC[ekBase.key]||0)+(hasCapo? ekBase.capo:0))%12+12)%12] : snd;
-  const dSnd=((KEY_PC[snd]-KEY_PC[bSnd])%12+12)%12;
+  const dSnd=((KEY_PC[snd]-KEY_PC[bSnd]-ekRespOf())%12+24)%12;   // 扣掉「改记谱调」造成的调名差（音高没变）
   const off=dSnd===0? 0 : (dSnd>6? dSnd-12 : dSnd);
   el.innerHTML=(hasCapo? '唱 ':'1=')+esc(snd)+(off? ' <small>('+(off>0?'+':'')+off+')</small>':'');
   const ov=document.getElementById('ek-orig-v');
@@ -19355,6 +19792,7 @@ function edKeyReset(){
     song.measures=JSON.parse(ekBase.mea);
     song.key=ekBase.key; song.capo=ekBase.capo;
     if(ekBase.refOct==null) delete song.refOct; else song.refOct=ekBase.refOct;
+    if(ekBase.mode==null) delete song.mode; else song.mode=ekBase.mode;
   });
   ekBase.dirty=false;
   updateEdKeyPop();
@@ -19366,7 +19804,7 @@ function edKeyReset(){
 function openEdKeyPop(cx, cy){
   const pop=document.getElementById('ekey-pop'); if(!pop) return;
   const wasOn=pop.classList.contains('on');
-  if(!wasOn) ekBase={key:song.key, capo:song.capo||0, refOct:song.refOct, mea:JSON.stringify(song.measures), dirty:false};
+  if(!wasOn) ekBase={key:song.key, capo:song.capo||0, refOct:song.refOct, mode:song.mode, mea:JSON.stringify(song.measures), dirty:false};   /* v67.0 mode：改记谱调会随主音改写 / 删掉它 */
   if(cx==null){ vwPopToggle('ekey-pop','k-val'); updateEdKeyPop(); return; }
   document.querySelectorAll('.vh-pop.on').forEach(p=>p.classList.remove('on'));
   if(wasOn) return;                                  // 再点一次＝收起（与顶栏 toggle 同语义）
@@ -19392,6 +19830,7 @@ function openEdKeyPop(cx, cy){
   on('ek-cdn', ()=>edSetCapo((song.capo||0)-1));
   on('ek-cup', ()=>edSetCapo((song.capo||0)+1));
   on('ek-reset', edKeyReset);
+  on('ek-resp-tg', ()=>{ const b=document.getElementById('ek-resp'); if(b){ b.hidden=!b.hidden; ekRespRender(); } });
   document.getElementById('ekey-pop').addEventListener('click', e=>e.stopPropagation());
   /* v60.55 点外收起：谱面上的 1=X 热区要放行——它是 pointerdown 开的弹窗，
      紧随其后的 click 冒泡到 document 会当场把刚打开的弹窗关掉（开合由 openEdKeyPop 自己 toggle）。 */
@@ -20127,13 +20566,17 @@ function showNewWizard(){
     const file=e.target.files[0]; if(!file) return;
     const done=r=>{
       if(r.error){ toast('导入失败：'+r.error); return; }
+      try{ mxlKeyPost(r); }catch(e){ console.warn('调识别失败', e); }   /* v67.0 无 fifths 按内容检测；有 fifths 以文件为准 */
       closeModal();
       addDoc(r.song, ()=>{
         setRibbon('vox');
         pyqImportDone('mxl');
+        const hk=keyLabel(headKeyOf(r.song));
         toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节'
           +skipText(r.skip)   /* v65.1 分项点名 */
-          +(r.keyDefaulted? '；未读到调号已按 1=C，请在曲谱信息中核对':''));
+          +(r.keyDet? '；文件未写调号，按内容检测为 1='+hk+'（'+keyModeLabel(r.keyDet)+'）'
+            : r.keyDefaulted? '；未读到调号已按 1=C' : '；调号按文件 1='+hk+(r.song.mode==='minor'? '（小调，记作关系大调）':''))
+          +'，点页头 1=X 可改记谱调（音不变）');
       });
     };
     const rd=new FileReader();
@@ -20635,7 +21078,7 @@ function exportMusicXML(s){
         if(col.chord) body += harmonyXML(col.chord);
         /* v44.8 倚音（前倚音 col.grace）→ 主音前的 grace 音符（无时值） */
         const graceXML = col.grace? (normGrace(col.grace).notes||[]).map(g=> g&&g.deg?
-          `<note><grace slash="yes"/>${pitchXML(g.deg,'',g.oct||0)}<voice>1</voice><type>eighth</type>${staffTag}</note>`:'').join('') : '';
+          `<note><grace slash="yes"/>${pitchXML(g.deg,g.acc||'',g.oct||0)}<voice>1</voice><type>eighth</type>${staffTag}</note>`:'').join('') : '';
         const kk=mi+':'+ci, tieStart=!!tieS[kk], tieStop=!!tieE[kk], slStart=!!slurS[kk], slStop=!!slurE[kk];   // v65.1 B3a ①
         const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
         /* v44.8 滑音 gliss → slide（本音起 start、下一音收 stop） */
@@ -20691,6 +21134,7 @@ function exportMusicXML(s){
   const tabParts = (s.tabVoices||[]).map((tn,ti)=>{
     let mm='';
     const primPart = ti===0 && !(s.voxVoices||[]).length;   // v65.1 纯 TAB 谱由首个 TAB part 写小节级导航
+    const TMx = tabTieMap(s, ti);   /* v67.0 逐音连音线（note.tieIn）→ 起点 tie/tied start、终点 stop（逐弦） */
     const stopAt={};   // 'mi:ci:弦' → 技法：h/p/sl 的落点音
     s.measures.forEach((m2,mi2)=>((m2.tabs&&m2.tabs[ti])||[]).forEach((c2,ci2)=>(c2.notes||[]).forEach(n2=>{
       if(n2.tk && (n2.tech==='h'||n2.tech==='p'||n2.tech==='sl'||n2.tech==='b'||n2.tech==='bd')) stopAt[n2.tk.mi+':'+n2.tk.ci+':'+(n2.tk.si||n2.s)]=n2.tech; })));
@@ -20751,7 +21195,10 @@ function exportMusicXML(s){
           const pkX = idx===0 && col.pk? (col.pk==='d'?'<down-bow/>':'<up-bow/>') : '';
           const tx=techExtra(n, mi, ci);   // v65.3 B3a ④
           const tech = `<technical><string>${n.s}</string><fret>${n.f||0}</fret>${n.lhF?`<fingering>${n.lhF}</fingering>`:''}${n.rhFing?`<pluck>${n.rhFing}</pluck>`:''}${pkX}${tx.t}</technical>`;
-          body += `<note>${idx>0?'<chord/>':''}${midiPitchXML(m)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${nh}<notations>${idx===0?ferm:''}${tx.sl}${tech}</notations></note>`;
+          const tkk = mi+':'+ci+':'+n.s, tStop = !!TMx.from[tkk], tStart = !!TMx.to[tkk];   /* v67.0 */
+          const tieX = (tStop?'<tie type="stop"/>':'')+(tStart?'<tie type="start"/>':'');
+          const tiedX = (tStop?'<tied type="stop"/>':'')+(tStart?'<tied type="start"/>':'');
+          body += `<note>${idx>0?'<chord/>':''}${midiPitchXML(m)}<duration>${dur}</duration>${tieX}<voice>1</voice>${typ}${dot}${tmod}${nh}<notations>${tiedX}${idx===0?ferm:''}${tx.sl}${tech}</notations></note>`;
         });
       });
       body += (primPart? navTailXML(mi) : '') + barRightXML(mi);   // v65.1 B3a ② D.C./D.S./Fine + 右小节线（房子收口/段落线/终止线）
@@ -20911,7 +21358,7 @@ const u8utf8 = u8 => new TextDecoder('utf-8').decode(u8);
 /* ===== v55.8 Guitar Pro (.gp，GP7/GP8) 导入 =====
    .gp = ZIP 容器内 Content/score.gpif（XML）。parseGP 解析出曲目信息与音轨清单，
    经音轨选择后 buildSongFromGP 落入 song 模型——映射口径对齐 MusicXML TAB 导入（v44.7）：
-   notes:{s,f,x}、tech(h/p/b/bd/sl/sd/su/hm/pm/lr/v)+tk 链、col.tie、tup/tupM、grace、
+   notes:{s,f,x}、tech(h/p/b/bd/sl/sd/su/hm/pm/lr/v)+tk 链、连音线（v67.0 起逐弦 note.tieIn，此前列级 col.tie）、tup/tupM、grace、
    col.chord（DiagramCollection 名）、repeatStart/End、label、keyTo、变拍子。
    GPIF 弦序 0=最低弦 → 本引擎 s=弦数-GP弦号（s=1 为最高弦）。
    GP3/4/5 二进制与 GP6 .gpx（BCFZ 压缩）暂不支持（评估 P2/P3）。 */
@@ -21149,7 +21596,7 @@ function parseGP345(u8){
       if(tieMem){ if(type===2){ if(tieMem[stringNo]!=null) fret=tieMem[stringNo]; } else if(type===1) tieMem[stringNo]=fret; }
       const n={s:stringNo, f:Math.max(0,Math.min(24,fret))};
       if(type===3) n.x=1;
-      if(type===2) r.tieDest=true;
+      if(type===2) n.tieIn=true;               /* v67.0 延音音符（type 2）逐弦落到本音 note.tieIn（此前落成前一列 col.tie，整列都算连） */
       if(fl&0x08) readNoteFx(n,r);
       r.n=n;
       return r;
@@ -21170,12 +21617,12 @@ function parseGP345(u8){
       if(fl&0x08) readBeatFx();
       if(fl&0x10) readMixTable();
       const sf=B();
-      const nObjs=[]; let tieDest=false, hopo=false, slLeg=false, grace=null;
+      const nObjs=[]; let hopo=false, slLeg=false, grace=null;
       for(let i=0;i<7;i++){
         if(!(sf&(1<<(6-i)))) continue;
         const r=readNote(i+1);
         if(r.n.s>nS){ skipBase.notes++; continue; }
-        if(r.tieDest) tieDest=true; if(r.hopo) hopo=true; if(r.sl) slLeg=true;
+        if(r.hopo) hopo=true; if(r.sl) slLeg=true;
         if(r.grace) grace={notes:[{s:r.n.s, f:r.grace.f}], dur:r.grace.dur};
         nObjs.push(r.n);
       }
@@ -21185,7 +21632,6 @@ function parseGP345(u8){
       const col={dur, dotted, notes:nObjs, ...(tup?{tup}:{}), ...(tupM?{tupM}:{})};
       if(chordName) col.chord=chordName;
       if(grace) col.grace=grace;
-      if(tieDest) col._tieDest=1;
       if(hopo) col._hopo=1;
       if(slLeg) col._sl=1;
       return col;
@@ -21328,12 +21774,12 @@ function parseGPIFXml(xml){
     maker:T(sc,':scope > Tabber')||'' } };
 }
 /* GP 导入共用后处理（gpif 与 gp3/4/5 二进制两条管线共用）：
-   连音线归到前列；击勾弦/普通滑音连到下一列（同弦优先，比较品位定 h/p）；临时 _ 标记删净防入库 */
+   击勾弦/普通滑音连到下一列（同弦优先，比较品位定 h/p）；临时 _ 标记删净防入库。
+   v67.0 连音线不再归到前列（col.tie）——两条管线都在延音音符上直接写 note.tieIn（逐弦，tabTieMap） */
 function gpPostLink(colsByMea){
-  let prevPos=null, pend=null;   // pend={type:'hopo'|'sl', note, mi, ci}
+  let pend=null;   // pend={type:'hopo'|'sl', note, mi, ci}
   colsByMea.forEach((cols,mi)=>cols.forEach((col,ci)=>{
     if(!col.notes || !col.notes.length) return;
-    if(col._tieDest){ if(prevPos) colsByMea[prevPos.mi][prevPos.ci].tie=true; delete col._tieDest; }
     if(pend){
       const org=pend.note;
       const tgt=col.notes.find(x=>x.s===org.s)||col.notes[0];
@@ -21345,9 +21791,8 @@ function gpPostLink(colsByMea){
     }
     if(col._hopo){ pend={type:'hopo', note:col.notes[0], mi, ci}; delete col._hopo; }
     else if(col._sl){ pend={type:'sl', note:col.notes[0], mi, ci}; delete col._sl; }
-    prevPos={mi, ci};
   }));
-  colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._tieDest; delete col._hopo; delete col._sl; }));
+  colsByMea.forEach(cols=>cols.forEach(col=>{ delete col._hopo; delete col._sl; }));
 }
 function buildSongFromGP(gp, selIdx){
   const skip={notes:0, other:0};
@@ -21379,6 +21824,7 @@ function buildSongFromGP(gp, selIdx){
   /* 逐选中音轨解析列 */
   const trackCols=sel.map(tk=>{
     const nS=tk.strings||6;
+    const lastFret={};   /* v67.0 本轨各弦上一个实音的品位（延音目标缺 Fret 时取值用） */
     const colsByMea=MB.map((mb,mi)=>{
       const cols=[];
       const barId=meaInfo[mi].barIds[tk.idx];
@@ -21401,14 +21847,19 @@ function buildSongFromGP(gp, selIdx){
           else if(aN>=2&&aN<=16&&nN>=1&&nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM=nN; } }
         const noteIds=(T(beat,':scope > Notes')||'').split(/\s+/).filter(Boolean);
         const isGrace=!!T(beat,':scope > GraceNotes');
-        const nObjs=[]; let tieDest=false, hopo=false, slLegato=false;
+        const nObjs=[]; let hopo=false, slLegato=false;
         noteIds.forEach(nid=>{
           const nt=gp.notes[nid]; if(!nt) return;
           const fP=prop(nt,'Fret'), sP=prop(nt,'String');
-          if(!fP||!sP){ skip.notes++; return; }
+          /* v67.0 延音目标（Tie destination）逐弦落到 note.tieIn；目标音缺 Fret 时取同弦上一个实音的品位
+             （与 v66.8 GP3/4/5 getTiedNoteValue 同口径），不再整音丢弃 */
+          const tie=nt.querySelector(':scope > Tie'), tieD=!!(tie && tie.getAttribute('destination')==='true');
+          if(!sP){ skip.notes++; return; }
           const gs=+T(sP,'String')||0;
           const s=Math.max(1, Math.min(nS, nS-gs));
-          const n={s, f:Math.max(0, Math.min(24, +T(fP,'Fret')||0))};
+          if(!fP && !(tieD && lastFret[s]!=null)){ skip.notes++; return; }
+          const n={s, f: fP? Math.max(0, Math.min(24, +T(fP,'Fret')||0)) : lastFret[s]};
+          if(tieD) n.tieIn=true; else lastFret[s]=n.f;
           if(prop(nt,'Muted')) n.x=1;
           /* 技法（tech 单值，按信息量优先）：推弦 > 泛音 > 无头滑 > 颤音 > 闷音 > 延音 */
           if(prop(nt,'Bended')){
@@ -21430,8 +21881,6 @@ function buildSongFromGP(gp, selIdx){
             else if(prop(nt,'LetRing')) n.tech='lr';
           }
           if(prop(nt,'HopoOrigin')) hopo=true;
-          const tie=nt.querySelector(':scope > Tie');
-          if(tie && tie.getAttribute('destination')==='true') tieDest=true;
           nObjs.push(n);
         });
         if(isGrace){   // 倚音拍：挂给下一个主音列
@@ -21444,7 +21893,6 @@ function buildSongFromGP(gp, selIdx){
         if(pendGrace.length){ col.grace={notes:pendGrace.slice(0,3), dur:pendGraceDur}; pendGrace=[]; pendGraceDur=8; }
         { const chE=beat.querySelector(':scope > Chord');
           if(chE && tk.diag[chE.textContent.trim()]!=null && tk.diag[chE.textContent.trim()]!=='') col.chord=tk.diag[chE.textContent.trim()]; }
-        if(tieDest) col._tieDest=1;
         if(hopo) col._hopo=1;
         if(slLegato) col._sl=1;
         cols.push(col);
@@ -21483,8 +21931,15 @@ function buildSongFromGP(gp, selIdx){
   if(!out.measures.length) return {error:'未解析到任何小节'};
   return {song:migrate(out), skip, keyDefaulted};
 }
-/* 音轨选择弹窗：默认勾选前 3 条非鼓音轨；确认后建谱入库 */
+/* 音轨选择弹窗：默认勾选前 3 条非鼓音轨；确认后建谱入库。
+   v67.0 加「调」与「简谱记法」：GP 文件的调号常不可信（转谱站导出多是 0＝1=C），默认取全部非鼓音轨的内容检测结果；
+   文件调号与 12 个调都可改选；首调 / 固定调二选一。选择结果落到建好的谱上（importKeyApply），TAB 品位不动 */
 function showGPTrackModal(gp){
+  let det={empty:true};
+  try{ det=detectKey(gpKeyEvents(gp)); }catch(e){ console.warn('调识别失败', e); }
+  const fileFing = gp.kind==='bin'? (MIDI_F2K[gp.keyFifths]||null)
+    : (()=>{ const ac=gp.T && gp.masterBars[0] && gp.T(gp.masterBars[0], ':scope > Key > AccidentalCount'); return ac!=null? (MIDI_F2K[ac]||null) : null; })();
+  const capoSel=()=>{ const c=document.querySelector('.gp-tk:checked'); const t=c && gp.tracks[+c.dataset.i]; return (t && t.capo)||0; };
   const rows=gp.tracks.map((t,i)=>{
     const dis=t.drum;
     const checked=!dis && gp.tracks.filter(x=>!x.drum).indexOf(t)<3;
@@ -21497,14 +21952,26 @@ function showGPTrackModal(gp){
   showModal(`<h3>导入 Guitar Pro：选择音轨</h3>
     <p style="font-size:12.5px;color:var(--muted)">《${esc(gp.title)}》共 ${gp.masterBars.length} 小节。选择要导入的音轨（最多 3 条，各成一个六线谱声部）：</p>
     ${rows}
+    ${keyChoiceHTML(det, null, 'det', 0, true)}
     <div class="btns"><button id="gp-cancel">取消</button><button id="gp-go" class="primary">导入</button></div>`);
+  /* 文件调号项按「当前勾选的第一条音轨」的夹位换成页头口径（实际调）；勾选变了说明行随之刷新 */
+  const fileSnd=()=>fileFing? KEY_LIST[(KEY_PC[fileFing]+capoSel())%12] : null;
+  const refresh=()=>{ const box=document.querySelector('.kc-box'); if(box) box.dataset.capo=capoSel();
+    const fo=document.querySelector('#kc-key option[value="file"]'); const fs=fileSnd();
+    if(fo) fo.textContent='1='+keyLabel(fs||'C')+' · '+(fs? '文件调号' : '文件未写调号（按 1=C）');
+    keyChoiceTip(det, fs); };
+  keyChoiceBind(det, fileSnd);
+  document.querySelectorAll('.gp-tk').forEach(x=>x.addEventListener('change', refresh));
+  refresh();
   document.getElementById('gp-cancel').onclick=closeModal;
   document.getElementById('gp-go').onclick=()=>{
     const selIdx=[...document.querySelectorAll('.gp-tk:checked')].map(x=>+x.dataset.i);
     if(!selIdx.length){ toast('请至少选择一条音轨'); return; }
     if(selIdx.length>3){ toast('最多选 3 条音轨'); return; }
+    const kc=keyChoiceRead(det);
     const r = gp.kind==='bin'? buildSongFromGP345(gp, selIdx) : buildSongFromGP(gp, selIdx);
     if(r.error){ toast('导入失败：'+r.error); return; }
+    importKeyApply(r.song, kc);
     closeModal();
     addDoc(r.song, ()=>{
       setRibbon(defaultLayer());
@@ -21512,7 +21979,7 @@ function showGPTrackModal(gp){
       const sk=r.skip.notes+r.skip.other;
       toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节 · '+selIdx.length+' 条音轨'
         +(sk? '；简化/跳过 '+sk+' 处（多声部/打击乐/暂不支持记号）':'')
-        +(r.keyDefaulted? '；未读到调号已按 1=C，请核对':''));
+        +keyChoiceToast(r.song, kc, det));
     });
   };
 }
@@ -21791,7 +22258,7 @@ function importMusicXML(xmlStr){
         if(tag!=='note') return;
         if(q(el,'grace')){                                            // v44.8 前倚音：累积到 pendGrace，挂给下一个主音（normGrace 仅存 deg/oct）
           const pe0=q(el,'pitch');
-          if(pe0 && !q(el,'chord') && pendGrace.length<3){ const rel0=midiOf(pe0)-refOfKey(keyEffAt(mi2)), pc0=((rel0%12)+12)%12; pendGrace.push({deg:SEMI_DEG[pc0][0], oct:Math.floor(rel0/12)}); }
+          if(pe0 && !q(el,'chord') && pendGrace.length<3){ const rel0=midiOf(pe0)-refOfKey(keyEffAt(mi2)), pc0=((rel0%12)+12)%12; pendGrace.push(Object.assign({deg:SEMI_DEG[pc0][0], oct:Math.floor(rel0/12)}, SEMI_DEG[pc0][1]? {acc:SEMI_DEG[pc0][1]} : {})); }   /* v67.0 调外倚音带 acc（此前丢掉，♯ 倚音读回成本音） */
           return;
         }
         const vc=txt(el,'voice');
@@ -21869,8 +22336,9 @@ function importMusicXML(xmlStr){
           if(last.adds.length<3) last.adds.push(noteObj); else skip.notes++;
           return;
         }
+        /* v67.0 连音线：<tie>（发声）与 <notations><tied>（记谱）任一带 start 即算——只写 <tied> 的文件此前整条丢 */
         const col={dur, dotted, deg:noteObj.deg, acc:noteObj.acc, oct:noteObj.oct, lyrics:[],
-          tie: !![...el.querySelectorAll(':scope > tie')].find(t2=>t2.getAttribute('type')==='start'),
+          tie: !![...el.querySelectorAll(':scope > tie, :scope > notations > tied')].find(t2=>t2.getAttribute('type')==='start'),
           ...(tup?{tup}:{}), ...(tupM2?{tupM:tupM2}:{})};
         if(pendChord){ col.chord=pendChord; pendChord=''; }
         /* v65.1 B3a ① 圆滑线：slur stop 先结清、start 再开；仍处于圆滑线内的音打 tie 标记（stop 音不打） */
@@ -21937,6 +22405,8 @@ function importMusicXML(xmlStr){
         if(!sEl||!fEl){ skip.notes++; return; }   // 无 string/fret 的音（如五线声部混入）跳过
         const nObj={s:+sEl.textContent.trim()||1, f:Math.max(0,+fEl.textContent.trim()||0)};
         const nh=q(el,'notehead'); if(nh && /x/i.test(nh.textContent.trim())) nObj.x=1;
+        /* v67.0 TAB 声部连音线：本音带 tie / tied stop ＝ 同弦前一音的延音 → note.tieIn（逐弦；此前 TAB 声部的连音线整条丢弃） */
+        if([...el.querySelectorAll(':scope > tie, :scope > notations > tied')].some(t2=>t2.getAttribute('type')==='stop')) nObj.tieIn=true;
         /* v52.5 指法/拨片导入：fingering→lhF、pluck→rhFing、down/up-bow→col.pk */
         { const fgE=tech.querySelector('fingering');
           if(fgE){ const fv=fgE.textContent.trim().toUpperCase(); if(/^[0-4T]$/.test(fv)) nObj.lhF=fv; }
@@ -22246,7 +22716,8 @@ function tabAssignSeq(chords, tuning, capo, fretMax){
   return {shapes, octShift, dropped};
 }
 /* MIDI 音符 → TAB 列序列：量化（与简谱同一份量化器的 raw 档）→ 连音分组 →
-   逐「发声事件」指派弦/品（延续列沿用同一指法，连音线用 col.tie——与 GP 导入同口径）。 */
+   逐「发声事件」指派弦/品（延续列沿用同一指法）。v67.0 连音线改为延续列每个音写 note.tieIn（与 GP 导入同口径，
+   此前写在起点列的 col.tie 在 TAB 上不画、播放照样重拨）。 */
 function buildTabColsFromMIDI(notes, tpq, beats, unit, opt){
   opt=opt||{};
   const tuning=opt.tuning||TUNING, capo=opt.capo||0, fretMax=opt.fretMax||24;
@@ -22269,7 +22740,8 @@ function buildTabColsFromMIDI(notes, tpq, beats, unit, opt){
       const col={dur:c.dur, dotted:c.dotted, chord:'', notes:[], strum:'', tech:''};
       if(c.ms){
         const shape=asg.shapes[evOf[fillIdx]];
-        if(shape){ col.notes=shape.map(n=>({s:n.s,f:n.f})); if(c.tie) col.tie=true; }
+        const cont = fillIdx>0 && flat[fillIdx-1].ms && flat[fillIdx-1].tie && evOf[fillIdx-1]===evOf[fillIdx];
+        if(shape) col.notes=shape.map(n=> cont? {s:n.s, f:n.f, tieIn:true} : {s:n.s, f:n.f});
         else restDrop++;                              // 整个事件放不进指板 → 落为休止
       }
       fillIdx++;
@@ -22385,6 +22857,14 @@ function midiImportPick(){
   inp.click();
 }
 function showMidiImport(smf){
+  /* v67.0 调：未含调号 → 默认按内容检测；含调号但与内容明显不符（检测首选领先文件调号 0.6 分以上，常见于音序器默认写 0）→ 也默认检测并注明 */
+  let det={empty:true};
+  try{ det=detectKey(smfKeyEvents(smf)); }catch(e){ console.warn('调识别失败', e); }
+  const fileSnd = smf.keySf!=null? (MIDI_F2K[smf.keySf]||null) : null;
+  let kDef='det', kDoubt=false;
+  if(fileSnd && !det.empty){ const fc=det.cands.find(c=>KEY_PC[c.key]===KEY_PC[fileSnd]);
+    kDoubt = KEY_PC[det.key]!==KEY_PC[fileSnd] && (!fc || det.cands[0].score-fc.score>0.6);
+    if(!kDoubt) kDef='file'; }
   const opts=smf.tracks.map((t2,i)=>`<option value="${i}">${esc(t2.name)}（${t2.notes.length}音 · ${midiTrackInfo(t2)}）</option>`).join('');
   const mapFor=type=>{
     if(type==='vocal')
@@ -22401,7 +22881,7 @@ function showMidiImport(smf){
       <p class="mi-tip">音高自动指派弦/品：低把位优先、把位连贯、和音同格可按；超出音域的音整八度折入并计数上报。</p>`;
   };
   showModal(`<h3>导入 MIDI</h3>
-    <p style="font-size:12.5px">${smf.tracks.length} 条音轨 · ${smf.ts.beats}/${smf.ts.unit} · ♩=${smf.tempo}${smf.keySf!=null? ' · 调号 1='+(MIDI_F2K[smf.keySf]||'?') : ' · 未含调号（按 1=C，导入后可整体换调）'}<br>导入为<b>草稿</b>：时值按 16 分网格量化，导入后可精修。</p>
+    <p style="font-size:12.5px">${smf.tracks.length} 条音轨 · ${smf.ts.beats}/${smf.ts.unit} · ♩=${smf.tempo}${smf.keySf!=null? ' · 文件调号 1='+keyLabel(MIDI_F2K[smf.keySf]||'?')+(kDoubt? '（与内容不符，默认改用检测结果）':'') : ' · 未含调号（默认按内容检测）'}<br>导入为<b>草稿</b>：时值按 16 分网格量化，导入后可精修。</p>
     <label class="f"><span>谱类</span><select id="mi-type">
       <option value="vocal">歌谱（简谱旋律，可多声部）</option>
       <option value="piano">钢琴独奏谱（大谱表 右手/左手）</option>
@@ -22409,7 +22889,9 @@ function showMidiImport(smf){
       <option value="uku">尤克里里独奏谱（四线 TAB）</option>
     </select></label>
     <div id="mi-map">${mapFor('vocal')}</div>
+    ${keyChoiceHTML(det, fileSnd, kDef, 0)}
     <div class="btns"><button id="mi-cancel">取消</button><button id="mi-go" class="primary">导入</button></div>`);
+  keyChoiceBind(det, fileSnd);
   const g=id=>document.getElementById(id);
   const bindMap=()=>{
     const b2=g('mi-b');
@@ -22417,6 +22899,8 @@ function showMidiImport(smf){
   };
   bindMap();
   g('mi-type').onchange=()=>{ g('mi-map').innerHTML=mapFor(g('mi-type').value); bindMap(); };
+  g('mi-type').addEventListener('change', ()=>{ const bx=document.querySelector('.kc-box'), ty=g('mi-type').value;   // v67.0 固定调说明随谱类
+    if(bx){ bx.dataset.tab=(ty==='guitar'||ty==='uku')? '1' : '0'; keyChoiceTip(det, fileSnd); } });
   g('mi-cancel').onclick=closeModal;
   g('mi-go').onclick=()=>{
     const type=g('mi-type').value;
@@ -22432,7 +22916,9 @@ function showMidiImport(smf){
     }else{
       sel = {mode:type, a:+g('mi-a').value};
     }
+    const kc=keyChoiceRead(det);
     const r=buildSongFromMIDI(smf, sel);
+    importKeyApply(r.song, kc);
     closeModal();
     addDoc(r.song, ()=>{
       setRibbon(r.song.tabVoices.length? 'tab':'vox');
@@ -22441,7 +22927,7 @@ function showMidiImport(smf){
         +(r.skipped? '；量化简化 '+r.skipped+' 处（和音超限/超细时值）':'')
         +(r.octShift? '；'+r.octShift+' 个音超出指板音域按八度折入':'')
         +(r.dropped? '；'+r.dropped+' 个音无法落指板已略去':'')
-        +(r.keyDefaulted? '；未含调号已按 1=C，可整体换调':''));
+        +keyChoiceToast(r.song, kc, det));
     });
   };
 }
@@ -22594,14 +23080,20 @@ function exportMIDI(s){
     const evts=[nameEv(tn||('TAB'+(ti+1))), {tick:0,pr:0,data:[0xC0|ch,gmProg('tab',ti)]}];   /* v65.4 轨名 + GM 音色 */
     let tick=0;
     let runChM='';   /* v57.1 和弦隐含音随导出：×→指法实音、扫弦/琶音补全（行进和弦=列级 chord 记号顺序生效） */
-    s.measures.forEach(mea=>(mea.tabs[ti]||[]).forEach(c=>{
+    /* v67.0 逐音连音线（note.tieIn）：终点不再发新的 note-on，把起点的 note-off 顺延到终点时值末（同简谱 tie 链合并口径） */
+    const TMm = tabTieMap(s, ti), offAt = {};   // 'mi:ci:弦' → 该音的 note-off 事件（链式延长时取链首那条）
+    s.measures.forEach((mea,mi)=>(mea.tabs[ti]||[]).forEach((c,ci)=>{
       const len=beatsOf(c)*beatTicks;
       if(c.chord) runChM=c.chord;
       chordImpliedNotes(c, chordShape(runChM), soloTabCtx(s)).forEach(n=>{
         if(!n || n.s<1 || n.s>TUN.length) return;
         if(n.x){ skipped++; return; }
+        const k=mi+':'+ci+':'+n.s, o=TMm.from[k], offO = o && offAt[o.mi+':'+o.ci+':'+n.s];
+        if(offO){ offO.tick = tick+len; offAt[k]=offO; return; }
         const m=TUN[n.s-1]+(n.f||0)+((ti>0 && s.tabCapos && s.tabCapos[ti]!=null)? (s.tabCapos[ti]|0) : (s.capo||0));   /* v60.61 逐轨夹位 */
-        evts.push({tick,pr:2,data:[0x90|ch,m&127,78]},{tick:tick+len,pr:1,data:[0x80|ch,m&127,0]});
+        const off={tick:tick+len,pr:1,data:[0x80|ch,m&127,0]};
+        evts.push({tick,pr:2,data:[0x90|ch,m&127,78]},off);
+        offAt[k]=off;
       });
       tick+=len;
     }));
@@ -24067,6 +24559,14 @@ function transposeSong(s, delta){
         const T=tc && (tc.notes||[]).find(x=>x.s===n.tk.si && !x.x && typeof x.f==='number');
         if(T && T!==n) links.push({n, T, sc:c, tc, os:n.s, ots:T.s});
       })));
+      /* v67.0 逐音连音线（note.tieIn）：重排前记下「起点音对象 → 终点音对象」——重排后终点必须仍与起点同弦同品，
+         否则连音线失效、变调后的谱面在延音处重拨 */
+      const tiePairs=[];
+      { const TMv=tabTieMap(s, vi);
+        Object.keys(TMv.to).forEach(k=>{ const a=k.split(':').map(Number), t=TMv.to[k];
+          const oc=colAt(a[0],a[1]), tc=colAt(t.mi,t.ci);
+          const on=oc && (oc.notes||[]).find(x=>x.s===a[2]), tn=tc && (tc.notes||[]).find(x=>x.s===t.s);
+          if(on && tn) tiePairs.push({on, tn, tc}); }); }
       let ei=0, cur='';                                  // 时间线指针 + 生效和弦
       const seg=[];                                      // 待指派的旋律列连续段
       const flushSeg=()=>{
@@ -24168,6 +24668,13 @@ function transposeSong(s, delta){
       });
       flushSeg();
       stats.techLost+=tabLinkFix(links, tun, fMax);   // ③④
+      /* v67.0 终点跟起点走（时间序处理，链式连音逐段跟随）；音高不等或终点列那根弦已有别的音时放弃（如实不连） */
+      tiePairs.forEach(({on, tn, tc})=>{
+        if(tn.s===on.s && tn.f===on.f) return;
+        if(tun[tn.s-1]+tn.f !== tun[on.s-1]+on.f) return;
+        if((tc.notes||[]).some(x=>x!==tn && x.s===on.s)) return;
+        tn.s=on.s; tn.f=on.f;
+      });
     });
   }
   s.measures.forEach(m=>{
@@ -24180,6 +24687,368 @@ function transposeSong(s, delta){
     if(m.keyTo && KEY_PC[m.keyTo]!=null) m.keyTo = KEY_LIST[((KEY_PC[m.keyTo]+delta)%12+12)%12];   // v41.3 转调标记同步
   });
   return stats;
+}
+/* ===== v67.0 导入调识别 + 「改记谱调（音不变）」=====
+   负责人原话：「导入谱时要考虑调的识别，简谱应该要固定调或者可调整的首调」。
+   ① detectKey(ev)：ev={notes:[{m 发声 MIDI, d 时值, t 起拍}], chords:[{name, d, t}]}（t/d 以四分音符计）。
+      打分 = 按时值加权的音级分布 × Temperley（Kostka-Payne 语料）大 / 小调轮廓的相关
+           + 和声低音分布（同拍最低音；同拍多音的起拍 ≥25% 才计——单旋律的「最低音」就是旋律本身，不重复计票）
+           + 和弦名投票（调内和弦时值占比、主和弦占比、首 / 末和弦落主和弦）+ 首 / 末低音落主音（单旋律退为末音，权重很轻）。
+      24 个调按调号归并成 12 个候选：中国简谱惯例，小调记作关系大调 1=X、以 6 为主音（A 小调 → 1=C），调式另行注明。
+      选型与权重的离线依据（语料不入库）：16 个内置预设 16/16（另在 tv_keydet 里移到 3 个调再测）；600 首合成流行进行
+      （旋律+低音+伴奏 / 仅伴奏 / 仅和弦 / 仅旋律四种视图）98% / 96% / 100% / 97%；Essen 儿歌 213 首（单旋律）调号 98%；
+      巴赫众赞歌 408 首（四部和声，含调式记谱的众赞歌）调号 86%。KK（Krumhansl-Kessler）轮廓在单旋律上低 10 个百分点，故不取。
+   ② respellSongKey(s, snd, opt)：只改记谱调——song.key 换成新调（snd 是页头口径的实际调；有变调夹时指法调＝snd−夹位）；
+      六线谱品位、和弦名（绝对音名）一字不动，功能谱级数随新调自动重算；简谱 / 五线谱声部按绝对音高重新拼写
+      deg/acc/oct（含和音 adds、倚音——倚音调外音写进新增可选字段 acc）；中途转调 keyTo 是绝对调名，保持不变
+      （与前一段同调的变成冗余，删去）；固定调＝1=C 且删去全部 keyTo。播放 / MIDI / MusicXML 的每个音高前后逐一相同。
+      拼写两种：letter＝沿用原音名字母（手写谱的拼写有意义：A 大调的 ♯C 到 1=C 写 ♯1、♭E 大调的 ♭A 写 ♭6）；
+      pc＝按音级重拼（导入谱的原调常是占位 1=C、调外音一律写升号，拼写无意义），调外音按 dir 取 ♯ / ♭。 */
+const KD_PROF_MAJ=[0.748,0.060,0.488,0.082,0.670,0.460,0.096,0.715,0.104,0.366,0.057,0.400];
+const KD_PROF_MIN=[0.712,0.084,0.474,0.618,0.049,0.460,0.105,0.747,0.404,0.067,0.133,0.330];
+const KD_W={all:1, bass:0.8, chord:1.2, chordTonic:1.2, lastChord:0.15, firstChord:0.1, lastBass:0.25, firstBass:0.06, lastMel:0.05,
+  fit:1, pent:0.5, pentMin:0.97, open:1, openCut:0.3, openMin:16, openGap:0.03};
+function kdCorr(h, prof, t){
+  let mh=0, mp=0; for(let i=0;i<12;i++){ mh+=h[i]; mp+=prof[i]; } mh/=12; mp/=12;
+  let num=0, dh=0, dp=0;
+  for(let i=0;i<12;i++){ const a=h[(i+t)%12]-mh, b=prof[i]-mp; num+=a*b; dh+=a*a; dp+=b*b; }
+  return (dh>1e-12 && dp>0)? num/Math.sqrt(dh*dp) : 0;
+}
+function kdChord(name){
+  const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec(String(name||'').trim());
+  if(!m || KEY_PC[m[1]]==null) return null;
+  const pc=KEY_PC[m[1]], iv=chordIvOf(m[2]||'').iv;
+  return {pc, tones:[1,3,5,7].map(k=>iv[k]).filter(v=>v!=null).map(v=>(pc+v)%12), q: iv[3]===4? 'M' : iv[3]===3? 'm' : 'n'};
+}
+/* 验收补强（v67.0）：在原四项之外再加三条——
+   ⑤ 调内比 fit：按时值计、落在该调号音阶内（小调含导音）的占比。轮廓相关对属 / 下属关系的两个调区分很弱
+      （I–V–vi–IV 只有分解和弦、不以主和弦收尾时会判成下属调），出现一个调外音就足以分开；
+   ⑥ 五声 pent：全曲 ≥97% 的时值落在某个五声音阶（宫商角徵羽）里时，按简谱惯例 1=宫音（商 / 徵调式的民歌
+      不再判到属调或下属调）；只在内容几乎纯五声时触发（有和声的谱一般带 4 / 7，不触发）；
+   ⑦ 开头段 open：转调的谱（主歌 C、副歌 D）全曲轮廓会落到「折中调」G，两段都要写临时记号。判据：全曲首选在开头段、
+      结尾段都有调外音（比本段最合身的调号少 ≥3%），两段又各自几乎全在某个调号内（≥97%）、且彼此不同 → 并入开头段分数，
+      页头取开头的调（简谱 1=X 惯例）。不转调、借用和弦、蓝调这类「两段同一调号」或「本身就有调外音」的谱不触发。
+   复测（同一批语料）：合成流行 600 首「全部 / 只有伴奏 / 只有和弦 / 只有旋律」99.8 / 97.5 / 100 / 99.7%；Essen 德语民歌 1217 首调号 75.1% → 84.7%
+   （其中纯五声 254 首 1=宫音 64% → 96%）；儿歌 213 首 92.5% → 96.2%；巴赫众赞歌 408 首 86.5% → 86.8%；
+   对抗样例 372 首（流行进行 ×8 调 ×4 织体、小调 ×8 调、五声五调式 ×8 调、借用和弦、蓝调、副属、转调）308 → 364
+   （主和弦占比 chordTonic 0.6 → 1.2：通篇 I–♭VII–IV、I–♭VI–♭VII 的借用和弦谱以主和弦定调，其余语料不变；
+   余下 8 首是 i–IV 的多利亚小调，记 1=C（6 为主音）还是 1=G 本身两可）。 */
+function kdScores(notes, chords, W, ends){
+  const pcOf=m=>((m%12)+12)%12;
+  const H=new Array(12).fill(0), HB=new Array(12).fill(0);
+  notes.forEach(n=>{ H[pcOf(n.m)]+=n.d; });
+  const totH=H.reduce((a,b)=>a+b,0), totC=chords.reduce((a,c)=>a+c.d,0);
+  if(!totH && !totC) return null;
+  const byT=new Map();
+  notes.forEach(n=>{ const k=Math.round((n.t||0)*48), o=byT.get(k);
+    if(!o) byT.set(k,{lo:n, hi:n, n:1}); else { o.n++; if(n.m<o.lo.m) o.lo=n; if(n.m>o.hi.m) o.hi=n; } });
+  const ons=[...byT.keys()].sort((a,b)=>a-b);
+  const poly=ons.length? ons.filter(k=>byT.get(k).n>1).length/ons.length : 0;
+  const hasBass=poly>=0.25;
+  if(hasBass) ons.forEach(k=>{ const n=byT.get(k).lo; HB[pcOf(n.m)]+=n.d; });
+  const first=ons.length? byT.get(ons[0]) : null, last=ons.length? byT.get(ons[ons.length-1]) : null;
+  const MAJ=[0,2,4,5,7,9,11], MIN=[0,2,3,5,7,8,10];
+  const all=[];
+  for(let t=0;t<12;t++) for(const mode of ['major','minor']){
+    const p={}; let sc=0;
+    const scale=new Set((mode==='major'? MAJ : MIN).map(x=>(x+t)%12)); if(mode==='minor') scale.add((t+11)%12);   // 小调含和声小调导音（V / V7）
+    if(totH){ p.all=kdCorr(H, mode==='major'? KD_PROF_MAJ : KD_PROF_MIN, t); sc+=W.all*p.all;
+      if(W.fit){ let f=0; scale.forEach(x=>{ f+=H[x]; }); p.fit=f/totH; sc+=W.fit*p.fit; } }
+    if(hasBass){ p.bass=kdCorr(HB, mode==='major'? KD_PROF_MAJ : KD_PROF_MIN, t); sc+=W.bass*p.bass; }
+    if(totC){
+      const isTon=c=>c.pc===t && (c.q===(mode==='major'?'M':'m') || c.q==='n');
+      let fit=0, ton=0;
+      chords.forEach(c=>{ if(c.tones.every(x=>scale.has(x))) fit+=c.d; if(isTon(c)) ton+=c.d; });
+      p.chord=fit/totC; p.chordTonic=ton/totC; sc+=W.chord*p.chord + W.chordTonic*p.chordTonic;
+      if(ends){ p.lastChord=isTon(chords[chords.length-1])? 1:0; p.firstChord=isTon(chords[0])? 1:0; sc+=W.lastChord*p.lastChord + W.firstChord*p.firstChord; }
+    }
+    if(ends){
+      if(hasBass){ p.lastBass=pcOf(last.lo.m)===t? 1:0; p.firstBass=pcOf(first.lo.m)===t? 1:0; sc+=W.lastBass*p.lastBass + W.firstBass*p.firstBass; }
+      else if(last){ p.lastMel=pcOf(last.hi.m)===t? 1:0; sc+=W.lastMel*p.lastMel; }
+    }
+    all.push({tonicPc:t, mode, score:sc, p});
+  }
+  return {all, H, totH, poly};
+}
+function detectKey(ev, opt){
+  opt=opt||{}; const W=Object.assign({}, KD_W, opt.w||{});
+  const notes=((ev&&ev.notes)||[]).filter(n=>n && Number.isFinite(n.m) && n.d>0);
+  const chords=[]; ((ev&&ev.chords)||[]).forEach(c=>{ const k=c && kdChord(c.name); if(k) chords.push(Object.assign(k, {d:c.d>0? c.d : 1, t:+c.t||0})); });
+  chords.sort((a,b)=>a.t-b.t);
+  const R=kdScores(notes, chords, W, true);
+  if(!R) return {empty:true, key:null, cands:[]};
+  const all=R.all, sigOf=c=>c.mode==='major'? c.tonicPc : (c.tonicPc+3)%12;
+  /* ⑦ 开头段（转调的「折中调」） */
+  if(W.open){
+    let tEnd=0; notes.forEach(n=>{ tEnd=Math.max(tEnd, (n.t||0)+n.d); }); chords.forEach(c=>{ tEnd=Math.max(tEnd, c.t+c.d); });
+    const cut=Math.max(W.openMin, tEnd*W.openCut);
+    if(tEnd>=cut*2){
+      const DIA=[0,2,4,5,7,9,11];
+      const fitSig=(ns, sg)=>{ let a=0, b=0; ns.forEach(n=>{ b+=n.d; if(DIA.includes((((n.m-sg)%12)+12)%12)) a+=n.d; }); return b? a/b : 1; };
+      const best=ns=>{ let f=0, sg=-1; for(let k=0;k<12;k++){ const v=fitSig(ns,k); if(v>f+1e-9){ f=v; sg=k; } } return {f, sg}; };
+      const nO=notes.filter(n=>(n.t||0)<cut), nE=notes.filter(n=>(n.t||0)>=tEnd-cut);
+      let g=null; all.forEach(c=>{ if(!g || c.score>g.score) g=c; }); const gs=sigOf(g);
+      const bO=best(nO), bE=best(nE);
+      if(nO.length && nE.length && bO.f>=0.97 && bE.f>=0.97 && bO.sg!==gs && bO.sg!==bE.sg
+         && bO.f-fitSig(nO,gs)>=W.openGap && bE.f-fitSig(nE,gs)>=W.openGap){
+        const S=kdScores(nO, chords.filter(c=>c.t<cut), W, false);
+        if(S) all.forEach((c,i)=>{ c.score+=W.open*S.all[i].score; c.p.open=+S.all[i].score.toFixed(3); });
+      }
+    }
+  }
+  /* ⑥ 五声：1=宫音 */
+  if(W.pent && R.totH){
+    const cov=[]; for(let q=0;q<12;q++){ let v=0; [0,2,4,7,9].forEach(x=>{ v+=R.H[(q+x)%12]; }); cov.push(v/R.totH); }
+    let bp=0; for(let q=1;q<12;q++) if(cov[q]>cov[bp]) bp=q;
+    const sec=Math.max(...cov.filter((_,q)=>q!==bp));
+    if(cov[bp]>=W.pentMin && cov[bp]-sec>0.02) all.forEach(c=>{ if(sigOf(c)===bp){ c.score+=W.pent; c.p.pent=1; } });
+  }
+  all.sort((a,b)=>b.score-a.score);
+  const bySig=new Map();
+  all.forEach(c=>{ const s=sigOf(c); if(!bySig.has(s)) bySig.set(s, c); });
+  const cands=[...bySig.entries()].map(([s,c])=>{ const key=KEY_LIST[s];
+    return {key, mode:c.mode, tonicPc:c.tonicPc, tonic: c.mode==='major'? key : ((KEYSIG[key]||0)<0? PC_FLAT : PC_SHARP)[c.tonicPc], score:c.score, p:c.p}; })
+    .sort((a,b)=>b.score-a.score);
+  /* 把握度：12 个候选分数的 softmax（温度 0.12）——首选领先第二名 0.25 分即 ≈90% */
+  const T=opt.temp||0.12, z=cands.reduce((a,c)=>a+Math.exp((c.score-cands[0].score)/T), 0);
+  cands.forEach(c=>{ c.conf=Math.exp((c.score-cands[0].score)/T)/z; });
+  const b=cands[0];
+  return {key:b.key, mode:b.mode, tonic:b.tonic, tonicPc:b.tonicPc, conf:b.conf, cands, poly:+R.poly.toFixed(2)};
+}
+/* 和弦名是「指法名」（按把位的形状叫，同引擎 chordShape）：整体降半音 / 降全音调弦时 E 形状实际发 ♭E。
+   定弦相对标准弦的整体偏移（1～n−1 弦一致即算，Drop D / Drop C♯ 只动最低弦）；不是整体偏移返回 0 */
+function kdTunShift(tun){
+  if(!tun || !tun.length) return 0;
+  const std = tun.length===4? UKU_TUNING : tun.length>=6? TUNING : null;
+  if(!std) return 0;
+  const n=Math.min(tun.length, std.length)-1, d=tun[0]-std[0];
+  for(let i=1;i<n;i++) if(tun[i]-std[i]!==d) return 0;
+  const lim = tun.length===4? 2 : 3;   // 降半音 / 降全音 / 降一个半音（C♯ 标准）；更远的多半是另一种乐器（贝斯、上低音尤克里里），不当指法名
+  return Math.abs(d)<=lim? d : 0;
+}
+/* 曲谱 → 发声音事件（页头口径：含变调夹、不含移调乐器 transp；中途转调 keyTo 跟随）；和弦名按所在轨夹位（及整体降调弦）换成实际音名 */
+function songKeyEvents(s){
+  const notes=[], chords=[];
+  if(!s || !s.measures) return {notes, chords};
+  const capS=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0, ro=s.refOct|0;
+  const tun=(s.tuning&&s.tuning.length)? s.tuning : (s.inst==='uku'? UKU_TUNING : TUNING);
+  const capT=vi=>(vi>0 && s.tabCapos && s.tabCapos[vi]!=null)? Math.max(0, Math.min(12, s.tabCapos[vi]|0)) : (s.capo||0);
+  const tsh=(s.tabVoices&&s.tabVoices.length)? kdTunShift(tun) : 0;   // 弹唱谱的和弦名是指法名：整体降调弦时按实际音名计票
+  let k=s.key, t0=0;
+  s.measures.forEach(mea=>{
+    if(mea.keyTo && KEY_PC[mea.keyTo]!=null) k=mea.keyTo;
+    const ref=keyRefOf(k, ro), u=mea.unit||s.unit||4, nb=mea.beats||s.beats||4;
+    const q=c=>beatsOf(c,u)*4/u;
+    const pm=x=>ref+DEG_SEMI[x.deg]+(x.oct||0)*12+accSemi(x.acc)+capS;
+    (mea.voxes||[]).forEach(cols=>{ let at=0; (cols||[]).forEach(c=>{ const d=q(c);
+      if(c.deg>=1 && c.deg<=7){ notes.push({m:pm(c), d, t:t0+at}); (c.adds||[]).forEach(a=>{ if(a && a.deg>=1 && a.deg<=7) notes.push({m:pm(a), d, t:t0+at}); }); }
+      if(c.chord) chords.push({name:shiftChordName(c.chord, capS+tsh), d, t:t0+at});
+      (c.chords||[]).forEach(x=>{ if(x && x.chord && x.q>0) chords.push({name:shiftChordName(x.chord, capS+tsh), d:1, t:t0+at+x.q}); });
+      at+=d; }); });
+    (mea.tabs||[]).forEach((cols,vi)=>{ const cp=capT(vi); let at=0; (cols||[]).forEach(c=>{ const d=q(c);
+      (c.notes||[]).forEach(n=>{ if(n && !n.x && n.s>=1 && n.s<=tun.length) notes.push({m:tun[n.s-1]+(n.f||0)+cp, d, t:t0+at}); });
+      if(c.chord) chords.push({name:shiftChordName(c.chord, cp+tsh), d, t:t0+at});
+      at+=d; }); });
+    t0+=nb*4/u;
+  });
+  chords.sort((a,b2)=>a.t-b2.t);
+  return {notes, chords};
+}
+/* GP 解析结果 → 发声音事件：全部非鼓音轨（不只勾选的）、各轨自己的定弦与夹位。
+   GP3/4/5 只读 colsData（不经建谱——建谱的连线后处理会改写列对象）；GP6/7/8 走一次全轨建谱（每次新建对象，无副作用） */
+function gpKeyEvents(gp){
+  const notes=[], chords=[];
+  if(!gp || !gp.tracks) return {notes, chords};
+  const idx=gp.tracks.map((t,i)=>i).filter(i=>!gp.tracks[i].drum);
+  const put=(c, d, t, tun, cp)=>{
+    (c.notes||[]).forEach(n=>{ const base=n && tun[n.s-1]; if(!n || n.x || base==null) return; notes.push({m:base+(n.f||0)+cp, d, t}); });
+    if(c.chord) chords.push({name:shiftChordName(c.chord, cp+kdTunShift(tun)), d, t});   // 指法名 → 实际音名（夹位 + 整体降调弦）
+  };
+  if(!idx.length) return {notes, chords};
+  if(gp.kind==='bin'){
+    let t0=0;
+    (gp.colsData||[]).forEach((row,mi)=>{ const h=(gp.headers||[])[mi]||{};
+      idx.forEach(ti=>{ const tk=gp.tracks[ti]; let at=0;
+        (((row||[])[ti])||[]).forEach(c=>{ const d=beatsOf(c,4); put(c, d, t0+at, tk.tuning||[], tk.capo||0); at+=d; }); });
+      t0+=(h.num||4)*4/(h.den||4); });
+  } else {
+    const r=buildSongFromGP(gp, idx); if(!r || !r.song) return {notes, chords};
+    const s=r.song; let t0=0;
+    s.measures.forEach(mea=>{ const u=mea.unit||s.unit||4, nb=mea.beats||s.beats||4;
+      (mea.tabs||[]).forEach((cols,j)=>{ const tk=gp.tracks[idx[j]]; if(!tk) return; const tun=(tk.pitches||[]).slice().reverse(); let at=0;
+        (cols||[]).forEach(c=>{ const d=beatsOf(c,u)*4/u; put(c, d, t0+at, tun, tk.capo||0); at+=d; }); });
+      t0+=nb*4/u; });
+  }
+  chords.sort((a,b2)=>a.t-b2.t);
+  return {notes, chords};
+}
+/* MIDI 解析结果 → 发声音事件（全部音轨，打击乐通道 10 除外） */
+function smfKeyEvents(smf){
+  const notes=[], dv=(smf&&smf.division)||480;
+  ((smf&&smf.tracks)||[]).forEach(t2=>(t2.notes||[]).forEach(n=>{ if(n.ch!==9) notes.push({m:n.midi, d:n.dur/dv, t:n.start/dv}); }));
+  return {notes, chords:[]};
+}
+/* 绝对音高 abs（该小节指法调口径）在调 toK 里的拼写（验收补强，GB 简谱 / 五线谱惯例）：
+   · 调内音一律写调内唱名、不带升降——此前按原字母拼，1=C 的 ♭3 / ♭6 到 1=E 会写成 ♭1 / ♭4，♯C 大调回到 ♭A 大调整段 ♯7、♯3；
+   · 调外音只在两种写法里选：♯（下方调内音）或 ♭（上方调内音），先排除落到谱表上成重升 / 重降的那个
+     （♯C 大调里的 G 是 ♭5＝还原 G，不写 ♯4＝重升 F）；
+   · 两个都能用时：how.useLetter（原音本身带升降，或原调新调在五度圈上相距 ≤6）就沿用原字母（♭E 大调的 ♭A 到 1=C 写 ♭6），
+     否则按 how.dir 的表（auto＝♯1 ♭3 ♯4 ♯5 ♭7，导入固定调按原调号方向取 sharp / flat）。 */
+const KD_CHROM={auto:{1:[1,'#'],3:[3,'b'],6:[4,'#'],8:[5,'#'],10:[7,'b']},
+  sharp:{1:[1,'#'],3:[2,'#'],6:[4,'#'],8:[5,'#'],10:[6,'#']}, flat:{1:[2,'b'],3:[3,'b'],6:[5,'b'],8:[6,'b'],10:[7,'b']}};
+function respellNote(abs, toK, ro, how){
+  how=how||{};
+  const rt=keyRefOf(toK, ro), DIA=[0,2,4,5,7,9,11];
+  const rel=((abs-rt)%12+12)%12, dia=DIA.indexOf(rel);
+  let deg, acc='';
+  if(dia>=0) deg=dia+1;
+  else {
+    const L0='CDEFGAB'.indexOf(String(toK)[0]);
+    const kAlt=d=>{ const nat=DIA[(L0+d-1)%7], kp=((KEY_PC[toK]||0)+DEG_SEMI[d])%12; let v=((kp-nat)%12+12)%12; if(v>6) v-=12; return v; };   // 该级在调号里的升降
+    const up=[DIA.indexOf(rel-1)+1, '#'], dn=[DIA.indexOf(rel+1)+1, 'b'];
+    const ok=c=>Math.abs(kAlt(c[0])+(c[1]==='#'? 1 : -1))<=1;
+    let pick=null;
+    if(how.letter!=null && how.useLetter){ const d=((how.letter-L0)%7+7)%7+1; pick=[up,dn].find(c=>c[0]===d && ok(c))||null; }
+    if(!pick){ const e=(KD_CHROM[how.dir]||KD_CHROM.auto)[rel], c=e[1]==='#'? up : dn, o=c===up? dn : up; pick=ok(c)? c : ok(o)? o : c; }
+    deg=pick[0]; acc=pick[1];
+  }
+  if(acc==='' && how.keepN) acc='n';
+  return {deg, acc, oct:Math.round((abs-rt-DEG_SEMI[deg]-accSemi(acc))/12)};
+}
+function respellSongKey(s, snd, opt){
+  opt=opt||{};
+  if(!s || !s.measures || KEY_PC[snd]==null) return null;
+  const capS=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0, ro=s.refOct|0;
+  const k0=s.key, k1=KEY_LIST[((KEY_PC[snd]-capS)%12+12)%12];
+  const chain=()=>{ const at=[]; let k=s.key; s.measures.forEach(m=>{ if(m.keyTo && KEY_PC[m.keyTo]!=null) k=m.keyTo; at.push(k); }); return at; };
+  const oldAt=chain();
+  const tonic0=(s.mode==='minor'||s.mode==='major')? ((KEY_PC[k0]||0)+(s.mode==='minor'? 9:0))%12 : null;
+  s.key=k1;
+  { let cur=k1; s.measures.forEach(m=>{
+      if(opt.fixed){ delete m.keyTo; delete m.keyToSig; return; }
+      if(m.keyTo && KEY_PC[m.keyTo]!=null){ if(KEY_PC[m.keyTo]===KEY_PC[cur] && m.keyTo===cur){ delete m.keyTo; delete m.keyToSig; } else cur=m.keyTo; } }); }
+  const newAt=chain();
+  const LET='CDEFGAB';
+  let nN=0, nG=0;
+  s.measures.forEach((m,mi)=>{
+    const kf=oldAt[mi], kt=newAt[mi];
+    if(kf===kt) return;
+    /* 原调与新调在五度圈上相距 >6（♯C 大调 ↔ ♭A 大调）时，原调的调内音字母对新调没有意义（♭A 大调的 ♭G 会照 ♯C 大调写成 ♯6），只有原本就带升降的音才沿用字母 */
+    const near=Math.abs((KEYSIG[kf]||0)-(KEYSIG[kt]||0))<=6;
+    const rf=keyRefOf(kf, ro), lf=LET.indexOf(String(kf)[0]);
+    const one=x=>respellNote(rf+DEG_SEMI[x.deg]+accSemi(x.acc)+(x.oct||0)*12, kt, ro,
+      {letter: opt.spell==='pc'? null : (lf+x.deg-1)%7, useLetter: near || (!!x.acc && x.acc!=='n'), dir:opt.dir, keepN:x.acc==='n'});
+    (m.voxes||[]).forEach(cols=>(cols||[]).forEach(c=>{
+      if(!(c.deg>=1 && c.deg<=7)) return;
+      /* 装饰音邻音（播放取「本调自然音级 ±1」）：换调号后邻音音高会变——先记下原邻音的绝对音高，重拼后差几个半音写进 ornAcc / ornAccLo */
+      const nbAbs=(deg, oct, d2, ref, a)=>{ let d=deg+d2, o=oct||0; if(d>7){ d-=7; o++; } if(d<1){ d+=7; o--; } return ref+DEG_SEMI[d]+o*12+accSemi(a); };
+      const oUp=(c.orn==='up'||c.orn==='tr'||c.orn==='turn'), oLo=(c.orn==='down'||c.orn==='turn');
+      const up0=oUp? nbAbs(c.deg, c.oct, 1, rf, c.ornAcc) : null, lo0=oLo? nbAbs(c.deg, c.oct, -1, rf, c.ornAccLo) : null;
+      const r=one(c);
+      c.deg=r.deg; c.acc=r.acc; c.oct=r.oct; nN++;
+      if(oUp || oLo){ const rt=keyRefOf(kt, ro), A={'-2':'bb','-1':'b',0:'',1:'#',2:'x'};
+        const put=(k2, v0, d2)=>{ const a=A[v0-nbAbs(c.deg, c.oct, d2, rt, '')]; if(a) c[k2]=a; else delete c[k2]; };
+        if(oUp) put('ornAcc', up0, 1); if(oLo) put('ornAccLo', lo0, -1); }
+      (c.adds||[]).forEach(a=>{ if(a && a.deg>=1 && a.deg<=7){ const r2=one(a); a.deg=r2.deg; a.acc=r2.acc; a.oct=r2.oct; nN++; } });
+      /* 倚音：deg/oct 与主音同口径（绝对八度，谱面 / MusicXML / 播放一致）；调外倚音写 acc */
+      ['grace','graceA'].forEach(gk=>{
+        if(c[gk]==null) return; const g=normGrace(c[gk]); if(!g || !g.notes.length) return;
+        const ns=g.notes.map(gn=>{ const r3=one({deg:gn.deg, acc:gn.acc||'', oct:gn.oct||0});
+          const o={deg:r3.deg, oct:r3.oct}; if(r3.acc && r3.acc!=='n'){ o.acc=r3.acc; nG++; } return o; });
+        const raw=c[gk], keep=(raw && typeof raw==='object')? Object.assign({}, raw) : {};
+        delete keep.deg; delete keep.oct; delete keep.acc;
+        c[gk]=Object.assign(keep, {notes:ns, dur:g.dur});
+      });
+    }));
+  });
+  /* 调式（配和弦工作台写的 song.mode）：主音的绝对音高不变——它落到新调的 1 记 major、落到 6 记 minor，都不是就删掉（交回自动判别） */
+  if(tonic0!=null){
+    const pM=KEY_PC[k1]%12, pm=(KEY_PC[k1]+9)%12;
+    if(tonic0===pm) s.mode='minor'; else if(tonic0===pM) s.mode='major'; else delete s.mode;
+  }
+  return {key:k1, snd:KEY_LIST[KEY_PC[snd]%12], notes:nN, graceAcc:nG};
+}
+/* 页头口径的调（1=X 实际调）＝指法调＋参考轨夹位（有 TAB 时） */
+function headKeyOf(s){ s=s||song; const c=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0; return KEY_LIST[(((KEY_PC[s.key]||0)+c)%12+12)%12]; }
+function keyModeLabel(c){ return c && c.tonic? keyLabel(c.tonic)+(c.mode==='minor'? ' 小调':' 大调') : ''; }
+/* 导入弹窗的「调」+「简谱记法」两项（GP 音轨弹窗 / MIDI 导入弹窗共用）。
+   det=detectKey 结果；file=文件调号（页头口径，null=文件没写）；def='det'|'file' 默认选中项；capo=当前参考轨夹位（只用于说明行） */
+function keyChoiceHTML(det, file, def, capo, tabOnly){
+  const has=!!(det && !det.empty);
+  if(!has) def='file';
+  const conf=c=>c.conf>=0.8? '把握高' : c.conf>=0.5? '把握中' : '把握低，建议核对';
+  const top=has? det.cands.slice(0,3) : [];
+  let o='';
+  if(has) o+=`<option value="det"${def==='det'?' selected':''}>1=${esc(keyLabel(det.key))} · 检测（${esc(keyModeLabel(det))}，${conf(det)}）</option>`;
+  o+=`<option value="file"${def==='file'?' selected':''}>1=${esc(keyLabel(file||'C'))} · ${file? '文件调号' : '文件未写调号（按 1=C）'}</option>`;
+  o+='<optgroup label="全部 12 个调">'+KEY_LIST.map(k=>{ const c=top.find(x=>x.key===k);
+    return `<option value="k:${k}">1=${esc(keyLabel(k))}${c? ' · 候选（'+esc(keyModeLabel(c))+'）' : ''}</option>`; }).join('')+'</optgroup>';
+  return `<div class="kc-box" data-capo="${capo|0}" data-tab="${tabOnly? 1 : 0}">
+    <label class="f"><span>调</span><select id="kc-key">${o}</select></label>
+    <div class="kc-row" role="radiogroup" aria-label="简谱记法"><span class="kc-lab">简谱记法</span>
+      <label class="kc-opt"><input type="radio" name="kc-nota" value="movable" checked>首调（1=所选调）</label>
+      <label class="kc-opt"><input type="radio" name="kc-nota" value="fixed">固定调（1=C）</label></div>
+    <p class="kc-tip" id="kc-tip"></p></div>`;
+}
+function keyChoiceRead(det){
+  const v=(document.getElementById('kc-key')||{}).value||'file';
+  const fx=document.querySelector('input[name="kc-nota"]:checked');
+  const ch={fixed: !!fx && fx.value==='fixed', src:v, snd:null, mode:null};
+  if(v==='det' && det && !det.empty){ ch.snd=det.key; ch.mode=det.mode; }
+  else if(v.slice(0,2)==='k:'){ ch.snd=v.slice(2); const c=det && det.cands && det.cands.slice(0,3).find(x=>x.key===ch.snd); if(c) ch.mode=c.mode; }
+  return ch;
+}
+/* 说明行随所选项刷新：首调 / 固定调各自的含义、小调写法、变调夹下的指法调 */
+function keyChoiceTip(det, file){
+  const tip=document.getElementById('kc-tip'), box=document.querySelector('.kc-box'); if(!tip || !box) return;
+  if(typeof file==='function') file=file();
+  const ch=keyChoiceRead(det), capo=+box.dataset.capo||0;
+  const snd=ch.snd || file || 'C';
+  let t;
+  /* 验收补强：只有六线谱的导入（GP、MIDI 吉他 / 尤克里里）简谱是联排行实时翻译，调外音统一写 ♯，「所选调决定 ♯ / ♭」只对简谱旋律成立 */
+  if(ch.fixed) t='固定调：简谱一律 1=C，调外的音写成 ♯/♭ 变音记号'+(capo? '（按实际音高，含变调夹 '+capo+' 品）' : '')
+    +(box.dataset.tab==='1'? '；六线谱上方的简谱联排行调外音统一写 ♯。' : '；所选调只决定写 ♯ 还是 ♭。');
+  else {
+    const c=det && det.cands && det.cands.find(x=>x.key===snd);
+    t='首调：简谱 1='+keyLabel(snd)+(c && c.mode==='minor' && ch.mode==='minor'? '（'+keyModeLabel(c)+'，按简谱惯例记作关系大调，以 6 为主音）' : '')
+      +(capo? '；变调夹 '+capo+' 品 → 按 1='+keyLabel(KEY_LIST[((KEY_PC[snd]-capo)%12+12)%12])+' 指法' : '')+'。';
+  }
+  tip.textContent=t+'导入后点页头 1=X 可再「改记谱调（音不变）」。';
+}
+function keyChoiceBind(det, file){
+  const upd=()=>keyChoiceTip(det, file);
+  const sel=document.getElementById('kc-key'); if(sel) sel.onchange=upd;
+  document.querySelectorAll('input[name="kc-nota"]').forEach(x=>{ x.onchange=upd; });
+  upd();
+}
+/* 导入后落调：src='file' 且首调＝建谱时已按文件调号写好，不动；其余按所选调重拼（导入谱原拼写无意义，走 pc） */
+function importKeyApply(s, ch){
+  if(!s || !ch) return null;
+  if(!ch.fixed && (ch.src==='file' || !ch.snd)) return null;
+  const srcKey=ch.snd || headKeyOf(s);
+  const dir=ch.fixed? ((KEYSIG[srcKey]||0)>0? 'sharp' : (KEYSIG[srcKey]||0)<0? 'flat' : 'auto') : 'auto';
+  const st=respellSongKey(s, ch.fixed? 'C' : ch.snd, {fixed:ch.fixed, spell:'pc', dir});
+  if(!ch.fixed && ch.mode==='minor') s.mode='minor';
+  return st;
+}
+/* 导入 toast 的调说明 */
+function keyChoiceToast(s, ch, det){
+  const hk=headKeyOf(s), capo=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0;
+  let t='；调 1='+keyLabel(hk);
+  if(ch && ch.fixed) t+='（固定调）';
+  else if(ch && ch.src==='det' && det && !det.empty) t+='（按内容检测 · '+keyModeLabel(det)+'）';
+  else if(ch && ch.src==='file') t+='（文件调号）';
+  if(capo && !(ch && ch.fixed)) t+='，按 1='+keyLabel(s.key)+' 指法';
+  return t+'，点页头 1=X 可改记谱调';
+}
+/* MusicXML 直接导入：有 fifths 以文件为准（小调＝关系大调 + mode:'minor'，importMusicXML 既有口径）；缺失时按内容检测并重拼 */
+function mxlKeyPost(r){
+  if(!r || r.error || !r.song || !r.keyDefaulted) return r;
+  const det=detectKey(songKeyEvents(r.song));
+  if(det.empty) return r;
+  r.keyDet=det;
+  importKeyApply(r.song, {snd:det.key, mode:det.mode, src:'det', fixed:false});
+  return r;
 }
 function updateVwKey(){
   const el=document.getElementById('vw-key'); if(!el) return;
@@ -25473,6 +26342,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v67.0</span><div><b>导入谱自动识别调 · 简谱可选首调或固定调 · 连音线完整导入</b>。<br>① 导入 Guitar Pro、MIDI 时按全部音轨的实际音高（含变调夹和调弦）、低音和和弦名识别调。吉他谱网站的文件调号常写成 1=C，明明是 A 大调的谱现在默认就是 1=A；小调按简谱惯例记成关系大调（如 D 小调记 1=F，以 6 为主音），并注明调式。导入窗口里可以改选文件调号或任意一个调，并选择简谱记法：首调（1=所选调）或固定调（1=C，调外音写升降号）。MusicXML 有调号时以文件为准。<br>② 新增「改记谱调（音不变）」：点页头的 1=X，在变调窗口里展开即可。六线谱品位不动，简谱按实际音高重新换算，播放和导出的音高前后完全一致，可以撤销。<br>③ 连音线逐根弦导入：Guitar Pro、MusicXML、MIDI 里的延音现在在六线谱上画出连音弧（同一拍只有部分弦延音时只连那几根），落在小节首拍的延音写成「(2)」；简谱联排行和五线谱联排同样画出连音线；播放时延音不再重新拨弦，导出 MusicXML 再导入也不会丢。<br>④ 顺带修正：倚音按实际八度播放（《小步舞曲》的倚音以前高了一个八度），尤克里里和 Drop D 等特殊调弦的简谱联排行唱名不再算错。<br>新套件 <code>tv_keydet</code>、<code>tv_tiemap</code>。</div></li>
     <li><span class="v">v66.9</span><div><b>谱面页头自适应排版：手机上不再压字</b>。<br>① 歌名太长时先收紧字距、再缩小字号，仍放不下就在空格、括号或「——」前折成两行居中；演唱者一行同样处理。<br>② 左边的调号、拍号、变调夹、速度和右边的作词、作曲、制谱会先检查是否撞在一起：放得下就照旧排；放不下时速度跟在拍号后面，变调夹和特殊调弦另起一行；作词、作曲名单太长时在「/」「、」等处折行；再放不下就把调号一行和署名最后一行对齐，或整体排到署名下面。<br>③ 下面的乐谱和曲首和弦图会跟着页头实际高度往下排；点击页头直接修改的位置也跟着走（顺带修好了点变调夹后半截会打开曲谱信息的问题）。打印、导出图片、分享卡、谱架同样生效；电脑上放得下的谱面和以前完全一样。<br>新套件 <code>tv_header</code>。</div></li>
     <li><span class="v">v66.8</span><div><b>六线谱 let ring / P.M. 改为出版写法 + 修正导入谱的延音品位</b>。<br>① 连续的 let ring 只在开头写一次，后面一条虚线延到最后一个音、末端一个小竖钩；跨小节线不断开，遇到休止或换行才分段，换行后新一行开头写「(let ring)」接着画。P.M.（闷音）同样处理。以前每个音各写一个「let ring」并往上叠，从吉他谱网站导入的谱挤成一团（实测一首 73 小节的谱，「let ring」从 712 个减到 32 个，重叠从 571 处减到 0）。单独标注的音和手动拉出的范围显示不变。<br>② 虚线经过的地方，其他技法字母、标注、指法自动让到虚线上方；碰到和弦名、延长号、击勾弦弧线等时整段抬高，和弦图会缩小让位；同一列标注叠了两层以上时，这一行会自动加高，不再压到上面的内容。<br>③ 导入 Guitar Pro 谱时，延音（连音线）接着的音以前常被读成 0 品，现在取同一根弦上一个音的品位，如「2 延 2」不再显示成「2、0」。<br>新套件 <code>tv_lrspan</code>。</div></li>
     <li><span class="v">v66.7</span><div><b>修复：部分 Guitar Pro 5 文件导入报「文件截断」</b>。<br>① 有些吉他谱网站导出的 .gp5 文件，最后一小节末尾少了一个可有可无的字节，以前会整份导入失败；现在能完整导入。文件中途真的缺了内容时，仍会提示「文件截断」。<br>② Guitar Pro 5.00 格式里带「混音 / 变速」设置的拍，以前读完后面的音符会错位；现在按正确位置读取。</div></li>
@@ -25501,7 +26371,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v66.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v67.0';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

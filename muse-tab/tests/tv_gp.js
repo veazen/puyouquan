@@ -167,12 +167,12 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
     && t4.n1 === '5:2,6:3' && t4.rest && t4.hTech === 'h'
     && t4.hTk && t4.hTk.mi === 0 && t4.hTk.ci === 4 && t4.hTk.si === 1, 'T4 小节1(弦序/和弦/h+tk)', JSON.stringify(t4));
 
-  // T5 第2小节：变拍 3/4；三连音；推弦 b；连音线 tie 归前列
+  // T5 第2小节：变拍 3/4；三连音；推弦 b；连音线（v67.0 起逐弦落到延音目标音 note.tieIn，不再归前列 col.tie）
   const t5 = await pg.evaluate(() => {
     const m = window.__song.measures[1], c = m.tabs[0];
-    return { beats: m.beats, tup: c[0].tup, bend: c[3].notes[0].tech, tie: !!c[3].tie, len: c.length };
+    return { beats: m.beats, tup: c[0].tup, bend: c[3].notes[0].tech, colTie: !!c[3].tie, tieIn: !!c[4].notes[0].tieIn, len: c.length };
   });
-  T(t5.beats === 3 && t5.tup === 1 && t5.bend === 'b' && t5.tie === true && t5.len === 5, 'T5 小节2(3/4+三连+b+tie)', JSON.stringify(t5));
+  T(t5.beats === 3 && t5.tup === 1 && t5.bend === 'b' && t5.colTie === false && t5.tieIn === true && t5.len === 5, 'T5 小节2(3/4+三连+b+tie→目标音 tieIn)', JSON.stringify(t5));
 
   // T6 第3小节：拍号继承 3/4；段落标签；反复结束；倚音；无头滑 sd；自然泛音 hm
   const t6 = await pg.evaluate(() => {
@@ -250,7 +250,7 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
     w.b(0x00); w.b(0); w.b(0x40); w.b(0x20); w.b(1); w.b(7); w.z(1); w.sh(0);   // 音拍：dur0+弦1+note(type1,f7)+pad+short
     w.b(0x40); w.b(0x02); w.b(0); w.b(0x00); w.sh(0);                            // 休止拍
     w.i(0); w.b(0);
-    /* 小节2 轨1：声部1=1 拍（四分 弦1品9 tie 目标→前列应得 tie），声部2=0，行尾 */
+    /* 小节2 轨1：声部1=1 拍（四分 弦1品9 tie 目标→本音 tieIn、品位取 7；v66.9 前落成前列 col.tie），声部2=0，行尾 */
     w.i(1);
     w.b(0x00); w.b(0); w.b(0x40); w.b(0x20); w.b(2); w.b(9); w.z(1); w.sh(0);
     w.i(0); w.b(0);
@@ -336,13 +336,13 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
     const sg = br.song, c0 = sg.measures[0].tabs[0], c1 = sg.measures[1].tabs[0];
     return { kind: r.gp.kind, ver: r.gp.ver, title: sg.title, singer: sg.singer, tempo: sg.tempo, key: sg.key,
       capo: sg.capo, nMea: sg.measures.length, repS: sg.measures[0].repeatStart,
-      n0: c0[0].notes[0], tie0: !!c0[0].tie, rest: c0[1].notes.length === 0, n1: c1[0].notes[0],
+      n0: c0[0].notes[0], tie0: !!c0[0].tie, rest: c0[1].notes.length === 0, n1: c1[0].notes[0],   /* v67.0 tie → 目标音 n1.tieIn，前列不再写 col.tie */
       tuningStd: sg.tuning === undefined };
   }, gp5Buf.toString('base64'));
   T(!t10.error && t10.kind === 'bin' && t10.ver === '5.10' && t10.title === 'T5测试' && t10.singer === '歌手5'
     && t10.tempo === 100 && t10.key === 'D' && t10.capo === 1 && t10.nMea === 2 && t10.repS === true
-    && t10.n0 && t10.n0.s === 1 && t10.n0.f === 7 && t10.tie0 === true && t10.rest
-    && t10.n1 && t10.n1.f === 7 && t10.tuningStd, 'T10 GP5 二进制导入（v66.8 延音目标音品位取同弦上一音：夹具写 9、应读 7）', JSON.stringify(t10));
+    && t10.n0 && t10.n0.s === 1 && t10.n0.f === 7 && t10.tie0 === false && t10.rest
+    && t10.n1 && t10.n1.f === 7 && t10.n1.tieIn === true && t10.tuningStd, 'T10 GP5 二进制导入（v66.8 延音目标音品位取同弦上一音：夹具写 9、应读 7；v67.0 延音落到目标音 tieIn）', JSON.stringify(t10));
 
   // T10b v66.7 GP5 末小节缺「换行标记」字节（转谱站导出的 GP5 常见，PyGuitarPro 按可缺省读）：去掉文件最后 1 字节仍完整导入、
   //   结果与原文件一致；去掉 3 字节（真截断，缺的是音符数据）仍报「文件截断」，不静默吞掉
