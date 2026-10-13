@@ -40,14 +40,14 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   /* T3 */
   r = await EV(`(()=>{ const gap=(tech)=>{ const s=createSong('solo',{title:'联排',key:'C',beats:4,unit:4,nMea:2,nTab:1,nVox:0,lyr:0}); s.tabJp=true;
       s.measures[0].tabs[0]=[TC({notes:[{s:2,f:1,tech:tech||undefined,tk:tech?{mi:0,ci:1,si:2}:undefined}]}),TC({notes:[{s:2,f:3}]}),TC({notes:[{s:1,f:0}]}),TC({notes:[{s:1,f:1}]})];
-      loadSong(s); render(); const sys=layoutSystems()[0], e=systemExtras(sys), m=sysMetrics(e.topExtra,e.botExtra,e.tabExtra,e.tabGap2,e.diagExtra,e.tabBotPad,e.diagOn);
+      loadSong(s); render(); const sys=layoutSystems()[0], e=systemExtras(sys), m=sysMetrics(e.topExtra,e.botExtra,e.tabExtra,e.tabGap2,e.diagExtra,e.tabBotPad,e.diagOn,e.ringEx,e.jpEx);
       const svg=document.getElementById('score');
       const h=[...svg.querySelectorAll('text')].find(t=>t.textContent==='h'); const hb=h? h.getBoundingClientRect() : null;
-      const digs=[...svg.querySelectorAll('text')].filter(t=>/^[1-7]$/.test(t.textContent) && t.getAttribute('font-family')==='var(--font-num)').map(t=>t.getBoundingClientRect());
+      const digs=[...svg.querySelectorAll('g[data-tabjp] text')].filter(t=>/^[1-7]$/.test(t.textContent)).map(t=>t.getBoundingClientRect());   /* v67.1 联排数字改 font-ui（同简谱声部）：按联排行组取 */
       const hit=hb? digs.some(d=>Math.min(d.right,hb.right)-Math.max(d.left,hb.left)>0.5 && Math.min(d.bottom,hb.bottom)-Math.max(d.top,hb.top)>0.5) : null;
-      return {gap:+(m.tabTops[0]-m.tabJpB[0]).toFixed(1), hit}; };
+      return {gap:+(m.tabTops[0]-m.tabJpB[0]).toFixed(1), hit, nd:digs.length}; };
     return {plain:gap(''), tech:gap('h')}; })()`);
-  T(!r.err && r.tech.gap >= r.plain.gap + 14 && r.tech.hit === false, 'T3 联排简谱行与 TAB 之间留技法标注带，字母不压简谱数字', JSON.stringify(r));
+  T(!r.err && r.tech.gap >= r.plain.gap + 14 && r.tech.hit === false && r.tech.nd >= 4, 'T3 联排简谱行与 TAB 之间留技法标注带，字母不压简谱数字', JSON.stringify(r));
 
   /* T4 */
   r = await EV(`(()=>{ const s=createSong('solo',{title:'联排号',key:'C',beats:4,unit:4,nMea:16,nTab:1,nVox:0,lyr:0}); s.tabStaff=true;

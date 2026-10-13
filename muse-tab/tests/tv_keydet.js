@@ -174,7 +174,7 @@ const CMIN_MEL = [[60, 1], [63, 1], [67, 1], [63, 1], [65, 1], [62, 1], [59, 1],
   await pg.evaluate(() => {
     window.__P = {
       head: () => { const t = [...document.querySelectorAll('#score text')].map(x => x.textContent).find(x => /^1=/.test(x)); return t || null; },
-      jp: vi => [...document.querySelectorAll('#score g[data-tabjp="' + (vi || 0) + '"] text')].map(t => t.textContent).join(' '),
+      jp: vi => [...document.querySelectorAll('#score g[data-tabjp="' + (vi || 0) + '"] text:not(.jptup)')].map(t => t.textContent).join(' '),   /* v67.1 连音弧数字（.jptup）不是唱名 */
       vox: s => { const o0 = song; song = s; try { const r = []; s.measures.forEach((m, mi) => (m.voxes || []).forEach((cols, vi) => (cols || []).forEach(c => {
         if (!c.deg) return; r.push(vi + ':' + voxMidi(c, mi)); (c.adds || []).forEach(a => { if (a && a.deg) r.push(vi + '+' + voxMidi(a, mi)); });
         ['grace', 'graceA'].forEach(k => { if (c[k]) normGrace(c[k]).notes.forEach(g => r.push(vi + 'g' + (keyRefAt(mi) + DEG_SEMI[g.deg] + accSemi(g.acc) + (g.oct || 0) * 12 + voxCapo()))); }); }))); return r; } finally { song = o0; } },
@@ -259,8 +259,9 @@ const CMIN_MEL = [[60, 1], [63, 1], [67, 1], [63, 1], [65, 1], [62, 1], [59, 1],
     const m2 = await gpRun(gpA, `document.getElementById('kc-key').value='k:E';`);
     await pg.waitForTimeout(500);
     const a2 = await EV(`(()=>{ mutate(()=>{ song.tabJp=true; }); return {key:song.key, head:__P.head(), jp:__P.jp(0)}; })()`);
-    /* A 大调分解首小节 A2 E3 A3 ♯C4 E4…：固定调读 6 3 6 ♯1 3；改选 1=E 读 4 1 4 6 1 */
-    T(a.key === 'C' && a.head === '1=C' && /♯/.test(a.jp) && /^6 3 6 1 ♯ 3/.test(a.jp) && /固定调/.test(a.toast)
+    /* A 大调分解首小节 A2 E3 A3 ♯C4 E4…：固定调读 6 3 6 ♯1 3；改选 1=E 读 4 1 4 6 1
+       （v67.1 联排行与简谱声部同一套字形函数：变化音先于数字推入，文本序为「♯ 1」） */
+    T(a.key === 'C' && a.head === '1=C' && /♯/.test(a.jp) && /^6 3 6 ♯ 1 3/.test(a.jp) && /固定调/.test(a.toast)
       && a2.key === 'E' && a2.head === '1=E' && /^4 1 4 6 1/.test(a2.jp),
       'T6 导入选「固定调」→ 1=C 且联排行 ♯1/♯4/♯5；改选 1=E 生效', JSON.stringify({ a, a2 }));
   }

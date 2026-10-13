@@ -12,6 +12,7 @@
    ⑥ 播放调度表（playInst 记录器）：延音终点不产生新的发声事件、起点延音覆盖终点；MIDI 导出音符数 = 音数 − 连音数、合并时值
    ⑦ 旧谱：列级 col.tie（TAB）不画弧不加括号、渲染与去掉 col.tie 逐字节相同、播放逐事件相同；纯连音线 tk 照旧画弧并静默终点；
       设 MUSETAB_REF=v66.9 页面时另做严格对拍：16 预设 × 1280/390 宽 + 旧式连音线谱，#score 逐字节、播放逐事件与 v66.9 一致
+      （v67.1 起旧式连音线谱只留联排五线谱副本：联排行 tabJp 改走简谱声部刻版代码，与旧版必然不同，由 tv_jpsame 覆盖）
    ⑧ MusicXML 导出再导入：TAB 逐弦连音对与简谱 tie 不丢
    ⑨ 编辑器：选中导入连音线的起点按 ~ 取消（只去掉终点 tieIn，起点的 let ring 保留）
    验收补（对抗式验收发现的缺陷，修前全红、修后全绿）：
@@ -362,12 +363,12 @@ const HELP = `(()=>{
     await pr.goto(REF); await pr.waitForTimeout(900); await pr.evaluate(HELP);
     const SNAP = (wd) => `(()=>{ const out=[];
       const olds=[];
-      { const s=__song(3); s.tabJp=true;
+      { const s=__song(3);   /* v67.1 联排行（tabJp）改走简谱声部同一套刻版代码，与 v67.0 必然不同——严格对拍只留它的联排五线谱副本 */
         s.measures[0].tabs[0]=[__T(4,[{s:2,f:3,tech:'lr'}],{tie:true}),__T(4,[{s:2,f:3}]),__T(4,[{s:1,f:0,tk:{mi:1,ci:0,si:1}}]),__T(4,[{s:4,f:2}])];
         s.measures[1].tabs[0]=[__T(4,[{s:1,f:0}]),__T(4,[{s:3,f:2,tk:{mi:2,ci:0,si:3}}],{tie:true}),__T(4,[{s:3,f:2}]),__T(4,[{s:5,f:3,tech:'pm'}],{tie:true})];
         s.measures[2].tabs[0]=[__T(4,[{s:3,f:2}]),__T(4,[{s:5,f:3}]),__T(4,[{s:6,f:0},{s:1,f:0}],{strum:'d',tie:true}),__T(4,[{s:6,f:0},{s:1,f:0}],{strum:'d'})];
-        s.measures[0].brk=1; olds.push(s);
-        const s2=JSON.parse(JSON.stringify(s)); delete s2.tabJp; s2.tabStaff=true; olds.push(s2); }
+        s.measures[0].brk=1;
+        const s2=JSON.parse(JSON.stringify(s)); s2.tabStaff=true; olds.push(s2); }
       const all=PRESETS.map(p=>()=>p.make()).concat(olds.map(o=>()=>JSON.parse(JSON.stringify(o))));
       all.forEach((mk,i)=>{ if(typeof undoStack!=='undefined') undoStack.length=0; loadSong(mk()); render();
         out.push({i, h:document.getElementById('score').innerHTML, ev:JSON.stringify(__play())}); });
