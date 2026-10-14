@@ -505,6 +505,9 @@ body.shell:not(.stand):not(.viewer) #left-flyout{height:100%;max-height:none;bor
 body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;max-width:none;min-width:0;
   overflow-y:auto;padding:16px 22px 46px}
 body.shell:not(.stand):not(.viewer) #paper{margin:0 auto;max-width:900px}
+/* v67.3 固定版宽谱（桌面编辑态，body.fixwide 见 fixWideOn）解除 900 上限：纸张铺满谱面区可视宽，
+   版面恒 1060 不变、只放大显示；存量自适应谱仍按 900 版宽重排（断行不动） */
+body.shell.fixwide:not(.stand):not(.viewer) #paper{max-width:none}
 body.shell:not(.stand):not(.viewer) #right-dock{position:static;align-self:stretch;height:auto;
   width:292px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
   padding:10px 9px}   /* v46.4 254→292：四页签 + 预提示/光标信息加宽 */
@@ -528,6 +531,15 @@ body.shell .ltab[data-act="new"]:hover{filter:brightness(1.07)}
   body.shell #score-wrap{overflow:visible;height:auto;padding:0}
 }
 body.shell:not(.stand):not(.viewer) #paper.paper-xs{overflow-x:auto}   /* v66.0 D7 兜底：放大到放不下时横向滚动，不裁谱 */
+/* v67.3 面板收起钮：只在新版外壳桌面编辑态（>820）显示，置顶吸附；手机底部面板 / 经典版 / 观看 / 谱架不出 */
+#fly-head{display:none}
+body.shell:not(.stand):not(.viewer) #fly-head{display:flex;justify-content:flex-end;position:sticky;top:-10px;z-index:2;
+  margin:-4px 0 -6px;padding:0 10px;background:var(--panel)}
+#fly-close{display:inline-flex;align-items:center;gap:3px;min-height:24px;padding:2px 8px;font-size:12px;line-height:1;
+  color:var(--muted);background:transparent;border:1px solid transparent;border-radius:7px;cursor:pointer}
+#fly-close:hover{color:var(--text);background:var(--hover);border-color:var(--border-soft)}
+#fly-close svg{display:block}
+@media(max-width:820px){ body.shell:not(.stand):not(.viewer) #fly-head{display:none} }
 body.shell.paper-tight:not(.stand):not(.viewer) #left-flyout{position:fixed;left:76px;top:150px;bottom:76px;
     width:262px;height:auto;max-height:none;overflow-y:auto;z-index:40;box-shadow:var(--shadow);
     margin:0;border:1px solid var(--border-soft);border-radius:14px}   /* v66.0 D7 宽屏放不下固定版宽时，面板改浮层（同 ≤1180） */
@@ -860,6 +872,14 @@ svg text{user-select:none}
 /* v60.95 弹窗表单行的说明文字（勾选项右侧长句）：不吃 56px 标签列宽——
    此前「弱起小节」「散拍」的提示被压成一字一行的竖排（用户报障「乱码」） */
 .modal label.f .fnote{width:auto;flex:1;text-align:left;line-height:1.5}
+/* v67.3 曲谱信息「速度」行：标签列不被挤（320 宽曾压到 34px 与上下行错位）、单位下拉可收缩、范围注记不折行 */
+.modal label.f.mm-tprow>span:first-child{flex:0 0 56px}
+.modal label.f.mm-tprow select{flex:0 1 auto;min-width:0}
+.modal label.f.mm-tprow input{flex:0 0 auto}
+.modal label.f.mm-tprow .fnote{white-space:nowrap}
+.modal .mm-tpwarn{display:none;margin:-2px 0 6px 64px;font-size:12px;line-height:1.5;color:var(--danger)}   /* 越界夹紧说明另起一行（对齐输入列），不挤单位下拉 */
+.modal .mm-tpwarn.on{display:block}
+@media (max-width:400px){ .modal label.f.mm-tprow .fnote{display:none} }   /* 窄屏范围注记让位（数值框自带 min/max 与 title） */
 /* v67.0 导入弹窗「调」+「简谱记法」（GP 音轨 / MIDI 共用）：与 label.f 同列宽，单选两项可折行 */
 .modal .kc-box{margin-top:10px;padding-top:8px;border-top:1px solid var(--border-soft)}
 .modal .kc-box select{flex:1;min-width:0}
@@ -1109,6 +1129,16 @@ body.stand #standbar{display:flex}
 .nw-dditem.on svg{color:var(--accent-ink)}
 .nw-basics{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
 .nw-basics .nb{display:flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+/* v67.3 基础信息逐项带名（曲名/调/拍号/速度，与上方 乐器/形态/我会 同款标签）；速度单位随拍号联动 */
+.nw-basics .nw-lab{flex:0 0 auto;margin-right:2px}
+.nw-basics .nb-ti{flex:1 1 100%;min-width:0}   /* 曲名独占一行：调/拍号/速度三组在下一行——加字名与 x/8 单位下拉后不再挤窄曲名框（验收：1280 宽 x/8 时曲名框一度只剩 157px） */
+.nw-basics .nb-ti input{flex:1 1 auto;min-width:0;width:100%}
+.nw-basics .nb-g{font-size:15px;line-height:1;color:var(--text)}
+.nw-basics #nw-tunit{padding-left:7px;padding-right:4px}
+.nw-basics #nw-tempo{width:66px}
+.nw-basics #nw-tempo.bad{border-color:var(--danger);box-shadow:0 0 0 3px color-mix(in srgb,var(--danger) 16%,transparent)}
+.nw-tpmsg{display:none;font-size:11.5px;color:var(--danger);margin:6px 0 0}
+.nw-tpmsg.on{display:block}
 .nw-hint{font-size:11.5px;color:var(--muted);margin:7px 0 0}
 /* v60.45 导入区：Apple 两卡（撤旧 nw-feats 虚线提权框——文字溢出截断的样式问题即出在它） */
 .nw-imp{margin:14px 0 2px;padding-top:13px;border-top:1px solid var(--border-soft)}
@@ -2407,6 +2437,8 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
 <div id="stage">
   <aside id="left-dock">
     <div id="left-flyout">
+      <!-- v67.3 面板收起钮（此前只能「再点一次当前页签」收起，无从发现；收起后谱面区变宽、新建谱随之放大） -->
+      <div id="fly-head"><button id="fly-close" type="button" title="收起面板：谱面区变宽，谱面随之放大（点左侧页签可再打开）"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/></svg>收起</button></div>
       <div id="ribbon">
     <!-- v46.6 音符图层：顶栏 音符/时值/节奏 三组在新版外壳收纳于此（applyShellDock 搬移原节点，
          事件监听随节点迁移；经典版移回顶栏） -->
@@ -4934,9 +4966,25 @@ function lyrRowsOf(vi){
    （品位、和弦名 ≥12px），仍是重排而非放大显示，不出现横向滚动。偏好存本机（musetab-bigtext，新键只增） */
 function bigTextOn(){ try{ return localStorage.getItem('musetab-bigtext')==='1'; }catch(_){ return false; } }
 function fixedLayOn(cfg){ return !!(cfg||layoutCfg()).fixed && (window.innerWidth>820 || PRINTING_NOW || PRINT_PAGING); }
+/* v67.3 电脑端编辑页谱面放大（产品报障「电脑端编辑页面整体变小了好多，不实用」，1920×1080 实测数字 14.4px）：
+   根因不在 v66.9 页头（字号与 v66.8 逐项相同），而是 v64.5 固定版宽 1060 × 新版外壳 #paper 900px 上限（v40.4）——
+   显示缩放＝可视宽/1060 被钳在 ≤84.5%，屏再宽也只用 900px（右侧大片空白）；存量谱按 900 重排、恒 100%，
+   所以新建谱比老谱小 15–29%。另：fitKOf 旧式把用户缩放除掉，110%/120% 点了没反应（缩放死区）。
+   ① 桌面编辑态的固定版宽谱挂 body.fixwide，#paper 解除 900 上限、铺满谱面区（版面不变，只是显示）；
+   ② 显示基准＝适配可视宽，允许放大到 FIT_MAX（超宽屏不至于无限放大），下限仍 fitFloor（D7）；
+   ③ 用户缩放在适配基准上相乘（100%＝适配可视宽），放大放不下走 D7 横滚兜底。
+   观看页 / 谱架 / 手机 / 不换行 / 打印导出全走原式（fixwide 不挂） */
+const FIT_MAX = 1.25;
+function fixWideOn(cfg){
+  const B = document.body;
+  return !!B && B.classList.contains('shell') && !B.classList.contains('stand') && !B.classList.contains('viewer') && !viewerMode
+    && window.innerWidth>820 && !PRINTING_NOW && !PRINT_PAGING && !noWrapOn() && fixedLayOn(cfg);
+}
 function fitKOf(contentW, scale){
   if(!LAY_FIXED_NOW || noWrapOn()) return 1;
   const avail = Math.max(200, (LAST_PAPER_W||1040) - 4);
+  if(document.body.classList.contains('fixwide'))   // v67.3 适配基准与用户缩放无关（缩放相乘，见上）
+    return Math.max(fitFloor(), Math.min(FIT_MAX, avail / Math.max(1, contentW*scale)));
   return Math.max(fitFloor(), Math.min(1, avail / Math.max(1, contentW*viewZoom*scale)));
 }
 /* v66.0 D7（评审复核：向导新建的固定版宽谱在 1366×768 右侧被裁 118px、1440×900 裁 44px，末小节线看不见也滚不到——
@@ -4994,29 +5042,56 @@ function layoutCfg(){
 }
 function setViewZoom(z){
   viewZoom = Math.max(0.5, Math.min(2, Math.round(z*20)/20));
-  localStorage.setItem('musetab-zoom', viewZoom);
+  ZOOM_MEM[ZOOM_FW? 'fw' : 'base'] = viewZoom;   // v67.3 固定版宽谱记新键 musetab-zoom-fw（见 zoomSwap）
+  try{ localStorage.setItem(ZOOM_FW? 'musetab-zoom-fw' : 'musetab-zoom', viewZoom); }catch(_){}
   const svg=document.getElementById('score'), vb=svg&&svg.viewBox.baseVal;
   /* 显示缩放 = 用户缩放 × 内容大小：内容大小放大内容、但纸张外框在屏幕上保持固定尺寸 */
   const dz = viewZoom * layoutCfg().scale * LAY_BIGK * (vb&&vb.width? fitKOf(vb.width, layoutCfg().scale) : 1);
   if(vb&&vb.width){ svg.setAttribute('width',Math.round(vb.width*dz)); svg.setAttribute('height',Math.round(vb.height*dz));
     try{ paperFitGuard(vb.width, layoutCfg().scale); }catch(_){} }   // v66.0 D7 放大后兜底横滚
-  const zl=document.getElementById('zoom-lbl'); if(zl) zl.textContent=Math.round(viewZoom*100)+'%';
+  zoomLblSync(vb&&vb.width? dz : 0);
   /* v50.9 手机编辑态 fit-width 联动：手动缩放≠100% 退出屏宽适配（回容器内滚动），
      点缩放标签回 100% 恢复适配；桌面宽度下该类无 CSS 效果 */
   if(window.innerWidth<=820) document.body.classList.toggle('mzoom', viewZoom!==1);
 }
 /* 把纸张外框自动适配到编辑器可视宽（外框宽 = PAGE_W×内容大小，与内容大小无关地保持一屏看全） */
 function fitViewWidth(){
+  /* v67.3 固定版宽谱的显示基准本身就是「适配可视宽」（fitKOf 已承担）——这里不再改缩放：
+     既不二次放大，也不覆盖用户手动缩放（此前「排版」改预设/纸张/重置会把 130% 打回） */
+  if(document.body.classList.contains('fixwide')) return;
   const paper=document.getElementById('paper');
   const avail=(paper?paper.clientWidth:900)-4;
   const frameW = PAGE_W * layoutCfg().scale;      // 纸张外框在引擎单位中的宽度（与 scale 无关的定值）
-  setViewZoom(avail/Math.max(1,frameW));
+  /* v67.3 向下取整到 5% 档（此前四舍五入：1920 下 896/870＝1.03→105%，存量谱自己横溢 14px） */
+  setViewZoom(Math.floor(avail/Math.max(1,frameW)*20 + 1e-6)/20);
+}
+/* v67.3 缩放标签：文字仍是用户缩放（100%＝默认）；固定版宽谱的 100% 是「铺满谱面区」，悬停提示给出实际倍率 */
+function zoomLblSync(dz){
+  const zl=document.getElementById('zoom-lbl'); if(!zl) return;
+  zl.textContent=Math.round(viewZoom*100)+'%';
+  zl.title = (ZOOM_FW && dz)? '点击恢复 100%（新建谱的 100%＝铺满谱面区；当前实际约 '+Math.round(dz*100)+'% 原大）' : '点击恢复 100%';
 }
 /* 内容页显示缩放（0.5-2）：工具栏 ± 或 内容区 Ctrl+滚轮 调节，仅影响显示不改排版 */
 let viewZoom = Math.max(0.5, Math.min(2, parseFloat(localStorage.getItem('musetab-zoom'))||1));
 /* v51.0 手机开机恒 100%：桌面存下的缩放不带入手机，保证编辑态 fit-width（v50.9）默认生效；
    不回写 localStorage，桌面端取值不受影响 */
 if(window.innerWidth<=820) viewZoom = 1;
+/* v67.3 验收修（缩放键分开）：桌面编辑态的固定版宽谱（body.fixwide）显示＝适配可视宽 × 用户缩放，
+   而 v64.5–v67.1 的 fitViewWidth 会把「适配补偿」自动写进 musetab-zoom（1440→0.7、1536→0.8、≥1600→0.85；
+   存量谱上点「排版」→1.05），旧 fitKOf 把它除掉所以看不出来；v67.1 在 1920 嫌小点 ＋ 的死区也存下了 1.1/1.2。
+   这些值若直接乘到新基准上，升级用户反而更小（1536：13.6→10.9px）或一打开就横滚。
+   故 fixwide 用新增键 musetab-zoom-fw（缺省 1＝铺满谱面区）；旧键 musetab-zoom 照旧归存量自适应谱 / 观看页 /
+   谱架 / 手机 / 打印，键名与旧值都不动（只增不改）。viewZoom 仍是唯一的当前值，renderCore 在 fixwide 切换时换装 */
+let ZOOM_FW = false;
+const ZOOM_MEM = {fw:null, base:viewZoom};   // 本会话内存（localStorage 不可用时兜底；base 保留开机口径，含手机恒 1）
+function zoomSwap(fw){
+  fw = !!fw; if(fw===ZOOM_FW) return;
+  ZOOM_MEM[ZOOM_FW? 'fw' : 'base'] = viewZoom;
+  ZOOM_FW = fw;
+  let z = ZOOM_MEM[fw? 'fw' : 'base'];
+  if(z==null){ let v=NaN; try{ v=parseFloat(localStorage.getItem('musetab-zoom-fw')); }catch(_){} z=v||1; }
+  viewZoom = Math.max(0.5, Math.min(2, z));
+}
 const MAX_VOICES = 8, MAX_LYR = 5;   /* v65.2 B3a ③（P2-18 声部上限）5→8：SATB＋钢琴双手 6 行放得下 */
 const MAX_TRACKS = 15;   /* 旋律＋吉他轨总数：MIDI 16 通道去掉打击乐 9 号通道（exportMIDI 的 chFor 只跳 9） */
 function trackRoom(kind){
@@ -5179,6 +5254,9 @@ let clipRow = null;      // 复制的单声部小节 {row, cols}（按住小节�
 let measureRange = null; // v53.7 {m1,m2} 整小节多选（按住小节号拖过多个连选，跨全部声部）
 let clipMeasures = null; // v53.7 多小节剪贴板（整小节深拷贝数组，measureRange Ctrl+C）
 let clipCols = null;     // v53.7 声部片段剪贴板 {row, meas:[[列]…], whole}（拖选列/拍/多小节声部 Ctrl+C）
+let mqSpan = null;       // v67.3 TAB 框选覆盖的列范围 {sel:那次框选的 noteSel, r:{row,vi,m1,c1,m2,c2}}——Ctrl+C 按它复制
+let nsAnchor = null;     // v67.3 默认键位 Shift+点第一个音时的原光标 {sel:那次的 noteSel, a:{row,vi,mi,ci}}——只选中这 1 个音时 Ctrl+C 复制「原光标→此音」
+let clipRel = null;      // v67.3 跨列引用已改写为「剪贴板相对坐标」的那份剪贴板（身份比对；外部直接塞进来的剪贴板不改写、粘贴时不平移）
 let barSel = null;       // 选中的小节线 {L,R}（点击小节线，用于反复/终止设置）
 let blurSel = false;     // 点击页面内容区外 → 隐藏光标
 let meaHandleOn = false; // v51.8 小节宽度手柄显示开关（GP 式，小节图层「宽度手柄」切换）
@@ -5853,6 +5931,18 @@ function tempoUnitOf(s){ s=s||song; const u=s&&s.tempoUnit; if(u==='q'||u==='e'|
 function tempoQPM(s){ s=s||song; const n=+s.tempo||90, u=tempoUnitOf(s); return u==='e'? n/2 : u==='dq'? n*1.5 : n; }
 function tempoGlyph(s){ const u=tempoUnitOf(s||song); return u==='e'? '♪' : u==='dq'? '♩.' : '♩'; }
 function unitSeconds(s, rate){ s=s||song; return 60/(tempoQPM(s)*(rate||1))/((s.unit||4)/4); }
+/* v67.3 速度输入框统一读数（新建向导 / 曲谱信息弹窗共用；口径同页头速度弹窗 30–240）：
+   返回 {v 落谱值, why ''|'empty'|'bad'|'low'|'high'|'round'}——空/非数字回落 def，越界夹紧，小数取整 */
+function tempoInputVal(raw, def){
+  const s=String(raw==null?'':raw).trim(), d=Math.max(30, Math.min(240, Math.round(+def)||90));
+  if(s==='') return {v:d, why:'empty'};
+  const n=Math.round(+s);
+  if(!isFinite(n)) return {v:d, why:'bad'};
+  if(n<30) return {v:30, why:'low'};
+  if(n>240) return {v:240, why:'high'};
+  return {v:n, why: n!==+s? 'round' : ''};
+}
+const TEMPO_UNIT_NAME={q:'四分音符', e:'八分音符', dq:'附点四分音符'};
 /* v60.29 中途转调标记（mea.keyTo）生效于播放：此前 keyTo 只进渲染/MusicXML 导出，
    播放全链路只读谱首调——「转 1=X」后照旧按原调发声（用户报告的「转调播放不跟随」）。
    本函数给出第 mi 小节的生效调：谱首调被 ≤mi 的最近一个 keyTo 覆盖；
@@ -8840,8 +8930,12 @@ function editHints(){
            it('小节层：插入/删除小节 · 段落标记 · 本小节拍号 · 同前小节','rib:mea',true),
            it('Ctrl/Shift+点击其他小节线：扩大连选范围')];
   }else if(selRange){
-    title='已选中第'+(selRange.m1+1)+'小节 第'+(selRange.c1+1)+'–'+(selRange.c2+1)+'列';
-    items=[it('顶部工具行：改时值 / 附点 / 三连音，重写该拍节奏'),
+    /* v67.3 跨小节列选标题写全起止（此前只写首小节，拖过四小节仍显示「第1小节 第1–3列」），并说明复制粘贴口径 */
+    title= selRange.m2>selRange.m1
+      ? '已选中第'+(selRange.m1+1)+'小节第'+(selRange.c1+1)+'列 – 第'+(selRange.m2+1)+'小节第'+(selRange.c2+1)+'列'
+      : '已选中第'+(selRange.m1+1)+'小节 第'+(selRange.c1+1)+'–'+(selRange.c2+1)+'列';
+    items=[it('Ctrl+C 复制 → 光标移到目标处 Ctrl+V：盖满整小节＝按小节替换；不满整小节＝从光标列起按时值覆盖（跨小节线的音自动拆开连线）'),
+           it('顶部工具行：改时值 / 附点 / 三连音，重写该拍节奏'),
            it('节奏型库整拍套用（右栏「库」页；有和弦时自动按指法生成音符）'),
            it('技法可批量应用到片段内音符','rib:tab')];
   }else if(sel.row==='tab'){
@@ -8951,6 +9045,30 @@ function render(){
   const t0=performance.now(); RENDER_STAT.layoutCalls=0;
   JP_MEMO = tabJpAny()? new Map() : null;
   try{ renderCore(); } finally{ JP_MEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
+  if(SEL_FOLLOW){ SEL_FOLLOW=false; try{ selFollow(); }catch(_){} }   // v67.3 键盘移动光标后跟滚（见 selFollow）
+}
+/* v67.3 键盘移动光标（方向键 / 落音自动前进 / 歌词回车，统一经 moveCol）后，光标列出了谱面区可视范围就跟滚：
+   纵向滚 #score-wrap（新版外壳编辑态的滚动器），放大放不下（#paper.paper-xs 横滚兜底）时横向滚 #paper。
+   此前只有播放竖线跟滚：长谱键盘录入到第 5 行起光标落到屏幕下方看不见；放大到 110% 起行尾小节在右侧出屏。
+   只认显式光标移动（点击选音不动视图）；播放中归 highlight；不换行长带、经典版/观看/谱架（窗口滚动）不参与。
+   var 声明：render 可能早于此行求值被调用（let 会落入暂时性死区） */
+var SEL_FOLLOW = false;
+function selFollow(){
+  if((audio && audio.playing) || noWrapOn() || startPadOn()) return;
+  const sc = scoreScroller(); if(!sc) return;
+  const b = colBoxes[(sel.row==='tab'?'t':'v')+sel.vi+':'+sel.mi+':'+sel.ci]; if(!b) return;
+  const svg = document.getElementById('score'), vb = svg && svg.viewBox.baseVal; if(!vb || !vb.width) return;
+  const R = svg.getBoundingClientRect(), k = R.width/vb.width;
+  const top = R.top + b.y*k, bot = top + b.h*k, wr = sc.getBoundingClientRect();
+  const vT = wr.top + 12, vB = Math.min(wr.bottom, window.innerHeight) - 24;
+  if(bot > vB) sc.scrollTop += Math.max(0, Math.min(bot - vB + 40, top - vT));
+  else if(top < vT) sc.scrollTop -= (vT - top) + 40;
+  const P = document.getElementById('paper');
+  if(P && P.classList.contains('paper-xs')){
+    const pr = P.getBoundingClientRect(), l = R.left + b.x*k, r = l + b.w*k;
+    if(r > pr.right - 16) P.scrollLeft += r - (pr.right - 16) + 60;
+    else if(l < pr.left + 16) P.scrollLeft -= (pr.left + 16) - l + 60;
+  }
 }
 function renderCore(){
   /* v63.9 B5 ⑤ 和弦图位置随谱保存（song.diagPos：inline 随行 / top 曲首 / off 隐藏；老谱无字段＝随行） */
@@ -8977,6 +9095,7 @@ function renderCore(){
      width:max-content 会把 clientWidth 撑到内容宽，关闭后若类还挂着，
      版宽会按膨胀值错算一帧（实测 870→1320） */
   try{ document.body.classList.toggle('nwrap', noWrapOn()); }catch(_){}
+  try{ const fw=fixWideOn(cfg); document.body.classList.toggle('fixwide', fw); zoomSwap(fw); }catch(_){}   // v67.3 同理：先定 #paper 是否解除 900 上限再量宽；缩放换装对应键
   const paperW = (document.getElementById('paper')||{}).clientWidth || 1040;
   LAST_PAPER_W = paperW;
   LAY_FIXED_NOW = fixedLayOn(cfg);
@@ -9742,7 +9861,10 @@ function renderCore(){
           const boxTop = oy + (vi===0 ? M.diagH : Math.min(M.tabTops[vi]-14, (M.tabJpT && M.tabJpT[vi]) || 1e9));   /* v67.1 单轨 SOLO 播放块罩住本轨联排行（只是 JS 数据，不进 SVG） */
           for(let k2=0;k2<nT;k2++)
             colBoxes['t'+vi+':'+lm.mi+':'+k2] = {x:mx+lm.L.w*k2/nT, y:boxTop, w:lm.L.w/nT, h:stemY-boxTop+8};
-          p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="transparent" data-mi="${lm.mi}" data-ci="0" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"><title>小节反复 𝄎：演奏同前${simN}小节（本小节数据仍保留，小节面板可取消）</title></rect>`);
+          /* v67.3 首轨热区止于小节号带上沿（tabBot+1）：此前一直盖到符干区，把下方的小节号热区整块压住——
+             𝄎 小节的小节号点不中、拖小节号连选也拖不进来（整小节复制含 𝄎 时选不全） */
+          const simH = vi===0? Math.min(stemY-tabTop+8, tabBot-tabTop+5) : stemY-tabTop+8;
+          p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${simH}" fill="transparent" data-mi="${lm.mi}" data-ci="0" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"><title>小节反复 𝄎：演奏同前${simN}小节（本小节数据仍保留，小节面板可取消）</title></rect>`);
         }
         /* 符杠分组预计算：附点圆点需对齐该组由上至下的第一条时值线 */
         /* v60.60 playable 由「本列有音才成杠」改为不过滤：休止列与同拍的实音并进一条符杠
@@ -11271,8 +11393,7 @@ function renderCore(){
   svg.setAttribute('width', Math.round(CONTENT_W*dz));
   svg.setAttribute('height', Math.round(totalH*dz));
   paperFitGuard(CONTENT_W, cfg.scale);   // v66.0 D7
-  const zl = document.getElementById('zoom-lbl');
-  if(zl) zl.textContent = Math.round(viewZoom*100)+'%';
+  zoomLblSync(dz);   // v67.3 标签＋实际倍率提示
   barZones.forEach(z=>p.push(z));
   clefZones.forEach(z=>p.push(z));   // v51.1 谱号热区压在行首小节线热区之上（其余头部区域仍归行首线热区）
   /* v51.8 小节宽度手柄（GP 式）：开关开启时每小节右缘上方画 ↔+▼ 手柄，拖动=调本小节宽度系数、
@@ -12313,7 +12434,7 @@ function moveCol(dir, ext){
     if(sel.ci>0) sel.ci--;
     else if(sel.mi>0){ sel.mi--; sel.ci=curRowCols().length-1; }
   }
-  pending.digits=''; render();
+  pending.digits=''; SEL_FOLLOW=true; render();   // v67.3 光标出可视区则跟滚
 }
 function switchRow(){
   /* v67.2 验收补：目标行没有声部（纯 TAB 谱没有旋律行 / 纯简谱没有 TAB 行）时不切——此前 Tab 键或末弦按 ↓ 让光标进到
@@ -13032,7 +13153,8 @@ function applyVoxPattern(pat){
     setZoom(gridZoom(viewZoom, e.deltaY<0 ? +1 : -1));
     const r2 = svg.getBoundingClientRect();
     document.getElementById('paper').scrollLeft += (r2.left + fx*r2.width) - e.clientX;
-    const se = document.scrollingElement || document.documentElement;
+    /* v67.3 纵向补偿作用在真正的滚动器上：新版外壳是 #score-wrap（此前写窗口滚动＝无效，每档漂移约 80 谱面单位） */
+    const se = scoreScroller() || document.scrollingElement || document.documentElement;
     se.scrollTop += (r2.top + fy*r2.height) - e.clientY;
   }, {passive:false});
 })();
@@ -13926,6 +14048,7 @@ function openFlyout(t){
   setRibbon(t);
 }
 function closeFlyout(){ document.getElementById('left-flyout').classList.add('hidden'); }
+{ const fc=document.getElementById('fly-close'); if(fc) fc.onclick=()=>closeFlyout(); }   // v67.3 面板收起钮
 /* ===== v46.5 启动台（打开制谱页默认空白 + 左栏收起 + 居中四入口）===== */
 function startPadOn(){ const sp=document.getElementById('start-pad'); return !!(sp && !sp.classList.contains('hidden')); }
 /* v63.0 A3-①（P1-02）启动台态编辑区 inert：此前启动台盖住谱面，但工具栏按钮与全局快捷键仍然有效，
@@ -14284,6 +14407,11 @@ window.addEventListener('keydown', e=>{
     inputDigit(+e.key);
     return;
   }
+  /* v67.3 验收补（GP 式）：方向键移动光标＝放下区域/整小节选择——此前选区不清，「拖选 → Ctrl+C → 方向键移到目标 → Ctrl+V」
+     会因「选中区域优先」（v54.6）粘回源选区（等于没粘），而不是落在光标处。Shift+方向键行为不变 */
+  if(!e.shiftKey && /^Arrow(Left|Right|Up|Down)$/.test(e.key) && (selRange || measureRange || measureSel!=null)){
+    selRange=null; measureRange=null; measureSel=null;
+  }
   switch(e.key){
     case 'ArrowRight': e.preventDefault(); moveCol(1, true); break;   /* v51.7 谱末按 → 自动续小节 */
     case 'ArrowLeft':  e.preventDefault(); moveCol(-1); break;
@@ -14344,55 +14472,334 @@ window.addEventListener('keydown', e=>{
 let dragSel = null;
 let noteSel = [];   // Ctrl 多选音符： [{mi,ci,si}]
 /* ---- 复制 / 粘贴（v53.7 全粒度统一）：
-   整小节多选(拖小节号) > 单声部整小节(长按小节线) > 声部片段(拖列/拍/Ctrl+点小节线连选) > 单小节 ---- */
+   整小节多选(拖小节号) > 单声部整小节(长按小节线) > 声部片段(拖列/拍/Ctrl+点小节线连选) > 单小节 ----
+   v67.3 负责人报告「复制前面四小节粘贴到后面出现错误」。根因：简谱单声部谱没有小节号热区（小节号只画在 TAB 首轨下方），
+   选四小节最自然的做法是按住从第 1 小节第一个音拖到第 4 小节最后一个音＝列级片段（selRange 无 whole）；
+   复制时四小节被拍平成一串列，粘贴时按**目标小节原有的列数**逐格硬塞（新建空小节＝4 个四分休止列）——
+   第 1 小节 6 列（附点八分＋十六分）只塞进 4 列＝3 拍，余下的列被推到下一小节，一路错位，末尾的列被截掉。
+   修法：
+   ① 列选恰好盖满整小节（起点＝首小节第一列、终点＝末小节最后一列；𝄎 小节按整小节算）→ 升格为按小节复制该声部
+     （与 Ctrl/Shift+点小节线连选同一剪贴板），粘贴从目标小节起逐小节替换该声部，不足自动补建小节；
+   ② 真正的局部列片段改**按时值**覆盖粘贴（pstTimedPlan）：从光标列起按拍数铺，跨小节线的音拆成整时值并用连音线相连
+     （简谱/五线谱 tie；TAB 逐音 tieIn）、连音组整组不拆（会跨小节线时整次粘贴拒绝并提示，不留半截）、
+     覆盖区末尾被截断的音 / 连音组的剩余时值补休止、曲末不足自动补建小节；光标在连音组中间时从组首开始；
+   ③ 粘贴内容自带的跨列引用（TAB 连音线/击勾滑/推弦/延音范围终点 tk、渐强渐弱 dynTo、8va ottTo）随内容平移，
+     指向复制范围之外的作废——此前原样保留绝对坐标，粘贴后仍指回源小节（弧线画不出 / 连到别处）；
+   ④ 𝄎 小节反复：复制取实际演奏内容；整小节复制时 𝄎 的源小节也在复制范围内则原样保留 𝄎（粘贴后解析不变）；
+     按声部粘贴进 𝄎 小节先把它展开为实写，否则粘贴内容被 𝄎 盖住、看不见也听不到。
+   小节级属性口径不变（v63.5）：整小节覆盖粘贴保留目标的转调/排练标记/房子/段落线/终止线/变拍子，源拍号不同先问；
+   反复记号随源；𝄎 随源（④）。声部级粘贴不动任何小节级属性。所有粘贴一次 mutate＝一步撤销。 */
+const PST_EPS = 1e-4;
+function pstQ(c){ return beatsOf(c, 4); }   // 绝对时值（四分音符＝1），与拍号单位无关
+function pstCap(mi){ const mm=meaMeter(mi); return mm.beats*4/mm.unit; }
+function pstTKey(c){ return c && c.tup? ((c.tup===1?3:c.tup)+':'+(c.tupM||0)) : ''; }
+function pstTupN(c){ return c && c.tup? (c.tup===1? 3 : c.tup) : 1; }
+/* 列 → 时值块：连音列每 N 个合成一个不可拆块，其余每列一块。
+   与刻版 beamGroups / 连音括线同口径：同标连续段**每 N 个一块**（a2+=n）——
+   验收补：此前把相邻的同型连音一路并成一块，两组三连音被当成一个 2 拍的整体（粘一个四分音符会抹掉旁边没选中的那组，
+   从第 4 拍粘两组三连音会被误判「跨小节线」整次拒绝） */
+function pstBlocks(cols){
+  const out=[]; let i=0, t=0;
+  while(i<cols.length){
+    const k=pstTKey(cols[i]); let j=i;
+    if(k){ const lim=i+pstTupN(cols[i])-1; while(j<lim && j+1<cols.length && pstTKey(cols[j+1])===k) j++; }
+    let q=0; for(let x=i;x<=j;x++) q+=pstQ(cols[x]);
+    out.push({a:i, b:j, st:t, en:t+q, tup:!!k}); t+=q; i=j+1;
+  }
+  return out;
+}
+/* 一段时值拆成若干整时值（含附点，贪心取大）；拆不尽（连音残余等）返回 null */
+function pstChain(q){
+  const out=[]; let r=q, g=0;
+  while(r>PST_EPS && g++<32){ const h=fitDurTo(r, true, 4); if(!h) return null; out.push(h); r-=beatsOf(h, 4); }
+  return r>PST_EPS? null : out;
+}
+/* 𝄎 解析到实际演奏内容所在小节（链式逐级追溯） */
+function pstPlayed(mi){ let k=mi, g=0; while(g++<16){ const s=simileSrc(k); if(s==null) return k; k=s; } return k; }
+function pstVoiceOf(m, row, vi){ return (((row==='tab'? m.tabs : m.voxes))||[])[vi]; }
+/* 跨列引用：TAB 音符 tk；简谱/五线谱列 dynTo / ottTo（都是 {mi,ci[,si]} 绝对坐标） */
+function pstColRefs(c, row, fn){
+  if(!c) return;
+  if(row==='tab') (c.notes||[]).forEach(n=>{ if(n && n.tk) fn(n, 'tk'); });
+  else ['dynTo','ottTo'].forEach(k=>{ if(c[k]) fn(c, k); });
+}
+function pstMeaRefs(m, fn){
+  ((m && m.tabs)||[]).forEach((cols,vi)=>(cols||[]).forEach(c=>pstColRefs(c, 'tab', (h,k)=>fn(h, k, 'tab', vi))));
+  ((m && m.voxes)||[]).forEach((cols,vi)=>(cols||[]).forEach(c=>pstColRefs(c, 'vox', (h,k)=>fn(h, k, 'vox', vi))));
+}
+/* 复制实例：每个源小节一份 {mi, cm=实际内容小节, m=深拷贝}；𝄎 小节取实际演奏内容；
+   keepSim（整小节复制）且 𝄎 的源小节也在复制范围内 → 原样保留 𝄎 */
+function pstInsts(m1, m2, keepSim){
+  const out=[];
+  for(let mi=m1; mi<=m2; mi++){
+    const m=JSON.parse(JSON.stringify(song.measures[mi])); let cm=mi;
+    const s=simileSrc(mi);
+    if(s!=null && !(keepSim && s>=m1 && s<mi)){
+      cm=pstPlayed(mi); const src=song.measures[cm];
+      m.tabs=JSON.parse(JSON.stringify(src.tabs||[])); m.voxes=JSON.parse(JSON.stringify(src.voxes||[]));
+      delete m.simile;
+    }
+    out.push({mi, cm, m});
+  }
+  return out;
+}
+/* 引用落在哪个复制实例（-1＝复制范围外）：按**演奏顺序**换算——本实例演奏的是 cm，引用指向 cm+d 就落到第 j+d 个实例，
+   且该实例演奏的正是那一小节才算数（否则作废）。验收补：此前跨小节引用一律按源小节号找实例，
+   𝄎² 展开的实例（演奏 A，其后演奏 B）里 A 末音连到 B 的 tk 会被映射回复制范围里排在前面的那个 B */
+function pstRefInst(insts, j, ref){
+  if(!ref || typeof ref.mi!=='number') return -1;
+  const k=j+(ref.mi-insts[j].cm);
+  return (k>=0 && k<insts.length && insts[k].cm===ref.mi)? k : -1;
+}
+/* 整小节 / 整声部剪贴板：引用改写为相对首个复制小节的偏移（mi=实例序号），范围外作废；row 缺省＝全部声部 */
+function pstRelWhole(insts, row, vi){
+  insts.forEach((it,j)=>{
+    const visit=(h,k,rw,v)=>{
+      const r=h[k], j2=pstRefInst(insts, j, r);
+      const tgt = j2<0? null : pstVoiceOf(insts[j2].m, rw, v);
+      if(!tgt || !(r.ci>=0 && r.ci<tgt.length)){ delete h[k]; return; }
+      h[k]=Object.assign({}, r, {mi:j2});
+    };
+    if(row) (pstVoiceOf(it.m, row, vi)||[]).forEach(c=>pstColRefs(c, row, (h,k)=>visit(h, k, row, vi)));
+    else pstMeaRefs(it.m, visit);
+  });
+}
+function pstShiftCols(cols, row, base){ (cols||[]).forEach(c=>pstColRefs(c, row, (h,k)=>{ h[k]=Object.assign({}, h[k], {mi:base+h[k].mi}); })); }
+function pstShiftMea(m, base){ pstMeaRefs(m, (h,k)=>{ h[k]=Object.assign({}, h[k], {mi:base+h[k].mi}); }); }
+/* 按声部粘贴写进 𝄎 小节前先展开为实写（各声部取实际演奏内容，内部引用指回本小节） */
+function pstExpandSimile(mi){
+  const m=song.measures[mi]; if(!m || simileSrc(mi)==null) return false;
+  const cm=pstPlayed(mi), src=song.measures[cm];
+  m.tabs=JSON.parse(JSON.stringify(src.tabs||[])); m.voxes=JSON.parse(JSON.stringify(src.voxes||[]));
+  pstMeaRefs(m, (h,k)=>{ if(h[k].mi===cm) h[k]=Object.assign({}, h[k], {mi}); else delete h[k]; });
+  delete m.simile;
+  return true;
+}
+/* 跨小节线拆开的后半段：只留音高（简谱/五线谱）或逐音延音（TAB tieIn），歌词/表情/和弦名/技法等只留在前半 */
+function pstCont(c, row){
+  if(row==='tab'){
+    const t=tcol();
+    t.notes=(c.notes||[]).filter(n=>n && !n.x).map(n=>({s:n.s, f:n.f, tieIn:true}));
+    return t;
+  }
+  const v=JSON.parse(JSON.stringify(c));
+  v.lyrics=[];
+  ['dyn','dynTo','chord','chords','ferm','breath','artic','grace','graceA','orn','ornAcc','ornAccLo','anno','fing',
+   'ottTo','clef','ped','arp','gliss','tup','tupM'].forEach(k=>delete v[k]);
+  return v;
+}
+/* 验收补：拆开的各段分配记号——拍位和弦 chords（q＝距音头的四分拍数）落到它所在的那一段，落在段首就成该段列头和弦
+   （此前全留在前半段：前半只有 1 拍却挂着第 2 拍的和弦，后半段上方是空的）；
+   落在音尾的记号（延长号、后倚音、换气、滑音）只放在最后一段（此前延长号停在小节中间的前半段上） */
+const PST_TAIL=['ferm','graceA','breath','gliss'];
+function pstSplitMarks(c, e, row){
+  const len=beatsOf({dur:e.dur, dotted:e.dotted}, 4), last=e.part===e.cnt-1;
+  if(row==='vox' && e.c.chords){
+    const mine=[];
+    e.c.chords.forEach(x=>{
+      if(!x || !x.chord) return;
+      const q=x.q-e.off; if(q<-PST_EPS || q>=len-PST_EPS) return;
+      const r=Math.max(0, Math.round(q));
+      if(r===0){ if(e.part>0) c.chord=x.chord; }
+      else mine.push({q:r, chord:x.chord});
+    });
+    if(mine.length) c.chords=mine; else delete c.chords;
+  }
+  const tail = row==='vox'? PST_TAIL : ['ferm','graceA'];
+  tail.forEach(k=>{
+    if(!last) delete c[k];
+    else if(e.part>0 && e.c[k]!=null) c[k]=JSON.parse(JSON.stringify(e.c[k]));
+  });
+}
+/* 按时值覆盖粘贴（只读规划）：从 (mi0, ci0) 起把 flat 各列按绝对时值铺进目标声部。
+   返回 {ok:false, why} 或 {ok:true, writes:[{mi, out}], placed, last}；out 项：{o:原列号} 保留 / {c,src[,part,cnt,dur,dotted]} 粘贴 / {rest,dur,dotted} 补休止 */
+function pstTimedPlan(row, vi, mi0, ci0, flat){
+  const nM=song.measures.length;
+  const blank=mi=>{ const mm=mi<nM? meaMeter(mi) : {beats:song.beats, unit:song.unit};
+    return row==='tab'? blankTabCols(mm.beats, mm.unit) : blankVoxCols(mm.beats, mm.unit); };
+  const orig=mi=>{
+    if(mi>=nM) return blank(mi);
+    if(simileSrc(mi)!=null) return pstVoiceOf(song.measures[pstPlayed(mi)], row, vi)||blank(mi);   // 𝄎：按实际演奏内容规划（提交时展开）
+    return pstVoiceOf(song.measures[mi], row, vi)||blank(mi);
+  };
+  /* 弱起首小节的容量＝它现有的时值（不足拍是弱起本意，按整小节铺会把弱起填满） */
+  const capOf=mi=>{
+    if(mi>=nM) return song.beats*4/song.unit;
+    if(mi===0 && song.pickup){ const q=orig(0).reduce((a,c)=>a+pstQ(c),0); if(q>PST_EPS && q<pstCap(0)-PST_EPS) return q; }
+    return pstCap(mi);
+  };
+  const writes=[]; let mi=mi0, cur=orig(mi), out=[], pos=0;
+  { const B=pstBlocks(cur).find(B=>ci0>B.a && ci0<=B.b); if(B) ci0=B.a; }   // 光标在连音组中间 → 从组首开始
+  ci0=Math.max(0, Math.min(ci0, cur.length));
+  for(let i=0;i<ci0;i++){ out.push({o:i}); pos+=pstQ(cur[i]); }
+  if(pos>=capOf(mi)-PST_EPS){ mi++; cur=orig(mi); out=[]; pos=0; }   // 光标落在超拍溢出列上：从下一小节开始
+  const placed=new Array(flat.length); let split=false;
+  const adv=()=>{ writes.push({mi, out}); mi++; cur=orig(mi); out=[]; pos=0; };
+  const room=()=>capOf(mi)-pos;
+  const fB={}; pstBlocks(flat).forEach(B=>{ fB[B.a]=B; });   // 源片段同口径分块（连音每 N 个一块）
+  for(let i=0;i<flat.length;){
+    const c=flat[i], k=pstTKey(c);
+    if(k){
+      const j=fB[i]? fB[i].b : i;
+      let q=0; for(let x=i;x<=j;x++) q+=pstQ(flat[x]);
+      if(room()<=PST_EPS) adv();
+      if(q>room()+PST_EPS) return {ok:false, why:'连音组会跨过第 '+(mi+1)+' 小节的小节线（连音不能拆开）——换个起点（如该拍开头）再粘贴'};
+      for(let x=i;x<=j;x++){ placed[x]={mi, ci:out.length}; out.push({c:flat[x], src:x}); }
+      pos+=q; i=j+1; continue;
+    }
+    const total=pstQ(c); let rem=total; const pcs=[];
+    while(rem>PST_EPS){
+      if(room()<=PST_EPS) adv();
+      const seg=Math.min(rem, room());
+      if(!pcs.length && Math.abs(seg-total)<PST_EPS){ placed[i]={mi, ci:out.length}; out.push({c, src:i}); pos+=seg; rem=0; break; }
+      const ch=pstChain(seg);
+      if(!ch) return {ok:false, why:'第 '+(mi+1)+' 小节：有个音跨过小节线、拆不成整时值'};
+      ch.forEach(d=>{ if(!pcs.length) placed[i]={mi, ci:out.length};
+        const e={c, src:i, part:pcs.length, dur:d.dur, dotted:!!d.dotted, off:total-rem};   // off＝本段距音头的四分拍数
+        pcs.push(e); out.push(e); rem-=beatsOf(d, 4); });
+      rem=Math.max(0, rem);
+      pos+=seg;
+    }
+    pcs.forEach(e=>{ e.cnt=pcs.length; });
+    if(pcs.length) split=true;
+    i++;
+  }
+  /* 收尾小节：覆盖区之后的原列保留；被截断的原音 / 连音组剩余时值补休止 */
+  const e=pos;
+  for(const B of pstBlocks(cur)){
+    if(B.en<=e+PST_EPS) continue;
+    if(B.st>=e-PST_EPS){ for(let x=B.a;x<=B.b;x++) out.push({o:x}); continue; }
+    const ch=pstChain(B.en-e);
+    if(!ch) return {ok:false, why:'第 '+(mi+1)+' 小节：粘贴末尾截断的音剩余时值补不成整时值休止——换个起点再粘贴'};
+    ch.forEach(d=>out.push({rest:true, dur:d.dur, dotted:!!d.dotted}));
+  }
+  writes.push({mi, out});
+  return {ok:true, writes, placed, last:mi, split};
+}
+/* 提交规划（在 mutate 内调用）：rel＝剪贴板引用已改写为片段序号（{mi:-1, ci:片段列号}），按 placed 落到新坐标 */
+function pstTimedCommit(row, vi, plan, rel){
+  const added=Math.max(0, plan.last+1-song.measures.length);
+  while(song.measures.length<=plan.last) song.measures.push(blankMeasure());
+  plan.writes.forEach(w=>pstExpandSimile(w.mi));
+  /* 本声部其余位置指向被改写小节的引用：保留下来的原列按新列号改指，被覆盖掉的作废（列数变化后不能再指错列） */
+  const remap={};
+  plan.writes.forEach(w=>{ const mp={}; w.out.forEach((e,ni)=>{ if(e.o!=null) mp[e.o]=ni; }); remap[w.mi]=mp; });
+  song.measures.forEach(m=>(pstVoiceOf(m, row, vi)||[]).forEach(c=>pstColRefs(c, row, (h,k)=>{
+    const r=h[k], mp=remap[r.mi]; if(!mp) return;
+    if(mp[r.ci]!=null) h[k]=Object.assign({}, r, {ci:mp[r.ci]}); else delete h[k];
+  })));
+  plan.writes.forEach(w=>{
+    const m=song.measures[w.mi];
+    const arr=row==='tab'? (m.tabs||(m.tabs=[])) : (m.voxes||(m.voxes=[]));
+    if(!arr[vi]){ const mm=meaMeter(w.mi); arr[vi]= row==='tab'? blankTabCols(mm.beats, mm.unit) : blankVoxCols(mm.beats, mm.unit); }
+    const cur=arr[vi];
+    arr[vi]=w.out.map(e=>{
+      if(e.o!=null) return cur[e.o];
+      if(e.rest){ const r=row==='tab'? tcol() : vcol(); r.dur=e.dur; r.dotted=e.dotted; return r; }
+      const c = (e.part==null || e.part===0)? JSON.parse(JSON.stringify(e.c)) : pstCont(e.c, row);
+      if(e.part!=null){
+        c.dur=e.dur; c.dotted=e.dotted;
+        if(row==='vox' && c.deg) c.tie = e.part<e.cnt-1? true : !!e.c.tie;   // 拆开的各段用连音线连起，末段沿用原连音线
+        pstSplitMarks(c, e, row);
+      }
+      if(rel && (e.part==null || e.part===0))
+        pstColRefs(c, row, (h,k)=>{ const p=plan.placed[h[k].ci];
+          if(h[k].mi===-1 && p) h[k]=Object.assign({}, h[k], {mi:p.mi, ci:p.ci}); else delete h[k]; });
+      return c;
+    });
+  });
+  return added;
+}
 function copyMeasure(){
   if(measureRange){
-    clipMeasures=[]; for(let m=measureRange.m1;m<=measureRange.m2;m++) clipMeasures.push(JSON.parse(JSON.stringify(song.measures[m])));
+    const insts=pstInsts(measureRange.m1, measureRange.m2, true); pstRelWhole(insts);
+    clipMeasures=insts.map(o=>o.m); clipRel=clipMeasures;
     clipMeasure=null; clipRow=null; clipCols=null;
     toast('已复制第'+(measureRange.m1+1)+'–'+(measureRange.m2+1)+'小节（整小节×'+clipMeasures.length+'）· 光标到目标小节 Ctrl+V 粘贴');
     return;
   }
-  if(selRange && selRange.whole && selRange.m1===selRange.m2){
-    const cols = selRange.row==='tab'
-      ? song.measures[selRange.m1].tabs[selRange.vi]
-      : song.measures[selRange.m1].voxes[selRange.vi];
-    if(cols){
-      clipRow = {row:selRange.row, cols:JSON.parse(JSON.stringify(cols))};
-      clipMeasure = null; clipMeasures=null; clipCols=null;
-      toast('已复制第'+(selRange.m1+1)+'小节'+(selRange.row==='tab'?'吉他谱':'简谱')+'声部 · Ctrl+V 粘贴到光标小节');
-      return;
+  /* v67.3 TAB 框选 / Ctrl·Shift 多选（noteSel）→ 按所选范围复制（此前只复制光标所在的一个小节）：
+     框选取框住的列范围（含休止列）；逐音多选取同一声部首末两音之间的列 */
+  let rng=selRange;
+  if(!rng && noteSel.length){
+    if(mqSpan && mqSpan.sel===noteSel) rng=mqSpan.r;
+    else if(noteSel.length===1 && nsAnchor && nsAnchor.sel===noteSel){   // v67.3 Shift+点：原光标 → 所点的音
+      const q=noteSel[0], a=nsAnchor.a, fw=a.mi<q.mi || (a.mi===q.mi && a.ci<=q.ci);
+      rng={row:a.row, vi:a.vi, m1:fw? a.mi:q.mi, c1:fw? a.ci:q.ci, m2:fw? q.mi:a.mi, c2:fw? q.ci:a.ci};
+    }
+    else if(noteSel.length>=2){
+      const r0=noteSel[0].row||'tab', v0=noteSel[0].vi||0;
+      if(noteSel.every(q=>(q.row||'tab')===r0 && (q.vi||0)===v0)){
+        const ps=noteSel.slice().sort((a,b2)=>a.mi-b2.mi || a.ci-b2.ci);
+        rng={row:r0, vi:v0, m1:ps[0].mi, c1:ps[0].ci, m2:ps[ps.length-1].mi, c2:ps[ps.length-1].ci};
+      }
     }
   }
-  if(selRange){
-    /* v53.7 声部片段：whole 多小节=逐小节段（粘贴按小节替换）；列/拍范围=列级片段（粘贴顺延覆盖） */
-    const {row,vi}=selRange; const meas=[];
-    for(let m=selRange.m1;m<=selRange.m2;m++){
-      const cols=(row==='tab'? (song.measures[m].tabs||[])[vi] : (song.measures[m].voxes||[])[vi])||[];
-      const a = m===selRange.m1? (selRange.c1||0) : 0;
-      const b = (m===selRange.m2 && selRange.c2!==undefined)? Math.min(selRange.c2, cols.length-1) : cols.length-1;
-      meas.push(JSON.parse(JSON.stringify(cols.slice(a, b+1))));
+  if(rng){
+    const {row, vi}=rng, nm=row==='tab'?'吉他谱':'简谱';
+    const lenOf=m=>(pstVoiceOf(song.measures[m], row, vi)||[]).length;
+    const simAt=m=>simileSrc(m)!=null;
+    /* v67.3 ① 列选恰好盖满整小节 → 按小节复制该声部。
+       验收补：弱起首小节（不足拍）不算整小节——它不是一个完整小节，按小节替换会把弱起的 1 拍塞进目标的 4 拍小节（节拍报错）；
+       含弱起的拖选按列片段复制，粘贴从光标处按时值铺（光标放到目标弱拍处即对齐） */
+    const pkPart = m=> m===0 && song.pickup && (pstVoiceOf(song.measures[0], row, vi)||[]).reduce((a,c)=>a+pstQ(c),0) < pstCap(0)-PST_EPS;
+    const full = !!rng.whole || (((rng.c1||0)===0 || simAt(rng.m1)) && !pkPart(rng.m1) &&
+      (rng.c2===undefined || rng.c2>=lenOf(rng.m2)-1 || simAt(rng.m2)));
+    if(full){
+      const insts=pstInsts(rng.m1, rng.m2, false); pstRelWhole(insts, row, vi);
+      const meas=insts.map(o=>pstVoiceOf(o.m, row, vi)||[]);
+      const meters=insts.map(o=>meaMeter(o.mi));   // 验收补：记下源小节拍号（变拍子 / 跨谱粘贴时比对）
+      clipMeasure=null; clipMeasures=null;
+      if(meas.length===1 && meas[0].length){
+        clipRow={row, cols:meas[0], meters}; clipRel=clipRow; clipCols=null;
+        toast('已复制第'+(rng.m1+1)+'小节'+nm+'声部 · Ctrl+V 粘贴到光标小节');
+        return;
+      }
+      clipCols={row, meas, whole:true, meters}; clipRel=clipCols; clipRow=null;
+      toast('已复制第'+(rng.m1+1)+'–'+(rng.m2+1)+'小节'+nm+'声部（整小节×'+meas.length+'）· 光标到目标小节 Ctrl+V 按小节替换（不足自动补建）');
+      return;
     }
-    if(!selRange.whole && meas.length>1) clipCols={row, meas:[meas.flat()], whole:false};   // 跨小节列选拼接为一段顺延覆盖
-    else clipCols={row, meas, whole:!!selRange.whole};
+    /* 局部列片段：跨小节拼成一段，粘贴按时值从光标列起覆盖（v67.3 ②）；引用改写为片段列号（③） */
+    const insts=pstInsts(rng.m1, rng.m2, false);
+    const flat=[], segs=[];
+    insts.forEach((o,j)=>{
+      const cols=pstVoiceOf(o.m, row, vi)||[], sim=o.cm!==o.mi;
+      const a=(j===0 && !sim)? (rng.c1||0) : 0;
+      const b=(j===insts.length-1 && !sim && rng.c2!==undefined)? Math.min(rng.c2, cols.length-1) : cols.length-1;
+      segs.push({a, b, off:flat.length});
+      for(let x=a;x<=b;x++) flat.push(cols[x]);
+    });
+    insts.forEach((o,j)=>{
+      const cols=pstVoiceOf(o.m, row, vi)||[], sg=segs[j];
+      for(let x=sg.a;x<=sg.b;x++) pstColRefs(cols[x], row, (h,k)=>{
+        const r=h[k], j2=pstRefInst(insts, j, r), s2=j2<0? null : segs[j2];
+        if(!s2 || !(r.ci>=s2.a && r.ci<=s2.b)){ delete h[k]; return; }
+        h[k]=Object.assign({}, r, {mi:-1, ci:s2.off+(r.ci-s2.a)});
+      });
+    });
+    clipCols={row, meas:[flat], whole:false}; clipRel=clipCols;
     clipMeasure=null; clipRow=null; clipMeasures=null;
-    const n=meas.reduce((s2,x)=>s2+x.length,0);
-    toast('已复制'+(row==='tab'?'吉他谱':'简谱')+'片段（'+n+' 列）· 光标移到目标位置 Ctrl+V 覆盖粘贴');
+    toast('已复制'+nm+'片段（'+flat.length+' 列）· 光标移到目标位置 Ctrl+V 按时值覆盖粘贴'
+      +(pkPart(rng.m1)? '（含弱起：把光标放到目标处对应的弱拍再粘贴）' : ''));
     return;
   }
   const mi = measureSel!=null? measureSel : sel.mi;
-  clipMeasure = JSON.parse(JSON.stringify(song.measures[mi]));
+  const insts=pstInsts(mi, mi, true); pstRelWhole(insts);
+  clipMeasure = insts[0].m; clipRel=clipMeasure;
   clipRow = null; clipMeasures=null; clipCols=null;
   toast('已复制第'+(mi+1)+'小节');
 }
 /* v63.5 B2a ②（评审团 P2-01）整小节粘贴的结构字段：覆盖粘贴保留**目标**小节的结构字段（转调 keyTo、排练标记、
    房子、段落线、终止线、变拍子……）——此前整个小节对象重建，目标小节的转调标记被抹掉，其后所有小节的调都跟着变；
-   源小节拍号与目标不同则先问「是否同时应用源小节拍号」。插入粘贴（点小节线）是新小节，沿用源小节自己的拍号。 */
-const PASTE_KEEP_OWN=['tabs','voxes','repeatStart','repeatEnd'];
+   源小节拍号与目标不同则先问「是否同时应用源小节拍号」。插入粘贴（点小节线）是新小节，沿用源小节自己的拍号。
+   v67.3 𝄎（simile）改随源：它是「内容＝同前小节」的省写，不是结构——随目标保留会把粘贴内容盖在 𝄎 底下看不见。 */
+const PASTE_KEEP_OWN=['tabs','voxes','repeatStart','repeatEnd','simile'];
 function meterOfMea(m){ return {beats:(m&&m.beats)||song.beats, unit:(m&&m.unit)||song.unit}; }
 function pasteShell(target, src, applyMeter){
   const m={};
   Object.keys(target||{}).forEach(k=>{ if(!PASTE_KEEP_OWN.includes(k)) m[k]=JSON.parse(JSON.stringify(target[k])); });
   m.tabs=[]; m.voxes=[]; m.repeatStart=!!src.repeatStart; m.repeatEnd=!!src.repeatEnd;
+  if(src.simile) m.simile=src.simile;
   if(applyMeter){ const sm=meterOfMea(src);
     if(sm.beats===song.beats && sm.unit===song.unit){ delete m.beats; delete m.unit; } else { m.beats=sm.beats; m.unit=sm.unit; } }
   return m;
@@ -14411,13 +14818,85 @@ function pasteMeterDiff(srcs, mi0){
   }
   return null;
 }
-function askPasteMeter(d, go){
+function askPasteMeter(d, go, keepTip){
   showModal(`<h3>拍号不一致</h3>
     <p style="font-size:13px;line-height:1.7">复制来的小节是 <b>${esc(d.src)}</b> 拍，要覆盖的小节是 <b>${esc(d.dst)}</b> 拍。是否同时应用源小节的拍号？</p>
-    <p style="font-size:12px;color:var(--muted)">保留目标拍号时，音符会原样放进去，拍数对不上的小节会标出节拍错误。</p>
+    <p style="font-size:12px;color:var(--muted)">${keepTip? esc(keepTip) : '保留目标拍号时，音符会原样放进去，拍数对不上的小节会标出节拍错误。'}</p>
     <div class="btns"><button id="pm-keep">保留目标拍号</button><button id="pm-apply" class="primary">应用源拍号</button></div>`);
   document.getElementById('pm-keep').onclick=()=>{ closeModal(); go(false); };
   document.getElementById('pm-apply').onclick=()=>{ closeModal(); go(true); };
+}
+/* ---- v67.3 验收补：整小节声部剪贴板（clipRow / clipCols.whole）的落位口径 ----
+   ① 一律从光标所在小节的开头按小节替换（光标点在目标小节哪个音都一样——点偏一列也不会整段错一拍）；
+     光标不在小节首列时提示里写明「从小节开头替换」（要错开半小节粘贴：少选一列，按片段按时值粘贴）；
+   ② 源小节拍号（变拍子小节、跨谱粘贴）与目标不同 → 先问：应用源拍号＝这几个小节改用源拍号后按小节替换
+     （同小节其他声部若是空白，按新拍号重排空白，免得凭空报错）；保留目标拍号＝从目标小节开头按时值铺开，不留节拍错误
+     （此前直接整体替换，节拍红字也不询问）；
+   ③ 其余 → 从目标小节起逐小节替换该声部，不足补建。 */
+function pstVoiceMeterDiff(meters, mi0, n){
+  if(!meters) return null;
+  for(let k=0;k<n;k++){
+    const a=meters[k]; if(!a) continue;
+    const b= mi0+k<song.measures.length? meaMeter(mi0+k) : {beats:song.beats, unit:song.unit};
+    if(a.beats!==b.beats || a.unit!==b.unit) return {src:a.beats+'/'+a.unit, dst:b.beats+'/'+b.unit};
+  }
+  return null;
+}
+/* 小节对象改用拍号 mm；除 (row,vi) 外的空白声部按新拍号重排空白 */
+function pstApplyMeterM(m, mm, row, vi){
+  const old=meterOfMea(m);
+  if(old.beats===mm.beats && old.unit===mm.unit) return;
+  if(mm.beats===song.beats && mm.unit===song.unit){ delete m.beats; delete m.unit; } else { m.beats=mm.beats; m.unit=mm.unit; }
+  const emptyT=cols=>(cols||[]).every(c=>!((c.notes||[]).length || c.strum || c.perc || c.chord));
+  const emptyV=cols=>(cols||[]).every(c=>!(c.deg || c.chord || (c.lyrics||[]).some(x=>x)));
+  (m.tabs||[]).forEach((cols,v)=>{ if(!(row==='tab' && v===vi) && emptyT(cols)) m.tabs[v]=blankTabCols(mm.beats, mm.unit); });
+  (m.voxes||[]).forEach((cols,v)=>{ if(!(row==='vox' && v===vi) && emptyV(cols)) m.voxes[v]=blankVoxCols(mm.beats, mm.unit); });
+}
+/* 整小节声部剪贴板拍平成一段列（深拷贝）；rel＝引用由「实例序号」改写为片段列号 {mi:-1, ci}，供按时值粘贴 */
+function pstFlatten(meas, row, rel){
+  const cp=JSON.parse(JSON.stringify(meas||[])), off=[]; let n=0;
+  cp.forEach(cols=>{ off.push(n); n+=(cols||[]).length; });
+  if(rel) cp.forEach(cols=>(cols||[]).forEach(c=>pstColRefs(c, row, (h,k)=>{
+    const r=h[k], j=r.mi;
+    if(!(j>=0 && j<cp.length && r.ci>=0 && r.ci<(cp[j]||[]).length)){ delete h[k]; return; }
+    h[k]=Object.assign({}, r, {mi:-1, ci:off[j]+r.ci});
+  })));
+  return [].concat(...cp);
+}
+function pstPasteTimed(row, vi, mi0, ci0, flat, rel, head){
+  if(!flat.length) return toast('剪贴板片段为空');
+  const plan=pstTimedPlan(row, vi, mi0, ci0, flat);
+  if(!plan.ok) return toast('未粘贴：'+plan.why);
+  let added=0;
+  mutate(()=>{ added=pstTimedCommit(row, vi, plan, rel); });
+  const a=plan.writes[0].mi+1, b=plan.last+1;
+  toast((head||'')+'已按时值覆盖粘贴 '+flat.length+' 列（第'+a+(b>a?'–'+b:'')+'小节'+(plan.split? '；跨小节线的音已拆开并用连音线相连' : '')
+    +(added? '；曲末已自动补建 '+added+' 个小节' : '')+'）');
+}
+/* o: {row, vi, meas, meters, mi0, ci0, rel, msg(n0)} */
+function pstPasteVoice(o, opt){
+  const {row, vi, meas, mi0, rel}=o, n=meas.length;
+  const d=pstVoiceMeterDiff(o.meters, mi0, n);
+  if(d && opt.meter==null){
+    askPasteMeter(d, v=>pasteMeasure({meter:v}),
+      '保留目标拍号：从目标小节开头按时值铺开（跨小节线的音自动拆开并用连音线相连），不留节拍错误。应用源拍号：这几个小节改用源拍号再按小节替换（拍号整小节生效）。');
+    return;
+  }
+  if(d && !opt.meter) return pstPasteTimed(row, vi, mi0, 0, pstFlatten(meas, row, rel), rel, '保留目标拍号，');
+  const n0=song.measures.length;
+  mutate(()=>{
+    meas.forEach((cols2,k)=>{
+      const mi=mi0+k;
+      while(mi>=song.measures.length) song.measures.push(blankMeasure());
+      pstExpandSimile(mi);   // v67.3 ④
+      const m=song.measures[mi];
+      if(d && opt.meter && o.meters && o.meters[k]) pstApplyMeterM(m, o.meters[k], row, vi);
+      const arr = row==='tab'? m.tabs : m.voxes;
+      const cp=JSON.parse(JSON.stringify(cols2)); if(rel) pstShiftCols(cp, row, mi0);
+      arr[Math.max(0,Math.min(vi,arr.length-1))] = cp;
+    });
+  });
+  toast(o.msg(n0)+(o.ci0>0? ' · 整小节剪贴板从第'+(mi0+1)+'小节开头替换（光标在小节中间也一样；要错开粘贴请少选一列按片段复制）' : ''));
 }
 function pasteMeasure(opt){
   opt=opt||{};
@@ -14431,16 +14910,22 @@ function pasteMeasure(opt){
       let newMs=[];
       if(clipMeasures || clipMeasure){
         const srcs = clipMeasures || [clipMeasure];
-        newMs = srcs.map(srcM=>{
+        const rel = clipMeasures? clipRel===clipMeasures : clipRel===clipMeasure;
+        newMs = srcs.map((srcM,k)=>{
           const src=JSON.parse(JSON.stringify(srcM));
-          return pasteFill(pasteShell(null, src, true), src);   // v63.5 插入的新小节沿用源小节拍号
+          const m=pasteFill(pasteShell(null, src, true), src);   // v63.5 插入的新小节沿用源小节拍号
+          if(rel) pstShiftMea(m, at);   // v67.3 ③ 引用随内容平移
+          return m;
         });
       }else{
         const tvi = barSel.row===clipCols.row? barSel.vi : 0;
-        newMs = clipCols.meas.map(cols2=>{
+        const rel = clipRel===clipCols;
+        newMs = clipCols.meas.map((cols2,k)=>{
           const m=blankMeasure();
+          if(clipCols.meters && clipCols.meters[k]) pstApplyMeterM(m, clipCols.meters[k], clipCols.row, tvi);   // 验收补：插入的新小节沿用源拍号（同 v63.5 整小节插入）
           const arr = clipCols.row==='tab'? m.tabs : m.voxes;
-          arr[Math.max(0,Math.min(tvi,arr.length-1))]=JSON.parse(JSON.stringify(cols2));
+          const cp=JSON.parse(JSON.stringify(cols2)); if(rel) pstShiftCols(cp, clipCols.row, at);
+          arr[Math.max(0,Math.min(tvi,arr.length-1))]=cp;
           return m;
         });
       }
@@ -14456,77 +14941,58 @@ function pasteMeasure(opt){
        v54.6 选中区域优先：拖小节号连选（measureRange）/区域选区（selRange）→ 从选区起点替换 */
     const mi0 = measureRange? measureRange.m1 : (measureSel!=null? measureSel : (selRange? selRange.m1 : sel.mi));
     if(opt.meter==null){ const d=pasteMeterDiff(clipMeasures, mi0); if(d){ askPasteMeter(d, v=>pasteMeasure({meter:v})); return; } }
+    const n0=song.measures.length, rel=clipRel===clipMeasures;
     mutate(()=>{
       clipMeasures.forEach((srcM,k)=>{
         const mi=mi0+k;
         while(mi>=song.measures.length) song.measures.push(blankMeasure());
         const src=JSON.parse(JSON.stringify(srcM));
         song.measures[mi]=pasteFill(pasteShell(song.measures[mi], src, !!opt.meter), src);   // v63.5 保留目标结构字段
+        if(rel) pstShiftMea(song.measures[mi], mi0);   // v67.3 ③
       });
     });
-    toast('已粘贴 '+clipMeasures.length+' 个小节（第'+(mi0+1)+'小节起'+(mi0+clipMeasures.length>song.measures.length-0?'，不足已自动补建':'')+'）');
+    toast('已粘贴 '+clipMeasures.length+' 个小节（第'+(mi0+1)+'小节起'+(mi0+clipMeasures.length>n0?'，不足已自动补建':'')+'）');
     return;
   }
   if(clipRow){
-    const mi = measureSel!=null? measureSel : sel.mi;
-    mutate(()=>{
-      const arr = clipRow.row==='tab'? song.measures[mi].tabs : song.measures[mi].voxes;
-      const vi = Math.max(0, Math.min(sel.row===clipRow.row? sel.vi : 0, arr.length-1));
-      arr[vi] = JSON.parse(JSON.stringify(clipRow.cols));
-    });
-    toast('已粘贴'+(clipRow.row==='tab'?'吉他谱':'简谱')+'声部到第'+(mi+1)+'小节');
+    const mi = measureSel!=null? measureSel : sel.mi, row=clipRow.row;
+    const nV = row==='tab'? (song.tabVoices||[]).length : (song.voxVoices||[]).length;
+    const vi = Math.max(0, Math.min(sel.row===row? sel.vi : 0, nV-1));
+    const ci0 = (measureSel==null && sel.row===row && sel.vi===vi)? sel.ci : 0;
+    pstPasteVoice({row, vi, meas:[clipRow.cols], meters:clipRow.meters, mi0:mi, ci0, rel:clipRel===clipRow,
+      msg:()=>'已粘贴'+(row==='tab'?'吉他谱':'简谱')+'声部到第'+(mi+1)+'小节'}, opt);
     return;
   }
   if(clipCols){
     /* v53.7 声部片段粘贴：whole=从光标小节起逐小节替换该声部（不足补建）；
-       列级=从光标列起顺延覆盖（跨小节；曲末截断并提示） */
+       列级=从光标列起按时值覆盖（v67.3 ②，跨小节；曲末不足自动补建） */
     if(sel.row!==clipCols.row && !(selRange && selRange.row===clipCols.row)){ toast('剪贴板是'+(clipCols.row==='tab'?'吉他谱':'简谱')+'片段——先把光标放到对应声部再 Ctrl+V'); return; }
     /* v54.6 选中区域优先：区域选区（含音轨小节格选中）→ 以选区起点/声部为粘贴目标，
        选区小节数与剪贴板不一致时仍按剪贴板长度替换并提示 */
     const rngOn = selRange && selRange.row===clipCols.row;
-    const vi = rngOn? selRange.vi : sel.vi;
+    const nV = clipCols.row==='tab'? (song.tabVoices||[]).length : (song.voxVoices||[]).length;
+    const vi = Math.max(0, Math.min(rngOn? selRange.vi : sel.vi, nV-1));
+    const nm = clipCols.row==='tab'?'吉他谱':'简谱', rel=clipRel===clipCols;
+    const mi0 = rngOn? selRange.m1 : sel.mi, ci0 = rngOn? (selRange.c1||0) : sel.ci;
     if(clipCols.whole){
-      const mi0 = rngOn? selRange.m1 : sel.mi;
-      const spanN = rngOn? (selRange.m2-selRange.m1+1) : null;
-      mutate(()=>{
-        clipCols.meas.forEach((cols2,k)=>{
-          const mi=mi0+k;
-          while(mi>=song.measures.length) song.measures.push(blankMeasure());
-          const arr = clipCols.row==='tab'? song.measures[mi].tabs : song.measures[mi].voxes;
-          arr[Math.max(0,Math.min(vi,arr.length-1))] = JSON.parse(JSON.stringify(cols2));
-        });
-      });
-      toast('已按小节粘贴'+(clipCols.row==='tab'?'吉他谱':'简谱')+'声部（第'+(mi0+1)+'小节起 ×'+clipCols.meas.length+'）'
-        +(spanN!=null && spanN!==clipCols.meas.length? ' · 注意：选区 '+spanN+' 小节 ≠ 剪贴板 '+clipCols.meas.length+' 小节，已按剪贴板长度替换' : ''));
+      const spanN = rngOn? (selRange.m2-selRange.m1+1) : null, nC=clipCols.meas.length;
+      pstPasteVoice({row:clipCols.row, vi, meas:clipCols.meas, meters:clipCols.meters, mi0, ci0, rel,
+        msg:n0=>'已按小节粘贴'+nm+'声部（第'+(mi0+1)+'小节起 ×'+nC+(mi0+nC>n0?'，不足已自动补建':'')+'）'
+          +(spanN!=null && spanN!==nC? ' · 注意：选区 '+spanN+' 小节 ≠ 剪贴板 '+nC+' 小节，已按剪贴板长度替换' : '')}, opt);
       return;
     }
-    const flat=clipCols.meas[0]||[]; let done=0;
-    mutate(()=>{
-      let mi=sel.mi, ci=sel.ci;
-      for(const col of flat){
-        let cols3=null;
-        while(song.measures[mi]){
-          const mea=song.measures[mi];
-          const arr = clipCols.row==='tab'? mea.tabs : mea.voxes;
-          cols3 = arr[Math.max(0,Math.min(vi,arr.length-1))];
-          if(cols3 && ci<cols3.length) break;
-          mi++; ci=0; cols3=null;
-        }
-        if(!cols3) break;
-        cols3[ci]=JSON.parse(JSON.stringify(col)); ci++; done++;
-      }
-    });
-    toast(done>=flat.length? '已覆盖粘贴 '+done+' 列（小节时值若不符会在节拍检查中提示）'
-      : '已覆盖粘贴 '+done+'/'+flat.length+' 列（到曲末截断）');
+    pstPasteTimed(clipCols.row, vi, mi0, ci0, clipCols.meas[0]||[], rel);
     return;
   }
   if(!clipMeasure) return toast('剪贴板为空，先选中小节号 Ctrl+C 复制');
   const mi = measureSel!=null? measureSel : sel.mi;
   if(opt.meter==null){ const d=pasteMeterDiff([clipMeasure], mi); if(d){ askPasteMeter(d, v=>pasteMeasure({meter:v})); return; } }
+  const rel=clipRel===clipMeasure;
   mutate(()=>{
     const src = JSON.parse(JSON.stringify(clipMeasure));
     /* 对齐当前声部数量：不足补空、超出截断；v63.5 保留目标小节的结构字段（转调/标记/变拍子） */
     song.measures[mi] = pasteFill(pasteShell(song.measures[mi], src, !!opt.meter), src);
+    if(rel) pstShiftMea(song.measures[mi], mi);   // v67.3 ③
   });
   toast('已粘贴到第'+(mi+1)+'小节');
 }
@@ -14544,6 +15010,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(viewerMode) return;   // 观看模式只读
   const t = e.target;
   if(!(t instanceof Element)) return;
+  const blur0 = blurSel;   // v67.3 按下前光标是否可见（Shift+点区域复制的锚点只认可见光标）
   blurSel = false;   // 点击谱面 → 恢复光标
   lastEnt = null;    /* v48.0 手动点选即放弃回落锚点：改已有音符的变音/八度应就地生效 */
   /* v52.0 行尾布局按钮（GP 式 ○+−）：恢复本行默认 / 下一行首小节移入 / 行尾小节移出 */
@@ -14772,10 +15239,17 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(e.button!==2 && (e.ctrlKey||e.metaKey||e.shiftKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
     const si = row==='tab'? +t.dataset.si : 0;
     if(noteSel.length && (noteSel[0].row||'tab')!==row) noteSel=[];   // 跨声部多选时重新开始
+    /* v67.3 验收补：Shift+点第一个音（默认键位）记下原光标——只选中这一个音时 Ctrl+C 复制「原光标 → 此音」之间
+       （「点首音 + Shift+点末音」是最常见的区域选择手势；逐个多选的口径不变） */
+    const anc = (e.shiftKey && !e.ctrlKey && !e.metaKey && !noteSel.length && !blur0 && sel.row===row && sel.vi===vi
+      && (sel.mi!==mi || sel.ci!==ci))? {row, vi, mi:sel.mi, ci:sel.ci} : null;
     const idx = noteSel.findIndex(n=>n.mi===mi&&n.ci===ci&&n.si===si&&n.vi===vi);
     if(idx>=0) noteSel.splice(idx,1); else noteSel.push({mi,ci,si,vi,row});
+    mqSpan=null;   // 验收补：框选后再 Ctrl+点增减音（同一数组就地改）→ 不再按旧框复制
+    nsAnchor = anc? {sel:noteSel, a:anc} : null;
     sel.mi=mi; sel.ci=ci; sel.row=row; sel.vi=vi; if(si) sel.si=si;
     render();
+    if(anc) toast('已选中 1 个音 · Ctrl+C 复制第'+(Math.min(anc.mi, mi)+1)+(anc.mi!==mi? '–'+(Math.max(anc.mi, mi)+1) : '')+'小节光标处到此音之间（继续 Shift/Ctrl+点＝逐个多选）');
     /* 不再弹出技法提示条：技巧在顶部固定功能栏中选择 */
     if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"、"连音线"，相邻等时值音可设"三连音/N连音"':'点"连音线"可跨音符相连；相邻等时值音可设"三连音/N连音"'));
     return;
@@ -14803,10 +15277,22 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
         toast('和音已更新（Ctrl+点击线/间可继续加减）');
         return;
       }
-      mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
-        c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
-      const c3=song.measures[mi].voxes[vi][ci];
-      toast('音高 → '+c3.deg+(c3.oct>0?'（高'+c3.oct+'八度）':c3.oct<0?'（低'+(-c3.oct)+'八度）':''));
+      /* v67.3 改为松手且未移动（＝点击）时才定音高：此前按下即改音高并 return、不建立拖选——
+         从光标所在的音按住拖选（钢琴/五线谱选几小节去复制）永远拖不出选区，反而把这个音改了音高 */
+      /* 验收补：只有「这次按住拖出了新选区」才否决定音高——已存在的旧选区（拖选结束后光标停在选区起点）不算，
+         否则有选区时单击光标音永远定不了音高；单击若因手抖经过起点格把旧选区清掉，按 v67.1 口径恢复它 */
+      const sx=e.clientX, sy=e.clientY, sr0=selRange;
+      dragSel = {row, vi, mi, ci};
+      const up=ev=>{
+        window.removeEventListener('pointerup', up, true);
+        if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>=6 || (selRange && selRange!==sr0)) return;
+        if(!selRange && sr0) selRange=sr0;
+        mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
+          c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
+        const c3=song.measures[mi].voxes[vi][ci];
+        toast('音高 → '+c3.deg+(c3.oct>0?'（高'+c3.oct+'八度）':c3.oct<0?'（低'+(-c3.oct)+'八度）':''));
+      };
+      window.addEventListener('pointerup', up, true);
       return;
     }
   }
@@ -15477,9 +15963,11 @@ function showHeadMenu(kind, cx, cy){
       <button id="tp-ok" class="primary">确定</button></div>`;
     document.body.appendChild(div);
     const inp=document.getElementById('tp-val'); inp.focus(); inp.select();
-    const ok=()=>{ const t2=Math.max(30, Math.min(240, parseInt(inp.value,10)||song.tempo));
+    /* v67.3 读数与新建向导/曲谱信息同口径（tempoInputVal：四舍五入、越界夹紧并说明）——此前 parseInt 把 95.6 截成 95、0 回落原值 */
+    const ok=()=>{ const r=tempoInputVal(inp.validity&&inp.validity.badInput? 'x' : inp.value, song.tempo), t2=r.v;
+      const why = r.why==='high'? '速度最大 240，已调整' : r.why==='low'? '速度最小 30，已调整' : r.why==='bad'||r.why==='empty'? '未填有效数字' : '';
       mutate(()=>{ song.tempo=t2; song.tempoUnit=unit; });
-      closePop(); toast('已设速度 '+tempoGlyph(song)+'='+t2+'（速度术语在曲谱信息弹窗设置）'); };
+      closePop(); toast('已设速度 '+tempoGlyph(song)+'='+t2+'（'+(why||'速度术语在曲谱信息弹窗设置')+'）'); };
     div.addEventListener('click', ev=>{ const b2=ev.target.closest('[data-tu]');
       if(b2){ unit=b2.dataset.tu; div.querySelectorAll('[data-tu]').forEach(x=>x.classList.toggle('on', x===b2)); inp.focus(); return; }
       if(ev.target.closest('#tp-ok')) ok(); });
@@ -15672,7 +16160,11 @@ window.addEventListener('pointerdown', e=>{
     svgSc.addEventListener('pointerdown', e=>{
       if(e.pointerType!=='mouse' || e.button!==0 || audio.playing) return;
       if(e.target.closest && e.target.closest('[data-meahandle]')) return;   // v51.8 宽度手柄拖动不启动框选
-      mqSt={x:e.clientX, y:e.clientY}; mqMoved=false;
+      /* v67.3 验收补：记下按下处——从简谱/五线谱音按住拖＝列选（selRange），框选不得抢走（弹唱谱跨行拖简谱时矩形会扫到下一行的吉他谱格）；
+         从吉他谱格按下时记下所在轨，复制范围只按这一轨算（双轨谱跨行框选会同时扫到另一轨） */
+      const ds=e.target.dataset||{};
+      mqSt={x:e.clientX, y:e.clientY, vox: ds.row==='vox' && ds.mi!==undefined, vi0: (ds.row==='tab' && ds.mi!==undefined)? +ds.vi : null};
+      mqMoved=false;
     });
     window.addEventListener('pointermove', e=>{
       if(!mqSt) return;
@@ -15683,6 +16175,7 @@ window.addEventListener('pointerdown', e=>{
         mqBox.style.cssText='position:fixed;z-index:80;border:1.5px dashed var(--accent);background:var(--accent-soft);pointer-events:none;border-radius:3px';
         document.body.appendChild(mqBox);
       }
+      mqBox.style.display = (mqSt.vox && selRange && selRange.row==='vox')? 'none' : '';   // 简谱列选进行中：不画框选框
       mqBox.style.left=Math.min(mqSt.x,e.clientX)+'px';
       mqBox.style.top=Math.min(mqSt.y,e.clientY)+'px';
       mqBox.style.width=Math.abs(e.clientX-mqSt.x)+'px';
@@ -15699,6 +16192,7 @@ window.addEventListener('pointerdown', e=>{
       const eat=ev=>{ ev.stopPropagation(); ev.preventDefault(); };
       window.addEventListener('click', eat, {capture:true, once:true});
       setTimeout(()=>window.removeEventListener('click', eat, {capture:true}), 300);
+      if(a.vox && selRange && selRange.row==='vox') return;   // v67.3 简谱列选已建立：保留列选，不改写成框选
       const hits=[], seen={};
       const addHit=(mi,ci,si,vi)=>{ const k='k'+mi+':'+ci+':'+si+':'+vi;
         if(!seen[k]){ seen[k]=1; hits.push({mi,ci,si,vi,row:'tab'}); } };
@@ -15714,11 +16208,22 @@ window.addEventListener('pointerdown', e=>{
       });
       if(!hits.length) return;                          // 空框：不清除现有选择
       noteSel=hits;
+      /* v67.3 记下框选覆盖的列范围（含其中的休止列）：Ctrl+C 按这段范围复制——TAB 上按住拖动＝框选，
+         此前 Ctrl+C 只复制光标所在的那一个小节（拖过四小节只粘出第一小节） */
+      { const v0=(a.vi0!=null && hits.some(h=>h.vi===a.vi0))? a.vi0 : hits[0].vi; let A=null, Z=null;
+        document.querySelectorAll('#score .strcell, #score .strumcell').forEach(c=>{
+          if(+c.dataset.vi!==v0) return;   // 只按起点所在轨算范围（其他轨命中的格忽略；技法批量仍作用于全部框中音）
+          const r=c.getBoundingClientRect(), cx=(r.left+r.right)/2, cy=(r.top+r.bottom)/2;
+          if(cx<x1||cx>x2||cy<y1||cy>y2) return;
+          const p={mi:+c.dataset.mi, ci:+c.dataset.ci};
+          if(!A || p.mi<A.mi || (p.mi===A.mi && p.ci<A.ci)) A=p;
+          if(!Z || p.mi>Z.mi || (p.mi===Z.mi && p.ci>Z.ci)) Z=p; });
+        mqSpan = A? {sel:hits, r:{row:'tab', vi:v0, m1:A.mi, c1:A.ci, m2:Z.mi, c2:Z.ci}} : null; }
       const f0=hits[0];
       sel.mi=f0.mi; sel.ci=f0.ci; sel.si=f0.si; sel.vi=f0.vi; sel.row='tab';
       measureSel=null; selRange=null; blurSel=false;
       setRibbon(defaultLayer()); render();
-      toast('框选 '+hits.length+' 个音符 · 在「记号/技法」面板点选即批量应用（如 P.M. 闷音/揉弦/连音线）');
+      toast('框选 '+hits.length+' 个音符 · 在「记号/技法」面板点选即批量应用（如 P.M. 闷音/揉弦/连音线）· Ctrl+C 复制所框范围');
     });
   }
 }
@@ -17212,6 +17717,8 @@ document.getElementById('b-meta').onclick = ()=>{
     <label class="f"><span>1=</span><select id="mm-key">${keyOpts}</select>
       <span>拍号</span><input id="mm-beats" class="short" type="number" min="1" max="12" value="${song.beats}"> /
       <select id="mm-unit"><option ${song.unit===2?'selected':''}>2</option><option ${song.unit===4?'selected':''}>4</option><option ${song.unit===8?'selected':''}>8</option></select></label>
+    <label class="f mm-tprow" for="mm-tempo"><span>速度</span><select id="mm-tunit" aria-label="速度单位" title="速度单位：每分钟多少个该音符">${[['q','♩ 四分'],['e','♪ 八分'],['dq','♩. 附点四分']].map(([v,n])=>`<option value="${v}"${tempoUnitOf(song)===v?' selected':''}>${n}</option>`).join('')}</select>=<input id="mm-tempo" class="short" type="number" inputmode="numeric" min="30" max="240" step="1" value="${+song.tempo||90}" style="width:66px" title="每分钟多少个该音符（30–240）"><span class="fnote">30–240</span></label>
+    <div class="mm-tpwarn" id="mm-tpwarn" role="status" aria-live="polite"></div>
     <label class="f"><span>变调夹</span><input id="mm-capo" class="short" type="number" min="0" max="12" value="${song.capo}"> 品</label>
     <label class="f"><span>速度术语</span><input id="mm-tempoterm" class="mid" list="mm-tempoterms" value="${esc(song.tempoTerm||'')}" placeholder="如 Andante 行板（可留空）" autocomplete="off">
       <datalist id="mm-tempoterms">${TEMPO_TERMS.map(([t,cn])=>`<option value="${esc(t)}">${esc(cn)}</option>`).join('')}</datalist></label>
@@ -17229,6 +17736,27 @@ document.getElementById('b-meta').onclick = ()=>{
     liveMap.forEach(([id,f])=>{ song[f]=origMeta[f]; });
     render(); closeModal();
   };
+  /* v67.3 速度（数值＋单位）：此前本弹窗只有「速度术语」没有 ♩= 数值（新建向导提示「创建后在曲谱信息改」却改不了）。
+     谱面无显式 tempoUnit 且单位下拉仍是旧拍号的隐式单位时，随拍号分母联动（x/8 显示 ♪，其余 ♩）＝老口径；
+     确定时只在数值真被改动、或单位与新拍号的隐式单位不同时才写字段——不碰速度的确定与改前逐字段一致 */
+  const mmTp=document.getElementById('mm-tempo'), mmTu=document.getElementById('mm-tunit'), mmTn=document.getElementById('mm-tpwarn');
+  const mmTp0=mmTp.value, mmTuExplicit=!!song.tempoUnit;
+  /* 单位以「值」论而非「碰没碰过」：下拉选了别的又改回原值不算改动（验收：♩→♪→♩ 确定后曾落显式 q，
+     之后页头改 6/8 播放速度差一倍）。隐式单位＝按拍号分母推（x/8 ♪，其余 ♩） */
+  const mmTuImpl=u=> +u===8? 'e' : 'q';
+  let mmUnitPrev=song.unit;
+  document.getElementById('mm-unit').addEventListener('change', e=>{
+    if(!mmTuExplicit && mmTu.value===mmTuImpl(mmUnitPrev)) mmTu.value = mmTuImpl(e.target.value);
+    mmUnitPrev=+e.target.value;
+  });
+  /* 越界/非法读数：失焦夹紧时在框下另起一行说明，确定时再 toast（与新建向导同一套文案，不再悄悄改值） */
+  const mmTpRead=()=>tempoInputVal(mmTp.validity&&mmTp.validity.badInput? 'x' : mmTp.value, song.tempo);
+  const mmTpWhy=r=> r.why==='high'? '速度最大 240，已调整为 240' : r.why==='low'? '速度最小 30，已调整为 30'
+    : r.why==='bad'? '速度需为数字，已调整为 '+r.v : r.why==='empty'? '速度未填，已调整为 '+r.v : '';
+  let mmTpNote='';
+  const mmTpShow=t=>{ mmTn.textContent=t; mmTn.classList.toggle('on', !!t); };
+  mmTp.addEventListener('input', ()=>{ mmTpNote=''; mmTpShow(''); });
+  mmTp.addEventListener('change', ()=>{ const r=mmTpRead(); mmTpNote=mmTpWhy(r); mmTp.value=r.v; mmTpShow(mmTpNote); });
   document.getElementById('mm-ok').onclick = ()=>{
     liveMap.forEach(([id,f])=>{ song[f]=origMeta[f]; });   // 回滚预览，mutate 快照=修改前
     const oldKey = song.key;
@@ -17245,6 +17773,10 @@ document.getElementById('b-meta').onclick = ()=>{
       song.capo = Math.max(0, Math.min(12, +document.getElementById('mm-capo').value||0));
       song.tempoTerm = document.getElementById('mm-tempoterm').value.trim();   // v42.7 意大利速度术语
       song.pickup = document.getElementById('mm-pickup').checked;              // v42.7 弱起小节
+      if(mmTp.value!==mmTp0 || (mmTp.validity && mmTp.validity.badInput)){   // v67.3
+        const r=mmTpRead(); song.tempo=r.v; if(mmTpWhy(r)) mmTpNote=mmTpWhy(r);
+      }
+      if(mmTuExplicit || mmTu.value!==mmTuImpl(song.unit)) song.tempoUnit = mmTu.value;
       /* 换调自动适应（v60.50 统一 v60.39 重排引擎：伴奏随和弦图取形、旋律重排把位）。
          注意 mm-key 在上面已直接落 song.key——transposeSong 从当前 key 起算会二次移调，
          故此处以 oldKey/newKey 差先回置再交给引擎，结束按用户选的拼写落 key */
@@ -17256,7 +17788,8 @@ document.getElementById('b-meta').onclick = ()=>{
       }
     });
     closeModal();
-    if(tr) toast(`已换调 1=${oldKey} → 1=${song.key}（${dSemi>0?'+':''}${dSemi} 半音）${refingToast(tr)}，可 Ctrl+Z 撤销`);
+    if(tr) toast(`已换调 1=${oldKey} → 1=${song.key}（${dSemi>0?'+':''}${dSemi} 半音）${refingToast(tr)}，可 Ctrl+Z 撤销`+(mmTpNote? '；'+mmTpNote : ''));
+    else if(mmTpNote) toast(mmTpNote+'（'+tempoGlyph(song)+'='+song.tempo+'）');
   };
 };
 
@@ -19595,6 +20128,16 @@ document.querySelectorAll('[data-svgi]').forEach(el=>{ if(!el.querySelector(':sc
 document.querySelectorAll('.lic[data-lic]').forEach(el=>{ el.innerHTML = svgi(el.dataset.lic, 18); });
 /* v41.4 语义图标（data-sic）：包一层 .sicon 仅新版外壳显示，经典版视觉不变（属性名避开谱面热区的 data-si） */
 document.querySelectorAll('[data-sic]').forEach(el=>{ if(!el.querySelector(':scope > .sicon')) el.insertAdjacentHTML('afterbegin','<span class="sicon">'+svgi(el.dataset.sic,12)+'</span>'); });
+/* v67.3 谱面区宽度变化（开合左栏面板 / 右栏）重排时保持纵向锚点：固定版宽谱版面不变、只换显示倍率，
+   此前 scrollTop 不动 → 1536 开合左栏时谱面跳 24%（看到的行换了一批）。以可视区上缘对应的谱面纵坐标为锚 */
+function keepScoreAnchor(fn){
+  const sc=scoreScroller(), svg=document.getElementById('score'), vb=svg&&svg.viewBox.baseVal;
+  if(!sc || !vb || !vb.width || sc.scrollTop<=0 || !LAY_FIXED_NOW){ fn(); return; }
+  const wr=sc.getBoundingClientRect(), R=svg.getBoundingClientRect(), y=(wr.top-R.top)/(R.width/vb.width);
+  fn();
+  const vb2=svg.viewBox.baseVal, R2=svg.getBoundingClientRect();
+  if(vb2 && vb2.width) sc.scrollTop += (R2.top + y*R2.width/vb2.width) - wr.top;
+}
 /* v40.4 滚动器感知：新版通栏框架下制版台内部滚动（#score-wrap），经典/谱架/观看仍走窗口滚动 */
 function scoreScroller(){
   const c=document.body.classList;
@@ -20657,6 +21200,7 @@ function createSong(type, o){
     voxVoices: base==='piano'? ['右手','左手'] : Array.from({length:type==='solo'?0:(o.nVox||(isChordOnly?1:0))},(_,i)=>'旋律'+(i+1)),
     voxNotations: base==='piano'? ['staff','bass'] : (base==='staff'? Array.from({length:o.nVox||1},()=> (type==='instr'&&o.clef)||'staff') : undefined),
     lyricLines: o.lyr!=null?o.lyr:1, measures:[]};
+  if(o.tempoUnit==='q'||o.tempoUnit==='e'||o.tempoUnit==='dq') s.tempoUnit = o.tempoUnit;   // v67.3 新建向导速度单位（v65.0 字段；未传＝老口径，x/8 读作八分）
   if(type==='solo') s.tabStaff = true;                        // 独奏谱：TAB+五线谱联排
   if(o.gtype) s.gtype = o.gtype;                              // v42.3 'lead'电吉他独奏 / 'finger'指弹（决定专属技法面板，字段只增）
   if(o.tuning) s.tuning = o.tuning.slice();                   // v42.3 自定义定弦（Drop D/DADGAD/Open G 等）
@@ -20724,12 +21268,15 @@ function showNewWizard(){
     <button class="nw-int" data-int="func" title="和声框架：简谱＋级数和弦，或小节格和弦进行谱——乐队排练与即兴伴奏两用">${svgi('chordgrid',32)}<b>功能谱</b><span>级数谱 · 和弦格</span></button>
   </div>
   <div id="nw-sub"></div>
+  <!-- v67.3 基础信息逐项带名（产品反馈「创建时没有速度可以填写」：原速度框只有一个 ♩= 前缀、无字名，认不出）；
+       速度单位随拍号联动：x/8 可选 ♪（八分，老口径默认）/ ♩.（附点四分），与页头速度弹窗同一套 song.tempoUnit -->
   <div class="nw-basics">
-    <input id="nw-title" value="未命名曲谱" style="flex:1 1 150px;min-width:120px" title="曲名（演唱/词曲/制谱署名创建后在「曲谱信息」补）">
-    <span class="nb">1=${sels('nw-key',KEY_LIST,'C')}</span>
-    <span class="nb">${sels('nw-beats',NW_BEATS,4)}<b>/</b>${sels('nw-unit',[2,4,8],4)}</span>
-    <span class="nb">♩=<input id="nw-tempo" type="number" value="90" min="30" max="240" style="width:58px"></span>
+    <label class="nb nb-ti"><span class="nw-lab">曲名</span><input id="nw-title" value="未命名曲谱" title="曲名（演唱/词曲/制谱署名创建后在「曲谱信息」补）"></label>
+    <span class="nb"><label class="nw-lab" for="nw-key">调</label>1=${sels('nw-key',KEY_LIST,'C')}</span>
+    <span class="nb"><label class="nw-lab" for="nw-beats">拍号</label>${sels('nw-beats',NW_BEATS,4)}<b>/</b>${sels('nw-unit',[2,4,8],4)}</span>
+    <span class="nb nb-tp"><label class="nw-lab" for="nw-tempo">速度</label><span id="nw-tglyph" class="nb-g" title="四分音符">♩</span><select id="nw-tunit" hidden aria-label="速度单位" title="x/8 拍号的速度单位：♪＝每分钟多少个八分音符；♩.＝每分钟多少个附点四分音符（＝3 个八分，6/8、9/8、12/8 出版常用）"><option value="e">♪ 八分</option><option value="dq">♩. 附点四分</option></select>=<input id="nw-tempo" type="number" inputmode="numeric" value="90" min="30" max="240" step="1" title="每分钟多少个四分音符（30–240）"></span>
   </div>
+  <div class="nw-tpmsg" id="nw-tpmsg" role="status" aria-live="polite"></div>
   <div class="nw-hint">小节数、歌词行、变调夹、定弦、词曲署名——创建后在「曲谱信息」与左栏随时改，先进编辑器。</div>
   <!-- v60.45 导入区重做（Apple 风格两卡；旧 nw-feats 虚线提权框文字溢出截断——产品指出的样式问题）；
        哼唱成谱全站暂下（产品指示）：入口移除，引擎与弹窗流程保留（showHumModal 程序化可达） -->
@@ -20848,6 +21395,33 @@ function showNewWizard(){
   };
   document.querySelectorAll('.nw-int').forEach(c=>c.onclick=()=>{ NW.int=c.dataset.int; renderSub(); });
   renderSub();
+  /* v67.3 速度：单位随拍号分母联动（x/8 出单位下拉，其余固定 ♩）＋输入校验（空/非数字/越界即时提示，
+     失焦或回车夹紧到 30–240；创建时同一函数再读一遍，程序化改值不经事件也落合法值） */
+  const tpEl=document.getElementById('nw-tempo'), tuEl=document.getElementById('nw-tunit'),
+    tgEl=document.getElementById('nw-tglyph'), tmEl=document.getElementById('nw-tpmsg');
+  const nwTU=()=> +document.getElementById('nw-unit').value===8? tuEl.value : 'q';
+  const nwTpRead=()=>tempoInputVal(tpEl.validity&&tpEl.validity.badInput? 'x' : tpEl.value, 90);
+  const nwTpMsg=(r, done)=>{
+    const t = r.why==='empty'? (done? '速度未填，已按默认 '+r.v : '请填写速度（30–240）')
+      : r.why==='bad'? (done? '速度需为数字，已按默认 '+r.v : '速度需为数字（30–240）')
+      : r.why==='low'? (done? '速度最小 30，已调整为 30' : '速度最小 30，创建时按 30')
+      : r.why==='high'? (done? '速度最大 240，已调整为 240' : '速度最大 240，创建时按 240')
+      : '';
+    tmEl.textContent=t; tmEl.classList.toggle('on', !!t);
+    tpEl.classList.toggle('bad', !done && !!t);
+  };
+  const nwTpSync=()=>{
+    const u8 = +document.getElementById('nw-unit').value===8, tu=nwTU();
+    tgEl.hidden=u8; tuEl.hidden=!u8;
+    tpEl.title='每分钟多少个'+TEMPO_UNIT_NAME[tu]+'（30–240）';
+  };
+  document.getElementById('nw-unit').addEventListener('change', nwTpSync);
+  tuEl.addEventListener('change', nwTpSync);
+  /* 边输入边提示只报「再敲也救不回来」的错（>240、非数字）；偏小/空要等失焦或回车再说——
+     否则敲 1→12→120 的过程中每个速度都先闪一下红框，提示区一显一隐、下方内容上下跳（验收发现） */
+  tpEl.addEventListener('input', ()=>{ const r=nwTpRead(); nwTpMsg(r.why==='high'||r.why==='bad'? r : {why:''}, false); });
+  tpEl.addEventListener('change', ()=>{ const r=nwTpRead(); if(r.why && r.why!=='round') nwTpMsg(r, true); else nwTpMsg({why:''}, true); tpEl.value=r.v; });
+  nwTpSync();
   /* 点下拉外任意处收起菜单（ddbtn 自身已 stopPropagation） */
   document.querySelector('.modal').addEventListener('click', e=>{
     if(!e.target.closest('.nw-dd')) document.querySelectorAll('.nw-dd.open').forEach(x=>x.classList.remove('open'));
@@ -20856,7 +21430,12 @@ function showNewWizard(){
     const V=id=>document.getElementById(id).value;
     const o={ title:V('nw-title').trim()||'未命名曲谱', singer:'', lyricist:'', composer:'',
       maker:(typeof profileLoad==='function'&&profileLoad().maker)||'',
-      beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:+V('nw-tempo')||90, nMea:8, capo:0 };
+      beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:nwTpRead().v, nMea:8, capo:0 };
+    /* v67.3 速度单位：只在与老口径默认不同时落字段（x/8 选 ♩.）——默认路径产物与改前逐字段一致 */
+    if(o.unit===8 && nwTU()==='dq') o.tempoUnit='dq';
+    /* 夹紧过（失焦时或此刻）就在建成提示里再说一句，免得弹窗关掉后用户不知道速度被改了 */
+    { const r0=nwTpRead(); if(r0.why && r0.why!=='round') nwTpMsg(r0, true); }
+    const tpNote = tmEl.classList.contains('on')? tmEl.textContent : '';
     let type, tName;
     const it=nwInstOf(NW.instKey);
     if(NW.int==='vocal'){ type='vocal'; o.nVox=NW.vocalN; o.lyr=1; tName= NW.vocalN>1? '合唱歌谱（'+NW.vocalN+' 声部）':'歌谱'; }
@@ -20903,7 +21482,7 @@ function showNewWizard(){
       }
       setRibbon(sel.row==='vox'?'vox':'tab');
       if(guideMsg) render();
-      toast('已新建'+tName+'（8 小节）'+(guideMsg||'——小节数/歌词行/变调夹等在曲谱信息随时改'));
+      toast('已新建'+tName+'（8 小节）'+(guideMsg||'——小节数/歌词行/变调夹等在曲谱信息随时改')+(tpNote? '；'+tpNote : ''));
     });
   };
   /* v55.8 Guitar Pro (.gp) 导入入口 */
@@ -21043,7 +21622,7 @@ function showNewForm(type, gtype){
     const gv=id=>{ const el=document.getElementById(id); return el? el.value : null; };
     const o={ title:V('nw-title').trim(), singer:V('nw-singer').trim(),
       lyricist:V('nw-lyricist').trim(), composer:V('nw-composer').trim(), maker:V('nw-maker').trim(),
-      beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:+V('nw-tempo')||90,
+      beats:+V('nw-beats'), unit:+V('nw-unit'), key:V('nw-key'), tempo:tempoInputVal(V('nw-tempo'),90).v,   /* v67.3 与一屏向导同口径夹紧 30–240 */
       nMea:Math.max(1,Math.min(200,+V('nw-mea')||8)),
       capo:!noTab? +gv('nw-capo')||0 : 0,
       nTab:!noTab? +gv('nw-ntab')||1 : 0, nVox:+(gv('nw-nvox')||1), lyr:+V('nw-lyr'),
@@ -21182,7 +21761,10 @@ function exportPNG(scale){
      #3a5ce0）；② 墨色不再取当前主题的计算值——深色主题下导出的图曾是浅墨压白纸，几乎看不见。 */
   let vb = null;
   const xml = withCleanSnap(()=>{ const v = svg.viewBox.baseVal; vb = {width:v.width, height:v.height};
-    return svgResolveVars(new XMLSerializer().serializeToString(scoreExportClone())); });
+    /* v67.3 克隆的 width/height 改为版面尺寸：此前带着屏幕显示宽（随窗口/缩放/左栏开合而变），
+       同一首谱在不同窗口导出的 PNG 抗锯齿不同；画布尺寸本就按 viewBox，内容不变 */
+    const c = scoreExportClone(); c.setAttribute('width', v.width); c.setAttribute('height', v.height);
+    return svgResolveVars(new XMLSerializer().serializeToString(c)); });
   const k = scale||2;
   const img = new Image();
   const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
@@ -27253,7 +27835,7 @@ function alignHeader(){
       if(!w || Math.abs(w-LAST_PAPER_W)<2) return;
       if(noWrapOn() || PRINT_PAGING || document.body.classList.contains('printing') || startPadOn()) return;   // 启动台：谱面不可见，离台时 hideStartPad 自会同步重排
       const now=Date.now(); if(now-tP>1000){ tP=now; nP=0; } if(++nP>3) return;
-      try{ render(); alignHeader(); }catch(_){}
+      try{ keepScoreAnchor(()=>render()); alignHeader(); }catch(_){}
     }); }).observe(paperEl);
   }
   /* v63.0 A3-⑤（P3-31）浮层菜单出现或尺寸变化时夹回视口：各菜单按 innerWidth-250/280/320 估宽定位，

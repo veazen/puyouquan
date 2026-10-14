@@ -1,7 +1,7 @@
 /* v53.7 拖选节拍/小节 + 全粒度复制粘贴回归：
    - 拖小节号连选整小节（measureRange，跨全部声部）→ Ctrl+C 多小节剪贴板 → 粘贴逐小节覆盖、不足自动补建
    - 拖拍区连选多拍（selRange 对齐拍边界，可跨小节）
-   - 列级片段复制 → 从光标列顺延覆盖粘贴（跨小节、曲末截断）
+   - 列级片段复制 → 从光标列顺延覆盖粘贴（跨小节；v67.3 起按时值、曲末自动补建，详见 tv_paste）
    - whole 多小节声部（Ctrl+点小节线连选）→ 按小节替换声部粘贴
    - 回归：单小节 clipMeasure / 单声部 clipRow 原路径不变 */
 const { chromium } = require('playwright');
@@ -64,16 +64,18 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { oneBeat, multi }; })()`);
   T(r.oneBeat && r.multi === '0:0-0:2', 'T3 拖拍区连选多拍', JSON.stringify(r));
 
-  // T4 列级片段复制→顺延覆盖粘贴（跨小节+曲末截断）
+  // T4 列级片段复制→顺延覆盖粘贴（跨小节）。v67.3 口径变更：列级片段改按时值覆盖，曲末不足自动补建小节
+  //    （与整小节/整声部粘贴「不足自动补建」一致；此前曲末截断丢列）——第 3 小节放 2 列，第 3 列顺延进补建的第 4 小节，余 3 拍补休止
   r = await pg.evaluate(`(()=>{
     const s=${mkSong}; loadSong(s);
     selRange={row:'tab',vi:0,m1:0,c1:0,m2:0,c2:2}; copyMeasure();   // 复制小节1前3列 f=0,1,2
     const seg = clipCols? clipCols.meas[0].length : 0;
-    selRange=null; sel={mi:2,row:'tab',vi:0,ci:2,si:3};             // 光标到小节3第3列（仅剩2列→截断）
+    selRange=null; sel={mi:2,row:'tab',vi:0,ci:2,si:3};             // 光标到小节3第3列（本小节仅剩2拍）
     pasteMeasure();
-    const f=(m)=>song.measures[m].tabs[0].map(c=>c.notes[0].f).join(',');
-    return { seg, m2:f(2), nMea:song.measures.length }; })()`);
-  T(r.seg === 3 && r.m2 === '2,3,0,1' && r.nMea === 3, 'T4 列级顺延覆盖+曲末截断', JSON.stringify(r));
+    const f=(m)=>song.measures[m].tabs[0].map(c=>c.notes[0]? c.notes[0].f : '-').join(',');
+    const beats=(m)=>song.measures[m].tabs[0].reduce((a,c)=>a+beatsOf(c,4),0);
+    return { seg, m2:f(2), m3:song.measures[3]? f(3) : '', b3:song.measures[3]? beats(3) : 0, nMea:song.measures.length }; })()`);
+  T(r.seg === 3 && r.m2 === '2,3,0,1' && r.nMea === 4 && /^2,/.test(r.m3) && r.b3 === 4, 'T4 列级按时值顺延覆盖+曲末自动补建', JSON.stringify(r));
 
   // T5 whole 多小节声部：Ctrl+点小节线式 selRange → 复制 → 按小节替换声部（第3小节起，不足补建）
   r = await pg.evaluate(`(()=>{
