@@ -2111,6 +2111,8 @@ body.shell #left-flyout .nlit.on{position:relative;z-index:1;background:var(--ac
 body.shell #left-flyout .nlit.nl-midi{min-height:28px;border-radius:8px;border-color:var(--faint);
   padding:0 8px;margin-left:auto}
 body.shell #left-flyout .nlit.nl-midi + .nlit.nl-midi{margin-left:0}
+/* v67.2 简谱联排图标置灰（光标在旋律行且多条吉他轨：按轨开关不猜作用轨，点击提示先选轨） */
+.nlit.nl-dis,body.shell #left-flyout .nlit.nl-dis{opacity:.38;cursor:not-allowed}
 /* ③ 变调夹工具排：一行收齐 [变调夹][夹位状态]──[指板/键盘]；.shell-note 的整行占位在此覆盖 */
 body.shell #tab-capo-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin-top:7px;width:100%}
 body.shell #tab-capo-row .shell-note{display:inline;width:auto;margin:0;line-height:28px;font-size:10.5px}
@@ -2425,8 +2427,8 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
       <div class="rg-body" id="tab-nota-lit">
         <div class="nl-cap">显示</div>
         <button class="nlit on" id="nl-tab6" title="六线谱：吉他声部的基础记谱，恒点亮显示"><span class="lic" data-lic="tab6"></span></button>
-        <button class="nlit" id="nl-tabst" title="五线谱：点亮=TAB 上方同源联排标准五线谱（品位按调号自动拼写翻译）；已点亮再点可换谱号或关闭"><span class="lic" data-lic="staff5"></span></button>
-        <button class="nlit" id="nl-tabjp" title="简谱：点亮=TAB 上方同源联排简谱行（每列最高发声音自动翻译为首调唱名，含八度点/变音/时值线）"><span class="lic" data-lic="jianpu"></span></button>
+        <button class="nlit" id="nl-tabst" title="五线谱：点亮=TAB 上方同源联排标准五线谱（品位按调号自动拼写翻译）；已点亮再点可换谱号或关闭。整曲开关：作用于全部吉他轨"><span class="lic" data-lic="staff5"></span></button>
+        <button class="nlit" id="nl-tabjp" title="简谱：点亮=当前音轨 TAB 上方同源联排简谱行（每列最高发声音自动翻译为首调唱名，含八度点/变音/时值线）；每条音轨各自开关"><span class="lic" data-lic="jianpu"></span></button>
         <!-- v60.25 声部级 MIDI 导入（产品负责人指定：显示图标右边）：导入到当前吉他声部，弦/品自动指派 -->
         <button class="nlit nl-midi" id="nl-tabmidi" title="MIDI 导入到当前吉他声部：选一条音轨，按本谱拍号/调弦/变调夹量化并自动指派弦品，覆盖该声部（可一步撤销）">MIDI</button>
       </div>
@@ -4064,6 +4066,9 @@ function arrangeAccompaniment(melody, opt){
   out.voxDual=[true,false,false];
   out.funcNames=true;
   out.tabVoices=[]; delete out.tabStaff; delete out.func; delete out.chordOnly;
+  /* v67.2 验收补：逐轨简谱联排（tabJpVoices）随吉他轨一起清掉，不留轨数为 0 的脏数组。
+     只清逐轨模式；老谱整曲 tabJp:true 照旧保留（它在只有五线谱的伴奏谱上会触发「转1=X」文字，v67.1 就如此，动它改老谱观感） */
+  if(Array.isArray(out.tabJpVoices)){ delete out.tabJp; delete out.tabJpVoices; }
   out.measures.forEach((m,mi)=>{ m.voxes=[mel[mi]||blank(), blank(), blank()]; m.tabs=[]; });
   const texId0 = opt.texId || (texAvail(out.beats, out.unit)[0]||{}).id || 'slow';   // v63.0 A8 缺省织体按拍号挑
   const gen=genAccompaniment(texId0, 0, out.measures.length-1, {chordVi:0, rhVi:1, lhVi:2});
@@ -5787,12 +5792,21 @@ function normalizeSongFields(v, key){
 /* v67.0 新增可选字段（只增不改；旧谱没有＝原义，migrate 不需转换，旧版本打开时忽略、回落调内音）：
    倚音音符 acc（col.grace / col.graceA 的 notes[i].acc，调外倚音）、col.ornAcc / col.ornAccLo（装饰音上 / 下邻音的变音）——
    只由「改记谱调（音不变）」respellSongKey 在换调号会改变它们音高时写入；MusicXML 导入的调外倚音也带 acc。 */
+/* v67.2 新增可选字段 song.tabJpVoices（简谱联排行按音轨开关，见 tabJpOn）：按 TAB 声部下标的布尔数组，只增不改——
+   song.tabJp 原名原义保留（老谱 tabJp:true 且无 tabJpVoices＝全部 TAB 轨都有联排行，观感与 v67.1 逐字节相同），migrate 不转换、不补默认值；
+   有 tabJpVoices 时 tabJp 是「至少一条轨点亮」的镜像，全部关掉时两个字段一起删。旧版本打开新谱时忽略 tabJpVoices（按整曲 tabJp 显示全部轨）。
+   唯一的载入规整：数组长度≠TAB 轨数（旧版本页面增删过轨）时丢掉数组回到老口径，见下方 v===3 分支。 */
 function migrate(s){
   if(s && typeof s==='object') normalizeSongFields(s);   /* v62.5 A1a：单一入口按字段规范化 */
   /* v67.0 新可选字段 TAB 音符 note.tieIn（逐音连音线终点＝同声部同弦前一音的延音，见 tabTieMap）：旧谱无此键＝无此类连音，
      不迁移、不补默认值；旧谱 TAB 列级 col.tie（v55.8–v66.9 GP / MIDI 导入写的）与纯连音线 tk 原样保留、不改写成 tieIn——
      改写会改变旧谱观感（列级 col.tie 在 TAB 上从来不画、不影响播放），红线是旧谱逐字节不变 */
-  if(s.v===3){ if(!s.customChords) s.customChords={}; return s; }
+  if(s.v===3){ if(!s.customChords) s.customChords={};
+    /* v67.2 tabJpVoices 长度≠TAB 轨数：只会是没刷新的旧版本页面（v67.1 及之前不认识也不维护这个数组）增删过轨——旧页面按整曲 tabJp
+       显示全部轨，这里丢掉失配的数组回到老口径（全部轨点亮，与旧页面最后所见一致），免得点亮态整体错位到别的轨或一条都不显示。
+       本版自己的增删轨（tabJpInsertTrack / tabJpRemoveTrack）始终保持等长，合法数据零改动 */
+    if(s.tabJp && Array.isArray(s.tabJpVoices) && s.tabJpVoices.length!==(s.tabVoices||[]).length) delete s.tabJpVoices;
+    return s; }
   if(s.v===2){
     s.v=3; s.tabVoices=['吉他1']; s.voxVoices=['旋律1']; s.lyricLines=1;
     s.lyricist=s.lyricist||''; s.composer=s.composer||'';
@@ -6319,6 +6333,50 @@ function jpTieInAt(mi, vi, ci, TM, v, pv){
   if(o.mi!==pm || o.ci!==pc) return false;
   pv = pv || jpColOf(pm, vi, pc, tabColChords(pm, vi)[pc]); return !!(pv && pv.deg && pv.s===v.s);
 }
+/* ===== v67.2 简谱联排行按音轨开关（负责人：「我只点击了旋律轨映射简谱，结果三个谱都出现映射。」）=====
+   数据：song.tabJp（v59.1 整曲布尔，原名原义保留）＋ 新增可选字段 song.tabJpVoices（按 TAB 声部下标的布尔数组，与 voxDual / tabCapos 同风格）：
+     · 无 tabJp → 全部轨都没有联排行（tabJpVoices 若是旧版本关掉 tabJp 时留下的残余，一律不认）；
+     · tabJp:true、无 tabJpVoices（老谱 / v67.1 及之前点亮的谱）→ 全部 TAB 轨都有联排行，与 v67.1 逐字节相同；
+     · tabJp:true、有 tabJpVoices → 逐轨：tabJpVoices[vi] 为真才有；tabJp 是「至少一条轨点亮」的镜像，全部关掉时两个字段一起删（回到干净状态）。
+   渲染 / 排版 / 纵向度量 / 行首连线 / 播放块 / 编辑态「!」一律经 tabJpOn(vi) 逐轨判定；
+   没点亮的轨走与 tabJp 全关时完全相同的分支（i>0 上方照加 tabGap2、谱表↔TAB 间距回到 tGapDn），纵向几何与全关时一致。 */
+function tabJpOn(vi){
+  if(!song || !song.tabJp) return false;
+  const a = song.tabJpVoices;
+  return Array.isArray(a)? !!a[vi] : true;
+}
+function tabJpAny(){   /* 至少一条 TAB 轨有联排行（转调「转1=X」文字 / 单次 render 缓存用）；老谱口径＝song.tabJp */
+  if(!song || !song.tabJp) return false;
+  const a = song.tabJpVoices;
+  return Array.isArray(a)? (song.tabVoices||[]).some((_,vi)=>!!a[vi]) : true;
+}
+function tabJpVoicesNow(){   /* 现有各轨的点亮态（老谱全亮 → 物化为全真；全关 / 残余 → 全假），长度＝TAB 轨数 */
+  return (song.tabVoices||[]).map((_,vi)=>tabJpOn(vi));
+}
+function tabJpCommit(a){     /* 写回：至少一条亮 → tabJp:true + tabJpVoices；全关 → 两个字段都删 */
+  if(a.some(Boolean)){ song.tabJp = true; song.tabJpVoices = a.map(Boolean); }
+  else { delete song.tabJp; delete song.tabJpVoices; }
+}
+function setTabJpVoice(vi, on){ const a = tabJpVoicesNow(); a[vi] = !!on; tabJpCommit(a); }
+/* 轨道增删（调用时轨还没插入 / 还没删）：新轨默认不亮（老谱全亮先物化再插 false）；删轨同步 splice。
+   未点亮过的谱什么字段都不写；老谱全亮删轨时其余轨照旧全亮（不物化，数据不变） */
+function tabJpInsertTrack(at){
+  if(!song.tabJp) return;
+  const a = tabJpVoicesNow(); a.splice(at, 0, false); tabJpCommit(a);
+}
+function tabJpRemoveTrack(vi){
+  if(!song.tabJp || !Array.isArray(song.tabJpVoices)) return;
+  const a = tabJpVoicesNow(); a.splice(vi, 1); tabJpCommit(a);
+}
+/* 左栏「当前音轨」面板上「简谱」图标作用的 TAB 轨＝面板显示的那条轨：光标在 TAB 行＝sel.vi（夹到范围内，与面板 curI 同口径）。
+   光标不在 TAB 行时面板显示的是旋律轨（换窗口 / 点左栏图层都会出现「吉他谱面板可见、光标在旋律行」）——
+   只有一条吉他轨时无歧义仍作用于它；多条时不猜（验收：此前沿用「最近显示过的 TAB 轨」全局变量，跨窗口串用、面板写着旋律轨却点亮看不见的吉他轨），
+   返回 -2：图标置灰，点击提示先选中吉他轨。-1＝本谱没有吉他轨 */
+function tabJpPanelVi(){
+  const n = (song && song.tabVoices || []).length; if(!n) return -1;
+  if(sel.row==='tab') return Math.max(0, Math.min(sel.vi|0, n-1));
+  return n===1? 0 : -2;
+}
 let JP_MEMO = null;   /* 单次 render 内的虚拟列 / 连音表缓存（render 外调用一律现算） */
 function tabJpCols(mi, vi, TM){
   const mk = JP_MEMO && (mi+':'+vi+':'+(TM?1:0)); if(mk && JP_MEMO.has(mk)) return JP_MEMO.get(mk);
@@ -6372,6 +6430,7 @@ function jpRowExtras(sys){
   const arcRise = (nSpan, dx)=> Math.min(9+Math.min(6, nSpan*2), Math.max(6, dx*0.35));   /* 同 jpTieArcSVG / tupArcSVG */
   const hiUp = hi=> hi? 7.5+(hi-1)*4.2 : 0;                                              /* 同 jpArcBase 的高八度点让位 */
   return (song.tabVoices||[]).map((_,vi)=>{
+    if(!tabJpOn(vi)) return null;   /* v67.2 逐轨：没点亮的轨不量（sysMetrics 对它走全关分支） */
     const TM = (JP_MEMO && JP_MEMO.get('tm'+vi)) || tabTieMap(song, vi); if(JP_MEMO) JP_MEMO.set('tm'+vi, TM);
     let up=0, under=0, down=0, inkUp=13, stDn=0, nav=false;
     mis.forEach(mi=>{
@@ -6924,7 +6983,7 @@ function measureLayout(mea){
   const scan = (cols, isVox, band)=>{
     let cum=0; const wB=new Array(beats).fill(0);
     /* v67.1 简谱联排行（tabJp）：TAB 列同时是一行 17 号简谱数字——另立 j 带（数字半宽/变化音左伸/增时线拍位刚杆，与简谱声部同口径） */
-    const jpV = (!isVox && song.tabJp && myIdx>=0)? tabJpCols(myIdx, +band.slice(1)) : null;
+    const jpV = (!isVox && myIdx>=0 && tabJpOn(+band.slice(1)))? tabJpCols(myIdx, +band.slice(1)) : null;   /* v67.2 逐轨：只有点亮的轨登记 j 带 */
     const bandL = band+'L';                    // 该声部的歌词行：与音符行不同基线，永不相撞
     cols.forEach((c, ci)=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
@@ -7356,7 +7415,7 @@ function measureLayout(mea){
 }
 function layoutSystems(){
   /* v67.1 简谱联排行：render 之外单独量版面（回归套件 / 打印分页预估）时也给虚拟简谱列一份临时缓存（量版面期间谱不变） */
-  if(!JP_MEMO && song && song.tabJp){ JP_MEMO = new Map(); try{ return layoutSystems(); } finally{ JP_MEMO = null; } }
+  if(!JP_MEMO && song && tabJpAny()){ JP_MEMO = new Map(); try{ return layoutSystems(); } finally{ JP_MEMO = null; } }
   const availW = PAGE_W - 2*MARGIN - STAFF_HEAD_W;
   /* v64.9 B2b 真调号：KSW[mi]＝第 mi 小节换调号要画的字形宽（还原号＋新调号）。只在有五线谱行时留；
      行内的换调号画在上一小节线与本小节之间的间隙（ksBefore），行首的换调号由行首调号表达（不留间隙）；
@@ -7927,7 +7986,7 @@ function tabRingPlan(systems){
       /* v67.1 简谱联排行（tabJp）：顺带记本系统本声部 TAB 顶线上方真实墨迹最高点 up（相对 tabTop，向上为负）——
          固定装饰 obstOf + 标注带各槽文字（字高 9.3：10.5 号斜体汉字标注最高）+ 延续线段文字 + obstOf 不收的锚定图形
          （泛音菱形 yy−7、拍弦方框 yy−6）+ 1 弦品位数字上伸 5。只在点亮联排行时算，供 jpRowExtras 的 band（未点亮时零开销、零变化） */
-      const JPU = !!song.tabJp;
+      const JPU = tabJpOn(vi);   /* v67.2 逐轨 */
       let upJ = -5;
       sys.measures.forEach(lm=>{
         if(isSim(lm.mi)) return;
@@ -8097,7 +8156,7 @@ function systemExtras(sys){
     diagExtra,
     diagOn,
     ringEx: (sys.ring||[]).map(r=>r.ex||0),   /* v66.8 延续线段/标注带堆叠超出旧口径的高度（tabRingPlan） */
-    jpEx: song.tabJp? jpRowExtras(sys) : null   /* v67.1 简谱联排行逐声部真实墨迹（只在点亮时计算） */
+    jpEx: tabJpAny()? jpRowExtras(sys) : null   /* v67.1 简谱联排行逐声部真实墨迹（只在点亮时计算；v67.2 逐轨：未点亮的轨记 null） */
   };
 }
 function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn, ringEx, jpEx){
@@ -8116,7 +8175,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
   let tLedUp=0, tGapDn=14*vs;
   /* v67.1 联排行纵向（逐系统逐声部真实墨迹，见 jpRowExtras；缺省＝整曲口径）。取代 v64.2 的整曲 jpTechBand（固定 14、只认技法）：
      技法字母 / 逐音连音线弧（v67.0 tieIn）/ 推弦 / 文字和弦名 / 标注 / 房子括线 / 排练 / 转调 / 𝄋𝄌 各按实测墨迹顶给 band */
-  const JX = song.tabJp? (jpEx || jpRowExtras(null)) : null;
+  const JX = tabJpAny()? (jpEx || jpRowExtras(null)) : null;
   if(song.tabStaff && nT){
     const Kt = staffKeyInfo(), SNt = strN();
     const SBt = song.tabClef==='bass'? 25 : 37;
@@ -8134,21 +8193,23 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     tGapDn = Math.max(14*vs, (dnPx? dnPx+5 : 0) + (decPx>0? decPx+4 : 0) + 6);
   }
   for(let i=0;i<nT;i++){
-    if(i>0) y += JX? 0 : tabGap2;   /* v67.1 联排行时上方标注改由各声部自己的 band 让出（在联排行与 TAB 之间） */
+    /* v67.2 逐轨：本轨没点亮联排行（jOn 假）时下面各处一律走 tabJp 全关时的同一分支——上方照加 tabGap2、谱表↔TAB 用 tGapDn、不让 D.C. 文字、不排联排行 */
+    const jOn = !!JX && tabJpOn(i);
+    if(i>0) y += jOn? 0 : tabGap2;   /* v67.1 联排行时上方标注改由各声部自己的 band 让出（在联排行与 TAB 之间） */
     /* v67.1 三行联排（五线谱 / 简谱联排行 / TAB）：TAB 顶标注带改由联排行下方 band 让出；五线谱与联排行之间按五线谱底线以下
        真实墨迹（stDn：下符干 / 谱下符杠 / 符尾 / 加线符头 / 临时记号 / 向下连音弧，tabStaffInkBelow）留 5px——
        验收补：此前只留加线深度+3，宽音域成组八分的下垂符杠压进联排行数字与高音点（v67.0 有 14 下限才没压） */
-    const gDn = JX? Math.max(4, ((JX[i]||{}).stDn||0) + 5 - ((JX[i]||{}).pad||7)) : tGapDn;
+    const gDn = jOn? Math.max(4, ((JX[i]||{}).stDn||0) + 5 - ((JX[i]||{}).pad||7)) : tGapDn;
     if(song.tabStaff){ y += 15*vt + tLedUp; tabStaffB.push(y+30); y += 30 + gDn; }   // 联排五线谱：TAB 上方 5 线谱表（谱表↔TAB 间距像素级自适应）
     else tabStaffB.push(0);
     /* v67.1 验收补：第 1 轨小节末的 D.C./D.S./Fine 写在其 TAB 下方 stemY+14（navMarkSVG），联排时第 2 轨联排行紧贴其下——
        文字底（≈stemY+14.5）到联排行最高墨迹留 5px（只在本系统有这类文字时让，否则版面不变） */
-    if(JX && i===1 && !song.tabStaff && (JX[i]||{}).nav) y += Math.max(0, 14.5 + 5 - (6 + tabBotPad) - ((JX[i]||{}).pad||7));
+    if(jOn && i===1 && !song.tabStaff && (JX[i]||{}).nav) y += Math.max(0, 14.5 + 5 - (6 + tabBotPad) - ((JX[i]||{}).pad||7));
     /* v59.1 简谱联排行（song.tabJp）：TAB 上方（联排五线谱之下）一行首调简谱翻译。
        基线上方 22px 容纳高八度点、下方 18px 容纳减时线+低八度点 */
     /* v64.2 B4a ④（P2-11）有技法字母（h/p/S/推弦等，画在 TAB 顶线上方）时，简谱联排行与 TAB 之间
        另留 14px 独立标注带——此前字母落进简谱数字带，读起来像「5h6」 */
-    if(JX){ const jx = JX[i] || {top:22, dn:14, band:0};   /* v67.1 联排行＝简谱声部同字号：上伸 top / 墨迹深 dn / 净空：无标注时 9（让过 1 弦品位数字上伸≈4.5），有标注时 4 + band */
+    if(jOn){ const jx = JX[i] || {top:22, dn:14, band:0};   /* v67.1 联排行＝简谱声部同字号：上伸 top / 墨迹深 dn / 净空：无标注时 9（让过 1 弦品位数字上伸≈4.5），有标注时 4 + band */
       tabJpT.push(y); tabJpB.push(y+jx.top); y += jx.top + jx.dn + 4 + Math.max(5, jx.band); }
     else { tabJpB.push(0); tabJpT.push(0); }
     /* v54.8 TAB 下缘净距底线（用户反馈：无预留记号的行简谱顶进 TAB，换页后再现）：
@@ -8309,7 +8370,7 @@ function navMarkSVG(p, mea, mx, bx, yTop, yBot){
   }
   /* v41.3 中途转调标记：小节头上方「转1=X」粗体（一期为标注式，调号/拼写保持谱首调） */
   /* v64.9 B2b：简谱行要读 1=X，照旧标注；纯五线谱且真调号时由调号本身表达，不再重复写字 */
-  if(mea.keyTo && (mea.keyToSig==='text' || (song.voxVoices||[]).some((_,i)=>!isStaffNota((song.voxNotations||[])[i])) || song.tabJp || (song.voxDual||[]).some(Boolean)))
+  if(mea.keyTo && (mea.keyToSig==='text' || (song.voxVoices||[]).some((_,i)=>!isStaffNota((song.voxNotations||[])[i])) || tabJpAny() || (song.voxDual||[]).some(Boolean)))   /* v67.2 任一轨有联排行即要读 1=X */
     p.push(`<text x="${(markX+2).toFixed(1)}" y="${(yTop+1.5).toFixed(1)}" font-size="11" font-weight="700" text-anchor="start" fill="var(--ink)">转1=${esc(mea.keyTo)}</text>`);
   const txts=[]; if(mea.dc) txts.push('D.C.'); if(mea.ds) txts.push('D.S.'); if(mea.fine) txts.push('Fine');
   if(txts.length)
@@ -8888,7 +8949,7 @@ function render(){
   if(KEY_REPEAT){ if(!render._raf) render._raf=requestAnimationFrame(()=>{ render._raf=0; KEY_REPEAT=false; try{ render(); }catch(e){ console.error('渲染异常', e); } }); return; }
   /* 代理指标：耗时与版式调用数（measureLayout 实测只占渲染 3%，且版式对象会被两端对齐就地改写，不做跨调用缓存） */
   const t0=performance.now(); RENDER_STAT.layoutCalls=0;
-  JP_MEMO = song.tabJp? new Map() : null;
+  JP_MEMO = tabJpAny()? new Map() : null;
   try{ renderCore(); } finally{ JP_MEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
 }
 function renderCore(){
@@ -9242,7 +9303,7 @@ function renderCore(){
       song.tabVoices.forEach((_,vi2)=>{
         const tt=oy+M.tabTops[vi2];
         if(song.tabStaff) segs.push([oy+M.tabStaffB[vi2]-30, oy+M.tabStaffB[vi2]]);   // 联排五线谱与其 TAB 各为一行，行首相连
-        if(song.tabJp && M.tabJpB && M.tabJpB[vi2]) segs.push([oy+M.tabJpB[vi2]-13, oy+M.tabJpB[vi2]+4]);   /* v67.1 简谱联排行同简谱声部行（vy−13～vy+4）入行首连线 */
+        if(tabJpOn(vi2) && M.tabJpB && M.tabJpB[vi2]) segs.push([oy+M.tabJpB[vi2]-13, oy+M.tabJpB[vi2]+4]);   /* v67.1 简谱联排行同简谱声部行（vy−13～vy+4）入行首连线 */
         segs.push([tt, tt+staffH()]);
       });
       song.voxVoices.forEach((_,vi2)=>{
@@ -9511,7 +9572,7 @@ function renderCore(){
          每列取最高发声音（含 ×实音/扫弦补全的 chordImpliedNotes 口径），midiToVoxCol 转
          首调唱名（数字+八度点+♯♭+附点+减时线/增时线简写）；只读派生视图，不参与点击热区。
          注：与联排五线谱同口径不计变调夹（记谱=指法相对音高） */
-      if(song.tabJp && M.tabJpB && M.tabJpB[vi]){
+      if(tabJpOn(vi) && M.tabJpB && M.tabJpB[vi]){   /* v67.2 逐轨：只画点亮的轨 */
         /* ===== v67.1 TAB+简谱 联排行（song.tabJp）：与简谱声部同一套刻版代码 =====
            TAB 每列先翻成虚拟简谱列（tabJpCols），再走 jpHeadSVG / jpMarksSVG / jpDashesSVG / jpBeamSVG / jpTie* / tupArcSVG
            ——17 号数字、成组减时线、qxs 拍位增时线、连音线/连音弧、staffBarMarks 小节线，全部与简谱声部同口径。只读派生视图。 */
@@ -9622,7 +9683,7 @@ function renderCore(){
            （tabBot+10，符干之间）——此前仍写在 tabTop−6，压住联排行的低音点 / 小节线，像联排行自己报错；未点亮时位置不变 */
         if(isErr)
           p.push(`<rect x="${mx}" y="${tabTop-4}" width="${lm.L.w}" height="${stemY-tabTop+8}" fill="var(--danger)" opacity="0.07"/>
-            <text x="${mx+lm.L.w-8}" y="${song.tabJp? tabBot+10 : tabTop-6}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);
+            <text x="${mx+lm.L.w-8}" y="${tabJpOn(vi)? tabBot+10 : tabTop-6}" font-size="11" font-weight="bold" fill="var(--danger)">!</text>`);   /* v67.2 逐轨：本轨有联排行才挪到小节号带 */
         { /* v54.5 GP 式整块选区色块（撤逐列条带+虚线框） */
           const sp=rangeSpan('tab',vi,lm.mi,lay,lm.L.w);
           if(sp) p.push(`<rect x="${(mx+sp[0]).toFixed(1)}" y="${tabTop-16}" width="${(sp[1]-sp[0]).toFixed(1)}" height="${stemY-tabTop+22}" fill="var(--accent)" opacity="0.14"/>`);
@@ -10229,7 +10290,12 @@ function renderCore(){
              此前它整条盖在上一条的 beatzone 上（实测吉他1 的 229–251 被吉他2 的 231–249 全吃掉，
              因为后画的赢命中测试），用户报告的「双吉他时无法选中吉他一时值线」就是这个。
              钳完不足 4px 就整条不画：本列仍可点弦格选中，不需要这条兜底带。 */
-          { const upTop = vi>0? Math.max(tabTop-18, prevBeatBot) : tabTop-18;
+          /* v67.2 验收补：本轨有简谱联排行时这条热区上伸罩住联排行——点联排数字＝选中本轨本列（联排行本身仍是只读派生视图）。
+             此前联排行不在任何热区里：点数字清光标、点数字上沿落到上一轨的拍选区（按轨开关后误选上一轨，接着点「简谱」就作用到上一轨）。
+             上沿＝联排行区顶 tabJpT；第 2 条起且无联排五线谱时再上伸 4（只压上一轨拍选区下缘的空白：其符杠 stemY 以下 2px 仍归上一轨）；
+             首轨不越到和弦图带、三行联排不越到本轨联排五线谱之上 */
+          { const jT = (tabJpOn(vi) && M.tabJpB && M.tabJpB[vi] && M.tabJpT)? oy+M.tabJpT[vi]-(vi>0 && !song.tabStaff? 4 : 0) : null;
+            const upTop = jT!=null? Math.min(tabTop-18, jT) : vi>0? Math.max(tabTop-18, prevBeatBot) : tabTop-18;
             if(tabTop-upTop >= 4)
               p.push(`<rect x="${clx}" y="${upTop.toFixed(1)}" width="${cw}" height="${(tabTop-upTop).toFixed(1)}" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="tab" data-vi="${vi}" data-si="0" style="cursor:pointer"/>`); }
           /* v60.27 图带空白热区（data-zone=chord）撤销（用户指示）：设和弦一律
@@ -12006,7 +12072,11 @@ function syncInputs(){
     /* v59.1 记谱法点亮态同步（声部下方图标） */
     { const nlTS2=document.getElementById('nl-tabst'), nlTJ2=document.getElementById('nl-tabjp');
       if(nlTS2) nlTS2.classList.toggle('on', !!song.tabStaff);
-      if(nlTJ2) nlTJ2.classList.toggle('on', !!song.tabJp);
+      if(nlTJ2){ const tj2 = tabJpPanelVi(), dis2 = tj2===-2;   /* v67.2 点亮态＝面板当前音轨自己的联排开关；光标在旋律行且有多条吉他轨＝置灰（不猜作用轨） */
+        nlTJ2.classList.toggle('on', tj2>=0 && tabJpOn(tj2)); nlTJ2.classList.toggle('nl-dis', dis2);
+        if(dis2) nlTJ2.setAttribute('aria-disabled','true'); else nlTJ2.removeAttribute('aria-disabled');
+        if(!nlTJ2.dataset.t0) nlTJ2.dataset.t0 = nlTJ2.title;   /* 原提示（HTML 里那一句）只存一份 */
+        nlTJ2.title = dis2? '简谱联排按吉他轨各自开关：先在左侧音轨或谱面上选中一条吉他轨' : nlTJ2.dataset.t0; }
       const vvi2 = sel.row==='vox'? sel.vi:0;
       const ntv2=(song.voxNotations||[])[vvi2], stv2=isStaffNota(ntv2), dlv2=!!((song.voxDual||[])[vvi2]);
       const nlVJ2=document.getElementById('nl-voxjp'), nlVS2=document.getElementById('nl-voxst');
@@ -12246,6 +12316,9 @@ function moveCol(dir, ext){
   pending.digits=''; render();
 }
 function switchRow(){
+  /* v67.2 验收补：目标行没有声部（纯 TAB 谱没有旋律行 / 纯简谱没有 TAB 行）时不切——此前 Tab 键或末弦按 ↓ 让光标进到
+     不存在的旋律行：左栏「当前音轨」空白、轨钮全灭，「简谱」联排图标却仍作用于某条吉他轨 */
+  if(!((sel.row==='tab'? song.voxVoices : song.tabVoices)||[]).length) return;
   sel.row = sel.row==='tab'?'vox':'tab';
   clampSel(); pending.digits='';
   setRibbon(sel.row);
@@ -13564,6 +13637,7 @@ function addVoice(kind){
   if(!trackRoom(kind)) return toast(trackLimitMsg(kind));   /* v65.2 B3a ③ 上限 8 + 总轨 15 */
   mutate(()=>{
     if(kind==='tab'){
+      tabJpInsertTrack(song.tabVoices.length);   /* v67.2 新轨默认不点亮简谱联排（老谱全亮先物化） */
       song.tabVoices.push('吉他'+(song.tabVoices.length+1));
       song.measures.forEach((m,mi2)=>{ m.tabs.push(blankTabCols(meaMeter(mi2).beats, meaMeter(mi2).unit)); });
     }else{
@@ -13606,6 +13680,7 @@ function delVoice(kind){
     if(song.tabVoices.length<=1) return toast('至少保留一个吉他声部');
     mutate(()=>{
       const vi = sel.row==='tab'?sel.vi:song.tabVoices.length-1;
+      tabJpRemoveTrack(vi);   /* v67.2 逐轨简谱联排同步删 */
       song.tabVoices.splice(vi,1);
       song.measures.forEach(m=>m.tabs.splice(vi,1));
       if(sel.row==='tab') sel.vi=0;
@@ -13631,6 +13706,7 @@ function delVoiceAt(kind, vi){
     if(kind==='vox' && (dtD==='piano'||dtD==='pianoacc'||dtD==='chord'))
       return toast('钢琴大谱表 / 和弦格保持整谱形态，声部不可删'); }
   mutate(()=>{
+    if(kind==='tab') tabJpRemoveTrack(vi);   /* v67.2 逐轨简谱联排同步删 */
     names.splice(vi,1);
     song.measures.forEach(m=> (kind==='tab'?m.tabs:m.voxes).splice(vi,1));
     if(sel.row===kind){
@@ -13696,6 +13772,7 @@ function mapVoxToTab(vi, mode, dry){
   if(dry) return {octShift, dropped, hit, nNotes};
   const name=(uku?'尤克里里':'吉他')+'·'+((song.voxVoices[vi]||('旋律'+(vi+1))));
   mutate(()=>{
+    tabJpInsertTrack(song.tabVoices.length);   /* v67.2 生成的把位轨默认不点亮简谱联排（老谱全亮先物化） */
     song.tabVoices.push(name);
     const ti=song.tabVoices.length-1;
     song.measures.forEach(mm=>mm.tabs.push([]));
@@ -16656,8 +16733,8 @@ document.getElementById('vn-st').onclick = ()=>setVoxNotation('staff');
 document.getElementById('vn-bs').onclick = ()=>setVoxNotation('bass');
 document.getElementById('vn-al').onclick = ()=>setVoxNotation('alto');
 document.getElementById('vn-dual').onclick = ()=>toggleVoxDual();
-document.getElementById('tn-tab').onclick = ()=>{ mutate(()=>{ song.tabStaff=undefined; }); toast('已切换为仅 TAB'); };
-document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=true; }); toast('已开启 TAB+五线谱联排（品位按调号自动拼写）'); };
+document.getElementById('tn-tab').onclick = ()=>{ mutate(()=>{ song.tabStaff=undefined; }); toast('已切换为仅 TAB（全部吉他轨）'); };
+document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=true; }); toast('已为全部吉他轨开启 TAB+五线谱联排（品位按调号自动拼写）'); };   /* v67.2 与逐轨的「简谱」区分：toast / 提示写明作用域 */
 /* v45.7 联排五线谱谱号可选（song.tabClef 新字段）：高音 treble-8vb（默认）/ 低音 bass-8vb（贝斯记谱） */
 { const cg=document.getElementById('tn-clef-g'), cf=document.getElementById('tn-clef-f');
   if(cg) cg.onclick = ()=>{ mutate(()=>{ delete song.tabClef; }); toast('联排五线谱：高音谱号（treble-8vb，吉他/尤克标准）'); };
@@ -16673,14 +16750,22 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
   if(nlTS) nlTS.onclick = e=>{
     if(!song.tabStaff){ $n('tn-both').click(); return; }
     const r=e.target.closest('button').getBoundingClientRect();
-    pickPop(r.right+6, r.top-4, '五线谱联排 · 谱号', [
+    pickPop(r.right+6, r.top-4, '五线谱联排（全部吉他轨）· 谱号', [
       {label:'高音谱号', glyph:smIcoSVG('gClef',17), on:song.tabClef!=='bass', hint:'treble-8vb（吉他/尤克标准）', act:()=>$n('tn-clef-g').click()},
       {label:'低音谱号', glyph:smIcoSVG('fClef',17), on:song.tabClef==='bass', hint:'bass-8vb（贝斯/低音吉他记谱）', act:()=>$n('tn-clef-f').click()},
-      {label:'关闭五线谱', glyph:'—', hint:'恢复仅六线谱（数据不变，可随时再点亮）', act:()=>$n('tn-tab').click()}]);
+      {label:'关闭五线谱', glyph:'—', hint:'全部吉他轨恢复仅六线谱（数据不变，可随时再点亮）', act:()=>$n('tn-tab').click()}]);
   };
+  /* v67.2 按音轨开关（负责人：「我只点击了旋律轨映射简谱，结果三个谱都出现映射。」）：只切面板当前音轨（tabJpPanelVi）自己的联排行，
+     其余轨不动；老谱（整曲 tabJp、无逐轨字段）第一次点时先物化为「全部轨点亮」再切这一条。一步可撤销 */
   if(nlTJ) nlTJ.onclick = ()=>{
-    mutate(()=>{ if(song.tabJp) delete song.tabJp; else song.tabJp=true; });
-    toast(song.tabJp?'已点亮简谱联排：TAB 上方同源简谱行（每列最高发声音自动翻译为首调唱名）':'已关闭简谱联排行（数据不变，可随时再点亮）');
+    const vi = tabJpPanelVi();
+    if(vi===-2) return toast('先选中一条吉他轨：简谱联排按音轨各自开关');   /* 光标在旋律行且多条吉他轨：不猜作用轨（见 tabJpPanelVi） */
+    if(vi<0) return toast('本谱还没有吉他轨');
+    const on = !tabJpOn(vi), nm = song.tabVoices[vi] || ('吉他'+(vi+1));
+    mutate(()=>{ setTabJpVoice(vi, on); });
+    /* 验收补：点亮 toast 收短（此前约 57 字，390 宽折 5 行盖住面板）；翻译口径说明留在图标悬停提示里 */
+    toast(on? '已为「'+nm+'」点亮简谱联排'+(song.tabVoices.length>1? '（其他音轨不变）' : '')
+            : '已关闭「'+nm+'」的简谱联排（可随时再点亮）');
   };
   const vSt=()=>{ const vvi=sel.row==='vox'? sel.vi:0; const nt=(song.voxNotations||[])[vvi];
     return {vvi, st:isStaffNota(nt), nt, dual:!!((song.voxDual||[])[vvi])}; };
@@ -26808,6 +26893,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v67.2</span><div><b>简谱联排按音轨开关：在哪条吉他轨点亮，就只在那条轨出简谱</b>（负责人：「我只点击了旋律轨映射简谱，结果三个谱都出现映射。」）。<br>① <b>逐轨开关</b>：左栏「当前音轨」里的「简谱」图标此前切换的是整首谱的开关，三条吉他轨一起出联排简谱；现在只切当前这条轨，其他轨不变，提示里写明轨名，可撤销。新增可选字段 <code>song.tabJpVoices</code>（按吉他轨下标记录），原字段 <code>tabJp</code> 保留：以前点亮过的谱打开后照旧全部轨显示，在这种谱上再点某条轨，只关掉这一条。<br>② <b>没点亮的轨保持原样</b>：它的上下间距、符干、小节号与完全不开联排时相同，也不占联排行的横向空间。新增、删除吉他轨时开关跟着轨走；智能配谱生成的新谱不带残留开关。<br>③ <b>面板不再误点别的轨</b>：光标在旋律行、谱里又有多条吉他轨时，「简谱」图标置灰并提示先选中一条吉他轨（此前会作用到上次选过的吉他轨，切换窗口后还会串到别的谱）；纯吉他谱按 ↓ / Tab 不再落到不存在的旋律行；点在联排简谱数字上会选中它自己那条轨。<br>④ 「五线谱」联排仍是整首谱一个开关（它还决定独奏谱谱类等整曲规则），图标提示里已写明「全部吉他轨」。<br><b>测试</b>：新套件 <code>tv_tabjpvi</code> 31 项（逐轨点亮/关闭、老谱与 v67.1 逐字节相同、未点亮轨几何与全关相同、增删轨、撤销重做、换窗口与光标在旋律行时的面板、点选联排行、观看页与 PNG）；CORE 157 套件全绿。</div></li>
     <li><span class="v">v67.1</span><div><b>吉他谱上的联排简谱与直接制作的简谱同一套样式 · MIDI / GP / MusicXML 导入中文不再乱码</b>（负责人：「导入主旋律MIDI时，看到以一些乱码。还有一个问题吉他谱映射的简谱为什么直接制作的简谱样式不一样？能否做到一致？」）。<br>① <b>联排简谱和简谱声部共用一套刻版代码</b>：吉他谱上方的简谱联排行此前是单独写的简化画法（13px 衬线数字、八分音符一个音一段短线、增时线贴在数字后面），现在和直接制作的简谱调用同一组画法——17px 数字、减时线按拍连成一条（十六分 / 三十二分 / 六十四分分层）、高低八度点、增时线落在拍位、附点、三连音弧、连音线、反复与终止小节线全部同口径。同一段旋律写成简谱声部与写成吉他谱联排，两行逐个元素相同；以后调整简谱刻版，两边同时生效。<br>② <b>顺带修正联排行的记谱错误</b>：附点二分此前画成「5 – ·」，改为 GB 写法两条增时线，附点全音五条；二分 / 全音休止按拍补写 0；没有和弦形的扫弦、全闷音（×）、切音扫弦、打板这类有声无音高的列写「X」，不再误写成休止 0；泛音按实际发声音高写唱名（GP 导入的人工 / 点弦 / 拨片泛音不再当成自然泛音）；尤克里里、Drop D 的连音判定按本谱定弦；调外音拼写与同谱简谱声部一致（♭3、♭7 等，不再一律写升号）。<br>③ <b>版面让位</b>：带升降号、附点的列自动加宽，不再压前一个数字；纵向按每一行真实墨迹留白（高低音点、连音弧、和弦名、房子括线、反复记号、技法字母、let ring 延续线、延长号等都计入，只在需要的行加高）；联排五线谱 + 简谱 + 六线谱三行同排时，五线谱下垂的符杠不再压进简谱。<br>④ <b>导入文字不再乱码</b>：MIDI 轨名此前按单字节读，UTF-8 的「旋律」显示成「æ&#xFFFD;&#xFFFD;å¾&#xFFFD;」。现在 MIDI、GP3/4/5、MusicXML（含声明 GB2312 / GBK 或无 BOM 的 UTF-16）、.mxl 统一按整个文件判定文字编码（UTF-8 / GBK / GB18030 / Big5 / 日文 / 西文），本编辑器自己导出的 MIDI 再导入也不乱码；新建 MIDI 时如果文件带有真正的曲名（指挥轨序列名，过滤 Tempo Track / Untitled 之类默认名），用它当歌名。顺带修了畸形 MIDI 文件可能让页面卡死的问题。<br>没点亮联排简谱的谱面不变；唯一例外是三连音里带连音线时，连音线此前会被三连音数字切断，现在三连音弧抬高一档（简谱声部同样受益）。<br><b>测试</b>：新套件 <code>tv_jpsame</code> 25 项（同源对拍、未点亮逐字节、几何零相交、净距、连音、X 列与泛音、导出与播放）、<code>tv_textenc</code> 41 项；CORE 156 套件全绿。</div></li>
     <li><span class="v">v67.0</span><div><b>导入谱自动识别调 · 简谱可选首调或固定调 · 连音线完整导入</b>。<br>① 导入 Guitar Pro、MIDI 时按全部音轨的实际音高（含变调夹和调弦）、低音和和弦名识别调。吉他谱网站的文件调号常写成 1=C，明明是 A 大调的谱现在默认就是 1=A；小调按简谱惯例记成关系大调（如 D 小调记 1=F，以 6 为主音），并注明调式。导入窗口里可以改选文件调号或任意一个调，并选择简谱记法：首调（1=所选调）或固定调（1=C，调外音写升降号）。MusicXML 有调号时以文件为准。<br>② 新增「改记谱调（音不变）」：点页头的 1=X，在变调窗口里展开即可。六线谱品位不动，简谱按实际音高重新换算，播放和导出的音高前后完全一致，可以撤销。<br>③ 连音线逐根弦导入：Guitar Pro、MusicXML、MIDI 里的延音现在在六线谱上画出连音弧（同一拍只有部分弦延音时只连那几根），落在小节首拍的延音写成「(2)」；简谱联排行和五线谱联排同样画出连音线；播放时延音不再重新拨弦，导出 MusicXML 再导入也不会丢。<br>④ 顺带修正：倚音按实际八度播放（《小步舞曲》的倚音以前高了一个八度），尤克里里和 Drop D 等特殊调弦的简谱联排行唱名不再算错。<br>新套件 <code>tv_keydet</code>、<code>tv_tiemap</code>。</div></li>
     <li><span class="v">v66.9</span><div><b>谱面页头自适应排版：手机上不再压字</b>。<br>① 歌名太长时先收紧字距、再缩小字号，仍放不下就在空格、括号或「——」前折成两行居中；演唱者一行同样处理。<br>② 左边的调号、拍号、变调夹、速度和右边的作词、作曲、制谱会先检查是否撞在一起：放得下就照旧排；放不下时速度跟在拍号后面，变调夹和特殊调弦另起一行；作词、作曲名单太长时在「/」「、」等处折行；再放不下就把调号一行和署名最后一行对齐，或整体排到署名下面。<br>③ 下面的乐谱和曲首和弦图会跟着页头实际高度往下排；点击页头直接修改的位置也跟着走（顺带修好了点变调夹后半截会打开曲谱信息的问题）。打印、导出图片、分享卡、谱架同样生效；电脑上放得下的谱面和以前完全一样。<br>新套件 <code>tv_header</code>。</div></li>
@@ -26838,7 +26924,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v67.1';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v67.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
