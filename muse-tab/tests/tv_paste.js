@@ -28,7 +28,17 @@
    T22 拆音：拍位和弦落到所在段、延长记号在末段
    T23 整小节剪贴板光标在小节中间：从小节开头替换并提示
    T24 框选后 Ctrl+点增减音：不再按旧框复制
-   T25 𝄎² 展开实例的跨小节 tk 按演奏顺序换算 */
+   T25 𝄎² 展开实例的跨小节 tk 按演奏顺序换算
+   ——— 第二轮验收补（修复者改动的独立验收发现，修前红 / 修后绿）———
+   T26 方向键「无处可去」（单声部按 ↑/↓）不放下选区、画面与状态一致：随后 . 作用于整个选区、Ctrl+C 复制选区；光标真动了才放下并重绘
+   T27 撤销 / 删小节后残留的 Ctrl 多选、TAB 框选：Ctrl+C 不抛异常、剪贴板照常更新，Ctrl+V 不粘出上一次的内容
+   T28 不等时值连音（摇摆 [四分三连 八分三连]）按实际时值断块：粘两个八分到第1拍成功；[q3 e3]×2 从第4拍起逐组铺开
+   T29 光标已隐藏（点谱面空白）时真实键盘 Shift+点：不从看不见的旧光标处复制区间
+   T30 弱起：Ctrl+点小节线含弱起＝片段剪贴板；拖小节号含弱起＝弱起补前置休止成整小节；整小节声部剪贴板粘到弱起小节＝拒绝
+   T31 拆音时音头在 3.5 拍：拍位和弦落到不晚于它的拍位、且不超出该段增时线数
+   T32 TAB 按住拖选、按下 / 松手点偏离格心 3px：复制范围仍是整段（首末列不丢），粘贴逐小节相同
+   T33 单小节声部剪贴板（clipRow）先认光标行：简谱剪贴板点吉他格粘贴＝拒绝；目标谱没有该声部＝拒绝、不写孤儿数据
+   突变实证（第二轮）：MUSETAB_URL=scratchpad/v673/r3/before-r3.html（第二轮修复前的合并树）→ PASS 38/49，T26–T33 新增 11 项全红、原 38 项全绿 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -493,6 +503,164 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   r = await pg.evaluate(() => ({ m7: __sigT(6), m8: __sigT(7), tk: JSON.stringify((((song.measures[6].tabs[0][3] || {}).notes || [])[0] || {}).tk || null), tie: !!tabTieMap(song, 0) }));
   T(r.m7 === '3:1/4 3:2/4 3:3/4 3:5/4' && r.m8 === '3:5/4 3:7/4 3:8/4 3:10/4' && r.tk === '{"mi":7,"ci":0,"si":3}',
     'T25b 复制两个 𝄎²（奏 A、B）：粘出实写 A B，A 末音的 tk 落到其后的 B（第8小节）', JSON.stringify(r));
+
+  /* ======== 第二轮验收补 ======== */
+  const toastT = () => pg.evaluate(() => (document.getElementById('toast') || {}).textContent || '');
+  // ---------- T26 方向键无处可去：不放下选区、画面不过期 ----------
+  await load(STAR);
+  await drag(cell('vox', 0, 2), cell('vox', 1, 1));
+  await key('ArrowDown');                                  // 单声部简谱：↓ 无处可去
+  r = await pg.evaluate(() => { const a = document.getElementById('score').innerHTML; render(); return { sr: !!selRange, stale: a !== document.getElementById('score').innerHTML }; });
+  await key('.');
+  r.m1 = await pg.evaluate(() => __sigV(0)); r.m2 = await pg.evaluate(() => __sigV(1));
+  T(r.sr && !r.stale && r.m1 === '1/4 5/4 1/8. 1/16. 5/8. 1/16.' && r.m2.startsWith('5,/4. 5/4.'),
+    'T26 单声部拖选后按 ↓（无处可去）：选区保留且画面一致；随后 . 给选区内全部音加附点（不只光标音）', JSON.stringify(r));
+  await load(STAR);
+  await drag(cell('vox', 0, 0), cell('vox', 3, 2));
+  await key('ArrowUp'); await key('Control+c');
+  r = await pg.evaluate(() => ({ cc: clipCols ? clipCols.whole + ':' + clipCols.meas.length : (clipMeasure ? 'measure' : 'none') }));
+  await click(cell('vox', 4, 0)); await key('Control+v');
+  r.same = await pg.evaluate(() => [0, 1, 2, 3].every(k => __sigV(k + 4) === __sigV(k)));
+  await load(STAR);
+  await drag(cell('vox', 0, 2), cell('vox', 1, 1));
+  await key('ArrowRight');                                 // 光标真动了：放下选区并重绘
+  r.mv = await pg.evaluate(() => { const a = document.getElementById('score').innerHTML; render(); return { sr: !!selRange, stale: a !== document.getElementById('score').innerHTML, ci: sel.ci }; });
+  T(r.cc === 'true:4' && r.same && !r.mv.sr && !r.mv.stale, 'T26b 拖选1–4小节 → ↑（无处可去）→ Ctrl+C 仍复制四小节；→ 真移动光标＝放下选区且画面同步', JSON.stringify(r));
+
+  // ---------- T27 撤销后残留的多选 / 框选坐标 ----------
+  const grow = async (src, row) => {
+    await load(src);
+    await click(`[data-bar="-1:0:${row}:0"]`, 'Control'); await click(`[data-bar="2:3:${row}:0"]`, 'Control'); await key('Control+c');
+    const bars = await pg.evaluate((row) => [...document.querySelectorAll('[data-bar^="7:"]')].map(e => e.dataset.bar).filter(b2 => b2.endsWith(':' + row + ':0')), row);
+    await click(`[data-bar="${bars[0]}"]`); await key('Control+v');
+    return pg.evaluate(() => song.measures.length);
+  };
+  { const out = {};
+    out.n1 = await grow(STAR, 'vox');
+    await click(cell('vox', 9, 0)); await click(cell('vox', 9, 1), 'Control'); await click(cell('vox', 10, 2), 'Control');
+    await key('Control+z'); let e0 = errs.length; await key('Control+c');
+    out.N2 = { newErrs: errs.slice(e0).length, t: await toastT(), n: await pg.evaluate(() => song.measures.length), cm: await pg.evaluate(() => !!clipMeasure) };
+    const GT = `()=>{ const s=createSong('guitar',{title:'g',beats:4,unit:4,key:'C',nMea:8,nTab:1,nVox:0,lyr:0});
+      const t=(f,dur)=>({dur,dotted:false,chord:'',notes:[{s:3,f}],strum:'',tech:''});
+      for(let m=0;m<4;m++) s.measures[m].tabs[0]=[t(m,4),t(2,4),t(3,4),t(5,4)]; return s; }`;
+    out.n3 = await grow(GT, 'tab');
+    { const a = await center(cell('tab', 9, 0, 0, 3)), z = await center(cell('tab', 10, 3, 0, 3));
+      await pg.mouse.move(a.x - 5, a.y - 8); await pg.mouse.down(); await pg.mouse.move(z.x + 6, z.y + 8, { steps: 10 }); await pg.mouse.up(); await pg.waitForTimeout(80); }
+    await key('Control+z'); e0 = errs.length; await key('Control+c');
+    const t3 = await toastT();
+    await pg.waitForTimeout(350); await click(cell('tab', 5, 0, 0, 3)); await key('Control+v');
+    out.N3 = { newErrs: errs.slice(e0).length, t: t3, n: await pg.evaluate(() => song.measures.length) };
+    T(out.n1 === 12 && out.N2.newErrs === 0 && /^已复制/.test(out.N2.t) && out.N2.cm && out.n3 === 12 && out.N3.newErrs === 0 && /^已复制/.test(out.N3.t) && out.N3.n === 8,
+      'T27 插入 4 小节后多选 / 框选第10–11小节 → Ctrl+Z → Ctrl+C：不报错、剪贴板更新（再 Ctrl+V 不粘出撤销前的 4 小节）', JSON.stringify(out)); }
+  if (errs.length) errs.splice(0, errs.length, ...errs.filter(x => !/voxes|tabs|not valid JSON/.test(x)));   // 修前此处会抛（由 T27 记红），不再让它拖垮整套的 NO ERRORS 判定
+
+  // ---------- T28 不等时值连音按实际时值断块 ----------
+  await load(`()=>{ const s=createSong('vocal',{title:'swing',beats:4,unit:4,key:'C',nVox:1,nMea:8,lyr:0});
+    const V=(deg,dur,tup)=>{ const c={dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false}; if(tup) c.tup=tup; return c; };
+    s.measures[0].voxes[0]=[V(7,8),V(7,8),V(6,4),V(5,2)];
+    s.measures[1].voxes[0]=[V(1,4,3),V(2,8,3),V(3,4,3),V(4,8,3),V(5,2)];
+    s.measures[4].voxes[0]=[V(1,4,3),V(2,8,3),V(3,4,3),V(4,8,3),V(5,4,3),V(6,8,3),V(1,4,3),V(2,8,3)];
+    return s; }`);
+  await drag(cell('vox', 0, 0), cell('vox', 0, 1)); await key('Control+c');      // 两个八分＝1 拍
+  await click(cell('vox', 4, 0));
+  let u0 = await pg.evaluate(() => undoStack.length);
+  await key('Control+v');
+  r = await pg.evaluate((u0) => ({ m5: __sigV(4), undo: undoStack.length - u0, errs: beatErrors().length }), u0);
+  await drag(cell('vox', 1, 0), cell('vox', 1, 3)); await key('Control+c');      // [q3 e3]×2＝2 拍
+  await click(cell('vox', 6, 3)); await key('Control+v');                         // 第 7 小节第 4 拍：第一对放得下，第二对顺延
+  r.b = await pg.evaluate(() => ({ m7: __sigV(6), m8: __sigV(7), errs: beatErrors().length }));
+  T(r.m5 === '7/8 7/8 3/4t3 4/8t3 5/4t3 6/8t3 1/4t3 2/8t3' && r.undo === 1 && r.errs === 0
+    && r.b.m7 === '0/4 0/4 0/4 1/4t3 2/8t3' && r.b.m8 === '3/4t3 4/8t3 0/4 0/4 0/4' && r.b.errs === 0,
+    'T28 摇摆 [四分三连 八分三连]：两个八分盖掉第一组（其余三组保留）；两组从第4拍起逐组铺开、跨线顺延', JSON.stringify(r));
+
+  // ---------- T29 光标已隐藏时真实键盘 Shift+点 ----------
+  await load(STAR);
+  await click(cell('vox', 0, 1));
+  { const p = await pg.evaluate(() => { const R = document.getElementById('score').getBoundingClientRect();
+      for (let y = R.bottom - 4; y > R.top; y -= 7) for (let x = R.left + 4; x < R.right; x += 23) { const el = document.elementFromPoint(x, y);
+        if (el && el.closest('#score') && !el.dataset.mi && !el.closest('[data-hd],[data-sysact],[data-meahandle],[data-bar],[data-measuresel],[data-beatsel],[data-lyrsel]')) return { x, y }; } return null; });
+    await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(60); }
+  r = { blur: await pg.evaluate(() => blurSel) };
+  await click(cell('vox', 1, 3), 'Shift'); await key('Control+c');
+  r.t = await toastT(); r.cc = await pg.evaluate(() => clipCols ? 'cols' : (clipMeasure ? 'measure' : 'none'));
+  T(r.blur && r.cc === 'measure' && /^已复制第2小节/.test(r.t), 'T29 点空白隐藏光标 → 按住 Shift 点第2小节第4列 → Ctrl+C＝复制第2小节（不从隐藏的旧光标处拉区间）', JSON.stringify(r));
+
+  // ---------- T30 弱起：Ctrl+点小节线 / 拖小节号 / 粘到弱起 ----------
+  const PK = `()=>{ const s=createSong('guitar',{title:'pk',beats:4,unit:4,key:'C',nMea:10,nTab:1,nVox:1,lyr:0}); s.pickup=true;
+    const V=(deg,dur)=>({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false});
+    const t=(f,dur)=>({dur,dotted:false,chord:'',notes:[{s:3,f}],strum:'',tech:''});
+    s.measures[0].voxes[0]=[V(5,4)]; s.measures[0].tabs[0]=[t(5,4)];
+    s.measures[1].voxes[0]=[V(1,4),V(2,4),V(3,4),V(4,4)]; s.measures[1].tabs[0]=[t(1,4),t(2,4),t(3,4),t(4,4)];
+    s.measures[2].voxes[0]=[V(5,2),V(3,2)]; s.measures[2].tabs[0]=[t(5,2),t(3,2)];
+    return s; }`;
+  await load(PK);
+  await click('[data-bar="-1:0:vox:0"]', 'Control'); await click('[data-bar="1:2:vox:0"]', 'Control');
+  await key('Control+c');
+  r = { a: await pg.evaluate(() => ({ whole: clipCols ? clipCols.whole : null, t: (document.getElementById('toast') || {}).textContent || '' })) };
+  await load(PK);
+  await drag('[data-measuresel="0"]', '[data-measuresel="1"]'); await key('Control+c');
+  r.bt = await toastT();
+  await click(cell('tab', 5, 0, 0, 3)); await key('Control+v');
+  r.b = await pg.evaluate(() => ({ v5: __sigV(5), t5: __sigT(5), eq: __sigV(6) === __sigV(1) && __sigT(6) === __sigT(1), errs: beatErrors().length }));
+  await load(PK);
+  await drag(cell('vox', 1, 0), cell('vox', 2, 1)); await key('Control+c');      // 第1–2小节整小节声部剪贴板
+  await click(cell('vox', 0, 0)); u0 = await pg.evaluate(() => undoStack.length); await key('Control+v');
+  r.c = await pg.evaluate((u0) => ({ v0: __sigV(0), t0: __sigT(0), undo: undoStack.length - u0, t: (document.getElementById('toast') || {}).textContent || '' }), u0);
+  T(r.a.whole === false && /弱起/.test(r.a.t), 'T30 Ctrl+点小节线选「弱起＋第1小节」＝片段剪贴板（弱起不按整小节），提示含弱起', JSON.stringify(r.a));
+  T(r.b.v5 === '0/2. 5/4' && r.b.t5 === '/2. 3:5/4' && r.b.eq && r.b.errs === 0 && /补休止/.test(r.bt),
+    'T30b 拖小节号选「弱起＋第1小节」→ 粘到第6小节：弱起在前面补休止成整小节（弱起音落在小节末）、其后对齐、无节拍错误', JSON.stringify({ bt: r.bt, b: r.b }));
+  T(r.c.v0 === '5/4' && r.c.t0 === '3:5/4' && r.c.undo === 0 && /弱起/.test(r.c.t), 'T30c 整小节声部剪贴板粘到弱起小节＝拒绝并提示（此前简谱变满拍、吉他谱仍 1 拍）', JSON.stringify(r.c));
+
+  // ---------- T31 拆音音头在 3.5 拍：拍位和弦不晚于其时值位置、不超出增时线 ----------
+  await load(`()=>{ const s=createSong('vocal',{title:'f',beats:4,unit:4,key:'C',nVox:1,nMea:8,lyr:0});
+    const V=(deg,dur,dotted,o)=>Object.assign({dur,dotted:!!dotted,deg,acc:'',oct:0,lyrics:[],tie:false},o||{});
+    s.measures[0].voxes[0]=[V(5,2,1,{chord:'C',chords:[{q:1,chord:'F'},{q:2,chord:'G'}]}),V(1,8),V(2,8)];
+    s.measures[4].voxes[0]=[V(1,4),V(1,4),V(1,4),V(1,8),V(1,8)];
+    return s; }`);
+  await pg.evaluate(() => { try { localStorage.setItem('musetab-keymap', 'gp'); } catch (_) {} });
+  await click(cell('vox', 0, 0)); await click(cell('vox', 0, 1), 'Shift');
+  await key('Control+c');
+  await click(cell('vox', 4, 4)); await key('Control+v');
+  await pg.evaluate(() => { try { localStorage.removeItem('musetab-keymap'); } catch (_) {} });
+  r = await pg.evaluate(() => { const at = [], over = []; for (let mi = 4; mi <= 5; mi++) { let b2 = 0; const u = meaMeter(mi).unit;
+      song.measures[mi].voxes[0].forEach(c => { const len = beatsOf(c, 4); if (c.chord) at.push(mi + '@' + b2 + ':' + c.chord);
+        (c.chords || []).forEach(x => { at.push(mi + '@' + (b2 + x.q) + ':' + x.chord); if (!(x.q >= 1 && x.q <= Math.floor(len + 1e-6) - 1)) over.push(mi + ':' + x.q); }); b2 += beatsOf(c, u); }); }
+    return { at: at.join(' '), over }; });
+  T(r.at === '4@3.5:C 5@0:F 5@1:G' && !r.over.length, 'T31 附点二分（列头 C、拍位 F/G）从 3.5 拍粘入拆成 5/8 | 5/2：F、G 落在不晚于原时值的拍位（5@0、5@1），且都在增时线上', JSON.stringify(r));
+
+  // ---------- T32 TAB 按住拖选、按下/松手偏离格心 3px ----------
+  await load(`()=>{ const s=createSong('guitar',{title:'g',beats:4,unit:4,key:'C',nMea:10,nTab:1,nVox:0,lyr:0});
+    const t=(s2,f)=>({dur:8,dotted:false,chord:'',notes:[{s:s2,f}],strum:'',tech:''});
+    for(let m=0;m<4;m++) s.measures[m].tabs[0]=[t(5,0),t(4,2),t(3,m),t(2,1),t(3,2),t(4,3),t(3,0),t(4,m+1)]; return s; }`);
+  { const a = await center(cell('tab', 0, 0, 0, 5)), z = await center(cell('tab', 3, 7, 0, 4));
+    await pg.mouse.move(a.x + 3, a.y + 3); await pg.mouse.down();
+    await pg.mouse.move((a.x + z.x) / 2, (a.y + z.y) / 2, { steps: 8 }); await pg.mouse.move(z.x - 3, z.y - 3, { steps: 8 });
+    await pg.mouse.up(); await pg.waitForTimeout(80); }
+  await key('Control+c');
+  r = { t: await toastT() };
+  await pg.waitForTimeout(350);
+  await click(cell('tab', 5, 0, 0, 5)); await key('Control+v');
+  r.eq = await pg.evaluate(() => [0, 1, 2, 3].map(k => __sigT(k + 5) === __sigT(k) ? 1 : 0).join(''));
+  r.errs = await pg.evaluate(() => beatErrors().length);
+  T(r.eq === '1111' && r.errs === 0 && /第1–4小节/.test(r.t), 'T32 TAB 从首音（偏右下 3px）拖到末音（偏左上 3px）→ Ctrl+C＝第1–4小节整段（首末列不丢）→ 粘到第6小节逐小节相同', JSON.stringify(r));
+
+  // ---------- T33 单小节声部剪贴板先认光标行 ----------
+  const GV = `()=>{ const s=createSong('guitar',{title:'gv',beats:4,unit:4,key:'C',nMea:8,nTab:1,nVox:1,lyr:0});
+    const V=(deg,dur)=>({dur,dotted:false,deg,acc:'',oct:0,lyrics:[],tie:false});
+    const t=(f,dur)=>({dur,dotted:false,chord:'',notes:[{s:3,f}],strum:'',tech:''});
+    s.measures[0].voxes[0]=[V(1,4),V(5,4),V(1,8),V(1,8),V(5,4)]; s.measures[0].tabs[0]=[t(1,4),t(2,4),t(3,4),t(4,4)]; return s; }`;
+  await load(GV);
+  await drag(cell('vox', 0, 0), cell('vox', 0, 4)); await key('Control+c');      // 简谱第1小节整小节＝clipRow
+  r = { cr: await pg.evaluate(() => clipRow ? clipRow.row : null) };
+  const tab4 = await pg.evaluate(() => __sigT(4));
+  await click(cell('tab', 4, 0, 0, 3)); u0 = await pg.evaluate(() => undoStack.length); await key('Control+v');
+  r.a = await pg.evaluate(([u0, tab4]) => ({ same: __sigT(4) === tab4, undo: undoStack.length - u0, t: (document.getElementById('toast') || {}).textContent || '' }), [u0, tab4]);
+  /* 换成没有简谱声部的纯吉他谱（剪贴板保留），点吉他格 Ctrl+V */
+  await pg.evaluate(() => { const s = createSong('guitar', { title: 'g2', beats: 4, unit: 4, key: 'C', nMea: 8, nTab: 1, nVox: 0, lyr: 0 }); loadSong(s); blurSel = true; render(); });
+  await click(cell('tab', 4, 0, 0, 3)); u0 = await pg.evaluate(() => undoStack.length); await key('Control+v');
+  r.b = await pg.evaluate((u0) => ({ voxV: (song.voxVoices || []).length, orphan: song.measures.filter(m => (m.voxes || []).length).length, undo: undoStack.length - u0, t: (document.getElementById('toast') || {}).textContent || '' }), u0);
+  T(r.cr === 'vox' && r.a.same && r.a.undo === 0 && /先把光标放到对应声部/.test(r.a.t) && r.b.voxV === 0 && r.b.orphan === 0 && r.b.undo === 0 && /没有简谱声部/.test(r.b.t),
+    'T33 简谱整小节剪贴板：点吉他格粘贴＝拒绝（不覆盖吉他轨）；目标谱没有简谱声部＝拒绝、不写孤儿 voxes', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

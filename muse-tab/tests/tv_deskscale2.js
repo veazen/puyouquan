@@ -13,7 +13,15 @@
       1920 放大到 130% 横滚兜底时，→ 键把光标移到首行行尾小节末列，该列在 #paper 可视范围内（此前出屏）
    T7 左栏「收起」钮：1440 / 1536 桌面编辑态可见；点它 → 面板收起、数字 ≥16 / ≥17.5px；开合前后可视区上缘对应的谱面纵坐标不变（±3，
       此前 scrollTop 不动、谱面跳 24%）；点左侧页签再打开 → 回停靠尺寸
-   突变实证见文末记录：v67.1 原版 0/7；验收修之前的工作区副本（scratchpad/v673/vers/wt-scale-prefix.html）0/7。 */
+   突变实证见文末记录：v67.1 原版 0/7；验收修之前的工作区副本（scratchpad/v673/vers/wt-scale-prefix.html）0/7。
+   ——— 第二轮验收补（修前红 / 修后绿，修前副本 scratchpad/v673/r3/before-r3.html）———
+   T8  「收起」状态稳定：1536 收起后窗口高改 1px（resize）仍收起、谱面仍放大；刷新 → 继续上次编辑仍收起（新增本机键 musetab-flyclosed）；
+       点左侧页签再打开即清除记忆
+   T9  1920 新建谱点 ＋（110%）：谱面区底边出现吸底横滚条（在视口内、与 #paper 双向同步）；播放高亮到被遮的行尾小节时横向跟随露出
+   T10 暂停态（▶ 继续）键盘移动光标仍跟滚：64 小节长谱从首音连按 → 到末小节，光标不出可视区
+   T11 谱架读新建谱的缩放键：预置旧键 0.85（v64.5–v67.1 自动写入）→ 新建谱点 ＋ → 进谱架谱面与 v67.2 同为 1056px（此前 901）
+   T12 收起钮可用键盘操作：Tab 到收起钮按 Enter＝收起、焦点交给左轨当前音轨钮，再按 Enter＝展开；空格＝收起而不是开始播放
+   T13 收起后点左侧音轨钮＝打开该轨面板（逐轨「简谱」开关可见），不必先点「小节」 */
 const { chromium } = require('playwright');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
@@ -221,6 +229,120 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     }
     T(bad.length === 0, 'T7 左栏「收起」钮：收起后谱面放大（1440≥16 / 1536≥17.5px），开合前后可视区内容不跳（±3 单位），点页签再打开回停靠尺寸', bad.join(' | ') || out.join(' ; ')); }
 
+  /* ======== 第二轮验收补 ======== */
+  const wizardInst = async (pg) => {
+    await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
+    await pg.click('.nw-int[data-int="inst"]'); await pg.waitForTimeout(80);
+    await pg.click('#nw-create'); await pg.waitForTimeout(700);
+    await pg.evaluate(() => { const t = document.getElementById('toast'); if (t) t.style.display = 'none'; }); };
+  const flyH = pg => pg.evaluate(() => document.getElementById('left-flyout').classList.contains('hidden'));
+
+  /* T8 收起状态稳定 + 记忆 */
+  { const bad = [], out = [];
+    const pg = await openInit(1536, 864); await wizard(pg);
+    await pg.click('#fly-close'); await pg.waitForTimeout(500);
+    const g1 = await geo(pg);
+    await pg.setViewportSize({ width: 1536, height: 863 }); await pg.waitForTimeout(600);
+    const g2 = await geo(pg);
+    if (!(g1.flyHidden && g2.flyHidden && g2.dig >= 17.5 && g2.svgW === g1.svgW)) bad.push('改高 1px 后 ' + JSON.stringify({ h1: g1.flyHidden, h2: g2.flyHidden, dig: g2.dig, w1: g1.svgW, w2: g2.svgW }));
+    await pg.setViewportSize({ width: 1536, height: 864 });
+    await pg.reload(); await pg.waitForTimeout(900);
+    await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    if (await pg.evaluate(() => { const e = document.getElementById('start-pad'); return !!(e && !e.classList.contains('hidden')); })) { await pg.click('#spd-cont'); await pg.waitForTimeout(600); }
+    const h3 = await flyH(pg), k3 = await pg.evaluate(() => localStorage.getItem('musetab-flyclosed'));
+    if (!h3) bad.push('刷新→继续上次编辑后左栏重开');
+    await pg.click('.ltab[data-t="mea"]'); await pg.waitForTimeout(500);
+    const h4 = await flyH(pg), k4 = await pg.evaluate(() => localStorage.getItem('musetab-flyclosed'));
+    if (h4 || k4 !== null) bad.push('点页签再打开 ' + JSON.stringify({ h4, k4 }));
+    out.push(`收起 ${g1.dig}px → 改高后 ${g2.dig}px · 刷新后收起=${h3}（键 ${k3}）· 再打开键=${k4}`);
+    await pg._ctx.close();
+    T(bad.length === 0, 'T8 「收起」状态稳定：resize 不重开、刷新后仍收起（musetab-flyclosed）、点页签再打开即清除', bad.join(' | ') || out.join(' ; ')); }
+
+  /* T9 放大后的吸底横滚条 + 播放横向跟随 */
+  { const bad = [];
+    const pg = await openInit(1920, 1080); await wizard(pg);
+    await pg.click('#z-in'); await pg.waitForTimeout(400);
+    const h = await pg.evaluate(() => { const H = document.getElementById('paper-hbar'), P = document.getElementById('paper');
+      if (!H) return { none: true, xs: P.classList.contains('paper-xs') };
+      const r = H.getBoundingClientRect(), wr = document.getElementById('score-wrap').getBoundingClientRect();
+      return { xs: P.classList.contains('paper-xs'), disp: getComputedStyle(H).display, top: Math.round(r.top), bot: Math.round(r.bottom), wB: Math.round(Math.min(wr.bottom, innerHeight)), ih: innerHeight, sw: H.scrollWidth, cw: H.clientWidth, psw: P.scrollWidth, pcw: P.clientWidth }; });
+    if (h.none || !h.xs || h.disp === 'none' || !(h.bot <= h.wB + 1 && h.top >= 0) || !(h.sw > h.cw + 20)) bad.push('横滚条 ' + JSON.stringify(h));
+    else {
+      await pg.evaluate(() => { document.getElementById('paper-hbar').scrollLeft = 60; }); await pg.waitForTimeout(150);
+      const sl = await pg.evaluate(() => { const P = document.getElementById('paper'), H = document.getElementById('paper-hbar');
+        return { p: Math.round(P.scrollLeft), pMax: P.scrollWidth - P.clientWidth, hMax: H.scrollWidth - H.clientWidth }; });
+      if (Math.abs(sl.p - 60) > 2 || Math.abs(sl.pMax - sl.hMax) > 2) bad.push('横滚条→#paper 未同步 ' + JSON.stringify(sl));
+      await pg.evaluate(() => { document.getElementById('paper').scrollLeft = 0; }); await pg.waitForTimeout(150);
+    }
+    /* 播放高亮落到首行行尾小节（被遮）：横向跟随 */
+    const f = await pg.evaluate(async () => { const P = document.getElementById('paper'); P.scrollLeft = 0;
+      const mi = layoutSystems()[0].measures.slice(-1)[0].mi; highlight('v0', mi, 0, true);
+      await new Promise(r => setTimeout(r, 700));
+      const sv = document.getElementById('score'), R = sv.getBoundingClientRect(), k = R.width / sv.viewBox.baseVal.width, mb = meaBoxes[mi], pr = P.getBoundingClientRect();
+      return { mi, sl: Math.round(P.scrollLeft), mR: Math.round(R.left + (mb.x + mb.w) * k), pR: Math.round(pr.right) }; });
+    if (!(f.sl > 0 && f.mR <= f.pR + 1)) bad.push('播放横向跟随 ' + JSON.stringify(f));
+    await pg._ctx.close();
+    T(bad.length === 0, 'T9 新建谱 110%：吸底横滚条在视口内且与 #paper 同步；播放高亮到被遮的行尾小节时横向露出', bad.join(' | ') || JSON.stringify({ h, f })); }
+
+  /* T10 暂停态键盘跟滚 */
+  { const pg = await openInit(1920, 1080); await wizard(pg);
+    /* 每小节两个二分音符（按键少、行数多）：64 小节 */
+    await pg.evaluate(() => { const V = (deg) => ({ dur: 2, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false });
+      while (song.measures.length < 64) song.measures.push(blankMeasure());
+      song.measures.forEach((m, i) => { m.voxes[0] = [V(1 + i % 7), V(1 + (i + 3) % 7)]; }); render(); });
+    await pg.click('#b-play'); await pg.waitForTimeout(1200); await pg.click('#b-play'); await pg.waitForTimeout(300);
+    const st = await pg.evaluate(() => ({ playing: audio.playing, paused: !!audio.paused }));
+    await pg.evaluate(() => { document.getElementById('score-wrap').scrollTop = 0; }); await pg.waitForTimeout(150);
+    const p = await pg.evaluate(() => { const sv = document.getElementById('score'), R = sv.getBoundingClientRect(), k = R.width / sv.viewBox.baseVal.width, b = colBoxes['v0:0:0']; return { x: R.left + (b.x + b.w / 2) * k, y: R.top + (b.y + 10) * k }; });
+    await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(150);
+    let hidden = 0, last = null;
+    for (let n = 0; n < 400; n++) {
+      await pg.keyboard.press('ArrowRight');
+      const c = await pg.evaluate(() => { const sv = document.getElementById('score'), R = sv.getBoundingClientRect(), k = R.width / sv.viewBox.baseVal.width, b = colBoxes['v0:' + sel.mi + ':' + sel.ci], wr = document.getElementById('score-wrap').getBoundingClientRect();
+        return { mi: sel.mi, vis: !!b && R.top + b.y * k >= wr.top - 1 && R.top + (b.y + b.h) * k <= Math.min(wr.bottom, innerHeight) + 1 }; });
+      if (!c.vis) hidden++; last = c; if (c.mi >= 63) break; }
+    await pg._ctx.close();
+    T(st.playing && st.paused && hidden === 0 && last.mi >= 63, 'T10 暂停态（▶ 继续）连按 → 到第64小节：光标始终在可视区（此前暂停时完全不跟滚）', JSON.stringify({ st, hidden, last })); }
+
+  /* T11 谱架读新建谱缩放键 */
+  { const pg = await openInit(1920, 1080, `try{ if(!sessionStorage.getItem('t11')){ localStorage.setItem('musetab-zoom','0.85'); sessionStorage.setItem('t11','1'); } }catch(_){}`);
+    await wizard(pg);
+    await pg.click('#z-in'); await pg.waitForTimeout(300);
+    await pg.click('#b-stand'); await pg.waitForTimeout(900);
+    const sg = await pg.evaluate(() => ({ stand: document.body.classList.contains('stand'), svgW: +document.getElementById('score').getAttribute('width'), vz: viewZoom, z: localStorage.getItem('musetab-zoom'), fw: localStorage.getItem('musetab-zoom-fw') }));
+    await pg.click('#sb-exit').catch(() => {}); await pg.waitForTimeout(600);
+    const back = await pg.evaluate(() => ({ vz: viewZoom, lbl: document.getElementById('zoom-lbl').textContent }));
+    await pg._ctx.close();
+    T(sg.stand && sg.svgW >= 1040 && sg.z === '0.85' && back.lbl === '110%', 'T11 旧键 0.85 的升级用户：新建谱 ＋ 后进谱架谱面 ≥1040px（v67.2 为 1056，此前 901）；旧键原值不动、退出回 110%', JSON.stringify({ sg, back })); }
+
+  /* T12 收起钮键盘可达 / 可操作 */
+  { const bad = [];
+    const pg = await openInit(1920, 1080); await wizardInst(pg);
+    await pg.focus('#fly-close'); await pg.keyboard.press('Shift+Tab'); await pg.keyboard.press('Tab');   // 真实键盘把焦点送到收起钮（:focus-visible）
+    const a0 = await pg.evaluate(() => document.activeElement.id);
+    await pg.keyboard.press('Enter'); await pg.waitForTimeout(500);
+    const a1 = await pg.evaluate(() => ({ h: document.getElementById('left-flyout').classList.contains('hidden'), cls: document.activeElement.className, trk: document.activeElement.dataset.trk || '' }));
+    if (a0 !== 'fly-close' || !a1.h || !/ltab/.test(a1.cls)) bad.push('Enter 收起 ' + JSON.stringify({ a0, a1 }));
+    await pg.keyboard.press('Enter'); await pg.waitForTimeout(500);
+    const a2 = await flyH(pg);
+    if (a2) bad.push('焦点在左轨钮上按 Enter 未展开');
+    await pg.focus('#fly-close'); await pg.keyboard.press('Shift+Tab'); await pg.keyboard.press('Tab');
+    await pg.keyboard.press('Space'); await pg.waitForTimeout(500);
+    const a3 = await pg.evaluate(() => ({ h: document.getElementById('left-flyout').classList.contains('hidden'), playing: !!audio.playing }));
+    if (!a3.h || a3.playing) bad.push('空格 ' + JSON.stringify(a3));
+    await pg.evaluate(() => { try { stopPlay(); } catch (_) {} });
+    await pg._ctx.close();
+    T(bad.length === 0, 'T12 收起钮键盘操作：Enter 收起（焦点交给左轨钮）→ Enter 展开；空格收起且不触发播放', bad.join(' | ') || JSON.stringify({ a0, a1, a2, a3 })); }
+
+  /* T13 收起后点音轨钮＝打开该轨面板 */
+  { const pg = await openInit(1536, 864); await wizardInst(pg);
+    await pg.click('#fly-close'); await pg.waitForTimeout(400);
+    const h0 = await flyH(pg);
+    await pg.click('#rail-tracks .rtrk[data-trk^="tv:"]'); await pg.waitForTimeout(500);
+    const r = await pg.evaluate(() => { const j = document.getElementById('nl-tabjp'); return { h: document.getElementById('left-flyout').classList.contains('hidden'), jp: !!(j && j.offsetParent), row: sel.row }; });
+    await pg._ctx.close();
+    T(h0 && !r.h && r.jp && r.row === 'tab', 'T13 收起后点左侧吉他音轨钮：面板展开、逐轨「简谱」开关可见（此前要先点「小节」再点音轨钮）', JSON.stringify(Object.assign({ h0 }, r))); }
+
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
@@ -233,4 +355,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
    ② MUSETAB_URL=scratchpad/v673/vers/wt-scale-prefix.html（验收修之前的工作区副本）：PASS 0/7——
       T1 红（1440 存 0.7→数字 8.48px、宽 529；1536 存 0.8→10.92px、宽 681；复位后 12.11 / 13.65）
       T2 红（切回新建谱 894/855、1297/1239 横滚）  T3 红（130%→100%）  T4 红（1366 / 1920 PNG 哈希不同）
-      T5 红（纵向漂移 −209.8 单位）  T6 红（光标出屏 12 次；行尾列右缘 1877 > 1606）  T7 红（无收起钮） */
+      T5 红（纵向漂移 −209.8 单位）  T6 红（光标出屏 12 次；行尾列右缘 1877 > 1606）  T7 红（无收起钮）
+   ③ 第二轮：MUSETAB_URL=scratchpad/v673/r3/before-r3.html（第二轮修复前的合并树）：PASS 7/13——T1–T7 绿，T8–T13 全红：
+      T8 改高 1px 后左栏重开（1123→851px）、刷新后重开  T9 无吸底横滚条、播放不横向跟随（行尾小节右缘 1654 > 纸张 1606）
+      T10 暂停态光标出屏 43 次  T11 谱架 901px（旧键 0.85）  T12 Enter 不收起、空格开始播放  T13 点音轨钮面板仍收着 */

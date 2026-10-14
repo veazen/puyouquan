@@ -26,7 +26,14 @@
        「曲谱信息」点「速度」字名聚焦数值框（不是单位下拉）
    T16 页头速度弹窗与向导同口径：95.6→96（此前 parseInt 截成 95）、300→240 且 toast 点名、0→30
    突变实证：MUSETAB_URL=file://…/v67.1 原版 复跑 → PASS 4/16：T1/T3/T4/T6/T7/T8/T10/T11/T12/T14/T15/T16 红
-   （T2/T5/T9 为护栏：旧版 4/4 填数本就生效、默认 90、导入取文件速度；T13 为宽度基线）；实现者初版复跑 → PASS 9/16（T10–T16 红）。 */
+   （T2/T5/T9 为护栏：旧版 4/4 填数本就生效、默认 90、导入取文件速度；T13 为宽度基线）；实现者初版复跑 → PASS 9/16（T10–T16 红）。
+   ——第二轮验收补（修前副本 scratchpad/v673/r3/before-r3.html 复跑 PASS 16/22：T1–T16 绿、T17–T22 全红）——
+   T17 真鼠标点页头 ♩=90 → 不点输入框直接敲 120 回车：速度＝120、谱面不变（此前焦点落回 body，数字写进谱面、速度不变）
+   T18 速度浮层打开时点浮层空白处（焦点离开输入框）再敲数字 / 方向键：数字进输入框、方向键不移动谱面光标，Enter＝确定
+   T19 手机 390×844：调 / 拍号 / 速度同一行，「创建」按钮不滚动即在弹窗可视区内（v67.2 口径）
+   T20 「曲谱信息」手选 ♪ 后改拍号分母 8 → 再改回 4：下拉仍是用户选的 ♪，确定落 tempoUnit 'e'、页头 ♪=90
+   T21 播放坞 #i-tempo 与各入口同口径：95.6→96 提示取整；清空＝保持原速 133；0→30、300→240 均提示
+   T22 向导敲「-」第一键不误报「需为数字」（失焦才提示）；老谱 300 在页头弹窗 / 曲谱信息清空回车：提示「最大 240」而不是「未填有效数字」 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -359,6 +366,104 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     const h1 = await hp('95.6'), h2 = await hp('300'), h3 = await hp('0'), h4 = await hp('');
     T(h1.t === 96 && h2.t === 240 && /最大 240/.test(h2.toast) && h3.t === 30 && /最小 30/.test(h3.toast) && h4.t === 90,
       'T16 页头速度弹窗与向导同口径：95.6→96、300→240 点名、0→30 点名、空→沿用原速度', JSON.stringify({ h1, h2, h3, h4 }));
+  });
+
+  /* ======== 第二轮验收补 ======== */
+  const newSong = async () => { await openWiz(); await pg.click('#nw-create'); await pg.waitForTimeout(150); await EV(`(()=>{ const t=document.getElementById('toast'); if(t) t.textContent=''; })()`); };
+  const hdCenter = () => EV(`(()=>{ const r=document.querySelector('#score [data-hd="tempo"]').getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; })()`);
+  const sig1 = () => EV(`JSON.stringify(song.measures[0])`);
+  /* ---------- T17 真鼠标点页头速度后直接打字 ---------- */
+  await guard('T17 真鼠标点页头速度直接打字', async () => {
+    await newSong();
+    const s0 = await sig1(), u0 = await EV(`undoStack.length`);
+    const p = await hdCenter();
+    await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(120);
+    const ae = await EV(`document.activeElement.id||document.activeElement.tagName`);
+    await pg.keyboard.type('120'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(80);
+    const r = await EV(`({t:song.tempo, pop:!!document.getElementById('popmenu'), hdr:hdr()})`);
+    r.same = (await sig1()) === s0; r.undo = (await EV(`undoStack.length`)) - u0; r.ae = ae;
+    T(r.ae === 'tp-val' && r.t === 120 && !r.pop && r.hdr === '♩=120' && r.same && r.undo === 1,
+      'T17 真鼠标点页头 ♩=90 后直接敲 120 回车：焦点在速度框、速度＝120、谱面不变、一步撤销', JSON.stringify(r));
+  });
+  /* ---------- T18 速度浮层焦点离开输入框后的按键 ---------- */
+  await guard('T18 速度浮层按键不进谱面', async () => {
+    await newSong();
+    const s0 = await sig1(), c0 = await EV(`sel.mi+':'+sel.ci`);
+    const p = await hdCenter();
+    await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(120);
+    const tb = await EV(`(()=>{ const r=document.querySelector('#popmenu .t').getBoundingClientRect(); return {x:r.left+6, y:r.top+r.height/2}; })()`);
+    await pg.mouse.click(tb.x, tb.y); await pg.waitForTimeout(60);
+    const ae = await EV(`document.activeElement.id||document.activeElement.tagName`);
+    await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowDown');
+    const c1 = await EV(`sel.mi+':'+sel.ci`);
+    await pg.mouse.click(tb.x, tb.y); await pg.waitForTimeout(60);
+    await pg.keyboard.type('132'); const v = await EV(`(document.getElementById('tp-val')||{}).value`);
+    await pg.mouse.click(tb.x, tb.y); await pg.keyboard.press('Enter'); await pg.waitForTimeout(80);
+    const r = await EV(`({t:song.tempo, pop:!!document.getElementById('popmenu')})`);
+    r.same = (await sig1()) === s0; r.ae = ae; r.v = v; r.c0 = c0; r.c1 = c1;
+    T(r.ae !== 'tp-val' && r.c1 === r.c0 && r.v === '132' && r.t === 132 && !r.pop && r.same,
+      'T18 浮层打开、焦点离开速度框：方向键不移动谱面光标；敲 132 落进速度框；Enter＝确定；谱面不变', JSON.stringify(r));
+  });
+  /* ---------- T19 手机 390×844 向导「创建」可见 ---------- */
+  await guard('T19 手机向导创建钮可见', async () => {
+    const m = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    m.on('pageerror', e => errs.push('PAGEERR(t19):' + e.message));
+    await m.goto(F); await m.waitForTimeout(700);
+    await m.evaluate(() => showNewWizard()); await m.waitForSelector('#nw-create');
+    const g = await m.evaluate(() => { const tops = [...document.querySelectorAll('.nw-basics .nb:not(.nb-ti)')].map(e => Math.round(e.getBoundingClientRect().top));
+      const md = document.querySelector('.modal'), mr = md.getBoundingClientRect(), cb = document.getElementById('nw-create').getBoundingClientRect();
+      return { tops, cbB: Math.round(cb.bottom), mB: Math.round(mr.bottom), st: md.scrollTop, ti: Math.round(document.getElementById('nw-title').getBoundingClientRect().width), sw: document.documentElement.scrollWidth }; });
+    await m.close();
+    T(Math.max(...g.tops) - Math.min(...g.tops) <= 2 && g.cbB <= g.mB && g.ti >= 252 && g.sw <= 390,
+      'T19 手机 390×844：调/拍号/速度同一行、「创建」不滚动即可见、曲名框不窄于 v67.1、无横溢', JSON.stringify(g));
+  });
+  /* ---------- T20 曲谱信息手选单位不被拍号联动冲掉 ---------- */
+  await guard('T20 曲谱信息手选单位', async () => {
+    await newSong();
+    await EV(`document.getElementById('b-meta').onclick()`);
+    await pg.selectOption('#mm-tunit', 'e');
+    await pg.selectOption('#mm-unit', '8'); await pg.selectOption('#mm-unit', '4');
+    const v = await EV(`document.getElementById('mm-tunit').value`);
+    await pg.click('#mm-ok'); await pg.waitForTimeout(60);
+    const r = await EV(`({tu:'tempoUnit' in song? song.tempoUnit : 'none', unit:song.unit, hdr:hdr()})`); r.v = v;
+    T(r.v === 'e' && r.tu === 'e' && r.unit === 4 && r.hdr === '♪=90', 'T20 曲谱信息 4/4 手选 ♪ → 分母改 8 再改回 4：下拉仍 ♪、确定落 tempoUnit e、页头 ♪=90', JSON.stringify(r));
+  });
+  /* ---------- T21 播放坞速度框同口径 ---------- */
+  await guard('T21 播放坞速度框同口径', async () => {
+    await newSong();
+    await EV(`(()=>{ song.tempo=133; render(); })()`);
+    const it = async (txt) => {
+      await EV(`document.getElementById('toast').textContent=''`);
+      await pg.click('#i-tempo', { clickCount: 3 }); await pg.keyboard.press('Control+a'); await pg.keyboard.press('Backspace');
+      if (txt) await pg.keyboard.type(txt);
+      await pg.keyboard.press('Enter'); await pg.waitForTimeout(80);
+      return EV(`({t:song.tempo, v:document.getElementById('i-tempo').value, hdr:hdr(), toast:document.getElementById('toast').textContent})`);
+    };
+    const a = await it('95.6'); await EV(`(()=>{ song.tempo=133; render(); })()`);
+    const e2 = await it(''); const z = await it('0'); const h = await it('300');
+    T(a.t === 96 && a.hdr === '♩=96' && /取整/.test(a.toast) && e2.t === 133 && e2.v === '133' && z.t === 30 && /最小 30/.test(z.toast) && h.t === 240 && /最大 240/.test(h.toast),
+      'T21 播放坞速度框：95.6→96 提示取整、清空保持原速 133、0→30、300→240 均提示', JSON.stringify({ a, e2, z, h }));
+  });
+  /* ---------- T22 未敲完的前缀不误报 / 越界原速清空的文案 ---------- */
+  await guard('T22 前缀不误报与清空文案', async () => {
+    await openWiz();
+    await pg.click('#nw-tempo', { clickCount: 3 }); await pg.keyboard.press('Control+a'); await pg.keyboard.press('Backspace');
+    await pg.keyboard.type('-');
+    const w1 = await EV(`(()=>{ const t=document.getElementById('nw-tempo'), m=document.getElementById('nw-tpmsg'); return {bad:t.classList.contains('bad'), msg:m.classList.contains('on')? m.textContent : ''}; })()`);
+    await pg.keyboard.type('5'); await pg.keyboard.press('Tab');
+    const w2 = await EV(`(()=>({v:document.getElementById('nw-tempo').value, msg:document.getElementById('nw-tpmsg').textContent}))()`);
+    await EV(`closeModal()`);
+    await newSong();
+    await EV(`(()=>{ song.tempo=300; render(); document.getElementById('toast').textContent=''; showHeadMenu('tempo', 300, 200); })()`);
+    await pg.waitForSelector('#tp-val');
+    await pg.click('#tp-val', { clickCount: 3 }); await pg.keyboard.press('Control+a'); await pg.keyboard.press('Backspace'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(60);
+    const h = await EV(`({t:song.tempo, toast:document.getElementById('toast').textContent})`);
+    await EV(`(()=>{ song.tempo=300; render(); document.getElementById('toast').textContent=''; document.getElementById('b-meta').onclick(); })()`);
+    await pg.click('#mm-tempo', { clickCount: 3 }); await pg.keyboard.press('Control+a'); await pg.keyboard.press('Backspace');
+    await pg.click('#mm-ok'); await pg.waitForTimeout(80);
+    const mm = await EV(`({t:song.tempo, toast:document.getElementById('toast').textContent})`);
+    T(!w1.bad && !w1.msg && w2.v === '30' && /最小 30/.test(w2.msg) && h.t === 240 && /最大 240/.test(h.toast) && !/未填/.test(h.toast) && mm.t === 240 && /最大 240/.test(mm.toast),
+      'T22 向导敲「-」不即时误报（-5 失焦夹到 30 才提示）；老谱 300 在页头弹窗 / 曲谱信息清空：提示「最大 240」', JSON.stringify({ w1, w2, h, mm }));
   });
 
   console.log(`PASS ${pass}/${total}`);

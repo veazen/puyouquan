@@ -26,7 +26,8 @@ for (const s of suites) {
   if (!fs.existsSync(f)) { console.log('⚠️  跳过（不存在）: ' + s); continue; }
   ran++;
   let out = '', code = 0;
-  try { out = execFileSync('node', [f], { encoding: 'utf8', env: process.env, timeout: 180000 }); }
+  /* v67.3 单套件超时 180→300 秒：tv_deskscale2 多视口真实点击单跑 107–143 秒，CI 负载下离 180 秒上限太近（超时只防挂死，不放宽断言） */
+  try { out = execFileSync('node', [f], { encoding: 'utf8', env: process.env, timeout: 300000 }); }
   catch (e) { code = e.status == null ? 1 : e.status; out = (e.stdout || '') + (e.stderr || ''); }
   // 失败判定：子进程非零退出 || 输出含 ❌（各套件失败断言的统一标记）|| 无任何输出（崩溃）。
   // 不强制要求 PASS/NO ERRORS 标记——部分老套件仅逐行打 ✅（如 tv_brace）。
