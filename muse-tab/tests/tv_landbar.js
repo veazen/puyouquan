@@ -29,6 +29,15 @@
    L18 起步条按顺序推进（只有一个当前步）；伴奏织体未生成不留撤销步
    L19 先配后续写：② 回到当前「补配 N 小节」
    L20 / L20b 建成提示指向谱型条；读屏语义；空谱菜单说明不重复；另建一份照实说页签；按内容给起步条；命中区 ≥44；非固定版宽对齐可见纸面；长带 / 经典版
+   —— 第二轮验收回归（修前＝第二轮实现版红、修后绿）——
+   L2 补：伴奏织体弹窗生成后第 ③ 步打勾、主按钮仍「换织体」
+   L21 菜单开着时拖入文件 / 菜单里 Alt+N：菜单收起、面板在最上层；鼠标打开的菜单 Esc 后焦点交还谱面
+   L22 曲谱库缩图借谱渲染不改写谱型条、不播报他谱步骤
+   L23 821–1200「智能」抽屉：贴顶、Esc 收起、点报错项先收抽屉、提示条在遮罩之上
+   L24 键盘从主按钮打开的弹窗：焦点进弹窗、Tab 不出弹窗、Esc 回主按钮
+   L25 1366 宽当前步说明放得下；第 ③ 步写左栏收起也可达的入口
+   L26 非固定版宽导入谱左栏展开：步骤先收编号、谱名完整、字不被主按钮截
+   L27 「不可换」说明以该项谱名开头
    突变实证：对 v67.4 原版（MUSETAB_URL=…/v674.html）跑——除「无页面报错」外全部报红 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -132,8 +141,8 @@ const HELP = `(()=>{
       && s1.lb && s1.lb.steps === 'done:写旋律 | now:配和弦与伴奏 | todo:选织体' && s1.lb.go === '一键配伴奏'
       && m1.out === 'fill' && m1.toast === '0'
       && s2.acc && s2.lb.steps === 'done:写旋律 | done:配和弦与伴奏 | now:选织体' && s2.lb.go === '换织体' && s2.melSame === melBefore
-      && m2.tex && !m2.arr && s3.lb && s3.lb.steps === 'done:写旋律 | done:配和弦与伴奏 | now:选织体',
-      'L2 钢琴伴奏歌谱（「新建 ▾」真实点击）：①写旋律（数字键 1235）→ ②亮「一键配伴奏」→ 点主按钮＝智能配谱弹窗、产出默认「填进当前谱」、提示条收起 → 生成后 ③选织体「换织体」→ 伴奏织体弹窗；旋律 / 歌词逐字段不动',
+      && m2.tex && !m2.arr && s3.lb && s3.lb.steps === 'done:写旋律 | done:配和弦与伴奏 | done:选织体' && s3.lb.go === '换织体',
+      'L2 钢琴伴奏歌谱（「新建 ▾」真实点击）：①写旋律（数字键 1235）→ ②亮「一键配伴奏」→ 点主按钮＝智能配谱弹窗、产出默认「填进当前谱」、提示条收起 → 生成后 ③选织体「换织体」→ 伴奏织体弹窗 → 生成后 ③ 打勾、主按钮仍「换织体」（第二轮验收）；旋律 / 歌词逐字段不动',
       J({ s0, s1, m1, s2: Object.assign({}, s2, { melSame: s2.melSame === melBefore }), m2, s3 }));
   } catch (e) { T(false, 'L2 执行异常', e.message.split('\n')[0]); }
 
@@ -796,6 +805,122 @@ const HELP = `(()=>{
       'L20b 示例谱（非固定版宽、左栏展开）从右栏调出：谱型条与可见纸面 #score 同宽同左缘（此前按 #paper 每边宽 15px）、谱名不被省略；不换行长带横滚 1500px 后谱名按钮仍在可视区；经典版外壳不吸顶（不被顶栏盖住）',
       J({ x1, x2, x3 }));
   } catch (e) { T(false, 'L20 执行异常', e.message.split('\n')[0]); }
+
+  /* ========== 第二轮验收回归（修前＝r3/pre.html 红、修后绿） ========== */
+  const MXL1 = '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="3.1"><work><work-title>拖入</work-title></work><part-list><score-part id="P1"><part-name>V</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'
+    + ['C', 'D', 'E', 'F'].map(s => '<note><pitch><step>' + s + '</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>').join('') + '</measure></part></score-partwise>';
+  /* ===== L21 换谱类菜单与弹窗：拖文件进来 / 菜单里按 Alt+N 时菜单收起、面板在最上层；鼠标打开的菜单 Esc 后焦点交还谱面 ===== */
+  try {
+    await EV(() => { closeModal(); NWP.quickCreate('pacc'); closeFlyout(); __mel(song, 0); render(); });
+    await CL('#lb-wrap .lb-kind'); await pg.waitForTimeout(120);
+    const m0 = await EV(() => !!document.getElementById('lb-menu'));
+    await EV(x => { const f = new File([x], 'm.musicxml', { type: 'application/xml' }); const d = new DataTransfer(); d.items.add(f); const tg = document.getElementById('score');
+      ['dragenter', 'dragover', 'drop'].forEach(ty => tg.dispatchEvent(new DragEvent(ty, { bubbles: true, cancelable: true, dataTransfer: d }))); }, MXL1);
+    await pg.waitForTimeout(500);
+    const m1 = await EV(() => { const m = document.getElementById('lb-menu'); return { panel: !!document.querySelector('.nf-modal'), menu: !!m }; });
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(120);
+    await FO('#lb-wrap .lb-kind'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(120);
+    const m2 = await EV(() => ({ menu: !!document.getElementById('lb-menu'), inMenu: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#lb-menu')) }));
+    await pg.keyboard.press('Alt+KeyN'); await pg.waitForTimeout(300);
+    const m3 = await EV(() => ({ panel: !!document.querySelector('.nf-modal'), menu: !!document.getElementById('lb-menu') }));
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(120);
+    await CL('#lb-wrap .lb-kind'); await pg.waitForTimeout(120);
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+    const m4 = await EV(() => ({ menu: !!document.getElementById('lb-menu'), inBar: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#lb-wrap')) }));
+    T(m0 && m1.panel && !m1.menu && m2.menu && m2.inMenu && m3.panel && !m3.menu && !m4.menu && !m4.inBar,
+      'L21 换谱类菜单开着时拖文件进来：菜单收起、新建面板在最上层（此前菜单 z74 浮在面板上，点菜单项在面板背后换谱）；焦点在菜单里按 Alt+N 照常开面板（此前被菜单吞掉）；鼠标打开的菜单按 Esc 后焦点交还谱面（此前回到谱名，空格重开菜单）',
+      J({ m0, m1, m2, m3, m4 }));
+  } catch (e) { T(false, 'L21 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L22 曲谱库缩图借谱渲染不碰谱型条：不改写、不播报他谱的「第 N 步」 ===== */
+  try {
+    await EV(() => { closeModal(); NWP.quickCreate('pacc'); closeFlyout(); song.measures[0].voxes[0][0].deg = 1; song.measures[0].voxes[0][1].deg = 2; render();
+      lbSay(''); window.__said = []; window.__wrapMut = 0;
+      new MutationObserver(() => { const t = document.getElementById('lb-live').textContent; if (t) window.__said.push(t); }).observe(document.getElementById('lb-live'), { childList: true, characterData: true, subtree: true });
+      new MutationObserver(() => { window.__wrapMut++; }).observe(document.getElementById('lb-wrap'), { childList: true, subtree: true }); });
+    await pg.waitForTimeout(200);
+    const g0 = await EV(() => { const o = { lb: __lb(), said: window.__said.length }; window.__said = []; window.__wrapMut = 0; return o; });   /* 写第 2 个音那次推进的播报不算 */
+    await CL('#b-library'); await pg.waitForTimeout(2500);
+    const g1 = await EV(() => ({ thumbs: document.querySelectorAll('.sc-thumb canvas, .sc-thumb img').length, said: window.__said.slice(), mut: window.__wrapMut, lb: __lb() }));
+    await EV(() => closeModal());
+    T(g0.lb && g0.lb.steps === 'done:写旋律 | now:配和弦与伴奏 | todo:选织体' && g1.thumbs >= 4 && g1.said.length === 0 && g1.mut === 0 && g1.lb && g1.lb.txt === g0.lb.txt,
+      'L22 打开曲谱库（预设缩图借谱 render）：谱型条不被改写成别的谱、读屏不播报他谱的「第 N 步」（此前 16 张缩图改写 13 种谱名、播报 21 条）', J({ g0: g0.lb && g0.lb.steps, g1: Object.assign({}, g1, { lb: g1.lb && g1.lb.steps }) }));
+  } catch (e) { T(false, 'L22 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L23 821–1200 宽「智能」抽屉：贴顶（宽屏留下的行内 top 不压它）、Esc 收起、点报错项先收抽屉再跳、提示条在遮罩之上 ===== */
+  try {
+    const p3 = await newPage(1024, 768);
+    await p3.evaluate(() => { const s = NWB.build('JG', { title: '报错', nMea: 40 }); __mel(s, 0); __acc(s, 1); __acc(s, 2); s.measures[33].voxes[0].pop(); addDoc(s); render(); try { toastHide(); } catch (_) {}
+      document.getElementById('right-dock').style.top = '131px'; });   /* 同先在 1366 宽打开再缩窄时 alignHeader 留下的行内 top */
+    await p3.click('#b-msmart', { timeout: 2500 }).catch(() => {}); await p3.waitForTimeout(150);
+    const d0 = await p3.evaluate(() => ({ on: document.body.classList.contains('rsheet'), top: Math.round(document.getElementById('right-dock').getBoundingClientRect().top),
+      tz: +getComputedStyle(document.getElementById('toast')).zIndex, mz: +getComputedStyle(document.getElementById('rsheet-mask')).zIndex }));
+    await p3.keyboard.press('Escape'); await p3.waitForTimeout(100);
+    const d1 = await p3.evaluate(() => document.body.classList.contains('rsheet'));
+    await p3.click('#b-msmart', { timeout: 2500 }).catch(() => {}); await p3.waitForTimeout(150);
+    await p3.click('#rtabs .rtab[data-p="make"]', { timeout: 2500 }).catch(() => {});
+    await p3.evaluate(() => { const st = document.getElementById('beat-status'); if (st) st.click(); }); await p3.waitForTimeout(150);
+    await p3.click('#err-drop .err .err-desc', { timeout: 2500 }).catch(() => {}); await p3.waitForTimeout(500);
+    const d2 = await p3.evaluate(() => { const svg = document.getElementById('score'), R = svg.getBoundingClientRect(), k = R.height / svg.viewBox.baseVal.height, b2 = colBoxes['v0:33:0'];
+      const x = R.left + (b2.x + 5) * k, y = R.top + (b2.y + 10) * k, hit = document.elementFromPoint(Math.min(innerWidth - 5, x), Math.min(innerHeight - 5, y));
+      return { on: document.body.classList.contains('rsheet'), mi: sel.mi, onScore: !!(hit && hit.closest && hit.closest('#score')) }; });
+    await p3.close();
+    T(d0.on && d0.top === 0 && d0.tz > d0.mz && !d1 && !d2.on && d2.mi === 33 && d2.onScore,
+      'L23 1024 宽「智能」右侧抽屉：贴顶（宽屏留下的行内 top:131px 不再压住）、Esc 收起、点节拍检查的报错项先收抽屉再跳（此前跳到的小节被抽屉 / 遮罩盖住）、提示条层级高于遮罩', J({ d0, d1, d2 }));
+  } catch (e) { T(false, 'L23 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L24 键盘从主按钮打开的弹窗：焦点进弹窗、Tab 不出弹窗、Esc 关后回到主按钮 ===== */
+  try {
+    await EV(() => { closeModal(); NWP.quickCreate('pacc'); closeFlyout(); __mel(song, 0); render(); });
+    await pg.keyboard.press('Alt+KeyB'); await pg.waitForTimeout(120);
+    let reached = false;
+    for (let i = 0; i < 6 && !reached; i++) { await pg.keyboard.press('Tab'); reached = await EV(() => !!(document.activeElement && document.activeElement.classList.contains('lb-go'))); }
+    if (reached) { await pg.keyboard.press('Enter'); await pg.waitForTimeout(200); }
+    const k0 = await EV(() => ({ modal: !!document.getElementById('arr-go'), inModal: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#modal-mask')) }));
+    let out = 0;
+    for (let i = 0; i < 30; i++) { await pg.keyboard.press('Tab'); if (!(await EV(() => !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#modal-mask'))))) out++; }
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(150);
+    const k1 = await EV(() => ({ modal: !!document.getElementById('modal-mask'), back: !!(document.activeElement && document.activeElement.classList.contains('lb-go')) }));
+    T(reached && k0.modal && k0.inModal && out === 0 && !k1.modal && k1.back,
+      'L24 键盘：Alt+B → Tab 到「一键配伴奏」→ Enter：焦点进入弹窗、连按 30 次 Tab 不离开弹窗（此前在背景里走 27 次才进弹窗）、Esc 关闭后焦点回到主按钮', J({ reached, k0, out, k1 }));
+  } catch (e) { T(false, 'L24 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L25 当前步的操作说明在 1366 宽放得下（可折两行），第 ③ 步写左栏收起时也走得通的入口 ===== */
+  try {
+    await EV(() => { closeModal(); NWP.quickCreate('pacc'); closeFlyout(); render(); });
+    const h1 = await EV(() => { const h = document.querySelector('#lb-wrap .lb-hint'); return h ? { t: h.textContent, cut: h.scrollHeight > h.clientHeight + 1 || h.scrollWidth > h.clientWidth + 1, barH: Math.round(document.querySelector('#lb-wrap .lb-bar').getBoundingClientRect().height) } : null; });
+    await EV(() => { NWP.quickCreate('gtr'); LBAR.open({ from: 'new', pen: 'J' }); closeFlyout(); __mel(song, 0); render(); mapVoxToTab(0, 'low'); render(); });
+    const h3 = await EV(() => { const h = document.querySelector('#lb-wrap .lb-hint'); return h ? { t: h.textContent, cut: h.scrollHeight > h.clientHeight + 1 || h.scrollWidth > h.clientWidth + 1, steps: __lb().steps } : null; });
+    T(h1 && !h1.cut && /Enter/.test(h1.t) && h1.barH <= 64 && h3 && !h3.cut && /now:调把位与扫弦/.test(h3.steps) && /左侧吉他轨/.test(h3.t),
+      'L25 1366 宽：钢琴伴奏歌谱第 ① 步说明完整可见（含「Enter 填歌词」，此前只露一半）、谱型条不变高；吉他弹唱第 ③ 步说明完整、写「点左侧吉他轨 →「记号」」（左栏收起时也走得通）', J({ h1, h3 }));
+  } catch (e) { T(false, 'L25 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L26 导入谱（非固定版宽）左栏展开时谱型条收起顺序：步骤字先收成编号，谱名完整、步骤字不被主按钮截掉 ===== */
+  try {
+    await EV(() => closeModal());
+    await CL('#b-new'); await pg.waitForTimeout(250); await CL('.nf-tabs [data-v="import"]'); await CL('#nf-isrc-ai'); await CL('#nf-demo'); await pg.waitForTimeout(800);
+    await CL('#nf-impgo'); await pg.waitForTimeout(400);
+    await EV(() => { openFlyout('vox'); render(); }); await pg.waitForTimeout(200);
+    await CL('#lb-wrap .lb-kind'); await pg.waitForTimeout(150); await CL('#lb-menu [data-sw="SG"]'); await pg.waitForTimeout(400);
+    const q = await EV(() => { const w = document.querySelector('#lb-wrap .lb-bar'); const st = w.querySelector('.lb-steps'), go = w.querySelector('.lb-go'), kb = w.querySelector('.lb-kind b');
+      const lis = [...st.querySelectorAll('li')].filter(li => li.offsetParent), R = e => e.getBoundingClientRect(), vis = e => { const r = R(e); return r.width > 2; };
+      const names = lis.map(li => li.querySelector(':scope > span')).filter(x => x && vis(x));
+      return { k: NWB.stackOf(song), w: Math.round(R(w).width), cls: document.getElementById('lb-wrap').className, stepsCut: st.scrollWidth > st.clientWidth + 1, kindCut: kb.scrollWidth > kb.clientWidth + 1,
+        nameCut: names.some(x => x.scrollWidth > x.clientWidth + 1 || R(x).right > R(st).right + 0.5), overlap: lis.some(li => R(li).right > R(go).left + 0.5), go: go.textContent }; });
+    await EV(() => closeFlyout());
+    T(q.k === 'SG' && q.w < 760 && !q.stepsCut && !q.kindCut && !q.nameCut && !q.overlap && q.go === '一键配伴奏',
+      'L26 导入的《送别》换成钢琴伴奏歌谱（五线谱）、1366 宽左栏展开（谱纸约 655px）：谱名完整、步骤字不被截断或压在主按钮下（先把步骤收成编号，最后才动谱名与「旋律用」）', J(q));
+  } catch (e) { T(false, 'L26 执行异常', e.message.split('\n')[0]); }
+
+  /* ===== L27 「不可换」说明以这一项的谱名开头 ===== */
+  try {
+    await EV(() => { closeModal(); NWP.quickCreate('pacc'); closeFlyout(); __mel(song, 0); render(); });
+    await CL('#lb-wrap .lb-kind'); await pg.waitForTimeout(150);
+    const n = await EV(() => ['T', 'ST', 'G', 'CG'].map(k => { const it = document.querySelector('#lb-menu [data-sw="' + k + '"]'); const nm = it.querySelector('b').textContent, why = it.querySelector('small').textContent.replace(/^不可换：/, '');
+      return { k, nm, why: why.slice(0, 24), ok: why.indexOf(nm) === 0 }; }));
+    await pg.keyboard.press('Escape');
+    T(n.every(x => x.ok), 'L27 换谱类菜单「不可换」的说明以该项谱名开头（此前「吉他谱（六线谱）」「吉他独奏谱」都写「纯六线谱 / 吉他独奏谱……」，「钢琴弹唱谱」写「钢琴独奏谱 / 弹唱谱……」）', J(n));
+  } catch (e) { T(false, 'L27 执行异常', e.message.split('\n')[0]); }
 
   T(!errs.length, '无页面报错', errs.slice(0, 3).join(' | '));
   console.log('\n' + (pass === total ? '✅ PASS ' : '❌ ') + pass + '/' + total);

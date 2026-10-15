@@ -29,6 +29,7 @@
    F19 / F20 两条路径同一份尾部判定与提示；儿歌伴奏收束落在旋律写到的最后一小节
    F21 填进当前谱后光标回第 1 小节旋律行（播放从头）
    F22 钢琴伴奏歌谱的伴奏行没写词时不留歌词行、不印段序号
+   第二轮验收（v67.5）补：F23 生成 / 补齐六线谱弹窗标题、单选说明版式、补进音数
    突变实证：对 v67.3 原版（MUSETAB_URL=…/v673.html）跑 1/21——F1～F15 全部报红，只有「无页面报错」绿；对实现者交付版（收尾修复前）跑 8/21，
    F1b F2 F6b F6c F7～F15 报红（即上面各条验收补的断言）。 */
 const { chromium } = require('playwright');
@@ -461,7 +462,7 @@ const HELP = `(()=>{
       const t=arrangeAccompaniment(mel,{texId:'slow'}).song, p=arrangeAccompaniment(mel,{texId:'slow',pure:true}).song;
       out.arr=[(t.mixer['vox:0']||{}).inst||'∅', t.mixer['vox:1'].inst, t.mixer['vox:2'].inst, p.mixer['vox:0'].inst, p.mixer['vox:1'].inst].join();
       return out; })()`);
-    T(r.tail && /4 小节伴奏/.test(r.tail.msg) && /第 5–8 小节还没有旋律未配/.test(r.tail.msg) && r.tail.rest && r.tail.gen && r.tail.mix === 'strings,piano' && r.fn === 'false:undefined' && r.arr === '∅,piano,piano,piano,piano',
+    T(r.tail && /4 小节伴奏/.test(r.tail.msg) && /第 5–8 小节还没有旋律，未配/.test(r.tail.msg) && r.tail.rest && r.tail.gen && r.tail.mix === 'strings,piano' && r.fn === 'false:undefined' && r.arr === '∅,piano,piano,piano,piano',
       'F15 8 小节只写了前 4 小节旋律：只配前 4 小节、第 5–8 小节伴奏行留空并提示「写完再配」；单旋律谱填进后和弦显示（级数 / 音名）不变；混音台：调过的右手音色保留、默认人声的左手改钢琴；新窗口产出的伴奏行也是钢琴音色', J(r));
   }
 
@@ -529,9 +530,9 @@ const HELP = `(()=>{
     const fill = await EV(pick);
     await EV(mk); await texBtn(); await pg.click('input[name="tex"][value="kids2"]'); await pg.click('#tex-auto'); await pg.click('#tex-go'); await pg.waitForTimeout(150);
     const tex = await EV(pick);
-    const note = t => (/(，第 8 小节还没有旋律未配（写完再配）)/.exec(t) || [])[1] || '';
+    const note = t => (/(，第 8 小节还没有旋律，未配（写完再配）)/.exec(t) || [])[1] || '';
     T(fill.R6 === '2:1:2' && fill.L6 === '2:1' && fill.R5 === '4:0 4:1' && fill.m7 && tex.R6 === fill.R6 && tex.L6 === fill.L6 && tex.m7 && note(fill.toast) && note(fill.toast) === note(tex.toast),
-      'F19 / F20 8 小节只写 7 小节（儿歌伴奏 2/4）：「填进当前谱」与「伴奏织体」都只配前 7 小节、第 7 小节收束（右手 1·3·5 二分＋左手根音二分，不再停在弱拍）、第 8 小节留空，两处提示同一句「第 8 小节还没有旋律未配（写完再配）」', J({ fill, tex }));
+      'F19 / F20 8 小节只写 7 小节（儿歌伴奏 2/4）：「填进当前谱」与「伴奏织体」都只配前 7 小节、第 7 小节收束（右手 1·3·5 二分＋左手根音二分，不再停在弱拍）、第 8 小节留空，两处提示同一句「第 8 小节还没有旋律，未配（写完再配）」', J({ fill, tex }));
   }
 
   /* ===== F21 填进当前谱后光标回到第 1 小节旋律行（播放从头开始，此前停在尾部空白小节，约 40 秒无声） ===== */
@@ -552,6 +553,25 @@ const HELP = `(()=>{
       return out; })()`);
     T(r.rows === '2,0,0' && r.nums === 2 && r.g2 === r.g0 && r.rowsLy === '0,1,0',
       'F22 钢琴伴奏歌谱（2 段词、还没填词）配好伴奏后：右手 / 左手伴奏行不留歌词行（右手→左手间距与 0 段词时相同）、段序号只印旋律行的「1 2」；伴奏行真写了词才给它留行（全曲已有词时没写词的声部不留行，v64.8 口径）', J(r));
+  }
+
+  /* ===== F23（v67.5 第二轮验收）生成 / 补齐六线谱弹窗：标题与谱型条同名；「补进 / 另加一条」单选说明不被挤成窄列；正文写本次要补的音数、不连写两组括号 ===== */
+  {
+    await EV(`(()=>{ closeModal(); const s=createSong('tanchang',{inst:'guitar',key:'C',beats:4,unit:4,nMea:4,nTab:1,nVox:1,lyr:0});
+      s.measures.forEach((m,mi)=>{ m.voxes[0]= mi<2? [__V(1,4),__V(3,4),__V(5,4),__V(1,4,{oct:1})] : blankVoxCols(4,4); }); addDoc(s); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); })()`);
+    const g0 = await EV(`(()=>{ showVoxTabMenu(0); const h=(document.querySelector('.modal h3')||{}).textContent||'', p=(document.querySelector('.modal p')||{}).textContent||''; return {h, p}; })()`);
+    await pg.click('#vt-low'); await pg.waitForTimeout(120);
+    await EV(`(()=>{ mutate(()=>{ [2,3].forEach(mi=>{ song.measures[mi].voxes[0]=[__V(2,4),__V(4,4),__V(6,4),__V(2,4,{oct:1})]; }); }); })()`);
+    await EV(`showVoxTabMenu(0)`); await pg.waitForTimeout(100);
+    const g1 = await EV(`(()=>{ const h=(document.querySelector('.modal h3')||{}).textContent||'', p=(document.querySelector('.modal p')||{}).textContent||'';
+      const sp=[...document.querySelectorAll('.vt-dest label span')].map(x=>{ const r=x.getBoundingClientRect(), cs=getComputedStyle(x); return {w:Math.round(r.width), h:Math.round(r.height), al:cs.textAlign, t:x.textContent}; });
+      return {h, p, sp}; })()`);
+    await pg.click('#vt-low'); await pg.waitForTimeout(120);
+    const t1 = await EV(`document.getElementById('toast').textContent`);
+    const fillN = (/共 (\d+) 个音/.exec((g1.sp[0] || {}).t || '') || [])[1], toastN = (/、(\d+) 音/.exec(t1) || [])[1];
+    T(/生成六线谱/.test(g0.h) && !/把位轨/.test(g0.h) && !/）（/.test(g0.p) && /补齐六线谱/.test(g1.h) && g1.sp.length === 2 && g1.sp.every(x => x.w >= 200 && x.al !== 'right' && x.h <= 60)
+      && /第 3–4 小节（2 个小节）/.test(g1.sp[0].t) && fillN && fillN === toastN && fillN === '8',
+      'F23 生成 / 补齐六线谱弹窗：标题叫「生成六线谱 / 补齐六线谱」（同谱型条，此前「生成把位轨」）、正文不连写两组括号；「补进 / 另加一条」两项说明宽 ≥200px、左对齐（此前被表单标签样式挤成 56px 宽、竖排 13 行）；补进写「第 3–4 小节（2 个小节）」、本次补的音数与完成提示一致（此前正文写整条 15 音）', J({ g0, g1, t1 }));
   }
 
   T(errs.length === 0, '无页面报错', errs.slice(0, 4).join(' | ') || 'none');

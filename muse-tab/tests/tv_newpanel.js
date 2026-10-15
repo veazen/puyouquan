@@ -44,6 +44,7 @@
    T34 离屏不变量（真实刻版版，50 次切换每次等刻完；存储 / 撤销 / 选区 / 窗口 / #paper / 编辑器谱面 / colBoxes / song 身份不变）
    T35 耗时（引擎中位 ≤10ms；点选到下一帧中位 ≤50 / P95 ≤100ms；换图中位 ≤30 / P95 ≤60ms）  T36 1440 浅深 / 1366 / 1280×720 / 1024×700 尺寸与主题
    （T26 四部合唱、T19 文案「实时刻版」、T18 / T27 导入多一步「导入」随 v67.5 迁移）
+   T37（v67.5 第二轮验收）新窗口从谱首看起（不沿用上一个窗口的滚动位置）
    突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无新建面板 / NWB / 启动台新卡 → 全红；v67.4 原版 → T33–T36 红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -1095,6 +1096,20 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     const ok = Object.values(out).every(x => x.offs.split(',').every(o => Math.abs(+o) <= 2) && !x.inv && x.paper === 'rgb(255, 255, 255)' && x.svIn && x.ov.doc <= 0 && x.ov.mid <= 1 && x.ov.body <= 1);
     const dk = out['1440x900d'], lum = c => { const m = (String(c).match(/[\d.]+/g) || []).map(Number); return m.length >= 3 ? (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255 : 1; };
     T(ok && lum(dk.fill) < 0.4, 'T36 预览在 1440×900 浅 / 深（编辑器开着曲谱反色，预览仍白纸黑字）、1366×768、1280×720、1024×700（右栏下移）都不横向溢出、行标对齐 ±2px', JSON.stringify(out));
+  });
+
+  /* ---------- T37（v67.5 第二轮验收）新窗口从谱首看起：上一个窗口滚到下面后再新建，新窗口不沿用滚动位置（第 1 行在视口内）、谱型条立即在 ---------- */
+  await guard('T37 新窗口滚动归零', async () => {
+    const pg = await open(1920, 1080);
+    await pg.evaluate(() => { hideStartPad(); });
+    await openPanel(pg); await pg.click('[data-scene="pacc"]'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250);
+    await pg.mouse.move(900, 600); await pg.mouse.wheel(0, 600); await pg.waitForTimeout(250);
+    const s0 = await pg.evaluate(() => document.getElementById('score-wrap').scrollTop);
+    await openPanel(pg); await pg.click('[data-scene="teach"]'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250);
+    const r = await pg.evaluate(() => { const sw = document.getElementById('score-wrap'), R = sw.getBoundingClientRect(), b = colBoxes['v0:0:0'], svg = document.getElementById('score'), S = svg.getBoundingClientRect(), k = S.width / svg.viewBox.baseVal.width;
+      const y = S.top + b.y * k; return { st: sw.scrollTop, row1In: y >= R.top && y <= R.bottom, lb: !!document.querySelector('#lb-wrap .lb-bar'), k: NWB.stackOf(song) }; });
+    await pg._ctx.close();
+    T(s0 >= 300 && r.st === 0 && r.row1In && r.lb && r.k === 'SJ', 'T37 钢琴伴奏歌谱滚到下面（scrollTop ' + s0 + '）后新建教学对照谱：新窗口 scrollTop 0、第 1 行在视口内（此前沿用 600、屏上只剩末行一截）、谱型条在', JSON.stringify(r));
   });
 
   T(errs.length === 0, '无页面报错', errs.join(' | ') || 'none');
