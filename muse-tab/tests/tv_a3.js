@@ -66,6 +66,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       return {sr:Math.round(s.right), pr:Math.round(p.right)}; })()`;
     for (const w of [1440, 1280]) {
       const pg = await open({ width: w, height: 900 });
+      /* v67.4「继续上次编辑」只给自己的谱（原样示例谱不算，修 P2-24）：先把示例谱存成自己的（改曲名落盘）再刷新，谱面内容不变 */
+      await pg.evaluate(() => { song.title = '我的练习'; persistNow(); });
+      await pg.reload(); await pg.waitForTimeout(1100);
       await pg.click('[data-sp="cont"]'); await pg.waitForTimeout(150);
       const g0 = await pg.evaluate(GEO);
       await pg.evaluate(`(()=>{ const t=[...document.querySelectorAll('.ltab')].find(x=>!x.classList.contains('on')); t&&t.click(); })()`); await pg.waitForTimeout(150);

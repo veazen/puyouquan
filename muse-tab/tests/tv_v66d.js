@@ -272,12 +272,12 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
       await pg.evaluate(`hideStartPad(); loadSong(PRESETS[0].make()); render(); showNewWizard();`); await pg.waitForTimeout(300);
       const r = await pg.evaluate(() => { const g = s => { const e = document.querySelector(s); return e ? [getComputedStyle(e).backgroundColor, __cr(__col(getComputedStyle(e).color), __col(getComputedStyle(e).backgroundColor))] : null; };
         const hd = document.createElement('div'); hd.className = 'hd-step'; hd.textContent = '步骤'; document.body.appendChild(hd); const h = g('.hd-step'); hd.remove();
-        return { nwi: g('.nw-int'), hd: h, panel: getComputedStyle(document.body).getPropertyValue('--panel').trim(), paper: getComputedStyle(document.body).getPropertyValue('--paper').trim() }; });
+        return { nwi: g('.nf-modal #nw-title'), hd: h,   /* v67.4 新建面板：抬升控件（曲名框，--ed-raise）替原意图卡 .nw-int */ panel: getComputedStyle(document.body).getPropertyValue('--panel').trim(), paper: getComputedStyle(document.body).getPropertyValue('--paper').trim() }; });
       const want = rgbOf(eff === 'dark' ? C.dark['--panel'] : CONST['--paper']);
       if (!r.nwi || r.nwi[0] !== want || r.hd[0] !== want || r.nwi[1] < 4.5 || r.hd[1] < 4.5) ok = false;
       out[nm] = r; await close(pg);
     }
-    T(ok, 'T11 新建向导卡 / 帮助步骤卡：深色主题读 --panel（不再白卡浅字），浅色仍是纸白，字对比 ≥4.5', JSON.stringify(out).slice(0, 500));
+    T(ok, 'T11 新建面板抬升控件 / 帮助步骤卡：深色主题读 --panel（不再白卡浅字），浅色仍是纸白，字对比 ≥4.5', JSON.stringify(out).slice(0, 500));
   }
 
   /* ---------- T12 框架焦点环 ---------- */

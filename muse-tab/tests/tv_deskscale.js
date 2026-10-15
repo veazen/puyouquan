@@ -76,7 +76,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
-    await pg.click('.nw-int[data-int="vocal"]');
+    await pg.click('.nf-modal [data-scene="vocal"]');   // v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡）
     await pg.fill('#nw-title', '快乐的小星星');
     await pg.selectOption('#nw-key', 'B');
     await pg.fill('#nw-tempo', '90');
@@ -191,8 +191,10 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
         k:+(document.getElementById('score').getBoundingClientRect().width/document.getElementById('score').viewBox.baseVal.width).toFixed(4)}; })()`).catch(e => ({ err: e.message }));
     if (r.err || r.fw || !r.viewer || r.k > 1.0001) bad.push('观看页 ' + JSON.stringify(r));
     await pg._ctx.close();
-    /* 手机 390 */
-    pg = await open(390, 844, 3, true); await wizard(pg);
+    /* 手机 390（v67.4 拍板 1：手机先不开放新建——同一份面板建谱计划在手机上落谱，验窄屏重排口径不变） */
+    pg = await open(390, 844, 3, true);
+    await pg.evaluate(() => { const st = NWP.fresh({ scene: 'vocal', clean: true }); st.v.title = '快乐的小星星'; st.v.key = 'B'; realCreate(NWP.planOf(st), ''); });
+    await pg.waitForTimeout(700); await pg.evaluate(NOTES); await pg.waitForTimeout(400);
     r = await geo(pg);
     if (r.fixwide || r.PAGE_W >= 1060 || r.svgW > 390 || r.docW > r.vw) bad.push('手机 ' + JSON.stringify({ fw: r.fixwide, PW: r.PAGE_W, svgW: r.svgW, docW: r.docW }));
     await pg._ctx.close();

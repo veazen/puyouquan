@@ -33,8 +33,10 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
     s.measures.forEach(m => { m.voxes[0] = [V(1, 2), V(3, 2)]; }); loadSong(s); render();
     const xml = exportMusicXML(song); const im = importMusicXML(xml); const smf = parseSMF(exportMIDI(song).bytes);
     return { be: beatErrors().length, us: +unitSeconds(song, 1).toFixed(3), xml: /<beats>2<\/beats><beat-type>2<\/beat-type>/.test(xml), unit: im.song && im.song.unit, sk: im.skip && im.skip.other, midiUnit: smf.ts && smf.ts.unit }; });
-  { const src = require('fs').readFileSync(FILE, 'utf8');   /* 三处拍号选择器（新建向导 ×2、变拍子菜单、曲谱信息）都列出 2 */
-    r.pm = (src.match(/sels\('nw-unit',\[2,4,8\],4\)/g) || []).length === 2 && /sels\('pm-unit',\[2,4,8\]/.test(src) && /id="mm-unit"><option \$\{song\.unit===2\?'selected':''\}>2<\/option>/.test(src); }
+  { const src = require('fs').readFileSync(FILE, 'utf8');   /* 三处拍号选择器（新建 ×2、变拍子菜单、曲谱信息）都列出 2 */
+    /* v67.4 新建面板的拍号分母不再是 sels() 字面量（按当前状态渲染）——改为实测面板 #nw-unit 的选项含 2；程序化保留的第二步 showNewForm 仍是 sels 字面量 */
+    const panelUnit = await EV(() => { showNewWizard(); const u = document.getElementById('nw-unit'); const ok = !!u && [...u.options].some(o => o.value === '2'); closeModal(); return ok; });
+    r.pm = panelUnit === true && (src.match(/sels\('nw-unit',\[2,4,8\],4\)/g) || []).length === 1 && /sels\('pm-unit',\[2,4,8\]/.test(src) && /id="mm-unit"><option \$\{song\.unit===2\?'selected':''\}>2<\/option>/.test(src); }
   T(!r.err && r.be === 0 && r.us === 1.333 && r.xml && r.unit === 2 && r.sk === 0 && r.midiUnit === 2 && r.pm === true, 'T1 2/2 拍：排版/播放/MusicXML/MIDI/拍号选择器', JSON.stringify(r));
 
   /* T2 */

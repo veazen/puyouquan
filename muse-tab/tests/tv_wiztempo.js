@@ -33,7 +33,14 @@
    T19 手机 390×844：调 / 拍号 / 速度同一行，「创建」按钮不滚动即在弹窗可视区内（v67.2 口径）
    T20 「曲谱信息」手选 ♪ 后改拍号分母 8 → 再改回 4：下拉仍是用户选的 ♪，确定落 tempoUnit 'e'、页头 ♪=90
    T21 播放坞 #i-tempo 与各入口同口径：95.6→96 提示取整；清空＝保持原速 133；0→30、300→240 均提示
-   T22 向导敲「-」第一键不误报「需为数字」（失焦才提示）；老谱 300 在页头弹窗 / 曲谱信息清空回车：提示「最大 240」而不是「未填有效数字」 */
+   T22 向导敲「-」第一键不误报「需为数字」（失焦才提示）；老谱 300 在页头弹窗 / 曲谱信息清空回车：提示「最大 240」而不是「未填有效数字」
+   ——v67.4 新建面板（三意图卡向导下线，docs/design-2026-10e 已拍板）随流程必然改变的口径：
+   · 「向导」＝新建面板，速度 / 拍号 / 单位下拉的 id 与 v67.3 口径不变；默认速度改为「按用途」——本套件统一选「歌谱 · 合唱」（♩=90），原 90 断言照旧；
+   · T5 不碰速度直接建：四类用途各落各自的默认速度（吉他弹唱 80 / 歌谱 90 / 和弦谱 84 / 器乐·钢琴 90），页头一致、不落 tempoUnit；
+   · 手机（拍板 1：先不开放手机新建；只拦真手机＝触屏粗指针、屏幕短边 <600）→ T8 手机档验「发到电脑继续」说明不溢出、主按钮可见；
+     电脑浏览器窄窗口（390，非触屏）照常出完整面板，恢复 v67.3 口径：「速度」字名 / 单位下拉 / 数值框都在弹窗内；
+     T13 电脑档按面板右栏新基线（1280 / 1100 / 1024），窄窗口 768 / 390 / 320 恢复 v67.1 同档基线（385 / 252 / 185）；
+     T19 改验电脑紧凑档（1280×720 / 1024×700）调·拍号·速度同一行、「创建」不滚动即可见。其余断言不变。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -59,9 +66,11 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   const EV = s => pg.evaluate(s).catch(e => ({ err: e.message }));
   /* 打开向导：优先点顶栏「新建」（真实入口），点不到再走函数 */
   const openWiz = async () => {
-    await EV(`(()=>{ try{ closeModal(); }catch(_){} })()`);
+    await EV(`(()=>{ try{ closeModal(); }catch(_){} try{ localStorage.removeItem('musetab-nw-last'); }catch(_){} })()`);
     try { await pg.click('#b-new', { timeout: 1500 }); } catch (_) { await EV(`showNewWizard()`); }
     await pg.waitForSelector('#nw-create', { timeout: 3000 });
+    /* v67.4 新建面板：选「歌谱 · 合唱」用途（默认 ♩=90，与 v67.3 默认速度口径一致） */
+    await pg.click('.nf-modal [data-scene="vocal"]', { timeout: 1500 }).catch(() => {});
   };
   const typeTempo = async (txt) => {
     await pg.click('#nw-tempo', { clickCount: 3 });
@@ -119,16 +128,15 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   T(t4ok && r.tempo === 60 && r.tu === 'dq' && r.hdr === '♩.=60' && p.spb === 0.333 && p.mea === 2 && mt === 90,
     'T4 6/8 选 ♩. 附点四分 60 → tempoUnit dq、页头 ♩.=60、真播放八分 0.333s/小节 2.0s、MIDI 四分 90', JSON.stringify({ t4ok, r, p, mt }));
 
-  /* ---------- T5 默认值（4 类谱都不碰速度） ---------- */
+  /* ---------- T5 默认值（4 类谱都不碰速度；v67.4 按用途的默认速度） ---------- */
   const defs = [];
-  for (const [intent, extra] of [['inst', null], ['vocal', null], ['func', null], ['inst', 'piano']]) {
+  for (const [scene, want] of [['gtr', 80], ['vocal', 90], ['chord', 84], ['inst', 90]]) {
     await openWiz();
-    await pg.click('.nw-int[data-int="' + intent + '"]');
-    if (extra) { await pg.click('.nw-dd[data-dd="instKey"] .nw-ddbtn'); await pg.click('.nw-dditem[data-k="instKey"][data-v="' + extra + '"]'); }
+    await pg.click('.nf-modal [data-scene="' + scene + '"]');
     await pg.click('#nw-create'); await pg.waitForTimeout(120);
-    const s = await state(); defs.push(intent + (extra ? ':' + extra : '') + '=' + s.tempo + '/' + s.tu + '/' + s.hdr);
+    const s = await state(); defs.push(scene + '=' + s.tempo + '/' + s.tu + '/' + s.hdr + (s.tempo === want && s.hdr === '♩=' + want ? '' : '≠' + want));
   }
-  T(defs.every(x => /=90\/none\/♩=90$/.test(x)), 'T5 不碰速度直接创建（器乐/声乐/功能/钢琴）→ 90、页头 ♩=90、不落 tempoUnit', defs.join(' '));
+  T(defs.every(x => /=(\d+)\/none\/♩=\1$/.test(x)), 'T5 不碰速度直接创建（吉他弹唱 80 / 歌谱 90 / 和弦谱 84 / 器乐·钢琴 90）→ 用途默认速度、页头一致、不落 tempoUnit', defs.join(' '));
 
   /* ---------- T6 越界 / 非法 ---------- */
   await openWiz();
@@ -182,26 +190,39 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     && mm.undo.tempo === 90 && mm.undo.tu === 'none' && mm.undo.hdr === '♩=90' && mm.same === true && mm.follow === 'e',
     'T7 曲谱信息弹窗有速度数值＋单位：改 ♩.=72 落谱+页头、Ctrl+Z 一步撤回、不碰速度确定零改动、改 x/8 单位随动 ♪', JSON.stringify({ mm0, mm }));
 
-  /* ---------- T8 手机 390 宽 ---------- */
+  /* ---------- T8 手机 390 宽（v67.4 拍板 1：手机先不开放新建 →「发到电脑继续」说明）＋ 电脑窄窗口 390 照常出面板 ---------- */
   {
-    const m = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-    m.on('pageerror', e => errs.push('PAGEERR(m):' + e.message));
+    const m = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    m.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     await m.goto(F); await m.waitForTimeout(1000);
     await m.evaluate(() => showNewWizard());
     await m.waitForTimeout(200);
-    await m.selectOption('#nw-unit', '8').catch(() => {});
     const g = await m.evaluate(() => {
+      const md = document.querySelector('.modal'), mr = md.getBoundingClientRect(), pc = document.getElementById('nw-pc');
+      const pr = pc ? pc.getBoundingClientRect() : null;
+      const inside = rc => !!rc && rc.width > 0 && rc.left >= mr.left - 0.5 && rc.right <= mr.right + 0.5 && rc.bottom <= innerHeight;
+      return { sw: document.documentElement.scrollWidth, mOver: md.scrollWidth - md.clientWidth, pc: inside(pr), noForm: !document.getElementById('nw-tempo') && !document.getElementById('nw-create') };
+    });
+    await m.close();
+    /* 电脑浏览器窗口拉到 390 宽（非触屏）：不是手机，照常出面板（验收：此前只看宽度，电脑半屏也建不了谱）——v67.3 原口径 */
+    const d = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    d.on('pageerror', e => errs.push('PAGEERR:' + e.message));
+    await d.goto(F); await d.waitForTimeout(1000);
+    await d.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} showNewWizard(); });
+    await d.waitForTimeout(200);
+    await d.selectOption('#nw-unit', '8').catch(() => {});
+    const g2 = await d.evaluate(() => {
       const md = document.querySelector('.modal').getBoundingClientRect();
-      const tp = document.getElementById('nw-tempo').getBoundingClientRect();
-      const lab = document.querySelector('label[for="nw-tempo"]');
-      const lr = lab ? lab.getBoundingClientRect() : null;
+      const tp = document.getElementById('nw-tempo'); const tr = tp ? tp.getBoundingClientRect() : null;
+      const lab = document.querySelector('label[for="nw-tempo"]'); const lr = lab ? lab.getBoundingClientRect() : null;
       const tu = document.getElementById('nw-tunit'); const ur = tu && !tu.hidden ? tu.getBoundingClientRect() : null;
       const inside = rc => !!rc && rc.width > 0 && rc.left >= md.left - 0.5 && rc.right <= md.right + 0.5;
       return { sw: document.documentElement.scrollWidth, mOver: document.querySelector('.modal').scrollWidth - document.querySelector('.modal').clientWidth,
-        tp: inside(tp), lab: inside(lr), tu: inside(ur), tpW: Math.round(tp.width) };
+        tp: inside(tr), lab: inside(lr), tu: inside(ur), tpW: tr ? Math.round(tr.width) : 0, mpc: !!document.getElementById('nw-pc') };
     });
-    T(g.sw <= 390 && g.mOver <= 0 && g.tp && g.lab && g.tu && g.tpW >= 56, 'T8 手机 390：无横向溢出，「速度」字名/单位下拉/数值框都在弹窗内', JSON.stringify(g));
-    await m.close();
+    await d.close();
+    T(g.sw <= 390 && g.mOver <= 0 && g.pc && g.noForm && g2.sw <= 390 && g2.mOver <= 0 && g2.tp && g2.lab && g2.tu && g2.tpW >= 56 && !g2.mpc,
+      'T8 手机 390：新建＝「发到电脑继续」说明（不出建谱表单）、无横溢、主按钮可见；电脑窄窗口 390：照常出面板，「速度」字名/单位下拉/数值框都在弹窗内', JSON.stringify({ g, g2 }));
   }
 
   /* ---------- T9 导入不受影响（护栏） ---------- */
@@ -293,24 +314,28 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
       'T12 曲谱信息单位以值论：♩→♪→♩ 不落字段（后改 6/8 仍 ♪/qpm 45）；选 ♪ 落显式 e；改回后再改 8 分母随动 ♪ 不落字段', JSON.stringify({ r1, r1b, r2, fol, r3 }));
   });
 
-  /* ---------- T13 曲名框不被挤窄（验收 F4） ---------- */
+  /* ---------- T13 曲名框不被挤窄（验收 F4；v67.4 面板右栏新基线：曲名独占一行 ≥240，紧凑两栏档铺满 ≥480；电脑窄窗口 768 / 390 / 320 回到 v67.1 同档基线） ---------- */
   await guard('T13 曲名框不被挤窄', async () => {
     const res = [];
-    for (const [w, h, min] of [[1280, 900, 371], [768, 1024, 385], [390, 844, 252], [320, 568, 185]]) {
+    for (const [w, h, min] of [[1280, 900, 240], [1100, 800, 480], [1024, 700, 480], [768, 1024, 385], [390, 844, 252], [320, 568, 185]]) {
       const m = await b.newPage({ viewport: { width: w, height: h } });
       m.on('pageerror', e => errs.push('PAGEERR(t13):' + e.message));
       await m.goto(F); await m.waitForTimeout(700);
-      await m.evaluate(() => showNewWizard()); await m.waitForSelector('#nw-create');
-      const tw = () => m.evaluate(() => Math.round(document.getElementById('nw-title').getBoundingClientRect().width));
-      const w4 = await tw();
-      await m.selectOption('#nw-beats', '12'); await m.selectOption('#nw-unit', '8');
-      const w8 = await tw();
+      await m.evaluate(() => showNewWizard());
+      let w4 = 0, w8 = 0;
+      if (min) {
+        await m.waitForSelector('#nw-create');
+        const tw = () => m.evaluate(() => Math.round(document.getElementById('nw-title').getBoundingClientRect().width));
+        w4 = await tw();
+        await m.selectOption('#nw-beats', '12'); await m.selectOption('#nw-unit', '8');
+        w8 = await tw();
+      }
       const sw = await m.evaluate(() => document.documentElement.scrollWidth);
       res.push({ w, min, w4, w8, sw });
       await m.close();
     }
     T(res.every(x => x.w4 >= x.min && x.w8 >= x.min && Math.abs(x.w4 - x.w8) <= 1 && x.sw <= x.w),
-      'T13 曲名框不被挤窄：1280/768/390/320 下 x/4、x/8 均 ≥ v67.1 同档宽度且等宽、无横向溢出', JSON.stringify(res));
+      'T13 曲名框不被挤窄：1280 / 1100 / 1024 下 x/4、x/8 等宽且 ≥ 面板基线；电脑窄窗口 768 / 390 / 320 ≥ v67.1 同档（385 / 252 / 185）、无横向溢出', JSON.stringify(res));
   });
 
   /* ---------- T14 曲谱信息速度行 320 宽（验收 F5） ---------- */
@@ -404,18 +429,21 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     T(r.ae !== 'tp-val' && r.c1 === r.c0 && r.v === '132' && r.t === 132 && !r.pop && r.same,
       'T18 浮层打开、焦点离开速度框：方向键不移动谱面光标；敲 132 落进速度框；Enter＝确定；谱面不变', JSON.stringify(r));
   });
-  /* ---------- T19 手机 390×844 向导「创建」可见 ---------- */
-  await guard('T19 手机向导创建钮可见', async () => {
-    const m = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    m.on('pageerror', e => errs.push('PAGEERR(t19):' + e.message));
-    await m.goto(F); await m.waitForTimeout(700);
-    await m.evaluate(() => showNewWizard()); await m.waitForSelector('#nw-create');
-    const g = await m.evaluate(() => { const tops = [...document.querySelectorAll('.nw-basics .nb:not(.nb-ti)')].map(e => Math.round(e.getBoundingClientRect().top));
-      const md = document.querySelector('.modal'), mr = md.getBoundingClientRect(), cb = document.getElementById('nw-create').getBoundingClientRect();
-      return { tops, cbB: Math.round(cb.bottom), mB: Math.round(mr.bottom), st: md.scrollTop, ti: Math.round(document.getElementById('nw-title').getBoundingClientRect().width), sw: document.documentElement.scrollWidth }; });
-    await m.close();
-    T(Math.max(...g.tops) - Math.min(...g.tops) <= 2 && g.cbB <= g.mB && g.ti >= 252 && g.sw <= 390,
-      'T19 手机 390×844：调/拍号/速度同一行、「创建」不滚动即可见、曲名框不窄于 v67.1、无横溢', JSON.stringify(g));
+  /* ---------- T19 电脑紧凑档「创建」可见（v67.4：手机不开放新建，原 390 口径移到面板紧凑档 1280×720 / 1024×700） ---------- */
+  await guard('T19 紧凑档创建钮可见', async () => {
+    const out = [];
+    for (const [w, h] of [[1280, 720], [1024, 700]]) {
+      const m = await b.newPage({ viewport: { width: w, height: h } });
+      m.on('pageerror', e => errs.push('PAGEERR(t19):' + e.message));
+      await m.goto(F); await m.waitForTimeout(700);
+      await m.evaluate(() => showNewWizard()); await m.waitForSelector('#nw-create');
+      out.push(await m.evaluate(() => { const tops = [...document.querySelectorAll('.nw-basics .nb:not(.nb-ti)')].map(e => Math.round(e.getBoundingClientRect().top));
+        const md = document.querySelector('.modal'), mr = md.getBoundingClientRect(), cb = document.getElementById('nw-create').getBoundingClientRect();
+        return { tops, cbB: Math.round(cb.bottom), mB: Math.round(mr.bottom), vh: innerHeight, ti: Math.round(document.getElementById('nw-title').getBoundingClientRect().width), sw: document.documentElement.scrollWidth, w: innerWidth }; }));
+      await m.close();
+    }
+    T(out.every(g => g.tops.length === 3 && Math.max(...g.tops) - Math.min(...g.tops) <= 2 && g.cbB <= g.mB && g.mB <= g.vh && g.ti >= 240 && g.sw <= g.w),
+      'T19 电脑紧凑档 1280×720 / 1024×700：调/拍号/速度同一行、「创建」不滚动即可见、曲名框 ≥240、无横溢', JSON.stringify(out));
   });
   /* ---------- T20 曲谱信息手选单位不被拍号联动冲掉 ---------- */
   await guard('T20 曲谱信息手选单位', async () => {

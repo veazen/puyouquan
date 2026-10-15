@@ -25,7 +25,7 @@ const MK = `window.mkLong=(fixed)=>{ const s=createSong('vocal',{title:'长谱',
   /* T1 */
   { const pg = await open(1440, 900);
     const r = await pg.evaluate(`(async()=>{ showNewWizard(); await new Promise(r=>setTimeout(r,80));
-      const iv=document.querySelector('.nw-int[data-int="vocal"]'); if(iv) iv.click(); await new Promise(r=>setTimeout(r,80));
+      const iv=document.querySelector('.nw-int[data-int="vocal"], .nf-modal [data-scene="vocal"]'); if(iv) iv.click();   /* v67.4 新建面板：「歌谱 · 合唱」用途（原声乐意图卡） */ await new Promise(r=>setTimeout(r,80));
       const c=document.getElementById('nw-create'); if(c) c.click(); await new Promise(r=>setTimeout(r,300));
       return {fixed: !!(song.layout && song.layout.fixed), title: song.title}; })()`).catch(e => ({ err: e.message }));
     T(!r.err && r.fixed, 'T1 新建向导出的谱默认固定版宽', JSON.stringify(r));

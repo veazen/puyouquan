@@ -25,6 +25,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
 
   // 统一测试谱：净弹唱谱，M0=C 柱式伴奏列+单音旋律列，M1=Am 分解两列
   const setup = `
+    try{ localStorage.removeItem('musetab-nw-last'); }catch(_){}   /* v67.4 面板记住上次用途：本套件统一测试谱要的是默认吉他弹唱 */
     showNewWizard(); document.getElementById('nw-create').click();
     const shp = n => chordShape(n), ss = (n,s) => shapeString(shp(n), s);
     const col = (o) => Object.assign({dur:4, dotted:false, chord:'', notes:[], strum:'', tech:''}, o);
@@ -123,7 +124,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   r = await pg.evaluate(`(()=>{
     document.body.click();
     showNewWizard();
-    document.querySelector('.nw-int[data-int="vocal"]').click();
+    document.querySelector('.nf-modal [data-scene="vocal"]').click();   /* v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡） */
     document.getElementById('nw-create').click();
     document.getElementById('k-val').click();
     const capoRows=[...document.querySelectorAll('#ekey-pop .kp-capo')];

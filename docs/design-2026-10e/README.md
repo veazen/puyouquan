@@ -223,6 +223,8 @@
 | `mapVoxToTab` L13901 | 生成把位轨时，若唯一一条吉他轨为空则复用它 |
 | `render` L9076 / `buildThumbCanvas` L24833 | 加离屏目标（见下） |
 
+**落地取舍（2026-10-15，v67.4）**：离屏渲染 `renderOffscreen` 先采用「调用期间借用全局 song、finally 全部还原」，由 tv_offscreen T2a 断言证明调用前后 song / sel / colBoxes / 116 个顶层常量对象 / 本机存储 / 撤销栈 / #paper 不变；把 song 改为参数需动 130+ 个排版函数，留作后续重构。
+
 **实时预览的正式实现**：原型与实拍用「借谱渲染」（同 `buildThumbCanvas`：借全局 song 排一遍再归还），并已用上面的不变量断言证明不改当前谱；但正式版不应长期借全局。建议给 `render()` 加可选参数 `render({song, target, maxSystems:1, paperW:660})`：显式传入要排的谱和目标 `<svg>`，不读写 `song / sel / colBoxes / #paper`；只排首行（`maxSystems:1`），把引擎中位耗时从实测 13.9 ms 压到 10 ms 以内，并省掉渲回背后谱的约 24 ms。
 
 ## 落地版本计划

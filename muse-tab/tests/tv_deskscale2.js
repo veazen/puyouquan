@@ -66,7 +66,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
-    await pg.click('.nw-int[data-int="vocal"]');
+    await pg.click('.nf-modal [data-scene="vocal"]');   // v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡）
     await pg.fill('#nw-title', '快乐的小星星');
     await pg.selectOption('#nw-key', 'B');
     await pg.fill('#nw-tempo', '90');
@@ -232,7 +232,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   /* ======== 第二轮验收补 ======== */
   const wizardInst = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
-    await pg.click('.nw-int[data-int="inst"]'); await pg.waitForTimeout(80);
+    await pg.click('.nf-modal [data-scene="gtr"]'); await pg.waitForTimeout(80);   // v67.4 新建面板「吉他弹唱」（原器乐意图卡默认＝吉他弹唱）
     await pg.click('#nw-create'); await pg.waitForTimeout(700);
     await pg.evaluate(() => { const t = document.getElementById('toast'); if (t) t.style.display = 'none'; }); };
   const flyH = pg => pg.evaluate(() => document.getElementById('left-flyout').classList.contains('hidden'));

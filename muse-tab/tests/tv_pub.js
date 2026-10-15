@@ -65,9 +65,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
 
   /* ===== v60.81 谱类细分标签 + 观看页标题带演唱者 + 收藏星放大 ===== */
   r = await pg.evaluate(() => {
+    /* v67.4：谱库观看页 / 分享卡走谱库口径 docTypeLabelPub（拍板 5：谱库与服务端 typeLabelOf 的谱名 v67.6 再统一；编辑器显示层读统一谱名表）；老版本没有它就用 docTypeLabel */
+    const L = typeof docTypeLabelPub==='function'? docTypeLabelPub : docTypeLabel;
     const mk=(fn)=>{ const s2=createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0});
-      if(fn) fn(s2); return docTypeLabel(s2); };
-    const lbG = docTypeLabel(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:1,lyr:0}));
+      if(fn) fn(s2); return L(s2); };
+    const lbG = L(createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:1,lyr:0}));
     const lbJP = mk();
     const lbWX = mk(s2=>{ s2.voxNotations=['staff'];
       s2.measures[0].voxes[0]=[{dur:4,dotted:false,deg:1,acc:'',oct:0,tie:false,lyrics:['词']}]; });
@@ -78,7 +80,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     viewerMode=true;
     viewerCtx={pb:{title:s3.title, author:'A', type:'guitar', data:s3, price:0, preview:9999}, own:true, total:1, pubId:'t1'};
     song=viewerBuildSong();
-    document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabel(song)+' · 谱友圈谱库';
+    document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+L(song)+' · 谱友圈谱库';
     const titleOk = document.title.indexOf('测题 - 测唱') === 0 && document.title.indexOf('吉他弹唱谱') > 0;
     /* 头部图标：收藏星 21 号（比其余 17 号大——星形墨迹本就显小），谱架在位 */
     const vb=document.getElementById('viewerbar');

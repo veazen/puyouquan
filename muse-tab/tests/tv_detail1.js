@@ -934,8 +934,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const noLtabOn = !document.querySelector('.ltab.on');
     return { vis, cards, flyClosed, paperHidden, makeOn, ciDash, noLtabOn };
   });
-  T(t27.vis && t27.cards === 'new,open,imp,mine' && t27.flyClosed && t27.paperHidden,
-    'T27 启动台默认态(四卡+左栏收起+空白谱面)', JSON.stringify(t27));
+  /* v67.4 启动台卡片：开始一份谱 / 按上次 / 从已有音乐 ＋ 常用用途直达 ＋ 打开文件 / 我的曲谱（框架不动） */
+  T(t27.vis && t27.cards === 'new,last,imp,sc:gtr,sc:pacc,sc:teach,sc:sight,sc:kids,open,mine' && t27.flyClosed && t27.paperHidden,
+    'T27 启动台默认态(开始一份谱/按上次/从已有音乐＋常用用途＋打开/我的；左栏收起+空白谱面)', JSON.stringify(t27));
   T(t27.makeOn && t27.ciDash && t27.noLtabOn,
     'T31 启动台默认页(创作页+光标—+左栏无高亮)', JSON.stringify(t27));
   // T28 v46.9 改版：点新建后启动台保持（向导背后是干净启动台）、向导无「当前曲谱《旧稿》」状态行
@@ -957,11 +958,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   const t35 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    /* v60.41 一屏向导：点「声乐」意图卡（默认独唱）→ 创建 */
-    document.querySelector('.nw-int[data-int="vocal"]').click();
+    /* v67.4 新建面板：点「歌谱 · 合唱」用途（默认独唱，16 小节）→ 创建 */
+    document.querySelector('.nf-modal [data-scene="vocal"]').click();
     document.getElementById('nw-create').click();
     return { padGone: document.getElementById('start-pad').classList.contains('hidden'),
-      fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 8,
+      fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 16,
       paperVis: getComputedStyle(document.getElementById('paper')).visibility === 'visible',
       /* v66.0 D7：1400 宽下固定版宽（向导新建）左右面板全开放不下 → 左栏自动收起一次让宽给谱面；
          此时「左栏恢复」以「谱面完整可见」代替（面板仍可从左轨再打开，改浮层不挤谱面） */

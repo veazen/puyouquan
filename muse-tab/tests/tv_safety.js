@@ -104,14 +104,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const stand = document.getElementById('b-stand');
     const rate025 = !!document.querySelector('#mx-rate option[value="0.25"]');
     document.getElementById('b-new').click();
-    const feats = document.querySelectorAll('.nw-imp .nwi').length;   /* v60.45 导入区两卡（MusicXML/GP，哼唱全站暂下） */
+    /* v67.4 新建面板：导入入口在「从已有音乐」页——MusicXML / Guitar Pro / MIDI（拍板 2：MIDI 只收 .mid 入口、转交现有选轨对话框） */
+    const it = document.querySelector('.nf-tabs [data-v="import"]'); if (it) it.click();
+    const feats = document.querySelectorAll('.nw-imp .nwi').length;
     const cancel = document.getElementById('nw-cancel'); if (cancel) cancel.click();
     stand.click();
     const standOn = document.body.classList.contains('stand');
     if (standOn) exitStand();
     return { stand: !!stand, rate025, feats, standOn };
   });
-  T(r.stand && r.rate025 && r.feats === 2 && r.standOn,   /* v60.45 导入 2 入口：MusicXML/GuitarPro（哼唱暂下、MIDI 在创作辅助）；v60.26 旧口径：
+  T(r.stand && r.rate025 && r.feats === 3 && r.standOn,   /* v60.45 导入 2 入口：MusicXML/GuitarPro（哼唱暂下、MIDI 在创作辅助）；v60.26 旧口径：
        改为创作辅助第一项（替代一键配和弦）与启动台直达独立界面（产品负责人指定） */
     'T6 谱架入口/0.25×/向导提权', '谱架可进=' + r.standOn + ' 提权按钮=' + r.feats);
 

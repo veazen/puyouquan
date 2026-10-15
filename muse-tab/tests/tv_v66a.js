@@ -21,7 +21,7 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   const open = async (w, h, q) => { const pg = await b.newPage({ viewport: { width: w, height: h } }); pg.on('pageerror', e => errs.push(e.message));
     await pg.goto('file://' + FILE + (q || '')); await pg.waitForTimeout(900); return pg; };
   const wizard = (pg) => pg.evaluate(`(async()=>{ guardReplace=(p)=>p(); showNewWizard(); await new Promise(r=>setTimeout(r,80));
-    const iv=document.querySelector('.nw-int[data-int="vocal"]'); if(iv) iv.click(); await new Promise(r=>setTimeout(r,80));
+    const iv=document.querySelector('.nw-int[data-int="vocal"], .nf-modal [data-scene="vocal"]'); if(iv) iv.click();   /* v67.4 新建面板：「歌谱 · 合唱」用途（原声乐意图卡） */ await new Promise(r=>setTimeout(r,80));
     const c=document.getElementById('nw-create'); if(c) c.click(); await new Promise(r=>setTimeout(r,600)); return true; })()`);
   const geo = (pg) => pg.evaluate(() => { const P = document.getElementById('paper'), sv = document.getElementById('score'); const pr = P.getBoundingClientRect();
     let maxR = 0; sv.querySelectorAll('line').forEach(e => { const q = e.getBoundingClientRect(); if (q.height > 10 && q.width < 4 && q.right > maxR) maxR = q.right; });
