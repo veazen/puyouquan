@@ -22,6 +22,10 @@
    D14 320 / 340 宽无横向滚动；用途行是列表项里的原生按钮、按组分列
    D15 手机横屏启动台主卡上沿可见、可滚到底
    D16 visit 埋点落地页带 ?new=<用途>
+   第二轮验收补（修前红修后绿：MUSETAB_URL 指向第二轮修复前的副本复跑，D17–D19 红）：
+   D17 entry-1 曲名第 80 个码元落在 emoji 中间：建成的曲名不留半个 emoji（≤80 码元、无孤立代理项），导出 PNG / 分享卡 / 发布缩图照常；手机页不白屏；linkOf 遇孤立代理项不抛错
+   D18 entry-2 create_stack 区分深链入口：深链打开的面板 via=link（用途认不出 link-bad），启动台用途卡仍 panel——两条 meta 不再逐字节相同
+   D19 entry-3 手机 → 电脑曲名空白原样：全角空格 U+3000 / NBSP / 连续空格经链接到电脑建成的曲名＝手机所填＝电脑直接输入
    突变实证：MUSETAB_URL=file://…/v67.5 原版 → 无深链 / 无手机主卡 / 官网按钮未换 → 全红（D8 读的是工作树 site 文件，另用 SITE_DIR 指向 v67.5 的 site 复跑）。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -477,6 +481,83 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
     await pg._ctx.close();
     T(/\?new=pacc$/.test(r['?new=pacc&utm_source=x']) && /\?new=kids$/.test(r['?NEW=Kids']) && /\?start=gtr$/.test(r['?start=gtr']) && !/\?/.test(r['?f=1']),
       'D16 visit 埋点的落地页带上深链用途（?new=pacc、?NEW=Kids → ?new=kids），官网垂类页按钮带来的访问可归因；旧 ?start= 照旧', JSON.stringify(r));
+  });
+
+  /* ---------- D17 第二轮验收 entry-1：曲名按码元截断不留半个 emoji ---------- */
+  await guard('D17 曲名截断与半个 emoji', async () => {
+    const r = {};
+    for (const [tag, tt] of [['ascii79+emoji', 'a'.repeat(79) + '😀'], ['cjk+40emoji', '中' + '😀'.repeat(40)]]) {
+      const pg = await open('new=gtr&title=' + encodeURIComponent(tt));
+      await pg.keyboard.press('Enter'); await pg.waitForTimeout(400);
+      r[tag] = await EV(pg, () => new Promise(res => {
+        const t = song.title, lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(t);
+        const o = { len: t.length, lone, png: 'ok', card: '?', thumb: '?' };
+        try { exportPNG(2); } catch (e) { o.png = 'THROW ' + e.message; }
+        let n = 0; const done = () => { if (++n === 2) res(o); };
+        try { shareCardCanvas(() => { o.card = 'ok'; done(); }, () => { o.card = 'err'; done(); }); } catch (e) { o.card = 'THROW ' + e.message; done(); }
+        try { buildThumbCanvas(song, () => { o.thumb = 'ok'; done(); }, () => { o.thumb = 'err'; done(); }); } catch (e) { o.thumb = 'THROW ' + e.message; done(); }
+        setTimeout(() => res(o), 4000);
+      }));
+      await pg._ctx.close();
+    }
+    const pm = await open('new=gtr&title=' + encodeURIComponent('a'.repeat(79) + '😀'), 390, 844, { mob: true });
+    r.mob = await EV(pm, () => ({ link: (document.getElementById('mp-link') || {}).textContent || '', kids: ((document.querySelector('.nw-mpc-mask .modal') || {}).innerHTML || '').length }));
+    await pm._ctx.close();
+    const pl = await open('');
+    r.linkOf = await EV(pl, () => { const st = NWP.fresh({ scene: 'gtr', clean: true }); st.v.title = 'ab\uD83D'; try { return NWP.linkOf(st); } catch (e) { return 'THROW ' + e.message; } });
+    /* 没有 String.prototype.toWellFormed 的浏览器（Chrome <111 / Safari <16.4）走兜底分支：结果与原生一致 */
+    r.fallback = await EV(pl, () => { const tw = String.prototype.toWellFormed; try { delete String.prototype.toWellFormed;
+      return ['😀\uD83D😀', 'a😀b', '\uDE00x', '\uDE00\uD83D', 'plain'].map(x => strWF(x) === tw.call(x)).every(Boolean) && strWF('\uDE00\uD83D') === '\uFFFD\uFFFD'; }
+      finally { String.prototype.toWellFormed = tw; } });
+    await pl._ctx.close();
+    const ok = x => x && x.len <= 80 && !x.lone && x.png === 'ok' && x.card === 'ok' && x.thumb === 'ok';
+    T(ok(r['ascii79+emoji']) && r['ascii79+emoji'].len === 79 && ok(r['cjk+40emoji']) && r['cjk+40emoji'].len === 79
+      && /title=a{79}(&|$)/.test(r.mob.link) && r.mob.kids > 2000 && /title=ab%EF%BF%BD/.test(r.linkOf) && r.fallback === true,
+      'D17 深链曲名第 80 码元落在 emoji 中间（79 个 a＋😀 / 一个汉字＋40 个 😀）：建成曲名退掉那半个 emoji（79 码元、无孤立代理项），导出 PNG / 分享卡 / 发布缩图照常（此前一律 URI malformed）；手机「发到电脑」页不白屏；linkOf 遇孤立代理项换成 U+FFFD 不抛错',
+      JSON.stringify(r));
+  });
+
+  /* ---------- D18 第二轮验收 entry-2：create_stack 区分深链入口 ---------- */
+  await guard('D18 create_stack 深链入口', async () => {
+    const STUB = 'window.__ev=[]; document.addEventListener("DOMContentLoaded",()=>{ window.pyqEvent=(n,m)=>{ window.__ev.push(n+"="+(m==null?"":m)); }; });';
+    const grab = pg => EV(pg, () => (window.__ev || []).filter(x => /^create_stack=/.test(x)).map(x => x.slice(13)));
+    const pa = await open('new=pacc&utm_source=kaobian', 1280, 800, { init: STUB });
+    await pa.keyboard.press('Enter'); await pa.waitForTimeout(400); const a = await grab(pa); await pa._ctx.close();
+    const pb = await open('', 1280, 800, { init: STUB });
+    await pb.click('[data-sp="sc:pacc"]'); await pb.waitForSelector('.nf-modal [data-scene]'); await pb.click('#nw-create'); await pb.waitForTimeout(400); const bb = await grab(pb); await pb._ctx.close();
+    const pc = await open('new=xyz', 1280, 800, { init: STUB });
+    await pc.keyboard.press('Enter'); await pc.waitForTimeout(400); const c = await grab(pc); await pc._ctx.close();
+    const pdd = await open('new=kids&key=G', 1280, 800, { init: STUB });
+    await pdd.click('[data-scene="teach"]'); await pdd.click('#nw-create'); await pdd.waitForTimeout(400); const d = await grab(pdd); await pdd._ctx.close();
+    T(a.join() === 'pacc:JG:link:pacc:1' && bb.join() === 'pacc:JG:panel:pacc:1' && c.join() === 'gtr:JT:link-bad:gtr:1' && /^teach:[A-Z]+:link:kids:1$/.test(d.join()),
+      'D18 create_stack 的入口能分出深链：?new=pacc 回车＝pacc:JG:link:pacc:1、启动台用途卡「钢琴即兴伴奏」→ 创建＝pacc:JG:panel:pacc:1（此前两条逐字节相同）；用途认不出 ?new=xyz＝link-bad；深链打开后在面板里换用途仍记 link、打开用途＝链接用途',
+      JSON.stringify({ a, b: bb, c, d }));
+  });
+
+  /* ---------- D19 第二轮验收 entry-3：手机 → 电脑曲名空白原样 ---------- */
+  await guard('D19 曲名空白往返', async () => {
+    const TITLES = ['春江花月夜\u3000（古筝）', '第一乐章\u3000快板', 'a  b', 'Op.9\u00a0No.2'];
+    const r = { eng: null, flow: [] };
+    const pe = await open('');
+    r.eng = await EV(pe, T0 => T0.map(t => { const st = NWP.fresh({ scene: 'inst', clean: true }); st.v.title = t;
+      const L = NWP.linkParse(NWP.linkOf(st)), st2 = NWP.fresh({ scene: L.scene, clean: true, link: L }); return st2.v.title === t ? 'ok' : JSON.stringify(st2.v.title); }), TITLES);
+    await pe._ctx.close();
+    for (const t of TITLES.slice(0, 2)) {
+      const pm = await open('new=inst', 390, 844, { mob: true, init: MOB_CP });
+      await pm.fill('#mpc-title', t); await pm.waitForTimeout(60); await pm.tap('#nw-pc'); await pm.waitForTimeout(150);
+      const link = await EV(pm, () => window.__cp[0] || ''); await pm._ctx.close();
+      const pd = await open(link.replace(/^[^?]*\?/, ''), 1440, 900);
+      await pd.keyboard.press('Enter'); await pd.waitForTimeout(400);
+      const built = await EV(pd, () => song.title); await pd._ctx.close();
+      const pp = await open('', 1440, 900);
+      await EV(pp, () => hideStartPad()); await pp.click('#b-new'); await pp.waitForSelector('#nw-title'); await pp.click('[data-scene="inst"]');
+      await pp.fill('#nw-title', t); await pp.click('#nw-create'); await pp.waitForTimeout(400);
+      const typed = await EV(pp, () => song.title); await pp._ctx.close();
+      r.flow.push({ t, built, typed, ok: built === t && typed === t });
+    }
+    T(Array.isArray(r.eng) && r.eng.every(x => x === 'ok') && r.flow.length === 2 && r.flow.every(x => x.ok),
+      'D19 曲名空白原样：全角空格 U+3000 / NBSP / 连续空格经 linkOf → linkApply 不变；手机「发到电脑继续」的链接在电脑上回车建成的曲名＝手机所填＝电脑面板直接输入（此前合并成一个半角空格）',
+      JSON.stringify(r));
   });
 
   T(errs.length === 0, '无页面报错', errs.join(' | ') || 'none');

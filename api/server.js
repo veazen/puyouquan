@@ -68,7 +68,8 @@ const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第�
    v63.4 A7 按评审团 §9.1 关键事件清单补齐（新增事件名必须同时加在这里，否则静默丢弃）。
    客户端可报：访问与落地 / 制谱 / 导出与发布 / 传播 / 课程；signup/login/pay_create/order_paid/redeem_ok 只由服务端写。
    v67.6 加 create_stack（新建流程方案「首访默认用途」校准）：编辑器新建面板「创建」与「新建 ▾」快捷建谱时与 create_song 同时发，
-   meta＝用途:谱行代码:入口:面板打开时的用途:是否首次（如 gtr:JT:panel:gtr:1），不带曲名等内容；原 create_song 口径不变。 */
+   meta＝用途:谱行代码:入口:面板打开时的用途:是否首次（如 gtr:JT:panel:gtr:1），不带曲名等内容；原 create_song 口径不变。
+   入口：panel 新建面板 / menu「新建 ▾」/ last 按上次（Alt+Shift+N）/ link 深链 ?new= 打开的面板 / link-bad 深链用途认不出（第二轮验收补：此前深链与启动台用途卡同为 panel）。 */
 const EVENT_CLIENT = ['visit', 'landing_view', 'cta_click', 'zero_result',
   'create_song', 'create_stack', 'arrange_done', 'tex_gen', 'transpose', 'import_done',
   'print_dialog', 'export_png', 'export_icard', 'export_mxl', 'export_mid', 'share_card', 'publish', 'export',
@@ -253,14 +254,28 @@ function docTypeOf(d) {
   return 'vocal';
 }
 const arr = v => Array.isArray(v) ? v : [];   /* v67.6 收尾：坏谱（小节 / 声部 / 列 / 歌词不是数组）按空处理，不让一份谱拖垮列表 / 落地页 / 封面 */
+/* v67.6 第二轮验收：类型安全取值——谱面 JSON 里的对象值（如 key:{"toString":1}、tempo:{"valueOf":1}）经 String() / + / > 转原始值会抛
+   「Cannot convert object to primitive value」，此前一份这样的谱就让谱库列表 / 搜索 / 收藏 / 落地页 / 封面整页 500。只认字符串和有限数字，其余当空 */
+const sStr = v => typeof v === 'string' ? v : (typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
+const sNum = v => typeof v === 'number' ? (Number.isFinite(v) ? v : 0) : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v) ? +v : 0);
+const sClamp = (v, a, b) => Math.max(a, Math.min(b, Math.trunc(sNum(v))));
 function coverOf(d) {
   for (const m of arr(d.measures)) {
-    const cs = arr(arr((m || {}).voxes)[0]).filter(c => c && (c.deg > 0 || String(arr(c.lyrics)[0] || '').trim()));
-    if (cs.length) return cs.slice(0, 7).map(c => ({ deg: c.deg || 0, oct: c.oct || 0, ly: String(arr(c.lyrics)[0] || '').slice(0, 2) }));
+    const cs = arr(arr((m || {}).voxes)[0]).filter(c => c && typeof c === 'object' && (sNum(c.deg) > 0 || sStr(arr(c.lyrics)[0]).trim()));
+    /* 第二轮验收（旧问题 S-4）：度数 0–7、高低八度点 ±3 夹紧——oct=1e6 曾让 cover.svg 生成 53MB、阻塞事件循环 1 秒 */
+    if (cs.length) return cs.slice(0, 7).map(c => ({ deg: sClamp(c.deg, 0, 7), oct: sClamp(c.oct, -3, 3), ly: sStr(arr(c.lyrics)[0]).slice(0, 2) }));
   }
   return [];
 }
-function pubShape(row) {
+/* 卡片里由谱面数据算出的那部分（谱类 / 谱名 / 小节数 / 封面 / 调号拍号速度 / 歌词段数）。
+   v67.6 第二轮验收（性能）：统一谱名要先只读扫一遍整棵树看要不要清洗（kindname needsClean），200 份谱的列表比 v67.5 慢约 55%；
+   已发布快照只在审核通过 / 重新发布时变，按「id＋发布时间＋快照内容摘要」缓存这一部分，JSON 解析也一起省掉——
+   摘要（md5）而不是只看发布时间：admin.js scan-xss（另一个进程）刷新快照时保留原发布时间，内容变了缓存也得跟着换。
+   缓存只放这几项小字段（不放整份谱），超过 5000 条整表清空（同 relCache） */
+const shapeCache = new Map();
+function pubShapeData(row) {
+  const ck = row.id + '|' + (row.updated_at || 0) + '|' + (typeof row.data === 'string' ? crypto.createHash('md5').update(row.data).digest('base64') : String(row.data));
+  const hit = shapeCache.get(ck); if (hit) return hit;
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
   if (!d || typeof d !== 'object') d = {};   // v67.6 收尾：data 为 null / 数字等非对象时按空谱（此前 d.measures 直接抛错）
   /* v60.6 卡片信息补全：谱种/小节数之外再给 调号·拍号·速度·歌词版数——
@@ -268,16 +283,26 @@ function pubShape(row) {
   const mea = arr(d.measures);
   /* v67.6 收尾：逐项兜底——坏谱只让自己这一张卡片退回默认（谱类 vocal / 谱名「曲谱」/ 无封面），不拖垮整页列表 */
   const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
+  const o = { type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), measures: mea.length, cover: safe(() => coverOf(d), []),
+    key: sStr(d.key).slice(0, 6), tempo: sNum(d.tempo), beats: sNum(d.beats), unit: sNum(d.unit),
+    /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
+       「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
+    verses: Math.max(0, Math.min(9, sNum(d.lyricLines))) };
+  if (shapeCache.size > 5000) shapeCache.clear();
+  shapeCache.set(ck, o);
+  return o;
+}
+function pubShape(row) {
+  /* v67.6 第二轮验收：整行兜底——任何一份谱算卡片出错只让它自己退回默认卡，列表 / 搜索 / 收藏 / 点赞照常 200（此前 String(d.key) 等抛错整页 500） */
+  let o;
+  try { o = pubShapeData(row); }
+  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0 }; }
   return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
-    type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), price: 0, measures: mea.length, cover: safe(() => coverOf(d), []),
+    type: o.type, typeLabel: o.typeLabel, price: 0, measures: o.measures, cover: o.cover,
     /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
     thumb: row.thumb_at || 0,
-    key: String(d.key || '').slice(0, 6), tempo: +d.tempo || 0,
-    beats: +d.beats || 0, unit: +d.unit || 0,
-    /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
-       「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
-    verses: Math.max(0, Math.min(9, +d.lyricLines || 0)),
+    key: o.key, tempo: o.tempo, beats: o.beats, unit: o.unit, verses: o.verses,
     /* v60.98 卡片带浏览/收藏数（产品指示：计数在谱库曲谱卡上显示；likes 一并透传备用） */
     views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0 };
 }
@@ -402,7 +427,7 @@ function baiduPush(ids) {
 function lyricExcerpt(d, cap) {
   let out = '';
   for (const m of arr(d.measures)) for (const cols of arr((m || {}).voxes)) for (const c of arr(cols)) {
-    const w = String(arr((c || {}).lyrics)[0] || '').trim();
+    const w = sStr(arr((c || {}).lyrics)[0]).trim();   /* 第二轮验收：对象歌词不再露出「[object Object]」，也不抛错 */
     if (w) { out += w; if (out.length >= cap) return out.slice(0, cap); }
   }
   return out;
@@ -414,8 +439,8 @@ function chordSeq(d, cap) {
     const names = [];
     if (typeof c.chord === 'string' && c.chord.trim()) names.push(c.chord.trim());
     if (Array.isArray(c.chords)) for (const x of c.chords) {
-      const n = x && (typeof x === 'string' ? x : x.name);
-      if (n && String(n).trim()) names.push(String(n).trim());
+      const n = sStr(x && (typeof x === 'string' ? x : x.name));
+      if (n.trim()) names.push(n.trim());
     }
     for (const n of names) { if (seq[seq.length - 1] !== n) seq.push(n); if (seq.length >= cap) return seq; }
   }
@@ -425,14 +450,15 @@ function pubMeta(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
   if (!d || typeof d !== 'object') d = {};   // v67.6 收尾：data 为 null / 数字等非对象时按空谱（此前 d.measures 直接抛错）
   const title = (row.title || '').trim() || '未命名曲谱';
-  const typeCn = typeLabelOf(d);   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
+  let typeCn = '曲谱'; try { typeCn = typeLabelOf(d); } catch (_) {}   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
   const nMea = arr(d.measures).length;
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
-  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: coverOf(d), thumb: row.thumb_at || 0,
-    key: String(d.key || '').slice(0, 6), beats: +d.beats || 0, unit: +d.unit || 0, tempo: +d.tempo || 0,
-    lyric: lyricExcerpt(d, 140), chords: chordSeq(d, 16) };
+  const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };   /* 第二轮验收：落地页 / 封面同卡片口径逐项兜底 */
+  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: safe(() => coverOf(d), []), thumb: row.thumb_at || 0,
+    key: sStr(d.key).slice(0, 6), beats: sNum(d.beats), unit: sNum(d.unit), tempo: sNum(d.tempo),
+    lyric: safe(() => lyricExcerpt(d, 140), ''), chords: safe(() => chordSeq(d, 16), []) };
 }
 function pubSsrHtml(row, related, from) {
   const p = pubMeta(row), canon = `${PUB_CANON}/pub/${p.id}`;
@@ -619,7 +645,7 @@ function pubCoverSvg(row) {
   const W = 1200, H = 630;
   const notes = p.cover.slice(0, 7);
   const cw = 120, x0 = W / 2 - (notes.length - 1) * cw / 2, cy = 400;
-  const dot = (cx, y, n) => Array.from({ length: n }, (_, i) => `<circle cx="${cx}" cy="${y + (y < cy ? -i * 14 : i * 14)}" r="4" fill="#5b4cf0"/>`).join('');
+  const dot = (cx, y, n) => Array.from({ length: Math.max(0, Math.min(3, n | 0)) }, (_, i) => `<circle cx="${cx}" cy="${y + (y < cy ? -i * 14 : i * 14)}" r="4" fill="#5b4cf0"/>`).join('');   /* 第二轮验收：最多 3 个点 */
   const noteSvg = notes.map((c, i) => {
     const cx = x0 + i * cw;
     const up = (c.oct || 0) > 0 ? dot(cx, cy - 78, c.oct) : '';

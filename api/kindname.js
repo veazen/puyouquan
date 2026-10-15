@@ -138,11 +138,30 @@ function sanitizeLike(v, key) {
   if (typeof v === 'number' && key && SD_NUM.has(key) && !Number.isFinite(v)) return 0;
   return v;
 }
+/* v67.6 第二轮验收：观看页打得开的最低结构（v3）——声部名是数组、每个小节是对象、声部 / 六线谱 / 列（有则）是数组、歌词（有则）是数组。
+   编辑器产出的谱都满足；不满足的（缺 tabVoices、小节里有 null、歌词写成字符串…）观看页 migrate 后渲染抛错、提示「曲谱数据异常」，
+   谱库谱名照观看页的实际表现回落「曲谱」（此前给出「简谱歌谱 / 钢琴独奏谱 / 吉他弹唱谱」，点进去却打不开） */
+function openable3(s) {
+  if (!Array.isArray(s.tabVoices) || !Array.isArray(s.voxVoices)) return false;
+  for (const m of s.measures) {
+    if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
+    for (const f of ['voxes', 'tabs']) {
+      if (m[f] == null) continue;
+      if (!Array.isArray(m[f])) return false;
+      for (const cols of m[f]) {
+        if (cols == null) continue;
+        if (!Array.isArray(cols)) return false;
+        for (const c of cols) if (c && typeof c === 'object' && c.lyrics != null && !Array.isArray(c.lyrics)) return false;
+      }
+    }
+  }
+  return true;
+}
 function viewOf(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
   const s = needsClean(d, '', 0) ? sanitizeLike(d) : d;
-  if (!s.measures || !s.measures.length) return null;
-  if (s.v === 3) return s;
+  if (!Array.isArray(s.measures) || !s.measures.length) return null;
+  if (s.v === 3) return openable3(s) ? s : null;
   if (s.v === 2) return Object.assign({}, s, { v: 3, tabVoices: ['吉他1'], voxVoices: ['旋律1'], lyricLines: 1 });
   return { v: 3, tabVoices: ['吉他1'], voxVoices: ['旋律1'], lyricLines: 1, measures: [] };
 }

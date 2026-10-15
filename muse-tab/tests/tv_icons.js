@@ -17,6 +17,10 @@
    T9 左轨乐器按内容判（教学对照 / 钢琴伴奏歌谱五线谱 / 五线谱歌谱 / 五线谱和弦谱 / 切五线谱后的人声旋律＝人声）
    T10 手机底条音轨名 ≥12px、图标不溢出、底条高不变；T11 广场筛选分类一行、手机不加行；T12 帮助 / 特色功能弹窗、折叠符 / 箭头 / 删除钮、常态颜色
    T13 设计源文件不漂移（gen.js 重出逐字节一致、proto.html 内嵌数据同步；DOCS_DIR 可指向别的 docs 副本）
+   —— v67.6 第二轮验收补（修前红修后绿：MUSETAB_URL 指向第二轮修复前的副本复跑，T9b / T14 红）——
+   T9b 左轨与统一谱名同一判据：新建面板 / 深链建的无词多声部五线谱（谱名「五线谱重奏谱」）＝其他器乐，与导入的同名四重奏一致；有词仍人声
+   T14 谱类图标与谱名同义：五线谱重奏谱＝器乐五线谱图标（不是合唱谱的方括号＋简谱）、尤克里里独奏谱＝尤克里里图标（与左轨 inst-ukulele 一致），
+       页签 / 谱库卡片反查（ccKindIc）同口径
    突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无 PQI / pqIcon → 全红；v67.5 原版 → T7 / T8 红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -246,6 +250,48 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
       'T9 左轨乐器按内容判、不按记谱法判：教学对照谱（有词 / 无词）、教学对照谱含伴奏、钢琴伴奏歌谱（五线谱）、五线谱歌谱、五线谱和弦谱的旋律＝人声；送别 / 钢琴伴奏歌谱旋律从简谱切五线谱仍是人声；只有无词无乐器的「五线谱旋律」才是其他器乐、带 instKey 用该乐器',
       JSON.stringify(r9));
   } catch (e) { T(false, 'T9', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T9b 第二轮验收 seam-3：左轨乐器与统一谱名同一判据（无词多声部五线谱＝重奏＝其他器乐） */
+  try {
+    const p9 = await npg(1440, 900);
+    const r9 = await qq(p9, () => { hideStartPad(); const ic = () => [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')].map(x => (x.querySelector('svg.pqi') || { dataset: {} }).dataset.pq).join(',');
+      const o = {};
+      for (const [k, opt] of [['S3', { nVox: 3, lyr: 0 }], ['S2', { nVox: 2, lyr: 0 }], ['S3ly', { nVox: 3, lyr: 1 }], ['J4', { nVox: 4, lyr: 0 }]]) {
+        const s = NWB.build(k[0], Object.assign({ title: 'a', nMea: 4 }, opt)); loadSong(s); o[k] = { rail: ic(), name: docTypeLabel(song), dt: docType(song) };
+      }
+      /* 同名的导入四重奏（无分组、docType=instr） */
+      const q = NWB.build('S', { title: 'q', nMea: 2, nVox: 4, lyr: 0 }); delete q.voxGroups; q.voxNotations = ['staff', 'staff', 'alto', 'bass']; loadSong(q); o.imp = { rail: ic(), name: docTypeLabel(song), dt: docType(song) };
+      return o; });
+    await p9._ctx.close();
+    T(!r9.err && r9.S3.name === '五线谱重奏谱' && r9.S3.rail === 'inst-other,inst-other,inst-other' && r9.S3.dt === 'vocal'
+      && r9.S2.name === '五线谱重奏谱' && r9.S2.rail === 'inst-other,inst-other' && r9.imp.name === '五线谱重奏谱' && r9.imp.rail === 'inst-other,inst-other,inst-other,inst-other'
+      && r9.S3ly.name === '五线谱合唱谱' && r9.S3ly.rail === 'inst-voice,inst-voice,inst-voice' && r9.J4.rail === 'inst-voice,inst-voice,inst-voice,inst-voice',
+      'T9b 左轨与统一谱名同一判据：新建 / 深链的无词多声部五线谱（谱名五线谱重奏谱，docType 仍 vocal、谱库分类不动）＝其他器乐，与同名的导入四重奏一致（此前麦克风）；有词五线谱合唱谱、简谱合唱谱仍人声',
+      JSON.stringify(r9));
+  } catch (e) { T(false, 'T9b', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T14 第二轮验收 seam-4：谱类图标与谱名同义 */
+  try {
+    const p14 = await npg(1440, 900);
+    const r14 = await qq(p14, () => { hideStartPad(); const o = {};
+      const tabIc = () => { try { renderDocTabs(); } catch (_) {} const t = document.querySelector('#doc-tabs .dtab.on svg.pqi'); return t ? t.dataset.pq : (docIcon(song).match(/data-pq="([^"]+)"/) || [])[1]; };
+      const railIc = () => [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')].map(x => (x.querySelector('svg.pqi') || { dataset: {} }).dataset.pq).join(',');
+      const s1 = NWB.build('S', { title: 'a', nMea: 2, nVox: 3, lyr: 0 }); loadSong(s1); render();
+      o.ens = { name: docTypeLabel(song), ic: NWB.kindOfSong(song).ic, tab: tabIc(), byName: ccKindIc({ type: 'instr' }, '五线谱重奏谱') };
+      o.choir = { ic: NWB.kindOf('S', { nVox: 3, lyr: true }).ic, byName: ccKindIc({ type: 'vocal' }, '五线谱合唱谱'), j: NWB.kindOf('J', { nVox: 3 }).ic };
+      const u = NWB.build('ST', { title: 'u', nMea: 2 }); u.inst = 'uku'; u.tabVoices = ['尤克里里1']; loadSong(u); render();
+      o.ukuSolo = { name: docTypeLabel(song), ic: NWB.kindOfSong(song).ic, tab: tabIc(), rail: railIc(), byName: ccKindIc({ type: 'solo' }, '尤克里里独奏谱') };
+      o.gtSolo = { ic: NWB.kindOf('ST', {}).ic, byName: ccKindIc({ type: 'solo' }, '吉他独奏谱') };
+      o.ukuT = NWB.kindOf('T', { inst: 'uku' }).ic; o.ukuJT = NWB.kindOf('JT', { inst: 'uku' }).ic;
+      return o; });
+    await p14._ctx.close();
+    T(!r14.err && r14.ens.name === '五线谱重奏谱' && r14.ens.ic === 'type-instr' && r14.ens.byName === 'type-instr' && /^type(16)?-instr$/.test(r14.ens.tab || '')
+      && r14.choir.ic === 'type-choir' && r14.choir.byName === 'type-choir' && r14.choir.j === 'type-choir'
+      && r14.ukuSolo.name === '尤克里里独奏谱' && r14.ukuSolo.ic === 'type-uku' && r14.ukuSolo.byName === 'type-uku' && /^type(16)?-uku$/.test(r14.ukuSolo.tab || '') && /^inst-ukulele/.test(r14.ukuSolo.rail)
+      && r14.gtSolo.ic === 'type-solo' && r14.gtSolo.byName === 'type-solo' && r14.ukuT === 'type-uku' && r14.ukuJT === 'type-uku',
+      'T14 谱类图标与谱名同义：五线谱重奏谱＝器乐五线谱图标（此前合唱谱的方括号＋简谱数字）、尤克里里独奏谱＝尤克里里图标（此前吉他六线独奏，与左轨 inst-ukulele 矛盾）；页签 / 谱库卡片反查同口径；合唱谱 / 吉他独奏谱 / 尤克里里谱不变',
+      JSON.stringify(r14));
+  } catch (e) { T(false, 'T14', 'EXC: ' + String(e.message || e).split('\n')[0]); }
 
   /* T10 手机底条：音轨名不被图标挤没、图层钮图标不溢出、底条不增高 */
   try {

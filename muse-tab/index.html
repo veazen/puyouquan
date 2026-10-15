@@ -1039,6 +1039,9 @@ svg text{user-select:none}
    收尾验收：单行省略时桌面卡片「钢琴伴奏歌谱（五线…」看不出是哪种），两行仍放不下才省略，悬停 title 看全名。
    省略规则挂在内层 .cc-tname 上：外层改成 flex（前面插谱类图标）时照样生效 */
 .cc-type{max-width:calc(100% - 66px);box-sizing:border-box}
+/* 第二轮验收（合并缝）：本机演示付费谱「¥12.5 / ¥128 / 已购」角标宽约 41–56px，只给「免费」/ 一位数价格留的 66px 不够——长谱名两行徽标压住价格；
+   有付费角标时按官网 pyq.css 同口径多让 26px（¥9999.5 仍不重叠） */
+.cc-cover:has(.cc-price:not(.free)) .cc-type{max-width:calc(100% - 92px)}
 .cc-tname{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-width:0;white-space:normal;line-height:1.35}
 .cc-body{padding:10px 12px 11px}
 .cc-card .tr{display:flex;align-items:flex-start;gap:6px}
@@ -1078,7 +1081,9 @@ body.viewer #score-wrap{margin:0 auto}
   padding:10px 22px;background:var(--panel);border-bottom:1px solid var(--border)}
 body.viewer #viewerbar{display:flex}
 #viewerbar .vt{font-weight:700;font-size:14.5px}
-#viewerbar .va{font-size:11.5px;color:var(--muted)}
+#viewerbar .va{font-size:11.5px;color:var(--muted);
+  /* 第二轮验收（合并缝）：谱名加长到 10–18 字且 .va-kind 不折行后，平板竖屏（641–900）.va 收不动，「退出观看」被挤出屏——可收缩、单行省略，全名在 title */
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #viewerbar .vw-brand{font-size:11.5px;color:var(--accent-ink);text-decoration:none;white-space:nowrap;
   border:1px solid var(--border);border-radius:980px;padding:4px 11px;background:var(--panel)}
 #viewerbar .vw-brand:hover{border-color:var(--accent)}
@@ -2119,6 +2124,13 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accen
 /* v54.9 观看页顶栏移动端适配（微信分享页顶部两行拥挤）：
    第一行=返回+标题(截断)+移调；第二行=收藏/分享卡/谱架/去制谱 等宽排满 */
 #viewerbar .vw-acts{display:contents}
+/* 第二轮验收：平板竖屏 641–900 宽一行放不下（641–680 自 v67.5 起就横向溢出、「退出观看」出屏；721–900 标题被挤成一字一行、谱架 / 打赏钮被压扁）——
+   允许折成两行（同手机 ≤640 的两行思路）：第一行 返回＋标题＋作者 · 谱名 · 小节，第二行 移调与按钮 */
+@media (min-width:641px) and (max-width:900px){
+  #viewerbar:has(> .va){flex-wrap:wrap;row-gap:6px}
+  #viewerbar .vw-sp{flex:0 0 100%!important;height:0}   /* 盖过行内 flex:1：作分行符 */
+  #viewerbar:has(> .va) .vw-trans{margin-left:auto}
+}
 @media (max-width:640px){
   #viewerbar{padding:9px 10px;gap:7px;flex-wrap:wrap}
   #viewerbar .va{display:none}
@@ -7469,6 +7481,11 @@ function meaNo(mi){ return song.pickup ? (mi===0? '' : String(mi)) : String(mi+1
 
 /* ================= 图示生成（时值/节奏型预览） ================= */
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* v67.6 第二轮验收：孤立代理项（半个 emoji）换成 U+FFFD（＝String.prototype.toWellFormed）——encodeURIComponent 遇到它直接抛 URIError，
+   曲名里带半个 emoji 时导出 PNG / 分享卡 / 发布缩图 / 深链都会失败。函数声明（启动期即可用） */
+function strWF(t){ t=String(t==null? '' : t);   /* 不用正则后行断言（iOS Safari 16.3 及更早整段脚本解析失败）：成对的原样、落单的换掉 */
+  if(typeof t.toWellFormed==='function') return t.toWellFormed();
+  return /[\uD800-\uDFFF]/.test(t)? t.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, m=>m.length===2? m : '\uFFFD') : t; }
 /* Sprint0 安全（存储型 XSS 防线）：清洗不可信来源的谱面（他人发布谱 /pub、外部分享互动谱）——
    递归去掉字符串字段里的尖括号。render() 把 deg/品位f/指法 等数值/短字段裸拼进 #score 的 SVG innerHTML，
    合法谱面任何字段都不含 <>，故对正常数据无损；数字/布尔原样保留。杜绝「打开恶意谱即被注入脚本」。 */
@@ -21290,6 +21307,10 @@ function trkInstOf(kind, i, s){
   try{ if(i>=1 && NWB.isAccStack(s)) return 'piano'; }catch(_){}
   if(isStaffNota((s.voxNotations||[])[i])){
     if(ik) return ik;
+    /* 第二轮验收（合并缝）：与统一谱名同一判据——多行五线谱没词也没留词位＝「五线谱重奏谱」（PQ_KIND.kindName），轨道是器乐不是人声；
+       此前按 docType 判，新建面板 / 深链建的无词多声部（显式方括号组 → isChoir → docType=vocal）谱名叫重奏、左轨却是麦克风，
+       与同名的导入四重奏（其他器乐）不一致。docType / 谱库分类不动（拍板 4） */
+    try{ if(PQ_KIND.stackOf(s)==='S'){ const cx=PQ_KIND.ctxOf(s); if(cx.nVox>1 && !cx.lyr) return 'other'; } }catch(_){}
     return (dt==='instr' && !((s.lyricLines|0)>0) && !voxHasLyrics(s, i, i))? 'other' : 'vocal';
   }
   return ((dt==='vocal'||dt==='teach') && ik) || 'vocal';
@@ -22428,6 +22449,17 @@ function scKindHTML(x){
   try{
     let s=x && x.data;
     if(!s && x && typeof x.make==='function'){ if(!SC_KIND.has(x)) SC_KIND.set(x, migrate(x.make())); s=SC_KIND.get(x); }
+    else if(s && typeof s==='object'){
+      /* 第二轮验收：我的曲谱按「点开后」的口径起名——存档可能是旧格式（v1 / v2：measures[].columns / tab / vox），直接读原始 data 会叫成「简谱歌谱」，
+         点开（loadSong → migrate）与服务端（pubNameOf 按 migrate 口径）都是「吉他弹唱谱」。migrate 一份深拷贝，只读不写回存档；
+         缓存的是这一行的 HTML（不留整份谱的副本），键＝id＋保存时间，存档改了自动重算 */
+      const ck='lib|'+(x.id||'')+'|'+(x.updatedAt||'')+'|'+(x.mtime||'');
+      if(x.id && SC_KIND.has(ck)) return SC_KIND.get(ck);
+      s=migrate(JSON.parse(JSON.stringify(s)));
+      const h=(!s || !s.measures)? '' : '<div class="sc-kind">'+docIcon(s)+'<span>'+esc(docTypeLabel(s))+'</span></div>';
+      if(x.id) SC_KIND.set(ck, h);
+      return h;
+    }
     if(!s || !s.measures) return '';
     return '<div class="sc-kind">'+docIcon(s)+'<span>'+esc(docTypeLabel(s))+'</span></div>';
   }catch(_){ return ''; }
@@ -22684,7 +22716,10 @@ var NWB = (function(){
     ctx=ctx||{}; const nv=ctx.nVox||1, uku=ctx.inst==='uku';
     let ic=KIND_IC[k]||'type-blank';
     if((k==='J'||k==='S') && nv>1) ic='type-choir';
-    if((k==='T'||k==='JT') && uku) ic='type-uku';
+    /* 第二轮验收：B 收尾新加的两个叫法图标跟着谱名走——「五线谱重奏谱」（五线谱多行、无词）不用合唱谱图标（方括号＋简谱数字），用器乐五线谱；
+       「尤克里里独奏谱」不用吉他六线独奏图标，用尤克里里（与同一份谱的左轨 inst-ukulele 一致）。ccKindIc.byName 由 kindOf 生成，谱库卡片 / 观看页自动跟上 */
+    if(k==='S' && nv>1 && !ctx.lyr) ic='type-instr';
+    if((k==='T'||k==='JT'||k==='ST') && uku) ic='type-uku';
     return {k, name:PQ_KIND.kindName(k, ctx), ic};
   }
   const ctxOf = s=>PQ_KIND.ctxOf(s);
@@ -23078,7 +23113,10 @@ var NWP = (function(){
     if(R.tempo!=null){ const t=String(R.tempo).trim(); if(/^\d{2,3}$/.test(t) && +t>=30 && +t<=240){ st.v.tempo=+t; st.src.tempo='link'; ok.push('tempo'); } else no('tempo', R.tempo); }
     if(R.bars!=null){ const t=String(R.bars).trim(); if(/^\d{1,3}$/.test(t) && +t>=1 && +t<=200){ st.v.nMea=+t; st.src.nMea='link'; ok.push('bars'); } else no('bars', R.bars); }
     if(R.lyr!=null){ const t=String(R.lyr).trim(); if(/^[0-4]$/.test(t) && lyrShown(st, stackOfState(st))){ st.v.lyr=+t; st.src.lyr='link'; ok.push('lyr'); } else no('lyr', R.lyr); }
-    if(R.title!=null){ const t=String(R.title).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,80); if(t){ st.v.title=t; st.src.title='link'; ok.push('title'); } }
+    /* 曲名：只把控制字符换成空格、去首尾空白——全角空格 U+3000、NBSP、连续空格照原样（第二轮验收：此前 \s+ 合并成一个半角空格，
+       手机输入的「春江花月夜　（古筝）」到电脑上变了样，与电脑面板直接输入不一致）；按 80 个 UTF-16 码元截（＝曲名框 maxlength），
+       截在 emoji 中间时退掉那半个（此前留下孤立代理项，建成的谱导出 PNG / 分享卡 / 发布缩图一律 URI malformed，手机发到电脑页白屏） */
+    if(R.title!=null){ let t=strWF(String(R.title).replace(/[\u0000-\u001f\u007f]/g,' ')).trim().slice(0,80); t=t.replace(/[\uD800-\uDBFF]$/,'').trim(); if(t){ st.v.title=t; st.src.title='link'; ok.push('title'); } }
     st.link={ok, bad};
     return st.link;
   }
@@ -23092,7 +23130,7 @@ var NWP = (function(){
     if(st.src.nMea==='user'||st.src.nMea==='link') p.push(['bars', v.nMea]);
     if((st.src.lyr==='user'||st.src.lyr==='link') && lyrShown(st, k)) p.push(['lyr', v.lyr]);
     const t=(v.title||'').trim(); if(t) p.push(['title', t]);
-    return (base||'https://zhipu.puyouquan.com/')+'?'+p.map(([a,b])=>a+'='+encodeURIComponent(String(b)).replace(/%2F/g,'/')).join('&');
+    return (base||'https://zhipu.puyouquan.com/')+'?'+p.map(([a,b])=>a+'='+encodeURIComponent(strWF(b)).replace(/%2F/g,'/')).join('&');   /* strWF：曲名带半个 emoji 也不抛 URIError（手机页曾整页空白） */
   }
   function blankState(){
     return {tab:'new', scene:'gtr', srcScene:'gtr', rows:['J','T'], v:Object.assign({}, DEFV, varDefaults()), mel:'J', src:{}, more:false, note:null, hint:'', tpRaw:null, tpMsg:'', tpBad:false,
@@ -23171,6 +23209,8 @@ var NWP = (function(){
   let st=null, modal=null, noteTimer=0, opener=null;
   /* v67.6 埋点 create_stack 用：面板打开时显示的用途（首访默认 / 上次 / 启动台或深链预选），只在内存，不进 song、不进本机键 */
   let openScene='';
+  /* 第二轮验收：面板是不是深链 ?new= 打开的（create_stack 的「入口」：link＝深链且用途认得、link-bad＝深链用途认不出 / 空），否则 panel；只在内存 */
+  let openVia='';
   const esc2 = t=>esc(t==null? '' : t);
   function open(opt){
     opt=opt||{};
@@ -23181,6 +23221,7 @@ var NWP = (function(){
     kbNav=false;
     st=fresh(opt);
     openScene=st.scene;
+    openVia = opt.link? (opt.link.scene? 'link' : 'link-bad') : '';
     showModal('<div class="nf-shell"></div><p class="nf-sr" id="nf-live" aria-live="polite"></p>'
       +'<input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" hidden>'
       +'<input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" hidden>'
@@ -23984,7 +24025,7 @@ var NWP = (function(){
     const P=planOf(st), stCopy=st;
     /* 组合不合法（理论上到不了；坏的本机键 / 跨版本旧组合）：留在面板说明，不关面板、不写本机键 */
     if(!own(NWB.STACKS, P.stack)){ setNote('这几种谱拼不成一份谱，请在「要哪几种谱」里重新选，或点左边的用途', null); draw(); return; }
-    const ev={via:'panel', from:openScene||P.scene, first:!lastLoad()};   /* v67.6 create_stack：首次＝之前没有「上次」（本机键 musetab-nw-last 读不到） */
+    const ev={via:openVia||'panel', from:openScene||P.scene, first:!lastLoad()};   /* v67.6 create_stack：首次＝之前没有「上次」（本机键 musetab-nw-last 读不到）；via 深链打开＝link / link-bad（第二轮验收：此前与启动台用途卡逐字节相同） */
     lastSave(P, stCopy);
     close();
     realCreate(P, tpNote, ev);
@@ -24220,7 +24261,7 @@ var NWP = (function(){
 })();
 /* ---- ④ 宿主：真实创建（NWB.build → createSong，零新增字段 → addDoc 新窗口） ---- */
 /* ev（v67.6，可选）：新建面板「创建」/「新建 ▾」快捷建谱时带上，额外发埋点 create_stack 校准首访默认用途与用途排序（方案拍板 10）——
-   meta＝用途:谱行代码:入口(panel|menu|last):面板打开时的用途:首次(1|0)，只有这几个代号，不带曲名 / 调 / 内容；原 create_song 口径不变 */
+   meta＝用途:谱行代码:入口(panel|menu|last|link|link-bad):面板打开时的用途:首次(1|0)，只有这几个代号，不带曲名 / 调 / 内容；原 create_song 口径不变 */
 function realCreate(P, tpNote, ev){
   const o=Object.assign({}, P.o, {maker:(typeof profileLoad==='function' && profileLoad().maker)||''});
   if(o.tuningKey && TUNINGS[o.tuningKey] && TUNINGS[o.tuningKey].t) o.tuning=TUNINGS[o.tuningKey].t.slice();
@@ -25635,7 +25676,7 @@ function exportPNG(scale){
     return svgResolveVars(new XMLSerializer().serializeToString(c)); });
   const k = scale||2;
   const img = new Image();
-  const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+  const svg64 = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(strWF(xml));
   img.onload = ()=>{
     const cv = document.createElement('canvas');
     cv.width = vb.width*k; cv.height = vb.height*k;
@@ -28442,7 +28483,7 @@ function shareCardCanvas(cb, onErr){
     cb(cv);
   };
   img.onerror=()=>{ if(onErr) onErr(); else toast('分享卡生成失败，请重试'); };
-  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(strWF(xml));
 }
 function exportShareCard(){
   shareCardCanvas(cv=>{
@@ -28550,7 +28591,7 @@ function buildThumbCanvas(data, cb, onErr){
     cb(cv);
   };
   img.onerror = fail;
-  img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+  img.src = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(strWF(xml));
 }
 /* 上传缩图：webp 优先（同画质约 jpeg 六成体积），浏览器不出 webp 就回落 jpeg。
    全程静默失败——缩图只是卡片的锦上添花，不该让发布流程为它报错。 */
@@ -29387,8 +29428,8 @@ function openPubViewer(pid){
   const vb=document.getElementById('viewerbar');
   vb.innerHTML=`<button id="vw-back">← 谱友圈</button>
     <span class="vt">${esc(pb.title||'未命名曲谱')}</span>
-    <span class="va">${esc(pb.author||'佚名')} · <span class="va-kind">${(k=>pqIcon(ccKindIc(pb, k), 16, 'cc-ic')+esc(k))(ccKindName(pb))}</span> · ${total} 小节</span>
-    <span style="flex:1"></span>
+    <span class="va" title="${esc((pb.author||'佚名')+' · '+ccKindName(pb)+' · '+total+' 小节')}">${esc(pb.author||'佚名')} · <span class="va-kind">${(k=>pqIcon(ccKindIc(pb, k), 16, 'cc-ic')+esc(k))(ccKindName(pb))}</span> · ${total} 小节</span>
+    <span class="vw-sp" style="flex:1"></span>
     <span class="vw-trans" title="即时移调（不改动原谱，退出即还原）">
       <button id="vw-tdn" title="降半音">♭</button>
       <span class="vw-key" id="vw-key" title="点击还原到原调"></span>
@@ -30400,13 +30441,27 @@ async function openRemotePub(id, review){
   catch(e){ bootVeilDone(); toast(review?('审核预览打开失败：'+(e.message||'请确认已用管理员账号登录')):('曲谱加载失败：'+(e.message||'请稍后重试'))); return; }
   const data=sanitizeUntrusted(sc && sc.data);   // Sprint0 安全：他人发布谱走 XSS 清洗
   if(!data || !data.measures || !data.measures.length){ bootVeilDone(); toast('曲谱数据异常'); return; }
+  /* 第二轮验收：从拿到数据到揭幕整段兜底——旧格式（v:2）/ 缺 tabVoices 的已发布谱此前在 migrate 之前读 docType(data) 抛错，
+     async 拒绝没人接：遮罩卡 8 秒后落到带默认谱的编辑器、没有任何提示。现在谱类按 migrate 之后的口径算（同 viewerBuildSong / 服务端 viewOf），
+     仍打不开的坏谱退出观看态、揭幕并提示「曲谱数据异常」 */
+  const song0=song, sel0=sel, title0=document.title;
+  try{ openRemotePubShow(id, review, sc, data, pubStats); }
+  catch(e){
+    console.error('观看页打开失败', e);
+    viewerMode=false; viewerCtx=null; window.VW_REFING=null; song=song0; sel=sel0; document.title=title0;   /* 坏谱不留在编辑器里当当前谱，标题不挂着它的谱名 */
+    try{ document.body.classList.remove('viewer'); render(); }catch(_){}
+    bootVeilDone(); toast('曲谱数据异常，暂时无法打开这份谱');
+  }
+}
+function openRemotePubShow(id, review, sc, data, pubStats){
   data.author = sc.author || data.maker || '谱友圈';
   if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
   /* v63.4 A7 传播：分享出去的链接带 ?f=渠道（card 分享卡二维码 / wx 微信卡片 / link 发布后复制 / mp 小程序），落地即记 share_open */
   if(!review){ try{ const f=new URLSearchParams(location.search).get('f')||''; if(/^[a-z]{2,8}$/.test(f)) pyqEvent('share_open', f+':'+id); }catch(_){} }
   viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
   /* v60.84 thumbAt 随谱带上：小程序分享卡要引服务端缩略图，URL 里 thumb_at 兼做缓存指纹 */
-  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:docType(data), data, price:0, preview:9999, thumbAt:sc.thumb_at||0}, own:true, total:data.measures.length, pubId:id, stats:pubStats};
+  const dtype=(()=>{ try{ return docType(migrate(JSON.parse(JSON.stringify(data)))); }catch(_){ return 'vocal'; } })();   /* 第二轮验收：migrate 之后再判（旧格式没有 tabVoices） */
+  viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:dtype, data, price:0, preview:9999, thumbAt:sc.thumb_at||0}, own:true, total:data.measures.length, pubId:id, stats:pubStats};
   song=viewerBuildSong();
   sel={mi:0, row:song.tabVoices&&song.tabVoices.length?'tab':'vox', vi:0, ci:0, si:1};
   selRange=null; noteSel=[]; measureSel=null;
@@ -31384,6 +31439,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v67.6</span><div><b>谱库与编辑器同一套谱名 · 其余位置换新图标 · 官网一键开谱 · 手机「在电脑上开始一份谱」</b>（新建流程方案第三版，docs/design-2026-10e）。<br>① <b>谱名全站统一</b>：谱友圈卡片、观看页、作品落地页、分享封面与分享卡、小程序分享标题都改用编辑器的统一谱名（如「钢琴伴奏歌谱（五线谱）」「教学对照谱（含伴奏）」），与新建面板、页签、谱型条一致；服务端与编辑器共用同一份谱名规则，发版时逐字节校验。无词的器乐导入不再叫「歌谱」：小提琴独奏叫「五线谱旋律」、长笛＋钢琴叫「旋律＋钢琴伴奏谱（五线谱）」、弦乐四重奏叫「五线谱重奏谱」；尤克里里独奏叫「尤克里里独奏谱」。谱库筛选分类不变。卡片谱名过长时折两行，不压免费 / 价格角标；「我的曲谱」里的旧格式存档按打开后的谱类显示。<br>② <b>其余位置换新图标</b>：左轨音轨按乐器显示（钢琴伴奏两行显示钢琴、合唱声部显示人声、五线谱上的人声旋律不再标成其他器乐、无词重奏显示器乐）、图层页签与记谱法开关、右栏创作辅助与信息卡、谱友圈筛选条与卡片、观看页、预设与我的曲谱卡片、帮助与特色功能弹窗；「空白谱」「谱友圈文件」两枚撞形图标重画。手机底条恢复只显示文字，音轨名不再被挤没。<br>③ <b>官网一键开谱</b>：考编、即兴伴奏页的按钮直接打开「钢琴即兴伴奏」新建面板，师范页打开「儿歌弹唱」，艺考页打开「视唱练耳谱例」。链接可带调、拍号、速度、曲名、小节数等（如 <code>?new=kids&amp;key=F&amp;meter=2/4</code>），依据里标「按链接」；参数名不分大小写，认不出的只列参数名并忽略；不读也不改「按上次」；带半个 emoji 的曲名不再导致导出失败。<br>④ <b>手机「在电脑上开始一份谱」</b>：启动台首卡改为「开始一份谱」，按用途选好、改调拍速与曲名、看实时预览后点「发到电脑继续」，复制带参链接，电脑上打开就是同一份设置（全角空格等曲名原样保留）。<br>⑤ <b>更稳</b>：一份数据异常的已发布谱不再让整页谱库打不开；旧格式的已发布谱点开观看页不再卡住后落到示例谱，打不开时直接提示；谱库列表更快；平板竖屏观看栏不再把「退出观看」挤出屏幕。新建与深链建谱记录谱型统计（只记谱型代号，不含曲名与内容）。<br><b>测试</b>：新套件 <code>tv_deeplink</code> 32 项、<code>tv_kindsync</code> 14 项，<code>tv_icons</code> 增至 18 项；服务端谱名规则单测 76 项、API 362 项；两轮对抗验收；CORE 169 套件全绿。</div></li>
     <li><span class="v">v67.5</span><div><b>新建面板实时刻版预览 · 「从已有音乐」读文件给依据、选做成哪种谱 · 拖文件进窗口即导入 · 谱型条与起步条 · 换谱类</b>（新建流程方案第二版，docs/design-2026-10e）。<br>① <b>所见即所建</b>：新建面板中间换成编辑器刻版引擎现场排的真实谱面（选用途、开关谱、改调拍速、填曲名都即时重排），右侧标出每一行是什么谱、从哪一行开始写；建成的谱首行与预览一致。<br>② <b>从已有音乐</b>：来源分「打开或导入文件 / 整理 AI 转谱结果 / 示例做同款 / 接着做」等；读 MusicXML 用编辑器自己的解析器，逐条写依据（调、拍、速度「按文件」，声部与歌词「按内容」，没写调号写「按音符推断」，AI 转谱软件导出的自动识别并推荐教学对照谱）；「做成哪种谱」6 选 1（按原文件 / 转成简谱 / 五线＋简谱对照 / 配钢琴伴奏 / 生成吉他弹唱 / 标级数和弦），选哪个预览就换成哪个；内置《送别（AI 转谱）》示例可直接试；Guitar Pro、MIDI 读到后交给原来的选轨窗口。老师「AI 转谱 → 五线＋简谱对照」4 次点击。拖入较早导出的同一份谱友圈文件时按副本打开，不覆盖「我的曲谱」里更新的版本。<br>③ <b>拖文件进窗口</b>：把 MusicXML / GP / MIDI / 谱友圈文件拖到编辑器任意处即打开「从已有音乐」并读入；打印预览、谱架、个人中心或其他弹窗开着时会提示先关掉。<br>④ <b>谱型条＋起步条</b>：新建或导入的谱，谱纸上方出现一条谱型条——谱类图标与谱名（点开可换谱类）、「旋律用 简谱 | 五线谱」一键切换、按内容自动推进的起步条：钢琴伴奏歌谱「①写旋律 → ②一键配伴奏（填进当前谱）→ ③选织体」，吉他弹唱先写旋律「①写旋律 → ②生成六线谱（写进空吉他轨）→ ③调把位与扫弦」，续写后会提示「补齐六线谱 / 补配 N 小节」只补新的小节。谱型条吸顶，播放跟随、报错跳转、光标跟滚都会让开；可收起，右栏「信息」或 Alt+B 随时调回。821–1200 宽时顶栏「智能」改为右侧抽屉（此前点了没反应）。<br>⑤ <b>换谱类</b>：空谱任意换（曲名、调、拍、速度保持，可撤销）；有内容时只给不动音符的换法（如钢琴伴奏歌谱 ⇄ 五线谱版 ⇄ 教学对照谱含伴奏），其余「另建一份」把旋律、歌词、和弦带到新窗口、原谱保留；六线谱和钢琴大谱表这类不同源的写明不可换及原因。有变调夹的弹唱谱换成没有六线谱的谱类时，按实际调记谱、音高不变。<br>⑥ 教学对照谱低音区（简谱行下方有一条下加线）的简谱行改为只在该行让位，不再整首下移。<br><b>测试</b>：新套件 <code>tv_nfimport</code> 37 项、<code>tv_landbar</code> 32 项，<code>tv_newpanel</code> 增至 38 项；两轮对抗验收；CORE 167 套件全绿。</div></li>
     <li><span class="v">v67.4</span><div><b>全新「新建曲谱」：按用途开谱 · 谱类图标重画 · 一键配伴奏直接填进当前谱</b>（负责人拍板「按推荐方案执行」，方案见 docs/design-2026-10e）。<br>① <b>新建面板</b>：第一步只问「这份谱拿来做什么」——左栏 9 个用途＋空白谱（吉他弹唱、钢琴即兴伴奏·考编、儿歌弹唱·师范、歌谱·合唱、教学对照谱·课堂、视唱练耳谱例·艺考、指弹·吉他独奏、器乐独奏、和弦谱·功能谱），每个用途预设调、拍号、速度、小节数；中栏「要哪几种谱」五个开关（简谱 / 五线谱 / 六线谱 / 大谱表 / 和弦）可自由叠加，冲突时先预告、点下后说明原因并给 6 秒撤销；右栏参数全有默认值，旁边写明依据（场景惯例 / 你改的 / 默认），回车就建。建好在新窗口打开，当前谱保留。此前向导「选 A 建出 B」（如选声乐谱建出器乐五线谱、换类后旧选项照样生效）全部消除；教学对照谱、钢琴即兴伴奏、钢琴独奏、和弦谱都是 3 次点击。<br>② <b>更快的入口</b>：顶栏「新建」旁新增「▾」快捷菜单，置顶「按上次」，下面 9 个用途一点直接建；Alt+N 开面板、Alt+Shift+N 按上次直接建；页签条「＋」开同一面板；启动台换成「开始一份谱 / 按上次 / 从已有音乐」＋常用用途直达，「继续上次编辑」只在有你自己的谱时出现。导入（MusicXML · Guitar Pro · MIDI）都在面板「从已有音乐」里。手机以看谱为主：手机上新建改为「在电脑上开始一份谱」说明，仍可导入看谱；平板和电脑窄窗口照常新建。<br>③ <b>谱名统一、图标重画</b>：同一份谱在面板、按钮、页签、建成提示、右栏都叫同一个名字（如旋律＋钢琴伴奏叫「钢琴伴奏歌谱」）；谱类、记谱法、来源、动作共 101 枚新图标，采用「记谱缩略」画法——图标就是这种谱的微缩样子，16px 小尺寸有专门母版，线宽按尺寸分档。谱库与分享卡的叫法按计划在 v67.6 一起切换。<br>④ <b>一键配伴奏「填进当前谱」</b>：钢琴伴奏歌谱里默认把伴奏直接写进本谱右手 / 左手两行（旋律、歌词不动，Ctrl+Z 一步撤销），伴奏两行已有内容时先提示覆盖；生成后光标回到开头方便播放。新增 2/4「儿歌伴奏」织体（儿歌弹唱默认）；斜线和弦（如 G/B）左手改弹指定的低音，全部织体生效（两首内置示例的伴奏因此变化）；中途转调后伴奏音高、弱起小节、调外和弦的升降拼写一并修正；钢琴伴奏两行不再预留空歌词位。吉他弹唱「先写旋律」生成六线谱时写进建谱时那条空吉他轨，不再多出一条。<br>⑤ 离屏渲染引擎（为 v67.5 的实时预览准备），正常谱面输出不变。<br><b>测试</b>：新套件 <code>tv_newpanel</code> 33 项、<code>tv_icons</code> 7 项、<code>tv_offscreen</code> 13 项、<code>tv_fillacc</code> 27 项，<code>tv_newwiz</code> 重写；两轮对抗验收；CORE 165 套件全绿。</div></li>
     <li><span class="v">v67.3</span><div><b>复制粘贴小节不再错位 · 电脑端新建谱铺满屏幕更大 · 新建曲谱可填速度</b>（负责人：「复制前面四小节黏贴到后面是出现错误，另外电脑端编辑页面……整体变小了好多，不实用。还有歌曲创建时没有速度可以填写。」）。<br>① <b>复制粘贴</b>：此前在简谱里从第 1 小节拖到第 4 小节复制，粘贴时按目标小节原有的格数逐格塞进去——空小节只有 4 格，第 1 小节的 6 个音只放进 4 个，第 5–8 小节全部「欠 1 拍」。现在：拖选盖满整小节的，从光标所在小节起整小节替换，后面不够自动补小节；只选了一部分的，按时值从光标处铺开，跨小节线的音自动拆开加连音线（吉他谱用逐音延音），三连音等连音组整组不拆，放不下时提示不粘；击勾滑、连音线、渐强渐弱、8va 的终点跟着内容平移；拍号不同时询问保留目标拍号还是用源拍号；弹唱谱跨行拖选简谱不再被吉他谱框选抢走；吉他谱拖选复制整段列范围；一步撤销。不按 Shift 的方向键移动光标会放下选区（同 GP）；列片段粘到曲末自动补小节（此前截掉）。<br>② <b>电脑端谱面变大</b>：原因不是歌曲信息那次调整，而是新建谱固定按 1060 宽排版、编辑器纸张却最多显示 900 宽，屏幕再宽也只能缩小显示（1920 宽时简谱数字约 14 像素、两侧各空约 190 像素）。现在新建谱按可用宽度铺满（最多放大到 125%），1920 宽下数字约 20 像素；断行、页数、打印、导出都不变，老谱观感不变。缩放按钮每一档都生效（此前 110%、120% 点了不变），放大后底部有吸附的横向滚动条，键盘录入时光标出屏会自动跟过去，导出 PNG 不再随窗口大小变化。左栏新增「« 收起」按钮，收起后谱面再放大，下次打开记住。<br>③ <b>新建曲谱填速度</b>：向导里的速度框此前只有一个「♩=」，现在标明「速度」，6/8 等 x/8 拍号可选单位（♪ 八分 / ♩. 附点四分），只能填 30–240，越界自动调整并提示；「曲谱信息」里也能改速度；点页头「♩=」后可以直接打字改速度（此前焦点落在谱面，打的数字会写进音符）。<br><b>测试</b>：新套件 <code>tv_paste</code> 49 项、<code>tv_deskscale</code> 7 项、<code>tv_deskscale2</code> 13 项、<code>tv_wiztempo</code> 22 项；两轮对抗验收；CORE 161 套件全绿。</div></li>
@@ -31418,7 +31474,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v67.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v67.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

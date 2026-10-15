@@ -176,5 +176,41 @@ T('清洗字段表＝编辑器 sanitizeUntrusted 用的 SAN_NUM / SAN_FREE / SAN
   assert.ok(fn && /SAN_FREE\.has\(key\)\) return v\.replace\(\/\[<>\]\/g,''\)/.test(fn[1]) && /return v\.replace\(\/\[<>"'`\]\/g,''\)/.test(fn[1]), '编辑器 sanitizeUntrusted 口径变了，同步改 kindname.js sanitizeLike');
 });
 
+/* ---------- v67.6 第二轮验收（修前红修后绿：KIND_DIR / 直接用修前副本跑红） ---------- */
+/* S-2 观看页打不开的 v3 坏谱（缺 tabVoices / 小节里有 null / 歌词写成字符串 / 声部名是字符串）：谱库谱名照观看页回落「曲谱」；
+   v:2 旧格式观看页能开（谱类按 migrate 之后算），照旧给具体谱名；编辑器产出的干净谱不受影响 */
+const OPEN2 = [
+  ['v3 缺 tabVoices（简谱有词）', { v: 3, voxVoices: ['旋律'], lyricLines: 1, measures: [{ voxes: [[{ dur: 4, deg: 1, lyrics: ['啊'] }]] }] }, '曲谱'],
+  ['v3 缺 tabVoices（大谱表）', { v: 3, voxVoices: ['右手', '左手'], voxNotations: ['staff', 'bass'], measures: [{ voxes: [[{ deg: 1 }], [{ deg: 1 }]] }] }, '曲谱'],
+  ['v3 缺 voxVoices', { v: 3, tabVoices: [], measures: [{ voxes: [[{ deg: 1 }]] }] }, '曲谱'],
+  ['tabVoices 是字符串', { v: 3, tabVoices: '吉他', voxVoices: ['旋律'], lyricLines: 1, measures: [{ tabs: [[{ dur: 4, notes: [] }]], voxes: [[{ deg: 1 }]] }] }, '曲谱'],
+  ['小节里有 null', { v: 3, tabVoices: [], voxVoices: ['a'], lyricLines: 1, measures: [null, { tabs: [], voxes: [[{ deg: 1, lyrics: ['啊'] }]] }] }, '曲谱'],
+  ['歌词是字符串（高＋低音两行）', one(['staff', 'bass'], null, [{ lyrics: '啊' }]), '曲谱'],
+  ['v:2 旧格式（吉他）：观看页能开', { v: 2, key: 'G', measures: [{ tab: [{ dur: 4, notes: [{ s: 6, f: 3 }] }], vox: [{ dur: 4, deg: 1, lyric: '啊' }] }] }, '吉他弹唱谱'],
+  ['干净 v3 大谱表', one(['staff', 'bass']), '钢琴独奏谱'],
+  ['干净 v3 列为 null（空位）仍可开', Object.assign(one(['staff']), { measures: [{ tabs: [], voxes: [null] }] }), '五线谱旋律'],
+];
+for (const [name, d, want] of OPEN2) T('第二轮 S-2 谱库口径＝观看页能否打开 · ' + name, () => assert.strictEqual(K.pubNameOf(JSON.parse(JSON.stringify(d))), want));
+
+/* S-1 写侧：顶层标量字段是对象 / 数组的谱拒收（此前存得进库、过审后谱库整页 500）；嵌套里同名键（织体型 s:[…]、TAB 音符 s 数字）照常 */
+T('第二轮 S-1 scoreDataDanger：顶层 key / tempo / lyricLines / beats 为对象或数组拒收，嵌套同名数组键放行', () => {
+  const { scoreDataDanger } = require('./scoredata');
+  const base = () => ({ v: 3, key: 'C', beats: 4, unit: 4, tempo: 90, tabVoices: [], voxVoices: ['a'], lyricLines: 0, measures: [{ tabs: [], voxes: [[{ dur: 4, deg: 1 }]] }] });
+  for (const [k, v] of [['key', { toString: 1 }], ['tempo', { toString: 1, valueOf: 1 }], ['lyricLines', { valueOf: 1 }], ['beats', [4]], ['mode', { a: 1 }], ['keyTo', ['G']]]) {
+    const d = base(); d[k] = v; const r = scoreDataDanger(JSON.parse(JSON.stringify(d)), '', 'data', 0);
+    assert.ok(r && r.includes('data.' + k), k + ' 未拒收：' + r);
+  }
+  const ok = base(); ok.customPat = [{ id: 'x', R: [{ d: 4, s: ['1', '3', '5'] }] }]; ok.measures[0].tabs = [[{ dur: 4, notes: [{ s: 6, f: 3 }] }]]; ok.key = null; ok.tempo = '90';
+  assert.strictEqual(scoreDataDanger(JSON.parse(JSON.stringify(ok)), '', 'data', 0), null);
+});
+
+/* seam-4 谱类图标与谱名同义：编辑器 NWB.kindOf 的图标覆盖规则（浏览器侧 tv_icons T14 实测渲染；这里核对规则源码） */
+T('第二轮 seam-4 kindOf：五线谱重奏谱（S 多行无词）用器乐五线谱图标、尤克里里独奏谱（ST＋uku）用尤克里里图标', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8');
+  const m = /function kindOf\(k, ctx\)\{([\s\S]*?)\n  \}/.exec(html); assert.ok(m, '读不到 NWB.kindOf');
+  assert.ok(/if\(k==='S' && nv>1 && !ctx\.lyr\) ic='type-instr';/.test(m[1]), '五线谱重奏谱仍是合唱谱图标');
+  assert.ok(/\(k==='T'\|\|k==='JT'\|\|k==='ST'\) && uku\) ic='type-uku'/.test(m[1]), '尤克里里独奏谱仍是吉他独奏图标');
+});
+
 console.log('PASS ' + pass + '/' + total);
 process.exit(pass === total ? 0 : 1);

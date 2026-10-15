@@ -9,8 +9,14 @@ const SD_KEEP = { dyn: new Set(['<', '>']) };
 /* 已知短码字段（数据模型 §3.1 + 渲染裸拼点审计）：合法取值不含尖括号。只在这些字段里拒收 <>，
    未知字段透传——编辑器以后新增的可选字段不会因为服务端没登记而被拒（编辑器载入时另有 normalizeSongFields 兜底）。 */
 const SD_CODE = new Set(['acc', 'bAmt', 'chord', 'dyn', 'inst', 'key', 'keyTo', 'orn', 'strum', 'tech', 'voxNotations', 'artic', 'ped', 'fing', 'clef', 'ott', 'trem', 'perc', 'texId', 'tabNota', 'rhFing', 'lhF', 'mode']);
+/* v67.6 第二轮验收：顶层标量字段（调号 / 拍号 / 速度 / 歌词段数…）只能是数字或文字——值是对象 / 数组（如 key:{"toString":1}）时
+   服务端 String()/+ 取值会抛「Cannot convert object to primitive value」，此前存得进库、过审后整页谱库 500。只查顶层（嵌套里同名键如织体型 s:[…] 是合法数组） */
+const SD_TOP_SCALAR = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'key', 'keyTo', 'mode']);
 function scoreDataDanger(v, key, path, depth) {
   if (depth > 40) return path + '（嵌套过深）';
+  if (depth === 0 && v && typeof v === 'object' && !Array.isArray(v)) {
+    for (const k of Object.keys(v)) if (SD_TOP_SCALAR.has(k) && v[k] !== null && typeof v[k] === 'object') return path + '.' + k + '（应为' + (SD_NUM.has(k) ? '数字' : '文字') + '）';
+  }
   if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) { const r = scoreDataDanger(v[i], key, path + '[' + i + ']', depth + 1); if (r) return r; } return null; }
   if (v && typeof v === 'object') {
     for (const k of Object.keys(v)) {
@@ -29,4 +35,4 @@ function scoreDataDanger(v, key, path, depth) {
   return null;
 }
 
-module.exports = { scoreDataDanger, SD_NUM, SD_FREE, SD_KEEP, SD_CODE };
+module.exports = { scoreDataDanger, SD_NUM, SD_FREE, SD_KEEP, SD_CODE, SD_TOP_SCALAR };

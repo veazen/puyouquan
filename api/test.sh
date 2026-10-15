@@ -520,6 +520,55 @@ chk 无词长笛＋钢琴落地页标题 '<title>长笛与钢琴 旋律＋钢琴
 # v67.6 埋点 create_stack（新建面板 / 新建 ▾ 建谱时与 create_song 同发）：白名单接受并入库
 J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"create_stack","meta":"pacc:JG:menu:pacc:0"}' >/dev/null
 chk 埋点create_stack入库 '"meta":"pacc:JG:menu:pacc:0"' "$(SQL "SELECT name,meta FROM events WHERE name='create_stack'")"
+# v67.6 第二轮验收（修前红修后绿）：
+# S-1 顶层标量字段是对象（key / tempo / lyricLines 写成 {"toString":1}）：写侧拒收；库里已有的（旧数据 / 直接改库）读侧逐行兜底——
+#     谱库列表 / 搜索 / 收藏 / 落地页 / 封面都 200，坏谱自己那张卡回落默认（此前 String(d.key) 抛错整页 500）
+chk 顶层key为对象被拒收 '谱面数据不合法.*data.key' "$(J4 -X PUT http://127.0.0.1:3199/api/scores/song_kill0001 -d '{"title":"k","updated_at":10,"data":{"v":3,"key":{"toString":1},"tabVoices":[],"voxVoices":["a"],"measures":[]}}')"
+chk 顶层tempo为对象被拒收 '谱面数据不合法.*data.tempo' "$(J4 -X PUT http://127.0.0.1:3199/api/scores/song_kill0001 -d '{"title":"k","updated_at":10,"data":{"v":3,"tempo":{"valueOf":1},"tabVoices":[],"voxVoices":["a"],"measures":[]}}')"
+chk 嵌套同名数组键照常保存 '"saved":true' "$(J4 -X PUT http://127.0.0.1:3199/api/scores/song_kill0002 -d '{"title":"k","updated_at":10,"data":{"v":3,"key":"G","tempo":"90","customPat":[{"R":[{"d":4,"s":["1","3","5"]}]}],"tabVoices":[],"voxVoices":["a"],"measures":[]}}')"
+J4 -X DELETE http://127.0.0.1:3199/api/scores/song_kill0002 >/dev/null
+DB_PATH="$DIR/t.db" node -e '
+  const {q,now}=require("./db"); const uid="kindname0001";
+  const c=(o)=>Object.assign({dur:4,deg:1,oct:0,acc:"",lyrics:[]},o||{});
+  const B=(o)=>Object.assign({v:3,key:"C",beats:4,unit:4,tempo:90,tabVoices:[],voxVoices:["a"],lyricLines:0,measures:[{tabs:[],voxes:[[c()]]}]},o);
+  const S=[["r2_kkey0001","坏谱key对象",B({key:{toString:1}})],
+    ["r2_ktmp0001","坏谱tempo对象",B({tempo:{toString:1,valueOf:1}})],
+    ["r2_klyl0001","坏谱lyricLines对象",B({lyricLines:{toString:1,valueOf:1}})],
+    ["r2_kdeg0001","坏谱音级与歌词对象",B({measures:[{tabs:[],voxes:[[c({deg:{valueOf:1},lyrics:[{toString:1}]}),c({deg:3,lyrics:["啊"]})]]}]})],
+    ["r2_koct0001","高音点一百万",B({measures:[{tabs:[],voxes:[[c({deg:5,oct:1e6}),c({deg:1,oct:-1e6})]]}]})],
+    ["r2_v2000001","旧格式v2",{v:2,key:"G",beats:4,unit:4,tempo:90,measures:[{tab:[{dur:4,notes:[{s:6,f:3}]}],vox:[{dur:4,deg:1,lyric:"啊"}]}]}],
+    ["r2_notab001","缺tabVoices",{v:3,key:"C",beats:4,unit:4,tempo:90,voxVoices:["旋律"],lyricLines:1,measures:[{voxes:[[c({lyrics:["啊"]})]]}]}],
+    ["r2_cache001","缓存换内容",B({lyricLines:1,measures:[{tabs:[],voxes:[[c({lyrics:["啊"]})]]}]})]];
+  const t=now(); for(const [id,title,d] of S){ q.scoreUpsert.run(id,uid,title,"",JSON.stringify(d),t,t); q.scoreSetStatus.run("published",id,uid); q.scoreSnap.run(t+1,id); }' 2>/dev/null
+PL3=$(curl -s -w '\nHTTP%{http_code}' http://127.0.0.1:3199/api/pub/scores)
+chk 顶层对象字段的坏谱不拖垮谱库列表 'HTTP200' "$PL3"
+PJ(){ node -e 'let t="";process.stdin.on("data",c=>t+=c).on("end",()=>{let j={};try{j=JSON.parse(t.replace(/\nHTTP\d+\s*$/,""));}catch(_){} const x=(j.scores||[]).find(s=>s.id===process.argv[1]); console.log(JSON.stringify(x?{key:x.key,tempo:x.tempo,verses:x.verses,typeLabel:x.typeLabel}:null));})' "$1" <<< "$2"; }   # 取列表里某一张卡片的标量字段
+chk key对象的坏谱自己回落空调号 '"key":"","tempo":90' "$(PJ r2_kkey0001 "$PL3")"
+chk tempo对象的坏谱自己回落0 '"key":"C","tempo":0' "$(PJ r2_ktmp0001 "$PL3")"
+chk lyricLines对象的坏谱歌词段数与谱名回落 '"verses":0,"typeLabel":"曲谱"' "$(PJ r2_klyl0001 "$PL3")"
+chk 音级与歌词为对象的坏谱封面跳过坏音 '"id":"r2_kdeg0001"[^}]*"cover":\[{"deg":3,"oct":0,"ly":"啊"}\]' "$PL3"
+chk 封面高低音点夹到正负3 '"id":"r2_koct0001"[^}]*"cover":\[{"deg":5,"oct":3,"ly":""},{"deg":1,"oct":-3,"ly":""}\]' "$PL3"
+chk 顶层对象字段的坏谱不拖垮搜索 'HTTP200' "$(curl -s -o /dev/null -w 'HTTP%{http_code}' 'http://127.0.0.1:3199/api/pub/scores?q=%E5%9D%8F%E8%B0%B1')"
+chk key对象的坏谱落地页照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/r2_kkey0001)"
+chk tempo对象的坏谱封面照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/r2_ktmp0001/cover.svg)"
+chk 音级与歌词为对象的坏谱落地页照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/r2_kdeg0001)"
+J4 -X PUT http://127.0.0.1:3199/api/favorites/r2_kkey0001 >/dev/null
+chk 收藏了坏谱收藏列表照常出 'HTTP200' "$(J4 -w '\nHTTP%{http_code}' http://127.0.0.1:3199/api/favorites)"
+J4 -X DELETE http://127.0.0.1:3199/api/favorites/r2_kkey0001 >/dev/null
+# S-4 og 封面高低音点：oct=±1e6 的谱 cover.svg 不再生成 53MB（每个音最多 3 个点）
+CV=$(curl -s http://127.0.0.1:3199/pub/r2_koct0001/cover.svg)
+chk 封面oct一百万体积正常 'OK' "$([ ${#CV} -lt 20000 ] && echo OK || echo "size=${#CV}")"
+chk 封面oct一百万每音最多3个点 '^6$' "$(grep -o '<circle' <<< "$CV" | wc -l | tr -d ' ')"
+# S-2 观看页打得开才给具体谱名：v:2 旧格式（观看页按 migrate 后的口径能开）＝吉他弹唱谱；v3 缺 tabVoices（观看页打不开、提示数据异常）＝曲谱
+chk 旧格式v2谱库叫吉他弹唱谱 '"id":"r2_v2000001"[^}]*"typeLabel":"吉他弹唱谱"' "$PL3"
+chk 缺tabVoices的坏谱谱库回落曲谱 '"id":"r2_notab001"[^}]*"typeLabel":"曲谱"' "$PL3"
+# S-3 列表缓存按快照内容摘要：另一进程（admin.js scan-xss）刷新快照保留原发布时间时，谱库立刻跟上新内容
+chk 缓存前简谱歌谱 '"id":"r2_cache001"[^}]*"typeLabel":"简谱歌谱"' "$PL3"
+DB_PATH="$DIR/t.db" node -e '
+  const {DatabaseSync}=require("node:sqlite"); const d=new DatabaseSync(process.env.DB_PATH);
+  const g={v:3,key:"C",beats:4,unit:4,tempo:90,tabVoices:[],voxVoices:["右","左"],voxNotations:["staff","bass"],lyricLines:0,measures:[{tabs:[],voxes:[[{dur:4,deg:1}],[{dur:4,deg:1}]]}]};
+  d.prepare("UPDATE scores SET pub_data = ? WHERE id = ?").run(JSON.stringify(g),"r2_cache001");' 2>/dev/null
+chk 同一发布时间换了快照内容谱库跟上 '"id":"r2_cache001"[^}]*"typeLabel":"钢琴独奏谱"' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
 
 # v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
 node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!

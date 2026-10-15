@@ -18,6 +18,11 @@
    K9 minor 本地演示付费谱：真实点击卡片——卡片谱名＝观看栏谱名＝整谱统一谱名（不按试看截断后的谱算）
    K10 minor 小程序分享标题截歌名不留半个 emoji（无孤立代理项、≤44 码元、谱名完整）
    K11 minor 谱库卡片谱名：1280 宽编辑器谱友圈 / 官网卡片中长谱名不丢括号里的区分（≤2 行、不裁切、不压价格角标）；外层改 flex 并插图标（p6a 合并后）仍不溢出
+   第二轮验收（修前红修后绿：MUSETAB_URL / MUSETAB_API 指向第二轮修复前的副本复跑，K11–K14 红）：
+   K11 补本机演示付费谱「¥12.5 / ¥19.5 / ¥128」＋长谱名：两行徽标不压价格角标（此前只测了免费）
+   K12 S-2 旧格式（v:2）/ 缺 tabVoices 的已发布谱：观看页（真跳转）v:2 打得开、标题＝谱库谱名；打不开的坏谱 2 秒内揭幕并提示「曲谱数据异常」（此前遮罩卡 8 秒后静默落到默认谱），谱库谱名照此回落「曲谱」
+   K13 seam-1 本机演示谱观看栏在平板竖屏（641–900 宽）＋长谱名不横向溢出、「退出观看」在屏内；.va 单行省略、全名在 title
+   K14 seam-5「我的曲谱」卡片谱类行按点开后（migrate）的口径：旧格式 v1 / v2 存档叫吉他弹唱谱（此前叫简谱歌谱），与服务端同名
    突变实证：MUSETAB_URL=file://…/v675.html（v67.5 编辑器）复跑——K1/K3/K4/K5/K6 报红。
    env：MUSETAB_URL 编辑器、MUSETAB_API 服务端 server.js（默认仓库 api/server.js）、MUSETAB_SITE 官网目录。 */
 'use strict';
@@ -92,6 +97,13 @@ const ADV = (() => {
     if (d && typeof d === 'object') d.title = title;   /* 观看页标题读谱面 title */
     return { tag, d, view, id: 'kv' + String(i).padStart(4, '0') + 'xx', title }; });
 })();
+/* K12 第二轮验收 S-2：旧格式 / 缺 tabVoices 的已发布谱（直接入库，模拟早期数据） */
+const ADV2 = [
+  { tag: 'v:2 旧格式（吉他）', id: 'kw0000oldv2', title: 'KW00 旧格式', want: '吉他弹唱谱', open: true,
+    d: { v: 2, title: 'KW00 旧格式', key: 'G', beats: 4, unit: 4, tempo: 90, capo: 0, measures: [{ tab: [{ dur: 4, dotted: false, chord: 'G', notes: [{ s: 6, f: 3 }], strum: '' }], vox: [{ dur: 4, dotted: false, deg: 1, acc: '', oct: 0, lyric: '啊', tie: false }], repeatStart: false, repeatEnd: false }] } },
+  { tag: 'v3 缺 tabVoices（简谱有词）', id: 'kw0001notab', title: 'KW01 缺六线谱轨', want: '曲谱', open: false,
+    d: { v: 3, title: 'KW01 缺六线谱轨', key: 'C', beats: 4, unit: 4, tempo: 90, capo: 0, voxVoices: ['旋律'], lyricLines: 1, measures: [{ voxes: [[{ dur: 4, dotted: false, deg: 1, acc: '', oct: 0, lyrics: ['啊'], tie: false }]] }] } },
+];
 function vlq(n) { const s = [n & 0x7f]; n >>= 7; while (n) { s.push((n & 0x7f) | 0x80); n >>= 7; } return s.reverse(); }
 function smf(evs) {
   const tk = [0, 0xFF, 0x51, 3, 7, 0xA1, 0x20, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x59, 2, 0, 0];
@@ -276,7 +288,7 @@ async function mkPage(b, url, opt) {
     try { fs.unlinkSync(DB); } catch (_) {}
     srv = await startServer();   // 先起一次建表＋官方种子
     srv.p.kill(); await new Promise(r => setTimeout(r, 300));
-    const sd = seed(items.concat(ADV));
+    const sd = seed(items.concat(ADV, ADV2));
     srv = await startServer();
 
     /* ---------- K3 ---------- */
@@ -298,7 +310,7 @@ async function mkPage(b, url, opt) {
         if (t !== x.title + ' ' + x.name + ' - 谱友圈谱库') bad.push(x.tag + ' SSR 标题 ' + t);
         if (!cv.includes(x.name + ' · ')) bad.push(x.tag + ' 封面无谱名');
       }
-      T(sd.includes('seeded ' + (items.length + ADV.length)) && bad.length === 0, 'K3 真服务端：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；谱类 type＝编辑器 docType（分类不改）',
+      T(sd.includes('seeded ' + (items.length + ADV.length + ADV2.length)) && bad.length === 0, 'K3 真服务端：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；谱类 type＝编辑器 docType（分类不改）',
         JSON.stringify({ seeded: sd.trim().slice(0, 40), n: items.length, list: list.length, bad: bad.slice(0, 10) }));
     });
 
@@ -530,11 +542,97 @@ async function mkPage(b, url, opt) {
       const site = await sp.evaluate(([NAMES, geoSrc]) => { const g = document.getElementById('lib-grid'); if (!g || !window.PYQ_LIB) return null;
         g.innerHTML = NAMES.map((n, i) => ({ id: 's' + i, title: '谱' + i, type: 'vocal', typeLabel: n, price: i === 1 ? 12 : 0 })).map(PYQ_LIB.card).join(''); return eval(geoSrc)(); }, [NAMES, '(' + geo.toString() + ')']);
       await ctx.close();
+      /* 第二轮验收 seam-2：本机演示付费谱（发布菜单定价 step 0.5）——长谱名两行徽标 × ¥12.5 / ¥19.5 / ¥128 / ¥999.5 / 已购，1440 / 1280 / 1024、浅色 / 深色 */
+      const paid = {};
+      for (const [W, theme] of [[1440, 'light'], [1280, 'light'], [1280, 'dark'], [1024, 'light']]) {
+        const c2 = await b.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1, colorScheme: theme }); const p2 = await c2.newPage();
+        p2.on('pageerror', e => errs.push('PAGEERR(K11):' + e.message));
+        await p2.goto('file://' + ED); await p2.waitForFunction(() => typeof openCircle === 'function'); await p2.waitForTimeout(300);
+        paid[W + theme] = await p2.evaluate(() => { try { hideStartPad(); } catch (_) {}
+          const mk = (k, o, price, dual, own) => { const d = NWB.build(k, Object.assign({ title: '本地 ' + k, nMea: 4 }, o)); if (dual) d.voxDual = [true, false];
+            return { pid: 'pp' + k + String(price).replace('.', '_') + (own ? 'o' : ''), title: d.title, author: '我', type: docType(d), price, preview: 2, pubAt: nowStamp(), sales: 0, tips: 0, views: 0, status: 'approved', data: JSON.parse(JSON.stringify(d)) }; };
+          const L = [mk('SG', { lyr: 0 }, 12.5), mk('SG', {}, 19.5), mk('CG', {}, 128, true), mk('SJG', {}, 999.5), mk('SG', { lyr: 0 }, 9.5, false, true)];
+          circlePubsSave(L); try { localStorage.setItem(OWN_KEY, JSON.stringify({ [L[4].pid]: true })); } catch (_) {}
+          openCircle(); renderCircleGrid();
+          return [...document.querySelectorAll('.cc-card')].filter(c => /^pp/.test(c.dataset.pub)).map(c => { const t = c.querySelector('.cc-type').getBoundingClientRect(), p = c.querySelector('.cc-price').getBoundingClientRect(), cv = c.querySelector('.cc-cover').getBoundingClientRect();
+            return { n: c.querySelector('.cc-type').textContent, p: c.querySelector('.cc-price').textContent, gap: +(p.left - t.right).toFixed(1), inCover: t.left >= cv.left && t.right <= cv.right }; }); });
+        await c2.close();
+      }
+      const paidBad = Object.entries(paid).flatMap(([k, a]) => (a.length === 5 ? a : [{ n: 'n=' + a.length, gap: -99 }]).filter(g => !(g.gap >= 2 && g.inCover !== false)).map(g => k + ' ' + g.n + ' ' + g.p + ' gap=' + g.gap));
       const ok = arr => Array.isArray(arr) && arr.length === 4 && arr.every((g, i) => g.text === NAMES[i] && g.title === NAMES[i] && g.lines <= 2 && g.inBox && g.gap >= 2)
         && !arr[0].clipped && !arr[2].clipped && !arr[3].clipped && arr[3].lines === 1;
-      T(ok(ed.a) && ok(site) && ed.m.every(g => g.inBox && g.lines <= 2 && g.gap >= 2) && !ed.m[0].clipped,
-        'K11 谱库卡片谱名（1280 宽）：编辑器谱友圈 / 官网卡片中长谱名不丢括号里的区分（≤2 行不裁切、短名仍一行、title＝全名、不压价格角标）；外层改 flex 并插 16px 图标后仍在框内',
-        JSON.stringify({ ed: ed.a, merged: ed.m, site }));
+      T(ok(ed.a) && ok(site) && ed.m.every(g => g.inBox && g.lines <= 2 && g.gap >= 2) && !ed.m[0].clipped && paidBad.length === 0,
+        'K11 谱库卡片谱名（1280 宽）：编辑器谱友圈 / 官网卡片中长谱名不丢括号里的区分（≤2 行不裁切、短名仍一行、title＝全名、不压价格角标）；外层改 flex 并插 16px 图标后仍在框内；'
+        + '第二轮：本机演示付费谱 ¥12.5 / ¥19.5 / ¥128 / ¥999.5 / 已购 × 长谱名在 1440 / 1280（浅 / 深）/ 1024 下都不压价格角标',
+        JSON.stringify({ ed: ed.a, merged: ed.m, site, paidBad, paid1280: paid['1280light'] }));
+    });
+    /* ---------- K12 第二轮验收 S-2：旧格式 / 缺 tabVoices 的已发布谱——观看页打得开就同名，打不开就及时提示、谱库回落「曲谱」 ---------- */
+    await guard('K12', async () => {
+      const L = await get('/api/pub/scores'); let list = []; try { list = JSON.parse(L.body).scores || []; } catch (_) {}
+      const byId = Object.fromEntries(list.map(x => [x.id, x]));
+      const out = [];
+      for (const x of ADV2) {
+        const pg = await mkPage(b, 'https://puku.puyouquan.com/kanpu.html?pub=' + x.id, { wait: 2000 });
+        const r = await pg.evaluate(() => { const v = document.getElementById('boot-veil');
+          return { title: document.title, viewer: document.body.classList.contains('viewer'), veil: !!v && v.style.opacity !== '0', toast: ((document.getElementById('toast') || {}).textContent || '').trim(), meas: (song && song.measures || []).length, songTitle: song && song.title }; });
+        await pg._ctx.close();
+        out.push(Object.assign({ tag: x.tag, label: (byId[x.id] || {}).typeLabel }, r));
+      }
+      const [o, n] = out;
+      T(L.status === 200 && o.label === '吉他弹唱谱' && o.viewer && !o.veil && o.title === ADV2[0].title + ' · 吉他弹唱谱 · 谱友圈谱库'
+        && n.label === '曲谱' && !n.viewer && !n.veil && /曲谱数据异常/.test(n.toast) && !/简谱歌谱/.test(n.title) && n.songTitle !== ADV2[1].title,
+        'K12 旧格式 / 缺 tabVoices 的已发布谱（真跳转观看页，2 秒内）：v:2 打得开（谱类按 migrate 后算）、标题谱名＝谱库 typeLabel；打不开的 v3 坏谱揭幕并提示「曲谱数据异常」、不把坏谱留成当前谱、标题不挂它的谱名，谱库谱名回落「曲谱」（此前遮罩卡 8 秒后静默落到默认谱）',
+        JSON.stringify(out));
+    });
+
+    /* ---------- K13 第二轮验收 seam-1：本机演示谱观看栏平板竖屏不溢出 ---------- */
+    await guard('K13', async () => {
+      const res = {};
+      for (const W of [641, 680, 720, 768, 800, 820, 900, 1024]) {
+        const ctx = await b.newContext({ viewport: { width: W, height: 700 } }); const pg = await ctx.newPage();
+        pg.on('pageerror', e => errs.push('PAGEERR(K13):' + e.message));
+        await pg.goto('file://' + ED); await pg.waitForFunction(() => typeof openPubViewer === 'function'); await pg.waitForTimeout(300);
+        res[W] = await pg.evaluate(async () => { try { hideStartPad(); } catch (_) {}
+          const out = [];
+          for (const [k, o, dual] of [['CG', {}, true], ['SG', { lyr: 0 }], ['SG', {}], ['SJG', {}], ['JT', {}]]) {
+            const d = NWB.build(k, Object.assign({ title: '茉莉花', nMea: 4 }, o)); if (dual) d.voxDual = [true, false];
+            circlePubsSave([{ pid: 'pubw', title: '茉莉花', author: '谱友圈官方', type: docType(d), price: 0, preview: 2, pubAt: nowStamp(), status: 'approved', data: JSON.parse(JSON.stringify(d)) }]);
+            openPubViewer('pubw'); await new Promise(r => setTimeout(r, 120));
+            const vb = document.getElementById('viewerbar'), ex = document.getElementById('vw-exit').getBoundingClientRect(), va = vb.querySelector('.va');
+            out.push({ k, ov: vb.scrollWidth - vb.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth, exitIn: ex.right <= innerWidth + 0.5 && ex.width > 0,
+              vaH: Math.round(va.getBoundingClientRect().height), title: va.getAttribute('title') || '', kind: PQ_KIND.nameOf(d) });
+            try { exitViewer(); } catch (_) {}
+          }
+          return out; });
+        await ctx.close();
+      }
+      const bad = Object.entries(res).flatMap(([W, a]) => a.filter(x => !(x.ov <= 0 && x.page <= 0 && x.exitIn && x.vaH <= 20 && x.title.includes(' · ' + x.kind + ' · '))).map(x => W + ' ' + x.kind + ' ov=' + x.ov + ' exit=' + x.exitIn + ' h=' + x.vaH));
+      T(bad.length === 0, 'K13 本机演示谱观看栏（641 / 680 / 720 / 768 / 800 / 820 / 900 / 1024 宽 × 钢琴弹唱谱（纯伴奏，五线＋简谱对照）/ 旋律＋钢琴伴奏谱（五线谱）等长谱名）：#viewerbar 与整页不横向溢出、「退出观看」在屏内、作者 · 谱名 · 小节单行（省略）、全名在 title',
+        JSON.stringify({ bad: bad.slice(0, 10), w800: res[800] }));
+    });
+
+    /* ---------- K14 第二轮验收 seam-5：「我的曲谱」卡片谱类行＝点开后的谱名（旧格式存档先 migrate 再起名） ---------- */
+    await guard('K14', async () => {
+      const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } }); const pg = await ctx.newPage();
+      pg.on('pageerror', e => errs.push('PAGEERR(K14):' + e.message));
+      await pg.goto('file://' + ED); await pg.waitForFunction(() => typeof showLibrary === 'function'); await pg.waitForTimeout(400);
+      const v2 = { v: 2, title: '老谱v2', key: 'G', beats: 4, unit: 4, tempo: 80, capo: 0, measures: [{ tab: [{ dur: 4, notes: [{ s: 1, f: 3 }], chord: 'G' }], vox: [{ dur: 4, deg: 1, acc: '', oct: 0, lyric: '啊' }] }] };
+      const v1 = { title: '老谱v1', key: 'C', beats: 4, unit: 4, tempo: 90, measures: [{ columns: [{ dur: 4, notes: [{ s: 2, f: 1 }], chord: 'C', lyric: '啊' }] }] };
+      const r = await pg.evaluate(async ([v2, v1]) => { try { hideStartPad(); } catch (_) {}
+        const v3 = JSON.parse(JSON.stringify(NWB.build('SG', { title: '新谱', nMea: 2 })));
+        libSave([{ id: 'sold2', title: v2.title, updatedAt: '2020-01-01', data: JSON.parse(JSON.stringify(v2)) }, { id: 'sold1', title: v1.title, updatedAt: '2019-01-01', data: JSON.parse(JSON.stringify(v1)) },
+          { id: 'snew3', title: '新谱', updatedAt: '2026-10-01', data: v3 }]);
+        libTab = 'mine'; showLibrary(); await new Promise(r => setTimeout(r, 250));
+        const card = id => { const c = document.querySelector('[data-mine="' + id + '"] .sc-kind'); return c ? c.textContent + '|' + ((c.querySelector('svg.pqi') || { dataset: {} }).dataset.pq || '') : null; };
+        const opened = d => { const m = migrate(JSON.parse(JSON.stringify(d))); return docTypeLabel(m) + '|' + docIcon(m).match(/data-pq="([^"]+)"/)[1]; };
+        const stored = JSON.stringify(libLoad().map(x => x.data));
+        return { c2: card('sold2'), c1: card('sold1'), c3: card('snew3'), o2: opened(v2), o1: opened(v1), o3: opened(v3), untouched: stored === JSON.stringify([v2, v1, v3]) };
+      }, [v2, v1]);
+      await ctx.close();
+      const srv2 = KIND.pubNameOf(JSON.parse(JSON.stringify(v2))), srv1 = KIND.pubNameOf(JSON.parse(JSON.stringify(v1)));
+      T(r.c2 === r.o2 && r.c1 === r.o1 && r.c3 === r.o3 && /^吉他弹唱谱\|/.test(r.c2) && /^吉他弹唱谱\|/.test(r.c1) && srv2 === '吉他弹唱谱' && srv1 === '吉他弹唱谱' && r.untouched,
+        'K14「我的曲谱」卡片谱类行（图标＋谱名）＝点开后（migrate）的口径：旧格式 v2 / v1 存档叫吉他弹唱谱（此前读原始存档叫简谱歌谱）、与服务端谱库同名；v3 谱不变；只读不写回存档',
+        JSON.stringify(Object.assign(r, { srv2, srv1 })));
     });
   } finally {
     if (srv) { try { srv.p.kill(); } catch (_) {} }

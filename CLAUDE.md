@@ -19,7 +19,7 @@
 7. **涉及 `miniprogram/` 的版本**：递增 `deploy/mp-release.json` 的 `version`（小程序自己的 1.1.x 线，对照表见 `miniprogram/README.md`）→ 推送后工作流 `mp-upload.yml` 自动上传为开发版本，告诉用户去 mp 后台「版本管理」点「提交审核」→「发布」（v66.7 起，需仓库 secret `MP_UPLOAD_KEY`）。**未配置密钥或上传失败时**照旧：把整个目录打成 `puyouquan-miniprogram-vXX.zip` 用文件直接发给用户（产品指示：不自己去仓库下载），注明「导入→上传→提审→发布」，zip 文件名用仓库 vXX
 
 ## 常用入口（grep）
-`createSong` `NWB`（谱行引擎/谱名表）`NWP`（新建面板）`pqIcon` `renderOffscreen` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation`
+`createSong` `NWB`（谱行引擎/谱名表）`NWP`（新建面板）`PQ_KIND`（统一谱名表，与 `api/kindname.js` 逐字节同一份，改规则两边一起改）`pqIcon` `renderOffscreen` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation`
 
 ## 已知坑
 - 单文件后声明函数覆盖前声明——新函数名先 grep（v37.2 教训）。
