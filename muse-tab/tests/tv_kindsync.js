@@ -333,8 +333,10 @@ async function mkPage(b, url, opt) {
       const longX = items.find(x => x.name === '钢琴弹唱谱（纯伴奏，五线＋简谱对照）') || items.find(x => x.name.length >= 10);
       const pm = await mkPage(b, 'https://puku.puyouquan.com/kanpu.html?pub=' + longX.id, { wait: 400, ua: 'Mozilla/5.0 (Linux; Android 14) MicroMessenger/8.0.49 miniProgram',
         init: 'window.__wxjs_environment="miniprogram";' });
+      /* CI 慢机实测：观看页载入完成前就改 song.title，载入后的自动 wxShareCard 会盖掉 __wxpm——先等观看页揭幕（v67.6 CI 抖动修） */
+      await pm.waitForFunction(() => typeof viewerMode !== 'undefined' && viewerMode && !!document.getElementById('vw-fav'), null, { timeout: 15000 }).catch(() => {});
       await pm.evaluate(() => { song.title = '一首名字特别特别长的歌曲用来测试小程序分享卡的标题截断'; song.singer = '某位歌手'; window.__wxpm = null; wxShareCard(); });
-      await pm.waitForFunction(() => !!window.__wxpm, null, { timeout: 8000 }).catch(() => {});
+      await pm.waitForFunction(() => { const d = window.__wxpm && window.__wxpm.data; return !!d && String(d.share || '').startsWith('一首名字'); }, null, { timeout: 8000 }).catch(() => {});
       const mp = await pm.evaluate(() => window.__wxpm && window.__wxpm.data);
       await pm._ctx.close();
       let cfg = null; global.Page = c => { cfg = c; };
@@ -506,10 +508,12 @@ async function mkPage(b, url, opt) {
     await guard('K10', async () => {
       const x = items.find(i => i.name === '钢琴弹唱谱（纯伴奏）') || items[0];
       const pm = await mkPage(b, 'https://puku.puyouquan.com/kanpu.html?pub=' + x.id, { wait: 400, ua: 'Mozilla/5.0 (Linux; Android 14) MicroMessenger/8.0.49 miniProgram', init: 'window.__wxjs_environment="miniprogram";' });
+      /* CI 慢机实测：观看页载入完成前就改 song.title，载入后的自动 wxShareCard 会盖掉 __wxpm——先等观看页揭幕（v67.6 CI 抖动修） */
+      await pm.waitForFunction(() => typeof viewerMode !== 'undefined' && viewerMode && !!document.getElementById('vw-fav'), null, { timeout: 15000 }).catch(() => {});
       const out = [];
       for (const [t, sg] of [['a' + '🎵'.repeat(20), ''], ['🎵'.repeat(30), '歌手🎤'], ['长歌名' + '𝄞'.repeat(25), '']]) {
         await pm.evaluate(([t, sg]) => { song.title = t; song.singer = sg; window.__wxpm = null; wxShareCard(); }, [t, sg]);
-        await pm.waitForFunction(() => !!window.__wxpm, null, { timeout: 8000 }).catch(() => {});
+        await pm.waitForFunction(t0 => { const d = window.__wxpm && window.__wxpm.data; return !!d && String(d.share || '').startsWith(t0); }, t.slice(0, 2), { timeout: 8000 }).catch(() => {});
         out.push(await pm.evaluate(() => { const sh = (window.__wxpm && window.__wxpm.data && window.__wxpm.data.share) || ''; return { sh, len: sh.length, lone: /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(sh), kind: docTypeLabelPub(song) }; }));
       }
       await pm._ctx.close();
