@@ -32,6 +32,13 @@
    T24 本机键坏值（原型链键、自选记谱法缺组合）：面板照常、能建、自愈、无报错
    T25 谱库观看页标题仍读谱库口径（拍板 5）
    T26 四部合唱示意谱号不相碰
+   —— 第二轮验收回归（修前红、修后绿；修前基线＝第二轮修复前的合并树 f331646，对它跑 26/33：T19、T27–T32 红）——
+   T27 判定只此一份（NWB.isAccStack ≡ isPianoAccStack）：SAB＋首行简谱对照＝教学对照谱、伴奏织体 / 节奏型库拒绝改写声部；改轨名的老 / 新产物两处结论一致
+   T28 钢琴伴奏歌谱＋旋律轨：插在钢琴两行之前、分组 / 记谱法 / 混音台同步、伴奏织体按花括号两行写；删行同步
+   T29 「新建 ▾」开着时数字 / Delete / Ctrl+Z 不穿透到谱面，Enter 照常激活菜单项
+   T30 五度圈浮层下 Alt+N 不响应；Mac 输入框里 ⌥N 留给死键
+   T31 手机横屏（宽 >820）启动台 / 快捷菜单不出建谱死路
+   T32 按上次摘要带速度、弹唱谱示意六线在上、1366×768 智能配谱「生成」可见、手机文案
    突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无新建面板 / NWB / 启动台新卡 → 全红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -637,8 +644,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     const penJ = await pg.evaluate(() => document.getElementById('toast').textContent);
     await pg._ctx.close();
     T(ri.ri === ri.label + ' · 16 小节' && ri.label === '钢琴伴奏歌谱' && /钢琴伴奏歌谱/.test(ri.tip) && !/谱行|落笔行|谱样/.test(panelTxt) && /预览（示意）/.test(panelTxt)
-      && !/显示 · 六线谱/.test(penJ) && /旋律音轨/.test(penJ) && /新加的一条/.test(penJ) && /Alt\+Shift\+N/.test(keys) && /AI 转谱结果/.test(pad),
-      'T19 右栏「谱类 · 篇幅」＝页签＝docTypeLabel；面板不出现自造词「谱行」；「先写旋律」提示写真实位置并说清会新加一条轨；底栏键位与启动台文案按方案',
+      && !/显示 · 六线谱/.test(penJ) && /旋律音轨/.test(penJ) && /空吉他轨/.test(penJ) && /轨数不变/.test(penJ) && !/新加的一条|不用可删/.test(penJ) && /Alt\+Shift\+N/.test(keys) && /AI 转谱导出/.test(pad) && !/AI 转谱结果/.test(pad),
+      'T19 右栏「谱类 · 篇幅」＝页签＝docTypeLabel；面板不出现自造词「谱行」；「先写旋律」提示写真实位置、照实说写进建谱时的空吉他轨（轨数不变，第二轮验收：不再说「新加一条 / 空轨可删」）；底栏键位与启动台文案按方案（MusicXML 含 AI 转谱导出，不承诺单独的 AI 入口）',
       JSON.stringify({ ri, keys, penJ: penJ.slice(-80), pad }));
   });
 
@@ -797,6 +804,165 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       return { ys: gs, minGap: Math.min(...gs.slice(3).map((y, i) => y - gs[i + 2])) }; });
     await pg._ctx.close();
     T(r.ys.length === 5 && r.minGap >= 46, 'T26 四部合唱示意：相邻两行五线谱行距 ≥46（谱号不相碰）', JSON.stringify(r));
+  });
+
+  /* ======== 第二轮验收回归（修前红、修后绿；修前基线＝第二轮修复前的合并树 f331646） ======== */
+  /* ---------- T27 判定只此一份：SAB＋首行对照不是钢琴伴奏歌谱，「伴奏织体」不改写声部；改过轨名的伴奏谱两处结论一致 ---------- */
+  await guard('T27 判定一致', async () => {
+    const pg = await open(1366, 900);
+    await pg.evaluate(() => hideStartPad());
+    await openPanel(pg); await pg.click('.nf-tabs [data-v="import"]');
+    await pg.setInputFiles('#nw-mxlfile', { name: 'sab.musicxml', mimeType: 'application/xml', buffer: Buffer.from(XML('SAB', [{ name: 'Soprano', clef: 'G', ly: 1 }, { name: 'Alto', clef: 'G', ly: 1 }, { name: 'Baritone', clef: 'F', ly: 1 }])) });
+    await pg.waitForTimeout(500);
+    const rows = () => pg.evaluate(() => JSON.stringify(song.measures.map(m => m.voxes.map(v => v.map(c => c.deg + (c.chord || '')).join(' ')))));
+    await pg.evaluate(() => { sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); document.getElementById('vn-dual').click(); mutate(() => { song.measures[0].voxes[0][0].chord = 'C'; }); });
+    await pg.waitForTimeout(120);
+    const r = {};
+    r.sab = await pg.evaluate(() => ({ nwb: NWB.isAccStack(song), pas: isPianoAccStack(song), label: docTypeLabel(song), dual: !!(song.voxDual || [])[0], btn: document.getElementById('b-acctex').style.display }));
+    const r0 = await rows();
+    await pg.click('#eb-lib'); await pg.waitForTimeout(150);
+    r.lib = await pg.evaluate(() => ({ tex: !!document.getElementById('tex-go'), toast: document.getElementById('toast').textContent }));
+    await pg.evaluate(() => { try { closeModal(); } catch (_) {} document.getElementById('b-acctex').click(); });
+    await pg.waitForTimeout(100);
+    r.btnDirect = await pg.evaluate(() => ({ tex: !!document.getElementById('tex-go'), toast: document.getElementById('toast').textContent }));
+    r.same = (await rows()) === r0;
+    /* 一键配伴奏产物改轨名（右手伴奏 / 左手伴奏 → 右手 / 左手）：老产物（无分组）两处都不认、新产物（1–2 行花括号）两处都认 */
+    r.ren = await pg.evaluate(() => {
+      const mel = createSong('vocal', { title: '旋律', key: 'C', beats: 4, unit: 4, nMea: 2, nVox: 1, lyr: 1 });
+      mel.measures.forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i]; c.lyrics = ['啊']; }));
+      const out = {};
+      for (const k of ['old', 'new']) {
+        const t = arrangeAccompaniment(mel, { texId: 'block' }).song; if (k === 'old') delete t.voxGroups;
+        t.voxVoices = ['旋律', '右手', '左手']; addDoc(t); render();
+        document.getElementById('b-arrange').click(); const fill = !!document.querySelector('#arr-out option[value="fill"]'); closeModal();
+        document.getElementById('b-acctex').click(); const tex = !!document.getElementById('tex-go'), auto = !!document.getElementById('tex-auto'); closeModal();
+        out[k] = { nwb: NWB.isAccStack(song), pas: isPianoAccStack(song), label: docTypeLabel(song), fill, tex, auto };
+      }
+      return out;
+    });
+    await pg._ctx.close();
+    T(!r.sab.nwb && !r.sab.pas && r.sab.dual && r.sab.label === '教学对照谱' && r.sab.btn === 'none' && !r.lib.tex && /合唱/.test(r.lib.toast) && !r.btnDirect.tex && /合唱/.test(r.btnDirect.toast) && r.same
+      && !r.ren.old.nwb && !r.ren.old.pas && !r.ren.old.fill && !r.ren.old.tex && r.ren.new.nwb && r.ren.new.pas && r.ren.new.fill && r.ren.new.tex && r.ren.new.auto && r.ren.new.label === '教学对照谱（含伴奏）',
+      'T27 判定只此一份（NWB.isAccStack ≡ isPianoAccStack）：导入 SAB 给女高音开简谱对照＝教学对照谱（不带「含伴奏」）、右栏无「伴奏织体」，节奏型库 / 伴奏织体都拒绝改写声部（谱面逐字不变）；一键配伴奏产物改轨名后：老产物两处都不认、新产物（1–2 行花括号）两处都认（有「填进当前谱」、织体写伴奏两行）', JSON.stringify(r));
+  });
+
+  /* ---------- T28 钢琴伴奏歌谱加旋律轨 / 删行：新行插在钢琴两行之前，记谱法 / 分组 / 混音台同步；伴奏织体按花括号两行写 ---------- */
+  await guard('T28 加删旋律轨', async () => {
+    const pg = await open(1366, 900);
+    await pg.evaluate(() => { hideStartPad(); try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
+    await openPanel(pg); await pg.click('[data-scene="pacc"]'); await pg.click('#nw-create'); await pg.waitForTimeout(250);
+    await pg.mouse.move(5, 5);
+    for (const k of ['1', '1', '5', '5', '6', '6', '5', '5']) await pg.keyboard.press(k);
+    await pg.click('#rail-addtrk'); await pg.waitForTimeout(120); await pg.click('#ta-vox'); await pg.waitForTimeout(150);
+    const r = {};
+    r.add = await pg.evaluate(() => ({ vv: song.voxVoices.join('/'), vn: JSON.stringify(song.voxNotations), g: JSON.stringify(song.voxGroups), mix: ['vox:2', 'vox:3'].map(k => (song.mixer[k] || {}).inst).join(), sel: sel.vi,
+      rows: typeof accTexRows === 'function' ? JSON.stringify(accTexRows(song)) : null, btn: document.getElementById('b-acctex').style.display }));
+    await pg.click('#rail-tracks .rtrk[data-trk="vv:2"]'); await pg.waitForTimeout(150); await pg.keyboard.press('Escape');
+    await pg.click('#eb-lib'); await pg.waitForTimeout(150);
+    r.modal = await pg.evaluate(() => ({ auto: !!document.getElementById('tex-auto') }));
+    await pg.click('#tex-go'); await pg.waitForTimeout(200);
+    r.gen = await pg.evaluate(() => ({ m0: song.measures[0].voxes[0].map(c => c.deg).join(''), m1: song.measures[0].voxes[1].map(c => c.deg).join(''), rh: song.measures[0].voxes[2].some(c => c.deg), lh: song.measures[0].voxes[3].some(c => c.deg) }));
+    r.del = await pg.evaluate(() => { const st = () => ({ vn: JSON.stringify(song.voxNotations), g: JSON.stringify(song.voxGroups || null), mix: Object.keys(song.mixer || {}).filter(k => (song.mixer[k] || {}).inst === 'piano').sort().join(), label: docTypeLabel(song) });
+      delVoiceAt('vox', 1); const a = st();   /* 删掉加的旋律4 → 回到三行钢琴伴奏歌谱 */
+      delVoiceAt('vox', 0); a.mel0 = st();      /* 再删旋律行 → 右手仍是高音谱表、左手仍是低音谱表、花括号 0–1 */
+      const s = NWB.build('JG', { title: 'x', key: 'C', beats: 4, unit: 4, tempo: 90, nMea: 2, lyr: 1 }); addDoc(s); delVoiceAt('vox', 2);
+      a.lhDel = st();
+      /* 老产物（一键配伴奏教学对照、没写分组，靠声部名认出）加旋律轨：先把钢琴两行写成显式花括号再随行平移 */
+      const mel = createSong('vocal', { title: '旋律', key: 'C', beats: 4, unit: 4, nMea: 2, nVox: 1, lyr: 1 }); mel.measures.forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i]; }));
+      const t = arrangeAccompaniment(mel, { texId: 'block' }).song; delete t.voxGroups; addDoc(t); const ni = addVoice('vox');
+      a.old = { ni, g: JSON.stringify(song.voxGroups || null), rows: typeof accTexRows === 'function' ? JSON.stringify(accTexRows(song)) : null, vn: JSON.stringify(song.voxNotations), dual: JSON.stringify(song.voxDual) };
+      return a; });
+    await pg._ctx.close();
+    T(r.add.vv === '旋律/旋律4/右手伴奏/左手伴奏' && r.add.vn === '[null,null,"staff","bass"]' && r.add.g === '[{"type":"brace","from":2,"to":3}]' && r.add.mix === 'piano,piano' && r.add.sel === 1
+      && r.add.rows === '{"chordVi":0,"rhVi":2,"lhVi":3,"acc":true}' && r.add.btn === '' && r.modal.auto && r.gen.m0 === '1155' && /^0+$/.test(r.gen.m1) && r.gen.rh && r.gen.lh
+      && r.del.vn === '[null,"staff","bass"]' && r.del.g === '[{"type":"brace","from":1,"to":2}]' && r.del.mix === 'vox:1,vox:2' && r.del.label === '钢琴伴奏歌谱'
+      && r.del.mel0.vn === '["staff","bass"]' && r.del.mel0.g === '[{"type":"brace","from":0,"to":1}]' && r.del.mel0.mix === 'vox:0,vox:1'
+      && r.del.lhDel.label === '简谱歌谱' && r.del.lhDel.vn === '[null,"staff"]' && r.del.lhDel.g === 'null'
+      && r.del.old.ni === 1 && r.del.old.g === '[{"type":"brace","from":2,"to":3}]' && r.del.old.rows === '{"chordVi":0,"rhVi":2,"lhVi":3,"acc":true}' && r.del.old.vn === '["staff","staff","staff","bass"]' && r.del.old.dual === '[true,false,false,false]',
+      'T28 钢琴伴奏歌谱 ＋音轨 → 旋律轨：新行插在钢琴两行之前（旋律 / 旋律4 / 右手 / 左手），花括号随之移到 2–3、混音台钢琴音色跟着行走；光标到右手伴奏行用伴奏织体＝按花括号两行写、两条旋律行一个音不动；删行时记谱法 / 分组 / 混音台同步（删掉加的旋律轨后仍是钢琴伴奏歌谱；再删旋律行，右手 / 左手仍是高音 / 低音谱表、花括号 0–1、钢琴音色跟行；删左手伴奏后叫简谱歌谱、分组清掉）；没写分组的老产物加旋律轨同样插在钢琴两行之前、花括号写成显式分组', JSON.stringify(r));
+  });
+
+  /* ---------- T29 「新建 ▾」菜单开着时按键不穿透到谱面；Enter 照常激活菜单项 ---------- */
+  await guard('T29 快捷菜单按键不穿透', async () => {
+    const pg = await open(1280, 800);
+    await pg.evaluate(() => { hideStartPad(); loadSong(PRESETS[0].make()); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); });
+    const snap = () => pg.evaluate(() => ({ s: JSON.stringify(song.measures), u: undoStack.length }));
+    const a = await snap();
+    await pg.click('#b-newdd'); await pg.waitForTimeout(80);
+    for (const k of ['5', 'Delete', 'ArrowRight', '3', 'Backspace', 'Control+KeyZ']) await pg.keyboard.press(k);
+    const b2 = await snap();
+    const r = { open: await pg.evaluate(() => !!document.querySelector('.nf-qm')), same: a.s === b2.s, undo: b2.u - a.u };
+    const d0 = await pg.evaluate(() => docs.length);
+    await pg.keyboard.press('ArrowDown'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(200);
+    r.enter = await pg.evaluate(d0 => ({ docs: docs.length - d0, k: NWB.stackOf(song), qm: !!document.querySelector('.nf-qm') }), d0);
+    await pg._ctx.close();
+    T(r.open && r.same && r.undo === 0 && r.enter.docs === 1 && r.enter.k === 'JT' && !r.enter.qm,
+      'T29 鼠标点开「新建 ▾」后按 5 / Delete / → / 3 / 退格 / Ctrl+Z：谱面逐字不变、撤销栈不变、菜单仍开着；↓＋Enter 照常激活菜单项（建吉他弹唱谱）', JSON.stringify(r));
+  });
+
+  /* ---------- T30 Alt+N：五度圈全屏浮层下不响应；Mac 的 ⌥N 在输入框里留给死键 ---------- */
+  await guard('T30 Alt+N 浮层与 Mac 输入框', async () => {
+    const r = {};
+    const pg = await open(1280, 800);
+    await pg.evaluate(() => { hideStartPad(); loadSong(PRESETS[0].make()); render(); });
+    await pg.click('#b-circle'); await pg.waitForTimeout(200);
+    { const d0 = await pg.evaluate(() => docs.length); await pg.keyboard.press('Alt+KeyN'); await pg.waitForTimeout(120); r.circPanel = await panelOpen(pg);
+      await pg.keyboard.press('Enter'); await pg.waitForTimeout(150); r.circDocs = await pg.evaluate(d0 => docs.length - d0, d0); r.circ = await pg.evaluate(() => !!document.getElementById('circle')); }
+    await pg._ctx.close();
+    const mac = await open(1280, 800, { init: 'Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel" });' });
+    await mac.evaluate(() => { hideStartPad(); window.__dp = []; window.addEventListener('keydown', e => { if (e.code === 'KeyN') window.__dp.push(e.defaultPrevented); }); });
+    await mac.focus('#i-tempo'); await mac.keyboard.press('Alt+KeyN'); await mac.waitForTimeout(120);
+    r.macInput = { panel: await panelOpen(mac), dp: await mac.evaluate(() => window.__dp.slice(-1)[0]) };
+    await mac.evaluate(() => document.activeElement.blur()); await mac.keyboard.press('Alt+KeyN'); await mac.waitForTimeout(150);
+    r.macBody = await panelOpen(mac);
+    await mac._ctx.close();
+    T(!r.circPanel && r.circDocs === 0 && r.circ && !r.macInput.panel && r.macInput.dp === false && r.macBody,
+      'T30 五度圈全屏浮层下 Alt+N 不开面板、再按 Enter 不在背后建谱；Mac 平台焦点在输入框时 ⌥N 不拦（defaultPrevented=false，留给 ˜ 死键），焦点不在输入框时照常开面板', JSON.stringify(r));
+  });
+
+  /* ---------- T31 手机横屏（宽 >820 的真手机）：启动台不摆建谱卡、「新建 ▾」不列一点直建项 ---------- */
+  await guard('T31 手机横屏入口', async () => {
+    const pg = await open(844, 390, { mob: true });
+    const r = await pg.evaluate(() => { const v = e => !!e && getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0;
+      const cards = [...document.querySelectorAll('#spd-cards [data-sp]')].filter(v).map(e => e.dataset.sp).join(',');
+      const chips = [...document.querySelectorAll('#spd-cards .spd-chips.spd-desk')].some(v);
+      hideStartPad(); NWP.quickMenu(document.getElementById('b-newdd'));
+      return { mob: isMobileNew(), cards, chips, qm: !!document.querySelector('.nf-qm'), mpc: !!document.getElementById('nw-pc'), h3: (document.querySelector('.modal h3') || {}).textContent }; });
+    await pg._ctx.close();
+    T(r.mob && !/new|last/.test(r.cards) && /pc/.test(r.cards) && !r.chips && !r.qm && r.mpc && r.h3 === '在电脑上开始一份谱',
+      'T31 手机横屏 844×390：启动台只给看示例 / 发到电脑继续等手机卡（不摆开始一份谱 / 按上次 / 常用用途）；「新建 ▾」直接出手机页（标题「在电脑上开始一份谱」），不列点下去只到死路的一点直建项', JSON.stringify(r));
+  });
+
+  /* ---------- T32 旅程文案：按上次带速度、弹唱谱示意六线在上、智能配谱 1366×768 生成钮可见、手机导入页不说新窗口 ---------- */
+  await guard('T32 旅程文案', async () => {
+    const r = {};
+    const pg = await open(1366, 768);
+    await pg.evaluate(() => { hideStartPad(); try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
+    await openPanel(pg); await pg.click('[data-scene="teach"]'); await pg.selectOption('#nw-key', 'G'); await pg.selectOption('#nw-beats', '3');
+    await pg.fill('#nw-tempo', '100'); await pg.click('#nw-create'); await pg.waitForTimeout(200);
+    await pg.reload(); await pg.waitForTimeout(900);
+    r.last = await pg.evaluate(() => document.getElementById('spd-last-d').textContent);
+    await pg.evaluate(() => hideStartPad()); await pg.click('#b-newdd'); r.qm = await pg.evaluate(() => document.querySelector('.nf-qlast small').textContent); await pg.keyboard.press('Escape');
+    await openPanel(pg); await pg.click('[data-scene="gtr"]');
+    const order = () => pg.evaluate(() => [...document.querySelectorAll('.nf-bl')].sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top)).map(e => (e.classList.contains('pen') ? '*' : '') + e.querySelector('b').textContent).join('|'));
+    await pg.click('[data-act="var"][data-k="pen"][data-v="J"]'); r.penJ = await order();
+    await pg.click('[data-act="var"][data-k="pen"][data-v="T"]'); r.penT = await order();
+    r.long = await pg.evaluate(() => document.querySelector('.nf-modal').textContent.includes('六线谱与和弦图在上'));
+    await pg.keyboard.press('Escape');
+    await pg.evaluate(() => { const s = createSong('vocal', { title: 't', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 1, lyr: 1 }); s.measures.forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i]; })); addDoc(s); setRTab('make'); });
+    await pg.waitForTimeout(150); await pg.click('#rt-arr'); await pg.waitForTimeout(150);
+    r.arr = await pg.evaluate(() => { const md = document.querySelector('.modal').getBoundingClientRect(), g = document.getElementById('arr-go').getBoundingClientRect(), o = document.getElementById('arr-out').getBoundingClientRect();
+      return { go: g.top >= md.top && g.bottom <= md.bottom + 0.5 && g.bottom <= innerHeight, out: o.top >= md.top && o.bottom <= md.bottom, hit: document.elementFromPoint(g.left + g.width / 2, g.top + g.height / 2) === document.getElementById('arr-go') }; });
+    await pg._ctx.close();
+    const ph = await open(390, 844, { mob: true });
+    await ph.evaluate(() => showNewWizard()); await ph.waitForTimeout(100);
+    r.ph = await ph.evaluate(() => ({ h3: document.querySelector('.modal h3').textContent, t: document.querySelector('.nw-mpc-t').textContent }));
+    await ph.click('#nw-mimp'); await ph.waitForTimeout(120);
+    r.phImp = await ph.evaluate(() => document.querySelector('.nf-modal').textContent);
+    await ph._ctx.close();
+    T(/♩=100/.test(r.last) && r.last.startsWith(r.qm) && /1=G 3\/4/.test(r.last) && r.penJ === '六线谱|*简谱旋律' && r.penT === '*六线谱|简谱旋律' && r.long && r.arr.go && r.arr.out && r.arr.hit
+      && r.ph.h3 === '在电脑上开始一份谱' && !/按用途选好/.test(r.ph.t) && !/新窗口/.test(r.phImp) && /直接打开/.test(r.phImp),
+      'T32 启动台「按上次」卡与「新建 ▾」置顶项同一份摘要（带 ♩=100）；吉他弹唱示意六线谱在上、简谱旋律在下，「从这行开始写」随「从哪写起」落对行；1366×768 下智能配谱的产出与「生成」钉在弹窗底部、不用滚动就点得到；手机页标题「在电脑上开始一份谱」、不写「按用途选好」，手机导入页不说「新窗口」', JSON.stringify(r));
   });
 
   T(errs.length === 0, '无页面报错', errs.join(' | ') || 'none');

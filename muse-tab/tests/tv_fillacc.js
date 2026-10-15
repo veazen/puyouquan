@@ -21,6 +21,14 @@
    F13 弱起小节伴奏两行＝等长休止（2/4 一拍、4/4 八分；填进当前谱与新窗口产出同口径）
    F14 2/4 儿歌伴奏：第 2 拍换和弦弹新根音、七和弦 3·7、曲末小节根音＋1·3·5 收束
    F15 尾部未写旋律的小节不配并提示；单旋律谱填进后 funcNames 不变；伴奏行混音音色（默认人声→钢琴，调过的保留；新窗口产出同）
+   第二轮验收补（修前基线＝第二轮修复前的合并树 f331646，对它跑 20/27：F12、F16–F22 红）：
+   F12 改口径：调内音一律自然级、调外音按和弦字母（根音 / 斜线低音是调内音级时字母先按调号规整）
+   F16 调内保护：12 调 × diatonicChords＋V7 × 全部织体，伴奏音全是自然级；♭A 调 IV 级「C#」柱式 4/6/1、E 调 iii 级「Abm」3/5/7
+   F17 钢琴伴奏歌谱 → 纯伴奏不残留分组（MusicXML staves 2＋pianoacc 往返）；教学对照写 1–2 行花括号；越界分组回退推断
+   F18 「伴奏织体…」默认织体与智能配谱同口径（2/4 钢琴伴奏类 → 儿歌伴奏；上次用的优先）
+   F19 / F20 两条路径同一份尾部判定与提示；儿歌伴奏收束落在旋律写到的最后一小节
+   F21 填进当前谱后光标回第 1 小节旋律行（播放从头）
+   F22 钢琴伴奏歌谱的伴奏行没写词时不留歌词行、不印段序号
    突变实证：对 v67.3 原版（MUSETAB_URL=…/v673.html）跑 1/21——F1～F15 全部报红，只有「无页面报错」绿；对实现者交付版（收尾修复前）跑 8/21，
    F1b F2 F6b F6c F7～F15 报红（即上面各条验收补的断言）。 */
 const { chromium } = require('playwright');
@@ -382,12 +390,18 @@ const HELP = `(()=>{
         const s=__jg({key, beats:t.beats, unit:4, nMea:CH.length+1, lyr:0});
         s.measures.forEach((m,mi)=>{ const b=blankVoxCols(t.beats,4); b[0].deg=1; b[0].chord=CH[mi]||'C'; m.voxes[0]=b; }); addDoc(s); fillAccompaniment(tex, false);
         const Ki=LET.indexOf(key[0]);
-        song.measures.slice(0, CH.length).forEach((m,mi)=>{ const mt=/^([A-G][#b]?)([^/]*)(?:\\/([A-G][#b]?))?$/.exec(CH[mi]); const rl=LET.indexOf(mt[1][0]);
-          const lets=new Set(QL[mt[2]].map(o=>LET[(rl+o)%7])); if(mt[3]) lets.add(mt[3][0]);
+        /* 第二轮验收口径：根音 / 斜线低音是调内自然音级时字母按调号规整（♭A 调的 C# → D♭），调内音一律写自然级（下面 inKey 分支） */
+        const kL=(pc,l)=>{ const d=NAT.indexOf(((pc-KEY_PC[key])%12+12)%12); return d>=0? (Ki+d)%7 : l; };
+        song.measures.slice(0, CH.length).forEach((m,mi)=>{ const mt=/^([A-G][#b]?)([^/]*)(?:\\/([A-G][#b]?))?$/.exec(CH[mi]); const rl=kL(KEY_PC[mt[1]], LET.indexOf(mt[1][0]));
+          const lets=new Set(QL[mt[2]].map(o=>LET[(rl+o)%7]));
+          /* 斜线低音是和弦音（C/E、A♭/C）时字母随规整后的根音走（已在上面的集合里）；不是和弦音（Am/G）时按调规整它自己的字母 */
+          if(mt[3]){ const ct=chordTones(CH[mi]), pcs=Object.values(ct.iv).map(v=>(ct.pc+v)%12); if(!pcs.includes(KEY_PC[mt[3]])) lets.add(LET[kL(KEY_PC[mt[3]], LET.indexOf(mt[3][0]))]); }
           [1,2].forEach(vi=>m.voxes[vi].forEach(c=>{ if(!c.deg) return; [c].concat(c.adds||[]).forEach(x=>{ n++;
             const L=LET[(Ki + x.deg - 1) % 7];
             /* 和弦字母在本调要写重升 / 重降时（如 1=A 的 E♭m 三音 G♭＝重降 7）按约定退回单升降旧拼法——此时允许字母不在和弦音名里 */
             const pcx=((voxMidi(Object.assign({acc:'',oct:0},x),mi)%12)+12)%12;
+            /* 调内保护：音高是本调自然音级 → 必须写成自然级（无升降），与 v67.3 相同 */
+            if(NAT.indexOf(((pcx-KEY_PC[key])%12+12)%12)>=0){ if(x.acc) bad.push(key+':'+tex+':'+CH[mi]+':inKey '+x.acc+x.deg); return; }
             const nd=Lc=>{ let a=((pcx-NAT[LET.indexOf(Lc)])%12+12)%12; if(a>6) a-=12; return a; };
             const Lc=[...lets].sort((u,v)=>Math.abs(nd(u))-Math.abs(nd(v)))[0];   /* 该音应写的和弦字母（本位字母离实际音高最近的和弦音名） */
             const dg=(LET.indexOf(Lc)-Ki+7)%7+1; let a=((pcx-(KEY_PC[key]+DEG_SEMI[dg]))%12+12)%12; if(a>6) a-=12;
@@ -449,6 +463,95 @@ const HELP = `(()=>{
       return out; })()`);
     T(r.tail && /4 小节伴奏/.test(r.tail.msg) && /第 5–8 小节还没有旋律未配/.test(r.tail.msg) && r.tail.rest && r.tail.gen && r.tail.mix === 'strings,piano' && r.fn === 'false:undefined' && r.arr === '∅,piano,piano,piano,piano',
       'F15 8 小节只写了前 4 小节旋律：只配前 4 小节、第 5–8 小节伴奏行留空并提示「写完再配」；单旋律谱填进后和弦显示（级数 / 音名）不变；混音台：调过的右手音色保留、默认人声的左手改钢琴；新窗口产出的伴奏行也是钢琴音色', J(r));
+  }
+
+  /* ======== 第二轮验收回归（修前红、修后绿；修前基线＝第二轮修复前的合并树 f331646） ======== */
+  const texBtn = async () => { const v = await pg.evaluate(() => { const e = document.getElementById('b-acctex'); return !!e && e.offsetParent !== null; });
+    if (v) await pg.click('#b-acctex'); else await pg.evaluate(() => document.getElementById('b-acctex').click()); await pg.waitForTimeout(100); };
+
+  /* ===== F16 调内保护：和弦名按固定拼法表出（♭A 调 IV 级叫 C#、E 调 iii 级叫 Abm）时调内音仍写自然级 ===== */
+  {
+    const r = await EV(`(()=>{ const NAT=[0,2,4,5,7,9,11]; let n=0; const bad=[];
+      KEY_LIST.forEach(key=>{ const o=song; song=__jg({key, nMea:1}); const dc=diatonicChords().concat([KEY_LIST[(KEY_PC[key]+7)%12]+'7']); song=o;
+        PIANO_TEX.forEach(t=>{ const u=texUnit(t), s=__jg({key, beats:t.beats, unit:u, nMea:dc.length, lyr:0});
+          s.measures.forEach((m,mi)=>{ const b=blankVoxCols(t.beats,u); b[0].deg=1; b[0].chord=dc[mi]; m.voxes[0]=b; m.voxes[1]=blankVoxCols(t.beats,u); m.voxes[2]=blankVoxCols(t.beats,u); });
+          const o2=song; song=s; try{ genAccompaniment(t.id, 0, s.measures.length-1, {chordVi:0, rhVi:1, lhVi:2});
+            s.measures.forEach((m,mi)=>[1,2].forEach(vi=>m.voxes[vi].forEach(c=>{ if(!c.deg) return; [c].concat(c.adds||[]).forEach(x=>{ n++;
+              const pc=((voxMidi(Object.assign({acc:'',oct:0},x),mi)-KEY_PC[key])%12+12)%12;
+              if(NAT.indexOf(pc)<0 || x.acc) bad.push(key+':'+t.id+':'+dc[mi]+':'+(x.acc||'')+x.deg); }); }))); } finally { song=o2; } }); });
+      const one=(key, ch, tex)=>{ const s=__jg({key, beats:4, unit:4, nMea:2, lyr:0}); s.measures.forEach((m,mi)=>{ m.voxes[0]=[__V(1,1,{chord:mi? ch : null})]; }); addDoc(s); fillAccompaniment(tex, false);
+        const f=c=>(c.acc||'')+c.deg; return {R:[song.measures[1].voxes[1][0]].map(c=>[f(c)].concat((c.adds||[]).map(f)).join('/')).join(), L:song.measures[1].voxes[2].filter(c=>c.deg).map(f).join(',')}; };
+      return {n, nb:bad.length, bad:bad.slice(0,6), ab:one('Ab','C#','block'), e:one('E','Abm','block'), g:one('G','F','block')}; })()`);
+    T(r.n > 20000 && r.nb === 0 && r.ab.R === '4/6/1' && r.ab.L === '4,1' && r.e.R === '3/5/7' && !/[#b]/.test(r.e.L) && /^b7/.test(r.g.L),
+      'F16 调内保护：12 调 × 调内和弦候选（diatonicChords＋V7）× 全部 ' + 22 + ' 套织体共 ' + r.n + ' 个伴奏音全是自然级（和弦名按固定拼法表出时不再写成 ♯3/♯7、♭4/♭1）；1=♭A 的 IV 级「C#」柱式右手 4/6/1、左手 4,1；1=E 的 iii 级「Abm」右手 3/5/7；调外音仍按和弦字母（1=G 的 F 和弦左手 ♭7）', J(r));
+  }
+
+  /* ===== F17 钢琴伴奏歌谱 → 纯伴奏 / 合唱 → 教学对照：分组随行结构重置；残留分组回退推断；MusicXML 往返仍是钢琴弹唱谱 ===== */
+  {
+    const r = await EV(`(()=>{ const out={};
+      const s=__jg({key:'C', beats:4, unit:4, nMea:2, lyr:1}); s.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(3,4),__V(5,4),__V(1,4,{oct:1})]; });
+      const p=arrangeAccompaniment(s,{texId:'block', pure:true}).song, x=exportMusicXML(p), im=importMusicXML(x);
+      out.pure={g:p.voxGroups||null, inf:JSON.stringify(voxGroupsOf(p)), parts:(x.match(/<score-part /g)||[]).length, staves:x.includes('<staves>2</staves>'), grp:x.includes('<group>pianoacc</group>'), rt:!!(im.song && im.song.pianoAcc), dt:docType(p)};
+      const t=arrangeAccompaniment(s,{texId:'block'}).song; out.teach={g:JSON.stringify(t.voxGroups), pa:isPianoAccStack(t), nw:NWB.isAccStack(t)};
+      const c=createSong('vocal',{title:'二部',key:'C',beats:4,unit:4,nMea:2,nVox:2,lyr:1}); c.voxGroups=[{type:'bracket',from:0,to:1}]; c.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(3,4),__V(5,4),__V(1,4)]; });
+      const tc=arrangeAccompaniment(c,{texId:'block'}).song; out.choir={g:JSON.stringify(tc.voxGroups), inf:JSON.stringify(voxGroupsOf(tc)), pa:isPianoAccStack(tc)};
+      /* 残留分组（越界）回退推断：老谱 / 外部数据带着 1–2 行花括号只剩两行 */
+      out.stale=JSON.stringify(voxGroupsOf({voxVoices:['右手','左手'], voxNotations:['staff','bass'], voxGroups:[{type:'brace',from:1,to:2}], pianoAcc:true, measures:[]}));
+      return out; })()`);
+    T(r.pure && r.pure.g === null && r.pure.inf === '[{"type":"brace","from":0,"to":1}]' && r.pure.parts === 1 && r.pure.staves && r.pure.grp && r.pure.rt && r.pure.dt === 'pianoacc'
+      && r.teach.g === '[{"type":"brace","from":1,"to":2}]' && r.teach.pa && r.teach.nw && r.choir.g === '[{"type":"brace","from":1,"to":2}]' && r.choir.inf === r.choir.g && r.choir.pa
+      && r.stale === '[{"type":"brace","from":0,"to":1}]',
+      'F17 面板钢琴伴奏歌谱（1–2 行花括号）→ 纯伴奏钢琴谱：不再残留分组，推断出 0–1 花括号；MusicXML 导出 1 个 part＋staves 2＋pianoacc 组、重新导入仍是钢琴弹唱谱；教学对照产出写 1–2 行花括号（二部合唱的方括号不再括住「旋律＋右手」）；越界残留分组回退推断', J(r));
+  }
+
+  /* ===== F18 「伴奏织体…」默认织体与智能配谱弹窗同口径（2/4 钢琴伴奏类 → 儿歌伴奏；本谱上次用的优先） ===== */
+  {
+    const out = {};
+    await EV(`(()=>{ const s=__twinkle24(__jg()); addDoc(s); setRTab('make'); render(); })()`);
+    await texBtn(); out.jg = await EV(`(()=>{ const v=(document.querySelector('input[name="tex"]:checked')||{}).value; closeModal(); return v; })()`);
+    await openArr(); out.jgArr = (await modalInfo()).tex; await EV(`closeModal()`);
+    await EV(`(()=>{ const s=createSong('pianoacc',{title:'只要伴奏',key:'F',beats:2,unit:4,nMea:4,lyr:1}); addDoc(s); render(); })()`);
+    await texBtn(); out.cg = await EV(`(()=>{ const v=(document.querySelector('input[name="tex"]:checked')||{}).value; closeModal(); return v; })()`);
+    await EV(`(()=>{ const s=__jg({key:'C', beats:4, unit:4, nMea:2}); s.texId='block'; addDoc(s); render(); })()`);
+    await texBtn(); out.last = await EV(`(()=>{ const v=(document.querySelector('input[name="tex"]:checked')||{}).value; closeModal(); return v; })()`);
+    await EV(`(()=>{ const s=__jg({key:'C', beats:4, unit:4, nMea:2}); s.texId='kids2'; addDoc(s); render(); })()`);   /* 上次用的织体不在本拍号可用列表里 → 库首套（此前一个都不选中） */
+    await texBtn(); out.stale = await EV(`(()=>{ const v=(document.querySelector('input[name="tex"]:checked')||{}).value; closeModal(); return v||null; })()`);
+    T(out.jg === 'kids2' && out.jgArr === 'kids2' && out.cg === 'kids2' && out.last === 'block' && out.stale === 'slow',
+      'F18 「伴奏织体…」默认织体＝智能配谱同口径：钢琴伴奏歌谱 2/4 两处都默认「儿歌伴奏 2/4」（此前织体弹窗落进行曲）、儿歌弹唱「只要伴奏」（钢琴弹唱谱 2/4）也默认儿歌伴奏；本谱上次用的优先；上次用的不在本拍号列表时落库首套（此前一个都不选中）', J(out));
+  }
+
+  /* ===== F19 / F20 「伴奏织体」与「填进当前谱」同一份尾部判定与提示；儿歌伴奏收束落在旋律写到的最后一小节 ===== */
+  {
+    const mk = `(()=>{ const s=__jg({key:'F', nMea:8, lyr:0}); s.measures.slice(0,7).forEach((m,mi)=>{ m.voxes[0]=[__V(1,4,{chord:mi%2? 'C' : 'F'}),__V(5,4)]; }); addDoc(s); setRTab('make'); render(); })()`;
+    const pick = `(()=>({toast:document.getElementById('toast').textContent, R6:song.measures[6].voxes[1].map(c=>c.dur+':'+(c.deg?1:0)+':'+(c.adds||[]).length).join(' '), L6:song.measures[6].voxes[2].map(c=>c.dur+':'+(c.deg?1:0)).join(' '),
+      R5:song.measures[5].voxes[1].map(c=>c.dur+':'+(c.deg?1:0)).join(' '), m7:song.measures[7].voxes.slice(1).every(v=>v.every(c=>!c.deg)), sel:[sel.mi, sel.row, sel.vi].join()}))()`;
+    await EV(mk); await openArr(); await pg.click('input[name="arr-tex"][value="kids2"]'); await pg.click('#arr-sug'); await pg.click('#arr-go'); await pg.waitForTimeout(150);
+    const fill = await EV(pick);
+    await EV(mk); await texBtn(); await pg.click('input[name="tex"][value="kids2"]'); await pg.click('#tex-auto'); await pg.click('#tex-go'); await pg.waitForTimeout(150);
+    const tex = await EV(pick);
+    const note = t => (/(，第 8 小节还没有旋律未配（写完再配）)/.exec(t) || [])[1] || '';
+    T(fill.R6 === '2:1:2' && fill.L6 === '2:1' && fill.R5 === '4:0 4:1' && fill.m7 && tex.R6 === fill.R6 && tex.L6 === fill.L6 && tex.m7 && note(fill.toast) && note(fill.toast) === note(tex.toast),
+      'F19 / F20 8 小节只写 7 小节（儿歌伴奏 2/4）：「填进当前谱」与「伴奏织体」都只配前 7 小节、第 7 小节收束（右手 1·3·5 二分＋左手根音二分，不再停在弱拍）、第 8 小节留空，两处提示同一句「第 8 小节还没有旋律未配（写完再配）」', J({ fill, tex }));
+  }
+
+  /* ===== F21 填进当前谱后光标回到第 1 小节旋律行（播放从头开始，此前停在尾部空白小节，约 40 秒无声） ===== */
+  {
+    await EV(`(()=>{ const s=__jg({key:'C', beats:4, unit:4, tempo:72, nMea:16, lyr:1}); s.measures.slice(0,4).forEach(m=>{ m.voxes[0]=[__V(1,4),__V(1,4),__V(5,4),__V(5,4)]; }); addDoc(s); sel={mi:4, row:'vox', vi:0, ci:0, si:1}; render(); })()`);
+    await openArr(); await pg.click('#arr-go'); await pg.waitForTimeout(150);
+    const r = await EV(`({sel:[sel.mi, sel.row, sel.vi, sel.ci].join(), filled:song.measures[0].voxes[2].some(c=>c.deg)})`);
+    T(r.sel === '0,vox,0,0' && r.filled, 'F21 「填进当前谱」生成后光标落第 1 小节旋律行（点播放从头播出刚配好的伴奏）', J(r));
+  }
+
+  /* ===== F22 钢琴伴奏歌谱的右手 / 左手伴奏行没写词时不留歌词行、不印段序号 ===== */
+  {
+    const r = await EV(`(()=>{ const s=__jg({key:'F', nMea:4, lyr:2}); s.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(5,4)]; }); addDoc(s); fillAccompaniment('kids2', true); setRTab('make'); render();
+      const gap=()=>{ lyrScan(); const M=sysMetrics(); return Math.round(M.voxYs[2]-M.voxYs[1]); };
+      const out={rows:[0,1,2].map(lyrRowsOf).join(), nums:document.querySelectorAll('#score text[data-lyrsel]').length, g2:gap()};
+      song.lyricLines=0; out.g0=gap(); song.lyricLines=2;
+      song.measures[0].voxes[1][1].lyrics=['啊']; out.rowsLy=[0,1,2].map(v=>{ lyrScan(); return lyrRowsOf(v); }).join(); song.measures[0].voxes[1][1].lyrics=[]; render();
+      return out; })()`);
+    T(r.rows === '2,0,0' && r.nums === 2 && r.g2 === r.g0 && r.rowsLy === '0,1,0',
+      'F22 钢琴伴奏歌谱（2 段词、还没填词）配好伴奏后：右手 / 左手伴奏行不留歌词行（右手→左手间距与 0 段词时相同）、段序号只印旋律行的「1 2」；伴奏行真写了词才给它留行（全曲已有词时没写词的声部不留行，v64.8 口径）', J(r));
   }
 
   T(errs.length === 0, '无页面报错', errs.slice(0, 4).join(' | ') || 'none');
