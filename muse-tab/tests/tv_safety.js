@@ -106,14 +106,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('b-new').click();
     /* v67.4 新建面板：导入入口在「从已有音乐」页——MusicXML / Guitar Pro / MIDI（拍板 2：MIDI 只收 .mid 入口、转交现有选轨对话框） */
     const it = document.querySelector('.nf-tabs [data-v="import"]'); if (it) it.click();
-    const feats = document.querySelectorAll('.nw-imp .nwi').length;
+    /* v67.5「从已有音乐」完整版：左栏 6 个来源（文件 / AI 转谱 / 示例做同款 / 接着做 / 录音 / 图片），一个「选择文件…」收 MusicXML · GP · MIDI · 谱友圈文件 */
+    const feats = document.querySelectorAll('#nf-isrc [role=option]').length;
+    const any = (document.getElementById('nw-anyfile') || {}).accept || '', pick = !!document.getElementById('nw-import') && ['.musicxml', '.gp5', '.mid'].every(x => any.split(',').includes(x));
     const cancel = document.getElementById('nw-cancel'); if (cancel) cancel.click();
     stand.click();
     const standOn = document.body.classList.contains('stand');
     if (standOn) exitStand();
-    return { stand: !!stand, rate025, feats, standOn };
+    return { stand: !!stand, rate025, feats, pick, standOn };
   });
-  T(r.stand && r.rate025 && r.feats === 3 && r.standOn,   /* v60.45 导入 2 入口：MusicXML/GuitarPro（哼唱暂下、MIDI 在创作辅助）；v60.26 旧口径：
+  T(r.stand && r.rate025 && r.feats === 6 && r.pick && r.standOn,   /* v60.45 导入 2 入口：MusicXML/GuitarPro（哼唱暂下、MIDI 在创作辅助）；v60.26 旧口径：
        改为创作辅助第一项（替代一键配和弦）与启动台直达独立界面（产品负责人指定） */
     'T6 谱架入口/0.25×/向导提权', '谱架可进=' + r.standOn + ' 提权按钮=' + r.feats);
 

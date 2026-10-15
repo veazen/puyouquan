@@ -82,7 +82,7 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
   await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]');
   const panel = await EV(() => ({ sc: [...document.querySelectorAll('.nf-modal [role=option] svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
     rows: [...document.querySelectorAll('.nf-modal .nf-row svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
-    text: document.querySelectorAll('.nf-modal svg text').length, dd: (document.querySelector('#b-newdd svg.pqi') || { dataset: {} }).dataset.pq }));
+    text: document.querySelectorAll('.nf-modal svg.pqi text').length,   /* v67.5 中栏预览是引擎刻版的真实谱面（有文字），只查图标 */ dd: (document.querySelector('#b-newdd svg.pqi') || { dataset: {} }).dataset.pq }));
   await pg.click('[data-scene="teach"]'); await pg.click('#nw-create'); await pg.waitForTimeout(150);
   const after = await EV(() => ({ tabs: [...document.querySelectorAll('#doc-tabs .dtab svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
     add: (document.querySelector('#dt-add svg.pqi') || { dataset: {} }).dataset.pq, addTxt: document.getElementById('dt-add').textContent.trim(),

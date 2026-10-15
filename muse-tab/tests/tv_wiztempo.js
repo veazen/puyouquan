@@ -238,6 +238,7 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     await openWiz();
     await typeTempo('150');
     await pg.setInputFiles('#nw-mxlfile', fp); await pg.waitForTimeout(500);
+    await pg.click('#nf-impgo'); await pg.waitForTimeout(200);   /* v67.5 依据页「导入」（按原文件） */
     const s = await state(); const title = await EV(`song.title`);
     T(title === '导入速度' && s.tempo === 72 && s.hdr === '♩=72', 'T9 向导里填 150 后改走 MusicXML 导入 → 速度取文件 ♩=72（导入路径不受影响）', JSON.stringify({ title, s }));
   }

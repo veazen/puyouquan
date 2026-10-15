@@ -78,6 +78,7 @@ const readSite = f => fs.readFileSync(path.join(SITE, f), 'utf8');
     await pg.evaluate(`showNewWizard()`); await pg.waitForTimeout(100);
     await pg.setInputFiles('#nw-mxlfile', { name: 't.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) }).catch(e => errs.push('FILE:' + e.message));
     await pg.waitForTimeout(400);
+    await pg.click('#nf-impgo').catch(e => errs.push('IMPGO:' + e.message)); await pg.waitForTimeout(200);   /* v67.5 依据页「导入」（按原文件） */
     await pg.evaluate(`(()=>{ window.dispatchEvent(new Event('beforeprint')); window.dispatchEvent(new Event('afterprint')); })()`); await pg.waitForTimeout(80);
     for (const id of ['ex-png', 'ex-mxl', 'ex-mid', 'ex-icard']) {
       await pg.evaluate(`document.getElementById('b-print').onclick()`); await pg.waitForTimeout(60);

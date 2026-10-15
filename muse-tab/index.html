@@ -1118,7 +1118,7 @@ body.stand #standbar{display:flex}
 /* 新建向导·类型卡片（大气现代，无图标）——v60.41 旧九卡下线，样式保留供程序化路径 */
 .ntgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:14px 0 4px}
 /* v67.4 新建面板「按用途开谱 · 所见即所建」（docs/design-2026-10e）：一屏三栏 1200×744，只用 v66.5「极光靛紫」令牌，两主题自动跟随；
-   谱行示意的纸面恒白（同谱面）。命中区一律 ≥44px；1280×720 以下紧凑档；1100 宽以下右栏收到预览下方。旧一屏向导（三意图卡 / 二级下拉）样式随向导下线移除。 */
+   预览的纸面恒白（同谱面）。命中区一律 ≥44px；1280×720 以下紧凑档；1100 宽以下右栏收到预览下方。旧一屏向导（三意图卡 / 二级下拉）样式随向导下线移除。 */
 .modal.nf-modal{max-width:none;width:min(1200px,calc(100vw - 48px));height:min(744px,calc(100vh - 40px));max-height:none;padding:0;
   overflow:hidden;border-radius:16px;border:1px solid var(--border);box-shadow:0 24px 64px rgba(18,16,52,.28);color:var(--text);
   font-family:var(--font-ui);-webkit-font-smoothing:antialiased}
@@ -1166,21 +1166,24 @@ svg.pqi{margin:0;max-width:none;flex:0 0 auto}   /* 压掉全局 svg{margin:0 au
 .nf-modal .nf-row[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
 .nf-modal .nf-rowhint{margin:-2px 0 0;font-size:12px;line-height:1.5;color:var(--muted);min-height:18px}
 .nf-modal .nf-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-/* 谱行示意（v67.5 换成引擎实时刻版，位置与尺寸不变）：纸面恒白，墨色固定 */
-.nf-modal .nf-paper{position:relative;margin:0;background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px 30px 14px;color:#1b1a2e;min-height:228px;display:flex;flex-direction:column;gap:8px}
-.nf-ph{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 128px 0 4px;font-size:12px;color:#5c5b73}
-.nf-ph b{font-size:15px;font-weight:700;color:#1b1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nf-ph b.ph{color:#6d6c84;font-weight:600}
-.nf-ph span{white-space:nowrap}
-.nf-pgrid{position:relative;padding-right:128px}
-.nf-svg{display:block;width:100%;height:auto;max-height:300px;overflow:visible}
+/* 预览（v67.5 刻版引擎实时刻版，替换 v67.4 谱行示意；位置与尺寸不变）：纸面两主题恒白、墨色固定（renderOffscreen invert:false）；
+   svg 宽随中栏自适应、高按比例（过高时按 max-height 等比缩小，行标按 svg 高度百分比对齐，仍落在对应行上） */
+.nf-modal .nf-paper{position:relative;margin:0;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px 8px 10px;color:#1b1a2e;min-height:228px;display:flex;flex-direction:column;gap:8px}
+.nf-pgrid{position:relative;padding-right:128px;transition:opacity .15s}
+.nf-pgrid.nb{padding-right:0}
+.nf-paper.pv-wait .nf-pgrid{opacity:.55}
+.nf-modal .nf-pgrid>svg.nf-svg{display:block;width:100%;height:auto;max-height:300px;margin:0}
+.nf-modal .nf-paper.sm{min-height:0}
+.nf-modal .nf-paper.sm .nf-pgrid>svg.nf-svg{max-height:200px}
+.nf-modal .nf-pverr{margin:auto;padding:40px 8px;font-size:13px;color:#5c5b73;text-align:center}
 .nf-bands{position:absolute;top:0;bottom:0;right:0;width:122px}
 .nf-bl{position:absolute;left:0;right:4px;transform:translateY(-50%);display:flex;flex-wrap:wrap;align-items:center;gap:2px 5px;padding-left:12px;font-size:12px;color:#5c5b73;line-height:1.3}
 .nf-bl::before{content:'';position:absolute;left:0;top:50%;height:max(var(--h),18px);max-height:150px;transform:translateY(-50%);border-left:2px solid #d9d7ea;border-radius:2px}
 .nf-bl b{font-weight:600;color:#1b1a2e}
 .nf-bl.pen::before{border-color:#5b4cf0}.nf-bl.pen b,.nf-bl.pen .pqi{color:#4a3ad6}
 .nf-bl i{font-style:normal;width:100%;font-size:11.5px;color:#4a3ad6}
-.nf-paper figcaption{position:absolute;left:14px;right:14px;bottom:8px;display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#5c5b73}
+.nf-paper figcaption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:0 4px;font-size:12px;line-height:1.5;color:#5c5b73}
+.nf-pgrid .pagebg,.nf-pgrid .pageno{display:none}   /* 预览只要谱面：页底纸与页码不画（纸面由 .nf-paper 给） */
 .nf-pvnote{color:#4a3ad6;font-weight:600}
 .nf-note{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 12px;border-radius:10px;background:var(--accent-soft);color:var(--text);font-size:13px;line-height:1.5}
 .nf-note .pqi{color:var(--accent-ink)}.nf-note span{flex:1}
@@ -1252,9 +1255,66 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
 .nf-modal .nf-go{display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 14px 0 18px;border:0;border-radius:12px;background:var(--btn-pri);color:var(--ed-on-pri);font-size:15px;font-weight:700;white-space:nowrap;max-width:460px}
 .nf-modal .nf-go .nf-gol{overflow:hidden;text-overflow:ellipsis}
 .nf-modal .nf-go:hover{background:var(--btn-pri-h);color:var(--ed-on-pri)}
+/* 还不能导入（没读文件 / 录音 / 图片页）：灰底禁用样式，点了在面板里说明先做什么（不用 disabled，免得点了毫无反应） */
+.nf-modal .nf-go[aria-disabled=true],.nf-modal .nf-go[aria-disabled=true]:hover{background:var(--toolbar);color:var(--muted);box-shadow:inset 0 0 0 1px var(--border);cursor:default}
+.nf-modal .nf-go{transition:none}   /* 读进文件的一刻由灰变主色：不走全局按钮 .15s 渐变（渐变中途白字压浅底，读屏 / 截图都看到半透明态） */
 .nf-modal .nf-go kbd{background:none;border-color:rgba(255,255,255,.6);color:#fff;margin-left:4px}
 .nf-modal .nf-go2{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--border);background:var(--panel);font-size:14px;font-weight:600;color:var(--text)}
-/* 从已有音乐（v67.4 保留现有导入能力） */
+/* 从已有音乐（v67.5 完整版：左栏来源 · 中栏文件 / 依据 / 预览 · 右栏做成哪种谱；手机仍是 v67.4 三格式页 .nf-impb） */
+.nf-src{min-height:56px}
+.nf-src>span{display:flex;flex-direction:column;min-width:0;flex:1}
+.nf-src small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.nf-src.off b{color:var(--muted)}
+.nf-modal .nf-drop-tip{display:flex;gap:6px;align-items:flex-start;margin:12px 8px 0;font-size:12px;color:var(--muted);line-height:1.5}
+.nf-drop-tip .pqi{margin-top:1px}
+.nf-mid.nf-dropwrap{justify-content:center;align-items:center}
+.nf-drop{width:100%;max-width:560px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 28px;border:2px dashed color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:16px;text-align:center;background:color-mix(in srgb,var(--accent) 4%,transparent)}
+.nf-drop.off{border-color:var(--border);background:none}
+.nf-drop>.pqi{color:var(--accent-ink)}.nf-drop.off>.pqi{color:var(--muted)}
+.nf-drop>b{font-size:17px}.nf-drop>span{font-size:12px;color:var(--muted)}
+.nf-modal .nf-drop p{margin:6px 0 0;font-size:12.5px;line-height:1.7;color:var(--muted)}
+.nf-drop[data-act=pick]{cursor:pointer}.nf-drop[data-act=pick]:hover{border-color:var(--accent)}
+.nf-modal .nf-dropwrap>.nf-link{display:inline-flex;align-items:center;gap:6px;margin-top:2px}
+.nf-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--text)}
+.nf-steps li{display:flex;gap:8px;align-items:flex-start;line-height:1.5}.nf-steps .pqi{color:var(--accent-ink);margin-top:2px}
+.nf-file{display:flex;align-items:center;gap:12px;padding:6px 8px 6px 12px;border:1px solid var(--border);border-radius:12px}
+.nf-file>.pqi{color:var(--accent-ink)}.nf-file>div{flex:1;display:flex;flex-direction:column;min-width:0}
+.nf-file b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nf-file span{font-size:12px;color:var(--muted)}
+.nf-modal .nf-link{border:0;background:none;color:var(--accent-ink);font-size:13px;font-weight:600;padding:0 8px;text-align:left;min-height:44px;min-width:44px;border-radius:8px;white-space:nowrap}
+.nf-modal .nf-link:hover{background:var(--hover);color:var(--accent-ink)}
+.nf-modal .nf-right>.nf-link{white-space:normal;padding:4px 8px;line-height:1.5}
+.nf-tg{display:flex;flex-direction:column;gap:6px}
+.nf-modal .nf-tg button{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-height:52px;padding:4px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel);text-align:left;color:var(--text)}
+.nf-tg button>span{flex:1;display:flex;flex-direction:column;min-width:0}.nf-tg b{font-size:13.5px}.nf-tg small{font-size:11.5px;color:var(--muted);font-weight:400;white-space:normal}   /* 小字过长（置灰原因 / 折八度说明）换行，不溢出按钮 */
+.nf-tg button .pqi{color:var(--muted)}
+.nf-modal .nf-tg button:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--border));background:var(--panel)}
+.nf-modal .nf-tg button[aria-checked=true]{border-color:var(--accent);background:var(--accent-soft)}
+.nf-tg button[aria-checked=true] .pqi,.nf-tg button[aria-checked=true] b{color:var(--accent-ink)}
+.nf-tg button[aria-disabled=true]{cursor:default;border-style:dashed}.nf-tg button[aria-disabled=true] b{color:var(--muted)}
+.nf-modal .nf-fixed.nf-ftall{min-height:0;padding:8px 12px;align-items:flex-start}
+.nf-ftall .pqi{margin-top:2px}
+.nf-exgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.nf-ex,.nf-rc{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 10px;border-radius:9px;border:1px solid transparent;font-size:13px;cursor:pointer;color:var(--text);outline-offset:-2px;user-select:none}
+.nf-ex span{min-width:0;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}   /* 三列、名字最多两行（16 份示例与预览同屏不滚动） */
+.nf-ex .pqi,.nf-rc .pqi{color:var(--muted)}.nf-ex:hover,.nf-rc:hover{background:var(--hover)}
+.nf-ex[aria-selected=true],.nf-rc[aria-selected=true]{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent-ink)}
+.nf-ex[aria-selected=true] .pqi,.nf-rc[aria-selected=true] .pqi{color:var(--accent-ink)}
+.nf-rcl{display:flex;flex-direction:column;gap:4px}
+.nf-rc{min-height:56px}.nf-rc>span{display:flex;flex-direction:column;min-width:0}.nf-rc b{font-size:14px}.nf-rc small{font-size:12px;color:var(--muted)}
+.nf-modal .nf-imperr{display:flex;gap:8px;align-items:flex-start;width:100%;max-width:560px;box-sizing:border-box;padding:8px 12px;border-radius:10px;background:var(--toolbar);border:1px solid var(--border);border-left:3px solid var(--danger);color:var(--text);font-size:13px;line-height:1.55}
+.nf-imperr .pqi{color:var(--danger);margin-top:1px}
+.nf-chips i.c-file{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent-ink)}
+.nf-chips i.c-det,.nf-chips i.c-ai{border:1px dashed color-mix(in srgb,var(--accent) 70%,transparent);color:var(--accent-ink)}
+.nf-chips i.c-ai{background:var(--accent-soft)}
+.nf-chips i.c-warn{border-color:color-mix(in srgb,var(--danger) 45%,var(--border));color:var(--text);font-weight:400}
+/* 拖放提示层（文件拖进窗口任意处）：不接收指针，松手由 window drop 处理 */
+.nf-dropmask{position:fixed;inset:10px;z-index:2000;border:3px dashed var(--accent);border-radius:18px;background:color-mix(in srgb,var(--panel) 82%,transparent);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none;font-family:var(--font-ui);color:var(--text);backdrop-filter:blur(2px)}
+.nf-dropmask .pqi{color:var(--accent-ink)}
+.nf-dropmask b{font-size:22px;font-weight:700;color:var(--accent-ink)}
+.nf-dropmask span{font-size:14px;color:var(--muted)}
+.nf-dropmask.no{border-color:var(--muted)}.nf-dropmask.no .pqi,.nf-dropmask.no b{color:var(--text)}   /* 拦下（有对话框 / 打印预览 / 谱架 / 广场开着）：灰框，说明先关掉 */
+/* 从已有音乐 · 手机三格式页（v67.4） */
 .nf-impb{grid-template-columns:minmax(0,1fr)}
 .nf-impw{min-height:0;overflow:auto;padding:28px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
 .nf-modal .nf-imph{font-size:14px;color:var(--text);max-width:640px;width:100%}
@@ -1278,7 +1338,7 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
   .nf-mid{gap:8px;padding-top:12px}
   .nf-right{gap:12px;padding-top:12px}
   .nf-modal .nf-paper{min-height:200px}
-  .nf-svg{max-height:240px}
+  .nf-modal .nf-pgrid>svg.nf-svg{max-height:240px}
 }
 /* 1100 宽以下：右栏收到预览下方（两列：用途 | 预览＋参数），整体滚动 */
 @media (max-width:1100px){
@@ -1289,11 +1349,16 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
   .nf-left{grid-row:1 / span 2;position:sticky;top:0;align-self:start;max-height:calc(min(744px,100vh - 40px) - 128px);overflow:auto}
   .nf-modal .nf-keys{display:none}
   .nf-modal .nw-tpmsg{margin:0}
+  .nf-imp2>.nf-right>*{grid-column:1 / -1}
+  .nf-imp2 .nf-tg{display:grid;grid-template-columns:1fr 1fr}
+  /* 左栏吸顶且限高：灰底只到列表末尾，下面露白——左列底色铺满整个可视高（竖条背景随面板，不随内容滚） */
+  .nf-body:not(.nf-impb){background:linear-gradient(to right,var(--toolbar) 0 247px,var(--border) 247px 248px,transparent 248px)}
 }
 @media (max-width:1100px) and (max-height:760px){ .nf-left{max-height:calc(min(744px,100vh - 40px) - 118px)} }
 @media (max-width:820px){
   .nf-body:not(.nf-impb){grid-template-columns:minmax(0,1fr)}
   .nf-body>.nf-mid,.nf-body>.nf-right,.nf-left{grid-column:1;grid-row:auto;position:static;max-height:none}
+  .nf-body:not(.nf-impb){background:none}
   .nf-where{display:none}
   .nf-impw{justify-content:flex-start;padding-top:20px}   /* 第二轮验收补：窄屏 / 手机导入页内容贴顶（此前竖直居中，顶部空出约 90px，卡片挤到中间偏下） */
 }
@@ -1343,6 +1408,83 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
 #b-newdd[aria-expanded=true] .pqi{transform:rotate(180deg)}
 /* 建成提示里的谱类图标 */
 #toast .toast-ic{display:inline-block;vertical-align:-4px;margin-right:6px}
+/* v67.5 谱型条＋起步条（docs/design-2026-10e §4）：在 #score-wrap 文档流内、#paper 之前，宽度与左缘由 lbFit 对齐 #paper；
+   吸顶（谱面区滚动时留在上缘，光标跟滚 selFollow 让开它），层级低于左栏浮层 / 歌词抽屉，不压左栏；只用主题令牌，深浅色自动跟随。
+   启动台 / 观看页 / 谱架 / 打印一律不出现；≤820 宽（窗口滚动）不吸顶 */
+#lb-wrap{position:sticky;top:0;z-index:3;padding:10px 0 6px;background:var(--bg);box-sizing:border-box;max-width:100%}
+body.shell:not(.stand):not(.viewer) #lb-wrap{top:-16px}   /* 吸顶贴到谱面区上缘（抵掉 #score-wrap 的 16px 上内边距，上面不露出谱面） */
+#start-pad:not(.hidden)~#lb-wrap{display:none}
+body.viewer #lb-wrap,body.stand #lb-wrap,body.printing #lb-wrap,body.startpad #lb-wrap{display:none!important}
+@media print{ #lb-wrap,#lb-menu{display:none!important} }
+@media (max-width:820px){ #lb-wrap{position:static} }
+/* 收尾验收：经典版外壳（窗口滚动、顶栏 #top 吸顶）不吸顶——此前吸在 top:0 被顶栏整条盖住；不换行长带横向吸住左缘（宽度＝可视宽，lbFit），不随内容滚走 */
+body:not(.shell) #lb-wrap{position:static}
+body.nwrap #lb-wrap{left:0}
+.lb-bar{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 6px 6px 8px;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 2px 10px rgba(18,16,52,.07);font-family:var(--font-ui);color:var(--text);box-sizing:border-box;min-width:0}
+#lb-wrap .pqi{flex:0 0 auto;display:block}
+#lb-wrap button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap}
+#lb-wrap button:active{transform:none}
+#lb-wrap :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+#lb-wrap .lb-kind{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 8px;border:0;border-radius:9px;background:none;min-width:0;flex:0 0 auto}
+#lb-wrap.lb-n3 .lb-kind{flex-shrink:1}   /* 收尾验收 F10：谱名不先被挤省略——提示 / 步骤先收，最窄一档才省略谱名 */
+#lb-wrap .lb-kind:hover{background:var(--hover)}
+.lb-kind b{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-kind .pqi:first-child{color:var(--accent-ink)}.lb-kind .pqi:last-child{color:var(--muted)}
+.lb-kind[aria-expanded=true] .pqi:last-child{transform:rotate(180deg)}
+.lb-sep{width:1px;height:24px;background:var(--border);flex:0 0 auto}
+.lb-mell{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.lb-seg{display:inline-flex;padding:0;gap:2px;border-radius:10px;background:var(--toolbar);box-shadow:inset 0 0 0 1px var(--border-soft);flex:0 0 auto}
+/* 收尾验收 F13：命中区 44px（方案指标「<44px 0 个」；此前 40px）——外框改内描边、不占高度，谱型条高度不变 */
+#lb-wrap .lb-seg button{min-height:44px;padding:0 11px;border:0;border-radius:10px;background:none;font-size:13px;font-weight:600;color:var(--muted)}
+#lb-wrap .lb-seg button:hover{color:var(--text);background:var(--hover)}
+#lb-wrap .lb-seg button[aria-checked=true]{background:var(--panel);color:var(--accent-ink);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 55%,transparent),0 1px 3px rgba(18,16,52,.14)}
+.lb-steps{display:flex;align-items:center;gap:4px;margin:0;padding:0;list-style:none;flex:1 1 auto;min-width:0;overflow:hidden}
+.lb-steps li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap;min-width:0}
+.lb-steps li+li::before{content:'';width:14px;height:1px;background:var(--border);margin-right:2px;flex:0 0 auto}
+.lb-steps i{font-style:normal;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:0 0 auto;box-sizing:border-box}
+.lb-steps li.now{color:var(--text);font-weight:600}
+.lb-steps li.now i{background:var(--accent);border-color:var(--accent);color:var(--ed-on-accent)}
+.lb-steps li.done i{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink)}
+.lb-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.lb-tip{flex:1 1 auto;min-width:0;margin:0;font-size:13px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 收尾验收 F6：没有按钮的当前步（写旋律 / 标和弦 / 调把位与扫弦）与「还缺几个小节」写在步骤后面（此前只在 title 里，键盘 / 触屏 / 读屏拿不到） */
+.lb-steps.lb-sh{flex:0 1 auto}
+.lb-hint{flex:1 1 0;min-width:0;margin:0;font-size:12.5px;line-height:1.4;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lb-wrap.lb-n3 .lb-hint{display:none}
+#lb-wrap .lb-go{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 14px;border:0;border-radius:10px;background:var(--btn-pri);color:var(--ed-on-pri);font-size:14px;font-weight:700;flex:0 0 auto}
+#lb-wrap .lb-go:hover{background:var(--btn-pri-h);color:var(--ed-on-pri)}
+#lb-wrap .lb-x{width:44px;height:44px;margin-left:auto;padding:0;border:0;border-radius:9px;background:none;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 auto}
+#lb-wrap .lb-x:hover{background:var(--hover);color:var(--text)}
+/* 窄（按谱纸实宽，lbFit 挂类）：先收「旋律用」字样，再收没轮到的步骤名，最后只留当前一步 */
+#lb-wrap.lb-n1 .lb-mell{display:none}
+#lb-wrap.lb-n2 .lb-steps li:not(.now)>span{display:none}
+#lb-wrap.lb-n3 .lb-steps li:not(.now){display:none}
+#lb-wrap.lb-n3 .lb-steps li+li::before{display:none}
+#lb-wrap.lb-n3 .lb-go>span{max-width:6em;overflow:hidden;text-overflow:ellipsis}
+/* 换谱类菜单（谱名 ▾）：每项写结果与是否动音符 */
+.lb-menu{position:fixed;z-index:74;width:400px;max-width:calc(100vw - 16px);overflow:auto;padding:6px;background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 16px 40px rgba(18,16,52,.22);font-family:var(--font-ui);color:var(--text);box-sizing:border-box}
+.lb-mh{margin:6px 8px 8px;font-size:12.5px;line-height:1.55;color:var(--muted)}
+.lb-mg{font-size:12px;font-weight:600;color:var(--muted);padding:8px 10px 2px}
+.lb-menu .lb-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:5px 10px;border:0;border-radius:9px;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;white-space:normal}
+.lb-menu .lb-mi:hover,.lb-menu .lb-mi:focus-visible{background:var(--hover)}
+.lb-menu .lb-mi:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.lb-menu .lb-mi:active{transform:none}
+.lb-mi .pqi{color:var(--muted);flex:0 0 auto;display:block}
+.lb-mt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.lb-mt b{font-size:13.5px;font-weight:600}
+.lb-mt small{font-size:11.5px;line-height:1.4;color:var(--muted)}
+.lb-mi em{font-style:normal;font-size:11.5px;font-weight:600;padding:3px 6px;border-radius:6px;white-space:nowrap;flex:0 0 auto}
+.lb-mi.m-rebuild em,.lb-mi.m-direct em{background:var(--accent-soft);color:var(--accent-ink)}
+.lb-mi.m-copy em{border:1px dashed var(--border);color:var(--muted)}
+.lb-menu .lb-mi.m-no{cursor:default}
+/* 收尾验收 F11：点了不可换的项＝就地亮出原因（不再弹被菜单盖住的提示条） */
+.lb-menu .lb-mi.m-flash{background:var(--accent-soft)}
+.lb-mi.m-flash small{color:var(--text);font-weight:600}
+.lb-mi.m-no b,.lb-mi.m-no em{color:var(--faint)}
+.lb-menu .lb-mi.m-same{background:var(--accent-soft);cursor:default}
+.lb-mi.m-same b,.lb-mi.m-same .pqi,.lb-mi.m-same em{color:var(--accent-ink)}
 /* v60.42 音轨卡（P1）：统一轨行列表（图标+轨名+删）纵排；＋音轨虚线行；加轨弹窗双大卡 */
 #tab-voices,#vox-voices{display:flex;flex-direction:column;gap:5px;align-items:stretch}
 .chip.trk{display:flex;align-items:center;gap:7px;width:100%;padding:6px 9px;border-radius:10px}
@@ -1749,6 +1891,14 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accen
   #right-dock{display:none}
   #stage{max-width:100%;gap:10px}
   #score-wrap{flex:1 1 auto;max-width:100%}
+}
+/* v67.5 收尾验收（F2）：821–1200 宽右栏隐藏时，顶栏「智能」此前点了没反应（body.rsheet 的抽屉样式只在 ≤820 生效）——
+   在这一档把右栏原样升成右侧抽屉（内容与事件完全复用：创作 / 信息页签、一键配伴奏、曲谱信息、谱型条 · 换谱类…），点遮罩收起 */
+@media (min-width:821px) and (max-width:1200px){
+  body.shell:not(.stand):not(.viewer).rsheet #right-dock{display:flex!important;position:fixed;top:0;right:0;bottom:0;left:auto;width:min(320px,92vw);height:auto;
+    overflow-y:auto;z-index:61;margin:0;padding:12px 10px;background:var(--toolbar);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(18,16,52,.2)}
+  #rsheet-mask{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.34)}
+  body:not(.rsheet) #rsheet-mask{display:none}
 }
 /* 手机：单栏，左面板变底部抽屉，谱面缩放适配屏宽 */
 @media (max-width:820px){
@@ -2925,6 +3075,7 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
         <div class="kv" id="ri-tuning-row"><span>调弦</span><b id="ri-tuning">—</b></div>
         <div class="kv"><span>谱类 · 篇幅</span><b id="ri-type">—</b></div>
         <button id="ri-edit" class="fwide" title="编辑标题 / 词曲作者 / 调号拼写 / 拍号速度 / 变调夹">编辑曲谱信息…</button>
+        <button id="ri-lbar" class="fwide" title="在谱面上方显示谱型条：换谱类、旋律用简谱 / 五线谱、下一步（只记在本窗口，不写进曲谱）">谱型条 · 换谱类…</button>
       </div>
     </div>
     <!-- v58.0 标注（固定标注=常用词一键 / 自由标注=任意文字；col.anno 增量字段，显示在该列上方）。
@@ -8646,7 +8797,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     const nt2 = (song.voxNotations||[])[i];
     const st = isStaffNota(nt2);
     const dual = st && (song.voxDual||[])[i];      // 谱表下附加简谱行
-    let ledUp=0, ledDn=0;
+    let ledUp=0, ledDn=0, relDd=0;
     if(st && K3){
       /* v45.6 小节内换谱号：加线区按各列当时生效的谱号底线计算（clef 状态自曲首沿列延续） */
       let clefC = nt2, relU=0, relD=0;
@@ -8654,7 +8805,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
         if(c.clef && CLEF_BOT[c.clef]) clefC = c.clef;
         if(!c.deg) return;
         const SBOT = CLEF_BOT[clefC]||37;
-        const chk = s2=>{ if(s2>SBOT+11) relU=Math.max(relU, s2-(SBOT+11)); if(s2<SBOT-5) relD=Math.max(relD, (SBOT-5)-s2); };
+        /* relDd：对照行（谱表下附简谱）专用——第一条下加线以下（高音谱号 B3 起）的符头就会压到简谱数字与高音点，
+           不能沿用普通谱表「第二条加线以下才让」的门槛（v67.5 验收：低音区旋律做成教学对照谱时下加线音符与简谱行相撞） */
+        const chk = s2=>{ if(s2>SBOT+11) relU=Math.max(relU, s2-(SBOT+11)); if(s2<SBOT-5) relD=Math.max(relD, (SBOT-5)-s2); if(s2<SBOT-2) relDd=Math.max(relDd, (SBOT-2)-s2); };
         chk(K3m.step0+(c.deg-1)+(c.oct||0)*7);
         (c.adds||[]).forEach(a=>{ if(a&&a.deg) chk(K3m.step0+(a.deg-1)+(a.oct||0)*7); }); }); });
       ledUp = relU*3.75 + (relU? 6:0);
@@ -8662,7 +8815,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     }
     /* v54.8 首个简谱声部紧邻 TAB 块时的上缘垫距：默认 15→20（数字顶到小节号带留 ≥8px，
        出版口径），并同样不随行距系数缩小——topExtra（连音线/倚音等预留）在此之上叠加 */
-    DUAL_GAP[i] = dual? 26 + ledDn + (ledDn? 8 : 0) : 0;   // v64.9 B4c ④ 低音区加线落在谱表与简谱行之间（另留 8：最低符头下半 + 净距）
+    DUAL_GAP[i] = dual? (ledDn? 26 + ledDn + 8 : 26 + (relDd? relDd*3.75 + 4 : 0)) : 0;   // v64.9 B4c ④ 低音区加线落在谱表与简谱行之间（另留 8：最低符头下半 + 净距）；v67.5 第一、二条下加线之间的音同样让开（与更低的档连续）
     y += (st? 48*vv + topExtra*1.8 + ledUp + (dual? DUAL_GAP[i] : 0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
     /* v60.75 歌词基线 = 简谱行墨迹底 + 净空 + 歌词字的上伸高。
        旧写法是常数 25 + 分档 botExtra，既不认字号也不认真实墨迹深度。
@@ -9380,6 +9533,7 @@ function render(opt){
   const t0=performance.now(); RENDER_STAT.layoutCalls=0;
   JP_MEMO = tabJpAny()? new Map() : null;
   try{ renderCore(); } finally{ JP_MEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
+  try{ lbSync(); }catch(e){ console.error('谱型条同步异常', e); }   // v67.5 谱型条＋起步条按谱内容现算（没有谱型条的窗口一次查表即返回）
   if(SEL_FOLLOW){ SEL_FOLLOW=false; try{ selFollow(); }catch(_){} }   // v67.3 键盘移动光标后跟滚（见 selFollow）
 }
 /* v67.5 离屏渲染（README「实时预览的正式实现」；评审 owner「正式版不得临时换全局 song」）。
@@ -9466,7 +9620,7 @@ function selFollow(){
   const svg = document.getElementById('score'), vb = svg && svg.viewBox.baseVal; if(!vb || !vb.width) return;
   const R = svg.getBoundingClientRect(), k = R.width/vb.width;
   const top = R.top + b.y*k, bot = top + b.h*k, wr = sc.getBoundingClientRect();
-  const vT = wr.top + 12, vB = Math.min(wr.bottom, window.innerHeight) - 24;
+  const vT = Math.max(wr.top + 12, lbStickBottom() + 8), vB = Math.min(wr.bottom, window.innerHeight) - 24;   // v67.5 吸顶谱型条下面才算可视区
   if(bot > vB) sc.scrollTop += Math.max(0, Math.min(bot - vB + 40, top - vT));
   else if(top < vT) sc.scrollTop -= (vT - top) + 40;
   const P = document.getElementById('paper');
@@ -14335,9 +14489,10 @@ function delVoiceAt(kind, vi){
         follow=跟随和弦图（逐列先在生效和弦 chordShape 上找同音直取——v60.39 伴奏随图同思想的单音版；
             未命中列聚段回 assigner；D4：谱面有和弦标注时默认此档）
    dry=true 只算统计不写数据（弹窗三档预览用）。 */
-function mapVoxToTab(vi, mode, dry){
+/* v67.5 计算部分拆出（vtPlanItems：只读全局 song，不写任何状态；vtCol：一列把位）——mapVoxToTab 与新建面板「从已有音乐 · 生成吉他弹唱」的
+   预览 / 导入共用同一套取位（此前预览要么另写一份把位算法，要么只能调 mapVoxToTab 走 mutate 入撤销栈）。mapVoxToTab 行为逐字不变 */
+function vtPlanItems(vi, mode){
   const tun=tuningOf(), fMax=fretMaxOf(), capo=song.capo||0, NS=tun.length;
-  const uku=instOf()==='uku';
   const items=[];
   song.measures.forEach((mm,mi)=>{
     const cols=mm.voxes[vi]||[]; const mU=meaMeter(mi).unit;
@@ -14377,7 +14532,31 @@ function mapVoxToTab(vi, mode, dry){
     });
   });
   const nNotes=items.filter(i=>i.m!=null).length;
+  return {items, octShift, dropped, hit, nNotes};
+}
+function vtCol(it){
+  const col={dur:it.c.dur, dotted:!!it.c.dotted, chord:'', notes:[], strum:'', tech:''};
+  if(it.c.tup) col.tup=it.c.tup;
+  if(it.c.tupM) col.tupM=it.c.tupM;
+  if(it.c.tie) col.tie=true;
+  if(it.fixed) col.notes=[{s:it.fixed.s, f:it.fixed.f}];
+  return col;
+}
+function mapVoxToTab(vi, mode, dry, opt){
+  const uku=instOf()==='uku';
+  const {items, octShift, dropped, hit, nNotes} = vtPlanItems(vi, mode);   /* v67.5 合并：取位走 vtPlanItems / vtCol（面板预览同源），补进 / 复用空轨 / 返回字段同收尾版 */
   if(dry) return {octShift, dropped, hit, nNotes};
+  /* v67.5 收尾验收（F1）：生成过六线谱后又续写了旋律——opt.fill（vtFillInfo）＝只给目标轨里旋律有音、六线谱还空着的小节写品位，
+     其余小节（含手改过的品位、扫弦、和弦）一字不动、轨数不变；此前再生成只能另加一条同名轨（左栏两条「吉他·旋律1」）。一步撤销 */
+  const fill = opt && opt.fill;
+  if(fill && song.tabVoices[fill.ti]!=null){
+    const want=new Set(fill.gaps); let nFill=0;
+    mutate(()=>{
+      const per={}; items.forEach(it=>{ if(want.has(it.mi)){ (per[it.mi]=per[it.mi]||[]).push(vtCol(it)); if(it.fixed) nFill++; } });
+      fill.gaps.forEach(mi=>{ if(per[mi]) song.measures[mi].tabs[fill.ti]=per[mi]; });
+    });
+    return {octShift, dropped, hit, nNotes:nFill, name:String(song.tabVoices[fill.ti]), filled:fill.gaps.length, ti:fill.ti, firstMi:fill.gaps[0]};
+  }
   const name=(uku?'尤克里里':'吉他')+'·'+((song.voxVoices[vi]||('旋律'+(vi+1))));
   /* v67.5 复用空轨（新建流程方案 §4「吉他弹唱 · 先写旋律」，修 teacher A-6）：谱里**唯一一条**吉他轨还是空的（tabTrackEmpty：无品位 / 和弦 / 扫弦 /
      标注 / 延长号等任何内容）——建谱时那条空 TAB——就把生成的把位写进它，不再多出一行空 TAB；轨数不变，tabCapos 不增不减、夹位＝song.capo、混音台 tab:0 原样。
@@ -14398,16 +14577,24 @@ function mapVoxToTab(vi, mode, dry){
     ti=song.tabVoices.length-1;
     song.measures.forEach(mm=>mm.tabs.push([]));
     }
-    items.forEach(it=>{
-      const col={dur:it.c.dur, dotted:!!it.c.dotted, chord:'', notes:[], strum:'', tech:''};
-      if(it.c.tup) col.tup=it.c.tup;
-      if(it.c.tupM) col.tupM=it.c.tupM;
-      if(it.c.tie) col.tie=true;
-      if(it.fixed) col.notes=[{s:it.fixed.s, f:it.fixed.f}];
-      song.measures[it.mi].tabs[ti].push(col);
-    });
+    items.forEach(it=>{ song.measures[it.mi].tabs[ti].push(vtCol(it)); });
   });
-  return {octShift, dropped, hit, nNotes, name:outName, reused:!!reuse, muted:!!(reuse && reuse.muted)};
+  const f0=items.find(it=>it.fixed);
+  return {octShift, dropped, hit, nNotes, name:outName, reused:!!reuse, muted:!!(reuse && reuse.muted), ti:reuse? 0 : song.tabVoices.length-1, firstMi:f0? f0.mi : 0};
+}
+/* v67.5 收尾验收（F1）：可「补进」的目标吉他轨——只有一条吉他轨＝它；多条时取与本旋律同名的生成轨（吉他·旋律N）。
+   整轨空归复用空轨（vtReuseInfo）。返回 {ti, name, gaps:[旋律有音、该轨这一小节却还空着的小节号]}；没有可补的＝null。只读 */
+const tabColBare = c=> !c || Object.keys(c).every(k=>TAB_BARE_KEYS[k] || (v=> v==null || v===false || v==='' || v===0 || (Array.isArray(v) && !v.length))(c[k]));
+function vtFillInfo(vi, s){
+  s=s||song; if(!s || !(s.tabVoices||[]).length) return null;
+  const gen=(s.inst==='uku'? '尤克里里' : '吉他')+'·'+((s.voxVoices||[])[vi]||('旋律'+(vi+1)));
+  const ti = s.tabVoices.length===1? 0 : s.tabVoices.indexOf(gen);
+  if(ti<0 || tabTrackEmpty(s, ti)) return null;
+  const gaps=[];
+  s.measures.forEach((m,mi)=>{
+    if((((m.voxes||[])[vi])||[]).some(c=>c && c.deg>0) && (((m.tabs||[])[ti])||[]).every(tabColBare)) gaps.push(mi);
+  });
+  return gaps.length? {ti, name:String(s.tabVoices[ti]||''), gaps} : null;
 }
 /* v67.5 吉他轨是否为空（建谱时的空 TAB 只有休止骨架）：每列除时值骨架（dur / dotted / 连音比例）外的字段全是空值——
    验收补：此前只看品位音 / 和弦 / 扫弦，TAB 上的段落标注（anno：前奏 / 副歌）、延长号（ferm）等会画在谱面上的内容被当成空轨清掉。只读 */
@@ -14426,7 +14613,8 @@ function vtReuseInfo(){
 function showVoxTabMenu(vi){
   const dt=docType(song);
   if(dt==='piano'||dt==='pianoacc'||dt==='chord'||dt==='func') return toast('该谱类不支持生成把位轨');
-  if(!trackRoom('tab')) return toast(trackLimitMsg('tab'));   /* v65.2 */
+  const fi = vtReuseInfo()? null : vtFillInfo(vi);   /* v67.5 收尾验收（F1）：可补进现有吉他轨的小节 */
+  if(!trackRoom('tab') && !fi) return toast(trackLimitMsg('tab'));   /* v65.2 */
   const anyNote = song.measures.some(m=>(m.voxes[vi]||[]).some(c=>c.deg!=null&&c.deg>0));
   if(!anyNote) return toast('该旋律轨还没有音符');
   const st={ low:mapVoxToTab(vi,'low',true), mid:mapVoxToTab(vi,'mid',true), follow:mapVoxToTab(vi,'follow',true) };
@@ -14441,8 +14629,14 @@ function showVoxTabMenu(vi){
     if(s2.octShift) p.push('折八度 '+s2.octShift);
     if(s2.dropped) p.push('放不下 '+s2.dropped);
     return p.length? p.join(' · ') : '全部原音高'; };
+  /* 收尾验收（F1）：已生成过、之后又续写了旋律——默认「补进」那条轨（只写还空着的小节，已有的品位 / 扫弦 / 和弦不动、轨数不变），也可另加一条 */
+  const gapTxt = fi? (fi.gaps.length>1? '第 '+(fi.gaps[0]+1)+'–'+(fi.gaps[fi.gaps.length-1]+1)+' 小节中的 '+fi.gaps.length+' 个小节' : '第 '+(fi.gaps[0]+1)+' 小节') : '';
+  const dest = fi? `<div class="vt-dest" role="radiogroup" aria-label="写到哪里" style="margin:4px 0 8px">
+      <label class="f" style="gap:8px"><input type="radio" name="vt-dest" value="fill" checked> <span>补进「${esc(fi.name)}」：只给还没有六线谱的${gapTxt}写品位，已有的品位、扫弦、和弦不动（轨数不变）</span></label>
+      <label class="f" style="gap:8px"><input type="radio" name="vt-dest" value="new"${trackRoom('tab')? '' : ' disabled'}> <span>另加一条${iName}轨（整条旋律重新生成）</span></label></div>` : '';
   showModal(`<h3>${svgi(instOf()==='uku'?'ukulele':'guitar',15)} 生成把位轨 · ${esc(song.voxVoices[vi]||'旋律')}</h3>
-    <p style="font-size:12.5px;line-height:1.6">把这条旋律按所选把位${what}（六线谱显示，原旋律轨不动，可一步撤销）。共 ${st.low.nNotes} 个音。</p>
+    <p style="font-size:12.5px;line-height:1.6">把这条旋律按所选把位${fi? '写进六线谱' : what}（六线谱显示，原旋律轨不动，可一步撤销）。共 ${st.low.nNotes} 个音。</p>
+    ${dest}
     <div class="trkadd">
       <button id="vt-low"><b>低把位${def==='low'?' · 推荐':''}</b><span>开放弦优先 · ${stat(st.low)}</span></button>
       <button id="vt-mid"><b>中把位</b><span>4 品起不用空弦 · ${stat(st.mid)}</span></button>
@@ -14450,11 +14644,15 @@ function showVoxTabMenu(vi){
     </div>
     <div class="btns"><button id="vt-cancel">取消</button></div>`);
   const go=mode=>{
+    const dv=(document.querySelector('input[name="vt-dest"]:checked')||{}).value;
     closeModal();
-    const r=mapVoxToTab(vi, mode);
-    sel.row='tab'; sel.vi=song.tabVoices.length-1; sel.ci=0; sel.si=1; clampSel();
+    const r=mapVoxToTab(vi, mode, false, fi && dv!=='new'? {fill:fi} : null);
+    /* 收尾验收（F6）：光标落到生成的第一个音（同一键配伴奏回第 1 小节）——此前小节号不动，停在旋律后面的空小节，点播放从那里开始 */
+    sel.row='tab'; sel.vi=r.ti!=null? r.ti : song.tabVoices.length-1; sel.mi=r.firstMi||0; sel.ci=0; sel.si=1; selRange=null; clampSel();
     if(uiShell) setRibbon('tab');
     render();
+    if(r.filled!=null){ toast('已补进「'+r.name+'」：'+r.filled+' 个小节、'+r.nNotes+' 音（其余小节已有的品位不动，可一步撤销）'
+      +(r.octShift? ' · 折八度 '+r.octShift:'')+(r.dropped? ' · 放不下 '+r.dropped:'')); return; }
     toast((r.reused? '已写进空轨「'+r.name+'」：' : '已生成「'+r.name+'」：')+r.nNotes+' 音'
       +(r.octShift? ' · 折八度 '+r.octShift:'')+(r.dropped? ' · 放不下 '+r.dropped:'')
       +(mode==='follow'? ' · '+r.hit+' 音随和弦图':'')+(r.muted? ' · 该轨在混音台是静音的，播放前请打开':'')+'（可一步撤销）');
@@ -14604,7 +14802,11 @@ function hideStartPad(reopen){
 /* v67.4 启动台「继续上次编辑」：找一份「自己的谱」——存入过我的曲谱，或不是原样示例谱、也不是空白未命名谱。返回窗口序号，没有则 -1 */
 /* 验收补：原样示例谱按整份谱比（去掉载入时补写的 tabNota 与入库 id）——此前只比曲名＋小节，只改了调 / 速度 / 演唱者的示例谱被当成没动过；
    空白谱除了没有音符，还要页头也没填过（演唱 / 词曲、变调夹、定弦都是默认）才不算——只设了夹 3 品、定弦、演唱者的新谱也是自己的谱 */
-function spdRecentDoc(){
+function spdRecentDoc(){ const a=spdOwnDocs(1); return a.length? a[0] : -1; }
+/* v67.5 拆出：所有「自己的谱」所在的窗口序号（当前窗口在前），判定同上；新建面板「从已有音乐 · 接着做」列全部，启动台只取第一个。max＝最多找几个 */
+var DOC_TOUCH = (function(){ const m=new WeakMap(); m.seq=0; return m; })();   /* var：persist 可能早于本行被调（启动期），那时为 undefined，上面 try 内跳过 */
+function spdOwnDocs(max){
+  const out=[];
   try{
     const IGN={id:1, tabNota:1};
     const same=(a,b)=>{ const ka=Object.keys(a).filter(k=>!IGN[k]), kb=Object.keys(b).filter(k=>!IGN[k]);
@@ -14613,14 +14815,15 @@ function spdRecentDoc(){
     const lib=libLoad();
     const order=[curDocI].concat(docs.map((_,i)=>i).filter(i=>i!==curDocI));
     for(const i of order){
+      if(max && out.length>=max) break;
       const s2 = i===curDocI? song : (docs[i]||{}).song; if(!s2 || !s2.measures) continue;
-      if(s2.id && lib.some(x=>x.id===s2.id)) return i;
+      if(s2.id && lib.some(x=>x.id===s2.id)){ out.push(i); continue; }
       if(pre.some(d=>d.title===s2.title && same(d, s2))) continue;   // 原样示例谱
       if(NWB.isEmptySong(s2) && (s2.title||'未命名曲谱')==='未命名曲谱' && !s2.singer && !s2.lyricist && !s2.composer && !(s2.capo>0) && !s2.tuning) continue;   // 空白未命名谱（页头也没填）
-      return i;
+      out.push(i);
     }
   }catch(_){}
-  return -1;
+  return out;
 }
 /* v67.4 启动台「按上次」卡：读本机 musetab-nw-last（读不到＝「马上开始」吉他弹唱默认） */
 function spdLastCard(){
@@ -14973,6 +15176,9 @@ window.addEventListener('keydown', e=>{
     if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='o'){ e.preventDefault(); document.getElementById('b-open').click(); }
     return;
   }
+  /* v67.5 收尾验收（F2 / F7）：Alt+B 跳到谱型条（收起的重新调出）——编辑态 Tab 被谱面拿去切声部，键盘此前到不了谱型条；
+     ≤1200 宽右栏隐藏时也是一条调回的路（按物理键 KeyB，Mac ⌥ 不受特殊字符影响；输入框里不响应——上面已先 return） */
+  if(e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code==='KeyB'){ e.preventDefault(); LBAR.show(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); exportSong(); return; }
@@ -15686,7 +15892,7 @@ function pasteMeasure(opt){
 document.addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
-  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore');   /* v67.5 离屏预览框也算界面内 */
+  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore, #lb-wrap, #lb-menu');   /* v67.5 离屏预览框也算界面内 */
   if(!inside){
     blurSel = true; measureSel=null; selRange=null; noteSel=[]; measureRange=null; closeTech();
     render();
@@ -18401,9 +18607,9 @@ document.getElementById('err-drop').addEventListener('click', e=>{
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
     const vy = svg.getBoundingClientRect().top+b.y*scale;   // 视口坐标
-    const sc = scoreScroller();
-    if(sc) sc.scrollTo({top:sc.scrollTop+vy-200, behavior:'smooth'});
-    else window.scrollTo({top:vy+window.scrollY-200, behavior:'smooth'});
+    const sc = scoreScroller(), top0 = Math.max(200, lbStickBottom()+40);   // v67.5 收尾验收：吸顶谱型条下面才算可视区（此前跳过去的小节压在谱型条下）
+    if(sc) sc.scrollTo({top:sc.scrollTop+vy-top0, behavior:'smooth'});
+    else window.scrollTo({top:vy+window.scrollY-top0, behavior:'smooth'});
   }
 });
 
@@ -20526,10 +20732,13 @@ function highlight(prefix,mi,ci,whole){
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
     const yTop = band? band.y : b.y;
     const vy = svg.getBoundingClientRect().top+yTop*scale;   // 视口坐标（两种滚动模式通用）
-    if(vy > window.innerHeight-280 || vy < 150){
+    /* v67.5 收尾验收（major）：吸顶谱型条占住谱面区上缘——上界与滚动落点都从谱型条底边算起（此前 1366×768 下 35/40 小节的播放带顶部
+       压在谱型条下 18px，当前行的和弦名被裁掉）；没有谱型条 / 不吸顶时 lbStickBottom()＝0，仍是原来的 150 / 220 */
+    const lbB = lbStickBottom(), vTop = Math.max(150, lbB + 8), vTo = Math.max(220, lbB + 60);
+    if(vy > window.innerHeight-280 || vy < vTop){
       const sc = scoreScroller();
-      if(sc) sc.scrollTo({top:sc.scrollTop+vy-220, behavior:'smooth'});
-      else window.scrollTo({top:vy+window.scrollY-220, behavior:'smooth'});
+      if(sc) sc.scrollTo({top:sc.scrollTop+vy-vTo, behavior:'smooth'});
+      else window.scrollTo({top:vy+window.scrollY-vTo, behavior:'smooth'});
     }
     /* 第二轮验收补：放大放不下（#paper.paper-xs 横滚兜底）时播放也横向跟随——此前分页模式只做纵向跟随，
        播到行尾被遮住的小节不会自动露出来 */
@@ -21857,6 +22066,8 @@ function persist(){
   try{ renderDocTabs(); }catch(_){}
   try{ if(!audio.playing) renderProgCells(); }catch(_){}
   if(docs.length && docs[curDocI]) docs[curDocI].song = song;
+  /* v67.5「接着做」按最近切换 / 编辑排序：只记在内存（按窗口对象，不进 song、不落盘；重开页面后按窗口新旧兜底） */
+  try{ if(docs[curDocI] && DOC_TOUCH) DOC_TOUCH.set(docs[curDocI], ++DOC_TOUCH.seq); }catch(_){}
   persist.pending=true;
   if(persistTimer) clearTimeout(persistTimer);
   persistTimer=setTimeout(persistNow, 350);
@@ -21918,6 +22129,7 @@ function loadSong(s, after){
      v38.8 防静默覆盖语义由"另开窗口"改为"确认对话"）。after 同 addDoc：确认后才执行 */
   guardReplace(()=>{
     pushUndo(); song=s;
+    try{ LBAR.forget(); }catch(_){}   // v67.5 本窗口换成别的谱：谱型条（按窗口记）随之失效
     /* v60.80 记谱风格随谱走（产品报告：电脑显示 ×、手机只显示数字）：
        tabNota 此前只在手动切换记谱风格时落盘，从未切换过的谱发布后没有该字段，
        观看端各自回退**本机**偏好（默认 'num'）——作者电脑上是 ×、手机上就成了数字。
@@ -22267,8 +22479,202 @@ var NWB = (function(){
   return {ROWS, ORDER, STACKS, VALID, own, keyOf, why, resolve, build, stackOf, kindOf, ctxOf, kindOfSong, isAccStack, isEmptySong};
 })();
 
-/* ---- ③ 新建面板 NWP：左栏「按用途」9 个用途＋空白谱 / 自选记谱法；中栏「将建成 · 谱名」＋「要哪几种谱」五个开关（冲突预告＋6 秒撤销）＋谱行示意
-   （实时刻版预览 v67.5 接 render() 离屏目标，位置与尺寸已按方案预留）；右栏 曲名 → 旋律用 → 用途变体 → 调·拍号·速度 → 依据 → 更多设置。
+/* ---- v67.5 新建面板实时刻版预览 NWPV（README §1「中栏看见成品」与「实时预览的正式实现」，拍板 7）----
+   ① 示例谱：同一段《小星星》（方案原型口径）灌进当前谱组合——按面板当前的调 / 调式（小调按关系大调记谱，旋律与和弦整体下移三度成 a 小调色彩）/
+      拍号（2/4、3/4、4/4、6/8 手写，其余拍号按拍铺开）/ 速度 / 曲名 / 声部数 / 乐器 / 谱号 / 歌词段数 / 变调夹 / 定弦，经 NWB.build（＝既有 createSong）建成临时谱；
+      伴奏行用编辑器自己的织体引擎（arrangeAccompaniment，织体缺省同一键配伴奏 accTexDefault，儿歌 2/4 ＝ kids2），六线谱分解和弦按和弦库 chordShape 取指法，
+      独奏谱旋律转把位用 mapVoxToTab 同一套计算 vtPlanItems——都不是手画。临时谱不进 docs / 撤销栈 / 本机存储。
+   ② 刻版：renderOffscreen 只排首行（maxSystems:1）进面板自己的 <svg>：引擎在同步借用期间换入临时谱、finally 逐项归还
+      （tv_offscreen T2a 与 tv_newpanel T14 / T33 断言 song / sel / 撤销栈 / 本机存储 / #paper / 窗口数不变）；纸面两主题恒白（invert:false）。
+   ③ 行标：按引擎排出的行位（预览自己的 colBoxes，每行首列框的纵向范围）换算成 svg 高度的百分比，不编号，只标「从这行开始写」。
+   构建临时谱时读全局 song 的引擎函数（chordShape / voxMidi / arrangeAccompaniment / vtPlanItems）一律 borrow 同步借还（try/finally）。 */
+var NWPV = (function(){
+  /* 记法：数字＝四分音符的级数；[级数, 时值(2/4/8), 八度, 附点] */
+  const TUNES = {
+    '4/4':{mel:[[1,1,5,5],[6,6,[5,2]],[4,4,3,3],[2,2,[1,2]]], ch:[[1],[4,0,1],[4,0,1],[5,0,1]]},
+    '2/4':{mel:[[1,1],[5,5],[6,6],[[5,2]],[4,4],[3,3],[2,2],[[1,2]]], ch:[[1],[0],[4],[1],[4],[1],[5],[1]]},
+    '3/4':{mel:[[1,1,5],[5,6,6],[[5,2,0,1]],[4,4,3],[3,2,2],[[1,2,0,1]]], ch:[[1],[0,4],[1],[4,0,1],[0,5],[1]]},
+    '6/8':{mel:[[1,[1,8],5,[5,8]],[6,[6,8],[5,4,0,1]],[4,[4,8],3,[3,8]],[2,[2,8],[1,4,0,1]]], ch:[[1],[4,0,1],[4,0,1],[5,0,1]]},
+  };
+  /* 4/4 合唱声部（方案原型同一组手写声部）：中音 / 次中音 / 低音 */
+  const PARTS44 = [
+    [[1,1,3,3],[4,4,[3,2]],[2,2,1,1],[[7,4,-1],[7,4,-1],[1,2]]],
+    [[[5,4,-1],[5,4,-1],1,1],[1,1,[1,2]],[[6,4,-1],[6,4,-1],[5,4,-1],[5,4,-1]],[[5,4,-1],[5,4,-1],[5,2,-1]]],
+    [[[1,4,-1],[1,4,-1],[1,4,-1],[1,4,-1]],[[4,4,-1],[4,4,-1],[1,2,-1]],[[4,4,-1],[4,4,-1],[1,4,-1],[1,4,-1]],[[5,4,-2],[5,4,-2],[1,2,-1]]]];
+  const SEQ = [1,1,5,5,6,6,5,4,4,3,3,2,2,1];
+  const LY1 = ['一','闪','一','闪','亮','晶','晶','满','天','都','是','小','星','星'];
+  const LY2 = ['挂','在','天','上','放','光','明','好','像','许','多','小','眼','睛'];
+  const CH_OF = {1:1, 3:1, 5:1, 4:4, 6:4, 2:5, 7:5};
+  const FLATK = {F:1, Bb:1, Eb:1, Ab:1, Db:1, Gb:1};
+  const SHN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'], FLN = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const CAP = 48;
+  const own = (o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  function borrow(s, fn){ const o0=song; song=s; try{ return fn(); } finally { song=o0; } }
+  /* 小调：旋律与各声部整体下移三度（1→6̣ 3→1 5→3），和弦 I / IV / V7 → vi / ii / iii（同调号自然小调） */
+  const minDeg = (d, oct)=> ({d:((d+4)%7)+1, oct:oct-(d<=2? 1 : 0)});
+  function chName(deg, key, minor){
+    const off = minor? {1:9, 4:2, 5:4}[deg] : {1:0, 4:5, 5:7}[deg];
+    const pc = ((KEY_PC[key]||0)+off)%12;
+    return (FLATK[key]? FLN : SHN)[pc] + (minor? 'm' : deg===5? '7' : '');
+  }
+  const rootDeg = (deg, minor)=> minor? {1:6, 4:2, 5:3}[deg] : deg;
+  /* 旋律音表：每小节 [{d, dur, oct, dotted, i(全曲序号), ch(0 或级数), pos(小节内八分位)}] */
+  function melRows(beats, unit){
+    const t = TUNES[beats+'/'+unit], out=[]; let n=0;
+    if(t){
+      t.mel.forEach((row, mi)=>{ let pos=0;
+        out.push(row.map((x, i)=>{ const a=Array.isArray(x)? x : [x,4,0,0];
+          const e={d:a[0], dur:a[1]||4, oct:a[2]||0, dotted:!!a[3], i:n++, ch:(t.ch[mi]||[])[i]||0, pos};
+          pos += 8/e.dur*(e.dotted? 1.5 : 1); return e; })); });
+    }else{
+      const d0 = (unit===8||unit===4||unit===2)? unit : 4, nm = Math.min(4, Math.max(2, Math.ceil(14/Math.max(1,beats))));
+      for(let mi=0; mi<nm; mi++){ const row=[]; let pos=0;
+        for(let b=0; b<beats; b++){ const d=SEQ[n%14]; row.push({d, dur:d0, oct:0, dotted:false, i:n, ch:b===0? CH_OF[d] : 0, pos}); n++; pos+=8/d0; }
+        out.push(row); }
+    }
+    return out;
+  }
+  function vc(e, x){ x=x||{};
+    let d=e.d, oct=e.oct+(x.oct||0);
+    if(x.minor){ const m=minDeg(d, oct); d=m.d; oct=m.oct; }
+    return {dur:e.dur, dotted:e.dotted, deg:d, acc:'', oct, lyrics: x.ly? (x.ly>1? [LY1[e.i%14], LY2[e.i%14]] : [LY1[e.i%14]]) : [], tie:false, chord: x.ch && e.chN? e.chN : ''};
+  }
+  /* 和弦随行：每小节的和弦事件 [{pos, name}]（空小节沿用上一个） */
+  function chordPlan(rows, key, minor){
+    let carry='';
+    return rows.map(row=>{ const ev=[]; row.forEach(e=>{ e.chN = e.ch? chName(e.ch, key, minor) : ''; if(e.chN) ev.push({pos:e.pos, name:e.chN}); });
+      if(!ev.length || ev[0].pos>0) ev.unshift({pos:0, name:carry, carried:true}); carry=ev[ev.length-1].name; return ev; });
+  }
+  const chordAt = (ev, pos)=>{ let c=''; ev.forEach(x=>{ if(x.pos<=pos+1e-6 && x.name) c=x.name; }); return c; };
+  /* 六线 / 四线分解和弦（八分音符）：低音弦取和弦图最低发音弦，其上 3–2–3 弦（尤克里里 4–3–2–1）；指法查编辑器和弦库 chordShape（借谱，customChords / 乐器随临时谱） */
+  function arpCols(s, ev, beats, unit){
+    const n8 = Math.max(1, Math.round(beats*8/unit)), uku = s.inst==='uku', NS = uku? 4 : 6, cols=[];
+    for(let i=0;i<n8;i++){
+      const nm = chordAt(ev, i), sh = nm && chordShape(nm);
+      const lab = ev.some(x=>!x.carried && x.name && Math.abs(x.pos-i)<1e-6) || (i===0 && ev[0].name)? nm : '';
+      let notes=[];
+      if(sh){
+        let str;
+        if(uku) str = [4,3,2,1][i%4];
+        else { const k=i%4; if(k===0){ str=null; for(let q=NS;q>=4;q--) if(shapeString(sh,q)!=null){ str=q; break; } if(str==null) str=4; } else str = k===2? 2 : 3; }
+        let f = shapeString(sh, str); if(f==null){ for(let q=str-1;q>=1;q--){ f=shapeString(sh,q); if(f!=null){ str=q; break; } } }
+        if(f!=null) notes=[{s:str, f}];
+      }
+      cols.push({dur:8, dotted:false, chord:lab||'', notes, strum:'', tech:''});
+    }
+    return cols;
+  }
+  const key4 = (k, o)=> JSON.stringify([k, o.title, o.key, o.mode, o.beats, o.unit, o.tempo, o.tempoUnit||'', o.nVox||1, o.inst||'', o.clef||'', o.instKey||'', o.lyr|0, o.capo|0, o.tuningKey||'', o.scene||'', o.maker||'']);
+  const SAMPLES = new Map();
+  /* k＝谱行组合（NWB.STACKS 的键），o＝NWP.optsOf 的建谱参数（＋scene）。返回一份临时曲谱（缓存，调用方不得改它） */
+  function sampleOf(k, o){
+    const ck = key4(k, o);
+    if(SAMPLES.has(ck)) return SAMPLES.get(ck);
+    const s = buildSample(k, o);
+    if(SAMPLES.size>=CAP) SAMPLES.delete(SAMPLES.keys().next().value);
+    SAMPLES.set(ck, s);
+    return s;
+  }
+  function buildSample(k, o){
+    const beats=+o.beats||4, unit=+o.unit||4, minor=o.mode==='minor', key=o.key||'C';
+    const rows = melRows(beats, unit), plan = chordPlan(rows, key, minor);
+    const userT = o.title && o.title!=='未命名曲谱';
+    const bo = {title: userT? o.title : '小星星', key, beats, unit, tempo:o.tempo, tempoUnit:o.tempoUnit, nMea:rows.length, nVox:o.nVox||1, inst:o.inst||'guitar',
+      clef:o.clef, lyr:o.lyr|0, mode:o.mode, capo:o.capo|0, instKey:o.instKey, maker:o.maker||''};   /* maker：页头「制谱：」同真实建谱（realCreate 读个人资料） */
+    if(o.tuningKey && TUNINGS[o.tuningKey] && TUNINGS[o.tuningKey].t) bo.tuning=TUNINGS[o.tuningKey].t.slice();
+    if(bo.instKey==='piano') delete bo.instKey;
+    const ly = bo.lyr;
+    const lowOct = (o.clef==='bass')? -1 : 0;   /* 低音谱号：旋律下移八度落在低音谱表里 */
+    let s;
+    if(k==='JG'||k==='SG'||k==='SJG'||k==='CG'){
+      const mel = NWB.build(k==='JG'? 'J' : 'S', Object.assign({}, bo, {nVox:1, lyr:ly||1}));
+      mel.measures.forEach((m, mi)=>{ m.voxes[0] = rows[mi].map(e=>vc(e, {ly:ly||1, ch:1, minor})); });
+      if(minor) mel.mode='minor';
+      const avail = texAvail(beats, unit);
+      const texId = avail.length? accTexDefault(mel, avail, false, o.scene==='kids') : undefined;
+      const r = borrow(mel, ()=>arrangeAccompaniment(mel, {pure:k==='CG', suggest:false, texId}));
+      s = r.song; s.title = bo.title;
+      if(k==='JG'){ s.voxNotations=[undefined,'staff','bass']; delete s.voxDual; }
+      if(k==='SG') delete s.voxDual;
+      if(k!=='CG') s.voxGroups=[{type:'brace', from:1, to:2}];
+      /* 歌词段数同真实建谱（CG 也按面板的「歌词段数」留词位——验收：此前写死 0，预览比建成的谱矮一截） */
+      s.lyricLines = ly;
+      if(k==='CG') s.instKey='piano';
+      s.maker = bo.maker;
+      if(!ly && k!=='CG') s.measures.forEach(m=>{ (m.voxes[0]||[]).forEach(c=>{ c.lyrics=[]; }); });
+      if(minor) s.mode='minor';
+      if(bo.instKey) s.instKey=bo.instKey;
+    }else{
+      s = NWB.build(k, bo);
+      const nv = (s.voxVoices||[]).length;
+      s.measures.forEach((m, mi)=>{
+        const row = rows[mi], ev = plan[mi];
+        switch(k){
+          case 'J': case 'S': case 'SJ':
+            m.voxes[0] = row.map(e=>vc(e, {ly, minor, oct:lowOct}));
+            for(let v=1; v<nv; v++){
+              if(beats===4 && unit===4) m.voxes[v] = PARTS44[v-1][mi].map(x=>{ const a=Array.isArray(x)? x : [x,4,0,0]; return vc({d:a[0], dur:a[1]||4, oct:a[2]||0, dotted:!!a[3], i:0}, {minor}); });
+              else m.voxes[v] = row.map(e=>{ const sh=[2,4,0][v-1]; if(v===3){ const ch=chordAt(ev, e.pos); const rd = rootDeg(ch? (ch===chName(4,key,minor)? 4 : ch===chName(5,key,minor)? 5 : 1) : 1, false); return vc({d:rd, dur:e.dur, oct:-1, dotted:e.dotted, i:0}, {minor}); }
+                const idx=(e.d-1)+e.oct*7-sh; return vc({d:((idx%7)+7)%7+1, dur:e.dur, oct:Math.floor(idx/7), dotted:e.dotted, i:0}, {minor}); });
+            }
+            break;
+          case 'CJ': case 'CS': m.voxes[0] = row.map(e=>vc(e, {ly, ch:1, minor})); break;
+          case 'C': { const per = 8/unit; m.voxes[0] = Array.from({length:beats}, (_, b)=>{ const pos=b*per, hit=ev.find(x=>!x.carried && x.name && x.pos>=pos-1e-6 && x.pos<pos+per-1e-6) || (b===0? ev[0] : null);
+              return {dur:unit===8||unit===2? unit : 4, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false, chord: hit && hit.name? hit.name : ''}; }); break; }
+          case 'T': case 'JT':
+            m.tabs[0] = borrow(s, ()=>arpCols(s, ev, beats, unit));
+            if(k==='JT') m.voxes[0] = row.map(e=>vc(e, {ly, minor}));
+            break;
+          case 'G': m.voxes[0] = row.map(e=>vc(e, {minor}));
+            m.voxes[1] = row.map(e=>{ const ch=chordAt(ev, e.pos); const dg = ch===chName(4,key,minor)? 4 : ch===chName(5,key,minor)? 5 : 1; return vc({d:dg, dur:e.dur, oct:-1, dotted:e.dotted, i:0}, {minor}); });
+            break;
+        }
+      });
+      if(k==='ST'){
+        /* 独奏：旋律（含和弦）先放进临时旋律行，按 mapVoxToTab 同一套取位（vtPlanItems，跟随和弦图）转成把位，再加和弦根音低音 */
+        const tmp = NWB.build('J', Object.assign({}, bo, {lyr:0}));
+        if(bo.tuning) tmp.tuning = bo.tuning.slice();
+        tmp.measures.forEach((m, mi)=>{ m.voxes[0] = rows[mi].map(e=>vc(e, {ch:1, minor})); });
+        const P = borrow(tmp, ()=>vtPlanItems(0, 'follow'));
+        s.measures.forEach((m, mi)=>{ m.tabs[0] = []; });
+        P.items.forEach(it=>{ const col=vtCol(it); const e=rows[it.mi][it.ci];
+          if(e && e.chN){ col.chord=e.chN; const sh=borrow(s, ()=>chordShape(e.chN)); if(sh){ for(let q=6;q>=4;q--){ const f=shapeString(sh,q); if(f!=null){ if(!col.notes.some(n=>n.s>=q-1)) col.notes.unshift({s:q, f}); break; } } } }
+          s.measures[it.mi].tabs[0].push(col); });
+      }
+      if(k==='C') s.lyricLines=0;
+    }
+    delete s.layout;   /* 预览按框宽排（不走 A4 固定版宽），同 renderOffscreen fixed:false */
+    if(!userT) s.composer='法国民谣';
+    s.measures[s.measures.length-1].finalBar = true;
+    return s;
+  }
+  /* 预览渲染：spec＝{k,o}（新建：示例谱）或 {song}（导入 / 示例做同款：现成的谱）。返回 {ms 引擎耗时, total, vbH, boxes, drawn} */
+  const lat = [];
+  function renderInto(svg, spec, opt){
+    opt=opt||{};
+    const t0 = performance.now();
+    const s = spec.song || sampleOf(spec.k, spec.o);
+    const t1 = performance.now();
+    const r = renderOffscreen({song:s, target:svg, maxSystems:opt.maxSystems||1, paperW:opt.paperW||660, invert:false});
+    if(!r) return null;
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    const out = {ms:r.ms, build:t1-t0, total:performance.now()-t0, vbH:vb? vb.height : r.h, vbW:vb? vb.width : r.w, boxes:r.boxes, drawn:r.drawn, systems:r.systems, sysGeo:r.sysGeo};
+    lat.push({k:spec.k||'song', ms:r.ms, build:out.build, total:out.total});
+    if(lat.length>400) lat.splice(0, lat.length-400);
+    return out;
+  }
+  /* 行标：band＝{a:'v0'|'t0', b:'v2'…}；用首行第一小节第一列的框（引擎的 colBoxes）给出纵向范围（svg 高度的百分比） */
+  function bandPos(r, a, b){
+    const A = r.boxes && r.boxes[a+':0:0'], B = (r.boxes && r.boxes[(b||a)+':0:0']) || A;
+    if(!A || !r.vbH) return null;
+    const y0 = Math.min(A.y, B.y), y1 = Math.max(A.y+A.h, B.y+B.h);
+    return {top:(y0+y1)/2/r.vbH*100, h:(y1-y0)/r.vbH*100, y0, y1};
+  }
+  return {sampleOf, renderInto, bandPos, borrow, lat, chName, TUNES, _cache:SAMPLES};
+})();
+
+/* ---- ③ 新建面板 NWP：左栏「按用途」9 个用途＋空白谱 / 自选记谱法；中栏「将建成 · 谱名」＋「要哪几种谱」五个开关（冲突预告＋6 秒撤销）＋预览
+   （v67.5 起是刻版引擎实时刻版：NWPV 示例谱 → renderOffscreen 只排首行，见 pvSync / pvPaint）；右栏 曲名 → 旋律用 → 用途变体 → 调·拍号·速度 → 依据 → 更多设置。
    用途＝谱行组合＋一套默认值，和「要哪几种谱」是同一份状态；建谱计划只由当前可见的选择决定（不可见的旧值不进计划）。
    本机只新增一个键 musetab-nw-last（记住上次的用途、谱行与参数；读写包 try/catch，读不到回默认＝吉他弹唱）。 */
 const LS_NWLAST = 'musetab-nw-last';
@@ -22370,7 +22776,8 @@ var NWP = (function(){
     try{ localStorage.setItem(LS_NWLAST, JSON.stringify({scene:P.scene, stack:P.stack, rows:stackRows(P.stack), mel:st.mel, v:Object.assign({}, st.v, {title:'', capo:0}), t:Date.now()})); }catch(_){}
   }
   function blankState(){
-    return {tab:'new', scene:'gtr', srcScene:'gtr', rows:['J','T'], v:Object.assign({}, DEFV, varDefaults()), mel:'J', src:{}, more:false, note:null, hint:'', tpRaw:null, tpMsg:'', tpBad:false};
+    return {tab:'new', scene:'gtr', srcScene:'gtr', rows:['J','T'], v:Object.assign({}, DEFV, varDefaults()), mel:'J', src:{}, more:false, note:null, hint:'', tpRaw:null, tpMsg:'', tpBad:false,
+      imp:{src:'file', a:null, target:null, ex:null, rc:0, err:''}};   /* imp＝「从已有音乐」：来源 / 读进来的文件分析 / 做成哪种谱 / 所选示例 / 所选接着做 / 说明 */
   }
   function applyScene(st, id, init){
     const s=SC[id]; st.scene=id; if(id!=='custom') st.srcScene=id;
@@ -22412,6 +22819,7 @@ var NWP = (function(){
     } else applyScene(st, 'gtr', true);
     if(opt.scene && own(SC, opt.scene)) applyScene(st, opt.scene, true);
     if(opt.tab) st.tab=opt.tab;
+    if(opt.isrc && ['file','ai','ex','recent','audio','image'].includes(opt.isrc)) st.imp.src=opt.isrc;
     st.mob = isMobileNew();   /* 手机（拍板 1）：只开「从已有音乐」，不出新建页 */
     if(st.mob) st.tab='import';
     return st;
@@ -22452,7 +22860,8 @@ var NWP = (function(){
     showModal('<div class="nf-shell"></div><p class="nf-sr" id="nf-live" aria-live="polite"></p>'
       +'<input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" hidden>'
       +'<input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" hidden>'
-      +'<input type="file" id="nw-midifile" accept=".mid,.midi" hidden>');
+      +'<input type="file" id="nw-midifile" accept=".mid,.midi" hidden>'
+      +'<input type="file" id="nw-anyfile" accept="'+IMP_ACCEPT+'" hidden>');
     const mask=document.getElementById('modal-mask'); mask.classList.add('nf-mask');
     modal=mask.querySelector('.modal'); modal.classList.add('nf-modal');
     modal.setAttribute('aria-label','新建曲谱');
@@ -22460,15 +22869,18 @@ var NWP = (function(){
     modal.addEventListener('keydown', onKey); modal.addEventListener('mouseover', onHover); modal.addEventListener('focusin', onHover);
     modal.addEventListener('pointerdown', ()=>{ kbNav=false; }, true);
     modal.addEventListener('mouseout', onHoverOut);
-    modal.addEventListener('dblclick', e=>{ const t=e.target.closest('[data-scene]'); if(t && st && t.dataset.scene===st.scene) create(); });
+    modal.addEventListener('dblclick', e=>{ if(!st) return; const t=e.target.closest('[data-scene],[data-ex],[data-rc]'); if(!t) return;
+      if(t.dataset.scene){ if(t.dataset.scene===st.scene) create(); }
+      else if(t.dataset.ex!=null){ if(+t.dataset.ex===exSel()) exApply(exSel(), 'same'); }   /* 双击示例＝按此格式新建 */
+      else if(+t.dataset.rc===(st.imp.rc|0)) recentGo(); });
     bindFiles();
-    draw();
-    setTimeout(()=>{ if(!st || !modal || !modal.isConnected) return; if(st.tab==='new') focusSel(); else { const f=modal.querySelector('#nw-import'); if(f) f.focus({preventScroll:true}); } }, 0);
+    draw(); pvSync(true);
+    setTimeout(()=>{ if(!st || !modal || !modal.isConnected) return; if(st.tab==='new') focusSel(); else { const f=modal.querySelector(st.mob? '#nw-import' : '#nf-isrc [aria-selected="true"]'); if(f) f.focus({preventScroll:true}); } }, 0);
   }
   const live = ()=> !!(st && modal && modal.isConnected);
   /* restore＝取消关闭（Esc / 关闭钮）：焦点还给打开它的控件；建谱后不还（焦点该落在新谱上，不能留在「新建」钮上被空格 / 回车再点一次） */
   function close(restore){
-    clearTimeout(noteTimer); closeModal(); st=null; modal=null;
+    clearTimeout(noteTimer); clearTimeout(pvTimer); pvTimer=0; closeModal(); st=null; modal=null;
     const o=opener; opener=null;
     if(restore && o && o.isConnected && typeof o.focus==='function'){ try{ o.focus({preventScroll:true}); }catch(_){} }
   }
@@ -22486,27 +22898,40 @@ var NWP = (function(){
     while(ac.length>bc.length) a.removeChild(a.lastChild);
   }
   function morphEl(o, n){
+    /* 预览框（data-keep）由 pvSync 自己管：重画不碰它的属性与内容（刻版好的 svg 与行标留着，选择变了才换） */
+    if(o.hasAttribute('data-keep') && n.hasAttribute('data-keep')) return;
     for(const at of [...o.attributes]) if(!n.hasAttribute(at.name)) o.removeAttribute(at.name);
     for(const at of [...n.attributes]) if(o.getAttribute(at.name)!==at.value) o.setAttribute(at.name, at.value);
     if(o.nodeName==='INPUT'){ if(document.activeElement!==o){ const nv=n.getAttribute('value')||''; if(o.value!==nv) o.value=nv; } return; }
     morphKids(o, n);
     if(o.nodeName==='SELECT' && o.value!==n.value) o.value=n.value;
   }
+  /* 重画不可重入：换页 / 读进文件时正在输入的框被移走会失焦，触发 change → 又一次 draw（嵌套的 morph 会删掉外层正要比对的节点）——
+     嵌套请求记下来，外层画完再补画一次 */
+  let drawing=false, drawAgain=false;
   function draw(){
     if(!live()) return;
+    if(drawing){ drawAgain=true; return; }
+    drawing=true;
+    try{ drawNow(); } finally { drawing=false; }
+    if(drawAgain){ drawAgain=false; draw(); }
+  }
+  function drawNow(){
     const shell=modal.querySelector('.nf-shell'); if(!shell) return;
     const a=document.activeElement, ss=a && a.selectionStart;
     let fid='';
     if(a && shell.contains(a)){
       const d=a.dataset||{};
       fid = a.id? '#'+a.id : d.scene? '[data-scene="'+d.scene+'"]' : d.row? '[data-row="'+d.row+'"]'
-        : d.act==='var'? '[data-act="var"][data-k="'+d.k+'"][data-v="'+d.v+'"]' : d.act==='mel'? '[data-act="mel"][data-v="'+d.v+'"]' : d.act? '[data-act="'+d.act+'"]' : '';
+        : d.isrc? '[data-isrc="'+d.isrc+'"]' : d.ex!=null? '[data-ex="'+d.ex+'"]' : d.rc!=null? '[data-rc="'+d.rc+'"]'
+        : d.act==='var'? '[data-act="var"][data-k="'+d.k+'"][data-v="'+d.v+'"]' : (d.act==='mel'||d.act==='tg')? '[data-act="'+d.act+'"][data-v="'+d.v+'"]' : d.act? '[data-act="'+d.act+'"]' : '';
     }
     const tmp=document.createElement('div'); tmp.innerHTML=desktop();
     morphKids(shell, tmp);
     if(fid && !(document.activeElement && shell.contains(document.activeElement))){
       const e=shell.querySelector(fid); if(e){ e.focus({preventScroll:true}); if(ss!=null && e.setSelectionRange) try{ e.setSelectionRange(ss,ss); }catch(_){} }
     }
+    pvSync();
   }
 
   /* ---- 桌面版式 ---- */
@@ -22540,7 +22965,7 @@ var NWP = (function(){
       + ROWBTN.map(([r,n,i],x)=>'<button type="button" class="nf-row" data-row="'+r+'" aria-pressed="'+rows.includes(r)+'" aria-keyshortcuts="'+(x+1)+'" title="'+n+'（键盘 '+(x+1)+'）">'+ic(i,20)+'<span>'+n+'</span></button>').join('')
       +'</div></div>'
       +'<p class="nf-rowhint">'+esc2(st.hint||'')+'</p>'
-      + schematic(k, o)
+      + previewFig(k, o)
       +(st.note? '<div class="nf-note" role="status">'+ic('act-info',18)+'<span>'+esc2(st.note.text)+'</span>'+(st.note.prev? '<button type="button" data-act="undo" id="nf-undo">'+ic('act-undo',16)+'撤销</button>' : '')+'</div>' : '')
       +'<p class="nf-same">'+ic('act-swap',18)+'<span><b>简谱 · 五线谱 · 六线谱</b>同一份数据，建好后随时互切</span></p>'
       +'</section>'
@@ -22549,88 +22974,108 @@ var NWP = (function(){
       +'<span class="nf-where">新窗口打开 · 当前谱保留</span>'
       +'<button type="button" class="nf-go" data-act="create" id="nw-create">'+ic('act-new',20)+'<span class="nf-gol">创建 · <span id="nf-gokind">'+esc2(kind.name)+'</span></span><kbd>↵</kbd></button></footer>';
   }
-  /* 谱行示意：用谱类 / 谱行的真实结构画出将建成的版面（空白小节的样子），右侧行名不编号、只标「从这行开始写」 */
-  const ACC_NOTE = {JG:'伴奏两行：写好旋律后「一键配伴奏」直接填进来', SG:'伴奏两行：写好旋律后「一键配伴奏」直接填进来', SJG:'伴奏两行：写好旋律后「一键配伴奏」直接填进来', CG:'写好和弦后选织体生成伴奏'};
-  function groupsOf(k, o){
-    const n=o.nVox||1, ly=o.lyr>0, pen=o.pen;
-    const mel = (r)=>{ const a=[]; for(let i=0;i<(r==='SJ'? 1 : n);i++){ if(r==='SJ'){ a.push('S','J'); } else a.push(r); if(ly && i===0) a.push('L'); } if(r==='SJ' && ly) a.push('L'); return a; };
+  /* v67.5 预览＝刻版引擎现场排的真实谱面（NWPV：示例旋律灌进当前谱组合 → renderOffscreen 只排首行），替换 v67.4 的谱行示意。
+     右侧行标按引擎排出的行位对齐（预览自己的 colBoxes），不编号，只在要先写的那一行标「从这行开始写」。
+     预览框（#nf-pvbox，data-keep）不参与面板的最小差异重画：选择变了才重排——缓存命中立即换，否则防抖 PV_WAIT 毫秒（连续点选 / 打字只排最后一次）。 */
+  const ACC_NOTE = {JG:'伴奏两行：写好旋律后一键配伴奏填进来', SG:'伴奏两行：写好旋律后一键配伴奏填进来', SJG:'伴奏两行：写好旋律后一键配伴奏填进来', CG:'写好和弦后选织体生成伴奏'};
+  /* 行标：谱面自上而下各行在引擎里的行号（v＝旋律 / 人声行，t＝六线谱行）；JT 的六线谱在上、简谱旋律在下（引擎 v67.3 起的约定） */
+  function bandDefs(k, o){
+    const n=o.nVox||1, last='v'+(n-1), tl=o.inst==='uku'? '四线谱' : '六线谱';
     switch(k){
-      case 'J':  return [{rows:mel('J'), t:n>1? '简谱 · '+n+' 声部' : '简谱旋律', pen:1, br:n>1}];
-      case 'S':  return [{rows:mel('S'), t:n>1? '五线谱 · '+n+' 声部' : '五线谱旋律', pen:1, br:n>1}];
-      case 'SJ': return [{rows:(ly? ['S','J','L'] : ['S','J']), t:'五线＋简谱', pen:1}];
-      case 'T':  return [{rows:['T'], t:o.inst==='uku'? '四线谱' : '六线谱', pen:1}];
-      /* 第二轮验收：弹唱谱实际版面是六线谱（含和弦图）在上、简谱旋律与歌词在下（引擎 v67.3 起的约定）——示意与说明照实画，「从这行开始写」落对行 */
-      case 'JT': return [{rows:['T'], t:o.inst==='uku'? '四线谱' : '六线谱', pen:pen!=='J'}, {rows:ly? ['J','L'] : ['J'], t:'简谱旋律', pen:pen==='J'}];
-      case 'ST': return [{rows:['S','T'], t:'五线＋六线', pen:1}];
-      case 'G':  return [{rows:['G'], t:'钢琴大谱表', pen:1}];
-      case 'CG': return [{rows:['C','G'], t:'和弦名＋大谱表', pen:1}];
-      case 'JG': return [{rows:ly? ['J','L'] : ['J'], t:'简谱旋律', pen:1}, {rows:['G'], t:'钢琴伴奏'}];
-      case 'SG': return [{rows:ly? ['S','L'] : ['S'], t:'五线谱旋律', pen:1}, {rows:['G'], t:'钢琴伴奏'}];
-      case 'SJG':return [{rows:ly? ['S','J','L'] : ['S','J'], t:'对照旋律', pen:1}, {rows:['G'], t:'钢琴伴奏'}];
-      case 'CJ': return [{rows:ly? ['C','J','L'] : ['C','J'], t:'简谱＋级数', pen:1}];
-      case 'CS': return [{rows:ly? ['C','S','L'] : ['C','S'], t:'五线谱＋和弦', pen:1}];
-      case 'C':  return [{rows:['X'], t:'和弦格', pen:1}];
+      case 'J':  return [{a:'v0', b:last, t:n>1? '简谱 · '+n+' 声部' : '简谱旋律', pen:1}];
+      case 'S':  return [{a:'v0', b:last, t:n>1? '五线谱 · '+n+' 声部' : '五线谱旋律', pen:1}];
+      case 'SJ': return [{a:'v0', b:last, t:'五线＋简谱', pen:1}];
+      case 'T':  return [{a:'t0', t:tl, pen:1}];
+      case 'JT': return [{a:'t0', t:tl, pen:o.pen!=='J'}, {a:'v0', t:'简谱旋律', pen:o.pen==='J'}];
+      case 'ST': return [{a:'t0', t:'五线＋六线', pen:1}];
+      case 'G':  return [{a:'v0', b:'v1', t:'钢琴大谱表', pen:1}];
+      case 'CG': return [{a:'v0', b:'v1', t:'和弦名＋大谱表', pen:1}];
+      case 'JG': return [{a:'v0', t:'简谱旋律', pen:1}, {a:'v1', b:'v2', t:'钢琴伴奏'}];
+      case 'SG': return [{a:'v0', t:'五线谱旋律', pen:1}, {a:'v1', b:'v2', t:'钢琴伴奏'}];
+      case 'SJG':return [{a:'v0', t:'对照旋律', pen:1}, {a:'v1', b:'v2', t:'钢琴伴奏'}];
+      case 'CJ': return [{a:'v0', t:'简谱＋级数', pen:1}];
+      case 'CS': return [{a:'v0', t:'五线谱＋和弦', pen:1}];
+      case 'C':  return [{a:'v0', t:'和弦格', pen:1}];
     }
     return [];
   }
-  const ROWH = {C:16, X:28, J:22, L:12, S:34, T:40, G:78};
-  /* 谱号字形取自图标集 clef-*（去掉图标里自带的五线），按示意谱表 6 单位线距缩放 */
-  const CLEF = {
-    staff:{s:2, x:-6, y:-14, d:'<path d="M12.6 22.2c.4 1.4-1.6 1.9-2.4.9-.6-.8.1-1.8 1-1.6M11.2 21.5l1.6-16.8c.15-1.6 1-2.6 1.9-2.4 1 .3.6 2.7-.9 4.6-2 2.6-4.4 4.6-4.4 8 0 2.4 1.8 3.9 3.8 3.9 1.9 0 3.1-1.3 3.1-2.9 0-1.6-1.2-2.8-2.8-2.8-1.4 0-2.4 1-2.4 2.3"/>'},
-    bass: {s:24/14, x:0, y:-5*24/14, d:'<path d="M5 8.4c.2-2.2 2.2-3.6 4.8-3.6 3.1 0 5 2 5 5 0 4.4-3.6 7.4-9.4 9.6"/><circle cx="5.9" cy="8.6" r="1.55" fill="#1b1a2e" stroke="none"/><circle cx="18.6" cy="6.9" r="1.05" fill="#1b1a2e" stroke="none"/><circle cx="18.6" cy="10.3" r="1.05" fill="#1b1a2e" stroke="none"/>'},
-    alto: {s:24/14, x:0, y:-5*24/14, d:'<path d="M6.25 4v16"/><path d="M3.6 4h1.4v16H3.6z" fill="#1b1a2e" stroke="none"/><path d="M8.4 4v16M8.4 12c1.4-.6 2.1-1.8 2.4-3.4.3-2 1.6-3.6 3.6-3.6 2.4 0 3.4 1.6 3.4 3.4 0 1.6-1 2.8-2.4 2.8-1 0-1.6-.6-1.6-1.4M8.4 12c1.4.6 2.1 1.8 2.4 3.4.3 2 1.6 3.6 3.6 3.6 2.4 0 3.4-1.6 3.4-3.4 0-1.6-1-2.8-2.4-2.8-1 0-1.6.6-1.6 1.4"/>'},
-  };
-  function clefPath(clef, y0){
-    const c=CLEF[clef]||CLEF.staff;
-    return '<g transform="translate('+(6+c.x)+','+(y0+c.y).toFixed(2)+') scale('+c.s.toFixed(3)+')" fill="none" stroke="#1b1a2e" stroke-width="'+(1.3/c.s).toFixed(2)+'" stroke-linecap="round" stroke-linejoin="round">'+c.d+'</g>';
-  }
-  function rowSvg(r, o, W){
-    const L0=34, mw=(W-L0-4)/4, bars=x=>[0,1,2,3,4].map(i=>L0+i*mw);
-    const nb=Math.max(1, Math.min(8, +o.beats||4));
-    let h=ROWH[r], p='';
-    const line=(x1,y1,x2,y2,w,c)=>'<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+(c||'#3a3950')+'" stroke-width="'+(w||1)+'"/>';
-    const staff=(y0,clef)=>{ let q=''; for(let i=0;i<5;i++) q+=line(L0-26, y0+i*6, W-4, y0+i*6, .9, '#6b6a80');
-      bars().forEach((x,i)=>{ q+=line(i===4? W-4 : x, y0, i===4? W-4 : x, y0+24, i===4? 1.6 : 1); });
-      q+=clefPath(clef, y0);
-      return q; };
-    switch(r){
-      case 'C': [0,1,2,3].forEach(i=>{ p+='<rect x="'+(L0+i*mw+4).toFixed(1)+'" y="3" width="22" height="10" rx="3" fill="#ecebf6" stroke="#c9c7dd" stroke-width=".8"/>'; }); break;
-      case 'X': bars().forEach((x,i)=>{ p+=line(x, 2, x, 26, i===4? 1.6 : 1); });
-        [0,1,2,3].forEach(i=>{ p+='<rect x="'+(L0+i*mw+4).toFixed(1)+'" y="1" width="22" height="9" rx="3" fill="#ecebf6" stroke="#c9c7dd" stroke-width=".8"/>';
-          for(let b=0;b<nb;b++){ const x=L0+i*mw+10+b*(mw-14)/nb; p+=line(x, 23, x+6, 13, 1.6, '#3a3950'); } }); break;
-      case 'J': bars().forEach((x,i)=>{ if(i>0) p+=line(x, 3, x, 19, i===4? 1.6 : 1); });
-        [0,1,2,3].forEach(i=>{ for(let b=0;b<nb;b++){ const x=L0+i*mw+8+(b+.5)*(mw-14)/nb; p+='<circle cx="'+x.toFixed(1)+'" cy="11" r="3.1" fill="none" stroke="#5c5b73" stroke-width="1.2"/>'; } }); break;
-      case 'L': [0,1,2,3].forEach(i=>{ for(let b=0;b<nb;b++){ const x=L0+i*mw+8+(b+.5)*(mw-14)/nb; p+=line(x-4, 8, x+4, 8, 1.2, '#b9b7cc'); } }); break;
-      case 'S': p+=staff(5, o.clef); break;
-      case 'T': { const n=o.inst==='uku'? 4 : 6; for(let i=0;i<n;i++) p+=line(L0-26, 4+i*6.4, W-4, 4+i*6.4, .9, '#6b6a80');
-        bars().forEach((x,i)=>{ p+=line(i===4? W-4 : x, 4, i===4? W-4 : x, 4+(n-1)*6.4, i===4? 1.6 : 1); });
-        ['T','A','B'].forEach((c,i)=>{ p+='<path d="'+({T:'M-3 0h6M0 0v6', A:'M-3 6l3-6l3 6M-1.8 3.6h3.6', B:'M-2.5 0v6h3a1.5 1.5 0 0 0 0-3h-3h2.6a1.5 1.5 0 0 0 0-3z'}[c])+'" transform="translate('+(L0-14)+','+(6+i*9)+')" fill="none" stroke="#1b1a2e" stroke-width="1.2" stroke-linejoin="round"/>'; });
-        break; }
-      case 'G': p+=staff(6, 'staff')+staff(44, 'bass')+line(L0-26, 6, L0-26, 68, 1.4)
-        +'<path d="M'+(L0-29)+' 6c-4 1-3 9-3 14s-1 9-4 11c3 2 4 6 4 11s-1 13 3 14" fill="none" stroke="#1b1a2e" stroke-width="1.6" stroke-linecap="round" transform="translate(-1,3)"/>'; break;
-    }
-    return {h, p};
-  }
-  function schematic(k, o){
-    const W=440, gs=groupsOf(k, o);
-    let y=0, body='', lab='';
-    const marks=[];
-    gs.forEach((g,gi)=>{
-      const y0=y; let inner='';
-      /* 连续两行五线谱（多声部）多留 6：谱号字形比谱表高，行距 6 时上下谱号几乎相碰（验收：四部合唱示意） */
-      g.rows.forEach((r,ri)=>{ const rs=rowSvg(r, o, W); inner+='<g transform="translate(0,'+y.toFixed(1)+')">'+rs.p+'</g>'; y+=rs.h+(r==='L'? 2 : (r==='S' && g.rows[ri+1]==='S')? 12 : 6); });
-      if(g.br){ inner+='<path d="M3 '+(y0+2)+'h4M3 '+(y0+2)+'V'+(y-8)+'h4" fill="none" stroke="#1b1a2e" stroke-width="2"/>'; }
-      body+=inner; marks.push([y0, y-y0-6, g]);
-      y+=gi<gs.length-1? 10 : 0;
-    });
-    const H=Math.max(40, y-4);
-    marks.forEach(([y0,h,g])=>{ lab+='<span class="nf-bl'+(g.pen? ' pen' : '')+'" style="top:'+((y0+h/2)/H*100).toFixed(1)+'%;--h:'+Math.max(6,(h/H*100)).toFixed(1)+'%">'+(g.pen? ic('act-new',14) : '')+'<b>'+esc2(g.t)+'</b>'+(g.pen? '<i>从这行开始写</i>' : '')+'</span>'; });
-    const head='<div class="nf-ph"><b class="'+(st.v.title.trim()? '' : 'ph')+'">'+esc2(st.v.title.trim()||'未命名曲谱')+'</b><span>'+esc2(keyName(o.key, o.mode))+'　'+o.beats+'/'+o.unit+'　'+(o.unit===8? (o.tempoUnit==='dq'? '♩.' : '♪') : '♩')+'='+o.tempo+'</span></div>';
+  function previewFig(k, o){
     /* 界面不用自造词「谱行」（owner 必须修改项）：只说「预览」 */
-    return '<figure class="nf-paper" aria-label="预览：谱面自上而下">'+head
-      +'<div class="nf-pgrid"><svg class="nf-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="预览：谱面自上而下">'+body+'</svg>'
-      +'<div class="nf-bands">'+lab+'</div></div>'
-      +'<figcaption><span>预览（示意）· 建成后是 '+o.nMea+' 个空白小节</span>'+(ACC_NOTE[k]? '<span class="nf-pvnote">'+ACC_NOTE[k]+'</span>' : '')+'</figcaption></figure>';
+    return '<figure class="nf-paper nf-live" id="nf-pv" aria-busy="false">'
+      +'<div class="nf-pgrid" id="nf-pvbox" data-keep="1"></div>'
+      +'<figcaption><span>实时刻版 · 示例旋律《小星星》· 建成后 '+o.nMea+' 个空白小节</span>'+(ACC_NOTE[k]? '<span class="nf-pvnote">'+ACC_NOTE[k]+'</span>' : '')+'</figcaption></figure>';
+  }
+  const PV_WAIT = 90, PV_PAPER = 660, PVC = new Map();
+  let pvTimer = 0, pvLast = null;
+  /* 当前该预览什么：新建＝示例谱（按看得见的选择）；从已有音乐＝读进来的文件按所选做法转换后的前几小节；示例做同款＝所选示例首行。
+     rkey＝刻版缓存键（谱面相同就不重排，如只换「从哪写起」）；key＝显示键（rkey＋行标）。 */
+  function pvWant(){
+    if(!st) return null;
+    if(st.tab==='new'){
+      const k=stackOfState(st); if(!own(NWB.STACKS, k)) return null;
+      let mk=''; try{ mk=(typeof profileLoad==='function' && profileLoad().maker)||''; }catch(_){}   /* 页头「制谱：」同真实建谱 */
+      const o=Object.assign({}, optsOf(st), {scene:st.scene, maker:mk}), kind=kindOfState(st), bands=bandDefs(k, o);
+      const ro=Object.assign({}, o); delete ro.pen; delete ro.nMea;   /* 「从哪写起」只改行标、小节数只改说明：谱面不变 */
+      const rkey='n|'+k+'|'+JSON.stringify(ro);
+      return {rkey, key:rkey+'|'+bands.map(b=>b.t+(b.pen? '*' : '')).join(','), spec:{k, o}, bands, label:'预览：'+kind.name+'首行（示例旋律《小星星》，建成后是空白小节）'};
+    }
+    if(st.mob) return null;
+    const I=st.imp;
+    if((I.src==='file'||I.src==='ai') && I.a){
+      const t=impTarget(), rkey='i|'+I.a.id+'|'+t;
+      return {rkey, key:rkey, spec:{song:()=>impPreviewSong(I.a, t)}, bands:[], label:'预览：《'+I.a.song.title+'》前几小节按「'+I.a.kinds[t]+'」刻版'};
+    }
+    if(I.src==='ex'){ const i=exSel(), rkey='e|'+i; return {rkey, key:rkey, spec:{song:()=>exPreviewSong(i)}, bands:[], label:'预览：示例《'+PRESETS[i].name+'》首行'}; }
+    return null;
+  }
+  function pvSync(now){
+    if(!live()) return;
+    const box=modal.querySelector('#nf-pvbox'); if(!box) return;
+    const w=pvWant(), fig=box.closest('.nf-paper');
+    if(!w || box._pvKey===w.key){
+      clearTimeout(pvTimer); pvTimer=0;
+      if(fig){ fig.classList.remove('pv-wait'); fig.setAttribute('aria-busy','false'); }
+      if(!w && box._pvKey){ box.innerHTML=''; box._pvKey=''; }
+      return;
+    }
+    clearTimeout(pvTimer); pvTimer=0;
+    if(now || !box.firstChild || PVC.has(w.rkey)){ pvPaint(box, w); return; }
+    if(fig){ fig.classList.add('pv-wait'); fig.setAttribute('aria-busy','true'); }
+    pvTimer=setTimeout(()=>{ pvTimer=0; if(!live()) return; const b=modal.querySelector('#nf-pvbox'); if(b) pvPaint(b, pvWant()); }, PV_WAIT);
+  }
+  const pvStats=[];   /* 每次换预览：{ms 引擎刻版（缓存命中＝0）, paint 整次换图耗时（含建示例谱、刻版、挂 DOM）, hit 缓存命中} —— tv_newpanel T35 读它报中位 / P95 */
+  function pvPaint(box, w){
+    clearTimeout(pvTimer); pvTimer=0;
+    const T0=performance.now(); let eng=0, hit=true;
+    const fig=box.closest('.nf-paper'); if(fig){ fig.classList.remove('pv-wait'); fig.setAttribute('aria-busy','false'); }
+    if(!w){ box.innerHTML=''; box._pvKey=''; return; }
+    if(box._pvKey===w.key) return;
+    let c=PVC.get(w.rkey);
+    if(!c){
+      const svg=document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'nf-svg');
+      let r=null, err='';
+      try{
+        const spec = w.spec.song? {song: typeof w.spec.song==='function'? w.spec.song() : w.spec.song} : w.spec;
+        r = NWPV.renderInto(svg, spec, {paperW:PV_PAPER});
+      }catch(e){ err=String(e && e.message || e); console.warn('预览生成失败', e); }
+      hit=false; eng=r? r.ms : 0;
+      if(!r){ box.innerHTML='<p class="nf-pverr">预览暂不可用'+(err? '：'+esc2(err) : '')+'</p>'; box._pvKey=w.key; box.classList.add('nb'); return; }
+      const boxes={}; Object.keys(r.boxes||{}).forEach(k2=>{ if(/:0:0$/.test(k2)) boxes[k2]=r.boxes[k2]; });
+      c={node:svg, boxes, vbH:r.vbH, vbW:r.vbW, ms:r.ms};   /* 缓存刻好的 svg 节点本身（再用时克隆，不走字符串序列化 / 重解析） */
+      if(PVC.size>=32) PVC.delete(PVC.keys().next().value);
+      PVC.set(w.rkey, c);
+    }
+    const bands=(w.bands||[]).map(b=>{ const p=NWPV.bandPos(c, b.a, b.b); return p? Object.assign({}, b, p) : null; }).filter(Boolean).sort((x,y)=>x.top-y.top);
+    const sv=c.node.parentNode? c.node.cloneNode(true) : c.node;
+    /* 无障碍：整张预览是一幅图（role=img），读屏读一句话描述谱面自上而下有哪几种谱、从哪行开始写；右侧行标只是视觉重复，aria-hidden */
+    if(sv){ sv.setAttribute('role', 'img'); sv.setAttribute('aria-label', w.label+(bands.length? '。自上而下：'+bands.map(b=>b.t+(b.pen? '（从这行开始写）' : '')).join('、') : '')); }
+    box.innerHTML='';
+    if(sv) box.appendChild(sv);
+    if(bands.length) box.insertAdjacentHTML('beforeend', '<div class="nf-bands" aria-hidden="true">'+bands.map(b=>'<span class="nf-bl'+(b.pen? ' pen' : '')+'" style="top:'+b.top.toFixed(2)+'%;--h:'+Math.max(4, b.h).toFixed(2)+'%">'+(b.pen? ic('act-new',14) : '')+'<b>'+esc2(b.t)+'</b>'+(b.pen? '<i>从这行开始写</i>' : '')+'</span>').join('')+'</div>');
+    box._pvKey=w.key; box.classList.toggle('nb', !bands.length);
+    pvLast={key:w.key, rkey:w.rkey, bands:bands.map(b=>({t:b.t, pen:!!b.pen, top:b.top, h:b.h, y0:b.y0, y1:b.y1})), ms:c.ms, vbH:c.vbH, vbW:c.vbW, boxes:c.boxes};
+    pvStats.push({ms:eng, paint:performance.now()-T0, hit}); if(pvStats.length>500) pvStats.splice(0, pvStats.length-500);
   }
   /* 「更多设置」摘要写实际值：标准定弦 / Drop D · 夹 3 品（只在有六线谱 / 四线谱时） */
   function gearText(k, o){
@@ -22696,13 +23141,106 @@ var NWP = (function(){
     return h;
   }
 
-  /* ---- 从已有音乐（本版保留现有导入能力：MusicXML / Guitar Pro / MIDI .mid → 现有 showMidiImport；依据＋做成哪种谱留给 v67.5） ---- */
+  /* ---- 从已有音乐（v67.5 完整版，README §3）：左栏来源 6 项；MusicXML 用编辑器真解析器（importMusicXML / importMXLBuffer + mxlKeyPost）读进临时谱，
+     依据逐条写（调 / 拍号速度「按文件」、声部与歌词「按内容」、没写调号「按音符内容推断」、<encoding><software> 是转谱软件＝AI 转谱结果，默认推荐教学对照谱）；
+     「做成哪种谱」6 选 1，预览按所选现场刻版；导入＝按所选在新窗口打开（原谱保留）。
+     Guitar Pro / MIDI 读到后转交现有选轨对话框（showGPTrackModal / showMidiImport，拍板 2：面板里不重做选轨与量化）；谱友圈文件在新窗口打开；
+     录音 / 图片说明暂不支持，引导「用 AI 转谱工具导出 MusicXML 再拖进来」。手机（拍板 1，看谱为主）保留 v67.4 的三格式直接导入页。 */
+  const ISRC = [
+    ['file','act-import','打开或导入文件','MusicXML · Guitar Pro · MIDI · 谱友圈文件'],
+    ['ai','src-ai','整理 AI 转谱结果','AI 工具导出的 MusicXML：定调、配和弦、转教学用谱'],
+    ['ex','src-example','示例做同款','16 份示例，沿用格式、内容留空'],
+    ['recent','src-recent','接着做',''],
+    ['audio','src-audio','录音转谱','暂停中'],
+    ['image','src-image','图片识谱','规划中']];
+  const TARGETS = [['orig','按原文件','src-mxl'], ['J','转成简谱','nota-jianpu'], ['SJ','五线＋简谱对照','nota-dual'],
+    ['acc','配钢琴伴奏','nota-texture'], ['JT','生成吉他弹唱','type-guitar'], ['CJ','标级数和弦','nota-degree']];
+  const IMP_ACCEPT = '.musicxml,.xml,.mxl,.gp,.gpx,.gp3,.gp4,.gp5,.mid,.midi,.json,.mtab';
+  const FMT_TIP = 'MusicXML（.musicxml / .xml / .mxl）· Guitar Pro（.gp / .gpx / .gp3–.gp5）· MIDI（.mid）· 谱友圈文件（.mtab.json）';
+  /* 转谱软件名（<encoding><software>）：AI 转谱 / 扒谱工具 */
+  const AI_SW = /transcri|\bAI\b|klangio|anthem ?score|score ?cloud|piano2notes|songscription|basic[ -]?pitch|melodyne|ripx|音乐转谱|转谱|扒谱/i;
+  const impTarget = ()=> (st.imp.a && (st.imp.target || st.imp.a.recommend)) || 'orig';
+  /* 1100 宽以下（右栏收到下方）：导入页的「做成哪种谱」改放中栏依据之后；跨过这个宽度时重画 */
+  const NARROW_Q = '(max-width:1100px)';
+  const narrowImp = ()=>{ try{ return matchMedia(NARROW_Q).matches; }catch(_){ return false; } };
+  try{ matchMedia(NARROW_Q).addEventListener('change', ()=>{ if(live() && st.tab==='import' && !st.mob) draw(); }); }catch(_){}
+  const exSel = ()=> (st.imp.ex==null? 13 : Math.max(0, Math.min(PRESETS.length-1, st.imp.ex|0)));
+  const clone = o=>JSON.parse(JSON.stringify(o));
   function deskImport(){
+    if(st.mob) return mobImport();
+    const I=st.imp, rc=I.rcList || (I.rcList=recentList());   /* 面板开着时「自己的谱」不会变：每次打开算一次 */
+    const left='<aside class="nf-left" data-scroll="ileft"><div class="nf-lh" id="nf-ilh">从哪里开始</div>'
+      +'<div role="listbox" aria-labelledby="nf-ilh" class="nf-list" id="nf-isrc">'+ISRC.map(([s2,i,n,d])=>{
+        const nrc=rc.total||rc.length, dd = s2==='recent'? (rc.length? '《'+rc[0].title+'》'+(nrc>1? ' 等 '+nrc+' 份' : '') : '还没有自己的谱') : d, on=I.src===s2, off=s2==='audio'||s2==='image';
+        return '<div class="nf-sc nf-src'+(off? ' off' : '')+'" role="option" id="nf-isrc-'+s2+'" data-isrc="'+s2+'" aria-selected="'+on+'" tabindex="'+(on? 0 : -1)+'">'+ic(i,24)+'<span><b>'+n+'</b><small>'+esc2(dd)+'</small></span></div>'; }).join('')+'</div>'
+      +'<p class="nf-drop-tip">'+ic('act-info',16)+'<span>文件拖到编辑器窗口任意处，也会打开这里。</span></p></aside>';
+    let mid='', right='', go='';
+    const err = I.err? '<p class="nf-imperr" role="alert">'+ic('act-info',18)+'<span>'+esc2(I.err)+'</span></p>' : '';
+    if((I.src==='file'||I.src==='ai') && !I.a){
+      const ai=I.src==='ai';
+      /* 整块拖放区都能点开选择框（同参考实现；按钮仍是键盘停点），下方「试一试」读内置示例文件 */
+      mid='<section class="nf-mid nf-dropwrap" data-scroll="mid">'+err+'<div class="nf-drop" data-act="pick">'+ic(ai? 'src-ai' : 'act-import',40)
+        +'<b>'+(ai? '把 AI 转谱导出的 MusicXML 拖到这里' : '把文件拖到这里')+'</b><span>或</span>'
+        +'<button type="button" class="nf-go2" id="nw-import" data-act="pick">'+ic('act-open',18)+'选择文件…</button>'
+        +'<p>'+(ai? 'AI 转谱工具里选「导出 MusicXML（.musicxml / .mxl）」。读进来后先看依据（调、拍号、速度、声部、歌词），再选做成哪种谱：转简谱、五线＋简谱对照、配钢琴伴奏……音频请先在转谱工具里转成 MusicXML。'
+          : FMT_TIP+'。MusicXML 读进来先看依据、选做成哪种谱；Guitar Pro 先选音轨，MIDI 先选轨与量化。')+'</p></div>'
+        +'<button type="button" class="nf-link" data-act="demo" id="nf-demo">'+ic('src-example',16)+'试一试：用示例文件《送别（AI 转谱）》</button></section>';
+      right='<aside class="nf-right" data-scroll="right"><div class="nf-f"><span class="nw-lab">读进来以后</span><ul class="nf-steps">'
+        +'<li>'+ic('act-check',16)+'<span>先看依据：调、拍号、速度、声部、歌词从哪来</span></li>'
+        +'<li>'+ic('act-check',16)+'<span>选「做成哪种谱」，预览立刻换成那种谱</span></li>'
+        +'<li>'+ic('act-check',16)+'<span>导入到新窗口，当前谱原样保留</span></li></ul></div></aside>';
+      go='<button type="button" class="nf-go" id="nf-impgo" data-act="import-go" aria-disabled="true" title="先选择或拖入一个文件">'+ic('act-import',20)+'<span class="nf-gol">导入</span></button>';
+    }else if(I.src==='file'||I.src==='ai'){
+      const a=I.a, cur=impTarget(), nar=narrowImp();
+      const tgBlock='<div class="nf-f nf-tgw"><span class="nw-lab" id="nf-tgl">做成哪种谱</span>'
+        +'<div class="nf-tg" role="radiogroup" aria-labelledby="nf-tgl">'+TARGETS.map(([t,n,i])=>{ const on=cur===t, dis=a.dis[t];
+          return '<button type="button" role="radio" data-act="tg" data-v="'+t+'" id="nf-tg-'+t+'" aria-checked="'+on+'" tabindex="'+(on? 0 : -1)+'"'+(dis? ' aria-disabled="true" title="'+esc2(dis)+'"' : '')+'>'
+            +ic(t==='orig'? NWB.kindOf(a.stack, NWB.ctxOf(a.song)).ic : i,20)+'<span><b>'+n+'</b><small>'+esc2(dis || tgNote(a, t))+'</small></span>'+(t===a.recommend? '<em class="nf-tag">推荐</em>' : '')+'</button>'; }).join('')+'</div></div>';
+      /* 1100 宽以下右栏收到预览下方：「做成哪种谱」（README §3 的 6 选 1）改放在依据与预览之间，首屏就看得到（验收：1024×700 下 6 个做法全在首屏以下） */
+      mid='<section class="nf-mid" data-scroll="mid">'+err+'<div class="nf-file">'+ic(a.ai? 'src-ai' : 'src-mxl',28)+'<div><b>'+esc2(a.name)+'</b><span>'+esc2(a.fmt+' · '+a.measures+' 小节 · '+a.partsText+' · '+(a.hasLyrics? '有歌词' : '无歌词'))+'</span></div>'
+        +'<button type="button" class="nf-link" data-act="unload" id="nf-unload">换一个文件</button></div>'
+        +'<div class="nf-basis wide" id="nf-ibasis"><b>依据</b>'+a.basis.map(([c,t,w])=>'<p><span class="nf-chips"><i class="c-'+c+'">'+esc2(t)+'</i></span><em>'+esc2(w)+'</em></p>').join('')+'</div>'
+        +(nar? tgBlock : '')
+        +'<figure class="nf-paper nf-live" id="nf-pv" aria-busy="false"><div class="nf-pgrid nb" id="nf-pvbox" data-keep="1"></div>'
+        +'<figcaption><span>预览：按「'+esc2(a.kinds[cur])+'」实时刻版（导入后的首行）</span>'+(a.note[cur]? '<span class="nf-pvnote">'+esc2(a.note[cur])+'</span>' : '')+'</figcaption></figure></section>';
+      right='<aside class="nf-right" data-scroll="right">'+(nar? '' : tgBlock)
+        +'<p class="nf-fixed nf-ftall">'+ic('act-swap',16)+'<span>简谱 · 五线谱 · 对照建好后也能随时互切，音符不动。</span></p></aside>';
+      go='<button type="button" class="nf-go" data-act="import-go" id="nf-impgo">'+ic('act-import',20)+'<span class="nf-gol">导入为 <span id="nf-impkind">'+esc2(a.kinds[cur])+'</span></span><kbd>↵</kbd></button>';
+    }else if(I.src==='ex'){
+      const sel=exSel(), p=PRESETS[sel];
+      mid='<section class="nf-mid" data-scroll="mid"><div class="nf-exgrid" role="listbox" aria-label="示例" id="nf-exl" data-grid="1">'+PRESETS.map((x,i)=>'<div class="nf-ex" role="option" id="nf-ex-'+i+'" data-ex="'+i+'" aria-selected="'+(i===sel)+'" tabindex="'+(i===sel? 0 : -1)+'">'+ic(exIcon(i),20)+'<span>'+esc2(x.name)+'</span></div>').join('')+'</div>'
+        +'<figure class="nf-paper nf-live sm" id="nf-pv" aria-busy="false"><div class="nf-pgrid nb" id="nf-pvbox" data-keep="1"></div><figcaption><span>示例《'+esc2(p.name)+'》首行</span></figcaption></figure></section>';
+      right='<aside class="nf-right" data-scroll="right"><div class="nf-f"><span class="nw-lab">做同款</span><p class="nf-fixed nf-ftall">沿用《'+esc2(p.name)+'》的谱类、各行谱、调、拍号、反复与版式；音符、歌词、和弦与词曲署名留空。</p></div>'
+        +'<div class="nf-f"><label class="nw-lab" for="nf-extitle">曲名</label><input id="nf-extitle" type="text" autocomplete="off" maxlength="80" placeholder="'+esc2(String(p.name).replace(/（.*$/,''))+'（同款）"></div>'
+        +'<button type="button" class="nf-link" data-act="ex-open" id="nf-exopen">只看示例：在新窗口打开《'+esc2(p.name)+'》</button></aside>';
+      go='<button type="button" class="nf-go" data-act="ex-go" id="nf-exgo">'+ic('src-example',20)+'<span class="nf-gol">按此格式新建</span><kbd>↵</kbd></button>';
+    }else if(I.src==='recent'){
+      const rs=Math.max(0, Math.min(rc.length-1, I.rc|0));
+      mid='<section class="nf-mid'+(rc.length? '' : ' nf-dropwrap')+'" data-scroll="mid">'+(rc.length
+        ? '<div class="nf-rcl" role="listbox" aria-label="接着做" id="nf-rcl">'+rc.map((x,i)=>'<div class="nf-rc" role="option" id="nf-rc-'+i+'" data-rc="'+i+'" aria-selected="'+(i===rs)+'" tabindex="'+(i===rs? 0 : -1)+'">'+ic(x.kind.ic,24)+'<span><b>'+esc2(x.title)+'</b><small>'+esc2(x.kind.name+' · '+x.where)+'</small></span></div>').join('')+'</div>'
+        : '<div class="nf-drop off">'+ic('src-recent',40)+'<b>还没有自己的谱</b><p>「接着做」只列你自己保存过或编辑过的谱，不含示例谱和没动过的空谱。建一份新谱后，这里就会出现。</p></div>')+'</section>';
+      right='<aside class="nf-right" data-scroll="right"><p class="nf-fixed nf-ftall">'+ic('act-info',16)+'<span>打开中的窗口直接切过去；「我的曲谱」里的在新窗口打开，当前谱保留。</span></p></aside>';
+      go= rc.length? '<button type="button" class="nf-go" data-act="recent-go" id="nf-rcgo">'+ic('src-recent',20)+'<span class="nf-gol">接着做《'+esc2(rc[rs].title)+'》</span><kbd>↵</kbd></button>'
+        : '<button type="button" class="nf-go" data-act="tab" data-v="new" id="nf-rcnew">'+ic('act-new',20)+'<span class="nf-gol">去新建</span></button>';
+    }else{
+      const au=I.src==='audio';
+      mid='<section class="nf-mid nf-dropwrap" data-scroll="mid">'+err+'<div class="nf-drop off">'+ic(au? 'src-audio' : 'src-image',40)
+        +'<b>'+(au? '录音转谱暂停中' : '图片识谱在规划中')+'</b>'
+        +'<p>'+(au? '暂时不能直接把录音转成谱。先用 AI 转谱工具把录音转成 MusicXML，再拖进来（或从「整理 AI 转谱结果」选文件）：定调、配和弦、转教学对照谱都在这里一次完成。'
+          : '纸质谱、截图、PDF 暂时不能直接识别。先用 AI 转谱 / 识谱工具导出 MusicXML，再拖进来（或从「打开或导入文件」选文件）。')+'</p>'
+        +'<button type="button" class="nf-go2" data-act="isrc" data-v="'+(au? 'ai' : 'file')+'" id="nf-isrcgo">'+ic(au? 'src-ai' : 'act-import',18)+(au? '去「整理 AI 转谱结果」' : '去「打开或导入文件」')+'</button></div></section>';
+      right='<aside class="nf-right" data-scroll="right"></aside>';
+      go='<button type="button" class="nf-go" id="nf-impgo" data-act="import-go" aria-disabled="true" title="先选择或拖入一个文件">'+ic('act-import',20)+'<span class="nf-gol">导入</span></button>';
+    }
+    return '<div class="nf-body nf-imp2" role="tabpanel" id="nf-tabpanel" aria-labelledby="nf-tab-import">'+left+mid+right+'</div>'
+      +'<footer class="nf-ft"><p class="nf-keys"><kbd>↑↓</kbd> 选来源 <kbd>Enter</kbd> '+(I.src==='ex'? '新建' : I.src==='recent'? '打开' : '导入')+' <kbd>Esc</kbd> 关闭</p><span class="nf-where">新窗口打开 · 当前谱保留</span>'+go+'</footer>';
+  }
+  /* 手机（拍板 1：看谱为主）：v67.4 的三格式导入页，MusicXML 读进来按原文件直接打开 */
+  function mobImport(){
     const card=(id, i, n, d)=>'<button type="button" id="'+id+'" class="nwi nf-ic">'+ic(i,28)+'<span class="nwi-tx"><b>'+n+'</b><span>'+d+'</span></span>'+ic('act-step',18)+'</button>';
     return '<div class="nf-body nf-impb" role="tabpanel" id="nf-tabpanel" aria-labelledby="nf-tab-import"><section class="nf-impw" data-scroll="imp">'
-      /* 第二轮验收补：手机界面看不到页签，不说「新窗口」 */
-      +(st.mob? '<p class="nf-imph">把已有的谱打开来看：导入后直接打开，可以看谱、播放、移调。</p>'
-        : '<p class="nf-imph">把已有的谱读进编辑器：导入后在<b>新窗口</b>打开，当前谱原样保留。</p>')
+      +(st.imp.err? '<p class="nf-imperr" role="alert">'+ic('act-info',18)+'<span>'+esc2(st.imp.err)+'</span></p>' : '')
+      +'<p class="nf-imph">把已有的谱打开来看：导入后直接打开，可以看谱、播放、移调。</p>'
       +'<div class="nw-imp nf-impc">'
       + card('nw-import', 'src-mxl', 'MusicXML', '.musicxml · .xml · .mxl ── MuseScore / AI 转谱导出直接进编辑器')
       + card('nw-gp', 'src-gp', 'Guitar Pro', '.gp · .gpx · .gp3–.gp5 全版本，先选音轨')
@@ -22710,45 +23248,281 @@ var NWP = (function(){
       +'</div>'
       +'<p class="nf-imptip">'+ic('act-info',16)+'<span>录音、图片暂不能直接识别：先用 AI 转谱 / 识谱工具导出 MusicXML，再从这里导入。打开自己的谱友圈文件（.mtab.json）请用顶栏「打开」。</span></p>'
       +'</section></div>'
-      +'<footer class="nf-ft"><p class="nf-keys"><kbd>Tab</kbd> 选格式 <kbd>Enter</kbd> 选文件 <kbd>Esc</kbd> 关</p><span class="nf-where">'+(st.mob? '导入后直接打开' : '新窗口打开 · 当前谱保留')+'</span>'
-      +(st.mob? '<button type="button" class="nf-go2" data-act="mback">'+ic('act-back',18)+'返回</button>'
-        : '<button type="button" class="nf-go2" data-act="tab" data-v="new">'+ic('act-back',18)+'回到按用途新建</button>')+'</footer>';
+      +'<footer class="nf-ft"><p class="nf-keys"><kbd>Tab</kbd> 选格式 <kbd>Enter</kbd> 选文件 <kbd>Esc</kbd> 关</p><span class="nf-where">导入后直接打开</span>'
+      +'<button type="button" class="nf-go2" data-act="mback">'+ic('act-back',18)+'返回</button></footer>';
   }
+  /* 文件入口：#nw-anyfile（「选择文件…」与拖放共用，按扩展名分流）；#nw-mxlfile / #nw-gpfile / #nw-midifile 沿用 v67.4 的 id（手机三格式卡、老入口与回归脚本） */
   function bindFiles(){
     const $=id=>modal.querySelector('#'+id);
-    $('nw-gpfile').onchange = e=>{
-      const file=e.target.files[0]; if(!file) return;
-      const rd=new FileReader();
-      rd.onload=()=>{ const r=parseGP(rd.result); if(r.error){ toast('导入失败：'+r.error); return; } showGPTrackModal(r.gp); };
-      rd.readAsArrayBuffer(file);
+    const on=(id, ai)=>{ const el=$(id); if(el) el.onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) readFile(f, {ai}); }; };
+    on('nw-anyfile'); on('nw-mxlfile'); on('nw-gpfile'); on('nw-midifile');
+  }
+  function fileKind(name, type){
+    const n=String(name||'').toLowerCase(), ty=String(type||'').toLowerCase();
+    if(/\.mxl$/.test(n)) return 'mxlz';
+    if(/\.(musicxml|xml)$/.test(n)) return 'mxl';
+    if(/\.(gp|gpx|gp3|gp4|gp5)$/.test(n)) return 'gp';
+    if(/\.(mid|midi|kar)$/.test(n)) return 'midi';
+    if(/\.(json|mtab)$/.test(n)) return 'mtab';
+    if(/\.(mp3|wav|m4a|aac|ogg|oga|flac|wma|opus|amr|aiff?|caf)$/.test(n) || /^audio\//.test(ty)) return 'audio';
+    if(/\.(png|jpe?g|gif|bmp|webp|heic|heif|tiff?|pdf)$/.test(n) || /^image\//.test(ty) || ty==='application/pdf') return 'image';
+    if(/^video\//.test(ty) || /\.(mp4|mov|webm|mkv|avi)$/.test(n)) return 'audio';
+    return 'other';
+  }
+  /* 「试一试」示例文件：AI 转谱工具导出的《送别》前 8 小节（李叔同词、J. P. Ordway 曲，公有领域；MusicXML 3.1，<software> 写转谱软件名，4/4 ♩=66，带歌词）。
+     与测试夹具 tests/fixtures/songbie_ai.js 同一份旋律；手里没有 AI 转谱文件的老师也能走一遍「依据 → 做成哪种谱 → 导入」 */
+  function demoFile(){
+    const MEL='G4:2:长 E4:1:亭 G4:1 C5:4:外|A4:2:古 C5:2:道 G4:4:边|G4:2:芳 C4:1:草 D4:1 E4:2:碧 D4:1:连 C4:1|D4:6:天 R:2|G4:2:晚 E4:1:风 G4:1 C5:3:拂 B4:1:柳|A4:2:笛 C5:2:声 G4:4:残|G4:2:夕 D4:1:阳 E4:1 F4:3:山 B3:1:外|C4:6:山 R:2';
+    const TY={1:'eighth', 2:'quarter', 3:'quarter', 4:'half', 6:'half', 8:'whole'}, rows=MEL.split('|'), BPM=66;
+    const ms=rows.map((m,mi)=>'<measure number="'+(mi+1)+'">'+(mi? '' : '<attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>'
+        +'<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>'+BPM+'</per-minute></metronome></direction-type><sound tempo="'+BPM+'"/></direction>')
+      +m.split(' ').map(n=>{ const [p,d,ly]=n.split(':');
+        return '<note>'+(p==='R'? '<rest/>' : '<pitch><step>'+p[0]+'</step><octave>'+p[1]+'</octave></pitch>')+'<duration>'+d+'</duration><voice>1</voice><type>'+TY[d]+'</type>'+(d==='3'||d==='6'? '<dot/>' : '')
+          +(ly? '<lyric number="1"><syllabic>single</syllabic><text>'+ly+'</text></lyric>' : '')+'</note>'; }).join('')
+      +(mi===rows.length-1? '<barline location="right"><bar-style>light-heavy</bar-style></barline>' : '')+'</measure>').join('');
+    const xml='<?xml version="1.0" encoding="UTF-8"?>\n<score-partwise version="3.1"><work><work-title>送别（AI 转谱）</work-title></work>'
+      +'<identification><creator type="composer">J. P. Ordway</creator><encoding><software>AI Music Transcriber 2.1</software></encoding></identification>'
+      +'<part-list><score-part id="P1"><part-name>Voice</part-name></score-part></part-list><part id="P1">'+ms+'</part></score-partwise>';
+    return new File([xml], '送别（AI 转谱）.musicxml', {type:'application/xml'});
+  }
+  function impErr(msg){ if(!live()) { toast(msg); return; } st.imp.err=msg; draw(); announce(msg); }
+  /* 读失败（解析不了 / 格式不支持）一律同一口径：放下上一个已读的文件，回到拖放区，报错点名是哪个文件
+     （验收：MusicXML / GP / MIDI 解析失败时此前不点名、旧文件仍是导入对象，回车导入的是旧文件；音频 / 图片 / 其他格式却会放下——两种口径） */
+  function impFail(src, msg){ st.imp.a=null; st.imp.target=null; if(src) st.imp.src=src; else if(st.imp.src!=='ai') st.imp.src='file'; impErr(msg); }
+  /* 谱友圈文件（.mtab.json）：新窗口打开，同顶栏「打开」（loadSong）口径保留入库 id、补记谱风格 tabNota——此前一律删 id，存入我的曲谱时多出一份同名谱。
+     只有这份谱（同 id）已在别的窗口开着时才去掉 id 另作一份（两个窗口同 id 会互相覆盖同一条「我的曲谱」） */
+  function openMtab(s0, fname){
+    const s=migrate(sanitizeUntrusted(s0));
+    const at = s.id? docs.findIndex((d,i)=>{ const x=i===curDocI? song : d.song; return !!x && x.id===s.id; }) : -1;
+    if(at>=0) delete s.id;
+    if((s.tabVoices||[]).length && s.tabNota!=='x' && s.tabNota!=='num') s.tabNota = tabNotation==='x'? 'x' : 'num';
+    close();
+    addDoc(s, ()=>{ setRibbon(defaultLayer()); toast('已在新窗口打开《'+(s.title||fname)+'》，当前谱保留'+(at>=0? '；这份谱已在另一个窗口开着，这里是一份副本，存入我的曲谱时另存' : '')); landed('mtab', null); });
+  }
+  /* 读文件（选择 / 拖放 / 老入口共用）。opt：{ai 来源选了「整理 AI 转谱结果」, many 一次拖了几个} */
+  function readFile(file, opt){
+    opt=opt||{};
+    if(!live()) return;
+    const kind=fileKind(file.name, file.type), nm='「'+file.name+'」';
+    st.imp.err='';
+    if(kind==='audio'){ impFail('audio', nm+'是音频文件：录音转谱暂停中，先用 AI 转谱工具转成 MusicXML 再拖进来。'); return; }
+    if(kind==='image'){ impFail('image', nm+'是图片 / PDF：图片识谱在规划中，先用 AI 转谱 / 识谱工具导出 MusicXML 再拖进来。'); return; }
+    if(kind==='other'){ impFail('', nm+'不是能读的曲谱文件。可以导入：'+FMT_TIP+'。'); return; }
+    const rd=new FileReader();
+    rd.onerror=()=>impFail('', '读取'+nm+'失败');
+    rd.onload=()=>{
+      if(!live()) return;
+      const buf=rd.result, u8=new Uint8Array(buf);
+      if(kind==='gp'){ const r=parseGP(buf); if(r.error){ impFail('', nm+'导入失败：'+r.error); return; } close(); showGPTrackModal(r.gp); return; }
+      if(kind==='midi'){ const smf=parseSMF(u8); if(smf.error){ impFail('', nm+'导入失败：'+smf.error); return; } close(); showMidiImport(smf); return; }   /* 拍板 2：只收入口，选轨与量化仍在现有 MIDI 对话框 */
+      if(kind==='mtab'){
+        let s=null; try{ s=JSON.parse(decodeXmlBytes(u8)); if(!s || !Array.isArray(s.measures)) s=null; }catch(_){ s=null; }
+        if(!s){ impFail('', nm+'不是谱友圈曲谱文件（.mtab.json）'); return; }
+        openMtab(s, file.name);
+        return;
+      }
+      const r = kind==='mxlz'? importMXLBuffer(buf) : importMusicXML(decodeXmlBytes(u8));
+      if(!r || r.error){ impFail('', nm+'导入失败：'+((r && r.error) || '无法读取')); return; }
+      try{ mxlKeyPost(r); }catch(err){ console.warn('调识别失败', err); }   /* v67.0 无 fifths 按内容检测；有 fifths 以文件为准 */
+      const a=analyze(file.name, r, opt.ai || st.imp.src==='ai', kind==='mxlz');
+      if(opt.many>1) st.imp.err='一次读一个文件：已读第一个'+nm+'。';
+      if(st.mob){ st.imp.a=a; st.imp.target='orig'; importGo(); return; }   /* 手机：按原文件直接打开（看谱为主） */
+      st.tab='import'; st.imp.src=a.ai? 'ai' : 'file'; st.imp.a=a; st.imp.target=null;
+      draw(); pvSync(true);
+      const f=modal.querySelector('#nf-impgo'); if(f) f.focus({preventScroll:true});
+      announce('已读入'+nm+'：'+a.basis.map(b=>b[1]+' '+b[2]).join('；')+'。推荐做成'+a.kinds[a.recommend]);
     };
-    $('nw-midifile').onchange = e=>{
-      const file=e.target.files[0]; if(!file) return; e.target.value='';
-      const rd=new FileReader();
-      rd.onload=()=>{ const smf=parseSMF(new Uint8Array(rd.result)); if(smf.error) return toast('导入失败：'+smf.error); showMidiImport(smf); };   /* 拍板 2：只收入口，选轨与量化仍在现有 MIDI 对话框 */
-      rd.readAsArrayBuffer(file);
-    };
-    $('nw-mxlfile').onchange = e=>{
-      const file=e.target.files[0]; if(!file) return;
-      const done=r=>{
-        if(r.error){ toast('导入失败：'+r.error); return; }
-        try{ mxlKeyPost(r); }catch(err){ console.warn('调识别失败', err); }   /* v67.0 无 fifths 按内容检测；有 fifths 以文件为准 */
-        close();
-        addDoc(r.song, ()=>{
-          setRibbon('vox');
-          pyqImportDone('mxl');
-          const hk=keyLabel(headKeyOf(r.song));
-          toast('已导入《'+(r.song.title||'曲谱')+'》'+r.song.measures.length+' 小节'
-            +skipText(r.skip)
-            +(r.keyDet? '；文件未写调号，按内容检测为 1='+hk+'（'+keyModeLabel(r.keyDet)+'）'
-              : r.keyDefaulted? '；未读到调号已按 1=C' : '；调号按文件 1='+hk+(r.song.mode==='minor'? '（小调，记作关系大调）' : ''))
-            +'，点页头 1=X 可改记谱调（音不变）'+(r.warn? '；'+r.warn : ''));
-        });
-      };
-      const rd=new FileReader();
-      if(/\.mxl$/i.test(file.name)){ rd.onload=()=>done(importMXLBuffer(rd.result)); rd.readAsArrayBuffer(file); }
-      else { rd.onload=()=>done(importMusicXML(decodeXmlBytes(new Uint8Array(rd.result)))); rd.readAsArrayBuffer(file); }
-    };
+    rd.readAsArrayBuffer(file);
+  }
+  let impSeq=0;
+  const hasLy = s=>(s.measures||[]).some(m=>(m.voxes||[]).some(cs=>(cs||[]).some(c=>c && c.lyrics && c.lyrics.some(x=>String(x||'').trim()))));
+  /* 读进来的文件 → 依据＋各做法（产物 cvOf 按需转一次并缓存：预览、按钮上的谱名、导入的结果是同一份） */
+  function analyze(name, r, aiPick, zip){
+    const s=r.song, nv=(s.voxVoices||[]).length, tabs=(s.tabVoices||[]).length, ly=hasLy(s);
+    const melody = nv===1 && !tabs, staff = isStaffNota((s.voxNotations||[])[0]);
+    const stack=NWB.stackOf(s), pianoOnly=stack==='G', pianoAcc=isPianoAccStack(s);
+    const sw=String(r.software||'').trim(), swAI=!!sw && AI_SW.test(sw), ai=!!(aiPick || swAI);
+    const kname=keyName(s.key, s.mode);
+    /* 声部说法：钢琴一个 part 两行谱表不算「2 声部」（验收：钢琴大谱表文件依据写成 2 声部） */
+    const partsText = pianoOnly? '钢琴 · 大谱表 2 行' : pianoAcc? (nv-2)+' 声部＋钢琴伴奏' : nv? nv+' 声部' : '没有旋律声部';
+    const basis=[];
+    if(r.keyDet) basis.push(['det', kname, '文件没写调号，按音符内容推断（'+keyModeLabel(r.keyDet)+'）']);
+    else if(r.keyDefaulted) basis.push(['def', '1=C', '文件没写调号、音符也不够判断，按 1=C']);
+    else basis.push(['file', kname, s.mode==='minor'? '按文件（小调，按关系大调记谱）' : '按文件']);
+    /* 拍号与速度各说各的来源（验收：没写 <time> 按 4/4、3/16 改成 3/4 时此前也写「拍号按文件」） */
+    const mWhy = r.meterDefaulted? '文件没写拍号，按 '+s.beats+'/'+s.unit : r.meterFrom? r.meterFrom+' 拍暂不支持，按 '+s.beats+'/'+s.unit : '';
+    const tWhy = r.tempoDefaulted? '速度文件没写，按默认' : '';
+    basis.push([mWhy? (r.meterFrom? 'warn' : 'def') : tWhy? 'def' : 'file', s.beats+'/'+s.unit+' · '+tempoGlyph(s)+'='+s.tempo,
+      (mWhy||tWhy)? (mWhy||'拍号按文件')+'；'+(tWhy||'速度按文件') : '按文件']);
+    /* 只有六线谱、没有旋律行：不写「简谱 / 歌词」（验收：曾写「0 声部 · 无歌词 · 简谱」） */
+    basis.push(['file', nv? partsText+' · '+(ly? '有歌词' : '无歌词')+(pianoOnly? '' : ' · '+(staff? '五线谱' : '简谱'))+(tabs? ' · '+tabs+' 条六线谱' : '') : '只有 '+tabs+' 条六线谱', '按内容']);
+    if(sw) basis.push([ai? 'ai' : 'file', '来源：'+sw, swAI? '文件里写明由转谱软件导出 → 按 AI 转谱结果处理' : ai? '按文件；你选了「整理 AI 转谱结果」→ 按 AI 转谱结果处理' : '按文件']);
+    else if(ai) basis.push(['ai', '来源：AI 转谱', '你选了「整理 AI 转谱结果」']);
+    const recommend = ai && melody? 'SJ' : 'orig';
+    if(recommend==='SJ') basis.push(['scene', '推荐：教学对照谱', (swAI || !sw? 'AI 转谱多为单旋律＋歌词，' : '单旋律，')+'课堂最常用五线＋简谱对照']);
+    /* 拍号被改写已在上一条说明：跳过计数里不再重复算这一处 */
+    const sk0=Object.assign({}, r.skip||{}); if(r.meterFrom && !/\/(2|4|8)$/.test(r.meterFrom) && sk0.other>0) sk0.other--;
+    const sk=(skipText(sk0)||'').replace(/^[；，、\s]+/, '');
+    if(sk) basis.push(['warn', sk, '读不进来的部分']);
+    if(r.warn) basis.push(['warn', r.warn, '按文件']);
+    const a={id:++impSeq, name, fmt:zip? 'MusicXML（压缩 .mxl）' : 'MusicXML', r, song:s, stack, parts:nv, partsText, tabs, measures:s.measures.length, hasLyrics:ly, melody, staff, ai, software:sw, basis, recommend, dis:{}, kinds:{}, cv:{}, note:{}};
+    const one = '需要单旋律（'+(pianoOnly? '文件是钢琴两手谱' : '文件有 '+(pianoAcc? (nv-2)+' 个声部＋钢琴伴奏' : nv+' 个声部')+(tabs? '、'+tabs+' 条六线谱' : ''))+'）';
+    if(!nv){ a.dis.J=a.dis.SJ=a.dis.acc=a.dis.JT=a.dis.CJ='文件里没有旋律 / 人声声部'; }
+    else if(!melody){ a.dis.acc=a.dis.JT=a.dis.CJ=one; }
+    else if(!texAvail(s.beats, s.unit).length) a.dis.acc=s.beats+'/'+s.unit+' 拍还没有伴奏织体';
+    /* 钢琴两手谱整份转简谱＝两行简谱（统一谱名表里叫「简谱合唱谱」，叫法不对、也不合用）：不给这一项，导入后可在左栏逐行切换记谱法 */
+    if(pianoOnly) a.dis.J='钢琴两手谱不整份转，导入后可逐行换';
+    /* 谱名：按原文件 / 转简谱 / 对照当场转一份算（只改记谱字段，快）；配伴奏 / 吉他弹唱 / 级数和弦要跑引擎，选到或导入时才转（单旋律时谱名是确定的） */
+    TARGETS.forEach(([t])=>{ a.kinds[t]=''; if(a.dis[t]) return;
+      if(t==='acc') a.kinds[t]=a.staff? '钢琴伴奏歌谱（五线谱）' : '钢琴伴奏歌谱';
+      else if(t==='JT') a.kinds[t]='吉他弹唱谱';
+      else if(t==='CJ') a.kinds[t]='功能谱';
+      else { const c=cvOf(a, t); if(c) a.kinds[t]=kindDisp(a, t, c); } });
+    if(a.dis[a.recommend]) a.recommend='orig';
+    return a;
+  }
+  /* 做法的谱名（统一谱名表）；与「按原文件」同名时补一句改了什么（验收：钢琴文件「五线＋简谱对照」与「按原文件」同叫钢琴独奏谱，分不出） */
+  function kindDisp(a, t, c){
+    const n=NWB.kindOfSong(c).name;
+    if(t==='orig' || !a.cv.orig || n!==NWB.kindOfSong(a.cv.orig).name) return n;
+    return n+(t==='SJ'? '（五线＋简谱对照）' : t==='J'? '（简谱）' : '');
+  }
+  /* 做法按钮上的小字：谱名＋这次转换要提醒的事（吉他弹唱：超出把位移了八度 / 略去的音） */
+  function tgNote(a, t){
+    if(t==='orig') return '不改记谱 · '+a.kinds.orig;
+    return '→ '+a.kinds[t]+(a.note[t]? ' · '+a.note[t] : '');
+  }
+  /* 做法的产物（缓存；转换失败＝该做法置灰并说明） */
+  function cvOf(a, t){
+    if(a.cv[t]) return a.cv[t];
+    if(a.dis[t]) return null;
+    try{ a.cv[t]=convert(a, t); if(a.kinds[t]) a.kinds[t]=kindDisp(a, t, a.cv[t]); return a.cv[t]; }
+    catch(e){ console.warn('导入转换失败', t, e); a.dis[t]='这份文件转不了这种谱'; a.kinds[t]=''; if((st.imp.target||a.recommend)===t) st.imp.target='orig'; return null; }
+  }
+  /* 做法 → 产物（只写既有字段；伴奏 / 和弦 / 把位都用编辑器自己的引擎：arrangeAccompaniment、suggestChordPlan+placeChordPlan、vtPlanItems） */
+  function suggestInto(s){
+    NWPV.borrow(s, ()=>{ const plan=suggestChordPlan(s, 0); s.measures.forEach((m,mi)=>{ const cols=m.voxes[0]||[]; if(cols.length && plan[mi] && plan[mi].length && !cols.some(c=>c.chord)) placeChordPlan(cols, plan[mi]); }); });
+  }
+  function convert(a, t){
+    let s=clone(a.song);
+    const vv=s.voxVoices||[];
+    switch(t){
+      /* 旋律＋钢琴伴奏：只把旋律行转简谱，伴奏两行保留大谱表＝钢琴伴奏歌谱（验收：此前大谱表也转成两行简谱，叫「简谱合唱谱」） */
+      case 'J': if(isPianoAccStack(s)){ const vn=s.voxNotations||[]; s.voxNotations=vv.map((_,i)=>i? vn[i] : undefined); }
+        else s.voxNotations=vv.map(()=>undefined);
+        delete s.voxDual; break;
+      case 'SJ': { const vn=s.voxNotations||[]; s.voxNotations=vv.map((_,i)=>isStaffNota(vn[i])? vn[i] : 'staff');
+        s.voxDual = isPianoAccStack(s)? [true,false,false] : vv.map(()=>true); break; }
+      case 'acc': { const t0=s.title, n0=(a.song.voxNotations||[])[0]; const r=NWPV.borrow(s, ()=>arrangeAccompaniment(s, {suggest:true})); s=r.song; s.title=t0; delete s.voxDual;
+        /* 旋律行沿用原文件的记谱法与谱号（验收：低音谱号的大提琴旋律曾被改成高音谱号，满是加线、伴奏反在旋律上方） */
+        s.voxNotations=[a.staff? n0 : undefined, 'staff', 'bass']; s.voxGroups=[{type:'brace', from:1, to:2}]; break; }
+      case 'JT': {
+        s.voxNotations=vv.map(()=>undefined); delete s.voxDual; s.inst='guitar'; suggestInto(s);
+        /* 六线谱＝旋律按 mapVoxToTab「跟随和弦图」同一套取位（vtPlanItems）生成的把位轨：导入就是完整的弹唱谱，不多一步撤销 */
+        const P=NWPV.borrow(s, ()=>vtPlanItems(0, 'follow'));
+        /* 超出吉他把位的音：取位器整段移八度 / 略去——写在按钮小字、预览说明与导入提示里（同「旋律→六线谱」弹窗口径；验收：此前静默） */
+        a.note.JT = [P.octShift? P.octShift+' 个音超出把位，六线谱折了八度' : '', P.dropped? P.dropped+' 个音放不下已略去' : ''].filter(Boolean).join('，');
+        s.tabVoices=['吉他·'+(vv[0]||'旋律1')];
+        s.measures.forEach(m=>{ m.tabs=[[]]; });
+        P.items.forEach(it=>{ s.measures[it.mi].tabs[0].push(vtCol(it)); });
+        break; }
+      case 'CJ': suggestInto(s); s.func=true; s.voxNotations=[undefined]; delete s.voxDual; break;   /* 功能谱默认显示级数（funcNames 不置真） */
+    }
+    return s;
+  }
+  /* 预览＝整首按导入后的样子排、只画首行（断行是全曲 DP：截前几小节再排，首行可能和导入后不同——验收：8 小节文件截 6 小节后首行多一小节）。
+     特别长的文件只取前 IMP_PV_MAX 小节（排版耗时随小节数增长；这么长时首行与整首的差别只剩极端情况） */
+  const IMP_PV_MAX = 160;
+  function impPreviewSong(a, t){
+    const c=cvOf(a, t)||a.song;
+    const s=clone(Object.assign({}, c, {measures: c.measures.slice(0, IMP_PV_MAX)}));   /* 深拷贝：排版不碰缓存的转换产物（导入用的就是它） */
+    delete s.layout; delete s.id;
+    return s;
+  }
+  function importGo(){
+    if(!live()) return;
+    const a=st.imp.a;
+    /* 还没读进文件时「导入」是禁用样式（aria-disabled，仍可点）：点了说明要先做什么（验收：此前 disabled 却和可用时一样，点了毫无反应） */
+    if(!a){ const off=st.imp.src==='audio'||st.imp.src==='image';
+      impErr(off? '这里还不能直接导入：先用 AI 转谱 / 识谱工具导出 MusicXML，再选择或拖进来。' : '还没有读进文件：先点「选择文件…」，或把文件拖进来。'); return; }
+    const t=impTarget(); const c=!a.dis[t] && cvOf(a, t); if(!c){ draw(); return; }
+    const s=clone(c), r=a.r;   /* 版式沿用 v67.4 导入口径（不置固定版宽：导入的是已有音乐，不是新建谱） */
+    const kind=a.kinds[t];
+    close();
+    addDoc(s, ()=>{
+      setRibbon(t==='JT'? 'tab' : 'vox');
+      pyqImportDone('mxl');
+      const hk=keyLabel(headKeyOf(s));
+      const keyTxt = r.keyDet? '；文件未写调号，按内容检测为 1='+hk+'（'+keyModeLabel(r.keyDet)+'）'
+        : r.keyDefaulted? '；未读到调号已按 1=C' : '；调号按文件 1='+hk+(s.mode==='minor'? '（小调，记作关系大调）' : '');
+      if(t==='orig') toast('已导入《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节'+skipText(r.skip)+keyTxt+'，点页头 1=X 可改记谱调（音不变）'+(r.warn? '；'+r.warn : ''));
+      else toastKind('已导入为'+kind+'《'+(s.title||'曲谱')+'》'+s.measures.length+' 小节 · 新窗口打开，原谱保留'+(a.note[t]? '；'+a.note[t] : '')+skipText(r.skip)+keyTxt+(r.warn? '；'+r.warn : ''), NWB.kindOfSong(s).ic);
+      landed('import', t);
+    });
+  }
+  /* 落地通知（谱型条 / 起步条等由落地侧监听，不写 song）：detail＝{from:'new'|'import'|'example'|'mtab'|'recent', target, stack} */
+  function landed(from, target){
+    try{ document.dispatchEvent(new CustomEvent('pq-landed', {detail:{from, target:target||null, stack:NWB.stackOf(song)}})); }catch(_){}
+    /* 与谱型条（LBAR，同版 B 侧）直接对接：从面板新建出来的谱（导入 / 示例做同款 / 只看示例）同「新建」一样挂谱型条（README F13）；
+       切到已开的窗口、打开自己的文件不挂。LBAR 不在时（单独的 A 侧）跳过——合并后无需再接线 */
+    try{ if((from==='import' || from==='example') && typeof LBAR!=='undefined' && LBAR && typeof LBAR.open==='function') LBAR.open({from, target:target||null}); }catch(_){}
+  }
+  /* 示例做同款：16 份示例（PRESETS），沿用格式、内容留空 */
+  const EXIC = [];
+  function exIcon(i){ if(EXIC[i]) return EXIC[i]; try{ const d=migrate(PRESETS[i].make()); EXIC[i]=NWB.kindOfSong(d).ic; }catch(_){ EXIC[i]='type-blank'; } return EXIC[i]; }
+  function exPreviewSong(i){ const s=migrate(PRESETS[i].make()); s.measures=s.measures.slice(0, 6); delete s.layout; delete s.id; return s; }
+  const EX_KEEP = ['repeatStart','repeatEnd','finalBar','volta','keyTo','beats','unit','segno','coda','fine','dc','ds','tocoda'];
+  function exApply(i, mode){
+    const p=PRESETS[i]; if(!p) return;
+    const d=migrate(p.make()); delete d.id;
+    if(mode==='open'){ close(); addDoc(d, ()=>{ setRibbon(defaultLayer()); toast('已在新窗口打开示例《'+d.title+'》，当前谱保留'); landed('example', 'open'); }); return; }
+    const ti=((modal && modal.querySelector('#nf-extitle'))||{}).value || '';
+    const s=clone(d);
+    s.title = ti.trim() || String(d.title||p.name).replace(/（.*$/,'')+'（同款）';
+    s.singer=''; s.lyricist=''; s.composer=''; s.maker=(typeof profileLoad==='function' && profileLoad().maker)||'';
+    s.measures = s.measures.map(m=>{ const bt=m.beats||s.beats, un=m.unit||s.unit;
+      const b={tabs:(s.tabVoices||[]).map(()=>blankTabCols(bt, un)), voxes:(s.voxVoices||[]).map(()=>blankVoxCols(bt, un)), repeatStart:false, repeatEnd:false};
+      EX_KEEP.forEach(k=>{ if(m[k]!=null && m[k]!==false) b[k]=clone(m[k]); }); return b; });
+    s.layout=Object.assign({}, s.layout||{}, {fixed:true});
+    try{ pyqEvent('create_song', NWB.STACKS[NWB.stackOf(s)].type); }catch(_){}   /* 原 create_song 口径（createSong 类型） */
+    close();
+    addDoc(s, ()=>{ setRibbon(defaultLayer()); toastKind('已按《'+d.title+'》的格式新建《'+s.title+'》：谱类、调、拍号、反复与版式沿用，音符 / 歌词 / 和弦留空 · 新窗口打开，原谱保留', NWB.kindOfSong(s).ic); landed('example', 'same'); });
+  }
+  /* 接着做：自己的谱——打开中的窗口（spdRecentDoc 同口径：存入过我的曲谱，或不是原样示例谱、也不是没动过的空白谱）＋「我的曲谱」（按修改时间） */
+  function recentList(){
+    const out=[], seen=new Set(); let total=0;
+    try{
+      /* 打开中的窗口：当前窗口在前，其余按最近切换 / 编辑（DOC_TOUCH，内存）倒序，同分按窗口新旧（验收：此前按窗口序号，最近建的排不进前几个） */
+      const touch=i=>(DOC_TOUCH && DOC_TOUCH.get(docs[i]))||0;
+      const own=spdOwnDocs(0).sort((x,y)=> x===curDocI? -1 : y===curDocI? 1 : (touch(y)-touch(x)) || (y-x));
+      own.forEach(ri=>{ const s2=ri===curDocI? song : docs[ri].song; out.push({win:ri, title:s2.title||'未命名曲谱', kind:NWB.kindOfSong(s2), where:ri===curDocI? '当前窗口' : '打开中的窗口'}); });
+      docs.forEach((d,i)=>{ const s2=i===curDocI? song : d.song; if(s2 && s2.id) seen.add(s2.id); });
+      const lib=libLoad().filter(x=>x && x.data && Array.isArray(x.data.measures) && !seen.has(x.id)).sort((x,y)=>(y.mtime||0)-(x.mtime||0));
+      total=own.length+lib.length;
+      lib.slice(0, 6).forEach(x=>{
+        let kind; try{ kind=NWB.kindOfSong(migrate(clone(x.data))); }catch(_){ kind={name:'曲谱', ic:'type-blank'}; }
+        out.push({lib:x.id, title:x.title||x.data.title||'未命名曲谱', kind, where:'我的曲谱'+(x.updatedAt? ' · '+x.updatedAt : '')}); });
+      /* 「我的曲谱」里的谱已在别的窗口打开：切过去，不重复开 */
+      out.forEach(x=>{ if(x.lib){ const wi=docs.findIndex((d,i)=>(i===curDocI? song : d.song) && (i===curDocI? song : d.song).id===x.lib); if(wi>=0) x.win=wi; } });
+    }catch(_){}
+    const res=out.slice(0, 7); res.total=Math.max(total, res.length);   /* total：自己的谱一共几份（左栏「等 N 份」写实数，不是列表上限） */
+    return res;
+  }
+  function recentGo(){
+    const rc=st.imp.rcList || recentList(), x=rc[Math.max(0, Math.min(rc.length-1, st.imp.rc|0))]; if(!x) return;
+    close();
+    if(x.win!=null && x.win>=0){ if(x.win!==curDocI) switchDocTo(x.win); try{ hideStartPad(); }catch(_){} toast('接着做《'+x.title+'》'); landed('recent', 'window'); return; }
+    const e0=libLoad().find(y=>y.id===x.lib); if(!e0) return;
+    const s=migrate(clone(e0.data)); s.id=e0.id;
+    addDoc(s, ()=>{ setRibbon(defaultLayer()); toast('已在新窗口打开《'+(s.title||'曲谱')+'》，当前谱保留'); landed('recent', 'lib'); });
+  }
+  /* 拖放进来的文件（窗口任意处）：面板没开就开在「从已有音乐」，开着就切过去 */
+  function dropFile(f, n){
+    if(!live()) open({tab:'import'});
+    else if(st.tab!=='import'){ syncFromDom(); st.tab='import'; }
+    if(!live()) return;
+    readFile(f, {many:n});
+    draw();
   }
 
   /* ---- 交互 ---- */
@@ -22849,7 +23623,8 @@ var NWP = (function(){
     realCreate(P, tpNote);
   }
   function onClick(e){
-    const t=e.target.closest('[data-act],[data-scene],[data-row],button[id]'); if(!t || t.disabled || !st) return;
+    const t=e.target.closest('[data-act],[data-scene],[data-row],[data-isrc],[data-ex],[data-rc],button[id]'); if(!t || t.disabled || !st) return;
+    if(t.dataset.isrc!=null || t.dataset.ex!=null || t.dataset.rc!=null){ pickOpt(t); return; }
     if(t.dataset.scene){
       const id=t.dataset.scene;
       if(e.detail>=2 && id===st.scene){ create(); return; }   /* 双击用途直接建 */
@@ -22857,20 +23632,39 @@ var NWP = (function(){
       return;
     }
     if(t.dataset.row){ toggleRow(t.dataset.row); return; }
-    if(t.id==='nw-import'){ modal.querySelector('#nw-mxlfile').click(); return; }
+    if(t.id==='nw-import' && st.mob){ modal.querySelector('#nw-mxlfile').click(); return; }
     if(t.id==='nw-gp'){ modal.querySelector('#nw-gpfile').click(); return; }
     if(t.id==='nw-midi'){ modal.querySelector('#nw-midifile').click(); return; }
     const a=t.dataset.act, v=t.dataset.v;
     switch(a){
       case 'close': close(true); break;
       case 'mback': close(); showNewMobile(); break;
-      case 'tab': syncFromDom(); st.tab=v; draw(); { const f=modal.querySelector(v==='new'? '.nf-sc[aria-selected="true"]' : '#nw-import'); if(f) f.focus({preventScroll:true}); } break;
+      case 'tab': syncFromDom(); st.tab=v; draw(); { const f=modal.querySelector(v==='new'? '.nf-sc[aria-selected="true"]' : st.mob? '#nw-import' : '#nf-isrc [aria-selected="true"]'); if(f) f.focus({preventScroll:true}); } break;
+      /* 从已有音乐 */
+      case 'pick': { const f=modal.querySelector('#nw-anyfile'); if(f) f.click(); break; }
+      case 'demo': readFile(demoFile(), {ai:true}); break;
+      case 'unload': st.imp.a=null; st.imp.target=null; st.imp.err=''; draw(); { const f=modal.querySelector('#nw-import'); if(f) f.focus({preventScroll:true}); } break;
+      case 'tg': { const A=st.imp.a; if(!A) break; if(A.dis[v]){ announce(A.dis[v]); break; } st.imp.target=v; st.imp.err=''; cvOf(A, v); draw(); break; }
+      case 'import-go': importGo(); break;
+      case 'isrc': st.imp.src=v; st.imp.err=''; draw(); { const f=modal.querySelector('[data-isrc="'+v+'"]'); if(f) f.focus({preventScroll:true}); } break;
+      case 'ex-go': exApply(exSel(), 'same'); break;
+      case 'ex-open': exApply(exSel(), 'open'); break;
+      case 'recent-go': recentGo(); break;
       case 'mel': syncFromDom(); st.mel=v; st.rows=stackRows(sceneStack(st.scene, st.v, st.mel)); draw(); break;
       case 'var': { syncFromDom(); const k=t.dataset.k; st.v[k]=/^\d+$/.test(v)? +v : v; if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel)); draw(); break; }
       case 'more': syncFromDom(); st.more=!st.more; draw(); break;
       case 'undo': undoRow(); break;
       case 'create': create(); break;
     }
+  }
+  /* 「从已有音乐」里的三个列表（来源 / 示例 / 接着做）：点选或方向键选中，重画后焦点跟到新选中的那一项 */
+  function pickOpt(n){
+    const d=n.dataset; let sel='';
+    if(d.isrc!=null){ if(st.imp.src!==d.isrc){ st.imp.src=d.isrc; st.imp.err=''; } sel='[data-isrc="'+d.isrc+'"]'; }
+    else if(d.ex!=null){ st.imp.ex=+d.ex; sel='[data-ex="'+d.ex+'"]'; }
+    else if(d.rc!=null){ st.imp.rc=+d.rc; sel='[data-rc="'+d.rc+'"]'; }
+    draw();
+    const f=modal && modal.querySelector(sel); if(f) f.focus({preventScroll:true});
   }
   function onChange(e){
     const t=e.target, v=st && st.v; if(!v) return;
@@ -22926,27 +23720,39 @@ var NWP = (function(){
     if(e.key==='Tab' || /^Arrow/.test(e.key) || e.key==='Home' || e.key==='End') kbNav=true;
     if(e.key==='Tab'){ trapTab(e); return; }
     const lb=tg.closest && tg.closest('[role=listbox]');
-    if(lb && ['ArrowDown','ArrowUp','Home','End'].includes(e.key)){
+    /* 示例做同款是网格（列数按实际排版读）：← → 一格、↑ ↓ 一行 */
+    const cols=lb && lb.dataset.grid? Math.max(1, getComputedStyle(lb).gridTemplateColumns.split(' ').filter(Boolean).length) : 1;
+    if(lb && (['ArrowDown','ArrowUp','Home','End'].includes(e.key) || (cols>1 && ['ArrowLeft','ArrowRight'].includes(e.key)))){
       e.preventDefault(); e.stopPropagation();
       const opts=[...lb.querySelectorAll('[role=option]')], cur=lb.querySelector('[role=option][aria-selected="true"]'), i=opts.indexOf(cur||tg.closest('[role=option]'));
-      const j= e.key==='Home'? 0 : e.key==='End'? opts.length-1 : Math.max(0, Math.min(opts.length-1, i+(e.key==='ArrowDown'? 1 : -1)));
-      const n=opts[j]; if(n && n.dataset.scene!==st.scene){ applyScene(st, n.dataset.scene); setNote('', null); st.hint=''; draw(); }
-      focusSel();
+      const step={ArrowDown:cols, ArrowUp:-cols, ArrowRight:1, ArrowLeft:-1}[e.key];
+      const j= e.key==='Home'? 0 : e.key==='End'? opts.length-1 : Math.max(0, Math.min(opts.length-1, i+step));
+      const n=opts[j]; if(!n) return;
+      if(n.dataset.scene!=null){ if(n.dataset.scene!==st.scene){ applyScene(st, n.dataset.scene); setNote('', null); st.hint=''; draw(); } focusSel(); }
+      else pickOpt(n);
       return;
     }
     /* 单选组（旋律用 / 用途变体）与页签：← → ↑ ↓ 在组内移动并选中（roving tabindex） */
     const grp=tg.closest && tg.closest('[role=radiogroup],[role=tablist]');
     if(grp && /^Arrow/.test(e.key)){
-      const it=[...grp.querySelectorAll('[role=radio],[role=tab]')], i=it.indexOf(tg);
+      const it=[...grp.querySelectorAll('[role=radio],[role=tab]')].filter(x=>x===tg || x.getAttribute('aria-disabled')!=='true'), i=it.indexOf(tg);
       if(i>=0){ e.preventDefault(); e.stopPropagation();
         const n=it[(i+(e.key==='ArrowRight'||e.key==='ArrowDown'? 1 : -1)+it.length)%it.length];
-        n.click(); const f=grp.isConnected? n : modal.querySelector(n.dataset.act==='var'? '[data-act="var"][data-k="'+n.dataset.k+'"][data-v="'+n.dataset.v+'"]' : n.dataset.act==='mel'? '[data-act="mel"][data-v="'+n.dataset.v+'"]' : '[data-act="tab"][data-v="'+n.dataset.v+'"]');
+        n.click(); const f=grp.isConnected? n : modal.querySelector('[data-act="'+n.dataset.act+'"]'+(n.dataset.k? '[data-k="'+n.dataset.k+'"]' : '')+'[data-v="'+n.dataset.v+'"]');
         if(f && f.isConnected) f.focus({preventScroll:true}); }
       return;
     }
     /* 面板内 Ctrl/⌘+Z＝撤销上一次改谱（只在冲突说明还在、且不在输入框里时；输入框里留给文字撤销） */
     if(!inField && (e.ctrlKey||e.metaKey) && !e.altKey && e.key.toLowerCase()==='z'){ if(undoRow()){ e.preventDefault(); e.stopPropagation(); } return; }
     /* 输入法上屏的 Enter 不算（Safari 先发 compositionend，再发 keyCode 229、isComposing 为假的 keydown） */
+    /* 从已有音乐：回车＝底栏主按钮（导入 / 按此格式新建 / 接着做）；还没读文件时＝选择文件。键盘移到按钮上时回车交还按钮本身（同新建页口径） */
+    if(e.key==='Enter' && !e.isComposing && e.keyCode!==229 && st.tab==='import' && !st.mob){
+      if((tg.tagName==='BUTTON' && kbNav) || tg.tagName==='SELECT' || tg.tagName==='TEXTAREA' || (tg.tagName==='INPUT' && tg.id!=='nf-extitle')){ e.stopPropagation(); return; }
+      e.preventDefault(); e.stopPropagation();
+      const g=modal.querySelector('#nf-impgo:not([aria-disabled="true"]),#nf-exgo,#nf-rcgo,#nf-rcnew');
+      if(g) g.click(); else if(st.imp.src==='file'||st.imp.src==='ai'){ const p2=modal.querySelector('#nw-import'); if(p2) p2.click(); }
+      return;
+    }
     if(e.key==='Enter' && !e.isComposing && e.keyCode!==229 && st.tab==='new'){
       /* 回车＝创建：用途列表 / 曲名 / 速度输入里都算；键盘移到按钮上时回车交还按钮本身；鼠标点过的按钮（谱开关 / 单选 / 更多设置）回车照样创建 */
       if((tg.tagName==='BUTTON' && kbNav) || tg.tagName==='SELECT' || tg.tagName==='TEXTAREA') { e.stopPropagation(); return; }
@@ -23040,6 +23846,7 @@ var NWP = (function(){
   }
   return {open, close, draw, create, planOf, fresh, applyScene, sceneStack, optsOf, kindOfState, stackOfState, melLive, varsShown, toggleRow, rowHint, syncFromDom,
     quickMenu, quickMenuClose:qmClose, quickCreate, lastLoad, lastDesc, SC, VARS, GROUPS, SCENE_IDS, INSTS, keyName,
+    readFile, dropFile, fileKind, analyze, convert, bandDefs, pvInfo:()=>pvLast, pvSync, pvStats, pvClear:()=>PVC.clear(), PV_WAIT, TARGETS, ISRC,
     get state(){ return st; }, get modal(){ return modal; }};
 })();
 /* ---- ④ 宿主：真实创建（NWB.build → createSong，零新增字段 → addDoc 新窗口） ---- */
@@ -23050,6 +23857,7 @@ function realCreate(P, tpNote){
   const ns=NWB.build(P.stack, o);
   try{ pyqEvent('create_song', NWB.STACKS[P.stack].type); }catch(_){}   /* 原 create_song 口径不变（createSong 类型） */
   addDoc(ns, ()=>{
+    LBAR.open({from:'new', pen:P.pen, scene:P.scene});   /* v67.5 谱型条＋起步条（按窗口记在内存，不进 song） */
     /* 光标落在「从这行开始写」那一行：弹唱「先写旋律」、旋律＋伴奏等落旋律行；直接写六线谱 / 独奏落 TAB */
     const vfirst = P.stack!=='T' && P.stack!=='ST' && !(P.stack==='JT' && P.pen!=='J');
     if(vfirst && song.voxVoices && song.voxVoices.length){ sel.row='vox'; sel.vi=0; sel.ci=0; try{ clampSel(); }catch(_){} }
@@ -23059,8 +23867,12 @@ function realCreate(P, tpNote){
     /* 验收：此前写「左栏『显示 · 六线谱』」，界面上没有这几个字（左栏默认收起、按钮只有图标）——写真实位置。
        第二轮验收：合并后生成六线谱会复用建谱时的空吉他轨（mapVoxToTab · vtReuseInfo），提示改照实说「写进空轨、轨数不变」（此前仍写「新加一条、空轨可删」） */
     const iN = o.inst==='uku'? '尤克里里' : '吉他';
-    const guide = P.stack==='JT' && P.pen==='J'? '——先在简谱行写旋律；写好后点左栏的旋律音轨，在「显示」里点六线谱图标，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）'
-      : ACC_GUIDE[P.stack]||'';
+    /* v67.5 收尾验收（F9）：下一步交给谱面上方的谱型条（主按钮就在那里）——此前提示仍指向右栏 / 左栏「显示」，
+       与谱型条给出两条不同路径，≤1200 宽时右栏根本不在屏上。谱型条没出来（观看页等）时回落到原指引 */
+    const onBar = !!document.querySelector('#lb-wrap .lb-bar');
+    const guide = P.stack==='JT' && P.pen==='J'? (onBar? '——下一步见谱面上方的谱型条：先在简谱行写旋律，再点「生成六线谱」，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）'
+        : '——先在简谱行写旋律；写好后点左栏的旋律音轨，在「显示」里点六线谱图标，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）')
+      : onBar && LB_GUIDE[P.stack]? LB_GUIDE[P.stack] : ACC_GUIDE[P.stack]||'';
     toastKind('已新建'+kind.name+' · '+NWP.keyName(o.key, o.mode)+' '+o.beats+'/'+o.unit+' '+tempoGlyph(song)+'='+o.tempo+' · '+o.nMea+' 小节 · 新窗口打开，原谱保留'+guide+(tpNote? '；'+tpNote : ''), kind.ic);
   });
 }
@@ -23069,6 +23881,11 @@ const ACC_GUIDE = {JG:'——先写旋律，再点右栏「创作辅助 · 一�
   SG:'——先写旋律，再点右栏「创作辅助 · 一键配伴奏」：自动配和弦、选织体，伴奏直接填进下面两行（可撤销）',
   SJG:'——先写旋律，再点右栏「创作辅助 · 一键配伴奏」：自动配和弦、选织体，伴奏直接填进下面两行（可撤销）',
   CG:'——先在右手谱表上按拍标和弦，再点「伴奏织体…」生成双手伴奏'};
+/* 谱型条在屏上时的建成提示（下一步＝谱型条的主按钮） */
+const LB_GUIDE = {JG:'——下一步见谱面上方的谱型条：先写旋律，再点「一键配伴奏」，伴奏直接填进下面两行（可撤销）',
+  SG:'——下一步见谱面上方的谱型条：先写旋律，再点「一键配伴奏」，伴奏直接填进下面两行（可撤销）',
+  SJG:'——下一步见谱面上方的谱型条：先写旋律，再点「一键配伴奏」，伴奏直接填进下面两行（可撤销）',
+  CG:'——下一步见谱面上方的谱型条：先在右手谱表上按拍标和弦（Ctrl+K），再选织体生成双手伴奏'};
 /* 建成提示带谱类图标（toast 用 textContent 写字，图标另插在最前；下一条提示自然覆盖） */
 /* 验收：带下一步指引的建成提示有七八十字，toast 固定 2.2 秒读不完——按字数延长（每字 80ms，5–10 秒；下一条提示照常覆盖） */
 function toastKind(msg, icKey){
@@ -23104,6 +23921,60 @@ function showNewWizard(opt){
   if(isMobileNew() && !(opt && opt.tab==='import')){ try{ NWP.quickMenuClose(); }catch(_){} showNewMobile(); return; }
   NWP.open(opt||{});
 }
+/* v67.5 拖放（README §0「文件拖到窗口任意处」、§3）：只认操作系统拖进来的文件（dataTransfer.types 含 Files）——谱面里的拖选、拖小节号、
+   小节宽度手柄等都是指针事件，不产生 HTML5 拖放，也就不进这里；拖文字进输入框（types 只有 text）照常。
+   拖进窗口出提示层，松手＝打开新建面板「从已有音乐」并读该文件（面板开着就切过去）；不支持的格式在面板里说明。
+   观看页、手机（拍板 1 只看谱）不接；有别的对话框 / 打印预览 / 谱架模式 / 谱友圈广场开着时不接（与 Alt+N 同口径：此前面板开在浮层背后看不见，回车在背后静默导入），
+   拖动期间就用提示层说明「先关掉……再拖进来」（dropEffect＝none 时浏览器不派发 drop，提示只能在拖动中给）——但一律 preventDefault，免得浏览器直接打开文件把编辑页换掉。
+   提示层兜底收起：拖动被取消时浏览器不一定发 dragleave——拖动中页面收不到指针 / 键盘事件，收到就说明拖动已结束；另 1.5 秒没有 dragover 也收起（再拖动会重新出现）。 */
+(function(){
+  let depth=0, mask=null, idle=0;
+  const hasFiles = e=>{ try{ return !!e.dataTransfer && [...(e.dataTransfer.types||[])].includes('Files'); }catch(_){ return false; } };
+  const blocked = ()=>{
+    if((typeof viewerMode!=='undefined' && viewerMode) || document.body.classList.contains('viewer')) return 'viewer';
+    try{ if(isMobileNew()) return 'mob'; }catch(_){}
+    const pv=document.getElementById('preview-ov');
+    if(pv && pv.classList.contains('on')) return 'preview';
+    if(document.body.classList.contains('stand')) return 'stand';
+    if(document.getElementById('circle')) return 'circle';
+    if(document.getElementById('modal-mask') && !(NWP.modal && NWP.modal.isConnected)) return 'modal';
+    return '';
+  };
+  const WHY = {preview:'先关掉打印预览，再把文件拖进来', stand:'先退出谱架模式，再把文件拖进来', circle:'先回到制谱器（关掉谱友圈广场），再把文件拖进来', modal:'先关掉当前对话框，再把文件拖进来'};
+  function show(why){
+    const k=why||'';
+    if(mask && mask.isConnected && mask.dataset.why===k) return;
+    if(mask) mask.remove();
+    mask=document.createElement('div'); mask.className='nf-dropmask'+(k? ' no' : ''); mask.id='nf-dropmask'; mask.dataset.why=k;
+    /* 提示层是拖动中的视觉反馈；读屏另有 role=status 播报（拦下时说明原因） */
+    mask.innerHTML = k? pqIcon('act-info',44)+'<b role="status">'+WHY[k]+'</b><span>这时拖进来的文件不会被读取</span>'
+      : pqIcon('act-import',44)+'<b>松手：读文件，选做成哪种谱</b><span>MusicXML · Guitar Pro · MIDI · 谱友圈文件 · 新窗口打开，当前谱保留</span>';
+    if(!k) mask.setAttribute('aria-hidden','true');
+    document.body.appendChild(mask);
+  }
+  function hideMask(){ clearTimeout(idle); idle=0; if(mask){ mask.remove(); mask=null; } }
+  function hide(){ depth=0; hideMask(); }
+  /* 1.5 秒没有 dragover：只收提示层、不清进出计数（拖动可能还在窗口里，下一次 dragenter / dragover 会重新显示） */
+  const arm = ()=>{ clearTimeout(idle); idle=setTimeout(hideMask, 1500); };
+  /* 有拦截原因时也出提示层（说明为什么不接）；观看页 / 手机不出 */
+  const want = ()=>{ const w=blocked(); return (w==='viewer' || w==='mob')? null : w; };
+  window.addEventListener('dragenter', e=>{ if(!hasFiles(e)) return; e.preventDefault(); const w=want(); if(w==null) return; depth++; show(w); arm(); });
+  window.addEventListener('dragover', e=>{ if(!hasFiles(e)) return; e.preventDefault(); const w=blocked(); try{ e.dataTransfer.dropEffect = w? 'none' : 'copy'; }catch(_){}
+    const v=want(); if(v!=null){ if(depth<=0) depth=1; show(v); arm(); } });
+  window.addEventListener('dragleave', e=>{ if(!hasFiles(e)) return; depth--; if(depth<=0 || !e.relatedTarget) hide(); });
+  window.addEventListener('dragend', hide);
+  ['pointermove','pointerdown','keydown','blur'].forEach(t=>window.addEventListener(t, ()=>{ if(mask) hide(); }, true));
+  document.addEventListener('visibilitychange', ()=>{ if(mask) hide(); });
+  window.addEventListener('drop', e=>{
+    if(!hasFiles(e)) return;
+    e.preventDefault(); hide();
+    const why=blocked();
+    if(why && WHY[why]){ toast(WHY[why]); return; }
+    if(why) return;
+    const fl=e.dataTransfer.files; if(!fl || !fl.length) return;
+    NWP.dropFile(fl[0], fl.length);   /* 启动台照旧留在面板背后（v46.9：新谱真正载入时再关台，中途取消回启动台） */
+  });
+})();
 /* v60.45 哼唱成谱全站暂下（产品指示）：所有入口移除，弹窗流程提为本函数保留
    （引擎 hummingToSong 不动；程序化/回归经此可达，将来恢复入口只需接回按钮） */
 function showHumModal(){
@@ -23436,7 +24307,9 @@ document.getElementById('b-acctex').onclick = ()=>{
       /* 钢琴伴奏歌谱：还没写旋律的尾部小节不配（否则最后一个和弦一路铺到谱尾）——与「填进当前谱」同一份判定 accTailFrom、同一段提示 accGenNotes */
       const opt = accRows? Object.assign({}, accRows) : {};
       if(accSt && sc!=='one'){ const tf=accTailFrom(song); m2=Math.min(m2, tf-1); opt.endMi=tf-1; tailS=Math.max(tf, m1); tail=Math.max(0, song.measures.length-tailS); }
-      r=genAccompaniment(texId,m1,m2,(accRows||opt.endMi!=null)? opt : undefined); song.texId=texId; });
+      r=genAccompaniment(texId,m1,m2,(accRows||opt.endMi!=null)? opt : undefined); if(r && r.done) song.texId=texId; });
+    /* v67.5 收尾验收（F3）：没生成也没配和弦＝谱没变——不留一步看不见的撤销（此前失败时仍写 song.texId，Ctrl+Z 撤的是一步无变化的改动） */
+    if(!(r && r.done) && !nSug && undoStack.length && undoStack[undoStack.length-1]===JSON.stringify(song)) undoStack.pop();
     closeModal();
     if(r && r.done) pyqEvent('tex_gen', texId+':'+r.done);   // v63.4 A7
     toast(r.done? (accSt? `已填进本谱右手 / 左手伴奏：${r.done} 小节` : `已生成 ${r.done} 小节伴奏`)+(nSug? `，自动配了 ${nSug} 小节和弦`:'')+accGenNotes(r, tailS, tail)+'（可编辑，Ctrl+Z 撤销）'
@@ -23445,6 +24318,653 @@ document.getElementById('b-acctex').onclick = ()=>{
                 : '未生成：所选范围没有标注和弦——先选中右手的音，在右栏「创作」页点「和弦」标注');
   };
 };
+/* ===== v67.5 谱型条＋起步条 · 换谱类（docs/design-2026-10e §4「落地」/ §5「换谱类」，2026-10-15 拍板「按推荐方案执行」）=====
+   谱型条：谱面上方一条，宽度＝#paper、贴着谱纸顶部（#score-wrap 文档流内、#paper 之前；不压左栏与歌词抽屉——层级低于左栏浮层）。
+     内容：谱类图标＋谱名 ▾（换谱类）· 旋律用 简谱 | 五线谱（能互换的谱类）· 起步条（或一句操作提示）· 主按钮 · 收起。
+   显示口径（方案未写明的部分按任务口径）：只在本窗口经新建面板建成（realCreate）或换谱类「另建一份」打开的谱上自动出现；
+     任何谱都可从右栏「信息 · 曲谱信息 · 谱型条」调出（≤1200 宽右栏隐藏时经顶栏「智能」抽屉；键盘 Alt+B）；收起后本窗口本次不再自动出现。打印 / 导出 / 观看页 / 谱架 / 启动台不出现。
+   状态（来源 / 从哪写起 / 收起 / 旋律用切换的还原记录）按窗口记在内存 WeakMap（键＝docs[i] 条目），不进 song、不写本机键（数据红线）；
+     刷新或在本窗口打开别的谱（loadSong）即失效。
+   起步条按谱内容自动推进（每次 render 后 lbSync 现算，只读）：
+     钢琴伴奏歌谱（JG / SG / SJG）①写旋律 →②配和弦与伴奏（有旋律音后亮「一键配伴奏」→ 智能配谱弹窗，默认「填进当前谱」）→③选织体（「换织体」→ 伴奏织体弹窗）；
+     吉他弹唱「先写旋律」①写旋律 →②生成六线谱（把位弹窗，复用建谱时的空吉他轨）→③调把位与扫弦；
+     钢琴弹唱谱（纯伴奏 CG，参考实现 host-editor.js 同款）①标和弦 →②选织体；其他谱类：一句操作提示（LB_TIP，键位均按编辑器实际行为写）。
+   换谱类（lbPlan，谱行规则见 LB_FAM 与 lbPlan 注释）：空谱任意换＝按同样曲名 / 调 / 拍号 / 速度 / 小节数重建（rebuild）；
+     有内容只给不动音符的换法（direct：只改记谱法 / 显示字段，或增删**空**行——各行音符、歌词、和弦逐字段不动）；
+     其余「另建一份」（copy：旋律行连歌词、和弦带到新窗口，原谱保留）；不同源的写明「不可换」及原因（no）。直接换与重建都是一次 mutate＝一步撤销。 */
+const LB_FAM = {J:'mel', S:'mel', SJ:'mel', CJ:'mel', CS:'mel', C:'mel', JG:'acc', SG:'acc', SJG:'acc', JT:'jt', T:'tab', ST:'tab', G:'pno', CG:'pno'};
+/* 建谱时由谱行决定的结构字段：重建 / 另建一份时取新谱的；其余（曲名、词曲、调、拍号、速度、调式、变调夹、定弦、版式、自定义和弦、谱 id…）沿用原谱 */
+const LB_STRUCT = new Set(['tabVoices','voxVoices','voxNotations','voxDual','voxGroups','func','chordOnly','pianoAcc','tabStaff','instKey','mixer','lyricLines','measures',
+  'tabJp','tabJpVoices','tabCapos','texId','gtype','tabClef','funcNames']);
+/* 其他谱类的一句操作提示（键位按编辑器实际：数字 1–7 写音、0 休止、+ / − 八度、Enter 填词、↑↓ 换声部 / 弦、Tab 在六线谱与旋律行之间切、Ctrl+K 和弦） */
+const LB_TIP = {
+  J:'数字键 1–7 写音、0 休止，+ / − 升降八度；Enter 给这个音填歌词',
+  S:'数字键 1–7 按调写音（五线谱自动落位）、0 休止，+ / − 升降八度',
+  SJ:'在五线谱或简谱行输入都行，另一行同步',
+  T:'↑↓ 选弦，数字键写品位（两位数连按）；和弦点右栏「和弦」',
+  JT:'六线谱：↑↓ 选弦、数字键写品位；Tab 切到简谱行写旋律与歌词',
+  ST:'在六线谱输入，五线谱自动同步',
+  G:'数字键 1–7 写音、0 休止；↑↓ 在右手 / 左手之间切换',
+  CJ:'先写旋律，再选中音符点右栏「和弦」标级数和弦',
+  CS:'先写旋律，再选中音符点右栏「和弦」标和弦',
+  C:'选中一拍，按 Ctrl+K 输入和弦（如 Am7、G/B），每拍一格',
+};
+const LB_GROUPS = [['旋律',['J','S','SJ']], ['旋律＋钢琴伴奏',['JG','SG','SJG']], ['弹唱 · 独奏',['JT','T','ST','G','CG']], ['和弦',['CJ','CS','C']]];
+const LB_TAG = {rebuild:'直接换', direct:'直接换 · 不动音符', copy:'另建一份', no:'不可换', same:'当前'};
+function lbDoc(){ return (typeof docs!=='undefined' && docs[curDocI]) || null; }
+function lbMeta(){ const d=lbDoc(); return (d && LB_META && LB_META.get(d)) || null; }
+function lbSetMeta(m){ const d=lbDoc(); if(d && LB_META) LB_META.set(d, m); }
+/* ---- 只读判定 ---- */
+const lbNil = v=> v==null || v===false || v==='' || v===0 || (Array.isArray(v) && v.every(x=>lbNil(x) || (typeof x==='string' && !x.trim())));
+const LB_SKEL = {dur:1, dotted:1, tup:1, tupM:1};
+/* 空列：除时值骨架外全是空值（音、和音、歌词、和弦、标注、延长号、品位、扫弦、技巧……任何会画在谱面上的都不算空；同 tabTrackEmpty 口径） */
+const lbColBare = c=> !c || Object.keys(c).every(k=>LB_SKEL[k] || lbNil(c[k]));
+function lbRowBare(s, kind, vi){ return (s.measures||[]).every(m=>((((kind==='tab'? m.tabs : m.voxes)||[])[vi])||[]).every(lbColBare)); }
+function lbAllBare(s){
+  return (s.voxVoices||[]).every((_,vi)=>lbRowBare(s,'vox',vi)) && (s.tabVoices||[]).every((_,ti)=>lbRowBare(s,'tab',ti));
+}
+/* 旋律行：不在钢琴花括号里的旋律声部（钢琴伴奏歌谱＝[0]；钢琴独奏 / 弹唱谱＝[]；合唱 / 弹唱＝全部旋律声部） */
+function lbMelVoices(s){
+  const n=(s.voxVoices||[]).length; if(!n || s.pianoAcc) return [];
+  if(isPianoAccStack(s)) return [0];
+  const br=voxGroupsOf(s).filter(g=>g.type==='brace'), out=[];
+  for(let i=0;i<n;i++) if(!br.some(g=>i>=g.from && i<=g.to)) out.push(i);
+  return out;
+}
+const lbHasNote = (s, vi)=> (s.measures||[]).some(m=>(((m.voxes||[])[vi])||[]).some(c=>c && c.deg>0));
+/* 标准谱型（按谱行组合建出来的形状）；另加过音轨的谱（如钢琴伴奏歌谱又加旋律轨、功能谱多声部）不是——这类有内容时只给「另建一份」 */
+function lbShape(s){
+  const k=NWB.stackOf(s), F=LB_FAM[k], n=(s.voxVoices||[]).length, nt=(s.tabVoices||[]).length, mv=lbMelVoices(s);
+  let canon;
+  switch(F){
+    case 'mel': canon = !nt && (['CJ','CS','C'].includes(k)? n===1 : (n>=1 && mv.length===n)); break;
+    case 'acc': canon = n===3 && !nt; break;
+    case 'jt':  canon = nt>=1 && n>=1 && mv.length===n; break;
+    case 'tab': canon = nt>=1 && !n; break;
+    case 'pno': canon = n===2 && !nt; break;
+    default: canon = false;
+  }
+  const melHas = (F==='mel'||F==='acc'||F==='jt') && mv.some(vi=>!lbRowBare(s,'vox',vi));
+  return {k, F, n, nt, mv, canon, melHas,
+    melBare: mv.every(vi=>lbRowBare(s,'vox',vi)),
+    accBare: F!=='acc' || (lbRowBare(s,'vox',1) && lbRowBare(s,'vox',2)),
+    tabBare: (s.tabVoices||[]).every((_,ti)=>lbRowBare(s,'tab',ti))};
+}
+/* 换谱类规则（谱行族：mel 旋律 J/S/SJ/CJ/CS/C · acc 旋律＋钢琴伴奏 JG/SG/SJG · jt 吉他弹唱 JT · tab 六线谱 T/ST · pno 钢琴 G/CG）。
+   有内容时（逐项，均为「不动音符」＝已有各行的音符 / 歌词 / 和弦逐字段不变）：
+   · mel ⇄ mel：只改记谱法 / 显示（简谱歌谱 ⇄ 五线谱歌谱 ⇄ 教学对照谱；功能谱 / 五线谱和弦谱＝加和弦显示；和弦谱＝只显示和弦格，旋律仍在数据里）。合唱多声部换成只有一行旋律的谱类 → 另建一份
+   · mel → acc：下面加空的右手 / 左手伴奏两行；acc ⇄ acc：只改旋律行记谱法（钢琴伴奏歌谱 ⇄ 五线谱版 ⇄ 教学对照谱（含伴奏））
+   · acc → mel / jt：伴奏两行是空的＝去掉空行；伴奏有音符＝另建一份（带旋律）
+   · mel / acc → jt：上面加一条空吉他轨（之后「生成六线谱」写进这条空轨）；jt → mel / acc：吉他轨是空的＝去掉空轨，有内容＝另建一份
+   · jt ⇄ tab：旋律行是空的＝去掉空旋律行；tab → jt＝加一行空旋律；T ⇄ ST＝开关五线谱联排
+   · pno：钢琴独奏谱 ⇄ 钢琴弹唱谱（两行不动，只改纯伴奏标志）
+   · 不可换：六线谱 ⇄ 钢琴（两种乐器）；纯六线谱 / 独奏谱 → 旋律类（把位不是旋律行）；旋律类 → 纯六线谱 / 独奏谱 / 钢琴独奏 / 弹唱谱（没有旋律行，或两行是钢琴右手左手） */
+function lbPlan(s, to){
+  const p=lbPlan0(s, to), c=lbCapoOf(s, to);
+  /* 收尾验收：有变调夹的弹唱谱换成没有六线谱的谱类——夹位折进调（lbCapoFold），菜单与提示照实说「按实际调 1=X 记」 */
+  if(c && (p.mode==='direct' || p.mode==='copy' || p.mode==='rebuild')){
+    p.capo=c; p.why+='；按实际调 1='+keyLabel(headKeyOf(s))+' 记（变调夹 '+c+' 品折进调），音高不变';
+  }
+  return p;
+}
+/* 换到 to 时要折进调的夹位（来源有六线谱且设了夹、目标没有六线谱）；0＝不折 */
+function lbCapoOf(s, to){
+  const T=LB_FAM[to];
+  return ((s.tabVoices||[]).length && T && T!=='jt' && T!=='tab')? Math.max(0, s.capo|0) : 0;
+}
+function lbPlan0(s, to){
+  if(!NWB.own(NWB.STACKS, to)) return {mode:'no', why:'没有这种谱类'};
+  const sh=lbShape(s), from=sh.k, F=sh.F, T=LB_FAM[to];
+  const nm=NWB.kindOf(to, lbCtxFor(s, to)).name;
+  if(from===to) return {mode:'same', why:'当前谱类'};
+  if(lbAllBare(s)) return {mode:'rebuild', why:'空谱：按同样的曲名、调、拍号、速度重建'};
+  const D=why=>({mode:'direct', why}), C=why=>({mode:'copy', why}), N=why=>({mode:'no', why});
+  const melT = ['J','S','SJ','JG','SG','SJG','CJ','CS','C','JT'].includes(to);
+  const COPY = '新窗口另建一份，带上旋律（含歌词、和弦），原谱保留';
+  if(!sh.canon){
+    if(melT && sh.melHas) return C('另加过音轨：'+COPY);
+    return N('这份谱另加过音轨（不是建谱时的标准组合），换谱类会动到音符——请另建一份');
+  }
+  const one = sh.mv.length===1;
+  const multi = ()=>C('多声部（合唱）：'+nm+'只有一行旋律——'+COPY.replace('带上旋律','带上第一声部'));
+  const NO_TAB = '纯六线谱 / 吉他独奏谱没有旋律行，旋律放不进去——要旋律＋六线谱请选「吉他弹唱谱」';
+  const NO_PNO = '钢琴独奏谱 / 弹唱谱的两行是钢琴右手、左手，不是旋律行——给旋律配钢琴请选「钢琴伴奏歌谱」';
+  const NO_INST = '六线谱和钢琴大谱表是两种乐器，内容不同源——请另建一份（新建 Alt+N）';
+  const notaWhy = ()=> to==='C'? '只显示和弦格；旋律仍在数据里，换回即恢复，音符不动'
+    : to==='CJ'||to==='CS'? '旋律上显示和弦'+(to==='CS'? '（五线谱）' : '（简谱）')+'，音符、歌词、和弦不动'
+    : from==='C'? '显示旋律行，和弦格里的和弦保留，音符不动'
+    : '改用'+(to==='J'? '简谱' : to==='S'? '五线谱' : '五线谱＋简谱对照')+'显示，音符、歌词、和弦不动';
+  switch(F){
+    case 'mel':
+      if(T==='mel') return (!one && ['CJ','CS','C'].includes(to))? multi() : D(notaWhy());
+      if(T==='acc') return one? D('下面加钢琴伴奏两行（空），旋律'+(to==='JG'? '用简谱' : to==='SG'? '用五线谱' : '用五线＋简谱对照')+'，音符不动') : multi();
+      if(T==='jt') return one? D('上面加一条空吉他轨，旋律不动；写好后一键生成六线谱') : multi();
+      if(T==='tab') return N(NO_TAB);
+      return N(NO_PNO);
+    case 'acc':
+      if(T==='acc') return D('旋律改用'+(to==='JG'? '简谱' : to==='SG'? '五线谱' : '五线＋简谱对照')+'，旋律与伴奏音符不动');
+      if(T==='mel' || T==='jt'){
+        if(sh.accBare) return D('去掉空的伴奏两行'+(T==='jt'? '、上面加一条空吉他轨' : '')+'，旋律不动');
+        if(sh.melHas) return C('伴奏有音符：'+COPY);
+        return N('伴奏两行有音符、旋律行还空着——换成'+nm+'会丢掉伴奏；先写旋律，或在左栏删掉伴奏两行');
+      }
+      if(T==='tab') return N(NO_TAB);
+      return N('钢琴独奏谱 / 弹唱谱没有旋律行，换过去要挪动伴奏音符——请另建一份');
+    case 'jt':
+      if(T==='mel' || T==='acc'){
+        if((T==='acc' || ['CJ','CS','C'].includes(to)) && !one) return multi();
+        if(sh.tabBare) return D('去掉空的吉他轨'+(T==='acc'? '、下面加钢琴伴奏两行（空）' : '')+'，旋律不动');
+        if(sh.melHas) return C('六线谱有内容：'+COPY);
+        return N('旋律行还空着，六线谱里是把位不是旋律——换成'+nm+'会丢掉六线谱；请另建一份');
+      }
+      if(T==='tab') return sh.melBare? D('去掉空的旋律行'+(to==='ST'? '、打开五线谱联排' : '')+'，六线谱不动')
+        : N('旋律行有内容，'+nm+'没有旋律行——想去掉旋律请在左栏删掉旋律轨');
+      return N(NO_INST);
+    case 'tab':
+      if(T==='tab') return D(to==='ST'? '打开五线谱联排（按六线谱自动生成），六线谱不动' : '关闭五线谱联排，六线谱不动');
+      if(T==='jt') return D('加一行空旋律'+(from==='ST'? '、关闭五线谱联排' : '')+'，六线谱不动');
+      if(T==='pno') return N(NO_INST);
+      return N('六线谱里是把位，不是旋律行——内容不同源，不能直接换；请另建一份');
+    case 'pno':
+      if(T==='pno') return D(to==='CG'? '钢琴两行不动，改成纯伴奏谱（和弦名标在上方）' : '钢琴两行不动，改成独奏谱');
+      if(T==='tab' || T==='jt') return N(NO_INST);
+      return N('钢琴右手 / 左手两行不是旋律行，内容不同源——请另建一份');
+  }
+  return N('这两种谱不能直接换');
+}
+/* 菜单里目标谱的叫法（与换完后的谱名同一张表 kindOf） */
+function lbCtxFor(s, to){
+  const c=NWB.ctxOf(s), ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
+  const ikOk = it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false);
+  return {nVox:(to==='J'||to==='S')? c.nVox : 1, inst:s.inst, instKey: ikOk? ik : '', lyr:c.lyr};
+}
+/* ---- 写操作（只写既有字段） ---- */
+function lbSkelCol(c, kind){ const n=kind==='tab'? tcol() : vcol(); n.dur=c.dur; n.dotted=!!c.dotted; if(c.tup) n.tup=c.tup; if(c.tupM) n.tupM=c.tupM; return n; }
+/* 新加的空行：按本小节拍号铺休止；弱起首小节按已有行的时值骨架（与旋律等长） */
+function lbBlankLike(s, mi, kind){
+  const m=s.measures[mi]||{}, b=m.beats||s.beats, u=m.unit||s.unit;
+  const ref=((m.voxes||[])[0]&&(m.voxes||[])[0].length? m.voxes[0] : (m.tabs||[])[0]);
+  if(mi===0 && s.pickup && ref && ref.length) return ref.map(c=>lbSkelCol(c, kind));
+  return kind==='tab'? blankTabCols(b, u) : blankVoxCols(b, u);
+}
+/* 收尾验收（major）：变调夹 / 定弦只作用于六线谱——voxCapo() 有 TAB 才把夹位加进旋律音高，页头 1=X 写实际调（指法调＋夹位）。
+   此前去掉六线谱时 capo / tuning 照留：1=X 与播放整体退回指法调（1=D 夹 2 品的弹唱谱换成钢琴伴奏歌谱后变 1=C、每个音低大二度），
+   页头还挂着「变调夹 2 品 / 自定义调弦」。现在换成没有六线谱的谱类时把夹位折进调：调号与中途转调 keyTo 各移夹位半音（拼写同页头 KEY_LIST），
+   跨过 ♯F / G 折八度边界时按 transposeSong 同口径调 refOct（keyTo 段另跨边界的小节逐音补八度——简谱数字与八度点不动），
+   和弦名按实际音高改写（指法和弦 → 实际和弦，旋律行与六线谱上的都改），夹位归 0。1=X 与每个音的实际音高前后逐一相同 */
+function lbCapoFold(s){
+  const c=(s.tabVoices||[]).length? Math.max(0, s.capo|0) : 0;
+  if(!c) return 0;
+  const sh=k=>KEY_LIST[((KEY_PC[k]+c)%12+12)%12], ro=s.refOct|0;
+  const at=[]; { let k=s.key; s.measures.forEach(m=>{ if(m.keyTo && KEY_PC[m.keyTo]!=null) k=m.keyTo; at.push(k); }); }
+  const dOf=k=>Math.round((keyRefOf(sh(k),0)-keyRefOf(k,0)-c)/12);   /* 0 / −1 / −2：移完调落到下面一个八度 */
+  const d0=dOf(s.key);
+  const ch=col=>{ if(col.chord) col.chord=shiftChordName(col.chord, c); (col.chords||[]).forEach(x=>{ if(x && x.chord) x.chord=shiftChordName(x.chord, c); }); };
+  s.key=sh(s.key);
+  s.measures.forEach((m,mi)=>{
+    if(m.keyTo && KEY_PC[m.keyTo]!=null) m.keyTo=sh(m.keyTo);
+    const fix=d0-dOf(at[mi]);
+    (m.voxes||[]).forEach(cols=>(cols||[]).forEach(col=>{ if(!col) return; ch(col);
+      if(!fix) return;
+      if(col.deg>0) col.oct=(col.oct||0)+fix;
+      (col.adds||[]).forEach(a=>{ if(a && a.deg>0) a.oct=(a.oct||0)+fix; });
+      ['grace','graceA'].forEach(gk=>{ const g=col[gk]; if(g==null) return;
+        if(typeof g==='number'){ col[gk]={notes:[{deg:g, oct:fix}], dur:8}; return; }
+        if(g.deg!=null) g.oct=(g.oct||0)+fix;
+        (g.notes||[]).forEach(n=>{ if(n && n.deg>0) n.oct=(n.oct||0)+fix; }); });
+    }));
+    (m.tabs||[]).forEach(cols=>(cols||[]).forEach(col=>{ if(col) ch(col); }));
+  });
+  if(ro-d0) s.refOct=ro-d0; else if(s.refOct!=null) s.refOct=0;
+  s.capo=0;
+  return c;
+}
+/* 重建 / 另建一份的来源：要折夹位（有 TAB → 没有 TAB）或清掉残留夹位（没有 TAB 却设了夹 → 加上 TAB 就会发声）时取一份处理过的副本，原谱不动 */
+function lbSrc(s, to){
+  const T=LB_FAM[to], tabT=T==='jt'||T==='tab', hasTab=(s.tabVoices||[]).length>0;
+  const need = tabT? (!hasTab && (s.capo|0)>0) : (hasTab && ((s.capo|0)>0 || s.tuning!=null || s.tabCapos!=null));
+  if(!need) return s;
+  const c=JSON.parse(JSON.stringify(s));
+  if(tabT) c.capo=0; else { lbCapoFold(c); c.capo=0; delete c.tuning; delete c.tabCapos; }
+  return c;
+}
+function lbDropTabs(s){
+  lbCapoFold(s);
+  s.tabVoices=[]; s.measures.forEach(m=>{ m.tabs=[]; });
+  ['tabStaff','tabJp','tabJpVoices','tabCapos','tabClef','tuning'].forEach(k=>{ delete s[k]; });   /* 定弦只属于六线谱（页头不再写「自定义调弦」） */
+  if(s.capo) s.capo=0;
+  if(s.mixer) Object.keys(s.mixer).forEach(k=>{ if(/^tab:/.test(k)) delete s.mixer[k]; });
+}
+function lbApplyDirect(s, from, to){
+  const F=LB_FAM[from], T=LB_FAM[to];
+  /* ① 去掉空行（计划已保证是空的） */
+  if(F==='acc' && T!=='acc'){ s.voxVoices.splice(1,2); s.measures.forEach(m=>{ m.voxes.splice(1,2); }); voxMetaSplice(s,1,2,0); }
+  if(F==='jt' && T==='tab'){ const n=s.voxVoices.length; s.voxVoices=[]; s.measures.forEach(m=>{ m.voxes=[]; }); voxMetaSplice(s,0,n,0);
+    delete s.voxNotations; delete s.voxDual; delete s.voxGroups; s.lyricLines=0; }
+  if(F==='jt' && T!=='jt' && T!=='tab') lbDropTabs(s);
+  /* 没有 TAB 的谱上残留的夹位此前不发声、1=X 也不含它——加上吉他轨前归 0，旋律音高与 1=X 不变 */
+  if((T==='jt' || T==='tab') && !(s.tabVoices||[]).length && s.capo) s.capo=0;
+  /* ② 加空行 */
+  if(T==='acc' && F!=='acc'){
+    const n0=(s.voxNotations||[])[0];
+    s.voxVoices=[s.voxVoices[0]||'旋律', '右手伴奏', '左手伴奏'];
+    s.measures.forEach((m,mi)=>{ m.voxes=[m.voxes[0]||lbBlankLike(s,mi,'vox'), lbBlankLike(s,mi,'vox'), lbBlankLike(s,mi,'vox')]; });
+    s.voxNotations=[n0, 'staff', 'bass'];
+    s.voxGroups=[{type:'brace', from:1, to:2}];   /* 同 NWB.build：显式花括号（isPianoAccStack 的正面证据） */
+    s.mixer=s.mixer||{}; [1,2].forEach(i=>{ s.mixer['vox:'+i]=accMixPiano(); });
+  }
+  if(to==='JT' && F!=='jt' && F!=='tab'){
+    s.tabVoices=[(s.inst==='uku'? '尤克里里' : '吉他')+'1'];
+    s.measures.forEach((m,mi)=>{ m.tabs=[lbBlankLike(s,mi,'tab')]; });
+  }
+  if(to==='JT' && F==='tab'){
+    s.voxVoices=['旋律1']; s.measures.forEach((m,mi)=>{ m.voxes=[lbBlankLike(s,mi,'vox')]; }); s.lyricLines=Math.max(1, s.lyricLines|0);
+  }
+  /* ③ 记谱法与显示字段 */
+  const staffT = ['S','SJ','SG','SJG','CS'].includes(to);
+  if(T==='mel' || T==='acc'){
+    const mv=lbMelVoices(s), a=(s.voxNotations||[]).slice(); while(a.length<s.voxVoices.length) a.push(undefined);
+    mv.forEach(i=>{ a[i] = staffT? (isStaffNota(a[i])? a[i] : 'staff') : undefined; });
+    s.voxNotations=a;
+  }
+  if(to==='SJ') s.voxDual=s.voxVoices.map(()=>true);
+  else if(to==='SJG') s.voxDual=[true,false,false];
+  else delete s.voxDual;
+  if(to==='CJ'||to==='CS'){ s.func=true; delete s.chordOnly; }
+  else if(to==='C'){ s.func=true; s.chordOnly=true; }
+  else { delete s.func; delete s.chordOnly; }
+  if(to==='ST') s.tabStaff=true; else if(to==='T'||to==='JT') delete s.tabStaff;
+  if(to==='CG') s.pianoAcc=true;
+  else if(to==='G'){ delete s.pianoAcc; s.voxGroups=[{type:'brace', from:0, to:1}]; }
+  if(Array.isArray(s.voxNotations) && s.voxNotations.every(v=>v==null)) delete s.voxNotations;
+}
+/* 重建 / 另建一份的建谱参数：沿用曲名、调、拍号、速度、小节数、调式、变调夹、定弦、乐器；歌词行数沿用（谱类不带词的按谱类）；
+   乐器身份 instKey 只在新谱类用得上时带（键盘→钢琴独奏谱，民乐 / 管弦→简谱 / 五线谱） */
+function lbOpts(s, to){
+  const mv=lbMelVoices(s), vn=s.voxNotations||[], st=mv.map(i=>vn[i]).find(isStaffNota);
+  const ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
+  const ikOk = it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false);
+  return {title:s.title, key:s.key, beats:s.beats, unit:s.unit, tempo:s.tempo, tempoUnit:s.tempoUnit, nMea:Math.max(1, s.measures.length), capo:s.capo||0, maker:s.maker||'',
+    tuning:s.tuning, mode:s.mode, inst:s.inst==='uku'? 'uku' : 'guitar', lyr:(s.lyricLines|0)>0? s.lyricLines : undefined,
+    nVox:(to==='J'||to==='S'||to==='SJ')? Math.max(1, mv.length) : 1, clef:st||'staff', instKey: ikOk? ik : undefined};
+}
+function lbMerge(old, b, keepId){
+  const out={}, cl=v=>v===undefined? v : JSON.parse(JSON.stringify(v));
+  Object.keys(old).forEach(k=>{ if(!LB_STRUCT.has(k) && (keepId || k!=='id')) out[k]=cl(old[k]); });
+  Object.keys(b).forEach(k=>{ if(LB_STRUCT.has(k)) out[k]=b[k]; });
+  return out;
+}
+/* 小节级属性（拍号 / 换调 / 反复 / 房子 / 段落标记……）照搬；有自己拍号或弱起的小节按它重铺空行 */
+function lbMeaCarry(old, nm, mi, ns){
+  if(!old) return nm;
+  Object.keys(old).forEach(k=>{ if(k!=='voxes' && k!=='tabs') nm[k]=JSON.parse(JSON.stringify(old[k])); });
+  if(old.beats || old.unit || (mi===0 && ns.pickup)){
+    const b=old.beats||ns.beats, u=old.unit||ns.unit, ref=((old.voxes||[])[0]&&(old.voxes||[])[0].length? old.voxes[0] : (old.tabs||[])[0]);
+    const sk=kind=> (mi===0 && ns.pickup && ref && ref.length)? ref.map(c=>lbSkelCol(c, kind)) : (kind==='tab'? blankTabCols(b,u) : blankVoxCols(b,u));
+    nm.voxes=nm.voxes.map(()=>sk('vox')); nm.tabs=nm.tabs.map(()=>sk('tab'));
+  }
+  return nm;
+}
+function lbRebuild(s, to){
+  s=lbSrc(s, to);
+  const b=NWB.build(to, lbOpts(s, to)), ns=lbMerge(s, b, true);
+  ns.measures=b.measures.map((m,mi)=>lbMeaCarry(s.measures[mi], m, mi, ns));
+  return ns;
+}
+/* 六线谱列上的和弦按拍位挪到旋律列上（弹唱谱的和弦多标在 TAB 上；只补旋律本小节一个和弦都没有的） */
+function lbTabChords(old, melCols, unit){
+  if(!melCols || melCols.some(c=>c && c.chord)) return;
+  const ev=[]; let b=0; (((old.tabs||[])[0])||[]).forEach(c=>{ if(c && c.chord) ev.push({b, ch:c.chord}); b+=beatsOf(c, unit); });
+  if(!ev.length) return;
+  let mb=0; const st=melCols.map(c=>{ const x=mb; mb+=beatsOf(c, unit); return x; });
+  ev.forEach(e=>{ let j=-1; st.forEach((x,i)=>{ if(x<=e.b+1e-6) j=i; }); if(j>=0 && !melCols[j].chord) melCols[j].chord=e.ch; });
+}
+function lbCopy(s, to){
+  s=lbSrc(s, to);
+  const b=NWB.build(to, lbOpts(s, to)), ns=lbMerge(s, b, false), mv=lbMelVoices(s), nmv=lbMelVoices(ns);
+  ns.measures=b.measures.map((m,mi)=>{
+    const old=s.measures[mi]; lbMeaCarry(old, m, mi, ns); if(!old) return m;
+    nmv.forEach((nvi, j)=>{ const ovi=mv[j], cols=ovi!=null && (old.voxes||[])[ovi]; if(cols) m.voxes[nvi]=JSON.parse(JSON.stringify(cols)); });
+    if((old.tabs||[]).length && nmv.length) lbTabChords(old, m.voxes[nmv[0]], old.unit||s.unit);
+    return m;
+  });
+  if(to!=='C') ns.lyricLines=Math.max(ns.lyricLines|0, s.lyricLines|0);
+  if(s.funcNames!=null) ns.funcNames=s.funcNames;   /* 和弦级数 / 音名显示照原谱 */
+  return ns;
+}
+/* ---- 谱型条：信息、HTML、同步 ---- */
+function lbMelOk(s, k, meta){
+  if(!['J','S','JG','SG','CJ','CS','JT'].includes(k)) return false;
+  if(meta && meta.scene==='sight') return false;   /* 视唱练耳谱例固定五线谱（同新建面板） */
+  const ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
+  if(it && (k==='J'||k==='S') && it.fam!=='jianpu') return false;   /* 管弦 / 键盘固定五线谱，民乐可选（同新建面板） */
+  return lbMelVoices(s).length>0;
+}
+/* 起步条（收尾验收 F3）：各步只按谱内容判「做完没有」（ok），再按顺序定状态——第一个没做完的那步＝当前，后面的一律「未到」，
+   主按钮只取这唯一的当前步。此前各步独立判定：先写伴奏 / 先写六线谱时 ① 和 ③ 同时是当前（两个 aria-current）、② 打勾，
+   主按钮给出走不通的「换织体」 */
+function lbMono(steps){
+  let open=false;
+  steps.forEach(x=>{ if(open) x.st='todo'; else if(!x.ok){ x.st='now'; open=true; } else x.st='done'; });
+  return steps;
+}
+/* 钢琴伴奏歌谱：旋律有音、伴奏两行却还空着的小节数（收尾验收 F5：提前一键配伴奏后续写的旋律）。
+   弱起首小节按设计只留旋律、拍号与谱首不同的小节织体不配（genAccompaniment 跳过）——都不算缺 */
+function lbAccGap(s){
+  return (s.measures||[]).filter((m,mi)=>{
+    if(mi===0 && s.pickup) return false;
+    const mm = s===song && typeof meaMeter==='function'? meaMeter(mi) : {beats:m.beats||s.beats, unit:m.unit||s.unit};
+    if(mm.beats!==s.beats || mm.unit!==s.unit) return false;
+    return (((m.voxes||[])[0])||[]).some(c=>c && c.deg>0) && [1,2].every(vi=>(((m.voxes||[])[vi])||[]).every(c=>!c || !(c.deg>0)));
+  }).length;
+}
+/* 旋律行的写法提示（第 ① 步没有按钮，提示可见——收尾验收 F6） */
+const lbMelHint = s=>{ const mv=lbMelVoices(s); return (mv.length && isStaffNota((s.voxNotations||[])[mv[0]]))? '点旋律行：'+LB_TIP.S : '点旋律行：'+LB_TIP.J; };
+function lbSteps(s, k, meta){
+  if(k==='JG'||k==='SG'||k==='SJG'){
+    const mel=lbHasNote(s,0), acc=lbHasNote(s,1)||lbHasNote(s,2), gap=mel && acc? lbAccGap(s) : 0;
+    return lbMono([{t:'写旋律', ok:mel, hint:lbMelHint(s)},
+      {t:'配和弦与伴奏', ok:acc && !gap, btn: gap? '补配 '+gap+' 小节' : '一键配伴奏', act:'arrange', ic:'src-arrange',
+        say: gap? gap+' 个小节还没有伴奏' : '', sayT: '按所选织体重新配全曲（已有和弦不改），Ctrl+Z 撤销'},
+      {t:'选织体', ok:false, btn:'换织体', act:'tex', ic:'nota-texture'}]);
+  }
+  if(k==='JT'){
+    const mv=lbMelVoices(s), mel=mv.some(vi=>lbHasNote(s,vi));
+    /* 收尾验收 F12：先写了旋律（不论建谱时选的从哪写起）同样给起步条——此前只认「先写旋律」建的谱 */
+    if(!(meta && (meta.pen==='J' || mel))) return null;
+    const tab=(s.measures||[]).some(m=>(m.tabs||[]).some(cs=>(cs||[]).some(c=>c && (c.notes||[]).length)));
+    /* 收尾验收 F1：生成过六线谱后又续写了旋律——旋律有音、六线谱还空着的小节（vtFillInfo 同「补进」口径）：② 回到当前、主按钮「补齐六线谱」 */
+    const fi=mel && tab && mv.length? vtFillInfo(mv[0], s) : null;
+    return lbMono([{t:'写旋律', ok:mel, hint:lbMelHint(s)},
+      {t:'生成六线谱', ok:tab && !fi, btn: fi? '补齐六线谱' : '生成六线谱', act:'tabgen', ic:'nota-tab6',
+        say: fi? fi.gaps.length+' 个小节还没有六线谱' : '', sayT: '只补这些小节，已有的品位、扫弦、和弦不动'},
+      {t:'调把位与扫弦', ok:false, hint:'点六线谱上的音：↑↓ 选弦、数字键写品位（换弦＝在另一根弦写好再删原音）；扫弦与技巧在左栏吉他轨的「记号」'}]);
+  }
+  if(k==='CG'){
+    const ch=(s.measures||[]).some(m=>(((m.voxes||[])[0])||[]).some(c=>c && (c.chord || (c.chords||[]).some(x=>x && x.chord))));
+    const nt=lbHasNote(s,0)||lbHasNote(s,1);
+    return lbMono([{t:'标和弦', ok:ch, hint:'选中右手的音，按 Ctrl+K 输入和弦（如 Am7），或点右栏「和弦」'},
+      {t:'选织体', ok:false, btn: nt? '换织体' : '生成伴奏', act:'tex', ic:'nota-texture'}]);
+  }
+  return null;
+}
+function lbInfo(s, meta){
+  const k=NWB.stackOf(s), mv=lbMelVoices(s);
+  return {k, kind:NWB.kindOfSong(s), steps:lbSteps(s, k, meta), melOk:lbMelOk(s, k, meta),
+    mel: mv.length && isStaffNota((s.voxNotations||[])[mv[0]])? 'S' : 'J', tip:LB_TIP[k]||''};
+}
+/* 当前步与它的可见提示（没有按钮的当前步写怎么做；有按钮但有缺口时写缺几个小节）——收尾验收 F6 */
+function lbCur(f){
+  const cur=f.steps? f.steps.find(x=>x.st==='now') : null;
+  return {cur, nxt: cur && cur.btn? cur : null, hint: cur? (cur.btn? (cur.say||'') : (cur.hint||'')) : ''};
+}
+function lbHTML(f){
+  const ic=pqIcon, c=lbCur(f), nm=esc(f.kind.name);
+  /* 收尾验收 F8：谱名按钮的可访问名带上「换谱类」（此前只读谱名，用途只在 title 里） */
+  let h='<div class="lb-bar" role="region" aria-label="谱型与下一步">'
+    +'<button type="button" class="lb-kind" data-lb="kind" aria-haspopup="menu" aria-expanded="false" aria-label="谱类：'+nm+'。换谱类" title="换谱类（当前：'+nm+'）· Alt+B 跳到这里">'+ic(f.kind.ic,20)+'<b>'+nm+'</b>'+ic('act-chevron',16)+'</button>';
+  if(f.melOk) h+='<span class="lb-sep"></span><span class="lb-mell" id="lb-mell">旋律用</span><div class="lb-seg" role="radiogroup" aria-labelledby="lb-mell">'
+    +[['J','简谱'],['S','五线谱']].map(([v,t])=>'<button type="button" role="radio" data-lb="mel" data-v="'+v+'" aria-checked="'+(f.mel===v)+'" tabindex="'+(f.mel===v? 0 : -1)+'">'+t+'</button>').join('')+'</div>';
+  h+='<span class="lb-sep"></span>';
+  if(f.steps){
+    h+='<ol class="lb-steps'+(c.hint? ' lb-sh' : '')+'" aria-label="起步">'+f.steps.map((x,i)=>'<li class="'+x.st+'"'+(x.st==='now'? ' aria-current="step"'+(c.hint? ' aria-describedby="lb-hint"' : '') : '')+'>'
+      +'<i>'+(x.st==='done'? ic('act-check',14)+'<span class="lb-sr">已完成：</span>' : (i+1))+'</i><span>'+x.t+'</span></li>').join('')+'</ol>';
+    if(c.hint) h+='<p class="lb-hint" id="lb-hint" title="'+esc(c.hint)+'">'+esc(c.hint)+'</p>';
+  }
+  else h+='<p class="lb-tip" title="'+esc(f.tip)+'">'+esc(f.tip)+'</p>';
+  if(c.nxt) h+='<button type="button" class="lb-go" data-lb="go" data-act="'+c.nxt.act+'"'+(c.nxt.say && c.nxt.sayT? ' title="'+esc(c.nxt.say+'：'+c.nxt.sayT)+'"' : '')+'>'+ic(c.nxt.ic,18)+'<span>'+c.nxt.btn+'</span></button>';
+  return h+'<button type="button" class="lb-x" data-lb="hide" aria-label="收起谱型条" title="收起（本窗口本次不再自动出现；'+lbWhere()+'可重新调出，或按 Alt+B）">'+ic('act-close',18)+'</button></div>';
+}
+/* 读屏播报（收尾验收 F8：步骤推进此前不播报）：常驻在 body 的视觉隐藏 status 区，谱型条重写 innerHTML 不影响它 */
+function lbSay(t){
+  let l=document.getElementById('lb-live');
+  if(!l){ l=document.createElement('div'); l.id='lb-live'; l.className='lb-sr'; l.setAttribute('role','status'); l.setAttribute('aria-live','polite'); document.body.appendChild(l); }
+  l.textContent=''; if(t) setTimeout(()=>{ if(l.isConnected) l.textContent=t; }, 40);
+}
+/* 「谱型条 · 换谱类…」在当前宽度下看得见的入口（收尾验收 F2：≤1200 宽右栏整体隐藏，提示此前仍叫人去右栏） */
+function lbWhere(){
+  const rd=document.getElementById('right-dock');
+  let vis=false; try{ vis=!!(rd && getComputedStyle(rd).display!=='none' && rd.getBoundingClientRect().width>0); }catch(_){}
+  if(vis && !document.body.classList.contains('rsheet')) return '右栏「信息 · 曲谱信息」的「谱型条 · 换谱类…」';
+  return '顶栏「智能」→「信息」页的「谱型条 · 换谱类…」';
+}
+/* 观看页（只读谱，song 是观看用的谱）不建谱型条；谱架 / 打印 / 启动台由 CSS 隐藏（退出谱架不一定重排，谱型条留着随即可见） */
+function lbOff(){
+  let vm=false; try{ vm=!!viewerMode; }catch(_){}
+  return vm || document.body.classList.contains('viewer');
+}
+/* 每次 render 之后调（render 末尾）：没有谱型条的窗口一次 WeakMap 查表即返回；有则按谱内容现算并只在 HTML 变了才重写 */
+function lbSync(){
+  if(!LB_META) return;
+  const sw=document.getElementById('score-wrap'), paper=document.getElementById('paper'); if(!sw || !paper) return;
+  let wrap=document.getElementById('lb-wrap');
+  const meta=lbMeta();
+  if(!meta || meta.hidden || !song || lbOff()){ if(wrap){ lbMenuClose(); wrap.remove(); } return; }
+  const fresh=!wrap;
+  if(!wrap){
+    wrap=document.createElement('div'); wrap.id='lb-wrap'; (paper.parentNode||sw).insertBefore(wrap, paper);
+    if(!lbSync.ro && typeof ResizeObserver!=='undefined'){ lbSync.ro=new ResizeObserver(()=>{ if(document.getElementById('lb-wrap')) lbFit(); }); lbSync.ro.observe(paper); }
+  }
+  const f=lbInfo(song, meta), html=lbHTML(f);
+  if(wrap._h!==html){
+    const ae=document.activeElement, keep=ae && wrap.contains(ae)? (ae.dataset.lb||'')+':'+(ae.dataset.v||'') : null;
+    wrap.innerHTML=html; wrap._h=html;
+    if(keep){ const [a,v]=keep.split(':'); const t=wrap.querySelector('[data-lb="'+a+'"]'+(v? '[data-v="'+v+'"]' : '')) || wrap.querySelector('.lb-kind'); if(t) t.focus({preventScroll:true}); }
+  }
+  /* 当前步变了才播报（同一窗口；新建 / 切窗口时不播） */
+  const c=lbCur(f), sig=lbDoc()? f.k+'|'+(c.cur? f.steps.indexOf(c.cur)+':'+(c.nxt? c.nxt.btn : '') : '-') : '';
+  if(!fresh && meta._sig!=null && meta._sig!==sig && c.cur)
+    lbSay('第 '+(f.steps.indexOf(c.cur)+1)+' 步：'+c.cur.t+(c.nxt? '，可点「'+c.nxt.btn+'」' : '')+(c.hint? '。'+c.hint : ''));
+  meta._sig=sig;
+  lbFit();
+}
+/* 宽度与左缘对齐谱纸：固定版宽谱＝#paper；其余谱（#paper 比可见纸面宽一圈内边距）取 #score 与 #paper 的交集——收尾验收 F10
+   （此前按 #paper 盒，比可见白纸每边宽 15px）。不换行长带：谱纸是整条长带，谱型条改为可视宽度并横向吸住（CSS left:0），不随内容滚走 */
+function lbFit(){
+  const wrap=document.getElementById('lb-wrap'), paper=document.getElementById('paper'); if(!wrap || !paper) return;
+  const pr=paper.getBoundingClientRect(); if(!pr.width) return;
+  let L=pr.left, R=pr.right;
+  const nw = typeof noWrapOn==='function' && noWrapOn();
+  if(nw){
+    const sw=document.getElementById('score-wrap'), r=sw.getBoundingClientRect(), cs=getComputedStyle(sw);
+    L=r.left+(parseFloat(cs.paddingLeft)||0); R=r.left+sw.clientWidth-(parseFloat(cs.paddingRight)||0);
+  } else if(!document.body.classList.contains('fixwide')){
+    const sv=document.getElementById('score'), sr=sv && sv.getBoundingClientRect();
+    if(sr && sr.width){ L=Math.max(L, sr.left); R=Math.min(R, sr.right); }
+  }
+  const w=Math.round(R-L);
+  if(w<=0) return;
+  if(wrap._w!==w || wrap._l!==Math.round(L) || wrap._nw!==nw){
+    wrap.style.width=w+'px'; wrap.style.marginLeft='0px';
+    if(!nw){ const l0=wrap.getBoundingClientRect().left; wrap.style.marginLeft=Math.round(L-l0)+'px'; }
+    wrap._w=w; wrap._l=Math.round(L); wrap._nw=nw;
+  }
+  /* 放不下才收：按实测溢出逐级收起（先「旋律用」字样 → 没轮到的步骤名 → 只留当前一步，谱名最后才省略），宽度或内容变了才重测 */
+  if(wrap._fw!==w || wrap._fh!==wrap._h){
+    const bar=wrap.querySelector('.lb-bar');
+    for(const c of ['', 'lb-n1', 'lb-n1 lb-n2', 'lb-n1 lb-n2 lb-n3']){ if(wrap.className!==c) wrap.className=c; if(!lbOver(bar)) break; }
+    wrap._fw=w; wrap._fh=wrap._h;
+  }
+}
+function lbOver(bar){
+  if(!bar) return false;
+  const cut=e=>!!(e && e.scrollWidth>e.clientWidth+1);
+  return cut(bar) || cut(bar.querySelector('.lb-steps')) || cut(bar.querySelector('.lb-kind b'));
+}
+/* 吸顶谱型条底边的视口纵坐标（没有谱型条 / 不吸顶＝0）：光标跟滚 selFollow、播放跟随 highlight、报错跳转都把它当可视区上缘让开。
+   未吸住时（谱面区在顶部）它在文档流里、底边只会更低——按它算只多留余量 */
+function lbStickBottom(){
+  const w=document.getElementById('lb-wrap'); if(!w) return 0;
+  try{ const cs=getComputedStyle(w); if(cs.position!=='sticky' || cs.display==='none') return 0; }catch(_){ return 0; }
+  return w.getBoundingClientRect().bottom;
+}
+/* 焦点交还谱面（收尾验收：鼠标在谱型条上点完——换谱类、旋律用、主按钮——焦点不留在谱型条：此前空格重开菜单而不播放、
+   ←→ 被「旋律用」截走来回翻转记谱法、Tab 走焦点而不切声部）。键盘操作（click 的 detail＝0）照旧留焦点 */
+function lbBlur(){ const ae=document.activeElement; if(ae && ae.closest && ae.closest('#lb-wrap, #lb-menu') && ae.blur) ae.blur(); }
+/* ---- 换谱类菜单 ---- */
+function lbMenuClose(focusBack){
+  const m=document.getElementById('lb-menu'); if(!m) return;
+  m.remove(); document.removeEventListener('pointerdown', lbMenuOut, true);
+  const sc=document.getElementById('score-wrap'); if(sc) sc.removeEventListener('scroll', lbMenuScroll);
+  window.removeEventListener('resize', lbMenuScroll);
+  const b=document.querySelector('#lb-wrap .lb-kind'); if(b){ b.setAttribute('aria-expanded','false'); if(focusBack) b.focus({preventScroll:true}); }
+}
+function lbMenuOut(e){ const m=document.getElementById('lb-menu'); if(m && !m.contains(e.target) && !(e.target.closest && e.target.closest('#lb-wrap .lb-kind'))) lbMenuClose(); }
+function lbMenuScroll(){ lbMenuClose(); }
+const LB_ROWN = {J:'简谱', S:'五线谱', T:'六线谱', G:'钢琴大谱表', C:'和弦'};
+function lbMenuHTML(s){
+  const empty=lbAllBare(s);
+  /* 收尾验收 F8：分组＝role=group＋aria-labelledby；菜单项可访问名＝谱名，结果说明经 aria-describedby 关联（此前三段连读） */
+  return '<div class="lb-menu" id="lb-menu" role="menu" aria-label="换谱类">'
+    +'<p class="lb-mh">'+(empty? '谱还是空的：任意换，按同样的曲名、调、拍号、速度重建（Ctrl+Z 撤销）。'
+      : '已有内容：只给不动音符的换法（直接换，Ctrl+Z 撤销）；其余另建一份，旋律（含歌词、和弦）带到新窗口，原谱保留。')+'</p>'
+    +LB_GROUPS.map(([g,ks],gi)=>'<div role="group" aria-labelledby="lb-mg'+gi+'"><div class="lb-mg" id="lb-mg'+gi+'">'+g+'</div>'+ks.map(k=>{
+      const p=lbPlan(s,k), kd=NWB.kindOf(k, lbCtxFor(s,k)), off=p.mode==='no'||p.mode==='same';
+      /* 收尾验收 F11：空谱时 13 项不再重复同一句（菜单头已说过）——改写这一项会有哪几行 */
+      const why = p.mode==='rebuild'? '谱行：'+NWB.STACKS[k].rows.map(r=>LB_ROWN[r]).join(' ＋ ')+(p.capo? '；按实际调 1='+keyLabel(headKeyOf(s))+' 重建（变调夹折进调）' : '') : p.why;
+      const tag = p.capo && p.mode==='direct'? '直接换 · 音高不变' : LB_TAG[p.mode];
+      return '<button type="button" role="menuitem" class="lb-mi m-'+p.mode+'" data-sw="'+k+'" tabindex="-1" aria-describedby="lb-md-'+k+'"'+(off? ' aria-disabled="true"' : '')+'>'
+        +pqIcon(kd.ic,20)+'<span class="lb-mt"><b>'+esc(kd.name)+'</b><small id="lb-md-'+k+'"><span class="lb-sr">'+esc(tag)+'：</span>'+esc(why)+'</small></span><em aria-hidden="true">'+tag+'</em></button>'; }).join('')+'</div>').join('')+'</div>';
+}
+function lbMenuOpen(btn){
+  if(document.getElementById('lb-menu')){ lbMenuClose(true); return; }
+  document.body.insertAdjacentHTML('beforeend', lbMenuHTML(song));
+  const m=document.getElementById('lb-menu'), r=btn.getBoundingClientRect();
+  m.style.left=Math.max(8, Math.min(window.innerWidth-m.offsetWidth-8, r.left))+'px';
+  m.style.top=Math.round(r.bottom+6)+'px';
+  m.style.maxHeight=Math.max(220, window.innerHeight-r.bottom-18)+'px';
+  btn.setAttribute('aria-expanded','true');
+  const items=[...m.querySelectorAll('.lb-mi')], cur=m.querySelector('.lb-mi.m-same')||items[0];
+  if(cur){ cur.tabIndex=0; cur.focus({preventScroll:true}); try{ cur.scrollIntoView({block:'nearest'}); }catch(_){} }
+  m.addEventListener('keydown', e=>{
+    const i=items.indexOf(document.activeElement);
+    const go=j=>{ const t=items[(j+items.length)%items.length]; items.forEach(x=>{ x.tabIndex=-1; }); t.tabIndex=0; t.focus(); };
+    if(e.key==='ArrowDown'){ e.preventDefault(); go(i+1); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); go(i-1); }
+    else if(e.key==='Home'){ e.preventDefault(); go(0); }
+    else if(e.key==='End'){ e.preventDefault(); go(items.length-1); }
+    else if(e.key==='Escape'){ e.preventDefault(); lbMenuClose(true); }
+    else if(e.key==='Tab'){ e.preventDefault(); lbMenuClose(true); }
+    else if(e.key==='Enter' || e.key===' '){ e.preventDefault(); if(i>=0) items[i].click(); }
+    e.stopPropagation();   /* 菜单里的方向键 / 数字键不进谱面 */
+  });
+  m.addEventListener('click', e=>{ const t=e.target.closest('[data-sw]'); if(t) lbSwitch(t.dataset.sw, e.detail===0); });
+  setTimeout(()=>{ if(document.getElementById('lb-menu')===m){ document.addEventListener('pointerdown', lbMenuOut, true);
+    const sc=document.getElementById('score-wrap'); if(sc) sc.addEventListener('scroll', lbMenuScroll); window.addEventListener('resize', lbMenuScroll); } }, 0);
+}
+/* ---- 执行换谱类 ---- */
+/* 收尾验收：光标只在它所在的行 / 声部被删掉时才挪（此前恒置第 0 声部、本小节第 1 拍——行结构不变的直接换也被重置）；
+   删了行时清掉指向旧行的选区（selRange / noteSel / measureRange） */
+function lbFixSel(rowsCut){
+  const nv=(song.voxVoices||[]).length, nt=(song.tabVoices||[]).length;
+  if(sel.row==='tab' && !nt){ sel.row='vox'; sel.vi=0; sel.ci=0; }
+  else if(sel.row==='vox' && !nv){ sel.row='tab'; sel.vi=0; sel.ci=0; }
+  else if(sel.row==='vox' && sel.vi>=nv){ sel.vi=nv-1; sel.ci=0; }
+  else if(sel.row==='tab' && sel.vi>=nt){ sel.vi=nt-1; sel.ci=0; }
+  if(rowsCut){ selRange=null; noteSel=[]; measureRange=null; }
+  try{ clampSel(); }catch(_){}
+}
+function lbSwitch(to, kb){
+  const s=song, from=NWB.stackOf(s), p=lbPlan(s, to), meta=lbMeta()||{from:'switch'};
+  if(p.mode==='same'){ lbMenuClose(!!kb); if(!kb) lbBlur(); return p.mode; }
+  if(p.mode==='no'){
+    /* 收尾验收 F11：不可换＝就地把原因亮出来（菜单不关，读屏播报原因）——此前弹 toast，左半被菜单盖住 */
+    const it=document.querySelector('#lb-menu .lb-mi[data-sw="'+to+'"]');
+    if(it){ it.classList.remove('m-flash'); void it.offsetWidth; it.classList.add('m-flash'); }
+    lbSay('不可换：'+p.why);
+    return p.mode;
+  }
+  lbMenuClose();
+  const nm=NWB.kindOf(to, lbCtxFor(s, to)).name;
+  if(p.mode==='copy'){
+    const ns=lbCopy(s, to), t0=s.title||'未命名曲谱', d0=curDocI;
+    addDoc(ns, ()=>{
+      LBAR.open({from:'switch', pen: to==='JT'? 'J' : undefined});
+      if((song.voxVoices||[]).length){ sel.row='vox'; sel.vi=0; sel.ci=0; clampSel(); }
+      try{ setRibbon(sel.row==='vox'? 'vox' : 'tab'); }catch(_){}
+      render();
+      if(kb){ const b=document.querySelector('#lb-wrap .lb-kind'); if(b) b.focus({preventScroll:true}); } else lbBlur();
+      /* 收尾验收 F11：新窗口追加在最末，原谱不一定在「前一个」——照实说第几个页签 */
+      toast('已另建'+NWB.kindOfSong(song).name+'《'+t0+'》（新页签）：旋律（含歌词、和弦）已带过来'+(p.capo? '，按实际调 1='+keyLabel(song.key)+' 记' : '')+'；原谱仍在第 '+(d0+1)+' 个页签');
+    });
+    return p.mode;
+  }
+  const F=LB_FAM[from], T=LB_FAM[to];
+  const pen = to==='JT'? ((F==='mel'||F==='acc')? 'J' : F==='jt'? meta.pen : 'T') : meta.pen;
+  lbSetMeta(Object.assign({}, meta, {pen, scene:null, hidden:false, melUndo:null}));
+  const nRow0=(s.voxVoices||[]).length+(s.tabVoices||[]).length;
+  mutate(()=>{
+    if(p.mode==='rebuild'){ const ns=lbRebuild(song, to); Object.keys(song).forEach(k=>{ delete song[k]; }); Object.assign(song, ns); }
+    else lbApplyDirect(song, from, to);
+    const nRow=(song.voxVoices||[]).length+(song.tabVoices||[]).length;
+    lbFixSel(p.mode==='rebuild' || nRow<nRow0 || (F==='acc' && T!=='acc') || (F==='jt' && T!=='jt'));
+  });
+  try{ setRibbon(sel.row==='vox'? 'vox' : 'tab'); }catch(_){}
+  if(kb){ const b=document.querySelector('#lb-wrap .lb-kind'); if(b) b.focus({preventScroll:true}); } else lbBlur();
+  const nm2=NWB.kindOfSong(song).name;
+  toast(p.mode==='rebuild'? '已换成'+nm2+'（空谱，按原曲名、调、拍号、速度重建'+(p.capo? '，按实际调 1='+keyLabel(song.key)+'，变调夹 '+p.capo+' 品折进调' : '')+'；Ctrl+Z 撤销）'
+    : p.capo? '已换成'+nm2+'：按实际调 1='+keyLabel(song.key)+' 记（变调夹 '+p.capo+' 品折进调，和弦名改按实际音高），旋律与歌词不动、音高不变（Ctrl+Z 撤销）'
+    : '已换成'+nm2+'：音符、歌词、和弦都没动（Ctrl+Z 撤销）');
+  return p.mode;
+}
+/* 「旋律用 简谱 | 五线谱」：等价左栏「显示」里的记谱法切换（setVoxNotation），作用于全部旋律行（钢琴伴奏两行不动），同一份数据、一步撤销。
+   来回切保持逐字节：记下切换前的 voxNotations，切回时谱上记谱法没被别处改过就原样还原（低音 / 中音谱号不丢） */
+function lbMelSet(want){
+  const meta=lbMeta()||{}, mv=lbMelVoices(song); if(!mv.length) return;
+  const cur=isStaffNota((song.voxNotations||[])[mv[0]])? 'S' : 'J'; if(cur===want) return;
+  const J=v=>v===undefined? null : JSON.stringify(v), prev=J(song.voxNotations), u=meta.melUndo;
+  mutate(()=>{
+    if(u && J(song.voxNotations)===u.set){ if(u.prev===null) delete song.voxNotations; else song.voxNotations=JSON.parse(u.prev); }
+    else { const a=(song.voxNotations||[]).slice(); while(a.length<song.voxVoices.length) a.push(undefined);
+      mv.forEach(i=>{ a[i]= want==='S'? 'staff' : undefined; }); song.voxNotations=a; }
+  });
+  meta.melUndo={set:J(song.voxNotations), prev}; lbSetMeta(meta);
+  render();
+  toast('旋律改用'+(want==='S'? '五线谱' : '简谱')+'显示：同一份数据，音符不动，可随时切回（Ctrl+Z 撤销）');
+}
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('#lb-wrap [data-lb]'); if(!b) return;
+  const a=b.dataset.lb, meta=lbMeta(), kb=e.detail===0;   /* 键盘（Enter / 空格）触发的 click detail＝0 */
+  if(a==='kind') lbMenuOpen(b);
+  else if(a==='mel'){ lbMelSet(b.dataset.v); if(!kb) lbBlur(); }
+  else if(a==='hide'){ lbMenuClose(); if(meta){ meta.hidden=true; lbSetMeta(meta); } lbSync();
+    toast('已收起谱型条：本窗口本次不再自动出现；需要时点'+lbWhere()+'，或按 Alt+B'); }
+  else if(a==='go'){
+    const act=b.dataset.act;
+    if(!kb) lbBlur();   /* 鼠标点的：弹窗关掉后焦点不回到主按钮（此前按空格又打开弹窗） */
+    try{ toastHide(); }catch(_){}   /* 弹窗打开前收起提示条（同智能配谱，修 teacher A-7） */
+    if(act==='arrange'){ const x=document.getElementById('b-arrange'); if(x) x.click(); }
+    else if(act==='tex'){ const x=document.getElementById('b-acctex'); if(x) x.click(); }
+    else if(act==='tabgen'){ const mv=lbMelVoices(song); showVoxTabMenu(mv.length? mv[0] : 0); }
+  }
+});
+/* 「旋律用」单选组：←→ 切换（同 radiogroup 惯例），不进谱面。焦点只会是键盘移来的——鼠标点完即 lbBlur 交还谱面
+   （收尾验收：此前鼠标点「五线谱」后焦点留在单选钮上，←→ 被截走、记谱法来回翻转、光标不动、每按一次多一步撤销） */
+document.addEventListener('keydown', e=>{
+  const t=e.target; if(!(t && t.closest && t.closest('#lb-wrap .lb-seg'))) return;
+  if(e.key!=='ArrowLeft' && e.key!=='ArrowRight') return;
+  e.preventDefault(); e.stopPropagation();
+  const v=t.dataset.v==='J'? 'S' : 'J'; lbMelSet(v);
+  const n=document.querySelector('#lb-wrap .lb-seg [data-v="'+v+'"]'); if(n) n.focus();
+}, true);
+const LBAR = {
+  /* 新建面板建成 / 换谱类另建一份时调：本窗口挂谱型条（from：new | switch | manual，pen：吉他弹唱从哪写起，scene：用途） */
+  open(o){ lbSetMeta(Object.assign({from:'new', hidden:false}, o||{})); },
+  forget(){ const d=lbDoc(); if(d && LB_META) LB_META.delete(d); },
+  /* 右栏 /「智能」抽屉 / Alt+B 调出：任何谱都可，已收起的重新显示 */
+  show(){
+    if(!song || lbOff()) return;
+    if(document.body.classList.contains('rsheet') && typeof toggleSmartSheet==='function') toggleSmartSheet(false);   /* 从「智能」抽屉里点的：收起抽屉，谱型条露出来 */
+    const was=!!document.querySelector('#lb-wrap .lb-bar');
+    const meta=lbMeta()||{from:'manual'}; meta.hidden=false; lbSetMeta(meta); render();
+    /* 新调出来的 / 不吸顶（窄屏、经典版）时滚到谱面顶部让它露出来；已经吸在上缘的不动视图 */
+    if(!was || !lbStickBottom()){ const sc=scoreScroller(); if(sc) sc.scrollTop=0; else window.scrollTo(0,0); }
+    const b=document.querySelector('#lb-wrap .lb-kind'); if(b) b.focus({preventScroll:true});
+  },
+  meta: ()=>lbMeta(), plan: lbPlan, switchTo: lbSwitch, mel: lbMelSet, sync: lbSync,
+};
+var LB_META = new WeakMap();   /* var：render 可能早于本行被调（启动期），那时 lbSync 见 undefined 直接返回 */
+{ const rb=document.getElementById('ri-lbar'); if(rb) rb.onclick=()=>LBAR.show(); }
 /* ---- 打印 / 导出（纸张尺寸可选 + PNG） ---- */
 function setPrintPage(size){
   let s = document.getElementById('print-page');
@@ -24857,6 +26377,10 @@ function importMusicXML(xmlStr){
   let unit  = +(txt(firstAttr,'time > beat-type')||4) || 4;
   if(unit!==2 && unit!==4 && unit!==8){ skip.other++; unit=4; }   /* v65.4 B3a ⑦（P2-13）2/2 等 x/2 拍号放行 */
   beats = Math.max(1, Math.min(12, beats));
+  /* v67.5 依据用的只读文件事实（不进 song）：文件没写拍号（按 4/4）/ 写的拍号读不了被改写（如 3/16 → 3/4） */
+  const meterRaw = [txt(firstAttr,'time > beats'), txt(firstAttr,'time > beat-type')];
+  const meterDefaulted = meterRaw[0]==null || meterRaw[1]==null;
+  const meterFrom = (!meterDefaulted && (meterRaw[0]!==String(beats) || meterRaw[1]!==String(unit)))? (meterRaw[0]+'/'+meterRaw[1]).slice(0,16) : '';
   /* v63.0 A8 外部转调（P1-10）：转调之后的小节按该小节生效调算音级（与播放 keyRefAt 同口径）。
      此前整份文件按谱首调算——C→G 之后的音在简谱里唱名全错、播放整体偏移（G 大调段高出纯四度）。
      keyToMap 由首个声部的 <key> 变更登记（attributes 先于本小节音符），其余声部读同一张表。 */
@@ -25339,7 +26863,11 @@ function importMusicXML(xmlStr){
     out.measures.push(mea);
   }
   if(!out.measures.length) return {error:'未解析到任何小节'};
-  return {song: migrate(out), skip, keyDefaulted};
+  /* v67.5 新建面板「从已有音乐」的依据只读几项文件事实（不进 song）：<encoding><software> 导出软件名（AI 转谱工具识别）、
+     速度是否文件里写了（<metronome> / <sound tempo> 都没有＝按默认 90）、拍号是否文件里写了 / 被改写（meterDefaulted / meterFrom，见上） */
+  const software = (txt(root,'identification > encoding > software')||'').trim().slice(0,80);
+  const tempoDefaulted = !doc.querySelector('metronome per-minute') && !tempoEl;
+  return {song: migrate(out), skip, keyDefaulted, software, tempoDefaulted, meterDefaulted, meterFrom};
 }
 /* ===== MIDI 导入（P0-C）=====
    ① parseSMF：纯前端 SMF(format 0/1) 解析（运行状态/变长量/meta 速度·拍号·调号·轨名）；

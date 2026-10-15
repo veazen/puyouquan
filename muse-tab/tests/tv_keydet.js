@@ -355,6 +355,7 @@ const CMIN_MEL = [[60, 1], [63, 1], [67, 1], [63, 1], [65, 1], [62, 1], [59, 1],
   {
     const run = async (xml) => { await pg.evaluate(() => { window.__toasts.length = 0; showNewWizard(); }); await pg.waitForTimeout(100);
       await pg.setInputFiles('#nw-mxlfile', { name: 't.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) }); await pg.waitForTimeout(500);
+      await pg.click('#nf-impgo'); await pg.waitForTimeout(200);   /* v67.5 新建面板读进来先看依据，「导入」（按原文件）后落地 */
       return EV(`(()=>{ render(); const v=song.measures[0].voxes[0]; return {key:song.key, mode:song.mode||'', head:__P.head(), degs:v.map(c=>c.deg+c.acc).join(' '), toast:window.__toasts.join('|')}; })()`); };
     const a1 = await run(mxml('<key><fifths>-3</fifths><mode>minor</mode></key>', CMIN_MEL));
     const a2 = await run(mxml('', D_MEL));

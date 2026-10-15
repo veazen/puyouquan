@@ -48,15 +48,16 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
         where: /新窗口打开/.test(m.textContent) };
     })()`);
     await pg.click('.nf-tabs [data-v="import"]');
-    const imp = await EV(`(()=>({ n: document.querySelectorAll('.nf-modal .nw-imp .nwi').length, ids: [...document.querySelectorAll('.nf-modal .nwi')].map(x=>x.id).join(','),
-      midiAccept: (document.getElementById('nw-midifile')||{}).accept }))()`);
+    /* v67.5「从已有音乐」完整版：左栏 6 个来源（文件 / AI 转谱 / 示例做同款 / 接着做 / 录音 / 图片），「选择文件…」一个入口收 MusicXML · GP · MIDI · 谱友圈文件 */
+    const imp = await EV(`(()=>({ n: document.querySelectorAll('.nf-modal #nf-isrc [role=option]').length, ids: [...document.querySelectorAll('.nf-modal #nf-isrc [role=option]')].map(x=>x.dataset.isrc).join(','),
+      pick: !!document.querySelector('.nf-modal #nw-import'), any: (document.getElementById('nw-anyfile')||{}).accept||'', midiAccept: (document.getElementById('nw-midifile')||{}).accept }))()`);
     await pg.click('.nf-tabs [data-v="new"]');
     T(!r.err && r.opts.join() === 'gtr,pacc,kids,vocal,teach,sight,solo,inst,chord,blank,custom' && r.groups.join() === '弹唱伴奏,课堂声乐,独奏乐队'
       && r.tags.pacc === '考编' && r.tags.kids === '师范' && r.tags.sight === '艺考' && r.tags.teach === '课堂' && r.tags.chord === '乐队'
       && r.rows.join() === 'J:true,S:false,T:true,G:false,C:false' && r.sel === 'gtr' && r.kind === '吉他弹唱谱' && /创建 · 吉他弹唱谱/.test(r.go)
       && r.cols && r.schem && r.basics && r.old === 0 && r.files && r.where
-      && imp.n === 3 && imp.ids === 'nw-import,nw-gp,nw-midi' && /\.mid/.test(imp.midiAccept || ''),
-      'T1 面板一屏三栏（按用途 11 项分组带标签 / 五种谱开关 / 谱行示意 / 右栏基础信息 / 创建·谱名；旧意图卡不在；从已有音乐三入口）', JSON.stringify({ r, imp }));
+      && imp.n === 6 && imp.ids === 'file,ai,ex,recent,audio,image' && imp.pick && ['.musicxml', '.mxl', '.gp5', '.mid', '.json'].every(x => imp.any.split(',').includes(x)) && /\.mid/.test(imp.midiAccept || ''),
+      'T1 面板一屏三栏（按用途 11 项分组带标签 / 五种谱开关 / 实时预览 / 右栏基础信息 / 创建·谱名；旧意图卡不在；从已有音乐 6 个来源＋一个「选择文件」收全部格式）', JSON.stringify({ r, imp }));
   });
 
   /* ---------- T2 一击默认建谱 ---------- */

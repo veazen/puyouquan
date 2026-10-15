@@ -401,6 +401,7 @@ const midPo = smf([trk([]), trk([...meta(0x03, G('皤江')), ...notes(60, 4)])])
     await pg.waitForTimeout(100);
     await pg.setInputFiles('#nw-mxlfile', { name: fn, mimeType: 'application/xml', buffer: buf });
     await pg.waitForTimeout(450);
+    if (await pg.$('#nf-impgo:not([disabled])')) { await pg.click('#nf-impgo'); await pg.waitForTimeout(200); }   /* v67.5 依据页「导入」（按原文件）；读失败时停在面板说明 */
     const r = await EV(() => { const c = (((song.measures[0] || {}).voxes || [[]])[0] || [])[0] || {};
       return { title: song.title, composer: song.composer, lyric: (c.lyrics || [])[0] || '', toast: window.__toasts.slice(-1)[0] || '' }; });
     T(r.title === want[0] && r.composer === want[1] && r.lyric === want[2], nm + ' → 标题 / 作曲 / 歌词',
