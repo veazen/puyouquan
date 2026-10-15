@@ -324,7 +324,7 @@ window.PYQ_LIB = (function(){
       : '';
     return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" title="${_esc(tip)}" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
       <div class="cc-cover">${cover(item)}${shot}
-        <span class="cc-type">${type}</span>
+        <span class="cc-type" title="${_esc(type)}"><span class="cc-tname">${_esc(type)}</span></span>
         ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}</div>
       <div class="cc-body">
         <div class="t">${_esc(item.title||'未命名曲谱')}</div>

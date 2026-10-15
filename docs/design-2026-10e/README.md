@@ -127,6 +127,8 @@
 
 源：`src/icons/gen.js`（底稿＝`nf/icons` 风格 1）→ `icons/*.svg`（101 枚，母版按原生尺寸出）、`icons/pq-icons.js`（运行时 `pqIcon(key, size)`）、`data/icons-manifest.json`（语义、用处、替换的旧图标）。图标表 `icons.png`，拼板 `boards/6-图标体系.jpg`。
 
+> **v67.6 改动（落地时修撞形）**：`src-blank`（空白谱）改为「谱页＋五道空谱线」、`src-mtab`（谱友圈曲谱）改为「谱页＋三道线＋圆点」——原几何分别与 `act-new`、`act-open` 撞形。`src/icons/lib-base.js` → `gen.js` 重出的 `icons/*.svg`、`pq-icons.js`、`data/icons-manifest.json` 与 `proto.html` 内嵌图标数据已同步；**`icons.png` 与 `boards/6-图标体系.jpg` 是位图拼板，仍画着这两枚的旧几何，以 `icons/` 与 `pq-icons.js` 为准**。
+
 - **分组**：谱类 17（含新增 钢琴伴奏歌谱、五线谱和弦谱、儿歌、视唱、自选记谱法）· 16px 微缩母版 14 · 记谱法 / 谱行 12 · 谱号 3 · 来源 13 · 模板 2 · 动作 16 · 乐器 24。
 - **谱层语法**（嫁接 C）：简谱层、五线层、六线层、大谱表层、和弦名层、歌词层各有一组固定几何；谱类图标＝自上而下叠谱层。例如钢琴伴奏歌谱＝简谱层＋大谱表层，钢琴弹唱谱＝和弦名层＋大谱表层，两者只差顶层——一眼看出「有没有旋律」。
 - **线宽**（取 A 的分档，物理像素恒定）：

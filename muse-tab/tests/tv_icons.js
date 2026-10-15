@@ -5,7 +5,19 @@
    T4 线宽分档（物理像素恒定）：≤16 主笔 1.25 / 谱线 1.0 · 17–22 1.5 / 1.0 · 23–34 1.75 / 1.25 · ≥35 2.0 / 1.5；24 网格与 16 网格母版都按显示尺寸换算
    T5 用到的位置（新建流程相关）：面板用途 24 / 谱开关 20（README 图标规范「谱型条 / 谱行开关 / 下拉 20」）/ 「新建 ▾」菜单 20 / 启动台 28·18 / 页签 16（微缩母版）/ 建成提示 20 / 页签条 ＋ / 顶栏 ▾——都是 pqi 图标、都无 <text>
    T6 页签谱类图标一图一义：16 份预设按谱行取图标（功能谱不再是钢琴、器乐不再全是小提琴、钢琴弹唱≠钢琴独奏），且与统一谱名表同源
-   突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无 PQI / pqIcon → 全红。file:// 直载。 */
+   —— v67.6 其余位置（README「图标规范」：左轨 18 · 页签与谱库 16；manifest 替换清单）——
+   T7 全部 101 枚两两逐像素不同：16 / 20 / 24px 三档光栅化两两比对（16px 下谱类自动换微缩母版的 type-X ≡ type16-X 是同一枚，除外），差异像素 ≥6 且标记串不同；
+      修掉 v67.4 起的两组撞形：空白谱 src-blank（空白谱纸）≠ 新建 act-new（页＋加号）、谱友圈文件 src-mtab（谱页＋谱友圈标记）≠ 打开 act-open（文件夹）
+   T8 其余位置已换最终图标集：左轨音轨钮（乐器组 18：其他器乐＝inst-other 不再是小提琴、钢琴伴奏两行＝钢琴、人声＝inst-voice）、「＋音轨」act-add、
+      「当前音轨」16、图层页签（六线谱 / 简谱 / 和弦 / 歌词）与「显示」记谱法灯＝nota-*（简谱不再是 <text> 字符图标）、加轨菜单；
+      右栏创作辅助（导入 MIDI / 配和弦工作台 / 一键配伴奏 / 智能填词 / 和弦 / 指板）与信息卡谱类图标（＝页签 docIcon）、谱型条按钮；
+      谱友圈广场筛选条 10 类 / 卡片徽标 / 观看页谱类、预设 · 我的曲谱卡片谱类行——都是 pqi、都无 <text>
+   —— v67.6 收尾验收补（修前红修后绿）——
+   T7 补 18px 档（左轨尺寸）；T8b 右栏创作辅助 18px（图标框 26）、「标注」同 18、歌词页与右栏「智能填词」同一枚；T8c 卡片 / 观看页图标跟着实际写出的谱名走（图文一致）
+   T9 左轨乐器按内容判（教学对照 / 钢琴伴奏歌谱五线谱 / 五线谱歌谱 / 五线谱和弦谱 / 切五线谱后的人声旋律＝人声）
+   T10 手机底条音轨名 ≥12px、图标不溢出、底条高不变；T11 广场筛选分类一行、手机不加行；T12 帮助 / 特色功能弹窗、折叠符 / 箭头 / 删除钮、常态颜色
+   T13 设计源文件不漂移（gen.js 重出逐字节一致、proto.html 内嵌数据同步；DOCS_DIR 可指向别的 docs 副本）
+   突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无 PQI / pqIcon → 全红；v67.5 原版 → T7 / T8 红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -102,6 +114,223 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
     && ic('小星星（尤克里里）') === 'type16-uku' && ic('和弦进行示例（纯和弦谱）') === 'type16-chord' && ic('指弹练习曲·行板（独奏谱）') === 'type16-solo'
     && Object.values(r).every(v => { const [a, b2] = String(v).split('|'); return !!b2 && a === b2.replace('type-', 'type16-'); }),
     'T6 页签谱类图标一图一义（功能谱≠钢琴、器乐≠小提琴、钢琴弹唱≠钢琴独奏、合唱≠歌谱），与统一谱名表同源', JSON.stringify(r));
+
+  /* T7 全部图标两两逐像素不同 */
+  r = await pg.evaluate(async () => { if (typeof PQI === 'undefined') return { err: 'no PQI' };
+    const keys = Object.keys(PQI);
+    const raster = (k, sz) => new Promise(res => { const svg = pqIcon(k, sz).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" color="#000" ');
+      const im = new Image(); im.onload = () => { const c = document.createElement('canvas'); c.width = c.height = sz; const x = c.getContext('2d'); x.drawImage(im, 0, 0, sz, sz);
+        const d = x.getImageData(0, 0, sz, sz).data, a = []; for (let i = 3; i < d.length; i += 4) a.push(d[i] > 96 ? 1 : 0); res(a); };
+      im.onerror = () => res(null); im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+    const out = { n: keys.length, pairs: 0, low: [], min: {} };
+    for (const sz of [16, 18, 20, 24]) {   /* 收尾验收：补 18px（左轨尺寸） */
+      const px = {}, mk = {}; for (const k of keys) { px[k] = await raster(k, sz); mk[k] = pqIcon(k, sz).replace(/data-pq="[^"]*"/, ''); }
+      let min = 1e9, who = '';
+      for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+        const a = keys[i], c = keys[j];
+        if (sz <= 16 && a.replace('type16-', 'type-') === c.replace('type16-', 'type-')) continue;   /* 16px 谱类自动换微缩母版：同一枚 */
+        const A = px[a], B = px[c]; out.pairs++;
+        if (!A || !B) { out.low.push(sz + ':' + a + '|' + c + ':noimg'); continue; }
+        let d = 0; for (let q = 0; q < A.length; q++) if (A[q] !== B[q]) d++;
+        if (d < min) { min = d; who = a + '|' + c; }
+        if (d < 6 || mk[a] === mk[c]) out.low.push(sz + ':' + a + '|' + c + ':' + d);
+      }
+      out.min[sz] = min + ' ' + who;
+    }
+    return out;
+  }).catch(e => ({ err: String(e.message || e).split('\n')[0] }));
+  T(!r.err && r.n === 101 && r.low.length === 0 && r.pairs > 20000,
+    'T7 全部 101 枚两两逐像素不同（16 / 18 / 20 / 24px 共 ' + r.pairs + ' 对，16px 谱类自动换微缩母版的同一枚除外；各档最少相差：' + JSON.stringify(r.min) + '）：空白谱≠新建、谱友圈文件≠打开', JSON.stringify(r));
+
+  /* T8 其余位置已换最终图标集 */
+  try {
+    const p8 = await b.newPage({ viewport: { width: 1440, height: 900 } });
+    p8.on('pageerror', e => errs.push('T8:' + e.message));
+    await p8.goto(F); await p8.waitForTimeout(900);
+    await p8.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    const q = (pg2, s2) => pg2.evaluate(s2).catch(e => ({ err: String(e.message || e).split('\n')[0] }));
+    const ICS = 'svg.pqi';
+    const pq = el => (el && el.querySelector('svg.pqi') || { dataset: {} }).dataset.pq;
+    const R = {};
+    /* 左轨：小步舞曲（器乐五线谱）、钢琴伴奏歌谱（JG 新建）、吉他弹唱预设 */
+    R.rail = await q(p8, () => { const pq = el => { const s = el && el.querySelector('svg.pqi'); return s ? s.dataset.pq + '@' + s.getAttribute('width') : (el && el.querySelector('svg') ? 'svgi' : '-'); };
+      const out = {};
+      const take = () => [...document.querySelectorAll('#rail-tracks .rtrk')].map(pq).join(',');
+      hideStartPad();
+      loadSong(PRESETS.find(p => /小步舞曲/.test(p.name)).make()); out.instr = take();
+      loadSong(NWB.build('JG', { title: 'x', key: 'C', beats: 4, unit: 4, tempo: 90, nMea: 4, lyr: 1 })); out.jg = take();
+      loadSong(PRESETS.find(p => /欢乐颂（四部合唱）/.test(p.name)).make()); out.choir = take();
+      loadSong(PRESETS[0].make()); out.gtr = take();
+      setRibbon('tab'); out.cur = pq(document.querySelector('#tab-voices .trk-ic'));
+      out.ltab = ['tab', 'vox', 'chord', 'lyr'].map(t => pq(document.querySelector('.ltab[data-t="' + t + '"] .lic'))).join(',');
+      out.nl = ['nl-tab6', 'nl-tabst', 'nl-tabjp', 'nl-voxjp', 'nl-voxst', 'nl-voxtab'].map(id => pq(document.getElementById(id))).join(',');
+      out.txt = document.querySelectorAll('#left-rail svg text, #left-flyout svg.pqi text').length;
+      return out; });
+    await p8.click('#rail-addtrk'); await p8.waitForTimeout(120);
+    R.add = await q(p8, () => { const r2 = ['ta-vox', 'ta-tab', 'ta-map'].map(id => { const e = document.getElementById(id); const s = e && e.querySelector('svg.pqi'); return s ? s.dataset.pq : '-'; }).join(','); closeModal(); return r2; });
+    R.right = await q(p8, () => { setRTab('make'); setRTab('info');
+      const g = id => { const s = document.querySelector('#' + id + ' svg.pqi'); return s ? s.dataset.pq + '@' + s.getAttribute('width') : '-'; };
+      const anno = document.querySelector('#rt-anno svg'), chordSv = document.querySelector('#rt-chord svg');
+      return { ai: ['rt-midi', 'rt-lab', 'rt-arr', 'rt-fill', 'rt-chord', 'rt-board', 'rt-mxl', 'rt-hum'].map(g).join(','), ri: g('ri-type'), doc: (docIcon(song).match(/data-pq="([^"]+)"/) || [])[1],
+        anno: anno && anno.getAttribute('width') + '=' + (chordSv && chordSv.getAttribute('width')), fill: (document.querySelector('#b-fill svg.pqi') || { dataset: {} }).dataset.pq,
+        lbar: g('ri-lbar'), riTxt: document.getElementById('ri-type').textContent, label: docTypeLabel(song) + ' · ' + song.measures.length + ' 小节' }; });
+    R.circle = await q(p8, () => { openCircle();
+      const chips = [...document.querySelectorAll('#circle .cc-chip[data-cat]')].map(c => c.dataset.cat + ':' + ((c.querySelector('svg.pqi') || { dataset: {} }).dataset.pq || '-')).join(',');
+      const cards = [...document.querySelectorAll('#circle .cc-card .cc-type')], cardIc = cards.map(c => (c.querySelector('svg.pqi') || { dataset: {} }).dataset.pq || '-');
+      /* 收尾验收（图文一致）：图标跟徽标上实际写的谱名走——写的是统一谱名就取该谱名的图标，写的是谱库旧叫法（TYPE_CN）就按 docType；16px 自动换微缩母版 */
+      const OLD = { guitar: 'type16-guitar', uku: 'type16-uku', solo: 'type16-solo', pianoacc: 'type16-pianoacc', piano: 'type16-piano', vocal: 'type16-vocal', vox: 'type16-vocal', teach: 'type16-teach', instr: 'type16-instr', staff: 'type16-instr', func: 'type16-func', chord: 'type16-chord' };
+      const pubs = circleAll(), want = [...document.querySelectorAll('#circle .cc-card[data-pub]')].map(c => { const pb = pubs.find(x => x.pid === c.dataset.pub); if (!pb) return '?'; const t = c.querySelector('.cc-type').textContent.trim(), k = pb.data && NWB.kindOfSong(pb.data);
+        return k && k.name === t ? k.ic.replace('type-', 'type16-') : OLD[pb.type]; });
+      const typeTxt = cards.map(c => c.textContent).join('|');
+      const pid = (document.querySelector('#circle .cc-card[data-pub]:not([data-remote])') || { dataset: {} }).dataset.pub;
+      return { chips, nCards: cards.length, cardIc: cardIc.join(','), same: cardIc.join(',') === want.join(','), typeTxt: typeTxt.slice(0, 80), pid,
+        remote: [ccKindIc({ type: 'vocal', typeLabel: '钢琴伴奏歌谱' }), ccKindIc({ type: 'instr' }), ccKindIc({ type: 'vox' }), ccKindIc({ type: 'guitar', typeLabel: '尤克里里弹唱谱' }), ccKindIc({ type: '??' })].join(','),
+        shown: [ccKindIc({ type: 'vocal', data: NWB.build('JG', { nMea: 2, lyr: 1 }) }, '歌谱'), ccKindIc({ type: 'vocal' }, '钢琴伴奏歌谱'), ccKindIc({ type: 'guitar', data: NWB.build('JT', { nMea: 2, lyr: 1 }) }, '吉他弹唱谱')].join(','),
+        mix: [...document.querySelectorAll('#circle .cc-card[data-pub]')].filter(c => { const pb = pubs.find(x => x.pid === c.dataset.pub); return pb && pb.data && pb.type === 'vocal' && NWB.kindOfSong(pb.data).ic === 'type-jg' && c.querySelector('.cc-type').textContent.trim() === '歌谱'; }).map(c => (c.querySelector('.cc-type svg.pqi') || { dataset: {} }).dataset.pq).join(','),
+        txt: document.querySelectorAll('#circle svg.pqi text').length }; });
+    if (R.circle && R.circle.pid) { await p8.click('#circle .cc-card[data-pub="' + R.circle.pid + '"]'); await p8.waitForTimeout(200);
+      R.view = await q(p8, () => { const s = document.querySelector('#viewerbar .va-kind svg.pqi'), t = document.querySelector('#viewerbar .va-kind').textContent.trim(), pb = viewerCtx.pb, k = NWB.kindOfSong(pb.data);
+        const OLD = { guitar: 'type16-guitar', uku: 'type16-uku', solo: 'type16-solo', pianoacc: 'type16-pianoacc', piano: 'type16-piano', vocal: 'type16-vocal', vox: 'type16-vocal', teach: 'type16-teach', instr: 'type16-instr', staff: 'type16-instr', func: 'type16-func', chord: 'type16-chord' };
+        return { ic: s && s.dataset.pq, w: s && s.getAttribute('width'), want: k.name === t ? k.ic.replace('type-', 'type16-') : OLD[pb.type], t, va: document.querySelector('#viewerbar .va').textContent, col: s && getComputedStyle(s).color, muted: getComputedStyle(document.body).getPropertyValue('--muted') }; });
+      await p8.evaluate(() => { const bk = document.getElementById('vw-back'); if (bk) bk.click(); }); }
+    R.lib = await q(p8, () => { try { const c = document.getElementById('circle'); if (c) c.remove(); } catch (_) {} closeModal();
+      libSave([{ id: 'sx1', title: '我的弹唱', updatedAt: '2026-10-15', data: NWB.build('JG', { title: '我的弹唱', key: 'F', beats: 2, unit: 4, tempo: 104, nMea: 4, lyr: 2 }) }]);
+      libTab = 'preset'; showLibrary();
+      const pre = [...document.querySelectorAll('.song-card[data-preset] .sc-kind')].map(k => (k.querySelector('svg.pqi') || { dataset: {} }).dataset.pq + '|' + k.textContent);
+      const preWant = PRESETS.map(p => { const s = migrate(p.make()); return (docIcon(s).match(/data-pq="([^"]+)"/) || [])[1] + '|' + docTypeLabel(s); });
+      closeModal(); libTab = 'mine'; showLibrary();
+      const mine = [...document.querySelectorAll('.song-card[data-mine] .sc-kind')].map(k => (k.querySelector('svg.pqi') || { dataset: {} }).dataset.pq + '|' + k.textContent);
+      closeModal(); libTab = 'preset';
+      return { n: pre.length, same: pre.join(',') === preWant.join(','), mine: mine.join(','), sample: pre.slice(0, 3).join(',') }; });
+    await p8.close();
+    const L = R.rail || {}, Rt = R.right || {}, C = R.circle || {}, V = R.view || {}, Lb = R.lib || {};
+    T(!L.err && L.instr === 'inst-other@18,act-add@18' && L.jg === 'inst-voice@18,inst-piano@18,inst-piano@18,act-add@18' && /^inst-voice@18(,inst-voice@18){3},act-add@18$/.test(L.choir)
+      && /^inst-guitar@18/.test(L.gtr) && L.cur === 'inst-guitar@16' && L.ltab === 'nota-tab6@18,nota-jianpu@18,nota-chord@18,nota-lyrics@18' && L.nl === 'nota-tab6@18,nota-staff@18,nota-jianpu@18,nota-jianpu@18,nota-staff@18,nota-tab6@18' && L.txt === 0
+      && R.add === 'inst-voice,inst-guitar,nota-tab6',
+      'T8a 左轨：音轨钮按乐器取最终图标（器乐五线谱＝其他器乐 inst-other 而非小提琴、钢琴伴奏歌谱＝人声＋钢琴两行、四部合唱＝人声 ×4、吉他）、「＋音轨」＝act-add、「当前音轨」16；图层页签与「显示」记谱法灯＝nota-*（无 <text>）；加轨菜单＝人声 / 吉他 / 六线谱', JSON.stringify({ L, add: R.add }));
+    T(!Rt.err && Rt.ai === 'src-midi@18,nota-chord@18,src-arrange@18,nota-lyrics@18,nota-chordbox@18,inst-guitar@18,src-mxl@18,src-hum@18' && Rt.ri === Rt.doc + '@16' && /^type16-/.test(Rt.doc) && Rt.riTxt === Rt.label && Rt.lbar === 'act-swap@16'
+      && Rt.anno === '18=18' && Rt.fill === 'nota-lyrics',
+      'T8b 右栏：创作辅助（导入 MIDI＝src-midi、配和弦工作台＝nota-chord、一键配伴奏＝src-arrange、智能填词＝nota-lyrics、和弦＝nota-chordbox、指板＝inst-guitar；隐藏的 MusicXML / 哼唱同换）18px（收尾：图标框 26，16px 下和弦图近乎实心）、「标注」铅笔与相邻同 18；歌词页「智能填词」与右栏同一枚 nota-lyrics（一图一义）；信息卡谱类图标＝页签 docIcon（微缩母版）且文字不变；谱型条按钮＝换谱类', JSON.stringify(Rt));
+    T(!C.err && C.chips === 'all:-,guitar:type16-guitar,solo:type16-solo,pianoacc:type16-pianoacc,piano:type16-piano,vocal:type16-vocal,teach:type16-teach,instr:type16-instr,func:type16-func,chord:type16-chord,uku:type16-uku'
+      && C.nCards > 0 && C.same && /^type16-/.test(C.cardIc) && !/undefined|,-|^-/.test(C.cardIc) && C.remote === 'type-jg,type-instr,type-vocal,type-uku,type-blank' && C.txt === 0
+      && C.shown === 'type-vocal,type-jg,type-guitar' && (C.mix === '' || /^(type16-vocal)(,type16-vocal)*$/.test(C.mix))
+      && V.ic && V.ic === V.want && V.w === '16' && Lb.n === 16 && Lb.same && /^type16-jg\|钢琴伴奏歌谱$/.test(Lb.mine),
+      'T8c 谱库：广场筛选条 10 类各配谱类图标（16px 微缩母版，「全部」不配）、卡片徽标与观看页谱类＝跟着同一处写出来的谱名取图标（统一谱名→该谱名图标；谱库旧叫法→按 docType；收尾：此前「钢琴伴奏歌谱图标＋歌谱」图文不一）；预设 16 张 · 我的曲谱卡片谱类行＝页签图标＋统一谱名', JSON.stringify({ C, V, Lb }));
+  } catch (e) { T(false, 'T8 其余位置', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* ================= 收尾验收补（修前红修后绿：MUSETAB_URL 指向收尾前的工作树副本复跑，T9–T12 红；T13 用 DOCS_DIR 指向收尾前的 docs 副本复跑红） ================= */
+  const npg = async (w, h, mob) => { const ctx = await b.newContext({ viewport: { width: w, height: h }, screen: { width: w, height: h }, isMobile: !!mob, hasTouch: !!mob, deviceScaleFactor: mob ? 2 : 1 });
+    const p = await ctx.newPage(); p.on('pageerror', e => errs.push('T9+:' + e.message)); await p.goto(F); await p.waitForTimeout(900);
+    await p.evaluate(() => { window.guardReplace = f => f(); window.SF_PLAYWAIT = false; }); p._ctx = ctx; return p; };
+  const qq = (p, f, a) => p.evaluate(f, a).catch(e => ({ err: String(e.message || e).split('\n')[0] }));
+
+  /* T9 人声旋律不因记谱法变成「其他器乐」 */
+  try {
+    const p9 = await npg(1440, 900);
+    const r9 = await qq(p9, () => { hideStartPad(); const ic = () => [...document.querySelectorAll('#rail-tracks .rtrk[data-trk]')].map(x => (x.querySelector('svg.pqi') || { dataset: {} }).dataset.pq).join(',');
+      const o = {};
+      loadSong(NWB.build('SJ', { title: 'a', nMea: 4, lyr: 1 })); o.SJ = ic();
+      loadSong(NWB.build('SJ', { title: 'a', nMea: 4, lyr: 0 })); o.SJ0 = ic();
+      loadSong(NWB.build('SJG', { title: 'a', nMea: 4, lyr: 1 })); o.SJG = ic();
+      loadSong(NWB.build('SG', { title: 'a', nMea: 4, lyr: 1 })); o.SG = ic();
+      loadSong(NWB.build('S', { title: 'a', nMea: 4, lyr: 1 })); o.Sly = ic();
+      loadSong(NWB.build('CS', { title: 'a', nMea: 4, lyr: 0 })); o.CS = ic();
+      loadSong(NWB.build('S', { title: 'a', nMea: 4, lyr: 0 })); o.S0 = ic();
+      loadSong(NWB.build('S', { title: 'a', nMea: 4, lyr: 0, instKey: 'violin' })); o.Sv = ic();
+      loadSong(PRESETS.find(p => /送别/.test(p.name)).make()); o.sbJ = ic(); sel.row = 'vox'; sel.vi = 0; setVoxNotation('staff'); render(); o.sbS = ic();
+      loadSong(NWB.build('JG', { title: 'a', nMea: 4, lyr: 1 })); sel.row = 'vox'; sel.vi = 0; setVoxNotation('staff'); render(); o.jgS = ic();
+      return o; });
+    await p9._ctx.close();
+    T(!r9.err && r9.SJ === 'inst-voice' && r9.SJ0 === 'inst-voice' && r9.SJG === 'inst-voice,inst-piano,inst-piano' && r9.SG === 'inst-voice,inst-piano,inst-piano' && r9.Sly === 'inst-voice'
+      && r9.CS === 'inst-voice' && r9.S0 === 'inst-other' && r9.Sv === 'inst-violin' && r9.sbJ === 'inst-voice' && r9.sbS === 'inst-voice' && r9.jgS === 'inst-voice,inst-piano,inst-piano',
+      'T9 左轨乐器按内容判、不按记谱法判：教学对照谱（有词 / 无词）、教学对照谱含伴奏、钢琴伴奏歌谱（五线谱）、五线谱歌谱、五线谱和弦谱的旋律＝人声；送别 / 钢琴伴奏歌谱旋律从简谱切五线谱仍是人声；只有无词无乐器的「五线谱旋律」才是其他器乐、带 instKey 用该乐器',
+      JSON.stringify(r9));
+  } catch (e) { T(false, 'T9', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T10 手机底条：音轨名不被图标挤没、图层钮图标不溢出、底条不增高 */
+  try {
+    const out = {};
+    for (const [w, h] of [[390, 844], [360, 640], [320, 568]]) {
+      const pm = await npg(w, h, true);
+      out[w] = await qq(pm, () => { const o = {};
+        for (const nm of ['欢乐颂（四部合唱）', '小星星（分解弹唱）']) {
+          hideStartPad(); loadSong(PRESETS.find(x => x.name === nm).make()); render();
+          const rail = document.getElementById('left-rail'), btns = [...rail.querySelectorAll('.ltab')].filter(x => x.getBoundingClientRect().width > 0);
+          const lbs = [...rail.querySelectorAll('.rtrk[data-trk] .lb')].map(l => l.clientWidth);
+          const ovf = btns.filter(x => { const rc = x.getBoundingClientRect(); return [...x.querySelectorAll('svg')].some(sv => { const r2 = sv.getBoundingClientRect(); return r2.width > 0 && (r2.left < rc.left - 0.5 || r2.right > rc.right + 0.5); }); }).map(x => (x.querySelector('.lb') || {}).textContent);
+          const vis = btns.filter(x => !x.classList.contains('rtrk-add')).map(x => [...x.querySelectorAll('svg')].filter(sv => sv.getBoundingClientRect().width > 0).length).reduce((a, c) => a + c, 0);
+          const add = rail.querySelector('#rail-addtrk svg.pqi');
+          o[nm.slice(0, 3)] = { lbMin: Math.min(...lbs), ovf: ovf.join(','), visIc: vis, railH: Math.round(rail.getBoundingClientRect().height), sw: rail.scrollWidth - rail.clientWidth,
+            add: add && add.dataset.pq + '@' + Math.round(add.getBoundingClientRect().width) + '/' + add.getAttribute('width') };
+        }
+        return o; });
+      await pm._ctx.close();
+    }
+    const all = Object.values(out).flatMap(x => Object.values(x));
+    T(all.every(x => x.lbMin >= 12 && !x.ovf && x.visIc === 0 && x.railH === 44 && x.sw <= 0 && x.add === 'act-add@14/14'),
+      'T10 手机底条（390 / 360 / 320）：四部合唱 4 条音轨名都至少露一个字（≥12px，此前 0px＝四个一样的麦克风）、底条只留文字（同 v67.5 观感，图层钮图标不再溢出左框）、「＋音轨」按 14px 档生成不缩放、底条高 44 不变、不横向溢出',
+      JSON.stringify(out));
+  } catch (e) { T(false, 'T10', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T11 谱友圈广场筛选条：分类一行不被拆开；手机不加行 */
+  try {
+    const out = {};
+    for (const w of [1920, 1440, 1280, 1024, 390]) {
+      const pc = await npg(w, 900, w < 500);
+      out[w] = await qq(pc, () => { openCircle();
+        const cats = [...document.querySelectorAll('#circle .cc-chip[data-cat]')], other = [...document.querySelectorAll('#circle .cc-chip[data-pay],#circle .cc-chip[data-favonly]')];
+        const ct = [...new Set(cats.map(c => Math.round(c.getBoundingClientRect().top)))], ot = [...new Set(other.map(c => Math.round(c.getBoundingClientRect().top)))];
+        const icVis = cats.some(c => { const s = c.querySelector('svg.pqi'); return s && s.getBoundingClientRect().width > 0; });
+        return { catRows: ct.length, mixed: ot.some(t => ct.includes(t)) && ct.length > 1, icVis, gridTop: Math.round(document.querySelector('#circle .cc-grid').getBoundingClientRect().top) }; });
+      await pc._ctx.close();
+    }
+    T(['1920', '1440', '1280'].every(w => out[w].catRows === 1 && !out[w].mixed && out[w].icVis) && out[1024].icVis && !out[390].icVis && out[390].gridTop <= 290,
+      'T11 广场筛选条：1280–1920 宽全部 10 类（带图标）在同一行、不和免费 / 付费 / 收藏混排（此前和弦谱 / 尤克里里掉到第二行）；手机 390 不显示筛选图标、第一张卡不下移（≤ v67.5 的 290）', JSON.stringify(out));
+  } catch (e) { T(false, 'T11', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T12 遗漏位置：帮助 / 特色功能弹窗谱类图标、折叠符 / 行尾箭头 / 删除钮字符、常态颜色 */
+  try {
+    const pd = await npg(1440, 900);
+    const r12 = await qq(pd, () => { const o = {};
+      hideStartPad(); loadSong(PRESETS[0].make()); render();
+      document.getElementById('b-help').click();
+      o.help = [...document.querySelectorAll('.hd-st .ic')].filter(x => /吉他谱|简谱|功能谱/.test(x.parentElement.textContent)).map(x => (x.querySelector('svg.pqi') || { dataset: {} }).dataset.pq || 'svgi').join(',');
+      closeModal(); document.getElementById('b-feat').click();
+      o.feat = [...document.querySelectorAll('.featx .fx')].filter(x => /^(吉他谱|尤克里里谱|简谱|功能谱)$/.test((x.querySelector('b') || {}).textContent)).map(x => (x.querySelector('.ic svg.pqi') || { dataset: {} }).dataset.pq || 'svgi').join(',');
+      closeModal();
+      const rc = document.querySelector('.rc-h:not(.rc-btn)'); o.rcAfter = rc ? getComputedStyle(rc, '::after').content : '?';
+      o.aiarr = [...document.querySelectorAll('.aiarr')].map(a => (a.querySelector('svg.pqi') || { dataset: {} }).dataset.pq + (a.textContent.trim() ? '+txt' : '')).join(',');
+      setRibbon('tab'); o.vdel = [...document.querySelectorAll('.vdel')].map(v => (v.querySelector('svg.pqi') || { dataset: {} }).dataset.pq + (v.textContent.trim() ? '+txt' : '')).join(',');
+      const muted = getComputedStyle(document.body).getPropertyValue('--muted').trim(), probe = document.createElement('i'); probe.style.color = muted; document.body.appendChild(probe); const mc = getComputedStyle(probe).color; probe.remove();
+      setRTab('info'); const ri = document.querySelector('#ri-type .ri-kic'); o.riMuted = !!ri && getComputedStyle(ri).color === mc;
+      libTab = 'preset'; showLibrary(); const sk = document.querySelector('.song-card .sc-kind .pqi'); o.scMuted = !!sk && getComputedStyle(sk).color === mc; closeModal();
+      return o; });
+    await pd._ctx.close();
+    T(!r12.err && r12.help === 'type16-guitar,nota-jianpu,type16-func' && r12.feat === 'type16-guitar,type16-uku,nota-jianpu,type16-func' && r12.rcAfter === '""'
+      && /^(act-step,)*act-step$/.test(r12.aiarr) && /^(act-close,)*act-close$/.test(r12.vdel) && r12.riMuted && r12.scMuted,
+      'T12 遗漏位置换齐：帮助 / 特色功能弹窗的吉他谱 / 简谱 / 尤克里里 / 功能谱用最终图标（功能谱不再是钢琴）；右栏卡片折叠符不再是字符 ▸、创作辅助行尾＝act-step、当前音轨删除＝act-close（都不再是字符）；信息卡 / 预设卡片谱类图标常态 --muted',
+      JSON.stringify(r12));
+  } catch (e) { T(false, 'T12', 'EXC: ' + String(e.message || e).split('\n')[0]); }
+
+  /* T13 设计源文件不漂移：gen.js 重出的 101 枚 svg / pq-icons.js / manifest 与入库逐字节一致；proto.html 内嵌图标数据＝pq-icons.js */
+  try {
+    const os = require('os'), cp = require('child_process');
+    const DOCS = process.env.DOCS_DIR || path.resolve(__dirname, '../../docs/design-2026-10e');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pqgen-'));
+    fs.mkdirSync(path.join(tmp, 'd', 'src'), { recursive: true }); fs.mkdirSync(path.join(tmp, 'd', 'icons')); fs.mkdirSync(path.join(tmp, 'd', 'data'));
+    fs.cpSync(path.join(DOCS, 'src', 'icons'), path.join(tmp, 'd', 'src', 'icons'), { recursive: true });
+    cp.execFileSync(process.execPath, [path.join(tmp, 'd', 'src', 'icons', 'gen.js')], { stdio: 'pipe' });
+    const diff = [];
+    for (const f of fs.readdirSync(path.join(tmp, 'd', 'icons'))) { let a = null; try { a = fs.readFileSync(path.join(DOCS, 'icons', f)); } catch (_) {} if (!a || !a.equals(fs.readFileSync(path.join(tmp, 'd', 'icons', f)))) diff.push(f); }
+    if (!fs.readFileSync(path.join(DOCS, 'data', 'icons-manifest.json')).equals(fs.readFileSync(path.join(tmp, 'd', 'data', 'icons-manifest.json')))) diff.push('icons-manifest.json');
+    const pqjs = fs.readFileSync(path.join(DOCS, 'icons', 'pq-icons.js'), 'utf8'), proto = fs.readFileSync(path.join(DOCS, 'proto.html'), 'utf8');
+    const ent = [...pqjs.matchAll(/"([a-z0-9-]+)":\[(16|24),"((?:[^"\\]|\\.)*)"\]/g)];
+    const pdiff = ent.filter(m => !proto.includes(m[0])).map(m => m[1]);
+    fs.rmSync(tmp, { recursive: true, force: true });
+    T(ent.length === 101 && diff.length === 0 && pdiff.length === 0,
+      'T13 设计源文件不漂移：gen.js 重出的 101 枚 svg（含文件末换行）/ pq-icons.js / icons-manifest.json 与入库逐字节一致；proto.html 内嵌 101 枚图标数据＝pq-icons.js（src-blank / src-mtab 新几何已同步）',
+      JSON.stringify({ n: ent.length, diff, protoDiff: pdiff }));
+  } catch (e) { T(false, 'T13 设计源文件', 'EXC: ' + String(e.message || e).split('\n')[0]); }
 
   T(errs.length === 0, '无页面报错', errs.join(' | ') || 'none');
   console.log('PASS ' + pass + '/' + total);

@@ -66,9 +66,11 @@ const MAX_SCORES = 500, MAX_COLLS = 50, MAX_COLL_ITEMS = 500;
 const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第一个真实权益开关）
 /* v45.3 埋点白名单（客户端 8 + 服务端 4：signup/login/redeem_ok/order_paid 由 handler 直写）
    v63.4 A7 按评审团 §9.1 关键事件清单补齐（新增事件名必须同时加在这里，否则静默丢弃）。
-   客户端可报：访问与落地 / 制谱 / 导出与发布 / 传播 / 课程；signup/login/pay_create/order_paid/redeem_ok 只由服务端写。 */
+   客户端可报：访问与落地 / 制谱 / 导出与发布 / 传播 / 课程；signup/login/pay_create/order_paid/redeem_ok 只由服务端写。
+   v67.6 加 create_stack（新建流程方案「首访默认用途」校准）：编辑器新建面板「创建」与「新建 ▾」快捷建谱时与 create_song 同时发，
+   meta＝用途:谱行代码:入口:面板打开时的用途:是否首次（如 gtr:JT:panel:gtr:1），不带曲名等内容；原 create_song 口径不变。 */
 const EVENT_CLIENT = ['visit', 'landing_view', 'cta_click', 'zero_result',
-  'create_song', 'arrange_done', 'tex_gen', 'transpose', 'import_done',
+  'create_song', 'create_stack', 'arrange_done', 'tex_gen', 'transpose', 'import_done',
   'print_dialog', 'export_png', 'export_icard', 'export_mxl', 'export_mid', 'share_card', 'publish', 'export',
   'share_open', 'mp_share', 'open_pub', 'paywall_view', 'fav', 'signup_prompt',
   'course_view', 'lesson_done', 'lesson_deeplink'];
@@ -144,6 +146,7 @@ function authUser(req) {
 /* ---------- 请求辅助 ---------- */
 class ApiError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const { scoreDataDanger } = require('./scoredata');   // v62.5 A1a 谱面数据按字段校验（admin.js scan-xss 共用）
+const KIND = require('./kindname');   // v67.6 统一谱名表 api/kindname.js（与编辑器内联的 PQ_KIND 同一份规则）
 const ipOf = req => req.headers['x-real-ip'] || req.socket.remoteAddress || '';
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -233,8 +236,11 @@ function isChoirOf(d) {
   if (a < 0) return false;
   let b = a; while (b + 1 < n && staff(vn[b + 1])) b++;
   if (b === a) return false;
-  const lyr = (d.measures || []).some(m => ((m && m.voxes) || []).some((cols, vi) => vi >= a && vi <= b && (cols || []).some(c =>
-    c && c.lyrics && c.lyrics.some(x => String(x || '').trim()))));
+  /* v67.6 收尾：小节 / 声部 / 列 / 歌词不是数组的坏谱按没词算（与编辑器 isChoir 同口径：歌词不是数组＝没词）——此前一份「歌词写成字符串」的
+     已发布谱在这里抛错，谱库列表 /api/pub/scores 整页 500。自足写法（tv_b4e 把本段截出来单独跑，不能引用模块里的其他名字） */
+  const A = v => Array.isArray(v) ? v : [];
+  const lyr = A(d.measures).some(m => A(m && m.voxes).some((cols, vi) => vi >= a && vi <= b && A(cols).some(c =>
+    c && Array.isArray(c.lyrics) && c.lyrics.some(x => String(x || '').trim()))));
   return !d.pianoAcc && lyr;   /* 推断时：确有歌词才算合唱（三行以上的器乐重奏仍是器乐谱） */
 }
 function docTypeOf(d) {
@@ -246,20 +252,24 @@ function docTypeOf(d) {
   if (staff(vn[0])) return (d.voxDual || [])[0] ? 'teach' : (isChoirOf(d) ? 'vocal' : 'instr');
   return 'vocal';
 }
+const arr = v => Array.isArray(v) ? v : [];   /* v67.6 收尾：坏谱（小节 / 声部 / 列 / 歌词不是数组）按空处理，不让一份谱拖垮列表 / 落地页 / 封面 */
 function coverOf(d) {
-  for (const m of (d.measures || [])) {
-    const cs = (((m || {}).voxes || [])[0] || []).filter(c => c && (c.deg > 0 || (((c.lyrics || [])[0]) || '').trim()));
-    if (cs.length) return cs.slice(0, 7).map(c => ({ deg: c.deg || 0, oct: c.oct || 0, ly: ((c.lyrics || [])[0] || '').slice(0, 2) }));
+  for (const m of arr(d.measures)) {
+    const cs = arr(arr((m || {}).voxes)[0]).filter(c => c && (c.deg > 0 || String(arr(c.lyrics)[0] || '').trim()));
+    if (cs.length) return cs.slice(0, 7).map(c => ({ deg: c.deg || 0, oct: c.oct || 0, ly: String(arr(c.lyrics)[0] || '').slice(0, 2) }));
   }
   return [];
 }
 function pubShape(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
+  if (!d || typeof d !== 'object') d = {};   // v67.6 收尾：data 为 null / 数字等非对象时按空谱（此前 d.measures 直接抛错）
   /* v60.6 卡片信息补全：谱种/小节数之外再给 调号·拍号·速度·歌词版数——
      卡片一眼能判断「这份谱能不能用」，不用点进去。thumb 为 1 时前端换真实缩图。 */
-  const mea = d.measures || [];
+  const mea = arr(d.measures);
+  /* v67.6 收尾：逐项兜底——坏谱只让自己这一张卡片退回默认（谱类 vocal / 谱名「曲谱」/ 无封面），不拖垮整页列表 */
+  const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
   return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
-    type: docTypeOf(d), typeLabel: typeLabelOf(d), price: 0, measures: mea.length, cover: coverOf(d),
+    type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), price: 0, measures: mea.length, cover: safe(() => coverOf(d), []),
     /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
     thumb: row.thumb_at || 0,
@@ -361,20 +371,13 @@ function miniTicketConsume(t) {
    动机：交互观看页 zhipu/?pub=ID 是纯前端渲染，爬虫抓到的是空壳；发布谱因此无法被搜索/微信收录。
    方案：/pub/:id 由本服务端出一张「可爬 + 可分享」的落地页（含元数据与静态谱面信息），真人再跳观看页；
    /pub/:id/cover.svg 出一张品牌封面供 og:image。三站 vhost 均 include 本 snippet，canonical 统一指向 puku 去重。*/
-const TYPE_CN_SSR = { guitar: '弹唱谱', uku: '尤克里里谱', solo: '独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', vocal: '歌谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
-/* v60.81 谱类细分标签（产品指示：弹唱谱说清吉他/钢琴、歌谱说清简谱/五线谱）。
-   与 muse-tab/index.html 的 docTypeLabel 同一张表——改一处必须同步另一处。 */
-const TYPE_FULL_SSR = { guitar: '吉他弹唱谱', uku: '尤克里里谱', solo: '吉他独奏谱', pianoacc: '钢琴弹唱谱', piano: '钢琴独奏谱', teach: '教学对照谱', instr: '器乐五线谱', func: '功能谱', chord: '和弦谱' };
+/* v67.6 谱名同步（新建流程方案 docs/design-2026-10e，拍板 4 / 5）：谱库卡片 typeLabel、SSR 落地页标题 / 描述 / 面包屑、og 封面的谱名
+   改读统一谱名表 api/kindname.js（与编辑器 muse-tab/index.html 内联的 PQ_KIND 逐字节同一份：吉他弹唱谱 / 钢琴伴奏歌谱 / 五线谱旋律 /
+   教学对照谱（含伴奏）…）——同一份谱在编辑器、观看页、分享卡、谱库卡片、落地页叫法一致。只改显示名：谱类 type（docTypeOf）、筛选维度、已存数据不动。
+   原 TYPE_CN_SSR / TYPE_FULL_SSR 两张旧表随之退役。脏数据推断失败回落「曲谱」（不让一份坏谱拖垮整页列表）。 */
 function typeLabelOf(d) {
-  const t = docTypeOf(d);
-  if (t === 'vocal') { const v0 = (d.voxNotations || [])[0]; return (v0 === 'staff' || v0 === 'bass' || v0 === 'alto') ? '五线谱合唱谱' : '简谱歌谱'; }   /* v64.4 B4e */
-  /* 五线谱写的歌在 docTypeOf 里归为 instr——按「有没有实际歌词」区分（与编辑器 docTypeLabel 同口径） */
-  if (t === 'instr') {
-    const hasLy = (d.measures || []).some(m => ((m || {}).voxes || []).some(cols => (cols || []).some(c =>
-      c && c.lyrics && c.lyrics.some(x => String(x || '').trim()))));
-    return hasLy ? '五线谱歌谱' : '器乐五线谱';
-  }
-  return TYPE_FULL_SSR[t] || TYPE_CN_SSR[t] || '曲谱';
+  /* v67.6 收尾：按观看页看到的谱推断（先按 sanitizeUntrusted 口径清洗、非 v3 按 migrate）——恶意 / 老格式数据两端同名；打不开或推断出错回落「曲谱」 */
+  return KIND.pubNameOf(d);
 }
 const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PUB_CANON = process.env.PUB_CANON || 'https://puku.puyouquan.com';   // canonical/og 主机（去重用）
@@ -398,15 +401,15 @@ function baiduPush(ids) {
 /* v61.7 收录加厚：落地页可爬正文的歌词节选与和弦进行（薄内容+秒跳转会被当「桥页」拒收） */
 function lyricExcerpt(d, cap) {
   let out = '';
-  for (const m of (d.measures || [])) for (const cols of ((m || {}).voxes || [])) for (const c of (cols || [])) {
-    const w = String(((c || {}).lyrics || [])[0] || '').trim();
+  for (const m of arr(d.measures)) for (const cols of arr((m || {}).voxes)) for (const c of arr(cols)) {
+    const w = String(arr((c || {}).lyrics)[0] || '').trim();
     if (w) { out += w; if (out.length >= cap) return out.slice(0, cap); }
   }
   return out;
 }
 function chordSeq(d, cap) {
   const seq = [];
-  for (const m of (d.measures || [])) for (const cols of ((m || {}).voxes || [])) for (const c of (cols || [])) {
+  for (const m of arr(d.measures)) for (const cols of arr((m || {}).voxes)) for (const c of arr(cols)) {
     if (!c) continue;
     const names = [];
     if (typeof c.chord === 'string' && c.chord.trim()) names.push(c.chord.trim());
@@ -420,9 +423,10 @@ function chordSeq(d, cap) {
 }
 function pubMeta(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
+  if (!d || typeof d !== 'object') d = {};   // v67.6 收尾：data 为 null / 数字等非对象时按空谱（此前 d.measures 直接抛错）
   const title = (row.title || '').trim() || '未命名曲谱';
   const typeCn = typeLabelOf(d);   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
-  const nMea = (d.measures || []).length;
+  const nMea = arr(d.measures).length;
   const singer = (row.singer || '').trim();
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;

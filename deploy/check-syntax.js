@@ -51,6 +51,20 @@ for (const path of files) {
     const hits = (html.match(/[A-Za-z_$][\w$]*\s*>\s*66\b/g) || []).length;
     if (/function keyRefOf\(/.test(html) && hits > 1) { console.error('❌ ' + path + ' 八度折叠规则（>66）散写了 ' + hits + ' 处，只许在 keyRefOf 里写一次——换调参考音一律调 keyRefOf(key)'); bad++; }
   }
+  /* v67.6 统一谱名表：编辑器内联的 @pq-kindname 段必须与服务端 api/kindname.js 的同名段逐字节相同——
+     单文件无构建只能两处各放一份，改了一处忘了另一处＝谱库卡片 / 落地页与编辑器、观看页的谱名分家（拍板 5 要的就是同名）。 */
+  {
+    const BEG = '/* @pq-kindname begin', END = '/* @pq-kindname end */';
+    const cut = s => { const a = s.indexOf(BEG), b = s.indexOf(END); return a >= 0 && b > a ? s.slice(a, b + END.length) : null; };
+    const mine = cut(html);
+    if (mine != null) {
+      const srvPath = require('path').resolve(__dirname, '..', 'api', 'kindname.js');
+      let srv = null; try { srv = cut(fs.readFileSync(srvPath, 'utf8')); } catch (_) {}
+      if (srv == null) { console.error('❌ ' + path + ' 内联了统一谱名表，但读不到服务端副本 api/kindname.js 的 @pq-kindname 段'); bad++; }
+      else if (srv !== mine) { console.error('❌ ' + path + ' 统一谱名表 @pq-kindname 段与 api/kindname.js 不一致（两处必须逐字节相同）'); bad++; }
+      else console.log('✅ ' + path + '：统一谱名表与 api/kindname.js 逐字节一致');
+    }
+  }
   /* v59.2 教训：APP_VER 忘随更新日志递增 → 线上版本角标停在旧版 + smoke 版本落位两边读同一常量成假绿。
      闸：APP_VER 必须等于更新日志首条 <span class="v">vX.Y</span>，不一致即拦截发版。 */
   const av = (html.match(/const APP_VER='([^']+)'/) || [])[1];   // 与 smoke.sh 线上版本落位同一写法，故不放宽

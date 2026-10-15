@@ -438,6 +438,7 @@ body.shell .ltab{writing-mode:horizontal-tb;text-orientation:mixed;display:flex;
 .ltab .lic{display:none}
 body.shell .ltab .lic{display:block;line-height:0}
 body.shell .ltab .lic .svgi{margin:0}
+body.shell .ltab .lic svg.pqi{display:block;margin:0 auto}   /* v67.6 左轨最终图标集：块级居中，不吃行内基线下沉（手机底条音轨钮曾因此高 6px、咬进时值条） */
 body.shell .ltab .lb{font-size:10px;line-height:1.2}
 body.shell .ltab.on{background:var(--accent);color:var(--ed-on-accent);border-color:transparent}
 body.shell .ltab.shell-only{display:flex}
@@ -752,7 +753,7 @@ body.shell #rt-chorded:hover{border-color:var(--accent);color:var(--accent-ink)}
 .aitem .ait b,.aitem .ait small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #ai-tools .aitem:disabled{opacity:.42;cursor:not-allowed}
 #ai-tools .aitem:disabled:hover{background:transparent}
-.aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px}
+.aitem .aiarr{margin-left:auto;color:var(--faint);font-size:13px;line-height:0}   /* v67.6 收尾：字符 › 换最终图标 act-step（14px，同手机用途列表的行尾箭头） */
 /* v46.3 智能预提示卡：选中对象上下文提示（主）+ 整体建议（次级） */
 #rc-hints .hb-li{display:block;width:100%;text-align:left;font-size:11.5px;line-height:1.55;color:var(--text);
   padding:5px 8px;border:1px solid var(--border-soft);border-radius:8px;background:var(--ed-raise);margin:0 0 4px;
@@ -781,9 +782,10 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
 .rc-h{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
   border:none;border-radius:0;background:var(--fill);font-weight:700;font-size:13px;padding:9px 12px}
 .rc-h:hover{background:var(--hover)}
-.rc-h::after{content:'▸';font-size:11px;color:var(--muted);transition:transform .15s}
-.rcard.open .rc-h::after{transform:rotate(90deg)}
-.rc-h.rc-btn::after{content:'…';transform:none}
+/* v67.6 收尾验收（manifest act-chevron「替换字符 ▾」）：折叠符由字符 ▸ 换成最终图标 act-chevron 的几何（12px 档线宽 1.25 物理像素），收起朝右、展开朝下 */
+.rc-h::after{content:'';flex:0 0 auto;width:12px;height:12px;background-color:var(--muted);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E") center/12px 12px no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E") center/12px 12px no-repeat;transform:rotate(-90deg);transition:transform .15s}
+.rcard.open .rc-h::after{transform:rotate(0deg)}
+.rc-h.rc-btn::after{content:'…';width:auto;height:auto;background:none;-webkit-mask:none;mask:none;font-size:11px;color:var(--muted);transform:none}
 .rcard .rc-b{display:none;padding:10px 12px;border-top:1px solid var(--border)}
 .rcard.open .rc-b{display:block}
 .rc-b .rg-body{max-width:none;justify-content:flex-start;gap:5px}
@@ -805,6 +807,15 @@ body.shell #cursor-info b.z{color:var(--accent-ink)}
   align-items:center;justify-content:center;gap:30px}
 #start-pad.hidden{display:none!important}
 #start-pad:not(.hidden)~#paper{visibility:hidden}
+/* v67.6 收尾验收：手机横屏（844×390 等，可用高只有 ~150px）卡片比可用高还高时，居中会把第一行顶到工具栏底下且滚不出来——
+   safe center：放得下照旧居中，放不下从上沿排起并可滚动；短屏手机卡片再压矮一些 */
+#start-pad{justify-content:safe center;overflow-y:auto;overscroll-behavior:contain}
+@media (max-height:500px){
+  body.nw-mob #start-pad{gap:12px;padding:10px 0}
+  body.nw-mob .spd-card.spd-mob{padding:10px 10px 9px;gap:4px}
+  body.nw-mob .spd-card.spd-mpri{padding:10px 14px 9px}
+  body.nw-mob .spd-card.spd-mpri b{font-size:16px}
+}
 .spd-brand{display:flex;align-items:center;gap:11px;font-size:20px;font-weight:800;letter-spacing:.06em;color:var(--text)}
 #spd-cards{display:grid;grid-template-columns:repeat(4,132px);gap:14px}
 .spd-card{display:flex;flex-direction:column;align-items:center;gap:7px;padding:24px 10px 18px;
@@ -1003,6 +1014,32 @@ svg text{user-select:none}
 .cc-type{position:absolute;top:8px;left:9px;font-size:10px;font-weight:700;color:var(--accent);letter-spacing:.4px;
   background:color-mix(in srgb, var(--panel) 88%, transparent);border:1px solid var(--border-soft);border-radius:980px;padding:2px 9px;
   -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+/* v67.6 其余位置换最终图标集（README「图标规范」：页签与谱库 16 · 左轨 18；常态 --muted、选中 --accent-ink）：
+   谱库筛选条 / 卡片徽标 / 观看页谱类 / 预设与我的曲谱卡片 / 信息卡谱类 / 右栏创作辅助 / 左轨音轨与图层 */
+.cc-type{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 6px}
+.cc-cover .cc-type svg.pqi{position:static;inset:auto;width:16px;height:16px}   /* 压掉封面背景图 .cc-cover svg 的绝对定位铺满 */
+.cc-chip{display:inline-flex;align-items:center;gap:5px}
+.cc-chip .cc-ic{color:var(--muted)}.cc-chip.on .cc-ic{color:inherit}
+/* 收尾验收：v67.5 的第一行（搜索＋全部＋10 类）正好占满 1080，加图标后「和弦谱 / 尤克里里」掉到第二行、和免费 / 付费混在一起——
+   ≥1100 宽：分类单独一行（全部＋10 类，带图标恰好放得下），搜索与免费 / 付费 / 收藏 / 首数放第二行（换行位用一个零高的整行占位）；
+   手机窄屏不显示筛选图标（省出一行，第一张卡不下移） */
+@media (min-width:1100px){   /* 筛选条到最大宽 1080 时（更窄时本来就折行，保持 v67.5 的自然折行） */
+  #circle .cc-tools::before{content:'';order:1;flex-basis:100%;height:0}
+  #circle .cc-tools>.cc-search,#circle .cc-tools>.cc-chip:not([data-cat]),#circle .cc-tools>.cc-count{order:2}
+}
+@media (max-width:600px){ .cc-chip .cc-ic{display:none} }
+.va-kind{white-space:nowrap}.va-kind .cc-ic{display:inline-block;vertical-align:-3px;margin-right:3px;color:var(--muted)}   /* 行内：压掉全局 svg{display:block} */
+.sc-kind{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);margin:3px 0 1px;min-width:0}
+.sc-kind .pqi{color:var(--muted)}.sc-kind span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kv b .ri-kic{display:inline-block;vertical-align:-3px;margin-right:4px;color:var(--muted)}   /* 图标规范：常态 --muted（收尾验收：此前常态就用 --accent-ink） */
+#ri-lbar{display:flex;align-items:center;justify-content:center;gap:6px}
+.trk-ic .pqi{margin:0}
+.aitem .aic .pqi{display:block}
+/* v67.6 谱库卡片改统一谱名后最长 18 字（钢琴弹唱谱（纯伴奏，五线＋简谱对照））：不压右上「免费 / ¥」角标；放不下折成两行（括号里的区分信息不丢——
+   收尾验收：单行省略时桌面卡片「钢琴伴奏歌谱（五线…」看不出是哪种），两行仍放不下才省略，悬停 title 看全名。
+   省略规则挂在内层 .cc-tname 上：外层改成 flex（前面插谱类图标）时照样生效 */
+.cc-type{max-width:calc(100% - 66px);box-sizing:border-box}
+.cc-tname{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-width:0;white-space:normal;line-height:1.35}
 .cc-body{padding:10px 12px 11px}
 .cc-card .tr{display:flex;align-items:flex-start;gap:6px}
 .cc-card .t{flex:1;font-size:14px;font-weight:700;margin-bottom:2px;color:var(--text);padding-left:0;line-height:1.35;
@@ -1133,7 +1170,7 @@ svg.pqi{margin:0;max-width:none;flex:0 0 auto}   /* 压掉全局 svg{margin:0 au
 .nf-modal :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .nf-modal p{margin:0;color:inherit;font-size:inherit}
 .nf-modal kbd{font:600 11px/1 var(--font-ui);padding:3px 5px;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;background:var(--panel);color:var(--muted)}
-.nf-modal .nf-tag,.nf-qm .nf-tag,#start-pad .nf-tag{font-style:normal;font-size:11.5px;font-weight:600;line-height:1;padding:4px 6px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink);white-space:nowrap}
+.nf-modal .nf-tag,.nf-qm .nf-tag,#start-pad .nf-tag,.nw-mpc-mask .nf-tag{font-style:normal;font-size:11.5px;font-weight:600;line-height:1;padding:4px 6px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink);white-space:nowrap}
 .nf-hd{display:flex;align-items:center;gap:16px;padding:0 10px 0 24px;border-bottom:1px solid var(--border)}
 .nf-hd h2{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em}
 .nf-tabs{display:inline-flex;padding:3px;border-radius:11px;background:var(--toolbar);gap:2px;border:1px solid var(--border-soft)}
@@ -1223,7 +1260,7 @@ svg.pqi{margin:0;max-width:none;flex:0 0 auto}   /* 压掉全局 svg{margin:0 au
 .nf-modal input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .nf-modal input[type=number]::-webkit-inner-spin-button,.nf-modal input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 i.nf-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:2px;flex:0 0 auto}
-i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed var(--accent);box-sizing:border-box}i.nf-dot.s-last,i.nf-dot.s-default{background:var(--muted);opacity:.7}
+i.nf-dot.s-user,i.nf-dot.s-link{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed var(--accent);box-sizing:border-box}i.nf-dot.s-last,i.nf-dot.s-default{background:var(--muted);opacity:.7}
 .nf-seg{display:flex;padding:0;border-radius:11px;background:var(--toolbar);gap:2px;border:1px solid var(--border-soft)}
 .nf-modal .nf-seg button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:0 6px;border:0;border-radius:10px;background:none;font-size:13.5px;font-weight:600;color:var(--muted);white-space:nowrap;min-width:0}
 .nf-modal .nf-seg button:hover{color:var(--text);background:var(--hover)}
@@ -1249,6 +1286,9 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
 .nf-chips i{font-style:normal;font-size:12px;font-weight:600;padding:2px 6px;border-radius:6px;border:1px solid var(--border);color:var(--muted)}
 .nf-chips i.c-user{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent-ink)}
 .nf-chips i.c-scene{border:1px dashed color-mix(in srgb,var(--accent) 70%,transparent);color:var(--accent-ink)}
+/* v67.6 深链 ?new= 带来的值：实线（同「按文件」——外部给定，不是场景惯例），没认出的参数灰字列出 */
+.nf-chips i.c-link{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent-ink)}
+.nf-modal .nf-basis p.nf-linkbad{color:var(--muted);flex-wrap:nowrap;align-items:flex-start;gap:5px}.nf-linkbad .pqi{margin-top:2px}
 .nf-modal .nf-more{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-height:44px;border:0;border-top:1px solid var(--border);border-radius:0;background:none;padding:6px 2px 0;font-size:13.5px;font-weight:600;color:var(--text);text-align:left}
 .nf-more span{margin-left:auto;font-weight:400;font-size:12px;color:var(--muted)}
 .nf-more[aria-expanded=true] .pqi:last-child{transform:rotate(180deg)}
@@ -1385,8 +1425,58 @@ i.nf-dot.s-user{background:var(--accent)}i.nf-dot.s-scene{border:1.5px dashed va
 .nw-mpc-mask .btns button{min-height:44px}
 .modal .nw-mimp{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;margin-top:4px;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);text-align:left;font:inherit;cursor:pointer}
 .nw-mimp .pqi{color:var(--accent-ink)}
-.nw-mimp>span{display:flex;flex-direction:column;min-width:0}.nw-mimp b{font-size:14px}.nw-mimp small{font-size:12px;color:var(--muted)}
+.nw-mimp>span{display:flex;flex-direction:column;min-width:0}.nw-mimp b{font-size:14px}.nw-mimp small{font-size:12px;color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+.nw-mpc-mask .nw-mimp{min-width:0;max-width:100%;box-sizing:border-box;white-space:normal}   /* 收尾验收：320–355 宽手机上说明不换行把弹窗撑出横向滚动 */
 .nw-mpc-mask #nw-pc{display:inline-flex;align-items:center;gap:6px}
+/* v67.6 手机「在电脑上开始一份谱」完整版（README §6 / 效果图 M01–M05）：按用途列表每行 64px（只用图标），主按钮钉在弹窗底部（10 行要滚动时也看得见）；
+   详情：将建成＋调 / 拍号 / 速度＋依据＋链接预览；已复制：三步说明。命中区 ≥44 */
+.nw-mpc-mask .modal{padding-bottom:0}
+.nw-mpc-mask .btns.nw-mfoot{position:sticky;bottom:0;z-index:1;margin:12px -22px 0;padding:10px 22px 14px;background:var(--panel);border-top:1px solid var(--border-soft);flex-wrap:nowrap}
+.nw-mpc-mask .btns.nw-mfoot button{min-height:52px;white-space:nowrap}   /* 主按钮高 52px（README §6；收尾验收：此前 44） */
+.nw-mpc-mask .btns.nw-mfoot .primary{flex:1;justify-content:center}
+#mp-again{display:inline-flex;align-items:center;gap:6px}
+.nw-mus{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:4px}
+.modal .nw-mu{display:flex;align-items:center;gap:12px;width:100%;height:64px;min-height:64px;padding:0 12px;border:1px solid var(--border-soft);border-radius:12px;background:var(--panel);color:var(--text);text-align:left;font:inherit;cursor:pointer;box-sizing:border-box}
+.nw-mu:hover,.nw-mu:focus-visible{border-color:color-mix(in srgb,var(--accent) 40%,var(--border-soft));background:var(--hover)}
+.nw-mu>.pqi:first-child{color:var(--accent-ink)}.nw-mu>.pqi:last-child{color:var(--muted);margin-left:auto}
+.nw-mut{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.nw-mut b{font-size:14.5px;display:flex;align-items:center;gap:6px}.nw-mut small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal .nw-mbad{font-size:12px;color:var(--muted);margin:2px 0}
+.modal h3.nw-mh{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.nw-mh .pqi{color:var(--accent-ink)}
+.modal .nw-mback{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;margin:-8px 0 -8px -12px;padding:0;border:0;background:none;color:var(--text);box-shadow:none}
+.nw-mpd{display:flex;flex-direction:column;gap:10px}
+.modal .nw-mk{display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--muted)}.nw-mk b{font-size:15px;color:var(--text)}.nw-mk .pqi{color:var(--accent-ink)}
+.modal .nw-mdesc{margin:0;font-size:12.5px;color:var(--muted);line-height:1.6}
+.nw-mf3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.nw-mf{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.nw-mf select,.nw-mf input{width:100%;min-height:44px;box-sizing:border-box;min-width:0}
+.nw-mmeter{display:flex;align-items:center;gap:3px}.nw-mmeter select{flex:1;padding-left:4px;padding-right:2px}.nw-mmeter b{color:var(--muted)}
+.nw-mbasis p{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12px;margin:0}
+.nw-mlinkbox{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.nw-mlinkbox code,.nw-mdone code{display:block;padding:9px 11px;border:1px solid var(--border);border-radius:10px;background:var(--fill);color:var(--text);font:12.5px/1.5 ui-monospace,Menlo,monospace;word-break:break-all;user-select:all;-webkit-user-select:all}
+.nw-mdone{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:6px 2px}
+.nw-mdone>.pqi{color:var(--accent-ink)}.nw-mdone>b{font-size:17px;color:var(--text)}.nw-mdone code{width:100%;box-sizing:border-box;text-align:left}
+.nw-mdone ol{margin:0;padding-left:20px;text-align:left;font-size:13px;line-height:1.7;color:var(--text);align-self:stretch}
+/* 收尾验收补（README §6 / M02–M04）：用途分组标题、详情页刻版预览、曲名、旋律用 / 变体分段按钮 */
+.modal h4.nw-mg{margin:10px 2px 2px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.nw-mus>[role=listitem]{display:block}
+.nw-mpv{margin:0;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px 8px 6px;color:#1b1a2e}
+.nw-mpvbox{min-height:96px;display:flex;align-items:center;justify-content:center}
+.nw-mpvbox>svg{display:block;width:100%;height:auto;max-height:220px;margin:0}
+.nw-mpv .pagebg,.nw-mpv .pageno{display:none}
+.nw-mpv[aria-busy=true] .nw-mpvbox{opacity:.55}
+.nw-mpv figcaption{font-size:11.5px;line-height:1.5;color:#5c5b73;padding:2px 4px 0}
+.modal .nw-mpverr{margin:0;font-size:12px;color:#5c5b73}
+.nw-mfw{width:100%}
+.nw-mseg{display:flex;padding:3px;border-radius:11px;background:var(--toolbar);gap:2px;border:1px solid var(--border-soft)}
+.modal .nw-mseg button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;min-width:0;padding:0 6px;border:0;border-radius:9px;background:none;box-shadow:none;font-size:13.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.modal .nw-mseg button span{overflow:hidden;text-overflow:ellipsis}
+.modal .nw-mseg button[aria-pressed=true]{background:var(--panel);color:var(--accent-ink);box-shadow:0 1px 2px rgba(18,16,52,.12)}
+/* 手机启动台主卡（spd-mob 才显示）：占两格、左对齐、强调底（同电脑主卡口径） */
+.spd-card.spd-mpri{grid-column:span 2;align-items:flex-start;text-align:left;gap:5px;padding:16px 16px 14px;background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.spd-card.spd-mpri b{font-size:18px;color:var(--accent-ink)}
+.spd-card.spd-mpri span:last-child{text-align:left;font-size:12px;line-height:1.5}
 /* 「新建 ▾」快捷菜单 */
 .nf-qm{position:fixed;z-index:75;width:330px;overflow:auto;padding:6px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 40px rgba(18,16,52,.22);font-family:var(--font-ui);color:var(--text)}
 .nf-qm .nf-qi{justify-content:flex-start;display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:4px 10px;border:0;border-radius:9px;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;white-space:normal}
@@ -1968,6 +2058,7 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accen
   #site-footer{margin-bottom:120px}
   /* 弹窗更满屏、可滚 */
   .modal{width:96%;max-height:88vh;padding:16px 15px}
+  .nw-mpc-mask .btns.nw-mfoot{margin-left:-15px;margin-right:-15px;padding-left:15px;padding-right:15px}   /* v67.6 钉底主按钮条跟手机弹窗内边距（15px）对齐，不撑出横向滚动 */
   .modal .feat{grid-template-columns:1fr}
   /* ===== v59.0 手机深修（移动端审计：桌面 shell 框架高特异性规则系统性压过本块的经典版手机规则，
      导致滚动死锁/抽屉失位/热区失效——以下同前缀重申，靠书写顺序取胜） ===== */
@@ -1992,6 +2083,11 @@ body.shell .mxtc.loop span,body.shell .mxtc.cur span{color:var(--ed-chrome-accen
      咬进时值条（三条底栏 --mob-b1/2/3 精确堆叠，v60.36 实测口径） */
   body.shell .ltab.rtrk{padding:7px 10px}
   body.shell .ltab.rtrk .lic svg{width:14px;height:14px}
+  /* v67.6 收尾验收（major）：底条宽度是定额，最终图标以 14px 真实占宽后音轨名被挤成 0（四部合唱四个一样的麦克风）、「歌词」钮 12px 图标溢出左框——
+     手机底条只留文字（同 v67.5 实际观感：旧 SVGI 在这里被压成 2–8px 的点），名字至少留一个字＋省略号；「＋音轨」没有文字，图标按原生 18px 显示（不缩放、线宽不偏档） */
+  body.shell .ltab:not(.rtrk-add) .lic{display:none}
+  body.shell .ltab.rtrk[data-trk] .lb{min-width:2.2em}
+  body.shell .ltab.rtrk-add .lic svg.pqi{width:14px;height:14px}   /* 底条不增高（音轨钮内边距 7px）；图标按 14px 档生成（renderDock 读同一断点），线宽不偏档 */
   body.shell .ltab.rtrk .lic{font-size:14px}
   body.shell .ltab.rtrk-add .lb{display:none}   /* 手机加轨钮只留「＋」，文字放不下会截成「音」 */
   body.shell .lsep,body.shell .lgrow{display:none}
@@ -2970,7 +3066,7 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
       <div class="rg-body">
         <label style="font-size:12px;color:var(--muted)">当前音</label>
         <input id="i-lyric" class="short" placeholder="字">
-        <button id="b-fill" data-sic="sparkle">智能填词</button>
+        <button id="b-fill" data-sicpq="nota-lyrics">智能填词</button>
         <button id="b-clearlyr" data-sic="eraser">清空本段</button>
         <div class="shell-note">整段歌词自动逐字对位：跳过休止与连音，标点旁挂不占音位</div>
       </div>
@@ -3034,11 +3130,15 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
       <div class="spd-brand cc-logo"><span class="mark"></span>谱友圈 · 在线制谱</div>
       <!-- v67.4 启动台卡片换成「开始一份谱 / 按上次 / 从已有音乐」＋常用用途直达（框架不动）；手机仍是只读引导（拍板 1：先不开放手机新建） -->
       <div id="spd-cards">
+        <!-- v67.6 手机启动台补「开始一份谱」主卡（README §6，修 A-8）：真手机进「在电脑上开始一份谱」页（选用途 → 复制带用途与调拍的深链；不开放手机新建，拍板 1）；
+             电脑窄窗口（≤820 也摆手机卡）点它照常出新建面板（showNewWizard 按 isMobileNew 分流） -->
+        <!-- 手机卡图标同换最终图标集（README 尺寸分配：启动台手机 26）：看示例＝src-example、发到电脑继续＝act-pc、打开＝act-open、我的＝src-mine -->
+        <button class="spd-card spd-mob spd-mpri" data-sp="mstart"><span class="ic" data-pqi="act-new" data-pqs="26"></span><b>开始一份谱</b><span>按用途选：吉他弹唱、钢琴即兴伴奏、教学对照、视唱谱例……发到电脑上回车就建</span></button>
         <button class="spd-card spd-desk spd-x spd-pri" data-sp="new"><span class="ic" data-pqi="act-new" data-pqs="28"></span><b>开始一份谱</b><span>按用途选：吉他弹唱、钢琴即兴伴奏、教学对照、视唱谱例……回车就建</span></button>
         <button class="spd-card spd-desk spd-x" data-sp="last"><span class="ic" data-pqi="tpl-last" data-pqs="28"></span><b id="spd-last-t">按上次</b><span id="spd-last-d">吉他弹唱 · 1=C 4/4 · Alt+Shift+N</span></button>
         <button class="spd-card spd-desk spd-x" data-sp="imp"><span class="ic" data-pqi="act-import" data-pqs="28"></span><b>从已有音乐</b><span>MusicXML（含 AI 转谱导出）· Guitar Pro · MIDI</span></button>
-        <button class="spd-card spd-mob" data-sp="demo"><span class="ic" data-svgi="eye"></span><b>看示例</b><span>预设曲谱 · 可播放</span></button>
-        <button class="spd-card spd-mob" data-sp="pc"><span class="ic" data-svgi="share"></span><b>发到电脑继续</b><span>复制制谱链接</span></button>
+        <button class="spd-card spd-mob" data-sp="demo"><span class="ic" data-pqi="src-example" data-pqs="26"></span><b>看示例</b><span>预设曲谱 · 可播放</span></button>
+        <button class="spd-card spd-mob" data-sp="pc"><span class="ic" data-pqi="act-pc" data-pqs="26"></span><b>发到电脑继续</b><span>复制制谱链接</span></button>
         <div class="spd-chips spd-desk" role="group" aria-label="常用用途直达"><span class="spd-chl">常用</span>
           <button type="button" data-sp="sc:gtr"><span data-pqi="type-guitar" data-pqs="18"></span>吉他弹唱</button>
           <button type="button" data-sp="sc:pacc"><span data-pqi="type-jg" data-pqs="18"></span>钢琴即兴伴奏<em class="nf-tag">考编</em></button>
@@ -3046,8 +3146,8 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
           <button type="button" data-sp="sc:sight"><span data-pqi="type-sight" data-pqs="18"></span>视唱练耳谱例<em class="nf-tag">艺考</em></button>
           <button type="button" data-sp="sc:kids"><span data-pqi="type-kids" data-pqs="18"></span>儿歌弹唱<em class="nf-tag">师范</em></button>
         </div>
-        <button class="spd-card spd-mob" data-sp="open"><span class="ic" data-svgi="doc"></span><b>打开</b><span>打开曲谱文件</span></button>
-        <button class="spd-card spd-mob" data-sp="mine"><span class="ic" data-svgi="score"></span><b>我的</b><span>预设与我的曲谱</span></button>
+        <button class="spd-card spd-mob" data-sp="open"><span class="ic" data-pqi="act-open" data-pqs="26"></span><b>打开</b><span>打开曲谱文件</span></button>
+        <button class="spd-card spd-mob" data-sp="mine"><span class="ic" data-pqi="src-mine" data-pqs="26"></span><b>我的</b><span>预设与我的曲谱</span></button>
         <div class="spd-chips spd-sub spd-desk"><button type="button" data-sp="open"><span data-pqi="act-open" data-pqs="18"></span>打开文件</button><button type="button" data-sp="mine"><span data-pqi="src-mine" data-pqs="18"></span>我的曲谱</button></div>
       </div>
       <div id="spd-mnote">手机上可以看谱、播放、移调；写谱请在电脑浏览器打开 zhipu.puyouquan.com 继续。</div>
@@ -3082,7 +3182,7 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
         <div class="kv" id="ri-tuning-row"><span>调弦</span><b id="ri-tuning">—</b></div>
         <div class="kv"><span>谱类 · 篇幅</span><b id="ri-type">—</b></div>
         <button id="ri-edit" class="fwide" title="编辑标题 / 词曲作者 / 调号拼写 / 拍号速度 / 变调夹">编辑曲谱信息…</button>
-        <button id="ri-lbar" class="fwide" title="在谱面上方显示谱型条：换谱类、旋律用简谱 / 五线谱、下一步（只记在本窗口，不写进曲谱）">谱型条 · 换谱类…</button>
+        <button id="ri-lbar" class="fwide" title="在谱面上方显示谱型条：换谱类、旋律用简谱 / 五线谱、下一步（只记在本窗口，不写进曲谱）"><span data-pqi="act-swap" data-pqs="16"></span>谱型条 · 换谱类…</button>
       </div>
     </div>
     <!-- v58.0 标注（固定标注=常用词一键 / 自由标注=任意文字；col.anno 增量字段，显示在该列上方）。
@@ -3180,7 +3280,7 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
     <div class="rcard open rt-new rt-off" data-rt="lib">
       <button class="rc-h" type="button">素材库</button>
       <div class="rc-b rt-list" id="lib-host">
-        <button id="rt-chorded" data-svgi="chordgrid" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
+        <button id="rt-chorded" data-pqi="nota-chordbox" data-pqs="18" title="编辑当前列和弦 / 创建自定义和弦"> 编辑 / 创建和弦…</button>
       </div>
     </div>
 
@@ -3192,28 +3292,30 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
         <div class="ai-sec">
           <div class="ai-h"><span class="sp" data-svgi="sparkle"></span><b>创作辅助</b></div>
           <p class="ai-p">从旋律到伴奏，常规配置一键完成。</p>
+          <!-- v67.6 创作辅助图标换最终图标集（一图一义；收尾验收：图标框 26px，用 18px 档——16px 下和弦图近乎实心、歌词「56」粘连）：导入 MIDI＝src-midi、配和弦工作台＝nota-chord（和弦行）、一键配伴奏＝src-arrange（智能配谱）、
+               智能填词＝nota-lyrics、和弦＝nota-chordbox（和弦图）、指板 / 键盘＝inst-guitar；标注（铅笔）最终图标集里无对应，仍用 SVGI -->
           <!-- v60.26 产品负责人指定：MIDI 导入独立界面放创作辅助第一项，替代一键配和弦
                （一键能力仍在：配和弦工作台「应用到谱面」与 伴奏织体弹窗「一键配和弦（建议）」两处可达） -->
-          <button id="rt-midi" class="aitem" title="MIDI 导入独立界面：选谱类（歌谱/钢琴/吉他/尤克里里）→ 音轨映射到对应声部；吉他自动指派弦品"><span class="aic" data-svgi="score"></span><span class="ait"><b>导入 MIDI…</b><small>选谱类 · 音轨映射声部</small></span><span class="aiarr">›</span></button>
-          <button id="rt-lab" class="aitem" title="配和弦工作台：逐小节看候选与得分、按乐句显示命中的进行套路、可手动指定调式与逐格改和弦，确认后再写回谱面"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>配和弦工作台</b><small>逐小节推敲·候选评分·套路可见</small></span><span class="aiarr">›</span></button>
-          <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-svgi="piano"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr">›</span></button>
-          <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr">›</span></button>
+          <button id="rt-midi" class="aitem" title="MIDI 导入独立界面：选谱类（歌谱/钢琴/吉他/尤克里里）→ 音轨映射到对应声部；吉他自动指派弦品"><span class="aic" data-pqi="src-midi" data-pqs="18"></span><span class="ait"><b>导入 MIDI…</b><small>选谱类 · 音轨映射声部</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
+          <button id="rt-lab" class="aitem" title="配和弦工作台：逐小节看候选与得分、按乐句显示命中的进行套路、可手动指定调式与逐格改和弦，确认后再写回谱面"><span class="aic" data-pqi="nota-chord" data-pqs="18"></span><span class="ait"><b>配和弦工作台</b><small>逐小节推敲·候选评分·套路可见</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
+          <button id="rt-arr" class="aitem" style="display:none" title="主旋律→自动配和弦→织体生成双手伴奏"><span class="aic" data-pqi="src-arrange" data-pqs="18"></span><span class="ait"><b>一键配伴奏…</b><small>旋律 → 和弦 → 双手织体</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
+          <button id="rt-fill" class="aitem" title="整段歌词自动逐字对位"><span class="aic" data-pqi="nota-lyrics" data-pqs="18"></span><span class="ait"><b>智能填词…</b><small>整段歌词自动逐字对位</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
           <!-- v60.45 哼唱成谱全站暂下（产品指示）：入口隐藏，DOM 与程序化路径保留（showHumModal），将来恢复摘 display 即可 -->
-          <button id="rt-hum" class="aitem" style="display:none" data-wording-ok="入口已下线、按钮常隐" title="清唱一段，自动出简谱草稿"><span class="aic" data-svgi="mic"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr">›</span></button>
+          <button id="rt-hum" class="aitem" style="display:none" data-wording-ok="入口已下线、按钮常隐" title="清唱一段，自动出简谱草稿"><span class="aic" data-pqi="src-hum" data-pqs="18"></span><span class="ait"><b>哼唱成谱…</b><small>清唱录音 → 简谱草稿</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
           <!-- v60.28 和弦/标注双图标（产品负责人指示：编辑入口收到这里，选中音符时可用；
                谱面不再留「＋和弦」空位点击区） -->
           <div id="ai-tools">
-            <button id="rt-chord" class="aitem" title="在选中的音符上设置/编辑和弦：简谱音符=级数构建器，六线谱音符=指法编辑器；和弦图对齐该音符"><span class="aic" data-svgi="chordgrid"></span><span class="ait"><b>和弦</b><small>设和弦</small></span></button>
-            <button id="rt-anno" class="aitem" title="在选中的音符上方标注文字：前奏/副歌/渐慢…或任意文字"><span class="aic" data-svgi="pencil"></span><span class="ait"><b>标注</b><small>加文字</small></span></button>
+            <button id="rt-chord" class="aitem" title="在选中的音符上设置/编辑和弦：简谱音符=级数构建器，六线谱音符=指法编辑器；和弦图对齐该音符"><span class="aic" data-pqi="nota-chordbox" data-pqs="18"></span><span class="ait"><b>和弦</b><small>设和弦</small></span></button>
+            <button id="rt-anno" class="aitem" title="在选中的音符上方标注文字：前奏/副歌/渐慢…或任意文字"><span class="aic" data-svgi="pencil" data-svgs="18"></span><span class="ait"><b>标注</b><small>加文字</small></span></button>
             <!-- v60.62 产品指示：指板/键盘输入归入创作辅助栏 -->
-            <button id="rt-board" class="aitem wide" title="吉他指板 / 钢琴全键盘：编辑模式点板落音，演奏模式只跟弹不改谱；播放时跟着高亮，跟随当前音轨自动切板"><span class="aic" data-svgi="guitar"></span><span class="ait"><b>指板 / 键盘</b><small>编辑模式落音 · 演奏模式跟弹</small></span></button>
+            <button id="rt-board" class="aitem wide" title="吉他指板 / 钢琴全键盘：编辑模式点板落音，演奏模式只跟弹不改谱；播放时跟着高亮，跟随当前音轨自动切板"><span class="aic" data-pqi="inst-guitar" data-pqs="18"></span><span class="ait"><b>指板 / 键盘</b><small>编辑模式落音 · 演奏模式跟弹</small></span></button>
           </div>
         </div>
         <!-- v48.3 暂时隐藏：导入入口在启动台「导入」与新建向导内均可达，右栏不再重复 -->
         <div class="ai-sec" style="display:none">
           <div class="ai-h"><span class="sp" data-svgi="loop"></span><b>导入 · 互操作</b></div>
           <p class="ai-p">与 MuseScore / DAW / AI 转谱工具互通。</p>
-          <button id="rt-mxl" class="aitem" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"><span class="aic" data-svgi="doc"></span><span class="ait"><b>导入 MusicXML…</b><small>专业制谱 / AI 转谱直入</small></span><span class="aiarr">›</span></button>
+          <button id="rt-mxl" class="aitem" title="MuseScore / AI 转谱的 MusicXML 直接进编辑器"><span class="aic" data-pqi="src-mxl" data-pqs="18"></span><span class="ait"><b>导入 MusicXML…</b><small>专业制谱 / AI 转谱直入</small></span><span class="aiarr" data-pqi="act-step" data-pqs="14"></span></button>
         </div>
       </div>
     </div>
@@ -3442,30 +3544,109 @@ function tuningOf(){ return (typeof song!=='undefined' && song && song.tuning) |
 const TYPE_CN={guitar:'弹唱谱', uku:'尤克里里谱', solo:'独奏谱', pianoacc:'钢琴弹唱谱', piano:'钢琴独奏谱',
   vocal:'歌谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱',
   vox:'歌谱', staff:'器乐五线谱'};
-/* v60.81 谱类细分标签（产品指示：弹唱谱要说清吉他还是钢琴、歌谱要说清简谱还是五线谱）。
-   与 api/server.js 的 typeLabelOf 同一张表——改一处必须同步另一处（谱库卡片走服务端算好的）。 */
-const TYPE_FULL={guitar:'吉他弹唱谱', uku:'尤克里里谱', solo:'吉他独奏谱', pianoacc:'钢琴弹唱谱',
-  piano:'钢琴独奏谱', teach:'教学对照谱', instr:'器乐五线谱', func:'功能谱', chord:'和弦谱'};
-function docTypeLabel(s2){
-  const d=s2||song;
-  /* v67.4 统一谱名表（编辑器显示层）：读 NWB.kindOfSong（只读推断，不写字段；docType 判定与谱库分类不动） */
-  try{ if(typeof NWB!=='undefined' && NWB) return NWB.kindOfSong(d).name; }catch(_){}
-  return docTypeLabelPub(d);
-}
-/* 谱库口径（拍板 5：谱库卡片 / 服务端 typeLabelOf 的谱名 v67.6 再统一）：谱库观看页标题、微信 / 小程序分享卡仍用这张旧表，
-   与 api/server.js typeLabelOf、SSR 落地页、谱库卡片同名（验收：此前观看页标题提前改名，同一份谱在谱库两处叫法不同） */
+/* @pq-kindname begin —— v67.6 统一谱名表（新建流程方案 docs/design-2026-10e，拍板 4 / 5：谱库分类 docType 不改，只统一显示名）。
+   编辑器（谱名 / 页签 / 谱型条 / 观看页标题 / 分享卡 / 谱库卡片）与服务端（api/server.js typeLabelOf：谱库卡片、SSR 落地页、og 封面）共用这一段，
+   两处逐字节相同（语法闸 deploy/check-syntax.js、api/kindname.test.js、tv_kindsync 核对）。只读推断：曲谱 JSON → 谱行组合 stackOf（14 种：
+   J / S / SJ / T / JT / ST / G / CG / JG / SG / SJG / CJ / CS / C）＋上下文 ctxOf（声部数、乐器、instKey、歌词、对照）→ 谱名 kindName / nameOf；
+   不写任何字段，不读全局，脏数据（null 小节 / 缺数组）不抛错。 */
+const PQ_KIND = (function(){
+  const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
+  function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
+  const hasLy = c=> !!(c && c.lyrics && c.lyrics.some && c.lyrics.some(x=>String(x||'').trim()));
+  /* 第 a–b 行（声部下标）里有没有真歌词 */
+  function voxHasLyrics(s, a, b){
+    return (s.measures||[]).some(m=>((m&&m.voxes)||[]).some((cols,vi)=> vi>=a && vi<=b && (cols||[]).some(hasLy)));
+  }
+  /* v64.4 B4e 声部分组：显式 voxGroups 里至少一组合法（类型对、不越界、跨两行以上） */
+  function groupsExplicitOk(s){ const n=(s.voxVoices||[]).length; return (s.voxGroups||[]).some(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from); }
+  /* 显式合法组优先；全部失效时按谱面推断——从第一个五线谱声部起连续的五线谱声部（≥2 行）：钢琴弹唱、或高音＋低音谱表恰好两行且没有歌词 → 花括号，其余 → 方括号 */
+  function groupsOf(s){
+    const n=(s.voxVoices||[]).length, vn=s.voxNotations||[];
+    if(Array.isArray(s.voxGroups) && s.voxGroups.length){
+      const ok=s.voxGroups.filter(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from);
+      if(ok.length) return ok;
+    }
+    let a=-1; for(let i=0;i<n;i++) if(isStaffNota(vn[i])){ a=i; break; }
+    if(a<0) return [];
+    let b=a; while(b+1<n && isStaffNota(vn[b+1])) b++;
+    if(b===a) return [];
+    const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && !voxHasLyrics(s,a,b));
+    return [{type: piano? 'brace' : 'bracket', from:a, to:b}];
+  }
+  /* 合唱：显式方括号组，或推断出的五线谱组里确有歌词（三行以上的器乐重奏照样方括号，但不算合唱） */
+  function isChoir(s){
+    if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return groupsOf(s).some(g=>g.type==='bracket');
+    if(s.pianoAcc) return false;
+    return groupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
+  }
+  /* 钢琴伴奏歌谱（旋律 ＋ 右手伴奏五线 ＋ 左手伴奏低音谱表）：显式分组时只认「1–2 行花括号」，没写分组的老谱只认一键配伴奏产物的声部名 */
+  function isPianoAccStack(s){
+    if(!s || (s.tabVoices||[]).length || s.pianoAcc || s.func || s.chordOnly) return false;
+    const vv=s.voxVoices||[], vn=s.voxNotations||[];
+    if(vv.length!==3 || vn[1]!=='staff' || vn[2]!=='bass') return false;
+    if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return s.voxGroups.some(g=>g && g.type==='brace' && g.from===1 && g.to===2);
+    return vv[1]==='右手伴奏' && vv[2]==='左手伴奏';
+  }
+  /* 任意曲谱 → 谱行组合 */
+  function stackOf(s){
+    const vn=s.voxNotations||[], nv=(s.voxVoices||[]).length, dual=s.voxDual||[];
+    if((s.tabVoices||[]).length){ if(s.tabStaff && !nv) return 'ST'; return nv? 'JT' : 'T'; }
+    if(s.chordOnly) return 'C';
+    if(s.func) return isStaffNota(vn[0])? 'CS' : 'CJ';
+    if(s.pianoAcc) return 'CG';
+    const pair = nv>=2 && vn[nv-2]==='staff' && vn[nv-1]==='bass';
+    if(pair && nv===2 && !isChoir(s)) return 'G';
+    /* 三行且末两行是高 / 低音谱表：要有正面证据（isPianoAccStack）才是钢琴伴奏歌谱，否则按合唱 / 五线谱（导入的 SAB 三部合唱不写分组） */
+    if(pair && nv===3 && isPianoAccStack(s)) return isStaffNota(vn[0])? (dual[0]? 'SJG' : 'SG') : 'JG';
+    if(isStaffNota(vn[0])) return dual[0]? 'SJ' : 'S';
+    return 'J';
+  }
+  /* 乐器身份 instKey → 名字（＝编辑器新建面板 NW_INSTS 的 name；tv_kindsync 逐项核对） */
+  const INST = {guitar:'吉他', uku:'尤克里里', bass:'贝斯', piano:'钢琴', epiano:'电钢琴', synth:'电子琴', accordion:'手风琴',
+    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号',
+    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴', other:'其他器乐'};
+  const instName = k=> k==='other' || !own(INST, k)? '器乐' : INST[k];
+  /* 谱名。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(有歌词或留了歌词行), dual(钢琴两行带简谱对照)}
+     五线谱一族说「歌 / 合唱」要看 lyr（简谱一族按惯例本就是歌谱，不看）：单行 五线谱歌谱 / 五线谱旋律，多行 五线谱合唱谱 / 五线谱重奏谱，
+     旋律＋钢琴 钢琴伴奏歌谱（五线谱）/ 旋律＋钢琴伴奏谱（五线谱）——没词也没留词位的器乐谱不叫「歌谱」「合唱」（收尾验收 major：导入的小提琴独奏、长笛＋钢琴、弦乐四重奏） */
+  function kindName(k, ctx){
+    ctx=ctx||{}; const ik=ctx.instKey && ctx.instKey!=='piano'? ctx.instKey : '', nv=ctx.nVox||1, uku=ctx.inst==='uku';
+    switch(k){
+      case 'J':  return nv>1? '简谱合唱谱' : ik? instName(ik)+'谱（简谱）' : '简谱歌谱';
+      case 'S':  return nv>1? (ctx.lyr? '五线谱合唱谱' : '五线谱重奏谱') : ik? instName(ik)+'谱（五线谱）' : ctx.lyr? '五线谱歌谱' : '五线谱旋律';
+      case 'SJ': return '教学对照谱';
+      case 'SJG':return '教学对照谱（含伴奏）';
+      case 'T':  return uku? '尤克里里谱（四线谱）' : '吉他谱（六线谱）';
+      case 'JT': return uku? '尤克里里弹唱谱' : '吉他弹唱谱';
+      case 'ST': return uku? '尤克里里独奏谱' : '吉他独奏谱';
+      case 'G':  return (ik? instName(ik)+'独奏谱' : '钢琴独奏谱')+(ctx.dual? '（五线＋简谱对照）' : '');
+      case 'CG': return ctx.dual? '钢琴弹唱谱（纯伴奏，五线＋简谱对照）' : '钢琴弹唱谱（纯伴奏）';
+      case 'JG': return '钢琴伴奏歌谱';
+      case 'SG': return ctx.lyr? '钢琴伴奏歌谱（五线谱）' : '旋律＋钢琴伴奏谱（五线谱）';
+      case 'CJ': return '功能谱';
+      case 'CS': return '五线谱和弦谱';
+      case 'C':  return '和弦谱';
+      default:   return '曲谱';
+    }
+  }
+  /* 谱名上下文（只读）：歌词＝有词或建谱时留了歌词行（先看 lyricLines，为 0 再扫词；五线谱一族的叫法要看它）；
+     几声部＝与首行同一记谱法的旋律行数（钢琴伴奏歌谱删掉左手行后剩「简谱旋律＋右手五线」不算合唱） */
+  function ctxOf(s){
+    const vv=s.voxVoices||[], k=stackOf(s);
+    const lyr = (s.lyricLines|0)>0 || (s.measures||[]).some(m=>((m&&m.voxes)||[]).some(cols=>(cols||[]).some(hasLy)));
+    const vn=s.voxNotations||[], nSame = k==='J'? vv.filter((_,i)=>!isStaffNota(vn[i])).length : k==='S'? vv.filter((_,i)=>isStaffNota(vn[i])).length : 1;
+    return {nVox:Math.max(1, nSame), inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean)};
+  }
+  const nameOf = s=>kindName(stackOf(s), ctxOf(s));
+  return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf};
+})();
+/* @pq-kindname end */
+/* 编辑器显示层（右栏 ri-type / 页签 / 建成提示 / 换谱类…）与谱库口径（观看页标题、微信 / 小程序分享卡、分享卡 PNG、谱库卡片）v67.6 起同读上面的统一谱名表，
+   与服务端 api/server.js typeLabelOf（谱库卡片 typeLabel、SSR 落地页、og 封面）同名——拍板 5「谱名统一扩到谱库卡片与服务端」；谱类 docType 与谱库筛选不动（拍板 4） */
+function docTypeLabel(s2){ return docTypeLabelPub(s2); }
 function docTypeLabelPub(s2){
   const d=s2||song;
-  const t=docType(d);
-  if(t==='vocal') return isStaffNota((d.voxNotations||[])[0])? '五线谱合唱谱' : '简谱歌谱';   /* v64.4 B4e 五线谱合唱也归 vocal */
-  /* 五线谱写的歌在 docType 里归为 instr（器乐五线谱）——按「有没有实际歌词」区分：
-     带词的是给人唱的（五线谱歌谱），没词的才是器乐谱 */
-  if(t==='instr'){
-    const hasLy=(d.measures||[]).some(m=>(m.voxes||[]).some(cols=>(cols||[]).some(c=>
-      c && c.lyrics && c.lyrics.some(x=>String(x||'').trim()))));
-    return hasLy? '五线谱歌谱' : '器乐五线谱';
-  }
-  return TYPE_FULL[t] || TYPE_CN[t] || '曲谱';
+  try{ return PQ_KIND.nameOf(d); }catch(_){ return '曲谱'; }
 }
 function tuningLabel(){
   const t = (typeof song!=='undefined' && song && song.tuning); if(!t) return '';
@@ -9173,7 +9354,7 @@ function renderDock(){
     const tbName = uku? '尤克里里' : (dt==='solo'? '独奏谱' : '吉他谱');
     const lbT = tb.querySelector('.lb'), licT = tb.querySelector('.lic');
     if(lbT){ lbT.textContent = uiShell? (uku? '四线谱' : '六线谱') : tbName; } else { tb.textContent = tbName; }
-    if(licT) licT.innerHTML = svgi(uku? 'tab4' : 'tab6', 18);
+    if(licT) licT.innerHTML = licIcon(uku? 'tab4' : 'tab6', 18);   /* v67.6 最终图标集 nota-tab4 / nota-tab6 */
     tb.title = tbName + '层';
     if(!hasTab && sel.row==='tab'){ sel.row='vox'; sel.vi=0; }
   }
@@ -9185,7 +9366,7 @@ function renderDock(){
       || (anyStaff? '五线谱' : '简谱');
     const lbV = vb.querySelector('.lb'), licV = vb.querySelector('.lic');
     if(lbV){ lbV.textContent = uiShell? (anyStaff? '五线谱' : '简谱') : vbName; } else { vb.textContent = vbName; }
-    if(licV) licV.innerHTML = svgi(anyStaff? 'staff5' : 'jianpu', 18);
+    if(licV) licV.innerHTML = licIcon(anyStaff? 'staff5' : 'jianpu', 18);   /* v67.6 nota-staff / nota-jianpu（简谱不再是 <text> 字符） */
     vb.title = vbName + '层';
   }
   /* v60.54 歌词页显隐口径放宽（产品指示恢复入口）：此前「有歌词行才出现」＝一段词都还没有时
@@ -9240,6 +9421,8 @@ function renderDock(){
       st('ri-maker', song.maker||'—');
       st('ri-tuning', song.tuning? (tuningLabel()||'自定义调弦') : '标准调弦');
       st('ri-type', docTypeLabel(song)+' · '+song.measures.length+' 小节');   /* v67.4 与页签 / 建成提示同一张谱名表（验收：此前同一份谱这里叫「歌谱」） */
+      /* v67.6 信息卡谱类前加谱类图标（16px 微缩母版，与页签同一套；textContent 不变） */
+      { const el=document.getElementById('ri-type'); if(el){ try{ el.insertAdjacentHTML('afterbegin', pqIcon(NWB.kindOfSong(song).ic, 16, 'ri-kic')); }catch(_){} } }
       const hid=(id,on)=>{ const el2=document.getElementById(id); if(el2) el2.style.display = on? '' : 'none'; };
       hid('ri-lyricist-row', !!song.lyricist);
       hid('ri-composer-row', !!song.composer);
@@ -12078,7 +12261,7 @@ function voiceChips(list, activeIdx, cls){
   return list.map((n,i)=>
     `<span class="chip vchip ${i===activeIdx?'on':''}" data-idx="${i}" data-k="${cls}" title="单击选中，双击改名">`+
       `<span class="vname">${esc(n)}</span>`+
-      (list.length>1?`<span class="vdel" data-idx="${i}" data-k="${cls}del" title="删除该声部">×</span>`:'')+
+      (list.length>1?`<span class="vdel" data-idx="${i}" data-k="${cls}del" title="删除该声部" aria-label="删除该声部">${pqIcon('act-close',12)}</span>`:'')+
     `</span>`).join('');
 }
 let comboMore = false;
@@ -12713,17 +12896,14 @@ function syncInputs(){
     const curI = Math.min(sel.vi, Math.max(0, curList.length-1));
     /* v60.45 图标统一走 INST_ICON（与新建向导乐器网格同一套语义）；人声旋律轨=mic
        v60.46 song.instKey（键盘/管弦/民乐新谱）优先——电钢琴/二胡等显示各自乐器图标 */
-    const ikIc = song.instKey && INST_ICON[song.instKey];
-    const curIc = curKind==='tv'? svgi(INST_ICON[song.inst==='uku'?'uku':'guitar'],14)
-      : (dtT==='piano'||dtT==='pianoacc')? svgi(ikIc||INST_ICON.piano,14)
-      : isStaffNota((song.voxNotations||[])[curI])? svgi(ikIc||INST_ICON.other,14)
-      : svgi(((dtT==='vocal'||dtT==='teach')&&ikIc)||INST_ICON.vocal,14);
+    /* v67.6 换最终图标集乐器组（trkInstOf / INST_PQ，「当前音轨」16px）：其他器乐不再显示小提琴、钢琴伴奏两行显示钢琴 */
+    const curIc = trkIcon(curKind, curI, 16);
     const canDel = curKind==='tv'? (song.tabVoices.length>1 || song.voxVoices.length>0)
       : (!lockDoc && (song.voxVoices.length>1 || (song.tabVoices.length>0 && song.tabStaff)));
     const trkHtml = curList.length?
       `<span class="chip vchip trk on" data-idx="${curI}" data-k="${curKind}" title="当前音轨：双击改名"><span class="trk-ic">${curIc}</span>`+
         `<span class="vname">${esc(curList[curI]||'')}</span>`+
-        (canDel?`<span class="vdel" data-idx="${curI}" data-k="${curKind}del" title="删除该音轨">×</span>`:'')+
+        (canDel?`<span class="vdel" data-idx="${curI}" data-k="${curKind}del" title="删除该音轨" aria-label="删除该音轨">${pqIcon('act-close',12)}</span>`:'')+
       `</span>` : '';
     document.getElementById('tab-voices').innerHTML = trkHtml;
     document.getElementById('vox-voices').innerHTML = trkHtml;
@@ -12735,18 +12915,15 @@ function syncInputs(){
         const rb=(list,kind)=>list.map((n,i)=>{
           const on = sel.row===(kind==='tv'?'tab':'vox') && sel.vi===i;
           /* v60.45 图标统一走 INST_ICON（与新建向导乐器网格同一套语义）；人声旋律轨=mic
-             v60.46 song.instKey 优先——电钢琴/二胡等新谱显示各自乐器图标 */
-          const icn = kind==='tv'? INST_ICON[song.inst==='uku'?'uku':'guitar']
-            : (dtT==='piano'||dtT==='pianoacc')? (ikIc||INST_ICON.piano)
-            : isStaffNota((song.voxNotations||[])[i])? (ikIc||INST_ICON.other)
-            : (((dtT==='vocal'||dtT==='teach')&&ikIc)||INST_ICON.vocal);
+             v60.46 song.instKey 优先——电钢琴/二胡等新谱显示各自乐器图标
+             v67.6 换最终图标集乐器组（trkIcon，左轨 18）：同一套判定 trkInstOf，名称永远跟在旁边（.lb） */
           return '<button class="ltab rtrk'+(on?' on':'')+'" data-trk="'+kind+':'+i+'" title="音轨：'+esc(n)+'（点击编辑该轨）">'+
-            '<span class="lic">'+svgi(icn,18)+'</span><span class="lb">'+esc(n)+'</span></button>';
+            '<span class="lic">'+trkIcon(kind, i, 18)+'</span><span class="lb">'+esc(n)+'</span></button>';
         }).join('');
         /* 第二轮验收补：重建音轨钮时保住键盘焦点（此前每次 render 重建，焦点掉回 body——键盘收起面板后焦点落在当前音轨钮上即被冲掉） */
         const fae=document.activeElement, fk=(fae && railT.contains(fae))? (fae.dataset.trk || fae.id || '') : '';
         railT.innerHTML = rb(song.tabVoices,'tv') + rb(song.voxVoices,'vv') +
-          '<button class="ltab rtrk rtrk-add" id="rail-addtrk" title="添加音轨：旋律轨 / '+(song.inst==='uku'?'尤克里里轨':'吉他轨')+'"><span class="lic">＋</span><span class="lb">音轨</span></button>';
+          '<button class="ltab rtrk rtrk-add" id="rail-addtrk" title="添加音轨：旋律轨 / '+(song.inst==='uku'?'尤克里里轨':'吉他轨')+'"><span class="lic">'+pqIcon('act-add', railAddIcSz())+'</span><span class="lb">音轨</span></button>';   /* v67.6 「＋」字符换 act-add（几何图形，不依赖字体）；手机底条 14px 档 */
         railT.querySelectorAll('.rtrk[data-trk]').forEach(b2=>{ b2.onclick=()=>{
           const kk=b2.dataset.trk.split(':');
           sel.row = kk[0]==='tv'? 'tab':'vox'; sel.vi=+kk[1]; selRange=null; clampSel();
@@ -14691,9 +14868,9 @@ function showAddTrackMenu(){
     && song.measures.some(m=>(m.voxes[mapVi]||[]).some(c=>c.deg!=null&&c.deg>0));
   showModal(`<h3>＋ 音轨</h3>
     <div class="trkadd">
-      ${canVox? `<button id="ta-vox">${svgi('mic',20)}<b>旋律轨</b><span>人声 / 单旋律 · 简谱或五线谱显示</span></button>`:''}
-      ${canTab? `<button id="ta-tab">${svgi(song.inst==='uku'?'ukulele':'guitar',20)}<b>${tabName}</b><span>六线谱 · 和弦图 / 扫弦 / 技法</span></button>`:''}
-      ${canMap? `<button id="ta-map">${svgi('score',20)}<b>${tabName} · 从旋律生成把位</b><span>把「${esc(song.voxVoices[mapVi]||'旋律')}」映射成六线谱 · 低/中把位或跟随和弦图</span></button>`:''}
+      ${canVox? `<button id="ta-vox">${pqIcon('inst-voice',20)}<b>旋律轨</b><span>人声 / 单旋律 · 简谱或五线谱显示</span></button>`:''}
+      ${canTab? `<button id="ta-tab">${pqIcon(song.inst==='uku'?'inst-ukulele':'inst-guitar',20)}<b>${tabName}</b><span>六线谱 · 和弦图 / 扫弦 / 技法</span></button>`:''}
+      ${canMap? `<button id="ta-map">${pqIcon(song.inst==='uku'?'nota-tab4':'nota-tab6',20)}<b>${tabName} · 从旋律生成把位</b><span>把「${esc(song.voxVoices[mapVi]||'旋律')}」映射成六线谱 · 低/中把位或跟随和弦图</span></button>`:''}
     </div>
     <div class="btns"><button id="ta-cancel">取消</button></div>`);
   const pick=(kind)=>{
@@ -14881,6 +15058,7 @@ function initStartPad(){
     else if(k==='imp') showNewWizard({tab:'import'});   // v67.4 从已有音乐：同一面板（MusicXML / Guitar Pro / MIDI）
     else if(k==='demo') document.getElementById('b-library').click();   // v63.0 A3-④ 手机：看示例
     else if(k==='pc') copyLinkForPc('https://zhipu.puyouquan.com/', '制谱链接');   // v63.0 A3-④ 手机：发到电脑继续
+    else if(k==='mstart') showNewWizard();   // v67.6 手机主卡：真手机＝「在电脑上开始一份谱」（选用途、复制深链）；电脑窄窗口＝新建面板
     else if(k==='open') document.getElementById('b-open').click();
     else if(k==='mine') document.getElementById('b-library').click();
   });
@@ -21022,11 +21200,11 @@ var PQI = {
   "clef-treble":[24,"<path d=\"M2.75 7H21.25M2.75 10H21.25M2.75 13H21.25M2.75 16H21.25M2.75 19H21.25\" stroke-width=\"{F}\"/><path d=\"M12.6 22.2c.4 1.4-1.6 1.9-2.4.9-.6-.8.1-1.8 1-1.6M11.2 21.5l1.6-16.8c.15-1.6 1-2.6 1.9-2.4 1 .3.6 2.7-.9 4.6-2 2.6-4.4 4.6-4.4 8 0 2.4 1.8 3.9 3.8 3.9 1.9 0 3.1-1.3 3.1-2.9 0-1.6-1.2-2.8-2.8-2.8-1.4 0-2.4 1-2.4 2.3\"/>"],
   "clef-alto":[24,"<path d=\"M2.75 5H21.25M2.75 8.5H21.25M2.75 12H21.25M2.75 15.5H21.25M2.75 19H21.25\" stroke-width=\"{F}\"/><path d=\"M6.25 4v16\"/><path d=\"M3.6 4h1.4v16H3.6z\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M8.4 4v16M8.4 12c1.4-.6 2.1-1.8 2.4-3.4.3-2 1.6-3.6 3.6-3.6 2.4 0 3.4 1.6 3.4 3.4 0 1.6-1 2.8-2.4 2.8-1 0-1.6-.6-1.6-1.4M8.4 12c1.4.6 2.1 1.8 2.4 3.4.3 2 1.6 3.6 3.6 3.6 2.4 0 3.4-1.6 3.4-3.4 0-1.6-1-2.8-2.4-2.8-1 0-1.6.6-1.6 1.4\"/>"],
   "clef-bass":[24,"<path d=\"M2.75 5H21.25M2.75 8.5H21.25M2.75 12H21.25M2.75 15.5H21.25M2.75 19H21.25\" stroke-width=\"{F}\"/><circle cx=\"5.9\" cy=\"8.6\" r=\"1.55\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M5 8.4c.2-2.2 2.2-3.6 4.8-3.6 3.1 0 5 2 5 5 0 4.4-3.6 7.4-9.4 9.6\"/><circle cx=\"18.6\" cy=\"6.9\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"18.6\" cy=\"10.3\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/>"],
-  "src-blank":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M12 11.25v6.5M8.75 14.5h6.5\"/>"],
+  "src-blank":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M8.25 8.5H15.75M8.25 10.5H15.75M8.25 12.5H15.75M8.25 14.5H15.75M8.25 16.5H15.75\" stroke-width=\"{F}\"/>"],
   "src-mxl":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M10 11.5l-2.5 2.75L10 17M14 11.5l2.5 2.75L14 17\"/>"],
   "src-gp":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M8 11.25h8M8 14h3.2M14.8 14H16M8 16.75h8\" stroke-width=\"{F}\"/><path d=\"M14.06 12.6H12.48L12.32 14.09C12.64 13.82 12.95 13.76 13.25 13.76C13.84 13.76 14.18 14.25 14.18 14.81C14.18 15.5 13.78 15.9 13.19 15.9C12.79 15.9 12.44 15.74 12.2 15.41\"/>"],
   "src-midi":[24,"<circle cx=\"12\" cy=\"12\" r=\"9.25\"/><circle cx=\"7.5\" cy=\"12.6\" r=\"1.15\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"16.5\" cy=\"12.6\" r=\"1.15\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"8.8\" cy=\"8.8\" r=\"1.15\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"15.2\" cy=\"8.8\" r=\"1.15\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"7.4\" r=\"1.15\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M10.25 21v-3h3.5v3\"/>"],
-  "src-mtab":[24,"<path d=\"M3.5 18.5V6.25a1.75 1.75 0 0 1 1.75-1.75h3.6l2 2h6.4a1.75 1.75 0 0 1 1.75 1.75v1.5\"/><path d=\"M3.5 18.5l2.6-7.2a1.6 1.6 0 0 1 1.5-1.05h13.1a1 1 0 0 1 .95 1.35l-2.4 6.9a1.5 1.5 0 0 1-1.4 1H5a1.5 1.5 0 0 1-1.5-1z\"/>"],
+  "src-mtab":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M8.25 11.5H12.25M8.25 15H15.75M8.25 18.5H15.75\"/><circle cx=\"15.1\" cy=\"11.5\" r=\"1.75\" fill=\"currentColor\" stroke=\"none\"/>"],
   "src-example":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M10.25 11.2v6.1l5-3.05z\" fill=\"currentColor\" stroke-width=\"{F}\"/>"],
   "src-recent":[24,"<path d=\"M4.6 9.25A7.9 7.9 0 1 1 4.1 13\"/><path d=\"M3.25 5.5v4.1h4.1\"/><path d=\"M12 8v4.5l3 1.75\"/>"],
   "src-mine":[24,"<path d=\"M6.5 3.25h11a1.75 1.75 0 0 1 1.75 1.75v14a1.75 1.75 0 0 1-1.75 1.75h-11A1.75 1.75 0 0 1 4.75 19V5A1.75 1.75 0 0 1 6.5 3.25z\"/><path d=\"M8.25 3.25v17.5\"/><path d=\"M14.6 15.25V8.25l2.4.6\"/><ellipse cx=\"13.2\" cy=\"15.4\" rx=\"1.75\" ry=\"1.3\" transform=\"rotate(-18 13.2 15.4)\" fill=\"currentColor\" stroke=\"none\"/>"],
@@ -21090,6 +21268,52 @@ function pqIcon(key, size, cls){
 }
 /* 静态 HTML 用 data-pqi 占位（启动台卡片等），注入幂等（同 data-svgi 口径） */
 document.querySelectorAll('[data-pqi]').forEach(el=>{ if(!el.querySelector(':scope > svg.pqi')) el.insertAdjacentHTML('afterbegin', pqIcon(el.dataset.pqi, +el.dataset.pqs||20)); });
+/* v67.6 其余位置换最终图标集（README「图标规范」尺寸分配：左轨 18 · 页签与谱库 16；一图一义）：
+   左轨图层页签 / 「显示」记谱法灯的 .lic 占位按名换 PQI（简谱不再用 <text> 字符图标、六线谱不再只有六道横线、
+   歌词 / 和弦层用记谱法图标）；小节 / 段落 / 帮助等最终图标集里没有对应的仍用 SVGI。 */
+var PQ_LIC = {tab6:'nota-tab6', tab4:'nota-tab4', staff5:'nota-staff', jianpu:'nota-jianpu', lyric:'nota-lyrics', chordgrid:'nota-chord'};
+function licIcon(name, size){ size=size||18; return PQ_LIC[name]? pqIcon(PQ_LIC[name], size) : svgi(name, size); }
+/* 乐器 → 图标（左轨音轨钮 18 /「当前音轨」16）：键与 NW_INSTS 同表；「其他器乐」不再显示小提琴（修「器乐全显示小提琴」），人声＝inst-voice */
+var INST_PQ = {guitar:'inst-guitar', uku:'inst-ukulele', bass:'inst-bass', piano:'inst-piano', epiano:'inst-epiano', synth:'inst-synth', accordion:'inst-accordion',
+  violin:'inst-violin', flute:'inst-flute', sax:'inst-sax', trumpet:'inst-trumpet', horn:'inst-horn', trombone:'inst-trombone',
+  erhu:'inst-erhu', dizi:'inst-dizi', hulusi:'inst-hulusi', suona:'inst-suona', guzheng:'inst-guzheng', pipa:'inst-pipa', yangqin:'inst-yangqin',
+  harmonica:'inst-harmonica', other:'inst-other', vocal:'inst-voice'};
+/* 某条音轨是什么乐器（只读 song，不写字段）：六线谱轨＝吉他 / 尤克里里；钢琴谱＝instKey 或钢琴；旋律＋钢琴伴奏的伴奏两行＝钢琴；
+   其余旋律轨按内容判、不按记谱法判（收尾验收：同一条人声旋律从简谱切五线谱，图标曾从人声变成「其他器乐」）——
+   五线谱声部：带 instKey 用该乐器；谱类是「器乐五线谱」（docType instr：不是合唱 / 对照 / 伴奏谱）且没有歌词（＝统一谱名「五线谱旋律」）才是「其他器乐」，
+   其余（合唱、教学对照谱、钢琴伴奏歌谱的旋律行、五线谱歌谱、五线谱和弦谱）＝人声；简谱旋律轨＝人声（歌谱 / 教学谱带 instKey 时用该乐器） */
+function trkInstOf(kind, i, s){
+  s=s||song;
+  if(kind==='tv') return s.inst==='uku'? 'uku' : 'guitar';
+  const ik = s.instKey && INST_PQ[s.instKey]? s.instKey : '', dt=docType(s);
+  if(dt==='piano'||dt==='pianoacc') return ik||'piano';
+  try{ if(i>=1 && NWB.isAccStack(s)) return 'piano'; }catch(_){}
+  if(isStaffNota((s.voxNotations||[])[i])){
+    if(ik) return ik;
+    return (dt==='instr' && !((s.lyricLines|0)>0) && !voxHasLyrics(s, i, i))? 'other' : 'vocal';
+  }
+  return ((dt==='vocal'||dt==='teach') && ik) || 'vocal';
+}
+function trkIcon(kind, i, size){ return pqIcon(INST_PQ[trkInstOf(kind, i)]||'inst-other', size||18); }   /* 函数声明：启动期渲染也可调用（免 TDZ） */
+/* 「＋音轨」图标尺寸：手机底条（≤820，CSS 显示 14px）按 14px 档生成，电脑左轨 18——不靠 CSS 缩放，线宽不偏档（收尾验收） */
+function railAddIcSz(){ try{ return window.matchMedia('(max-width:820px)').matches? 14 : 18; }catch(_){ return 18; } }
+/* 谱库（谱友圈广场）筛选 / 卡片 / 观看页的谱类图标：分类仍按 docType（拍板：谱库分类不改）。
+   收尾验收（图文一致）：图标跟着「同一处实际显示的谱名文字」走——shown（徽标 / 观看页上真写出来的那几个字）是统一谱名表里的名字就取它的图标，
+   否则（旧谱库叫法 TYPE_CN，如「歌谱」「弹唱谱」）按 docType 取；此前有谱面数据时按谱行取图标、文字却是 docType 旧名，
+   出现「钢琴伴奏歌谱图标＋歌谱二字」。谱库文字何时换成统一谱名（p6b / 服务端 typeLabelOf），图标自动跟上，与合并先后无关 */
+var DT_PQ = {guitar:'type-guitar', uku:'type-uku', solo:'type-solo', pianoacc:'type-pianoacc', piano:'type-piano', vocal:'type-vocal', vox:'type-vocal',
+  teach:'type-teach', instr:'type-instr', staff:'type-instr', func:'type-func', chord:'type-chord'};
+function ccKindIc(pb, shown){
+  pb=pb||{};
+  try{
+    const nm=String(shown!=null? shown : (pb.typeLabel||'')).trim();
+    if(nm && typeof NWB!=='undefined'){
+      if(!ccKindIc.byName){ const m={}; Object.keys(NWB.STACKS).forEach(k=>[{}, {nVox:2}, {inst:'uku'}, {lyr:true}, {nVox:2, lyr:true}, {inst:'uku', lyr:true}, {dual:true}, {dual:true, lyr:true}].forEach(c=>{ const r=NWB.kindOf(k, c); if(!m[r.name]) m[r.name]=r.ic; })); ccKindIc.byName=m; }
+      if(ccKindIc.byName[nm]) return ccKindIc.byName[nm];
+    }
+  }catch(_){}
+  return DT_PQ[pb.type] || 'type-blank';
+}
 /* v40.7 扁平 SVG 图标库：替换全部 emoji 图案（线性 24 视口、currentColor 随文字着色）。
    静态 HTML 用 data-svgi 占位由下方注入器补图；JS 模板直接调 svgi(name,size)。 */
 const SVGI = {
@@ -21187,10 +21411,12 @@ function svgi(name, size){
 }
 /* v62.6 A2（P3-21）注入幂等：离线互动谱可能取自 DOM 快照（托管环境禁 fetch 自身源码时的兜底），快照里图标已注入过，
    打开时再注入一次就成了每个按钮两枚图标——已有就跳过 */
-document.querySelectorAll('[data-svgi]').forEach(el=>{ if(!el.querySelector(':scope > svg.svgi')) el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi)); });
-document.querySelectorAll('.lic[data-lic]').forEach(el=>{ el.innerHTML = svgi(el.dataset.lic, 18); });
+document.querySelectorAll('[data-svgi]').forEach(el=>{ if(!el.querySelector(':scope > svg.svgi')) el.insertAdjacentHTML('afterbegin', svgi(el.dataset.svgi, +el.dataset.svgs||0)); });   /* data-svgs：显示尺寸（右栏「标注」与相邻最终图标同 18px） */
+document.querySelectorAll('.lic[data-lic]').forEach(el=>{ el.innerHTML = licIcon(el.dataset.lic, 18); });   /* v67.6 有最终图标的换 PQI（licIcon） */
 /* v41.4 语义图标（data-sic）：包一层 .sicon 仅新版外壳显示，经典版视觉不变（属性名避开谱面热区的 data-si） */
 document.querySelectorAll('[data-sic]').forEach(el=>{ if(!el.querySelector(':scope > .sicon')) el.insertAdjacentHTML('afterbegin','<span class="sicon">'+svgi(el.dataset.sic,12)+'</span>'); });
+/* v67.6 收尾验收（一图一义）：同一动作同一枚最终图标——歌词页「智能填词」与右栏创作辅助「智能填词」都用 nota-lyrics（此前一个 sparkle、一个 nota-lyrics）；14px（≤16 线宽档） */
+document.querySelectorAll('[data-sicpq]').forEach(el=>{ if(!el.querySelector(':scope > .sicon')) el.insertAdjacentHTML('afterbegin','<span class="sicon">'+pqIcon(el.dataset.sicpq,14)+'</span>'); });
 /* v67.3 谱面区宽度变化（开合左栏面板 / 右栏）重排时保持纵向锚点：固定版宽谱版面不变、只换显示倍率，
    此前 scrollTop 不动 → 1536 开合左栏时谱面跳 24%（看到的行换了一批）。以可视区上缘对应的谱面纵坐标为锚 */
 function keepScoreAnchor(fn){
@@ -21927,32 +22153,15 @@ let docs = [], curDocI = 0;
    为新可选字段（只增，显式优先）；没写时按谱面推断——从第一个五线谱声部起的连续五线谱声部（≥2 行）：
    钢琴弹唱、或「高音谱表＋低音谱表」恰好两行且没有歌词 → 钢琴花括号；其余（有歌词 / 三行以上）→ 方括号。
    docType 与服务端 docTypeOf（api/server.js）同一口径：合唱（显式方括号组，或推断组里有歌词）算歌谱（vocal），不再被当成钢琴独奏谱。 */
-function voxHasLyrics(s, a, b){
-  return (s.measures||[]).some(m=>((m&&m.voxes)||[]).some((cols,vi)=> vi>=a && vi<=b && (cols||[]).some(c=>
-    c && c.lyrics && c.lyrics.some(x=>String(x||'').trim()))));
-}
-function voxGroupsOf(s){
-  const n=(s.voxVoices||[]).length, vn=s.voxNotations||[];
-  /* v67.4 第二轮验收补：显式分组全部失效（越界 / 残留——如钢琴伴奏歌谱改成纯伴奏后仍带 1–2 行花括号、只剩两行）时回退推断，
-     不再因「显式数组非空」就整谱没有括线（此前大谱表丢花括号、MusicXML 导出拆成两个 part、往返丢钢琴弹唱谱类） */
-  if(Array.isArray(s.voxGroups) && s.voxGroups.length){
-    const ok=s.voxGroups.filter(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from);
-    if(ok.length) return ok;
-  }
-  let a=-1; for(let i=0;i<n;i++) if(isStaffNota(vn[i])){ a=i; break; }
-  if(a<0) return [];
-  let b=a; while(b+1<n && isStaffNota(vn[b+1])) b++;
-  if(b===a) return [];
-  const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && !voxHasLyrics(s,a,b));
-  return [{type: piano? 'brace' : 'bracket', from:a, to:b}];
-}
-function voxGroupsExplicitOk(s){ const n=(s.voxVoices||[]).length; return (s.voxGroups||[]).some(g=>g && (g.type==='brace'||g.type==='bracket') && g.from>=0 && g.to<n && g.to>g.from); }
+/* v67.6 判定本体在统一谱名表 PQ_KIND（与服务端 api/kindname.js 逐字节同一份），这里保留原名转调——渲染（括线 / 小节线贯穿 / MusicXML 分组）、
+   docType、谱名、智能配谱都读同一份规则；行为与 v67.5 逐条相同（tv_offscreen 逐字节、tv_b4e、tv_kindsync） */
+function voxHasLyrics(s, a, b){ return PQ_KIND.voxHasLyrics(s, a, b); }
+/* v67.4 第二轮验收补：显式分组全部失效（越界 / 残留——如钢琴伴奏歌谱改成纯伴奏后仍带 1–2 行花括号、只剩两行）时回退推断，
+   不再因「显式数组非空」就整谱没有括线（此前大谱表丢花括号、MusicXML 导出拆成两个 part、往返丢钢琴弹唱谱类） */
+function voxGroupsOf(s){ return PQ_KIND.groupsOf(s); }
+function voxGroupsExplicitOk(s){ return PQ_KIND.groupsExplicitOk(s); }
 /* 谱类口径比括线更严：显式方括号组，或推断出的五线谱组里确有歌词，才算合唱（三行以上的器乐重奏照样方括号，但仍是器乐谱） */
-function isChoir(s){
-  if(Array.isArray(s.voxGroups) && s.voxGroups.length && voxGroupsExplicitOk(s)) return voxGroupsOf(s).some(g=>g.type==='bracket');
-  if(s.pianoAcc) return false;
-  return voxGroupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
-}
+function isChoir(s){ return PQ_KIND.isChoir(s); }
 function docType(s){
   const vn=s.voxNotations||[];
   if(s.tabVoices.length){
@@ -22212,6 +22421,17 @@ function presetThumbsFill(){
   };
   setTimeout(step, 60);
 }
+/* v67.6 「预设 · 我的曲谱」卡片谱类行：谱类图标（16px，与页签同一套 docIcon）＋统一谱名（编辑器显示层 docTypeLabel）。
+   预设按 make() 现算一次缓存（只读），我的曲谱读存档 data；读不出就不显示，不影响卡片其余部分 */
+const SC_KIND = new Map();
+function scKindHTML(x){
+  try{
+    let s=x && x.data;
+    if(!s && x && typeof x.make==='function'){ if(!SC_KIND.has(x)) SC_KIND.set(x, migrate(x.make())); s=SC_KIND.get(x); }
+    if(!s || !s.measures) return '';
+    return '<div class="sc-kind">'+docIcon(s)+'<span>'+esc(docTypeLabel(s))+'</span></div>';
+  }catch(_){ return ''; }
+}
 function showLibrary(){
   /* v64.1 B7 ⑩（P3-14）预设库改缩略卡：卡片上直接看到谱面首屏（buildThumbCanvas 同一套缩图管线，懒生成、本次会话缓存）；
      整张卡可点，原 16 个渐变主按钮改为普通「打开」 */
@@ -22219,6 +22439,7 @@ function showLibrary(){
     `<div class="song-card" data-preset="${i}" data-load-preset="${i}" tabindex="0" role="button" aria-label="打开预设：${esc(p.name)}">
        <div class="sc-thumb" data-th="${i}">${PRESET_THUMB[i]? `<img alt="" src="${PRESET_THUMB[i]}">` : ''}</div>
        <div class="sc-title">${esc(p.name)}</div>
+       ${scKindHTML(p)}
        <div class="sc-desc">${esc(p.desc)}</div>
        <div class="sc-act"><button data-load-preset="${i}">打开</button></div>
      </div>`).join('');
@@ -22226,6 +22447,7 @@ function showLibrary(){
   const mineCards = lib.length ? lib.map(e=>
     `<div class="song-card" data-mine="${e.id}">
        <div class="sc-title">${esc(e.title||'未命名曲谱')} ${song.id===e.id?'<span class="sc-cur">编辑中</span>':''}</div>
+       ${scKindHTML(e)}
        <div class="sc-desc">更新于 ${esc(e.updatedAt||'')}</div>
        <div class="sc-act"><button class="primary" data-load-mine="${e.id}">打开</button>
          <button data-rename-mine="${e.id}">重命名</button>
@@ -22452,58 +22674,20 @@ var NWB = (function(){
   /* 「旋律＋钢琴伴奏」三行的正面证据只定义一处：全局 isPianoAccStack（显式分组时只认第 1–2 行花括号；没写分组的老谱只认一键配伴奏产物的声部名）。
      第二轮验收：此前这里另有一份 accEvidence，没写分组时把对照首行（voxDual[0]）也算证据——导入的 SAB 合唱给女高音开简谱对照后被叫成
      「教学对照谱（含伴奏）」，「伴奏织体」照钢琴伴奏歌谱口径改写女低 / 男中音两行，而智能配谱弹窗（isPianoAccStack）不认，两处结论相反 */
-  /* 反向映射：任意曲谱 → 谱行组合（页签图标 / 统一谱名都读它；只读数据，不存字段，不会漂移） */
-  function stackOf(s){
-    const vn=s.voxNotations||[], nv=(s.voxVoices||[]).length, dual=s.voxDual||[];
-    if((s.tabVoices||[]).length){ if(s.tabStaff && !nv) return 'ST'; return nv? 'JT' : 'T'; }
-    if(s.chordOnly) return 'C';
-    if(s.func) return isStaffNota(vn[0])? 'CS' : 'CJ';
-    if(s.pianoAcc) return 'CG';
-    const pair = nv>=2 && vn[nv-2]==='staff' && vn[nv-1]==='bass';
-    if(pair && nv===2 && !isChoir(s)) return 'G';
-    /* 三行且末两行是 高/低音谱表：钢琴伴奏歌谱——要有正面证据（isPianoAccStack），否则按旧口径当合唱 / 五线谱
-       （验收：导入的 SAB 三部合唱不写分组，最低声部用低音谱号，曾被叫成「钢琴伴奏歌谱（五线谱）」） */
-    if(pair && nv===3 && isPianoAccStack(s)) return isStaffNota(vn[0])? (dual[0]? 'SJG' : 'SG') : 'JG';
-    if(isStaffNota(vn[0])) return dual[0]? 'SJ' : 'S';
-    return 'J';
-  }
-  const instName = k=>{ if(k==='other') return '器乐'; const it=NW_INSTS.find(x=>x.k===k); return it? it.name : '器乐'; };
+  /* 反向映射：任意曲谱 → 谱行组合（页签图标 / 统一谱名都读它；只读数据，不存字段，不会漂移）。
+     v67.6 规则本体移到统一谱名表 PQ_KIND（与服务端 api/kindname.js 逐字节同一份，谱库卡片 / SSR 落地页同名）；这里只转调，判定与 v67.5 逐条相同（tv_kindsync） */
+  const stackOf = s=>PQ_KIND.stackOf(s);
   const KIND_IC = {J:'type-vocal', S:'type-instr', SJ:'type-teach', SJG:'type-teach', T:'type-guitar', JT:'type-guitar', ST:'type-solo', G:'type-piano', CG:'type-pianoacc',
     JG:'type-jg', SG:'type-jg', CJ:'type-func', CS:'type-lead', C:'type-chord'};
-  /* 统一谱名表。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(是否有歌词或留了歌词行)} */
+  /* 统一谱名表（名字＝PQ_KIND.kindName）＋谱类图标（编辑器专有，服务端不需要）。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(是否有歌词或留了歌词行), dual} */
   function kindOf(k, ctx){
-    ctx=ctx||{}; const ik=ctx.instKey && ctx.instKey!=='piano'? ctx.instKey : '', nv=ctx.nVox||1, uku=ctx.inst==='uku';
-    let name, ic=KIND_IC[k]||'type-blank';
-    switch(k){
-      case 'J':  name = nv>1? '简谱合唱谱' : ik? instName(ik)+'谱（简谱）' : '简谱歌谱'; if(nv>1) ic='type-choir'; break;
-      case 'S':  name = nv>1? '五线谱合唱谱' : ik? instName(ik)+'谱（五线谱）' : ctx.lyr? '五线谱歌谱' : '五线谱旋律'; if(nv>1) ic='type-choir'; break;
-      case 'SJ': name = '教学对照谱'; break;
-      case 'SJG':name = '教学对照谱（含伴奏）'; break;
-      case 'T':  name = uku? '尤克里里谱（四线谱）' : '吉他谱（六线谱）'; if(uku) ic='type-uku'; break;
-      case 'JT': name = uku? '尤克里里弹唱谱' : '吉他弹唱谱'; if(uku) ic='type-uku'; break;
-      case 'ST': name = '吉他独奏谱'; break;
-      /* v67.5 第二轮验收：钢琴两行带简谱对照（voxDual，导入「五线＋简谱对照」）照实叫——此前面板与导入提示叫「钢琴独奏谱（五线＋简谱对照）」，落地后谱型条 / 换谱类菜单只叫「钢琴独奏谱」 */
-      case 'G':  name = (ik? instName(ik)+'独奏谱' : '钢琴独奏谱')+(ctx.dual? '（五线＋简谱对照）' : ''); break;
-      case 'CG': name = ctx.dual? '钢琴弹唱谱（纯伴奏，五线＋简谱对照）' : '钢琴弹唱谱（纯伴奏）'; break;
-      case 'JG': name = '钢琴伴奏歌谱'; break;
-      case 'SG': name = '钢琴伴奏歌谱（五线谱）'; break;
-      case 'CJ': name = '功能谱'; break;
-      case 'CS': name = '五线谱和弦谱'; break;
-      case 'C':  name = '和弦谱'; break;
-      default:   name = '曲谱';
-    }
-    return {k, name, ic};
+    ctx=ctx||{}; const nv=ctx.nVox||1, uku=ctx.inst==='uku';
+    let ic=KIND_IC[k]||'type-blank';
+    if((k==='J'||k==='S') && nv>1) ic='type-choir';
+    if((k==='T'||k==='JT') && uku) ic='type-uku';
+    return {k, name:PQ_KIND.kindName(k, ctx), ic};
   }
-  function ctxOf(s){
-    const vv=s.voxVoices||[], k=stackOf(s);
-    /* 歌词：有词，或建谱时就留了歌词行——修「五线谱歌谱未填词时显示器乐五线谱」。只有单行五线谱的叫法要看它，
-       先看 lyricLines（便宜），不行再扫词（页签每次落盘都会重算谱名，别每次都整谱扫） */
-    const needLy = k==='S' && vv.length<=1 && !(s.instKey && s.instKey!=='piano');
-    const lyr = (s.lyricLines|0)>0 || (needLy && (s.measures||[]).some(m=>(m.voxes||[]).some(cols=>(cols||[]).some(c=>c&&c.lyrics&&c.lyrics.some(x=>String(x||'').trim())))));
-    /* 第二轮验收补：「几声部」只数与首行同一记谱法的旋律行——钢琴伴奏歌谱删掉左手行后剩「简谱旋律＋右手五线」，此前被叫成「简谱合唱谱」（v67.3 叫简谱歌谱） */
-    const vn=s.voxNotations||[], nSame = k==='J'? vv.filter((_,i)=>!isStaffNota(vn[i])).length : k==='S'? vv.filter((_,i)=>isStaffNota(vn[i])).length : 1;
-    return {nVox:Math.max(1, nSame), inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean)};
-  }
+  const ctxOf = s=>PQ_KIND.ctxOf(s);
   const kindOfSong = s=>kindOf(stackOf(s), ctxOf(s));
   /* 旋律＋钢琴伴奏（钢琴伴奏歌谱 / 五线谱版 / 教学对照谱含伴奏）：伴奏写在第 1–2 行，和弦标在旋律行（第 0 行） */
   const isAccStack = s=>{ try{ return isPianoAccStack(s); }catch(_){ return false; } };   /* 与 stackOf 的 JG / SG / SJG 同一判定（只此一份） */
@@ -22751,7 +22935,7 @@ var NWP = (function(){
   };
   const ROWBTN = [['J','简谱','nota-jianpu'],['S','五线谱','nota-staff'],['T','六线谱','nota-tab6'],['G','大谱表','nota-grand'],['C','和弦','nota-chord']];
   const ROWN = {J:'简谱', S:'五线谱', T:'六线谱', G:'钢琴大谱表', C:'和弦'};
-  const SRCN = {scene:'场景惯例', last:'沿用上次', user:'你改的', default:'默认值'};
+  const SRCN = {scene:'场景惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认值'};   /* v67.6 link＝深链 ?new= 带来的值 */
 
   function sceneStack(id, v, mel){
     switch(id){
@@ -22810,6 +22994,106 @@ var NWP = (function(){
   function lastSave(P, st){
     try{ localStorage.setItem(LS_NWLAST, JSON.stringify({scene:P.scene, stack:P.stack, rows:stackRows(P.stack), mel:st.mel, v:Object.assign({}, st.v, {title:'', capo:0}), t:Date.now()})); }catch(_){}
   }
+  /* ---- v67.6 深链 ?new=（README §7）：统一一种参数——?new=<用途>（SCENE_IDS：gtr / pacc / kids / vocal / teach / sight / solo / inst / chord / blank / custom），
+     可带 key（小调加 m，如 Fm＝f 小调，按关系大调记谱）、meter（如 2/4）、tempo（30–240）、title、用途变体（inst / pen / acc / tacc / parts / clef / ftype / instKey / oclef，
+     只认该用途右栏真画出来的那几个）、mel（J / S，只在能互换的用途）、自选记谱法 rows=JG 这类谱行代码（只认 14 种合法组合），另可带 bars（小节数）/ lyr（歌词段数）。
+     只做预选不建谱（用户在面板里回车才建）；非法值逐项忽略——不进依据、不标「你改的」，依据下方照实列出「链接里没认出」；合法值依据写「按链接」。
+     不读也不写本机键 musetab-nw-last（链接预选得一样，与本机上次无关；上次设置只在真的创建时才记）。 */
+  const LINK_P = ['new','key','meter','tempo','title','rows','mel','bars','lyr'].concat(Object.keys(VARS), ['instkey']);
+  const VAR_ORDER = ['instKey','inst','acc','tacc','ftype','pen','parts','clef','oclef'];
+  /* 调：字母（大小写均可）＋升降（# ♯ s / b ♭）＋可选 m（小调）→ {key（KEY_LIST 写法）, mode}；小调换成关系大调（同面板「小调按关系大调记谱」） */
+  function linkKey(raw){
+    const m=/^([A-Ga-g])(#|♯|s|b|♭)?(m|min|minor)?$/.exec(String(raw==null? '' : raw).trim());
+    if(!m) return null;
+    const pc=(({C:0,D:2,E:4,F:5,G:7,A:9,B:11})[m[1].toUpperCase()] + (/^(#|♯|s)$/.test(m[2]||'')? 1 : m[2]? -1 : 0) + 12)%12;
+    const minor=!!m[3], want=minor? (pc+3)%12 : pc, k=KEY_LIST.find(x=>KEY_PC[x]===want);
+    return k? {key:k, mode:minor? 'minor' : 'major'} : null;
+  }
+  /* 写回链接用的调：大调＝KEY_LIST 写法（C#）；小调＝主音＋m（a 小调 → Am，♯f 小调 → F#m） */
+  function linkKeyStr(v){
+    if(v.mode!=='minor') return v.key;
+    const t=MINOR[v.key]||'a';
+    return t.replace('♯','').toUpperCase()+(t[0]==='♯'? '#' : '')+'m';
+  }
+  /* 参数名不分大小写（收尾验收：值不分大小写、名却分，?NEW=pacc / Key=G / TEMPO=90 曾被静默忽略）：小写名 → 规范名 */
+  const LINK_LC = {}; LINK_P.forEach(k=>{ LINK_LC[k.toLowerCase()] = k==='instkey'? 'instKey' : k; });
+  /* 站内 / 平台自带的参数（微信分享会追加 from、isappinstalled 等）：不算「链接里没认出」 */
+  const LINK_SITE = /^(utm_\w+|pub|mine|review|wxlogin|wxbind|wxdebug|pc|start|f|fx|v|vs|vi|s|c|skin|sndlib|glass|url|return|from|isappinstalled|scene|nsukey|clicktime|enterid|share|ref|spm|code|state|_.*)$/i;
+  /* 常见别名（不照用，只提示：方案口径只有 tempo / meter / key / title） */
+  const LINK_ALIAS = {bpm:'tempo', speed:'tempo', time:'meter', beat:'meter', beats:'meter', sig:'meter', tone:'key', tonality:'key', mode:'key', minor:'key', name:'title'};
+  const lev = (a, b)=>{ if(Math.abs(a.length-b.length)>2) return 9; let p=[...Array(b.length+1).keys()];
+    for(let i=1;i<=a.length;i++){ const c=[i]; for(let j=1;j<=b.length;j++) c[j]=Math.min(p[j]+1, c[j-1]+1, p[j-1]+(a[i-1]===b[j-1]? 0 : 1)); p=c; } return p[b.length]; };
+  /* 认不出的参数名是不是「想写深链参数却拼错 / 用了别名」：编辑距离 ≤2（短名 ≤ 名长−1）或在别名表里 */
+  const linkNearMiss = k=>{ const lk=k.toLowerCase(); if(LINK_SITE.test(k) || lk.length<2) return false;
+    return own(LINK_ALIAS, lk) || Object.keys(LINK_LC).some(x=>lev(lk, x)<=Math.min(2, x.length-1)); };
+  /* q：URLSearchParams / 查询串 / 普通对象 → {scene, raw, badScene, unk（拼错 / 别名的参数名，只记名）, keys（属于深链这一组的原始参数名，replaceState 去掉它们）} */
+  function linkParse(q){
+    if(typeof q==='string') q=new URLSearchParams(q.replace(/^[^?]*\?/, ''));
+    const ent = q && typeof q.forEach==='function' && typeof q.get==='function'? (()=>{ const a=[]; q.forEach((v,k)=>a.push([k,v])); return a; })()
+      : (q && typeof q==='object'? Object.keys(q).map(k=>[k, q[k]]) : []);
+    const raw={}, unk=[], keys=[];
+    ent.forEach(([k, v])=>{
+      if(v==null) return;
+      const lk=String(k).toLowerCase();
+      if(own(LINK_LC, lk)){ const ck=LINK_LC[lk]; keys.push(k); if(raw[ck]==null) raw[ck]=String(v); }
+      else if(linkNearMiss(String(k))){ keys.push(k); if(!unk.includes(k)) unk.push(String(k)); }
+    });
+    const sc=String(raw.new||'').trim().toLowerCase();
+    return {scene: own(SC, sc)? sc : '', raw, badScene: !!sc && !own(SC, sc), unk, keys, has: raw.new!=null};
+  }
+  /* 「链接里没认出」只列参数名；值只在短的纯 ASCII 时附上（收尾验收：原值照抄进编辑器界面，可被拿来伪造提示文字，如 key=请加微信…） */
+  const linkBadOf = (k, v)=>{ const t=String(v==null? '' : v).trim(); return /^[A-Za-z0-9#♯♭\/._+-]{1,8}$/.test(t)? k+'='+t : t? k+'=…' : k; };
+  /* 把链接参数灌进面板状态（在用途默认值之上）：返回 {ok, bad}，并记在 st.link 供依据显示 */
+  function linkApply(st, L){
+    const R=(L && L.raw)||{}, ok=[], bad=[];
+    const no=(k, v)=>bad.push(linkBadOf(k, v));
+    if(L && L.badScene) no('new', R.new);
+    ((L && L.unk)||[]).forEach(k=>{ const a=LINK_ALIAS[String(k).toLowerCase()]; bad.push(String(k).replace(/[^\w-]/g,'').slice(0,16)+(a? '（应为 '+a+'）' : '')); });
+    if(R.rows!=null){
+      const rows=String(R.rows).toUpperCase().split('').filter(c=>/[A-Z]/.test(c));
+      const k = rows.length && rows.every(r=>own(ROWN, r)) && new Set(rows).size===rows.length? NWB.keyOf(rows) : '';
+      if(st.scene==='custom' && own(NWB.STACKS, k)){ st.rows=stackRows(k); ok.push('rows'); } else no('rows', R.rows);
+    }
+    VAR_ORDER.forEach(vk=>{
+      if(R[vk]==null) return;
+      const raw=String(R[vk]).trim();
+      if(!varsShown(st).includes(vk)){ no(vk, raw); return; }
+      let val=null;
+      if(vk==='instKey'){ const it=INSTS.find(x=>x.k.toLowerCase()===raw.toLowerCase()); val=it? it.k : null; }
+      else { const o=VARS[vk].opts.find(([x])=>String(x).toLowerCase()===raw.toLowerCase()); val=o? o[0] : null; }
+      if(val==null){ no(vk, raw); return; }
+      st.v[vk]=val; ok.push(vk);
+      if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel));
+    });
+    if(R.mel!=null){
+      const m=String(R.mel).trim().toUpperCase();
+      if(melLive(st.scene, st.v) && (m==='J'||m==='S')){ st.mel=m; ok.push('mel'); } else no('mel', R.mel);
+    }
+    if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel));
+    if(R.key!=null){ const kk=linkKey(R.key); if(kk){ st.v.key=kk.key; st.v.mode=kk.mode; st.src.key='link'; ok.push('key'); } else no('key', R.key); }
+    if(R.meter!=null){
+      const m=/^\s*(\d{1,2})\s*[\/\-_]\s*(\d{1,2})\s*$/.exec(R.meter);
+      if(m && NW_BEATS.includes(+m[1]) && [2,4,8].includes(+m[2])){ st.v.beats=+m[1]; st.v.unit=+m[2]; st.src.meter='link'; ok.push('meter'); } else no('meter', R.meter);
+    }
+    if(R.tempo!=null){ const t=String(R.tempo).trim(); if(/^\d{2,3}$/.test(t) && +t>=30 && +t<=240){ st.v.tempo=+t; st.src.tempo='link'; ok.push('tempo'); } else no('tempo', R.tempo); }
+    if(R.bars!=null){ const t=String(R.bars).trim(); if(/^\d{1,3}$/.test(t) && +t>=1 && +t<=200){ st.v.nMea=+t; st.src.nMea='link'; ok.push('bars'); } else no('bars', R.bars); }
+    if(R.lyr!=null){ const t=String(R.lyr).trim(); if(/^[0-4]$/.test(t) && lyrShown(st, stackOfState(st))){ st.v.lyr=+t; st.src.lyr='link'; ok.push('lyr'); } else no('lyr', R.lyr); }
+    if(R.title!=null){ const t=String(R.title).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,80); if(t){ st.v.title=t; st.src.title='link'; ok.push('title'); } }
+    st.link={ok, bad};
+    return st.link;
+  }
+  /* 当前面板状态 → 深链（手机「发到电脑继续」与回归测试用；与 linkApply 往返一致）：用途、调、拍号、速度必带，其余只带看得见的变体 / 旋律用 / 改过的小节数与歌词段数 / 曲名 */
+  function linkOf(st, base){
+    const v=st.v, k=stackOfState(st), p=[['new', st.scene]];
+    if(st.scene==='custom') p.push(['rows', k]);
+    p.push(['key', linkKeyStr(v)], ['meter', v.beats+'/'+v.unit], ['tempo', v.tempo]);
+    varsShown(st).forEach(vk=>p.push([vk, v[vk]]));
+    if(melLive(st.scene, v)) p.push(['mel', st.mel]);
+    if(st.src.nMea==='user'||st.src.nMea==='link') p.push(['bars', v.nMea]);
+    if((st.src.lyr==='user'||st.src.lyr==='link') && lyrShown(st, k)) p.push(['lyr', v.lyr]);
+    const t=(v.title||'').trim(); if(t) p.push(['title', t]);
+    return (base||'https://zhipu.puyouquan.com/')+'?'+p.map(([a,b])=>a+'='+encodeURIComponent(String(b)).replace(/%2F/g,'/')).join('&');
+  }
   function blankState(){
     return {tab:'new', scene:'gtr', srcScene:'gtr', rows:['J','T'], v:Object.assign({}, DEFV, varDefaults()), mel:'J', src:{}, more:false, note:null, hint:'', tpRaw:null, tpMsg:'', tpBad:false,
       imp:{src:'file', a:null, target:null, ex:null, rc:0, err:''}};   /* imp＝「从已有音乐」：来源 / 读进来的文件分析 / 做成哪种谱 / 所选示例 / 所选接着做 / 说明 */
@@ -22828,6 +23112,7 @@ var NWP = (function(){
     if(init || st.src.tuning!=='user'){ st.v.tuning='std'; delete st.src.tuning; }
     if(id!=='custom') st.rows=stackRows(sceneStack(id, st.v, st.mel));
     st.tpRaw=null; st.tpMsg=''; st.tpBad=false;
+    if(!init) st.link=null;   /* 深链预选只管打开时那个用途：换了用途，调拍等回到新用途惯例，「链接里没认出」也不再挂着（收尾验收） */
   }
   /* opt：{scene, tab, clean}。clean＝不读上次（「新建 ▾」里的用途＝按默认值直接建） */
   function fresh(opt){
@@ -22853,6 +23138,7 @@ var NWP = (function(){
       if(!own(NWB.STACKS, stackOfState(st))) return fresh(Object.assign({}, opt, {clean:true}));   /* 读出来拼不成合法组合：当没有上次 */
     } else applyScene(st, 'gtr', true);
     if(opt.scene && own(SC, opt.scene)) applyScene(st, opt.scene, true);
+    if(opt.link) linkApply(st, opt.link);   /* v67.6 深链预选（只改面板状态，不写本机键） */
     if(opt.tab) st.tab=opt.tab;
     if(opt.isrc && ['file','ai','ex','recent','audio','image'].includes(opt.isrc)) st.imp.src=opt.isrc;
     st.mob = isMobileNew();   /* 手机（拍板 1）：只开「从已有音乐」，不出新建页 */
@@ -22883,6 +23169,8 @@ var NWP = (function(){
 
   /* ---- 挂载与重画 ---- */
   let st=null, modal=null, noteTimer=0, opener=null;
+  /* v67.6 埋点 create_stack 用：面板打开时显示的用途（首访默认 / 上次 / 启动台或深链预选），只在内存，不进 song、不进本机键 */
+  let openScene='';
   const esc2 = t=>esc(t==null? '' : t);
   function open(opt){
     opt=opt||{};
@@ -22892,6 +23180,7 @@ var NWP = (function(){
     { const a=document.activeElement; opener = (a && a!==document.body)? a : null; }
     kbNav=false;
     st=fresh(opt);
+    openScene=st.scene;
     showModal('<div class="nf-shell"></div><p class="nf-sr" id="nf-live" aria-live="polite"></p>'
       +'<input type="file" id="nw-mxlfile" accept=".musicxml,.xml,.mxl" hidden>'
       +'<input type="file" id="nw-gpfile" accept=".gp,.gpx,.gp3,.gp4,.gp5" hidden>'
@@ -23182,12 +23471,14 @@ var NWP = (function(){
     const groups={};
     [['key', keyName(v.key, v.mode)], ['meter', v.beats+'/'+v.unit], ['tempo', (u8? (tu==='dq'? '♩.' : '♪') : '♩')+'='+v.tempo], ['nMea', o.nMea+' 小节'], ['lyr', o.lyr>0? o.lyr+' 段词' : (lyrShown(st,k)? '无词' : '')]].forEach(([f,t])=>{
       if(!t) return; const s2=st.src[f]||'default'; (groups[s2]=groups[s2]||[]).push(t); });
-    if((v.title||'').trim()) (groups.user=groups.user||[]).unshift('《'+v.title.trim()+'》');
+    if((v.title||'').trim()){ const s2=st.src.title==='link'? 'link' : 'user'; (groups[s2]=groups[s2]||[]).unshift('《'+v.title.trim()+'》'); }   /* v67.6 深链带来的曲名写「按链接」 */
     /* 定弦 / 变调夹不是默认值时写进依据（验收：沿用上次的 Drop D 在收起的「更多设置」里看不见） */
     if(o.tuningKey){ const s2=st.src.tuning||'default'; (groups[s2]=groups[s2]||[]).push(TUNINGS[o.tuningKey].label+' 定弦'); }
     if(o.capo>0){ const s2=st.src.capo||'default'; (groups[s2]=groups[s2]||[]).push('夹 '+o.capo+' 品'); }
-    const why={scene:'按「'+SC[st.srcScene||'gtr'].n+'」惯例', last:'沿用上次', user:'你改的', default:'默认值'};
-    h+='<div class="nf-basis" id="nf-basis"><b>依据</b>'+['user','scene','last','default'].filter(s2=>groups[s2]).map(s2=>'<p><span class="nf-chips">'+groups[s2].map(t=>'<i class="c-'+s2+'">'+esc2(t)+'</i>').join('')+'</span><em>'+why[s2]+'</em></p>').join('')+'</div>';
+    const why={scene:'按「'+SC[st.srcScene||'gtr'].n+'」惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认值'};
+    /* v67.6 深链：合法值归「按链接」，没认出的逐项照实列出（已忽略、不进依据其余各组） */
+    const lbad = st.link && st.link.bad && st.link.bad.length? '<p class="nf-linkbad" id="nf-linkbad">'+ic('act-info',14)+'<span>链接里没认出：'+esc2(st.link.bad.join('、'))+'（已忽略）</span></p>' : '';
+    h+='<div class="nf-basis" id="nf-basis"><b>依据</b>'+['user','link','scene','last','default'].filter(s2=>groups[s2]).map(s2=>'<p><span class="nf-chips">'+groups[s2].map(t=>'<i class="c-'+s2+'">'+esc2(t)+'</i>').join('')+'</span><em>'+why[s2]+'</em></p>').join('')+lbad+'</div>';
     h+='<button type="button" class="nf-more" data-act="more" aria-expanded="'+st.more+'" aria-controls="nf-moreb">'+ic('act-settings',18)+'更多设置<span>'+o.nMea+' 小节'+(o.lyr>0? ' · '+o.lyr+' 段词' : '')+gearText(k, o)+'</span>'+ic('act-chevron',16)+'</button>';
     if(st.more){
       h+='<div class="nf-moreb" id="nf-moreb"><div class="nf-f"><label class="nw-lab" for="nf-nmea">小节数</label><input id="nf-nmea" type="number" min="1" max="200" value="'+esc2(v.nMea)+'"></div>';
@@ -23469,6 +23760,9 @@ var NWP = (function(){
   function convert(a, t){
     let s=clone(a.song);
     const vv=s.voxVoices||[];
+    /* v67.6 导入按文件实写歌词行数（无词＝0）：「按原文件」照实；转简谱 / 对照 / 配钢琴伴奏 / 吉他弹唱 / 功能谱是做成歌谱类，
+       照 v67.5 留 1 行词位（按钮上的谱名＝钢琴伴奏歌谱（五线谱）等，版式与 v67.5 相同） */
+    if(t!=='orig') s.lyricLines=Math.max(1, s.lyricLines|0);
     switch(t){
       /* 旋律＋钢琴伴奏：只把旋律行转简谱，伴奏两行保留大谱表＝钢琴伴奏歌谱（验收：此前大谱表也转成两行简谱，叫「简谱合唱谱」） */
       case 'J': if(isPianoAccStack(s)){ const vn=s.voxNotations||[]; s.voxNotations=vv.map((_,i)=>i? vn[i] : undefined); }
@@ -23643,7 +23937,8 @@ var NWP = (function(){
     return true;
   }
   function rowHint(r){
-    const cur=stackRows(stackOfState(st)), res=NWB.resolve(cur, r), nk=NWB.keyOf(res.rows), name=NWB.kindOf(nk, {}).name;
+    /* 谱名按面板的歌词段数说（v67.6 五线谱一族「歌谱 / 旋律」「钢琴伴奏歌谱 / 旋律＋钢琴伴奏谱」看有没有词位，与点下去后「将建成」同名） */
+    const cur=stackRows(stackOfState(st)), res=NWB.resolve(cur, r), nk=NWB.keyOf(res.rows), name=NWB.kindOf(nk, {lyr:(+st.v.lyr|0)>0}).name;
     if(cur.includes(r)) return res.rows.length===cur.length && res.rows.every(x=>cur.includes(x))? '至少保留一种谱' : '熄灭「'+ROWN[r]+'」→ '+name;
     if(res.rows.join()===cur.join()) return res.note||'';
     const dropped=cur.filter(x=>!res.rows.includes(x));
@@ -23689,9 +23984,10 @@ var NWP = (function(){
     const P=planOf(st), stCopy=st;
     /* 组合不合法（理论上到不了；坏的本机键 / 跨版本旧组合）：留在面板说明，不关面板、不写本机键 */
     if(!own(NWB.STACKS, P.stack)){ setNote('这几种谱拼不成一份谱，请在「要哪几种谱」里重新选，或点左边的用途', null); draw(); return; }
+    const ev={via:'panel', from:openScene||P.scene, first:!lastLoad()};   /* v67.6 create_stack：首次＝之前没有「上次」（本机键 musetab-nw-last 读不到） */
     lastSave(P, stCopy);
     close();
-    realCreate(P, tpNote);
+    realCreate(P, tpNote, ev);
   }
   function onClick(e){
     const t=e.target.closest('[data-act],[data-scene],[data-row],[data-isrc],[data-ex],[data-rc],button[id]'); if(!t || t.disabled || !st) return;
@@ -23759,7 +24055,7 @@ var NWP = (function(){
   }
   function onInput(e){
     const t=e.target; if(!st) return;
-    if(t.id==='nw-title'){ st.v.title=t.value; draw(); }
+    if(t.id==='nw-title'){ st.v.title=t.value; st.src.title='user'; draw(); }
     else if(t.id==='nw-tempo'){
       /* 边输入边提示只报「再敲也救不回来」的错（>240）；偏小 / 空 / 未敲完的前缀等失焦或回车再说 */
       st.tpRaw=t.value; const r=tpRead(); tpShow(r.why==='high'? tpMsgOf(r, false) : '', r.why==='high');
@@ -23910,23 +24206,28 @@ var NWP = (function(){
     const s2 = id==='last'? fresh({}) : fresh({scene:id, clean:true});
     const P=planOf(s2);
     if(!own(NWB.STACKS, P.stack)){ showNewWizard(); return; }
+    const ev={via:id==='last'? 'last' : 'menu', from:P.scene, first:!lastLoad()};   /* v67.6 create_stack：▾ 里点用途＝menu；按上次（▾ / Alt+Shift+N / 启动台）＝last */
     lastSave(P, s2);
     try{ closePop(); }catch(_){}
     if(document.getElementById('modal-mask')) closeModal();
-    realCreate(P, '');
+    realCreate(P, '', ev);
   }
   return {open, close, draw, create, planOf, fresh, applyScene, sceneStack, optsOf, kindOfState, stackOfState, melLive, varsShown, toggleRow, rowHint, syncFromDom,
     quickMenu, quickMenuClose:qmClose, quickCreate, lastLoad, lastDesc, SC, VARS, GROUPS, SCENE_IDS, INSTS, keyName,
     readFile, dropFile, fileKind, analyze, convert, bandDefs, pvInfo:()=>pvLast, pvSync, pvStats, pvClear:()=>PVC.clear(), PV_WAIT, TARGETS, ISRC,
+    linkParse, linkApply, linkOf, linkKey, LINK_P, lyrShown,
     get state(){ return st; }, get modal(){ return modal; }};
 })();
 /* ---- ④ 宿主：真实创建（NWB.build → createSong，零新增字段 → addDoc 新窗口） ---- */
-function realCreate(P, tpNote){
+/* ev（v67.6，可选）：新建面板「创建」/「新建 ▾」快捷建谱时带上，额外发埋点 create_stack 校准首访默认用途与用途排序（方案拍板 10）——
+   meta＝用途:谱行代码:入口(panel|menu|last):面板打开时的用途:首次(1|0)，只有这几个代号，不带曲名 / 调 / 内容；原 create_song 口径不变 */
+function realCreate(P, tpNote, ev){
   const o=Object.assign({}, P.o, {maker:(typeof profileLoad==='function' && profileLoad().maker)||''});
   if(o.tuningKey && TUNINGS[o.tuningKey] && TUNINGS[o.tuningKey].t) o.tuning=TUNINGS[o.tuningKey].t.slice();
   delete o.tuningKey; delete o.pen;
   const ns=NWB.build(P.stack, o);
   try{ pyqEvent('create_song', NWB.STACKS[P.stack].type); }catch(_){}   /* 原 create_song 口径不变（createSong 类型） */
+  if(ev) try{ pyqEvent('create_stack', [P.scene||'', P.stack, ev.via||'', ev.from||'', ev.first? 1 : 0].join(':')); }catch(_){}
   addDoc(ns, ()=>{
     LBAR.open({from:'new', pen:P.pen, scene:P.scene});   /* v67.5 谱型条＋起步条（按窗口记在内存，不进 song） */
     /* 光标落在「从这行开始写」那一行：弹唱「先写旋律」、旋律＋伴奏等落旋律行；直接写六线谱 / 独奏落 TAB */
@@ -23973,23 +24274,217 @@ function isMobileNew(){
     return coarseOnly && Math.min(screen.width||9999, screen.height||9999) < 600;
   }catch(_){ return window.innerWidth<=820; }
 }
-function showNewMobile(){
-  /* 第二轮验收补：复制的链接还不带用途参数（深链 v67.6），不写「按用途选好，回车就建」 */
-  showModal('<h3>在电脑上开始一份谱</h3>'
-    +'<div class="nw-mpc">'+pqIcon('act-pc', 40)+'<p class="nw-mpc-t">手机上以看谱为主：可以看谱、播放、移调。<b>新建和写谱请在电脑上继续</b>——电脑浏览器打开 zhipu.puyouquan.com，点「开始一份谱」选用途即可。</p>'
-    +'<ul class="nw-mpc-l"><li>吉他弹唱 · 钢琴即兴伴奏（考编）· 儿歌弹唱（师范）</li><li>教学对照谱（课堂）· 视唱练耳谱例（艺考）· 歌谱合唱</li><li>指弹独奏 · 器乐独奏 · 和弦谱 / 功能谱</li></ul>'
-    +'<button type="button" id="nw-mimp" class="nw-mimp">'+pqIcon('act-import', 20)+'<span><b>导入已有的谱</b><small>MusicXML · Guitar Pro · MIDI，手机上也能打开看</small></span></button></div>'
-    +'<div class="btns"><button id="nw-cancel">关闭</button><button id="nw-mdemo">看示例</button><button id="nw-pc" class="primary">'+pqIcon('act-link', 16)+' 发到电脑继续</button></div>');
+/* 手机（拍板 1 先不开放新建）：「在电脑上开始一份谱」。v67.6 补全（README §6，修 A-8）：
+   ① 按用途列表（10 项，每行 64px，只用图标不用小样张；分「弹唱伴奏 / 课堂声乐 / 独奏乐队」三组＝效果图 M02）；
+   ② 选中用途（M03 / M04）：将建成谱名＋实时刻版预览（同电脑面板 NWPV.renderInto，空闲时排、只排首行）＋曲名＋旋律用＋该用途变体（要哪几行 / 声部 / 谱号 / 乐器…）
+      ＋调 / 拍号 / 速度（默认＝用途惯例；深链 ?new= 带来的按链接）＋依据＋链接预览，主按钮（52px，钉在底部）「发到电脑继续」复制带这套设置的深链
+      （NWP.linkOf，电脑上打开＝新建面板按这套设置预选，回车就建）；③ 已复制：三步说明＋再复制一次。
+   仍可「导入已有的谱」（看谱模式打开）。手机上不建谱、不写本机键 musetab-nw-last；列表行不用 data-scene（那是电脑面板的用途项） */
+const MPC_IDS = ['gtr','pacc','kids','vocal','teach','sight','solo','inst','chord','blank'];
+const MPC_SD = {gtr:'和弦图 · 简谱旋律 · 歌词 · 六线谱', pacc:'写旋律，一键配和弦与伴奏', kids:'2/4 简谱＋歌词，配儿歌伴奏', vocal:'一到四个声部，歌词逐字对位',
+  teach:'五线谱与简谱逐音对齐', sight:'五线谱单旋律，可选小调', solo:'六线谱＋五线谱联排', inst:'键盘 · 管弦 · 民乐 20 种', chord:'小节格和弦 / 旋律＋级数', blank:'一条旋律行，其余音轨建好再加'};
+const MPC_BASE = 'https://zhipu.puyouquan.com/';
+const MPC_PVC = new Map();   /* 预览缓存（同一组合只排一次；只在本次会话） */
+let MPC = null;   /* {step:'list'|'detail'|'done', st, ok, link（用途没认出的深链：其余合法参数留给接下来选的那个用途）, bad}：只在这页开着时有效，不进 song、不进本机存储 */
+function showNewMobile(opt){
+  opt=opt||{};
+  const L=opt.link||null, own=NWB.own;
+  const sc = (L && L.scene) || (own(NWP.SC, opt.scene) && opt.scene!=='custom'? opt.scene : '');
+  MPC={step:'list', st:null, ok:true, link:null, bad:null};
+  if(sc) mpcPick(sc, L);
+  /* 用途没认出（或没写）：列表页照实说一句；其余合法参数（调 / 拍号 / 速度…）带进接下来选的用途——同电脑口径（收尾验收：此前选了用途就丢掉 key=G） */
+  else if(L){ MPC.link=L; MPC.bad=(NWP.linkApply(NWP.fresh({clean:true}), L).bad||[]); }
+  showModal('<div class="nw-mpc-root"></div>');
   const m=document.getElementById('modal-mask'); if(m) m.classList.add('nw-mpc-mask');
-  document.getElementById('nw-cancel').onclick=closeModal;
-  document.getElementById('nw-mdemo').onclick=()=>{ closeModal(); const b=document.getElementById('b-library'); if(b) b.click(); };
-  document.getElementById('nw-pc').onclick=()=>{ copyLinkForPc('https://zhipu.puyouquan.com/', '制谱链接'); };
-  document.getElementById('nw-mimp').onclick=()=>{ NWP.open({tab:'import'}); };   /* 拍板 1 只管新建：导入照常（与右栏「导入 MIDI」同口径） */
+  const md=m && m.querySelector('.modal');
+  if(md){ md.setAttribute('aria-label','在电脑上开始一份谱'); md.addEventListener('click', mpcClick); md.addEventListener('change', mpcChange); md.addEventListener('input', mpcInput); }
+  mpcDraw();
+}
+function mpcPick(sc, L){
+  const st=NWP.fresh({scene:sc, clean:true, link:L||null});
+  MPC.st=st; MPC.step='detail'; MPC.link=null;
+}
+function mpcLink(){ return MPC && MPC.st? NWP.linkOf(MPC.st, MPC_BASE) : MPC_BASE; }
+function mpcKind(){ return NWP.kindOfState(MPC.st); }
+/* 速度符号与电脑面板依据同一口径：x/8 拍号写 ♪（附点四分为单位写 ♩.），其余 ♩（收尾验收：已复制页曾写死 ♩=） */
+function mpcTempoTxt(v){ return (+v.unit===8? (v.tunit==='dq'? '♩.' : '♪') : '♩')+'='+v.tempo; }
+function mpcBasisHTML(){
+  const st=MPC.st, v=st.v, sc=NWP.SC[st.scene], o=NWP.optsOf(st), k=NWP.stackOfState(st);
+  const why={scene:'按「'+sc.n+'」惯例', link:'按链接', user:'你改的', last:'沿用上次', default:'默认值'};
+  const g={};
+  [['key', NWP.keyName(v.key, v.mode)], ['meter', v.beats+'/'+v.unit], ['tempo', mpcTempoTxt(v)], ['nMea', o.nMea+' 小节'], ['lyr', o.lyr>0? o.lyr+' 段词' : (NWP.lyrShown(st, k)? '无词' : '')]].forEach(([f,t])=>{
+    if(!t) return; const s2=st.src[f]||'default'; (g[s2]=g[s2]||[]).push(t); });
+  if((v.title||'').trim()){ const s2=st.src.title==='link'? 'link' : 'user'; (g[s2]=g[s2]||[]).unshift('《'+v.title.trim()+'》'); }
+  const bad=(st.link && st.link.bad)||[];
+  return ['user','link','scene','last','default'].filter(k2=>g[k2]).map(k2=>'<p><span class="nf-chips">'+g[k2].map(t=>'<i class="c-'+k2+'">'+esc(t)+'</i>').join('')+'</span><em>'+why[k2]+'</em></p>').join('')
+    +(bad.length? '<p class="nw-mbad">链接里没认出：'+esc(bad.join('、'))+'（已忽略）</p>' : '');
+}
+/* 分段按钮（旋律用 / 变体，命中区 ≥44）：data-mpk＝字段（mel 或变体名），data-v＝取值 */
+function mpcSegHTML(lab, key, opts, cur){
+  return '<div class="nw-mf nw-mfw"><span id="mpc-l-'+key+'">'+lab+'</span><div class="nw-mseg" role="group" aria-labelledby="mpc-l-'+key+'">'
+    +opts.map(([x, t, icn])=>'<button type="button" data-mpk="'+key+'" data-v="'+esc(String(x))+'" aria-pressed="'+(String(x)===String(cur))+'">'+(icn? pqIcon(icn, 18) : '')+'<span>'+esc(t)+'</span></button>').join('')+'</div></div>';
+}
+function mpcVarsHTML(){
+  const st=MPC.st, v=st.v;
+  let h='';
+  if(NWP.melLive(st.scene, v)) h+=mpcSegHTML('旋律用', 'mel', [['J','简谱','nota-jianpu'],['S','五线谱','nota-staff']], st.mel);
+  NWP.varsShown(st).forEach(vk=>{
+    const V=NWP.VARS[vk];
+    if(vk==='instKey'){
+      /* 器乐独奏的乐器：全部 NW_INSTS（同电脑面板「更多乐器」） */
+      h+='<label class="nw-mf nw-mfw"><span>'+V.lab+'</span><select id="mpc-inst">'+NWP.INSTS.map(x=>'<option value="'+x.k+'"'+(x.k===v.instKey? ' selected' : '')+'>'+esc(x.name)+'</option>').join('')+'</select></label>';
+    } else h+=mpcSegHTML(V.lab, vk, V.opts, v[vk]);
+  });
+  return h;
+}
+function mpcDraw(){
+  const md=document.querySelector('.nw-mpc-mask .modal'); if(!md || !MPC) return;
+  const back='<button type="button" class="nw-mback" data-mp="back" aria-label="返回用途列表" title="返回">'+pqIcon('act-back', 20)+'</button>';
+  let h='';
+  if(MPC.step==='list'){
+    const grp=NWP.GROUPS.concat([['其他',['blank']]]);
+    h='<h3>在电脑上开始一份谱</h3>'
+      +'<div class="nw-mpc">'
+      +'<p class="nw-mpc-t">手机上以看谱为主：可以看谱、播放、移调。<b>新建和写谱请在电脑上继续</b>——先在这里选用途，把带设置的链接发到电脑，电脑上打开就预选好，回车就建。</p>'
+      +(MPC.bad && MPC.bad.length? '<p class="nw-mbad">链接里没认出：'+esc(MPC.bad.join('、'))+'（已忽略）</p>' : '')
+      /* 读屏：每组一个 list（组名作标题），行本身仍是原生按钮（收尾验收：此前 <button role="listitem"> 把按钮语义盖掉） */
+      +grp.map(([gn, ids], gi)=>'<h4 class="nw-mg" id="mpc-g'+gi+'">'+gn+'</h4><div class="nw-mus" role="list" aria-labelledby="mpc-g'+gi+'">'+ids.filter(id=>MPC_IDS.includes(id)).map(id=>{ const s2=NWP.SC[id];
+        return '<div role="listitem"><button type="button" class="nw-mu" data-mu="'+id+'">'+pqIcon(s2.ic, 26)+'<span class="nw-mut"><b>'+s2.n+(s2.tag? '<em class="nf-tag">'+s2.tag+'</em>' : '')+'</b><small>'+MPC_SD[id]+'</small></span>'+pqIcon('act-step', 18)+'</button></div>'; }).join('')+'</div>').join('')
+      +'<button type="button" id="nw-mimp" class="nw-mimp">'+pqIcon('act-import', 20)+'<span><b>导入已有的谱</b><small>MusicXML · Guitar Pro · MIDI，手机上也能打开看</small></span></button></div>'
+      +'<div class="btns nw-mfoot"><button id="nw-cancel">关闭</button><button id="nw-mdemo">看示例</button><button id="nw-pc" class="primary">'+pqIcon('act-pc', 18)+' 发到电脑继续</button></div>';
+  } else if(MPC.step==='detail'){
+    const st=MPC.st, v=st.v, s2=NWP.SC[st.scene], kind=mpcKind();
+    const opt=(arr, cur)=>arr.map(x=>'<option value="'+x+'"'+(String(x)===String(cur)? ' selected' : '')+'>'+x+'</option>').join('');
+    h='<h3 class="nw-mh">'+back+pqIcon(s2.ic, 24)+'<span>'+s2.n+'</span>'+(s2.tag? '<em class="nf-tag">'+s2.tag+'</em>' : '')+'</h3>'
+      +'<div class="nw-mpd">'
+      +'<p class="nw-mk"><span>将建成</span><span id="mp-kic">'+pqIcon(kind.ic, 20)+'</span><b id="mp-kind">'+esc(kind.name)+'</b></p>'
+      +'<figure class="nw-mpv" id="mpc-pvfig" aria-busy="true"><div class="nw-mpvbox" id="mpc-pv"></div><figcaption id="mpc-pvcap">预览：'+esc(kind.name)+'首行（示例旋律《小星星》，建成后是空白小节）</figcaption></figure>'
+      +'<p class="nw-mdesc">'+esc(s2.long)+'</p>'
+      +'<label class="nw-mf nw-mfw"><span>曲名</span><input id="mpc-title" type="text" maxlength="80" autocomplete="off" placeholder="未命名曲谱（可稍后再填）" value="'+esc(v.title||'')+'"></label>'
+      +mpcVarsHTML()
+      +'<div class="nw-mf3">'
+      +'<label class="nw-mf"><span>调</span><select id="mp-key">'+['major','minor'].map(m=>'<optgroup label="'+(m==='major'? '大调' : '小调（按关系大调记谱）')+'">'+KEY_LIST.map(kk=>'<option value="'+(m==='major'? kk : kk+'|minor')+'"'+(v.key===kk && v.mode===m? ' selected' : '')+'>'+NWP.keyName(kk, m)+'</option>').join('')+'</optgroup>').join('')+'</select></label>'
+      +'<label class="nw-mf"><span>拍号</span><span class="nw-mmeter"><select id="mp-beats" aria-label="拍号分子">'+opt(NW_BEATS, v.beats)+'</select><b>/</b><select id="mp-unit" aria-label="拍号分母">'+opt([2,4,8], v.unit)+'</select></span></label>'
+      +'<label class="nw-mf"><span>速度</span><input id="mp-tempo" type="number" inputmode="numeric" min="30" max="240" step="1" value="'+v.tempo+'"></label>'
+      +'</div>'
+      +'<div class="nf-basis nw-mbasis" id="mp-basis"><b>依据</b>'+mpcBasisHTML()+'</div>'
+      +'<div class="nw-mlinkbox"><span>电脑上打开这个链接：</span><code id="mp-link">'+esc(mpcLink())+'</code></div>'
+      +'</div>'
+      +'<div class="btns nw-mfoot"><button id="mp-back" data-mp="back">返回</button><button id="nw-pc" class="primary">'+pqIcon('act-pc', 18)+' 发到电脑继续</button></div>';
+  } else {
+    const st=MPC.st, v=st.v, s2=NWP.SC[st.scene];
+    h='<h3 class="nw-mh">'+back+'<span>发到电脑继续</span></h3>'
+      +'<div class="nw-mdone">'+pqIcon(MPC.ok? 'act-check' : 'act-link', 36)
+      +'<b id="mp-done">'+(MPC.ok? '链接已复制' : '长按下面的链接复制')+'</b>'
+      +'<p>在电脑浏览器打开，新建面板会按这套设置预选，按回车就能建：</p>'
+      +'<code id="mp-link">'+esc(mpcLink())+'</code>'
+      +'<ol><li>微信「文件传输助手」发给自己，或直接粘贴到电脑</li><li>电脑打开链接：已选好「'+esc(s2.n)+'」、'+esc(NWP.keyName(v.key, v.mode))+'、'+v.beats+'/'+v.unit+'、'+esc(mpcTempoTxt(v))+'</li><li>按回车创建</li></ol></div>'
+      +'<div class="btns nw-mfoot"><button id="mp-back" data-mp="back">返回</button><button id="mp-again" class="primary">'+pqIcon('act-link', 16)+' 再复制一次</button></div>';
+  }
+  md.innerHTML=h;
+  md.scrollTop=0;
+  if(MPC.step==='detail') mpcPvSched(0);
+}
+/* 预览：同电脑面板的示例谱与刻版（NWPV.renderInto → renderOffscreen，只排首行、纸面恒白）；
+   打开详情页后下一拍再排（页面先出来），改参数防抖 150ms；同一组合走缓存。临时谱不进 docs / 撤销栈 / 本机存储（同电脑口径） */
+let mpcPvTimer=0;
+function mpcPvSched(ms){ clearTimeout(mpcPvTimer); const f=document.getElementById('mpc-pvfig'); if(f) f.setAttribute('aria-busy','true'); mpcPvTimer=setTimeout(mpcPv, ms==null? 150 : ms); }
+function mpcPv(){
+  mpcPvTimer=0;
+  const box=document.getElementById('mpc-pv'), fig=document.getElementById('mpc-pvfig'); if(!box || !MPC || !MPC.st) return;
+  const st=MPC.st, k=NWP.stackOfState(st); if(!NWB.own(NWB.STACKS, k)) return;
+  const o=Object.assign({}, NWP.optsOf(st), {scene:st.scene}); delete o.pen; delete o.nMea;
+  const key=k+'|'+JSON.stringify(o);
+  if(box._pvKey===key){ if(fig) fig.setAttribute('aria-busy','false'); return; }
+  let node=MPC_PVC.get(key);
+  if(!node){
+    const svg=document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'nf-svg');
+    let r=null; try{ r=NWPV.renderInto(svg, {k, o}, {paperW:660}); }catch(e){ console.warn('手机预览生成失败', e); }
+    if(!r){ box.innerHTML='<p class="nw-mpverr">预览暂不可用</p>'; box._pvKey=key; if(fig) fig.setAttribute('aria-busy','false'); return; }
+    node=svg; if(MPC_PVC.size>=16) MPC_PVC.delete(MPC_PVC.keys().next().value); MPC_PVC.set(key, node);
+  }
+  const sv=node.cloneNode(true);
+  sv.setAttribute('role','img'); sv.setAttribute('aria-label', '预览：'+mpcKind().name+'首行（示例旋律《小星星》，建成后是空白小节）');
+  box.innerHTML=''; box.appendChild(sv); box._pvKey=key;
+  if(fig) fig.setAttribute('aria-busy','false');
+}
+/* 改参数只补丁局部（谱名 / 依据 / 链接 / 预览），不重画整页：输入框焦点与软键盘不丢 */
+function mpcSync(){
+  const k=document.getElementById('mp-kind'), ki=document.getElementById('mp-kic'), b=document.getElementById('mp-basis'), l=document.getElementById('mp-link'), c=document.getElementById('mpc-pvcap');
+  const kind=mpcKind();
+  if(k) k.textContent=kind.name;
+  if(ki) ki.innerHTML=pqIcon(kind.ic, 20);
+  if(c) c.textContent='预览：'+kind.name+'首行（示例旋律《小星星》，建成后是空白小节）';
+  if(b) b.innerHTML='<b>依据</b>'+mpcBasisHTML();
+  if(l) l.textContent=mpcLink();
+  mpcPvSched();
+}
+/* 变体 / 旋律用 / 乐器改了：可见的变体与「旋律用」会跟着变（如只要伴奏就没有旋律用），整页重画，焦点回到刚点的那个控件 */
+function mpcRedraw(sel){
+  const md=document.querySelector('.nw-mpc-mask .modal'), y=md? md.scrollTop : 0;
+  mpcDraw();
+  if(md) md.scrollTop=y;
+  const f=sel && document.querySelector('.nw-mpc-mask '+sel); if(f) f.focus({preventScroll:true});
+}
+function mpcCopy(){
+  const url=mpcLink();
+  copyLinkForPc(url, '带设置的制谱链接', ok=>{ if(!MPC) return; MPC.ok=ok!==false; if(MPC.step!=='done'){ MPC.step='done'; mpcDraw(); } else { const d=document.getElementById('mp-done'); if(d) d.textContent=MPC.ok? '链接已复制' : '长按下面的链接复制'; } });
+}
+function mpcClick(e){
+  if(!MPC) return;
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.mu){ mpcPick(t.dataset.mu, MPC.link); mpcDraw(); const f=document.querySelector('.nw-mpc-mask .nw-mback'); if(f) f.focus({preventScroll:true}); return; }
+  if(t.dataset.mp==='back'){ if(MPC.step==='done') MPC.step='detail'; else { MPC.step='list'; MPC.bad=null; MPC.link=null; } mpcDraw(); return; }
+  if(t.dataset.mpk && MPC.st){
+    const st=MPC.st, k=t.dataset.mpk, v=t.dataset.v;
+    if(k==='mel') st.mel=v==='S'? 'S' : 'J';
+    else { const o=(NWP.VARS[k]||{opts:[]}).opts.find(([x])=>String(x)===v); if(!o) return; st.v[k]=o[0]; }
+    if(st.scene!=='custom'){ const k2=NWP.sceneStack(st.scene, st.v, st.mel); if(k2 && NWB.STACKS[k2]) st.rows=NWB.STACKS[k2].rows.slice(); }
+    mpcRedraw('[data-mpk="'+k+'"][data-v="'+v+'"]'); return;
+  }
+  switch(t.id){
+    case 'nw-cancel': closeModal(); MPC=null; break;
+    case 'nw-mdemo': closeModal(); MPC=null; { const b=document.getElementById('b-library'); if(b) b.click(); } break;
+    case 'nw-mimp': MPC=null; NWP.open({tab:'import'}); break;   /* 拍板 1 只管新建：导入照常（与右栏「导入 MIDI」同口径） */
+    case 'nw-pc': if(MPC.step==='detail') mpcCopy(); else copyLinkForPc(MPC_BASE, '制谱链接'); break;
+    case 'mp-again': mpcCopy(); break;
+  }
+}
+function mpcChange(e){
+  if(!MPC || !MPC.st) return;
+  const t=e.target, st=MPC.st, v=st.v, src=st.src;
+  if(t.id==='mp-key'){ const [k,m]=t.value.split('|'); v.key=k; v.mode=m==='minor'? 'minor' : 'major'; src.key='user'; }
+  else if(t.id==='mp-beats'||t.id==='mp-unit'){ v.beats=+document.getElementById('mp-beats').value; v.unit=+document.getElementById('mp-unit').value; src.meter='user'; }
+  else if(t.id==='mp-tempo'){ const n=Math.round(+t.value); if(isFinite(n) && t.value!==''){ v.tempo=Math.max(30, Math.min(240, n)); src.tempo='user'; } t.value=v.tempo; }   /* 失焦：30–240 夹紧，空 / 非数字回原值 */
+  else if(t.id==='mpc-inst'){ if(!NWP.INSTS.some(x=>x.k===t.value)) return; v.instKey=t.value; if(st.scene!=='custom'){ const k2=NWP.sceneStack(st.scene, v, st.mel); if(k2 && NWB.STACKS[k2]) st.rows=NWB.STACKS[k2].rows.slice(); } mpcRedraw('#mpc-inst'); return; }
+  else return;
+  mpcSync();
+}
+function mpcInput(e){
+  if(!MPC || !MPC.st) return;
+  const t=e.target;
+  if(t.id==='mpc-title'){ MPC.st.v.title=t.value; MPC.st.src.title='user'; mpcSync(); return; }
+  if(t.id!=='mp-tempo') return;
+  const n=+t.value; if(t.value!=='' && Number.isInteger(n) && n>=30 && n<=240){ MPC.st.v.tempo=n; MPC.st.src.tempo='user'; mpcSync(); }
+}
+/* v67.6 深链 ?new=（README §7，官网垂类页按钮 / 手机「发到电脑继续」链接的落点）：启动时读一次——
+   电脑：在启动台之上打开新建面板，按参数预选（不自动建，用户确认）；真手机：「在电脑上开始一份谱」页直接到该用途，生成的链接带上这些参数。
+   处理后用 history.replaceState 只去掉深链这一组参数（其余如 ?skin= 保留），刷新不再重复弹；不读写本机键 musetab-nw-last（真的建了才记上次） */
+function nwLinkBoot(search){
+  let q; try{ q=new URLSearchParams(search!=null? search : location.search); }catch(_){ return false; }
+  const L=NWP.linkParse(q);
+  if(!L.has) return false;   /* 参数名不分大小写（?NEW=pacc 也认） */
+  if(search==null){ try{ L.keys.forEach(k=>q.delete(k)); const qs=q.toString(); history.replaceState(history.state, '', location.pathname+(qs? '?'+qs : '')+location.hash); }catch(_){} }
+  if((typeof viewerMode!=='undefined' && viewerMode) || document.body.classList.contains('viewer')) return false;
+  if(isMobileNew()){ showNewMobile({link:L}); return true; }
+  /* 一律不读上次（收尾验收：new 认不出 / 为空时曾整份「沿用上次」、与链接值混在一起，且手机电脑口径不一）：用途认不出＝默认用途（吉他弹唱）＋其余合法参数照用 */
+  showNewWizard(Object.assign({link:L, clean:true}, L.scene? {scene:L.scene} : {}));
+  return true;
 }
 /* 入口：其他代码都调它（顶栏「新建」、页签条 ＋、启动台、☰ 菜单、右栏导入…）。opt：{scene, tab:'new'|'import'} */
 function showNewWizard(opt){
   if(opt && (opt instanceof Event || opt.target)) opt=null;
-  if(isMobileNew() && !(opt && opt.tab==='import')){ try{ NWP.quickMenuClose(); }catch(_){} showNewMobile(); return; }
+  if(isMobileNew() && !(opt && opt.tab==='import')){ try{ NWP.quickMenuClose(); }catch(_){} showNewMobile(opt||{}); return; }   /* v67.6 带上用途 / 深链参数 */
   NWP.open(opt||{});
 }
 /* v67.5 拖放（README §0「文件拖到窗口任意处」、§3）：只认操作系统拖进来的文件（dataTransfer.types 含 Files）——谱面里的拖选、拖小节号、
@@ -24165,13 +24660,7 @@ function showNewForm(type, gtype){
    显式分组（voxGroups）在时只认「1–2 行花括号」——三行五线谱合唱（方括号）绝不能被当成伴奏行覆盖；
    没写分组的老谱只认 v45 起一键配伴奏产物的声部名（旋律 / 右手伴奏 / 左手伴奏）。只读数据、不写字段。
    v67.4 第二轮验收：全谱只此一份判定——谱行引擎 NWB.stackOf / NWB.isAccStack（谱名、页签图标、「伴奏织体」取行）与智能配谱弹窗（「填进当前谱」）都读它 */
-function isPianoAccStack(s){
-  if(!s || (s.tabVoices||[]).length || s.pianoAcc || s.func || s.chordOnly) return false;
-  const vv=s.voxVoices||[], vn=s.voxNotations||[];
-  if(vv.length!==3 || vn[1]!=='staff' || vn[2]!=='bass') return false;
-  if(Array.isArray(s.voxGroups) && s.voxGroups.length && voxGroupsExplicitOk(s)) return s.voxGroups.some(g=>g && g.type==='brace' && g.from===1 && g.to===2);
-  return vv[1]==='右手伴奏' && vv[2]==='左手伴奏';
-}
+function isPianoAccStack(s){ return PQ_KIND.isPianoAccStack(s); }   /* v67.6 判定本体在统一谱名表 PQ_KIND（与服务端同一份） */
 /* 「填进当前谱」可用：钢琴伴奏歌谱本身，或单旋律谱（无吉他轨、非功能谱 / 和弦谱 / 钢琴弹唱谱）——后者原地加右手 / 左手伴奏两行（钢琴伴奏歌谱结构） */
 function accFillable(s){
   return isPianoAccStack(s) || (!!s && !(s.tabVoices||[]).length && !s.pianoAcc && !s.func && !s.chordOnly && (s.voxVoices||[]).length===1);
@@ -24490,7 +24979,7 @@ function lbCapoOf(s, to){
 function lbPlan0(s, to){
   if(!NWB.own(NWB.STACKS, to)) return {mode:'no', why:'没有这种谱类'};
   const sh=lbShape(s), from=sh.k, F=sh.F, T=LB_FAM[to];
-  const nm=NWB.kindOf(to, lbCtxFor(s, to)).name;
+  const nm=NWB.kindOf(to, lbCtxFor(s, to)).name, nmCopy=NWB.kindOf(to, lbCtxFor(s, to, 'copy')).name;
   if(from===to) return {mode:'same', why:'当前谱类'};
   if(lbAllBare(s)) return {mode:'rebuild', why:'空谱：按同样的曲名、调、拍号、速度重建'};
   const D=why=>({mode:'direct', why}), C=why=>({mode:'copy', why}), N=why=>({mode:'no', why});
@@ -24501,7 +24990,7 @@ function lbPlan0(s, to){
     return N('这份谱另加过音轨（不是建谱时的标准组合），换谱类会动到音符——请另建一份');
   }
   const one = sh.mv.length===1;
-  const multi = ()=>C('多声部（合唱）：'+nm+'只有一行旋律——'+COPY.replace('带上旋律','带上第一声部'));
+  const multi = ()=>C('多声部（合唱）：'+nmCopy+'只有一行旋律——'+COPY.replace('带上旋律','带上第一声部'));
   /* 第二轮验收：「不可换」说明以这一项的谱名开头（此前两项共用「纯六线谱 / 吉他独奏谱……」「钢琴独奏谱 / 弹唱谱……」，读起来像在说别的谱） */
   const NO_TAB = nm+'没有旋律行，旋律放不进去——要旋律＋六线谱请选「'+NWB.kindOf('JT', {inst:s.inst}).name+'」';
   const NO_PNO = nm+'的两行是钢琴右手、左手，不是旋律行——给旋律配钢琴请选「钢琴伴奏歌谱」';
@@ -24549,13 +25038,15 @@ function lbPlan0(s, to){
   }
   return N('这两种谱不能直接换');
 }
-/* 菜单里目标谱的叫法（与换完后的谱名同一张表 kindOf） */
-function lbCtxFor(s, to){
+/* 菜单里目标谱的叫法（与换完后的谱名同一张表 kindOf）。mode＝这一项的换法：重建 / 另建一份按目标谱类留词位
+   （lbOpts / lbCopy：NWB.build 的钢琴伴奏歌谱默认 1 行词），换完必有词位——v67.6 五线谱一族的叫法看词位，菜单要与换完同名 */
+function lbCtxFor(s, to, mode){
   const c=NWB.ctxOf(s), ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
   const ikOk = it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false);
   /* 钢琴两行的简谱对照在钢琴族内互换时保留（lbApplyDirect），菜单里的谱名同样带上 */
   const dual = (to==='G'||to==='CG') && LB_FAM[NWB.stackOf(s)]==='pno' && (s.voxDual||[]).some(Boolean);
-  return {nVox:(to==='J'||to==='S')? c.nVox : 1, inst:s.inst, instKey: ikOk? ik : '', lyr:c.lyr, dual};
+  const lyr = c.lyr || ((mode==='rebuild' || mode==='copy') && LB_FAM[to]==='acc');
+  return {nVox:(to==='J'||to==='S')? c.nVox : 1, inst:s.inst, instKey: ikOk? ik : '', lyr, dual};
 }
 /* ---- 写操作（只写既有字段） ---- */
 function lbSkelCol(c, kind){ const n=kind==='tab'? tcol() : vcol(); n.dur=c.dur; n.dotted=!!c.dotted; if(c.tup) n.tup=c.tup; if(c.tupM) n.tupM=c.tupM; return n; }
@@ -24918,7 +25409,7 @@ function lbMenuHTML(s){
     +'<p class="lb-mh">'+(empty? '谱还是空的：任意换，按同样的曲名、调、拍号、速度重建（Ctrl+Z 撤销）。'
       : '已有内容：只给不动音符的换法（直接换，Ctrl+Z 撤销）；其余另建一份，旋律（含歌词、和弦）带到新窗口，原谱保留。')+'</p>'
     +LB_GROUPS.map(([g,ks],gi)=>'<div role="group" aria-labelledby="lb-mg'+gi+'"><div class="lb-mg" id="lb-mg'+gi+'">'+g+'</div>'+ks.map(k=>{
-      const p=lbPlan(s,k), kd=NWB.kindOf(k, lbCtxFor(s,k)), off=p.mode==='no'||p.mode==='same';
+      const p=lbPlan(s,k), kd=NWB.kindOf(k, lbCtxFor(s,k,p.mode)), off=p.mode==='no'||p.mode==='same';
       /* 收尾验收 F11：空谱时 13 项不再重复同一句（菜单头已说过）——改写这一项会有哪几行 */
       const why = p.mode==='rebuild'? '谱行：'+NWB.STACKS[k].rows.map(r=>LB_ROWN[r]).join(' ＋ ')+(p.capo? '；按实际调 1='+keyLabel(headKeyOf(s))+' 重建（变调夹折进调）' : '') : p.why;
       const tag = p.capo && p.mode==='direct'? '直接换 · 音高不变' : LB_TAG[p.mode];
@@ -24976,7 +25467,7 @@ function lbSwitch(to, kb){
     return p.mode;
   }
   lbMenuClose();
-  const nm=NWB.kindOf(to, lbCtxFor(s, to)).name;
+  const nm=NWB.kindOf(to, lbCtxFor(s, to, p.mode)).name;
   if(p.mode==='copy'){
     const ns=lbCopy(s, to), t0=s.title||'未命名曲谱', d0=curDocI;
     addDoc(ns, ()=>{
@@ -26614,7 +27105,9 @@ function importMusicXML(xmlStr){
     if(t==='composer') out.composer=c.textContent.trim();
     if(t==='lyricist') out.lyricist=c.textContent.trim();
   });
-  let maxLyr=1, nMea=0;
+  /* v67.6 歌词行数照文件实写：全谱一个 <lyric> 都没有＝0（此前写死至少 1 行——无词的器乐谱也留了词位，统一谱名表据此把小提琴独奏叫成「五线谱歌谱」、
+     长笛＋钢琴叫成「钢琴伴奏歌谱（五线谱）」；收尾验收 major）。「做成哪种谱」里转成歌谱类的做法仍留 1 行词位（NWP convert） */
+  let maxLyr=0, nMea=0;
   parts.forEach(p=> nMea=Math.max(nMea, p.querySelectorAll(':scope > measure').length));   // v44.7 含 tab part 的小节数
   /* v41.3 中途转调/小节反复（仅首 part 采集，measure 级字段） */
   const keyToMap={}, simMap={};
@@ -27480,7 +27973,7 @@ function pvMidiDialog(smf){
   const opts=smf.tracks.map((t2,i)=>`<option value="${i}">${esc(t2.name)}（${t2.notes.length}音 · ${midiTrackInfo(t2)}）</option>`).join('');
   const tsDiff = smf.ts.beats!==song.beats || (((smf.ts.unit===8||smf.ts.unit===2)? smf.ts.unit : 4)!==song.unit);
   showModal(`<h3>MIDI 导入到声部</h3>
-    <p style="font-size:12.5px">目标：<b>${esc(TYPE_CN[docType(song)]||'当前曲谱')} · ${esc(names[vi])}</b>（${row==='tab'?'六线谱':'简谱/五线'}声部）<br>
+    <p style="font-size:12.5px">目标：<b>${esc(docTypeLabel(song)||'当前曲谱')} · ${esc(names[vi])}</b>（${row==='tab'?'六线谱':'简谱/五线'}声部）<br>
     按本谱 ${song.beats}/${song.unit} · 1=${esc(song.key)}${row==='tab'?(song.capo?' · 变调夹'+song.capo:''):''} 量化落列，<b>覆盖该声部原有内容</b>，可一步撤销。
     ${tsDiff? '<br><b style="color:var(--danger)">注意</b>：MIDI 拍号 '+smf.ts.beats+'/'+smf.ts.unit+' 与本谱不同——按本谱拍号切小节。':''}</p>
     <label class="f"><span>音轨</span><select id="pv-a">${opts}</select></label>
@@ -27924,7 +28417,7 @@ function buildShareCardSVG(){
   <rect width="${W}" height="10" fill="url(#cgrad)"/>
   <text x="28" y="56" font-size="27" font-weight="800" fill="#1c1c1c">谱友圈</text>
   <text x="124" y="56" font-size="13" fill="#8a8a8a">专业曲谱平台 · puyouquan.com</text>
-  <text x="${W-28}" y="56" font-size="13" text-anchor="end" fill="#8a8a8a">${xesc(TYPE_CN[docType(song)]||'曲谱')}</text>
+  <text x="${W-28}" y="56" font-size="13" text-anchor="end" fill="#8a8a8a">${xesc(docTypeLabelPub(song))}</text>
   <line x1="28" y1="72" x2="${W-28}" y2="72" stroke="${PC.border}" stroke-width="1"/>
   <rect x="${boxX-3}" y="${boxY-6}" width="${boxW+6}" height="${(drawH+12).toFixed(0)}" rx="10" fill="#ffffff" stroke="${PC.border}"/>
   <svg x="${boxX}" y="${boxY}" width="${boxW}" height="${drawH.toFixed(0)}" viewBox="0 0 ${cropW.toFixed(0)} ${cropH.toFixed(0)}" preserveAspectRatio="xMidYMin meet">${inner}</svg>
@@ -28513,7 +29006,9 @@ function pyqTouch(){
     const utm=['utm_source','utm_medium','utm_campaign'].map(k=>sp.get(k)||'').join('/');
     if(utm.replace(/\//g,'')) src='utm:'+utm;
     else if(document.referrer){ const h=new URL(document.referrer).hostname; if(h && !/(^|\.)puyouquan\.com$/i.test(h)) src='ref:'+h; }
-    landing=location.hostname.split('.')[0]+location.pathname+(sp.get('start')?('?start='+sp.get('start')):'');
+    /* v67.6 收尾验收：深链 ?new=<用途>（官网垂类页按钮落点）也记进落地页，否则官网按钮带来的访问看不出来源（visit 先于深链 replaceState 发出，读得到） */
+    let nw=''; sp.forEach((v,k)=>{ if(!nw && String(k).toLowerCase()==='new') nw=String(v).toLowerCase().replace(/[^a-z]/g,'').slice(0,12)||'-'; });
+    landing=location.hostname.split('.')[0]+location.pathname+(sp.get('start')?('?start='+sp.get('start')):nw?('?new='+nw):'');
   }catch(_){}
   return {src, landing};
 }
@@ -28735,13 +29230,20 @@ function ccCoverApi(item){
 function circleAll(){
   /* v60.6 透传缩图标志与卡片信息（调号/拍号/速度/段词数），与官网 PYQ_LIB.card 同口径 */
   if(ccRemote) return ccRemote.map(s=>({pid:s.id, title:s.title, author:s.author, singer:s.singer||'',
-    type:s.type, price:s.price||0, measures:s.measures||0, cover:s.cover||[], remote:true,
+    type:s.type, typeLabel:s.typeLabel||'', price:s.price||0, measures:s.measures||0, cover:s.cover||[], remote:true,
     thumb:s.thumb?1:0, key:s.key||'', tempo:s.tempo||0, beats:s.beats||0, unit:s.unit||0, verses:s.verses||0}));
   return circlePubs().filter(pb=>(pb.status||'approved')==='approved')
     .map(pb=>Object.assign({}, pb, {measures:(pb.data.measures||[]).length,
       key:(pb.data||{}).key||'', tempo:(pb.data||{}).tempo||0,
       beats:(pb.data||{}).beats||0, unit:(pb.data||{}).unit||0,
       verses:(pb.data||{}).lyricLines||0}));   /* v60.7 本地兜底也给段词（字段名是 lyricLines） */
+}
+/* v67.6 谱库卡片 / 观看页 / 审核列表的谱名：线上谱用服务端算好的 typeLabel（api/kindname.js，与本文件 PQ_KIND 同一份规则），
+   本地演示谱按谱面现算（同一张统一谱名表）；都拿不到（旧接口）才回落粗分类。谱库筛选仍按 type（docType）分类，拍板 4 不改 */
+function ccKindName(pb){
+  if(pb && pb.typeLabel) return String(pb.typeLabel);
+  if(pb && pb.data && typeof pb.data==='object') return docTypeLabelPub(pb.data);
+  return TYPE_CN[pb && pb.type]||'曲谱';
 }
 /* 与官网同口径的卡片信息条：挑谱真正要看的几项，一眼判断能不能直接用 */
 const CC_STAFF_TYPE={instr:1, piano:1, pianoacc:1, solo:1};   // 纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」（v60.7 补 pianoacc）
@@ -28766,7 +29268,7 @@ function circleCard(pb, own, fav){
     `<i>${svgi('eye',11)} ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}`);
   return `<div class="cc-card" data-pub="${pb.pid}"${pb.remote?' data-remote="1"':''}>
       <div class="cc-cover">${cover}${shot}
-        <span class="cc-type">${TYPE_CN[pb.type]||'曲谱'}</span>
+        <span class="cc-type" title="${esc(ccKindName(pb))}"><span class="cc-tname">${esc(ccKindName(pb))}</span></span>
         <span class="cc-price ${pb.price>0?'':'free'}">${pb.price>0? (own[pb.pid]?'已购':'¥'+pb.price) : '免费'}</span>
       </div>
       <div class="cc-body">
@@ -28795,6 +29297,10 @@ function renderCircleGrid(){
   const list=circleFiltered();
   grid.innerHTML = list.length? list.map(pb=>circleCard(pb,own,fav)).join('')
     : `<p style="grid-column:1/-1;color:var(--muted);text-align:center;padding:30px 0">没有符合条件的曲谱${ccFilter.favOnly?'（收藏夹为空）':''}。</p>`;
+  /* v67.6 卡片谱类徽标前加谱类图标（ccKindIc：按徽标上实际写的谱名取，认不出的旧叫法按 docType）——渲染后补插，徽标文字不动 */
+  try{ const byId={}; list.forEach(pb=>{ byId[pb.pid]=pb; });
+    grid.querySelectorAll('.cc-card[data-pub]').forEach(c=>{ const t=c.querySelector('.cc-type'), pb=byId[c.dataset.pub];
+      if(t && pb && !t.querySelector('svg.pqi')) t.insertAdjacentHTML('afterbegin', pqIcon(ccKindIc(pb, t.textContent), 16, 'cc-ic')); }); }catch(_){}
   const cnt=document.querySelector('#circle .cc-count'); if(cnt) cnt.textContent=list.length+' 首';
 }
 function openCircle(){
@@ -28823,6 +29329,8 @@ function openCircle(){
     <div class="cc-grid"></div>
     <p id="cc-foot" style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">正在同步在线谱库…</p>`;
   document.body.appendChild(div);
+  /* v67.6 筛选条谱类图标（最终图标集 16px，与卡片 / 页签同一套；「全部」不配图标）——渲染后补插，不改筛选条结构与文字 */
+  div.querySelectorAll('.cc-chip[data-cat]').forEach(b=>{ const k=DT_PQ[b.dataset.cat]; if(k && !b.querySelector(':scope > svg.pqi')) b.insertAdjacentHTML('afterbegin', pqIcon(k, 16, 'cc-ic')); });
   renderCircleGrid();
   /* v50.8 与官网首页同源：拉真实已发布谱列表；失败保留本地演示兜底 */
   apiCall('/pub/scores').then(r=>{
@@ -28879,7 +29387,7 @@ function openPubViewer(pid){
   const vb=document.getElementById('viewerbar');
   vb.innerHTML=`<button id="vw-back">← 谱友圈</button>
     <span class="vt">${esc(pb.title||'未命名曲谱')}</span>
-    <span class="va">${esc(pb.author||'佚名')} · ${TYPE_CN[pb.type]||'曲谱'} · ${total} 小节</span>
+    <span class="va">${esc(pb.author||'佚名')} · <span class="va-kind">${(k=>pqIcon(ccKindIc(pb, k), 16, 'cc-ic')+esc(k))(ccKindName(pb))}</span> · ${total} 小节</span>
     <span style="flex:1"></span>
     <span class="vw-trans" title="即时移调（不改动原谱，退出即还原）">
       <button id="vw-tdn" title="降半音">♭</button>
@@ -29756,12 +30264,13 @@ function showVwSettings(){
   const rp=document.getElementById('vs-report'); if(rp) rp.onclick=()=>showReportDialog(viewerCtx.pubId);
 }
 /* v62.9 A4 ④ 复制链接到剪切板（小程序 web-view 里外链打不开时的出口；只写不读） */
-function copyLinkForPc(url, what){
-  const done=()=>toast('已复制'+(what||'链接')+'，请在电脑浏览器粘贴打开');
+function copyLinkForPc(url, what, cb){
+  /* v67.6 cb(ok)：手机「发到电脑继续」页按复制结果切「链接已复制」/「长按复制」（老调用不传，行为不变） */
+  const done=()=>{ toast('已复制'+(what||'链接')+'，请在电脑浏览器粘贴打开'); if(cb) try{ cb(true); }catch(_){} };
   try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done, ()=>legacy()); return; } }catch(_){}
   legacy();
   function legacy(){ try{ const t=document.createElement('textarea'); t.value=url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
-    document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }catch(_){ toast('请手动复制：'+url); } }
+    document.body.appendChild(t); t.select(); const ok=document.execCommand('copy'); t.remove(); if(ok===false) throw 0; done(); }catch(_){ toast('请手动复制：'+url); if(cb) try{ cb(false); }catch(_){} } }
 }
 /* v62.9 A4 ⑥（P2-64）举报这首谱：小程序 UGC 审核硬要求；未登录也能举报，服务端按 账号/IP 摘要 + 理由 去重 */
 const REPORT_REASONS={copyright:'侵犯版权（未经授权的歌曲 / 曲谱）', wrong:'谱面错误很多，误导学习', spam:'广告、引流或无关内容', illegal:'违法违规或不良内容', other:'其他'};
@@ -29843,7 +30352,7 @@ function wxShareCard(){
       s.src='https://res.wx.qq.com/open/js/jweixin-1.6.0.js';
       s.onload=()=>{ try{ window.wx.miniProgram.postMessage({ data:{
         pubId:pid, title:(song.title||'未命名曲谱'),
-        share:(song.title||'未命名曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabelPub(song),
+        share:pubShareTitle(song, 44),
         img:(pid&&tAt)? 'https://puku.puyouquan.com/api/pub/'+pid+'/thumb?v='+tAt : '' } }); }catch(_){} };
       document.head.appendChild(s);
       if(dbg) alert('小程序内嵌环境：谱ID/完整标题/缩图已交给小程序层出直达卡片，跳过 JS-SDK 签名');
@@ -29871,6 +30380,16 @@ function wxShareCard(){
     }).catch(e=>{ if(dbg) alert('① 签名接口失败：'+((e&&e.message)||e)
       +'\n（未配置=服务器缺公众号凭据；40164=IP白名单；40125=AppSecret错）'); });   // 非调试时静默回退默认卡片
   }catch(_){}
+}
+/* v67.6 小程序分享卡完整标题「歌名 - 演唱者 · 谱名」：小程序层只收前 44 字（miniprogram/pages/score/score.js onMsg），
+   统一谱名最长 18 字（钢琴弹唱谱（纯伴奏，五线＋简谱对照）），长歌名时先截歌名 / 演唱者、谱名整个保留，不让卡片标题停在半个谱名上。
+   截歌名按整字（码点）截、总长按 UTF-16 码元计 ≤max（小程序 slice 的口径）——不留半个 emoji（收尾验收：此前按码元截，留下孤立代理项成乱码） */
+function pubShareTitle(s, max){
+  const tail=' · '+docTypeLabelPub(s), head=(s.title||'未命名曲谱')+(s.singer? ' - '+s.singer : '');
+  if(head.length+tail.length<=max) return head+tail;
+  const room=Math.max(1, max-tail.length-1); let h='';
+  for(const ch of head){ if(h.length+ch.length>room) break; h+=ch; }
+  return h+'…'+tail;
 }
 /* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） =====
    v60.0 第二形态「审核预览」：管理员从个人中心待审核队列点进来（?review=ID），走 /api/admin/scores/:id
@@ -30101,7 +30620,7 @@ function pcAdminHTML(){
     <b style="font-size:19px;letter-spacing:0">${v}</b><span>${label}${note?`<br><i style="font-style:normal;opacity:.7;font-size:11px">${note}</i>`:''}</span></div>`;
   const row=(pb,acts)=>`<div class="pc-row">
     <span class="t1">${esc(pb.title||'未命名曲谱')}</span>
-    <span class="t2">${esc(pb.author||'佚名')} · ${TYPE_CN[pb.type]||'曲谱'} · ${pb.price>0?'¥'+pb.price:'免费'} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</span>
+    <span class="t2">${esc(pb.author||'佚名')} · ${esc(ccKindName(pb))} · ${pb.price>0?'¥'+pb.price:'免费'} · ${esc((pb.pubAt||'').split(' ')[0]||'')}</span>
     ${acts}</div>`;
   return `<div class="pcx-card"><h4>平台管理 <span style="font-size:10.5px;color:var(--muted);letter-spacing:0">演示版 · 云端上线后为独立管理员后台</span></h4>
   <h4>平台看板</h4>
@@ -30821,16 +31340,16 @@ document.getElementById('b-help').onclick = ()=>{
       ['保存 / 导出','实时自动保存本机；「保存」存入我的曲谱（登录后云端同步）；<kbd>Ctrl+S</kbd> 导出文件；个人中心管理曲谱与版权存证'],
       ['版本号','右栏「信息」页更新日志下方；与公告不符时强制刷新（Ctrl+F5）取新版'],
     ])}
-    ${sec(svgi('guitar',15),'吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
+    ${sec(pqIcon('type-guitar',16),'吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
       ['录入与和弦','点弦位敲品位（顶栏品位钮 0–9 固定铺开，高把位在「10–24▾」，× 为分解标记）；落音自动前进，两位品位连敲两键，<kbd>←</kbd> 退回可换弦叠和弦；输入和弦自动画和弦图，改和弦智能移调'],
       ['演奏技巧','滑弦 S/击勾弦/揉弦/泛音/点弦/闷音/无头无尾滑音：选中音符点图标，S/H/P 自动连线；推弦与跨选连线用 <kbd>Ctrl</kbd> 选两音'],
       ['扫弦 / 琶音','下扫/上扫（箭头=拨片从低音弦扫向高音弦的移动方向，下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数'],
     ])}
-    ${sec(svgi('note',15),'简谱',[
+    ${sec(pqIcon('nota-jianpu',16),'简谱',[
       ['音高与记号','♯♭♮、八度点 ±3；倚音最多 3 音可点击再编辑；上下波音/颤音 tr/回音'],
       ['力度 / 速度','「力度/速度」弹窗（每项中文说明）：ppp–ff、fp、sfp、cresc./dim.、渐强渐弱折线、rit./accel.；力度即时影响播放音量'],
     ])}
-    ${sec(svgi('piano',15),'功能谱（乐队）',[
+    ${sec(pqIcon('type-func',16),'功能谱（乐队）',[
       ['级数和弦','选中音符点「和弦/级数」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；谱面按 1=调号 显示级数，点击可再编辑，换调即时跟随'],
     ])}
     ${sec(svgi('bolt',15),'快捷键',[
@@ -30889,10 +31408,10 @@ document.getElementById('b-feat').onclick = ()=>{
     </div>
     <div class="fg">四种谱面</div>
     <div class="featx">
-      ${fx(svgi('guitar',15),'吉他谱','六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。')}
-      ${fx(svgi('notes',15),'尤克里里谱','4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱一致，附常用和弦库。')}
-      ${fx(svgi('note',15),'简谱','纯旋律记谱：±3 八度、倚音（3 音＋直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。')}
-      ${fx(svgi('piano',15),'功能谱','乐队排练用：级数和弦按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。')}
+      ${fx(pqIcon('type-guitar',16),'吉他谱','六线 TAB＋简谱＋歌词三行对齐；和弦图自动生成与智能移调、教材式 ×记谱、全套演奏技巧连线、扫弦琶音箭头可调。')}
+      ${fx(pqIcon('type-uku',16),'尤克里里谱','4 弦 GCEA 专属：谱表/和弦图/扫弦/播放调弦全部自适配，编辑方式与吉他谱一致，附常用和弦库。')}
+      ${fx(pqIcon('nota-jianpu',16),'简谱','纯旋律记谱：±3 八度、倚音（3 音＋直角连线）、波音颤音回音、力度速度记号（中文说明），适合声乐教学。')}
+      ${fx(pqIcon('type-func',16),'功能谱','乐队排练用：级数和弦按调号自动换算（C 调 Am→6m、G/B→5/7），本调和弦库一键选用，换调级数即时跟随。')}
     </div>
   </div>
   <div class="btns"><button id="feat-ok" class="primary">知道了</button></div>`);
@@ -31332,6 +31851,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
   try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
   bootVeilDone();   /* v58.4 深链 id 非法落回启动台时也揭幕（幂等，普通启动已揭） */
+  /* v67.6 ?new= 深链：启动台之上打开新建面板并按参数预选（不自动建）；真手机出「在电脑上开始一份谱」并带上参数 */
+  try{ nwLinkBoot(); }catch(e){ console.error('新建深链处理失败', e); }
 });
 </script>
 </body>

@@ -30,7 +30,7 @@
    T22 入口：继续上次编辑是按钮、新建 / ▾ / ＋ 命中区、快捷菜单 Tab / 缩放即收起、输入框里 Alt+N、预览浮层下不响应
    T23 建成提示按字数延长；继续上次编辑认得出改过页头的示例谱 / 新谱
    T24 本机键坏值（原型链键、自选记谱法缺组合）：面板照常、能建、自愈、无报错
-   T25 谱库观看页标题仍读谱库口径（拍板 5）
+   T25 谱库观看页标题读谱库口径（拍板 5；v67.6 起谱库口径＝统一谱名表，与编辑器同名）
    T26 四部合唱示意谱号不相碰
    —— 第二轮验收回归（修前红、修后绿；修前基线＝第二轮修复前的合并树 f331646，对它跑 26/33：T19、T27–T32 红）——
    T27 判定只此一份（NWB.isAccStack ≡ isPianoAccStack）：SAB＋首行简谱对照＝教学对照谱、伴奏织体 / 节奏型库拒绝改写声部；改轨名的老 / 新产物两处结论一致
@@ -476,8 +476,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await p5._ctx.close();
     T(s0.cards === 'new,last,imp,sc:gtr,sc:pacc,sc:teach,sc:sight,sc:kids,open,mine' && !s0.cont && !s0.contVis && s0.last === '马上开始' && s0.tags === '考编,课堂,艺考,师范' && s0.icons >= 10
       && chip === 'teach' && /继续上次编辑：《课堂练习》/.test(s1.cont) && s1.last === '按上次' && /教学对照谱/.test(s1.lastD) && !s2.pad && s2.title === '课堂练习'
-      && s3 === '' && s4.length === 0 && s5 === 'demo,pc,open,mine',
-      'T12 启动台：三卡＋常用用途直达（标签/图标）；首访不显示「继续上次编辑」、空白谱也不算、有内容的自己的谱刷新后出现并接着编辑；按上次卡读本机键；1024×700 不溢出；手机仍只读引导',
+      && s3 === '' && s4.length === 0 && s5 === 'mstart,demo,pc,open,mine',   /* v67.6 手机启动台补「开始一份谱」主卡（mstart，进「在电脑上开始一份谱」，不开放手机新建）——随新流程必然改变 */
+      'T12 启动台：三卡＋常用用途直达（标签/图标）；首访不显示「继续上次编辑」、空白谱也不算、有内容的自己的谱刷新后出现并接着编辑；按上次卡读本机键；1024×700 不溢出；手机主卡「开始一份谱」＋只读引导',
       JSON.stringify({ s0, chip, s1, s2, s3, s4, s5 }));
   });
 
@@ -786,7 +786,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       'T24 musetab-nw-last 坏值（constructor / __proto__ / toString、自选记谱法缺组合或旧组合、定弦 / 乐器原型链键）：面板照常、创建与 Alt+Shift+N 都能建、写回合法值、无报错', JSON.stringify(res));
   });
 
-  /* ---------- T25 谱库观看页 / 分享卡仍用谱库口径（拍板 5：谱库与 typeLabelOf v67.6 再统一） ---------- */
+  /* ---------- T25 谱库观看页 / 分享卡用谱库口径（拍板 5）。v67.6 谱库与服务端 typeLabelOf 切到统一谱名表：
+     观看页标题＝docTypeLabelPub＝编辑器 docTypeLabel（随新口径必然改变：尤克里里谱→尤克里里弹唱谱、钢琴弹唱谱→钢琴弹唱谱（纯伴奏）、四部合唱 简谱歌谱→简谱合唱谱、器乐五线谱→五线谱旋律） ---------- */
   await guard('T25 观看页谱名口径', async () => {
     const pg = await open(1280, 800);
     const r = await pg.evaluate(async () => {
@@ -798,8 +799,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       return out;
     });
     await pg._ctx.close();
-    T(r.map(x => x.t).join() === '尤克里里谱,钢琴弹唱谱,简谱歌谱,器乐五线谱' && r.every(x => x.t === x.pub) && r[3].ed === '五线谱旋律',
-      'T25 谱库观看页标题读谱库口径 docTypeLabelPub（尤克里里谱 / 钢琴弹唱谱 / 简谱歌谱 / 器乐五线谱，与服务端 typeLabelOf 一致）；编辑器显示层仍读统一谱名表', JSON.stringify(r));
+    T(r.map(x => x.t).join() === '尤克里里弹唱谱,钢琴弹唱谱（纯伴奏）,简谱合唱谱,五线谱旋律' && r.every(x => x.t === x.pub && x.t === x.ed),
+      'T25 谱库观看页标题读谱库口径 docTypeLabelPub＝统一谱名表（尤克里里弹唱谱 / 钢琴弹唱谱（纯伴奏）/ 简谱合唱谱 / 五线谱旋律，与服务端 typeLabelOf 同一份规则、与编辑器显示层同名）', JSON.stringify(r));
   });
 
   /* ---------- T26 四部合唱预览（v67.5 起是引擎实时刻版，原示意图断言迁移）：4 行五线谱互不重叠，行标「五线谱 · 4 声部」覆盖 4 行 ---------- */

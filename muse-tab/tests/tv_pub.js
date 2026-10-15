@@ -65,7 +65,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
 
   /* ===== v60.81 谱类细分标签 + 观看页标题带演唱者 + 收藏星放大 ===== */
   r = await pg.evaluate(() => {
-    /* v67.4：谱库观看页 / 分享卡走谱库口径 docTypeLabelPub（拍板 5：谱库与服务端 typeLabelOf 的谱名 v67.6 再统一；编辑器显示层读统一谱名表）；老版本没有它就用 docTypeLabel */
+    /* v67.4：谱库观看页 / 分享卡走谱库口径 docTypeLabelPub；老版本没有它就用 docTypeLabel。
+       v67.6 谱库口径切到统一谱名表（拍板 5，与服务端 typeLabelOf 同一份规则）：没词的单行五线谱由「器乐五线谱」改叫「五线谱旋律」（随新口径必然改变，其余三项不变） */
     const L = typeof docTypeLabelPub==='function'? docTypeLabelPub : docTypeLabel;
     const mk=(fn)=>{ const s2=createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0});
       if(fn) fn(s2); return L(s2); };
@@ -73,7 +74,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const lbJP = mk();
     const lbWX = mk(s2=>{ s2.voxNotations=['staff'];
       s2.measures[0].voxes[0]=[{dur:4,dotted:false,deg:1,acc:'',oct:0,tie:false,lyrics:['词']}]; });
-    const lbQI = mk(s2=>{ s2.voxNotations=['staff']; });   /* 同为五线谱但无词＝器乐 */
+    const lbQI = mk(s2=>{ s2.voxNotations=['staff']; });   /* 同为五线谱但无词＝旋律（v67.6 前叫器乐五线谱） */
     /* 观看页标题：标题 - 演唱者 · 谱类细分 */
     const s3=createSong('guitar',{beats:4,unit:4,key:'C',nMea:1,nTab:1,nVox:1,lyr:0});
     s3.title='测题'; s3.singer='测唱';
@@ -90,9 +91,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     vb.innerHTML=''; viewerMode=false; document.title='t';
     return { lbG, lbJP, lbWX, lbQI, titleOk, star, share, stand };
   });
-  T(r.lbG==='吉他弹唱谱' && r.lbJP==='简谱歌谱' && r.lbWX==='五线谱歌谱' && r.lbQI==='器乐五线谱'
+  T(r.lbG==='吉他弹唱谱' && r.lbJP==='简谱歌谱' && r.lbWX==='五线谱歌谱' && r.lbQI==='五线谱旋律'
     && r.titleOk && r.star===21 && r.share===17 && r.stand===17,
-    'T6 谱类细分标签(吉他弹唱谱/简谱歌谱/五线谱歌谱·带词五线谱=歌谱) + 标题带演唱者 + 收藏星放大到21', JSON.stringify(r));
+    'T6 谱类细分标签(吉他弹唱谱/简谱歌谱/五线谱歌谱·带词五线谱=歌谱/无词五线谱=五线谱旋律) + 标题带演唱者 + 收藏星放大到21', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

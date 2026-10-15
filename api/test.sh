@@ -467,6 +467,60 @@ chk 同IP的其他访客不受牵连 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM e
 chk 落地页分享渠道带进观看页 'kanpu.html?pub=bulk00238xx&amp;f=card' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=card')"
 nchk 非法渠道不带 'f=%3Cx' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=%3Cx%3E')"
 
+# v67.6 谱名同步（拍板 4 / 5）：谱库卡片 typeLabel、SSR 落地页、og 封面改读统一谱名表 api/kindname.js（与编辑器同一份）；谱类 type 不变。
+# 直接在库里放几份已发布谱（不走审核链路，只验谱名口径），再从公开接口读回
+DB_PATH="$DIR/t.db" node -e '
+  const {q,now}=require("./db"); const uid="kindname0001"; q.userCreate.run(uid,"13100002222","谱名测试",now());
+  const m=(n,ly)=>[{tabs:[],voxes:Array.from({length:n},()=>[{dur:4,deg:1,oct:0,acc:"",lyrics:ly?["啊"]:[]}])}];
+  const S=[["kn_ukujt001","尤克里里弹唱",{v:3,inst:"uku",tabVoices:["尤克里里1"],voxVoices:["旋律1"],lyricLines:1,measures:[{tabs:[[]],voxes:[[]]}]}],
+    ["kn_jg000001","钢琴伴奏歌",{v:3,tabVoices:[],voxVoices:["旋律","右手伴奏","左手伴奏"],voxNotations:[null,"staff","bass"],voxGroups:[{type:"brace",from:1,to:2}],lyricLines:1,measures:m(3,1)}],
+    ["kn_sjg00001","对照含伴奏",{v:3,tabVoices:[],voxVoices:["旋律","右手伴奏","左手伴奏"],voxNotations:["staff","staff","bass"],voxDual:[true,false,false],voxGroups:[{type:"brace",from:1,to:2}],lyricLines:1,measures:m(3,1)}],
+    ["kn_smel0001","五线旋律",{v:3,tabVoices:[],voxVoices:["旋律"],voxNotations:["staff"],lyricLines:0,measures:m(1,0)}],
+    ["kn_cg000001","纯伴奏",{v:3,tabVoices:[],voxVoices:["右手","左手"],voxNotations:["staff","bass"],pianoAcc:true,lyricLines:1,measures:m(2,0)}],
+    ["kn_bad00001","脏数据",{v:3,voxVoices:"abc",measures:[null]}]];
+  const t=now(); for(const [id,title,d] of S){ q.scoreUpsert.run(id,uid,title,"",JSON.stringify(d),t,t); q.scoreSetStatus.run("published",id,uid); q.scoreSnap.run(t+1,id); }' 2>/dev/null
+PL=$(curl -s http://127.0.0.1:3199/api/pub/scores)
+chk 谱库卡片谱名·尤克里里弹唱谱 '"id":"kn_ukujt001"[^}]*"type":"uku","typeLabel":"尤克里里弹唱谱"' "$PL"
+chk 谱库卡片谱名·钢琴伴奏歌谱（谱类仍是vocal） '"id":"kn_jg000001"[^}]*"type":"vocal","typeLabel":"钢琴伴奏歌谱"' "$PL"
+chk 谱库卡片谱名·教学对照谱（含伴奏）（谱类仍是teach） '"id":"kn_sjg00001"[^}]*"type":"teach","typeLabel":"教学对照谱（含伴奏）"' "$PL"
+chk 谱库卡片谱名·五线谱旋律（谱类仍是instr） '"id":"kn_smel0001"[^}]*"type":"instr","typeLabel":"五线谱旋律"' "$PL"
+chk 谱库卡片谱名·钢琴弹唱谱（纯伴奏） '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴弹唱谱（纯伴奏）"' "$PL"
+chk 脏数据谱不拖垮列表·回落曲谱 '"id":"kn_bad00001"[^}]*"typeLabel":"曲谱"' "$PL"
+nchk 谱库不再出现旧叫法器乐五线谱 '"typeLabel":"器乐五线谱"' "$PL"
+chk SSR落地页标题用统一谱名 '<title>钢琴伴奏歌 钢琴伴奏歌谱 - 谱友圈谱库</title>' "$(curl -s http://127.0.0.1:3199/pub/kn_jg000001)"
+chk SSR描述用统一谱名 '制谱 · 教学对照谱（含伴奏） · 共1小节' "$(curl -s http://127.0.0.1:3199/pub/kn_sjg00001)"
+chk SSR面包屑用统一谱名 '谱库目录</a> › 尤克里里弹唱谱' "$(curl -s http://127.0.0.1:3199/pub/kn_ukujt001)"
+chk og封面用统一谱名 '五线谱旋律 · 1 小节' "$(curl -s http://127.0.0.1:3199/pub/kn_smel0001/cover.svg)"
+# v67.6 收尾验收：① 没词也没留词位的器乐谱（导入的长笛＋钢琴、弦乐四重奏）不叫「歌谱」「合唱」；② 恶意数据按观看页口径（清洗后）起名；
+# ③ 一份坏谱（歌词写成字符串的两行谱表 / 声部不是数组 / data 为 null）不再让谱库列表整页 500，落地页与封面照常出
+DB_PATH="$DIR/t.db" node -e '
+  const {q,now}=require("./db"); const uid="kindname0001";
+  const c=(ly)=>({dur:4,deg:1,oct:0,acc:"",lyrics:ly?["啊"]:[]});
+  const S=[["kn_flpno001","长笛与钢琴",{v:3,tabVoices:[],voxVoices:["Flute","Piano·右手","Piano·左手"],voxNotations:["staff","staff","bass"],voxGroups:[{type:"brace",from:1,to:2}],lyricLines:0,measures:[{tabs:[],voxes:[[c()],[c()],[c()]]}]}],
+    ["kn_strq0001","弦乐四重奏",{v:3,tabVoices:[],voxVoices:["Vn1","Vn2","Va","Vc"],voxNotations:["staff","staff","alto","bass"],lyricLines:0,measures:[{tabs:[],voxes:[[c()],[c()],[c()],[c()]]}]}],
+    ["kn_satb0001","四部合唱",{v:3,tabVoices:[],voxVoices:["S","A","T","B"],voxNotations:["staff","staff","staff","bass"],lyricLines:1,measures:[{tabs:[],voxes:[[c(1)],[c(1)],[c(1)],[c(1)]]}]}],
+    ["kn_ukuev001","恶意乐器名",{v:3,inst:"uku`",tabVoices:["尤克里里1"],voxVoices:["旋律1"],lyricLines:1,measures:[{tabs:[[]],voxes:[[c()]]}]}],
+    ["kn_strly001","歌词是字符串",{v:3,tabVoices:[],voxVoices:["女","男"],voxNotations:["staff","bass"],lyricLines:1,measures:[{tabs:[],voxes:[[{deg:1,dur:4,lyrics:"啊"}],[{deg:1,dur:4}]]}]}],
+    ["kn_vobj0001","声部不是数组",{v:3,tabVoices:[],voxVoices:["a"],voxNotations:["staff"],lyricLines:1,measures:[{tabs:[],voxes:{a:1}}]}],
+    ["kn_null0001","data为null",null]];
+  const t=now(); for(const [id,title,d] of S){ q.scoreUpsert.run(id,uid,title,"",JSON.stringify(d),t,t); q.scoreSetStatus.run("published",id,uid); q.scoreSnap.run(t+1,id); }' 2>/dev/null
+PL2=$(curl -s -w '\nHTTP%{http_code}' http://127.0.0.1:3199/api/pub/scores)
+chk 坏谱不拖垮谱库列表（歌词是字符串的两行谱表） 'HTTP200' "$PL2"
+chk 无词长笛＋钢琴＝旋律＋钢琴伴奏谱（五线谱） '"id":"kn_flpno001"[^}]*"type":"instr","typeLabel":"旋律＋钢琴伴奏谱（五线谱）"' "$PL2"
+chk 无词弦乐四重奏＝五线谱重奏谱（谱类仍是instr） '"id":"kn_strq0001"[^}]*"type":"instr","typeLabel":"五线谱重奏谱"' "$PL2"
+chk 有词四部合唱仍是五线谱合唱谱 '"id":"kn_satb0001"[^}]*"type":"vocal","typeLabel":"五线谱合唱谱"' "$PL2"
+nchk 无词器乐谱不叫歌谱或合唱 '"id":"kn_\(flpno\|strq0\)[^}]*"typeLabel":"[^"]*\(歌谱\|合唱\)' "$PL2"
+chk 恶意乐器名按观看页清洗后起名 '"id":"kn_ukuev001"[^}]*"typeLabel":"尤克里里弹唱谱"' "$PL2"
+chk 歌词是字符串的坏谱自己回落 '"id":"kn_strly001"[^}]*"typeLabel":"[^"]*"' "$PL2"
+chk data为null的坏谱回落曲谱 '"id":"kn_null0001"[^}]*"typeLabel":"曲谱"' "$PL2"
+chk 声部不是数组的坏谱落地页照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/kn_vobj0001)"
+chk 声部不是数组的坏谱封面照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/kn_vobj0001/cover.svg)"
+chk data为null的坏谱落地页照常出 '200' "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3199/pub/kn_null0001)"
+chk 无词长笛＋钢琴落地页标题 '<title>长笛与钢琴 旋律＋钢琴伴奏谱（五线谱） - 谱友圈谱库</title>' "$(curl -s http://127.0.0.1:3199/pub/kn_flpno001)"
+# v67.6 埋点 create_stack（新建面板 / 新建 ▾ 建谱时与 create_song 同发）：白名单接受并入库
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"create_stack","meta":"pacc:JG:menu:pacc:0"}' >/dev/null
+chk 埋点create_stack入库 '"meta":"pacc:JG:menu:pacc:0"' "$(SQL "SELECT name,meta FROM events WHERE name='create_stack'")"
+
 # v62.6 A1c 小程序登录处理器：本地模拟微信接口（wxmock.js）+ 第二个配了小程序凭据的服务实例
 node wxmock.js 3196 > /dev/null 2>&1 & MOCK=$!
 PORT=3197 DB_PATH="$DIR/t2.db" JWT_SECRET=testsecret COOKIE_DOMAIN= DEV_OTP=1 WX_API_BASE=http://127.0.0.1:3196 \
