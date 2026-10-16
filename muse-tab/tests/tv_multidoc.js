@@ -2,7 +2,7 @@
    T1 页签条渲染：单文档 1 页签+「＋新窗口」；addDoc 另开=push 新页签并切换（原窗口保留）
    T2 窗口隔离：两窗口标题/内容互不干扰，切换往返无损，撤销栈不跨窗口
    T3 关闭未入库且有内容的窗口 → 自动转存「我的曲谱」（数据红线：多开关闭绝不丢谱）
-   T4 关闭已入库窗口 → 不产生重复库条目；curDocI 收敛正确
+   T4 关闭已入库窗口 → 不产生重复库条目；curDocI 收敛正确（v67.8：页签未入库标空心圈、入库后不标、悬停提示「已存入我的曲谱，编辑实时同步」）
    T5 LS_DOCS 多文档启动恢复：cur 指向正确、页签数与文档数一致
    T6 「＋新窗口」直达新建向导；手机窄屏（≤820）页签条隐藏 */
 const { chromium } = require('playwright');
@@ -67,8 +67,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const s3 = createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 0, nVox: 1, lyr: 0 });
     s3.title = '已入库窗'; s3.measures[0].voxes[0][0].deg = 3;
     addDoc(s3, () => {});
-    saveToLibrary();                     // 入库（dt-dot 转绿）
-    const dotSaved = !!document.querySelector('#doc-tabs .dtab.on .dt-dot.saved');
+    const dotLocal = !!document.querySelector('#doc-tabs .dtab.on .dt-dot');   // v67.8 未入库：空心圈
+    saveToLibrary();                     // 入库（v67.8 起已入库不标圈，悬停提示写明已存入）
+    const on = document.querySelector('#doc-tabs .dtab.on');
+    const dotSaved = dotLocal && !!on && !on.querySelector('.dt-dot') && /已存入我的曲谱，编辑实时同步/.test(on.title);
     const libN1 = JSON.parse(localStorage.getItem('musetab-library-v1')).length;
     document.querySelector('#doc-tabs .dt-x[data-doc-x="1"]').click();
     const libN2 = JSON.parse(localStorage.getItem('musetab-library-v1')).length;

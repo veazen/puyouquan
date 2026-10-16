@@ -6,6 +6,8 @@
    T5 「智能编辑」改名「修复建议」；配和弦工作台候选显示「契合度」而不是原始分值
    T6 末尾空小节：打印弹窗与发布菜单都提示并可一键删除
    T7 GP / 简谱大师键位档（默认关闭）：关闭时「-」仍是降八度；开启后「-」＝增时线、六线谱 H＝击弦、Shift+点击＝区域选择
+   T8 （v67.8）键位档走界面路径：T7 的开 / 关改为真实点击顶栏「偏好设置」里的开关（此前宿主 #hint-body 不存在，只能直接写本机键）；
+      对 v67.7 原版复跑 T7 / T8 红（没有 #b-prefs，开不了 GP 档）
    突变实证：对 v63.7 之前的文件复跑，T1–T7 全部报红（0/7）。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -108,7 +110,14 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
     const fresh = `(()=>{ loadSong(createSong('vox',{title:'键位',key:'C',beats:4,unit:4,nMea:2,nVox:1,lyr:0})); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; lastEnt=null; render(); if(document.activeElement&&document.activeElement.blur) document.activeElement.blur(); })()`;
     await EV(fresh); await pg.keyboard.press('5'); await pg.keyboard.press('-');
     const off = await EV(`song.measures[0].voxes[0][0].oct+'/'+song.measures[0].voxes[0][0].dur`);
-    await EV(`localStorage.setItem('musetab-keymap','gp')`);
+    /* v67.8 UI 路径：键位档从顶栏「偏好设置」真实点击开启（原宿主 #hint-body 自 v56.6 起不存在，此前本套件只能直接写本机键） */
+    const prefRow = async (want) => { await pg.click('#b-prefs', { timeout: 2500 }).catch(() => {}); await pg.waitForTimeout(120);
+      const before = await EV(`(document.querySelector('#modal-mask .prf-row[data-prf="keymap"]')||{getAttribute:()=>''}).getAttribute('aria-checked')`);
+      if (before !== String(want)) await pg.click('#modal-mask .prf-row[data-prf="keymap"]', { timeout: 2500 }).catch(() => {});
+      await pg.waitForTimeout(60);
+      const r = await EV(`({ ls: localStorage.getItem('musetab-keymap'), on: gpKeysOn(), sw: (document.querySelector('#modal-mask .prf-row[data-prf="keymap"]')||{getAttribute:()=>''}).getAttribute('aria-checked') })`);
+      await pg.click('#prf-ok', { timeout: 2500 }).catch(() => {}); await pg.waitForTimeout(60); return r; };
+    const uiOn = await prefRow(true);
     await EV(fresh); await pg.keyboard.press('5'); await pg.keyboard.press('-');
     const on = await EV(`(song.measures[0].voxes[0][0].oct||0)+'/'+song.measures[0].voxes[0][0].dur`);
     const tab = await EV(`(()=>{ const mk=(o)=>({dur:4,dotted:false,chord:'',notes:o.notes||[],strum:'',tech:''});
@@ -121,9 +130,18 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
       const cell=(ci)=>[...document.querySelectorAll('#score .strcell')].find(c=>+c.dataset.mi===0&&+c.dataset.ci===ci&&+c.dataset.si===1);
       const c2=cell(2); if(c2) c2.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,shiftKey:true,pointerType:'mouse',button:0}));
       return {r: selRange? selRange.m1+':'+selRange.c1+'-'+selRange.m2+':'+selRange.c2 : '', n:noteSel.length}; })()`);
+    /* 上面区域选择用的是合成 pointerdown（没有真实按下）：谱面在这之后会吞掉下一次真实点击（真实 Shift+点击不会，已另测）——
+       先在顶栏空白处点一下消化掉，再真点「偏好设置」 */
+    { const g = await EV(`(()=>{ const r=document.querySelector('#top .main-bar .grow').getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; })()`);
+      if (g && g.x) { await pg.mouse.click(g.x, g.y); await pg.waitForTimeout(40); } }
+    const uiOff = await prefRow(false);
+    await EV(fresh); await pg.keyboard.press('5'); await pg.keyboard.press('-');
+    const off2 = await EV(`song.measures[0].voxes[0][0].oct+'/'+song.measures[0].voxes[0][0].dur`);
     await EV(`localStorage.removeItem('musetab-keymap')`);
     T(off === '-1/4' && on === '0/2' && h === 'h' && rg.r === '0:0-0:2' && rg.n === 0,
       'T7 键位档默认关（- 降八度）；开启后 - 增时线、H 击弦、Shift+点击区域选择', JSON.stringify({ off, on, h, rg }));
+    T(uiOn && uiOn.ls === 'gp' && uiOn.on === true && uiOn.sw === 'true' && uiOff && uiOff.ls === null && uiOff.on === false && uiOff.sw === 'false' && off2 === '-1/4',
+      'T8 键位档走界面路径（v67.8）：顶栏「偏好设置」点开关＝写 musetab-keymap=gp（gpKeysOn 为真，上面 T7 的 - / H / Shift 行为即由此开启）；再点＝删除键，「-」回到降八度', JSON.stringify({ uiOn, uiOff, off2 }));
   }
 
   console.log(`PASS ${pass}/${total}`);

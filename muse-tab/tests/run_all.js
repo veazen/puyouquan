@@ -19,6 +19,8 @@ const CORE = [
   'tv_piano', 'tv_staff', 'tv_tech', 'tv_tempo', 'tv_trem', 'tv_cursor', 'tv_rclick', 'tv_tuplet', 'tv_meaw', 'tv_d64', 'tv_fing', 'tv_grace', 'tv_bend', 'tv_adds', 'tv_capo', 'tv_clip', 'tv_dot', 'tv_lyr', 'tv_mixui', 'tv_gp', 'tv_mix', 'tv_emode', 'tv_xtone', 'tv_anno', 'tv_lpanel', 'tv_strumtie', 'tv_balance', 'tv_keytab', 'tv_prog', 'tv_eval', 'tv_holdout', 'tv_chordlab', 'tv_chordanchor', 'tv_playkey', 'tv_chordsys', 'tv_playperf', 'tv_metro', 'tv_newwiz', 'tv_tracks', 'tv_paneltools', 'tv_voxtab','tv_custompat','tv_edkey','tv_patfilter','tv_jpspace','tv_lyrvox','tv_tab2','tv_tabrest','tv_trkcapo','tv_board','tv_guide','tv_rhythm','tv_strum','tv_orn','tv_layout','tv_wxshare','tv_mplogin','tv_octbatch','tv_arpfix','tv_playline','tv_headart','tv_vwmob','tv_multidoc','tv_uipanel','tv_nowrap','tv_chordgp','tv_loading','tv_a0','tv_xss','tv_pubsnap','tv_print','tv_a4','tv_a8','tv_a3','tv_a5','tv_a5b','tv_a7','tv_b2a','tv_b1a','tv_b1b','tv_b5','tv_b5b','tv_b7a','tv_b7b','tv_b4a','tv_b4a2','tv_b4b','tv_b4e','tv_b8a','tv_b8b','tv_b8c','tv_b4c','tv_b4c2','tv_b2b','tv_b2c','tv_b3a','tv_b3a2','tv_b3a3','tv_b3a4','tv_b3b','tv_b6a','tv_mxlcov','tv_v66a', 'tv_v66d', 'tv_v66e', 'tv_lrspan', 'tv_header', 'tv_keydet', 'tv_tiemap', 'tv_jpsame', 'tv_textenc', 'tv_tabjpvi', 'tv_paste', 'tv_deskscale', 'tv_deskscale2', 'tv_wiztempo', 'tv_newpanel', 'tv_icons', 'tv_offscreen', 'tv_fillacc', 'tv_nfimport', 'tv_landbar', 'tv_deeplink', 'tv_kindsync',
   /* v67.7 新建谱与导入谱同一密度（FIXED_A4 1060→870、D7 门槛 FIT_DOCK 90%）＋收尾验收 D6–D8：单跑约 150 秒（D2 两个视口并行），在 300 秒上限内 */
   'tv_fixdensity',
+  /* v67.8 默认外壳小改（偏好设置入口 / 页签 × 与未入库圈 / 智能死按钮 / 示例曲谱 / 关闭提示）：单跑约 35 秒 */
+  'tv_v678',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 
