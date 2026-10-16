@@ -23,6 +23,8 @@ const CORE = [
   'tv_v678',
   /* v67.9 新外壳 ?shell=flow（行 1 + 页签 · 行 2 单行 · 播放与状态栏 · 右栏 264 / 40）＋不带开关与 v67.8 零差异对拍：单跑约 115 秒（两路并行；v67.9 收尾补到 65 项） */
   'tv_shellflow',
+  /* v68.0 新外壳左栏：音轨层级树（含混音）· Bravura 记号面板 · 谱型条拆入；不带开关的共享路径与 shellflow_ref.json 基线对拍：单跑约 80 秒（三路并行） */
+  'tv_trktree',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 

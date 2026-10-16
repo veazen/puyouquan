@@ -10,7 +10,8 @@
    S4  右栏：1440 停靠 264、无竖条；1280 / 1366 竖条 40、右栏不占位。竖条「信息」→ 浮出 288 贴竖条、不改谱纸宽；Esc / 点外部 / 再点同页收起；
        钉住 → 1280 也停靠且 musetab-rdock='1'，刷新保持，取消钉住删键
    S5  paperClear：#score 左缘 ≥ 左栏右缘−1、右缘 ≤ 右栏 / 竖条左缘+1；3 视口 × 浅深 × {预设谱, 新建 pacc} × 旧左栏面板开 / 关 共 24 态；
-       面板关时预设谱 #score 宽 870±2、新建谱 ≥868
+       v68.0 起左栏是 #flw-left 248 常驻、旧 #left-dock 在 flow 下整体隐藏：面板开 / 关两态谱纸都不变（预设谱 #score 870±2、新建谱 ≥870）；
+       S5c 旧面板「打开」也不显示、不挂 paper-tight、FLY_AUTO_CLOSED 不消耗；S5d 1439 / 1440 / 1536 预设谱同为 870（v67.9 遗留 L3）
    S6  页签：6 窗口 1280 全露（非当前 ≥140、当前 148–240）、1366 非当前每个 ≥160（当前按曲名 148–240）、1440 全露；10 窗口 1280 露 5 ＋「窗口 5」、1440 露 6 ＋「窗口 4」；
        当前页签永远在行 1 内；× 命中区 ≥28×28；只有未入库的标空心圈；中键关闭 docs−1，未入库有内容的库里多一条
    S7  窗口列表：行高 ≥44、行数＝窗口数；搜「送别」只剩 1 行；点行切窗口；「关闭已存入的窗口」只关库里有的
@@ -20,7 +21,8 @@
        菜单里点「休止」＝点 #eb-rest
    S10 行 2 连音两键：#eb-tie 与 #b-tie 效果相同；行 2 的 [data-tup="3"] 置位 curCol().tup，与 applyTuplet(3) 相同
    S11 委托：文件 ▾ / 账号 ▾ 每一项点了真的发生对应动作；保存状态三态（≥1440 长文案 · 1280 短文案 · 已入库带时间，点开另存为文件）；未入库点发布先入库再出发布卡
-   S12 播放与状态栏：控件齐全、单行、顺序；播放 / 暂停、回开头、♩=、倍速、节拍器、⋯（演奏感 / 音色库 / 谱架）、位置、当前轨、时值检查上弹不自动弹、混音 ▴、缩放、?
+   S12 播放与状态栏：控件齐全、单行、顺序；播放 / 暂停、回开头、♩=、倍速、节拍器、⋯（演奏感 / 音色库 / 谱架）、位置、当前轨、时值检查上弹不自动弹、缩放、?；
+       v68.0 起「混音 ▴」撤出状态栏（混音并进左栏音轨行）：#mx-expand 与旧混音台 .mx-tracks 不可见，DOM 与 setMixerExpanded 保留供委托
    S13 不挂 flow 的场景：打印媒体 / beforeprint、观看页（openPubViewer 进出 + 分享页 PYQ_SHARE 直开）、谱架、手机 ≤820（运行中缩窄与直开 390）
    S14 无抖动：静置 1.5s render 增量 ≤1；1280→1440→1280 每步 render ≤3
    S15 数据零改动：挂载、开关全部菜单、切右栏、resize 前后 song JSON 不变；musetab-* 键差集 ⊆ {musetab-flow, musetab-rdock}
@@ -32,6 +34,8 @@
        S12h 窄档状态栏单行（L1）· S12i 时值状态项不截走空格 / Enter（B1）· S12j 循环认整小节多选（B2）· S13d 退场收菜单（SC-5）·
        S13g / S13h 互动谱快照回退不带外壳、收件人不进 flow（SC-6）· S13i 启动台竖条 inert（SC-4）· S15a 数据基线取默认外壳（SC-3）·
        S2 / S3 收紧到方案值 84 / 116 与 684 / 652 / 784（L5）· CI 里拿不到 S0 基线判红（SC-2，基线在 shellflow_ref.json）
+   v68.0 骨架（左栏空容器提交，计划 §3.10）：S0 对拍前两边的版本角标 #rc-ver 统一成占位（APP_VER 每版必变，不是外壳差异）· M.clear 左栏右缘取 #flw-left ·
+       S5a/b 两态谱纸同宽 · S5c 改为「旧面板不再浮出 / 不挂 paper-tight」· S5d 消解 L3 · S12a/g 撤「混音 ▴」· S13 各退场场景 #flw-left 同样不可见、启动台 inert
    env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_REF 参考页（文件路径或 file://；none＝跳过 S0）· MUSETAB_REF_COMMIT 改基线提交 · ONLY=S2,S6 只跑部分 · SHOTS=目录 存主状态截图 */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), cp = require('child_process');
@@ -112,8 +116,9 @@ const M = {
     const lbw = document.getElementById('lb-wrap'), lbb = lbw && (lbw.querySelector('.lb-bar') || lbw), lb = lbb && __vis(lbb) ? __R(lbb) : null;
     const t = Math.max(sw.y, top.vis ? top.b : 0, lb ? lb.b : 0), bt = Math.min(md && md.vis ? md.y : innerHeight, sw.b, innerHeight);
     return { vh: Math.round((bt - t) * 10) / 10, lb: lb ? lb.h : 0, sw: sw.y + '–' + sw.b }; },
-  clear: () => { const sv = __R('#score'), ld = __R('#left-dock'), fl = document.getElementById('left-flyout');
+  clear: () => { const sv = __R('#score'), ld = __R('#left-dock'), fl = document.getElementById('left-flyout'), lf = __R('#flw-left');
     let L = ld && ld.vis ? ld.r : 0; const fly = !!(fl && __vis(fl)); if (fly) L = Math.max(L, __R(fl).r);
+    if (lf && lf.vis) L = Math.max(L, lf.r);   /* v68.0 左栏 #flw-left 248 常驻 */
     const rd = __R('#right-dock'), rs = __R('#flw-rstrip'); let R = innerWidth; if (rd && rd.vis) R = Math.min(R, rd.x); if (rs && rs.vis) R = Math.min(R, rs.x);
     return { L, R, x: sv.x, r: sv.r, w: sv.w, ok: sv.x >= L - 1 && sv.r <= R + 1, fly, tight: document.body.classList.contains('paper-tight'), fixed: !!(song.layout && song.layout.fixed) }; },
   hits: () => { const out = []; ['#flw-r1', '#editbar', '#mixer-dock', '#flw-rstrip'].forEach(s => { const root = document.querySelector(s); if (!root) return;
@@ -204,9 +209,10 @@ const M = {
     const pg = await ctx.newPage(); const pe = []; pg.on('pageerror', e => pe.push(e.message));
     await pg.goto(url); await pg.waitForTimeout(1600);
     if (scen === 'multidoc') { await pg.evaluate(() => { window.guardReplace = p => p(); addDoc(PRESETS[0].make()); addDoc(PRESETS[1].make()); addDoc(demoSong()); try { setRTab('info'); } catch (_) {} render(); }); await pg.waitForTimeout(800); }
+    /* 版本角标 #rc-ver（＝APP_VER，每版必变，不是外壳差异）两边统一成同一占位再对拍：此前基线是 v67.8、被测是 v67.9 起，
+       S0 恒在右栏 outerHTML / body.innerHTML 的角标处报差（v68.0 骨架核实：除角标外与 v67.8 逐字节相同） */
+    await pg.evaluate(() => { const rv = document.getElementById('rc-ver'); if (rv) rv.textContent = 'vX'; });
     const r = await pg.evaluate(IDS => {
-      /* v67.9 发版：右栏版本角标 #rc-ver＝APP_VER，每版必变（对拍基线是上一版）——两边先统一成占位再比，其余逐字节照比 */
-      { const rv = document.getElementById('rc-ver'); if (rv) rv.textContent = 'vX'; }
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
       IDS.forEach(id => { const el = document.getElementById(id); o[id] = el ? { html: el.outerHTML, rect: R(el), parent: el.parentElement && (el.parentElement.id || el.parentElement.tagName),
@@ -309,7 +315,7 @@ const M = {
         if (k === 'newpacc') { await EV(pg, () => __scn('newpacc')); await wait(pg, 400); }
         for (const fly of [false, true]) {
           await EV(pg, f => { if (f) openFlyout('lyr'); else closeFlyout(); render(); }, fly); await wait(pg, 350);
-          g.clear.push(Object.assign({ k, fly }, await EV(pg, M.clear)));
+          g.clear.push(Object.assign({ k, want: fly }, await EV(pg, M.clear)));   /* want＝是否调了 openFlyout；fly＝旧面板实际可见（v68.0 flow 下恒假） */
         }
       }
       if (w !== 1366) { await EV(pg, () => { closeFlyout(); render(); }); await wait(pg, 250); await shot(pg, 'flow-' + w + 'x' + h + '-' + sc + '-newpacc'); }
@@ -317,23 +323,48 @@ const M = {
     } catch (e) { g.err = e.message.split('\n')[0]; }
   });
 
-  /* ================= S5 续：旧左栏面板浮层态与 flow 外壳对齐（验收 L4）================= */
+  /* ================= S5 续：v68.0 左栏 248 常驻后旧左栏面板不再浮出 / 挤窄谱纸（计划 §0-13、§3.2-3）=================
+     v67.9 的 S5c 断言旧面板浮层贴外壳（验收 L4：≤1180 宽 · 1280 钉住右栏后 D7 挂 paper-tight）。v68.0 起 flow 下 #left-dock 整体隐藏，
+     paperFitGuard 在 flow 下不判 D7——同样两个场景改断言：openFlyout 之后面板不可见、#flw-left 248 贴外壳底到状态栏顶、不挂 paper-tight、FLY_AUTO_CLOSED 不消耗、谱纸宽不变 */
   if (want('S5')) jobs.push(async () => {
     try {
       const rows = [];
-      for (const [w, pin] of [[1180, false], [1280, true]]) {   /* ≤1180 的浮层；1280 钉住右栏后 D7 挂 paper-tight 的浮层 */
+      for (const [w, pin] of [[1180, false], [1280, true]]) {
         const pg = await open(w, 800, { tag: 'S5x-' + w, init: pin ? () => { try { localStorage.setItem('musetab-rdock', '1'); } catch (_) {} } : null });
         await EV(pg, () => __scn('newpacc')); await wait(pg, 500);
+        const w0 = await EV(pg, () => __R('#score').w);
         await EV(pg, () => { openFlyout('lyr'); render(); }); await wait(pg, 500);
-        rows.push(await EV(pg, () => { const f = __R('#left-flyout'), lbw = document.getElementById('lb-wrap'), lbb = lbw && (lbw.querySelector('.lb-bar') || lbw), lb = lbb && __vis(lbb) ? __R(lbb) : null;
-          return { w: innerWidth, pos: getComputedStyle(document.getElementById('left-flyout')).position, tight: document.body.classList.contains('paper-tight'), f: f && [f.y, f.b], top: __R('#top').b, md: __R('#mixer-dock').y,
-            lb: lb && [lb.y, lb.b], cut: !!(lb && f && lb.y < f.y - 0.5 && f.y < lb.b - 0.5) }; }));
+        rows.push(await EV(pg, w0 => { const lf = __R('#flw-left');
+          return { w: innerWidth, fly: __vis('#left-flyout'), ld: __vis('#left-dock'), tight: document.body.classList.contains('paper-tight'), fac: FLY_AUTO_CLOSED,
+            lf: lf && [lf.x, lf.y, lf.w, lf.b], top: __R('#top').b, md: __R('#mixer-dock').y, sw: [w0, __R('#score').w], clear: __vis('#score') && __R('#score').x >= lf.r - 1 }; }, w0));
         await close(pg);
       }
-      T('S5', rows.every(r => r.pos === 'fixed' && r.f && Math.abs(r.f[0] - (r.top + 8)) <= 1 && Math.abs(r.f[1] - (r.md - 8)) <= 1 && !r.cut) && rows[1].tight,
-        'S5c 旧左栏面板浮层态（验收 L4：≤1180 宽 · 1280 钉住右栏后 D7 的 paper-tight）：上缘＝外壳底 + 8、下缘＝状态栏顶 − 8（不再沿用旧外壳的 150 / 76），不从吸顶谱型条中间切过',
+      T('S5', rows.every(r => !r.fly && !r.ld && !r.tight && r.fac === false && r.lf && r.lf[0] === 0 && Math.abs(r.lf[2] - 248) <= 0.5 && Math.abs(r.lf[1] - r.top) <= 0.5 && Math.abs(r.lf[3] - r.md) <= 0.5
+          && Math.abs(r.sw[0] - r.sw[1]) <= 1 && r.clear),
+        'S5c 左栏 248 常驻（v68.0，取代 v67.9 L4 的浮层断言）：≤1180 宽与 1280 钉住右栏两场景 openFlyout 后旧面板不可见、#flw-left 宽 248 贴外壳底到状态栏顶、不挂 paper-tight、FLY_AUTO_CLOSED 不消耗、谱纸宽不变',
         J(rows));
     } catch (e) { T('S5', false, 'S5c 执行异常', e.message.split('\n')[0]); }
+  });
+
+  /* ================= S5d v67.9 遗留 L3：1440–1536 右栏停靠 + 旧左栏面板打开时谱纸比 1439 窄 85px —— v68.0 左栏 248 常驻后消解 =================
+     停靠阈值「视口 − 248 − 264 − 16 ≥ 912」与左栏实宽一致：1439 竖条态与 1440 / 1536 停靠态的预设谱 #score 同为 870，新建谱（fixwide）≥870 */
+  if (want('S5')) jobs.push(async () => {
+    try {
+      const rows = [];
+      for (const w of [1439, 1440, 1536]) {
+        const pg = await open(w, 900, { tag: 'S5d-' + w });
+        await EV(pg, () => __scn('songbie')); await wait(pg, 350);
+        await EV(pg, () => { openFlyout('lyr'); render(); }); await wait(pg, 400);
+        const dock = await EV(pg, () => document.body.classList.contains('flw-rd')), a = await EV(pg, M.clear);
+        await EV(pg, () => __scn('newpacc')); await wait(pg, 450);
+        const b2 = await EV(pg, M.clear);
+        rows.push({ w, dock, pre: a.w, preOk: a.ok, L: a.L, neu: b2.w, neuOk: b2.ok, fixed: b2.fixed });
+        await close(pg);
+      }
+      T('S5', rows.every(r => r.preOk && r.neuOk && Math.abs(r.pre - 870) <= 2 && r.neu >= 869.5) && rows.map(r => r.dock).join() === 'false,true,true',
+        'S5d v67.9 遗留 L3 消解：1439（竖条）/ 1440 / 1536（右栏停靠）旧面板「打开」时预设谱 #score 同为 870±2、新建谱 ≥870，paperClear 全真（此前 1440 停靠只剩 785）',
+        J(rows));
+    } catch (e) { T('S5', false, 'S5d 执行异常', e.message.split('\n')[0]); }
   });
 
   /* ================= S4 右栏交互（1280）================= */
@@ -783,16 +814,15 @@ const M = {
     try {
       const pg = await open(1280, 800, { tag: 'S12' });
       await EV(pg, () => __scn('songbie')); await wait(pg, 400);
-      const ORDER = ['b-play', 'b-restart', 'mx-prog', 'b-mxgrid', 'flw-st-trk', 'flw-st-pos', 'beat-box', 'i-tempo', 'mx-rate', 'b-metro', 'mx-expand', 'flw-st-more', 'eb-zoom', 'flw-st-help'];
+      const ORDER = ['b-play', 'b-restart', 'mx-prog', 'b-mxgrid', 'flw-st-trk', 'flw-st-pos', 'beat-box', 'i-tempo', 'mx-rate', 'b-metro', 'flw-st-more', 'eb-zoom', 'flw-st-help'];
       const lay = await EV(pg, ids => { const md = __R('#mixer-dock'); const r = ids.map(id => { const e = document.getElementById(id); const q = e && __R(e);
           return { id, vis: !!(q && q.vis), x: q ? q.x : null, inRow: !!(q && q.y >= md.y - 0.5 && q.b <= md.b + 0.5 && q.r <= innerWidth), inDock: !!(e && e.closest('#mixer-dock')) }; });
-        return { r, hid: ['.mx-splabel', '#b-stand', '#b-vwset'].map(s => [...document.querySelectorAll('#mixer-dock ' + s)].some(e => __vis(e))), md }; }, ORDER);
-      /* 顺序按方案 README / 计划 §2.5；「混音 ▴」是 v67.9 暂留项（v68.0 去掉），只要求落在节拍器与缩放之间 */
-      const bad = lay.r.filter(x => !x.vis || !x.inRow || !x.inDock).map(x => x.id), X = id => (lay.r.find(x => x.id === id) || {}).x;
-      const seq = lay.r.filter(x => x.vis && x.id !== 'mx-expand'), mono = seq.every((x, i) => !i || x.x > seq[i - 1].x);
-      const mixOk = X('mx-expand') > X('b-metro') && X('mx-expand') < X('eb-zoom');
-      T('S12', !bad.length && mono && mixOk && lay.hid.every(x => !x),
-        'S12a 状态栏控件齐全、单行、按序：播放 · 回开头 · 小节格 · ▦ · 当前轨 · 位置 · 时值检查 · ♩= · 倍速 · 节拍器 · ⋯ · 缩放 · ?（暂留的「混音 ▴」在节拍器与缩放之间）；速度字样 / #b-stand / #b-vwset 收起',
+        return { r, hid: ['.mx-splabel', '#b-stand', '#b-vwset', '#mx-expand', '.mx-tracks'].map(s => [...document.querySelectorAll('#mixer-dock ' + s)].some(e => __vis(e))), md }; }, ORDER);
+      /* 顺序按方案 README / 计划 §2.5；v67.9 暂留的「混音 ▴」在 v68.0 撤出（计划 §3.1：混音并进左栏音轨行），#mx-expand 与 .mx-tracks 都要不可见 */
+      const bad = lay.r.filter(x => !x.vis || !x.inRow || !x.inDock).map(x => x.id);
+      const seq = lay.r.filter(x => x.vis), mono = seq.every((x, i) => !i || x.x > seq[i - 1].x);
+      T('S12', !bad.length && mono && lay.hid.every(x => !x),
+        'S12a 状态栏控件齐全、单行、按序：播放 · 回开头 · 小节格 · ▦ · 当前轨 · 位置 · 时值检查 · ♩= · 倍速 · 节拍器 · ⋯ · 缩放 · ?；速度字样 / #b-stand / #b-vwset 收起；v68.0「混音 ▴」#mx-expand 与旧混音台 .mx-tracks 不可见',
         J({ bad, hid: lay.hid, order: lay.r.filter(x => x.vis).sort((a, b) => a.x - b.x).map(x => x.id).join(' ') }));
       await shot(pg, 'flow-1280x800-light-statusbar');
       /* 播放 / 暂停 */
@@ -854,18 +884,21 @@ const M = {
       T('S12', m1.ok && h1.hum === !h0.hum && h2.hum === h0.hum && h2.ls === h0.ls && m2.ok && !h3.sb && h3.toast.length > 0 && h3.menu && m3.ok && h4.stand && !h4.flow && !h4.r1 && !h4.rs && h5.flow && h5.tabs === 'flw-r1',
         'S12f ⋯ 更多：演奏感＝prefSet(humanize)（翻转再翻回、本机键复原）；音色库在 #rc-sndlib 隐藏时置灰、点了只说明原因不刷新；谱架 → body.stand、行 1 与竖条不可见，退出后 flow 回场',
         J({ m: [m1, m2, m3], h0, h1, h2, h3: { toast: h3.toast.slice(0, 40), sb: h3.sb, menuKept: h3.menu }, h4, h5 }));
-      /* ? · 混音 ▴ · 缩放 */
+      /* ? · 旧混音台（v68.0 不显示，DOM 留着供委托）· 缩放 */
       const m4 = await menuItem(pg, '#flw-st-help', '完整帮助');
       const g1 = await EV(pg, () => ((document.querySelector('#modal-mask h3') || {}).textContent || ''));
       await EV(pg, () => __shut());
-      await pg.click('#mx-expand'); await wait(pg, 250);
-      const g2 = await EV(pg, () => { const tr = document.querySelector('#mixer-dock .mx-tracks'), bar = __R('#mixer-dock .mx-bar'); return { ex: document.getElementById('mixer-dock').classList.contains('expanded'), tr: tr && __vis(tr) ? __R(tr) : null, bar, ih: innerHeight }; });
-      await pg.click('#mx-expand'); await wait(pg, 200);
+      const g2 = await EV(pg, () => { const me = document.getElementById('mx-expand'); me.click();   /* 程序化点旧入口：混音台照常渲染（委托路径活着），但 flow 下不显示、不撑高状态栏 */
+        const tr = document.querySelector('#mixer-dock .mx-tracks'), bar = __R('#mixer-dock .mx-bar');
+        const r = { ex: document.getElementById('mixer-dock').classList.contains('expanded'), rows: tr ? tr.querySelectorAll('.mx-row').length : 0, trVis: __vis(tr), meVis: __vis(me), bar, ih: innerHeight, md: __R('#mixer-dock').h };
+        me.click(); r.ex2 = document.getElementById('mixer-dock').classList.contains('expanded'); return r; });
+      await wait(pg, 200);
       const z0 = await EV(pg, () => (document.getElementById('zoom-lbl') || {}).textContent);
       await pg.click('#z-in'); await wait(pg, 300);
       const z1 = await EV(pg, () => ({ z: (document.getElementById('zoom-lbl') || {}).textContent, inDock: !!document.getElementById('eb-zoom').closest('#mixer-dock') }));
-      T('S12', m4.ok && /帮助/.test(g1) && g2.ex && g2.tr && g2.tr.b <= g2.bar.y + 1 && Math.abs(g2.bar.b - g2.ih) <= 0.5 && z1.inDock && z1.z !== z0,
-        'S12g ? → 「完整帮助」开帮助；混音 ▴ 在状态栏上方展开音轨混音台（状态栏仍贴底）；缩放（搬入的 #eb-zoom）照常改缩放', J({ g1, g2: { ex: g2.ex, tr: g2.tr && [g2.tr.y, g2.tr.b], bar: g2.bar && [g2.bar.y, g2.bar.b] }, z: [z0, z1.z] }));
+      T('S12', m4.ok && /帮助/.test(g1) && g2.ex && g2.rows >= 1 && !g2.trVis && !g2.meVis && Math.abs(g2.md - 32) <= 0.5 && Math.abs(g2.bar.b - g2.ih) <= 0.5 && !g2.ex2 && z1.inDock && z1.z !== z0,
+        'S12g ? → 「完整帮助」开帮助；v68.0 旧混音台 flow 下不显示：程序化点 #mx-expand 照常渲染混音行（DOM 留着供委托）但入口与 .mx-tracks 都不可见、状态栏仍 32 贴底；缩放（搬入的 #eb-zoom）照常改缩放',
+        J({ g1, g2: { ex: g2.ex, rows: g2.rows, trVis: g2.trVis, meVis: g2.meVis, md: g2.md, bar: g2.bar && [g2.bar.y, g2.bar.b], ex2: g2.ex2 }, z: [z0, z1.z] }));
       await close(pg);
     } catch (e) { T('S12', false, 'S12 执行异常', e.message.split('\n')[0]); }
   });
@@ -929,39 +962,39 @@ const M = {
     try {
       const pg = await open(1280, 800, { tag: 'S13' });
       await EV(pg, () => __scn('songbie')); await wait(pg, 300);
-      const NEWV = () => ({ r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).map(e => e.id || e.className), top: __vis('#top'), tabs: __vis('#doc-tabs') });
+      const NEWV = () => ({ r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), lf: __vis('#flw-left'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).map(e => e.id || e.className), top: __vis('#top'), tabs: __vis('#doc-tabs') });
       await pg.emulateMedia({ media: 'print' }); await wait(pg, 150);
       const pr1 = await EV(pg, NEWV);
       await EV(pg, () => window.dispatchEvent(new Event('beforeprint'))); await wait(pg, 400);
-      const pr2 = await EV(pg, () => Object.assign({ printing: document.body.classList.contains('printing') }, { r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length }));
+      const pr2 = await EV(pg, () => Object.assign({ printing: document.body.classList.contains('printing') }, { r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), lf: __vis('#flw-left'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length }));
       await EV(pg, () => window.dispatchEvent(new Event('afterprint'))); await pg.emulateMedia({ media: 'screen' }); await wait(pg, 300);
-      const pr3 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1') }));
-      T('S13', !pr1.r1 && !pr1.rs && !pr1.x.length && !pr1.top && !pr2.r1 && !pr2.rs && !pr2.x && pr3.flow && pr3.r1,
-        'S13a 打印：@media print 与 beforeprint（body.printing）下行 1、竖条、状态栏搬入项（.flw-x）全不可见；打印后回到 flow', J({ pr1, pr2, pr3 }));
+      const pr3 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1'), lf: __vis('#flw-left') }));
+      T('S13', !pr1.r1 && !pr1.rs && !pr1.lf && !pr1.x.length && !pr1.top && !pr2.r1 && !pr2.rs && !pr2.lf && !pr2.x && pr3.flow && pr3.r1 && pr3.lf,
+        'S13a 打印：@media print 与 beforeprint（body.printing）下行 1、竖条、左栏 #flw-left、状态栏搬入项（.flw-x）全不可见；打印后回到 flow', J({ pr1, pr2, pr3 }));
       /* 观看页（openPubViewer 进出） */
       await EV(pg, () => { circlePubsSave([{ pid: 'tsf-v', title: '观看测试', author: '测试', type: 'vocal', price: 0, views: 0, data: JSON.parse(JSON.stringify(song)) }]); openPubViewer('tsf-v'); }); await wait(pg, 400);
       const v1 = await EV(pg, () => ({ viewer: document.body.classList.contains('viewer'), flow: document.body.classList.contains('flow'), active: FLOW.active, x: [...document.querySelectorAll('#mixer-dock .flw-x')].filter(e => __vis(e)).map(e => e.id || e.className),
-        beat: document.getElementById('beat-box').parentElement.id, zoom: document.getElementById('eb-zoom').parentElement.id, tabs: document.getElementById('doc-tabs').parentElement === document.body, rs: __vis('#flw-rstrip'), md: __vis('#mixer-dock'),
+        beat: document.getElementById('beat-box').parentElement.id, zoom: document.getElementById('eb-zoom').parentElement.id, tabs: document.getElementById('doc-tabs').parentElement === document.body, rs: __vis('#flw-rstrip'), lf: __vis('#flw-left'), md: __vis('#mixer-dock'),
         cls: ['flw-rd', 'flw-rs', 'flw-ro', 'flw-eo'].filter(c => document.body.classList.contains(c)) }));
       await EV(pg, () => exitViewer()); await wait(pg, 400);
-      const v2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, beat: document.getElementById('beat-box').parentElement.className, r1: __vis('#flw-r1') }));
-      T('S13', v1.viewer && !v1.flow && !v1.active && !v1.x.length && v1.beat === 'beat-host' && v1.zoom === 'editbar' && v1.tabs && !v1.rs && v1.md && !v1.cls.length && v2.flow && v2.tabs === 'flw-r1' && /mx-bar/.test(v2.beat) && v2.r1,
-        'S13b 观看页（openPubViewer）：flow 退场，#mixer-dock .flw-x 全不可见、#beat-box / #eb-zoom / #doc-tabs 搬回原位、竖条与布局类清掉；exitViewer 后回场', J({ v1, v2 }));
+      const v2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, beat: document.getElementById('beat-box').parentElement.className, r1: __vis('#flw-r1'), lf: __vis('#flw-left') }));
+      T('S13', v1.viewer && !v1.flow && !v1.active && !v1.x.length && v1.beat === 'beat-host' && v1.zoom === 'editbar' && v1.tabs && !v1.rs && !v1.lf && v1.md && !v1.cls.length && v2.flow && v2.tabs === 'flw-r1' && /mx-bar/.test(v2.beat) && v2.r1 && v2.lf,
+        'S13b 观看页（openPubViewer）：flow 退场，#mixer-dock .flw-x 全不可见、#beat-box / #eb-zoom / #doc-tabs 搬回原位、竖条 / 左栏与布局类清掉；exitViewer 后回场', J({ v1, v2 }));
       /* 谱架 */
       await EV(pg, () => enterStand()); await wait(pg, 300);
-      const st1 = await EV(pg, () => ({ stand: document.body.classList.contains('stand'), flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length }));
+      const st1 = await EV(pg, () => ({ stand: document.body.classList.contains('stand'), flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1'), rs: __vis('#flw-rstrip'), lf: __vis('#flw-left'), x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length }));
       await EV(pg, () => exitStand()); await wait(pg, 300);
-      const st2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1') }));
-      T('S13', st1.stand && !st1.flow && !st1.r1 && !st1.rs && !st1.x && st2.flow && st2.r1, 'S13c 谱架（enterStand / exitStand）：进入即退场、新容器与搬入项不可见；退出回场', J({ st1, st2 }));
+      const st2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), r1: __vis('#flw-r1'), lf: __vis('#flw-left') }));
+      T('S13', st1.stand && !st1.flow && !st1.r1 && !st1.rs && !st1.lf && !st1.x && st2.flow && st2.r1 && st2.lf, 'S13c 谱架（enterStand / exitStand）：进入即退场、新容器（行 1 / 竖条 / 左栏）与搬入项不可见；退出回场', J({ st1, st2 }));
       /* 运行中缩到 ≤820（文件 ▾ 开着：验收 SC-5，菜单要随 flow 一起收起，不留没样式、还能点的残片） */
       await pg.click('#flw-file'); await wait(pg, 200);
       const mb0 = await EV(pg, () => __menu());
       await pg.setViewportSize({ width: 800, height: 800 }); await wait(pg, 500);
       const mb1 = await EV(pg, () => ({ menu: !!document.getElementById('popmenu'), flow: document.body.classList.contains('flow'), active: FLOW.active, home: [document.getElementById('doc-tabs').parentElement === document.body, document.getElementById('beat-box').parentElement.id, document.getElementById('eb-zoom').parentElement.id],
-        x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length, cls: [...document.body.classList].filter(c => /^flw-/.test(c)), sty: /--flw-/.test(document.body.getAttribute('style') || ''), off: document.querySelectorAll('.flw-off,[data-pri]').length, r1: __vis('#flw-r1') }));
+        x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length, cls: [...document.body.classList].filter(c => /^flw-/.test(c)), sty: /--flw-/.test(document.body.getAttribute('style') || ''), off: document.querySelectorAll('.flw-off,[data-pri]').length, r1: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock') }));
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 500);
-      const mb2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, r1: __vis('#flw-r1') }));
-      T('S13', mb0 && mb0.m === 'file' && !mb1.menu && !mb1.flow && !mb1.active && J(mb1.home) === '[true,"beat-host","editbar"]' && !mb1.x && !mb1.cls.length && !mb1.sty && !mb1.off && !mb1.r1 && mb2.flow && mb2.tabs === 'flw-r1' && mb2.r1,
+      const mb2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, r1: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock') }));
+      T('S13', mb0 && mb0.m === 'file' && !mb1.menu && !mb1.flow && !mb1.active && J(mb1.home) === '[true,"beat-host","editbar"]' && !mb1.x && !mb1.cls.length && !mb1.sty && !mb1.off && !mb1.r1 && !mb1.lf && mb1.ld && mb2.flow && mb2.tabs === 'flw-r1' && mb2.r1 && mb2.lf && !mb2.ld,
         'S13d 运行中缩到 800 宽：flow 退场（节点搬回原位、.flw-x / .flw-off / data-pri / flw-* 类 / --flw 令牌全清；开着的文件 ▾ 一并收起，验收 SC-5）；拉回 1280 重新挂上', J({ mb0, mb1, mb2 }));
       /* 验收 SC-6：互动谱导出走「当前 DOM 快照」回退（fetch 失败：file:// / 断网）——快照里不带 flow 外壳：无 html.flow-pre / body.flow / flw-* 类 / [id^=flw-] / .flw-x / 落点 / data-pri，
          搬移节点在原位（#doc-tabs 在 body、#beat-box 在 #beat-host、#eb-zoom 在 #editbar）；导出后界面原样（flow 照旧、节点在 flow 位置） */
@@ -1005,13 +1038,13 @@ const M = {
       await close(pm);
       /* 验收 SC-4（§0-16 启动台 inert 名单）：启动台态 #flw-rstrip.inert，Tab 走 40 步焦点都不进竖条；文件 ▾ / ＋ 照常可用 */
       const sp = await open(1280, 800, { tag: 'S13-startpad' });
-      const s0 = await EV(sp, () => ({ on: startPadOn(), inert: document.getElementById('flw-rstrip').inert, file: __vis('#flw-file') }));
+      const s0 = await EV(sp, () => ({ on: startPadOn(), inert: document.getElementById('flw-rstrip').inert, lfInert: document.getElementById('flw-left').inert, file: __vis('#flw-file') }));
       let inRs = 0, seen = new Set();
       await EV(sp, () => { const a = document.activeElement; if (a && a.blur) a.blur(); });
-      for (let k = 0; k < 40; k++) { await sp.keyboard.press('Tab'); const r = await EV(sp, () => { const a = document.activeElement; return { rs: !!(a && a.closest && a.closest('#flw-rstrip')), id: a && (a.id || a.className || a.tagName) }; });
+      for (let k = 0; k < 40; k++) { await sp.keyboard.press('Tab'); const r = await EV(sp, () => { const a = document.activeElement; return { rs: !!(a && a.closest && a.closest('#flw-rstrip, #flw-left')), id: a && (a.id || a.className || a.tagName) }; });
         if (r.rs) inRs++; seen.add(String(r.id).slice(0, 20)); }
       await close(sp);
-      T('S13', s0.on && s0.inert === true && inRs === 0 && s0.file, 'S13i 启动台态（验收 SC-4，§0-16）：#flw-rstrip 为 inert，Tab 40 步焦点一次都不进竖条；文件 ▾ 可见可用', J({ s0, inRs, seen: seen.size }));
+      T('S13', s0.on && s0.inert === true && s0.lfInert === true && inRs === 0 && s0.file, 'S13i 启动台态（验收 SC-4，§0-16）：#flw-rstrip 与 v68.0 左栏 #flw-left 为 inert，Tab 40 步焦点一次都不进竖条 / 左栏；文件 ▾ 可见可用', J({ s0, inRs, seen: seen.size }));
       /* 分享页直开（注入 PYQ_SHARE，?shell=flow） */
       const SRC = URL0.startsWith('file://') ? decodeURIComponent(URL0.slice(7).replace(/[?#].*$/, '')) : null;
       if (SRC && fs.existsSync(SRC)) {
@@ -1092,10 +1125,12 @@ const M = {
         : !(s.rs.vis && Math.abs(s.rs.w - 40) <= 0.5 && !s.rd.vis && J(s.cls) === '["flw-rs"]'); });
       T('S4', !bad.length && ok.length === 6, 'S4a 右栏让位：1440 停靠 264（无竖条，body.flw-rd）；1280 / 1366 竖条 40（右栏不占位，body.flw-rs）', ok.map(([k, g]) => k + ' rd=' + (g.sh.rd && g.sh.rd.vis ? g.sh.rd.w : '隐') + ' rs=' + (g.sh.rs && g.sh.rs.vis ? g.sh.rs.w : '隐')).join('；')); });
     if (want('S5')) SAFE('S5', 'S5', () => { const all = [], bad = [], wbad = [];
-      ok.forEach(([k, g]) => g.clear.forEach(c => { all.push(c); if (!c.ok) bad.push(k + ' ' + c.k + (c.fly ? ' 面板开' : ' 面板关') + ' score ' + c.x + '–' + c.r + ' 左栏右缘 ' + c.L + ' 右侧左缘 ' + c.R + (c.tight ? ' tight' : ''));
-        if (!c.fly && (c.k === 'songbie' ? Math.abs(c.w - 870) > 2 : c.w < 868)) wbad.push(k + ' ' + c.k + ' w=' + c.w); }));
+      ok.forEach(([k, g]) => g.clear.forEach(c => { all.push(c); if (!c.ok) bad.push(k + ' ' + c.k + (c.want ? ' 面板开' : ' 面板关') + ' score ' + c.x + '–' + c.r + ' 左栏右缘 ' + c.L + ' 右侧左缘 ' + c.R + (c.tight ? ' tight' : ''));
+        if (c.k === 'songbie' ? Math.abs(c.w - 870) > 2 : c.w < 868) wbad.push(k + ' ' + c.k + (c.want ? ' 面板开' : ' 面板关') + ' w=' + c.w);
+        if (c.fly || c.tight) wbad.push(k + ' ' + c.k + ' 旧面板可见 / paper-tight'); }));
       T('S5', !bad.length && all.length === 24, 'S5a paperClear 24 态全真（3 视口 × 浅深 × {预设谱 送别, 新建 pacc} × 旧左栏面板开 / 关）：#score 不被左栏 / 右栏 / 竖条遮住', bad.length ? bad.join('；') : all.length + ' 态');
-      T('S5', !wbad.length && all.length === 24, 'S5b 谱纸宽：面板关时预设谱 #score 870±2、新建谱（fixwide）≥868', wbad.length ? wbad.join('；') : ok.map(([k, g]) => k + ' ' + g.clear.filter(c => !c.fly).map(c => c.w).join('/')).join('；')); });
+      T('S5', !wbad.length && all.length === 24, 'S5b 谱纸宽（v68.0 左栏 248 常驻，旧面板开 / 关两态相同、旧面板不可见、无 paper-tight）：预设谱 #score 870±2、新建谱（fixwide）≥868',
+        wbad.length ? wbad.join('；') : ok.map(([k, g]) => k + ' ' + g.clear.map(c => c.w).join('/')).join('；')); });
     if (want('S16')) SAFE('S16', 'S16', () => { const bad = ok.filter(([, g]) => g.hit.small.length);
       T('S16', !bad.length && ok.length === 6, 'S16 命中区：#flw-r1 / #editbar / #mixer-dock / #flw-rstrip 内可见按钮最小边 ≥28（桌面 3 视口 × 浅 / 深）',
         bad.length ? bad.map(([k, g]) => k + '：' + g.hit.small.join('，')).join('；') : ok.map(([k, g]) => k + ' ' + g.hit.n + ' 个').join('；')); });
