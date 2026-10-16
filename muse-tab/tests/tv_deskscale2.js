@@ -13,13 +13,16 @@
       1920 放大到 130% 横滚兜底时，→ 键把光标移到首行行尾小节末列，该列在 #paper 可视范围内（此前出屏）
    T7 左栏「收起」钮：1440 / 1536 桌面编辑态可见；点它 → 面板收起、数字 ≥16 / ≥17.5px；开合前后可视区上缘对应的谱面纵坐标不变（±3，
       此前 scrollTop 不动、谱面跳 24%）；点左侧页签再打开 → 回停靠尺寸
+      （v67.7 D7 门槛 90%：1440 新建谱左栏已自动收起，先点「小节」页签把它再打开（浮层）再测收起钮；再打开回到同一尺寸）
    突变实证见文末记录：v67.1 原版 0/7；验收修之前的工作区副本（scratchpad/v673/vers/wt-scale-prefix.html）0/7。
    ——— 第二轮验收补（修前红 / 修后绿，修前副本 scratchpad/v673/r3/before-r3.html）———
    T8  「收起」状态稳定：1536 收起后窗口高改 1px（resize）仍收起、谱面仍放大；刷新 → 继续上次编辑仍收起（新增本机键 musetab-flyclosed）；
        点左侧页签再打开即清除记忆
    T9  1920 新建谱点 ＋（110%）：谱面区底边出现吸底横滚条（在视口内、与 #paper 双向同步）；播放高亮到被遮的行尾小节时横向跟随露出
+       （v67.7 收尾验收 D2：版宽 870 后 #paper 收到谱纸 100% 宽（--fw-max），110% 照旧一档即横滚——与 v67.6 同口径，断言不放宽）
    T10 暂停态（▶ 继续）键盘移动光标仍跟滚：64 小节长谱从首音连按 → 到末小节，光标不出可视区
    T11 谱架读新建谱的缩放键：预置旧键 0.85（v64.5–v67.1 自动写入）→ 新建谱点 ＋ → 进谱架谱面与 v67.2 同为 1056px（此前 901）
+       （v67.7 收尾验收 OUT-4：版宽 870 的固定版宽谱在谱架里也放大到 FIT_MAX 铺满谱架纸宽，门槛仍 1040——修前 957px 红）
    T12 收起钮可用键盘操作：Tab 到收起钮按 Enter＝收起、焦点交给左轨当前音轨钮，再按 Enter＝展开；空格＝收起而不是开始播放
    T13 收起后点左侧音轨钮＝打开该轨面板（逐轨「简谱」开关可见），不必先点「小节」 */
 const { chromium } = require('playwright');
@@ -214,6 +217,8 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
       await pg.evaluate(() => { document.getElementById('score-wrap').scrollTop = 400; }); await pg.waitForTimeout(300);
       const top = () => pg.evaluate(() => { const sv = document.getElementById('score'), R = sv.getBoundingClientRect(), vb = sv.viewBox.baseVal, wr = document.getElementById('score-wrap').getBoundingClientRect();
         return +((wr.top - R.top) / (R.width / vb.width)).toFixed(1); });
+      /* v67.7 D7 门槛 70%→90%：1440 停靠时 870×0.9 放不下，新建谱左栏已自动收起一次——先真实点「小节」页签把面板再打开（浮层），收起钮才可见 */
+      if (await pg.evaluate(() => document.getElementById('left-flyout').classList.contains('hidden'))) { await pg.click('.ltab[data-t="mea"]'); await pg.waitForTimeout(600); await pg.evaluate(() => { document.getElementById('score-wrap').scrollTop = 400; }); await pg.waitForTimeout(300); }
       const btn = await pg.evaluate(() => { const e = document.getElementById('fly-close'); if (!e) return null; const r = e.getBoundingClientRect(); return { vis: r.width > 0 && r.height > 0, txt: e.textContent.trim() }; });
       if (!btn || !btn.vis) { bad.push(`${w} 无收起钮 ${JSON.stringify(btn)}`); await pg._ctx.close(); continue; }
       const t0 = await top(), g0 = await geo(pg);
@@ -262,6 +267,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   { const bad = [];
     const pg = await openInit(1920, 1080); await wizard(pg);
     await pg.click('#z-in'); await pg.waitForTimeout(400);
+    /* v67.7 收尾验收 D2：#paper 收到谱纸 100% 宽后，110% 一档即放不下（与 v67.6 同口径）——不连点 */
     const h = await pg.evaluate(() => { const H = document.getElementById('paper-hbar'), P = document.getElementById('paper');
       if (!H) return { none: true, xs: P.classList.contains('paper-xs') };
       const r = H.getBoundingClientRect(), wr = document.getElementById('score-wrap').getBoundingClientRect();
@@ -313,6 +319,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg.click('#sb-exit').catch(() => {}); await pg.waitForTimeout(600);
     const back = await pg.evaluate(() => ({ vz: viewZoom, lbl: document.getElementById('zoom-lbl').textContent }));
     await pg._ctx.close();
+    /* v67.7 收尾验收 OUT-4：版宽 870 的固定版宽谱在谱架里放大到 FIT_MAX 铺满谱架纸宽（读新键 110% → 1056px；修前 957px、误读旧键 0.85 → ≈740px），门槛不放宽 */
     T(sg.stand && sg.svgW >= 1040 && sg.z === '0.85' && back.lbl === '110%', 'T11 旧键 0.85 的升级用户：新建谱 ＋ 后进谱架谱面 ≥1040px（v67.2 为 1056，此前 901）；旧键原值不动、退出回 110%', JSON.stringify({ sg, back })); }
 
   /* T12 收起钮键盘可达 / 可操作 */

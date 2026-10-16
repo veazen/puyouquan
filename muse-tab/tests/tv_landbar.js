@@ -265,8 +265,10 @@ const HELP = `(()=>{
       const g = await p2.evaluate(() => {
         const R = e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width }; };
         const wrap = document.getElementById('lb-wrap'), bar = wrap.querySelector('.lb-bar'), paper = document.getElementById('paper'), ld = document.getElementById('left-dock');
-        const B = R(bar), P = R(paper), LD = R(ld);
-        return { B, P, LD, go: !!bar.querySelector('.lb-go'), over: lbOver(bar), cls: wrap.className, hscroll: document.scrollingElement.scrollWidth > innerWidth + 1,
+        const B = R(bar), P = R(paper), LD = R(ld), SV = R(document.getElementById('score'));
+        /* v67.7 收尾验收 D2：「谱纸」＝可见白纸＝#score 与 #paper 的交集（固定版宽谱也按交集对齐；此前固定版宽谱按 #paper，比白纸每边宽 2px） */
+        const S = { l: Math.max(P.l, SV.l), r: Math.min(P.r, SV.r) }; S.w = S.r - S.l;
+        return { B, P, S, LD, go: !!bar.querySelector('.lb-go'), over: lbOver(bar), cls: wrap.className, hscroll: document.scrollingElement.scrollWidth > innerWidth + 1,
           stepsVisible: [...bar.querySelectorAll('.lb-steps li > span:last-child')].filter(x => x.offsetParent).length };
       });
       /* 歌词抽屉（左栏「歌词」）：停靠时在谱型条左边、浮层时压在谱型条上面 */
@@ -277,11 +279,12 @@ const HELP = `(()=>{
         const ox = Math.max(a.left, c.left), ox2 = Math.min(a.right, c.right), oy = Math.max(a.top, c.top), oy2 = Math.min(a.bottom, c.bottom);
         const overlap = ox2 > ox + 2 && oy2 > oy + 2; let top = null;
         if (overlap) { const e = document.elementFromPoint((ox + ox2) / 2, (oy + oy2) / 2); top = !!(e && e.closest('#left-flyout')); }
-        const P = document.getElementById('paper').getBoundingClientRect();
-        return { open: true, overlap, flyOnTop: top, barW: Math.round(c.width), paperW: Math.round(P.width), barL: Math.round(c.left), paperL: Math.round(P.left) };
+        const P = document.getElementById('paper').getBoundingClientRect(), SV = document.getElementById('score').getBoundingClientRect();
+        const sl = Math.max(P.left, SV.left), sr = Math.min(P.right, SV.right);   /* v67.7 收尾：谱纸＝#score ∩ #paper */
+        return { open: true, overlap, flyOnTop: top, barW: Math.round(c.width), paperW: Math.round(sr - sl), barL: Math.round(c.left), paperL: Math.round(sl) };
       });
       g.fl = fl;
-      const ok = Math.abs(g.B.w - g.P.w) <= 1 && Math.abs(g.B.l - g.P.l) <= 1 && g.P.t - g.B.b >= 0 && g.P.t - g.B.b <= 14 && g.B.l >= g.LD.r - 0.5 && g.go && !g.over && !g.hscroll
+      const ok = Math.abs(g.B.w - g.S.w) <= 1 && Math.abs(g.B.l - g.S.l) <= 1 && g.P.t - g.B.b >= 0 && g.P.t - g.B.b <= 14 && g.B.l >= g.LD.r - 0.5 && g.go && !g.over && !g.hscroll
         && (w >= 1280 ? g.stepsVisible === 3 : g.stepsVisible >= 1)
         && fl.open && (fl.overlap ? fl.flyOnTop === true : true) && Math.abs(fl.barW - fl.paperW) <= 1 && Math.abs(fl.barL - fl.paperL) <= 1;
       geo.push({ w, ok, g });
@@ -860,13 +863,18 @@ const HELP = `(()=>{
     await p3.click('#b-msmart', { timeout: 2500 }).catch(() => {}); await p3.waitForTimeout(150);
     await p3.click('#rtabs .rtab[data-p="make"]', { timeout: 2500 }).catch(() => {});
     await p3.evaluate(() => { const st = document.getElementById('beat-status'); if (st) st.click(); }); await p3.waitForTimeout(150);
-    await p3.click('#err-drop .err .err-desc', { timeout: 2500 }).catch(() => {}); await p3.waitForTimeout(500);
+    await p3.click('#err-drop .err .err-desc', { timeout: 2500 }).catch(() => {});
+    /* v67.7 收尾：等平滑滚动停稳再取点（版宽 870 后谱更长、滚动距离约 4300px，500ms 时还在途中）——连续 3 次 100ms 取样 scrollTop 不变 */
+    { let last = -1, same = 0; for (let i = 0; i < 40 && same < 3; i++) { await p3.waitForTimeout(100);
+        const st = await p3.evaluate(() => { const sc = scoreScroller(); return Math.round(sc ? sc.scrollTop : window.scrollY); }); same = st === last ? same + 1 : 0; last = st; } }
     const d2 = await p3.evaluate(() => { const svg = document.getElementById('score'), R = svg.getBoundingClientRect(), k = R.height / svg.viewBox.baseVal.height, b2 = colBoxes['v0:33:0'];
       const x = R.left + (b2.x + 5) * k, y = R.top + (b2.y + 10) * k, hit = document.elementFromPoint(Math.min(innerWidth - 5, x), Math.min(innerHeight - 5, y));
-      return { on: document.body.classList.contains('rsheet'), mi: sel.mi, onScore: !!(hit && hit.closest && hit.closest('#score')) }; });
+      return { on: document.body.classList.contains('rsheet'), mi: sel.mi, onScore: !!(hit && hit.closest && hit.closest('#score')), hit: hit ? (hit.id || hit.className || hit.tagName) + '' : null,
+        flyH: document.getElementById('left-flyout').classList.contains('hidden'), flyKey: localStorage.getItem('musetab-flyclosed') }; });
     await p3.close();
-    T(d0.on && d0.top === 0 && d0.tz > d0.mz && !d1 && !d2.on && d2.mi === 33 && d2.onScore,
-      'L23 1024 宽「智能」右侧抽屉：贴顶（宽屏留下的行内 top:131px 不再压住）、Esc 收起、点节拍检查的报错项先收抽屉再跳（此前跳到的小节被抽屉 / 遮罩盖住）、提示条层级高于遮罩', J({ d0, d1, d2 }));
+    /* v67.7 收尾验收 D3：跳到的小节落在左栏浮层（821–1180 宽默认展开）下面时先收起浮层（只收不记：musetab-flyclosed 不写） */
+    T(d0.on && d0.top === 0 && d0.tz > d0.mz && !d1 && !d2.on && d2.mi === 33 && d2.onScore && d2.flyKey !== '1',
+      'L23 1024 宽「智能」右侧抽屉：贴顶（宽屏留下的行内 top:131px 不再压住）、Esc 收起、点节拍检查的报错项先收抽屉再跳（此前跳到的小节被抽屉 / 遮罩盖住；v67.7 收尾：落在左栏浮层下也先收浮层）、提示条层级高于遮罩', J({ d0, d1, d2 }));
   } catch (e) { T(false, 'L23 执行异常', e.message.split('\n')[0]); }
 
   /* ===== L24 键盘从主按钮打开的弹窗：焦点进弹窗、Tab 不出弹窗、Esc 关后回到主按钮 ===== */

@@ -4,16 +4,17 @@
    另 fitKOf 旧式把用户缩放除掉，110% / 120% 点了不变（缩放死区）。修复＝桌面编辑态固定版宽谱 body.fixwide 解除 900 上限、
    显示基准适配可视宽（最高 125%），用户缩放在其上相乘；版面（断行/分页/导出/打印）一字不动。全部为数值断言：
    T1 新建向导（真实点击：声乐谱→标题→1=B→♩=90→创建）建谱 → 固定版宽；1280/1366/1440/1536/1920 × DPR 1 与 1536@1.25、1280@1.5：
-      PAGE_W=1060、断行与页数、#score viewBox 与 innerHTML 全部逐字节相同（与窗口/缩放比无关）
+      PAGE_W=FIXED_A4（v67.3 时为 1060，v67.7 起 870）、断行与页数、#score viewBox 与 innerHTML 全部逐字节相同（与窗口/缩放比无关）
    T2 桌面编辑态挂 body.fixwide、#paper 解除 900 上限；简谱数字屏幕字号（font-size × 屏幕/谱面比，CSS px）：1366≥15、1920≥19 为本轮目标；
       1280≥13.8、1440(左栏全开)≥12、1536(左栏全开)≥13.6 只是「不比 v67.1 小」的下限——这三档左栏停靠时的默认放大待产品拍板（收起钮见 tv_deskscale2 T7）；
-      1920 纸张铺满谱面区（两侧空白 ≤30px，此前各 191px）；DPR 1.25/1.5 与 DPR 1 的 CSS 字号相同（设备像素＝×DPR）
+      1920 纸张铺满谱面区（两侧空白 ≤30px，此前各 191px）——v67.7 版宽 870 后 870×FIT_MAX(1.25)=1088 < 1920 可视宽，改判「放大到上限 FIT_MAX 且居中」；
+      DPR 1.25/1.5 与 DPR 1 的 CSS 字号相同（设备像素＝×DPR）
    T3 页头放得下时走原写法：歌名/1=X/拍号/速度/署名字号 28/16/11/12.5/12.5，页头 SVG 与 v66.8 原写法（tv_header.js 的 REF668）一致
    T4 面板收起自动放大：1440 / 1536 点左栏当前页签收起 → 数字 ≥16 / ≥17.5；再点打开 → 回停靠尺寸，末小节线不被裁
    T5 手动缩放无死区：1366 / 1920 下 ＋ 每档谱面宽 ×1.10±0.01、− 每档 ÷1.10；放不下 → #paper.paper-xs 横滚，滚到底末小节线可见；点百分比回适配
    T6 「排版」浮层点预设（layApply→fitViewWidth）后缩放仍 100%、显示＝适配（不二次放大、也不再把缩放写成 85%）
    T7 不受影响：存量自适应谱（无 fixwide、#paper≤900、100%）、观看页（无 fixwide、≤900）、手机 390（窄屏重排、不横溢）、
-      1366 D7（左栏自动收起，再开改浮层、谱面不被挤窄）、打印（按 1060 排、与屏幕断行相同，打印期间不挂 fixwide，打印后显示宽复原）
+      1366 D7（左栏自动收起，再开改浮层、谱面不被挤窄）、打印（按 FIXED_A4 排、与屏幕断行相同，打印期间不挂 fixwide，打印后显示宽复原）
    验收修（升级用户旧缩放值 / 存量谱排版串扰 / 排版不覆盖手动缩放 / PNG 与窗口无关 / Ctrl+滚轮锚点 / 键盘光标跟滚 / 收起钮）
    见姊妹套件 tv_deskscale2.js（拆开是为了单套件留在 run_all.js 的 180 秒上限内）。
    突变实证：MUSETAB_URL 指向 v67.1 → T2 / T4 / T5 / T6 报红（见文末记录）。 */
@@ -66,12 +67,14 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
   const errs = [];
+  let FA4 = null, FMAX = null;   // v67.7 期望值读页面常量 FIXED_A4（1060→870）/ FIT_MAX
   const open = async (w, h, dpr, mob) => {
     const ctx = await b.newContext(mob ? { viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: dpr || 3 }
       : { viewport: { width: w, height: h }, deviceScaleFactor: dpr || 1 });
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     await pg.goto(URL0); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    if (FA4 == null) ({ FA4, FMAX } = await pg.evaluate(() => ({ FA4: typeof FIXED_A4 === 'number' ? FIXED_A4 : null, FMAX: typeof FIT_MAX === 'number' ? FIT_MAX : null })));
     pg._ctx = ctx; return pg; };
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
@@ -132,21 +135,26 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
 
   /* T1 版面与窗口无关 */
   { const ids = Object.keys(res), r0 = res[ids[0]], h0 = html[ids[0]];
-    const bad = ids.filter(id => { const g = res[id]; return g.PAGE_W !== 1060 || g.sys !== r0.sys || g.pages !== r0.pages || g.vb !== r0.vb || html[id] !== h0; });
-    T(bad.length === 0 && r0.PAGE_W === 1060, 'T1 向导建谱固定版宽：7 种桌面视口 / DPR 下 PAGE_W=1060、断行页数与 #score 内容逐字节相同',
+    /* v67.7 1060 → FIXED_A4（870） */
+    const bad = ids.filter(id => { const g = res[id]; return g.PAGE_W !== FA4 || g.sys !== r0.sys || g.pages !== r0.pages || g.vb !== r0.vb || html[id] !== h0; });
+    T(bad.length === 0 && r0.PAGE_W === FA4, 'T1 向导建谱固定版宽：7 种桌面视口 / DPR 下 PAGE_W=FIXED_A4（' + FA4 + '）、断行页数与 #score 内容逐字节相同',
       bad.length ? 'diff@' + bad.join(',') : `sys=${r0.sys} pages=${r0.pages} vb=${r0.vb} len=${h0.length}`); }
 
   /* T2 字号目标 + 1920 铺满 + DPR 一致 */
   { const bad = [];
     for (const [w, h, d] of VPS) { const g = res[`${w}x${h}@${d}`];
       if (!(g.dig >= TARGET[w])) bad.push(`${w}x${h}@${d} 数字 ${g.dig}px < ${TARGET[w]}`);
-      if (!g.fixwide || g.maxW !== 'none') bad.push(`${w}@${d} 未解除 900 上限(fixwide=${g.fixwide} max-width=${g.maxW})`);
+      /* v67.7 收尾验收 D2：fixwide 的 #paper 上限＝谱纸 100% 时的宽（FIXED_A4×FIT_MAX＋余量，--fw-max），仍须解除 900 上限 */
+      const capW = FA4 != null && FMAX != null ? Math.floor(FA4 * FMAX) : 901;
+      if (!g.fixwide || !(g.maxW === 'none' || (parseFloat(g.maxW) >= capW && parseFloat(g.maxW) <= capW + 12))) bad.push(`${w}@${d} 未解除 900 上限(fixwide=${g.fixwide} max-width=${g.maxW}，应为 none 或 ${capW}–${capW + 12}px)`);
       if (g.clipped > 0) bad.push(`${w}@${d} 末小节线被裁 ${g.clipped}px`); }
     const g19 = res['1920x1080@1'], gapL = g19.svgL - g19.wrapL, gapR = g19.wrapR - g19.svgR;
-    if (!(gapL <= 30 && gapR <= 30)) bad.push(`1920 两侧空白 ${gapL.toFixed(0)}/${gapR.toFixed(0)}px`);
+    /* v67.7：版宽 870 × FIT_MAX 1.25 ≈ 1088 < 1920 谱面区可视宽，放大到上限后必然留白——改判「铺满，或已放大到上限 FIT_MAX 且左右居中（±2px）」 */
+    const capped = FMAX != null && g19.k >= FMAX - 0.005 && Math.abs(gapL - gapR) <= 2;
+    if (!((gapL <= 30 && gapR <= 30) || capped)) bad.push(`1920 两侧空白 ${gapL.toFixed(0)}/${gapR.toFixed(0)}px（k ${g19.k}，上限 ${FMAX}）`);
     for (const [w, h] of [[1536, 864], [1280, 720]]) { const a = res[`${w}x${h}@1`], c = res[`${w}x${h}@${w === 1536 ? 1.25 : 1.5}`];
       if (a.dig !== c.dig || a.svgW !== c.svgW) bad.push(`${w} DPR 不一致 ${a.dig}/${c.dig}`); }
-    T(bad.length === 0, 'T2 简谱数字屏幕字号：1366≥15 / 1920≥19 达标、1920 铺满、DPR 无关；1280 / 1440 / 1536 左栏停靠不低于 v67.1（13.8 / 12 / 13.6，默认放大待拍板）',
+    T(bad.length === 0, 'T2 简谱数字屏幕字号：1366≥15 / 1920≥19 达标、1920 铺满（或放大到上限居中）、DPR 无关；1280 / 1440 / 1536 左栏停靠不低于 v67.1（13.8 / 12 / 13.6，默认放大待拍板）',
       bad.join(' | ') || VPS.map(([w, h, d]) => { const g = res[`${w}x${h}@${d}`]; return `${w}@${d}:${g.dig}px(设备${(g.dig * d).toFixed(1)})k${g.k}`; }).join(' ')); }
 
   /* T3 页头 */
@@ -196,7 +204,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg.evaluate(() => { const st = NWP.fresh({ scene: 'vocal', clean: true }); st.v.title = '快乐的小星星'; st.v.key = 'B'; realCreate(NWP.planOf(st), ''); });
     await pg.waitForTimeout(700); await pg.evaluate(NOTES); await pg.waitForTimeout(400);
     r = await geo(pg);
-    if (r.fixwide || r.PAGE_W >= 1060 || r.svgW > 390 || r.docW > r.vw) bad.push('手机 ' + JSON.stringify({ fw: r.fixwide, PW: r.PAGE_W, svgW: r.svgW, docW: r.docW }));
+    if (r.fixwide || r.PAGE_W >= FA4 || r.svgW > 390 || r.docW > r.vw) bad.push('手机 ' + JSON.stringify({ fw: r.fixwide, PW: r.PAGE_W, svgW: r.svgW, docW: r.docW }));   // v67.7 1060 → FIXED_A4
     await pg._ctx.close();
     /* 1366 D7：左栏自动收起，再开改浮层、谱面不被挤窄 */
     pg = await open(1366, 768); await wizard(pg);
@@ -205,15 +213,15 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     let g1 = await geo(pg); if (g1.flyHidden) { await pg.click(`.ltab[data-t="${t}"]`); await pg.waitForTimeout(500); g1 = await geo(pg); }
     if (!(g0.flyHidden && !g0.tight && !g1.flyHidden && g1.tight && g1.flyPos === 'fixed' && g1.svgW >= g0.svgW - 2 && g1.clipped === 0))
       bad.push('D7 ' + JSON.stringify({ g0: { h: g0.flyHidden, t: g0.tight, w: g0.svgW }, g1: { h: g1.flyHidden, t: g1.tight, pos: g1.flyPos, w: g1.svgW, c: g1.clipped } }));
-    /* 打印：按 1060、断行同屏，打印期间不挂 fixwide */
+    /* 打印：按 FIXED_A4（v67.7 起 870）、断行同屏，打印期间不挂 fixwide */
     r = await pg.evaluate(() => { const sv = document.getElementById('score'), scr = layoutSystems().map(s => s.measures.map(m => m.mi).join(',')).join('|'), w0 = +sv.getAttribute('width');
       window.dispatchEvent(new Event('beforeprint')); const during = { PW: PAGE_W, sys: layoutSystems().map(s => s.measures.map(m => m.mi).join(',')).join('|'), fw: document.body.classList.contains('fixwide') };
       window.dispatchEvent(new Event('afterprint')); return { scr, during, w0 }; });
     /* 打印期间 D7 浮层类按非编辑态撤下、afterprint 首帧按停靠宽排一帧（v67.1 同样如此），#paper 的 ResizeObserver 下一帧复原——等一帧再量 */
     await pg.waitForTimeout(400); r.w1 = await pg.evaluate(() => +document.getElementById('score').getAttribute('width'));
-    if (!(r.during.PW === 1060 && r.during.sys === r.scr && !r.during.fw && r.w1 === r.w0)) bad.push('打印 ' + JSON.stringify(r));
+    if (!(r.during.PW === FA4 && r.during.sys === r.scr && !r.during.fw && r.w1 === r.w0)) bad.push('打印 ' + JSON.stringify(r));   // v67.7 1060 → FIXED_A4
     await pg._ctx.close();
-    T(bad.length === 0, 'T7 不受影响：存量自适应谱 / 观看页 / 手机 390 / 1366 D7 收起+浮层 / 打印按 1060', bad.join(' | ') || 'ok'); }
+    T(bad.length === 0, 'T7 不受影响：存量自适应谱 / 观看页 / 手机 390 / 1366 D7 收起+浮层 / 打印按 FIXED_A4', bad.join(' | ') || 'ok'); }
 
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

@@ -512,7 +512,9 @@ body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;max-width:none;min
 body.shell:not(.stand):not(.viewer) #paper{margin:0 auto;max-width:900px}
 /* v67.3 固定版宽谱（桌面编辑态，body.fixwide 见 fixWideOn）解除 900 上限：纸张铺满谱面区可视宽，
    版面恒 FIXED_A4 不变、只放大显示；存量自适应谱仍按 900 版宽重排（断行不动） */
-body.shell.fixwide:not(.stand):not(.viewer) #paper{max-width:none}
+body.shell.fixwide:not(.stand):not(.viewer) #paper{max-width:var(--fw-max,none)}
+/* v67.7 收尾验收 D2：版宽 870 × FIT_MAX(1.25)≈1088 比宽屏谱面区窄——#paper 收到谱纸 100% 时的宽（--fw-max，renderCore 写），
+   谱纸、谱型条、横滚兜底、Ctrl+滚轮锚点补偿都以同一张纸为准（此前纸面 1239、谱纸 1088 居中：谱型条两侧各多出 76px，放大第一档锚点漂移） */
 body.shell:not(.stand):not(.viewer) #right-dock{position:static;align-self:stretch;height:auto;
   width:292px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
   padding:10px 9px}   /* v46.4 254→292：四页签 + 预提示/光标信息加宽 */
@@ -5655,6 +5657,10 @@ function fitKOf(contentW, scale){
   const avail = Math.max(200, (LAST_PAPER_W||1040) - 4);
   if(document.body.classList.contains('fixwide'))   // v67.3 适配基准与用户缩放无关（缩放相乘，见上）
     return Math.max(fitFloor(), Math.min(FIT_MAX, avail / Math.max(1, contentW*scale)));
+  /* v67.7 收尾验收 OUT-4：谱架里的固定版宽谱同样允许放大到 FIT_MAX 铺满谱架纸宽（谱架 #paper 上限 min(1060px,94vw)）——
+     版宽 870 后此前恒 ≤100%：1920 宽谱纸只占 870、两侧各空 95px（v67.6 版宽 1060 时铺满）。仍按「用户缩放 × 适配」不超出纸宽 */
+  if(document.body.classList.contains('stand') && !viewerMode)
+    return Math.max(fitFloor(), Math.min(FIT_MAX, avail / Math.max(1, contentW*viewZoom*scale)));
   return Math.max(fitFloor(), Math.min(1, avail / Math.max(1, contentW*viewZoom*scale)));
 }
 /* v66.0 D7（评审复核：向导新建的固定版宽谱在 1366×768 右侧被裁 118px、1440×900 裁 44px，末小节线看不见也滚不到——
@@ -5669,16 +5675,29 @@ function fitFloor(){ return shellWideEdit()? 0.7 : 0.8; }
 /* v67.7 D7 自动收起左栏的门槛：停靠时固定版宽谱显示不到 90% 就收起一次（此前按显示下限 70%——版宽 870 后 1366 / 1440
    停靠显示 78% / 87%，数字 13–15px，比同窗口的导入谱 17px 还小；收起后 1366 约 110%、1440 约 114%）。再打开改浮层，不挤谱面 */
 const FIT_DOCK = 0.9;
+/* v67.7 收尾验收：#paper 不设上限时可用的宽（#score-wrap 内容宽）。fixwide 下 #paper 收到「版宽 × FIT_MAX」（见 renderCore 的 --fw-max），
+   LAST_PAPER_W 可能小于真实可用宽——D7 判定按这个量（浮层态减去面板宽＝停靠时的可用宽） */
+function paperRoomW(){
+  const sw = document.getElementById('score-wrap'); if(!sw || !sw.clientWidth) return LAST_PAPER_W;
+  const cs = getComputedStyle(sw);
+  return Math.round(sw.clientWidth - (parseFloat(cs.paddingLeft)||0) - (parseFloat(cs.paddingRight)||0));
+}
 function paperFitGuard(contentW, scale){
   const P = document.getElementById('paper'), sv = document.getElementById('score'), B = document.body;
   if(!P || !sv || !B) return;
   const fly = document.getElementById('left-flyout');
   const flyOpen = !!(fly && !fly.classList.contains('hidden'));
   let tight = false;
-  if(shellWideEdit() && LAY_FIXED_NOW && !noWrapOn() && flyOpen && !startPadOn()){
+  /* v67.7 收尾验收 D1：开机首帧（主初始化里的 render，readyState 仍为 loading）不参与 D7——那时启动台还没出现、左栏还没按记忆开合，
+     此前在这里就把「只自动收起一次」用掉了：刷新后「继续上次编辑」的新建谱停靠显示 71–87%，第一次点谱面才整谱跳成浮层；
+     刷新后再新建谱，浮层直接盖住行首 */
+  if(shellWideEdit() && LAY_FIXED_NOW && !noWrapOn() && flyOpen && !startPadOn() && document.readyState!=='loading'){
     if(!B.classList.contains('paper-tight')){ const r = fly.getBoundingClientRect(); if(r.width>0) FLY_DOCK_W = Math.round(r.width); }
-    const dockW = B.classList.contains('paper-tight')? LAST_PAPER_W - (FLY_DOCK_W||272) : LAST_PAPER_W;
-    tight = contentW*Math.min(1, viewZoom)*scale*FIT_DOCK > dockW - 4;   // 只按 ≤100% 判定：用户主动放大走横滚兜底，不动面板（v67.7 门槛 70%→90%）
+    const room = paperRoomW();
+    const dockW = B.classList.contains('paper-tight')? room - (FLY_DOCK_W||272) : room;
+    /* 按适配底数判定（不乘用户缩放）：用户缩放是乘在适配底数上的倍率——此前按 min(1, 缩放) 判，存着 musetab-zoom-fw 0.8 时
+       1366 停靠只显示 62.6%（D5）；用户主动放大照旧走横滚兜底，不动面板（v67.7 门槛 70%→90%） */
+    tight = contentW*scale*FIT_DOCK > dockW - 4;
     if(tight && !FLY_AUTO_CLOSED){ FLY_AUTO_CLOSED = true; closeFlyout(); tight = false; }
   }
   if(B.classList.contains('paper-tight') !== tight) B.classList.toggle('paper-tight', tight);
@@ -5754,11 +5773,11 @@ function fitViewWidth(){
   /* v67.3 向下取整到 5% 档（此前四舍五入：1920 下 896/870＝1.03→105%，存量谱自己横溢 14px） */
   setViewZoom(Math.floor(avail/Math.max(1,frameW)*20 + 1e-6)/20);
 }
-/* v67.3 缩放标签：文字仍是用户缩放（100%＝默认）；固定版宽谱的 100% 是「铺满谱面区」，悬停提示给出实际倍率 */
+/* v67.3 缩放标签：文字仍是用户缩放（100%＝默认）；固定版宽谱的 100% 是「适配谱面区宽度」（v67.7 收尾：最大 FIT_MAX，宽屏不再铺满），悬停提示给出实际倍率 */
 function zoomLblSync(dz){
   const zl=document.getElementById('zoom-lbl'); if(!zl) return;
   zl.textContent=Math.round(viewZoom*100)+'%';
-  zl.title = (ZOOM_FW && dz)? '点击恢复 100%（新建谱的 100%＝铺满谱面区；当前实际约 '+Math.round(dz*100)+'% 原大）' : '点击恢复 100%';
+  zl.title = (ZOOM_FW && dz)? '点击恢复 100%（新建谱的 100%＝适配谱面区宽度，最大 '+Math.round(FIT_MAX*100)+'%；当前实际约 '+Math.round(dz*100)+'% 原大）' : '点击恢复 100%';
 }
 /* 内容页显示缩放（0.5-2）：工具栏 ± 或 内容区 Ctrl+滚轮 调节，仅影响显示不改排版 */
 let viewZoom = Math.max(0.5, Math.min(2, parseFloat(localStorage.getItem('musetab-zoom'))||1));
@@ -9881,6 +9900,8 @@ function renderCore(){
   /* 第二轮验收补：谱架（桌面）里的固定版宽谱也读新键 musetab-zoom-fw——此前进谱架切回旧键，升级用户存着 v64.5–v67.1
      自动写入的 0.85 时谱架只有 901px（v67.2 为 1056），新建谱上调的缩放也带不过去，谱架里又没有缩放钮 */
   if(!OFF) try{ const fw=fixWideOn(cfg); document.body.classList.toggle('fixwide', fw);
+    /* v67.7 收尾验收 D2：fixwide 纸面上限＝固定版宽谱 100% 时的谱纸宽（版宽 × 纸张比例 × FIT_MAX）＋页边余量；与 #paper 实宽无关，不会和 ResizeObserver 互相触发 */
+    if(fw){ const P0=document.getElementById('paper'); if(P0) P0.style.setProperty('--fw-max', (Math.ceil(FIXED_A4*wmm/210*FIT_MAX + 2) + 4)+'px'); }
     const B0=document.body, standFw = !fw && B0.classList.contains('stand') && !viewerMode && fixedLayOn(cfg) && window.innerWidth>820 && !PRINTING_NOW && !PRINT_PAGING;
     zoomSwap(fw || standFw); }catch(_){}   // v67.3 同理：先定 #paper 是否解除 900 上限再量宽；缩放换装对应键
   const paperW = OFF? OFF.paperW : (document.getElementById('paper')||{}).clientWidth || 1040;
@@ -10125,12 +10146,14 @@ function renderCore(){
   if(diagMode==='top'){
     const chords = usedChords();
     if(chords.length){
-      const perRow = Math.min(chords.length, 14);
+      /* v67.7 收尾验收 OUT-1：每行个数还受版心限制（每格 50，整带左缘 ≥ 页边距）——此前恒 14 个一行：版宽 870 的 A5、
+         或 A4 内容大小 ≥124% 时首尾和弦图伸出纸外（打印 / PNG / 分享卡被切）；版心放得下 14 个时与此前逐字节相同 */
+      const perRow = Math.max(1, Math.min(chords.length, 14, Math.floor((PAGE_W - 2*MARGIN)/50)));
       chords.forEach((name,i)=>{
-        const cx = PAGE_W/2 - perRow*50/2 + (i%14)*50;
-        p.push(chordDiagramSVG(name, cx, top + Math.floor(i/14)*64));
+        const cx = PAGE_W/2 - perRow*50/2 + (i%perRow)*50;
+        p.push(chordDiagramSVG(name, cx, top + Math.floor(i/perRow)*64));
       });
-      top += Math.ceil(chords.length/14)*64 + 12;
+      top += Math.ceil(chords.length/perRow)*64 + 12;
     }
   }
   /* 预计算六线谱每列绝对x（技法连线定位用）；简谱/五线谱列同法（v41.2 渐强渐弱范围括线定位用） */
@@ -15014,8 +15037,14 @@ function hideStartPad(reopen){
     if(fly && fly.classList.contains('hidden')) openFlyout(activeTab); }
   /* v63.0 A3-②（P1-04）面板展开后 #paper 变窄——此前沿用启动台下的版宽，首帧谱面右侧被裁 111–242px。
      宽度已变就当场重排（不等 ResizeObserver 的下一帧，避免闪一帧裁切） */
-  try{ const pw=(document.getElementById('paper')||{}).clientWidth||0;
-    if(pw && LAST_PAPER_W && Math.abs(pw-LAST_PAPER_W)>=2 && !noWrapOn()){ render(); alignHeader(); } }catch(_){}
+  /* v67.7 收尾验收 D1：固定版宽谱离台一律重排一次——启动台态的渲染不做 D7（左栏自动收起 / 浮层），面板重开后宽度若恰好等于上次排版宽，
+     此前不重排，D7 要等第一次点谱面才发生（整谱跳变、点下去的音错位）；D7 收起左栏后 #paper 变宽，当场再排一次（不等 ResizeObserver 下一帧） */
+  try{ const P0=document.getElementById('paper'), pw=(P0||{}).clientWidth||0;
+    let fx=false; try{ fx = fixWideOn(layoutCfg()) && shellWideEdit(); }catch(_){}
+    if(!noWrapOn() && pw && (fx || (LAST_PAPER_W && Math.abs(pw-LAST_PAPER_W)>=2))){
+      render();
+      const pw2=(P0||{}).clientWidth||0; if(fx && pw2 && Math.abs(pw2-LAST_PAPER_W)>=2) render();
+      alignHeader(); } }catch(_){}
   try{ renderHints(); syncInputs(); }catch(_){}   // v46.6 离开启动台恢复正常提示/光标信息
 }
 /* v67.4 启动台「继续上次编辑」：找一份「自己的谱」——存入过我的曲谱，或不是原样示例谱、也不是空白未命名谱。返回窗口序号，没有则 -1 */
@@ -18825,6 +18854,15 @@ document.getElementById('err-drop').addEventListener('click', e=>{
   selRange=null; clampSel(); setRibbon(sel.row); render();
   document.getElementById('err-drop').classList.add('hidden');
   const b = colBoxes[(sel.row==='tab'?'t':'v')+sel.vi+':'+sel.mi+':0'];
+  /* v67.7 收尾验收 D3：左栏是浮层（821–1180 宽，或宽屏 D7 的 paper-tight）且横向盖住要跳到的小节——先收起浮层再跳
+     （此前跳到行首小节正好压在浮层下面，看不见）。只收不记（不写 musetab-flyclosed），手机底部面板不参与 */
+  if(b && window.innerWidth>820) try{
+    const fly=document.getElementById('left-flyout'), svg0=document.getElementById('score');
+    if(fly && !fly.classList.contains('hidden') && getComputedStyle(fly).position==='fixed'){
+      const R0=svg0.getBoundingClientRect(), k0=R0.width/Math.max(1, svg0.viewBox.baseVal.width), fr=fly.getBoundingClientRect();
+      const l0=R0.left+b.x*k0, r0=l0+b.w*k0;
+      if(r0>fr.left && l0<fr.right) closeFlyout();
+    } }catch(_){}
   if(b){
     const svg=document.getElementById('score');
     const scale = svg.getBoundingClientRect().height/svg.viewBox.baseVal.height;
@@ -25382,7 +25420,9 @@ function lbSync(){
   const fresh=!wrap;
   if(!wrap){
     wrap=document.createElement('div'); wrap.id='lb-wrap'; (paper.parentNode||sw).insertBefore(wrap, paper);
-    if(!lbSync.ro && typeof ResizeObserver!=='undefined'){ lbSync.ro=new ResizeObserver(()=>{ if(document.getElementById('lb-wrap')) lbFit(); }); lbSync.ro.observe(paper); }
+    if(!lbSync.ro && typeof ResizeObserver!=='undefined'){ lbSync.ro=new ResizeObserver(()=>{ if(document.getElementById('lb-wrap')) lbFit(); }); lbSync.ro.observe(paper);
+      /* v67.7 收尾验收 D2：谱纸本身变宽变窄（缩放钮 / Ctrl+滚轮不重排、#paper 宽不变）也重新对齐 */
+      const sv0=document.getElementById('score'); if(sv0) lbSync.ro.observe(sv0); }
   }
   const f=lbInfo(song, meta), html=lbHTML(f);
   if(wrap._h!==html){
@@ -25398,8 +25438,9 @@ function lbSync(){
   meta._sig=sig;
   lbFit();
 }
-/* 宽度与左缘对齐谱纸：固定版宽谱＝#paper；其余谱（#paper 比可见纸面宽一圈内边距）取 #score 与 #paper 的交集——收尾验收 F10
-   （此前按 #paper 盒，比可见白纸每边宽 15px）。不换行长带：谱纸是整条长带，谱型条改为可视宽度并横向吸住（CSS left:0），不随内容滚走 */
+/* 宽度与左缘对齐谱纸：取 #score 与 #paper 的交集——收尾验收 F10（此前按 #paper 盒，比可见白纸每边宽 15px）；
+   v67.7 收尾验收 D2：固定版宽谱也取交集（此前固定版宽谱直接按 #paper：谱纸放大到 FIT_MAX 封顶、或用户缩小到 100% 以下时比 #paper 窄，谱型条两侧伸出 20–260px）。
+   放大放不下（#paper.paper-xs）时谱纸比 #paper 宽，交集仍＝#paper。不换行长带：谱纸是整条长带，谱型条改为可视宽度并横向吸住（CSS left:0），不随内容滚走 */
 function lbFit(){
   const wrap=document.getElementById('lb-wrap'), paper=document.getElementById('paper'); if(!wrap || !paper) return;
   const pr=paper.getBoundingClientRect(); if(!pr.width) return;
@@ -25408,7 +25449,7 @@ function lbFit(){
   if(nw){
     const sw=document.getElementById('score-wrap'), r=sw.getBoundingClientRect(), cs=getComputedStyle(sw);
     L=r.left+(parseFloat(cs.paddingLeft)||0); R=r.left+sw.clientWidth-(parseFloat(cs.paddingRight)||0);
-  } else if(!document.body.classList.contains('fixwide')){
+  } else {
     const sv=document.getElementById('score'), sr=sv && sv.getBoundingClientRect();
     if(sr && sr.width){ L=Math.max(L, sr.left); R=Math.min(R, sr.right); }
   }
@@ -31448,6 +31489,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v67.7</span><div><b>新建谱不再比导入谱小：固定版宽改与电脑上的老谱同宽</b>（负责人：「新建的谱显示比例还是太小……导入 MIDI 的曲谱显示就没问题」）。<br>① <b>原因</b>：新建谱按「固定版宽」排版（换电脑、换窗口、打印断行都一样），版宽是 1060；导入的谱和老谱在电脑上按 870 排。同一首谱新建的每行多塞约两成，1280–1600 宽的屏幕上还被缩到 71–90%，简谱数字只有 12–15 像素（导入谱 17）。v67.3 只放大了显示，没改版面密度。与此前改歌名、歌曲信息长度无关。<br>② <b>修法</b>：固定版宽改为 870，与电脑上的老谱、导入谱同一密度（同一首谱逐字相同），断行仍与窗口无关、打印与屏幕一致。实测 1280–2560 七档窗口，新建谱的简谱数字都不小于同窗口的导入谱（17–21 像素），每行小节数相同。1366、1440 这类笔记本宽度下，新建谱放不下时左侧面板自动收起一次，再打开改为浮在谱面上，不再把谱面挤小；刷新后「继续上次编辑」也一样。<br>③ 宽屏上谱纸最多放大到 125%，谱型条、横向滚动、Ctrl+滚轮缩放都对齐同一张纸；谱架里的新建谱照样铺满。曲首和弦图在版心放不下时自动换行，不再伸出纸外。点节拍报错跳转时，浮层面板挡住目标小节会先收起。<br>④ <b>注意</b>：v64.5 以来新建的谱会按新版宽重排一次（不改任何数据），打印字号约大两成，页数相应增加；想回到原来的页数，可在「排版」里把内容大小调到约 82%。<br><b>测试</b>：新套件 <code>tv_fixdensity</code> 8 项（新建谱与导入谱同密度、七档窗口字号、左栏自动收起、刷新后继续编辑、打印、谱架、和弦图带）；<code>tv_b8a</code> / <code>tv_deskscale</code> / <code>tv_deskscale2</code> / <code>tv_v66a</code> / <code>tv_landbar</code> 按新版宽更新；对抗验收 2 镜头；CORE 170 套件全绿。</div></li>
     <li><span class="v">v67.6</span><div><b>谱库与编辑器同一套谱名 · 其余位置换新图标 · 官网一键开谱 · 手机「在电脑上开始一份谱」</b>（新建流程方案第三版，docs/design-2026-10e）。<br>① <b>谱名全站统一</b>：谱友圈卡片、观看页、作品落地页、分享封面与分享卡、小程序分享标题都改用编辑器的统一谱名（如「钢琴伴奏歌谱（五线谱）」「教学对照谱（含伴奏）」），与新建面板、页签、谱型条一致；服务端与编辑器共用同一份谱名规则，发版时逐字节校验。无词的器乐导入不再叫「歌谱」：小提琴独奏叫「五线谱旋律」、长笛＋钢琴叫「旋律＋钢琴伴奏谱（五线谱）」、弦乐四重奏叫「五线谱重奏谱」；尤克里里独奏叫「尤克里里独奏谱」。谱库筛选分类不变。卡片谱名过长时折两行，不压免费 / 价格角标；「我的曲谱」里的旧格式存档按打开后的谱类显示。<br>② <b>其余位置换新图标</b>：左轨音轨按乐器显示（钢琴伴奏两行显示钢琴、合唱声部显示人声、五线谱上的人声旋律不再标成其他器乐、无词重奏显示器乐）、图层页签与记谱法开关、右栏创作辅助与信息卡、谱友圈筛选条与卡片、观看页、预设与我的曲谱卡片、帮助与特色功能弹窗；「空白谱」「谱友圈文件」两枚撞形图标重画。手机底条恢复只显示文字，音轨名不再被挤没。<br>③ <b>官网一键开谱</b>：考编、即兴伴奏页的按钮直接打开「钢琴即兴伴奏」新建面板，师范页打开「儿歌弹唱」，艺考页打开「视唱练耳谱例」。链接可带调、拍号、速度、曲名、小节数等（如 <code>?new=kids&amp;key=F&amp;meter=2/4</code>），依据里标「按链接」；参数名不分大小写，认不出的只列参数名并忽略；不读也不改「按上次」；带半个 emoji 的曲名不再导致导出失败。<br>④ <b>手机「在电脑上开始一份谱」</b>：启动台首卡改为「开始一份谱」，按用途选好、改调拍速与曲名、看实时预览后点「发到电脑继续」，复制带参链接，电脑上打开就是同一份设置（全角空格等曲名原样保留）。<br>⑤ <b>更稳</b>：一份数据异常的已发布谱不再让整页谱库打不开；旧格式的已发布谱点开观看页不再卡住后落到示例谱，打不开时直接提示；谱库列表更快；平板竖屏观看栏不再把「退出观看」挤出屏幕。新建与深链建谱记录谱型统计（只记谱型代号，不含曲名与内容）。<br><b>测试</b>：新套件 <code>tv_deeplink</code> 32 项、<code>tv_kindsync</code> 14 项，<code>tv_icons</code> 增至 18 项；服务端谱名规则单测 76 项、API 362 项；两轮对抗验收；CORE 169 套件全绿。</div></li>
     <li><span class="v">v67.5</span><div><b>新建面板实时刻版预览 · 「从已有音乐」读文件给依据、选做成哪种谱 · 拖文件进窗口即导入 · 谱型条与起步条 · 换谱类</b>（新建流程方案第二版，docs/design-2026-10e）。<br>① <b>所见即所建</b>：新建面板中间换成编辑器刻版引擎现场排的真实谱面（选用途、开关谱、改调拍速、填曲名都即时重排），右侧标出每一行是什么谱、从哪一行开始写；建成的谱首行与预览一致。<br>② <b>从已有音乐</b>：来源分「打开或导入文件 / 整理 AI 转谱结果 / 示例做同款 / 接着做」等；读 MusicXML 用编辑器自己的解析器，逐条写依据（调、拍、速度「按文件」，声部与歌词「按内容」，没写调号写「按音符推断」，AI 转谱软件导出的自动识别并推荐教学对照谱）；「做成哪种谱」6 选 1（按原文件 / 转成简谱 / 五线＋简谱对照 / 配钢琴伴奏 / 生成吉他弹唱 / 标级数和弦），选哪个预览就换成哪个；内置《送别（AI 转谱）》示例可直接试；Guitar Pro、MIDI 读到后交给原来的选轨窗口。老师「AI 转谱 → 五线＋简谱对照」4 次点击。拖入较早导出的同一份谱友圈文件时按副本打开，不覆盖「我的曲谱」里更新的版本。<br>③ <b>拖文件进窗口</b>：把 MusicXML / GP / MIDI / 谱友圈文件拖到编辑器任意处即打开「从已有音乐」并读入；打印预览、谱架、个人中心或其他弹窗开着时会提示先关掉。<br>④ <b>谱型条＋起步条</b>：新建或导入的谱，谱纸上方出现一条谱型条——谱类图标与谱名（点开可换谱类）、「旋律用 简谱 | 五线谱」一键切换、按内容自动推进的起步条：钢琴伴奏歌谱「①写旋律 → ②一键配伴奏（填进当前谱）→ ③选织体」，吉他弹唱先写旋律「①写旋律 → ②生成六线谱（写进空吉他轨）→ ③调把位与扫弦」，续写后会提示「补齐六线谱 / 补配 N 小节」只补新的小节。谱型条吸顶，播放跟随、报错跳转、光标跟滚都会让开；可收起，右栏「信息」或 Alt+B 随时调回。821–1200 宽时顶栏「智能」改为右侧抽屉（此前点了没反应）。<br>⑤ <b>换谱类</b>：空谱任意换（曲名、调、拍、速度保持，可撤销）；有内容时只给不动音符的换法（如钢琴伴奏歌谱 ⇄ 五线谱版 ⇄ 教学对照谱含伴奏），其余「另建一份」把旋律、歌词、和弦带到新窗口、原谱保留；六线谱和钢琴大谱表这类不同源的写明不可换及原因。有变调夹的弹唱谱换成没有六线谱的谱类时，按实际调记谱、音高不变。<br>⑥ 教学对照谱低音区（简谱行下方有一条下加线）的简谱行改为只在该行让位，不再整首下移。<br><b>测试</b>：新套件 <code>tv_nfimport</code> 37 项、<code>tv_landbar</code> 32 项，<code>tv_newpanel</code> 增至 38 项；两轮对抗验收；CORE 167 套件全绿。</div></li>
     <li><span class="v">v67.4</span><div><b>全新「新建曲谱」：按用途开谱 · 谱类图标重画 · 一键配伴奏直接填进当前谱</b>（负责人拍板「按推荐方案执行」，方案见 docs/design-2026-10e）。<br>① <b>新建面板</b>：第一步只问「这份谱拿来做什么」——左栏 9 个用途＋空白谱（吉他弹唱、钢琴即兴伴奏·考编、儿歌弹唱·师范、歌谱·合唱、教学对照谱·课堂、视唱练耳谱例·艺考、指弹·吉他独奏、器乐独奏、和弦谱·功能谱），每个用途预设调、拍号、速度、小节数；中栏「要哪几种谱」五个开关（简谱 / 五线谱 / 六线谱 / 大谱表 / 和弦）可自由叠加，冲突时先预告、点下后说明原因并给 6 秒撤销；右栏参数全有默认值，旁边写明依据（场景惯例 / 你改的 / 默认），回车就建。建好在新窗口打开，当前谱保留。此前向导「选 A 建出 B」（如选声乐谱建出器乐五线谱、换类后旧选项照样生效）全部消除；教学对照谱、钢琴即兴伴奏、钢琴独奏、和弦谱都是 3 次点击。<br>② <b>更快的入口</b>：顶栏「新建」旁新增「▾」快捷菜单，置顶「按上次」，下面 9 个用途一点直接建；Alt+N 开面板、Alt+Shift+N 按上次直接建；页签条「＋」开同一面板；启动台换成「开始一份谱 / 按上次 / 从已有音乐」＋常用用途直达，「继续上次编辑」只在有你自己的谱时出现。导入（MusicXML · Guitar Pro · MIDI）都在面板「从已有音乐」里。手机以看谱为主：手机上新建改为「在电脑上开始一份谱」说明，仍可导入看谱；平板和电脑窄窗口照常新建。<br>③ <b>谱名统一、图标重画</b>：同一份谱在面板、按钮、页签、建成提示、右栏都叫同一个名字（如旋律＋钢琴伴奏叫「钢琴伴奏歌谱」）；谱类、记谱法、来源、动作共 101 枚新图标，采用「记谱缩略」画法——图标就是这种谱的微缩样子，16px 小尺寸有专门母版，线宽按尺寸分档。谱库与分享卡的叫法按计划在 v67.6 一起切换。<br>④ <b>一键配伴奏「填进当前谱」</b>：钢琴伴奏歌谱里默认把伴奏直接写进本谱右手 / 左手两行（旋律、歌词不动，Ctrl+Z 一步撤销），伴奏两行已有内容时先提示覆盖；生成后光标回到开头方便播放。新增 2/4「儿歌伴奏」织体（儿歌弹唱默认）；斜线和弦（如 G/B）左手改弹指定的低音，全部织体生效（两首内置示例的伴奏因此变化）；中途转调后伴奏音高、弱起小节、调外和弦的升降拼写一并修正；钢琴伴奏两行不再预留空歌词位。吉他弹唱「先写旋律」生成六线谱时写进建谱时那条空吉他轨，不再多出一条。<br>⑤ 离屏渲染引擎（为 v67.5 的实时预览准备），正常谱面输出不变。<br><b>测试</b>：新套件 <code>tv_newpanel</code> 33 项、<code>tv_icons</code> 7 项、<code>tv_offscreen</code> 13 项、<code>tv_fillacc</code> 27 项，<code>tv_newwiz</code> 重写；两轮对抗验收；CORE 165 套件全绿。</div></li>
@@ -31483,7 +31525,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v67.6';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v67.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -31915,6 +31957,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }catch(e){ console.error('曲谱深链启动失败', e); }
   /* v46.5 启动台：非深链打开 → 空白页 + 居中四入口 + 左栏收起 */
   try{ initStartPad(); }catch(e){ console.error('启动台初始化失败', e); }
+  /* v67.7 收尾验收 D1：开机首帧（readyState 仍为 loading）不做 D7；不出启动台的直达（?wxlogin 回跳等）在这里补排一次，
+     否则固定版宽谱要等第一次点谱面才收起左栏（整谱跳变） */
+  try{ if(!startPadOn() && !viewerMode && fixWideOn(layoutCfg()) && shellWideEdit()) render(); }catch(_){}
   bootVeilDone();   /* v58.4 深链 id 非法落回启动台时也揭幕（幂等，普通启动已揭） */
   /* v67.6 ?new= 深链：启动台之上打开新建面板并按参数预选（不自动建）；真手机出「在电脑上开始一份谱」并带上参数 */
   try{ nwLinkBoot(); }catch(e){ console.error('新建深链处理失败', e); }
