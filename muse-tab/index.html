@@ -511,7 +511,7 @@ body.shell:not(.stand):not(.viewer) #score-wrap{flex:1 1 auto;max-width:none;min
   overflow-y:auto;padding:16px 22px 46px}
 body.shell:not(.stand):not(.viewer) #paper{margin:0 auto;max-width:900px}
 /* v67.3 固定版宽谱（桌面编辑态，body.fixwide 见 fixWideOn）解除 900 上限：纸张铺满谱面区可视宽，
-   版面恒 1060 不变、只放大显示；存量自适应谱仍按 900 版宽重排（断行不动） */
+   版面恒 FIXED_A4 不变、只放大显示；存量自适应谱仍按 900 版宽重排（断行不动） */
 body.shell.fixwide:not(.stand):not(.viewer) #paper{max-width:none}
 body.shell:not(.stand):not(.viewer) #right-dock{position:static;align-self:stretch;height:auto;
   width:292px;overflow-y:auto;background:var(--toolbar);border-left:1px solid var(--border-soft);
@@ -5595,7 +5595,13 @@ let PRINT_PAGING = false;                       // v60.80 打印期间强制分�
 /* v64.5 B8 ①（P1-18，D-09 拍板「新建谱固定纸宽」）固定版宽：song.layout.fixed 的谱按 A4 标准版宽 FIXED_A4 排版——
    作者、读者、打印三方断行与页数一致，屏幕只缩放显示（最低 80%，再窄就横向滚动）；
    手机（视口 ≤820）仍走独立的窄屏重排；打印/导出时一律按固定版宽。新建向导出的谱默认开启，存量谱在「排版」里自愿开启 */
-const FIXED_A4 = 1060;
+/* v67.7 固定版宽 1060→870（负责人报障「新建的谱显示比例还是太小……导入 MIDI 的曲谱显示就没问题」）：
+   实测根因——存量 / 导入谱在桌面按 #paper 900 − 30 = 870 重排、100% 显示；新建谱按 1060 排，同一首谱每行多塞约 22%
+   （空谱 7 小节 / 行 vs 5），1280–1600 宽显示还被压到 71–90%（数字 12–15px vs 17px），1920 宽虽放大到 116% 每行仍更密。
+   v67.3 只修了显示缩放（铺满谱面区），没动版面密度。改为与存量桌面版宽同一数值：新建谱与导入谱同一密度
+   （同一首谱 fixed / 非 fixed 在桌面 #paper 900 下 #score 逐字节相同），打印也回到存量桌面口径（字号约大 22%、页数相应增加）；
+   断行仍与窗口无关（D-09 不变）。存量固定版宽谱随之按 870 重排一次（只是排版结果，不改任何数据字段） */
+const FIXED_A4 = 870;
 let PRINTING_NOW = false, LAY_FIXED_NOW = false, LAY_BIGK = 1;
 /* v64.8 B4c ③（P2-05）歌词行按各声部实际用到的段数预留：此前每个声部都按全曲段数 song.lyricLines 留行，
    SATB 只有女高写了词，其余三行下面也各空出两行歌词位；现在没写词的声部不留歌词行、不印段序号，
@@ -5660,6 +5666,9 @@ function fitKOf(contentW, scale){
 let FLY_DOCK_W = 0, FLY_AUTO_CLOSED = false;
 function shellWideEdit(){ const B=document.body; return !!B && B.classList.contains('shell') && !B.classList.contains('stand') && !B.classList.contains('viewer') && window.innerWidth>1180 && !PRINTING_NOW && !PRINT_PAGING; }
 function fitFloor(){ return shellWideEdit()? 0.7 : 0.8; }
+/* v67.7 D7 自动收起左栏的门槛：停靠时固定版宽谱显示不到 90% 就收起一次（此前按显示下限 70%——版宽 870 后 1366 / 1440
+   停靠显示 78% / 87%，数字 13–15px，比同窗口的导入谱 17px 还小；收起后 1366 约 110%、1440 约 114%）。再打开改浮层，不挤谱面 */
+const FIT_DOCK = 0.9;
 function paperFitGuard(contentW, scale){
   const P = document.getElementById('paper'), sv = document.getElementById('score'), B = document.body;
   if(!P || !sv || !B) return;
@@ -5669,7 +5678,7 @@ function paperFitGuard(contentW, scale){
   if(shellWideEdit() && LAY_FIXED_NOW && !noWrapOn() && flyOpen && !startPadOn()){
     if(!B.classList.contains('paper-tight')){ const r = fly.getBoundingClientRect(); if(r.width>0) FLY_DOCK_W = Math.round(r.width); }
     const dockW = B.classList.contains('paper-tight')? LAST_PAPER_W - (FLY_DOCK_W||272) : LAST_PAPER_W;
-    tight = contentW*Math.min(1, viewZoom)*scale*fitFloor() > dockW - 4;   // 只按 ≤100% 判定：用户主动放大走横滚兜底，不动面板
+    tight = contentW*Math.min(1, viewZoom)*scale*FIT_DOCK > dockW - 4;   // 只按 ≤100% 判定：用户主动放大走横滚兜底，不动面板（v67.7 门槛 70%→90%）
     if(tight && !FLY_AUTO_CLOSED){ FLY_AUTO_CLOSED = true; closeFlyout(); tight = false; }
   }
   if(B.classList.contains('paper-tight') !== tight) B.classList.toggle('paper-tight', tight);
@@ -9893,7 +9902,7 @@ function renderCore(){
     needW = needW + 2*MARGIN + STAFF_HEAD_W + 6;
   }
   const baseA4 = LAY_FIXED_NOW? FIXED_A4 : narrowRe? Math.max(300, paperW - 6, Math.ceil(needW*cfg.scale*LAY_BIGK))
-    : Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽（v64.5 固定版宽谱恒为 1060；v64.6 手机贴屏宽）
+    : Math.max(520, Math.min(1320, paperW - 30));   // A4 响应式基准版宽（v64.5 固定版宽谱恒为 FIXED_A4（v67.7 起 870＝桌面 900−30）；v64.6 手机贴屏宽）
   /* 引擎版宽随"内容大小"反向缩放：内容越大 → 有效版宽越小 → 每页容纳越少；
      纸张外框(=PAGE_W×scale)在屏幕上保持固定尺寸（显示缩放已乘 scale 补偿）。*/
   PAGE_W = Math.round(baseA4 * (narrowRe? 1 : wmm/210) / (cfg.scale*LAY_BIGK));   // 手机重排不按纸张比例（贴屏宽）
