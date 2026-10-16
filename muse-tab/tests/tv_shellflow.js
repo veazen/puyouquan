@@ -205,6 +205,8 @@ const M = {
     await pg.goto(url); await pg.waitForTimeout(1600);
     if (scen === 'multidoc') { await pg.evaluate(() => { window.guardReplace = p => p(); addDoc(PRESETS[0].make()); addDoc(PRESETS[1].make()); addDoc(demoSong()); try { setRTab('info'); } catch (_) {} render(); }); await pg.waitForTimeout(800); }
     const r = await pg.evaluate(IDS => {
+      /* v67.9 发版：右栏版本角标 #rc-ver＝APP_VER，每版必变（对拍基线是上一版）——两边先统一成占位再比，其余逐字节照比 */
+      { const rv = document.getElementById('rc-ver'); if (rv) rv.textContent = 'vX'; }
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
       IDS.forEach(id => { const el = document.getElementById(id); o[id] = el ? { html: el.outerHTML, rect: R(el), parent: el.parentElement && (el.parentElement.id || el.parentElement.tagName),
