@@ -45,6 +45,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libxml2-utils   # tv_mxl 用 xmllint 校验导出的 MusicXML
           npm install --no-audit --no-fund
           npx playwright install --with-deps chromium
+      # v67.9：tv_shellflow 的 S0 要 git show 默认外壳基线提交来对拍「不带开关零差异」；checkout 默认浅克隆（fetch-depth 1）没有历史，
+      # 按 shellflow_ref.json 的完整 SHA 只补取这一个提交（拿不到时 S0 在 CI 判红，不再静默跳过）
+      - name: 取默认外壳对拍基线（tv_shellflow S0）
+        run: |
+          REF=$(node -p "require('./muse-tab/tests/shellflow_ref.json').commit")
+          git fetch --no-tags --depth=1 origin "$REF"
+          git cat-file -e "$REF^{commit}"
       - name: 浏览器回归套件（run_all.js 关键集）
         working-directory: muse-tab/tests
         run: |

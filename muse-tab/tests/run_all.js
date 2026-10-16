@@ -21,6 +21,8 @@ const CORE = [
   'tv_fixdensity',
   /* v67.8 默认外壳小改（偏好设置入口 / 页签 × 与未入库圈 / 智能死按钮 / 示例曲谱 / 关闭提示）：单跑约 35 秒 */
   'tv_v678',
+  /* v67.9 新外壳 ?shell=flow（行 1 + 页签 · 行 2 单行 · 播放与状态栏 · 右栏 264 / 40）＋不带开关与 v67.8 零差异对拍：单跑约 115 秒（两路并行；v67.9 收尾补到 65 项） */
+  'tv_shellflow',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 

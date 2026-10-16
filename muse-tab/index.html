@@ -18,6 +18,13 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
       || (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches)
       || !(window.CSS && CSS.supports && (CSS.supports('backdrop-filter','blur(1px)') || CSS.supports('-webkit-backdrop-filter','blur(1px)'))));
     if(ng) d.classList.add('noglass'); }catch(_){} })();</script>
+<script>/* v67.9 新外壳 flow 预览开关（docs/design-2026-10f；首屏前定档，只读写本机键 musetab-flow，只增）：
+   ?shell=flow 写 '1' 并记住，?shell=classic 写 '0'；读到 '1' 才给 html 加 flow-pre，否则摘掉（快照里带进来的不算数）。本机存储不可用（隐私模式）时 ?shell=flow 只对本次生效。
+   是否真正启用（body.flow）由 FLOW.apply() 再按宽度 / 观看页 / 谱架判定 */
+(function(){ var d=document.documentElement, m=/[?&]shell=(flow|classic)(?:&|#|$)/.exec(location.search), v=null;
+  if(m){ v = m[1]==='flow'? '1' : '0'; try{ localStorage.setItem('musetab-flow', v); }catch(_){} }
+  else { try{ v=localStorage.getItem('musetab-flow'); }catch(_){} }
+  if(v==='1') d.classList.add('flow-pre'); else d.classList.remove('flow-pre'); })();</script>
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
@@ -1076,7 +1083,8 @@ svg text{user-select:none}
 .cc-fav.on{opacity:1;color:#e0395a}
 /* 观看模式 */
 body.viewer #top, body.viewer #doc-tabs, body.viewer #left-dock, body.viewer #right-dock,
-body.viewer #hint, body.viewer #site-footer{display:none!important}
+body.viewer #hint, body.viewer #site-footer,
+body.viewer #flw-left, body.viewer #flw-rstrip{display:none!important}   /* v67.9 flow 外壳的新容器（只在 ?shell=flow 下存在） */
 body.viewer #stage{display:block}
 body.viewer #score-wrap{margin:0 auto}
 #viewerbar{position:sticky;top:0;z-index:40;display:none;align-items:center;gap:10px;
@@ -1105,7 +1113,7 @@ body.viewer #viewerbar{display:flex}
 body.stand{background:var(--bg)}
 body.stand #top,body.stand #doc-tabs,body.stand #left-dock,body.stand #right-dock,
 body.stand #hint,body.stand #site-footer,body.stand #viewerbar,body.stand #mixer-dock,
-body.stand #paywall{display:none!important}
+body.stand #paywall,body.stand #flw-left,body.stand #flw-rstrip{display:none!important}   /* v67.9 + flow 外壳新容器 */
 body.stand #stage{display:block;padding:10px 0 40vh}
 body.stand #score-wrap{margin:0 auto;max-width:min(1100px,96vw)}
 body.stand #paper{max-width:min(1060px,94vw)}
@@ -2642,6 +2650,7 @@ body.shell #panel-tab-voice .rg-body,body.shell #panel-vox-voice .rg-body{margin
 body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-body:last-child{margin-bottom:0}
 @media print{
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov,#viewerbar{display:none!important}
+  #flw-left,#flw-rstrip,#flw-mtop,#flw-mbar{display:none!important}   /* v67.9 flow 外壳新容器（#flw-r1 在 #top 内，随之隐藏） */
   /* v62.4 A0-1：v40.4 通栏框架 body.shell:not(.stand):not(.viewer)（0,3,1；含 #paper 时 1,3,1）把 body 钉成 100vh+overflow:hidden、
      #paper 限宽 900，权重压过下面的打印复位——多页谱打印/存 PDF 只出第 1 页。这里用**同权重选择器**复位，
      且放在 ≤820px 手机框架规则之后（A4 打印视口约 794px，手机媒体查询在打印时同样命中）。 */
@@ -2776,6 +2785,453 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #b-msmart{display:none}
   body.shell:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #score-wrap{padding-bottom:0}
 }
+/* ===== v67.9 flow 外壳（?shell=flow；docs/design-2026-10f）=====
+   启用：<head> 开关脚本给 html 加 flow-pre（本机键 musetab-flow）；脚本区 FLOW.apply() 按
+   「html.flow-pre · 新版外壳 · 非观看页 · 非谱架 · 宽 >820」给 body 加 flow（v68.1 起去掉宽度条件）。
+   规矩：
+   · 选择器一律以 body.flow 开头（权重 ≥0,1,1），不带开关时一条都不命中，默认外壳样式 / 几何零变化；
+     例外只有末尾两条 .flw-x 兜底，它们只命中 flow 才建的节点。
+   · 命名一律加前缀：id 用 #flw-*，class 用 .flw-*，令牌用 --flw-*。参考实现的 .tab / .gt / .pub / .fx 等与现有类撞名。
+   · 桌面规则包在 @media screen and (min-width:821px)。用 screen 是为了打印时宽 >820 的纸型不吃 flow 的边距。
+   · 新节点由 FLOW 在首次启用时用脚本建，不写静态 HTML，所以不带开关时 DOM 也零差异。
+   · flow 只认这四类节点：#flw-* 新容器、.flw-x（插进共用容器的 flow 专属控件）、[data-fa] 委托动作、[data-flw-slot] 搬移槽位。
+   · 主题沿用 :root 色板的四态口径：浅色写在 body.flow；系统深色且未显式选浅，或显式选深，写深色值。
+   小节按轨划分，每个实现轨只改自己的小节（减少合并冲突）：
+   ① 令牌 · 框架（T0）　② 行 1（T1）　③ 页签（T1）　④ 行 2（T2）　⑤ 状态栏（T3）　⑥ 右栏（T3）
+   ⑦ 左栏（v68.0）　⑧ 记号（v68.0）　⑨ 模式（v68.1）　⑩ 菜单 / 浮层（T0）　⑪ 手机（v68.1） */
+/* —— ① 令牌 · 框架（T0）—— */
+body.flow{
+  --flw-on:#161433; --flw-on-t:#ffffff;              /* 模式胶囊反白（v68.1 模式条当前段） */
+  --flw-ctx:.5;                                       /* 记号格语境墨（v68.0：灰 5 / 灰符头 / 灰品位 3 的透明度） */
+  --flw-sel:rgba(147,132,255,.38);                    /* 状态栏小节格当前态 */
+  --flw-r1h:44px; --flw-r2h:40px; --flw-sth:32px;    /* 行 1 · 行 2 · 播放与状态栏 的高 */
+  --flw-lw:248px; --flw-rw:264px; --flw-rs:40px; --flw-ro:288px;   /* 左栏 · 右栏停靠 · 竖条 · 浮出的宽（FLOW.layout 按视口写回 body 内联 --flw-lw / --flw-rw） */
+  --flw-hit:28px;                                     /* 桌面最小命中边（S16） */
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) body.flow{--flw-on:#ecebf6;--flw-on-t:#161433} }
+/* 通用：按宽度收纳的控件（行 2 fitR2 / 音轨 fitTrk）只挂这个类，不写内联 display（§0-14：syncInputs 每次渲染都写内联 display / order） */
+body.flow .flw-off{display:none!important}
+:root[data-theme="light"] body.flow{--flw-on:#161433;--flw-on-t:#ffffff}
+:root[data-theme="dark"] body.flow{--flw-on:#ecebf6;--flw-on-t:#161433}
+@media screen and (min-width:821px){
+  /* 旧主栏只隐藏不删（§1.4：回归套件的程序化 click() 与经典版兜底照常有效）；行 1 #flw-r1 是 #top 的第一个子节点 */
+  body.flow:not(.stand):not(.viewer) #top .main-bar{display:none}
+  /* #top 的毛玻璃会让 position:fixed 后代以 #top 为包含块（§0-5）。flow 下两行都是实底，撤掉毛玻璃；
+     菜单与浮层仍一律挂到 body 下（FLOW.menu.open） */
+  body.flow:not(.stand):not(.viewer) #top{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--toolbar);
+    border-bottom:0}   /* 验收 L5：#top 的 1px 底线占高（外壳 85 / 117，方案 84 / 116）；分隔线改画在行 2 底部（inset 阴影，不占高，见 ④） */
+  body.flow:not(.stand):not(.viewer) #flw-r1{display:flex;align-items:center;gap:4px;height:var(--flw-r1h);padding:0 8px 0 10px;
+    position:relative;background:var(--chrome);color:var(--chrome-text);font:13px/1.45 var(--font-ui);white-space:nowrap;
+    --focus:var(--ed-frame-focus)}
+  body.flow:not(.stand):not(.viewer) #flw-r1::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+    background:var(--glow);opacity:.55;pointer-events:none}
+  /* 搬进行 1 的 #doc-tabs：框架只负责「占满中段、不另起一条深色底」，页签样式在 ③ */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs{flex:1 1 auto;min-width:0;align-self:stretch;padding:6px 0 0;
+    background:none;border-bottom:0;box-shadow:none}
+  /* 谱面区：左右各留 8（README 停靠阈值「视口 − 248 − 264 − 16 ≥ 912」按此算）；#stage 底部给状态栏让位 */
+  body.flow:not(.stand):not(.viewer) #stage{margin-bottom:var(--flw-sth)}
+  body.flow:not(.stand):not(.viewer) #score-wrap{padding:12px 8px 24px}
+  /* 搬进状态栏的 #beat-box / #eb-zoom：框架只保证在深色条上可读、时值错误清单向上弹（不撑高状态栏），细化在 ⑤ */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-box{position:relative;display:inline-flex;align-items:center;flex:none;
+    min-width:0;margin:0;padding:0;border:0;background:none;color:var(--chrome-text);font-size:12px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop{position:absolute;right:0;bottom:calc(100% + 6px);width:320px;
+    max-height:50vh;overflow:auto;z-index:41;color:var(--text);background:var(--panel);border-radius:12px;
+    box-shadow:0 0 0 1px var(--border),0 18px 40px -12px rgba(20,18,60,.32)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #eb-zoom{display:inline-flex;align-items:center;gap:2px;flex:none;color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #zoom-lbl{min-width:38px;text-align:center;font-size:12px;cursor:pointer;
+    font-variant-numeric:tabular-nums}
+
+  /* —— ② 行 1（T1：.flw-brand · #flw-file · #flw-save · #flw-pub · #flw-acct）—— */
+  /* 行 1 的按钮都在深色框架上：先撤掉全局 button 的白底 / 描边 / 按下缩放，再按尺寸档给 30（文件 ▾ / 发布 / 账号 ▾）或 28（保存状态）高 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 button{margin:0;padding:0;border:0;border-radius:8px;background:none;color:inherit;font:inherit;box-shadow:none;cursor:pointer;
+    transition:background .12s,color .12s}
+  body.flow:not(.stand):not(.viewer) #flw-r1 button:active{transform:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-brand{display:flex;align-items:center;gap:8px;height:44px;padding-right:6px;flex:none;color:var(--chrome-text);user-select:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-mark{width:24px;height:24px;border-radius:7.5px;background:var(--grad);position:relative;flex:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-mark::before{content:"";position:absolute;inset:6px 4.5px;opacity:.95;
+    background:linear-gradient(#fff,#fff) 0 1.2px/100% 1.3px no-repeat,linear-gradient(#fff,#fff) 0 5.6px/100% 1.3px no-repeat,linear-gradient(#fff,#fff) 0 10px/100% 1.3px no-repeat}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-mark::after{content:"";position:absolute;right:6px;top:5px;width:5px;height:5px;border-radius:50%;background:#fff}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-bn{display:none;font-weight:700;font-size:14px;letter-spacing:.04em}
+  @media (min-width:1600px){ body.flow:not(.stand):not(.viewer) #flw-r1 .flw-bn{display:inline} }   /* ≥1600 才加「谱友圈」字样 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-cb{height:30px;display:inline-flex;align-items:center;gap:5px;padding:0 10px;color:var(--chrome-text);font-size:13px;white-space:nowrap;flex:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-cb:hover,body.flow:not(.stand):not(.viewer) #flw-r1 .flw-cb[aria-expanded="true"]{background:var(--chrome-2)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-chev{display:flex;opacity:.8}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-vsep{width:1px;height:20px;background:var(--chrome-line);flex:none;margin:0 4px}
+  /* 保存状态：未入库「○ 仅存本机 · 存入我的曲谱」（可点直接存入）；1280–1439 只留「○ 仅存本机」；已入库「已存入我的曲谱 · 10:42」 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save{height:28px;display:inline-flex;align-items:center;gap:7px;padding:0 8px;color:var(--chrome-muted);font-size:12px;white-space:nowrap;flex:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save:hover,body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save[aria-expanded="true"]{background:var(--chrome-2);color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save .flw-ring{width:8px;height:8px;box-sizing:border-box;border-radius:50%;border:1.5px solid currentColor;flex:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save .flw-lng{display:none}
+  @media (min-width:1440px){ body.flow:not(.stand):not(.viewer) #flw-r1 #flw-save .flw-lng{display:inline} }
+  /* 发布：全外壳唯一的主色实底按钮 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-pub{height:30px;display:inline-flex;align-items:center;gap:6px;padding:0 12px 0 10px;margin-left:2px;background:var(--btn-pri);color:var(--ed-on-pri);
+    font-weight:600;font-size:13px;white-space:nowrap;flex:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-pub:hover{background:var(--btn-pri-h);color:var(--ed-on-pri)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-acct{padding:0 6px 0 4px}
+  body.flow:not(.stand):not(.viewer) #flw-r1 .flw-av{width:26px;height:26px;border-radius:50%;background:rgba(var(--ed-chrome-ov),.16);display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600;color:var(--chrome-text);flex:none;overflow:hidden}
+  /* 启动台态：文件 ▾ / ＋ / 账号 ▾ 照常可用（与「新建 / 打开」同口径）；页签、保存状态、发布作用于台下那份谱，先收起 */
+  body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #flw-r1 .flw-tl,body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #flw-r1 #flw-tabovf,body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #flw-r1 #flw-save,body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #flw-r1 #flw-pub{display:none}
+  /* 菜单里行 1 专用的几样：「新建…」带行尾 ▾（快速新建）· 外观三段 · 账号抬头 */
+  body.flow #popmenu.flw-mn .flw-msplit{display:flex;align-items:stretch;gap:2px}
+  body.flow #popmenu.flw-mn .flw-msplit>.flw-mi:first-child{flex:1 1 auto;width:auto}
+  body.flow #popmenu.flw-mn .flw-msplit .flw-msub{width:32px;flex:none;justify-content:center;padding:0}
+  body.flow #popmenu.flw-mn .flw-mseg{display:flex;align-items:center;gap:10px;min-height:36px;padding:3px 6px 3px 10px}
+  body.flow #popmenu.flw-mn .flw-mseg .flw-segs{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--bg);flex:none}
+  body.flow #popmenu.flw-mn .flw-mseg .flw-segb{height:28px;margin:0;padding:0 9px;border:0;border-radius:6px;background:none;color:var(--muted);font:inherit;font-size:12px;box-shadow:none;cursor:pointer}
+  body.flow #popmenu.flw-mn .flw-mseg .flw-segb:hover{color:var(--text)}
+  body.flow #popmenu.flw-mn .flw-mseg .flw-segb:active{transform:none}
+  body.flow #popmenu.flw-mn .flw-mseg .flw-segb[aria-checked="true"]{background:var(--panel);color:var(--accent-ink);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+  body.flow #popmenu.flw-mn .flw-acct-h{display:flex;align-items:center;gap:10px;padding:8px 10px 10px}
+  body.flow #popmenu.flw-mn .flw-acct-h .flw-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;
+    background:var(--accent-soft);color:var(--accent-ink);font-size:14px;font-weight:600}
+  body.flow #popmenu.flw-mn .flw-acct-t b{display:block;font-size:13px}
+  body.flow #popmenu.flw-mn .flw-acct-t span{display:block;font-size:11px;color:var(--faint)}
+  /* —— ② 行 1 结束 —— */
+
+
+  /* —— ③ 页签（T1：#doc-tabs 内 .dtab / .dt-x / .dt-dot / #flw-tabovf / #dt-add；权重写成 body.flow #doc-tabs .dtab… 压住旧样式）——
+     页签高 34、底对齐行 1；当前页签 --toolbar 底、两侧 8px 反向圆角，和行 2 连成一片。宽度由 FLOW.r1.fit 写内联 width（148–240 / 140–188），
+     放不下的挂 .flw-off 收进「窗口 N ▾」。× 命中区 28×28，只在当前页签和悬停时出现，与「仅存本机」空心圈同位互换 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs{display:flex;align-items:flex-end;gap:0;flex:1 1 0;min-width:0;overflow:visible;position:relative}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .flw-tl{display:flex;align-items:flex-end;flex:none;min-width:0;height:34px}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab{position:relative;box-sizing:border-box;height:34px;display:flex;align-items:center;gap:6px;flex:none;min-width:0;max-width:none;
+    margin:0;padding:0 4px 0 10px;border:0;border-radius:8px 8px 0 0;background:none;box-shadow:none;color:var(--chrome-muted);
+    font-size:13px;font-weight:400;line-height:18px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .12s,color .12s}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab>.pqi,body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab>.svgi{width:16px;height:16px;flex:none;opacity:.9}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab .dt-t{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .flw-tslot{position:relative;width:20px;height:28px;flex:none;display:flex;align-items:center;justify-content:center}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on .flw-tslot{width:28px}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab .dt-dot{display:block;opacity:.8}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab .dt-x{position:absolute;top:0;left:50%;width:28px;height:28px;margin:0 0 0 -14px;padding:0;display:none;align-items:center;justify-content:center;
+    flex:none;border:0;border-radius:7px;background:none;color:inherit;line-height:0}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab .dt-x::before{content:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-cx:hover .dt-x,body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-cx.on .dt-x{display:flex}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-cx:hover .dt-dot,body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-cx.on .dt-dot{display:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab .dt-x:hover{background:var(--chrome-2);color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on .dt-x:hover{background:var(--hover);color:var(--text)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab:not(.on):hover{background:var(--chrome-2);color:var(--chrome-text)}
+  /* 相邻两个非当前页签之间一道 1px 竖线（收起的不算），悬停时两侧的线隐去 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab:not(.on):not(.flw-off)+.dtab:not(.on)::before{content:"";position:absolute;left:0;top:9px;width:1px;height:16px;background:var(--chrome-line)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab:not(.on):hover::before,body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab:not(.on):hover+.dtab::before{opacity:0}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on{background:var(--toolbar);color:var(--text);font-weight:600;z-index:2}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on::after,body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on .flw-cnr{content:"";position:absolute;bottom:0;width:8px;height:8px;pointer-events:none}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on::after{right:-8px;background:radial-gradient(circle at 100% 0,transparent 7.5px,var(--toolbar) 8px)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.on .flw-cnr{left:-8px;background:radial-gradient(circle at 0 0,transparent 7.5px,var(--toolbar) 8px)}
+  /* 截断的页签悬停 600ms 原位展开（FLOW.r1：负外距抵掉多出的宽，别的页签不动；高度不变，只覆盖行 1） */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-peek{z-index:5;box-shadow:0 8px 20px -8px rgba(0,0,0,.55)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-peek:not(.on){background:linear-gradient(var(--chrome-2),var(--chrome-2)),var(--chrome);color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-peek .dt-t{text-overflow:clip}
+  /* 拖动排序：被拖的页签跟手，落点处 2px 主色竖线 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-drag{z-index:6;opacity:.94;cursor:grabbing;transition:none;box-shadow:0 8px 20px -8px rgba(0,0,0,.55)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-dropb{box-shadow:inset 2px 0 0 var(--accent)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs .dtab.flw-dropa{box-shadow:inset -2px 0 0 var(--accent)}
+  /* 「窗口 N ▾」：页签之后、＋ 之前 */
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-tabovf{height:28px;margin:0 0 3px 6px;padding:0 8px;display:flex;align-items:center;gap:4px;border-radius:7px;flex:none;white-space:nowrap;
+    background:var(--chrome-2);color:var(--chrome-text);font-size:12px}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-tabovf:hover,body.flow:not(.stand):not(.viewer) #flw-r1 #flw-tabovf[aria-expanded="true"]{background:rgba(var(--ed-chrome-ov),.2)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #flw-tabovf .flw-n{font-variant-numeric:tabular-nums}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs #dt-add{width:28px;height:28px;margin:0 0 3px 4px;padding:0;border:0;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    flex:none;background:none;color:var(--chrome-muted)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs #dt-add:hover{background:var(--chrome-2);color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #flw-r1 #doc-tabs #dt-add::after{content:none}
+  /* 窗口列表（#popmenu.flw-mn.flw-wmn）：每行 44 · 谱类图标 · 曲名 / 谱类 · 入库状态 · 页签中 / 已收起 · × */
+  body.flow #popmenu.flw-mn.flw-wmn{min-width:320px;max-width:380px}
+  body.flow #popmenu.flw-mn .flw-wl{display:flex;flex-direction:column}
+  body.flow #popmenu.flw-mn .flw-wrow{gap:10px;padding:4px 4px 4px 10px}
+  body.flow #popmenu.flw-mn .flw-wrow.on{background:var(--accent-soft)}
+  body.flow #popmenu.flw-mn .flw-wrow .flw-ml b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.flow #popmenu.flw-mn .flw-wrow .flw-md{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.flow #popmenu.flw-mn .flw-wst{width:10px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--faint)}
+  body.flow #popmenu.flw-mn .flw-wring{width:7px;height:7px;box-sizing:border-box;border-radius:50%;border:1.4px solid currentColor}
+  body.flow #popmenu.flw-mn .flw-wx{width:28px;height:28px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:7px;color:var(--faint);cursor:pointer}
+  body.flow #popmenu.flw-mn .flw-wx:hover{background:var(--hover);color:var(--text)}
+  body.flow #popmenu.flw-mn .flw-wrow.on .flw-wx:hover{background:var(--panel)}
+  /* —— ③ 页签结束 —— */
+
+
+  /* —— ④ 行 2（T2：#editbar 单行 40 · data-pri 收纳 .flw-off · #flw-ebu-line · #flw-more）——
+     现有 #editbar 原地改样式（§1.7「FX.r2 不用」），id、监听（ebHandler / #eb-dur / FLOW.bind）、快捷键全不动。
+     顺序：撤销 ｜ 后插 前插 休止 删除 ｜ 音高键 ｜ ♯ ♭ ♮ · 高 / 低八度 ｜ 时值 · 附点 · 增时线 ｜ 连音线 · 3 连音 ｜ 更多 ▾ ……（≥1600）作用于。
+     v68.1 的模式条排在撤销之前（order 小于 -10），起步组排在撤销之后。
+     单行永不折行、高恒 40：放不下靠 FLOW.r2.fit 按 data-pri 加 .flw-off（不写内联 display，§0-14），行高不随内容变，
+     所以 #top 高度恒定、#stage 只在首帧定一次高，不触发 #paper 的 ResizeObserver（§1.5-4）。
+     权重：旧外壳有 body.shell #editbar #eb-edit .eb 这类两个 id 的规则，这里针对具体控件的规则同样带两个 id */
+  body.flow:not(.stand):not(.viewer) #editbar{height:var(--flw-r2h);flex-wrap:nowrap;overflow:hidden;white-space:nowrap;
+    padding:0 8px;gap:2px;border-top:0;background:var(--toolbar);box-shadow:inset 0 -1px 0 var(--border-soft)}   /* 不画上边线：当前页签与行 2 同底，连成一片（README「消掉三明治」）；底线＝外壳与谱面区的分隔（原 #top 的 1px 底边，不占高） */
+  body.flow:not(.stand):not(.viewer) #editbar>*{flex-shrink:0}
+  body.flow:not(.stand):not(.viewer) #editbar>.grow{flex:1 1 0;min-width:0}
+  /* 进「更多 ▾」的旧控件：只隐藏，菜单项点的就是它们（委托原则 ①） */
+  body.flow:not(.stand):not(.viewer) #editbar #ebu-eb-combo,
+  body.flow:not(.stand):not(.viewer) #editbar #eb-clear,body.flow:not(.stand):not(.viewer) #editbar #eb-split,
+  body.flow:not(.stand):not(.viewer) #editbar #eb-merge,body.flow:not(.stand):not(.viewer) #editbar #eb-nowrap,
+  body.flow:not(.stand):not(.viewer) #editbar #seg-undo #b-redo{display:none}   /* 三个 id：压过下面「#seg-undo button」的 inline-flex */
+  /* 撤销排到行首（applyShellDock / applyResponsive 把 #seg-undo 放在节奏组之后，这里只改视觉顺序） */
+  body.flow:not(.stand):not(.viewer) #editbar #seg-undo{order:-10;margin:0;gap:0;border:0;border-radius:0;background:none;box-shadow:none;overflow:visible}   /* 去掉 .seg 的分段框：行 2 只有一枚撤销 */
+  body.flow:not(.stand):not(.viewer) #editbar #flw-sep-undo{order:-9}
+  body.flow:not(.stand):not(.viewer) #editbar #seg-undo #b-undo{font-size:0!important;min-width:28px!important;gap:0}   /* 「↶」字符换成 act-undo 图标（内联 font-size:14px 要 !important 才压得住） */
+  /* 组：组名 <1600 隐藏；组内间距 1、组间分隔 1px */
+  body.flow:not(.stand):not(.viewer) #editbar .eb-unit{gap:0}
+  body.flow:not(.stand):not(.viewer) #editbar .eb-grp{gap:1px}
+  body.flow:not(.stand):not(.viewer) #editbar .eb-t{display:none;margin:0 4px 0 2px;font-size:11px;color:var(--faint)}
+  body.flow:not(.stand):not(.viewer) #editbar .eb-sep{width:1px;height:20px;margin:0 4px;flex:none;background:var(--border)}
+  /* 按钮：28 高、无框，悬停浅底，选中＝浅主色底 + 内描边（参考 .tb） */
+  body.flow:not(.stand):not(.viewer) #editbar .eb,
+  body.flow:not(.stand):not(.viewer) #editbar #seg-undo button{height:28px;min-height:28px;min-width:28px;margin:0;padding:0 6px;
+    display:inline-flex;align-items:center;justify-content:center;gap:4px;border:0;border-radius:6px;background:transparent;
+    box-shadow:none;color:var(--text);font-size:12px;line-height:1}
+  body.flow:not(.stand):not(.viewer) #editbar .eb:hover,
+  body.flow:not(.stand):not(.viewer) #editbar #seg-undo button:hover{background:var(--hover)}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-note .eb.on,body.flow:not(.stand):not(.viewer) #editbar #eb-dur .eb.on,
+  body.flow:not(.stand):not(.viewer) #editbar #flw-eb-line .eb.on{background:var(--accent-soft);color:var(--accent-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 32%,transparent)}
+  body.flow:not(.stand):not(.viewer) #editbar .flw-bi{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none}
+  body.flow:not(.stand):not(.viewer) #editbar .flw-bi svg{display:block;margin:0;max-width:none}
+  /* 编辑组四键：16 图标 + 12px 字（后插 / 前插 / 删除用 PQF，休止按语境：简谱「0」、五线 / 六线四分休止符） */
+  body.flow:not(.stand):not(.viewer) #editbar #eb-edit .eb{padding:0 7px 0 5px;gap:3px}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-edit .eb .dn{font-size:12px}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-rest-ic .flw-n0{font:600 14px/1 var(--font-num)}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-rest-ic .smg{display:block;margin:0;max-width:none}
+  /* 收完 data-pri 仍放不下的最后一档（FLOW.r2.fit 挂 .flw-r2-tight）：编辑组与「哑音」只留图标 */
+  body.flow:not(.stand):not(.viewer) #editbar.flw-r2-tight #eb-edit .eb .dn,
+  body.flow:not(.stand):not(.viewer) #editbar.flw-r2-tight #eb-mute-n .flw-bl{display:none}
+  body.flow:not(.stand):not(.viewer) #editbar.flw-r2-tight #eb-edit .eb{padding:0 6px}
+  /* 音高键：数字 / 音名 28 宽 */
+  body.flow:not(.stand):not(.viewer) #editbar #eb-note .nd{min-width:28px;padding:0 4px}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-note .nd .dg{font-size:14px}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-fret-more{padding:0 6px}
+  /* 六线谱「哑音 ×」（README「×标记 / 哑音 / × 分解」合成一个，toggleMute 与 x 键不变）：syncInputs 补的「分解」小字换成 .flw-bl */
+  body.flow:not(.stand):not(.viewer) #editbar #eb-mute-n{padding:0 7px 0 6px;gap:3px}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-mute-n .dn{display:none}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-mute-n .flw-bl{font-size:12px}
+  /* ♯ ♭ ♮：简谱也给（accBump / accNat 在简谱走 toggleAcc，键盘同口径）；syncInputs 在非五线谱写内联 display:none，按语境用 !important 放出来，
+     :not(.flw-off) 保住 data-pri 收纳。六线谱不给（无变音键），组前分隔 #flw-sep-acc 也收起 */
+  body.flow:not(.stand):not(.viewer) #editbar[data-flw-ctx="jp"] #eb-note>#eb-acc-s:not(.flw-off),
+  body.flow:not(.stand):not(.viewer) #editbar[data-flw-ctx="jp"] #eb-note>#eb-acc-f:not(.flw-off),
+  body.flow:not(.stand):not(.viewer) #editbar[data-flw-ctx="jp"] #eb-note>#eb-acc-n:not(.flw-off){display:inline-flex!important}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-sep-acc{order:41}   /* syncInputs 的内联 order：× 41 < 本分隔（同 41、DOM 在后）< ♯ 42 */
+  body.flow:not(.stand):not(.viewer) #editbar[data-flw-ctx="tab"] #flw-sep-acc{display:none}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-acc-s,body.flow:not(.stand):not(.viewer) #editbar #eb-acc-f,
+  body.flow:not(.stand):not(.viewer) #editbar #eb-acc-n{padding:0 4px}
+  /* ♯ ♭ ♮ 换成与记号面板 #b-sharp / #b-flat / #b-natural 同源的 SMuFL 字形（字符 ♯ 在界面字体里只有 9px 高、发灰） */
+  body.flow:not(.stand):not(.viewer) #editbar #eb-note .flw-acc~.dg{display:none}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-note .flw-acc .smg{display:block;margin:0;max-width:none}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-octup,body.flow:not(.stand):not(.viewer) #editbar #eb-octdn{padding:0 5px}
+  /* 时值 · 附点 · 增时线 */
+  body.flow:not(.stand):not(.viewer) #editbar #eb-dur .eb{min-width:28px;padding:0 3px}
+  body.flow:not(.stand):not(.viewer) #editbar #eb-dur .dg svg{width:16px;height:22px}
+  /* 连音线 · 3 连音（ebHandler 已处理 #eb-tie → toggleTie、[data-tup] → applyTuplet） */
+  body.flow:not(.stand):not(.viewer) #editbar #flw-eb-line .eb{padding:0 4px}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-eb-line .eb.ico .g{min-height:0}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-eb-line .eb svg{display:block;margin:0;max-width:none;color:inherit}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-eb-line #flw-tup3 svg{width:26px;height:17px}
+  /* 更多 ▾ */
+  body.flow:not(.stand):not(.viewer) #editbar #flw-more{padding:0 6px 0 9px;gap:2px;color:var(--text)}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-more[aria-expanded="true"]{background:var(--hover)}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-more .flw-chev{display:inline-flex;color:var(--muted)}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-more .flw-chev svg{display:block;margin:0}
+  /* 作用于 芯片（≥1600 常显；更窄的宽度由状态栏常显当前轨） */
+  body.flow:not(.stand):not(.viewer) #editbar #flw-scope{display:none;height:26px;max-width:240px;align-items:center;gap:6px;
+    padding:0 10px 0 7px;margin-left:4px;border-radius:13px;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;line-height:1}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-scope .flw-sic{display:inline-flex;flex:none}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-scope .flw-sic svg{display:block;margin:0}
+  body.flow:not(.stand):not(.viewer) #editbar #flw-scope .flw-sn{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  @media (min-width:1600px){
+    body.flow:not(.stand):not(.viewer) #editbar .eb-t{display:inline}
+    body.flow:not(.stand):not(.viewer) #editbar #flw-scope{display:inline-flex}
+  }
+  /* 「更多 ▾」里被收起的键沿用按钮自己的字形（时值 SMuFL 图 / 3 连音 / ♮），压进菜单的 16 图标位 */
+  body.flow #popmenu.flw-mn .flw-r2ic{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font:600 13px/1 var(--font-num)}
+  body.flow #popmenu.flw-mn .flw-r2ic svg{display:block;margin:0;max-width:none;width:auto;max-height:20px}
+  /* 谱型条吸顶：旧外壳 top:-16px 抵的是 #score-wrap 的 16px 上内边距；flow 下内边距是 12（T0 框架），同口径改 -12，
+     否则吸住时上缘多缩进行 2 下 4px（lbStickBottom 读实测 rect，不受影响） */
+  body.flow:not(.stand):not(.viewer) #lb-wrap{top:-12px}
+
+  /* —— ④ 行 2 结束 —— */
+
+
+  /* —— ⑤ 播放与状态栏（T3：#mixer-dock 32 · #flw-st-* · #beat-box · #err-drop 上弹 · #eb-zoom）——
+     原节点就地留在 #mixer-dock（§1.4 委托原则：id、onclick、回归套件的程序化 click() 都不变），这里只改样式与排列。
+     从左到右：播放 · 回开头 · 小节格（拖选＝循环）· ▦ ｜ 当前轨 · 记谱法 ｜ 第 n/N 小节 · 第 c 拍 ｜ 时值检查 ‖ ♩= · 倍速 · 节拍器 ｜ ⋯ ｜ 混音 ▴ ｜ 缩放 · ?
+     框架是深色（--chrome 浅深两套都是深底），所以本节不分主题；高 32 含顶部发丝线（inset 阴影，不占高）。 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock{border-top:0;overflow:visible;
+    --flw-st-ok:#7fe0a6; --flw-st-warn:#ffc46b}          /* 时值检查上弹层不被裁（原 overflow:hidden）；深底上的「正确 / 不符」两色 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar{height:var(--flw-sth);padding:0 8px;gap:4px;flex-wrap:nowrap;
+    font-size:12px;white-space:nowrap;color:var(--chrome-muted)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar>button,
+  body.flow:not(.stand):not(.viewer) #mixer-dock #eb-zoom button{height:28px;min-height:28px;min-width:28px;padding:0 6px;
+    display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:none;border:0;border-radius:6px;font-size:12px;line-height:1}
+  /* 收进「⋯ 更多」或编辑器里没有意义的：速度字样（改为 ♩=）· 谱架（⋯）· 观看页设置（观看页照旧显示）· 手机的 ⋯ */
+  body.flow:not(.stand):not(.viewer) #mixer-dock :is(.mx-splabel,#b-stand,#b-vwset,#mx-more){display:none!important}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #b-play{height:28px;padding:0 12px 0 10px;border-radius:14px;font-weight:600;letter-spacing:.02em}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #b-restart{width:28px;min-width:28px!important;padding:0}   /* 行内 min-width:34 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #flw-st-loop{width:28px;padding:0}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #flw-st-loop[aria-pressed="true"]{background:var(--accent);color:var(--ed-on-accent)}
+  /* 小节格：占 28vw 起、可缩到 72；拖选＝循环（现有 #mx-prog 指针逻辑不动）。光标所在小节描一道底线（.flw-at，renderProgCells / FLOW.st.sync 写） */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #mx-prog{flex:0 1 28vw;min-width:72px;height:22px;border-radius:5px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #mx-prog .mxc.flw-at{box-shadow:inset 0 -2px 0 var(--ed-chrome-accent)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #mx-prog .mxc.flw-at span{color:var(--chrome-text);font-weight:700}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #b-mxgrid{width:28px;padding:0;font-size:13px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-sep{width:1px;height:14px;flex:none;margin:0 3px;background:var(--chrome-line)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-grow{flex:1 1 0;min-width:4px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-txt{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    color:var(--chrome-muted);font-variant-numeric:tabular-nums}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-txt b{color:var(--chrome-text);font-weight:600}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #flw-st-trk{flex-shrink:0;max-width:180px}   /* 小节格先让（它的弹性基准 28vw 最大）；轨名过长才截断 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #flw-st-pos{flex-shrink:0}
+  /* 时值检查（搬入的 #beat-status）：深底胶囊；不符时琥珀色，点开＝上弹 #err-drop（body.flw-eo 才显示，不自动弹出） */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status{width:auto;max-width:none;height:28px;padding:0 9px;gap:5px;border:0;
+    border-radius:14px;background:transparent;color:var(--flw-st-ok);font-size:12px;font-weight:500;white-space:nowrap}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status::before{display:none}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status:hover{background:var(--chrome-2)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status.bad{color:var(--flw-st-warn);font-weight:600;
+    background:rgba(255,196,107,.12);box-shadow:inset 0 0 0 1px rgba(255,196,107,.35)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+  body.flow:not(.stand):not(.viewer):not(.flw-eo) #mixer-dock #err-drop{display:none!important}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop{left:0;right:auto;width:340px;max-width:calc(100vw - 16px);padding:8px;margin:0;text-align:left;white-space:normal}
+  /* ♩= · 倍速 · 节拍器 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-bpm{flex:none;color:var(--chrome-muted);font-size:12px;margin-right:-2px;cursor:text}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #i-tempo{width:48px;height:24px;padding:0 4px;border-radius:6px;font-size:12px;flex:none;
+    font-variant-numeric:tabular-nums}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #mx-rate{width:58px;height:24px;padding:0 2px;border-radius:6px;font-size:12px;flex:none}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #mx-expand{padding:0 8px}
+  /* 缩放（搬入的 #eb-zoom）· ? */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #eb-zoom{gap:0}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #eb-zoom button{width:28px;padding:0;background:transparent;color:var(--ed-dock-btn);font-size:15px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #eb-zoom button:hover{background:var(--chrome-2);color:#fff}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #zoom-lbl{min-width:40px;color:var(--chrome-text)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock :is(#flw-st-more,#flw-st-help){width:28px;padding:0}
+  body.flow:not(.stand):not(.viewer) #mixer-dock :is(#flw-st-more,#flw-st-help)[aria-expanded="true"]{background:var(--chrome-2);color:#fff}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar>button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+  /* 启动台态（还没打开曲谱）不出播放与状态栏；竖条随编辑区一起淡出（STARTPAD_INERT 已让它点不中） */
+  body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #mixer-dock{display:none}
+  body.flow:not(.stand):not(.viewer):has(#start-pad:not(.hidden)) #stage{margin-bottom:0}
+  body.flow.startpad #flw-rstrip{opacity:.45}
+  /* 窄于 1100（v67.9 flow 在 821–1099 也启用）：节拍器 / 混音只留图标、位置只留小节号；窄于 980 再收起「当前轨」。
+     文字仍在 DOM 里（font-size:0），读屏与 title 不变；单行不溢出（几何见 T3 冒烟 widths） */
+  @media (max-width:1099px){
+    body.flow:not(.stand):not(.viewer) #mixer-dock :is(#b-metro,#mx-expand){font-size:0;gap:0;width:28px;padding:0}
+    body.flow:not(.stand):not(.viewer) #mixer-dock #flw-st-pos .flw-st-b{display:none}
+    body.flow:not(.stand):not(.viewer) #mixer-dock #mx-prog{min-width:48px}
+  }
+  @media (max-width:979px){
+    body.flow:not(.stand):not(.viewer) #mixer-dock :is(#flw-st-trk,.flw-st-sep:has(+ #flw-st-trk)){display:none}
+  }
+  /* 上面两档只按视口宽；内容长（长轨名 · 多选「已选第 a–b 小节」· 时值不符 N 处）时 FLOW.st.fit 再按档累加 .flw-f1…7（验收 L1，档位见 FLOW.st） */
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f1 #flw-st-pos .flw-st-b{display:none}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f2 :is(#b-metro,#mx-expand){font-size:0;gap:0;width:28px;padding:0}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f3 #mx-prog{min-width:48px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f4 #flw-st-trk{max-width:96px}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f5 :is(#flw-st-trk,.flw-st-sep:has(+ #flw-st-trk)){display:none}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f6 #beat-status{padding:0;width:28px;justify-content:center}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f6 #beat-status .flw-bst{font-size:0}
+  body.flow:not(.stand):not(.viewer) #mixer-dock .mx-bar.flw-f7 :is(#flw-st-pos,.flw-st-sep:has(+ #flw-st-pos)){display:none}
+  /* ⋯ 更多 / ? 两个菜单（挂 body 的 #popmenu.flw-mn，样式基座在 ⑩）：快捷键表行 */
+  body.flow #popmenu.flw-mn .flw-st-kv{display:flex;align-items:center;gap:10px;min-height:28px;padding:3px 10px;font-size:12.5px}
+  body.flow #popmenu.flw-mn .flw-st-kv span{flex:1 1 auto;min-width:0}
+  body.flow #popmenu.flw-mn .flw-st-kv kbd{flex:none;font:11px/1.4 var(--font-ui);color:var(--muted);background:var(--bg);
+    border-radius:5px;padding:1px 6px;box-shadow:inset 0 0 0 1px var(--border-soft)}
+  /* —— ⑤ 状态栏结束 —— */
+  /* 旧左栏面板的浮层态（≤1180 宽，以及 D7 的 paper-tight）：旧外壳按页头 121 / 页签 162 写死 top:150 / bottom:76，flow 下外壳只有 84 高、
+     状态栏 32，面板上方空 65、下方空 44，还从吸顶谱型条中间切过去（验收 L4）。flow 下贴外壳底 + 8、状态栏顶 − 8，与右栏浮出同一口径（v68.0 左栏改 248 常驻后不再浮） */
+  body.flow.paper-tight:not(.stand):not(.viewer) #left-flyout{top:calc(var(--flw-r1h) + var(--flw-r2h) + 8px);bottom:calc(var(--flw-sth) + 8px)}
+  @media (max-width:1180px){
+    body.flow:not(.stand):not(.viewer) #left-flyout{top:calc(var(--flw-r1h) + var(--flw-r2h) + 8px);bottom:calc(var(--flw-sth) + 8px)}
+  }
+
+
+  /* —— ⑥ 右栏（T3：body.flw-rd 停靠 264 · body.flw-rs 竖条 40 #flw-rstrip · body.flw-ro 浮出 288）——
+     判定（FLOW.rd.layout，只看 innerWidth 与 musetab-rdock）：视口 − 248 − 264 − 16 ≥ 912（即 ≥1440）或已钉住 → 停靠；否则竖条。
+     浮出是覆盖层（不改 #paper 宽，§1.5-3），盖在 #stage 右侧、贴着竖条。覆盖 @media (max-width:1200px){#right-dock{display:none}}：
+     flow 下 821–1439 一律是竖条，「智能」抽屉（body.rsheet）不再出现 */
+  body.flow:not(.stand):not(.viewer) #stage{position:relative}
+  body.flow.flw-rd:not(.stand):not(.viewer) #right-dock{display:flex;width:var(--flw-rw)}
+  body.flow.flw-rd:not(.stand):not(.viewer) #flw-rstrip{display:none}
+  body.flow.flw-rs:not(.stand):not(.viewer) #right-dock{display:none}
+  body.flow.flw-rs.flw-ro:not(.stand):not(.viewer) #right-dock{display:flex!important;position:absolute;top:0;bottom:0;right:var(--flw-rs);
+    left:auto;width:var(--flw-ro);height:auto;max-height:none;margin:0;z-index:30;border-radius:0;border-left:1px solid var(--border);
+    box-shadow:-12px 0 24px -16px rgba(20,18,60,.35)}
+  body.flow.flw-rs:not(.stand):not(.viewer) #flw-rstrip{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none;
+    width:var(--flw-rs);align-self:stretch;padding:8px 0;background:var(--toolbar);border-left:1px solid var(--border-soft);
+    position:relative;z-index:31}
+  body.flow #flw-rstrip .flw-rs-b{width:32px;min-height:28px;margin:0;padding:7px 0;display:flex;flex-direction:column;align-items:center;gap:4px;
+    border:0;border-radius:7px;background:none;box-shadow:none;color:var(--muted);font:11px/1.15 var(--font-ui);cursor:pointer}
+  body.flow #flw-rstrip .flw-rs-b:hover,body.flow #flw-rstrip .flw-rs-b.on{background:var(--hover);color:var(--text)}
+  body.flow #flw-rstrip .flw-rs-b.on{box-shadow:inset 2px 0 0 var(--accent)}
+  body.flow #flw-rstrip .flw-rs-b[aria-pressed="true"]{color:var(--accent-ink)}
+  body.flow #flw-rstrip .flw-rs-b:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+  body.flow #flw-rstrip .flw-rs-v{display:block;text-align:center;line-height:1.25;font-weight:600}
+  body.flow #flw-rstrip .flw-rs-grow{flex:1 1 auto}
+  /* 浮出 / 钉住时页签条右端的「钉住」「收起」（#rtabs 的点击只认 .rtab，这两枚走 FLOW.act） */
+  body.flow #rtabs .flw-rd-ib{flex:none;width:28px;min-height:28px;padding:0;margin:0;display:inline-flex;align-items:center;justify-content:center;
+    border:0;border-radius:7px;background:none;box-shadow:none;color:var(--muted);cursor:pointer}
+  body.flow #rtabs .flw-rd-ib:hover{background:var(--hover);color:var(--text)}
+  body.flow #rtabs .flw-rd-ib[aria-pressed="true"]{color:var(--accent-ink)}
+  body.flow #rtabs .flw-rd-ib[hidden]{display:none}
+  body.flow:not(.flw-ro) #rtabs #flw-rd-close{display:none}
+  /* —— ⑥ 右栏结束 —— */
+
+
+  /* —— ⑦ 左栏（v68.0：#flw-left 248 · #flw-trk 音轨层级树）—— */
+
+  /* —— ⑦ 左栏结束 —— */
+
+
+  /* —— ⑧ 记号（v68.0：#flw-pal Bravura 记号面板）—— */
+
+  /* —— ⑧ 记号结束 —— */
+
+
+  /* —— ⑨ 模式（v68.1：setMode 给 body 写 data-flw-mode = write / engrave / output）——
+     §0-7：#preview-ov 的 z-index 1400 高于弹窗遮罩 50 和浮层 70。排版 / 输出模式嵌入预览时降到 18（低于 #top 的 20），
+     否则「曲谱信息」等弹窗会被它盖住 */
+  body.flow[data-flw-mode="engrave"] #preview-ov,body.flow[data-flw-mode="output"] #preview-ov{z-index:18}
+
+  /* —— ⑨ 模式结束 —— */
+}
+/* —— ⑩ 菜单 / 浮层（T0）——
+   flow 的下拉菜单与窗口列表一律做成 div#popmenu.popmenu.flw-mn，挂在 body 下（FLOW.menu.open）。这样自动接上现成的四样：
+   closePop()、Esc（全局 keydown）、点外部关闭（pointerdown 捕获）、clampPopIntoView 夹回视口。
+   菜单项 .flw-mi 由 FLOW.mi() 生成：图标 .flw-mic 16 · 文字 .flw-ml（说明 .flw-md）· 快捷键 / 状态 .flw-ms；
+   组名 .flw-mh、分隔 hr、原因说明 .flw-why、搜索框 .flw-msearch、窗口列表行 .flw-wrow（高 ≥44）。
+   这一节不包在宽度媒体查询里：v68.1 手机外壳复用同一套 */
+body.flow #popmenu.flw-mn{min-width:240px;max-width:340px;max-height:calc(100vh - 16px);overflow:auto;padding:6px;border:0;border-radius:12px;background:var(--panel);color:var(--text);
+  font:13px/1.45 var(--font-ui);box-shadow:0 0 0 1px var(--border),0 18px 40px -12px rgba(20,18,60,.32)}
+body.flow #popmenu.flw-mn .flw-mh{font-size:11px;color:var(--faint);padding:6px 10px 4px;font-weight:600;letter-spacing:.02em}
+body.flow #popmenu.flw-mn .flw-mi{width:100%;min-height:32px;display:flex;align-items:center;gap:10px;margin:0;padding:5px 10px;
+  border:0;border-radius:7px;background:none;color:inherit;font:inherit;text-align:left;white-space:normal;box-shadow:none;cursor:pointer}
+body.flow #popmenu.flw-mn .flw-mi:hover,body.flow #popmenu.flw-mn .flw-mi.hl{background:var(--hover)}
+body.flow #popmenu.flw-mn .flw-mi:active{transform:none}
+body.flow #popmenu.flw-mn .flw-mi:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+body.flow #popmenu.flw-mn .flw-mic{width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex:none;color:var(--muted)}
+body.flow #popmenu.flw-mn .flw-mic svg{display:block}
+body.flow #popmenu.flw-mn .flw-ml{flex:1 1 auto;min-width:0}
+body.flow #popmenu.flw-mn .flw-md{display:block;font-size:11px;line-height:1.35;color:var(--faint);white-space:normal}
+body.flow #popmenu.flw-mn .flw-ms{flex:none;font-size:11px;color:var(--faint)}
+body.flow #popmenu.flw-mn .flw-mi[aria-disabled="true"]{cursor:not-allowed}
+body.flow #popmenu.flw-mn .flw-mi[aria-disabled="true"] .flw-ml,body.flow #popmenu.flw-mn .flw-mi[aria-disabled="true"] .flw-mic{color:var(--faint)}
+body.flow #popmenu.flw-mn .flw-mi.pri,body.flow #popmenu.flw-mn .flw-mi.pri .flw-mic{color:var(--accent-ink)}
+body.flow #popmenu.flw-mn .flw-mi[aria-checked="true"] .flw-ms{color:var(--accent-ink);font-weight:600}
+/* 一行并排的几项（文件 ▾「排版… · 打印预览 · 打印与导出…」过渡入口，验收 SC-1） */
+body.flow #popmenu.flw-mn .flw-mrow{display:flex;gap:2px}
+body.flow #popmenu.flw-mn .flw-mrow .flw-mi{flex:1 1 auto;width:auto;min-width:0;gap:5px;padding:5px 6px;justify-content:center;white-space:nowrap}
+body.flow #popmenu.flw-mn .flw-mrow .flw-ml{flex:none}
+body.flow #popmenu.flw-mn hr{border:0;height:1px;background:var(--border-soft);margin:5px 4px}
+body.flow #popmenu.flw-mn .flw-why{font-size:11px;line-height:1.45;color:var(--muted);background:var(--bg);border-radius:7px;padding:7px 10px;margin:2px 4px 4px}
+body.flow #popmenu.flw-mn .flw-msearch{height:32px;margin:2px 4px 6px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:7px;
+  background:var(--bg);color:var(--faint)}
+body.flow #popmenu.flw-mn .flw-msearch input{flex:1 1 auto;min-width:0;height:30px;margin:0;padding:0;border:0;outline:none;background:none;
+  box-shadow:none;font:13px var(--font-ui);color:var(--text)}
+body.flow #popmenu.flw-mn .flw-wrow{min-height:44px}
+/* —— ⑩ 菜单结束 —— */
+/* —— ⑪ 手机（v68.1 轨 D：@media (max-width:820px) 子段；#flw-mtop / #flw-mbar）—— */
+
+/* —— ⑪ 手机结束 —— */
+/* .flw-x＝插进共用容器（#editbar / #mixer-dock 等）的 flow 专属控件，包括 flow 搬进来的旧节点。
+   离开 flow（≤820、观看页、谱架、?shell=classic）时一律不显示。旧节点由 FLOW.dock(false) 搬回原位并摘掉这个类 */
+body:not(.flow) .flw-x{display:none!important}
+body.viewer #mixer-dock .flw-x{display:none!important}
 </style>
 </head>
 <body class="shell"><!-- v55.2 首帧即新版外壳：脚本在文末执行前浏览器已按 HTML+CSS 首绘，
@@ -9812,6 +10268,7 @@ function render(opt){
   try{ renderCore(); } finally{ JP_MEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
   try{ lbSync(); }catch(e){ console.error('谱型条同步异常', e); }   // v67.5 谱型条＋起步条按谱内容现算（没有谱型条的窗口一次查表即返回）
   if(SEL_FOLLOW){ SEL_FOLLOW=false; try{ selFollow(); }catch(_){} }   // v67.3 键盘移动光标后跟滚（见 selFollow）
+  if(flowOn()) try{ FLOW.sync(); }catch(e){ console.error('flow 同步异常', e); }   // v67.9 flow 外壳：只更新文字 / 状态类 / aria，不改 #paper 宽（§1.5-4）
 }
 /* v67.5 离屏渲染（README「实时预览的正式实现」；评审 owner「正式版不得临时换全局 song」）。
    o = {song, target:<svg>, maxSystems=∞, paperW=660, fixed=false, crop=true}：
@@ -13153,11 +13610,12 @@ function syncInputs(){
   const emSmart = editModeSmart();
   document.querySelectorAll('#em-toggle button').forEach(b2=>
     b2.classList.toggle('on', (b2.dataset.em==='smart')===emSmart));
+  /* v67.9 flow 外壳：状态栏用短文案（计划 §2.2-17）；#err-drop 的 hidden 照旧由这里管，flow 下另由 body.flw-eo 决定是否上弹（点状态项才展开） */
   if(!errs.length){
-    bs.innerHTML = svgi('check',11)+' 所有小节时值正确'; bs.className='good';
+    bs.innerHTML = svgi('check',11)+(flowOn()? '<span class="flw-bst"> 时值正确</span>' : ' 所有小节时值正确'); bs.className='good';
     document.getElementById('err-drop').classList.add('hidden');
   }else{
-    bs.innerHTML = svgi('warn',11)+` ${errs.length} 处小节时值与拍号不符（点击定位）`; bs.className='bad';
+    bs.innerHTML = svgi('warn',11)+(flowOn()? '<span class="flw-bst"> 时值不符 '+errs.length+' 处</span>' : ` ${errs.length} 处小节时值与拍号不符（点击定位）`); bs.className='bad';
     const rows = errs.map(e=>{
       const vn = e.row==='tab'?song.tabVoices[e.vi]:song.voxVoices[e.vi];
       const sg = emSmart? suggestFix(e.mi, e.row, e.vi) : null;
@@ -15061,7 +15519,7 @@ function closeFlyout(){ document.getElementById('left-flyout').classList.add('hi
 function startPadOn(){ const sp=document.getElementById('start-pad'); return !!(sp && !sp.classList.contains('hidden')); }
 /* v63.0 A3-①（P1-02）启动台态编辑区 inert：此前启动台盖住谱面，但工具栏按钮与全局快捷键仍然有效，
    会在看不见的情况下改动「上次编辑」的曲谱并落盘。顶栏的新建/打开/预设/会员等不在其列 */
-const STARTPAD_INERT=['editbar','editbar2','left-dock','right-dock','key-step','seg-undo','b-layout'];
+const STARTPAD_INERT=['editbar','editbar2','left-dock','right-dock','key-step','seg-undo','b-layout','flw-rstrip','flw-left'];   /* v67.9 + flow 外壳的竖条 / 左栏（§0-16；#flw-r1 的文件 ▾ / 页签 ＋ / 账号 ▾ 与「新建 / 打开」同口径保持可用） */
 function setStartPadInert(on){
   document.body.classList.toggle('startpad', !!on);
   STARTPAD_INERT.forEach(id=>{ const e=document.getElementById(id); if(e) e.inert=!!on; });
@@ -16178,7 +16636,7 @@ function pasteMeasure(opt){
 document.addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
-  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore, #lb-wrap, #lb-menu');   /* v67.5 离屏预览框也算界面内 */
+  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore, #lb-wrap, #lb-menu, #flw-rstrip, #flw-left');   /* v67.5 离屏预览框也算界面内；v67.9 flow 外壳的竖条 / 左栏（§0-4，#flw-r1 在 #top 内） */
   if(!inside){
     blurSel = true; measureSel=null; selRange=null; noteSel=[]; measureRange=null; closeTech();
     render();
@@ -20259,16 +20717,18 @@ function renderProgCells(){
   box.classList.toggle('dense', dense);
   box.title = dense? '小节标尺：点击打开小节选择面板，精确选择循环区'
     : '小节格：点击=单小节循环；拖动=多选循环选区；再点取消';
+  const atMi = flowOn()? sel.mi : -1;   /* v67.9 flow 外壳：状态栏小节格描出光标所在小节（.flw-at；默认外壳不加，输出与原来逐字节相同） */
   let html = song.measures.map((_,mi)=>{
     const show = !dense && (mi===0 || (mi+1)%( (box.clientWidth||620)/n>=16?1:5 )===0);
     const inloop = audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
-    return `<div class="mxc ${inloop?'loop':''}" data-mi="${mi}"><div class="f"></div>${show?`<span>${mi+1}</span>`:''}</div>`;
+    return `<div class="mxc ${inloop?'loop':''}${mi===atMi?' flw-at':''}" data-mi="${mi}"><div class="f"></div>${show?`<span>${mi+1}</span>`:''}</div>`;
   }).join('');
   if(dense){
     /* 密集标尺：每 10 小节一个悬浮编号 */
     for(let mi=9; mi<n; mi+=10) html += `<i class="mxlbl" style="left:${(mi+0.5)/n*100}%">${mi+1}</i>`;
   }
   box.innerHTML = html;
+  if(atMi>=0) try{ FLOW.st.loopUI(); }catch(_){}   /* v67.9 flow 外壳：「循环选区」键的按下态跟随 audio.loop（小节格拖选 / 面板选也走这里） */
 }
 /* 小节选择面板：小节多时的精确选择（多行大格、全编号、点击/拖动选循环区） */
 function refreshPanelCells(){
@@ -21422,12 +21882,95 @@ var PQI = {
   "inst-harmonica":[24,"<path d=\"M4.25 8.25h15.5a1.75 1.75 0 0 1 1.75 1.75v4a1.75 1.75 0 0 1-1.75 1.75H4.25A1.75 1.75 0 0 1 2.5 14v-4a1.75 1.75 0 0 1 1.75-1.75z\"/><path d=\"M2.5 10.9h19\" stroke-width=\"{F}\"/><path d=\"M5 12.5h1.5v1.5H5zM8.25 12.5h1.5v1.5h-1.5zM11.5 12.5H13v1.5h-1.5zM14.75 12.5h1.5v1.5h-1.5zM18 12.5h1.5v1.5H18z\" fill=\"currentColor\" stroke=\"none\"/>"],
   "inst-other":[24,"<path d=\"M9.25 17.5V5.25l9.5-2.25v12\"/><ellipse cx=\"7.1\" cy=\"17.6\" rx=\"2.35\" ry=\"1.75\" transform=\"rotate(-18 7.1 17.6)\" fill=\"currentColor\" stroke=\"none\"/><ellipse cx=\"16.6\" cy=\"15.1\" rx=\"2.35\" ry=\"1.75\" transform=\"rotate(-18 16.6 15.1)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M9.25 8.75l9.5-2.25\"/>"]
 };
+/* v67.9 flow 外壳的 80 枚线性图标（docs/design-2026-10f/icons/pq-final.js 原样内联；与 PQI 同格式、键零冲突）。
+   独立成表、不并入 PQI：tv_icons T1 断言 PQI 恰好 101 枚＝design-2026-10e 清单。pqIcon 查不到 PQI 时回退到这里（计划 §0-3）。
+   ui-* 界面 · tab-* 窗口 · mode-* 工作模式 · act-* 动作 · ed-* 编辑 · mea-* 小节 · trk-* 音轨 · lay-* 版式 · play-* 播放 · out-* 输出 · tx-* 文字 · ai-* 智能 */
+var PQF = {"ui-menu":[24,"<path d=\"M4 6.5H20M4 12H20M4 17.5H20\"/>"],
+"ui-save":[24,"<path d=\"M7 18.75H17.25A4 4 0 0 0 17.85 10.8A5.5 5.5 0 0 0 7.15 9.5A4.6 4.6 0 0 0 7 18.75Z\"/><path d=\"M12 16.25V11.25M9.75 13.5L12 11.25L14.25 13.5\"/>"],
+"ui-savecloud":[24,"<path d=\"M7.25 18.75h10.5a4 4 0 0 0 .55-7.96 6.1 6.1 0 0 0-11.75-1.6A4.8 4.8 0 0 0 7.25 18.75z\"/><path d=\"M9.25 13.5l2 2 4-4\"/>"],
+"ui-download":[24,"<path d=\"M14.5 2.5H7.5A2 2 0 0 0 5.5 4.5v15a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5z\"/><path d=\"M14.5 2.5v2.8a1.2 1.2 0 0 0 1.2 1.2h2.8\"/><path d=\"M12 10.25V17M9.25 14.25L12 17L14.75 14.25\"/>"],
+"ui-publish":[24,"<path d=\"M20.75 3.25L10.5 13.5M20.75 3.25L14.25 20.75L10.5 13.5L3.25 9.75Z\"/>"],
+"ui-account":[24,"<circle cx=\"12\" cy=\"8.25\" r=\"3.75\"/><path d=\"M4.75 20.25C5.35 16.35 8.35 14.25 12 14.25S18.65 16.35 19.25 20.25\"/>"],
+"ui-library":[24,"<path d=\"M4.5 4.5H7.5V19.5H4.5ZM9.5 4.5H12.5V19.5H9.5ZM14.6 6.1L17.5 5.35L21.25 19.85L18.35 20.6Z\"/>"],
+"ui-theme":[24,"<circle cx=\"12\" cy=\"12\" r=\"8.25\"/><path d=\"M12 3.75A8.25 8.25 0 0 1 12 20.25Z\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ui-invert":[24,"<path d=\"M6 3.25H18A1.75 1.75 0 0 1 19.75 5V19A1.75 1.75 0 0 1 18 20.75H6A1.75 1.75 0 0 1 4.25 19V5A1.75 1.75 0 0 1 6 3.25Z\"/><path d=\"M12 3.25H18A1.75 1.75 0 0 1 19.75 5V19A1.75 1.75 0 0 1 18 20.75H12Z\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ui-help":[24,"<circle cx=\"12\" cy=\"12\" r=\"8.75\"/><path d=\"M9.6 9.6A2.5 2.5 0 0 1 14.5 10.3C14.5 12 12 12.4 12 14\"/><circle cx=\"12\" cy=\"17\" r=\"1.05\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ui-search":[24,"<circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.25 15.25L20.5 20.5\"/>"],
+"ui-command":[24,"<path d=\"M4.75 4.75H19.25A1.75 1.75 0 0 1 21 6.5V17.5A1.75 1.75 0 0 1 19.25 19.25H4.75A1.75 1.75 0 0 1 3 17.5V6.5A1.75 1.75 0 0 1 4.75 4.75Z\"/><path d=\"M7 9.5L9.75 12L7 14.5M12 14.5H16.75\"/>"],
+"ui-more":[24,"<circle cx=\"5.75\" cy=\"12\" r=\"1.55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"12\" r=\"1.55\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"18.25\" cy=\"12\" r=\"1.55\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ui-recent":[24,"<circle cx=\"12\" cy=\"12\" r=\"8.75\"/><path d=\"M12 7.25V12l3.25 2\"/>"],
+"ui-density-label":[24,"<rect x=\"3.5\" y=\"3.5\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13.5\" y=\"3.5\" width=\"7\" height=\"7\" rx=\"1.5\"/><path d=\"M4 15h6M14 15h6M4 18.5h4M14 18.5h4\"/>"],
+"ui-density-glyph":[24,"<rect x=\"3.5\" y=\"3.5\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13.5\" y=\"3.5\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"3.5\" y=\"13.5\" width=\"7\" height=\"7\" rx=\"1.5\"/><rect x=\"13.5\" y=\"13.5\" width=\"7\" height=\"7\" rx=\"1.5\"/>"],
+"ui-panel-right":[24,"<rect x=\"3\" y=\"4.5\" width=\"18\" height=\"15\" rx=\"2\"/><path d=\"M15 4.5v15\"/><path d=\"M17.25 8.25h1.5M17.25 11h1.5M17.25 13.75h1.5\" stroke-width=\"{F}\"/>"],
+"ui-pin":[24,"<path d=\"M14.5 3.5l6 6-3 1-4 4 .5 4-2 2-4.25-4.25L3.5 20.5M7.75 12.25 3.75 8.25l2-2 4 .5 4-4z\"/>"],
+"ui-ring":[24,"<circle cx=\"12\" cy=\"12\" r=\"4.25\"/>"],
+"tab-windows":[24,"<path d=\"M8 4.25H19.25A1.5 1.5 0 0 1 20.75 5.75V15.25\"/><path d=\"M4.75 8.25H15.25A1.5 1.5 0 0 1 16.75 9.75V18.25A1.5 1.5 0 0 1 15.25 19.75H4.75A1.5 1.5 0 0 1 3.25 18.25V9.75A1.5 1.5 0 0 1 4.75 8.25Z\"/>"],
+"mode-write":[24,"<path d=\"M14.6 4.4l4.9 4.9L9.3 19.5H4.4v-4.9z\"/><path d=\"M12.6 6.4l4.9 4.9\"/><path d=\"M13 21h8.25\" stroke-width=\"{F}\"/>"],
+"mode-engrave":[24,"<path d=\"M6.25 2.75h11.5a1.5 1.5 0 0 1 1.5 1.5v15.5a1.5 1.5 0 0 1-1.5 1.5H6.25a1.5 1.5 0 0 1-1.5-1.5V4.25a1.5 1.5 0 0 1 1.5-1.5z\"/><path d=\"M8 7.5h8M8 9.5h8M8 14.5h8M8 16.5h8\" stroke-width=\"{F}\"/><path d=\"M12.5 6.5v4M12.5 13.5v4\" stroke-width=\"{F}\"/>"],
+"mode-play":[24,"<circle cx=\"12\" cy=\"12\" r=\"8.75\"/><path d=\"M10.1 8.4v7.2l5.6-3.6z\"/>"],
+"mode-output":[24,"<path d=\"M12.5 3.25H6.25a1.5 1.5 0 0 0-1.5 1.5v14.5a1.5 1.5 0 0 0 1.5 1.5h11.5a1.5 1.5 0 0 0 1.5-1.5V13\"/><path d=\"M11 13l9.25-9.25M14.5 3.75h5.75V9.5\"/>"],
+"act-redo":[24,"<path d=\"M15.5 5.5L19.25 9.25L15.5 13\"/><path d=\"M19.25 9.25H9.75A5 5 0 0 0 9.75 19.25H15\"/>"],
+"act-zoom-in":[24,"<circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.25 15.25L20.5 20.5M10.5 7.75V13.25M7.75 10.5H13.25\"/>"],
+"act-zoom-out":[24,"<circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.25 15.25L20.5 20.5M7.75 10.5H13.25\"/>"],
+"act-nowrap":[24,"<path d=\"M2.75 6.5H21.25M2.75 17.5H21.25\" stroke-width=\"{F}\"/><path d=\"M5.5 12H18.5\"/><path d=\"M8 9.5L5.5 12L8 14.5M16 9.5L18.5 12L16 14.5\"/>"],
+"act-keyboard":[24,"<rect x=\"2.5\" y=\"6\" width=\"19\" height=\"12\" rx=\"2\"/><path d=\"M6 9.5h.01M9.33 9.5h.01M12.67 9.5h.01M16 9.5h.01M6 12.5h.01M18 12.5h.01M9.33 12.5h.01M12.67 12.5h.01M15 12.5h.01\"/><path d=\"M8.5 15h7\"/>"],
+"ed-insert-after":[24,"<ellipse cx=\"7.5\" cy=\"17.4\" rx=\"2.35\" ry=\"1.7\" transform=\"rotate(-22 7.5 17.4)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M9.65 16.8V5.25\"/><path d=\"M18 9V16M14.5 12.5H21.5\"/>"],
+"ed-insert-before":[24,"<path d=\"M6 9V16M2.5 12.5H9.5\"/><ellipse cx=\"14.75\" cy=\"17.4\" rx=\"2.35\" ry=\"1.7\" transform=\"rotate(-22 14.75 17.4)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M16.9 16.8V5.25\"/>"],
+"ed-delete":[24,"<path d=\"M4.5 6.5H19.5M9.5 6.5V4.75A1 1 0 0 1 10.5 3.75H13.5A1 1 0 0 1 14.5 4.75V6.5M6.25 6.5L7.1 19.1A1.6 1.6 0 0 0 8.7 20.6H15.3A1.6 1.6 0 0 0 16.9 19.1L17.75 6.5M10 10.5V16.5M14 10.5V16.5\"/>"],
+"ed-split":[24,"<path d=\"M12 4V20\"/><path d=\"M9.25 12H3.75M6 9.75L3.75 12L6 14.25M14.75 12H20.25M18 9.75L20.25 12L18 14.25\"/>"],
+"ed-merge":[24,"<path d=\"M12 4V20\"/><path d=\"M3.5 12H9.25M7 9.75L9.25 12L7 14.25M20.5 12H14.75M17 9.75L14.75 12L17 14.25\"/>"],
+"ed-clear":[24,"<path d=\"M9 5.5H19.25A1.75 1.75 0 0 1 21 7.25V16.75A1.75 1.75 0 0 1 19.25 18.5H9L3 12Z\"/><path d=\"M11.75 9.5L16.75 14.5M16.75 9.5L11.75 14.5\"/>"],
+"ed-clear-marks":[24,"<path d=\"M8.6 19.5L3.95 14.85A1.5 1.5 0 0 1 3.95 12.75L13.2 3.5A1.5 1.5 0 0 1 15.3 3.5L20.6 8.8A1.5 1.5 0 0 1 20.6 10.9L12 19.5Z\"/><path d=\"M8.6 19.5H20.25\"/><path d=\"M9.4 8.3L15.8 14.7\" stroke-width=\"{F}\"/>"],
+"ed-octave-shift":[24,"<ellipse cx=\"7.25\" cy=\"17.25\" rx=\"2.35\" ry=\"1.7\" transform=\"rotate(-22 7.25 17.25)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M9.4 16.7V6\"/><path d=\"M17 20V5M13.75 8.25 17 5l3.25 3.25\"/><path d=\"M14 13.25h6\" stroke-width=\"{F}\"/>"],
+"mea-insert":[24,"<g opacity=\".5\"><path d=\"M2.75 8.5H14M2.75 12H14M2.75 15.5H14\" stroke-width=\"{F}\"/></g><path d=\"M4.5 5.5V18.5M12.25 5.5V18.5\"/><path d=\"M18.25 8.75V15.25M15 12H21.5\"/>"],
+"mea-delete":[24,"<g opacity=\".5\"><path d=\"M2.75 8.5H14M2.75 12H14M2.75 15.5H14\" stroke-width=\"{F}\"/></g><path d=\"M4.5 5.5V18.5M12.25 5.5V18.5\"/><path d=\"M15.75 9.5L20.75 14.5M20.75 9.5L15.75 14.5\"/>"],
+"mea-width":[24,"<g opacity=\".5\"><path d=\"M2.75 8.5H21.25M2.75 15.5H21.25\" stroke-width=\"{F}\"/></g><path d=\"M12 4.5V19.5\"/><rect x=\"10.5\" y=\"9.75\" width=\"3\" height=\"4.5\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M8.25 12H3.75M5.75 10L3.75 12L5.75 14M15.75 12H20.25M18.25 10L20.25 12L18.25 14\"/>"],
+"trk-mute":[24,"<path d=\"M4 9.25H7.25L12 5.25V18.75L7.25 14.75H4Z\"/><path d=\"M15.5 9.5L20.5 14.5M20.5 9.5L15.5 14.5\"/>"],
+"trk-solo":[24,"<path d=\"M5.5 3.75H18.5A1.75 1.75 0 0 1 20.25 5.5V18.5A1.75 1.75 0 0 1 18.5 20.25H5.5A1.75 1.75 0 0 1 3.75 18.5V5.5A1.75 1.75 0 0 1 5.5 3.75Z\"/><path d=\"M14.3 8.3C13.6 7.5 12.6 7 11.5 7C9.8 7 8.7 8 8.7 9.5C8.7 11.2 10.1 11.7 11.5 12.2C13.1 12.7 14.5 13.4 14.5 14.9C14.5 16.2 13.3 17 11.5 17C10.2 17 9 16.5 8.3 15.6\"/>"],
+"trk-eye":[24,"<path d=\"M2.75 12C4.75 8 8 5.75 12 5.75S19.25 8 21.25 12C19.25 16 16 18.25 12 18.25S4.75 16 2.75 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"2.75\"/>"],
+"trk-eye-off":[24,"<path d=\"M2.75 12C4.75 8 8 5.75 12 5.75S19.25 8 21.25 12C19.25 16 16 18.25 12 18.25S4.75 16 2.75 12Z\"/><path d=\"M4.5 19.5L19.5 4.5\"/>"],
+"trk-lock":[24,"<rect x=\"5\" y=\"10.5\" width=\"14\" height=\"10\" rx=\"2\"/><path d=\"M8.25 10.5V7.75a3.75 3.75 0 0 1 7.5 0v2.75\"/><path d=\"M12 14.5v2.5\"/>"],
+"trk-grip":[24,"<circle cx=\"9\" cy=\"6\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"15\" cy=\"6\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"9\" cy=\"12\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"15\" cy=\"12\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"9\" cy=\"18\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"15\" cy=\"18\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/>"],
+"trk-capo":[24,"<path d=\"M3.75 9.5H20.25V14.5H3.75Z\"/><path d=\"M7 9.5V6.25A2 2 0 0 1 9 4.25H15A2 2 0 0 1 17 6.25V9.5\"/><path d=\"M7 14.5V20.25M12 14.5V20.25M17 14.5V20.25\" stroke-width=\"{F}\"/>"],
+"trk-sound":[24,"<path d=\"M4 9.25H7.25L12 5.25V18.75L7.25 14.75H4Z\"/><path d=\"M15.25 9A4.25 4.25 0 0 1 15.25 15M17.75 6.5A7.75 7.75 0 0 1 17.75 17.5\"/>"],
+"lay-size":[24,"<path d=\"M2.75 8.5h8.5M2.75 11h8.5M2.75 13.5h8.5M2.75 16h8.5\" stroke-width=\"{F}\"/><path d=\"M14 6.5h7.25M14 10.5h7.25M14 14.5h7.25M14 18.5h7.25\" stroke-width=\"{F}\"/><ellipse cx=\"6.5\" cy=\"12.25\" rx=\"1.6\" ry=\"1.15\" transform=\"rotate(-20 6.5 12.25)\" fill=\"currentColor\" stroke=\"none\"/><ellipse cx=\"17.6\" cy=\"12.5\" rx=\"2.5\" ry=\"1.8\" transform=\"rotate(-20 17.6 12.5)\" fill=\"currentColor\" stroke=\"none\"/>"],
+"lay-spacing":[24,"<path d=\"M4 4.75v14.5M20 4.75v14.5\"/><path d=\"M7.5 12h9M10 9.5L7.5 12l2.5 2.5M14 9.5l2.5 2.5-2.5 2.5\"/>"],
+"lay-bars":[24,"<path d=\"M2.75 9.5h18.5M2.75 14.5h18.5\" stroke-width=\"{F}\"/><path d=\"M2.75 7.5v9M8.9 7.5v9M15.1 7.5v9M21.25 7.5v9\"/>"],
+"lay-sysbreak":[24,"<path d=\"M3 7.5h12M3 9.75h12\" stroke-width=\"{F}\"/><path d=\"M15 5.5v6.25\"/><path d=\"M15 8.6h3.25a2 2 0 0 1 2 2v1.9a2 2 0 0 1-2 2H6.5\"/><path d=\"M9 12L6.5 14.5 9 17\"/><path d=\"M3 17.5h6\" stroke-width=\"{F}\"/>"],
+"lay-pagebreak":[24,"<path d=\"M5.75 9V4.25a1.5 1.5 0 0 1 1.5-1.5h9.5a1.5 1.5 0 0 1 1.5 1.5V9M5.75 15v4.75a1.5 1.5 0 0 0 1.5 1.5h9.5a1.5 1.5 0 0 0 1.5-1.5V15\"/><path d=\"M2.75 12h3M10.5 12h3M18.25 12h3\"/>"],
+"lay-lock":[24,"<path d=\"M6.75 10.75h10.5a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5H6.75a1.5 1.5 0 0 1-1.5-1.5v-6.5a1.5 1.5 0 0 1 1.5-1.5z\"/><path d=\"M8.5 10.75V8a3.5 3.5 0 0 1 7 0v2.75\"/>"],
+"lay-header":[24,"<path d=\"M6.25 2.75h11.5a1.5 1.5 0 0 1 1.5 1.5v15.5a1.5 1.5 0 0 1-1.5 1.5H6.25a1.5 1.5 0 0 1-1.5-1.5V4.25a1.5 1.5 0 0 1 1.5-1.5z\"/><path d=\"M9 6.5h6\"/><path d=\"M8 10.5h8M8 12.5h8M8 15h8M8 17h8\" stroke-width=\"{F}\"/>"],
+"lay-continuous":[24,"<path d=\"M2.75 9.5h18.5M2.75 14.5h18.5\" stroke-width=\"{F}\"/><path d=\"M7.5 7.5v9M16.5 7.5v9\"/><path d=\"M3.5 4.5h17M17.75 2.75l2.75 1.75-2.75 1.75\"/>"],
+"ui-play":[24,"<path d=\"M8 5.25V18.75L18.75 12Z\" fill=\"currentColor\" stroke-width=\"{F}\"/>"],
+"ui-pause":[24,"<rect x=\"7\" y=\"5.25\" width=\"3.25\" height=\"13.5\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"13.75\" y=\"5.25\" width=\"3.25\" height=\"13.5\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ui-tostart":[24,"<path d=\"M6 5.25V18.75\"/><path d=\"M18.5 5.25V18.75L9 12Z\" fill=\"currentColor\" stroke-width=\"{F}\"/>"],
+"ui-metronome":[24,"<path d=\"M8.75 3.75H15.25L18.75 20.25H5.25Z\"/><path d=\"M12 15.25L16.25 6.75\"/><path d=\"M7 15.25H17\" stroke-width=\"{F}\"/>"],
+"ui-stand":[24,"<path d=\"M4.75 4.25H19.25V12.75H4.75Z\"/><path d=\"M7 7H17M7 9.75H17\" stroke-width=\"{F}\"/><path d=\"M12 12.75V20.5M8.25 20.5L12 17.5L15.75 20.5\"/>"],
+"ui-mixer":[24,"<path d=\"M6 4V20M12 4V20M18 4V20\" stroke-width=\"{F}\"/><rect x=\"4\" y=\"13\" width=\"4\" height=\"2.5\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"10\" y=\"7\" width=\"4\" height=\"2.5\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"16\" y=\"11\" width=\"4\" height=\"2.5\" fill=\"currentColor\" stroke=\"none\"/>"],
+"play-loop":[24,"<path d=\"M16.75 4.5L19.5 7.25 16.75 10\"/><path d=\"M19.5 7.25H8.5a4 4 0 0 0-4 4v.5\"/><path d=\"M7.25 19.5L4.5 16.75 7.25 14\"/><path d=\"M4.5 16.75h11a4 4 0 0 0 4-4v-.5\"/>"],
+"play-speed":[24,"<path d=\"M4.5 16.75a7.5 7.5 0 1 1 15 0\"/><path d=\"M12 16.75l3.75-4.75\"/><path d=\"M4.5 19.75h15\" stroke-width=\"{F}\"/>"],
+"play-human":[24,"<path d=\"M2.5 12.5c1.6-4.5 3.4-4.5 5 0s3.4 4.5 5 0 3.4-4.5 5 0c.7 2 1.7 3 4 3\"/>"],
+"play-sound":[24,"<path d=\"M3.5 9.25h3L10.5 5.5v13l-4-3.75h-3z\"/><ellipse cx=\"16.1\" cy=\"17.4\" rx=\"1.78\" ry=\"1.32\" transform=\"rotate(-18 16.1 17.4)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M17.75 16.9V7l3 .75\"/>"],
+"ui-print":[24,"<path d=\"M7 9V3.75H17V9M7 17.5H5A1.75 1.75 0 0 1 3.25 15.75V10.75A1.75 1.75 0 0 1 5 9H19A1.75 1.75 0 0 1 20.75 10.75V15.75A1.75 1.75 0 0 1 19 17.5H17M7 14H17V20.25H7Z\"/>"],
+"ui-preview":[24,"<path d=\"M13.25 20.75H6A1.75 1.75 0 0 1 4.25 19V5A1.75 1.75 0 0 1 6 3.25H16A1.75 1.75 0 0 1 17.75 5V10.25\"/><path d=\"M7.5 7.5H14.5M7.5 10H12\" stroke-width=\"{F}\"/><circle cx=\"15.75\" cy=\"15.75\" r=\"3.25\"/><path d=\"M18.15 18.15L20.75 20.75\"/>"],
+"out-parts":[24,"<path d=\"M8.75 2.75h9.5a1.5 1.5 0 0 1 1.5 1.5v12.5\"/><path d=\"M5.75 6.25h9.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-9.5a1.5 1.5 0 0 1-1.5-1.5v-12a1.5 1.5 0 0 1 1.5-1.5z\"/><path d=\"M7 11h7M7 13h7M7 16.5h7M7 18.5h4.5\" stroke-width=\"{F}\"/>"],
+"out-image":[24,"<path d=\"M5 4.25h14a1.75 1.75 0 0 1 1.75 1.75v12a1.75 1.75 0 0 1-1.75 1.75H5A1.75 1.75 0 0 1 3.25 18V6A1.75 1.75 0 0 1 5 4.25z\"/><path d=\"M3.5 16.5l5-5 4 4 2.5-2.5 5.5 5\"/><circle cx=\"15.5\" cy=\"9\" r=\"1.5\"/>"],
+"out-card":[24,"<path d=\"M7.75 2.75h8.5a1.75 1.75 0 0 1 1.75 1.75v15a1.75 1.75 0 0 1-1.75 1.75h-8.5A1.75 1.75 0 0 1 6 19.5v-15a1.75 1.75 0 0 1 1.75-1.75z\"/><path d=\"M9 6.5h6v6H9z\"/><path d=\"M9 16h6M9 18.25h4\" stroke-width=\"{F}\"/>"],
+"out-web":[24,"<path d=\"M14.5 2.75H6.25a1.5 1.5 0 0 0-1.5 1.5v15.5a1.5 1.5 0 0 0 1.5 1.5h11.5a1.5 1.5 0 0 0 1.5-1.5V7.5z\"/><path d=\"M14.5 2.75V7.5h4.75\"/><path d=\"M10.25 10.75v6.5l5-3.25z\"/>"],
+"out-xml":[24,"<path d=\"M14.5 2.75H6.25a1.5 1.5 0 0 0-1.5 1.5v15.5a1.5 1.5 0 0 0 1.5 1.5h11.5a1.5 1.5 0 0 0 1.5-1.5V7.5z\"/><path d=\"M14.5 2.75V7.5h4.75\"/><path d=\"M10 11.75l-2.25 2.5L10 16.75M14 11.75l2.25 2.5L14 16.75\"/>"],
+"tx-lyricfill":[24,"<circle cx=\"5.5\" cy=\"5.5\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"5.5\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"18.5\" cy=\"5.5\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M5.5 9v2.25M12 9v2.25M18.5 9v2.25\" stroke-width=\"{F}\"/><rect x=\"3.25\" y=\"13.5\" width=\"4.5\" height=\"4.5\" rx=\"1\"/><rect x=\"9.75\" y=\"13.5\" width=\"4.5\" height=\"4.5\" rx=\"1\"/><rect x=\"16.25\" y=\"13.5\" width=\"4.5\" height=\"4.5\" rx=\"1\"/><g opacity=\".5\"><path d=\"M3.25 21h17.5\" stroke-width=\"{F}\"/></g>"],
+"tx-verse-add":[24,"<path d=\"M3.5 6.5h12M3.5 11h12M3.5 15.5h6\"/><path d=\"M17.5 13v7M14 16.5h7\"/>"],
+"tx-anno":[24,"<path d=\"M6 5.5h12M12 5.5v13M9.5 18.5h5\"/>"],
+"ai-workbench":[24,"<rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M3 12h18M9 4v16M15 4v16\" stroke-width=\"{F}\"/><path d=\"M10.25 8.25l1.25 1.25 2.5-2.5\"/>"],
+"ai-gentab":[24,"<ellipse cx=\"5.4\" cy=\"8.9\" rx=\"1.89\" ry=\"1.4\" transform=\"rotate(-18 5.4 8.9)\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M7.25 8.4V2.75\"/><path d=\"M10 6.5h6.5M14.5 4.5l2 2-2 2\" stroke-width=\"{F}\"/><path d=\"M3 13.5h18M3 16.25h18M3 19h18M3 21.75h18\" stroke-width=\"{F}\"/><circle cx=\"14\" cy=\"16.25\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/>"],
+"ai-check":[24,"<path d=\"M3.5 5v14M20.5 5v14\"/><path d=\"M7.75 12.25l3 3 5.5-6\"/>"],
+"ui-smart":[24,"<path d=\"M10.5 3.25C11 7 12.5 8.5 16.25 9C12.5 9.5 11 11 10.5 14.75C10 11 8.5 9.5 4.75 9C8.5 8.5 10 7 10.5 3.25Z\"/><path d=\"M17.5 13.75C17.75 15.75 18.5 16.5 20.5 16.75C18.5 17 17.75 17.75 17.5 19.75C17.25 17.75 16.5 17 14.5 16.75C16.5 16.5 17.25 15.75 17.5 13.75Z\"/>"]};
 function pqTier(px){ return px<=16? [1.25,1] : px<=22? [1.5,1] : px<=34? [1.75,1.25] : [2,1.5]; }
 function pqIcon(key, size, cls){
   size = size || 24;
   if(typeof PQI==='undefined' || !PQI) return '';
   if(size<=16 && /^type-/.test(key) && PQI['type16-'+key.slice(5)]) key = 'type16-'+key.slice(5);
-  const it = PQI[key]; if(!it) return '';
+  const it = PQI[key] || (typeof PQF!=='undefined' && PQF && PQF[key]); if(!it) return '';   /* v67.9 回退 flow 图标表 PQF */
   const g = it[0], t = pqTier(size), s = g/size, r = n=>Math.round(n*100)/100, m = r(t[0]*s), f = r(t[1]*s);
   return '<svg class="pqi'+(cls? ' '+cls : '')+'" data-pq="'+key+'" width="'+size+'" height="'+size+'" viewBox="0 0 '+g+' '+g+'" fill="none" stroke="currentColor" stroke-width="'+m+'" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
     + it[1].split('{M}').join(m).split('{F}').join(f) + '</svg>';
@@ -21662,6 +22205,7 @@ function applyShellDock(){
       if(anchor && anchor.parentElement===eb) eb.insertBefore(su, anchor.nextSibling); }
     else { const fi=document.getElementById('file-in'); if(fi) fi.parentElement.insertBefore(su, fi); }
   }
+  if(flowOn()) FLOW.dock(true);   /* v67.9 flow 外壳：上面把 #eb-zoom / #beat-box 搬回了原位，再按 flow 的搬移表搬回去（§1.3） */
 }
 /* v40.2 右栏四页签（仅新版外壳；经典版页签条隐藏、卡片全显）；v56.6 创作页置首为默认 */
 let rTab='make';
@@ -21685,6 +22229,7 @@ function applyShell(){
   setRTab(uiShell? rTab : 'info');   // 经典版：setRTab 内全卡片恢复显示
   ebCtxFor=null;   // v40.3 技法/记号行宿主随外壳切换（编辑栏第二行 ↔ 左栏图层面板），强制重建
   if(song) renderDock();   // 图层页集合随外壳变化：经典版无 和弦/小节/段落 页时自动回退
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳挂载 / 卸载（不带 ?shell=flow 时什么都不做）；启动时早于第一次 render，第一帧即终态（§1.5-2）
 }
 /* v40.2 库/智能页签入口：全部委托既有按钮与工作流（含向导内的哼唱/导入入口） */
 (function(){
@@ -21722,6 +22267,1329 @@ document.getElementById('b-shell').onclick = ()=>{
   applyShell();
   toast(uiShell? '已切换到新版界面（深色扁平顶栏/播放条）' : '已切换回经典版界面');
 };
+/* ================= v67.9 flow 外壳（?shell=flow 预览；方案 docs/design-2026-10f，工程计划 flowplan §1–§2）=================
+   启用条件由 FLOW.apply() 计算，结果缓存在 FLOW.active，flowOn() 只读这个缓存。条件是：
+   html.flow-pre（<head> 开关脚本按 ?shell= 或本机键 musetab-flow 定）· uiShell · 非观看页 · 非谱架 · innerWidth>820（v68.1 起去掉）。
+   不带开关时 FLOW 只定义、不挂载：不建节点、不加监听、不写 body 的类与内联样式，所以默认外壳的 DOM / 几何 / 行为零差异。
+   flow 是 body.shell 的子态（§1.5-1）：fixwide、fitFloor、打印复位、scoreScroller 照旧认 body.shell。
+   ── 骨架 API（各轨只用这些；骨架块里不放业务）──
+   FLOW.apply()          按条件挂载或卸载。首次启用时调 mount()；同步 body.flow、新容器的 hidden、dock()、layout()；
+                         状态切换时调各子块 on() / off()，并重排页签、对齐页头。可重复调用，状态不变时不改任何尺寸
+   FLOW.mount()          只跑一次：建 #flw-r1（#top 的第一个子节点）和 #flw-rstrip（#stage 内 #right-dock 之后），
+                         依次调各子块 mount()，再给 FLOW.BIND 的容器各挂一个委托点击
+   FLOW.dock(on)         节点搬移表 FLOW.DOCK（§1.3）：搬节点不复制，离开 flow 时按记下的 {parent, next} 搬回。
+                         落点是目标容器里的 <i data-flw-slot="名" hidden></i>（节点插在它前面；没有落点就追加到末尾）；
+                         x:true 的节点在 flow 下挂 .flw-x
+   FLOW.layout()         只按 innerWidth 和本机键算布局类与令牌（body.flw-rd / flw-rs / flw-ro、--flw-lw / --flw-rw），不读渲染结果（§1.5-2）
+   FLOW.sync()           在 render() 末尾调用（§1.5-4）：只更新文字、状态类和 aria-*，不改影响 #paper 宽的尺寸；
+                         要测宽的放进 FLOW.raf，并用 FLOW.changed 按签名去重
+   FLOW.act(a, el, ev)   单一委托分发，所有 [data-fa] 点击都到这里。通用动作写在骨架的 switch 里；各轨在自己前缀的区段里加 case（必须 return），
+                         或者在子块里实现 act(a, el, ev)：switch 没处理的，按前缀（r1: / r2: / st: / rd: …）转给 FLOW[前缀].act
+   FLOW.menu.open(name, anchor, html?, o?) · .toggle(name, anchor, ev) · .close() · .cur()
+                         菜单就是挂在 body 下的 div#popmenu.popmenu.flw-mn。html 省略时取 FLOW.menus[name](anchor, o)。
+                         o：{up 向上弹, align:'right' 右对齐, at:{x,y} 定点, label, role, cls, focus 选择器, kb 键盘打开就聚焦首项}
+   FLOW.mi(o) · FLOW.mh(t) · FLOW.hr() · FLOW.why(t)   生成菜单项 HTML（字符串拼接，不用模板字符串）。
+                         o：{a 动作, old 旧按钮 id 或选择器（a 省略时即 'old'）, label 或 html, d 说明, sc 快捷键 / 状态, ic 图标键或 svg,
+                         dis 置灰, why 置灰原因（点了 toast）, checked 勾选, keep 点后不收菜单, title, cls, attr}
+   FLOW.ic(key, size, cls)  即 pqIcon，查 PQI 后回退 PQF。     FLOW.pqi(root)  给脚本建的节点补 data-pqi 图标。     FLOW.esc(s)  HTML 转义。
+   FLOW.ls.get(k) / set(k, v)  读写本机键，包了 try/catch，v 为 null 时删键。
+   FLOW.ctx()            当前语境：'jp' | 'st' | 'tab'。      FLOW.raf(key, fn)  同一个 key 一帧只跑一次。
+   FLOW.changed(key, sig)   签名变了才返回 true。          FLOW.old(s)  按 id 或选择器取旧控件。
+   ── 子块（每块一个独立 IIFE，挂在本块之后；各轨只改自己的块）──
+   FLOW.r1：行 1 + 页签（T1）。FLOW.r2：行 2（T2）。FLOW.st：播放与状态栏（T3）。FLOW.rd：右栏（T3）。
+   v68.0 起加 tree / pal / start，v68.1 起加 mode / cmd / mob。
+   子块的可选钩子：mount() 首次启用 · on() / off() 进入 / 离开 flow · layout() / unlayout() · sync() · act(a, el, ev)。
+   ── 本机键（只增，都是界面偏好）── musetab-flow（开关脚本写）· musetab-rdock（右栏钉住，值 '1'，FLOW.rd 读写） */
+function flowOn(){ return typeof FLOW!=='undefined' && !!FLOW && FLOW.active===true; }
+var FLOW = (function(){
+  const F = {active:false, mounted:false};
+  const $ = id=>document.getElementById(id);
+  F.$ = $;
+  F.KEYS = {flow:'musetab-flow', rdock:'musetab-rdock'};
+  F.ls = {
+    get(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } },
+    set(k, v){ try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); return true; }catch(_){ return false; } }
+  };
+  F.esc = s=>esc(s==null? '' : s);
+  F.ic = (key, size, cls)=>pqIcon(key, size||16, cls);
+  F.old = s=>!s? null : /^[#.\[]/.test(s)? document.querySelector(s) : $(s);
+  /* 脚本建的节点里的 data-pqi 占位（全局那次注入在启动早期就跑完了，挂载时建的节点要自己补） */
+  F.pqi = root=>{ if(root) root.querySelectorAll('[data-pqi]').forEach(el=>{ if(!el.querySelector(':scope > svg.pqi')) el.insertAdjacentHTML('afterbegin', pqIcon(el.dataset.pqi, +el.dataset.pqs||16)); }); };
+  F.pre = ()=>document.documentElement.classList.contains('flow-pre');
+  /* 子块顺序＝钩子调用顺序 */
+  F.PARTS = ['r1','r2','st','rd','tree','pal','start','mode','cmd','mob'];
+  F.each = (hook, a, b)=>{ F.PARTS.forEach(p=>{ const o=F[p];
+    if(o && typeof o[hook]==='function'){ try{ o[hook](a, b); }catch(e){ console.error('flow '+p+'.'+hook+' 异常', e); } } }); };
+  F.want = ()=>{
+    if(!F.pre()) return false;
+    let shell=true, vm=false;
+    try{ shell=!!uiShell; }catch(_){}
+    try{ vm=!!viewerMode; }catch(_){}   /* viewerMode 在后面才声明（let）：启动早期读它会抛 TDZ，按「非观看页」算 */
+    const c=document.body.classList;
+    return shell && !vm && !c.contains('viewer') && !c.contains('stand') && window.innerWidth>820;
+  };
+  /* T0 建的新容器（v68.0 加 flw-left）；BIND＝挂委托点击的容器（菜单 #popmenu.flw-mn 在 menu.open 里单独挂） */
+  F.CONT = ['flw-r1','flw-rstrip'];
+  F.BIND = ['flw-r1','editbar','mixer-dock','right-dock','flw-rstrip'];
+  F.apply = ()=>{
+    const on=F.want();
+    if(on && !F.mounted) F.mount();
+    if(!F.mounted){   /* 从没启用过：什么都不碰——只清掉别处带进来的 flow 布局类（验收 SC-6：互动谱快照回退曾把 body.flow / flw-* 原样序列化给收件人；默认外壳里一个都没有，零差异） */
+      const b=document.body;
+      if(b) [...b.classList].forEach(c=>{ if(c==='flow' || /^flw-/.test(c)) b.classList.remove(c); });
+      return false;
+    }
+    const was=F.active;
+    if(was && !on) F.menu.close();   /* 验收 SC-5：退场（≤820 / 谱架 / 观看页 / 经典版）前先收起 flow 菜单——⑩ 的样式都以 body.flow 开头，留着就成了没样式、还能点的残片 */
+    F.active=on;
+    document.body.classList.toggle('flow', on);
+    F.CONT.forEach(id=>{ const el=$(id); if(el) el.hidden=!on; });
+    F.dock(on);
+    if(on) F.layout(); else F.unlayout();
+    if(was!==on){
+      F.each(on? 'on' : 'off');
+      try{ renderDocTabs(); }catch(e){ console.error('flow 页签重排异常', e); }
+      try{ alignHeader(); }catch(_){}
+    }
+    return was!==on;
+  };
+  F.mount = ()=>{
+    if(F.mounted) return;
+    F.mounted=true;
+    const top=$('top'), stage=$('stage'), rd=$('right-dock');
+    if(top && !$('flw-r1')){ const r1=document.createElement('div'); r1.id='flw-r1'; r1.hidden=true; top.insertBefore(r1, top.firstChild); }
+    if(stage && !$('flw-rstrip')){ const rs=document.createElement('div'); rs.id='flw-rstrip'; rs.hidden=true;
+      stage.insertBefore(rs, (rd && rd.parentNode===stage)? rd.nextSibling : null); }
+    F.each('mount');
+    F.BIND.forEach(id=>F.bind($(id)));
+    /* 启动台态：STARTPAD_INERT 已含新容器 id；这里补上「挂载晚于启动台」的情形（如从手机宽拉回桌面宽） */
+    try{ if(startPadOn()) F.CONT.forEach(id=>{ const e=$(id); if(e && STARTPAD_INERT.indexOf(id)>=0) e.inert=true; }); }catch(_){}
+    window.addEventListener('pointerdown', menuPd, true);
+    new MutationObserver(()=>{ if(MENU && !MENU.el.isConnected) gone(); }).observe(document.body, {childList:true});
+  };
+  /* —— 节点搬移（§1.3）—— */
+  F.DOCK = [
+    {id:'doc-tabs', to:()=>$('flw-r1'), slot:'tabs'},                                         /* 页签并入行 1 */
+    {id:'beat-box', to:()=>document.querySelector('#mixer-dock .mx-bar'), slot:'beat', x:true},  /* 时值检查进状态栏（含 #beat-status、#err-drop） */
+    {id:'eb-zoom',  to:()=>document.querySelector('#mixer-dock .mx-bar'), slot:'zoom', x:true}   /* 缩放进状态栏右端 */
+  ];
+  const HOME = {};
+  F.dock = on=>{
+    F.DOCK.forEach(d=>{
+      const el=$(d.id); if(!el) return;
+      if(on){
+        const to=d.to(); if(!to) return;
+        const slot=to.querySelector('[data-flw-slot="'+d.slot+'"]');
+        if(slot? (el.parentNode===slot.parentNode && el.nextSibling===slot) : el.parentNode===to) return;
+        if(!to.contains(el)) HOME[d.id]={parent:el.parentNode, next:el.nextSibling};
+        if(slot) slot.parentNode.insertBefore(el, slot); else to.appendChild(el);
+        if(d.x) el.classList.add('flw-x');
+      }else{
+        const h=HOME[d.id]; if(!h) return;
+        delete HOME[d.id];
+        if(d.x){ el.classList.remove('flw-x'); if(!el.classList.length) el.removeAttribute('class'); }
+        if(h.parent && h.parent.isConnected) h.parent.insertBefore(el, (h.next && h.next.parentNode===h.parent)? h.next : null);
+      }
+    });
+  };
+  /* —— 布局（§1.5-2/3：只按 innerWidth 与本机键；右栏判定在 FLOW.rd.layout）—— */
+  F.layout = ()=>{ if(F.active) F.each('layout'); };
+  F.unlayout = ()=>{
+    const b=document.body;
+    ['flw-rd','flw-rs','flw-ro'].forEach(c=>{ if(b.classList.contains(c)) b.classList.remove(c); });
+    b.style.removeProperty('--flw-lw'); b.style.removeProperty('--flw-rw');
+    if(b.getAttribute('style')==='') b.removeAttribute('style');
+    F.each('unlayout');
+  };
+  /* —— 页面快照（互动谱导出在 fetch(location.href) 拿不到源文件时的回退，验收 SC-6）：
+     搬移节点先搬回原位再克隆，克隆上拆掉 flow 才建的节点 / 类 / 属性，序列化出来与默认外壳同一份结构（收件人按 Esc 退出观看也不会进 flow）；
+     克隆完立刻原样搬回，同一任务内完成、不经渲染，界面不动。从没挂过、也没有 flow-pre 时原样返回 outerHTML（默认外壳零差异） —— */
+  F.snapHTML = ()=>{
+    const root=document.documentElement;
+    if(!F.mounted && !F.pre()) return root.outerHTML;
+    const act=F.active;
+    let c;
+    if(act) F.dock(false);
+    try{ c=root.cloneNode(true); }finally{ if(act) F.dock(true); }
+    const q=s=>[...c.querySelectorAll(s)];
+    const dropCls=(e, test)=>{ const cs=[...e.classList].filter(test); if(cs.length){ cs.forEach(x=>e.classList.remove(x)); if(!e.classList.length) e.removeAttribute('class'); } };
+    dropCls(c, x=>x==='flow-pre');
+    const dt=c.querySelector('#doc-tabs'); if(dt && dt.querySelector('.flw-tl')) dt.innerHTML='';   /* flow 画的页签：收件人页面按自己的外壳重画 */
+    q('[data-flw-slot], .flw-x, [id^="flw-"]').forEach(e=>e.remove());
+    const me=c.querySelector('#mx-expand');
+    if(me && me.dataset.flwOrig!=null){ let open=false; try{ open=!!mixerExpanded; }catch(_){}
+      me.innerHTML = !open? me.dataset.flwOrig : svgi('sliders')+' 音轨 ▾'; me.removeAttribute('aria-expanded'); }   /* 同 FLOW.st.off */
+    const mu=c.querySelector('#eb-mute-n'); if(mu && mu.dataset.flwT0!=null){ mu.title=mu.dataset.flwT0; mu.setAttribute('aria-label','分解×'); }   /* 同 FLOW.r2.off */
+    const bs=c.querySelector('#beat-status'); if(bs && bs.dataset.flwKb!=null) ['role','tabindex','title','aria-expanded'].forEach(a=>bs.removeAttribute(a));
+    q('*').forEach(e=>{
+      for(const a of [...e.attributes]) if(a.name==='data-pri' || /^data-flw-/.test(a.name)) e.removeAttribute(a.name);
+      if(e.classList.length) dropCls(e, x=>/^flw-/.test(x));
+    });
+    const b=c.querySelector('body');
+    if(b){ dropCls(b, x=>x==='flow'); b.style.removeProperty('--flw-lw'); b.style.removeProperty('--flw-rw'); if(b.getAttribute('style')==='') b.removeAttribute('style'); }
+    return c.outerHTML;
+  };
+  /* —— 渲染后同步（§1.5-4）—— */
+  F.sync = ()=>{ if(F.active) F.each('sync'); };
+  const RAF={}, SIG={};
+  F.raf = (key, fn)=>{ if(RAF[key]) return;
+    RAF[key]=requestAnimationFrame(()=>{ RAF[key]=0; if(!F.active) return; try{ fn(); }catch(e){ console.error('flow '+key+' 异常', e); } }); };
+  F.changed = (key, sig)=>{ if(SIG[key]===sig) return false; SIG[key]=sig; return true; };
+  F.ctx = ()=>{
+    try{
+      if(!song) return 'jp';
+      if(sel.row==='tab') return 'tab';
+      const vi = sel.row==='vox'? sel.vi : 0;
+      return isStaffNota((song.voxNotations||[])[vi])? 'st' : 'jp';
+    }catch(_){ return 'jp'; }
+  };
+  /* —— 委托点击（§1.4）—— */
+  const BOUND = new WeakSet();
+  const hit = (root, ev)=>{
+    const el=ev.target && ev.target.closest && ev.target.closest('[data-fa]');
+    if(!el || !root.contains(el) || el.disabled) return null;
+    if(el.getAttribute('aria-disabled')==='true'){ if(el.dataset.why) toast(el.dataset.why); return null; }
+    return el;
+  };
+  F.bind = root=>{
+    if(!root || BOUND.has(root)) return;
+    BOUND.add(root);
+    root.addEventListener('click', ev=>{ if(!F.active) return; const el=hit(root, ev); if(el) F.act(el.dataset.fa, el, ev); });
+  };
+  F.act = (a, el, ev)=>{
+    if(!a) return;
+    try{
+      switch(a){
+        /* —— 通用（T0）—— */
+        case 'menu': return F.menu.toggle(el.dataset.m, el, ev);
+        case 'old': { const t=F.old(el.dataset.old); if(t) t.click(); return; }   /* 委托原则 ①：点旧按钮（data-old＝id 或选择器） */
+        case 'close': return F.menu.close();
+        case 'noop': return;
+
+        /* —— r1:*（T1 行 1 + 页签）—— 只在本区段内加 case —— */
+
+        /* —— r1 区段结束 —— */
+
+
+        /* —— r2:*（T2 行 2）—— */
+
+        /* —— r2 区段结束 —— */
+
+
+        /* —— st:*（T3 播放与状态栏）—— */
+
+        /* —— st 区段结束 —— */
+
+
+        /* —— rd:*（T3 右栏）—— */
+
+        /* —— rd 区段结束 —— */
+      }
+      const o=F[a.split(':')[0]];
+      if(o && typeof o.act==='function') return o.act(a, el, ev);
+      console.warn('flow：未处理的动作 '+a);
+    }catch(e){ console.error('flow 动作异常 '+a, e); }
+  };
+  /* —— 菜单（§0-6）：div#popmenu.popmenu.flw-mn 挂 body（不放进 #top：§0-5 毛玻璃包含块），
+     复用 closePop / Esc / 点外部关闭 / clampPopIntoView。点开着的菜单的按钮＝收起（pointerdown 先关、click 不再重开） —— */
+  F.menus = {};
+  let MENU=null, MENU_LAST=null, MENU_PD=null;
+  function gone(){
+    if(!MENU) return;
+    const m=MENU; MENU=null; MENU_LAST={anchor:m.anchor, t:performance.now()};
+    if(m.anchor && m.anchor.setAttribute) m.anchor.setAttribute('aria-expanded','false');
+    if(m.restore && m.anchor && m.anchor.isConnected) try{ m.anchor.focus({preventScroll:true}); }catch(_){}
+  }
+  function menuPd(e){
+    const m = MENU || ((MENU_LAST && performance.now()-MENU_LAST.t<80)? MENU_LAST : null);
+    MENU_PD = (m && m.anchor && e.target && m.anchor.contains(e.target))? {anchor:m.anchor, t:performance.now()} : null;
+  }
+  function bindMenu(d){
+    d.addEventListener('click', ev=>{
+      const el=hit(d, ev); if(!el) return;
+      F.menu.lastRect=el.getBoundingClientRect();
+      const a=el.dataset.fa;
+      if(ev.detail===0 && MENU) MENU.restore=true;   /* 验收 B5：键盘激活（Enter / 空格）的项关菜单后焦点回到菜单按钮（会弹窗的动作由弹窗再接走焦点）；鼠标点的照旧不抢焦点 */
+      if(!el.hasAttribute('data-keep')) F.menu.close();
+      F.act(a, el, ev);
+    });
+    d.addEventListener('keydown', ev=>{
+      if(ev.isComposing) return;
+      const k=ev.key;
+      if(k==='Escape' || k==='Tab'){ ev.preventDefault(); ev.stopPropagation(); if(MENU) MENU.restore=true; F.menu.close(); return; }
+      const items=[...d.querySelectorAll('[data-fa]')].filter(x=>!x.disabled && x.offsetParent!==null);
+      const i=items.indexOf(document.activeElement);
+      const go=n=>{ if(items.length) try{ items[(n+items.length)%items.length].focus(); }catch(_){} };
+      const inInput=/^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName)||'');
+      if(k==='ArrowDown'){ ev.preventDefault(); go(i<0? 0 : i+1); }
+      else if(k==='ArrowUp'){ ev.preventDefault(); go(i<0? items.length-1 : i-1); }
+      else if((k==='Home' || k==='End') && !inInput){ ev.preventDefault(); go(k==='Home'? 0 : items.length-1); }
+      ev.stopPropagation();   /* 菜单里的按键不落到谱面（数字键会录音符、方向键会移光标） */
+    });
+  }
+  F.menu = {
+    cur: ()=>MENU,
+    lastRect: null,
+    open(name, anchor, html, o){
+      o=o||{};
+      if(html==null){ const b=F.menus[name]; if(typeof b!=='function') return null; html=b(anchor, o); }
+      if(html==null || html===false) return null;
+      closePop();
+      try{ NWP.quickMenuClose(); }catch(_){}   /* 验收 B3：文件 ▾ 行尾「快速新建 ▾」开着时再开 flow 菜单，两层曾叠在一起 */
+      if(MENU) gone();
+      const d=document.createElement('div');
+      d.className='popmenu flw-mn'+(o.cls? ' '+o.cls : ''); d.id='popmenu';
+      d.dataset.m=name||'';
+      d.setAttribute('role', o.role||'menu');
+      /* 读屏名（验收 B4）：调用方没给就取打开它的按钮的 aria-label / 文字（文件 · 账号 · 更多 · 更多播放设置 · 快捷键与帮助 · 全部窗口） */
+      const lb = o.label || (anchor && anchor.getAttribute && (anchor.getAttribute('aria-label') || (anchor.textContent||'').replace(/\s+/g,' ').trim()));
+      if(lb) d.setAttribute('aria-label', lb);
+      d.innerHTML=html;
+      d.style.visibility='hidden';
+      document.body.appendChild(d);
+      F.menu.place(d, anchor, o);
+      d.style.visibility='';
+      MENU={name:name||'', anchor:anchor||null, el:d};
+      if(anchor && anchor.setAttribute) anchor.setAttribute('aria-expanded','true');
+      bindMenu(d);
+      if(o.kb || o.focus){ const f=d.querySelector(o.focus||'input,[data-fa]'); if(f) try{ f.focus({preventScroll:true}); }catch(_){} }
+      return d;
+    },
+    toggle(name, anchor, ev){
+      const pd=MENU_PD; MENU_PD=null;
+      if(MENU && MENU.anchor===anchor){ MENU.restore=true; F.menu.close(); return null; }   /* 键盘再按一次＝收起 */
+      if(pd && pd.anchor===anchor && performance.now()-pd.t<1500) return null;           /* 鼠标点开着的菜单的按钮：pointerdown 已收起 */
+      return F.menu.open(name, anchor, null, {kb: !!(ev && ev.detail===0)});
+    },
+    close(){ if(MENU && MENU.el.isConnected) closePop(); if(MENU) gone(); },
+    place(d, anchor, o){
+      o=o||{};
+      const vw=document.documentElement.clientWidth, vh=window.innerHeight, w=d.offsetWidth;
+      let h=d.offsetHeight;
+      let x, y;
+      if(o.at){ x=o.at.x; y=o.at.y; }
+      else if(anchor && anchor.getBoundingClientRect){
+        const r=anchor.getBoundingClientRect();
+        x = o.align==='right'? r.right-w : r.left;
+        y = o.up? r.top-4-h : r.bottom+4;
+        if(!o.up && y+h>vh-8 && r.top-4-h>=8) y=r.top-4-h;     /* 下方放不下就翻到上方 */
+        else if(!o.up && y+h>vh-8 && vh-8-y>=200){ d.style.maxHeight=Math.floor(vh-8-y)+'px'; h=d.offsetHeight; }   /* 上下都放不下：从按钮下沿起、菜单内滚动，不上移盖住打开它的按钮（矮窗口里「文件」曾被自己的菜单压住） */
+        if(o.up && y<8 && r.bottom+4+h<=vh-8) y=r.bottom+4;
+      }else{ x=(vw-w)/2; y=Math.max(8, (vh-h)/3); }
+      x=Math.max(8, Math.min(x, vw-8-w)); y=Math.max(8, Math.min(y, vh-8-h));
+      d.style.left=Math.round(x)+'px'; d.style.top=Math.round(y)+'px';
+    }
+  };
+  F.mi = o=>{
+    o=o||{};
+    const ic = o.ic? (String(o.ic).charAt(0)==='<'? o.ic : F.ic(o.ic, 16)) : '';
+    return '<button type="button" class="flw-mi'+(o.cls? ' '+o.cls : '')+'" role="'+(o.role || (o.checked!=null? 'menuitemcheckbox' : 'menuitem'))+'"'
+      +' data-fa="'+F.esc(o.a || (o.old? 'old' : 'noop'))+'"'
+      +(o.old? ' data-old="'+F.esc(o.old)+'"' : '')
+      +(o.dis? ' aria-disabled="true"' : '')
+      +(o.why? ' data-why="'+F.esc(o.why)+'"' : '')
+      +(o.checked!=null? ' aria-checked="'+(!!o.checked)+'"' : '')
+      +(o.keep? ' data-keep=""' : '')
+      +(o.title? ' title="'+F.esc(o.title)+'"' : '')
+      +(o.attr || '')+'>'
+      +'<span class="flw-mic">'+ic+'</span>'
+      +'<span class="flw-ml">'+(o.html!=null? o.html : F.esc(o.label||''))+(o.d? '<span class="flw-md">'+F.esc(o.d)+'</span>' : '')+'</span>'
+      +((o.sc!=null && o.sc!=='')? '<span class="flw-ms">'+F.esc(o.sc)+'</span>' : '')
+      +'</button>';
+  };
+  F.mh = t=>'<div class="flw-mh" role="presentation">'+F.esc(t)+'</div>';
+  F.hr = ()=>'<hr role="separator">';
+  F.why = t=>'<div class="flw-why" role="presentation">'+F.esc(t)+'</div>';
+  return F;
+})();
+
+/* —— FLOW.r1：行 1（品牌 · 文件 ▾ · 窗口页签 · 保存状态 · 发布 · 账号 ▾）——【T1 独占；计划 §2.3】
+   mount()：往 FLOW.$('flw-r1') 里建内容，页签落点写 <i data-flw-slot="tabs" hidden></i>（FLOW.dock 把 #doc-tabs 插到它前面）。
+   renderDocTabs 的 flow 分支调 FLOW.r1.renderTabs()；菜单注册在 FLOW.menus.file / acct / save / ovf；动作前缀 r1: */
+FLOW.r1 = (function(){
+  const F = FLOW, $ = F.$;
+  /* 页签宽度口径（方案「三、多窗口页签」）：除曲名外的固定宽＝左内距 10 · 谱类图标 16 · 两处间距 6 · 状态 / × 槽 20（当前页签 28）· 右内距 4，
+     即非当前 62、当前 70（与 ③ 的 CSS 逐项对应）。当前页签按曲名 148–240（≤12 个汉字不截断），非当前 140–188（≥6 个汉字），
+     放不下时离当前最远的先收进「窗口 N ▾」，当前页签永远可见（搬自参考实现 FX.fitTabs，只改前缀与测量来源） */
+  const CH=62, CH_ON=70, T_MIN=140, T_MAX=188, C_MIN=148, C_MAX=240;
+  const XSVG='<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false"><path d="M2.75 2.75l6.5 6.5M9.25 2.75l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+  const T_SAVED='已存入我的曲谱，编辑实时同步', T_LOCAL='仅存在本机（未入库），点右侧「仅存本机」存入我的曲谱',
+    T_LOCAL_O='仅存在本机（未入库）：切到这个窗口后点右侧「仅存本机」存入我的曲谱', SPW='先在启动台新建或打开一份谱';
+  /* FIT：上一次量出的页签宽 / 收起情况（重写 innerHTML 时原样写回，免得每次落盘都闪一下）；LAST：上一次写进 #doc-tabs 的 HTML */
+  let FIT={n:-1, cur:-1, w:[], hid:[], hidden:0}, LAST='', LASTSAVE='', LASTAV='', FONTV=0, PEEK=null, PT=0, HOV=null, DRAG=null, NOCLICK=0;
+  const libMap = ()=>{ let L=[]; try{ L=libLoad(); }catch(_){} const m=new Map(); (L||[]).forEach(e=>{ if(e && e.id) m.set(e.id, e); }); return m; };
+  /* 当前窗口读 song：persist() 先调 renderDocTabs 再把 song 写回 docs[cur]，换谱的那一下 docs[cur].song 还是旧对象 */
+  const docSong = i=>(i===curDocI && song)? song : ((docs[i]||{}).song || {});
+  const isSaved = (m, s)=>!!(s && s.id && m.has(s.id));
+  const titleOf = s=>(s && s.title) || '未命名曲谱';
+  const kindOf = s=>{ try{ return docTypeLabel(s)||''; }catch(_){ return ''; } };
+  const spOn = ()=>{ try{ return startPadOn(); }catch(_){ return false; } };
+  const idx = el=>{ const v=el && el.dataset && el.dataset.i; return (v!=null && v!=='' && docs[+v])? +v : curDocI; };
+  /* 库条目的 updatedAt 是 nowStamp()（zh-CN 本地时间串）：今天的只写「时:分」，更早的写「月日」 */
+  const when = st=>{
+    const m=/(\d{4})\D+(\d{1,2})\D+(\d{1,2})\D+(\d{1,2}):(\d{2})/.exec(String(st||'')); if(!m) return '';
+    const d=new Date();
+    return (+m[1]===d.getFullYear() && +m[2]===d.getMonth()+1 && +m[3]===d.getDate())? (m[4].padStart(2,'0')+':'+m[5]) : (+m[2]+'月'+(+m[3])+'日');
+  };
+  const acctName = ()=>{ let n=''; try{ if(ACCT && ACCT.nickname) n=ACCT.nickname; }catch(_){} if(!n){ try{ n=(profileLoad()||{}).name||''; }catch(_){} } return String(n||'').trim(); };
+  const logged = ()=>{ try{ return !!ACCT; }catch(_){ return false; } };
+  const avatar = n=>n? F.esc(Array.from(n)[0]) : F.ic('ui-account', 16);
+
+  /* —— 静态部分：品牌 · 文件 ▾ · [页签落点] · 保存状态 · 发布 · 账号 ▾（运行时建，不带开关时 DOM 零差异）—— */
+  function mount(){
+    const r1=$('flw-r1'); if(!r1 || $('flw-file')) return;
+    r1.insertAdjacentHTML('beforeend',
+      '<div class="flw-brand" title="谱友圈 · 专业曲谱平台"><span class="flw-mark" aria-hidden="true"></span><span class="flw-bn">谱友圈</span></div>'
+      +'<button type="button" id="flw-file" class="flw-cb" data-fa="menu" data-m="file" aria-haspopup="menu" aria-expanded="false" title="文件：新建 · 打开 · 保存 · 曲谱信息 · 关闭窗口">文件<span class="flw-chev">'+F.ic('act-chevron', 12)+'</span></button>'
+      +'<span class="flw-vsep" aria-hidden="true"></span>'
+      +'<i data-flw-slot="tabs" hidden></i>'
+      +'<button type="button" id="flw-save" data-fa="r1:save"></button>'
+      +'<button type="button" id="flw-pub" data-fa="r1:pub" title="发布到谱库：先自动存入「我的曲谱」，再在弹出的卡片里确认提交（不离开编辑器）">'+F.ic('ui-publish', 16)+'<span>发布</span></button>'
+      +'<button type="button" id="flw-acct" class="flw-cb" data-fa="menu" data-m="acct" aria-haspopup="menu" aria-expanded="false" aria-label="账号" title="账号：个人中心 · 外观 · 偏好设置 · 帮助"><span class="flw-av"></span><span class="flw-chev">'+F.ic('act-chevron', 12)+'</span></button>');
+    bindTabs();
+    try{ if(document.fonts){ const bump=()=>{ FONTV++; schedFit(); };
+      document.fonts.addEventListener('loadingdone', bump); document.fonts.ready.then(bump); } }catch(_){}
+  }
+  function syncSave(m){
+    const b=$('flw-save'); if(!b) return;
+    m = m || libMap();
+    const e = song && song.id && m.get(song.id);
+    const w = e? when(e.updatedAt) : '';
+    const h = e? F.ic('ui-savecloud', 16)+'<span>已存入<span class="flw-lng">我的曲谱</span>'+(w? ' · '+F.esc(w) : '')+'</span>'
+               : '<span class="flw-ring" aria-hidden="true"></span><span>仅存本机<span class="flw-lng"> · 存入我的曲谱</span></span>';
+    if(h!==LASTSAVE || !b.firstChild){ b.innerHTML=h; LASTSAVE=h; }
+    /* 文案口径同 saveStatusText（这里共用 renderTabs 已读的那一份库，不再整库解析第二次） */
+    b.title = e? '已存入「我的曲谱」'+(e.updatedAt? '（最近更新 '+e.updatedAt+'）' : '')+'，编辑实时同步；点开可另存为文件'
+               : '已实时自动保存到本机浏览器，但尚未存入「我的曲谱」——点一下存入';
+    b.setAttribute('aria-label', e? '已存入我的曲谱'+(w? '，'+w : '') : '仅存本机，点击存入我的曲谱');
+    if(e){ b.setAttribute('aria-haspopup','menu'); if(!b.hasAttribute('aria-expanded')) b.setAttribute('aria-expanded','false'); }
+    else { b.removeAttribute('aria-haspopup'); b.removeAttribute('aria-expanded'); }
+    b.classList.toggle('flw-saved', !!e);
+    const av=document.querySelector('#flw-acct .flw-av'), ah=avatar(acctName());
+    if(av && (ah!==LASTAV || !av.firstChild)){ av.innerHTML=ah; LASTAV=ah; }
+  }
+
+  /* —— 页签：renderDocTabs 的 flow 分支。旧契约 .dtab[data-doc] / .dt-x[data-doc-x] / #dt-add 与 #doc-tabs 上的委托点击原样可用 —— */
+  function renderTabs(){
+    const bar=$('doc-tabs'); if(!bar) return;
+    let vm=false; try{ vm=!!viewerMode; }catch(_){}
+    if(vm || !docs.length){ if(bar.innerHTML) bar.innerHTML=''; LAST=''; return; }
+    const m=libMap(), n=docs.length, ok=FIT.n===n && FIT.cur===curDocI;
+    let h='<div class="flw-tl" role="tablist" aria-label="窗口">';
+    for(let i=0;i<n;i++){
+      const s2=docSong(i), on=i===curDocI, sv=isSaved(m, s2), tt=titleOf(s2), kn=kindOf(s2), w=ok? FIT.w[i] : 0, off=ok && FIT.hid[i];
+      /* 读屏名只读曲名 + 入库状态（验收 B4：此前把子元素「仅存本机（未入库）」「关闭《…》」一并读出）；× 是鼠标入口（不进 Tab 顺序），键盘关窗＝Delete / 右键菜单 */
+      h+='<div class="dtab'+(on? ' on' : '')+(n>1? ' flw-cx' : '')+(off? ' flw-off' : '')+'" data-doc="'+i+'" role="tab" aria-selected="'+on+'" tabindex="'+(on? 0 : -1)+'"'
+        +' aria-label="'+F.esc(tt+(sv? '' : '，仅存本机'))+'"'+(n>1? ' aria-keyshortcuts="Delete"' : '')
+        +(w? ' style="width:'+w+'px"' : '')+' title="'+F.esc(tt+(kn? ' · '+kn : '')+' · '+(sv? T_SAVED : on? T_LOCAL : T_LOCAL_O))+'">'
+        +(on? '<span class="flw-cnr" aria-hidden="true"></span>' : '')
+        +docIcon(s2)+'<span class="dt-t">'+F.esc(tt)+'</span><span class="flw-tslot">'
+        +(sv? '' : '<span class="dt-dot" aria-hidden="true"></span>')
+        +(n>1? '<button type="button" class="dt-x" data-doc-x="'+i+'" tabindex="-1" aria-hidden="true" aria-label="关闭《'+F.esc(tt)+'》" title="'+(sv? '关闭该窗口（中键也可以）' : '关闭该窗口（有内容会自动存入我的曲谱，不丢稿）')+'">'+XSVG+'</button>' : '')
+        +'</span></div>';
+    }
+    const hid=ok? FIT.hidden : 0;
+    h+='</div><button type="button" id="flw-tabovf"'+(hid? '' : ' class="flw-off"')+' data-fa="r1:ovf" aria-haspopup="dialog" aria-expanded="false" title="'+(hid? '还有 '+hid+' 个窗口收起了，点开看全部窗口' : '全部窗口')+'">窗口 <span class="flw-n">'+(hid||'')+'</span>'+F.ic('act-chevron', 12)+'</button>'
+      +'<button type="button" id="dt-add" title="新建曲谱（Alt+N）：在新窗口打开，当前项目原样保留" aria-label="新建曲谱">'+pqIcon('act-add', 16)+'</button>';
+    if(h!==LAST){
+      /* 键盘焦点在页签 / 窗口 N / ＋ 上时，重写后还给同一位置（鼠标点页签不取焦点，见 bindTabs 的 mousedown） */
+      const ae=document.activeElement; let fk=null;
+      if(ae && bar.contains(ae)){ if(ae.classList.contains('dtab')) fk=+ae.dataset.doc; else if(ae.id==='dt-add' || ae.id==='flw-tabovf') fk='#'+ae.id; }
+      endPeek(); bar.innerHTML=h; LAST=h;
+      if(fk!=null){
+        const el = typeof fk==='string'? bar.querySelector(fk) : bar.querySelector('.dtab[data-doc="'+Math.min(fk, n-1)+'"]');
+        if(el){ if(el.classList.contains('dtab')) rove(el); try{ el.focus({preventScroll:true}); }catch(_){} }
+      }
+    }
+    syncSave(m);
+    schedFit();
+  }
+  /* 量宽的工作只在签名（视口宽 · 窗口数 · 当前 · 曲名 · 保存状态文案 · 账号字 · 字体 · 启动台）变了才做，放进 rAF（与 innerHTML 同帧、绘制之前） */
+  function sig(){
+    let t=''; for(let i=0;i<docs.length;i++) t+=titleOf(docSong(i))+'\u0001';
+    return [window.innerWidth, docs.length, curDocI, t, LASTSAVE.length, LASTSAVE.indexOf('flw-ring')>=0, acctName(), FONTV, spOn()].join('|');
+  }
+  function schedFit(){ if(!F.active) return; if(F.changed('r1tabs', sig())) F.raf('r1fit', fit); }
+  function fit(){
+    const bar=$('doc-tabs'), tl=bar && bar.querySelector('.flw-tl'); if(!tl) return;
+    const tabs=[...tl.querySelectorAll('.dtab')], ovf=$('flw-tabovf'), add=$('dt-add'); if(!tabs.length || !ovf) return;
+    endPeek();
+    tabs.forEach(t=>{ t.classList.remove('flw-off'); t.style.width=''; });
+    const nat=tabs.map(t=>{ const tt=t.querySelector('.dt-t'); return Math.ceil(tt? tt.scrollWidth : 0)+(t.classList.contains('on')? CH_ON : CH); });
+    let cur=tabs.findIndex(t=>t.classList.contains('on')); if(cur<0) cur=0;
+    /* 「窗口 N ▾」按最坏位数量一次占位宽（含左外距 6），「＋」含左外距 4 */
+    const nEl=ovf.querySelector('.flw-n');
+    ovf.classList.remove('flw-off'); if(nEl) nEl.textContent=String(Math.max(1, tabs.length-1));
+    const ovfW=Math.ceil(ovf.getBoundingClientRect().width)+6, addW=add? Math.ceil(add.getBoundingClientRect().width)+4 : 0;
+    const W=Math.floor(bar.getBoundingClientRect().width)-addW;   /* 取整往下，页签宽也都取整：合计不会超出页签区 */
+    let curW=Math.max(C_MIN, Math.min(C_MAX, nat[cur]));
+    curW=Math.max(96, Math.min(curW, W-(tabs.length>1? ovfW : 0)));   /* 极窄窗口：当前页签至少露出 96 */
+    const order=tabs.map((_,i)=>i).filter(i=>i!==cur).sort((a,b)=>Math.abs(a-cur)-Math.abs(b-cur) || a-b);
+    const fits=(k, ov)=>curW+k*T_MIN<=W-(ov? ovfW : 0);
+    let k=0; while(k<order.length && fits(k+1, k+1<order.length)) k++;
+    const vis=new Set([cur].concat(order.slice(0, k))), hidden=tabs.length-vis.size;
+    const avail=W-(hidden? ovfW : 0)-curW, others=[...vis].filter(i=>i!==cur).sort((a,b)=>a-b);
+    const ideal=others.map(i=>Math.max(T_MIN, Math.min(T_MAX, nat[i]))), sum=ideal.reduce((a,b)=>a+b, 0), ow=others.map(()=>T_MIN);
+    /* 水位法（参考实现是整宽等比缩放再托底 140：几个托底的加起来会超出可用宽，把 ＋ 挤出页签区；短曲名也跟着被截）：
+       放不下＝从最宽的往下削（曲名短的不截，长的一起截到同一宽，不低于 140）；有富余＝从最窄的往上补到同一宽（不超过 188）。当前页签始终按曲名 */
+    const lvl=(f, lo, hi)=>{ if(f(hi)<=avail) return hi; for(let k2=0;k2<24;k2++){ const mid=(lo+hi)/2; if(f(mid)<=avail) lo=mid; else hi=mid; } return lo; };
+    if(sum>avail){ const C=lvl(L=>ideal.reduce((a,v)=>a+Math.min(v, L), 0), T_MIN, T_MAX); ideal.forEach((v,j)=>{ ow[j]=Math.floor(Math.max(T_MIN, Math.min(v, C))); }); }
+    else { const L0=lvl(L=>ideal.reduce((a,v)=>a+Math.max(v, L), 0), T_MIN, T_MAX); ideal.forEach((v,j)=>{ ow[j]=Math.floor(Math.max(v, L0)); }); }
+    const w=[], hid=[];
+    tabs.forEach((t,i)=>{
+      if(!vis.has(i)){ hid[i]=true; w[i]=0; t.classList.add('flw-off'); return; }
+      const px = i===cur? curW : ow[others.indexOf(i)];
+      w[i]=px; t.style.width=px+'px';
+    });
+    ovf.classList.toggle('flw-off', !hidden);
+    if(nEl) nEl.textContent = hidden? String(hidden) : '';
+    ovf.title = hidden? '还有 '+hidden+' 个窗口收起了，点开看全部窗口' : '全部窗口';
+    ovf.setAttribute('aria-label', hidden? '全部窗口（另有 '+hidden+' 个收起）' : '全部窗口');
+    FIT={n:tabs.length, cur, w, hid, hidden};
+    /* 键盘焦点所在的页签被收起了：交给当前页签 */
+    const ae=document.activeElement; if(ae && ae.classList && ae.classList.contains('dtab') && ae.classList.contains('flw-off')){ const c=tabs[cur]; rove(c); try{ c.focus({preventScroll:true}); }catch(_){} }
+  }
+  function rove(t){ const tl=t && t.parentNode; if(!tl) return; tl.querySelectorAll('.dtab').forEach(x=>{ x.tabIndex = x===t? 0 : -1; }); }
+  const visTabs = ()=>[...document.querySelectorAll('#doc-tabs .flw-tl .dtab')].filter(t=>!t.classList.contains('flw-off'));
+
+  /* —— 截断的页签悬停 600ms 原位展开（只覆盖行 1，不改其他页签位置：负外距抵掉多出的宽）—— */
+  function doPeek(t){
+    if(!t || !t.isConnected || DRAG || !F.active || PEEK) return;
+    const tt=t.querySelector('.dt-t'); if(!tt || tt.scrollWidth<=tt.clientWidth+1) return;
+    /* 只在页签区里展开（验收 L2：此前右限是行 1 右缘，展开后盖住「窗口 N ▾」「＋」和保存状态，点它们第一下被吞）：
+       右限＝「窗口 N ▾」/「＋」左缘，左限＝页签区左缘；右边放不下就向左延伸 */
+    const r=t.getBoundingClientRect(), R=$('flw-r1').getBoundingClientRect(), tl=(t.parentNode && t.parentNode.getBoundingClientRect) ? t.parentNode.getBoundingClientRect() : R;
+    const lim=[$('flw-tabovf'), $('dt-add')].filter(x=>x && !x.classList.contains('flw-off') && x.getClientRects().length).map(x=>x.getBoundingClientRect().left-4);
+    const lo=Math.max(R.left+8, tl.left), hi=Math.min(R.right-8, ...lim);
+    if(hi-lo<=r.width+1) return;
+    let W=Math.min(Math.ceil(r.width+tt.scrollWidth-tt.clientWidth+2), hi-lo);
+    let sl=Math.max(0, r.left+W-hi); sl=Math.min(sl, Math.max(0, r.left-lo));
+    W=Math.min(W, hi-(r.left-sl));
+    if(W<=r.width+1) return;
+    PEEK={t, w:t.style.width, r:{l:r.left, r:r.right, t:r.top, b:r.bottom}};
+    t.classList.add('flw-peek');
+    t.style.width=W+'px'; t.style.marginLeft=(-sl)+'px'; t.style.marginRight=(r.width-W+sl)+'px';
+  }
+  function endPeek(){
+    clearTimeout(PT); PT=0;
+    if(!PEEK) return;
+    const p=PEEK; PEEK=null;
+    if(p.t.isConnected){ p.t.classList.remove('flw-peek'); p.t.style.width=p.w; p.t.style.marginLeft=''; p.t.style.marginRight=''; }
+  }
+
+  /* —— 拖动排序：只重排 docs[]（窗口对象不变，LB_META / DOC_TOUCH 等按对象记的不受影响），修正 curDocI 后一次 persist()；
+     musetab-docs-v1 的结构 {cur, docs:[song…]} 不变，只是顺序变了 —— */
+  function moveDoc(from, to){
+    if(from===to || !docs[from] || to<0 || to>=docs.length) return false;
+    if(docs[curDocI]) docs[curDocI].song=song;
+    const cur=docs[curDocI], d=docs.splice(from, 1)[0];
+    docs.splice(to, 0, d);
+    curDocI=Math.max(0, docs.indexOf(cur));
+    persistNow._sig=null;   /* 验收 B6：docsSig 只拼 id || 曲名，两个同名未入库窗口互换后签名不变、musetab-docs-v1 不重写，刷新后顺序还原——顺序变了就强制重写一次 */
+    persist();
+    return true;
+  }
+  function dropAt(d, x){
+    const vis=visTabs().filter(t=>t!==d.t);
+    let before=null;
+    for(const t of vis){ const r=t.getBoundingClientRect(); if(x<r.left+r.width/2){ before=t; break; } }
+    let to;
+    if(before) to=+before.dataset.doc;
+    else { const last=vis[vis.length-1]; to = last? +last.dataset.doc+1 : d.i; }
+    if(to>d.i) to--;
+    return {to, before, last: before? null : vis[vis.length-1]};
+  }
+  function bindTabs(){
+    const bar=$('doc-tabs'); if(!bar || bar.dataset.flwB) return;
+    bar.dataset.flwB='1';
+    /* 鼠标点页签不取焦点（此前页签不可聚焦：点完照常用方向键 / 数字键编辑谱面）；焦点原在别处的照旧失焦，与点不可聚焦元素一致 */
+    bar.addEventListener('mousedown', e=>{
+      if(!F.active) return;
+      const t=e.target.closest && e.target.closest('.dtab'); if(!t) return;
+      e.preventDefault();
+      if(e.button===0){ const ae=document.activeElement; if(ae && ae!==document.body && !bar.contains(ae) && ae.blur) try{ ae.blur(); }catch(_){} }
+    });
+    /* 中键关闭 */
+    bar.addEventListener('auxclick', e=>{
+      if(!F.active || e.button!==1) return;
+      const t=e.target.closest && e.target.closest('.dtab'); if(!t) return;
+      e.preventDefault(); e.stopPropagation();
+      closeOne(+t.dataset.doc);
+    });
+    /* 右键菜单 */
+    bar.addEventListener('contextmenu', e=>{
+      if(!F.active) return;
+      const t=e.target.closest && e.target.closest('.dtab'); if(!t) return;
+      e.preventDefault(); endPeek();
+      F.menu.open('tabctx', null, null, {at:{x:e.clientX, y:e.clientY}, i:+t.dataset.doc, label:'窗口操作'});
+    });
+    /* 键盘：role=tablist，←→ / Home / End 只移焦点，Enter / 空格切换，Delete 关闭，Shift+F10 / 菜单键开右键菜单 */
+    bar.addEventListener('keydown', e=>{
+      if(!F.active || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t=e.target; if(!t || !t.classList || !t.classList.contains('dtab')) return;
+      const vis=visTabs(), k=vis.indexOf(t), i=+t.dataset.doc;
+      const mv=j=>{ const x=vis[(j+vis.length)%vis.length]; if(!x) return; rove(x); try{ x.focus({preventScroll:true}); }catch(_){} };
+      switch(e.key){
+        case 'ArrowLeft': mv(k-1); break;
+        case 'ArrowRight': mv(k+1); break;
+        case 'Home': mv(0); break;
+        case 'End': mv(vis.length-1); break;
+        case 'Enter': case ' ': {
+          if(i!==curDocI) switchDocTo(i);
+          /* 验收 B5：键盘切换＝鼠标点页签——焦点交还谱面（鼠标点页签本就不取焦点），之后数字 / Delete / 方向键都作用于这个窗口的谱面，
+             不再「数字进谱面、Delete 却关窗口」；roving tabindex 仍指向当前页签，Shift+Tab 即回到页签 */
+          const c=document.querySelector('#doc-tabs .dtab.on'); if(c) rove(c);
+          const ae=document.activeElement; if(ae && ae!==document.body && bar.contains(ae) && ae.blur) try{ ae.blur(); }catch(_){}
+          break; }
+        case 'Delete': closeOne(i); break;
+        case 'ContextMenu': F.menu.open('tabctx', t, null, {i, kb:true, label:'窗口操作'}); break;
+        case 'F10': if(!e.shiftKey) return; F.menu.open('tabctx', t, null, {i, kb:true, label:'窗口操作'}); break;
+        default: return;
+      }
+      e.preventDefault(); e.stopPropagation();
+    });
+    /* 悬停展开 */
+    bar.addEventListener('mouseover', e=>{
+      if(!F.active) return;
+      const t=e.target.closest && e.target.closest('.dtab');
+      if(t===HOV) return;
+      endPeek(); HOV=t;
+      if(t && !DRAG) PT=setTimeout(()=>doPeek(t), 600);
+    });
+    bar.addEventListener('mouseleave', ()=>{ HOV=null; endPeek(); });
+    /* 指针一离开页签原来的位置就收起展开（展开部分盖着的邻居页签照常点得到；回到原位再悬停 600ms 又展开） */
+    bar.addEventListener('mousemove', e=>{ const p=PEEK; if(!p) return; const q=p.r;
+      if(e.clientX<q.l || e.clientX>q.r || e.clientY<q.t || e.clientY>q.b){ endPeek(); HOV=null; } });
+    /* 拖动排序（鼠标 / 笔；横移 >6px 才算拖） */
+    bar.addEventListener('pointerdown', e=>{
+      if(!F.active || e.button!==0 || e.pointerType==='touch') return;
+      const t=e.target.closest && e.target.closest('.dtab'); if(!t || e.target.closest('.dt-x')) return;
+      endPeek();
+      DRAG={t, i:+t.dataset.doc, x0:e.clientX, id:e.pointerId, on:false, mark:null};
+    });
+    const mark=(d, el, cls)=>{ if(d.mark && (d.mark[0]!==el || d.mark[1]!==cls)){ d.mark[0].classList.remove(d.mark[1]); d.mark=null; }
+      if(el && !d.mark){ el.classList.add(cls); d.mark=[el, cls]; } };
+    window.addEventListener('pointermove', e=>{
+      const d=DRAG; if(!d || e.pointerId!==d.id) return;
+      const dx=e.clientX-d.x0;
+      if(!d.on){ if(Math.abs(dx)<6) return; d.on=true; d.t.classList.add('flw-drag'); try{ d.t.setPointerCapture(e.pointerId); }catch(_){} }
+      d.t.style.transform='translateX('+Math.round(dx)+'px)';
+      const r=dropAt(d, e.clientX);
+      if(r.to===d.i) mark(d, null); else if(r.before) mark(d, r.before, 'flw-dropb'); else mark(d, r.last, 'flw-dropa');
+    });
+    const end=e=>{
+      const d=DRAG; if(!d || e.pointerId!==d.id) return;
+      DRAG=null;
+      if(!d.on) return;
+      mark(d, null); d.t.style.transform=''; d.t.classList.remove('flw-drag');
+      try{ d.t.releasePointerCapture(e.pointerId); }catch(_){}
+      NOCLICK=performance.now();
+      if(e.type==='pointerup'){ const r=dropAt(d, e.clientX); moveDoc(d.i, r.to); }
+    };
+    window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    /* 拖完松手的那一下 click 不算「切到这个窗口」 */
+    bar.addEventListener('click', e=>{ if(NOCLICK && performance.now()-NOCLICK<500){ NOCLICK=0; e.stopPropagation(); e.preventDefault(); } }, true);
+  }
+
+  /* —— 动作 —— */
+  function closeOne(i){
+    if(docs.length<=1){ toast('只剩这一个窗口，不能再关了'); return; }
+    if(docs[i]) closeDocAt(i);
+  }
+  /* 一次关多个：从大到小逐个关，下标不漂移；未入库但有内容的照旧由 closeDocAt 自动转存（数据红线：多开关闭绝不丢谱） */
+  function closeMany(pick, what){
+    const m=libMap(); let n=0, kept=0;
+    for(let j=docs.length-1;j>=0 && docs.length>1;j--){
+      if(!pick(j, m)) continue;
+      const s2=docSong(j); if(!isSaved(m, s2) && docHasContent(s2)) kept++;
+      closeDocAt(j); n++;
+    }
+    toast(n? '已关闭 '+n+' 个'+what+'窗口'+(kept? '，其中 '+kept+' 个有内容的已存入「我的曲谱」' : '') : '没有可关闭的'+what+'窗口');
+    return n;
+  }
+  function closeOthers(i){ const keep=docs[i]; if(!keep) return; closeMany(j=>docs[j]!==keep, '其他'); }
+  function closeRight(i){ const keep=docs[i]; if(!keep) return; closeMany(j=>j>docs.indexOf(keep), '右侧'); }
+  function closeSaved(){ closeMany((j, m)=>isSaved(m, docSong(j)), '已存入的'); }
+  function saveAt(i){ if(i!==curDocI) switchDocTo(i); saveToLibrary(); }
+  function dup(i){
+    const s0=docSong(i); let c;
+    try{ c=JSON.parse(JSON.stringify(s0)); }catch(_){ return; }
+    delete c.id;   /* 副本是另一份谱：不带入库 id（否则两窗口共用「我的曲谱」同一条） */
+    c.title=titleOf(s0)+'（副本）';
+    addDoc(c, ()=>toast('已复制为新窗口：《'+c.title+'》'));
+  }
+  function kind(){
+    try{ LBAR.show(); }catch(_){}
+    const b=document.querySelector('#lb-wrap .lb-kind');
+    if(b){ try{ lbMenuOpen(b); }catch(e){ console.error(e); } }
+    else toast('这份谱现在不能换谱类');
+  }
+  function publish(btn){
+    if(!song) return;
+    if(spOn()){ toast(SPW); return; }
+    try{ persistFlush(); }catch(_){}   /* 去抖里的最后一笔先同步进「我的曲谱」那一条，发布的就是屏幕上这一版 */
+    const find=()=>song.id? libLoad().find(x=>x.id===song.id) : null;
+    let e=find();
+    if(!e){ saveToLibrary(); e=find(); }
+    if(e) showPublishMenu(e, btn.getBoundingClientRect());
+  }
+  const themeCur = ()=>{ const t=document.documentElement.dataset.theme; return (t==='light' || t==='dark')? t : 'auto'; };
+  function theme(v, el){
+    const r=document.documentElement;
+    if(v==='light' || v==='dark'){ r.dataset.theme=v; F.ls.set('musetab-theme', v); }
+    else { delete r.dataset.theme; F.ls.set('musetab-theme', null); }   /* 跟随系统＝不写 data-theme，删本机记忆（与首屏脚本的读法对应） */
+    const mn=el && el.closest && el.closest('#popmenu');
+    if(mn) mn.querySelectorAll('[data-fa="r1:theme"]').forEach(b=>b.setAttribute('aria-checked', String(b.dataset.v===themeCur())));
+  }
+  function keysHelp(){
+    const b=$('b-help'); if(b) b.click();
+    const st=[...document.querySelectorAll('.modal .helpdoc .hd-st')].find(x=>/快捷键/.test(x.textContent||''));
+    if(st) try{ st.scrollIntoView({block:'start'}); }catch(_){}
+  }
+  function focusAcct(){ const a=$('flw-acct'); if(a) try{ a.focus({preventScroll:true}); }catch(_){} }   /* showPrefs 关窗后把焦点还给「打开它的那个」 */
+  function goDoc(i){ if(docs[i] && i!==curDocI) switchDocTo(i); }
+
+  /* —— 窗口列表（窗口 N ▾）：可搜索；每行 44：谱类图标 · 曲名 · 谱类 · 入库状态 · 页签中 / 已收起 · × —— */
+  function wireOvf(d, q){
+    d.classList.add('flw-wmn');
+    d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', '全部窗口');
+    const ob=$('flw-tabovf'); if(ob) F.menu.place(d, ob, {});
+    const inp=d.querySelector('.flw-msearch input'), rows=[...d.querySelectorAll('.flw-wrow')], none=d.querySelector('.flw-wnone');
+    const filt=()=>{ const v=(inp.value||'').trim().toLowerCase(); let k=0;
+      rows.forEach(r=>{ const hit=!v || (r.dataset.q||'').indexOf(v)>=0; r.classList.toggle('flw-off', !hit); if(hit) k++; });
+      if(none) none.classList.toggle('flw-off', k>0); };
+    if(inp){
+      inp.value=q||''; filt();
+      inp.addEventListener('input', filt);
+      inp.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.isComposing){ e.preventDefault(); const r=rows.find(x=>!x.classList.contains('flw-off')); if(r) r.click(); } });
+      try{ inp.focus({preventScroll:true}); }catch(_){}
+    }
+    const xClose=(i)=>{
+      const v=inp? inp.value : '';
+      if(docs.length<=1){ toast('只剩这一个窗口，不能再关了'); return; }
+      F.menu.close(); closeDocAt(i);
+      /* 关掉一个后还留在列表里（页签重量在同一帧的 rAF 里先跑）；不再溢出就收起 */
+      requestAnimationFrame(()=>{ const b=$('flw-tabovf'); if(!F.active || !b || b.classList.contains('flw-off')) return;
+        const d2=F.menu.open('ovf', b, null, {label:'全部窗口'}); if(d2) wireOvf(d2, v); });
+    };
+    d.addEventListener('click', e=>{ const x=e.target.closest && e.target.closest('.flw-wx'); if(!x) return; e.preventDefault(); e.stopPropagation(); xClose(+x.dataset.i); }, true);
+    d.addEventListener('keydown', e=>{ const t=e.target; if(e.key==='Delete' && t && t.classList && t.classList.contains('flw-wrow')){ e.preventDefault(); e.stopPropagation(); xClose(+t.dataset.i); } }, true);
+  }
+  function openOvf(btn, ev){ const d=F.menu.toggle('ovf', btn, ev); if(d) wireOvf(d, ''); }
+
+  /* —— 菜单 —— */
+  F.menus.file = ()=>{
+    const sp=spOn(), n=docs.length, m=libMap(), sv=isSaved(m, song);
+    let ns=0; for(let i=0;i<n;i++) if(isSaved(m, docSong(i))) ns++;
+    let ld=''; try{ ld=NWP.lastDesc(); }catch(_){}
+    return '<div class="flw-msplit" role="none">'
+        +F.mi({a:'r1:new', ic:'act-new', label:'新建…', sc:'Alt+N', d:'按用途选，回车就建；新窗口打开，当前谱保留'})
+        +'<button type="button" class="flw-mi flw-msub" role="menuitem" data-fa="r1:newdd" aria-label="快速新建：按上次 / 按用途一点直接建" title="快速新建：按上次（Alt+Shift+N）/ 按用途一点直接建">'+F.ic('act-chevron', 14)+'</button></div>'
+      +F.mi({a:'r1:last', ic:'tpl-last', label:'按上次设置新建', sc:'Alt+Shift+N', d:ld})
+      +F.mi({a:'r1:import', ic:'act-import', label:'从已有音乐…', d:'MusicXML（含 AI 转谱导出）· Guitar Pro · MIDI'})
+      +F.mi({old:'b-open', ic:'act-open', label:'打开文件…', sc:'Ctrl+O', d:'.mtab.json 曲谱文件'})
+      +F.hr()
+      +F.mi({a:'r1:mine', ic:'src-mine', label:'我的曲谱', d:'个人中心里存过的谱'})
+      +F.mi({a:'r1:demo', ic:'src-example', label:'示例曲谱', d:'原「预设」：各谱类功能示例'})
+      +F.mi({old:'b-circle', ic:'ui-library', label:'谱库', d:'发现好谱、收藏，点开即看即弹'})
+      +F.hr()
+      +F.mi({old:'b-savemine', ic:'ui-save', label:'保存到我的曲谱', sc:sv? '已存入' : '', d:sv? '编辑实时同步；再点＝立即同步这一版' : '这份谱现在只存在本机浏览器里'})
+      +F.mi({old:'b-save', ic:'ui-download', label:'存为文件 .mtab.json', sc:'Ctrl+S', d:'完整保留数据，换电脑可打开继续编辑'})
+      +F.mi({a:'r1:dup', ic:'act-swap', label:'复制为新窗口', d:'副本在新窗口打开，原谱不动', dis:sp, why:SPW})
+      +F.hr()
+      +F.mi({old:'b-meta', ic:'act-info', label:'曲谱信息…', d:'标题、调、拍号、速度、词曲作者', dis:sp, why:SPW})
+      +F.mi({a:'r1:kind', ic:(song? docIcon(song) : 'act-swap'), label:'换谱类…', d:'空谱任意换；有内容时只给不动音符的换法或「另建一份」', dis:sp, why:SPW})
+      /* v67.9 过渡入口（验收 SC-1）：旧主栏隐藏后排版 / 预览 / 打印没有可见入口；v68.1 模式条「排版 › 输出」上线后撤掉这一行。
+         三项并成一行（32 高、不另起分组）：文件菜单在 1280×800 仍一屏放下，不压到「文件」按钮 */
+      +'<div class="flw-mrow" role="group" aria-label="排版与输出">'
+        +F.mi({a:'r1:layout', cls:'flw-mchip', ic:'mode-engrave', label:'排版…', title:'排版：疏密 · 内容大小 · 页面尺寸 A5 / A4 / A3 · 固定版宽', dis:sp, why:SPW})
+        +F.mi({old:'b-preview', cls:'flw-mchip', ic:'ui-preview', label:'打印预览', title:'打印预览：纸张适配、缩放、多页横排竖排', dis:sp, why:SPW})
+        +F.mi({old:'b-print', cls:'flw-mchip', ic:'ui-print', label:'打印与导出…', title:'打印与导出：PDF · PNG · 分享卡 · 互动谱 · MusicXML · MIDI', dis:sp, why:SPW})
+      +'</div>'
+      +F.hr()
+      +F.mi({a:'r1:close', ic:'act-close', label:'关闭窗口', dis:n<=1, why:'只剩这一个窗口'})
+      +F.mi({a:'r1:closeothers', label:'关闭其他窗口', dis:n<=1, why:'没有其他窗口'})
+      +F.mi({a:'r1:closesaved', label:'关闭已存入的窗口', d:'未存入的保留，不会丢', dis:n<=1 || !ns, why:n<=1? '只剩这一个窗口' : '没有已存入「我的曲谱」的窗口'});
+  };
+  F.menus.acct = ()=>{
+    const nm=acctName(), th=themeCur(), pp=$('paper'), inv=!!(pp && pp.classList.contains('score-invert')), lg=logged();
+    const seg=v=>'<button type="button" class="flw-segb" role="menuitemradio" aria-checked="'+(th===v)+'" data-fa="r1:theme" data-v="'+v+'" data-keep="">'+({light:'浅色', dark:'深色', auto:'跟随系统'})[v]+'</button>';
+    return '<div class="flw-acct-h" role="presentation"><span class="flw-av">'+avatar(nm)+'</span><span class="flw-acct-t"><b>'+F.esc(nm || (lg? '我的账号' : '未登录'))+'</b><span>'+(lg? '已登录 · 云端同步开启' : '曲谱存在本机浏览器 · 登录后可云端同步')+'</span></span></div>'+F.hr()
+      +F.mi({old:'b-member', ic:'ui-account', label:'个人中心', d:'个人资料 · 我的曲谱 · 我的权益'})
+      +F.mi({a:'r1:creator', ic:'ui-publish', label:'创作者中心', d:'我的发布、收益、审核进度'})
+      +F.mi({old:'b-circle', ic:'ui-library', label:'谱库'})
+      +F.hr()
+      +'<div class="flw-mseg" role="group" aria-label="外观"><span class="flw-mic">'+F.ic('ui-theme', 16)+'</span><span class="flw-ml">外观</span><span class="flw-segs">'+seg('light')+seg('dark')+seg('auto')+'</span></div>'
+      +F.mi({old:'b-invert', ic:'ui-invert', label:'谱面反色', d:'深色纸张 + 浅色音符（夜间 / 投影）', checked:inv, sc:inv? '开' : '关'})
+      +F.mi({a:'r1:prefs', ic:'act-settings', label:'偏好设置…', d:'键位档 · 落音自动前进 · 演奏感 · 触屏浮条'})
+      +F.hr()
+      +F.mi({a:'r1:keys', ic:'act-keyboard', label:'快捷键', d:'帮助里的「快捷键」一节'})
+      +F.mi({old:'b-help', ic:'ui-help', label:'帮助与教程'})
+      +F.mi({old:'b-changelog', label:'更新日志'});
+  };
+  F.menus.save = ()=>{
+    const e=song && song.id && libLoad().find(x=>x.id===song.id);
+    return F.mh('已存入我的曲谱')
+      +F.why('之后的编辑会实时同步到「我的曲谱」里的这一条'+(e && e.updatedAt? '（最近更新 '+e.updatedAt+'）' : '')+(logged()? '；已登录，同时同步到云端。' : '；登录后可在别的设备上继续。'))
+      +F.mi({old:'b-save', ic:'ui-download', label:'另存为文件 .mtab.json', sc:'Ctrl+S'})
+      +F.mi({a:'r1:mine', ic:'src-mine', label:'打开我的曲谱'});
+  };
+  F.menus.ovf = ()=>{
+    const m=libMap(), n=docs.length, h=(FIT.n===n && FIT.cur===curDocI)? FIT.hid : [];
+    let s='<label class="flw-msearch">'+F.ic('ui-search', 14)+'<input type="search" placeholder="搜窗口：曲名或谱类" aria-label="搜窗口：曲名或谱类" autocomplete="off" spellcheck="false"></label><div class="flw-wl" role="group" aria-label="窗口">';
+    let ns=0;
+    for(let i=0;i<n;i++){
+      const s2=docSong(i), on=i===curDocI, sv=isSaved(m, s2), tt=titleOf(s2), kn=kindOf(s2); if(sv) ns++;
+      /* 窗口列表是 role=dialog（内含搜索框，不能是 menu，验收 B4）：行是普通按钮，读屏名写明；行内 × 是鼠标入口（键盘＝Delete） */
+      s+='<button type="button" class="flw-mi flw-wrow'+(on? ' on' : '')+'" data-fa="r1:go" data-i="'+i+'" data-q="'+F.esc((tt+' '+kn).toLowerCase())+'"'+(on? ' aria-current="true"' : '')+' title="'+F.esc(tt+(kn? ' · '+kn : ''))+'"'
+        +' aria-label="'+F.esc(tt+(kn? '，'+kn : '')+'，'+(sv? '已存入我的曲谱' : '仅存本机')+'，'+(on? '当前窗口' : h[i]? '已收起' : '页签中'))+'"'+(n>1? ' aria-keyshortcuts="Delete"' : '')+'>'
+        +'<span class="flw-mic">'+docIcon(s2)+'</span>'
+        +'<span class="flw-ml"><b>'+F.esc(tt)+'</b><span class="flw-md">'+F.esc(kn)+(kn? ' · ' : '')+(sv? '已存入我的曲谱' : '仅存本机')+'</span></span>'
+        +'<span class="flw-ms">'+(on? '当前' : h[i]? '已收起' : '页签中')+'</span>'
+        +'<span class="flw-wst">'+(sv? '' : '<span class="flw-wring" aria-hidden="true"></span>')+'</span>'
+        +(n>1? '<span class="flw-wx" aria-hidden="true" data-i="'+i+'" title="'+(sv? '关闭这个窗口' : '关闭这个窗口（有内容会自动存入我的曲谱，不丢稿）')+'">'+XSVG+'</span>' : '')
+        +'</button>';
+    }
+    s+='<div class="flw-why flw-wnone flw-off" role="presentation">没有匹配的窗口</div></div>'+F.hr()
+      +F.mi({a:'r1:new', ic:'act-add', label:'新窗口…', sc:'Alt+N', d:'按用途新建，当前谱保留', role:'button'})
+      +F.mi({a:'r1:closesaved', ic:'act-close', label:'关闭已存入的窗口', d:'未存入的保留，不会丢', dis:n<=1 || !ns, why:n<=1? '只剩这一个窗口' : '没有已存入「我的曲谱」的窗口', role:'button'});
+    return s;
+  };
+  F.menus.tabctx = (anchor, o)=>{
+    const i=(o && o.i!=null && docs[o.i])? o.i : curDocI, n=docs.length, s2=docSong(i), sv=isSaved(libMap(), s2), A=' data-i="'+i+'"';
+    return F.mh('《'+titleOf(s2)+'》')
+      +F.mi({a:'r1:close', ic:'act-close', label:'关闭', sc:'中键', attr:A, dis:n<=1, why:'只剩这一个窗口'})
+      +F.mi({a:'r1:closeothers', label:'关闭其他', attr:A, dis:n<=1, why:'没有其他窗口'})
+      +F.mi({a:'r1:closeright', label:'关闭右侧', attr:A, dis:i>=n-1, why:'右侧没有窗口'})
+      +F.hr()
+      +F.mi({a:'r1:savemine', ic:'ui-save', label:sv? '已存入我的曲谱' : '存入我的曲谱', attr:A, dis:sv, why:'已存入「我的曲谱」，编辑实时同步', d:(!sv && i!==curDocI)? '会先切到这个窗口' : ''})
+      +F.mi({a:'r1:dup', ic:'act-swap', label:'复制为新窗口', attr:A, d:'副本在新窗口打开，原谱不动'});
+  };
+
+  function act(a, el, ev){
+    switch(a){
+      case 'r1:save': if(song && song.id && libMap().has(song.id)) return F.menu.toggle('save', el, ev); return saveToLibrary();
+      case 'r1:pub': return publish(el);
+      case 'r1:ovf': return openOvf(el, ev);
+      case 'r1:new': return showNewWizard();
+      case 'r1:newdd': return NWP.quickMenu($('flw-file'));
+      case 'r1:last': return NWP.quickCreate('last');
+      case 'r1:import': return showNewWizard({tab:'import'});
+      case 'r1:mine': return openPersonal('mine');
+      case 'r1:creator': return openPersonal('creator');
+      case 'r1:demo': libTab='preset'; return showLibrary();
+      case 'r1:dup': return dup(idx(el));
+      case 'r1:kind': return kind();
+      case 'r1:layout': { const fb=$('flw-file'), tp=$('top'), fr=fb? fb.getBoundingClientRect() : {left:8}, tr=tp? tp.getBoundingClientRect() : {bottom:84};
+        return layToggle(true, {left:fr.left, bottom:tr.bottom}); }   /* 与 #b-layout 同一浮层；#b-layout 随旧主栏隐藏（rect 全 0），定位改按「文件 ▾」与外壳底 */
+      case 'r1:close': return closeOne(idx(el));
+      case 'r1:closeothers': return closeOthers(idx(el));
+      case 'r1:closeright': return closeRight(idx(el));
+      case 'r1:closesaved': return closeSaved();
+      case 'r1:savemine': return saveAt(idx(el));
+      case 'r1:go': return goDoc(+el.dataset.i);
+      case 'r1:theme': return theme(el.dataset.v, el);
+      case 'r1:prefs': focusAcct(); return showPrefs();
+      case 'r1:keys': return keysHelp();
+    }
+    console.warn('flow：未处理的动作 '+a);
+  }
+  return {
+    mount, renderTabs, act, fit, moveDoc,
+    on(){ LAST=''; LASTSAVE=''; LASTAV=''; F.changed('r1tabs', ''); },
+    off(){ endPeek(); DRAG=null; HOV=null; LAST=''; LASTSAVE=''; F.changed('r1tabs', ''); FIT={n:-1, cur:-1, w:[], hid:[], hidden:0}; },
+    layout(){ schedFit(); },
+    sync(){ schedFit(); },
+    get fitState(){ return FIT; }
+  };
+})();
+
+/* —— FLOW.r2：行 2 单行工具带 ——【T2 独占；计划 §2.4】
+   mount()：往 #editbar 插 flow 专属控件（一律带 .flw-x），收纳只用 .flw-off 类，不写内联 display（§0-14）；
+   菜单注册在 FLOW.menus.more；动作前缀 r2: */
+FLOW.r2 = (function(){
+  const F = FLOW, $ = F.$;
+  /* data-pri：大＝先收（§2.4）。64 分比 32 分更少用，排在它前面收（计划表外补的一档，2.5） */
+  const PRI = [['#flw-scope',9],['#eb-rest',7],['#flw-tup3',6],['#eb-addb',5],['#eb-acc-n',3],
+               ['#eb-dur [data-dur="64"]',2.5],['#eb-dur [data-dur="32"]',2],['#eb-dur [data-dur="1"]',1]];
+  /* 收起后在「更多 ▾」里的名字与快捷键（按钮自身的 title 太长） */
+  const OFF_NAME = {'eb-rest':['休止','0'],'flw-tup3':['3 连音',''],'eb-addb':['前插音符','Shift+Insert'],'eb-acc-n':['还原 ♮','']};
+  const DUR_NAME = {1:'全音符',2:'二分音符',4:'四分音符',8:'八分音符',16:'十六分音符',32:'三十二分音符',64:'六十四分音符'};
+  /* 编辑组的 16 图标（PQF）；休止按语境另画（sync） */
+  const BI = {'eb-add':'ed-insert-after','eb-addb':'ed-insert-before','eb-delcol2':'ed-delete','b-undo':'act-undo'};
+  /* 连音线图形与记号面板 #b-tie 同一条路径（decorateSignButtons） */
+  const TIE = '<svg width="22" height="12" viewBox="0 0 22 12" aria-hidden="true"><path d="M3 9.5 Q 11 2.2 19 9.5 Q 11 5.6 3 9.5 Z" fill="currentColor"/></svg>';
+  const MUTE_T = '哑音 ×（x）：当前弦位记为 ×，不发实音；再点取消。原「× 分解标记」与「×标记」同一件事';
+  let HID = [];
+  const el = s=>F.old(s);
+  /* 当前作用对象（行 2「作用于」芯片；状态栏「当前轨」可复用）。只读 song / sel，不调 trackCfg（它读的时候会补写混音条目） */
+  const scope = ()=>{
+    const tab = sel.row==='tab' && (song.tabVoices||[]).length>0, vi = sel.vi|0;
+    const list = (tab? song.tabVoices : song.voxVoices) || [];
+    const name = list[vi] || (tab? '吉他' : '旋律');
+    let nota;
+    if(tab) nota = (instOf()==='uku'? '四线谱' : '六线谱') + (song.tabStaff? ' + 五线' : '') + (tabJpOn(vi)? ' + 简谱' : '');
+    else { const n=(song.voxNotations||[])[vi];
+      nota = isStaffNota(n)? ({staff:'高音谱', bass:'低音谱', alto:'中音谱'}[n]) + ((song.voxDual||[])[vi]? ' + 简谱' : '') : '简谱'; }
+    return {kind: tab? 'tv' : 'vv', vi, name, nota};
+  };
+  /* 放不下时按 data-pri 收（搬自参考 FX.fitR2，改用 .flw-off 类）；没渲染出来的（按语境本就隐藏的）跳过，不算收起 */
+  const fit = ()=>{
+    const eb=$('editbar'); if(!eb || !F.active) return;
+    const items=[...eb.querySelectorAll('[data-pri]')].sort((a,b)=>(+b.dataset.pri)-(+a.dataset.pri));
+    items.forEach(x=>x.classList.remove('flw-off'));
+    eb.classList.remove('flw-r2-tight');
+    HID=[];
+    if(!eb.clientWidth) return;
+    for(const it of items){
+      if(eb.scrollWidth<=eb.clientWidth+1) break;
+      if(!it.getClientRects().length) continue;
+      it.classList.add('flw-off'); HID.push(it);
+    }
+    /* data-pri 收完仍放不下（六线谱 821–880 宽）：编辑组只留图标（名称在 title），保证「更多 ▾」不被裁掉；v68.1 窄档再整体重排 */
+    if(eb.scrollWidth>eb.clientWidth+1) eb.classList.add('flw-r2-tight');
+  };
+  /* 签名：只读视口宽、语境和 syncInputs 写的内联显隐（不触发排版）；变了才在下一帧实测 */
+  const sig = ()=>{
+    const d=id=>{ const e=$(id); return e? e.style.display : '-'; };
+    let nd=0; document.querySelectorAll('#eb-note .nd').forEach(b=>{ if(b.style.display!=='none') nd++; });
+    const sc=$('flw-scope');
+    return [window.innerWidth, F.ctx(), d('eb-fret-more'), d('eb-mute-n'), d('eb-acc-s'), d('eb-octup'), nd,
+      sc? sc.textContent : '', (document.fonts && document.fonts.status) || ''].join('|');
+  };
+  const refit = ()=>{ F.changed('r2fit', ''); F.raf('r2fit', fit); };
+  const ICON = b=>{ const g=b.querySelector('.flw-bi, .dg, .g'); return g? '<span class="flw-r2ic">'+g.innerHTML+'</span>' : ''; };
+  const offItems = ()=>HID.filter(b=>b.classList.contains('flw-off') && b.tagName==='BUTTON').map(b=>{
+    const dur=b.dataset.dur, nm=b.id && OFF_NAME[b.id];
+    return F.mi({old: b.id? '#'+b.id : '#eb-dur [data-dur="'+dur+'"]', label: nm? nm[0] : (DUR_NAME[dur] || b.getAttribute('aria-label') || ''), sc: nm? nm[1] : '', ic: ICON(b)});
+  });
+  /* 「更多 ▾」（README 行 2：重做、拆分、合并、清单音、和音、移高 / 移低八度、N 连音、节奏型库、不换行、键盘 / 指板；委托总表 §1.4） */
+  F.menus.more = ()=>{
+    const tab = F.ctx()==='tab', h=[];
+    const off=offItems();
+    if(off.length) h.push(F.mh('放不下收起的键'), off.join(''), F.hr());
+    const lib=$('eb-lib'), libTxt=((lib && lib.textContent) || '节奏型库…').trim();
+    let nw=false; try{ nw=noWrapOn(); }catch(_){}
+    let bd=false; try{ bd=!!BOARD.on; }catch(_){}
+    const VOX_WHY='用于简谱 / 五线谱声部——先在旋律轨上选中音符';
+    h.push(F.mi({old:'#b-redo', label:'重做', sc:'Ctrl+Y', ic:'act-redo'}),
+      F.mi({old:'#eb-split', label:'拆分', d:'当前音一分为二（各减半，总时值不变）', ic:'ed-split'}),
+      F.mi({old:'#eb-merge', label:'合并', d:'与下一个同时值音合成一个', ic:'ed-merge'}),
+      F.mi({old:'#eb-clear', label:'清单音', sc:'Backspace', d:'只清当前弦位 / 当前音，其余保留', ic:'ed-clear'}),
+      F.mi({a:'r2:addnote', label:'和音（加音程）', dis:tab, why:tab? '和音'+VOX_WHY : '', ic:'<svg width="14" height="17" viewBox="0 0 14 17" aria-hidden="true"><ellipse cx="7" cy="4.6" rx="4.2" ry="3.1" fill="currentColor"/><ellipse cx="7" cy="12.4" rx="4.2" ry="3.1" fill="currentColor"/></svg>'}),
+      F.hr(),
+      F.mi({old:'#b-octup', label:'整体移高八度', d:'选中的音（未选中＝本声部全曲）；只改一个音用行 2 的高八度键', dis:tab, why:tab? '整体移八度'+VOX_WHY : '', ic:'ed-octave-shift'}),
+      F.mi({old:'#b-octdn', label:'整体移低八度', dis:tab, why:tab? '整体移八度'+VOX_WHY : '', ic:'ed-octave-shift'}),
+      F.mi({a:'r2:tupn', label:'N 连音…', d:'自定 N:M，如 5:4、7:8', ic:'<svg width="20" height="13" viewBox="0 0 30 19" aria-hidden="true">'+tupSVG('N').replace(/^<svg[^>]*>|<\/svg>$/g,'')+'</svg>'}),
+      F.mi({a:'r2:combo', label:'组合节奏…', d:'单拍细分 · 二拍 · 三拍 / 复合拍，自光标起替换', ic:'<svg width="18" height="13" viewBox="0 0 30 20" aria-hidden="true">'+comboSVG([[8],[16],[16]],30,20).replace(/^<svg[^>]*>|<\/svg>$/g,'')+'</svg>'}),
+      F.mi({a:'r2:rhylib', label:libTxt, ic:'act-step'}),
+      F.hr(),
+      F.mi({old:'#eb-nowrap', label:'不换行视图', d:'全部小节排成一条横向长带', checked:nw, sc:nw? '开' : '', ic:'act-nowrap'}),
+      F.mi({old:'#rt-board', label:tab? '指板输入' : '键盘输入', d:tab? '一比一指板，点板落音' : '钢琴全键盘，点键落音', checked:bd, sc:bd? '开' : '', ic:'act-keyboard'}));
+    return h.join('');
+  };
+  return {
+    scope,
+    fit,
+    hidden: ()=>HID.filter(b=>b.classList.contains('flw-off')),
+    mount(){
+      const eb=$('editbar'); if(!eb) return;
+      const grow=[...eb.children].find(c=>c.classList.contains('grow')) || null;
+      const at=(html, where)=>{ if(grow) grow.insertAdjacentHTML(where||'beforebegin', html); else eb.insertAdjacentHTML('beforeend', html); };
+      if(!$('flw-sep-undo')) at('<span class="eb-sep flw-x" id="flw-sep-undo" aria-hidden="true"></span>');
+      if(!$('flw-ebu-line')) at('<span class="eb-unit flw-x" id="flw-ebu-line"><span class="eb-grp" id="flw-eb-line">'
+        +'<button type="button" class="eb" id="eb-tie" title="连音线（~）：当前音连到下一个音；Ctrl / Shift 选中两个音则跨过中间的音相连" aria-label="连音线" aria-pressed="false">'+TIE+'</button>'
+        +'<button type="button" class="eb ico" id="flw-tup3" data-tup="3" title="3 连音：当前音拆成三连音（总时值不变）；拖选 3 个相邻等时值音可整体切换" aria-label="3 连音"><b class="g">'+tupSVG(3)+'</b><span>3连音</span></button>'
+        +'</span><span class="eb-sep" aria-hidden="true"></span></span>');
+      if(!$('flw-more')) at('<button type="button" class="eb flw-x" id="flw-more" data-fa="menu" data-m="more" aria-haspopup="menu" aria-expanded="false"'
+        +' title="更多：重做 · 拆分 · 合并 · 清单音 · 和音 · 整体移八度 · N 连音 · 组合节奏 · 节奏型库 · 不换行 · 键盘 / 指板">更多<span class="flw-chev" aria-hidden="true">'+F.ic('act-chevron',12)+'</span></button>');
+      if(!$('flw-scope')) at('<span class="flw-x" id="flw-scope" title="当前作用对象：音符、记号与时值都写到这条轨"><span class="flw-sic"></span><span class="flw-sn"></span></span>', 'afterend');
+      Object.keys(BI).forEach(id=>{ const b=$(id); if(b && !b.querySelector('.flw-bi')) b.insertAdjacentHTML('afterbegin', '<span class="flw-x flw-bi" aria-hidden="true">'+F.ic(BI[id],16)+'</span>'); });
+      { const r=$('eb-rest'); if(r && !$('flw-rest-ic')) r.insertAdjacentHTML('afterbegin', '<span class="flw-x flw-bi" id="flw-rest-ic" aria-hidden="true"></span>'); }
+      [['eb-acc-s','accidentalSharp'],['eb-acc-f','accidentalFlat'],['eb-acc-n','accidentalNatural']].forEach(([id,g])=>{
+        const b=$(id); if(b && !b.querySelector('.flw-acc')) b.insertAdjacentHTML('afterbegin', '<span class="flw-x flw-bi flw-acc" aria-hidden="true">'+smIcoSVG(g, 15)+'</span>'); });
+      { const m=$('eb-mute-n'); if(m && !m.querySelector('.flw-bl')) m.insertAdjacentHTML('beforeend', '<span class="flw-x flw-bl">哑音</span>');
+        if(m && !$('flw-sep-acc')) m.insertAdjacentHTML('afterend', '<span class="eb-sep flw-x" id="flw-sep-acc" aria-hidden="true"></span>'); }
+      /* 字体晚到会改按钮宽：重测一次 */
+      try{ if(document.fonts){ document.fonts.ready.then(refit); document.fonts.addEventListener('loadingdone', refit); } }catch(_){}
+    },
+    on(){
+      PRI.forEach(([s,p])=>{ const e=el(s); if(e) e.dataset.pri=String(p); });
+      const m=$('eb-mute-n'); if(m){ if(m.dataset.flwT0==null) m.dataset.flwT0=m.title; m.title=MUTE_T; m.setAttribute('aria-label','哑音'); }
+      refit();
+    },
+    off(){
+      const eb=$('editbar');
+      if(eb){ eb.querySelectorAll('.flw-off').forEach(x=>x.classList.remove('flw-off')); eb.querySelectorAll('[data-pri]').forEach(x=>x.removeAttribute('data-pri')); delete eb.dataset.flwCtx; eb.classList.remove('flw-r2-tight'); }
+      HID=[];
+      const m=$('eb-mute-n'); if(m && m.dataset.flwT0!=null){ m.title=m.dataset.flwT0; m.setAttribute('aria-label','分解×'); delete m.dataset.flwT0; }
+    },
+    sync(){
+      const eb=$('editbar'); if(!eb) return;
+      const ctx=F.ctx();
+      if(eb.dataset.flwCtx!==ctx) eb.dataset.flwCtx=ctx;
+      const ri=$('flw-rest-ic');
+      if(ri && ri.dataset.c!==ctx){ ri.dataset.c=ctx; ri.innerHTML = ctx==='jp'? '<span class="flw-n0">0</span>' : smIcoSVG('restQuarter', 16); }
+      const t=$('eb-tie');
+      if(t){ let on=false;
+        if(ctx==='tab'){ const bt=$('b-tie-t'); on=!!(bt && bt.classList.contains('on')); }
+        else { const c=curCol(); on=!!(c && c.tie); }
+        if(t.classList.contains('on')!==on){ t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on)); } }
+      const sc=$('flw-scope');
+      if(sc){ const s=scope(), k=s.kind+s.vi+'|'+s.name+'|'+s.nota;
+        if(sc._k!==k){ sc._k=k; sc.querySelector('.flw-sic').innerHTML=trkIcon(s.kind, s.vi, 14); sc.querySelector('.flw-sn').textContent='作用于 '+s.name+' · '+s.nota; } }
+      if(F.changed('r2fit', sig())) F.raf('r2fit', fit);
+    },
+    act(a, el2, ev){
+      const mb=$('flw-more'), r=(mb && mb.getBoundingClientRect()) || {left:innerWidth/2, bottom:90};
+      switch(a){
+        case 'r2:addnote': { const b=$('b-addnote'); if(b && b.onclick) b.onclick({target: mb || b}); return; }   /* 原 onclick 按 e.target 定位弹窗，借「更多」钮的位置 */
+        case 'r2:tupn': return showTupletMenu(r.left, r.bottom+4);   /* 与 [data-tupcustom]（ebHandler）同一调用 */
+        case 'r2:combo': return showComboMenu(r.left, r.bottom);     /* 与 #eb-more 同一调用 */
+        case 'r2:rhylib': return openRhyLib();                       /* 与 #eb-lib / #b-rhylib 同一调用 */
+      }
+      console.warn('flow：未处理的动作 '+a);
+    }
+  };
+})();
+
+/* —— FLOW.st：底部播放与状态栏 ——【T3 独占；计划 §2.5】
+   mount()：往 #mixer-dock .mx-bar 插 #flw-st-*（带 .flw-x）和落点 <i data-flw-slot="beat" hidden></i>、<i data-flw-slot="zoom" hidden></i>；
+   菜单注册在 FLOW.menus.stmore / help；动作前缀 st: */
+FLOW.st = (function(){
+  const F = FLOW, $ = F.$;
+  const bar = ()=>document.querySelector('#mixer-dock .mx-bar');
+  const mk = (tag, o)=>{ const e=document.createElement(tag); e.className='flw-x'+(o.cls? ' '+o.cls : ''); if(o.id) e.id=o.id;
+    if(o.html!=null) e.innerHTML=o.html; if(o.attr) Object.keys(o.attr).forEach(k=>e.setAttribute(k, o.attr[k])); return e; };
+  const sep = ()=>mk('span', {cls:'flw-st-sep', attr:{'aria-hidden':'true'}});
+  const slot = n=>{ const i=document.createElement('i'); i.dataset.flwSlot=n; i.hidden=true; return i; };
+  const after = (ref, nodes)=>{ let at=ref; nodes.forEach(n=>{ at.parentNode.insertBefore(n, at.nextSibling); at=n; }); };
+  /* 记谱法名：与音轨区 / 谱型条同一口径（简谱 · 五线谱 · 低音 / 中音谱表 · 六线 / 四线谱，带简谱联排的加「＋ 简谱」） */
+  function nota(){
+    if(sel.row==='tab'){ const uku=instOf()==='uku'; let jp=false; try{ jp=!!tabJpOn(sel.vi); }catch(_){}
+      return (uku? '四线谱' : '六线谱')+(jp? ' + 简谱' : ''); }
+    const n=(song.voxNotations||[])[sel.vi];
+    const nm = n==='staff'? '五线谱' : n==='bass'? '低音谱表' : n==='alto'? '中音谱表' : '简谱';
+    return nm+((isStaffNota(n) && (song.voxDual||[])[sel.vi])? ' + 简谱' : '');
+  }
+  /* 当前位置：小节号与 #cursor-info 同口径（sel.mi+1 / 小节总数）；拍位＝本小节光标前各列拍数之和 + 1，
+     拍数用 beatsOf（与 beatErrors 时值检查同一算法、同一有效拍号 meaMeter），不另起一套时值换算 */
+  /* 当前选中的小节范围（「循环选区」与位置文案同一口径；验收 B2：此前只认拍区连选 selRange，
+     拖小节号的整小节多选 measureRange 被当成「没有多选」）：selRange → measureRange → 单选整小节 measureSel → 光标所在小节 */
+  function selSpan(){
+    const mm=(a, b)=>[Math.min(a, b), Math.max(a, b)];
+    try{ if(selRange) return mm(selRange.m1, selRange.m2); }catch(_){}
+    try{ if(measureRange) return mm(measureRange.m1, measureRange.m2); }catch(_){}
+    try{ if(measureSel!=null) return [measureSel, measureSel]; }catch(_){}
+    return [sel.mi, sel.mi];
+  }
+  function pos(){
+    const N=song.measures.length, mi=Math.min(sel.mi, N-1);
+    const cols=curRowCols()||[], unit=meaMeter(mi).unit;
+    let b=0; for(let k=0;k<Math.min(sel.ci, cols.length);k++) b+=beatsOf(cols[k], unit);
+    const bt=Math.round((b+1)*100)/100, sp=selSpan();
+    return {mi, N, beat:bt, multi: sp[0]!==sp[1]? [sp[0]+1, sp[1]+1] : null};
+  }
+  function trkHTML(){
+    if(startPadOn() || !song) return '—';
+    const nm = sel.row==='tab'? (song.tabVoices||[])[sel.vi] : (song.voxVoices||[])[sel.vi];
+    return '<b>'+F.esc(nm||'')+'</b> · '+F.esc(nota());
+  }
+  function posHTML(){
+    if(startPadOn() || !song || !song.measures.length) return '';
+    const p=pos();
+    if(p.multi && p.multi[0]!==p.multi[1]) return '已选第 <b>'+p.multi[0]+'–'+p.multi[1]+'</b> 小节<span class="flw-st-b"> · 共 '+p.N+'</span>';
+    return '<span class="flw-st-m">第 <b>'+(p.mi+1)+'</b>/'+p.N+' 小节</span><span class="flw-st-b"> · 第 '+p.beat+' 拍</span>';
+  }
+  const eoSet = on=>document.body.classList.toggle('flw-eo', !!on);
+  const eoOn = ()=>document.body.classList.contains('flw-eo');
+  const bsBad = ()=>{ const b=$('beat-status'); return !!(b && b.classList.contains('bad')); };
+  function bsTitle(){
+    const b=$('beat-status'); if(!b) return;
+    let smart=true; try{ smart=editModeSmart(); }catch(_){}
+    const t = bsBad()? ('时值检查：点开查看不符的小节'+(smart? '与修复建议' : '（自由编辑：只提示，点条目定位）')+'；再点或按 Esc 收起')
+      : '时值检查：所有小节的拍数都与拍号相符';
+    if(b.title!==t) b.title=t;
+    b.setAttribute('aria-expanded', String(bsBad() && eoOn()));
+  }
+  /* 循环选区：委托现有 setLoop（与小节格拖选、小节面板同一入口）。按下态＝audio.loop 有值 */
+  function loopUI(){
+    const b=$('flw-st-loop'); if(!b) return;
+    let lp=null; try{ lp=audio.loop; }catch(_){}
+    const on=String(!!lp);
+    if(b.getAttribute('aria-pressed')!==on) b.setAttribute('aria-pressed', on);
+    const t = lp? ('正在循环第 '+(lp.a===lp.b? (lp.a+1) : (lp.a+1)+'–'+(lp.b+1))+' 小节 · 点一下取消')
+      : '循环选区：循环播放所选小节（没有多选时循环当前小节；也可在小节格上拖选）';
+    if(b.title!==t) b.title=t;
+  }
+  /* 「混音 ▴」：本版暂留，委托现有混音台（#mx-expand / setMixerExpanded）；v68.0 并进左栏音轨行后去掉 */
+  function mixLbl(){
+    const b=$('mx-expand'); if(!b) return;
+    let open=false; try{ open=!!mixerExpanded; }catch(_){}
+    const h=svgi('sliders')+(open? ' 混音 ▾' : ' 混音 ▴');
+    if(b.innerHTML!==h) b.innerHTML=h;
+    b.setAttribute('aria-expanded', String(open));
+  }
+  /* 单行放不下时按优先级逐档收（验收 L1：1000–1179 宽长轨名 + 多选 + 时值不符会把缩放与「?」挤出视口）。同 FLOW.r2.fit 的口径：
+     只挂类（.mx-bar.flw-f1…flw-fN，逐档累加，CSS 在 ⑤），不写内联 display；状态栏宽不随内容变，收放不影响 #paper 宽、不触发重排。
+     档位：1 位置去「第 c 拍 / 共 N」· 2 节拍器 / 混音只留图标 · 3 小节格可缩到 48 · 4 当前轨截到 96 · 5 收起当前轨 · 6 时值检查只留图标（颜色与读屏名不变）· 7 收起位置 */
+  const FITN=7;
+  function fit(){
+    const b=bar(); if(!b || !F.active || !b.clientWidth) return;
+    const set=n=>{ for(let i=1;i<=FITN;i++){ const c='flw-f'+i, on=i<=n; if(b.classList.contains(c)!==on) b.classList.toggle(c, on); } };
+    let n=0; set(0);
+    while(n<FITN && b.scrollWidth>b.clientWidth+1){ n++; set(n); }
+  }
+  const fitSig = ()=>{
+    const t=id=>{ const e=$(id); return e? e.textContent : ''; };
+    let ex=false; try{ ex=!!mixerExpanded; }catch(_){}
+    let sp=false; try{ sp=startPadOn(); }catch(_){}
+    return [window.innerWidth, t('flw-st-trk'), t('flw-st-pos'), t('beat-status'), t('zoom-lbl'), t('b-play'), ex, sp, (document.fonts && document.fonts.status) || ''].join('|');
+  };
+  const refit = ()=>{ F.changed('stfit', ''); F.raf('stfit', fit); };
+  const unfit = ()=>{ const b=bar(); if(b) for(let i=1;i<=FITN;i++) b.classList.remove('flw-f'+i); F.changed('stfit', ''); };
+  /* 时值检查上弹层是不是用键盘打开的：只有键盘打开的，Esc 收起后才把焦点还给状态项（验收 B1：鼠标点过后焦点停在状态项上，空格 / Enter 被它截走） */
+  let EO_KB=false;
+  const ST = {
+    pos, nota, loopUI,
+    mount(){
+      const b=bar(); if(!b) return;
+      const grid=$('b-mxgrid'), tempo=$('i-tempo'), stand=$('b-stand'), more=$('mx-more'), rst=$('b-restart');
+      if(!$('flw-st-loop') && rst) after(rst, [mk('button', {id:'flw-st-loop', html:F.ic('play-loop', 16),
+        attr:{type:'button', 'data-fa':'st:loop', 'aria-pressed':'false', 'aria-label':'循环选区'}})]);
+      if(!$('flw-st-trk') && grid){
+        after(grid, [sep(), mk('span', {id:'flw-st-trk', cls:'flw-st-txt', attr:{title:'当前编辑的音轨 · 记谱法'}}),
+          sep(), mk('span', {id:'flw-st-pos', cls:'flw-st-txt', attr:{title:'光标位置：第几小节 · 第几拍'}}),
+          sep(), slot('beat'), mk('span', {cls:'flw-st-grow', attr:{'aria-hidden':'true'}})]);
+      }
+      if(tempo && !b.querySelector('.flw-st-bpm')) tempo.parentNode.insertBefore(mk('label', {cls:'flw-st-bpm', html:'♩=', attr:{for:'i-tempo', title:'曲谱速度（每分钟拍数）'}}), tempo);
+      if(!$('flw-st-more') && stand){
+        after(stand, [mk('button', {id:'flw-st-more', html:F.ic('ui-more', 16),
+          attr:{type:'button', 'data-fa':'menu', 'data-m':'stmore', 'aria-haspopup':'menu', 'aria-expanded':'false', 'aria-label':'更多播放设置', title:'更多：演奏感 · 音色库 · 谱架模式 · 时值检查方式'}})]);
+      }
+      if(!$('flw-st-help')){
+        const tail=[sep(), slot('zoom'), mk('button', {id:'flw-st-help', html:F.ic('ui-help', 16),
+          attr:{type:'button', 'data-fa':'menu', 'data-m':'help', 'aria-haspopup':'menu', 'aria-expanded':'false', 'aria-label':'快捷键与帮助', title:'快捷键与帮助'}})];
+        if(more && more.parentNode===b) after(more, tail); else tail.forEach(n=>b.appendChild(n));
+      }
+      /* 时值检查：点状态项＝展开 / 收起上弹的 #err-drop（原 onclick 照旧跳到第一处不符）。直接挂在 #beat-status 上：
+         原 onclick 会重渲染、换掉里面的图标节点，冒泡到 #mixer-dock 的委托就认不出点的是谁了 */
+      const bs=$('beat-status');
+      if(bs) bs.addEventListener('click', ev=>{ if(!F.active) return; eoSet(bsBad() && !eoOn()); EO_KB=ev.detail===0; bsTitle();
+        /* 鼠标点：与默认外壳点不可聚焦的状态项一致——焦点不留在它身上（回到 body），空格 / Enter 照旧是播放 / 写歌词 */
+        if(ev.detail>0 && document.activeElement===bs) try{ bs.blur(); }catch(_){} });
+      const ed=$('err-drop');
+      if(ed) ed.addEventListener('click', e=>{ if(!F.active) return;   /* 点条目定位＝收起（原处理器已跳转并 hidden）；一键采纳类按钮不收 */
+        if(e.target.closest('.err-fix, #err-fixall')) return;
+        if(e.target.closest('.err')){ eoSet(false); bsTitle(); } });
+      document.addEventListener('pointerdown', e=>{   /* 点状态项以外的地方收起（弹窗 / 浮层里点的不算） */
+        if(!F.active || !eoOn()) return;
+        const t=e.target; if(t && t.closest && t.closest('#beat-box, .modal-mask, #modal-mask, .popmenu')) return;
+        eoSet(false); bsTitle();
+      }, true);
+      document.addEventListener('keydown', e=>{   /* Esc 先收时值检查层（弹窗 / 菜单开着时让给它们） */
+        if(!F.active || e.key!=='Escape' || e.isComposing || !eoOn()) return;
+        if(document.getElementById('modal-mask') || document.getElementById('popmenu')) return;
+        e.preventDefault(); e.stopPropagation(); eoSet(false); bsTitle();
+        if(EO_KB) try{ const b2=$('beat-status'); if(b2) b2.focus({preventScroll:true}); }catch(_){}   /* 键盘打开的才还焦点（与 FLOW.menu 的 restore 同一口径） */
+        EO_KB=false;
+      }, true);
+      /* 字体晚到会改文字宽：重测一次 */
+      try{ if(document.fonts){ document.fonts.ready.then(refit); document.fonts.addEventListener('loadingdone', refit); } }catch(_){}
+    },
+    on(){
+      const bs=$('beat-status');
+      if(bs){ bs.setAttribute('role','button'); bs.tabIndex=0; if(!bs.dataset.flwKb){ bs.dataset.flwKb='1';
+        bs.addEventListener('keydown', e=>{ if(!F.active) return; if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); bs.click(); } }); } }
+      const me=$('mx-expand'); if(me && me.dataset.flwOrig==null) me.dataset.flwOrig=me.innerHTML;
+      mixLbl(); refit();
+    },
+    off(){
+      eoSet(false); EO_KB=false; unfit();
+      const bs=$('beat-status');
+      if(bs){ bs.removeAttribute('role'); bs.removeAttribute('tabindex'); bs.removeAttribute('title'); bs.removeAttribute('aria-expanded'); }
+      const me=$('mx-expand');
+      if(me){ let open=false; try{ open=!!mixerExpanded; }catch(_){}
+        me.innerHTML = (!open && me.dataset.flwOrig!=null)? me.dataset.flwOrig : svgi('sliders')+(open? ' 音轨 ▾' : ' 音轨 ▴');
+        me.removeAttribute('aria-expanded'); delete me.dataset.flwOrig; }
+      /* 节拍状态文案回默认外壳口径（flow 下是短文案，syncInputs 按 flowOn() 写） */
+      try{ if(song) syncInputs(); }catch(_){}
+    },
+    unlayout(){ eoSet(false); },
+    sync(){
+      const t=$('flw-st-trk'), p=$('flw-st-pos');
+      const th=trkHTML(), ph=posHTML();
+      if(t && t.innerHTML!==th) t.innerHTML=th;
+      if(p && p.innerHTML!==ph) p.innerHTML=ph;
+      document.querySelectorAll('#mx-prog .mxc').forEach(c=>c.classList.toggle('flw-at', +c.dataset.mi===sel.mi));
+      if(!bsBad()) eoSet(false);
+      bsTitle(); mixLbl(); loopUI();
+      if(F.changed('stfit', fitSig())) F.raf('stfit', fit);
+    },
+    act(a, el){
+      switch(a){
+        case 'st:hum': { const on=!humOn(); prefSet('humanize', on);
+          toast(on? '播放演奏感：自然（细微的轻重快慢，从下次播放起）' : '播放演奏感：精确（零扰动，从下次播放起）'); return; }
+        case 'st:snd': { const sb=$('rc-sndlib'); if(sb) sb.click(); return; }
+        case 'st:loop': {
+          if(audio.loop) setLoop(null);
+          else { const sp=selSpan(); setLoop(sp[0], sp[1]); }
+          loopUI(); return; }
+        case 'st:em': { const b=document.querySelector('#em-toggle button[data-em="'+(el.dataset.v==='free'? 'free' : 'smart')+'"]'); if(b) b.click(); return; }
+      }
+    }
+  };
+  /* ⋯ 更多：演奏感 · 音色库 · 谱架模式（拍板：进状态栏的「⋯」）＋ 时值检查方式（右栏「编辑模式」卡的同一开关） */
+  F.menus.stmore = ()=>{
+    let hum=true; try{ hum=humOn(); }catch(_){}
+    let smart=true; try{ smart=editModeSmart(); }catch(_){}
+    const sb=$('rc-sndlib'), sbOn=!!(sb && sb.style.display!=='none');
+    let fluid=false; try{ fluid=SF_LIB==='FluidR3_GM'; }catch(_){}
+    return F.mh('播放')
+      + F.mi({a:'st:hum', label:'演奏感', ic:'play-human', checked:hum, sc: hum? '自然' : '精确',
+          d: hum? '按谱面位置加细微的轻重快慢，更像真人；点一下改为精确' : '零扰动，校音、跟练用；点一下改为自然'})
+      + F.mi({a:'st:snd', label:'音色库', ic:'play-sound', sc: fluid? 'FluidR3' : 'MusyngKite（默认）',
+          dis: !sbOn, why:'当前使用默认音色库，无需切换。每条轨的乐器音色在状态栏「混音」里逐轨选择',
+          d: sbOn? (fluid? '点一下切回 MusyngKite（会刷新页面）' : '点一下试听 FluidR3（会刷新页面）') : '每条轨的乐器音色在「混音」里逐轨选择'})
+      + F.mi({old:'b-stand', label:'谱架模式', ic:'ui-stand', d:'全屏沉浸 + 自动卷谱，对谱练习'})
+      + F.hr() + F.mh('时值检查')
+      + F.mi({a:'st:em', attr:' data-v="free"', role:'menuitemradio', checked:!smart, ic: smart? '' : 'act-check', label:'自由编辑', d:'只提示哪些小节拍数不对，点条目定位'})
+      + F.mi({a:'st:em', attr:' data-v="smart"', role:'menuitemradio', checked:smart, ic: smart? 'act-check' : '', label:'修复建议', d:'给出顺延 / 补齐 / 删减建议，可一键采纳'});
+  };
+  /* ?：常用快捷键（与键盘处理器同一张键位，GP 键位档的差异写在说明里）＋ 完整帮助 */
+  F.menus.help = ()=>{
+    const kv=(k, t)=>'<div class="flw-st-kv" role="presentation"><span>'+F.esc(t)+'</span><kbd>'+F.esc(k)+'</kbd></div>';
+    return F.mh('常用快捷键')
+      + kv('0–7 / 品位数字', '音高（简谱 / 五线谱）· 品位（六线谱）')
+      + kv('Q W E R T Y U', '时值：全音符 … 64 分')
+      + kv('.  ·  D  ·  Shift+D', '附点 · 增时线 · 缩短一拍')
+      + kv('+  /  −', '高音点 / 低音点（GP 键位档「−」是增时线）')
+      + kv('~', '连音线')
+      + kv('Insert · Delete · Backspace', '插入音符 · 删除 · 清当前音')
+      + kv('空格', '播放 / 暂停')
+      + kv('Ctrl+K', '输入和弦')
+      + kv('Ctrl+Z · Ctrl+Y', '撤销 · 重做')
+      + kv('Alt+↑ / Alt+↓', '切换声部')
+      + kv('Alt+N · Alt+B', '新建 · 谱型条')
+      + F.hr()
+      + F.mi({old:'b-help', label:'完整帮助与教程…', ic:'ui-help'})
+      + F.mi({old:'b-changelog', label:'更新日志', ic:'ui-recent'});
+  };
+  return ST;
+})();
+
+/* —— FLOW.rd：右栏 264 / 竖条 40 / 浮出 288 ——【T3 独占；计划 §2.6】
+   停靠判定（第一帧就定，只看 innerWidth 和 musetab-rdock，§1.5-2）：视口 − 248 − 264 − 16 ≥ 912（即 ≥1440）或已钉住 → body.flw-rd 停靠 264；
+   否则 body.flw-rs：#right-dock 隐藏，#flw-rstrip 竖条 40（按 #rtabs 的页生成「创作 / 信息」竖排字 ＋ 钉住）。
+   点竖条的页＝ body.flw-ro 浮出 288（覆盖层，不改 #paper 宽）＋ setRTab(p)；再点同一页、Esc、点外部即收起。
+   钉住＝本机键 musetab-rdock='1'（取消＝删键），v67.9 左栏仍是旧左栏，阈值按 v68.0 的常数 248 算，行为可预期（计划 §2.6）。
+   已知代价（验收 L3，留 v68.0 左栏 248 常驻后消失）：旧左栏面板停靠打开时实际占 73 + 272 = 345，1440–1536 宽右栏停靠后预设谱 #score 只有 785（1440，90.2%），
+   反比 1439 宽的竖条态（870）窄——宽度变大、谱纸反而变窄；新建谱（fixwide）同状态 811（93.2%），D7 不触发。
+   右栏内容仍是现有「创作 / 信息」两页，全部是原节点；动作前缀 rd: */
+FLOW.rd = (function(){
+  const F = FLOW, $ = F.$;
+  const wide = ()=>window.innerWidth - 248 - 264 - 16 >= 912;
+  /* 钉住记在本机键 musetab-rdock；本机存储写不进（隐私模式类）时记在内存里、只对本次有效（与 ?shell=flow 同口径，验收 SC-7） */
+  let MEMPIN=null;
+  const pinned = ()=>MEMPIN!=null? MEMPIN : F.ls.get(F.KEYS.rdock)==='1';
+  const dockOn = ()=>pinned() || wide();
+  const C = ()=>document.body.classList;
+  const isOpen = ()=>C().contains('flw-ro');
+  const ICON = {make:'ui-smart', info:'act-info'};
+  let opener = null;   /* 打开浮出的竖条按钮：Esc / 收起后焦点还回去 */
+  const curTab = ()=>{ try{ return rTab; }catch(_){ return ''; } };
+  const vtx = t=>Array.from(String(t||'')).map(F.esc).join('<br>');   /* 竖排字：逐字换行（不用 writing-mode：竖排在纵向 flex 里量高不稳） */
+  function pages(){ return [...document.querySelectorAll('#rtabs .rtab')].map(b=>({p:b.dataset.p||'', t:(b.textContent||'').trim()})); }
+  function stripHTML(){
+    return pages().map(x=>'<button type="button" class="flw-rs-b" data-fa="rd:tab" data-p="'+F.esc(x.p)+'" aria-controls="right-dock" aria-expanded="false"'
+        +' title="'+F.esc(x.t)+'（展开右栏 · Esc 收起）">'+F.ic(ICON[x.p]||'ui-panel-right', 18)+'<span class="flw-rs-v">'+vtx(x.t)+'</span></button>').join('')
+      +'<span class="flw-rs-grow" aria-hidden="true"></span>'
+      +'<button type="button" class="flw-rs-b" id="flw-rs-pin" data-fa="rd:pin" aria-pressed="false" title="钉住右栏：常驻显示，谱面区相应变窄">'
+      +F.ic('ui-pin', 18)+'<span class="flw-rs-v">'+vtx('钉住')+'</span></button>';
+  }
+  function syncUI(){
+    const ro=isOpen(), pin=pinned(), cur=curTab();
+    document.querySelectorAll('#flw-rstrip .flw-rs-b[data-p]').forEach(b=>{ const on=ro && b.dataset.p===cur;
+      if(b.classList.contains('on')!==on) b.classList.toggle('on', on);
+      const v=String(on); if(b.getAttribute('aria-expanded')!==v) b.setAttribute('aria-expanded', v); });
+    const sp=$('flw-rs-pin'); if(sp && sp.getAttribute('aria-pressed')!==String(pin)) sp.setAttribute('aria-pressed', String(pin));
+    const dp=$('flw-rd-pin');
+    if(dp){ const show = ro || (pin && !wide());   /* 浮出时可钉住；钉住且窄于 1440 时可取消（≥1440 本来就停靠，不出这枚） */
+      if(dp.hidden===show) dp.hidden=!show;
+      if(dp.getAttribute('aria-pressed')!==String(pin)) dp.setAttribute('aria-pressed', String(pin));
+      const t = pin? '取消钉住：右栏收成竖条，谱面区变宽' : '钉住右栏：常驻显示，谱面区相应变窄';
+      if(dp.title!==t){ dp.title=t; dp.setAttribute('aria-label', t.split('：')[0]); } }
+  }
+  function open(p, from, kb){
+    if(p) setRTab(p);
+    if(!C().contains('flw-rs')) return syncUI();   /* 停靠态：只切页 */
+    if(from) opener=from;
+    C().add('flw-ro'); syncUI();
+    if(kb){ const t=document.querySelector('#rtabs .rtab.on'); if(t) try{ t.focus({preventScroll:true}); }catch(_){} }
+  }
+  function close(restore){
+    if(!isOpen()) return;
+    C().remove('flw-ro'); syncUI();
+    if(restore && opener && opener.isConnected && opener.offsetParent) try{ opener.focus({preventScroll:true}); }catch(_){}
+  }
+  function pin(on){
+    const pp=$('paper'), w0=pp? pp.clientWidth : 0;
+    const ok=F.ls.set(F.KEYS.rdock, on? '1' : null);
+    MEMPIN = ok? null : !!on;
+    opener=null;
+    F.layout();   /* → 本块 layout()：停靠 / 竖条按新键重算；#paper 宽真变了才当场重排（同 #paper 的 ResizeObserver 口径，之后它看到宽度已对上就不再排） */
+    const w1=pp? pp.clientWidth : 0;
+    if(pp && Math.abs(w1-w0)>=2) try{ keepScoreAnchor(()=>render()); }catch(e){ console.error('flow 右栏重排异常', e); }
+    toast((on? (wide()? '已钉住右栏' : '已钉住右栏：常驻显示（再点「钉住」取消）') : (wide()? '已取消钉住（窗口够宽，右栏照常停靠）' : '已取消钉住：右栏收成竖条，点竖条的页即可浮出'))
+      +(ok? '' : '（本机存储不可用，只对本次有效）'));
+  }
+  return {
+    dockOn, wide, pinned, isOpen, open, close,
+    mount(){
+      const rs=$('flw-rstrip');
+      if(rs){ rs.setAttribute('role','toolbar'); rs.setAttribute('aria-orientation','vertical'); rs.setAttribute('aria-label','右栏');
+        if(!rs.querySelector('.flw-rs-b')) rs.innerHTML=stripHTML(); }
+      const rt=$('rtabs');
+      if(rt && !$('flw-rd-pin')){
+        rt.insertAdjacentHTML('beforeend', '<button type="button" class="flw-x flw-rd-ib" id="flw-rd-pin" data-fa="rd:pin" aria-pressed="false" hidden>'+F.ic('ui-pin', 16)+'</button>'
+          +'<button type="button" class="flw-x flw-rd-ib" id="flw-rd-close" data-fa="rd:close" aria-label="收起右栏" title="收起（Esc）">'+F.ic('act-close', 14)+'</button>');
+        rt.addEventListener('click', e=>{ if(F.active && e.target.closest('.rtab')) syncUI(); });   /* 浮出里切页（#rtabs 原 onclick → setRTab 先跑）后同步竖条高亮 */
+      }
+      /* 计划 §2.2-19：浮出时 Esc 收起，按键不落到谱面（写法同「智能」抽屉；弹窗 / 菜单 / 预览开着时让给它们） */
+      document.addEventListener('keydown', e=>{
+        if(!F.active || e.key!=='Escape' || e.isComposing || e.defaultPrevented || !isOpen()) return;
+        if($('modal-mask') || $('popmenu') || $('lb-menu')) return;
+        const pv=$('preview-ov'); if(pv && pv.classList.contains('on')) return;
+        e.preventDefault(); e.stopPropagation(); close(true);
+      }, true);
+      /* 点外部收起（右栏 / 竖条本身、它打开的菜单与弹窗不算外部）；不拦原点击 */
+      document.addEventListener('pointerdown', e=>{
+        if(!F.active || !isOpen()) return;
+        const t=e.target; if(!t || !t.closest) return;
+        if(t.closest('#right-dock, #flw-rstrip, .popmenu, .modal-mask, #modal-mask, .vh-pop, #lb-menu, #toast')) return;
+        close(false);
+      }, true);
+    },
+    on(){ syncUI(); },
+    off(){ close(false); opener=null; },
+    layout(){
+      const c=C(), on=dockOn();
+      if(c.contains('flw-rd')!==on) c.toggle('flw-rd', on);
+      if(c.contains('flw-rs')===on) c.toggle('flw-rs', !on);
+      if(on && c.contains('flw-ro')) c.remove('flw-ro');
+      const rw=(on? 264 : 40)+'px';
+      if(document.body.style.getPropertyValue('--flw-rw')!==rw) document.body.style.setProperty('--flw-rw', rw);
+      syncUI();
+    },
+    sync(){ syncUI(); },
+    act(a, el, ev){
+      if(a==='rd:tab'){ const p=el.dataset.p;
+        if(isOpen() && curTab()===p) close(true); else open(p, el, !!(ev && ev.detail===0)); return; }
+      if(a==='rd:pin') return pin(!pinned());
+      if(a==='rd:close') return close(true);
+    }
+  };
+})();
 /* v60.50 编辑器换调统一 v60.39 重排引擎（transposeSong：伴奏随和弦图取形、旋律束搜索重排、
    和弦名/拍位和弦/转调标记同步）——此前编辑器仍是旧「逐品平移」，图与演奏错位的问题
    在编辑器侧至此一并根治。stats 如实播报，与观看页同口径。 */
@@ -22299,7 +24167,8 @@ function setMixerExpanded(open){
   mixerExpanded = open;
   document.getElementById('mixer-dock').classList.toggle('expanded', open);
   const btn = document.getElementById('mx-expand');
-  if(btn) btn.innerHTML = svgi('sliders')+(open ? ' 音轨 ▾' : ' 音轨 ▴');
+  if(btn) btn.innerHTML = svgi('sliders')+(flowOn()? (open ? ' 混音 ▾' : ' 混音 ▴') : (open ? ' 音轨 ▾' : ' 音轨 ▴'));   /* v67.9 flow 外壳叫「混音」（v68.0 并进左栏音轨行） */
+  if(btn && flowOn()) btn.setAttribute('aria-expanded', String(!!open));
   if(open) renderMixerDock();
 }
 document.getElementById('mx-expand').onclick = ()=>setMixerExpanded(!mixerExpanded);
@@ -22363,6 +24232,7 @@ function saveStatusText(s){
 const DT_SAVED='已存入我的曲谱，编辑实时同步', DT_LOCAL='仅存在本机（未入库），点顶栏「保存」存入我的曲谱',
   DT_LOCAL_OTHER='仅存在本机（未入库）：切到这个窗口后点顶栏「保存」存入我的曲谱';
 function renderDocTabs(){
+  if(flowOn()) return FLOW.r1.renderTabs();   /* v67.9 flow 外壳：页签并入行 1（同一 #doc-tabs，旧契约 .dtab / .dt-x / #dt-add 不变） */
   const bar=document.getElementById('doc-tabs'); if(!bar) return;
   if(viewerMode || !docs.length){ if(bar.innerHTML) bar.innerHTML=''; return; }
   const lib=libLoad();
@@ -25570,6 +27440,7 @@ function lbSay(t){
 }
 /* 「谱型条 · 换谱类…」在当前宽度下看得见的入口（收尾验收 F2：≤1200 宽右栏整体隐藏，提示此前仍叫人去右栏） */
 function lbWhere(){
+  if(flowOn()) return '文件 ▾ 里的「换谱类…」或右栏「信息」页的「谱型条 · 换谱类…」';   /* v67.9 flow 外壳：主栏与「智能」抽屉都不在（计划 §2.2-18） */
   const rd=document.getElementById('right-dock');
   let vis=false; try{ vis=!!(rd && getComputedStyle(rd).display!=='none' && rd.getBoundingClientRect().width>0); }catch(_){}
   let narrow=true; try{ narrow=matchMedia('(max-width:1200px)').matches; }catch(_){}
@@ -28866,7 +30737,7 @@ async function exportInteractiveCard(){
     const r=await fetch(location.href);
     if(r.ok) html=await r.text();
   }catch(_){}
-  if(!/<\/body>/i.test(html)) html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+  if(!/<\/body>/i.test(html)) html='<!DOCTYPE html>\n'+((typeof FLOW!=='undefined' && FLOW.snapHTML)? FLOW.snapHTML() : document.documentElement.outerHTML);   /* v67.9 flow 外壳挂过：快照前把外壳拆干净（验收 SC-6） */
   /* 再分享时去掉旧注入。注意：必须匹配 `={` 才是真实注入块——本函数源码里也含同名字符串字面量，
      宽松匹配会把源码到主脚本结尾整段删掉 */
   html=html.replace(/<script id="pyq-share-data">window\.PYQ_SHARE=\{[\s\S]*?<\/script>\s*/g,'');
@@ -29070,11 +30941,11 @@ function laySync(){
   document.getElementById('lp-tip').innerHTML=
     `<b>基准纸张固定不变</b>：整体缩放放大的是纸内内容、纸张外框不变。当前 <b>${c.page}</b>（${cap}）· 共 ${PV_GEO.n} 页。`;
 }
-function layToggle(show){
+function layToggle(show, at){
   const pop=document.getElementById('layout-pop');
   const on = show===undefined ? !pop.classList.contains('on') : show;
   if(on){
-    const r=document.getElementById('b-layout').getBoundingClientRect();
+    const r=at || document.getElementById('b-layout').getBoundingClientRect();   /* v67.9 flow 外壳的「文件 ▾ → 排版…」传定位（{left, bottom}）；不传＝按 #b-layout，与原来相同 */
     pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-338))+'px';
     pop.style.top=(r.bottom+8)+'px';
     laySync();
@@ -29644,6 +31515,7 @@ function openPubViewer(pid){
   selRange=null; noteSel=[]; measureSel=null;
   blurSel=true;   /* v54.9 观看模式熄灭编辑光标（分享页曾漏出红色弦位圈/红色段序号） */
   document.body.classList.add('viewer');
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳退场（#beat-box / #eb-zoom 搬回原位，§1.6）
   stopPlay(); audio.loop=null;
   clampSel(); render(); renderProgCells();
   const vb=document.getElementById('viewerbar');
@@ -29697,6 +31569,7 @@ function exitViewer(){
   const pw=document.getElementById('paywall'); if(pw) pw.remove();
   document.body.classList.remove('viewer');
   viewerMode=false; viewerCtx=null; vwTrans=0; vwCapo=null; vwCapoTrans=0;
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳回场
   stopPlay();
   if(viewerPrev){
     song=viewerPrev.song; sel=viewerPrev.sel; viewerPrev=null;
@@ -30566,6 +32439,7 @@ function enterShareViewer(share){
   selRange=null; noteSel=[]; measureSel=null;
   blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer','share');
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳退场（本机记过 musetab-flow 再开分享页：#beat-box / #eb-zoom / #doc-tabs 搬回原位，§1.6）
   document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · 谱友圈互动谱';
   stopPlay(); audio.loop=null;
   clampSel(); render(); renderProgCells();
@@ -30670,7 +32544,7 @@ async function openRemotePub(id, review){
   catch(e){
     console.error('观看页打开失败', e);
     viewerMode=false; viewerCtx=null; window.VW_REFING=null; song=song0; sel=sel0; document.title=title0;   /* 坏谱不留在编辑器里当当前谱，标题不挂着它的谱名 */
-    try{ document.body.classList.remove('viewer'); render(); }catch(_){}
+    try{ document.body.classList.remove('viewer'); if(FLOW) FLOW.apply(); render(); }catch(_){}
     bootVeilDone(); toast('曲谱数据异常，暂时无法打开这份谱');
   }
 }
@@ -30688,6 +32562,7 @@ function openRemotePubShow(id, review, sc, data, pubStats){
   selRange=null; noteSel=[]; measureSel=null;
   blurSel=true;   /* v54.9 观看模式熄灭编辑光标 */
   document.body.classList.add('viewer');
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳退场
   /* v60.81 标题带演唱者与谱类细分（产品指示）：小程序/浏览器标签直接读它 */
   document.title=(song.title||'曲谱')+(song.singer? ' - '+song.singer : '')+' · '+docTypeLabelPub(song)+' · 谱友圈谱库';
   /* v60.82 SEO：观看页 canonical 指到本谱的 SSR 落地页（kanpu?pub=ID 与 /pub/ID 是同一首谱的
@@ -30760,6 +32635,7 @@ function enterStand(){
   window.scrollTo(0,0);
   wakeSync();   // v64.1 B7 ⑨ 谱架时屏幕常亮
   toast('谱架模式：▶ 自动卷谱可调速；Esc 或「退出谱架」返回');
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳退场（搬移节点回原位）
 }
 function exitStand(){
   stopAutoScroll();
@@ -30767,6 +32643,7 @@ function exitStand(){
   wakeSync();
   if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
   const sb=document.getElementById('standbar'); if(sb) sb.remove();
+  if(FLOW) FLOW.apply();   // v67.9 flow 外壳回场
 }
 function toggleAutoScroll(){ standScroll.on? stopAutoScroll() : startAutoScroll(); }
 function startAutoScroll(){
@@ -31660,6 +33537,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v67.9</span><div><b>新版编辑器外壳预览（第一步）：两行顶栏 · 页签并入顶栏 · 底部播放与状态栏 · 右栏自动让位</b>（方案 docs/design-2026-10f，地址后加 <code>?shell=flow</code> 预览，加 <code>?shell=classic</code> 回到现在的界面；不加参数时界面与 v67.8 完全相同）。<br>① <b>顶栏第一行</b>：文件 ▾（新建、按上次设置新建、从已有音乐、打开、我的曲谱、示例曲谱、谱库、保存、存为文件、复制为新窗口、曲谱信息、换谱类、关闭类，以及暂时的排版 / 打印预览 / 打印与导出入口）· 窗口页签 · 保存状态（可点直接存入我的曲谱）· 发布 · 账号 ▾（个人中心、外观、谱面反色、偏好设置、帮助、更新日志）。原来单独占一整行的窗口页签并进这一行。<br>② <b>窗口页签</b>：当前窗口按曲名自适应宽度、永远看得见；窗口多了离当前最远的先收进「窗口 N ▾」（可搜索、可逐个关闭）；截断的曲名悬停展开；中键关闭、←→ 切换、拖动排序、右键关闭其他 / 关闭右侧。<br>③ <b>顶栏第二行</b>：编辑工具排成一行不再折行，放不下的低频键收进「更多 ▾」。<br>④ <b>底部播放与状态栏</b>：播放、回开头、循环选区、小节格、当前轨与位置、时值检查、速度、倍速、节拍器、更多（演奏感 / 音色库 / 谱架）、混音、缩放，一行放下；窄屏逐档收起次要信息。<br>⑤ <b>右栏</b>：屏幕够宽时停靠，不够宽时收成竖条、点开浮出，可钉住，谱纸始终 870 不被遮。<br>顶部外壳 162 → 84px，1280×800 下谱面可见高 586 → 684。<br><b>测试</b>：新套件 <code>tv_shellflow</code>（66 项，含与 v67.8 默认外壳逐字节对拍）；对抗验收 3 镜头 18 条（17 条已修）；CORE 172 套件全绿。</div></li>
     <li><span class="v">v67.8</span><div><b>偏好设置有入口了 · 窗口页签更好点 · 「预设」改名「示例曲谱」 · 关窗不再丢最后一笔</b>（编辑器外壳方案 docs/design-2026-10f 落地第一版，负责人拍板「按推荐方案执行」）。<br>① <b>偏好设置</b>：顶栏右侧新增「偏好设置」按钮（手机在 ☰ 菜单里），可开关 GP / 简谱大师键位、落音自动前进、播放演奏感、触屏浮条。这 4 项此前在已撤掉的提示卡里，一直找不到地方开。<br>② <b>窗口页签</b>：关闭 × 的可点范围放大到 28×28；只在「仅存本机、还没存入我的曲谱」的窗口上标一个空心小圈，已存入的不再标绿点；键盘关掉窗口后焦点留在页签上。<br>③ 顶栏「示例曲谱」（原「预设」），示例谱页头署名改为「制谱：谱友圈」。<br>④ 电脑宽屏（右栏常开）不再显示点了没反应的「智能」按钮，窄屏仍是右侧抽屉开关。<br>⑤ <b>数据更稳</b>：只写了和弦或歌词、还没有音符的窗口，关掉时也会自动存入「我的曲谱」，不再整份丢失；刚改完一笔马上切到别的窗口、另开窗口或换谱，这一笔也会写进「我的曲谱」；关掉已存入的窗口只提示「已关闭」；从「我的曲谱」删掉一首正开着的谱，它的页签立即改回「仅存本机」。<br><b>测试</b>：新套件 <code>tv_v678</code> 25 项，<code>tv_b1b</code> 补界面路径；对抗验收 2 镜头；CORE 171 套件全绿。</div></li>
     <li><span class="v">v67.7</span><div><b>新建谱不再比导入谱小：固定版宽改与电脑上的老谱同宽</b>（负责人：「新建的谱显示比例还是太小……导入 MIDI 的曲谱显示就没问题」）。<br>① <b>原因</b>：新建谱按「固定版宽」排版（换电脑、换窗口、打印断行都一样），版宽是 1060；导入的谱和老谱在电脑上按 870 排。同一首谱新建的每行多塞约两成，1280–1600 宽的屏幕上还被缩到 71–90%，简谱数字只有 12–15 像素（导入谱 17）。v67.3 只放大了显示，没改版面密度。与此前改歌名、歌曲信息长度无关。<br>② <b>修法</b>：固定版宽改为 870，与电脑上的老谱、导入谱同一密度（同一首谱逐字相同），断行仍与窗口无关、打印与屏幕一致。实测 1280–2560 七档窗口，新建谱的简谱数字都不小于同窗口的导入谱（17–21 像素），每行小节数相同。1366、1440 这类笔记本宽度下，新建谱放不下时左侧面板自动收起一次，再打开改为浮在谱面上，不再把谱面挤小；刷新后「继续上次编辑」也一样。<br>③ 宽屏上谱纸最多放大到 125%，谱型条、横向滚动、Ctrl+滚轮缩放都对齐同一张纸；谱架里的新建谱照样铺满。曲首和弦图在版心放不下时自动换行，不再伸出纸外。点节拍报错跳转时，浮层面板挡住目标小节会先收起。<br>④ <b>注意</b>：v64.5 以来新建的谱会按新版宽重排一次（不改任何数据），打印字号约大两成，页数相应增加；想回到原来的页数，可在「排版」里把内容大小调到约 82%。<br><b>测试</b>：新套件 <code>tv_fixdensity</code> 8 项（新建谱与导入谱同密度、七档窗口字号、左栏自动收起、刷新后继续编辑、打印、谱架、和弦图带）；<code>tv_b8a</code> / <code>tv_deskscale</code> / <code>tv_deskscale2</code> / <code>tv_v66a</code> / <code>tv_landbar</code> 按新版宽更新；对抗验收 2 镜头；CORE 170 套件全绿。</div></li>
     <li><span class="v">v67.6</span><div><b>谱库与编辑器同一套谱名 · 其余位置换新图标 · 官网一键开谱 · 手机「在电脑上开始一份谱」</b>（新建流程方案第三版，docs/design-2026-10e）。<br>① <b>谱名全站统一</b>：谱友圈卡片、观看页、作品落地页、分享封面与分享卡、小程序分享标题都改用编辑器的统一谱名（如「钢琴伴奏歌谱（五线谱）」「教学对照谱（含伴奏）」），与新建面板、页签、谱型条一致；服务端与编辑器共用同一份谱名规则，发版时逐字节校验。无词的器乐导入不再叫「歌谱」：小提琴独奏叫「五线谱旋律」、长笛＋钢琴叫「旋律＋钢琴伴奏谱（五线谱）」、弦乐四重奏叫「五线谱重奏谱」；尤克里里独奏叫「尤克里里独奏谱」。谱库筛选分类不变。卡片谱名过长时折两行，不压免费 / 价格角标；「我的曲谱」里的旧格式存档按打开后的谱类显示。<br>② <b>其余位置换新图标</b>：左轨音轨按乐器显示（钢琴伴奏两行显示钢琴、合唱声部显示人声、五线谱上的人声旋律不再标成其他器乐、无词重奏显示器乐）、图层页签与记谱法开关、右栏创作辅助与信息卡、谱友圈筛选条与卡片、观看页、预设与我的曲谱卡片、帮助与特色功能弹窗；「空白谱」「谱友圈文件」两枚撞形图标重画。手机底条恢复只显示文字，音轨名不再被挤没。<br>③ <b>官网一键开谱</b>：考编、即兴伴奏页的按钮直接打开「钢琴即兴伴奏」新建面板，师范页打开「儿歌弹唱」，艺考页打开「视唱练耳谱例」。链接可带调、拍号、速度、曲名、小节数等（如 <code>?new=kids&amp;key=F&amp;meter=2/4</code>），依据里标「按链接」；参数名不分大小写，认不出的只列参数名并忽略；不读也不改「按上次」；带半个 emoji 的曲名不再导致导出失败。<br>④ <b>手机「在电脑上开始一份谱」</b>：启动台首卡改为「开始一份谱」，按用途选好、改调拍速与曲名、看实时预览后点「发到电脑继续」，复制带参链接，电脑上打开就是同一份设置（全角空格等曲名原样保留）。<br>⑤ <b>更稳</b>：一份数据异常的已发布谱不再让整页谱库打不开；旧格式的已发布谱点开观看页不再卡住后落到示例谱，打不开时直接提示；谱库列表更快；平板竖屏观看栏不再把「退出观看」挤出屏幕。新建与深链建谱记录谱型统计（只记谱型代号，不含曲名与内容）。<br><b>测试</b>：新套件 <code>tv_deeplink</code> 32 项、<code>tv_kindsync</code> 14 项，<code>tv_icons</code> 增至 18 项；服务端谱名规则单测 76 项、API 362 项；两轮对抗验收；CORE 169 套件全绿。</div></li>
@@ -31697,7 +33575,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v67.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v67.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -31933,10 +33811,17 @@ function applyResponsive(init){
   /* 第二轮验收补：桌面内部的 resize 不再动面板开合（此前每次都重开，撤销了用户的「收起」）；
      只在启动时与「从手机宽跨回桌面宽」时按记忆恢复 */
   else if(init || fly.dataset.mob){ delete fly.dataset.mob; fly.classList.toggle('hidden', flyKeepClosed()); }
+  if(FLOW) FLOW.apply();   /* v67.9 flow 外壳：跨 820 启停、右栏停靠 / 竖条随宽度重算（resize 回调里本函数在 render() 之前，重排一次即终态） */
 }
 function alignHeader(){
   const L=document.getElementById('left-dock'), R=document.getElementById('right-dock');
   if(!L || !R) return;
+  if(flowOn()){   /* v67.9 flow 外壳：行 1 / 行 2 / 页签的内边距与吸顶全部由 CSS（body.flow）定，清掉默认外壳写的内联值 */
+    document.querySelectorAll('#top .bar').forEach(b=>{ b.style.paddingLeft=''; b.style.paddingRight=''; });
+    const dt=document.getElementById('doc-tabs'); if(dt) dt.style.paddingLeft='';
+    L.style.top=''; R.style.top='';
+    return;
+  }
   if(window.innerWidth<=820){   // 手机：dock 为悬浮抽屉，内边距/吸顶交给 CSS 媒体查询
     document.querySelectorAll('#top .bar').forEach(b=>{ b.style.paddingLeft=''; b.style.paddingRight=''; });
     L.style.top=''; R.style.top='';
