@@ -464,6 +464,38 @@ for i in $(seq 1 305); do curl -s -o /dev/null -b "$DIR/jar5" -c "$DIR/jar5" -H 
 curl -s -o /dev/null -b "$DIR/jar6" -c "$DIR/jar6" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"transpose","meta":"flood2"}'
 chk 单访客每小时300条封顶 '"n":300' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE meta='flood'")"
 chk 同IP的其他访客不受牵连 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE meta='flood2'")"
+
+# v68.2 匿名界面命令 ui_cmd（计划 §5.3）：meta 只收命令 id（格式不符整条丢）· 后台「界面」行 uiModes · 漏斗不含 ui_cmd · 独立限流不占 300 条
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"mode:engrave"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"mode:output"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"cmd:go:lay:a4"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"visit","landing":"zhipu/"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"《小星星》歌词"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"Mode:Engrave"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"pal:'"$(printf 'x%.0s' $(seq 1 70))"'"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd"}' >/dev/null
+chk ui_cmd入库只有命令id '^\[{"meta":"mode:engrave"},{"meta":"mode:output"},{"meta":"cmd:go:lay:a4"}\]$' "$(SQL "SELECT meta FROM events WHERE name='ui_cmd' ORDER BY id")"
+OV=$(J2 http://127.0.0.1:3199/api/admin/overview)
+chk 后台界面行uiModes '"uiModes":{"engrave":1,"output":1,"flow":1,"editors":1,"days":7}' "$OV"
+nchk 漏斗不含ui_cmd '"name":"ui_cmd"' "$OV"
+chk 漏斗照常含visit '"name":"visit","n":[0-9]*,"u":[0-9]' "$OV"
+chk CLI统计带界面行 '界面（近 7 天）：用过「排版」1 人 · 「输出」1 人 / 新外壳有操作 1 人（编辑访客 1 人，含手机、旧版布局、只开启动台）' "$(DB_PATH=$DIR/t.db node admin.js stats)"
+curl -s -o /dev/null -b "$DIR/jar5" -c "$DIR/jar5" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"st:loop"}'
+chk 300条封顶的访客ui_cmd照收 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE name='ui_cmd' AND meta='st:loop'")"
+for i in $(seq 1 125); do curl -s -o /dev/null -b "$DIR/jar7" -c "$DIR/jar7" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"rd:pin"}'; done
+chk ui_cmd单访客每小时120条封顶 '"n":120' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE name='ui_cmd' AND meta='rd:pin'")"
+curl -s -o /dev/null -b "$DIR/jar7" -c "$DIR/jar7" -H 'Content-Type: application/json' -X POST http://127.0.0.1:3199/api/events -d '{"name":"transpose","meta":"after-ui"}'
+chk ui_cmd封顶不连累其他事件 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE meta='after-ui'")"
+# v68.2 收尾 ENG-5：同一出口 IP（学校机房）下 26 个访客各发满 120 条 ui_cmd（3120 条 > 3000）：ui_cmd 的每 IP 上限单独计，之后同 IP 的访问与成品事件照收
+node -e '
+(async()=>{ const post=async(jar,body)=>{ const r=await fetch("http://127.0.0.1:3199/api/events",{method:"POST",headers:{"Content-Type":"application/json","X-Real-IP":"10.68.2.5",...(jar.c?{Cookie:jar.c}:{})},body:JSON.stringify(body)});
+    const sc=r.headers.get("set-cookie"); if(sc&&!jar.c) jar.c=sc.split(";")[0]; await r.text(); };
+  for(let s=0;s<26;s++){ const jar={}; await post(jar,{name:"visit",landing:"zhipu/ipcap"}); for(let i=0;i<120;i++) await post(jar,{name:"ui_cmd",meta:"pal:ipcap"+(i%30)}); }
+  const late={}; await post(late,{name:"visit",landing:"zhipu/ipcap-late"}); await post(late,{name:"print_dialog",meta:"ipcap-after"});
+})();'
+chk 同IP的ui_cmd打满后成品事件照收 '"n":1' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE name='print_dialog' AND meta='ipcap-after'")"
+chk 同IP的ui_cmd打满后访问事件照收 '"n":27' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE name='visit' AND landing LIKE 'zhipu/ipcap%'")"
+chk 同IP的ui_cmd有自己的每IP上限 '"n":3000' "$(SQL "SELECT COUNT(*) AS n FROM events WHERE name='ui_cmd' AND meta LIKE 'pal:ipcap%'")"
 chk 落地页分享渠道带进观看页 'kanpu.html?pub=bulk00238xx&amp;f=card' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=card')"
 nchk 非法渠道不带 'f=%3Cx' "$(curl -s 'http://127.0.0.1:3199/pub/bulk00238xx?f=%3Cx%3E')"
 

@@ -44,17 +44,33 @@
    T31 启动台默认页（并入 T27 页）：右栏停智能页+欢迎提示、光标卡「—」、左栏无选中高亮
    ---- v46.7 ----
    T32 顶栏撤销：音符/时值/节奏拆三独立图层（各开各面板）、连音入两谱类记号层、
-       缩放入左栏 rail-zoom、节拍状态入播放条、新版外壳 #editbar 隐藏、右栏序 智能·库·创作·信息 */
+       缩放入左栏 rail-zoom、节拍状态入播放条、新版外壳 #editbar 隐藏、右栏序 智能·库·创作·信息
+   ---- v68.2 切默认（flow）：全套用例跑两遍——先旧外壳（?shell=classic，原断言逐字不变），再默认外壳（flow，标 [flow]）。
+   刻版 / 数据 / 交互函数类用例两遍同一断言；只有下面几条断言旧外壳结构的部分在 flow 遍换成新外壳口径（意图不变）：
+     T25 右栏：旧「创作」页卡片（#rtabs / .rcard[data-rt]）→ flow 右栏「属性」页含 #cursor-info 与 #em-toggle、时值检查 #beat-box 在状态栏、无旧页签条（另见 tv_modes M10a、tv_emode E1）
+     T32 顶栏：编辑行可见 / 连音在记号层 / 无顶栏记号组照旧；缩放 #eb-zoom 与时值检查 #beat-box 在 flow 是状态栏（#mixer-dock），不判「缩放在 #editbar / 时值在右栏」
+     T33 行 2 不溢出视口照旧；「节奏 7 组合全铺开 / 经典版 4+更多」是旧顶栏布局，flow 行 2 收键见 tv_shellflow S9
+     T38 刻版三项（行首连体线 x=56 / 单行歌谱无起始线 / 合唱只有连体线）照旧；节奏组铺开与经典紧凑两项是旧顶栏布局（同上 S9）
+     T40 音符输入组九项照旧；撤销段位置：flow 在行 2 #editbar 行首（tv_modes M21），不判旧外壳的「节奏组之后 / 经典版进主栏」
+     T41 三语境音符组照旧；排序：六线谱语境 0–9 → 10–24▾ → ×；五线谱语境 flow 按音名 C→B 排、带级数角标（v68.1 方案，tv_modes M11）。
+         v68.2 收尾 ENG-10 ③：此前 flow 的行 2 键标签只在 render 钩子（FLOW.sync）里刷新，flow 遍在读排序前补了一次 render() 绕过；
+         现在 syncInputs 末尾跟着刷新行 2 语境与换键（FLOW.r2 / FLOW.r2k.sync），去掉这两处 render()，与旧外壳同样只调 syncInputs */
 const { chromium } = require('playwright');
-const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic', false], ['flow', F0, true]];
 (async () => {
+ let PASS = 0, TOTAL = 0, ERRN = 0;
+ for (const [TAG, F, FLOWM] of RUNS) {
+  console.log('—————— ' + TAG + ' ——————');
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });
   let pass = 0, total = 0;
-  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
+  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + (FLOWM ? '[flow] ' : '') + name + (d ? ': ' + d : '')); };
+  const isFlow = await pg.evaluate(() => document.body.classList.contains('flow'));
+  T(isFlow === FLOWM, '外壳前提：' + TAG + (FLOWM ? '（不带参数＝body.flow）' : '（?shell=classic）'), String(isFlow));
 
   // T1 TAB 闷音 ×=15 / 打板 ×=16
   const t1 = await pg.evaluate(() => {
@@ -430,11 +446,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     loadSong(s);
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 5 }; barSel = null; selRange = null; noteSel = []; syncInputs();
     const t = document.getElementById('cursor-info').textContent;
+    /* v68.2 flow 口径：右栏「属性」页含 #cursor-info 与 #em-toggle；时值检查 #beat-box 在状态栏；旧页签条不出现 */
+    const vis2 = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+    const fl = { prop: !!document.querySelector('#flw-rp-prop #cursor-info') && !!document.querySelector('#flw-rp-prop #em-toggle'),
+      beatSt: !!document.getElementById('beat-box').closest('#mixer-dock'), noRtabs: !vis2(document.getElementById('rtabs')) };
     /* v56.6b 「可改」快捷键提示行已去除（用户指示），断言不再出现 */
-    return { tabs, ciInfo, makeCards, mxlHidden, libOff, note: /5弦 3品/.test(t) && /击弦/.test(t), noEdit: !/可改|时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
+    return { tabs, ciInfo, makeCards, mxlHidden, libOff, fl, note: /5弦 3品/.test(t) && /击弦/.test(t), noEdit: !/可改|时值 Q–T/.test(t), chord: /和弦/.test(t) && /\bC\b/.test(t) };
   });
-  T(t25.tabs === 'make,info' && t25.ciInfo && t25.makeCards && t25.mxlHidden && t25.libOff,
-    'T25 两页签(创作=光标位置+节拍检查+创作帮助，库与导入互操作隐藏)', JSON.stringify(t25));
+  T(FLOWM ? (t25.fl.prop && t25.fl.beatSt && t25.fl.noRtabs && t25.mxlHidden && t25.libOff)
+          : (t25.tabs === 'make,info' && t25.ciInfo && t25.makeCards && t25.mxlHidden && t25.libOff),
+    FLOWM ? 'T25 右栏属性页＝光标位置 + 编辑模式，时值检查在状态栏，库与导入互操作隐藏' : 'T25 两页签(创作=光标位置+节拍检查+创作帮助，库与导入互操作隐藏)', JSON.stringify(t25));
   T(t25.note && t25.noEdit && t25.chord, 'T26 光标卡音符信息(弦品/技法/和弦，无「可改」行)', JSON.stringify(t25));
 
   // T29 v47.3 顶栏回归：音符/时值/节奏三组恒在顶栏，时值点击生效、后插生效、组标签「音符」
@@ -486,10 +507,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const zoomInBar = eb.contains(document.getElementById('eb-zoom'));
     /* v48.3 节拍状态归回右栏「信息」页（撤 v47.3 的顶栏搬移）；缩放仍在顶栏 */
     const beatInDock = !!document.getElementById('beat-box').closest('#right-dock');
-    return { ebVisible, noLayers, tupTab, tupVox, noTopMarks, zoomInBar, beatInDock };
+    const zoomSt = !!document.getElementById('eb-zoom').closest('#mixer-dock'), beatSt = !!document.getElementById('beat-box').closest('#mixer-dock');   /* flow：状态栏 */
+    return { ebVisible, noLayers, tupTab, tupVox, noTopMarks, zoomInBar, beatInDock, zoomSt, beatSt };
   });
   T(t32.ebVisible && t32.noLayers && t32.tupTab && t32.tupVox && t32.noTopMarks
-    && t32.zoomInBar && t32.beatInDock,
+    && (FLOWM ? t32.zoomSt && t32.beatSt : t32.zoomInBar && t32.beatInDock),
     'T32 顶栏回归(编辑行可见/缩放入顶栏·时值提示回右栏/左栏撤三层/连音留记号层)', JSON.stringify(t32));
 
   // T33 v47.3 顶栏内容不溢出视口 + 新版节奏组合全铺开（7 个可见、更多▾隐藏）；经典版 4+更多 紧凑
@@ -506,7 +528,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('b-shell').click();
     return { fits, maxRight: Math.round(maxRight), combos, moreVis, cCombos, cMore };
   });
-  T(t33.fits && t33.combos === 7 && t33.moreVis && t33.cCombos === 4 && t33.cMore,
+  T(t33.fits && (FLOWM || (t33.combos === 7 && t33.moreVis && t33.cCombos === 4 && t33.cMore)),
     'T33 顶栏不溢出+节奏7组合铺开+更多▾在栏(经典4+更多)', JSON.stringify(t33));
 
   // T34 v46.8 倚音图标统一：前/后倚音同款元素（小音符斜杠+主音符+连线）镜像布局，弃用简谱数字画法
@@ -682,7 +704,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('b-shell').click();
     return { gN: g.length, gOk, vOk, cN: c.length, cOk, shellOk, classicOk };
   });
-  T(t38.gOk && t38.vOk && t38.cOk && t38.shellOk && t38.classicOk,
+  T(t38.gOk && t38.vOk && t38.cOk && (FLOWM || (t38.shellOk && t38.classicOk)),
     'T38 简谱行首线共用连体线+节奏顶栏铺开(经典紧凑)', JSON.stringify(t38));
 
   // T39 v47.4 更多节奏菜单：分组（单拍/二拍/三拍·复合拍）+ 6/8 应用（附点四分 → 八分×3）
@@ -737,10 +759,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('b-shell').click();
     const inHead = !eb.contains(su) && !!su.closest('.main-bar');
     document.getElementById('b-shell').click();
-    return { tabDigits, octHidTab, fret12, voxDigits, octVisVox, deg5, rest0, inBar, label2, inHead };
+    const flowUndo = eb.contains(su);   /* flow：撤销段在行 2 #editbar（行首位置见 tv_modes M21） */
+    return { tabDigits, octHidTab, fret12, voxDigits, octVisVox, deg5, rest0, inBar, label2, inHead, flowUndo };
   });
   T(t40.tabDigits === 10 && t40.octHidTab && t40.fret12 && t40.voxDigits === 8 && t40.octVisVox
-    && t40.deg5 && t40.rest0 && t40.inBar && t40.label2 === '音符' && t40.inHead,
+    && t40.deg5 && t40.rest0 && t40.label2 === '音符' && (FLOWM ? t40.flowUndo : t40.inBar && t40.inHead),
     'T40 音符输入组(品位/音级上下文)+撤销重做入上栏', JSON.stringify(t40));
 
   // T41 v47.6 音符组三态：TAB(0-9+0–24选择器+×) / 简谱(1-7) / 五线谱(音名随调号+♯♭♮) + 节奏型库入上栏
@@ -766,11 +789,13 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     document.getElementById('eb-mute-n').click(); syncInputs();
     const nx = song.measures[0].tabs[0][0].notes.find(n => n.s === 3);
     const muteOk = !!(nx && nx.x) && document.getElementById('eb-mute-n').classList.contains('on');
-    // ② 简谱语境：数字标签、无变音钮、有八度
+    // ② 简谱语境：数字标签、有八度；变音钮旧外壳不给，flow 简谱语境给 ♯ ♭ ♮（v68.1 方案：accBump / accNat 在简谱走 toggleAcc，见 index.html 行 2 CSS ⑫ 注释）。
+    //    v68.2 收尾 ENG-10 ③：此前 flow 遍只调 syncInputs、行 2 语境停在上一个（六线谱），「无变音钮」是借着过期语境空过的；现在语境随 syncInputs 更新，按 flow 方案口径断言
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; selRange = null; syncInputs();
+    const FLj = document.body.classList.contains('flow');
     const jpOk = document.querySelector('#eb-note [data-nd="1"] .dg').textContent === '1'
       && [...document.querySelectorAll('#eb-note .nd')].filter(vis).length === 8
-      && !vis(document.getElementById('eb-acc-s')) && vis(document.getElementById('eb-octup'));
+      && (FLj ? document.getElementById('editbar').dataset.flwCtx === 'jp' && vis(document.getElementById('eb-acc-s')) : !vis(document.getElementById('eb-acc-s'))) && vis(document.getElementById('eb-octup'));
     // ③ 五线谱语境（D 大调）：按钮显音名 D E F G A B C；点「F」写音级 3；♯ 生效且高亮
     song.voxNotations = ['staff']; render(); syncInputs();
     const letters = [1,2,3,4,5,6,7].map(k => document.querySelector('#eb-note [data-nd="' + k + '"] .dg').textContent).join('');
@@ -789,6 +814,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const seq = () => [...document.querySelectorAll('#eb-note > *')].filter(e => getComputedStyle(e).display !== 'none')
       .sort((a, c) => a.getBoundingClientRect().left - c.getBoundingClientRect().left)
       .map(e => (e.textContent || '').trim()).join(' ');
+    const FL = document.body.classList.contains('flow');
     const stSeq = seq();
     /* v47.8 起五线谱休止钮改出 SMuFL 字形（无文本），序列断言改为「七音名 + 休止钮带 svg」 */
     const stRestSvg = /<svg/.test(document.querySelector('#eb-note [data-nd="0"] .dg').innerHTML);
@@ -796,14 +822,16 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const tabSeq = seq();
     /* v48.0 展示修正：折叠选择器只标「折叠掉的那段」（0–9 已铺开 → 显示 10–24▾，
        原固定写 0–24▾ 与旁边的 0–9 重复）；× 补中文小字「分解」 */
-    const orderOk = tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /10–24▾ ×分解$/.test(tabSeq)
+    const orderOk = FL
+      ? tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9 10–24▾ ×') === 0 && /分解$/.test(tabSeq) && /^C\S* D\S* E\S* F\S* G\S* A\S* B\S* /.test(stSeq) && stRestSvg
+      : tabSeq.indexOf('0 1 2 3 4 5 6 7 8 9') === 0 && /10–24▾ ×分解$/.test(tabSeq)
       && stSeq.indexOf('C D E F G A B') === 0 && stRestSvg;
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     // ④ 节奏型库按钮在上栏、位于节奏组末尾
     const lib = document.getElementById('eb-lib');
     const libOk = vis(lib) && document.getElementById('editbar').contains(lib)
       && lib === document.getElementById('eb-combo').lastElementChild;
-    return { tabCtx, grid, has24, fret17, muteOk, jpOk, letters, lettersC, stCtx, degOk, accOk, libOk, orderOk, tabSeq };
+    return { tabCtx, grid, has24, fret17, muteOk, jpOk, letters, lettersC, stCtx, degOk, accOk, libOk, orderOk, tabSeq, stSeq };
   });
   T(t41.tabCtx && t41.grid >= 25 && t41.has24 && t41.fret17 && t41.muteOk && t41.jpOk
     && t41.stCtx && t41.degOk && t41.accOk && t41.lettersC === 'CDEFGAB' && t41.libOk && t41.orderOk,
@@ -973,8 +1001,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     'T35 向导创建=全新曲谱(取消回台/创建关台/无残留)', JSON.stringify(Object.assign({}, t35a, t35)));
   await pg2.close();
 
-  console.log('PASS ' + pass + '/' + total);
+  console.log('[' + TAG + '] PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();
-  process.exit(pass === total && !errs.length ? 0 : 1);
+  PASS += pass; TOTAL += total; ERRN += errs.length;
+ }
+  console.log('PASS ' + PASS + '/' + TOTAL);
+  process.exit(PASS === TOTAL && !ERRN ? 0 : 1);
 })();

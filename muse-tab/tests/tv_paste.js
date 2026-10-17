@@ -326,6 +326,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       s.measures[m].voxes[0]=[V(1+m,4,0,0,'字'),V(5,4),V(1,8,1),V(1,16),V(5,8,1),V(1,16)];
       s.measures[m].tabs[0]=[t(m,8),t(2,8),t(3,8),t(5,8),t(7,4,2),t(5,4,2)];
     }
+    /* v68.2：第 2 小节后手动换行（现有字段 brk，＝排版「此处换行」）——「跨行」不再依赖谱面宽：flow 默认外壳谱面区 900（版宽 870），
+       1–4 小节一行就放得下，旧外壳 1400 宽左右面板全开时才自然折到第二行；断言（ys[1] > ys[0] 及其余）不变 */
+    s.measures[1].brk=1;
     return s; }`;
   await load(TC);
   const ys = await pg.evaluate(() => [0, 3].map(m => Math.round(document.querySelector('[data-row="vox"][data-vi="0"][data-mi="' + m + '"][data-ci="0"]').getBoundingClientRect().y)));
@@ -374,6 +377,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const GT2 = `()=>{ const s=createSong('guitar',{title:'g2',beats:4,unit:4,key:'C',nMea:8,nTab:2,nVox:0,lyr:0});
     const t=(f,dur,s2)=>({dur,dotted:false,chord:'',notes:[{s:s2||3,f}],strum:'',tech:''});
     for(let m=0;m<4;m++){ s.measures[m].tabs[0]=[t(m,8),t(2,8),t(3,8),t(5,8),t(7,4),t(5,4)]; s.measures[m].tabs[1]=[t(m+1,1,6)]; }
+    s.measures[1].brk=1;   /* v68.2：同 T15——手动换行保证 1–4 小节跨两行（与谱面宽无关） */
     return s; }`;
   await load(GT2);
   const ys2 = await pg.evaluate(() => [0, 3].map(m => Math.round(document.querySelector('[data-row="tab"][data-vi="0"][data-mi="' + m + '"][data-ci="0"][data-si="3"]').getBoundingClientRect().y)));

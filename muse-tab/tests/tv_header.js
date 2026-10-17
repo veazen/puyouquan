@@ -14,6 +14,7 @@
    T11 固定种子随机压力（歌名/演唱/多人署名/变调夹/调弦/术语/谱类/拍号 × 320/375/600/1024）
    T2c 超长演唱者行同理：收字距 → 缩到 11 → 折行
    T12–T14（验收补）：歌名断点质量（结构断点优先于均衡）、署名折行不碎行且长署名不拖慢排版、极窄版心变调夹说明折行
+   T14x（v68.2）同一 song、同一 PAGE_W：默认新外壳（谱纸定宽 599）与 ?shell=classic（1280 自然谱纸 599）#score 逐字节相同
    突变实证：MUSETAB_URL 指向 v66.8 复跑，见文末记录。 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
@@ -145,7 +146,7 @@ const REF668 = `(()=>{ const p=[]; const wmm=PAGE_MM[layoutCfg().page][0];
     const pg = await b.newPage({ viewport: vp, hasTouch: vp.width <= 820 });
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     if (opts && opts.big) await pg.addInitScript(() => { try { localStorage.setItem('musetab-bigtext', '1'); } catch (_) {} });
-    await pg.goto(F); await pg.waitForTimeout(800);
+    await pg.goto((opts && opts.url) || F); await pg.waitForTimeout(800);
     await pg.evaluate(`(()=>{ window.guardReplace=(p)=>p(); if(typeof undoStack!=='undefined') undoStack.length=0;
       try{ hideStartPad(); }catch(_){} toast=()=>{}; ${GEO}; window.hdGeo=hdGeo; })()`);
     return pg;
@@ -399,13 +400,25 @@ const REF668 = `(()=>{ const p=[]; const wmm=PAGE_MM[layoutCfg().page][0];
   }
 
   /* ---------- T14 极窄版心（验收补）：A5＋内容 160%（桌面 PAGE_W≈251、版心 139）——变调夹说明在「（按…指法）」前折开、不缩字号 ---------- */
+  /* v68.2 谱纸口径：PAGE_W≈251 原是旧外壳 1280 宽、左栏面板展开时的谱纸 599 换算来的（599−30=569 × 148/210 ÷ 1.6）；新外壳（默认）同宽谱纸 900，
+     同一 A5＋160% 只到 PAGE_W 383、变调夹说明一行放得下，测不到「极窄」。T14 在默认外壳把谱纸定宽 599（＝旧口径），并断言版宽确在 245–260，
+     其余断言一字不改；T14x 再开一页 ?shell=classic（1280 宽自然谱纸 599），同一 song 的 #score 与默认外壳逐字节对拍。 */
   {
-    const pg = await open({ width: 1280, height: 900 });
-    const g = await pg.evaluate(`(()=>{ try{ const s=${MK(Object.assign({}, DUKU, { tuning: [62, 59, 55, 50, 43, 38], tempoTerm: 'Andante cantabile' }))}; s.layout={page:'A5', scale:1.6};
+    const S14 = (pin) => `(()=>{ try{ const s=${MK(Object.assign({}, DUKU, { tuning: [62, 59, 55, 50, 43, 38], tempoTerm: 'Andante cantabile' }))}; s.layout={page:'A5', scale:1.6};
+      if(${pin}){ const P=document.getElementById('paper'); P.style.width=P.style.maxWidth=P.style.minWidth='${pin}px'; P.style.flex='none'; }
       loadSong(s); blurSel=true; render(); window.scrollTo(0,0);
-      return Object.assign(hdGeo(document.getElementById('score')), {PW:PAGE_W, M:MARGIN}); }catch(e){ return {err:String(e&&e.stack||e)}; } })()`);
+      return Object.assign(hdGeo(document.getElementById('score')), {PW:PAGE_W, M:MARGIN, flow:document.body.classList.contains('flow'), svg:document.getElementById('score').outerHTML}); }catch(e){ return {err:String(e&&e.stack||e)}; } })()`;
+    const pg = await open({ width: 1280, height: 900 });
+    const g = await pg.evaluate(S14(599));
     await pg.close();
+    const pc = await open({ width: 1280, height: 900 }, { url: F + (F.includes('?') ? '&' : '?') + 'shell=classic' });
+    const gc = await pc.evaluate(S14(0));
+    await pc.close();
+    /* 默认外壳是不是新外壳由 tv_flowdef F1 管；这里只要求 classic 页确是旧外壳（MUSETAB_URL 本身带 shell=classic 时两页都是旧外壳，照样逐字节相同） */
+    T(!g.err && !gc.err && g.svg === gc.svg && g.PW === gc.PW && !gc.flow,
+      `T14x 同一 song、同一 PAGE_W（${g.PW} / ${gc.PW}）：默认新外壳（谱纸定宽 599）与旧外壳（1280 宽自然谱纸）#score 逐字节相同`, `flow=${g.flow}/${gc.flow} len=${(g.svg || '').length}/${(gc.svg || '').length}`);
     const bad = sumBad(g);
+    if (!(g.PW >= 245 && g.PW <= 260)) bad.push('版宽不在极窄口径 245–260：' + g.PW);
     const L = (g.texts || []).filter(t => t.cls === 'left');
     if (L.some(t => t.fs < 12.5 && !/^1=|^\d+$/.test(t.t))) bad.push('左块缩了字号 ' + L.map(t => t.t + '@' + t.fs).join(','));
     if (!L.some(t => t.t === '变调夹 1 品') || !L.some(t => t.t === '（按 1=G 指法）')) bad.push('变调夹说明未在括注前折开：' + L.map(t => t.t).join('|'));

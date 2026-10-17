@@ -109,8 +109,12 @@
          另起一行北极星（7 日内做出成品谱的人数：配伴奏/打印/导出图片/发布任一）与 D1/D7 留存 */
       var fl=(j.funnel||[]).slice(0,8), fn=fl.map(function(e){ return e.name+' '+(e.u!=null? e.u+'/'+e.n : e.n); }).join(' · ');
       var mt=j.metrics, pct=function(r){ return r&&r.rate!=null? (r.rate+'%（'+r.back+'/'+r.base+'）') : '样本不足'; };
+      /* v68.2 编辑器新外壳界面命令（ui_cmd，只记命令名；漏斗里不含它）：拍板 2「两周后看模式使用率」读这一行 */
+      var um=j.uiModes;
       document.getElementById('ad-funnel').textContent = (fn? ('近 7 日事件'+(fl.length&&fl[0].u!=null?'（人数/次数）':'')+'：'+fn) : '')
-        + (mt? ('\n北极星（7 日做出成品谱）'+mt.north7+' 人 · 7 日访客 '+mt.visitors7+' · D1 留存 '+pct(mt.d1)+' · D7 留存 '+pct(mt.d7)) : '');
+        + (mt? ('\n北极星（7 日做出成品谱）'+mt.north7+' 人 · 7 日访客 '+mt.visitors7+' · D1 留存 '+pct(mt.d1)+' · D7 留存 '+pct(mt.d7)) : '')
+        /* v68.2 收尾 ENG-6：两个分母——新外壳有操作的人（窄口径，发过任何界面命令）与编辑访客（含手机、旧版布局、只开启动台，偏大） */
+        + (um? ('\n界面：7 日用过「排版」'+(um.engrave|0)+' 人 · 「输出」'+(um.output|0)+' 人 / '+(um.flow!=null? '新外壳有操作 '+(um.flow|0)+' 人（' : '')+'编辑访客 '+(um.editors|0)+' 人'+(um.flow!=null? '，含手机、旧版布局、只开启动台）' : '')) : '');
     }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
   }
   function boot(){

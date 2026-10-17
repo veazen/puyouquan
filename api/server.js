@@ -69,18 +69,27 @@ const MAX_SCORES_VIP = 2000;                    // v45.3 会员云配额（第�
    客户端可报：访问与落地 / 制谱 / 导出与发布 / 传播 / 课程；signup/login/pay_create/order_paid/redeem_ok 只由服务端写。
    v67.6 加 create_stack（新建流程方案「首访默认用途」校准）：编辑器新建面板「创建」与「新建 ▾」快捷建谱时与 create_song 同时发，
    meta＝用途:谱行代码:入口:面板打开时的用途:是否首次（如 gtr:JT:panel:gtr:1），不带曲名等内容；原 create_song 口径不变。
-   入口：panel 新建面板 / menu「新建 ▾」/ last 按上次（Alt+Shift+N）/ link 深链 ?new= 打开的面板 / link-bad 深链用途认不出（第二轮验收补：此前深链与启动台用途卡同为 panel）。 */
+   入口：panel 新建面板 / menu「新建 ▾」/ last 按上次（Alt+Shift+N）/ link 深链 ?new= 打开的面板 / link-bad 深链用途认不出（第二轮验收补：此前深链与启动台用途卡同为 panel）。
+   v68.2 加 ui_cmd（编辑器新外壳匿名界面命令统计，计划 §5.3；拍板 2「两周后看模式使用率」）：meta＝命令 id 本身（如 mode:engrave、pal:fermata、cmd:go:lay:a4），
+   格式 ^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$（首段字母开头可带数字，容下 r1: / r2:）、≤64 字，不带曲名 / 歌词 / 谱内容——格式不符的整条静默丢弃（UI_CMD_RE）。编辑器 FLOW.track 已按「同一 id 每会话 10 分钟 1 次、每会话 60 条」限量；
+   服务端另按「访客+IP」每小时 120 条单独计数（UI_CMD_CAP），不占其他事件的 300 条（量大的界面命令不能把成品事件挤掉）。
+   v68.2 收尾 ENG-5：IP 硬上限也分开——ui_cmd 走自己的每 IP 每小时 UI_CMD_IP_CAP 条（evUiIpCount），不再计入 3000 条的 evIpCount：
+   同一出口 IP（学校机房、公司）约 25 个满额会话就能把 3000 条吃光，之后这个 IP 的访问与成品事件（print_dialog 等）全被丢——与上面的本意相反。
+   后台：漏斗前 8 名（eventStatsU）不含 ui_cmd，另起一行「界面」读 eventUiCmd7（/api/admin/overview 的 uiModes）。 */
 const EVENT_CLIENT = ['visit', 'landing_view', 'cta_click', 'zero_result',
   'create_song', 'create_stack', 'arrange_done', 'tex_gen', 'transpose', 'import_done',
   'print_dialog', 'export_png', 'export_icard', 'export_mxl', 'export_mid', 'share_card', 'publish', 'export',
   'share_open', 'mp_share', 'open_pub', 'paywall_view', 'fav', 'signup_prompt',
-  'course_view', 'lesson_done', 'lesson_deeplink'];
+  'course_view', 'lesson_done', 'lesson_deeplink', 'ui_cmd'];
+const UI_CMD_RE = /^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$/, UI_CMD_CAP = 120, UI_CMD_IP_CAP = 3000;
 const EVENT_SERVER_ONLY = new Set(['signup', 'login', 'redeem_ok', 'order_paid', 'pay_create', 'like']);
 const EVENT_NAMES = new Set([...EVENT_CLIENT, ...EVENT_SERVER_ONLY]);
 /* 北极星「做出成品谱」口径（§9.1）：7 天内去重访客/用户产生过任一成品事件 */
 const EVENT_DONE = ['arrange_done', 'print_dialog', 'export_png', 'publish'];
 let evHour = 0; const evCount = new Map();       // 每 访客+IP 每小时事件计数（内存态，重启清零可接受）
+const evUiCount = new Map();                     // v68.2 ui_cmd 单独计数（每 访客+IP 每小时 UI_CMD_CAP 条，不占 evCount 的 300）
 const evIpCount = new Map();                     // v63.4 每 IP 每小时总量硬上限（防轮换 cookie 刷量）
+const evUiIpCount = new Map();                   // v68.2 收尾 ENG-5：ui_cmd 的每 IP 每小时硬上限单独计（UI_CMD_IP_CAP），不占 evIpCount 的 3000
 let thumbHour = 0; const thumbCount = new Map(); // v60.7 每用户每小时缩图上传计数（同上，内存态）
 const PHONE_RE = /^1[3-9]\d{9}$/;
 const ID_RE = /^[A-Za-z0-9_-]{8,40}$/;  // 客户端生成的谱面 id
@@ -722,6 +731,18 @@ function eventMetrics() {
   return { north7: done.size, visitors7: [...days.values()].filter(ds => Math.max(...ds) > today - 7).length, d1: ret(1), d7: ret(7) };
 }
 
+/* v68.2 后台「界面」一行（计划 §5.3）：7 日内用过「排版」/「输出」的人数（ui_cmd 的 meta＝mode:engrave / mode:output，按人去重）÷ 7 日编辑访客（编辑器 zhipu 的 visit，按人去重）。
+   人＝账号，未登录按匿名标识（与漏斗 eventStatsU 同口径） */
+/* v68.2 收尾 ENG-6：「编辑访客」（zhipu 的 visit）把手机（没有排版 / 输出两步）、旧版布局（不发 ui_cmd）、只开了启动台的人都算进来，模式使用率会系统性偏低——
+   另给一个分母 flow＝7 日内有过任何界面命令（ui_cmd，只有新外壳会发；桌面新用户首日几乎都有 tour:skip / tour:done）的人数，后台两个都列、注明口径 */
+function uiModes7() {
+  const out = { engrave: 0, output: 0, flow: 0, editors: 0, days: 7 }, t7 = now() - 7 * 86400;
+  q.eventUiCmd7.all(t7, t7, t7).forEach(r => {
+    if (r.k === 'mode:engrave') out.engrave = r.u; else if (r.k === 'mode:output') out.output = r.u; else if (r.k === 'editors') out.editors = r.u; else if (r.k === 'flow') out.flow = r.u;
+  });
+  return out;
+}
+
 const routes = [
   ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wx_mini: !!(WX_MINI_APPID && WX_MINI_SECRET), wxpay: wxpayOn() })],
 
@@ -1017,15 +1038,18 @@ const routes = [
   ['POST', /^\/api\/events$/, false, (m, b, u, req, res) => {
     const name = String(b.name || '');
     if (!EVENT_NAMES.has(name) || EVENT_SERVER_ONLY.has(name)) return { ok: true };   // 未知/服务端专属事件静默丢弃（不给探测面、不许伪造注册）
+    const ui = name === 'ui_cmd';
+    if (ui && !(typeof b.meta === 'string' && b.meta.length <= 64 && UI_CMD_RE.test(b.meta))) return { ok: true };   // v68.2 界面命令只收命令 id（不合格式＝可能带了内容，整条丢弃）
     const anon = ensureAnon(req, res);
     const ip = ipOf(req);
     const h = Math.floor(Date.now() / 3600000);
-    if (evHour !== h) { evHour = h; evCount.clear(); evIpCount.clear(); }
+    if (evHour !== h) { evHour = h; evCount.clear(); evIpCount.clear(); evUiCount.clear(); evUiIpCount.clear(); }
     /* v63.4 A7 ⑥ 限流按「访客+IP」计 300 条/时：学校机房、公司共用出口 IP 时不再整体被压到 300 条（系统性低估）；
-       每 IP 另设 3000 条/时硬上限，防清 Cookie 轮换刷量 */
-    const k = ip + '|' + anon, c = (evCount.get(k) || 0) + 1, ci = (evIpCount.get(ip) || 0) + 1;
-    evCount.set(k, c); evIpCount.set(ip, ci);
-    if (c > 300 || ci > 3000) return { ok: true };
+       每 IP 另设 3000 条/时硬上限，防清 Cookie 轮换刷量。v68.2 ui_cmd 走自己的计数（访客+IP UI_CMD_CAP、每 IP UI_CMD_IP_CAP），两个上限都不占成品 / 访问事件的 */
+    const k = ip + '|' + anon, cnt = ui ? evUiCount : evCount, ipc = ui ? evUiIpCount : evIpCount,
+      c = (cnt.get(k) || 0) + 1, ci = (ipc.get(ip) || 0) + 1;
+    cnt.set(k, c); ipc.set(ip, ci);
+    if (c > (ui ? UI_CMD_CAP : 300) || ci > (ui ? UI_CMD_IP_CAP : 3000)) return { ok: true };
     /* 首次触达的来源与落地页只认访问类事件（meta 只有 120 字，放不下 referrer + utm，故单列） */
     const touch = name === 'visit' || name === 'landing_view';
     const src = touch ? String(b.src || '').replace(/[\u0000-\u001f]/g, '').slice(0, 160) : '';
@@ -1150,7 +1174,7 @@ const routes = [
       pending: sts.pending || 0, published: sts.published || 0, revisions: q.revPendingCount.get().n,
       reports: q.reportOpenCount.get().n, reserves: Object.fromEntries(q.reserveCount.all().map(r => [r.kind, r.n])),
       orders: { paid: paid.n, amount_fen: paid.fen },
-      funnel: q.eventStatsU.all(now() - 7 * 86400), metrics: eventMetrics() };
+      funnel: q.eventStatsU.all(now() - 7 * 86400), metrics: eventMetrics(), uiModes: uiModes7() };
   }],
   ['GET', /^\/api\/admin\/users$/, true, (m, b, u, req) => {
     requireAdmin(u);

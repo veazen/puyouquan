@@ -47,7 +47,11 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const { songbieXML } = require('./fixtures/songbie_ai.js');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 切默认外壳（flow）：默认页＝新外壳（新建入口＝页签「＋」#dt-add，打开文件＝文件 ▾「打开文件…」）；谱型条 #lb-wrap 只在旧外壳（兜底，?shell=classic）——
+   I29 / I34 / I35 两段：flow 段读起步组 #flw-start / 「下一步」卡 #flw-next / 谱类芯片 #flw-kchip，classic 段原断言钉旧外壳（计划 §5.4） */
+const F = F0;
+const FC = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 /* 文件以 {name, mimeType, buffer} 交给文件选择框（中文文件名不经本地文件系统，避免测试机文件名编码差异） */
 const MIME = { musicxml: 'application/vnd.recordare.musicxml+xml', xml: 'application/xml', mid: 'audio/midi', gp5: 'application/octet-stream', json: 'application/json', mp3: 'audio/mpeg', png: 'image/png', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
 const file = (name, data) => ({ name, mimeType: MIME[name.split('.').pop()] || 'application/octet-stream', buffer: Buffer.isBuffer(data) ? data : Buffer.from(String(data)) });
@@ -92,14 +96,17 @@ function gp5() {
     const ctx = await b.newContext({ viewport: { width: w || 1280, height: h || 800 }, isMobile: !!opt.mob, hasTouch: !!opt.mob });
     const pg = await ctx.newPage(); pg.setDefaultTimeout(5000);
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-    await pg.goto(F); await pg.waitForTimeout(900);
+    pg._classic = !!opt.classic;
+    await pg.goto(opt.classic ? FC : F); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; window.__toasts = []; const t0 = window.toast; window.toast = function (m) { window.__toasts.push(String(m)); return t0.apply(this, arguments); }; });
     pg._ctx = ctx; return pg;
   };
   /* ONLY=I20,I21 只跑这几项（调试用；缺省全跑） */
   const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
   const guard = async (name, fn) => { if (ONLY.length && !ONLY.some(o => name.split(' ')[0] === o)) return; try { await fn(); } catch (e) { T(false, name, 'EXC: ' + String(e.message || e).split('\n').slice(0, process.env.ONLY ? 12 : 1).join(' / ')); } };
-  const toImport = async pg => { await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('.nf-tabs [data-v="import"]'); await pg.waitForSelector('#nf-isrc'); };
+  /* 新建入口：flow＝页签「＋」#dt-add（同 Alt+N / 文件 ▾「新建…」，都是 showNewWizard）；旧外壳＝顶栏「新建」#b-new */
+  const NEWB = pg => pg._classic ? '#b-new' : '#dt-add';
+  const toImport = async pg => { await pg.click(NEWB(pg)); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('.nf-tabs [data-v="import"]'); await pg.waitForSelector('#nf-isrc'); };
   const pick = async (pg, fp, sel) => { const [fc] = await Promise.all([pg.waitForEvent('filechooser', { timeout: 3000 }), pg.click(sel || '#nw-import')]); await fc.setFiles(fp); };
   const pvDone = pg => pg.waitForFunction(() => { const i = NWP.pvInfo && NWP.pvInfo(); return !!i && !document.querySelector('.nf-paper.pv-wait'); }, null, { timeout: 4000 });
   const loaded = pg => pg.waitForFunction(() => !!(NWP.state && NWP.state.imp.a) && !!document.querySelector('#nf-ibasis'), null, { timeout: 4000 });
@@ -133,7 +140,7 @@ function gp5() {
     await pg.evaluate(() => { hideStartPad(); loadSong(PRESETS[0].make()); render(); });
     const before = await pg.evaluate(() => ({ docs: docs.length, s: JSON.stringify(song), cur: curDocI }));
     let clicks = 0;
-    await pg.click('#b-new'); clicks++; await pg.waitForSelector('.nf-modal [data-scene]');
+    await pg.click(NEWB(pg)); clicks++; await pg.waitForSelector('.nf-modal [data-scene]');
     await pg.click('.nf-tabs [data-v="import"]'); clicks++;
     await pick(pg, SONGBIE); clicks++;
     await loaded(pg); await pvDone(pg);
@@ -328,7 +335,7 @@ function gp5() {
     r.drop = await pg.evaluate(() => ({ mask: !!document.getElementById('nf-dropmask'), tab: NWP.state.tab, src: NWP.state.imp.src, name: NWP.state.imp.a.name, rec: NWP.state.imp.a.recommend, docs: docs.length }));
     await pg.keyboard.press('Escape');
     /* 面板开在「新建」页：拖进来切到「从已有音乐」 */
-    await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]');
+    await pg.click(NEWB(pg)); await pg.waitForSelector('.nf-modal [data-scene]');
     const d2 = await dt('笔记.txt', 'hello', 'text/plain');
     await pg.dispatchEvent('.nf-modal', 'dragenter', { dataTransfer: d2 }); await pg.dispatchEvent('.nf-modal', 'drop', { dataTransfer: d2 }); await pg.waitForTimeout(150);
     r.inPanel = await pg.evaluate(() => ({ tab: NWP.state.tab, alert: (document.querySelector('.nf-imperr') || {}).textContent || '' }));
@@ -744,7 +751,7 @@ function gp5() {
   await guard('I27 新建预览一致', async () => {
     const pg = await open(1366, 900);
     await pg.evaluate(() => { hideStartPad(); profileSave({ maker: '张老师' }); });
-    await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]');
+    await pg.click(NEWB(pg)); await pg.waitForSelector('.nf-modal [data-scene]');
     await pg.click('[data-scene="pacc"]'); await pg.click('[data-act="var"][data-k="acc"][data-v="pure"]');
     await pg.click('[data-act="more"]'); await pg.selectOption('#nf-lyr', '3'); await pvDone(pg);
     const pv = await pg.evaluate(() => { const i = NWP.pvInfo(); const svg = document.querySelector('#nf-pvbox svg');
@@ -770,7 +777,9 @@ function gp5() {
   });
 
   /* ========== 第二轮验收回归（修前＝r3/pre.html 红、修后绿） ========== */
-  const lbGeo = pg => pg.evaluate(() => ({ lb: !!document.querySelector('#lb-wrap .lb-bar'), top: Math.round(document.getElementById('score').getBoundingClientRect().top),
+  /* lb：旧外壳＝谱型条 #lb-wrap 在；flow＝没有 #lb-wrap、起步组或右栏「下一步」卡已出（FLOW.start.shown，同一份 lbInfo；谱型条拆入后的落点，计划 §3.5） */
+  const lbGeo = pg => pg.evaluate(() => ({ lb: (typeof flowOn === 'function' && flowOn()) ? (!document.getElementById('lb-wrap') && FLOW.start.shown()) : !!document.querySelector('#lb-wrap .lb-bar'),
+    flow: typeof flowOn === 'function' && flowOn(), top: Math.round(document.getElementById('score').getBoundingClientRect().top),
     from: ((typeof LBAR !== 'undefined' && LBAR.meta && LBAR.meta()) || {}).from || null, st: Math.round((document.getElementById('score-wrap') || {}).scrollTop || 0) }));
   const clickNote = async pg => { const pt = await pg.evaluate(() => { const svg = document.getElementById('score'), R = svg.getBoundingClientRect(), k = R.width / svg.viewBox.baseVal.width, b2 = colBoxes['v0:1:0'] || colBoxes['v0:0:0'];
     return { x: R.left + (b2.x + b2.w / 2) * k, y: R.top + (b2.y + b2.h / 2) * k }; }); await pg.mouse.click(pt.x, pt.y); await pg.waitForTimeout(200); };
@@ -778,9 +787,10 @@ function gp5() {
     const tg = document.querySelector(s) || document.body; ['dragenter', 'dragover', 'drop'].forEach(ty => tg.dispatchEvent(new DragEvent(ty, { bubbles: true, cancelable: true, dataTransfer: d, clientX: 600, clientY: 400 }))); }, [name, text, sel || '#score']);
 
   /* ---------- I29 落地即有谱型条（major）：导入 / 拖放导入 / 示例做同款（连做两份）落地后谱型条立即在、第一次点音符谱面不下移；只看示例 / 手机不挂；新窗口从谱首看起 ---------- */
-  await guard('I29 落地即有谱型条', async () => {
-    const pg = await open(1366, 900);
-    await pg.evaluate(() => { hideStartPad(); const s = createSong('vocal', { title: '长谱', nMea: 64, nVox: 1 }); addDoc(s); render(); const sw = document.getElementById('score-wrap'); sw.scrollTop = 600; });
+  for (const shell of ['flow', 'classic']) await guard('I29 落地即有谱型条（' + shell + '）', async () => {
+    const pg = await open(1366, 900, { classic: shell === 'classic' });
+    /* 前提「上一个窗口滚了 ≥500px」：flow 的谱面可见区更高（1366×900 下 64 小节最多只能滚 488px），长谱改 96 小节让两种外壳都滚得到 600（阈值不变） */
+    await pg.evaluate(() => { hideStartPad(); const s = createSong('vocal', { title: '长谱', nMea: 96, nVox: 1 }); addDoc(s); render(); const sw = document.getElementById('score-wrap'); sw.scrollTop = 600; });
     const r = { scrolled: await pg.evaluate(() => document.getElementById('score-wrap').scrollTop) };
     await toImport(pg); await pg.click('#nf-isrc-ai'); await pg.click('#nf-demo'); await loaded(pg); await pvDone(pg);
     await pg.click('#nf-impgo'); await pg.waitForTimeout(150);
@@ -797,15 +807,17 @@ function gp5() {
     await toImport(pg); await pg.click('#nf-isrc-ex'); await pg.click('[data-ex="1"]'); await pg.click('#nf-exopen'); await pg.waitForTimeout(150);
     r.exOpen = await lbGeo(pg);
     await pg._ctx.close();
-    const ph = await open(390, 844, { mob: true });
+    const ph = await open(390, 844, { mob: true, classic: shell === 'classic' });
     await ph.evaluate(() => showNewWizard({ tab: 'import' })); await ph.waitForTimeout(150);
     await pick(ph, SONGBIE, '#nw-import'); await ph.waitForTimeout(300);
     await ph.tap('#score').catch(() => {}); await ph.waitForTimeout(200);
     r.mob = await ph.evaluate(() => ({ lb: !!document.getElementById('lb-wrap'), meta: (typeof LBAR !== 'undefined' && LBAR.meta()) || null, k: NWB.stackOf(song) }));
     await ph._ctx.close();
-    T(r.scrolled >= 500 && r.demo0.lb && r.demo0.from === 'import' && r.demo0.st === 0 && r.demo1.lb && r.demo1.top === r.demo0.top && /谱型条/.test(r.demoToast)
+    /* 落地提示：旧外壳指向谱型条；flow 没有谱型条，FLOW.start.retext 改说真实位置（换谱类＝左栏音轨区标题的谱类 ▾），且不再提谱型条 */
+    const toastOk = shell === 'classic' ? /谱型条/.test(r.demoToast) : (/谱类 ▾/.test(r.demoToast) && !/谱型条/.test(r.demoToast));
+    T(r.scrolled >= 500 && r.demo0.lb && r.demo0.from === 'import' && r.demo0.st === 0 && r.demo1.lb && r.demo1.top === r.demo0.top && toastOk && r.demo0.flow === (shell === 'flow')
       && r.drop0.lb && r.drop1.top === r.drop0.top && r.ex.every(x => x.lb && x.from === 'example') && !r.exOpen.lb && !r.exOpen.from && !r.mob.lb && !r.mob.meta && r.mob.k === 'S',
-      'I29 导入（试一试《送别》）/ 拖进窗口导入 / 示例做同款（连做两份）落地后谱型条立即在（此前要等第一次点击才冒出、谱面下移 74px），点音符前后谱面不动；落地提示提到谱型条；新窗口从谱首看起（上一个窗口滚了 600px）；「只看示例」与曲谱库打开同口径不挂；手机导入不挂', JSON.stringify(r));
+      'I29（' + shell + '）导入（试一试《送别》）/ 拖进窗口导入 / 示例做同款（连做两份）落地后谱型条（flow：起步组 / 「下一步」卡，无 #lb-wrap）立即在（此前要等第一次点击才冒出、谱面下移 74px），点音符前后谱面不动；落地提示提到谱型条（flow：谱类 ▾）；新窗口从谱首看起（上一个窗口滚了 600px）；「只看示例」与曲谱库打开同口径不挂；手机导入不挂', JSON.stringify(r));
   });
 
   /* ---------- I30 .mtab.json 不覆盖「我的曲谱」里内容不同的同 id 谱（major）：面板选择 / 顶栏「打开」都按副本打开；内容相同仍沿用 id ---------- */
@@ -819,7 +831,9 @@ function gp5() {
     const lib = () => pg.evaluate(() => { persistNow(); const e = libLoad().find(x => x.id === 'sCL1'); return { mea: e.data.measures.length, upd: e.updatedAt, push: window.__push.length, id: song.id || null, n: song.measures.length, toast: window.__toasts.slice(-1)[0] || '' }; });
     await toImport(pg); await pg.click('#nf-isrc-file'); await pick(pg, file('我的谱.mtab.json', j.old)); await pg.waitForTimeout(300);
     const a = await lib();
-    const [fc] = await Promise.all([pg.waitForEvent('filechooser', { timeout: 3000 }), pg.click('#b-open')]);
+    /* 顶栏「打开」：flow＝文件 ▾「打开文件…」（委托点 #b-open，F.mi old:'b-open'）；旧外壳＝#b-open */
+    const openTop = async () => { if (pg._classic) return pg.click('#b-open'); await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-old="b-open"]'); return pg.click('#popmenu [data-old="b-open"]'); };
+    const [fc] = await Promise.all([pg.waitForEvent('filechooser', { timeout: 3000 }), openTop()]);
     await fc.setFiles(file('我的谱.mtab.json', j.old)); await pg.waitForTimeout(300);
     const t = await lib();
     await toImport(pg); await pg.click('#nf-isrc-file'); await pick(pg, file('我的谱.mtab.json', j.same)); await pg.waitForTimeout(300);
@@ -883,12 +897,18 @@ function gp5() {
   });
 
   /* ---------- I34 导入谱的起步条：伴奏来自文件时不给「换织体 / 补配」主按钮（会覆盖文件里的钢琴声部）；功能谱已有和弦的提示不再说「先写旋律」 ---------- */
-  await guard('I34 导入谱起步条', async () => {
-    const pg = await open(1366, 900);
+  for (const shell of ['flow', 'classic']) await guard('I34 导入谱起步条（' + shell + '）', async () => {
+    const pg = await open(1366, 900, { classic: shell === 'classic' });
     await pg.evaluate(() => hideStartPad());
     const VP = mx({ title: 'VP', fifths: 0, time: [4, 4], parts: [{ name: 'Voice', measures: melody(4, { ly: 1 }) }, { name: 'Piano', staves: 2, measures: melody(4).map(rh => [rh, melody(1, { oct: 3, seq: [1, 5, 1, 5] })[0]]) }] });
     const MEL = mx({ title: 'Mel', fifths: 0, time: [4, 4], parts: [{ name: 'V', measures: melody(4, { ly: 1 }) }] });
-    const bar = () => pg.evaluate(() => { const w = document.querySelector('#lb-wrap .lb-bar'); if (!w) return null;
+    /* flow：谱型条拆成起步组 #flw-start（步骤 + 主按钮）与右栏「下一步」卡 #flw-next（各步 li.class＝done / now / todo、当前步说明或一句提示 .flw-nx-p，同一份 lbInfo / lbCur） */
+    const bar = () => pg.evaluate(() => {
+      if (typeof flowOn === 'function' && flowOn()) { const g = document.getElementById('flw-start'), n = document.getElementById('flw-next'); if (!n || n.hidden || document.getElementById('lb-wrap')) return null;
+        const li = [...n.querySelectorAll('.flw-nx-l li')], p = (n.querySelector('.flw-nx-p') || {}).textContent || '';
+        return { k: NWB.stackOf(song), steps: li.map(x => x.className).join(','), go: !!(n.querySelector('[data-fa="start:go"]') || (g && g.querySelector('[data-fa="start:go"]'))),
+          gSteps: g ? [...g.querySelectorAll('.flw-stp-s')].map(x => x.className.replace(/flw-stp-s |\s*flw-stp-dup/g, '')).join(',') : '', hint: li.length ? p : '', tip: li.length ? '' : p }; }
+      const w = document.querySelector('#lb-wrap .lb-bar'); if (!w) return null;
       return { k: NWB.stackOf(song), steps: [...w.querySelectorAll('.lb-steps li')].map(li => li.className).join(','), go: !!w.querySelector('.lb-go'), hint: (w.querySelector('.lb-hint') || {}).textContent || '', tip: (w.querySelector('.lb-tip') || {}).textContent || '' }; });
     const r = {};
     for (const t of ['orig', 'SJ']) { await toImport(pg); if (await pg.$('#nf-unload')) await pg.click('#nf-unload'); await pick(pg, file('vp.musicxml', VP)); await loaded(pg);
@@ -896,32 +916,34 @@ function gp5() {
     await toImport(pg); if (await pg.$('#nf-unload')) await pg.click('#nf-unload'); await pick(pg, file('mel.musicxml', MEL)); await loaded(pg);
     await pg.click('[data-act="tg"][data-v="CJ"]'); await pvDone(pg); await pg.click('#nf-impgo'); await pg.waitForTimeout(200); r.cj = await bar();
     await pg._ctx.close();
-    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && /文件里的/.test(x.hint);
+    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && /文件里的/.test(x.hint) && (shell === 'classic' || x.gSteps === x.steps);   /* flow：行 2 起步组与卡同口径 */
     T(accOk(r.vp_orig) && accOk(r.vp_SJ) && r.cj && r.cj.k === 'CJ' && /改和弦/.test(r.cj.tip) && !/先写旋律/.test(r.cj.tip),
-      'I34 人声＋钢琴文件按原文件 / 对照导入：起步条 ①② 打勾、③ 只给提示「伴奏是文件里的……」不给主按钮（此前主按钮「换织体」会按织体重配覆盖文件伴奏）；标级数和弦导入后提示「改和弦……」（此前仍说「先写旋律」）', JSON.stringify(r));
+      'I34（' + shell + '）人声＋钢琴文件按原文件 / 对照导入：起步条 ①② 打勾、③ 只给提示「伴奏是文件里的……」不给主按钮（此前主按钮「换织体」会按织体重配覆盖文件伴奏）；标级数和弦导入后提示「改和弦……」（此前仍说「先写旋律」）', JSON.stringify(r));
   });
 
   /* ---------- I35 钢琴两手谱做成「五线＋简谱对照」：谱型条 / 菜单照实叫；钢琴族内互换保留简谱对照 ---------- */
-  await guard('I35 钢琴对照谱名与互换', async () => {
-    const pg = await open(1366, 900);
+  for (const shell of ['flow', 'classic']) await guard('I35 钢琴对照谱名与互换（' + shell + '）', async () => {
+    const pg = await open(1366, 900, { classic: shell === 'classic' });
+    /* 谱名 ▾：旧外壳＝谱型条 .lb-kind；flow＝左栏音轨区标题的谱类芯片 #flw-kchip（lbKindBtn，同一个 #lb-menu） */
+    const KB = shell === 'classic' ? '#lb-wrap .lb-kind' : '#flw-kchip', KN = shell === 'classic' ? '#lb-wrap .lb-kind b' : '#flw-kchip .flw-kn';
     await pg.evaluate(() => hideStartPad());
     const PN = mx({ title: 'Piano', fifths: 0, time: [4, 4], parts: [{ name: 'Piano', staves: 2, measures: melody(4).map(rh => [rh, melody(1, { oct: 3, seq: [1, 5, 1, 5] })[0]]) }] });
     await toImport(pg); await pick(pg, file('piano.musicxml', PN)); await loaded(pg);
     await pg.click('[data-act="tg"][data-v="SJ"]'); await pvDone(pg);
     const goKind = await pg.evaluate(() => document.getElementById('nf-impkind').textContent);
     await pg.click('#nf-impgo'); await pg.waitForTimeout(200);
-    const nm = () => pg.evaluate(() => ({ bar: (document.querySelector('#lb-wrap .lb-kind b') || {}).textContent, dual: JSON.stringify(song.voxDual || null), k: NWB.stackOf(song) }));
+    const nm = () => pg.evaluate(kn => ({ bar: (document.querySelector(kn) || {}).textContent, dual: JSON.stringify(song.voxDual || null), k: NWB.stackOf(song) }), KN);
     const a = await nm();
-    await pg.click('#lb-wrap .lb-kind'); await pg.waitForTimeout(150);
+    await pg.click(KB); await pg.waitForTimeout(150);
     const menu = await pg.evaluate(() => ({ cur: (document.querySelector('#lb-menu .lb-mi.m-same b') || {}).textContent, cg: (document.querySelector('#lb-menu [data-sw="CG"] b') || {}).textContent, cgWhy: (document.querySelector('#lb-menu [data-sw="CG"] small') || {}).textContent }));
     await pg.click('#lb-menu [data-sw="CG"]'); await pg.waitForTimeout(200);
     const b2 = await nm();
-    await pg.click('#lb-wrap .lb-kind'); await pg.waitForTimeout(150); await pg.click('#lb-menu [data-sw="G"]'); await pg.waitForTimeout(200);
+    await pg.click(KB); await pg.waitForTimeout(150); await pg.click('#lb-menu [data-sw="G"]'); await pg.waitForTimeout(200);
     const c = await nm();
     await pg._ctx.close();
     T(/钢琴独奏谱（五线＋简谱对照）/.test(goKind) && a.bar === '钢琴独奏谱（五线＋简谱对照）' && a.dual === '[true,true]' && menu.cur === a.bar && /简谱对照保留/.test(menu.cgWhy)
       && b2.k === 'CG' && b2.dual === '[true,true]' && /纯伴奏/.test(b2.bar) && /简谱对照/.test(b2.bar) && c.k === 'G' && c.dual === '[true,true]' && c.bar === a.bar,
-      'I35 钢琴两手谱导入为「五线＋简谱对照」：谱型条与换谱类菜单的「当前」都叫「钢琴独奏谱（五线＋简谱对照）」（此前只叫钢琴独奏谱）；换成钢琴弹唱谱（纯伴奏）再换回，两行简谱对照都保留（此前静默去掉）', JSON.stringify({ goKind, a, menu, b2, c }));
+      'I35（' + shell + '）钢琴两手谱导入为「五线＋简谱对照」：谱型条与换谱类菜单的「当前」都叫「钢琴独奏谱（五线＋简谱对照）」（此前只叫钢琴独奏谱）；换成钢琴弹唱谱（纯伴奏）再换回，两行简谱对照都保留（此前静默去掉）', JSON.stringify({ goKind, a, menu, b2, c }));
   });
 
   /* ---------- I36 长文件导入预览：先出前 32 小节的图（换做法不卡），空闲时整首重排替换，最终仍与导入后整首的首行逐字节一致 ---------- */

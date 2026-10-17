@@ -1,9 +1,13 @@
 /* v44.3 移动端 UX 回归：① 观看模式谱面 fit-to-width（390px 不横向溢出）；
    ② 线上未登录点发布→拉起登录（不再本机演示误导）。file:// 直载。
    v60.2 扩：启动台清场 / 顶栏单行 / 时值条沉底等分 / 播放键可达 / 底栏零重叠 /
-   图标无缺字 / 智能抽屉可达——全部为几何与计算样式断言，不接受截图目测。 */
+   图标无缺字 / 智能抽屉可达——全部为几何与计算样式断言，不接受截图目测。
+   v68.2 切默认（flow）：T1–T9 断言旧外壳手机三层底栏（#editbar 时值条沉底 / #left-dock 图层轨 / #mixer-dock 播放器、#b-msmart）——钉 ?shell=classic。
+   文末 flow 段（默认外壳，手机 body.flw-m）断言同一意图：MF4 启动台清场 · MF5 编辑态顶栏 #flw-mtop 单行、底条 #flw-mbar 贴底、两者与谱面区零重叠、播放键可点中、
+   记号抽屉里的时值条 9 键等分 ≥44、无横滚 · MF6 时值图标为 SVG、可见文字无缺字 · MF7 菜单抽屉「智能」→ 导入 MIDI / 一键配伴奏 / 节拍检查可达（另见 tv_modes M16） */
 const { chromium } = require('playwright');
-const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 390, height: 844 } });
@@ -121,6 +125,47 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.lblGone && r.ciGone, 'T8 播放条撤下小节标签与数拍按钮', JSON.stringify(r));
   T(r.progRowAbove && r.progWide && r.playBig && r.chipsRow && r.chipsEq && r.noScroll,
     'T9 手机播放器三排卡片（走带整行/大播放胶囊/芯片等宽无横滚）', JSON.stringify(r));
+
+  /* ===================== flow 段（默认外壳）===================== */
+  {
+    const pf = await b.newPage({ viewport: { width: 390, height: 844 } });
+    pf.on('pageerror', e => errs.push('flow:' + e.message));
+    await pf.goto(F0); await pf.waitForTimeout(900);
+    await pf.evaluate(() => { window.SF_PLAYWAIT = false; window.guardReplace = (p) => p();
+      window.__vis = e => { if (typeof e === 'string') e = document.querySelector(e); if (!e || !e.isConnected) return false; const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) return false;
+        for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+      window.__inter = (a, c) => { const A = document.querySelector(a).getBoundingClientRect(), C = document.querySelector(c).getBoundingClientRect();
+        return Math.round(Math.max(0, Math.min(A.right, C.right) - Math.max(A.left, C.left)) * Math.max(0, Math.min(A.bottom, C.bottom) - Math.max(A.top, C.top))); }; });
+    let f = await pf.evaluate(() => ({ padOn: startPadOn(), flwM: document.body.classList.contains('flw-m'), topH: +document.getElementById('top').getBoundingClientRect().height.toFixed(1),
+      mtop: __vis('#flw-mtop'), mbar: __vis('#flw-mbar'), editbar: __vis('#editbar'), leftDock: __vis('#left-dock'), mixer: __vis('#mixer-dock'), noHScroll: document.body.scrollWidth <= innerWidth }));
+    T(f.padOn && f.flwM && f.topH <= 56 && !f.mtop && !f.mbar && !f.editbar && !f.leftDock && !f.mixer && f.noHScroll, 'MF4 flow 手机启动台清场（顶栏≤56，顶 / 底条与旧三条工具带都不出现）', JSON.stringify(f));
+    await pf.evaluate(() => loadSong(createSong('guitar', { beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 1, lyr: 1 })));
+    await pf.waitForTimeout(600);
+    f = await pf.evaluate(() => { const mt = document.getElementById('flw-mtop'), mb = document.getElementById('flw-mbar'), pl = document.getElementById('flw-mplay');
+      const bs = [...mt.querySelectorAll('button')].filter(x => x.getClientRects().length); const rows = new Set(bs.map(x => { const q = x.getBoundingClientRect(); return Math.round((q.top + q.height / 2) / 4); })).size;
+      const pr = pl.getBoundingClientRect(), hit = document.elementFromPoint(pr.x + pr.width / 2, pr.y + pr.height / 2); const mbr = mb.getBoundingClientRect(), mtr = mt.getBoundingClientRect(), sw = document.getElementById('score-wrap').getBoundingClientRect();
+      return { topH: Math.round(mtr.height), rows, mtNoScroll: mt.scrollWidth <= mt.clientWidth + 1, barFixed: getComputedStyle(mb).position === 'fixed', barB: Math.round(mbr.bottom), ih: innerHeight,
+        playReachable: !!(hit && hit.closest('#flw-mplay')), playH: Math.round(pr.height), ovTopBar: __inter('#flw-mtop', '#flw-mbar'), ovTopScore: Math.round(Math.max(0, mtr.bottom - sw.top)),
+        oldVis: __vis('#editbar') || __vis('#left-dock') || __vis('#mixer-dock'), noHScroll: document.body.scrollWidth <= innerWidth }; });
+    await pf.click('#flw-mbar [data-fm="sheet"][data-v="pal"]'); await pf.waitForTimeout(250);
+    const durs = await pf.evaluate(() => { const ds = [...document.querySelectorAll('#flw-msheet #eb-dur .eb')].filter(x => __vis(x)).map(x => x.getBoundingClientRect());
+      const svgN = [...document.querySelectorAll('#flw-msheet #eb-dur .eb .dg')].filter(g => g.querySelector('svg')).length;
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let tofu = 0, n;
+      while ((n = w.nextNode())) { const t = n.nodeValue || ''; for (const c of t) if (c.codePointAt(0) >= 0x1D100 && c.codePointAt(0) <= 0x1D1FF) { if (n.parentElement && __vis(n.parentElement)) { tofu++; break; } } }
+      return { durN: ds.length, durMinH: ds.length ? Math.round(Math.min(...ds.map(d => d.height))) : 0, durRow: new Set(ds.map(d => Math.round(d.top / 4))).size, svgN, tofu, sheetNoHScroll: document.body.scrollWidth <= innerWidth }; });
+    await pf.evaluate(() => document.getElementById('flw-mveil').click()); await pf.waitForTimeout(200);
+    T(f.topH <= 56 && f.rows === 1 && f.mtNoScroll && f.barFixed && Math.abs(f.barB - f.ih) <= 1 && f.playReachable && f.playH >= 44 && f.ovTopBar === 0 && f.ovTopScore === 0 && !f.oldVis && f.noHScroll
+      && durs.durN === 9 && durs.durMinH >= 44 && durs.sheetNoHScroll,
+      'MF5 flow 编辑态：顶栏单行 + 底条贴底 + 播放键可点 + 顶栏 / 底条 / 谱面区零重叠 + 记号抽屉时值条 9 键 ≥44', JSON.stringify(Object.assign({}, f, { durs })));
+    T(durs.svgN === 8 && durs.tofu === 0, 'MF6 flow 时值图标为 SVG 且可见文本无缺字字符', JSON.stringify(durs));
+    await pf.evaluate(() => loadSong(createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 8, nTab: 0, nVox: 1, lyr: 1 })));
+    await pf.waitForTimeout(600);
+    await pf.click('#flw-mtop [data-fm="sheet"][data-v="menu"]'); await pf.waitForTimeout(250);
+    await pf.click('#flw-msheet [data-fm="smart"]'); await pf.waitForTimeout(300);
+    f = await pf.evaluate(() => ({ midi: __vis('#rt-midi'), arr: __vis('#rt-arr'), beat: __vis('#beat-status'), mask: !!document.getElementById('rsheet-mask'), sheetGone: !__vis('#flw-msheet') }));
+    T(f.midi && f.arr && f.beat && f.mask, 'MF7 flow 菜单抽屉「智能」：导入MIDI / 一键配伴奏 / 节拍检查在手机可达', JSON.stringify(f));
+    await pf.close();
+  }
 
   T(errs.length === 0, 'T3 无报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

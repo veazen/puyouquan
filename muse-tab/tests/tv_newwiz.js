@@ -1,5 +1,5 @@
 /* v67.4 新建面板「按用途开谱」回归（重写：v60.41 起的三意图卡一屏向导由新建面板替换，入口函数名 showNewWizard 保留）：
-   T1 面板结构：真实点击顶栏「新建」→ 一屏三栏（左「按用途」listbox：弹唱伴奏 / 课堂声乐 / 独奏乐队三组 9 个用途＋空白谱＋自选记谱法，
+   T1 面板结构：真实点击「新建」（v68.2 flow：文件 ▾「新建…」；其余用例走页签「＋」#dt-add）→ 一屏三栏（左「按用途」listbox：弹唱伴奏 / 课堂声乐 / 独奏乐队三组 9 个用途＋空白谱＋自选记谱法，
       考编 / 师范 / 艺考 / 课堂 / 乐队 标签）；中栏「将建成 · 谱名」＋「要哪几种谱」五个开关＋谱行示意；右栏 曲名 / 调 / 拍号 / 速度；
       底栏「创建 · {谱名}」；旧三意图卡 .nw-int / 九卡 .ntype 不在；首访默认＝吉他弹唱；从已有音乐页 MusicXML / Guitar Pro / MIDI 三个入口
    T2 一击默认建谱＝吉他弹唱谱（吉他1＋旋律1 · 16 小节 · 1 段词 · ♩=80 · 1=C 4/4 · 固定版宽）
@@ -28,11 +28,15 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   const EV = s => pg.evaluate(s).catch(e => ({ err: String(e.message || e).split('\n')[0] }));
   const guard = async (name, fn) => { try { await fn(); } catch (e) { T(false, name, 'EXC: ' + String(e.message || e).split('\n')[0]); await EV(`(()=>{ try{ closeModal(); }catch(_){} })()`); } };
   /* 每次从干净的「上次设置」开面板（musetab-nw-last 的记忆行为在 tv_newpanel 里单独验） */
-  const openPanel = async () => { await EV(`(()=>{ try{ closeModal(); }catch(_){} try{ localStorage.removeItem('musetab-nw-last'); }catch(_){} })()`); await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]', { timeout: 2500 }); };
+  /* v68.2 默认外壳 flow：新建入口＝页签「＋」#dt-add；via='file' 走文件 ▾「新建…」（r1:new）——两处都是 showNewWizard（旧外壳顶栏 #b-new 由 tv_newpanel 的 classic 段覆盖） */
+  const openPanel = async via => { await EV(`(()=>{ try{ closeModal(); }catch(_){} try{ localStorage.removeItem('musetab-nw-last'); }catch(_){} })()`);
+    if (via === 'file') { await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-fa="r1:new"]', { timeout: 2500 }); await pg.click('#popmenu [data-fa="r1:new"]'); }
+    else await pg.click('#dt-add');
+    await pg.waitForSelector('.nf-modal [data-scene]', { timeout: 2500 }); };
 
   /* ---------- T1 面板结构 ---------- */
   await guard('T1 面板结构', async () => {
-    await openPanel();
+    await openPanel('file');   /* 真实点击：文件 ▾「新建…」 */
     const r = await EV(`(()=>{
       const q=s=>document.querySelectorAll(s).length, m=document.querySelector('.nf-modal');
       const opts=[...m.querySelectorAll('[role=listbox] [role=option]')].map(o=>o.dataset.scene);

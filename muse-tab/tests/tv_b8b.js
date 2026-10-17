@@ -2,7 +2,8 @@
    T1 手机 390 宽：谱面按屏宽重排，TAB 品位、和弦名显示 ≥10px（此前约 7.6px），无横向滚动；桌面 1440 版宽与页边距不变
    T2 跟练大字：品位、和弦名显示 ≥12px，仍无横向滚动（重排放大，不是显示放大）
    T3 手机「观看设置」里有「标准字号 / 跟练大字」切换，点了立即生效并记住
-   突变实证：对 v64.6 之前的文件复跑，T1–T3 全部报红（0/3）。 */
+   突变实证：对 v64.6 之前的文件复跑，T1–T3 全部报红（0/3）。
+   v68.2 切默认（flow）：手机 / 跟练大字照旧在默认外壳；T1 的「桌面不变」两种外壳各量一次（见 T1 处口径说明）。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env.MUSETAB_URL.slice(7) : path.resolve(__dirname, '../index.html');
@@ -20,17 +21,26 @@ const MK = `window.mkG=()=>{ const s=createSong('guitar',{title:'跟练',key:'C'
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
   const errs = [];
-  const open = async (w, h, mob) => { const ctx = await b.newContext(mob ? { viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : { viewport: { width: w, height: h } });
+  const open = async (w, h, mob, q) => { const ctx = await b.newContext(mob ? { viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : { viewport: { width: w, height: h } });
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-    await pg.goto('file://' + FILE); await pg.waitForTimeout(900);
+    await pg.goto('file://' + FILE + (q ? '?' + q : '')); await pg.waitForTimeout(900);
     await pg.evaluate(`(()=>{ guardReplace=(p)=>p(); hideStartPad(); try{ localStorage.removeItem('musetab-bigtext'); }catch(_){} ${MK} diagMode='off'; })()`); return pg; };
 
   const pg = await open(390, 844, true);
   let r = await pg.evaluate(`(()=>{ const s=mkG(); s.diagPos='off'; loadSong(s); render(); return px(); })()`).catch(e => ({ err: e.message }));
-  const dpg = await open(1440, 900);
-  const desk = await dpg.evaluate(`(()=>{ const s=mkG(); loadSong(s); render(); return {PAGE_W, MARGIN}; })()`).catch(e => ({ err: e.message }));
-  await dpg.close();
-  T(!r.err && r.fret >= 10 && r.chord >= 10 && !r.over && desk.MARGIN === 56 && desk.PAGE_W === 729, 'T1 手机按屏宽重排：品位/和弦名 ≥10px、无横滚；桌面不变', JSON.stringify({ r, desk }));
+  /* 桌面 1440 不受手机重排影响：页边距 56、版宽＝桌面自适应口径 min(1320, #paper 宽 − 30)，两种外壳各量一次。
+     v68.2 切默认口径：版宽随外壳的谱面区宽不同——旧外壳（左栏面板 + 右栏停靠）#paper 759 → 729；flow（左栏 248 + 右栏 264 停靠）
+     谱面区 928 ≥ #paper 上限 900 → 870。两档常量都钉住（不是放宽成「任意值」），另断言它＝桌面公式、不是窄屏重排口径 */
+  const desk = {};
+  for (const [nm, q, want] of [['flow', '', 870], ['classic', 'shell=classic', 729]]) {
+    const dpg = await open(1440, 900, false, q);
+    desk[nm] = await dpg.evaluate(`(()=>{ const s=mkG(); loadSong(s); render(); const pw=document.getElementById('paper').clientWidth;
+      return {flow:document.body.classList.contains('flow'), PAGE_W, MARGIN, paperW:pw, formula:Math.max(520, Math.min(1320, pw-30))}; })()`).catch(e => ({ err: e.message }));
+    desk[nm].want = want;
+    await dpg.close();
+  }
+  const deskOk = Object.entries(desk).every(([nm, d]) => !d.err && d.flow === (nm === 'flow') && d.MARGIN === 56 && d.PAGE_W === d.want && d.PAGE_W === d.formula);
+  T(!r.err && r.fret >= 10 && r.chord >= 10 && !r.over && deskOk, 'T1 手机按屏宽重排：品位/和弦名 ≥10px、无横滚；桌面不变（flow 870 / 旧外壳 729）', JSON.stringify({ r, desk }));
 
   r = await pg.evaluate(`(()=>{ localStorage.setItem('musetab-bigtext','1'); render(); return px(); })()`).catch(e => ({ err: e.message }));
   T(!r.err && r.fret >= 12 && r.chord >= 12 && !r.over, 'T2 跟练大字：品位/和弦名 ≥12px、无横滚', JSON.stringify(r));

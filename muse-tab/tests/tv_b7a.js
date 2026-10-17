@@ -61,6 +61,19 @@ const SITE = process.env.MUSETAB_SITE || path.resolve(__dirname, '../site');
   await pg.keyboard.press('Tab'); await pg.waitForTimeout(40);
   r = await EV(`({row:sel.row, moved:document.activeElement!==window.__ft && document.activeElement!==document.body})`);
   T(row0 === 'tab' && row1 === 'vox' && r.row === rowB && r.moved, 'T3 焦点在谱面时 Tab 切声部；在面板按钮上时放行原生 Tab', JSON.stringify({ row0, row1, rowB, r }));
+  /* T3f（v68.2 收尾 ENG-8，PLAN §5.4 M）：默认外壳（flow）的两处新面板也放行原生 Tab——行 1（#flw-r1：文件 ▾ / 页签 / 发布 / 账号 ▾）与左栏音轨树（#flw-trk）上的按钮
+     拿着焦点时按 Tab：焦点前进、声部不变（此前 T3 只取 #top 里第一个按钮，没覆盖音轨树） */
+  const flowOn0 = await EV(`document.body.classList.contains('flow')`);
+  if (flowOn0 === true) {
+    const walk = async sel => {
+      const ok = await EV(`(()=>{ const bt=[...document.querySelectorAll(${JSON.stringify(sel)})].find(x=>x.offsetParent && x.getBoundingClientRect().width>0 && !x.disabled);
+        if(!bt) return false; window.__ft=bt; window.__fr=sel.row; bt.focus(); return document.activeElement===bt; })()`);
+      await pg.keyboard.press('Tab'); await pg.waitForTimeout(40);
+      return Object.assign({ ok }, await EV(`({row:sel.row, keep:sel.row===window.__fr, moved:document.activeElement!==window.__ft && document.activeElement!==document.body, to:(document.activeElement||{}).id||(document.activeElement||{}).tagName})`));
+    };
+    const a1 = await walk('#flw-r1 button'), a2 = await walk('#flw-trk button');
+    T(a1.ok && a1.keep && a1.moved && a2.ok && a2.keep && a2.moved, 'T3f 默认外壳行 1（#flw-r1）与左栏音轨树（#flw-trk）上的按钮拿着焦点时 Tab 走原生焦点、不切声部', JSON.stringify({ r1: a1, trk: a2 }));
+  }
 
   /* T4 */
   r = await EV(`(()=>{ const sc=document.getElementById('score');

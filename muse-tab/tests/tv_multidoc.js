@@ -33,6 +33,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   } catch (e) { return { err: String(e && e.message || e) }; } });
   T(r.one === 1 && r.addBtn && r.noX && r.two === 2 && r.onIdx === 1 && r.vis && r.n === 2 && r.cur === '窗口二',
     'T1 页签渲染+另开新窗口', JSON.stringify(r));
+  /* T1v（v68.2 收尾 ENG-8，PLAN §5.4 M）：当前页签在视口内、点得到（默认外壳页签并入行 1）——2 个窗口时，与开到 9 个、切到最后一个时（行 1 放不下时收进「窗口 N ▾」，当前的那个仍要露在外面） */
+  const curTab = () => pg.evaluate(() => { const t = document.querySelector('#doc-tabs .dtab.on'); if (!t) return { none: true };
+    const q = t.getBoundingClientRect(), h = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
+    return { x: Math.round(q.left), y: Math.round(q.top), r: Math.round(q.right), b: Math.round(q.bottom), w: innerWidth, h: innerHeight, hit: !!(h && t.contains(h)), t: (t.textContent || '').trim().slice(0, 12), flow: document.body.classList.contains('flow') }; });
+  const inV = q => !q.none && q.x >= 0 && q.y >= 0 && q.r <= q.w && q.b <= q.h && q.hit;
+  const v2 = await curTab();
+  await pg.evaluate(() => { for (let i = 3; i <= 9; i++) { const s = createSong('vocal', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 0, nVox: 1, lyr: 0 }); s.title = '窗口' + i; addDoc(s, () => {}); } renderDocTabs(); });
+  await pg.waitForTimeout(200);
+  const v9 = await curTab();
+  T(inV(v2) && inV(v9) && /窗口9/.test(v9.t), 'T1v 当前页签在视口内且点得到（2 个窗口 / 开到 9 个切到最后一个）', JSON.stringify({ v2, v9 }));
+  await pg.evaluate(() => { while (docs.length > 2) closeDocAt(docs.length - 1); switchDocTo(1); renderDocTabs(); });
 
   // T2 窗口隔离：改窗口二内容 → 切回窗口一无污染 → 再切回窗口二内容仍在；撤销栈不跨窗口
   r = await pg.evaluate(() => { try {

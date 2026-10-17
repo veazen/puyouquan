@@ -146,6 +146,49 @@ T('seedCourses：未被改过的官方课随发版刷新内容，被改过的一
   assert.strictEqual(row.data, JSON.stringify(seedC.data), '补种内容应与种子一致');
 });
 
+/* ---------- v68.2 匿名界面命令 ui_cmd（计划 §5.3）：客户端白名单 + 格式口径与编辑器同一条正则 + 后台查询 ---------- */
+T('ui_cmd 在客户端白名单内，服务端格式正则与编辑器 FLOW.track 逐字相同', () => {
+  const fs = require('node:fs');
+  const src = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+  const ev = /const EVENT_CLIENT = \[([\s\S]*?)\];/.exec(src);
+  assert.ok(ev && /'ui_cmd'/.test(ev[1]), 'ui_cmd 不在 EVENT_CLIENT');
+  assert.ok(!/EVENT_SERVER_ONLY = new Set\(\[[^\]]*'ui_cmd'/.test(src), 'ui_cmd 不应是服务端专属事件');
+  const sre = /const UI_CMD_RE = (\/[^\n]*?\/),/.exec(src);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'muse-tab', 'index.html'), 'utf8');
+  const ere = /FLOW\.track = \(function\(\)\{\s*const RE = (\/[^\n]*?\/),/.exec(html);
+  assert.ok(sre && ere, '读不到两端的格式正则');
+  assert.strictEqual(sre[1], ere[1], '服务端与编辑器的 ui_cmd 格式正则不一致');
+  assert.strictEqual(sre[1], '/^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$/');
+  const re = new RegExp(sre[1].slice(1, -1));
+  ['mode:engrave', 'r1:file:new', 'r2:more', 'cmd:go:lay:a4', 'pal:dyn-mf'].forEach(x => assert.ok(re.test(x), x + ' 应合格式'));
+  ['《小星星》', 'Mode:Engrave', 'pal:延长号', '1x:a', 'mode:', ''].forEach(x => assert.ok(!re.test(x), x + ' 不应合格式'));
+  /* 编辑器真的经 pyqEvent 上报（tv_a7 T1 的「白名单每个事件都有上报点」同一判据） */
+  assert.ok(/pyqEvent\('ui_cmd', /.test(html), '编辑器没有 ui_cmd 上报点');
+});
+T('eventUiCmd7：7 日内用过排版 / 输出的人数（按人去重）＋ 编辑访客；漏斗 eventStatsU 与 eventScan 不含 ui_cmd', () => {
+  const t = now(), old = t - 8 * 86400, ADD = (u, a, name, meta, at, landing) => q.eventAddX.run(u, name, meta, at, a, '', landing || '');
+  ADD(null, 'anonA', 'ui_cmd', 'mode:engrave', t - 100);
+  ADD(null, 'anonA', 'ui_cmd', 'mode:engrave', t - 50);          // 同一人两次：算 1 人
+  ADD(null, 'anonB', 'ui_cmd', 'mode:engrave', t - 40);
+  ADD('userC', 'anonC', 'ui_cmd', 'mode:engrave', t - 30);       // 登录用户按账号计
+  ADD('userC', 'anonC', 'ui_cmd', 'mode:output', t - 20);
+  ADD(null, 'anonD', 'ui_cmd', 'pal:fermata', t - 10);           // 非 mode:* 不进「界面」行
+  ADD(null, 'anonE', 'ui_cmd', 'mode:output', old);              // 7 日外
+  ['anonA', 'anonB', 'anonD'].forEach(a => ADD(null, a, 'visit', '', t - 200, 'zhipu/'));
+  ADD('userC', 'anonC', 'visit', '', t - 200, 'zhipu/');
+  ADD(null, 'anonF', 'visit', '', t - 200, 'www/kaobian.html');  // 官网访问不算编辑访客
+  ADD(null, 'anonG', 'visit', '', old, 'zhipu/');                // 7 日外
+  const rows = q.eventUiCmd7.all(t - 7 * 86400, t - 7 * 86400, t - 7 * 86400), by = {};
+  rows.forEach(r => { by[r.k] = r.u; });
+  /* v68.2 收尾 ENG-6：flow＝7 日内发过任何 ui_cmd 的人（anonA / anonB / userC / anonD；anonE 在 7 日外）——非 mode:* 的 pal:fermata 也算新外壳有操作 */
+  assert.deepStrictEqual(by, { 'mode:engrave': 3, 'mode:output': 1, editors: 4, flow: 4 }, JSON.stringify(rows));
+  const fl = q.eventStatsU.all(t - 7 * 86400);
+  assert.ok(fl.length && !fl.some(r => r.name === 'ui_cmd'), '漏斗里出现了 ui_cmd：' + JSON.stringify(fl));
+  assert.ok(fl.some(r => r.name === 'visit' && r.u === 5), '漏斗 visit 人数不对：' + JSON.stringify(fl));
+  const sc = q.eventScan.all(t - 21 * 86400);
+  assert.ok(sc.length && !sc.some(r => r.name === 'ui_cmd'), 'eventScan 里出现了 ui_cmd');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);

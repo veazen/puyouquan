@@ -28,8 +28,18 @@ const CORE = [
   /* v68.1 新外壳三步「书写 › 排版 › 输出」· 右栏属性 / 文字 / 智能 · 行 2 换键 · 命令面板 · 切轨跟滚 · <1280 · 手机（M1–M18）＋ v68.0 遗留 TRK-16 / SH-3 / SH-4、三步口径、
      不带开关的共享路径与 shellflow_ref.json 基线对拍（M19–M23）＋数据红线汇总（RL）：单跑约 55 秒（三路并行） */
   'tv_modes',
+  /* v68.2 新外壳切默认：默认 flow / ?shell=classic 与偏好设置「使用旧版布局」兜底 · 老用户迁移 · 首次 3 步导览 · 旧快捷键两外壳同效 · 旧入口去向 ·
+     TRK-5 / TRK-6 / PN-5 旧外壳同口径修正 · 数据红线：单跑约 60 秒（三路并行） */
+  'tv_flowdef',
+  /* v68.2 匿名界面命令 ui_cmd（FLOW.track → pyqEvent；线上域名 route + apiCall 桩）：10 分钟去重 · 每会话 60 条 · API_ON 为假不发 · meta 只含命令 id · 后台「界面」行 · 隐私页：单跑约 20 秒 */
+  'tv_uicmd',
+  /* v68.2 文案轨（计划 §5.6）：编辑器帮助弹窗按新布局（新外壳 / 手机新外壳）· 旧外壳帮助与 shellflow_ref.json 基线逐字节对拍 · 官网 help.html 新布局 · 措辞闸防四步口径（H1–H10）：单跑约 25 秒 */
+  'tv_helpflow',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
+/* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
+   本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000 };   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 
 let fail = 0, ran = 0;
 for (const s of suites) {
@@ -38,7 +48,7 @@ for (const s of suites) {
   ran++;
   let out = '', code = 0;
   /* v67.3 单套件超时 180→300 秒：tv_deskscale2 多视口真实点击单跑 107–143 秒，CI 负载下离 180 秒上限太近（超时只防挂死，不放宽断言） */
-  try { out = execFileSync('node', [f], { encoding: 'utf8', env: process.env, timeout: 300000 }); }
+  try { out = execFileSync('node', [f], { encoding: 'utf8', env: process.env, timeout: TIMEOUT[f.replace(/\.js$/, '')] || 300000 }); }
   catch (e) { code = e.status == null ? 1 : e.status; out = (e.stdout || '') + (e.stderr || ''); }
   // 失败判定：子进程非零退出 || 输出含 ❌（各套件失败断言的统一标记）|| 无任何输出（崩溃）。
   // 不强制要求 PASS/NO ERRORS 标记——部分老套件仅逐行打 ✅（如 tv_brace）。

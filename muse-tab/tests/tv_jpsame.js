@@ -119,7 +119,10 @@ const T1SONG = `((NOVOX, SIX)=>{
       if(e.m!=null){ const p=FR(e.m), n={s:p.s,f:p.f}; if(prevTie) n.tieIn=true; c.notes.push(n); }
       prevTie=!!e.tie; return c; });
   });
-  if(!SIX){ s.measures[0].repeatStart=true; s.measures[2].repeatEnd=true; s.measures[3].sectionBar=true; s.measures[3].brk=1; s.measures[5].brk=1; }
+  /* v68.2：第 2→3 小节的「跨行到下一行首」连音线原靠旧外壳 1280 宽谱纸 599（PAGE_W 569）自然在第 2 小节后换行；新外壳（默认）同宽
+     PAGE_W 870，第 1–4 小节排成一行，这条弧变成同行（覆盖自检 tie 由 ≥5 掉到 4，跨行这一类没测到）。显式 brk 钉住换行（旧口径下本来
+     就在这里换行，两种外壳排法相同），跨行覆盖不再随谱纸宽变化；断言与覆盖阈值不改。 */
+  if(!SIX){ s.measures[0].repeatStart=true; s.measures[2].repeatEnd=true; s.measures[3].sectionBar=true; s.measures[1].brk=1; s.measures[3].brk=1; s.measures[5].brk=1; }
   return s; })`;
 
 /* ---------- T2 逐字节护栏语料（同 jp-code/cmp.js：16 预设 + 简谱声部全分支压力谱 + 非整数疏密/行距 + 选中态） ---------- */

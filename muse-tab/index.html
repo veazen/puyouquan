@@ -18,13 +18,17 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
       || (window.matchMedia && matchMedia('(prefers-reduced-transparency: reduce)').matches)
       || !(window.CSS && CSS.supports && (CSS.supports('backdrop-filter','blur(1px)') || CSS.supports('-webkit-backdrop-filter','blur(1px)'))));
     if(ng) d.classList.add('noglass'); }catch(_){} })();</script>
-<script>/* v67.9 新外壳 flow 预览开关（docs/design-2026-10f；首屏前定档，只读写本机键 musetab-flow，只增）：
-   ?shell=flow 写 '1' 并记住，?shell=classic 写 '0'；读到 '1' 才给 html 加 flow-pre，否则摘掉（快照里带进来的不算数）。本机存储不可用（隐私模式）时 ?shell=flow 只对本次生效。
-   是否真正启用（body.flow）由 FLOW.apply() 再按宽度 / 观看页 / 谱架判定 */
+<script>/* v67.9 新外壳 flow 开关（docs/design-2026-10f；首屏前定档，只读写本机键 musetab-flow，只增）。
+   v68.2 切默认（PLAN §1.2 / §5.1）：读到 '0' 才不开，其余（无键、'1'＝预览期用户、坏值、存储不可用）都给 html 加 flow-pre；
+   ?shell=classic 写 '0'（旧外壳兜底，刷新后保持；偏好设置「使用旧版布局」同一个键），?shell=flow 只对本次生效（回默认＝新外壳；不删键）。
+   v68.2 收尾 OU-2：?shell=flow 此前删键——已在偏好设置选了旧版布局的人，每打开一次预览期收藏的 ?shell=flow 书签，选择就被抹掉一次；
+   改为只对本次生效，换回新版用偏好设置（它删键）。'1'（预览期 ?shell=flow 写的）与无键一样按默认新外壳。
+   本机存储不可用（隐私模式）时两个参数都只对本次生效。旧键 musetab-shell（v40 经典版开关）v55.2 起不再读取，这里也不读——不复活旧布局。
+   快照里带进来的 flow-pre 不算数（先按本次结果重设）。是否真正启用（body.flow / 手机 body.flw-m）由 FLOW.apply() 再按宽度 / 观看页 / 谱架判定 */
 (function(){ var d=document.documentElement, m=/[?&]shell=(flow|classic)(?:&|#|$)/.exec(location.search), v=null;
-  if(m){ v = m[1]==='flow'? '1' : '0'; try{ localStorage.setItem('musetab-flow', v); }catch(_){} }
+  if(m){ v = m[1]==='flow'? null : '0'; if(v) try{ localStorage.setItem('musetab-flow', v); }catch(_){} }
   else { try{ v=localStorage.getItem('musetab-flow'); }catch(_){} }
-  if(v==='1') d.classList.add('flow-pre'); else d.classList.remove('flow-pre'); })();</script>
+  if(v!=='0') d.classList.add('flow-pre'); else d.classList.remove('flow-pre'); })();</script>
 <title>谱友圈 · 在线制谱 — 吉他谱｜尤克里里谱｜简谱｜五线谱｜功能谱</title>
 <meta name="description" content="谱友圈——在线制谱工具：吉他六线谱、尤克里里谱、简谱、功能谱制作，支持真实音色播放、打印导出与曲谱分享。">
 <!-- v60.82 SEO：canonical 双域名同文件（zhipu 编辑器 / puku kanpu 观看页共用），
@@ -1683,6 +1687,7 @@ body:has(#start-pad:not(.hidden)) #doc-tabs{display:none}
 .prf-sw::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
 .prf-row[aria-checked="true"] .prf-sw{background:var(--accent);border-color:var(--accent)}
 .prf-row[aria-checked="true"] .prf-sw::after{transform:translateX(16px);background:var(--ed-on-accent)}
+.prf-row.prf-hl{background:var(--hover)}   /* v68.2 搜功能「经典版 / 旧版布局」打开偏好设置时标出「使用旧版布局」这一行 */
 /* 顶栏设置钮：与 ◑ ◐ 同尺寸（37×30，桌面命中区 ≥28） */
 #b-prefs{display:inline-flex;align-items:center;justify-content:center;min-width:37px;min-height:30px;padding:0 10px}
 #b-prefs svg{display:block}
@@ -2654,6 +2659,7 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   #top,#hint,#site-footer,#toast,#suggest,#techbar,.popmenu,.modal-mask,#left-dock,#right-dock,#mixer-dock,#doc-tabs,#preview-ov,#viewerbar{display:none!important}
   #flw-left,#flw-rstrip,#flw-mtop,#flw-mbar{display:none!important}   /* v67.9 flow 外壳新容器（#flw-r1 在 #top 内，随之隐藏） */
   #flw-msheet,#flw-mveil{display:none!important}   /* v68.1 flow 手机子段的抽屉与遮罩（顶栏 / 底条已在上一行） */
+  #flw-tour,.flw-tour-ring{display:none!important}   /* v68.2 首次导览气泡与锚点圈 */
   /* v62.4 A0-1：v40.4 通栏框架 body.shell:not(.stand):not(.viewer)（0,3,1；含 #paper 时 1,3,1）把 body 钉成 100vh+overflow:hidden、
      #paper 限宽 900，权重压过下面的打印复位——多页谱打印/存 PDF 只出第 1 页。这里用**同权重选择器**复位，
      且放在 ≤820px 手机框架规则之后（A4 打印视口约 794px，手机媒体查询在打印时同样命中）。 */
@@ -3158,6 +3164,12 @@ body.flow .flw-off{display:none!important}
   body.flow:not(.stand):not(.viewer) #mixer-dock #beat-status:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
   body.flow:not(.stand):not(.viewer):not(.flw-eo) #mixer-dock #err-drop{display:none!important}
   body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop{left:0;right:auto;width:340px;max-width:calc(100vw - 16px);padding:8px;margin:0;text-align:left;white-space:normal}
+  /* v68.2（C1 迁移验收）：#err-drop 搬进状态栏后，「全部采纳」#err-fixall 与「一键采纳」.err-fix 被深色坞的按钮规则 body.shell #mixer-dock button
+     （浅字 / 透明底 / 悬停 --chrome-2）压住——浅色主题上弹层是白底，两枚按钮白字白底（对比 1.16 / 悬停 1.02）。上弹层是浅 / 深随主题的面板，按钮回到原 --ok 样式 */
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop #err-fixall{color:var(--ed-on-ok);background:var(--ok);border-color:var(--ok)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop #err-fixall:hover{color:var(--ed-on-ok);background:var(--ok)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop .err-fix{color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent);border-color:var(--ok)}
+  body.flow:not(.stand):not(.viewer) #mixer-dock #err-drop .err-fix:hover{color:var(--ed-on-ok);background:var(--ok)}
   /* ♩= · 倍速 · 节拍器 */
   body.flow:not(.stand):not(.viewer) #mixer-dock .flw-st-bpm{flex:none;color:var(--chrome-muted);font-size:12px;margin-right:-2px;cursor:text}
   body.flow:not(.stand):not(.viewer) #mixer-dock #i-tempo{width:48px;height:24px;padding:0 4px;border-radius:6px;font-size:12px;flex:none;
@@ -3472,7 +3484,9 @@ body.flow .flw-off{display:none!important}
   body.flow #flw-tlist .flw-tlyr .shell-note{font-size:11px;line-height:1.45;margin-top:0}
   /* 「还有 N 条 ↓」：吸在树底（音轨区最多占左栏 48%，超出部分区内滚动） */
   body.flow #flw-tlist .flw-tmore{position:sticky;bottom:-6px;z-index:1;width:calc(100% + 12px);height:24px;min-height:24px;margin:0 -6px -6px;padding:0;display:flex;align-items:center;justify-content:center;
-    border:0;border-radius:0;box-shadow:none;font:11px/1 var(--font-ui);color:var(--muted);background:linear-gradient(transparent, var(--toolbar) 45%);cursor:pointer}
+    border:0;border-radius:0;box-shadow:none;font:11px/1 var(--font-ui);color:var(--muted);background:var(--toolbar);cursor:pointer}
+  /* v68.2 收尾 NU-7：文字区实底（此前整条是「上半透明」的渐变，透出下面的组标题，两行字叠在一起）；渐隐只留在提示条上方 10px */
+  body.flow #flw-tlist .flw-tmore::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:10px;background:linear-gradient(transparent, var(--toolbar));pointer-events:none}
   body.flow #flw-tlist .flw-tmore:hover{color:var(--text)}
   /* 本轨 ⋯ 菜单里的混音控件行（音色 / 音量 / 声像） */
   body.flow #popmenu.flw-mn .flw-tmx{display:flex;align-items:center;gap:10px;min-height:32px;padding:3px 10px}
@@ -3662,6 +3676,11 @@ body.flow .flw-off{display:none!important}
   @media (max-width:1179px){   /* 排版组带字约 940 宽：<1180 带字的键只留图标（名在 title / aria-label）；输出组带字不带组名约 680，到 821 都放得下，不收 */
     body.flow:not(.stand):not(.viewer) #editbar #flw-eng .flw-gb.flw-glbl .flw-glb{display:none}
     body.flow:not(.stand):not(.viewer) #editbar #flw-eng .flw-gb.flw-glbl{padding:0 6px} }
+  /* v68.2 输出组加了「预览 适宽 / 整页 / 横排」（约 110 宽）：<980 分享 / 专业格式两组的键只留图标（名在 title / aria-label；「打印 / 存 PDF」与分谱照旧带字），
+     821–979 不再被 FLOW.r2.fit 收键——输出模式下「更多 ▾」隐藏，收进去就点不到了 */
+  @media (max-width:979px){
+    body.flow:not(.stand):not(.viewer) #editbar #flw-out .flw-ggrp:is([aria-label="分享"],[aria-label="专业格式"]) .flw-gb.flw-glbl .flw-glb{display:none}
+    body.flow:not(.stand):not(.viewer) #editbar #flw-out .flw-ggrp:is([aria-label="分享"],[aria-label="专业格式"]) .flw-gb.flw-glbl{padding:0 6px} }
   /* 左栏：版面检查 · 输出内容（与音轨树同一套行高 / 字号：标题 13 · 项 12 · 说明 11） */
   body.flow:not(.stand):not(.viewer) #flw-left .flw-lrh{flex:none;height:36px;display:flex;align-items:center;gap:6px;padding:0 10px 0 12px;min-width:0}
   body.flow:not(.stand):not(.viewer) #flw-left .flw-lrt{font-weight:600;font-size:13px;white-space:nowrap}
@@ -3955,7 +3974,11 @@ body.flow #popmenu.flw-mn .flw-wrow{min-height:44px}
   /* 音轨收成图标列（名字、记谱法摘要、静音 / 独奏 / ⋯ 都在 title 与浮出的完整树里）：组头 / 子行 / 填词区 / 「还有 N 条」不显示，组之间一道细线 */
   body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-left>#flw-trk{flex:1 1 auto;max-height:none;min-height:0;border-bottom:0}
   body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-trk #flw-thd{display:none}
-  body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-trk #flw-tlist{padding:4px 4px 6px;scrollbar-width:none}
+  /* v68.2（验收遗留）轨多时图标列显示细滚动条（此前 scrollbar-width:none，只靠底部「+N ↓」提示）——与「+N ↓」并存：滚动条给位置感、能拖，「+N ↓」说还剩几条；
+     轨少放得下时不出现（overflow-y:auto）。右侧 2px 内边距让出来，图标仍居中在条左侧的可用宽里 */
+  body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-trk #flw-tlist{padding:4px 2px 6px 4px;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
+  body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-trk #flw-tlist::-webkit-scrollbar{width:6px}
+  body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-trk #flw-tlist::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 45%,transparent);border-radius:3px}
   body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-tlist :is(.flw-tgh,.flw-tline,.flw-tsubs,.flw-tgsub,.flw-tlyr){display:none!important}
   /* v68.1 收尾 PN-7：轨多时图标列底部吸一枚「+N ↓」（此前「还有 N 条」在窄档整个隐藏，滚动条也隐藏，最后几条轨无从知道） */
   body.flow.flw-narrow:not(.flw-lfo-trk):not(.stand):not(.viewer) #flw-tlist .flw-tmore{width:calc(100% + 8px);margin:0 -4px -6px;font-size:11px;font-weight:600;color:var(--accent-ink)}
@@ -4022,6 +4045,32 @@ body.flow #popmenu.flw-stp-pop .flw-sp-x{background:none;color:var(--muted)}
 body.flow #popmenu.flw-stp-pop .flw-sp-b button:hover{background:var(--hover);color:var(--text)}
 body.flow #popmenu.flw-stp-pop .flw-sp-b button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 /* —— ⑫ 结束 —— */
+/* —— ⑬ v68.2 首次 3 步导览（FLOW.tour；计划 §5.2）：挂 body 下的 fixed 气泡 #flw-tour ＋ 锚点圈 .flw-tour-ring，不占位、不改任何布局。
+   层级 47 / 46：高于外壳（#top 20、左栏浮层 19、嵌入预览 18），低于弹窗遮罩 50 与菜单 70（菜单 / 弹窗开着时导览也不会出现） —— */
+body.flow #flw-tour{position:fixed;z-index:47;width:320px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:14px 14px 12px;border-radius:13px;
+  background:var(--panel);color:var(--text);border:1px solid var(--border-soft);box-shadow:0 10px 32px rgba(15,14,40,.22),0 2px 6px rgba(15,14,40,.12);font:13px/1.55 var(--font-ui)}
+body.flow #flw-tour .flw-tour-ar{position:absolute;width:12px;height:12px;background:var(--panel);border:1px solid var(--border-soft);transform:rotate(45deg)}
+body.flow #flw-tour[data-side="below"] .flw-tour-ar{border-right:0;border-bottom:0}
+body.flow #flw-tour[data-side="right"] .flw-tour-ar{border-top:0;border-right:0}
+body.flow #flw-tour .flw-tour-hd{display:flex;align-items:baseline;gap:8px;margin:0 0 6px}
+body.flow #flw-tour .flw-tour-n{flex:none;font:600 11px/1 var(--font-num);color:var(--accent-ink);letter-spacing:.02em}
+body.flow #flw-tour #flw-tour-t{font-size:14px;font-weight:700;line-height:1.35}
+body.flow #flw-tour p{margin:0 0 6px;color:var(--text)}
+body.flow #flw-tour .flw-tour-nt{font-size:12px;color:var(--muted)}
+body.flow #flw-tour .flw-tour-bt{display:flex;align-items:center;gap:6px;margin-top:10px}
+body.flow #flw-tour .flw-tour-sp{flex:1 1 auto}
+body.flow #flw-tour button{height:30px;min-height:30px;margin:0;padding:0 12px;border:0;border-radius:8px;box-shadow:none;font:12.5px/1 var(--font-ui);cursor:pointer;background:none;color:var(--muted)}
+body.flow #flw-tour button:hover{background:var(--hover);color:var(--text)}
+body.flow #flw-tour button:active{transform:none}
+body.flow #flw-tour button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+body.flow #flw-tour .flw-tour-pv{color:var(--text);background:var(--bg)}
+body.flow #flw-tour .flw-tour-go{background:var(--btn-pri);color:var(--ed-on-pri);font-weight:600}
+body.flow #flw-tour .flw-tour-go:hover{background:var(--btn-pri-h);color:var(--ed-on-pri)}
+body.flow #flw-tour .flw-tour-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}   /* 读屏播报（不抢焦点时，NU-1） */
+body.flow .flw-tour-ring{position:fixed;z-index:46;pointer-events:none;box-sizing:border-box;border-radius:9px;box-shadow:0 0 0 2px var(--accent),0 0 0 6px var(--accent-soft)}
+html.fx body.flow #flw-tour{animation:flw-tour-in .18s ease-out}
+@keyframes flw-tour-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ html.fx body.flow #flw-tour{animation:none} }
 /* .flw-x＝插进共用容器（#editbar / #mixer-dock 等）的 flow 专属控件，包括 flow 搬进来的旧节点。
    离开 flow（≤820、观看页、谱架、?shell=classic）时一律不显示。旧节点由 FLOW.dock(false) 搬回原位并摘掉这个类 */
 body:not(.flow) .flw-x{display:none!important}
@@ -7053,6 +7102,9 @@ function setViewZoom(z){
 }
 /* 把纸张外框自动适配到编辑器可视宽（外框宽 = PAGE_W×内容大小，与内容大小无关地保持一屏看全） */
 function fitViewWidth(){
+  /* v68.2 flow 排版 / 输出模式：书写谱面被预览盖住、这时的排版状态是快照那一版（分页口径，fixwide 类摘着）——按它算会把固定版宽谱的缩放写进存量谱的键；
+     记下来，回书写正常重排之后再适配（FLOW.mode.restore）。默认外壳 flowOn() 恒假，不经过 */
+  if(flowOn() && FLOW.mode && FLOW.mode.cur!=='write'){ FLOW.mode.fitLater(); return; }
   /* v67.3 固定版宽谱的显示基准本身就是「适配可视宽」（fitKOf 已承担）——这里不再改缩放：
      既不二次放大，也不覆盖用户手动缩放（此前「排版」改预设/纸张/重置会把 130% 打回） */
   if(document.body.classList.contains('fixwide')) return;
@@ -7315,6 +7367,15 @@ function anySolo(){
 function trackAudible(kind, vi){
   const c = trackCfg(kind, vi);
   return anySolo() ? !!c.solo : c.on!==false;
+}
+/* v68.2 TRK-5（切默认，两外壳同口径）：轨音量的有效值。存了 0 的就是 0（不出声）——此前三处写 (cfg.vol||1)，0 被当成「没设」按全音量发声，
+   读数也显示 100%；缺省（null / 未写）＝1。坏值（非有限数，如手改的文件）仍按 1，不让 AudioParam 收到 NaN。
+   播放引擎（建轨总线、applyMixLive）、经典混音台读数、flow 音轨行「⋯」读数都读它 */
+function trkVolOf(c){
+  const v = c? c.vol : null;
+  if(v==null) return 1;
+  const n = +v;
+  return isFinite(n)? Math.max(0, n) : 1;
 }
 let diagMode = 'inline';
 let tabNotation = 'num';               // 'x'=和弦内音记×（教材式） 'num'=全数字
@@ -10888,7 +10949,7 @@ function showQuickbar(cx, cy, force){
   div.style.left=Math.max(8, Math.min(cx-14, innerWidth-340))+'px';
   div.style.top=Math.min(cy+22, innerHeight-64)+'px';
   div.innerHTML='<div class="row" style="margin-top:0">'+bs.join('')
-    +btn('more','…','更多选项：打开左栏对应图层面板')
+    +btn('more','…', flowOn()? '更多记号：打开左栏记号面板（搜记号）' : '更多选项：打开左栏对应图层面板')   /* v68.2 收尾 OU-1：新外壳没有旧左栏图层面板 */
     +btn('off','✕','关闭浮条（右键音符可随时唤出；触屏不再点按自动弹出）')+'</div>';
   document.body.appendChild(div);
   /* 预判命中的现有按钮同样点亮引导色（预判动作已在条上时不另出猜测钮） */
@@ -10897,8 +10958,12 @@ function showQuickbar(cx, cy, force){
     const b=ev.target.closest('[data-qb]'); if(!b) return;
     const act=b.dataset.qb;
     if(act==='off'){ try{ localStorage.setItem('musetab-quickbar','off'); }catch(_){}
-      closeQuickbar(); toast('已关闭触屏自动弹出——鼠标右键点音符仍可唤出；顶栏「偏好设置」可重新开启'); try{ renderHints(); }catch(_){} return; }
-    if(act==='more'){ closeQuickbar(); openFlyout(sel.row==='tab'?'tab':'vox'); return; }
+      closeQuickbar(); toast('已关闭触屏自动弹出——鼠标右键点音符仍可唤出；'+(flowOn()? '账号 ▾ ›「偏好设置」' : '顶栏「偏好设置」')+'可重新开启'); try{ renderHints(); }catch(_){} return; }
+    /* v68.2 收尾 OU-1：新外壳（flowOn()）旧左栏 #left-dock 整个隐藏——openFlyout 打开的面板看不见，还会经 flyRemember(false) 删掉旧外壳的「面板保持收起」键 musetab-flyclosed。
+       改去新外壳的对应处：左栏记号面板并聚焦搜索框（窄档先浮出竖条里的记号；非书写模式先回书写），不碰旧左栏与它的本机键 */
+    if(act==='more'){ closeQuickbar();
+      if(flowOn()){ try{ if(FLOW.nar && FLOW.nar.narrow()) FLOW.nar.pal(); else { if(FLOW.mode && FLOW.mode.cur!=='write') setMode('write'); FLOW.pal.focusSearch(); } }catch(e){ console.error('flow 浮条「…」异常', e); } return; }
+      openFlyout(sel.row==='tab'?'tab':'vox'); return; }
     habitDo(act); syncQuickbar();
   });
   syncQuickbar();
@@ -11062,6 +11127,10 @@ function render(opt){
   /* v65.6 B6a ① 键盘自动重复（按住数字/方向键连发）期间合并渲染：本次只记脏，并到下一帧渲染一次；
      render() 对单次按键/程序调用保持同步（大量套件在 mutate 之后同步读 #score，路径零变化） */
   if(KEY_REPEAT){ if(!render._raf) render._raf=requestAnimationFrame(()=>{ render._raf=0; KEY_REPEAT=false; try{ render(); }catch(e){ console.error('渲染异常', e); } }); return; }
+  /* v68.2（验收遗留 R1）flow 排版 / 输出模式：书写谱面被嵌入预览整个盖住——这一次 render 直接就是预览快照的那一次分页排版（FLOW.mode.stroke），
+     不再先为被盖住的书写谱面排一遍、150ms 后再拍快照（每笔整谱排版 2→1 次）；仍是同步的（mutate 的「渲染异常自动撤销」照旧在落盘前兜住），
+     回书写补排（DIRTY）。导出 / 打印 / 缩图 / 快照自身（withCleanSnap、PRINT_PAGING、PRINTING_NOW、离屏）不经过；默认外壳 flowOn() 恒假，路径零变化 */
+  if(flowOn() && FLOW.mode && FLOW.mode.lazy()) return FLOW.mode.stroke();
   /* 代理指标：耗时与版式调用数（measureLayout 实测只占渲染 3%，且版式对象会被两端对齐就地改写，不做跨调用缓存） */
   const t0=performance.now(); RENDER_STAT.layoutCalls=0;
   JP_MEMO = tabJpAny()? new Map() : null;
@@ -14126,7 +14195,9 @@ function syncInputs(){
      注：五线谱按钮虽显字母，键盘 1-7 仍等价可用（tooltip 已注明），两条路径同走 setDeg。 */
   { const isTab = sel.row==='tab';
     const isSt = !isTab && isStaffNota((song.voxNotations||[])[sel.vi]);
-    const K = isSt? staffKeyInfo() : null;
+    /* v68.2 PN-5（旧外壳）：音名键字母按光标所在小节的调（中途转调 keyTo 之后按新调），与 flow 行 2 的 staffKeyInfoAt(sel.mi) 同口径；此前按全曲调 */
+    let K = null;
+    if(isSt){ try{ K=staffKeyInfoAt(sel.mi); }catch(_){ K=staffKeyInfo(); } }
     const tabNote = isTab && col? (col.notes||[]).find(n=>n.s===sel.si) : null;
     const cap = isTab? fretInlineCap() : 7;   // v47.8 吉他高把位按余量折叠
     document.querySelectorAll('#eb-note .nd').forEach(b=>{
@@ -14450,6 +14521,10 @@ function syncInputs(){
     ed.classList.remove('hidden');   // 独立框常显于状态提示下方
   }
   if(typeof mixerExpanded!=='undefined' && mixerExpanded) renderMixerDock();
+  /* v68.2 收尾 ENG-10 ③：新外壳行 2 的语境（#editbar[data-flw-ctx]、作用于芯片）与换键（FLOW.r2k：五线谱音名字母序 + 级数角标、简谱时值字形）此前只在 render 末尾的
+     FLOW.sync 里刷新——不经 render 单独调 syncInputs 时若语境变了（切歌词段 / 退出指法直录 / 切时值检查方式之外，直接改 sel 再 syncInputs），键序与字形停在上一语境。
+     这里跟着对一次（两处都按签名去重，没变就不动 DOM；行 2 收放的重测在 rAF 里）。旧外壳 flowOn() 为假，一行不走 */
+  if(flowOn()) try{ FLOW.r2.sync(); FLOW.r2k.sync(); }catch(_){}
 }
 
 /* ================= 编辑核心 ================= */
@@ -15899,7 +15974,7 @@ function showPatternLib(kind, keepFilter){
 /* v68.0 收尾（验收 TRK-6）：删第 vi 条吉他轨时，按轨下标记的混音 song.mixer['tab:i'] 与本轨变调夹 song.tabCapos 随行删、其后的轨前移
    （此前不动：剩下的轨继承被删轨的静音 / 音色 / 音量，变调夹错位、发声音高变了）。只改这两个既有字段的值，不删字段。
    参考轨（第一条吉他轨）的夹位是整谱 song.capo——它还决定旋律发声与页头 1=X，这里不动；删的是参考轨、新的第一条原来另夹了品时返回一句提示。
-   默认外壳的 delVoiceAt 是否同改待主会话拍板（本版不带开关零差异），所以只在 flowOn() 时由 delVoiceAt 调 */
+   v68.0 只在 flowOn() 时由 delVoiceAt 调；v68.2 切默认时去掉守卫，新旧外壳删吉他轨都走这里（同一 mutate，一步撤销） */
 function tabMetaSplice(s, vi){
   if(s.mixer){
     const nm={};
@@ -16038,7 +16113,7 @@ function delVoiceAt(kind, vi){
   let tabNote='';
   mutate(()=>{
     if(kind==='tab') tabJpRemoveTrack(vi);   /* v67.2 逐轨简谱联排同步删 */
-    if(kind==='tab' && flowOn()) tabNote=tabMetaSplice(song, vi);   /* v68.0 收尾（TRK-6）：混音 / 变调夹随行删——flow 外壳先行，默认外壳待拍板 */
+    if(kind==='tab') tabNote=tabMetaSplice(song, vi);   /* v68.0 收尾（TRK-6）：混音 / 变调夹随行删；v68.2 去掉 flowOn() 守卫，旧外壳（经典混音台 / 左轨删轨）同样随行前移 */
     names.splice(vi,1);
     song.measures.forEach(m=> (kind==='tab'?m.tabs:m.voxes).splice(vi,1));
     if(kind==='vox') voxMetaSplice(song, vi, 1, 0);   /* 第二轮验收补：记谱法 / 对照 / 分组 / 混音台随行删 */
@@ -16383,6 +16458,7 @@ function hideStartPad(reopen){
       const pw2=(P0||{}).clientWidth||0; if(fx && pw2 && Math.abs(pw2-LAST_PAPER_W)>=2) render();
       alignHeader(); } }catch(_){}
   try{ renderHints(); syncInputs(); }catch(_){}   // v46.6 离开启动台恢复正常提示/光标信息
+  try{ if(typeof FLOW!=='undefined' && FLOW && FLOW.tour) FLOW.tour.rearm(); }catch(_){}   /* v68.2 首次导览（计划 §5.2）：从离开启动台起算 1.5 秒（启动期在启动台出现前起的计时作废） */
 }
 /* v67.4 启动台「继续上次编辑」：找一份「自己的谱」——存入过我的曲谱，或不是原样示例谱、也不是空白未命名谱。返回窗口序号，没有则 -1 */
 /* 验收补：原样示例谱按整份谱比（去掉载入时补写的 tabNota 与入库 id）——此前只比曲名＋小节，只改了调 / 速度 / 演唱者的示例谱被当成没动过；
@@ -16706,6 +16782,14 @@ window.addEventListener('keydown', e=>{
     const tg=(document.activeElement||{}).tagName;
     if(tg==='INPUT'||tg==='SELECT'||tg==='TEXTAREA'){ if(e.key==='Escape') document.activeElement.blur(); return; }
     if(e.key==='Escape' && !document.querySelector('.modal-mask') && !document.getElementById('popmenu')) pcxBack();
+    return;
+  }
+  /* v68.2 收尾 OU-7：谱库全屏页（#circle，盖满编辑器）与个人中心同口径——屏蔽编辑器快捷键：此前数字 / Delete 穿过谱库改到背后看不见的谱（违反 v63.0 A3
+     「不在看不见的地方改谱」，三个版本都有），新外壳排版 / 输出模式下 Esc 还会在背后切回书写。Esc＝点谱库自己的「返回」（#cc-back）；Tab / Enter 等交给谱库自己的按钮与输入框 */
+  if(document.getElementById('circle')){
+    const tg=(document.activeElement||{}).tagName;
+    if(tg==='INPUT'||tg==='SELECT'||tg==='TEXTAREA'){ if(e.key==='Escape') document.activeElement.blur(); return; }
+    if(e.key==='Escape' && !document.querySelector('.modal-mask') && !document.getElementById('popmenu')){ const bk=document.getElementById('cc-back'); if(bk){ e.preventDefault(); bk.click(); } }
     return;
   }
   /* v67.4 Alt+N 开新建面板、Alt+Shift+N 按上次设置直接建（按物理键 KeyN：Mac ⌥N 是死键，e.key 不可靠）。
@@ -17491,7 +17575,7 @@ function pasteMeasure(opt){
 document.addEventListener('pointerdown', e=>{
   const t = e.target;
   if(!(t instanceof Element)) return;
-  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore, #lb-wrap, #lb-menu, #flw-rstrip, #flw-left, #flw-mtop, #flw-mbar, #flw-msheet, #flw-mveil')   /* v67.5 离屏预览框也算界面内；v67.9 flow 外壳的竖条 / 左栏（§0-4，#flw-r1 在 #top 内）；v68.1 flow 手机顶栏 / 底条 / 抽屉与遮罩（点遮罩收抽屉不熄光标） */
+  const inside = t.closest('#top, #score, #left-dock, #right-dock, #mixer-dock, .modal-mask, .popmenu, #suggest, #techbar, input, select, textarea, button, .pq-offscore, #lb-wrap, #lb-menu, #flw-rstrip, #flw-left, #flw-mtop, #flw-mbar, #flw-msheet, #flw-mveil, #flw-tour')   /* v67.5 离屏预览框也算界面内；v67.9 flow 外壳的竖条 / 左栏（§0-4，#flw-r1 在 #top 内）；v68.1 flow 手机顶栏 / 底条 / 抽屉与遮罩（点遮罩收抽屉不熄光标）；v68.2 首次导览气泡 */
     || (flowOn() && t.closest('#preview-ov'));   /* v68.1 flow 排版 / 输出模式的主视图（嵌入预览）：点它不熄光标、不重排（否则每点一下都要重拍一次预览快照） */
   if(!inside){
     blurSel = true; measureSel=null; selRange=null; noteSel=[]; measureRange=null; closeTech();
@@ -17542,10 +17626,13 @@ function sysBreakAt(mi, m1){
   toast('已在第 '+(mi+1)+' 小节前换行'+(pin? '（前面的行不动，后面的行自动重排）' : '')+'（Ctrl+Z 撤销）');
   return true;
 }
-/* 本行是否锁定：两端都是强制断点（首行 / 末行那一端不算），行内每个小节都标了「并入上一行」 */
+/* 本行是否锁定：两端都是强制断点（首行 / 末行那一端不算），行内每个小节都标了「并入上一行」。
+   v68.2 收尾 NU-3：单小节行没有「行内」可看——两端强制断点正是「此处换行」本身留下的（sysBreakAt 钉行首），据此判锁定会把用户没点过的行显示成「已锁定」，
+   点它又走「改回自动」把刚加的换行删掉。单小节行只认本次会话真点过「锁定此行」的记录（SYS_LOCK_MEMO，与行的位置、小节数都对得上） */
 function sysRowLocked(m1, m2){
   const M=song && song.measures, n=M? M.length : 0;
   if(!n || !(m1>=0) || !(m2>=m1) || m2>=n) return false;
+  if(m1===m2){ let rec=null; try{ const mm=sysLockMemo(); rec=mm && mm.get(m1+':'+m2); }catch(_){} if(!(rec && rec.n===n)) return false; }
   if(m1>0 && !(M[m1-1].brk===1 && M[m1].pull!==1)) return false;
   if(m2<n-1 && !(M[m2].brk===1 && M[m2+1].pull!==1)) return false;
   for(let k=m1+1;k<=m2;k++) if(M[k].pull!==1) return false;
@@ -17577,11 +17664,12 @@ function sysLockRow(m1, m2, on){
           if(!((k===m1-1 && keepPr) || (k===m2 && keepNx))){ if(b===undefined) delete x.brk; else x.brk=b; }
           if(!((k===m1 && keepPr) || (k===m2+1 && keepNx))){ if(p===undefined) delete x.pull; else x.pull=p; } });
         return; }
+      /* 没有锁定记录（刷新过、或这一行是别的操作——如每行小节数 ± 留下的「并入上一行」——凑成的锁定样子）：v68.2 收尾 NU-3 起只清行内，
+         两端的强制断点保留（分不清是不是用户自己点的「此处换行」，宁可不删——此前一并清掉，会把用户刚加的换行删了） */
       for(let k=m1+1;k<=m2;k++) delete S[k].pull;
-      for(let k=m1;k<m2;k++) delete S[k].brk;
-      if(m2<n-1 && !keepNx) delete S[m2].brk;
-      if(m1>0 && !keepPr) delete S[m1-1].brk; });
-    toast('本行已改回自动断行'+(rec && rec.n===n && rec.f.some(([k, b])=>b===1 && (k===m1-1 || k===m2))? '（锁定前手动加的换行保留）' : '')); return true;
+      for(let k=m1;k<m2;k++) delete S[k].brk; });
+    const kept = rec && rec.n===n? rec.f.some(([k, b])=>b===1 && (k===m1-1 || k===m2)) : (m1>0 || m2<n-1);
+    toast('本行已改回自动断行'+(kept? (rec && rec.n===n? '（锁定前手动加的换行保留）' : '（两端的换行保留）') : '')); return true;
   }
   if(sysRowLocked(m1, m2)){ toast('本行已锁定（再点一次改回自动）'); return false; }
   { const mm=sysLockMemo(); if(mm){ const f=[]; for(let k=Math.max(0, m1-1); k<=Math.min(n-1, m2+1); k++) f.push([k, M[k].brk, M[k].pull]); mm.set(m1+':'+m2, {n, f}); } }
@@ -19902,6 +19990,7 @@ document.getElementById('tn-both').onclick = ()=>{ mutate(()=>{ song.tabStaff=tr
    该宿主自 v56.6 起不存在，用户无处可开。这里只换入口——键名、取值格式与原读取函数逐字一致，不新增键：
    musetab-keymap＝'gp' 开 / 删除＝默认档（gpKeysOn）；musetab-autoadv · musetab-humanize · musetab-quickbar＝'off' 关 / 删除＝默认开
    （autoAdvOn · humOn · quickbarOn）。写法同上方处理器（setItem / removeItem，包 try/catch），点一下即时生效。 */
+let PREF_SHELL_NEXT=null;   /* v68.2 收尾 OU-3：「使用旧版布局」点过、正在等刷新——开关显示要去的那一边（prefShellReload 置） */
 const PREF_ITEMS = [
   {k:'keymap',   ls:'musetab-keymap',   onV:'gp', offV:null,  get:()=>gpKeysOn(),   t:'键位档：GP / 简谱大师', s:['GP 档','默认'],
    d:'开启后「-」作增时线、Shift+点击作区域选择、六线谱 H / P / S / B 作击弦 / 勾弦 / 滑弦 / 推弦；默认档「-」是降八度。'},
@@ -19915,6 +20004,12 @@ const PREF_ITEMS = [
      when：只在新外壳（?shell=flow）下列出——默认外壳的偏好设置仍是上面 4 项，零差异 */
   {k:'signdensity', ls:'musetab-signdensity', onV:'glyph', offV:null, get:()=>{ try{ return localStorage.getItem('musetab-signdensity')==='glyph'; }catch(_){ return false; } }, t:'记号格：只看字形', s:['只看字形','带字'],
    d:'左栏记号格只画字形（36 格、一行 6 个，熟手用）；默认带中文名（52 格、一行 4 个）。左栏「记号」标题行右端的按钮也能切换。', when:()=>flowOn()},
+  /* v68.2 切默认后的旧外壳兜底（PLAN §1.2 / §5.1）：键就是开关脚本读的 musetab-flow——开＝写 '0'（旧版布局）、关＝删键（回默认新外壳）；
+     新旧外壳都列出（旧外壳里从这里关回新版）。外壳是挂载时搬节点的，不做热切换：prefSet 写完刷新页面（地址里的 ?shell= 一并去掉，免得它在刷新时又把键改回去） */
+  /* v68.2 收尾 OU-3：开关显示「当前实际是哪种外壳」（html.flow-pre 由开关脚本按 ?shell= 与本机键定），不读本机键——本机存储写不进时用 ?shell=classic 打开的
+     其实是旧外壳，读键会显示成「新版」；点过、即将刷新时显示要去的那一边（PREF_SHELL_NEXT） */
+  {k:'oldshell', ls:'musetab-flow', onV:'0', offV:null, get:()=>PREF_SHELL_NEXT!=null? PREF_SHELL_NEXT : !document.documentElement.classList.contains('flow-pre'), t:'使用旧版布局', s:['旧版','新版'],
+   d:'回到改版前的界面：顶部工具栏、左侧面板、底部混音台。切换后页面会刷新，曲谱不受影响；随时可以在这里换回新版。'},
 ];
 function prefSet(k, on){
   const it=PREF_ITEMS.find(x=>x.k===k); if(!it) return;
@@ -19923,7 +20018,37 @@ function prefSet(k, on){
   if(k==='autoadv' && !on) lastEnt=null;   /* 同 v48.0：自动前进关掉后，记号不再回落到「刚落的那个音」 */
   if(k==='quickbar' && !on){ try{ closeQuickbar(); }catch(_){} }
   if(k==='signdensity'){ try{ if(flowOn()) FLOW.pal.sync(); }catch(_){} }   /* v68.0 记号格立即按新密度重画 */
+  if(k==='oldshell') return prefShellReload(on);
   try{ renderHints(); }catch(_){}
+}
+/* v68.2「使用旧版布局」切换后刷新（同音色库切换的 500ms 口径）。本机存储写不进（隐私模式）时不刷新——刷新也换不过去，改为说明用地址参数。
+   刷新地址去掉 ?shell=（它在开关脚本里优先于本机键：带着 ?shell=classic 关掉旧版、或带着 ?shell=flow 打开旧版，刷新后都会被它改回去） */
+function prefShellReload(on){
+  let now=null; try{ now=localStorage.getItem('musetab-flow'); }catch(_){}
+  /* v68.2 收尾 OU-3：本机存储写不进（隐私模式）时此前只提示「在地址后加 ?shell=…」、不刷新——用 ?shell=classic 打开的人还会被叫去加它已经带着的参数。
+     现在直接换地址参数刷新（?shell=classic / ?shell=flow 只对本次生效），提示说明记不住 */
+  const kept=(now==='0')===!!on;
+  let href=location.href;
+  try{ const u=new URL(location.href);
+    u.searchParams.delete('shell');
+    /* v68.2 收尾 OU-4：编辑器里切布局（不在观看页）连一次性深链参数一起去掉——此前保留 ?pub= / ?review=，从观看页退回编辑器再切布局，刷新后又落回别人的观看页 */
+    let vm=false; try{ vm=!!viewerMode; }catch(_){}
+    if(!vm) ['pub','review','f'].forEach(k=>u.searchParams.delete(k));
+    if(!kept) u.searchParams.set('shell', on? 'classic' : 'flow');
+    href=u.toString(); }catch(_){}
+  PREF_SHELL_NEXT=!!on;
+  if(!kept){ toast('本机存储不可用，记不住布局：这次先切到'+(on? '旧版' : '新版')+'布局（地址带 ?shell='+(on? 'classic' : 'flow')+'，只对本次有效）…');
+    setTimeout(()=>{ if(href!==location.href) location.replace(href); else location.reload(); }, 500); return; }
+  let gone=false; const t0=Date.now();
+  const go=()=>{ if(gone) return; gone=true; if(href!==location.href) location.replace(href); else location.reload(); };
+  /* v68.2 集成（第一轮遗留 ①）：shell:classic 埋点（PLAN §5.3 ui_cmd）这次之后马上刷新——只在这一处保证送达：带 keepalive 发（页面卸载后浏览器照样送完），
+     并等它完成再刷新：最短仍 500ms（让「即将刷新」提示看得见）、最长 800ms（服务器慢 / 不通也不让人干等）。
+     没发（file:// 预览 · 10 分钟内发过 · 会话上限 · 关回新版）照旧 500ms。共享 apiCall / pyqEvent 的默认行为不变（keepalive 只在显式传入时才加） */
+  let wait=false;
+  try{ if(on && typeof FLOW!=='undefined' && FLOW && typeof FLOW.track==='function')
+    wait = FLOW.track('shell:classic', {keepalive:true, done:()=>setTimeout(go, Math.max(0, 500-(Date.now()-t0)))})===true; }catch(_){}
+  toast('即将刷新以切换到'+(on? '旧版' : '新版')+'布局…');
+  setTimeout(go, wait? 800 : 500);
 }
 function showPrefs(){
   /* v67.8 验收 F4：记下是谁打开的（顶栏设置钮，或手机 ☰ 里的菜单项——那个随菜单一起关掉，退回 ☰ 钮），关窗后焦点还回去 */
@@ -21997,7 +22122,7 @@ function play(){
     const autoPan = Math.max(-0.4, -0.16 - vi*0.12);   /* 自动铺开（历史行为） */
     const tbus = makeTrackBus(ctx, bus, cfg.pan==null? autoPan : cfg.pan);
     audio.tracks['tab:'+vi]=tbus;
-    tbus.dry.gain.value = trackAudible('tab',vi)? (cfg.vol||1) : 0;
+    tbus.dry.gain.value = trackAudible('tab',vi)? trkVolOf(cfg) : 0;   /* v68.2 TRK-5：存了 0 的不再按全音量 */
     const vol = norm;
     /* Guitar Pro 式逐弦延音：先把音符按绝对时间铺平，再按弦算「掐断点」——
        同一根弦被再次弹响才掐断旧音（自然响到那一刻再快速阻尼）；
@@ -22237,7 +22362,7 @@ function play(){
     const autoPan = Math.min(0.4, 0.14 + vi*0.12);   /* 自动铺开（历史行为） */
     const tbus = makeTrackBus(ctx, bus, cfg.pan==null? autoPan : cfg.pan);
     audio.tracks['vox:'+vi]=tbus;
-    tbus.dry.gain.value = trackAudible('vox',vi)? (cfg.vol||1) : 0;
+    tbus.dry.gain.value = trackAudible('vox',vi)? trkVolOf(cfg) : 0;   /* v68.2 TRK-5 */
     /* v48.9 声部角色增益：钢琴谱左手（vi=1 低音谱表）默认约 −3.5dB——伴奏手不压右手（可用轨音量覆盖） */
     const dtp0 = docType(song);
     const roleG = ((dtp0==='piano'||dtp0==='pianoacc') && vi===1)? 0.67 : 1;
@@ -22446,7 +22571,7 @@ function applyMixLive(){
   const tset=(kind,vi)=>{
     const tb=audio.tracks[kind+':'+vi]; if(!tb) return;
     const cfg = trackCfg(kind,vi);
-    const g = trackAudible(kind,vi)? (cfg.vol||1) : 0;
+    const g = trackAudible(kind,vi)? trkVolOf(cfg) : 0;   /* v68.2 TRK-5 */
     try{ tb.dry.gain.setTargetAtTime(g, audio.ctx.currentTime, 0.02); }
     catch(_){ tb.dry.gain.value=g; }
     /* v60.13 声像同样即时生效；null=跟随自动铺开，此时不动 panner（保持建轨时的值） */
@@ -23282,6 +23407,7 @@ document.getElementById('b-shell').onclick = ()=>{
    启用条件由 FLOW.apply() 计算，结果缓存在 FLOW.active，flowOn() 只读这个缓存。条件是：
    html.flow-pre（<head> 开关脚本按 ?shell= 或本机键 musetab-flow 定）· uiShell · 非观看页 · 非谱架 · innerWidth>820（v68.1 起去掉）。
    不带开关时 FLOW 只定义、不挂载：不建节点、不加监听、不写 body 的类与内联样式，所以默认外壳的 DOM / 几何 / 行为零差异。
+   v68.2 切默认（计划 §5.1）：不带参数就是 flow；旧外壳（?shell=classic 或本机键 musetab-flow='0'＝偏好设置「使用旧版布局」）下 FLOW 只定义、不挂载，与 v68.1 默认外壳零差异（tv_shellflow S0）。
    flow 是 body.shell 的子态（§1.5-1）：fixwide、fitFloor、打印复位、scoreScroller 照旧认 body.shell。
    ── 骨架 API（各轨只用这些；骨架块里不放业务）──
    FLOW.apply()          按条件挂载或卸载。首次启用时调 mount()；同步 body.flow、新容器的 hidden、dock()、layout()；
@@ -23353,16 +23479,48 @@ var FLOW = (function(){
   F.pqi = root=>{ if(root) root.querySelectorAll('[data-pqi]').forEach(el=>{ if(!el.querySelector(':scope > svg.pqi')) el.insertAdjacentHTML('afterbegin', pqIcon(el.dataset.pqi, +el.dataset.pqs||16)); }); };
   F.pre = ()=>document.documentElement.classList.contains('flow-pre');
   /* 子块顺序＝钩子调用顺序 */
-  F.PARTS = ['r1','r2','st','rd','tree','pal','start','mode','cmd','mob','r2k','nar','prog','rdp'];   /* v68.1 轨 C：r2k 行 2 换键 · nar 窄档 · prog 状态栏小节格（cmd 已在表里）；rdp＝右栏书写页（轨 B）：排在最后——页容器（rd）与「下一步」卡（start）都先建好 */
+  F.PARTS = ['r1','r2','st','rd','tree','pal','start','mode','cmd','mob','r2k','nar','prog','rdp','tour'];   /* v68.1 轨 C：r2k 行 2 换键 · nar 窄档 · prog 状态栏小节格（cmd 已在表里）；rdp＝右栏书写页（轨 B）：排在最后——页容器（rd）与「下一步」卡（start）都先建好；v68.2 tour＝首次 3 步导览（读各块建好的锚点，放最后） */
   F.each = (hook, a, b)=>{ F.PARTS.forEach(p=>{ const o=F[p];
     if(o && typeof o[hook]==='function'){ try{ o[hook](a, b); }catch(e){ console.error('flow '+p+'.'+hook+' 异常', e); } } }); };
+  /* v68.2 切默认：开关只看 html.flow-pre（<head> 脚本：musetab-flow 不为 '0' 就有）。uiShell 恒为 true——v40 经典版开关 musetab-shell 自 v55.2 起不读，
+     存量 'classic' 值不会让人回到旧布局（不复活、也不删键）；只有隐藏的 #b-shell 程序化切到 v40 经典版时 uiShell 为假，那时 flow 照旧不挂 */
   F.want = ()=>{
     if(!F.pre()) return false;
     let shell=true, vm=false;
     try{ shell=!!uiShell; }catch(_){}
     try{ vm=!!viewerMode; }catch(_){}   /* viewerMode 在后面才声明（let）：启动早期读它会抛 TDZ，按「非观看页」算 */
-    const c=document.body.classList;
-    return shell && !vm && !c.contains('viewer') && !c.contains('stand') && window.innerWidth>820;
+    const c=document.body.classList, vi=F.vint();
+    return shell && !vm && !vi && !c.contains('viewer') && !c.contains('stand') && window.innerWidth>820;
+  };
+  /* v68.2 集成（第一轮遗留 ②）：启动即进观看页的意图——观看 / 分享页启动时不再「先挂 flow、搬节点，再在 DOMContentLoaded 里退场」。
+     只在启动解析期（document.readyState==='loading'，即 applyShell / applyResponsive 的开机那几次 FLOW.apply）判一次，来源与开机深链分派
+     （DOMContentLoaded 处理器）同一口径：window.PYQ_SHARE.song 已在（互动谱数据注入在 <head>，v68.2 起的导出）· ?pub=<id> · ?review=<id>（id 同 /^[A-Za-z0-9_-]{1,40}$/）。
+     意图只认一次：进了观看页（viewerMode / body.viewer）即了结；没进成（拉谱失败、数据坏、互动谱数据坏）由 FLOW.viewEnd() 了结并补挂——
+     bootVeilDone()（深链各失败分支都揭幕）与 DOMContentLoaded 的互动谱分支各调一次；8 秒（启动遮罩兜底同一时长）仍没进观看页也了结补挂，编辑器不会停在旧外壳。
+     桌面 F.want 与手机子段 FLOW.mob 的 want 同用这一判定。旧版导出的互动谱（数据在 body 闭合标签前、晚于本脚本；此处不能裸写该标签，见 exportInteractiveCard）判不到，仍是挂上即退场（v67.9 口径，功能不受影响） */
+  let VINT=null;   /* null 未判 · true 待进观看页 · false 没有 / 已了结 */
+  F.vint = ()=>{
+    if(VINT===null){
+      VINT=false;
+      if(document.readyState==='loading'){
+        const ok=v=>!!v && /^[A-Za-z0-9_-]{1,40}$/.test(v);
+        try{ if(window.PYQ_SHARE && window.PYQ_SHARE.song) VINT=true; }catch(_){}
+        try{ const q=new URLSearchParams(location.search); if(ok(q.get('pub')) || ok(q.get('review'))) VINT=true; }catch(_){}
+        if(VINT) setTimeout(()=>F.viewEnd(true), 8000);
+      }
+    }
+    if(VINT){ let vm=false; try{ vm=!!viewerMode; }catch(_){} if(vm || document.body.classList.contains('viewer')) VINT=false; }
+    return VINT;
+  };
+  /* 了结启动观看意图（没进成观看页时补挂 flow 并重排一次）。解析期间的调用不算（主初始化尾的 bootVeilDone 早于互动谱分派）；any＝8 秒兜底 */
+  F.viewEnd = any=>{
+    if(VINT!==true || (!any && document.readyState==='loading')) return false;
+    VINT=false;
+    let vm=false; try{ vm=!!viewerMode; }catch(_){}
+    if(vm || document.body.classList.contains('viewer')) return false;
+    try{ F.apply(); }catch(e){ console.error('flow 补挂异常', e); }
+    try{ if(song) render(); }catch(_){}
+    return true;
   };
   /* T0 建的新容器（v68.0 加 flw-left）；BIND＝挂委托点击的容器（菜单 #popmenu.flw-mn 在 menu.open 里单独挂） */
   F.CONT = ['flw-r1','flw-rstrip','flw-left'];
@@ -23498,6 +23656,7 @@ var FLOW = (function(){
     const bs=c.querySelector('#beat-status'); if(bs && bs.dataset.flwKb!=null) ['role','tabindex','title','aria-expanded'].forEach(a=>bs.removeAttribute(a));
     const rl=c.querySelector('#ri-lbar'); if(rl && rl.dataset.flwOrig!=null){ rl.innerHTML=rl.dataset.flwOrig; rl.title=rl.dataset.flwT0; }   /* 同 FLOW.start.off */
     const ps=c.querySelector('#pv-stage'); if(ps && ps.getAttribute('data-flw-ti')!=null) ps.removeAttribute('tabindex');
+    const tst=c.querySelector('#toast'); if(tst && tst.getAttribute('data-flw-live')!=null) ['role', 'aria-live', 'aria-atomic'].forEach(a=>tst.removeAttribute(a));   /* v68.2 FLOW.mode.live 加的读屏属性（data-flw-live 下面一并摘掉） */
     q('#eb-dur .dg[data-flw-orig]').forEach(g=>{ g.innerHTML=g.getAttribute('data-flw-orig'); });   /* v68.1 FLOW.r2k：简谱时值字形换回原 SMuFL 字形（同 r2k.off） */
     q('#eb-note .nd').forEach(b=>{ b.style.removeProperty('--flw-ord'); if(b.getAttribute('style')==='') b.removeAttribute('style'); });   /* 五线谱音名键的字母序变量 */   /* v68.1 FLOW.mode 给嵌入预览加的 tabindex（标记 data-flw-ti，下面一并摘掉） */
     q('*').forEach(e=>{
@@ -23605,6 +23764,9 @@ var FLOW = (function(){
     switch(kid){
       /* v68.1 轨 C（计划 §4.5）：Ctrl+/、⌘+/ ＝命令面板（开着再按＝收起；Ctrl+K 和弦快速输入不动） */
       case 'Mod+Slash': e.preventDefault(); if(F.cmd) F.cmd.act('cmd:open', null, {detail:0, key:true}); return true;
+      /* v68.2 收尾 OU-6：文件 ▾「打开文件…」与命令面板都标着 Ctrl+O——编辑态也接住（此前只有启动台处理，编辑中交给浏览器自己的打开文件，选了文件就把本页导航走）。
+         与启动台同一入口 #b-open；旧外壳没标过 Ctrl+O，不走这里（flowOn() 才调 FLOW.key） */
+      case 'Mod+KeyO': { e.preventDefault(); const ob=F.old('b-open'); if(ob) ob.click(); return true; }
       default: {
         const k0=e.key||'';
         /* ?（Shift+/，不按 Ctrl）＝快捷键菜单（状态栏「?」同一份） */
@@ -23743,6 +23905,48 @@ var FLOW = (function(){
   F.hr = ()=>'<hr role="separator">';
   F.why = t=>'<div class="flw-why" role="presentation">'+F.esc(t)+'</div>';
   return F;
+})();
+
+/* —— FLOW.track(id)：匿名界面命令统计 ui_cmd ——【v68.2 轨 B；计划 §5.3】
+   FLOW.track(id) → pyqEvent('ui_cmd', id)。拍板 2「两周后看模式使用率」读后台「界面」一行（/api/admin/overview 的 uiModes）。口径：
+   · meta 只有命令 id（如 mode:engrave、pal:fermata、cmd:go:lay:a4），格式 ^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$、≤64 字；不含曲名、歌词、谱内容、窗口名——
+     （计划 §5.3 原写 ^[a-z]+(…)，但它自己列的 r1:file:new / r2:more 首段带数字，按此放宽首段为「字母开头的字母数字」，其余不变；服务端 UI_CMD_RE 同一条）
+     调用处只传代码里的静态 id（命令表 / 记号表 / 右栏页表），这里再按格式过一遍：大写转小写，「+」记「-plus」（r2:octall+ 与 r2:octall- 不撞）；
+     含任何其他格式外字符（中文、空格、标点……）的整条丢弃不发，不做替换（免得把内容改头换面发出去）。
+   · API_ON 为假（file:// 预览、测试、离线、非 puyouquan.com）不发、也不计数；同一 id 每 10 分钟最多 1 次（Date.now）；每会话（本页面生命周期）最多 60 条
+     （服务端另有每访客每小时的 ui_cmd 独立上限，不占其他事件的 300 条）。
+   · 只在内存计数，不落盘、不新增本机键；不写 song。返回 true＝这次发了。
+   接入点（每处一行）：mode:engrave / mode:output（FLOW.mode.set 进入该模式）· r1:file:new / r1:publish / r1:tabovf（FLOW.r1.act）· r2:more（「更多 ▾」菜单）·
+   pal:<记号id> / pal:search（FLOW.pal：run 生效、搜索框有字）· trk:mute / trk:solo / trk:add（FLOW.tree.act）· cmd:open / cmd:go:<命令id>（FLOW.cmd）·
+   rd:<页> / rd:pin（FLOW.rd.act）· st:<项>（FLOW.st：hum · snd · loop · em · more · help · beat）· tour:done / tour:skip（导览，A 轨）· shell:classic（偏好「使用旧版布局」，A 轨） */
+FLOW.track = (function(){
+  const RE = /^[a-z][a-z0-9]*(:[a-z0-9:-]+)*$/, GAP = 10*60*1000, CAP = 60, MAX = 64;
+  const LAST = new Map();
+  let sent = 0;
+  const norm = id=>{
+    if(typeof id!=='string') return '';
+    const s = id.toLowerCase().replace(/\+/g, '-plus');
+    return (s.length<=MAX && RE.test(s))? s : '';
+  };
+  /* opt（v68.2 集成，只给「使用旧版布局」切换前刷新这一处用）：{keepalive:true, done(ok)}——带 keepalive 发、送达（或失败）后回调 done，调用方据此再刷新；
+     返回值照旧（true＝这次发了；没发时不回调 done） */
+  function track(id, opt){
+    try{
+      let on=false; try{ on=!!API_ON; }catch(_){}   /* API_ON 在后面才声明（const）：启动早期读它会抛 TDZ，按「不发」算 */
+      if(!on) return false;
+      const k=norm(id); if(!k || sent>=CAP) return false;
+      const t=Date.now(), p=LAST.get(k);
+      if(p!=null && Math.abs(t-p)<GAP) return false;   /* 时钟回拨也按「10 分钟内」算 */
+      LAST.set(k, t); sent++;
+      if(!opt){ pyqEvent('ui_cmd', k); return true; }
+      const pr=pyqEvent('ui_cmd', k, {keepalive:!!opt.keepalive});
+      if(typeof opt.done==='function') Promise.resolve(pr).then(()=>opt.done(true), ()=>opt.done(false));
+      return true;
+    }catch(_){ return false; }
+  }
+  track.norm = norm;
+  track.stat = ()=>({sent, cap:CAP, gap:GAP});
+  return track;
 })();
 
 /* —— FLOW.r1：行 1（品牌 · 文件 ▾ · 窗口页签 · 保存状态 · 发布 · 账号 ▾）——【T1 独占；计划 §2.3】
@@ -24043,7 +24247,7 @@ FLOW.r1 = (function(){
     const m=libMap(); let n=0, kept=0;
     for(let j=docs.length-1;j>=0 && docs.length>1;j--){
       if(!pick(j, m)) continue;
-      const s2=docSong(j); if(!isSaved(m, s2) && docHasContent(s2)) kept++;
+      const s2=docSong(j); if(!isSaved(m, s2) && docHasContent(s2) && !docIsDemoAsIs(s2)) kept++;   /* 口径同 closeDocAt（原样示例谱不转存，NU-8） */
       closeDocAt(j); n++;
     }
     toast(n? '已关闭 '+n+' 个'+what+'窗口'+(kept? '，其中 '+kept+' 个有内容的已存入「我的曲谱」' : '') : '没有可关闭的'+what+'窗口');
@@ -24148,8 +24352,9 @@ FLOW.r1 = (function(){
       +F.mi({a:'r1:demo', ic:'src-example', label:'示例曲谱', d:'原「预设」：各谱类功能示例'})
       +F.mi({old:'b-circle', ic:'ui-library', label:'谱库', d:'发现好谱、收藏，点开即看即弹'})
       +F.hr()
-      +F.mi({old:'b-savemine', ic:'ui-save', label:'保存到我的曲谱', sc:sv? '已存入' : '', d:sv? '编辑实时同步；再点＝立即同步这一版' : '这份谱现在只存在本机浏览器里'})
-      +F.mi({old:'b-save', ic:'ui-download', label:'存为文件 .mtab.json', sc:'Ctrl+S', d:'完整保留数据，换电脑可打开继续编辑'})
+      /* v68.2 收尾 NU-9：启动台开着时谱面还没打开（背后是上次的谱或示例谱），存入 / 存文件与复制、曲谱信息同口径灰显 */
+      +F.mi({old:'b-savemine', ic:'ui-save', label:'保存到我的曲谱', sc:(sv && !sp)? '已存入' : '', d:sp? '' : sv? '编辑实时同步；再点＝立即同步这一版' : '这份谱现在只存在本机浏览器里', dis:sp, why:SPW})
+      +F.mi({old:'b-save', ic:'ui-download', label:'存为文件 .mtab.json', sc:'Ctrl+S', d:'完整保留数据，换电脑可打开继续编辑', dis:sp, why:SPW})
       +F.mi({a:'r1:dup', ic:'act-swap', label:'复制为新窗口', d:'副本在新窗口打开，原谱不动', dis:sp, why:SPW})
       +F.hr()
       +F.mi({old:'b-meta', ic:'act-info', label:'曲谱信息…', d:'标题、调、拍号、速度、词曲作者', dis:sp, why:SPW})
@@ -24223,9 +24428,9 @@ FLOW.r1 = (function(){
   function act(a, el, ev){
     switch(a){
       case 'r1:save': if(song && song.id && libMap().has(song.id)) return F.menu.toggle('save', el, ev); return saveToLibrary();
-      case 'r1:pub': return pubGo(el);
-      case 'r1:ovf': return openOvf(el, ev);
-      case 'r1:new': return showNewWizard();
+      case 'r1:pub': F.track('r1:publish'); return pubGo(el);   /* v68.2 ui_cmd（FLOW.track，同下两行） */
+      case 'r1:ovf': F.track('r1:tabovf'); return openOvf(el, ev);
+      case 'r1:new': F.track('r1:file:new'); return showNewWizard();
       case 'r1:newdd': return NWP.quickMenu($('flw-file'));
       case 'r1:last': return NWP.quickCreate('last');
       case 'r1:import': return showNewWizard({tab:'import'});
@@ -24288,6 +24493,7 @@ FLOW.r2 = (function(){
     const name = list[vi] || (tab? '吉他' : '旋律');
     let nota;
     if(tab) nota = (instOf()==='uku'? '四线谱' : '六线谱') + (song.tabStaff? ' + 五线' : '') + (tabJpOn(vi)? ' + 简谱' : '');
+    else if(song.chordOnly) nota = '和弦谱';   /* v68.2 收尾 NU-6：纯和弦谱的旋律行是小节格和弦——与音轨树 notaLabel、手机 notaOf 同口径 */
     else { const n=(song.voxNotations||[])[vi];
       nota = isStaffNota(n)? ({staff:'高音谱', bass:'低音谱', alto:'中音谱'}[n]) + ((song.voxDual||[])[vi]? ' + 简谱' : '') : '简谱'; }
     return {kind: tab? 'tv' : 'vv', vi, name, nota};
@@ -24345,6 +24551,7 @@ FLOW.r2 = (function(){
   });
   /* 「更多 ▾」（README 行 2：重做、拆分、合并、清单音、和音、移高 / 移低八度、N 连音、节奏型库、不换行、键盘 / 指板；委托总表 §1.4） */
   F.menus.more = ()=>{
+    F.track('r2:more');   /* v68.2 ui_cmd：打开行 2「更多 ▾」 */
     const tab = F.ctx()==='tab', h=[];
     const off=offItems();
     if(off.length) h.push(F.mh('放不下收起的键'), off.join(''), F.hr());
@@ -24454,6 +24661,7 @@ FLOW.st = (function(){
   function nota(){
     if(sel.row==='tab'){ const uku=instOf()==='uku'; let jp=false; try{ jp=!!tabJpOn(sel.vi); }catch(_){}
       return (uku? '四线谱' : '六线谱')+(jp? ' + 简谱' : ''); }
+    if(song.chordOnly) return '和弦谱';   /* v68.2 收尾 NU-6：纯和弦谱的旋律行是小节格和弦（与音轨树 / 行 2 作用于芯片同口径） */
     const n=(song.voxNotations||[])[sel.vi];
     const nm = n==='staff'? '五线谱' : n==='bass'? '低音谱表' : n==='alto'? '中音谱表' : '简谱';
     return nm+((isStaffNota(n) && (song.voxDual||[])[sel.vi])? ' + 简谱' : '');
@@ -24562,7 +24770,7 @@ FLOW.st = (function(){
       /* 时值检查：点状态项＝展开 / 收起上弹的 #err-drop（原 onclick 照旧跳到第一处不符）。直接挂在 #beat-status 上：
          原 onclick 会重渲染、换掉里面的图标节点，冒泡到 #mixer-dock 的委托就认不出点的是谁了 */
       const bs=$('beat-status');
-      if(bs) bs.addEventListener('click', ev=>{ if(!F.active) return; eoSet(bsBad() && !eoOn()); EO_KB=ev.detail===0; bsTitle();
+      if(bs) bs.addEventListener('click', ev=>{ if(!F.active) return; F.track('st:beat'); eoSet(bsBad() && !eoOn()); EO_KB=ev.detail===0; bsTitle();
         /* 鼠标点：与默认外壳点不可聚焦的状态项一致——焦点不留在它身上（回到 body），空格 / Enter 照旧是播放 / 写歌词 */
         if(ev.detail>0 && document.activeElement===bs) try{ bs.blur(); }catch(_){} });
       const ed=$('err-drop');
@@ -24618,6 +24826,7 @@ FLOW.st = (function(){
       if(F.changed('stfit', fitSig())) F.raf('stfit', fit);
     },
     act(a, el){
+      if(/^st:(hum|snd|loop|em)$/.test(a)) F.track(a);   /* v68.2 ui_cmd：st:hum / st:snd / st:loop / st:em */
       switch(a){
         case 'st:hum': { const on=!humOn(); prefSet('humanize', on);
           toast(on? '播放演奏感：自然（细微的轻重快慢，从下次播放起）' : '播放演奏感：精确（零扰动，从下次播放起）'); return; }
@@ -24632,6 +24841,7 @@ FLOW.st = (function(){
   };
   /* ⋯ 更多：演奏感 · 音色库 · 谱架模式（拍板：进状态栏的「⋯」）＋ 时值检查方式（右栏「编辑模式」卡的同一开关） */
   F.menus.stmore = ()=>{
+    F.track('st:more');   /* v68.2 ui_cmd：打开状态栏「⋯ 更多」 */
     let hum=true; try{ hum=humOn(); }catch(_){}
     let smart=true; try{ smart=editModeSmart(); }catch(_){}
     const sb=$('rc-sndlib'), sbOn=!!(sb && sb.style.display!=='none');
@@ -24649,6 +24859,7 @@ FLOW.st = (function(){
   };
   /* ?：常用快捷键（与键盘处理器同一张键位，GP 键位档的差异写在说明里）＋ 完整帮助 */
   F.menus.help = ()=>{
+    F.track('st:help');   /* v68.2 ui_cmd：状态栏「?」/ 按 ? 打开快捷键菜单 */
     const kv=(k, t)=>'<div class="flw-st-kv" role="presentation"><span>'+F.esc(t)+'</span><kbd>'+F.esc(k)+'</kbd></div>';
     return F.mh('常用快捷键')
       + kv('0–7 / 品位数字', '音高（简谱 / 五线谱）· 品位（六线谱）')
@@ -24843,9 +25054,9 @@ FLOW.rd = (function(){
     sync(){ syncUI(); },
     act(a, el, ev){
       if(a==='rd:tab'){ const p=el.dataset.p;
-        if(isOpen() && page()===p) close(true); else open(p, el, !!(ev && ev.detail===0)); return; }
-      if(a==='rd:page') return show(el.dataset.p);
-      if(a==='rd:pin') return pin(!pinned());
+        if(isOpen() && page()===p) close(true); else { F.track('rd:'+p); open(p, el, !!(ev && ev.detail===0)); } return; }   /* v68.2 ui_cmd：rd:<页>（竖条浮出 / 页签切页）· rd:pin */
+      if(a==='rd:page'){ if(el.dataset.p!==page()) F.track('rd:'+el.dataset.p); return show(el.dataset.p); }
+      if(a==='rd:pin'){ F.track('rd:pin'); return pin(!pinned()); }
       if(a==='rd:close') return close(true);
     }
   };
@@ -25328,9 +25539,14 @@ FLOW.tree = (function(){
         +E(CLEFN[x.nota])+IC('act-chevron', 12)+'</button>' : '')+'</span>'
       +eyeBtn('tree:eye', kk, i, 'st', stOn, '五线谱层', '五线谱层：两层都亮＝五线谱＋简谱对照（voxDual）')+'</div>';
     if(x.lyr) h+=lyrHTML(m, x);
-    if(m.canGen) h+='<button type="button" class="flw-tsub flw-tact" data-fa="tree:gentab"'+attrs(kk, i)+fk('gen'+i)
-      +' title="把这条旋律按所选把位生成一条'+(m.uku? '尤克里里' : '吉他')+'轨（原旋律轨不动，可一步撤销）——这是新建一条轨的动作，不是显示开关">'
-      +'<span class="flw-tsico">'+IC('ai-gentab')+'</span><span class="flw-tslab">由此生成'+(m.uku? '四' : '六')+'线谱轨…</span></button>';
+    /* v68.2（C2 迁移 tv_fillacc F6c 发现）：唯一一条吉他轨是空的时，生成会写进它（vtReuseInfo，轨数不变）——提示照实说，同经典「六」灯 #nl-voxtab 的 title；
+       此前恒写「生成一条…轨——这是新建一条轨的动作」，与弹窗 / 结果不符 */
+    if(m.canGen){ let ru=null; try{ ru=vtReuseInfo(); }catch(_){}
+      const inm=m.uku? '尤克里里' : '吉他';
+      h+='<button type="button" class="flw-tsub flw-tact" data-fa="tree:gentab"'+attrs(kk, i)+fk('gen'+i)
+      +' title="'+E(ru? '把这条旋律按所选把位写进当前的空'+inm+'轨「'+ru.name+'」（轨数不变；原旋律轨不动，可一步撤销）'
+        : '把这条旋律按所选把位生成一条'+inm+'轨（原旋律轨不动，可一步撤销）——这是新建一条轨的动作，不是显示开关')+'">'
+      +'<span class="flw-tsico">'+IC('ai-gentab')+'</span><span class="flw-tslab">由此生成'+(m.uku? '四' : '六')+'线谱轨…</span></button>'; }
     return h;
   }
   /* 歌词子行（段号 ① ② ＋ − · 填词）＋ 展开时的逐字填词区落点；旋律轨与纯和弦谱轨共用 */
@@ -25576,10 +25792,10 @@ FLOW.tree = (function(){
       if(ae && root && root.contains(ae) && ae.tagName==='BUTTON') try{ ae.blur(); }catch(_){} }, 0);
     switch(a){
       case 'tree:sel': return selRow(k, i, el, ev);
-      case 'tree:mute': { trkMixSet(k, i, {on: mx(keyOf(k, i)).on===false}); return paint(); }
-      case 'tree:solo': { trkMixSet(k, i, {solo: !mx(keyOf(k, i)).solo}); return paint(); }
+      case 'tree:mute': { F.track('trk:mute'); trkMixSet(k, i, {on: mx(keyOf(k, i)).on===false}); return paint(); }   /* v68.2 ui_cmd：trk:mute / trk:solo / trk:add */
+      case 'tree:solo': { F.track('trk:solo'); trkMixSet(k, i, {solo: !mx(keyOf(k, i)).solo}); return paint(); }
       case 'tree:more': { const d=F.menu.toggle('treeTrk', el, ev); if(d) bindMix(d, k, i); return; }
-      case 'tree:add': return F.menu.toggle('treeAdd', el, ev);
+      case 'tree:add': F.track('trk:add'); return F.menu.toggle('treeAdd', el, ev);
       case 'tree:hdr': return F.menu.toggle('treeHdr', el, ev);
       case 'tree:clef': return F.menu.toggle('treeClef', el, ev);
       case 'tree:kind': return kindMenu(kb);
@@ -25621,8 +25837,8 @@ FLOW.tree = (function(){
     const k=anchor.dataset.k==='tab'? 'tab' : 'vox', i=+anchor.dataset.i||0, A=attrs(k, i);
     const list = k==='tab'? song.tabVoices : song.voxVoices; if(!list || list[i]==null) return null;
     const c=mx(keyOf(k, i)), defI = k==='tab'? (song.inst==='uku'? 'uku' : 'steel') : 'ah';
-    /* 音量读数与播放引擎、经典混音台同口径（cfg.vol||1：存了 0 的照全音量发声，验收 TRK-5）；滑杆最小 1%——要不出声用静音钮 */
-    const inst = c.inst && INSTRUMENTS[c.inst]? c.inst : defI, vol=Math.round((c.vol||1)*100), pan=c.pan==null? null : c.pan;
+    /* 音量读数与播放引擎、经典混音台同口径（trkVolOf：v68.2 TRK-5 起存了 0 的就是 0、不出声；缺省 100%）；滑杆 0–150 与经典混音台同范围 */
+    const inst = c.inst && INSTRUMENTS[c.inst]? c.inst : defI, vol=Math.round(trkVolOf(c)*100), pan=c.pan==null? null : c.pan;
     let dt=''; try{ dt=docType(song); }catch(_){}
     const lock=lockOf(dt);
     const canDel = k==='tab'? (song.tabVoices.length>1 || song.voxVoices.length>0) : (!lock && (song.voxVoices.length>1 || (song.tabVoices.length>0 && !!song.tabStaff)));
@@ -25635,7 +25851,7 @@ FLOW.tree = (function(){
       + F.mi({a:'tree:rename', attr:A, label:'改名…', sc:'双击名字'})
       + F.hr() + F.mh('混音（播放）')
       + '<div class="flw-tmx"><span class="flw-mic">'+IC('trk-sound')+'</span><label for="flw-tmx-inst">乐器与音色</label><select id="flw-tmx-inst" data-mx="inst"'+nx+' title="播放音色（只影响发声；记谱乐器见「换谱类」）">'+instOpts(inst)+'</select></div>'
-      + '<div class="flw-tmx"><span class="flw-mic"></span><label for="flw-tmx-vol">音量</label><input type="range" id="flw-tmx-vol" data-mx="vol"'+nx+' min="1" max="150" step="1" value="'+vol+'" title="播放音量 1–150%（不出声请用行上的静音钮）"><output data-mxo="vol">'+vol+'%</output></div>'
+      + '<div class="flw-tmx"><span class="flw-mic"></span><label for="flw-tmx-vol">音量</label><input type="range" id="flw-tmx-vol" data-mx="vol"'+nx+' min="0" max="150" step="1" value="'+vol+'" title="播放音量 0–150%（0＝不出声；临时不听用行上的静音钮）"><output data-mxo="vol">'+vol+'%</output></div>'
       + '<div class="flw-tmx"><span class="flw-mic"></span><label for="flw-tmx-pan">声像</label><input type="range" id="flw-tmx-pan" data-mx="pan"'+nx+' min="-100" max="100" step="1" value="'+(pan==null? 0 : Math.round(pan*100))+'" title="左 ← 中 → 右；双击回「自动」"><output data-mxo="pan">'+E(panLabel(pan))+'</output>'
         + '<button type="button" class="flw-tpan0" data-fa="tree:pan0" data-keep=""'+A+' title="回到「自动」：各轨按声部自动铺开（默认）">复位</button></div>'
       + F.hr()
@@ -25655,9 +25871,9 @@ FLOW.tree = (function(){
       + F.mi({a:'tree:midi', attr:A, ic:'src-midi', label:'导入 MIDI 到本轨…', d:'选 MIDI 里的一条音轨，覆盖本轨内容（可一步撤销）'})
       + F.mi({a:'tree:board', attr:A, ic:'act-keyboard', label: k==='tab'? '指板输入' : '键盘输入', d: k==='tab'? '一比一指板（按本轨定弦与变调夹）' : '钢琴全键盘 88 键'})
       + F.hr()
-      + F.mi({ic:'trk-lock', label:'锁定此轨', dis:true, why:'下一批：锁定要改光标与录入逻辑，不属于外壳这一层'})
-      + F.mi({label:'上移', dis:true, why:'下一批：音轨排序（拍板 13，需原子重排各并列字段并一步撤销）'})
-      + F.mi({label:'下移', dis:true, why:'下一批：音轨排序（拍板 13，需原子重排各并列字段并一步撤销）'})
+      + F.mi({ic:'trk-lock', label:'锁定此轨', dis:true, why:'锁定此轨：即将推出'})
+      + F.mi({label:'上移', dis:true, why:'音轨排序：即将推出'})
+      + F.mi({label:'下移', dis:true, why:'音轨排序：即将推出'})
       + F.hr()
       + F.mi({a:'tree:del', attr:A, ic:'ed-delete', label:'删除音轨', dis:!canDel, why, d: canDel? '可一步撤销' : why});
   };
@@ -25674,10 +25890,10 @@ FLOW.tree = (function(){
       + F.mi({a:'tree:addtab', ic: uku? 'inst-ukulele' : 'inst-guitar', label:tabName, d: uku? '四线谱 · 和弦图 / 扫弦 / 技法，空白' : '六线谱 · 和弦图 / 扫弦 / 技法，空白',
           dis:!canTab, why: func? '功能谱只加旋律轨（级数和弦挂在旋律上）' : trackLimitMsg('tab')});
     if(func){ /* 功能谱只加旋律轨：不出 4 线 / 6 线的选项 */ }
-    else if(!uku) h+=F.mi({ic:'inst-ukulele', label:'尤克里里轨', dis:true, why:'本谱乐器是吉他（6 线），同一份谱里暂不能混 4 线（下一批）。可以另建一份尤克里里弹唱谱。',
+    else if(!uku) h+=F.mi({ic:'inst-ukulele', label:'尤克里里轨', dis:true, why:'本谱乐器是吉他（6 线），同一份谱里暂不能混 4 线。可以另建一份尤克里里弹唱谱。',
           d:'本谱乐器是吉他（6 线），同一份谱里暂不能混 4 线'})
         + F.mi({a:'tree:uku', ic:'act-new', cls:'pri', label:'另建尤克里里弹唱谱…', d:'打开新建面板（已预选尤克里里），新窗口建谱，本谱保留'});
-    else h+=F.mi({ic:'inst-guitar', label:'吉他轨', dis:true, why:'本谱乐器是尤克里里（4 线），同一份谱里暂不能混 6 线（下一批）', d:'本谱乐器是尤克里里（4 线），同一份谱里暂不能混 6 线'});
+    else h+=F.mi({ic:'inst-guitar', label:'吉他轨', dis:true, why:'本谱乐器是尤克里里（4 线），同一份谱里暂不能混 6 线', d:'本谱乐器是尤克里里（4 线），同一份谱里暂不能混 6 线'});
     /* 本谱没有旋律轨（指弹独奏等）：不出这一项——与经典「＋ 音轨」弹窗不出 #ta-map 同口径（验收 TRK-14：此前退回字面「旋律」、原因写成「还没有音符」） */
     if((song.voxVoices||[]).length) h+=F.hr()
       + F.mi({a:'tree:gen', ic:'ai-gentab', label:'由「'+mapName+'」生成'+(uku? '四' : '六')+'线谱轨…', d:'低把位 / 中把位 / 跟随和弦图（原旋律轨不动）',
@@ -25784,7 +26000,8 @@ FLOW.tree = (function(){
       L.addEventListener('scroll', ()=>{ if(F.active) F.raf('treehint', hint); }, {passive:true});
       /* 指针离开音轨列表：鼠标点选时替它留着的上一个当前行这才收起，当前行连同子行滚进可视区（TRK-4 / TRK-11） */
       L.addEventListener('pointerleave', ()=>{ if(!F.active || !HOLD) return; HELD.clear(); HOLD=''; paint(); });
-      try{ paint(true); }catch(e){ console.error('flow 音轨树首画异常', e); }
+      /* v68.2 收尾 ENG-2：首画交给 on()——挂载（F.mount）只在 deskApply 启用时发生，紧接着 F.each('on') 就 paint(true) 一遍；
+         此前这里也 paint(true)，开机把整棵树画两遍（同一份谱，约 50ms），切成默认后人人都付 */
     },
     on(){ LAST_CUR=''; LAST_SONG=null; HELD.clear(); HOLD=''; paint(true); },
     off(){},
@@ -25850,7 +26067,7 @@ FLOW.r2k = (function(){
      排序写在内联变量 --flw-ord，由 ⑫ 的 #editbar[data-flw-ctx="st"] 规则以 !important 套用——syncInputs 单独调用（不经 render：切歌词段、退出指法直录等）
      重写内联 order 也不打乱；离开五线谱语境时角标移除，变量留着不生效（规则只认 st），syncInputs 照旧按 k 排 */
   /* v68.1 收尾 PN-5：调按光标所在小节算（staffKeyInfoAt(sel.mi)：中途转调 keyTo 之后的小节按新调）——此前按全曲调 song.key，
-     转调小节里写着「C」、角标 1 的键写出来是 G。syncInputs 写的 .dg 字母仍按全曲调（默认外壳原样不动），flow 下在它旁边放一枚按本小节调算的字母 .flw-ltr
+     转调小节里写着「C」、角标 1 的键写出来是 G。syncInputs 写的 .dg 字母 v68.1 仍按全曲调（v68.2 起也按本小节调，两外壳同口径），flow 下在它旁边放一枚按本小节调算的字母 .flw-ltr
      （⑫ 的规则在五线谱语境隐藏 .dg、显示它）——syncInputs 单独调用（切歌词段、退出指法直录）重写 .dg 也不影响 */
   function degs(li){
     document.querySelectorAll('#eb-note > .nd').forEach(b=>{
@@ -25926,6 +26143,8 @@ FLOW.cmd = (function(){
   const ex = k=>()=>EXPORT_ACT[k]();
   /* 排版工具组的动作（此处换行 / 并入上一行 / 锁定此行）：先进排版，再走 FLOW.lay.act——与点 #flw-eng 那枚按钮同一条路径（sysBreakAt / sysAct('pull') / sysLockRow） */
   const layDo = a=>()=>{ setMode('engrave'); F.lay.act(a, {dataset:{}}, null); };
+  /* v68.2 输出「预览」排布：先进输出，再点 #flw-out-arr 同一枚键（FLOW.out.act('out:arr')） */
+  const arrDo = v=>()=>{ setMode('output', {focus:'stage'}); const b=document.querySelector('#flw-out-arr [data-v="'+v+'"]'); F.out.act('out:arr', b || {dataset:{v}}, null); };
   const layPick = (grp, attr, v)=>()=>{ setMode('engrave', {page:'lay'}); const b=document.querySelector('#'+grp+' ['+attr+'="'+v+'"]'); if(b) b.click(); };
   /* 当前轨 ⋯ 菜单（混音：音量 / 音色 / 声像）：窄档先把音轨树浮出来，菜单才有可见的锚点 */
   function trkMore(){
@@ -25966,10 +26185,16 @@ FLOW.cmd = (function(){
     F.menu.close(); F.act('r1:ovf', a, {detail:0});   /* 与页签「窗口 N ▾」同一入口（openOvf：搜索框 + 窗口行） */
   }
   function palSearch(){ if(F.nar && F.nar.narrow()) return F.nar.pal(); try{ F.pal.focusSearch(); }catch(_){} }
+  /* v68.2「经典版 / 旧版布局」→ 偏好设置「使用旧版布局」（PLAN §5.1）：打开偏好设置并把焦点放在这一行，由用户自己点开关（切换会刷新页面，不从搜索框直接切） */
   function classic(){
     const it=(typeof PREF_ITEMS!=='undefined' && PREF_ITEMS.find(x=>x.k==='oldshell'));
-    if(it) return showPrefs();
-    toast('预览期回到经典版：把地址里的 ?shell=flow 换成 ?shell=classic 再打开（随时可换回）');
+    if(!it) return toast('回到旧版布局：在地址后加 ?shell=classic 再打开（随时可换回）');
+    showPrefs();
+    const r=document.querySelector('#modal-mask .prf-row[data-prf="oldshell"]'); if(!r) return;
+    r.classList.add('prf-hl');
+    /* 焦点放到下一轮：命令面板收起时会把焦点还给打开它的按钮（菜单骨架的 MutationObserver 回调），放早了会被它抢走 */
+    const go=()=>{ if(r.isConnected){ try{ r.focus({preventScroll:true}); r.scrollIntoView({block:'nearest'}); }catch(_){} } };
+    go(); setTimeout(go, 0);
   }
   const prefT = k=>()=>{ const it=PREF_ITEMS.find(x=>x.k===k); if(!it) return;
     let on=false; try{ on=!!it.get(); }catch(_){}
@@ -25980,14 +26205,14 @@ FLOW.cmd = (function(){
   function hand(){
     const L=[
       C('r1:new', '新建…', 'xj xjqp new 新建曲谱 新窗口 alt+n', '文件 ▾ · Alt+N', fa('r1:new'), {ic:'act-new', sp:1}),
-      C('r1:last', '按上次设置新建', 'asxszxj ascxj last alt+shift+n', '文件 ▾ · Alt+Shift+N', fa('r1:last'), {ic:'tpl-last', sp:1}),
+      C('r1:last', '按上次设置新建', 'asxszxj ascxj last alt+shift+n 快速新建 ksxj', '文件 ▾ · Alt+Shift+N', fa('r1:last'), {ic:'tpl-last', sp:1}),
       C('r1:import', '从已有音乐…', 'cyyyy dr drqp import musicxml gp guitarpro midi ai转谱 导入', '文件 ▾', fa('r1:import'), {ic:'act-import', sp:1}),
       C('r1:open', '打开文件…', 'dkwj dk open ctrl+o mtab 打开', '文件 ▾ · Ctrl+O', click('#b-open'), {ic:'act-open', sp:1}),
       C('r1:mine', '我的曲谱', 'wdqp mine 我的', '文件 ▾ / 账号 ▾', fa('r1:mine'), {ic:'src-mine', sp:1}),
       C('r1:demo', '示例曲谱', 'slqp sl 预设 ys yushe example demo 示例', '文件 ▾（原「预设」）', fa('r1:demo'), {ic:'src-example', sp:1}),
       C('r1:circle', '谱库', 'pk pyq circle 谱友圈 广场 发现好谱', '文件 ▾ / 账号 ▾', click('#b-circle'), {ic:'ui-library', sp:1}),
       C('r1:savemine', '保存到我的曲谱', 'bc bcdwdqp cr crwdqp save 存入 保存', '行 1 · 保存状态 / 文件 ▾', click('#b-savemine'), {ic:'ui-save'}),
-      C('r1:file', '存为文件 .mtab.json', 'cwwj xz bcwj ctrl+s mtab download 下载 曲谱文件 导出曲谱文件', '文件 ▾ · Ctrl+S', click('#b-save'), {ic:'ui-download'}),
+      C('r1:file', '存为文件 .mtab.json', 'cwwj xz bcwj ctrl+s mtab download 下载 曲谱文件 导出曲谱文件 另存 另存为 lc lcw saveas 保存文件', '文件 ▾ · Ctrl+S', click('#b-save'), {ic:'ui-download'}),
       C('r1:dup', '复制为新窗口', 'fzwxck fz 副本 duplicate copy', '文件 ▾', fa('r1:dup'), {ic:'act-swap'}),
       C('r1:meta', '曲谱信息…', 'qpxx xx meta 标题 曲名 调 拍号 速度 词曲 作者 页头', '文件 ▾ / 右栏 · 属性', click('#b-meta'), {ic:'act-info'}),
       C('r1:kind', '换谱类…', 'hpl pl kind 谱类 谱型 谱型条 换谱型', '左栏音轨区标题 · 谱类 ▾ / 文件 ▾', fa('r1:kind'), {ic:'act-swap'}),
@@ -25998,15 +26223,15 @@ FLOW.cmd = (function(){
       C('r1:pub', '发布到谱库', 'fb fbdpk publish 提交审核 发布', '行 1 · 发布（进「输出」确认）', fa('r1:pub', ()=>$('flw-pub')), {ic:'ui-publish'}),
       C('acct:member', '个人中心', 'grzx zh member account 账号', '账号 ▾', click('#b-member'), {ic:'ui-account', sp:1}),
       C('acct:creator', '创作者中心', 'czzzx creator 收益 我的发布 审核进度', '账号 ▾', fa('r1:creator'), {ic:'ui-publish', sp:1}),
-      C('acct:light', '外观：浅色', 'wg qs light theme 主题 白天 浅色模式', '账号 ▾ · 外观', theme('light'), {ic:'ui-theme', sp:1}),
-      C('acct:dark', '外观：深色', 'wg sc dark theme 主题 夜间 深色模式 暗色', '账号 ▾ · 外观', theme('dark'), {ic:'ui-theme', sp:1}),
-      C('acct:auto', '外观：跟随系统', 'wg gsxt auto system theme 主题', '账号 ▾ · 外观', theme('auto'), {ic:'ui-theme', sp:1}),
-      C('acct:invert', '谱面反色', 'pmfs fs invert 反色 投影 夜间谱面', '账号 ▾', click('#b-invert'), {ic:'ui-invert'}),
+      C('acct:light', '外观：浅色', 'wg qs light theme 主题 白天 浅色模式 界面风格 jmfg 界面明暗', '账号 ▾ · 外观', theme('light'), {ic:'ui-theme', sp:1}),
+      C('acct:dark', '外观：深色', 'wg sc dark theme 主题 夜间 深色模式 暗色 界面风格 jmfg 界面明暗', '账号 ▾ · 外观', theme('dark'), {ic:'ui-theme', sp:1}),
+      C('acct:auto', '外观：跟随系统', 'wg gsxt auto system theme 主题 界面风格 jmfg 界面明暗', '账号 ▾ · 外观', theme('auto'), {ic:'ui-theme', sp:1}),
+      C('acct:invert', '谱面反色', 'pmfs fs invert 反色 投影 夜间谱面 曲谱反色 qpfs', '账号 ▾', click('#b-invert'), {ic:'ui-invert'}),
       C('acct:prefs', '偏好设置…', 'phsz sz prefs settings 设置 偏好', '账号 ▾', ()=>showPrefs(), {ic:'act-settings', sp:1}),
       C('acct:keys', '快捷键一览', 'kjj kjjyl shortcut keys hotkey 键位 ?', '状态栏 ? / 账号 ▾ · 按 ?', ()=>help(), {ic:'act-keyboard', sp:1}),
       C('acct:help', '帮助与教程', 'bz bzyjc help 教程 使用说明', '账号 ▾', click('#b-help'), {ic:'ui-help', sp:1}),
       C('acct:log', '更新日志', 'gxrz rz changelog 版本 新功能', '账号 ▾', click('#b-changelog'), {ic:'ui-recent', sp:1}),
-      C('acct:classic', '经典版布局', 'jdb jdbbj jbbj classic 经典版 旧版布局 旧版 旧界面 老界面', '账号 ▾ · 偏好设置', classic, {ic:'act-settings', sp:1}),
+      C('acct:classic', '使用旧版布局', 'syjbbj jdb jdbbj jbbj classic old 经典版 经典版布局 旧版布局 旧版 旧界面 老界面 回到旧版', '账号 ▾ · 偏好设置「使用旧版布局」', classic, {ic:'act-settings', sp:1}),
       /* 三步「书写 › 排版 › 输出」（不设播放步：播放在底部播放与状态栏） */
       C('mode:write', '书写', 'sx sxms write 书写模式 编辑 录入 esc', '行 2 · 工作步骤（Esc 回到这里）', ()=>setMode('write'), {ic:'mode-write'}),
       C('mode:engrave', '排版', 'pb pbms paiban engrave layout 排版模式 版面 排版…', '行 2 · 工作步骤 · 排版（原顶栏「排版」）', ()=>setMode('engrave', {focus:'stage'}), {ic:'mode-engrave'}),
@@ -26018,8 +26243,12 @@ FLOW.cmd = (function(){
       C('out:icard', '互动谱 HTML', 'hdp html icard 互动 网页 分享网页', '输出 · 分享', ex('icard'), {ic:'out-web'}),
       C('out:mxl', 'MusicXML', 'musicxml xml mxl 专业格式 musescore finale sibelius', '输出 · 专业格式', ex('mxl'), {ic:'out-xml'}),
       C('out:mid', 'MIDI', 'midi mid daw 编曲 导出midi', '输出 · 专业格式', ex('mid'), {ic:'src-midi'}),
-      C('out:parts', '分谱', 'fp parts 分谱 声部谱 演奏者', '输出 · 分谱（下一批）', null, {ok:()=>'按演奏者出分谱：下一批', ic:'out-parts'}),
+      C('out:parts', '分谱', 'fp parts 分谱 声部谱 演奏者', '输出 · 分谱（即将推出）', null, {ok:()=>'按演奏者出分谱：即将推出（现在打印、导出的都是总谱）', ic:'out-parts'}),
       C('out:pubpage', '发布与导出（右栏）', 'fbydc 发布页 导出页', '输出 · 右栏', ()=>setMode('output', {page:'pub', open:true}), {ic:'ui-publish'}),
+      /* v68.2 输出「预览」排布（原打印预览条的 适配 / 整页 / 横排；与点 #flw-out-arr 同一路径） */
+      C('out:arrw', '预览：适宽', 'sk ylsk yl 适宽 适配 适配宽度 竖排 预览排布', '输出 · 预览（原打印预览「适配」）', arrDo('w'), {ic:'ui-preview'}),
+      C('out:arrp', '预览：整页', 'zy ylzy 整页 一页 预览排布', '输出 · 预览（原打印预览「整页」）', arrDo('p'), {ic:'ui-preview'}),
+      C('out:arrh', '预览：横排', 'hp ylhp 横排 横向 左右 预览排布', '输出 · 预览（原打印预览「横排」）', arrDo('h'), {ic:'ui-preview'}),
       C('lay:check', '版面检查', 'bmjc jc check 版面 翻页 页数 行数', '排版 · 左栏', ()=>setMode('engrave', {focus:'stage'}), {ic:'lay-bars'}),
       C('lay:panel', '版式（纸张 · 疏密 · 内容大小）', 'bs bsjcq layout 版式 纸张 疏密 间距 内容大小', '排版 · 右栏「版式」', ()=>setMode('engrave', {page:'lay', open:true}), {ic:'lay-size'}),
       C('lay:A5', '纸张 A5', 'zz a5 paper 纸张', '排版 · 纸张', layPick('lp-page', 'data-page', 'A5'), {ic:'lay-size'}),
@@ -26031,7 +26260,8 @@ FLOW.cmd = (function(){
       C('lay:brk', '此处换行', 'cchh hh 换行 断行 break', '排版 · 工具组', layDo('lay:brk'), {ic:'lay-sysbreak'}),
       C('lay:pull', '并入上一行', 'brsyh bh 合并行 并行 pull', '排版 · 工具组', layDo('lay:join'), {ic:'lay-continuous'}),
       C('lay:lock', '锁定此行', 'sdch sd lock 锁行', '排版 · 工具组', layDo('lay:lock'), {ic:'lay-lock'}),
-      C('lay:pagebrk', '此处换页', 'cchy hy pagebreak 换页 分页', '排版 · 工具组（下一批）', null, {ok:()=>'换页要新增一个可选字段，待拍板：下一批', ic:'lay-pagebreak'}),
+      C('lay:meta', '页头与页码…', 'ytyym yt ym 页码 页眉 页头 页脚 header pagenumber', '排版 · 工具组「页头与页码…」（页头在「曲谱信息」里改）', ()=>{ setMode('engrave'); F.lay.act('lay:meta', {dataset:{}}, null); }, {ic:'lay-header'}),
+      C('lay:pagebrk', '此处换页', 'cchy hy pagebreak 换页 分页', '排版 · 工具组（即将推出）', null, {ok:()=>'此处换页：即将推出（现在按纸张自动分页）', ic:'lay-pagebreak'}),
       /* 行 2（书写） */
       C('r2:undo', '撤销', 'cx undo ctrl+z', '行 2 · 撤销 · Ctrl+Z', click('#b-undo'), {ic:'act-undo'}),
       C('r2:redo', '重做', 'cz redo ctrl+y', '行 2 · 更多 ▾ · Ctrl+Y', click('#b-redo'), {ic:'act-redo'}),
@@ -26042,24 +26272,24 @@ FLOW.cmd = (function(){
       C('r2:sharp', '升号 ♯', 'sh sharp 升半音记号', '行 2 · 变音（简谱 / 五线谱）', W(click('#eb-acc-s')), {ok:vox}),
       C('r2:flat', '降号 ♭', 'jh flat 降半音记号', '行 2 · 变音（简谱 / 五线谱）', W(click('#eb-acc-f')), {ok:vox}),
       C('r2:natural', '还原号 ♮', 'hyh natural 还原', '行 2 · 变音（简谱 / 五线谱）', W(click('#eb-acc-n')), {ok:vox}),
-      C('r2:octup', '高八度（只改这一个音）', 'gbd gyd octave up + 高音点', '行 2 · 音高 · +', W(click('#eb-octup')), {ok:vox}),
-      C('r2:octdn', '低八度（只改这一个音）', 'dbd dyd octave down 低音点', '行 2 · 音高 · −', W(click('#eb-octdn')), {ok:vox}),
-      C('r2:d1', '全音符', 'qyf qy whole q', '行 2 · 时值 · Q', W(click('#eb-dur [data-dur="1"]'))),
-      C('r2:d2', '二分音符', 'efyf ef half w', '行 2 · 时值 · W', W(click('#eb-dur [data-dur="2"]'))),
-      C('r2:d4', '四分音符', 'sfyf sf quarter e', '行 2 · 时值 · E', W(click('#eb-dur [data-dur="4"]'))),
-      C('r2:d8', '八分音符', 'bfyf bf eighth r', '行 2 · 时值 · R', W(click('#eb-dur [data-dur="8"]'))),
-      C('r2:d16', '十六分音符', 'slfyf slf sixteenth t', '行 2 · 时值 · T', W(click('#eb-dur [data-dur="16"]'))),
-      C('r2:d32', '三十二分音符', 'sselfyf self 32 y', '行 2 · 时值 · Y', W(click('#eb-dur [data-dur="32"]'))),
-      C('r2:d64', '六十四分音符', 'lslfyf lslf 64 u', '行 2 · 时值 · U', W(click('#eb-dur [data-dur="64"]'))),
+      C('r2:octup', '高八度（只改这一个音）', 'gbd gyd octave up + 高音点 升八度 高8度 sbd', '行 2 · 音高 · +', W(click('#eb-octup')), {ok:vox}),
+      C('r2:octdn', '低八度（只改这一个音）', 'dbd dyd octave down 低音点 降八度 低8度 jbd', '行 2 · 音高 · −', W(click('#eb-octdn')), {ok:vox}),
+      C('r2:d1', '全音符', 'qyf qy whole q 1分', '行 2 · 时值 · Q', W(click('#eb-dur [data-dur="1"]'))),
+      C('r2:d2', '二分音符', 'efyf ef half w 2分 2分音符', '行 2 · 时值 · W', W(click('#eb-dur [data-dur="2"]'))),
+      C('r2:d4', '四分音符', 'sfyf sf quarter e 4分 4分音符', '行 2 · 时值 · E', W(click('#eb-dur [data-dur="4"]'))),
+      C('r2:d8', '八分音符', 'bfyf bf eighth r 8分 8分音符', '行 2 · 时值 · R', W(click('#eb-dur [data-dur="8"]'))),
+      C('r2:d16', '十六分音符', 'slfyf slf sixteenth t 16分 16分音符', '行 2 · 时值 · T', W(click('#eb-dur [data-dur="16"]'))),
+      C('r2:d32', '三十二分音符', 'sselfyf self 32 y 32分', '行 2 · 时值 · Y', W(click('#eb-dur [data-dur="32"]'))),
+      C('r2:d64', '六十四分音符', 'lslfyf lslf 64 u 64分', '行 2 · 时值 · U', W(click('#eb-dur [data-dur="64"]'))),
       C('r2:dot', '附点', 'fd dot 附点音符', '行 2 · 时值 · .', W(click('#eb-dot'))),
       C('r2:ext', '增时线', 'zsx zs ext 延长一拍 d', '行 2 · 时值 · D', W(click('#eb-ext'))),
       C('r2:split', '拆分', 'cf split 一分为二', '行 2 · 更多 ▾', W(click('#eb-split')), {ic:'ed-split'}),
       C('r2:merge', '合并', 'hb merge 合并音符', '行 2 · 更多 ▾', W(click('#eb-merge')), {ic:'ed-merge'}),
-      C('r2:clear', '清单音', 'qdy clear backspace 清除单音', '行 2 · 更多 ▾ · Backspace', W(click('#eb-clear')), {ic:'ed-clear'}),
+      C('r2:clear', '清单音', 'qdy clear backspace 清除单音 清音', '行 2 · 更多 ▾ · Backspace', W(click('#eb-clear')), {ic:'ed-clear'}),
       C('r2:addnote', '和音（加音程）', 'hy jyc interval 加音程 和声音', '行 2 · 更多 ▾', W(fa('r2:addnote')), {ok:vox}),
       C('r2:octall+', '整体移高八度', 'ztygbd ygbd 移高八度', '行 2 · 更多 ▾', W(click('#b-octup')), {ok:vox, ic:'ed-octave-shift'}),
       C('r2:octall-', '整体移低八度', 'ztydbd ydbd 移低八度', '行 2 · 更多 ▾', W(click('#b-octdn')), {ok:vox, ic:'ed-octave-shift'}),
-      C('r2:combo', '组合节奏…', 'zhjz combo 节奏组合 附点节奏', '行 2 · 更多 ▾', W(fa('r2:combo'))),
+      C('r2:combo', '组合节奏…', 'zhjz combo 节奏组合 附点节奏 附点八分 小切分 大切分 前八后十六 前十六后八 后附点 组合时值', '行 2 · 更多 ▾', W(fa('r2:combo'))),
       C('r2:rhylib', '节奏型库 / 伴奏织体…', 'jzxk jzx rhythm pattern 节奏型', '行 2 · 更多 ▾ / 右栏 · 智能', W(()=>openRhyLib()), {ic:'act-step'}),
       C('r2:insmea', '插入小节', 'crxj jxj insert measure 加小节', '行 2 · 更多 ▾ · 小节', W(click('#b-insmea')), {ic:'mea-insert'}),
       C('r2:delmea', '删除小节', 'scxj delete measure 删小节', '行 2 · 更多 ▾ · 小节', W(click('#b-delmea')), {ic:'mea-delete'}),
@@ -26070,6 +26300,9 @@ FLOW.cmd = (function(){
       C('r2:keyup', '升半音（换调）', 'sby hd hdsby transpose 换调 移调 升调', '页头调号 1=X', W(click('#k-up'))),
       C('r2:keydn', '降半音（换调）', 'jby hdjby transpose 降调', '页头调号 1=X', W(click('#k-dn'))),
       C('r2:keypop', '换调 / 变调夹…', 'hd bdj key capo 移调 变调 转调 调号', '页头调号 1=X', W(keyPop)),
+      C('pal:clear', '清除记号（当前音的装饰记号）', 'qcjh qc 清除记号 清除装饰 清颤音 清倚音', '左栏记号 · 底部「清除」', W(()=>F.pal.act('pal:clear', {dataset:{}}, null)), {ok:vox, ic:'ed-clear-marks'}),
+      C('r2:mute', '哑音 ×（分解标记）', 'yy fj fjbj 分解 分解标记 哑音 x 标记', '行 2 · 六线谱语境 · ×', W(click('#eb-mute-n')), {ok:tab}),
+      C('r2:fret', '品位选择器（10–24 品）', 'pwxzq pw 品位选择器 高把位 品位 10品', '行 2 · 六线谱语境 · 10–24▾', W(click('#eb-fret-more')), {ok:tab}),
       C('r2:pal', '搜记号', 'sjh jhss 记号搜索 搜索记号 /', '左栏记号 · 搜索框（/）', W(palSearch), {ic:'ui-search'}),
       /* 播放与状态栏 */
       C('st:play', '播放 / 暂停', 'bf zt play pause space 空格 试听', '状态栏 · 空格', click('#b-play'), {ic:'ui-play'}),
@@ -26084,8 +26317,8 @@ FLOW.cmd = (function(){
         ok:()=>{ const b=$('rc-sndlib'); return (b && b.style.display!=='none')? '' : '当前使用默认音色库，无需切换；每条轨的乐器音色在左栏音轨行「⋯」里选'; }}),
       C('st:stand', '谱架模式', 'pj pjms stand 全屏 自动卷谱 练习', '状态栏 · ⋯ 更多', click('#b-stand'), {ic:'ui-stand'}),
       C('st:beat', '时值检查', 'szjc beat check 拍数 时值不符', '状态栏', click('#beat-status'), {ic:'ai-check'}),
-      C('st:emfree', '时值检查方式：自由编辑', 'zybj free 自由', '状态栏 · ⋯ 更多', fa('st:em', {dataset:{v:'free'}})),
-      C('st:emsmart', '时值检查方式：修复建议', 'xfjy smart 修复 建议', '状态栏 · ⋯ 更多', fa('st:em', {dataset:{v:'smart'}})),
+      C('st:emfree', '时值检查方式：自由编辑', 'zybj free 自由 编辑模式 bjms', '状态栏 · ⋯ 更多', fa('st:em', {dataset:{v:'free'}})),
+      C('st:emsmart', '时值检查方式：修复建议', 'xfjy smart 修复 建议 编辑模式 bjms 智能编辑', '状态栏 · ⋯ 更多', fa('st:em', {dataset:{v:'smart'}})),
       C('st:zin', '放大谱面', 'fdpm fd zoom in 放大', '状态栏 · 缩放 · Ctrl+滚轮', click('#z-in'), {ic:'act-zoom-in'}),
       C('st:zout', '缩小谱面', 'sxpm zoom out 缩小', '状态栏 · 缩放 · Ctrl+滚轮', click('#z-out'), {ic:'act-zoom-out'}),
       C('st:z100', '缩放复位 100%', 'fw 100 zoom reset 复位', '状态栏 · 缩放', click('#zoom-lbl')),
@@ -26097,7 +26330,7 @@ FLOW.cmd = (function(){
       C('sm:lab', '配和弦工作台', 'phxgzt phx gzt lab 配和弦 和弦工作台', '右栏 · 智能', W(click('#rt-lab')), {ok:shown('rt-lab'), ic:'ai-workbench'}),
       C('sm:tex', '伴奏织体…', 'bzzt zt texture 织体 钢琴伴奏型', '右栏 · 智能', W(click('#b-acctex')), {ok:shown('b-acctex'), ic:'nota-texture'}),
       C('sm:fill', '智能填词', 'zntc tc fill 填词 自动填词', '右栏 · 智能 / 文字', W(click('#rt-fill')), {ok:shown('rt-fill'), ic:'tx-lyricfill'}),
-      C('sm:gentab', '由旋律生成六线谱轨…', 'sclxpg xpg gentab 生成吉他谱 生成六线谱', '右栏 · 智能 / 左栏音轨「由此生成…」', W(()=>showVoxTabMenu(sel.row==='vox'? sel.vi : 0)), {ic:'ai-gentab'}),
+      C('sm:gentab', '由旋律生成六线谱轨…', 'sclxpg xpg gentab 生成吉他谱 生成六线谱 由此生成六线谱轨 ycsclxpg', '右栏 · 智能 / 左栏音轨「由此生成…」', W(()=>showVoxTabMenu(sel.row==='vox'? sel.vi : 0)), {ic:'ai-gentab'}),
       C('sm:midi', '导入 MIDI', 'drmidi midi import 导入midi', '右栏 · 智能', W(click('#rt-midi')), {ok:shown('rt-midi'), ic:'src-midi'}),
       C('tx:chord', '输入和弦', 'srhx hx chord ctrl+k 和弦 级数和弦', '右栏 · 文字 · Ctrl+K', W(()=>showChordQuick()), {ic:'nota-chord'}),
       /* v68.1 收尾 PN-6：可用性与右栏「文字」页同一判据（FLOW.rdp.chordAvail）——此前只看旧按钮的 style.display，右栏藏起来的项命令照样能执行，暗改 song.funcNames / diagPos 并留一步撤销 */
@@ -26105,12 +26338,15 @@ FLOW.cmd = (function(){
       C('tx:diag', '和弦图：随行 / 曲首 / 不显示', 'hxt diag 和弦图 指法图', '右栏 · 文字', W(click('#b-diag')), {ok:()=>{ const a=F.rdp && F.rdp.chordAvail(); return (a && a.dg)? shown('b-diag')() : '这份谱没有吉他轨（和弦图画在吉他轨上）'; }, ic:'nota-chordbox'}),
       C('tx:anno', '标注', 'bz anno 文字标注 注释 备注', '右栏 · 文字', W(click('#rt-anno')), {ic:'tx-anno'}),
       C('tx:lyr', '逐字填词', 'zztc lyric enter 歌词 填歌词 歌词输入', '左栏音轨 · 歌词子行 / Enter', W(lyr), {ok:vox, ic:'nota-lyrics'}),
-      C('tx:verse', '加一段歌词', 'jydgc jgc verse 歌词段 第二段', '左栏音轨 · 歌词「＋」', W(verseAdd), {ok:vox, ic:'tx-verse-add'}),
+      C('tx:clearlyr', '清空本段歌词', 'qkbd qkgc 清空本段 清空歌词', '右栏 · 文字「清空本段」', W(click('#b-clearlyr')), {ok:vox, ic:'ed-clear'}),
+      C('tx:verse', '加一段歌词', 'jydgc jgc verse 歌词段 第二段 添加歌词行 tjgch 加歌词行', '左栏音轨 · 歌词「＋」', W(verseAdd), {ok:vox, ic:'tx-verse-add'}),
       /* 左栏音轨（混音并进音轨行；原底栏「音轨 ▴」） */
-      C('trk:add', '加音轨…', 'jyg jg add track 新轨 加轨', '左栏音轨 · ＋', W(trkAdd), {ic:'act-add'}),
+      C('trk:add', '加音轨…', 'jyg jg add track 新轨 加轨 添加音轨 tjyg', '左栏音轨 · ＋', W(trkAdd), {ic:'act-add'}),
       C('trk:vox', '加旋律轨', 'jxlg xlg add melody 人声轨', '左栏音轨 · ＋', W(fa('tree:addvox')), {ic:'inst-voice'}),
       C('trk:tab', '加吉他轨', 'jjtg jtg add guitar 六线谱轨', '左栏音轨 · ＋', W(fa('tree:addtab')), {ic:'inst-guitar'}),
       C('trk:mix', '混音：音量 · 音色 · 声像', 'hy yl ys sx mixer volume 音轨▴ 音轨 混音台 声像 乐器', '左栏音轨行 ⋯（原底栏「音轨 ▴」）', W(trkMore), {ic:'ui-mixer'}),
+      C('trk:del', '删除当前轨…', 'scdqg scyg 删除音轨 删轨 删除轨 delete track', '左栏音轨行 ⋯ ›「删除音轨」（可一步撤销）', W(trkMore), {ic:'ed-delete'}),
+      C('trk:notastyle', '记谱风格（和弦内音记 × / 全数字）', 'jpfg 记谱风格 和弦内音 教材式 全数字', '左栏六线谱轨 ⋯ ›「记谱风格」', W(click('#b-notation')), {ok:tab}),
       C('trk:mute', '静音当前轨', 'jydqg jy mute 静音', '左栏音轨行', W(fa('tree:mute', cur)), {ic:'trk-mute'}),
       C('trk:solo', '独奏当前轨', 'dzdqg dz solo 独奏', '左栏音轨行', W(fa('tree:solo', cur)), {ic:'trk-solo'}),
       C('trk:rename', '改轨名', 'ggm gm rename 改名 轨名 声部名', '左栏音轨（双击轨名）', W(fa('tree:rename', cur))),
@@ -26119,7 +26355,7 @@ FLOW.cmd = (function(){
       C('trk:onlyj', '当前轨只显示简谱', 'zxsjp 只看简谱 简谱层', '左栏音轨 · 记谱法层', W(fa('tree:only', ()=>({dataset:{k:'vox', i:String(sel.vi|0), v:'jp'}}))), {ok:nchord, ic:'nota-jianpu'}),
       C('trk:onlys', '当前轨只显示五线谱', 'zxswxp 只看五线谱 五线谱层', '左栏音轨 · 记谱法层', W(fa('tree:only', ()=>({dataset:{k:'vox', i:String(sel.vi|0), v:'st'}}))), {ok:nchord, ic:'nota-staff'}),
       C('trk:dual', '五线谱 + 简谱对照（当前轨）', 'wxpjpdz dz dual 对照 双行', '左栏音轨 · 记谱法层（两层都亮）', W(dual), {ok:nchord, ic:'nota-dual'}),
-      C('trk:clef', '本轨谱号（高音 / 低音 / 中音）…', 'bgph clef 低音谱号 高音谱号 中音谱号', '左栏音轨 · 五线谱层 ▾', W(clefMenu), {ok:stf, ic:'clef-treble'}),
+      C('trk:clef', '本轨谱号（高音 / 低音 / 中音）…', 'bgph ph clef 低音谱号 高音谱号 中音谱号', '左栏音轨 · 五线谱层 ▾', W(clefMenu), {ok:stf, ic:'clef-treble'}),
       C('trk:tabjp', '六线谱轨加简谱行', 'jph lpjp tabjp 简谱行 联排简谱', '左栏音轨 · 六线谱轨', W(fa('tree:tabjp', cur)), {ok:tab, ic:'nota-jianpu'}),
       C('trk:tabstaff', '五线谱联排（全部吉他轨）', 'wxplp lp tabstaff 联排', '左栏音轨 · 吉他轨组', W(fa('tree:tabstaff')),
         {ok:()=>(song && (song.tabVoices||[]).length)? '' : '这份谱没有吉他轨', ic:'nota-staff'}),
@@ -26152,11 +26388,13 @@ FLOW.cmd = (function(){
         {sign:id, ok:()=>P.ok(id, F.ctx())? '' : ((P.only(id)||'当前轨用不了')+'——'+P.howTo(id, F.ctx()))});
     });
   }
-  function list(){ if(!LIST) LIST=hand().concat(signs()); return LIST; }
+  /* v68.2（验收遗留：拼音撞码排序）记号条目补的首字母别名——「前倚音」qyy 之外也认 qy（全音符 / 切音 / 前倚音同码，按常用度排，见 FREQ） */
+  const XK = {'sign:grace-pre':'qy'};
+  function list(){ if(!LIST){ LIST=hand().concat(signs()); LIST.forEach(c=>{ if(XK[c.id]) c.k=String(c.k||'')+' '+XK[c.id]; }); } return LIST; }
   /* —— 匹配 —— */
   const norm = s=>{ s=String(s||''); try{ s=s.normalize('NFKC'); }catch(_){} return s.toLowerCase().replace(/\s+/g, ''); };
   const whereOf = c=>typeof c.w==='function'? c.w() : c.w;
-  const okOf = c=>{ if(!c.run && !c.ok) return '下一批'; let r=''; try{ r=c.ok? (c.ok()||'') : ''; }catch(_){ r='当前用不了'; }
+  const okOf = c=>{ if(!c.run && !c.ok) return '即将推出'; let r=''; try{ r=c.ok? (c.ok()||'') : ''; }catch(_){ r='当前用不了'; }
     let sp=false; try{ sp=startPadOn(); }catch(_){} if(!r && sp && !c.sp) r='先在启动台新建或打开一份谱'; return r; };
   function score(c, q){
     if(!c._n){ c._n=norm(c.t); c._k=String(c.k||'').split(/\s+/).map(norm).filter(Boolean); }
@@ -26171,6 +26409,13 @@ FLOW.cmd = (function(){
   }
   const POP = ['mode:engrave','mode:output','out:print','r1:pub','r1:new','sign:fermata','sign:dyn-mf','tx:chord','tx:lyr','sm:arrange','st:loop','trk:mix','acct:prefs'];
   const PREF = new Set(POP.concat(['mode:write', 'st:play', 'st:tempo', 'lay:A4']));
+  /* v68.2（验收遗留：拼音撞码 ph / qy）常用度：同分时数大在前。PN-9 的常用表（PREF）都记 5；撞码的几组按使用频度排——
+     ph：本小节拍号（变拍，简谱 / 五线谱都用）> 本轨谱号（换高音 / 低音 / 中音谱表）> 谱号切换（曲中改谱号，最少用）；
+     qy：全音符 > 前倚音（简谱民歌常见）> 扫弦切音（六线谱专用技法）。
+     再叠一层个人常用：最近用过的命令（musetab-cmd-recent，越近越靠前）压过静态常用度——只在同分、同可用性之内调换，不越过分数 */
+  const FREQ = {'sign:meter':4, 'trk:clef':3, 'sign:clef':1, 'r2:d1':4, 'sign:grace-pre':3, 'sign:strum-mute':1};
+  PREF.forEach(id=>{ if(FREQ[id]==null) FREQ[id]=5; });
+  const freqOf = (id, rec)=>{ const r=rec.indexOf(id); return (r>=0? 100-r*10 : 0)+(FREQ[id]||0); };
   function search(q){
     const L=list().filter(c=>!(c.hide && c.hide()));
     q=norm(q);
@@ -26182,9 +26427,10 @@ FLOW.cmd = (function(){
     }
     /* v68.1 收尾 PN-9：拼音首字母撞码同分时（sc 输出 / 深色、bf 播放 / 八分音符、hy 混音 / 和音、sd 速度 / 锁定此行、zz A4 / A5），
        三步模式条目与常用表（POP）以及播放、速度、A4 排在前面；其余照旧按表序 */
+    const rec=recentGet();
     const hits=L.map((c, i)=>({c, s:score(c, q), i})).filter(x=>x.s>0)
-      .map(x=>Object.assign(x, {na: okOf(x.c)? 1 : 0, pr: PREF.has(x.c.id)? 0 : 1}))
-      .sort((a, b)=>b.s-a.s || a.na-b.na || a.pr-b.pr || a.i-b.i).slice(0, 40).map(x=>x.c);
+      .map(x=>Object.assign(x, {na: okOf(x.c)? 1 : 0, fr: freqOf(x.c.id, rec)}))
+      .sort((a, b)=>b.s-a.s || a.na-b.na || b.fr-a.fr || a.i-b.i).slice(0, 40).map(x=>x.c);
     return {rec:null, pop:null, hits};
   }
   /* —— 画 —— */
@@ -26224,6 +26470,7 @@ FLOW.cmd = (function(){
     const c=list().find(x=>x.id===id); if(!c) return false;
     const why=okOf(c); if(why){ toast(c.t+'：'+why); return false; }
     recentAdd(id);
+    F.track('cmd:go:'+id);   /* v68.2 ui_cmd：命令面板执行（id＝命令表静态 id，FLOW.track 再按格式过一遍） */
     try{ c.run(); }catch(e){ console.error('flow 命令异常 '+id, e); toast('这一项没有执行成功'); return false; }
     return true;
   }
@@ -26238,6 +26485,7 @@ FLOW.cmd = (function(){
       +'<div class="flw-cmdl" id="flw-cmdl" role="listbox" aria-label="功能"></div><div class="flw-cmdf" id="flw-cmdf" role="presentation"></div>';
     const d=F.menu.open('cmd', key? null : $('flw-cmdb'), html, {role:'dialog', cls:'flw-cmd', label:'搜功能', at:{x:Math.round((vw-w)/2), y:top}, focus:'#flw-cmdq'});
     if(!d) return null;
+    F.track('cmd:open');   /* v68.2 ui_cmd：打开命令面板（行 2「搜功能」/ Ctrl+/） */
     ST={q:String(q||''), hl:0, rows:[]};
     const inp=$('flw-cmdq');
     if(q){ inp.value=ST.q; }
@@ -26809,6 +27057,7 @@ FLOW.pal = (function(){
   const run = (id, el)=>{
     const ctx=F.ctx(), d=route(id, ctx);
     if(!d || !ok(id, ctx)){ toast(S[id]? S[id][1]+'：'+(only(id)||'当前不可用')+'——'+howTo(id, ctx) : '没有这个记号'); return; }
+    F.track('pal:'+id);   /* v68.2 ui_cmd：pal:<记号id>（只记生效的；id＝记号表 S 的键） */
     const pm0=document.getElementById('popmenu'), mm0=document.getElementById('modal-mask');
     let ret;
     if(d[0]==='@'){
@@ -26850,7 +27099,7 @@ FLOW.pal = (function(){
     }
     if(to){ try{ to.focus(); to.scrollIntoView({block:'nearest'}); }catch(_){} }
   };
-  const setQ = v=>{ ST.q=String(v||'').trim(); const g=$('flw-pgrid'); if(g) g.scrollTop=0; paint(true); };
+  const setQ = v=>{ ST.q=String(v||'').trim(); if(ST.q) F.track('pal:search'); const g=$('flw-pgrid'); if(g) g.scrollTop=0; paint(true); };   /* v68.2 ui_cmd：pal:search（只记「用了搜索」，不记搜的词） */
   const firstCell = ()=>{ const g=$('flw-pgrid'); return g && [...g.querySelectorAll('.flw-sg:not(.flw-sg-na)')].find(x=>x.getClientRects().length); };
   return {
     SIGNS: S, GROUPS, route, target, ok, recent, search, only, howTo, dense,
@@ -27084,13 +27333,13 @@ FLOW.start = (function(){
     mount, render, focus, reveal,
     on(){ riSet(true); },
     shown: ()=>{ const g=$('flw-start'), n=$('flw-next'); return !!((g && !g.hidden) || (n && !n.hidden)); },
-    /* 新建 / 导入落地提示里「谱面上方的谱型条」在 flow 下改说真实位置（工具栏左端的「起步」或右栏「下一步」卡；换谱类在音轨区谱类 ▾） */
+    /* 新建 / 导入落地提示里「谱面上方的谱型条」在 flow 下改说真实位置（行 2 的「起步」或右栏「下一步」卡；换谱类在音轨区谱类 ▾） */
     retext(s){
       if(!s) return s;
       /* 按实际在不在屏上说（验收 SH-3）：<1440 右栏是竖条，「下一步」卡收在竖条的「智能」里；停靠时卡在「智能」页（v68.1 右栏页：属性 · 文字 · 智能） */
       const g=$('flw-start'), b=document.body.classList;
       let pg='smart'; try{ pg=F.rd.page(); }catch(_){}
-      const at = (g && !g.hidden && !tipOnly(g))? '工具栏左端的「起步」'
+      const at = (g && !g.hidden && !tipOnly(g))? '行 2 的「起步」（右栏「智能」也有）'   /* v68.2 收尾 NU-11：起步组在行 2 模式条与撤销之后，不在「工具栏左端」 */
         : (b.contains('flw-rs') && !b.contains('flw-ro'))? '右栏竖条「智能」里的「下一步」卡'
         : pg!=='smart'? '右栏「智能」页的「下一步」卡' : '右栏「下一步」卡';
       return String(s).replace(/谱面上方的谱型条可换谱类/g, '左栏音轨区标题的谱类 ▾ 可换谱类').replace(/谱面上方的谱型条/g, at);
@@ -27157,8 +27406,8 @@ FLOW.mob = (function(){
     let shell=true, vm=false;
     try{ shell=!!uiShell; }catch(_){}
     try{ vm=!!viewerMode; }catch(_){}   /* viewerMode 在后面才声明（let）：启动早期读它会抛 TDZ，按「非观看页」算（同 F.want） */
-    const c=document.body.classList;
-    return shell && !vm && !c.contains('viewer') && !c.contains('stand') && window.innerWidth<=820;
+    const c=document.body.classList, vi=F.vint();   /* v68.2 集成：启动即进观看页时不挂（同 F.want） */
+    return shell && !vm && !vi && !c.contains('viewer') && !c.contains('stand') && window.innerWidth<=820;
   };
   const spOn = ()=>{ try{ return startPadOn(); }catch(_){ return false; } };
   const kindName = s=>{ try{ return docTypeLabel(s)||''; }catch(_){ return ''; } };
@@ -27445,6 +27694,7 @@ FLOW.mob = (function(){
     document.body.classList.toggle('flw-m', on);   /* 骨架在没挂过桌面 flow 时会清掉 body 上全部 flw-* 类，这里每次按状态补回 */
     if(on===was) return false;
     ON=on;
+    try{ if(F.mode && F.mode.live) F.mode.live(); }catch(_){}   /* v68.2 #toast 读屏（role=status，flow 手机同样挂） */
     if(!on) close(false);
     ['flw-mtop', 'flw-mbar'].forEach(id=>{ const e=$(id); if(e) e.hidden=!on; });
     if(on){ SIG={}; try{ sync(); }catch(e){ console.error('flow 手机同步异常', e); } }
@@ -27464,6 +27714,248 @@ FLOW.mob = (function(){
     get sheet(){ return SHEET; }
   };
 })();
+/* —— FLOW.tour：首次 3 步导览（v68.2 切默认；计划 §5.2，新本机键 musetab-tour-shell＝'1' 看过）——
+   触发：桌面 flow 生效（flowOn()：手机 ≤820 / 观看页 / 谱架 / 打印都不是）· 离开启动台、有谱面 · 书写模式 · 没看过；
+         sync()（render 末尾）里起一个 1.5s 计时，到点再核一遍条件；弹窗 / 菜单 / 谱库 / 个人中心 / 预览浮层开着就每 1.5s 再等（至多 40 次，之后靠下一次渲染重起）。
+         v68.2 收尾 NU-1 / ENG-3：到点时用户若还在录入（最近 1.5 秒内有 keydown / pointerdown）就顺延，等停手 1.5 秒再出——不在敲音符时弹出来。
+         navigator.webdriver（自动化测试）默认不出现，地址带 ?tour=1 才放行（与 html.fx 的 ?fx=1 同口径；?tour=1 只解除这道闸，看过的照样不再出现）。
+   三步：① 行 1「文件 · 窗口 · 保存 · 发布」（圈 #flw-r1）
+         ② 行 2「书写 › 排版 › 输出」＋「Esc 回到书写；Ctrl+/ 能搜到所有功能，旧名也行」（圈 #flw-modes，窄档圈「书写 ▾」#flw-mdd）
+         ③ 左栏音轨 + 记号、底栏播放＋「静音 / 独奏就在音轨行上」（圈 #flw-left 与 #mixer-dock）
+   不抢焦点（NU-1）：自动出现时焦点留在原处（谱面），← → / Enter / 空格 / Shift+方向键照旧作用于谱面；读屏由气泡里的 role=status 播报一次，
+         键盘用户按 F6 进气泡（之后气泡内 ← → 翻步、Enter / 空格按按钮）。只有用户主动开（帮助「新布局导览」/ start(true)）才把焦点放进气泡。
+   落点（NU-4 / ENG-4）：气泡一律放在谱面区（两行之下、左栏右侧、右栏 / 竖条左侧、状态栏之上），不压行 2 模式条 / 撤销、左栏音轨与记号；
+         ①② 放谱面区左上角，③ 放左下角（挨着左栏下半记号与底部状态栏，箭头指向左栏）；候选位压到谱面光标列时换角（右上 / 左下 / 右下）。
+   随模式收起（NU-5）：切到排版 / 输出先收起（不写看过），回书写 1.5 秒后从收起时那一步接着出——第 3 步讲的左栏 / 第 2 步教的 Esc 只在书写模式成立。
+   操作：上一步 / 下一步（最后一步「知道了」）/ 跳过；Esc 关闭（算跳过；非书写模式不拦，Esc 照常回书写）。完成或跳过都写 '1'；退场（缩到手机宽、谱架、观看页）只收起不写，下次照常出现。
+   旧外壳一次性提示（v68.2 收尾 OU-2 / ENG-11）：预览期按更新日志用过 ?shell=classic 的人（musetab-flow 已是 '0'）升级后仍在旧外壳——
+         旧外壳离开启动台、停手 1.5 秒后提示一次「新版布局已是默认，偏好设置里可换」，同一个本机键记值 'c'（不新增键；'c' 不算看过导览，换到新版照常出导览）。
+         导览看过（'1'）或提示过（'c'）都不再提示；webdriver 闸与导览相同。
+   不改谱、不改布局：气泡与圈都挂 body 下（不放进 #top：它的 backdrop-filter 会成为 fixed 后代的包含块，§0-5），position:fixed，不占位；
+   圈带 .flw-x、气泡 id 以 flw- 开头，互动谱快照（FLOW.snapHTML）会一并摘掉。埋点：有 FLOW.track（B 轨 ui_cmd）就记 tour:done / tour:skip */
+FLOW.tour = (function(){
+  const F = FLOW, $ = F.$, E = s=>F.esc(s);
+  const KEY = 'musetab-tour-shell', WAIT = 1500, IDLE = 1500, TRIES = 40;
+  let timer=0, tries=0, OPEN=false, STEP=0, DONE=false, OPENER=null, RINGS=[], KD=null, RESUME=0, LASTIN=-1e9, INW=false, HINT=0, FOCUSED=false;
+  const mac = ()=>/Mac|iPhone|iPad|iPod/i.test(navigator.platform||'');
+  const narrow = ()=>{ try{ return !!(F.nar && F.nar.narrow()); }catch(_){ return false; } };   /* <1280：左栏收成 56 竖条（FLOW.nar） */
+  const gate = ()=>{ let wd=false; try{ wd=!!navigator.webdriver; }catch(_){} return !wd || /[?&]tour=1(?:&|#|$)/.test(location.search); };
+  const seen = ()=>DONE || F.ls.get(KEY)==='1';
+  const spOn = ()=>{ try{ return startPadOn(); }catch(_){ return false; } };
+  const vis = el=>{ if(!el || !el.isConnected) return false; const r=el.getBoundingClientRect(); if(!(r.width>0 && r.height>0)) return false;
+    for(let x=el; x && x.nodeType===1; x=x.parentElement){ const cs=getComputedStyle(x); if(cs.display==='none' || cs.visibility==='hidden') return false; } return true; };
+  const pick = ids=>{ for(const id of ids){ const e=$(id); if(vis(e)) return e; } return null; };
+  /* 最近一次用户输入（keydown / pointerdown，捕获阶段、只记时间）：自动出现前要停手 IDLE 毫秒 */
+  const mark = ()=>{ LASTIN=performance.now(); };
+  function watchInput(){ if(INW) return; INW=true;
+    window.addEventListener('keydown', mark, {capture:true, passive:true}); window.addEventListener('pointerdown', mark, {capture:true, passive:true}); }
+  /* 能不能出现（不含「此刻被别的界面挡着」） */
+  function can(){
+    if(!F.active || OPEN || seen() || !gate() || spOn()) return false;
+    try{ if(!song || !song.measures || !song.measures.length) return false; }catch(_){ return false; }
+    return true;
+  }
+  /* 此刻被挡着：弹窗 / 菜单 / 谱库 / 个人中心 / 非书写模式 / 经典预览浮层 / 页面在后台 */
+  function blocked(){
+    if(document.getElementById('modal-mask') || document.getElementById('popmenu') || document.getElementById('circle') || document.getElementById('pcenter')) return true;
+    if(F.mode && F.mode.cur && F.mode.cur!=='write') return true;
+    const pv=$('preview-ov'); if(pv && pv.classList.contains('on')) return true;
+    try{ if(document.hidden) return true; }catch(_){}
+    return !vis($('flw-r1'));
+  }
+  function arm(){
+    if(timer || !can()) return;
+    watchInput();
+    timer=setTimeout(fire, WAIT);
+  }
+  /* 离开启动台（hideStartPad 末尾调用）：之前起的计时作废，从现在重新数 1.5 秒——启动期第一次渲染可能早于启动台出现，那时起的计时会在离台后不到 1.5 秒就到点。
+     旧外壳（FLOW 不挂载）走一次性提示 hint() */
+  function rearm(){ if(OPEN) return; if(timer){ clearTimeout(timer); timer=0; } tries=0; if(!F.active) return hintArm(); arm(); }
+  function fire(){
+    timer=0;
+    if(!can()) return;
+    if(blocked()){ if(++tries<TRIES) timer=setTimeout(fire, WAIT); return; }
+    const idle=performance.now()-LASTIN;
+    if(idle<IDLE){ timer=setTimeout(fire, Math.ceil(IDLE-idle)+30); return; }   /* 还在录入：等停手（不计入 TRIES） */
+    tries=0; open(RESUME, false);
+  }
+  /* —— 旧外壳一次性提示（OU-2 / ENG-11）—— */
+  const HINT_T = '新版编辑器布局已上线并成为默认。你现在用的是旧版布局——想换过去，在「偏好设置」里关掉「使用旧版布局」。';
+  function hintCan(){
+    if(F.active || F.mounted || document.documentElement.classList.contains('flow-pre') || !gate() || spOn()) return false;
+    const b=document.body.classList; if(b.contains('viewer') || b.contains('stand')) return false;
+    try{ if(viewerMode) return false; }catch(_){}
+    return F.ls.get(KEY)==null;
+  }
+  function hintArm(){ if(HINT || !hintCan()) return; watchInput(); HINT=setTimeout(hintFire, WAIT); }
+  function hintFire(){
+    HINT=0;
+    if(!hintCan()) return;
+    if(document.getElementById('modal-mask') || document.getElementById('circle') || document.getElementById('pcenter')){ HINT=setTimeout(hintFire, WAIT); return; }
+    const idle=performance.now()-LASTIN;
+    if(idle<IDLE){ HINT=setTimeout(hintFire, Math.ceil(IDLE-idle)+30); return; }
+    if(!F.ls.set(KEY, 'c')) return;   /* 记不住就不提示（免得每次打开都提示一遍） */
+    try{ toast(HINT_T); const t=document.getElementById('toast'); if(t){ clearTimeout(toastTimer); toastTimer=setTimeout(()=>{ t.style.opacity=0; }, 7000); } }catch(_){}
+  }
+  const STEPS = [
+    {t:'第一行：文件 · 窗口 · 保存 · 发布',
+     d:()=>'「文件 ▾」里新建、打开、存为文件；打开的每份曲谱是一个页签，多开不挤；右边是保存状态和「发布」。',
+     ring:()=>[$('flw-r1')], at:()=>pick(['flw-file','flw-r1']), corner:['tl','tr','bl','br']},
+    {t:'三步：书写 › 排版 › 输出',
+     d:()=>'书写录音符，排版调版面与分页，输出打印、导出与分享。按 Esc 回到书写；'+(mac()? '⌘' : 'Ctrl')+'+/ 能搜到所有功能，旧名也行。',
+     ring:()=>[pick(['flw-modes','flw-mdd'])], at:()=>pick(['flw-modes','flw-mdd']), corner:['tl','tr','bl','br']},
+    {t:'左栏音轨与记号 · 底部播放',
+     d:()=>(narrow()? '左栏竖条上面是音轨（点开展开，静音 / 独奏就在音轨行上），底部「记号」打开记号面板。'
+        : '左栏上半是音轨，静音 / 独奏就在音轨行上，音量与音色在行尾「⋯」；下半是记号面板。')+'播放、速度、节拍器在底部播放与状态栏。',
+     note:'用不惯可以换回：账号 ▾ › 偏好设置 › 使用旧版布局。',
+     ring:()=>[$('flw-left'), $('mixer-dock')], at:()=>pick(['flw-left']), corner:['bl','br','tl','tr'], side:'right'}
+  ];
+  function el(){
+    let b=$('flw-tour');
+    if(!b){
+      b=document.createElement('div'); b.id='flw-tour'; b.setAttribute('role','dialog'); b.setAttribute('aria-modal','false');
+      b.setAttribute('aria-labelledby','flw-tour-t'); b.setAttribute('aria-describedby','flw-tour-d');
+      b.addEventListener('click', e=>{ const t=e.target.closest('[data-tour]'); if(!t) return; e.preventDefault(); act(t.dataset.tour, e.detail===0); });   /* detail＝0：键盘按的（Enter / 空格） */
+      /* 焦点在气泡里时（用户自己 F6 / Tab / 点进来的）：← → 翻步；Enter / 空格交给按钮本身（不冒泡到全局键：否则空格会被播放截走）。
+         焦点不在气泡里时这个监听根本收不到按键——谱面照常 */
+      b.addEventListener('keydown', e=>{
+        if(e.key==='ArrowRight' || e.key==='ArrowLeft'){ e.preventDefault(); e.stopPropagation(); act(e.key==='ArrowRight'? 'next' : 'prev', true); return; }
+        if((e.key==='Enter' || e.key===' ') && e.target.closest('button')){ e.stopPropagation(); }
+      });
+      b.addEventListener('focusin', ()=>{ FOCUSED=true; });
+      document.body.appendChild(b);
+    }
+    return b;
+  }
+  function paint(){
+    const s=STEPS[STEP], b=el(), last=STEP===STEPS.length-1;
+    b.innerHTML='<span class="flw-tour-ar" aria-hidden="true"></span>'
+      +'<div class="flw-tour-hd"><span class="flw-tour-n">'+(STEP+1)+' / '+STEPS.length+'</span><b id="flw-tour-t">'+E(s.t)+'</b></div>'
+      +'<p id="flw-tour-d">'+E(s.d())+'</p>'
+      +(s.note? '<p class="flw-tour-nt">'+E(s.note)+'</p>' : '')
+      +'<div class="flw-tour-bt"><button type="button" class="flw-tour-x" data-tour="skip">跳过</button><span class="flw-tour-sp"></span>'
+      +(STEP? '<button type="button" class="flw-tour-pv" data-tour="prev">上一步</button>' : '')
+      +'<button type="button" class="flw-tour-go" data-tour="next">'+(last? '知道了' : '下一步')+'</button></div>'
+      +'<span class="flw-tour-sr" role="status" aria-live="polite"></span>';
+    place();
+  }
+  /* 读屏播报（不抢焦点时）：气泡出现 / 翻步后下一帧往 role=status 里写一句——live 区先在、后写字，读屏才会读 */
+  function say(){
+    const b=$('flw-tour'), sr=b && b.querySelector('.flw-tour-sr'); if(!sr || FOCUSED) return;
+    const s=STEPS[STEP];
+    setTimeout(()=>{ if(sr.isConnected && !FOCUSED) sr.textContent='新布局导览 '+(STEP+1)+' / '+STEPS.length+'：'+s.t+'。按 F6 进入导览，Esc 关闭。'; }, 60);
+  }
+  function rings(list){
+    const want=list.filter(vis);
+    while(RINGS.length>want.length){ const r=RINGS.pop(); r.remove(); }
+    while(RINGS.length<want.length){ const r=document.createElement('div'); r.className='flw-x flw-tour-ring'; r.setAttribute('aria-hidden','true'); document.body.appendChild(r); RINGS.push(r); }
+    want.forEach((t, i)=>{ const q=t.getBoundingClientRect(), r=RINGS[i], p=3;
+      const L=Math.max(2, q.left-p), T=Math.max(2, q.top-p), R=Math.min(innerWidth-2, q.right+p), B=Math.min(innerHeight-2, q.bottom+p);
+      r.style.left=L+'px'; r.style.top=T+'px'; r.style.width=Math.max(0, R-L)+'px'; r.style.height=Math.max(0, B-T)+'px'; });
+  }
+  /* 谱面区（气泡只放这里）：上＝两行（#top）下沿，左＝左栏（#flw-left）右缘，右＝右栏 / 竖条左缘，下＝状态栏（#mixer-dock）上缘；都按实测矩形，不改布局 */
+  function stageBox(){
+    const vw=innerWidth, vh=innerHeight, R=id=>{ const e=$(id); return vis(e)? e.getBoundingClientRect() : null; };
+    const tp=R('top'), lf=R('flw-left'), md=R('mixer-dock'), rd=R('right-dock'), rs=R('flw-rstrip');
+    let l=lf? lf.right : 0, t=tp? tp.bottom : 0, r=vw, b=md? md.top : vh;
+    [rd, rs].forEach(q=>{ if(q && q.left>l+200 && q.left<r) r=q.left; });
+    return {l, t, r, b};
+  }
+  /* 谱面光标列（选中的那一列淡色块）：气泡别压在上面 */
+  function curBox(){
+    let c=null; try{ c=document.querySelector('#score rect[fill="var(--accent)"][opacity="0.12"]'); }catch(_){}
+    if(!c) return null; const q=c.getBoundingClientRect(); if(!(q.width>0 && q.height>0)) return null;
+    return {l:q.left-16, t:q.top-16, r:q.right+16, b:q.bottom+16};
+  }
+  const hit = (a, b)=>!!a && !!b && a.l<b.r && b.l<a.r && a.t<b.b && b.t<a.b;
+  /* 定位只读锚点几何（fixed，不改任何布局）：按本步的角序在谱面区里挑第一个不压光标列的角；谱面区放不下就夹回视口 */
+  function place(){
+    if(!OPEN) return;
+    const s=STEPS[STEP], b=$('flw-tour'); if(!b) return;
+    rings(s.ring().filter(Boolean));
+    const a=s.at(); const ar=b.querySelector('.flw-tour-ar');
+    const W=b.offsetWidth||320, H=b.offsetHeight||160, vw=innerWidth, vh=innerHeight, M=12;
+    const st=stageBox(), cb=curBox();
+    /* 下面两角让出提示条（#toast：底部居中、离底 34、两行约 60 高）——新建 / 导入的落地提示常和导览同时在屏上，别压住气泡的按钮 */
+    const sb=Math.min(st.b, vh-110);
+    const cx = c=>c[1]==='l'? st.l+M : st.r-W-M, cy = c=>c[0]==='t'? st.t+M : sb-H-M;
+    let x=0, y=0, ok=false;
+    for(const c of s.corner){ x=cx(c); y=cy(c);
+      x=Math.min(Math.max(M, x), vw-W-M); y=Math.min(Math.max(M, y), vh-H-M);
+      if(!hit({l:x, t:y, r:x+W, b:y+H}, cb)){ ok=true; break; } }
+    if(!ok){ x=Math.min(Math.max(M, cx(s.corner[0])), vw-W-M); y=Math.min(Math.max(M, cy(s.corner[0])), vh-H-M); }
+    b.style.left=Math.round(x)+'px'; b.style.top=Math.round(y)+'px';
+    /* 箭头：锚点在气泡正上方（横向落在气泡宽度内）→ 顶边朝上；锚点在气泡左侧（③ 左栏）→ 左边朝左；其余不画（圈已标出位置） */
+    let side='none';
+    if(a){ const q=a.getBoundingClientRect(), ax=q.left+Math.min(q.width, 120)/2;
+      if(s.side==='right' && q.right<=x) side='right';
+      else if(q.bottom<=y && ax>=x+14 && ax<=x+W-20) side='below'; }
+    b.dataset.side=side;
+    if(ar){ ar.hidden = side==='none';
+      if(a && side==='right'){ const q=a.getBoundingClientRect(); ar.style.left='-6px'; ar.style.top=Math.round(Math.min(Math.max(14, Math.min(Math.max(q.top+12, y+H/2), q.bottom-12)-y), H-20)-6)+'px'; }
+      else if(a && side==='below'){ const q=a.getBoundingClientRect(); ar.style.top='-6px'; ar.style.left=Math.round(Math.min(Math.max(14, q.left+Math.min(q.width, 120)/2-x), W-20)-6)+'px'; } }
+  }
+  /* focus：true＝把焦点放进气泡（用户主动开：帮助 / start(true)）；自动出现传 false，焦点留在谱面（NU-1） */
+  function open(i, focus){
+    if(OPEN) return;
+    OPEN=true; FOCUSED=false; STEP=Math.max(0, Math.min(STEPS.length-1, i|0)); RESUME=STEP;
+    OPENER=document.activeElement;
+    /* 捕获阶段（先于全局键）：Esc＝跳过（谱面 Esc 清选区 / 弹窗 Esc 不在此时——菜单、弹窗开着时导览不会出现，打开后由它们自己先收）；
+       非书写模式不拦（Esc 照常回书写，ENG-4；切模式时导览本就会收起）。F6＝把焦点移进气泡（不抢焦点之后键盘用户的入口） */
+    KD=e=>{ if(!OPEN) return;
+      if(e.key==='F6' && !e.ctrlKey && !e.metaKey && !e.altKey){ const bb=$('flw-tour'); if(bb && !bb.contains(document.activeElement)){ e.preventDefault(); e.stopImmediatePropagation(); focusGo(); } return; }
+      if(e.key!=='Escape') return;
+      if(document.getElementById('popmenu') || document.getElementById('modal-mask')) return;
+      if(F.mode && F.mode.cur && F.mode.cur!=='write') return;
+      { const ae=document.activeElement, tg=(ae||{}).tagName; if(tg==='INPUT' || tg==='TEXTAREA' || tg==='SELECT' || (ae && ae.isContentEditable)) return; }   /* 输入框里（逐字填词等）的 Esc 先给输入框（退出输入），不当成跳过导览 */
+      e.preventDefault(); e.stopImmediatePropagation(); close('skip'); };
+    window.addEventListener('keydown', KD, true);
+    window.addEventListener('resize', place);
+    paint();
+    if(focus) focusGo(); else say();
+  }
+  /* why：'done' / 'skip' 写看过；'env'（退场 / 切到排版·输出）只收起，记下这一步，下次从这一步接着出 */
+  function close(why){
+    if(timer){ clearTimeout(timer); timer=0; }
+    if(!OPEN) return;
+    OPEN=false;
+    if(KD){ window.removeEventListener('keydown', KD, true); KD=null; }
+    window.removeEventListener('resize', place);
+    const b=$('flw-tour'); const had=!!(b && b.contains(document.activeElement));
+    if(b) b.remove();
+    RINGS.forEach(r=>r.remove()); RINGS=[];
+    if(why==='done' || why==='skip'){
+      DONE=true; RESUME=0; F.ls.set(KEY, '1');
+      try{ if(typeof F.track==='function') F.track('tour:'+why); }catch(_){}
+    }else RESUME=STEP;
+    if(had){ const o=OPENER; OPENER=null;
+      if(o && o!==document.body && vis(o) && typeof o.focus==='function'){ try{ o.focus({preventScroll:true}); }catch(_){} }
+      else { try{ document.activeElement.blur(); }catch(_){} } }
+  }
+  /* kb：键盘在气泡里操作（← → / Enter / 空格）——翻步后焦点留在气泡的「下一步」；鼠标点的翻步后焦点回到页面（按钮随重画移除），
+     之后的数字 / 方向键 / 空格照旧落到谱面（同记号面板「鼠标点完把焦点从面板按钮上拿走」） */
+  function act(a, kb){
+    if(!OPEN) return;
+    if(a==='skip') return close('skip');
+    const go = ()=>{ if(kb) focusGo(); else { FOCUSED=false; say(); } };
+    if(a==='prev'){ if(STEP>0){ STEP--; RESUME=STEP; paint(); go(); } return; }
+    if(a==='next'){ if(STEP>=STEPS.length-1) return close('done'); STEP++; RESUME=STEP; paint(); go(); }
+  }
+  const focusGo = ()=>{ const g=document.querySelector('#flw-tour [data-tour="next"]'); if(g){ try{ g.focus({preventScroll:true}); FOCUSED=true; }catch(_){} } };
+  return {
+    KEY, STEPS,
+    sync(){ if(OPEN) F.raf('tour', place); else arm(); },
+    rearm,
+    layout(){ if(OPEN) F.raf('tour', place); },
+    off(){ close('env'); },
+    /* 测试 / 帮助入口：start(true) 不管看没看过直接从第 1 步开（仍要求桌面 flow），焦点放进气泡（用户主动要看的） */
+    start(force){ if(!F.active || OPEN) return false; if(!force && (seen() || !gate())) return false; open(0, true); return true; },
+    close, act,
+    get open(){ return OPEN; },
+    get step(){ return STEP; },
+    get hint(){ return HINT_T; }
+  };
+})();
 /* —— FLOW.mode：三步「书写 › 排版 › 输出」模式框架 ——【v68.1 轨 A；计划 §4.3 / §4.11「A 先合」】
    拍板：工作流只有三步，不设「播放」步（播放 / 回开头 / 循环 / 速度 / 倍速 / 节拍器常驻底部「播放与状态栏」）；不绑 Alt+数字（拍板 7）；模式不落盘。
    ── 切换（setMode(m, o) → set）──
@@ -27475,6 +27967,7 @@ FLOW.mob = (function(){
      #pv-stage 可聚焦（tabindex=-1，鼠标切过来时焦点落它），方向键 / 翻页键原生滚动。回书写：pvClose()。
    ── 刷新 ── PV.content 是静态快照：非书写模式下每次 render() 末尾 FLOW.sync → pvRefresh()（150ms 去抖）重拍快照（pvSnap）并重建页面，
      保住预览区滚动；快照没变就不动 DOM。pvOpen / pvSnap → withCleanSnap → render()×2 → FLOW.sync 的递归用 busy 挡住；PRINTING_NOW / PRINT_PAGING / RENDER_OFF 期间不刷新。
+     v68.2 起预览开着时 render() 本身就改走快照（lazy / stroke：每笔一次整谱排版、同步拍快照、下一个任务重建页）；上面的 pvRefresh 只剩兜底（预览没开、取样 / 打印之后）。
    ── 按键 ── 见 FLOW.key（骨架块）。Alt+N / 拖放 / 预览自己的 Esc 在 flow 非书写模式下先回书写（计划 §4.2-4 / 5 / 9）。
    动作前缀 mode:（mode:set data-v）；#flw-mdd（<1280 的「书写 ▾」）与它的菜单由 C 轨接（mode:menu）。 */
 function setMode(m, o){ return (typeof FLOW!=='undefined' && FLOW && FLOW.mode)? FLOW.mode.set(m, o) : false; }
@@ -27489,6 +27982,10 @@ FLOW.mode = (function(){
   let cur='write', busy=false, T=0, SAVE=null;
   /* v68.1 收尾 MODES-8：快照之后书写谱面 #score 还是快照那一版（pvSnap 不复原排版）——回书写 / 离开 flow 时补排一次；期间任何一次正常 render 都会清掉它（sync） */
   let DIRTY=false, STK=false, ZK=false;
+  /* v68.2（验收遗留 R1：大谱非书写模式每笔仍排 2 次整谱）：非书写模式下 render() 就是快照那一次分页排版（stroke，见 render 开头的分支）——
+     TAIL＝快照后按真实选区补一次 FLOW.sync（不清 DIRTY、不再排快照刷新）；PEND / PT＝重建预览页（pvBuild）挪到下一个任务（同一笔里多次 render 只建一次，点击那一刻不连带建页）；
+     FITQ＝排版里 layApply 要的「适配宽度」记到回书写（fitViewWidth 的 flow 分支）；LAY0＝进非书写之前的预览排布（PV.lay），回书写放回 */
+  let TAIL=false, PEND=null, PT=0, FITQ=false, LAY0=null;
   /* v68.1 收尾 RG-2：排版 / 输出模式下状态栏「− 百分比 ＋」与预览区 Ctrl+滚轮都缩放预览（pvZoomStep，同 v68.0「打印预览」的缩放；点百分比回到适配宽度）——
      此前改的是被盖住的书写谱面（回书写才发现变了），Ctrl+滚轮只改了 PV.zoom、预览被 svg 的 max-width 压回容器宽，画面不动。
      百分比标签在非书写模式下显示预览倍率（render 每次按书写缩放重写它，sync / 刷新后写回）；回书写由正常 render 写回书写倍率 */
@@ -27516,10 +28013,12 @@ FLOW.mode = (function(){
   function fill(){
     FILLV++;
     const ps=stage(), svgs=[...document.querySelectorAll('#pv-pages > .pv-page .pv-paper > svg')]; if(!ps || !svgs.length) return;
-    const sr=ps.getBoundingClientRect(), mg=Math.max(200, sr.height*0.5);
-    svgs.forEach(sv=>{ const q=sv.getBoundingClientRect(); if(q.bottom>=sr.top-mg && q.top<=sr.bottom+mg) fillSvg(sv); });
+    /* v68.2（R1 最长阻塞）：当场只填真正在可视区里的页，上下 / 左右各半屏的邻页交给 IntersectionObserver（下一帧另起一个任务填）；
+       先一次量完所有页的位置再填——此前边量边填，每填一页（整份谱面）就逼一次整页排版，200 小节 3 页建页 ≈0.5 秒。输出「横排」（PV.lay='h'）横向同理 */
+    const sr=ps.getBoundingClientRect();
+    svgs.filter(sv=>{ const q=sv.getBoundingClientRect(); return q.bottom>sr.top && q.top<sr.bottom && q.right>sr.left && q.left<sr.right; }).forEach(fillSvg);
     if(typeof IntersectionObserver==='function'){
-      if(!IO) IO=new IntersectionObserver(es=>{ es.forEach(en=>{ if(en.isIntersecting){ fillSvg(en.target); IO.unobserve(en.target); } }); }, {root:ps, rootMargin:'50% 0px'});
+      if(!IO) IO=new IntersectionObserver(es=>{ es.forEach(en=>{ if(en.isIntersecting){ fillSvg(en.target); IO.unobserve(en.target); } }); }, {root:ps, rootMargin:'50% 50%'});
       IO.disconnect();
       svgs.forEach(sv=>{ if(sv.dataset.flwV!==String(FILLV)) IO.observe(sv); });
     } else svgs.forEach(fillSvg);
@@ -27554,7 +28053,10 @@ FLOW.mode = (function(){
     try{
       /* v68.1 收尾 MODES-6：tabindex 0（此前 −1：只有鼠标切过来时焦点落它，纯键盘用户 Tab 走不到、滚不了预览）——非书写模式下进 Tab 序列，焦点环见 CSS ⑨ */
       const ps=stage(); if(ps && (ps.dataset.flwTi!=null || !ps.hasAttribute('tabindex'))){ if(ps.tabIndex!==0) ps.tabIndex=0; ps.dataset.flwTi='1'; }
-      pvOpen('w', collect);
+      /* v68.2 输出模式的预览排布（FLOW.out「预览」分段：适宽 / 整页 / 横排，只记在内存）；排版恒为竖排适宽（当前行框、版面检查的跳页都按竖排算） */
+      const ar=arr();
+      if(PV.lay!==ar.lay) PV.lay=ar.lay;
+      pvOpen(ar.fit, collect);
       SNAPSIG=snapSig();
     }catch(e){ console.error('flow 预览嵌入异常', e); }
     finally{ busy=false; }
@@ -27563,25 +28065,35 @@ FLOW.mode = (function(){
   }
   function closePv(){
     clearTimeout(T); T=0;
+    clearTimeout(PT); PT=0; PEND=null;
     const ps=stage(); if(ps && document.activeElement===ps) try{ ps.blur(); }catch(_){}
     if(pvOn()) pvClose();
+    if(LAY0!=null){ if(PV.lay!==LAY0) PV.lay=LAY0; LAY0=null; }   /* 预览排布放回进非书写之前的（经典「打印预览」的排布不受输出「横排」影响） */
   }
+  /* 输出模式的预览排布：FLOW.out.arr ＝ 'w' 适宽（竖排、页宽占满）· 'p' 整页（竖排、每页整页装进可视区）· 'h' 横排（页左右排开、页高占满）；其余模式恒 'w' */
+  function arr(){ let a='w'; try{ if(cur==='output' && F.out && F.out.arr) a=F.out.arr; }catch(_){}
+    return {lay: a==='h'? 'h' : 'v', fit: a==='p'? 'p' : 'w'}; }
   const selSame = (a, b)=>{ const ka=Object.keys(a), kb=Object.keys(b); return ka.length===kb.length && ka.every(k=>a[k]===b[k]); };
   /* 「同一份谱」按窗口对象认（docs[curDocI]）：排版里撤销 / 重做会换 song 对象，但还是这一窗口，回书写照样恢复；换了窗口不套用 */
   const docNow = ()=>{ try{ return docs[curDocI] || null; }catch(_){ return null; } };
   function restore(){
     const s=SAVE; SAVE=null;
-    const dirty=DIRTY; DIRTY=false;   /* MODES-8：书写谱面还是快照那一版——下面无论走哪条路都要正常排一次（已经要排的不重复排） */
-    if(!s || (s.doc? s.doc!==docNow() : s.song!==song)){ if(dirty) redraw(); return; }
+    let dirty=DIRTY; DIRTY=false;   /* MODES-8：书写谱面还是快照那一版——下面无论走哪条路都要正常排一次（已经要排的不重复排） */
+    /* v68.2：排版里 layApply 要过的「适配宽度」在正常重排之后做（fitViewWidth 读 body.fixwide / PAGE_W，得是书写那一版） */
+    let fit=FITQ; FITQ=false;
+    const fitNow = ()=>{ if(!fit) return; fit=false; try{ fitViewWidth(); }catch(e){ console.error('flow 回书写适配宽度异常', e); } };
+    const re = ()=>{ redraw(); fitNow(); };
+    if(fit && !dirty) dirty=true;
+    if(!s || (s.doc? s.doc!==docNow() : s.song!==song)){ if(dirty) re(); return; }
     if(s.land){   /* 版面检查点过某行：光标落到那里并跟滚，不恢复旧滚动 */
       Object.keys(sel).forEach(k=>{ if(!(k in s.sel)) delete sel[k]; }); Object.assign(sel, s.sel, s.land);
       try{ clampSel(); }catch(_){}
-      SEL_FOLLOW=true; redraw();
+      SEL_FOLLOW=true; re();
       return;
     }
     if(!selSame(sel, s.sel)){ Object.keys(sel).forEach(k=>{ if(!(k in s.sel)) delete sel[k]; }); Object.assign(sel, s.sel);
-      try{ clampSel(); }catch(_){} redraw(); }
-    else if(dirty) redraw();
+      try{ clampSel(); }catch(_){} re(); }
+    else if(dirty) re();
     const w=$('score-wrap'); if(w){ if(w.scrollTop!==s.st) w.scrollTop=s.st; if(w.scrollLeft!==s.sl) w.scrollLeft=s.sl; }
   }
   function set(m, o){
@@ -27595,9 +28107,11 @@ FLOW.mode = (function(){
       return true;
     }
     try{ F.menu.close(); }catch(_){}
-    if(was==='write'){ const w=$('score-wrap'); SAVE={song, doc:docNow(), sel:Object.assign({}, sel), st:w? w.scrollTop : 0, sl:w? w.scrollLeft : 0, land:null}; }
+    if(was==='write'){ const w=$('score-wrap'); SAVE={song, doc:docNow(), sel:Object.assign({}, sel), st:w? w.scrollTop : 0, sl:w? w.scrollLeft : 0, land:null}; LAY0=PV.lay; }
     cur=m;
     document.body.dataset.mode=m;
+    if(m!=='write') F.track('mode:'+m);   /* v68.2 ui_cmd：mode:engrave / mode:output（任一入口：模式条 · 书写 ▾ · 文件 ▾ · 命令面板 · 发布） */
+    if(m!=='write') try{ if(F.tour && F.tour.open) F.tour.off(); }catch(_){}   /* v68.2 收尾 NU-5：导览只讲书写模式的界面——切到排版 / 输出先收起（不记看过），回书写后从这一步接着出 */
     if(m==='write'){ closePv(); restore(); }
     else openPv();
     after(was, o);
@@ -27615,36 +28129,91 @@ FLOW.mode = (function(){
        要打开右栏页并聚焦它的（o.open）不抢 */
     if(cur!=='write' && (o.focus==='stage' || o.mouse || (o.kb && !o.open))){ const ps=stage(); if(ps) try{ ps.focus({preventScroll:true}); }catch(_){} }
   }
+  /* 重拍前的现场（预览滚动、旧快照、当前行框在不在可视区）——重拍之后据此决定要不要重建页、怎样放回滚动 */
+  function snapCtx(){
+    const ps=stage();
+    /* v68.1 收尾 MODES-5：重拍前当前行框在不在可视区（排版模式）——改纸张 / 疏密后页面几何变了，只按像素放回滚动会把正在改的那一行挤出视野 */
+    let seen=null; try{ if(F.lay && F.lay.selInView) seen=F.lay.selInView(); }catch(_){}
+    return {st:ps? ps.scrollTop : 0, sl:ps? ps.scrollLeft : 0, c0:PV.content, g0:JSON.stringify(PV.geo), seen};
+  }
+  /* 重拍之后：快照变了才重建页（pvBuild 的 flow 分支只填可视区附近），放回滚动、重画左栏 / 当前行框 */
+  function applySnap(c){
+    const ps=stage();
+    if(PV.content!==c.c0 || JSON.stringify(PV.geo)!==c.g0) pvBuild();
+    if(ps){ if(ps.scrollTop!==c.st) ps.scrollTop=c.st; if(ps.scrollLeft!==c.sl) ps.scrollLeft=c.sl; }
+    painted();
+    /* 原来看得见、重拍后看不见了：把当前行滚回视野（用户本来就滚开在看别处的不动） */
+    try{ if(c.seen===true && F.lay.selInView()===false) F.lay.reveal(); }catch(_){}
+    zlSync();
+  }
   function refreshNow(){
     T=0;
     if(!F.active || cur==='write' || busy) return;
     try{ if(PRINTING_NOW || PRINT_PAGING || RENDER_OFF) return; }catch(_){}
     if(!pvOn()){ openPv(); return; }
     const sg=snapSig(); if(sg===SNAPSIG){ painted(); return; }   /* 谱面没变：不重拍（左栏 / 当前行框照样按当前选区刷新） */
-    const ps=stage(), st=ps? ps.scrollTop : 0, sl=ps? ps.scrollLeft : 0;
-    const c0=PV.content, g0=JSON.stringify(PV.geo);
-    /* v68.1 收尾 MODES-5：重拍前当前行框在不在可视区（排版模式）——改纸张 / 疏密后页面几何变了，只按像素放回滚动会把正在改的那一行挤出视野 */
-    let seen=null; try{ if(F.lay && F.lay.selInView) seen=F.lay.selInView(); }catch(_){}
+    const c=PEND || snapCtx(); PEND=null; clearTimeout(PT); PT=0;
     busy=true;
     const t0=performance.now();
-    try{ pvSnap(collect); SNAPSIG=sg; if(PV.content!==c0 || JSON.stringify(PV.geo)!==g0) pvBuild(); }
+    try{ pvSnap(collect); SNAPSIG=sg; }
     catch(e){ console.error('flow 预览刷新异常', e); }
     finally{ busy=false; }
     perfAdd('refresh', performance.now()-t0);
-    if(ps){ if(ps.scrollTop!==st) ps.scrollTop=st; if(ps.scrollLeft!==sl) ps.scrollLeft=sl; }
-    painted();
-    /* 原来看得见、重拍后看不见了：把当前行滚回视野（用户本来就滚开在看别处的不动） */
-    try{ if(seen===true && F.lay.selInView()===false) F.lay.reveal(); }catch(_){}
-    zlSync();
+    applySnap(c);
+  }
+  /* —— v68.2 每笔一次整谱排版（验收遗留 R1）——
+     render() 开头的 flow 分支问 lazy()：排版 / 输出模式、预览开着、不在快照 / 导出取样 / 打印 / 缩图 / 离屏排版之中 → 改走 stroke()：
+     ① 谱面（快照签名：谱数据 + 版宽 + 不换行 + 字体）没变（点选一行、播放起止、换窗口大小但谱纸宽没变……）：不排，书写谱面照旧标脏，左栏 / 当前行框照当前选区重画；
+     ② 变了：当场拍快照（pvSnap → withCleanSnap 分页排版，这就是这一笔唯一的一次整谱排版），同步完成——mutate 的「渲染异常自动撤销」照样在落盘前兜住
+        （异常原样抛给调用方）；重建预览页挪到下一个任务（PEND / PT，同一笔里多次 render 只建一次）；
+     ③ 之后按真实选区补一次 FLOW.sync（TAIL：快照那一次是在清掉选区装饰的现场里同步的）。
+     书写谱面一直是快照那一版（DIRTY），回书写 / 离开 flow 补排一次，与正常 render 逐字节相同 */
+  function lazy(){
+    if(!F.active || cur==='write' || busy || !song) return false;
+    try{ if(PRINTING_NOW || PRINT_PAGING || RENDER_OFF || CLEAN_SNAP_N) return false; }catch(_){ return false; }
+    return pvOn();
+  }
+  function stroke(){
+    DIRTY=true;
+    clearTimeout(T); T=0;
+    const pw=$('paper'), pwNow=pw? pw.clientWidth : 0;
+    let lw=0; try{ lw=LAST_PAPER_W; }catch(_){}
+    const sg=snapSig();
+    if(sg===SNAPSIG && SNAPSIG && Math.abs(pwNow-lw)<2){
+      if(!PEND) painted();
+      tail(); return;
+    }
+    const c=PEND || snapCtx();
+    busy=true;
+    const t0=performance.now();
+    try{ pvSnap(collect); SNAPSIG=snapSig(); }
+    finally{ busy=false; perfAdd('refresh', performance.now()-t0); }
+    PEND=c; clearTimeout(PT);
+    PT=setTimeout(()=>{ PT=0; const x=PEND; PEND=null; if(x && F.active && cur!=='write' && pvOn()) try{ applySnap(x); }catch(e){ console.error('flow 预览重建异常', e); } }, 0);
+    tail();
+  }
+  function tail(){
+    TAIL=true;
+    try{ F.sync(); }catch(e){ console.error('flow 同步异常', e); }
+    finally{ TAIL=false; }
   }
   function pvRefresh(){
     if(!F.active || cur==='write' || busy) return;
     clearTimeout(T); T=setTimeout(refreshNow, 150);
   }
+  /* v68.2（验收遗留）#toast 读屏播报：flow 外壳（桌面 FLOW.active / 手机 FLOW.mob.on）下给提示条加 role=status（aria-live=polite、整条播报）——
+     灰显键点了说原因、排不下、已撤销……都只走 toast，此前读屏听不到。只在 flow 下挂（data-flw-live 记着是自己加的，离开 flow 摘掉）：
+     经典外壳（?shell=classic / 偏好「使用旧版布局」）的 DOM 与 v67.8 逐字节相同，不进对拍例外；互动谱快照（FLOW.snapHTML）同样摘掉 */
+  function live(){
+    const t=$('toast'); if(!t) return;
+    const on=!!(F.active || (F.mob && F.mob.on));
+    if(on){ if(t.getAttribute('data-flw-live')==null){ t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); t.setAttribute('aria-atomic', 'true'); t.setAttribute('data-flw-live', ''); } }
+    else if(t.getAttribute('data-flw-live')!=null){ ['role', 'aria-live', 'aria-atomic', 'data-flw-live'].forEach(a=>t.removeAttribute(a)); }
+  }
   return {
     MODES,
     get cur(){ return cur; },
-    set, pvRefresh, syncBar, barHTML,
+    set, pvRefresh, syncBar, barHTML, live,
     stage, fill,
     markDirty(){ if(cur!=='write') DIRTY=true; },
     /* 版面检查（左栏 #flw-lay-rep 同一份数据）：{pages, rows:[{si, m1, m2, n, pg, y0, y1}], per, breaks, issues:[{k, t, mi, pg}], pageRanges}；实现在 FLOW.lay */
@@ -27698,19 +28267,20 @@ FLOW.mode = (function(){
       F.menus.modes = ()=>F.mh('工作步骤')+MODES.map(x=>F.mi({a:'mode:set', attr:' data-v="'+x.m+'"', ic:x.ic, label:x.t, d:x.d, checked:x.m===cur, role:'menuitemradio'})).join('');
       sub('mount');   /* 排版 / 输出工具组、左栏两页、右栏版式 / 发布页的内容（右栏页容器已由 FLOW.rd.mount 建好） */
     },
-    on(){ cur='write'; SAVE=null; document.body.dataset.mode='write'; syncBar();
+    on(){ cur='write'; SAVE=null; document.body.dataset.mode='write'; syncBar(); live();
       /* 「搜功能」在行 2 的收纳最后一档（<1：在连音线 / 增时线 / 附点之后才收，收进「更多 ▾」顶部；Ctrl+/ 不受影响）——r2.on 刚按 PRI 表写过 data-pri */
       const cb=$('flw-cmdb'); if(cb) cb.dataset.pri='0.5';
       sub('on'); },
     off(){
       if(cur!=='write') closePv();
-      if(DIRTY){ DIRTY=false; setTimeout(redraw, 0); }   /* MODES-8：离开 flow（谱架 / 观看页 / 缩到手机）时书写谱面还是快照那一版：补排一次（不在卸载途中同步排） */
+      if(DIRTY || FITQ){ const fit=FITQ; DIRTY=false; FITQ=false; setTimeout(()=>{ redraw(); if(fit) try{ fitViewWidth(); }catch(_){} }, 0); }   /* MODES-8：离开 flow（谱架 / 观看页 / 缩到手机）时书写谱面还是快照那一版：补排一次（不在卸载途中同步排）；v68.2 记着的适配宽度随后做 */
       SNAPSIG=''; if(IO) IO.disconnect();
       sub('off');
       cur='write'; SAVE=null; clearTimeout(T); T=0;
       delete document.body.dataset.mode;
       const ps=stage(); if(ps && ps.dataset.flwTi!=null){ ps.removeAttribute('tabindex'); delete ps.dataset.flwTi; }
       syncBar();
+      setTimeout(live, 0);   /* v68.2 #toast 读屏：离开桌面 flow 时摘掉——缩到手机（FLOW.mob 接着挂上）则保留；放到本轮启停全部走完之后再判断 */
     },
     /* 窄档（计划 §4.5：<1280 由 FLOW.layout 置 body.flw-narrow；骨架只把模式条收成「书写 ▾」，左栏 56 / 记号浮层等由 C 轨挂在同一个类上）；
        右栏停靠 / 竖条、窄档改了主区宽（不经 window resize）：适配宽度的预览按新宽重排页面 */
@@ -27722,13 +28292,22 @@ FLOW.mode = (function(){
       if(cur!=='write' && pvOn() && PV.fit) F.raf('pvfit', ()=>{ if(cur!=='write' && pvOn()){ pvBuild(); painted(); zlSync(); } });
     },
     sync(){
-      if(!busy) DIRTY=false;   /* 这一次是正常 render（快照那次 busy）：书写谱面已是正常排版 */
+      if(!busy && !TAIL) DIRTY=false;   /* 这一次是正常 render（快照那次 busy；v68.2 快照后补的那次同步 TAIL）：书写谱面已是正常排版 */
       if(cur==='write' || busy) return;
       try{ if(startPadOn()){ setTimeout(()=>set('write'), 0); return; } }catch(_){}   /* 启动台盖上来（关完窗口等）：回书写（不在 render 里嵌套重排） */
       sub('sync', cur);   /* 工具组的按下态 / 本行小节数等（只写属性，不排版） */
       zlSync();   /* RG-2：render 刚按书写缩放写过百分比标签，写回预览倍率 */
-      pvRefresh();
+      if(!TAIL) pvRefresh();   /* v68.2：stroke 刚拍过快照的不再排刷新 */
     },
+    /* v68.2 每笔一次整谱排版：render() 的 flow 分支（见上 lazy / stroke）；fitLater＝fitViewWidth 在非书写模式下记到回书写 */
+    lazy, stroke,
+    fitLater(){ if(cur!=='write') FITQ=true; },
+    /* v68.2 输出「预览」排布切换后（FLOW.out 调）：按新排布重建页（不重拍快照） */
+    rearrange(){ if(!F.active || cur==='write' || !pvOn()) return false;
+      const ar=arr(); PV.lay=ar.lay; PV.fit=ar.fit; PV.zoom=1;
+      try{ pvSyncBar(); }catch(_){}
+      const ps=stage(); pvBuild(); if(ps){ ps.scrollTop=0; ps.scrollLeft=0; }
+      painted(); zlSync(); return true; },
     act(a, el, ev){
       if(a==='mode:set'){ const v=el && el.dataset.v;
         return set(v, {mouse: !!(ev && ev.detail>0), kb: !!(ev && ev.detail===0)}); }
@@ -27756,8 +28335,8 @@ FLOW.lay = (function(){
   const PLUS = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2.5 6h7M6 2.5v7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   const PAGES = [['A5','A5 纸张（较小，省纸）'],['A4','A4 纸张（标准）'],['A3','A3 纸张（很大，约 A4 的 2 倍）']];
   const PRESETS = [['compact','紧凑','紧凑：行距与间距收紧，一页放更多'],['standard','标准','标准疏密'],['loose','宽松','宽松：行距与间距放大，便于教学批注']];
-  const WHY_PB = '此处换页：要新增一个可选字段（measures[].pbrk），需负责人拍板，下一批';
-  const WHY_PN = '页码：成品（打印 / PDF / 图片）暂不印页码，位置与样式也还不能改——下一批';
+  const WHY_PB = '此处换页：即将推出（现在按纸张自动分页；想让某一行换到下一页，可先调纸张、疏密或每行小节数）';
+  const WHY_PN = '页码：成品（打印 / PDF / 图片）暂不印页码，位置与样式也还不能改——即将推出';
   let S = null;            /* 最近一次快照分页排版取的几何：{geo, rows:[{si, m1, m2, n, y0, y1, pg}], boxes:{mi:{x, w}}, song, n} */
   let SIG = {tools:'', rep:'', cfg:'', sel:''};
   /* 节点搬移表（计划 §1.3 v68.1 行）：#layout-pop → 右栏「版式」页的落点（不改 FLOW.DOCK 表本身，在这里追加一行） */
@@ -27850,7 +28429,7 @@ FLOW.lay = (function(){
       +GB('lay:join', 'lay-continuous', '并入上一行', '并入上一行：当前行的首小节移到上一行行尾', {attr:' id="flw-eng-join"'})
       +GB('lay:lock', 'lay-lock', '锁定此行', '锁定此行：这几个小节固定排在一行，改纸张 / 疏密也不拆开（再点改回自动）', {attr:' id="flw-eng-lock" aria-pressed="false"'})
       +GB('lay:pbrk', 'lay-pagebreak', '此处换页', WHY_PB, {attr:' id="flw-eng-pbrk" aria-disabled="true" data-why="'+E(WHY_PB)+'"', cls:'flw-gdim'})+SEP
-      +GB('lay:meta', 'lay-header', '页头与页码…', '页头（曲名、词曲、速度）在「曲谱信息」里改；页码暂不能改（下一批）', {attr:' id="flw-eng-meta"'});
+      +GB('lay:meta', 'lay-header', '页头与页码…', '页头（曲名、词曲、速度）在「曲谱信息」里改；页码暂不能改（即将推出）', {attr:' id="flw-eng-meta"'});
   }
   const setP = (el, on)=>{ if(!el) return; const v=String(!!on); if(el.getAttribute('aria-pressed')!==v){ el.setAttribute('aria-pressed', v); el.classList.toggle('on', !!on); } };
   /* v68.1 收尾 RG-4：灰显的原因此前只在 data-why（点了才 toast，#toast 不是 live 区域）——悬停与读屏拿不到。灰显时把原因并进 title 与读屏名
@@ -27927,7 +28506,10 @@ FLOW.lay = (function(){
   /* 把第 pg 页里 y（谱面坐标）那一处滚进 #pv-stage 可视区 */
   function scrollTo(pg, y){
     const ps=F.mode.stage(), pe=pageEls()[pg]; if(!ps || !pe) return;
-    const sr=ps.getBoundingClientRect(); let top=pe.getBoundingClientRect().top-sr.top+ps.scrollTop-12;
+    const sr=ps.getBoundingClientRect();
+    /* v68.2 输出「横排」：页左右排开——横向滚到这一页的左缘（竖向不动） */
+    if(PV.lay==='h'){ ps.scrollLeft=Math.max(0, Math.round(pe.getBoundingClientRect().left-sr.left+ps.scrollLeft-12)); return; }
+    let top=pe.getBoundingClientRect().top-sr.top+ps.scrollTop-12;
     if(y!=null && S){ const mp=pgMap(pe); if(mp) top=mp.q.top-sr.top+ps.scrollTop+mp.oy+(y-pg*(S.geo.pgH+S.geo.gap))*mp.s-40; }
     ps.scrollTop=Math.max(0, Math.round(top));
   }
@@ -27969,7 +28551,7 @@ FLOW.lay = (function(){
       +'<i data-flw-slot="laypop" hidden></i>'
       +'<section class="flw-rxs" aria-labelledby="flw-lay-hdh"><h3 class="flw-rxh" id="flw-lay-hdh">页头 · 页码</h3>'
         +'<button type="button" class="flw-rxrow" data-fa="lay:meta">'+IC('lay-header')+'<span>页头<span class="flw-rxd">曲名、词曲作者、速度——在「曲谱信息」里改</span></span></button>'
-        +'<button type="button" class="flw-rxrow" aria-disabled="true" data-fa="lay:pno" data-why="'+E(WHY_PN)+'" title="'+E(WHY_PN)+'">'+IC('lay-pagebreak')+'<span>页码<span class="flw-rxd">成品暂不印页码</span></span><span class="flw-nxb">下一批</span></button>'
+        +'<button type="button" class="flw-rxrow" aria-disabled="true" data-fa="lay:pno" data-why="'+E(WHY_PN)+'" title="'+E(WHY_PN)+'">'+IC('lay-pagebreak')+'<span>页码<span class="flw-rxd">成品暂不印页码</span></span><span class="flw-nxb">即将推出</span></button>'
       +'</section>';
   }
 
@@ -28124,9 +28706,13 @@ FLOW.lay = (function(){
    动作前缀 out:。打印纸张只记在内存（与弹窗每次缺省 A4 同口径）；本机键：无 */
 FLOW.out = (function(){
   const F = FLOW, $ = F.$, E = s=>F.esc(s), IC = (k, n)=>F.ic(k, n||16);
-  const WHY_PARTS = '按演奏者出分谱：下一批（左栏「输出内容」里先列出了会出哪几份；现在打印、导出的都是总谱）';
+  const WHY_PARTS = '按演奏者出分谱：即将推出（左栏「输出内容」里先列出了会出哪几份；现在打印、导出的都是总谱）';
   const SIZES = [['A4','A4 纵向 (210×297mm)'],['A4L','A4 横向 (297×210mm)'],['Letter','信纸 Letter 纵向'],['fit','自适应内容尺寸']];
   let PSIZE='A4', SIG={list:'', pub:''};
+  /* v68.2（验收遗留：原 #pv-bar 的整页 / 横排在 flow 下随预览条一起隐藏了）：输出模式的预览排布——只记在内存（与打印纸张同口径），作用于嵌入预览；
+     'w' 适宽（竖排、页宽占满，缺省）· 'p' 整页（竖排、每页整页装进预览区）· 'h' 横排（页左右排开、页高占满，横向滚动翻页）。排版模式恒为适宽（FLOW.mode.arr） */
+  const ARRS = [['w','适宽','适宽：竖排，页宽占满预览区（缺省；点一下也会把缩放回到适配）'],['p','整页','整页：竖排，每一页整页装进预览区'],['h','横排','横排：页左右排开，页高占满预览区，横向滚动翻页']];
+  let ARR='w';
   const GB = (fa, ic, label, title, o)=>{ o=o||{};
     return '<button type="button" class="flw-gb flw-glbl'+(o.cls? ' '+o.cls : '')+'" data-fa="'+fa+'"'+(o.attr||'')+' title="'+E(title)+'" aria-label="'+E(label)+'">'
       +'<span class="flw-gic" aria-hidden="true">'+IC(ic)+'</span><span class="flw-glb">'+E(label)+'</span></button>'; };
@@ -28143,8 +28729,11 @@ FLOW.out = (function(){
       +'<span class="flw-ggrp" role="group" aria-label="专业格式">'+CAP('专业格式')
         +GB('out:mxl', 'out-xml', 'MusicXML', '导出 MusicXML：可导入 MuseScore / Finale / Sibelius / Dorico 继续编辑或印刷', {attr:' id="flw-out-mxl"'})
         +GB('out:mid', 'src-midi', 'MIDI', '导出标准 MIDI：可导入 DAW / 编曲软件，或用于跟弹练习', {attr:' id="flw-out-mid"'})
-        +GB('out:mtab', 'ui-download', '曲谱文件', '谱友圈曲谱文件 .mtab.json：完整保留全部数据，换电脑可打开继续编辑（Ctrl+S）', {attr:' id="flw-out-mtab"'})+'</span>';
+        +GB('out:mtab', 'ui-download', '曲谱文件', '谱友圈曲谱文件 .mtab.json：完整保留全部数据，换电脑可打开继续编辑（Ctrl+S）', {attr:' id="flw-out-mtab"'})+'</span>'+SEP
+      +'<span class="flw-ggrp" role="group" aria-label="预览排布">'+CAP('预览')
+        +'<span class="flw-gseg" id="flw-out-arr" role="group" aria-label="预览排布">'+ARRS.map(x=>'<button type="button" class="flw-gsb" data-fa="out:arr" data-v="'+x[0]+'" aria-pressed="'+(x[0]===ARR)+'" title="'+E(x[2])+'">'+E(x[1])+'</button>').join('')+'</span></span>';
   }
+  function syncArr(){ document.querySelectorAll('#flw-out-arr [data-v]').forEach(b=>{ const v=String(b.dataset.v===ARR); if(b.getAttribute('aria-pressed')!==v) b.setAttribute('aria-pressed', v); }); }
   /* —— 分谱按演奏者（只读推断；FLOW.tree.model 的轨与组）—— */
   function parts(){
     let m=null; try{ m=F.tree && F.tree.model(); }catch(_){}
@@ -28176,12 +28765,12 @@ FLOW.out = (function(){
       +'<div class="flw-olst" role="list" aria-label="总谱">'
       +'<div class="flw-oli on" role="listitem"><span class="flw-obx" aria-hidden="true">'+IC('act-check', 12)+'</span><span class="flw-olt">总谱<span class="flw-old"> · 全部 '+(P? P.total : 0)+' 轨</span></span></div></div>'
       +'<p class="flw-lrnote">打印、PDF、图片、分享卡都按总谱出。</p>'
-      +'<div class="flw-lrh"><span class="flw-lrt">分谱</span><span class="flw-lrc">按演奏者，不按谱行</span><span class="flw-nxb">下一批</span></div>'
-      +'<div class="flw-olst" role="list" aria-label="分谱（下一批）" aria-disabled="true">';
+      +'<div class="flw-lrh"><span class="flw-lrt">分谱</span><span class="flw-lrc">按演奏者，不按谱行</span><span class="flw-nxb">即将推出</span></div>'
+      +'<div class="flw-olst" role="list" aria-label="分谱（即将推出）" aria-disabled="true">';
     (P? P.parts : []).forEach(x=>{ h+='<div class="flw-oli'+(x.opt? ' flw-oopt' : '')+'" role="listitem" aria-disabled="true" title="'+E(WHY_PARTS)+'">'
       +'<span class="flw-obx" aria-hidden="true"></span>'+(x.ic? '<span class="flw-oic" aria-hidden="true">'+x.ic+'</span>' : '')
       +'<span class="flw-olt">'+E(x.t)+(x.d? '<span class="flw-old"> · '+E(x.d)+'</span>' : '')+'</span></div>'; });
-    h+='</div><p class="flw-lrnote">共 '+((P && P.parts.filter(x=>!x.opt).length)||0)+' 份。按演奏者出分谱放在下一批；拍板后在这里勾选、一次导出。</p>';
+    h+='</div><p class="flw-lrnote">共 '+((P && P.parts.filter(x=>!x.opt).length)||0)+' 份。按演奏者出分谱即将推出，到时在这里勾选、一次导出；现在打印、导出的都是总谱。</p>';
     try{ h+=F.lay.pagesHTML(F.lay.report()); }catch(_){}
     return h;
   }
@@ -28245,20 +28834,24 @@ FLOW.out = (function(){
       case 'out:mtab': return EXPORT_ACT.mtab();
       case 'out:pub': { const r=F.r1.publish(el); SIG.pub=''; paintPub(); return r; }   /* 存入后卡上的状态 / 按钮字当场更新（saveToLibrary 不重排谱面） */
       case 'out:trim': { let n=0; mutate(()=>{ n=trimTrailing(); }); toast('已删除末尾 '+n+' 个空小节（Ctrl+Z 可撤销）'); return; }   /* 与弹窗 #ex-trim 同一调用 */
+      case 'out:arr': { const v=el && el.dataset && el.dataset.v; if(!ARRS.some(x=>x[0]===v)) return;
+        ARR=v; syncArr(); try{ F.mode.rearrange(); }catch(e){ console.error('flow 预览排布异常', e); } return; }
     }
     console.warn('flow：未处理的动作 '+a);
   }
   return {
     act, parts,
     get paper(){ return PSIZE; },
+    /* v68.2 输出模式的预览排布（'w' | 'p' | 'h'）：FLOW.mode.openPv / rearrange 读 */
+    get arr(){ return ARR; },
     mount(){
       const g=$('flw-out'); if(g && !g.firstChild) g.innerHTML=toolsHTML();
       const rp=F.rd && F.rd.body('pub'); if(rp && !rp.querySelector('.flw-pubc')) rp.insertAdjacentHTML('beforeend', pubHTML());
       const ps=$('flw-out-psize'); if(ps) ps.addEventListener('change', ()=>{ PSIZE=ps.value||'A4'; SIG.pub=''; });
     },
     on(){ SIG={list:'', pub:''}; },
-    modeChanged(m){ if(m==='output'){ paintList(true); paintPub(); } },
-    painted(m){ if(m==='output'){ paintList(false); paintPub(); } },
+    modeChanged(m){ if(m==='output'){ paintList(true); paintPub(); syncArr(); } },
+    painted(m){ if(m==='output'){ paintList(false); paintPub(); syncArr(); } },
     sync(m){ if(m==='output') paintPub(); },
     /* 发布页不只在输出模式下被看到（行 1「发布」切过来那一下）：FLOW.r1 打开前先刷一次 */
     refresh(){ SIG.pub=''; paintPub(); }
@@ -28785,7 +29378,7 @@ function renderMixerDock(){
     html+=`<div class="mx-grp">${label}</div>`;
     arr.forEach((nm,vi)=>{
       const cfg=trackCfg(kind,vi);
-      const pv=Math.round((cfg.vol||1)*100);
+      const pv=Math.round(trkVolOf(cfg)*100);   /* v68.2 TRK-5：读数与引擎同口径（存了 0 显示 0%） */
       html+=`<div class="mx-row" data-kind="${kind}" data-vi="${vi}">
         <span class="mx-nm" title="${esc(nm)}">${esc(nm)}</span>
         <select class="mx-inst">${instOpts(cfg.inst)}</select>
@@ -28979,6 +29572,19 @@ function docHasContent(s){
     return (m.tabs||[]).some(cs=>(cs||[]).some(docCellFilled)) || (m.voxes||[]).some(cs=>(cs||[]).some(docCellFilled));
   });
 }
+/* v68.2 收尾 NU-8：原样示例谱（与某个 PRESETS 示例逐字段相同，id / tabNota 不算——与启动台 spdOwnDocs「原样示例谱不算自己的谱」同一判据）。
+   关窗时不当成「有内容」自动转存：示例曲谱随时能从「示例曲谱」再打开，转存只会把用户没碰过的示例塞进「我的曲谱」。改过一笔就不再原样，照旧转存 */
+let DEMO_ASIS=null;   /* 示例谱逐字段 JSON（首次用到时算一次：PRESETS 是常量，批量关窗不必每个窗口都重建全部示例） */
+function docIsDemoAsIs(s){
+  if(!s || !s.measures || !s.title) return false;
+  try{
+    const IGN={id:1, tabNota:1};
+    if(!DEMO_ASIS){ DEMO_ASIS=[]; PRESETS.forEach(p=>{ try{ const d=migrate(p.make()), f={}; Object.keys(d).filter(k=>!IGN[k]).forEach(k=>{ f[k]=JSON.stringify(d[k]); }); DEMO_ASIS.push({t:d.title, f}); }catch(_){} }); }
+    const ks=Object.keys(s).filter(k=>!IGN[k]);
+    return DEMO_ASIS.some(d=>d.t===s.title && Object.keys(d.f).length===ks.length && ks.every(k=>Object.prototype.hasOwnProperty.call(d.f, k) && d.f[k]===JSON.stringify(s[k])));
+  }catch(_){}
+  return false;
+}
 function closeDocAt(i){
   if(docs.length<=1 || !docs[i]) return;
   if(i===curDocI && docs[curDocI]) docs[curDocI].song=song;
@@ -28988,7 +29594,7 @@ function closeDocAt(i){
   const s2=docs[i].song||{};
   const lib=libLoad();
   const saved=!!(s2.id && lib.some(x=>x.id===s2.id));
-  const hasContent=docHasContent(s2);
+  const hasContent=docHasContent(s2) && !docIsDemoAsIs(s2);
   if(!saved && hasContent){
     if(!s2.id) s2.id=newId();
     lib.unshift({id:s2.id, title:s2.title||'未命名曲谱', updatedAt:nowStamp(), mtime:Math.floor(Date.now()/1000), data:JSON.parse(JSON.stringify(s2))});
@@ -30413,7 +31019,7 @@ var NWP = (function(){
       + card('nw-gp', 'src-gp', 'Guitar Pro', '.gp · .gpx · .gp3–.gp5 全版本，先选音轨')
       + card('nw-midi', 'src-midi', 'MIDI', '.mid ── 先选轨与量化，再进编辑器')
       +'</div>'
-      +'<p class="nf-imptip">'+ic('act-info',16)+'<span>录音、图片暂不能直接识别：先用 AI 转谱 / 识谱工具导出 MusicXML，再从这里导入。打开自己的谱友圈文件（.mtab.json）请用顶栏「打开」。</span></p>'
+      +'<p class="nf-imptip">'+ic('act-info',16)+'<span>录音、图片暂不能直接识别：先用 AI 转谱 / 识谱工具导出 MusicXML，再从这里导入。打开自己的谱友圈文件（.mtab.json）请用'+(flowOn()? '「文件 ▾ · 打开文件…」' : '顶栏「打开」')+'。</span></p>'
       +'</section></div>'
       +'<footer class="nf-ft"><p class="nf-keys"><kbd>Tab</kbd> 选格式 <kbd>Enter</kbd> 选文件 <kbd>Esc</kbd> 关</p><span class="nf-where">导入后直接打开</span>'
       +'<button type="button" class="nf-go2" data-act="mback">'+ic('act-back',18)+'返回</button></footer>';
@@ -31063,7 +31669,7 @@ function realCreate(P, tpNote, ev){
     let guide = P.stack==='JT' && P.pen==='J'? (onBar? '——下一步见谱面上方的谱型条：先在简谱行写旋律，再点「生成六线谱」，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）'
         : '——先在简谱行写旋律；写好后点左栏的旋律音轨，在「显示」里点六线谱图标，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）')
       : onBar && LB_GUIDE[P.stack]? LB_GUIDE[P.stack] : ACC_GUIDE[P.stack]||'';
-    if(flowOn() && onBar) guide=FLOW.start.retext(guide);   /* v68.0 flow：没有谱型条，写真实位置（工具栏左端「起步」/ 右栏「下一步」卡） */
+    if(flowOn() && onBar) guide=FLOW.start.retext(guide);   /* v68.0 flow：没有谱型条，写真实位置（行 2「起步」/ 右栏「下一步」卡） */
     toastKind('已新建'+kind.name+' · '+NWP.keyName(o.key, o.mode)+' '+o.beats+'/'+o.unit+' '+tempoGlyph(song)+'='+o.tempo+' · '+o.nMea+' 小节 · 新窗口打开，原谱保留'+guide+(tpNote? '；'+tpNote : ''), kind.ic);
   });
 }
@@ -32471,13 +33077,15 @@ function cleanSnapRestore(k){
   blurSel = k.blur; noteSel = k.note; selRange = k.rng; measureSel = k.mSel; measureRange = k.mRng;
   meaHandleOn = k.mHnd; lyrSel = k.lyr; barSel = k.bar;
 }
+var CLEAN_SNAP_N = 0;   /* v68.2：withCleanSnap 取样中（嵌套计数）——flow 排版 / 输出模式的 render 快照分支（FLOW.mode.lazy）据此让路，取样那一次照常排。var：render 可能早于此行求值（同 RENDER_OFF） */
 function withCleanSnap(fn, opts){
   const k = cleanSnapSave();
   /* v62.6 A2：opts.paging＝成品按分页排版取样（不换行模式的横向长带不适合裁成卡片，同 buildThumbCanvas 口径） */
   const pp = PRINT_PAGING;
   if(opts && opts.paging) PRINT_PAGING = true;
+  CLEAN_SNAP_N++;
   try{ render(); return fn(); }
-  finally{ PRINT_PAGING = pp; cleanSnapRestore(k); if(!(opts && opts.noRender)) try{ render(); }catch(_){} }   /* noRender：v68.1 收尾 MODES-8，只有 flow 排版 / 输出的快照传（见 pvSnap） */
+  finally{ CLEAN_SNAP_N--; PRINT_PAGING = pp; cleanSnapRestore(k); if(!(opts && opts.noRender)) try{ render(); }catch(_){} }   /* noRender：v68.1 收尾 MODES-8，只有 flow 排版 / 输出的快照传（见 pvSnap） */
 }
 /* v62.6 A2：成品取样用的谱面克隆——去掉屏幕专用的页框/页码/播放头（打印切片同口径），原 #score 不动 */
 function scoreExportClone(){
@@ -35475,8 +36083,12 @@ async function exportInteractiveCard(){
   const inj='<script id="pyq-share-data">window.PYQ_SHARE='
     +JSON.stringify(payload).replace(/<\//g,'<\\/')+';<\/script>\n';
   /* 替换串必须转义斜杠写 <\/body>：裸写会在本函数源码里留下真实的 body 闭合标签字面量，
-     打包时注入点会错落到脚本中段直接打断整个应用（注释里同样不能裸写） */
-  if(/<\/body>/i.test(html)) html=html.replace(/<\/body>/i, inj+'<\/body>');
+     打包时注入点会错落到脚本中段直接打断整个应用（注释里同样不能裸写）。
+     v68.2 集成（第一轮遗留 ②）：注入点改在 head 闭合标签前——早于主脚本执行，开机时 FLOW 就认得「这是互动谱观看页」、不先挂外壳（FLOW.vint）；
+     进观看模式仍在 DOMContentLoaded（数据位置不影响它）。没有 head 闭合标签时退回 body 闭合标签前（旧位置），再没有就追加在末尾。
+     同理 head 闭合标签也只写转义形式；源码里它只出现一次（真实的那个，在所有脚本之前），首个匹配即是 */
+  if(/<\/head>/i.test(html)) html=html.replace(/<\/head>/i, inj+'<\/head>');
+  else if(/<\/body>/i.test(html)) html=html.replace(/<\/body>/i, inj+'<\/body>');
   else html+=inj;
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const a=document.createElement('a');
@@ -35886,12 +36498,14 @@ async function entRefresh(){
   try{ const r=await apiCall('/me/reserves'); window.PYQ_RESV=((r&&r.reserves)||[]).map(x=>x.kind); }catch(_){ window.PYQ_RESV=[]; }   /* v62.9 A4 预约 */
 }
 /* v45.3 埋点（fire-and-forget；仅线上生效，file://预览/测试环境 no-op） */
-function pyqEvent(name, meta){
+function pyqEvent(name, meta, opt){
   if(!API_ON) return;
   const body={name, meta:String(meta==null?'':meta)};
   /* v63.4 A7 ③ 首触来源：访问事件带上 utm / 站外 referrer / 落地页（服务端 src、landing 两列；匿名标识 pyq_anon 由服务端 Cookie 下发） */
   if(name==='visit'){ const t=pyqTouch(); body.src=t.src; body.landing=t.landing; }
-  try{ apiCall('/events',{method:'POST',body}).catch(()=>{}); }catch(_){}
+  /* v68.2 集成：opt.keepalive（只有 FLOW.track 的送达确认传）——请求选项多带 keepalive；返回这次请求的 promise（失败已吞，调用方可等它完成）。不传 opt 时请求选项与此前逐字相同 */
+  const o={method:'POST',body}; if(opt && opt.keepalive) o.keepalive=true;
+  try{ const pr=apiCall('/events', o); pr.catch(()=>{}); return pr; }catch(_){}
 }
 function pyqTouch(){
   let src='', landing='';
@@ -37473,7 +38087,7 @@ function pcMineHTML(){
     : (API_ON ? '<div style="font-size:12px;color:var(--muted);margin:-2px 0 10px">登录后曲谱可跨设备云端同步（当前仅存本机）。</div>' : '');
   return `<div class="pcx-card"><h4>我的曲谱 <span class="cnt">${lib.length} 首</span></h4>
     ${cloud}
-    ${lib.length? rows : '<p>还没有保存的曲谱。制作时点顶部「保存」即可存入，之后编辑实时同步。</p>'}
+    ${lib.length? rows : '<p>还没有保存的曲谱。制作时'+(flowOn()? '在「文件 ▾」点「保存到我的曲谱」' : '点顶部「保存」')+'即可存入，之后编辑实时同步。</p>'}
     <div class="btns" style="justify-content:flex-start;margin-top:10px"><button id="pc-openlib">打开我的曲谱</button></div></div>`;
 }
 const CERT_NAME={tabber:'认证扒谱人', teacher:'认证教师'};
@@ -37876,9 +38490,11 @@ function acctSave(o){ ACCT=o||null; try{ ACCT? localStorage.setItem(ACCT_KEY,JSO
 function isMpEnv(){ try{ return window.__wxjs_environment==='miniprogram' || /miniProgram/i.test(navigator.userAgent||''); }catch(_){ return false; } }
 async function apiCall(path, opts){
   opts=opts||{};
-  const res=await fetch('/api'+path, {method:opts.method||'GET', credentials:'include',
+  const init={method:opts.method||'GET', credentials:'include',
     headers:opts.body?{'Content-Type':'application/json'}:{},
-    body:opts.body?JSON.stringify(opts.body):undefined});
+    body:opts.body?JSON.stringify(opts.body):undefined};
+  if(opts.keepalive) init.keepalive=true;   /* v68.2 集成：显式传入才加（页面卸载后浏览器照样送完；目前只有「使用旧版布局」刷新前那条 ui_cmd 用）；默认请求选项不变 */
+  const res=await fetch('/api'+path, init);
   let j={}; try{ j=await res.json(); }catch(_){}
   if(!res.ok){ const e=new Error(j.error||('请求失败（'+res.status+'）')); e.status=res.status; throw e; }
   return j;
@@ -38220,7 +38836,83 @@ function toast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.style.opacity=0,2200);
 }
+/* v68.2 帮助弹窗 · 新布局（计划 §5.6）：新外壳（flowOn()）与手机新外壳（body.flw-m，flowOn() 在手机上为假）用这一份；
+   旧外壳（?shell=classic / 偏好设置「使用旧版布局」）走下面 #b-help 原文，逐字节不变。
+   约定：① 三个谱类节（吉他谱 / 简谱 / 功能谱）标题与图标同原文（tv_icons T12 按标题文字取图标）；其余节标题不含这三个词；
+   ② 「快捷键」节是第一个标题含「快捷键」的节（账号 ▾「快捷键」= FLOW.r1 keysHelp 滚到这里，tv_shellflow S11d）；
+   ③ 字符串拼接、不用模板字面量（CLAUDE.md v43.6：弹窗文案里不能有裸反引号）；④ 措辞闸：三步写「书写 › 排版 › 输出」，旧按钮写「原「预设」」不写「顶栏「预设」」。 */
+function helpFlowHTML(){
+  const sec=(icon,title,rows)=>'<div class="hd-sec"><div class="hd-st"><span class="ic">'+icon+'</span>'+title+'</div>'
+    +'<div class="hd-rows">'+rows.map(([k,v])=>'<div class="hd-row"><div class="rk">'+k+'</div><div class="rv">'+v+'</div></div>').join('')+'</div></div>';
+  const K=k=>'<kbd>'+k+'</kbd>';
+  let ver=''; try{ ver=APP_VER; }catch(_){}
+  return '<h3>谱友圈 · 使用帮助</h3>'
+  +'<div class="helpdoc" data-shell="flow">'
+  +'<div class="hd-hero"><div class="lg">'+svgi('guitar',22)+'</div>'
+    +'<div><div class="tt">在线制谱 · 使用帮助</div>'
+    +'<div class="ds">两行顶栏 · 书写 › 排版 › 输出 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能 · 底部播放与状态栏'+(ver? ' · 当前版本 <span class="hd-ver">'+ver+'</span>' : '')+'</div></div></div>'
+  +'<div class="hd-steps">'
+    +'<div class="hd-step"><div class="n">1</div><b>书写</b><p>文件 ▾「新建…」或页签「＋」（'+K('Alt')+'+'+K('N')+'）按用途建谱，回车就建，新窗口打开、当前谱保留。左栏点音轨，只按数字键录入：TAB 敲品位、简谱 / 五线谱敲 '+K('0')+'–'+K('7')+'，<b>落音自动跳下一个音</b>（不想自动跳可在账号 ▾「偏好设置」关掉）；记号点左栏记号面板；选中音符按 '+K('Enter')+' 逐字填词。</p></div>'
+    +'<div class="hd-step"><div class="n">2</div><b>排版</b><p>行 2 点「排版」：主区换成真实分页，调纸张 A5 / A4 / A3、疏密，在本行「此处换行 / 并入上一行 / 锁定此行」；左栏「版面检查」点一项跳到那一页，右栏「版式」调间距与页头。</p></div>'
+    +'<div class="hd-step"><div class="n">3</div><b>输出</b><p>点「输出」：主视图就是打印预览（行 2 末尾「预览」切 适宽 / 整页 / 横排）——打印 / 存 PDF、图片 PNG、分享卡、互动谱、MusicXML、MIDI、曲谱文件；右栏「发布与导出」发布到谱库。'+K('Esc')+' 回到书写，改动实时自动保存。</p></div>'
+  +'</div>'
+  +sec(pqIcon('mode-write',16)||svgi('pencil',15),'界面一览',[
+    ['行 1 · 文档','<b>文件 ▾</b>（新建 · 按上次设置新建 · 从已有音乐 · 打开文件 · 我的曲谱 · 示例曲谱 · 谱库 · 保存 · 存为文件 · 复制为新窗口 · 曲谱信息 · 换谱类 · 关闭窗口）· <b>窗口页签</b>（「＋」开新窗口；窗口多了收进「窗口 N ▾」，能按曲名搜；中键关闭、拖动排序、右键更多）· <b>保存状态</b>（「仅存本机」时点一下存入我的曲谱，存入后编辑实时同步）· <b>发布</b> · <b>账号 ▾</b>（个人中心 · 创作者中心 · 谱库 · 外观 浅 / 深 / 跟随系统 · 谱面反色 · 偏好设置 · 快捷键 · 帮助与教程 · 更新日志）'],
+    ['行 2 · 工作','行首三步 <b>书写 › 排版 › 输出</b>，后面是这一步的工具。书写：撤销 · 起步（新谱的下一步，'+K('Alt')+'+'+K('B')+'）· 时值 · 音高（简谱 1–7 / 五线谱音名 C–B，角标是本调级数 / 六线谱品位）· 变音 · 插入与删除 · 连音线 · 3 连音 · <b>更多 ▾</b>（重做、拆分合并、和音、整体移八度、节奏型库、插入 / 删除小节……）；行尾<b>搜功能</b>（'+K('Ctrl')+'+'+K('/')+'）'],
+    ['左栏 · 音轨','音轨层级树：组（钢琴大谱表花括号 / 合唱方括号 / 吉他组）→ 轨 → 记谱法层。点轨名换当前轨；当前轨展开「简谱」「五线谱」两只眼睛（两层都亮＝五线谱 + 简谱对照，点名字＝只显示这一种）、歌词段 ① ② ＋、「由此生成六线谱轨」。<b>混音就在音轨行上</b>：静音 / 独奏直接点，音量、声像、乐器音色在行尾「⋯」。标题行的谱类芯片＝换谱类，「＋」加音轨'],
+    ['左栏 · 记号','Bravura 字形的带字记号面板，按当前轨的记谱法分组（连线·连音 / 奏法 / 力度 / 装饰音 / 钢琴 / 速度·表情 / 调号·拍号（五线谱是 谱号·调号·拍号）/ 小节线·反复 / 跳转；六线谱是 扫弦·拨弦 / 吉他技巧 / 连线·连音 / 奏法 / 装饰音 / 调号·拍号 等）。选中音符点格子即加上；顶部搜索框认名称和拼音首字母（按 '+K('/')+' 聚焦，如 yc → 延长号），下面一排是最近使用'],
+    ['右栏','书写时三页：<b>属性</b>（当前音符、已加的记号、小节与整谱、时值检查方式）· <b>文字</b>（歌词段与填词、和弦写法与和弦图、标注）· <b>智能</b>（下一步提示、一键配伴奏、配和弦工作台、伴奏织体、智能填词、节奏型库、由旋律生成六线谱轨、导入 MIDI）；排版时是「版式」，输出时是「发布与导出」。窗口不到 1440 宽时右栏收成竖条，点一页浮出，可「钉住」'],
+    ['底部 · 播放与状态栏','播放 / 暂停（'+K('空格')+'）· 回开头 · 循环选区 · 小节格（点一格跳到那一小节，'+K('Shift')+' 点选整小节，拖动设循环）｜当前轨 · 记谱法｜光标位置｜<b>时值检查</b>（有拍数不对的小节时点开逐条定位）‖ ♩= 速度 · 倍速 · 节拍器 · <b>⋯ 更多</b>（演奏感、音色库、谱架模式）· 缩放 · ?（常用快捷键）'],
+    ['手机','屏宽 820 以内：顶栏 ☰ 菜单（我的曲谱、示例曲谱、外观、帮助、偏好设置、播放设置……）· 窗口 ▾ · 撤销 · 到电脑编辑；底条 播放 · 当前轨 · 记号 · ⋯（输出与分享）。完整编辑建议在电脑上'],
+  ])
+  +sec(svgi('search',15),'搜功能 · 旧入口在哪里',[
+    [K('Ctrl')+'+'+K('/'),'打开「搜功能」（Mac 用 '+K('⌘')+'+'+K('/')+'）：输入名称或拼音首字母（pb＝排版，dy＝打印），回车直达，每一条都写着它平时在哪里；<b>旧名也能搜到</b>，如「预设」「预览」「智能」「混音」「经典版」'],
+    ['示例曲谱','原「预设」→ 文件 ▾「示例曲谱」：各谱类功能示例，打开即可改编'],
+    ['排版','原顶栏「排版」浮层 → 行 2「排版」步：纸张 · 疏密 · 断行 · 内容大小 · 版面检查，全部在真实分页上调'],
+    ['打印与导出','原「预览」「打印…」→ 行 2「输出」步：打印预览就是主视图，打印 / 存 PDF、图片、分享卡、互动谱、MusicXML、MIDI 都在这一行'],
+    ['混音','原底栏「音轨 ▴」混音台 → 左栏音轨行：静音 / 独奏直接点，音量、声像、乐器音色在行尾「⋯」'],
+    ['智能 · 信息','原「智能」与右栏「创作」页 → 右栏「智能」页；原右栏「信息」页 → 右栏「属性」页'],
+    ['小节 · 歌词','原左栏「小节」「段落」「歌词」→ 插入 / 删除小节在行 2「更多 ▾」，段落·反复·跳转在左栏记号面板，歌词段在左栏当前轨下面'],
+    ['旧版布局','想用旧布局：账号 ▾「偏好设置」→ 打开「使用旧版布局」，自动刷新后换回；随时可以再关掉，回到新布局'],
+  ])
+  +sec(svgi('score',15),'小节与段落 · 反复记号',[
+    ['小节','行 2「更多 ▾」插入 / 删除小节、小节宽度手柄；左栏记号「小节线 · 反复」「跳转」组设 |: :| 反复、第一 / 二房子、段落线 / 终止线、Segno / Coda / D.C. / D.S. / Fine，作用于当前小节'],
+    ['点击小节线','弹出同款菜单；按住约半秒可独立选中该小节单个声部，'+K('Ctrl+C')+'/'+K('V')+' 复制粘贴'],
+    ['播放识别','整曲播放自动按记号走：反复记号、第一/二段换尾、D.C./D.S. 回跳、Fine 结束、⊕ 跳过中段'],
+  ])
+  +sec(svgi('save',15),'保存与多窗口',[
+    ['多窗口','新建/导入在新窗口打开、当前曲谱原样保留；打开已有曲谱替换当前窗口，有未入库修改先弹确认，可一键存入我的曲谱再继续，不丢稿'],
+    ['保存 / 导出','编辑实时自动保存在本机；行 1 保存状态「仅存本机」时点一下存入我的曲谱（登录后云端同步）；'+K('Ctrl+S')+' 存为文件 .mtab.json；个人中心管理曲谱与版权存证'],
+    ['版本号','本帮助标题下方写着当前版本；与公告不符时强制刷新（Ctrl+F5）取新版'],
+  ])
+  +sec(pqIcon('type-guitar',16),'吉他谱 · 六线谱（尤克里里谱同法，4 弦 GCEA）',[
+    ['录入与和弦','点弦位敲品位（行 2 品位键 0–9 固定铺开，高把位在「10–24▾」，× 为分解标记）；落音自动前进，两位品位连敲两键，'+K('←')+' 退回可换弦叠和弦；输入和弦自动画和弦图，改和弦智能移调'],
+    ['演奏技巧','左栏记号「吉他技巧」组：滑弦、击勾弦、揉弦、泛音、点弦、闷音、推弦等，选中音符点格子，S/H/P 自动连线；推弦与跨选连线用 '+K('Ctrl')+' 选两音'],
+    ['扫弦 / 琶音','左栏记号「扫弦 · 拨弦」组：下扫/上扫（箭头=拨片从低音弦扫向高音弦的移动方向，下扫低音先响）/上下琶音/切音/拍弦；点谱面箭头可改覆盖弦数'],
+  ])
+  +sec(pqIcon('nota-jianpu',16),'简谱',[
+    ['音高与记号','♯♭♮ 在行 2 变音键、八度点 ±3（'+K('+')+' / '+K('−')+'）；倚音最多 3 音可点击再编辑；上下波音/颤音 tr/回音在左栏记号「装饰音」组'],
+    ['力度 / 速度','左栏记号「力度」组：pp–ff、sfz、fp、渐强 / 渐弱平铺直点，「更多力度」里有 ppp、sf、sfp、cresc./dim. 与表情术语；rit./accel. 在「速度 · 表情」组；力度即时影响播放音量'],
+  ])
+  +sec(pqIcon('type-func',16),'功能谱（乐队）',[
+    ['级数和弦','选中音符，左栏音轨标题行「⋯」→「和弦 / 级数…」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；也可 '+K('Ctrl+K')+' 直接输入（Am7、G/B、级数 6m 都行）；右栏「文字」页切和弦写法（音名 / 级数）；谱面按 1=调号 显示级数，点击可再编辑，换调即时跟随'],
+  ])
+  +sec(svgi('bolt',15),'快捷键',[
+    ['Ctrl+/ · ?','搜功能 · 常用快捷键一览'],
+    ['Esc','排版 / 输出回到书写；收起菜单与浮层'],
+    ['/','搜记号（左栏记号面板的搜索框）'],
+    ['← → ↑ ↓ / Tab','移动光标 / 切换声部'],
+    ['Ctrl+Z / Y / S','撤销 / 重做 / 存为文件'],
+    ['空格 / . / Q–U','播放停止 / 附点 / 时值（全音符 … 64 分）'],
+    ['Enter / Ctrl+K','逐字填词 / 输入和弦'],
+    ['Alt+N / Alt+B','新建 / 起步'],
+  ])
+  +'</div>'
+  +'<div class="hd-sec" style="text-align:center;padding:8px 0 2px"><a href="https://www.puyouquan.com/help.html" target="_blank" rel="noopener">完整使用手册（零基础第一课 → 专业制谱之路）→</a></div>'
+  +'<div class="btns"><button id="help-ok" class="primary">知道了</button></div>';
+}
 document.getElementById('b-help').onclick = ()=>{
+  if(flowOn() || document.body.classList.contains('flw-m')){ showModal(helpFlowHTML()); document.getElementById('help-ok').onclick = closeModal; return; }
   const sec=(icon,title,rows)=>`<div class="hd-sec"><div class="hd-st"><span class="ic">${icon}</span>${title}</div>`+
     `<div class="hd-rows">${rows.map(([k,v])=>`<div class="hd-row"><div class="rk">${k}</div><div class="rv">${v}</div></div>`).join('')}</div></div>`;
   showModal(`<h3>谱友圈 · 使用帮助</h3>
@@ -38305,6 +38997,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v68.2</span><div><b>新版编辑器布局成为默认：两行顶栏 · 书写 › 排版 › 输出 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能</b>（v67.9–v68.1 预览三个版本后正式切换；想用原来的布局：账号 ▾ › 偏好设置 › 打开「使用旧版布局」，或地址后加 <code>?shell=classic</code>，原布局完整保留）。<br>① <b>旧入口去哪了</b>：新建 → 页签旁的 ＋ 或「文件 ▾」（Alt+N 不变）；示例曲谱（原「预设」）、打开文件、存为文件、谱库 → 「文件 ▾」；排版、打印预览 → 第二行「排版」「输出」；打印与导出、发布 → 「输出」与顶栏「发布」；混音台 → 左栏每条音轨行（静音 / 独奏直接点，音量、声像、音色在「⋯」）；踏板、指法、八度线、扫弦等记号 → 左栏记号面板；一键配伴奏、织体、节奏型库 → 右栏「智能」；记不住在哪就按 Ctrl+/ 搜，旧名也能搜到。所有快捷键与原来一致。<br>② <b>第一次打开</b>有 3 步简短导览（不抢键盘焦点，按 F6 进入，Esc 或「跳过」关闭，只出现一次）；仍在用旧布局的用户会看到一次「新布局已上线」的提示。<br>③ <b>输出</b>的预览可切「适宽 / 整页 / 横排」三种排布；排版、输出里的灰显项统一写「即将推出」。<br>④ 两种布局都生效的修正：音量调到 0 时按静音播放；删掉一条吉他轨后，后面各轨的静音、音色、音量和变调夹跟着前移，不再错位；五线谱音名键按光标所在小节的调标注（转调后也对）；原样未改的示例曲谱关窗时不再转存进我的曲谱；谱库开着时数字键、删除键不会改到背后的谱。<br>⑤ 匿名界面统计：只记录用过哪个界面命令（如「切到排版」）用来改进布局，不包含曲谱、歌词等内容，隐私说明已同步；编辑器帮助与官网使用手册按新布局重写。<br><b>测试</b>：切默认后 38 个套件逐个迁移（测旧布局结构的钉旧布局并在新布局补等价覆盖，测功能的改走新入口，不删断言）；新套件 <code>tv_flowdef</code>（56 项）、<code>tv_uicmd</code>（17 项）、<code>tv_helpflow</code>（17 项）；对抗验收 3 镜头 31 条全修；CORE 177 套件全绿。</div></li>
     <li><span class="v">v68.1</span><div><b>新版外壳预览（第三步）：书写 › 排版 › 输出 三步工作流、右栏属性 / 文字 / 智能、搜功能（Ctrl+/）</b>（地址后加 <code>?shell=flow</code> 预览；不加参数时界面与 v68.0 相同）。<br>① <b>三步工作流</b>：第二行最左是「书写 › 排版 › 输出」。播放不是一步——播放、回开头、循环、速度、节拍器一直在底部播放与状态栏。切到排版或输出时谱面换成分页的成品样子，回到书写光标和滚动位置原样不变；Esc 回书写，在排版 / 输出里直接按数字键也会回书写并把音写下。<br>② <b>排版</b>：纸张 A5 / A4 / A3、疏密、内容大小、本行小节数 − ＋、此处换行、并入上一行、锁定此行，每一步都能撤销；左栏「版面检查」实算共几页几行、每行几小节、在哪里翻页，并提示单小节行、末行太短、跨页行，点一项就跳过去；右栏是版式检查器。<br>③ <b>输出</b>：打印 / 存 PDF、图片 PNG、分享卡、互动谱、MusicXML、MIDI、曲谱文件分三组排好；左栏列出总谱和按演奏者划分的分谱（分谱导出下一批上线）；右栏发布卡，点顶栏「发布」再点「存入并提交发布」两步完成，不离开编辑器。<br>④ <b>右栏三页</b>：属性（当前音、已加记号可逐个 × 掉、本小节与整谱信息）、文字（歌词段与填词、和弦写法与和弦图）、智能（下一步提示、一键配伴奏、配和弦、织体、节奏型库、生成六线谱轨、导入 MIDI）。<br>⑤ <b>搜功能 Ctrl+/</b>：一百多条命令和全部记号，中文名、拼音首字母、旧按钮名都能搜到，每条写明它在界面哪里（例如搜「预设」得到「示例曲谱」）；Ctrl+K 仍是输入和弦。<br>⑥ 五线谱轨的音名键按 C D E F G A B 排并角标本调级数（转调小节按该小节的调）；简谱轨的时值键画成简谱的样子；在音轨树换轨会自动滚到该轨光标处；状态栏小节格单击跳到当前轨该小节、Shift 选整小节可复制。<br>⑦ 1280 以下宽度：工作流收成「书写 ▾」、左栏收成 56 宽图标条、记号面板点开浮出；手机上改为顶栏 + 底条 + 抽屉（菜单、窗口、音轨、记号、播放设置、输出与分享），编辑能力不增不减。<br><b>测试</b>：新套件 <code>tv_modes</code>（107 项）；对抗验收 3 镜头 24 条（9 条 major）全修；CORE 174 套件全绿。</div></li>
     <li><span class="v">v68.0</span><div><b>新版外壳预览（第二步）：左栏改为音轨层级树 + 带中文名的记号面板，混音并进音轨行</b>（地址后加 <code>?shell=flow</code> 预览；不加参数时界面与 v67.9 相同）。<br>① <b>音轨层级树</b>：左栏 248 宽常驻，上半按「组 → 轨 → 记谱法」排：钢琴大谱表用花括号成组、合唱用方括号、吉他轨成组；每条轨显示乐器图标、谱号徽标（𝄞 / 𝄢 / 简 / 六）和全名，右手、左手一眼分清。当前轨展开记谱法层：简谱、五线谱各有一只眼睛，两只都亮就是五线＋简谱对照，点名字只显示这一种；歌词段 ① ② ＋ 直接在这里切换和填词；「由此生成六线谱轨」是单独的一行动作。<br>② <b>混音并进音轨行</b>：静音、独奏在当前行和悬停行直接点；音量、声像、乐器与音色在每条轨的「⋯」里调，底部不再弹出压住谱面的混音台。「⋯」里还有改名、谱号 / 变调夹、导入 MIDI 到本轨、键盘 / 指板输入、记谱风格、删除。加轨菜单写明每种轨能不能加、为什么。<br>③ <b>记号面板</b>：按出版通行分类分组（连线·连音、奏法、力度、装饰音、钢琴、速度·表情、小节线·反复、跳转；六线谱轨换成扫弦·拨弦、吉他技巧），只显示当前轨记谱法用得上的组；力度 pp–ff 平铺一点即加；可按名称或拼音首字母搜索（如 yc → 延长号，按 / 聚焦）；有「最近使用」。记号统一用谱面同一套 Bravura 字形，画在当前轨的样子上（简谱数字、五线谱符头、六线谱品位），默认带中文名，熟手可切「只看字形」。<br>④ 谱纸上方的谱型条拆开：起步步骤进顶栏第二行「起步」组，换谱类进音轨区标题的谱类按钮，下一步提示进右栏。<br>⑤ 修了几处旧问题（新版外壳下）：删掉一条吉他轨后，后面各轨的静音、音色、音量和变调夹不再错位；音量调到最低不再按全音量播放。<br><b>测试</b>：新套件 <code>tv_trktree</code>（97 项）；<code>tv_shellflow</code> 增至 67 项；对抗验收 3 镜头 32 条（8 条 major 全修）；CORE 173 套件全绿。</div></li>
     <li><span class="v">v67.9</span><div><b>新版编辑器外壳预览（第一步）：两行顶栏 · 页签并入顶栏 · 底部播放与状态栏 · 右栏自动让位</b>（方案 docs/design-2026-10f，地址后加 <code>?shell=flow</code> 预览，加 <code>?shell=classic</code> 回到现在的界面；不加参数时界面与 v67.8 完全相同）。<br>① <b>顶栏第一行</b>：文件 ▾（新建、按上次设置新建、从已有音乐、打开、我的曲谱、示例曲谱、谱库、保存、存为文件、复制为新窗口、曲谱信息、换谱类、关闭类，以及暂时的排版 / 打印预览 / 打印与导出入口）· 窗口页签 · 保存状态（可点直接存入我的曲谱）· 发布 · 账号 ▾（个人中心、外观、谱面反色、偏好设置、帮助、更新日志）。原来单独占一整行的窗口页签并进这一行。<br>② <b>窗口页签</b>：当前窗口按曲名自适应宽度、永远看得见；窗口多了离当前最远的先收进「窗口 N ▾」（可搜索、可逐个关闭）；截断的曲名悬停展开；中键关闭、←→ 切换、拖动排序、右键关闭其他 / 关闭右侧。<br>③ <b>顶栏第二行</b>：编辑工具排成一行不再折行，放不下的低频键收进「更多 ▾」。<br>④ <b>底部播放与状态栏</b>：播放、回开头、循环选区、小节格、当前轨与位置、时值检查、速度、倍速、节拍器、更多（演奏感 / 音色库 / 谱架）、混音、缩放，一行放下；窄屏逐档收起次要信息。<br>⑤ <b>右栏</b>：屏幕够宽时停靠，不够宽时收成竖条、点开浮出，可钉住，谱纸始终 870 不被遮。<br>顶部外壳 162 → 84px，1280×800 下谱面可见高 586 → 684。<br><b>测试</b>：新套件 <code>tv_shellflow</code>（66 项，含与 v67.8 默认外壳逐字节对拍）；对抗验收 3 镜头 18 条（17 条已修）；CORE 172 套件全绿。</div></li>
@@ -38345,7 +39038,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v68.1';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v68.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -38380,28 +39073,7 @@ document.getElementById('b-changelog').onclick = ()=>{
     <li><span class="v">v64.0</span><div><b>看得清、键盘能用、主题记得住</b>（2026-10 评审团 B7 体验小修包第一批）。<br>① <b>浅灰小字看得清了</b>：第三级文字颜色加深，浅色主题、深色主题对各级底色都达到 4.5:1 以上（原先浅色只有 2.39:1）；官网同步。<br>② <b>当前文档页签</b>文字改用正文色，深色主题下不再「黑字黑底」。<br>③ <b>主按钮改为实底朱砂</b>：白字对比度 5.31:1（渐变尾端只有 3.13:1）；官网的主按钮、登录按钮、会员角标一并改。<br>④ <b>键盘焦点看得见</b>：用键盘走到按钮、链接、输入框时，出现 2px 实色外框并留出 2px 间距（原先是 10% 透明度，几乎看不见）。<br>⑤ <b>Tab 不再全局劫持</b>：焦点在谱面上时 Tab 照旧切换声部；焦点在面板按钮、弹窗、菜单里时，Tab 按浏览器原生方式在控件之间移动。<br>⑥ <b>读屏可用</b>：谱面标注为「曲谱」编辑区并说明操作方式；♭ ♯ ◐ 这类符号按钮补上文字说明，弹出的菜单同样处理。<br>⑦ <b>明暗主题记住了</b>：点过明暗切换后，刷新或换页都保持；官网同样记住。<br>新套件 <code>tv_b7a</code>（5 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.9</span><div><b>Ctrl+K 直接输入和弦 · 和弦图位置随谱保存 · 尤克里里有了自己的节奏型库</b>（2026-10 评审团 B5 TAB 正确性第二批）。<br>① <b>Ctrl+K 写和弦</b>：在六线谱的列或简谱的音符上按 Ctrl+K，弹出和弦输入框，打 Am7、G/B 或级数写法 6m、57sus，回车写到光标处；输入框只带这一处已有的和弦，<b>不再沿用前一个和弦的性质</b>；留空回车清除。六线谱照旧按新和弦适配本小节的分解/扫弦指法。<br>② <b>和弦图位置随谱保存</b>：「随行 / 曲首 / 隐藏」放进 Ctrl+K 面板，选择写进曲谱，保存、分享、发布后观看端一致，可撤销；老谱默认随行。<br>③ <b>尤克里里节奏型库</b>：标题改为「尤克里里节奏型库」，型名里的弦序按四弦改写（如 53231323 显示为 43231323、交替低音 5323 4323 显示为 4323 3323），示意图画四条线。吉他谱不变。<br>帮助页「顶部编辑栏」补上 Ctrl+K 一行。新套件 <code>tv_b5b</code>（4 项，旧文件全部报红）。</div></li>
     <li><span class="v">v63.8</span><div><b>变调不再出错谱：唱高再夹回去与原谱一模一样 · 伴奏不丢根音 · 技法不再「弹不出」</b>（2026-10 评审团 B5 TAB 正确性第一批）。<br>① <b>变调按「净变了多少」从原谱重算</b>：以前每点一次就在上一次的结果上再重排，换弦换把位回不去——+2 再 −2 回不到原谱，「唱高 2 度再夹 2 品」后指法也面目全非。现在每一步都从原谱按净移调量重算一次，净量为 0 就直接回到原谱，<b>逐音相同</b>；关掉弹窗再打开、Ctrl+Z 撤销后接着变调都一样。中途你在谱面上手改过的音不会被回滚。<br>② <b>伴奏锁定低音</b>：C 换到 G 时，低音不再落到 5 弦 2 品（变成 G/B），而是落到 6 弦 3 品的根音；从低音扫起的柱式/扫弦改从新和弦的低音弦扫；斜杠和弦（如 F/A→C/E）低音落到斜杠音上。<br>③ <b>跨列技法跟着音走</b>：击弦、勾弦、滑音、推弦、连音线的目标音被重排到别的弦时，连线会重新指向它；被拆成跨弦击勾、空弦滑音这类弹不出的写法时，自动挪回同一根弦。<br>④ <b>实在放不下就明说</b>：哪根弦都摆不下的技法，提示「x 处技法失效（连线已保留，请检查）」，不静默。<br>新套件 <code>tv_b5</code>（6 项，旧文件全部报红）。</div></li>
-    <li><span class="v">v63.7</span><div><b>多声部录谱更顺手 · 合唱同一拍一次标完 · 可选 GP 键位</b>（2026-10 评审团 B1 录入零陷阱第二批）。<br>① <b>声部之间用键盘移动</b>：Alt+↑/↓ 在各声部之间逐个移动，光标落到同一拍上；合唱谱在低音声部按 ↑ 会到上一个声部，不再直接跳回第一个声部。<br>② <b>跨声部一次标记号</b>：Ctrl/Shift 选中几个声部同一拍的音（或框选一段），点延长号、换气、演奏法、力度，一次全部标好，Ctrl+Z 一步撤回。<br>③ <b>套用技法后自动取消多选</b>，下一步操作不会把刚标好的技法覆盖掉；节奏型库的提示改为「Shift + 点小节上方条带可区域选择」（这是现有的操作方式）。<br>④ <b>八度按钮不再误改整首</b>：没选中音时，记号面板的升/降八度会作用于整个声部——现在先弹出确认，写明会改多少个音。<br>⑤ <b>名字说人话</b>：「智能编辑」改叫「修复建议」；配和弦工作台的候选从原始分值改为「契合度」百分比。<br>⑥ <b>末尾空小节提醒</b>：打印 / 导出和发布前，如果谱子末尾有自动续出来的空小节，会提示并可一键删除。<br>⑦ <b>可选「GP / 简谱大师键位」</b>（默认关闭，在右栏「创作」页的提示里开启）：「-」作增时线、Shift+点击作区域选择、六线谱 H/P/S/B 作击弦/勾弦/滑弦/推弦。<br>新套件 <code>tv_b1b</code>（7 项，旧文件全部报红）。</div></li>
-    <li><span class="v">v63.6</span><div><b>录谱不再掉进陷阱：增时线、连音线、延长号都落在刚输入的音上</b>（2026-10 评审团 B1 录入零陷阱第一批）。<br>① <b>先落音、再加记号</b>：输入一个音后光标会自动前进到下一格，之前紧接着按 D（增时线）、~（连音线），或点延长号、换气、演奏法、力度、装饰音，记号都落到了前进后的那个空格上——「5 D」把后面的休止拉长，提示却说「已延长」。现在这些记号都作用在刚输入的音上，光标仍停在它后面，可以接着往下录。实测：录《小星星》8 小节只需按 32 个键（28 个音 + 4 个 D），不用任何修正键。<br>② <b>连音线不挂在休止上</b>：光标停在空格时按 ~ 会提示「先输入音」，不再画出连向空白的线。<br>③ <b>先选时值再落音不溢出</b>：在空格上先按二分、全音等更长的时值，会自动吸收后面紧邻的休止，小节不再超拍。<br>④ <b>超拍修复首选「顺延到下一小节」</b>：多出来的音原样挪到下一小节开头，跨过小节线的音拆成两半用连音线连起；下一小节放不下（会把真实音符挤出去）就不顺延，提示手动处理，绝不在全曲连锁移动。原来的「从末尾删掉」降为次选，并先列出会删掉哪几个音；「全部采纳」也不再静默删音。<br>⑤ <b>「-」的一次性提示</b>：简谱里刚输入音时按键盘「-」，会提示一次「这是降八度，增时线请按 D 键」，按键含义不变。<br>新套件 <code>tv_b1a</code>（7 项，旧文件全部报红）。</div></li>
-    <li><span class="v">v63.5</span><div><b>粘贴不再抹掉转调 · 页头写成 1=♭B · 新建可选 9/8、12/8</b>（2026-10 评审团 B2a 调性纯缺陷，Sprint B 第一项）。<br>① <b>整小节粘贴保留目标小节的设置</b>：之前把一个小节粘到带「转 1=G」标记的小节上，转调标记会被抹掉，后面所有小节的调都跟着变回去；排练标记、房子、变拍子也一样丢。现在覆盖粘贴只换音符，目标小节原有的这些设置都保留。<br>② <b>拍号不一样时先问一句</b>：复制来的小节和要覆盖的小节拍号不同，会问「是否同时应用源小节的拍号」；点小节线插入的新小节沿用源小节自己的拍号。<br>③ <b>页头调号写法规范</b>：1=Bb、1=C# 改为简谱惯例的 1=♭B、1=♯C（顶栏、曲谱信息、看谱页同步）；拍号按调号文字的实际宽度排在其后，1=♯C、1=♯F 不再和拍号挤在一起；12/8 这类两位数拍号的分数线随之加宽。<br>④ <b>新建向导的拍号与曲谱信息一致</b>：分子新增 5、7、9、12，可以直接新建 5/4、7/8、9/8、12/8。<br>⑤ 内部：简谱 1 的八度换算规则从散落 8 处收成一处，语法闸禁止再散写。新套件 <code>tv_b2a</code>（6 项，旧文件全部报红）。</div></li>
-    <li><span class="v">v63.4</span><div><b>能回答「多少人做出了成品、从哪里来」：一方度量地基</b>（2026-10 评审团 A7；按拍板只用第一方统计，不接第三方）。<br>① <b>匿名访客标识</b>：服务端在 puyouquan.com 下发一个随机的匿名标识（Cookie <code>pyq_anon</code>），官网、制谱器、谱库三站共用，不含手机号等个人信息；登录后与账号关联，「访问 → 注册 → 使用」才能算作同一个人。隐私政策已于 v62.9 披露。<br>② <b>关键事件补齐</b>：按评审团清单补上配伴奏、生成织体、换调、导入（带拍数检查结果）、打印、导出图片 / 互动谱 / MusicXML / MIDI、登录弹窗、下单、点赞，以及官网的访问、落地页、去制谱器的点击、谱库零结果搜索，课程的进入、深链、过关。<br>③ <b>来源与传播</b>：访问事件记首触来源（广告参数或站外来源网站）和落地页；分享出去的链接带渠道标记（分享卡二维码 / 微信卡片 / 发布后复制 / 小程序），好友打开时记一次「分享打开」。<br>④ <b>后台数字按人去重</b>：管理后台概览的事件漏斗显示「人数 / 次数」，新增北极星（7 天内做出成品谱的人数：配伴奏、打印、导出图片、发布任一）与次日、第 7 天留存；<code>node admin.js stats</code> 同口径。<br>⑤ <b>统计不再被共用网络压低</b>：限流从「每个 IP 每小时 300 条」改为「每个访客每小时 300 条」（同一 IP 另设 3000 条上限），学校机房这类共用出口的访客不再被整体少算。<br>⑥ 课程页支持 <code>?s=小节</code> 深链直达某一节。小程序同版更新到 1.1.6（发起转发记 <code>mp_share</code>，卡片带渠道标记）。新套件 <code>tv_a7</code>（6 项，旧文件全部报红）；接口测试 318 项。</div></li>
-    <li><span class="v">v63.3</span><div><b>课程测验不能再靠蒙 · 课程内容勘误 · 全站文案对账</b>（2026-10 评审团 A5 内容纠错第二批）。<br>① <b>测验选项每次打乱</b>：之前选项照原顺序排，七成题目的答案都是 B，一路选 B 就能过关。现在每次出题都打乱顺序，题库里的答案位置也重新均衡。<br>② <b>已发布课程不能再把坏题直接上线</b>：之前已发布的课保存时不做发布校验，一道空题就能让学员卡在本节、后面整章全锁。现在保存已发布的课和点发布走同一道检查；保存后的提示也如实说明「学员立即看到新内容」还是「草稿，学员看不到」。<br>③ <b>《认识简谱》勘误</b>：「改成 1=G 每个音都升高」改为「整体搬到以 G 为 do 的高度」；「单独一个数字＝一拍」限定在以四分音符为一拍的拍子里；53231323 分解型的时值说法改正；去掉不规范的「1 - .」写法；「一小节要凑满」挪到讲完小节线和拍号之后（学习进度不受影响）。<br>④ <b>课程小毛病</b>：通关最后一章不再提示「第 7 章已解锁」（全课只有 6 章）；课程页反复刷新不再叠加按键监听；课程里的「互动谱」卡直达同名谱的观看页，不再停在搜索页。<br>⑤ <b>文案对账</b>：撤掉已下线的「哼唱成谱」、过时的「九种场景 / 八场景」「单窗口」「新建会替换当前窗口」「点谱面＋和弦」，「11 套织体」改为如实的 21 套（4/4 拍 15 套，2/4、3/4、6/8 各 2 套），删去「不懂五线谱也能」「为吉他爱好者打造」等旧口号；新增文案禁止词检查，发版时自动拦截。<br>⑥ <b>谱库官方示例谱</b>：《小星星》句末改为「5 -」「1 -」，与课程教的一致；《欢乐颂》换成示范词。线上已有的这两首需管理员在服务器执行一次 <code>node admin.js seed-fix</code> 修订（只改从未被人动过的官方谱）。新库建好后示例谱也会立即出现在谱库里。<br>新套件 <code>tv_a5b</code>（7 项，旧文件全部报红）；接口测试 302 项。</div></li>
-    <li><span class="v">v63.2</span><div><b>官方示例谱纠错：《送别》按原曲重录 · 《欢乐颂》换成自有歌词 · 课程「听一听」时值听得出来了</b>（2026-10 评审团 A5 内容纠错第一批）。<br>① <b>《送别》按公版原曲重录</b>：之前的旋律与原曲多处对不上，还把「天之涯」当成第二段词套在第一句的旋律上，「拂」「柳」两个字之间误画了连线。现在是完整的 16 小节（长亭外 → 晚风拂柳 → 天之涯 → 一壶浊酒），一字多音的地方（亭、草、连、风、阳……）用圆滑线连起来，后一个音不再挂字。<br>② <b>两份《欢乐颂》换成谱友圈自己写的示范词</b>：原先用的通行中文译词没有署译配者、权属待核，按拍板改用与四部合唱同一份示范词（让我们来齐声歌唱……），署名不再写「席勒」；教学对照谱里「女」「神」两个字之间的连线一并去掉。<br>③ <b>独奏示例页头不再显示「1=Am」</b>：a 小调按 C 调号记写。<br>④ <b>制谱页五线谱演示画对了</b>：「一闪一闪亮晶晶」后五个音之前画在 B、C 的位置，与旁边的简谱和六线谱对不上；现在是 C C G G A A G。<br>⑤ <b>课程谱例「听一听」时值正确</b>：分开写的增时线「1 -」「1 - -」「1 - - -」之前听起来都只有 1 拍，「5 - ~ 5」还响两次；现在分别是 2、3、4 拍，延音线两端同音只响一次。<br>新套件 <code>tv_a5</code>（6 项，旧文件全部报红）；<code>tv_playperf</code> 的等待用例钉住其余音色包，CI 外网下载不再造成偶发红。</div></li>
-    <li><span class="v">v63.1</span><div><b>不会在看不见的地方改谱 · 面板开合后谱面不再被裁 · 歌词一个字一个字能撤销</b>（2026-10 评审团 A3 编辑会话安全；手机编辑按拍板先做「只读 + 发到电脑继续」）。<br>① <b>启动台上不会再误改上次的谱</b>：之前启动台盖住了谱面，但工具栏按钮和快捷键仍然有效——按个数字、Delete 或 Ctrl+Z，看不见的「上次编辑」就被改了并自动保存。现在启动台上编辑区点不中（淡出显示），编辑快捷键一律不生效，只保留 Ctrl+O 打开文件。<br>② <b>谱面右侧不再被裁</b>：新建谱、点「继续上次编辑」或开合左栏面板后，谱面沿用旧宽度，右边被裁掉 100–240 像素且滚动不过去。现在编辑区宽度一变就重新排版。<br>③ <b>歌词可以逐个音撤销</b>：之前逐字填歌词不进撤销记录，按一次 Ctrl+Z 会抹掉一整批歌词还连带撤掉前一次改音，再编辑一次就再也找不回。现在每换一个音记一步，同一个音里连续输入算一步，Ctrl+Z 只退最后一个音的词，Ctrl+Y 可以重做。<br>④ <b>手机启动台改为只读引导</b>：手机上还录不了音高，原来点「新建」会进入写不了谱的死胡同。现在手机上显示「看示例」「发到电脑继续」（复制制谱链接）「打开」「我的」，并说明写谱请到电脑上继续。<br>⑤ <b>小节线菜单不出屏</b>：菜单原来按估算宽度定位，实际更宽，手机上右侧出屏还会撑出横向滚动。现在所有浮层菜单出现时都会夹回屏幕内。<br>新套件 <code>tv_a3</code>（7 项，旧文件全部报红）。</div></li>
-    <li><span class="v">v63.0</span><div><b>不再生成或导入拍子、音高错的谱</b>（2026-10 评审团 A8 出错谱止血）。<br>① <b>伴奏织体按拍号严格匹配</b>：之前只看每小节几拍，不看以什么音符为一拍——6/4 拍的谱会被套上 6/8 的织体，3/8 套上 3/4，2/2 套上 2/4，生成出来时值整体错位。现在拍数和单位都要对上；没有合适的织体会直接提示「当前拍号 X/Y 暂无内置织体」，不再弹出一个生成错谱的窗口。变拍子的谱，拍号不符的小节会跳过并告诉你跳过了几个。<br>② <b>导入带转调的 MusicXML，音高不再错</b>：之前整份文件都按开头的调来换算简谱，C 大调转到 G 大调之后的音，简谱唱名全错、播放也整体偏高。现在每个小节按它当时的调换算，多声部同样生效；导入后播放的每个音都与原文件一致。<br>③ <b>新建 3/8、6/8、2/2 的谱一打开就是对的</b>：之前空小节一律用四分音符填，6/8 每小节变成 12 拍、2/2 只有 1 拍，满屏红色拍数提示。现在空小节、插入小节、加声部、粘贴补空都按拍号的单位生成。<br>④ <b>单音推弦的目标圈写对品位</b>：之前圈里照抄起始品位（7 品推弦圈里也写 7），读谱的人会推错。现在写起始品位加推弦幅度：全音推弦 7 → 9，半音 8 → 9；回落仍写落回的原品位。<br>新套件 <code>tv_a8</code>（6 项，旧文件 5 项报红）。</div></li>
-    <li><span class="v">v62.9</span><div><b>不卖还没有的东西 · 登录先同意协议 · 小程序里不出现价格 · 可以举报</b>（2026-10 评审团 A4；产品拍板「考编包停售改预约」）。<br>① <b>考编内容包停售，改为免费预约</b>：内容还在筹备，之前却能付款、能兑换，兑换后什么都拿不到。现在支付入口下线（服务器也不再接新单），权益页改成「免费预约」，上线后站内消息通知；卡片不再写「30 套」「常考」这类还兑现不了的承诺。已经付过款或兑换过的照常有效。<br>② <b>会员文案只写现在就有的</b>：云端扩容到 2000 首、专属标识、优先答疑；「后续功能上线即享」「解锁专业功能」这类说法撤掉；开通了微信支付时不再同时显示「在线支付即将上线」。个人中心的会员入口直达权益页。<br>③ <b>登录前须主动勾选同意《用户协议》《隐私政策》</b>（默认不勾）：编辑器、官网弹窗、个人中心三个登录入口同一规则，不勾选时获取验证码、登录、微信登录都只提示不放行。<br>④ <b>小程序里打开时</b>：不出现任何价格、会员购买、赞助价目；不出现扫码登录（改为「回小程序用手机号快捷登录」）；点到制谱器等小程序打不开的链接，改为<b>复制链接、提示去电脑浏览器打开</b>；页脚邮箱和备案号变成纯文字。<br>⑤ <b>举报这首谱</b>：看谱页 ⚙ 设置里新增「举报这首谱」（侵权 / 谱面错误 / 广告 / 违规 / 其他），未登录也能举报；管理后台新增「举报」页签，可预览、下架（站内信通知谱主）或标记已处理。<br>⑥ <b>隐私政策同步</b>：如实写明访问统计用的匿名设备标识、登录后与账号关联、举报信息的处理方式（更新日期 2026 年 10 月）。<br>⑦ 新账号默认昵称不再带手机号后四位（公开署名会泄露号码片段），改为随机编号；线上发布菜单里不再出现无效的「定价 / 试读」输入框。<br><b>测试</b>：新增 <code>tv_a4</code> <b>17 项</b>，对改前文件与官网复跑 <b>16 项红</b>；<code>tv_acct</code> 增「协议默认不勾、不勾不发验证码」；api/test.sh 275→<b>292 项</b>（考编包拒新单 / 预约 / 举报去重与处理 / 管理员核查已售 / 随机昵称）。</div></li>
-    <li><span class="v">v62.8</span><div><b>数据不再只靠一块硬盘 · 谱库过 200 首也搜得到、收得全</b>（2026-10 评审团 A6）。<br>① <b>异地备份</b>：数据库每天的快照除了存在服务器本盘，现在可以再自动传一份到云对象存储（腾讯云 COS、阿里云 OSS 等，按兼容接口实现），异地保留最近 30 份、本盘保留 7 份——服务器硬盘坏了也丢不了账号和曲谱。另配一个<b>恢复演练</b>脚本：从云上取回最新一份、自动做完整性校验并报出用户数和曲谱数，不碰线上数据。（需要管理员在服务器配置里填好对象存储的桶和密钥后生效；不填就和以前一样只存本盘。）<br>② <b>谱库过 200 首的连锁问题</b>：此前谱库各处都只取最新的 200 首——第 201 首起<b>搜不到</b>、<b>不进搜索引擎的站点地图和目录</b>，你收藏或点赞过的老谱还会从个人中心<b>消失</b>。现在：站点地图和曲谱目录收录全部已上架的谱；首页搜索在谱库超过首批时自动去全库查找；个人中心的收藏、点赞直接按你的记录列出，不再受数量限制；谱页底部的「相关曲谱」也改成按需查询，不再每打开一次就把最新 200 首整份读一遍。<br><b>测试</b>：新增 <code>api/s3.test.js</code> <b>7 项</b>（签名与官方示例逐字一致 / 上传 / 异地超量清理 / 恢复演练 / 未配置时不变）；api/test.sh 264→<b>275 项</b>（241 首规模：站点地图与目录全量、第 201 首起可搜、搜索通配符按字面、老收藏带卡片、相关推荐同歌手优先），对改前服务端复跑 <b>7 项红</b>；<code>tv_pubsnap</code> 9→<b>11 项</b>，对改前官网复跑 2 项红。</div></li>
-    <li><span class="v">v62.7</span><div><b>打印与导出：一张屏幕页就是一张纸 · 成品干净 · 分享卡不切谱</b>（2026-10 评审团 A2）。<br>① <b>打印逐页对齐</b>：v62.4 修好了「只打出第 1 页」，但浏览器仍是把整首谱当一张长图、按纸高硬切——一行谱会被拦腰切成两半，越往后越错位，打出来的页数也和屏幕上看到的不一样。现在打印前按屏幕上的每一页单独出一张纸：<b>屏幕上几页，打出来就是几页，每一行谱都完整</b>。打印预览里的「打印 / 导出」、Ctrl+P、看谱页打印都走这条路；不换行模式下打印预览与打印同样按分页排，页数一致。<br>② <b>导出 PNG</b>：不再带屏幕上的页框线、「第 x / y 页」页码和播放竖线；图里的数字/文字字体与屏幕显示一致（此前导出图会换成另一种衬线字体）。<br>③ <b>分享卡</b>：谱面只截到<b>最后一行完整的谱</b>，不再半行半行地截；谱框底边移到页脚之上（此前底部被页脚盖住一截）；二维码和「扫码」说明整体上移，不再贴着卡片底边；卡片口号换成「专业曲谱平台」，顶部色条随品牌改为朱砂色。<br>④ <b>分享出去的互动谱</b>在某些网页环境里另存时，按钮图标会重复出现两枚，已修正。<br><b>测试</b>：新增 <code>tv_print</code> <b>13 项</b>（PDF 页数＝屏幕页数 / 系统不跨页 / 看谱页打印 / 不换行模式预览与打印一致 / PNG 无页框页码与字体同源 / 分享卡四项 / 互动谱图标不重复），对改前文件复跑 <b>10 项红</b>。</div></li>
-    <li><span class="v">v62.6</span><div><b>小程序登录不再把你换成空账号 · 合并旧账号要你点头 · 接口限流与安全响应头补齐</b>（2026-10 评审团 A1c / A1d）。<br>① <b>小程序每次打开都把手机号登录「顶掉」</b>：小程序每次冷启动都会静默登录一次，如果你最早用小程序时它替你建过一个没绑手机号的账号，之后每次打开都会被切回那个空账号——老用户在小程序里永远看不到自己的谱。现在：网页里已经登录手机号账号时，静默登录<b>不再覆盖</b>；那个空账号如果什么都没有，会自动并进你的手机号账号，此后小程序一打开就是你本人。<br>② <b>旧账号里有东西时，问你再合并</b>：用「手机号快捷登录」时，如果发现旧的小程序账号里有谱或收藏，会弹框列出有多少，由你选「合并」或「暂不」——绝不替你静默合并。<br>③ <b>登录链接不能被别人借用</b>：小程序换来的一次性登录票据只在小程序里生效（普通浏览器打开带票链接不会登进任何账号），有效期从 2 分钟缩短到 30 秒。<br>④ <b>官网个人中心在小程序里打开时</b>，「去绑定手机号」改为跳回小程序自己的登录页，不再停在一个绑完也回不到小程序的网页表单里。<br>⑤ <b>服务器加固</b>：接口与公开谱页按 IP 限流（正常使用碰不到，专防整库抓取）；编辑器主页此前因为服务器配置的继承规则，<b>防「被别的网站套进框里」的安全响应头其实没有生效</b>，本版补上，并在每次部署后的自动验收里逐站检查。<br><b>小程序</b>：本版改了小程序代码，上传版本号 <b>1.1.5</b>。<br><b>测试</b>：api/test.sh 247→<b>264 项</b>（本地模拟微信接口，端到端跑通静默登录 / 手机号登录 / 空号自动并入 / 有数据号确认合并 / 会话不被覆盖 / 普通浏览器不发票据 Cookie；顺带修正两条用 HEAD 请求而空过的老断言），对改前服务端复跑 <b>12 项红</b>；<code>tv_mplogin</code> 11→<b>15 项</b>（合并确认框，对改前小程序复跑 4 项红）；<code>tv_pubsnap</code> 7→<b>9 项</b>（小程序里「去绑定」跳原生页）。</div></li>
-    <li><span class="v">v62.5</span><div><b>存储型脚本注入根治 · 发布快照：过审后再改要重新审</b>（2026-10 评审团 A1a / A1b）。<br>v62.4 先堵住了「从别人的深链打开」这一条路；但被投毒的谱一旦进过你的本机（上次编辑的谱、「我的曲谱」里的旧条目），刷新页面就会再次触发——这一版从根上解决。<br>① <b>一个入口统管</b>：启动时恢复上次的谱、打开「我的曲谱」、云端同步拉下来的谱、MusicXML/MIDI 导入、看谱页、发布缩图，全部经过同一道按字段的规范化：音级、品位、弦号、房子号等数字一律转成数字；技法、升降号、和弦名等短代码去掉尖括号；渐强/渐弱楔形照常保留；<b>曲名、歌词、段落标记等文字一个字都不改</b>（这些在显示时已全部转义）。全部预设规范化前后逐字节不变。<br>② <b>逐键实测</b>：对谱面里的 78 种字段逐一注入两类攻击载荷，打开、渲染后零命中；而改前的版本里，被投毒的上次编辑谱刷新即执行。<br>③ <b>服务端同口径把关</b>：云端保存时，数字字段必须是数字、已知短代码不得含尖括号，否则拒收并告诉你是哪一处；歌词、曲名不限字符，<b>编辑器以后新增的字段一律放行</b>，不会因为服务端没登记就拒收。<br>④ <b>云端拒收不再静默</b>：以前保存被拒你完全不知道；现在会提示一次「云端未保存……本机副本已保留」。<br>⑤ <b>存量扫描</b>：管理员可在服务器上一键扫描全部云端谱面，命中的已发布谱可直接打回驳回并写明原因（谱主在个人中心可见，重新打开保存即可恢复）。<br><b>测试</b>：新增 <code>tv_xss</code> <b>9 项</b>（零误杀 / 逐键注入 / 启动恢复 / 本机库 / 缩图 / 拒收提示），对改前文件复跑 <b>6 项红</b>（其中两条路径脚本真实执行）；api/test.sh 219→<b>228 项</b>（危险字段拒收 / 楔形与歌词放行 / 数字串放行 / 未知字段透传 / 存量扫描与隔离）。<br><b>发布快照（产品拍板「发布快照，修订另审」）</b>：此前谱子一旦过审，作者再改曲谱、改标题、换缩图、甚至改昵称，谱库里都<b>立刻</b>变成新内容——审核等于可以绕过。现在过审那一刻把谱面、标题、署名、缩图<b>冻结成一份快照</b>，谱库、分享落地页、站点地图只展示快照：<br>⑥ 作者之后的修改（包括编辑器每几秒一次的自动保存）只改自己的草稿，<b>谱子不会下架</b>，谱库照常展示上一版；改完点「<b>提交更新</b>」进入审核，通过后自动替换。被驳回时谱库继续展示上一版，原因发到站内消息。<br>⑦ 个人中心、创作者中心的状态行会写明「有未发布的修改」「更新审核中」「更新被驳回：原因」；没有改动时点提交会直接告诉你「谱库里已经是这一版」。<br>⑧ 署名在审核时固定，之后改昵称不影响已上架的谱；管理员改自己的谱免审直接生效。<br>⑨ 管理后台：待审数包含更新审核，队列里这类条目带「更新审核」角标。<br><b>测试</b>：新增 <code>tv_pubsnap</code> <b>7 项</b>（对改前文件复跑全红）；api/test.sh 228→<b>247 项</b>（过审后改谱/改标题/改昵称/换缩图公开端不变 · 更新审核通过与驳回 · 无改动不送审）。</div></li>
-    <li><span class="v">v62.4</span><div><b>热修周：打印只出 1 页 · 成品带光标 · 弹窗点不中/按键穿透 · 楔形被清洗误删 · 他人谱深链 · 登录弹窗关不掉</b>（2026-10 十三角色评审团 A0 段，产品指示「A 段 B 段先做」）。<br>① <b>多页谱打印/存 PDF 只出第 1 页</b>：新版外壳把页面钉成一屏高、超出部分隐藏，它的样式优先级压过了打印复位，于是打印机只看得到第一屏。现在打印时用同等优先级把整页放开，多页谱完整打出；观看页打印也不再把顶部那条操作栏印在第 1 页上。（打印分页与屏幕虚拟页逐页对齐放在下一阶段做。）<br>② <b>成品不再带编辑光标</b>：打印、存 PDF、导出 PNG、分享卡、打印预览五个出口统一先熄灭全部编辑装饰——光标列的朱砂底色、弦位红圈、小节选中框、歌词选中框、小节拖柄——出完再原样恢复。此前打印一项都不清，分享卡只清了一半。<br>③ <b>弹窗打开时不再盲改背后的谱面</b>：之前弹窗开着按 Delete、数字键、方向键照样改谱；现在只有 Esc（关窗）和 Tab（在弹窗里移动焦点）有效，<b>Esc 终于能关掉弹窗</b>，有未保存改动的配和弦工作台照旧会拦下。<br>④ <b>手机「智能」抽屉不再压住弹窗</b>：从抽屉里点开的一键配伴奏、智能填词、曲谱信息、更新日志，「生成」「确定」等按钮之前被抽屉盖住点不到；现在弹窗一出现抽屉自动收起。<br>⑤ <b>渐强/渐弱楔形不再被安全清洗删掉</b>：防脚本注入的清洗过去把所有文字里的尖括号一律去掉，而楔形恰好就存成 <code>&lt;</code> / <code>&gt;</code>——<b>所有已发布谱在看谱页、分享出去的互动谱、审核预览里的楔形其实一直是丢的</b>。清洗改为按字段：音级、品位、弦号等数字一律转成数字（连引号逃逸也一并堵上），楔形按白名单保留，曲名歌词等文字只去尖括号。全部预设清洗前后零差异。<br>⑥ <b>他人的谱不能再从「我的曲谱」深链打开</b>：服务端「我的曲谱」接口只给谱主本人；打开别人的谱自动改走谱库看谱页（经安全清洗、只读、不写进你的本机库）。从文件打开谱也先经同样的清洗。<br>⑦ <b>登录弹窗</b>：在个人中心里登录成功、或点「取消」，弹窗都会关掉了；在编辑器里点「取消」只是关窗，不再把你带进个人中心。<br><b>测试</b>：新增 <code>tv_a0</code> <b>22 项</b>（打印 PDF 页数 / 打印时零编辑痕迹 / PNG·分享卡·预览零痕迹 / 弹窗按键不改谱 / 抽屉弹窗可点中 / 清洗零差异与楔形保真 / 注入零事件属性 / 他人谱改走看谱页 / 登录弹窗三态），对改前文件复跑 <b>14 项红</b>实证；api/test.sh 216→<b>219 项</b>（非谱主读「我的曲谱」被拒，对改前服务端复跑 2 项红）。</div></li>
-    <li><span class="v">v62.3</span><div><b>课程管理中心独立成页 · 跨课程内容体检 · 列表批量与筛选</b>（产品指示：课程编辑和管理独立页面，并强化功能、系统化功能）。<br>① <b>课程管理独立成页</b>：课程的列表、编辑、发布从平台管理的一个小页签里搬出来，成为独立的<b>课程管理中心</b>（<code>kcadmin.html</code>）——顶部一排概览（课程数 / 章节数 / 闯关题数 / <b>阻塞问题数</b> / 待完善数），下面三个页签：<b>课程</b>、<b>内容体检</b>、<b>发布记录</b>。平台管理里的「课程」页签改成一张入口卡，<b>全站只留一份工作台实现</b>，不会出现两处各改一半。<br>② <b>跨课程内容体检（系统化）</b>：一次扫完所有课程，把问题按严重度摊开——<b>阻塞</b>（服务端会拒绝发布，或会让学员卡死）与<b>建议</b>（能发布但内容不完整）分开标，每条都写清楚是哪门课第几章第几节、什么毛病，点「去修」<b>直接跳进工作台的那一小节</b>。可以一键「只看阻塞项」。查的项目包括：章/小节缺标题、题目不合法、内容块填错、本章还是 1.0 结构而课程已小节化（前台压根不渲染）、小节没有学习内容、题目没写解析、课程缺简介，以及一条真正的死锁——<b>某一小节既没有测试题、又关掉了打卡，学员没有任何办法完成它</b>，而 v62.1 起「做完整章才解锁下一章」，于是这一章连同后面所有章会被<b>永久锁死</b>。<br>③ <b>列表强化</b>：按标题/id 搜索，按状态与乐器筛选，按排序号/最近更新/标题/问题多少排序；勾选后可<b>批量发布、批量下架、批量删除草稿</b>（逐门下发并报告成功与失败）；每门课直接显示<b>体量</b>（几章几节、几个内容块几道题、多大）与<b>体检徽标</b>；可以<b>上移下移</b>调整学习页里的课程顺序，也可以<b>复制</b>一门课再改（副本先只在编辑器里，按保存才真正入库，点错不会多出一门空课）。新建课程时可以选「空白」或直接从某门现有课程复制。<br>④ <b>发布记录</b>：谁在什么时候编辑、发布、下架、删除了哪门课，单独一页可查。<br>⑤ <b>一处数据红线</b>：课程列表接口不返回<b>简介</b>字段，所以调整排序/复制这类「只改一个字段」的操作，一律先读回整门课再写，否则会把简介连带清空。<br><b>测试</b>：<code>tv_site</code> 81→<b>85 项</b>（工作台用例整体迁到新页 + 控制台概览与批量 + 体检四类问题识别与直达 + 平台管理入口卡），对改前树复跑 <b>8 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
-    <li><span class="v">v62.2</span><div><b>《认识简谱》升级成「能听、能录、能玩」的示例课 · 少儿科普风改版 · 侧栏可收起</b>（产品指示：以认识简谱为示例全面升级为声音/录音/动画交互，页面简洁互动性强，风格偏少儿科普）。<br>① <b>谱例会响了</b>：课程里的每一行谱例都多了「听一听」——按一下整行按简谱时值唱出来，<b>唱到哪个音，哪个数字就亮一下</b>；单独点某个数字也会单独发声。音高按谱首调号算（1=C 时 1 就是中央 C），增时线加拍、减时线减半、附点一拍半都照实播。全部是网页现场合成的音，<b>不下载任何音频文件</b>，打开即用。<br>② <b>练习可以录音</b>：每一节的练习里新增录音条——点一下开始，屏幕上有跳动的电平和计时，录完当场回放，可以「重录」，也可以<b>用这段直接完成今天的打卡</b>。16 个小节都配了具体的录音任务（比如第 3.2 节：唱一个撑满四拍的长音，回放数数自己有没有偷拍）。<b>录音只留在你自己的浏览器里，不上传、不进服务器</b>，关掉页面就没了。浏览器不支持或麦克风被拒时会给出可读的说明，而不是静默失灵。<br>③ <b>少儿科普风改版</b>：课程页改成<b>一章一色</b>——六个色相循环，像科普读物每个单元有自己的颜色，本章的小节卡、页签、按钮、插画全部跟着换色；主行动钮取<b>它要去的那一章</b>的颜色，一眼就能和章卡对上。章头加了方格本底纹，圆角加大、正文字号与行距放宽、按钮加粗，整体更适合小朋友和零基础成人。<br>④ <b>侧栏可以收起</b>：左侧章节目录一键收起，正文单列铺开；收起后正文左上角留一个「目录」按钮随时叫回来，<b>宽窄状态记在本机</b>，下次进课程还是你上次的样子。课程简介默认收到 4 行，点「展开介绍」再看全文。<br>⑤ <b>工作台跟上</b>：小节的练习模块新增「显示录音练习」开关与录音任务说明，作者可以逐节决定要不要让学员录。<br>⑥ <b>修一个键盘可达性问题</b>：折叠起来的小节，里面的按钮和音符仍然能被 Tab 键选中——16 个小节全折叠时，键盘用户要按几十次 Tab 才走得出去。现在折叠内容整块移出焦点序列。<br><b>测试</b>：<code>tv_site</code> 77→<b>81 项</b>（发声换算与播放态 / 侧栏收起与记忆 / 录音挂载与不上传承诺 / 一章一色），对改前树复跑 <b>4 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
-    <li><span class="v">v62.1</span><div><b>课程排版改矢量插画 + 交互动画 · 编辑器化繁为简 · 解锁改成「锁章不锁节」</b>（产品指示三件套）。<br>① <b>锁章不锁节</b>：解锁单位从小节上移到<b>章</b>——一章开了，章里所有小节都能读、能练、能测，想先看后面一节或跳过某节的测试都不再被挡；<b>把一章的小节全部完成，下一章自动解锁</b>。解锁说明也从「每个锁住的小节各写一遍」收成<b>每章一处</b>，并给出「还差几节」与直达按钮。学员已有的星级与打卡进度<b>一条不动</b>。<br>② <b>课程页重排</b>：一节展开不再是「学习 / 练习 / 测试」三大段纵向长流——改成<b>三个页签</b>，默认停在学习，可用 ←/→ 键切换，页签上直接标着有几块内容、几道题、今天打没打卡。章不再只是一行小标题，而是<b>带主题插画的分区卡</b>，配本章完成度进度条。<br>③ <b>全部换成矢量插画</b>：学习/练习/测试/锁/勾/连续天数等表情符号统一换成<b>描线图标</b>，章头配<b>14 张简谱教学插画</b>（音阶阶梯、调号牌 1=C、八度点、拍子网格、增减时线、休止与小节线、连线反复、和弦图、扫弦…），随课程色族与深浅主题自动着色，放大不糊。作者可在工作台<b>为每章挑插画</b>。<br>④ <b>交互动画</b>：章卡滚入视口升起、小节展开高度补间、页签下划线滑动、进度环描边补间、结算星级逐颗弹出、答对描一笔答错轻抖、打卡格子弹起与连续天数火苗脉冲、章解锁时整块弹一下。系统开了「减少动态效果」时全部自动关闭。<br>⑤ <b>编辑器化繁为简</b>：三栏挤成一团 → <b>两栏 + 顶部「编辑 / 预览」二选一</b>（此前主区被挤到放不下一行谱例）；加内容块从「点添加 → 等弹窗 → 选类型 → 关弹窗」四步变成<b>按钮直接写着类型，点一下就加</b>（文字 / 谱例 / 图片，其余进「更多」）；块内预览只保留<b>谱例</b>（其余类型写的就是看到的，多一份渲染只是把表单撑长）；离开页面不再弹「继续编辑 / 放弃 / 保存并离开」三选一，<b>直接静默暂存到本机</b>并提示一行，重新打开这门课可一键恢复。<br>⑥ <b>修 v62.0 遗留</b>：课程独立页顶部的面包屑被固定导航压住（手机上整行看不见）。<br><b>测试</b>：<code>tv_site</code> <b>77 项</b>（锁章不锁节全流程与工作台简化口径重写），对改前树复跑 <b>4 项红</b>实证；api/test.sh <b>216 项</b>、CORE <b>112 套件</b>、db.test.js 10/10 全绿。</div></li>
-    <li><span class="v">v62.0</span><div><b>每门课程独立页面 · 学习页与课程工作台双 UI 重设计</b>（产品指示：调用顶级专家重做课程页面与编辑界面）。<br>① <b>一课一页，可搜可分享</b>：课程不再是学习页里的展开面板，而是拥有<b>自己的地址</b>——站内 <code>kecheng.html?c=课程id</code>、对外 <code>puyouquan.com/course/课程id</code>（服务端直出 HTML，带面包屑、简介、章节小节大纲与正文节选、Course 结构化数据），另有 <code>/course/</code> 课程目录页与专属站点地图，已进 robots。课程卡改成<b>真实链接</b>：中键新标签、右键复制链接、收藏全部正常。<br>② <b>学习页重设计</b>：左侧<b>章节侧导航</b>（当前小节高亮、滚动同步、点击跳转）+ <b>进度环</b>（完成小节数/累计星数）；每个小节是一张<b>三态卡片</b>——已过（✓ 与星级）、进行中（高亮）、未解锁（说明还差什么才能开锁）；练习打卡改成<b>周历条</b>（本周七格 + 连续天数），<b>误点 6 秒内可撤销</b>；测试进入<b>专注态</b>（页面收起干扰、分段进度条、剩余星数实时显示、A/B/C/D 键盘作答、对错即时描红/描绿），没通关会列出<b>错题清单</b>并把「回看本节学习内容」放在主按钮位。<br>③ <b>后台课程工作台重设计</b>：三栏布局——左<b>大纲树</b>（章/节齐备度圆点，一眼看出哪节缺学习块、缺打卡、缺题）、中<b>块编辑区</b>（内容块以卡片编排，可增删换序换类型，<b>块内实时预览</b>，谱例记号写错当场标红）、右<b>整节预览</b>（桌面/手机双视图，所见即学员所见）。题目改成<b>表单化题卡</b>（选项增删、正确项单选、解析），支持<b>整章批量导入</b>；发布前有<b>检查清单</b>，坏题精确定位到「第 X.Y 节第 Z 题」；未保存时切页签弹<b>三选一守卫</b>并自动暂存草稿，浏览器直接关页也会拦。<br>④ <b>发布校验补到小节级</b>（红线修复）：此前只校章级题目，小节里的坏题（空题干、选项不足、答案越界）能一路发布出去，学员会在闯关处<b>卡死无法通过</b>——现在缺标题、题目不合法一律拒发并指明位置。<br>⑤ <b>两个渲染缺陷</b>：谱例里单独书写的增时线（<code>-</code>）此前被判非法退化成纯文本，现按正规延时符渲染；全站补 <code>[hidden]</code> 强制隐藏规则，根治「设了 hidden 仍显示」这类被布局声明压过的老坑（已第三次复发）。<br><b>测试</b>：api/test.sh 213→<b>216 项</b>、<code>tv_site</code> 72→<b>77 项</b>，对改前树复跑 <b>13 项红</b>实证。CORE <b>112 套件</b>全绿。</div></li>
-    <li><span class="v">v61.9</span><div><b>课程 2.0（P0）：内容细化到小节 · 学习/练习/测试三模块 · 五星解锁</b>（产品拍板方案，先《认识简谱》打样）。<br>① <b>课程结构升级为 课程 → 章 → 小节</b>：《认识简谱》从 6 章细化成 <b>6 章 16 小节</b>，每个小节都是完整闭环——<b>学习</b>（图文讲解 + 谱例 + 互动谱）→ <b>练习</b>（可量化任务 + <b>每日打卡</b>，记打卡天数）→ <b>测试</b>（闯关题）。共 88 个内容块、80 道题。<br>② <b>五星测试 + 锁小节</b>：测试满分 <b>5 星</b>，每错 1 题扣 1 星；拿到 <b>★★★ 才解锁下一小节</b>，没过可无限重来，过了也能重测冲星（星级只升不降）；课程卡与章标题显示累计星数，进度按小节统计。<br>③ <b>内容形式多样化</b>：学习模块由内容块组成，支持 <b>富文本</b>（标题/列表/加粗/引用 + 简谱记号内联）、<b>整行谱例</b>（含小节线、终止线、延音线）、<b>互动谱卡片</b>（直接跳谱库跟谱播放/移调）、<b>图片</b>、<b>视频</b>（自托管 mp4）、<b>代码块</b>——图片与视频走白名单校验，非白名单地址一律不渲染。<br>④ <b>老课程零回归</b>：吉他课与幼儿课仍走原章级闯关/打卡路径；v61.8 之前的学习进度键位一律不动，章级已完成的老进度会自动解锁对应小节。<br>⑤ <b>官方课程随发版更新</b>：此前只在课程缺失时补种，已存在的官方课拿不到新版内容——现改为「没被管理员改过就刷新到最新，改过的一律不动」，新章节内容随部署自动到位。<br><b>下一步</b>（P1）：工作台小节级可视化编辑器（本版章级编辑器保存<b>不会</b>影响小节内容，已加只读提示与数据守护）。<br><b>测试</b>：api/test.sh 196→<b>200 项</b>、<code>tv_site</code> 68→<b>72 项</b>（小节全流程 20 断言 / 内容块白名单 16 断言 / 编辑器保存不丢小节树），对改前树复跑 <b>4 项红</b>实证。CORE <b>112 套件</b>全绿。</div></li>
-    <li><span class="v">v61.8</span><div><b>学习模块升级：认识简谱课程 + 闯关打卡游戏 + 课程发布强化</b>（产品指示三件套）。<br>① <b>《认识简谱》上线</b>：零基础识谱 6 关——数字与唱名 → 八度点 → 增时线 → 减时线与附点 → 休止/小节/拍号 → 连线反复与结课综合读谱；每关实质讲解 5 条内容点 + 可量化练习任务 + 配套谱链 + 4 道闯关题（共 24 题），页面内置<b>简谱记号渲染器</b>——题目和讲解里的高低音点、增减时线、附点按出版样式真实呈现。<br>② <b>闯关打卡游戏</b>：课程逐关解锁（完成上一关才开下一关）；点「🎯 闯关」逐题作答、对错即判并给解析；答完出<b>星级</b>——全对 ★★★、错一题 ★★、正确率 ≥60% ★ 通关（自动打卡+解锁下一关+彩带庆祝），没过线可无限重来，随时重闯冲三星；课程卡累计星数展示。老课程（吉他/幼儿）自动进入逐章解锁模式，手动打卡保留。<br>③ <b>课程发布强化</b>（工作台）：章节新增<b>闯关题编辑</b>（一行一题，选项 2-4 个可用简谱记号语法）；坏题保存即拦截并<b>定位到章</b>；发布要求每章有目标与内容点；新增<b>「预览草稿」</b>（不落库先看真实学习页效果）与章节下移键；列表显示每课「N 章 · N 题」；服务端发布时同步校验题目结构（坏题拒发定位到题）。<b>存量服务器自动补种新课</b>（播种逻辑从「表空才种」改「按 id 补种」）。<br><b>测试</b>：api/test.sh 191→<b>196 项</b>、<code>tv_site</code> 65→<b>68 项</b>（闯关全流程/发布强化/三课同源），对改前代码复跑红实证。CORE <b>112 套件</b>全绿。</div></li>
-    <li><span class="v">v61.7</span><div><b>曲谱收录工程 + 功能页场景区块</b>（产品指示：四垂类收进功能页；曲谱页未被收录）。<br><b>收录诊断</b>：谱库卡片是 JS 渲染，爬虫抓原始 HTML 只见骨架、拿不到任何曲谱链接；曲谱落地页又带 1.2 秒自动跳转+内容太薄，是典型「桥页」信号——只收首页/谱库页不收谱页正是这两个原因叠加。<br>① <b>谱库目录页上线</b>（/pub/）：全部已发布谱的纯 HTML 链接清单，谱库首页新增静态内链「全部曲谱目录」——形成 首页 → 目录 → 每首谱 的可爬路径。<br>② <b>曲谱落地页去自动跳转 + 内容加厚</b>：撤秒跳（真人点按钮进观看页）；新增面包屑（谱库目录 › 谱类）、调号/拍号/速度、<b>歌词节选</b>、<b>和弦进行</b>、<b>相关曲谱</b>互链（同歌手优先）——每页都是有正文、有内链的真页面。<br>③ <b>sitemap 收目录页</b> + <b>百度主动推送</b>：谱面上架（直发/过审）即推百度站长平台（需在服务器配 token，未配自动跳过）。<br>④ <b>功能页新增「专属场景」区块</b>：教师考编/音乐艺考/师范·音乐教育/钢琴即兴伴奏 四张卡（v61.6 首页场景带撤除后的站内入口回归）。<br><b>测试</b>：api/test.sh 184→<b>191 项</b>（目录页/无跳转防桥页/目录与相关内链/站点地图，对改前服务端复跑 7 项红）；<code>tv_site</code> 新增 2 项（场景区块/首页目录内链，对改前复跑红），65 项。CORE <b>112 套件</b>全绿。</div></li>
-    <li><span class="v">更早</span><div>更早的 412 个版本（v34 起）已收进 <a href="https://www.puyouquan.com/log-full.html" target="_blank" rel="noopener">完整更新日志</a>。</div></li>
+    <li><span class="v">更早</span><div>更早的 433 个版本（v61.7 起）已收进 <a href="https://www.puyouquan.com/log-full.html" target="_blank" rel="noopener">完整更新日志</a>。</div></li>
     <li><span class="v">更早</span><div>三行对齐编辑器、节奏型库与和弦指法生成、和弦图编辑、混音播放、曲谱库与自动保存、打印导出等基础能力。</div></li>
   </ul>
   <div class="btns"><button id="log-ok" class="primary">知道了</button></div>`);
@@ -38667,7 +39339,7 @@ function alignHeader(){
     docs=[{song:demoSong(), sel:null}]; curDocI=0; song=docs[0].song;
     sel={mi:0,row:'tab',vi:0,ci:0,si:1}; clampSel();
     try{ render(); }catch(_){}
-    setTimeout(()=>toast('上次编辑的曲谱渲染异常，已换为演示曲谱；原曲谱已备份到「我的曲谱」，可从顶栏「示例曲谱 · 我的曲谱」打开或「存为文件」'),800);
+    setTimeout(()=>toast('上次编辑的曲谱渲染异常，已换为演示曲谱；原曲谱已备份到「我的曲谱」，可从'+(flowOn()? '「文件 ▾ · 我的曲谱」' : '顶栏「示例曲谱 · 我的曲谱」')+'打开或「存为文件」'),800);
   }
   renderProgCells();
   sfEmbedInit();
@@ -38734,6 +39406,7 @@ function clampPopIntoView(div){
 function bootVeilDone(){
   const bv=document.getElementById('boot-veil');
   if(bv){ bv.style.opacity='0'; bv.style.pointerEvents='none'; setTimeout(()=>{ try{ bv.remove(); }catch(_){ } }, 240); }
+  try{ if(typeof FLOW!=='undefined' && FLOW && FLOW.viewEnd) FLOW.viewEnd(); }catch(_){}   /* v68.2 集成：?pub= / ?review= 没进成观看页（失败分支都在这里揭幕）→ 补挂 flow；进成了 / 没有意图时什么都不做 */
 }
 /* v50.7 云端曲谱深链 ?mine=<id>：官网/谱库个人中心卡「最近曲谱」直达编辑。
    本地库已有该谱直接打开（离线可用）；否则凭登录 Cookie 从云端拉取、存入本地库再打开；
@@ -38766,10 +39439,11 @@ async function openRemoteMine(id){
     try{ initStartPad(); }catch(_){}
   }
 }
-/* 互动分享谱启动（v38.5）：注入的数据脚本位于本脚本之后，待文档解析完成再检测进入观看模式 */
+/* 互动分享谱启动（v38.5）：旧版导出的数据脚本位于本脚本之后（v68.2 起的导出在 <head> 里），一律待文档解析完成再检测进入观看模式 */
 window.addEventListener('DOMContentLoaded', ()=>{
   if(window.PYQ_SHARE && window.PYQ_SHARE.song){
     try{ enterShareViewer(window.PYQ_SHARE); }catch(e){ console.error('互动谱启动失败', e); }
+    try{ if(FLOW) FLOW.viewEnd(); }catch(_){}   /* v68.2 集成：互动谱数据坏、没进成观看页 → 补挂 flow（进成了什么都不做） */
     return;
   }
   try{

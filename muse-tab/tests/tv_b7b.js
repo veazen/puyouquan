@@ -4,7 +4,10 @@
    T2 屏幕常亮：进谱架申请 wakeLock、退出释放；播放时申请、停止释放；浏览器不支持时静默跳过不报错
    T3 导出弹窗分三组（打印存档 / 分享 / 专业格式），「取消」单独在页脚左侧；专业格式组含曲谱文件；顶栏按钮不再叫「导出」
    T4 预设库缩略卡：卡片带缩图（懒生成后出现 img）、没有渐变主按钮；点整张卡即可打开预设
-   突变实证：对 v64.1 之前的文件复跑，T1–T4 全部报红（0/4）。 */
+   突变实证：对 v64.1 之前的文件复跑，T1–T4 全部报红（0/4）。
+   v68.2 切默认（flow）：T1 断言旧外壳手机底部三层（#top / #editbar / #left-dock / #mixer-dock 迷你条 + ⋯ 展开三排卡片）——这一条钉 ?shell=classic；
+   另加 T1f 在默认外壳（手机 body.flw-m）断言同一意图：固定控件（顶栏 #flw-mtop + 底条 #flw-mbar）总高 ≤211（≤25%）、两两不重叠、播放键 #flw-mplay ≥44 可点中；
+   「⋯ 展开」的对应＝音轨抽屉里的「播放设置…」：节拍器 #b-metro 等搬入抽屉可见，收起后搬回、底条高不变（另见 tv_modes M16f）。T2–T4 外壳无关，在默认外壳跑。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env.MUSETAB_URL.slice(7) : path.resolve(__dirname, '../index.html');
@@ -22,7 +25,7 @@ const WL = `(()=>{ window.__wl={req:0,rel:0}; const mk=()=>({ request: async()=>
   {
     const pg = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-    await pg.goto('file://' + FILE); await pg.waitForTimeout(1100);
+    await pg.goto('file://' + FILE + '?shell=classic'); await pg.waitForTimeout(1100);
     await pg.evaluate(`(()=>{ guardReplace=(p)=>p(); hideStartPad(); loadSong(createSong('guitar',{title:'量',key:'C',beats:4,unit:4,nMea:4,nTab:1,nVox:1,lyr:1})); render(); })()`);
     await pg.waitForTimeout(400);
     const r = await pg.evaluate(`(()=>{ const R=id=>{ const e=document.getElementById(id); const rc=e.getBoundingClientRect(); return {t:Math.round(rc.top), b:Math.round(rc.bottom), h:Math.round(rc.height)}; };
@@ -38,6 +41,37 @@ const WL = `(()=>{ window.__wl={req:0,rel:0}; const mk=()=>({ request: async()=>
     T(!r.err && r.parts.mixer.h <= 56 && r.sum <= 211 && r.ov === 0 && r.playHit && r.playH >= 44 && r.more && r.metroHidden
       && r.full.cls && r.full.metro && r.full.mixer > 100 && !r.full.ov && r.back <= 56,
       'T1 手机迷你播放条 56px、固定控件 ≤25% 屏高、⋯ 展开/收起', JSON.stringify(r));
+    await pg.close();
+  }
+
+  /* T1f 手机（flow，默认外壳） */
+  {
+    const pg = await b.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+    pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
+    await pg.goto('file://' + FILE); await pg.waitForTimeout(1100);
+    await pg.evaluate(`(()=>{ guardReplace=(p)=>p(); hideStartPad(); loadSong(createSong('guitar',{title:'量',key:'C',beats:4,unit:4,nMea:4,nTab:1,nVox:1,lyr:1})); render(); })()`);
+    await pg.waitForTimeout(400);
+    const R = `const R=id=>{ const e=document.getElementById(id); const rc=e.getBoundingClientRect(); return {t:Math.round(rc.top), b:Math.round(rc.bottom), h:Math.round(rc.height)}; };`;
+    const r = await pg.evaluate(`(()=>{ ${R}
+      const parts={mtop:R('flw-mtop'), mbar:R('flw-mbar')};
+      const sum=Object.values(parts).reduce((a,x)=>a+x.h,0);
+      const ov=(Math.min(parts.mtop.b,parts.mbar.b)-Math.max(parts.mtop.t,parts.mbar.t)>1)? 1 : 0;
+      const pl=document.getElementById('flw-mplay').getBoundingClientRect(); const hit=document.elementFromPoint(pl.left+pl.width/2, pl.top+pl.height/2);
+      const metroHidden=document.getElementById('b-metro').getClientRects().length===0;
+      return {flwM:document.body.classList.contains('flw-m'), parts, sum, ov, playHit:!!hit && !!hit.closest('#flw-mplay'), playH:Math.round(pl.height), metroHidden}; })()`).catch(e => ({ err: e.message }));
+    let full = null, back = null;
+    if (!r.err) {
+      await pg.click('#flw-mbar [data-fm="sheet"][data-v="trk"]'); await pg.waitForTimeout(250);
+      const hasPlay = await pg.$('#flw-msheet [data-fm="sheet"][data-v="play"]');
+      if (hasPlay) { await hasPlay.click(); await pg.waitForTimeout(250); }
+      full = await pg.evaluate(`(()=>{ const sh=document.getElementById('flw-msheet'), m=document.getElementById('b-metro'); const q=m.getBoundingClientRect();
+        return {v:sh.dataset.v, metro: sh.contains(m) && q.height>0, metroH:Math.round(q.height)}; })()`);
+      await pg.evaluate(() => document.getElementById('flw-mveil').click()); await pg.waitForTimeout(250);
+      back = await pg.evaluate(`(()=>{ ${R} return {mbar:R('flw-mbar').h, metroHome:!!document.getElementById('b-metro').closest('#mixer-dock'), sheetGone:document.getElementById('flw-msheet').getClientRects().length===0}; })()`);
+    }
+    T(!r.err && r.flwM && r.sum <= 211 && r.ov === 0 && r.playHit && r.playH >= 44 && r.metroHidden && full && full.v === 'play' && full.metro && full.metroH >= 44
+      && back && back.mbar === r.parts.mbar.h && back.metroHome && back.sheetGone,
+      'T1f flow 手机：顶栏 + 底条固定控件 ≤25% 屏高、不重叠、播放键可点；「播放设置…」抽屉展开节拍器 / 收起搬回', JSON.stringify({ r, full, back }));
     await pg.close();
   }
 

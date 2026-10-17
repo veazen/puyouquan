@@ -3,7 +3,11 @@
    智能=修复建议+一键采纳，自由=只列正确与否（可定位、无建议无按钮）。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html');
+/* v68.2 切默认（flow）：T1–T9 断言旧外壳右栏页签（#rtabs .rtab / 创作页 #rc-cursor · #rc-beat 卡片 / #b-shell 往返）——这一段钉 ?shell=classic；
+   文末「flow 段」在默认外壳断言同一功能：E1 编辑模式开关 #em-toggle 在右栏「属性」页、时值检查 #beat-box 在状态栏 ·
+   E3–E6 智能 / 自由编辑（真实点击：状态栏时值项展开上弹 #err-drop、属性页开关切换、点条目定位、全部采纳）——tv_modes M10 只覆盖光标信息与记号芯片，不含编辑模式 */
+const FILE0 = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const FILE = FILE0 + '?shell=classic';
 
 let pass = 0, fail = 0, errs = [];
 const T = (ok, name, detail) => {
@@ -149,6 +153,59 @@ const T = (ok, name, detail) => {
     veilGone: !document.getElementById('boot-veil'),
     shell: document.body.classList.contains('shell') }));
   T(r.veilGone && r.shell, 'T9 启动遮罩初始化后移除', JSON.stringify(r));
+
+  /* ===================== flow 段（默认外壳，不带参数）===================== */
+  const pf = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  pf.on('pageerror', e => errs.push('flow:' + String(e.message)));
+  await pf.goto(FILE0); await pf.waitForTimeout(900);
+  await pf.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false;
+    window.__vis = e => { if (typeof e === 'string') e = document.getElementById(e); if (!e || !e.isConnected) return false; const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false;
+      for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+    try { localStorage.removeItem('musetab-editmode'); } catch (_) {}
+    const s = createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].voxes[0] = [ { dur: 4, dotted: false, deg: 1, acc: '', oct: 0, lyrics: [], tie: false },
+                               { dur: 4, dotted: false, deg: 2, acc: '', oct: 0, lyrics: [], tie: false } ];
+    loadSong(s); hideStartPad(); sel = { mi: 1, row: 'vox', vi: 0, ci: 0, si: 1 }; blurSel = true; render(); syncInputs(); });
+  await pf.waitForTimeout(200);
+
+  // E1 位置：#em-toggle 在右栏「属性」页（1440 停靠）、#beat-box 在状态栏（#mixer-dock .mx-bar），旧创作页卡片不出现
+  r = await pf.evaluate(() => { const et = document.getElementById('em-toggle'), bb = document.getElementById('beat-box');
+    return { flow: document.body.classList.contains('flow'), page: FLOW.rd.page(), emIn: !!et.closest('#flw-rp-prop'), emVis: __vis(et),
+      bbIn: !!bb.closest('#mixer-dock .mx-bar'), bsVis: __vis('beat-status'), oldCards: __vis('rc-cursor') || __vis('rc-beat') || __vis('rtabs') }; });
+  T(r.flow && r.page === 'prop' && r.emIn && r.emVis && r.bbIn && r.bsVis && !r.oldCards,
+    'E1 flow：编辑模式开关在右栏「属性」页、时值检查在状态栏（旧创作页卡片不出现）', JSON.stringify(r));
+
+  const eo = () => pf.evaluate(() => { const ed = document.getElementById('err-drop');
+    return { open: document.body.classList.contains('flw-eo') && __vis(ed), bad: document.getElementById('beat-status').className === 'bad', good: document.getElementById('beat-status').className === 'good',
+      smartOn: !![...document.querySelectorAll('#em-toggle button')].find(b => b.dataset.em === 'smart' && b.classList.contains('on')),
+      freeOn: !![...document.querySelectorAll('#em-toggle button')].find(b => b.dataset.em === 'free' && b.classList.contains('on')),
+      mode: localStorage.getItem('musetab-editmode'), rows: ed.querySelectorAll('.err').length, sug: ed.querySelectorAll('.err-sug').length,
+      fix: ed.querySelectorAll('.err-fix').length, all: !!ed.querySelector('#err-fixall'), hd: (ed.querySelector('.err-hd span') || {}).textContent || '' }; });
+
+  // E3 智能编辑（默认）：真实点状态栏时值项 → 上弹 #err-drop：修复建议 + 单条 / 全部一键采纳
+  await pf.click('#beat-status'); await pf.waitForTimeout(150);
+  const e3 = await eo();
+  T(e3.bad && e3.open && e3.smartOn && e3.sug >= 1 && e3.fix >= 1 && e3.all && /修复建议/.test(e3.hd), 'E3 flow 智能编辑：点状态栏时值项上弹建议 + 一键采纳', JSON.stringify(e3));
+
+  // E4 真实点属性页「自由编辑」：只列正确与否，无建议 / 无采纳按钮；本机键持久化
+  await pf.click('#em-toggle button[data-em="free"]'); await pf.waitForTimeout(150);
+  if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
+  const e4 = await eo();
+  T(e4.mode === 'free' && e4.freeOn && e4.bad && e4.open && e4.rows >= 1 && e4.sug === 0 && e4.fix === 0 && !e4.all && /时值检查/.test(e4.hd),
+    'E4 flow 自由编辑（属性页真实点击）：只报正确与否，无修复建议', JSON.stringify(e4));
+
+  // E5 自由模式点条目定位：sel 跳到该小节、上弹层收起
+  await pf.click('#err-drop .err .err-desc'); await pf.waitForTimeout(150);
+  const e5 = await pf.evaluate(() => ({ mi: sel.mi, row: sel.row, open: document.body.classList.contains('flw-eo') }));
+  T(e5.mi === 0 && e5.row === 'vox' && !e5.open, 'E5 flow 自由模式点条目定位（并收起上弹层）', JSON.stringify(e5));
+
+  // E6 切回智能 + 全部采纳 → 时值恢复正确
+  await pf.click('#em-toggle button[data-em="smart"]'); await pf.waitForTimeout(150);
+  if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
+  await pf.click('#err-fixall'); await pf.waitForTimeout(200);
+  const e6 = await eo();
+  T(e6.mode === 'smart' && e6.smartOn && e6.good && !e6.open, 'E6 flow 智能全部采纳 → 时值恢复', JSON.stringify(e6));
+  await pf.close();
 
   await browser.close();
   console.log('PASS ' + pass + '/' + (pass + fail));

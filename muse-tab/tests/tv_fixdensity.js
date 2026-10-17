@@ -26,10 +26,17 @@
       存着 musetab-zoom-fw 0.8 时谱型条仍对齐谱纸；1366 新建谱照样自动收起左栏（D7 按适配底数判，修前停靠 62.6%）
    D8（OUT-1）曲首和弦图带 14 个和弦：A4 100% / 130% / 150%、A5 100% / 150% 整带在版心内（每行个数按版心，放不下就换行）；A4 100% 仍一行
    单跑约 150 秒（D2 两个视口并行）。
-   突变实证：MUSETAB_URL 指向 v67.6 原版（scratchpad/v677/v676.html）→ PASS 0/8；指向收尾修复前副本（scratchpad/v677/prefix.html）→ D5–D8 红、4/8（见文末记录）。 */
+   突变实证：MUSETAB_URL 指向 v67.6 原版（scratchpad/v677/v676.html）→ PASS 0/8；指向收尾修复前副本（scratchpad/v677/prefix.html）→ D5–D8 红、4/8（见文末记录）。
+   v68.2 切默认（flow）：D1–D8 断言旧外壳的 D7（左栏 #left-flyout 自动收起 / paper-tight / musetab-flyclosed / #fly-close / 谱型条 #lb-wrap / #b-new / #b-stand）——
+   整段钉 ?shell=classic（断言逐字不变）。文末 flow 段（默认外壳）断言本套件的核心意图：
+   D2f 真实新建（深链 ?new= ＋ 回车）vs 真实 MIDI 导入（页签 ＋ #dt-add → 新建面板「导入」→ .mid → 导入）：1280 / 1440 / 1920 × 歌谱，1440 另加钢琴伴奏，
+       新建谱数字字号 ≥ 导入谱 0.95 倍；同谱去掉 fixed 另开页签，每行小节 ≤ 导入口径（flow 左栏常驻 248，两边面板状态天然一致）；没有 D7（不收起、无浮层类、FLY_AUTO_CLOSED 不消耗）
+   D5f 谱架从 flow 进（状态栏「⋯」→「谱架模式」）：固定版宽、不横溢、铺满谱架纸宽，退出回编辑态 fixwide 且 flow 重新挂载
+   （D1 / D4 / D8 外壳无关；D6 / D7 是旧左栏 D7 与谱型条，flow 没有——无 D7 见 tv_trktree T26、tv_v66a T1f / T2f；110% 即横滚见 tv_deskscale2 [flow] T9） */
 const { chromium } = require('playwright');
 const path = require('path');
-const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const URLF = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');   /* 默认外壳（flow） */
+const URL0 = URLF + (URLF.includes('?') ? '&' : '?') + 'shell=classic';                          /* D1–D8：旧外壳 */
 
 /* 构造最小 SMF（format 0 单轨，C 大调 4/4 ♩=120）：与新建谱填进去的旋律同一份 */
 const vlq = n => { const s = [n & 0x7f]; n >>= 7; while (n) { s.push((n & 0x7f) | 0x80); n >>= 7; } return s.reverse(); };
@@ -89,7 +96,8 @@ const FILL = ([sc, MEL]) => {
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     /* 预置本机键（只在本上下文首次载入时写一次，刷新不再覆盖——刷新类断言要看到页面自己写下的状态） */
     if (opt.ls) await pg.addInitScript(`try{ if(!sessionStorage.getItem('__fdinit')){ sessionStorage.setItem('__fdinit','1'); const o=${JSON.stringify(opt.ls)}; for(const k in o){ if(o[k]==null) localStorage.removeItem(k); else localStorage.setItem(k,o[k]); } } }catch(_){}`);
-    await pg.goto(URL0 + (q ? '?' + q : '')); await pg.waitForTimeout(1000);
+    const base = opt.flow ? URLF : URL0;
+    await pg.goto(base + (q ? (base.includes('?') ? '&' : '?') + q : '')); await pg.waitForTimeout(1000);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
     pg._ctx = ctx; return pg;
   };
@@ -338,7 +346,7 @@ const FILL = ([sc, MEL]) => {
     /* c) 不出启动台的直达（?wxlogin 回跳）：开机首帧不做 D7，DOMContentLoaded 补排一次——上次编辑的新建谱同样当场收起 */
     { const pc = await open(1366, 768); await uiNew(pc);
       await pc.evaluate(() => { song.title = '继续这首'; try { persist(); persistFlush(); } catch (_) {} }); await pc.waitForTimeout(300);
-      await pc.goto(URL0 + '?wxlogin=ok'); await pc.waitForTimeout(1500);
+      await pc.goto(URL0 + '&wxlogin=ok'); await pc.waitForTimeout(1500);
       const g3 = await geo(pc), pad = await pc.evaluate(() => startPadOn()); await pc._ctx.close();
       if (!(!pad && g3.fixed && g3.flyH && g3.auto === true && g3.dig >= 17)) bad.push(`1366 ?wxlogin 直达 ${JSON.stringify({ pad, fixed: g3.fixed, flyH: g3.flyH, auto: g3.auto, dig: g3.dig })}`);
       else seen.push(`1366 ?wxlogin 直达 ${g3.dig}px 左栏收`); }
@@ -396,6 +404,73 @@ const FILL = ([sc, MEL]) => {
     if (!one || one.rows !== 1) bad.push({ nm: '一行', one });
     T(bad.length === 0, 'D8（收尾 OUT-1）曲首和弦图带 14 个和弦：A4 100% / 130% / 150%、A5 100% / 150% 下整带都在版心 [MARGIN, PAGE_W−MARGIN] 内（版心放不下就换行）；A4 100% 仍一行',
       JSON.stringify(bad.length ? bad : out.map(x => `${x.nm} W${x.W} [${x.l},${x.r}] ${x.rows}行`)));
+  });
+
+  /* ======================= flow 段（默认外壳） ======================= */
+  const flowInfo = pg => pg.evaluate(() => { const L = document.getElementById('flw-left'); return { flow: document.body.classList.contains('flow'), flwL: L ? Math.round(L.getBoundingClientRect().width) : 0 }; });
+  await guard('D2f flow 新建 vs 导入', async () => {
+    /* 歌谱三个视口都比；钢琴伴奏（大谱表）只比 1440（flow 谱面区最窄的停靠档：1440−248−264）——控制本套件在 run_all 300 秒上限内 */
+    const FVP = [[1280, 800], [1440, 900], [1920, 1080]], FSCW = w => w === 1440 ? ['vocal', 'pacc'] : ['vocal'], fr = {};
+    const runVp = async ([w, h]) => {
+      fr[w] = {};
+      for (const sc of FSCW(w)) {
+        const pg = await open(w, h, 'new=' + sc + '&key=C&meter=4/4&bars=' + NB + '&title=' + encodeURIComponent('同一首谱'), { flow: true });
+        const panel = await pg.evaluate(() => !!document.querySelector('.nf-modal [data-scene]'));
+        await pg.keyboard.press('Enter'); await pg.waitForTimeout(900);
+        await pg.evaluate(() => { try { toastHide(); } catch (_) {} const t = document.getElementById('toast'); if (t) t.style.display = 'none'; });
+        await pg.evaluate(FILL, [sc, MEL]); await pg.waitForTimeout(450);
+        const A = Object.assign(await geo(pg), await flowInfo(pg)); A.panel = panel;
+        const sj = await pg.evaluate(() => JSON.stringify(song));
+        await pg.evaluate(sj => { const s = JSON.parse(sj); delete s.id; s.layout = Object.assign({}, s.layout || {}); delete s.layout.fixed; addDoc(s); }, sj);
+        await pg.waitForTimeout(700);
+        const A2 = Object.assign(await geo(pg), await flowInfo(pg));
+        fr[w][sc] = { A, A2 };
+        await pg._ctx.close();
+      }
+      /* 真实导入（flow 入口：页签条「＋」#dt-add → 新建面板「导入」页签） */
+      const pi = await open(w, h, '', { flow: true });
+      await pi.click('#dt-add'); await pi.waitForSelector('.nf-modal [data-scene]'); await pi.click('.nf-tabs [data-v="import"]'); await pi.waitForSelector('#nf-isrc');
+      const [fc] = await Promise.all([pi.waitForEvent('filechooser', { timeout: 3000 }), pi.click('#nw-import')]);
+      await fc.setFiles({ name: '同一首谱.mid', mimeType: 'audio/midi', buffer: MIDI }); await pi.waitForTimeout(500);
+      await pi.click('#mi-go'); await pi.waitForTimeout(900);
+      await pi.evaluate(() => { try { toastHide(); } catch (_) {} });
+      const I = Object.assign(await geo(pi), await flowInfo(pi)); I.title = await pi.evaluate(() => song.title);
+      fr[w].imp = I;
+      await pi._ctx.close();
+    };
+    const queue = FVP.slice();
+    await Promise.all([0, 1].map(async () => { while (queue.length) await runVp(queue.shift()); }));
+    const bad = [], seen = [], mx = a => Math.max(...a);
+    for (const [w] of FVP) { const I = fr[w].imp;
+      if (!I.flow || I.fixed || I.n !== NB || I.dig < 16.5 || I.digFs !== 17) bad.push(`${w} 真实导入异常 ${JSON.stringify({ flow: I.flow, fixed: I.fixed, n: I.n, dig: I.dig, fs: I.digFs, title: I.title })}`);
+      for (const sc of FSCW(w)) { const { A, A2 } = fr[w][sc];
+        if (!A.flow || !A.panel || !A.fixed || A.n !== NB) { bad.push(`${w} ${sc} 深链新建异常 ${JSON.stringify({ flow: A.flow, panel: A.panel, fixed: A.fixed, n: A.n })}`); continue; }
+        if (A.digFs !== 17) bad.push(`${w} ${sc} 简谱数字刻版字号不是 17（${A.digFs}）`);
+        if (!(A.dig >= 0.95 * I.dig)) bad.push(`${w} ${sc} 数字 ${A.dig}px < 0.95×导入 ${I.dig}px`);
+        if (!(mx(A.bars) <= mx(A2.bars) && A.bars.length >= A2.bars.length)) bad.push(`${w} ${sc} 每行小节 新建 ${A.bars} > 导入口径 ${A2.bars}`);
+        if (!(A.auto === false && !A.tight && A.flwL === 248 && A2.flwL === 248 && A.clipped === 0)) bad.push(`${w} ${sc} 出现 D7 / 左栏不常驻 ${JSON.stringify({ auto: A.auto, tight: A.tight, flwL: A.flwL, flwL2: A2.flwL, c: A.clipped })}`);
+        seen.push(`${w}${sc[0]}:${A.dig}/${I.dig}px ${mx(A.bars)}/${mx(A2.bars)}`);
+      }
+    }
+    T(bad.length === 0, 'D2f flow：真实新建（深链 vocal ×3 视口 / pacc @1440 ＋ 回车）vs 真实 MIDI 导入（页签 ＋ → 导入），1280 / 1440 / 1920：新建谱数字字号 ≥ 导入谱 0.95 倍；同谱每行小节 ≤ 导入口径；左栏常驻、无 D7',
+      bad.join(' | ') || seen.join(' '));
+  });
+  await guard('D5f flow 谱架', async () => {
+    const pg = await open(1920, 1080, 'new=vocal&bars=' + NB, { flow: true });
+    await pg.keyboard.press('Enter'); await pg.waitForTimeout(900); await pg.evaluate(FILL, ['vocal', MEL]); await pg.waitForTimeout(300);
+    await pg.click('#flw-st-more'); await pg.waitForTimeout(200);
+    await pg.click('#popmenu [data-old="b-stand"]'); await pg.waitForTimeout(900);
+    const r = await pg.evaluate(() => { const P = document.getElementById('paper'), sv = document.getElementById('score');
+      return { stand: document.body.classList.contains('stand'), flowOff: !document.body.classList.contains('flow') || !!(document.getElementById('flw-left') && !document.getElementById('flw-left').getClientRects().length),
+        fixed: !!(song.layout || {}).fixed, PAGE_W, pw: P.clientWidth, svgW: +sv.getAttribute('width'),
+        k: +(sv.getBoundingClientRect().width / sv.viewBox.baseVal.width).toFixed(4), docW: document.documentElement.scrollWidth, vw: innerWidth }; });
+    await pg.click('#sb-exit').catch(() => {}); await pg.waitForTimeout(500);
+    const back = await pg.evaluate(() => ({ stand: document.body.classList.contains('stand'), fw: document.body.classList.contains('fixwide'), flow: document.body.classList.contains('flow'),
+      flwL: Math.round(document.getElementById('flw-left').getBoundingClientRect().width) }));
+    await pg._ctx.close();
+    T(r.stand && r.flowOff && r.fixed && r.PAGE_W === FA4 && r.svgW <= r.pw + 1 && r.svgW >= Math.min(r.pw - 8, Math.floor(FA4 * (C.FMAX || 1.25)) - 2) && r.k >= 0.95 && r.docW <= r.vw
+      && !back.stand && back.fw && back.flow && back.flwL === 248,
+      'D5f flow：状态栏「⋯」→「谱架模式」进谱架（谱架不挂 flow 外壳）：固定版宽、不横溢、铺满谱架纸宽；退出回编辑态 fixwide 且 flow 重新挂载', JSON.stringify({ r, back }));
   });
 
   console.log(`PASS ${pass}/${total}`);

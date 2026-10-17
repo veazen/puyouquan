@@ -180,8 +180,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.len0 < 6 && r.len1 > r.len0 && r.lenBack === r.len0, 'T10 缩窄自动排入后续小节', JSON.stringify(r));
 
   // T11 v52.3 「+」容量守卫：塞不下时按钮置灰（sysact 空）、点击守卫拒绝、pull 不落标志
+  /* v68.2 小节数 4→8：本用例原在旧外壳 1400 宽、左栏面板展开时跑（谱纸 719 → PAGE_W 689，自然排 3+1，有下一行可拉）；
+     新外壳（默认）同宽谱纸 900 → PAGE_W 870，4 小节自然一行排满、首行根本没有「+」可点（clicks=0）——测不到守卫。
+     改成 8 小节后两种版宽都有下一行可拉、都会拉到 1.75 倍上限后置灰；断言与阈值一字不改。
+     同一 song、同一 PAGE_W 下两种外壳的 #score 逐字节相同（v68.2 C3 轨实测 59 组对拍全同；库内常驻证据见 tv_header T14x），差异只在谱纸宽口径（计划 §1.5-8）。 */
   r = await pg.evaluate(() => { if (typeof undoStack !== 'undefined') undoStack.length = 0;
-    const s = createSong('guitar', { title: 'e', beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 0, lyr: 0 });
+    const s = createSong('guitar', { title: 'e', beats: 4, unit: 4, key: 'C', nMea: 8, nTab: 1, nVox: 0, lyr: 0 });
     const mk8 = (f) => ({ dur: 8, dotted: false, chord: '', notes: [{ s: 2, f }], strum: '', tech: '' });
     s.measures.forEach(m => { m.tabs[0] = [mk8(3), mk8(5), mk8(7), mk8(5), mk8(3), mk8(5), mk8(7), mk8(5)]; });
     loadSong(s); blurSel = true; render();
@@ -202,7 +206,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const noMore = ![...document.querySelectorAll('#score .sysbtn')].some(g => (g.dataset.sysact || '').indexOf('pull:0:') === 0);
     const availW2 = PAGE_W - 2 * MARGIN - STAFF_HEAD_W;
     let natRow = 0; layoutSystems()[0].measures.forEach(lm => { natRow += measureLayout(song.measures[lm.mi]).w; });
-    return { clicks, row0, noMore, ratio: natRow / availW2 };
+    return { clicks, row0, noMore, ratio: natRow / availW2, PW: PAGE_W };
   });
   T(r.clicks >= 1 && r.row0 >= 2 && r.noMore && r.ratio <= 1.76, 'T11 「+」容量守卫', JSON.stringify(r));
 

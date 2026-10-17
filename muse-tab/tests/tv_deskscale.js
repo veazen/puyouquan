@@ -17,7 +17,12 @@
       1366 D7（左栏自动收起，再开改浮层、谱面不被挤窄）、打印（按 FIXED_A4 排、与屏幕断行相同，打印期间不挂 fixwide，打印后显示宽复原）
    验收修（升级用户旧缩放值 / 存量谱排版串扰 / 排版不覆盖手动缩放 / PNG 与窗口无关 / Ctrl+滚轮锚点 / 键盘光标跟滚 / 收起钮）
    见姊妹套件 tv_deskscale2.js（拆开是为了单套件留在 run_all.js 的 180 秒上限内）。
-   突变实证：MUSETAB_URL 指向 v67.1 → T2 / T4 / T5 / T6 报红（见文末记录）。 */
+   突变实证：MUSETAB_URL 指向 v67.1 → T2 / T4 / T5 / T6 报红（见文末记录）。
+   v68.2 切默认（flow）：全套跑两遍——旧外壳（?shell=classic，原断言逐字不变）＋默认外壳（flow，标 [flow]）。flow 遍同一组 7 个视口 / DPR、同一字号目标：
+     T1 / T2 / T3 / T5 断言不变（固定版宽谱 7 视口显示比例、手动缩放无死区——计划 §5.4 要求在 flow 下补的两条即此）；
+     T4「左栏收起自动放大」flow 无对应（左栏 #flw-left 常驻 248、不提供收起，不判；没有 D7 另见 tv_v66a T1f / T2f、tv_trktree T26）；
+     T6「排版」走新入口：真实点模式条「排版」→ 右栏「版式」页「标准」预设 → Esc 回书写，断言不变；
+     T7 的「1366 D7 收起+浮层」在 flow 换成「1366 新建谱左栏常驻、不自动收起、无浮层类、不裁」，其余（存量谱 / 观看页 / 手机 / 打印）断言不变 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -62,18 +67,26 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     fixwide:document.body.classList.contains('fixwide'), tight:document.body.classList.contains('paper-tight'),
     xs:P.classList.contains('paper-xs'), maxW:getComputedStyle(P).maxWidth, docW:document.documentElement.scrollWidth, vw:innerWidth }; })()`;
 
+const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
-  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
+  let FLOWM = false;
+  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + (FLOWM ? '[flow] ' : '') + name + (d ? ': ' + d : '')); };
   const errs = [];
+ for (const MODE of ['classic', 'flow']) {
+  FLOWM = MODE === 'flow';
+  const URLM = FLOWM ? URL0 : withQ(URL0, 'shell=classic');
+  console.log('—————— ' + (FLOWM ? 'flow（默认外壳）' : '旧外壳（?shell=classic）') + ' ——————');
   let FA4 = null, FMAX = null;   // v67.7 期望值读页面常量 FIXED_A4（1060→870）/ FIT_MAX
   const open = async (w, h, dpr, mob) => {
     const ctx = await b.newContext(mob ? { viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: dpr || 3 }
       : { viewport: { width: w, height: h }, deviceScaleFactor: dpr || 1 });
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-    await pg.goto(URL0); await pg.waitForTimeout(900);
+    await pg.goto(URLM); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    const isFlow = await pg.evaluate(() => document.body.classList.contains('flow') || document.body.classList.contains('flw-m'));
+    if (isFlow !== FLOWM) errs.push('外壳不符：要 ' + MODE + '，实际 ' + (isFlow ? 'flow' : 'classic'));
     if (FA4 == null) ({ FA4, FMAX } = await pg.evaluate(() => ({ FA4: typeof FIXED_A4 === 'number' ? FIXED_A4 : null, FMAX: typeof FIT_MAX === 'number' ? FIT_MAX : null })));
     pg._ctx = ctx; return pg; };
   /* 真实 UI 走新建向导 */
@@ -113,7 +126,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
       await pg.click('#zoom-lbl'); await pg.waitForTimeout(250); const g1 = await geo(pg);
       extra['zoom' + w] = { z, zx, barR: gz.barR, paperR: gz.paperR, back: { vz: g1.vz, svgW: g1.svgW, xs: g1.xs } };
     }
-    if (d === 1 && (w === 1440 || w === 1536)) {
+    if (d === 1 && (w === 1440 || w === 1536) && !FLOWM) {
       /* T4 收起左栏当前页签 → 自动放大；再点打开 → 回停靠 */
       const t = await railTab();
       await pg.click(`.ltab[data-t="${t}"]`); await pg.waitForTimeout(500); const gc = await geo(pg);
@@ -123,12 +136,15 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
       extra['fly' + w] = { closed: { hidden: gc2.flyHidden, dig: gc2.dig, svgW: gc2.svgW, clipped: gc2.clipped }, reopened: { hidden: go.flyHidden, pos: go.flyPos, dig: go.dig, svgW: go.svgW, clipped: go.clipped } };
     }
     if (d === 1 && w === 1920) {
-      /* T6 排版浮层点预设 */
-      await pg.click('#b-layout'); await pg.waitForTimeout(200);
+      /* T6 排版浮层点预设（flow：模式条「排版」→ 右栏「版式」页的同一组预设 → Esc 回书写） */
+      if (FLOWM) { await pg.click('#flw-mode-engrave'); await pg.waitForTimeout(300); }
+      else { await pg.click('#b-layout'); await pg.waitForTimeout(200); }
       await pg.click('#lp-preset button[data-preset="standard"]'); await pg.waitForTimeout(300);
-      await pg.click('#lp-done').catch(() => {}); await pg.waitForTimeout(200);
+      if (FLOWM) { await pg.keyboard.press('Escape'); await pg.waitForTimeout(300); }
+      else { await pg.click('#lp-done').catch(() => {}); await pg.waitForTimeout(200); }
       const gl = await geo(pg);
-      extra.lay = { vz: gl.vz, svgW: gl.svgW, before: g.svgW, xs: gl.xs, stored: await pg.evaluate(() => localStorage.getItem('musetab-zoom')) };
+      extra.lay = { vz: gl.vz, svgW: gl.svgW, before: g.svgW, xs: gl.xs, stored: await pg.evaluate(() => localStorage.getItem('musetab-zoom')),
+        mode: await pg.evaluate(() => document.body.dataset.mode || '') };
     }
     await pg._ctx.close();
   }
@@ -165,8 +181,9 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     for (const w of [1366, 1920]) { const x = extra['hd' + w]; if (!x || x.err || !x.same || x.top !== x.sys0) bad.push(w + ' 页头≠v66.8 ' + JSON.stringify(x)); }
     T(bad.length === 0, 'T3 页头放得下时走原写法（字号 28/16/11/12.5/12.5，SVG 与 v66.8 原写法一致、首行起点一致）', bad.join(' | ') || 'ok'); }
 
-  /* T4 面板收起自动放大 */
-  { const a = extra.fly1440, c = extra.fly1536, d0 = res['1440x900@1'], d1 = res['1536x864@1'];
+  /* T4 面板收起自动放大（flow 无对应：左栏常驻） */
+  if (FLOWM) console.log('   ℹ️  [flow] T4 不判：flow 左栏 #flw-left 常驻 248、不提供收起（无 D7 见 tv_v66a T1f / T2f、tv_trktree T26）');
+  else { const a = extra.fly1440, c = extra.fly1536, d0 = res['1440x900@1'], d1 = res['1536x864@1'];
     const ok = a && c && a.closed.hidden && a.closed.dig >= 16 && c.closed.hidden && c.closed.dig >= 17.5
       && !a.reopened.hidden && !c.reopened.hidden && a.reopened.svgW === d0.svgW && c.reopened.svgW === d1.svgW
       && a.closed.clipped === 0 && c.closed.clipped === 0 && a.reopened.clipped === 0 && c.reopened.clipped === 0;
@@ -184,7 +201,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
 
   /* T6 排版浮层 */
   { const x = extra.lay;
-    T(x && x.vz === 1 && x.svgW === x.before && !x.xs && (x.stored === null || +x.stored === 1),
+    T(x && x.vz === 1 && x.svgW === x.before && !x.xs && (x.stored === null || +x.stored === 1) && (!FLOWM || x.mode === 'write'),
       'T6 「排版」点预设后缩放仍 100%、显示＝适配（不二次放大、不把缩放写成 85%）', JSON.stringify(x)); }
 
   /* T7 不受影响 */
@@ -206,13 +223,20 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     r = await geo(pg);
     if (r.fixwide || r.PAGE_W >= FA4 || r.svgW > 390 || r.docW > r.vw) bad.push('手机 ' + JSON.stringify({ fw: r.fixwide, PW: r.PAGE_W, svgW: r.svgW, docW: r.docW }));   // v67.7 1060 → FIXED_A4
     await pg._ctx.close();
-    /* 1366 D7：左栏自动收起，再开改浮层、谱面不被挤窄 */
+    /* 1366 D7：左栏自动收起，再开改浮层、谱面不被挤窄（flow：左栏常驻、不自动收起、无浮层类、不裁） */
     pg = await open(1366, 768); await wizard(pg);
-    const g0 = await geo(pg); const t = await railTab();
+    const g0 = await geo(pg);
+    if (FLOWM) {
+      const fl = await pg.evaluate(() => ({ w: Math.round(document.getElementById('flw-left').getBoundingClientRect().width), auto: !!FLY_AUTO_CLOSED }));
+      if (!(g0.fixwide && !g0.tight && g0.clipped === 0 && fl.w === 248 && !fl.auto && g0.paperL >= 248 - 1))
+        bad.push('flow 1366 ' + JSON.stringify({ fw: g0.fixwide, t: g0.tight, c: g0.clipped, fl, paperL: g0.paperL }));
+    } else {
+    const t = await railTab();
     await pg.click(`.ltab[data-t="${t}"]`); await pg.waitForTimeout(500);
     let g1 = await geo(pg); if (g1.flyHidden) { await pg.click(`.ltab[data-t="${t}"]`); await pg.waitForTimeout(500); g1 = await geo(pg); }
     if (!(g0.flyHidden && !g0.tight && !g1.flyHidden && g1.tight && g1.flyPos === 'fixed' && g1.svgW >= g0.svgW - 2 && g1.clipped === 0))
       bad.push('D7 ' + JSON.stringify({ g0: { h: g0.flyHidden, t: g0.tight, w: g0.svgW }, g1: { h: g1.flyHidden, t: g1.tight, pos: g1.flyPos, w: g1.svgW, c: g1.clipped } }));
+    }
     /* 打印：按 FIXED_A4（v67.7 起 870）、断行同屏，打印期间不挂 fixwide */
     r = await pg.evaluate(() => { const sv = document.getElementById('score'), scr = layoutSystems().map(s => s.measures.map(m => m.mi).join(',')).join('|'), w0 = +sv.getAttribute('width');
       window.dispatchEvent(new Event('beforeprint')); const during = { PW: PAGE_W, sys: layoutSystems().map(s => s.measures.map(m => m.mi).join(',')).join('|'), fw: document.body.classList.contains('fixwide') };
@@ -221,7 +245,8 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg.waitForTimeout(400); r.w1 = await pg.evaluate(() => +document.getElementById('score').getAttribute('width'));
     if (!(r.during.PW === FA4 && r.during.sys === r.scr && !r.during.fw && r.w1 === r.w0)) bad.push('打印 ' + JSON.stringify(r));   // v67.7 1060 → FIXED_A4
     await pg._ctx.close();
-    T(bad.length === 0, 'T7 不受影响：存量自适应谱 / 观看页 / 手机 390 / 1366 D7 收起+浮层 / 打印按 FIXED_A4', bad.join(' | ') || 'ok'); }
+    T(bad.length === 0, 'T7 不受影响：存量自适应谱 / 观看页 / 手机 390 / ' + (FLOWM ? '1366 左栏常驻不收起' : '1366 D7 收起+浮层') + ' / 打印按 FIXED_A4', bad.join(' | ') || 'ok'); }
+ }
 
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

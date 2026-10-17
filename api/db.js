@@ -349,9 +349,17 @@ const q = {
   redeemList:   db.prepare('SELECT * FROM redeem_codes ORDER BY created_at DESC, rowid DESC LIMIT ?'),
   eventAdd:     db.prepare('INSERT INTO events(user_id,name,meta,created_at) VALUES(?,?,?,?)'),
   eventStats:   db.prepare('SELECT name, COUNT(*) AS n FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC'),
-  /* v63.4 A7：带去重人数 u（user_id 优先，否则 anon_id；都没有的历史行不计人数） */
-  eventStatsU:  db.prepare("SELECT name, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE created_at > ? GROUP BY name ORDER BY n DESC"),
-  eventScan:    db.prepare('SELECT user_id, anon_id, name, created_at FROM events WHERE created_at > ? ORDER BY created_at'),
+  /* v63.4 A7：带去重人数 u（user_id 优先，否则 anon_id；都没有的历史行不计人数）
+     v68.2：两条都不含 ui_cmd（编辑器界面命令，量大）——后台漏斗只取前 8 名，ui_cmd 会把北极星事件挤出去；
+     eventScan（北极星 / 访客 / 留存）的口径与 v68.2 之前保持一致（每次打开编辑器都有 visit，界面命令不增加活跃日），也省掉逐行扫描 */
+  eventStatsU:  db.prepare("SELECT name, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE created_at > ? AND name <> 'ui_cmd' GROUP BY name ORDER BY n DESC"),
+  eventScan:    db.prepare("SELECT user_id, anon_id, name, created_at FROM events WHERE created_at > ? AND name <> 'ui_cmd' ORDER BY created_at"),
+  /* v68.2 后台「界面」一行（计划 §5.3）：两个参数都传同一个起点时间。返回 [{k, u}]：
+     k＝'mode:engrave' / 'mode:output'（ui_cmd 的 meta 以 mode: 开头，按 meta 分组、按人去重）＋ k＝'editors'（编辑器 zhipu 的 visit，按人去重＝编辑访客） */
+  eventUiCmd7:  db.prepare("SELECT meta AS k, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'ui_cmd' AND created_at > ? AND meta LIKE 'mode:%' GROUP BY meta"
+    + " UNION ALL SELECT 'editors' AS k, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'visit' AND created_at > ? AND landing LIKE 'zhipu/%'"
+    /* v68.2 收尾 ENG-6：flow＝7 日内发过任何 ui_cmd 的人（新外壳用户；手机 / 旧版布局 / 只开启动台的不在内）——「模式使用率」的窄口径分母 */
+    + " UNION ALL SELECT 'flow' AS k, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'ui_cmd' AND created_at > ?"),
   eventAddX:    db.prepare('INSERT INTO events(user_id,name,meta,created_at,anon_id,src,landing) VALUES(?,?,?,?,?,?,?)'),
   /* v60.87 站内信。广播可见窗口＝近 90 天（server.js 传 cutoff）：老公告对所有人自然过期、
      新注册用户也能看到近期公告（若按注册时间过滤，注册前一天发的公告会被冤枉地藏掉）。

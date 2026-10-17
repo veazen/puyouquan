@@ -10,7 +10,11 @@
    突变实证：对 v60.98 跑 T1 红（无网格/钮高不一）+T2/T3 红（旧平铺序）；对 v60.99 跑 T1/T3 红（有子标题）；
    对 v61.3 跑 T7/T8 红（无 .trk-ic/旧图标）。 */
 const { chromium } = require('playwright');
-const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+/* v68.2 切默认（flow）：本套件 T1–T8 是旧外壳左栏 / 上栏视觉几何（#sign-host-* 四列 46 高、左轨 56 定宽、当前音轨卡）——钉 ?shell=classic。
+   flow 下同一意图：记号格两档几何＝tv_trktree T20（52×52 / 36×36）· 命中区＝tv_trktree T11、tv_shellflow S16 · 行 2 单行高 40＝tv_shellflow S9 ·
+   音轨行轨名 / 徽标＝tv_trktree T1 · 记号分组与旧按钮 1:1＝tv_trktree T15 / T16 */
+const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });

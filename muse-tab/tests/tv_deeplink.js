@@ -31,6 +31,9 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 默认外壳 flow：电脑上「新建」入口＝页签「＋」#dt-add（同 Alt+N / 文件 ▾「新建…」，都是 showNewWizard）；旧外壳（?shell=classic）是顶栏 #b-new。
+   深链本身（?new= 打开面板）与外壳无关；D1 / D19 里「在面板里真点一下」的对照入口换成 #dt-add */
+const NEWB = '#dt-add';
 const SITE = process.env.SITE_DIR || path.resolve(__dirname, '../site');
 const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord', 'blank', 'custom'];
 (async () => {
@@ -44,7 +47,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
     const pg = await ctx.newPage(); pg.setDefaultTimeout(5000);
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     if (opt.init) await pg.addInitScript(opt.init);
-    await pg.goto(F + (q ? '?' + q : '')); await pg.waitForTimeout(1000);
+    await pg.goto(F + (q ? (F.includes('?') ? '&' : '?') + q : '')); await pg.waitForTimeout(1000);
     pg._ctx = ctx; return pg;
   };
   const guard = async (name, fn) => { try { await fn(); } catch (e) { T(false, name, 'EXC: ' + String(e.message || e).split('\n')[0]); } };
@@ -70,7 +73,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       /* 同一用途在面板里真点一下（面板默认＝上次 / 吉他弹唱，再点该用途）：深链预选＝点它的结果 */
       let clicked = null;
       if (r.open) { await pg.keyboard.press('Escape'); await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} hideStartPad(); });
-        await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]'); if (sc !== 'gtr') await pg.click('[data-scene="' + sc + '"]');
+        await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]'); if (sc !== 'gtr') await pg.click('[data-scene="' + sc + '"]');
         clicked = await EV(pg, () => JSON.stringify(NWP.planOf(NWP.state))); }
       seen.push(sc + ':' + (r.open ? r.kind : 'closed'));
       if (!(r.open && r.scene === sc && r.sel === sc && r.plan === want && r.plan === clicked && r.docs === 1 && r.pad && r.userChips === 0 && !r.bad && r.last === null))
@@ -550,7 +553,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       await pd.keyboard.press('Enter'); await pd.waitForTimeout(400);
       const built = await EV(pd, () => song.title); await pd._ctx.close();
       const pp = await open('', 1440, 900);
-      await EV(pp, () => hideStartPad()); await pp.click('#b-new'); await pp.waitForSelector('#nw-title'); await pp.click('[data-scene="inst"]');
+      await EV(pp, () => hideStartPad()); await pp.click(NEWB); await pp.waitForSelector('#nw-title'); await pp.click('[data-scene="inst"]');
       await pp.fill('#nw-title', t); await pp.click('#nw-create'); await pp.waitForTimeout(400);
       const typed = await EV(pp, () => song.title); await pp._ctx.close();
       r.flow.push({ t, built, typed, ok: built === t && typed === t });

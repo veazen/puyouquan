@@ -15,7 +15,8 @@
       内部几何比例（T1/T2/T8）分毫未变
    T10 三个入口：创作辅助栏（全局）+ 吉他轨 + 旋律轨，开着时齐亮
    T11 编辑/演奏双模式：演奏模式点板只试听不改谱
-   T12 创作辅助行两列铺排，无溢出无截断（v60.62 加进第三项后曾撑破卡片）
+   T12 创作辅助行两列铺排，无溢出无截断（v60.62 加进第三项后曾撑破卡片）——v68.2 起在 ?shell=classic 页跑（旧右栏结构）
+   T12f（v68.2）新外壳（默认）指板 / 键盘入口：行 2「更多 ▾」勾选项 + 音轨树 ⋯，真实点击
    对 v60.61 旧文件跑：T1–T10 全红（BOARD 未定义）。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -274,8 +275,15 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.hlPlay.indexOf('"f":5') >= 0,
     'T11 演奏模式点板只试听不改谱（高亮仍跟手）；编辑模式照旧落音；默认编辑', JSON.stringify(r));
 
-  // T12 创作辅助行不再溢出（v60.62 加进第三项后原 flex 均分撑破卡片）
-  r = await pg.evaluate(HELP + `(()=>{
+  /* T12 创作辅助行不再溢出（v60.62 加进第三项后原 flex 均分撑破卡片）
+     v68.2：#ai-tools 是旧右栏「创作」页的卡片栅格，新外壳（默认）不渲染这张卡（1280 下右栏是 40 竖条，页内容换成属性 / 文字 / 智能），
+     这条是旧外壳的结构几何——原断言一字不改放到 ?shell=classic 页面跑（T12）；指板 / 键盘在新外壳的入口另由 T12f 真实点击覆盖。 */
+  {
+    const pc = await b.newPage({ viewport: { width: 1280, height: 950 } });
+    pc.on('pageerror', e => errs.push('classic:' + e.message));
+    await pc.goto(F + '?shell=classic'); await pc.waitForTimeout(900);
+    await pc.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    r = await pc.evaluate(HELP + `(()=>{
     __mk();
     const host=document.getElementById('ai-tools');
     const hb=host.getBoundingClientRect();
@@ -294,7 +302,42 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     && r.items.every(x => !x.clipB && !x.clipS)              // 文案在默认栏宽下不被省略号吃掉
     && r.rows === 2                                          // 两列 + 整宽项 = 两行
     && Math.abs(r.items[2].w - r.hostW) < 1,                 // 指板/键盘独占整行
-    'T12 创作辅助行：两列铺排、指板/键盘独占整行，无溢出无截断', JSON.stringify(r));
+    'T12 旧外壳（?shell=classic）创作辅助行：两列铺排、指板/键盘独占整行，无溢出无截断', JSON.stringify(r));
+    await pc.close();
+  }
+
+  /* T12f 新外壳（默认）的指板 / 键盘入口：计划 §1.4 行 2「更多 ▾」末项「指板输入 / 键盘输入」（data-old="#rt-board"，与旧创作辅助栏同一按钮、
+     勾选态＝BOARD.on）与音轨树行尾「⋯」「指板输入 / 键盘输入」（tree:board → #b-trkboard / 旋律轨 openBoard('key')）。全部真实点击：
+     菜单项可见、不越出视口；点开＝BOARD.on 且板型随当前轨（吉他→指板、旋律→键盘）；再开菜单勾选态为真、再点＝收起。 */
+  {
+    await pg.evaluate(HELP + `(()=>{ __mk(); })()`);
+    const flowOn = await pg.evaluate(() => document.body.classList.contains('flow'));
+    const inView = el => { const q = el.getBoundingClientRect(); return q.width > 0 && q.left >= 0 && q.top >= 0 && q.right <= innerWidth && q.bottom <= innerHeight; };
+    const menuItem = async (opener, itemSel) => { await pg.locator(opener).first().click({ timeout: 3000 }); await pg.waitForTimeout(120);
+      return pg.evaluate(([sel, inViewSrc]) => { const it = document.querySelector('#popmenu ' + sel); if (!it) return null; const iv = eval(inViewSrc);
+        return { label: (it.querySelector('.flw-ml') || it).firstChild.textContent.trim(), checked: it.getAttribute('aria-checked'), dis: it.getAttribute('aria-disabled') === 'true', inView: iv(it) }; }, [itemSel, inView.toString()]); };
+    const st = () => pg.evaluate(() => ({ on: BOARD.on, kind: BOARD.kind, row: BOARD.row }));
+    const m1 = await menuItem('#flw-more', '[data-old="#rt-board"]');
+    if (m1) { await pg.locator('#popmenu [data-old="#rt-board"]').click({ timeout: 3000 }); await pg.waitForTimeout(150); }
+    const s1 = await st();
+    const m2 = await menuItem('#flw-more', '[data-old="#rt-board"]');
+    if (m2) { await pg.locator('#popmenu [data-old="#rt-board"]').click({ timeout: 3000 }); await pg.waitForTimeout(150); }
+    const s2 = await st();
+    /* 音轨树：当前吉他轨行尾 ⋯ */
+    const t1 = await menuItem('#flw-left .flw-trow.on [data-fa="tree:more"][data-k="tab"]', '[data-fa="tree:board"]');
+    if (t1) { await pg.locator('#popmenu [data-fa="tree:board"]').click({ timeout: 3000 }); await pg.waitForTimeout(150); }
+    const s3 = await st();
+    await pg.evaluate(() => { closeBoard(); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 3 }; render(); });
+    const t2 = await menuItem('#flw-left .flw-trow.on [data-fa="tree:more"][data-k="vox"]', '[data-fa="tree:board"]');
+    if (t2) { await pg.locator('#popmenu [data-fa="tree:board"]').click({ timeout: 3000 }); await pg.waitForTimeout(150); }
+    const s4 = await st();
+    await pg.evaluate(() => { try { closeBoard(); } catch (_) {} try { closePop(); } catch (_) {} });
+    T(flowOn && m1 && m1.label === '指板输入' && m1.checked === 'false' && !m1.dis && m1.inView && s1.on === true && s1.kind === 'fret'
+      && m2 && m2.checked === 'true' && s2.on === false
+      && t1 && t1.label === '指板输入' && t1.inView && s3.on === true && s3.kind === 'fret'
+      && t2 && t2.label === '键盘输入' && t2.inView && s4.on === true && s4.kind === 'key' && s4.row === 'vox',
+      'T12f 新外壳（默认）指板 / 键盘入口：行 2「更多 ▾」勾选项开 / 关 + 音轨树 ⋯（吉他轨→指板、旋律轨→键盘），菜单项在视口内', JSON.stringify({ flowOn, m1, s1, m2, s2, t1, s3, t2, s4 }));
+  }
 
   T(errs.length === 0, '无页面报错', errs.join('|') || 'none');
   console.log('PASS ' + pass + '/' + total);

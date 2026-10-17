@@ -35,6 +35,9 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 默认外壳 flow（计划 §5.4「tv_fillacc M」）：1280 宽右栏是竖条、旧左栏面板隐藏——真实点击的入口换成新外壳的：
+   「一键配伴奏…」#rt-arr → 右栏「智能」页（竖条「智能」浮出）同名项；「伴奏织体…」#b-acctex → 「智能」页「伴奏织体…」；
+   旋律轨「六」灯 #nl-voxtab → 左栏音轨树当前旋律轨下的「由此生成六线谱轨…」（tree:gentab，同一 showVoxTabMenu）。断言不变 */
 const REF = process.env.MUSETAB_REF || '';
 
 const HELP = `(()=>{
@@ -65,7 +68,21 @@ const HELP = `(()=>{
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
   const J = o => JSON.stringify(o);
   const EV = s => pg.evaluate(s).catch(e => ({ err: e.message }));
-  const openArr = async () => { await pg.click('#rt-arr'); await pg.waitForTimeout(120); };
+  const FLOWON = () => pg.evaluate(() => typeof flowOn === 'function' && flowOn());
+  /* 右栏「智能」页的项（已在屏上就直接点；否则停靠时点页签、竖条时点竖条「智能」浮出） */
+  const smartAct = async v => {
+    const btn = '#flw-rx-ai [data-fa="rdp:ai"][data-v="' + v + '"]';
+    if (!(await pg.isVisible(btn).catch(() => false))) {
+      for (const t of ['#flw-rp-tabs [data-fa="rd:page"][data-p="smart"]', '#flw-rstrip [data-fa="rd:tab"][data-p="smart"]']) if (await pg.isVisible(t).catch(() => false)) { await pg.click(t); break; }
+      await pg.waitForSelector(btn, { state: 'visible', timeout: 2500 });
+    }
+    await pg.click(btn);
+  };
+  const GEN = '#flw-tlist [data-fa="tree:gentab"][data-k="vox"][data-i="0"]';   /* 音轨树：旋律轨 1 下的「由此生成六线谱轨…」 */
+  const genLit = async () => (await FLOWON()) ? (await pg.evaluate(() => { FLOW.tree.sync(); }), await pg.isVisible(GEN).catch(() => false))
+    : await EV(`(()=>{ const b=document.getElementById('nl-voxtab'); const r=b&&b.getBoundingClientRect(); return !!(r && r.width>0 && r.height>0); })()`);
+  const genClick = async () => (await FLOWON()) ? pg.click(GEN) : pg.click('#nl-voxtab');
+  const openArr = async () => { if (await FLOWON()) await smartAct('arr'); else await pg.click('#rt-arr'); await pg.waitForTimeout(120); };
   const modalInfo = () => EV(`(()=>{ const o=document.getElementById('arr-out'); if(!o) return {modal:false};
     return {modal:true, out:o.value, opts:[...o.options].map(x=>x.value), fillTxt:(o.querySelector('option[value="fill"]')||{}).textContent||'',
       tex:(document.querySelector('input[name="arr-tex"]:checked')||{}).value, ofs:__ofs()}; })()`);
@@ -199,8 +216,8 @@ const HELP = `(()=>{
       s.measures.forEach((m,mi)=>{ m.voxes[0]=[__V(5,4,{oct:-1}),__V(1,4),__V(2,4),__V(3,8),__V(1,8)]; }); s.measures[0].voxes[0][0].chord='G';
       addDoc(s); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; setRibbon('vox'); render(); window.__pre=JSON.stringify(song); window.__u0=undoStack.length; })()`);
     await pg.waitForTimeout(120);
-    const lit = await EV(`(()=>{ const b=document.getElementById('nl-voxtab'); const r=b&&b.getBoundingClientRect(); return !!(r && r.width>0 && r.height>0); })()`);
-    if (lit) await pg.click('#nl-voxtab'); else await EV(`showVoxTabMenu(0)`);
+    const lit = await genLit();
+    if (lit) await genClick(); else await EV(`showVoxTabMenu(0)`);
     await pg.waitForTimeout(120);
     await pg.click('#vt-low'); await pg.waitForTimeout(150);
     const r = await EV(`(()=>{ const tun=tuningOf(), cap=song.capo||0; let ok=0, bad=0;
@@ -209,7 +226,7 @@ const HELP = `(()=>{
     await pg.keyboard.press('Control+z'); await pg.waitForTimeout(120);
     const u = await EV(`({back:JSON.stringify(song)===__pre})`);
     T(lit && r.n === 1 && r.names === '吉他·旋律1' && r.ok === 10 && r.bad === 0 && r.row === 'tab' && r.vi === 0 && r.undo === 1 && !r.jp && !r.tabJp && !r.caps && u.back,
-      'F6a 吉他弹唱「先写旋律」：真实点击「六」灯 → 低把位：复用唯一的空吉他轨（仍 1 条、改名「吉他·旋律1」、10 音逐音音高 / 时值等价、光标落 TAB），不写联排 / 夹位字段；Ctrl+Z 回到空轨原名逐字节', J({ lit, r, u }));
+      'F6a 吉他弹唱「先写旋律」：真实点击「六」灯（flow：音轨树「由此生成六线谱轨…」）→ 低把位：复用唯一的空吉他轨（仍 1 条、改名「吉他·旋律1」、10 音逐音音高 / 时值等价、光标落 TAB），不写联排 / 夹位字段；Ctrl+Z 回到空轨原名逐字节', J({ lit, r, u }));
     const v = await EV(`(()=>{ const mk=(o,f)=>{ const s=createSong('tanchang',Object.assign({inst:'guitar',key:'C',beats:4,unit:4,nMea:2,nTab:1,nVox:1,lyr:0},o||{}));
         s.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(3,4),__V(5,4),__V(1,4,{oct:1})]; }); if(f) f(s); addDoc(s); return s; };
       const res=(r)=>({n:song.tabVoices.length, nm:song.tabVoices.join('/'), reused:r.reused, jp:JSON.stringify(song.tabJpVoices===undefined? '∅' : song.tabJpVoices), tabJp:!!song.tabJp,
@@ -236,21 +253,22 @@ const HELP = `(()=>{
       mk(null, s=>{ s.measures[1].tabs[0][3].ferm=true; }); out.ferm={r:mapVoxToTab(0,'low').reused, n:song.tabVoices.length, keep:!!song.measures[1].tabs[0][3].ferm};
       mk(null, s=>{ s.tabVoices=['主音吉他']; }); { const r=mapVoxToTab(0,'low'); out.custom={r:r.reused, n:song.tabVoices.length, nm:song.tabVoices[0], rn:r.name}; }
       mk(null, s=>{ s.mixer={'tab:0':{on:false, solo:false, inst:'nylon', vol:0.4, pan:null}}; });
-      document.getElementById('nl-voxtab') && (out.title=document.getElementById('nl-voxtab').title);
+      if(typeof flowOn==='function' && flowOn()){ sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); FLOW.tree.sync(); const g=document.querySelector('#flw-tlist [data-fa="tree:gentab"][data-k="vox"][data-i="0"]'); out.title=g? g.title : ''; }   /* flow：音轨树「由此生成六线谱轨…」的提示 */
+      else document.getElementById('nl-voxtab') && (out.title=document.getElementById('nl-voxtab').title);
       showVoxTabMenu(0); out.modal=(document.querySelector('.modal p')||{}).textContent||''; closeModal();
       { const r=mapVoxToTab(0,'low'); out.muted={r:r.reused, muted:r.muted, mix:JSON.stringify(song.mixer['tab:0'])}; }
       return out; })()`);
     await EV(`(()=>{ const s=createSong('tanchang',{inst:'guitar',key:'C',beats:4,unit:4,nMea:2,nTab:1,nVox:1,lyr:0}); s.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(3,4),__V(5,4),__V(1,4,{oct:1})]; });
       s.mixer={'tab:0':{on:false, solo:false, inst:'steel', vol:1, pan:null}}; addDoc(s); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; setRibbon('vox'); render(); })()`);
     await pg.waitForTimeout(100);
-    if (await EV(`(()=>{ const b=document.getElementById('nl-voxtab'); const r=b&&b.getBoundingClientRect(); return !!(r && r.width>0); })()`)) await pg.click('#nl-voxtab'); else await EV(`showVoxTabMenu(0)`);
+    if (await genLit()) await genClick(); else await EV(`showVoxTabMenu(0)`);
     await pg.waitForTimeout(100); await pg.click('#vt-low'); await pg.waitForTimeout(120);
     w.toast = await EV(`document.getElementById('toast').textContent`);
     T(w.anno && !w.anno.r && w.anno.n === 2 && w.anno.keep === '前奏' && !w.ferm.r && w.ferm.n === 2 && w.ferm.keep
       && w.custom.r && w.custom.n === 1 && w.custom.nm === '主音吉他' && w.custom.rn === '主音吉他'
       && /写进当前的空吉他轨「吉他1」（改名为「吉他·旋律1」）/.test(w.modal) && /静音/.test(w.modal) && /写进当前的空吉他轨「吉他1」/.test(w.title || '')
       && w.muted.r && w.muted.muted && /"on":false/.test(w.muted.mix) && /已写进空轨「吉他·旋律1」/.test(w.toast) && /静音/.test(w.toast),
-      'F6c 复用空轨的边界：TAB 上有段落标注 / 延长号的轨不算空（另加一条、原标注保留）；用户改过的轨名（主音吉他）保留不改写；混音台静音的空轨在弹窗与提示里照实说；「六」灯提示与弹窗文案写「写进当前的空吉他轨」', J(w));
+      'F6c 复用空轨的边界：TAB 上有段落标注 / 延长号的轨不算空（另加一条、原标注保留）；用户改过的轨名（主音吉他）保留不改写；混音台静音的空轨在弹窗与提示里照实说；「六」灯（flow：音轨树「由此生成六线谱轨…」）提示与弹窗文案写「写进当前的空吉他轨」', J(w));
   }
 
   /* ===== F7 2/4 儿歌伴奏织体 × 12 调 × 22 和弦 ===== */
@@ -467,7 +485,10 @@ const HELP = `(()=>{
   }
 
   /* ======== 第二轮验收回归（修前红、修后绿；修前基线＝第二轮修复前的合并树 f331646） ======== */
-  const texBtn = async () => { const v = await pg.evaluate(() => { const e = document.getElementById('b-acctex'); return !!e && e.offsetParent !== null; });
+  /* 伴奏织体：flow＝右栏「智能」页「伴奏织体…」（只在 #b-acctex 按谱类显示时出现，同经典显隐）；旧外壳＝#b-acctex；都不在屏上时同原口径程序点击 */
+  const texBtn = async () => {
+    if (await FLOWON() && await pg.evaluate(() => { const e = document.getElementById('b-acctex'); return !!e && e.style.display !== 'none'; })) { await smartAct('tex'); await pg.waitForTimeout(100); return; }
+    const v = await pg.evaluate(() => { const e = document.getElementById('b-acctex'); return !!e && e.offsetParent !== null; });
     if (v) await pg.click('#b-acctex'); else await pg.evaluate(() => document.getElementById('b-acctex').click()); await pg.waitForTimeout(100); };
 
   /* ===== F16 调内保护：和弦名按固定拼法表出（♭A 调 IV 级叫 C#、E 调 iii 级叫 Abm）时调内音仍写自然级 ===== */

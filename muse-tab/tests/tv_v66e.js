@@ -13,11 +13,19 @@
       静态两条 media meta 保留；不新增 localStorage 键
    T6 旧预设头像显示映射：账号里存的是 v66.5 前 8 枚旧色预设 data URI 时，个人中心页头显示同位新预设（＝site/pyq.js 现行 PRESETS 逐字），
       ACCT 与 localStorage 里的值不改写；新预设、上传图、http 头像原样
-   突变实证：MUSETAB_URL 指向 v66.5 原版复跑 → T1–T6 全红，只剩「无页面脚本错误」绿。 */
+   突变实证：MUSETAB_URL 指向 v66.5 原版复跑 → T1–T6 全红，只剩「无页面脚本错误」绿。
+   v68.2 收尾 ENG-10 登记（方案口径变化，待负责人确认；PROJECT.md 由发版轨写入）：
+     ① T3 扫描豁免 flow 记号字形里 fill-opacity 恰为 --flw-ctx（0.5）的 .pqsg-c 语境层（灰「5」、灰品位「3」）——方案 design-2026-10f「光学规则」定的语境墨，属字形图示、不是可读文字；
+     ② T1 flow 段音轨树静音钮按非文字图形口径 ≥3（WCAG 1.4.11：纯图标、svg stroke＝currentColor、无字），旧外壳混音台静音钮有字仍按 ≥4.5。
+   v68.2 切默认（flow）：T2–T6 在默认外壳跑；T1 两种外壳各一段——旧外壳段（?shell=classic）原样：页签 × 悬停 --danger 实底、混音台 #mx-expand 静音钮（含悬停）、
+   全部采纳 / 修复钮悬停；flow 段量新外壳里的同类控件：页签 × 悬停（行 1，--chrome-2 底，方案 §2.4 不再用 --danger 实底）、音轨树静音钮按下（--danger 字形）、
+   状态栏时值项上弹的「全部采纳」与修复钮悬停（--ok 实底）——字对比阈值不变（≥4.5）；源码「--danger / --ok 实底 + 白字」规则扫描不变。
+   T3 场景：「编辑器+坞展开」在 flow 下即扫新外壳编辑页（混音台不在），另加「编辑器+坞展开（旧外壳）」保住混音台小字，加 flow 右栏「智能」/「文字」页两态。 */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const CLASSIC = URL0 + (URL0.includes('?') ? '&' : '?') + 'shell=classic';
 const FILE = URL0.startsWith('file://') ? URL0.slice(7) : path.resolve(__dirname, '../index.html');
 const HTML = fs.readFileSync(FILE, 'utf8');
 const PYQ = fs.readFileSync(path.resolve(__dirname, '../site/pyq.js'), 'utf8');
@@ -52,6 +60,10 @@ const SCAN = () => {
   const sel = el => { const s = e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (e.classList && e.classList.length ? '.' + [...e.classList].slice(0, 3).join('.') : ''); return (el.parentElement ? s(el.parentElement) + '>' : '') + s(el); };
   const bad = [];
   const consider = (el, L, fg, text, fs, fw, tag) => {
+    /* v68.2：flow 记号字形（pqSign）里的「语境墨」——灰 5 / 灰品位 3 等示意记号挂在哪儿的语境元素（.pqsg-c，flow 下 fill-opacity＝--flw-ctx，方案 design-2026-10f
+       「光学规则」与 pqSign 注释：语境墨 50%）是字形图示的一部分、不是可读文字，与「纯符号装饰」同类豁免；记号本体（非 .pqsg-c）照常扫描 */
+    if (tag === '[svg]' && el.classList && el.classList.contains('pqsg-c') && el.closest('svg.pqsg')
+      && Math.abs(+getComputedStyle(el).fillOpacity - (+getComputedStyle(el).getPropertyValue('--flw-ctx') || 0.5)) < 0.01) return;   /* 只豁免透明度恰为语境墨值的那层 */
     let op = 1; for (const l of L) op *= l.op; if (op * fg[3] >= 0.999 || op === 0 || fg[3] === 0) return;
     if (!/[\p{L}\p{N}]/u.test(text)) return;   /* 纯符号装饰（› ♪ ～ ·）不按文字算 */
     if (el.closest('[disabled],:disabled,.disabled,[aria-disabled="true"],[inert]')) return;
@@ -105,7 +117,7 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
   {
     const out = {}; const fails = [];
     for (const [nm, scheme, theme] of STATES) {
-      const pg = await open(scheme, theme);
+      const pg = await open(scheme, theme, null, CLASSIC);   /* 旧外壳段 */
       await pg.evaluate(LOAD + `addDoc(PRESETS[10].make()); render(); renderDocTabs();`); await pg.waitForTimeout(300);
       const r = {};
       await pg.hover('#doc-tabs .dtab:not(.on) .dt-x'); await pg.waitForTimeout(80);
@@ -131,11 +143,41 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
       if (!r.dtx.bgIsDanger || !(r.mute && r.mute.bgIsDanger) || (r.muteH && r.muteH.oldRed)) fails.push(nm + ' 底色口径 ' + JSON.stringify(r));
       out[nm] = r; await close(pg);
     }
+    /* flow 段（默认外壳） */
+    for (const [nm, scheme, theme] of STATES) {
+      const pg = await open(scheme, theme);
+      await pg.evaluate(LOAD + `addDoc(PRESETS[10].make()); render(); renderDocTabs();`); await pg.waitForTimeout(300);
+      const r = { flow: await pg.evaluate(() => document.body.classList.contains('flow')) };
+      await pg.hover('#doc-tabs .dtab:not(.on)'); await pg.waitForTimeout(60);
+      await pg.hover('#doc-tabs .dtab:not(.on) .dt-x'); await pg.waitForTimeout(80);
+      r.dtx = await pg.evaluate(() => { const e = document.querySelector('#doc-tabs .dtab:not(.on) .dt-x'); const cs = getComputedStyle(e); const q = e.getBoundingClientRect();
+        return { cr: __cr(__col(cs.color), __bgOf(e)), vis: q.width > 0 && cs.display !== 'none', bgIsChrome2: __col(cs.backgroundColor).slice(0, 3).join() === __tok('--chrome-2').slice(0, 3).join() }; });
+      await pg.mouse.move(700, 500); await pg.waitForTimeout(60);
+      await pg.click('#flw-tlist .flw-trow.on .flw-tmute'); await pg.waitForTimeout(150);
+      await pg.mouse.move(700, 500); await pg.waitForTimeout(60);
+      r.mute = await pg.evaluate(() => { const e = document.querySelector('#flw-tlist .flw-tmute[aria-pressed="true"]'); if (!e) return null; const cs = getComputedStyle(e);
+        return { cr: __cr(__col(cs.color), __bgOf(e)), isDanger: __col(cs.color).slice(0, 3).join() === __tok('--danger').slice(0, 3).join(), icon: !e.textContent.trim() && !!e.querySelector('svg') }; });
+      await pg.evaluate(() => { loadSong(PRESETS[10].make()); const m = song.measures[0]; m.voxes[0].push(JSON.parse(JSON.stringify(m.voxes[0][0]))); render(); syncInputs(); });
+      await pg.waitForTimeout(200);
+      await pg.click('#beat-status'); await pg.waitForTimeout(150);   /* flow：点状态栏时值项＝上弹 #err-drop */
+      /* flow 的时值上弹层（#err-drop）随主题取底（浅色主题实测 rgb(255,255,255)、深色为深底；v68.2 收尾 ENG-10 更正此前「深色框架」的说法）：
+         修复钮悬停是半透明底叠在弹层底上——底色按祖先逐层合成（__bgOf），不能只取自身半透明底；计算结果见探针 f82v/engineering/probes/errdrop.js（浅 5.39 / 深 9.49 · 8.42） */
+      r.fixall = await pg.evaluate(() => { const e = document.getElementById('err-fixall'); if (!e || !e.getClientRects().length) return null; const cs = getComputedStyle(e); return { cr: __cr(__col(cs.color), __bgOf(e)) }; });
+      const fx = await pg.$('#err-drop .err-fix');
+      if (fx && await fx.isVisible()) { await fx.hover(); await pg.waitForTimeout(80);
+        r.fixH = await pg.evaluate(() => { const e = document.querySelector('#err-drop .err-fix'); const cs = getComputedStyle(e); return { cr: __cr(__col(cs.color), __bgOf(e)), fg: cs.color, bg: cs.backgroundColor }; }); }
+      if (!r.flow) fails.push('flow·' + nm + ' 不是新外壳');
+      /* 字（页签 × 、全部采纳、修复钮）≥4.5；音轨树静音钮是纯图标（svg stroke＝currentColor，没有字）——按非文字图形口径 ≥3（WCAG 1.4.11），旧外壳混音台静音钮是实底上的字仍按 4.5 */
+      for (const k of ['dtx', 'fixall', 'fixH']) if (!r[k] || !(r[k].cr >= 4.5)) fails.push('flow·' + nm + ' ' + k + '=' + (r[k] ? r[k].cr : '缺'));
+      if (!r.mute || !(r.mute.cr >= 3) || !r.mute.icon) fails.push('flow·' + nm + ' mute=' + (r.mute ? r.mute.cr : '缺'));
+      if (!r.dtx.vis || !r.dtx.bgIsChrome2 || !(r.mute && r.mute.isDanger)) fails.push('flow·' + nm + ' 底色口径 ' + JSON.stringify(r));
+      out['flow·' + nm] = r; await close(pg);
+    }
     const css = HTML.slice(HTML.indexOf('<style>'), HTML.indexOf('</style>'));
     const rules = css.match(/[^{}]+\{[^{}]*\}/g) || [];
     const whiteOnSem = rules.filter(x => /background(?:-color)?:\s*var\(--(?:danger|ok)\)/.test(x) && /(?:^|[;{\s])color:\s*#fff\b/.test(x)).map(x => x.trim().slice(0, 60));
     if (whiteOnSem.length) fails.push('源码仍有 --danger/--ok 实底白字：' + whiteOnSem.join(' | '));
-    T(!fails.length, 'T1 告警 / 成功实底上的字 ≥4.5（页签关闭悬停、静音钮及其悬停、全部采纳、修复钮悬停；浅 / 深 / 系统深）', fails.length ? fails.join('；') : JSON.stringify(out).slice(0, 300));
+    T(!fails.length, 'T1 告警 / 成功实底上的字 ≥4.5（页签关闭悬停、静音钮及其悬停、全部采纳、修复钮悬停；浅 / 深 / 系统深；旧外壳 + flow）', fails.length ? fails.join('；') : JSON.stringify(out).slice(0, 300));
   }
 
   /* ---------- T2 收藏心 / 变调芯片音名：不透明令牌 ---------- */
@@ -178,10 +220,13 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
       ['修复建议', W, `hideStartPad(); loadSong(PRESETS[10].make()); const m=song.measures[0]; m.voxes[0].push(JSON.parse(JSON.stringify(m.voxes[0][0]))); render(); syncInputs();`],
       ['手机观看页·变调', M, `hideStartPad(); toast=()=>{}; enterShareViewer({ song: PRESETS[0].make() }); setTimeout(()=>document.getElementById('vh-key')?.click(),50);`],
       ['页签条', W, LOAD + `addDoc(PRESETS[10].make()); render(); renderDocTabs();`],
+      ['编辑器+坞展开（旧外壳）', W, LOAD + `document.getElementById('mx-expand')?.click();`, CLASSIC],
+      ['flow 右栏智能页', W, LOAD + `FLOW.rd.show('smart');`],
+      ['flow 右栏文字页', W, LOAD + `FLOW.rd.show('text');`],
     ];
     const fails = []; let n = 0;
-    for (const [nm, vp, setup] of scenes) for (const [tn, scheme, theme] of STATES.slice(0, 2)) {
-      const pg = await open(scheme, theme, vp);
+    for (const [nm, vp, setup, url] of scenes) for (const [tn, scheme, theme] of STATES.slice(0, 2)) {
+      const pg = await open(scheme, theme, vp, url);
       try { await pg.evaluate('var col0;' + setup); } catch (e) { fails.push(nm + ' 场景脚本：' + e.message); }
       await pg.waitForTimeout(400);
       const bad = await pg.evaluate(SCAN); n++;

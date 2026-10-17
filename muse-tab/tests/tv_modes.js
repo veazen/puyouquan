@@ -39,8 +39,15 @@
    M25 v68.1 收尾（验收 PN）：只有一句提示的谱类新建后「下一步」说明可见（落地停「智能」页 / ⓘ）· 821–861 行 2 无遮挡 · 密集标尺的小节面板接 TRK-16 ·
        属性页芯片补拨片 / 打板 / 摇把 / 指法 / 谱号 · 转调小节音名按本小节调 · 命令「和弦图 / 写法」可用性同右栏 · 窄档「+N ↓」· 手机跟滚让开底条 · 命令同分常用在前
    M26 v68.1 收尾（验收 RG）：手机抽屉开着时互动谱快照节点不丢 · 排版 / 输出模式缩放作用于预览 · 命中区 ≥28 · 灰显原因进 title / 读屏名 · 空小节提示带图标
+   M27 v68.2 遗留 ①：排版 / 输出每笔整谱排版 1 次（render 本身就是预览快照；mutate / layApply / Ctrl+Z 各 1 次，只改选中行 0 次）· 回书写逐字节相同 · 渲染异常照旧自动撤销 ·
+       固定版宽谱排版换纸张不改写 musetab-zoom · 150 小节点击→预览更新 / 最长阻塞记数
+   M28 v68.2 遗留 ②：输出模式行 2「预览 适宽 / 整页 / 横排」作用于嵌入预览（几何）、左栏页面横向跳页、排版恒竖排、回书写还原、命令面板直达；821–1280 行 2 不收键
+   M29 v68.2 遗留 ③：#toast role=status / aria-live=polite / aria-atomic（flow 桌面与手机）；离开 flow 摘掉、快照里摘掉；经典外壳零差异
+   M30 v68.2 遗留 ④：命令面板拼音撞码 ph / qy 按常用度排；最近用过压过静态常用度；PN-9 口径不变
+   M31 v68.2 遗留 ⑤：窄档 56 左栏音轨列细滚动条（scrollbar-width:thin）与「+N ↓」并存
    M23 不带开关零差异：默认外壳里本版动过的共享路径（sysAct 行尾按钮 · EXPORT_ACT /「打印 / 导出」弹窗 · 预览 Esc · Alt+N · 拖放 blocked() · #mx-prog 单击 / 拖选 · Esc）
        与 shellflow_ref.json 的基线提交逐项对拍（HTML / 数据 / 事件 / 提示 / 本机键）；不变量：FLOW 未挂载、无 flow 节点 / 类 / data-mode
+       v68.2 切默认起：被测页改为 ?shell=classic 的旧外壳、对拍基线提交不带开关的默认外壳；例外仅 musetab-flow 键（写在 M23 处）
    RL  数据红线自检（全部用例汇总）：song 字段集合 ⊆ 操作前 ∪ 本用例应写的现有字段；musetab-* 键差集（去掉基线已有的键名）⊆ {musetab-cmd-recent}
    env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_REF 参考页（none＝跳过对拍）· MUSETAB_REF_COMMIT · ONLY=M1,M6 · SHOTS=目录 存截图 */
 const { chromium } = require('playwright');
@@ -128,7 +135,9 @@ async function M23SCN() {
   window.print = () => EV.push('print');
   try { hideStartPad(); } catch (_) {}
   const P = n => migrate(PRESETS.find(x => x.name.indexOf(n) >= 0).make());
-  const one = s => { addDoc(s, () => {}); closeDocAt(0); };
+  /* v68.2 收尾 NU-8（本版对旧外壳的有意改动 ⑤）：原样示例谱关窗不再自动转存（closeDocAt / docIsDemoAsIs，两外壳同口径；tv_flowdef F8e 专测）。
+     本对拍要比的是其余共享路径，被关的那个窗口先改一笔署名，基线与本版都按「有内容」转存，结果仍逐项相同 */
+  const one = s => { addDoc(s, () => {}); const d0 = docs[0]; if (d0 && d0.song) d0.song.composer = (d0.song.composer || '') + '·'; closeDocAt(0); };
   const out = {}, ae = () => { const a = document.activeElement; return a ? (a.id || a.tagName) : null; };
   const kd = (key, o) => { const e = new KeyboardEvent('keydown', Object.assign({ key, bubbles: true, cancelable: true }, o || {})); window.dispatchEvent(e); return e.defaultPrevented; };
   const take = () => { const r = EV.join(' '); EV.length = 0; return r; };
@@ -195,6 +204,7 @@ async function M23SCN() {
     bodyFlw: [...document.body.classList].filter(c => /^fl(ow|w-)/.test(c)), mode: document.body.getAttribute('data-mode'),
     mounted: typeof FLOW === 'undefined' ? null : FLOW.mounted, pvTi: document.getElementById('pv-stage').getAttribute('tabindex') });
   out.G_keys = Object.keys(localStorage).filter(k => /^musetab-/.test(k)).sort().join(',');
+  out.G_flow = localStorage.getItem('musetab-flow');   /* v68.2：旧外壳（?shell=classic）为 '0'，基线默认外壳为 null——对拍时不比，M23a 单独断言 */
   function J2(x) { return JSON.stringify(x); }
   out.toasts = TO.join(' ‖ ');
   return out;
@@ -491,7 +501,8 @@ async function M23SCN() {
     const pt = await EV(pg, () => { const e = document.getElementById('flw-out-parts'); return e ? { dis: e.getAttribute('aria-disabled'), vis: __vis(e), why: e.dataset.why || e.title } : null; });
     await take(); if (pt && pt.vis) await pg.click('#flw-out-parts', { force: true }); await wait(pg, 200);
     const pa = await take();
-    T('M8', !!pt && pt.dis === 'true' && pt.vis && !/fn:|print|ev:/.test(pa) && /下一批/.test(pt.why), 'M8b「分谱…」aria-disabled、说明含「下一批」，点了不导出也不记事件', J({ pt, pa }));
+    /* v68.2 收尾 NU-2：说明文案由「下一批」（内部排期用语）改为对用户的「即将推出」，并且不得出现内部用语 */
+    T('M8', !!pt && pt.dis === 'true' && pt.vis && !/fn:|print|ev:/.test(pa) && /即将推出/.test(pt.why) && !/下一批|拍板|负责人/.test(pt.why), 'M8b「分谱…」aria-disabled、说明含「即将推出」（不写「下一批」等内部用语），点了不导出也不记事件', J({ pt, pa }));
     await shot(pg, 'M8-output-1440');
     await clickMode(pg, 'write');
     await redEnd('M8', pg, base, []);
@@ -874,7 +885,8 @@ async function M23SCN() {
     await close(pg);
     const lit = [...literalKeys(curSrc)], newLit = refSrc ? lit.filter(k => !literalKeys(refSrc).has(k) && !PREV_FLOW_KEYS.includes(k)) : null;
     if (!refSrc) NOTE('M18', '⚠️  M18b 源码键名对拍跳过：拿不到基线（' + REF_COMMIT.slice(0, 7) + '）');
-    else T('M18', newLit.every(k => NEW_KEYS.includes(k)), 'M18b 源码里的 musetab-* 键名：相对基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）与 v67.9 / v68.0 flow 键，本版新出现的只有 ' + J(newLit),
+    /* v68.2：基线（shellflow_ref.json）换成 v68.1 a8c2089 后，musetab-cmd-recent 已在基线里；v68.2 新增 musetab-tour-shell（首次导览，计划 §1.2） */
+    else T('M18', newLit.every(k => NEW_KEYS.concat(['musetab-tour-shell']).includes(k)), 'M18b 源码里的 musetab-* 键名：相对基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）与 v67.9 / v68.0 flow 键，新出现的只有 ' + J(newLit) + '（⊆ musetab-cmd-recent · v68.2 musetab-tour-shell）',
       '共 ' + lit.length + ' 个字面量');
   }));
 
@@ -1044,13 +1056,17 @@ async function M23SCN() {
     let r = null; try { r = await pg.evaluate(fn); } catch (e) { r = { ERR: e.message.split('\n')[0] }; }
     await ctx.close(); return { r, pe };
   };
+  /* v68.2 切默认（PLAN §5.4）：被测页改为 ?shell=classic 的旧外壳，基线仍是 shellflow_ref.json 提交（v68.1 a8c2089）不带开关的默认外壳（＝旧外壳）。
+     显式例外：musetab-flow（旧外壳写 '0'、基线不写）——G_keys 对拍时两边都去掉，M23a 另断言值为 '0'。本场景路径不经过本版其余有意改动
+     （偏好设置「使用旧版布局」· TRK-5 音量 0 · TRK-6 删吉他轨 · PN-5 转调小节音名），其余必须零差异 */
+  const noFlowKey = k => String(k || '').split(',').filter(x => x && x !== 'musetab-flow').join(',');
   if (want('M23')) jobs.push(() => SAFE('M23', 'M23', async () => {
-    const B = await runDefault(URL0, M23SCN);
+    const B = await runDefault(CLASSICU, M23SCN);
     const inv = B.r && B.r.G_inv ? JSON.parse(B.r.G_inv) : null;
-    const keysBad = B.r && B.r.G_keys ? B.r.G_keys.split(',').filter(k => PREV_FLOW_KEYS.concat(NEW_KEYS).includes(k)) : ['?'];
-    T('M23', !!inv && inv.flowNodes === 0 && !inv.bodyFlw.length && inv.mode === null && inv.mounted === false && inv.pvTi === null && !keysBad.length && !B.pe.length && !B.r.ERR,
-      'M23a 不带开关跑完本版动过的全部共享路径（行尾 ○＋− · 打印 / 导出弹窗 7 键 · 预览 Esc · Alt+N · 拖放 · 小节格 · Esc）后：FLOW 未挂载、没有 flow 节点 / 类、body 无 data-mode、#pv-stage 无 tabindex、不写 flow 本机键、无报错',
-      J({ inv, keysBad, pe: B.pe, err: B.r && B.r.ERR }));
+    const keysBad = B.r && B.r.G_keys ? B.r.G_keys.split(',').filter(k => PREV_FLOW_KEYS.concat(NEW_KEYS).includes(k) && k !== 'musetab-flow') : ['?'];
+    T('M23', !!inv && inv.flowNodes === 0 && !inv.bodyFlw.length && inv.mode === null && inv.mounted === false && inv.pvTi === null && !keysBad.length && B.r.G_flow === '0' && !B.pe.length && !B.r.ERR,
+      'M23a 旧外壳（?shell=classic）跑完 v68.1 动过的全部共享路径（行尾 ○＋− · 打印 / 导出弹窗 7 键 · 预览 Esc · Alt+N · 拖放 · 小节格 · Esc）后：FLOW 未挂载、没有 flow 节点 / 类、body 无 data-mode、#pv-stage 无 tabindex、musetab-flow 停在 \'0\'、不写其余 flow 本机键、无报错',
+      J({ inv, keysBad, flow: B.r && B.r.G_flow, pe: B.pe, err: B.r && B.r.ERR }));
     const sane = B.r && /setPrintPage\(A4L\)/.test(B.r.B_print) && /print/.test(B.r.B_print) && /fn:exportPNG\(2\)/.test(B.r['B_ex-png']) && /ev:export_png/.test(B.r['B_ex-png'])
       && B.r.C_altn === 'false|false' && /preview/.test(B.r.C_mask || '') && B.r.D_altn.split('|')[1] === 'true' && /"a":4,"b":4/.test(B.r.E_click) && /"a":2,"b":5/.test(B.r.E_drag);
     T('M23', !!sane, 'M23b 默认外壳行为自洽（与基线对拍之外的绝对断言）：打印＝setPrintPage(所选纸张) 后 print；PNG＝export_png + exportPNG(2)；预览开着 Alt+N 不响应、拖放提示「先关掉打印预览」；关着 Alt+N 开新建面板；小节格单击＝单小节循环、拖动＝循环选区',
@@ -1058,10 +1074,12 @@ async function M23SCN() {
     if (!refURL && IN_CI) { T('M23', false, 'M23c CI 里拿不到对拍基线（git show ' + REF_COMMIT.slice(0, 12) + ' 失败）：判红', 'deploy.yml 先 git fetch --depth=1 origin <shellflow_ref.json 的 commit>'); return; }
     if (!refURL) { NOTE('M23', '⚠️  M23c 与 ' + (REF.version || '基线') + ' 对拍跳过：拿不到参考（本地可设 MUSETAB_REF=参考 index.html；MUSETAB_REF=none 为显式跳过）'); return; }
     const A = await runDefault(refURL, M23SCN);
-    const ks = [...new Set([...Object.keys(A.r || {}), ...Object.keys(B.r || {})])].filter(k => k !== 'G_inv');
-    const bad = ks.filter(k => (A.r || {})[k] !== (B.r || {})[k]).map(k => { const x = String((A.r || {})[k]), y = String((B.r || {})[k]); let i = 0; while (i < x.length && x[i] === y[i]) i++;
+    const norm = r => { if (!r) return r; const o = Object.assign({}, r); o.G_keys = noFlowKey(o.G_keys); delete o.G_flow; return o; };
+    const RA = norm(A.r), RB = norm(B.r);
+    const ks = [...new Set([...Object.keys(RA || {}), ...Object.keys(RB || {})])].filter(k => k !== 'G_inv');
+    const bad = ks.filter(k => (RA || {})[k] !== (RB || {})[k]).map(k => { const x = String((RA || {})[k]), y = String((RB || {})[k]); let i = 0; while (i < x.length && x[i] === y[i]) i++;
       return k + ' @' + i + ' ref=' + J(x.slice(Math.max(0, i - 20), i + 60)) + ' new=' + J(y.slice(Math.max(0, i - 20), i + 60)); });
-    T('M23', !bad.length && !A.pe.length && !(A.r && A.r.ERR), 'M23c 默认外壳与 ' + (REF.version || '基线') + '（' + REF_COMMIT.slice(0, 7) + '）逐项相同：行尾 ○＋− 写入 / 提示 / 撤销 · 打印 / 导出弹窗 HTML 与 7 键的调用 / 事件 / 关窗顺序 · 预览开关与 Esc · Alt+N 拦 / 放 · 拖放提示层 HTML 与拦截提示 · 小节格单击 / 再点 / 拖动 / Shift 单击（循环 · 光标 · 选区 · 格子 HTML）· Esc · musetab-* 键 · 全部提示文案',
+    T('M23', !bad.length && !A.pe.length && !(A.r && A.r.ERR), 'M23c 旧外壳（?shell=classic）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳逐项相同（例外仅 musetab-flow 键）：行尾 ○＋− 写入 / 提示 / 撤销 · 打印 / 导出弹窗 HTML 与 7 键的调用 / 事件 / 关窗顺序 · 预览开关与 Esc · Alt+N 拦 / 放 · 拖放提示层 HTML 与拦截提示 · 小节格单击 / 再点 / 拖动 / Shift 单击（循环 · 光标 · 选区 · 格子 HTML）· Esc · musetab-* 键 · 全部提示文案',
       bad.length ? bad.join('\n      ') : ks.length + ' 项');
   }));
 
@@ -1208,7 +1226,7 @@ async function M23SCN() {
     await clickMode(pg, 'write');
     const w = await EV(pg, () => { const s = document.getElementById('score'), a = s.innerHTML, n = __rc; render(); return { same: s.innerHTML === a, cur: FLOW.mode.cur, nBack: n }; });
     T('M24', n1 === 2 && w.same && w.cur === 'write' && w.nBack >= n1 + 1,
-      'M24l MODES-8 排版里点一次「每行 −」：整谱排版 ' + n1 + ' 次（mutate＋快照，不再为被盖住的书写谱面另排一次）；回书写补排后 #score 与再 render 一次逐字节相同', J({ n1, w }));
+      'M24l MODES-8 排版里点一次「每行 −」：render 调用 ' + n1 + ' 次（v68.2 起＝mutate 那次转成快照 + 快照里那一次，真正整谱排版只有 1 次，见 M27a）；回书写补排后 #score 与再 render 一次逐字节相同', J({ n1, w }));
     await EV(pg, () => undo());
     await redEnd('M24', pg, base, []);
     await close(pg);
@@ -1460,6 +1478,236 @@ async function M23SCN() {
     T('M26', !!tr && tr.vis && tr.svg, 'M26f RG-5 输出页「末尾有 N 个空小节」提示带警示图标（svgi warn，与经典弹窗同源；此前 IC(\'warn\') 取不到键、只剩空格）', J(tr));
     await EV(pg, () => setMode('write'));
     await redEnd('M26', pg, base, []);
+    await close(pg);
+  }));
+
+  /* ================= M27 v68.2 遗留 ①：大谱排版 / 输出每笔只排一次整谱（render 本身就是快照）================= */
+  if (want('M27')) jobs.push(() => SAFE('M27', 'M27a', async () => {
+    const pg = await open(1440, 900, { tag: 'M27a' });
+    await scn(pg, 'long', { mi: 12 }); const base = await redBase(pg);
+    await clickMode(pg, 'engrave'); await wait(pg, 500);
+    /* 每一笔：整谱排版次数＝RENDER_STAT.n 增量（只在真正排版时 +1）；预览是否已按新谱重拍（PV.content / PV.geo 变了、页数＝.pv-page 数） */
+    const step = async (label, act, ms) => {
+      await EV(pg, () => { window.__n0 = RENDER_STAT.n; window.__c0 = PV.content; window.__g0 = JSON.stringify(PV.geo); window.__j0 = JSON.stringify(song); });
+      await act(); await wait(pg, ms || 700);
+      return EV(pg, l => ({ l, d: RENDER_STAT.n - __n0, changed: JSON.stringify(song) !== __j0, pv: PV.content !== __c0 || JSON.stringify(PV.geo) !== __g0,
+        pages: document.querySelectorAll('#pv-pages .pv-page').length === PV.geo.n, filled: document.querySelectorAll('#pv-pages .pv-paper > svg[data-flw-v]').length > 0, cur: FLOW.mode.cur }), label);
+    };
+    const r1 = await step('每行 −', () => pg.click('#flw-eng [data-fa="lay:bars"][data-d="-1"]'));
+    const r2 = await step('纸张 A3', () => pg.click('#flw-eng [data-fa="lay:page"][data-v="A3"]'));
+    const r3 = await step('Ctrl+Z', () => pg.keyboard.press('Control+z'));
+    const r4 = await step('只改选中行', () => EV(pg, () => { const R = FLOW.lay.rowsNow(); FLOW.lay.pick(R[Math.min(2, R.length - 1)].m1, 0); render(); }));
+    const ok = r => r.d === 1 && r.changed && r.pv && r.pages && r.filled && r.cur === 'engrave';
+    T('M27', ok(r1) && ok(r2) && ok(r3) && r4.d === 0 && !r4.changed && r4.cur === 'engrave',
+      'M27a 排版模式 64 小节：「每行 −」/「纸张 A3」/ Ctrl+Z 每笔整谱排版恰好 1 次（render 本身就是预览快照那一次分页排版；此前 mutate 一次 + 快照一次＝2），预览已按新谱重拍、页数＝.pv-page 数；只改选中行（谱没变）0 次', J([r1, r2, r3, r4]));
+    /* 回书写：补排一次，#score 与再 render 一次逐字节相同；排版里的「适配宽度」此时补做（fitViewWidth 幂等） */
+    await clickMode(pg, 'write');
+    const w = await EV(pg, () => { const s = document.getElementById('score'), a = s.innerHTML, vz = viewZoom; render(); const same = s.innerHTML === a; fitViewWidth(); return { same, cur: FLOW.mode.cur, pv: document.getElementById('preview-ov').classList.contains('on'), vz, vz2: viewZoom, sel: sel.mi }; });
+    T('M27', w.same && w.cur === 'write' && !w.pv && w.vz === w.vz2,
+      'M27b 回书写：书写谱面补排后与再 render 一次逐字节相同；排版里 A3 要的「适配宽度」回书写时已做（再调 fitViewWidth 缩放不变）', J(w));
+    await EV(pg, () => { while (undoStack.length) undo(); });
+    await redEnd('M27', pg, base, ['S.layout', 'L.page', 'L.preset', 'L.density', 'L.scale', 'L.noteGap', 'L.rowGap', 'L.fixed']);
+    await close(pg);
+  }));
+  if (want('M27')) jobs.push(() => SAFE('M27', 'M27c', async () => {
+    /* 落盘前兜底照旧：排版模式下这一笔的那次排版抛异常 → mutate 自动撤销、提示、谱数据不变（快照分支同步执行，异常原样抛回 mutate） */
+    const pg = await open(1440, 900, { tag: 'M27c' });
+    await scn(pg, 'long', { mi: 12 }); const base = await redBase(pg);
+    await clickMode(pg, 'engrave'); await wait(pg, 400);
+    await EV(pg, () => { window.__j0 = JSON.stringify(song); window.__u0 = undoStack.length; const rc = renderCore; window.renderCore = function () { window.renderCore = rc; throw new Error('测试注入的渲染异常'); }; });
+    await pg.click('#flw-eng [data-fa="lay:bars"][data-d="-1"]'); await wait(pg, 600);
+    const r = await EV(pg, () => ({ same: JSON.stringify(song) === __j0, undo: undoStack.length === __u0, t: (__toasts || []).filter(x => /渲染异常/.test(x)).length, cur: FLOW.mode.cur, pv: document.querySelectorAll('#pv-pages .pv-page').length === PV.geo.n }));
+    errs.splice(0, errs.length, ...errs.filter(e => !/测试注入的渲染异常/.test(e)));
+    T('M27', r.same && r.undo && r.t >= 1 && r.cur === 'engrave' && r.pv, 'M27c 排版模式这一笔的排版抛异常：mutate 照旧自动撤销（谱数据与撤销栈不变）并提示「已自动撤销」，预览照常', J(r));
+    await clickMode(pg, 'write');
+    await redEnd('M27', pg, base, []);
+    await close(pg);
+  }));
+  if (want('M27')) jobs.push(() => SAFE('M27', 'M27d', async () => {
+    /* 固定版宽新谱：排版里换纸张（layApply → fitViewWidth）不把快照态的缩放写进存量谱的键 musetab-zoom，回书写 fixwide / 缩放原样 */
+    const pg = await open(1440, 900, { tag: 'M27d' });
+    await scn(pg, 'newpacc'); await wait(pg, 300); const base = await redBase(pg);
+    const k = () => EV(pg, () => ({ z: localStorage.getItem('musetab-zoom'), zf: localStorage.getItem('musetab-zoom-fw'), vz: viewZoom, fw: document.body.classList.contains('fixwide'), lbl: document.getElementById('zoom-lbl').textContent }));
+    const a = await k();
+    await clickMode(pg, 'engrave');
+    await pg.click('#flw-eng [data-fa="lay:page"][data-v="A5"]'); await wait(pg, 500);
+    await pg.click('#flw-eng [data-fa="lay:page"][data-v="A4"]'); await wait(pg, 500);
+    const m = await EV(pg, () => ({ z: localStorage.getItem('musetab-zoom') }));
+    await clickMode(pg, 'write');
+    const c = await k();
+    T('M27', a.fw && m.z === a.z && c.z === a.z && c.zf === a.zf && c.vz === a.vz && c.fw && c.lbl === a.lbl,
+      'M27d 固定版宽新谱排版里 A5 → A4：musetab-zoom（存量谱的缩放键）不被改写、回书写 fixwide / 缩放 / 百分比原样', J({ a, m, c }));
+    await redEnd('M27', pg, base, ['S.layout', 'L.page', 'L.preset', 'L.density', 'L.scale', 'L.noteGap', 'L.rowGap', 'L.fixed']);
+    await close(pg);
+  }));
+  if (want('M27')) jobs.push(() => SAFE('M27', 'M27e', async () => {
+    /* 150 小节：点「每行 −」到预览更新（#pv-pages 变更所在任务结束）、期间最长阻塞（longtask）——只记数（机器负载差异大，不设阈值），整谱排版次数断言 */
+    const pg = await open(1440, 900, { tag: 'M27e' });
+    await EV(pg, () => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} const s = __P('送别'); let m = []; while (m.length < 150) m = m.concat(JSON.parse(J2(s.measures))); s.measures = m.slice(0, 150); s.title = '送别 150';
+      __one(s); sel = { mi: 75, row: 'vox', vi: 0, ci: 0, si: 1 }; clampSel(); render();
+      window.__LT = []; try { new PerformanceObserver(l => l.getEntries().forEach(e => __LT.push({ s: e.startTime, d: e.duration }))).observe({ type: 'longtask' }); } catch (_) {} });
+    await wait(pg, 300); const base = await redBase(pg);
+    await clickMode(pg, 'engrave'); await wait(pg, 900);
+    await EV(pg, () => { window.__UPD = null; window.__T0 = null; window.__n0 = RENDER_STAT.n; new MutationObserver(() => { if (__UPD == null && __T0 != null) __UPD = performance.now(); }).observe(document.getElementById('pv-pages'), { childList: true, subtree: true });
+      document.querySelector('#flw-eng [data-fa="lay:bars"][data-d="-1"]').addEventListener('pointerdown', e => { __T0 = e.timeStamp; }, { once: true, capture: true }); });
+    await pg.click('#flw-eng [data-fa="lay:bars"][data-d="-1"]'); await wait(pg, 1800);
+    const r = await EV(pg, () => { const lt = __LT.filter(x => x.s >= __T0 - 5 && x.s <= __T0 + 1700); return { upd: __UPD == null ? null : Math.round(__UPD - __T0), longest: lt.length ? Math.round(Math.max(...lt.map(x => x.d))) : 0, renders: RENDER_STAT.n - __n0, snap: FLOW.mode.perf.refresh.last, pages: PV.geo.n }; });
+    NOTE('M27', '   ℹ️  M27e 150 小节排版「每行 −」：点击→预览更新 ' + r.upd + 'ms · 最长阻塞 ' + r.longest + 'ms · 快照 ' + r.snap + 'ms · ' + r.pages + ' 页');
+    T('M27', r.renders === 1 && r.upd != null, 'M27e 150 小节排版「每行 −」整谱排版 ' + r.renders + ' 次（此前 2），预览随后更新', J(r));
+    await EV(pg, () => undo()); await clickMode(pg, 'write');
+    await redEnd('M27', pg, base, []);
+    await close(pg);
+  }));
+
+  /* ================= M28 v68.2 遗留 ②：输出模式预览排布「适宽 / 整页 / 横排」================= */
+  if (want('M28')) jobs.push(() => SAFE('M28', 'M28a', async () => {
+    const pg = await open(1440, 900, { tag: 'M28a' });
+    await scn(pg, 'long'); const base = await redBase(pg);
+    await clickMode(pg, 'output'); await wait(pg, 300);
+    const st = () => EV(pg, () => { const ps = document.getElementById('pv-stage'), sr = ps.getBoundingClientRect(), g = document.getElementById('flw-out-arr');
+      const pp = [...document.querySelectorAll('#pv-pages .pv-page .pv-paper')].map(x => { const r = x.getBoundingClientRect(); return { x: Math.round(r.left - sr.left), y: Math.round(r.top - sr.top), r: Math.round(r.right - sr.left), w: Math.round(r.width), h: Math.round(r.height) }; });
+      let z = 0; try { z = Math.round(pvDims().zpct * 100); } catch (_) {}
+      return { vis: !!g && __vis(g), btn: g ? [...g.querySelectorAll('button')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed')) : [], lay: PV.lay, fit: PV.fit, cls: document.getElementById('pv-pages').className,
+        cw: ps.clientWidth, ch: ps.clientHeight, sw: ps.scrollWidth, sl: ps.scrollLeft, pp, lbl: document.getElementById('zoom-lbl').textContent, z, n: PV.geo.n }; });
+    const a = await st();
+    await pg.click('#flw-out-arr [data-v="p"]'); await wait(pg, 400);
+    const p = await st(); await shot(pg, 'M28-output-page');
+    T('M28', a.vis && J(a.btn) === J(['适宽:true', '整页:false', '横排:false']) && a.lay === 'v' && a.fit === 'w' && a.n >= 2
+      && p.lay === 'v' && p.fit === 'p' && J(p.btn) === J(['适宽:false', '整页:true', '横排:false']) && p.pp.every(q => q.w <= p.cw - 50 && q.h <= p.ch - 50) && p.lbl === p.z + '%',
+      'M28a 输出模式行 2「预览 适宽 / 整页 / 横排」（缺省适宽）；点「整页」：竖排、每页整页装进预览区（' + (p.pp[0] && p.pp[0].w + '×' + p.pp[0].h) + ' ≤ ' + p.cw + '×' + p.ch + ' 减边距）、按下态与缩放标签（' + p.lbl + '）跟着变', J({ a: { btn: a.btn, n: a.n }, p }));
+    await pg.click('#flw-out-arr [data-v="h"]'); await wait(pg, 400);
+    const h = await st(); await shot(pg, 'M28-output-horizontal');
+    const q1 = h.pp[0], q2 = h.pp[1];
+    T('M28', h.lay === 'h' && /lay-h/.test(h.cls) && J(h.btn) === J(['适宽:false', '整页:false', '横排:true']) && !!q2 && q2.x > q1.r && Math.abs(q2.y - q1.y) <= 1 && Math.abs(q1.h - (h.ch - 52)) <= 3 && h.sw > h.cw,
+      'M28b 点「横排」：页左右排开（第 2 页左缘 ' + (q2 && q2.x) + ' > 第 1 页右缘 ' + (q1 && q1.r) + '、同高）、页高占满预览区、可横向滚动', J(h));
+    /* 左栏「页面」点第 2 页：横排下横向滚到它 */
+    const pgBtn = await EV(pg, () => __vis('#flw-out-list [data-fa="lay:pg"][data-pg="1"]'));
+    if (pgBtn) await pg.click('#flw-out-list [data-fa="lay:pg"][data-pg="1"]'); await wait(pg, 300);
+    const j = await EV(pg, () => { const ps = document.getElementById('pv-stage'), sr = ps.getBoundingClientRect(), r = document.querySelectorAll('#pv-pages .pv-page .pv-paper')[1].getBoundingClientRect();
+      return { sl: ps.scrollLeft, x: Math.round(r.left - sr.left), r: Math.round(r.right - sr.left), cw: ps.clientWidth }; });
+    await wait(pg, 300);
+    const j2 = await EV(pg, () => !!document.querySelectorAll('#pv-pages .pv-paper > svg')[1].childNodes.length);
+    T('M28', pgBtn && j.sl > 0 && j.x >= 0 && j.r <= j.cw + 1 && j2, 'M28c 横排下点左栏「第 2 页」：横向滚动（scrollLeft ' + j.sl + '）把第 2 页整页带进预览区（' + j.x + '–' + j.r + ' / ' + j.cw + '），该页谱面已填', J({ pgBtn, j, j2 }));
+    /* 排版恒为竖排适宽；回输出恢复横排；回书写预览排布还原（经典「打印预览」不受影响） */
+    await clickMode(pg, 'engrave'); await wait(pg, 300);
+    const e = await EV(pg, () => ({ lay: PV.lay, fit: PV.fit, cls: document.getElementById('pv-pages').className }));
+    await clickMode(pg, 'output'); await wait(pg, 300);
+    const o = await EV(pg, () => ({ lay: PV.lay, fit: PV.fit, btn: [...document.querySelectorAll('#flw-out-arr button')].map(b => b.getAttribute('aria-pressed')).join(',') }));
+    await pg.click('#flw-out-arr [data-v="w"]'); await wait(pg, 300);
+    const wv = await st();
+    await clickMode(pg, 'write');
+    const wr = await EV(pg, () => ({ lay: PV.lay, cur: FLOW.mode.cur }));
+    T('M28', e.lay === 'v' && e.fit === 'w' && /lay-v/.test(e.cls) && o.lay === 'h' && o.btn === 'false,false,true' && wv.lay === 'v' && wv.fit === 'w' && Math.abs(wv.pp[0].w - (wv.cw - 52)) <= 3 && wr.lay === 'v' && wr.cur === 'write',
+      'M28d 切到排版恒为竖排适宽；回输出恢复「横排」；点「适宽」回竖排、页宽占满；回书写 PV.lay 还原为进来之前的竖排', J({ e, o, wv: { lay: wv.lay, fit: wv.fit, w: wv.pp[0].w, cw: wv.cw }, wr }));
+    /* 命令面板：搜「横排」第一条＝输出预览横排，执行＝进输出并横排 */
+    const c = await EV(pg, () => { const h = FLOW.cmd.search('横排').hits || []; return h.length ? h[0].id : null; });
+    await EV(pg, () => FLOW.cmd.run('out:arrh')); await wait(pg, 500);
+    const c2 = await EV(pg, () => ({ cur: FLOW.mode.cur, lay: PV.lay }));
+    T('M28', c === 'out:arrh' && c2.cur === 'output' && c2.lay === 'h', 'M28e Ctrl+/ 搜「横排」第一条＝「预览：横排」（在 输出 · 预览），执行＝进输出并横排', J({ c, c2 }));
+    await clickMode(pg, 'write');
+    await redEnd('M28', pg, base, []);
+    await close(pg);
+  }));
+  if (want('M28')) for (const w of [821, 900, 979, 1180, 1280]) jobs.push(() => SAFE('M28', 'M28f ' + w, async () => {
+    /* 加了「预览」分段后行 2 在 821–1280 都不收键（输出模式「更多 ▾」隐藏，收进去就点不到）；<980 分享 / 专业格式只留图标、名在 title / 读屏名 */
+    const pg = await open(w, 720, { tag: 'M28f-' + w });
+    await scn(pg, 'songbie'); const base = await redBase(pg);
+    await clickMode(pg, 'output'); await wait(pg, 400);
+    const r = await EV(pg, () => { const eb = document.getElementById('editbar'), vis = x => !!x && __vis(x);
+      const btns = [...document.querySelectorAll('#flw-out button')];
+      return { off: [...eb.querySelectorAll('.flw-off')].map(x => x.id || x.className), ovf: eb.scrollWidth - eb.clientWidth, arr: vis(document.getElementById('flw-out-arr')), cmd: vis(document.getElementById('flw-cmdb')),
+        all: btns.every(vis), named: btns.every(b => (b.getAttribute('aria-label') || b.textContent).trim().length > 0), lbl: [...document.querySelectorAll('#flw-out .flw-glb')].filter(vis).length,
+        er: Math.round(Math.max(...btns.map(b => b.getBoundingClientRect().right))), cl: Math.round(document.getElementById('flw-cmdb').getBoundingClientRect().left) }; });
+    if (w === 821) await shot(pg, 'M28-output-821');
+    T('M28', !r.off.length && r.arr && r.cmd && r.all && r.named && r.er <= r.cl && (w >= 980 ? r.lbl === 8 : r.lbl === 2),
+      'M28f ' + w + ' 输出模式行 2：「预览」分段与 8 个输出键都在屏上、没有键被收（.flw-off 0）、不压「搜功能」；' + (w >= 980 ? '键都带字' : '<980 分享 / 专业格式只留图标（名在读屏名）'), J(r));
+    await clickMode(pg, 'write');
+    await redEnd('M28', pg, base, []);
+    await close(pg);
+  }));
+
+  /* ================= M29 v68.2 遗留 ③：#toast role=status（只在 flow 下挂；经典外壳零差异）================= */
+  if (want('M29')) jobs.push(() => SAFE('M29', 'M29a', async () => {
+    const pg = await open(1280, 800, { tag: 'M29a' });
+    await scn(pg, 'songbie'); const base = await redBase(pg);
+    const at = () => EV(pg, () => { const t = document.getElementById('toast'); return { role: t.getAttribute('role'), live: t.getAttribute('aria-live'), atomic: t.getAttribute('aria-atomic'), txt: t.textContent }; });
+    const a = await at();
+    await clickMode(pg, 'output'); await wait(pg, 300);
+    await pg.click('#flw-out-parts', { force: true }); await wait(pg, 200);
+    const b2 = await at();
+    await clickMode(pg, 'write');
+    /* 进谱架（离开 flow）摘掉、退谱架挂回 */
+    await EV(pg, () => enterStand()); await wait(pg, 300);
+    const s = await at();
+    /* 属性名单（去掉 toast() 自己写的 style＝透明度）：经典外壳只有 id */
+    const snapA = () => EV(pg, () => { const d = new DOMParser().parseFromString(FLOW.snapHTML(), 'text/html'), t = d.getElementById('toast'); return t ? [...t.attributes].map(a => a.name).filter(n => n !== 'style').join(',') : null; });
+    const snap = await snapA();
+    await EV(pg, () => exitStand()); await wait(pg, 300);
+    const x = await at();
+    const snap2 = await snapA();
+    T('M29', a.role === 'status' && a.live === 'polite' && a.atomic === 'true' && b2.role === 'status' && /即将推出/.test(b2.txt) && !/下一批/.test(b2.txt),   /* v68.2 收尾 NU-2：「下一批」→「即将推出」 */
+      'M29a flow 桌面 #toast＝role=status · aria-live=polite · aria-atomic=true（读屏播报）；输出模式点灰显的「分谱…」，原因（' + b2.txt.slice(0, 18) + '…）写进这个播报区', J({ a, b2: b2.role }));
+    T('M29', s.role === null && s.live === null && x.role === 'status' && snap === 'id' && snap2 === 'id',
+      'M29b 进谱架（离开 flow）属性摘掉、退谱架挂回；互动谱快照（FLOW.snapHTML）里 #toast 与经典外壳逐字节相同', J({ s, x: x.role, snap, snap2 }));
+    await redEnd('M29', pg, base, []);
+    await close(pg);
+  }));
+  if (want('M29')) jobs.push(() => SAFE('M29', 'M29c', async () => {
+    const cl = await open(1280, 800, { tag: 'M29c-classic', url: CLASSICU });
+    const c = await EV(cl, () => { toast('经典外壳提示'); return [...document.getElementById('toast').attributes].map(a => a.name).filter(n => n !== 'style').join(','); });
+    await close(cl);
+    const mb = await open(390, 844, { tag: 'M29c-mobile', touch: true, mobile: true });
+    await scn(mb, 'songbie');
+    const m = await EV(mb, () => ({ m: document.body.classList.contains('flw-m'), role: document.getElementById('toast').getAttribute('role') }));
+    await close(mb);
+    T('M29', c === 'id' && m.m && m.role === 'status',
+      'M29c 经典外壳（?shell=classic）#toast 不带任何新属性（与 v67.8 逐字节相同，不进对拍例外）；flow 手机（body.flw-m）同样 role=status', J({ c, m }));
+  }));
+
+  /* ================= M30 v68.2 遗留 ④：命令面板拼音撞码 ph / qy 按常用度排 ================= */
+  if (want('M30')) jobs.push(() => SAFE('M30', 'M30a', async () => {
+    const pg = await open(1440, 900, { tag: 'M30a' });
+    const top = (q, n) => EV(pg, ([q, n]) => (FLOW.cmd.search(q).hits || []).slice(0, n).map(c => c.id), [q, n]);
+    await scn(pg, 'piano'); const base = await redBase(pg);
+    const ctx = await EV(pg, () => FLOW.ctx());
+    const ph = await top('ph', 3), qy = await top('qy', 3);
+    await scn(pg, 'songbie');
+    const phj = await top('ph', 1);
+    await scn(pg, 'gtr', { row: 'tab' });
+    const qyt = await top('qy', 3);
+    T('M30', ctx === 'st' && J(ph) === J(['sign:meter', 'trk:clef', 'sign:clef']) && J(qy) === J(['r2:d1', 'sign:grace-pre', 'sign:strum-mute']) && phj[0] === 'sign:meter' && J(qyt) === J(['r2:d1', 'sign:grace-pre', 'sign:strum-mute']),
+      'M30a 拼音撞码按常用度：ph（五线谱语境）→ 本小节拍号 · 本轨谱号 · 谱号切换；qy → 全音符 · 前倚音 · 扫弦切音（简谱 / 六线谱语境同序）', J({ ctx, ph, qy, phj, qyt }));
+    /* 个人常用：最近用过的压过静态常用度（只在同分、同可用性之内） */
+    await scn(pg, 'songbie');
+    await EV(pg, () => { FLOW.cmd.run('sign:grace-pre'); }); await wait(pg, 300);
+    await EV(pg, () => { __shut(); });
+    const qr = await top('qy', 2), rec = await EV(pg, () => FLOW.cmd.recent());
+    T('M30', rec[0] === 'sign:grace-pre' && J(qr) === J(['sign:grace-pre', 'r2:d1']), 'M30b 用过「前倚音」后再搜 qy：它排到全音符前面（最近用过 musetab-cmd-recent 压过静态常用度）', J({ qr, rec: rec.slice(0, 3) }));
+    /* PN-9 的口径不变 */
+    const f = q => EV(pg, q => { const h = FLOW.cmd.search(q).hits || []; return h.length ? h[0].id : null; }, q);
+    const pn = { sc: await f('sc'), bf: await f('bf'), hy: await f('hy'), sd: await f('sd'), zz: await f('zz') };
+    T('M30', pn.sc === 'mode:output' && pn.bf === 'st:play' && pn.hy === 'trk:mix' && pn.sd === 'st:tempo' && pn.zz === 'lay:A4', 'M30c PN-9 同分常用在前照旧：sc→输出 · bf→播放 · hy→混音 · sd→速度 · zz→A4', J(pn));
+    await redEnd('M30', pg, base, []);
+    await close(pg);
+  }));
+
+  /* ================= M31 v68.2 遗留 ⑤：窄档 56 左栏轨多时细滚动条（与「+N ↓」并存）================= */
+  if (want('M31')) jobs.push(() => SAFE('M31', 'M31a', async () => {
+    const pg = await open(1000, 600, { tag: 'M31a' });
+    await EV(pg, () => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {} __one(createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 8, nTab: 2, nVox: 10, lyr: 1 })); render(); });
+    await wait(pg, 400); const base = await redBase(pg);
+    const r = await EV(pg, () => { const L = document.getElementById('flw-tlist'), cs = getComputedStyle(L), m = L.querySelector('.flw-tmore'), lr = L.getBoundingClientRect();
+      const ic = [...L.querySelectorAll('.flw-trow .flw-tic')].filter(x => x.getClientRects().length).map(x => x.getBoundingClientRect());
+      return { nar: document.body.classList.contains('flw-narrow'), sw: cs.scrollbarWidth, oy: cs.overflowY, over: L.scrollHeight > L.clientHeight + 2, more: m ? m.textContent : '', mv: !!m && __vis(m),
+        inside: ic.length > 0 && ic.every(q => q.left >= lr.left - 0.5 && q.right <= lr.left + L.clientWidth + 0.5), w: Math.round(lr.width) }; });
+    await shot(pg, 'M31-narrow-scroll');
+    T('M31', r.nar && r.sw === 'thin' && r.oy === 'auto' && r.over && r.mv && /^\+\d+ ↓$/.test(r.more) && r.inside && r.w <= 56,
+      'M31a 1000×600 十二条轨：左栏 56 竖条音轨列 scrollbar-width:thin（此前 none）——轨多时出细滚动条、与底部「' + r.more + '」并存，图标仍在可用宽内（无头浏览器隐藏滚动条，按计算样式断言）', J(r));
+    /* 轨少放得下：不出滚动条（overflow 自动） */
+    await EV(pg, () => { __one(createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 8, nTab: 1, nVox: 1, lyr: 1 })); render(); }); await wait(pg, 300);
+    const s = await EV(pg, () => { const L = document.getElementById('flw-tlist'); return { over: L.scrollHeight > L.clientHeight + 2, more: !!L.querySelector('.flw-tmore') && __vis(L.querySelector('.flw-tmore')) }; });
+    T('M31', !s.over && !s.more, 'M31b 两条轨放得下：不溢出、没有「+N ↓」（滚动条随 overflow-y:auto 不出现）', J(s));
+    await redEnd('M31', pg, base, []);
     await close(pg);
   }));
 

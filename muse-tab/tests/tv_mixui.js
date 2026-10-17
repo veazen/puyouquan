@@ -2,9 +2,15 @@
    - 音量条收窄自绘（--p 填充变量、宽度 ≤110px），不再占满整行
    - 每轨小节格：格数=小节数、编号可见
    - 点击小节格：光标跳该轨该小节 + 单小节循环 + 声部段选区（whole）；再点同格取消循环
-   - 拖动跨格：多小节循环选段 */
+   - 拖动跨格：多小节循环选段
+   v68.2 收尾 ENG-1（PLAN §5.4 列为 P「flow 没有混音台」）：钉旧外壳 ?shell=classic——默认外壳（flow）下 #mixer-dock 的混音台整块隐藏（#mx-tracks 0×0），
+   此前不钉时 T1「宽 ≤110」对 0 宽也成立、T3 / T4 用 dispatchEvent 驱动隐藏元素照样过，兜底外壳的混音台等于没有几何覆盖（突变：音量条改 300 宽默认外壳下仍绿）。
+   T1 另加可见前提（宽 > 0、#mx-tracks 有尺寸），不再空过。
+   flow 下的对应覆盖：混音并进音轨行——静音 / 独奏 / 音量 / 音色见 tv_trktree T8–T9（音轨行与本轨 ⋯ 菜单的混音控件）；
+   「每轨小节格（点格跳转 + 单小节循环 / 拖动多小节循环）」是旧混音台独有，flow 改为状态栏小节格（tv_trktree / tv_modes 的 prog 段），按方案口径记为已知差异 */
 const { chromium } = require('playwright');
-const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1400, height: 950 } });
@@ -29,11 +35,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   // T1 音量条收窄自绘：滑杆宽 ≤110、高 4px、带 --p 填充变量；百分比标签正确
   let r = await pg.evaluate(() => {
     const vin = document.querySelector('#mx-tracks .mx-row .mx-vol input');
-    const cs = getComputedStyle(vin);
+    const cs = getComputedStyle(vin), tr = document.getElementById('mx-tracks').getBoundingClientRect();
     return { w: vin.getBoundingClientRect().width, h: cs.height, p: vin.style.getPropertyValue('--p'),
-      vv: document.querySelector('#mx-tracks .mx-row .mx-vol .vv').textContent };
+      vv: document.querySelector('#mx-tracks .mx-row .mx-vol .vv').textContent, flow: document.body.classList.contains('flow'), tracks: Math.round(tr.width) + 'x' + Math.round(tr.height) };
   });
-  T(r.w <= 110 && r.h === '4px' && /%$/.test(r.p) && /%$/.test(r.vv), 'T1 音量条收窄自绘(--p填充)', JSON.stringify(r));
+  T(!r.flow && r.w > 0 && r.w <= 110 && r.h === '4px' && /%$/.test(r.p) && /%$/.test(r.vv) && !/^0x|x0$/.test(r.tracks), 'T1 音量条收窄自绘(--p填充)；旧外壳、混音台可见（宽 > 0，不对隐藏元素空过）', JSON.stringify(r));
 
   // T2 每轨小节格：2 轨 × 6 格、编号 1-6 全可见（wide 档）
   r = await pg.evaluate(() => {

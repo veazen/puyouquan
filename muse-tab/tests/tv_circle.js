@@ -1,11 +1,15 @@
 /* v50.8 谱友圈（应用内谱库）回归：
+   （v68.2 起入口：T1 文件 ▾「谱库」、T2 账号 ▾「谱库」；旧外壳 #b-circle 同一 openCircle）
    T1 b-circle 恒开应用内 #circle（不再跳转 puku），本地兜底种子渲染卡片；无 cc-hero；chip.on 非渐变实底
    T2 route mock /api/pub/scores → 远端卡片渲染（data-remote、免费 pill、小节数），点卡片进观看模式（openRemotePub）
    T3 卡片无渐变顶条（cc-card ::after 无内容）
    file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = 'file://' + path.resolve(__dirname, '../index.html');
+const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 默认外壳 flow：谱友圈（应用内谱库）入口＝文件 ▾「谱库」（与账号 ▾「谱库」同为委托点 #b-circle，F.mi old:'b-circle'）；
+   旧外壳（?shell=classic）顶栏 #b-circle 原样——两处入口都打开同一个 openCircle() */
+const openLib = async (pg, m) => { await pg.click(m || '#flw-file'); await pg.waitForSelector('#popmenu [data-old="b-circle"]'); await pg.click('#popmenu [data-old="b-circle"]'); };
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -15,7 +19,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   let pg = await b.newPage({ viewport: { width: 1280, height: 900 } });
   const errs1 = []; pg.on('pageerror', e => errs1.push(e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
-  await pg.click('#b-circle'); await pg.waitForTimeout(700);
+  await openLib(pg); await pg.waitForTimeout(700);
   let r = await pg.evaluate(`(()=>{
     const circle=document.getElementById('circle');
     const cards=circle? circle.querySelectorAll('.cc-card').length : 0;
@@ -39,7 +43,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   await pg.route('**/api/pub/scores', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ scores: [PUB] }) }));
   await pg.route('**/api/pub/scores/pubtest01', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FULL) }));
   await pg.goto(F); await pg.waitForTimeout(900);
-  await pg.click('#b-circle'); await pg.waitForTimeout(900);
+  await openLib(pg, '#flw-acct');   /* T2 走账号 ▾「谱库」 */ await pg.waitForTimeout(900);
   r = await pg.evaluate(`(()=>{
     const card=document.querySelector('#circle .cc-card[data-remote]');
     return {remote:!!card, title:card? card.textContent.indexOf('同步测试谱')>=0 : false,

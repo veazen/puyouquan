@@ -8,17 +8,21 @@
    T7 小节线菜单不出屏：手机 390 宽在最右侧小节线弹出，菜单完整落在视口内、页面无横向滚动；桌面贴右边缘同样
    突变实证：对 v63.1 之前的文件复跑，T1–T7 全部报红（0/7）。 */
 const { chromium } = require('playwright');
+/* v68.2 切默认（flow）：全部用例在默认外壳（flow）跑（启动台守卫 / 首帧不裁切 / 歌词逐音撤销 / 手机启动台 / 小节线菜单都是功能）；
+   T4 另在 ?shell=classic 跑一遍（旧外壳的左栏面板开合是兜底布局独有的重排路径）；T5 进入逐字填词按外壳走真实入口——
+   flow：谱面光标上按 Enter（「Enter 填词」，焦点进左栏 #i-lyric）；旧外壳：左栏「歌词」面板 openFlyout('lyr')。逐字录入与撤销断言不变 */
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const withQ = (u, q) => q ? u + (u.includes('?') ? '&' : '?') + q : u;
 
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
   const errs = [];
-  const open = async (vp) => {
+  const open = async (vp, q) => {
     const pg = await b.newPage({ viewport: vp || { width: 1440, height: 900 } });
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
-    await pg.goto(F); await pg.waitForTimeout(1100);
+    await pg.goto(withQ(F, q)); await pg.waitForTimeout(1100);
     await pg.evaluate(`(()=>{ window.SF_PLAYWAIT=false; if(typeof guardReplace!=='undefined') guardReplace=(p)=>p(); })()`);
     return pg;
   };
@@ -37,7 +41,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     T(on.pad && on.cls && s1.s === s0.s && s1.ls === s0.ls, 'T1 启动台按键不改谱（12 个键含 Ctrl+Z/V）', JSON.stringify({ ...on, same: s1.s === s0.s, lsSame: s1.ls === s0.ls }));
 
     /* 真鼠标点击编辑区按钮（按坐标点，inert 时点不中） */
-    const ids = ['#eb-clear', '#eb-rest', '#eb-octup', '#eb-acc-s', '#b-undo', '#k-up', '#eb-delcol2', '.ltab'];
+    const ids = ['#eb-clear', '#eb-rest', '#eb-octup', '#eb-acc-s', '#b-undo', '#k-up', '#eb-delcol2', '.ltab',
+      '#flw-pgrid .flw-sg', '#flw-tlist .flw-trow .flw-tn', '#flw-modes [data-fa]'];   /* v68.2 flow：左栏记号格 / 音轨行 / 模式条（启动台下应点不中或不改谱） */
     const hits = [];
     for (const id of ids) {
       const box = await pg.evaluate(`(()=>{ const e=document.querySelector('${id}'); if(!e) return null; const r=e.getBoundingClientRect();
@@ -64,8 +69,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const res = [];
     const GEO = `(()=>{ const s=document.getElementById('score').getBoundingClientRect(), p=document.getElementById('paper').getBoundingClientRect();
       return {sr:Math.round(s.right), pr:Math.round(p.right)}; })()`;
-    for (const w of [1440, 1280]) {
-      const pg = await open({ width: w, height: 900 });
+    for (const [w, q] of [[1440, ''], [1280, ''], [1440, 'shell=classic'], [1280, 'shell=classic']]) {
+      const pg = await open({ width: w, height: 900 }, q);
       /* v67.4「继续上次编辑」只给自己的谱（原样示例谱不算，修 P2-24）：先把示例谱存成自己的（改曲名落盘）再刷新，谱面内容不变 */
       await pg.evaluate(() => { song.title = '我的练习'; persistNow(); });
       await pg.reload(); await pg.waitForTimeout(1100);
@@ -77,11 +82,11 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       const g2 = await pg.evaluate(GEO);
       await pg.evaluate(`openFlyout(activeTab)`); await pg.waitForTimeout(150);
       const g3 = await pg.evaluate(GEO);
-      res.push({ w, g0, g1, g2, g3 });
+      res.push({ w, shell: await pg.evaluate(() => document.body.classList.contains('flow') ? 'flow' : 'classic'), g0, g1, g2, g3 });
       await pg.close();
     }
-    const ok = res.every(r => [r.g0, r.g1, r.g2, r.g3].every(g => g.sr <= g.pr + 1));
-    T(ok, 'T4 1440/1280「继续上次编辑」首帧及开合左栏后 score.right ≤ paper.right', JSON.stringify(res));
+    const ok = res.every(r => [r.g0, r.g1, r.g2, r.g3].every(g => g.sr <= g.pr + 1)) && res.map(r => r.shell).join() === 'flow,flow,classic,classic';
+    T(ok, 'T4 1440/1280「继续上次编辑」首帧及开合左栏后 score.right ≤ paper.right（flow + 旧外壳）', JSON.stringify(res));
   }
 
   /* ---------- T5 歌词逐音撤销 ---------- */
@@ -92,7 +97,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       sel={mi:0,row:'vox',vi:0,ci:0,si:1}; activeLyr=0;
       mutate(()=>{ song.measures[1].voxes[0][0].deg=5; });   /* 先改一个音：歌词撤销不能把它一并撤掉 */
       render(); })()`);
-    await pg.evaluate(`(()=>{ openFlyout('lyr'); const i=document.getElementById('i-lyric'); i.value=''; i.focus(); })()`);
+    const flow5 = await pg.evaluate(`document.body.classList.contains('flow')`);
+    if (flow5) {   /* flow：谱面光标在第 1 列，按 Enter＝逐字填词（焦点进左栏 #i-lyric） */
+      await pg.evaluate(`(()=>{ const a=document.activeElement; if(a && a!==document.body && a.blur) a.blur(); })()`);
+      await pg.keyboard.press('Enter'); await pg.waitForTimeout(150);
+    } else await pg.evaluate(`(()=>{ openFlyout('lyr'); const i=document.getElementById('i-lyric'); i.value=''; i.focus(); })()`);
+    const in5 = await pg.evaluate(`(()=>{ const i=document.getElementById('i-lyric'); return {focus:document.activeElement===i, inLeft:!!i.closest(document.body.classList.contains('flow')? '#flw-left' : '#left-dock'), v:i.value, sel:[sel.mi,sel.ci]}; })()`);
     for (const ch of ['春', '眠', '不']) { await pg.keyboard.type(ch); await pg.keyboard.press('Enter'); await pg.waitForTimeout(40); }
     await pg.evaluate(`document.getElementById('i-lyric').blur()`);
     const L = `(()=>song.measures[0].voxes[0].map(c=>(c.lyrics||[])[0]||'').join('|')+'#'+song.measures[1].voxes[0][0].deg)()`;
@@ -100,8 +110,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     await pg.keyboard.press('Control+z'); await pg.waitForTimeout(60); const a1 = await pg.evaluate(L);
     await pg.keyboard.press('Control+z'); await pg.waitForTimeout(60); const a2 = await pg.evaluate(L);
     await pg.keyboard.press('Control+y'); await pg.waitForTimeout(60); const a3 = await pg.evaluate(L);
-    T(a0 === '春|眠|不|#5' && a1 === '春|眠||#5' && a2 === '春|||#5' && a3 === '春|眠||#5',
-      'T5 歌词逐音撤销（只退最后一个音的词，改音不被连带撤销，可重做）', JSON.stringify({ a0, a1, a2, a3 }));
+    T(in5.focus && in5.inLeft && in5.v === '' && in5.sel.join() === '0,0' && a0 === '春|眠|不|#5' && a1 === '春|眠||#5' && a2 === '春|||#5' && a3 === '春|眠||#5',
+      'T5 歌词逐音撤销（' + (flow5 ? 'flow：Enter 进逐字填词' : '旧外壳：左栏歌词面板') + '；只退最后一个音的词，改音不被连带撤销，可重做）', JSON.stringify({ in5, a0, a1, a2, a3 }));
     await pg.close();
   }
 

@@ -10,12 +10,16 @@
    file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 切默认（flow）：T1（左轨页签顺序）/ T2（左栏歌词页零段空态）断言旧外壳左栏——这两条钉 ?shell=classic；
+   T3–T7（智能填词声部行 / 切声部 / ＋声部 / 上限 / 空来源）是歌词逻辑，改在默认外壳（flow）跑；
+   T2f 在 flow 断言零段空态的新入口：右栏「文字」页「＋ 添加歌词行」（逐字填词 / 智能填词暂不出）→ 真实点击建第 1 段、填词入口出现、真实点「智能填词…」打开同一声部行弹窗；音轨树歌词行常驻 */
+const F0 = 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + '?shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
-  const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
+  let pg = await b.newPage({ viewport: { width: 1280, height: 950 } });
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
@@ -66,6 +70,33 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
   T(r.shown0 && r.addTxt.indexOf('添加歌词行') >= 0 && r.editHidden
     && r.lines === 1 && r.editBack && r.segChips === 1,
     'T2 零段空态：入口常驻 + 面板直接给「＋ 添加歌词行」', JSON.stringify(r));
+
+  /* —— 以下在默认外壳（flow）跑：新上下文（?shell=classic 写的本机键 musetab-flow='0' 不带过来）—— */
+  await pg.close();
+  pg = await b.newPage({ viewport: { width: 1440, height: 950 } });
+  pg.on('pageerror', e => errs.push('flow:' + e.message));
+  await pg.goto(F0); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+
+  // T2f flow 零段空态：右栏「文字」页给「＋ 添加歌词行」（逐字填词 / 智能填词不出）；真实点一下建第 1 段 → 段号芯片 1 个 + 逐字填词出现；
+  //     真实点「智能填词…」＝同一声部行弹窗（#sf-voices）；音轨树当前旋律轨的歌词行常驻（零段也在）
+  await pg.evaluate(HELP + `(()=>{ __mk(0); hideStartPad(); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); FLOW.rd.show('text'); })()`);
+  await pg.waitForTimeout(200);
+  const vq = s2 => pg.evaluate(s2 => { const e = document.querySelector(s2); if (!e) return false; const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) return false;
+    for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; }, s2);
+  const f0 = await pg.evaluate(() => { const a = document.querySelector('#flw-rp-text .chip[data-k="ll+"]');
+    return { flow: document.body.classList.contains('flow'), page: FLOW.rd.page(), lines: song.lyricLines | 0, addTxt: a ? a.textContent.trim() : '',
+      treeRow: !!document.querySelector('#flw-tlist .flw-tlyrrow') }; });
+  f0.addVis = await vq('#flw-rp-text .chip[data-k="ll+"]'); f0.fillVis = await vq('#flw-rp-text [data-v="lyr"]'); f0.sfVis = await vq('#flw-rp-text [data-v="b-fill"]');
+  await pg.click('#flw-rp-text .chip[data-k="ll+"]'); await pg.waitForTimeout(250);
+  const f1 = await pg.evaluate(() => ({ lines: song.lyricLines, segChips: document.querySelectorAll('#flw-rp-text .chip[data-k="ll"]').length }));
+  f1.fillVis = await vq('#flw-rp-text [data-v="lyr"]'); f1.sfVis = await vq('#flw-rp-text [data-v="b-fill"]');
+  let f2 = { modal: false };
+  if (f1.sfVis) { await pg.click('#flw-rp-text [data-v="b-fill"]'); await pg.waitForTimeout(300);
+    f2 = await pg.evaluate(() => { const ch = [...document.querySelectorAll('#sf-voices [data-sfv]')].map(x => x.dataset.sfv); const t = (document.getElementById('sf-title') || {}).textContent || ''; try { closeModal(); } catch (_) {} return { modal: ch.length >= 2, ch, title: t }; }); }
+  T(f0.flow && f0.page === 'text' && f0.lines === 0 && f0.addVis && /添加歌词行/.test(f0.addTxt) && !f0.fillVis && !f0.sfVis && f0.treeRow
+    && f1.lines === 1 && f1.segChips === 1 && f1.fillVis && f1.sfVis && f2.modal && /第1段/.test(f2.title),
+    'T2f flow 零段空态：文字页「＋ 添加歌词行」→ 建第 1 段、逐字填词 / 智能填词出现，智能填词打开声部行弹窗；音轨树歌词行常驻', JSON.stringify({ f0, f1, f2 }));
 
   // T3 智能填词声部行：列出全部旋律声部 + 各自可填音位数
   r = await pg.evaluate(HELP + `(()=>{

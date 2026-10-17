@@ -5,6 +5,8 @@
    T3 变化音净空（v60.53 重写为列索引精确配对——旧写法靠 bbox 容差找「前一列」，会跳过
       真正相邻的那个数字造成假绿）：8/16/32 分三档密度都不侵入前一列，且贴近主音（净距≤1.5px）；
       32 分档触发 rowMax 整体压缩，v60.52 起实测重叠 −3.6px，本版把压缩改为「只吃弹簧不吃刚杆」
+      （v68.2：谱纸定宽 599＝旧外壳 1280 口径 PAGE_W 569 跑原断言；T3n 默认新外壳自然 PAGE_W 870 下同样不压前列，
+       另含 d32z：内容大小 150% 收窄版宽时走压缩且不压前列）
    T4 双倚音净空：倚音组数字与共用减时线左端都不侵入前一列数字
    T5 倚音+变化音同列（左伸叠加最大情形）：三倚音 + ♭♭ 仍不重叠
    T6 小节首列左伸不压小节线
@@ -80,10 +82,18 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     'T2 纯简谱谱变拍同样预留（此前 needTS=false 零预留）', JSON.stringify(r.jp));
 
   // T3 变化音：列索引精确配对（不靠 bbox 猜前一列）× 三档密度；兼顾贴近主音
-  r = await pg.evaluate(HELP + `(()=>{
-    const mk=(dur,n,ai)=>{
+  /* v68.2 谱纸口径：本用例原在旧外壳 1280 宽、左栏面板展开时跑——谱纸 599 → PAGE_W 569，32 分档（32 个三十二分）自然宽超出版心、
+     走 rowMax 压缩（v60.53 修的就是这条路径）。新外壳（默认）同宽谱纸 900 → PAGE_W 870，32 分档不再超宽，squeezed=false，测不到压缩。
+     T3 固定谱纸 599（＝旧口径 PAGE_W 569，两种外壳同一 PAGE_W 下 #score 逐字节相同，见 tv_header T14x）跑原断言，一字不改；
+     另加 T3n 在默认外壳自然谱纸（PAGE_W 870）下同样三档不压前列、贴近主音（不压缩档）；
+     T3n 再加 d32z：同一夹具＋内容大小 150%（现有字段 layout.scale，版宽 580、行宽 468）——用户经「内容大小」把版宽收窄时同样走压缩路径且不压前列。 */
+  const T3SRC = (pin) => HELP + `(()=>{
+    const P=document.getElementById('paper'), st0=P.getAttribute('style');
+    if(${pin}){ P.style.width=P.style.maxWidth=P.style.minWidth='${pin}px'; P.style.flex='none'; }
+    const mk=(dur,n,ai,sc)=>{
       const Vd=(deg,o)=>Object.assign(__V(deg,o),{dur});
       const s=createSong('vocal',{beats:4,unit:4,key:'C',nMea:1,nVox:1,lyr:0});
+      if(sc) s.layout=Object.assign({}, s.layout||{}, {scale:sc});   /* 内容大小（现有字段 layout.scale）：版宽按比例收窄 */
       const m=[]; for(let i=0;i<n;i++) m.push(Vd((i%7)+1, i===ai?{acc:'#'}:{}));
       s.measures[0].voxes[0]=m; loadSong(s); blurSel=true; render();
       const dig=__digits().sort((a,c)=>a.x-c.x);            // 每列一个数字，index==列号
@@ -93,11 +103,20 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
                mainGap:+(dig[ai].x-acc.r).toFixed(1),        // 与自己主音的净距（贴近）
                squeezed: measureLayout(song.measures[0]).w >= (PAGE_W-2*MARGIN-STAFF_HEAD_W)-1 };
     };
-    return {d8:mk(8,8,5), d16:mk(16,16,9), d32:mk(32,32,17)};
-  })()`);
-  T(r.d8.prevGap > 1.5 && r.d16.prevGap > 1.5 && r.d32.prevGap > 1.5
+    const out={d8:mk(8,8,5), d16:mk(16,16,9), d32:mk(32,32,17), PW:PAGE_W, flow:document.body.classList.contains('flow')};
+    if(!${pin}){ out.d32z=mk(32,32,17,1.5); out.PWz=PAGE_W; }   /* PW 先取（内容大小会改 PAGE_W），再跑 d32z */
+    if(st0==null) P.removeAttribute('style'); else P.setAttribute('style', st0); render();
+    return out;
+  })()`;
+  r = await pg.evaluate(T3SRC(599));
+  T(r.PW === 569 && r.d8.prevGap > 1.5 && r.d16.prevGap > 1.5 && r.d32.prevGap > 1.5
     && r.d8.mainGap > 0 && r.d8.mainGap <= 1.5 && r.d16.mainGap <= 1.5 && r.d32.squeezed,
-    'T3 变化音三档密度不压前列＋贴近主音（32 分档走 rowMax 压缩，旧版重叠 −3.6）', JSON.stringify(r));
+    'T3 变化音三档密度不压前列＋贴近主音（32 分档走 rowMax 压缩，旧版重叠 −3.6；谱纸 599＝PAGE_W 569）', JSON.stringify(r));
+  r = await pg.evaluate(T3SRC(0));
+  T(r.flow && r.PW === 870 && r.d8.prevGap > 1.5 && r.d16.prevGap > 1.5 && r.d32.prevGap > 1.5
+    && [r.d8, r.d16, r.d32].every(x => x.mainGap > 0 && x.mainGap <= 1.5)
+    && r.d32z && r.d32z.squeezed && r.d32z.prevGap > 1.5 && r.PWz < r.PW,
+    'T3n 默认新外壳自然谱纸（PAGE_W 870）：变化音三档同样不压前列＋贴近主音；内容大小 150%（d32z）走压缩仍不压前列', JSON.stringify(r));
 
   // T4 双倚音净空（16 分密排，旧版实测重叠 −2.9px）
   r = await pg.evaluate(HELP + `(()=>{

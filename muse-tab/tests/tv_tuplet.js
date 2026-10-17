@@ -202,13 +202,28 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     'T11 连音符杠成组（跨拍块隔离保留 + v60.59 同拍并杠）', JSON.stringify(r));
 
   // T12 v51.6 预设只留三连音：5/6/7 按钮移除、N连音按钮在（mark/vmark 两宿主）
+  /* v68.2 新外壳（默认）：行 2 按计划 §1.4 多一枚 #flw-tup3（[data-tup="3"]，与记号面板那两枚走同一个 ebHandler→applyTuplet），
+     N 连音进行 2「更多 ▾」（data-fa="r2:tupn"，与 [data-tupcustom] 同一调用 showTupletMenu）。断言按宿主逐个数，不放宽：
+     mark / vmark 各恰好一枚 3 连音 + 一枚 N连音；行 2 恰好一枚且只在新外壳；全文没有任何非 3 的预设。 */
   r = await pg.evaluate(() => {
-    const tups = [...document.querySelectorAll('[data-tup]')].map(b => b.dataset.tup);
-    return { tups, only3: tups.length === 2 && tups.every(t => t === '3'),
-      nBtn: document.querySelectorAll('[data-tupcustom]').length === 2,
+    const all = [...document.querySelectorAll('[data-tup]')];
+    const tups = all.map(b => b.dataset.tup);
+    const flow = document.body.classList.contains('flow');
+    const inHost = (id, sel) => [...document.querySelectorAll('#' + id + ' ' + sel)].length;
+    const r2 = all.filter(b => b.id === 'flw-tup3');
+    const hosts = { mark: inHost('mark-body', '[data-tup]'), vmark: inHost('vmark-body', '[data-tup]'), r2: r2.length };
+    const other = all.length - hosts.mark - hosts.vmark - hosts.r2;   // 不在这三处的 [data-tup] 一律不许有
+    let moreTupN = null;
+    if (flow) { const mb = document.getElementById('flw-more'); if (mb) { mb.click();
+      const it = [...document.querySelectorAll('#popmenu [data-fa="r2:tupn"]')];
+      moreTupN = it.length === 1 && /N 连音/.test(it[0].textContent) && it[0].getAttribute('aria-disabled') !== 'true';
+      try { closePop(); } catch (_) {} } }
+    return { tups, hosts, other, flow, moreTupN,
+      only3: tups.every(t => t === '3') && hosts.mark === 1 && hosts.vmark === 1 && other === 0 && hosts.r2 === (flow ? 1 : 0),
+      nBtn: document.querySelectorAll('[data-tupcustom]').length === 2 && inHost('mark-body', '[data-tupcustom]') === 1 && inHost('vmark-body', '[data-tupcustom]') === 1,
       label: [...document.querySelectorAll('[data-tupcustom] span')].every(s => s.textContent === 'N连音') };
   });
-  T(r.only3 && r.nBtn && r.label, 'T12 预设仅3连音+N连音按钮', JSON.stringify(r));
+  T(r.only3 && r.nBtn && r.label && (!r.flow || r.moreTupN === true), 'T12 预设仅3连音+N连音按钮（新外壳：行 2 的 3 连音 + 更多 ▾「N 连音…」）', JSON.stringify(r));
 
   // ---- v56.8 三连音深修（用户反馈：4/4 简谱 Ctrl 选中三个四分音符点三连音无效） ----
   // T13 用户场景：简谱 0556(八分×4)+高1·7·6(四分×3)，Ctrl 红圈多选（noteSel）→ applyTuplet(3)

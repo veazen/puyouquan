@@ -38,6 +38,10 @@ const SITE = process.env.MUSETAB_SITE || path.resolve(__dirname, '../site');
 const MP_ROOT = path.resolve(__dirname, '../../miniprogram');
 const KIND = require(path.join(API_DIR, 'kindname.js'));
 const readEd = () => fs.readFileSync(ED, 'utf8');
+/* v68.2 默认外壳 flow（计划 §5.4）：K6 / K7 的真实点击入口换新外壳——新建＝页签「＋」#dt-add；「新建 ▾」＝文件 ▾ 新建行尾 ▾（r1:newdd，同一 NWP.quickMenu，埋点入口仍记 menu）；
+   右栏谱名＝「属性」页「整谱 · 谱类」#flw-rx-song（旧外壳信息卡 #ri-type）；谱型条谱名 / 换谱类菜单＝左栏音轨区谱类芯片 #flw-kchip（同一个 #lb-menu）。
+   下面的读取函数按 flowOn() 自动取对应位置，?shell=classic 下仍读旧位置 */
+const NEWB = '#dt-add';
 
 let pass = 0, total = 0;
 const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
@@ -386,11 +390,12 @@ async function mkPage(b, url, opt) {
       await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} hideStartPad(); });
       const n0 = pg._ev.length;
       /* ① 新建 → 面板默认（首访＝吉他弹唱）→ 填曲名 → 创建 */
-      await pg.click('#b-new'); await pg.waitForSelector('#nw-create', { timeout: 5000 });
+      await pg.click(NEWB); await pg.waitForSelector('#nw-create', { timeout: 5000 });
       await pg.fill('#nw-title', '我的私密曲名');
       await pg.click('#nw-create'); await pg.waitForTimeout(500);
       /* ② 新建 ▾ → 钢琴即兴伴奏 */
-      await pg.click('#b-newdd'); await pg.waitForSelector('#nf-qm [data-q="pacc"]', { timeout: 5000 });
+      await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { timeout: 5000 }); await pg.click('#popmenu [data-fa="r1:newdd"]');
+      await pg.waitForSelector('#nf-qm [data-q="pacc"]', { timeout: 5000 });
       await pg.click('#nf-qm [data-q="pacc"]'); await pg.waitForTimeout(500);
       /* ③ Alt+Shift+N 按上次（＝钢琴即兴伴奏） */
       await pg.evaluate(() => { const a = document.activeElement; if (a && a.blur) a.blur(); });
@@ -415,15 +420,17 @@ async function mkPage(b, url, opt) {
       await pg.evaluate(() => { try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} hideStartPad(); });
       const imp = async (nm, xml, tg) => {
         await pg.evaluate(() => { try { closeModal(); } catch (_) {} });
-        await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('.nf-tabs [data-v="import"]'); await pg.waitForSelector('#nf-isrc');
+        await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('.nf-tabs [data-v="import"]'); await pg.waitForSelector('#nf-isrc');
         await pg.setInputFiles('#nw-anyfile', { name: nm + '.musicxml', mimeType: 'application/xml', buffer: Buffer.from(xml) });
         await pg.waitForFunction(() => !!(NWP.state && NWP.state.imp.a) && !!document.querySelector('#nf-ibasis'), null, { timeout: 6000 });
         if (tg) { await pg.click('#nf-tg-' + tg); await pg.waitForTimeout(150); }
         const orig = await pg.evaluate(() => ((document.querySelector('#nf-tg-orig small') || {}).textContent || ''));
         const basis = await pg.evaluate(() => document.getElementById('nf-ibasis').textContent);
         await pg.click('#nf-impgo'); await pg.waitForFunction(() => !document.querySelector('.nf-modal')); await pg.waitForTimeout(250);
-        const r = await pg.evaluate(() => ({ ri: ((document.getElementById('ri-type') || {}).textContent || '').split(' · ')[0], lab: docTypeLabel(song), k: NWB.stackOf(song), ll: song.lyricLines,
-          lb: ((document.querySelector('#lb-wrap .lb-kind b') || {}).textContent || ''), json: JSON.stringify(song) }));
+        await pg.evaluate(() => { try { FLOW.tree.sync(); } catch (_) {} });   /* flow：音轨区谱类芯片在下一帧重画，先同步 */
+        const r = await pg.evaluate(() => { const fl = typeof flowOn === 'function' && flowOn();
+          return { ri: (((fl ? document.querySelector('#flw-rx-song .flw-rx-ell') : document.getElementById('ri-type')) || {}).textContent || '').split(' · ')[0], lab: docTypeLabel(song), k: NWB.stackOf(song), ll: song.lyricLines,
+            lb: ((document.querySelector(fl ? '#flw-kchip .flw-kn' : '#lb-wrap .lb-kind b') || {}).textContent || ''), json: JSON.stringify(song) }; });
         return Object.assign(r, { orig, basis, srv: KIND.pubNameOf ? KIND.pubNameOf(JSON.parse(r.json)) : KIND.nameOf(JSON.parse(r.json)), json: undefined });
       };
       const res = [];
@@ -432,7 +439,7 @@ async function mkPage(b, url, opt) {
       const acc = await imp('小提琴独奏（无词）配伴奏', XML_NOLY[0][1], 'acc');
       /* 面板悬停预告＝建成谱名：器乐独奏 · 小提琴（不要歌词）点亮「钢琴大谱表」 */
       await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); });
-      await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]');
+      await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]');
       await pg.click('[data-scene="inst"]'); await pg.click('[data-act="var"][data-k="instKey"][data-v="violin"]');
       await pg.hover('[data-row="G"]'); await pg.waitForTimeout(80);
       const hint = await pg.evaluate(() => document.querySelector('.nf-rowhint').textContent);
@@ -442,7 +449,8 @@ async function mkPage(b, url, opt) {
       const made = await pg.evaluate(() => ({ lab: docTypeLabel(song), k: NWB.stackOf(song), ll: song.lyricLines }));
       /* 谱型条换谱类：菜单项写的谱名＝换完的谱名（直接换：沿用无词；空谱重建：钢琴伴奏歌谱默认留 1 行词） */
       const sw = async (to) => {
-        await pg.click('#lb-wrap .lb-kind'); await pg.waitForSelector('#lb-menu');
+        const KB = await pg.evaluate(() => (typeof flowOn === 'function' && flowOn()) ? '#flw-kchip' : '#lb-wrap .lb-kind');
+        await pg.click(KB); await pg.waitForSelector('#lb-menu');
         const item = await pg.evaluate(t => { const x = document.querySelector('#lb-menu .lb-mi[data-sw="' + t + '"]'); return x ? { name: (x.querySelector('b') || x).textContent, mode: x.className.replace(/.*m-/, '') } : null; }, to);
         await pg.click('#lb-menu .lb-mi[data-sw="' + to + '"]'); await pg.waitForTimeout(250);
         return Object.assign(item || {}, { after: await pg.evaluate(() => docTypeLabel(song)) });
@@ -450,7 +458,7 @@ async function mkPage(b, url, opt) {
       await imp('小提琴独奏（无词）', XML_NOLY[0][1]);
       const swDirect = await sw('SG');
       await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); });
-      await pg.click('#b-new'); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('[data-scene="sight"]'); await pg.click('#nw-create'); await pg.waitForTimeout(300);
+      await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.click('[data-scene="sight"]'); await pg.click('#nw-create'); await pg.waitForTimeout(300);
       const swRebuild = await sw('SG');
       await ctx.close();
       const noSong = r => !/歌谱|合唱/.test(r.ri + r.lab + r.lb + r.srv + r.orig);
@@ -460,7 +468,7 @@ async function mkPage(b, url, opt) {
         && /点亮「钢琴大谱表」→ 旋律＋钢琴伴奏谱（五线谱）/.test(hint) && /旋律＋钢琴伴奏谱（五线谱）/.test(kindTxt) && made.lab === '旋律＋钢琴伴奏谱（五线谱）' && made.k === 'SG' && made.ll === 0
         && swDirect.mode === 'direct' && swDirect.name.includes(swDirect.after) && swDirect.after === '旋律＋钢琴伴奏谱（五线谱）'
         && swRebuild.mode === 'rebuild' && swRebuild.name.includes(swRebuild.after) && swRebuild.after === '钢琴伴奏歌谱（五线谱）',
-        'K7 无词器乐导入谱（真实点击导入，按原文件）：歌词行数照文件＝0；右栏 / 谱型条 / 面板小字 / 谱库口径同名＝五线谱旋律 / 旋律＋钢琴伴奏谱（五线谱）/ 五线谱重奏谱，不含「歌谱」「合唱」；有词文件仍五线谱歌谱、「配钢琴伴奏」仍钢琴伴奏歌谱（五线谱）；面板悬停预告＝建成谱名；谱型条菜单项＝换完的谱名',
+        'K7 无词器乐导入谱（真实点击导入，按原文件）：歌词行数照文件＝0；右栏（flow：属性页「整谱 · 谱类」）/ 谱型条（flow：音轨区谱类芯片）/ 面板小字 / 谱库口径同名＝五线谱旋律 / 旋律＋钢琴伴奏谱（五线谱）/ 五线谱重奏谱，不含「歌谱」「合唱」；有词文件仍五线谱歌谱、「配钢琴伴奏」仍钢琴伴奏歌谱（五线谱）；面板悬停预告＝建成谱名；谱型条菜单项＝换完的谱名',
         JSON.stringify({ badImp: badImp.map(r => [r.nm, r.ri, r.lab, r.k, r.srv, r.lb, r.ll, r.orig]), lyOne: [lyOne.lab, lyOne.ll, lyOne.srv], acc: [acc.lab, acc.ll, acc.srv], hint, kindTxt, made, swDirect, swRebuild }));
     });
 

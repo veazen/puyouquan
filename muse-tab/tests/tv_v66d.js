@@ -16,11 +16,18 @@
        手机「智能」钮（深色主栏上）、谱库卡曲名与本地封面骨架（深色主题不再读谱面墨 --ink）、个人中心当前项
    突变实证：MUSETAB_URL 指向 v66.4（换色前，git HEAD 版）复跑 → T1–T8、T10–T13 全红；
    绿的两条是 T9 语义色保留与「无页面脚本错误」——两者本就应不随换色变化。
-   T13 另对「验收补修前」的版本复跑为红（声像读数 2.71、密集标尺 2.17、手机智能钮 2.43、深色谱库曲名 1.08、小节格 3.6–4.4、个人中心 4.47）。 */
+   T13 另对「验收补修前」的版本复跑为红（声像读数 2.71、密集标尺 2.17、手机智能钮 2.43、深色谱库曲名 1.08、小节格 3.6–4.4、个人中心 4.47）。
+   v68.2 切默认（flow）：T1、T3–T11 照旧在默认外壳；外壳相关的三条两种外壳各断言一次——
+   T2 flow：行 1 #flw-r1 底＝--chrome、发丝线改画在 #flw-r1::after（1px · --glow · 底边，计划 §2.4；旧主栏 .main-bar 在 flow 下隐藏）；页签条 #doc-tabs 并入行 1、
+      不另起底色（透明，看到的是行 1 的 --chrome）；播放坞 #mixer-dock 同旧口径。旧外壳段（?shell=classic）原断言不变（.main-bar / #doc-tabs / #mixer-dock）。
+   T12 flow：行 1 / 页签 / 状态栏内焦点环 #8576f8，左栏 #flw-left 与行 2 #editbar（浅底）＝--focus；旧外壳段原断言不变。
+   T13 坞内声像读数 / 轨道小节格编号（混音台独有，flow 没有混音台）与手机「智能」钮（旧手机主栏）只在旧外壳段断言；flow 段量可见的同类小字：
+      状态栏小节格编号 / 坞、行 1 页签字 / 行 1、手机顶栏 #flw-mtop 文字 / 顶栏，谱库卡曲名、封面骨架、个人中心照旧。 */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const withQ = (u, q) => q ? u + (u.includes('?') ? '&' : '?') + q : u;
 const FILE = URL0.startsWith('file://') ? URL0.slice(7) : path.resolve(__dirname, '../index.html');
 const HTML = fs.readFileSync(FILE, 'utf8');
 const C = {
@@ -74,10 +81,10 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
   const errs = [];
-  const open = async (scheme, theme, vp) => {
+  const open = async (scheme, theme, vp, q) => {
     const ctx = await b.newContext({ viewport: vp || { width: 1440, height: 900 }, colorScheme: scheme });
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push(e.message));
-    await pg.goto(URL0); await pg.waitForTimeout(900);
+    await pg.goto(withQ(URL0, q)); await pg.waitForTimeout(900);
     await pg.evaluate(t => { window.guardReplace = p => p(); if (t) document.documentElement.dataset.theme = t; }, theme);
     await pg.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
     await pg.evaluate(COLORLIB);
@@ -103,20 +110,38 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
   /* ---------- T2 深色框架底色 + 发丝线 ---------- */
   {
     const out = {}; let ok = true;
+    const GLOW = /rgba\(139, 125, 255, 0\.3\).*inset|inset.*rgba\(139, 125, 255, 0\.3\)/;
+    const avgOf = bg => { const m = /rgb\((\d+), (\d+), (\d+)\)/.exec(bg || ''); return m ? (+m[1] + +m[2] + +m[3]) / 3 : 999; };
+    /* 旧外壳段（?shell=classic）：原断言 */
+    for (const [nm, scheme, theme, eff] of [STATES[0], STATES[1]]) {
+      const pg = await open(scheme, theme, null, 'shell=classic');
+      await pg.evaluate(LOAD); await pg.waitForTimeout(300);
+      const r = await pg.evaluate(() => { const g = s => { const e = document.querySelector(s); if (!e) return null; const cs = getComputedStyle(e); return { bg: cs.backgroundColor, sh: cs.boxShadow }; };
+        return { flow: document.body.classList.contains('flow'), bar: g('body.shell #top .main-bar'), tabs: g('#doc-tabs'), dock: g('#mixer-dock') }; });
+      const want = rgbOf(C[eff]['--chrome']);
+      if (r.flow) ok = false;
+      for (const k of ['bar', 'tabs', 'dock']) {
+        const x = r[k];
+        if (!x || x.bg !== want || avgOf(x.bg) >= 80 || !GLOW.test(x.sh)) ok = false;
+      }
+      out['旧·' + nm] = r; await close(pg);
+    }
+    /* flow 段（默认外壳）：行 1 #flw-r1 底＝--chrome、发丝线＝#flw-r1::after（1px、--glow、贴底边）；#doc-tabs 在行 1 内且不另起底色；播放坞同旧口径 */
     for (const [nm, scheme, theme, eff] of [STATES[0], STATES[1]]) {
       const pg = await open(scheme, theme);
       await pg.evaluate(LOAD); await pg.waitForTimeout(300);
-      const r = await pg.evaluate(() => { const g = s => { const e = document.querySelector(s); if (!e) return null; const cs = getComputedStyle(e); return { bg: cs.backgroundColor, sh: cs.boxShadow }; };
-        return { bar: g('body.shell #top .main-bar'), tabs: g('#doc-tabs'), dock: g('#mixer-dock') }; });
+      const r = await pg.evaluate(() => { const g = s => { const e = document.querySelector(s); if (!e) return null; const cs = getComputedStyle(e); const q = e.getBoundingClientRect(); return { bg: cs.backgroundColor, sh: cs.boxShadow, vis: q.width > 0 && q.height > 0 }; };
+        const r1 = document.getElementById('flw-r1'), a = r1 ? getComputedStyle(r1, '::after') : null;
+        return { flow: document.body.classList.contains('flow'), bar: g('#flw-r1'), hair: a ? { c: a.content, bg: a.backgroundColor, h: a.height, b: a.bottom, pos: a.position, op: a.opacity } : null,
+          tabs: Object.assign(g('#doc-tabs') || {}, { inR1: !!(r1 && r1.contains(document.getElementById('doc-tabs'))) }), dock: g('#mixer-dock'), oldBar: g('body.shell #top .main-bar') }; });
       const want = rgbOf(C[eff]['--chrome']);
-      for (const k of ['bar', 'tabs', 'dock']) {
-        const x = r[k]; const m = x && /rgb\((\d+), (\d+), (\d+)\)/.exec(x.bg); const avg = m ? (+m[1] + +m[2] + +m[3]) / 3 : 999;
-        const glow = x && /rgba\(139, 125, 255, 0\.3\).*inset|inset.*rgba\(139, 125, 255, 0\.3\)/.test(x.sh);
-        if (!x || x.bg !== want || avg >= 80 || !glow) ok = false;
-      }
-      out[nm] = r; await close(pg);
+      const hairOk = r.hair && r.hair.c !== 'none' && r.hair.bg === 'rgba(139, 125, 255, 0.3)' && r.hair.h === '1px' && r.hair.b === '0px' && r.hair.pos === 'absolute' && +r.hair.op > 0;
+      if (!(r.flow && r.bar && r.bar.vis && r.bar.bg === want && avgOf(r.bar.bg) < 80 && hairOk
+        && r.tabs.inR1 && r.tabs.vis && r.tabs.bg === 'rgba(0, 0, 0, 0)'
+        && r.dock && r.dock.vis && r.dock.bg === want && avgOf(r.dock.bg) < 80 && GLOW.test(r.dock.sh) && r.oldBar && !r.oldBar.vis)) ok = false;
+      out['flow·' + nm] = r; await close(pg);
     }
-    T(ok, 'T2 主栏 / 页签条 / 播放坞底＝--chrome（深色框架，RGB 均值 <80）+ --glow 1px 内描线', JSON.stringify(out).slice(0, 400));
+    T(ok, 'T2 主栏 / 页签条 / 播放坞底＝--chrome（深色框架，RGB 均值 <80）+ --glow 1px 发丝线（旧外壳：.main-bar / #doc-tabs / #mixer-dock 内描；flow：行 1 #flw-r1 + ::after 发丝线、页签并入行 1 不另起底、#mixer-dock）', JSON.stringify(out).slice(0, 700));
   }
 
   /* ---------- T3 旧色残留（等价场景） ---------- */
@@ -282,12 +307,20 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
 
   /* ---------- T12 框架焦点环 ---------- */
   {
-    const pg = await open('light', null);
+    const pg = await open('light', null, null, 'shell=classic');
     await pg.evaluate(LOAD); await pg.waitForTimeout(300);
     const r = await pg.evaluate(() => { const f = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).getPropertyValue('--focus').trim() : null; };
       return { bar: f('body.shell #top .main-bar'), tabs: f('#doc-tabs'), dock: f('#mixer-dock'), pop: f('.vh-pop'), pill: f('#audio-loading'), out: f('#left-dock') }; });
     await close(pg);
-    T(['bar', 'tabs', 'dock', 'pop', 'pill'].every(k => r[k] === '#8576f8') && r.out === C.light['--focus'], 'T12 深色框架容器内焦点环 #8576f8，框架外为 --focus', JSON.stringify(r));
+    /* flow 段：行 1 / 页签 / 状态栏是深色框架；左栏 #flw-left 与行 2 #editbar 是浅底（框架外） */
+    const pf = await open('light', null);
+    await pf.evaluate(LOAD); await pf.waitForTimeout(300);
+    const rf = await pf.evaluate(() => { const f = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).getPropertyValue('--focus').trim() : null; };
+      return { flow: document.body.classList.contains('flow'), bar: f('#flw-r1'), tabs: f('#doc-tabs'), dock: f('#mixer-dock'), st: f('#mixer-dock .mx-bar'), pop: f('.vh-pop'), pill: f('#audio-loading'), out: f('#flw-left'), out2: f('#editbar') }; });
+    await close(pf);
+    T(['bar', 'tabs', 'dock', 'pop', 'pill'].every(k => r[k] === '#8576f8') && r.out === C.light['--focus']
+      && rf.flow && ['bar', 'tabs', 'dock', 'st', 'pop', 'pill'].every(k => rf[k] === '#8576f8') && rf.out === C.light['--focus'] && rf.out2 === C.light['--focus'],
+      'T12 深色框架容器内焦点环 #8576f8，框架外为 --focus（旧外壳 + flow：行 1 / 页签 / 状态栏 vs 左栏 / 行 2）', JSON.stringify({ classic: r, flow: rf }));
   }
 
   /* ---------- T13 隐藏态文字对比（验收补修：方案覆盖层未覆盖到的深色框架 / 谱库 / 个人中心小字） ---------- */
@@ -295,7 +328,7 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
     const out = {}; const fails = [];
     for (const [nm, scheme, theme] of [STATES[0], STATES[1]]) {
       for (const vp of [null, { width: 390, height: 844 }]) {
-        const pg = await open(scheme, theme, vp || undefined);
+        const pg = await open(scheme, theme, vp || undefined, 'shell=classic');   /* 旧外壳段：坞内声像读数 / 轨道小节格 / 手机「智能」钮是旧外壳独有 */
         await pg.evaluate(LOAD); await pg.waitForTimeout(300);
         const r = await pg.evaluate((mob) => {
           const t = n => __tok(n), chrome = t('--chrome');
@@ -316,8 +349,36 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
           const pb = document.querySelector('.pcx-side button.on'); o['个人中心当前项/淡底'] = pb ? __crS(col(pb), __over(__col(getComputedStyle(pb).backgroundColor), t('--bg'))) : -1;
           return o;
         }, !!vp);
-        for (const [k, v] of Object.entries(r)) if (!(v >= 4.5)) fails.push(nm + (vp ? '·手机 ' : ' ') + k + '=' + v);
-        out[nm + (vp ? '·手机' : '')] = r; await close(pg);
+        for (const [k, v] of Object.entries(r)) if (!(v >= 4.5)) fails.push('旧·' + nm + (vp ? '·手机 ' : ' ') + k + '=' + v);
+        out['旧·' + nm + (vp ? '·手机' : '')] = r; await close(pg);
+      }
+      /* flow 段：只量看得见的同类小字（不可见的混音台 / 旧手机主栏不计） */
+      for (const vp of [null, { width: 390, height: 844 }]) {
+        const pg = await open(scheme, theme, vp || undefined);
+        await pg.evaluate(LOAD); await pg.waitForTimeout(300);
+        const r = await pg.evaluate((mob) => {
+          const t = n => __tok(n), chrome = t('--chrome');
+          const col = e => e ? __col(getComputedStyle(e).color) : null;
+          const vis = e => { if (!e) return false; const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) return false; for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false; } return true; };
+          const bgOf = el => { const st = []; for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const c = __col(getComputedStyle(e).backgroundColor); if (c && c[3] > 0) { st.push(c); if (c[3] >= 1) break; } }
+            let bb = [255, 255, 255]; for (let i = st.length - 1; i >= 0; i--) bb = __over(st[i], bb); return bb.concat(1); };
+          const texts = root => root ? [...root.querySelectorAll('*')].filter(x => vis(x) && [...x.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) : [];
+          const minCr = els => els.length ? Math.min(...els.map(x => __cr(col(x), bgOf(x)))) : -1;
+          const o = { '外壳＝flow（桌面 body.flow / 手机 body.flw-m）': document.body.classList.contains(mob ? 'flw-m' : 'flow') ? 9 : 0 };
+          if (mob) { o['手机顶栏 #flw-mtop 文字/顶栏'] = minCr(texts(document.getElementById('flw-mtop'))); o['手机底条 #flw-mbar 文字/底条'] = minCr(texts(document.getElementById('flw-mbar'))); return o; }
+          const prog = document.getElementById('mx-prog'); const lb = document.createElement('i'); lb.className = 'mxlbl'; lb.textContent = '10'; prog.appendChild(lb);
+          o['密集标尺小节号/坞'] = vis(prog) ? __cr(col(lb), chrome) : -1; lb.remove();
+          o['状态栏小节格编号等可见字/坞'] = minCr(texts(document.getElementById('mixer-dock')).filter(x => !x.closest('#b-play')));
+          o['行 1 文字（含页签）/行 1'] = minCr(texts(document.getElementById('flw-r1')));
+          openCircle(); const ct = document.querySelector('#circle .cc-card .t'); o['谱库卡曲名/卡底'] = ct ? __cr(col(ct), __col(getComputedStyle(ct.closest('.cc-card')).backgroundColor)) : -1;
+          const cv = document.querySelector('#circle .cc-cover svg text[font-size="17"]');
+          o['谱库封面骨架墨色 ≠ 谱面墨'] = cv ? (cv.getAttribute('fill') === 'var(--text)' ? 9 : 0) : 9;
+          document.getElementById('cc-back')?.click(); enterPersonal('rights');
+          const pb = document.querySelector('.pcx-side button.on'); o['个人中心当前项/淡底'] = pb ? __cr(col(pb), __over(__col(getComputedStyle(pb).backgroundColor), t('--bg'))) : -1;
+          return o;
+        }, !!vp);
+        for (const [k, v] of Object.entries(r)) if (!(v >= 4.5)) fails.push('flow·' + nm + (vp ? '·手机 ' : ' ') + k + '=' + v);
+        out['flow·' + nm + (vp ? '·手机' : '')] = r; await close(pg);
       }
     }
     T(!fails.length, 'T13 隐藏态小字对比 ≥4.5：坞内声像读数 / 密集标尺 / 小节格编号、手机「智能」钮、谱库卡曲名（深色不再墨色压深底）、个人中心当前项',

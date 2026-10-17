@@ -202,6 +202,11 @@ const cmds = {
     const ret = n => { let base = 0, back = 0; act.forEach(ds => { const f = Math.min(...ds); if (f > day(t) - n) return; base++; if (ds.has(f + n)) back++; });
       return base ? `${back}/${base}（${(back * 100 / base).toFixed(1)}%）` : '样本不足'; };
     console.log(`北极星（近 7 天做出成品谱的人数）=${done.size}   D1 留存=${ret(1)}   D7 留存=${ret(7)}`);
+    /* v68.2 界面命令 ui_cmd（口径同 server.js uiModes7；上面的事件表不含 ui_cmd） */
+    const ui = { engrave: 0, output: 0, flow: 0, editors: 0 }, t7 = now() - 7 * 86400;
+    q.eventUiCmd7.all(t7, t7, t7).forEach(r => { if (r.k === 'mode:engrave') ui.engrave = r.u; else if (r.k === 'mode:output') ui.output = r.u; else if (r.k === 'editors') ui.editors = r.u; else if (r.k === 'flow') ui.flow = r.u; });
+    /* v68.2 收尾 ENG-6：两个分母都列——新外壳有操作的人（窄口径）与编辑访客（含手机、旧版布局、只开启动台） */
+    console.log(`界面（近 7 天）：用过「排版」${ui.engrave} 人 · 「输出」${ui.output} 人 / 新外壳有操作 ${ui.flow} 人（编辑访客 ${ui.editors} 人，含手机、旧版布局、只开启动台）`);
   },
 };
 

@@ -1,5 +1,6 @@
 /* v60.44 旋律轨→吉他把位轨回归（音轨化 P3：手稿「换谱自动映射＋把位选择推荐」）：
    T1 入口谱类显隐：歌谱「六」灯可见；钢琴谱隐藏；＋音轨选择器含「从旋律生成把位」
+      （v68.2 默认新外壳：音轨树「由此生成六线谱轨…」+ 加轨菜单生成项，真实点击；旧外壳原断言移到 ?shell=classic 页 T1c）
    T2 低把位：C 大调音阶映射后逐音音高等价（tun[s-1]+capo+f === voxMidi）、时值/连音线复制、
       新轨列数与旋律逐小节一致、低把位品位 ≤8
    T3 中把位：同旋律全部品位 ≥4（虚拟 capo 禁空弦）、逐音等价、零折八度
@@ -23,22 +24,67 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
 
   const base = { beats: 4, unit: 4, key: 'C', tempo: 90, nMea: 2, singer: '', lyricist: '', composer: '', maker: '', capo: 0 };
 
-  // T1 入口谱类显隐 + ＋音轨选择器入口
-  let r = await pg.evaluate((base2) => {
+  /* T1 入口谱类显隐 + ＋音轨选择器入口
+     v68.2 默认外壳＝新外壳：旧左栏面板（#nl-voxtab「六」灯所在）整体隐藏，同一入口搬到
+       ① 音轨树当前旋律轨下的动作行「由此生成六线谱轨…」[data-fa="tree:gentab"]（canGen＝!lockOf(dt)&&dt!=='func'，与 #nl-voxtab 的
+          piano/pianoacc/chord/func 隐藏同一规则，L10773 vs L25390）；
+       ② 音轨区「＋」加轨菜单「由「旋律」生成六线谱轨…」[data-fa="tree:gen"]（＝旧「＋ 音轨」弹窗的 #ta-map）。
+     T1 改为在默认外壳真实点击这两个入口（可见 + 点开就是 showVoxTabMenu 的把位弹窗），钢琴谱两处都不给；
+     旧外壳原断言（#nl-voxtab 可见性 + #ta-map）原样移到 ?shell=classic 页面 T1c。 */
+  const clickVis = async (sel) => { const loc = pg.locator(sel).first(); if (!(await loc.count()) || !(await loc.isVisible())) return false;
+    await loc.click({ timeout: 3000 }); await pg.waitForTimeout(120); return true; };
+  await pg.evaluate((base2) => {
     loadSong(createSong('vocal', Object.assign({ nVox: 1, lyr: 0 }, base2)));
-    song.measures[0].voxes[0][0].deg = 1; render();
-    const vis = id => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
-    setRibbon('vox');
-    const vocalLit = vis('nl-voxtab');
-    showAddTrackMenu();
-    const mapEntry = !!document.getElementById('ta-map');
-    document.getElementById('ta-cancel').click();
-    loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2)));
-    setRibbon('vox'); render();
-    const pianoHidden = !vis('nl-voxtab');
-    return { vocalLit, mapEntry, pianoHidden };
+    song.measures[0].voxes[0][0].deg = 1; render(); setRibbon('vox'); render();
   }, base);
-  T(r.vocalLit && r.mapEntry && r.pianoHidden, 'T1 入口谱类显隐（歌谱亮/钢琴隐/＋音轨含生成项）', JSON.stringify(r));
+  const flowOn = await pg.evaluate(() => document.body.classList.contains('flow'));
+  const genClick = await clickVis('#flw-left [data-fa="tree:gentab"]');
+  const genModal = await pg.evaluate(() => { const m = document.getElementById('modal-mask'); const t = m ? m.textContent : '';
+    const ok = /低把位/.test(t) && /中把位/.test(t); try { closeModal(); } catch (_) {} return ok; });
+  const addClick = await clickVis('#flw-left [data-fa="tree:add"]');
+  const addGen = await pg.evaluate(() => { const it = document.querySelector('#popmenu [data-fa="tree:gen"]');
+    const ok = !!it && it.getAttribute('aria-disabled') !== 'true' && it.offsetParent !== null; return ok; });
+  if (addGen) { await pg.locator('#popmenu [data-fa="tree:gen"]').click({ timeout: 3000 }); await pg.waitForTimeout(120); }
+  const addModal = await pg.evaluate(() => { const m = document.getElementById('modal-mask'); const ok = !!m && /低把位/.test(m.textContent);
+    try { closeModal(); } catch (_) {} try { closePop(); } catch (_) {} return ok; });
+  const pianoF = await pg.evaluate((base2) => {
+    loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2))); setRibbon('vox'); render();
+    const row = document.querySelector('#flw-left [data-fa="tree:gentab"]');
+    const ab = document.querySelector('#flw-left [data-fa="tree:add"]'); if (ab) ab.click();
+    const it = document.querySelector('#popmenu [data-fa="tree:gen"]');
+    const menuGen = !it ? 'none' : (it.getAttribute('aria-disabled') === 'true' ? 'dis' : 'on');
+    try { closePop(); } catch (_) {}
+    return { row: !!row, menuGen };
+  }, base);
+  T(flowOn && genClick && genModal && addClick && addGen && addModal && !pianoF.row && pianoF.menuGen !== 'on',
+    'T1 入口谱类显隐（默认新外壳：歌谱音轨树「由此生成六线谱轨…」可见可点＝把位弹窗；加轨菜单含生成项；钢琴谱两处都不给）',
+    JSON.stringify({ flowOn, genClick, genModal, addClick, addGen, addModal, pianoF }));
+
+  /* T1c 旧外壳兜底（?shell=classic）：原 T1 断言一字不改 */
+  {
+    const pc = await b.newPage({ viewport: { width: 1280, height: 950 } });
+    pc.on('pageerror', e => errs.push('classic:' + e.message));
+    await pc.goto(F + '?shell=classic'); await pc.waitForTimeout(900);
+    await pc.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    const rc = await pc.evaluate((base2) => {
+      loadSong(createSong('vocal', Object.assign({ nVox: 1, lyr: 0 }, base2)));
+      song.measures[0].voxes[0][0].deg = 1; render();
+      const vis = id => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
+      setRibbon('vox');
+      const vocalLit = vis('nl-voxtab');
+      showAddTrackMenu();
+      const mapEntry = !!document.getElementById('ta-map');
+      document.getElementById('ta-cancel').click();
+      loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2)));
+      setRibbon('vox'); render();
+      const pianoHidden = !vis('nl-voxtab');
+      return { flow: document.body.classList.contains('flow'), vocalLit, mapEntry, pianoHidden };
+    }, base);
+    await pc.close();
+    T(!rc.flow && rc.vocalLit && rc.mapEntry && rc.pianoHidden, 'T1c 旧外壳（?shell=classic）入口谱类显隐（歌谱亮/钢琴隐/＋音轨含生成项）', JSON.stringify(rc));
+  }
+
+  let r;
 
   // 构造器注入页面：C 大调音阶 8 列（第 3 列挂连音线），供 T2/T3
   await pg.evaluate((base2) => {

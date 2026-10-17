@@ -56,9 +56,14 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
   /* v40.9 图标+小字结构后标签文本在 .lb 子节点（图标 SVG 内含字形文本，不能读整个 textContent——
      tv_dock 早已按此口径，本套件没跟上） */
   const lbTxt = `(()=>{ const el=document.querySelector('.ltab[data-t="vox"]'); const lb=el.querySelector('.lb'); return (lb||el).textContent; })()`;
-  const t4a = await pg.evaluate(lbTxt);
-  const t4b = await pg.evaluate(`(()=>{ loadSong(PRESETS[0].make()); return ${lbTxt}; })()`);
-  console.log('T4 左栏标签: 五线谱曲谱→'+t4a, t4a==='五线谱'?'✅':'❌', '| 吉他预设→'+t4b, t4b==='简谱'?'✅':'❌');
+  /* v68.2 收尾 ENG-8（PLAN §5.4 列为 P）：.ltab 是旧外壳左轨（默认外壳 flow 下隐藏，文字照常更新）——本套件其余项都是谱面刻版审计，要在默认外壳上跑，
+     所以不整套钉旧外壳，而是 T4 两段：旧左轨文字（同前）＋ 默认外壳下左栏音轨树当前旋律轨的记谱法层（FLOW.tree.model：五线谱曲谱＝高音谱表 treble、吉他预设＝简谱 jp），
+     两者都对才算过 */
+  const treeNota = `(()=>{ if(!document.body.classList.contains('flow')) return 'n/a'; const m=FLOW.tree.model(); const x=m && m.T.find(t=>t.k==='vox' && t.i===0); return x? x.nota : null; })()`;
+  const t4a = await pg.evaluate(lbTxt), t4af = await pg.evaluate(treeNota);
+  const t4b = await pg.evaluate(`(()=>{ loadSong(PRESETS[0].make()); return ${lbTxt}; })()`), t4bf = await pg.evaluate(`(()=>{ render(); return ${treeNota}; })()`);
+  const okA = t4a==='五线谱' && (t4af==='n/a' || t4af==='treble'), okB = t4b==='简谱' && (t4bf==='n/a' || t4bf==='jp');
+  console.log('T4 左栏标签: 五线谱曲谱→'+t4a+' / 音轨树 '+t4af, okA?'✅':'❌', '| 吉他预设→'+t4b+' / 音轨树 '+t4bf, okB?'✅':'❌');
 
   // T5: 联排记号进位
   const t5 = await pg.evaluate(CNT+`(()=>{

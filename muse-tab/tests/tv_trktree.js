@@ -4,6 +4,7 @@
    T0  不带开关零差异：默认外壳里 v68.0 动过的共享路径（混音台行 → trkMixSet · 「＋ 音轨」弹窗 → addTrackOf · 力度弹窗 → dynApplyTo · 偏好设置 PREF_ITEMS ·
        Enter 填词 · 「/」键 · 谱型条 lbSync / lbMenuOut / LBAR.show）逐项与 shellflow_ref.json 的基线提交对拍（HTML / 数据 / 焦点 / 本机键），
        并核 S0b 不变量（FLOW 不挂载、没有任何 flow 节点）。拿不到基线：CI 判红，本地只跑不变量并打印 ⚠️（与 tv_shellflow S0 同口径，MUSETAB_REF=none 显式跳过）
+       v68.2 切默认起：被测页改为 ?shell=classic 的旧外壳、对拍基线提交不带开关的默认外壳；例外（「使用旧版布局」一行、musetab-flow 键）写在 T0 处
    T1  钢琴伴奏歌谱（送别 + fillAccompaniment）：花括号组 2 行 + 旋律 1 行；徽标 简 / 高音 / 低音（data-badge）；花括号按组高非均匀拉伸；轨名在 248 宽不截断（含当前行露出动作钮时）
    T2  欢乐颂（四部合唱）：方括号组 4 行；song.voxGroups 前后都是 undefined（合唱方括号只按谱类推断显示）
    T3  两只老虎（吉他弹唱）：吉他组，组末「五线谱联排 · 全部吉他轨」行
@@ -140,7 +141,9 @@ function T0SCN() {
   const TO = []; try { const ot = toast; toast = function (m) { TO.push(String(m)); try { return ot.apply(this, arguments); } catch (_) {} }; } catch (_) {}
   try { hideStartPad(); } catch (_) {}
   const P = n => migrate(PRESETS.find(x => x.name.indexOf(n) >= 0).make());
-  const one = s => { addDoc(s, () => {}); closeDocAt(0); };
+  /* v68.2 收尾 NU-8（本版对旧外壳的有意改动 ⑤）：原样示例谱关窗不再自动转存（closeDocAt / docIsDemoAsIs，两外壳同口径；tv_flowdef F8e 专测）。
+     本对拍要比的是其余共享路径，被关的那个窗口先改一笔署名，基线与本版都按「有内容」转存，结果仍逐项相同 */
+  const one = s => { addDoc(s, () => {}); const d0 = docs[0]; if (d0 && d0.song) d0.song.composer = (d0.song.composer || '') + '·'; closeDocAt(0); };
   const out = {}, ae = () => { const a = document.activeElement; return a ? (a.id || a.tagName) : null; };
   const lastT = () => TO.length ? TO[TO.length - 1] : '';
   const kd = (key, o) => { const e = new KeyboardEvent('keydown', Object.assign({ key, bubbles: true, cancelable: true }, o || {})); window.dispatchEvent(e); return e.defaultPrevented; };
@@ -185,7 +188,7 @@ function T0SCN() {
   try { document.activeElement.blur(); } catch (_) {}
   const j0 = JSON.stringify(song); out.E_slash = [kd('/'), ae(), JSON.stringify(song) === j0].join('|');
   /* F 谱型条（lbSync / lbMenuOpen / lbMenuOut / LBAR.show） */
-  NWP.quickCreate('pacc'); closeDocAt(0); render();
+  NWP.quickCreate('pacc'); { const d0 = docs[0]; if (d0 && d0.song) d0.song.composer = (d0.song.composer || '') + '·'; } closeDocAt(0); render();   /* 同上 ⑤：被关的窗口先改一笔 */
   { const w = document.getElementById('lb-wrap'); out.F_lb = w ? w.outerHTML : null; }
   { const k = document.querySelector('#lb-wrap .lb-kind'); if (k) { k.click(); const m = document.getElementById('lb-menu'); out.F_menu = m ? m.innerHTML : null;
       k.click(); out.F_menu2 = !!document.getElementById('lb-menu'); } else out.F_menu = 'NO .lb-kind'; }
@@ -193,6 +196,7 @@ function T0SCN() {
     LBAR.show(); out.F_show = [!!document.querySelector('#lb-wrap .lb-bar'), ae(), (document.activeElement || {}).className].join('|'); }
   /* G 不变量：FLOW 不挂载、没有 flow 节点 / 类 / 本机键 */
   out.G_keys = Object.keys(localStorage).filter(k => /^musetab-/.test(k)).sort().join(',');
+  out.G_flow = localStorage.getItem('musetab-flow');   /* v68.2：旧外壳（?shell=classic）为 '0'，基线默认外壳为 null——对拍时不比，T0a 单独断言 */
   out.G_inv = J2({ flowNodes: document.querySelectorAll('[id^="flw-"],.flw-x,[data-flw-slot],.flw-mn,.flw-kchip').length,
     bodyFlw: [...document.body.classList].filter(c => /^fl(ow|w-)/.test(c)), mounted: typeof FLOW === 'undefined' ? null : FLOW.mounted });
   function J2(x) { return JSON.stringify(x); }
@@ -253,21 +257,33 @@ function T0SCN() {
     let r = null; try { r = await pg.evaluate(fn, arg); } catch (e) { r = { ERR: e.message.split('\n')[0] }; }
     await ctx.close(); return { r, pe };
   };
+  /* v68.2 切默认（PLAN §5.4）：被测页改为 ?shell=classic 的旧外壳，基线仍是 shellflow_ref.json 提交（v68.1 a8c2089）不带开关的默认外壳（＝旧外壳）。
+     显式例外（本版对旧外壳的有意改动）：
+       · 偏好设置多一行「使用旧版布局」（PREF_ITEMS oldshell，切默认后的兜底入口）——D_prefs 对拍前从被测页 HTML 里摘掉这一行，另断言它存在（T0b）；
+       · musetab-flow：旧外壳写 '0'（?shell=classic），基线默认外壳不写——G_keys 对拍时两边都去掉它，另断言值为 '0'（T0a）。
+     TRK-5（音量 0）/ TRK-6（删吉他轨混音随行）/ PN-5（转调小节音名）不在本场景路径上（音量只拖到 60、不删吉他轨、谱里没有转调），其余必须零差异 */
+  const OLDROW = /<button[^>]*data-prf="oldshell"[\s\S]*?<\/button>/;
+  const noFlowKey = k => String(k || '').split(',').filter(x => x && x !== 'musetab-flow').join(',');
   if (want('T0')) jobs.push(() => SAFE('T0', 'T0', async () => {
-    const B = await runDefault(URL0, T0SCN);
+    const B = await runDefault(CLASSICU, T0SCN);
     const inv = B.r && B.r.G_inv ? JSON.parse(B.r.G_inv) : null;
-    const keysBad = B.r && B.r.G_keys ? B.r.G_keys.split(',').filter(k => NEWKEYS.includes(k)) : ['?'];
-    T('T0', !!inv && inv.flowNodes === 0 && !inv.bodyFlw.length && inv.mounted === false && !keysBad.length && !B.pe.length && !B.r.ERR,
-      'T0a 不带开关跑完 v68.0 动过的全部共享路径（混音台 · ＋ 音轨 · 力度弹窗 · 偏好设置 · Enter · 「/」· 谱型条）后：FLOW 未挂载、没有任何 flow 节点 / 类、不写 musetab-flow / rdock / pal / signdensity、无报错',
-      J({ inv, keysBad, pe: B.pe, err: B.r && B.r.ERR }));
-    T('T0', !!B.r && !!B.r.D_prefs && !/signdensity|只看字形/.test(B.r.D_prefs), 'T0b 默认外壳的偏好设置不列「记号格：只看字形」（PREF_ITEMS 新项带 when:flowOn）');
+    const keysBad = B.r && B.r.G_keys ? B.r.G_keys.split(',').filter(k => NEWKEYS.includes(k) && k !== 'musetab-flow') : ['?'];
+    const fk = B.r ? B.r.G_flow : '?';
+    T('T0', !!inv && inv.flowNodes === 0 && !inv.bodyFlw.length && inv.mounted === false && !keysBad.length && fk === '0' && !B.pe.length && !B.r.ERR,
+      'T0a 旧外壳（?shell=classic）跑完 v68.0 动过的全部共享路径（混音台 · ＋ 音轨 · 力度弹窗 · 偏好设置 · Enter · 「/」· 谱型条）后：FLOW 未挂载、没有任何 flow 节点 / 类、musetab-flow 停在 \'0\'、不写 rdock / pal / signdensity、无报错',
+      J({ inv, keysBad, flow: fk, pe: B.pe, err: B.r && B.r.ERR }));
+    T('T0', !!B.r && !!B.r.D_prefs && !/signdensity|只看字形/.test(B.r.D_prefs) && /data-prf="oldshell"[^>]*aria-checked="true"/.test(B.r.D_prefs) && /使用旧版布局/.test(B.r.D_prefs),
+      'T0b 旧外壳的偏好设置不列「记号格：只看字形」（PREF_ITEMS 新项带 when:flowOn），列出「使用旧版布局」且为开（本机键 \'0\'）——从这里关掉即回新外壳（v68.2 兜底入口）');
     refNote('T0');
     if (!refURL) return;
     const A = await runDefault(refURL, T0SCN);
-    const ks = [...new Set([...Object.keys(A.r || {}), ...Object.keys(B.r || {})])].filter(k => k !== 'G_inv');
-    const bad = ks.filter(k => (A.r || {})[k] !== (B.r || {})[k]).map(k => { const x = String((A.r || {})[k]), y = String((B.r || {})[k]); let i = 0; while (i < x.length && x[i] === y[i]) i++;
+    const norm = (r, isNew) => { if (!r) return r; const o = Object.assign({}, r); o.G_keys = noFlowKey(o.G_keys); delete o.G_flow;
+      if (isNew && typeof o.D_prefs === 'string') o.D_prefs = o.D_prefs.replace(OLDROW, ''); return o; };
+    const RA = norm(A.r, false), RB = norm(B.r, true);
+    const ks = [...new Set([...Object.keys(RA || {}), ...Object.keys(RB || {})])].filter(k => k !== 'G_inv');
+    const bad = ks.filter(k => (RA || {})[k] !== (RB || {})[k]).map(k => { const x = String((RA || {})[k]), y = String((RB || {})[k]); let i = 0; while (i < x.length && x[i] === y[i]) i++;
       return k + ' @' + i + ' ref=' + J(x.slice(Math.max(0, i - 20), i + 50)) + ' new=' + J(y.slice(Math.max(0, i - 20), i + 50)); });
-    T('T0', !bad.length && !A.pe.length, 'T0c 默认外壳与 ' + (REF.version || '基线') + '（' + REF_COMMIT.slice(0, 7) + '）逐项相同：混音台行（静音 / 独奏 / 音量 / 声像 / 双击复位 / 音色 → song.mixer 与行 HTML）· ＋ 音轨弹窗与加轨结果 / 提示 · 整谱拒绝 · 力度弹窗 HTML 与写入（mf / < / TAB 拒绝）· 偏好设置 · Enter 填词焦点与 musetab-flyclosed · 「/」不拦 · 谱型条 HTML / 换谱类菜单 / 收起 / Alt+B · musetab-* 键 · 全部提示文案',
+    T('T0', !bad.length && !A.pe.length, 'T0c 旧外壳（?shell=classic）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳逐项相同（例外仅「使用旧版布局」一行与 musetab-flow 键）：混音台行（静音 / 独奏 / 音量 / 声像 / 双击复位 / 音色 → song.mixer 与行 HTML）· ＋ 音轨弹窗与加轨结果 / 提示 · 整谱拒绝 · 力度弹窗 HTML 与写入（mf / < / TAB 拒绝）· 偏好设置 · Enter 填词焦点与 musetab-flyclosed · 「/」不拦 · 谱型条 HTML / 换谱类菜单 / 收起 / Alt+B · musetab-* 键 · 全部提示文案',
       bad.length ? bad.join('\n      ') : ks.length + ' 项');
   }));
 
@@ -1054,8 +1070,11 @@ function T0SCN() {
         const ref = new Map(JSON.parse(R.r));
         const diff = [...ref.keys()].filter(k => J(ref.get(k)) !== J(S.get(k)));
         const extra = [...S.keys()].filter(k => !ref.has(k));
-        T('T22', ref.size === 50 && !diff.length && extra.length === 44 && extra.every(k => ADD && ADD[k]),
-          'T22b 原 50 个字形（含 flag64th / rest64th 合成）与基线 ' + REF_COMMIT.slice(0, 7) + ' 逐字相同（d / bb / 其余属性），新增的恰好是那 44 个', J({ ref: ref.size, diff: diff.slice(0, 5), extra: extra.length }));
+        /* v68.2：基线（shellflow_ref.json）换成 v68.1 a8c2089，基线里已是追加后的 94 个——改为「与基线 94 个逐字相同、没有再增减」；
+           指回 v68.0 之前的基线（MUSETAB_REF_COMMIT）时仍按原口径「原 50 个逐字不变、新增恰好那 44 个」 */
+        const ok = ref.size === 50 ? (!diff.length && extra.length === 44 && extra.every(k => ADD && ADD[k])) : (ref.size === 94 && !diff.length && !extra.length);
+        T('T22', ok,
+          'T22b SMUFL 与基线 ' + REF_COMMIT.slice(0, 7) + ' 对拍：' + (ref.size === 50 ? '原 50 个字形（含 flag64th / rest64th 合成）逐字相同（d / bb / 其余属性），新增的恰好是那 44 个' : '94 个字形逐字相同（d / bb / 其余属性），没有增减'), J({ ref: ref.size, diff: diff.slice(0, 5), extra: extra.length }));
       }
     });
     await SAFE('T23', 'T23', async () => {
@@ -1073,10 +1092,11 @@ function T0SCN() {
       T('T23', strip.n === 50 && !sBad.length, 'T23b 把追加的 44 个字形从 SMUFL 临时删掉重刻 16 个预设：与追加后逐字节相同（谱面渲染不调用新字形）', sBad.join('、') || '16 / 16（删后 SMUFL=' + strip.n + '）');
       refNote('T23');
       if (refURL) {
-        const [A, B] = await Promise.all([runDefault(refURL, SCORE16), runDefault(URL0, SCORE16)]);
+        /* v68.2 切默认：被测页用 ?shell=classic 的旧外壳（不带参数已是 flow，编辑器谱纸宽不同、#score 不可比）；flow 与旧外壳的谱面引擎同一份由 T23a 覆盖 */
+        const [A, B] = await Promise.all([runDefault(refURL, SCORE16), runDefault(CLASSICU, SCORE16)]);
         const ed = A.r.ed.map((x, i) => x === B.r.ed[i] ? null : A.r.names[i]).filter(Boolean), off = A.r.off.map((x, i) => x === B.r.off[i] ? null : A.r.names[i]).filter(Boolean);
         T('T23', A.r.ed.length === 16 && !ed.length && !off.length && !A.pe.length && !B.pe.length,
-          'T23c 与基线 ' + REF_COMMIT.slice(0, 7) + '（SMUFL 追加之前）对拍：16 个预设在默认外壳编辑器里的 #score 与 renderOffscreen 输出逐字节相同（简谱 / 六线谱 / 五线谱零回归）',
+          'T23c 与基线 ' + REF_COMMIT.slice(0, 7) + ' 对拍：16 个预设在旧外壳（?shell=classic）编辑器里的 #score 与 renderOffscreen 输出、与基线默认外壳逐字节相同（简谱 / 六线谱 / 五线谱零回归）',
           (ed.length || off.length) ? J({ ed, off }) : '16 × 2');
       }
     });
@@ -1246,13 +1266,15 @@ function T0SCN() {
       await scn(pg, 'songbie'); await EV(pg, () => { song.mixer = { 'vox:0': { on: true, solo: false, inst: 'ah', vol: 0, pan: null } }; });
       await more('vox', 0);
       const a = await EV(pg, () => { const r = document.querySelector('#popmenu [data-mx="vol"]'), o = document.querySelector('#popmenu [data-mxo="vol"]'); return r ? { min: r.min, v: r.value, o: o.textContent } : null; });
-      await pg.focus('#popmenu [data-mx="vol"]'); await pg.keyboard.press('Home'); await wait(pg, 100);
+      await pg.focus('#popmenu [data-mx="vol"]'); await pg.keyboard.press('ArrowRight'); await wait(pg, 100);
       const b2 = await EV(pg, () => ({ vol: song.mixer['vox:0'].vol, o: (document.querySelector('#popmenu [data-mxo="vol"]') || {}).textContent }));
       await pg.focus('#popmenu [data-mx="inst"]'); await pg.keyboard.press('ArrowDown'); await wait(pg, 120);
       const c = await EV(pg, () => (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.mx) || (document.activeElement || {}).id || null);
       await pg.keyboard.press('Escape'); await EV(pg, () => __shut()); await away(pg);
-      T('T28', !!a && a.min === '1' && a.v === '100' && a.o === '100%' && b2.vol === 0.01 && b2.o === '1%' && c === 'inst',
-        'T28e ⋯ 音量：存了 0 的轨读数 100%（与播放引擎 cfg.vol||1、经典混音台同口径），滑杆最小 1%（Home → vol 0.01，验收 TRK-5）；音色下拉按 ↓ 焦点留在下拉上、不被菜单截走（TRK-13）', J({ a, b2, c }));
+      /* v68.2 切默认改断言（TRK-5 转默认）：引擎改读 trkVolOf（存了 0 的就是 0、不出声），读数与经典混音台同口径显示 0%，滑杆 0–150 与经典混音台同范围。
+         原断言「存了 0 的读数 100%、滑杆最小 1%」是 v68.0 两外壳都按 cfg.vol||1 的过渡口径 */
+      T('T28', !!a && a.min === '0' && a.v === '0' && a.o === '0%' && b2.vol === 0.01 && b2.o === '1%' && c === 'inst',
+        'T28e ⋯ 音量：存了 0 的轨读数 0%（与播放引擎 trkVolOf、经典混音台同口径：0 就是不出声），滑杆 0–150（→ 一格 vol 0.01，验收 TRK-5）；音色下拉按 ↓ 焦点留在下拉上、不被菜单截走（TRK-13）', J({ a, b2, c }));
     });
     await SAFE('T28', 'T28f', async () => {
       await scn(pg, 'gtr');
@@ -1265,7 +1287,7 @@ function T0SCN() {
       const mx = JSON.parse(a.mx);
       T('T28', a.n === 1 && !mx['tab:1'] && mx['tab:0'] && mx['tab:0'].inst === 'nylon' && mx['tab:0'].vol === 0.5 && mx['tab:0'].on === true && !a.muted && a.cap === '[null]'
         && tt.some(t => /原来夹 3 品/.test(t)) && j1 === j0,
-        'T28f 删第 1 条吉他轨：song.mixer 的 tab:* 随行删、其后前移（剩下的「扫弦」保住自己的 nylon / 50% / 不静音），tabCapos 随行删；参考轨夹位不同时提示；一步撤销逐字节还原（验收 TRK-6，flow 先行，默认外壳待拍板）', J({ a, tt: tt.slice(-1) }));
+        'T28f 删第 1 条吉他轨：song.mixer 的 tab:* 随行删、其后前移（剩下的「扫弦」保住自己的 nylon / 50% / 不静音），tabCapos 随行删；参考轨夹位不同时提示；一步撤销逐字节还原（验收 TRK-6；v68.2 起旧外壳同样随行前移，见 tv_flowdef）', J({ a, tt: tt.slice(-1) }));
     });
     await SAFE('T28', 'T28g', async () => {
       await scn(pg, 'piano');

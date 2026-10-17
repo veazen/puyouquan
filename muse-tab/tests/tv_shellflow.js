@@ -4,7 +4,9 @@
        的 outerHTML · 几何 · 父节点 · 计算样式，全部带 id 元素的 rect 与 display，body / html 类名与内联样式，body.innerHTML（去 <script>），musetab-* 键与 song JSON；
        1280 / 1440 × 浅 / 深 × {启动态, 三窗口工作态} 加 ?shell=classic 一组。拿不到参考时：CI（env CI）判红（deploy.yml 先按 shellflow_ref.json 补取基线提交），本地只跑 S0b 不变量并打印 ⚠️（MUSETAB_REF=none 显式跳过）
    S0b 不带开关的不变量：FLOW 未挂载、没有任何 flow 节点 / 类 / 属性 / 本机键，#doc-tabs · #beat-box · #eb-zoom 在原位
+       v68.2 切默认起：S0 / S0b 的被测页改为旧外壳（?shell=classic，及不带参数但本机键 '0'），对拍 shellflow_ref.json 提交（v68.1 a8c2089）不带开关的默认外壳；有意改动的例外写在 S0 处
    S1  开关：?shell=flow → body.flow + musetab-flow='1'，去掉参数刷新仍是 flow；?shell=classic → 键 '0'、不挂载、默认 DOM 在原位；本机存储不可用时 ?shell=flow 只对本次生效
+       v68.2 切默认起：不带参数（无键）即 flow；?shell=flow 删键；?shell=classic 写 '0' 刷新与去参数保持；存储不可用时 ?shell=classic 只对本次、去参数回 flow
    S2  外壳总高：行 1 44 · 行 2 40 · #top 底 84（方案值；#top 的 1px 底线改为行 2 的 inset 阴影，不占高）· 状态栏 32 贴底 · 顶 + 底 116（1280×800 / 1366×768 / 1440×900 × 浅 / 深）
    S3  谱面可见高（#score-wrap 可视区减谱型条）：1280×800 ≥684 · 1366×768 ≥652 · 1440×900 ≥784（方案值）
    S4  右栏：1440 停靠 264、无竖条；1280 / 1366 竖条 40、右栏不占位。竖条「信息」→ 浮出 288 贴竖条、不改谱纸宽；Esc / 点外部 / 再点同页收起；
@@ -24,6 +26,8 @@
    S12 播放与状态栏：控件齐全、单行、顺序；播放 / 暂停、回开头、♩=、倍速、节拍器、⋯（演奏感 / 音色库 / 谱架）、位置、当前轨、时值检查上弹不自动弹、缩放、?；
        v68.0 起「混音 ▴」撤出状态栏（混音并进左栏音轨行）：#mx-expand 与旧混音台 .mx-tracks 不可见，DOM 与 setMixerExpanded 保留供委托
    S13 不挂 flow 的场景：打印媒体 / beforeprint、观看页（openPubViewer 进出 + 分享页 PYQ_SHARE 直开）、谱架、手机 ≤820（运行中缩窄与直开 390；v68.1 起手机改挂 flow 的手机子段 FLOW.mob，桌面 flow 照旧不挂）
+       S13k（v68.2 集成，第一轮遗留 ②）启动即进观看页不先挂再退：v68.2 起导出的互动谱（数据在 head）与 ?pub= 深链，桌面 1280 / 手机 390 从开机到观看页
+       一次都不挂（无 #flw-r1 / #flw-mtop、FLOW.mounted 假），退出观看后照常挂上；没进成（互动谱数据坏、?pub= 拉谱 404）立即补挂 flow，不停在旧外壳
    S14 无抖动：静置 1.5s render 增量 ≤1；1280→1440→1280 每步 render ≤3
    S15 数据零改动：挂载、开关全部菜单、切右栏、resize 前后 song JSON 不变；musetab-* 键差集 ⊆ {musetab-flow, musetab-rdock}
    S16 命中区：#flw-r1 / #editbar / #mixer-dock / #flw-rstrip 内可见按钮最小边 ≥28
@@ -204,8 +208,9 @@ const M = {
       const f = path.join(os.tmpdir(), 'tv_shellflow_ref_' + REF_COMMIT.slice(0, 12) + '.html'); fs.writeFileSync(f, txt); return 'file://' + f; } catch (_) { return null; }
   })();
   const IDS = ['top', 'editbar', 'doc-tabs', 'left-dock', 'right-dock', 'mixer-dock'];
-  const snapDefault = async (url, w, h, scheme, scen) => {
+  const snapDefault = async (url, w, h, scheme, scen, init) => {
     const ctx = await b.newContext({ viewport: { width: w, height: h }, colorScheme: scheme });
+    if (init) await ctx.addInitScript(init);
     const pg = await ctx.newPage(); const pe = []; pg.on('pageerror', e => pe.push(e.message));
     await pg.goto(url); await pg.waitForTimeout(1600);
     if (scen === 'multidoc') { await pg.evaluate(() => { window.guardReplace = p => p(); addDoc(PRESETS[0].make()); addDoc(PRESETS[1].make()); addDoc(demoSong()); try { setRTab('info'); } catch (_) {} render(); }); await pg.waitForTimeout(800); }
@@ -229,13 +234,23 @@ const M = {
     }, IDS);
     await ctx.close(); return { r, pe };
   };
+  /* v68.2 切默认（PLAN §5.1 / §5.4）：不带开关＝新外壳 flow，旧外壳只在 ?shell=classic 或本机键 musetab-flow='0'（偏好设置「使用旧版布局」）下出现。
+     S0 / S0b 改为对拍「?shell=classic 的旧外壳」与「基线提交（shellflow_ref.json，v68.1 a8c2089）不带开关的默认外壳＝旧外壳」：
+     6 组都用 ?shell=classic，另加一组「不带参数、本机键已是 '0'」（偏好设置那条路，地址里没有 shell=）。
+     本版对旧外壳的有意改动（显式例外，均不在这几组开机 / 多窗口快照里出现，故仍要求零差异）：
+       ① 偏好设置多一行「使用旧版布局」（PREF_ITEMS oldshell；只在弹窗打开时出现）
+       ② TRK-5 引擎 / 混音台音量读数 trkVolOf（存了 0 的显示 0%、不出声；快照里没有 vol=0 的轨）
+       ③ TRK-6 删吉他轨混音 / 变调夹随行前移（只在删轨时）
+       ④ PN-5 五线谱音名键按本小节调（只在中途转调的五线谱小节里；这几份谱没有转调）
+     musetab-flow 键不参与键集合对拍（旧外壳写 '0'，基线默认外壳不写），另由 S0b 断言其值为 '0' */
   if (want('S0')) jobs.push(async () => {
     const CASES = [['boot', 1280, 800, 'light'], ['boot', 1440, 900, 'dark'], ['multidoc', 1280, 800, 'light'], ['multidoc', 1280, 800, 'dark'], ['multidoc', 1440, 900, 'light'], ['multidoc', 1440, 900, 'dark']];
     const inv = [];
-    const cmp = async ([sc, w, h, th], newUrl, tag) => {
-      const B = await snapDefault(newUrl, w, h, th, sc);
+    const KEY0 = () => { try { localStorage.setItem('musetab-flow', '0'); } catch (_) {} };
+    const cmp = async ([sc, w, h, th], newUrl, tag, init) => {
+      const B = await snapDefault(newUrl, w, h, th, sc, init);
       const v = B.r.inv;
-      if (!v || v.mounted !== false || v.active !== false || v.nodes || v.bodyFlw.length || v.styleFlw || !v.tabs || v.beat !== 'beat-host' || v.zoom !== 'editbar' || v.key !== (newUrl === CLASSICU ? '0' : null) || v.rdock !== null || B.pe.length)
+      if (!v || v.mounted !== false || v.active !== false || v.nodes || v.bodyFlw.length || v.styleFlw || !v.tabs || v.beat !== 'beat-host' || v.zoom !== 'editbar' || v.key !== '0' || v.rdock !== null || B.pe.length)
         inv.push(tag + ' ' + J(v) + (B.pe.length ? ' 报错 ' + B.pe.join('|') : ''));
       if (!refURL) return null;
       const A = await snapDefault(refURL, w, h, th, sc);
@@ -258,43 +273,54 @@ const M = {
       return { tag, diffs, n: Object.keys(B.r.all).length };
     };
     const res = [];
-    for (let i = 0; i < CASES.length; i += 2) { const part = await Promise.all(CASES.slice(i, i + 2).map(c => cmp(c, URL0, c.join(' ')))); res.push(...part); }
-    res.push(await cmp(['multidoc', 1440, 900, 'light'], CLASSICU, '?shell=classic multidoc 1440 light'));
-    T('S0', inv.length === 0, 'S0b 不带开关（含 ?shell=classic）：FLOW 未挂载、无任何 flow 节点 / 类 / 属性（[id^=flw-] .flw-x [data-flw-slot] [data-pri] [data-fa] .flw-off）、body 无 flow 类与 --flw 令牌、#doc-tabs 在 body · #beat-box 在 #beat-host · #eb-zoom 在 #editbar、不写 musetab-flow / musetab-rdock、无报错',
+    for (let i = 0; i < CASES.length; i += 2) { const part = await Promise.all(CASES.slice(i, i + 2).map(c => cmp(c, CLASSICU, '?shell=classic ' + c.join(' ')))); res.push(...part); }
+    res.push(await cmp(['multidoc', 1440, 900, 'light'], URL0, '本机键 0（不带参数）multidoc 1440 light', KEY0));
+    T('S0', inv.length === 0, 'S0b 旧外壳（?shell=classic，及不带参数但本机键 musetab-flow=\'0\'）：FLOW 未挂载、无任何 flow 节点 / 类 / 属性（[id^=flw-] .flw-x [data-flw-slot] [data-pri] [data-fa] .flw-off）、body 无 flow 类与 --flw 令牌、#doc-tabs 在 body · #beat-box 在 #beat-host · #eb-zoom 在 #editbar、musetab-flow 为 \'0\'、不写 musetab-rdock、无报错',
       inv.length ? inv.join('；') : (CASES.length + 1) + ' 组');
     if (!refURL && IN_CI) T('S0', false, 'S0 CI 里拿不到对拍基线（git show ' + REF_COMMIT.slice(0, 12) + ' 失败）：默认外壳零差异无法验证，判红',
       'deploy.yml 的 test job 要先 git fetch --depth=1 origin <shellflow_ref.json 的 commit>');
     else if (!refURL) NOTE('S0', '⚠️  S0 与 ' + (REF.version || 'v67.8') + ' 对拍跳过：拿不到参考（git show ' + REF_COMMIT.slice(0, 12) + ' 失败；本地可设 MUSETAB_REF=参考 index.html，MUSETAB_REF=none 为显式跳过）');
     else { const bad = res.filter(x => x && x.diffs.length);
-      T('S0', bad.length === 0, 'S0 不带开关与 v67.8 零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键 · song JSON）',
+      T('S0', bad.length === 0, 'S0 旧外壳（?shell=classic / 本机键 0）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键（除 musetab-flow）· song JSON；有意改动见上方注释 ①–④）',
         bad.length ? bad.map(x => x.tag + '：' + x.diffs.join(' | ')).join('\n      ') : res.map(x => x.tag + '（' + x.n + ' 个 id）').join('；')); }
   });
 
-  /* ================= S1 开关与本机键 ================= */
+  /* ================= S1 开关与本机键 =================
+     v68.2 切默认改断言（PLAN §1.2「v68.2（切默认）」）：读到 '0' 才不开，无键 / '1' 都开；?shell=classic 写 '0'；?shell=flow 只对本次生效（v68.2 收尾 OU-2 起不删键）；
+     原 S1a「?shell=flow 写 '1'」与 S1c「存储不可用时 ?shell=flow 只对本次、去参数回默认外壳」是 v67.9–v68.1 预览期的口径 */
   if (want('S1')) jobs.push(async () => {
     try {
-      const pg = await open(1280, 800, { tag: 'S1' });
-      const a = await EV(pg, M.shell);
+      const pg = await open(1280, 800, { tag: 'S1', url: URL0 });
+      const a0 = await EV(pg, M.shell);
+      await pg.goto(FLOWU); await wait(pg, 1000); const a = await EV(pg, M.shell);
       await pg.goto(URL0); await wait(pg, 1000); const b2 = await EV(pg, M.shell);
+      T('S1', a0.flow && a0.pre && a0.active && a0.mounted && a0.key === null && a.flow && a.pre && a.active && a.key === null && b2.flow && b2.key === null,
+        'S1a 不带参数（无键）→ html.flow-pre · body.flow · FLOW.active（v68.2 默认新外壳）；?shell=flow 不写键（删键），去掉参数刷新仍是 flow', J({ def: [a0.flow, a0.key], flow: [a.flow, a.key], reload: [b2.flow, b2.key] }));
       await pg.goto(CLASSICU); await wait(pg, 1000);
       const c = await EV(pg, () => Object.assign({ r1: !!document.getElementById('flw-r1'), rs: !!document.getElementById('flw-rstrip'), x: document.querySelectorAll('.flw-x,[data-flw-slot]').length }, (() => {
         const s = document.getElementById('doc-tabs').parentElement; return { tabs: s === document.body }; })()));
       const c2 = await EV(pg, M.shell);
       await pg.goto(URL0); await wait(pg, 1000); const d = await EV(pg, M.shell);
-      T('S1', a.flow && a.pre && a.active && a.mounted && a.key === '1' && b2.flow && b2.key === '1',
-        'S1a ?shell=flow → html.flow-pre · body.flow · FLOW.active，musetab-flow=\'1\'；去掉参数刷新仍是 flow（本机键记住）', J({ a: [a.flow, a.key], reload: [b2.flow, b2.key] }));
-      T('S1', !c2.flow && !c2.pre && !c2.mounted && c2.key === '0' && !c.r1 && !c.rs && !c.x && c.tabs && c2.home.beat === 'beat-host' && c2.home.zoom === 'editbar' && !d.flow && d.key === '0',
-        'S1b ?shell=classic → 键写 \'0\'、不挂载（没有 #flw-r1 / #flw-rstrip / 落点）、#doc-tabs 在 body、#beat-box 在 #beat-host、#eb-zoom 在 #editbar；再去掉参数仍是经典', J({ c, home: c2.home, key: c2.key, after: d.flow }));
+      await pg.goto(FLOWU); await wait(pg, 1000); const e2 = await EV(pg, M.shell);
+      await pg.goto(URL0); await wait(pg, 1000); const f2 = await EV(pg, M.shell);
+      /* v68.2 收尾 OU-2 改口径：?shell=flow 只对本次生效、不删键（此前删键——选了旧版布局的人每打开一次预览期收藏的 ?shell=flow 书签，选择就被抹掉一次）；
+         换回新版走偏好设置「使用旧版布局」关（它删键，见 tv_flowdef F1e） */
+      T('S1', !c2.flow && !c2.pre && !c2.mounted && c2.key === '0' && !c.r1 && !c.rs && !c.x && c.tabs && c2.home.beat === 'beat-host' && c2.home.zoom === 'editbar' && !d.flow && !d.pre && d.key === '0'
+        && e2.flow && e2.key === '0' && !f2.flow && f2.key === '0',
+        'S1b ?shell=classic → 键写 \'0\'、不挂载（没有 #flw-r1 / #flw-rstrip / 落点）、#doc-tabs 在 body、#beat-box 在 #beat-host、#eb-zoom 在 #editbar；再去掉参数仍是旧外壳；?shell=flow 只对本次进新外壳、键 \'0\' 不动，去参数回到用户选的旧外壳', J({ c, home: c2.home, key: c2.key, after: [d.flow, d.key], back: [e2.flow, e2.key, f2.flow, f2.key] }));
       await close(pg);
-      /* 本机存储不可用：?shell=flow 只对本次生效 */
-      const priv = () => { const g = Storage.prototype.getItem, s = Storage.prototype.setItem;
+      /* 本机存储不可用（读写 musetab-flow 抛错）：两个参数都只对本次生效；不带参数＝默认新外壳 */
+      const priv = () => { const g = Storage.prototype.getItem, s = Storage.prototype.setItem, r = Storage.prototype.removeItem;
         Storage.prototype.getItem = function (k) { if (k === 'musetab-flow') throw new Error('隐私模式'); return g.apply(this, arguments); };
-        Storage.prototype.setItem = function (k) { if (k === 'musetab-flow') throw new Error('隐私模式'); return s.apply(this, arguments); }; };
-      const pp = await open(1280, 800, { tag: 'S1p', init: priv });
-      const e = await EV(pp, () => ({ flow: document.body.classList.contains('flow') }));
+        Storage.prototype.setItem = function (k) { if (k === 'musetab-flow') throw new Error('隐私模式'); return s.apply(this, arguments); };
+        Storage.prototype.removeItem = function (k) { if (k === 'musetab-flow') throw new Error('隐私模式'); return r.apply(this, arguments); }; };
+      const pp = await open(1280, 800, { tag: 'S1p', init: priv, url: CLASSICU });
+      const e = await EV(pp, () => ({ flow: document.body.classList.contains('flow'), pre: document.documentElement.classList.contains('flow-pre') }));
       await pp.goto(URL0); await wait(pp, 1000);
       const f = await EV(pp, () => ({ flow: document.body.classList.contains('flow'), pre: document.documentElement.classList.contains('flow-pre') }));
-      T('S1', e.flow && !f.flow && !f.pre, 'S1c 本机存储不可用（读写 musetab-flow 抛错）时 ?shell=flow 只对本次生效、不报错；去掉参数即回默认外壳', J({ e, f }));
+      await pp.goto(FLOWU); await wait(pp, 1000);
+      const g = await EV(pp, () => ({ flow: document.body.classList.contains('flow') }));
+      T('S1', !e.flow && !e.pre && f.flow && f.pre && g.flow, 'S1c 本机存储不可用（读写 musetab-flow 抛错）时 ?shell=classic 只对本次生效、不报错；去掉参数即回默认新外壳；?shell=flow 照常', J({ e, f, g }));
       await close(pp);
     } catch (e) { T('S1', false, 'S1 执行异常', e.message.split('\n')[0]); }
   });
@@ -448,12 +474,15 @@ const M = {
       T('S6', !!(xs && xs.w >= 28 && xs.h >= 28 && xh && xh.w >= 28 && xh.h >= 28), 'S6c 关闭 × 命中区 ≥28×28（当前页签常显、非当前悬停时出现）', J({ cur: xs, hover: xh }));
       for (const th of ['light', 'dark']) { await EV(pg, x => { document.documentElement.dataset.theme = x; }, th); await wait(pg, 80); (GEO['con-' + th] = await EV(pg, M.con)); }
       await EV(pg, () => { delete document.documentElement.dataset.theme; });
-      /* 中键关闭非当前、未入库、有内容的窗口 3（欢乐颂（教学对照谱））*/
-      const m0 = await EV(pg, () => ({ n: docs.length, lib: __lib().length, t3: __titles()[3], s3: __saved()[3] }));
+      /* 中键关闭非当前、未入库、有内容的窗口 3（欢乐颂（教学对照谱））。
+         v68.2 收尾 NU-8：原样示例谱关窗不再转存（示例随时能从「示例曲谱」再开；见 tv_flowdef F8e）——这里先在窗口 3 上改一笔（作曲署名），
+         它才是「用户的内容」，红线（未入库、有内容的绝不丢）照旧验 */
+      await EV(pg, () => { const d = docs[3]; if (d && d.song) d.song.composer = (d.song.composer || '') + '（改）'; });
+      const m0 = await EV(pg, () => ({ n: docs.length, lib: __lib().length, t3: __titles()[3], s3: __saved()[3], asIs: docIsDemoAsIs(docs[3].song) }));
       const box = await EV(pg, () => __R('#doc-tabs .dtab[data-doc="3"] .dt-t'));
       await pg.mouse.click(box.x + 10, box.y + box.h / 2, { button: 'middle' }); await wait(pg, 300);
       const m1 = await EV(pg, t3 => ({ n: docs.length, lib: __lib().length, inLib: __lib().some(e => e.title === t3), gone: !__titles().includes(t3) }), m0.t3);
-      T('S6', !m0.s3 && m1.n === m0.n - 1 && m1.lib === m0.lib + 1 && m1.inLib && m1.gone, 'S6d 中键关闭：docs 减 1；未入库有内容的窗口自动存入「我的曲谱」（库多一条，与 tv_multidoc T3 同一红线）', J({ m0, m1 }));
+      T('S6', !m0.s3 && !m0.asIs && m1.n === m0.n - 1 && m1.lib === m0.lib + 1 && m1.inLib && m1.gone, 'S6d 中键关闭：docs 减 1；未入库有内容（改过的）窗口自动存入「我的曲谱」（库多一条，与 tv_multidoc T3 同一红线）', J({ m0, m1 }));
       await close(pg);
 
       /* 1366：6 窗口每个 ≥160 */
@@ -715,10 +744,15 @@ const M = {
       await fi('曲谱信息…', async () => { const r = await EV(pg, () => { const i = document.getElementById('mm-title'); return i ? i.value === song.title : null; }); return ok(r === true, J(r)); });
       await fi('换谱类…', async () => { const r = await EV(pg, () => ({ m: !!document.getElementById('lb-menu'), t: (window.__toasts || []).slice(-1)[0] || '' })); return ok(r.m, J(r)); });
       await fi('关闭窗口', async pre => { const r = await EV(pg, () => ({ n: docs.length, titles: __titles() })); return ok(r.n === pre.n - 1 && !r.titles.includes(pre.t), J(r)); }, { pre: () => ({ n: docs.length, t: song.title }) });
-      await EV(pg, () => { addDoc(__P('流行进行'), () => {}); addDoc(__P('小星星（分解'), () => {}); render(); }); await wait(pg, 200);
+      /* v68.2 收尾 NU-8：「流行进行」改一笔（作曲署名）＝用户内容，关闭其他时照旧转存；原样示例谱（pristine）只关不存——期望按 docIsDemoAsIs 分开数 */
+      await EV(pg, () => { const p = __P('流行进行'); p.composer = (p.composer || '') + '（改）'; addDoc(p, () => {}); addDoc(__P('小星星（分解'), () => {}); render(); }); await wait(pg, 200);
       await fi('关闭其他窗口', async pre => { const r = await EV(pg, () => ({ n: docs.length, t: song.title, lib: __lib().length, titles: __lib().map(e => e.title) }));
-        return ok(r.n === 1 && r.t === pre.t && r.lib === pre.lib + pre.unsavedOthers && pre.others.every(t => r.titles.includes(t)), J({ r, pre })); },
-        { pre: () => { const sv = __saved(), t = __titles(); return { t: song.title, lib: __lib().length, unsavedOthers: t.filter((_, i) => i !== curDocI && !sv[i]).length, others: t.filter((_, i) => i !== curDocI) }; } });
+        return ok(r.n === 1 && r.t === pre.t && pre.unsavedOthers >= 1 && r.lib === pre.lib + pre.unsavedOthers && pre.others.every(t => r.titles.includes(t))
+          && pre.demo.every(t => !r.titles.includes(t) || pre.libT.includes(t)), J({ r, pre })); },
+        { pre: () => { const sv = __saved(), t = __titles(), ds = docs.map((d, i) => i === curDocI ? song : d.song), asIs = ds.map(x => docIsDemoAsIs(x));
+          const oth = t.map((x, i) => i).filter(i => i !== curDocI);
+          return { t: song.title, lib: __lib().length, libT: __lib().map(e => e.title), unsavedOthers: oth.filter(i => !sv[i] && !asIs[i]).length,
+            others: oth.filter(i => sv[i] || !asIs[i]).map(i => t[i]), demo: oth.filter(i => !sv[i] && asIs[i]).map(i => t[i]) }; } });
       const fileBad = FILE.filter(x => x.startsWith('✗'));
       T('S11', fileBad.length === 0 && FILE.length === 15,
         'S11c 文件 ▾ 每一项委托到位：新建…（.nf-modal）· 快速新建 ▾（#nf-qm）· 按上次设置新建（新窗口）· 从已有音乐…（导入页签）· 打开文件…（选择文件）· 我的曲谱（#pcenter）· 示例曲谱 · 谱库（#circle）· 保存到我的曲谱 · 存为文件（下载）· 复制为新窗口（副本无 id、原谱不动）· 曲谱信息… · 换谱类…（#lb-menu）· 关闭窗口 · 关闭其他（未入库有内容的自动存入）',
@@ -1026,13 +1060,15 @@ const M = {
         'S13g 互动谱导出快照回退（验收 SC-6）：快照不带 flow 外壳（类 / 节点 / 属性 / 令牌全无，搬移节点在原位）；导出后界面原样', J(ic));
       const snapTxt = await EV(pg, () => window.__snapTxt || '');
       await close(pg);
-      /* 收件人打开快照（从没开过 flow 的新上下文）：不带 html.flow-pre、FLOW 不挂载；按 Esc / exitViewer 退出观看后是默认外壳（#eb-zoom 可见、无 #flw-r1）；带 ?shell=classic 同样 */
+      /* 收件人打开快照（新上下文）：观看页里 flow 不启用（无 body.flow、无可见 flow 节点 / 类）；按 Esc / exitViewer 退出观看后是收件人自己的默认外壳——
+         v68.2 切默认起不带参数＝新外壳（原断言「无 html.flow-pre、FLOW 不挂载、退出后是旧外壳」是 v67.9–v68.1 预览期口径），带 ?shell=classic＝旧外壳 */
       if (snapTxt) {
         const sf = path.join(os.tmpdir(), '_tv_shellflow_snap.html'); fs.writeFileSync(sf, snapTxt);
         const rx = [];
         for (const q of ['', '?shell=classic']) {
           const pr = await open(1280, 800, { tag: 'S13-snap' + q, url: 'file://' + sf + q, wait: 1300 });
-          const a = await EV(pr, () => ({ viewer: document.body.classList.contains('viewer'), pre: document.documentElement.classList.contains('flow-pre'), mounted: FLOW.mounted }));
+          const a = await EV(pr, () => ({ viewer: document.body.classList.contains('viewer'), pre: document.documentElement.classList.contains('flow-pre'), mounted: FLOW.mounted, r1: !!document.getElementById('flw-r1'),
+            flow: document.body.classList.contains('flow'), active: FLOW.active, vis: [...document.querySelectorAll('[id^="flw-"],.flw-x')].filter(e => __vis(e)).length, cls: [...document.body.classList].filter(x => /^flw-/.test(x)) }));
           await EV(pr, () => { try { exitViewer(); } catch (_) {} }); await wait(pr, 500);
           const c = await EV(pr, () => ({ flow: document.body.classList.contains('flow'), pre: document.documentElement.classList.contains('flow-pre'), mounted: FLOW.mounted, r1: !!document.getElementById('flw-r1'),
             zoom: __vis('#eb-zoom'), zp: document.getElementById('eb-zoom').parentElement.id, cls: [...document.body.classList].filter(x => /^flw-/.test(x)) }));
@@ -1040,8 +1076,10 @@ const M = {
           await close(pr);
         }
         try { fs.unlinkSync(sf); } catch (_) {}
-        T('S13', rx.every(({ a, c }) => a.viewer && !a.pre && !a.mounted && !c.flow && !c.pre && !c.mounted && !c.r1 && c.zoom && c.zp === 'editbar' && !c.cls.length),
-          'S13h 收件人打开快照（验收 SC-6）：无 html.flow-pre、FLOW 不挂载；退出观看后是默认外壳（#eb-zoom 在 #editbar 可见、无 #flw-r1），带 ?shell=classic 同样', J(rx));
+        const okA = a => a.viewer && !a.flow && !a.active && !a.vis && !a.cls.length;
+        const [r0, rc] = [rx.find(x => x.q === ''), rx.find(x => x.q === '?shell=classic')];
+        T('S13', !!r0 && !!rc && okA(r0.a) && okA(rc.a) && !r0.a.mounted && !r0.a.r1 && !rc.a.mounted && r0.c.flow && r0.c.r1 && rc.c.pre === false && !rc.c.flow && !rc.c.mounted && !rc.c.r1 && rc.c.zoom && rc.c.zp === 'editbar' && !rc.c.cls.length,
+          'S13h 收件人打开快照（验收 SC-6）：观看页里 flow 不启用（无 body.flow / FLOW.active / 可见 flow 节点 / flw-* 类；v68.2 集成：数据注入在 head，开机起就没挂过——FLOW.mounted 假、无 #flw-r1）；退出观看后按收件人自己的开关——不带参数＝默认新外壳（v68.2 起），带 ?shell=classic＝旧外壳（#eb-zoom 在 #editbar 可见、无 #flw-r1）', J(rx));
       }
       /* 手机 390 直开 ?shell=flow
          v68.1 轨 D 改断言（计划 §4.6）：原 S13e「FLOW 不挂载、无任何 flow 节点、旧手机布局原样」是 v67.9 / v68.0 手机不挂 flow 的口径。
@@ -1082,6 +1120,56 @@ const M = {
         T('S13', sh.viewer && !sh.flow && !sh.active && !sh.vis.length && !sh.cls.length && J(sh.home) === '["beat-host","editbar",true]' && sh.md,
           'S13f 分享页（PYQ_SHARE 观看模式）带 ?shell=flow 直开：flow 不启用（body.flow / FLOW.active 为假、无可见 flow 节点与 flw-* 类，#beat-box / #eb-zoom / #doc-tabs 在原位），播放条照常', J(sh));
         await close(ps); try { fs.unlinkSync(f); } catch (_) {}
+        /* S13k（v68.2 集成，第一轮遗留 ②）：启动即进观看页的意图（FLOW.vint）——不先挂 flow 再退场 */
+        const src0 = fs.readFileSync(SRC, 'utf8');
+        const injH = so => '<script id="pyq-share-data">window.PYQ_SHARE=' + JSON.stringify({ v: 1, mode: 'viewer', song: so }).replace(/<\//g, '<\\/') + ';<\/script>\n';
+        const KST = () => ({ viewer: document.body.classList.contains('viewer'), mounted: FLOW.mounted, active: FLOW.active, flow: document.body.classList.contains('flow'),
+          r1: !!document.getElementById('flw-r1'), mtop: !!document.getElementById('flw-mtop'), m: document.body.classList.contains('flw-m'), r1v: __vis('#flw-r1'), lf: __vis('#flw-left'),
+          ld: __vis('#left-dock'), mt: __vis('#flw-mtop'), toasts: (window.__toasts || []).slice() });
+        const never = x => x.viewer && !x.mounted && !x.active && !x.flow && !x.r1 && !x.mtop && !x.m;
+        const kres = {};
+        /* ① v68.2 起导出的互动谱（数据在 head，与 exportInteractiveCard 同一注入点）：1280 / 390；② 数据坏（0 小节） */
+        for (const [k, so] of [['share', sg], ['bad', Object.assign({}, sg, { measures: [] })]]) {
+          const fk = path.join(os.tmpdir(), '_tv_shellflow_k_' + k + '.html'); fs.writeFileSync(fk, src0.replace(/<\/head>/i, injH(so) + '</head>'));
+          for (const w of (k === 'share' ? [1280, 390] : [1280])) {
+            const pk = await open(w, w > 820 ? 800 : 844, { tag: 'S13k-' + k + w, url: 'file://' + fk, wait: 1300 });
+            const a0 = await EV(pk, KST);
+            let a1 = null; if (a0.viewer) { await EV(pk, () => exitViewer()); await wait(pk, 500); a1 = await EV(pk, KST); }
+            kres[k + w] = { a0, a1 };
+            await close(pk);
+          }
+          try { fs.unlinkSync(fk); } catch (_) {}
+        }
+        /* ③ ?pub= 深链（线上域名路由：编辑器单文件 + /api 桩；拉谱 300ms 后回，404＝失败） */
+        const liveK = async (w, fail) => {
+          const ctx = await b.newContext({ viewport: { width: w, height: w > 820 ? 800 : 844 } }); ctx.setDefaultTimeout(6000);
+          await ctx.addInitScript(INIT);
+          await ctx.route(/https:\/\/zhipu\.puyouquan\.com\/.*/, async route => {
+            const p = new URL(route.request().url()).pathname;
+            if (p === '/api/me') return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"请先登录"}' });
+            if (p.startsWith('/api/pub/scores/')) { await new Promise(r => setTimeout(r, 300));
+              return fail ? route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"没有这首谱"}' })
+                : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ score: { id: 'k1', title: '深链测试', author: '测试', data: sg }, stats: { views: 1 } }) }); }
+            if (p.startsWith('/api/')) return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+            return route.fulfill({ status: 200, contentType: 'text/html', body: src0 });
+          });
+          const pk = await ctx.newPage(); pk.on('pageerror', e => errs.push('S13k-pub PAGEERR:' + e.message));
+          await pk.goto('https://zhipu.puyouquan.com/?pub=k1'); await pk.waitForTimeout(1500); await prep(pk);
+          const a0 = await EV(pk, () => Object.assign({ toastTxt: (document.getElementById('toast') || {}).textContent || '' }, (() => ({ viewer: document.body.classList.contains('viewer'), mounted: FLOW.mounted, active: FLOW.active, flow: document.body.classList.contains('flow'),
+            r1: !!document.getElementById('flw-r1'), mtop: !!document.getElementById('flw-mtop'), m: document.body.classList.contains('flw-m'), r1v: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock'), mt: __vis('#flw-mtop') }))()));
+          let a1 = null; if (a0.viewer) { await EV(pk, () => exitViewer()); await wait(pk, 500); a1 = await EV(pk, KST); }
+          await ctx.close();
+          return { a0, a1 };
+        };
+        kres.pub1280 = await liveK(1280, false); kres.pub390 = await liveK(390, false); kres.pubFail = await liveK(1280, true);
+        const ok1 = x => x && x.a1 && never(x.a0) && x.a1.flow && x.a1.active && x.a1.r1v && x.a1.lf && !x.a1.ld;
+        const okM = x => x && x.a1 && never(x.a0) && x.a1.m && x.a1.mt && !x.a1.flow;
+        const bad = kres.bad1280 && kres.bad1280.a0, pf = kres.pubFail.a0;
+        T('S13', ok1(kres.share1280) && okM(kres.share390) && ok1(kres.pub1280) && okM(kres.pub390)
+          && !!bad && !bad.viewer && bad.flow && bad.active && bad.r1v && bad.lf && !bad.ld
+          && !pf.viewer && pf.flow && pf.active && pf.r1v && pf.lf && !pf.ld && /曲谱加载失败/.test(pf.toastTxt),
+          'S13k 启动即进观看页不先挂再退（v68.2 集成）：head 注入的互动谱与 ?pub= 深链在 1280 / 390 从开机到观看页一次都没挂（无 #flw-r1 / #flw-mtop），退出观看后照常挂上（桌面 flow / 手机 flw-m）；'
+          + '互动谱数据坏、?pub= 拉谱 404 没进成 → 立即补挂 flow（行 1 / 左栏可见、旧左栏隐藏）', J(kres));
       }
     } catch (e) { T('S13', false, 'S13 执行异常', e.message.split('\n')[0]); }
   });
@@ -1091,7 +1179,7 @@ const M = {
     try {
       /* 默认外壳同场景的键集合（作 S15 基线） */
       const DATA = () => { try { persistFlush(); } catch (_) {} return { song: JSON.stringify(song), docs: localStorage.getItem('musetab-docs-v1') || '', f: Object.keys(song).sort() }; };
-      const pd = await open(1280, 800, { tag: 'S15-def', url: URL0 });
+      const pd = await open(1280, 800, { tag: 'S15-def', url: CLASSICU });   /* v68.2 切默认：「默认外壳」基线改取 ?shell=classic 的旧外壳（不带参数已是 flow） */
       await EV(pd, () => __scn('songbie')); await wait(pd, 500);
       const kDef = await EV(pd, () => __keys());
       const dDef = await EV(pd, DATA);   /* 验收 SC-3：数据基线取默认外壳（此前 s0 取在 flow 挂载之后，挂载 / 同步时写进 song 的字段抓不到） */

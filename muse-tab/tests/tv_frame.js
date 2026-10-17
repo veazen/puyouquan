@@ -1,6 +1,10 @@
 /* v40.0 阶段1 回归：新版外壳（深色扁平顶栏/底栏）/经典切换/音符组前置/顶栏快速换调 */
 const { chromium } = require('playwright');
-const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+/* v68.2 切默认（flow）：本套件 T1–T16 全是旧外壳结构（.ltab / #left-flyout / .rtab / #editbar / #rail-tracks）——钉旧外壳 ?shell=classic（兜底布局）。
+   flow 下同一意图的覆盖：顶栏 / 播放坞深色框架＝tv_v66d T2（#flw-r1 / #mixer-dock）· 外壳总高 / 谱纸让位＝tv_shellflow S2 / S5 · 左栏音轨结构＝tv_trktree T1–T4、T12–T13 ·
+   记谱法＝tv_trktree T5 / T6 · 排版浮层＝tv_modes M6（排版模式）· 右栏页签＝tv_modes M10（属性 / 文字 / 智能）· 记号格＝tv_trktree T15 / T16 */
+const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1380, height: 900 } });

@@ -64,10 +64,14 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     window.playProbe=()=>{ try{ play(); const c=audio.evCtx||{}; const r={spb:+(+c.spb).toFixed(3), mea:c.starts&&c.starts.length>1? +(c.starts[1]-c.starts[0]).toFixed(3) : null}; stopPlay(); return r; }catch(e){ try{stopPlay();}catch(_){} return {err:String(e.message||e)}; } };
   })()`);
   const EV = s => pg.evaluate(s).catch(e => ({ err: e.message }));
-  /* 打开向导：优先点顶栏「新建」（真实入口），点不到再走函数 */
+  /* 打开向导：走当前外壳的真实入口——v68.2 收尾 ENG-8：默认外壳（flow）是页签「＋」#dt-add，旧外壳是顶栏「新建」#b-new；两者都不在屏上
+     （启动台 inert、手机 / 窄窗口）时按 Alt+N（真实按键，同一 showNewWizard）。此前只点 #b-new、点不到静默回落 showNewWizard，
+     默认外壳下每次白等 1.5 秒、也测不到真实入口（本机 93s，CI 上 a8c2089 只要 32s） */
   const openWiz = async () => {
     await EV(`(()=>{ try{ closeModal(); }catch(_){} try{ localStorage.removeItem('musetab-nw-last'); }catch(_){} })()`);
-    try { await pg.click('#b-new', { timeout: 1500 }); } catch (_) { await EV(`showNewWizard()`); }
+    const ent = await EV(`(()=>{ const ok=id=>{ const e=document.getElementById(id); if(!e || !e.offsetParent || e.closest('[inert]')) return false; const r=e.getBoundingClientRect(); return r.width>0 && r.height>0; };
+      return ok('dt-add')? '#dt-add' : ok('b-new')? '#b-new' : ''; })()`);
+    if (ent) await pg.click(ent); else await pg.keyboard.press('Alt+KeyN');
     await pg.waitForSelector('#nw-create', { timeout: 3000 });
     /* v67.4 新建面板：选「歌谱 · 合唱」用途（默认 ♩=90，与 v67.3 默认速度口径一致） */
     await pg.click('.nf-modal [data-scene="vocal"]', { timeout: 1500 }).catch(() => {});

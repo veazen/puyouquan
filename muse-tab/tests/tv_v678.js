@@ -25,7 +25,9 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
-const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 切默认（PLAN §5.4 P 组）：本套件测的是 v67.8 起的旧外壳顶栏小改（兜底外壳，?shell=classic）。被测源码文件路径仍取不带参数的 URLF */
+const URLF = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const URL0 = URLF + (URLF.includes('?') ? '&' : '?') + 'shell=classic';
 const ROOT = path.resolve(__dirname, '../..');
 const KEYS = ['musetab-keymap', 'musetab-autoadv', 'musetab-humanize', 'musetab-quickbar'];
 const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.match(/^rgba?\\(([^)]+)\\)/);
@@ -60,7 +62,8 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
     sel={mi:0,row:'vox',vi:0,ci:0,si:1}; lastEnt=null; render(); if(document.activeElement&&document.activeElement.blur) document.activeElement.blur(); return 1; })()`;
   const READ = `(()=>{ const f=n=>{ try{ return !!window[n](); }catch(e){ return 'ERR'; } };
     return { gp:f('gpKeysOn'), adv:f('autoAdvOn'), hum:f('humOn'), qb:f('quickbarOn'), ls:${J(KEYS)}.map(k=>localStorage.getItem(k)) }; })()`;
-  const ROWS = `[...document.querySelectorAll('#modal-mask .prf-row')].map(r=>({k:r.dataset.prf, role:r.getAttribute('role'), on:r.getAttribute('aria-checked'),
+  /* v68.2：偏好设置多了「使用旧版布局」（PREF_ITEMS oldshell，切默认后的兜底开关，新旧外壳都列出）——V1 只核原 4 个本机偏好，这一行不计；它本身由 tv_flowdef F1 覆盖 */
+  const ROWS = `[...document.querySelectorAll('#modal-mask .prf-row:not([data-prf="oldshell"])')].map(r=>({k:r.dataset.prf, role:r.getAttribute('role'), on:r.getAttribute('aria-checked'),
     t:(r.querySelector('b')||{}).textContent||'', d:(r.querySelector('small')||{}).textContent||'', st:(r.querySelector('.prf-st')||{}).textContent||'',
     h:Math.round(r.getBoundingClientRect().height)}))`;
   const lsAll = `(()=>{ const o={}; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^musetab-/.test(k) && !/^musetab-(song-v1|docs-v1)$/.test(k)) o[k]=localStorage.getItem(k); } return o; })()`;
@@ -229,7 +232,7 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
     await close(pg);
     const site = fs.readFileSync(path.join(ROOT, 'muse-tab/site/help.html'), 'utf8');
     /* 被测编辑器源码本身（MUSETAB_URL 指向的文件）：去注释、去更新日志历史条目后，不再有指代该按钮的「预设」（与措辞闸新增规则同一正则） */
-    const FILE = URL0.startsWith('file://') ? decodeURIComponent(URL0.slice(7)) : path.resolve(__dirname, '../index.html');
+    const FILE = URLF.startsWith('file://') ? decodeURIComponent(URLF.slice(7).replace(/[?#].*$/, '')) : path.resolve(__dirname, '../index.html');
     const src = fs.readFileSync(FILE, 'utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => !/<li><span class="v">v\d/.test(l)).join('\n');
     const BTN = /顶栏[「“]预设[」”]|[「“]预设[」”]按钮|>预设<\/button>|预设 · 我的曲谱|[「“]我的[」”]里(选)?(的)?预设/;
     const srcHit = (src.match(BTN) || [''])[0];
@@ -418,7 +421,8 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
     const lab = await pg.evaluate(() => { const md = document.querySelector('#modal-mask .modal'); const id = md && md.getAttribute('aria-labelledby'); const h = id && document.getElementById(id);
       return { id, name: h ? h.textContent : '', role: md && md.getAttribute('role'), hum: ((document.querySelector('.prf-row[data-prf="humanize"] small') || {}).textContent || '') }; });
     const seq = [await AE()];
-    for (let i = 0; i < 5; i++) { await pg.keyboard.press('Tab'); seq.push(await AE()); }
+    /* v68.2：弹窗多一行「使用旧版布局」（oldshell，在原 4 个开关之后、「完成」之前）——Tab 走查多一步，首尾循环口径不变 */
+    for (let i = 0; i < 6; i++) { await pg.keyboard.press('Tab'); seq.push(await AE()); }
     await pg.keyboard.press('Shift+Tab'); const back1 = await AE();
     await pg.keyboard.press('Shift+Tab'); const back2 = await AE();
     await pg.keyboard.press('Escape'); await pg.waitForTimeout(120);
@@ -435,7 +439,7 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
     const mob = await pm.evaluate(() => ({ open: !!document.getElementById('modal-mask'), ae: (document.activeElement || {}).id || '' }));
     await close(pm);
     T(lab.id === 'prf-h' && lab.name === '偏好设置' && lab.role === 'dialog' && /下次播放起生效/.test(lab.hum)
-      && seq.join() === 'keymap,autoadv,humanize,quickbar,prf-ok,keymap' && back1 === 'prf-ok' && back2 === 'quickbar'
+      && seq.join() === 'keymap,autoadv,humanize,quickbar,oldshell,prf-ok,keymap' && back1 === 'prf-ok' && back2 === 'oldshell'
       && !esc1.open && esc1.ae === 'b-prefs' && !ok1.open && ok1.ae === 'b-prefs' && !mob.open && mob.ae === 'b-mmenu',
       'V1g 偏好设置弹窗：有可访问名（aria-labelledby → 「偏好设置」）；Tab / Shift+Tab 圈在弹窗里首尾循环；Esc 或「完成」关闭后焦点回到设置钮（手机从 ☰ 打开的回到 ☰）；演奏感说明写明播放中切换下次起生效', J({ lab, seq, back1, back2, esc1, ok1, mob }));
   } catch (e) { T(false, 'V1g 执行异常', e.message.split('\n')[0]); }
@@ -472,8 +476,11 @@ const COLORLIB = `window.__col = (s) => { s = String(s || '').trim(); let m = s.
       'V4c 16 首示例曲谱署名统一「谱友圈」，打开「欢乐颂（扫弦弹唱）」页头印「制谱：谱友圈」，不再带出「谱友圈预设」', J({ mk: [...new Set(mk)], sc }));
     const site = fs.readFileSync(path.join(ROOT, 'muse-tab/site/help.html'), 'utf8');
     const lint = fs.readFileSync(path.join(ROOT, 'deploy/check-wording.js'), 'utf8');
-    T(!/预提示里一键(关闭|开启)/.test(site) && (site.match(/顶栏「偏好设置」里关掉/g) || []).length === 2 && /预提示里一键/.test(lint) && /maker:/.test(lint),
-      'V4d 官网 help.html 两处「落音自动前进」的关法改指顶栏「偏好设置」（右栏预提示 v56.6 已撤）；措辞闸新增两条规则（预提示一键关闭 / 示例署名「预设」）', J({ n: (site.match(/顶栏「偏好设置」里关掉/g) || []).length }));
+    /* v68.2 新外壳切默认：官网改写成「在「偏好设置」里关掉（电脑在账号 ▾ 里，手机在 ☰ 菜单里）」——意图不变（关法指向偏好设置、不再指右栏预提示），
+       不再写死「顶栏」二字（新布局的偏好设置在账号 ▾ 里；旧版布局仍在顶栏） */
+    const PREF_OFF = /「偏好设置」里关掉/g;
+    T(!/预提示里一键(关闭|开启)/.test(site) && (site.match(PREF_OFF) || []).length === 2 && /预提示里一键/.test(lint) && /maker:/.test(lint),
+      'V4d 官网 help.html 两处「落音自动前进」的关法改指「偏好设置」（右栏预提示 v56.6 已撤）；措辞闸新增两条规则（预提示一键关闭 / 示例署名「预设」）', J({ n: (site.match(PREF_OFF) || []).length }));
   } catch (e) { T(false, 'V4c–d 执行异常', e.message.split('\n')[0]); }
 
   T(errs.length === 0, 'V6 全程无页面脚本错误', errs.slice(0, 3).join(' | '));

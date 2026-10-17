@@ -8,7 +8,10 @@
    file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = 'file://' + path.resolve(__dirname, '../index.html');
+const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 默认外壳 flow：谱友圈（应用内谱库）入口＝文件 ▾「谱库」（与账号 ▾「谱库」同为委托点 #b-circle，F.mi old:'b-circle'）；
+   旧外壳（?shell=classic）顶栏 #b-circle 原样——两处入口都打开同一个 openCircle() */
+const openLib = async pg => { await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-old="b-circle"]'); await pg.click('#popmenu [data-old="b-circle"]'); };
 
 /* 有 y 偏移或模糊 = 立体投影；inset（画内框）与 0 0 0 Npx（焦点环）不算 */
 const HAS_ELEVATION = `(v=>{
@@ -103,7 +106,7 @@ const HAS_ELEVATION = `(v=>{
   await pg.route('**/api/pub/*/thumb*', rt => rt.fulfill({ status: 200, contentType: 'image/png',
     body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }));
   await pg.goto(F); await pg.waitForTimeout(900);
-  await pg.click('#b-circle'); await pg.waitForTimeout(900);
+  await openLib(pg); await pg.waitForTimeout(900);
   const r3 = await pg.evaluate(`(()=>{
     const a=document.querySelector('#circle .cc-card[data-pub="p_withthumb"]');
     const c=document.querySelector('#circle .cc-card[data-pub="p_nothumb"]');

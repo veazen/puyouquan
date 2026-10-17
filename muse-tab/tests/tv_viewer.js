@@ -240,12 +240,15 @@ const F = process.env.MUSETAB_URL || 'file://' + SRC;
     let parsed = null; try { parsed = JSON.parse(m[1].replace(/<\\\//g, '</')); } catch(_) {}
     return { ok: true, size: txt.length, doctype: /^<!DOCTYPE html>/i.test(txt.trim()),
       tag: txt.includes('pyq-share-data'), once: hits.length === 1,
+      /* v68.2 集成：注入点在 head 闭合标签前（早于主脚本，开机即知是观看页、flow 不先挂再退）；head / body 闭合标签各仍只一个 */
+      inHead: txt.indexOf('<script id="pyq-share-data">') >= 0 && txt.indexOf('<script id="pyq-share-data">') < txt.search(/<\/head>/i) && txt.search(/<\/head>/i) < txt.search(/<body[\s>]/i),
+      oneEnd: (txt.match(/<\/head>/gi) || []).length === 1 && (txt.match(/<\/body>/gi) || []).length === 1,
       appIntact: txt.includes('function exportInteractiveCard') && txt.includes('function enterShareViewer'),
       title: parsed && parsed.song && parsed.song.title, mea: parsed && parsed.song.measures.length };
   });
-  const ok5 = t5.ok && t5.size > 500000 && t5.doctype && t5.tag && t5.once && t5.appIntact && !!t5.title && t5.mea > 0;
+  const ok5 = t5.ok && t5.size > 500000 && t5.doctype && t5.tag && t5.once && t5.inHead && t5.oneEnd && t5.appIntact && !!t5.title && t5.mea > 0;
   console.log((ok5 ? '✅' : '❌') + ' T5 导出自打包: 大小=' + Math.round((t5.size||0)/1024) + 'KB doctype=' + t5.doctype
-    + ' 注入唯一=' + t5.once + ' 应用完整=' + t5.appIntact + ' 曲名=' + t5.title + ' 小节=' + t5.mea);
+    + ' 注入唯一=' + t5.once + ' 在head=' + t5.inHead + ' 闭合标签唯一=' + t5.oneEnd + ' 应用完整=' + t5.appIntact + ' 曲名=' + t5.title + ' 小节=' + t5.mea);
   if (ok5) pass++;
 
   // T6 导出弹窗双模式入口 + 节拍器弹窗（v60.40 产品指示：点击=打开设置弹窗，拍点开关移入弹窗）

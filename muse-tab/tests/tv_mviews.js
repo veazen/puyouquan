@@ -3,10 +3,16 @@
                         T2 编辑态谱面 fit-width（score 宽 ≤ 窗宽）
                         T3 手动缩放 → body.mzoom（退出适配）；点缩放标签回 100% → 恢复
    桌面(1280px)：T4 主栏仍 wrap、无 mzoom 类、谱面保持原生宽（>窗宽的 fit 规则不生效）
-   file:// 直载。 */
+   file:// 直载。
+   v68.2 切默认（flow）：T1–T5b 断言的是旧外壳手机布局（#top .main-bar 单行横滑、#mixer-dock 迷你条 / 三排卡片、#left-flyout）与旧外壳桌面——钉 ?shell=classic。
+   文末 flow 段（默认外壳，手机 body.flw-m）断言同一意图：MF1 顶栏 #flw-mtop 单行 ≤56、页面无横向溢出 · MF2 谱面 fit-width · MF3 手动缩放挂 mzoom / 复位回适配 ·
+   MF3b 播放键（#flw-mplay）≥44 可点中 · MF3c 触摸解锁 AudioContext · MF3d 手机开机忽略存储缩放 · MF3e 离开启动台不自动弹抽屉 ·
+   MF4 桌面 flow：存储缩放带入、无 mzoom、无 fit 上限、左栏 #flw-left 常驻（旧外壳「左栏自动展开」的对应）。抽屉 / 触控 / 底条几何另见 tv_modes M16。
+   T5b 读法加固：卷动态背景有 CSS 过渡，120ms 时可能还没开始（高负载下偶发读到起始色），改为等到过渡起色（≤1s）再读——断言不变 */
 const { chromium, devices } = require('playwright');
 const path = require('path');
-const F = 'file://' + path.resolve(__dirname, '../index.html');
+const F0 = 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + '?shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -110,6 +116,7 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     return idle;
   })()`);
   await pg2.waitForTimeout(120);
+  await pg2.waitForFunction(bg0 => getComputedStyle(document.getElementById('sb-go')).backgroundColor !== bg0, r.go.bg, { timeout: 1000 }).catch(() => {});
   const r5b = await pg2.evaluate(`(()=>{
     const c = getComputedStyle(document.getElementById('sb-go'));
     const run = { bg: c.backgroundColor, color: c.color, txt: document.getElementById('sb-go').textContent.trim() };
@@ -126,6 +133,67 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     'T5b 卷动中按压态（深色+暂停文案）·停止复原', JSON.stringify(r5b));
   T(errs2.length === 0, '桌面端无报错', errs2.join('|') || 'none');
   await pg2.close();
+
+  /* ===================== flow 段（默认外壳）===================== */
+  {
+    const ctxF = await b.newContext({ ...devices['iPhone 13'], locale: 'zh-CN' });
+    const pf = await ctxF.newPage();
+    const errsF = []; pf.on('pageerror', e => errsF.push(e.message));
+    await pf.goto(F0); await pf.waitForTimeout(900);
+    await pf.evaluate(() => { window.SF_PLAYWAIT = false; });
+    await pf.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; loadSong(PRESETS[0].make()); })()`);
+    await pf.waitForTimeout(800);
+    let f = await pf.evaluate(`(()=>{ const mt=document.getElementById('flw-mtop'); const bs=[...mt.querySelectorAll('button')].filter(x=>x.getClientRects().length);
+      const tops=[...new Set(bs.map(x=>{ const q=x.getBoundingClientRect(); return Math.round((q.top+q.height/2)/4); }))];
+      return { flwM: document.body.classList.contains('flw-m'), topH: Math.round(mt.getBoundingClientRect().height), rows: tops.length, mtNoScroll: mt.scrollWidth<=mt.clientWidth+1,
+        overX: document.documentElement.scrollWidth - innerWidth, scoreW: Math.round(document.getElementById('score').getBoundingClientRect().width), winW: innerWidth }; })()`);
+    T(f.flwM && f.topH <= 56 && f.rows === 1 && f.mtNoScroll && f.overX <= 0, 'MF1 flow 手机：顶栏 #flw-mtop 单行（≤56）、无横向溢出', JSON.stringify(f));
+    T(f.scoreW <= f.winW, 'MF2 flow 手机：编辑态谱面 fit-width', JSON.stringify({ scoreW: f.scoreW, winW: f.winW }));
+    f = await pf.evaluate(`(()=>{ setViewZoom(1.5); const zoomed=document.body.classList.contains('mzoom'); const wideW=Math.round(document.getElementById('score').getBoundingClientRect().width);
+      setViewZoom(1); const back=!document.body.classList.contains('mzoom'); const fitW=Math.round(document.getElementById('score').getBoundingClientRect().width);
+      return {zoomed, wideW, back, fitW, winW: innerWidth, overX: document.documentElement.scrollWidth - innerWidth}; })()`);
+    T(f.zoomed && f.wideW > f.winW && f.back && f.fitW <= f.winW && f.overX <= 0, 'MF3 flow 手机：手动缩放退出 / 恢复 fit-width（页面不横溢）', JSON.stringify(f));
+    f = await pf.evaluate(`(()=>{ const p=document.getElementById('flw-mplay'); if(!p) return {has:false}; const q=p.getBoundingClientRect(); const h=document.elementFromPoint(q.left+q.width/2, q.top+q.height/2);
+      const bar=document.getElementById('flw-mbar').getBoundingClientRect();
+      return {has:true, hit: !!h && !!h.closest('#flw-mplay'), w: Math.round(q.width), h: Math.round(q.height), inBar: q.top>=bar.top-1 && q.bottom<=bar.bottom+1, barB: Math.round(bar.bottom), ih: innerHeight}; })()`);
+    T(f.has && f.hit && f.h >= 44 && f.w >= 44 && f.inBar && Math.abs(f.barB - f.ih) <= 1, 'MF3b flow 手机：底条播放键 #flw-mplay ≥44 且可点中（底条贴底）', JSON.stringify(f));
+    await pf.tap('#score').catch(() => {});
+    await pf.waitForTimeout(300);
+    f = await pf.evaluate(`(()=>({ctx: !!(typeof audio!=='undefined' && audio.ctx)}))()`);
+    T(f.ctx, 'MF3c flow 手机：触摸解锁创建 AudioContext', JSON.stringify(f));
+    T(errsF.length === 0, 'MF 手机端无报错', errsF.join('|') || 'none');
+    await ctxF.close();
+
+    const ctxZ2 = await b.newContext({ ...devices['iPhone 13'], locale: 'zh-CN' });
+    const pz = await ctxZ2.newPage();
+    const errsZ2 = []; pz.on('pageerror', e => errsZ2.push(e.message));
+    await pz.addInitScript(`localStorage.setItem('musetab-zoom','1.5')`);
+    await pz.goto(F0); await pz.waitForTimeout(900);
+    await pz.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; hideStartPad(); loadSong(PRESETS[0].make()); })()`);
+    await pz.waitForTimeout(800);
+    f = await pz.evaluate(`(()=>{ const sh=document.getElementById('flw-msheet'); return {
+      flwM: document.body.classList.contains('flw-m'), vz: viewZoom, mz: document.body.classList.contains('mzoom'),
+      scoreW: Math.round(document.getElementById('score').getBoundingClientRect().width), winW: window.innerWidth,
+      sheetOpen: !!sh && sh.getClientRects().length>0 && getComputedStyle(sh).visibility!=='hidden' }; })()`);
+    T(f.flwM && f.vz === 1 && !f.mz && f.scoreW <= f.winW, 'MF3d flow 手机开机忽略存储缩放·fit 生效', JSON.stringify(f));
+    T(!f.sheetOpen, 'MF3e flow 离开启动台不自动弹抽屉', JSON.stringify({ sheetOpen: f.sheetOpen }));
+    T(errsZ2.length === 0, 'MF3 组无报错', errsZ2.join('|') || 'none');
+    await ctxZ2.close();
+
+    const pd = await b.newPage({ viewport: { width: 1280, height: 950 } });
+    const errsD = []; pd.on('pageerror', e => errsD.push(e.message));
+    await pd.addInitScript(`localStorage.setItem('musetab-zoom','1.5')`);
+    await pd.goto(F0); await pd.waitForTimeout(900);
+    await pd.evaluate(`(()=>{ if(typeof undoStack!=='undefined')undoStack.length=0; loadSong(PRESETS[0].make()); })()`);
+    await pd.waitForTimeout(800);
+    f = await pd.evaluate(`(()=>{ const vzBoot=viewZoom; setViewZoom(1.5); const noCls=!document.body.classList.contains('mzoom'); setViewZoom(1);
+      const fl=document.getElementById('flw-left').getBoundingClientRect();
+      return { flow: document.body.classList.contains('flow'), vzBoot, noCls, flwLeft: Math.round(fl.width), fitMax: getComputedStyle(document.getElementById('score')).maxWidth,
+        overX: document.documentElement.scrollWidth - innerWidth }; })()`);
+    T(f.flow && f.vzBoot === 1.5 && f.noCls && f.flwLeft === 248 && f.fitMax !== '100%' && f.overX <= 0, 'MF4 flow 桌面不受手机规则影响（存储缩放带入 / 无 mzoom / 无 fit 上限 / 左栏常驻 248）', JSON.stringify(f));
+    T(errsD.length === 0, 'MF 桌面端无报错', errsD.join('|') || 'none');
+    await pd.close();
+  }
 
   console.log('PASS ' + pass + '/' + total);
   await b.close();

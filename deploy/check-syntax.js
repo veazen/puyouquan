@@ -76,6 +76,12 @@ for (const path of files) {
     if (av !== cl) { console.error('❌ ' + path + ' 版本不一致：APP_VER=' + av + '，更新日志首条=' + cl + '（发版须同步递增 APP_VER）'); bad++; }
     else console.log('✅ ' + path + '：版本一致（APP_VER=' + av + ' = 更新日志首条）');
   }
+  /* v68.2 集成教训（集成报告「语法闸查不出」一条，收尾落地）：单文件里的 </head>、</body>、</html> 字面量只能各出现 1 次——
+     脚本注释 / 字符串里多写一个（例如互动谱导出的注入点说明），浏览器解析到它就提前结束 <script>，整段脚本失效、编辑器白屏；
+     语法校验按 <script> 切段时读不到这个问题。导出代码里要写这些标签时用拼接 / 转义形式（见 exportInteractiveCard） */
+  ['</head>', '</body>', '</html>'].forEach(tg => { const n = html.split(tg).length - 1;
+    if (n > 1) { console.error('❌ ' + path + '：' + tg + ' 字面量出现 ' + n + ' 次（只能 1 次；脚本里要写用拼接 / 转义）'); bad++; } });
+  if (!bad) console.log('✅ ' + path + '：</head> / </body> / </html> 字面量各至多 1 次');
   totalBad += bad;
 }
 process.exit(totalBad ? 1 : 0);

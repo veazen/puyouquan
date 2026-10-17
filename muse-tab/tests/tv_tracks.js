@@ -9,7 +9,8 @@
    对 v60.41 旧文件跑：无 .trk 行 → T1 当场红（突变实证）。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 切默认（PLAN §5.4 P 组）：本套件测的是旧外壳左轨音轨卡（兜底外壳，?shell=classic）；flow 的音轨结构由 tv_trktree T1–T4 / T12–T13 覆盖 */
+const F0 = 'file://' + path.resolve(__dirname, '../index.html'); const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;

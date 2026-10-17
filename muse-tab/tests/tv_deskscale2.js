@@ -24,7 +24,12 @@
    T11 谱架读新建谱的缩放键：预置旧键 0.85（v64.5–v67.1 自动写入）→ 新建谱点 ＋ → 进谱架谱面与 v67.2 同为 1056px（此前 901）
        （v67.7 收尾验收 OUT-4：版宽 870 的固定版宽谱在谱架里也放大到 FIT_MAX 铺满谱架纸宽，门槛仍 1040——修前 957px 红）
    T12 收起钮可用键盘操作：Tab 到收起钮按 Enter＝收起、焦点交给左轨当前音轨钮，再按 Enter＝展开；空格＝收起而不是开始播放
-   T13 收起后点左侧音轨钮＝打开该轨面板（逐轨「简谱」开关可见），不必先点「小节」 */
+   T13 收起后点左侧音轨钮＝打开该轨面板（逐轨「简谱」开关可见），不必先点「小节」
+   ——— v68.2 切默认（flow）———
+   先跑旧外壳（?shell=classic）全部 T1–T13（断言逐字不变）；再在默认外壳（flow，标 [flow]）跑 T3 / T5 / T6 / T9（计划 §5.4：键盘跟滚、吸底横滚条、
+   Ctrl+滚轮锚点在 flow 下各补一条；T3「排版」预设走 flow 新入口：模式条「排版」→ 右栏「版式」页预设 → Esc 回书写），断言不变。
+   flow 不跑的：T7 / T8 / T12 / T13 是旧左栏「收起」钮与左轨音轨钮（flow 左栏常驻、无收起；逐轨「简谱」见 tv_trktree T7）；T1 / T2 / T4 / T10 / T11 外壳无关
+   （T2 的 flow「排版」入口同 T3，另见 tv_deskscale [flow] T6），旧外壳遍已覆盖——为把本套件留在 run_all 单套件 300 秒上限内不重复。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
@@ -61,11 +66,19 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     xs:P.classList.contains('paper-xs'), maxW:getComputedStyle(P).maxWidth, docW:document.documentElement.scrollWidth, vw:innerWidth }; })()`;
 
 
+const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
+const FLOW_SET = ['T3', 'T5', 'T6', 'T9'];
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
-  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
+  let FLOWM = false;
+  const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + (FLOWM ? '[flow] ' : '') + name + (d ? ': ' + d : '')); };
   const errs = [];
+ for (const MODE of ['classic', 'flow']) {
+  FLOWM = MODE === 'flow';
+  const URLM = FLOWM ? URL0 : withQ(URL0, 'shell=classic');
+  const RUN = id => !FLOWM || FLOW_SET.includes(id);
+  console.log('—————— ' + (FLOWM ? 'flow（默认外壳）：' + FLOW_SET.join(' / ') : '旧外壳（?shell=classic）：T1–T13') + ' ——————');
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
@@ -83,17 +96,23 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
     const pg = await ctx.newPage(); pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     if (init) await pg.addInitScript(init);
-    await pg.goto(URL0); await pg.waitForTimeout(900);
+    await pg.goto(URLM); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
+    const isFlow = await pg.evaluate(() => document.body.classList.contains('flow'));
+    if (isFlow !== FLOWM) errs.push('外壳不符：要 ' + MODE + '，实际 ' + (isFlow ? 'flow' : 'classic'));
     pg._ctx = ctx; return pg; };
-  const layStd = async pg => {   /* 顶栏「排版」→「标准」→「完成」 */
+  const layStd = async pg => {   /* 顶栏「排版」→「标准」→「完成」；flow：模式条「排版」→ 右栏「版式」页「标准」→ Esc 回书写 */
+    if (FLOWM) { await pg.click('#flw-mode-engrave'); await pg.waitForTimeout(300);
+      await pg.click('#lp-preset button[data-preset="standard"]'); await pg.waitForTimeout(300);
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(300);
+      const m = await pg.evaluate(() => document.body.dataset.mode); if (m !== 'write') errs.push('flow 排版后未回书写：' + m); return; }
     await pg.click('#b-layout'); await pg.waitForTimeout(200);
     await pg.click('#lp-preset button[data-preset="standard"]'); await pg.waitForTimeout(300);
     await pg.click('#lp-done').catch(() => {}); await pg.waitForTimeout(250); };
   const LS = pg => pg.evaluate(() => ({ z: localStorage.getItem('musetab-zoom'), fw: localStorage.getItem('musetab-zoom-fw'), lbl: document.getElementById('zoom-lbl').textContent }));
 
   /* T1 升级用户旧缩放值 */
-  { const bad = [], out = [];
+  if (RUN('T1')) { const bad = [], out = [];
     const CASES = [[1440, 900, '0.7'], [1536, 864, '0.8'], [1920, 1080, '0.85'], [1920, 1080, '1.2'], [1366, 768, '1.05']];
     for (const [w, h, z] of CASES) {
       const pg = await openInit(w, h, `try{ if(!sessionStorage.getItem('t8')){ localStorage.setItem('musetab-zoom','${z}'); sessionStorage.setItem('t8','1'); } }catch(_){}`);
@@ -118,7 +137,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T1 升级用户旧缩放值（0.7/0.8/0.85/1.2/1.05）不再乘到新建谱：显示与复位 100% 相同、无横滚、标签 100%，旧键原值不动；新建谱缩放走新增键', bad.join(' | ') || out.join(' ')); }
 
   /* T2 共享缩放键串扰 */
-  { const bad = [], out = [];
+  if (RUN('T2')) { const bad = [], out = [];
     for (const [w, h] of [[1536, 864], [1920, 1080]]) {
       const pg = await openInit(w, h); await wizard(pg);
       const g0 = await geo(pg);
@@ -134,7 +153,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T2 存量谱上用「排版」后：存量谱自己不横溢，切回新建谱不横滚、缩放 100%', bad.join(' | ') || out.join(' ; ')); }
 
   /* T3 「排版」不覆盖用户手动缩放 + 标签实际倍率提示 */
-  { const pg = await openInit(1920, 1080); await wizard(pg);
+  if (RUN('T3')) { const pg = await openInit(1920, 1080); await wizard(pg);
     for (let i = 0; i < 3; i++) { await pg.click('#z-in'); await pg.waitForTimeout(150); }
     const g1 = await geo(pg); await layStd(pg); const g2 = await geo(pg);
     const tip = await pg.evaluate(() => document.getElementById('zoom-lbl').title);
@@ -143,7 +162,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg._ctx.close(); }
 
   /* T4 导出 PNG 与窗口无关 */
-  { const hs = {};
+  if (RUN('T4')) { const hs = {};
     for (const [w, h] of [[1366, 768], [1920, 1080]]) {
       const pg = await openInit(w, h); await wizard(pg);
       hs[w] = await pg.evaluate(() => new Promise(res => { const o = HTMLCanvasElement.prototype.toBlob;
@@ -158,7 +177,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
       'T4 导出 PNG 与窗口无关（1366 / 1920 显示宽不同，PNG 逐字节相同）', JSON.stringify(hs)); }
 
   /* T5 Ctrl+滚轮纵向锚点 */
-  { const pg = await openInit(1920, 1080); await wizard(pg);
+  if (RUN('T5')) { const pg = await openInit(1920, 1080); await wizard(pg);
     await pg.evaluate(() => { for (let i = 0; i < 40; i++) song.measures.push(JSON.parse(JSON.stringify(song.measures[i % 8]))); render(); });
     await pg.evaluate(() => { document.getElementById('score-wrap').scrollTop = 600; }); await pg.waitForTimeout(300);
     const pt = { x: 900, y: 600 };
@@ -173,7 +192,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg._ctx.close(); }
 
   /* T6 键盘光标跟滚 */
-  { const bad = [];
+  if (RUN('T6')) { const bad = [];
     { const pg = await openInit(1366, 657); await wizard(pg);
       await pg.evaluate(() => { const q = () => ({ dur: 4, dotted: false, deg: 0, acc: '', oct: 0, lyrics: [], tie: false });
         while (song.measures.length < 32) song.measures.push(JSON.parse(JSON.stringify(song.measures[0])));
@@ -210,7 +229,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T6 键盘移动光标跟滚：长谱录入光标不落出可视区；放大横滚时行尾光标列在 #paper 可视范围内', bad.join(' | ') || 'ok'); }
 
   /* T7 左栏「收起」钮 + 开合保持纵向锚点 */
-  { const bad = [], out = [];
+  if (RUN('T7')) { const bad = [], out = [];
     for (const [w, h, min] of [[1440, 900, 16], [1536, 864, 17.5]]) {
       const pg = await openInit(w, h); await wizard(pg);
       await pg.evaluate(() => { for (let i = 0; i < 40; i++) song.measures.push(JSON.parse(JSON.stringify(song.measures[i % 8]))); render(); });
@@ -243,7 +262,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
   const flyH = pg => pg.evaluate(() => document.getElementById('left-flyout').classList.contains('hidden'));
 
   /* T8 收起状态稳定 + 记忆 */
-  { const bad = [], out = [];
+  if (RUN('T8')) { const bad = [], out = [];
     const pg = await openInit(1536, 864); await wizard(pg);
     await pg.click('#fly-close'); await pg.waitForTimeout(500);
     const g1 = await geo(pg);
@@ -264,7 +283,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T8 「收起」状态稳定：resize 不重开、刷新后仍收起（musetab-flyclosed）、点页签再打开即清除', bad.join(' | ') || out.join(' ; ')); }
 
   /* T9 放大后的吸底横滚条 + 播放横向跟随 */
-  { const bad = [];
+  if (RUN('T9')) { const bad = [];
     const pg = await openInit(1920, 1080); await wizard(pg);
     await pg.click('#z-in'); await pg.waitForTimeout(400);
     /* v67.7 收尾验收 D2：#paper 收到谱纸 100% 宽后，110% 一档即放不下（与 v67.6 同口径）——不连点 */
@@ -291,7 +310,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T9 新建谱 110%：吸底横滚条在视口内且与 #paper 同步；播放高亮到被遮的行尾小节时横向露出', bad.join(' | ') || JSON.stringify({ h, f })); }
 
   /* T10 暂停态键盘跟滚 */
-  { const pg = await openInit(1920, 1080); await wizard(pg);
+  if (RUN('T10')) { const pg = await openInit(1920, 1080); await wizard(pg);
     /* 每小节两个二分音符（按键少、行数多）：64 小节 */
     await pg.evaluate(() => { const V = (deg) => ({ dur: 2, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false });
       while (song.measures.length < 64) song.measures.push(blankMeasure());
@@ -311,7 +330,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(st.playing && st.paused && hidden === 0 && last.mi >= 63, 'T10 暂停态（▶ 继续）连按 → 到第64小节：光标始终在可视区（此前暂停时完全不跟滚）', JSON.stringify({ st, hidden, last })); }
 
   /* T11 谱架读新建谱缩放键 */
-  { const pg = await openInit(1920, 1080, `try{ if(!sessionStorage.getItem('t11')){ localStorage.setItem('musetab-zoom','0.85'); sessionStorage.setItem('t11','1'); } }catch(_){}`);
+  if (RUN('T11')) { const pg = await openInit(1920, 1080, `try{ if(!sessionStorage.getItem('t11')){ localStorage.setItem('musetab-zoom','0.85'); sessionStorage.setItem('t11','1'); } }catch(_){}`);
     await wizard(pg);
     await pg.click('#z-in'); await pg.waitForTimeout(300);
     await pg.click('#b-stand'); await pg.waitForTimeout(900);
@@ -323,7 +342,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(sg.stand && sg.svgW >= 1040 && sg.z === '0.85' && back.lbl === '110%', 'T11 旧键 0.85 的升级用户：新建谱 ＋ 后进谱架谱面 ≥1040px（v67.2 为 1056，此前 901）；旧键原值不动、退出回 110%', JSON.stringify({ sg, back })); }
 
   /* T12 收起钮键盘可达 / 可操作 */
-  { const bad = [];
+  if (RUN('T12')) { const bad = [];
     const pg = await openInit(1920, 1080); await wizardInst(pg);
     await pg.focus('#fly-close'); await pg.keyboard.press('Shift+Tab'); await pg.keyboard.press('Tab');   // 真实键盘把焦点送到收起钮（:focus-visible）
     const a0 = await pg.evaluate(() => document.activeElement.id);
@@ -342,7 +361,7 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     T(bad.length === 0, 'T12 收起钮键盘操作：Enter 收起（焦点交给左轨钮）→ Enter 展开；空格收起且不触发播放', bad.join(' | ') || JSON.stringify({ a0, a1, a2, a3 })); }
 
   /* T13 收起后点音轨钮＝打开该轨面板 */
-  { const pg = await openInit(1536, 864); await wizardInst(pg);
+  if (RUN('T13')) { const pg = await openInit(1536, 864); await wizardInst(pg);
     await pg.click('#fly-close'); await pg.waitForTimeout(400);
     const h0 = await flyH(pg);
     await pg.click('#rail-tracks .rtrk[data-trk^="tv:"]'); await pg.waitForTimeout(500);
@@ -350,6 +369,8 @@ const GEO = `(()=>{ const sv=document.getElementById('score'), vb=sv.viewBox.bas
     await pg._ctx.close();
     T(h0 && !r.h && r.jp && r.row === 'tab', 'T13 收起后点左侧吉他音轨钮：面板展开、逐轨「简谱」开关可见（此前要先点「小节」再点音轨钮）', JSON.stringify(Object.assign({ h0 }, r))); }
 
+  if (FLOWM) console.log('   ℹ️  [flow] 不跑：T7 / T8 / T12 / T13（旧左栏收起钮、左轨音轨钮——flow 左栏常驻；逐轨简谱见 tv_trktree T7）；T1 / T4 / T10 / T11 外壳无关，旧外壳遍已判');
+ }
   console.log(`PASS ${pass}/${total}`);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

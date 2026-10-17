@@ -39,7 +39,10 @@
    配谱不清逐轨数组 → T15；migrate 不丢失配数组 → T16；联排行热区不上伸 → T17；第 2 条起热区不上伸 4 → T17；toast 恢复长句 → T1 两红。实现者原版跑 22/31。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v68.2 切默认（flow）：T1 / T2 / T5 / T13 走旧左轨音轨钮（#rail-tracks .rtrk）与旧左栏面板「简谱」灯（#nl-tabjp）——钉 ?shell=classic；
+   引擎断言（tabJpVoices 渲染 / 排版 / 存取）与外壳无关。flow 下同一意图（逐轨「简谱行 · 仅本轨」与 #nl-tabjp 同一数据、一步撤销、点两次逐字节还原）＝tv_trktree T7 */
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 const REF = process.env.MUSETAB_REF || '';
 
 /* 页面内助手：只用 v67.1 与本版都有的全局函数（T4 对拍参考版时同一份助手在参考版页面里跑） */

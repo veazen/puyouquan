@@ -113,13 +113,18 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   {
     const pg = await open({ width: 390, height: 844 });
     await pg.evaluate(`loadSong(PRESETS[0].make()); if(typeof hideStartPad==='function') hideStartPad(); render();`).catch(() => {});
-    const r = await pg.evaluate(`(()=>{ toggleSmartSheet(true);
+    /* v68.2 收尾 ENG-8：默认外壳在手机上是 body.flw-m——「智能」抽屉的真实入口是顶栏 ☰ 菜单里的「智能」行（[data-fm="smart"]），真实点击打开；
+       旧外壳（无 flw-m）照旧调 toggleSmartSheet（旧手机 ☰ 的同一调用） */
+    const mob = await pg.evaluate(`document.body.classList.contains('flw-m')`).catch(() => false);
+    let via = 'fn';
+    if (mob) { try { await pg.click('#flw-mtop [data-fm="sheet"][data-v="menu"]'); await pg.waitForTimeout(250); await pg.click('#flw-msheet [data-fm="smart"]'); await pg.waitForTimeout(300); via = 'menu'; } catch (e) { via = 'err:' + e.message.split('\n')[0]; } }
+    const r = await pg.evaluate(`(()=>{ if(!document.body.classList.contains('flw-m')) toggleSmartSheet(true);
       const was=document.body.classList.contains('rsheet');
       showModal('<h3>一键配伴奏</h3><div class="btns"><button id="tv-go" class="primary">生成</button></div>');
       const bt=document.getElementById('tv-go'); const rc=bt.getBoundingClientRect();
       const hit=document.elementFromPoint(rc.left+rc.width/2, rc.top+rc.height/2);
       return {was, sheet:document.body.classList.contains('rsheet'), hit: hit===bt || (hit&&bt.contains(hit))}; })()`).catch(e => ({ err: e.message }));
-    T(r && r.was && r.hit && !r.sheet, 'T5 抽屉里打开的弹窗主按钮可被点中（抽屉自动收起）', JSON.stringify(r));
+    T(r && r.was && r.hit && !r.sheet && (!mob || via === 'menu'), 'T5 抽屉里打开的弹窗主按钮可被点中（抽屉自动收起）' + (mob ? '；手机新外壳经 ☰ →「智能」真实点开' : ''), JSON.stringify(Object.assign({ mob, via }, r)));
     await pg.close();
   }
 
