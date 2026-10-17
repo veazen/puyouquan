@@ -25,6 +25,9 @@ const CORE = [
   'tv_shellflow',
   /* v68.0 新外壳左栏：音轨层级树（含混音）· Bravura 记号面板 · 谱型条拆入；不带开关的共享路径与 shellflow_ref.json 基线对拍：单跑约 80 秒（三路并行） */
   'tv_trktree',
+  /* v68.1 新外壳三步「书写 › 排版 › 输出」· 右栏属性 / 文字 / 智能 · 行 2 换键 · 命令面板 · 切轨跟滚 · <1280 · 手机（M1–M18）＋ v68.0 遗留 TRK-16 / SH-3 / SH-4、三步口径、
+     不带开关的共享路径与 shellflow_ref.json 基线对拍（M19–M23）＋数据红线汇总（RL）：单跑约 55 秒（三路并行） */
+  'tv_modes',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 

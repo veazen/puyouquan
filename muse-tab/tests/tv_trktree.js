@@ -1515,16 +1515,19 @@ function T0SCN() {
     await SAFE('T30', 'T30d', async () => {
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 300);
       await scn(pg, 'newpacc'); await wait(pg, 300);
+      /* v68.1（计划 §4.11「模式条 → 撤销 → 起步」，验收 SH-4）：行首多了模式条（role=tablist，roving tabindex 只有当前段可 Tab 到），撤销段在 DOM 上也搬到行首——
+         Tab 顺序＝模式条（当前段）→ 撤销 → 起步，与视觉顺序一致（此前断言「起步是第一站」，撤销在 DOM 末尾） */
       const t = await EV(pg, () => { const all = [...document.querySelectorAll('#editbar button')].filter(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden' && b.tabIndex >= 0);
-        return { idx: all.findIndex(b => b.closest('#flw-start')), n: all.length, first: all[0] && (all[0].id || all[0].dataset.fa) }; });
-      T('T30', t.idx === 0, 'T30d 起步组在 #editbar 的 DOM 最前（Tab 顺序与视觉顺序一致：撤销之后第一站就是起步；验收 SH-4：此前要走过 27 个工具键）', J(t));
+        return { idx: all.findIndex(b => b.closest('#flw-start')), n: all.length, first: all.slice(0, 3).map(b => b.id || b.dataset.fa) }; });
+      T('T30', t.idx === 2 && t.first[0] === 'flw-mode-write' && t.first[1] === 'b-undo', 'T30d 行 2 的 DOM / Tab 顺序与视觉一致：模式条（当前段「书写」）→ 撤销 → 起步（验收 SH-4：此前撤销在 DOM 末尾、要走过 27 个工具键）', J(t));
     });
     await SAFE('T30', 'T30e', async () => {
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 300);
       await scn(pg, 'songbie'); await EV(pg, () => { setRTab('info'); }); await wait(pg, 150);
       const a = await EV(pg, () => { const b = document.getElementById('ri-lbar'), d = new DOMParser().parseFromString(FLOW.snapHTML(), 'text/html'), sb = d.getElementById('ri-lbar');
         return { t: b.textContent.trim(), tip: b.title, snap: !!sb && /谱型条 · 换谱类…/.test(sb.textContent) && /在谱面上方显示谱型条/.test(sb.title), snapNew: !!sb && /起步/.test(sb.textContent + sb.title) }; });
-      await pg.click('#ri-lbar'); await wait(pg, 200);
+      /* v68.1：flow 下旧右栏卡片 .rcard 只隐藏（右栏改为属性 / 文字 / 智能页，计划 §4.4），这枚按钮不再可见——按 §1.4 委托原则走程序化 click()，委托路径（LBAR.show 的 flow 分支）不变 */
+      await EV(pg, () => document.getElementById('ri-lbar').click()); await wait(pg, 200);
       const b2 = await EV(pg, () => ({ menu: !!document.getElementById('lb-menu') }));
       await EV(pg, () => __shut());
       await pg.setViewportSize({ width: 800, height: 900 }); await wait(pg, 500);
@@ -1538,10 +1541,11 @@ function T0SCN() {
       await scn(pg, 'songbie'); await wait(pg, 150); await away(pg);
       const a = await EV(pg, () => ({ rs: document.body.classList.contains('flw-rs'), txt: FLOW.start.retext('；下一步见谱面上方的谱型条') }));
       await pg.keyboard.press('Alt+b'); await wait(pg, 250);
-      const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), tab: rTab, nx: __vis('#flw-next'), txt: (document.getElementById('flw-next') || {}).textContent || '' }));
+      /* v68.1 轨 B：「下一步」卡移进右栏「智能」页（#flw-rp-smart 顶部），不再挂 data-rt、也不再让旧页签 rTab 停在「创作」——断言改为右栏当前页＝智能、卡在该页里 */
+      const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), tab: FLOW.rd.page(), inPage: !!document.querySelector('#flw-rp-smart > #flw-next'), nx: __vis('#flw-next'), txt: (document.getElementById('flw-next') || {}).textContent || '' }));
       await pg.keyboard.press('Escape'); await wait(pg, 150);
-      T('T30', a.rs && /竖条/.test(a.txt) && b2.ro && b2.tab === 'make' && b2.nx && b2.txt.length > 4,
-        'T30f <1440（右栏竖条）：落地提示按实际位置说「右栏竖条「创作」里的「下一步」卡」；没有起步组的谱类按 Alt+B 把「创作」浮出、「下一步」卡露出来（验收 SH-3：此前 Alt+B 屏上无变化）', J({ a, b2: { ro: b2.ro, tab: b2.tab, nx: b2.nx, txt: b2.txt.slice(0, 30) } }));
+      T('T30', a.rs && /竖条「智能」/.test(a.txt) && b2.ro && b2.tab === 'smart' && b2.inPage && b2.nx && b2.txt.length > 4,
+        'T30f <1440（右栏竖条）：落地提示按实际位置说「右栏竖条「智能」里的「下一步」卡」（v68.1 右栏页：属性 · 文字 · 智能，旧「创作」并入「智能」）；没有起步组的谱类按 Alt+B 把「智能」浮出、「下一步」卡露出来（验收 SH-3：此前 Alt+B 屏上无变化）', J({ a, b2: { ro: b2.ro, tab: b2.tab, nx: b2.nx, txt: b2.txt.slice(0, 30) } }));
     });
     await close(pg);
   });

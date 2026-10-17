@@ -23,14 +23,14 @@
    S11 委托：文件 ▾ / 账号 ▾ 每一项点了真的发生对应动作；保存状态三态（≥1440 长文案 · 1280 短文案 · 已入库带时间，点开另存为文件）；未入库点发布先入库再出发布卡
    S12 播放与状态栏：控件齐全、单行、顺序；播放 / 暂停、回开头、♩=、倍速、节拍器、⋯（演奏感 / 音色库 / 谱架）、位置、当前轨、时值检查上弹不自动弹、缩放、?；
        v68.0 起「混音 ▴」撤出状态栏（混音并进左栏音轨行）：#mx-expand 与旧混音台 .mx-tracks 不可见，DOM 与 setMixerExpanded 保留供委托
-   S13 不挂 flow 的场景：打印媒体 / beforeprint、观看页（openPubViewer 进出 + 分享页 PYQ_SHARE 直开）、谱架、手机 ≤820（运行中缩窄与直开 390）
+   S13 不挂 flow 的场景：打印媒体 / beforeprint、观看页（openPubViewer 进出 + 分享页 PYQ_SHARE 直开）、谱架、手机 ≤820（运行中缩窄与直开 390；v68.1 起手机改挂 flow 的手机子段 FLOW.mob，桌面 flow 照旧不挂）
    S14 无抖动：静置 1.5s render 增量 ≤1；1280→1440→1280 每步 render ≤3
    S15 数据零改动：挂载、开关全部菜单、切右栏、resize 前后 song JSON 不变；musetab-* 键差集 ⊆ {musetab-flow, musetab-rdock}
    S16 命中区：#flw-r1 / #editbar / #mixer-dock / #flw-rstrip 内可见按钮最小边 ≥28
    S17 对比度：行 1 文字对框架底 ≥4.5，当前页签对 --toolbar ≥4.5（浅 / 深 / 系统深）
    v67.9 收尾（验收回归，修前红修后绿）：S4e 竖条空白处不算点谱面外（SC-4）· S4f 本机存储不可用时钉住只对本次（SC-7）· S5c 旧左栏面板浮层贴外壳（L4）·
        S6h 截断页签展开不盖「窗口 N ▾」/「＋」/ 保存状态（L2）· S7a 窗口列表 role=dialog、页签读屏名（B4）· S8a 键盘切换后焦点交还谱面（B5）· S8c 同名窗口换位落盘（B6）·
-       S11f / S11i 文件 ▾ 排版 / 打印预览 / 打印与导出（SC-1；一行并排，菜单不压住「文件」）· S11g 快速新建与文件菜单不叠（B3）· S11h 菜单读屏名 + 键盘激活后焦点回按钮（B4 / B5）·
+       S11f / S11i 文件 ▾ 排版 / 输出（SC-1；v68.1 起两项切模式，菜单不压住「文件」）· S11g 快速新建与文件菜单不叠（B3）· S11h 菜单读屏名 + 键盘激活后焦点回按钮（B4 / B5）·
        S12h 窄档状态栏单行（L1）· S12i 时值状态项不截走空格 / Enter（B1）· S12j 循环认整小节多选（B2）· S13d 退场收菜单（SC-5）·
        S13g / S13h 互动谱快照回退不带外壳、收件人不进 flow（SC-6）· S13i 启动台竖条 inert（SC-4）· S15a 数据基线取默认外壳（SC-3）·
        S2 / S3 收紧到方案值 84 / 116 与 684 / 652 / 784（L5）· CI 里拿不到 S0 基线判红（SC-2，基线在 shellflow_ref.json）
@@ -339,9 +339,10 @@ const M = {
             lf: lf && [lf.x, lf.y, lf.w, lf.b], top: __R('#top').b, md: __R('#mixer-dock').y, sw: [w0, __R('#score').w], clear: __vis('#score') && __R('#score').x >= lf.r - 1 }; }, w0));
         await close(pg);
       }
-      T('S5', rows.every(r => !r.fly && !r.ld && !r.tight && r.fac === false && r.lf && r.lf[0] === 0 && Math.abs(r.lf[2] - 248) <= 0.5 && Math.abs(r.lf[1] - r.top) <= 0.5 && Math.abs(r.lf[3] - r.md) <= 0.5
+      /* v68.1（计划 §4.5「<1280 宽档」）：<1280 左栏收成 56 竖条（body.flw-narrow，--flw-lw:56px）——1180 这一行改断言 56，1280 仍是 248 */
+      T('S5', rows.every(r => !r.fly && !r.ld && !r.tight && r.fac === false && r.lf && r.lf[0] === 0 && Math.abs(r.lf[2] - (r.w < 1280 ? 56 : 248)) <= 0.5 && Math.abs(r.lf[1] - r.top) <= 0.5 && Math.abs(r.lf[3] - r.md) <= 0.5
           && Math.abs(r.sw[0] - r.sw[1]) <= 1 && r.clear),
-        'S5c 左栏 248 常驻（v68.0，取代 v67.9 L4 的浮层断言）：≤1180 宽与 1280 钉住右栏两场景 openFlyout 后旧面板不可见、#flw-left 宽 248 贴外壳底到状态栏顶、不挂 paper-tight、FLY_AUTO_CLOSED 不消耗、谱纸宽不变',
+        'S5c 左栏常驻（v68.0 248；v68.1 起 <1280 收成 56 竖条）：1180 宽与 1280 钉住右栏两场景 openFlyout 后旧面板不可见、#flw-left 宽 56 / 248 贴外壳底到状态栏顶、不挂 paper-tight、FLY_AUTO_CLOSED 不消耗、谱纸宽不变',
         J(rows));
     } catch (e) { T('S5', false, 'S5c 执行异常', e.message.split('\n')[0]); }
   });
@@ -372,14 +373,15 @@ const M = {
     try {
       const pg = await open(1280, 800, { tag: 'S4' });
       await EV(pg, () => __scn('songbie')); await wait(pg, 400);
-      const info = '#flw-rstrip [data-fa="rd:tab"][data-p="info"]';
+      /* v68.1 右栏页（计划 §4.4）：书写模式竖条＝属性 / 文字 / 智能（旧「创作 / 信息」两页在 flow 下隐藏）——此前点的是「信息」，同一断言意图改点「属性」 */
+      const info = '#flw-rstrip [data-fa="rd:tab"][data-p="prop"]';
       const has = await EV(pg, s => !!document.querySelector(s), info);
       const pw0 = await EV(pg, () => ({ pw: document.getElementById('paper').clientWidth, n: RENDER_STAT.n }));
       if (has) await pg.click(info, { timeout: 2500 }); await wait(pg, 250);
-      const o1 = await EV(pg, () => ({ rd: __R('#right-dock'), rs: __R('#flw-rstrip'), ro: document.body.classList.contains('flw-ro'), tab: typeof rTab !== 'undefined' ? rTab : null,
+      const o1 = await EV(pg, () => ({ rd: __R('#right-dock'), rs: __R('#flw-rstrip'), ro: document.body.classList.contains('flw-ro'), tab: FLOW.rd.page(),
         pw: document.getElementById('paper').clientWidth, n: RENDER_STAT.n, sc: __R('#score') }));
-      T('S4', has && o1.ro && o1.rd.vis && Math.abs(o1.rd.w - 288) <= 0.5 && Math.abs(o1.rd.r - o1.rs.x) <= 1 && o1.tab === 'info' && o1.pw === pw0.pw && o1.n - pw0.n <= 1,
-        'S4b 1280 竖条「信息」→ 右栏浮出 288、右缘贴竖条左缘、切到信息页；浮出是覆盖层：谱纸宽不变、不重排', J({ has, rd: o1.rd, rsx: o1.rs && o1.rs.x, tab: o1.tab, pw: [pw0.pw, o1.pw], dn: o1.n - pw0.n }));
+      T('S4', has && o1.ro && o1.rd.vis && Math.abs(o1.rd.w - 288) <= 0.5 && Math.abs(o1.rd.r - o1.rs.x) <= 1 && o1.tab === 'prop' && o1.pw === pw0.pw && o1.n - pw0.n <= 1,
+        'S4b 1280 竖条「属性」→ 右栏浮出 288、右缘贴竖条左缘、切到属性页（v68.1 右栏页：属性 · 文字 · 智能）；浮出是覆盖层：谱纸宽不变、不重排', J({ has, rd: o1.rd, rsx: o1.rs && o1.rs.x, tab: o1.tab, pw: [pw0.pw, o1.pw], dn: o1.n - pw0.n }));
       await pg.keyboard.press('Escape'); await wait(pg, 150);
       const o2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), rd: __vis('#right-dock') }));
       if (has) await pg.click(info); await wait(pg, 150);
@@ -652,8 +654,12 @@ const M = {
       /* 保存状态 · 发布 */
       const s1 = await st();
       await pg.click('#flw-pub'); await wait(pg, 300);
+      /* v68.1 迁移（计划 §4.3「发布卡」）：行 1「发布」＝切到「输出」并打开右栏「发布与导出」页、焦点落到卡上的「存入并提交发布」（这一下不存）；
+         再点卡上的按钮才先存入、再出原发布卡——共 2 次点击，不离开编辑器 */
+      const pb0 = await EV(pg, () => ({ mode: FLOW.mode.cur, page: FLOW.rd.page(), ae: (document.activeElement || {}).id || '', id: song.id || null }));
+      await pg.click('#flw-pub-go'); await wait(pg, 300);
       const pb = await EV(pg, () => ({ id: song.id || null, lib: __lib().length, t: ((document.querySelector('#popmenu .t') || {}).textContent || '') }));
-      await EV(pg, () => __shut());
+      await EV(pg, () => { __shut(); setMode('write'); }); await wait(pg, 200);
       const s2 = await st();
       await pg.click('#flw-save'); await wait(pg, 200);
       const sm = await EV(pg, () => __menu());
@@ -676,9 +682,9 @@ const M = {
         && /仅存本机/.test(s3.t) && s4.id && s4.lib === s3.lib + 1 && /已存入我的曲谱/.test(s4.t),
         'S11a 保存状态三态：未入库 ≥1440「○ 仅存本机 · 存入我的曲谱」/ 1280–1439 短文案「○ 仅存本机」，点一下＝saveToLibrary（库多一条、song.id 有值）；已入库「已存入我的曲谱 · HH:MM」',
         J({ s1: s1.t, s2: s2.t, s3: s3.t, s4: s4.t, s5: s5.t, s6: s6.t }));
-      T('S11', !s1.id && pb.id && pb.lib === s1.lib + 1 && /发布《/.test(pb.t) && sm && sm.m === 'save' && r0.ok && f1 && f1.ok,
-        'S11b 未入库窗口点「发布」→ 先存入（song.id 有值、库多一条）再出发布卡（#popmenu .t 含「发布《」）；已入库点保存状态 → 菜单「另存为文件」触发下载 .mtab.json',
-        J({ pub: pb, menu: sm, r0, file: f1 }));
+      T('S11', !s1.id && pb0.mode === 'output' && pb0.page === 'pub' && pb0.ae === 'flw-pub-go' && !pb0.id && pb.id && pb.lib === s1.lib + 1 && /发布《/.test(pb.t) && sm && sm.m === 'save' && r0.ok && f1 && f1.ok,
+        'S11b 未入库窗口点「发布」→ 切到「输出」、右栏发布页、焦点在「存入并提交发布」（还没存）；再点它 → 先存入（song.id 有值、库多一条）再出发布卡（#popmenu .t 含「发布《」）；已入库点保存状态 → 菜单「另存为文件」触发下载 .mtab.json',
+        J({ pub0: pb0, pub: pb, menu: sm, r0, file: f1 }));
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 500);
       await EV(pg, () => { switchDocTo(0); render(); }); await wait(pg, 200);
 
@@ -751,19 +757,20 @@ const M = {
     try {
       const pg = await open(1440, 900, { tag: 'S11x' });
       await EV(pg, () => { __scn('three'); }); await wait(pg, 400);
-      /* SC-1：文件 ▾「排版…」＝#b-layout 同一浮层（定位在外壳以下、不盖行 1）·「打印预览」＝#b-preview ·「打印与导出…」＝#b-print（含互动谱 / MusicXML / MIDI） */
-      const L1 = await menuItem(pg, '#flw-file', '排版…', { wait: 250 });
-      const l1 = await EV(pg, () => { const p = document.getElementById('layout-pop'); return { on: p.classList.contains('on'), r: __R(p), top: __R('#top').b, r1: __R('#flw-r1').b }; });
-      await EV(pg, () => layToggle(false));
-      const P1 = await menuItem(pg, '#flw-file', '打印预览', { wait: 500 });
-      const p1 = await EV(pg, () => document.getElementById('preview-ov').classList.contains('on'));
-      await EV(pg, () => { try { pvClose(); } catch (_) {} }); await wait(pg, 200);
-      const X1 = await menuItem(pg, '#flw-file', '打印与导出…', { wait: 300 });
-      const x1 = await EV(pg, () => ({ ic: !!document.querySelector('.modal-mask #ex-icard'), mxl: !!document.querySelector('.modal-mask #ex-mxl'), mid: !!document.querySelector('.modal-mask #ex-mid') }));
+      /* v68.1 迁移（README「老用户迁移」：「排版」→ 排版；「预览 / 打印…」→ 输出）：v67.9 的过渡入口（排版… · 打印预览 · 打印与导出…）撤掉，
+         文件 ▾ 改为「排版」「输出 · 打印与导出」两项，切到行 2 的同名步骤：排版＝嵌入预览 + 右栏「版式」（#layout-pop 搬入）；输出＝嵌入预览 + 行 2 导出键（与弹窗同一组 EXPORT_ACT） */
+      const L1 = await menuItem(pg, '#flw-file', '排版', { wait: 500 });
+      const l1 = await EV(pg, () => ({ mode: FLOW.mode.cur, pv: document.getElementById('preview-ov').classList.contains('on'), lay: !!document.querySelector('#flw-rp-lay #layout-pop') }));
+      await EV(pg, () => setMode('write')); await wait(pg, 200);
+      const X1 = await menuItem(pg, '#flw-file', '输出 · 打印与导出', { wait: 500 });
+      const x1 = await EV(pg, () => ({ mode: FLOW.mode.cur, pv: document.getElementById('preview-ov').classList.contains('on'),
+        out: ['print', 'png', 'card', 'icard', 'mxl', 'mid', 'mtab'].every(k => { const b = document.getElementById('flw-out-' + k); return !!b && __vis(b); }) }));
+      await EV(pg, () => { setMode('write'); __shut(); }); await wait(pg, 200);
+      const P1 = await menuItem(pg, '#flw-file', '打印预览', { wait: 200 });
       await EV(pg, () => __shut());
-      T('S11', L1.ok && l1.on && l1.r.vis && l1.r.y >= l1.top - 0.5 && l1.r.x >= 0 && l1.r.r <= 1440 && P1.ok && p1 && X1.ok && x1.ic && x1.mxl && x1.mid,
-        'S11f 排版 / 预览 / 打印入口（验收 SC-1，v68.1 模式条前的过渡项）：文件 ▾「排版…」开 #layout-pop（上缘 ≥ 外壳底、不落在 (8,8) 盖住行 1）·「打印预览」开 #preview-ov ·「打印与导出…」出导出弹窗（互动谱 / MusicXML / MIDI）',
-        J({ L1, l1: { on: l1.on, at: l1.r && [l1.r.x, l1.r.y], top: l1.top }, P1, p1, X1, x1 }));
+      T('S11', L1.ok && l1.mode === 'engrave' && l1.pv && l1.lay && X1.ok && x1.mode === 'output' && x1.pv && x1.out && !P1.ok,
+        'S11f 排版 / 输出入口（v68.1 迁移，原验收 SC-1 的过渡项撤掉）：文件 ▾「排版」→ 排版模式（嵌入预览 · #layout-pop 在右栏「版式」页）·「输出 · 打印与导出」→ 输出模式（行 2 打印 / PNG / 分享卡 / 互动谱 / MusicXML / MIDI / 曲谱文件可见）；菜单里不再有「打印预览」',
+        J({ L1, l1, X1, x1, P1: P1.ok }));
       /* B3：「快速新建 ▾」开着时点「文件」——只剩一层菜单 */
       await menuItem(pg, '#flw-file', '快速新建', { wait: 200 });
       const q0 = await EV(pg, () => ({ qm: !!document.getElementById('nf-qm') }));
@@ -804,7 +811,7 @@ const M = {
         fm.push(r);
       }
       T('S11', fm.every(r => r && r.top >= r.fb && r.b <= r.vh - 7.5 && r.closed === true) && fm[0].scroll <= 1,
-        'S11i 文件 ▾ 不压住「文件」按钮（排版 / 预览 / 打印三项并成一行）：1280×800 一屏放下不滚动；1366×768 / 1280×680 从按钮下沿起、菜单内滚动；再点「文件」即收起', J(fm));
+        'S11i 文件 ▾ 不压住「文件」按钮（v68.1「排版」「输出 · 打印与导出」两项并成一行）：1280×800 一屏放下不滚动；1366×768 / 1280×680 从按钮下沿起、菜单内滚动；再点「文件」即收起', J(fm));
       await close(pg);
     } catch (e) { T('S11', false, 'S11f–i 执行异常', e.message.split('\n')[0]); }
   });
@@ -990,12 +997,19 @@ const M = {
       await pg.click('#flw-file'); await wait(pg, 200);
       const mb0 = await EV(pg, () => __menu());
       await pg.setViewportSize({ width: 800, height: 800 }); await wait(pg, 500);
+      /* v68.1 轨 D 改断言（计划 §4.6：手机挂 flow 的手机子段 FLOW.mob）：缩到 ≤820 时桌面 flow 照旧整体退场（同 v67.9 口径），
+         随后挂上手机子段——body 上唯一的 flw-* 类是 flw-m，顶栏 #flw-mtop / 底条 #flw-mbar 出现，旧手机图层轨 #left-rail 隐藏
+         （原断言「旧 #left-dock 可见、无 flw-* 类」是 v67.9 手机不挂 flow 的口径，本版起不成立）；拉回 1280 手机子段退场 */
       const mb1 = await EV(pg, () => ({ menu: !!document.getElementById('popmenu'), flow: document.body.classList.contains('flow'), active: FLOW.active, home: [document.getElementById('doc-tabs').parentElement === document.body, document.getElementById('beat-box').parentElement.id, document.getElementById('eb-zoom').parentElement.id],
-        x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length, cls: [...document.body.classList].filter(c => /^flw-/.test(c)), sty: /--flw-/.test(document.body.getAttribute('style') || ''), off: document.querySelectorAll('.flw-off,[data-pri]').length, r1: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock') }));
+        x: [...document.querySelectorAll('.flw-x')].filter(e => __vis(e)).length, cls: [...document.body.classList].filter(c => /^flw-/.test(c)), sty: /--flw-/.test(document.body.getAttribute('style') || ''), off: document.querySelectorAll('.flw-off,[data-pri]').length, r1: __vis('#flw-r1'), lf: __vis('#flw-left'),
+        mob: { on: FLOW.mob.on, mt: __vis('#flw-mtop'), mb: __vis('#flw-mbar'), rail: __vis('#left-rail'), top: __vis('#top') } }));
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 500);
-      const mb2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, r1: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock') }));
-      T('S13', mb0 && mb0.m === 'file' && !mb1.menu && !mb1.flow && !mb1.active && J(mb1.home) === '[true,"beat-host","editbar"]' && !mb1.x && !mb1.cls.length && !mb1.sty && !mb1.off && !mb1.r1 && !mb1.lf && mb1.ld && mb2.flow && mb2.tabs === 'flw-r1' && mb2.r1 && mb2.lf && !mb2.ld,
-        'S13d 运行中缩到 800 宽：flow 退场（节点搬回原位、.flw-x / .flw-off / data-pri / flw-* 类 / --flw 令牌全清；开着的文件 ▾ 一并收起，验收 SC-5）；拉回 1280 重新挂上', J({ mb0, mb1, mb2 }));
+      const mb2 = await EV(pg, () => ({ flow: document.body.classList.contains('flow'), tabs: document.getElementById('doc-tabs').parentElement.id, r1: __vis('#flw-r1'), lf: __vis('#flw-left'), ld: __vis('#left-dock'),
+        mob: { on: FLOW.mob.on, m: document.body.classList.contains('flw-m'), mt: __vis('#flw-mtop'), mb: __vis('#flw-mbar') } }));
+      T('S13', mb0 && mb0.m === 'file' && !mb1.menu && !mb1.flow && !mb1.active && J(mb1.home) === '[true,"beat-host","editbar"]' && !mb1.x && J(mb1.cls) === '["flw-m"]' && !mb1.sty && !mb1.off && !mb1.r1 && !mb1.lf
+        && mb1.mob.on && mb1.mob.mt && mb1.mob.mb && !mb1.mob.rail && !mb1.mob.top
+        && mb2.flow && mb2.tabs === 'flw-r1' && mb2.r1 && mb2.lf && !mb2.ld && !mb2.mob.on && !mb2.mob.m && !mb2.mob.mt && !mb2.mob.mb,
+        'S13d 运行中缩到 800 宽：桌面 flow 退场（节点搬回原位、.flw-x / .flw-off / data-pri / --flw 令牌全清；开着的文件 ▾ 一并收起，验收 SC-5），换上手机子段（body 只剩 flw-m，顶栏 / 底条出现，旧图层轨与旧顶栏隐藏）；拉回 1280 桌面 flow 重新挂上、手机子段退场', J({ mb0, mb1, mb2 }));
       /* 验收 SC-6：互动谱导出走「当前 DOM 快照」回退（fetch 失败：file:// / 断网）——快照里不带 flow 外壳：无 html.flow-pre / body.flow / flw-* 类 / [id^=flw-] / .flw-x / 落点 / data-pri，
          搬移节点在原位（#doc-tabs 在 body、#beat-box 在 #beat-host、#eb-zoom 在 #editbar）；导出后界面原样（flow 照旧、节点在 flow 位置） */
       await EV(pg, () => { window.__snapBlob = null; window.__f0 = window.fetch; window.fetch = () => Promise.reject(new Error('离线'));
@@ -1029,12 +1043,21 @@ const M = {
         T('S13', rx.every(({ a, c }) => a.viewer && !a.pre && !a.mounted && !c.flow && !c.pre && !c.mounted && !c.r1 && c.zoom && c.zp === 'editbar' && !c.cls.length),
           'S13h 收件人打开快照（验收 SC-6）：无 html.flow-pre、FLOW 不挂载；退出观看后是默认外壳（#eb-zoom 在 #editbar 可见、无 #flw-r1），带 ?shell=classic 同样', J(rx));
       }
-      /* 手机 390 直开 ?shell=flow */
+      /* 手机 390 直开 ?shell=flow
+         v68.1 轨 D 改断言（计划 §4.6）：原 S13e「FLOW 不挂载、无任何 flow 节点、旧手机布局原样」是 v67.9 / v68.0 手机不挂 flow 的口径。
+         本版手机挂 flow 的手机子段（FLOW.mob，body.flw-m）：桌面 flow 仍不挂（FLOW.mounted / FLOW.active 为假、无 #flw-r1、无搬移落点与 data-pri、#beat-box 在原位、页签条隐藏），
+         启动台态照旧是旧手机启动台与旧顶栏（拍板「启动台不挂」）；打开一份谱后换成顶栏 48 + 底条 64，旧顶栏 / 图层轨 / 迷你条隐藏，无横向溢出 */
       const pm = await open(390, 844, { tag: 'S13-mob' });
-      const mo = await EV(pm, () => ({ flow: document.body.classList.contains('flow'), pre: document.documentElement.classList.contains('flow-pre'), mounted: FLOW.mounted, r1: !!document.getElementById('flw-r1'),
-        x: document.querySelectorAll('.flw-x,[data-flw-slot],[data-pri]').length, tabs: getComputedStyle(document.getElementById('doc-tabs')).display, beat: document.getElementById('beat-box').parentElement.id, sw: document.documentElement.scrollWidth }));
-      T('S13', mo.pre && !mo.flow && !mo.mounted && !mo.r1 && !mo.x && mo.tabs === 'none' && mo.beat === 'beat-host' && mo.sw <= 390,
-        'S13e 手机 390 直开 ?shell=flow：只记开关（html.flow-pre），FLOW 不挂载、无任何 flow 节点，旧手机布局原样（页签条隐藏、无横向溢出）', J(mo));
+      const MOB = () => ({ flow: document.body.classList.contains('flow'), pre: document.documentElement.classList.contains('flow-pre'), mounted: FLOW.mounted, active: FLOW.active, r1: !!document.getElementById('flw-r1'),
+        x: document.querySelectorAll('.flw-x,[data-flw-slot],[data-pri]').length, tabs: getComputedStyle(document.getElementById('doc-tabs')).display, beat: document.getElementById('beat-box').parentElement.id, sw: document.documentElement.scrollWidth,
+        m: document.body.classList.contains('flw-m'), on: FLOW.mob.on, sp: startPadOn(), mt: __R('#flw-mtop'), mb: __R('#flw-mbar'), top: __vis('#top'), md: __vis('#mixer-dock'), rail: __vis('#left-rail'), ih: innerHeight });
+      const mo = await EV(pm, MOB);
+      await EV(pm, () => __scn('songbie')); await wait(pm, 300);
+      const mo2 = await EV(pm, MOB);
+      T('S13', mo.pre && !mo.flow && !mo.mounted && !mo.active && !mo.r1 && !mo.x && mo.tabs === 'none' && mo.beat === 'beat-host' && mo.sw <= 390 && mo.m && mo.on && mo.sp && !mo.mt.vis && !mo.mb.vis && mo.top
+        && !mo2.flow && !mo2.mounted && !mo2.x && mo2.m && !mo2.sp && mo2.mt.vis && Math.abs(mo2.mt.y) < .6 && Math.abs(mo2.mt.h - 48) < .6 && mo2.mb.vis && Math.abs(mo2.mb.h - 64) < .6 && Math.abs(mo2.mb.b - mo2.ih) < .6
+        && !mo2.top && !mo2.md && !mo2.rail && mo2.beat === 'beat-host' && mo2.tabs === 'none' && mo2.sw <= 390,
+        'S13e 手机 390 直开 ?shell=flow：桌面 flow 不挂（无行 1 / 搬移落点 / data-pri，#beat-box 在原位、页签条隐藏），挂手机子段 body.flw-m——启动台态是旧手机启动台与旧顶栏；打开谱后顶栏 48 贴顶、底条 64 贴底，旧顶栏 / 迷你条 / 图层轨隐藏，无横向溢出', J({ mo, mo2 }));
       await close(pm);
       /* 验收 SC-4（§0-16 启动台 inert 名单）：启动台态 #flw-rstrip.inert，Tab 走 40 步焦点都不进竖条；文件 ▾ / ＋ 照常可用 */
       const sp = await open(1280, 800, { tag: 'S13-startpad' });
