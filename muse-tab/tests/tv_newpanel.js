@@ -101,7 +101,17 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
   const NEWB = pg => pg._classic ? '#b-new' : '#dt-add';
   const QMB = pg => pg._classic ? 'b-newdd' : 'flw-file';
   const qmOpen = async pg => { if (pg._classic) { await pg.click('#b-newdd'); return 1; }
-    await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { timeout: 2500 }); await pg.click('#popmenu [data-fa="r1:newdd"]');
+    /* v68.2 CI：文件 ▾ 偶发没展开（等待 2.5 秒超时，本机 6 倍降速 12/12 复现不了）——先等「文件」可见可点；没展开就记一笔再点一次（菜单行为本身由 tv_shellflow S11 断言） */
+    await pg.waitForSelector('#flw-file', { state: 'visible', timeout: 5000 });
+    await pg.click('#flw-file');
+    if (!(await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { timeout: 2500 }).then(() => true).catch(() => false))) {
+      const d = await pg.evaluate(() => { const e = document.getElementById('flw-file'), b = e.getBoundingClientRect(), h = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return { hit: h ? (h.id || h.className || h.tagName) : null, pop: !!document.getElementById('popmenu'), exp: e.getAttribute('aria-expanded') }; });
+      console.log('⚠️ qmOpen：文件 ▾ 第一次没展开 ' + JSON.stringify(d));
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(150); await pg.click('#flw-file');
+      await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { timeout: 5000 });
+    }
+    await pg.click('#popmenu [data-fa="r1:newdd"]');
     await pg.waitForSelector('.nf-qm', { timeout: 2500 }); return 2; };
   /* 右栏智能工具：flow＝「智能」页 #flw-rx-ai（<1440 右栏是竖条，先点竖条「智能」浮出；停靠时点页签）；旧外壳＝创作页 #rt-arr / #b-acctex */
   const smartAct = async (pg, v) => {
@@ -729,8 +739,16 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await pg.focus(NEWB(pg)); await pg.keyboard.press('Enter'); await pg.waitForSelector('.nf-modal [data-scene]'); await pg.keyboard.press('Escape'); await pg.waitForTimeout(60);
     r.back = await pg.evaluate(() => document.activeElement.id); r.backWant = NEWB(pg).slice(1);
     await pg.keyboard.press('Alt+KeyN'); await pg.waitForSelector('.nf-modal [data-scene]');
+    await pg.waitForTimeout(300);   /* v68.2 CI：面板的实时预览防抖重刻在打开后才落，等它落定再走 Tab（断言不变） */
     await pg.focus('#nw-create'); await pg.keyboard.press('Tab'); r.tabIn = await pg.evaluate(() => !!document.activeElement.closest('.nf-modal'));
+    const dz = () => { const a = document.activeElement || {}; return (a.id || '') + '.' + String(a.className || '').slice(0, 30) + '<' + (a.tagName || '') + '>'; };
+    r.tabTo = await pg.evaluate(dz);
     await pg.keyboard.press('Shift+Tab'); r.stabIn = await pg.evaluate(() => document.activeElement.id === 'nw-create');
+    if (!r.stabIn) r.stabDiag = await pg.evaluate(dz2 => { const m = document.querySelector('.nf-modal'); const a = document.activeElement || {};
+      const f = [...m.querySelectorAll('button,[href],input:not([type=file]):not([hidden]),select:not([hidden]),textarea,[tabindex]:not([tabindex="-1"])')]
+        .filter(x => !x.disabled && x.getClientRects().length && getComputedStyle(x).visibility !== 'hidden');
+      const nm = x => (x.id || '') + '.' + String(x.className || '').slice(0, 24);
+      return { at: nm(a) + '<' + a.tagName + '>', n: f.length, first: f.slice(0, 2).map(nm), last: f.slice(-3).map(nm), iCreate: f.findIndex(x => x.id === 'nw-create') }; });
     await pg.focus('.nf-modal [data-scene="gtr"]'); await pg.keyboard.press('1'); r.k1 = await pg.evaluate(() => ({ sc: NWP.state.scene, foc: (document.activeElement.dataset || {}).scene }));
     /* 单选组：roving tabindex＋方向键 */
     await pg.click('[data-scene="gtr"]'); await pg.focus('[data-act="var"][data-k="inst"][data-v="guitar"]'); await pg.keyboard.press('ArrowRight');

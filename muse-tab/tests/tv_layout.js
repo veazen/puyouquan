@@ -287,6 +287,11 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
   for(const [w,h] of [[1280,950],[834,1112],[430,932]]){    // 桌面 / 平板 / 手机
     await pg.setViewportSize({width:w, height:h});
     await pg.waitForTimeout(120);
+    /* v68.2 默认新外壳：<1280 窄档的左栏宽（--flw-lw 56 / 248）由 resize 防抖 120ms 后的 applyResponsive → FLOW.layout 写入（旧外壳靠 CSS 媒体查询即时生效）；
+       CI 慢机器上 120ms 时防抖还没触发，排出来的是宽档左栏下的版宽（834 宽实测 520 vs 落定后 692）——等外壳布局落定再量，断言不变 */
+    await pg.waitForFunction(w => { const b=document.body; if(!b.classList.contains('flow')) return true;
+      return getComputedStyle(b).getPropertyValue('--flw-lw').trim()===(w<1280?'56px':'248px') && b.classList.contains('flw-narrow')===(w<1280); }, w, {timeout:5000}).catch(()=>{});
+    await pg.waitForTimeout(200);
     t10[w+'px'] = await pg.evaluate(T10);
   }
   await pg.setViewportSize({width:1280, height:950});
