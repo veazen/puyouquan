@@ -30,13 +30,14 @@
    M18 数据零改动：三种模式往返 20 次（含真实点击）后 song 逐字节相同；源码里新出现的 musetab-* 键名 ⊆ {musetab-cmd-recent}
    M19 TRK-16 状态栏小节格（flow）：单击＝光标跳到当前轨该小节（不设循环）；Shift+拖选＝当前轨整小节选区（与经典混音台每轨小节格同一 selRange），Ctrl+C / Ctrl+V 接得上；
        普通拖选仍是 setLoop；排版模式单击先回书写
-   M20 SH-3：1280×800 竖条态 / 1180 窄档起步组「ⓘ」可见，点开就地说明——步骤名与说明文字＝lbInfo / lbCur（与经典外壳谱型条 .lb-steps / .lb-hint 逐字相同）；
-       1440 停靠：右栏不在「智能」页（卡不在屏上）同样出 ⓘ，切到「智能」页（卡在屏上）写「起步」（集成 M20c / M20d）
-   M21 SH-4：撤销段 DOM 在 #editbar 行首（模式条之后、起步之前），视觉同序；真实 Tab 顺序 模式条 → 撤销 → 起步
+   M20 SH-3（v68.3 迁移：行 2 起步组 / ⓘ / 右栏「下一步」卡撤掉，起步收回谱面上方的悬浮条 #flw-sbar）：1280 竖条 / 1180 窄档 / 1440 停靠三档——
+       条上步骤名＝lbInfo 的步名（与经典外壳谱型条 .lb-steps 逐字相同）；当前步提示可见字＝短提示（SB_HINT），title＝经典谱型条 .lb-hint 原文（同源 lbCur）；
+       1440 落地右栏停在默认「属性」页（不再被拉去「智能」），全程没有 #flw-start / #flw-next / ⓘ
+   M21 SH-4：撤销段 DOM 在 #editbar 行首（模式条之后、第一个工具段之前），视觉同序；真实 Tab 顺序 模式条 → 撤销 / 重做 → 行 2 第一个工具（v68.3 行 2 没有起步组）
    M22 三步口径：#flw-modes 恰好 3 个 tab（书写 / 排版 / 输出）、setMode('play') 无效；「书写 ▾」菜单 3 项；界面文字 / 读屏名 / 命令表里没有「播放」步或模式、没有「四步」；右栏无「练习」页
    M24 v68.1 收尾（验收 MODES）：发布浮层定宽不爬 · 本机演示说明指「输出」· 每行 ＋ / − 当前行恰好 ±1 且前面的行不动 · 此处换行 / 并入上一行不重排前面的行 ·
        解锁保留锁定前的手动换行 · 版式滑杆只按不拖不记撤销 · 改纸张后当前行仍在视野 · 键盘进排版焦点落预览 · 每笔只排两次整谱 · 纯和弦谱分谱不写「人声」
-   M25 v68.1 收尾（验收 PN）：只有一句提示的谱类新建后「下一步」说明可见（落地停「智能」页 / ⓘ）· 821–861 行 2 无遮挡 · 密集标尺的小节面板接 TRK-16 ·
+   M25 v68.1 收尾（验收 PN）：只有一句提示的谱类新建后那一句说明可见（v68.3：谱面上方悬浮条的空谱提示 SB_TIP，title＝LB_TIP；右栏停「属性」页）· 821–861 行 2 无遮挡 · 密集标尺的小节面板接 TRK-16 ·
        属性页芯片补拨片 / 打板 / 摇把 / 指法 / 谱号 · 转调小节音名按本小节调 · 命令「和弦图 / 写法」可用性同右栏 · 窄档「+N ↓」· 手机跟滚让开底条 · 命令同分常用在前
    M26 v68.1 收尾（验收 RG）：手机抽屉开着时互动谱快照节点不丢 · 排版 / 输出模式缩放作用于预览 · 命中区 ≥28 · 灰显原因进 title / 读屏名 · 空小节提示带图标
    M27 v68.2 遗留 ①：排版 / 输出每笔整谱排版 1 次（render 本身就是预览快照；mutate / layApply / Ctrl+Z 各 1 次，只改选中行 0 次）· 回书写逐字节相同 · 渲染异常照旧自动撤销 ·
@@ -63,7 +64,7 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '2675b9c';
 const IN_CI = !!process.env.CI && process.env.MUSETAB_REF !== 'none';
 /* 本版之前 flow 预览已有的本机键（v67.9 / v68.0）；本版只许新增 musetab-cmd-recent（计划 §1.2 / §4.7） */
 const PREV_FLOW_KEYS = ['musetab-flow', 'musetab-rdock', 'musetab-pal', 'musetab-signdensity'];
-const NEW_KEYS = ['musetab-cmd-recent'];
+const NEW_KEYS = ['musetab-cmd-recent', 'musetab-sbar'];   /* v68.3 musetab-sbar：谱面上方悬浮条收起（'0'），展开＝删键 */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
@@ -844,8 +845,10 @@ async function M23SCN() {
     T('M17', an.every(x => x.nf && x.cur === 'write' && !x.pv), 'M17a 书写 / 排版 / 输出三种模式下 Alt+N 都打开新建面板（非书写先回书写、预览关闭）', J(an));
     await clickMode(pg, 'engrave');
     await pg.keyboard.press('Alt+b'); await wait(pg, 300);
-    const ab = await EV(pg, () => ({ cur: FLOW.mode.cur, ae: (document.activeElement || {}).id || ((document.activeElement || {}).className || '') }));
-    T('M17', ab.cur === 'write', 'M17b 排版模式 Alt+B → 回书写（起步 / 谱类在书写模式的行 2 与左栏）', J(ab));
+    const ab = await EV(pg, () => ({ cur: FLOW.mode.cur, ae: (document.activeElement || {}).id || ((document.activeElement || {}).className || ''),
+      exp: !!(FLOW.sbar && FLOW.sbar.expanded()), inBar: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#flw-sbar')) }));
+    /* v68.3：Alt+B＝谱面上方悬浮条——排版 / 输出先回书写，再展开并把焦点放进条里（不是切换） */
+    T('M17', ab.cur === 'write' && ab.exp && ab.inBar, 'M17b 排版模式 Alt+B → 回书写、谱面上方的悬浮条展开且焦点在条里（起步 / 谱类 / 常用工具在悬浮条）', J(ab));
     /* Ctrl+Z / Y / S：书写里落一个音，进排版撤销 / 重做 / 存为文件，模式不变 */
     await EV(pg, () => { window.__xs = 0; exportSong = function () { __xs++; }; });
     const at = await EV(pg, () => ({ mi: sel.mi, ci: sel.ci, deg: curCol().deg }));
@@ -885,8 +888,8 @@ async function M23SCN() {
     await close(pg);
     const lit = [...literalKeys(curSrc)], newLit = refSrc ? lit.filter(k => !literalKeys(refSrc).has(k) && !PREV_FLOW_KEYS.includes(k)) : null;
     if (!refSrc) NOTE('M18', '⚠️  M18b 源码键名对拍跳过：拿不到基线（' + REF_COMMIT.slice(0, 7) + '）');
-    /* v68.2：基线（shellflow_ref.json）换成 v68.1 a8c2089 后，musetab-cmd-recent 已在基线里；v68.2 新增 musetab-tour-shell（首次导览，计划 §1.2） */
-    else T('M18', newLit.every(k => NEW_KEYS.concat(['musetab-tour-shell']).includes(k)), 'M18b 源码里的 musetab-* 键名：相对基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）与 v67.9 / v68.0 flow 键，新出现的只有 ' + J(newLit) + '（⊆ musetab-cmd-recent · v68.2 musetab-tour-shell）',
+    /* v68.2：基线（shellflow_ref.json）换成 v68.1 a8c2089 后，musetab-cmd-recent 已在基线里；v68.2 新增 musetab-tour-shell（首次导览，计划 §1.2）；v68.3 新增 musetab-sbar（悬浮条收起） */
+    else T('M18', newLit.every(k => NEW_KEYS.concat(['musetab-tour-shell']).includes(k)), 'M18b 源码里的 musetab-* 键名：相对基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）与 v67.9 / v68.0 flow 键，新出现的只有 ' + J(newLit) + '（⊆ musetab-cmd-recent · v68.2 musetab-tour-shell · v68.3 musetab-sbar）',
       '共 ' + lit.length + ' 个字面量');
   }));
 
@@ -942,75 +945,52 @@ async function M23SCN() {
     await close(pg);
   }));
 
-  /* ================= M20 SH-3 起步说明可见 ================= */
+  /* ================= M20 SH-3 起步说明可见（v68.3 迁移：起步在谱面上方的悬浮条 #flw-sbar） ================= */
   if (want('M20')) jobs.push(() => SAFE('M20', 'M20', async () => {
-    /* 经典外壳谱型条（同一份新建钢琴伴奏歌谱）：步骤名与 .lb-hint——起步说明必须与它逐字相同（同源 lbSteps / lbCur） */
+    /* 经典外壳谱型条（同一份新建钢琴伴奏歌谱）：步骤名与 .lb-hint——悬浮条的步骤名与提示 title 必须与它逐字相同（同源 lbSteps / lbCur） */
     const cl = await open(1280, 800, { tag: 'M20-classic', url: CLASSICU });
     await scn(cl, 'newpacc'); await wait(cl, 300);
     const lb = await EV(cl, () => ({ steps: [...document.querySelectorAll('#lb-wrap .lb-steps li > span')].map(x => x.textContent), hint: (document.querySelector('#lb-wrap .lb-hint') || {}).textContent || '' }));
     await close(cl);
-    for (const w of [1280, 1180]) {
-      const pg = await open(w, 800, { tag: 'M20-' + w });
+    for (const [w, h] of [[1280, 800], [1180, 800], [1440, 900]]) {
+      const pg = await open(w, h, { tag: 'M20-' + w });
       await scn(pg, 'newpacc'); await wait(pg, 300); const base = await redBase(pg);
-      const a = await EV(pg, () => { const f = lbInfo(song, lbMeta()), c = lbCur(f);
-        return { rs: document.body.classList.contains('flw-rs'), i: __R('#flw-start .flw-stp-i'), l: __vis('#flw-start .flw-stp-l'), card: __vis('#flw-next'),
-          title: (document.querySelector('#flw-start .flw-stp-i') || {}).title || '', steps: f.steps.map(x => x.t), hint: c.hint || f.tip || '' }; });
-      if (a.i && a.i.vis) await pg.click('#flw-start .flw-stp-i'); await wait(pg, 250);
-      const p = await EV(pg, () => { const m = document.querySelector('#popmenu.flw-stp-pop'); if (!m) return null; const r = m.getBoundingClientRect();
-        return { vis: __vis(m), role: m.getAttribute('role'), steps: [...m.querySelectorAll('.flw-sp-l li .flw-sp-t')].map(x => x.textContent), say: (m.querySelector('.flw-sp-p') || {}).textContent || '',
-          inVp: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, exp: document.querySelector('#flw-start .flw-stp-i').getAttribute('aria-expanded') }; });
-      await shot(pg, 'M20-sh3-' + w);
-      T('M20', a.rs && a.i && a.i.vis && !a.l && !a.card && !!p && p.vis && p.inVp && p.exp === 'true' && J(p.steps) === J(a.steps) && J(p.steps) === J(lb.steps) && p.say === a.hint && p.say === lb.hint && !!lb.hint && a.title.indexOf(lb.hint) >= 0,
-        'M20a ' + w + '×800 右栏竖条' + (w < 1280 ? '（窄档）' : '') + '：「下一步」卡不在屏上，起步组「ⓘ」可见；点开就地说明——步骤「' + (p && p.steps.join(' › ')) + '」与说明「' + (p && p.say) + '」＝lbInfo / lbCur，与经典外壳谱型条 .lb-steps / .lb-hint 逐字相同（ⓘ 的 title 也含这句）',
-        J({ a: { rs: a.rs, i: a.i, l: a.l, card: a.card }, p, lb }));
-      await pg.keyboard.press('Escape'); await wait(pg, 150);
-      const e = await EV(pg, () => ({ pop: !!document.querySelector('#popmenu.flw-stp-pop'), ae: (document.activeElement || {}).className || '' }));
-      T('M20', !e.pop, 'M20b ' + w + ' Esc 收起起步说明', J(e));
+      const a = await EV(pg, () => { const f = lbInfo(song, lbMeta()), c = lbCur(f), hi = document.querySelector('#flw-sbar #flw-sb-hint');
+        return { rs: document.body.classList.contains('flw-rs'), bar: __vis('#flw-sbar .flw-sb-bar'), steps: [...document.querySelectorAll('#flw-sbar .flw-sb-steps li .flw-sb-t')].map(x => x.textContent.replace(/^已完成：/, '')),
+          fsteps: f.steps.map(x => x.t), hint: hi ? hi.textContent : null, hintVis: __vis(hi), title: hi ? hi.title : '', chint: c.hint || '',
+          cur: (document.querySelector('#flw-sbar .flw-sb-steps li[aria-current="step"]') || {}).className || '', page: FLOW.rd.page(), dock: document.body.classList.contains('flw-rd'),
+          gone: !document.getElementById('flw-start') && !document.getElementById('flw-next') && !document.querySelector('.flw-stp-i') }; });
+      await shot(pg, 'M20-sbar-' + w);
+      T('M20', a.bar && a.gone && J(a.steps) === J(a.fsteps) && J(a.steps) === J(lb.steps) && a.cur === 'now' && a.hint === '点旋律行，按数字键写音' && a.hintVis
+        && a.title === a.chint && a.title === lb.hint && !!lb.hint && (w < 1440 ? a.rs : (a.dock && a.page === 'prop')),
+        'M20a ' + w + '×' + h + (w < 1280 ? '（窄档）' : w >= 1440 ? '（右栏停靠）' : '（右栏竖条）') + '：悬浮条步骤「' + a.steps.join(' › ') + '」＝lbInfo 的步名＝经典谱型条 .lb-steps；当前步提示可见字「' + a.hint + '」（短），title＝经典 .lb-hint 原文（同源 lbCur）；'
+        + (w >= 1440 ? '落地右栏停在「属性」页；' : '') + '没有行 2 起步组 / ⓘ / 「下一步」卡',
+        J({ a, lb }));
       await redEnd('M20', pg, base, []);
       await close(pg);
     }
-    /* 1440 停靠（v68.1 集成迁移：原 M20c 只记实况「默认『属性』页时卡与 ⓘ 都不在屏上」——这是 B 把卡移进「智能」页、C 只按竖条态出 ⓘ 的接缝。
-       集成后同一条口径：「下一步」卡不在屏上＝ⓘ 顶替「起步」字样；切到「智能」页（卡在屏上）照旧写「起步」、不出 ⓘ） */
-    const pg = await open(1440, 900, { tag: 'M20-1440' });
-    await scn(pg, 'newpacc'); await wait(pg, 300);
-    /* v68.1 收尾 PN-1（迁移）：新建落地时停靠态右栏先停在「智能」页（「下一步」卡当场在屏上，见 M25a）——这里先记下落地页，再像用户一样切到「属性」页验 ⓘ */
-    const land = await EV(pg, () => ({ page: FLOW.rd.page(), card: __vis('#flw-next') }));
-    T('M20', land.page === 'smart' && land.card, 'M20e 1440 新建钢琴伴奏歌谱落地：右栏停在「智能」页，「下一步」卡在屏上（PN-1）', J(land));
-    await pg.click('#flw-rpt-prop'); await wait(pg, 250);
-    const st = () => EV(pg, () => { const i = document.querySelector('#flw-start .flw-stp-i'), l = document.querySelector('#flw-start .flw-stp-l');
-      return { rs: document.body.classList.contains('flw-rs'), i: __vis('#flw-start .flw-stp-i'), l: __vis('#flw-start .flw-stp-l'), page: FLOW.rd.page(), card: __vis('#flw-next'),
-        wi: i ? Math.round(i.getBoundingClientRect().width) : 0, wl: l ? Math.round(l.getBoundingClientRect().width) : 0 }; });
-    const d = await st();
-    if (d.i) await pg.click('#flw-start .flw-stp-i'); await wait(pg, 250);
-    const dp = await EV(pg, () => { const m = document.querySelector('#popmenu.flw-stp-pop'); return m ? { vis: __vis(m), say: (m.querySelector('.flw-sp-p') || {}).textContent || '' } : null; });
-    await shot(pg, 'M20-sh3-1440-prop');
-    await pg.keyboard.press('Escape'); await wait(pg, 150);
-    T('M20', !d.rs && d.page === 'prop' && !d.card && d.i && !d.l && !!dp && dp.vis && dp.say === lb.hint,
-      'M20c 1440 右栏停靠、切到「属性」页：「下一步」卡不在屏上 → 起步组「ⓘ」顶替「起步」字样，点开说明「' + (dp && dp.say) + '」＝经典外壳 .lb-hint', J({ d, dp }));
-    await pg.click('#flw-rpt-smart'); await wait(pg, 250);
-    const d2 = await st();
-    T('M20', d2.page === 'smart' && d2.card && !d2.i && d2.l && Math.abs(d2.wl - d.wi) <= 6,
-      'M20d 1440 切到「智能」页：「下一步」卡在屏上 → 照旧写「起步」、不出 ⓘ（字样 ' + d2.wl + ' ≈ ⓘ ' + d.wi + '，同宽不重排行 2）', J(d2));
-    await close(pg);
   }));
 
   /* ================= M21 SH-4 撤销在行首、Tab 顺序 ================= */
   if (want('M21')) jobs.push(() => SAFE('M21', 'M21', async () => {
     const pg = await open(1280, 800, { tag: 'M21' });
     await scn(pg, 'newpacc'); await wait(pg, 300); const base = await redBase(pg);
+    /* v68.3 迁移：行 2 没有起步组了（起步在谱面上方的悬浮条）——模式条 < 撤销 < 第一个工具段，Tab：模式条 → 撤销 / 重做 → 行 2 第一个工具 */
     const a = await EV(pg, () => { const eb = document.getElementById('editbar'), ch = [...eb.children], ix = id => ch.indexOf(document.getElementById(id));
-      const firstTool = ch.findIndex(e => e.id && /^(ebu-|eb-)/.test(e.id) && e.id !== 'seg-undo');
-      return { modes: ix('flw-modes'), undo: ix('seg-undo'), start: ix('flw-start'), firstTool, xm: __R('#flw-modes'), xu: __R('#seg-undo'), xs: __R('#flw-start') }; });
-    T('M21', a.modes >= 0 && a.modes < a.undo && a.undo < a.start && (a.firstTool < 0 || a.start < a.firstTool) && a.xm.r <= a.xu.x + 1 && a.xu.r <= a.xs.x + 1,
-      'M21a 撤销段 #seg-undo 的 DOM 在 #editbar 行首：模式条（' + a.modes + '）< 撤销（' + a.undo + '）< 起步（' + a.start + '）< 第一个工具段；视觉 x 同序', J(a));
+      const firstTool = ch.findIndex(e => e.id && /^(ebu-|eb-)/.test(e.id) && e.id !== 'seg-undo' && __vis(e));
+      const ft = firstTool >= 0 ? ch[firstTool] : null;
+      return { modes: ix('flw-modes'), undo: ix('seg-undo'), start: document.getElementById('flw-start') ? 1 : 0, firstTool, ftId: ft && ft.id, xm: __R('#flw-modes'), xu: __R('#seg-undo'), xf: ft ? __R(ft) : null,
+        firstBtn: ft ? ((ft.tagName === 'BUTTON' ? ft : [...ft.querySelectorAll('button')].find(b => __vis(b))) || {}).id || '' : '' }; });
+    T('M21', a.modes >= 0 && a.modes < a.undo && a.firstTool > a.undo && !a.start && a.xm.r <= a.xu.x + 1 && !!a.xf && a.xu.r <= a.xf.x + 1,
+      'M21a 撤销段 #seg-undo 的 DOM 在 #editbar 行首：模式条（' + a.modes + '）< 撤销（' + a.undo + '）< 第一个工具段（' + a.firstTool + ' ' + a.ftId + '）；视觉 x 同序；行 2 没有起步组', J(a));
     await EV(pg, () => document.getElementById('flw-mode-write').focus());
     const seq = ['flw-mode-write'];
     for (let i = 0; i < 6; i++) { await pg.keyboard.press('Tab'); await wait(pg, 60);
-      const t = await EV(pg, () => { const e = document.activeElement; return e ? (e.id || (e.closest('#flw-start') ? 'START:' + (e.dataset.fa || '') : (e.dataset.fa || e.className || e.tagName))) : null; });
-      seq.push(t); if (/^START/.test(t)) break; }
-    const iu = seq.indexOf('b-undo'), is = seq.findIndex(x => /^START/.test(x));
-    T('M21', iu === 1 && is > iu && seq.slice(1, is).every(x => /^b-(undo|redo)$/.test(x)),
-      'M21b 真实 Tab 顺序：模式条（当前步）→ 撤销 / 重做 → 起步组，中间没有别的工具', seq.join(' → '));
+      const t = await EV(pg, () => { const e = document.activeElement; return e ? (e.id || (e.dataset.fa || e.className || e.tagName)) : null; });
+      seq.push(t); if (t && !/^b-(undo|redo)$/.test(t)) break; }
+    const iu = seq.indexOf('b-undo'), last = seq[seq.length - 1];
+    T('M21', iu === 1 && seq.slice(1, -1).every(x => /^b-(undo|redo)$/.test(x)) && !!a.firstBtn && last === a.firstBtn,
+      'M21b 真实 Tab 顺序：模式条（当前步）→ 撤销 / 重做 → 行 2 第一个工具（' + a.firstBtn + '），中间没有别的', seq.join(' → '));
     await pg.keyboard.press('Shift+Tab'); await wait(pg, 60);
     await redEnd('M21', pg, base, []);
     await close(pg);
@@ -1246,30 +1226,30 @@ async function M23SCN() {
 
   /* ================= M25 v68.1 收尾 · 右栏 / 行 2 / 窄档 / 手机 / 命令面板（验收 PN-1…9）================= */
   if (want('M25')) jobs.push(() => SAFE('M25', 'M25a', async () => {
+    /* v68.3 迁移：只有一句提示的谱类（没有起步步骤）——谱面上方的悬浮条在常用工具阶段，空谱提示可见（短），title＝LB_TIP（经典谱型条 .lb-tip 同源）；
+       落地不再把右栏拉去「智能」页（停靠态停在默认「属性」页）；没有 ⓘ / 「下一步」卡 */
+    const SB_TIP = { gtr: '↑↓ 选弦，数字键写品位', vocal: '点谱面，按数字键写音', chord: '选中一拍，按 Ctrl+K 写和弦' };
     const rows = [];
     for (const [w, h] of [[1440, 900], [1280, 800]]) {
       const pg = await open(w, h, { tag: 'M25a-' + w });
       for (const k of ['gtr', 'vocal', 'chord']) {
         await EV(pg, k => { window.guardReplace = p => p(); NWP.quickCreate(k); while (docs.length > 1) closeDocAt(0); try { closeModal(); } catch (_) {} render(); }, k);
         await wait(pg, 450);
-        const a = await EV(pg, () => { const f = lbInfo(song, lbMeta()); return { tip: f.tip || '', steps: !!f.steps, page: FLOW.rd.page(), card: __vis('#flw-next'), i: __vis('#flw-start .flw-stp-i'), dock: document.body.classList.contains('flw-rd') }; });
-        let pop = null, b2 = null;
-        if (a.dock) { await pg.click('#flw-rpt-prop'); await wait(pg, 250); b2 = await EV(pg, () => ({ card: __vis('#flw-next'), i: __vis('#flw-start .flw-stp-i') })); }
-        if ((b2 && b2.i) || (!b2 && a.i)) { await pg.click('#flw-start .flw-stp-i'); await wait(pg, 250);
-          pop = await EV(pg, () => { const m = document.querySelector('#popmenu.flw-stp-pop'); return m ? { vis: __vis(m), say: (m.querySelector('.flw-sp-p') || {}).textContent || '' } : null; });
-          await pg.keyboard.press('Escape'); await wait(pg, 150); }
-        rows.push({ w, k, a, b2, pop });
+        const a = await EV(pg, () => { const f = lbInfo(song, lbMeta()), hi = document.querySelector('#flw-sbar #flw-sb-hint');
+          return { tip: f.tip || '', steps: !!f.steps, page: FLOW.rd.page(), dock: document.body.classList.contains('flw-rd'), ph: (document.getElementById('flw-sbar') || {}).dataset.ph,
+            hint: hi ? hi.textContent : null, hv: __vis(hi), title: hi ? hi.title : '', next: !!document.getElementById('flw-next'), i: !!document.querySelector('.flw-stp-i') }; });
+        rows.push({ w, k, a });
       }
       await shot(pg, 'M25-tip-' + w);
       await close(pg);
     }
-    const ok = rows.every(r => !r.a.steps && !!r.a.tip && !!r.pop && r.pop.vis && r.pop.say === r.a.tip
-      && (r.w >= 1440 ? (r.a.dock && r.a.page === 'smart' && r.a.card && !r.a.i && r.b2 && !r.b2.card && r.b2.i) : (!r.a.dock && !r.a.card && r.a.i)));
-    T('M25', ok, 'M25a PN-1 只有一句提示的谱类（吉他弹唱 / 简谱歌谱 / 和弦谱）新建落地：1440 停靠时右栏停在「智能」页、「下一步」卡在屏上（行 2 不出 ⓘ）；切到「属性」页卡不在屏上 → 行 2 出 ⓘ；1280 竖条态出 ⓘ；点开说明＝LB_TIP（经典谱型条 .lb-tip 同源）',
-      J(rows.map(r => [r.w, r.k, r.a.page, 'card:' + r.a.card, 'i:' + r.a.i, 'prop-i:' + (r.b2 && r.b2.i), 'say:' + !!(r.pop && r.pop.say === r.a.tip)])));
+    const ok = rows.every(r => !r.a.steps && !!r.a.tip && r.a.ph === 'tools' && r.a.hint === SB_TIP[r.k] && r.a.hv && r.a.title === r.a.tip && !r.a.next && !r.a.i
+      && (r.w >= 1440 ? (r.a.dock && r.a.page === 'prop') : !r.a.dock));
+    T('M25', ok, 'M25a PN-1 只有一句提示的谱类（吉他弹唱 / 简谱歌谱 / 和弦谱）新建落地：谱面上方悬浮条在常用工具阶段、空谱提示可见（短）且 title＝LB_TIP（经典谱型条 .lb-tip 同源）；1440 停靠右栏停在「属性」页、1280 竖条；没有 ⓘ / 「下一步」卡',
+      J(rows.map(r => [r.w, r.k, r.a.page, r.a.ph, r.a.hint, 'title=tip:' + (r.a.title === r.a.tip)])));
   }));
   if (want('M25')) for (const w of [821, 841, 861]) jobs.push(() => SAFE('M25', 'M25b ' + w, async () => {
-    /* PN-2：821–861 宽新建钢琴伴奏歌谱（起步组在行 2）：行 2 没有被「更多 ▾」盖住 / 裁到屏外的键；收起的键都在「更多 ▾」里 */
+    /* PN-2：821–861 宽新建钢琴伴奏歌谱：行 2 没有被「更多 ▾」盖住 / 裁到屏外的键；收起的键都在「更多 ▾」里（v68.3 起步收回悬浮条、行 2 没有起步组，断言不变） */
     const pg = await open(w, 800, { tag: 'M25b-' + w });
     await scn(pg, 'newpacc'); await wait(pg, 400); const base = await redBase(pg);
     const r = await EV(pg, () => { const eb = document.getElementById('editbar'), er = eb.getBoundingClientRect(), bad = [];

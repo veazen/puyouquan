@@ -609,6 +609,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     const rowsOf = () => pg.evaluate(() => song.measures.map(m => [1, 2].map(vi => (m.voxes[vi] || []).some(c => c.deg) ? 1 : 0).join('')).join(','));
     await pg.evaluate(() => { const set = (mi, d) => { song.measures[mi].voxes[0] = d.map(x => ({ dur: 4, dotted: false, deg: x, acc: '', oct: 0, lyrics: [], tie: false })); };
       mutate(() => { set(0, [1, 1, 5, 5]); set(1, [6, 6, 5, 0]); }); if (!(typeof flowOn === 'function' && flowOn())) setRTab('make'); });
+    /* v68.3 flow：下一步在谱面上方的悬浮条——写完旋律，② 的主按钮「一键配伴奏」（说明「伴奏直接填进下面两行」在它的 title）；落地提示不再写「下一步见…」 */
+    const go = await pg.evaluate(() => { const b = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return b ? { t: b.textContent.trim(), act: b.dataset.act, title: b.title } : null; });
     const d0 = await pg.evaluate(() => docs.length), m0 = await mel(), u0 = await pg.evaluate(() => undoStack.length);
     await smartAct(pg, 'arr'); await pg.waitForTimeout(100);
     /* v67.4 合并：一键配伴奏走智能配谱弹窗「填进当前谱」（钢琴伴奏歌谱默认选中；tv_fillacc 另测细节） */
@@ -625,10 +627,11 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await pg.click('#tex-go'); await pg.waitForTimeout(150);
     const b2 = { mel: await mel(), rows: await rowsOf(), docs: await pg.evaluate(() => docs.length) - d0 };
     await pg._ctx.close();
-    T(/一键配伴奏/.test(guide) && /直接填进/.test(guide) && modal.fill && a.docs === 0 && a.mel === m0 && m0 === '1155|6650' && /^11,11,00/.test(a.rows) && a.chords >= 1 && a.k === 'JG' && /填进/.test(a.toast)
+    const gOk = shell === 'classic' ? (/一键配伴奏/.test(guide) && /直接填进/.test(guide)) : (!/谱型条|下一步见/.test(guide) && !!go && go.t === '一键配伴奏' && go.act === 'arrange' && /直接填进/.test(go.title));
+    T(gOk && modal.fill && a.docs === 0 && a.mel === m0 && m0 === '1155|6650' && /^11,11,00/.test(a.rows) && a.chords >= 1 && a.k === 'JG' && /填进/.test(a.toast)
       && /^00,00/.test(a.undo.rows) && a.undo.chords === 0 && libModal && b2.mel === m0 && /^11,11,00/.test(b2.rows) && b2.docs === 0,
-      'T16（' + shell + '）钢琴伴奏歌谱：建成提示指向一键配伴奏；一键配伴奏＝伴奏织体填进本谱右手 / 左手两行（自动配和弦、不另开窗口、旋律不动、没写旋律的尾部不配、一步撤销）；节奏型库→伴奏织体同口径',
-      JSON.stringify({ guide: guide.slice(-60), modal, a, b2, libModal }));
+      'T16（' + shell + '）钢琴伴奏歌谱：建成提示指向一键配伴奏（flow：谱面上方悬浮条 ② 的主按钮「一键配伴奏」，title 写「直接填进」）；一键配伴奏＝伴奏织体填进本谱右手 / 左手两行（自动配和弦、不另开窗口、旋律不动、没写旋律的尾部不配、一步撤销）；节奏型库→伴奏织体同口径',
+      JSON.stringify({ guide: guide.slice(-60), go, modal, a, b2, libModal }));
   });
 
   /* ---------- T17 变调夹 / 定弦不被悄悄带进新谱 ---------- */
@@ -679,7 +682,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
 
   /* ---------- T19 同一份谱一个名字 / 文案 ---------- */
   /* 两段：右栏「谱类 · 篇幅」——旧外壳＝信息卡 #ri-type；flow＝右栏「属性」页「整谱 · 谱类」#flw-rx-song（同一 docTypeLabel）。
-     「先写旋律」提示——旧外壳指向谱面上方的谱型条；flow 没有谱型条，FLOW.start.retext 改说真实位置（工具栏左端「起步」/ 右栏「下一步」卡），不许再提谱型条 */
+     「先写旋律」提示——旧外壳指向谱面上方的谱型条；flow（v68.3）谱面上方的悬浮条展开着＝提示不再写「下一步见…」（不提谱型条 / 起步），
+     「写进建谱时的空吉他轨（轨数不变）」的说明在条上「② 生成六线谱」主按钮的 title（写完旋律、② 成为当前步时出现） */
   for (const shell of ['flow', 'classic']) await guard('T19 谱名与文案（' + shell + '）', async () => {
     const CL = shell === 'classic';
     const pg = await open(1280, 800, { classic: CL });
@@ -693,11 +697,17 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     const keys = await pg.evaluate(() => document.querySelector('.nf-keys').textContent);
     await pg.click('[data-act="var"][data-k="pen"][data-v="J"]'); await pg.click('#nw-create'); await pg.waitForTimeout(120);
     const penJ = await pg.evaluate(() => document.getElementById('toast').textContent);
+    let go = null;
+    if (!CL) { await pg.evaluate(() => { sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; blurSel = false; render(); });
+      for (const k of '5653') { await pg.keyboard.press(k); await pg.waitForTimeout(30); }
+      await pg.waitForTimeout(120);
+      go = await pg.evaluate(() => { const b = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return b ? { t: b.textContent.trim(), act: b.dataset.act, title: b.title } : null; }); }
     await pg._ctx.close();
+    const why = CL ? penJ : (go ? go.t + ' ' + go.title : '');
     T(ri.ri === ri.label + ' · 16 小节' && ri.label === '钢琴伴奏歌谱' && /钢琴伴奏歌谱/.test(ri.tip) && !/谱行|落笔行|谱样/.test(panelTxt) && /实时刻版/.test(panelTxt)
-      && !/显示 · 六线谱/.test(penJ) && (CL ? /谱型条/.test(penJ) : (/「起步」|「下一步」卡/.test(penJ) && !/谱型条/.test(penJ))) && /生成六线谱/.test(penJ) && /空吉他轨/.test(penJ) && /轨数不变/.test(penJ) && !/新加的一条|不用可删/.test(penJ) && /Alt\+Shift\+N/.test(keys) && /AI 转谱导出/.test(pad) && !/AI 转谱结果/.test(pad),
+      && !/显示 · 六线谱/.test(penJ) && (CL ? /谱型条/.test(penJ) : (!/谱型条|起步|下一步见/.test(penJ) && !!go && go.act === 'tabgen')) && /生成六线谱/.test(why) && /空吉他轨/.test(why) && /轨数不变/.test(why) && !/新加的一条|不用可删/.test(why) && /Alt\+Shift\+N/.test(keys) && /AI 转谱导出/.test(pad) && !/AI 转谱结果/.test(pad),
       'T19（' + shell + '）右栏「谱类 · 篇幅」（flow：属性页「整谱 · 谱类」）＝页签＝docTypeLabel；面板不出现自造词「谱行」、中栏为实时刻版（v67.5 合并 A）；「先写旋律」提示写真实位置（v67.5 收尾：下一步交给谱面上方谱型条的「生成六线谱」）、照实说写进建谱时的空吉他轨（轨数不变，第二轮验收：不再说「新加一条 / 空轨可删」）；底栏键位与启动台文案按方案（MusicXML 含 AI 转谱导出，不承诺单独的 AI 入口）',
-      JSON.stringify({ ri, keys, penJ: penJ.slice(-80), pad }));
+      JSON.stringify({ ri, keys, penJ: penJ.slice(-80), go, pad }));
   });
 
   /* ---------- T20 撤销只退谱 / 鼠标点过后回车照样建 / 输入法回车不建 / 面板内 Ctrl+Z ---------- */
@@ -1186,7 +1196,7 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
   });
 
   /* ---------- T37（v67.5 第二轮验收）新窗口从谱首看起：上一个窗口滚到下面后再新建，新窗口不沿用滚动位置（第 1 行在视口内）、谱型条立即在 ---------- */
-  /* 两段：「谱型条立即在」——旧外壳＝#lb-wrap；flow 没有谱型条（计划 §3.5 拆入），＝起步组 / 「下一步」卡已出（FLOW.start.shown）且没有 #lb-wrap */
+  /* 两段：「谱型条立即在」——旧外壳＝#lb-wrap；flow 没有谱型条，＝谱面上方的悬浮条在屏上（v68.3 FLOW.sbar.shown）且没有 #lb-wrap */
   for (const shell of ['flow', 'classic']) await guard('T37 新窗口滚动归零（' + shell + '）', async () => {
     const pg = await open(1920, 1080, { classic: shell === 'classic' });
     await pg.evaluate(() => { hideStartPad(); });
@@ -1196,9 +1206,9 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await openPanel(pg); await pg.click('[data-scene="teach"]'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250);
     const r = await pg.evaluate(() => { const sw = document.getElementById('score-wrap'), R = sw.getBoundingClientRect(), b = colBoxes['v0:0:0'], svg = document.getElementById('score'), S = svg.getBoundingClientRect(), k = S.width / svg.viewBox.baseVal.width;
       const fl = typeof flowOn === 'function' && flowOn();
-      const y = S.top + b.y * k; return { st: sw.scrollTop, row1In: y >= R.top && y <= R.bottom, lb: fl ? (!document.getElementById('lb-wrap') && FLOW.start.shown()) : !!document.querySelector('#lb-wrap .lb-bar'), fl, k: NWB.stackOf(song) }; });
+      const y = S.top + b.y * k; return { st: sw.scrollTop, row1In: y >= R.top && y <= R.bottom, lb: fl ? (!document.getElementById('lb-wrap') && FLOW.sbar.shown()) : !!document.querySelector('#lb-wrap .lb-bar'), fl, k: NWB.stackOf(song) }; });
     await pg._ctx.close();
-    T(s0 >= 300 && r.st === 0 && r.row1In && r.lb && r.fl === (shell === 'flow') && r.k === 'SJ', 'T37（' + shell + '）钢琴伴奏歌谱滚到下面（scrollTop ' + s0 + '）后新建教学对照谱：新窗口 scrollTop 0、第 1 行在视口内（此前沿用 600、屏上只剩末行一截）、谱型条（flow：起步 / 下一步卡）在', JSON.stringify(r));
+    T(s0 >= 300 && r.st === 0 && r.row1In && r.lb && r.fl === (shell === 'flow') && r.k === 'SJ', 'T37（' + shell + '）钢琴伴奏歌谱滚到下面（scrollTop ' + s0 + '）后新建教学对照谱：新窗口 scrollTop 0、第 1 行在视口内（此前沿用 600、屏上只剩末行一截）、谱型条（flow：谱面上方的悬浮条）在', JSON.stringify(r));
   });
 
   T(errs.length === 0, '无页面报错', errs.join(' | ') || 'none');

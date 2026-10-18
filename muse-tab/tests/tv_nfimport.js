@@ -49,7 +49,8 @@ const path = require('path');
 const { songbieXML } = require('./fixtures/songbie_ai.js');
 const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 /* v68.2 切默认外壳（flow）：默认页＝新外壳（新建入口＝页签「＋」#dt-add，打开文件＝文件 ▾「打开文件…」）；谱型条 #lb-wrap 只在旧外壳（兜底，?shell=classic）——
-   I29 / I34 / I35 两段：flow 段读起步组 #flw-start / 「下一步」卡 #flw-next / 谱类芯片 #flw-kchip，classic 段原断言钉旧外壳（计划 §5.4） */
+   I29 / I34 / I35 两段：flow 段读谱面上方的悬浮条 #flw-sbar（v68.3：所有谱都有；「落地即有」看 FLOW.sbar.model() 与 LBAR.meta()）/ 谱类芯片 #flw-kchip，
+   classic 段原断言钉旧外壳（计划 §5.4） */
 const F = F0;
 const FC = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 /* 文件以 {name, mimeType, buffer} 交给文件选择框（中文文件名不经本地文件系统，避免测试机文件名编码差异） */
@@ -777,8 +778,10 @@ function gp5() {
   });
 
   /* ========== 第二轮验收回归（修前＝r3/pre.html 红、修后绿） ========== */
-  /* lb：旧外壳＝谱型条 #lb-wrap 在；flow＝没有 #lb-wrap、起步组或右栏「下一步」卡已出（FLOW.start.shown，同一份 lbInfo；谱型条拆入后的落点，计划 §3.5） */
-  const lbGeo = pg => pg.evaluate(() => ({ lb: (typeof flowOn === 'function' && flowOn()) ? (!document.getElementById('lb-wrap') && FLOW.start.shown()) : !!document.querySelector('#lb-wrap .lb-bar'),
+  /* lb：旧外壳＝谱型条 #lb-wrap 在；flow（v68.3）＝没有 #lb-wrap、谱面上方的悬浮条在屏上且已按谱算好（FLOW.sbar.model().phase）、本窗口有落地记录（LBAR.meta()）——
+     悬浮条所有谱都有，「只看示例」的区别只在没有落地记录（bar 字段另记条在不在） */
+  const lbGeo = pg => pg.evaluate(() => ({ lb: (typeof flowOn === 'function' && flowOn()) ? (!document.getElementById('lb-wrap') && FLOW.sbar.shown() && !!FLOW.sbar.model().phase && !!LBAR.meta()) : !!document.querySelector('#lb-wrap .lb-bar'),
+    bar: (typeof flowOn === 'function' && flowOn()) ? FLOW.sbar.shown() : null,
     flow: typeof flowOn === 'function' && flowOn(), top: Math.round(document.getElementById('score').getBoundingClientRect().top),
     from: ((typeof LBAR !== 'undefined' && LBAR.meta && LBAR.meta()) || {}).from || null, st: Math.round((document.getElementById('score-wrap') || {}).scrollTop || 0) }));
   const clickNote = async pg => { const pt = await pg.evaluate(() => { const svg = document.getElementById('score'), R = svg.getBoundingClientRect(), k = R.width / svg.viewBox.baseVal.width, b2 = colBoxes['v0:1:0'] || colBoxes['v0:0:0'];
@@ -813,11 +816,11 @@ function gp5() {
     await ph.tap('#score').catch(() => {}); await ph.waitForTimeout(200);
     r.mob = await ph.evaluate(() => ({ lb: !!document.getElementById('lb-wrap'), meta: (typeof LBAR !== 'undefined' && LBAR.meta()) || null, k: NWB.stackOf(song) }));
     await ph._ctx.close();
-    /* 落地提示：旧外壳指向谱型条；flow 没有谱型条，FLOW.start.retext 改说真实位置（换谱类＝左栏音轨区标题的谱类 ▾），且不再提谱型条 */
-    const toastOk = shell === 'classic' ? /谱型条/.test(r.demoToast) : (/谱类 ▾/.test(r.demoToast) && !/谱型条/.test(r.demoToast));
+    /* 落地提示：旧外壳指向谱型条；flow（v68.3）悬浮条展开着＝不再写（条就在屏上，少字）——没有「谱型条 / 起步 / 下一步见」 */
+    const toastOk = shell === 'classic' ? /谱型条/.test(r.demoToast) : (!!r.demoToast && !/谱型条|起步|下一步见/.test(r.demoToast));
     T(r.scrolled >= 500 && r.demo0.lb && r.demo0.from === 'import' && r.demo0.st === 0 && r.demo1.lb && r.demo1.top === r.demo0.top && toastOk && r.demo0.flow === (shell === 'flow')
-      && r.drop0.lb && r.drop1.top === r.drop0.top && r.ex.every(x => x.lb && x.from === 'example') && !r.exOpen.lb && !r.exOpen.from && !r.mob.lb && !r.mob.meta && r.mob.k === 'S',
-      'I29（' + shell + '）导入（试一试《送别》）/ 拖进窗口导入 / 示例做同款（连做两份）落地后谱型条（flow：起步组 / 「下一步」卡，无 #lb-wrap）立即在（此前要等第一次点击才冒出、谱面下移 74px），点音符前后谱面不动；落地提示提到谱型条（flow：谱类 ▾）；新窗口从谱首看起（上一个窗口滚了 600px）；「只看示例」与曲谱库打开同口径不挂；手机导入不挂', JSON.stringify(r));
+      && r.drop0.lb && r.drop1.top === r.drop0.top && r.ex.every(x => x.lb && x.from === 'example') && !r.exOpen.lb && !r.exOpen.from && (shell === 'classic' || r.exOpen.bar) && !r.mob.lb && !r.mob.meta && r.mob.k === 'S',
+      'I29（' + shell + '）导入（试一试《送别》）/ 拖进窗口导入 / 示例做同款（连做两份）落地后谱型条（flow：谱面上方的悬浮条、落地记录在，无 #lb-wrap）立即在（此前要等第一次点击才冒出、谱面下移 74px），点音符前后谱面不动；落地提示提到谱型条（flow：悬浮条展开着不再写）；新窗口从谱首看起（上一个窗口滚了 600px）；「只看示例」与曲谱库打开同口径不挂落地记录（flow 悬浮条照常在）；手机导入不挂', JSON.stringify(r));
   });
 
   /* ---------- I30 .mtab.json 不覆盖「我的曲谱」里内容不同的同 id 谱（major）：面板选择 / 顶栏「打开」都按副本打开；内容相同仍沿用 id ---------- */
@@ -902,12 +905,14 @@ function gp5() {
     await pg.evaluate(() => hideStartPad());
     const VP = mx({ title: 'VP', fifths: 0, time: [4, 4], parts: [{ name: 'Voice', measures: melody(4, { ly: 1 }) }, { name: 'Piano', staves: 2, measures: melody(4).map(rh => [rh, melody(1, { oct: 3, seq: [1, 5, 1, 5] })[0]]) }] });
     const MEL = mx({ title: 'Mel', fifths: 0, time: [4, 4], parts: [{ name: 'V', measures: melody(4, { ly: 1 }) }] });
-    /* flow：谱型条拆成起步组 #flw-start（步骤 + 主按钮）与右栏「下一步」卡 #flw-next（各步 li.class＝done / now / todo、当前步说明或一句提示 .flw-nx-p，同一份 lbInfo / lbCur） */
+    /* flow（v68.3）：谱面上方的悬浮条 #flw-sbar——步骤状态读 FLOW.sbar.model().steps（与条上 li 同一份 lbInfo / lbCur；最后一步时条已在常用工具阶段）；
+       主按钮＝条上 [data-fa="sbar:go"] 或强调的工具（.pri）；③ 的说明全文只进「织体」的 title，已标和弦功能谱的「改和弦…」进「和弦」的 title（少字） */
     const bar = () => pg.evaluate(() => {
-      if (typeof flowOn === 'function' && flowOn()) { const g = document.getElementById('flw-start'), n = document.getElementById('flw-next'); if (!n || n.hidden || document.getElementById('lb-wrap')) return null;
-        const li = [...n.querySelectorAll('.flw-nx-l li')], p = (n.querySelector('.flw-nx-p') || {}).textContent || '';
-        return { k: NWB.stackOf(song), steps: li.map(x => x.className).join(','), go: !!(n.querySelector('[data-fa="start:go"]') || (g && g.querySelector('[data-fa="start:go"]'))),
-          gSteps: g ? [...g.querySelectorAll('.flw-stp-s')].map(x => x.className.replace(/flw-stp-s |\s*flw-stp-dup/g, '')).join(',') : '', hint: li.length ? p : '', tip: li.length ? '' : p }; }
+      if (typeof flowOn === 'function' && flowOn()) { const w = document.getElementById('flw-sbar'); if (!w || w.hidden || document.getElementById('lb-wrap') || !FLOW.sbar.shown()) return null;
+        const m = FLOW.sbar.model(), tt = id => (w.querySelector('.flw-sb-tool[data-v="' + id + '"]') || {}).title || '';
+        const li = [...w.querySelectorAll('.flw-sb-steps li')].map(x => x.className).join(',');
+        return { k: NWB.stackOf(song), steps: (m.steps || []).map(x => x.split(':')[0]).join(','), go: !!w.querySelector('[data-fa="sbar:go"], .flw-sb-tool.pri'),
+          gSteps: m.phase === 'steps' ? li : (m.steps || []).map(x => x.split(':')[0]).join(','), hint: m.steps ? tt('tex') : '', tip: m.steps ? '' : tt('chord') }; }
       const w = document.querySelector('#lb-wrap .lb-bar'); if (!w) return null;
       return { k: NWB.stackOf(song), steps: [...w.querySelectorAll('.lb-steps li')].map(li => li.className).join(','), go: !!w.querySelector('.lb-go'), hint: (w.querySelector('.lb-hint') || {}).textContent || '', tip: (w.querySelector('.lb-tip') || {}).textContent || '' }; });
     const r = {};
@@ -916,7 +921,7 @@ function gp5() {
     await toImport(pg); if (await pg.$('#nf-unload')) await pg.click('#nf-unload'); await pick(pg, file('mel.musicxml', MEL)); await loaded(pg);
     await pg.click('[data-act="tg"][data-v="CJ"]'); await pvDone(pg); await pg.click('#nf-impgo'); await pg.waitForTimeout(200); r.cj = await bar();
     await pg._ctx.close();
-    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && /文件里的/.test(x.hint) && (shell === 'classic' || x.gSteps === x.steps);   /* flow：行 2 起步组与卡同口径 */
+    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && /文件里的/.test(x.hint) && (shell === 'classic' || x.gSteps === x.steps);   /* flow：悬浮条与 lbCur 同口径 */
     T(accOk(r.vp_orig) && accOk(r.vp_SJ) && r.cj && r.cj.k === 'CJ' && /改和弦/.test(r.cj.tip) && !/先写旋律/.test(r.cj.tip),
       'I34（' + shell + '）人声＋钢琴文件按原文件 / 对照导入：起步条 ①② 打勾、③ 只给提示「伴奏是文件里的……」不给主按钮（此前主按钮「换织体」会按织体重配覆盖文件伴奏）；标级数和弦导入后提示「改和弦……」（此前仍说「先写旋律」）', JSON.stringify(r));
   });
@@ -924,7 +929,7 @@ function gp5() {
   /* ---------- I35 钢琴两手谱做成「五线＋简谱对照」：谱型条 / 菜单照实叫；钢琴族内互换保留简谱对照 ---------- */
   for (const shell of ['flow', 'classic']) await guard('I35 钢琴对照谱名与互换（' + shell + '）', async () => {
     const pg = await open(1366, 900, { classic: shell === 'classic' });
-    /* 谱名 ▾：旧外壳＝谱型条 .lb-kind；flow＝左栏音轨区标题的谱类芯片 #flw-kchip（lbKindBtn，同一个 #lb-menu） */
+    /* 谱名 ▾：旧外壳＝谱型条 .lb-kind；flow＝左栏音轨区标题的谱类芯片 #flw-kchip（与 v68.3 悬浮条谱类 ▾ 同一个 lbMenuOpen、同一个 #lb-menu） */
     const KB = shell === 'classic' ? '#lb-wrap .lb-kind' : '#flw-kchip', KN = shell === 'classic' ? '#lb-wrap .lb-kind b' : '#flw-kchip .flw-kn';
     await pg.evaluate(() => hideStartPad());
     const PN = mx({ title: 'Piano', fifths: 0, time: [4, 4], parts: [{ name: 'Piano', staves: 2, measures: melody(4).map(rh => [rh, melody(1, { oct: 3, seq: [1, 5, 1, 5] })[0]]) }] });

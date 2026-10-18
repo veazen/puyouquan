@@ -30,7 +30,8 @@
    T21 字形 pqSign：149 个变体（20 / 16 两档母版）墨迹不出格；面板上显示的 Bravura 变体最大边 p90/p10 ≤1.5（含活文字 / bare 档的数另行打印，不判）；文字类 <text> 用 Georgia,serif
    T22 SMUFL：94 个（原 50 + 追加 44）；原 50 个 d / bb 与基线提交逐字相同
    T23 谱面零回归：16 个预设 renderOffscreen 在 flow 与经典外壳逐字节相同；去掉追加的 44 个字形重刻仍逐字节相同；与基线提交的编辑器 #score 逐字节相同
-   T24 起步：新建钢琴伴奏歌谱没有 #lb-wrap；#flw-start 步骤状态＝lbCur(lbInfo)；主按钮与 #b-arrange 同一弹窗；× 收起后 Alt+B 恢复并聚焦
+   T24 起步（v68.3 迁移到谱面上方的悬浮条 #flw-sbar）：新建钢琴伴奏歌谱没有 #lb-wrap / #flw-start；条上步骤 li 的 done / now / todo＝lbCur(lbInfo)；
+       主按钮 [data-fa="sbar:go"] 与 #b-arrange 同一弹窗；收起钮 → data-sb=col、musetab-sbar='0'；Alt+B → 展开、焦点在主按钮；song 不变
    T25 谱类芯片：#lb-menu 在芯片下方；再点芯片即关（不先关后开）
    T26 谱纸：1280×800 / 1440×900 预设谱 #score 870±2、新建谱 ≥868；paperClear；无 paper-tight；FLY_AUTO_CLOSED 不消耗
    T27 数据零改动：只做界面操作（展开 / 收起 / 搜索 / 切密度 / 折叠 / 悬停 / 开关菜单）前后 song 逐字节相同；musetab-* 键差集 ⊆ 本版新键
@@ -40,7 +41,8 @@
        音色下拉 ↓（TRK-13）· 无旋律轨不出「由旋律生成」（TRK-14）
    T29 记号面板：更多力度 / 左手指（S1 / TRK-7）· 字面与谱面同一声明（S2）· 搜索（S3）· 弹窗类格子应用才计数（S4）· 计数不挤「猜你想做」（S5）· 格子四角命中（S6）·
        细线 ≥1px（S7）· 存储被拦仍生效（S8）· 灰格提示按方向（S9）· 读屏与 roving tabindex（S10）
-   T30 外壳：启动台不画占位谱（SH-5）· 821–1179 起步组不裁「更多 ▾」（SH-1）· 1600 不比 1536 收得多（SH-6）· 起步组 DOM 在前（SH-4）· 「起步 · 换谱类…」（SH-2 / TRK-15）· 竖条态 Alt+B / 落地提示（SH-3）
+   T30 外壳：启动台不画占位谱（SH-5）· 821–1179 新建钢琴伴奏歌谱不裁「更多 ▾」（SH-1）· 1600 不比 1536 收得多（SH-6）· 行 2 Tab 顺序（SH-4）· #ri-lbar 程序化点击开换谱类（SH-2 / TRK-15）·
+       竖条态 Alt+B / 落地提示（SH-3）——v68.3 起步收回谱面上方的悬浮条，行 2 没有起步组，断言意图不变
    env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_REF 参考页（none＝跳过对拍）· MUSETAB_REF_COMMIT · ONLY=T1,T5 · SHOTS=目录 存截图 */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), cp = require('child_process');
@@ -53,7 +55,7 @@ const SHOTS = process.env.SHOTS || '';
 const REF = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'shellflow_ref.json'), 'utf8')); } catch (_) { return {}; } })();
 const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '2675b9c';
 const IN_CI = !!process.env.CI && process.env.MUSETAB_REF !== 'none';
-const NEWKEYS = ['musetab-flow', 'musetab-rdock', 'musetab-pal', 'musetab-signdensity'];
+const NEWKEYS = ['musetab-flow', 'musetab-rdock', 'musetab-pal', 'musetab-signdensity', 'musetab-sbar'];   /* v68.3 + musetab-sbar（悬浮条收起） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
@@ -1106,36 +1108,38 @@ function T0SCN() {
   /* ================= T24 起步 · T25 谱类芯片 ================= */
   if (['T24', 'T25'].some(want)) jobs.push(async () => {
     const pg = await open(1280, 800, { tag: 'T24' });
-    const ST = () => { const g = document.getElementById('flw-start'), f = lbInfo(song, LBAR.meta()), c = lbCur(f);
-      const steps = g ? [...g.querySelectorAll('[data-fa="start:step"]')] : [];
-      const go = g && g.querySelector('[data-fa="start:go"]');
-      return { lb: !!document.getElementById('lb-wrap'), vis: __vis(g), hidden: g ? g.hidden : null, next: (n => n ? { hidden: n.hidden } : null)(document.getElementById('flw-next')),
+    /* v68.3 迁移：起步在谱面上方的悬浮条 #flw-sbar（行 2 起步组 / 右栏「下一步」卡撤掉）——步骤 li 的状态＝lbCur(lbInfo)；× 改为「收起成细条」（用户级偏好 musetab-sbar） */
+    const ST = () => { const w = document.getElementById('flw-sbar'), f = lbInfo(song, LBAR.meta()), c = lbCur(f);
+      const steps = w ? [...w.querySelectorAll('.flw-sb-steps li')] : [];
+      const go = w && w.querySelector('[data-fa="sbar:go"]');
+      return { lb: !!document.getElementById('lb-wrap'), start: !!document.getElementById('flw-start') || !!document.getElementById('flw-next'), vis: __vis(w), sb: w ? w.dataset.sb : null,
         ui: steps.map(s => ['done', 'now', 'todo'].find(x => s.classList.contains(x)) + (s.getAttribute('aria-current') === 'step' ? '*' : '')).join(','),
         want: f && f.steps ? f.steps.map(x => x.st + (x.st === 'now' ? '*' : '')).join(',') : '', go: go ? { t: go.textContent.trim(), act: go.dataset.act } : null, nxt: c && c.nxt ? { t: c.nxt.btn, act: c.nxt.act } : null,
-        meta: (LBAR.meta() || {}).hidden }; };
+        key: localStorage.getItem('musetab-sbar'), h: w ? Math.round(w.getBoundingClientRect().height) : 0 }; };
     await SAFE('T24', 'T24', async () => {
       await scn(pg, 'newpacc'); await wait(pg, 200);
       const a = await EV(pg, ST);
       await EV(pg, () => mutate(() => { for (let mi = 0; mi < 4; mi++) song.measures[mi].voxes[0].forEach((c, k) => { c.deg = 1 + ((mi * 4 + k) % 7); }); })); await wait(pg, 200);
       const b2 = await EV(pg, ST);
       await shot(pg, 'T24-start-1280x800');
-      await pg.click('#flw-start [data-fa="start:go"]'); await wait(pg, 300);
+      await pg.click('#flw-sbar [data-fa="sbar:go"]'); await wait(pg, 300);
       const m1 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; closeModal(); return t; });
       await EV(pg, () => document.getElementById('b-arrange').click()); await wait(pg, 300);
       const m2 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; closeModal(); return t; });
       const j0 = await EV(pg, () => { __toasts.length = 0; return JSON.stringify(song); });
-      await pg.click('#flw-start [data-fa="start:hide"]'); await wait(pg, 200);
-      const c = await EV(pg, ST), ct = await toasts(pg);
+      await pg.click('#flw-sb-tg'); await wait(pg, 200);
+      const c = await EV(pg, ST);
       await away(pg); await pg.keyboard.press('Alt+b'); await wait(pg, 250);
       const d = await EV(pg, ST);
-      const fo = await EV(pg, () => { const a = document.activeElement; return { inStart: !!(a && a.closest && a.closest('#flw-start')), fa: a && a.dataset ? a.dataset.fa : null }; });
+      const fo = await EV(pg, () => { const a = document.activeElement; return { inBar: !!(a && a.closest && a.closest('#flw-sbar')), fa: a && a.dataset ? a.dataset.fa : null }; });
       const j1 = await EV(pg, () => JSON.stringify(song));
-      T('T24', !a.lb && a.vis && a.ui === a.want && /now\*/.test(a.ui) && !b2.lb && b2.ui === b2.want && b2.ui === 'done,now*,todo' && !!b2.go && b2.go.act === 'arrange' && b2.go.t === b2.nxt.t,
-        'T24a 新建钢琴伴奏歌谱：没有 #lb-wrap（谱型条拆入）；行 2「起步」组的步骤状态＝lbCur(lbInfo(song, LBAR.meta()))（当前步 aria-current=step）；写完旋律推进到「配和弦与伴奏」，主按钮「' + (b2.go && b2.go.t) + '」',
+      T('T24', !a.lb && !a.start && a.vis && a.ui === a.want && /now\*/.test(a.ui) && !b2.lb && b2.ui === b2.want && b2.ui === 'done,now*,todo' && !!b2.go && b2.go.act === 'arrange' && b2.go.t === b2.nxt.t,
+        'T24a 新建钢琴伴奏歌谱：没有 #lb-wrap / 行 2 起步组 / 「下一步」卡；谱面上方悬浮条的步骤状态＝lbCur(lbInfo(song, LBAR.meta()))（当前步 aria-current=step）；写完旋律推进到「配和弦与伴奏」，主按钮「' + (b2.go && b2.go.t) + '」',
         J({ a: [a.ui, a.want], b: [b2.ui, b2.want, b2.go] }));
-      T('T24', !!m1 && m1 === m2, 'T24b 起步主按钮打开的弹窗与 #b-arrange 相同（同一个 lbGo → #b-arrange.click）', J({ m1, m2 }));
-      T('T24', c.hidden === true && c.next && c.next.hidden && c.meta === true && ct.some(t => /Alt\+B/.test(t)) && d.vis && d.meta === false && fo.inStart && fo.fa === 'start:go' && j1 === j0 && !d.lb,
-        'T24c ×：起步组与右栏「下一步」卡一起收起（LB_META.hidden，提示写 Alt+B）；Alt+B → 重新出现、焦点落在起步组主按钮；收起 / 调出不改谱、全程不建 #lb-wrap', J({ c: [c.hidden, c.next, c.meta], ct, d: [d.vis, d.meta], fo, same: j1 === j0 }));
+      T('T24', !!m1 && m1 === m2, 'T24b 悬浮条主按钮打开的弹窗与 #b-arrange 相同（同一个 lbGo → #b-arrange.click）', J({ m1, m2 }));
+      T('T24', c.sb === 'col' && c.h === 34 && c.key === '0' && c.vis && d.sb === 'exp' && d.key === null && d.ui === 'done,now*,todo' && fo.inBar && fo.fa === 'sbar:go' && j1 === j0 && !d.lb && !d.start,
+        'T24c 收起钮：收成 34 高细条（data-sb=col、musetab-sbar=\'0\'，不再整条消失）；Alt+B → 展开（删键）、焦点落在主按钮；收起 / 展开不改谱、全程不建 #lb-wrap / #flw-start',
+        J({ c: [c.sb, c.h, c.key, c.vis], d: [d.sb, d.key, d.ui], fo, same: j1 === j0 }));
     });
     await SAFE('T25', 'T25', async () => {
       await scn(pg, 'songbie'); await away(pg);
@@ -1521,8 +1525,9 @@ function T0SCN() {
         out.push({ w, s1: a, s2: b2 });
       }
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 300);
+      const noStart = await EV(pg, () => !document.querySelector('#editbar #flw-start'));
       const bad = out.filter(o => [o.s1, o.s2].some(s => s.clip.length || !s.more));
-      T('T30', !bad.length, 'T30b 821–1179 宽出现起步组（钢琴伴奏歌谱 ① 写旋律 / ② 一键配伴奏）：行 2 没有按钮被裁到屏外，「更多 ▾」始终整枚在屏、点得中（编辑组只留图标 → 起步组只留编号与主按钮图标 → 连音线 / 增时线 / 附点收进「更多 ▾」；验收 SH-1）',
+      T('T30', !bad.length && noStart, 'T30b 821–1179 宽新建钢琴伴奏歌谱（① 写旋律 / ② 一键配伴奏）：行 2 没有按钮被裁到屏外，「更多 ▾」始终整枚在屏、点得中（编辑组只留图标 → 连音线 / 增时线 / 附点收进「更多 ▾」；验收 SH-1）；v68.3 起 #editbar 里没有起步组（收回谱面上方的悬浮条）',
         J(out.map(o => o.w + ' ①' + o.s1.sw + '/' + o.s1.cw + (o.s1.clip.length ? ' 裁 ' + o.s1.clip : '') + (o.s1.more ? '' : ' 更多不可点') + ' ②' + o.s2.sw + '/' + o.s2.cw + (o.s2.clip.length ? ' 裁 ' + o.s2.clip : '') + (o.s2.more ? '' : ' 更多不可点'))));
     });
     await SAFE('T30', 'T30c', async () => {
@@ -1532,42 +1537,49 @@ function T0SCN() {
       const a = await offAt(1536), b2 = await offAt(1600);
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 300);
       const extra = b2.filter(x => x !== 'flw-scope' && !a.includes(x));
-      T('T30', !extra.length, 'T30c 窗口变宽常显的键不变少：1600 宽（组名开始显示）出现起步组时先收组名，收起的键不多于 1536 宽（「作用于」芯片 <1600 本就不显示；验收 SH-6）', J({ w1536: a, w1600: b2 }));
+      T('T30', !extra.length, 'T30c 窗口变宽常显的键不变少：1600 宽（组名开始显示）新建钢琴伴奏歌谱时先收组名，收起的键不多于 1536 宽（「作用于」芯片 <1600 本就不显示；验收 SH-6）', J({ w1536: a, w1600: b2 }));
     });
     await SAFE('T30', 'T30d', async () => {
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 300);
       await scn(pg, 'newpacc'); await wait(pg, 300);
-      /* v68.1（计划 §4.11「模式条 → 撤销 → 起步」，验收 SH-4）：行首多了模式条（role=tablist，roving tabindex 只有当前段可 Tab 到），撤销段在 DOM 上也搬到行首——
-         Tab 顺序＝模式条（当前段）→ 撤销 → 起步，与视觉顺序一致（此前断言「起步是第一站」，撤销在 DOM 末尾） */
+      /* v68.1（计划 §4.11，验收 SH-4）：行首多了模式条（role=tablist，roving tabindex 只有当前段可 Tab 到），撤销段在 DOM 上也搬到行首——Tab 顺序与视觉顺序一致。
+         v68.3 迁移：行 2 没有起步组了（起步收回谱面上方的悬浮条）——模式条（当前段）→ 撤销 / 重做 → 行 2 第一个工具 */
       const t = await EV(pg, () => { const all = [...document.querySelectorAll('#editbar button')].filter(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden' && b.tabIndex >= 0);
-        return { idx: all.findIndex(b => b.closest('#flw-start')), n: all.length, first: all.slice(0, 3).map(b => b.id || b.dataset.fa) }; });
-      T('T30', t.idx === 2 && t.first[0] === 'flw-mode-write' && t.first[1] === 'b-undo', 'T30d 行 2 的 DOM / Tab 顺序与视觉一致：模式条（当前段「书写」）→ 撤销 → 起步（验收 SH-4：此前撤销在 DOM 末尾、要走过 27 个工具键）', J(t));
+        const k = all.findIndex((b, i) => i >= 1 && !/^b-(undo|redo)$/.test(b.id));
+        return { start: !!document.getElementById('flw-start'), n: all.length, first: all.slice(0, 4).map(b => b.id || b.dataset.fa), tool: k >= 0 ? (all[k].id || all[k].dataset.fa) : null, inTools: k >= 0 && !!all[k].closest('[id^="ebu-"], #eb-dur, #eb-note') }; });
+      T('T30', !t.start && t.first[0] === 'flw-mode-write' && t.first[1] === 'b-undo' && t.inTools, 'T30d 行 2 的 DOM / Tab 顺序与视觉一致：模式条（当前段「书写」）→ 撤销 / 重做 → 行 2 第一个工具「' + t.tool + '」（验收 SH-4；v68.3 行 2 没有起步组）', J(t));
     });
     await SAFE('T30', 'T30e', async () => {
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 300);
       await scn(pg, 'songbie'); await EV(pg, () => { setRTab('info'); }); await wait(pg, 150);
+      /* v68.3 迁移：flow 下 #ri-lbar 保持原字（它随旧「信息」卡隐藏；不再改叫「起步 · 换谱类…」）；程序化点击＝展开谱面上方的悬浮条并打开换谱类菜单，锚在条上的谱类 ▾ */
+      await EV(pg, () => FLOW.sbar.toggle({ exp: false })); await wait(pg, 150);
       const a = await EV(pg, () => { const b = document.getElementById('ri-lbar'), d = new DOMParser().parseFromString(FLOW.snapHTML(), 'text/html'), sb = d.getElementById('ri-lbar');
-        return { t: b.textContent.trim(), tip: b.title, snap: !!sb && /谱型条 · 换谱类…/.test(sb.textContent) && /在谱面上方显示谱型条/.test(sb.title), snapNew: !!sb && /起步/.test(sb.textContent + sb.title) }; });
-      /* v68.1：flow 下旧右栏卡片 .rcard 只隐藏（右栏改为属性 / 文字 / 智能页，计划 §4.4），这枚按钮不再可见——按 §1.4 委托原则走程序化 click()，委托路径（LBAR.show 的 flow 分支）不变 */
+        return { t: b.textContent.trim(), tip: b.title, snap: !!sb && /谱型条 · 换谱类…/.test(sb.textContent) && /在谱面上方显示谱型条/.test(sb.title), snapNew: !!sb && /起步/.test(sb.textContent + sb.title), snapBar: !!d.getElementById('flw-sbar') }; });
       await EV(pg, () => document.getElementById('ri-lbar').click()); await wait(pg, 200);
-      const b2 = await EV(pg, () => ({ menu: !!document.getElementById('lb-menu') }));
+      const b2 = await EV(pg, () => { const m = document.getElementById('lb-menu'), k = document.getElementById('flw-sb-kind'); if (!m || !k) return { menu: !!m, kind: !!k };
+        const mr = m.getBoundingClientRect(), kr = k.getBoundingClientRect(); return { menu: true, kind: true, exp: FLOW.sbar.expanded(), gap: Math.round(mr.top - kr.bottom), dx: Math.round(mr.left - kr.left), anchor: m._lbBtn === k }; });
       await EV(pg, () => __shut());
       await pg.setViewportSize({ width: 800, height: 900 }); await wait(pg, 500);
       const c = await EV(pg, () => ({ flow: flowOn(), t: document.getElementById('ri-lbar').textContent.trim() }));
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 500);
-      T('T30', /起步 · 换谱类/.test(a.t) && !/谱型条/.test(a.tip) && a.snap && !a.snapNew && b2.menu && !c.flow && /谱型条 · 换谱类/.test(c.t),
-        'T30e 右栏「信息」页那枚按钮在 flow 下叫「起步 · 换谱类…」，点了直接打开换谱类菜单（验收 SH-2 / TRK-15：此前叫「谱型条」、点了屏上没有任何变化）；页面快照与退出 flow 后原样还原', J({ a, b2, c }));
+      T('T30', /谱型条 · 换谱类/.test(a.t) && /谱型条/.test(a.tip) && a.snap && !a.snapNew && !a.snapBar && b2.menu && b2.exp && b2.anchor && b2.gap >= 0 && b2.gap <= 12 && Math.abs(b2.dx) <= 12 && !c.flow && /谱型条 · 换谱类/.test(c.t),
+        'T30e flow 下 #ri-lbar 保持原字（不再改叫「起步 · 换谱类…」）；程序化点击＝悬浮条（收起着的也）展开、换谱类菜单锚在条上谱类 ▾ 正下方；页面快照（不带悬浮条）与退出 flow 后与旧外壳相同', J({ a, b2, c }));
     });
     await SAFE('T30', 'T30f', async () => {
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 300);
       await scn(pg, 'songbie'); await wait(pg, 150); await away(pg);
-      const a = await EV(pg, () => ({ rs: document.body.classList.contains('flw-rs'), txt: FLOW.start.retext('；下一步见谱面上方的谱型条') }));
+      /* v68.3 迁移：<1440（右栏竖条）落地提示——悬浮条展开着＝不再写「下一步见…」（guide 返回 ''），收起时说「谱面上方的悬浮条」；
+         Alt+B 切换悬浮条（展开 ⇄ 收起）并聚焦，右栏不浮出 */
+      const a = await EV(pg, () => ({ rs: document.body.classList.contains('flw-rs'), exp: FLOW.sbar.expanded(), txt: FLOW.sbar.guide('；下一步见谱面上方的谱型条') }));
       await pg.keyboard.press('Alt+b'); await wait(pg, 250);
-      /* v68.1 轨 B：「下一步」卡移进右栏「智能」页（#flw-rp-smart 顶部），不再挂 data-rt、也不再让旧页签 rTab 停在「创作」——断言改为右栏当前页＝智能、卡在该页里 */
-      const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), tab: FLOW.rd.page(), inPage: !!document.querySelector('#flw-rp-smart > #flw-next'), nx: __vis('#flw-next'), txt: (document.getElementById('flw-next') || {}).textContent || '' }));
+      const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), exp: FLOW.sbar.expanded(), sb: document.getElementById('flw-sbar').dataset.sb, ae: (document.activeElement || {}).id || '',
+        txt: FLOW.sbar.guide('；下一步见谱面上方的谱型条') }));
+      await pg.keyboard.press('Alt+b'); await wait(pg, 250);
+      const c = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), exp: FLOW.sbar.expanded(), inBar: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#flw-sbar')) }));
       await pg.keyboard.press('Escape'); await wait(pg, 150);
-      T('T30', a.rs && /竖条「智能」/.test(a.txt) && b2.ro && b2.tab === 'smart' && b2.inPage && b2.nx && b2.txt.length > 4,
-        'T30f <1440（右栏竖条）：落地提示按实际位置说「右栏竖条「智能」里的「下一步」卡」（v68.1 右栏页：属性 · 文字 · 智能，旧「创作」并入「智能」）；没有起步组的谱类按 Alt+B 把「智能」浮出、「下一步」卡露出来（验收 SH-3：此前 Alt+B 屏上无变化）', J({ a, b2: { ro: b2.ro, tab: b2.tab, nx: b2.nx, txt: b2.txt.slice(0, 30) } }));
+      T('T30', a.rs && a.exp && a.txt === '' && !b2.ro && !b2.exp && b2.sb === 'col' && b2.ae === 'flw-sb-tg' && /谱面上方的悬浮条/.test(b2.txt) && !c.ro && c.exp && c.inBar,
+        'T30f <1440（右栏竖条）：悬浮条展开时落地提示不再写「下一步见…」，收起时说「谱面上方的悬浮条」；Alt+B 切换悬浮条（收起 → 焦点在展开钮；再按展开 → 焦点在条里），右栏不浮出（验收 SH-3 意图：Alt+B 屏上必有变化）', J({ a, b2, c }));
     });
     await close(pg);
   });

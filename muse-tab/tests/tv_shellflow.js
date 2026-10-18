@@ -8,7 +8,8 @@
    S1  开关：?shell=flow → body.flow + musetab-flow='1'，去掉参数刷新仍是 flow；?shell=classic → 键 '0'、不挂载、默认 DOM 在原位；本机存储不可用时 ?shell=flow 只对本次生效
        v68.2 切默认起：不带参数（无键）即 flow；?shell=flow 删键；?shell=classic 写 '0' 刷新与去参数保持；存储不可用时 ?shell=classic 只对本次、去参数回 flow
    S2  外壳总高：行 1 44 · 行 2 40 · #top 底 84（方案值；#top 的 1px 底线改为行 2 的 inset 阴影，不占高）· 状态栏 32 贴底 · 顶 + 底 116（1280×800 / 1366×768 / 1440×900 × 浅 / 深）
-   S3  谱面可见高（#score-wrap 可视区减谱型条）：1280×800 ≥684 · 1366×768 ≥652 · 1440×900 ≥784（方案值）
+   S3  谱面可见高（#score-wrap 可视区减谱型条与谱面上方的悬浮条，吸住状态 scrollTop≥50 量）：v68.3 悬浮条展开 1280×800 ≥638 · 1366×768 ≥606 · 1440×900 ≥738，
+       收起 ≥650 / 618 / 750（v68.2 方案值 684 / 652 / 784 是去掉旧谱型条换来的；负责人 2026-10-18 要求保留吸顶悬浮条，代价 46 / 34）
    S4  右栏：1440 停靠 264、无竖条；1280 / 1366 竖条 40、右栏不占位。竖条「信息」→ 浮出 288 贴竖条、不改谱纸宽；Esc / 点外部 / 再点同页收起；
        钉住 → 1280 也停靠且 musetab-rdock='1'，刷新保持，取消钉住删键
    S5  paperClear：#score 左缘 ≥ 左栏右缘−1、右缘 ≤ 右栏 / 竖条左缘+1；3 视口 × 浅深 × {预设谱, 新建 pacc} × 旧左栏面板开 / 关 共 24 态；
@@ -118,8 +119,9 @@ const M = {
       zoom: document.getElementById('eb-zoom').parentElement.id || document.getElementById('eb-zoom').parentElement.className } }),
   visH: () => { const sw = __R('#score-wrap'), md = __R('#mixer-dock'), top = __R('#top');
     const lbw = document.getElementById('lb-wrap'), lbb = lbw && (lbw.querySelector('.lb-bar') || lbw), lb = lbb && __vis(lbb) ? __R(lbb) : null;
-    const t = Math.max(sw.y, top.vis ? top.b : 0, lb ? lb.b : 0), bt = Math.min(md && md.vis ? md.y : innerHeight, sw.b, innerHeight);
-    return { vh: Math.round((bt - t) * 10) / 10, lb: lb ? lb.h : 0, sw: sw.y + '–' + sw.b }; },
+    const sbw = document.getElementById('flw-sbar'), sb = sbw && __vis(sbw) ? __R(sbw) : null;   /* v68.3 谱面上方的悬浮条（外框含衬底） */
+    const t = Math.max(sw.y, top.vis ? top.b : 0, lb ? lb.b : 0, sb ? sb.b : 0), bt = Math.min(md && md.vis ? md.y : innerHeight, sw.b, innerHeight);
+    return { vh: Math.round((bt - t) * 10) / 10, lb: lb ? lb.h : 0, sb: sb ? sb.h : 0, st: Math.round(document.getElementById('score-wrap').scrollTop), sw: sw.y + '–' + sw.b }; },
   clear: () => { const sv = __R('#score'), ld = __R('#left-dock'), fl = document.getElementById('left-flyout'), lf = __R('#flw-left');
     let L = ld && ld.vis ? ld.r : 0; const fly = !!(fl && __vis(fl)); if (fly) L = Math.max(L, __R(fl).r);
     if (lf && lf.vis) L = Math.max(L, lf.r);   /* v68.0 左栏 #flw-left 248 常驻 */
@@ -217,6 +219,8 @@ const M = {
     /* 版本角标 #rc-ver（＝APP_VER，每版必变，不是外壳差异）两边统一成同一占位再对拍：此前基线是 v67.8、被测是 v67.9 起，
        S0 恒在右栏 outerHTML / body.innerHTML 的角标处报差（v68.0 骨架核实：除角标外与 v67.8 逐字节相同） */
     await pg.evaluate(() => { const rv = document.getElementById('rc-ver'); if (rv) rv.textContent = 'vX'; });
+    /* v68.3 有意改动 ⑤（D2 打开文件认 MIDI / MusicXML / Guitar Pro）：顶栏 #b-open 的提示与 #file-in 的 accept 两边统一成同一占位再对拍（行为见 tv_fix683 X2） */
+    await pg.evaluate(() => { const o = document.getElementById('b-open'), f = document.getElementById('file-in'); if (o) o.title = 'X'; if (f) f.setAttribute('accept', 'X'); });
     const r = await pg.evaluate(IDS => {
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
@@ -242,6 +246,8 @@ const M = {
        ② TRK-5 引擎 / 混音台音量读数 trkVolOf（存了 0 的显示 0%、不出声；快照里没有 vol=0 的轨）
        ③ TRK-6 删吉他轨混音 / 变调夹随行前移（只在删轨时）
        ④ PN-5 五线谱音名键按本小节调（只在中途转调的五线谱小节里；这几份谱没有转调）
+       ⑤ v68.3 D2：顶栏「打开」#b-open 的提示与 #file-in 的 accept（认 MIDI / MusicXML / Guitar Pro）——快照前两边统一成占位；
+          v68.3 其余缺陷修复（D1 存储被禁用的内存版与提示、D3 填词框多字分配、D4 MusicXML 轨名、D5 观看意图不写键）都不在这几组开机 / 多窗口快照的路径上，仍要求零差异
      musetab-flow 键不参与键集合对拍（旧外壳写 '0'，基线默认外壳不写），另由 S0b 断言其值为 '0' */
   if (want('S0')) jobs.push(async () => {
     const CASES = [['boot', 1280, 800, 'light'], ['boot', 1440, 900, 'dark'], ['multidoc', 1280, 800, 'light'], ['multidoc', 1280, 800, 'dark'], ['multidoc', 1440, 900, 'light'], ['multidoc', 1440, 900, 'dark']];
@@ -281,7 +287,7 @@ const M = {
       'deploy.yml 的 test job 要先 git fetch --depth=1 origin <shellflow_ref.json 的 commit>');
     else if (!refURL) NOTE('S0', '⚠️  S0 与 ' + (REF.version || 'v67.8') + ' 对拍跳过：拿不到参考（git show ' + REF_COMMIT.slice(0, 12) + ' 失败；本地可设 MUSETAB_REF=参考 index.html，MUSETAB_REF=none 为显式跳过）');
     else { const bad = res.filter(x => x && x.diffs.length);
-      T('S0', bad.length === 0, 'S0 旧外壳（?shell=classic / 本机键 0）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键（除 musetab-flow）· song JSON；有意改动见上方注释 ①–④）',
+      T('S0', bad.length === 0, 'S0 旧外壳（?shell=classic / 本机键 0）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键（除 musetab-flow）· song JSON；有意改动见上方注释 ①–⑤）',
         bad.length ? bad.map(x => x.tag + '：' + x.diffs.join(' | ')).join('\n      ') : res.map(x => x.tag + '（' + x.n + ' 个 id）').join('；')); }
   });
 
@@ -328,14 +334,21 @@ const M = {
   /* ================= S2 S3 S4（静态）S5 S16 S17：3 视口 × 浅 / 深 ================= */
   const VPS = [[1280, 800], [1366, 768], [1440, 900]];
   const GEO = {};
-  const MINVH = { 1280: 684, 1366: 652, 1440: 784 };   /* 方案 README 的可见高（验收 L5：此前 ≥683 / 651 / 783 把 #top 多出的 1px 吸收掉了） */
+  const MINVH = { 1280: 638, 1366: 606, 1440: 738 };   /* v68.3 悬浮条展开（吸住）：v68.2 方案值 684 / 652 / 784 减外框 46（验收 L5：#top 多出的 1px 不吸收） */
+  const MINVHC = { 1280: 650, 1366: 618, 1440: 750 };  /* v68.3 悬浮条收起（吸住）：减外框 34 */
   if (['S2', 'S3', 'S4', 'S5', 'S16'].some(want)) for (const [w, h] of VPS) for (const sc of ['light', 'dark']) jobs.push(async () => {
     const tag = w + '×' + h + (sc === 'dark' ? ' 深' : ' 浅'), g = GEO[tag] = { err: null, clear: [] };
     try {
       const pg = await open(w, h, { scheme: sc, tag });
       await EV(pg, () => __scn('songbie')); await wait(pg, 350);
       await EV(pg, () => { try { closeFlyout(); } catch (_) {} render(); }); await wait(pg, 300);
-      g.sh = await EV(pg, M.shell); g.vh = await EV(pg, M.visH); g.hit = await EV(pg, M.hits);
+      g.sh = await EV(pg, M.shell); g.hit = await EV(pg, M.hits);
+      /* S3：吸住状态（scrollTop≥50）量展开 / 收起两态的谱面可见高，量完滚回、展开（musetab-sbar 删键） */
+      await EV(pg, () => { document.getElementById('score-wrap').scrollTop = 120; }); await wait(pg, 120);
+      g.vh = await EV(pg, M.visH);
+      await EV(pg, () => FLOW.sbar.toggle({ exp: false })); await wait(pg, 120);
+      g.vhc = await EV(pg, M.visH);
+      await EV(pg, () => { FLOW.sbar.toggle({ exp: true }); document.getElementById('score-wrap').scrollTop = 0; }); await wait(pg, 150);
       if (w !== 1366) await shot(pg, 'flow-' + w + 'x' + h + '-' + sc);
       for (const k of ['songbie', 'newpacc']) {
         if (k === 'newpacc') { await EV(pg, () => __scn('newpacc')); await wait(pg, 400); }
@@ -1230,8 +1243,9 @@ const M = {
     if (want('S2')) SAFE('S2', 'S2', () => { const bad = ok.filter(([, g]) => { const s = g.sh; return !(s.flow && s.r1 && s.r1.vis && Math.abs(s.r1.h - 44) <= 0.5 && Math.abs(s.eb.h - 40) <= 0.5 && Math.abs(s.top.b - 84) <= 0.5 && Math.abs(s.md.h - 32) <= 0.5 && Math.abs(s.md.b - s.ih) <= 0.5 && s.top.b + s.md.h <= 116.5); });
       T('S2', !bad.length && ok.length === 6, 'S2 外壳总高（3 视口 × 浅 / 深）：行 1 44 · 行 2 40 · #top 底 84（＝44+40，无 1px 底边）· 状态栏 32 贴底 · 顶 + 底 116',
         (bad.length ? '不符 ' : '') + (bad.length ? bad : ok).map(([k, g]) => k + ' r1=' + hv(g.sh.r1) + ' eb=' + hv(g.sh.eb) + ' top.b=' + bv(g.sh.top) + ' dock=' + hv(g.sh.md) + '@' + bv(g.sh.md)).join('；')); });
-    if (want('S3')) SAFE('S3', 'S3', () => { const bad = ok.filter(([k, g]) => !(g.vh.vh >= MINVH[k.split('×')[0]]));
-      T('S3', !bad.length && ok.length === 6, 'S3 谱面可见高（#score-wrap 可视区减谱型条）：1280×800 ≥684 · 1366×768 ≥652 · 1440×900 ≥784', ok.map(([k, g]) => k + ' ' + g.vh.vh + (g.vh.lb ? '（谱型条 ' + g.vh.lb + '）' : '')).join('；')); });
+    if (want('S3')) SAFE('S3', 'S3', () => { const bad = ok.filter(([k, g]) => { const w = k.split('×')[0]; return !(g.vh.vh >= MINVH[w] && g.vh.st >= 50 && g.vh.sb === 46 && g.vhc && g.vhc.vh >= MINVHC[w] && g.vhc.sb === 34); });
+      T('S3', !bad.length && ok.length === 6, 'S3 谱面可见高（#score-wrap 可视区减谱型条与悬浮条，吸住时量）：悬浮条展开 1280×800 ≥638 · 1366×768 ≥606 · 1440×900 ≥738；收起 ≥650 / 618 / 750',
+        ok.map(([k, g]) => k + ' 展开 ' + g.vh.vh + '（条 ' + g.vh.sb + '，scrollTop ' + g.vh.st + '）收起 ' + (g.vhc && g.vhc.vh) + '（条 ' + (g.vhc && g.vhc.sb) + '）' + (g.vh.lb ? '（谱型条 ' + g.vh.lb + '）' : '')).join('；')); });
     if (want('S4')) SAFE('S4', 'S4a', () => { const bad = ok.filter(([k, g]) => { const w = +k.split('×')[0], s = g.sh; if (!s.rd || !s.rs) return true; return w >= 1440 ? !(s.rd.vis && Math.abs(s.rd.w - 264) <= 0.5 && !s.rs.vis && J(s.cls) === '["flw-rd"]')
         : !(s.rs.vis && Math.abs(s.rs.w - 40) <= 0.5 && !s.rd.vis && J(s.cls) === '["flw-rs"]'); });
       T('S4', !bad.length && ok.length === 6, 'S4a 右栏让位：1440 停靠 264（无竖条，body.flw-rd）；1280 / 1366 竖条 40（右栏不占位，body.flw-rs）', ok.map(([k, g]) => k + ' rd=' + (g.sh.rd && g.sh.rd.vis ? g.sh.rd.w : '隐') + ' rs=' + (g.sh.rs && g.sh.rs.vis ? g.sh.rs.w : '隐')).join('；')); });

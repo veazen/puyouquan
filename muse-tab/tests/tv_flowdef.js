@@ -15,7 +15,7 @@
    F8  v68.2 收尾修复（上线前最后一轮验收）：a NU-2 界面无内部用语 · b NU-3 锁定此行 · c NU-6 和弦谱口径 / NU-11 / OU-8 文案 · d NU-7「还有 N 条」实底 · e NU-8 原样示例谱不转存 ·
        f NU-9 启动台灰显存入 / 存文件 · g NU-10 / OU-5 旧名搜索 · h OU-1 浮条「…」· i OU-3 / OU-4 开关与深链参数 · j OU-6 Ctrl+O / OU-7 谱库按键 · k ENG-2 开机树只画一遍 · l ENG-10 ③ / ENG-12
        F3q / F3r（NU-1 / NU-4 / NU-5 / ENG-3 / ENG-4）在 F3 段；F3l 改为旧外壳一次性提示（OU-2 / ENG-11）
-   RL  数据红线：各用例 song 字段集合 ⊆ 操作前 ∪ 本用例应写的现有字段；musetab-* 键差集（去掉基线提交源码已有的键名）⊆ {musetab-tour-shell}；源码新键名同口径
+   RL  数据红线：各用例 song 字段集合 ⊆ 操作前 ∪ 本用例应写的现有字段；musetab-* 键差集（去掉基线提交源码已有的键名）⊆ {musetab-tour-shell, v68.3 musetab-sbar}；源码新键名同口径
    env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_REF 参考页（none＝红线键名退回被测源码）· MUSETAB_REF_COMMIT · ONLY=F1,F3 · SHOTS=目录 存导览 / 偏好设置截图 */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), cp = require('child_process');
@@ -27,7 +27,7 @@ const want = k => !ONLY.length || ONLY.includes(k);
 const SHOTS = process.env.SHOTS || '';
 const REF = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'shellflow_ref.json'), 'utf8')); } catch (_) { return {}; } })();
 const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || 'a8c2089';
-const NEW_KEYS = ['musetab-tour-shell'];
+const NEW_KEYS = ['musetab-tour-shell', 'musetab-sbar'];   /* v68.3 + musetab-sbar（谱面上方悬浮条收起＝'0'，展开删键） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
@@ -675,18 +675,22 @@ function INIT() {
       'F8c NU-6 纯和弦谱（chordOnly）：行 2「作用于」芯片写「' + a.scope + '」，与音轨树（nota=chord）同口径，状态栏不再写「· 简谱」', J(a));
     const b2 = await EV(pg, () => {
       const out = {};
-      const g = document.getElementById('flw-start'); out.sg = !!(g && !g.hidden && g.offsetParent);
-      out.retext = FLOW.start.retext('下一步见谱面上方的谱型条：先写旋律');
+      /* v68.3 迁移：起步收回谱面上方的悬浮条——展开着时落地提示不再写「下一步见…」（guide 返回 ''），收起时说「谱面上方的悬浮条」 */
+      out.exp = FLOW.sbar.expanded(); out.guide = FLOW.sbar.guide('——下一步见谱面上方的谱型条：先写旋律');
       try { showQuickbar(400, 300, true); const q = document.querySelector('#quickbar [data-qb="off"]'); __toasts.length = 0; if (q) q.click(); out.qboff = __toasts.slice(-1)[0] || ''; localStorage.removeItem('musetab-quickbar'); } catch (e) { out.qboff = 'ERR ' + e.message; }
       return out; });
-    /* 真实新建一份钢琴伴奏歌谱（新建面板）：落地 toast 指向起步组 */
-    await EV(pg, () => { __toasts.length = 0; showNewWizard(); }); await wait(pg, 400);
-    await pg.click('.nf-modal [data-scene="pacc"]').catch(() => {}); await wait(pg, 200);
-    await pg.click('#nw-create'); await wait(pg, 700);
-    const b3 = await EV(pg, () => { const g = document.getElementById('flw-start'); return { sg: !!(g && !g.hidden && g.offsetParent), t: __toasts.filter(x => /起步|下一步/.test(x)).slice(-1)[0] || '' }; });
-    T('F8', (b2.sg ? /行 2 的「起步」/.test(b2.retext) : /右栏/.test(b2.retext)) && !/工具栏左端/.test(b2.retext) && /账号 ▾ ›「偏好设置」/.test(b2.qboff) && !/顶栏「偏好设置」/.test(b2.qboff)
-      && b3.sg && /行 2 的「起步」/.test(b3.t) && !/工具栏左端/.test(b3.t),
-      'F8c2 NU-11 / OU-8 新外壳文案：新建钢琴伴奏歌谱的落地 toast 写「行 2 的「起步」」（不再是「工具栏左端」）；浮条「✕」的 toast 指向「账号 ▾ ›「偏好设置」」（新外壳没有顶栏偏好设置钮）', J({ b2, b3 }));
+    /* 真实新建一份钢琴伴奏歌谱（新建面板）：悬浮条展开 → 落地 toast 不提谱型条 / 起步 / 下一步见；收起 → 再建一份，toast 写「谱面上方的悬浮条」 */
+    const mk = async () => { await EV(pg, () => { __toasts.length = 0; showNewWizard(); }); await wait(pg, 400);
+      await pg.click('.nf-modal [data-scene="pacc"]').catch(() => {}); await wait(pg, 200);
+      await pg.click('#nw-create'); await wait(pg, 700);
+      return EV(pg, () => ({ t: __toasts.filter(x => /已新建/.test(x)).slice(-1)[0] || '', k: NWB.stackOf(song), bar: FLOW.sbar.shown() })); };
+    const b3 = await mk();
+    await EV(pg, () => FLOW.sbar.toggle({ exp: false }));
+    const b4 = await mk();
+    await EV(pg, () => FLOW.sbar.toggle({ exp: true }));
+    T('F8', b2.exp && b2.guide === '' && /账号 ▾ ›「偏好设置」/.test(b2.qboff) && !/顶栏「偏好设置」/.test(b2.qboff)
+      && b3.k === 'JG' && b3.bar && !!b3.t && !/谱型条|起步|下一步见|工具栏左端/.test(b3.t) && b4.k === 'JG' && /谱面上方的悬浮条/.test(b4.t) && !/谱型条|工具栏左端/.test(b4.t),
+      'F8c2 NU-11 / OU-8 新外壳文案（v68.3 迁移）：新建钢琴伴奏歌谱——悬浮条展开时落地 toast 不再写「谱型条 / 起步 / 下一步见」（条就在屏上），收起时写「谱面上方的悬浮条」；浮条「✕」的 toast 指向「账号 ▾ ›「偏好设置」」（新外壳没有顶栏偏好设置钮）', J({ b2, b3, b4 }));
     await close(pg);
   }));
   /* F8d NU-7：「还有 N 条 ↓」文字区实底（渐隐只留在提示条上方），不再透出下面的组标题 */

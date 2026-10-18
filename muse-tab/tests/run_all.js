@@ -35,6 +35,11 @@ const CORE = [
   'tv_uicmd',
   /* v68.2 文案轨（计划 §5.6）：编辑器帮助弹窗按新布局（新外壳 / 手机新外壳）· 旧外壳帮助与 shellflow_ref.json 基线逐字节对拍 · 官网 help.html 新布局 · 措辞闸防四步口径（H1–H10）：单跑约 25 秒 */
   'tv_helpflow',
+  /* v68.3 谱面上方的悬浮条 #flw-sbar（负责人 2026-10-18：保留吸顶悬浮条、默认展开、可收起、放常用功能、少字）：几何 · 收纳 · 每谱类内容对拍规格 · 起步推进 · 委托同效 ·
+     记谱法 · 收起 / 本机键 musetab-sbar · Alt+B 与键盘 · 读屏 · 去重 · 模式与场景 · 层级 · 跟滚让位 · 谱面零变化 · 旧外壳零差异 · 数据红线 · 性能 · 命令面板 · 落地提示（SB1–SB21）：单跑约 90 秒（两路并行） */
+  'tv_sbar',
+  /* v68.3 缺陷修复（PROJECT.md §9.0 P0 / P1，两外壳）：存储被禁用不白屏 · 打开文件认 MIDI / MusicXML / GP · 填词框整句按字分配 · MusicXML 往返轨名 · ?pub+?shell 不写键：单跑约 60 秒（两路并行） */
+  'tv_fix683',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
