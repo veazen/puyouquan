@@ -110,13 +110,10 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     song.measures.forEach(m=>{ [0,1].forEach(v=>{ m.tabs[v]=[];
       for(let i=0;i<8;i++) m.tabs[v].push(__tc({dur:8,notes:[{s:1+(i%6),f:(i*3)%12}]})); }); });
     sel={mi:0,row:'tab',vi:0,ci:0,si:3}; render();
-    let w=0;
-    const mo=new MutationObserver(ms=>ms.forEach(x=>{ if(x.type==='childList' && x.target.id==='score') w++; }));
-    mo.observe(document.getElementById('score'), {childList:true});
-    const count=fn=>new Promise(res=>{ w=0; fn(); setTimeout(()=>res(w),0); });
+    /* v68.4 起 #score 按谱行段增量替换（一次渲染会有多条 childList 变动记录），改数渲染次数本身：RENDER_STAT.n（render() 每次整谱排版 +1） */
+    const count=fn=>new Promise(res=>{ const n0=RENDER_STAT.n; fn(); setTimeout(()=>res(RENDER_STAT.n-n0),0); });
     const one=await count(()=>{ sel.ci=0; inputDigit(5); });
     const two=await count(()=>{ sel.ci=0; inputDigit(1); inputDigit(2); });
-    mo.disconnect();
     return {one, two, adv: autoAdvOn()};
   })()`);
   T(r.one === 1 && r.two === 2,
