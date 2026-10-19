@@ -40,20 +40,31 @@ const CORE = [
   'tv_sbar',
   /* v68.3 缺陷修复（PROJECT.md §9.0 P0 / P1，两外壳）：存储被禁用不白屏 · 打开文件认 MIDI / MusicXML / GP · 填词框整句按字分配 · MusicXML 往返轨名 · ?pub+?shell 不写键：单跑约 60 秒（两路并行） */
   'tv_fix683',
+  /* v68.4 性能（§9.0 P2）：开机段 PA1–PA6（开机首画延后 · 离台一帧内就位 · 直达谱面 · 与旧外壳的相对计时 · 音色预解码 / 小节格宽度缓存 · 数据红线）；
+     计时断言只比同一次运行里的旧外壳（首访 + 回访合计 ×1.15+80ms，各 7 次交替取中位），绝对数打印备查：单跑约 100 秒（串行，计时段不与别的页面并发） */
+  'tv_perf',
+  /* v68.4 性能（§9.0 P2-b，B 轨）：长谱每笔 / 排版模式每笔——#score 按谱行增量替换 · 单次渲染记忆 · 排版快照离文档 + 逐段序列化 + 预览页按段换 · 我的曲谱只读快照；
+     P1–P5 / P7 与关缓存（window.__noRenderCache）逐字节对拍，P6 相对计时（开 ≤ 关×0.6 / ×0.8）。PERF=0 跳过 P6 */
+  /* v68.4 收尾 PERF-5：tv_perf2 单跑约 9 分钟（P1 30 份谱 × 19 步缓存开 / 关两遍、P8 逐页几何、P6 计时段）——拆成三条（「名字:段」＝ env ONLY），每条约 2–4 分钟，
+     慢机上不会整条被 900 秒上限打穿；断言不变 */
+  'tv_perf2:P0,P1', 'tv_perf2:P2,P3,P4,P5,P7,P8,P9', 'tv_perf2:P6',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000 };   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000 };   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+/* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 let fail = 0, ran = 0;
 for (const s of suites) {
-  const f = s.endsWith('.js') ? s : s + '.js';
+  /* v68.4 收尾 PERF-5：「套件名:段」＝只跑这几段（传 env ONLY 给套件，如 tv_perf2:P6） */
+  const ci = s.indexOf(':'), nm = ci > 0 ? s.slice(0, ci) : s, only = ci > 0 ? s.slice(ci + 1) : '';
+  const f = nm.endsWith('.js') ? nm : nm + '.js';
   if (!fs.existsSync(f)) { console.log('⚠️  跳过（不存在）: ' + s); continue; }
   ran++;
   let out = '', code = 0;
   /* v67.3 单套件超时 180→300 秒：tv_deskscale2 多视口真实点击单跑 107–143 秒，CI 负载下离 180 秒上限太近（超时只防挂死，不放宽断言） */
-  try { out = execFileSync('node', [f], { encoding: 'utf8', env: process.env, timeout: TIMEOUT[f.replace(/\.js$/, '')] || 300000 }); }
+  try { out = execFileSync('node', [f], { encoding: 'utf8', env: only ? Object.assign({}, process.env, { ONLY: only }) : process.env, timeout: TIMEOUT[s] || TIMEOUT[f.replace(/\.js$/, '')] || 300000 }); }
   catch (e) { code = e.status == null ? 1 : e.status; out = (e.stdout || '') + (e.stderr || ''); }
   // 失败判定：子进程非零退出 || 输出含 ❌（各套件失败断言的统一标记）|| 无任何输出（崩溃）。
   // 不强制要求 PASS/NO ERRORS 标记——部分老套件仅逐行打 ✅（如 tv_brace）。

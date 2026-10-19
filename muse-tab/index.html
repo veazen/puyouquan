@@ -3673,6 +3673,8 @@ body.flow .flw-off{display:none!important}
   /* v68.1 收尾 RG-2：预览缩放真的放大（全局 svg{max-width:100%} 会把放大后的页压回容器宽，画面不动）；适配宽度时页宽本就等于可用宽，不受影响 */
   body.flow[data-mode="engrave"]:not(.stand):not(.viewer) #pv-pages .pv-paper svg,
   body.flow[data-mode="output"]:not(.stand):not(.viewer) #pv-pages .pv-paper svg{max-width:none}
+  /* v68.4 收尾 C2 / UX-3：页壳复用时可视区外留着上一笔谱面的页（FLOW.mode.fill 标 data-flw-old），换成新谱面之前不露出 */
+  #pv-pages .pv-paper > svg[data-flw-old]{visibility:hidden}
   body.flow:not(.stand):not(.viewer) #pv-stage:focus{outline:none}
   body.flow:not(.stand):not(.viewer) #pv-stage:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
   body.flow[data-mode="engrave"]:not(.stand):not(.viewer) #score-wrap,
@@ -8531,6 +8533,11 @@ function tabJpPanelVi(){
   return n===1? 0 : -2;
 }
 let JP_MEMO = null;   /* 单次 render 内的虚拟列 / 连音表缓存（render 外调用一律现算） */
+/* v68.4 P2-b（剖析 B3）单次 render 内的记忆：render() / renderOffscreen 在调 renderCore 前新建、返回时清掉（render 外调用一律现算）。
+   只记「同一次排版里对同一份谱反复算、结果相同」的整曲扫描：tabTieMap（每行 systemExtras 各扫一遍全曲，双轨 200 小节 ≈25ms）、
+   sysMetrics 的整曲部分（钢琴谱每行扫一遍全曲加线区，且每小节 staffKeyInfoAt 从头扫转调，O(n²)）。
+   一次 renderCore 期间谱数据不变；键里带谱对象，借谱排（离屏）不串。window.__noRenderCache 时不建（对拍用的参考渲染） */
+var RMEMO = null;
 function tabJpCols(mi, vi, TM){
   const mk = JP_MEMO && (mi+':'+vi+':'+(TM?1:0)); if(mk && JP_MEMO.has(mk)) return JP_MEMO.get(mk);
   const r = tabJpCols0(mi, vi, TM); if(mk) JP_MEMO.set(mk, r); return r;
@@ -9767,6 +9774,12 @@ function layoutSystems(){
    返回 {to:{起点'mi:ci:s'→终点{mi,ci,s}}, from:{终点键→起点{mi,ci,s}}}；只读，不改数据。 */
 function tabTieMap(s2, vi){
   s2 = s2 || song;
+  if(RMEMO){ const h=RMEMO.get('ttm'+vi); if(h && h.s===s2) return h.v; }
+  const r = tabTieMap0(s2, vi);
+  if(RMEMO) RMEMO.set('ttm'+vi, {s:s2, v:r});
+  return r;
+}
+function tabTieMap0(s2, vi){
   const to = {}, from = {}, last = {};
   const clear = ()=>{ for(const k in last) delete last[k]; };
   (s2.measures||[]).forEach((m, mi)=>{
@@ -10335,9 +10348,13 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
      技法字母 / 逐音连音线弧（v67.0 tieIn）/ 推弦 / 文字和弦名 / 标注 / 房子括线 / 排练 / 转调 / 𝄋𝄌 各按实测墨迹顶给 band */
   const JX = tabJpAny()? (jpEx || jpRowExtras(null)) : null;
   if(song.tabStaff && nT){
+    let upPx=0, dnPx=0, decPx=0;
+    /* v68.4 B3：整曲扫描与本行无关——单次 render 内只扫一遍（RMEMO），算式不变 */
+    const hT = RMEMO && RMEMO.get('smT');
+    if(hT && hT.s===song){ upPx=hT.v[0]; dnPx=hT.v[1]; decPx=hT.v[2]; }
+    else{
     const Kt = staffKeyInfo(), SNt = strN();
     const SBt = song.tabClef==='bass'? 25 : 37;
-    let upPx=0, dnPx=0, decPx=0;
     song.measures.forEach(m=>m.tabs.forEach(cols=>cols.forEach(c=>(c.notes||[]).forEach(n=>{
       if(!(n.s>=1 && n.s<=SNt)) return;
       const st2 = midiToStaff(TUNING[n.s-1]+(n.f||0)+12, Kt).step;
@@ -10347,6 +10364,8 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
       const reach = (n.tech==='b'||n.tech==='bd'||n.bendType)? 26 : (n.hmT||n.tech||n.tk||n.bar||n.tieIn)? 17 : 0;   /* v67.0 tieIn 弧同纯连音线 */
       if(reach) decPx=Math.max(decPx, reach);
     }))));
+    if(RMEMO) RMEMO.set('smT', {s:song, v:[upPx, dnPx, decPx]});
+    }
     tLedUp = upPx? upPx+6 : 0;
     tGapDn = Math.max(14*vs, (dnPx? dnPx+5 : 0) + (decPx>0? decPx+4 : 0) + 6);
   }
@@ -10390,18 +10409,29 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     let ledUp=0, ledDn=0, relDd=0;
     if(st && K3){
       /* v45.6 小节内换谱号：加线区按各列当时生效的谱号底线计算（clef 状态自曲首沿列延续） */
-      let clefC = nt2, relU=0, relD=0;
-      song.measures.forEach((m,mi3)=>{ const K3m=staffKeyInfoAt(mi3); (m.voxes[i]||[]).forEach(c=>{
+      let relU=0, relD=0;
+      /* v68.4 B3：整曲扫描（谱号延续 · 每小节 staffKeyInfoAt）单次 render 内只做一遍（RMEMO）：记下整曲的 relU / relD 与每小节的 relDd 贡献，
+         本行的 relDd＝本行各小节贡献取大（与原来逐小节 inSys 判定后取大同一个值）；不在 render 里（RMEMO 空）照原样现算 */
+      const kS='smV'+i+':'+nt2, hS=RMEMO && RMEMO.get(kS);
+      let S = hS && hS.s===song? hS.v : null;
+      if(!S){
+      let clefC = nt2; const dd=[];
+      song.measures.forEach((m,mi3)=>{ const K3m=staffKeyInfoAt(mi3); let dm=0; (m.voxes[i]||[]).forEach(c=>{
         if(c.clef && CLEF_BOT[c.clef]) clefC = c.clef;
         if(!c.deg) return;
         const SBOT = CLEF_BOT[clefC]||37;
         /* relDd：对照行（谱表下附简谱）专用——第一条下加线以下（高音谱号 B3 起）的符头就会压到简谱数字与高音点，
            不能沿用普通谱表「第二条加线以下才让」的门槛（v67.5 验收：低音区旋律做成教学对照谱时下加线音符与简谱行相撞） */
         /* 第二轮验收：relDd 只数本系统的小节（sysMis；基准调用 sysMis 缺省＝整曲）——此前整曲一个 B3 就让每一行简谱下移、长谱多出一页 */
-        const inSys = !sysMis || sysMis.has(mi3);
-        const chk = s2=>{ if(s2>SBOT+11) relU=Math.max(relU, s2-(SBOT+11)); if(s2<SBOT-5) relD=Math.max(relD, (SBOT-5)-s2); if(inSys && s2<SBOT-2) relDd=Math.max(relDd, (SBOT-2)-s2); };
+        const chk = s2=>{ if(s2>SBOT+11) relU=Math.max(relU, s2-(SBOT+11)); if(s2<SBOT-5) relD=Math.max(relD, (SBOT-5)-s2); if(s2<SBOT-2) dm=Math.max(dm, (SBOT-2)-s2); };
         chk(K3m.step0+(c.deg-1)+(c.oct||0)*7);
-        (c.adds||[]).forEach(a=>{ if(a&&a.deg) chk(K3m.step0+(a.deg-1)+(a.oct||0)*7); }); }); });
+        (c.adds||[]).forEach(a=>{ if(a&&a.deg) chk(K3m.step0+(a.deg-1)+(a.oct||0)*7); }); }); dd[mi3]=dm; });
+      S={relU, relD, dd};
+      if(RMEMO) RMEMO.set(kS, {s:song, v:S});
+      }
+      relU=S.relU; relD=S.relD;
+      if(sysMis){ for(const mi3 of sysMis){ const d=S.dd[mi3]; if(d>relDd) relDd=d; } }
+      else for(const d of S.dd) if(d>relDd) relDd=d;
       ledUp = relU*3.75 + (relU? 6:0);
       ledDn = relD*3.75 + (relD? 4:0);
     }
@@ -10416,7 +10446,9 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     const LYR_ASC = 16*0.88, LYR_CLEAR = 7;
     /* v64.9 B4c ①（P2-03）本声部有力度/表情记号时歌词再下移一条记号带（此前力度写死在数字下方 14px，压到歌词）；
        对照谱的加线深度已放进谱表↔简谱行间隙，歌词不再重复让 */
-    const dynBand = (song.measures||[]).some(m=>((m.voxes||[])[i]||[]).some(c=>c && c.dyn))? 12 : 0;
+    const kD='smD'+i, hD=RMEMO && RMEMO.get(kD);   /* v68.4 B3：整曲扫描，单次 render 内只做一遍 */
+    const dynBand = (hD && hD.s===song)? hD.v : (song.measures||[]).some(m=>((m.voxes||[])[i]||[]).some(c=>c && c.dyn))? 12 : 0;
+    if(RMEMO && !(hD && hD.s===song)) RMEMO.set(kD, {s:song, v:dynBand});
     const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC + dynBand;
     const ledL = dual? 0 : ledDn;
     voxYs.push(y); lyricY0.push(y + lyrDrop + ledL);
@@ -11134,7 +11166,8 @@ function render(opt){
   /* 代理指标：耗时与版式调用数（measureLayout 实测只占渲染 3%，且版式对象会被两端对齐就地改写，不做跨调用缓存） */
   const t0=performance.now(); RENDER_STAT.layoutCalls=0;
   JP_MEMO = tabJpAny()? new Map() : null;
-  try{ renderCore(); } finally{ JP_MEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
+  RMEMO = window.__noRenderCache? null : new Map();   /* v68.4 B3 单次渲染内记忆（见 RMEMO） */
+  try{ renderCore(); } finally{ JP_MEMO = null; RMEMO = null; RENDER_STAT.ms=performance.now()-t0; RENDER_STAT.n++; }
   try{ lbSync(); }catch(e){ console.error('谱型条同步异常', e); }   // v67.5 谱型条＋起步条按谱内容现算（没有谱型条的窗口一次查表即返回）
   if(SEL_FOLLOW){ SEL_FOLLOW=false; try{ selFollow(); }catch(_){} }   // v67.3 键盘移动光标后跟滚（见 selFollow）
   if(flowOn()) try{ FLOW.sync(); }catch(e){ console.error('flow 同步异常', e); }   // v67.9 flow 外壳：只更新文字 / 状态类 / aria，不改 #paper 宽（§1.5-4）
@@ -11171,7 +11204,7 @@ function renderOffscreen(o){
     tg.classList.toggle('score-invert', o.invert!=null? !!o.invert : !!(P && P.classList.contains('score-invert'))); }
   const K = {song, sel, blurSel, noteSel, barSel, selRange, measureSel, measureRange, meaHandleOn, lyrSel, activeLyr,
     colBoxes, meaBands, meaBoxes, PV_GEO, SYS_GEO, PAGE_W, MARGIN, STAFF_HEAD_W, LAY_HS, LAY_VS, LAY_RG, LAY_BIGK, LAY_FIXED_NOW, LAST_PAPER_W,
-    HD_FAM, diagMode, JP_MEMO, LYR_USED, LYR_ANY, LYR_ALL, DUAL_GAP, dg:DUAL_GAP.slice(), rs:Object.assign({}, RENDER_STAT)};
+    HD_FAM, diagMode, JP_MEMO, RMEMO, LYR_USED, LYR_ANY, LYR_ALL, DUAL_GAP, dg:DUAL_GAP.slice(), rs:Object.assign({}, RENDER_STAT)};
   let out = null;
   try{
     const s = Object.assign({}, o.song);
@@ -11183,6 +11216,7 @@ function renderOffscreen(o){
     RENDER_OFF = {target:o.target, paperW: Math.max(200, +o.paperW || 660), maxSys: ms>0? Math.floor(ms) : Infinity, crop: o.crop!==false, fixed: !!o.fixed, out:null};
     if(typeof o.prep==='function'){ o.prep(s); if(!o.fixed && s.layout && s.layout.fixed) s.layout = Object.assign({}, s.layout, {fixed:false}); }
     JP_MEMO = tabJpAny()? new Map() : null;
+    RMEMO = window.__noRenderCache? null : new Map();
     renderCore();
     out = Object.assign({ms: performance.now()-t0, boxes: colBoxes, sysGeo: SYS_GEO}, RENDER_OFF.out);
   } finally {
@@ -11191,7 +11225,7 @@ function renderOffscreen(o){
     measureSel = K.measureSel; measureRange = K.measureRange; meaHandleOn = K.meaHandleOn; lyrSel = K.lyrSel; activeLyr = K.activeLyr;
     colBoxes = K.colBoxes; meaBands = K.meaBands; meaBoxes = K.meaBoxes; PV_GEO = K.PV_GEO; SYS_GEO = K.SYS_GEO;
     PAGE_W = K.PAGE_W; MARGIN = K.MARGIN; STAFF_HEAD_W = K.STAFF_HEAD_W; LAY_HS = K.LAY_HS; LAY_VS = K.LAY_VS; LAY_RG = K.LAY_RG;
-    LAY_BIGK = K.LAY_BIGK; LAY_FIXED_NOW = K.LAY_FIXED_NOW; LAST_PAPER_W = K.LAST_PAPER_W; HD_FAM = K.HD_FAM; diagMode = K.diagMode; JP_MEMO = K.JP_MEMO;
+    LAY_BIGK = K.LAY_BIGK; LAY_FIXED_NOW = K.LAY_FIXED_NOW; LAST_PAPER_W = K.LAST_PAPER_W; HD_FAM = K.HD_FAM; diagMode = K.diagMode; JP_MEMO = K.JP_MEMO; RMEMO = K.RMEMO;
     LYR_USED = K.LYR_USED; LYR_ANY = K.LYR_ANY; LYR_ALL = K.LYR_ALL;
     DUAL_GAP = K.DUAL_GAP; DUAL_GAP.length = 0; K.dg.forEach((v,i)=>{ DUAL_GAP[i] = v; });
     Object.assign(RENDER_STAT, K.rs);
@@ -11237,6 +11271,192 @@ function selFollow(){
     if(r > pr.right - 16) P.scrollLeft += r - (pr.right - 16) + 60;
     else if(l < pr.left + 16) P.scrollLeft -= (pr.left + 16) - l + 60;
   }
+}
+/* v68.4 P2-b（剖析 B1）谱面按谱行增量替换：200 小节谱一笔要把 4MB 的 #score 整份重新解析、整份重算样式与布局，而约 49/50 的谱行与上一笔逐字相同。
+   renderCore 照旧拼出完整的 p（逐字节不变），只是记下各段在 p 里的起点（页底＋页头 · 每一行 · 播放头 · 热区与拖柄），本函数逐段与上一次比字符串，
+   只把变了的段解析后替换对应的那几个顶层节点；首次 / 段对不上 / 有外来改动时整份按段重建。
+   · 逐字节同前的依据：每段都是「起于 <、止于 >、标签自平衡」的完整片段（svgIncSafe 现查，查不过就退回整份 innerHTML 赋值、不缓存），
+     片段以同一个 <svg> 为上下文解析（insertAdjacentHTML：上下文＝svg 本身或参照节点的父元素 svg，与 innerHTML 同一套片段解析），解析器在段边界的状态与整份解析时相同 → 节点相同、序列化相同。
+   · 不做跨渲染缓存：不存任何排版结果，每笔都完整算出新字符串再比——没有「失效条件」可漏（song 任意字段、版宽、缩放、记谱法、主题、字体、窗口……
+     改了什么都体现在字符串里）。
+   · 外来改动：MutationObserver 盯着谱面子树。播放头 / 竖线被播放逐帧改属性、拖柄改样式等——改动所在的段下一次一律重建；
+     改到顶层（有人直接增删 #score 的子节点 / 整份赋值）或认不出段 → 整份重建。谱面 svg 自身的属性（viewBox / 宽高）不算。
+   · window.__noRenderCache=true（只给测试 / 对拍用，默认不开）：退回 v68.3 的整份 innerHTML 赋值。 */
+function svgIncSafe(s){
+  const n=s.length; if(!n) return true;
+  if(s.charCodeAt(0)!==60 || s.charCodeAt(n-1)!==62) return false;   /* 段首尾不是标签（顶层文字）：相邻段的文字整份解析时会并成一个文本节点，不冒险 */
+  let d=0, i=0;
+  while(i>=0 && i<n){
+    const c=s.charCodeAt(i+1);
+    if(c===47){ if(--d<0) return false; const e=s.indexOf('>', i+2); if(e<0) return false; i=s.indexOf('<', e+1); }
+    else if((c>=65 && c<=90) || (c>=97 && c<=122)){ const e=s.indexOf('>', i+2); if(e<0) return false; if(s.charCodeAt(e-1)!==47) d++; i=s.indexOf('<', e+1); }
+    else return false;   /* 注释 / CDATA / 处理指令 / 裸 <：不在本引擎的输出里，遇到就不走增量 */
+  }
+  /* 外来内容「跳出」标签（HTML 规范 foreign content 的 breakout 名单：<b> <div> <p> <span> <font> …）：整份解析时它会把解析器弹出 svg、
+     其后各段都按 HTML 解析，分段解析则只影响本段——两者不同。本引擎不输出这些标签（用户文字一律 esc），遇到就整份赋值 */
+  return d===0 && !/<\/?(?:b|big|blockquote|body|br|center|code|dd|div|dl|dt|em|embed|h[1-6]|head|hr|i|img|li|listing|menu|meta|nobr|ol|p|pre|ruby|s|small|span|strong|strike|sub|sup|table|tt|u|ul|var|font)(?=[\s/>])/i.test(s);
+}
+function svgIncDrop(svg){ const st=svg && svg.__pqInc; if(!st) return; try{ st.mo.disconnect(); }catch(_){} svg.__pqInc=null; }
+/* 外来改动 → 标脏（只给改动所在的段）或整份重建（st.bad） */
+function svgIncForeign(st, recs){
+  const svg=st.svg;
+  for(const r of recs){
+    if(r.target===svg){ if(r.type==='attributes') continue; st.bad=true; return; }
+    let t=r.target; while(t && t.parentNode!==svg) t=t.parentNode;
+    if(!t){ st.bad=true; return; }
+    let k=t; while(k && !k.__pqCk) k=k.previousSibling;
+    if(!k || k.__pqCk.st!==st){ st.bad=true; return; }
+    k.__pqCk.dirty=true;
+  }
+}
+/* v68.4 收尾 PERF-2：变了的段在元素一级再复用一次——移调这类笔每一行都变，但行里的大多数顶层元素（谱线、小节线、热区格、没换字的音符与和弦图）
+   与上一笔逐字相同（200 小节双轨谱移调一笔约 91% 的顶层元素不变）：把旧段与新串都切成顶层元素，逐字相同的元素原节点留着，
+   其余旧元素删掉、新元素按连续的一截解析插回原位（参照节点的父元素＝svg，与整份解析同一套片段解析）。
+   · 逐字节同前的依据：旧节点＝旧串的解析结果（段没被外来改动过，dirty 为假；节点个数与旧串的顶层元素个数对得上才做）；逐字相同的元素串解析结果相同；
+     新串按顶层元素切成的每一截都是完整元素（切分用与 HTML 分词器一致的保守口径：属性值只认双引号、空白只认 \t \n \f 空格；顶层有文字 / 分不开 / CR NUL 不做），
+     与 B1 按段解析同一个前提（svgIncSafe 已查过本段：无注释、无 foreign content 跳出标签）。不改任何属性值（不做属性级打补丁：实测比重新解析还慢）。
+   · 对齐只决定「留哪些」：逐字相同才留；相同的元素占新串不到 SVG_KEEP_MIN 时整段删了重解析（插 / 删小节、改宽引起的整行平移，几乎没有逐字相同的元素），
+     且本笔连着两段如此就不再试（切分对齐白算）。
+   · window.__noMorph＝true（只给测试 / 对拍）：退回整段删了重解析（v68.4 合并版的 B1 路径） */
+const SVG_TOK = /<\/([A-Za-z][^\t\n\f \/>]*)[\t\n\f ]*>|<([A-Za-z][^\t\n\f \/>]*)((?:[\t\n\f ]+[^\t\n\f "'<=\/>]+(?:="[^"]*")?)*)[\t\n\f ]*(\/?)>|([^<]+)/y;
+const SVG_KEEP_MIN = 0.3, SVG_MORPH_SEGS = 3;
+/* 段串的顶层元素边界：[起点…, 串长]；顶层有文字 / 分不了词 / 不成对 / 含 CR NUL 返回 null（不做） */
+function svgTops(s){
+  if(!s || /[\r\0]/.test(s)) return null;
+  const T=SVG_TOK, out=[], N=s.length; let d=0; T.lastIndex=0;
+  while(T.lastIndex<N){
+    const at=T.lastIndex, m=T.exec(s); if(!m) return null;
+    if(m[5]!=null){ if(!d) return null; continue; }
+    if(m[1]!=null){ if(!d) return null; d--; continue; }
+    if(!d) out.push(at);
+    if(!m[4]) d++;
+  }
+  if(d) return null;
+  out.push(N); return out;
+}
+/* 旧 / 新两串顶层元素按逐字相同对齐：返回 mp[j]＝与新第 j 个逐字相同的旧下标（-1＝重新解析）。相同直接配；不同就在前后 24 个之内找最近的重合 */
+function svgAlign(ka, kb){
+  const N=ka.length, M=kb.length, mp=new Int32Array(M).fill(-1), W=24;
+  let i=0, j=0;
+  while(i<N && j<M){
+    if(ka[i]===kb[j]){ mp[j++]=i++; continue; }
+    let di=-1, dj=-1;
+    for(let t=1; t<=W && i+t<N; t++) if(ka[i+t]===kb[j]){ di=t; break; }
+    for(let t=1; t<=W && j+t<M; t++) if(kb[j+t]===ka[i]){ dj=t; break; }
+    if(di<0 && dj<0){ i++; j++; continue; }
+    if(dj<0 || (di>=0 && di<=dj)) i+=di; else j+=dj;
+  }
+  return mp;
+}
+function svgParseBefore(svg, html, ref){
+  if(!ref) svg.insertAdjacentHTML('beforeend', html);
+  else if(ref.nodeType===1) ref.insertAdjacentHTML('beforebegin', html);
+  else { const r=document.createRange(); r.selectNodeContents(svg); svg.insertBefore(r.createContextualFragment(html), ref); }
+}
+/* 段 o 换成串 s，逐字相同的顶层元素原节点留着。前提不满足（有外来改动、空段、分不开、旧节点与旧串对不上）返回 null、相同的太少返回 0，都一个节点没动；
+   否则返回新段对象（旧段对象作废） */
+function svgMorphCk(svg, o, s){
+  if(o.dirty || !o.f || o.s==null) return null;
+  const A = o.tops || svgTops(o.s), B = svgTops(s); if(!A || !B) return null;
+  const nA=A.length-1, nB=B.length-1, nodes=new Array(nA);
+  for(let n=o.f, c=0;; n=n.nextSibling){ if(c>=nA || !n || n.nodeType!==1) return null; nodes[c++]=n; if(n===o.l){ if(c!==nA) return null; break; } }
+  const os=o.s, K=new Map(), id=t=>{ let v=K.get(t); if(v==null){ v=K.size; K.set(t, v); } return v; };
+  const ka=new Int32Array(nA), kb=new Int32Array(nB);
+  for(let i=0;i<nA;i++) ka[i]=id(os.slice(A[i], A[i+1]));
+  for(let j=0;j<nB;j++) kb[j]=id(s.slice(B[j], B[j+1]));
+  const mp=svgAlign(ka, kb);
+  let hit=0; for(let j=0;j<nB;j++) if(mp[j]>=0) hit++;
+  if(hit < nB*SVG_KEEP_MIN) return 0;   /* 0＝相同的太少（多半整行平移）：调用方据此本笔后面的段不再试 */
+  const end=o.l.nextSibling;
+  let first=null, last=null, oi=0, pend=-1;
+  const flush=(upto, ref)=>{ if(pend<0) return; const html=s.slice(pend, upto); pend=-1;
+    const prev = ref? ref.previousSibling : svg.lastChild; svgParseBefore(svg, html, ref);
+    const f2 = prev? prev.nextSibling : svg.firstChild; if(f2 && f2!==ref){ if(!first) first=f2; last = ref? ref.previousSibling : svg.lastChild; } };
+  for(let j=0;j<nB;j++){
+    const i=mp[j];
+    if(i<0){ if(pend<0) pend=B[j]; continue; }
+    for(; oi<i; oi++) svg.removeChild(nodes[oi]);
+    const nd=nodes[i]; oi=i+1;
+    flush(B[j], nd);
+    if(nd.__pqCk) nd.__pqCk=null;   /* 段首记号只留在新段的第一个节点上（svgIncForeign 往前找它认段） */
+    if(!first) first=nd; last=nd;
+  }
+  for(; oi<nA; oi++) svg.removeChild(nodes[oi]);
+  flush(s.length, end);
+  const ck={st:o.st, s, f:first, l:last, dirty:false, tops:B};
+  if(first) first.__pqCk=ck;
+  o.s=null; o.f=null; o.l=null; o.ser=null; o.tops=null;   /* 旧段对象作废：快照的克隆源（PV.src）若还指着它，fillSvg 的 live 判定不过、改按串解析 */
+  return ck;
+}
+/* 把 svg 的内容换成 strs.join('') 的解析结果（strs＝按段切好的字符串）；能复用的段原节点不动。返回 'inc' | 'full' | 'raw'（整份赋值，不缓存）。
+   make(i)（可选）：第 i 段的节点由调用方给（返回 DocumentFragment，内容须与解析 strs[i] 得到的节点相同——预览页从快照 svg 克隆，见 svgCloneCk），
+   不给就按 strs[i] 解析；给了 make 的不需要「段可独立解析」的前提（克隆不经解析器） */
+function svgIncSet(svg, strs, make){
+  let st=svg.__pqInc;
+  if(st){ const rr=st.mo.takeRecords(); if(rr.length) svgIncForeign(st, rr); }
+  const raw = ()=>{ svgIncDrop(svg); svg.innerHTML=strs.join(''); return 'raw'; };
+  const ok = s=>!!make || svgIncSafe(s);
+  /* 不用 Range：活着的 Range 会让之后每一次增删节点都去更新它的边界（长谱一笔删上万个节点时代价成倍），setStartBefore 还要数子节点下标。
+     解析用 insertAdjacentHTML（上下文＝svg 本身 / 参照节点的父元素＝svg，与 innerHTML 同一套片段解析）；删除逐个 remove */
+  const put = (i, ref)=>{
+    const s=strs[i], ck={st, s, f:null, l:null, dirty:false};
+    if(make){ const fr=make(i); if(fr && fr.firstChild){ ck.f=fr.firstChild; ck.l=fr.lastChild; svg.insertBefore(fr, ref); } }
+    else if(s){
+      const prev = ref? ref.previousSibling : svg.lastChild;
+      if(!ref) svg.insertAdjacentHTML('beforeend', s);
+      else if(ref.nodeType===1) ref.insertAdjacentHTML('beforebegin', s);
+      else { const r=document.createRange(); r.selectNodeContents(svg); svg.insertBefore(r.createContextualFragment(s), ref); }
+      const f = prev? prev.nextSibling : svg.firstChild;
+      if(f && f!==ref){ ck.f=f; ck.l=ref? ref.previousSibling : svg.lastChild; }
+    }
+    if(ck.f) ck.f.__pqCk=ck;
+    return ck;
+  };
+  const kill = ck=>{ for(let n=ck.f; n; ){ const nx = n===ck.l? null : n.nextSibling; svg.removeChild(n); n=nx; } };
+  const firstAfter = (cks, i)=>{ for(let j=i;j<cks.length;j++) if(cks[j].f) return cks[j].f; return null; };
+  const watch = ()=>st.mo.observe(svg, {childList:true, subtree:true, attributes:true, characterData:true});
+  /* 换一段：逐字相同的元素能留就留（见 svgMorphCk），不能就整段删了重解析。ref＝该段之后的第一个节点（svgMorphCk 不用，自己从旧段末尾取） */
+  let lowK=0;   /* 本笔已有几段「相同的太少」：连着两段就不再试（整行平移的笔每行都一样，切分对齐白算） */
+  /* 本笔变了的段不到 SVG_MORPH_SEGS 段（写一个音、改一处歌词……绝大多数笔）不试：整段重解析一段只要几毫秒，与 v68.4 合并版 B1 同一路径；
+     移调 / 换记谱法这类每行都变的笔才逐元素复用（同口径 A/B 实测：单段笔开 / 关中位差在噪声内，见收尾报告） */
+  let morphOk=false;
+  const swap = (o, i, ref)=>{ if(morphOk && !make && !window.__noMorph && o.f && lowK<2){ const n=svgMorphCk(svg, o, strs[i]); if(n) { lowK=0; return n; } if(n===0) lowK++; } kill(o); return put(i, ref); };
+  if(!st || st.bad){
+    for(const s of strs) if(!ok(s)) return raw();
+    svgIncDrop(svg);
+    st={svg, cks:[], bad:false, mo:null};
+    svg.textContent='';
+    for(let i=0;i<strs.length;i++) st.cks.push(put(i, null));
+    st.mo=new MutationObserver(rr=>svgIncForeign(st, rr));
+    watch();
+    svg.__pqInc=st;
+    return 'full';
+  }
+  const old=st.cks, N0=old.length, N1=strs.length;
+  const same = (o, s)=>o.s===s && !o.dirty;
+  st.mo.disconnect();   /* 自己的改动不记（外来改动在上面 takeRecords 时已经收过） */
+  try{
+    if(N0===N1){
+      const chg=[]; for(let i=0;i<N1;i++) if(!same(old[i], strs[i])){ if(!ok(strs[i])) return raw(); chg.push(i); }
+      morphOk = chg.length>=SVG_MORPH_SEGS;
+      for(const i of chg){ const o=old[i];
+        const ref=o.f? o.l.nextSibling : firstAfter(old, i+1);
+        old[i]=swap(o, i, ref); }
+    }else{
+      let a=0; while(a<N0 && a<N1 && same(old[a], strs[a])) a++;
+      let z=0; while(z<N0-a && z<N1-a && same(old[N0-1-z], strs[N1-1-z])) z++;
+      for(let i=a;i<N1-z;i++) if(!ok(strs[i])) return raw();
+      const ref=firstAfter(old, N0-z);
+      /* 行数变了：中间这一截按位置一一配对（第 k 行旧段 ↔ 第 k 行新段，见 swap），多出的旧段删、新段解析到其后 */
+      const m=Math.min(N0-z-a, N1-z-a), mid=[];
+      morphOk = m>=SVG_MORPH_SEGS;
+      for(let k=0;k<m;k++){ const o=old[a+k]; mid.push(swap(o, a+k, o.f? o.l.nextSibling : (firstAfter(old, a+k+1) || ref))); }
+      for(let i=a+m;i<N0-z;i++) kill(old[i]);
+      for(let i=a+m;i<N1-z;i++) mid.push(put(i, ref));
+      st.cks=old.slice(0, a).concat(mid, old.slice(N0-z));
+    }
+  }finally{ if(svg.__pqInc===st) watch(); }
+  return 'inc';
 }
 function renderCore(){
   const OFF = RENDER_OFF;   /* v67.5 离屏渲染（renderOffscreen）：目标 <svg> 与版宽由调用方给；下面带 OFF 的分支只在离屏时走，正常渲染路径与 v67.3 逐字节相同 */
@@ -11310,6 +11530,7 @@ function renderCore(){
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
   colBoxes = {};
   const p=[];
+  const CKB=[];   /* v68.4 B1：各段在 p 里的起点（每一行 · 播放头 · 热区），见 svgIncSet；只记下标，p 的内容与顺序不变 */
   const barZones=[];   // 小节线热区置顶层绘制，避免被音符格遮挡、加宽更易点中
   const clefZones=[];  // v51.1 行首谱号热区：最后冲刷、盖过行首小节线热区（谱号字形区域点击优先换谱号）
   const MM = PAGE_W/wmm;                    // 1mm 对应的 SVG 单位（真实 px/mm，随页面尺寸/内容大小变化）
@@ -11591,6 +11812,7 @@ function renderCore(){
       (nPages>1?`<text x="${CONTENT_W-10}" y="${py+PG_H-12}" font-size="10" text-anchor="end" fill="var(--muted)" class="pageno">第 ${pg+1} / ${nPages} 页</text>`:''));
   }
   systems.forEach((sys, sIdx)=>{
+    CKB.push(p.length);
     if(OFF && sIdx>=OFF.maxSys) return;   /* v67.5 离屏只画前 N 行（排版、行距、跨行连线目标仍按全曲算） */
     const oy = sysY[sIdx];
     const ox = MARGIN + STAFF_HEAD_W, oxH = MARGIN;
@@ -13562,6 +13784,7 @@ function renderCore(){
       });
     });
   });
+  CKB.push(p.length);
   if(!OFF){
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--play-band)" opacity="0" pointer-events="none"/>`);
   /* v60.93 播放竖线（产品指示：小节变色+滚动竖线，参考出版播放器样式）：rAF 逐帧插值平滑移动 */
@@ -13579,14 +13802,16 @@ function renderCore(){
     svg.setAttribute('height', Math.round(offH*cfg.scale));
     OFF.out = {w:CONTENT_W, h:offH, systems:systems.length, drawn:offN, pages:nPages};
   }else{
-  svg.setAttribute('viewBox', `0 0 ${CONTENT_W} ${totalH}`);
+  /* v68.4 B2：值没变就不写——同值重写 viewBox / 宽高也会让整张谱面重新布局（长谱每笔白排一次）；属性值与原来逐字相同 */
+  const setA = (k, v)=>{ v=String(v); if(svg.getAttribute(k)!==v) svg.setAttribute(k, v); };
+  setA('viewBox', `0 0 ${CONTENT_W} ${totalH}`);
   /* 显示尺寸 = 引擎尺寸 × 用户缩放 × 内容大小：内容大小放大内容，纸张外框在屏幕上保持定尺 */
   const dz = viewZoom * cfg.scale * LAY_BIGK * fitKOf(CONTENT_W, cfg.scale);   // v64.5 B8 ① 固定版宽：显示按可视宽缩放（最低 80%）；v64.6 跟练大字
-  svg.setAttribute('width', Math.round(CONTENT_W*dz));
-  svg.setAttribute('height', Math.round(totalH*dz));
-  paperFitGuard(CONTENT_W, cfg.scale);   // v66.0 D7
-  zoomLblSync(dz);   // v67.3 标签＋实际倍率提示
+  setA('width', Math.round(CONTENT_W*dz));
+  setA('height', Math.round(totalH*dz));
+  RENDER_DZ = dz;   /* v68.4 B2：paperFitGuard / zoomLblSync 挪到谱面内容换好之后（见函数末尾） */
   }
+  CKB.push(p.length);
   barZones.forEach(z=>p.push(z));
   clefZones.forEach(z=>p.push(z));   // v51.1 谱号热区压在行首小节线热区之上（其余头部区域仍归行首线热区）
   /* v51.8 小节宽度手柄（GP 式）：开关开启时每小节右缘上方画 ↔+▼ 手柄，拖动=调本小节宽度系数、
@@ -13649,9 +13874,25 @@ function renderCore(){
         `<path d="M ${bx0-3.2} ${(mid+16).toFixed(1)} h 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
     }
   });
-  svg.innerHTML = p.join('');
-  if(!OFF) syncInputs();
+  /* v68.4 B1：按段增量替换（离屏 / 关缓存时整份赋值，同 v68.3）。
+     B4：flow 排版 / 输出模式的快照（pvSnap 置 SNAP_ON）把谱面内容排进一张不在文档里的 svg（SNAP_SVG）——书写谱面此时整个被预览盖住（#score-wrap visibility:hidden），
+     此前快照写进 #score 要为看不见的它再解析、算样式与布局一遍（200 小节换行一次 ≈200–300ms）；#score 的属性（viewBox / 宽高）、colBoxes 等照写，
+     子节点留着进排版之前的书写版，回书写时 FLOW.mode 本来就补排一次（DIRTY，同 v68.1 MODES-8）。预览页从 SNAP_SVG 克隆（fillSvg） */
+  const tgt = (!OFF && SNAP_ON && !window.__noRenderCache)? snapSvg() : svg;
+  if(OFF || window.__noRenderCache){ svgIncDrop(svg); svg.innerHTML = p.join(''); }
+  else{ const strs=[]; let a=0; for(const b of CKB){ strs.push(b>a? p.slice(a, b).join('') : ''); a=b; } strs.push(p.slice(a).join('')); svgIncSet(tgt, strs); }
+  if(!OFF){
+    /* v68.4 B2（剖析：paperFitGuard 在换内容之前读 #paper 宽，等于给马上要丢掉的旧谱面白排一次整页布局，200 小节 28–42ms）：
+       挪到换好之后——它只读 #paper / 左栏 / #score 的 width 属性（都已按本次写好、与谱面子节点无关），只写 body.paper-tight / #paper.paper-xs，结果与原顺序相同 */
+    paperFitGuard(CONTENT_W, cfg.scale);   // v66.0 D7
+    zoomLblSync(RENDER_DZ);   // v67.3 标签＋实际倍率提示
+    syncInputs();
+  }
 }
+var RENDER_DZ = 1;
+/* v68.4 B4：排版 / 输出模式快照的落点（见 renderCore 末尾、pvSnap）。var：render 可能早于此行求值（同 RENDER_OFF） */
+var SNAP_ON = false, SNAP_SVG = null;
+function snapSvg(){ if(!SNAP_SVG) SNAP_SVG = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); return SNAP_SVG; }
 
 /* ================= 选区/Ribbon 同步 ================= */
 function curMea(){ return song.measures[sel.mi]; }
@@ -16458,6 +16699,7 @@ function hideStartPad(reopen){
       const pw2=(P0||{}).clientWidth||0; if(fx && pw2 && Math.abs(pw2-LAST_PAPER_W)>=2) render();
       alignHeader(); } }catch(_){}
   try{ renderHints(); syncInputs(); }catch(_){}   // v46.6 离开启动台恢复正常提示/光标信息
+  try{ if(typeof FLOW!=='undefined' && FLOW && FLOW.padOff) FLOW.padOff(); }catch(e){ console.error('flow 离台补画异常', e); }   /* v68.4 P2-a：开机延后的左栏 / 悬浮条在这一帧绘制前补完（上面的 render 已补过的不再画） */
   try{ if(typeof FLOW!=='undefined' && FLOW && FLOW.tour) FLOW.tour.rearm(); }catch(_){}   /* v68.2 首次导览（计划 §5.2）：从离开启动台起算 1.5 秒（启动期在启动台出现前起的计时作废） */
 }
 /* v67.4 启动台「继续上次编辑」：找一份「自己的谱」——存入过我的曲谱，或不是原样示例谱、也不是空白未命名谱。返回窗口序号，没有则 -1 */
@@ -21147,6 +21389,34 @@ function sfEmbedInit(){
   if(!audio.ctx){ try{ audio.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){ } }
   if(audio.ctx) for(const name in SF_EMBED){ const b=sfBanks[name]; if(b) sfPredecode(audio.ctx, b); }
 }
+/* v68.4 P2-a（A4）开机的内嵌音色铺底 + 预解码（sfEmbedInit）不在启动解析期做：建 AudioContext 并派发几十个 decodeAudioData，解码线程与开机首帧的整页布局抢 CPU
+   （实测首帧布局 45→80ms，旧外壳同样）。改为启动台（或直达的谱面）那一帧画出之后的空闲时刻（超时 1.5 秒兜底）；页面上第一次 pointerdown / keydown 当场开始
+   （多半马上要播放了）。播放本身仍经 hifiPreload → sfEmbedInit 兜底，同一函数、幂等（已有的库与已解码的键都跳过） */
+/* v68.4 收尾 PERF-1 / UX-2：① 第一次 pointerdown / keydown 不再当场解码——按下与松开之间正是「继续上次编辑」这类点击的关键路径（建 AudioContext + 首批解码约 35ms 长任务，
+   实测启动台一出现就点「继续」按下→出图多 47ms）：按键＝这一键处理完、下一帧画出之后开始；指针＝这一次点击（pointerup / pointercancel，同一任务里紧跟着 click）处理完、
+   下一帧画出之后开始（只按不松的 1 秒兜底）。② 空闲兜底在首帧之后再等 SF_SOON_MS 才排：此前首帧一过就有空闲期，35ms 长任务正落在人刚看到启动台、伸手去点的那段时间。
+   ③ AudioContext 本身在首帧之后的第一个任务里先建（只建、不解码；本机实测 new AudioContext 约 35ms）：v68.3 随开机的 sfEmbedInit 建好；挪出开机后若没人先建，
+   第一次按下时移动端音频解锁（tryUnlock，须在手势里 resume）就得现建——正压在点击的关键路径上。
+   ④ 交互之后再隔一帧（rAF → rAF → setTimeout）才开始：只隔一帧时它排在这一帧之后的第一个任务里，「继续」之后紧跟着的那批收尾任务 / 下一个输入要等它（实测立即点「继续」多 15–25ms） */
+var SF_SOON_MS = 600;
+function sfEmbedSoon(){
+  let done=false, kick=false;
+  const UP=['pointerup', 'pointercancel'], o={capture:true, passive:true};
+  const go=()=>{ if(done) return; done=true;
+    window.removeEventListener('pointerdown', soon, true); window.removeEventListener('keydown', soon, true);
+    try{ sfEmbedInit(); updateHifiBtn(); }catch(e){ console.error('音色预解码异常', e); } };
+  const after=()=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(go, 0)));
+  const soon=e=>{ if(done || kick) return; kick=true;
+    if(e.type==='keydown'){ after(); return; }
+    let t=0; const fin=()=>{ if(t<0) return; clearTimeout(t); t=-1; UP.forEach(k=>window.removeEventListener(k, fin, true)); after(); };
+    UP.forEach(k=>window.addEventListener(k, fin, o)); t=setTimeout(fin, 1000); };
+  window.addEventListener('pointerdown', soon, o); window.addEventListener('keydown', soon, o);
+  const arm=()=>requestAnimationFrame(()=>setTimeout(()=>{ if(done) return;
+    if(!audio.ctx){ try{ audio.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(_){ } }
+    setTimeout(()=>{ if(done) return;
+      if(typeof requestIdleCallback==='function') requestIdleCallback(go, {timeout:1500}); else setTimeout(go, 200); }, SF_SOON_MS); }, 0));
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', arm, {once:true}); else arm();
+}
 async function sfLoad(instKey){
   const name=SF_MAP[instKey]; if(!name) return null;
   let bank=sfBanks[name];
@@ -21913,21 +22183,42 @@ function buildPlayOrder(startMi){
 }
 /* 小节格进度条：一格一小节、总长不变自动适配、显示编号；
    点击=单小节循环，拖动=选区循环，再点取消 */
+/* v68.4 P2-a（A3）#mx-prog 的宽度缓存：此前每次 progDense / renderProgCells 现读 clientWidth——开机解析期两次（persist 一次、主初始化尾一次）各整页强制布局 11–42ms，
+   每笔 persist 再强制一次 10–18ms。改由 ResizeObserver 记宽（回调里布局已干净，读 clientWidth 不另排），宽变了且会改变输出（密集与否、编号间隔）就当帧重画小节格（在绘制前）。
+   读法：缓存有正宽就用；没有（还没观察到 / 不显示）照旧现量——开机解析期除外（按 0＝不显示的 620 兜底，RO 首次回调或离台露出后按实宽补画）。不支持 RO 的浏览器照旧每次现量 */
+var PROG_W=null, PROG_RO=null, PROG_USED=null;   /* var：persist 可能早于本行被调（同 DOC_TOUCH） */
+function progSig(w, n){ const W=w||620; return (n > Math.max(10, Math.floor(W/14)))+'|'+(W/n>=16); }
+function progBoxW(box){
+  if(!box) return 0;
+  if(PROG_W>0) return PROG_W;
+  if(!PROG_RO && typeof ResizeObserver==='function'){
+    PROG_RO=new ResizeObserver(()=>{
+      const b=document.getElementById('mx-prog'); if(!b) return;
+      const w=b.clientWidth; if(w===PROG_W) return;
+      PROG_W=w;
+      try{ if(song && PROG_USED!=null && !audio.playing){ const n=song.measures.length; if(progSig(w, n)!==progSig(PROG_USED, n)) renderProgCells(); } }catch(_){}
+    });
+    PROG_RO.observe(box);
+  }
+  if(PROG_RO && document.readyState==='loading') return 0;
+  const w=box.clientWidth; if(PROG_RO) PROG_W=w; return w;
+}
 function progDense(){
   const box=document.getElementById('mx-prog');
-  return song.measures.length > Math.max(10, Math.floor((box&&box.clientWidth||620)/14));
+  return song.measures.length > Math.max(10, Math.floor((progBoxW(box)||620)/14));
 }
 function renderProgCells(){
   const box=document.getElementById('mx-prog'); if(!box || !song) return;
   const n=song.measures.length;
-  const dense=progDense();
+  const bw=progBoxW(box); PROG_USED=bw;
+  const dense = n > Math.max(10, Math.floor((bw||620)/14));   /* 同 progDense()，同一次量到的宽 */
   box.classList.toggle('dense', dense);
   box.title = dense? '小节标尺：点击打开小节选择面板，精确选择循环区'
     : flowOn()? '小节格：单击＝光标跳到当前轨这一小节；拖动＝循环播放所选小节；Shift+拖动＝选中当前轨这几小节（可 Ctrl+C 复制）'   /* v68.1 flow（FLOW.prog，TRK-16）；默认外壳文案不变 */
     : '小节格：点击=单小节循环；拖动=多选循环选区；再点取消';
   const atMi = flowOn()? sel.mi : -1;   /* v67.9 flow 外壳：状态栏小节格描出光标所在小节（.flw-at；默认外壳不加，输出与原来逐字节相同） */
   let html = song.measures.map((_,mi)=>{
-    const show = !dense && (mi===0 || (mi+1)%( (box.clientWidth||620)/n>=16?1:5 )===0);
+    const show = !dense && (mi===0 || (mi+1)%( (bw||620)/n>=16?1:5 )===0);
     const inloop = audio.loop && mi>=audio.loop.a && mi<=audio.loop.b;
     return `<div class="mxc ${inloop?'loop':''}${mi===atMi?' flw-at':''}" data-mi="${mi}"><div class="f"></div>${show?`<span>${mi+1}</span>`:''}</div>`;
   }).join('');
@@ -23628,8 +23919,72 @@ var FLOW = (function(){
   F.pre = ()=>document.documentElement.classList.contains('flow-pre');
   /* 子块顺序＝钩子调用顺序 */
   F.PARTS = ['r1','r2','st','rd','tree','pal','sbar','mode','cmd','mob','r2k','nar','prog','rdp','tour'];   /* v68.1 轨 C：r2k 行 2 换键 · nar 窄档 · prog 状态栏小节格（cmd 已在表里）；rdp＝右栏书写页（轨 B）：排在最后——页容器（rd）先建好；v68.2 tour＝首次 3 步导览（读各块建好的锚点，放最后）；v68.3 sbar（谱面上方悬浮条）顶替 start（行 2 起步组 / 右栏「下一步」卡）的位置 */
-  F.each = (hook, a, b)=>{ F.PARTS.forEach(p=>{ const o=F[p];
-    if(o && typeof o[hook]==='function'){ try{ o[hook](a, b); }catch(e){ console.error('flow '+p+'.'+hook+' 异常', e); } } }); };
+  F.each = (hook, a, b)=>{ const lzh=!!LZ_HOOK[hook], lz=lzh && F.lzNow();
+    F.PARTS.forEach(p=>{ const o=F[p];
+      if(!o || typeof o[hook]!=='function') return;
+      if(LZ_PART[p]){
+        if(lz){ lzMark(p, hook); return; }                                   /* v68.4 开机延后：只记待画（见下方 LZ_*） */
+        if(PEND[p]){ if(lzh){ lzRun(p, hook); return; } delete PEND[p]; }   /* 不再延后了：先补上待画的钩子（off 等别的钩子照常跑，待画作废） */
+      }
+      try{ o[hook](a, b); }catch(e){ console.error('flow '+p+'.'+hook+' 异常', e); } }); };
+  /* v68.4 P2-a 开机首画延后（剖析：flow 开机在启动台还盖着、启动台出现之前就画音轨树 + 记号面板（约 1600 个节点、两次整页强制布局）与悬浮条，首访到启动台可见比 v68.1 慢约 190ms）。
+     启动解析期（readyState==='loading'：还不知道会不会出启动台）与启动台在的时候，左栏音轨树 tree / 记号面板 pal / 悬浮条 sbar 的 on / sync / layout 钩子只记「待画」（PEND），不碰 DOM；
+     启动台下这三块本来就不显示（CSS：body.flow.startpad #flw-left>section{visibility:hidden}、#flw-sbar display:none），推迟不改任何可见状态。补画的时机：
+       · 启动台那一帧画出之后（rAF → 下一个任务）当即补画，一次一块、块间让出一帧（收尾 PERF-1：此前排在空闲回调、超时 500ms，开机期后台小任务不断，
+         常要到台出现后约 300ms 才画；人一看到启动台就点「继续」时三块全挤进那一下按下，按下→出图多 47ms）——左栏两块（悬浮条要等离台：启动台下它不显示，量不到宽）；
+       · 启动台上第一次 pointerdown / keydown（多半要点「继续 / 新建」了）当场补左栏，挤在按下与松开之间；
+       · 离开启动台（hideStartPad 末尾调 FLOW.padOff）：其间若已 render，FLOW.sync 就按待画的钩子补上（on 优先：重置状态后整画）；剩下的在 padOff 里同步补完——离台那一帧左栏与悬浮条都已画好；
+       · 不出启动台的启动（?mine= 云谱直达、?wxlogin= 回跳等）：DOMContentLoaded 收尾（settle）当场同步补画，首帧即终态。
+     只在开机这一段生效：第一次离台或 settle 判定没有启动台后 LZ_OFF，之后与 v68.3 完全相同（再回到启动台也照常画）。旧外壳（FLOW 不挂载）一行不经过 */
+  const LZ_PART = {tree:1, pal:1, sbar:1}, LZ_HOOK = {on:1, sync:1, layout:1}, PEND = {};   /* PEND[块]＝待画的钩子集合 {on, sync, layout} */
+  const LZ_IDLE = ['tree', 'pal'];
+  let LZ_OFF = false, LZ_IC = 0, LZ_ARMED = false;
+  F.lzNow = ()=>{ if(LZ_OFF) return false; if(document.readyState==='loading') return true; let sp=false; try{ sp=startPadOn(); }catch(_){} return sp; };
+  const lzMark = (p, hook)=>{ (PEND[p]=PEND[p]||{})[hook]=1; if(document.readyState!=='loading') lzArm(); };
+  /* 补画一块：待画里有 on 只跑 on（重置后整画，含量宽排程，盖得住 sync / layout）；否则 sync、layout 各跑一遍。本次要跑的钩子（hook）没被盖住的再跑一遍 */
+  const lzRun = (p, hook)=>{
+    const h=PEND[p]; delete PEND[p];
+    const o=F[p]; if(!o || !h) return;
+    const run = k=>{ try{ if(typeof o[k]==='function') o[k](); }catch(e){ console.error('flow '+p+'.'+k+' 补画异常', e); } };
+    if(h.on) run('on');
+    else { if(h.sync) run('sync'); if(h.layout) run('layout'); }
+    if(hook && !h.on && !h[hook]) run(hook);
+  };
+  F.lzPending = ()=>Object.keys(PEND);
+  const lzIdleOne = ()=>{ LZ_IC=0; if(!F.active) return; const p=LZ_IDLE.find(x=>PEND[x]); if(!p) return; lzRun(p); if(LZ_IDLE.some(x=>PEND[x])) lzSched(); };
+  /* 先等启动台那一帧画出来（rAF → 下一个任务）再画：DOMContentLoaded 之后紧接着就画会挤到启动台首帧前面。
+     每块 2–5ms 脚本 + 下一帧 rAF 里约 10ms 量宽，不成长任务；块与块之间经 rAF 让出一帧（量宽、输入都能插进来）。LZ_IC：-1＝等 rAF，>0＝已排的 setTimeout */
+  const lzSched = ()=>{ if(LZ_IC) return;
+    LZ_IC = -1;
+    requestAnimationFrame(()=>{ if(LZ_IC!==-1) return; LZ_IC = setTimeout(lzIdleOne, 0); }); };
+  const lzEarly = ()=>{ if(!F.active || LZ_OFF) return; LZ_IDLE.forEach(p=>{ if(PEND[p]) lzRun(p); }); };
+  const lzArm = ()=>{
+    if(!F.active || LZ_OFF || !LZ_IDLE.some(x=>PEND[x])) return;
+    lzSched();
+    if(!LZ_ARMED){ LZ_ARMED=true; const o={capture:true, passive:true};
+      window.addEventListener('pointerdown', lzEarly, o); window.addEventListener('keydown', lzEarly, o); }
+  };
+  /* 离开启动台（hideStartPad 末尾）/ 开机判定没有启动台（settle）：此后不再延后，待画的当场补完（同步，在这一帧的绘制之前）。
+     页签宽（r1.fit）在启动台下不量（#doc-tabs 不显示，量出来是 0），这里补排一次 */
+  F.padOff = ()=>{
+    if(LZ_OFF) return;
+    LZ_OFF=true;
+    if(LZ_IC>0){ try{ clearTimeout(LZ_IC); }catch(_){} }
+    LZ_IC=0;
+    if(LZ_ARMED){ window.removeEventListener('pointerdown', lzEarly, true); window.removeEventListener('keydown', lzEarly, true); LZ_ARMED=false; }
+    if(!F.active) return;
+    F.PARTS.forEach(p=>{ if(PEND[p]) lzRun(p); });
+    try{ if(F.r1 && F.r1.sync) F.r1.sync(); }catch(_){}
+    /* 量宽补排（页签 r1fit / 行 2 r2fit / 状态栏 stfit / 悬浮条 sbfit）：都在离台这一帧的 rAF 里、绘制之前（v68.4 收尾 C4）——
+       所以离台那个任务里同步读 #flw-sbar / #doc-tabs 的尺寸还是量宽之前的值；要读几何请等 rAF（tv_perf PA2h 断言首帧绘制前已是终值） */
+    Object.keys(RAF_PEND).forEach(k=>{ const fn=RAF_PEND[k]; delete RAF_PEND[k]; F.raf(k, fn); });
+  };
+  /* DOMContentLoaded 收尾（排在启动分派之后）：出了启动台→ 排空闲补画；没出（深链直达等）→ 当场补完 */
+  F.settle = ()=>{
+    if(LZ_OFF) return;
+    let sp=false; try{ sp=startPadOn(); }catch(_){}
+    if(sp) lzArm(); else F.padOff();
+  };
   /* v68.2 切默认：开关只看 html.flow-pre（<head> 脚本：musetab-flow 不为 '0' 就有）。uiShell 恒为 true——v40 经典版开关 musetab-shell 自 v55.2 起不读，
      存量 'classic' 值不会让人回到旧布局（不复活、也不删键）；只有隐藏的 #b-shell 程序化切到 v40 经典版时 uiShell 为假，那时 flow 照旧不挂 */
   F.want = ()=>{
@@ -23821,8 +24176,14 @@ var FLOW = (function(){
   /* —— 渲染后同步（§1.5-4）—— */
   F.sync = ()=>{ if(F.active) F.each('sync'); };
   const RAF={}, SIG={};
+  /* v68.4 P2-a：行 1 页签 / 行 2 收纳 / 状态栏收纳的量宽（r1fit / r2fit / stfit）在开机与启动台期间（F.lzNow()）不量——启动台下这三处都不显示（#doc-tabs、#editbar、#mixer-dock），
+     开机解析期还没出启动台、量了也要在离台时重量；这一次量宽在启动台出现前那一帧里（含行 2 去收纳类后的重排）约 35–45ms。记下最后一次的回调，F.padOff 时补排 */
+  const RAF_LZ = {r1fit:1, r2fit:1, stfit:1}, RAF_PEND = {};
   F.raf = (key, fn)=>{ if(RAF[key]) return;
-    RAF[key]=requestAnimationFrame(()=>{ RAF[key]=0; if(!F.active) return; try{ fn(); }catch(e){ console.error('flow '+key+' 异常', e); } }); };
+    if(RAF_LZ[key] && F.lzNow()){ RAF_PEND[key]=fn; return; }
+    RAF[key]=requestAnimationFrame(()=>{ RAF[key]=0; if(!F.active) return;
+      if(RAF_LZ[key] && F.lzNow()){ RAF_PEND[key]=fn; return; }
+      try{ fn(); }catch(e){ console.error('flow '+key+' 异常', e); } }); };
   F.changed = (key, sig)=>{ if(SIG[key]===sig) return false; SIG[key]=sig; return true; };
   F.ctx = ()=>{
     try{
@@ -24112,7 +24473,7 @@ FLOW.r1 = (function(){
     T_MEM='仅本次：本机存储被浏览器禁用，关闭页面后不保存（要留存请「导出」曲谱文件）';   /* v68.3 收尾 DF-6：与右侧「仅本次」胶囊同一口径 */
   /* FIT：上一次量出的页签宽 / 收起情况（重写 innerHTML 时原样写回，免得每次落盘都闪一下）；LAST：上一次写进 #doc-tabs 的 HTML */
   let FIT={n:-1, cur:-1, w:[], hid:[], hidden:0}, LAST='', LASTSAVE='', LASTAV='', FONTV=0, PEEK=null, PT=0, HOV=null, DRAG=null, NOCLICK=0;
-  const libMap = ()=>{ let L=[]; try{ L=libLoad(); }catch(_){} const m=new Map(); (L||[]).forEach(e=>{ if(e && e.id) m.set(e.id, e); }); return m; };
+  const libMap = ()=>{ let L=[]; try{ L=libLoadRO(); }catch(_){} const m=new Map(); (L||[]).forEach(e=>{ if(e && e.id) m.set(e.id, e); }); return m; };   /* v68.4 B6：只读快照（见 libLoadRO） */
   /* 当前窗口读 song：persist() 先调 renderDocTabs 再把 song 写回 docs[cur]，换谱的那一下 docs[cur].song 还是旧对象 */
   const docSong = i=>(i===curDocI && song)? song : ((docs[i]||{}).song || {});
   const isSaved = (m, s)=>!!(s && s.id && m.has(s.id));
@@ -24179,7 +24540,7 @@ FLOW.r1 = (function(){
       /* 读屏名只读曲名 + 入库状态（验收 B4：此前把子元素「仅存本机（未入库）」「关闭《…》」一并读出）；× 是鼠标入口（不进 Tab 顺序），键盘关窗＝Delete / 右键菜单 */
       h+='<div class="dtab'+(on? ' on' : '')+(n>1? ' flw-cx' : '')+(off? ' flw-off' : '')+'" data-doc="'+i+'" role="tab" aria-selected="'+on+'" tabindex="'+(on? 0 : -1)+'"'
         +' aria-label="'+F.esc(tt+(mem? '，仅本次' : sv? '' : '，仅存本机'))+'"'+(n>1? ' aria-keyshortcuts="Delete"' : '')
-        +(w? ' style="width:'+w+'px"' : '')+' title="'+F.esc(tt+(kn? ' · '+kn : '')+' · '+(mem? T_MEM : sv? T_SAVED : on? T_LOCAL : T_LOCAL_O))+'">'
+        +(w? ' style="width: '+w+'px;"' : '')+' title="'+F.esc(tt+(kn? ' · '+kn : '')+' · '+(mem? T_MEM : sv? T_SAVED : on? T_LOCAL : T_LOCAL_O))+'">'   /* v68.4 收尾 C3：与 fit() 经 style.width 写的串同一写法（CSSOM 序列化） */
         +(on? '<span class="flw-cnr" aria-hidden="true"></span>' : '')
         +docIcon(s2)+'<span class="dt-t">'+F.esc(tt)+'</span><span class="flw-tslot">'
         +(sv? '' : '<span class="dt-dot" aria-hidden="true"></span>')
@@ -24210,6 +24571,9 @@ FLOW.r1 = (function(){
   function schedFit(){ if(!F.active) return; if(F.changed('r1tabs', sig())) F.raf('r1fit', fit); }
   function fit(){
     const bar=$('doc-tabs'), tl=bar && bar.querySelector('.flw-tl'); if(!tl) return;
+    /* v68.4 P2-a：启动台下 #doc-tabs 不显示（CSS body:has(#start-pad:not(.hidden)) #doc-tabs），量出来全是 0，还白排两次整页布局（开机约 33ms）——
+       不量，签名作废；离台时 FLOW.padOff → sync() 按新签名（启动台位已变）重排一次 */
+    if(spOn()){ F.changed('r1tabs', ''); return; }
     const tabs=[...tl.querySelectorAll('.dtab')], ovf=$('flw-tabovf'), add=$('dt-add'); if(!tabs.length || !ovf) return;
     endPeek();
     tabs.forEach(t=>{ t.classList.remove('flw-off'); t.style.width=''; });
@@ -24971,7 +25335,9 @@ FLOW.st = (function(){
       const th=trkHTML(), ph=posHTML();
       if(t && t.innerHTML!==th) t.innerHTML=th;
       if(p && p.innerHTML!==ph) p.innerHTML=ph;
-      document.querySelectorAll('#mx-prog .mxc').forEach(c=>c.classList.toggle('flw-at', +c.dataset.mi===sel.mi));
+      /* v68.4：光标所在小节的 .flw-at 只动变了的格（此前每笔把全部小节格逐个 toggle 一遍，200 小节约 1ms）；结果同逐格 toggle（摘掉别的格、加上当前格） */
+      { const pb=$('mx-prog'); if(pb){ pb.querySelectorAll('.mxc.flw-at').forEach(c=>{ if(+c.dataset.mi!==sel.mi) c.classList.remove('flw-at'); });
+          const ac=pb.querySelector('.mxc[data-mi="'+sel.mi+'"]'); if(ac && !ac.classList.contains('flw-at')) ac.classList.add('flw-at'); } }
       if(!bsBad()) eoSet(false);
       bsTitle(); mixLbl(); loopUI();
       if(F.changed('stfit', fitSig())) F.raf('stfit', fit);
@@ -25560,6 +25926,7 @@ FLOW.tree = (function(){
      OVR_SONG：展开 / 收起覆盖按「这份谱」记，换谱（换窗口 / 撤销换了 song 对象）清掉（验收 TRK-9：此前跨窗口串用）。
      CLEF_MEM：关五线谱层前记下谱号（低音 / 中音），再开时按原谱号开（验收 TRK-10；只在内存、按 song 对象，不写 song） */
   let HELD=new Set(), HOLD='', OVR_SONG=null;
+  let TSCR=false;   /* v68.4：#flw-tlist 滚动过（scroll 事件来过）；之前 scrollTop 恒为 0 */
   const CLEF_MEM=new WeakMap();
   const mx = k=>{ try{ return ((song && song.mixer)||{})[k]||{}; }catch(_){ return {}; } };
   const lockOf = dt=>dt==='piano'||dt==='pianoacc'||dt==='chord';
@@ -25762,10 +26129,11 @@ FLOW.tree = (function(){
     let changed=false;
     if(force || hh!==LAST_H){ hd.innerHTML=hh; LAST_H=hh; changed=true; }
     if(force || lh!==LAST_L){
-      const st=L.scrollTop;
+      /* v68.4 P2-a：列表从没滚过（TSCR 假）时 scrollTop 必为 0，不读不写——读 scrollTop 会当场整页强制布局（开机首画约 50ms） */
+      const st=TSCR? L.scrollTop : 0;
       L.innerHTML=lh; LAST_L=lh; changed=true;
       F.dock(true);   /* 逐字填词区（.rg-body）插回落点 */
-      L.scrollTop=st;
+      if(TSCR) L.scrollTop=st;
     }
     if(k0 && (changed || want)){
       const t = k0.id? document.getElementById(k0.id) : trk.querySelector('[data-fk="'+String(k0.fk).replace(/["\\]/g,'\\$&')+'"]');
@@ -26150,7 +26518,7 @@ FLOW.tree = (function(){
       trk.insertAdjacentHTML('afterbegin', '<div id="flw-thd"></div><div id="flw-tlist" role="tree" aria-label="音轨与记谱法"></div>');
       const L=$('flw-tlist');
       trk.addEventListener('keydown', onKey);
-      L.addEventListener('scroll', ()=>{ if(F.active) F.raf('treehint', hint); }, {passive:true});
+      L.addEventListener('scroll', ()=>{ TSCR=true; if(F.active) F.raf('treehint', hint); }, {passive:true});
       /* 指针离开音轨列表：鼠标点选时替它留着的上一个当前行这才收起，当前行连同子行滚进可视区（TRK-4 / TRK-11） */
       L.addEventListener('pointerleave', ()=>{ if(!F.active || !HOLD) return; HELD.clear(); HOLD=''; paint(); });
       /* v68.2 收尾 ENG-2：首画交给 on()——挂载（F.mount）只在 deskApply 启用时发生，紧接着 F.each('on') 就 paint(true) 一遍；
@@ -27194,20 +27562,24 @@ FLOW.pal = (function(){
     if(!force && sig===SIG) return;
     SIG=sig;
     const ae=document.activeElement, fv=ae && g.contains(ae)? (ae.dataset.v||'')+'|'+(ae.dataset.fa||'') : null;
-    const top=g.scrollTop;
+    /* v68.4 P2-a：格子区从没滚过（PSCR 假）时 scrollTop 必为 0，不读不写（读它会整页强制布局，开机首画约 45ms） */
+    const top=PSCR? g.scrollTop : 0;
     g.innerHTML=grid(ctx, dn);
-    g.scrollTop=top;
+    if(PSCR) g.scrollTop=top;
     if(fv){ const [v, fa]=fv.split('|'); const el=g.querySelector('[data-fa="'+fa+'"][data-v="'+v+'"]'); if(el){ ROVE=fv; try{ el.focus({preventScroll:true}); }catch(_){} } }
     rove();
     showTip(ST.hover);
   };
   /* roving tabindex（验收 S10）：格子区只占一个 Tab 站（上次停的那一格 / 第一格），格子与组头之间用方向键走（navKey）；此前每格都是 Tab 站，要走 38–60 站 */
-  let ROVE='';
+  let ROVE='', PSCR=false;   /* PSCR：v68.4 格子区滚动过（scroll 事件来过） */
+  /* v68.4 P2-a：「露出来的」按 DOM 判（不在折叠组 .flw-pgb[hidden] 里）——格子区里只有折叠组会把格子藏掉（CSS .flw-pgb[hidden]{display:none}），
+     面板可见时与 getClientRects 判定逐格相同；此前逐格 getClientRects 首画就整页强制布局一次。面板整块不显示（排版 / 输出模式、窄档收起）时也照样留一个 Tab 站 */
+  const shownCell = x=>!x.closest('[hidden]');
   const rove = ()=>{ const g=$('flw-pgrid'); if(!g) return;
     const all=[...g.querySelectorAll('.flw-sg, button.flw-pgh')];
     all.forEach(x=>{ if(x.tabIndex!==-1) x.tabIndex=-1; });
     const [v, fa]=ROVE? ROVE.split('|') : ['', ''];
-    const t=(ROVE && all.find(x=>(x.dataset.v||'')===v && (x.dataset.fa||'')===fa && x.getClientRects().length)) || all.find(x=>x.getClientRects().length);
+    const t=(ROVE && all.find(x=>(x.dataset.v||'')===v && (x.dataset.fa||'')===fa && shownCell(x))) || all.find(shownCell);
     if(t) t.tabIndex=0;
   };
   const run = (id, el)=>{
@@ -27281,6 +27653,7 @@ FLOW.pal = (function(){
         if(e.key==='ArrowDown'){ const c=firstCell(); if(c){ e.preventDefault(); c.focus(); } }
       });
       g.addEventListener('keydown', navKey);
+      g.addEventListener('scroll', ()=>{ PSCR=true; }, {passive:true});
       const hov = e=>{ const c=e.target && e.target.closest && e.target.closest('.flw-sg'); const id=c? c.dataset.v : null; if(id!==ST.hover){ ST.hover=id; showTip(id); } };
       g.addEventListener('pointerover', hov); g.addEventListener('focusin', hov);
       g.addEventListener('focusin', e=>{ const x=e.target; if(!x || !x.matches || !x.matches('.flw-sg, button.flw-pgh')) return;
@@ -28430,17 +28803,47 @@ FLOW.mode = (function(){
   const PERF={open:[], refresh:[]};
   /* 快照签名：谱数据 + 版宽 + 不换行。render 没改这几样（选区、播放、悬停、版面检查点选……）就不重拍——重拍要两次 render 加整份谱面序列化 */
   let SNAPSIG='', FILLV=0, IO=null;
+  const PV_KEEP_M = 120;   /* v68.4 收尾 PERF-3：预览页取舍谱行段时行范围的外扩（谱面坐标），见 pageKeep */
   const snapSig = ()=>{ let nw=false; try{ nw=noWrapOn(); }catch(_){} let pw=0; try{ pw=PAGE_W; }catch(_){}
     return JSON.stringify(song)+'|'+pw+'|'+nw+'|'+((document.fonts && document.fonts.status)||''); };
   /* 懒填页（pvBuild 的 flow 分支调）：可视区上下各半屏内的页当场填，其余进入可视区附近再填（IntersectionObserver，根＝#pv-stage） */
-  function fillSvg(svg){ if(svg && svg.dataset.flwV!==String(FILLV)){ svg.innerHTML=PV.content; svg.dataset.flwV=String(FILLV); } }
+  /* v68.4 B5：快照带分段（PV.cks，见 scoreExportParts）时按段增量填——页壳没重建（applySnap 只换谱面）的页只解析本笔变了的那几行；
+     结果与整份 innerHTML=PV.content 逐字节相同（同 #score 的 svgIncSet）。没有分段 / 分段不是这一份快照的：整份赋值（同前） */
+  /* v68.4 收尾 PERF-3 / PERF-7：每页只放「与本页相交」的谱行段——此前每页都是整份谱面（按 viewBox 裁），双轨 200 小节 9 页、每页 3.8 万个节点，
+     可视的两三页就要克隆、算样式与布局整份谱面两三遍（排版模式点一下「此处换行」预览更新要 1 秒多），滚到下一页再来一遍。
+     段的结构（renderCore 的 CKB）：0＝页底＋页头，1…行数＝各谱行，其后两段＝播放头 / 竖线、热区与拖柄——非谱行段每页照放（页头在第 1 页、热区透明，且都不大）；
+     谱行段按这一次分页排版的行范围（PV.sys，与 PV.cks 同一次快照）取舍：行范围外扩 PV_KEEP_M 后与本页的可见范围（viewBox，xMidYMid meet 留边时连留边一起算）相交的才放。
+     谱行墨迹超出行范围实测 ≤7（16 预设 + 14 谱类 + 长谱；tv_perf2 P8 逐段几何断言），外扩 120 绰绰有余——舍掉的段整个落在本页可见范围之外（本来就被裁掉），画面不变。
+     返回 null＝不取舍（没有分段 / 行范围对不上）：整份放（同前） */
+  function pageKeep(svg){
+    const C=PV.cks, S=PV.sys; if(!C || !S || S.length!==C.length-3) return null;
+    let vb=null; try{ vb=svg.viewBox.baseVal; }catch(_){} if(!vb || !(vb.width>0) || !(vb.height>0)) return null;
+    const w=+svg.getAttribute('width'), h=+svg.getAttribute('height');
+    const ext = (w>0 && h>0)? Math.max(0, (vb.width*h/w - vb.height)/2) : vb.height;   /* meet 留边：可见高＝按显示比例撑开的高 */
+    const y0=vb.y-ext-PV_KEEP_M, y1=vb.y+vb.height+ext+PV_KEEP_M, n=C.length-3;
+    return i=>i===0 || i>n || (S[i-1][1]>=y0 && S[i-1][0]<=y1);
+  }
+  function fillSvg(svg){ if(svg && svg.dataset.flwV!==String(FILLV)){
+    if(svg.dataset.flwOld!=null) delete svg.dataset.flwOld;
+    if(PV.cks && PV.cksOf===PV.content && !window.__noRenderCache){
+      /* 克隆源（快照 svg 的各段）须仍是这一份快照的、节点还挂在快照 svg 上（快照那次 render 中途出错等：快照 svg 已部分换过、PV 没换）——否则按串解析（同样逐字节相同，只是慢些） */
+      const src=PV.src, live = !!src && src.length===PV.cks.length && src.every((ck, i)=>ck.s!=null && (!ck.f || ck.f.parentNode===ck.st.svg) && ck.ser===PV.cks[i]);
+      const keep=pageKeep(svg), strs = keep? PV.cks.map((x, i)=>keep(i)? x : '') : PV.cks;
+      svgIncSet(svg, strs, live? (i=>(keep && !keep(i))? null : svgCloneCk(src[i])) : undefined); }
+    else { svgIncDrop(svg); svg.innerHTML=PV.content; }
+    svg.dataset.flwV=String(FILLV); } }
   function fill(){
     FILLV++;
     const ps=stage(), svgs=[...document.querySelectorAll('#pv-pages > .pv-page .pv-paper > svg')]; if(!ps || !svgs.length) return;
     /* v68.2（R1 最长阻塞）：当场只填真正在可视区里的页，上下 / 左右各半屏的邻页交给 IntersectionObserver（下一帧另起一个任务填）；
        先一次量完所有页的位置再填——此前边量边填，每填一页（整份谱面）就逼一次整页排版，200 小节 3 页建页 ≈0.5 秒。输出「横排」（PV.lay='h'）横向同理 */
     const sr=ps.getBoundingClientRect();
+    /* v68.4 B5：页壳没重建（applySnap 只换谱面）时，可视区外已经填过的页先留着上一笔的谱面，同样交给 IntersectionObserver——进到可视区上下半屏之内就按段换成新谱面
+       （与 pvBuild 之后这些页是空白、进到附近再整份填同一时机）；可视区里的页当场按段换 */
     svgs.filter(sv=>{ const q=sv.getBoundingClientRect(); return q.bottom>sr.top && q.top<sr.bottom && q.right>sr.left && q.left<sr.right; }).forEach(fillSvg);
+    /* v68.4 收尾 C2 / UX-3：可视区外已经填过、留着上一笔谱面的页先藏起来（data-flw-old → CSS visibility:hidden），换成新谱面时（fillSvg）再露出——
+       一下跳过去（版面检查点页码、End）时第一帧不露出上一笔的旧音符（v68.3 此时是空白页，同口径：先白后新），增量换段的收益不变 */
+    svgs.forEach(sv=>{ if(sv.dataset.flwV!==String(FILLV) && sv.firstChild && sv.dataset.flwOld==null) sv.dataset.flwOld='1'; });
     if(typeof IntersectionObserver==='function'){
       if(!IO) IO=new IntersectionObserver(es=>{ es.forEach(en=>{ if(en.isIntersecting){ fillSvg(en.target); IO.unobserve(en.target); } }); }, {root:ps, rootMargin:'50% 50%'});
       IO.disconnect();
@@ -28492,7 +28895,18 @@ FLOW.mode = (function(){
     clearTimeout(PT); PT=0; PEND=null;
     const ps=stage(); if(ps && document.activeElement===ps) try{ ps.blur(); }catch(_){}
     if(pvOn()) pvClose();
+    dropPages();
     if(LAY0!=null){ if(PV.lay!==LAY0) PV.lay=LAY0; LAY0=null; }   /* 预览排布放回进非书写之前的（经典「打印预览」的排布不受输出「横排」影响） */
+  }
+  /* v68.4 收尾 PERF-4 / PERF-6：离开排版 / 输出（回书写、离开 flow）时放掉预览页与快照 svg——预览页每页都是整份谱面（按 viewBox 裁），
+     200 小节双轨 3 页就是 11 万个节点；#preview-ov 收起后它们不显示，却一直留在文档里（整文档查询、GC 都要背着），回书写后每笔慢 20–48%；
+     离文档的快照 svg（SNAP_SVG）另占约 4 万个节点、28MB 堆。下次进模式本来就重拍快照、重建页壳（pvOpen → pvSnap → pvBuild），这里清掉不丢任何东西 */
+  function dropPages(){
+    if(IO) IO.disconnect();
+    const pp=$('pv-pages');
+    if(pp && pp.firstChild){ pp.querySelectorAll('.pv-paper > svg').forEach(sv=>svgIncDrop(sv)); pp.textContent=''; }
+    if(SNAP_SVG){ svgIncDrop(SNAP_SVG); SNAP_SVG=null; }
+    PV.src=null; PV.cks=null; PV.cksOf=null; PV.sys=null;   /* 分段串只给 flow 预览页按段填用（PV.content 照旧留着，同 v68.3）；再进模式时 pvSnap 重拍 */
   }
   /* 输出模式的预览排布：FLOW.out.arr ＝ 'w' 适宽（竖排、页宽占满）· 'p' 整页（竖排、每页整页装进可视区）· 'h' 横排（页左右排开、页高占满）；其余模式恒 'w' */
   function arr(){ let a='w'; try{ if(cur==='output' && F.out && F.out.arr) a=F.out.arr; }catch(_){}
@@ -28563,7 +28977,15 @@ FLOW.mode = (function(){
   /* 重拍之后：快照变了才重建页（pvBuild 的 flow 分支只填可视区附近），放回滚动、重画左栏 / 当前行框 */
   function applySnap(c){
     const ps=stage();
-    if(PV.content!==c.c0 || JSON.stringify(PV.geo)!==c.g0) pvBuild();
+    /* v68.4 B5：页壳（排布 · 纸张 · 页数 · 页尺寸 · 几何）没变、只是谱面变了：不重建页壳，已填的页按段换谱面（fill → fillSvg），
+       此前每笔整份重建所有页、可视页各整份解析一遍 4MB 谱面；页壳签名对不上（换纸张 / 页数变了 / 预览区尺寸变了……）照旧 pvBuild */
+    if(JSON.stringify(PV.geo)!==c.g0) pvBuild();
+    else if(PV.content!==c.c0){
+      let same=false;
+      try{ const d=pvDims(), g=PV.geo, n=document.querySelectorAll('#pv-pages > .pv-page').length;
+        same = !!PV.bk && n===g.n && PV.bk===[PV.lay, PV.size, Math.round(d.dW), Math.round(d.dH), g.W, g.pgH, g.gap, g.n].join('|') && !window.__noRenderCache; }catch(_){}
+      if(same) fill(); else pvBuild();
+    }
     if(ps){ if(ps.scrollTop!==c.st) ps.scrollTop=c.st; if(ps.scrollLeft!==c.sl) ps.scrollLeft=c.sl; }
     painted();
     /* 原来看得见、重拍后看不见了：把当前行滚回视野（用户本来就滚开在看别处的不动） */
@@ -28697,7 +29119,13 @@ FLOW.mode = (function(){
       sub('on'); },
     off(){
       if(cur!=='write') closePv();
-      if(DIRTY || FITQ){ const fit=FITQ; DIRTY=false; FITQ=false; setTimeout(()=>{ redraw(); if(fit) try{ fitViewWidth(); }catch(_){} }, 0); }   /* MODES-8：离开 flow（谱架 / 观看页 / 缩到手机）时书写谱面还是快照那一版：补排一次（不在卸载途中同步排）；v68.2 记着的适配宽度随后做 */
+      /* MODES-8：离开 flow（谱架 / 观看页 / 缩到手机）时书写谱面还是快照那一版：补排一次（不在卸载途中同步排）；v68.2 记着的适配宽度随后做。
+         v68.4 收尾 UX-1：补排放进微任务——等这一轮启停（deskApply 其余各块的 off、调用方余下的同步代码）全部走完、在下一帧绘制之前排好。
+         v68.4 B4 起排版 / 输出模式的快照不写 #score，书写谱面的子节点停在进模式之前那一版（甚至是换窗口之前另一首谱）；此前 setTimeout(0) 补排，
+         预览关掉后的第一帧会露出这份旧谱面（v68.3 露出的是当前数据的分页快照） */
+      if(DIRTY || FITQ){ const fit=FITQ; DIRTY=false; FITQ=false;
+        const go=()=>{ redraw(); if(fit) try{ fitViewWidth(); }catch(_){} };
+        if(typeof queueMicrotask==='function') queueMicrotask(go); else Promise.resolve().then(go); }
       SNAPSIG=''; if(IO) IO.disconnect();
       sub('off');
       cur='write'; SAVE=null; clearTimeout(T); T=0;
@@ -28881,19 +29309,23 @@ FLOW.lay = (function(){
     const cs=JSON.stringify(c);
     if(cs!==SIG.cfg){ SIG.cfg=cs; try{ laySync(); }catch(_){} }   /* 撤销 / 重做换了 song.layout：右栏搬来的 #layout-pop 跟着同步（原 undo 不调 laySync） */
     SIG.tools=sig;
-    document.querySelectorAll('[data-fa="lay:page"]').forEach(b=>setP(b, b.dataset.v===c.page));
-    document.querySelectorAll('[data-fa="lay:preset"]').forEach(b=>setP(b, b.dataset.v===c.preset));
+    /* v68.4 B5(b)：七组 [data-fa="lay:…"] 一次查完再分组（此前 7 次整文档属性查询，排版模式下文档连预览页近 10 万节点，每笔约 35–40ms）；
+       每组的元素与先后顺序同原来的 document.querySelectorAll */
+    const FA={}; document.querySelectorAll('[data-fa^="lay:"]').forEach(b=>{ const k=b.getAttribute('data-fa'); (FA[k]||(FA[k]=[])).push(b); });
+    const fa = k=>FA[k]||[];
+    fa('lay:page').forEach(b=>setP(b, b.dataset.v===c.page));
+    fa('lay:preset').forEach(b=>setP(b, b.dataset.v===c.preset));
     document.querySelectorAll('#flw-eng-scale').forEach(b=>setT(b, Math.round(c.scale*100)+'%'));
     const bt = r? r.n+' 小节' : '— 小节';
     setT($('flw-eng-bars'), bt);
     const rt = r? '第 '+(r.si+1)+' 行 · 第 '+(r.m1+1)+(r.m2>r.m1? '–'+(r.m2+1) : '')+' 小节' : '';
     const bb=$('flw-eng-bars'); if(bb && r){ const t='当前行：'+rt+'（在预览里单击谱面可改选）'; if(bb.title!==t) bb.title=t; }
-    document.querySelectorAll('[data-fa="lay:bars"]').forEach(b=>{ const d=+b.dataset.d;
+    fa('lay:bars').forEach(b=>{ const d=+b.dataset.d;
       if(d<0) setD(b, !r || r.n<=1, '本行只有一个小节，无法再移出');
       else setD(b, !r || r.m2>=song.measures.length-1, '已是最后一行，没有后续小节可移入'); });
-    document.querySelectorAll('[data-fa="lay:brk"]').forEach(b=>setD(b, !r || sel.mi===0, '第 1 小节本来就在行首'));
-    document.querySelectorAll('[data-fa="lay:join"]').forEach(b=>setD(b, !r || r.si===0, '已是第一行，没有上一行'));
-    document.querySelectorAll('[data-fa="lay:lock"]').forEach(b=>{ if(b.dataset.v==null) setP(b, lk); else setP(b, (b.dataset.v==='1')===lk); });
+    fa('lay:brk').forEach(b=>setD(b, !r || sel.mi===0, '第 1 小节本来就在行首'));
+    fa('lay:join').forEach(b=>setD(b, !r || r.si===0, '已是第一行，没有上一行'));
+    fa('lay:lock').forEach(b=>{ if(b.dataset.v==null) setP(b, lk); else setP(b, (b.dataset.v==='1')===lk); });
     const lb=$('flw-eng-lock'); if(lb){ const l=lb.querySelector('.flw-glb'); setT(l, lk? '已锁定' : '锁定此行'); }
     setT($('flw-lay-rowt'), rt);
     setT($('flw-lay-rown'), r? String(r.n) : '—');
@@ -28908,7 +29340,8 @@ FLOW.lay = (function(){
     return {svg, q, s, ox:(q.width-g.W*s)/2, oy:(q.height-g.pgH*s)/2};
   }
   function drawSel(){
-    const old=[...document.querySelectorAll('#pv-pages .flw-pvs')];
+    /* v68.4 收尾 PERF-3：当前行框只会在 #pv-pages 里（本函数建的）——按类名的活集合取（文档级缓存），不再每笔在预览页子树里做后代查询（预览页满载时十几毫秒） */
+    const old=[...document.getElementsByClassName('flw-pvs')];
     const m=F.mode && F.mode.cur;
     const pp=$('pv-pages'); if(pp && pp.classList.contains('flw-pick')!==(m==='engrave')) pp.classList.toggle('flw-pick', m==='engrave');   /* pvBuild 重写 className 会把它冲掉 */
     if(m!=='engrave' || !S || !song){ old.forEach(x=>x.remove()); SIG.sel=''; return; }
@@ -29946,7 +30379,7 @@ function renderDocTabs(){
   if(flowOn()) return FLOW.r1.renderTabs();   /* v67.9 flow 外壳：页签并入行 1（同一 #doc-tabs，旧契约 .dtab / .dt-x / #dt-add 不变） */
   const bar=document.getElementById('doc-tabs'); if(!bar) return;
   if(viewerMode || !docs.length){ if(bar.innerHTML) bar.innerHTML=''; return; }
-  const lib=libLoad();
+  const lib=libLoadRO();   /* v68.4 B6：只读 */
   bar.innerHTML = docs.map((d,i)=>{
     const s2=d.song||{};
     const mem=!!window.PYQ_LS_MEM, saved=!!(s2.id && lib.some(x=>x.id===s2.id)) && !mem;   /* 收尾 DF-6：内存版存储下一律按「仅本次」标（空心圈常驻） */
@@ -30135,14 +30568,19 @@ function persistNow(){
     const pend=[...PERSIST_DIRTY].filter(x=>x && x!==song && x.id); PERSIST_DIRTY.clear();
     if(song && song.id) pend.push(song);
     if(pend.length){
-      const lib = libLoad(); let hit=false;
+      /* v68.4 B6：已入库谱每次落盘都要整库读、改一条、整库写回（4 MB 的库 60–100ms 长任务）——读这一步改用只读快照（本机串没变就不重新解析），
+         写回用同一串更新快照；写不进去作废快照（快照里的条目已就地改过，不能再当「本机现状」用）。写进本机的内容与原来逐字节相同 */
+      const lib = libLoadRO(); let hit=false;
       for(const s0 of pend){
         const i = lib.findIndex(e=>e.id===s0.id);
         if(i>=0){ lib[i].data=JSON.parse(JSON.stringify(s0)); lib[i].title=s0.title; lib[i].updatedAt=nowStamp();
           lib[i].mtime=Math.floor(Date.now()/1000); hit=true;
           if(window.PYQ_CLOUD) scheduleCloudPush(s0.id); }   // 编辑后去抖推送云端（登录时）
       }
-      if(hit && !libSave(lib)) throw new Error('我的曲谱写入失败');   /* v68.3 收尾 DF-5：已入库谱的实时同步写不进——走下面「可能已满」提示（此前 libSave 吞掉，一声不响） */
+      if(hit){ let raw=null, ok=false;
+        try{ raw=JSON.stringify(lib); localStorage.setItem(LS_LIB, raw); ok=true; }catch(_){}
+        LIB_RO = ok? {raw, list:lib} : null;
+        if(!ok) throw new Error('我的曲谱写入失败'); }   /* v68.3 收尾 DF-5：已入库谱的实时同步写不进——走下面「可能已满」提示（此前 libSave 吞掉，一声不响） */
     }
   }catch(err){
     /* v38.8 存储写入失败（多为配额已满）不再静默：明确告知并引导导出备份，60秒节流防刷屏 */
@@ -30157,7 +30595,17 @@ function persistNow(){
 }
 function nowStamp(){ try{ return new Date().toLocaleString('zh-CN',{hour12:false}); }catch(_){ return ''; } }
 function libLoad(){ try{ return JSON.parse(localStorage.getItem(LS_LIB))||[]; }catch(_){ return []; } }
-function libSave(list){ try{ localStorage.setItem(LS_LIB, JSON.stringify(list)); return true; }catch(_){ return false; } }   /* v68.3 收尾 DF-5：返回写没写进（配额已满时 false） */
+function libSave(list){ LIB_RO=null; try{ localStorage.setItem(LS_LIB, JSON.stringify(list)); return true; }catch(_){ return false; } }   /* v68.3 收尾 DF-5：返回写没写进（配额已满时 false）；v68.4 B6 作废只读快照 */
+/* v68.4 P2-b（剖析 B6 大库）「我的曲谱」整库的只读快照：本机串没变就不再整库解析（4 MB 的库每笔 20–37ms：每笔 persist → 页签入库状态都要 libMap 一次）。
+   按「本机里的串」逐字比对认没变——任何写入（本页 libSave / persistNow、别的标签页）都会让串不同而重新解析，没有要记着去失效的地方；
+   libSave 另把快照作废（调用方之后可能还改它那份数组）。只给只读的调用方（libMap、经典外壳页签）；要改库的照旧 libLoad() 拿一份新解析的 */
+var LIB_RO = null;   /* var：libSave 可能早于此行求值被调用 */
+function libLoadRO(){
+  let raw=null; try{ raw=localStorage.getItem(LS_LIB); }catch(_){ return []; }
+  if(LIB_RO && LIB_RO.raw===raw) return LIB_RO.list;
+  let list=[]; try{ list=JSON.parse(raw)||[]; }catch(_){ list=[]; }
+  LIB_RO={raw, list}; return list;
+}
 /* v68.3 收尾 DF-5：「我的曲谱」写不进（本机约 5 MB 已满）——不提示成功、不关窗、不替换；说清楚并直接给导出（此前提示「已保存」实际没写进，关窗的那份永久丢失） */
 function libFull(s, why){
   const t=(s && s.title) || '未命名曲谱';
@@ -33583,6 +34031,61 @@ function scoreExportClone(){
   c.querySelectorAll('.pagebg, .pageno, #playhead, #playline').forEach(e=>e.remove());
   return c;
 }
+/* v68.4 P2-b（剖析 B4）成品快照的字符串：与 scoreExportClone().innerHTML 逐字节相同，但按 #score 的增量分段（svgIncSet）逐段序列化、
+   每段的结果挂在段对象上——没变的段直接复用上次的串，只序列化本笔换掉的那几段。省掉排版 / 输出模式每笔的整份深克隆（26k 节点 ≈50ms）与整份序列化（≈30ms）。
+   父元素的 innerHTML＝逐个子节点序列化后相接（元素＝outerHTML；文本按 HTML 文本规则转义 & < > 不换行空格）；克隆里删掉的四类节点（页框 / 页码 / 播放头 / 竖线）
+   在这里跳过（段的源串里根本没有这几个名字的段走快路，有的逐个判断、嵌套的克隆后删）。
+   返回 {html, cks}：cks＝各段的串（相接即 html，供预览页按段增量填，见 fillSvg）；#score 没有分段状态 / 有没消化的外来改动 / 关缓存时退回原法（cks＝null） */
+const EXPORT_DROP_SEL = '.pagebg, .pageno, #playhead, #playline';
+function svgSerCk(ck){
+  if(!ck.f) return '';
+  const hit = /pagebg|pageno|playhead|playline/.test(ck.s);
+  let out = '';
+  for(let n=ck.f; n; n=n.nextSibling){
+    if(n.nodeType===1){
+      if(!hit) out += n.outerHTML;
+      else if(!n.matches(EXPORT_DROP_SEL)){
+        if(n.querySelector(EXPORT_DROP_SEL)){ const c=n.cloneNode(true); c.querySelectorAll(EXPORT_DROP_SEL).forEach(e=>e.remove()); out += c.outerHTML; }
+        else out += n.outerHTML;
+      }
+    }else if(n.nodeType===3) out += n.data.replace(/[&<>\u00A0]/g, c=>c==='&'? '&amp;' : c==='<'? '&lt;' : c==='>'? '&gt;' : '&nbsp;');
+    else return null;
+    if(n===ck.l) return out;
+  }
+  return null;
+}
+function scoreExportParts(svg){
+  svg = svg || document.getElementById('score');
+  const st=svg && svg.__pqInc;
+  const slow = ()=>{ const c=svg.cloneNode(true); c.querySelectorAll(EXPORT_DROP_SEL).forEach(e=>e.remove()); return {html: c.innerHTML, cks: null, src: null}; };
+  if(!st || window.__noRenderCache) return slow();
+  const rr=st.mo.takeRecords(); if(rr.length) svgIncForeign(st, rr);
+  if(st.bad) return slow();
+  const cks=[];
+  for(const ck of st.cks){
+    if(ck.dirty) return slow();
+    if(ck.ser==null) ck.ser = svgSerCk(ck);
+    if(ck.ser==null) return slow();
+    cks.push(ck.ser);
+  }
+  return {html: cks.join(''), cks, src: st.cks.slice()};
+}
+/* v68.4 B5：预览页按段填时第 i 段的节点——从快照 svg 的同一段克隆（跳过 / 删去页框、页码、播放头、竖线，同 scoreExportClone），
+   克隆不经解析器，比把序列化串再解析一遍快约 2.5 倍；结果与解析 scoreExportParts 的 cks[i] 相同（序列化逐字节相同，tv_perf2 对拍） */
+function svgCloneCk(ck){
+  if(!ck || !ck.f) return null;
+  const hit = /pagebg|pageno|playhead|playline/.test(ck.s);
+  const fr = document.createDocumentFragment();
+  for(let n=ck.f; n; n=n.nextSibling){
+    if(!(hit && n.nodeType===1 && n.matches(EXPORT_DROP_SEL))){
+      const c=n.cloneNode(true);
+      if(hit && c.nodeType===1) c.querySelectorAll(EXPORT_DROP_SEL).forEach(e=>e.remove());
+      fr.appendChild(c);
+    }
+    if(n===ck.l) break;
+  }
+  return fr;
+}
 function exportPNG(scale){
   const svg = document.getElementById('score');
   /* 解析 CSS 变量为具体色（脱离页面后 var() 不生效）。
@@ -36684,11 +37187,20 @@ function pvSnap(also){
      回书写时 FLOW.mode 补排一次（markDirty）。默认外壳与书写模式下的预览不经过（keep 为假，逐字节同前） */
   const keep = flowOn() && FLOW.mode.cur!=='write';
   /* 快照为纯净成品谱：暂时清除全部编辑装饰（光标/选区/多选/小节选中/段序号高亮） */
+  /* v68.4 B4：keep 时快照排进 SNAP_SVG（见 renderCore 末尾），不碰 #score 的子节点 */
+  const snap = keep && !window.__noRenderCache;
+  if(snap) SNAP_ON = true;
+  try{
   withCleanSnap(()=>{                              /* v62.4：与打印/PNG/分享卡同一张清单（原先漏了小节范围/拖柄/歌词选中） */
-    PV.content = scoreExportClone().innerHTML;      /* v62.6 A2：预览与打印成品同口径（无屏幕页框外的播放头等） */
+    SNAP_ON = false;   /* 快照那一次 render 已经排完：取样回调（also＝FLOW.lay.collect）里若再 render 照常写 #score */
+    /* v62.6 A2：预览与打印成品同口径（无屏幕页框外的播放头等）；v68.4 B4 逐段序列化（与 scoreExportClone().innerHTML 逐字节相同，见 scoreExportParts） */
+    const ex = scoreExportParts(snap? snapSvg() : null);
+    PV.content = ex.html; PV.cks = ex.cks; PV.src = ex.src; PV.cksOf = ex.cks? ex.html : null;
     PV.geo = {...PV_GEO};
+    PV.sys = ex.cks? SYS_GEO.map(g=>[g.y0, g.y1]) : null;   /* v68.4 收尾 PERF-3：这一次分页排版各谱行的纵向范围（预览页只放与本页相交的谱行，见 FLOW.mode.fillSvg） */
     if(also) also();   /* v68.1 flow 排版模式的版面检查在同一次分页排版里取行 / 页几何（FLOW.lay.collect）；不传＝原样 */
   }, {paging:true, noRender:keep});                 /* v62.6 A2：不换行模式下预览也按分页排版——与打印页数一致 */
+  }finally{ SNAP_ON = false; }
   if(keep) FLOW.mode.markDirty();
 }
 /* fit：v68.1 flow 排版 / 输出模式嵌入时传 'w'（适配宽度）；其余调用（#b-preview 的 onclick 传进来的是点击事件）一律按 null＝100%，与原来相同。
@@ -36719,8 +37231,11 @@ function pvDims(){
 }
 function pvBuild(){
   const wrap=document.getElementById('pv-pages');
-  wrap.className='lay-'+PV.lay;
+  /* v68.4 B5(a)：flow 排版模式的点选光标类 flw-pick（drawSel 挂）不再被这里冲掉——此前每建一次页先摘再挂，
+     cursor 是继承属性，两次切换各让全部预览页节点重算一次样式（200 小节 113 + 76ms）；只有它在时原样留着，其余同前 */
+  wrap.className='lay-'+PV.lay+(wrap.classList.contains('flw-pick')? ' flw-pick' : '');
   const {dW,dH,zpct}=pvDims(); const g=PV.geo; const html=[];
+  PV.bk = [PV.lay, PV.size, Math.round(dW), Math.round(dH), g.W, g.pgH, g.gap, g.n].join('|');   /* v68.4 B5：页壳签名（FLOW.mode 重拍后页壳没变就只换页里的谱面，见 applySnap） */
   /* v68.1 flow 排版 / 输出模式（计划 R1）：页壳照常全建（尺寸、页码同下），谱面只填进可视区附近的页（FLOW.mode.fill，滚到再填）——
      每页都是整份谱面，150 小节的谱 7 页逐页解析曾要 2 秒，每改一笔都重来一次。默认外壳与书写模式下的预览不经过（lazy 为假，逐字节同前） */
   const lazy = flowOn() && FLOW.mode.cur!=='write';
@@ -39518,6 +40033,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v68.4</span><div><b>更快：打开编辑器、长谱每改一笔、排版 / 输出模式都明显提速</b>（谱面效果与上一版逐字节相同）。<br>① <b>打开更快</b>：新布局首次打开到出现启动台比上一版快约 0.2 秒，已经比旧布局时代（v68.1）还快；左栏和悬浮条改到启动台出现之后再画，离开启动台的那一刻已经画好。<br>② <b>长谱每笔</b>：200 小节的弹唱谱改一个音，从约 0.6 秒降到约 0.2 秒；双吉他轨的 200 小节谱从约 0.8 秒降到约 0.25 秒。现在只更新有变化的谱行，不再整张谱重画。<br>③ <b>排版 / 输出模式</b>：改一笔到预览更新，200 小节从 1–2 秒降到约 0.2 秒；「此处换行」从 1.4–2.2 秒降到 0.4–0.6 秒；预览页滚动更顺，回到书写后也不再变慢。<br>④ 第一次按键或点击时不再当场解码音色，开头几下操作不卡。<br>说明：会让后面整篇断行一起变化的操作（插入小节、改小节宽度、整体缩放）在 200 小节以上的谱里仍需约 0.5–0.8 秒。<br><b>测试</b>：新套件 <code>tv_perf</code>（39 项，开机与延后画）、<code>tv_perf2</code>（渲染逐字节对拍与提速，分三段）；对抗验收 3 镜头 17 条全处理；CORE 全绿。</div></li>
     <li><span class="v">v68.3</span><div><b>谱面上方的悬浮条回来了 · 浏览器禁用存储不再白屏 · 打开文件认 MIDI / MusicXML / GP · 歌词整句按字分配</b><br>① <b>吸顶悬浮条</b>：新布局里谱面上方常驻一条悬浮条，所有谱都有，默认展开。左边换谱类，接着切换「简谱 · 五线 · 对照」；新建的谱显示 ①②③ 起步步骤和当前一步的按钮，起步走完换成这类谱的常用工具（例如 填词 · 配和弦 · 配伴奏 · 织体），右端是「更多」和收起。收起成一条细条并记住，再点展开；Alt+B 切换。第二行的「起步」组和右栏「下一步」卡撤掉，起步只在悬浮条一处。<br>② <b>存储被禁用也能用</b>：浏览器禁用了本机存储时，编辑器照常打开、编辑、播放、导出，页签和保存状态标「仅本次」，关页面前提醒导出；「我的曲谱」存不下时会提示并给出导出。<br>③ <b>打开文件</b>可以直接选 MIDI、MusicXML（.xml / .musicxml / .mxl）、Guitar Pro（.gp / .gp3–.gp5 / .gpx），和拖进来一样处理；按文件内容识别格式，扩展名写错也能认。<br>④ <b>歌词整句输入</b>：在歌词框里一次输入一整句（或用空格隔开），会按字分到后面的音上，跳过休止和连音线后面的音；一个音上放两个字用「_」连写；框里按 Ctrl+Z 撤销。<br>⑤ 钢琴伴奏歌谱导出 MusicXML 再导入，轨名保持「旋律 / 右手伴奏 / 左手伴奏」。<br>⑥ 打开带布局参数的分享或观看链接，不再改掉你自己的布局偏好。<br><b>测试</b>：新套件 <code>tv_sbar</code>（72 项）、<code>tv_fix683</code>（91 项）；对抗验收 3 镜头 33 条（9 条 major）全修；CORE 179 套件全绿。</div></li>
     <li><span class="v">v68.2</span><div><b>新版编辑器布局成为默认：两行顶栏 · 书写 › 排版 › 输出 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能</b>（v67.9–v68.1 预览三个版本后正式切换；想用原来的布局：账号 ▾ › 偏好设置 › 打开「使用旧版布局」，或地址后加 <code>?shell=classic</code>，原布局完整保留）。<br>① <b>旧入口去哪了</b>：新建 → 页签旁的 ＋ 或「文件 ▾」（Alt+N 不变）；示例曲谱（原「预设」）、打开文件、存为文件、谱库 → 「文件 ▾」；排版、打印预览 → 第二行「排版」「输出」；打印与导出、发布 → 「输出」与顶栏「发布」；混音台 → 左栏每条音轨行（静音 / 独奏直接点，音量、声像、音色在「⋯」）；踏板、指法、八度线、扫弦等记号 → 左栏记号面板；一键配伴奏、织体、节奏型库 → 右栏「智能」；记不住在哪就按 Ctrl+/ 搜，旧名也能搜到。所有快捷键与原来一致。<br>② <b>第一次打开</b>有 3 步简短导览（不抢键盘焦点，按 F6 进入，Esc 或「跳过」关闭，只出现一次）；仍在用旧布局的用户会看到一次「新布局已上线」的提示。<br>③ <b>输出</b>的预览可切「适宽 / 整页 / 横排」三种排布；排版、输出里的灰显项统一写「即将推出」。<br>④ 两种布局都生效的修正：音量调到 0 时按静音播放；删掉一条吉他轨后，后面各轨的静音、音色、音量和变调夹跟着前移，不再错位；五线谱音名键按光标所在小节的调标注（转调后也对）；原样未改的示例曲谱关窗时不再转存进我的曲谱；谱库开着时数字键、删除键不会改到背后的谱。<br>⑤ 匿名界面统计：只记录用过哪个界面命令（如「切到排版」）用来改进布局，不包含曲谱、歌词等内容，隐私说明已同步；编辑器帮助与官网使用手册按新布局重写。<br><b>测试</b>：切默认后 38 个套件逐个迁移（测旧布局结构的钉旧布局并在新布局补等价覆盖，测功能的改走新入口，不删断言）；新套件 <code>tv_flowdef</code>（56 项）、<code>tv_uicmd</code>（17 项）、<code>tv_helpflow</code>（17 项）；对抗验收 3 镜头 31 条全修；CORE 177 套件全绿。</div></li>
     <li><span class="v">v68.1</span><div><b>新版外壳预览（第三步）：书写 › 排版 › 输出 三步工作流、右栏属性 / 文字 / 智能、搜功能（Ctrl+/）</b>（地址后加 <code>?shell=flow</code> 预览；不加参数时界面与 v68.0 相同）。<br>① <b>三步工作流</b>：第二行最左是「书写 › 排版 › 输出」。播放不是一步——播放、回开头、循环、速度、节拍器一直在底部播放与状态栏。切到排版或输出时谱面换成分页的成品样子，回到书写光标和滚动位置原样不变；Esc 回书写，在排版 / 输出里直接按数字键也会回书写并把音写下。<br>② <b>排版</b>：纸张 A5 / A4 / A3、疏密、内容大小、本行小节数 − ＋、此处换行、并入上一行、锁定此行，每一步都能撤销；左栏「版面检查」实算共几页几行、每行几小节、在哪里翻页，并提示单小节行、末行太短、跨页行，点一项就跳过去；右栏是版式检查器。<br>③ <b>输出</b>：打印 / 存 PDF、图片 PNG、分享卡、互动谱、MusicXML、MIDI、曲谱文件分三组排好；左栏列出总谱和按演奏者划分的分谱（分谱导出下一批上线）；右栏发布卡，点顶栏「发布」再点「存入并提交发布」两步完成，不离开编辑器。<br>④ <b>右栏三页</b>：属性（当前音、已加记号可逐个 × 掉、本小节与整谱信息）、文字（歌词段与填词、和弦写法与和弦图）、智能（下一步提示、一键配伴奏、配和弦、织体、节奏型库、生成六线谱轨、导入 MIDI）。<br>⑤ <b>搜功能 Ctrl+/</b>：一百多条命令和全部记号，中文名、拼音首字母、旧按钮名都能搜到，每条写明它在界面哪里（例如搜「预设」得到「示例曲谱」）；Ctrl+K 仍是输入和弦。<br>⑥ 五线谱轨的音名键按 C D E F G A B 排并角标本调级数（转调小节按该小节的调）；简谱轨的时值键画成简谱的样子；在音轨树换轨会自动滚到该轨光标处；状态栏小节格单击跳到当前轨该小节、Shift 选整小节可复制。<br>⑦ 1280 以下宽度：工作流收成「书写 ▾」、左栏收成 56 宽图标条、记号面板点开浮出；手机上改为顶栏 + 底条 + 抽屉（菜单、窗口、音轨、记号、播放设置、输出与分享），编辑能力不增不减。<br><b>测试</b>：新套件 <code>tv_modes</code>（107 项）；对抗验收 3 镜头 24 条（9 条 major）全修；CORE 174 套件全绿。</div></li>
@@ -39560,7 +40076,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v68.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v68.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。
@@ -39864,7 +40380,7 @@ function alignHeader(){
     setTimeout(()=>toast('上次编辑的曲谱渲染异常，已换为演示曲谱；原曲谱已备份到「我的曲谱」，可从'+(flowOn()? '「文件 ▾ · 我的曲谱」' : '顶栏「示例曲谱 · 我的曲谱」')+'打开或「存为文件」'),800);
   }
   renderProgCells();
-  sfEmbedInit();
+  sfEmbedSoon();   /* v68.4 P2-a（A4）：音色预解码挪到启动台（或谱面）首帧之后的空闲时刻，开机解析期不再与首帧布局抢 CPU */
   updateHifiBtn();
   applyResponsive(true);
   alignHeader();
@@ -40009,6 +40525,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
   /* v67.6 ?new= 深链：启动台之上打开新建面板并按参数预选（不自动建）；真手机出「在电脑上开始一份谱」并带上参数 */
   try{ nwLinkBoot(); }catch(e){ console.error('新建深链处理失败', e); }
 });
+/* v68.4 P2-a 开机首画延后的收尾：排在上面的启动分派之后（同一事件、后注册的后跑；分派里各分支提前 return 也照样到这里）。
+   出了启动台→ 左栏音轨树 / 记号面板排到空闲时刻补画；没出（深链直达、观看页等）→ 当场补完（FLOW.settle） */
+window.addEventListener('DOMContentLoaded', ()=>{ try{ if(typeof FLOW!=='undefined' && FLOW && FLOW.settle) FLOW.settle(); }catch(e){ console.error('flow 开机补画异常', e); } });
 </script>
 </body>
 </html>
