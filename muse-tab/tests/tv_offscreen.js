@@ -192,7 +192,14 @@ function topBindings(html, consts) {
       const specs=[__S.jg, __S.jt, __S.teach, __S.sight, ()=>PRESETS[0].make(), ()=>({type:'tanchang', o:{title:'空弹唱', inst:'uku', nTab:1, nVox:1, lyr:1, nMea:8}})];
       let ok=0, maxSys=0;
       const ca=snapC();
-      const loop=()=>{ for(let i=0;i<50;i++){ const r=renderPreview(specs[i%specs.length](), i%2? loose : on, {maxSystems: i%3? 1 : 0}); if(r && r.drawn>=1) ok++; if(r) maxSys=Math.max(maxSys, r.drawn); } };
+      /* v68.6 有意迁移（规格 §6.5）：交替排的谱里加入分谱——当前窗口（教学对照谱）的派生副本（partSong）＋钢琴伴奏歌谱带分谱选项（part：分谱名 / 续页眉 / keepSolo），
+         放在每轮最后：钢琴伴奏歌谱的 LYR_PNO 非空、当前窗口为空——renderOffscreen 的 K 表漏还 LYR_PNO 时快照当场不同（修前红：v68.5 引擎不还 LYR_PNO，此前最后一次是吉他弹唱谱、两边都空，看不出来）。
+         只走 renderOffscreen，不经分谱缓存（PART_CACHE / PART_SVG 是分谱自己的缓存，见 tv_parts PA11）；旧版没有 partSong 时跳过分谱副本、只排钢琴伴奏歌谱 */
+      let okP=0;
+      const parts=()=>{ if(typeof partSong==='function'){ const d=partSong({id:'v0', kind:'voice', name:'旋律', tab:[], vox:[0], opt:false, scoreEq:false, ord:0}, {brk:false});
+          const r1=renderOffscreen({song:d.song, target:on, paperW:870, fixed:true, crop:false, part:{name:'旋律', run:true, keepSolo:d.keepSolo}}); if(r1 && r1.drawn>=1) okP++; }
+        const r2=renderOffscreen({song:__S.jg(), target:loose, paperW:660, part:{name:'钢琴伴奏', run:true, keepSolo:false}}); if(r2 && r2.drawn>=1) okP++; };
+      const loop=()=>{ for(let i=0;i<50;i++){ const r=renderPreview(specs[i%specs.length](), i%2? loose : on, {maxSystems: i%3? 1 : 0}); if(r && r.drawn>=1) ok++; if(r) maxSys=Math.max(maxSys, r.drawn); } parts(); };
       loop();
       const cb=snapC();
       const onN=on.childElementCount; on.remove();
@@ -203,12 +210,12 @@ function topBindings(html, consts) {
       const cdiff1=Object.keys(ca).filter(k=>ca[k]!==cb[k] && !CACHE.includes(k)), cdiff2=Object.keys(cb).filter(k=>cb[k]!==cc[k]), cacheHit=Object.keys(ca).filter(k=>ca[k]!==cb[k] && CACHE.includes(k));
       ok = Math.round(ok/2);
       window.__invA=a.$ls;
-      return {n:NAMES.length, nc:Object.keys(ca).length, cdiff1, cdiff2, cacheHit, ok, maxSys, diff, docs:docs.length, cur:curDocI, undo:undoStack.length, redo:redoStack.length,
+      return {n:NAMES.length, nc:Object.keys(ca).length, cdiff1, cdiff2, cacheHit, ok, okP, maxSys, diff, docs:docs.length, cur:curDocI, undo:undoStack.length, redo:redoStack.length,
         onChildren:onN, looseChildren:loose.childElementCount, ids:on.querySelectorAll('[id]').length+loose.querySelectorAll('[id]').length}; })(${J(NAMES)}, ${J([...CONSTS])}, ${J(CONST_CACHES)})`).catch(e => ({ err: e.message, diff: [e.message] }));
-    T(r.n >= 100 && r.ok === 50 && r.diff.length === 0 && r.docs >= 2 && r.undo >= 1 && r.redo === 1 && r.onChildren > 20 && r.looseChildren > 20 && r.ids === 0 && r.maxSys > 1
+    T(r.n >= 100 && r.ok === 50 && r.okP >= 2 && r.diff.length === 0 && r.docs >= 2 && r.undo >= 1 && r.redo === 1 && r.onChildren > 20 && r.looseChildren > 20 && r.ids === 0 && r.maxSys > 1
       && NAMES.includes('_syncing') && r.nc >= 80 && r.cdiff1.length === 0 && r.cdiff2.length === 0,
-      'T2a 交替离屏渲染 50 次（6 种谱、文档内 / 游离两块 svg、首行 / 全曲）：' + r.n + ' 个顶层 let/var 绑定（含同行 const 后的 _syncing）+ ' + r.nc + ' 个顶层 const 对象内容（只有纯记忆缓存 ' + J(r.cacheHit) + ' 可新增，再跑一轮零变化）+ RENDER_STAT + musetab-song-v1 / musetab-docs-v1 字节 + #paper 尺寸·style·class + body 类 + #score + 整页 DOM（左右栏 / 页签）+ 全部输入控件值 前后相同；撤销 ' + r.undo + ' / 重做 ' + r.redo + '、窗口 ' + r.docs + ' 个不变；输出无 id',
-      J({ diff: r.diff.slice(0, 8), cdiff1: r.cdiff1, cdiff2: r.cdiff2, ok: r.ok, ids: r.ids, maxSys: r.maxSys }));
+      'T2a 交替离屏渲染 50 次（6 种谱、文档内 / 游离两块 svg、首行 / 全曲）＋每轮末尾分谱（v68.6：派生副本＋钢琴伴奏歌谱带分谱选项，' + r.okP + ' 次）：' + r.n + ' 个顶层 let/var 绑定（含同行 const 后的 _syncing）+ ' + r.nc + ' 个顶层 const 对象内容（只有纯记忆缓存 ' + J(r.cacheHit) + ' 可新增，再跑一轮零变化）+ RENDER_STAT + musetab-song-v1 / musetab-docs-v1 字节 + #paper 尺寸·style·class + body 类 + #score + 整页 DOM（左右栏 / 页签）+ 全部输入控件值 前后相同；撤销 ' + r.undo + ' / 重做 ' + r.redo + '、窗口 ' + r.docs + ' 个不变；输出无 id',
+      J({ diff: r.diff.slice(0, 8), cdiff1: r.cdiff1, cdiff2: r.cdiff2, ok: r.ok, okP: r.okP, ids: r.ids, maxSys: r.maxSys }));
     await pg.waitForTimeout(650);
     const r2 = await pg.evaluate(`({same:[localStorage.getItem('musetab-song-v1'), localStorage.getItem('musetab-docs-v1')].join('\\u0001')===window.__invA, pending:!!persist.pending})`);
     T(r2.same && !r2.pending, 'T2b 600 ms 后本机存储字节仍不变、没有排队的落盘（离屏不触发 persist）', J(r2));

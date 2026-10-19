@@ -54,11 +54,17 @@ const CORE = [
   /* v68.5 同两项的界面段（新外壳工具组 / 右栏「本行」与「页头 · 页码」/ 版面检查 / 命令面板 / 书写谱面灰缝菜单 / 小节线菜单 · 旧外壳「排版」浮层页码一行 · ui_cmd · 数据红线）：
      U1–U14 + RL，引擎缺省要求在场（依赖分页结果的断言不跳过）；单跑约 2–3 分钟 */
   'tv_pgbrk_ui',
+  /* v68.6「按演奏者出分谱」引擎段（规格 docs/spec-2026-10-parts.md §6.3）：PA1 分法（16 预设＋构造夹具）· PA2–PA12 派生 / 调与夹位 / 和弦重现 / 恒等对拍 / 页头 / 切片 / 记号 / 打印任务 / PNG / 隔离 / 性能 ·
+     PAZ 缺省零差异（基线 tests/parts_ref.json＝v68.5 c923d00，或 env PARTS_REF） */
+  'tv_parts',
+  /* v68.6 同一项的界面段（规格 §6.3 PU1–PU15）：新外壳输出模式分谱列表 / 勾选 / 全选三态 / 切预览 / 生命周期 / 键盘 / 沿用总谱换行 / 打印对象 / PNG ·
+     旧外壳弹窗「分谱」组与手机抽屉「分谱」行（单演奏者与 v68.5 基线逐字节相同）· 文案预算 · 埋点 · 数据红线；引擎缺省要求在场；单跑约 3 分钟 */
+  'tv_parts_ui',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000 };   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 let fail = 0, ran = 0;

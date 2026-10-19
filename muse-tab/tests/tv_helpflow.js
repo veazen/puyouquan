@@ -14,7 +14,8 @@
       保留「想用旧布局：偏好设置 → 使用旧版布局」；不再出现旧布局入口说法（顶栏「排版 / 预览 / 打印 / 示例曲谱 / 偏好设置」、右栏「创作」、播放条、左栏「歌词 / 记号」层……）；
       浏览器打开 ?section=getting-started 文章可见、无脚本错误
    H9 措辞闸：RULES 含两条四步口径规则；对注入了「书写 › 排版 › 播放」「四步工作流」「四步模式」的临时副本退出码 1 且恰好 3 处命中（注释里的不拦）；对仓库本身 0 命中
-   H10 全程无页面脚本错误 */
+   H10 全程无页面脚本错误
+   H12（v68.6）新布局帮助「输出」步、官网导出表与「打印预览」段讲到分谱（点一份预览这一份、勾选几份一次打印成一个 PDF） */
 'use strict';
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -79,6 +80,11 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '';
     /* H11（v68.5 收尾 UX-11）：「排版」步讲到本行换页与页码（此前只写「此处换行 / 并入上一行 / 锁定此行」与「页头」） */
     { const st2 = await pg.evaluate(() => { const x = [...document.querySelectorAll('#modal-mask .hd-step')].find(e => /排版/.test((e.querySelector('b') || {}).textContent || '')); return x ? x.textContent : ''; });
       T(/本行换页/.test(st2) && /另起一页/.test(st2) && /页码（印 \/ 位置 \/ 首页 \/ 起始页码）/.test(st2), 'H11a 新布局帮助「排版」步讲到「本行换页」（从这一行起另起一页，再点取消）与右栏「版式」的页码设置', st2.slice(0, 160)); }
+    /* H12（v68.6 有意迁移，规格 docs/spec-2026-10-parts.md §6.5 / §6.8 ③）：「输出」步讲到分谱——点一份预览这一份、勾选几份一次打印（修前 v68.5 无「分谱」→ 红；修后绿） */
+    { const st3 = await pg.evaluate(() => { const x = [...document.querySelectorAll('#modal-mask .hd-step')].find(e => /输出/.test((e.querySelector('b') || {}).textContent || '')); return x ? x.textContent : ''; });
+      const pe = await pg.evaluate(() => { const r = [...document.querySelectorAll('#modal-mask .hd-row')].find(x => (x.querySelector('.rk') || {}).textContent === '打印与导出'); return r ? r.querySelector('.rv').textContent : ''; });
+      T(/分谱/.test(st3) && /输出内容/.test(st3) && /预览这一份/.test(st3) && /勾选几份/.test(st3) && /一个 PDF/.test(st3) && !/即将推出|下一批/.test(st3 + pe) && /分谱在「输出内容」/.test(pe),
+        'H12a 新布局帮助「输出」步讲到分谱：「输出内容」里点一份就预览这一份，勾选几份点「分谱」一次打印成一个 PDF；对照表「打印与导出」一行补上分谱', st3.slice(0, 120) + ' ｜ ' + pe.slice(-40)); }
     const need = {
       '行 1 · 文档': ['文件 ▾', '窗口页签', '保存状态', '发布', '账号 ▾', '示例曲谱', '偏好设置'],
       '行 2 · 工作': ['书写 › 排版 › 输出', '更多 ▾', '搜功能', 'Ctrl+/'],
@@ -183,6 +189,11 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '';
     { const lay = (site.match(/<article class="doc-art" id="doc-layout-print">([\s\S]*?)<\/article>/) || [])[1] || '';
       T(/本行换页/.test(gs) && /页头 · 页码/.test(gs) && /本行换页/.test(lay) && /⑤ 页头与页码/.test(lay) && /底部居中 \/ 底部外侧 \/ 顶部外侧/.test(lay),
         'H11b 官网 help.html：快速上手「排版」与「排版与打印」篇讲到本行换页与页码设置（印 / 位置 / 首页 / 起始页码）（v68.5 收尾 UX-11）', J({ gs: /本行换页/.test(gs), lay: lay.length })); }
+    /* H12b（v68.6）：导出表有「分谱（按演奏者）」一行、「打印预览」段补一句分谱（规格 §6.8 ③） */
+    { const ie = (site.match(/<article class="doc-art" id="doc-import-export">([\s\S]*?)<\/article>/) || [])[1] || '';
+      const pv = (site.match(/<h3>打印预览<\/h3>\s*<p>([\s\S]*?)<\/p>/) || [])[1] || '';
+      T(/<td><b>分谱（按演奏者）<\/b><\/td>/.test(ie) && /勾选几份/.test(ie) && /一个 PDF/.test(ie) && /始终是总谱/.test(ie) && /分谱/.test(pv) && /点「总谱」回来/.test(pv),
+        'H12b 官网 help.html：导出表加「分谱（按演奏者）」一行（点一份预览、勾选几份一次打印成一个 PDF、分享卡等始终是总谱），「打印预览」段补一句分谱', J({ ie: /分谱（按演奏者）/.test(ie), pv: pv.slice(-80) })); }
     const OLD = /顶栏[「“](排版|预览|打印|示例曲谱|偏好设置|换调|伴奏织体|8度±|时值)[」”]|右栏[「“]创作[」”]|右栏「信息」页底部|播放条|左栏[「“](歌词|记号)[」”]层|「小节」面板|底部音轨区|顶部页签|四步|书写\s*›\s*排版\s*›\s*播放|智能预提示/g;
     const hits = site.replace(/<!--[\s\S]*?-->/g, '').match(OLD) || [];
     T(!hits.length, 'H8c 官网 help.html 不再用旧布局入口说法（顶栏「排版 / 预览 / 打印 / 示例曲谱 / 偏好设置 / 换调 / 伴奏织体 / 8度± / 时值」、右栏「创作」、播放条、左栏「歌词 / 记号」层、四步……）', J(hits));

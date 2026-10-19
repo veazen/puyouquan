@@ -600,7 +600,9 @@ function INIT() {
   const JARGON = /拍板|需负责人|负责人拍板|measures\[\]|外壳这一层|下一批/;
   /* F8a NU-2：界面上不出现内部开发 / 流程用语——音轨 ⋯ 菜单灰显项、排版工具组与右栏版式、输出左栏「输出内容」、命令面板「分谱 / 换页」的说明与 toast。
      v68.5 有意改动（规格 §12.3）：「此处换页」「页码」成了真功能，不再是「即将推出」——点工具组「此处换页」（场景光标在第 1 行）给的是灰显原因「第 1 行本来就在第 1 页」，
-     界面与命令面板里不再出现「此处换页：即将推出」；「即将推出」只剩分谱 / 锁定此轨 / 音轨排序（断言其余部分不变） */
+     界面与命令面板里不再出现「此处换页：即将推出」；「即将推出」只剩分谱 / 锁定此轨 / 音轨排序（断言其余部分不变）。
+     v68.6 有意迁移（规格 docs/spec-2026-10-parts.md §6.5）：分谱上线——场景钢琴独奏只有一位演奏者，点「分谱」toast「只有一位演奏者」，
+     全文（界面 · 命令面板 · toast）不再出现「分谱…即将推出」；「即将推出」只剩锁定此轨 / 音轨排序；JARGON 不变（修前 v68.5：toast「按演奏者出分谱：即将推出」→ 红；修后绿） */
   if (want('F8')) jobs.push(() => SAFE('F8', 'F8a', async () => {
     const pg = await open(1280, 800, { tag: 'F8a' });
     await scn(pg, 'piano'); const base = await redBase(pg);
@@ -620,11 +622,12 @@ function INIT() {
     const toasts = await EV(pg, () => __toasts.slice());
     const all = texts.join('\n') + '\n' + cmd + '\n' + toasts.join('\n');
     const bad = (all.match(new RegExp(JARGON.source, 'g')) || []);
-    const soon = /即将推出/.test(texts.join('')) && toasts.some(t => /按演奏者出分谱：即将推出/.test(t)) && toasts.some(t => /锁定此轨：即将推出/.test(t)) && toasts.some(t => /音轨排序：即将推出/.test(t));
+    const soon = /即将推出/.test(texts.join('')) && toasts.some(t => /锁定此轨：即将推出/.test(t)) && toasts.some(t => /音轨排序：即将推出/.test(t));
+    const parts = toasts.some(t => /只有一位演奏者/.test(t)) && !/分谱[^\n]{0,20}即将推出/.test(all);   /* v68.6：分谱是真功能 */
     /* v68.5：换页 / 页码不再「即将推出」——工具组「此处换页」在第 1 行灰显、点了说原因；界面、命令面板「换页 / 页码」、toast 里都没有「此处换页：即将推出」「页码…即将推出」 */
     const pb = toasts.some(t => /第 1 行本来就在第 1 页/.test(t)) && !/此处换页：即将推出|页码[^\n]{0,30}即将推出/.test(all);
-    T('F8', !bad.length && soon && pb, 'F8a NU-2 音轨 ⋯ 灰显项 / 排版工具组 · 右栏版式 / 输出左栏「输出内容」 / 命令面板「分谱 · 换页 · 页码 · 锁定此轨」/ 点灰显项的 toast：不出现「拍板 / 需负责人 / measures[] / 外壳这一层 / 下一批」，未上线的写「即将推出」；v68.5 换页 / 页码是真功能（第 1 行点「此处换页」说「第 1 行本来就在第 1 页」）',
-      J({ bad, pb, toasts: toasts.filter(t => /即将推出|拍板|下一批|第 1 行/.test(t)) }));
+    T('F8', !bad.length && soon && pb && parts, 'F8a NU-2 音轨 ⋯ 灰显项 / 排版工具组 · 右栏版式 / 输出左栏「输出内容」 / 命令面板「分谱 · 换页 · 页码 · 锁定此轨」/ 点灰显项的 toast：不出现「拍板 / 需负责人 / measures[] / 外壳这一层 / 下一批」，未上线的写「即将推出」；v68.5 换页 / 页码是真功能（第 1 行点「此处换页」说「第 1 行本来就在第 1 页」）；v68.6 分谱是真功能（钢琴独奏点「分谱」说「只有一位演奏者」，全文没有「分谱…即将推出」）',
+      J({ bad, pb, parts, toasts: toasts.filter(t => /即将推出|拍板|下一批|第 1 行|演奏者/.test(t)) }));
     await shot(pg, 'F8a-output-list-1280');
     await redEnd('F8', pg, base, []);
     await close(pg);

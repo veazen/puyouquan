@@ -262,7 +262,10 @@ const J = x => JSON.stringify(x);
     const lits = [...src.matchAll(/\bF(?:LOW)?\.track\('([^']*)'\)/g)].map(m => m[1]);
     const pres = [...src.matchAll(/\bF(?:LOW)?\.track\('([^']*)'\s*\+/g)].map(m => m[1]);
     const badLit = lits.filter(x => !RE.test(x)), badPre = pres.filter(x => !/^[a-z][a-z0-9]*(:[a-z0-9-]+)*:$/.test(x));
-    const NEED = ['r1:file:new', 'r1:publish', 'r1:tabovf', 'r2:more', 'pal:search', 'trk:mute', 'trk:solo', 'trk:add', 'cmd:open', 'rd:pin', 'st:more', 'st:help', 'st:beat'];
+    /* v68.6 有意迁移（规格 docs/spec-2026-10-parts.md §6.5）：分谱上线，输出模式新增接入点 out:parts（「分谱」键，原只有命令面板灰显项）· out:view / out:score（切预览）·
+       out:chk / out:chkall / out:brk（勾选 / 全选 / 沿用总谱换行）——只记命令名、不带分谱名（修前 v68.5：这 6 个字面量不存在 → 本条红；修后绿；真实点击见 tv_parts_ui PU14） */
+    const NEED = ['r1:file:new', 'r1:publish', 'r1:tabovf', 'r2:more', 'pal:search', 'trk:mute', 'trk:solo', 'trk:add', 'cmd:open', 'rd:pin', 'st:more', 'st:help', 'st:beat',
+      'out:parts', 'out:view', 'out:score', 'out:chk', 'out:chkall', 'out:brk'];
     const NEEDP = ['mode:', 'pal:', 'cmd:go:', 'rd:'];
     const missL = NEED.filter(x => lits.indexOf(x) < 0), missP = NEEDP.filter(x => pres.indexOf(x) < 0);
     const stLine = /\/\^st:\(hum\|snd\|loop\|em\)\$\/\.test\(a\)\) F\.track\(a\)/.test(src);

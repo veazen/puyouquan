@@ -13,7 +13,7 @@
    M7  版面检查：左栏「共 n 页 · m 行」＝PV.geo.n / 分页 layoutSystems().length，每行小节数一致，页面区每页一行；点「第 2 页」→ 第 2 页顶进入 #pv-stage 可视区；
        点版面提示 → sel.mi＝该行首小节，回书写光标落在那里
    M8  输出（#flw-out 真实点击）：7 个导出键各调到 exportPNG / exportShareCard / exportInteractiveCard / downloadMusicXML / downloadMIDI / exportSong / print，
-       pyqEvent 事件名与「打印 / 导出」弹窗逐个相同；「分谱…」aria-disabled、点了不导出
+       pyqEvent 事件名与「打印 / 导出」弹窗逐个相同；「分谱」（《送别》一位演奏者，v68.6 起原因「只有一位演奏者」）aria-disabled、点了不导出
    M9  发布 2 步（1280 竖条档）：未入库窗口点行 1「发布」→ 输出模式、发布卡浮出可见并聚焦；点「存入并提交发布」→ song.id 有值、库 +1、#popmenu .t 含「发布《」；全程 2 次点击、location.href 不变
    M10 右栏（1440 停靠）：属性页 #cursor-info 随方向键更新；已加记号芯片＝curCol()，点 × 清掉；文字页 ＋ 加一段、①② 切 activeLyr；
        智能页每项显隐＝委托按钮（钢琴伴奏歌谱有「伴奏织体」，吉他弹唱没有）
@@ -504,8 +504,10 @@ async function M23SCN() {
     const pt = await EV(pg, () => { const e = document.getElementById('flw-out-parts'); return e ? { dis: e.getAttribute('aria-disabled'), vis: __vis(e), why: e.dataset.why || e.title } : null; });
     await take(); if (pt && pt.vis) await pg.click('#flw-out-parts', { force: true }); await wait(pg, 200);
     const pa = await take();
-    /* v68.2 收尾 NU-2：说明文案由「下一批」（内部排期用语）改为对用户的「即将推出」，并且不得出现内部用语 */
-    T('M8', !!pt && pt.dis === 'true' && pt.vis && !/fn:|print|ev:/.test(pa) && /即将推出/.test(pt.why) && !/下一批|拍板|负责人/.test(pt.why), 'M8b「分谱…」aria-disabled、说明含「即将推出」（不写「下一批」等内部用语），点了不导出也不记事件', J({ pt, pa }));
+    /* v68.2 收尾 NU-2：说明文案由「下一批」（内部排期用语）改为对用户的「即将推出」，并且不得出现内部用语
+       v68.6 有意迁移（规格 docs/spec-2026-10-parts.md §6.5）：分谱上线，键名「分谱」；《送别》只有一位演奏者——仍灰显、点了不导出也不记事件，
+       原因从「…即将推出」改为「只有一位演奏者」（修前 v68.5：why＝「按演奏者出分谱：即将推出…」→ 本条红；修后绿） */
+    T('M8', !!pt && pt.dis === 'true' && pt.vis && !/fn:|print|ev:/.test(pa) && /只有一位演奏者/.test(pt.why) && !/即将推出|下一批|拍板|负责人/.test(pt.why), 'M8b「分谱」aria-disabled、原因「只有一位演奏者」（不写「即将推出」「下一批」等），点了不导出也不记事件', J({ pt, pa }));
     await shot(pg, 'M8-output-1440');
     await clickMode(pg, 'write');
     await redEnd('M8', pg, base, []);
@@ -1627,8 +1629,9 @@ async function M23SCN() {
     await EV(pg, () => exitStand()); await wait(pg, 300);
     const x = await at();
     const snap2 = await snapA();
-    T('M29', a.role === 'status' && a.live === 'polite' && a.atomic === 'true' && b2.role === 'status' && /即将推出/.test(b2.txt) && !/下一批/.test(b2.txt),   /* v68.2 收尾 NU-2：「下一批」→「即将推出」 */
-      'M29a flow 桌面 #toast＝role=status · aria-live=polite · aria-atomic=true（读屏播报）；输出模式点灰显的「分谱…」，原因（' + b2.txt.slice(0, 18) + '…）写进这个播报区', J({ a, b2: b2.role }));
+    /* v68.2 收尾 NU-2：「下一批」→「即将推出」；v68.6 有意迁移（规格 §6.5）：《送别》一位演奏者，灰显原因改为「只有一位演奏者」（修前 v68.5 toast「…即将推出…」→ 红；修后绿），role=status 断言不变 */
+    T('M29', a.role === 'status' && a.live === 'polite' && a.atomic === 'true' && b2.role === 'status' && /只有一位演奏者/.test(b2.txt) && !/下一批|即将推出/.test(b2.txt),
+      'M29a flow 桌面 #toast＝role=status · aria-live=polite · aria-atomic=true（读屏播报）；输出模式点灰显的「分谱」，原因（' + b2.txt.slice(0, 18) + '…）写进这个播报区', J({ a, b2: b2.role }));
     T('M29', s.role === null && s.live === null && x.role === 'status' && snap === 'id' && snap2 === 'id',
       'M29b 进谱架（离开 flow）属性摘掉、退谱架挂回；互动谱快照（FLOW.snapHTML）里 #toast 与经典外壳逐字节相同', J({ s, x: x.role, snap, snap2 }));
     await redEnd('M29', pg, base, []);
