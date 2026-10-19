@@ -827,9 +827,14 @@ function INIT() {
     for (const [nm, url] of [['flow', URL0], ['classic', CLASSICU]]) {
       const pg = await open(1280, 800, { tag: 'F8j-' + nm, url });
       await scn(pg, 'songbie');
+      /* v68.4 CI：原来只等 400ms 数 filechooser，CI 上偶见 0 次（本机 1–6 倍降速均为 1 次）——改为最多等 3 秒等这一个事件，并记下诊断（焦点、keydown 是否被拦） */
       let fc = 0; pg.on('filechooser', () => { fc++; });
-      await pg.keyboard.press('Control+KeyO'); await wait(pg, 400);
-      res[nm] = { ctrlO: fc };
+      await EV(pg, () => { window.__kdO = []; window.addEventListener('keydown', e => { if (e.code === 'KeyO') window.__kdO.push({ pre: e.defaultPrevented, foc: ((document.activeElement || {}).id || (document.activeElement || {}).tagName || '') }); }, true);
+        window.addEventListener('keydown', e => { if (e.code === 'KeyO' && window.__kdO.length) window.__kdO[window.__kdO.length - 1].post = e.defaultPrevented; }, false); });
+      const fcP = nm === 'flow' ? pg.waitForEvent('filechooser', { timeout: 3000 }).then(() => true).catch(() => false) : Promise.resolve(null);
+      await pg.keyboard.press('Control+KeyO');
+      const got = await fcP; if (nm !== 'flow') await wait(pg, 400);
+      res[nm] = { ctrlO: fc, got, kd: await EV(pg, () => window.__kdO) };
       if (nm === 'flow') { await EV(pg, () => setMode('engrave')); await wait(pg, 700); }
       const j0 = await EV(pg, () => JSON.stringify(song));
       await EV(pg, () => openCircle()); await wait(pg, 300);
