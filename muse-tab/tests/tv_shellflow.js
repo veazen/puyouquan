@@ -221,6 +221,8 @@ const M = {
     await pg.evaluate(() => { const rv = document.getElementById('rc-ver'); if (rv) rv.textContent = 'vX'; });
     /* v68.3 有意改动 ⑤（D2 打开文件认 MIDI / MusicXML / Guitar Pro）：顶栏 #b-open 的提示与 #file-in 的 accept 两边统一成同一占位再对拍（行为见 tv_fix683 X2） */
     await pg.evaluate(() => { const o = document.getElementById('b-open'), f = document.getElementById('file-in'); if (o) o.title = 'X'; if (f) f.setAttribute('accept', 'X'); });
+    /* v68.5 有意改动 ⑥：#layout-pop 的「页码」行（#lp-pgno-row）两边都删掉再对拍 */
+    await pg.evaluate(() => { const r = document.getElementById('lp-pgno-row'); if (!r) return; const w = r.previousSibling; if (w && w.nodeType === 3 && !w.textContent.trim()) w.remove(); r.remove(); });   /* 连同它前面的缩进空白一起删 */
     const r = await pg.evaluate(IDS => {
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
@@ -248,6 +250,10 @@ const M = {
        ④ PN-5 五线谱音名键按本小节调（只在中途转调的五线谱小节里；这几份谱没有转调）
        ⑤ v68.3 D2：顶栏「打开」#b-open 的提示与 #file-in 的 accept（认 MIDI / MusicXML / Guitar Pro）——快照前两边统一成占位；
           v68.3 其余缺陷修复（D1 存储被禁用的内存版与提示、D3 填词框多字分配、D4 MusicXML 轨名、D5 观看意图不写键）都不在这几组开机 / 多窗口快照的路径上，仍要求零差异
+       ⑥ v68.5 页码：「排版」浮层 #layout-pop 多一行「页码」（#lp-pgno-row：不印 / 底部居中 / 底部外侧 / 顶部外侧，旧外壳的最小入口）——快照前两边都删掉这一行（基线里没有，删了是空操作）；
+         同属 ⑥（收尾 REG-3）：浮层多了这一行约 +65px，旧外壳浮动浮层改为限高、内部滚动（body:not(.flow) #layout-pop.on{max-height:calc(100vh − 52px);overflow-y:auto}）——
+         1280×800 下「恢复默认 / 完成」由直接可见变成要在浮层里滚到底才看得见（基线在 1366×768 / 1280×720 就已掉出视口、根本点不到）；S0 不打开浮层，对拍不受影响，滚得到由 tv_pgbrk_ui U12c 断言
+          换页 / 页码的引擎行为是数据驱动的，这几份谱都没有 measures[].pgbrk / layout.pgno，仍要求零差异
      musetab-flow 键不参与键集合对拍（旧外壳写 '0'，基线默认外壳不写），另由 S0b 断言其值为 '0' */
   if (want('S0')) jobs.push(async () => {
     const CASES = [['boot', 1280, 800, 'light'], ['boot', 1440, 900, 'dark'], ['multidoc', 1280, 800, 'light'], ['multidoc', 1280, 800, 'dark'], ['multidoc', 1440, 900, 'light'], ['multidoc', 1440, 900, 'dark']];
@@ -287,7 +293,7 @@ const M = {
       'deploy.yml 的 test job 要先 git fetch --depth=1 origin <shellflow_ref.json 的 commit>');
     else if (!refURL) NOTE('S0', '⚠️  S0 与 ' + (REF.version || 'v67.8') + ' 对拍跳过：拿不到参考（git show ' + REF_COMMIT.slice(0, 12) + ' 失败；本地可设 MUSETAB_REF=参考 index.html，MUSETAB_REF=none 为显式跳过）');
     else { const bad = res.filter(x => x && x.diffs.length);
-      T('S0', bad.length === 0, 'S0 旧外壳（?shell=classic / 本机键 0）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键（除 musetab-flow）· song JSON；有意改动见上方注释 ①–⑤）',
+      T('S0', bad.length === 0, 'S0 旧外壳（?shell=classic / 本机键 0）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳零差异（' + res.length + ' 组：6 个容器 outerHTML / 几何 / 父节点 / 计算样式 · 全部带 id 元素 rect 与 display · body / html 类与内联样式 · body.innerHTML · musetab-* 键（除 musetab-flow）· song JSON；有意改动见上方注释 ①–⑥）',
         bad.length ? bad.map(x => x.tag + '：' + x.diffs.join(' | ')).join('\n      ') : res.map(x => x.tag + '（' + x.n + ' 个 id）').join('；')); }
   });
 

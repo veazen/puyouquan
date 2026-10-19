@@ -1261,6 +1261,8 @@ svg.pqi{margin:0;max-width:none;flex:0 0 auto}   /* 压掉全局 svg{margin:0 au
 .nf-bl i{font-style:normal;width:100%;font-size:11.5px;color:#4a3ad6}
 .nf-paper figcaption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;padding:0 4px;font-size:12px;line-height:1.5;color:#5c5b73}
 .nf-pgrid .pagebg,.nf-pgrid .pageno{display:none}   /* 预览只要谱面：页底纸与页码不画（纸面由 .nf-paper 给） */
+.nf-pgrid .pgfolio,.nf-pgrid .pgbrk-mk{display:none}   /* v68.5 收尾 REG-4：成品页码（song.layout.pgno）与换页标记同样不进导入 / 已有谱的预览卡 */
+#paper.pbhov #score{cursor:pointer}   /* v68.5 收尾 UX-4：指针停在书写谱面的「换页」胶囊上（类名只在 #paper 上，#score 不动） */
 .nf-pvnote{color:#4a3ad6;font-weight:600}
 .nf-note{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 12px;border-radius:10px;background:var(--accent-soft);color:var(--text);font-size:13px;line-height:1.5}
 .nf-note .pqi{color:var(--accent-ink)}.nf-note span{flex:1}
@@ -1501,6 +1503,7 @@ i.nf-dot.s-user,i.nf-dot.s-link{background:var(--accent)}i.nf-dot.s-scene{border
 .nw-mpvbox{min-height:96px;display:flex;align-items:center;justify-content:center}
 .nw-mpvbox>svg{display:block;width:100%;height:auto;max-height:220px;margin:0}
 .nw-mpv .pagebg,.nw-mpv .pageno{display:none}
+.nw-mpv .pgfolio,.nw-mpv .pgbrk-mk{display:none}   /* v68.5 收尾 REG-4 */
 .nw-mpv[aria-busy=true] .nw-mpvbox{opacity:.55}
 .nw-mpv figcaption{font-size:11.5px;line-height:1.5;color:#5c5b73;padding:2px 4px 0}
 .modal .nw-mpverr{margin:0;font-size:12px;color:#5c5b73}
@@ -2424,6 +2427,9 @@ body.viewer #b-vwset{display:inline-flex;align-items:center}
   background:var(--panel);border:1px solid var(--border);border-radius:16px;
   box-shadow:none;padding:15px 16px 14px}
 #layout-pop.on{display:block}
+/* v68.5 旧外壳浮层多了「页码」一行（约 +67px）：1280×800 下「恢复默认 / 完成」会掉出视口（基线在 1366×768 就已经掉出）——浮层限高、内部滚动。
+   只管旧外壳的浮动浮层（新外壳里它搬进右栏、跟着右栏滚） */
+body:not(.flow) #layout-pop.on{max-height:calc(100vh - 52px);overflow-y:auto;overscroll-behavior:contain}
 #layout-pop h4{margin:-15px -16px 0;padding:13px 16px 11px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:7px;cursor:move;user-select:none;border-bottom:1px solid var(--border-soft);touch-action:none}
 #layout-pop h4 .lp-grip{color:var(--muted);font-size:13px;letter-spacing:-1px;cursor:move}
 #layout-pop h4 .lp-close{margin-left:auto;border:none;background:none;font-size:16px;color:var(--muted);cursor:pointer;line-height:1;padding:0 2px}
@@ -2695,7 +2701,7 @@ body.shell #panel-tab-voice .rg-body:last-child,body.shell #panel-vox-voice .rg-
   #score-wrap{margin:0;max-width:none;padding:0;flex:none}
   #paper{border:none;box-shadow:none;border-radius:0;padding:0;max-width:none;width:auto;filter:none}
   #paper svg{width:100%!important;height:auto!important}
-  #score .pagebg{stroke:none!important} #score .pageno{display:none!important}
+  #score .pagebg{stroke:none!important} #score .pageno{display:none!important} #score .pgbrk-mk{display:none!important}
   :root,:root[data-theme]{--paper:#fff;--ink:#000}   /* v66.5 同权重压过显式主题块：显式浅色主题打印也是白纸 */
   :root{--sc-muted:var(--ed-print-muted);--sc-faint:var(--ed-print-faint);--sc-border:var(--ed-print-border);
     --sc-pen:var(--ed-brand);--sc-pen-2:var(--ed-brand);--sc-pen-soft:var(--ed-brand-soft);--sc-pen-ink:var(--ed-brand-ink);--sc-danger:var(--ed-print-danger)}   /* v66.0 深色主题打印：刻版灰字不再印成深色主题浅灰 */
@@ -3793,9 +3799,32 @@ body.flow .flw-off{display:none!important}
   body.flow:not(.stand):not(.viewer) #right-dock .flw-pubgo:active{transform:none}
   body.flow:not(.stand):not(.viewer) #right-dock .flw-pubgo svg{display:block;flex:none}
   /* 搬进「版式」页的 #layout-pop（FLOW.DOCK 'layout-pop'）：静态外观沿用 body.shell #right-dock #layout-pop；标题栏「排版 ✕」不要（页签已写着） */
-  body.flow:not(.stand):not(.viewer) #flw-rp-lay #layout-pop{padding:2px 2px 8px;border-bottom:1px solid var(--border-soft);border-radius:0}
+  body.flow:not(.stand):not(.viewer) #flw-rp-lay #layout-pop{padding:2px 2px 8px;border-bottom:1px solid var(--border-soft);border-radius:0;
+    z-index:auto}   /* v68.5：浮层自带的 z-index:60 在这里是 flex 子项（.flw-rp 纵向 flex），会单独成层盖过吸顶的页签条（z 2）——右栏往下滚到「页头 · 页码」时字压在「版式」页签上 */
   body.flow:not(.stand):not(.viewer) #flw-rp-lay #layout-pop h4{display:none}
   body.flow:not(.stand):not(.viewer) #flw-rp-lay #layout-pop .lp-sub{margin:8px 0 2px}
+  /* v68.5 换页 / 页码（FLOW.lay）：#layout-pop 搬进来时它自带的「页码」行（旧外壳的最小入口）不出——新外壳用下面的「页头 · 页码」区，不出两套控件 */
+  body.flow:not(.stand):not(.viewer) #flw-rp-lay #lp-pgno-row{display:none}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxb[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 32%,transparent)}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxb[aria-pressed="true"] svg{color:var(--accent-ink)}
+  /* 收尾 REG-5：以下分段键样式只管「页头 · 页码」区（此前写在整个 #right-dock 上，连带改了右栏「本行断行」、输出页「预览排布」原有分段键的悬停样式） */
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb{white-space:nowrap}
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb:not([aria-pressed="true"]):not([aria-disabled="true"]):hover{background:var(--hover);color:var(--text)}
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb[aria-disabled="true"]{cursor:not-allowed;color:var(--faint)}
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb[aria-pressed="true"][aria-disabled="true"]{background:var(--fill);color:var(--muted);font-weight:600}
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb:focus-visible,body.flow:not(.stand):not(.viewer) #flw-lay-hdpn .flw-gseg .flw-gsb.flw-fv:focus{outline:2px solid var(--focus);outline-offset:-1px}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxpn .flw-rxpnpos{grid-column:1/-1;justify-self:stretch;display:flex}   /* 位置三枚在停靠宽 264 下放不下与键名同一行：单独占一整行，字不折行 */
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxpn .flw-rxpnpos .flw-gsb{flex:1 1 0;min-width:0;padding:0 6px}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxvb{min-width:34px;height:28px;min-height:28px;margin:0;padding:0 6px;border:0;border-radius:7px;background:none;box-shadow:none;
+    font:12px/1 var(--font-ui);color:var(--text);font-variant-numeric:tabular-nums;text-align:center;cursor:text}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxvb:hover{background:var(--hover)}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxvb:active{transform:none}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxvb:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxvb[aria-disabled="true"]{color:var(--faint);cursor:not-allowed;background:none}
+  body.flow:not(.stand):not(.viewer) #right-dock .flw-rxnum{width:52px;height:28px;margin:0;padding:0 6px;border-radius:7px;font:12px/1 var(--font-ui);text-align:center}
+  body.flow:not(.stand):not(.viewer) #flw-left .flw-lrpb{display:inline-flex;flex:none;color:var(--muted)}
+  body.flow:not(.stand):not(.viewer) #flw-lay-hdpn.flw-flash{animation:flw-flash 1.3s ease-out}   /* 收尾 UX-8：「页头与页码…」打开后这一区闪一下 */
+  body.flow:not(.stand):not(.viewer) #flw-left .flw-lrpb svg{display:block;margin:0}
   /* 预览里的当前行框（排版模式；FLOW.lay.drawSel 定位在 .pv-paper 内） */
   body.flow[data-mode="engrave"]:not(.stand):not(.viewer) #pv-pages .pv-paper{position:relative}
   body.flow[data-mode="engrave"]:not(.stand):not(.viewer) #pv-pages.flw-pick .pv-paper{cursor:pointer}
@@ -4070,6 +4099,7 @@ body.flow #flw-tour .flw-tour-go:hover{background:var(--btn-pri-h);color:var(--e
 body.flow #flw-tour .flw-tour-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}   /* 读屏播报（不抢焦点时，NU-1） */
 body.flow .flw-tour-ring{position:fixed;z-index:46;pointer-events:none;box-sizing:border-box;border-radius:9px;box-shadow:0 0 0 2px var(--accent),0 0 0 6px var(--accent-soft)}
 html.fx body.flow #flw-tour{animation:flw-tour-in .18s ease-out}
+@keyframes flw-flash{0%,35%{background:color-mix(in srgb,var(--accent) 14%,transparent)}100%{background:transparent}}
 @keyframes flw-tour-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){ html.fx body.flow #flw-tour{animation:none} }
 /* .flw-x＝插进共用容器（#editbar / #mixer-dock 等）的 flow 专属控件，包括 flow 搬进来的旧节点。
@@ -4842,6 +4872,12 @@ if(/[?&](pub|mine|review)=/.test(location.search)){var _bt=document.getElementBy
     <div class="lp-lab"><span>简谱小节号</span></div>
     <div class="lp-seg" id="lp-bar" title="纯简谱谱面的小节号（有六线谱/五线谱时由它们标注）">
       <button data-bn="">不印</button><button data-bn="row">行首</button><button data-bn="all">每小节</button>
+    </div>
+  </div>
+  <div class="lp-row" id="lp-pgno-row">
+    <div class="lp-lab"><span>页码</span></div>
+    <div class="lp-seg" id="lp-pgno" title="打印 / PDF / 图片里的页码">
+      <button data-pn="">不印</button><button data-pn="bc">底部居中</button><button data-pn="bo">底部外侧</button><button data-pn="to">顶部外侧</button>
     </div>
   </div>
   <div class="lp-row">
@@ -6928,6 +6964,26 @@ let SYS_GEO = [];   /* v62.6 A2 最近一次 render 的每个系统纵向范围 
    与显示缩放(viewZoom)、打印预览缩放完全独立：这里改的是版面本身——
    页面越大(A5→A4→A3) 容纳内容越多；内容越大 每页容纳越少；疏密只调空白不改字号。*/
 const PAGE_MM = {A5:[148,210], A4:[210,297], A3:[297,420]};   // 纸张 [宽,高] mm（同比 1:√2）
+/* v68.5 页码（新增可选字段 song.layout.pgno＝{on, pos, start, first}；缺失或 on!==true＝不印，成品与 v68.4 逐字节相同）。
+   pos：'bc' 底部居中（缺省）/ 'bo' 底部外侧 / 'to' 顶部外侧（外侧＝印出来的页码单数在右、双数在左）；start：第 1 页印成几（1–999）；
+   first：有曲名页头的第 1 页印不印（缺省不印，出版惯例）。页码文字只由整数算出、pos 走白名单——不会把任何字符串拼进 SVG。
+   引擎只读 pgnoCfg（null＝不印）；pgnoRaw 给界面同步用（含 on）；写入只走 pgnoSet（见 sysPageBreak 旁）。
+   顶层 const 有暂时性死区：放在 render 首次调用之前 */
+const PGNO_POS = ['bc','bo','to'];
+function pgnoCfg(s){ const o=s && s.layout && s.layout.pgno;
+  if(!o || typeof o!=='object' || o.on!==true) return null;
+  let st=Math.round(+o.start); if(!(st>=1 && st<=999)) st=1;
+  return {pos: PGNO_POS.indexOf(o.pos)>=0? o.pos : 'bc', start: st, first: o.first===true}; }
+function pgnoRaw(s){ const o=(s && s.layout && s.layout.pgno && typeof s.layout.pgno==='object')? s.layout.pgno : {};
+  let st=Math.round(+o.start); if(!(st>=1 && st<=999)) st=1;
+  return {on: o.on===true, pos: PGNO_POS.indexOf(o.pos)>=0? o.pos : 'bc', start: st, first: o.first===true}; }
+/* v68.5 第 k 小节之前是不是强制断点（断行 DP / 锁行 / 此处换行同一口径）：上一小节「此处换行」(brk=1) 且本小节没有「并入上一行」(pull=1)，
+   或者本小节「此处换页」(新增可选字段 measures[k].pgbrk===1：从这一小节起另起一页，隐含换行，压过 pull)。k=0（第 1 小节）恒为假——第 1 小节的换页一律忽略 */
+function sysBrkBefore(M, k){ const m=M && M[k]; return k>0 && !!m && ((M[k-1].brk===1 && m.pull!==1) || m.pgbrk===1); }
+/* v68.5 收尾 UX-3：「每行 −」/ 行尾 ○− 遇到下一行另起一页时的拒绝原因（谱面行尾按钮 renderCore、sysAct、新外壳工具组同一句；renderCore 读它，放在首次 render 之前） */
+const PB_PUSH_NO = '下一行另起一页，行尾小节移过去只会单独成行——先取消那一行的换页';
+/* 「每行 ＋」/ 行尾 ○＋ /「并入上一行」遇到换页的拒绝原因（两种外壳共用：新外壳取消入口是工具组「本行换页」，旧外壳是小节线菜单「取消换页」，措辞不点按钮名） */
+const PB_PULL_NO = '下一行另起一页，先取消那一行的换页', PB_JOIN_NO = '本行另起一页，先取消本行的换页';
 const LAY_PRESETS = {compact:0.76, standard:1, loose:1.28};   // 智能排版：行距/间距智能缩放档位
 let LAY_HS = 1, LAY_VS = 1;                     // 当前渲染用的横/纵疏密系数（render 时由 layoutCfg 写入）
 let PRINT_PAGING = false;                       // v60.80 打印期间强制分页（手机观看的连续长卷不适合直接送打印机）
@@ -9618,7 +9674,8 @@ function layoutSystems(){
     const PULL_PEN = 150;
     const fb = new Array(n).fill(0);                                  // fb[k]=1：k 之前必须断行
     /* v52.0 语义：pull 覆盖 brk（本小节标了「并入上一行」，上一小节的强制换行作废） */
-    for(let k=1;k<n;k++) fb[k] = (song.measures[k-1].brk===1 && song.measures[k].pull!==1)? 1 : 0;
+    /* v68.5 「此处换页」(pgbrk=1) 同样是强制断点（隐含换行，压过 pull），见 sysBrkBefore */
+    for(let k=1;k<n;k++) fb[k] = sysBrkBefore(song.measures, k)? 1 : 0;
     const P = new Array(n).fill(0);
     for(let k=1;k<n;k++) P[k] = P[k-1] + fb[k];
     /* v60.76 可行性判据由「自然宽不超过行宽的 1.06 倍」改为「**刚杆之和放得下**」。
@@ -9640,7 +9697,7 @@ function layoutSystems(){
        段落标记、反复开始/结束、段落线、房子处是段落起点：在那里断行不罚、乐句从那里重新数，
        一行跨过段落起点（起点落在行中间）另记 120 */
     const secSt = song.measures.map((m,k)=>{ if(k===0) return true; const pm=song.measures[k-1];
-      return !!(m.repeatStart || m.label || m.volta || (pm && (pm.repeatEnd || pm.sectionBar || pm.finalBar))); });
+      return !!(m.repeatStart || m.label || m.volta || m.pgbrk===1 || (pm && (pm.repeatEnd || pm.sectionBar || pm.finalBar))); });   /* v68.5 换页处也是段落起点（乐句从这里重新数） */
     const phrPen = j=>{                       // 乐句计数从最近一个段落起点重新起算
       if(!song.chordOnly || j>=n || secSt[j]) return 0;
       let a=j; while(a>0 && !secSt[a]) a--;
@@ -9667,7 +9724,7 @@ function layoutSystems(){
           pen = 100*f*f*f; }
         else { const f = (w-availW)/Math.max(1, w-rg);                // 压缩：要吃掉的弹簧 / 可吃的弹簧
           pen = 100*Math.pow(Math.min(1.5, f), 3); }
-        if(i > 0 && song.measures[i].pull === 1) pen += PULL_PEN;    // 违反 pull：能不违反就不违反
+        if(i > 0 && song.measures[i].pull === 1 && song.measures[i].pgbrk !== 1) pen += PULL_PEN;    // 违反 pull：能不违反就不违反（v68.5 换页压过 pull：那里必然断开，不记罚分）
         pen += pPen + (song.chordOnly && innerSec? 120 : 0);          // v64.7 纯和弦谱乐句断行
         const cj = clsOf(w);
         for(let ci=0;ci<NC;ci++){
@@ -11780,12 +11837,48 @@ function renderCore(){
      **不分页**：一张长页连续排布、无页码。打印/PDF 走 window.print 时浏览器自行分页，
      长图导出本就要连续，均不受影响；编辑器分页照旧（排版所见即所得）。 */
   const noPaging = noWrapOn() || (!OFF && viewerMode && !PRINT_PAGING && (typeof innerWidth==='number' && innerWidth<=820));   /* v67.5 离屏不看观看页 / 视口（验收：390 观看页下预览变成长卷） */
+  /* v68.5 页码（song.layout.pgno，见 pgnoCfg）与「此处换页」（measures[].pgbrk）。两样都没有时 padTop=44、padBot=22、照旧画屏幕页码 .pageno——与 v68.4 逐字节相同。
+     页码：字号 12.5（＝页头「作词 / 作曲」）、数字字体 var(--font-num)、墨色；底部基线距纸下边 7mm、顶部基线距纸上边 8mm（第 1 页压在题头之上）。
+     印页码时为它在版心外预留空间（所有页同一套版心边距，含不印页码的第 1 页）：谱行墨迹超出行范围的上界按 7 计（v68.4 PERF-3 实测），页码字框与谱行墨迹净距 ≥2mm。
+     不分页（不换行长带 / 窄屏观看长卷）不印；从这两种状态打印时 PRINT_PAGING 恢复分页、照常印 */
+  const PN = noPaging? null : pgnoCfg(song);
+  const PN_FS = 12.5, PN_B = Math.round(7*MM), PN_T = Math.round(8*MM);
+  const padTop = (PN && PN.pos==='to')? Math.max(PG_PAD_TOP, PN_T + 10 + Math.round(2*MM)) : PG_PAD_TOP;
+  const padBot = (PN && PN.pos!=='to')? Math.max(PG_PAD_BOT, PN_B + Math.ceil(PN_FS) + 7 + Math.round(2*MM)) : PG_PAD_BOT;
+  /* 第 si 行的行首小节标了「此处换页」（第 1 小节的换页无效）：这一行放到新页顶。与「放不下」合在同一个判定里——一次最多翻一页，构造上不会出空白页 */
+  const pbAt = si=>{ const m0=systems[si].measures[0].mi; return m0>0 && song.measures[m0].pgbrk===1; };
+  /* v68.5 收尾 ENG-1：顶部页码与页首行的净距按这一行真实的上冒算——上面 padTop 的「超出行顶按 7 计」对简谱行不成立：
+     简谱首声部在最上面（没有 TAB、首声部不是五线谱）时，和弦框会被延长号 / 高八度点 / 和音纵列一层层顶上去，紧凑档实测超出行顶 14.2，与页码字框只剩 0.2mm。
+     这里按渲染同一套叠放公式逐列取本行最高墨迹（相对首声部基线 voxY 向上多少）：和弦框顶＝25＋高八度＋和音＋延长号 11＋框高 13.8（＋描边与上标 ♯♭ 约 2.7）、
+     延长号 / 波音（含邻音变音）/ 标注 / 数字与高八度点；小节头 segno·coda（≈35）、排练号框（31.5）、房子 / 转调（29）。
+     返回本行墨迹顶在行顶之上多少（可为负）；页首行的版心起点取 max(padTop, 页码字框底＋2mm（向上取整）＋它)。五线谱 / TAB 在最上面的行不走这里（实测 ≥7.9mm，仍按 padTop）。
+     只在印顶部页码时调用：其余情况与此前逐字节相同 */
+  const inkOver = si=>{
+    if(song.tabVoices.length || !song.voxVoices.length || isStaffNota((song.voxNotations||[])[0])) return -1e9;
+    const vy=sysM[si].voxYs[0]; if(!(vy>0)) return -1e9;
+    let up=0;
+    systems[si].measures.forEach(lm=>{ const mea=song.measures[lm.mi]; if(!mea) return;
+      if(mea.segno || mea.coda) up=Math.max(up, 35);
+      if(mea.label) up=Math.max(up, 31.5);
+      if(mea.volta || mea.keyTo) up=Math.max(up, 29);
+      ((mea.voxes||[])[0]||[]).forEach(c=>{ if(!c) return;
+        const oc = c.oct>0? Math.min(3, c.oct)*4.2 : 0;
+        if(c.deg) up=Math.max(up, 14+(oc? oc+3 : 0)+jpAddsH(c));
+        if(c.chord || (c.chords||[]).some(x=>x && x.chord)) up=Math.max(up, 25+oc+jpAddsH(c)+(c.ferm? 11 : 0)+16.5);   /* 框高 13.8＋描边；和弦名里上标的 ♯♭ / 扩展音（dy −0.34em）再高出框约 1 */
+        if(c.ferm) up=Math.max(up, (oc? 16.5+oc : 15)+(c.orn? 9 : 0)+(c.artic? 8 : 0)+2.5+9);
+        if(c.orn) up=Math.max(up, (oc? 18.8+oc : 15)+12+(c.ornAcc? 8 : 0));
+        if(c.anno) up=Math.max(up, 41);
+      });
+    });
+    return Math.ceil(up - vy);
+  };
+  const pgTop = si=>(PN && PN.pos==='to')? Math.max(padTop, PN_T + 4 + Math.ceil(2*MM) + inkOver(si)) : padTop;   /* 页码字框底＝基线＋下伸约 0.26em（12.5 号≈3.3，取 4） */
   const sysY = []; let pageIdx = 0; let cursorY = top;
   const sysPg = [];   /* v67.5 每行所在页（离屏只画前 N 行时只铺到这些行所在的页） */
   systems.forEach((sys, si)=>{
-    const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - PG_PAD_BOT;
-    if(!noPaging && si>0 && cursorY + sysM[si].h > pageBottom){
-      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + PG_PAD_TOP;
+    const pageBottom = pageIdx*(PG_H+PG_GAP) + PG_H - padBot;
+    if(!noPaging && si>0 && (cursorY + sysM[si].h > pageBottom || pbAt(si))){
+      pageIdx++; cursorY = pageIdx*(PG_H+PG_GAP) + pgTop(si);   /* v68.5 收尾 ENG-1：顶部页码时按本行上冒下移 */
     }
     sysY[si] = cursorY; sysPg[si] = pageIdx;
     cursorY += sysM[si].h + M.gap;
@@ -11806,15 +11899,50 @@ function renderCore(){
   /* 页面白底（衬在内容下方，页间留灰缝） */
   const offN = OFF? Math.min(systems.length, OFF.maxSys) : 0;   /* 离屏实际画出的行数 */
   const pgDraw = OFF && offN? sysPg[offN-1]+1 : nPages;
+  /* v68.5 成品页码（.pgfolio）：画在段 0（页底＋页头，排版 / 输出预览按段取舍时每页都放这一段，见 FLOW.mode.pageKeep）；
+     类名不能带 pageno 字样（.pageno 是屏幕专用的「第 x / N 页」，所有成品都会摘掉）。收尾 UX-7：印页码时 .pageno 照画（见下） */
+  /* v68.5 收尾 ENG-3：比一页还高的行（版面检查报「跨页」）伸进了页码所在的页边——那一页不印页码（页码压在谱线 / 歌词上比缺一个页码更糟）：
+     底部页码＝该行所在页（行底超过本页页脚区上沿）；顶部页码＝下一页（行底越过本页纸底） */
+  const noFol = new Set();
+  if(PN) systems.forEach((sys, si)=>{ const pg=sysPg[si], b=sysY[si]+sysM[si].h, pb=pg*(PG_H+PG_GAP)+PG_H;
+    if(PN.pos!=='to'){ if(b > pb-padBot+0.5) noFol.add(pg); } else if(b > pb+0.5) noFol.add(pg+1); });
+  const folio = pg=>{
+    if(!PN || (pg===0 && !PN.first) || noFol.has(pg)) return '';
+    const n=PN.start+pg, odd=n%2===1, py=pg*(PG_H+PG_GAP);
+    const x = PN.pos==='bc'? PAGE_W/2 : (odd? PAGE_W-MARGIN : MARGIN), an = PN.pos==='bc'? 'middle' : (odd? 'end' : 'start');
+    const y = PN.pos==='to'? py + (pg===0? Math.max(12, Math.min(PN_T, topMargin-9)) : PN_T) : py + PG_H - PN_B;
+    return `<text x="${+x.toFixed(1)}" y="${y}" font-size="${PN_FS}" font-family="var(--font-num)" text-anchor="${an}" fill="var(--ink)" class="pgfolio">${n}</text>`;
+  };
   for(let pg=0; pg<pgDraw; pg++){
     const py = pg*(PG_H+PG_GAP);
+    /* v68.5 收尾 UX-7：印页码时屏幕页码「第 x / N 页」照样画（此前整个换成成品页码：第 1 页底部什么都没有、也看不到总页数；所有成品本来就摘掉 .pageno）。
+       这一页的成品页码在右下角（底部外侧的单数页）时，屏幕页码挪到左下角，免得两个数字叠在一角；不印页码时与此前逐字节相同 */
+    const fR = !!PN && PN.pos==='bo' && (PN.start+pg)%2===1 && (pg>0 || PN.first) && !noFol.has(pg);
     p.unshift(`<rect x="0" y="${py}" width="${CONTENT_W}" height="${PG_H}" rx="4" fill="var(--paper)" stroke="var(--border)" stroke-width="1" class="pagebg"/>`+
-      (nPages>1?`<text x="${CONTENT_W-10}" y="${py+PG_H-12}" font-size="10" text-anchor="end" fill="var(--muted)" class="pageno">第 ${pg+1} / ${nPages} 页</text>`:''));
+      (PN? folio(pg) : '')+(nPages>1?`<text x="${fR? 10 : CONTENT_W-10}" y="${py+PG_H-12}" font-size="10" text-anchor="${fR? 'start' : 'end'}" fill="var(--muted)" class="pageno">第 ${pg+1} / ${nPages} 页</text>`:''));
   }
+  /* v68.5 书写模式的换页标记（.pgbrk-mk，只在编辑视图画）：离屏、观看态、谱架、打印（PRINTING_NOW / PRINT_PAGING）、成品取样（withCleanSnap）、排版快照（SNAP_ON）一律不画；
+     另有三道保险把它挡在成品外——EXPORT_DROP_SEL / svgSerCk / svgCloneCk、打印切片的摘除清单、打印 CSS */
+  const PB_MK = !OFF && !viewerMode && !PRINTING_NOW && !PRINT_PAGING && !CLEAN_SNAP_N && !SNAP_ON && !(document.body && document.body.classList.contains('stand'));
   systems.forEach((sys, sIdx)=>{
     CKB.push(p.length);
     if(OFF && sIdx>=OFF.maxSys) return;   /* v67.5 离屏只画前 N 行（排版、行距、跨行连线目标仍按全曲算） */
     const oy = sysY[sIdx];
+    /* v68.5 换页标记：分页显示时画在本行所在页上方的页间灰缝正中（纸外，不与谱面任何东西重叠）——虚线＋「换页」小胶囊；
+       不换行长带里画在该小节左小节线前 3 单位的竖虚线，「换页」写在行下方。进本行的段（与本行一起增量替换） */
+    if(PB_MK) sys.measures.forEach((lm, li)=>{
+      if(!(lm.mi>0 && song.measures[lm.mi].pgbrk===1)) return;
+      if(li===0 && !noPaging){
+        const gy = sysPg[sIdx]*(PG_H+PG_GAP) - PG_GAP/2, cx = PAGE_W/2;
+        p.push(`<g class="pgbrk-mk" pointer-events="none" aria-hidden="true"><line x1="${MARGIN}" y1="${gy}" x2="${PAGE_W-MARGIN}" y2="${gy}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="6 4" opacity="0.6"/>`
+          +`<rect x="${cx-22}" y="${gy-8}" width="44" height="16" rx="8" fill="var(--paper)" stroke="var(--accent)" stroke-width="1"/>`
+          +`<text x="${cx}" y="${gy+3.5}" font-size="10" text-anchor="middle" fill="var(--accent)">换页</text></g>`);
+      } else {
+        const x = (MARGIN + STAFF_HEAD_W + lm.x - (lm.ksBefore||0) - 3).toFixed(1), h = sysM[sIdx].h;
+        p.push(`<g class="pgbrk-mk" pointer-events="none" aria-hidden="true"><line x1="${x}" y1="${(oy-4).toFixed(1)}" x2="${x}" y2="${(oy+h+4).toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="6 4" opacity="0.6"/>`
+          +`<text x="${x}" y="${(oy+h+15).toFixed(1)}" font-size="10" text-anchor="middle" fill="var(--accent)">换页</text></g>`);
+      }
+    });
     const ox = MARGIN + STAFF_HEAD_W, oxH = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
     /* v45.8 系统左端连线（出版惯例）：行首把本行各谱行（联排五线谱/TAB/五线谱/简谱声部）
@@ -13793,6 +13921,7 @@ function renderCore(){
   const totalH = nPages*PG_H + (nPages-1)*PG_GAP + 6;
   /* 供打印预览取用：页宽、单页高、页间距、页数（内容随 #score 快照读取） */
   PV_GEO = {W:CONTENT_W, pgH:PG_H, gap:PG_GAP, n:nPages};
+  if(noFol.size) PV_GEO.nf = [...noFol].filter(x=>x<nPages).sort((a, b)=>a-b);   /* v68.5 收尾 ENG-3：因谱行太高而不印页码的页（版面检查读它；没有这种页时 PV_GEO 与此前逐字节相同） */
   SYS_GEO = sysY.map((y,si)=>({y0:y, y1:y+sysM[si].h}));
   if(OFF){
     /* 离屏：viewBox 高裁到最后一行画出的系统底 + 页底留白（crop=false 保留整页高）；显示尺寸＝引擎尺寸 × 内容大小（不乘用户缩放 / 适配宽） */
@@ -13859,7 +13988,8 @@ function renderCore(){
       let natRow=0; sys2.measures.forEach(lm=>{ natRow+=measureLayout(song.measures[lm.mi]).w; });
       const hasNext=m2<song.measures.length-1;
       const fits=hasNext && (natRow + measureLayout(song.measures[m2+1]).w) <= availW2*1.75;
-      const canPull=hasNext && fits, canPush=m2>m1;
+      const nxPb=hasNext && song.measures[m2+1].pgbrk===1;   /* v68.5 下一行另起一页：它的行首不能并进本行（先在那一行取消「此处换页」） */
+      const canPull=hasNext && fits && !nxPb, canPush=m2>m1 && !nxPb;   /* v68.5 收尾 UX-3：「−」同样不越过下一行的换页 */
       const btn3=(act,cy2,en,tip,inner)=>p.push(
         `<g class="sysbtn" data-sysact="${en?act+':'+m1+':'+m2:''}" opacity="${en?1:0.3}" style="cursor:${en?'pointer':'default'}">`
         +`<circle cx="${bx0}" cy="${cy2.toFixed(1)}" r="6.2" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.1"/>`
@@ -13868,9 +13998,9 @@ function renderCore(){
       btn3('reset', mid-16, true, '本行恢复默认布局（清除本行的小节宽度调整与换行设定）',
         `<text x="${bx0}" y="${(mid-16+3.2).toFixed(1)}" font-size="9" text-anchor="middle" fill="var(--accent)">↺</text>`);
       btn3('pull', mid, canPull, canPull?'增加小节：把后续首个小节移入本行（本行自动压缩对齐）'
-        : hasNext?'本行已放不下更多小节——可先用拖柄缩窄本行小节宽度':'已是最后一行，无小节可移入',
+        : nxPb? PB_PULL_NO : hasNext?'本行已放不下更多小节——可先用拖柄缩窄本行小节宽度':'已是最后一行，无小节可移入',
         `<path d="M ${bx0-3.2} ${mid.toFixed(1)} h 6.4 M ${bx0} ${(mid-3.2).toFixed(1)} v 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
-      btn3('push', mid+16, canPush, canPush?'删减小节：把本行行尾小节移到下一行':'本行只有一个小节，无法移出',
+      btn3('push', mid+16, canPush, canPush?'删减小节：把本行行尾小节移到下一行' : nxPb? PB_PUSH_NO : '本行只有一个小节，无法移出',
         `<path d="M ${bx0-3.2} ${(mid+16).toFixed(1)} h 6.4" stroke="var(--accent)" stroke-width="1.3" fill="none"/>`);
     }
   });
@@ -14796,15 +14926,18 @@ function undo(){
   redoStack.push(JSON.stringify(song));
   song = JSON.parse(undoStack.pop());
   if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
-  selRange=null; pstSelReset(); clampSel(); persist(); render();
+  selRange=null; pstSelReset(); clampSel(); persist(); render(); layPopResync();
 }
+/* v68.5 收尾（集成遗留 4 / B 轨第 6 点）：旧外壳「排版」浮层开着时撤销 / 重做——页码一行（#lp-pgno，pgnoSet 走 mutate、可撤销）与简谱小节号的按下态跟着刷新
+   （此前停在撤销前的那一枚）。浮层没开不做任何事；新外壳由 FLOW.lay.syncTools 同步，这里重复一次无妨 */
+function layPopResync(){ try{ const lp=document.getElementById('layout-pop'); if(lp && lp.classList.contains('on') && typeof laySync==='function') laySync(); }catch(_){} }
 function redo(){
   if(!redoStack.length) return toast('没有可重做的操作');
   lyrUndoKey=null;
   undoStack.push(JSON.stringify(song));
   song = JSON.parse(redoStack.pop());
   if(typeof docs!=='undefined' && docs[curDocI]) docs[curDocI].song = song;
-  selRange=null; pstSelReset(); clampSel(); persist(); render();
+  selRange=null; pstSelReset(); clampSel(); persist(); render(); layPopResync();
 }
 /* v47.7 品位上限按乐器：尤克里里常见 15 品，吉他/贝斯 24 品（song.fretMax 可覆盖，纯增量字段） */
 function fretMaxOf(){ return (song && song.fretMax) || (instOf()==='uku'? 15 : 24); }
@@ -17827,6 +17960,7 @@ document.addEventListener('pointerdown', e=>{
 /* ---- 行（系统）级排版操作（v68.1 计划 §4.2-6：从谱面行尾 ○ ＋ − 的点击处理里原样抽出；flow 排版工具组与右栏「版式」页共用）----
    只写现有字段 measures[].brk / pull / wf，全部经 mutate（可撤销、自动落盘）。口径与断行 DP（layoutSystems）一致：
    fb[k]＝measures[k-1].brk===1 && measures[k].pull!==1 是强制断点；pull===1 是「并入上一行」的强偏好（违者罚 PULL_PEN）。
+   v68.5 「此处换页」(measures[k].pgbrk===1) 同样是强制断点且压过 pull（sysBrkBefore）；这里不读写 pgbrk，只在会动到它时拒绝（pull）或提示保留（reset）
    sysAct(act, m1, m2)：act＝'pull' 下一行首小节移入本行 | 'push' 行尾小节移到下一行 | 'reset' 本行恢复默认；m1–m2＝本行首末小节下标。
    返回 true＝改了谱（谱面行尾按钮不读返回值） */
 function sysAct(act, m1, m2){
@@ -17836,6 +17970,8 @@ function sysAct(act, m1, m2){
   if(act==='pull'){
     const nm=song.measures[m2+1];
     if(!nm) return false;
+    /* v68.5 下一行行首「此处换页」：不悄悄删换页（换页有自己的开关，列在版面检查里） */
+    if(nm.pgbrk===1){ toast(PB_PULL_NO); return false; }
     /* v52.3 容量复核（按钮状态可能滞后）：自然宽和超过行宽×1.75 → 拒绝并指引 */
     { const availW2=PAGE_W-2*MARGIN-STAFF_HEAD_W;
       let natRow=0; for(let i=m1;i<=m2;i++) natRow+=measureLayout(song.measures[i]).w;
@@ -17846,12 +17982,15 @@ function sysAct(act, m1, m2){
   }
   if(act==='push'){
     if(m2<=m1) return false;
+    /* v68.5 收尾 UX-3：下一行行首「此处换页」——行尾小节移过去只会在本页单独成一行（换页那一行仍从原小节起），与「＋」对称：拒绝并说明 */
+    { const nm=song.measures[m2+1]; if(nm && nm.pgbrk===1){ toast(PB_PUSH_NO); return false; } }
     mutate(()=>{ const last=song.measures[m2]; delete last.pull; delete last.brk; song.measures[m2-1].brk=1; });
     toast('已把行尾小节移出（后续小节自动重排）'); return true;
   }
   if(act==='reset'){
+    /* v68.5 「此处换页」(pgbrk) 保留：它有自己的开关（再点「此处换页」取消） */
     mutate(()=>{ for(let i=m1;i<=m2;i++){ delete song.measures[i].pull; delete song.measures[i].brk; delete song.measures[i].wf; } });
-    toast('本行已恢复默认布局（宽度/换行设定已清除）'); return true;
+    toast('本行已恢复默认布局（宽度/换行设定已清除）'+((m1>0 && (song.measures[m1]||{}).pgbrk===1)? '（换页保留）' : '')); return true;
   }
   return false;
 }
@@ -17862,11 +18001,81 @@ function sysBreakAt(mi, m1){
   const M=song && song.measures;
   if(!M || !(mi>=0) || mi>=M.length) return false;
   if(mi===0){ toast('第 1 小节本来就在行首'); return false; }
-  if(M[mi-1].brk===1 && M[mi].pull!==1){ toast('第 '+(mi+1)+' 小节前已经换行'); return false; }
+  if(M[mi].pgbrk===1){ toast('第 '+(mi+1)+' 小节起已另起一页'); return false; }   /* v68.5 换页隐含换行 */
+  if(sysBrkBefore(M, mi)){ toast('第 '+(mi+1)+' 小节前已经换行'); return false; }
   const pin = m1>0 && m1<mi;
-  mutate(()=>{ const S=song.measures; if(pin){ S[m1-1].brk=1; delete S[m1].pull; } S[mi-1].brk=1; delete S[mi].pull; });
+  /* v68.5 行首已是「此处换页」＝本来就是强制断点：不再多写 brk / 删 pull（换页压过 pull），前面的行照样不动 */
+  const pinW = pin && M[m1].pgbrk!==1;
+  mutate(()=>{ const S=song.measures; if(pinW){ S[m1-1].brk=1; delete S[m1].pull; } S[mi-1].brk=1; delete S[mi].pull; });
   toast('已在第 '+(mi+1)+' 小节前换行'+(pin? '（前面的行不动，后面的行自动重排）' : '')+'（Ctrl+Z 撤销）');
   return true;
+}
+/* v68.5 此处换页（新增可选字段 measures[mi].pgbrk＝1：从第 mi 小节起另起一页，隐含换行）。mi＝当前行的行首小节；on 缺省＝切换，true / false＝设定。
+   写入时一并删掉该小节的「并入上一行」(pull)——换页压过 pull，保持数据不变量；不写 brk、不钉行首（行首在断行结果里本来就是断点，加这个硬断点不改变前面各行）。
+   取消只删 pgbrk（上一小节的 brk 不动，回到自动断行）。经 mutate：一步撤销、自动落盘。两种外壳共用（新外壳工具组 / 右栏 / 命令面板）；第 1 小节无效。
+   返回 true＝改了谱 */
+/* v68.5 书写谱面页间灰缝里的「换页」胶囊命中（两种外壳共用；标记本身由 renderCore 画、不接收指针，这里按谱面坐标算）：
+   点在第 k、k+1 页之间的灰缝里、离胶囊中心横向不超过 34（胶囊半宽 22＋12——收尾 UX-4：此前整条灰缝都算，离胶囊 444px 点一下也弹菜单），
+   且第 k+1 页首行由手动换页起始 → 返回那一行的行首小节；否则 null。没有换页的谱永远不命中（行为与 v68.4 相同） */
+function pbGapHit(e){
+  if(!song || !song.measures || !(PV_GEO && PV_GEO.n>1)) return null;
+  const M=song.measures; if(!M.some((m, i)=>i>0 && m && m.pgbrk===1)) return null;
+  const svg=document.getElementById('score'); if(!svg || !svg.getScreenCTM) return null;
+  let pt=null; try{ const q=svg.createSVGPoint(); q.x=e.clientX; q.y=e.clientY; const m=svg.getScreenCTM(); if(m) pt=q.matrixTransform(m.inverse()); }catch(_){}
+  if(!pt) return null;
+  const g=PV_GEO, step=g.pgH+g.gap, k=Math.floor(pt.y/step);
+  if(!(k>=0 && k<g.n-1) || pt.y-k*step < g.pgH || Math.abs(pt.x-g.W/2) > 34) return null;
+  const top=(k+1)*step; let best=null;
+  for(let mi=0; mi<M.length; mi++){ const b=meaBands[mi]; if(b && b.y>=top-0.5 && b.y<top+step && (!best || b.y<best.y-0.01)) best={y:b.y, mi}; }
+  return (best && best.mi>0 && M[best.mi] && M[best.mi].pgbrk===1)? best.mi : null;
+}
+function sysPageBreak(mi, on){
+  const M=song && song.measures;
+  if(!M || !(mi>=0) || mi>=M.length || !M[mi]) return false;
+  if(mi===0){ toast('第 1 行本来就在第 1 页'); return false; }
+  const cur=M[mi].pgbrk===1, want = on==null? !cur : !!on;
+  if(want===cur) return false;
+  mutate(()=>{ const x=song.measures[mi]; if(want){ x.pgbrk=1; delete x.pull; } else delete x.pgbrk; });
+  toast(want? '已从第 '+(mi+1)+' 小节起另起一页（Ctrl+Z 撤销）' : '已取消第 '+(mi+1)+' 小节前的换页（Ctrl+Z 撤销）');
+  return true;
+}
+/* v68.5 页码设置（song.layout.pgno，读法见 pgnoCfg / pgnoRaw）：patch 合并进现值（{on} / {pos} / {start} / {first} 任意组合），规范化后总写完整四个键
+   （顺序固定 on, pos, start, first）；关掉页码且其余三项都是缺省值时删掉 layout.pgno，layout 因此变空就连 layout 一起删——「打开再关上」song JSON 回到原样。
+   值没变不记撤销点；变了经 mutate（一步撤销、自动落盘）。layApply / 恢复默认经 layoutCfg() 透传 pgno，不会把它弄丢。返回 true＝改了谱 */
+function pgnoSet(patch){
+  if(!song) return false;
+  const cur=pgnoRaw(song), nx=Object.assign({}, cur, (patch && typeof patch==='object')? patch : {});
+  const out = {on: nx.on===true, pos: PGNO_POS.indexOf(nx.pos)>=0? nx.pos : 'bc',
+    start: Math.max(1, Math.min(999, Math.round(+nx.start)||1)), first: nx.first===true};
+  const had = !!(song.layout && song.layout.pgno);
+  const dflt = !out.on && out.pos==='bc' && out.start===1 && !out.first;
+  if(JSON.stringify(out)===JSON.stringify(cur) && (had? JSON.stringify(song.layout.pgno)===JSON.stringify(out) : dflt)) return false;   /* 没变（且存的已是规范形）：不记撤销点 */
+  mutate(()=>{ const L=Object.assign({}, song.layout||{});
+    if(dflt) delete L.pgno; else L.pgno=out;
+    if(Object.keys(L).length) song.layout=L; else delete song.layout; });
+  return true;
+}
+/* v68.5 收尾 UX-2：页码开 / 关之后给一句提示——打开时屏幕上常常什么都看不到（首页按出版惯例不印、第 2 页多在视口外；只有 1 页且首页不印＝永远看不到）。
+   before＝改之前的 pgnoRaw；只在「不印→印」「印→不印」时返回文字，其余（位置 / 首页 / 起始页码）返回空串。页数取最近一次排版（PV_GEO；不换行长带不分页，不报页数） */
+function pgnoMsg(before){
+  if(!song) return '';
+  const pr=pgnoRaw(song), was=!!(before && before.on);
+  if(!pr.on) return was? '已不印页码' : '';
+  if(was) return '';
+  const at='已印页码（'+({bc:'底部居中', bo:'底部外侧', to:'顶部外侧'})[pr.pos]+'）';
+  if(pr.first) return at+'：每页都印'+(pr.start!==1? '，第 1 页印成 '+pr.start : '');
+  let nw=false; try{ nw=noWrapOn(); }catch(_){}
+  const n=(!nw && PV_GEO && PV_GEO.n) || 0, fl=(typeof flowOn==='function' && flowOn());
+  if(n===1) return at+'——本谱只有 1 页，首页按出版惯例不印，所以看不到页码'+(fl? '；要印请把右栏「首页」选「印」' : '');
+  return at+'：从第 2 页起印（首页按出版惯例不印）';
+}
+/* v68.5 收尾 ENG-4：A3 版面打在 A4 / Letter 纸上是整页按比例缩小（基线就这样）——页码本是离纸边最近的元素，缩完离纸边只剩约 5mm（A4 横向约 3.5mm），
+   常见打印机 4–5mm 的不可打印边会把它裁掉。印页码、版面 A3、打印纸不是「自适应」时在选纸张的地方提示一句；其余情况返回空串 */
+function pnPrintWarn(size){
+  if(!song || !pgnoCfg(song)) return '';
+  let pg='A4'; try{ pg=layoutCfg().page; }catch(_){}
+  if(pg!=='A3' || size==='fit') return '';
+  return '版面是 A3、打印纸是 '+(/^Letter/.test(size||'')? '信纸' : 'A4')+'：整页按比例缩小，页码离纸边只剩约 5mm，有的打印机印不到——要稳妥可把版面纸张改成 A4';
 }
 /* 本行是否锁定：两端都是强制断点（首行 / 末行那一端不算），行内每个小节都标了「并入上一行」。
    v68.2 收尾 NU-3：单小节行没有「行内」可看——两端强制断点正是「此处换行」本身留下的（sysBreakAt 钉行首），据此判锁定会把用户没点过的行显示成「已锁定」，
@@ -17875,8 +18084,8 @@ function sysRowLocked(m1, m2){
   const M=song && song.measures, n=M? M.length : 0;
   if(!n || !(m1>=0) || !(m2>=m1) || m2>=n) return false;
   if(m1===m2){ let rec=null; try{ const mm=sysLockMemo(); rec=mm && mm.get(m1+':'+m2); }catch(_){} if(!(rec && rec.n===n)) return false; }
-  if(m1>0 && !(M[m1-1].brk===1 && M[m1].pull!==1)) return false;
-  if(m2<n-1 && !(M[m2].brk===1 && M[m2+1].pull!==1)) return false;
+  if(m1>0 && !sysBrkBefore(M, m1)) return false;   /* v68.5 两端判定同断行 DP：行首是「此处换页」也算强制断点 */
+  if(m2<n-1 && !sysBrkBefore(M, m2+1)) return false;
   for(let k=m1+1;k<=m2;k++) if(M[k].pull!==1) return false;
   return true;
 }
@@ -18954,6 +19163,26 @@ function showAddsMenu(mi, ci, vi, cx, cy){
   });
 }
 /* 小节线设置弹窗：反复开始/反复结束/终止线（L=线左侧小节，R=线右侧小节） */
+/* v68.5 收尾 UX-4 / UX-5：书写谱面「换页」胶囊的示能与旧外壳入口（标记本身不接收指针、不往 #score 上写任何属性——成品克隆的是它）。
+   · 两种外壳：指针停在胶囊上（pbGapHit）→ #paper 加 .pbhov（手形光标）并给悬停说明「第 n 小节起另起一页（点一下可取消）」，移开即撤。
+   · 旧外壳：左键点一下 / 右键＝打开这条小节线的菜单（菜单里有「取消换页」）；新外壳由 FLOW.lay 接管（小菜单「取消换页」，同一命中算法）。
+   观看页、谱架、新外壳排版 / 输出（书写谱面被预览盖住）都不接；没有换页的谱 pbGapHit 永远是 null，行为与此前相同 */
+{ const sc=document.getElementById('score'), pp=document.getElementById('paper');
+  if(sc && pp){
+    const fl=()=>typeof flowOn==='function' && flowOn();
+    const live=()=>!viewerMode && !document.body.classList.contains('stand') && !(fl() && typeof FLOW!=='undefined' && FLOW.mode && FLOW.mode.cur && FLOW.mode.cur!=='write');
+    let hov=-1, pd=null;
+    const setHov=mi=>{ if(mi===hov) return; hov=mi;
+      if(mi>=0){ pp.classList.add('pbhov'); pp.title='第 '+(mi+1)+' 小节起另起一页（点一下可取消）'; }
+      else { pp.classList.remove('pbhov'); pp.removeAttribute('title'); } };
+    sc.addEventListener('pointermove', e=>{ if(e.pointerType && e.pointerType!=='mouse' && e.pointerType!=='pen'){ if(hov>=0) setHov(-1); return; }
+      const h=live()? pbGapHit(e) : null; setHov(h==null? -1 : h); }, {passive:true});
+    sc.addEventListener('pointerleave', ()=>setHov(-1), {passive:true});
+    const hitC=e=>(!fl() && live())? pbGapHit(e) : null;   /* 旧外壳的点击；新外壳在 FLOW.lay.mount 里接 */
+    sc.addEventListener('pointerdown', e=>{ const h=hitC(e); pd=h; if(h==null) return; e.preventDefault(); e.stopImmediatePropagation(); }, true);
+    sc.addEventListener('click', e=>{ const h=pd; pd=null; if(h==null || hitC(e)!==h) return; e.stopImmediatePropagation(); showBarMenu(e.clientX, e.clientY, h-1, h); }, true);
+    sc.addEventListener('contextmenu', e=>{ const h=hitC(e); pd=null; if(h==null) return; e.preventDefault(); e.stopImmediatePropagation(); showBarMenu(e.clientX, e.clientY, h-1, h); }, true);
+  } }
 function showBarMenu(cx, cy, L, R, row, vi){
   closePop();
   blurSel=true;   // v51.9 弹菜单同样熄灭音符光标
@@ -18979,12 +19208,16 @@ function showBarMenu(cx, cy, L, R, row, vi){
   if(mR) rows+=`<button data-k="v1"${mR.volta===1?' class="on"':''}>┌1. 第一段 · 第${R+1}小节</button>`;
   if(mR) rows+=`<button data-k="v2"${mR.volta===2?' class="on"':''}>┌2. 第二段 · 第${R+1}小节</button>`;
   rows+=`<button data-k="clr">清除该线符号</button>`;
+  /* v68.5 线右侧小节带换页时多一项「取消换页」（只在有换页数据时出现，没有换页的谱菜单不变）——不换行长带里的竖线标记就落在这条小节线前。
+     收尾 UX-5：旧外壳也出（旧外壳没有换页按钮，这里是它唯一的取消入口；点书写谱面的「换页」胶囊也打开这个菜单） */
+  if(mR && R>0 && mR.pgbrk===1) rows+=`<button data-k="pgx">取消换页 · 第${R+1}小节起</button>`;
   div.innerHTML=`<div class="t">小节线设置 · 提示：按住小节线可选中本小节声部</div>
     <div class="row" style="flex-direction:column;align-items:stretch">${rows}</div>`;
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-k]'); if(!b) return;
     const k=b.dataset.k;
+    if(k==='pgx'){ closePop(); if(sysPageBreak(R, false) && typeof flowOn==='function' && flowOn()) try{ FLOW.track('lay:pgbrk'); }catch(_){} return; }
     mutate(()=>{
       if(k==='rs' && mR) mR.repeatStart=!mR.repeatStart;
       if(k==='re' && mL) mL.repeatEnd=!mL.repeatEnd;
@@ -24140,7 +24373,9 @@ var FLOW = (function(){
      克隆完立刻原样搬回，同一任务内完成、不经渲染，界面不动。从没挂过、也没有 flow-pre 时原样返回 outerHTML（默认外壳零差异） —— */
   F.snapHTML = ()=>{
     const root=document.documentElement;
-    if(!F.mounted && !F.pre()) return root.outerHTML;
+    /* v68.5 收尾 ENG-5：书写谱面的换页标记（.pgbrk-mk）是编辑视图专用的，快照里一并摘掉（两种外壳；没有标记时照旧原样返回，与此前逐字节相同） */
+    if(!F.mounted && !F.pre()){ if(!root.querySelector('#score .pgbrk-mk')) return root.outerHTML;
+      const c0=root.cloneNode(true); c0.querySelectorAll('#score .pgbrk-mk').forEach(e=>e.remove()); return c0.outerHTML; }
     const act=F.active;
     let c;
     if(act) F.dock(false);
@@ -24152,6 +24387,7 @@ var FLOW = (function(){
     dropCls(c, x=>x==='flow-pre');
     const dt=c.querySelector('#doc-tabs'); if(dt && dt.querySelector('.flw-tl')) dt.innerHTML='';   /* flow 画的页签：收件人页面按自己的外壳重画 */
     q('[data-flw-slot], .flw-x, [id^="flw-"]').forEach(e=>e.remove());
+    q('#score .pgbrk-mk').forEach(e=>e.remove());   /* v68.5 收尾 ENG-5 */
     const me=c.querySelector('#mx-expand');
     if(me && me.dataset.flwOrig!=null){ let open=false; try{ open=!!mixerExpanded; }catch(_){}
       me.innerHTML = !open? me.dataset.flwOrig : svgi('sliders')+' 音轨 ▾'; me.removeAttribute('aria-expanded'); }   /* 同 FLOW.st.off */
@@ -25731,7 +25967,11 @@ FLOW.rdp = (function(){
       +'<span class="k">拍号</span><span class="v">'+mm.beats+'/'+mm.unit+(own? '<small>（本小节变拍）</small>' : '')+'</span>'
       +'<span class="k">反复</span><span class="v flw-rx-wrap">'+(rep.length? E(rep.join(' · ')) : '<span class="flw-rx-dim">无</span>')+'</span>'
       +'<span class="k">段落标记</span><span class="v flw-rx-row">'+(m.label? '<b class="flw-rx-lab">'+E(m.label)+'</b>' : '<span class="flw-rx-dim">无</span>')
-      +'<button type="button" class="flw-rx-lk" data-fa="rdp:old" data-v="b-mealabel" title="排练 / 段落标记：本小节头上方方框粗体字（如 前奏 / A / 副歌），留空清除">'+(m.label? '修改…' : '添加…')+'</button></span></div>';
+      +'<button type="button" class="flw-rx-lk" data-fa="rdp:old" data-v="b-mealabel" title="排练 / 段落标记：本小节头上方方框粗体字（如 前奏 / A / 副歌），留空清除">'+(m.label? '修改…' : '添加…')+'</button></span>'
+      /* v68.5 收尾 UX-4：本小节起另起一页时多一行「换页」（书写模式里键盘 / 读屏也查得到、取消得了；没有换页的小节不出这一行，右栏与此前相同） */
+      +((mi>0 && m.pgbrk===1)? '<span class="k">换页</span><span class="v flw-rx-row"><span>本小节起另起一页</span>'
+        +'<button type="button" class="flw-rx-lk" data-fa="lay:pboff" data-mi="'+mi+'" aria-label="取消第 '+(mi+1)+' 小节起的换页" title="取消换页（Ctrl+Z 撤销）；加换页在「排版」里点「本行换页」">取消</button></span>' : '')
+      +'</div>';
   }
   function songHTML(){
     let ic=''; try{ ic=F.ic(NWB.kindOfSong(song).ic, 16); }catch(_){}
@@ -26666,6 +26906,8 @@ FLOW.cmd = (function(){
   const ex = k=>()=>EXPORT_ACT[k]();
   /* 排版工具组的动作（此处换行 / 并入上一行 / 锁定此行）：先进排版，再走 FLOW.lay.act——与点 #flw-eng 那枚按钮同一条路径（sysBreakAt / sysAct('pull') / sysLockRow） */
   const layDo = a=>()=>{ setMode('engrave'); F.lay.act(a, {dataset:{}}, null); };
+  const layDoV = (a, v)=>()=>{ setMode('engrave'); F.lay.act(a, {dataset:{v}}, null); };   /* v68.5 收尾 UX-6：开关类命令按指定值做（不切换） */
+  const pnDo = v=>()=>{ if(!(F.mode && F.mode.cur==='output')) setMode('engrave', {page:'lay'}); F.lay.act('lay:pno', {dataset:{v}}, null); };
   /* v68.2 输出「预览」排布：先进输出，再点 #flw-out-arr 同一枚键（FLOW.out.act('out:arr')） */
   const arrDo = v=>()=>{ setMode('output', {focus:'stage'}); const b=document.querySelector('#flw-out-arr [data-v="'+v+'"]'); F.out.act('out:arr', b || {dataset:{v}}, null); };
   const layPick = (grp, attr, v)=>()=>{ setMode('engrave', {page:'lay'}); const b=document.querySelector('#'+grp+' ['+attr+'="'+v+'"]'); if(b) b.click(); };
@@ -26783,8 +27025,14 @@ FLOW.cmd = (function(){
       C('lay:brk', '此处换行', 'cchh hh 换行 断行 break', '排版 · 工具组', layDo('lay:brk'), {ic:'lay-sysbreak'}),
       C('lay:pull', '并入上一行', 'brsyh bh 合并行 并行 pull', '排版 · 工具组', layDo('lay:join'), {ic:'lay-continuous'}),
       C('lay:lock', '锁定此行', 'sdch sd lock 锁行', '排版 · 工具组', layDo('lay:lock'), {ic:'lay-lock'}),
-      C('lay:meta', '页头与页码…', 'ytyym yt ym 页码 页眉 页头 页脚 header pagenumber', '排版 · 工具组「页头与页码…」（页头在「曲谱信息」里改）', ()=>{ setMode('engrave'); F.lay.act('lay:meta', {dataset:{}}, null); }, {ic:'lay-header'}),
-      C('lay:pagebrk', '此处换页', 'cchy hy pagebreak 换页 分页', '排版 · 工具组（即将推出）', null, {ok:()=>'此处换页：即将推出（现在按纸张自动分页）', ic:'lay-pagebreak'}),
+      /* v68.5「页头与页码…」打开右栏「版式」的页头 · 页码区（页码在这里设，页头点里面的「页头」进曲谱信息）；「此处换页」真命令（与点工具组同一路径，切换当前行）；「印页码」开关 */
+      C('lay:meta', '页头与页码…', 'ytyym yt ym 页码 页眉 页头 页脚 header pagenumber', '排版 · 右栏「版式」· 页头 · 页码', ()=>{ setMode('engrave', {page:'lay'}); F.lay.act('lay:meta', {dataset:{}}, null); }, {ic:'lay-header'}),
+      /* 收尾 UX-6：开关类拆成一对（名字不随状态变，回车反而是关掉——此前「此处换页」「印页码」都是切换），用不了的那一枚按现状灰显并说原因 */
+      C('lay:pagebrk', '本行换页', 'bhhy cchy hy pagebreak 换页 分页 另起一页 此处换页', '排版 · 工具组「本行换页」（当前行的行首小节起另起一页）', layDoV('lay:pbrk', '1'), {ic:'lay-pagebreak', ok:()=>F.lay.pbWhy(true)}),
+      C('lay:pagebrkx', '取消本行换页', 'qxbhhy qxhy qx 取消换页 换页 分页', '排版 · 工具组「本行换页」（按下时再点＝取消）', layDoV('lay:pbrk', '0'), {ic:'lay-pagebreak', ok:()=>F.lay.pbWhy(false)}),
+      /* 印 / 不印页码：在输出模式里就地改（预览跟着刷新），其余模式进排版并打开右栏「版式」 */
+      C('lay:pno', '印页码', 'yym ym 页码 页脚 页眉 pagenumber folio', '排版 · 右栏「版式」· 页头 · 页码', pnDo('1'), {ic:'lay-header', ok:()=>(song && pgnoRaw(song).on)? '已经在印页码' : ''}),
+      C('lay:pnoff', '不印页码', 'byym ym 页码 关页码 pagenumber folio', '排版 · 右栏「版式」· 页头 · 页码', pnDo('0'), {ic:'lay-header', ok:()=>(song && !pgnoRaw(song).on)? '本来就不印页码' : ''}),
       /* 行 2（书写） */
       C('r2:undo', '撤销', 'cx undo ctrl+z', '行 2 · 撤销 · Ctrl+Z', click('#b-undo'), {ic:'act-undo'}),
       C('r2:redo', '重做', 'cz redo ctrl+y', '行 2 · 更多 ▾ · Ctrl+Y', click('#b-redo'), {ic:'act-redo'}),
@@ -29145,6 +29393,7 @@ FLOW.mode = (function(){
     },
     sync(){
       if(!busy && !TAIL) DIRTY=false;   /* 这一次是正常 render（快照那次 busy；v68.2 快照后补的那次同步 TAIL）：书写谱面已是正常排版 */
+      try{ if(F.lay && F.lay.stale) F.lay.stale(); }catch(_){}   /* v68.5 收尾 UX-10：书写谱面换页小菜单指向的换页没了（撤销等）就收起——书写模式下面这行会提前返回，放在前面 */
       if(cur==='write' || busy) return;
       try{ if(startPadOn()){ setTimeout(()=>set('write'), 0); return; } }catch(_){}   /* 启动台盖上来（关完窗口等）：回书写（不在 render 里嵌套重排） */
       sub('sync', cur);   /* 工具组的按下态 / 本行小节数等（只写属性，不排版） */
@@ -29173,23 +29422,30 @@ FLOW.mode = (function(){
    · 行 2 工具组 #flw-eng：纸张 A5 / A4 / A3（点 #lp-page 的同名键＝layApply({page})）· 疏密 紧凑 / 标准 / 宽松（点 #lp-preset）·
      内容大小「− 百分比 ＋」（改 #lp-scale 的值并派发 input + change，走 laySlider 同一路径；点百分比回 100%）·
      每行小节数「− N ＋」（sysAct push / pull，作用于当前行）· 此处换行（sysBreakAt）· 并入上一行（对上一行 sysAct pull）·
-     锁定此行（sysLockRow，再点改回自动）· 此处换页（aria-disabled：需拍板新增可选字段，下一批）· 页头与页码…（#b-meta）。
+     锁定此行（sysLockRow，再点改回自动）· 本行换页（v68.5：sysPageBreak(当前行首小节)，再点取消；收尾 UX-1 字恒为「本行换页」、按下态只换样式）·
+     页头与页码…（v68.5：打开右栏「版式」的「页头 · 页码」区并聚焦页码开关；页头本身仍在「曲谱信息」#b-meta 里改）。
+   · v68.5 换页 / 页码的界面口径（规格 §6 / §10）：本行行首有换页时「并入上一行」灰显并拒绝（不悄悄删换页）；下一行行首有换页时「每行 ＋」灰显并拒绝；
+     flow 的两端钉住（pinStart / pinEnd）遇到换页那一端不再写 brk（换页本来就是强制断点）。书写谱面页间灰缝里的「换页」标记点一下 / 右键＝小菜单「取消换页」
+     （谱面坐标命中，标记本身由引擎画、不接收指针）。版面检查列出手动换页处、「页面」区标出由手动换页起始的页、「第 n 页只有 1 行」在下一页由手动换页起始时不报。
+     ui_cmd：lay:pgbrk（真的改了换页）· lay:pgno（真的改了页码设置）。
      「当前行」＝包含 sel.mi 的那一行；在预览里单击谱面可改选（双击回到书写，光标落在点中的小节）。
    · 左栏 #flw-lay-rep「版面检查」：快照那一次分页排版里取的 PV_GEO / SYS_GEO / meaBands（与打印同口径，不另排）——
      共 n 页 · m 行 · 每行小节数 · 第 x 小节后翻页；提示单小节行 / 末行不足半行 / 单行页 / 跨页行；点一项滚到对应页并选中该行（回书写时光标落在行首小节）。
      「页面」区每页一行「第 n 页 · 第 a–b 小节」（输出模式的左栏同用这一段）。
    · 右栏「版式」页 #flw-rp-lay：本行（小节数 · 自动 / 锁定 · 此处换行 · 并入上一行 · 本行恢复默认）＋ 搬入的 #layout-pop（FLOW.DOCK 'layout-pop'，
-     laySync 照常同步；flow 下 layToggle 只同步不改定位）＋ 页头 · 页码。
-   只改现有字段：measures[].brk / pull / wf（经 mutate，可撤销）与 song.layout.*（经 layApply / laySlider）。动作前缀 lay:。本机键：无 */
+     laySync 照常同步；flow 下 layToggle 只同步不改定位）＋ 页头 · 页码（#flw-lay-hdpn：页头行＝#b-meta；页码 不印 / 印 · 位置 底部居中 / 底部外侧 / 顶部外侧 ·
+     首页 不印 / 印 · 起始页码 − 值 ＋，值可点就地输入；都走 pgnoSet，一次 mutate 一步撤销，值没变不记撤销点）。
+   改的字段：measures[].brk / pull / wf / pgbrk（经 mutate，可撤销）与 song.layout.*（经 layApply / laySlider / pgnoSet）。动作前缀 lay:。本机键：无 */
 FLOW.lay = (function(){
   const F = FLOW, $ = F.$, E = s=>F.esc(s), IC = (k, n)=>F.ic(k, n||16);
   const MINUS = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2.5 6h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   const PLUS = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2.5 6h7M6 2.5v7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
   const PAGES = [['A5','A5 纸张（较小，省纸）'],['A4','A4 纸张（标准）'],['A3','A3 纸张（很大，约 A4 的 2 倍）']];
   const PRESETS = [['compact','紧凑','紧凑：行距与间距收紧，一页放更多'],['standard','标准','标准疏密'],['loose','宽松','宽松：行距与间距放大，便于教学批注']];
-  const WHY_PB = '此处换页：即将推出（现在按纸张自动分页；想让某一行换到下一页，可先调纸张、疏密或每行小节数）';
-  const WHY_PN = '页码：成品（打印 / PDF / 图片）暂不印页码，位置与样式也还不能改——即将推出';
-  let S = null;            /* 最近一次快照分页排版取的几何：{geo, rows:[{si, m1, m2, n, y0, y1, pg}], boxes:{mi:{x, w}}, song, n} */
+  /* v68.5 页码位置（与引擎 pgnoCfg 的白名单同序）：[值, 键上的字, 悬停说明] */
+  const PN_POS = [['bc','底部居中','页脚居中（单面打印最稳）'],['bo','底部外侧','页脚外侧：单数页在右、双数页在左（双面印刷）'],['to','顶部外侧','页眉外侧：单数页在右、双数页在左（出版物常用）']];
+  const PN_OFF = '先选「印」';
+  let S = null;           /* 最近一次快照分页排版取的几何：{geo, rows:[{si, m1, m2, n, y0, y1, pg}], boxes:{mi:{x, w}}, song, n} */
   let SIG = {tools:'', rep:'', cfg:'', sel:''};
   /* 节点搬移表（计划 §1.3 v68.1 行）：#layout-pop → 右栏「版式」页的落点（不改 FLOW.DOCK 表本身，在这里追加一行） */
   F.DOCK.push({id:'layout-pop', to:()=>$('flw-rp-lay'), slot:'laypop'});
@@ -29204,7 +29460,7 @@ FLOW.lay = (function(){
   }
   /* 快照（withCleanSnap 分页排版）里调：此刻的 PV_GEO / SYS_GEO / meaBands / meaBoxes 就是预览与打印那一份 */
   function collect(){
-    const g={W:PV_GEO.W, pgH:PV_GEO.pgH, gap:PV_GEO.gap, n:PV_GEO.n}, step=g.pgH+g.gap;
+    const g={W:PV_GEO.W, pgH:PV_GEO.pgH, gap:PV_GEO.gap, n:PV_GEO.n, nf:(PV_GEO.nf||[]).slice()}, step=g.pgH+g.gap;
     const rows=bandRows();
     rows.forEach(r=>{ let s=SYS_GEO.find(x=>Math.abs(x.y0-r.y)<0.5); if(!s) s=SYS_GEO[r.si] || {y0:r.y, y1:r.y};
       r.y0=s.y0; r.y1=s.y1; r.pg=Math.max(0, Math.min(g.n-1, Math.floor((s.y0+0.5)/step))); });
@@ -29226,18 +29482,26 @@ FLOW.lay = (function(){
     const g=S.geo, rows=S.rows, N=rows.length, step=g.pgH+g.gap;
     const rowW = r=>{ let w=0; for(let i=r.m1;i<=r.m2;i++){ const b=S.boxes[i]; if(b) w+=b.w; } return w; };
     const full = Math.max(1, ...rows.slice(0, -1).map(rowW));
+    /* v68.5 手动换页（measures[行首].pgbrk===1，第 1 小节的不算）：在快照那一次分页里的行首；pageRanges[p].pb＝本页首行由手动换页起始 */
+    const SM=(S.song && S.song.measures) || [], isPb = r=>!!r && r.m1>0 && !!SM[r.m1] && SM[r.m1].pgbrk===1;
+    const manual=rows.filter(isPb).map(r=>({mi:r.m1, pg:r.pg, si:r.si}));
     const pageRanges=[];
-    for(let p=0;p<g.n;p++){ const rs=rows.filter(r=>r.pg===p); if(rs.length) pageRanges.push({pg:p, a:rs[0].m1, b:rs[rs.length-1].m2, rows:rs.length, si:rs[0].si}); else pageRanges.push({pg:p, a:-1, b:-1, rows:0, si:-1}); }
+    for(let p=0;p<g.n;p++){ const rs=rows.filter(r=>r.pg===p); if(rs.length) pageRanges.push({pg:p, a:rs[0].m1, b:rs[rs.length-1].m2, rows:rs.length, si:rs[0].si, pb:isPb(rs[0])}); else pageRanges.push({pg:p, a:-1, b:-1, rows:0, si:-1, pb:false}); }
     const breaks=[]; for(let p=0;p<g.n-1;p++){ const pr=pageRanges[p]; if(pr && pr.rows) breaks.push(pr.b); }
     const issues=[];
     const last=rows[N-1], lastRatio = N>1? rowW(last)/full : 1, shortLast = N>1 && lastRatio<0.5;
     rows.forEach(r=>{ if(r.n===1 && N>1 && !(r===last && shortLast))
       issues.push({k:'single', si:r.si, mi:r.m1, pg:r.pg, t:'第 '+(r.si+1)+' 行只有 1 小节', go:'第 '+(r.m1+1)+' 小节'}); });
     if(shortLast) issues.push({k:'short', si:last.si, mi:last.m1, pg:last.pg, t:'末行只占约 '+Math.round(lastRatio*100)+'% 行宽', go:'第 '+(last.m1+1)+(last.m2>last.m1? '–'+(last.m2+1) : '')+' 小节'});
-    if(g.n>1) pageRanges.forEach(pr=>{ if(pr.rows===1) issues.push({k:'lonely', si:pr.si, mi:pr.a, pg:pr.pg, t:'第 '+(pr.pg+1)+' 页只有 1 行', go:'第 '+(pr.pg+1)+' 页'}); });
-    rows.forEach(r=>{ if(r.y1 > r.pg*step+g.pgH+0.5) issues.push({k:'cross', si:r.si, mi:r.m1, pg:r.pg, t:'第 '+(r.si+1)+' 行跨页（这一行比一页还高）', go:'第 '+(r.pg+1)+' 页'}); });
+    /* 「第 n 页只有 1 行」：下一页由手动换页起始时不报——那是作者有意在这里截断（规格 §10.3） */
+    if(g.n>1) pageRanges.forEach((pr, i)=>{ if(pr.rows===1 && !(pageRanges[i+1] && pageRanges[i+1].pb)) issues.push({k:'lonely', si:pr.si, mi:pr.a, pg:pr.pg, t:'第 '+(pr.pg+1)+' 页只有 1 行', go:'第 '+(pr.pg+1)+' 页'}); });
+    const pnOn = !!pgnoCfg(S.song || song);   /* v68.5 收尾 ENG-3：印页码时跨页处那一页不印页码——提示里说一句 */
+    rows.forEach(r=>{ if(r.y1 > r.pg*step+g.pgH+0.5) issues.push({k:'cross', si:r.si, mi:r.m1, pg:r.pg, t:'第 '+(r.si+1)+' 行跨页（这一行比一页还高'+(pnOn? '；跨页处不印页码' : '')+'）', go:'第 '+(r.pg+1)+' 页'}); });
+    /* 没跨出纸、但压进了页码位置的高行：那一页同样不印页码（引擎记在 PV_GEO.nf）——跨页提示没覆盖到的页单独说一句 */
+    (g.nf||[]).forEach(p=>{ if(issues.some(x=>x.k==='cross' && (x.pg===p || x.pg===p-1))) return; const r=rows.find(x=>x.pg===p); if(!r) return;
+      issues.push({k:'nofol', si:r.si, mi:r.m1, pg:p, t:'第 '+(p+1)+' 页谱行太高、压到页码位置（这一页不印页码）', go:'第 '+(p+1)+' 页'}); });
     return {pages:g.n, rowsN:N, rows:rows.map(r=>({si:r.si, m1:r.m1, m2:r.m2, n:r.n, pg:r.pg, y0:r.y0, y1:r.y1})),
-      per:rows.map(r=>r.n), breaks, issues, pageRanges, measures:S.n, paper:cfg().page};
+      per:rows.map(r=>r.n), breaks, issues, pageRanges, manual, measures:S.n, paper:cfg().page};
   }
   const perText = per=>{ const u=[...new Set(per)]; if(u.length===1) return '每行 '+u[0]+' 小节';
     return '每行 '+(per.length>10? per.slice(0, 10).join('/')+'…' : per.join('/'))+' 小节'; };
@@ -29246,15 +29510,21 @@ FLOW.lay = (function(){
     if(!R) return '';
     return '<div class="flw-lrh"><span class="flw-lrt">页面</span><span class="flw-lrc">'+R.pages+' 页 · '+E(R.paper)+'</span></div>'
       +'<div class="flw-lrl" role="list" aria-label="页面">'+R.pageRanges.map(p=>'<button type="button" role="listitem" class="flw-lri" data-fa="lay:pg" data-pg="'+p.pg+'"'
-        +' title="滚到第 '+(p.pg+1)+' 页">'+'<span class="flw-lrn">第 '+(p.pg+1)+' 页</span><span class="flw-lrg">'+(p.rows? '第 '+(p.a+1)+(p.b>p.a? '–'+(p.b+1) : '')+' 小节 · '+p.rows+' 行' : '空页')+'</span></button>').join('')+'</div>';
+        +' title="滚到第 '+(p.pg+1)+' 页'+(p.pb? '（手动换页）' : '')+'">'+(p.pb? '<span class="flw-lrpb" aria-hidden="true">'+IC('lay-pagebreak', 12)+'</span>' : '')   /* v68.5 由手动换页起始的页：前面一个小图标（文字不变） */
+        +'<span class="flw-lrn">第 '+(p.pg+1)+' 页</span><span class="flw-lrg">'+(p.rows? '第 '+(p.a+1)+(p.b>p.a? '–'+(p.b+1) : '')+' 小节 · '+p.rows+' 行' : '空页')+'</span></button>').join('')+'</div>';
   }
   function repHTML(R){
     if(!R) return '<div class="flw-lrh"><span class="flw-lrt">版面检查</span></div><p class="flw-lrnote">正在排版…</p>';
+    const MN=R.manual || [];
     let h='<div class="flw-lrh"><span class="flw-lrt">版面检查</span><span class="flw-lrc">引擎实算</span></div>'
-      +'<div class="flw-lrsum" role="status">共 <b>'+R.pages+'</b> 页 · <b>'+R.rowsN+'</b> 行 · '+E(perText(R.per))+(R.breaks.length? '<br>'+E(brkText(R.breaks)) : '')+'</div>';
+      +'<div class="flw-lrsum" role="status">共 <b>'+R.pages+'</b> 页 · <b>'+R.rowsN+'</b> 行 · '+E(perText(R.per))+(MN.length? ' · 手动换页 '+MN.length+' 处' : '')+(R.breaks.length? '<br>'+E(brkText(R.breaks)) : '')+'</div>';
     if(R.issues.length) h+='<div class="flw-lrl" role="list" aria-label="版面提示">'+R.issues.map(x=>'<button type="button" role="listitem" class="flw-lri flw-lrw" data-fa="lay:go" data-mi="'+x.mi+'" data-pg="'+x.pg+'" data-si="'+x.si+'"'
         +' data-k="'+x.k+'" title="点一下滚到这一行并选中它（回书写时光标落在行首小节）"><span class="flw-lrd" aria-hidden="true"></span><span class="flw-lrn">'+E(x.t)+'</span><span class="flw-lrg">'+E(x.go)+'</span></button>').join('')+'</div>';
     else h+='<p class="flw-lrok"><span aria-hidden="true">'+IC('act-check', 12)+'</span>没有发现问题：无单小节行、末行够长、无单行页、无跨页行</p>';
+    /* v68.5 手动换页：每处一项，点一下滚到那一页、选中那一行（工具组「本行换页」按下着，再点即取消） */
+    if(MN.length) h+='<div class="flw-lrh"><span class="flw-lrt">手动换页</span><span class="flw-lrc">'+MN.length+' 处</span></div>'
+      +'<div class="flw-lrl" role="list" aria-label="手动换页">'+MN.map(x=>'<button type="button" role="listitem" class="flw-lri" data-fa="lay:go" data-mi="'+x.mi+'" data-pg="'+x.pg+'" data-si="'+x.si+'" data-k="pb"'
+        +' title="点一下选中这一行（再点工具组「本行换页」取消）"><span class="flw-lrpb" aria-hidden="true">'+IC('lay-pagebreak', 12)+'</span><span class="flw-lrn">第 '+(x.pg+1)+' 页起</span><span class="flw-lrg">第 '+(x.mi+1)+' 小节</span></button>').join('')+'</div>';
     return h+pagesHTML(R)+'<p class="flw-lrnote">在预览里单击谱面选中一行（行 2 的换行 / 锁定作用于它）；双击回到书写，光标落在点中的小节。</p>';
   }
 
@@ -29280,8 +29550,10 @@ FLOW.lay = (function(){
       +GB('lay:brk', 'lay-sysbreak', '此处换行', '此处换行：从当前小节起另起一行（Ctrl+Z 撤销）', {attr:' id="flw-eng-brk"'})
       +GB('lay:join', 'lay-continuous', '并入上一行', '并入上一行：当前行的首小节移到上一行行尾', {attr:' id="flw-eng-join"'})
       +GB('lay:lock', 'lay-lock', '锁定此行', '锁定此行：这几个小节固定排在一行，改纸张 / 疏密也不拆开（再点改回自动）', {attr:' id="flw-eng-lock" aria-pressed="false"'})
-      +GB('lay:pbrk', 'lay-pagebreak', '此处换页', WHY_PB, {attr:' id="flw-eng-pbrk" aria-disabled="true" data-why="'+E(WHY_PB)+'"', cls:'flw-gdim'})+SEP
-      +GB('lay:meta', 'lay-header', '页头与页码…', '页头（曲名、词曲、速度）在「曲谱信息」里改；页码暂不能改（即将推出）', {attr:' id="flw-eng-meta"'});
+      +GB('lay:pbrk', 'lay-pagebreak', '本行换页', '本行换页：从本行行首小节起另起一页（再点取消；Ctrl+Z 撤销）', {attr:' id="flw-eng-pbrk" aria-pressed="false"'})+SEP   /* v68.5 真按钮：作用于当前行首小节。
+         收尾 UX-1 / UX-9：字叫「本行换页」（紧挨着的「此处换行」作用于光标所在小节，这个作用于本行行首——字上就区分开）；按下 / 未按下字不变（读屏名＝可见字，WCAG 2.5.3），
+         状态走按下样式与 aria-pressed，悬停说明写明是第几小节 */
+      +GB('lay:meta', 'lay-header', '页头与页码…', '页头与页码：页头在「曲谱信息」里改，页码在右栏「版式」里设', {attr:' id="flw-eng-meta"'});
   }
   const setP = (el, on)=>{ if(!el) return; const v=String(!!on); if(el.getAttribute('aria-pressed')!==v){ el.setAttribute('aria-pressed', v); el.classList.toggle('on', !!on); } };
   /* v68.1 收尾 RG-4：灰显的原因此前只在 data-why（点了才 toast，#toast 不是 live 区域）——悬停与读屏拿不到。灰显时把原因并进 title 与读屏名
@@ -29299,12 +29571,16 @@ FLOW.lay = (function(){
         if(a0) el.setAttribute('aria-label', a0); else el.removeAttribute('aria-label');
         delete el.dataset.flwT0; delete el.dataset.flwA0; } } };
   const setT = (el, t)=>{ if(el && el.textContent!==t) el.textContent=t; };
+  /* v68.5 收尾 UX-1：改「基础」悬停说明——灰显中（setD 记着恢复用的 data-flw-t0）改记的那一份，setD 随后在它上面拼原因；没灰显直接改 title */
+  const setT0 = (el, t)=>{ if(!el) return; if(el.dataset.flwT0!=null){ if(el.dataset.flwT0!==t) el.dataset.flwT0=t; } else if(el.getAttribute('title')!==t) el.setAttribute('title', t); };
   /* 工具组 / 右栏「本行」的状态：只写属性与文字（签名去重） */
   function syncTools(){
     if(!song) return;
     const c=cfg(), rows=rowsNow(), r=rowOf(sel.mi, rows), N=rows.length;
     const lk = r? sysRowLocked(r.m1, r.m2) : false;
-    const sig=[c.page, c.preset, c.scale, sel.mi, N, r? r.m1+'-'+r.m2 : '', lk, song.measures.length].join('|');
+    /* v68.5 本行行首 / 下一行行首的换页（按下态、「并入上一行」「每行 ＋」的灰显）与页码设置（右栏分段的按下态）进签名——撤销 / 重做换了它们也要重同步（规格 §5 突变 M10） */
+    const MS=song.measures, pb = !!r && r.m1>0 && !!MS[r.m1] && MS[r.m1].pgbrk===1, pbN = !!r && !!MS[r.m2+1] && MS[r.m2+1].pgbrk===1, pr=pgnoRaw(song);
+    const sig=[c.page, c.preset, c.scale, sel.mi, N, r? r.m1+'-'+r.m2 : '', lk, song.measures.length, pb, pbN, JSON.stringify(pr)].join('|');
     if(sig===SIG.tools) return;
     const cs=JSON.stringify(c);
     if(cs!==SIG.cfg){ SIG.cfg=cs; try{ laySync(); }catch(_){} }   /* 撤销 / 重做换了 song.layout：右栏搬来的 #layout-pop 跟着同步（原 undo 不调 laySync） */
@@ -29321,12 +29597,27 @@ FLOW.lay = (function(){
     const rt = r? '第 '+(r.si+1)+' 行 · 第 '+(r.m1+1)+(r.m2>r.m1? '–'+(r.m2+1) : '')+' 小节' : '';
     const bb=$('flw-eng-bars'); if(bb && r){ const t='当前行：'+rt+'（在预览里单击谱面可改选）'; if(bb.title!==t) bb.title=t; }
     fa('lay:bars').forEach(b=>{ const d=+b.dataset.d;
-      if(d<0) setD(b, !r || r.n<=1, '本行只有一个小节，无法再移出');
-      else setD(b, !r || r.m2>=song.measures.length-1, '已是最后一行，没有后续小节可移入'); });
+      if(d<0){ const one=!r || r.n<=1; setD(b, one || pbN, one? '本行只有一个小节，无法再移出' : '下一行另起一页'); }   /* v68.5 收尾 UX-3 */
+      else { const last=!r || r.m2>=song.measures.length-1; setD(b, last || pbN, last? '已是最后一行，没有后续小节可移入' : '下一行另起一页'); } });
     fa('lay:brk').forEach(b=>setD(b, !r || sel.mi===0, '第 1 小节本来就在行首'));
-    fa('lay:join').forEach(b=>setD(b, !r || r.si===0, '已是第一行，没有上一行'));
+    fa('lay:join').forEach(b=>{ const first=!r || r.si===0; setD(b, first || pb, first? '已是第一行，没有上一行' : '本行另起一页'); });
     fa('lay:lock').forEach(b=>{ if(b.dataset.v==null) setP(b, lk); else setP(b, (b.dataset.v==='1')===lk); });
     const lb=$('flw-eng-lock'); if(lb){ const l=lb.querySelector('.flw-glb'); setT(l, lk? '已锁定' : '锁定此行'); }
+    /* v68.5 本行换页（工具组 + 右栏「本行」同一状态）：第 1 行灰显；按下＝本行行首已换页。收尾 UX-1 / UX-9：字恒为「本行换页」（＝读屏名），
+       悬停说明带行首小节号（光标在行中间时看得出换页落在哪一小节）；灰显时 setD 在这句基础上拼原因 */
+    const pbT = !r? '本行换页：从本行行首小节起另起一页（再点取消；Ctrl+Z 撤销）'
+      : pb? '本行换页：已从第 '+(r.m1+1)+' 小节（本行行首）起另起一页——再点取消（Ctrl+Z 撤销）' : '本行换页：从第 '+(r.m1+1)+' 小节（本行行首）起另起一页（再点取消；Ctrl+Z 撤销）';
+    fa('lay:pbrk').forEach(b=>{ setT0(b, pbT); setD(b, !r || r.m1===0, '第 1 行本来就在第 1 页'); setP(b, pb); });
+    /* v68.5 页码（右栏「页头 · 页码」）：开关 / 位置 / 首页 / 起始页码；不印时后三组灰显 */
+    fa('lay:pno').forEach(b=>setP(b, (b.dataset.v==='1')===pr.on));
+    fa('lay:pnpos').forEach(b=>{ setP(b, b.dataset.v===pr.pos); setD(b, !pr.on, PN_OFF); });
+    fa('lay:pnfirst').forEach(b=>{ setP(b, (b.dataset.v==='1')===pr.first); setD(b, !pr.on, PN_OFF); });
+    fa('lay:pnstart').forEach(b=>{ const d=+b.dataset.d, edge = d<0? pr.start<=1 : pr.start>=999;
+      setD(b, !pr.on || edge, !pr.on? PN_OFF : (d<0? '起始页码最小是 1' : '起始页码最大是 999')); });
+    fa('lay:pnedit').forEach(b=>{ setT(b, String(pr.start));   /* 值键的读屏名带当前值（不走 setD：它会把旧值记成恢复用的名字） */
+      const a='起始页码 '+pr.start+(pr.on? '' : '（'+PN_OFF+'）'); if(b.getAttribute('aria-label')!==a) b.setAttribute('aria-label', a);
+      if(pr.on){ if(b.getAttribute('aria-disabled')==='true'){ b.removeAttribute('aria-disabled'); delete b.dataset.why; } }
+      else { if(b.getAttribute('aria-disabled')!=='true') b.setAttribute('aria-disabled', 'true'); if(b.dataset.why!==PN_OFF) b.dataset.why=PN_OFF; } });
     setT($('flw-lay-rowt'), rt);
     setT($('flw-lay-rown'), r? String(r.n) : '—');
   }
@@ -29377,6 +29668,20 @@ FLOW.lay = (function(){
     try{ F.mode.land({mi:sel.mi, ci:sel.ci}); }catch(_){}
     syncTools(); drawSel();
   }
+  /* v68.5 书写谱面的「换页」标记：引擎把它画在页间灰缝里（纸外、不接收指针），这里按谱面坐标命中——
+     点在第 p 页（p≥1）上方的灰缝里、且第 p 页首行由手动换页起始，返回那一行的行首小节；没有换页的谱永远不命中（行为与 v68.4 相同） */
+  let PB_BOUND=false, PB_PD=null;
+  const pbHit = e=>pbGapHit(e);   /* 命中算法两种外壳共用（pbGapHit，收尾 UX-4 收窄到胶囊 ±12） */
+  function pbMenu(mi, x, y){
+    const html=F.mh('第 '+(mi+1)+' 小节起另起一页')+F.mi({a:'lay:pboff', ic:'lay-pagebreak', label:'取消换页', attr:' data-mi="'+mi+'"'});
+    if(!F.menu.open('pbmk', null, html, {at:{x:x+2, y:y+6}, label:'换页'})) return;
+    /* 收尾 UX-10：菜单跟着点击处定位、不随谱面滚动——一滚就收起（同一次手势的滚动之外）；撤销 / 重做把这处换页弄没了也收起（pbStale，见 sync） */
+    const off=()=>{ try{ const c=F.menu.cur(); if(c && c.name==='pbmk') F.menu.close(); }catch(_){} };
+    setTimeout(()=>document.addEventListener('scroll', off, {capture:true, passive:true, once:true}), 0);
+  }
+  /* 收尾 UX-10：换页小菜单指向的那一小节已经没有换页（撤销 / 别处取消）→ 收起 */
+  function pbStale(){ try{ const c=F.menu.cur(); if(!c || c.name!=='pbmk' || !song) return; const b=c.el && c.el.querySelector('[data-mi]'), mi=b? +b.dataset.mi : -1;
+    if(!(song.measures[mi] && song.measures[mi].pgbrk===1)) F.menu.close(); }catch(_){} }
   function hitPreview(e){
     if(!S || !song) return null;
     const pe=e.target && e.target.closest && e.target.closest('#pv-pages > .pv-page'); if(!pe) return null;
@@ -29403,13 +29708,65 @@ FLOW.lay = (function(){
       +'<div class="flw-rxbtns">'
         +'<button type="button" class="flw-rxb" data-fa="lay:brk">'+IC('lay-sysbreak')+'<span>此处换行</span></button>'
         +'<button type="button" class="flw-rxb" data-fa="lay:join">'+IC('lay-continuous')+'<span>并入上一行</span></button>'
+        +'<button type="button" class="flw-rxb" data-fa="lay:pbrk" aria-pressed="false" aria-label="本行换页" title="本行换页：从本行行首小节起另起一页（再点取消；Ctrl+Z 撤销）">'+IC('lay-pagebreak')+'<span class="flw-glb">本行换页</span></button>'   /* v68.5 与工具组同一动作、同一状态（收尾 UX-1：字「本行换页」） */
         +'<button type="button" class="flw-rxb" data-fa="lay:reset" title="清除本行的小节宽度调整与换行设定">'+IC('act-undo')+'<span>本行恢复默认</span></button></div>'
       +'<p class="flw-rxnote">在预览里单击谱面选中一行；双击回到书写。</p></section>'
       +'<i data-flw-slot="laypop" hidden></i>'
-      +'<section class="flw-rxs" aria-labelledby="flw-lay-hdh"><h3 class="flw-rxh" id="flw-lay-hdh">页头 · 页码</h3>'
-        +'<button type="button" class="flw-rxrow" data-fa="lay:meta">'+IC('lay-header')+'<span>页头<span class="flw-rxd">曲名、词曲作者、速度——在「曲谱信息」里改</span></span></button>'
-        +'<button type="button" class="flw-rxrow" aria-disabled="true" data-fa="lay:pno" data-why="'+E(WHY_PN)+'" title="'+E(WHY_PN)+'">'+IC('lay-pagebreak')+'<span>页码<span class="flw-rxd">成品暂不印页码</span></span><span class="flw-nxb">即将推出</span></button>'
+      /* v68.5 页头 · 页码：页头行＝曲谱信息（#b-meta）；页码四项都走 pgnoSet（一次 mutate 一步撤销）。键上不超过 4 个字、不设副标题，说明放悬停 */
+      +'<section class="flw-rxs" id="flw-lay-hdpn" aria-labelledby="flw-lay-hdh"><h3 class="flw-rxh" id="flw-lay-hdh">页头 · 页码</h3>'
+        +'<button type="button" class="flw-rxrow" data-fa="lay:hd">'+IC('lay-header')+'<span>页头<span class="flw-rxd">曲名、词曲、速度——在「曲谱信息」里改</span></span></button>'   /* 收尾（集成遗留 2）：1440 停靠宽 201 下原句末字被截，删「作者」两字 */
+        +'<div class="flw-rxkv flw-rxpn">'
+          +'<span class="flw-rxk">页码</span><span class="flw-gseg" role="group" aria-label="页码">'
+            +'<button type="button" class="flw-gsb" data-fa="lay:pno" data-v="0" aria-pressed="true" title="打印 / PDF / 图片不印页码">不印</button>'
+            +'<button type="button" class="flw-gsb" data-fa="lay:pno" data-v="1" aria-pressed="false" title="打印 / PDF / 图片印页码（预览里所见即所得）">印</button></span>'
+          +'<span class="flw-rxk">位置</span><span class="flw-gseg flw-rxpnpos" role="group" aria-label="页码位置">'
+            +PN_POS.map(p=>'<button type="button" class="flw-gsb" data-fa="lay:pnpos" data-v="'+p[0]+'" aria-pressed="'+(p[0]==='bc')+'" title="'+E(p[2])+'">'+E(p[1])+'</button>').join('')+'</span>'
+          +'<span class="flw-rxk">首页</span><span class="flw-gseg" role="group" aria-label="首页印不印页码">'
+            +'<button type="button" class="flw-gsb" data-fa="lay:pnfirst" data-v="0" aria-pressed="true" title="有曲名的第一页印不印页码（出版惯例不印）">不印</button>'
+            +'<button type="button" class="flw-gsb" data-fa="lay:pnfirst" data-v="1" aria-pressed="false" title="有曲名的第一页印不印页码（出版惯例不印）">印</button></span>'
+          +'<span class="flw-rxk">起始页码</span><span class="flw-gstp" role="group" aria-label="起始页码">'
+            +'<button type="button" class="flw-rxib" data-fa="lay:pnstart" data-d="-1" aria-label="起始页码减 1" title="第一页算第几页（收进合集时用）">'+MINUS+'</button>'
+            +'<button type="button" class="flw-rxvb" id="flw-lay-pnst" data-fa="lay:pnedit" aria-label="起始页码 1" title="第一页算第几页：点一下直接输入（1–999）">1</button>'
+            +'<button type="button" class="flw-rxib" data-fa="lay:pnstart" data-d="1" aria-label="起始页码加 1" title="第一页算第几页（收进合集时用）">'+PLUS+'</button></span>'
+        +'</div>'
       +'</section>';
+  }
+  /* v68.5 起始页码就地输入（同 #layout-pop 百分比 pctEdit 的手感：Enter 确认 / Esc 取消 / 失焦确认，钳在 1–999）：值键先藏起、旁边放一个数字框，收起时还原 */
+  function pnEdit(btn){
+    if(!btn || !btn.isConnected || btn.hidden || !song) return;
+    const cur=pgnoRaw(song).start;
+    const inp=document.createElement('input');
+    inp.type='number'; inp.className='flw-rxnum'; inp.id='flw-lay-pnin'; inp.min='1'; inp.max='999'; inp.step='1'; inp.value=String(cur);
+    inp.setAttribute('aria-label', '起始页码（1–999，Enter 确认，Esc 取消）');
+    btn.hidden=true; btn.after(inp);
+    try{ inp.focus({preventScroll:true}); inp.select(); }catch(_){}
+    let done=false;
+    /* Enter / Esc 在 window 捕获阶段先接住：右栏浮出（1280 竖条档）时 FLOW.rd 在 document 捕获阶段把 Esc 当「收起右栏」——这里只该取消输入 */
+    const own=e=>{ if(e.target!==inp || e.isComposing) return; if(e.key==='Enter' || e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); fin(e.key==='Enter'); } };
+    const fin=commit=>{ if(done) return; done=true; window.removeEventListener('keydown', own, true);
+      const n=parseInt(inp.value, 10), back=document.activeElement===inp;
+      inp.remove(); btn.hidden=false;
+      if(back) try{ btn.focus({preventScroll:true}); }catch(_){}
+      if(commit && !isNaN(n)) pnSet({start: Math.max(1, Math.min(999, n))}); };
+    window.addEventListener('keydown', own, true);
+    inp.addEventListener('keydown', e=>e.stopPropagation());   /* 其余按键（数字等）不落到谱面 / 模式键 */
+    inp.addEventListener('blur', ()=>fin(true));
+  }
+  const pnSet = patch=>{ const b=pgnoRaw(song), ok=pgnoSet(patch); if(ok){ F.track('lay:pgno'); const m=pgnoMsg(b); if(m) toast(m); } return ok; };   /* ui_cmd：只记真改了的；收尾 UX-2 开 / 关给提示 */
+  /* v68.5「页头与页码…」：打开右栏「版式」（1280 竖条档浮出、1440 停靠档切页），滚到「页头 · 页码」并把焦点放在页码开关当前那一枚上 */
+  function openPn(el, ev){
+    const node = el && el.nodeType===1? el : null;
+    try{ F.rd.open('lay', node, false); }catch(e){ console.error('flow 右栏切页异常', e); }
+    SIG.tools=''; syncTools();
+    const sec=$('flw-lay-hdpn'); if(!sec) return;
+    try{ sec.scrollIntoView({block:'nearest'}); }catch(_){}
+    const f=sec.querySelector('[data-fa="lay:pno"][aria-pressed="true"]') || sec.querySelector('[data-fa="lay:pno"]');
+    /* 收尾 UX-8：鼠标点开时也显示焦点环（focusVisible），整区闪一下底色约 1 秒——此前只是右栏滚了一下，看不出跳到了哪里 */
+    if(f){ try{ f.focus({preventScroll:true, focusVisible:true}); }catch(_){ try{ f.focus({preventScroll:true}); }catch(__){} }
+      /* 浏览器不认 focusVisible（或鼠标点开时仍判为不显示）：用类补一圈同款焦点环，失焦即撤 */
+      f.classList.add('flw-fv'); f.addEventListener('blur', ()=>f.classList.remove('flw-fv'), {once:true}); }
+    sec.classList.remove('flw-flash'); void sec.offsetWidth; sec.classList.add('flw-flash');
+    clearTimeout(openPn.t); openPn.t=setTimeout(()=>sec.classList.remove('flw-flash'), 1400);
   }
 
   function paintRep(force){
@@ -29427,8 +29784,9 @@ FLOW.lay = (function(){
      flow 的这几个动作钉住两端：本行行首（前一小节 brk=1、行首去 pull——与「锁定此行」同口径的强制断点，前面的行因此不动）和动作要的新端点；
      落笔前先在分页口径（PRINT_PAGING，与预览 / 打印同一份）试排一次，结果不是想要的那一行就不改谱、照实说排不下。
      只写现有字段 measures[].brk / pull，经 mutate 一步撤销。默认外壳谱面行尾 ○＋−（sysAct）不经过这里，原样不动 */
-  const pinStart = (M, m1)=>{ if(m1>0){ M[m1-1].brk=1; delete M[m1].pull; } };
-  const pinEnd = (M, k)=>{ if(k<M.length-1){ M[k].brk=1; delete M[k+1].pull; } };
+  /* v68.5：该端行首已是「此处换页」（pgbrk，本来就是强制断点）时不再写 brk、不动 pull，免得留下多余数据（规格 §6） */
+  const pinStart = (M, m1)=>{ if(m1>0 && M[m1].pgbrk!==1){ M[m1-1].brk=1; delete M[m1].pull; } };
+  const pinEnd = (M, k)=>{ if(k<M.length-1 && M[k+1].pgbrk!==1){ M[k].brk=1; delete M[k+1].pull; } };
   /* 试排：在当前谱上临时改、量分页的行（[首, 末] 小节），量完逐键按原顺序放回（JSON 逐字节不变、对象不换） */
   function tryRows(edit){
     const M=song.measures, bak=M.map(m=>Object.keys(m).map(k=>[k, m[k]]));
@@ -29448,15 +29806,18 @@ FLOW.lay = (function(){
     const M=song.measures, n=M.length;
     if(d>0){
       const k=r.m2+1; if(k>=n){ toast('已是最后一行，没有后续小节可移入'); return false; }
+      if(M[k].pgbrk===1){ toast(PB_PULL_NO); return false; }   /* v68.5 不悄悄删换页 */
       return rowEdit(S=>{ pinStart(S, r.m1); delete S[r.m2].brk; delete S[k].brk; S[k].pull=1; pinEnd(S, k); }, r.m1, k,
         '已把第 '+(k+1)+' 小节移入本行：本行 '+(r.n+1)+' 小节（前面的行不动，后面的行自动重排；Ctrl+Z 撤销）', '本行'+NOFIT);
     }
     if(r.n<=1){ toast('本行只有一个小节，无法再移出'); return false; }
+    { const k=r.m2+1; if(k<n && M[k].pgbrk===1){ toast(PB_PUSH_NO); return false; } }   /* v68.5 收尾 UX-3：与 ＋ 对称（此前移出的小节在本页单独成行，提示却说「移到下一行」） */
     return rowEdit(S=>{ pinStart(S, r.m1); const last=S[r.m2]; delete last.pull; delete last.brk; S[r.m2-1].brk=1; }, r.m1, r.m2-1,
       '已把第 '+(r.m2+1)+' 小节移到下一行：本行 '+(r.n-1)+' 小节（前面的行不动，后面的行自动重排；Ctrl+Z 撤销）', '这一行没法再少一个小节');
   }
   function joinUp(p, r){
     const k=r.m1;
+    if(song.measures[k] && song.measures[k].pgbrk===1){ toast(PB_JOIN_NO); return false; }   /* v68.5 不悄悄删换页 */
     return rowEdit(S=>{ pinStart(S, p.m1); delete S[p.m2].brk; delete S[k].brk; S[k].pull=1; pinEnd(S, k); }, p.m1, k,
       '已把第 '+(k+1)+' 小节并入上一行（前面的行不动，后面的行自动重排；Ctrl+Z 撤销）', '上一行'+NOFIT);
   }
@@ -29490,7 +29851,19 @@ FLOW.lay = (function(){
         if(want===lk) return;
         return sysLockRow(r.m1, r.m2, want); }
       case 'lay:reset': if(r) sysAct('reset', r.m1, r.m2); return;
-      case 'lay:meta': { const b=$('b-meta'); if(b) b.click(); return; }
+      /* v68.5 此处换页（工具组 / 右栏「本行」/ 命令面板）：当前行首小节，缺省＝切换（data-v 给了就按它）；书写谱面标记的小菜单「取消换页」带 data-mi */
+      case 'lay:pbrk': { if(!r) return; const v=el && el.dataset && el.dataset.v;
+        const ok=sysPageBreak(r.m1, v!=null? v==='1' : undefined); if(ok) F.track('lay:pgbrk'); return ok; }
+      case 'lay:pboff': { const mi=+(el && el.dataset && el.dataset.mi); if(!(mi>0)) return;
+        const ok=sysPageBreak(mi, false); if(ok) F.track('lay:pgbrk'); else toast('第 '+(mi+1)+' 小节前已经没有换页'); return ok; }   /* 收尾 UX-10：过期菜单点了不再静默 */
+      /* v68.5 页码（右栏「页头 · 页码」）：每项一次 pgnoSet */
+      case 'lay:pno': return pnSet({on: el.dataset.v==='1'});
+      case 'lay:pnpos': return pnSet({pos: el.dataset.v});
+      case 'lay:pnfirst': return pnSet({first: el.dataset.v==='1'});
+      case 'lay:pnstart': return pnSet({start: pgnoRaw(song).start+(+el.dataset.d||0)});
+      case 'lay:pnedit': return pnEdit(el);
+      case 'lay:hd': { const b=$('b-meta'); if(b) b.click(); return; }
+      case 'lay:meta': return openPn(el, ev);
       case 'lay:go': { const mi=+el.dataset.mi, pg=+el.dataset.pg, si=+el.dataset.si;
         pick(mi, 0); const rr=S && S.rows[si]; scrollTo(pg, rr? rr.y0 : null); return; }
       case 'lay:pg': return scrollTo(+el.dataset.pg, null);
@@ -29500,6 +29873,10 @@ FLOW.lay = (function(){
 
   return {
     collect, report, rowsNow, pagesHTML, act, pick,
+    /* v68.5 命令面板「本行换页 / 取消本行换页」的可用性（与工具组灰显同一口径）：当前行是第 1 行＝原因；want 给了再看本行已换页没有 */
+    pbWhy(want){ if(!song) return ''; const r=rowOf(sel.mi); if(r && r.m1===0) return '第 1 行本来就在第 1 页';
+      if(!r || want==null) return ''; const on=r.m1>0 && !!song.measures[r.m1] && song.measures[r.m1].pgbrk===1;   /* 收尾 UX-6：want＝true「本行换页」/ false「取消本行换页」 */
+      return want? (on? '本行已经换页（第 '+(r.m1+1)+' 小节起；要取消用「取消本行换页」）' : '') : (on? '' : '本行没有手动换页'); },
     /* v68.1 收尾 MODES-5（FLOW.mode 刷新快照前后各问一次）：当前行框是否在 #pv-stage 可视区（不在排版模式 / 没画框＝null）；reveal＝把当前行滚回视野 */
     selInView(){ const el=document.querySelector('#pv-pages .flw-pvs'), ps=F.mode.stage(); if(!el || !ps || F.mode.cur!=='engrave') return null;
       const a=el.getBoundingClientRect(), b=ps.getBoundingClientRect(); if(!(a.height>0)) return null; return a.bottom>b.top+4 && a.top<b.bottom-4; },
@@ -29535,6 +29912,15 @@ FLOW.lay = (function(){
         pp.addEventListener('dblclick', e=>{ if(!F.active || F.mode.cur!=='engrave') return; const h=hitPreview(e); if(!h) return; pick(h.mi, 0); setMode('write'); });
         /* 预览页被别处重建（窗口缩放时 pvBuild）：当前行的框跟着补回 */
         new MutationObserver(()=>{ if(F.active && F.mode.cur==='engrave') F.raf('pvsel', drawSel); }).observe(pp, {childList:true}); }
+      /* v68.5 书写谱面页间灰缝里的「换页」标记：左键点一下 / 右键＝小菜单「取消换页」。捕获阶段先接住（不清选区、不起框选）；
+         只在命中时拦，其余点击原样交给谱面。不往 #score 上写任何属性（成品克隆的是它） */
+      const sc=$('score');
+      if(sc && !PB_BOUND){ PB_BOUND=true;
+        const pbAt = e=>(F.active && F.mode && F.mode.cur==='write' && !viewerMode)? pbHit(e) : null;
+        sc.addEventListener('pointerdown', e=>{ const h=pbAt(e); PB_PD=h; if(h==null) return; e.preventDefault(); e.stopImmediatePropagation(); }, true);
+        sc.addEventListener('click', e=>{ const h=PB_PD; PB_PD=null; if(h==null || pbAt(e)!==h) return; e.stopImmediatePropagation(); pbMenu(h, e.clientX, e.clientY); }, true);
+        sc.addEventListener('contextmenu', e=>{ const h=pbAt(e); PB_PD=null; if(h==null) return; e.preventDefault(); e.stopImmediatePropagation(); pbMenu(h, e.clientX, e.clientY); }, true);
+      }
     },
     on(){ SIG={tools:'', rep:'', cfg:'', sel:''}; },
     off(){ S=null; document.querySelectorAll('#pv-pages .flw-pvs').forEach(x=>x.remove()); const pp=$('pv-pages'); if(pp) pp.classList.remove('flw-pick'); },
@@ -29548,6 +29934,7 @@ FLOW.lay = (function(){
     },
     /* 快照重拍 / 预览重建之后（FLOW.mode 调）：左栏报告、当前行框按新几何重画 */
     painted(m){ if(m==='engrave'){ paintRep(false); syncTools(); drawSel(); } },
+    stale: pbStale,
     sync(m){ if(m==='engrave'){ syncTools(); F.raf('pvsel', drawSel); } }
   };
 })();
@@ -29654,6 +30041,7 @@ FLOW.out = (function(){
         +'<span class="flw-rxk">PDF</span><span class="flw-rxv2">打印对话框里选「另存为 PDF」；矢量，与谱面同字形</span>'
         +'<span class="flw-rxk">PNG</span><span class="flw-rxv2">2× 高清整页</span></div>'
       +'<p class="flw-rxtrim" id="flw-out-trim" hidden></p>'
+      +'<p class="flw-rxtrim" id="flw-out-pnw" hidden></p>'   /* v68.5 收尾 ENG-4：A3 版面缩到 A4 纸时页码离纸边过近 */
       +'<p class="flw-rxnote">按钮在上方行 2：打印存档 · 分享 · 专业格式。</p></section>';
   }
   function paintPub(){
@@ -29663,7 +30051,8 @@ FLOW.out = (function(){
     let canCloud=false; try{ canCloud=!!(window.PYQ_CLOUD && ACCT); }catch(_){}
     let teN=0; try{ teN=trailingEmptyN(); }catch(_){}
     let R=null; try{ R=F.lay.report(); }catch(_){}
-    const sig=[song.title, kind, saved, canCloud, teN, R && R.pages, R && R.paper, PSIZE].join('|');
+    const pw=pnPrintWarn(PSIZE);
+    const sig=[song.title, kind, saved, canCloud, teN, R && R.pages, R && R.paper, PSIZE, pw].join('|');
     if(sig===SIG.pub) return; SIG.pub=sig;
     const T=(id, t)=>{ const e=$(id); if(e && e.textContent!==t) e.textContent=t; };
     T('flw-pub-title', '《'+(song.title||'未命名曲谱')+'》'); T('flw-pub-kind', kind||'曲谱');
@@ -29678,6 +30067,8 @@ FLOW.out = (function(){
     const tr=$('flw-out-trim');
     if(tr){ if(teN){ tr.hidden=false; tr.innerHTML='<span>'+svgi('warn', 12)+' 末尾有 '+teN+' 个空小节，会一起打印和导出。</span><button type="button" class="flw-rxb" data-fa="out:trim">删除这 '+teN+' 个空小节</button>'; }
       else if(!tr.hidden){ tr.hidden=true; tr.innerHTML=''; } }
+    const pwE=$('flw-out-pnw');
+    if(pwE){ if(pw){ pwE.hidden=false; pwE.innerHTML='<span>'+svgi('warn', 12)+' '+E(pw)+'</span>'; } else if(!pwE.hidden){ pwE.hidden=true; pwE.innerHTML=''; } }
   }
   function act(a, el, ev){
     if(!song) return;
@@ -33205,9 +33596,11 @@ document.getElementById('b-acctex').onclick = ()=>{
   const accSt = !!rowsT.acc, accRows = accSt? {chordVi:rowsT.chordVi, rhVi:rowsT.rhVi, lhVi:rowsT.lhVi} : null;
   /* 默认织体与智能配谱弹窗同口径（accTexDefault）：本谱上次用的 → 钢琴伴奏类 2/4 落「儿歌伴奏 2/4」→ 库首套 */
   const tex0 = accTexDefault(song, avail, true, accSt || !!song.pianoAcc);
+  /* v68.5（§9.0 P1）：标和弦的入口按外壳指——新外壳没有「创作」页，和弦在右栏「文字」页（Ctrl+K 两外壳都可） */
+  const chHint = flowOn()? '右栏「文字」页的「输入和弦…」（Ctrl+K）' : '右栏「创作」页的「和弦」';
   showModal(`<h3>伴奏织体 · 按和弦生成双手伴奏</h3>
-    ${accSt? `<p style="font-size:12.5px;line-height:1.6">按<b>旋律行</b>上的和弦，把双手伴奏直接写进本谱的<b>右手 / 左手伴奏两行</b>——旋律与歌词不动；伴奏两行原有内容会被覆盖，可 Ctrl+Z 一步撤销。还没标和弦的小节可勾下面的「空小节自动配和弦」，也可先在旋律上点右栏「创作」页的「和弦」自己标。</p>`
-    : `<p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（选中右手的音，点右栏「创作」页的「和弦」），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>`}
+    ${accSt? `<p style="font-size:12.5px;line-height:1.6">按<b>旋律行</b>上的和弦，把双手伴奏直接写进本谱的<b>右手 / 左手伴奏两行</b>——旋律与歌词不动；伴奏两行原有内容会被覆盖，可 Ctrl+Z 一步撤销。还没标和弦的小节可勾下面的「空小节自动配和弦」，也可先在旋律上点${chHint}自己标。</p>`
+    : `<p style="font-size:12.5px;line-height:1.6">先在右手谱表按拍标注和弦（选中右手的音，点${chHint}），选织体后自动生成双手音符——生成的是<b>可编辑的真音符</b>；已有内容会被覆盖，可 Ctrl+Z 一步撤销。换和弦后可对该段重新生成。</p>`}
     ${TEX_LV.map(lv=>{
       const g=avail.filter(t=>t.level===lv);
       return g.length? `<p style="margin:8px 0 2px;font-size:12px;color:var(--muted)"><b>${lv}</b>${lv==='入门'?'（考编/幼师即兴伴奏常用）':''}</p>`+
@@ -33243,8 +33636,8 @@ document.getElementById('b-acctex').onclick = ()=>{
     if(r && r.done) pyqEvent('tex_gen', texId+':'+r.done);   // v63.4 A7
     toast(r.done? (accSt? `已填进本谱右手 / 左手伴奏：${r.done} 小节` : `已生成 ${r.done} 小节伴奏`)+(nSug? `，自动配了 ${nSug} 小节和弦`:'')+accGenNotes(r, tailS, tail)+'（可编辑，Ctrl+Z 撤销）'
                 : r.mismatch? '未生成：所选范围的拍号与该织体不符'
-                : accSt? '未生成：还没有旋律或和弦——先在旋律行写几个音，勾「空小节自动配和弦」或在右栏「创作」页点「和弦」标注'
-                : '未生成：所选范围没有标注和弦——先选中右手的音，在右栏「创作」页点「和弦」标注');
+                : accSt? '未生成：还没有旋律或和弦——先在旋律行写几个音，勾「空小节自动配和弦」或点'+chHint+'标注'
+                : '未生成：所选范围没有标注和弦——先选中右手的音，点'+chHint+'标注');
   };
 };
 /* ===== v67.5 谱型条＋起步条 · 换谱类（docs/design-2026-10e §4「落地」/ §5「换谱类」，2026-10-15 拍板「按推荐方案执行」）=====
@@ -34028,7 +34421,7 @@ function withCleanSnap(fn, opts){
 /* v62.6 A2：成品取样用的谱面克隆——去掉屏幕专用的页框/页码/播放头（打印切片同口径），原 #score 不动 */
 function scoreExportClone(){
   const c=document.getElementById('score').cloneNode(true);
-  c.querySelectorAll('.pagebg, .pageno, #playhead, #playline').forEach(e=>e.remove());
+  c.querySelectorAll('.pagebg, .pageno, .pgbrk-mk, #playhead, #playline').forEach(e=>e.remove());   /* v68.5 书写模式换页标记同样不进成品（成品页码 .pgfolio 保留） */
   return c;
 }
 /* v68.4 P2-b（剖析 B4）成品快照的字符串：与 scoreExportClone().innerHTML 逐字节相同，但按 #score 的增量分段（svgIncSet）逐段序列化、
@@ -34036,10 +34429,10 @@ function scoreExportClone(){
    父元素的 innerHTML＝逐个子节点序列化后相接（元素＝outerHTML；文本按 HTML 文本规则转义 & < > 不换行空格）；克隆里删掉的四类节点（页框 / 页码 / 播放头 / 竖线）
    在这里跳过（段的源串里根本没有这几个名字的段走快路，有的逐个判断、嵌套的克隆后删）。
    返回 {html, cks}：cks＝各段的串（相接即 html，供预览页按段增量填，见 fillSvg）；#score 没有分段状态 / 有没消化的外来改动 / 关缓存时退回原法（cks＝null） */
-const EXPORT_DROP_SEL = '.pagebg, .pageno, #playhead, #playline';
+const EXPORT_DROP_SEL = '.pagebg, .pageno, .pgbrk-mk, #playhead, #playline';   /* v68.5 加书写模式换页标记（与 scoreExportClone 同一张清单） */
 function svgSerCk(ck){
   if(!ck.f) return '';
-  const hit = /pagebg|pageno|playhead|playline/.test(ck.s);
+  const hit = /pagebg|pageno|pgbrk-mk|playhead|playline/.test(ck.s);
   let out = '';
   for(let n=ck.f; n; n=n.nextSibling){
     if(n.nodeType===1){
@@ -34074,7 +34467,7 @@ function scoreExportParts(svg){
    克隆不经解析器，比把序列化串再解析一遍快约 2.5 倍；结果与解析 scoreExportParts 的 cks[i] 相同（序列化逐字节相同，tv_perf2 对拍） */
 function svgCloneCk(ck){
   if(!ck || !ck.f) return null;
-  const hit = /pagebg|pageno|playhead|playline/.test(ck.s);
+  const hit = /pagebg|pageno|pgbrk-mk|playhead|playline/.test(ck.s);
   const fr = document.createDocumentFragment();
   for(let n=ck.f; n; n=n.nextSibling){
     if(!(hit && n.nodeType===1 && n.matches(EXPORT_DROP_SEL))){
@@ -34209,7 +34602,10 @@ function exportMusicXML(s){
      此前拆成两个独立 part 且无花括号，MuseScore 打开是两件乐器、左手与右手对不齐 */
   const braceOf={}; voxGroupsOf(s).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ braceOf[g.from]='top'; braceOf[g.to]='bottom'; } });
   /* v65.4 B3a ⑦（P2-13）弱起：首小节 number="0" implicit="yes"（出版惯例，与 meaNo 同口径），其后从 1 编号 */
-  const meaOpen = mi=> `<measure number="${s.pickup? mi : mi+1}"${(mi===0 && s.pickup)? ' implicit="yes"' : ''}>`;
+  /* v68.5 「此处换页」(measures[mi].pgbrk===1，第 1 小节无效)：小节开头写 <print new-page="yes"/>（隐含 new-system，不另写）。
+     三处调用（大谱表 / 普通声部 / TAB 声部）都经这里——每个 part 同一小节的第一个音乐数据都有这一句（多 part 时规范要求各 part 同位）。没有换页的谱输出与 v68.4 逐字节相同 */
+  const meaOpen = mi=> `<measure number="${s.pickup? mi : mi+1}"${(mi===0 && s.pickup)? ' implicit="yes"' : ''}>`
+    + ((mi>0 && (s.measures[mi]||{}).pgbrk===1)? '<print new-page="yes"/>' : '');
   /* 移调乐器（D-14 ②）：谱面是记谱音，<transpose> 告诉外部软件实音＝记谱＋chromatic */
   const transposeXML = s.transp? `<transpose><diatonic>${Math.round(s.transp*7/12)}</diatonic><chromatic>${s.transp|0}</chromatic></transpose>` : '';
   /* v65.7 B3a ⑨ 覆盖率补缺：score-part 的 <group>（MusicXML 合法子元素，第三方软件忽略）标记记谱法——jp=简谱声部、dual=教学对照、
@@ -35961,6 +36357,10 @@ function importMusicXML(xmlStr){
       if(voltaCur) mea.volta=voltaCur;
       [...mEl.querySelectorAll(':scope > barline > ending')].forEach(en=>{ const t=en.getAttribute('type'); if(t==='stop'||t==='discontinue') voltaCur=0; });
       const nv=navMap[mi]; if(nv) ['segno','coda','dc','ds','fine'].forEach(k=>{ if(nv[k]) mea[k]=true; });
+      /* v68.5 换页：<print new-page="yes"/> → mea.pgbrk=1，**只认自家导出**（<software> 含「谱友圈」，同 v68.3 D4 的 ownSw）——
+         MuseScore / Finale / Sibelius 默认把自己的每个自动翻页都写成 new-page，照收会把别人的版面钉进来。第 1 小节不读（无效）。
+         new-system（「此处换行」）本版不映射（基线没有这项映射；加了会改变所有带换行的谱的导出）：将来加时同口径——同一小节换页优先、只认自家导出 */
+      if(ownSw && mi>0){ const pr=mEl.querySelector(':scope > print[new-page="yes"]'); if(pr) mea.pgbrk=1; }
       /* v41.2 排练/段落标记：rehearsal → mea.label */
       const rh=mEl.querySelector('direction rehearsal');
       if(rh && rh.textContent.trim()) mea.label=rh.textContent.trim();
@@ -36876,7 +37276,9 @@ function buildShareCardSVG(){
   let vb=null, sys=[];
   const PC=svgPrintColors();   /* v66.5 卡面印刷色（品牌渐变 / 冷白卡底 / 冷灰线），与导出色表同源 */
   const inner=withCleanSnap(()=>{ const s=document.getElementById('score'), v=s.viewBox.baseVal;
-    vb={width:v.width, height:v.height}; sys=SYS_GEO.slice(); return scoreExportClone().innerHTML; }, {paging:true});
+    vb={width:v.width, height:v.height}; sys=SYS_GEO.slice();
+    /* v68.5 卡片是从第 1 页裁出来的谱面、不是一页纸：成品页码（.pgfolio）不上卡（顶部外侧＋首页印时「1」会落在卡片角上） */
+    const c=scoreExportClone(); c.querySelectorAll('.pgfolio').forEach(e=>e.remove()); return c.innerHTML; }, {paging:true});
   /* v62.6 A2 分享卡版式（P2-07/P2-08）：①谱框底边在页脚遮罩之上（此前遮罩从 870 起、谱框到 886，底部 16 单位被盖、系统被切）；
      ②裁切高度落在**最后一个完整系统**的下沿——按框比例硬裁会把一行谱拦腰截断；③二维码块整体上移 10，说明文字不再贴底边 */
   const W=750,H=1000, FOOT=130, boxX=25,boxY=96,boxW=700, boxH=H-FOOT-boxY-12;
@@ -37009,6 +37411,8 @@ function buildThumbCanvas(data, cb, onErr){
     lbSync.hold = true;
     render();
     inner = svg.innerHTML; vw = svg.viewBox.baseVal.width;
+    /* v68.5 缩图裁的是第 1 页曲名之下的谱面：成品页码（.pgfolio）与书写模式换页标记（PRINT_PAGING 下本来不画）一律不进 */
+    if(/pgfolio|pgbrk-mk/.test(inner)){ const t=svg.cloneNode(true); t.querySelectorAll('.pgfolio, .pgbrk-mk').forEach(e=>e.remove()); inner=t.innerHTML; }
     /* 裁切起点落在标题块之下：卡片正文已经写了曲名/演唱/制谱，缩图再重复一遍标题
        既占地方又和「谱种」角标打架；跳过标题块后整张缩图全是乐谱本身，信息密度最高。
        [data-hd="meta"] 是曲谱信息卡的点击热区，正好圈住整个标题块。
@@ -37156,6 +37560,12 @@ document.getElementById('b-print').onclick = ()=>{
         <button id="ex-mtab" title="谱友圈曲谱文件 .mtab.json：完整保留全部数据，可在别的电脑上打开继续编辑（Ctrl+S）">曲谱文件</button></div></div>
     <div class="btns ex-foot"><button id="ex-cancel">取消</button></div>`);
   document.getElementById('ex-cancel').onclick = closeModal;
+  /* v68.5 收尾 ENG-4：A3 版面 + 印页码 + 非自适应纸张时在纸张下面提示一句；只在需要时才插这一段（不印页码的谱弹窗 HTML 与此前逐字节相同，tv_modes M23c 对拍） */
+  { const sz=document.getElementById('ex-size');
+    const upd=()=>{ const t=pnPrintWarn(sz.value); let w=document.getElementById('ex-pnw');
+      if(t){ if(!w){ w=document.createElement('p'); w.id='ex-pnw'; w.style.cssText='font-size:12px;color:var(--muted);margin:4px 0 0'; const lb=sz.closest('label'); (lb || sz).after(w); } w.textContent=t; }
+      else if(w) w.remove(); };
+    sz.addEventListener('change', upd); upd(); }
   document.getElementById('ex-mtab').onclick = ()=>{ closeModal(); EXPORT_ACT.mtab(); };
   { const tb=document.getElementById('ex-trim'); if(tb) tb.onclick=()=>{ let n=0; mutate(()=>{ n=trimTrailing(); }); const nt=tb.closest('.te-note'); if(nt) nt.remove(); toast('已删除末尾 '+n+' 个空小节（Ctrl+Z 可撤销）'); }; }
   document.getElementById('ex-png').onclick = ()=>{ closeModal(); EXPORT_ACT.png(); };
@@ -37293,7 +37703,7 @@ function buildPrintPages(){
     pages.push(`<div class="pp"><svg viewBox="0 ${vy} ${g.W} ${g.pgH}" preserveAspectRatio="xMidYMin meet"><use href="#pp-src"/></svg></div>`);
   }
   box.innerHTML=`<svg class="pp-defs" width="0" height="0"><defs><g id="pp-src">${src.innerHTML}</g></defs></svg>`+pages.join('');
-  box.querySelectorAll('#pp-src .pagebg, #pp-src .pageno, #pp-src #playhead, #pp-src #playline').forEach(e=>e.remove());
+  box.querySelectorAll('#pp-src .pagebg, #pp-src .pageno, #pp-src .pgbrk-mk, #pp-src #playhead, #pp-src #playline').forEach(e=>e.remove());   /* v68.5 换页标记不进纸（成品页码 .pgfolio 保留） */
   /* id 去重：副本里的元素 id 与 #score 里的同名，留着会让 getElementById 拿错对象 */
   box.querySelectorAll('#pp-src [id]').forEach(e=>e.removeAttribute('id'));
   document.body.appendChild(box);
@@ -37337,6 +37747,7 @@ function laySync(){
   document.querySelectorAll('#lp-page button').forEach(b=>b.classList.toggle('on', b.dataset.page===c.page));
   document.querySelectorAll('#lp-fix button').forEach(b=>b.classList.toggle('on', (b.dataset.fix==='1')===!!c.fixed));
   document.querySelectorAll('#lp-bar button').forEach(b=>b.classList.toggle('on', b.dataset.bn===(song.barNums||'')));
+  { const pr=pgnoRaw(song); document.querySelectorAll('#lp-pgno button').forEach(b=>b.classList.toggle('on', (b.dataset.pn||'')===(pr.on? pr.pos : ''))); }   /* v68.5 页码 */
   document.querySelectorAll('#lp-rgtar button').forEach(b=>b.classList.toggle('on', b.dataset.rg===layRgTarget));
   const set=(id,v)=>{ const el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
   set('lp-scale', c.scale); set('lp-rowgap', c.rowGap[layRgTarget]); set('lp-notegap', c.noteGap);
@@ -37369,6 +37780,10 @@ document.getElementById('lp-page').onclick = e=>{ const b=e.target.closest('butt
   layApply({page:b.dataset.page}); };
 document.getElementById('lp-bar').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;   /* v64.8 B4c ⑤ */
   mutate(()=>{ if(b.dataset.bn) song.barNums=b.dataset.bn; else delete song.barNums; }); laySync(); };
+/* v68.5 页码（旧外壳最小入口 #lp-pgno-row：开关＋位置，在「简谱小节号」下一行）：不印＝关（位置等其余设置原样保留，新外壳设过的起始页码 / 首页也不动）；三种位置＝印在那里。
+   pgnoSet 一次 mutate，可撤销、自动落盘。新外壳里这一行随 #layout-pop 搬进右栏后隐藏（用右栏「页头 · 页码」）。不加换页按钮：换页靠数据生效 */
+document.getElementById('lp-pgno').onclick = e=>{ const b=e.target.closest('button'); if(!b) return;
+  const v=b.dataset.pn||'', b0=pgnoRaw(song); if(pgnoSet(v? {on:true, pos:v} : {on:false})){ const m=pgnoMsg(b0); if(m) toast(m); } laySync(); };   /* 收尾 UX-2：开 / 关给提示（同新外壳） */
 document.getElementById('lp-fix').onclick = e=>{ const b=e.target.closest('button'); if(!b)return;   /* v64.5 B8 ① */
   layApply({fixed: b.dataset.fix==='1'}, {fit:false});
   toast(b.dataset.fix==='1'? '已固定版宽：断行与页数按纸张算，换窗口、换电脑、打印都一样' : '已改为随窗口排版（打印时的断行可能与屏幕不同）'); };
@@ -39888,7 +40303,7 @@ function helpFlowHTML(){
     +'<div class="ds">两行顶栏 · 书写 › 排版 › 输出 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能 · 底部播放与状态栏'+(ver? ' · 当前版本 <span class="hd-ver">'+ver+'</span>' : '')+'</div></div></div>'
   +'<div class="hd-steps">'
     +'<div class="hd-step"><div class="n">1</div><b>书写</b><p>文件 ▾「新建…」或页签「＋」（'+K('Alt')+'+'+K('N')+'）按用途建谱，回车就建，新窗口打开、当前谱保留。左栏点音轨，只按数字键录入：TAB 敲品位、简谱 / 五线谱敲 '+K('0')+'–'+K('7')+'，<b>落音自动跳下一个音</b>（不想自动跳可在账号 ▾「偏好设置」关掉）；记号点左栏记号面板；选中音符按 '+K('Enter')+' 逐字填词。</p></div>'
-    +'<div class="hd-step"><div class="n">2</div><b>排版</b><p>行 2 点「排版」：主区换成真实分页，调纸张 A5 / A4 / A3、疏密，在本行「此处换行 / 并入上一行 / 锁定此行」；左栏「版面检查」点一项跳到那一页，右栏「版式」调间距与页头。</p></div>'
+    +'<div class="hd-step"><div class="n">2</div><b>排版</b><p>行 2 点「排版」：主区换成真实分页，调纸张 A5 / A4 / A3、疏密，在本行「此处换行 / 并入上一行 / 锁定此行 / 本行换页」（本行换页＝从这一行起另起一页，再点取消）；左栏「版面检查」点一项跳到那一页，右栏「版式」调间距、页头与页码（印 / 位置 / 首页 / 起始页码）。</p></div>'
     +'<div class="hd-step"><div class="n">3</div><b>输出</b><p>点「输出」：主视图就是打印预览（行 2 末尾「预览」切 适宽 / 整页 / 横排）——打印 / 存 PDF、图片 PNG、分享卡、互动谱、MusicXML、MIDI、曲谱文件；右栏「发布与导出」发布到谱库。'+K('Esc')+' 回到书写，改动实时自动保存。</p></div>'
   +'</div>'
   +sec(pqIcon('mode-write',16)||svgi('pencil',15),'界面一览',[
@@ -40033,6 +40448,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v68.5</span><div><b>排版：可以「本行换页」，也可以印页码</b>（不动它们时谱面与上一版完全相同）。<br>① <b>本行换页</b>：排版模式里点一行，选「本行换页」＝从这一行起另起一页；再点一次取消。命令面板、右栏「本行」、书写谱面页间灰缝里的「换页」标记都能开关。左栏「版面检查」会列出手动换页，点一项跳到那一页。<br>② <b>页码</b>：右栏「版式 › 页头 · 页码」：印 / 不印（缺省不印）、位置（底部居中 / 底部外侧 / 顶部外侧）、首页印不印（出版惯例不印）、起始页码。预览、打印 / PDF、PNG 整页图三处一致；旧版布局在「排版」浮层多一行「页码」。<br>③ MusicXML 导出写换页；再导入自家导出的文件能还原换页（别家软件的自动翻页不收，以免把别人的版面钉进来）。<br>④ 新布局里「伴奏织体」弹窗和「未生成」提示不再指向已不存在的「创作」页，改指右栏「文字」页的「输入和弦…」（Ctrl+K）。<br>说明：一页里谱行太多、压到页码位置时，这一页不印页码，「版面检查」会说明原因；「此处换行」与 MusicXML 的换行互通留到互操作版本。<br><b>测试</b>：新套件 <code>tv_pgbrk</code>（67 项，引擎 / 成品 / MusicXML / 数据红线）、<code>tv_pgbrk_ui</code>（63 项，两种布局的入口与撤销）；对抗验收 3 镜头 25 条处理 24 条；CORE 全绿。</div></li>
     <li><span class="v">v68.4</span><div><b>更快：打开编辑器、长谱每改一笔、排版 / 输出模式都明显提速</b>（谱面效果与上一版逐字节相同）。<br>① <b>打开更快</b>：新布局首次打开到出现启动台比上一版快约 0.2 秒，已经比旧布局时代（v68.1）还快；左栏和悬浮条改到启动台出现之后再画，离开启动台的那一刻已经画好。<br>② <b>长谱每笔</b>：200 小节的弹唱谱改一个音，从约 0.6 秒降到约 0.2 秒；双吉他轨的 200 小节谱从约 0.8 秒降到约 0.25 秒。现在只更新有变化的谱行，不再整张谱重画。<br>③ <b>排版 / 输出模式</b>：改一笔到预览更新，200 小节从 1–2 秒降到约 0.2 秒；「此处换行」从 1.4–2.2 秒降到 0.4–0.6 秒；预览页滚动更顺，回到书写后也不再变慢。<br>④ 第一次按键或点击时不再当场解码音色，开头几下操作不卡。<br>说明：会让后面整篇断行一起变化的操作（插入小节、改小节宽度、整体缩放）在 200 小节以上的谱里仍需约 0.5–0.8 秒。<br><b>测试</b>：新套件 <code>tv_perf</code>（39 项，开机与延后画）、<code>tv_perf2</code>（渲染逐字节对拍与提速，分三段）；对抗验收 3 镜头 17 条全处理；CORE 全绿。</div></li>
     <li><span class="v">v68.3</span><div><b>谱面上方的悬浮条回来了 · 浏览器禁用存储不再白屏 · 打开文件认 MIDI / MusicXML / GP · 歌词整句按字分配</b><br>① <b>吸顶悬浮条</b>：新布局里谱面上方常驻一条悬浮条，所有谱都有，默认展开。左边换谱类，接着切换「简谱 · 五线 · 对照」；新建的谱显示 ①②③ 起步步骤和当前一步的按钮，起步走完换成这类谱的常用工具（例如 填词 · 配和弦 · 配伴奏 · 织体），右端是「更多」和收起。收起成一条细条并记住，再点展开；Alt+B 切换。第二行的「起步」组和右栏「下一步」卡撤掉，起步只在悬浮条一处。<br>② <b>存储被禁用也能用</b>：浏览器禁用了本机存储时，编辑器照常打开、编辑、播放、导出，页签和保存状态标「仅本次」，关页面前提醒导出；「我的曲谱」存不下时会提示并给出导出。<br>③ <b>打开文件</b>可以直接选 MIDI、MusicXML（.xml / .musicxml / .mxl）、Guitar Pro（.gp / .gp3–.gp5 / .gpx），和拖进来一样处理；按文件内容识别格式，扩展名写错也能认。<br>④ <b>歌词整句输入</b>：在歌词框里一次输入一整句（或用空格隔开），会按字分到后面的音上，跳过休止和连音线后面的音；一个音上放两个字用「_」连写；框里按 Ctrl+Z 撤销。<br>⑤ 钢琴伴奏歌谱导出 MusicXML 再导入，轨名保持「旋律 / 右手伴奏 / 左手伴奏」。<br>⑥ 打开带布局参数的分享或观看链接，不再改掉你自己的布局偏好。<br><b>测试</b>：新套件 <code>tv_sbar</code>（72 项）、<code>tv_fix683</code>（91 项）；对抗验收 3 镜头 33 条（9 条 major）全修；CORE 179 套件全绿。</div></li>
     <li><span class="v">v68.2</span><div><b>新版编辑器布局成为默认：两行顶栏 · 书写 › 排版 › 输出 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能</b>（v67.9–v68.1 预览三个版本后正式切换；想用原来的布局：账号 ▾ › 偏好设置 › 打开「使用旧版布局」，或地址后加 <code>?shell=classic</code>，原布局完整保留）。<br>① <b>旧入口去哪了</b>：新建 → 页签旁的 ＋ 或「文件 ▾」（Alt+N 不变）；示例曲谱（原「预设」）、打开文件、存为文件、谱库 → 「文件 ▾」；排版、打印预览 → 第二行「排版」「输出」；打印与导出、发布 → 「输出」与顶栏「发布」；混音台 → 左栏每条音轨行（静音 / 独奏直接点，音量、声像、音色在「⋯」）；踏板、指法、八度线、扫弦等记号 → 左栏记号面板；一键配伴奏、织体、节奏型库 → 右栏「智能」；记不住在哪就按 Ctrl+/ 搜，旧名也能搜到。所有快捷键与原来一致。<br>② <b>第一次打开</b>有 3 步简短导览（不抢键盘焦点，按 F6 进入，Esc 或「跳过」关闭，只出现一次）；仍在用旧布局的用户会看到一次「新布局已上线」的提示。<br>③ <b>输出</b>的预览可切「适宽 / 整页 / 横排」三种排布；排版、输出里的灰显项统一写「即将推出」。<br>④ 两种布局都生效的修正：音量调到 0 时按静音播放；删掉一条吉他轨后，后面各轨的静音、音色、音量和变调夹跟着前移，不再错位；五线谱音名键按光标所在小节的调标注（转调后也对）；原样未改的示例曲谱关窗时不再转存进我的曲谱；谱库开着时数字键、删除键不会改到背后的谱。<br>⑤ 匿名界面统计：只记录用过哪个界面命令（如「切到排版」）用来改进布局，不包含曲谱、歌词等内容，隐私说明已同步；编辑器帮助与官网使用手册按新布局重写。<br><b>测试</b>：切默认后 38 个套件逐个迁移（测旧布局结构的钉旧布局并在新布局补等价覆盖，测功能的改走新入口，不删断言）；新套件 <code>tv_flowdef</code>（56 项）、<code>tv_uicmd</code>（17 项）、<code>tv_helpflow</code>（17 项）；对抗验收 3 镜头 31 条全修；CORE 177 套件全绿。</div></li>
@@ -40076,7 +40492,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v68.4';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v68.5';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

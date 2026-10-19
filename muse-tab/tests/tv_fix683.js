@@ -17,6 +17,7 @@
        框里直接 Ctrl+Z / Ctrl+Shift+Z 撤销重做；改已有歌词（追加字 / 插标点）不覆盖后面的音；整句自动前进后紧跟的回车不空掉一个音；「_」连写同一个音；
        「我的曲谱」写不进时不报成功、不关窗、不替换；内存版存储下胶囊 / 页签 / 关窗提示一律「仅本次」、关页拦一次；互动谱不提示「存储被禁用」；
        扩展名写错按文件头认、没有扩展名的曲谱文件同样替换当前窗口；MuseScore 另存 / 空行名 / 「A·B」行名往返不变；示例钢琴谱往返不多出 voxGroups；旧外壳「打开」提示不写 Ctrl+O
+   X7  v68.5（§9.0 P1）「伴奏织体」弹窗说明与「未生成」提示里标和弦的入口按外壳指：新外壳＝右栏「文字」页「输入和弦…」（Ctrl+K），旧外壳仍是「创作」页（钢琴伴奏歌谱 / 钢琴谱两个分支）
    env：MUSETAB_URL 被测页（缺省 ../index.html）· ONLY=X1,X3 只跑部分 · SHOTS=目录 存截图 */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
@@ -599,9 +600,33 @@ function BLOCK_HARD() {
     T('X5', r.plain.a.key === '0' && r.plain.later.flow === false && r.emptyPub.a.key === '0', 'X5b 普通编辑页 ?shell=classic 仍写 \'0\'（刷新后保持旧外壳）；空 pub 不算观看意图（同 FLOW.vint）', J({ plain: r.plain, emptyPub: r.emptyPub }));
   }));
 
+  /* ================= X7 v68.5（§9.0 P1）「伴奏织体」弹窗与失败提示里标和弦的入口按外壳指 ================= */
+  /* 新外壳没有右栏「创作」页（和弦在「文字」页「输入和弦…」/ Ctrl+K）；旧外壳原文不变。两种谱：钢琴伴奏歌谱（旋律行标和弦）与钢琴谱（右手标和弦） */
+  if (want('X7')) SHELLS.forEach(([sh, u]) => jobs.push(() => SAFE('X7', 'X7 ' + sh, async () => {
+    const pg = await open(u); await prep(pg);
+    const r = {};
+    for (const [k, kind] of [['acc', 'JG'], ['pn', 'piano']]) {
+      r[k] = await EV(pg, kd => {
+        const s = kd === 'JG' ? NWB.build('JG', { title: 'X7', key: 'C', beats: 4, unit: 4, nMea: 2 }) : createSong('piano', { title: 'X7', key: 'C', beats: 4, unit: 4, nMea: 2 });
+        loadSong(s); render(); document.getElementById('b-acctex').onclick();
+        const m = document.querySelector('#modal-mask .modal'); const txt = m ? m.textContent : '';
+        const a = document.getElementById('tex-auto'); if (a) a.checked = false;
+        window.__toasts = []; const go = document.getElementById('tex-go'); if (go) go.onclick();
+        try { closeModal(); } catch (_) {}
+        return { modal: !!m, acc: !!(accTexRows(song) || {}).acc, txt: txt.slice(0, 400), toast: (window.__toasts || []).join(' | ') };
+      }, kind);
+    }
+    const flow = sh === 'flow';
+    const good = x => x.modal && (flow ? /右栏「文字」页的「输入和弦…」（Ctrl\+K）/.test(x.txt) && !/「创作」页/.test(x.txt) && /「文字」页/.test(x.toast) && !/「创作」页/.test(x.toast)
+      : /右栏「创作」页的「和弦」/.test(x.txt) && /右栏「创作」页的「和弦」/.test(x.toast));
+    T('X7', r.acc.acc === true && r.pn.acc === false && good(r.acc) && good(r.pn) && !pg.__pe.length,
+      'X7 ' + sh + ' 「伴奏织体」弹窗说明与「未生成」提示：' + (flow ? '指向右栏「文字」页的「输入和弦…」（Ctrl+K），不再提已不存在的「创作」页' : '仍指向右栏「创作」页的「和弦」（旧外壳原文）') + '（钢琴伴奏歌谱 / 钢琴谱两种）', J({ r, pe: pg.__pe.slice(0, 2) }));
+    await close(pg);
+  })));
+
   /* 并发 ≤2（本机 4 核，另有工作流在跑） */
   const q = jobs.slice(); await Promise.all([0, 1].map(async () => { while (q.length) await q.shift()(); }));
-  for (const id of ['X1', 'X2', 'X3', 'X4', 'X5', 'X6']) if (OUT[id]) { console.log('— ' + id); OUT[id].forEach(l => console.log('  ' + l)); }
+  for (const id of ['X1', 'X2', 'X3', 'X4', 'X5', 'X6', 'X7']) if (OUT[id]) { console.log('— ' + id); OUT[id].forEach(l => console.log('  ' + l)); }
   console.log(`\nPASS ${pass}/${total}`);
   await b.close();
   process.exit(pass === total ? 0 : 1);

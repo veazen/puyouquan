@@ -598,7 +598,9 @@ function INIT() {
 
   /* ================= F8 v68.2 收尾修复（上线前最后一轮验收：NU / OU / ENG 各条）================= */
   const JARGON = /拍板|需负责人|负责人拍板|measures\[\]|外壳这一层|下一批/;
-  /* F8a NU-2：界面上不出现内部开发 / 流程用语——音轨 ⋯ 菜单灰显项、排版工具组与右栏版式、输出左栏「输出内容」、命令面板「分谱 / 换页」的说明与 toast */
+  /* F8a NU-2：界面上不出现内部开发 / 流程用语——音轨 ⋯ 菜单灰显项、排版工具组与右栏版式、输出左栏「输出内容」、命令面板「分谱 / 换页」的说明与 toast。
+     v68.5 有意改动（规格 §12.3）：「此处换页」「页码」成了真功能，不再是「即将推出」——点工具组「此处换页」（场景光标在第 1 行）给的是灰显原因「第 1 行本来就在第 1 页」，
+     界面与命令面板里不再出现「此处换页：即将推出」；「即将推出」只剩分谱 / 锁定此轨 / 音轨排序（断言其余部分不变） */
   if (want('F8')) jobs.push(() => SAFE('F8', 'F8a', async () => {
     const pg = await open(1280, 800, { tag: 'F8a' });
     await scn(pg, 'piano'); const base = await redBase(pg);
@@ -618,9 +620,11 @@ function INIT() {
     const toasts = await EV(pg, () => __toasts.slice());
     const all = texts.join('\n') + '\n' + cmd + '\n' + toasts.join('\n');
     const bad = (all.match(new RegExp(JARGON.source, 'g')) || []);
-    const soon = /即将推出/.test(texts.join('')) && toasts.some(t => /此处换页：即将推出/.test(t)) && toasts.some(t => /按演奏者出分谱：即将推出/.test(t)) && toasts.some(t => /锁定此轨：即将推出/.test(t)) && toasts.some(t => /音轨排序：即将推出/.test(t));
-    T('F8', !bad.length && soon, 'F8a NU-2 音轨 ⋯ 灰显项 / 排版工具组 · 右栏版式 / 输出左栏「输出内容」 / 命令面板「分谱 · 换页 · 页码 · 锁定此轨」/ 点灰显项的 toast：不出现「拍板 / 需负责人 / measures[] / 外壳这一层 / 下一批」，一律写「即将推出」',
-      J({ bad, toasts: toasts.filter(t => /即将推出|拍板|下一批/.test(t)) }));
+    const soon = /即将推出/.test(texts.join('')) && toasts.some(t => /按演奏者出分谱：即将推出/.test(t)) && toasts.some(t => /锁定此轨：即将推出/.test(t)) && toasts.some(t => /音轨排序：即将推出/.test(t));
+    /* v68.5：换页 / 页码不再「即将推出」——工具组「此处换页」在第 1 行灰显、点了说原因；界面、命令面板「换页 / 页码」、toast 里都没有「此处换页：即将推出」「页码…即将推出」 */
+    const pb = toasts.some(t => /第 1 行本来就在第 1 页/.test(t)) && !/此处换页：即将推出|页码[^\n]{0,30}即将推出/.test(all);
+    T('F8', !bad.length && soon && pb, 'F8a NU-2 音轨 ⋯ 灰显项 / 排版工具组 · 右栏版式 / 输出左栏「输出内容」 / 命令面板「分谱 · 换页 · 页码 · 锁定此轨」/ 点灰显项的 toast：不出现「拍板 / 需负责人 / measures[] / 外壳这一层 / 下一批」，未上线的写「即将推出」；v68.5 换页 / 页码是真功能（第 1 行点「此处换页」说「第 1 行本来就在第 1 页」）',
+      J({ bad, pb, toasts: toasts.filter(t => /即将推出|拍板|下一批|第 1 行/.test(t)) }));
     await shot(pg, 'F8a-output-list-1280');
     await redEnd('F8', pg, base, []);
     await close(pg);
@@ -763,14 +767,17 @@ function INIT() {
     const bad = got.filter(x => x.top !== x.want);
     T('F8', !bad.length && keep.every(x => x.ok), 'F8g NU-10 / OU-5 Ctrl+/ 搜 ' + Q.length + ' 个旧名 / 常用词首条都对（另存 → 存为文件、页码 → 页头与页码…、曲谱反色 → 谱面反色、记谱风格 / 编辑模式 / 清除记号 / 删除音轨 / 由此生成六线谱轨 / 分解 / 品位选择器 / 组合时值等）；预设 / 存为文件 / 经典版 / 智能 照旧',
       J(bad.length ? bad : got.map(x => x.q + '→' + x.top)));
-    /* 执行：「页码」回车进排版并打开曲谱信息；「删除音轨」回车打开当前轨 ⋯（里面有「删除音轨」） */
+    /* 执行：「页码」回车进排版并打开右栏「版式」的「页头 · 页码」区、焦点落在页码开关（v68.5 起页码在这里设；页头在区里的「页头」行进曲谱信息——此前直接开曲谱信息）；
+       「删除音轨」回车打开当前轨 ⋯（里面有「删除音轨」） */
     await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await pg.keyboard.type('页码'); await wait(pg, 200); await pg.keyboard.press('Enter'); await wait(pg, 600);
-    const e1 = await EV(pg, () => ({ mode: FLOW.mode.cur, modal: !!document.getElementById('modal-mask') && /曲谱信息|标题/.test((document.querySelector('#modal-mask .modal') || {}).textContent || '') }));
-    await EV(pg, () => { closeModal(); setMode('write'); }); await wait(pg, 400);
+    const e1 = await EV(pg, () => { const sec = document.getElementById('flw-lay-hdpn'), ae = document.activeElement, r = sec && sec.getBoundingClientRect(), rd = document.getElementById('right-dock').getBoundingClientRect();
+      return { mode: FLOW.mode.cur, page: FLOW.rd.page(), open: FLOW.rd.isOpen() || document.body.classList.contains('flw-rd'), modal: !!document.getElementById('modal-mask'),
+        foc: !!(ae && sec && sec.contains(ae) && ae.dataset.fa === 'lay:pno'), vis: !!r && r.height > 0 && r.top < rd.bottom && r.bottom > rd.top }; });
+    await EV(pg, () => { try { closeModal(); } catch (_) {} setMode('write'); }); await wait(pg, 400);
     await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await pg.keyboard.type('删除音轨'); await wait(pg, 200); await pg.keyboard.press('Enter'); await wait(pg, 400);
     const e2 = await EV(pg, () => ({ menu: !!document.getElementById('popmenu') && [...document.querySelectorAll('#popmenu [data-fa="tree:del"]')].length === 1, n: (song.voxVoices || []).length }));
     await EV(pg, () => { try { FLOW.menu.close(); } catch (_) {} });
-    T('F8', e1.mode === 'engrave' && e1.modal && e2.menu, 'F8g2 回车执行：「页码」→ 进排版、打开曲谱信息（页头在这里改）；「删除音轨」→ 打开当前轨 ⋯（含「删除音轨」，不直接删）', J({ e1, e2 }));
+    T('F8', e1.mode === 'engrave' && e1.page === 'lay' && e1.open && !e1.modal && e1.foc && e1.vis && e2.menu, 'F8g2 回车执行：「页码」→ 进排版、右栏「版式」打开（1280 竖条档浮出）、「页头 · 页码」区在可视区、焦点在页码开关（v68.5）；「删除音轨」→ 打开当前轨 ⋯（含「删除音轨」，不直接删）', J({ e1, e2 }));
     await close(pg);
   }));
   /* F8h OU-1：右键浮条「…」在新外壳下去记号面板（聚焦搜记号框），旧左栏不动、旧外壳偏好键 musetab-flyclosed 不被删 */

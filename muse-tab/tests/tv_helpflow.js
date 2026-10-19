@@ -76,6 +76,9 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '';
       'H1a 新外壳点 #b-help：.helpdoc[data-shell=flow]、标题含「帮助」、导语写「书写 › 排版 › 输出」与当前版本（＝APP_VER）', J({ on, shell: r && r.shell, h3: r && r.h3, ds: r && r.ds, ver: r && r.ver }));
     T(r && J(r.steps) === J(['书写', '排版', '输出']),
       'H1b 三步卡恰好 3 张：书写 / 排版 / 输出（不设「播放」步）', J(r && r.steps));
+    /* H11（v68.5 收尾 UX-11）：「排版」步讲到本行换页与页码（此前只写「此处换行 / 并入上一行 / 锁定此行」与「页头」） */
+    { const st2 = await pg.evaluate(() => { const x = [...document.querySelectorAll('#modal-mask .hd-step')].find(e => /排版/.test((e.querySelector('b') || {}).textContent || '')); return x ? x.textContent : ''; });
+      T(/本行换页/.test(st2) && /另起一页/.test(st2) && /页码（印 \/ 位置 \/ 首页 \/ 起始页码）/.test(st2), 'H11a 新布局帮助「排版」步讲到「本行换页」（从这一行起另起一页，再点取消）与右栏「版式」的页码设置', st2.slice(0, 160)); }
     const need = {
       '行 1 · 文档': ['文件 ▾', '窗口页签', '保存状态', '发布', '账号 ▾', '示例曲谱', '偏好设置'],
       '行 2 · 工作': ['书写 › 排版 › 输出', '更多 ▾', '搜功能', 'Ctrl+/'],
@@ -177,6 +180,9 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '';
     T(J(h3) === J(['第 0 步 · 认识界面', '第 1 步 · 书写（建谱与录入）', '第 2 步 · 排版', '第 3 步 · 输出']) && /三步做一首谱/.test(gs) && !missSay.length,
       'H8a 官网「快速上手」改三步（书写 / 排版 / 输出），认识界面讲两行顶栏 · 左栏音轨与记号 · 右栏属性 / 文字 / 智能 · 底部播放与状态栏 · Ctrl+/', J({ h3, missSay }));
     T(site.indexOf('想用旧布局：偏好设置 → 使用旧版布局') >= 0, 'H8b 官网保留一句「想用旧布局：偏好设置 → 使用旧版布局」');
+    { const lay = (site.match(/<article class="doc-art" id="doc-layout-print">([\s\S]*?)<\/article>/) || [])[1] || '';
+      T(/本行换页/.test(gs) && /页头 · 页码/.test(gs) && /本行换页/.test(lay) && /⑤ 页头与页码/.test(lay) && /底部居中 \/ 底部外侧 \/ 顶部外侧/.test(lay),
+        'H11b 官网 help.html：快速上手「排版」与「排版与打印」篇讲到本行换页与页码设置（印 / 位置 / 首页 / 起始页码）（v68.5 收尾 UX-11）', J({ gs: /本行换页/.test(gs), lay: lay.length })); }
     const OLD = /顶栏[「“](排版|预览|打印|示例曲谱|偏好设置|换调|伴奏织体|8度±|时值)[」”]|右栏[「“]创作[」”]|右栏「信息」页底部|播放条|左栏[「“](歌词|记号)[」”]层|「小节」面板|底部音轨区|顶部页签|四步|书写\s*›\s*排版\s*›\s*播放|智能预提示/g;
     const hits = site.replace(/<!--[\s\S]*?-->/g, '').match(OLD) || [];
     T(!hits.length, 'H8c 官网 help.html 不再用旧布局入口说法（顶栏「排版 / 预览 / 打印 / 示例曲谱 / 偏好设置 / 换调 / 伴奏织体 / 8度± / 时值」、右栏「创作」、播放条、左栏「歌词 / 记号」层、四步……）', J(hits));

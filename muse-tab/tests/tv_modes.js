@@ -4,7 +4,7 @@
    几何断言优先（rect / elementFromPoint）、真实点击与按键，file:// 直载。拍板口径：工作流只有三步，不设「播放」步；右栏不设「练习」页；不绑 Alt+数字。
    M1  一打开即 body[data-mode]=write；没有与模式相关的本机键（模式不落盘：进排版后刷新仍是书写）
    M2  排版 / 输出：#preview-ov 左缘＝#flw-left 右缘、顶 84、底＝innerHeight−32、右缘＝右栏（1440 停靠）/ 竖条（1280）左缘；#pv-bar 不可见；
-       排版工具组「页头与页码…」打开曲谱信息弹窗，elementFromPoint(弹窗中心) 落在 .modal 内（预览层级低于弹窗）
+       排版工具组「页头与页码…」打开右栏「版式」的「页头 · 页码」区，再点区里的「页头」打开曲谱信息弹窗（v68.5；此前工具组键直接开弹窗），elementFromPoint(弹窗中心) 落在 .modal 内（预览层级低于弹窗）
    M3  选区与滚动不变：sel.mi=5、#score-wrap 滚到 X，经排版 → 输出 → 书写（真实点模式条）后 sel 逐字段相同、scrollTop ±1
    M4  排版模式按 5 → 回书写、预览关闭，刚落音的那一列 deg=5（按 5 后光标前进，不用 curCol）；排版模式在 #i-tempo 里输入数字不切模式、值改变；输入框里 Esc 只失焦
    M5  Esc：排版 / 输出 → 书写、预览关闭；书写下 Esc 不改模式
@@ -308,17 +308,19 @@ async function M23SCN() {
     const ok = r => r.vis && r.mode === r.m && Math.abs(r.pv[0] - r.lfR) <= 1 && Math.abs(r.pv[1] - 84) <= 1 && Math.abs(r.pv[3] - (r.ih - 32)) <= 1 && Math.abs(r.pv[2] - r.R) <= 1 && !r.bar && r.pages >= 1;
     T('M2', rows.every(ok) && rows.every(r => r.dock === (w >= 1440)),
       'M2a ' + w + '×' + h + ' 排版 / 输出：#preview-ov 左缘＝#flw-left 右缘、顶 84、底＝innerHeight−32、右缘＝' + (w >= 1440 ? '右栏（停靠 264）' : '竖条') + '左缘（±1）；#pv-bar 不可见；预览有页', J(rows));
-    /* 弹窗层级：排版模式「页头与页码…」（＝#b-meta）开曲谱信息弹窗，弹窗中心点命中 .modal（不被嵌入预览盖住） */
+    /* 弹窗层级：排版模式「页头与页码…」→ 右栏「页头 · 页码」区的「页头」（＝#b-meta）开曲谱信息弹窗，弹窗中心点命中 .modal（不被嵌入预览盖住）。
+       v68.5 有意改动（规格 §12.3）：工具组键先打开右栏这一区（页码在这里设），页头再点区里的「页头」行 */
     await clickMode(pg, 'engrave');
     const mv = await EV(pg, () => __vis('#flw-eng-meta'));
-    if (mv) await pg.click('#flw-eng-meta'); else await EV(pg, () => document.getElementById('b-meta').click());
+    if (mv) { await pg.click('#flw-eng-meta'); await wait(pg, 250); await pg.click('#flw-lay-hdpn [data-fa="lay:hd"]'); }
+    else await EV(pg, () => document.getElementById('b-meta').click());
     await wait(pg, 300);
     const md = await EV(pg, () => { const m = document.querySelector('#modal-mask .modal'); if (!m) return null; const r = m.getBoundingClientRect();
       const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2), t2 = document.elementFromPoint(r.left + 12, r.top + 12);
       return { inModal: !!(t && t.closest('.modal')), corner: !!(t2 && t2.closest('.modal')), zMask: getComputedStyle(document.getElementById('modal-mask')).zIndex, zPv: getComputedStyle(document.getElementById('preview-ov')).zIndex, mode: FLOW.mode.cur }; });
     await shot(pg, 'M2-' + w + '-modal');
     T('M2', !!md && md.inModal && md.corner && md.mode === 'engrave' && +md.zPv < +md.zMask,
-      'M2b ' + w + ' 排版模式点「页头与页码…」' + (mv ? '（真实点击）' : '（行 2 收纳，程序化 #b-meta）') + '：曲谱信息弹窗中心与左上角 elementFromPoint 都落在 .modal 内；预览 z < 遮罩 z；模式不变', J(md));
+      'M2b ' + w + ' 排版模式点「页头与页码…」→ 右栏「页头」' + (mv ? '（真实点击）' : '（行 2 收纳，程序化 #b-meta）') + '：曲谱信息弹窗中心与左上角 elementFromPoint 都落在 .modal 内；预览 z < 遮罩 z；模式不变', J(md));
     await EV(pg, () => { try { closeModal(); } catch (_) {} });
     await clickMode(pg, 'write');
     await redEnd('M2', pg, base, []);
