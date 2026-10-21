@@ -2,6 +2,9 @@
    出处：界面简约化方案阶段的审计工具 f83ux/extract.js（口径见 docs/design-2026-10g/research/01-text-audit.md 与 audit.json），原样入库，只改两处：
    ① 区域表加 ['#flw-sbar', 'sbar']（v68.3 起悬浮条在 #score-wrap 里，原表记成 score-area；只影响区域标签与入口表，不影响任何字数）；
    ② 另挂 window.__auditWhy()：可见元素上的 data-why（置灰原因）——P3 指路词扫描用，不进 __audit() 的任何计数。
+   ③ v68.8：状态栏位置读数记 num——#flw-st-pos 里的可见文字符合读数格式（「第 12/16 小节 · 1 拍」「第 2–4/16 小节」，拍位可带小数，窄屏无「· N 拍」）时
+      种类记 num（读数，不计入总字 / 说明字），此前两位数小节 9 字被 kind() 记成 desc；只认这个元素 + 这个格式（别处同样文字、追加了句子的读数照旧按 kind()），
+      悬停 title（全称「第 12 小节，共 16 · 第 1 拍」）不变，仍按 kind() 计入悬停字数。
    作为 init 脚本注入（ctx.addInitScript），定义 window.__audit()。字＝\p{L}\p{N}；分组、种类（label / phrase / desc / key / num / sym）、
    可点元素、纯图标钮、悬停 title 的判定与方案阶段逐字节相同。 */
 module.exports = function INIT() {
@@ -18,6 +21,8 @@ module.exports = function INIT() {
     if (n <= 4) return 'label';
     return 'phrase';
   };
+  /* ③ v68.8 状态栏位置读数（posHTML 的可见格式；拍位 pos().beat 是两位小数内的数，如 1.33 / 2.5） */
+  const POS_RE = /^第 \d+(–\d+)?\/\d+ 小节( · \d+(\.\d+)? 拍)?$/;
   const INLINE = new Set(['inline', 'contents']);
   const CLICK = 'button, a[href], [role=button], [role=menuitem], [role=menuitemradio], [role=menuitemcheckbox], [role=option], [role=tab], [role=radio], [role=checkbox], [role=switch], summary, label, select, [data-fa], [data-q], [data-scene], [data-sp], [data-fm], [onclick]';
   const regionOf = el => {
@@ -92,7 +97,9 @@ module.exports = function INIT() {
       let cid = null; if (c) { if (!clicks.has(c)) clicks.set(c, { id: ci++, el: c, g: [] }); cid = clicks.get(c).id; }
       const r = g.rects.reduce((m, x) => ({ l: Math.min(m.l, x.left), t: Math.min(m.t, x.top), r: Math.max(m.r, x.right), b: Math.max(m.b, x.bottom) }), { l: 1e9, t: 1e9, r: -1e9, b: -1e9 });
       let trunc = false; try { for (let x = el; x && x !== document.body && !trunc; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.textOverflow === 'ellipsis' && x.scrollWidth > x.clientWidth + 1) trunc = true; if (x === c) break; } } catch (_) {}
-      const o = { region: regionOf(el), text, n: cnt(text), k: kind(text, el), el: desc(el), click: cid, occ: g.occ, input: !!g.input, trunc, box: [Math.round(r.l), Math.round(r.t), Math.round(r.r - r.l), Math.round(r.b - r.t)] };
+      const k0 = kind(text, el);
+      const k = (k0 !== 'sym' && el.closest && el.closest('#flw-st-pos') && POS_RE.test(text)) ? 'num' : k0;   /* ③ v68.8 */
+      const o = { region: regionOf(el), text, n: cnt(text), k, el: desc(el), click: cid, occ: g.occ, input: !!g.input, trunc, box: [Math.round(r.l), Math.round(r.t), Math.round(r.r - r.l), Math.round(r.b - r.t)] };
       if (cid != null) clicks.get(c).g.push(o);
       return o;
     }).filter(o => o.n > 0);

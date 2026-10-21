@@ -15357,10 +15357,20 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
     toast('已批量替换时值（与拍号不符时会提示，可按需一键修复）');
     return;
   }
-  /* v63.6 B1 ③（P2-25）在空列上把时值改长（先选时值再落音的 GP 习惯）：吸收其后连续的休止，不再整小节溢出 */
-  const c=curCol(); if(c) mutate(()=>{ const c2=curCol(); c2.dur=d; clampDot(c2);
+  /* v63.6 B1 ③（P2-25）在空列上把时值改长（先选时值再落音的 GP 习惯）：吸收其后连续的休止，不再整小节溢出
+     v68.8 P2 在空列上把时值改短（含 clampDot 降附点）：空出的时值紧接着补成同值空列（fillRestsAfter），小节总时值不变——
+     此前只改这一格，4/4 空小节点 8 分后只剩 3.5 拍，接着键入的音溢到下一小节。只动空列、不在连音组内、单列路径；
+     已有音符的列 / 选区批量 / 改长 / 同值与 v68.7 相同；光标不动（下一个数字落在这一格，自动前进走到补出的第一格）；补列与改时值同一步撤销。
+     不做「沿用刚选的时值」：后面没按时值键的音仍按原格时值落（熟手逐音按时值键的结果不变，时值键含义不变）
+     v68.8 收尾 IN-1 / R2 / IN-4：允许欠拍的小节（弱起首小节 / 散拍草稿 freeMeter，meaUnderOk）不补——那里「小节总时值不变」的前提不成立，
+     改短就是缩短弱起 / 散拍型的实际拍数（L18028「弱起首小节的容量＝它现有的时值」），与 v68.7 相同 */
+  const c=curCol(); if(c){ FILL_LAST=null; mutate(()=>{ const c2=curCol(); const unit=meaMeter(sel.mi).unit, b0=beatsOf(c2, unit); c2.dur=d; clampDot(c2);
     const emp = sel.row==='tab'? !((c2.notes||[]).length || c2.strum || c2.perc) : !c2.deg;
-    if(emp){ const cols=curRowCols(); if(cols) absorbRestsAfter(cols, sel.ci, sel.mi, sel.row); } });
+    if(emp){ const cols=curRowCols(); if(cols){ const b1=beatsOf(c2, unit);
+      if(b1<b0-1e-4 && !c2.tup && !meaUnderOk(sel.mi)){ const add=fillRestsAfter(cols, sel.ci, b0-b1, sel.row, unit, sel.mi, sel.vi);
+        /* IN-2 老打法兼容的标记：紧接着的 Insert / Shift+Insert 用掉一格这次补出的空列（见 insertNote） */
+        if(add.length) FILL_LAST={song, cols, cells:add, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]}; }
+      absorbRestsAfter(cols, sel.ci, sel.mi, sel.row, sel.vi); } } }); }
 }
 /* 判断某列是否为"一拍中的最后一个音符"（其结束点恰落在整数拍上） */
 function isBeatLastCol(cols, ci, unit){
@@ -15494,6 +15504,13 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
       /* 设置附点时：相邻音符自动变为当前时值的一半——常规为下一个音符；
          拍尾且时值<8分（16/32分）时为前一个音符；取消附点不联动 */
       dotLink(cols, sel.ci, wasBeatLast);
+      /* v68.8 P2（I-10）附点后小节超拍：从联动邻音之后（联动的是前一个音 / 没有联动时从本列之后）吃掉紧邻的连续空列——
+         补空列后「5 r .」（多按了一个 r）会多出一格；附点后不超拍时不动，扣不回照常报节拍错误（不碰真实音符） */
+      /* v68.8 收尾 R1：只吃 restBlank 的空白列（带和弦名 / 延长号 / 歌词等的休止列、被渐强 / 8va / 连线终点引用的列不吃，停下照常报节拍错误）；
+         允许欠拍的小节（弱起首小节 / 散拍草稿）不吃，与 v68.7 相同 */
+      { const mm=meaMeter(sel.mi); if(!meaUnderOk(sel.mi) && cols.reduce((x,y)=>x+beatsOf(y,mm.unit),0) > mm.beats+1e-4){
+        const nextLinked = cur.dur*2<=64 && !(wasBeatLast && cur.dur>8 && cols[sel.ci-1]) && !!cols[sel.ci+1];
+        absorbRestsAfter(cols, nextLinked? sel.ci+1 : sel.ci, sel.mi, sel.row, sel.vi); } }
     }else if(nxt===2){
       cur.dotted=2;
       /* 双附点联动：单附点时补位的"半时值邻音"（dur×2、无附点）再减半（dur×4），
@@ -15968,10 +15985,26 @@ function insertNote(before){
   const c = sel.row==='tab'? tcol() : vcol();
   if(cur){ c.dur=cur.dur; if(cur.tup) c.tup=cur.tup; }
   const at = Math.min(cols.length, sel.ci + (before?0:1));
+  /* v68.8 收尾 IN-2 老打法兼容：v68.7 熟手在空列上改短后（那时小节欠拍）紧接着按 Insert / Shift+Insert 补一个同值格把小节补满；
+     本版改短时已经补过同值空列（fillRestsAfter）——紧接着的这一下插入就用掉一格刚补出的空列（插入格顶替它），小节总时值不变，
+     结果与 v68.7 逐字相同（不再超拍、后面的音不再错位）。只在 FILL_LAST 仍有效时：同一份谱同一声部、上一步就是那次补列（撤销栈顶未变）、
+     光标没动、那一格还在且仍是空白列、不在连音组内（优先顶替同值的一格）；其余插入与 v68.7 相同。顶替时跨列引用随之平移（插入点及其后 +1、被顶掉的格之后 −1） */
+  const fl=FILL_LAST; FILL_LAST=null;
+  const eat = (fl && fl.song===song && fl.cols===cols && fl.top===undoStack[undoStack.length-1]
+    && fl.key===sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci)? fl.cells : null;
+  let left=null;
   mutate(()=>{
+    let j0=-1;
+    if(eat && !c.tup){ const unit=meaMeter(sel.mi).unit, q=beatsOf(c, unit), tg=colRefTargets(sel.mi, sel.row, sel.vi);
+      /* 先找与插入格同值的补出格；没有（本格带附点：补出的是附点格、插入格不带附点）就顶替最后一格补出的——v68.7 那时同样只多了这一个插入格，结果仍逐字相同 */
+      for(const same of [true, false]){ for(let k=eat.length-1;k>=0 && j0<0;k--){ const x=eat[k], j=cols.indexOf(x);
+        if(j>=at && !x.tup && !tg.has(j) && restBlank(x, sel.row) && (!same || Math.abs(beatsOf(x, unit)-q)<1e-4)) j0=j; } if(j0>=0) break; } }
     cols.splice(at, 0, c);
+    if(j0>=0){ const x=cols[j0+1]; cols.splice(j0+1, 1); colRefShift(sel.mi, sel.row, sel.vi, at, 1); colRefShift(sel.mi, sel.row, sel.vi, j0+2, -1); left=eat.filter(y=>y!==x); }
     sel.ci = at;
   });
+  /* 连按：t（四分改 16 分补出 3 格）后 v68.7 要按 3 下插入——顶替过一格且还剩补出的格时，标记接力给下一下插入（光标＝这次插入的格） */
+  if(left && left.length) FILL_LAST={song, cols, cells:left, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]};
   toast('已插入音符 · '+(sel.row==='tab'?'点弦格输入品位数字':'输入唱名 1–7')+'（与拍号不符时会提示，可按需一键修复）');
 }
 function splitNote(){
@@ -17585,20 +17618,96 @@ function trailingEmptyN(s2){
 }
 function trimTrailing(s2){ s2=s2||song; const n=trailingEmptyN(s2); if(n) s2.measures.splice(s2.measures.length-n, n); return n; }
 /* v63.6 B1 ③ 吸收后续连续休止：列变长后小节超拍，就从它后面紧邻的连续休止里扣回来（整列删 / 精确缩短），
-   扣不回的部分照常报节拍错误（不碰真实音符） */
-function absorbRestsAfter(cols, ci, mi, row){
+   扣不回的部分照常报节拍错误（不碰真实音符）
+   v68.8 收尾 R1：只吃 restBlank 的空白列——带和弦名 / 拍位和弦 / 歌词 / 延长号 / 表情等列级内容的休止、被渐强 / 8va / 连线终点引用的列都不吃，
+   遇到就停下（此前只看 deg / notes：纯和弦谱每一列都是 deg 0，改长 / 附点会把带和弦名的休止整列删掉，没有任何提示）；
+   IN-3 删掉一列后，同一声部指向本小节其后列的跨列引用（dynTo / ottTo / TAB tk）随之前移，仍指着原来的音 */
+function absorbRestsAfter(cols, ci, mi, row, vi){
+  if(vi==null) vi=sel.vi;
   const {beats:cap, unit}=meaMeter(mi);
   let over=cols.reduce((a,c)=>a+beatsOf(c,unit),0)-cap;
-  const empty=c=> row==='tab'? !((c.notes||[]).length || c.strum || c.perc) : !c.deg;
+  if(!(over>1e-4)) return;
+  let tg=colRefTargets(mi, row, vi);
   let i=ci+1;
-  while(over>1e-4 && i<cols.length && empty(cols[i]) && !cols[i].tup){
+  while(over>1e-4 && i<cols.length && restBlank(cols[i], row) && !cols[i].tup && !tg.has(i)){
     const b=beatsOf(cols[i],unit);
-    if(b<=over+1e-4){ cols.splice(i,1); over-=b; continue; }
+    if(b<=over+1e-4){ cols.splice(i,1); colRefShift(mi, row, vi, i+1, -1); tg=new Set([...tg].map(x=>x>i? x-1 : x)); over-=b; continue; }
     const hit=fitDurTo(b-over, true, unit);
     if(hit && Math.abs(beatsOf(hit,unit)-(b-over))<1e-4){ cols[i].dur=hit.dur; cols[i].dotted=hit.dotted; over=0; }
     break;
   }
 }
+/* v68.8 收尾 R1 空白列：休止（简谱 / 五线谱 deg 为 0；TAB 没有品位、扫弦、打击），并且没有任何用户录入的列级内容。
+   只有时值、附点、连音标记、休止的音高残留（acc / oct / tie）与 8va 段内标记 ott 算「空」；其余字段只要有值（和弦名 chord、拍位和弦 chords、
+   歌词、延长号 ferm、表情 / 渐强 dyn·dynTo、八度起点 ottTo、谱号、踏板、指法、标注、换气、装饰、倚音、滑音、TAB 技法 / 切音……）都算内容——
+   宁可留下来报节拍错误，也不静默删掉 */
+const REST_NEUTRAL={dur:1, dotted:1, tup:1, tupM:1, deg:1, acc:1, oct:1, tie:1, ott:1, lyrics:1, chords:1, notes:1};
+function restBlank(c, row){
+  if(!c) return false;
+  if(row==='tab'? ((c.notes||[]).length || c.strum || c.perc) : c.deg) return false;
+  if((c.lyrics||[]).some(x=>x!=null && String(x).trim()!=='')) return false;
+  if((c.chords||[]).some(x=>x && x.chord)) return false;
+  for(const k in c){ if(REST_NEUTRAL[k]) continue; const v=c[k];
+    if(v==null || v===false || v==='' || v===0 || (Array.isArray(v) && !v.length)) continue;
+    return false; }
+  return true;
+}
+/* v68.8 收尾 IN-3 跨列引用（pstColRefs 同口径：TAB 音符 tk、简谱 / 五线谱列 dynTo / ottTo，都是 {mi,ci[,si]} 绝对坐标，终点与起点同一行同一声部）：
+   colRefTargets＝全曲指向 (mi,row,vi) 的引用落在哪些列；colRefShift＝其中 ci ≥ from 的统统 ci += n（插列 n>0 / 删列 n<0）。
+   换新对象写回（同 pstShiftCols），共享的引用对象不会被移两次 */
+function colRefTargets(mi, row, vi){
+  const out=new Set();
+  (song.measures||[]).forEach(m=>pstMeaRefs(m, (h,k,rw,v)=>{ const r=h[k]; if(rw===row && v===vi && r && r.mi===mi && r.ci>=0) out.add(r.ci); }));
+  return out;
+}
+function colRefShift(mi, row, vi, from, n){
+  if(!n) return;
+  (song.measures||[]).forEach(m=>pstMeaRefs(m, (h,k,rw,v)=>{ const r=h[k];
+    if(rw===row && v===vi && r && r.mi===mi && r.ci>=from) h[k]=Object.assign({}, r, {ci:r.ci+n}); }));
+}
+/* v68.8 收尾 IN-1 / R2 / IN-4 允许欠拍的小节：弱起首小节（beatErrors 只查超拍）与散拍草稿（freeMeter，节拍检查整份豁免）。
+   这里改短空列就是缩短实际拍数——不补空列、附点后也不吃空列，与 v68.7 相同 */
+function meaUnderOk(mi){ return !!(song && (song.freeMeter || (mi===0 && song.pickup))); }
+/* v68.8 P2 补空列：第 ci 列（空列）时值改短后空出 freed 拍，紧接在它后面插入与它改后**同值**（dur 与附点都相同）的空列，
+   余数按 fitDurTo 从大到小补（至多 8 格）；同值格至多 15 个（含本列 16 格，防全音符改 64 分出 63 列）。
+   空列模板：简谱 / 五线谱 vcol()、TAB tcol()，只设 dur / dotted（不带和弦、歌词、标注、连音）。返回补出的格（数组，没补为空）。
+   v68.8 收尾：① IN-3 补出 n 格后，同一声部指向本小节其后列的跨列引用 ci += n（渐强 / 8va / TAB 连线终点仍指着原来的音）；
+   ② 拍位和弦 chords（q＝距列头的四分拍数）改短后落到本列之外的，搬进它所在的补出格（落在格首＝该格列头和弦，否则向下取整到该格的增时线拍位，
+   同 pstSplitMarks 口径）——此前留在原列，画在列头和弦上面、与它重叠；③ 本列与原下一列都在 8va 段内（都带 ott）时补出的格也带 ott，段不断开 */
+function fillRestsAfter(cols, ci, freed, row, unit, mi, vi){
+  const c=cols[ci], q=beatsOf(c, unit); if(!(q>0) || !(freed>1e-4)) return [];
+  if(mi==null) mi=sel.mi; if(vi==null) vi=sel.vi;
+  let n=Math.floor(freed/q+1e-6); if(n>15) n=15; let rem=freed-n*q;
+  const mk=(d,dt)=>{ const x=row==='tab'? tcol() : vcol(); x.dur=d; x.dotted=dt; return x; };
+  const add=[]; for(let i=0;i<n;i++) add.push(mk(c.dur, c.dotted));
+  for(let g=0; rem>1e-4 && g<8; g++){ const h=fitDurTo(rem, true, unit); if(!h || !(beatsOf(h, unit)>1e-6)) break; add.push(mk(h.dur, h.dotted)); rem-=beatsOf(h, unit); }
+  if(!add.length) return add;
+  if(row!=='tab'){
+    const nx=cols[ci+1] || ((((song.measures[mi+1]||{}).voxes)||[])[vi]||[])[0];
+    if(c.ott && nx && nx.ott) add.forEach(x=>{ x.ott=c.ott; });
+    if(Array.isArray(c.chords) && c.chords.length){
+      const L=beatsOf({dur:c.dur, dotted:c.dotted}, 4), keep=[];
+      c.chords.forEach(x=>{
+        if(!x || !x.chord || !(x.q>=L-1e-4)){ keep.push(x); return; }
+        let st=L;
+        for(const y of add){ const ly=beatsOf({dur:y.dur, dotted:y.dotted}, 4);
+          if(x.q<st+ly-1e-4){ const r=Math.min(Math.max(0, Math.floor(ly+1e-4)-1), Math.max(0, Math.floor(x.q-st+1e-4)));
+            if(r===0){ if(!y.chord) y.chord=x.chord; }
+            else if(!(y.chords||[]).some(z=>z && z.q===r)) (y.chords||(y.chords=[])).push({q:r, chord:x.chord});
+            return; }
+          st+=ly; }
+        keep.push(x);
+      });
+      if(keep.length) c.chords=keep; else delete c.chords;
+    }
+  }
+  cols.splice(ci+1, 0, ...add);
+  colRefShift(mi, row, vi, ci+1, add.length);
+  return add;
+}
+/* v68.8 收尾 IN-2 老打法兼容的标记（不落盘、不进撤销）：最近一次 setDur 补空列——{song, cols, cells, key＝光标, top＝那次撤销快照}。
+   insertNote 只在「下一步紧接着就是这一下插入、光标没动、补出的格原样空着」时用掉一格（优先同值的一格），其余任何编辑 / 撤销 / 换谱 / 移光标都让它失效 */
+let FILL_LAST=null;
 function inputDigit(k){ return holdRender(()=>inputDigit_(k)); }
 function inputDigit_(k){
   if(sel.row==='tab'){
@@ -35621,9 +35730,14 @@ function exportMusicXML(s){
   const braceOf={}; voxGroupsOf(s).forEach(g=>{ if(g.type==='brace' && g.to-g.from===1){ braceOf[g.from]='top'; braceOf[g.to]='bottom'; } });
   /* v65.4 B3a ⑦（P2-13）弱起：首小节 number="0" implicit="yes"（出版惯例，与 meaNo 同口径），其后从 1 编号 */
   /* v68.5 「此处换页」(measures[mi].pgbrk===1，第 1 小节无效)：小节开头写 <print new-page="yes"/>（隐含 new-system，不另写）。
-     三处调用（大谱表 / 普通声部 / TAB 声部）都经这里——每个 part 同一小节的第一个音乐数据都有这一句（多 part 时规范要求各 part 同位）。没有换页的谱输出与 v68.4 逐字节相同 */
+     v68.8 ENG-6「此处换行」：sysBrkBefore(M,mi) 为真（上一小节 brk===1 且本小节没有 pull 并入）时写 <print new-system="yes"/>——
+     brk 记在换行前的小节上，print 写在下一小节开头；同一小节有换页只写 new-page（不写成同一个 print 的两个属性——第三方各自取舍；IO-1 那一位 brk 另记 pyq-brk-pg，见 miscXML）；
+     第 1 小节 / 末小节之后不写；brk 只认数字 1（同版面 DP）。
+     「并入上一行」pull 与锁行不导出（pull 是随版宽的软偏好，MusicXML 只有硬语义 new-system="no"；锁行由两端 brk + 行内 pull 推出，两端已随 new-system 互通）。
+     三处调用（大谱表 / 普通声部 / TAB 声部）都经这里——每个 part 同一小节的第一个音乐数据都有这一句（多 part 时规范要求各 part 同位）。
+     不带换页、换行的谱输出与 v68.4 逐字节相同 */
   const meaOpen = mi=> `<measure number="${s.pickup? mi : mi+1}"${(mi===0 && s.pickup)? ' implicit="yes"' : ''}>`
-    + ((mi>0 && (s.measures[mi]||{}).pgbrk===1)? '<print new-page="yes"/>' : '');
+    + ((mi>0 && (s.measures[mi]||{}).pgbrk===1)? '<print new-page="yes"/>' : sysBrkBefore(s.measures, mi)? '<print new-system="yes"/>' : '');
   /* 移调乐器（D-14 ②）：谱面是记谱音，<transpose> 告诉外部软件实音＝记谱＋chromatic */
   const transposeXML = s.transp? `<transpose><diatonic>${Math.round(s.transp*7/12)}</diatonic><chromatic>${s.transp|0}</chromatic></transpose>` : '';
   /* v65.7 B3a ⑨ 覆盖率补缺：score-part 的 <group>（MusicXML 合法子元素，第三方软件忽略）标记记谱法——jp=简谱声部、dual=教学对照、
@@ -35637,7 +35751,13 @@ function exportMusicXML(s){
   /* v68.3 收尾 DF-12：大谱表上下两行的名字另外原样写进 <identification><miscellaneous>（按 score-part 的先后：大谱表＝[上行名, 下行名]，其余 null），
      导入优先读它——不靠「·」切分（行名为空 / 带「·」也往返不变）、也不靠 <software>（MuseScore 另存后 software 换了名）。只有「右手 / 左手」的不写（默认钢琴导出逐字节不变） */
   const staffNm=[]; (s.voxVoices||[]).forEach((vn,vi)=>{ if(braceOf[vi]==='bottom') return; staffNm.push(braceOf[vi]==='top'? [String(vn||''), String((s.voxVoices||[])[vi+1]||'')] : null); });
-  const miscXML = staffNm.some(x=>x && !(x[0]==='右手' && x[1]==='左手'))? `<miscellaneous><miscellaneous-field name="pyq-staff-names">${xesc(JSON.stringify(staffNm))}</miscellaneous-field></miscellaneous>` : '';
+  /* v68.8 收尾 IO-1：换行与换页落在同一行首（brk[k-1]===1、pgbrk[k]===1、k 没有 pull）时 <print> 只写 new-page（换页隐含换行，规格口径不变）——
+     那一位 brk 另记进 <miscellaneous-field name="pyq-brk-pg">（JSON 小节下标数组），只有自家文件（ownLay）导入读它、第三方忽略：
+     导入后再取消换页，这一行照旧在那里换行（此前这一位丢掉、回到自动断行）。没有这种重合的谱输出逐字节不变；同一个 <miscellaneous> 里与行名字段并排 */
+  const brkPg=[]; (s.measures||[]).forEach((m,mi)=>{ const p=mi>0 && (s.measures||[])[mi-1]; if(p && m && m.pgbrk===1 && p.brk===1 && m.pull!==1) brkPg.push(mi-1); });
+  const miscF = (staffNm.some(x=>x && !(x[0]==='右手' && x[1]==='左手'))? `<miscellaneous-field name="pyq-staff-names">${xesc(JSON.stringify(staffNm))}</miscellaneous-field>` : '')
+    + (brkPg.length? `<miscellaneous-field name="pyq-brk-pg">${JSON.stringify(brkPg)}</miscellaneous-field>` : '');
+  const miscXML = miscF? `<miscellaneous>${miscF}</miscellaneous>` : '';
   /* v65.7 速度/术语方向抽出：纯 TAB 谱（独奏谱）此前没有 vox part 就不写速度，导入回 90 */
   const tempoXML = (()=>{ const tu=tempoUnitOf(s);
     return `<direction placement="above"><direction-type><metronome><beat-unit>${tu==='e'?'eighth':'quarter'}</beat-unit>${tu==='dq'?'<beat-unit-dot/>':''}`+
@@ -36921,6 +37041,9 @@ function importMusicXML(xmlStr){
      （上行叫「右手」、下行叫「左手」时写「钢琴」）——这里拆回原名：钢琴伴奏歌谱「旋律 / 右手伴奏 / 左手伴奏」此前往返成「右手伴奏·左手伴奏·右手」。
      「·」分成偶数段时对半拆（行名本身带「·」也能还原）；奇数段分不清在哪里断，退回原口径。第三方文件不动（Piano → Piano·右手 / Piano·左手，tv_mxlcov） */
   const ownSw = /谱友圈/.test(txt(root,'identification > encoding > software')||'');
+  /* v68.8 收尾 IO-3 版面断点（换页 pgbrk / 换行 brk）只认「纯」自家文件：每个 <encoding><software> 都含「谱友圈」才收。
+     ownSw 只看第一个 <software>（管 D4 行名，口径不动）——别家软件另存时可能把自己的名字追加在后面，那时 print 已可能是对方的自动断点，照收会钉死别人的版面 */
+  const ownLay = ownSw && [...root.querySelectorAll('identification > encoding > software')].every(e=>/谱友圈/.test(e.textContent||''));
   /* 收尾 DF-12：行名为空的段也照对半拆（此前「·左手」退回原口径，每往返一次名字长一截） */
   const ownStaffNames = base=>{
     if(base==='钢琴') return ['右手','左手'];
@@ -37378,8 +37501,12 @@ function importMusicXML(xmlStr){
       const nv=navMap[mi]; if(nv) ['segno','coda','dc','ds','fine'].forEach(k=>{ if(nv[k]) mea[k]=true; });
       /* v68.5 换页：<print new-page="yes"/> → mea.pgbrk=1，**只认自家导出**（<software> 含「谱友圈」，同 v68.3 D4 的 ownSw）——
          MuseScore / Finale / Sibelius 默认把自己的每个自动翻页都写成 new-page，照收会把别人的版面钉进来。第 1 小节不读（无效）。
-         new-system（「此处换行」）本版不映射（基线没有这项映射；加了会改变所有带换行的谱的导出）：将来加时同口径——同一小节换页优先、只认自家导出 */
-      if(ownSw && mi>0){ const pr=mEl.querySelector(':scope > print[new-page="yes"]'); if(pr) mea.pgbrk=1; }
+         v68.8 ENG-6 换行同口径：<print new-system="yes"/> → **上一小节** brk=1（brk 记在换行前的小节上）；同一个 print 带 new-page 时只记 pgbrk（换页隐含换行）；
+         只认自家导出——第三方默认把每个自动断行也写成 new-system，照收会钉死别人的版面；第 1 小节、new-system="no" 不读；不写 pull（不映射，见导出 meaOpen 注释）。
+         v68.8 收尾：自家判定用 ownLay（每个 <software> 都是谱友圈，IO-3）。IO-1：换行与换页落在同一行首（brk[k-1] 与 pgbrk[k] 同在，sysPageBreak 设换页时不删 brk）
+         导出只写 new-page，那一位 brk 记在 <miscellaneous-field name="pyq-brk-pg">，小节循环之后读回（见下）——导入后再取消换页，行界与原谱相同 */
+      if(ownLay && mi>0){ const pr=mEl.querySelector(':scope > print[new-page="yes"]'); if(pr) mea.pgbrk=1;
+        else if(mEl.querySelector(':scope > print[new-system="yes"]') && out.measures[mi-1]) out.measures[mi-1].brk=1; }
       /* v41.2 排练/段落标记：rehearsal → mea.label */
       const rh=mEl.querySelector('direction rehearsal');
       if(rh && rh.textContent.trim()) mea.label=rh.textContent.trim();
@@ -37391,6 +37518,10 @@ function importMusicXML(xmlStr){
     out.measures.push(mea);
   }
   if(!out.measures.length) return {error:'未解析到任何小节'};
+  /* v68.8 收尾 IO-1：自家文件（ownLay）里与换页同一行首的「此处换行」（导出只写了 new-page）从 pyq-brk-pg 读回 brk——只认后一小节确实读回了换页的下标 */
+  if(ownLay){ try{ const mf=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-brk-pg"]');
+    const a=mf? JSON.parse(mf.textContent||'null') : null;
+    if(Array.isArray(a)) a.forEach(i=>{ if(Number.isInteger(i) && i>=0 && out.measures[i] && out.measures[i+1] && out.measures[i+1].pgbrk===1) out.measures[i].brk=1; }); }catch(_){} }
   /* 收尾 ENG-3：认得出行名的单对大谱表——只有按谱面推断出不了花括号（例如上行带歌词会被当成二声部合唱）时才写显式 voxGroups；
      推断得出就不写（自家导出的钢琴独奏谱 / 钢琴弹唱伴奏往返与 v68.2 同形，不多出字段） */
   if(pairOnly && namedPairs){ const g=PQ_KIND.groupsOf(Object.assign({}, out, {voxGroups:undefined}));
@@ -41616,6 +41747,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v68.8</span><div><b>写谱更顺手：先选八分再写音不再「掉拍」；「此处换行」能随 MusicXML 带走</b>。<br>① <b>先选时值再写音</b>：在空小节里点「8 分」，空出来的半拍会自动补成一个八分空位，接着写的音就落在它上面，小节不会少拍，后面的音也不会跑到下一小节。弱起小节、散拍草稿保持原样；附点后超出的拍子只吃掉后面的空位，不动有内容（和弦、歌词、延长号）的格。习惯按 Insert 的老写法结果和以前完全一样。<br>② <b>MusicXML 带上「此处换行」</b>：导出时写进换行标记，再导入自家导出的文件，手动换行原样还原（同一行既换行又换页也能还原）；别家软件的自动断行不收，以免打乱你的版面。没设过「此处换行」的谱，导出内容与上一版逐字节相同。<br>说明：「并入上一行」和锁定标记暂不随 MusicXML 往返（锁定行两端的换行会保留）。<br><b>测试</b>：新套件 <code>tv_v688</code>（61 项，往返 / 第三方不收 / 写谱按键数与结果对拍）；对抗验收 3 镜头 12 条处理 10 条；CORE 全绿。</div></li>
     <li><span class="v">v68.7</span><div><b>界面更简洁：少说明字、少重复入口</b>（功能一个没少；旧版布局完全不变）。<br>① <b>菜单</b>：每项只留名称和快捷键，去掉了副标题；会开新窗口的项带 ↗，暂时不能用的项带锁，点一下就地说原因。<br>② <b>保存</b>：顶部保存状态一眼看懂——「○ 仅本机 | 存入」点一下直接存进我的曲谱，「☁ 已存」带时间，「↻ 同步中」；原来的保存小菜单撤掉（存为文件、我的曲谱都在「文件 ▾」里）。<br>③ <b>命令面板</b>（Ctrl+/）：不再写「在哪一栏」，上下选择时界面上那个按钮会亮一下，收着的面板自动展开；用旧名字也搜得到。<br>④ <b>书写</b>：移八度按钮改成「↑8 / ↓8」；状态栏读数写「第 4/15 小节 · 1 拍」，播放键改成中性色；悬浮条每一步都写 2 个字的步名；记号面板默认「混合」显示（常用记号只画字形，会打开设置的格子保留 2 个字；以前选过显示方式的照旧），底部说明撤掉；音轨里的「生成六线谱…」挪到「＋ 加轨」；「时值检查」的两种方式挪到状态栏「⋯」里。<br>⑤ <b>提示条</b>：改成「结果 + 一个动作」，比如「已配伴奏 · 第 1–4 小节 · 撤销」，带动作的停 4 秒以上。<br>⑥ <b>排版</b>：和上方工具组重复的控件只留一处，重复的说明句删掉。<br>数字：书写界面每屏说明字平均从 89 降到 8，菜单里的说明从 67% 降到 1% 以下，带副标题的按钮从 78 个降到 0，「在左栏 / 右栏…」这类指路字从 90 处降到 0。<br><b>测试</b>：新套件 <code>tv_textbudget</code>（37 屏字数预算，只降不升）、<code>tv_v687fix</code>（20 项）；措辞闸加「字数预算」报告；对抗验收 3 镜头 24 条处理完；CORE 全绿。</div></li>
     <li><span class="v">v68.6</span><div><b>按演奏者出分谱</b>：合唱、弹唱、乐队这类多人谱，在「输出」里点一份就看这一份；勾选几份，一次打印成一个 PDF；正在看的这份也能存成 PNG（不点分谱时一切与上一版相同）。<br>① <b>怎么分</b>：每把吉他（尤克里里）一份；合唱每个声部一份，四部合唱另可勾「女高音＋女低音」「男高音＋男低音」两行一份；有别的演奏者时钢琴单独一份（不带六线谱）。只有一位演奏者的谱不分。<br>② <b>每份自带</b>：曲名页头（没有六线谱的份按实际调写，和弦名写实音）、左上角分谱名、第 2 页起的续页眉、页码（总谱没设时底部居中、首页不印）；排练号、反复、速度与渐慢等全曲记号每份都有；和弦跟着带过去；简谱份行首印小节号。<br>③ <b>排版</b>：分谱自动分页，不沿用总谱的「本行换页」；想按总谱的手动换行排，勾「沿用总谱换行」。<br>④ <b>入口</b>：新布局「输出」左栏点名称预览、勾选框选打印哪几份，工具组「分谱」键一次打印；看着哪份按 Ctrl+P 就打哪份。旧布局「打印…」弹窗多一组「分谱」；手机「输出与分享」多一行「打印分谱」——只有一位演奏者的谱这两处与上一版相同。<br>说明：分谱只在打印和预览时临时生成，不往你的谱里存任何东西；分享卡、互动谱、MusicXML、MIDI、曲谱文件仍是总谱。<br><b>测试</b>：新套件 <code>tv_parts</code>（108 项，分法 / 内容 / 调与夹位 / 和弦 / 页头 / 打印 / PNG / 缺省零差异）、<code>tv_parts_ui</code>（55 项，两种布局与手机）；对抗验收 3 镜头 18 条全修；CORE 全绿。</div></li>
     <li><span class="v">v68.5</span><div><b>排版：可以「本行换页」，也可以印页码</b>（不动它们时谱面与上一版完全相同）。<br>① <b>本行换页</b>：排版模式里点一行，选「本行换页」＝从这一行起另起一页；再点一次取消。命令面板、右栏「本行」、书写谱面页间灰缝里的「换页」标记都能开关。左栏「版面检查」会列出手动换页，点一项跳到那一页。<br>② <b>页码</b>：右栏「版式 › 页头 · 页码」：印 / 不印（缺省不印）、位置（底部居中 / 底部外侧 / 顶部外侧）、首页印不印（出版惯例不印）、起始页码。预览、打印 / PDF、PNG 整页图三处一致；旧版布局在「排版」浮层多一行「页码」。<br>③ MusicXML 导出写换页；再导入自家导出的文件能还原换页（别家软件的自动翻页不收，以免把别人的版面钉进来）。<br>④ 新布局里「伴奏织体」弹窗和「未生成」提示不再指向已不存在的「创作」页，改指右栏「文字」页的「输入和弦…」（Ctrl+K）。<br>说明：一页里谱行太多、压到页码位置时，这一页不印页码，「版面检查」会说明原因；「此处换行」与 MusicXML 的换行互通留到互操作版本。<br><b>测试</b>：新套件 <code>tv_pgbrk</code>（67 项，引擎 / 成品 / MusicXML / 数据红线）、<code>tv_pgbrk_ui</code>（63 项，两种布局的入口与撤销）；对抗验收 3 镜头 25 条处理 24 条；CORE 全绿。</div></li>
@@ -41662,7 +41794,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v68.7';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v68.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

@@ -6,6 +6,8 @@
    Z  缺省零差异（PB1 / PN1 / MX1）：16 预设 + L60 + 4 种谱行组合 × 两种外壳——#score、PV_GEO / SYS_GEO、成品快照（分页 withCleanSnap + scoreExportClone）、
       打印切片 #print-pages、MusicXML、song JSON 与基线页（env PGBRK_REF；缺省 git show 71c9cce＝v68.4）逐字节相同；
       本版内：无效 / 中性字段（第 1 小节换页、pgbrk 不是数字 1、pgno 关着或不是 true）与不带字段逐字节相同（JSON 除外）。
+      v68.8 有意改动（ENG-6）：带「此处换行」的谱导出 MusicXML 时在换行小节开头多写 <print new-system="yes"/>。PB1g 守卫上面 21 份对拍谱都不带有效 brk（仍逐字节）；
+      MX1b 另跑 6 份带 brk 的谱——其余各项逐字节，MusicXML 先剥掉这一句再与基线比，且这一句恰为「有效换行数 × part 数」个（只放行这一处差异，不整项豁免）。
    G  分页几何：PB2 换页 @12 · PB3 行中换页 @14 · PB4 连续换页无空白页 · PB5 换页落在本来就翻页的行 · PB6 第 1 小节无效 · PB7 pull 并存 · PB8 brk 并存 ·
       PB9 纯和弦谱乐句从换页处重新数 · PB10 不换行长带（竖线标记、预览照样分页）· PB19 书写标记几何 · PB20 预览页数 · PB21 两种外壳一致。
    N  页码：PN2 底部居中 · PN3 底部外侧单双数 · PN4 顶部外侧（第 1 页压在题头之上、第 2 页起版心下移 51）· PN5 不与页头相交（含长曲名、390 手机编辑）·
@@ -68,6 +70,9 @@ const HELP = () => {
     if (c.mod === 'neutral') { const M = s.measures, n = M.length; M[0].pgbrk = 1; if (n > 2) M[Math.min(2, n - 1)].pgbrk = '1'; if (n > 3) M[3].pgbrk = true; if (n > 1) M[n - 1].pgbrk = 2;
       s.layout = Object.assign({}, s.layout || {}, { pgno: { on: false, pos: 'to', start: 5, first: true } }); }
     if (c.mod === 'neutral2') { s.layout = Object.assign({}, s.layout || {}, { pgno: { on: 'yes', pos: 'bo' } }); if (s.measures[1]) s.measures[1].pgbrk = 0; }
+    /* v68.8 MX1b：brk / pull 是 v68.4 也认识的字段（不用 pgbrk——基线要能同样渲染） */
+    (c.brk || []).forEach(i => { if (s.measures[i]) s.measures[i].brk = 1; });
+    (c.pull || []).forEach(i => { if (s.measures[i]) s.measures[i].pull = 1; });
     return s; };
   window.__ld = s => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {}
     if (typeof undoStack !== 'undefined') { undoStack.length = 0; redoStack.length = 0; }
@@ -88,6 +93,11 @@ const HELP = () => {
   window.__rec = () => { const sc = __sc(), o = { score: __h(sc.innerHTML), vb: sc.getAttribute('viewBox'), geo: J(PV_GEO), sys: J(SYS_GEO) };
     o.snap = withCleanSnap(() => __h(scoreExportClone().innerHTML) + '|' + J(PV_GEO) + '|' + J(SYS_GEO), { paging: true });
     let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; } o.mxl = __h(x);
+    /* v68.8 ENG-6 放行口径：剥掉 <print new-system="yes"/> 之后的哈希、这一句的个数、part 数、有效换行数
+       （brkN 内联算：k≥1 且上一小节 brk===1、本小节没有 pull 并入也没有换页——基线 v68.4 没有 sysBrkBefore，不能调） */
+    o.nsN = (x.match(/<print new-system="yes"\/>/g) || []).length; o.mxlS = __h(x.replace(/<print new-system="yes"\/>/g, ''));
+    o.nParts = (x.match(/<part id=/g) || []).length;
+    { const M = song.measures || []; let n = 0; for (let k = 1; k < M.length; k++) if (M[k - 1].brk === 1 && M[k].pull !== 1 && M[k].pgbrk !== 1) n++; o.brkN = n; }
     o.json = __h(JSON.stringify(song));
     dispatchEvent(new Event('beforeprint')); const pp = document.getElementById('print-pages'); o.print = __h(pp ? pp.innerHTML : ''); dispatchEvent(new Event('afterprint'));
     o.after = __h(sc.innerHTML); return o; };
@@ -138,15 +148,39 @@ const pdfPages = buf => buf ? (buf.toString('latin1').match(/\/Type\s*\/Page[^s]
         /* 跨版本对拍放在最前：两页都是全新页面、按同一顺序载谱（旧外壳载过固定版宽谱后左栏会收起并保持，两边同序才同状态） */
         if (REF) {
           const R = await open(b, { shell, url: REF });
-          const diff = []; let nOK = 0;
+          const diff = [], brkd = []; let nOK = 0;
+          const recOf = c => { __ld(__mk(c)); const r = __rec(); r.pgno = document.querySelectorAll('#score .pgfolio').length; r.pno = document.querySelectorAll('#score .pageno').length; return r; };
           for (const c of CASES) {
-            const x = await EV(A.pg, c => { __ld(__mk(c)); const r = __rec(); r.pgno = document.querySelectorAll('#score .pgfolio').length; r.pno = document.querySelectorAll('#score .pageno').length; return r; }, c);
-            const y = await EV(R.pg, c => { __ld(__mk(c)); const r = __rec(); r.pgno = document.querySelectorAll('#score .pgfolio').length; r.pno = document.querySelectorAll('#score .pageno').length; return r; }, c);
+            const x = await EV(A.pg, recOf, c);
+            const y = await EV(R.pg, recOf, c);
             const ks = ['score', 'vb', 'geo', 'sys', 'snap', 'mxl', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]);
             if (x.err || y.err || ks.length) diff.push(nm(c) + ':' + (x.err || y.err || ks.join(','))); else nOK++;
+            if (!x.err && (x.brkN !== 0 || x.nsN !== 0)) brkd.push(nm(c) + ' brkN=' + x.brkN + ' nsN=' + x.nsN);
           }
           T(!diff.length, `PB1 / PN1 / MX1 [${shell}] 缺省零差异：${CASES.length} 份谱（16 预设 + L60 + 4 种谱行组合）的 #score、PV_GEO / SYS_GEO、成品快照、打印切片、MusicXML、song JSON 与基线 v68.4 逐字节相同；无 .pgfolio、.pageno 照旧`,
             diff.slice(0, 6).join(' | ') || nOK + ' 份全同');
+          T(!brkd.length, `PB1g [${shell}] v68.8 守卫：上面 ${CASES.length} 份对拍谱都不带有效「此处换行」（brkN 0、导出 0 个 new-system）——它们的 MusicXML 仍逐字节对拍，没有借 ENG-6 放行`, brkd.join(' | ') || 'ok');
+          /* v68.8 MX1b：带「此处换行」的谱——渲染 / 成品 / JSON 逐字节；MusicXML 只放行 <print new-system="yes"/> 这一句 */
+          const CB = [{ l60: 1, brk: [11, 29], n: 2 }, { l60: 1, brk: [11], pull: [12], n: 0 }, { p: 8, rep: 3, brk: [5], n: 1 }, { p: 7, rep: 3, brk: [3], n: 1 }, { k: 'SJG', brk: [1], n: 1 }, { p: 11, brk: [3], n: 1 }];
+          const nmB = c => nm(c) + (c.rep ? '×' + c.rep : '') + ' brk' + J(c.brk) + (c.pull ? ' pull' + J(c.pull) : '');
+          const bd = []; let bOK = 0, bS = 0;
+          for (const c of CB) {
+            const x = await EV(A.pg, recOf, c);
+            const y = await EV(R.pg, recOf, c);
+            if (x.err || y.err) { bd.push(nmB(c) + ':' + (x.err || 'REF ' + y.err)); continue; }
+            const ks = ['score', 'vb', 'geo', 'sys', 'snap', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]);
+            if (x.mxlS !== y.mxl) ks.push('mxl(剥掉 new-system 后仍不同)');
+            if (x.brkN !== c.n || !(x.nParts >= 1)) ks.push('夹具 brkN ' + x.brkN + '（应 ' + c.n + '）· part ' + x.nParts);
+            if (x.nsN !== x.brkN * x.nParts) ks.push('nsN ' + x.nsN + '≠' + x.brkN + '×' + x.nParts);
+            if (y.nsN !== 0) ks.push('基线竟有 new-system');
+            if (x.brkN > 0 && x.mxl === y.mxl) ks.push('brkN>0 却与基线相同（没写 new-system）');
+            if (x.brkN === 0 && x.mxl !== y.mxl) ks.push('pull 覆盖时应与基线逐字节相同');
+            bS += x.nsN;
+            if (ks.length) bd.push(nmB(c) + ':' + ks.join(',')); else bOK++;
+          }
+          T(!bd.length && bS > 0, `MX1b [${shell}] v68.8 有意改动（ENG-6）只此一处：${CB.length} 份带「此处换行」的谱（L60 两处 / brk+pull 覆盖 / 钢琴大谱表 / TAB 独奏 / 谱行 SJG / 预设#11）的 #score、几何、成品快照、打印切片、song JSON 与基线 v68.4 逐字节相同；` +
+            'MusicXML 剥掉 <print new-system="yes"/> 后与基线逐字节相同，这一句恰为「有效换行数 × part 数」个（pull 覆盖的那份 0 个、与基线整份逐字节相同）',
+            bd.slice(0, 6).join(' | ') || bOK + ' 份全符 · new-system 共 ' + bS);
           allErrs.push(...R.errs.map(e => 'REF:' + e)); await R.close();
         } else NOREF('PB1 [' + shell + '] 跨版本对拍');
         /* 本版内：中性字段 ≡ 不带字段（JSON 当然不同，其余逐字节） */

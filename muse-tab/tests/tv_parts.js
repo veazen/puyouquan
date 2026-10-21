@@ -20,7 +20,9 @@
    PA12 性能（§3.11，中位数，CI ×2）：partsPlan / partSong / 单份 partRender / SATB beforeprint 命中与未命中 / 预排命中；预览切换（快照段按规格公式；整次墙钟对总谱视图同走页壳重建的刷新）
    PA13 收尾回归（两套外壳）：连点两次「分谱」只弹一个对话框（R3）；「不换行」开着时不按长带宽白排（R1）；用完放掉分谱缓存与 PART_SVG（R4）
    PAZ  缺省零差异（§6.4，基线 tests/parts_ref.json＝v68.5 c923d00；env PARTS_REF 可指定基线页，PARTS_REF=none 显式跳过，CI 里拿不到判红）：
-        两套外壳 × 28 份谱（16 预设＋210 小节＋§6.3 多演奏者夹具）× 14 项成品逐字节；单演奏者谱的旧外壳弹窗与手机输出抽屉
+        两套外壳 × 28 份谱（16 预设＋210 小节＋§6.3 多演奏者夹具）× 14 项成品逐字节；单演奏者谱的旧外壳弹窗与手机输出抽屉。
+        v68.8 有意改动（ENG-6）：带「此处换行」的谱导出 MusicXML 多写 <print new-system="yes"/>——加记号夹具一份（brk[1]）走放行路径：MusicXML 剥掉这一句再比、
+        且这一句恰为「有效换行数 × part 数」个，其余 13 项照旧逐字节；PAZ-g 守卫放行只用在这一份（其余 28 份 MusicXML 仍逐字节）
    env：MUSETAB_URL 被测页（缺省 ../index.html）· PARTS_REF 基线页（文件路径或 file:// URL）· ONLY=PA1,PA2 只跑部分段。 */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -517,6 +519,10 @@ const HELP = () => {
     { const OI = window.Image; let src = null; window.Image = function () { return { set src(v) { src = v; }, get src() { return src; } }; };
       try { exportPNG(2); } finally { window.Image = OI; } o.png = __h(src || ''); }
     let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; } o.mxl = __h(x);
+    /* v68.8 ENG-6 放行口径（同 tv_pgbrk __rec）：剥掉 <print new-system="yes"/> 后的哈希、这一句的个数、part 数、有效换行数（内联算，基线 v68.5 也能跑） */
+    o.nsN = (x.match(/<print new-system="yes"\/>/g) || []).length; o.mxlS = __h(x.replace(/<print new-system="yes"\/>/g, ''));
+    o.nParts = (x.match(/<part id=/g) || []).length;
+    { const M = song.measures || []; let n = 0; for (let k = 1; k < M.length; k++) if (M[k - 1].brk === 1 && M[k].pull !== 1 && M[k].pgbrk !== 1) n++; o.brkN = n; }
     try { o.mid = __h(Array.from(exportMIDI(song).bytes).join(',')); } catch (e) { o.mid = 'ERR ' + e.message; }
     o.json = __h(JSON.stringify(song));
     if (typeof flowOn === 'function' && flowOn() && !(FLOW.mob && FLOW.mob.on)) { setMode('output'); o.pv = __h(PV.content) + '|' + Jx(PV.geo); setMode('write'); }
@@ -1016,26 +1022,35 @@ const showPlan = r => r.err ? r.err : (r.solo ? 'solo · ' + r.kindName : r.rows
     if (want('PAZ')) {
       if (!REF) NOREF('PAZ 缺省零差异');
       else {
+        /* v68.8：末尾加记号齐全夹具 {m:{}}（brk[1]、pull[6]、pgbrk[4]，两只老虎×3、3 个 part）——ENG-6 有意改动的放行路径：
+           它的 MusicXML 剥掉 <print new-system="yes"/> 再与基线比、且这一句恰 3 个（1 处有效换行 × 3 part）；其余 28 份不带有效换行，MusicXML 仍逐字节 */
         const CASES = [...Array(16).keys()].map(i => ({ p: i })).concat([{ p: 0, rep: 14 }],
-          ['JT带夹3品', '双TAB_tabCapos1=3', 'JG', 'SG', 'SJG', 'SATB+钢琴', '小提琴+钢琴', '二重唱', '吉他+钢琴+人声', '无词指弹JT', '无分组SATB'].map(f => ({ f })));
-        const nm = c => c.f ? c.f : c.rep ? '长谱' + c.rep : '预设#' + c.p;
+          ['JT带夹3品', '双TAB_tabCapos1=3', 'JG', 'SG', 'SJG', 'SATB+钢琴', '小提琴+钢琴', '二重唱', '吉他+钢琴+人声', '无词指弹JT', '无分组SATB'].map(f => ({ f })), [{ m: {}, nsWant: 3 }]);
+        const nm = c => c.f ? c.f : c.m ? '记号夹具' : c.rep ? '长谱' + c.rep : '预设#' + c.p;
         /* 单演奏者（旧外壳弹窗 / 手机抽屉只对拍这些；多演奏者的弹窗与抽屉是有意改动，§6.4 例外） */
         const S = await open(b); const solo = await EV(S.pg, cs => cs.map(c => partsPlan(__mkc(c)).solo), CASES); await S.close();
         const KEYS = ['score', 'vb', 'geo', 'sys', 'snap', 'print', 'offPrint', 'off660', 'png', 'mxl', 'mid', 'json', 'pv', 'after'];
         for (const shell of ['flow', 'classic']) {
           const A = await open(b, { shell }), R = await open(b, { shell, url: REF });
-          const diff = []; let nOK = 0, nDlg = 0;
+          const diff = [], brkd = []; let nOK = 0, nDlg = 0, nRel = 0;
           for (let i = 0; i < CASES.length; i++) { const c = CASES[i];
             const x = await EV(A.pg, c => __recZ(c), c), y = await EV(R.pg, c => __recZ(c), c);
             if (x.err || y.err) { diff.push(nm(c) + ':' + (x.err || 'REF ' + y.err)); continue; }
-            const ks = KEYS.filter(k => x[k] !== y[k]); if (shell === 'classic' && solo[i]) { nDlg++; if (!x.dlg || x.dlg !== y.dlg) ks.push('dlg'); }
+            /* v68.8 ENG-6：只对带有效「此处换行」的谱放行 new-system 这一句（剥掉再比 + 个数＝有效换行数×part 数），不带的照旧逐字节 */
+            const rel = x.brkN > 0, ks = KEYS.filter(k => k !== 'mxl' && x[k] !== y[k]);
+            if (rel) { nRel++; if (x.mxlS !== y.mxl) ks.push('mxl(剥掉 new-system 后仍不同)'); if (x.nsN !== x.brkN * x.nParts || x.nsN !== c.nsWant || y.nsN !== 0 || x.mxl === y.mxl) ks.push('nsN ' + x.nsN + '（应 ' + x.brkN + '×' + x.nParts + '＝' + c.nsWant + '）'); }
+            else if (x.mxl !== y.mxl) ks.push('mxl');
+            if (!!c.nsWant !== rel || (!c.nsWant && x.nsN !== 0)) brkd.push(nm(c) + ' brkN=' + x.brkN + ' nsN=' + x.nsN);
+            if (shell === 'classic' && solo[i]) { nDlg++; if (!x.dlg || x.dlg !== y.dlg) ks.push('dlg'); }
             if (shell === 'flow' && !(typeof x.pv === 'string' && x.pv.length > 20)) ks.push('pv 没取到');   /* 两边都没取到也算红（防空对空） */
             if (ks.length) diff.push(nm(c) + ':' + ks.join(',')); else nOK++; }
           const k1 = await EV(A.pg, () => { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^musetab-/.test(k)) ks.push(k); } return ks.sort().join(','); });
           const k2 = await EV(R.pg, () => { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^musetab-/.test(k)) ks.push(k); } return ks.sort().join(','); });
-          T(!diff.length && k1 === k2, 'PAZ [' + shell + '] 缺省零差异：' + CASES.length + ' 份谱（16 预设＋210 小节长谱＋§6.3 多演奏者夹具 11 份）的书写态 #score、PV_GEO / SYS_GEO、成品快照（分页 withCleanSnap＋scoreExportClone）、不带任务的 beforeprint 切片、' +
-            '不带 part 的 renderOffscreen（660 宽与打印口径，原有字段）、exportPNG 交给画布的 SVG 串、MusicXML、MIDI 字节、song JSON、' + (shell === 'flow' ? '输出模式总谱视图的 PV.content / PV.geo' : '单演奏者谱的「打印 / 导出」弹窗（' + nDlg + ' 份）') + '、musetab-* 键集合与基线 v68.5 逐字节相同',
+          T(!diff.length && k1 === k2, 'PAZ [' + shell + '] 缺省零差异：' + CASES.length + ' 份谱（16 预设＋210 小节长谱＋§6.3 多演奏者夹具 11 份＋v68.8 记号夹具 1 份）的书写态 #score、PV_GEO / SYS_GEO、成品快照（分页 withCleanSnap＋scoreExportClone）、不带任务的 beforeprint 切片、' +
+            '不带 part 的 renderOffscreen（660 宽与打印口径，原有字段）、exportPNG 交给画布的 SVG 串、MusicXML（记号夹具剥掉 v68.8 的 new-system 再比）、MIDI 字节、song JSON、' + (shell === 'flow' ? '输出模式总谱视图的 PV.content / PV.geo' : '单演奏者谱的「打印 / 导出」弹窗（' + nDlg + ' 份）') + '、musetab-* 键集合与基线 v68.5 逐字节相同',
             diff.slice(0, 6).join(' | ') || (nOK + ' 份全同' + (k1 === k2 ? '' : '；键集合不同 ' + k1 + ' ≠ ' + k2)));
+          T(!brkd.length && nRel === 1, 'PAZ-g [' + shell + '] v68.8 守卫：ENG-6 的 MusicXML 放行只用在记号夹具一份（有效换行 1 处 × 3 part＝3 个 new-system，剥掉后与基线逐字节相同），其余 ' + (CASES.length - 1) + ' 份都不带有效换行、MusicXML 仍逐字节对拍',
+            brkd.join(' | ') || '放行 ' + nRel + ' 份');
           allErrs.push(...A.errs, ...R.errs.map(e => 'REF:' + e)); await A.close(); await R.close();
         }
         /* 手机 390×844（FLOW.mob）：单演奏者谱的「输出与分享」抽屉 HTML */

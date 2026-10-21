@@ -7,6 +7,10 @@
         （确有合理增加的项只能写进 ref 的 allow:{屏:{指标:{max:上限, why:'理由'}}}，并在提交说明里点名；v68.7 收尾 BUD-4：allow 带上限，
          只放行到 max 为止——此前写字符串＝整项豁免、以后涨到多少都不报。旧写法（字符串）不再放行）
    TB3  ≥3 处入口的功能（K 口径）≤ 基线
+   TB4  v68.8 审计口径（P3）：状态栏位置读数 #flw-st-pos 记读数（num），不随小节号位数变成说明字——不进 37 屏、不改基线，另跑 4 屏：
+        TB4a 送别光标停在第 12 小节：读数组「第 12/16 小节 · 1 拍」k＝num，该屏说明字 / 说明行与 write-songbie（光标在第 1 小节）相同；
+        TB4b 反例：状态栏别处放同文字的 span → desc；读数后追加一句 → 整组 desc；#flw-st-pos 的悬停全称 → 仍 desc（只认这个元素 + 这个格式）。
+        ONLY 不设或含 TB4 时才跑（ONLY=TB4 只跑这一项）。
    验收线（规格 §9；TB_PHASE=track 时只打印 ℹ️ 不判——三轨各自分支上改动不全，集成后缺省模式全部判）：
    TBA1 书写 5 屏说明字平均 ≤30（且每屏 ≤ 基线）           TBA2 菜单焦点层（11 层合计，menu-save 层没有菜单按 0 计）说明占比 ≤10%
    TBA3 S1 范围 20 屏带副标题按钮＝0                       TBA4 P3＝0（桌面 30 屏去掉帮助 / 导览 / 偏好共 25 屏：可见 + title + placeholder + data-why）
@@ -41,6 +45,23 @@ const J = x => JSON.stringify(x);
     const x = M.screen(R[s.id]);
     console.log('  · ' + s.id.padEnd(14) + ' 总字 ' + x.total + ' 说明 ' + x.desc + ' 行 ' + x.descLines + ' 副标 ' + x.btnWithSub + ' 悬停 ' + x.hoverChars + ' 控件组 ' + x.clickGrp + ' P3 ' + x.p3 + ' 同名 ' + x.dup
       + (R[s.id].err ? '  动作异常：' + R[s.id].err : '') + (R[s.id].pageErrs.length ? '  页面错误：' + R[s.id].pageErrs[0] : ''));
+  }
+  /* TB4（v68.8 ③）：不进 37 屏与基线；write-songbie 没跑（ONLY）时补跑一份作对照 */
+  let R4 = null;
+  if (!ONLY.length || ONLY.includes('TB4')) {
+    const W = ms => new Promise(r => setTimeout(r, ms));
+    const m12 = async pg => { await pg.evaluate(() => __scn('songbie')); await W(800);
+      await pg.evaluate(() => { sel = { mi: 11, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); try { const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur(); } catch (_) {} }); await W(1200); };
+    const S4 = {
+      m12: { id: 'write-songbie-m12', name: '书写 · 送别（光标停在第 12 小节）', go: m12, focus: null },
+      fake: { id: 'tb4-fake', name: 'TB4b 反例：状态栏别处放同文字', focus: null, go: async pg => { await m12(pg);
+        await pg.evaluate(() => { const p = document.getElementById('flw-st-pos'); p.insertAdjacentHTML('afterend', '<span id="tb4-fake" class="flw-st-txt">' + p.textContent + '</span>'); }); await W(200); } },
+      more: { id: 'tb4-more', name: 'TB4b 反例：读数后追加一句', focus: null, go: async pg => { await m12(pg);
+        await pg.evaluate(() => { document.getElementById('flw-st-pos').insertAdjacentHTML('beforeend', '<span>这是一句说明文字</span>'); }); await W(200); } }
+    };
+    R4 = {};
+    for (const [k, s] of Object.entries(S4)) R4[k] = await runState(b, s, { base: URL0, shots: SHOTS || null });
+    R4.s1 = R['write-songbie'] || await runState(b, STATES.find(x => x.id === 'write-songbie'), { base: URL0, shots: null });
   }
   await b.close();
   if (process.env.TB_RAW) fs.writeFileSync(process.env.TB_RAW, J(R));
@@ -111,6 +132,18 @@ const J = x => JSON.stringify(x);
       const v = ref.v682 && ref.v682.write5Hover; if (v) lines.push('ℹ️ TBG1 对 v68.2 的比例（不判）：' + w5.map((id, i) => id + ' ' + (S.screens[id].hoverChars / v[M.WRITE5.indexOf(id)] * 100).toFixed(0) + '%').join(' · '));
       ACC(w5.every(id => S.screens[id].clickGrp <= ref.screens[id].clickGrp), 'TBG2 护栏：书写 5 屏可点控件组 ≤ 基线', w5.map(id => id + ' ' + ref.screens[id].clickGrp + '→' + S.screens[id].clickGrp).join(' · '));
     }
+  }
+  /* TB4 */
+  if (R4) {
+    const P = '#flw-st-pos', gOf = (r, re) => (r.groups || []).find(x => re.test(x.el)), errOf = r => r.err || (r.pageErrs || [])[0] || '';
+    const g = gOf(R4.m12, /#flw-st-pos/), x12 = M.screen(R4.m12), x1 = M.screen(R4.s1);
+    T(!!g && g.text === '第 12/16 小节 · 1 拍' && g.k === 'num' && x12.desc === x1.desc && x12.descLines === x1.descLines && !errOf(R4.m12) && !errOf(R4.s1),
+      'TB4a 状态栏位置读数记读数：送别光标停在第 12 小节，' + P + ' 组「第 12/16 小节 · 1 拍」k＝num；该屏说明字 / 说明行与光标在第 1 小节时（write-songbie）相同（两位数小节不再多出 9 个说明字）',
+      J({ g: g && { text: g.text, k: g.k, n: g.n }, m12: { total: x12.total, desc: x12.desc, descLines: x12.descLines }, m1: { total: x1.total, desc: x1.desc, descLines: x1.descLines }, err: errOf(R4.m12) || errOf(R4.s1) || undefined }));
+    const gf = gOf(R4.fake, /#tb4-fake/), gm = gOf(R4.more, /#flw-st-pos/), tt = (R4.m12.titles || []).find(x => /#flw-st-pos/.test(x.el));
+    T(!!g && !!gf && gf.text === g.text && gf.k === 'desc' && !!gm && gm.k === 'desc' && /这是一句说明文字$/.test(gm.text) && !!tt && tt.k === 'desc' && tt.text === '第 12 小节，共 16 · 第 1 拍' && !errOf(R4.fake) && !errOf(R4.more),
+      'TB4b 反例（只认这个元素 + 这个格式）：状态栏别处同文字的 span → desc；' + P + ' 读数后追加一句 → 整组 desc；' + P + ' 的悬停全称 → 仍 desc（计入悬停字数）',
+      J({ fake: gf && { text: gf.text, k: gf.k }, more: gm && { text: gm.text, k: gm.k }, title: tt && { text: tt.text, k: tt.k }, err: errOf(R4.fake) || errOf(R4.more) || undefined }));
   }
   console.log(lines.join('\n'));
   console.log('（单跑 ' + Math.round((Date.now() - t0) / 1000) + ' 秒；被测 ' + URL0 + ' md5 ' + md5 + (TRACK ? '；TB_PHASE=track' : '') + '）');

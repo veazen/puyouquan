@@ -23,7 +23,11 @@
    P9 v68.4 收尾：变了的段按顶层元素复用（svgMorphCk，PERF-2）——两种外壳 × 5 份谱 × 10 步与关缓存逐字节相同、逐段边界正确；长谱移调确实留下过半原节点，__noMorph 对照。
    （P1 / P2 每步的增量检查 __incCheck 另查逐段边界与段首记号。）
    env：MUSETAB_URL 被测页（缺省 ../index.html）· REF_URL 参考页（缺省＝被测页加 __noRenderCache；给 v68.3 基线的 index.html 即跨版本逐字节对拍）·
-        ONLY=P1,P4 只跑部分 · PERF=0 跳过 P6 */
+        ONLY=P1,P4 只跑部分 · PERF=0 跳过 P6
+   跨版本对拍的有意差异（REF_URL 指向更早版本时会红，不是回归；缺省 / CI 不设 REF_URL，不受影响）：
+     v68.8 起、基线 ≤ v68.7：P1「改时值」一步（前一步 write 已把 sel.row 切到简谱行，sel 1:0，setDur(8)）落在空列上的谱会补出空列（v68.8 P2 空列改短补同值空列），
+     该谱这一步及其后各步的 #score 与基线有意不同——16 预设里恰 3 份：#0 小星星（分解弹唱）、#2 指弹技法示例（那一格是简谱行的四分休止）、
+     #14 和弦进行示例（纯和弦谱）（四分、deg 0 带和弦名 G/B）；其余 13 份预设与 14 种谱行组合那一格是音符，逐字节相同（v68.8 收尾实测 REF_URL＝27a74c1：ONLY=P1 PERF=0 28/31，红的恰是这 3 份） */
 const { chromium } = require('playwright');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
