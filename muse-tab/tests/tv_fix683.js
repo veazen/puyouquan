@@ -246,7 +246,8 @@ function BLOCK_HARD() {
     const state = () => EV(pg, () => { const st = NWP.state, live = !!(NWP.modal && NWP.modal.isConnected);
       const tabSel = live ? ((NWP.modal.querySelector('[role=tab][aria-selected="true"]') || {}).textContent || '') : '';
       return { live, tab: live && st ? st.tab : null, a: !!(live && st && st.imp && st.imp.a), basis: live && st && st.imp && st.imp.a ? JSON.stringify(st.imp.a.basis) : null, kinds: live && st && st.imp && st.imp.a ? JSON.stringify(st.imp.a.kinds) : null,
-        err: live && st && st.imp ? st.imp.err : '', tabSel, h3: (document.querySelector('#modal-mask .modal h3') || {}).textContent || null, docs: docs.length, title: song.title, toasts: __toasts.slice() }; });
+        err: live && st && st.imp ? st.imp.err : '', tabSel, h3: (document.querySelector('#modal-mask .modal h3') || {}).textContent || null, docs: docs.length, title: song.title, toasts: __toasts.slice(),
+        ta: (document.querySelector('#toast .flw-ta') || {}).textContent || '', tk: (document.getElementById('toast') || { dataset: {} }).dataset.k || '' }; });
     const viaOpen = async name => {
       await reset();
       const [mt, buf] = files[name];
@@ -271,6 +272,9 @@ function BLOCK_HARD() {
     T('X2', need.every(x => acc.fi.split(',').includes(x)), 'X2a ' + shell + ' #file-in accept 含 ' + need.join(' '), J(acc));
     const r = {};
     for (const nm of Object.keys(files)) r[nm] = await viaOpen(nm);
+    /* v68.7 S1：新外壳坏 JSON 的提示条带「导入」——点它＝新建面板「从已有音乐」（bad.json 是最后一个，提示条有动作停 ≥4 秒，这时还在） */
+    const badGo = shell === 'flow' ? await EV(pg, () => { const b = document.querySelector('#toast .flw-ta'); if (!b) return null; b.click(); const live = !!(NWP.modal && NWP.modal.isConnected);
+      return { live, tab: live && NWP.state ? NWP.state.tab : null }; }) : null;
     const d = {}; for (const nm of ['a.mid', 'songbie.musicxml', 'songbie.xml', 'songbie.mxl', 'a.gp5']) d[nm] = await viaDrop(nm);
     const noBadToast = x => !x.toasts.some(t => /文件格式无法识别/.test(t));
     T('X2', /导入 MIDI/.test(r['a.mid'].h3 || '') && r['a.mid'].h3 === d['a.mid'].h3 && noBadToast(r['a.mid']), 'X2b ' + shell + ' 打开 a.mid → 弹「导入 MIDI」（与拖放同一对话框）', J({ open: r['a.mid'], drop: d['a.mid'].h3 }));
@@ -283,7 +287,10 @@ function BLOCK_HARD() {
     T('X2', r['a.mtab.json'].title === '打开的曲谱文件' && r['a.mtab.json'].docs === before && !r['a.mtab.json'].live, 'X2f ' + shell + ' .mtab.json 照旧替换当前窗口（窗口数不变、不进新建面板）', J(r['a.mtab.json']));
     T('X2', r['notes.txt'].live && r['notes.txt'].tab === 'import' && /从已有音乐/.test(r['notes.txt'].tabSel) && /不是能读的曲谱文件/.test(r['notes.txt'].err) && /MIDI/.test(r['notes.txt'].err),
       'X2g ' + shell + ' 认不出的格式（.txt）落在「从已有音乐」页并说明能读哪些格式', J(r['notes.txt']));
-    T('X2', r['bad.json'].toasts.some(t => /从已有音乐/.test(t)) && !r['bad.json'].toasts.some(t => /^文件格式无法识别$/.test(t)), 'X2h ' + shell + ' 坏 JSON（不是曲谱）提示说明并指向「新建 → 从已有音乐」', J(r['bad.json'].toasts));
+    /* v68.7 S1 迁移（规格 §6.C3 #6，P2 结果 + 一个动作 / P3 不指路）：新外壳原 /从已有音乐/（写去哪里导入）→ 短文「不是谱友圈曲谱文件」+ data-k=limit + 动作「导入」，点它真的打开「从已有音乐」页；旧外壳一字不动。修前红：5cddfb8 新外壳提示为整句、没有动作钮（badGo 为 null） */
+    const x2h = shell === 'flow' ? (r['bad.json'].toasts.includes('不是谱友圈曲谱文件') && r['bad.json'].tk === 'limit' && r['bad.json'].ta === '导入' && !!badGo && badGo.live && badGo.tab === 'import')
+      : r['bad.json'].toasts.some(t => /从已有音乐/.test(t));
+    T('X2', x2h && !r['bad.json'].toasts.some(t => /^文件格式无法识别$/.test(t)), 'X2h ' + shell + ' 坏 JSON（不是曲谱）提示说明' + (shell === 'flow' ? '：「不是谱友圈曲谱文件」+「导入」（点它进「从已有音乐」）' : '并指向「新建 → 从已有音乐」'), J({ t: r['bad.json'].toasts, ta: r['bad.json'].ta, tk: r['bad.json'].tk, badGo }));
     await reset();
     T('X2', !pg.__pe.length, 'X2i ' + shell + ' 全程无页面报错', pg.__pe.slice(0, 3).join(' | '));
     await close(pg);
@@ -617,10 +624,12 @@ function BLOCK_HARD() {
       }, kind);
     }
     const flow = sh === 'flow';
-    const good = x => x.modal && (flow ? /右栏「文字」页的「输入和弦…」（Ctrl\+K）/.test(x.txt) && !/「创作」页/.test(x.txt) && /「文字」页/.test(x.toast) && !/「创作」页/.test(x.toast)
+    /* v68.7 S1 迁移（规格 §6.C3 #18 / chHint，P3 不指路）：新外壳弹窗说明原 /右栏「文字」页的「输入和弦…」（Ctrl+K）/ → 只写控件名与快捷键「「输入和弦…」（Ctrl+K）」、不写哪一栏哪一页；「未生成」提示原 /「文字」页/ → 短文（钢琴伴奏歌谱「还没有旋律或和弦」/ 钢琴谱「还没有标注和弦」）。旧外壳分支一字不动。修前红：5cddfb8 新外壳说明带「右栏「文字」页」、提示为整句 */
+    const SHORT = { acc: '还没有旋律或和弦', pn: '还没有标注和弦' };
+    const good = (x, k) => x.modal && (flow ? /「输入和弦…」（Ctrl\+K）/.test(x.txt) && !/「创作」页|右栏|「文字」页/.test(x.txt) && x.toast === SHORT[k]
       : /右栏「创作」页的「和弦」/.test(x.txt) && /右栏「创作」页的「和弦」/.test(x.toast));
-    T('X7', r.acc.acc === true && r.pn.acc === false && good(r.acc) && good(r.pn) && !pg.__pe.length,
-      'X7 ' + sh + ' 「伴奏织体」弹窗说明与「未生成」提示：' + (flow ? '指向右栏「文字」页的「输入和弦…」（Ctrl+K），不再提已不存在的「创作」页' : '仍指向右栏「创作」页的「和弦」（旧外壳原文）') + '（钢琴伴奏歌谱 / 钢琴谱两种）', J({ r, pe: pg.__pe.slice(0, 2) }));
+    T('X7', r.acc.acc === true && r.pn.acc === false && good(r.acc, 'acc') && good(r.pn, 'pn') && !pg.__pe.length,
+      'X7 ' + sh + ' 「伴奏织体」弹窗说明与「未生成」提示：' + (flow ? '写「输入和弦…」（Ctrl+K）、不写在哪一栏，不再提已不存在的「创作」页；未生成提示为短文' : '仍指向右栏「创作」页的「和弦」（旧外壳原文）') + '（钢琴伴奏歌谱 / 钢琴谱两种）', J({ r, pe: pg.__pe.slice(0, 2) }));
     await close(pg);
   })));
 

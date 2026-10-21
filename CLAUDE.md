@@ -19,7 +19,7 @@
 7. **涉及 `miniprogram/` 的版本**：递增 `deploy/mp-release.json` 的 `version`（小程序自己的 1.1.x 线，对照表见 `miniprogram/README.md`）→ 推送后工作流 `mp-upload.yml` 自动上传为开发版本，告诉用户去 mp 后台「版本管理」点「提交审核」→「发布」（v66.7 起，需仓库 secret `MP_UPLOAD_KEY`）。**未配置密钥或上传失败时**照旧：把整个目录打成 `puyouquan-miniprogram-vXX.zip` 用文件直接发给用户（产品指示：不自己去仓库下载），注明「导入→上传→提审→发布」，zip 文件名用仓库 vXX
 
 ## 常用入口（grep）
-`createSong` `NWB`（谱行引擎/谱名表）`NWP`（新建面板）`PQ_KIND`（统一谱名表，与 `api/kindname.js` 逐字节同一份，改规则两边一起改）`pqIcon` `renderOffscreen` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation` `FLOW`（新外壳：`flowOn` `setMode` `FLOW.tree/pal/mode/rd/cmd/mob/tour`）`EXPORT_ACT` `sysAct` `pgnoCfg`（v68.5 页码）`partsPlan` `partSong` `partRender` `partJobNow`（v68.6 分谱＝只读派生副本）
+`createSong` `NWB`（谱行引擎/谱名表）`NWP`（新建面板）`PQ_KIND`（统一谱名表，与 `api/kindname.js` 逐字节同一份，改规则两边一起改）`pqIcon` `renderOffscreen` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation` `FLOW`（新外壳：`flowOn` `setMode` `FLOW.tree/pal/mode/rd/cmd/mob/tour`）`EXPORT_ACT` `sysAct` `pgnoCfg`（v68.5 页码）`partsPlan` `partSong` `partRender` `partJobNow`（v68.6 分谱＝只读派生副本） `toastSay`（v68.7 新外壳短提示条：结果 + 动作 + data-k，旧外壳原文）`F.mi`（菜单统一模板）
 
 ## 已知坑
 - 单文件后声明函数覆盖前声明——新函数名先 grep（v37.2 教训）。
@@ -27,6 +27,7 @@
 - `smg` 非均匀缩放：只有未传 sx/sy 才走均匀分支（v37.1 教训）。
 - 位置/对齐问题用几何断言（数值坐标）验证，不要只看截图。
 - **v68.2 起两套外壳并存**：默认新外壳 flow，旧外壳 `?shell=classic` 兜底——动外壳或共享函数要两种都跑（tv_shellflow/tv_trktree/tv_modes/tv_flowdef 对拍 `tests/shellflow_ref.json`）；新测试默认走新外壳入口（`#dt-add`、文件 ▾、右栏「智能」等），测旧布局结构的才钉 `?shell=classic`。
+- **v68.7 起新外壳文案有字数预算**（方案 `docs/design-2026-10g` P1–P4：按钮 ≤4 字、菜单项 ≤6 字不带副标题、悬停 ≤12 字、不写「左栏 / 右栏 / 行 2」等位置词）：改界面文字跑 `node deploy/check-wording.js` 看「字数预算」报告与 `tv_textbudget`（37 屏只降不升，有意增加写 `tests/textbudget_ref.json` 的 allow 带上限）；新外壳提示条用 `toastSay`，旧外壳原文不动。
 - **`showModal(\`…\`)`/更新日志等模板字符串里禁用裸反引号**——内联代码词用 `<code>` 包裹，裸反引号会提前闭合模板字面量→整段脚本解析失败→编辑器白屏（v43.6 教训；`smoke.sh` 只查字符串标记抓不到）。发版前跑 `node deploy/check-syntax.js muse-tab/index.html`，部署流水线 checkout 后同名语法闸会拦截。
 
 ## 战略优先级（v37.6 起）

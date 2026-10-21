@@ -38,14 +38,14 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     song.measures[0].voxes[0][0].deg = 1; render(); setRibbon('vox'); render();
   }, base);
   const flowOn = await pg.evaluate(() => document.body.classList.contains('flow'));
-  const genClick = await clickVis('#flw-left [data-fa="tree:gentab"]');
-  const genModal = await pg.evaluate(() => { const m = document.getElementById('modal-mask'); const t = m ? m.textContent : '';
-    const ok = /低把位/.test(t) && /中把位/.test(t); try { closeModal(); } catch (_) {} return ok; });
+  /* v68.7 S1 迁移（README ③合并表，规格 B3）：音轨树「由此生成六线谱轨…」子行撤掉 → 断言它不在了，同一功能走 ＋加轨 ›「由「旋律」生成六线谱轨…」[data-fa="tree:gen"]
+     （同一 showVoxTabMenu 把位弹窗，「低把位 / 中把位」两项照断言）。修前红修后绿：改前子行还在（noRow 为假） */
+  const noRow = await pg.evaluate(() => { FLOW.tree.sync(); return !document.querySelector('#flw-left [data-fa="tree:gentab"]'); });
   const addClick = await clickVis('#flw-left [data-fa="tree:add"]');
   const addGen = await pg.evaluate(() => { const it = document.querySelector('#popmenu [data-fa="tree:gen"]');
     const ok = !!it && it.getAttribute('aria-disabled') !== 'true' && it.offsetParent !== null; return ok; });
   if (addGen) { await pg.locator('#popmenu [data-fa="tree:gen"]').click({ timeout: 3000 }); await pg.waitForTimeout(120); }
-  const addModal = await pg.evaluate(() => { const m = document.getElementById('modal-mask'); const ok = !!m && /低把位/.test(m.textContent);
+  const addModal = await pg.evaluate(() => { const m = document.getElementById('modal-mask'); const ok = !!m && /低把位/.test(m.textContent) && /中把位/.test(m.textContent);
     try { closeModal(); } catch (_) {} try { closePop(); } catch (_) {} return ok; });
   const pianoF = await pg.evaluate((base2) => {
     loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2))); setRibbon('vox'); render();
@@ -56,9 +56,9 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     try { closePop(); } catch (_) {}
     return { row: !!row, menuGen };
   }, base);
-  T(flowOn && genClick && genModal && addClick && addGen && addModal && !pianoF.row && pianoF.menuGen !== 'on',
-    'T1 入口谱类显隐（默认新外壳：歌谱音轨树「由此生成六线谱轨…」可见可点＝把位弹窗；加轨菜单含生成项；钢琴谱两处都不给）',
-    JSON.stringify({ flowOn, genClick, genModal, addClick, addGen, addModal, pianoF }));
+  T(flowOn && noRow && addClick && addGen && addModal && !pianoF.row && pianoF.menuGen !== 'on',
+    'T1 入口谱类显隐（默认新外壳：歌谱的生成入口在 ＋加轨 › 生成六线谱（v68.7 音轨树不再有「由此生成…」子行）＝把位弹窗「低把位 / 中把位」；钢琴谱不给）',
+    JSON.stringify({ flowOn, noRow, addClick, addGen, addModal, pianoF }));
 
   /* T1c 旧外壳兜底（?shell=classic）：原 T1 断言一字不改 */
   {

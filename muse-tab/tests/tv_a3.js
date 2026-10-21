@@ -129,6 +129,14 @@ const withQ = (u, q) => q ? u + (u.includes('?') ? '&' : '?') + q : u;
       && /已复制/.test(r.msg) && /zhipu\.puyouquan\.com/.test(r.copied),
       'T6 手机启动台：无新建/导入，有看示例/发到电脑继续（复制制谱链接），无横向滚动', JSON.stringify(r));
     await pg.close();
+    /* v68.7 S1（规格 §6.C5 / 功能保全 #26）：新外壳（html.flow-pre）手机启动台不出底注 #spd-mnote（节点与文字照在，上面 T6 读 textContent 照过），
+       同屏「发到电脑继续」卡可见＝同一件事的去处；旧外壳（?shell=classic）底注照显、文字不变。修前红：5cddfb8 新外壳底注可见（note 为 true） */
+    const vis6 = `(()=>{ const vis=s=>{ const e=document.querySelector(s); if(!e) return false; const r=e.getBoundingClientRect(); return r.width>0 && r.height>0 && getComputedStyle(e).visibility!=='hidden'; };
+      return { pre:document.documentElement.classList.contains('flow-pre'), pad:startPadOn(), note:vis('#spd-mnote'), pc:vis('[data-sp="pc"]'), txt:(document.getElementById('spd-mnote')||{}).textContent||'' }; })()`;
+    const pf = await open({ width: 390, height: 844 }); const nf = await pf.evaluate(vis6); await pf.close();
+    const pc = await open({ width: 390, height: 844 }, 'shell=classic'); const nc = await pc.evaluate(vis6); await pc.close();
+    T(nf.pre && nf.pad && !nf.note && nf.pc && /电脑/.test(nf.txt) && !nc.pre && nc.pad && nc.note && nc.pc && nc.txt === nf.txt,
+      'T6b 新外壳手机启动台不出底注、「发到电脑继续」卡可见；旧外壳底注照显（文字同一份）', JSON.stringify({ nf, nc }));
   }
 
   /* ---------- T7 小节线菜单不出屏 ---------- */

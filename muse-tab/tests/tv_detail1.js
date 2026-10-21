@@ -904,10 +904,13 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
       .sort((a, c) => a.getBoundingClientRect().left - c.getBoundingClientRect().left)
       .map(e => (e.textContent || '').trim() || '[g]').join(' ');
     loadSong(createSong('guitar', { title: 'x', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
+    /* v68.7 S1 迁移（README P2 悬停＝名称 + 键）：新外壳音高键 title「唱名 3」、品位键「5 品」、× 键「哑音（x）」（旧外壳原文「简谱音名 3（…）」「5 品（…）」「× 分解标记…」不动，[classic] 段照原断言）。
+       修前红修后绿：改前新外壳的 title 是旧长句，/^唱名 3$/ · /^5 品$/ 不中 */
+    const fl = typeof flowOn === 'function' && flowOn();
     // ① 简谱：1-7 简谱音名 + 0 休止 + 高/低八度；库＝节奏型库
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     const jpOk = seq().indexOf('1 2 3 4 5 6 7 0') === 0
-      && /简谱音名/.test(document.querySelector('#eb-note [data-nd="3"]').title)
+      && (fl ? /^唱名 3$/ : /简谱音名/).test(document.querySelector('#eb-note [data-nd="3"]').title)
       && document.getElementById('eb-lib').textContent === '节奏型库…';
     // ② 吉他：数字＝品位（非简谱音名）、× 为分解标记、品位钮按余量折叠且不溢出
     sel = { row: 'tab', vi: 0, mi: 0, ci: 0, si: 3 }; syncInputs();
@@ -915,8 +918,8 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
     const shown = [...document.querySelectorAll('#eb-note .nd')].filter(vis).map(x => +x.dataset.nd);
     const cap = fretInlineCap();
     let maxRight = 0; document.getElementById('editbar').querySelectorAll('button').forEach(x => { if (vis(x)) maxRight = Math.max(maxRight, x.getBoundingClientRect().right); });
-    const tabOk = /品（/.test(document.querySelector('#eb-note [data-nd="5"]').title)
-      && /分解标记/.test(document.getElementById('eb-mute-n').title)
+    const tabOk = (fl ? /^5 品$/ : /品（/).test(document.querySelector('#eb-note [data-nd="5"]').title)
+      && (fl ? /^哑音（x）$/ : /分解标记/).test(document.getElementById('eb-mute-n').title)
       && new Set(caps).size === 1                       // 折叠稳定（不随重算抖动）
       && Math.max.apply(null, shown) === cap            // 恰好铺开到 cap
       && vis(document.getElementById('eb-fret-more')) === (cap < fretMaxOf())
@@ -930,7 +933,8 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
     // ④ 库按谱类路由：单谱表五线谱 → 提示后退回节奏型库
     const toasts = []; const ot = window.toast; window.toast = m => toasts.push(m);
     openRhyLib();
-    const singleOk = /需要大谱表/.test(toasts[0] || '') && !!document.querySelector('.modal');
+    /* v68.7 S1 迁移（规格 §6.C3 #8）：新外壳（[flow] 段）提示条原 /需要大谱表/（整句）→ 短文「需要钢琴大谱表」；旧外壳段原断言逐字不变。修前红：5cddfb8 [flow] 段为整句 */
+    const singleOk = (document.body.classList.contains('flow') ? toasts[0] === '需要钢琴大谱表' : /需要大谱表/.test(toasts[0] || '')) && !!document.querySelector('.modal');
     closeModal();
     // ⑤ 大谱表钢琴 → 伴奏织体（含内置钢琴节奏型条目）
     loadSong(createSong('piano', { title: 'p', key: 'C', beats: 4, unit: 4, nMea: 2, lyr: 0 }));

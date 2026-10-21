@@ -449,7 +449,9 @@ async function mkPage(b, url, opt) {
       const made = await pg.evaluate(() => ({ lab: docTypeLabel(song), k: NWB.stackOf(song), ll: song.lyricLines }));
       /* 谱型条换谱类：菜单项写的谱名＝换完的谱名（直接换：沿用无词；空谱重建：钢琴伴奏歌谱默认留 1 行词） */
       const sw = async (to) => {
-        const KB = await pg.evaluate(() => (typeof flowOn === 'function' && flowOn()) ? '#flw-kchip' : '#lb-wrap .lb-kind');
+        /* v68.7 S1 迁移（D4 谱类芯片只读）：flow 的换谱类菜单开者由音轨区芯片 #flw-kchip 改为悬浮条谱类 ▾ #flw-sb-kind（同一 lbMenuOpen、同一 #lb-menu，菜单项断言不变）。
+           修前红修后绿：改前两处都能开（本条只换入口）；改后点芯片不开菜单，原写法 waitForSelector('#lb-menu') 超时 */
+        const KB = await pg.evaluate(() => (typeof flowOn === 'function' && flowOn()) ? '#flw-sb-kind' : '#lb-wrap .lb-kind');
         await pg.click(KB); await pg.waitForSelector('#lb-menu');
         const item = await pg.evaluate(t => { const x = document.querySelector('#lb-menu .lb-mi[data-sw="' + t + '"]'); return x ? { name: (x.querySelector('b') || x).textContent, mode: x.className.replace(/.*m-/, '') } : null; }, to);
         await pg.click('#lb-menu .lb-mi[data-sw="' + to + '"]'); await pg.waitForTimeout(250);

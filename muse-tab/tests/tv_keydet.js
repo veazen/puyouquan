@@ -167,7 +167,12 @@ const CMIN_MEL = [[60, 1], [63, 1], [67, 1], [63, 1], [65, 1], [62, 1], [59, 1],
   const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false;
-    window.__toasts = []; const o = window.toast; window.toast = (m, x) => { window.__toasts.push(String(m)); return o(m, x); }; });
+    /* v68.7 S1 迁移（集成时补；规格 §6.C3：新外壳提示条走 toastSay，只出 ≤12 字短文，如「已导入 9 小节」「已改记谱调 1=D」）：本套件断言的是调的去向说明
+       （按内容检测 / 调号按文件 / 按 1=G 指法 / 固定调 / 音高不变）——同一次 toastSay 的第 1 参就是这句原文（新旧外壳同一份计算，旧外壳与手机照样显示），
+       改记它、并跳过同一次调用里 toastSay 自己转发的短文（__inSay），__toasts 的内容与改前逐字相同；意图不变。
+       修前红修后绿：原钩子只包 toast，在集成（默认新外壳）上只拿到短文，T2 / T4 / T6 / T8 / T10 红（17/22）；改前代码没有 toastSay，新钩子不生效、照旧绿 */
+    window.__toasts = []; const o = window.toast; window.toast = (m, x) => { if (!window.__inSay) window.__toasts.push(String(m)); return o(m, x); };
+    if (typeof window.toastSay === 'function') { const s0 = window.toastSay; window.toastSay = function (m) { window.__toasts.push(String(m)); window.__inSay = 1; try { return s0.apply(this, arguments); } finally { window.__inSay = 0; } }; } });
   const EV = js => pg.evaluate(js).catch(e => ({ err: e.message }));
   const b64 = buf => buf.toString('base64');
   /* 页面内共用探针：谱面页头 1=X、简谱联排行文本、逐音绝对音高、TAB 品位、播放事件、MIDI 导出逐音、MusicXML 往返音高 */

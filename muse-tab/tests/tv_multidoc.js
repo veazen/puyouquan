@@ -68,9 +68,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const lib = JSON.parse(localStorage.getItem('musetab-library-v1') || '[]');
     return { before, after: lib.length, saved: lib.some(x => x.title === '窗口二'),
       n: docs.length, cur: song.title,
-      toast: (document.getElementById('toast') || {}).textContent || '' };
+      toast: (document.getElementById('toast') || {}).textContent || '', flow: document.body.classList.contains('flow'), k: (document.getElementById('toast') || { dataset: {} }).dataset.k || '' };
   } catch (e) { return { err: String(e && e.message || e) }; } });
-  T(r.before === 0 && r.after === 1 && r.saved && r.n === 1 && r.cur === '窗口一' && r.toast.includes('我的曲谱'),
+  /* v68.7 S1 迁移（规格 §6.C3 #13）：新外壳关窗提示原 includes('我的曲谱')（「已关闭《窗口二》并存入「我的曲谱」」）→ 短文「已关闭 · 已存入」+ data-k=state；转存与否仍由库条数判（数据红线不变）。修前红：5cddfb8 新外壳为整句 */
+  T(r.before === 0 && r.after === 1 && r.saved && r.n === 1 && r.cur === '窗口一' && (r.flow ? r.toast === '已关闭 · 已存入' && r.k === 'state' : r.toast.includes('我的曲谱')),
     'T3 关闭未入库自动转存', JSON.stringify(r));
 
   // T4 关闭已入库窗口 → 不重复入库；curDocI 收敛
@@ -81,7 +82,9 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const dotLocal = !!document.querySelector('#doc-tabs .dtab.on .dt-dot');   // v67.8 未入库：空心圈
     saveToLibrary();                     // 入库（v67.8 起已入库不标圈，悬停提示写明已存入）
     const on = document.querySelector('#doc-tabs .dtab.on');
-    const dotSaved = dotLocal && !!on && !on.querySelector('.dt-dot') && /已存入我的曲谱，编辑实时同步/.test(on.title);
+    /* v68.7 S1 迁移：悬停提示 /已存入我的曲谱，编辑实时同步/ → /已存入我的曲谱/（新外壳页签悬停只写状态名，规格 A1 / README ②P2）；
+       修前红修后绿：新文案「已存入我的曲谱」不含「，编辑实时同步」→ 旧正则红，新正则绿（改前文案同样含「已存入我的曲谱」） */
+    const dotSaved = dotLocal && !!on && !on.querySelector('.dt-dot') && /已存入我的曲谱/.test(on.title);
     const libN1 = JSON.parse(localStorage.getItem('musetab-library-v1')).length;
     document.querySelector('#doc-tabs .dt-x[data-doc-x="1"]').click();
     const libN2 = JSON.parse(localStorage.getItem('musetab-library-v1')).length;

@@ -169,11 +169,18 @@ const T = (ok, name, detail) => {
   await pf.waitForTimeout(200);
 
   // E1 位置：#em-toggle 在右栏「属性」页（1440 停靠）、#beat-box 在状态栏（#mixer-dock .mx-bar），旧创作页卡片不出现
+  /* v68.7 S1 迁移（D8 拍板「新外壳撤掉编辑模式开关」，本版不撤功能，规格 B5）：原「#em-toggle 在属性页且可见」→ #em-toggle 节点仍在属性页（DOCK 落点照留、st:em 仍委托它）但不可见；
+     两档的常驻入口＝状态栏「⋯」菜单「时值检查」组的两项 [data-fa="st:em"]（自由编辑 / 修复建议）。修前红修后绿：改前 #em-toggle 可见（emVis 为真）、⋯ 菜单两项照有 */
   r = await pf.evaluate(() => { const et = document.getElementById('em-toggle'), bb = document.getElementById('beat-box');
     return { flow: document.body.classList.contains('flow'), page: FLOW.rd.page(), emIn: !!et.closest('#flw-rp-prop'), emVis: __vis(et),
       bbIn: !!bb.closest('#mixer-dock .mx-bar'), bsVis: __vis('beat-status'), oldCards: __vis('rc-cursor') || __vis('rc-beat') || __vis('rtabs') }; });
-  T(r.flow && r.page === 'prop' && r.emIn && r.emVis && r.bbIn && r.bsVis && !r.oldCards,
-    'E1 flow：编辑模式开关在右栏「属性」页、时值检查在状态栏（旧创作页卡片不出现）', JSON.stringify(r));
+  await pf.click('#flw-st-more'); await pf.waitForTimeout(150);
+  r.menu = await pf.evaluate(() => [...document.querySelectorAll('#popmenu [data-fa="st:em"]')].filter(x => __vis(x)).map(x => x.dataset.v + ':' + x.getAttribute('aria-checked')));
+  await pf.keyboard.press('Escape'); await pf.waitForTimeout(120);
+  T(r.flow && r.page === 'prop' && r.emIn && !r.emVis && r.bbIn && r.bsVis && !r.oldCards && JSON.stringify(r.menu) === JSON.stringify(['free:false', 'smart:true']),
+    'E1 flow：编辑模式两档在状态栏「⋯」›「时值检查」（属性页的卡片隐藏、#em-toggle 节点照留）、时值检查在状态栏（旧创作页卡片不出现）', JSON.stringify(r));
+  /* ⋯ 菜单里点一档（与 #em-toggle 同一开关：st:em → #em-toggle button.click()） */
+  const emPick = async v => { await pf.click('#flw-st-more'); await pf.waitForTimeout(150); await pf.click('#popmenu [data-fa="st:em"][data-v="' + v + '"]'); await pf.waitForTimeout(150); };
 
   const eo = () => pf.evaluate(() => { const ed = document.getElementById('err-drop');
     return { open: document.body.classList.contains('flw-eo') && __vis(ed), bad: document.getElementById('beat-status').className === 'bad', good: document.getElementById('beat-status').className === 'good',
@@ -187,20 +194,21 @@ const T = (ok, name, detail) => {
   const e3 = await eo();
   T(e3.bad && e3.open && e3.smartOn && e3.sug >= 1 && e3.fix >= 1 && e3.all && /修复建议/.test(e3.hd), 'E3 flow 智能编辑：点状态栏时值项上弹建议 + 一键采纳', JSON.stringify(e3));
 
-  // E4 真实点属性页「自由编辑」：只列正确与否，无建议 / 无采纳按钮；本机键持久化
-  await pf.click('#em-toggle button[data-em="free"]'); await pf.waitForTimeout(150);
+  // E4 真实点「自由编辑」：只列正确与否，无建议 / 无采纳按钮；本机键持久化
+  /* v68.7 S1 迁移（D8）：原真实点属性页 #em-toggle「自由编辑」→ 真实点状态栏「⋯」›「自由编辑」（musetab-editmode 写值断言不变）。修前红修后绿：改前 ⋯ 菜单同样能点（本条在改前也绿，迁移只换入口） */
+  await emPick('free');
   if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
   const e4 = await eo();
   T(e4.mode === 'free' && e4.freeOn && e4.bad && e4.open && e4.rows >= 1 && e4.sug === 0 && e4.fix === 0 && !e4.all && /时值检查/.test(e4.hd),
-    'E4 flow 自由编辑（属性页真实点击）：只报正确与否，无修复建议', JSON.stringify(e4));
+    'E4 flow 自由编辑（状态栏「⋯」真实点击）：只报正确与否，无修复建议', JSON.stringify(e4));
 
   // E5 自由模式点条目定位：sel 跳到该小节、上弹层收起
   await pf.click('#err-drop .err .err-desc'); await pf.waitForTimeout(150);
   const e5 = await pf.evaluate(() => ({ mi: sel.mi, row: sel.row, open: document.body.classList.contains('flw-eo') }));
   T(e5.mi === 0 && e5.row === 'vox' && !e5.open, 'E5 flow 自由模式点条目定位（并收起上弹层）', JSON.stringify(e5));
 
-  // E6 切回智能 + 全部采纳 → 时值恢复正确
-  await pf.click('#em-toggle button[data-em="smart"]'); await pf.waitForTimeout(150);
+  // E6 切回智能 + 全部采纳 → 时值恢复正确（v68.7：从状态栏「⋯」切回）
+  await emPick('smart');
   if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
   await pf.click('#err-fixall'); await pf.waitForTimeout(200);
   const e6 = await eo();

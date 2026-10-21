@@ -540,12 +540,14 @@ async function M23SCN() {
   if (want('M10')) jobs.push(() => SAFE('M10', 'M10', async () => {
     const pg = await open(1440, 900, { tag: 'M10' });
     await scn(pg, 'songbie', { mi: 1 }); const base = await redBase(pg);
-    const ci0 = await EV(pg, () => ({ page: FLOW.rd.page(), in: !!document.querySelector('#flw-rp-prop #cursor-info'), vis: __vis('#cursor-info'), t: document.getElementById('cursor-info').textContent, sel: [sel.mi, sel.ci] }));
+    /* v68.7 S1 迁移（规格 B5 / R13）：新外壳 #cursor-info 的「列 第 c / n」换成拍位「拍 第 b / B」（b＝FLOW.st.pos().beat，与状态栏同口径）→ 断言改读拍位；旧外壳那一行逐字不动（不在本用例）。
+       修前红修后绿：改前写「列第 c / n」，没有「拍第 b /」 */
+    const ci0 = await EV(pg, () => ({ page: FLOW.rd.page(), in: !!document.querySelector('#flw-rp-prop #cursor-info'), vis: __vis('#cursor-info'), t: document.getElementById('cursor-info').textContent, sel: [sel.mi, sel.ci], bt: FLOW.st.pos().beat }));
     await pg.keyboard.press('ArrowRight'); await wait(pg, 200);
-    const ci1 = await EV(pg, () => ({ t: document.getElementById('cursor-info').textContent, sel: [sel.mi, sel.ci] }));
-    const has = (t, s) => t.indexOf('小节第 ' + (s[0] + 1) + ' /') >= 0 && t.indexOf('列第 ' + (s[1] + 1) + ' /') >= 0;
-    T('M10', ci0.page === 'prop' && ci0.in && ci0.vis && ci1.t !== ci0.t && has(ci0.t, ci0.sel) && has(ci1.t, ci1.sel) && ci1.sel[1] === ci0.sel[1] + 1,
-      'M10a 右栏默认「属性」页，#cursor-info 搬入且可见；→ 键后随光标更新（第 ' + (ci1.sel[0] + 1) + ' 小节第 ' + (ci1.sel[1] + 1) + ' 列）', J({ ci0: ci0.t.slice(0, 40), ci1: ci1.t.slice(0, 40) }));
+    const ci1 = await EV(pg, () => ({ t: document.getElementById('cursor-info').textContent, sel: [sel.mi, sel.ci], bt: FLOW.st.pos().beat }));
+    const has = (t, s, bt) => t.indexOf('小节第 ' + (s[0] + 1) + ' /') >= 0 && t.indexOf('拍第 ' + bt + ' /') >= 0 && t.indexOf('列第') < 0;
+    T('M10', ci0.page === 'prop' && ci0.in && ci0.vis && ci1.t !== ci0.t && has(ci0.t, ci0.sel, ci0.bt) && has(ci1.t, ci1.sel, ci1.bt) && ci1.sel[1] === ci0.sel[1] + 1 && ci1.bt > ci0.bt,
+      'M10a 右栏默认「属性」页，#cursor-info 搬入且可见；→ 键后随光标更新（第 ' + (ci1.sel[0] + 1) + ' 小节第 ' + ci1.bt + ' 拍；v68.7 新外壳读拍位不读列）', J({ ci0: ci0.t.slice(0, 40), ci1: ci1.t.slice(0, 40) }));
     /* 已加记号：记号面板点「延长号」→ 芯片出现、与 curCol 一致；点 × → 清掉 */
     const at = await EV(pg, () => ({ mi: sel.mi, ci: sel.ci, ferm: !!curCol().ferm }));
     await pg.click('#flw-pgrid .flw-sg[data-v="fermata"]'); await wait(pg, 250);
@@ -643,13 +645,15 @@ async function M23SCN() {
     await pg.keyboard.press('Control+Slash'); await wait(pg, 200);
     const o1 = await EV(pg, () => { const m = document.getElementById('popmenu'); return { open: !!(m && m.classList.contains('flw-cmd') && __vis(m)), role: m && m.getAttribute('role'), ae: (document.activeElement || {}).id }; });
     await pg.keyboard.type('ych'); await wait(pg, 200);
-    const r1 = await EV(pg, () => { const b2 = document.getElementById('flw-cmdo-0'); return b2 ? { t: b2.querySelector('.flw-cmdt').textContent, w: b2.querySelector('.flw-cmdw').textContent, sel: b2.getAttribute('aria-selected'),
+    /* v68.7 S1 迁移：命令面板删位置列 .flw-cmdw（「在 书写 · 左栏记号 · 组名」）→ 断言没有 .flw-cmdw、读屏名 aria-label＝名称；位置改由 ↑↓ 描边真实控件（tv_flowdef F6b）。
+       理由：规格 A3 / README ②P3；修前红修后绿：改前每行带 .flw-cmdw、aria-label 是「名称 · 在 …」→ 红 */
+    const r1 = await EV(pg, () => { const b2 = document.getElementById('flw-cmdo-0'); return b2 ? { t: b2.querySelector('.flw-cmdt').textContent, w: b2.querySelectorAll('.flw-cmdw').length, al: b2.getAttribute('aria-label'), sel: b2.getAttribute('aria-selected'),
       grp: FLOW.pal.GROUPS('jp').find(g => g[2].indexOf('fermata') >= 0)[1] } : null; });
     await shot(pg, 'M13-cmd-ych-1280');
     await pg.keyboard.press('Enter'); await wait(pg, 250);
     const e1 = await EV(pg, at => ({ ferm: !!__colAt(at.mi, at.ci, 'vox', 0).ferm, open: !!document.querySelector('#popmenu.flw-cmd'), rec: localStorage.getItem('musetab-cmd-recent') }), at);
-    T('M13', o1.open && o1.role === 'dialog' && o1.ae === 'flw-cmdq' && !!r1 && r1.t === '延长号' && r1.w === '在 书写 · 左栏记号 · ' + r1.grp && r1.sel === 'true' && !at.ferm && e1.ferm && !e1.open,
-      'M13a Ctrl+/ 打开命令面板（role=dialog、焦点在搜索框）；输入 ych 第一条「' + (r1 && r1.t) + ' · ' + (r1 && r1.w) + '」；Enter → 第 ' + (at.mi + 1) + ' 小节第 ' + (at.ci + 1) + ' 列 ferm、面板关闭', J({ o1, r1, e1: { ferm: e1.ferm, open: e1.open } }));
+    T('M13', o1.open && o1.role === 'dialog' && o1.ae === 'flw-cmdq' && !!r1 && r1.t === '延长号' && r1.w === 0 && r1.al === '延长号' && r1.sel === 'true' && !at.ferm && e1.ferm && !e1.open,
+      'M13a Ctrl+/ 打开命令面板（role=dialog、焦点在搜索框）；输入 ych 第一条「' + (r1 && r1.t) + '」（v68.7 S1：没有位置列、读屏名＝名称）；Enter → 第 ' + (at.mi + 1) + ' 小节第 ' + (at.ci + 1) + ' 列 ferm、面板关闭', J({ o1, r1, e1: { ferm: e1.ferm, open: e1.open } }));
     let rec = null; try { rec = JSON.parse(e1.rec); } catch (_) {}
     T('M13', Array.isArray(rec) && rec[0] === 'sign:fermata', 'M13b 最近用过记在 musetab-cmd-recent（数组，第 1 条 sign:fermata）', e1.rec);
     await pg.keyboard.press('Control+z'); await wait(pg, 150);
@@ -965,9 +969,13 @@ async function M23SCN() {
           cur: (document.querySelector('#flw-sbar .flw-sb-steps li[aria-current="step"]') || {}).className || '', page: FLOW.rd.page(), dock: document.body.classList.contains('flw-rd'),
           gone: !document.getElementById('flw-start') && !document.getElementById('flw-next') && !document.querySelector('.flw-stp-i') }; });
       await shot(pg, 'M20-sbar-' + w);
-      T('M20', a.bar && a.gone && J(a.steps) === J(a.fsteps) && J(a.steps) === J(lb.steps) && a.cur === 'now' && a.hint === '点旋律行，按数字键写音' && a.hintVis
-        && a.title === a.chint && a.title === lb.hint && !!lb.hint && (w < 1440 ? a.rs : (a.dock && a.page === 'prop')),
-        'M20a ' + w + '×' + h + (w < 1280 ? '（窄档）' : w >= 1440 ? '（右栏停靠）' : '（右栏竖条）') + '：悬浮条步骤「' + a.steps.join(' › ') + '」＝lbInfo 的步名＝经典谱型条 .lb-steps；当前步提示可见字「' + a.hint + '」（短），title＝经典 .lb-hint 原文（同源 lbCur）；'
+      /* v68.7 S1 迁移（规格 B2）：原「条上步名＝lbInfo 全名＝经典 .lb-steps；提示「点旋律行，按数字键写音」；title＝经典 .lb-hint 原文」→
+         条上 2 字步名（＝lbInfo 全名按 STEP2 换算，经典 .lb-steps 仍是全名＝lbInfo 同源）；提示「按 1–7 写音」、title＝同一句（P2）；经典 .lb-hint 原文照旧＝lbCur（旧外壳零差异）。
+         修前红修后绿：改前条上是全名、提示是旧句、title 是长句 */
+      const S2 = { '写旋律': '旋律', '配和弦与伴奏': '伴奏', '选织体': '织体', '生成六线谱': '吉他', '调把位与扫弦': '节奏', '标和弦': '和弦' };
+      T('M20', a.bar && a.gone && J(a.steps) === J(a.fsteps.map(t => S2[t] || t)) && J(a.fsteps) === J(lb.steps) && a.cur === 'now' && a.hint === '按 1–7 写音' && a.hintVis
+        && a.title === a.hint && a.chint === lb.hint && !!lb.hint && (w < 1440 ? a.rs : (a.dock && a.page === 'prop')),
+        'M20a ' + w + '×' + h + (w < 1280 ? '（窄档）' : w >= 1440 ? '（右栏停靠）' : '（右栏竖条）') + '：悬浮条步骤「' + a.steps.join(' › ') + '」＝lbInfo 步名的 2 字名（lbInfo＝经典谱型条 .lb-steps）；当前步提示「' + a.hint + '」（≤12 字），title＝同一句；经典 .lb-hint 原文不动（同源 lbCur）；'
         + (w >= 1440 ? '落地右栏停在「属性」页；' : '') + '没有行 2 起步组 / ⓘ / 「下一步」卡',
         J({ a, lb }));
       await redEnd('M20', pg, base, []);
@@ -1042,7 +1050,8 @@ async function M23SCN() {
   };
   /* v68.2 切默认（PLAN §5.4）：被测页改为 ?shell=classic 的旧外壳，基线仍是 shellflow_ref.json 提交（v68.1 a8c2089）不带开关的默认外壳（＝旧外壳）。
      显式例外：musetab-flow（旧外壳写 '0'、基线不写）——G_keys 对拍时两边都去掉，M23a 另断言值为 '0'。本场景路径不经过本版其余有意改动
-     （偏好设置「使用旧版布局」· TRK-5 音量 0 · TRK-6 删吉他轨 · PN-5 转调小节音名），其余必须零差异 */
+     （偏好设置「使用旧版布局」· TRK-5 音量 0 · TRK-6 删吉他轨 · PN-5 转调小节音名），其余必须零差异。
+     v68.7 简约化：对旧外壳没有有意改动、不加例外（M19–M22 的旧外壳提示逐条对拍照旧；共享代码改动逐条登记在 tv_shellflow S0 ⑦） */
   const noFlowKey = k => String(k || '').split(',').filter(x => x && x !== 'musetab-flow').join(',');
   if (want('M23')) jobs.push(() => SAFE('M23', 'M23', async () => {
     const B = await runDefault(CLASSICU, M23SCN);
@@ -1232,7 +1241,8 @@ async function M23SCN() {
   if (want('M25')) jobs.push(() => SAFE('M25', 'M25a', async () => {
     /* v68.3 迁移：只有一句提示的谱类（没有起步步骤）——谱面上方的悬浮条在常用工具阶段，空谱提示可见（短），title＝LB_TIP（经典谱型条 .lb-tip 同源）；
        落地不再把右栏拉去「智能」页（停靠态停在默认「属性」页）；没有 ⓘ / 「下一步」卡 */
-    const SB_TIP = { gtr: '↑↓ 选弦，数字键写品位', vocal: '点谱面，按数字键写音', chord: '选中一拍，按 Ctrl+K 写和弦' };
+    /* v68.7 S1 迁移（规格 B2，README P2）：短提示换新句（≤12 字、不带句读），title＝同一句（原＝LB_TIP 长句；LB_TIP 仍在，经典谱型条用）。修前红修后绿：改前可见字与 title 都是旧句 */
+    const SB_TIP = { gtr: '↑↓ 选弦 数字写品位', vocal: '按 1–7 写音', chord: '选一拍 Ctrl+K 写和弦' };
     const rows = [];
     for (const [w, h] of [[1440, 900], [1280, 800]]) {
       const pg = await open(w, h, { tag: 'M25a-' + w });
@@ -1247,10 +1257,10 @@ async function M23SCN() {
       await shot(pg, 'M25-tip-' + w);
       await close(pg);
     }
-    const ok = rows.every(r => !r.a.steps && !!r.a.tip && r.a.ph === 'tools' && r.a.hint === SB_TIP[r.k] && r.a.hv && r.a.title === r.a.tip && !r.a.next && !r.a.i
+    const ok = rows.every(r => !r.a.steps && !!r.a.tip && r.a.ph === 'tools' && r.a.hint === SB_TIP[r.k] && r.a.hv && r.a.title === r.a.hint && !r.a.next && !r.a.i
       && (r.w >= 1440 ? (r.a.dock && r.a.page === 'prop') : !r.a.dock));
-    T('M25', ok, 'M25a PN-1 只有一句提示的谱类（吉他弹唱 / 简谱歌谱 / 和弦谱）新建落地：谱面上方悬浮条在常用工具阶段、空谱提示可见（短）且 title＝LB_TIP（经典谱型条 .lb-tip 同源）；1440 停靠右栏停在「属性」页、1280 竖条；没有 ⓘ / 「下一步」卡',
-      J(rows.map(r => [r.w, r.k, r.a.page, r.a.ph, r.a.hint, 'title=tip:' + (r.a.title === r.a.tip)])));
+    T('M25', ok, 'M25a PN-1 只有一句提示的谱类（吉他弹唱 / 简谱歌谱 / 和弦谱）新建落地：谱面上方悬浮条在常用工具阶段、空谱提示可见（≤12 字）且 title＝同一句（v68.7；LB_TIP 仍有、经典谱型条用）；1440 停靠右栏停在「属性」页、1280 竖条；没有 ⓘ / 「下一步」卡',
+      J(rows.map(r => [r.w, r.k, r.a.page, r.a.ph, r.a.hint, 'title=hint:' + (r.a.title === r.a.hint)])));
   }));
   if (want('M25')) for (const w of [821, 841, 861]) jobs.push(() => SAFE('M25', 'M25b ' + w, async () => {
     /* PN-2：821–861 宽新建钢琴伴奏歌谱：行 2 没有被「更多 ▾」盖住 / 裁到屏外的键；收起的键都在「更多 ▾」里（v68.3 起步收回悬浮条、行 2 没有起步组，断言不变） */
@@ -1442,21 +1452,29 @@ async function M23SCN() {
     await scn(pg, 'newpacc'); await wait(pg, 300); const base = await redBase(pg);
     await EV(pg, () => { FLOW.rd.show('prop'); }); await wait(pg, 200);
     const sz = sel => EV(pg, sel => [...document.querySelectorAll(sel)].filter(x => __vis(x)).map(x => { const r = x.getBoundingClientRect(); return [x.textContent.trim().slice(0, 6), Math.round(r.width), Math.round(r.height)]; }), sel);
-    const em = await sz('#right-dock #em-toggle button');
+    /* v68.7 S1 迁移（D8，规格 B5）：属性页编辑模式卡在新外壳里隐藏，两档的常驻入口是状态栏「⋯」›「时值检查」两项 → 改量这两项（同一 ≥28 阈值）；卡片节点照留、仍不可见。
+       修前红修后绿：改前属性页卡可见（hid 为假）、⋯ 菜单两项带副标题之外量法相同 */
+    const hid = await EV(pg, () => !!document.querySelector('#right-dock #em-toggle') && !__vis('#right-dock #em-toggle'));
+    await pg.click('#flw-st-more'); await wait(pg, 200);
+    const em = (await sz('#popmenu [data-fa="st:em"]')).concat(hid ? [] : [['卡片可见', 0, 0]]);
+    await pg.keyboard.press('Escape'); await wait(pg, 150);
     await EV(pg, () => { sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); });
     await EV(pg, () => setMode('engrave', { page: 'lay' })); await wait(pg, 700);
     const g1 = await sz('#editbar .flw-gseg .flw-gsb'), g2 = await sz('#right-dock .flw-gseg .flw-gsb');
     const small = [...em, ...g1, ...g2].filter(x => Math.min(x[1], x[2]) < 27.5);
-    T('M26', em.length === 2 && g1.length >= 6 && g2.length >= 2 && !small.length, 'M26d RG-3 命中区 ≥28：行 2 纸张 / 疏密分段键、右栏「断行 自动 / 锁定」、属性页搬来的编辑模式两键（此前 26 高）', J({ small, n: [em.length, g1.length, g2.length] }));
-    const dis = await EV(pg, () => { const a = document.getElementById('flw-eng-join'), b = document.querySelector('#flw-rp-lay [data-fa="lay:join"]');
-      return { a: [a.getAttribute('aria-disabled'), a.getAttribute('aria-label'), a.title], b: [b.getAttribute('aria-disabled'), b.getAttribute('aria-label'), b.title] }; });
+    /* v68.7 S1：右栏「本行」的「断行 自动 / 锁定」已并入行 2「锁定此行」（规格 §6.C4 去重）——g2 现在量的是右栏「页头 · 页码」的分段键（同一 .flw-gseg .flw-gsb 样式），断言不变 */
+    T('M26', em.length === 2 && g1.length >= 6 && g2.length >= 2 && !small.length, 'M26d RG-3 命中区 ≥28：行 2 纸张 / 疏密分段键、右栏分段键（页头 · 页码）、编辑模式两档（v68.7：状态栏「⋯」›「时值检查」两项；属性页卡隐藏）', J({ small, n: [em.length, g1.length, g2.length] }));
+    /* v68.7 S1 迁移（规格 §6.C4 去重 / 功能保全 #22）：右栏「本行」的「并入上一行」已撤，同名键只在行 2——原「行 2 与右栏两处灰显同步」改为「行 2 一处灰显 / 还原 + 右栏没有 lay:join」；
+       行 2 灰显 title 改为「名称（原因）」（原「名称——现在用不了：原因」），仍含原因、还原后不含（断言不变）。修前红：5cddfb8 右栏有 lay:join（rj 为 true） */
+    const dis = await EV(pg, () => { const a = document.getElementById('flw-eng-join');
+      return { a: [a.getAttribute('aria-disabled'), a.getAttribute('aria-label'), a.title], rj: !!document.querySelector('#flw-rp-lay [data-fa="lay:join"]') }; });
     await EV(pg, () => { const R = FLOW.lay.rowsNow(); FLOW.lay.pick(R[1].m1, 0); }); await wait(pg, 200);
-    const en = await EV(pg, () => { const a = document.getElementById('flw-eng-join'), b = document.querySelector('#flw-rp-lay [data-fa="lay:join"]');
-      return { a: [a.getAttribute('aria-disabled'), a.getAttribute('aria-label'), a.title], b: [b.getAttribute('aria-disabled'), b.getAttribute('aria-label'), b.getAttribute('title')] }; });
+    const en = await EV(pg, () => { const a = document.getElementById('flw-eng-join');
+      return { a: [a.getAttribute('aria-disabled'), a.getAttribute('aria-label'), a.title], rj: !!document.querySelector('#flw-rp-lay [data-fa="lay:join"]') }; });
     const W = '已是第一行';
-    T('M26', dis.a[0] === 'true' && dis.a[1].indexOf(W) >= 0 && dis.a[2].indexOf(W) >= 0 && dis.b[0] === 'true' && dis.b[1].indexOf(W) >= 0 && dis.b[2].indexOf(W) >= 0
-      && en.a[0] == null && en.a[1] === '并入上一行' && en.a[2].indexOf(W) < 0 && en.b[0] == null && en.b[1] == null && en.b[2] == null,
-      'M26e RG-4 第 1 行「并入上一行」灰显：原因「' + W + '…」写进 title 与读屏名（行 2 与右栏两处）；换到第 2 行可用后还原原来的名称与提示', J({ dis, en }));
+    T('M26', dis.a[0] === 'true' && dis.a[1].indexOf(W) >= 0 && dis.a[2].indexOf(W) >= 0 && !dis.rj
+      && en.a[0] == null && en.a[1] === '并入上一行' && en.a[2].indexOf(W) < 0 && !en.rj,
+      'M26e RG-4 第 1 行「并入上一行」灰显：原因「' + W + '…」写进 title 与读屏名（行 2；右栏不再有第二枚）；换到第 2 行可用后还原原来的名称与提示', J({ dis, en }));
     await clickMode(pg, 'output'); await wait(pg, 300);
     const tr = await EV(pg, () => { const t = document.getElementById('flw-out-trim'); return t ? { vis: __vis(t), svg: !!t.querySelector('svg'), txt: t.textContent.trim().slice(0, 30) } : null; });
     T('M26', !!tr && tr.vis && tr.svg, 'M26f RG-5 输出页「末尾有 N 个空小节」提示带警示图标（svgi warn，与经典弹窗同源；此前 IC(\'warn\') 取不到键、只剩空格）', J(tr));

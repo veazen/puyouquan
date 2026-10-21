@@ -99,7 +99,10 @@ function gp5() {
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     pg._classic = !!opt.classic;
     await pg.goto(opt.classic ? FC : F); await pg.waitForTimeout(900);
-    await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; window.__toasts = []; const t0 = window.toast; window.toast = function (m) { window.__toasts.push(String(m)); return t0.apply(this, arguments); }; });
+    await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; window.__toasts = []; const t0 = window.toast; window.toast = function (m) { window.__toasts.push(String(m)); return t0.apply(this, arguments); };
+      /* v68.7 S1：新外壳提示条走 toastSay（只出短文）——同一次调用的旧外壳原文另记在 __says（新旧外壳同一份计算、旧外壳照样显示），供后果文案断言用 */
+      window.__says = []; if (typeof window.toastSay === 'function') { const s0 = window.toastSay; window.toastSay = function (m, o) { try { window.__says.push({ m: String(m), t: (o && o.t) || '' }); } catch (_) {} return s0.apply(this, arguments); }; }
+      window.__tst = () => { const e = document.getElementById('toast'), b = e && e.querySelector('.flw-ta'); return { k: (e && e.dataset.k) || '', ta: b ? b.dataset.ta : '' }; }; });
     pg._ctx = ctx; return pg;
   };
   /* ONLY=I20,I21 只跑这几项（调试用；缺省全跑） */
@@ -152,11 +155,14 @@ function gp5() {
     await pg.waitForTimeout(250);
     const after = await pg.evaluate(() => ({ docs: docs.length, cur: curDocI, k: NWB.stackOf(song), label: docTypeLabel(song), dual: song.voxDual, vn: song.voxNotations, title: song.title,
       notes: song.measures.map(m => m.voxes[0].map(c => c.deg + (c.oct > 0 ? "'" : c.oct < 0 ? ',' : '') + '/' + c.dur + (c.dotted ? '.' : '') + (c.lyrics[0] || '')).join(' ')).slice(0, 2).join(' | '),
-      key: song.key, tempo: song.tempo, prev: JSON.stringify(docs[0].song), modal: !!document.querySelector('.nf-modal'), toast: (window.__toasts.slice(-1)[0] || '') }));
+      key: song.key, tempo: song.tempo, prev: JSON.stringify(docs[0].song), modal: !!document.querySelector('.nf-modal'), toast: (window.__toasts.slice(-1)[0] || ''),
+      full: ((window.__says || []).slice(-1)[0] || {}).m || '', tst: __tst() }));
     await pg._ctx.close();
     const want = ['1=C ‖ 按文件', '4/4 · ♩=66 ‖ 按文件', '1 声部 · 有歌词 · 五线谱 ‖ 按内容', '来源：AI Music Transcriber 2.1 ‖ 文件里写明由转谱软件导出 → 按 AI 转谱结果处理', '推荐：教学对照谱 ‖ AI 转谱多为单旋律＋歌词，课堂最常用五线＋简谱对照'];
     T(clicks === 4 && after.docs === before.docs + 1 && after.cur === before.docs && after.prev === before.s && after.k === 'SJ' && after.label === '教学对照谱' && after.dual[0] === true && after.vn[0] === 'staff' && !after.modal
-      && after.notes === "5/4长 3/8亭 5/8 1'/2外 | 6/4古 1'/4道 5/2边" && after.key === 'C' && after.tempo === 66 && /已导入为教学对照谱《送别（AI 转谱）》8 小节 · 新窗口打开，原谱保留/.test(after.toast),
+      && after.notes === "5/4长 3/8亭 5/8 1'/2外 | 6/4古 1'/4道 5/2边" && after.key === 'C' && after.tempo === 66
+      /* v68.7 S1 迁移（规格 §6.C3 #50）：新外壳提示条只出「已导入 8 小节」+ data-k=res + 「撤销」（关掉这个新窗口回原谱）；原整句「已导入为教学对照谱《…》8 小节 · 新窗口打开，原谱保留」改判同一次 toastSay 的旧外壳原文（旧外壳照显）。修前红：5cddfb8 新外壳显示整句、没有 data-k / 动作钮 */
+      && after.toast === '已导入 8 小节' && after.tst.k === 'res' && after.tst.ta === 'close' && /已导入为教学对照谱《送别（AI 转谱）》8 小节 · 新窗口打开，原谱保留/.test(after.full),
       'I2 老师任务「AI 转谱 MusicXML → 五线＋简谱对照」真实点击 4 次（新建 → 从已有音乐 → 选择文件 → 导入）：新窗口建成教学对照谱，原谱逐字节不变，音符 / 歌词 / 调 / 速度与文件一致', JSON.stringify({ clicks, after: Object.assign({}, after, { prev: after.prev.length }) }));
     T(want.every((x, i) => bs[i] === x) && st.src === 'ai' && st.rec === 'SJ' && st.tag === 'SJ' && /导入为 教学对照谱/.test(st.go) && /8 小节 · 1 声部 · 有歌词/.test(st.file) && st.focus === 'nf-impgo' && /^i\|\d+\|SJ$/.test(st.pv),
       'I3 依据逐条：1=C 按文件 / 4/4 · ♩=66 按文件 / 1 声部 · 有歌词 · 五线谱 按内容 / 来源：AI Music Transcriber 2.1 → 按 AI 转谱结果处理 / 推荐教学对照谱；来源自动切到「整理 AI 转谱结果」、默认选中并标「推荐」、焦点落「导入」', JSON.stringify({ bs, st }));
@@ -620,12 +626,13 @@ function gp5() {
     await go('high', 'JT');
     r.high = await pg.evaluate(() => ({ small: document.querySelector('#nf-tg-JT small').textContent, cap: document.querySelector('#nf-pv figcaption').textContent }));
     await pg.click('#nf-impgo'); await pg.waitForTimeout(200);
-    r.highToast = await pg.evaluate(() => window.__toasts.slice(-1)[0] || '');
+    /* v68.7 S1 迁移：「折了八度」原读新外壳提示条——新外壳提示条只出短文「已导入 N 小节」（按钮小字与预览说明照写折了八度），改读同一次调用的旧外壳原文；另判新外壳短文。修前红：5cddfb8 提示条为整句 */
+    r.highToast = await pg.evaluate(() => ((window.__says || []).slice(-1)[0] || {}).m || window.__toasts.slice(-1)[0] || ''); r.highShort = await pg.evaluate(() => window.__toasts.slice(-1)[0] || '');
     await pg._ctx.close();
     T(r.bassPv === 'bass,staff,bass' && r.bass.vn === 'bass,staff,bass' && r.bass.k === 'SG'
       && r.vpKind === '钢琴伴奏歌谱' && r.vp.vn === 'J,staff,bass' && r.vp.k === 'JG' && r.vp.label === '钢琴伴奏歌谱'
       && r.piano.J[0] === 'true' && /钢琴两手谱不整份转/.test(r.piano.J[1]) && r.piano.SJ === '→ 钢琴独奏谱（五线＋简谱对照）' && r.piano.orig === '不改记谱 · 钢琴独奏谱' && r.pianoGo === '钢琴独奏谱（五线＋简谱对照）'
-      && /\d+ 个音超出把位，六线谱折了八度/.test(r.high.small) && /折了八度/.test(r.high.cap) && /折了八度/.test(r.highToast),
+      && /\d+ 个音超出把位，六线谱折了八度/.test(r.high.small) && /折了八度/.test(r.high.cap) && /折了八度/.test(r.highToast) && /^已导入 \d+ 小节$/.test(r.highShort),
       'I20 低音谱号旋律「配钢琴伴奏」保留低音谱号（预览＝导入）；人声＋钢琴「转成简谱」只转旋律行＝钢琴伴奏歌谱；钢琴两手谱「转成简谱」置灰写原因、「对照」叫「钢琴独奏谱（五线＋简谱对照）」与按原文件分得开；超出把位的旋律「生成吉他弹唱」在按钮小字、预览说明、导入提示里写明折了八度',
       JSON.stringify(r));
   });
@@ -831,7 +838,7 @@ function gp5() {
       const nw = mk(8), old = mk(2); const lib = libLoad(); lib.push({ id: 'sCL1', title: '我的谱', data: JSON.parse(JSON.stringify(nw)), mtime: 2000000000, updatedAt: '新' }); libSave(lib);
       window.__push = []; window.scheduleCloudPush = id => window.__push.push(id); window.scoreCloudPush = id => window.__push.push(id); window.PYQ_CLOUD = 1;
       return { old: JSON.stringify(old), same: JSON.stringify(nw) }; });
-    const lib = () => pg.evaluate(() => { persistNow(); const e = libLoad().find(x => x.id === 'sCL1'); return { mea: e.data.measures.length, upd: e.updatedAt, push: window.__push.length, id: song.id || null, n: song.measures.length, toast: window.__toasts.slice(-1)[0] || '' }; });
+    const lib = () => pg.evaluate(() => { persistNow(); const e = libLoad().find(x => x.id === 'sCL1'); return { mea: e.data.measures.length, upd: e.updatedAt, push: window.__push.length, id: song.id || null, n: song.measures.length, toast: window.__toasts.slice(-1)[0] || '', full: ((window.__says || []).slice(-1)[0] || {}).m || '' }; });
     await toImport(pg); await pg.click('#nf-isrc-file'); await pick(pg, file('我的谱.mtab.json', j.old)); await pg.waitForTimeout(300);
     const a = await lib();
     /* 顶栏「打开」：flow＝文件 ▾「打开文件…」（委托点 #b-open，F.mi old:'b-open'）；旧外壳＝#b-open */
@@ -843,7 +850,8 @@ function gp5() {
     const s = await lib();
     await pg.evaluate(() => { window.PYQ_CLOUD = 0; });
     await pg._ctx.close();
-    T(a.mea === 8 && a.upd === '新' && a.push === 0 && !a.id && a.n === 2 && /不覆盖/.test(a.toast) && t.mea === 8 && t.upd === '新' && !t.id && t.n === 2 && /不覆盖/.test(t.toast)
+    /* v68.7 S1 迁移（规格 §6.C3 #1 / #27）：新外壳提示条原 /不覆盖/ → 短文「已打开副本」（「我的曲谱」里那一条不被改由 mea / upd / push 判，意图不变）；说明「不覆盖它」改判同一次调用的旧外壳原文。修前红：5cddfb8 新外壳提示条为整句、不等于「已打开副本」 */
+    T(a.mea === 8 && a.upd === '新' && a.push === 0 && !a.id && a.n === 2 && a.toast === '已打开副本' && /不覆盖/.test(a.full) && t.mea === 8 && t.upd === '新' && !t.id && t.n === 2 && t.toast === '已打开副本' && /不覆盖/.test(t.full)
       && s.id === 'sCL1' && s.n === 8,
       'I30 拖入 / 选择 / 顶栏「打开」一份较早导出的同 id .mtab.json：「我的曲谱」里那一条（8 小节）不被自动保存改回文件内容（2 小节）、不推云端，按副本打开并说明；内容相同的仍沿用 id', JSON.stringify({ a, t, s }));
   });
@@ -911,8 +919,12 @@ function gp5() {
       if (typeof flowOn === 'function' && flowOn()) { const w = document.getElementById('flw-sbar'); if (!w || w.hidden || document.getElementById('lb-wrap') || !FLOW.sbar.shown()) return null;
         const m = FLOW.sbar.model(), tt = id => (w.querySelector('.flw-sb-tool[data-v="' + id + '"]') || {}).title || '';
         const li = [...w.querySelectorAll('.flw-sb-steps li')].map(x => x.className).join(',');
+        /* v68.7 S1 迁移（README P2，规格 B2）：③「伴奏来自文件」原写在「织体」工具的 title 长句里 → 条上就地短提示 #flw-sb-hint「伴奏来自文件」（title 同一句）；
+           已标和弦功能谱原在「和弦」工具 title 里写「改和弦：…」→ 不再出空谱提示（lbAllBare 为假），「和弦」工具照在、title＝「输入和弦（Ctrl+K）」。
+           修前红修后绿：改前 ③ 的可见提示为空（走工具 title）、/来自文件/ 读不到 #flw-sb-hint */
+        const hi = document.getElementById('flw-sb-hint');
         return { k: NWB.stackOf(song), steps: (m.steps || []).map(x => x.split(':')[0]).join(','), go: !!w.querySelector('[data-fa="sbar:go"], .flw-sb-tool.pri'),
-          gSteps: m.phase === 'steps' ? li : (m.steps || []).map(x => x.split(':')[0]).join(','), hint: m.steps ? tt('tex') : '', tip: m.steps ? '' : tt('chord') }; }
+          gSteps: m.phase === 'steps' ? li : (m.steps || []).map(x => x.split(':')[0]).join(','), hint: m.steps ? (hi ? hi.textContent : '') : '', tip: m.steps ? '' : tt('chord'), hintNow: hi ? hi.textContent : '', flow: true }; }
       const w = document.querySelector('#lb-wrap .lb-bar'); if (!w) return null;
       return { k: NWB.stackOf(song), steps: [...w.querySelectorAll('.lb-steps li')].map(li => li.className).join(','), go: !!w.querySelector('.lb-go'), hint: (w.querySelector('.lb-hint') || {}).textContent || '', tip: (w.querySelector('.lb-tip') || {}).textContent || '' }; });
     const r = {};
@@ -921,16 +933,18 @@ function gp5() {
     await toImport(pg); if (await pg.$('#nf-unload')) await pg.click('#nf-unload'); await pick(pg, file('mel.musicxml', MEL)); await loaded(pg);
     await pg.click('[data-act="tg"][data-v="CJ"]'); await pvDone(pg); await pg.click('#nf-impgo'); await pg.waitForTimeout(200); r.cj = await bar();
     await pg._ctx.close();
-    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && /文件里的/.test(x.hint) && (shell === 'classic' || x.gSteps === x.steps);   /* flow：悬浮条与 lbCur 同口径 */
-    T(accOk(r.vp_orig) && accOk(r.vp_SJ) && r.cj && r.cj.k === 'CJ' && /改和弦/.test(r.cj.tip) && !/先写旋律/.test(r.cj.tip),
+    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && (shell === 'classic' ? /文件里的/.test(x.hint) : x.hint === '伴奏来自文件') && (shell === 'classic' || x.gSteps === x.steps);   /* flow：悬浮条与 lbCur 同口径 */
+    const cjOk = shell === 'classic' ? (r.cj && /改和弦/.test(r.cj.tip) && !/先写旋律/.test(r.cj.tip)) : (r.cj && r.cj.tip === '输入和弦（Ctrl+K）' && !/写旋律/.test(r.cj.hintNow));
+    T(accOk(r.vp_orig) && accOk(r.vp_SJ) && r.cj && r.cj.k === 'CJ' && cjOk,
       'I34（' + shell + '）人声＋钢琴文件按原文件 / 对照导入：起步条 ①② 打勾、③ 只给提示「伴奏是文件里的……」不给主按钮（此前主按钮「换织体」会按织体重配覆盖文件伴奏）；标级数和弦导入后提示「改和弦……」（此前仍说「先写旋律」）', JSON.stringify(r));
   });
 
   /* ---------- I35 钢琴两手谱做成「五线＋简谱对照」：谱型条 / 菜单照实叫；钢琴族内互换保留简谱对照 ---------- */
   for (const shell of ['flow', 'classic']) await guard('I35 钢琴对照谱名与互换（' + shell + '）', async () => {
     const pg = await open(1366, 900, { classic: shell === 'classic' });
-    /* 谱名 ▾：旧外壳＝谱型条 .lb-kind；flow＝左栏音轨区标题的谱类芯片 #flw-kchip（与 v68.3 悬浮条谱类 ▾ 同一个 lbMenuOpen、同一个 #lb-menu） */
-    const KB = shell === 'classic' ? '#lb-wrap .lb-kind' : '#flw-kchip', KN = shell === 'classic' ? '#lb-wrap .lb-kind b' : '#flw-kchip .flw-kn';
+    /* 谱名 ▾：旧外壳＝谱型条 .lb-kind；flow＝悬浮条谱类 ▾ #flw-sb-kind（与原左栏音轨区谱类芯片同一个 lbMenuOpen、同一个 #lb-menu）
+       v68.7 S1 迁移（D4 谱类芯片只读）：开菜单者由 #flw-kchip 改为 #flw-sb-kind；谱名仍读音轨区芯片 #flw-kchip .flw-kn（只读照显）。修前红修后绿：改前也能点条上 ▾（本条只换入口），点芯片已不开菜单 */
+    const KB = shell === 'classic' ? '#lb-wrap .lb-kind' : '#flw-sb-kind', KN = shell === 'classic' ? '#lb-wrap .lb-kind b' : '#flw-kchip .flw-kn';
     await pg.evaluate(() => hideStartPad());
     const PN = mx({ title: 'Piano', fifths: 0, time: [4, 4], parts: [{ name: 'Piano', staves: 2, measures: melody(4).map(rh => [rh, melody(1, { oct: 3, seq: [1, 5, 1, 5] })[0]]) }] });
     await toImport(pg); await pick(pg, file('piano.musicxml', PN)); await loaded(pg);

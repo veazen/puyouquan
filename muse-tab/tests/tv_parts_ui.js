@@ -190,7 +190,7 @@ function INIT() {
       T('PU1', r.plan && L.btn && L.btn.dis === 'true' && L.btn.why === '只有一位演奏者' && L.btn.lab === '分谱' && !L.btn.badge
         && r.t[r.t.length - 1] === '只有一位演奏者' && r.role === 'status' && r.ev === '' && r.ok === '只有一位演奏者'
         && L.solo === kn + ' · 一位演奏者' && L.rows.length === 0 && !/即将推出|下一批/.test(L.txt + L.btn.why + L.btn.title)
-        && L.btn.title === '打印勾选的分谱——现在用不了：只有一位演奏者' && L.btn.al === '打印分谱（只有一位演奏者）' && L.html.indexOf('flw-obx') < 0,
+        && L.btn.title === '打印分谱（只有一位演奏者）' /* v68.7 收尾 BUD-2 迁移：灰显悬停「名称（原因）」同 setD 口径（原「打印勾选的分谱——现在用不了：只有一位演奏者」）；13cf7cb 红 */ && L.btn.al === '打印分谱（只有一位演奏者）' && L.html.indexOf('flw-obx') < 0,
         'PU1 ' + k + '（一位演奏者）：「分谱」灰显、原因与点击 toast 都是「只有一位演奏者」（role=status）、不导出不打印；命令面板 ok() 同一句；灰显原因并进悬停与读屏名（收尾 UX-5，同 setD 口径）；左栏「' + kn + ' · 一位演奏者」、无勾选框、总谱行不画像勾选框的 ✓ 方框（收尾 UX-12）',
         J({ btn: L.btn, solo: L.solo, rows: L.rows.length, r }));
       await mode(pg, 'write'); await redEnd('PU1', pg, base);
@@ -232,7 +232,7 @@ function INIT() {
       T('PU2', L1.all.ind === true && L1.all.ck === false && L1.btn.badge === String(req.length - 1) && L1.rows[1].ck === false
         && L2.all.ck === true && L2.all.ind === false && L2.btn.badge === String(req.length) && L2.rows.filter(r => r.opt).every(r => r.ck === false)
         && L3.all.ck === false && L3.all.ind === false && L3.rows.every(r => r.id === 'score' || r.ck === false) && L3.btn.dis === 'true' && L3.btn.why === '先勾选分谱' && L3.btn.badge === ''
-        && L3.btn.title === '打印勾选的分谱——现在用不了：先勾选分谱' && L3.btn.al === '打印分谱（先勾选分谱）'
+        && L3.btn.title === '打印分谱（先勾选分谱）' /* v68.7 收尾 BUD-2 迁移：同上；13cf7cb 红 */ && L3.btn.al === '打印分谱（先勾选分谱）'
         && r3.ev === '' && r3.t === '先勾选分谱' && r3.ok === '先勾选分谱',
         'PU2c ' + k + '：去掉一份 → 全选框半选、徽标 ' + (req.length - 1) + '；点全选 → 非可选份全勾（可选份不动）；再点 → 全不勾：键灰显「先勾选分谱」、徽标不出、点了 toast 同一句不导出（命令面板 ok() 同）',
         J({ L1: [L1.all, L1.btn.badge], L2: [L2.all, L2.btn.badge], L3: [L3.all, L3.btn], r3 }));
@@ -295,7 +295,8 @@ function INIT() {
     T('PU3', r.tt[0] === '打印吉他 · 扫弦' && r.tt[1] === '图片 · 吉他 · 扫弦' && J(r.tt.slice(2)) === J(['分享卡·总谱', '互动谱·总谱', 'MusicXML·总谱', 'MIDI·总谱', '曲谱文件·总谱'])
       && s0.tt[0] !== r.tt[0] && s0.tt[1] === '导出高清 PNG 图片（整页谱面）',
       'PU3b 看分谱时悬停说明：「打印 / 存 PDF」＝「打印吉他 · 扫弦」、图片 PNG＝「图片 · 吉他 · 扫弦」（作用于当前视图，收尾 UX-9）、分享卡 / 互动谱 / MusicXML / MIDI / 曲谱文件＝「〈键名〉·总谱」（≤12 字）', J(r.tt));
-    T('PU3', r.st === '吉他 · 扫弦 · 分谱' && r.stT === '正在看的分谱' && s0.st !== r.st && s0.stT === '当前编辑的音轨 · 记谱法',
+    /* v68.7 S1 迁移（README P2，规格 B7）：状态栏轨名段平时的悬停「当前编辑的音轨 · 记谱法」→「当前轨」（看分谱时「正在看的分谱」不变）。修前红修后绿：改前 s0.stT 是长句 */
+    T('PU3', r.st === '吉他 · 扫弦 · 分谱' && r.stT === '正在看的分谱' && s0.st !== r.st && s0.stT === '当前轨',
       'PU3f 看分谱时状态栏轨名段写正在看的这一份「吉他 · 扫弦 · 分谱」（悬停「正在看的分谱」；此前写光标所在的轨，与画面矛盾——收尾 UX-1）', J({ st: r.st, stT: r.stT, s0: [s0.st, s0.stT] }));
     T('PU3', r.pgpart >= 1 && r.pgpartTxt === '吉他 · 扫弦' && r.lsIn, 'PU3c（引擎）预览页里有分谱名 .pgpart「吉他 · 扫弦」；「页面」区＝pagesHTML(partReport(last))', J({ pgpart: r.pgpart, t: r.pgpartTxt, lsIn: r.lsIn }));
     await shot(pg, 'PU3-view-t1-1440');

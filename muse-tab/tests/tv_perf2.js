@@ -311,7 +311,9 @@ function judge(tag, { res, errs }, needInc) {
         const r = await P.pg.evaluate(() => {
           const LS = () => localStorage.getItem(LS_LIB), roOk = () => JSON.stringify(libLoadRO()) === LS();
           const ent = () => (JSON.parse(LS()) || []).find(e => e.id === song.id);
-          const saved = () => { if (flowOn()) { const b = document.getElementById('flw-save'); return !!b && /已存入/.test(b.textContent); }
+          /* v68.7 S1 迁移（集成时补；规格 A1 保存胶囊三态，README ② P2）：flow 原断言读胶囊可见字 /已存入/ → 改读读屏名 aria-label /^已存入我的曲谱/（可见字已改为「☁ 已存 HH:MM」，读屏名仍是全称）；
+             意图不变（这一条在库里＝胶囊认「已入库」）。只换定位：5cddfb8 的 aria-label 同为「已存入我的曲谱，HH:MM」，修前修后都绿；原断言在 v68.7 上红（s1 / w1 为假） */
+          const saved = () => { if (flowOn()) { const b = document.getElementById('flw-save'); return !!b && /^已存入我的曲谱/.test(b.getAttribute('aria-label') || ''); }
             const t = document.querySelector('#doc-tabs .dtab.on'); return !!t && !t.querySelector('.dt-dot'); };
           const o = {};
           __case({ p: 0 }); localStorage.removeItem(LS_LIB); renderDocTabs();

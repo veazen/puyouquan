@@ -125,17 +125,21 @@ function HELP() {
     if (pri && !ids.includes(pri)) ids.unshift(pri);
     if (ids.length < 3 && !ids.includes('board')) ids.push('board');
     ids = ids.slice(0, 4);
-    const SB_TIP = { J: '点谱面，按数字键写音', S: '点谱面，按数字键按调写音', SJ: '两行任选一行输入，另一行同步', T: '↑↓ 选弦，数字键写品位', JT: '↑↓ 选弦，数字键写品位',
-      ST: '在六线谱输入，五线谱自动同步', G: '数字键写音，↑↓ 换右手 / 左手', CJ: '先写旋律，再按 Ctrl+K 标和弦', CS: '先写旋律，再按 Ctrl+K 标和弦', C: '选中一拍，按 Ctrl+K 写和弦' };
+    /* v68.7 S1 迁移（README P1 / P2，规格 B2）：原对拍表＝旧短提示（≤20 字、带逗号）＋ title＝LB_TIP / 步骤 hint 长句、步名＝lbSteps 全名 →
+       新表：空谱提示 ≤12 字不带句读、title＝同一句；步名 2 字（STEP2，全名进 li 的 title 与读屏专用字）。修前红修后绿：改前条上是旧句与全名，与新表逐份对不上 */
+    const SB_TIP = { J: '按 1–7 写音', S: '按 1–7 写音', SJ: '写一行 另一行同步', T: '↑↓ 选弦 数字写品位', JT: '↑↓ 选弦 数字写品位',
+      ST: '写六线谱 五线谱同步', G: '按 1–7 写音 ↑↓ 换手', CJ: '写旋律 Ctrl+K 标和弦', CS: '写旋律 Ctrl+K 标和弦', C: '选一拍 Ctrl+K 写和弦' };
     const bare = lbAllBare(s);
     /* 收尾 ENG-5：工具阶段里当前步是最后一步且没有按钮（吉他弹唱 ③、导入谱伴奏来自文件的 ③）——它的短提示照样出，优先于空谱提示 */
-    const SB_HINT = { '写旋律': '点旋律行，按数字键写音', '标和弦': '选中右手的音，按 Ctrl+K', '选织体': '伴奏来自文件，已保留', '调把位与扫弦': '点六线谱的音改品位' };
+    const SB_HINT = { '写旋律': '按 1–7 写音', '标和弦': '选音按 Ctrl+K', '选织体': '伴奏来自文件', '调把位与扫弦': '点音改品位' };
+    const STEP2 = { '写旋律': '旋律', '配和弦与伴奏': '伴奏', '选织体': '织体', '生成六线谱': '吉他', '调把位与扫弦': '节奏', '标和弦': '和弦' };
+    const s2 = t => (t === '生成六线谱' && s.inst === 'uku') ? '四线' : (STEP2[t] || t);
     let tip = null, tipT = null;
     if (phase === 'tools') {
-      if (!c.fin && c.cur && c.cur === last && !c.nxt && (SB_HINT[c.cur.t] || c.hint)) { tipT = c.hint || c.cur.hint || ''; tip = SB_HINT[c.cur.t] || tipT; }
-      else if (bare && SB_TIP[k]) { tip = SB_TIP[k]; tipT = f.tip; } }
+      if (!c.fin && c.cur && c.cur === last && !c.nxt && SB_HINT[c.cur.t]) { tip = SB_HINT[c.cur.t]; tipT = tip; }
+      else if (bare && SB_TIP[k]) { tip = SB_TIP[k]; tipT = tip; } }
     return { k, name: NWB.kindOfSong(s).name, ic: NWB.kindOfSong(s).ic, chip: ($i('flw-kchip') ? ($i('flw-kchip').querySelector('.flw-kn') || {}).textContent : null), seg, phase,
-      steps: phase === 'steps' ? st.map(x => x.st + ':' + x.t) : [], go: phase === 'steps' && c.nxt ? c.nxt.btn : null,
+      steps: phase === 'steps' ? st.map(x => x.st + ':' + s2(x.t)) : [], go: phase === 'steps' && c.nxt ? c.nxt.btn : null,
       tools: phase === 'tools' ? ids : [], pri, tip, tipT };
   };
   /* 极简 SMF 写出（format 1：速度轨 + n 条旋律轨，每轨 4 小节四分音符；导入 MIDI 多轨场景） */
@@ -349,12 +353,14 @@ function HELP() {
     /* 续写旋律 → ② 回来「补配 N 小节」 */
     await EV(pg, () => { mutate(() => { __melIn(song, 0, [1, 2]); }); });
     const s4 = await st();
-    const okJG = s0.ph === 'steps' && /^now:写旋律/.test(s0.steps) && s0.hint === '点旋律行，按数字键写音' && !s0.go
-      && s1.steps === 'done:写旋律 | now:配和弦与伴奏 | todo:选织体' && s1.go && s1.go.t === '一键配伴奏' && m1.out === 'fill'
-      && s2.ph === 'tools' && s2.pri === 'tex' && /^织体（下一步）：换一种伴奏织体/.test(s2.priT) && m2.tex && s3.ph === 'tools' && !s3.pri && /done:选织体/.test(s3.msteps)
+    /* v68.7 S1 迁移（规格 B2）：提示「点旋律行，按数字键写音」→「按 1–7 写音」；条上步名 2 字（旋律 · 伴奏 · 织体，模型里 msteps 仍是全名）；
+       强调项 title「织体（下一步）：换一种伴奏织体」→ 恰为「织体（下一步）」（P2 悬停只留名称）。修前红修后绿：改前提示 / 步名 / title 都是旧长句 */
+    const okJG = s0.ph === 'steps' && /^now:旋律/.test(s0.steps) && /^now:写旋律/.test(s0.msteps) && s0.hint === '按 1–7 写音' && !s0.go
+      && s1.steps === 'done:旋律 | now:伴奏 | todo:织体' && s1.msteps === 'done:写旋律 | now:配和弦与伴奏 | todo:选织体' && s1.go && s1.go.t === '一键配伴奏' && m1.out === 'fill'
+      && s2.ph === 'tools' && s2.pri === 'tex' && s2.priT === '织体（下一步）' && m2.tex && s3.ph === 'tools' && !s3.pri && /done:选织体/.test(s3.msteps)
       && s4.ph === 'steps' && s4.go && /^补配 2 小节$/.test(s4.go.t) && [s0, s1, s2, s3, s4].every(x => x.py === s0.py);
     await shot(pg, 'SB4-pacc-step2-1280', { x: 0, y: 0, width: 1280, height: 260 });
-    T('SB4', okJG, 'SB4a 钢琴伴奏歌谱（真实点击）：①（提示「点旋律行，按数字键写音」）→ 键入 1235 → ②「一键配伴奏」→ 智能配谱默认「填进当前谱」→ 生成后进工具阶段、「织体」强调（title「织体（下一步）：换一种伴奏织体」，收尾 SBAR-4 / 6 名字统一）→ 伴奏织体 → 生成后强调消失；续写 2 小节旋律 → ② 回来「补配 2 小节」；阶段切换前后 #paper 的 y 不变',
+    T('SB4', okJG, 'SB4a 钢琴伴奏歌谱（真实点击）：①（提示「按 1–7 写音」，步名 2 字）→ 键入 1235 → ②「一键配伴奏」→ 智能配谱默认「填进当前谱」→ 生成后进工具阶段、「织体」强调（title「织体（下一步）」，收尾 SBAR-4 / 6 名字统一）→ 伴奏织体 → 生成后强调消失；续写 2 小节旋律 → ② 回来「补配 2 小节」；阶段切换前后 #paper 的 y 不变',
       J({ s0, s1, m1, s2, m2, s3, s4 }));
     /* 吉他弹唱「从简谱写起」 */
     await EV(pg, () => __new('JT', { meta: { pen: 'J' } }));
@@ -367,16 +373,19 @@ function HELP() {
     await pg.click('#vt-low').catch(() => {}); await wait(pg, 300);
     const g2 = await st();
     const g2h = await EV(pg, () => { const h = $i('flw-sb-hint'); return h ? { t: h.textContent, title: h.title, vis: __vis(h) } : null; });
-    T('SB4', g0.ph === 'steps' && /^now:写旋律/.test(g0.steps) && g1.go && g1.go.t === '生成六线谱' && /轨数不变/.test(g1.go.title) && md && g2.ph === 'tools' && g2.nTab === 1 && /now:调把位与扫弦/.test(g2.msteps) && !g2.pri && [g0, g1, g2].every(x => x.py === g0.py)
-      && g2h && g2h.vis && g2h.t === '点六线谱的音改品位' && /↑↓ 选弦/.test(g2h.title),
-      'SB4b 吉他弹唱「从简谱写起」：① → ②「生成六线谱」（title 写「轨数不变」）→ 低把位 → 工具阶段（③ 是最后一步）、仍 1 条吉他轨、没有强调项；#paper y 不变；③ 的指引有去处（收尾 ENG-5：条上「点六线谱的音改品位」，title 全文含「↑↓ 选弦」）', J({ g0, g1, md, g2, g2h }));
+    /* v68.7 S1 迁移（规格 B2）：主按钮 title 原写「轨数不变」长句 → title＝按钮上的字「生成六线谱」（m.go.tip→m.go.btn；写进空吉他轨仍由 g2.nTab===1 断言）；
+       ③ 提示「点六线谱的音改品位」+ title 全文含「↑↓ 选弦」→ 提示「点音改品位」、title＝同一句（完整键位在状态栏「?」）。修前红修后绿：改前 title 是长句、提示是旧句 */
+    T('SB4', g0.ph === 'steps' && /^now:旋律/.test(g0.steps) && /^now:写旋律/.test(g0.msteps) && g1.go && g1.go.t === '生成六线谱' && g1.go.title === '生成六线谱' && md && g2.ph === 'tools' && g2.nTab === 1 && /now:调把位与扫弦/.test(g2.msteps) && !g2.pri && [g0, g1, g2].every(x => x.py === g0.py)
+      && g2h && g2h.vis && g2h.t === '点音改品位' && g2h.title === g2h.t,
+      'SB4b 吉他弹唱「从简谱写起」：① → ②「生成六线谱」（title＝按钮字）→ 低把位 → 工具阶段（③ 是最后一步）、仍 1 条吉他轨（写进空轨）、没有强调项；#paper y 不变；③ 的指引有去处（条上「点音改品位」，title 同一句）', J({ g0, g1, md, g2, g2h }));
     /* 钢琴弹唱谱 */
     await EV(pg, () => __new('CG'));
     const c0 = await st();
     await EV(pg, () => { mutate(() => { song.measures[0].voxes[0][0].chord = 'C'; }); });
     const c1 = await st();
-    T('SB4', c0.ph === 'steps' && c0.steps === 'now:标和弦 | todo:选织体' && c0.hint === '选中右手的音，按 Ctrl+K' && c1.ph === 'tools' && c1.pri === 'tex' && /^织体（下一步）：按已标和弦生成双手伴奏/.test(c1.priT) && c0.py === c1.py,
-      'SB4c 钢琴弹唱谱：①标和弦（提示「选中右手的音，按 Ctrl+K」）→ 标一个和弦 → 工具阶段「织体」强调、title「织体（下一步）：按已标和弦生成双手伴奏」；#paper y 不变', J({ c0, c1 }));
+    /* v68.7 S1 迁移（规格 B2）：步名 2 字、提示「选中右手的音，按 Ctrl+K」→「选音按 Ctrl+K」、强调项 title →「织体（下一步）」。修前红修后绿：改前三处都是旧字 */
+    T('SB4', c0.ph === 'steps' && c0.steps === 'now:和弦 | todo:织体' && c0.msteps === 'now:标和弦 | todo:选织体' && c0.hint === '选音按 Ctrl+K' && c1.ph === 'tools' && c1.pri === 'tex' && c1.priT === '织体（下一步）' && c0.py === c1.py,
+      'SB4c 钢琴弹唱谱：①标和弦（提示「选音按 Ctrl+K」）→ 标一个和弦 → 工具阶段「织体」强调、title「织体（下一步）」；#paper y 不变', J({ c0, c1 }));
     await close(pg);
   }));
 
@@ -448,10 +457,14 @@ function HELP() {
       return { gap: Math.round(mr.top - kr.bottom), dx: Math.round(mr.left - kr.left), html: m.innerHTML, exp: k.getAttribute('aria-expanded') }; });
     await pg.click('#flw-sb-kind'); await wait(pg, 200);
     const k2 = await EV(pg, () => ({ m: !!$i('lb-menu'), exp: $i('flw-sb-kind').getAttribute('aria-expanded') }));
+    /* v68.7 S1 迁移（D4 谱类芯片只读）：原「与芯片打开的 innerHTML 相同」→ 与文件 ▾「换谱类…」（r1:kind → lbKindBtn → 同一 lbMenuOpen）打开的相同；另断言点芯片不开菜单。
+       修前红修后绿：改前点芯片会开菜单（k0 为真） */
     await pg.click('#flw-kchip'); await wait(pg, 200);
+    const k0 = await EV(pg, () => { const m = !!$i('lb-menu'); if (m) lbMenuClose(); return m; });
+    await pg.click('#flw-file'); await wait(pg, 200); await pg.click('#popmenu [data-fa="r1:kind"]'); await wait(pg, 200);
     const k3 = await EV(pg, () => { const m = $i('lb-menu'); const h = m ? m.innerHTML : null; lbMenuClose(); return h; });
-    T('SB5', !!k1 && k1.gap >= 0 && k1.gap <= 12 && Math.abs(k1.dx) <= 12 && k1.exp === 'true' && !k2.m && k2.exp === 'false' && k3 === k1.html,
-      'SB5d 谱类 ▾：#lb-menu 在钮正下方（间距 ' + (k1 && k1.gap) + '、左缘差 ' + (k1 && k1.dx) + '）、与芯片打开的 innerHTML 相同（同一 lbMenuOpen）、再点即关', J({ k1: k1 && { gap: k1.gap, dx: k1.dx, exp: k1.exp }, k2, same: k1 && k3 === k1.html }));
+    T('SB5', !!k1 && k1.gap >= 0 && k1.gap <= 12 && Math.abs(k1.dx) <= 12 && k1.exp === 'true' && !k2.m && k2.exp === 'false' && k3 === k1.html && !k0,
+      'SB5d 谱类 ▾：#lb-menu 在钮正下方（间距 ' + (k1 && k1.gap) + '、左缘差 ' + (k1 && k1.dx) + '）、与文件 ▾「换谱类…」打开的 innerHTML 相同（同一 lbMenuOpen）、再点即关；音轨区谱类芯片只读（点它不开菜单）', J({ k1: k1 && { gap: k1.gap, dx: k1.dx, exp: k1.exp }, k2, same: k1 && k3 === k1.html, chipOpens: k0 }));
     /* 更多：1440 切到「智能」页；1280 浮出「智能」，再点收起 */
     await EV(pg, () => { __shut(); return 1; }); await pg.mouse.move(5, 5);
     const dg = await EV(pg, () => { const m = document.querySelector('#flw-sbar .flw-sb-more'); if (!m) return 'none'; const r = m.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
@@ -545,8 +558,9 @@ function HELP() {
     await pg.click('#flw-sb-tg'); await raf(pg);
     const e3 = await geo();
     T('SB7', e0.sb === 'exp' && e0.bh === 40 && e0.wh === 46 && e0.py === 138 && e0.key === null && c1.sb === 'col' && c1.bh === 28 && c1.wh === 34 && c1.py === 126 && c1.key === '0' && c1.exp === 'false'
-      && /钢琴伴奏歌谱/.test(c1.sum) && /② 配和弦与伴奏/.test(c1.txt) && c2.sb === 'col' && c2.key === '0' && e3.sb === 'exp' && e3.key === null && e3.py === 138,
-      'SB7a 点 ⌃ 收起：条高 28、外框 34、#paper 顶 126、musetab-sbar=\'0\'、摘要「钢琴伴奏歌谱 · ② 配和弦与伴奏」；刷新后仍收起；点展开：删键、#paper 顶回 138', J({ e0, c1, c2, e3 }));
+      /* v68.7 S1 迁移（规格 B2）：可见摘要用 2 字步名「② 伴奏」，读屏名（aria-label）照旧全名「② 配和弦与伴奏」。修前红修后绿：改前可见摘要是全名，/② 伴奏$/ 不中 */
+      && /钢琴伴奏歌谱/.test(c1.sum) && /② 配和弦与伴奏/.test(c1.sum) && /② 伴奏$/.test(c1.txt) && c2.sb === 'col' && c2.key === '0' && e3.sb === 'exp' && e3.key === null && e3.py === 138,
+      'SB7a 点 ⌃ 收起：条高 28、外框 34、#paper 顶 126、musetab-sbar=\'0\'、摘要「钢琴伴奏歌谱 · ② 伴奏」（读屏名全名「② 配和弦与伴奏」）；刷新后仍收起；点展开：删键、#paper 顶回 138', J({ e0, c1, c2, e3 }));
     /* 吸住时切换：参考音的屏幕 y 不跳 */
     await EV(pg, () => __new('JG', { nMea: 40, mod: s => __melIn(s, 0, [...Array(40).keys()]) })); await raf(pg);
     const yAt = () => EV(pg, () => { const svg = $i('score'), k = svg.getBoundingClientRect().height / svg.viewBox.baseVal.height, bx = colBoxes['v0:12:0']; return Math.round((svg.getBoundingClientRect().top + bx.y * k) * 10) / 10; });
@@ -669,8 +683,11 @@ function HELP() {
       return { start: !!$i('flw-start'), next: !!$i('flw-next'), i: !!document.querySelector('.flw-stp-i'), pop: !!document.querySelector('#popmenu.flw-stp-pop'), lbw: !!$i('lb-wrap'),
         eb: /起步/.test(eb.textContent + [...eb.querySelectorAll('[aria-label],[title]')].map(e => (e.getAttribute('aria-label') || '') + (e.getAttribute('title') || '')).join('')),
         smart: /下一步/.test(smart ? smart.textContent : ''), prop: /起步 · 换谱类/.test(prop ? prop.textContent : ''), openers, off: [...eb.querySelectorAll('.flw-off')].map(e => e.id || e.dataset.dur) }; });
-    T('SB10', !a.start && !a.next && !a.i && !a.pop && !a.lbw && !a.eb && !a.smart && !a.prop && (w >= 1280 ? J(a.openers) === J(['flw-sb-kind', 'flw-kchip']) : J(a.openers) === J(['flw-sb-kind'])) && (w !== 1280 || !a.off.length),
-      'SB10 ' + w + '：没有行 2 起步组 / 「下一步」卡 / ⓘ / 起步说明浮层 / #lb-wrap；行 2 无「起步」、「智能」页无「下一步」、属性页无「起步 · 换谱类」；打开换谱类菜单的可见入口' + (w >= 1280 ? '恰好 2 个（条上谱类 ▾、芯片）' : '恰好 1 个（条上谱类 ▾）') + (w === 1280 ? '；新建钢琴伴奏歌谱行 2 不收键' : ''), J(a));
+    /* v68.7 S1 迁移（D4 / README ③合并表「换谱类 → 悬浮条谱类 ▾ · 文件 ▾」）：原「≥1280 可见入口恰好 2 个（条上谱类 ▾、芯片）」→ 各宽度都恰好 1 个可点入口（条上谱类 ▾）；
+       ≥1280 芯片照显谱名但只读（不是按钮）。修前红修后绿：改前 ≥1280 openers 有 2 个、芯片是 button */
+    const ro = await EV(pg, () => { const k = $i('flw-kchip'); return { vis: __vis(k), span: !!k && k.tagName === 'SPAN' && !k.hasAttribute('data-fa') }; });
+    T('SB10', !a.start && !a.next && !a.i && !a.pop && !a.lbw && !a.eb && !a.smart && !a.prop && J(a.openers.filter(x => x !== 'flw-kchip' || !ro.span)) === J(['flw-sb-kind']) && ro.span && (w < 1280 || ro.vis) && (w !== 1280 || !a.off.length),
+      'SB10 ' + w + '：没有行 2 起步组 / 「下一步」卡 / ⓘ / 起步说明浮层 / #lb-wrap；行 2 无「起步」、「智能」页无「下一步」、属性页无「起步 · 换谱类」；打开换谱类菜单的可点入口恰好 1 个（条上谱类 ▾）' + (w >= 1280 ? '，音轨区芯片只读照显' : '') + (w === 1280 ? '；新建钢琴伴奏歌谱行 2 不收键' : ''), J({ a, ro }));
     await close(pg);
   }));
 
@@ -868,16 +885,17 @@ function HELP() {
     const land = async () => {
       const out = {};
       await EV(pg, () => { __toasts.length = 0; __qc('pacc'); return 1; }); await raf(pg);
-      out.pacc = await EV(pg, () => ({ t: __toasts.filter(x => /已新建/.test(x)).slice(-1)[0] || '', page: FLOW.rd.page() }));
+      out.pacc = await EV(pg, () => ({ t: __toasts.filter(x => /已新建/.test(x)).slice(-1)[0] || '', page: FLOW.rd.page(), fl: $i('flw-sbar').dataset.flash || '', k: $i('toast').dataset.k || '' }));
       /* 示例做同款：新建面板「从已有音乐 → 示例」 */
       await EV(pg, () => { __toasts.length = 0; showNewWizard({ tab: 'import' }); return 1; }); await wait(pg, 300);
       await pg.click('#nf-isrc-ex').catch(() => {}); await wait(pg, 150); await pg.click('[data-ex="0"]').catch(() => {}); await wait(pg, 150); await pg.click('#nf-exgo').catch(() => {}); await wait(pg, 400);
-      out.ex = await EV(pg, () => __toasts.filter(x => /格式新建/.test(x)).slice(-1)[0] || '');
+      /* v68.7 S1 迁移：新外壳「示例做同款」提示条只出短文「已新建同款」（原 /格式新建/ 整句只在旧外壳 / 手机），按新短文取 */
+      out.ex = await EV(pg, () => __toasts.filter(x => /格式新建|^已新建同款$/.test(x)).slice(-1)[0] || ''); out.exFl = await EV(pg, () => $i('flw-sbar').dataset.flash || '');
       /* 导入「试一试」《送别》 */
       await EV(pg, () => { __toasts.length = 0; try { closeModal(); } catch (_) {} showNewWizard({ tab: 'import' }); return 1; }); await wait(pg, 300);
       await pg.click('#nf-isrc-ai').catch(() => {}); await wait(pg, 150); await pg.click('#nf-demo').catch(() => {}); await wait(pg, 1200);
       await pg.click('#nf-impgo').catch(() => {}); await wait(pg, 500);
-      out.imp = await EV(pg, () => __toasts.filter(x => /已导入/.test(x)).slice(-1)[0] || '');
+      out.imp = await EV(pg, () => __toasts.filter(x => /已导入/.test(x)).slice(-1)[0] || ''); out.impFl = await EV(pg, () => $i('flw-sbar').dataset.flash || '');
       await EV(pg, () => { try { closeModal(); } catch (_) {} return 1; });
       return out; };
     const e = await land();
@@ -887,8 +905,10 @@ function HELP() {
     const c = await land();
     await EV(pg, () => FLOW.sbar.toggle({ exp: true }));
     const BAD = /谱型条|起步|下一步见/;
-    T('SB19', !!e.pacc.t && !!e.ex && !!e.imp && !BAD.test(e.pacc.t) && !BAD.test(e.ex) && !BAD.test(e.imp) && /谱面上方的悬浮条/.test(c.pacc.t) && /谱面上方的悬浮条/.test(c.ex) && /谱面上方的悬浮条/.test(c.imp) && !/谱型条/.test(c.pacc.t + c.ex + c.imp),
-      'SB19 落地提示：悬浮条展开时，新建钢琴伴奏歌谱 / 示例做同款 / 导入《送别》的提示里没有「谱型条 / 起步 / 下一步见」；收起时三处都写「谱面上方的悬浮条」', J({ e, c }));
+    /* v68.7 S1 迁移（规格 §6.C3 #57 / #2 / #50，P2 结果 ≤12 字 + 动作、P3 不指路）：原「收起时三处都写「谱面上方的悬浮条」」→ 展开 / 收起三处都只出短文（「已新建钢琴伴奏歌谱」「已新建同款」「已导入 N 小节」，不带「谱型条 / 起步 / 下一步见 / 悬浮条」），去处改由悬浮条亮一次（#flw-sbar[data-flash]）指出；原「展开时不写谱型条 / 起步 / 下一步见」照判。修前红：5cddfb8 收起时提示带「谱面上方的悬浮条」、没有 data-flash */
+    const SH = x => x.pacc.t === '已新建钢琴伴奏歌谱' && x.ex === '已新建同款' && /^已导入 \d+ 小节$/.test(x.imp) && x.pacc.fl === '1' && x.exFl === '1' && x.impFl === '1';
+    T('SB19', SH(e) && SH(c) && !BAD.test(e.pacc.t + e.ex + e.imp) && !/谱型条|悬浮条|下一步见/.test(c.pacc.t + c.ex + c.imp),
+      'SB19 落地提示：悬浮条展开 / 收起时，新建钢琴伴奏歌谱 / 示例做同款 / 导入《送别》都只出短文（不写谱型条 / 起步 / 下一步见 / 悬浮条在哪），悬浮条亮一次', J({ e, c }));
     T('SB20', rd.every(x => /:prop$/.test(x)) && e.pacc.page === 'prop', 'SB20 1440 停靠：新建钢琴伴奏歌谱 / 吉他弹唱 / 和弦谱落地后右栏停在「属性」页（不再被拉去「智能」）', J(rd));
     await close(pg);
   }));
@@ -1033,7 +1053,9 @@ function HELP() {
     const hint = await EV(pg, () => { const h = $i('flw-sb-hint'); return h ? { t: h.textContent, title: h.title } : null; });
     if (hint) { await pg.click('#flw-sb-hint'); await wait(pg, 150); }
     const tHint = await EV(pg, () => __toasts.slice());
-    T('SB22', !!hint && tHint.includes(hint.title) && hint.title.length > hint.t.length, 'SB22l（SBAR-7）点空谱提示 → 提示条给 title 全文', J({ hint, tHint }));
+    /* v68.7 S1 迁移（README P2）：原「title 是比可见字更长的全文」→ title＝可见的同一句（≤12 字、不带句读），点一下提示条照样给出这句（触屏没有悬停）。
+       修前红修后绿：改前 title 比可见字长（hint.title === hint.t 为假） */
+    T('SB22', !!hint && tHint.includes(hint.title) && hint.title === hint.t && hint.t.length <= 12 && !/[，。；：]/.test(hint.t), 'SB22l（SBAR-7）点空谱提示 → 提示条给出同一句（title＝可见字，≤12 字、不带句读）', J({ hint, tHint }));
     /* SBAR-9：文件 ▾ 开着按 Alt+B——菜单先收起，焦点进条 */
     await pg.click('#flw-file'); await wait(pg, 250);
     const pop0 = await EV(pg, () => !!$i('popmenu'));

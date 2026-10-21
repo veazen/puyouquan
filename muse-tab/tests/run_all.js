@@ -60,11 +60,17 @@ const CORE = [
   /* v68.6 同一项的界面段（规格 §6.3 PU1–PU15）：新外壳输出模式分谱列表 / 勾选 / 全选三态 / 切预览 / 生命周期 / 键盘 / 沿用总谱换行 / 打印对象 / PNG ·
      旧外壳弹窗「分谱」组与手机抽屉「分谱」行（单演奏者与 v68.5 基线逐字节相同）· 文案预算 · 埋点 · 数据红线；引擎缺省要求在场；单跑约 3 分钟 */
   'tv_parts_ui',
+  /* v68.7 S0 文字预算（界面简约化 S0 / S1，规格 v68.7 §6.C2 / §9）：方案阶段 37 屏文字量审计复跑（工具入库 tests/lib/textaudit/）对照基线 tests/textbudget_ref.json（v68.6 · 5cddfb8）——
+     TB1 跑通 · TB2 每屏 8 项只降不升 · TB3 ≥3 处入口（K 口径）不增 · 验收线 TBA1–TBA5 与护栏 TBG1–TBG2（env TB_PHASE=track 时只打印）；单跑约 240 秒（一个浏览器、37 个上下文顺序跑） */
+  'tv_textbudget',
+  /* v68.7 收尾（三镜头验收 budget / function / teacher 的发现）：命令面板联排谱号与旧名 · 状态栏读数单位与读屏 · ⋯ 时值检查 · 菜单名称 · 记号格混合档弹窗格 ·
+     整体缩放细调 · 撤销不转存 · Esc 焦点 · 帮助 · 配伴奏提示范围 · 悬停 / 原因收短 · 快速新建首项 · allow 上限（V1–V15，修前 13cf7cb 红）；单跑约 30 秒 */
+  'tv_v687fix',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 let fail = 0, ran = 0;

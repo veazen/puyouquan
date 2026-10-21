@@ -627,10 +627,16 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await pg.click('#tex-go'); await pg.waitForTimeout(150);
     const b2 = { mel: await mel(), rows: await rowsOf(), docs: await pg.evaluate(() => docs.length) - d0 };
     await pg._ctx.close();
-    const gOk = shell === 'classic' ? (/一键配伴奏/.test(guide) && /直接填进/.test(guide)) : (!/谱型条|下一步见/.test(guide) && !!go && go.t === '一键配伴奏' && go.act === 'arrange' && /直接填进/.test(go.title));
-    T(gOk && modal.fill && a.docs === 0 && a.mel === m0 && m0 === '1155|6650' && /^11,11,00/.test(a.rows) && a.chords >= 1 && a.k === 'JG' && /填进/.test(a.toast)
+    /* v68.7 S1 迁移（B2：悬浮条主按钮 title 只写名称 m.go.btn，GO_TIP 停用）：flow 段原断言 title 含「直接填进」——说明句已撤，
+       「直接填进本谱两行」改由智能配谱弹窗默认选中「填进当前谱」（modal.fill）与落地结果（a.docs===0、rows 11,11,00）证明；
+       修前（未迁移）红：go.title＝「一键配伴奏」不含「直接填进」；修后绿 */
+    const gOk = shell === 'classic' ? (/一键配伴奏/.test(guide) && /直接填进/.test(guide)) : (!/谱型条|下一步见/.test(guide) && !!go && go.t === '一键配伴奏' && go.act === 'arrange' && go.title === '一键配伴奏');
+    /* v68.7 S1 迁移（规格 §6.C3 #7）：新外壳填进当前谱的提示条只出短文「已配伴奏 N 小节」（+「撤销」），原 /填进/ 只在旧外壳段判；修前红：5cddfb8 flow 段提示为整句「已填进当前谱：…」 */
+    /* v68.7 收尾 TCH-8 迁移：短文全配上时写范围「已配伴奏 · 第 1–N 小节」（有跳过的照旧「已配伴奏 N 小节」）——两种都认；修前红：13cf7cb 只有后一种，本用例全配上，新正则只多认前一种、不放宽意图 */
+    const aT = shell === 'classic' ? /填进/.test(a.toast) : /^已配伴奏( · 第 \d+(–\d+)?| \d+) 小节/.test(a.toast);
+    T(gOk && modal.fill && a.docs === 0 && a.mel === m0 && m0 === '1155|6650' && /^11,11,00/.test(a.rows) && a.chords >= 1 && a.k === 'JG' && aT
       && /^00,00/.test(a.undo.rows) && a.undo.chords === 0 && libModal && b2.mel === m0 && /^11,11,00/.test(b2.rows) && b2.docs === 0,
-      'T16（' + shell + '）钢琴伴奏歌谱：建成提示指向一键配伴奏（flow：谱面上方悬浮条 ② 的主按钮「一键配伴奏」，title 写「直接填进」）；一键配伴奏＝伴奏织体填进本谱右手 / 左手两行（自动配和弦、不另开窗口、旋律不动、没写旋律的尾部不配、一步撤销）；节奏型库→伴奏织体同口径',
+      'T16（' + shell + '）钢琴伴奏歌谱：建成提示指向一键配伴奏（flow：谱面上方悬浮条 ② 的主按钮「一键配伴奏」，v68.7 起 title 只写名称、提示条短文「已配伴奏 N 小节」；classic：建成提示写「直接填进」）；一键配伴奏＝伴奏织体填进本谱右手 / 左手两行（自动配和弦、不另开窗口、旋律不动、没写旋律的尾部不配、一步撤销）；节奏型库→伴奏织体同口径',
       JSON.stringify({ guide: guide.slice(-60), go, modal, a, b2, libModal }));
   });
 
@@ -701,11 +707,19 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     if (!CL) { await pg.evaluate(() => { sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; blurSel = false; render(); });
       for (const k of '5653') { await pg.keyboard.press(k); await pg.waitForTimeout(30); }
       await pg.waitForTimeout(120);
-      go = await pg.evaluate(() => { const b = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return b ? { t: b.textContent.trim(), act: b.dataset.act, title: b.title } : null; }); }
+      go = await pg.evaluate(() => { const b = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return b ? { t: b.textContent.trim(), act: b.dataset.act, title: b.title } : null; });
+      /* v68.7 S1 迁移（B2：主按钮 title 只写名称，GO_TIP「写进建谱时的空吉他轨（轨数不变）」停用）：
+         「照实说写进空吉他轨」改在点主按钮后的「生成六线谱」弹窗正文（vtReuseInfo：写进当前的空吉他轨「…」）断言，
+         「轨数不变」改为实测——弹窗里点「低把位」前后 song.tabVoices 条数相同。修前（未迁移）红：why 取 title＝「生成六线谱」无「空吉他轨」；修后绿 */
+      if (go) { const n0 = await pg.evaluate(() => (song.tabVoices || []).length);
+        await pg.click('#flw-sbar [data-fa="sbar:go"]'); await pg.waitForTimeout(150);
+        go.modal = await pg.evaluate(() => ((document.querySelector('.modal') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 200));
+        if (await pg.$('#vt-low')) { await pg.click('#vt-low'); await pg.waitForTimeout(150); }
+        go.tabs = [n0, await pg.evaluate(() => (song.tabVoices || []).length)]; } }
     await pg._ctx.close();
-    const why = CL ? penJ : (go ? go.t + ' ' + go.title : '');
+    const why = CL ? penJ : (go ? go.t + ' ' + (go.modal || '') + (go.tabs && go.tabs[0] === go.tabs[1] && go.tabs[0] === 1 ? ' 轨数不变' : '') : '');
     T(ri.ri === ri.label + ' · 16 小节' && ri.label === '钢琴伴奏歌谱' && /钢琴伴奏歌谱/.test(ri.tip) && !/谱行|落笔行|谱样/.test(panelTxt) && /实时刻版/.test(panelTxt)
-      && !/显示 · 六线谱/.test(penJ) && (CL ? /谱型条/.test(penJ) : (!/谱型条|起步|下一步见/.test(penJ) && !!go && go.act === 'tabgen')) && /生成六线谱/.test(why) && /空吉他轨/.test(why) && /轨数不变/.test(why) && !/新加的一条|不用可删/.test(why) && /Alt\+Shift\+N/.test(keys) && /AI 转谱导出/.test(pad) && !/AI 转谱结果/.test(pad),
+      && !/显示 · 六线谱/.test(penJ) && (CL ? /谱型条/.test(penJ) : (!/谱型条|起步|下一步见/.test(penJ) && !!go && go.act === 'tabgen' && go.title === '生成六线谱')) && /生成六线谱/.test(why) && /空吉他轨/.test(why) && /轨数不变/.test(why) && !/新加的一条|不用可删/.test(why) && /Alt\+Shift\+N/.test(keys) && /AI 转谱导出/.test(pad) && !/AI 转谱结果/.test(pad),
       'T19（' + shell + '）右栏「谱类 · 篇幅」（flow：属性页「整谱 · 谱类」）＝页签＝docTypeLabel；面板不出现自造词「谱行」、中栏为实时刻版（v67.5 合并 A）；「先写旋律」提示写真实位置（v67.5 收尾：下一步交给谱面上方谱型条的「生成六线谱」）、照实说写进建谱时的空吉他轨（轨数不变，第二轮验收：不再说「新加一条 / 空轨可删」）；底栏键位与启动台文案按方案（MusicXML 含 AI 转谱导出，不承诺单独的 AI 入口）',
       JSON.stringify({ ri, keys, penJ: penJ.slice(-80), go, pad }));
   });
@@ -945,7 +959,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       return out;
     });
     await pg._ctx.close();
-    T(!r.sab.nwb && !r.sab.pas && r.sab.dual && r.sab.label === '教学对照谱' && r.sab.btn === 'none' && !r.lib.tex && /合唱/.test(r.lib.toast) && !r.btnDirect.tex && /合唱/.test(r.btnDirect.toast) && r.same
+    /* v68.7 S1 迁移（规格 §6.C3 #8 / #3，本用例在新外壳）：拒绝时的提示条原 /合唱/（整句说明）→ 短文「需要钢琴大谱表」（节奏型库）/「本谱没有钢琴大谱表」（伴奏织体，可带「配伴奏」钮）；拒绝与谱面不变仍由 tex / same 判。修前红：5cddfb8 新外壳提示为整句 */
+    T(!r.sab.nwb && !r.sab.pas && r.sab.dual && r.sab.label === '教学对照谱' && r.sab.btn === 'none' && !r.lib.tex && /^需要钢琴大谱表/.test(r.lib.toast) && !r.btnDirect.tex && /^本谱没有钢琴大谱表/.test(r.btnDirect.toast) && r.same
       && !r.ren.old.nwb && !r.ren.old.pas && !r.ren.old.fill && !r.ren.old.tex && r.ren.new.nwb && r.ren.new.pas && r.ren.new.fill && r.ren.new.tex && r.ren.new.auto && r.ren.new.label === '教学对照谱（含伴奏）',
       'T27 判定只此一份（NWB.isAccStack ≡ isPianoAccStack）：导入 SAB 给女高音开简谱对照＝教学对照谱（不带「含伴奏」）、右栏无「伴奏织体」，节奏型库 / 伴奏织体都拒绝改写声部（谱面逐字不变）；一键配伴奏产物改轨名后：老产物两处都不认、新产物（1–2 行花括号）两处都认（有「填进当前谱」、织体写伴奏两行）', JSON.stringify(r));
   });
@@ -1068,7 +1083,10 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await ph.click('#nw-mimp'); await ph.waitForTimeout(120);
     r.phImp = await ph.evaluate(() => document.querySelector('.nf-modal').textContent);
     await ph._ctx.close();
-    T(/♩=100/.test(r.last) && r.last.startsWith(r.qm) && /1=G 3\/4/.test(r.last) && r.penJ === '六线谱|*简谱旋律' && r.penT === '*六线谱|简谱旋律' && r.long && r.arr.go && r.arr.out && r.arr.hit
+    /* v68.7 S1 迁移（只新外壳）：快速新建 ▾ 首项的灰色小标签只写读数「1=G 3/4 ♩=100」（谱名在名称「按上次 · 用途」里），不再是启动台卡的整句——
+       r.last.startsWith(r.qm) → r.last 含 r.qm（启动台卡「谱名 · 1=G 3/4 ♩=100 · Alt+Shift+N」与小标签同一份调 · 拍号 · 速度）；理由：规格 A2「快速新建 ▾」；修前红修后绿：改前 small 是整句、不以「1=」开头 → qmv 红 */
+    const qmv = /^1=G 3\/4 ♩=100$/.test(r.qm || '');
+    T(/♩=100/.test(r.last) && r.last.indexOf(' · ' + r.qm) >= 0 && qmv && /1=G 3\/4/.test(r.last) && r.penJ === '六线谱|*简谱旋律' && r.penT === '*六线谱|简谱旋律' && r.long && r.arr.go && r.arr.out && r.arr.hit
       && r.ph.h3 === '在电脑上开始一份谱' && !/按用途选好/.test(r.ph.t) && !/新窗口/.test(r.phImp) && /直接打开/.test(r.phImp),
       'T32 启动台「按上次」卡与「新建 ▾」置顶项同一份摘要（带 ♩=100）；吉他弹唱示意六线谱在上、简谱旋律在下，「从这行开始写」随「从哪写起」落对行；1366×768 下智能配谱的产出与「生成」钉在弹窗底部、不用滚动就点得到；手机页标题「在电脑上开始一份谱」、不写「按用途选好」，手机导入页不说「新窗口」', JSON.stringify(r));
   });

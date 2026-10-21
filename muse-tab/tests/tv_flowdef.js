@@ -503,19 +503,26 @@ function INIT() {
   }));
 
   /* ================= F6 旧入口去向（Ctrl+/ 搜索）================= */
+  /* v68.7 S1 迁移（规格 A3 / A5，README ②P3「带我去」）：命令面板删位置列（「在 文件 ▾ · 原「预设」」这类说明字），旧名照样搜得到（位置文字留作搜索别名）；
+     「在哪」改成 ↑↓ 选中该条时描边真实控件——原断言「首条名称 + 位置正则」→「首条 id / 名称 + 没有 .flw-cmdw + ↑↓ 后描边的控件」：
+     预设 → 示例曲谱 → #flw-file · 打印… → 打印 / 存 PDF → #flw-mode-output（不在输出模式，描那一步）· 智能 → 右栏页签 · 存为文件 → #flw-file · 经典版 → #flw-acct。
+     修前红修后绿：改前每行带 .flw-cmdw、↑↓ 不描边（没有 .flw-cmd-hl）→ 红 */
   if (want('F6')) jobs.push(() => SAFE('F6', 'F6', async () => {
     const pg = await open(1280, 800, { tag: 'F6' });
     await scn(pg, 'songbie'); const base = await redBase(pg);
-    const Q = [['预设', /^示例曲谱$/, /文件 ▾.*原「预设」/], ['打印…', /^打印 \/ 存 PDF$/, /输出.*打印存档.*原顶栏「打印…」/], ['智能', /^智能$/, /右栏 · 智能（原顶栏「智能」）/],
-      ['存为文件', /^存为文件/, /文件 ▾ · Ctrl\+S/], ['经典版', /^使用旧版布局$/, /账号 ▾ · 偏好设置「使用旧版布局」/]];
+    const Q = [['预设', 'r1:demo', /^示例曲谱$/, ['flw-file']], ['打印…', 'out:print', /^打印 \/ 存 PDF$/, ['flw-mode-output']], ['智能', 'rd:smart', /^智能$/, ['flw-rpt-smart', 'rs:smart']],
+      ['存为文件', 'r1:file', /^存为文件/, ['flw-file']], ['经典版', 'acct:classic', /^使用旧版布局$/, ['flw-acct']]];
     const got = [];
-    for (const [q, nre, wre] of Q) {
+    for (const [q, id, nre, hl] of Q) {
       await EV(pg, () => { try { FLOW.menu.close(); } catch (_) {} try { const a = document.activeElement; if (a && a !== document.body && a.blur) a.blur(); } catch (_) {} });
       await pg.keyboard.press('Control+Slash'); await wait(pg, 200);
       const inp = await EV(pg, () => { const a = document.activeElement; return a && a.tagName === 'INPUT' ? a.id || 'input' : null; });
       await pg.keyboard.type(q); await wait(pg, 200);
-      const r = await EV(pg, () => { const r0 = document.querySelector('#flw-cmdl .flw-cmdr'); return r0 ? { t: (r0.querySelector('.flw-cmdt') || {}).textContent, w: (r0.querySelector('.flw-cmdw') || {}).textContent, id: r0.dataset.v, dis: r0.getAttribute('aria-disabled') } : null; });
-      got.push({ q, inp, r, ok: !!inp && !!r && nre.test(r.t) && wre.test(r.w) && r.dis !== 'true' });
+      const r = await EV(pg, () => { const r0 = document.querySelector('#flw-cmdl .flw-cmdr'); return r0 ? { t: (r0.querySelector('.flw-cmdt') || {}).textContent, w: r0.querySelectorAll('.flw-cmdw').length, id: r0.dataset.v, dis: r0.getAttribute('aria-disabled') } : null; });
+      const hl0 = await EV(pg, () => document.querySelectorAll('.flw-cmd-hl').length);   /* 打开 / 打字不描边 */
+      await pg.keyboard.press('ArrowDown'); await wait(pg, 60); await pg.keyboard.press('ArrowUp'); await wait(pg, 150);
+      const h = await EV(pg, () => { const e = document.querySelectorAll('.flw-cmd-hl'); const x = e[0]; return { n: e.length, id: x ? (x.id || (x.classList.contains('flw-rs-b') ? 'rs:' + x.dataset.p : x.className)) : null, ae: (document.activeElement || {}).id || '' }; });
+      got.push({ q, inp, r, hl0, h, ok: !!inp && !!r && r.id === id && nre.test(r.t) && r.w === 0 && r.dis !== 'true' && hl0 === 0 && h.n === 1 && hl.includes(h.id) && h.ae === 'flw-cmdq' });
       if (q === '经典版') {
         await pg.keyboard.press('Enter'); await wait(pg, 250);
         const p = await EV(pg, () => { const r = document.querySelector('#modal-mask .prf-row[data-prf="oldshell"]'); return r ? { on: r.getAttribute('aria-checked'), focus: document.activeElement === r, hl: r.classList.contains('prf-hl'), key: localStorage.getItem('musetab-flow') } : null; });
@@ -525,9 +532,51 @@ function INIT() {
       } else await pg.keyboard.press('Escape');
       await wait(pg, 120);
     }
-    T('F6', got.every(x => x.ok), 'F6 Ctrl+/ 搜旧入口名：「预设」→ 示例曲谱（文件 ▾，原「预设」）· 「打印…」→ 打印 / 存 PDF（输出 · 打印存档）· 「智能」→ 右栏 · 智能 · 「存为文件」→ 文件 ▾ · Ctrl+S · 「经典版」→ 使用旧版布局（账号 ▾ · 偏好设置），回车打开偏好设置并聚焦、标出该行（不直接切换）',
-      J(got.filter(x => !x.ok).length ? got.filter(x => !x.ok) : got.map(x => x.q + '→' + (x.r ? x.r.t + ' 在 ' + x.r.w : J(x.p)))));
+    const end = await EV(pg, () => ({ hl: document.querySelectorAll('.flw-cmd-hl').length, ro: document.body.classList.contains('flw-ro') }));
+    T('F6', got.every(x => x.ok) && end.hl === 0 && !end.ro, 'F6 Ctrl+/ 搜旧入口名（v68.7 S1：没有位置列，↑↓ 描边真实控件）：「预设」→ 示例曲谱（描 文件）·「打印…」→ 打印 / 存 PDF（描 输出 模式钮）·「智能」→ 右栏智能（描页签）·「存为文件」→ 文件 · 「经典版」→ 使用旧版布局（描 账号），回车打开偏好设置并聚焦、标出该行（不直接切换）；焦点始终在搜索框，Esc 后描边与浮出的右栏都撤掉',
+      J(got.filter(x => !x.ok).length ? got.filter(x => !x.ok) : got.map(x => x.q + '→' + (x.r ? x.r.t + ' 描 ' + (x.h && x.h.id) : J(x.p)))) + ' end=' + J(end));
     await redEnd('F6', pg, base, []);
+    await close(pg);
+  }));
+  /* v68.7 S1 新增 F6b（规格 A5）：↑↓ 描边 + 所在面板收着就展开——记号组折叠时临时展开（只改 DOM，不写 musetab-pal），Esc 后折回；
+     1280 右栏竖条档：「输入和弦」→ 右栏浮出、描边「文字」页签，Esc 收回；回车执行了的保留展开；整个过程焦点留在 #flw-cmdq。修前红：改前没有描边 / 展开 */
+  if (want('F6')) jobs.push(() => SAFE('F6', 'F6b', async () => {
+    const pg = await open(1280, 800, { tag: 'F6b' });
+    await scn(pg, 'songbie', { mi: 1 }); const base = await redBase(pg);
+    /* 取「奏法」组里一个不在「最近使用」一行的记号（在那一行里的格子本来就看得见，描边它、不必展开） */
+    const g = await EV(pg, () => { const gr = FLOW.pal.GROUPS('jp').find(x => x[2].indexOf('fermata') >= 0), gid = gr[0];
+      const rec = [...document.querySelectorAll('#flw-pgrid .flw-rec .flw-sg')].map(x => x.dataset.v);
+      const id = gr[2].find(x => rec.indexOf(x) < 0 && FLOW.pal.ok(x, 'jp')); const o = {}; o[gid] = true;
+      localStorage.setItem('musetab-pal', JSON.stringify(o)); FLOW.pal.on(); return { gid, id, name: FLOW.pal.SIGNS[id][1], pal: localStorage.getItem('musetab-pal'), hid: document.getElementById('flw-pg-' + gid).hidden }; });
+    const AE = () => EV(pg, () => (document.activeElement || {}).id || '');
+    const ae = [];
+    await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await pg.keyboard.type(g.name); await wait(pg, 200);
+    await pg.keyboard.press('ArrowDown'); await wait(pg, 60); await pg.keyboard.press('ArrowUp'); await wait(pg, 150); ae.push(await AE());
+    const a = await EV(pg, g => { const c = document.querySelector('#flw-pg-' + g.gid + ' .flw-sg[data-v="' + g.id + '"]'); return { top: (document.querySelector('#flw-cmdl .flw-cmdr') || {}).dataset.v,
+      hl: !!c && c.classList.contains('flw-cmd-hl'), open: !document.getElementById('flw-pg-' + g.gid).hidden, exp: (document.querySelector('#flw-pgrid [aria-controls="flw-pg-' + g.gid + '"]') || { getAttribute: () => null }).getAttribute('aria-expanded'),
+      pal: localStorage.getItem('musetab-pal') }; }, g);
+    await pg.keyboard.press('Escape'); await wait(pg, 150);
+    const a2 = await EV(pg, gid => ({ hid: document.getElementById('flw-pg-' + gid).hidden, hl: document.querySelectorAll('.flw-cmd-hl').length, pal: localStorage.getItem('musetab-pal') }), g.gid);
+    T('F6', g.hid && a.top === 'sign:' + g.id && a.hl && a.open && a.exp === 'true' && a.pal === g.pal && a2.hid && !a2.hl && a2.pal === g.pal,
+      'F6b ↓ 到「' + g.name + '」（所在组「奏法」已折叠、不在最近使用里）→ 格子描边、组临时展开（只改 DOM，musetab-pal 不变）；Esc → 组折回、描边撤掉', J({ g, a, a2 }));
+    /* 1280 竖条档：输入和弦 → 右栏浮出 + 描边页签；Esc 收回 */
+    const r0 = await EV(pg, () => ({ rs: document.body.classList.contains('flw-rs'), ro: document.body.classList.contains('flw-ro') }));
+    await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await pg.keyboard.type('输入和弦'); await wait(pg, 200);
+    await pg.keyboard.press('ArrowDown'); await wait(pg, 60); await pg.keyboard.press('ArrowUp'); await wait(pg, 200); ae.push(await AE());
+    const b1 = await EV(pg, () => { const e = document.querySelector('.flw-cmd-hl'); return { top: (document.querySelector('#flw-cmdl .flw-cmdr') || {}).dataset.v, ro: document.body.classList.contains('flw-ro'), page: FLOW.rd.page(),
+      hl: e ? (e.id || e.className) : null, inRd: !!e && !!e.closest('#right-dock, #flw-rstrip') }; });
+    await pg.keyboard.press('Escape'); await wait(pg, 200);
+    const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), hl: document.querySelectorAll('.flw-cmd-hl').length }));
+    /* 执行了的保留：「输入和弦」回车执行 → 浮出的右栏留着（描边撤掉），和弦输入框照常弹出 */
+    await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await pg.keyboard.type('输入和弦'); await wait(pg, 200);
+    await pg.keyboard.press('ArrowDown'); await wait(pg, 60); await pg.keyboard.press('ArrowUp'); await wait(pg, 150); ae.push(await AE());
+    await shot(pg, 'F6b-cmd-reveal-1280');
+    await pg.keyboard.press('Enter'); await wait(pg, 300);
+    const c1 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), hl: document.querySelectorAll('.flw-cmd-hl').length, cmd: !!document.querySelector('#popmenu.flw-cmd') }));
+    await EV(pg, () => { try { closeModal(); } catch (_) {} try { closePop(); } catch (_) {} try { FLOW.rd.close(false); } catch (_) {} });
+    T('F6', r0.rs && !r0.ro && b1.top === 'tx:chord' && b1.ro && b1.page === 'text' && b1.inRd && !b2.ro && !b2.hl && c1.ro && !c1.hl && !c1.cmd && ae.every(x => x === 'flw-cmdq'),
+      'F6b 1280 右栏竖条档 ↓ 到「输入和弦」→ 右栏浮出到「文字」页、描边在右栏里，Esc 收回；回车执行 → 浮出的右栏保留、描边撤掉；三次 ↑↓ 期间焦点都在 #flw-cmdq', J({ r0, b1, b2, c1, ae }));
+    await redEnd('F6b', pg, base, []);
     await close(pg);
   }));
 
@@ -611,7 +660,11 @@ function INIT() {
       r.querySelectorAll('[title],[data-why],[aria-label]').forEach(e => ['title', 'data-why', 'aria-label'].forEach(a => { const v = e.getAttribute(a); if (v) out.push(v); })); }); return out.join('\n'); });
     const texts = [];
     await pg.click('#flw-tlist .flw-trow.on [data-fa="tree:more"]'); await wait(pg, 200); texts.push(await grab());
-    for (const lb of ['锁定此轨', '上移']) { await EV(pg, l => { const b = [...document.querySelectorAll('#popmenu [data-fa]')].find(x => (x.textContent || '').indexOf(l) >= 0); if (b) b.click(); }, lb); await wait(pg, 120); }
+    /* v68.7 S1 迁移：点置灰项的原因由 toast「锁定此轨：即将推出」「音轨排序：即将推出」改为菜单里就地一行 .flw-mwhy「即将推出」（规格 §3.1，菜单不关、不 toast）；
+       修前红修后绿：改前点了只 toast、没有 .flw-mwhy → mw 红 */
+    const mw = [];
+    for (const lb of ['锁定此轨', '上移']) { await EV(pg, l => { const b = [...document.querySelectorAll('#popmenu [data-fa]')].find(x => (x.textContent || '').indexOf(l) >= 0); if (b) b.click(); }, lb); await wait(pg, 120);
+      mw.push(await EV(pg, () => ((document.querySelector('#popmenu .flw-mwhy') || {}).textContent || ''))); }
     await EV(pg, () => { try { FLOW.menu.close(); } catch (_) {} });
     await EV(pg, () => setMode('engrave')); await wait(pg, 900); texts.push(await grab());
     await EV(pg, () => { const b = document.querySelector('#flw-eng [data-fa="lay:pbrk"]'); if (b) b.click(); }); await wait(pg, 120);
@@ -620,14 +673,14 @@ function INIT() {
     const cmd = await EV(pg, () => ['分谱', '换页', '页码', '锁定此轨'].map(q => (FLOW.cmd.search(q).hits || []).slice(0, 3).map(c => [c.t, typeof c.w === 'function' ? c.w() : c.w, c.ok ? (() => { try { return c.ok() || ''; } catch (_) { return ''; } })() : ''].join(' | ')).join('\n')).join('\n'));
     await EV(pg, () => setMode('write')); await wait(pg, 300);
     const toasts = await EV(pg, () => __toasts.slice());
-    const all = texts.join('\n') + '\n' + cmd + '\n' + toasts.join('\n');
+    const all = texts.join('\n') + '\n' + cmd + '\n' + toasts.join('\n') + '\n' + mw.join('\n');
     const bad = (all.match(new RegExp(JARGON.source, 'g')) || []);
-    const soon = /即将推出/.test(texts.join('')) && toasts.some(t => /锁定此轨：即将推出/.test(t)) && toasts.some(t => /音轨排序：即将推出/.test(t));
+    const soon = /即将推出/.test(texts.join('')) && mw.length === 2 && mw.every(t => t === '即将推出') && !toasts.some(t => /即将推出/.test(t));
     const parts = toasts.some(t => /只有一位演奏者/.test(t)) && !/分谱[^\n]{0,20}即将推出/.test(all);   /* v68.6：分谱是真功能 */
     /* v68.5：换页 / 页码不再「即将推出」——工具组「此处换页」在第 1 行灰显、点了说原因；界面、命令面板「换页 / 页码」、toast 里都没有「此处换页：即将推出」「页码…即将推出」 */
     const pb = toasts.some(t => /第 1 行本来就在第 1 页/.test(t)) && !/此处换页：即将推出|页码[^\n]{0,30}即将推出/.test(all);
     T('F8', !bad.length && soon && pb && parts, 'F8a NU-2 音轨 ⋯ 灰显项 / 排版工具组 · 右栏版式 / 输出左栏「输出内容」 / 命令面板「分谱 · 换页 · 页码 · 锁定此轨」/ 点灰显项的 toast：不出现「拍板 / 需负责人 / measures[] / 外壳这一层 / 下一批」，未上线的写「即将推出」；v68.5 换页 / 页码是真功能（第 1 行点「此处换页」说「第 1 行本来就在第 1 页」）；v68.6 分谱是真功能（钢琴独奏点「分谱」说「只有一位演奏者」，全文没有「分谱…即将推出」）',
-      J({ bad, pb, parts, toasts: toasts.filter(t => /即将推出|拍板|下一批|第 1 行|演奏者/.test(t)) }));
+      J({ bad, pb, parts, mw, toasts: toasts.filter(t => /即将推出|拍板|下一批|第 1 行|演奏者/.test(t)) }));
     await shot(pg, 'F8a-output-list-1280');
     await redEnd('F8', pg, base, []);
     await close(pg);
@@ -684,20 +737,29 @@ function INIT() {
       const out = {};
       /* v68.3 迁移：起步收回谱面上方的悬浮条——展开着时落地提示不再写「下一步见…」（guide 返回 ''），收起时说「谱面上方的悬浮条」 */
       out.exp = FLOW.sbar.expanded(); out.guide = FLOW.sbar.guide('——下一步见谱面上方的谱型条：先写旋律');
-      try { showQuickbar(400, 300, true); const q = document.querySelector('#quickbar [data-qb="off"]'); __toasts.length = 0; if (q) q.click(); out.qboff = __toasts.slice(-1)[0] || ''; localStorage.removeItem('musetab-quickbar'); } catch (e) { out.qboff = 'ERR ' + e.message; }
+      try { showQuickbar(400, 300, true); const q = document.querySelector('#quickbar [data-qb="off"]'); __toasts.length = 0; if (q) q.click(); out.qboff = __toasts.slice(-1)[0] || '';
+        /* v68.7 S1：提示条上的「开启」＝重新打开触屏浮条（原来写去哪里开） */
+        const ta = document.querySelector('#toast .flw-ta'); out.qbk = (document.getElementById('toast') || {dataset: {}}).dataset.k || ''; out.qbta = ta ? ta.textContent : ''; out.qbls0 = localStorage.getItem('musetab-quickbar');
+        if (ta) ta.click(); out.qbls1 = localStorage.getItem('musetab-quickbar'); localStorage.removeItem('musetab-quickbar'); } catch (e) { out.qboff = 'ERR ' + e.message; }
       return out; });
     /* 真实新建一份钢琴伴奏歌谱（新建面板）：悬浮条展开 → 落地 toast 不提谱型条 / 起步 / 下一步见；收起 → 再建一份，toast 写「谱面上方的悬浮条」 */
     const mk = async () => { await EV(pg, () => { __toasts.length = 0; showNewWizard(); }); await wait(pg, 400);
       await pg.click('.nf-modal [data-scene="pacc"]').catch(() => {}); await wait(pg, 200);
       await pg.click('#nw-create'); await wait(pg, 700);
-      return EV(pg, () => ({ t: __toasts.filter(x => /已新建/.test(x)).slice(-1)[0] || '', k: NWB.stackOf(song), bar: FLOW.sbar.shown() })); };
+      return EV(pg, () => ({ t: __toasts.filter(x => /已新建/.test(x)).slice(-1)[0] || '', k: NWB.stackOf(song), bar: FLOW.sbar.shown(),
+        dk: (document.getElementById('toast') || {dataset: {}}).dataset.k || '', ta: ((document.querySelector('#toast .flw-ta') || {}).dataset || {}).ta || '',
+        fl: ((document.getElementById('flw-sbar') || {}).dataset || {}).flash || '' })); };
     const b3 = await mk();
     await EV(pg, () => FLOW.sbar.toggle({ exp: false }));
     const b4 = await mk();
     await EV(pg, () => FLOW.sbar.toggle({ exp: true }));
-    T('F8', b2.exp && b2.guide === '' && /账号 ▾ ›「偏好设置」/.test(b2.qboff) && !/顶栏「偏好设置」/.test(b2.qboff)
-      && b3.k === 'JG' && b3.bar && !!b3.t && !/谱型条|起步|下一步见|工具栏左端/.test(b3.t) && b4.k === 'JG' && /谱面上方的悬浮条/.test(b4.t) && !/谱型条|工具栏左端/.test(b4.t),
-      'F8c2 NU-11 / OU-8 新外壳文案（v68.3 迁移）：新建钢琴伴奏歌谱——悬浮条展开时落地 toast 不再写「谱型条 / 起步 / 下一步见」（条就在屏上），收起时写「谱面上方的悬浮条」；浮条「✕」的 toast 指向「账号 ▾ ›「偏好设置」」（新外壳没有顶栏偏好设置钮）', J({ b2, b3, b4 }));
+    /* v68.7 S1 迁移（规格 §6.C3 #21 / #57，P2 提示条＝结果 ≤12 字 + 一个动作）：
+       ① 浮条「✕」：原 /账号 ▾ ›「偏好设置」/（写去哪里重新开）→ 短文「已关闭触屏浮条」+ data-k=state + 动作「开启」，点它＝musetab-quickbar 删掉（浮条重新开）；
+       ② 新建落地：原「收起时写「谱面上方的悬浮条」」→ 展开 / 收起都只出「已新建」+谱类名（统一谱名）+ data-k=res + 动作「撤销」（关掉刚建的窗口），去处改由悬浮条亮一次（#flw-sbar[data-flash]）指出。
+       修前红：5cddfb8 qboff 为整句、b4.t 带「谱面上方的悬浮条」、没有 data-k / 动作钮 / data-flash */
+    T('F8', b2.exp && b2.guide === '' && b2.qboff === '已关闭触屏浮条' && b2.qbk === 'state' && b2.qbta === '开启' && b2.qbls0 === 'off' && b2.qbls1 === null && !/顶栏「偏好设置」/.test(b2.qboff)
+      && b3.k === 'JG' && b3.bar && b3.t === '已新建钢琴伴奏歌谱' && b3.dk === 'res' && b3.ta === 'close' && b3.fl === '1' && b4.k === 'JG' && b4.t === '已新建钢琴伴奏歌谱' && b4.dk === 'res' && b4.fl === '1',
+      'F8c2 NU-11 / OU-8 新外壳文案（v68.7 迁移）：新建钢琴伴奏歌谱——悬浮条展开 / 收起时落地 toast 都只写「已新建钢琴伴奏歌谱」（带「撤销」），悬浮条亮一次指出下一步；浮条「✕」的 toast「已关闭触屏浮条」带「开启」，点它重新打开（新外壳不指路）', J({ b2, b3, b4 }));
     await close(pg);
   }));
   /* F8d NU-7：「还有 N 条 ↓」文字区实底（渐隐只留在提示条上方），不再透出下面的组标题 */
@@ -738,9 +800,10 @@ function INIT() {
       const x0 = xOf(p0.title); if (x0) x0.click(); const x1 = xOf(p1.title); if (x1) x1.click();
       return { flow: document.body.classList.contains('flow'), docs: docs.length, lib: JSON.parse(localStorage.getItem('musetab-library-v1') || '[]').map(e => e.title), toasts: __toasts.slice(), t0: p0.title, t1: p1.title, x: !!x0 && !!x1 }; });
     await close(pc);
-    T('F8', r.docs === 1 && r.lib.length === 1 && r.lib[0] === r.t1 && !r.lib.includes(r.t0) && r.toasts.some(t => t === '已关闭《' + r.t0 + '》') && r.toasts.some(t => /其中 1 个有内容的已存入/.test(t))
+    /* v68.7 S1 迁移（规格 §6.C3 #13 / #45）：新外壳关窗提示 '已关闭《X》' → '已关闭'、批量 /其中 1 个有内容的已存入/ → '已关闭 2 个窗口 · 1 个已存入'（转存与否仍由库内容判，意图不变）；旧外壳（c）一律不动。修前红：5cddfb8 新外壳提示为整句 */
+    T('F8', r.docs === 1 && r.lib.length === 1 && r.lib[0] === r.t1 && !r.lib.includes(r.t0) && r.toasts.includes('已关闭') && r.toasts.includes('已关闭 · 已存入') && r.toasts.some(t => t === '已关闭 2 个窗口 · 1 个已存入')
       && !c.flow && c.x && c.docs === 1 && c.lib.length === 1 && c.lib[0] === c.t1 && c.toasts.includes('已关闭《' + c.t0 + '》') && c.toasts.includes('已关闭《' + c.t1 + '》并存入「我的曲谱」'),
-      'F8e NU-8 文件 ▾「关闭其他窗口」：原样示例谱《' + r.t0 + '》只关不存（toast「已关闭」）；改过一笔的《' + r.t1 + '》照旧转存（「其中 1 个有内容的已存入」）；旧外壳页签 × 同口径（《' + c.t0 + '》只关、改过的《' + c.t1 + '》转存）', J({ r, c }));
+      'F8e NU-8 文件 ▾「关闭其他窗口」：原样示例谱《' + r.t0 + '》只关不存（toast「已关闭」）；改过一笔的《' + r.t1 + '》照旧转存（「已关闭 2 个窗口 · 1 个已存入」）；旧外壳页签 × 同口径（《' + c.t0 + '》只关、改过的《' + c.t1 + '》转存）', J({ r, c }));
   }));
   /* F8f NU-9：启动台开着时文件 ▾「保存到我的曲谱」「存为文件」与复制 / 曲谱信息同口径灰显，点了只说原因，不存示例谱、不下载 */
   if (want('F8')) jobs.push(() => SAFE('F8', 'F8f', async () => {
@@ -749,11 +812,15 @@ function INIT() {
     const lib0 = await EV(pg, () => ({ sp: startPadOn(), n: JSON.parse(localStorage.getItem('musetab-library-v1') || '[]').length }));
     await pg.click('#flw-file'); await wait(pg, 200);
     const m = await EV(pg, () => ['b-savemine', 'b-save', 'b-meta'].map(id => { const b = document.querySelector('#popmenu [data-old="' + id + '"]'); return b ? { id, dis: b.getAttribute('aria-disabled'), why: b.dataset.why || '' } : { id, none: true }; }));
+    /* v68.7 S1 迁移：置灰原因「先在启动台新建或打开一份谱」→「先新建或打开一份谱」（≤16 字），点了由 toast 改为菜单里就地一行 .flw-mwhy（规格 §3.1）；
+       修前红修后绿：改前原因是旧句、点了只 toast 没有 .flw-mwhy → 红 */
+    const mw = [];
     for (const id of ['b-savemine', 'b-save']) { if (!(await EV(pg, () => !!document.getElementById('popmenu')))) { await pg.click('#flw-file').catch(() => {}); await wait(pg, 150); }
-      await EV(pg, i => { const b = document.querySelector('#popmenu [data-old="' + i + '"]'); if (b) b.click(); }, id); await wait(pg, 200); }
+      await EV(pg, i => { const b = document.querySelector('#popmenu [data-old="' + i + '"]'); if (b) b.click(); }, id); await wait(pg, 200);
+      mw.push(await EV(pg, () => ((document.querySelector('#popmenu .flw-mwhy') || {}).textContent || ''))); }
     const after = await EV(pg, () => ({ sp: startPadOn(), n: JSON.parse(localStorage.getItem('musetab-library-v1') || '[]').length, toasts: __toasts.slice() }));
-    T('F8', lib0.sp && m.every(x => x.dis === 'true' && /先在启动台新建或打开/.test(x.why)) && after.sp && after.n === lib0.n && dl === 0 && after.toasts.filter(t => /先在启动台新建或打开一份谱/.test(t)).length >= 2,
-      'F8f NU-9 启动台态 文件 ▾：「保存到我的曲谱」「存为文件」与「曲谱信息…」一样 aria-disabled、说明「先在启动台新建或打开一份谱」；点了不存入、不下载、启动台照旧', J({ m, lib0, after, dl }));
+    T('F8', lib0.sp && m.every(x => x.dis === 'true' && x.why === '先新建或打开一份谱') && after.sp && after.n === lib0.n && dl === 0 && mw.length === 2 && mw.every(t => t === '先新建或打开一份谱'),
+      'F8f NU-9 启动台态 文件 ▾：「存入我的曲谱」「存为文件」与「曲谱信息…」一样 aria-disabled、原因「先新建或打开一份谱」；点了就地一行原因（v68.7 S1，不 toast）、不存入、不下载、启动台照旧', J({ m, lib0, after, dl, mw }));
     await close(pg);
   }));
   /* F8g NU-10 / OU-5：Ctrl+/ 搜旧名与常用词——另存 / 页码 / 曲谱反色 / 界面风格 / 快速新建 / 升八度 / 降八度 / 记谱风格 / 编辑模式 / 清除记号 / 清空本段 / 添加歌词行 / 添加音轨 / 删除音轨 /
@@ -797,10 +864,11 @@ function INIT() {
         ae: (document.activeElement || {}).id || '', pqVis: __vis('#flw-pq'), flow: document.body.classList.contains('flow'), qb: !!document.getElementById('quickbar') })));
       await close(pg);
     }
-    T('F8', out.flow.flow && out.flow.ae === 'flw-pq' && out.flow.pqVis && out.flow.fly === '1' && !out.flow.flyOpen && !out.flow.qb && /记号面板/.test(out.flow.title)
+    /* v68.7 S1 迁移（规格 §3.3 / §6.C5 共享代码新外壳分支 P3）：新外壳「…」悬停 /记号面板/（「更多记号：打开左栏记号面板（搜记号）」）→ ＝「更多记号」（P2 只写名称、P3 不写在哪一栏）；去处仍由焦点落在 #flw-pq 判（意图不变）。修前红：5cddfb8 悬停是整句，不等于「更多记号」 */
+    T('F8', out.flow.flow && out.flow.ae === 'flw-pq' && out.flow.pqVis && out.flow.fly === '1' && !out.flow.flyOpen && !out.flow.qb && out.flow.title === '更多记号' && out.narrow.title === '更多记号'
       && out.narrow.ae === 'flw-pq' && out.narrow.pqVis && out.narrow.fly === '1'
       && !out.classic.flow && out.classic.flyOpen && out.classic.fly === null && /图层面板/.test(out.classic.title),
-      'F8h OU-1 右键浮条「…」：新外壳（1440 / 1100 窄档）→ 记号面板搜索框拿到焦点且可见，旧左栏不打开、musetab-flyclosed=\'1\' 不动、提示写「打开左栏记号面板」；旧外壳照旧打开对应图层面板（并按原口径清掉该键）',
+      'F8h OU-1 右键浮条「…」：新外壳（1440 / 1100 窄档）→ 记号面板搜索框拿到焦点且可见，旧左栏不打开、musetab-flyclosed=\'1\' 不动、悬停「更多记号」；旧外壳照旧打开对应图层面板（并按原口径清掉该键）',
       J(out));
   }));
   /* F8i OU-3 / OU-4：本机存储写不进时的「使用旧版布局」开关——显示实际外壳、点了直接换地址参数刷新；编辑器里切布局把一次性深链参数（?pub= / ?review= / ?f=）一起去掉 */

@@ -56,6 +56,14 @@ const HELP = `(()=>{
     s.measures.forEach((m,mi)=>{ const r=M[mi%4]; m.voxes[0]=r.map((x,i)=>{ const a=Array.isArray(x)?x:[x,4]; return __V(a[0],a[1],{lyrics:[L1[mi%4][i], L2[mi%4][i]]}); }); }); return s; };
   window.__mel=()=>JSON.stringify(song.measures.map(m=>(m.voxes[0]||[]).map(c=>[c.deg,c.dur,c.dotted,c.oct,c.acc,c.tie,c.lyrics,(c.adds||null)])));
   window.__ofs=()=>{ const e=document.getElementById('toast'); return e? e.style.opacity : ''; };
+  /* v68.7 S1 迁移（规格 §6.C3：新外壳提示条走 toastSay，只出 ≤12 字短文 + 动作钮，旧外壳 / 手机照出原文）：本套件的后果文案断言（覆盖了 N 小节、无和弦跳过、弱起只留旋律、
+     第 N 小节还没有旋律、静音、补进音数…）改读同一次调用的原文 m（新旧外壳同一份计算，旧外壳照样显示）；新外壳实际显示另由 __tflow() 判短文 / data-k / 动作钮。
+     __tt()：提示条正显示某次 toastSay 的短文时返回那次的原文，否则返回提示条文字（去掉动作钮）。改前代码没有 toastSay：__says 为空，__tt() 即提示条原文，原断言照旧 */
+  window.__says=[]; if(typeof toastSay==='function' && !window.__sayW){ window.__sayW=1; const os=toastSay; toastSay=function(m,o){ try{ __says.push({m:String(m), t:(o&&o.t)||'', k:(o&&o.k)||''}); }catch(_){} return os.apply(this, arguments); }; }
+  window.__full=shown=>{ const x=__says[__says.length-1]; return (x && String(shown)===x.t)? x.m : shown; };
+  window.__tdom=()=>{ const e=document.getElementById('toast'); if(!e) return ''; const c=e.cloneNode(true); c.querySelectorAll('.flw-ta').forEach(b=>b.remove()); return c.textContent; };
+  window.__tt=()=>__full(__tdom());
+  window.__tflow=()=>{ const e=document.getElementById('toast'), b=e && e.querySelector('.flw-ta'); return {t:__tdom(), k:(e&&e.dataset.k)||'', ta:b? b.dataset.ta : ''}; };
   return 1; })()`;
 
 (async () => {
@@ -78,10 +86,14 @@ const HELP = `(()=>{
     }
     await pg.click(btn);
   };
-  const GEN = '#flw-tlist [data-fa="tree:gentab"][data-k="vox"][data-i="0"]';   /* 音轨树：旋律轨 1 下的「由此生成六线谱轨…」 */
-  const genLit = async () => (await FLOWON()) ? (await pg.evaluate(() => { FLOW.tree.sync(); }), await pg.isVisible(GEN).catch(() => false))
-    : await EV(`(()=>{ const b=document.getElementById('nl-voxtab'); const r=b&&b.getBoundingClientRect(); return !!(r && r.width>0 && r.height>0); })()`);
-  const genClick = async () => (await FLOWON()) ? pg.click(GEN) : pg.click('#nl-voxtab');
+  /* v68.7 S1 迁移（README ③合并表，规格 B3）：原真实点音轨树「由此生成六线谱轨…」[data-fa="tree:gentab"] → 真实点 ＋加轨 ›「生成六线谱…」[data-fa="tree:gen"]
+     （tree:gen＝showVoxTabMenu(当前旋律轨)，与子行同一函数；下面各用例光标都在旋律轨 1，弹窗与结果断言不变）。修前红修后绿：改前两条路都在，本迁移只换入口 */
+  const ADD = '#flw-thd [data-fa="tree:add"]', GEN = '#popmenu [data-fa="tree:gen"]';
+  const genLit = async () => { if (!(await FLOWON())) return await EV(`(()=>{ const b=document.getElementById('nl-voxtab'); const r=b&&b.getBoundingClientRect(); return !!(r && r.width>0 && r.height>0); })()`);
+    await pg.evaluate(() => { FLOW.tree.sync(); }); await pg.click(ADD); await pg.waitForTimeout(120);
+    const ok = await pg.evaluate(s => { const it = document.querySelector(s); return !!it && it.getAttribute('aria-disabled') !== 'true' && it.offsetParent !== null; }, GEN);
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); return ok; };
+  const genClick = async () => { if (!(await FLOWON())) return pg.click('#nl-voxtab'); await pg.click(ADD); await pg.waitForTimeout(120); return pg.click(GEN); };
   const openArr = async () => { if (await FLOWON()) await smartAct('arr'); else await pg.click('#rt-arr'); await pg.waitForTimeout(120); };
   const modalInfo = () => EV(`(()=>{ const o=document.getElementById('arr-out'); if(!o) return {modal:false};
     return {modal:true, out:o.value, opts:[...o.options].map(x=>x.value), fillTxt:(o.querySelector('option[value="fill"]')||{}).textContent||'',
@@ -97,7 +109,7 @@ const HELP = `(()=>{
       'F1a 真实点击「一键配伴奏…」：提示条收起（opacity ' + before.ofs + '→' + m.ofs + '）、产出默认「' + m.fillTxt + '」、织体默认 ' + m.tex, J(m));
     await pg.click('#arr-go'); await pg.waitForTimeout(200);
     const r = await EV(`(()=>{ const out={docs:[__nd, docs.length], undo:[__u0, undoStack.length], mel:__mel()===__mel0, modal:!!document.getElementById('arr-out'),
-      chords:song.measures.map(m=>m.voxes[0].map(c=>c.chord||'').join(',')), tex:song.texId, pacc:isPianoAccStack(song), toast:document.getElementById('toast').textContent,
+      chords:song.measures.map(m=>m.voxes[0].map(c=>c.chord||'').join(',')), tex:song.texId, pacc:isPianoAccStack(song), toast:__tt(), flow:__tflow(),
       struct:JSON.stringify([song.voxVoices, song.voxNotations, song.voxGroups, song.voxDual||null])};
       out.rh=song.measures.map(m=>m.voxes[1].map(c=>c.dur+':'+(c.deg?1:0)+':'+((c.adds||[]).length)).join(' '));
       out.lh=song.measures.map(m=>m.voxes[2].map(c=>c.dur+':'+(c.deg?1:0)+':'+((c.adds||[]).length)).join(' '));
@@ -107,6 +119,9 @@ const HELP = `(()=>{
     T(r.docs && r.docs[0] === r.docs[1] && r.undo[1] === r.undo[0] + 1 && r.mel && !r.modal && r.chords.every(c => /^[A-G]/.test(c)) && r.tex === 'kids2' && r.pacc
       && r.rh.slice(0, 3).every(x => x === '4:0:0 4:1:1') && r.lh.slice(0, 3).every(x => x === '4:1:0 4:1:0') && r.rh[3] === '2:1:2' && r.lh[3] === '2:1:0'
       && /已填进当前谱：4 小节伴奏/.test(r.toast) && /钢琴音色/.test(r.toast) && r.mix === '["piano","piano"]' && r.otherSame
+      /* v68.7 S1 新增（规格 §6.C3 #7）：新外壳提示条只显示短文 + data-k=res + 「撤销」钮；修前红：5cddfb8 显示整句、没有 data-k / 动作钮。
+         v68.7 收尾 TCH-8 迁移：短文「已配伴奏 4 小节」→「已配伴奏 · 第 1–4 小节」（全配上了写范围，第 5 小节以后没配一眼看出）；理由：teacher 验收 TCH-8；修前红：13cf7cb 仍是「已配伴奏 4 小节」 */
+      && r.flow.t === '已配伴奏 · 第 1–4 小节' && r.flow.k === 'res' && r.flow.ta === 'undo'
       && r.struct === J([['旋律', '右手伴奏', '左手伴奏'], [null, 'staff', 'bass'], [{ type: 'brace', from: 1, to: 2 }], null]),
       'F1b 生成：不开新窗口、一步入栈；旋律音与两段歌词逐字段不动、4 小节都补上和弦名；右手 [休止, 3·5]、左手 [低音, 五音] 全为四分，曲末小节收束（左手根音 + 右手 1·3·5 二分）；伴奏两行混音音色由默认人声改钢琴；谱行结构与其他字段不动', J(r));
     await pg.mouse.click(640, 860).catch(() => {}); await pg.evaluate(`document.activeElement && document.activeElement.blur && document.activeElement.blur()`);
@@ -133,7 +148,7 @@ const HELP = `(()=>{
     await pg.click('#arr-sug'); await pg.click('input[name="arr-tex"][value="block"]');
     await pg.click('#arr-go'); await pg.waitForTimeout(150);
     const r = await EV(`({v0:JSON.stringify(song.measures.map(m=>m.voxes[0]))===__v0, r0:JSON.stringify(song.measures[0].voxes.slice(1))===__r0,
-      blk:[1,2,3].map(mi=>song.measures[mi].voxes[1].map(c=>c.dur+'/'+(c.adds||[]).length).join(' ')), m2L:song.measures[2].voxes[2].map(c=>c.dur+':'+c.deg).join(' '), tex:song.texId, toast:document.getElementById('toast').textContent})`);
+      blk:[1,2,3].map(mi=>song.measures[mi].voxes[1].map(c=>c.dur+'/'+(c.adds||[]).length).join(' ')), m2L:song.measures[2].voxes[2].map(c=>c.dur+':'+c.deg).join(' '), tex:song.texId, toast:__tt()})`);
     T(m.out === 'teach' && /覆盖已有的 1 小节伴奏/.test(m.fillTxt) && m.warn0 === 'none' && m.warn1 === 'block' && m.tex === 'slow'
       && r.v0 && r.r0 && r.blk.every(x => x === '4/2 4/2 4/2 4/2') && r.m2L === '2:6 2:1' && r.tex === 'block' && /3 小节伴奏，1 小节无和弦跳过/.test(r.toast) && !/覆盖了/.test(r.toast),
       'F2 右手已有内容（非本工具生成）：默认改回新窗口产出、选项写明「覆盖已有的 1 小节伴奏」，改选填进当前谱时弹出覆盖提示；不勾自动配和弦：旋律声部逐字节不动（含原有 C / Am·F）；第 2–4 小节生成柱式（第 3 小节左手 Am 根音 6 → 半小节换 F 弹五音 1；第 4 小节沿用 F）、首个和弦之前的第 1 小节伴奏行原样保留并提示；4/4 默认织体＝库首套（slow）', J({ m, r }));
@@ -148,8 +163,8 @@ const HELP = `(()=>{
       const r1={applied:f&&f.applied, done:f&&f.gen.done, skip:f&&f.gen.skipMeter, keep:JSON.stringify(song.measures[2].voxes.slice(1))===keep, beatErr:beatErrors().length};
       const e=__jg(); addDoc(e); const pre=JSON.stringify(song), u0=undoStack.length; let msg=''; const ot=toast; toast=m=>{ msg=String(m); };
       document.getElementById('b-arrange').click(); document.getElementById('arr-go').click(); toast=ot;
-      return {r1, none:{same:JSON.stringify(song)===pre, undo:undoStack.length===u0, msg}}; })()`);
-    T(r.r1 && r.r1.applied && r.r1.done === 3 && r.r1.skip === 1 && r.r1.keep && r.r1.beatErr === 0 && r.none.same && r.none.undo && /没有可配伴奏的小节/.test(r.none.msg),
+      return {r1, none:{same:JSON.stringify(song)===pre, undo:undoStack.length===u0, msg:__full(msg), short:msg, k:(document.getElementById('toast')||{dataset:{}}).dataset.k||''}}; })()`);
+    T(r.r1 && r.r1.applied && r.r1.done === 3 && r.r1.skip === 1 && r.r1.keep && r.r1.beatErr === 0 && r.none.same && r.none.undo && /没有可配伴奏的小节/.test(r.none.msg) && r.none.short === '没有可配的小节' && r.none.k === 'limit' /* v68.7 S1：新外壳短文（本段把 toast 换成只记字的钩子，取钩子拿到的短文）+ data-k=limit（修前红） */,
       'F3 变拍子小节（3/4）与 2/4 织体不符：该小节伴奏行原样保留、其余 3 小节生成、拍数全对；空旋律点生成：谱面与撤销栈都不动并说明原因', J(r));
   }
 
@@ -226,7 +241,7 @@ const HELP = `(()=>{
     await pg.keyboard.press('Control+z'); await pg.waitForTimeout(120);
     const u = await EV(`({back:JSON.stringify(song)===__pre})`);
     T(lit && r.n === 1 && r.names === '吉他·旋律1' && r.ok === 10 && r.bad === 0 && r.row === 'tab' && r.vi === 0 && r.undo === 1 && !r.jp && !r.tabJp && !r.caps && u.back,
-      'F6a 吉他弹唱「先写旋律」：真实点击「六」灯（flow：音轨树「由此生成六线谱轨…」）→ 低把位：复用唯一的空吉他轨（仍 1 条、改名「吉他·旋律1」、10 音逐音音高 / 时值等价、光标落 TAB），不写联排 / 夹位字段；Ctrl+Z 回到空轨原名逐字节', J({ lit, r, u }));
+      'F6a 吉他弹唱「先写旋律」：真实点击「六」灯（flow：＋加轨 › 生成六线谱，v68.7）→ 低把位：复用唯一的空吉他轨（仍 1 条、改名「吉他·旋律1」、10 音逐音音高 / 时值等价、光标落 TAB），不写联排 / 夹位字段；Ctrl+Z 回到空轨原名逐字节', J({ lit, r, u }));
     const v = await EV(`(()=>{ const mk=(o,f)=>{ const s=createSong('tanchang',Object.assign({inst:'guitar',key:'C',beats:4,unit:4,nMea:2,nTab:1,nVox:1,lyr:0},o||{}));
         s.measures.forEach(m=>{ m.voxes[0]=[__V(1,4),__V(3,4),__V(5,4),__V(1,4,{oct:1})]; }); if(f) f(s); addDoc(s); return s; };
       const res=(r)=>({n:song.tabVoices.length, nm:song.tabVoices.join('/'), reused:r.reused, jp:JSON.stringify(song.tabJpVoices===undefined? '∅' : song.tabJpVoices), tabJp:!!song.tabJp,
@@ -253,8 +268,9 @@ const HELP = `(()=>{
       mk(null, s=>{ s.measures[1].tabs[0][3].ferm=true; }); out.ferm={r:mapVoxToTab(0,'low').reused, n:song.tabVoices.length, keep:!!song.measures[1].tabs[0][3].ferm};
       mk(null, s=>{ s.tabVoices=['主音吉他']; }); { const r=mapVoxToTab(0,'low'); out.custom={r:r.reused, n:song.tabVoices.length, nm:song.tabVoices[0], rn:r.name}; }
       mk(null, s=>{ s.mixer={'tab:0':{on:false, solo:false, inst:'nylon', vol:0.4, pan:null}}; });
-      if(typeof flowOn==='function' && flowOn()){ sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); FLOW.tree.sync(); const g=document.querySelector('#flw-tlist [data-fa="tree:gentab"][data-k="vox"][data-i="0"]'); out.title=g? g.title : ''; }   /* flow：音轨树「由此生成六线谱轨…」的提示 */
-      else document.getElementById('nl-voxtab') && (out.title=document.getElementById('nl-voxtab').title);
+      /* v68.7 S1 迁移：flow 下「由此生成…」子行（及它写「写进当前的空吉他轨」的长 title）撤掉，「写进空轨」由下面弹窗文案 w.modal 照实说（P2 悬停只留名称）；旧外壳「六」灯 title 照旧断言 */
+      out.flow = typeof flowOn==='function' && flowOn();
+      if(!out.flow) document.getElementById('nl-voxtab') && (out.title=document.getElementById('nl-voxtab').title);
       showVoxTabMenu(0); out.modal=(document.querySelector('.modal p')||{}).textContent||''; closeModal();
       { const r=mapVoxToTab(0,'low'); out.muted={r:r.reused, muted:r.muted, mix:JSON.stringify(song.mixer['tab:0'])}; }
       return out; })()`);
@@ -263,12 +279,12 @@ const HELP = `(()=>{
     await pg.waitForTimeout(100);
     if (await genLit()) await genClick(); else await EV(`showVoxTabMenu(0)`);
     await pg.waitForTimeout(100); await pg.click('#vt-low'); await pg.waitForTimeout(120);
-    w.toast = await EV(`document.getElementById('toast').textContent`);
+    w.toast = await EV(`__tt()`);
     T(w.anno && !w.anno.r && w.anno.n === 2 && w.anno.keep === '前奏' && !w.ferm.r && w.ferm.n === 2 && w.ferm.keep
       && w.custom.r && w.custom.n === 1 && w.custom.nm === '主音吉他' && w.custom.rn === '主音吉他'
-      && /写进当前的空吉他轨「吉他1」（改名为「吉他·旋律1」）/.test(w.modal) && /静音/.test(w.modal) && /写进当前的空吉他轨「吉他1」/.test(w.title || '')
+      && /写进当前的空吉他轨「吉他1」（改名为「吉他·旋律1」）/.test(w.modal) && /静音/.test(w.modal) && (w.flow || /写进当前的空吉他轨「吉他1」/.test(w.title || ''))
       && w.muted.r && w.muted.muted && /"on":false/.test(w.muted.mix) && /已写进空轨「吉他·旋律1」/.test(w.toast) && /静音/.test(w.toast),
-      'F6c 复用空轨的边界：TAB 上有段落标注 / 延长号的轨不算空（另加一条、原标注保留）；用户改过的轨名（主音吉他）保留不改写；混音台静音的空轨在弹窗与提示里照实说；「六」灯（flow：音轨树「由此生成六线谱轨…」）提示与弹窗文案写「写进当前的空吉他轨」', J(w));
+      'F6c 复用空轨的边界：TAB 上有段落标注 / 延长号的轨不算空（另加一条、原标注保留）；用户改过的轨名（主音吉他）保留不改写；混音台静音的空轨在弹窗与提示里照实说；「六」灯（旧外壳）提示与弹窗文案写「写进当前的空吉他轨」（v68.7 flow 只断言弹窗）', J(w));
   }
 
   /* ===== F7 2/4 儿歌伴奏织体 × 12 调 × 22 和弦 ===== */
@@ -359,7 +375,7 @@ const HELP = `(()=>{
     if (await pg.$('#arr-out option[value="fill"]')) await pg.selectOption('#arr-out', 'fill');
     m.warn1 = await warnVis(); m.warnTxt = await EV(`(document.getElementById('arr-warn')||{}).textContent||''`);
     await pg.click('#arr-go'); await pg.waitForTimeout(200);
-    const a1 = await EV(`({docs:docs.length===__nd, undo:undoStack.length-__u0, changed:JSON.stringify(song.measures.map(m=>[m.voxes[1],m.voxes[2]]))!==__pp, toast:document.getElementById('toast').textContent})`);
+    const a1 = await EV(`({docs:docs.length===__nd, undo:undoStack.length-__u0, changed:JSON.stringify(song.measures.map(m=>[m.voxes[1],m.voxes[2]]))!==__pp, toast:__tt()})`);
     await EV(`undo()`);
     const a2 = await EV(`({back:JSON.stringify(song.measures.map(m=>[m.voxes[1],m.voxes[2]]))===__pp})`);
     /* 生成后手改一小节，再打开：本工具生成过（texId）→ 默认仍填进，但提示会覆盖 */
@@ -368,10 +384,10 @@ const HELP = `(()=>{
     await EV(`(()=>{ mutate(()=>{ song.measures[0].voxes[1]=[__V(1,8,{oct:1}),__V(7,8),__V(6,8),__V(5,8)]; }); render(); window.__hand=JSON.stringify(song.measures[0].voxes[1]); })()`);
     await openArr(); const b1 = await modalInfo(); b1.warn = await warnVis(); b1.warnTxt = await EV(`(document.getElementById('arr-warn')||{}).textContent||''`);
     await pg.click('#arr-go'); await pg.waitForTimeout(150);
-    const b2 = await EV(`({gone:JSON.stringify(song.measures[0].voxes[1])!==__hand, toast:document.getElementById('toast').textContent})`);
+    const b2 = await EV(`({gone:JSON.stringify(song.measures[0].voxes[1])!==__hand, toast:__tt(), flow:__tflow()})`);
     T(a0.pacc && !a0.tex && m.out === 'teach' && /覆盖已有的 4 小节伴奏/.test(m.fillTxt) && m.warn0 === 'none' && m.warn1 === 'block' && /第 1–4 小节中有 4 小节有音符/.test(m.warnTxt)
       && a1.docs && a1.undo === 1 && a1.changed && /覆盖了 4 小节原有伴奏/.test(a1.toast) && a2.back
-      && b0.out === 'fill' && b0.warn === 'absent' && b1.out === 'fill' && b1.warn === 'block' && /覆盖已有的 4 小节伴奏/.test(b1.fillTxt) && b2.gone && /覆盖了 1 小节原有伴奏/.test(b2.toast),
+      && b0.out === 'fill' && b0.warn === 'absent' && b1.out === 'fill' && b1.warn === 'block' && /覆盖已有的 4 小节伴奏/.test(b1.fillTxt) && b2.gone && /覆盖了 1 小节原有伴奏/.test(b2.toast) && b2.flow.t === '已配伴奏 · 第 1–4 小节 · 覆盖 1' && b2.flow.ta === 'undo' /* v68.7 S1：新外壳短文照实带覆盖数（修前红）；v68.7 收尾 TCH-8 迁移：「已配伴奏 4 小节 · 覆盖 1」→ 带范围（13cf7cb 红） */,
       'F9 伴奏两行已有内容不静默覆盖：导入的人声＋钢琴 MusicXML（无 texId）默认改回新窗口产出、选项写「覆盖已有的 4 小节伴奏」，改选填进时弹出覆盖提示、生成后提示「覆盖了 4 小节原有伴奏」、一步撤销还原；本工具生成后手改一小节再配：默认仍填进但弹窗提示覆盖、生成后提示「覆盖了 1 小节」', J({ a0, m, a1, a2, b0, b1, b2 }));
   }
 
@@ -443,7 +459,7 @@ const HELP = `(()=>{
     await openArr(); const m = await modalInfo(); await pg.click('#arr-go'); await pg.waitForTimeout(150);
     const r = await EV(`(()=>{ const bt=(cols,mi)=>(cols||[]).reduce((a,c)=>a+beatsOf(c, meaMeter(mi).unit),0);
       const out={R:bt(song.measures[0].voxes[1],0), L:bt(song.measures[0].voxes[2],0), rest:song.measures[0].voxes.slice(1).every(v=>v.every(c=>!c.deg)), m1:song.measures[1].voxes[2].filter(c=>c.deg).length,
-        be:beatErrors().length, toast:document.getElementById('toast').textContent};
+        be:beatErrors().length, toast:__tt()};
       /* 八分弱起 4/4（抒情分解）+ 新窗口路径 */
       const s=__jg({key:'C', beats:4, unit:4, nMea:3, lyr:0}); s.pickup=true; s.measures[0].voxes[0]=[__V(5,8,{oct:-1,chord:'G'})]; s.measures.slice(1).forEach(m=>{ m.voxes[0]=[__V(1,2,{chord:'C'}),__V(3,2)]; }); addDoc(s);
       const f=fillAccompaniment('slow', false); out.e8={pk:f.gen.pickup, R:song.measures[0].voxes[1].map(c=>c.dur+(c.deg?'n':'r')).join(','), be:beatErrors().length};
@@ -472,7 +488,7 @@ const HELP = `(()=>{
       s.mixer={'vox:1':{on:true, solo:false, inst:'strings', vol:0.8, pan:null}}; addDoc(s); trackCfg('vox',2);   /* 右手调过音色（保留）；左手被播放 / 混音台惰性补成默认人声（改钢琴） */
       let msg=''; const ot=toast; toast=m=>{ msg=String(m); };
       document.getElementById('b-arrange').click(); document.getElementById('arr-go').click(); toast=ot;
-      out.tail={msg, rest:song.measures.slice(4).every(m=>[1,2].every(vi=>m.voxes[vi].every(c=>!c.deg))), gen:song.measures.slice(0,4).every(m=>m.voxes[2].some(c=>c.deg)),
+      out.tail={msg:__full(msg), rest:song.measures.slice(4).every(m=>[1,2].every(vi=>m.voxes[vi].every(c=>!c.deg))), gen:song.measures.slice(0,4).every(m=>m.voxes[2].some(c=>c.deg)),
         mix:[song.mixer['vox:1'].inst, song.mixer['vox:2'].inst].join()};
       const one=createSong('vocal',{title:'单旋律',key:'G',beats:2,unit:4,nMea:2,nVox:1,lyr:1}); one.measures.forEach(m=>{ m.voxes[0]=[__V(1,4,{chord:'G'}),__V(5,4)]; }); addDoc(one);
       fillAccompaniment('kids2', false); out.fn=('funcNames' in song)+':'+song.funcNames;
@@ -545,7 +561,7 @@ const HELP = `(()=>{
   /* ===== F19 / F20 「伴奏织体」与「填进当前谱」同一份尾部判定与提示；儿歌伴奏收束落在旋律写到的最后一小节 ===== */
   {
     const mk = `(()=>{ const s=__jg({key:'F', nMea:8, lyr:0}); s.measures.slice(0,7).forEach((m,mi)=>{ m.voxes[0]=[__V(1,4,{chord:mi%2? 'C' : 'F'}),__V(5,4)]; }); addDoc(s); setRTab('make'); render(); })()`;
-    const pick = `(()=>({toast:document.getElementById('toast').textContent, R6:song.measures[6].voxes[1].map(c=>c.dur+':'+(c.deg?1:0)+':'+(c.adds||[]).length).join(' '), L6:song.measures[6].voxes[2].map(c=>c.dur+':'+(c.deg?1:0)).join(' '),
+    const pick = `(()=>({toast:__tt(), R6:song.measures[6].voxes[1].map(c=>c.dur+':'+(c.deg?1:0)+':'+(c.adds||[]).length).join(' '), L6:song.measures[6].voxes[2].map(c=>c.dur+':'+(c.deg?1:0)).join(' '),
       R5:song.measures[5].voxes[1].map(c=>c.dur+':'+(c.deg?1:0)).join(' '), m7:song.measures[7].voxes.slice(1).every(v=>v.every(c=>!c.deg)), sel:[sel.mi, sel.row, sel.vi].join()}))()`;
     await EV(mk); await openArr(); await pg.click('input[name="arr-tex"][value="kids2"]'); await pg.click('#arr-sug'); await pg.click('#arr-go'); await pg.waitForTimeout(150);
     const fill = await EV(pick);
@@ -588,7 +604,7 @@ const HELP = `(()=>{
       const sp=[...document.querySelectorAll('.vt-dest label span')].map(x=>{ const r=x.getBoundingClientRect(), cs=getComputedStyle(x); return {w:Math.round(r.width), h:Math.round(r.height), al:cs.textAlign, t:x.textContent}; });
       return {h, p, sp}; })()`);
     await pg.click('#vt-low'); await pg.waitForTimeout(120);
-    const t1 = await EV(`document.getElementById('toast').textContent`);
+    const t1 = await EV(`__tt()`);
     const fillN = (/共 (\d+) 个音/.exec((g1.sp[0] || {}).t || '') || [])[1], toastN = (/、(\d+) 音/.exec(t1) || [])[1];
     T(/生成六线谱/.test(g0.h) && !/把位轨/.test(g0.h) && !/）（/.test(g0.p) && /补齐六线谱/.test(g1.h) && g1.sp.length === 2 && g1.sp.every(x => x.w >= 200 && x.al !== 'right' && x.h <= 60)
       && /第 3–4 小节（2 个小节）/.test(g1.sp[0].t) && fillN && fillN === toastN && fillN === '8',

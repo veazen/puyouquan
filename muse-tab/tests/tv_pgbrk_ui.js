@@ -142,11 +142,13 @@ function INIT() {
       'U1 工具组「本行换页」可见、不再「即将推出」；第 1 行 aria-disabled、原因「第 1 行本来就在第 1 页」，真实点击 toast 同一句、不改谱', J({ a0, a1 }));
     await pick(pg, 13);
     const a2 = await EV(pg, () => __tb());
-    T('U1', a2.dis === null && a2.pr === 'false' && a2.t === '本行换页' && a2.al === '本行换页' && /第 13 小节（本行行首）起另起一页/.test(a2.title), 'U1b 选中第 4 行（第 13–16 小节）后可点、未按下、字「本行换页」（＝读屏名）、悬停说明写明「第 13 小节（本行行首）起另起一页」', J(a2));
+    /* v68.7 S1 迁移（规格 §6.C4，P2 悬停只写「名称 · 读数」）：悬停 /第 13 小节（本行行首）起另起一页/ → ＝「本行换页 · 第 13 小节起」（名称 + 换页落点读数，UX-9 的「第几小节」照留）；修前红：5cddfb8 悬停是整句说明，不等于新串 */
+    T('U1', a2.dis === null && a2.pr === 'false' && a2.t === '本行换页' && a2.al === '本行换页' && a2.title === '本行换页 · 第 13 小节起', 'U1b 选中第 4 行（第 13–16 小节）后可点、未按下、字「本行换页」（＝读屏名）、悬停「本行换页 · 第 13 小节起」（名称 + 落点）', J(a2));
     /* U1c（收尾 UX-1）：光标在行中间（第 15 小节）时，字与悬停说明都说清作用于本行行首第 13 小节——与紧挨着的「此处换行」（作用于光标所在小节）字面上区分开 */
     await pick(pg, 14);
     const a3 = await EV(pg, () => ({ tb: __tb(), brk: (() => { const b = document.getElementById('flw-eng-brk'); return b ? (b.querySelector('.flw-glb') || b).textContent : null; })() }));
-    T('U1', a3.tb.t === '本行换页' && a3.brk === '此处换行' && /第 13 小节（本行行首）/.test(a3.tb.title), 'U1c 光标在第 15 小节（第 4 行中间）：换页键字「本行换页」、悬停说明「第 13 小节（本行行首）…」，与「此处换行」（光标所在小节）字面不同', J(a3));
+    /* v68.7 S1 迁移（规格 §6.C4，P2 悬停只写「名称 · 读数」）：/第 13 小节（本行行首）/ → ＝「本行换页 · 第 13 小节起」（光标在第 15 小节时落点仍读出行首 13，意图不变）；修前红同上 */
+    T('U1', a3.tb.t === '本行换页' && a3.brk === '此处换行' && a3.tb.title === '本行换页 · 第 13 小节起', 'U1c 光标在第 15 小节（第 4 行中间）：换页键字「本行换页」、悬停读数「第 13 小节起」（本行行首），与「此处换行」（光标所在小节）字面不同', J(a3));
     await pick(pg, 13);
     await shot(pg, 'U1-engrave-1440');
 
@@ -155,23 +157,27 @@ function INIT() {
     await pg.click('#flw-eng-pbrk'); await settle(pg);
     const b1 = await EV(pg, () => ({ pbs: __pbs(), tb: __tb(), rp: __rp(), undo: undoStack.length, toast: __toasts.slice(-1)[0], pull: song.measures[12].pull,
       rep: (() => { const R = FLOW.lay.report(); if (!R) return null; const r = R.rows.find(x => x.m1 === 12); const p1 = R.pageRanges[1]; return { pg: r ? r.pg : null, p1a: p1 ? p1.a : null, n: R.pages }; })() }));
-    T('U2', J(b1.pbs) === '[12]' && b1.tb.pr === 'true' && b1.tb.t === '本行换页' && b1.tb.al === '本行换页' && b1.tb.al.indexOf(b1.tb.t) >= 0 && /已从第 13 小节（本行行首）起另起一页/.test(b1.tb.title) && b1.undo === u0 + 1 && b1.toast === '已从第 13 小节起另起一页（Ctrl+Z 撤销）',
+    T('U2', J(b1.pbs) === '[12]' && b1.tb.pr === 'true' && b1.tb.t === '本行换页' && b1.tb.al === '本行换页' && b1.tb.al.indexOf(b1.tb.t) >= 0 && b1.tb.title === '本行换页 · 已从第 13 小节起' /* v68.7 S1 迁移：/已从第 13 小节（本行行首）起另起一页/ → ＝「本行换页 · 已从第 13 小节起」（P2 名称 + 读数）；修前红：5cddfb8 悬停为整句 */ && b1.undo === u0 + 1 && b1.toast === '已从第 13 小节起另起一页（Ctrl+Z 撤销）',
       'U2 第 4 行真实点击：measures[12].pgbrk＝1、aria-pressed=true、字仍是「本行换页」且读屏名含可见字（收尾 UX-9，WCAG 2.5.3；此前按下后字变「已换页」、读屏名「此处换页」）、悬停说明「已从第 13 小节…」、撤销栈 +1、toast「已从第 13 小节起另起一页（Ctrl+Z 撤销）」', J(b1));
     TE('U2', ENGINE, !!b1.rep && b1.rep.pg === 1 && b1.rep.p1a === 12, 'U2e 版面检查（快照那一次分页）：第 13 小节那一行在第 2 页、是第 2 页首行', J(b1.rep));
-    T('U3', !!b1.rp && b1.rp.vis && b1.rp.pr === 'true' && b1.rp.t === '本行换页' && b1.rp.dis === null, 'U3 右栏「本行」的「本行换页」与工具组同步：可见、按下、字「本行换页」', J(b1.rp));
+    /* v68.7 S1 迁移（规格 §6.C4 去重 / 功能保全 #22）：右栏「本行」不再有「本行换页」（与行 2 同名同效）——原断言「右栏那一枚与工具组同步」改为「右栏没有 lay:pbrk、只留读数与「本行恢复默认」，行 2 那一枚是唯一入口且按下」；修前红：5cddfb8 右栏有 lay:pbrk（rp 非空）、有小节数 / 断行 / 此处换行 / 并入上一行 */
+    const u3r = await EV(pg, () => { const r = document.getElementById('flw-rp-lay'); return { rowt: (document.getElementById('flw-lay-rowt') || {}).textContent || '', reset: !!(r && r.querySelector('[data-fa="lay:reset"]')),
+      dup: r ? ['lay:bars', 'lay:lock', 'lay:brk', 'lay:join', 'lay:pbrk'].filter(k => r.querySelector('[data-fa="' + k + '"]')) : ['无右栏'], note: !!(r && r.querySelector('.flw-rxnote')) }; });
+    T('U3', b1.rp === null && b1.tb.vis && b1.tb.pr === 'true' && /^第 \d+ 行 · 第 13–\d+ 小节$/.test(u3r.rowt) && u3r.reset && !u3r.dup.length && !u3r.note,
+      'U3 右栏「本行」只留读数「第 N 行 · 第 13–… 小节」与「本行恢复默认」（小节数 / 断行 / 此处换行 / 并入上一行 / 本行换页只在行 2），行 2「本行换页」按下', J({ rp: b1.rp, u3r }));
     await pg.click('#flw-eng-pbrk'); await settle(pg);
     const b2 = await EV(pg, () => ({ pbs: __pbs(), tb: __tb(), rp: __rp(), J: JSON.stringify(song), toast: __toasts.slice(-1)[0] }));
     T('U2', J(b2.pbs) === '[]' && b2.tb.pr === 'false' && b2.tb.t === '本行换页' && b2.J === J0 && b2.toast === '已取消第 13 小节前的换页（Ctrl+Z 撤销）',
       'U2b 再点取消：pgbrk 删掉、JSON 与点之前逐字节相同、按下态还原、toast「已取消第 13 小节前的换页」', J({ pbs: b2.pbs, tb: b2.tb, toast: b2.toast, same: b2.J === J0 }));
-    T('U3', b2.rp.pr === 'false' && b2.rp.t === '本行换页', 'U3b 取消后右栏同步还原', J(b2.rp));
-    /* 右栏的那一枚也能切 */
-    await pg.click('#flw-rp-lay [data-fa="lay:pbrk"]'); await settle(pg);
+    T('U3', b2.rp === null && b2.tb.pr === 'false', 'U3b 取消后行 2 那一枚还原、右栏仍没有第二枚（v68.7 S1 迁移：原「右栏同步还原」；修前红：5cddfb8 b2.rp 非空）', J({ rp: b2.rp, tb: b2.tb }));
+    /* v68.7 S1 迁移（规格 §6.C4）：原「真实点右栏「本行换页」＝同一动作」→ 改点行 2 #flw-eng-pbrk（同一 lay:pbrk 动作、同一状态），另断言右栏不再有 lay:pbrk；修前红：5cddfb8 b3.rp 非空 */
+    await pg.click('#flw-eng-pbrk'); await settle(pg);
     const b3 = await EV(pg, () => ({ pbs: __pbs(), tb: __tb(), rp: __rp() }));
-    T('U3', J(b3.pbs) === '[12]' && b3.tb.pr === 'true' && b3.rp.pr === 'true', 'U3c 真实点右栏「本行换页」＝同一动作：pgbrk 写上、工具组也按下', J(b3));
+    T('U3', J(b3.pbs) === '[12]' && b3.tb.pr === 'true' && b3.rp === null, 'U3c 再点行 2「本行换页」：pgbrk 写上、按下；右栏没有第二枚（同名键只在行 2）', J(b3));
     /* U5 Ctrl+Z / Ctrl+Y 之后按下态跟着走（工具组签名含本行换页） */
     await pg.keyboard.press('Control+z'); await settle(pg);
     const c1 = await EV(pg, () => ({ pbs: __pbs(), tb: __tb(), rp: __rp(), J: JSON.stringify(song) }));
-    T('U5', J(c1.pbs) === '[]' && c1.J === J0 && c1.tb.pr === 'false' && c1.tb.t === '本行换页' && c1.rp.pr === 'false', 'U5 Ctrl+Z 一次：JSON 回到原样、工具组与右栏的按下态 / 字跟着还原', J({ tb: c1.tb, rp: c1.rp, same: c1.J === J0 }));
+    T('U5', J(c1.pbs) === '[]' && c1.J === J0 && c1.tb.pr === 'false' && c1.tb.t === '本行换页' && c1.rp === null /* v68.7 S1 迁移：右栏那一枚已撤（规格 §6.C4），原 c1.rp.pr === 'false' → c1.rp === null；修前红：5cddfb8 c1.rp 非空 */, 'U5 Ctrl+Z 一次：JSON 回到原样、工具组与右栏的按下态 / 字跟着还原', J({ tb: c1.tb, rp: c1.rp, same: c1.J === J0 }));
     await pg.keyboard.press('Control+y'); await settle(pg);
     const c2 = await EV(pg, () => ({ pbs: __pbs(), tb: __tb() }));
     T('U5', J(c2.pbs) === '[12]' && c2.tb.pr === 'true' && c2.tb.t === '本行换页', 'U5b Ctrl+Y 重做：又是按下态（aria-pressed=true）', J(c2));
@@ -187,13 +193,15 @@ function INIT() {
     const eng = await EV(pg, () => __engine());
     await mode(pg, 'engrave');
     const st = () => EV(pg, () => { const q = s => [...document.querySelectorAll(s)].map(b => ({ dis: b.getAttribute('aria-disabled'), why: b.dataset.why || '' }));
-      return { bars: q('[data-fa="lay:bars"][data-d="1"]'), minus: q('[data-fa="lay:bars"][data-d="-1"]'), join: q('[data-fa="lay:join"]') }; });
+      return { bars: q('[data-fa="lay:bars"][data-d="1"]'), minus: q('[data-fa="lay:bars"][data-d="-1"]'), join: q('[data-fa="lay:join"]'),
+        rp: document.querySelectorAll('#flw-rp-lay [data-fa="lay:bars"], #flw-rp-lay [data-fa="lay:join"]').length }; });
+    /* v68.7 S1 迁移（规格 §6.C4 去重）：右栏「本行」的小节数 ± /「并入上一行」已撤，同名键只在行 2——原「工具组与右栏两处」length >= 2 → 行 2 一处（length >= 1）+ 右栏 0 枚（rp === 0）；灰显原因与走动作 toast 断言不变。修前红：5cddfb8 rp 为 3 */
     const s3 = await st();
     const J0 = await EV(pg, () => JSON.stringify(song));
     await pg.click('#flw-eng [data-fa="lay:bars"][data-d="1"]', { force: true }); await wait(pg, 150);
     await EV(pg, () => FLOW.lay.act('lay:bars', { dataset: { d: '1' } }, null)); await settle(pg);
     const r3 = await EV(pg, () => ({ J: JSON.stringify(song), t: __toasts.slice(-2) }));
-    T('U4', s3.bars.length >= 2 && s3.bars.every(x => x.dis === 'true' && x.why === '下一行另起一页') && r3.J === J0 && r3.t[0] === '下一行另起一页' && r3.t[1] === '下一行另起一页，先取消那一行的换页',
+    T('U4', s3.bars.length >= 1 && s3.rp === 0 && s3.bars.every(x => x.dis === 'true' && x.why === '下一行另起一页') && r3.J === J0 && r3.t[0] === '下一行另起一页' && r3.t[1] === '下一行另起一页，先取消那一行的换页',
       'U4a 第 3 行（下一行行首第 13 小节换页）：工具组与右栏「每行 ＋」灰显、原因「下一行另起一页」；真实点击说原因，走动作 toast「下一行另起一页，先取消那一行的换页」，谱不变', J({ s3, t: r3.t, same: r3.J === J0 }));
     /* U4e（收尾 UX-3）：同一行「每行 −」也不越过下一行的换页——灰显（原因同上），走动作 toast 说「…只会单独成行…」、谱不变（此前把第 12 小节在第 1 页单独排成一行，toast 却说「移到下一行」） */
     await pg.click('#flw-eng [data-fa="lay:bars"][data-d="-1"]', { force: true }); await wait(pg, 150);
@@ -206,7 +214,7 @@ function INIT() {
     await pg.click('#flw-eng-join', { force: true }); await wait(pg, 150);
     await EV(pg, () => FLOW.lay.act('lay:join', { dataset: {} }, null)); await settle(pg);
     const r4 = await EV(pg, () => ({ J: JSON.stringify(song), t: __toasts.slice(-2) }));
-    T('U4', s4.join.length >= 2 && s4.join.every(x => x.dis === 'true' && x.why === '本行另起一页') && r4.J === J0 && r4.t[0] === '本行另起一页' && r4.t[1] === '本行另起一页，先取消本行的换页',
+    T('U4', s4.join.length >= 1 && s4.rp === 0 && s4.join.every(x => x.dis === 'true' && x.why === '本行另起一页') && r4.J === J0 && r4.t[0] === '本行另起一页' && r4.t[1] === '本行另起一页，先取消本行的换页',
       'U4b 第 4 行（行首换页）：工具组与右栏「并入上一行」灰显、原因「本行另起一页」；走动作 toast「本行另起一页，先取消本行的换页」，谱不变（不悄悄删换页）', J({ s4, t: r4.t, same: r4.J === J0 }));
     await EV(pg, () => FLOW.lay.act('lay:reset', { dataset: {} }, null)); await settle(pg);
     const r5 = await EV(pg, () => __pbs());

@@ -956,17 +956,19 @@ const HELP = `(()=>{
         k: NWB.stackOf(song), kname: NWB.kindOfSong(song).name, kic: (pqIcon(NWB.kindOfSong(song).ic, 20).match(/data-pq="([^"]+)"/) || [])[1], label: docTypeLabel(song) }; });   /* 悬浮条谱类图标 20（谱类芯片是 16 微缩） */
     try {
       /* mel：悬浮条记谱法组出不出（v68.3 口径：旋律类谱都有，教学对照谱「对照」按下；视唱练耳 / 独奏 / 钢琴 / 和弦谱没有） */
+      /* v68.7 S1 迁移（README P1 / P2，规格 B2）：空谱提示的 title 原＝LB_TIP 长句（各用途按长句里的词认）→ title＝可见的同一句短提示（≤12 字、不带句读，逐条写死）；
+         条上步名 2 字（dsteps，旋律 · 伴奏 · 织体），模型 m.steps 照旧全名。修前红修后绿：改前 title 是长句、条上是全名，与下表逐条对不上 */
       const exp = {
-        gtr:   { k: 'JT', mel: 'J', tip: t => t && /Tab/.test(t) },
-        pacc:  { k: 'JG', mel: 'J', steps: 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体' },
-        kids:  { k: 'JG', mel: 'J', steps: 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体' },
-        vocal: { k: 'J',  mel: 'J', tip: t => /数字键 1–7/.test(t) },
-        teach: { k: 'SJ', mel: 'D', tip: t => t === '在五线谱或简谱行输入都行，另一行同步' },
-        sight: { k: 'S',  mel: null, tip: t => /五线谱自动落位/.test(t) },
-        solo:  { k: 'ST', mel: null, tip: t => t === '在六线谱输入，五线谱自动同步' },
-        inst:  { k: 'G',  mel: null, tip: t => /右手 \/ 左手/.test(t) },
-        chord: { k: 'C',  mel: null, tip: t => /Ctrl\+K/.test(t) },
-        blank: { k: 'J',  mel: 'J', tip: t => /数字键 1–7/.test(t) },
+        gtr:   { k: 'JT', mel: 'J', tip: t => t === '↑↓ 选弦 数字写品位' },
+        pacc:  { k: 'JG', mel: 'J', steps: 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体', dsteps: 'now:旋律 | todo:伴奏 | todo:织体' },
+        kids:  { k: 'JG', mel: 'J', steps: 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体', dsteps: 'now:旋律 | todo:伴奏 | todo:织体' },
+        vocal: { k: 'J',  mel: 'J', tip: t => t === '按 1–7 写音' },
+        teach: { k: 'SJ', mel: 'D', tip: t => t === '写一行 另一行同步' },
+        sight: { k: 'S',  mel: null, tip: t => t === '按 1–7 写音' },
+        solo:  { k: 'ST', mel: null, tip: t => t === '写六线谱 五线谱同步' },
+        inst:  { k: 'G',  mel: null, tip: t => t === '按 1–7 写音 ↑↓ 换手' },
+        chord: { k: 'C',  mel: null, tip: t => t === '选一拍 Ctrl+K 写和弦' },
+        blank: { k: 'J',  mel: 'J', tip: t => t === '按 1–7 写音' },
       };
       const bad = [];
       for (const sc of Object.keys(exp)) {
@@ -974,7 +976,7 @@ const HELP = `(()=>{
         const r = await fl(), e = exp[sc];
         const melOn = r.seg ? (r.seg.match(/([JSD]):true/) || [])[1] || '' : null;
         const ok = r && !r.lbw && r.on && r.k === e.k && r.name === r.kname && r.name === r.label && r.name === r.chip && r.ic === r.kic && melOn === e.mel
-          && (e.steps ? r.phase === 'steps' && r.dsteps === e.steps && r.steps === e.steps && !r.go && !r.tip : (r.phase === 'tools' && !r.steps && e.tip(r.tip)));
+          && (e.steps ? r.phase === 'steps' && r.dsteps === e.dsteps && r.steps === e.steps && !r.go && !r.tip : (r.phase === 'tools' && !r.steps && e.tip(r.tip)));
         if (!ok) bad.push(sc + ':' + J(r));
       }
       const plain = await FE(() => { addDoc(createSong('vocal', { title: '打开的谱', nMea: 4 })); render(); return 1; });
@@ -983,8 +985,8 @@ const HELP = `(()=>{
       const cga = await fl();
       await FE(() => { mutate(() => { song.measures[0].voxes[0][0].chord = 'C'; }); });
       const cgb = await fl();
-      T(!bad.length && pl.on && pl.phase === 'tools' && !pl.steps && !pl.lbw && cga.dsteps === 'now:标和弦 | todo:选织体' && cgb.steps === 'done:标和弦 | now:选织体' && cgb.phase === 'tools' && !!cgb.pri && cgb.pri.id === 'tex' && cgb.pri.act === 'tex' && /^织体（下一步）：按已标和弦生成双手伴奏/.test(cgb.pri.title),
-        'L1f（flow）新建面板 10 个用途落地即有悬浮条：没有 #lb-wrap，谱名 / 图标＝悬浮条谱类 ▾＝音轨区谱类芯片＝统一谱名表（＝docTypeLabel）、记谱法组只在旋律类谱（教学对照谱「对照」按下）、钢琴伴奏歌谱三步起步、钢琴弹唱谱两步（标和弦 → 选织体：最后一步时换成常用工具，「织体」强调、title「织体（下一步）：按已标和弦生成双手伴奏」，v68.3 收尾 SBAR-4 / 6）、其余空谱一句提示（title 与 L1 同口径）；不经新建面板打开的谱也有悬浮条（常用工具阶段、没有步骤）',
+      T(!bad.length && pl.on && pl.phase === 'tools' && !pl.steps && !pl.lbw && cga.dsteps === 'now:和弦 | todo:织体' && cgb.steps === 'done:标和弦 | now:选织体' && cgb.phase === 'tools' && !!cgb.pri && cgb.pri.id === 'tex' && cgb.pri.act === 'tex' && cgb.pri.title === '织体（下一步）',
+        'L1f（flow）新建面板 10 个用途落地即有悬浮条：没有 #lb-wrap，谱名 / 图标＝悬浮条谱类 ▾＝音轨区谱类芯片（只读）＝统一谱名表（＝docTypeLabel）、记谱法组只在旋律类谱（教学对照谱「对照」按下）、钢琴伴奏歌谱三步起步（条上 2 字步名）、钢琴弹唱谱两步（标和弦 → 选织体：最后一步时换成常用工具，「织体」强调、title「织体（下一步）」）、其余空谱一句提示（v68.7：≤12 字，title＝同一句）；不经新建面板打开的谱也有悬浮条（常用工具阶段、没有步骤）',
         bad.join(' ; ') + ' plain=' + J(pl) + ' cg=' + J([cga.dsteps, cgb]));
     } catch (e) { T(false, 'L1f 执行异常', e.message.split('\n')[0]); }
 
@@ -1008,9 +1010,10 @@ const HELP = `(()=>{
       const m2 = await FE(() => ({ tex: !!document.getElementById('tex-go'), arr: !!document.getElementById('arr-go') }));
       if (m2.tex) { await FC2('#tex-go'); await fp.waitForTimeout(200); }
       const s3 = await fl();
-      T(s0.k === 'JG' && s0.dsteps === 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体' && !s0.go
-        && s1.dsteps === 'done:写旋律 | now:配和弦与伴奏 | todo:选织体' && s1.go === '一键配伴奏' && s1.goAct === 'arrange'
-        && m1.out === 'fill' && s2.acc && s2.melSame && s2.steps === 'done:写旋律 | done:配和弦与伴奏 | now:选织体' && s2.phase === 'tools' && s2.pri && s2.pri.id === 'tex' && /^织体（下一步）：换一种伴奏织体/.test(s2.pri.title)
+      /* v68.7 S1 迁移（规格 B2）：条上步名 2 字（模型 steps 照旧全名）、强调项 title 恰为「织体（下一步）」。修前红修后绿：改前条上全名、title 带说明长句 */
+      T(s0.k === 'JG' && s0.dsteps === 'now:旋律 | todo:伴奏 | todo:织体' && s0.steps === 'now:写旋律 | todo:配和弦与伴奏 | todo:选织体' && !s0.go
+        && s1.dsteps === 'done:旋律 | now:伴奏 | todo:织体' && s1.go === '一键配伴奏' && s1.goAct === 'arrange'
+        && m1.out === 'fill' && s2.acc && s2.melSame && s2.steps === 'done:写旋律 | done:配和弦与伴奏 | now:选织体' && s2.phase === 'tools' && s2.pri && s2.pri.id === 'tex' && s2.pri.title === '织体（下一步）'
         && m2.tex && !m2.arr && s3.steps === 'done:写旋律 | done:配和弦与伴奏 | done:选织体' && !s3.pri,
         'L2f（flow）钢琴伴奏歌谱（文件 ▾ 新建行尾 ▾ 真实点击）：①写旋律（数字键 1235）→ ②悬浮条主按钮「一键配伴奏」＝智能配谱弹窗、默认「填进当前谱」→ 生成后 ③ 是最后一步：换成常用工具、「织体」强调（title「织体（下一步）：换一种伴奏织体」，v68.3 收尾 SBAR-4 / 6 名字统一）→ 伴奏织体弹窗 → 生成后 ③ 打勾、强调消失；旋律逐字段不动（同 L2）',
         J({ s0, s1, m1, s2, m2, s3 }));
@@ -1033,12 +1036,36 @@ const HELP = `(()=>{
       const md = await FE(() => !!document.getElementById('vt-low'));
       if (md) { await FC2('#vt-low'); await fp.waitForTimeout(200); }
       const s2 = await fl(); Object.assign(s2, await FE(() => ({ nTab: song.tabVoices.length, notes: ((song.measures[0].tabs || [])[0] || []).filter(c => (c.notes || []).length).length, vn: (song.voxNotations || [])[0] })));
-      T(s0.k === 'JT' && s0.meta && s0.meta.pen === 'J' && s0.nTab === 1 && s0.row === 'vox' && s0.dsteps === 'now:写旋律 | todo:生成六线谱 | todo:调把位与扫弦'
-        && s1.dsteps === 'done:写旋律 | now:生成六线谱 | todo:调把位与扫弦' && s1.go === '生成六线谱' && s1b.vn === 'staff' && s1b.k === 'JT' && s1b.seg === 'J:false,S:true,D:false'
+      /* v68.7 S1 迁移（规格 B2）：条上步名 2 字「旋律 · 吉他 · 节奏」（模型 steps 照旧全名）。修前红修后绿：改前条上是全名 */
+      T(s0.k === 'JT' && s0.meta && s0.meta.pen === 'J' && s0.nTab === 1 && s0.row === 'vox' && s0.dsteps === 'now:旋律 | todo:吉他 | todo:节奏' && s0.steps === 'now:写旋律 | todo:生成六线谱 | todo:调把位与扫弦'
+        && s1.dsteps === 'done:旋律 | now:吉他 | todo:节奏' && s1.go === '生成六线谱' && s1b.vn === 'staff' && s1b.k === 'JT' && s1b.seg === 'J:false,S:true,D:false'
         && md && s2.nTab === 1 && s2.notes === 4 && s2.vn === 'staff' && s2.steps === 'done:写旋律 | done:生成六线谱 | now:调把位与扫弦' && s2.phase === 'tools' && !s2.go && !s2.pri,
         'L3f（flow）吉他弹唱「先写旋律」（页签「＋」新建面板真实点击）：①写旋律 → ②悬浮条「生成六线谱」→ 把位弹窗低把位：复用建谱时的空吉他轨（仍 1 条）→ ③调把位与扫弦（最后一步：悬浮条换成常用工具，没有强调项）；中途音轨区 ⋯「全部旋律轨改为五线谱」后照样生成，悬浮条记谱法跟着按下「五线」（同 L3）',
         J({ s0, s1, s1b, md, s2 }));
     } catch (e) { T(false, 'L3f 执行异常', e.message.split('\n')[0]); }
+
+    /* v68.7 S1 新增 L8f（规格 A2「谱类 ▾」/ README ③「菜单」）：新外壳换谱类菜单——不出菜单头句 .lb-mh；每项只写谱名 + 角标（当前 / ↗ / 锁），
+       谱行 / 原因进 small.lb-sr（视觉隐藏、仍由 aria-describedby 指向，读屏不丢）；点不可换项就地一行原因 .flw-mwhy（≤16 字），菜单不关。
+       旧外壳 L8 原样（菜单头句 + 每项写结果，钉 ?shell=classic 的 L1–L27 不动）。修前红：改前新外壳同样出 .lb-mh、small 可见、点了没有 .flw-mwhy */
+    try {
+      await FE(() => { try { closeModal(); } catch (_) {} const s = NWB.build('JT', { title: '弹唱有内容', nMea: 4 }); __mel(s, 0); __tab(s, 0); addDoc(s); render(); });
+      await fp.waitForTimeout(250);
+      await FC2('#flw-sb-kind'); await fp.waitForTimeout(150);
+      const m = await FE(() => { const mn = document.getElementById('lb-menu'); if (!mn) return null; const it = [...mn.querySelectorAll('.lb-mi')];
+        return { head: !!mn.querySelector('.lb-mh'), n: it.length,
+          desc: it.every(x => { const id = x.getAttribute('aria-describedby'), d = id && document.getElementById(id); return !!d && d.classList.contains('lb-sr') && d.textContent.length > 4 && d.getBoundingClientRect().width <= 2; }),
+          same: it.filter(x => x.classList.contains('m-same')).map(x => (x.querySelector('.lb-ms') || {}).textContent).join(),
+          nNo: it.filter(x => x.classList.contains('m-no')).length,
+          noLock: it.filter(x => x.classList.contains('m-no')).every(x => !!x.querySelector('.flw-mlock') && !!x.dataset.why && x.dataset.why.length <= 16),
+          copyNw: it.filter(x => x.classList.contains('m-copy')).every(x => !!x.querySelector('.lb-mnw') && /，新窗口$/.test(x.getAttribute('aria-label') || '')),
+          nCopy: it.filter(x => x.classList.contains('m-copy')).length }; });
+      const k = await FE(() => (document.querySelector('#lb-menu .lb-mi.m-no') || { dataset: {} }).dataset.sw || null);
+      if (k) { await FC2('#lb-menu .lb-mi[data-sw="' + k + '"]', { force: true }); await fp.waitForTimeout(150); }
+      const w = await FE(() => { const x = document.querySelector('#lb-menu .flw-mwhy'); return { t: x ? x.textContent : '', prev: x && x.previousElementSibling ? x.previousElementSibling.dataset.sw : null, menu: !!document.getElementById('lb-menu') }; });
+      await FE(() => { try { lbMenuClose(); } catch (_) {} });
+      T(!!m && !m.head && m.n === 14 && m.desc && m.same === '当前' && m.nNo > 0 && m.noLock && m.copyNw && !!w.t && w.t.length <= 16 && w.prev === k && w.menu,
+        'L8f（flow）谱类 ▾：没有菜单头句；每项只写谱名 + 角标（当前 / ↗ 另建 / 锁 不可换），谱行与原因进 aria-describedby 指向的 .lb-sr（视觉隐藏）；点不可换项就地一行原因（≤16 字）、菜单不关', J({ m, k, w }));
+    } catch (e) { T(false, 'L8f 执行异常', e.message.split('\n')[0]); }
     await fp.close();
   }
 

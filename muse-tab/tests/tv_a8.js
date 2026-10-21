@@ -53,9 +53,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
       /* 智能配谱直调同样拒绝错拍号织体 */
       loadSong(v); const ar=arrangeAccompaniment(song,{texId:'slow'}); out.arrDirect={done:ar.gen.done, mismatch:!!ar.gen.mismatch};
       toast=ot; return out; })()`);
-    const ok = r.tex64 && !r.tex64.modal && /暂无内置织体/.test(r.tex64.msg) && /6\/4/.test(r.tex64.msg)
-      && !r.tex38.modal && /暂无内置织体/.test(r.tex38.msg) && !r.arr38.modal && /暂无内置织体/.test(r.arr38.msg)
-      && !r.arr22.modal && /暂无内置织体/.test(r.arr22.msg)
+    /* v68.7 S1 迁移（规格 §6.C3 #37 / #38，本套件在新外壳）：提示原 /暂无内置织体/（「当前拍号 6/4 暂无内置织体（已支持 …）」）→ 新外壳短文「6/4 暂无织体」（拍号照写，不开弹窗仍由 modal 判）；
+       旧外壳原文照旧（同一次 toastSay 的第 1 参）。修前红：5cddfb8 新外壳提示为整句，不匹配 /^\d+\/\d+ 暂无织体$/ */
+    const NO = (x, bu) => !x.modal && x.msg === bu + ' 暂无织体';
+    const ok = r.tex64 && NO(r.tex64, '6/4') && NO(r.tex38, '3/8') && NO(r.arr38, '3/8') && NO(r.arr22, '2/2')
       && r.direct.done === 0 && r.direct.mismatch && r.direct.same && r.arrDirect.done === 0 && r.arrDirect.mismatch;
     T(ok, 'T2 无匹配织体只提示不开弹窗；直调错拍号织体拒绝生成', JSON.stringify(r));
   }

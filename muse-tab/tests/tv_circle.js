@@ -1,5 +1,5 @@
 /* v50.8 谱友圈（应用内谱库）回归：
-   （v68.2 起入口：T1 文件 ▾「谱库」、T2 账号 ▾「谱库」；旧外壳 #b-circle 同一 openCircle）
+   （v68.2 起入口：T1 文件 ▾「谱库」、T2 账号 ▾「谱库」；v68.7 账号 ▾ 去重后两段都走文件 ▾「谱库」；旧外壳 #b-circle 同一 openCircle）
    T1 b-circle 恒开应用内 #circle（不再跳转 puku），本地兜底种子渲染卡片；无 cc-hero；chip.on 非渐变实底
    T2 route mock /api/pub/scores → 远端卡片渲染（data-remote、免费 pill、小节数），点卡片进观看模式（openRemotePub）
    T3 卡片无渐变顶条（cc-card ::after 无内容）
@@ -43,7 +43,9 @@ const openLib = async (pg, m) => { await pg.click(m || '#flw-file'); await pg.wa
   await pg.route('**/api/pub/scores', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ scores: [PUB] }) }));
   await pg.route('**/api/pub/scores/pubtest01', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FULL) }));
   await pg.goto(F); await pg.waitForTimeout(900);
-  await openLib(pg, '#flw-acct');   /* T2 走账号 ▾「谱库」 */ await pg.waitForTimeout(900);
+  /* v68.7 S1 迁移（集成时补；规格 A2 / 功能保全表 #4：账号 ▾ 去重后不再列「谱库」，唯一的菜单入口是文件 ▾「谱库」，同一枚委托点 #b-circle）：
+     原 T2 走账号 ▾ → 改走文件 ▾；断言（远端卡片 / 观看模式路由）不变。修前红修后绿：集成上原定位等不到 #popmenu [data-old=b-circle]（30 秒超时）；5cddfb8 文件 ▾ 也有这一项，改后照旧绿 */
+  await openLib(pg, '#flw-file'); await pg.waitForTimeout(900);
   r = await pg.evaluate(`(()=>{
     const card=document.querySelector('#circle .cc-card[data-remote]');
     return {remote:!!card, title:card? card.textContent.indexOf('同步测试谱')>=0 : false,

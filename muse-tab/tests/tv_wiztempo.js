@@ -161,7 +161,10 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     vals[key] = (await state()).tempo;
   }
   T(/240/.test(live.msg) && live.shown && live.bad && blur.val === '240' && /240/.test(blur.msg) && !blur.bad
-    && hi.tempo === 240 && hi.hdr === '♩=240' && /速度最大 240/.test(toast6)
+    /* v68.7 S1 迁移（集成时补；规格 §6.C3 #57：新外壳建成提示只出短文 + 「撤销」）：原 /速度最大 240/（整句提示里的 tpNote）→ /速度(最大|按) 240/——
+       新外壳短文在速度被夹时照实写「已新建 · 速度按 240」（集成时补的「建成提示点名」），旧外壳 / 手机原句不变；意图不变（建成提示点名 240）。
+       修前红修后绿：集成未补点名前短文是「已新建简谱歌谱」（T6 红，21/22）；5cddfb8 整句含「速度最大 240」，新正则照旧绿 */
+    && hi.tempo === 240 && hi.hdr === '♩=240' && /速度(最大|按) 240/.test(toast6)
     && vals.low === 30 && vals.empty === 90 && vals.round === 96 && vals.nan === 90,
     'T6 越界/非法：300 即时红框提示→失焦夹 240→落谱 240 且建成提示点名；10→30、空→90、95.6→96、e→90',
     JSON.stringify({ live, blur, hi, toast6, vals }));

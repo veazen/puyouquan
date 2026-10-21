@@ -263,7 +263,8 @@ function T0SCN() {
      显式例外（本版对旧外壳的有意改动）：
        · 偏好设置多一行「使用旧版布局」（PREF_ITEMS oldshell，切默认后的兜底入口）——D_prefs 对拍前从被测页 HTML 里摘掉这一行，另断言它存在（T0b）；
        · musetab-flow：旧外壳写 '0'（?shell=classic），基线默认外壳不写——G_keys 对拍时两边都去掉它，另断言值为 '0'（T0a）。
-     TRK-5（音量 0）/ TRK-6（删吉他轨混音随行）/ PN-5（转调小节音名）不在本场景路径上（音量只拖到 60、不删吉他轨、谱里没有转调），其余必须零差异 */
+     TRK-5（音量 0）/ TRK-6（删吉他轨混音随行）/ PN-5（转调小节音名）不在本场景路径上（音量只拖到 60、不删吉他轨、谱里没有转调），其余必须零差异。
+     v68.7 简约化：对旧外壳没有有意改动、不加例外（共享代码改动逐条登记在 tv_shellflow S0 ⑦） */
   const OLDROW = /<button[^>]*data-prf="oldshell"[\s\S]*?<\/button>/;
   const noFlowKey = k => String(k || '').split(',').filter(x => x && x !== 'musetab-flow').join(',');
   if (want('T0')) jobs.push(() => SAFE('T0', 'T0', async () => {
@@ -411,8 +412,9 @@ function T0SCN() {
       for (const c of ["setVoxNotation('staff')", "setVoxNotation('jianpu')", '0', "setVoxNotation('staff')", "setVoxNotation('bass')"]) { await EV(pg, x => { (0, eval)(x); }, c); f.push(await EV(pg, SNAP)); }
       T('T6', JSON.parse(a1.nt)[0] === 'staff' && !(JSON.parse(a1.du || '[]')[0]) && JSON.parse(a2.nt)[0] == null && a1.j === f[0].j && a2.j === f[1].j && a1.sc === f[0].sc && a2.sc === f[1].sc,
         'T6a 点层名「只显示这一种」：「五线谱」＝setVoxNotation(\'staff\')（无对照）、「简谱」＝setVoxNotation(\'jianpu\')，song 与 #score 逐字节相同', J({ a1: a1.nt + '/' + a1.du, a2: a2.nt }));
-      T('T6', a3.j === a2.j && a3.sc === a2.sc && t3.some(t => /至少保留一种记谱法/.test(t)) && a4.j === a4p.j && t4.some(t => /至少保留一种记谱法/.test(t)),
-        'T6b 只剩一层时再点它的眼睛（只有简谱时点简谱 / 只有五线谱时点五线谱）＝不改谱、不重刻 + 提示「至少保留一种记谱法」', J({ t3, t4 }));
+      /* v68.7 S1 迁移（规格 §6.C3 #19 / #20，P2 结果 ≤12 字）：新外壳提示原 /至少保留一种记谱法/（整句 + 「点「五线谱」三个字」指路）→ 短文「至少留一种记谱法」；不改谱 / 不重刻仍由 j / sc 判。修前红：5cddfb8 提示为整句（不等于短文） */
+      T('T6', a3.j === a2.j && a3.sc === a2.sc && t3.some(t => t === '至少留一种记谱法') && a4.j === a4p.j && t4.some(t => t === '至少留一种记谱法'),
+        'T6b 只剩一层时再点它的眼睛（只有简谱时点简谱 / 只有五线谱时点五线谱）＝不改谱、不重刻 + 提示「至少留一种记谱法」', J({ t3, t4 }));
       T('T6', !!menu && menu.m === 'treeClef' && menu.n === 3 && JSON.parse(a5.nt)[0] === 'bass' && a5.j === f[4].j && a5.sc === f[4].sc,
         'T6c 谱号 ▾（菜单挂 body，三项）选「低音谱号」＝setVoxNotation(\'bass\')（#vn-bs），song 与 #score 逐字节相同', J({ menu, nt: a5.nt }));
     });
@@ -612,17 +614,23 @@ function T0SCN() {
   if (want('T11')) jobs.push(async () => {
     const pg = await open(1280, 800, { tag: 'T11' });
     await SAFE('T11', 'T11', async () => {
+      /* v68.7 S1 迁移：原列表含 '.flw-tfill'（静息态「填词」）与 '#flw-kchip'（谱类芯片按钮）→ 两项去掉、类数门槛 10 → 8；
+         理由：规格 R7 静息态不再有填词钮、D4 谱类芯片改只读（不是按钮，不再要 28×28 命中区）；另断言静息态树里没有 .flw-tfill、芯片不是按钮。
+         修前红修后绿：改前代码静息态有 .flw-tfill、#flw-kchip 是 button，新加的 noFill / chipRo 两项为假 */
       const S1 = ['#flw-tlist .flw-trow.on .flw-tmute', '#flw-tlist .flw-trow.on .flw-tsolo', '#flw-tlist .flw-trow.on [data-fa="tree:more"]', '#flw-tlist .flw-teye', '#flw-tlist .flw-tonly',
-        '#flw-tlist .flw-tclef', '#flw-tlist .flw-tvc', '#flw-tlist .flw-tfill', '#flw-kchip', '#flw-thd .flw-tib'];
+        '#flw-tlist .flw-tclef', '#flw-tlist .flw-tvc', '#flw-thd .flw-tib'];
+      const RO = () => { const c = document.getElementById('flw-kchip'); return { noFill: !document.querySelector('#flw-tlist .flw-tfill'), chipRo: !!c && c.tagName === 'SPAN' && !c.hasAttribute('data-fa') && !c.hasAttribute('aria-haspopup') && !c.hasAttribute('tabindex') }; };
       await scn(pg, 'pacc'); await away(pg); await wait(pg, 150);
-      const a = await EV(pg, HIT, S1);
+      const a = await EV(pg, HIT, S1), ra = await EV(pg, RO);
       await pg.click(rowSel('vox', 1), { position: { x: 20, y: 18 } }); await away(pg); await wait(pg, 150);
       const b2 = await EV(pg, HIT, S1);
       await scn(pg, 'gtr'); await away(pg); await wait(pg, 150);
-      const c = await EV(pg, HIT, S1);
+      const c = await EV(pg, HIT, S1), rc = await EV(pg, RO);
       const kinds = [...new Set([...a.kinds, ...b2.kinds, ...c.kinds])];
       const bad = [...a.bad, ...b2.bad, ...c.bad];
-      T('T11', !bad.length && kinds.length >= 10, 'T11a 音轨树命中区 ≥28：当前行 静音 / 独奏 / ⋯、记谱法眼睛、层名、谱号 ▾、歌词段号与 ＋（伪元素扩展）、填词、谱类芯片、标题 ＋ / ⋯——中心 28×28 方块四角 elementFromPoint 都命中自身（钢琴伴奏歌谱旋律 / 右手、吉他弹唱）',
+      if (!(ra.noFill && rc.noFill)) bad.push('静息态仍有 .flw-tfill');
+      if (!(ra.chipRo && rc.chipRo)) bad.push('#flw-kchip 仍是可点控件');
+      T('T11', !bad.length && kinds.length >= 8, 'T11a 音轨树命中区 ≥28：当前行 静音 / 独奏 / ⋯、记谱法眼睛、层名、谱号 ▾、歌词段号与 ＋（伪元素扩展）、标题 ＋ / ⋯——中心 28×28 方块四角 elementFromPoint 都命中自身（钢琴伴奏歌谱旋律 / 右手、吉他弹唱）；v68.7 静息态没有「填词」钮、谱类芯片只读',
         bad.length ? bad.join('；') : (a.n + b2.n + c.n) + ' 个控件 · ' + kinds.length + ' 类');
       /* 记号面板：外框最小边 ≥28（同 tv_shellflow S16 口径；格子 52 / 36） */
       const pal = await EV(pg, () => { const small = [], n = { c: 0 }; ['#flw-pdens', '#flw-pclr', '#flw-pq', '#flw-pgrid button.flw-pgh', '#flw-pgrid .flw-sg'].forEach(s => document.querySelectorAll(s).forEach(e => {
@@ -638,14 +646,16 @@ function T0SCN() {
   /* ================= T12 加轨菜单：与经典「＋ 音轨」弹窗逐谱同一可用性 ================= */
   const OLDADD = () => { __toasts.length = 0; try { closeModal(); } catch (_) {}
     showAddTrackMenu(); const m = document.querySelector('#modal-mask');
-    const r = { lock: !m && __toasts.some(t => /整谱形态/.test(t)), full: !m && __toasts.some(t => /上限/.test(t)), vox: !!document.getElementById('ta-vox'), tab: !!document.getElementById('ta-tab'), map: !!document.getElementById('ta-map') };
+    /* v68.7 S1 迁移（规格 §6.C3 #42）：本页是新外壳——经典「＋ 音轨」弹窗函数拒绝整谱形态时，提示条原 /整谱形态/（整句）→ 新外壳短文「这类谱不能加轨」（带「换谱类」钮）；旧外壳原文不变。修前红：5cddfb8 新外壳提示为整句（不等于短文） */
+    const r = { lock: !m && __toasts.some(t => t === '这类谱不能加轨'), full: !m && __toasts.some(t => /上限/.test(t)), vox: !!document.getElementById('ta-vox'), tab: !!document.getElementById('ta-tab'), map: !!document.getElementById('ta-map') };
     try { closeModal(); } catch (_) {} return r; };
   const NEWADD = () => { const m = document.getElementById('popmenu'); if (!m || m.dataset.m !== 'treeAdd') return null;
     const en = a => { const e = m.querySelector('[data-fa="' + a + '"]'); return !!e && e.getAttribute('aria-disabled') !== 'true'; };
     const why = a => { const e = m.querySelector('[data-fa="' + a + '"]'); return e ? (e.dataset.why || '') : null; };
     const items = [...m.querySelectorAll('[data-fa]')].map(e => e.dataset.fa + (e.getAttribute('aria-disabled') === 'true' ? '✗' : ''));
     const dis = [...m.querySelectorAll('[aria-disabled="true"]')].map(e => (e.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 12) + '｜' + (e.dataset.why || '').slice(0, 30));
-    return { lock: items.length === 1 && items[0] === 'tree:kindmenu' && /暂不支持加轨/.test(m.textContent), vox: en('tree:addvox'), tab: en('tree:addtab'), map: en('tree:gen'),
+    /* v68.7 S1 迁移：锁定谱类的原因句 /暂不支持加轨/ → /不能加轨/（「这类谱不能加轨」≤16 字，README ②P1/P2）；修前红修后绿：改前句子是「…暂不支持加轨。要加旋律或吉他，请先「换谱类」。」→ /不能加轨/ 红 */
+    return { lock: items.length === 1 && items[0] === 'tree:kindmenu' && /不能加轨/.test(m.textContent), vox: en('tree:addvox'), tab: en('tree:addtab'), map: en('tree:gen'),
       allOff: !en('tree:addvox') && !en('tree:addtab'), items, dis, whyTab: why('tree:addtab'), whyVox: why('tree:addvox'), text: m.textContent.replace(/\s+/g, ' ') }; };
   if (want('T12')) jobs.push(async () => {
     const pg = await open(1280, 800, { tag: 'T12' });
@@ -676,8 +686,10 @@ function T0SCN() {
       const lk = await EV(pg, NEWADD);
       await pg.click('#popmenu [data-fa="tree:kindmenu"]'); await wait(pg, 200);
       const lm = await EV(pg, () => !!document.getElementById('lb-menu')); await EV(pg, () => __shut());
-      T('T12', !!lk && lk.lock && /钢琴大谱表 \/ 和弦格保持整谱形态，暂不支持加轨/.test(lk.text) && lm,
-        'T12b 锁定谱类（卡农进行 · 钢琴弹唱伴奏谱）：只写原因（与经典弹窗同一句「钢琴大谱表 / 和弦格保持整谱形态，暂不支持加轨」）+「换谱类…」，点它打开换谱类菜单', J({ items: lk && lk.items, lm }));
+      /* v68.7 S1 迁移：原因句不再与经典弹窗逐字相同——「钢琴大谱表 / 和弦格保持整谱形态，暂不支持加轨」→「这类谱不能加轨」（≤16 字）；「只写原因 +「换谱类…」、点它开换谱类菜单」的意图不变；
+         修前红修后绿：改前菜单写长句（不含「这类谱不能加轨」）→ 红 */
+      T('T12', !!lk && lk.lock && /这类谱不能加轨/.test(lk.text) && lm,
+        'T12b 锁定谱类（卡农进行 · 钢琴弹唱伴奏谱）：只写一行原因「这类谱不能加轨」+「换谱类…」，点它打开换谱类菜单', J({ items: lk && lk.items, lm }));
       /* 功能谱：只加旋律轨 */
       await scn(pg, 'func'); await pg.click('#flw-thd [data-fa="tree:add"]'); await wait(pg, 120);
       const fu = await EV(pg, NEWADD); await pg.keyboard.press('Escape');
@@ -686,15 +698,19 @@ function T0SCN() {
       /* 吉他弹唱：尤克里里轨置灰带原因 + 另建尤克里里弹唱谱；点「吉他轨」＝弹窗 #ta-tab */
       await scn(pg, 'gtr', { row: 'vox', vi: 0 }); await pg.click('#flw-thd [data-fa="tree:add"]'); await wait(pg, 120);
       const gt = await EV(pg, NEWADD);
+      /* v68.7 S1：置灰项点了就地一行原因（.flw-mwhy，菜单不关、不 toast；规格 §3.1） */
+      const uw = await EV(pg, () => { const b = [...document.querySelectorAll('#popmenu [aria-disabled="true"]')].find(x => /尤克里里轨/.test(x.textContent || '')); if (!b) return null;
+        b.click(); const w = document.querySelector('#popmenu .flw-mwhy'); return { title: b.title, why: w ? w.textContent : null, after: !!w && w.previousElementSibling === b, menu: !!document.getElementById('popmenu') }; });
       const s0 = await EV(pg, () => ({ n: song.tabVoices.length }));
       await pg.click('#popmenu [data-fa="tree:addtab"]'); await wait(pg, 200);
       const a = await EV(pg, () => ({ j: JSON.stringify(song), sel: J2(sel), n: song.tabVoices.length, row: sel.row, vi: sel.vi, cur: (document.querySelector('#flw-tlist .flw-trow.on') || {}).id }));
       await scn(pg, 'gtr', { row: 'vox', vi: 0 });
       const o = await EV(pg, () => { showAddTrackMenu(); document.getElementById('ta-tab').click(); return { j: JSON.stringify(song), sel: J2(sel) }; });
       const ukuDis = gt && gt.dis.find(x => /^尤克里里轨/.test(x));
-      T('T12', !!gt && !!ukuDis && /吉他（6 线）/.test(ukuDis) && gt.items.includes('tree:uku') && a.n === s0.n + 1 && a.row === 'tab' && a.vi === s0.n && a.cur === 'flw-tr-tab-' + s0.n && a.j === o.j && a.sel === o.sel,
+      /* v68.7 S1 迁移：原因「本谱乐器是吉他（6 线）…」→「本谱是 6 线吉他」（≤16 字），并断言 title 与点后就地一行同一句；修前红修后绿：改前原因不含「6 线吉他」、点了只 toast 没有 .flw-mwhy → 红 */
+      T('T12', !!gt && !!ukuDis && /6 线吉他/.test(ukuDis) && !!uw && uw.title === '本谱是 6 线吉他' && uw.why === '本谱是 6 线吉他' && uw.after && uw.menu && gt.items.includes('tree:uku') && a.n === s0.n + 1 && a.row === 'tab' && a.vi === s0.n && a.cur === 'flw-tr-tab-' + s0.n && a.j === o.j && a.sel === o.sel,
         'T12d 吉他弹唱：「尤克里里轨」置灰并写原因（本谱乐器是吉他 6 线）、另给「另建尤克里里弹唱谱…」；点「吉他轨」→ tabVoices+1、光标落在新轨（树里新行高亮），song 与 sel 和经典弹窗 #ta-tab 逐字节相同',
-        J({ uku: ukuDis, n: [s0.n, a.n], sel: a.row + a.vi, same: a.j === o.j }));
+        J({ uku: ukuDis, uw, n: [s0.n, a.n], sel: a.row + a.vi, same: a.j === o.j }));
       /* 集成补（计划 §3.3）：「导入 MIDI 为新轨…」没有对应函数，本轮不出现（覆盖本轨的导入在本轨 ⋯ 里） */
       T('T12', !!gt && !/导入 MIDI 为新轨/.test(gt.text) && !!fu && !/导入 MIDI 为新轨/.test(fu.text), 'T12e 加轨菜单不出现「导入 MIDI 为新轨…」（计划 §3.3：现在没有对应函数，本轮不出现；不放死项）', J({ items: gt && gt.items }));
     });
@@ -742,10 +758,12 @@ function T0SCN() {
       const g1 = await EV(pg, () => JSON.stringify(song));
       await scn(pg, 'songbie'); const b0 = await EV(pg, () => { __toasts.length = 0; return JSON.stringify(song); });
       await rowAct(pg, 'vox', 0, '[data-fa="tree:more"]'); await pg.click('#popmenu [data-fa="tree:del"]', { force: true }); await wait(pg, 150);
-      const b1 = await EV(pg, () => JSON.stringify(song)), bt = await toasts(pg);
+      /* v68.7 S1 迁移：置灰项「点了只提示原因」由 toast「至少保留一条旋律轨…」改为菜单里就地一行 .flw-mwhy「至少留一条旋律轨」（菜单不关，规格 §3.1）；
+         修前红修后绿：改前只 toast、没有 .flw-mwhy → bw 红 */
+      const b1 = await EV(pg, () => JSON.stringify(song)), bt = await toasts(pg), bw = await EV(pg, () => ((document.querySelector('#popmenu .flw-mwhy') || {}).textContent || ''));
       await EV(pg, () => __shut());
-      T('T13', d1.n === 1 && d1.names === '指弹' && d1.rows === 2 && g1 === g0 && b1 === b0 && bt.some(t => /至少保留一条旋律轨/.test(t)),
-        'T13c 删除：吉他弹唱删「扫弦」轨 → tabVoices 剩「指弹」、树少一行，一步撤销逐字节还原；歌谱唯一旋律轨的删除项置灰，点了只提示原因、不改谱', J({ d1, undo: g1 === g0, bt }));
+      T('T13', d1.n === 1 && d1.names === '指弹' && d1.rows === 2 && g1 === g0 && b1 === b0 && /至少留一条旋律轨/.test(bw) && !bt.some(t => /至少/.test(t)),
+        'T13c 删除：吉他弹唱删「扫弦」轨 → tabVoices 剩「指弹」、树少一行，一步撤销逐字节还原；歌谱唯一旋律轨的删除项置灰，点了只就地写一行原因（不 toast）、不改谱', J({ d1, undo: g1 === g0, bt, bw }));
     });
     await close(pg);
   });
@@ -774,8 +792,12 @@ function T0SCN() {
       await shot(pg, 'T14-lyric-enter-1280x800');
       T('T14', k0.n === 1 && k0.add && a.n === 2 && /^1\*?,2/.test(a.chips) && b2.al === 1 && b2.at === 'lyr' && b2.on === '2' && c.al === 0 && u === 1,
         'T14a 歌词段号复用 chip 契约（.chip[data-k="ll" | "ll+"]）：＋ 加一段（lyricLines 1→2，一步撤销）、点 ② → activeLyr=1 且切到歌词层、点 ① 回 0', J({ k0, a, b2, c, undo: u }));
-      T('T14', e.ae === 'i-lyric' && e.vis && e.inside && e.host && e.at === 'lyr' && e.fc === k0.fc && !e.fly,
-        'T14b 旋律行按 Enter：焦点落在 #i-lyric、它可见且整个在 #flw-left 内（当前旋律轨「歌词」子行下的填词区）；不经旧面板、不删经典偏好键 musetab-flyclosed', J(e));
+      /* v68.7 S1 迁移（规格 B3 / R7）：原「.flw-tfill 字＝填词 / 收起」（只记录不断言）→ 断言展开后右端是「收起」、点「收起」后填词区收起且不再有 .flw-tfill（静息态无「填词」链接，进入改由段号 / Enter）。
+         修前红修后绿：改前收起后 .flw-tfill 仍在（字「填词」），f.none 为假 */
+      await pg.click('#flw-tlist .flw-tfill'); await wait(pg, 200);
+      const f = await EV(pg, () => ({ none: !document.querySelector('#flw-tlist .flw-tfill'), at: activeTab, open: !!document.querySelector('#flw-tlist .flw-tlyr:not([hidden])') }));
+      T('T14', e.ae === 'i-lyric' && e.vis && e.inside && e.host && e.at === 'lyr' && e.fc === k0.fc && !e.fly && e.fill === '收起' && f.none && !f.open && f.at !== 'lyr',
+        'T14b 旋律行按 Enter：焦点落在 #i-lyric、它可见且整个在 #flw-left 内（当前旋律轨「歌词」子行下的填词区）；不经旧面板、不删经典偏好键 musetab-flyclosed；v68.7 展开时右端「收起」、收起后不留「填词」链接', J({ e, f }));
     });
     await close(pg);
   });
@@ -938,23 +960,35 @@ function T0SCN() {
     const M20 = () => { const c = document.querySelector('#flw-pg-art [data-v="staccato"]'), l = c && c.querySelector('.flw-sgl'), r = c && c.getBoundingClientRect();
       return c ? { w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10, fs: parseFloat(getComputedStyle(l).fontSize), lab: __vis(l), ctx: c.querySelectorAll('.pqsg-c').length,
         cols: getComputedStyle(c.parentElement).gridTemplateColumns.split(' ').length, key: localStorage.getItem('musetab-signdensity'), pr: (document.getElementById('flw-pdens') || { getAttribute: () => null }).getAttribute('aria-pressed') } : null; };
+    /* v68.7 S1 迁移（D7 三档，规格 R3）：原「两档：缺省带字 52 · 点一次只看字形 36 · 再点删键回带字；aria-pressed」→
+       三档：缺省（无键）＝混合（#flw-pal.flw-mix：奏法组跳音 52 带字、力度组 mf 36 不带字）· 点一次 'glyph'（全 36）· 再点 'label'（全 52 带字，力度组 mf 也 52）· 再点删键回混合；
+       密度钮不再是开关（无 aria-pressed），读屏名写当前档；刷新保持；偏好里仍列「记号格：只看字形」。
+       修前红修后绿：改前缺省没有 .flw-mix、力度格是 52 带字（a.mix / a.dyn 为假），第二次点击直接删键（d.key 是 null 不是 'label'） */
+    const MD = () => { const c = document.querySelector('#flw-pg-dyn [data-v="dyn-mf"]'), l = c && c.querySelector('.flw-sgl'), r = c && c.getBoundingClientRect(), p = document.getElementById('flw-pal'), b = document.getElementById('flw-pdens');
+      return { w: c ? Math.round(r.width * 10) / 10 : null, lab: c ? __vis(l) : null, mix: !!p && p.classList.contains('flw-mix'), al: b && b.getAttribute('aria-label') }; };
     await SAFE('T20', 'T20', async () => {
       await scn(pg, 'songbie', { mi: 1 });
-      const a = await EV(pg, M20);
+      const a = await EV(pg, M20), ad = await EV(pg, MD);
+      await shot(pg, 'T20-mix-1280x800');
       await pg.click('#flw-pdens'); await wait(pg, 150);
-      const b2 = await EV(pg, M20);
+      const b2 = await EV(pg, M20), bd = await EV(pg, MD);
       await shot(pg, 'T20-glyph-1280x800');
       await pg.reload(); await wait(pg, 1200); await prep(pg); await scn(pg, 'songbie', { mi: 1 });
       const c = await EV(pg, M20);
       const pf = await EV(pg, () => { showPrefs(); const t = document.getElementById('prf-t-signdensity'); const r = t ? t.textContent : null; closeModal(); return r; });
       await pg.click('#flw-pdens'); await wait(pg, 150);
-      const d = await EV(pg, M20);
-      T('T20', !!a && Math.abs(a.w - 52) <= 1 && Math.abs(a.h - 52) <= 1 && a.fs >= 11 && a.lab && a.cols === 4 && a.ctx > 0 && a.key === null,
-        'T20a 带字（缺省）：格 52×52、标签 ≥11px、一行 4 格；跳音画在语境上（灰「5」，.pqsg-c）', J(a));
-      T('T20', !!b2 && Math.abs(b2.w - 36) <= 1 && Math.abs(b2.h - 36) <= 1 && !b2.lab && b2.cols === 6 && b2.ctx === 0 && b2.key === 'glyph' && b2.pr === 'true'
-        && !!c && Math.abs(c.w - 36) <= 1 && c.key === 'glyph' && pf === '记号格：只看字形' && !!d && Math.abs(d.w - 52) <= 1 && d.key === null,
-        'T20b 只看字形：36×36、一行 6 格、不带字、跳音用 bare（不画语境「5」，免得读成「:」）；写 musetab-signdensity=\'glyph\'，刷新后保持；flow 下偏好设置列出「记号格：只看字形」；再点回带字即删键',
-        J({ b: b2, reload: c && [c.w, c.key], pf, back: d && [d.w, d.key] }));
+      const d = await EV(pg, M20), dd = await EV(pg, MD);
+      await pg.click('#flw-pdens'); await wait(pg, 150);
+      const e = await EV(pg, M20), ed = await EV(pg, MD);
+      T('T20', !!a && Math.abs(a.w - 52) <= 1 && Math.abs(a.h - 52) <= 1 && a.fs >= 11 && a.lab && a.cols === 4 && a.ctx > 0 && a.key === null && a.pr === null
+        && ad.mix && Math.abs(ad.w - 36) <= 1 && ad.lab === false && ad.al === '记号格：混合',
+        'T20a 混合（缺省、无键）：奏法组格 52×52、标签 ≥11px、一行 4 格，跳音画在语境上（灰「5」，.pqsg-c）；力度组 mf 36×36 只画字形；密度钮读屏名「记号格：混合」、无 aria-pressed', J({ a, ad }));
+      T('T20', !!b2 && Math.abs(b2.w - 36) <= 1 && Math.abs(b2.h - 36) <= 1 && !b2.lab && b2.cols === 6 && b2.ctx === 0 && b2.key === 'glyph' && bd.al === '记号格：只看字形' && !bd.mix
+        && !!c && Math.abs(c.w - 36) <= 1 && c.key === 'glyph' && pf === '记号格：只看字形'
+        && !!d && Math.abs(d.w - 52) <= 1 && d.lab && d.key === 'label' && Math.abs(dd.w - 52) <= 1 && dd.lab && dd.al === '记号格：带字'
+        && !!e && e.key === null && ed.mix && Math.abs(ed.w - 36) <= 1,
+        'T20b 三档循环：点一次只看字形（36×36、一行 6 格、不带字、跳音用 bare；写 musetab-signdensity=\'glyph\'，刷新后保持；偏好列出「记号格：只看字形」）→ 再点带字（写 \'label\'，力度格也 52 带字）→ 再点删键回混合',
+        J({ b: b2, reload: c && [c.w, c.key], pf, label: d && [d.w, d.key, dd.w, dd.al], back: e && [e.key, ed.mix, ed.w] }));
       /* 折叠：写 musetab-pal，刷新保持；坏 JSON 回默认、不报错 */
       const e0 = await EV(pg, () => ({ art: !document.getElementById('flw-pg-art').hidden, orn: !document.getElementById('flw-pg-orn').hidden }));
       await pg.click('#flw-pgrid button.flw-pgh[data-v="art"]'); await wait(pg, 150);
@@ -1141,17 +1175,21 @@ function T0SCN() {
         'T24c 收起钮：收成 34 高细条（data-sb=col、musetab-sbar=\'0\'，不再整条消失）；Alt+B → 展开（删键）、焦点落在主按钮；收起 / 展开不改谱、全程不建 #lb-wrap / #flw-start',
         J({ c: [c.sb, c.h, c.key, c.vis], d: [d.sb, d.key, d.ui], fo, same: j1 === j0 }));
     });
+    /* v68.7 S1 迁移（D4 / 规格 B3）：原「点音轨区谱类芯片 #flw-kchip 开 / 关 #lb-menu」→ 开菜单者改为悬浮条谱类 ▾ #flw-sb-kind（同一个 lbMenuOpen、同一张菜单，定位 / 再点即关 / 点谱面也关照旧断言）；
+       另断言芯片只读：不是按钮、不挂 data-fa / aria-haspopup / aria-expanded，点它不开菜单。修前红修后绿：改前芯片是 button[data-fa=tree:kind]，ro.ro 为假、点芯片开出菜单（ro.m 为真） */
     await SAFE('T25', 'T25', async () => {
       await scn(pg, 'songbie'); await away(pg);
-      await pg.click('#flw-kchip'); await wait(pg, 200);
-      const a = await EV(pg, () => { const m = document.getElementById('lb-menu'), c = document.getElementById('flw-kchip'); if (!m) return { m: false };
+      await pg.click('#flw-sb-kind'); await wait(pg, 200);
+      const a = await EV(pg, () => { const m = document.getElementById('lb-menu'), c = document.getElementById('flw-sb-kind'); if (!m) return { m: false };
         const mr = m.getBoundingClientRect(), cr = c.getBoundingClientRect(); return { m: true, gap: Math.round(mr.top - cr.bottom), dx: Math.round(mr.left - cr.left), exp: c.getAttribute('aria-expanded'), vis: __vis(m) }; });
-      await pg.click('#flw-kchip'); await wait(pg, 250);
-      const b2 = await EV(pg, () => ({ m: !!document.getElementById('lb-menu'), exp: document.getElementById('flw-kchip').getAttribute('aria-expanded') }));
-      await pg.click('#flw-kchip'); await wait(pg, 200); await pg.mouse.click(700, 500); await wait(pg, 200);
+      await pg.click('#flw-sb-kind'); await wait(pg, 250);
+      const b2 = await EV(pg, () => ({ m: !!document.getElementById('lb-menu'), exp: document.getElementById('flw-sb-kind').getAttribute('aria-expanded') }));
+      await pg.click('#flw-sb-kind'); await wait(pg, 200); await pg.mouse.click(700, 500); await wait(pg, 200);
       const c = await EV(pg, () => ({ m: !!document.getElementById('lb-menu') }));
-      T('T25', a.m && a.vis && a.gap >= 0 && a.gap <= 12 && Math.abs(a.dx) <= 12 && a.exp === 'true' && !b2.m && b2.exp === 'false' && !c.m,
-        'T25 谱类芯片 ▾：打开 #lb-menu（换谱类，lbMenuOpen 同一菜单），定位在芯片正下方（间距 0–12、左缘对齐 ±12）；再点芯片即关（lbMenuOut 认 .flw-kchip，不先关后开）；点谱面也关', J({ a, b: b2, c }));
+      await pg.click('#flw-kchip'); await wait(pg, 200);
+      const ro = await EV(pg, () => { const k = document.getElementById('flw-kchip'); return { ro: !!k && k.tagName === 'SPAN' && !['data-fa', 'aria-haspopup', 'aria-expanded'].some(x => k.hasAttribute(x)), m: !!document.getElementById('lb-menu'), name: ((k && k.querySelector('.flw-kn')) || {}).textContent }; });
+      T('T25', a.m && a.vis && a.gap >= 0 && a.gap <= 12 && Math.abs(a.dx) <= 12 && a.exp === 'true' && !b2.m && b2.exp === 'false' && !c.m && ro.ro && !ro.m && !!ro.name,
+        'T25 换谱类：悬浮条谱类 ▾ 打开 #lb-menu（lbMenuOpen 同一菜单），定位在它正下方（间距 0–12、左缘对齐 ±12）；再点即关（不先关后开）；点谱面也关。v68.7 音轨区谱类芯片只读（照显谱名，点它不开菜单）', J({ a, b: b2, c, ro }));
     });
     await close(pg);
   });
@@ -1187,9 +1225,11 @@ function T0SCN() {
         for (const a of ['tree:expall', 'tree:colall', 'tree:curexp']) { await pg.click('#flw-thd [data-fa="tree:hdr"]'); await wait(pg, 100); await pg.click('#popmenu [data-fa="' + a + '"]'); await wait(pg, 120); }
         await rowAct(pg, rows[0][0], rows[0][1], '[data-fa="tree:more"]'); await pg.keyboard.press('Escape');
         await pg.click('#flw-thd [data-fa="tree:add"]'); await wait(pg, 80); await pg.keyboard.press('Escape');
-        await pg.click('#flw-kchip'); await wait(pg, 120); await pg.click('#flw-kchip'); await wait(pg, 120);
+        /* v68.7 S1 迁移：谱类菜单改从悬浮条谱类 ▾ 开关（音轨区芯片只读，D4）；密度钮三档循环（D7），点满一圈三次才回到起点（原「切两次」回起点）。
+           修前红修后绿：改前代码上点三次会停在另一档（两档循环），pacc 这一轮键差不为空 */
+        await pg.click('#flw-sb-kind'); await wait(pg, 120); await pg.click('#flw-sb-kind'); await wait(pg, 120);
         await pg.focus('#flw-pq'); await pg.keyboard.type('yc'); await wait(pg, 100); await pg.fill('#flw-pq', 'zzz'); await wait(pg, 80); await pg.keyboard.press('Escape'); await wait(pg, 80);
-        await pg.click('#flw-pdens'); await wait(pg, 80); await pg.click('#flw-pdens'); await wait(pg, 80);
+        await pg.click('#flw-pdens'); await wait(pg, 80); await pg.click('#flw-pdens'); await wait(pg, 80); await pg.click('#flw-pdens'); await wait(pg, 80);
         const g = await EV(pg, () => (document.querySelector('#flw-pgrid button.flw-pgh') || {}).dataset.v);
         await pg.click('#flw-pgrid button.flw-pgh[data-v="' + g + '"]'); await wait(pg, 80); await pg.click('#flw-pgrid button.flw-pgh[data-v="' + g + '"]'); await wait(pg, 80);
         const cells = await EV(pg, () => [...document.querySelectorAll('#flw-pgrid .flw-sg')].slice(0, 8).map(e => e.dataset.v));
@@ -1203,7 +1243,7 @@ function T0SCN() {
         if (!add.every(x => NEWKEYS.includes(x)) || gone.length) bad.push(k + ' 键差 +' + add.join(',') + ' −' + gone.join(','));
         if (s0.mx && !s1.mx) bad.push(k + ' 生出了 song.mixer');
       }
-      T('T27', !bad.length, 'T27 只做界面操作（逐行悬停 · 展开全部 / 收起全部 / 只展开当前轨 · 开关轨 ⋯ / ＋ / 谱类菜单 · 搜索与 Esc · 切密度两次 · 折叠再展开 · 悬停记号格出提示 · 树上 ← →）：song 逐字节不变、不生 song.mixer；musetab-* 键差集 ⊆ {musetab-flow, musetab-rdock, musetab-pal, musetab-signdensity}',
+      T('T27', !bad.length, 'T27 只做界面操作（逐行悬停 · 展开全部 / 收起全部 / 只展开当前轨 · 开关轨 ⋯ / ＋ / 谱类菜单 · 搜索与 Esc · 切密度一圈 · 折叠再展开 · 悬停记号格 · 树上 ← →）：song 逐字节不变、不生 song.mixer；musetab-* 键差集 ⊆ {musetab-flow, musetab-rdock, musetab-pal, musetab-signdensity}',
         bad.length ? bad.join('；') : seen.join('；'));
     });
     await close(pg);
@@ -1457,12 +1497,14 @@ function T0SCN() {
     });
     await SAFE('T29', 'T29h', async () => {
       const out = [];
-      for (const [k, q, id, re] of [['songbie', '琶音', 'arp-up', /先在左栏音轨选中吉他轨/], ['gtr', 'mf', 'dyn-mf', /先在左栏音轨选中旋律轨/], ['songbie', 'tb', 'ped', /切到五线谱/]]) {
+      /* v68.7 S1 迁移（README P3 不指路）：原 /先在左栏音轨选中吉他轨/ · /先在左栏音轨选中旋律轨/ → /先选中吉他轨/ · /先选中旋律轨/（方向照旧按语境写），另断言不含位置词「左栏」。
+         修前红修后绿：改前提示是「先在左栏音轨选中吉他轨」，/先选中吉他轨/ 不匹配、且含「左栏」 */
+      for (const [k, q, id, re] of [['songbie', '琶音', 'arp-up', /先选中吉他轨/], ['gtr', 'mf', 'dyn-mf', /先选中旋律轨/], ['songbie', 'tb', 'ped', /切到五线谱/]]) {
         await scn(pg, k, { mi: 1 }); await pg.fill('#flw-pq', q); await wait(pg, 150);
         const j0 = await EV(pg, () => { __toasts.length = 0; return JSON.stringify(song); });
         await pg.click('#flw-pgrid [data-v="' + id + '"]', { force: true }); await wait(pg, 120);
         const r = await EV(pg, j0 => ({ t: __toasts.slice(-1)[0] || '', same: JSON.stringify(song) === j0 }), j0);
-        out.push({ c: k + ' ' + q, ok: re.test(r.t) && r.same, t: r.t });
+        out.push({ c: k + ' ' + q, ok: re.test(r.t) && !/[左右]栏/.test(r.t) && r.same, t: r.t });
         await pg.focus('#flw-pq'); await pg.keyboard.press('Escape');
       }
       T('T29', out.every(o => o.ok), 'T29h 灰格（别的记谱法才有）的提示按方向写：仅六线谱→「先选中吉他轨」、仅简谱 / 五线谱（在六线谱上）→「先选中旋律轨」、仅五线谱→「切到五线谱」；不改谱（验收 S9）', J(out));
