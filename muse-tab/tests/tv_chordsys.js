@@ -57,7 +57,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const got = song.measures[0].voxes[0][0].chord;
     closePop();
     sel.ci = 1; render(); showVoxChordMenu(300, 120);
-    const inp = document.getElementById('vc-custom');
+    /* v68.9 有意迁移（规格 §2.3 / §7.3）：新外壳撤掉底部「自定义：…」行（#vc-custom），由面板头 #ck-in 承担（同一「应用」#vc-ok）；旧外壳原样见 T4c */
+    const inp = document.getElementById('ck-in');
     inp.value = '37/#5';
     document.getElementById('vc-ok').click();
     const got2 = song.measures[0].voxes[0][1].chord;
@@ -66,6 +67,32 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   });
   T(r.nB === 13 && r.b5 && r.got === 'E7/G#' && r.got2 === 'E7/G#',
     'T4 构建器点选 /#5 与自定义框级数直写', JSON.stringify(r));
+  /* v68.9 T4c：旧外壳（?shell=classic）原 T4 原样（底部 #vc-custom / #vc-clr 仍在） */
+  {
+    const pc = await b.newPage({ viewport: { width: 1280, height: 850 } });
+    pc.on('pageerror', e => errs.push('PAGEERR(classic):' + e.message));
+    await pc.goto(F + (F.includes('?') ? '&' : '?') + 'shell=classic'); await pc.waitForTimeout(900);
+    const rc = await pc.evaluate(() => {
+      window.guardReplace = p => p();
+      loadSong(createSong('guitar', { title: 'cs', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
+      sel.row = 'vox'; sel.vi = 0; sel.mi = 0; sel.ci = 0; sel.q = 0; render();
+      showVoxChordMenu(300, 120);
+      const pm = document.getElementById('popmenu');
+      const nB = pm.querySelectorAll('[data-vb]').length, ck = !!pm.querySelector('#ck-in'), clr = !!pm.querySelector('#vc-clr');
+      pm.querySelector('[data-vd="2"]').click(); pm.querySelector('[data-vs="7"]').click(); pm.querySelector('[data-vb="8"]').click();
+      const got = song.measures[0].voxes[0][0].chord;
+      closePop();
+      sel.ci = 1; render(); showVoxChordMenu(300, 120);
+      const inp = document.getElementById('vc-custom'); inp.value = '37/#5';
+      document.getElementById('vc-ok').click();
+      const got2 = song.measures[0].voxes[0][1].chord;
+      closePop();
+      return { flow: document.body.classList.contains('flow'), nB, ck, clr, got, got2 };
+    });
+    T(!rc.flow && rc.nB === 13 && !rc.ck && rc.clr && rc.got === 'E7/G#' && rc.got2 === 'E7/G#',
+      'T4c 旧外壳构建器：点选 /#5 与底部自定义框 #vc-custom 级数直写（没有 #ck-in）', JSON.stringify(rc));
+    await pc.close();
+  }
 
   /* 音名变音后置（G♯ 不再画成 ♯G）；级数维持前置（♯5） */
   r = await pg.evaluate(() => {

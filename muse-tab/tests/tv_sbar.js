@@ -118,8 +118,8 @@ function HELP() {
       rhy: () => shown('panel-tab-pat') || shown('panel-vox-pat'), gen: () => shown('nl-voxtab') && s.voxVoices.length > 0, deg: () => ca.fn, diag: () => ca.dg, board: () => true,
       fing: () => FLOW.pal.ok('fingering', FLOW.ctx()), mea: () => true };
     const TAB = { J: ['lyr', 'chord', 'lab', 'arr'], S: ['lyr', 'chord', 'lab', 'arr'], SJ: ['lyr', 'chord', 'lab', 'arr'], T: ['chord', 'rhy', 'diag', 'board'], JT: ['lyr', 'chord', 'rhy', 'diag'],
-      ST: ['board', 'chord', 'rhy', 'diag'], G: ['board', 'fing', 'chord', 'tex'], CG: ['tex', 'chord', 'deg', 'board'], JG: ['tex', 'lyr', 'lab', 'deg'], SG: ['tex', 'lyr', 'lab', 'deg'], SJG: ['tex', 'lyr', 'lab', 'deg'],
-      CJ: ['chord', 'lab', 'deg', 'lyr'], CS: ['chord', 'lab', 'deg', 'lyr'], C: ['chord', 'deg', 'mea'] };   /* 收尾 SBAR-6：G 第 4 个是「织体」 */
+      ST: ['board', 'chord', 'rhy', 'diag'], G: ['board', 'fing', 'chord', 'tex'], CG: ['tex', 'chord', 'deg', 'board'], JG: ['tex', 'chord', 'lyr', 'lab', 'deg'], SG: ['tex', 'chord', 'lyr', 'lab', 'deg'], SJG: ['tex', 'chord', 'lyr', 'lab', 'deg'],
+      CJ: ['chord', 'lab', 'deg', 'lyr'], CS: ['chord', 'lab', 'deg', 'lyr'], C: ['chord', 'deg', 'mea'] };   /* 收尾 SBAR-6：G 第 4 个是「织体」。v68.9 有意迁移（规格 E-2）：钢琴伴奏歌谱 JG / SG / SJG 加「和弦」（第 2 位；「级数」排第 5 兜底） */
     let ids = (TAB[k] || []).filter(id => OK[id]()), pri = null;
     if (phase === 'tools' && !c.fin && c.cur && c.cur === last && c.nxt) pri = { tex: 'tex', arrange: 'arr', tabgen: 'gen' }[c.nxt.act] || null;
     if (pri && !ids.includes(pri)) ids.unshift(pri);
@@ -383,9 +383,10 @@ function HELP() {
     const c0 = await st();
     await EV(pg, () => { mutate(() => { song.measures[0].voxes[0][0].chord = 'C'; }); });
     const c1 = await st();
-    /* v68.7 S1 迁移（规格 B2）：步名 2 字、提示「选中右手的音，按 Ctrl+K」→「选音按 Ctrl+K」、强调项 title →「织体（下一步）」。修前红修后绿：改前三处都是旧字 */
-    T('SB4', c0.ph === 'steps' && c0.steps === 'now:和弦 | todo:织体' && c0.msteps === 'now:标和弦 | todo:选织体' && c0.hint === '选音按 Ctrl+K' && c1.ph === 'tools' && c1.pri === 'tex' && c1.priT === '织体（下一步）' && c0.py === c1.py,
-      'SB4c 钢琴弹唱谱：①标和弦（提示「选音按 Ctrl+K」）→ 标一个和弦 → 工具阶段「织体」强调、title「织体（下一步）」；#paper y 不变', J({ c0, c1 }));
+    /* v68.7 S1 迁移（规格 B2）：步名 2 字、提示「选中右手的音，按 Ctrl+K」→「选音按 Ctrl+K」、强调项 title →「织体（下一步）」。修前红修后绿：改前三处都是旧字。
+       v68.9 有意迁移（规格 E-3）：新外壳第 ① 步原只有提示、没有任何可点按钮 → 主按钮「标和弦」（act=chord，点了开级数构建器，见 tv_chordeng E13） */
+    T('SB4', c0.ph === 'steps' && c0.steps === 'now:和弦 | todo:织体' && c0.msteps === 'now:标和弦 | todo:选织体' && c0.go && c0.go.t === '标和弦' && c0.go.act === 'chord' && c0.go.title === '标和弦' && c1.ph === 'tools' && c1.pri === 'tex' && c1.priT === '织体（下一步）' && c0.py === c1.py,
+      'SB4c 钢琴弹唱谱：①标和弦（主按钮「标和弦」）→ 标一个和弦 → 工具阶段「织体」强调、title「织体（下一步）」；#paper y 不变', J({ c0, c1 }));
     await close(pg);
   }));
 

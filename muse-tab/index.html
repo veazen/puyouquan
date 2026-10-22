@@ -84,6 +84,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --grad:linear-gradient(96deg,var(--accent) 0%,var(--grad-2) 55%,var(--grad-3) 110%);
   /* 语义：告警琥珀（与靛紫色相拉开）/ 成功绿 / 观看页收藏红星（产品拍板的语义红，不随品牌） */
   --danger:#b45309; --ok:#157a43; --ed-fav-star:#c33a29;
+  --fn-t:#2b63d9; --fn-s:#0f7a57; --fn-d:#b8336f;   /* v68.9 和弦功能色标 T 主 / S 下属 / D 属（9px 字母对 --panel ≥4.5；刻意避开橙红） */
   /* v66.6 压在 --danger / --ok 实底上的字（深色主题两者提亮，白字仅 1.98 / 2.02，改深墨字）；--ed-danger-h＝告警实底悬停（浅压深、深提亮） */
   --ed-on-danger:#fff; --ed-on-ok:#fff; --ed-danger-h:#9c4a0a;
   /* v66.6 次级图形（收藏空心心、搜索放大镜等次于主信息的小图标）：用不透明色代替叠加透明度，对 --panel / --bg ≥3 */
@@ -113,6 +114,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#6a5bf8; --focus:#a396ff; --ed-on-accent:#0e0d1d;
   --grad-2:#5b9cff; --grad-3:#38cdf0;
   --danger:#ffa424; --ok:#30d158; --ed-fav-star:#df5a45;
+  --fn-t:#82aaff; --fn-s:#4fd1a1; --fn-d:#f383b8;
   --ed-on-danger:#0e0d1d; --ed-on-ok:#0e0d1d; --ed-danger-h:#ffb95a; --ed-icon-soft:#75748c;
   --chrome:#1c1a3d;
 } }
@@ -126,6 +128,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#4b3cdc; --focus:#5b4cf0; --ed-on-accent:#fff;
   --grad-2:#3366ee; --grad-3:#0891b2;
   --danger:#b45309; --ok:#157a43; --ed-fav-star:#c33a29;
+  --fn-t:#2b63d9; --fn-s:#0f7a57; --fn-d:#b8336f;   /* v68.9 和弦功能色标 T 主 / S 下属 / D 属（9px 字母对 --panel ≥4.5；刻意避开橙红） */
   --ed-on-danger:#fff; --ed-on-ok:#fff; --ed-danger-h:#9c4a0a; --ed-icon-soft:#85849a;
   --chrome:#161433;
 }
@@ -139,6 +142,7 @@ try{ const t=localStorage.getItem('musetab-theme'); if(t==='light'||t==='dark') 
   --btn-pri-h:#6a5bf8; --focus:#a396ff; --ed-on-accent:#0e0d1d;
   --grad-2:#5b9cff; --grad-3:#38cdf0;
   --danger:#ffa424; --ok:#30d158; --ed-fav-star:#df5a45;
+  --fn-t:#82aaff; --fn-s:#4fd1a1; --fn-d:#f383b8;
   --ed-on-danger:#0e0d1d; --ed-on-ok:#0e0d1d; --ed-danger-h:#ffb95a; --ed-icon-soft:#75748c;
   --chrome:#1c1a3d;
 }
@@ -1186,6 +1190,53 @@ body.stand #standbar{display:flex}
 .vc-grid button.on small{color:var(--ed-on-accent)}   /* v66.6 原 75% 透明（9px 小字 3.88 / 4.37），层级靠字号字重 */
 .vc-grid.sufs button{min-width:44px;padding:4px 6px}
 #vc-names{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:980px}
+/* v68.9 A 和弦面板头（CK 头：级数构建器与 GP 指法编辑器共用，只在新外壳渲染）+ 调内功能 T / S / D 色标（令牌 --fn-t / --fn-s / --fn-d，刻意避开橙红） */
+.ck-top{display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin:-2px 0 7px;cursor:move;touch-action:none;user-select:none}
+#ck-loc{font-size:11.5px;font-weight:600;color:var(--text);margin-right:2px;white-space:nowrap}
+.ck-ib{min-width:22px;height:24px;padding:0 4px;border-radius:7px;font-size:14px;line-height:1}
+.ck-ib.ck-x{font-size:16px}
+#ck-hear[aria-pressed="true"]{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-soft)}
+.ck-grow{flex:1 1 4px}
+#vc-names.ck-seg{margin-left:0;display:inline-flex;align-items:stretch;padding:0;height:24px;border-radius:980px;overflow:hidden;font-size:11px}
+.ck-seg>span{display:inline-flex;align-items:center;padding:0 5px;color:var(--muted)}
+.ck-seg>span.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+#ck-swap{height:24px;padding:0 5px;font-size:11px;border-radius:7px;white-space:nowrap}
+.ck-seg2{display:inline-flex}
+.ck-seg2 button{height:24px;padding:0 4px;font-size:11px;border-radius:0;margin-left:-1px}
+.ck-seg2 button:first-child{border-radius:7px 0 0 7px;margin-left:0}
+.ck-seg2 button:last-child{border-radius:0 7px 7px 0}
+.ck-grip{color:var(--muted);font-size:11px;padding:0}
+.ck-inrow{display:flex;gap:6px;align-items:center}
+#ck-in{flex:1;min-width:120px;font-size:15px;padding:6px 9px;border-radius:9px}
+#ck-in.ck-bad{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+#ck-err{color:var(--danger);font-size:12px;margin-top:4px}
+.ck-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:5px 0}
+.ck-rt{flex:none;width:30px;font-size:11px;color:var(--muted)}
+.ck-chip{position:relative;min-width:34px;padding:3px 7px 6px;font-size:12px;border-radius:8px;line-height:1.25}
+.ck-fng button[data-fn]{position:relative}
+.ck-chip[data-fn="T"],.ck-chip[data-fn="t"],.ck-fng button[data-fn="T"],.ck-fng button[data-fn="t"]{--ck-fc:var(--fn-t)}
+.ck-chip[data-fn="S"],.ck-chip[data-fn="s"],.ck-fng button[data-fn="S"],.ck-fng button[data-fn="s"]{--ck-fc:var(--fn-s)}
+.ck-chip[data-fn="D"],.ck-chip[data-fn="d"],.ck-fng button[data-fn="D"],.ck-fng button[data-fn="d"]{--ck-fc:var(--fn-d)}
+.ck-chip[data-fn]::after,.ck-fng button[data-fn]::after{content:'';position:absolute;left:5px;right:5px;bottom:1px;height:3px;border-radius:2px;background:var(--ck-fc)}
+.ck-chip[data-pri="0"]::after,.ck-fng button[data-pri="0"]::after{opacity:.55}
+.ck-fl{position:absolute;top:1px;right:3px;font-size:9px;font-style:normal;font-weight:700;line-height:1;color:var(--ck-fc)}
+.ck-chip .ck-fl{position:static;margin-left:3px;vertical-align:super}
+.vc-grid.ck-fng button.on .ck-fl,.ck-chip.on .ck-fl{color:inherit}
+.vc-grid.ck-fng button.on::after{background:var(--ed-on-accent)}
+.ck-pane .vc-prev{padding:6px 10px;margin:6px 0 7px}
+.ck-pane .vc-prev b{font-size:17px}
+body.flw-m .ck-chip,body.flw-m .vc-grid.ck-fng button[data-vd]{min-width:40px;min-height:40px}
+/* v68.9 收尾：调名（H14）· 和弦图三钮前的 ▦（UX-12）· 面板内的谱头 / 谱尾提示（UX-6）*/
+#ck-key{font-size:11px;color:var(--muted);margin-right:3px;white-space:nowrap}
+.ck-dg{font-style:normal;color:var(--muted);font-size:12px;margin-right:3px;align-self:center}
+#ck-err.ck-note{color:var(--muted)}
+/* v68.9 收尾（UX-8/9）触屏（手机外壳 / 平板 / 手机横屏）：面板里所有可点控件 ≥40×40 */
+body.flw-m .ck-pane :is(.ck-ib,#ck-swap,.ck-seg2 button,#vc-names.ck-seg,.vc-grid button,#vc-ok,#vc-play),
+.ck-touch :is(.ck-ib,#ck-swap,.ck-seg2 button,#vc-names.ck-seg,.vc-grid button,#vc-ok,#vc-play,.ck-chip){min-width:40px;min-height:40px}
+/* 手机：级数构建器贴底抽屉（谱面由 ckSheetFollow 滚到当前列落在抽屉上方） */
+body.flw-m #popmenu.ck-sheet{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;
+  max-height:min(56vh,520px)!important;overflow-y:auto;border-radius:14px 14px 0 0;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.ck-gp{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border-soft)}
 /* 和弦编辑器·指板创建 */
 .fb{display:grid;gap:2px;margin:6px 0;justify-content:center}
 .fb-h{font-size:10px;color:var(--muted);display:flex;align-items:center;justify-content:center;height:20px}
@@ -2609,6 +2660,24 @@ body.shell.nwrap:not(.stand):not(.viewer) #score-wrap::-webkit-scrollbar-thumb{
   scrollbar-width:thin;padding-right:2px}
 .ce-poswrap::-webkit-scrollbar{width:7px}
 .ce-poswrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--border) 85%,transparent);border-radius:4px}
+/* v68.9 B GP 指法编辑器：底栏吸底沿用 .modal .arr-foot（两外壳，R4）；以下只在新外壳出现——
+   浅遮罩不糊谱面（弹窗避开锚点列，谱面保持可读）、高度上限、与当前指法相同的把位卡选中态 */
+.modal-mask.ce-flow{background:rgba(0,0,0,.12);-webkit-backdrop-filter:none;backdrop-filter:none}
+.modal-mask.ce-flow .modal{max-height:calc(100vh - 32px)}
+.modal-mask.ce-flow #ce-pos .pat-card.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.modal-mask.ce-flow .ce-drag{float:right;font-size:14px;margin:0 2px 0 0}
+.modal-mask.ce-flow .modal>h3{margin:-4px 0 6px;font-size:14px}
+.modal-mask.ce-flow .ce-sec{margin-top:6px;padding-top:6px;padding-bottom:7px}   /* 新外壳 GP 上方多了 CK 头：分区卡收紧，1366×768 少滚一点 */
+.modal-mask.ce-flow .ck-gp .ck-grip{display:none}   /* GP 的拖动把手是标题行 h3（另有 .ck-top 兼作把手），不重复画 ⠿ */
+/* v68.9 收尾（UX-10）新外壳 GP：「把位」卡紧跟和弦名、排在大图上面（1366×768 / 1280×720 不滚动就能看到一排以上；此前被 CK 头挤到折叠线下只露 2 张） */
+.modal-mask.ce-flow .ce-rcol{display:flex;flex-direction:column}
+.modal-mask.ce-flow .ce-rcol>.ce-ttl{order:-2}
+.modal-mask.ce-flow .ce-rcol>.ce-possec{order:-1;margin-top:0;padding-top:2px}
+.modal-mask.ce-flow .ck-gp .ck-row{margin:3px 0}
+/* 深色主题：GP 弹窗里的和弦图（大图 svg.cdg 与把位卡）画在深色面板上，改读界面字色——此前读谱纸墨 --ink（谱纸两主题恒浅、墨恒深），
+   深色下网格 / 弦线 / ×○ 几乎看不见（a93d0be 起就有，两外壳同改；只作用于弹窗内元素，不碰 :root 的 --ink，打印白纸黑墨不受影响） */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .modal :is(#ce-pos svg, svg.cdg){--ink:var(--text)} }
+:root[data-theme="dark"] .modal :is(#ce-pos svg, svg.cdg){--ink:var(--text)}
 /* ===== v61.4 LOADING 动画（产品指示：曲谱打开中 / 音色加载中，美观精致）=====
    ① 启动遮罩升级：品牌方块下加「五线谱 + 三音符起伏」动画（主样式表先于 body 解析，
    遮罩静态 HTML 可直接用类；prefers-reduced-motion 降级为呼吸）。 */
@@ -5153,7 +5222,9 @@ function tuningLabel(){
   return '自定义调弦';
 }
 const KEY_LIST = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
-const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+const KEY_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,
+  /* v68.9 收尾（H4/H11）只增：按调号拼写会出 C♭ F♭ E♯ B♯（降 E 调的 ♭6＝C♭、升 C 调的 3 级＝E♯m），和弦名解析 / 级数换算须认得 */
+  Cb:11,Fb:4,'E#':5,'B#':0};
 /* v63.5 B2a ①（评审团 P2-01）简谱 1 的实际音高（MIDI）：1=C 为中央 C(60)，调主音高于 F♯(66) 时折回下一个八度
    （1=G 的 do 在 G3=55，不在 G4）。此前这条规则散写在 8 处，改一处就会漏改别处——统一走这里，语法闸禁止再散写。 */
 /* v65.0 B2c refOct（评审团 P1-12，D-08 ②）：1=G～B 的 do 折到 G3–B3 是歌唱音域惯例，但「F 调升到 G 调」实际降了小七度。
@@ -5507,8 +5578,9 @@ function chordIvOf(suffix){
     const a=APPLY[m[1]]; iv[a[0]]=a[1];
     rest=rest.slice(m[1].length);
   }
-  if(!ok) return { iv:Object.assign({}, QUAL_INTERVALS[base]), known: base!=='' };
-  return { iv, known:true };
+  /* v68.9 A0：exact＝后缀整段解析成功（只加字段不改原有两个；和弦名校验 chordNameCheck 用它判「认不出」） */
+  if(!ok) return { iv:Object.assign({}, QUAL_INTERVALS[base]), known: base!=='', exact:false };
+  return { iv, known:true, exact:true };
 }
 function chordTones(name){
   const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec((name||'').trim());
@@ -5653,10 +5725,7 @@ const CHORD_CANDS=[
   {id:'ii', deg:2, m:true,  tones:[2,4,6],           fn:'S', w:0.85},
   {id:'iii',deg:3, m:true,  tones:[3,5,7],           fn:'T', w:0.7},
 ];
-const chordCandName=(c,key)=>{
-  const pc=(((KEY_PC[key]||0)+DEG_SEMI[c.deg])%12+12)%12;
-  return ((KEYSIG[key]||0)<0?PC_FLAT:PC_SHARP)[pc]+(c.m?'m':'')+(c.suf||'');
-};
+const chordCandName=(c,key)=>degSpell(key, c.deg, 0)+(c.m?'m':'')+(c.suf||'');   /* v68.9 收尾（H4）按级数字母拼（此前按调号选表：1=F♯ 的 7 级写 Fdim、1=C♯ 的 3 级写 Fm） */
 /* ===== v60.14 A1 小调候选集 =====
    简谱惯例：小调歌曲仍写作 1=大调调号，主音落在 6（la）。故所有级数沿用「相对写作调号」的
    deg 空间表达：i=6m、III=1、iv=2m、v=3m、V=3（和声小调，导音 #5）、VI=4、VII=5、ii°=7dim。
@@ -6055,6 +6124,20 @@ function applyProgTemplates(s2, vi, ctx, baseIdx){
    供配和弦工作台展示逐小节候选与得分。suggestChords 退化为它的薄封装——
    **不另写一份打分实现**，否则工作台看到的分数会与引擎实际用的分数漂移。 */
 function suggestChords(s2, vi){ return chordSolve(s2, vi).out; }
+/* v68.9 A0 共用：功能转移偏好表、副属和弦表、转移打分（原 chordSolve 局部 TW / SECDOM / trans，原样提出，值逐字不变）。
+   下一和弦建议（chordNextRank）与调内功能条（chordKeyChords）只复用这几处，不另写和声规则 */
+const CHORD_TW={'T>S':0.55,'T>D':0.4,'T>T':0.15,'S>D':0.7,'S>T':0.3,'S>S':0.1,'D>T':0.85,'D>D':0.15,'D>S':-0.5};
+const CHORD_SECDOM=[
+  {ld:4, acc:'#', tgt:['V','V7'], root:2},   // #4 → V/V（II7，如 C 调 D7）解决到 V
+  {ld:5, acc:'#', tgt:['vi'],     root:3},   // #5 → V/vi（III7，E7）解决到 vi
+  {ld:1, acc:'#', tgt:['ii'],     root:6},   // #1 → V/ii（VI7，A7）解决到 ii
+  {ld:7, acc:'b', tgt:['IV'],     root:1},   // b7 → V7/IV（I7，C7）解决到 IV
+];
+function chordTrans(CAND, k, j, minor){
+  if(CAND[k].id===CAND[j].id) return 0.35;
+  const pair=CAND[k].id+'>'+CAND[j].id, fp=CAND[k].fn+'>'+CAND[j].fn;
+  return minor? (MIN_TW[pair] ?? MIN_FN[fp] ?? 0) : (CHORD_TW[fp] ?? 0);
+}
 function chordSolve(s2, vi){
   s2=s2||song; vi=vi||0;
   const minor=detectMinorMode(s2, vi);
@@ -6096,13 +6179,8 @@ function chordSolve(s2, vi){
       return sc;
     });
   });
-  /* 2) 功能转移偏好（组→组）；同名和弦保持给小加分 */
-  const TW={'T>S':0.55,'T>D':0.4,'T>T':0.15,'S>D':0.7,'S>T':0.3,'S>S':0.1,'D>T':0.85,'D>D':0.15,'D>S':-0.5};
-  const trans=(k,j)=>{
-    if(CAND[k].id===CAND[j].id) return 0.35;
-    const pair=CAND[k].id+'>'+CAND[j].id, fp=CAND[k].fn+'>'+CAND[j].fn;
-    return minor? (MIN_TW[pair] ?? MIN_FN[fp] ?? 0) : (TW[fp] ?? 0);
-  };
+  /* 2) 功能转移偏好（组→组）；同名和弦保持给小加分。v68.9 A0：表与打分抽成共用（CHORD_TW / chordTrans，下一和弦建议 chordNextRank 用同一把尺子），值逐字不变 */
+  const trans=(k,j)=>chordTrans(CAND,k,j,minor);
   /* 3) Viterbi：全局最优功能进行 */
   const NEG=-1e9;
   let dp=emit[0]?emit[0].slice():[], bk=s2.measures.map(()=>new Array(CAND.length).fill(0));
@@ -6129,20 +6207,13 @@ function chordSolve(s2, vi){
   });
   /* v45.2 副属和弦（离调）——保守·旋律驱动：仅当某小节旋律显含某二级导音、且下一小节正是其解决目标时，
      把该小节升级为副属属七（如 #4→D7 解 G）。纯自然音旋律不触发，故不产生意外半音色彩。 */
-  const SECDOM=[
-    {ld:4, acc:'#', tgt:['V','V7'], root:2},   // #4 → V/V（II7，如 C 调 D7）解决到 V
-    {ld:5, acc:'#', tgt:['vi'],     root:3},   // #5 → V/vi（III7，E7）解决到 vi
-    {ld:1, acc:'#', tgt:['ii'],     root:6},   // #1 → V/ii（VI7，A7）解决到 ii
-    {ld:7, acc:'b', tgt:['IV'],     root:1},   // b7 → V7/IV（I7，C7）解决到 IV
-  ];
-  const flat2=(KEYSIG[s2.key]||0)<0;
+  const SECDOM=CHORD_SECDOM;   /* v68.9 A0：表抽成共用（调内功能条「调外」行同一份），值逐字不变 */
   for(let mi=0; !minor && mi<N-1; mi++){        /* v60.14：副属和弦表按大调级数写死，小调分支先不离调 */
     if(!out[mi]) continue;
     const cols=s2.measures[mi].voxes[vi]||[], nextId=CAND[idx[mi+1]].id;
     for(const sd of SECDOM){
       if(sd.tgt.includes(nextId) && cols.some(c=>c.deg===sd.ld && c.acc===sd.acc)){
-        const pc=(((KEY_PC[s2.key]||0)+DEG_SEMI[sd.root])%12+12)%12;
-        out[mi]=(flat2?PC_FLAT:PC_SHARP)[pc]+'7';
+        out[mi]=degSpell(s2.key, sd.root, 0)+'7';   /* v68.9 收尾（H4）副属根音按级数字母拼 */
         break;
       }
     }
@@ -6673,7 +6744,7 @@ function chordLabCSS(){
     + '.cl-cand .cl-fn{width:34px;color:var(--muted);font-size:11px}'
     + '.cl-cand .cl-bar{flex:1;min-width:40px;height:8px;background:var(--border);border-radius:4px;overflow:hidden}'
     + '.cl-cand .cl-bar i{display:block;height:100%;background:var(--accent)}'
-    + '.cl-cand .cl-sc{width:36px;text-align:right;color:var(--muted);font-size:11px}'
+    + '.cl-cand .cl-sc{flex:none;min-width:58px;white-space:nowrap;text-align:right;color:var(--muted);font-size:11px}'   /* v68.9 R7：原 width:36px 把「契合 100%」截成「契合 10」 */
     + '.cl-btns{margin-top:10px;display:flex;gap:8px;align-items:center}.cl-sp{flex:1}'
     /* 窄屏：乐句标签占满一行让小节格有完整宽度；隐藏功能列（分数条已表达优先级）；底部按钮拉平 */
     + '@media (max-width:640px){'
@@ -6681,7 +6752,7 @@ function chordLabCSS(){
     /* 两个滚动区在窄屏要压得更狠：手机屏高有限，压不住的话「应用到谱面」会被挤出首屏，
        主操作得先滚动才够得着（实测 360×780 溢出 67px、390×660 溢出 71px）。T11 钉住这条。 */
     + '.cl-scroll{max-height:26vh}.cl-list{max-height:21vh}'
-    + '.cl-cand .cl-fn{display:none}.cl-cand .cl-nm{width:52px}'
+    + '.cl-cand .cl-fn{display:none}.cl-cand .cl-nm{width:52px}.cl-cand .cl-sc{min-width:52px}'
     + '.cl-hint{display:none}'
     /* 筛选下拉与套路 chip 在手机上也得够得着（面板其余可点区域已 ≥44px，这两处别落下） */
     + '.cl-chip,.cl-sel{min-height:44px}.cl-sel{flex:1;min-width:0}'
@@ -6818,41 +6889,48 @@ function chordLabOpen(){
 const CHORD_SHAPES = {
   /* C 系 */
   'C':'x32010','C7':'x32310','Cmaj7':'x32000','Cm':'x35543','Cm7':'x35343',
-  'Cadd9':'x32030','Csus4':'x33010','Csus2':'x30010','C6':'x32210','Cdim':'x3454x','Caug':'x32110','C9':'x32330',
+  'Cadd9':'x32030','Csus4':'x33011','Csus2':'x30013',   /* v68.9 收尾（TAB-13）Csus4 / Csus2 原图 x33010 / x30010 含 E（三音）＝不是挂留和弦 */
+  'C6':'x32210','Cdim':'x3454x','Caug':'x32110','C9':'x32330',
   'C/G':'332010','C/E':'032010','C/B':'x22010',
   /* C#/Db */
-  'C#':'x43121','C#m':'x46654','C#7':'x43424','C#m7':'x42120','Db':'x43121',
+  'C#':'x43121','C#m':'x46654','C#7':'x43424',   /* v68.9 收尾：C#m7 原 x42120 没有七音 B */
+  'C#m7':'x42424','Db':'x43121',
   /* D 系 */
   'D':'xx0232','Dm':'xx0231','D7':'xx0212','Dmaj7':'xx0222','Dm7':'xx0211',
-  'Dadd9':'xx0230','Dsus4':'xx0233','Dsus2':'xx0230','D6':'xx0202','Ddim':'xx0101','Daug':'xx0332','D9':'x54555',
+  'Dadd9':'x54230',   /* v68.9 收尾：原 xx0230 没有 F#（＝Dsus2） */
+  'Dsus4':'xx0233','Dsus2':'xx0230','D6':'xx0202','Ddim':'xx0131',   /* v68.9 收尾：Ddim / Edim 原图含减七音（xx0101 / 012020），按减三和弦改 */
+  'Daug':'xx0332','D9':'x54555',
   'Dadd11':'xx0032','D/F#':'2x0232','D/A':'x00232',
   /* D#/Eb */
-  'Eb':'x65343','Ebm':'xx4342','Eb7':'x65646','Ebmaj7':'x65545','D#':'x65343',
+  'Eb':'x65343','Ebm':'xx4342','Eb7':'x65646','Ebmaj7':'x65333',   /* v68.9 收尾：Ebmaj7 原 x65545 含 C、A（不是这个和弦） */
+  'D#':'x65343',
   /* E 系 */
   'E':'022100','Em':'022000','E7':'020100','Emaj7':'021100','Em7':'022030',
-  'Eadd9':'024100','Esus4':'022200','Esus2':'x79977','E6':'022120','Edim':'012020','Eaug':'032110','E9':'020102',
+  'Eadd9':'024100','Esus4':'022200','Esus2':'x79977','E6':'022120','Edim':'xx2353','Eaug':'032110','E9':'020102',
   'Em/D':'xx0000','E/G#':'422100','E/B':'x22100',
   /* F 系 */
   'F':'133211','Fm':'133111','F7':'131211','Fmaj7':'x33210','Fm7':'131111',
-  'Fadd9':'x03213','Fsus4':'133311','Fsus2':'xx3011','F6':'1x322x','Fdim':'xx3424','Faug':'xx3221','F9':'1x122x',
+  'Fadd9':'x03213','Fsus4':'133311','Fsus2':'xx3011','F6':'xx3231','Fdim':'1231xx',   /* v68.9 收尾：F6 / Fdim / F9 / F#dim / Gdim / Bdim / Badd9 原图含和弦外音（1x322x 的 C#、x2323x 是 Bm7b5…） */
+  'Faug':'xx3221','F9':'1x1213',
   'F/C':'x33211','F/A':'x03211',
   /* F#/Gb */
-  'F#':'244322','F#m':'244222','F#7':'242322','F#m7':'242222','Gb':'244322','F#dim':'2x121x',
+  'F#':'244322','F#m':'244222','F#7':'242322','F#m7':'242222','Gb':'244322','F#dim':'2x421x',
   /* G 系 */
   'G':'320003','Gm':'355333','G7':'320001','Gmaj7':'320002','Gm7':'353333',
-  'Gadd9':'300203','Gsus4':'330013','Gsus2':'300033','G6':'320000','Gdim':'3x232x','Gaug':'321003','G9':'3x0201',
+  'Gadd9':'300203','Gsus4':'330013','Gsus2':'300033','G6':'320000','Gdim':'3453xx','Gaug':'321003','G9':'3x0201',
   'G/B':'x20003','G/D':'xx0003','G/F#':'2x0003',
   /* G#/Ab */
   'Ab':'466544','Abm':'466444','Ab7':'464544','G#':'466544','G#m':'466444','G#7':'464544',
   /* A 系 */
   'A':'x02220','Am':'x02210','A7':'x02020','Amaj7':'x02120','Am7':'x02010',
-  'Aadd9':'x02200','Asus4':'x02230','Asus2':'x02200','A6':'x02222','Adim':'x0121x','Aaug':'x03221','A9':'x02423',
+  'Aadd9':'x02420',   /* v68.9 收尾：原 x02200 没有 C#（＝Asus2） */
+  'Asus4':'x02230','Asus2':'x02200','A6':'x02222','Adim':'x0121x','Aaug':'x03221','A9':'x02423',
   'Am/#F':'2x2210','A/C#':'x42220','A/E':'002220','Am/G':'302210',
   /* A#/Bb */
   'Bb':'x13331','Bbm':'x13321','Bb7':'x13131','Bbmaj7':'x13231','Bbm7':'x13121','A#':'x13331',
   /* B 系 */
   'B':'x24442','Bm':'x24432','B7':'x21202','Bmaj7':'x24342','Bm7':'x20202',
-  'Badd9':'x21102','Bsus4':'x24452','Bdim':'x2323x','Baug':'x21003','B9':'x21222',
+  'Badd9':'x21422','Bsus4':'x24452','Bdim':'x2343x','Baug':'x21003','B9':'x21222',
   'Bm/A':'x04432','B/F#':'224442'
 };
 /* 和弦分类（编辑器网格用） */
@@ -6886,23 +6964,40 @@ const DEG_OF_SEMI = ['1','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
    G♯=第 5 级升高 → ♯5（III7 第一转位/副属常用拼法）；A♭ → ♭6——同一半音、按拼写区分。
    字母→级数=与调名字母的字母距；变音=实际 pc − 该级调内 pc；重升降之外的极端拼写回退半音查表。 */
 const LNAT={C:0,D:2,E:4,F:5,G:7,A:9,B:11}, MAJ_SEMI=[0,2,4,5,7,9,11];
-function degOfNote(note){
+function degOfNote(note, key){
   const m=/^([A-G])(#|b)?$/.exec(note||''); if(!m) return null;
-  const keyPc=KEY_PC[song.key]||0, keyLetter=(song.key||'C')[0];
+  key=key||song.key;   /* v68.9 收尾（TAB-11）可按指定调换算（逐轨夹位的六线谱轨按本轨指法调） */
+  const keyPc=KEY_PC[key]||0, keyLetter=(key||'C')[0];
   const dnum=((('CDEFGAB'.indexOf(m[1])-'CDEFGAB'.indexOf(keyLetter))%7)+7)%7+1;
   const pc=((LNAT[m[1]]+(m[2]==='#'?1:m[2]==='b'?-1:0))%12+12)%12;
   const d=(((pc-(keyPc+MAJ_SEMI[dnum-1]))%12)+12)%12;
   const acc = d===0?'': d===1?'#': d===11?'b': d===2?'x': d===10?'bb': null;
   return acc==null? DEG_OF_SEMI[((pc-keyPc)%12+12)%12] : acc+dnum;
 }
-function chordDegree(name){
+function chordDegree(name, k){
   const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec((name||'').trim());
   if(!m || KEY_PC[m[1]]==null) return name;
-  const key=KEY_PC[song.key]||0;
-  let out=(degOfNote(m[1])||DEG_OF_SEMI[((KEY_PC[m[1]]-key)%12+12)%12])+(m[2]||'');
-  if(m[3] && KEY_PC[m[3]]!=null) out+='/'+(degOfNote(m[3])||DEG_OF_SEMI[((KEY_PC[m[3]]-key)%12+12)%12]);
+  k=k||song.key;
+  const key=KEY_PC[k]||0;
+  let out=(degOfNote(m[1], k)||DEG_OF_SEMI[((KEY_PC[m[1]]-key)%12+12)%12])+(m[2]||'');
+  if(m[3] && KEY_PC[m[3]]!=null) out+='/'+(degOfNote(m[3], k)||DEG_OF_SEMI[((KEY_PC[m[3]]-key)%12+12)%12]);
   return out;
 }
+/* v68.9 收尾（H4/H5/H6/H10/H11）按调号的拼写器：字母＝调名字母沿级数步进（dnum 1–7），变音＝实际音高 pc 与该字母自然音之差；
+   只出单升 / 单降（含 E♯ B♯ C♭ F♭）；差两个半音（重升 / 重降）时退回按调号选表（升号调 PC_SHARP、降号调 PC_FLAT、C 调 KEY_LIST）。
+   此前级数构建器（vcNote / degChordName / vcBassName）、调内功能条借用和弦、一键换调 shiftChordName 用固定混合拼法表 KEY_LIST：
+   1=E 的 3m 写成 Abm（谱面级数 b4m）、1=A 的 /b7 写成 A/A（字母取错、音高也错） */
+function keySpell(key, pc, dnum){
+  pc=((pc%12)+12)%12;
+  const K=String(key||'C'), Ki='CDEFGAB'.indexOf(K[0]);
+  const tbl=()=>{ const ks=KEYSIG[K]||0; return (ks<0? PC_FLAT : ks>0? PC_SHARP : KEY_LIST)[pc]; };
+  if(Ki<0 || !(dnum>=1 && dnum<=7)) return tbl();
+  const L='CDEFGAB'[(Ki+dnum-1)%7];
+  let d=((pc-LNAT[L])%12+12)%12; if(d>6) d-=12;
+  return d===0? L : d===1? L+'#' : d===-1? L+'b' : tbl();
+}
+/* 第 dnum 级（1–7）升降 acc 个半音的音名（1=key） */
+function degSpell(key, dnum, acc){ return keySpell(key, (KEY_PC[key]||0)+DEG_SEMI[dnum]+(acc|0), dnum); }
 /* 谱面和弦框宽度（含 20% 放大字号）：随显示模式（级数/音名）变化，排版与渲染共用 */
 function vcDispW(chord){
   const disp = (song && song.funcNames)? chord : chordDegree(chord);
@@ -6915,6 +7010,15 @@ function chordShape(n){
   /* v39.5 移除用户和弦库查找：本机残留的 userchords 条目曾把标准 C 等常用指法顶掉；
      覆盖语义只保留「本谱 customChords」一层，标准库恢复权威 */
   if(song){ if(!song.customChords) song.customChords={}; if(song.customChords[n]) return song.customChords[n]; }
+  return chordShapeStd(n);
+}
+/* v68.9 收尾（TAB-7/8）不经本谱 customChords 的默认指法（库图 / 斜杠默认 / 模板 / 搜索），按本谱定弦换算（TAB-12）。
+   GP「常用」卡与 .on 的基准、「应用」时判断要不要写 customChords 都以它为准 */
+function chordShapeStd(n){
+  if(!n) return null;
+  return shapeRetune(chordShapeStd0(n));
+}
+function chordShapeStd0(n){
   /* 1) 人工精修库优先（开放把位手感最好） 2) 未命中 → 可移调模板推导 3) 再兜底通用搜索
      —— 12 根音 × 20+ 类型 × 任意斜杠低音全覆盖（v39.0） */
   const uku = instOf()==='uku';
@@ -6934,17 +7038,61 @@ function chordShape(n){
   /* v61.2 组合后缀（7b9/maj7#11…）经解析引擎取音程集——模板缺型时 algoShape 也能推导出图 */
   const ivr = chordIvOf(p.qual);
   const iv = ivr.known? ivr.iv : null;
-  let sh = null;
   if(uku){
-    sh = iv? algoShape(UKU_OPEN_PC, p.rootPc, iv) : null;
-  }else{
-    sh = movableShape(p.rootPc, p.qual, 'E') || movableShape(p.rootPc, p.qual, 'A')
-       || (iv? algoShape([4,9,2,7,11,4], p.rootPc, iv) : null);
-    if(sh && p.bassPc!=null) sh = slashShape(sh, p.bassPc);
+    /* v68.9 收尾（TAB-6/13）尤克里里不表达斜杠低音（G 弦重入，N16）：斜杠名先取原位库图；推导缺三音 / 七音时按必需音再搜（Cm7/C# 此前出 0031 没有 E♭） */
+    if(p.bassPc!=null){ const rm=/^([A-G](?:#|b)?)([^/]*)\//.exec(n.trim());
+      const lb = rm && (UKU_SHAPES[rm[1]+rm[2]] || (NOTE_PC[rm[1]]!=null? UKU_SHAPES[CHORD_ROOTS[NOTE_PC[rm[1]]]+rm[2]] : null)); if(lb) return lb; }
+    let sh = iv? algoShape(UKU_OPEN_PC, p.rootPc, iv) : null;
+    if(!sh && iv){ const a=algoShapes(UKU_OPEN_PC, p.rootPc, iv, 1); sh=a[0]||null; }
+    if(iv){ const req=chordReqPcs(p.rootPc, iv, p.qual); if(!sh || !req.every(pc=>shapePcSet(sh).has(pc))){ const s3=ukuSearch(p.rootPc, iv, req); if(s3) sh=s3; } }
+    return sh;
   }
-  return sh;
+  const key = n+'|'+(iv? 1 : 0);
+  if(!SHAPE_MEMO) SHAPE_MEMO=new Map();
+  if(SHAPE_MEMO.has(key)) return SHAPE_MEMO.get(key);
+  let out = null;
+  const req = iv? chordReqPcs(p.rootPc, iv, p.qual) : [p.rootPc];
+  /* v68.9 B（R6）库外斜杠和弦先取「原位库图＋低音」：此前一律走可移调模板，Am7/G 出 375555、
+     Dm/C 出 x3caaa（3 品与 12 品同按，弹不出）、C/D 出 xx0988。原位精修库图（含异名同音兜底）加 slashShape 低音。
+     v68.9 收尾（TAB-1/4）改写后须仍是这个和弦：最低发声弦＝低音、必需音（根音 / 三音或挂留音 / 七音 / 六音 / 变化五音 / 名字里的九音）齐全、
+     跨度 ≤3 品且 ≤4 指（和弦图只画 4 格）——此前只校验低音：Am7/C 出 x32010（＝C 大三）、A7/C# 出 x42020（缺根音）、Cm/Eb 出 xx1543（跨 4 品画不全）。
+     原位库图＋低音、E / A 型模板＋低音、按低音搜索（voicingList）三路候选都过校验的按 shapeScore 择优；都没有时宁可不带低音也不出弹不了的图 */
+  const fit = sh=>{
+    if(!sh || shapeLowPc(sh)!==p.bassPc || !shapePlayable(sh)) return false;
+    const S = shapePcSet(sh);
+    return req.every(pc=> S.has(pc));
+  };
+  if(p.bassPc!=null){
+    const rm = /^([A-G](?:#|b)?)([^/]*)\//.exec(n.trim());
+    let b = rm? CHORD_SHAPES[rm[1]+rm[2]] : null;
+    if(!b && rm && NOTE_PC[rm[1]]!=null){
+      const alt = CHORD_ROOTS[NOTE_PC[rm[1]]];
+      if(alt!==rm[1]) b = CHORD_SHAPES[alt+rm[2]];
+    }
+    /* 候选：原位库图＋低音（精修手感，加 3 分）、E / A 型模板＋低音、搜索；都过校验的按 shapeScore 择优 */
+    const cand=[];
+    if(b){ const s2 = slashShape(b, p.bassPc); if(fit(s2)) cand.push([s2, shapeScore(s2)+3]); }
+    for(const f of ['E','A']){ const t=movableShape(p.rootPc, p.qual, f); if(!t) continue;
+      const s2=slashShape(t, p.bassPc); if(fit(s2)) cand.push([s2, shapeScore(s2)]); }
+    if(iv){ const s3=slashSearch(p.rootPc, iv, p.bassPc, req); if(s3) cand.push([s3, shapeScore(s3)]); }
+    cand.sort((x, y)=>y[1]-x[1]);
+    if(cand.length) out=cand[0][0];
+    if(!out){
+      /* 都按不出：宁可不带低音，也不出弹不了的图（原位库图 / 模板） */
+      const rp = CHORD_SHAPES[rm? rm[1]+rm[2] : ''] || (rm && NOTE_PC[rm[1]]!=null? CHORD_SHAPES[CHORD_ROOTS[NOTE_PC[rm[1]]]+rm[2]] : null);
+      out = rp || movableShape(p.rootPc, p.qual, 'E') || movableShape(p.rootPc, p.qual, 'A') || (iv? algoShape([4,9,2,7,11,4], p.rootPc, iv) : null);
+    }
+  } else {
+    out = movableShape(p.rootPc, p.qual, 'E') || movableShape(p.rootPc, p.qual, 'A')
+       || (iv? algoShape([4,9,2,7,11,4], p.rootPc, iv) : null);
+    /* v68.9 收尾（TAB-4/13）原位的模板 / 兜底图也过校验：弹不了或缺必需音（D69 出 000200 没有 F#）时按根音作低音再搜一次 */
+    if(out && iv && (!shapePlayable(out) || !req.every(pc=>shapePcSet(out).has(pc)))){ const s3=slashSearch(p.rootPc, iv, p.rootPc, req); if(s3) out=s3; }
+  }
+  SHAPE_MEMO.set(key, out);
+  return out;
 }
-const NOTE_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
+var SHAPE_MEMO = null;   /* chordShapeStd0 吉他推导结果缓存（纯函数：只看和弦名；customChords / 定弦在外层处理）；var＋惰性建，免顶层暂时性死区 */
+const NOTE_PC = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11,Fb:4,'E#':5,'B#':0};   /* v68.9 收尾：同 KEY_PC 只增 C♭ F♭ E♯ B♯ */
 const OPEN_PC = [4,11,7,2,9,4];   // 1..6 弦空弦音高 pc（E B G D A E）
 /* v39.0 可移调和弦模板：每类型 E 型（根音6弦）/A 型（根音5弦）各一套相对指位，
    12 根音自动推导——取代逐根音硬编码扩容。null=闷音，数字=相对把位起始品的偏移。
@@ -7064,6 +7212,178 @@ function slashShape(baseShape, bassPc){
     }
   }
   return baseShape;
+}
+/* v68.9 B（R5/R6）吉他指法最低发声弦的音高 pc（标准调弦 OPEN_PC；指法串第 0 字符＝6 弦）。
+   全闷 / 非 6 弦串返回 null——尤克里里 G 弦重入，最低一根弦不一定是最低音，不按此判（N16） */
+function shapeLowPc(sh){
+  if(!sh || sh.length!==6) return null;
+  for(let i=0;i<6;i++){
+    const ch=sh[i]; if(ch==='x') continue;
+    const f=parseInt(ch,36); if(isNaN(f)) return null;
+    return (OPEN_PC[5-i]+f)%12;
+  }
+  return null;
+}
+/* v68.9 B（R5）把位卡按斜杠低音改写：在 6/5/4 弦里找能按出低音的最低一根弦——可用品位＝空弦 0
+   或卡片自身窗口 [max(1,minF−1), minF+3]（minF＝卡上最低按弦品），写入低音、更低的弦闷掉；
+   结果的跨度（按弦最高品 − 最低品，空弦不算）须 ≤4、发声弦 ≥3，否则返回 null（该卡丢弃）。
+   最低发声弦已是低音的卡原样返回（只做跨度 / 弦数校验）；改写出来的卡跨度再收紧到 ≤3——低音不得把手型撑出
+   4 品窗口（和弦图 chordDiagramSVG 只画 4 格，跨 5 品的点会画不出来） */
+function slashFit(shape, bassPc, req){
+  if(!shape || shape.length!==6 || bassPc==null) return null;
+  /* v68.9 收尾（TAB-3）改写后还得是这个和弦：必需音（req：根音 / 三音 / 七音…）齐全、≤4 指；两个分支跨度都 ≤3（和弦图只画 4 格）——
+     此前只校验跨度与弦数：C7/D 出 x55353（没有 C）、Cmaj7/B 钉成「常用」x22000（＝Em/B）、Cm/Eb 常用卡 xx1543 跨 4 品画不全 */
+  const ok = (sh, lim)=>{
+    const fr=[...sh].map(ch=> ch==='x'? null : parseInt(ch,36));
+    if(fr.filter(v=>v!=null).length<3) return false;
+    const p=fr.filter(v=>v!=null && v>0);
+    if(p.length && Math.max(...p)-Math.min(...p)>lim) return false;
+    if(shapeFingersOf(sh)>4) return false;
+    if(req){ const S=shapePcSet(sh); if(!req.every(pc=>S.has(pc))) return false; }
+    return true;
+  };
+  if(shapeLowPc(shape)===bassPc) return ok(shape,3)? shape : null;
+  const pf=[...shape].map(ch=> ch==='x'? null : parseInt(ch,36)).filter(v=>v!=null && v>0);
+  const minF = pf.length? Math.min(...pf) : 1;
+  const lo=Math.max(1,minF-1), hi=minF+3;
+  for(const s of [6,5,4]){
+    const base=((bassPc-OPEN_PC[s-1])%12+12)%12;
+    let fr=null;
+    for(const c of [base, base+12]){ if(c===0 || (c>=lo && c<=hi)){ fr=c; break; } }
+    if(fr==null) continue;
+    const arr=[...shape];
+    arr[6-s]=FRET_36(fr);
+    for(let s2=s+1;s2<=6;s2++) arr[6-s2]='x';
+    const out=arr.join('');
+    if(shapeLowPc(out)===bassPc && ok(out,3)) return out;
+  }
+  return null;
+}
+/* ===== v68.9 收尾（TAB-1/3/4/6/12/13）指法质量判据：发声音集、必需音、跨度、手指数（横按算一指）、按本谱定弦换算 ===== */
+function shapeFr(sh){ return [...String(sh||'')].map(ch=> ch==='x'? null : parseInt(ch,36)); }
+/* 发声音级集合：6 位串按吉他标准调弦（OPEN_PC，指法串第 0 字符＝6 弦）、4 位串按尤克里里 GCEA */
+function shapePcSet(sh){
+  const f=shapeFr(sh), S=new Set(), L=f.length;
+  f.forEach((v,i)=>{ if(v==null || isNaN(v)) return; const op= L===4? UKU_OPEN_PC[i] : OPEN_PC[L-1-i]; if(op!=null) S.add((op+v)%12); });
+  return S;
+}
+function shapeSpanOf(sh){ const p=shapeFr(sh).filter(v=>v!=null && v>0); return p.length? Math.max(...p)-Math.min(...p) : 0; }
+/* 手指数：每个按弦点一指；同一品上一段连续弦（中间没有空弦、没有更低品）可横按算一指 */
+function shapeFingersOf(sh){
+  const f=shapeFr(sh), pr=[]; f.forEach((v,i)=>{ if(v!=null && v>0) pr.push({v,i}); });
+  if(!pr.length) return 0;
+  let best=pr.length;
+  for(const bv of new Set(pr.map(o=>o.v))) for(let a=0;a<f.length;a++) for(let z=a+1;z<f.length;z++){
+    let ok=true; for(let i=a;i<=z;i++){ if(f[i]===0 || (f[i]!=null && f[i]<bv)){ ok=false; break; } }
+    if(!ok) continue;
+    const cov=pr.filter(o=>o.i>=a && o.i<=z && o.v===bv).length;
+    if(cov>=2) best=Math.min(best, 1+pr.length-cov);
+  }
+  return best;
+}
+/* 可弹：跨度 ≤3 品（谱面和弦图 4 格画得下）且 ≤4 指 */
+function shapePlayable(sh){ return !!sh && shapeSpanOf(sh)<=3 && shapeFingersOf(sh)<=4; }
+/* 必需音：根音、三音槽（含挂留 / 强力和弦五音）、七音槽、六音槽、变化五音、九音（名字带 9）与 add 型的加音 */
+function chordReqPcs(rootPc, iv, qual){
+  const r=[0]; [3,7,6].forEach(k=>{ if(iv[k]!=null) r.push(iv[k]); });
+  if(iv[5]!=null && iv[5]!==7) r.push(iv[5]);
+  const q=String(qual||'');
+  if(/9|add2/.test(q) && iv[9]!=null) r.push(iv[9]);   /* 名字里写了 9（add9 / 9 / maj9 / 69 / 7♭9…）就得有九音 */
+  if(/add11/.test(q) && iv[11]!=null) r.push(iv[11]);
+  if(/add13/.test(q) && iv[13]!=null) r.push(iv[13]);
+  return [...new Set(r.map(v=>((rootPc+v)%12+12)%12))];
+}
+/* 指法顺手度（越大越好）：发声弦多、无中间闷弦、把位低、用到空弦、手指少、跨度小；空弦配远把位（xx0cbb、665046 这类）扣分 */
+function shapeScore(sh){
+  const fr=shapeFr(sh), son=fr.filter(v=>v!=null).length;
+  const a=fr.findIndex(v=>v!=null); let inner=0; for(let i=Math.max(0,a);i<fr.length;i++) if(fr[i]==null && fr.slice(i).some(v=>v!=null)) inner++;
+  const pf=fr.filter(v=>v!=null && v>0), minF=pf.length? Math.min(...pf) : 0, maxF=pf.length? Math.max(...pf) : 0, opens=fr.filter(v=>v===0).length;
+  return son*4 - inner*9 - minF*1.0 + opens*0.8 - shapeFingersOf(sh)*1.5 - Math.max(0, shapeSpanOf(sh)-2)*2 - (fr.length!==6? 0 : opens && maxF>=7? 6 : opens && minF>=3? 4 : opens && maxF>=5? 3 : 0)
+    - (fr.length===4? (fr.length-son)*4 : 0);   /* 尤克里里很少闷弦；空弦配远把位只对吉他扣分 */
+}
+/* 按低音搜指法（吉他标准调弦）：低音放在 6 / 5 / 4 弦，更低的弦闷掉；其余弦在 4 品窗口里取和弦音（或空弦），
+   必需音齐全、跨度 ≤3、≤4 指、≥3 弦发声。返回 [{sh, sc}]：每个（低音弦, 窗口）留最顺手的一张，去重后按 shapeScore 降序。
+   斜杠默认图取第一张（slashSearch）；GP「推导」卡取前若干张（原位和弦低音＝根音）。结果按参数缓存 */
+var VOICE_MEMO = null;
+function voicingList(rootPc, iv, bassPc, req){
+  if(!VOICE_MEMO) VOICE_MEMO=new Map();
+  const mk=rootPc+'|'+bassPc+'|'+JSON.stringify(iv)+'|'+req.join(',');
+  if(VOICE_MEMO.has(mk)) return VOICE_MEMO.get(mk);
+  const tones=new Set(Object.values(iv).map(v=>((rootPc+v)%12+12)%12)); tones.add(bassPc);
+  const best=new Map();
+  for(const bs of [6,5,4]){
+    const b0=((bassPc-OPEN_PC[bs-1])%12+12)%12;
+    for(const fb of [b0, b0+12]){
+      if(fb>14) continue;
+      const wins = fb===0? [1,2,3,4,5,7,9] : [Math.max(1,fb-3), Math.max(1,fb-2), Math.max(1,fb-1), fb].filter((w,i,a)=>a.indexOf(w)===i);
+      for(const w of wins){
+        if(fb>0 && (fb<w || fb>w+3)) continue;
+        const opts=[];
+        for(let st=bs-1; st>=1; st--){
+          const o=['x'], op=OPEN_PC[st-1];
+          if(tones.has(op)) o.push(0);
+          for(let f=w; f<=w+3; f++) if(tones.has((op+f)%12)) o.push(f);
+          opts.push(o);
+        }
+        const cur=new Array(6).fill('x'); cur[6-bs]=fb;
+        let bk=null, bkSc=-1e9;
+        const rec=k=>{
+          if(k===opts.length){
+            const sh=cur.map(v=> v==='x'? 'x' : FRET_36(v)).join('');
+            const fr=shapeFr(sh); if(fr.filter(v=>v!=null).length<3) return;
+            { const a=fr.findIndex(v=>v!=null); let inner=0; for(let i=a;i<6;i++) if(fr[i]==null && fr.slice(i).some(v=>v!=null)) inner++; if(inner>1) return; }   /* 中间闷两根以上扫不了 */
+            const S=shapePcSet(sh); if(!req.every(pc=>S.has(pc))) return;
+            if(!shapePlayable(sh)) return;
+            const sc=shapeScore(sh); if(sc>bkSc){ bkSc=sc; bk=sh; }
+            return;
+          }
+          const st=bs-1-k;
+          for(const v of opts[k]){ cur[6-st]=v; rec(k+1); }
+          cur[6-st]='x';
+        };
+        rec(0);
+        if(bk && !(best.has(bk) && best.get(bk)>=bkSc)) best.set(bk, bkSc);
+      }
+    }
+  }
+  const out=[...best.entries()].map(([sh, sc])=>({sh, sc})).sort((x, y)=>y.sc-x.sc);
+  VOICE_MEMO.set(mk, out);
+  return out;
+}
+function slashSearch(rootPc, iv, bassPc, req){ const l=voicingList(rootPc, iv, bassPc, req); return l.length? l[0].sh : null; }
+/* 尤克里里按必需音搜一个按得出的图（4 弦，窗口 0–12 品，跨度 ≤3、≤4 指），按 shapeScore 择优（低把位、空弦、手指少） */
+function ukuList(rootPc, iv, req){
+  const tones=new Set(Object.values(iv).map(v=>((rootPc+v)%12+12)%12));
+  const best=new Map();
+  for(let w=1; w<=10; w++){
+    /* 1 品窗口允许空弦（开放把位）；高把位窗口只在窗口内取音（否则每个窗口都先命中空弦、出同一张图——同 algoShapes 口径） */
+    const opts=UKU_OPEN_PC.map(op=>{ const o=['x']; if(w===1 && tones.has(op)) o.push(0); for(let f=w; f<=w+3; f++) if(tones.has((op+f)%12)) o.push(f); return o; });
+    const cur=[]; let bk=null, bkSc=-1e9;
+    const rec=k=>{
+      if(k===4){ const sh=cur.map(v=> v==='x'? 'x' : FRET_36(v)).join('');
+        if(shapeFr(sh).filter(v=>v!=null).length<3 || !shapePlayable(sh)) return;
+        const S=shapePcSet(sh); if(!req.every(pc=>S.has(pc))) return;
+        const sc=shapeScore(sh); if(sc>bkSc){ bkSc=sc; bk=sh; } return; }
+      for(const v of opts[k]){ cur[k]=v; rec(k+1); }
+    };
+    rec(0);
+    if(bk && !(best.has(bk) && best.get(bk)>=bkSc)) best.set(bk, bkSc);
+  }
+  return [...best.entries()].map(([sh, sc])=>({sh, sc})).sort((x, y)=>y.sc-x.sc);
+}
+function ukuSearch(rootPc, iv, req){ const l=ukuList(rootPc, iv, req); return l.length? l[0].sh : null; }
+/* 按本谱定弦换算（TAB-12）：指法库 / 推导都按标准调弦；本谱定弦与标准的「相对差」（扣掉整体升降——整体降半音 / 全音时和弦名是指法名，不换算）
+   不为 0 的弦按差值挪品，发声音高与标准调弦下这张图逐音相同（Drop D 的 G：320003→520003）；挪成负品时那根弦闷掉 */
+function shapeRetune(sh){
+  if(!sh) return sh;
+  let tun=null; try{ tun=tuningOf(); }catch(_){ return sh; }
+  const std = sh.length===4? UKU_TUNING : sh.length===6? TUNING : null;
+  if(!tun || !std || tun.length!==std.length) return sh;
+  const n=std.length, raw=k=>tun[k]-std[k], com=raw(0);
+  let d=null;
+  for(let k=0;k<n;k++){ let x=((raw(k)-com)%12+12)%12; if(x>6) x-=12; if(x){ d=d||new Array(n).fill(0); d[k]=x; } }
+  if(!d) return sh;
+  return [...sh].map((ch,i)=>{ if(ch==='x') return ch; const k=n-1-i, f=parseInt(ch,36)-d[k]; return f<0? 'x' : FRET_36(f); }).join('');
 }
 const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11, 64:9};   /* v52.4 最小时值扩至 64 分 */
 const STR_GAP = 9;                          // 线谱弦间距
@@ -19107,18 +19427,57 @@ function showChordPopup(cx, cy, mi, ci, vi){
 }
 /* 完整和弦编辑器：根音·和弦性质·转位·把位·自定义 */
 let ceState = null;
-function showChordEditor(mi, ci, vi){
-  modalPos=null;
-  const existing = song.measures[mi].tabs[vi][ci].chord || chordBefore(mi,vi) || 'C';
+/* v68.9 B（B3）opt.keep：连续标注换位置后重开（host.reopen）——弹窗位置不动（沿用 modalPos），按新列重新初始化 ceState */
+function showChordEditor(mi, ci, vi, opt){
+  opt = opt||{};
+  if(!opt.keep) modalPos=null;
+  const existing = song.measures[mi].tabs[vi][ci].chord || chordAtCol(mi,vi,ci) || 'C';   /* v68.9 收尾：本列生效的（原 chordBefore＝本小节第一个） */
   const m = existing.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
   const sq = ceSplitQual((m&&m[2])||'');
   const root0 = (m&&NOTE_PC[m[1]]!=null)? m[1]:'C';
+  /* v68.9 收尾（TAB-7）本谱自定义指法与自命名和弦按原样装入（同 ceLoad 口径）：此前只解析名字——自定义的 Am7/G 3x2010 进来显示 302010、
+     「我的C」进来变成 C，什么都不动点「应用」就覆盖了用户指法 / 把和弦名改成 C */
+  const cc0 = (song.customChords||{})[existing] || null, named0 = !(m && NOTE_PC[m[1]]!=null);
   ceState = { mi, ci, vi,
     root: root0, qual: sq.base, alt: sq.alt, omit:{},
-    /* v61.3 拼法偏好初始化：库外拼法（D#/Gb…）按其变音进对应系，否则习惯混合拼法 */
-    accPref: CHORD_ROOTS.includes(root0)? '' : (root0.includes('#')? 'sharp':'flat'),
-    bass: (m&&m[3])||'', shape:null, custom:null, cname:null };
+    /* v61.3 拼法偏好初始化：库外拼法（D#/Gb…）按其变音进对应系，否则习惯混合拼法；v68.9 收尾（H10）升 / 降号调默认跟调号 */
+    accPref: ceAccPrefOf(root0),
+    bass: (m&&m[3])||'', shape:null, custom:cc0, cname: named0? existing : null };
+  /* v68.9 B（B5）新外壳：任何入口打开 GP 都开一次 CK 会话（谱面「编辑和弦…」也算），连续标注换位置时沿用会话 */
+  if(ceCkOn()) ckBegin('tab', {row:'tab', mi, vi, ci, q:0}, !!opt.keep);
   renderChordEditor();
+  if(ckOn() && !opt.keep) cePlace(mi, ci, vi);
+  else if(ckOn() && opt.keep) ceAvoidCol(mi, ci, vi);   /* v68.9 收尾（UX-1）连续标注：钉住的位置盖住新的当前列就换边 */
+}
+/* v68.9 收尾（H10）GP 主音行 / 低音下拉的拼法：C 调沿用原口径（混合习惯拼法，库外拼法进对应系）；
+   升号调默认 ♯ 系、降号调默认 ♭ 系（1=E 的低音能选 D♯、写成 E/D♯ 级数 1/7——此前只有 E♭，写成 E/E♭ 级数 1/b1）；已有和弦明写了变音的按它自己的系 */
+function ceAccPrefOf(r){
+  r=String(r||'');
+  const ks=KEYSIG[song && song.key]||0;
+  if(!ks) return CHORD_ROOTS.includes(r)? '' : (r.includes('#')? 'sharp':'flat');
+  if(r.length>1) return r.includes('#')? 'sharp' : 'flat';
+  return ks>0? 'sharp' : 'flat';
+}
+/* v68.9 B（B3）新外壳：GP 弹窗避开锚点列——锚点列中心在左半屏就靠右、否则靠左 16px（两侧都压住锚点列或视口太窄时保持居中），
+   顶边 16px，高度上限 100vh−32px（CSS .ce-flow），谱面在浅遮罩下保持可读。位置写进 modalPos：重画与连续标注都沿用 */
+function cePlace(mi, ci, vi){
+  const mask=document.getElementById('modal-mask'), modal=mask && mask.querySelector('.modal');
+  if(!modal) return;
+  const W=modal.getBoundingClientRect().width;
+  if(innerWidth < W+64) return;
+  let R=null;
+  try{
+    const svg=document.getElementById('score'), vb=svg && svg.viewBox && svg.viewBox.baseVal;
+    const b=colBoxes['t'+vi+':'+mi+':'+ci];
+    if(b && vb && vb.width){ const sr=svg.getBoundingClientRect(), k=sr.width/vb.width; R={l:sr.left+b.x*k, r:sr.left+(b.x+b.w)*k}; }
+  }catch(_){}
+  const right=Math.round(innerWidth-W-16), left=16;
+  const hit=l=> !!R && !(l+W<=R.l || l>=R.r);
+  let l = (!R || (R.l+R.r)/2 < innerWidth/2)? right : left;
+  if(hit(l)){ const o = l===right? left : right; l = hit(o)? Math.round((innerWidth-W)/2) : o; }   /* 两侧都压住：水平居中，位置照样钉住（连续标注重开时不随内容高度上下跳） */
+  modalPos={l, t:16};
+  mask.style.alignItems='flex-start'; mask.style.justifyContent='flex-start';
+  modal.style.margin='0'; modal.style.marginLeft=l+'px'; modal.style.marginTop='16px';
 }
 /* v61.2 GP 式构建：既有和弦名的变化 token 拆回四行变化音点亮态；拆不动的整段留在 qual 兜底 */
 function ceSplitQual(q){
@@ -19170,22 +19529,43 @@ function ceName(){
 }
 function ceShape(){
   if(ceState.custom) return ceState.custom;
-  const fq = ceFullQual();
-  let base = chordShape(ceState.root+fq)
-    || movableShape(NOTE_PC[ceState.root], fq, 'E')
-    || movableShape(NOTE_PC[ceState.root], fq, 'A');
-  if(base && ceState.bass && NOTE_PC[ceState.bass]!=null)
-    base = slashShape(base, NOTE_PC[ceState.bass]);
-  return base;
+  return ceStdShape();
+}
+/* v68.9 B 不经 ceState.custom 的默认指法（原位库图 / 模板 + 斜杠低音）：把位卡「常用」与 .on 高亮的基准 */
+/* v68.9 收尾（TAB-6/7/8）＝引擎默认指法 chordShapeStd(全名)：库内斜杠（G/F#→2x0003）直接取库图、库外斜杠走校验过的默认（与谱面同一张）、
+   尤克里里不再套吉他 slashShape（此前 C/G→3003，G 弦 3 品是 B♭）。不经 customChords——本谱自定义指法在打开 / 装入时进 ceState.custom */
+function ceStdShape(){
+  if(ceState.cname) return chordShapeStd(ceState.cname);
+  const fq = ceFullQual(), nm = ceState.root+fq+(ceState.bass? '/'+ceState.bass : '');
+  return chordShapeStd(nm)
+    || (instOf()==='uku'? null : (movableShape(NOTE_PC[ceState.root], fq, 'E') || movableShape(NOTE_PC[ceState.root], fq, 'A')));
 }
 function positionVariants(){
   const r = NOTE_PC[ceState.root], q = ceFullQual();
   const vs=[];
   const posOf = sh=>{ const f=[...sh].map(ch=>ch==='x'?-1:parseInt(ch,36)).filter(v=>v>0); return f.length? Math.min(...f) : 0; };
-  const add=(label,shape)=>{ if(shape && !vs.some(v=>v.shape===shape)) vs.push({label, shape, pos:posOf(shape)}); };
+  /* v68.9 B（R5）吉他斜杠和弦：此前卡片全按原位和弦出（Am7/G 的 10 张卡只有 1 张最低音是 G，默认的 302010 不在列表）。
+     现每张卡先按低音校正（最低发声弦已是低音则只校验跨度，否则 slashFit 改写，改写不成的卡丢弃）；
+     默认图（原位库图＋低音）钉在第 1 张「常用」；推导卡把低音并入音集再枚举，只留最低音＝低音的。
+     尤克里里不按低音过滤（G 弦重入，N16） */
+  const bassPc = (instOf()!=='uku' && ceState.bass && NOTE_PC[ceState.bass]!=null)? NOTE_PC[ceState.bass] : null;
+  /* v68.9 收尾（TAB-3/13）必需音＝生效音程（已扣省略音）里的根音 / 三音 / 七音 / 六音 / 变化五音 */
+  const effPcs=new Set(Object.values(ceEffIv()).map(v=>((r+v)%12+12)%12));
+  const req=(r!=null && ceIv())? chordReqPcs(r, ceIv(), q).filter(pc=>effPcs.has(pc)) : null;
+  const add=(label,shape)=>{
+    if(shape && bassPc!=null) shape = slashFit(shape, bassPc, req);
+    /* v68.9 收尾（TAB-13）库图以外的卡（CAGED 模板 / 推导）弹不了（>4 指或跨 4 品画不全）就不出 */
+    if(shape && label!=='常用' && label!=='开放' && (!shapePlayable(shape) || (req && !req.every(pc=>shapePcSet(shape).has(pc))))) shape=null;
+    if(shape && !vs.some(v=>v.shape===shape)) vs.push({label, shape, pos:posOf(shape)}); };
+  if(bassPc!=null){
+    add('常用', ceStdShape());
+    if(vs.length) vs[0].pin=true;
+  }
   /* 标准库原始指法（不经 customChords 覆盖，保证能选回库图）；高把位库指法不叫"开放" */
   const open = instOf()==='uku'? UKU_SHAPES[ceState.root+q] : CHORD_SHAPES[ceState.root+q];
   add(open && posOf(open)>1? '常用' : '开放', open);
+  /* v68.9 收尾：库里没有这个和弦时，引擎默认图（谱面画的那一张）也进卡片，当前指法总有一张卡可点亮 */
+  if(!open && bassPc==null && !ceState.cname) add('常用', ceStdShape());
   if(instOf()==='uku'){
     /* v39.0 尤克里里用 4 弦通用推导，不再误用吉他 6 弦模板 */
     const iv=QUAL_INTERVALS[q];
@@ -19204,38 +19584,209 @@ function positionVariants(){
      与库图/CAGED 模板混排去重，方案区改滚动网格 */
   { const eff = ceEffIv();
     if(Object.keys(eff).length>=2){
-      const opens = instOf()==='uku'? UKU_OPEN_PC : [4,9,2,7,11,4];
-      algoShapes(opens, r, eff, 10).forEach(sh=>add('推导', sh));
+      /* v68.9 收尾（TAB-3/13）推导卡改按必需音搜索（吉他：低音弦 6 / 5 / 4 × 4 品窗口各取最顺手的一张，斜杠和弦低音＝斜杠低音、原位＝根音；
+         尤克里里：逐窗口取一张）——此前 algoShapes 逐弦取第一个命中的品，大量卡缺三音 / 七音、最低音不是根音、要 5 指 */
+      const effPcs2=[...new Set(Object.values(eff).map(v=>((r+v)%12+12)%12))];
+      const rq=(req||[]).filter(pc=>effPcs2.includes(pc));
+      const eIv={}; Object.keys(eff).forEach(k=>{ eIv[k]=eff[k]; });
+      const L = instOf()==='uku'? ukuList(r, eIv, rq) : voicingList(r, eIv, bassPc!=null? bassPc : r, rq);
+      L.slice(0, 8).forEach(x=>add('推导', x.sh));
     } }
-  vs.sort((a,b)=>a.pos-b.pos);
-  return vs;
+  /* 「常用」默认图钉在第 1 张，其余按把位排序（Array.sort 稳定：同把位保持加入顺序） */
+  const pin = vs.filter(v=>v.pin), rest = vs.filter(v=>!v.pin);
+  rest.sort((a,b)=>a.pos-b.pos);
+  /* v68.9 收尾（TAB-12）卡片按本谱定弦换算（标准调弦不变） */
+  const out=pin.concat(rest);
+  out.forEach(v=>{ const t=shapeRetune(v.shape); if(t!==v.shape){ v.shape=t; v.pos=posOf(t); } });
+  return out.filter((v,i)=>out.findIndex(w=>w.shape===v.shape)===i);
 }
 /* v39.0 和弦试听：按指法从低音弦到高音弦琶音（与主播放同一音色引擎） */
-function auditionShape(shape){
+/* v68.9 收尾（TAB-5）试听计变调夹 / 本轨夹位（与主播放、输入回响同口径）：vi 缺省＝光标所在六线谱轨，不在六线谱行时取第 1 轨 */
+function auditionShape(shape, vi){
   if(!shape) return toast('当前和弦暂无可试听的指法');
   const ctx=ensureLiveCtx(); if(!ctx) return;
   const bus=buildBus(ctx);
   const t=ctx.currentTime+0.05;
+  if(vi==null) vi=(sel && sel.row==='tab')? (sel.vi|0) : 0;
+  let cp=0; try{ cp=(song.tabVoices||[]).length? capoOf(vi) : 0; }catch(_){ cp=0; }
   const SN=strN(); let k=0;
   for(let i=0;i<SN;i++){
     const ch=shape[i]; if(ch==null||ch==='x') continue;
-    const midi=tuningOf()[SN-i-1]+parseInt(ch,36);
+    const midi=tuningOf()[SN-i-1]+parseInt(ch,36)+cp;
     playInst('steel', ctx, bus, midiFreq(midi-12), t+k*0.085, 2.4, 0.8, false);
     k++;
   }
 }
 /* v39.0 当前调内七级和弦名（常用直达） */
 function diatonicChords(){
-  const key=KEY_PC[song.key]||0, Q=['','m','m','','','m','dim'];
-  return [0,2,4,5,7,9,11].map((s,i)=> KEY_LIST[(key+s)%12]+Q[i]);
+  const Q=['','m','m','','','m','dim'];
+  return Q.map((q,i)=> degSpell(song.key, i+1, 0)+q);   /* v68.9 收尾（H4）按调号拼 */
+}
+/* ===== v68.9 B（B5）GP 指法编辑器接入 CK 面板头（只在新外壳 ckOn()；A0 的 ckHeadHTML / ckWire / chordWriteAt）=====
+   host 适配（规格 §1.3）：pick＝装入编辑器、不写；commit＝回车 / 空格 / Tab / → / ← / 应用（认不出就地报错、返回 false）；
+   reopen＝连续标注换位置后原位重开；close＝关弹窗并结束会话（写过六线谱和弦就弹一次节奏型建议）。
+   #ck-in 与编辑器双向同步：键入 250ms 防抖后 ceLoad 装入（提交时取消待执行的防抖）；点主音 / 类型 / 变化音 / 低音 / 拼法改了名字时把名字写回 #ck-in。
+   每次重画（整块 showModal）前后保存 / 恢复 #ck-in 的值、选区与焦点（ceState.ck）。回车没动过指法（ceState.ceDirty 假）＝与旧快速框同口径写入。 */
+function ceSlot(){ return {row:'tab', mi:ceState.mi, vi:ceState.vi, ci:ceState.ci, q:0}; }
+function ceCkOn(){ return typeof ckOn==='function' && ckOn() && typeof ckHeadHTML==='function' && typeof ckWire==='function' && typeof chordWriteAt==='function'; }
+/* 和弦名 → 编辑器状态（复用 showChordEditor 的解析）；本谱自定义和弦按名装入指法。认不出返回 false、不动状态 */
+function ceLoad(name){
+  const nm=(name||'').trim(); if(!nm || !ceState) return false;
+  const cc=song && song.customChords && song.customChords[nm];
+  const m = nm.match(/^([A-G][#b]?)(.*?)(?:\/([A-G][#b]?))?$/);
+  if(m && NOTE_PC[m[1]]!=null){
+    const sq = ceSplitQual(m[2]||'');
+    Object.assign(ceState, { root:m[1], qual:sq.base, alt:sq.alt, omit:{}, bass:m[3]||'',
+      accPref: ceAccPrefOf(m[1]),
+      custom:cc||null, cname:null, cdBase:null, creating:false, ceDirty:false });   /* v68.9 收尾（TAB-7）本谱自定义指法一并装入 */
+    return true;
+  }
+  if(cc){ Object.assign(ceState, {custom:cc, cname:nm, cdBase:null, creating:false, ceDirty:false}); return true; }
+  return false;
+}
+function ceCkSave(){
+  const i=document.getElementById('ck-in'); if(!i || !ceState) return;
+  let ss=null, se=null; try{ ss=i.selectionStart; se=i.selectionEnd; }catch(_){}
+  ceState.ck = {val:i.value, ss, se, focus: document.activeElement===i? true : 'auto'};
+}
+/* 编辑器里改了名字（主音 / 类型 / 变化音 / 低音 / 拼法 / 存自定义和弦）→ 名字写回 #ck-in 并全选：回车写的就是看到的这一个 */
+function ceCkSyncName(){ if(ceState) ceState.ck={val:ceName(), ss:null, se:null, focus:'auto'}; }
+function ceCkRestore(md){
+  const i=md && md.querySelector('#ck-in'), k=ceState && ceState.ck; if(!i) return;
+  if(!k){ ckFocusIn(md); return; }   /* 首次打开：预填本处自己的和弦（ckHeadHTML 已写）、聚焦全选 */
+  if(i.value!==k.val) i.value=k.val;
+  if(ckTouch() || ceState.creating) return;   /* 手机 / 触屏不抢焦点（软键盘会盖住面板）；创建和弦态焦点留给名称框 */
+  try{ i.focus({preventScroll:true}); if(k.focus===true && k.ss!=null) i.setSelectionRange(k.ss, k.se); else i.select(); }catch(_){}
+}
+/* 应用指法（动过指法）：名字变了走统一写入口 chordWriteAt（同拍去重 + tabChordApply remap + customChords 口径）；
+   名字没变只换指法时在同一次撤销里写 customChords 并按新指法重排本和弦管辖的音——旧口径名字不变不 remap，
+   选了高把位卡、谱面的分解 / 扫弦音仍停在原指法上 */
+function ceApplyAt(slot, nm, sh, quiet){
+  const cols=song.measures[slot.mi].tabs[slot.vi], cur=((cols||[])[slot.ci]||{}).chord||'';
+  if(!(cur && nm===cur)){ chordWriteAt(slot, nm, {shape:sh, ce:true, quiet}); if(!quiet) toast('已应用和弦：'+nm); return; }
+  const oldSh = chordShape(cur);
+  mutate(()=>{
+    /* v68.9 收尾（TAB-8）默认＝引擎默认指法（chordShapeStd），没动指法就不把默认图冻结进 customChords */
+    const std = chordShapeStd(nm);
+    if(sh && sh!==std){ if(!song.customChords) song.customChords={}; song.customChords[nm]=sh; }
+    else if(song.customChords) delete song.customChords[nm];
+    /* v68.9 收尾（TAB-9）指法是整谱按名字共用的：本轨所有标着这个和弦名的段都按新指法重排（此前只重排当前段，别的小节图变了音没变） */
+    if(sh && oldSh && sh!==oldSh) song.measures.forEach((mm, mi2)=>{ const cs=(mm.tabs||[])[slot.vi]||[];
+      cs.forEach((c, ci2)=>{ if(c.chord===nm) remapCols(cs, ci2, tabSegEnd(mi2, slot.vi, ci2), oldSh, sh); }); });
+  });
+  song.chordRecent=[nm, ...(song.chordRecent||[]).filter(x=>x!==nm)].slice(0, 8); persist();
+  if(CK.open && CK.kind==='tab') CK.wroteTab=nm;
+  if(!quiet) toast('已应用和弦：'+nm);
+}
+function ceCommit(md, v, o){
+  if(!ceState) return false;
+  clearTimeout(ceState.ckT); ceState.ckPend=false;
+  const quiet=!!(o && o.move), slot=ceSlot();
+  /* v68.9 收尾（H2）值没改（与本处已有的和弦相同）直接放行：已有的 C6/9、N.C. 等不再在连续标注里原地报错卡住 */
+  if(!ceState.ceDirty && String(v==null? '' : v).trim()===chordSlotName(slot)) return true;
+  const r=ckNameGate(v);
+  if(!r.ok){ ckErr(md, r.err); return false; }
+  if(r.free){ chordWriteAt(slot, r.name, {quiet}); return true; }
+  /* 动过指法后又键入了别的名字（防抖还没装入）：以键入的为准 */
+  if(ceState.ceDirty && r.name && r.name!==ceName()) ceLoad(r.name);
+  if(ceState.ceDirty && r.name){ ceApplyAt(slot, ceName(), ceShape(), quiet); return true; }
+  if(r.name===chordSlotName(slot)) return true;   /* 值没改：不写、不产生空撤销步 */
+  chordWriteAt(slot, r.name, {quiet});
+  return true;
+}
+/* 点框外关掉、输入没提交（或动过指法没应用）：提示「和弦未写入」，合法的给「写入」动作（写到原来那一处）；随后照常关闭 */
+function ceUnsaved(md){
+  const inp=md && md.querySelector('#ck-in'); if(!inp || !ceState) return;
+  const slot=ceSlot(), own=chordSlotName(slot);
+  let act=null;
+  if(ceState.ceDirty){
+    const r=chordNameCheck(inp.value), nm=(r.ok && r.name && r.name!==ceName())? r.name : ceName(), sh=(nm===ceName())? ceShape() : null;
+    act={t:'写入', k:'ckw', run:()=>{ if(sh) ceApplyAt(slot, nm, sh, true); else chordWriteAt(slot, nm); }};
+  } else {
+    const v=inp.value, orig=String((CK.open && CK.kind==='tab' && CK.orig!=null)? CK.orig : own).trim();
+    if(v.trim()===orig) return;
+    const r=chordNameCheck(v);
+    if(r.ok && r.name===own) return;
+    act = r.ok? {t:'写入', k:'ckw', run:()=>chordWriteAt(slot, r.name)} : null;
+  }
+  toastSay('和弦未写入', {t:'和弦未写入', k:'limit', act});
+}
+function ceHost(){
+  const rer=()=>{ ceCkSave(); closeModal(); renderChordEditor(); };
+  const h={ kind:'tab', slot:ceSlot(),
+    pick:name=>{ if(!ceState) return; clearTimeout(ceState.ckT); if(!ceLoad(name)) return; ceState.ck={val:name, ss:null, se:null, focus:'auto'}; closeModal(); renderChordEditor(); },
+    commit:(v, o)=>ceCommit(h.root, v, o),
+    reopen:slot=>showChordEditor(slot.mi, slot.ci, slot.vi, {keep:true}),
+    close:quiet=>{ if(ceState) clearTimeout(ceState.ckT); closeModal(); ckEnd(quiet); },
+    refresh:rer };
+  return h;
+}
+/* GP 新外壳没有 h3 标题行：CK 头的首行（.ck-top，位置 / 拍位导航 / 写法 / 和弦图）兼作拖动把手（按钮上按下不算） */
+function ceDragWire(modal){
+  const top=modal.querySelector('.ck-top'), mask=modal.parentElement; if(!top || !mask) return;
+  let drag=null;
+  const applyPos=(l,t)=>{ mask.style.alignItems='flex-start'; mask.style.justifyContent='flex-start';
+    modal.style.margin='0'; modal.style.marginLeft=l+'px'; modal.style.marginTop=t+'px'; };
+  top.addEventListener('pointerdown', e=>{
+    if(e.button!==0 || (e.target.closest && e.target.closest('button,input,select,a'))) return;
+    const r=modal.getBoundingClientRect(); applyPos(r.left, r.top);
+    drag={x:e.clientX, y:e.clientY, l:r.left, t:r.top};
+    try{ top.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  top.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const nl=Math.max(0, Math.min(innerWidth-80, drag.l+e.clientX-drag.x)), nt=Math.max(0, Math.min(innerHeight-40, drag.t+e.clientY-drag.y));
+    modal.style.marginLeft=nl+'px'; modal.style.marginTop=nt+'px'; modalPos={l:nl, t:nt};
+  });
+  const end=()=>{ drag=null; };
+  top.addEventListener('pointerup', end); top.addEventListener('pointercancel', end);
+}
+/* v68.9 B（B4）把位卡试听（只在新外壳）：悬停 300ms 响一次（同一张卡停留期间只响一次）、触屏长按 ≥450ms 响一次并吞掉随后的点按；
+   点卡在点击处理里试听。悬停试听开关＝CK 头的 ♪（A0 ckHearOn，本机偏好 musetab-chordhear，'0'＝关，缺省开）。
+   发声走 chordHear（A0：六线谱行 auditionShape 钢弦琶音），不进撤销、不改 song */
+let CE_HEARD = {shape:null, t:0};
+function ceHearCard(shape, why){
+  if(!shape || !ckHearOn()) return;
+  /* 点卡后整块重画，指针下的新卡会再收到一次 pointerover——刚点过的同一张卡 1.5 秒内不再因悬停重复发声 */
+  if(why==='hover' && CE_HEARD.shape===shape && performance.now()-CE_HEARD.t<1500) return;
+  CE_HEARD = {shape, t:performance.now()};
+  const nm = ceState? ceName() : null;
+  chordHear(nm, shape);
+}
+function ceHearWire(root){
+  let tm=null, cur=null, lp=null, lpFired=false;
+  root.addEventListener('pointerover', e=>{
+    if(e.pointerType==='touch') return;
+    const c=e.target.closest && e.target.closest('.pat-card'); if(!c || c===cur) return;
+    cur=c; clearTimeout(tm);
+    tm=setTimeout(()=>{ if(cur===c && c.isConnected) ceHearCard(c.dataset.shape, 'hover'); }, 300);
+  });
+  root.addEventListener('pointerout', e=>{
+    const c=e.target.closest && e.target.closest('.pat-card'); if(!c || c!==cur) return;
+    if(e.relatedTarget && c.contains(e.relatedTarget)) return;
+    cur=null; clearTimeout(tm);
+  });
+  root.addEventListener('pointerdown', e=>{
+    if(e.pointerType!=='touch') return;
+    const c=e.target.closest && e.target.closest('.pat-card'); if(!c) return;
+    clearTimeout(lp); lpFired=false;
+    lp=setTimeout(()=>{ if(c.isConnected){ lpFired=true; ceHearCard(c.dataset.shape, 'press'); } }, 450);
+  });
+  ['pointerup','pointercancel'].forEach(t=>root.addEventListener(t, ()=>clearTimeout(lp)));
+  root.addEventListener('contextmenu', e=>{ if(lpFired) e.preventDefault(); });
+  root.addEventListener('click', e=>{ if(lpFired){ lpFired=false; e.stopPropagation(); e.preventDefault(); } }, true);
 }
 function renderChordEditor(){
+  const FL0 = ckOn();   /* 新外壳（桌面 flow / 手机 flow，与 CK 头同一判据） */
+  const CKH = FL0 && ceCkOn();
+  const host = CKH? ceHost() : null;
   /* v61.3 异名同音切换：♯ 系 / ♭ 系整排拼法（默认混合习惯拼法），当前主音随切换换拼法 */
   const roots = ceState.accPref==='sharp'? PC_SHARP : ceState.accPref==='flat'? PC_FLAT : CHORD_ROOTS;
   const rootBtns = roots.map(r=>
     `<button class="chip ${r===ceState.root?'on':''}" data-cr="${r}">${chordHtmlLabel(r)}</button>`).join('');
   const accBtns = [['sharp','♯'],['flat','♭']].map(([k,l])=>
-    `<button class="chip ce-acc ${ceState.accPref===k?'on':''}" data-cacc="${k}" title="整排按${l}系拼写（♯G＝♭A 等异名同音，再点回习惯拼法）">${l}</button>`).join('');
+    `<button class="chip ce-acc ${ceState.accPref===k?'on':''}" data-cacc="${k}" title="${FL0? l+'系拼写' : '整排按'+l+'系拼写（♯G＝♭A 等异名同音，再点回习惯拼法）'}">${l}</button>`).join('');
   const qualBtns = CHORD_QUALS.map(q=>
     `<button class="chip ${q.suf===ceState.qual?'on':''}" data-cq="${q.suf}" title="${q.label}">${q.suf||'大'}</button>`).join('');
   const bassOpts = ['<option value="">（原位）</option>']
@@ -19243,8 +19794,10 @@ function renderChordEditor(){
   const shape = ceShape();
   /* v61.3 把位方案全量渲染（撤 v39.6 三张+「更多」折叠）：方案区改滚动网格，方案更多也一屏可翻 */
   const vsAll = positionVariants();
+  const FL = FL0;   /* v68.9 B：新外壳的界面增量（卡片选中态 / 文案瘦身 / 浅遮罩 / 定位）只在 flowOn() 时出现，旧外壳逐字不变 */
+  const curSh = ceState.custom || shape;
   const posVars = vsAll.map((v,i)=>
-    `<div class="pat-card" data-cpos="${i}" data-shape="${v.shape}">
+    `<div class="pat-card${FL && v.shape===curSh?' on':''}" data-cpos="${i}" data-shape="${v.shape}">
       <svg width="56" height="66" viewBox="0 0 56 66">${chordDiagramSVG('',6,2,1.05,v.shape,true)}</svg>
       <div class="bt">${esc(v.label)}${v.pos>1?` · ${v.pos}品`:''}</div></div>`).join('');
   const SN=strN();
@@ -19270,9 +19823,9 @@ function renderChordEditor(){
     else if(f>=cdBase && f<cdBase+5)
       cdg+=`<circle cx="${sx}" cy="${CDY+(f-cdBase+0.5)*CDH}" r="8.5" fill="var(--accent)"/><text x="${sx}" y="${CDY+(f-cdBase+0.5)*CDH+3.4}" font-size="9" text-anchor="middle" fill="var(--ed-on-accent)">${f}</text>`;
     else cdg+=`<text x="${sx}" y="${CDY-10}" font-size="9" text-anchor="middle" fill="var(--accent-ink)">${f}品↕</text>`;
-    cdg+=`<rect class="cdgc" data-cdt="${i}" x="${sx-CDW/2+2}" y="2" width="${CDW-4}" height="${CDY-8}" rx="4" fill="transparent"><title>${SN-i}弦：点击切换 ×不弹 / ○空弦</title></rect>`;
+    cdg+=`<rect class="cdgc" data-cdt="${i}" x="${sx-CDW/2+2}" y="2" width="${CDW-4}" height="${CDY-8}" rx="4" fill="transparent"><title>${SN-i}弦：${FL0?'切换 ×/○':'点击切换 ×不弹 / ○空弦'}</title></rect>`;
     for(let r2=0;r2<5;r2++)
-      cdg+=`<rect class="cdgc" data-cdc="${i}:${r2}" x="${sx-CDW/2+2}" y="${CDY+r2*CDH+2}" width="${CDW-4}" height="${CDH-4}" rx="4" fill="transparent"><title>${SN-i}弦 ${cdBase+r2}品（再点取消）</title></rect>`;
+      cdg+=`<rect class="cdgc" data-cdc="${i}:${r2}" x="${sx-CDW/2+2}" y="${CDY+r2*CDH+2}" width="${CDW-4}" height="${CDH-4}" rx="4" fill="transparent"><title>${SN-i}弦 ${cdBase+r2}品${FL0?'':'（再点取消）'}</title></rect>`;
   }
   cdg+='</svg>';
   /* v61.2 GP 级布局（产品指示：参考 Guitar Pro 逻辑、自家风格 UI）：
@@ -19292,12 +19845,12 @@ function renderChordEditor(){
   const toneChips = Object.keys(ivAll).filter(k=>k!=='8')
     .sort((a,b)=>(+a)-(+b))
     .map(k=>{ const om=!!(ceState.omit||{})[k];
-      return `<button class="chip ce-tone ${om?'off':''}" data-comit="${k}" title="${DEG_CN[k]||k+'音'}：点击${om?'恢复':'省略'}该构成音（省略后「推导」把位方案不含此音）">
+      return `<button class="chip ce-tone ${om?'off':''}" data-comit="${k}" title="${FL0? (om?'恢复':'省略')+(DEG_CN[k]||k+'音') : (DEG_CN[k]||k+'音')+'：点击'+(om?'恢复':'省略')+'该构成音（省略后「推导」把位方案不含此音）'}">
         <b>${chordHtmlLabel(ceSpell(+k, ivAll[k]))}</b><i>${DEG_CN[k]||k}</i></button>`; }).join('');
   const effIv0 = ceEffIv();
   const toneLine = Object.keys(effIv0).sort((a,b)=>(+a)-(+b))
     .map(k=>chordHtmlLabel(ceSpell(+k, effIv0[k]))).join(' · ');
-  showModal(`<h3>编辑和弦<span class="ce-drag">⠿ 按住标题可拖动</span></h3>
+  showModal(`<h3>编辑和弦<span class="ce-drag"${FL0?' title="拖动"':''}>${FL0?'⠿':'⠿ 按住标题可拖动'}</span></h3>${CKH? '<div class="ck-pane ck-gp">'+ckHeadHTML(host)+'</div>' : ''}
     <div style="display:flex;gap:16px;flex-wrap:wrap">
       <div style="flex:1;min-width:300px;max-width:390px">
         <div class="ce-sec"><b>主音<span class="ce-accw">${accBtns}</span></b>
@@ -19306,48 +19859,76 @@ function renderChordEditor(){
         <div class="ce-sec"><b>类型</b>
           <div class="row" style="display:flex;flex-wrap:wrap;gap:4px">${qualBtns}</div>
           <div style="display:flex;align-items:center;gap:7px;margin-top:7px">
-            <span class="ce-alt-cap">转位 / 低音</span><select id="ce-bass">${bassOpts}</select>
+            <span class="ce-alt-cap">转位 / 低音</span><select id="ce-bass"${FL0?' aria-label="低音"':''}>${bassOpts}</select>
           </div>
         </div>
-        <div class="ce-sec"><b>延伸 · 变化音</b>${altRows}</div>
-        <div class="ce-sec"><b>构成音 · 点击省略</b>
+        <div class="ce-sec"><b>${FL0?'变化音':'延伸 · 变化音'}</b>${altRows}</div>
+        <div class="ce-sec"><b>${FL0?'构成音':'构成音 · 点击省略'}</b>
           <div class="ce-tones">${toneChips}</div>
         </div>
         <div class="ce-sec"><b>创建和弦</b>
         ${ceState.creating? `
         <div class="row" style="display:flex;gap:6px;align-items:center">
           <input id="ce-name" value="${esc(ceState.cname||'')}" placeholder="① 输入和弦名称" style="width:130px">
-          <button id="ce-savecustom" class="primary" title="保存到本谱（随谱携带与分享），谱面与和弦输入即可使用">保存和弦</button>
+          <button id="ce-savecustom" class="primary" title="${FL0?'存进本谱':'保存到本谱（随谱携带与分享），谱面与和弦输入即可使用'}">保存和弦</button>
           <button id="ce-createx">取消</button>
         </div>
-        <div style="font-size:11px;color:var(--accent-ink);margin-top:5px">② 在右侧空白和弦图上点格编辑 → ③ 保存和弦</div>`
+        <div style="font-size:11px;color:var(--accent-ink);margin-top:5px">${FL0?'② 点格编辑 → ③ 保存':'② 在右侧空白和弦图上点格编辑 → ③ 保存和弦'}</div>`
         : `
-        <div class="row"><button id="ce-create">＋ 创建和弦</button></div>
-        <div style="font-size:11px;color:var(--muted);margin-top:5px">自定义名称 → 空白和弦图点格编辑 → 保存（随本谱携带与分享）。</div>`}
+        <div class="row"><button id="ce-create"${FL0?' title="自定义指法和弦"':''}>${FL0?'＋ 新建':'＋ 创建和弦'}</button></div>
+        ${FL0?'':'<div style="font-size:11px;color:var(--muted);margin-top:5px">自定义名称 → 空白和弦图点格编辑 → 保存（随本谱携带与分享）。</div>'}`}
         </div>
       </div>
-      <div style="width:288px;flex:none;text-align:center">
-        <div style="font-size:19px;margin:2px 0 1px"><b id="ce-title">${chordHtmlLabel(ceName())}</b></div>
+      <div style="width:288px;flex:none;text-align:center"${FL0?' class="ce-rcol"':''}>
+        <div style="font-size:19px;margin:2px 0 1px"${FL0?' class="ce-ttl"':''}><b id="ce-title">${chordHtmlLabel(ceName())}</b></div>
         <div style="display:flex;justify-content:center">${cdg}</div>
-        <div class="ce-toneline" title="当前生效构成音（已按省略过滤）">${toneLine||'—'}</div>
+        <div class="ce-toneline" title="${FL0?'生效构成音':'当前生效构成音（已按省略过滤）'}">${toneLine||'—'}</div>
         <div class="row" style="display:flex;justify-content:center;align-items:center;gap:7px;margin:5px 0 8px">
           <span style="font-size:11.5px;color:var(--muted)">把位</span>
-          <input id="ce-base" type="number" min="1" max="12" value="${cdBase}" style="width:50px;text-align:center" title="直接输入起始品位 1-12">
-          <button id="ce-play" title="试听当前和弦（按指法自低音弦琶音）">▶ 试听</button>
+          <input id="ce-base" type="number" min="1" max="12" value="${cdBase}" style="width:50px;text-align:center" title="${FL0?'起始品位':'直接输入起始品位 1-12'}">
+          <button id="ce-play" title="${FL0?'试听':'试听当前和弦（按指法自低音弦琶音）'}">▶ 试听</button>
         </div>
-        <div class="ce-sec" style="text-align:left"><b>把位方案 · 点卡换指法</b>
+        <div class="ce-sec${FL0?' ce-possec':''}" style="text-align:left"><b>${FL0?'把位':'把位方案 · 点卡换指法'}</b>
           <div id="ce-pos" class="ce-poswrap">${posVars}</div>
         </div>
-        <div style="font-size:10.5px;color:var(--muted);margin-top:4px;white-space:nowrap">点格改音 · 顶部切 ×/○ · 图即所得</div>
+        ${FL0?'':'<div style="font-size:10.5px;color:var(--muted);margin-top:4px;white-space:nowrap">点格改音 · 顶部切 ×/○ · 图即所得</div>'}
       </div>
     </div>
-    <div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">应用到小节</button></div>`, true);
-  const rerender = ()=>{ closeModal(); renderChordEditor(); };
+    <div class="arr-foot ce-foot"><div class="btns"><button id="ce-cancel">取消</button><button id="ce-ok" class="primary">${FL0?'应用':'应用到小节'}</button></div></div>`, true);
+  /* v68.9 B（R4）底栏「取消 / 应用」包进 .arr-foot.ce-foot 吸底（两外壳；1366×768、1280×720 下此前「应用到小节」在可视区外）。
+     新外壳：浅遮罩不糊谱面（.ce-flow）、弹窗打标 data-ce="tab"（统一入口按行分流的判据） */
+  if(FL0){ const mk=document.getElementById('modal-mask');
+    if(mk){ mk.classList.add('ce-flow'); const md=mk.querySelector('.modal'); if(md) md.dataset.ce='tab'; } }
+  /* v68.9 B（B5）CK 头接线：键位 / 芯片 / 试听 / ⇄ / 和弦图交给 ckWire；#ck-in 值与焦点恢复；键入防抖装入；点框外未写入提示 */
+  if(CKH){
+    const md=document.querySelector('#modal-mask .modal');
+    md.setAttribute('aria-label', '编辑和弦');
+    if(ckTouch()) md.classList.add('ck-touch');   /* v68.9 收尾（UX-8）触屏：GP 的面板头芯片 / 按钮同样 ≥40 */
+    ckWire(md, host); ceDragWire(md); ceCkRestore(md);
+    const inp=md.querySelector('#ck-in');
+    if(inp) inp.addEventListener('input', ()=>{
+      clearTimeout(ceState.ckT); ceState.ckPend=true;
+      ceState.ckT=setTimeout(()=>{
+        ceState.ckPend=false;
+        if(!inp.isConnected) return;
+        const r=chordNameCheck(inp.value);
+        if(!r.ok || !r.name || r.name===ceName()) return;
+        ceCkSave(); if(ceLoad(r.name)){ closeModal(); renderChordEditor(); }
+      }, 250);
+    });
+    modalGuard = ()=>{ try{ ceUnsaved(md); }catch(e){ console.error(e); } if(ceState) clearTimeout(ceState.ckT); try{ ckEnd(); }catch(_){} return true; };
+  }
+  /* 重画：CK 头在场时先存 #ck-in（nameChg＝编辑器里改了名字 → 名字写回 #ck-in） */
+  const rerender = (nameChg)=>{
+    /* v68.9 收尾（TAB-7）点主音 / 类型 / 变化音 / 低音换了名字：本谱存过这个名字的自定义指法就装入（否则「应用」会按默认图把它删掉） */
+    if(nameChg===true && !ceState.creating && !ceState.cname){ const c2=(song.customChords||{})[ceName()]; if(c2) ceState.custom=c2; }
+    if(CKH){ if(nameChg===true) ceCkSyncName(); else ceCkSave(); } closeModal(); renderChordEditor(); };
+  if(FL0){ const pw=document.getElementById('ce-pos'); if(pw) ceHearWire(pw); }
   document.querySelector('.modal').addEventListener('click', ev=>{
     /* v39.6 创建态下任何交互先同步名称输入框：点格触发重绘时不丢已键入的名称 */
     { const ni=document.getElementById('ce-name');
       if(ni && ceState.creating) ceState.cname = ni.value.trim(); }
-    if(ev.target.closest('#ce-play')){ auditionShape(ceState.custom||ceShape()); return; }
+    if(ev.target.closest('#ce-play')){ auditionShape(ceState.custom||ceShape(), ceState.vi); return; }
     /* v61.3 ♯/♭ 异名切换：整排换拼法、当前主音/低音同步换等音名（再点回习惯拼法） */
     const cc=ev.target.closest('[data-cacc]');
     if(cc){ const k=cc.dataset.cacc;
@@ -19355,9 +19936,10 @@ function renderChordEditor(){
       const tbl = ceState.accPref==='sharp'? PC_SHARP : ceState.accPref==='flat'? PC_FLAT : CHORD_ROOTS;
       if(NOTE_PC[ceState.root]!=null) ceState.root = tbl[NOTE_PC[ceState.root]];
       if(ceState.bass && NOTE_PC[ceState.bass]!=null) ceState.bass = tbl[NOTE_PC[ceState.bass]];
-      ceState.custom=null; ceState.cname=null; rerender(); return; }
+      ceState.custom=null; ceState.cname=null; rerender(true); return; }
     /* v39.6 创建流：点按钮 → 空白和弦图 + 命名 → 保存 */
     if(ev.target.closest('#ce-create')){
+      ceState.ceDirty=true;
       ceState.creating=true; ceState.custom='x'.repeat(strN());
       ceState.cdBase=null; ceState.cname='';
       rerender();
@@ -19368,20 +19950,24 @@ function renderChordEditor(){
       ceState.creating=false; ceState.custom=null; ceState.cname=null; ceState.cdBase=null;
       rerender(); return;
     }
-    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
-    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
+    const cr=ev.target.closest('[data-cr]'); if(cr){ ceState.root=cr.dataset.cr; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; ceState.ceDirty=false; rerender(true); return; }
+    const cq=ev.target.closest('[data-cq]'); if(cq){ ceState.qual=cq.dataset.cq; ceState.custom=null; ceState.cname=null; ceState.cdBase=null; ceState.ceDirty=false; rerender(true); return; }
     /* v61.2 变化音四行（每行互斥、再点取消）与构成音省略（GP 逻辑：省略影响推导把位） */
     const ca=ev.target.closest('[data-calt]');
     if(ca){ const seg=ca.dataset.calt.split(':');
       ceState.alt=ceState.alt||{5:'',9:'',11:'',13:''};
       ceState.alt[seg[0]] = ceState.alt[seg[0]]===seg[1]? '' : seg[1];
-      ceState.custom=null; ceState.cname=null; ceState.cdBase=null; rerender(); return; }
+      ceState.custom=null; ceState.cname=null; ceState.cdBase=null; ceState.ceDirty=false; rerender(true); return; }
     const co=ev.target.closest('[data-comit]');
     if(co){ const k=co.dataset.comit;
       ceState.omit=ceState.omit||{};
       if(!ceState.omit[k] && Object.keys(ceEffIv()).length<=2){ toast('至少保留两个构成音'); return; }
       ceState.omit[k]=!ceState.omit[k]; rerender(); return; }
-    const cp=ev.target.closest('[data-cpos]'); if(cp){ ceState.custom=cp.dataset.shape; ceState.cdBase=null; rerender(); return; }
+    const cp=ev.target.closest('[data-cpos]');
+    if(cp){ ceState.custom=cp.dataset.shape; ceState.cdBase=null;
+      /* v68.9 B（B4）新外壳：点卡＝选中这张卡并试听（♪ 开时）；动过指法记 ceDirty（回车走「应用」口径） */
+      if(FL0){ ceState.ceDirty=true; ceHearCard(cp.dataset.shape, 'click'); }
+      rerender(); return; }
     /* v39.4 创建从空白开始：未选底稿（custom 为空）时直接点格 = 全新空白和弦；
        想在现有指法上调整 → 先点「把位方案」卡载入底稿再改 */
     const cdShape0=()=>{ const SN2=strN();
@@ -19389,12 +19975,14 @@ function renderChordEditor(){
       const a=src.split(''); while(a.length<SN2) a.push('x'); return a; };
     const cdt=ev.target.closest('[data-cdt]');
     if(cdt){
+      ceState.ceDirty=true;
       const arr=cdShape0(); const i=+cdt.dataset.cdt;
       arr[i] = arr[i]==='x'? '0' : 'x';                            // ×↔○（有音时点顶部先归为不弹）
       ceState.custom=arr.join(''); rerender(); return;
     }
     const cdc=ev.target.closest('[data-cdc]');
     if(cdc){
+      ceState.ceDirty=true;
       const arr=cdShape0();
       const [i,r2]=cdc.dataset.cdc.split(':').map(Number);
       const enc=FRET_36((ceState._cdShownBase||1)+r2);
@@ -19402,10 +19990,11 @@ function renderChordEditor(){
       ceState.custom=arr.join(''); rerender(); return;
     }
   });
-  document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; ceState.cdBase=null; rerender(); });
+  document.getElementById('ce-bass').addEventListener('change', e=>{ ceState.bass=e.target.value; ceState.custom=null; ceState.cdBase=null; ceState.ceDirty=false; rerender(true); });
   /* v39.3 把位直接输入数字（1-12）；v39.4 只移窗不固化指法，空白创建可先定把位再点格 */
   const baseInp=document.getElementById('ce-base');
   if(baseInp) baseInp.addEventListener('change', ()=>{
+    ceState.ceDirty=true;
     ceState.cdBase=Math.max(1, Math.min(12, parseInt(baseInp.value,10)||1));
     rerender();
   });
@@ -19425,26 +20014,33 @@ function renderChordEditor(){
     mutate(()=>{ song.customChords[nm]=sh2; });
     ceState.creating=false;
     toastSay('已创建和弦：'+nm+'（随本谱保存，可在和弦输入中直接使用）', {t:'已创建和弦 '+nm, k:'res'});
-    rerender();
+    rerender(true);
   };
-  document.getElementById('ce-cancel').onclick = closeModal;
-  document.getElementById('ce-ok').onclick = ()=>{
+  document.getElementById('ce-cancel').onclick = CKH? ()=>host.close() : closeModal;
+  /* 新外壳「应用」＝原 #ce-ok 口径（写编辑器当前的和弦名 + 指法，所选指法与库图不同进 customChords），改走统一写入口；
+     #ck-in 里刚键入、防抖还没装入的名字先装入（认不出就地报错不关） */
+  if(CKH) document.getElementById('ce-ok').onclick = ()=>{
+    const i=document.getElementById('ck-in');
+    if(i && ceState.ckPend){ const r=ckNameGate(i.value); if(!r.ok){ ckErr(host.root, r.err); return; }
+      if(r.free){ clearTimeout(ceState.ckT); ceState.ckPend=false; chordWriteAt(ceSlot(), r.name); host.close(); return; }
+      if(r.name && r.name!==ceName()) ceLoad(r.name); }
+    clearTimeout(ceState.ckT); ceState.ckPend=false;
+    ceApplyAt(ceSlot(), ceName(), ceShape(), false);
+    host.close(); };
+  else document.getElementById('ce-ok').onclick = ()=>{
     const nm = ceName(), sh = ceShape();
     const {mi,ci,vi}=ceState;
-    const oldEff = chordBefore(mi,vi);
+    const oldEff = chordAtCol(mi,vi,ci);   /* v68.9 收尾（TAB-2）本列生效的（原 chordBefore＝本小节第一个和弦） */
+    const oldShE = chordShape(oldEff);
     mutate(()=>{
-      /* 所选指法（高把位/转位/自定义）与标准库不同 → 存入随谱指法表；
-         选回标准指法则清除覆盖，恢复库图 */
-      const std = (instOf()==='uku'? UKU_SHAPES[nm] : CHORD_SHAPES[nm]);
+      /* 所选指法（高把位/转位/自定义）与默认指法不同 → 存入随谱指法表；
+         选回默认指法则清除覆盖，恢复默认图（v68.9 收尾 TAB-8：默认＝引擎默认 chordShapeStd，库外和弦没动指法不再冻结进 customChords） */
+      const std = chordShapeStd(nm);
       if(sh && sh!==std) song.customChords[nm]=sh;
       else if(song.customChords) delete song.customChords[nm];
       const cols = song.measures[mi].tabs[vi];
       cols[ci].chord = nm;
-      if(nm!==oldEff){
-        let end=cols.length;
-        for(let i=ci+1;i<cols.length;i++) if(cols[i].chord){ end=i; break; }
-        remapCols(cols, ci, end, chordShape(oldEff), sh);
-      }
+      if(nm!==oldEff) remapCols(cols, ci, tabSegEnd(mi, vi, ci), oldShE, sh);   /* v68.9 收尾（TAB-10）终点含简谱锚定的和弦 */
     });
     closeModal();
     toast('已应用和弦：'+nm);
@@ -19848,6 +20444,7 @@ function popKeepOpen(e){
   return !!(t && t.closest && t.closest('[data-hd="key"]'));
 }
 function closePop(){
+  try{ if(CK.open && CK.kind==='vox' && !CK.committing) ckUnsaved(); }catch(_){}   /* v68.9：新外壳级数构建器点框外关掉、#ck-in 里的字没提交 → 提示「和弦未写入」（可一键写入） */
   const d=document.getElementById('popmenu'); if(d) d.remove();
   const mp=document.getElementById('mx-panel'); if(mp) mp.remove();
   if(barSel){ barSel=null; render(); }
@@ -20741,18 +21338,20 @@ document.getElementById('b-breath').onclick = ()=>{
   };
 });
 /* 功能谱智能和弦选择：本调常用库优先 + 常用扩展 + 最近使用 + 自定义输入 */
+/* v68.9 A0：纯数据部分抽出（新外壳写入口 chordWriteAt 与本函数共用），行为零变化 */
+function voxChordSet(c, name, q){
+  const t=(name||'').trim();
+  if(q>0){
+    /* v60.30 延长音拍位和弦：col.chords=[{q,chord}] 纯增量字段（q=第 q 条增时线拍位） */
+    const a=(c.chords||[]).filter(x=>x && x.q!==q && x.chord);
+    if(t) a.push({q, chord:t});
+    a.sort((x,y)=>x.q-y.q);
+    if(a.length) c.chords=a; else delete c.chords;
+  }
+  else if(t) c.chord=t; else delete c.chord;
+}
 function setVoxChord(name, quiet, q){
-  mutate(()=>{ const c=curCol(); if(!c) return;
-    const t=(name||'').trim();
-    if(q>0){
-      /* v60.30 延长音拍位和弦：col.chords=[{q,chord}] 纯增量字段（q=第 q 条增时线拍位） */
-      const a=(c.chords||[]).filter(x=>x && x.q!==q && x.chord);
-      if(t) a.push({q, chord:t});
-      a.sort((x,y)=>x.q-y.q);
-      if(a.length) c.chords=a; else delete c.chords;
-    }
-    else if(t) c.chord=t; else delete c.chord;
-  });
+  mutate(()=>{ const c=curCol(); if(!c) return; voxChordSet(c, name, q); });
   const t=(name||'').trim();
   if(t){
     song.chordRecent = [t, ...(song.chordRecent||[]).filter(x=>x!==t)].slice(0,8);
@@ -20768,17 +21367,16 @@ const VC_SUFS=[
   {t:'七和弦', c:[['7','7'],['maj7','maj7'],['m7','m7'],['m7b5','m7b5'],['dim7','dim7'],['mM7','mmaj7']]},
   {t:'扩展',   c:[['6','6'],['m6','m6'],['9','9'],['add9','add9'],['m9','m9'],['maj9','maj9'],['11','11'],['13','13'],['7sus4','7sus4']]},
 ];
-function vcNote(i){ return KEY_LIST[((KEY_PC[song.key]||0)+VC_SEMI[i])%12]; }
+function vcNote(i){ return degSpell(song.key, i+1, 0); }   /* v68.9 收尾（H4）按调号拼：1=E 的 3 级＝G♯（此前 KEY_LIST 写 A♭） */
 /* v60.31 转位低音改半音制（用户报告 37/#5 无法实现）：st.bass=相对主音半音 0..11。
    标签用功能记谱惯用拼法（升 ♯1♯2♯4♯5、降 ♭7），音名拼写随标签的级数字母走 */
 const VC_BASS=[[0,'1'],[1,'#1'],[2,'2'],[3,'#2'],[4,'3'],[5,'4'],[6,'#4'],[7,'5'],[8,'#5'],[9,'6'],[10,'b7'],[11,'7']];
 function vcBassName(semi){
   const lab=(VC_BASS.find(x=>x[0]===semi)||[])[1];
   const keyPc=KEY_PC[song.key]||0, pc=((keyPc+semi)%12+12)%12;
-  if(lab==null) return KEY_LIST[pc];
-  const dnum=+lab.replace(/[#b]/,''), letter=vcNote(dnum-1)[0];
-  const d=((pc-LNAT[letter])%12+12)%12;
-  return letter+(d===0?'': d===1?'#': d===11?'b': KEY_LIST[pc].slice(1));
+  if(lab==null) return keySpell(song.key, pc, 0);
+  /* v68.9 收尾（H5）：字母＝标签级数在本调的字母，音高＝主音＋semi（此前差两个半音时只拼了别的音的变音、字母不变：1=A 的 /b7 写成 A/A） */
+  return keySpell(song.key, pc, +lab.replace(/[#b]/,''));
 }
 function vcBuild(st){
   if(st.deg<0) return '';
@@ -20799,12 +21397,7 @@ function degChordName(txt){
   const m=/^([#b]?)([1-7])([^/]*)(?:\/([#b]?)([1-7]))?$/.exec((txt||'').trim());
   if(!m) return null;
   const keyPc=KEY_PC[song.key]||0;
-  const note=(acc,dn)=>{
-    const letter=vcNote(dn-1)[0];
-    const pc=((keyPc+VC_SEMI[dn-1]+(acc==='#'?1:acc==='b'?-1:0))%12+12)%12;
-    const d=((pc-LNAT[letter])%12+12)%12;
-    return letter+(d===0?'': d===1?'#': d===11?'b': KEY_LIST[pc].slice(1));
-  };
+  const note=(acc,dn)=>keySpell(song.key, keyPc+VC_SEMI[dn-1]+(acc==='#'?1:acc==='b'?-1:0), dn);   /* v68.9 收尾（H4/H5）按调号拼 */
   let suf=(m[3]||'').trim();
   suf=({'sus':'sus4','7sus':'7sus4','°':'dim','ø':'m7b5'})[suf]||suf;
   return note(m[1],+m[2])+suf+(m[5]? '/'+note(m[4]||'',+m[5]) : '');
@@ -20860,19 +21453,26 @@ function showVoxChordMenu(cx, cy, q){
   q = q>0? q|0 : 0;
   if(song.func && !q) vcSnap8();
   const col=curCol(); if(!col) return;
+  /* v68.9 新外壳（ckOn）：顶部 CK 面板头（#ck-in 输入、位置与拍位导航、试听开关、谱面写法、⇄ 指法、和弦图位置）+ 级数格 T/S/D 色标 + 调外 / 建议 / 常用三行；
+     撤掉底部「自定义：…」整行（#ck-in 与 ∅ 覆盖）；说明性标题改两字；写入统一走 chordWriteAt（同拍去重）；面板锚定光标列（不盖住它）。旧外壳逐字不变 */
+  const NEW=ckOn();
+  const keepS = NEW && CK.committing && CK.kind==='vox';   /* 连续标注重开（reopen 先置 committing）：ckEnd 会清掉它，先记下 */
+  if(NEW){ CK.committing=true; ckEnd(true); }
   closePop();
   /* v60.30 拍位和弦：q>0 时读写本列第 q 条增时线拍位的槽（col.chords），列头槽不动 */
   const cV=()=> q>0? (((col.chords||[]).find(x=>x&&x.q===q)||{}).chord||'') : (col.chord||'');
   const st = vcParse(cV()) || {deg:-1, suf:'', bass:-1};
   const div=document.createElement('div');
   div.className='popmenu pm-follow'; div.id='popmenu';
-  div.style.width='min(420px, 94vw)';
+  div.style.width=NEW? 'min(440px, 94vw)' : 'min(420px, 94vw)';
   div.style.left=(Math.min(cx, innerWidth-440)+scrollX)+'px';
   div.style.top=(Math.min(cy+8, innerHeight-430)+scrollY)+'px';
   const supHtml=d=>{                                   // 级数/音名排版：根音大、升降号左上角、后缀上标、低音随斜杠
     const pm=/^([A-G](?:#|b)?|[b#]?[1-7])(.*?)(\/.+)?$/.exec(d);
     return pm? `${chordHtmlLabel(pm[1])}${pm[2]?`<sup>${esc(pm[2])}</sup>`:''}${pm[3]?chordHtmlLabel(pm[3]):''}` : esc(d);
   };
+  const slot={row:'vox', mi:sel.mi, vi:sel.vi, ci:sel.ci, q};
+  let host=null;
   const draw=()=>{
     const cur=vcBuild(st) || cV() || '';
     const recent=(song.chordRecent||[]).slice(0,8);
@@ -20903,14 +21503,65 @@ function showVoxChordMenu(cx, cy, q){
         <button id="vc-clr" style="padding:3px 10px">清除</button>
       </div>`;
   };
-  const apply=()=>{ setVoxChord(vcBuild(st), true, q); draw(); };
-  draw();
+  /* v68.9 新外壳版本：同一组级数格 / 类型 / 转位（[data-vd] 8 · [data-vs] 22 · [data-vb] 13 与旧版同数），级数格带调内功能色标（data-fn / data-pri） */
+  const gridNew=()=>{
+    const cur=cV();
+    let kc=[]; try{ kc=chordKeyChords(ckMelVoice(slot)); }catch(_){}
+    const fnOf=nm=>kc.find(x=>x.kind==='in' && x.name===nm);
+    return `<div class="t" style="color:var(--faint)">级数</div>
+      <div class="vc-grid ck-fng">${VC_SEMI.map((_,i)=>{ const nm=vcNote(i)+VC_DIA[i], it=fnOf(nm);
+        return `<button data-vd="${i}" class="${st.deg===i?'on':''}"${it? ` data-fn="${it.fn}" data-pri="${it.pri?1:0}" title="${esc(it.tip)}"` : ''}>${i+1}${VC_DIA[i]?'<b style="font-size:10px">'+VC_DIA[i]+'</b>':''}<small>${esc(vcNote(i))}</small>${it? `<i class="ck-fl" aria-hidden="true">${it.fn}</i>` : ''}</button>`; }).join('')}
+        <button data-vd="-1" class="${st.deg<0&&!cur?'on':''}" title="清除标注">∅<small>无</small></button></div>`;
+  };
+  const drawNew=()=>{
+    const cur=vcBuild(st) || cV() || '';
+    div.innerHTML=ckHeadHTML(host)
+      +`<div class="vc-prev" style="display:flex;align-items:center;gap:10px">${cur
+        ? `<b>${supHtml(chordDegree(cur))}</b><span class="alt">${esc(cur)}</span>`
+          +((s2=>s2? `<svg width="40" height="48" viewBox="0 0 56 66" style="flex:none">${chordDiagramSVG('',6,2,0.95,s2,true)}</svg>`:'')(chordShape(cur)))
+          +`<button id="vc-play" title="试听" style="padding:3px 10px;margin-left:auto">▶ 试听</button>`
+        : `<span class="none">未标注</span>`}</div>
+      <div class="t" style="color:var(--faint)">类型</div>
+      ${VC_SUFS.map(g=>`<div class="vc-grid sufs" role="group" aria-label="${esc(g.t)}">${g.c.map(([lb,sf])=>
+        `<button data-vs="${esc(sf)}" class="${st.suf===sf?'on':''}">${esc(lb)}</button>`).join('')}
+        ${g.t==='扩展'? `<input id="vc-sufin" placeholder="后缀" aria-label="自定义后缀" value="${esc(VC_SUFS.some(g2=>g2.c.some(c2=>c2[1]===st.suf))?'':st.suf)}" style="width:70px;font-size:12px;padding:3px 8px">`:''}</div>`).join('')}
+      <div class="t" style="color:var(--faint)">转位</div>
+      <div class="vc-grid">
+        <button data-vb="-1" class="${st.bass<0?'on':''}">原位</button>
+        ${VC_BASS.map(([s2,lab])=>`<button data-vb="${s2}" class="${st.bass===s2?'on':''}">/${esc(lab)}<small>${esc(vcBassName(s2))}</small></button>`).join('')}</div>`;
+  };
+  /* 写入后重画：#ck-in 回到该处当前的和弦并全选（P8：鼠标点完芯片再按空格不会把芯片又点一次）；高度变了就再夹一次视口 */
+  const redraw=()=>{ drawNew(); const v=chordSlotName(slot); CK.orig=v; ckFocusIn(div, v); if(!div.classList.contains('ck-sheet')) ckClampPop(div); };
+  const writeNew=(name, o)=>chordWriteAt(slot, name, Object.assign({quiet:true}, o||{}));
+  const apply=()=>{ if(NEW){ writeNew(vcBuild(st)); redraw(); return; } setVoxChord(vcBuild(st), true, q); draw(); };
+  if(NEW){
+    host={kind:'vox', slot, midHTML:gridNew,
+      pick:n=>{ writeNew(n); const p=vcParse(n); st.deg=p? p.deg : -1; st.suf=p? p.suf : ''; st.bass=p? p.bass : -1; redraw(); },
+      commit:(v, o)=>{ if(String(v==null? '' : v).trim()===chordSlotName(slot)) return true;   /* v68.9 收尾（H2）值没改直接放行 */
+        const r=ckNameGate(v); if(!r.ok){ ckErr(div, r.err); return false; }
+        if(r.name!==chordSlotName(slot)) writeNew(r.name, {quiet:!(o && o.enter)});
+        return true; },
+      reopen:s=>{ CK.committing=true; closePop(); sel.q=s.q|0; showVoxChordMenu(0, 0, s.q); },
+      close:qq=>{ ckEnd(qq); closePop(); },
+      refresh:()=>{ drawNew(); ckFocusIn(div); }
+    };
+    ckBegin('vox', slot, keepS);
+    div.dataset.ce='vox'; div.classList.add('ck-pane');
+    drawNew();
+  } else draw();
   document.body.appendChild(div);
   makeDraggableTitled(div, '.pm-drag');   /* v60.31 用户指示：和弦编辑弹窗可移动 */
+  if(NEW){ ckWire(div, host); try{ rebuildChordList(); }catch(_){}
+    div.setAttribute('role', 'dialog'); div.setAttribute('aria-label', '和弦');   /* v68.9 收尾（UX-11）读屏：构建器是对话框 */
+    if(ckTouch()) div.classList.add('ck-touch');
+    ckPlaceVox(div, slot); CK.committing=false; ckFocusIn(div);
+    div.addEventListener('pointerup', ()=>{ if(CK.open && CK.kind==='vox' && !div.classList.contains('ck-sheet')){ const r=div.getBoundingClientRect(); CK.popPos={l:r.left, t:r.top}; } });   /* 拖动过的位置记住（连续标注重开沿用） */
+  }
+  else ckClampPop(div);   /* v68.9 R8：打开后夹回视口（手机从智能抽屉打开时底边曾超出 844）；没超出不动 */
   div.addEventListener('click', ev=>{
     const vd=ev.target.closest('[data-vd]');
     if(vd){ const i=+vd.dataset.vd;
-      if(i<0){ st.deg=-1; st.suf=''; st.bass=-1; setVoxChord('', true, q); draw(); return; }
+      if(i<0){ st.deg=-1; st.suf=''; st.bass=-1; if(NEW){ writeNew(''); redraw(); return; } setVoxChord('', true, q); draw(); return; }
       if(st.deg<0 || st.deg!==i && st.suf===VC_DIA[st.deg]) st.suf=VC_DIA[i];   // 未自选类型时跟随调内性质
       st.deg=i; apply(); return; }
     const vs=ev.target.closest('[data-vs]');
@@ -20922,8 +21573,10 @@ function showVoxChordMenu(cx, cy, q){
     if(ev.target.closest('#vc-play')){
       auditionShape(chordShape(vcBuild(st) || cV() || '')); return; }
     if(ev.target.closest('#vc-names')){
-      song.funcNames=!song.funcNames; persist(); render(); draw(); return; }
-    if(ev.target.closest('#vc-ok')){ const v=div.querySelector('#vc-custom').value; setVoxChord(degChordName(v)||v, false, q); closePop(); return; }
+      song.funcNames=!song.funcNames; persist(); render(); if(NEW){ drawNew(); ckFocusIn(div); } else draw(); return; }
+    if(ev.target.closest('#vc-ok')){
+      if(NEW){ const i2=div.querySelector('#ck-in'); if(host.commit(i2? i2.value : '', {enter:true})!==false) host.close(); return; }
+      const v=div.querySelector('#vc-custom').value; setVoxChord(degChordName(v)||v, false, q); closePop(); return; }
     if(ev.target.closest('#vc-clr')){ setVoxChord('', false, q); closePop(); return; }
   });
   div.addEventListener('keydown', ev=>{
@@ -20934,6 +21587,734 @@ function showVoxChordMenu(cx, cy, q){
   div.addEventListener('change', ev=>{
     if(ev.target.id==='vc-sufin'){ st.suf=ev.target.value.trim(); if(st.deg<0) st.deg=0; apply(); }
   });
+}
+/* ===== v68.9 和弦引擎共享接口（A0）=====
+   负责人 2026-10-22「和弦引擎被阉割」：新外壳的悬浮条「和弦」/ 文字页「输入和弦…」/ Ctrl+K / 命令面板全走 v63.9 的快速框（只有文本框），
+   两个完整引擎（简谱 / 五线谱行的级数构建器 showVoxChordMenu、六线谱行的 GP 式指法编辑器 showChordEditor）在新外壳里几乎没有入口。
+   本段：统一入口 chordOpen 按光标所在行分流到两个完整引擎；两个面板顶部共用一条面板头（CK 头：和弦名 / 级数输入框 #ck-in、位置与拍位导航、
+   调内功能条 T/S/D、调外、下一和弦建议、常用）；连续标注（空格下一拍 / Tab 下一小节）；写入口 chordWriteAt（同拍去重、最近使用）。
+   界面增量只在新外壳（ckOn：桌面 flow 或手机 flow），数据正确性修复两外壳同改（规格 §0.6 R1–R8）。不新增 song 字段；本机偏好只加 musetab-chordhear */
+var CK = {open:false};   /* 面板会话：{open, kind:'vox'|'tab', slot, orig（本处打开 / 上次写入后的值）, src, wroteTab（本次会话最后写入的六线谱和弦）, committing} */
+function ckOn(){ try{ return flowOn() || !!(typeof FLOW!=='undefined' && FLOW && FLOW.mob && FLOW.mob.on); }catch(_){ return false; } }
+function ckMob(){ try{ return !!(FLOW && FLOW.mob && FLOW.mob.on); }catch(_){ return false; } }
+/* v68.9 收尾（UX-8）触屏：手机外壳，或主指针是粗指针 / 最近一次操作是手指点按（平板横屏、手机横屏走桌面外壳）——不自动聚焦输入框（不弹软键盘）、芯片放大到 40 */
+var CK_PTR='';
+try{ addEventListener('pointerdown', e=>{ CK_PTR=e.pointerType||''; }, true); addEventListener('keydown', ()=>{ CK_PTR='key'; }, true); }catch(_){}
+function ckTouch(){ try{ return ckMob() || CK_PTR==='touch' || (matchMedia('(pointer:coarse)').matches && !matchMedia('(any-pointer:fine)').matches); }catch(_){ return ckMob(); } }
+/* ---- 位置与步进 ---- */
+function ckNd(c){ return c? Math.max(0, Math.floor((4/c.dur)*dotFactor(c)+1e-4)-1) : 0; }   /* 简谱增时线条数（同 rt-chord / chordEvtsMea 口径） */
+function chordSlot(){
+  const row=sel.row, mi=sel.mi|0, vi=sel.vi|0, ci=sel.ci|0;
+  let q=0;
+  if(row==='vox' && !isStaffNota((song.voxNotations||[])[vi])){ q=sel.q|0; if(q>0 && q>ckNd(curCol())) q=0; }
+  return {row, mi, vi, ci, q};
+}
+function ckColsOf(row, vi, mi){ const m=(song.measures||[])[mi]; return m? ((row==='tab'? (m.tabs||[])[vi] : (m.voxes||[])[vi])||[]) : []; }
+/* 本小节所有可写和弦的位置（拍位以本小节拍单位 mU 计，升序）：vox 行＝列头 + 简谱增时线拍位（五线谱行没有）；功能谱只留八分格（同 vcSnap8）；tab 行＝列头 */
+function chordSlots(row, vi, mi){
+  const cols=ckColsOf(row, vi, mi); if(!cols.length) return [];
+  const mU=meaMeter(mi).unit, out=[];
+  const staff = row==='vox' && isStaffNota((song.voxNotations||[])[vi]);
+  let b=0;
+  cols.forEach((c, ci)=>{
+    out.push({ci, q:0, beat:b});
+    if(row==='vox' && !staff){ const nD=ckNd(c); for(let q=1;q<=nD;q++) out.push({ci, q, beat:b+q*mU/4}); }
+    b+=beatsOf(c, mU);
+  });
+  let r=out;
+  if(row==='vox' && song.func){ const g=mU/8; r=out.filter(x=>Math.abs(x.beat/g-Math.round(x.beat/g))<1e-4); }
+  return r.sort((x, y)=>x.beat-y.beat || x.ci-y.ci || x.q-y.q);
+}
+function chordSlotBeat(s){
+  const hit=chordSlots(s.row, s.vi, s.mi).find(x=>x.ci===s.ci && x.q===(s.q|0));
+  if(hit) return hit.beat;
+  const cols=ckColsOf(s.row, s.vi, s.mi), mU=meaMeter(s.mi).unit;
+  let b=0; for(let i=0;i<s.ci && i<cols.length;i++) b+=beatsOf(cols[i], mU);
+  return b+(s.q|0)*mU/4;
+}
+/* 只取本处自己的和弦（不继承前一个，同 v63.9 快速框 / tv_b5b T1） */
+function chordSlotName(s){
+  const c=ckColsOf(s.row, s.vi, s.mi)[s.ci]; if(!c) return '';
+  if((s.q|0)>0) return ((c.chords||[]).find(x=>x && x.q===s.q)||{}).chord||'';
+  return c.chord||'';
+}
+function ckBeatLen(mi){ const mm=meaMeter(mi); return (mm.unit>=8 && mm.beats%3===0 && mm.beats>=6)? 3 : 1; }   /* 复合拍 6/8 · 9/8 · 12/8 一拍＝附点四分 */
+/* 纯函数：unit＝'beat'（空格 / ⇧空格）· 'mea'（Tab / ⇧Tab）· 'slot'（→ / ←）；dir 1 / -1；到头返回 null */
+function chordStep(s, unit, dir){
+  const nM=(song.measures||[]).length, E=1e-4;
+  const L=mi=>chordSlots(s.row, s.vi, mi).map(x=>({row:s.row, mi, vi:s.vi, ci:x.ci, q:x.q, beat:x.beat}));
+  const near=(mi0, d)=>{ for(let mi=mi0; mi>=0 && mi<nM; mi+=d){ const l=L(mi); if(l.length) return l; } return null; };
+  const cur=L(s.mi), beat=chordSlotBeat(s);
+  let i=cur.findIndex(x=>x.ci===s.ci && x.q===(s.q|0));
+  const pick=x=>x? {row:x.row, mi:x.mi, vi:x.vi, ci:x.ci, q:x.q} : null;
+  if(unit==='slot'){
+    if(i<0){ i=dir>0? cur.findIndex(x=>x.beat>beat+E)-1 : cur.findIndex(x=>x.beat>=beat-E); if(i<-1) i=cur.length-1; }
+    if(dir>0){ if(i+1<cur.length) return pick(cur[i+1]); const l=near(s.mi+1, 1); return l? pick(l[0]) : null; }
+    if(i>0) return pick(cur[i-1]);
+    const l=near(s.mi-1, -1); return l? pick(l[l.length-1]) : null;
+  }
+  if(unit==='mea'){
+    if(dir>0){ const l=near(s.mi+1, 1); return l? pick(l[0]) : null; }
+    if(cur.length && beat>cur[0].beat+E) return pick(cur[0]);
+    const l=near(s.mi-1, -1); return l? pick(l[0]) : null;
+  }
+  const bl=ckBeatLen(s.mi);
+  if(dir>0){
+    const bd=(Math.floor(beat/bl+E)+1)*bl;
+    const n=cur.find(x=>x.beat>=bd-E); if(n) return pick(n);
+    const l=near(s.mi+1, 1); return l? pick(l[0]) : null;
+  }
+  const k=Math.ceil(beat/bl-E)-1;   /* 严格小于当前拍的最大拍界 k·bl */
+  if(k>=0){ const c2=cur.filter(x=>x.beat<=k*bl+E); if(c2.length) return pick(c2[c2.length-1]); }
+  const l=near(s.mi-1, -1); if(!l) return null;
+  const bl2=ckBeatLen(l[0].mi), on=l.filter(x=>Math.abs(x.beat/bl2-Math.round(x.beat/bl2))<E);
+  return pick(on.length? on[on.length-1] : l[l.length-1]);
+}
+function chordGo(s){
+  sel.row=s.row; sel.mi=s.mi; sel.vi=s.vi; sel.ci=s.ci; sel.q=s.q|0;
+  selRange=null; SEL_FOLLOW=true; render();
+}
+/* ---- 和弦名校验（R3 两外壳同用）：规范化 → 本谱自定义和弦原样 → 无和弦 N.C. → 级数写法 → 别名 → 根音 / 低音在表内且后缀整段可解析 ----
+   v68.9 收尾（H2 / UX-5）：常见记法不再拒写——C6/9→C69、Cm(maj7) / CmMaj7→Cmmaj7、C+7→Caug7、Cadd2 / C2→Cadd9、C4→Csus4、C7alt 原样、N.C. 原样；
+   C♭ F♭ E♯ B♯ 作根音 / 低音也认（KEY_PC 只增）。仍认不出的：返回 {ok:false, soft:true, raw}——调用方第一次就地提示「认不出 X，再按回车照写」，
+   同一个值第二次提交按自由文本照写（v68.8 的口径，只多一次确认），不再整条拒写 */
+const CK_ALIAS={'M7':'maj7','Δ':'maj7','Δ7':'maj7','-':'m','-7':'m7','ø':'m7b5','ø7':'m7b5','°':'dim','o':'dim','°7':'dim7','o7':'dim7','+':'aug','sus':'sus4','7sus':'7sus4','mM7':'mmaj7',
+  'm(maj7)':'mmaj7','m(M7)':'mmaj7','mMaj7':'mmaj7','minmaj7':'mmaj7','m(Δ7)':'mmaj7','+7':'aug7','7+':'aug7','aug7':'aug7','add2':'add9','2':'add9','4':'sus4',
+  'maj':'','M':'','min':'m','mi':'m','min7':'m7','mi7':'m7','m7-5':'m7b5','-7b5':'m7b5','m69':'m6add9','M9':'maj9','Δ9':'maj9','dim(maj7)':'dim7'};
+const CK_SUF_OK=new Set(['alt','7alt']);   /* 爵士记法，按属七发声 / 出图（chordIvOf 认得基础后缀 7），名字原样保留 */
+const CK_NC='N.C.';
+function chordNameCheck(txt){
+  const raw=String(txt==null? '' : txt);
+  let t=raw.replace(/[♯＃]/g, '#').replace(/♭/g, 'b').replace(/／/g, '/').replace(/　/g, ' ').trim();
+  if(!t) return {ok:true, name:''};
+  const cc=(song && song.customChords)||{};
+  if(Object.prototype.hasOwnProperty.call(cc, t)) return {ok:true, name:t};
+  if(/^n\.?\s*c\.?$/i.test(t)) return {ok:true, name:CK_NC};
+  t=t.replace(/^([A-Ga-g][#b]?m?)6\/9/, '$169');   /* C6/9、Cm6/9：斜杠是六九和弦的写法，不是低音 */
+  let n=null;
+  try{ n=degChordName(t); }catch(_){ n=null; }
+  if(!n){
+    const m=/^([a-gA-G])([#b]?)([^/]*?)(?:\/([a-gA-G])([#b]?))?$/.exec(t);
+    if(m){ let suf=m[3]; if(Object.prototype.hasOwnProperty.call(CK_ALIAS, suf)) suf=CK_ALIAS[suf];
+      n=m[1].toUpperCase()+m[2]+suf+(m[4]? '/'+m[4].toUpperCase()+m[5] : ''); }
+    else n=t;
+  }
+  const v=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec(n);
+  if(v && KEY_PC[v[1]]!=null && (v[3]==null || KEY_PC[v[3]]!=null) && (chordIvOf(v[2]||'').exact || CK_SUF_OK.has(v[2]||''))) return {ok:true, name:n};
+  return {ok:false, soft:true, raw:t, err:'认不出 '+raw.trim().slice(0, 8)+'，再按回车照写'};
+}
+/* 认不出的名字：同一个值连按两次提交才照写（自由文本，同 v68.8）；返回 {ok, name} 或 null（本次只提示） */
+let CK_BAD='';
+function ckNameGate(v){
+  const r=chordNameCheck(v);
+  if(r.ok){ CK_BAD=''; return r; }
+  if(r.soft && CK_BAD===r.raw){ CK_BAD=''; return {ok:true, name:r.raw, free:true}; }
+  CK_BAD=r.raw||''; return r;
+}
+/* ---- 写入（新外壳唯一写入口；B 轨 GP「应用」也走这里）：一次 mutate 里 ① 同拍其他行同步（只新外壳）② vox→voxChordSet / tab→tabChordApply ③ o.ce＝GP 应用口径写 / 删 customChords ----
+   v68.9 收尾（H1）同拍规则由「删掉其他行的和弦」改为「其他行同拍已有的和弦改成同一个新名字」：
+   此前吉他弹唱谱在简谱一拍写 Am 会把六线谱同拍的 C 删掉（指法仍是 C 分解、谱面只剩 Am 图）、钢琴弹唱在左手写会清空右手和弦行（生成织体丢和弦）、
+   两把吉他互删。现在其他行一个字也不删：简谱 / 五线谱行改名；六线谱行改名并按新和弦重排该段指法（与在那一行亲手写入同口径） */
+function ckSyncPlan(slot, b, nm){
+  const m=song.measures[slot.mi], out=[]; if(!m) return out;
+  const mU=meaMeter(slot.mi).unit, E=1e-4;
+  const scan=(rowK, arr)=>(arr||[]).forEach((cols, vi)=>{ let x=0;
+    (cols||[]).forEach((c, ci)=>{
+      const self=q=>rowK===slot.row && vi===slot.vi && ci===slot.ci && q===(slot.q|0);
+      if(c.chord && c.chord!==nm && Math.abs(x-b)<E && !self(0)) out.push({row:rowK, vi, ci, q:0, oldEff: rowK==='tab'? chordAtCol(slot.mi, vi, ci) : null});
+      if(rowK==='vox') (c.chords||[]).forEach(y=>{ if(y && y.chord && y.chord!==nm && y.q>0 && Math.abs(x+y.q*mU/4-b)<E && !self(y.q)) out.push({row:'vox', vi, ci, q:y.q}); });
+      x+=beatsOf(c, mU);
+    }); });
+  scan('vox', m.voxes); scan('tab', m.tabs);
+  return out;
+}
+function ckSyncApply(mi, plan, nm){
+  plan.forEach(p=>{
+    if(p.row==='tab') tabChordApply(mi, p.vi, p.ci, nm, null, p.oldEff);
+    else { const c=((song.measures[mi].voxes||[])[p.vi]||[])[p.ci]; if(c) voxChordSet(c, nm, p.q); }
+  });
+}
+function chordWriteAt(slot, name, o){
+  o=o||{};
+  const nm=String(name==null? '' : name).trim();
+  const col=ckColsOf(slot.row, slot.vi, slot.mi)[slot.ci];
+  if(!col) return {ok:false, slot};
+  const isTab=slot.row==='tab';
+  /* v68.9 收尾（TAB-2）「写入前这一列生效的和弦」（本列自己的或本小节此前最后一个，含简谱锚定的）——此前取 chordBefore＝本小节第一个和弦，
+     连续标注 C␣G␣C␣G 第 3 个 C 不重排、分解小节 Am→G 低音认错 */
+  const oldEff = isTab? chordAtCol(slot.mi, slot.vi, slot.ci) : null;
+  const ded = ckOn() && !!nm;
+  const plan = ded? ckSyncPlan(slot, chordSlotBeat(slot), nm) : [];
+  let r={remapped:false};
+  mutate(()=>{
+    if(plan.length) ckSyncApply(slot.mi, plan, nm);
+    if(isTab){
+      if(o.ce){   /* 原 #ce-ok 口径：所选指法与默认指法不同 → 存进随谱指法表；选回默认指法则清除覆盖（v68.9 收尾 TAB-8：默认＝引擎默认 chordShapeStd，不只看库图） */
+        const std=chordShapeStd(nm);
+        if(o.shape && o.shape!==std){ if(!song.customChords) song.customChords={}; song.customChords[nm]=o.shape; }
+        else if(song.customChords) delete song.customChords[nm];
+      }
+      r=tabChordApply(slot.mi, slot.vi, slot.ci, nm, o.shape||null, oldEff);
+    } else voxChordSet(col, nm, slot.q|0);
+  });
+  if(nm && (!isTab || ckOn())){   /* 最近使用：简谱写入两外壳照旧；六线谱写入只新外壳记（规格 §3.6） */
+    song.chordRecent=[nm, ...(song.chordRecent||[]).filter(x=>x!==nm)].slice(0, 8);
+    persist();
+  }
+  if(isTab && nm && CK.open && CK.kind==='tab') CK.wroteTab=nm;
+  if(!o.quiet){
+    if(!isTab) toast(nm? '已标注 '+nm+'（级数 '+chordDegree(nm)+'）' : '已清除和弦标注');   /* 同 setVoxChord 非静默口径 */
+    else if(!nm) toast('已清除这一处的和弦');
+    else if(r.remapped && oldEff && nm!==oldEff) toast('已按 '+nm+' 指法适配本小节分解/扫弦音');
+  }
+  return {ok:true, slot, remapped:r.remapped, synced:plan.length};
+}
+/* ---- 乐理：调内功能条（T/S/D、正副三和弦、副属、常见借用）——只复用 CHORD_CANDS / CHORD_CANDS_MIN / CHORD_SECDOM，不另造规则 ---- */
+const CK_FN_EXTRA={7:'D'};   /* vii° 不在候选表里：只是标签，不参与打分 */
+const CK_FNCN={T:'主', S:'下属', D:'属', t:'主', s:'下属', d:'属'};
+function ckLab(name, key){ return String(chordDegree(name, key)||name).replace(/^([#b]?[1-7])7$/, '$1⁷'); }
+/* 小调功能字母（只影响显示）：教材「t s D」——主 / 下属小写；和声小调属大写 D；自然小调属 v 与下主 VII 记 d（v68.9 收尾 H9：VII 归属组，斯波索宾功能组 / Riemann dP） */
+function ckFl(c, minor){ return !minor? c.fn : (c.id==='V' || c.id==='V7')? 'D' : (c.id==='v' || c.id==='VII')? 'd' : c.fn.toLowerCase(); }
+/* v68.9 收尾（TAB-11）这一处的指法调：六线谱轨有本轨夹位时＝整谱调 + 整谱夹位 − 本轨夹位（同简谱联排行口径）；其余＝song.key */
+function ckKeyOf(slot){
+  try{
+    if(slot && slot.row==='tab' && (song.tabVoices||[]).length){
+      const off=(song.capo|0)-capoOf(slot.vi|0);
+      if(off) return KEY_LIST[(((KEY_PC[song.key]||0)+off)%12+12)%12];
+    }
+  }catch(_){}
+  return song.key;
+}
+function chordKeyChords(mv, key){
+  key=key||song.key;
+  const minor=detectMinorMode(song, mv==null? 0 : mv);
+  const out=[];
+  const put=(name, fn, kind, pri, extra)=>out.push(Object.assign({name, deg:chordDegree(name, key), lab:ckLab(name, key), fn, kind, pri:!!pri, tip:name+' · '+CK_FNCN[fn]}, extra||{}));
+  if(!minor){
+    const C=CHORD_CANDS, by=id=>C.find(x=>x.id===id);
+    ['I','ii','iii','IV','V','V7','vi'].forEach(id=>{ const c=by(id); put(chordCandName(c, key), c.fn, 'in', ['I','IV','V','V7'].includes(id)); });
+    put(degSpell(key, 7, 0)+'dim', CK_FN_EXTRA[7], 'in', false);
+    CHORD_SECDOM.forEach(sd=>{
+      const name=degSpell(key, sd.root, 0)+'7', to=chordCandName(by(sd.tgt[0]), key);
+      put(name, 'D', 'sec', false, {lab:sd.root+'⁷→'+chordDegree(to, key), to, tip:(sd.root===2? '重属 '+name : '副属 '+name+'→'+to)});
+    });
+    /* v68.9 收尾（H11）借用和弦按级数字母拼（1=E♭ 的 ♭6＝C♭，此前 PC_FLAT 写 B、谱面级数 ♯5） */
+    [[7, '♭7', 'S'], [6, '♭6', 'S'], [3, '♭3', 'T']].forEach(([dn, lab, fn])=>{ const name=degSpell(key, dn, -1); put(name, fn, 'bor', false, {lab, tip:'借用 '+lab+' · '+name}); });
+    { const name=degSpell(key, 4, 0)+'m'; put(name, 'S', 'bor', false, {lab:'4m', tip:'借用 4m · '+name}); }
+  } else {
+    const C=CHORD_CANDS_MIN, by=id=>C.find(x=>x.id===id);
+    ['i','iv','V','V7','v','VI','VII','III','ii0'].forEach(id=>{ const c=by(id), nm=chordCandName(c, key), fl=ckFl(c, true);
+      put(nm, fl, 'in', ['i','iv','V'].includes(id), (id==='V' || id==='V7')? {xg:true} : id==='VII'? {tip:nm+' · 下主（属组）'} : null); });
+    /* v68.9 收尾（H9）小调调外行补常用离调 / 借用（此前只有和声小调属，大调有 8 个）：V/iv、重属、皮卡第三、那不勒斯、多利亚 IV（写作调号下的级数：主音在 6） */
+    const iv=degSpell(key, 2, 0)+'m', V=degSpell(key, 3, 0), I=degSpell(key, 6, 0);
+    { const nm=degSpell(key, 6, 0)+'7'; put(nm, 'D', 'sec', false, {lab:'6⁷→'+chordDegree(iv, key), to:iv, tip:'副属 '+nm+'→'+iv}); }
+    { const nm=degSpell(key, 7, 0)+'7'; put(nm, 'D', 'sec', false, {lab:'7⁷→'+chordDegree(V, key), to:V, tip:'重属 '+nm+'→'+V}); }
+    put(I, 't', 'bor', false, {tip:'皮卡第三 '+I});
+    { const nm=degSpell(key, 7, -1); put(nm, 's', 'bor', false, {tip:'那不勒斯 '+nm}); }
+    { const nm=degSpell(key, 2, 0); put(nm, 's', 'bor', false, {tip:'多利亚 '+nm}); }
+  }
+  return out;
+}
+function chordCandOf(name, CAND, key){
+  if(!name || !CAND) return -1;
+  const i=CAND.findIndex(c=>chordCandName(c, key)===name); if(i>=0) return i;
+  const t=chordTones(name); if(!t) return -1;
+  const m3=t.iv[3]===3, kp=KEY_PC[key]||0;
+  const hits=[]; CAND.forEach((c, j)=>{ const pc=((kp+DEG_SEMI[c.deg])%12+12)%12; if(pc===t.pc && (c.m || /dim/.test(c.suf||''))===m3) hits.push(j); });
+  if(!hits.length) return -1;
+  const n7=hits.find(j=>!/7/.test(CAND[j].suf||'')); return n7!=null? n7 : hits[0];
+}
+function chordPrevAt(slot){
+  const b=chordSlotBeat(slot);
+  const es=chordEvtsMea(slot.mi).filter(e=>e.beat<b-1e-6);
+  return es.length? es[es.length-1].chord : chordPrior(slot.mi, slot.vi);
+}
+function ckMelVoice(slot){
+  let mv=[]; try{ mv=lbMelVoices(song)||[]; }catch(_){ mv=[]; }
+  if(slot && slot.row==='vox' && mv.indexOf(slot.vi)>=0) return slot.vi;
+  if(mv.length) return mv[0];
+  return (slot && slot.row==='vox')? slot.vi : null;
+}
+let CK_SOLVE=null;   /* chordSolve 缓存：(song 引用, 旋律指纹, 调 / 调式, 旋律轨) 不变就复用 */
+/* v68.9 收尾（UX-14）缓存键改成旋律内容指纹（音级 / 变音 / 八度 / 时值 / 和音 + 拍号）：写和弦不改旋律，连续标注每步不再整首重算（此前键里有撤销栈长度，每写一笔就失效） */
+function ckMelSig(mv){
+  let o=''; (song.measures||[]).forEach(m=>{ o+='|'+(m.beats||'')+'/'+(m.unit||'')+':';
+    (((m.voxes||[])[mv])||[]).forEach(c=>{ if(!c) return; o+=(c.deg|0)+(c.acc||'')+(c.oct|0)+'.'+c.dur+(c.dotted? 'd' : '')+(c.tie? 't' : '')+((c.adds||[]).map(a=>a? a.deg+(a.acc||'') : '').join('+'))+','; }); });
+  return o;
+}
+function ckSolve(mv){
+  const key=[song, ckMelSig(mv), song.key, song.mode||'', song.beats, song.unit, mv];
+  if(CK_SOLVE && CK_SOLVE.k.length===key.length && CK_SOLVE.k.every((x, i)=>x===key[i])) return CK_SOLVE.r;
+  const p0=PROG_LAST; let r=null;
+  try{ r=chordSolve(song, mv); }catch(e){ console.error('和弦建议：chordSolve 异常', e); r=null; }
+  PROG_LAST=p0;   /* 只读：不改配和弦工作台用的「上一次乐句切分」 */
+  CK_SOLVE={k:key, r}; return r;
+}
+/* 下一和弦建议：只复用配和弦引擎的打分——发射分（整小节＝R.emit，同 chordLabCands；半小节＝chordRangeScore）+ 转移分（chordTrans）
+   v68.9 收尾：
+   · H7 没有旋律声部时也按调式判小调（song.mode / detectMinorMode）——此前纯六线谱小调走大调口径，功能字母与级数行大小写不一；
+   · H8 上一和弦不在候选表里（副属 / 借用 / 减和弦）：副属先推它的解决目标、借用按功能类、vii° / ø 归属功能——此前建议行直接不出或三颗 0 分；
+     旋律里有变化音（♯4 等）时副属和弦（D7）进候选（与一键配和弦同一张 CHORD_SECDOM、同样只在旋律显含导音时出现），与之冲突的自然音和弦扣分；
+   · H13 同根同性质只留一个（G / G7）、不推荐与上一和弦相同的；小调里有具体对值（MIN_TW）时泛化功能值打七折，不再盖过它；
+   · 没有任何依据（无旋律分、无转移分）时不出建议 */
+function ckTransS(CAND, k, j, minor){
+  if(!minor) return chordTrans(CAND, k, j, false);
+  if(CAND[k].id===CAND[j].id) return 0.35;
+  const pair=CAND[k].id+'>'+CAND[j].id, fp=CAND[k].fn+'>'+CAND[j].fn;
+  return MIN_TW[pair] ?? ((MIN_FN[fp] ?? 0)*0.7);
+}
+/* 上一和弦不在候选表里时的去向：{sec:[目标候选下标], fn:功能类} */
+function ckPrevClass(name, CAND, key, minor){
+  const t=chordTones(name); if(!t) return null;
+  const kp=KEY_PC[key]||0, rel=((t.pc-kp)%12+12)%12, maj3=t.iv[3]===4, m3=t.iv[3]===3, b5=t.iv[5]===6;
+  const idx=id=>CAND.findIndex(c=>c.id===id);
+  if(!minor){
+    for(const sd of CHORD_SECDOM){ if(rel===DEG_SEMI[sd.root] && maj3) return {sec:sd.tgt.map(idx).filter(i=>i>=0), fn:'D'}; }
+    if(rel===11 && (b5 || m3)) return {fn:'D'};                      // vii° / viiø
+    if(rel===10 && maj3) return {fn:'S'};                            // ♭VII
+    if(rel===8 && maj3) return {fn:'S'};                             // ♭VI
+    if(rel===3 && maj3) return {fn:'T'};                             // ♭III
+    if(rel===5 && m3) return {fn:'S'};                               // iv
+    return null;
+  }
+  if(rel===9 && maj3 && t.iv[7]===10) return {sec:[idx('iv')].filter(i=>i>=0), fn:'D'};   // V/iv（A7→Dm）
+  if(rel===11 && maj3) return {sec:[idx('V'), idx('V7')].filter(i=>i>=0), fn:'D'};   // 重属（B7→E）
+  if(rel===10 && maj3) return {fn:'S'};                            // 那不勒斯 ♭II
+  if(rel===2 && maj3) return {fn:'S'};                             // 多利亚 IV
+  if(rel===9 && maj3) return {fn:'T'};                            // 皮卡第三
+  return null;
+}
+function chordNextRank(slot, n){
+  n=n||3;
+  const key=ckKeyOf(slot);
+  const mv=ckMelVoice(slot), R=mv!=null? ckSolve(mv) : null;
+  const minor=R? R.minor : detectMinorMode(song, mv==null? 0 : mv);
+  const CAND=R? R.CAND : (minor? CHORD_CANDS_MIN : CHORD_CANDS);
+  const mi=slot.mi, mm=meaMeter(mi), mU=mm.unit, span=mm.beats;
+  const lo=chordSlotBeat(slot);
+  const nx=chordEvtsMea(mi).map(e=>e.beat).filter(b=>b>lo+1e-6).sort((a, b)=>a-b);
+  const hi=nx.length? nx[0] : span;
+  const whole=Math.abs(lo)<1e-6 && Math.abs(hi-span)<1e-6;
+  const cols=mv!=null? ((((song.measures[mi]||{}).voxes)||[])[mv]||[]) : [];
+  const prev=chordPrevAt(slot);
+  const k=chordCandOf(prev, CAND, key);
+  const pc=k<0 && prev? ckPrevClass(prev, CAND, key, minor) : null;
+  /* 本段旋律里的变化音（取 #/b 的级数）——与之冲突的自然音（同级还原）在候选和弦里时扣分 */
+  const lo0=lo*song.unit/mU, hi0=hi*song.unit/mU, chrom=[];
+  { let cum=0; cols.forEach(col=>{ const b=beatsOf(col);
+      if(cum>=lo0-1e-6 && cum<hi0-1e-6 && col.deg && col.acc) chrom.push({deg:col.deg, acc:col.acc, w:b*(Math.abs(cum-Math.round(cum))<1e-4? 1.5 : 1)});
+      cum+=b; }); }
+  const trOf=j=>{
+    if(k>=0) return ckTransS(CAND, k, j, minor);
+    if(!pc) return 0;
+    if(pc.sec && pc.sec.length) return pc.sec.includes(j)? 0.9 : 0;
+    const fp=pc.fn+'>'+CAND[j].fn;
+    return minor? ((MIN_FN[fp] ?? 0)*0.7) : (CHORD_TW[fp] ?? 0);
+  };
+  const list=CAND.map((c, j)=>{
+    let em = (mv==null || !R)? 0 : whole? ((((R.emit||[])[mi])||[])[j]||0) : chordRangeScore(c, cols, lo0, hi0);
+    chrom.forEach(x=>{ if(c.tones.includes(x.deg) || c.sev===x.deg) em-=0.8*x.w; });
+    const tr=trOf(j);
+    return {name:chordCandName(c, key), fn:c.fn, id:c.id, score:em+tr, has:(em!==0 || tr!==0), j, fl:ckFl(c, minor), m:!!c.m};
+  });
+  /* 副属（只大调，同一键配和弦）：旋律在本段显含它的导音才进候选 */
+  if(!minor) CHORD_SECDOM.forEach((sd, si)=>{
+    const ev=chrom.filter(x=>x.deg===sd.ld && x.acc===sd.acc); if(!ev.length) return;
+    const nm=degSpell(key, sd.root, 0)+'7', tt=chordTones(nm); if(!tt) return;
+    const kp=KEY_PC[key]||0, pcs=new Set(Object.values(tt.iv).map(v=>(tt.pc+v)%12));
+    let em=0, cum=0;
+    cols.forEach(col=>{ const b=beatsOf(col);
+      if(cum>=lo0-1e-6 && cum<hi0-1e-6 && col.deg){ const p2=((kp+DEG_SEMI[col.deg]+(col.acc==='#'? 1 : col.acc==='b'? -1 : 0))%12+12)%12;
+        const w=b*(Math.abs(cum-Math.round(cum))<1e-4? 1.5 : 1); if(pcs.has(p2)) em+=w*(p2===tt.pc? 1.25 : 1); }
+      cum+=b; });
+    const tr = k>=0? (CHORD_TW[CAND[k].fn+'>D'] ?? 0) : 0;
+    list.push({name:nm, fn:'D', id:'sec'+si, score:em+0.8+tr, has:true, j:100+si, fl:'D', m:false});
+  });
+  if(!list.some(x=>x.has)) return [];
+  list.sort((a, b)=>(b.score-a.score) || (a.j-b.j));
+  const seen=new Set(), out=[];
+  for(const x of list){
+    if(x.name===prev) continue;
+    const t=chordTones(x.name), kk=t? t.pc+(t.iv[3]===3? 'm' : 'M') : x.name;
+    if(seen.has(kk)) continue; seen.add(kk);
+    out.push({name:x.name, fn:x.fn, id:x.id, score:x.score, fl:x.fl});
+    if(out.length>=n) break;
+  }
+  return out;
+}
+function chordUsedList(cap){
+  cap=cap||10;
+  const seen=new Set(), out=[], add=n=>{ if(n && !seen.has(n)){ seen.add(n); out.push(n); } };
+  (song.chordRecent||[]).forEach(add);
+  for(let mi=0; mi<(song.measures||[]).length && out.length<cap; mi++) chordEvtsMea(mi).forEach(e=>add(e.chord));
+  /* v68.9 收尾（H12）自定义和弦只列自己命名的（「我的C」这类）——标准名的覆盖指法换调后不再用到，不该顶在常用行 */
+  Object.keys(song.customChords||{}).forEach(n=>{ if(!parseChordName(n)) add(n); });
+  return out.slice(0, cap);
+}
+/* 试听：不进撤销、不改 song。六线谱行或谱里有吉他轨＝按指法钢弦琶音（auditionShape），否则钢琴（chordLabAudition） */
+function chordHear(name, shape){
+  try{
+    if(sel.row==='tab' || (song.tabVoices||[]).length){ const sh=shape || (name? chordShape(name) : null); if(sh) return auditionShape(sh); }
+    if(name) return chordLabAudition(name);
+  }catch(e){ console.error('和弦试听异常', e); }
+}
+function ckHearOn(){ try{ return localStorage.getItem('musetab-chordhear')!=='0'; }catch(_){ return true; } }
+function ckHearSet(on){ try{ localStorage.setItem('musetab-chordhear', on? '1' : '0'); }catch(_){} }
+function ckDisp(n, key){ return song.funcNames? n : chordDegree(n, key); }
+function ckLocText(s){
+  const b=chordSlotBeat(s), bl=ckBeatLen(s.mi), x=b/bl+1;
+  const t=Math.abs(x-Math.round(x))<1e-4? String(Math.round(x)) : String(Math.round(x*100)/100);
+  return '第'+(s.mi+1)+'小节·'+t+'拍';
+}
+function ckVoxAny(){ return (song.measures||[]).some(m=>(m.voxes||[]).some(cs=>(cs||[]).some(c=>c && (c.chord || (c.chords && c.chords.length))))); }
+/* 对方行同一拍（⇄ 互跳）：拍位完全相等 → 拍位 ≤ b 的最后一个列头 → 没有就 null（按钮不出） */
+function ckSwapTarget(s){
+  if(!s) return null;
+  const b=chordSlotBeat(s), toRow=s.row==='vox'? 'tab' : 'vox';
+  let vi;
+  if(toRow==='tab'){ if(!(song.tabVoices||[]).length) return null; vi=0; }
+  else { let mv=[]; try{ mv=lbMelVoices(song)||[]; }catch(_){} if(!mv.length) return null; vi=mv[0]; }
+  const L=chordSlots(toRow, vi, s.mi); if(!L.length) return null;
+  let t=L.find(x=>Math.abs(x.beat-b)<1e-4);
+  if(!t){ const hd=L.filter(x=>!x.q && x.beat<=b+1e-4); t=hd[hd.length-1]; }
+  return t? {row:toRow, mi:s.mi, vi, ci:t.ci, q:t.q} : null;
+}
+/* ---- 会话 ---- */
+function ckBegin(kind, slot, keep){
+  /* v68.9 收尾（UX-2）连续标注重开：同一种面板就沿用会话（构建器重开前 showVoxChordMenu 先 ckEnd 了，open 已是 false——此前因此每步新开会话、丢了位置与方向） */
+  if(keep && CK.kind===kind){ CK.open=true; CK.slot=slot; CK.orig=chordSlotName(slot); CK.committing=false; return; }
+  CK={open:true, kind, slot, orig:chordSlotName(slot), src:CK.nextSrc||'', wroteTab:null, committing:false};
+}
+/* 面板关闭：本次会话写过六线谱和弦就弹一次节奏型建议（与旧 Enter 路径一致；连续标注中途不弹，免得谱面跳动） */
+function ckEnd(quiet){
+  const w=CK.wroteTab;
+  CK.open=false; CK.committing=false; CK.wroteTab=null;
+  if(!quiet && w) try{ if(chordShape(w)) showChordSuggest(w); }catch(_){}
+}
+/* 点框外关掉了、输入框里的字没提交：提示「和弦未写入」，合法的给「写入」动作（写到原来那一处） */
+function ckUnsaved(){
+  const pm=document.getElementById('popmenu'), inp=pm && pm.querySelector('#ck-in');
+  const slot=CK.slot, orig=String(CK.orig||'').trim();
+  CK.open=false;
+  if(!inp || !slot) return;
+  const v=inp.value; if(v.trim()===orig) return;
+  const r=chordNameCheck(v);
+  if(r.ok && r.name===chordSlotName(slot)) return;
+  toastSay('和弦未写入', {t:'和弦未写入', k:'limit', act: r.ok? {t:'写入', k:'ckw', run:()=>chordWriteAt(slot, r.name)} : null});
+}
+function ckFocusIn(root, val){
+  const i=(root||document).querySelector('#ck-in'); if(!i) return;
+  if(val!=null) i.value=val;
+  if(ckTouch()) return;   /* 手机 / 触屏：不自动聚焦（会顶起软键盘盖住面板） */
+  try{ i.focus({preventScroll:true}); i.select(); }catch(_){}
+}
+function ckErr(root, msg){
+  const i=(root||document).querySelector('#ck-in'), e=(root||document).querySelector('#ck-err');
+  if(i){ i.setAttribute('aria-invalid', 'true'); i.classList.add('ck-bad'); try{ i.focus({preventScroll:true}); }catch(_){} }
+  if(e){ e.textContent=msg; e.hidden=false; e.classList.remove('ck-note'); }
+}
+function ckErrClear(root){
+  const i=(root||document).querySelector('#ck-in'), e=(root||document).querySelector('#ck-err');
+  if(i && i.classList.contains('ck-bad')){ i.removeAttribute('aria-invalid'); i.classList.remove('ck-bad'); }
+  if(e && !e.hidden){ e.hidden=true; e.textContent=''; e.classList.remove('ck-note'); }
+}
+/* ---- CK 面板头（两个引擎共用；B 轨 GP 在 renderChordEditor 里调 ckHeadHTML(host) + ckWire(.modal, host)）----
+   host = {kind:'vox'|'tab', slot, pick(name), commit(name, o)→boolean, reopen(slot), close(), refresh?(), midHTML?()} */
+function ckTopHTML(host){
+  const s=host.slot, isV=host.kind==='vox', hear=ckHearOn(), cur=chordSlotName(s), E=esc, key=ckKeyOf(s);
+  /* v68.9 收尾：H14 头部带调名（1=E；逐轨夹位的六线谱轨显示本轨指法调）；UX-11 位置读数 aria-live（连续标注换拍读屏会报）；
+     UX-12 和弦图三钮前加 ▦、与文字页同叫「不显示」，GP 里的 ⇄ 叫「⇄旋律」（不再与写法切换、级数行三处同名） */
+  let h='<div class="ck-top pm-drag">'
+    +'<span id="ck-loc" aria-live="polite">'+E(ckLocText(s))+'</span>'
+    +'<span id="ck-key" title="'+(key!==song.key? '本轨夹 '+capoOf(s.vi|0)+' 品' : '调')+'">1='+E(key)+'</span>'
+    +'<button type="button" class="ck-ib" data-ckstep="-1" title="上一拍（⇧空格）" aria-label="上一拍">‹</button>'
+    +'<button type="button" class="ck-ib" data-ckstep="1" title="下一拍（空格）" aria-label="下一拍">›</button>'
+    +'<button type="button" class="ck-ib" id="ck-hear" aria-pressed="'+hear+'" title="悬停试听" aria-label="悬停试听">♪</button>'
+    +'<span class="ck-grow"></span>';
+  if(isV || song.func || ckVoxAny()) h+='<button type="button" id="vc-names" class="ck-seg" title="谱面写法" aria-label="谱面写法：'+(song.funcNames? '音名' : '级数')+'">'
+    +'<span'+(song.funcNames? '' : ' class="on"')+'>级数</span><span'+(song.funcNames? ' class="on"' : '')+'>音名</span></button>';
+  if(ckSwapTarget(s)) h+='<button type="button" id="ck-swap" title="'+(isV? '改用指法编辑' : '改用级数构建')+'">⇄'+(isV? '指法' : '旋律')+'</button>';
+  if((song.tabVoices||[]).length){ let dp='inline'; try{ dp=diagMode; }catch(_){}
+    h+='<span id="ck-diag" class="ck-seg2" role="group" aria-label="和弦图"><i class="ck-dg" aria-hidden="true">▦</i>'+[['inline','随行'],['top','曲首'],['off','不显示']].map(([v, l])=>
+      '<button type="button" data-ckd="'+v+'" class="'+(dp===v? 'on' : '')+'" aria-pressed="'+(dp===v)+'" title="和弦图'+l+'">'+l+'</button>').join('')+'</span>'; }
+  h+='<span class="ck-grip" title="拖动" aria-hidden="true">⠿</span>'
+    +'<button type="button" class="ck-ib ck-x" title="关闭（Esc）" aria-label="关闭">×</button></div>'
+    +'<div class="ck-inrow"><input id="ck-in" list="chord-list" autocomplete="off" spellcheck="false" placeholder="Am7 · 6m · G/B" aria-label="和弦" aria-keyshortcuts="ArrowDown" value="'+E(cur)+'">'
+    +(isV? '<button type="button" id="vc-ok" class="primary">应用</button>' : '')+'</div>'
+    +'<div id="ck-err" role="alert" hidden></div>';
+  return h;
+}
+/* v68.9 收尾（UX-11）芯片读屏名＝可见文字 + 和弦名 + 功能（「1，C，主」），可见名与读屏名一致（WCAG 2.5.3） */
+function ckChip(attr, it, vis, cur){
+  const al=[vis].concat(vis!==it.name? [it.name] : []).concat(it.fn? [CK_FNCN[it.fn]] : []).join('，');
+  return '<button type="button" class="ck-chip'+(it.name===cur? ' on' : '')+'" '+attr+'="'+esc(it.name)+'"'
+    +(it.fn? ' data-fn="'+it.fn+'" data-pri="'+(it.pri? 1 : 0)+'"' : '')+' title="'+esc(it.tip||it.name)+'" aria-label="'+esc(al)+'">'+esc(vis)
+    +(it.fn? '<i class="ck-fl" aria-hidden="true">'+it.fn+'</i>' : '')+'</button>';
+}
+function ckRowsHTML(host){
+  const s=host.slot, isV=host.kind==='vox', cur=chordSlotName(s), mv=ckMelVoice(s), key=ckKeyOf(s);
+  let kc=[]; try{ kc=chordKeyChords(mv, key); }catch(e){ console.error(e); }
+  /* v68.9 收尾（UX-11）每行是一个读屏分组（行标题作组名） */
+  const row=(id, t, inner)=>'<div class="ck-row" role="group" aria-labelledby="'+id+'-t"'+(id? ' id="'+id+'"' : '')+'><span class="ck-rt" id="'+id+'-t">'+t+'</span>'+inner+'</div>';
+  const lab=it=>song.funcNames? it.name : it.lab;
+  let h='';
+  if(!isV){ const ins=kc.filter(x=>x.kind==='in'); if(ins.length) h+=row('ck-kin', '级数', ins.map(it=>ckChip('data-ckk', it, lab(it), cur)).join('')); }
+  /* v68.9 收尾（H9）小调的和声小调属（V / V7）在构建器里单列「和声」行（它是小调调内核心和弦，不叫「调外」）；GP 照旧在级数行 */
+  const hm=isV? kc.filter(x=>x.kind==='in' && x.xg) : [];
+  if(hm.length) h+=row('ck-hm', '和声', hm.map(it=>ckChip('data-ckx', it, lab(it), cur)).join(''));
+  const outs=kc.filter(x=>x.kind!=='in');
+  if(outs.length) h+=row('ck-out', '调外', outs.map(it=>ckChip('data-ckx', it, lab(it), cur)).join(''));
+  let sug=[]; try{ sug=chordNextRank(s, 3); }catch(e){ console.error(e); }
+  if(sug.length) h+=row('ck-sug', '建议', sug.map(x=>ckChip('data-ckn', {name:x.name, fn:x.fl, pri:true, tip:x.name+' · '+CK_FNCN[x.fl]}, ckDisp(x.name, key), cur)).join(''));
+  const used=chordUsedList(10);
+  if(used.length) h+=row('ck-used', '常用', used.map(n=>ckChip('data-ckn', {name:n, tip:song.funcNames? chordDegree(n, key) : n}, ckDisp(n, key), cur)).join(''));
+  return h;
+}
+function ckHeadHTML(host){ return ckTopHTML(host)+(host.midHTML? host.midHTML() : '')+ckRowsHTML(host); }
+/* 面板头的交互（事件委托挂在面板根上：构建器整块重绘 innerHTML、GP 每次 rerender 重建 .modal，都不掉）。
+   键位（#ck-in）：Enter 提交并关 · Esc 关 · 空格 / ⇧空格 下一拍 / 上一拍 · Tab / ⇧Tab 下一小节 / 本小节首或上一小节 ·
+   → / ← 插入点在末尾 / 开头时下一个 / 上一个位置（含增时线拍位）· Ctrl+K 全选（不重开）；输入法组字时一律不处理 */
+function ckMove(h, unit, dir){
+  const root=h.root||document, inp=root.querySelector('#ck-in'), v=inp? inp.value : chordSlotName(h.slot);
+  const nx=chordStep(h.slot, unit, dir);
+  /* v68.9 收尾（UX-6）谱头 / 谱尾：提示同时写进面板（底部提示条被面板盖住看不见） */
+  if(!nx){ if(h.commit(v, {move:true})===false) return;
+    const w=dir>0? '已到最后' : '已到开头'; toastSay(w, {t:w, k:'limit'}); ckFocusIn(h.root||document, chordSlotName(h.slot)); ckNote(h.root||document, w); return; }
+  /* v68.9 收尾（UX-14）先把光标挪到下一处、再提交：写入那一次重画就带上新光标，不再「写入重画一次 + chordGo 再重画一次」（200 小节每步省一次整谱重画）；
+     提交被拒（认不出）时光标退回原处、不重画 */
+  const old={row:sel.row, mi:sel.mi, vi:sel.vi, ci:sel.ci, q:sel.q, sr:selRange};
+  sel.row=nx.row; sel.mi=nx.mi; sel.vi=nx.vi; sel.ci=nx.ci; sel.q=nx.q|0; selRange=null; SEL_FOLLOW=true;
+  const u0=undoStack.length;
+  if(h.commit(v, {move:true})===false){ sel.row=old.row; sel.mi=old.mi; sel.vi=old.vi; sel.ci=old.ci; sel.q=old.q; selRange=old.sr; SEL_FOLLOW=false; return; }
+  if(undoStack.length===u0) render();   /* 这一步没写（值没改）：光标移动照常重画 */
+  if(CK.open){ CK.slot=nx; CK.orig=chordSlotName(nx); CK.dir=dir; }
+  h.reopen(nx);
+}
+function ckNote(root, msg){
+  const e=(root||document).querySelector('#ck-err'); if(!e) return;
+  e.textContent=msg; e.hidden=false; e.classList.add('ck-note');
+}
+function ckSwap(h){
+  const root=h.root||document, inp=root.querySelector('#ck-in');
+  if(h.commit(inp? inp.value : chordSlotName(h.slot), {move:true})===false) return;
+  const t=ckSwapTarget(h.slot); if(!t) return;
+  h.close(true);
+  chordGo(t);
+  chordOpen({src:'swap'});
+}
+/* 指针真的动过（坐标变了）的时刻：悬停试听只认这之后的悬停（UX-13） */
+var CK_MOVE={x:-1, y:-1, t:0};
+try{ addEventListener('pointermove', e=>{ if(e.clientX!==CK_MOVE.x || e.clientY!==CK_MOVE.y){ CK_MOVE={x:e.clientX, y:e.clientY, t:performance.now()}; } }, true); }catch(_){}
+function ckFocusables(root){
+  return [...root.querySelectorAll('.ck-row button, .vc-grid button, #ce-pos .pat-card, .ce-sec button, .vc-prev button')].filter(e=>!e.disabled && e.getClientRects().length);
+}
+function ckRove(root, el, key){
+  const L=[...root.querySelectorAll('button')].filter(e=>!e.disabled && e.getClientRects().length && !e.closest('.ck-top'));
+  const i=L.indexOf(el); if(i<0) return null;
+  if(key==='ArrowRight') return L[i+1]||null;
+  if(key==='ArrowLeft') return L[i-1]||null;
+  const r=el.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, dn=key==='ArrowDown';
+  let best=null, bd=1e9;
+  L.forEach(e=>{ if(e===el) return; const q=e.getBoundingClientRect(), y=q.top+q.height/2, x=q.left+q.width/2;
+    const dy=dn? y-cy : cy-y; if(dy<=4) return; const d=dy*3+Math.abs(x-cx); if(d<bd){ bd=d; best=e; } });
+  return best;
+}
+function ckWire(root, host){
+  if(!root) return;
+  host.root=root; root.__ckHost=host; root.__openT=performance.now();
+  if(root.__ckWired) return;
+  root.__ckWired=true;
+  const H=()=>root.__ckHost;
+  const CHIP='[data-ckn],[data-ckx],[data-ckk]';
+  const nameOf=el=>el.dataset.ckn||el.dataset.ckx||el.dataset.ckk||'';
+  root.addEventListener('keydown', ev=>{
+    const h=H(); if(!h) return;
+    if((ev.ctrlKey || ev.metaKey) && !ev.altKey && (ev.key||'').toLowerCase()==='k'){ ev.preventDefault(); ev.stopPropagation(); ckFocusIn(root); return; }
+    const t=ev.target;
+    if(!t || t.id!=='ck-in'){
+      /* v68.9 收尾（UX-4）面板主体：Esc 先回输入框（再按一次才关）；按钮上用方向键在面板里走（←→ 前后、↑↓ 上下一行最近的） */
+      if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); const i=root.querySelector('#ck-in'); if(i) try{ i.focus({preventScroll:true}); i.select(); }catch(_){} else h.close(); return; }
+      if(t && t.tagName==='BUTTON' && /^Arrow(Left|Right|Up|Down)$/.test(ev.key) && !ev.altKey && !ev.ctrlKey && !ev.metaKey){
+        const nx=ckRove(root, t, ev.key); if(nx){ ev.preventDefault(); ev.stopPropagation(); try{ nx.focus({preventScroll:false}); }catch(_){} } }
+      return;
+    }
+    if(ev.isComposing || ev.keyCode===229) return;
+    if(ev.key==='Enter'){ ev.preventDefault(); ev.stopPropagation(); if(h.commit(t.value, {enter:true})!==false) h.close(); return; }
+    /* v68.9 收尾（UX-7）键入了没提交就按 Esc：照常关闭，但提示「和弦未写入」并给「写入」（同点框外口径，不再静默丢掉） */
+    if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation();
+      try{ if(h.kind==='vox'){ CK.open=true; ckUnsaved(); } else if(typeof ceUnsaved==='function') ceUnsaved(root); }catch(e){ console.error(e); }
+      if(h.kind!=='vox') modalGuard=null;
+      h.close(); return; }
+    /* v68.9 收尾（UX-4）↓ 进入面板主体（第一个级数 / 芯片按钮）；面板里再按 Esc 回到这里 */
+    if(ev.key==='ArrowDown' && !ev.altKey && !ev.ctrlKey && !ev.metaKey && !ev.shiftKey){ const f=ckFocusables(root)[0]; if(f){ ev.preventDefault(); ev.stopPropagation(); try{ f.focus({preventScroll:false}); }catch(_){} } return; }
+    /* v68.9 收尾（UX-15）输入框里没在改字时 Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y 走全局撤销 / 重做，面板原位刷新 */
+    if((ev.ctrlKey || ev.metaKey) && !ev.altKey && /^[zy]$/i.test(ev.key||'') && t.value.trim()===String(chordSlotName(h.slot)||'').trim()){
+      ev.preventDefault(); ev.stopPropagation();
+      const redoK=(ev.key||'').toLowerCase()==='y' || ev.shiftKey;
+      try{ if(redoK) redo(); else undo(); }catch(e){ console.error(e); }
+      if(CK.open){ CK.orig=chordSlotName(h.slot); } h.reopen(h.slot); return; }
+    if(ev.key===' ' || ev.code==='Space'){ ev.preventDefault(); ev.stopPropagation(); return ckMove(h, 'beat', ev.shiftKey? -1 : 1); }
+    if(ev.key==='Tab'){ ev.preventDefault(); ev.stopPropagation(); return ckMove(h, 'mea', ev.shiftKey? -1 : 1); }
+    const col=t.selectionStart===t.selectionEnd;
+    if(ev.key==='ArrowRight' && !ev.shiftKey && !ev.altKey && col && t.selectionEnd===t.value.length){ ev.preventDefault(); ev.stopPropagation(); return ckMove(h, 'slot', 1); }
+    if(ev.key==='ArrowLeft' && !ev.shiftKey && !ev.altKey && col && t.selectionStart===0){ ev.preventDefault(); ev.stopPropagation(); return ckMove(h, 'slot', -1); }
+  });
+  root.addEventListener('input', ev=>{ if(ev.target && ev.target.id==='ck-in') ckErrClear(root); });
+  /* 试听：鼠标停 300ms 响一次（同一元素停留期间只响一次）；触屏长按 ≥450ms 响一次并吞掉随后的 click（不写入） */
+  let hvEl=null, hvT=0, lpT=0, lpFired=false;
+  root.addEventListener('pointerover', ev=>{
+    if(ev.pointerType==='touch') return;
+    /* v68.9 收尾（UX-13）面板刚打开 / 重开、指针没动过：芯片是自己挪到指针下的，不算悬停（否则只按空格也会自己出声） */
+    if(ev.clientX===CK_MOVE.x && ev.clientY===CK_MOVE.y && !(CK_MOVE.t>(root.__openT||0))) return;   /* 指针坐标与面板打开前最后一次移动相同（pointerover 先于 pointermove 派发，所以比坐标） */
+    const el=ev.target.closest && ev.target.closest(CHIP); if(!el || el===hvEl) return;
+    hvEl=el; clearTimeout(hvT);
+    if(!ckHearOn()) return;
+    hvT=setTimeout(()=>{ if(hvEl===el && el.isConnected && ckHearOn()) chordHear(nameOf(el)); }, 300);
+  });
+  root.addEventListener('pointerout', ev=>{
+    const el=ev.target.closest && ev.target.closest(CHIP); if(!el || el!==hvEl) return;
+    if(ev.relatedTarget && el.contains(ev.relatedTarget)) return;
+    hvEl=null; clearTimeout(hvT);
+  });
+  root.addEventListener('pointerdown', ev=>{
+    if(ev.pointerType!=='touch') return;
+    const el=ev.target.closest && ev.target.closest(CHIP); if(!el) return;
+    lpFired=false; clearTimeout(lpT);
+    lpT=setTimeout(()=>{ lpFired=true; if(ckHearOn() && el.isConnected) chordHear(nameOf(el)); }, 450);
+  });
+  const lpEnd=()=>clearTimeout(lpT);
+  root.addEventListener('pointerup', lpEnd); root.addEventListener('pointercancel', lpEnd);
+  root.addEventListener('contextmenu', ev=>{ if(ev.target.closest && ev.target.closest(CHIP)) ev.preventDefault(); });
+  root.addEventListener('click', ev=>{
+    if(lpFired){ lpFired=false; if(ev.target.closest && ev.target.closest(CHIP)){ ev.preventDefault(); ev.stopImmediatePropagation(); return; } }
+    /* v68.9 收尾（UX-3）面板刚因连续标注换了位置：同一点紧跟着的一下不生效（指针没动，点中的是挪过来的别的按钮） */
+    { const lc=CK.lastClick, now=performance.now();
+      CK.lastClick={x:ev.clientX, y:ev.clientY};
+      if(ev.isTrusted && CK.movedT && now-CK.movedT<700 && lc && Math.abs(lc.x-ev.clientX)<3 && Math.abs(lc.y-ev.clientY)<3){ CK.movedT=0; ev.preventDefault(); ev.stopImmediatePropagation(); return; } }
+    const h=H(); if(!h) return;
+    const tg=ev.target;
+    const st=tg.closest('[data-ckstep]'); if(st){ return ckMove(h, 'beat', +st.dataset.ckstep>0? 1 : -1); }
+    const hb=tg.closest('#ck-hear');
+    if(hb){ const on=!ckHearOn(); ckHearSet(on); hb.setAttribute('aria-pressed', String(on)); ckFocusIn(root); return; }
+    const d=tg.closest('[data-ckd]');
+    if(d){ setDiagPos(d.dataset.ckd); root.querySelectorAll('[data-ckd]').forEach(x=>{ x.classList.toggle('on', x===d); x.setAttribute('aria-pressed', String(x===d)); }); ckFocusIn(root); return; }
+    if(tg.closest('#ck-swap')) return ckSwap(h);
+    if(tg.closest('.ck-x')) return h.close();
+    if(h.kind!=='vox' && tg.closest('#vc-names')){   /* 构建器自己处理（原 #vc-names）；GP 里同一作用 */
+      song.funcNames=!song.funcNames; persist(); render();
+      if(h.refresh) h.refresh();
+      else { const b=root.querySelector('#vc-names'); if(b) b.querySelectorAll('span').forEach((x, i)=>x.classList.toggle('on', i===(song.funcNames? 1 : 0))); }
+      return;
+    }
+    const c=tg.closest(CHIP); if(c){ h.pick(nameOf(c)); return; }
+  });
+}
+/* ---- 新外壳统一入口：按光标所在行分流（简谱 / 五线谱 / 和弦谱 / 钢琴大谱表＝级数构建器；六线谱 / 尤克里里＝GP 式指法编辑器）。
+   面板位置只由光标决定，与入口无关（悬浮条、文字页、Ctrl+K、命令面板、钢琴弹唱第 1 步、手机记号 / 智能抽屉同一结果） */
+function chordOpen(o){
+  o=o||{};
+  if(sel.row!=='tab' && sel.row!=='vox') return toastSay('和弦写在六线谱列或简谱音符上——先点选位置', {t:'先选一个音', k:'limit'});
+  const col=curCol(); if(!col) return toast('先点选要写和弦的位置');
+  try{ if(document.body.classList.contains('rsheet') && typeof toggleSmartSheet==='function') toggleSmartSheet(false); }catch(_){}
+  CK.nextSrc=o.src||'';
+  const s=chordSlot();
+  if(s.row==='vox'){ if((sel.q|0)!==s.q) sel.q=s.q; showVoxChordMenu(0, 0, s.q); return; }
+  showChordEditor(sel.mi, sel.ci, sel.vi);   /* GP 打开时自己开 CK 会话（ckBegin）并在 renderChordEditor 里接 CK 面板头（B5） */
+}
+/* 构建器定位（新外壳）：放在锚点列 R 右侧 12px，放不下放左侧，top＝R.top−40；都放不下（手机）放在列的下方 / 上方。
+   无论哪一外壳最后都夹回视口（R8：手机从智能抽屉打开时底边曾超出 844） */
+function ckColRect(s){
+  try{
+    const b=colBoxes[(s.row==='tab'? 't' : 'v')+s.vi+':'+s.mi+':'+s.ci]; if(!b) return null;
+    const svg=document.getElementById('score'), vb=svg && svg.viewBox.baseVal; if(!vb || !vb.width) return null;
+    const R=svg.getBoundingClientRect(), k=R.width/vb.width;
+    return {left:R.left+b.x*k, top:R.top+b.y*k, right:R.left+(b.x+b.w)*k, bottom:R.top+(b.y+b.h)*k};
+  }catch(_){ return null; }
+}
+function ckClampPop(div, R){
+  const vw=innerWidth, vh=innerHeight;
+  let r=div.getBoundingClientRect();
+  if(r.height>vh-16){ div.style.maxHeight='calc(100vh - 16px)'; div.style.overflowY='auto'; r=div.getBoundingClientRect(); }
+  const W=r.width, Hh=r.height;
+  let l=r.left, t=r.top;
+  if(R){
+    if(R.right+12+W<=vw-8){ l=R.right+12; t=R.top-40; }
+    else if(R.left-12-W>=8){ l=R.left-12-W; t=R.top-40; }
+    else { l=Math.max(8, Math.min(vw-8-W, R.left));
+      t = R.bottom+8+Hh<=vh-8? R.bottom+8 : R.top-8-Hh>=8? R.top-8-Hh : t; }
+  }
+  if(t+Hh>vh-8) t=vh-8-Hh;
+  if(t<8) t=8;
+  if(l+W>vw-8) l=vw-8-W;
+  if(l<8) l=8;
+  if(Math.abs(l-r.left)<0.5 && Math.abs(t-r.top)<0.5) return;
+  const fixed=getComputedStyle(div).position==='fixed';
+  div.style.left=(l+(fixed? 0 : scrollX))+'px';
+  div.style.top=(t+(fixed? 0 : scrollY))+'px';
+}
+/* ===== v68.9 收尾（UX-1/2/3/9）面板定位 =====
+   构建器锚当前小节（不是单列）：放在小节右 / 左侧（向后标注时先试左侧——往后走的小节不会被它盖住），都不行再放谱行下方 / 上方；
+   同一次会话里位置固定（CK.popPos，拖动过也记住），只有会盖住新的当前小节时才换位；换了位置的 700ms 内，同一点再点不生效（免得连点 › 时点中换位后落在那儿的芯片）。
+   手机（flw-m）改成贴底抽屉，谱面滚到当前列落在抽屉上方 */
+function ckMeaRect(s){
+  try{
+    const svg=document.getElementById('score'), vb=svg && svg.viewBox.baseVal; if(!vb || !vb.width) return null;
+    const R=svg.getBoundingClientRect(), k=R.width/vb.width, pre=(s.row==='tab'? 't' : 'v')+s.vi+':'+s.mi+':';
+    const n=ckColsOf(s.row, s.vi, s.mi).length; let o=null;
+    for(let ci=0; ci<n; ci++){ const b=colBoxes[pre+ci]; if(!b) continue;
+      const r={left:R.left+b.x*k, top:R.top+b.y*k, right:R.left+(b.x+b.w)*k, bottom:R.top+(b.y+b.h)*k};
+      o=o? {left:Math.min(o.left, r.left), top:Math.min(o.top, r.top), right:Math.max(o.right, r.right), bottom:Math.max(o.bottom, r.bottom)} : r; }
+    return o;
+  }catch(_){ return null; }
+}
+function ckHit(a, b, m){ m=m||0; return !!a && !!b && a.left<b.right+m && a.right>b.left-m && a.top<b.bottom+m && a.bottom>b.top-m; }
+function ckSetPos(div, l, t){
+  const fixed=getComputedStyle(div).position==='fixed';
+  div.style.left=(l+(fixed? 0 : scrollX))+'px'; div.style.top=(t+(fixed? 0 : scrollY))+'px';
+}
+function ckPlaceVox(div, slot){
+  if(ckMob()){ div.classList.add('ck-sheet'); ckSheetFollow(div, slot); return; }
+  let r=div.getBoundingClientRect();
+  const vw=innerWidth, vh=innerHeight;
+  if(r.height>vh-16){ div.style.maxHeight='calc(100vh - 16px)'; div.style.overflowY='auto'; r=div.getBoundingClientRect(); }
+  const W=r.width, Hh=r.height, M=ckMeaRect(slot) || ckColRect(slot);
+  const clampT=t=>Math.max(8, Math.min(vh-8-Hh, t)), clampL=l=>Math.max(8, Math.min(vw-8-W, l));
+  const box=(l, t)=>({left:l, top:t, right:l+W, bottom:t+Hh});
+  const prev=CK.popPos;
+  if(prev){ const l=clampL(prev.l), t=clampT(prev.t);
+    if(!M || !ckHit(box(l, t), M, 4)){ ckSetPos(div, l, t); CK.popPos={l, t}; return; } }
+  let pick=null;
+  if(M){
+    const side=[['R', M.right+12], ['L', M.left-12-W]], order=(CK.dir>0 && prev)? [side[1], side[0]] : side;
+    for(const [, l] of order){ if(l>=8 && l+W<=vw-8){ const b=box(l, clampT(M.top-40)); if(!ckHit(b, M, 4)){ pick=b; break; } } }
+    if(!pick){ const l=clampL(M.left);
+      for(const t of [M.bottom+8, M.top-8-Hh]){ if(t>=8 && t+Hh<=vh-8){ pick=box(l, t); break; } } }
+    if(!pick){   /* 都放不下：取与小节重叠面积最小的一侧 */
+      const ov=b=>Math.max(0, Math.min(b.right, M.right)-Math.max(b.left, M.left))*Math.max(0, Math.min(b.bottom, M.bottom)-Math.max(b.top, M.top));
+      const cs=[box(vw-8-W, clampT(M.top-40)), box(8, clampT(M.top-40))]; cs.sort((a, b)=>ov(a)-ov(b)); pick=cs[0]; }
+  } else pick=box(clampL(r.left), clampT(r.top));
+  ckSetPos(div, pick.left, pick.top);
+  if(prev && (Math.abs(prev.l-pick.left)>1 || Math.abs(prev.t-pick.top)>1)) CK.movedT=performance.now();
+  CK.popPos={l:pick.left, t:pick.top};
+}
+/* 手机贴底抽屉：谱面滚到当前列落在抽屉上方 8px（列在抽屉下面时） */
+function ckSheetFollow(div, slot){
+  try{
+    const c=ckColRect(slot), sc=scoreScroller(); if(!c || !sc) return;
+    const top=div.getBoundingClientRect().top, hd=Math.max(sc.getBoundingClientRect().top, lbStickBottom())+8;
+    if(c.bottom>top-8) sc.scrollTop+=Math.min(c.bottom-(top-8), Math.max(0, c.top-hd));
+    else if(c.top<hd) sc.scrollTop-=hd-c.top;
+  }catch(_){}
+}
+/* GP 连续标注重开：钉住的位置盖住了新的当前列 → 按列换边（cePlace 的左右判定），顶边不动 */
+function ceAvoidCol(mi, ci, vi){
+  try{
+    const mask=document.getElementById('modal-mask'), md=mask && mask.querySelector('.modal'); if(!md) return;
+    const c=ckColRect({row:'tab', mi, vi, ci}); if(!c || !ckHit(md.getBoundingClientRect(), c, 2)) return;
+    const t0=modalPos? modalPos.t : 16, l0=modalPos? modalPos.l : null;
+    cePlace(mi, ci, vi);
+    if(modalPos){ modalPos.t=t0; md.style.marginTop=t0+'px'; if(l0==null || Math.abs(modalPos.l-l0)>1) CK.movedT=performance.now(); }
+  }catch(_){}
 }
 document.getElementById('b-vchord').onclick = e=>{
   const r=e.target.getBoundingClientRect();
@@ -21365,16 +22746,34 @@ function setDiagPos(v){
    输入框只带「这一处已有的和弦」，不继承前一个和弦的性质；级数写法（6m、57sus）照样认。
    写入走 i-chord 同一条路径（六线谱按新和弦适配指法、简谱锚定该音符），不写第二份实现。
    和弦图位置开关（随行 / 曲首 / 隐藏）一并放进来，选择存进谱里。 */
+/* v68.9 分发器：新外壳（ckOn）＝统一入口 chordOpen（按光标所在行开级数构建器 / GP 指法编辑器，P8 键位不变：Ctrl+K → 键入 → Enter）；
+   面板已开在同一处时再按 Ctrl+K 只把焦点移回 #ck-in 并全选（不重开）。旧外壳仍是原快速框 chordQuickLegacy（只修 R1–R3） */
 function showChordQuick(){
+  if(ckOn()){
+    const inp=document.getElementById('ck-in'), pane=inp && inp.closest('[data-ce]');
+    if(pane && CK.open){ const s=chordSlot(), c=CK.slot;
+      if(c && c.row===s.row && c.mi===s.mi && c.vi===s.vi && c.ci===s.ci && (c.q|0)===(s.q|0)){ ckFocusIn(pane); return; } }
+    return chordOpen({src:'key'});
+  }
+  return chordQuickLegacy();
+}
+function chordQuickLegacy(){
   if(sel.row!=='tab' && sel.row!=='vox') return toastSay('和弦写在六线谱列或简谱音符上——先点选位置', {t:'先选一个音', k:'limit'});
-  const col=curCol(); if(!col) return toast('先点选要写和弦的位置');
+  let col=curCol(); if(!col) return toast('先点选要写和弦的位置');
+  /* v68.9 R1：简谱选中增时线拍位时写进 col.chords（此前写进 col.chord，和弦被挪到音符开头）；越界钳回列头（同 rt-chord）。
+     R2：功能谱先对齐到就近八分位（同级数构建器 vcSnap8；此前会写在十六分位上） */
+  let q=0;
+  if(sel.row==='vox'){
+    q=sel.q||0; if(q>0 && q>ckNd(col)){ q=0; sel.q=0; }
+    if(song.func && !q){ vcSnap8(); col=curCol(); if(!col) return; }
+  }
   closePop();
   const dp=diagMode;
   const div=document.createElement('div'); div.className='popmenu'; div.id='popmenu';
   div.style.left=Math.max(12, Math.round(innerWidth/2-170))+'px';
   div.style.top=Math.round(innerHeight*0.22)+'px';
   div.innerHTML=`<div class="t">和弦 · 第 ${sel.mi+1} 小节（Enter 写入 · 留空按 Enter 清除 · Esc 关闭）</div>
-    <div class="row"><input id="ck-in" list="chord-list" autocomplete="off" placeholder="如 Am7、G/B、6m、57sus" value="${esc(col.chord||'')}" style="width:300px;font-size:15px;padding:6px 8px"></div>
+    <div class="row"><input id="ck-in" list="chord-list" autocomplete="off" placeholder="如 Am7、G/B、6m、57sus" value="${esc(q>0? (((col.chords||[]).find(x=>x&&x.q===q)||{}).chord||'') : (col.chord||''))}" style="width:300px;font-size:15px;padding:6px 8px"></div>
     ${(song.tabVoices||[]).length? `<div class="row" id="ck-diag"><span style="font-size:12px;opacity:.75;margin-right:6px">和弦图</span>${[['inline','随行'],['top','曲首'],['off','隐藏']].map(([v,l])=>`<button data-ckd="${v}" class="${dp===v?'on':''}">${l}</button>`).join('')}</div>` : ''}`;
   document.body.appendChild(div);
   const inp=document.getElementById('ck-in');
@@ -21384,11 +22783,21 @@ function showChordQuick(){
     if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); closePop(); return; }
     if(ev.key!=='Enter') return;
     ev.preventDefault(); ev.stopPropagation();
-    const ic=document.getElementById('i-chord'); const v=inp.value.trim(); ic.value=v;
+    /* v68.9 R3：认不出的和弦名就地报错、不写入、不关（此前「Hzz9」也照写）；合法的写规范名（CM7→Cmaj7、级数 6m→Am） */
+    const r=ckNameGate(inp.value);   /* v68.9 收尾（H2）认不出的再按一次回车照写 */
+    if(!r.ok){
+      inp.setAttribute('aria-invalid', 'true'); inp.classList.add('ck-bad');
+      let er=div.querySelector('#ck-err'); if(!er){ er=document.createElement('div'); er.id='ck-err'; er.setAttribute('role', 'alert'); inp.closest('.row').after(er); }
+      er.textContent=r.err; return;
+    }
+    const v=r.name;
+    if(sel.row==='vox'){ closePop(); setVoxChord(v, false, q); if(!v) toast('已清除这一处的和弦'); return; }   /* R1：带拍位 q 直接写（不再经 #i-chord） */
+    const ic=document.getElementById('i-chord'); ic.value=v;
     closePop();
     ic.dispatchEvent(new Event('change'));
     if(!v) toast('已清除这一处的和弦');
   });
+  inp.addEventListener('input', ()=>{ if(inp.classList.contains('ck-bad')){ inp.removeAttribute('aria-invalid'); inp.classList.remove('ck-bad'); const er=div.querySelector('#ck-err'); if(er) er.remove(); } });
   div.addEventListener('click', ev=>{
     const b=ev.target.closest('[data-ckd]'); if(!b) return;
     setDiagPos(b.dataset.ckd);
@@ -21396,6 +22805,32 @@ function showChordQuick(){
     inp.focus();
   });
 }
+/* v68.9 A0：六线谱写和弦的纯数据部分（原 #i-chord change 的 mutate 体）——写 cols[ci].chord；shape 缺省取 chordShape(name)；
+   名字变了按旧口径 remapCols（oldEff＝chordBefore，「修改前该处生效的和弦」；可由调用方在别的改动之前先取好传入）。返回 {remapped} */
+function tabChordApply(mi, vi, ci, name, shape, oldEff){
+  const cols=song.measures[mi].tabs[vi];
+  if(oldEff===undefined) oldEff=chordAtCol(mi, vi, ci);   /* v68.9 收尾（TAB-2）写入前本列生效的和弦（原 chordBefore＝本小节第一个） */
+  const nm=(name||'').trim();
+  cols[ci].chord=nm;
+  const sh=shape || chordShape(nm);
+  if(sh && nm!==oldEff){
+    remapCols(cols, ci, tabSegEnd(mi, vi, ci), chordShape(oldEff), sh);
+    return {remapped:true};
+  }
+  return {remapped:false};
+}
+/* v68.9 收尾（TAB-10）重排的终点：本列之后第一个「生效和弦会变」的列——下一个带和弦的六线谱列，或简谱 / 其他行锚定的下一个和弦所在拍
+   （同 chordAtCol 口径：列起拍 ≥ 该和弦拍位即归它）。此前只看六线谱列，简谱第 3 拍锚定的 G 之后的列也被改成新和弦 */
+function tabSegEnd(mi, vi, ci){
+  const cols=song.measures[mi].tabs[vi]||[], mU=meaMeter(mi).unit;
+  const st=[]; let x=0; cols.forEach(c=>{ st.push(x); x+=beatsOf(c, mU); });
+  const b0=st[ci]||0;
+  const nx=chordEvtsMea(mi).map(e=>e.beat).filter(b=>b>b0+1e-4);
+  const lim=nx.length? Math.min(...nx) : Infinity;
+  for(let i=ci+1;i<cols.length;i++) if(cols[i].chord || st[i]>=lim-1e-4) return i;
+  return cols.length;
+}
+function tabChordWrite(mi, vi, ci, name){ let r={remapped:false}; mutate(()=>{ r=tabChordApply(mi, vi, ci, name); }); return r; }
 document.getElementById('i-chord').addEventListener('change', e=>{
   const degN = degChordName(e.target.value);   /* v60.31 级数写法直入（57sus、37/#5…） */
   if(degN) e.target.value = degN;
@@ -21403,17 +22838,8 @@ document.getElementById('i-chord').addEventListener('change', e=>{
   if(sel.row!=='tab') return;
   const newName = e.target.value.trim();
   if(!curCol()) return;
-  const oldEff = chordBefore(sel.mi, sel.vi);   // 修改前该处生效的和弦
-  mutate(()=>{
-    const cols = curRowCols();
-    cols[sel.ci].chord = newName;
-    const newShape = chordShape(newName);
-    if(newShape && newName!==oldEff){
-      let end = cols.length;
-      for(let i=sel.ci+1;i<cols.length;i++) if(cols[i].chord){ end=i; break; }
-      remapCols(cols, sel.ci, end, chordShape(oldEff), newShape);
-    }
-  });
+  const oldEff = chordAtCol(sel.mi, sel.vi, sel.ci);   // 修改前该处生效的和弦（v68.9 收尾 TAB-2：原 chordBefore＝本小节第一个和弦）
+  tabChordWrite(sel.mi, sel.vi, sel.ci, newName);   /* v68.9 A0：纯数据部分抽成 tabChordApply（新外壳写入口 chordWriteAt 共用），行为零变化 */
   if(newName && chordShape(newName)){
     if(oldEff && newName!==oldEff) toast('已按 '+newName+' 指法适配本小节分解/扫弦音');
     showChordSuggest(newName);
@@ -24657,6 +26083,7 @@ function applyShell(){
   go('ri-edit',   ()=>click('b-meta'));   // v41.4 信息页摘要卡 → 曲谱信息弹窗
   /* v60.28 和弦/标注双图标：选中音符时可用，按选中行分派编辑器（浮层锚定在图标旁） */
   go('rt-chord', e=>{
+    if(ckOn()) return chordOpen({src:'rt'});   /* v68.9 E-9：新外壳（手机 ☰ → 智能 →「和弦」）走统一入口 */
     const c=curCol();
     if(!c) return toast('请先在谱面选中一个音符');
     const r=e.currentTarget.getBoundingClientRect();
@@ -27813,7 +29240,7 @@ FLOW.cmd = (function(){
       C('sm:fill', '智能填词', 'zntc tc fill 填词 自动填词', '右栏 · 智能 / 文字', W(click('#rt-fill')), {ok:shown('rt-fill'), ic:'tx-lyricfill'}),
       C('sm:gentab', '由旋律生成六线谱轨…', 'sclxpg xpg gentab 生成吉他谱 生成六线谱 由此生成六线谱轨 ycsclxpg 生成六线谱… 由此生成六线谱轨…', '右栏 · 智能 / 左栏音轨「由此生成…」', W(()=>showVoxTabMenu(sel.row==='vox'? sel.vi : 0)), {ic:'ai-gentab'}),
       C('sm:midi', '导入 MIDI', 'drmidi midi import 导入midi', '右栏 · 智能', W(click('#rt-midi')), {ok:shown('rt-midi'), ic:'src-midi'}),
-      C('tx:chord', '输入和弦', 'srhx hx chord ctrl+k 和弦 级数和弦', '右栏 · 文字 · Ctrl+K', W(()=>showChordQuick()), {ic:'nota-chord'}),
+      C('tx:chord', '输入和弦', 'srhx hx chord ctrl+k 和弦 级数和弦 jsgj 级数构建 zf 指法 bw 把位 bjhx 编辑和弦 lxbz 连续标注 sy 试听', '右栏 · 文字 · Ctrl+K', W(()=>showChordQuick()), {ic:'nota-chord'}),
       /* v68.1 收尾 PN-6：可用性与右栏「文字」页同一判据（FLOW.rdp.chordAvail）——此前只看旧按钮的 style.display，右栏藏起来的项命令照样能执行，暗改 song.funcNames / diagPos 并留一步撤销 */
       C('tx:names', '和弦写法', 'hxxf ym js names degree 级数 音名 和弦写法：音名/级数', '右栏 · 文字', W(click('#vf-names')), {ok:()=>{ const a=F.rdp && F.rdp.chordAvail(); return (a && a.fn)? shown('vf-names')() : '先写和弦（Ctrl+K）'; }, ic:'nota-degree'}),   /* v68.7 收尾 BUD-7：置灰原因 ≤16 字（原 26 字整句） */
       C('tx:diag', '和弦图', 'hxt diag 和弦图 指法图 随行 曲首 不显示 和弦图：随行/曲首/不显示', '右栏 · 文字', W(click('#b-diag')), {ok:()=>{ const a=F.rdp && F.rdp.chordAvail(); return (a && a.dg)? shown('b-diag')() : '没有吉他轨'; }, ic:'nota-chordbox'}),
@@ -28838,7 +30265,7 @@ FLOW.sbar = (function(){
      收尾 SBAR-6：钢琴独奏谱 G 的第 4 个是「织体」——此前写「节奏型」，openRhyLib 在大谱表上打开的就是伴奏织体弹窗，同一功能两个名字 */
   const KIND = {J:['lyr','chord','lab','arr'], S:['lyr','chord','lab','arr'], SJ:['lyr','chord','lab','arr'],
     T:['chord','rhy','diag','board'], JT:['lyr','chord','rhy','diag'], ST:['board','chord','rhy','diag'], G:['board','fing','chord','tex'],
-    CG:['tex','chord','deg','board'], JG:['tex','lyr','lab','deg'], SG:['tex','lyr','lab','deg'], SJG:['tex','lyr','lab','deg'],
+    CG:['tex','chord','deg','board'], JG:['tex','chord','lyr','lab','deg'], SG:['tex','chord','lyr','lab','deg'], SJG:['tex','chord','lyr','lab','deg'],
     CJ:['chord','lab','deg','lyr'], CS:['chord','lab','deg','lyr'], C:['chord','deg','mea']};
   const ACT2TOOL = {tex:'tex', arrange:'arr', tabgen:'gen'};   /* v68.7 S1：主按钮 title＝按钮上的字（原 GO_TIP 长句停用；主按钮改版是 S2） */
   const shown = id=>{ const b=$(id); return !!b && b.style.display!=='none'; };   /* renderDock 写的内联显隐（与右栏 FLOW.rdp、命令面板同一判据） */
@@ -29466,8 +30893,10 @@ FLOW.mob = (function(){
         +pqSign(s[2], 20, ctx)+'<span aria-hidden="true">'+E(s[0])+'</span></button>'; };
     return '<h2 class="flw-msh">时值<span>（原底部时值条）</span></h2><i data-flw-mslot="eb-dur" hidden></i>'
       +'<h2 class="flw-msh">记号 · 作用于 '+E(nm)+'</h2>'
-      +'<div class="flw-mgrid" role="group" aria-label="常用记号">'+palIds(ctx).map(cell).join('')+'</div>'
-      +'<p class="flw-mnote">其余记号、歌词与和弦请到电脑编辑（手机以看谱为主）</p>';
+      +'<div class="flw-mgrid" role="group" aria-label="常用记号">'+palIds(ctx).map(cell).join('')
+      /* v68.9 E-10：和弦格（统一入口 chordOpen：简谱行开级数构建器、六线谱行开指法编辑器） */
+      +'<button type="button" class="flw-mcell" data-fm="chord" aria-label="和弦">'+F.ic('nota-chord', 20)+'<span aria-hidden="true">和弦</span></button></div>'
+      +'<p class="flw-mnote">其余记号与歌词请到电脑编辑</p>';
   }
   function outHTML(){
     return '<h2 class="flw-msh">输出与分享</h2>'
@@ -29557,7 +30986,8 @@ FLOW.mob = (function(){
         case 'sheet': { const v=el.dataset.v; if(SHEET===v) return close(true); return open(v, el, kb); }
         case 'undo': { const b=$('b-undo'); if(b) b.click(); return; }
         case 'play': { const b=$('b-play'); if(b) b.click(); return; }
-        case 'pc': close(false); return copyLinkForPc(PC_URL, '制谱链接');   /* 启动台 [data-sp="pc"]「发到电脑继续」同一调用 */
+        case 'pc': close(false); return copyLinkForPc(PC_URL, '制谱链接');
+        case 'chord': close(false); return chordOpen({src:'mob'});   /* v68.9 E-10「记号」抽屉的和弦格 */   /* 启动台 [data-sp="pc"]「发到电脑继续」同一调用 */
         /* 菜单 */
         case 'r1': close(false); return F.act(el.dataset.a, el, ev);   /* 同桌面账号 ▾ / 文件 ▾ 的动作（FLOW.r1.act） */
         case 'old': { const t=$(el.dataset.old); close(false); if(t) t.click(); return; }
@@ -32334,7 +33764,7 @@ var NWB = (function(){
     if(h('T')&&h('G')) return '六线谱和钢琴大谱表是两种乐器——先建一种，建好后左栏「＋音轨」再加另一种';
     if(h('T')&&h('J')&&h('S')) return '六线谱只配一行旋律：简谱（弹唱）或五线谱（独奏联排）';
     if(h('C')&&h('T')) return '六线谱自带和弦图与和弦名，不必再叠「和弦」行';
-    if(h('C')&&h('S')&&h('J')) return '教学对照谱的和弦在建好后用左栏「和弦」标注';
+    if(h('C')&&h('S')&&h('J')) return '教学对照谱建好后选音按 Ctrl+K 标和弦';
     if(h('C')&&h('G')) return '钢琴伴奏的和弦名随伴奏一起生成，不另占一行';
     if(want.length>3) return '最多叠 3 种谱';
     return '这几种谱不能排在同一页';
@@ -35120,7 +36550,8 @@ function lbSteps(s, k, meta){
   if(k==='CG'){
     const ch=(s.measures||[]).some(m=>(((m.voxes||[])[0])||[]).some(c=>c && (c.chord || (c.chords||[]).some(x=>x && x.chord))));
     const nt=lbHasNote(s,0)||lbHasNote(s,1);
-    return lbMono([{t:'标和弦', ok:ch, hint:'选中右手的音，按 Ctrl+K 输入和弦（如 Am7），或点右栏「和弦」'},
+    /* v68.9 E-3：新外壳的第 ① 步给可点的主按钮「标和弦」（lbGo('chord') → 右手第一个音开级数构建器）；旧外壳谱型条仍只出提示 */
+    return lbMono([Object.assign({t:'标和弦', ok:ch, hint:'选中右手的音，按 Ctrl+K 输入和弦（如 Am7），或点右栏「和弦」'}, flowOn()? {btn:'标和弦', act:'chord', ic:'nota-chord'} : {}),
       {t:'选织体', ok:false, btn: nt? '换织体' : '生成伴奏', act:'tex', ic:'nota-texture'}]);
   }
   return null;
@@ -35439,6 +36870,10 @@ function lbGo(act, kb, root){
   if(act==='arrange'){ const x=document.getElementById('b-arrange'); if(x) x.click(); }
   else if(act==='tex'){ const x=document.getElementById('b-acctex'); if(x) x.click(); }
   else if(act==='tabgen'){ const mv=lbMelVoices(song); showVoxTabMenu(mv.length? mv[0] : 0); }
+  else if(act==='chord'){   /* v68.9 E-3 钢琴弹唱第 1 步「标和弦」：光标不在右手（voxes[0]）就先落到本小节右手第一个音 */
+    if(!(sel.row==='vox' && sel.vi===0)){ sel.row='vox'; sel.vi=0; sel.ci=0; sel.q=0; selRange=null; clampSel(); render(); }
+    chordOpen({src:'step'});
+  }
   if(kb) lbModalFocus(act, root);
 }
 /* 收起（谱型条 ×：本窗口本次不再自动出现，Alt+B 再调出）。v68.3 flow 没有 ×：悬浮条只能收成细条（FLOW.sbar，用户级偏好），这里同样只收成细条 */
@@ -39728,11 +41163,16 @@ function viewerBuildSong(){
   if(vwCapo!=null) s.capo=vwCapo;   /* v55.6 观看页变调夹覆盖：移调重建后仍保留 */
   return s;
 }
-function shiftChordName(name, delta){
+/* v68.9 收尾（H6）给了 k0 / k1（换调前后的调）时按级数保拼写：先按 k0 求音名的级数字母，再在 k1 里用同一级拼（C→E 的 Em→G♯m、G/B→B/D♯，
+   此前一律 KEY_LIST 混合拼法：Em→Abm、谱面级数 3m 变 b4m）；不给调时与原口径相同 */
+function shiftChordName(name, delta, k0, k1){
   const m=/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec((name||'').trim());
   if(!m || KEY_PC[m[1]]==null) return name;
-  let out=KEY_LIST[((KEY_PC[m[1]]+delta)%12+12)%12]+(m[2]||'');
-  if(m[3] && KEY_PC[m[3]]!=null) out+='/'+KEY_LIST[((KEY_PC[m[3]]+delta)%12+12)%12];
+  const sp=n=>{ const pc=((KEY_PC[n]+delta)%12+12)%12;
+    if(k0 && k1 && KEY_PC[k0]!=null && KEY_PC[k1]!=null){ const dn=(('CDEFGAB'.indexOf(n[0])-'CDEFGAB'.indexOf(k0[0]))%7+7)%7+1; return keySpell(k1, pc, dn); }
+    return KEY_LIST[pc]; };
+  let out=sp(m[1])+(m[2]||'');
+  if(m[3] && KEY_PC[m[3]]!=null) out+='/'+sp(m[3]);
   return out;
 }
 /* v63.8 B5 ② 和弦图的低音弦：斜杠低音 > 根音所在的最低发声弦 > 最低发声弦 */
@@ -39797,6 +41237,9 @@ function tabLinkFix(links, tun, fMax){
 }
 function transposeSong(s, delta){
   const k1 = KEY_LIST[(((KEY_PC[s.key]||0)+delta)%12+12)%12];
+  /* v68.9 收尾（H6）换调前每小节生效调（含中途转调 keyTo）：和弦名按级数保拼写 */
+  const kAt0=[]; { let k=s.key; (s.measures||[]).forEach(m=>{ if(m && m.keyTo && KEY_PC[m.keyTo]!=null) k=m.keyTo; kAt0.push(k); }); }
+  const kSh=k=>KEY_LIST[(((KEY_PC[k]||0)+delta)%12+12)%12], kHead0=s.key;
   /* v65.0 B2c refOct：换调跨过折八度边界（F→G 由 65 折到 55）时，按换调方向整体抬/降一个八度，音高朝着升调/降调的方向走 */
   if(delta){ const r0=keyRefOf(s.key,0), r1=keyRefOf(k1,0);
     if(delta>0 && r1<r0) s.refOct=(s.refOct|0)+1; else if(delta<0 && r1>r0) s.refOct=(s.refOct|0)-1; }
@@ -39959,15 +41402,18 @@ function transposeSong(s, delta){
       });
     });
   }
-  s.measures.forEach(m=>{
+  s.measures.forEach((m,mi)=>{
+    const ka=kAt0[mi]||kHead0, kb=kSh(ka);
     const shiftCol=c=>{
-      if(c.chord) c.chord=shiftChordName(c.chord, delta);
-      (c.chords||[]).forEach(x=>{ if(x && x.chord) x.chord=shiftChordName(x.chord, delta); });   // v60.30 拍位和弦此前漏平移，一并补上
+      if(c.chord) c.chord=shiftChordName(c.chord, delta, ka, kb);
+      (c.chords||[]).forEach(x=>{ if(x && x.chord) x.chord=shiftChordName(x.chord, delta, ka, kb); });   // v60.30 拍位和弦此前漏平移，一并补上
     };
     (m.tabs||[]).forEach(cols=>cols.forEach(shiftCol));
     (m.voxes||[]).forEach(cols=>cols.forEach(shiftCol));
     if(m.keyTo && KEY_PC[m.keyTo]!=null) m.keyTo = KEY_LIST[((KEY_PC[m.keyTo]+delta)%12+12)%12];   // v41.3 转调标记同步
   });
+  /* v68.9 收尾（H12）「常用」行的最近使用同步移调（此前留在旧调：换到 A 调后常用行排头仍是 F Am G C、级数 b6 1m b7 b3） */
+  if(delta && Array.isArray(s.chordRecent)) s.chordRecent=s.chordRecent.map(n=>shiftChordName(n, delta, kHead0, k1));
   return stats;
 }
 /* ===== v67.0 导入调识别 + 「改记谱调（音不变）」=====
@@ -41645,7 +43091,7 @@ function helpFlowHTML(){
     ['力度 / 速度','左栏记号「力度」组：pp–ff、sfz、fp、渐强 / 渐弱平铺直点，「更多力度」里有 ppp、sf、sfp、cresc./dim. 与表情术语；rit./accel. 在「速度 · 表情」组；力度即时影响播放音量'],
   ])
   +sec(pqIcon('type-func',16),'功能谱（乐队）',[
-    ['级数和弦','选中音符，左栏音轨标题行「⋯」→「和弦 / 级数…」：本调常用库＋扩展＋最近使用一键选用，支持自定义（G/B 斜杠低音）；也可 '+K('Ctrl+K')+' 直接输入（Am7、G/B、级数 6m 都行）；右栏「文字」页切和弦写法（音名 / 级数）；谱面按 1=调号 显示级数，点击可再编辑，换调即时跟随'],
+    ['级数和弦','选中音符按 '+K('Ctrl+K')+' 或点「和弦」：简谱 / 五线谱行开级数构建（T/S/D 色标、调外、建议），六线谱行开指法编辑（多把位、试听）；空格 / Tab 接着标下一拍 / 下一小节；谱面点和弦可再编辑，换调即时跟随'],
   ])
   +sec(svgi('bolt',15),'快捷键',[
     ['Ctrl+/ · ?','搜功能 · 常用快捷键一览'],
@@ -41747,6 +43193,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v68.9</span><div><b>和弦引擎回来了，而且更强</b>：新布局里点「和弦」、按 Ctrl+K、右栏「文字」、命令面板、手机「记号」，打开的都是完整的和弦引擎（上一版只有一个输入框）。<br>① <b>简谱 / 五线谱行：级数构建器</b>——调内和弦一排直接点，按主 / 下属 / 属功能分色（T / S / D）；副属、借用和弦单独一行；性质与扩展、转位低音、最近使用、试听；按旋律和上一个和弦给出「下一和弦」建议（与一键配和弦同一套规则）；头部显示当前调。<br>② <b>六线谱 / 尤克里里行：指法编辑器</b>——主音、性质、变化音、省略、低音；每个和弦 6–13 张把位卡（都能弹、和弦音齐全），点卡就换指法、整条轨同名和弦一起重排；试听计入变调夹；可自定义和弦。<br>③ <b>连续标注</b>：键入 Am7、6m、G/B 都行，空格跳下一拍、Tab 跳下一小节，面板不关、自动避开当前小节；Ctrl+K → 键入 → 回车的老写法不变。<br>④ <b>记法更准</b>：认得 C6/9、N.C.、Cm(maj7)、C+7、Cadd2；认不出的就地提示，再按一次回车照写；12 个调都按调号拼写（如 1=E 的 3 级是 G♯m），换调后级数不变；带升降号的调默认用对应的拼法。<br>⑤ <b>指法更对</b>：斜杠和弦默认图含根音和三音、跨度可弹（如 Am7/C 是 x35555）；修正了 15 个库里的错误和弦图；Drop D 等定弦按实际发声出图；同一拍其他行的和弦随新和弦一起改（可撤销）。<br>说明：没存过自定义指法的老谱，库外斜杠和弦与修正过的 15 个和弦图会按新规则显示，只有扫弦箭头的列播放随之更新。<br><b>测试</b>：新套件 <code>tv_chordeng</code>（66 项）、<code>tv_chordtab</code>（40 项）、<code>tv_chordfix</code>（49 项）；和声 / 六线谱 / 界面三镜头验收 42 条全部处理；CORE 全绿。</div></li>
     <li><span class="v">v68.8</span><div><b>写谱更顺手：先选八分再写音不再「掉拍」；「此处换行」能随 MusicXML 带走</b>。<br>① <b>先选时值再写音</b>：在空小节里点「8 分」，空出来的半拍会自动补成一个八分空位，接着写的音就落在它上面，小节不会少拍，后面的音也不会跑到下一小节。弱起小节、散拍草稿保持原样；附点后超出的拍子只吃掉后面的空位，不动有内容（和弦、歌词、延长号）的格。习惯按 Insert 的老写法结果和以前完全一样。<br>② <b>MusicXML 带上「此处换行」</b>：导出时写进换行标记，再导入自家导出的文件，手动换行原样还原（同一行既换行又换页也能还原）；别家软件的自动断行不收，以免打乱你的版面。没设过「此处换行」的谱，导出内容与上一版逐字节相同。<br>说明：「并入上一行」和锁定标记暂不随 MusicXML 往返（锁定行两端的换行会保留）。<br><b>测试</b>：新套件 <code>tv_v688</code>（61 项，往返 / 第三方不收 / 写谱按键数与结果对拍）；对抗验收 3 镜头 12 条处理 10 条；CORE 全绿。</div></li>
     <li><span class="v">v68.7</span><div><b>界面更简洁：少说明字、少重复入口</b>（功能一个没少；旧版布局完全不变）。<br>① <b>菜单</b>：每项只留名称和快捷键，去掉了副标题；会开新窗口的项带 ↗，暂时不能用的项带锁，点一下就地说原因。<br>② <b>保存</b>：顶部保存状态一眼看懂——「○ 仅本机 | 存入」点一下直接存进我的曲谱，「☁ 已存」带时间，「↻ 同步中」；原来的保存小菜单撤掉（存为文件、我的曲谱都在「文件 ▾」里）。<br>③ <b>命令面板</b>（Ctrl+/）：不再写「在哪一栏」，上下选择时界面上那个按钮会亮一下，收着的面板自动展开；用旧名字也搜得到。<br>④ <b>书写</b>：移八度按钮改成「↑8 / ↓8」；状态栏读数写「第 4/15 小节 · 1 拍」，播放键改成中性色；悬浮条每一步都写 2 个字的步名；记号面板默认「混合」显示（常用记号只画字形，会打开设置的格子保留 2 个字；以前选过显示方式的照旧），底部说明撤掉；音轨里的「生成六线谱…」挪到「＋ 加轨」；「时值检查」的两种方式挪到状态栏「⋯」里。<br>⑤ <b>提示条</b>：改成「结果 + 一个动作」，比如「已配伴奏 · 第 1–4 小节 · 撤销」，带动作的停 4 秒以上。<br>⑥ <b>排版</b>：和上方工具组重复的控件只留一处，重复的说明句删掉。<br>数字：书写界面每屏说明字平均从 89 降到 8，菜单里的说明从 67% 降到 1% 以下，带副标题的按钮从 78 个降到 0，「在左栏 / 右栏…」这类指路字从 90 处降到 0。<br><b>测试</b>：新套件 <code>tv_textbudget</code>（37 屏字数预算，只降不升）、<code>tv_v687fix</code>（20 项）；措辞闸加「字数预算」报告；对抗验收 3 镜头 24 条处理完；CORE 全绿。</div></li>
     <li><span class="v">v68.6</span><div><b>按演奏者出分谱</b>：合唱、弹唱、乐队这类多人谱，在「输出」里点一份就看这一份；勾选几份，一次打印成一个 PDF；正在看的这份也能存成 PNG（不点分谱时一切与上一版相同）。<br>① <b>怎么分</b>：每把吉他（尤克里里）一份；合唱每个声部一份，四部合唱另可勾「女高音＋女低音」「男高音＋男低音」两行一份；有别的演奏者时钢琴单独一份（不带六线谱）。只有一位演奏者的谱不分。<br>② <b>每份自带</b>：曲名页头（没有六线谱的份按实际调写，和弦名写实音）、左上角分谱名、第 2 页起的续页眉、页码（总谱没设时底部居中、首页不印）；排练号、反复、速度与渐慢等全曲记号每份都有；和弦跟着带过去；简谱份行首印小节号。<br>③ <b>排版</b>：分谱自动分页，不沿用总谱的「本行换页」；想按总谱的手动换行排，勾「沿用总谱换行」。<br>④ <b>入口</b>：新布局「输出」左栏点名称预览、勾选框选打印哪几份，工具组「分谱」键一次打印；看着哪份按 Ctrl+P 就打哪份。旧布局「打印…」弹窗多一组「分谱」；手机「输出与分享」多一行「打印分谱」——只有一位演奏者的谱这两处与上一版相同。<br>说明：分谱只在打印和预览时临时生成，不往你的谱里存任何东西；分享卡、互动谱、MusicXML、MIDI、曲谱文件仍是总谱。<br><b>测试</b>：新套件 <code>tv_parts</code>（108 项，分法 / 内容 / 调与夹位 / 和弦 / 页头 / 打印 / PNG / 缺省零差异）、<code>tv_parts_ui</code>（55 项，两种布局与手机）；对抗验收 3 镜头 18 条全修；CORE 全绿。</div></li>
@@ -41794,7 +43241,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v68.8';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v68.9';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

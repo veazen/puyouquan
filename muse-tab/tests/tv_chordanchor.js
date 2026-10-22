@@ -89,8 +89,14 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.g && r.pop && r.selOK, 'T5 TAB 锚定和弦图可点击编辑', JSON.stringify(r));
 
   /* v60.28 创作辅助「和弦」图标：选中音符时可用，按选中行分派编辑器；
-     浮条不再有「和弦」钮（入口收敛，产品负责人指示） */
-  r = await pg.evaluate(() => {
+     浮条不再有「和弦」钮（入口收敛，产品负责人指示）。
+     v68.9 有意迁移（规格 f89 §7.3）：T6 / T7 测的是旧外壳的 #rt-chord / #b-chord-edit（新外壳里这两枚是隐藏按钮）——钉 ?shell=classic 另开一页、断言原样；
+     新外壳的对应入口断言在 tv_chordeng E1 */
+  const pc = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  pc.on('pageerror', e => errs.push('PAGEERR(classic):' + e.message));
+  await pc.goto(F + (F.includes('?') ? '&' : '?') + 'shell=classic'); await pc.waitForTimeout(900);
+  await pc.evaluate(() => { window.guardReplace = p => p(); loadSong(createSong('guitar', { title: 't', beats: 4, unit: 4, key: 'C', nMea: 4, nTab: 1, nVox: 1, lyr: 0 })); });
+  r = await pc.evaluate(() => {
     closePop(); sel.row = 'vox'; sel.vi = 0; sel.mi = 2; sel.ci = 1; render();
     const ic = document.getElementById('rt-chord');
     if (!ic) return { ic: false };
@@ -108,10 +114,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { ic: true, enabled, voxMenu, tabEditor, qbNoChord };
   });
   T(r.ic && r.enabled && r.voxMenu && r.tabEditor && r.qbNoChord,
-    'T6 创作辅助「和弦」图标按行分派（浮条无和弦钮）', JSON.stringify(r));
+    'T6 创作辅助「和弦」图标按行分派（浮条无和弦钮；?shell=classic）', JSON.stringify(r));
 
   /* 和弦层面板入口跟随选中行（不再强制切 tab） */
-  r = await pg.evaluate(() => {
+  r = await pc.evaluate(() => {
     sel.row = 'vox'; sel.vi = 0; sel.mi = 2; sel.ci = 0; render();
     document.getElementById('b-chord-edit').click();
     const voxMenu = !!document.getElementById('vc-ok');
@@ -119,7 +125,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     closePop();
     return { voxMenu, rowKept };
   });
-  T(r.voxMenu && r.rowKept, 'T7 和弦层面板入口跟随选中行', JSON.stringify(r));
+  T(r.voxMenu && r.rowKept, 'T7 和弦层面板入口跟随选中行（?shell=classic）', JSON.stringify(r));
+  await pc.close();
 
   /* v60.28 谱面不留「＋和弦」点击位（全谱类，含功能谱原有的）+「标注」图标浮层 */
   r = await pg.evaluate(() => {

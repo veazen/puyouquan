@@ -27,7 +27,7 @@ const want = k => !ONLY.length || ONLY.includes(k);
 const SHOTS = process.env.SHOTS || '';
 const REF = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'shellflow_ref.json'), 'utf8')); } catch (_) { return {}; } })();
 const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || 'a8c2089';
-const NEW_KEYS = ['musetab-tour-shell', 'musetab-sbar'];   /* v68.3 + musetab-sbar（谱面上方悬浮条收起＝'0'，展开删键） */
+const NEW_KEYS = ['musetab-tour-shell', 'musetab-sbar', 'musetab-chordhear'];   /* v68.3 + musetab-sbar（谱面上方悬浮条收起＝'0'，展开删键）；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，'0'＝关，规格 f89 §0.5 登记的唯一新键） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
