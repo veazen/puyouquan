@@ -941,9 +941,12 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
     sel = { row: 'vox', vi: 0, mi: 0, ci: 0 }; syncInputs();
     const libTxt = document.getElementById('eb-lib').textContent;
     openRhyLib();
-    const m = document.querySelector('.modal');
+    /* v69.0 S2 迁移（D9 配谱直接执行）：新外壳新形态（F.nxOn）里伴奏织体不再弹窗，openRhyLib 在大谱表上打开织体条 #flw-nx-tbar——
+       断言改看织体条里有「柱式和弦」「抒情分解」；旧外壳 / ?next=0 仍是 .modal（原断言逐字不变）。修前红：v69.0 新外壳 m 为 null */
+    const nx = document.body.classList.contains('flow') && !document.body.classList.contains('flw-nx0') && typeof FLOW !== 'undefined' && FLOW.nx && FLOW.nxOn && FLOW.nxOn();
+    const m = nx ? document.getElementById('flw-nx-tbar') : document.querySelector('.modal');
     const pianoOk = libTxt === '伴奏织体…' && !!m && /柱式和弦/.test(m.textContent) && /抒情分解/.test(m.textContent);
-    closeModal(); window.toast = ot;
+    closeModal(); try { if (nx) FLOW.nx.tbar.close(false); } catch (_) {} window.toast = ot;
     return { jpOk, tabOk, cap, shownMax: Math.max.apply(null, shown), stRestOk, singleOk, pianoOk };
   });
   T(t43.jpOk && t43.tabOk && t43.stRestOk && t43.singleOk && t43.pianoOk,
