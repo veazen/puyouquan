@@ -27,7 +27,7 @@ const want = k => !ONLY.length || ONLY.includes(k);
 const SHOTS = process.env.SHOTS || '';
 const REF = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'shellflow_ref.json'), 'utf8')); } catch (_) { return {}; } })();
 const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || 'a8c2089';
-const NEW_KEYS = ['musetab-tour-shell', 'musetab-sbar', 'musetab-chordhear'];   /* v68.3 + musetab-sbar（谱面上方悬浮条收起＝'0'，展开删键）；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，'0'＝关，规格 f89 §0.5 登记的唯一新键） */
+const NEW_KEYS = ['musetab-tour-shell', 'musetab-sbar', 'musetab-chordhear', 'musetab-preview'];   /* v69.0 有意迁移 + musetab-preview（停留预览开关，'0'＝关，规格 f90 §2.9 / 方案 P11 登记的唯一新键） */   /* v68.3 + musetab-sbar（谱面上方悬浮条收起＝'0'，展开删键）；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，'0'＝关，规格 f89 §0.5 登记的唯一新键） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
@@ -510,7 +510,7 @@ function INIT() {
   if (want('F6')) jobs.push(() => SAFE('F6', 'F6', async () => {
     const pg = await open(1280, 800, { tag: 'F6' });
     await scn(pg, 'songbie'); const base = await redBase(pg);
-    const Q = [['预设', 'r1:demo', /^示例曲谱$/, ['flw-file']], ['打印…', 'out:print', /^打印 \/ 存 PDF$/, ['flw-mode-output']], ['智能', 'rd:smart', /^智能$/, ['flw-rpt-smart', 'rs:smart']],
+    const Q = [['预设', 'r1:demo', /^示例曲谱$/, ['flw-file']], ['打印…', 'out:print', /^打印 \/ 存 PDF$/, ['flw-mode-output']], ['智能', 'rd:smart', /^智能$/, ['flw-sb-smart']],   /* v69.0 S2 迁移（D4）：右栏「智能」页撤掉，「智能」描悬浮条「智能 ▾」（?next=0 仍描右栏页签，见 tv_smart SM9 / 原断言） */
       ['存为文件', 'r1:file', /^存为文件/, ['flw-file']], ['经典版', 'acct:classic', /^使用旧版布局$/, ['flw-acct']]];
     const got = [];
     for (const [q, id, nre, hl] of Q) {
@@ -533,7 +533,7 @@ function INIT() {
       await wait(pg, 120);
     }
     const end = await EV(pg, () => ({ hl: document.querySelectorAll('.flw-cmd-hl').length, ro: document.body.classList.contains('flw-ro') }));
-    T('F6', got.every(x => x.ok) && end.hl === 0 && !end.ro, 'F6 Ctrl+/ 搜旧入口名（v68.7 S1：没有位置列，↑↓ 描边真实控件）：「预设」→ 示例曲谱（描 文件）·「打印…」→ 打印 / 存 PDF（描 输出 模式钮）·「智能」→ 右栏智能（描页签）·「存为文件」→ 文件 · 「经典版」→ 使用旧版布局（描 账号），回车打开偏好设置并聚焦、标出该行（不直接切换）；焦点始终在搜索框，Esc 后描边与浮出的右栏都撤掉',
+    T('F6', got.every(x => x.ok) && end.hl === 0 && !end.ro, 'F6 Ctrl+/ 搜旧入口名（v68.7 S1：没有位置列，↑↓ 描边真实控件）：「预设」→ 示例曲谱（描 文件）·「打印…」→ 打印 / 存 PDF（描 输出 模式钮）·「智能」→ 悬浮条「智能 ▾」（v69.0 起；描它）·「存为文件」→ 文件 · 「经典版」→ 使用旧版布局（描 账号），回车打开偏好设置并聚焦、标出该行（不直接切换）；焦点始终在搜索框，Esc 后描边与浮出的右栏都撤掉',
       J(got.filter(x => !x.ok).length ? got.filter(x => !x.ok) : got.map(x => x.q + '→' + (x.r ? x.r.t + ' 描 ' + (x.h && x.h.id) : J(x.p)))) + ' end=' + J(end));
     await redEnd('F6', pg, base, []);
     await close(pg);

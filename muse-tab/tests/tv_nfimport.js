@@ -923,7 +923,10 @@ function gp5() {
            已标和弦功能谱原在「和弦」工具 title 里写「改和弦：…」→ 不再出空谱提示（lbAllBare 为假），「和弦」工具照在、title＝「输入和弦（Ctrl+K）」。
            修前红修后绿：改前 ③ 的可见提示为空（走工具 title）、/来自文件/ 读不到 #flw-sb-hint */
         const hi = document.getElementById('flw-sb-hint');
-        return { k: NWB.stackOf(song), steps: (m.steps || []).map(x => x.split(':')[0]).join(','), go: !!w.querySelector('[data-fa="sbar:go"], .flw-sb-tool.pri'),
+        /* v69.0 迁移（规格 §3「'file' 状态」/ §8.4 tv_nfimport）：新外壳 ③ 伴奏来自文件＝无重配按钮、提示「伴奏来自文件」，主按钮给「排版」（act＝engrave）；?next=0 仍是 v68.9 口径（无主按钮） */
+        const g = w.querySelector('[data-fa="sbar:go"]'), NX = !!(FLOW.nx && FLOW.nx.ok && FLOW.nx.ok());
+        return { k: NWB.stackOf(song), steps: (m.steps || []).map(x => x.split(':')[0]).join(','), go: NX ? !!(g && g.dataset.act !== 'engrave') || !!w.querySelector('.flw-sb-tool.pri') : !!w.querySelector('[data-fa="sbar:go"], .flw-sb-tool.pri'),
+          goAct: g ? g.dataset.act : null, nx: NX,
           gSteps: m.phase === 'steps' ? li : (m.steps || []).map(x => x.split(':')[0]).join(','), hint: m.steps ? (hi ? hi.textContent : '') : '', tip: m.steps ? '' : tt('chord'), hintNow: hi ? hi.textContent : '', flow: true }; }
       const w = document.querySelector('#lb-wrap .lb-bar'); if (!w) return null;
       return { k: NWB.stackOf(song), steps: [...w.querySelectorAll('.lb-steps li')].map(li => li.className).join(','), go: !!w.querySelector('.lb-go'), hint: (w.querySelector('.lb-hint') || {}).textContent || '', tip: (w.querySelector('.lb-tip') || {}).textContent || '' }; });
@@ -933,7 +936,7 @@ function gp5() {
     await toImport(pg); if (await pg.$('#nf-unload')) await pg.click('#nf-unload'); await pick(pg, file('mel.musicxml', MEL)); await loaded(pg);
     await pg.click('[data-act="tg"][data-v="CJ"]'); await pvDone(pg); await pg.click('#nf-impgo'); await pg.waitForTimeout(200); r.cj = await bar();
     await pg._ctx.close();
-    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && (shell === 'classic' ? /文件里的/.test(x.hint) : x.hint === '伴奏来自文件') && (shell === 'classic' || x.gSteps === x.steps);   /* flow：悬浮条与 lbCur 同口径 */
+    const accOk = x => x && ['JG', 'SG', 'SJG'].includes(x.k) && x.steps === 'done,done,now' && !x.go && (shell === 'classic' ? /文件里的/.test(x.hint) : x.hint === '伴奏来自文件') && (shell === 'classic' || x.gSteps === x.steps) && (shell === 'classic' || !x.nx || x.goAct === 'engrave');   /* flow：悬浮条与 lbCur 同口径；v69.0 新外壳主按钮只能是「排版」 */
     const cjOk = shell === 'classic' ? (r.cj && /改和弦/.test(r.cj.tip) && !/先写旋律/.test(r.cj.tip)) : (r.cj && r.cj.tip === '输入和弦（Ctrl+K）' && !/写旋律/.test(r.cj.hintNow));
     T(accOk(r.vp_orig) && accOk(r.vp_SJ) && r.cj && r.cj.k === 'CJ' && cjOk,
       'I34（' + shell + '）人声＋钢琴文件按原文件 / 对照导入：起步条 ①② 打勾、③ 只给提示「伴奏是文件里的……」不给主按钮（此前主按钮「换织体」会按织体重配覆盖文件伴奏）；标级数和弦导入后提示「改和弦……」（此前仍说「先写旋律」）', JSON.stringify(r));

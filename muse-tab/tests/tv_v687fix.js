@@ -161,7 +161,7 @@ async function cmdFirst(pg, q) {
         const by = Object.fromEntries(c.cells.map(x => [x.id, x]));
         const wide = ['dyn-more', 'tempo-mark', 'keysig', 'meter', 'tupletN', 'rehearsal'];
         T(c.mix && wide.every(id => by[id] && !by[id].none && by[id].lab && cnt(by[id].lab) <= 3 && by[id].w >= 70 && Math.abs(by[id].h - 36) <= 1)
-          && ['dyn-mf', 'tuplet3'].every(id => by[id] && Math.abs(by[id].w - 36) <= 1 && !by[id].lab) && by['dyn-more'].lab === '更多' && by['tempo-mark'].lab === '速度',
+          && ['dyn-mf', 'tuplet3'].every(id => by[id] && Math.abs(by[id].w - 36) <= 1 && !by[id].lab) && by['dyn-more'].lab === '表情' && by['tempo-mark'].lab === '速度',   /* v69.0 S2 迁移（§9.0 BUD-8 去重）：新外壳 dyn-more 格 2 字「更多」→「表情」（?next=0 仍「更多」，tv_smart SM6） */
           'V7 BUD-1 / TCH-4 混合档：更多力度 / 速度 / 转调 / 拍号 / N 连音 / 段落标记占两格宽带 2 字（' + wide.map(id => by[id] && by[id].lab).join(' / ') + '），mf、3 连音仍 36 只画字形〔修前：全 36 无字，更多力度画成 mf〕', J(c));
       }
       if (want('V10')) {
@@ -212,11 +212,13 @@ async function cmdFirst(pg, q) {
         const r = await EV(pg, async () => {
           const s = NWB.build('JG', { title: '配伴奏回归', nMea: 8, lyr: 0 }); s.measures.slice(0, 4).forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i % 4]; }));
           await new Promise(res => addDoc(s, res));
+          /* v69.0 S2 有意迁移（规格 f90 §8.4）：新外壳里「一键配伴奏」直接执行（不出弹窗）、「伴奏织体」打开织体条——同一条提示短文；弹窗路径（?next=0）由 tv_fillacc / tv_acc 覆盖 */
           document.getElementById('b-arrange').click(); await new Promise(res => setTimeout(res, 200));
           const go = document.getElementById('arr-go'); if (go) go.click(); await new Promise(res => setTimeout(res, 300));
           const a = __toastT();
           document.getElementById('b-acctex').click(); await new Promise(res => setTimeout(res, 200));
-          const blk = document.querySelector('input[name="tex"][value="block"]'); if (blk) blk.checked = true;
+          const blk = document.querySelector('input[name="tex"][value="block"]') || document.querySelector('#flw-nx-tbar [role="option"][data-v="block"]');
+          if (blk && blk.tagName === 'INPUT') blk.checked = true; else if (blk) blk.click();
           const tg = document.getElementById('tex-go'); if (tg) tg.click(); await new Promise(res => setTimeout(res, 300));
           return { a, t: __toastT(), blk: !!blk, nm: ((PIANO_TEX.find(x => x.id === 'block') || {}).name || '') };
         });

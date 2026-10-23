@@ -16,7 +16,8 @@ const P3 = /行 ?[12](?![\d.])|[左右底顶]栏|状态栏|标题行|右侧|左�
 /* v68.7 收尾 BUD-3：定稿正则之外的同义指路观察名单（同 deploy/check-wording.js 的 p3syn）——只报告，不进 KEYS / 验收线 */
 const P3SYN = /下面的|上面的|旁的按钮|下方的按钮|上方的按钮|右端|左端/;
 /* 右栏当前页（读屏标题 h2 视觉隐藏，不进可见文字；按场景定）。v68.3 撤「下一步」卡后，新建谱默认停在属性页 */
-const rpage = id => ({ engrave: '版式', output: '发布与导出', 'rp-text': '文字', 'rp-smart': '智能', startpad: '无', newpanel: '无', 'newpanel-pacc': '无' })[id] || '属性';
+/* v69.0 S2：rp-smart 屏改为「智能 ▾」画廊（右栏停在属性页），不再是右栏「智能」页 */
+const rpage = id => ({ engrave: '版式', output: '发布与导出', 'rp-text': '文字', startpad: '无', newpanel: '无', 'newpanel-pacc': '无' })[id] || '属性';
 const regKey = (s, g, c) => { let r = g.region; if (r === 'row2') r = 'row2:' + ((s.meta && s.meta.mode) || 'm'); if (r === 'right') r = 'right:' + rpage(s.id);
   if (c && /data-fa=mode:set|#flw-mdd|data-fa=mode:menu/.test(c.el || '')) r = 'row2:modes'; return r; };
 /* 功能表：[名, 原口径（可见名）, K3 元素口径] */

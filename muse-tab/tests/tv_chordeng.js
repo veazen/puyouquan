@@ -653,10 +653,13 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
     await wait(pg, 300);
     const g = await EV(pg, () => { const b2 = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return { t: b2 ? b2.textContent.trim() : null, act: b2 ? b2.dataset.act : null, hit: __hit(b2) }; });
     if (g.hit && g.hit.ok) await pg.mouse.click(g.hit.x, g.hit.y); await wait(pg, 300);
+    /* v69.0 S2 有意迁移（规格 f90 §1.4-3 / P10）：指针停在主按钮上时悬浮条不换字（离开后补画）——真实用户点完去级数构建器里打字，指针已离开；这里同样移开 */
+    await pg.mouse.move(4, 300);
     const p = await EV(pg, () => Object.assign(__pane(), { vi: sel.vi, row: sel.row }));
     await typeKeys(pg, 'C'); await pg.keyboard.press('Enter'); await wait(pg, 300);
     const s2 = await EV(pg, () => ({ steps: [...document.querySelectorAll('#flw-sbar .flw-sb-steps li')].map(li => li.className + ':' + (li.querySelector('.flw-sb-t') || {}).textContent).join('|'), ph: (document.getElementById('flw-sbar') || { dataset: {} }).dataset.ph,
-      pri: (document.querySelector('#flw-sbar .flw-sb-tool.pri') || { dataset: {} }).dataset.v, ch: (song.measures[1].voxes[0][0] || {}).chord }));
+      pri: (document.querySelector('#flw-sbar .flw-sb-tool.pri') || { dataset: {} }).dataset.v, ch: (song.measures[1].voxes[0][0] || {}).chord,
+      go: ((document.querySelector('#flw-sbar [data-fa="sbar:go"] .flw-sb-l') || {}).textContent || '') }));
     await shot(pg, 'E13-cg-step1');
     await close(pg);
     const pc = await open(b, { tag: 'E13c', url: CLASSIC });
@@ -664,7 +667,8 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
     await wait(pc, 300);
     const c = await EV(pc, () => { const w = document.getElementById('lb-wrap'); return { go: w ? w.querySelectorAll('.lb-go').length : -1, txt: w ? w.innerText.replace(/\s+/g, ' ') : '' }; });
     await close(pc);
-    T('E13', g.t === '标和弦' && g.act === 'chord' && g.hit.ok && p.popCe === 'vox' && p.vi === 0 && p.ck && s2.ch === 'C' && (s2.ph === 'tools' ? s2.pri === 'tex' : /now:织体/.test(s2.steps)) && c.go === 0 && /Ctrl\+K/.test(c.txt),
+    /* v69.0 S2 有意迁移（规格 f90 §1.3 N44）：写入 C 后起步走到 ②「生成伴奏」（实底主按钮，起步阶段到底，不再进工具阶段强调「织体」） */
+    T('E13', g.t === '标和弦' && g.act === 'chord' && g.hit.ok && p.popCe === 'vox' && p.vi === 0 && p.ck && s2.ch === 'C' && (s2.ph === 'tools' ? s2.pri === 'tex' : (/now:织体/.test(s2.steps) && s2.go === '生成伴奏')) && c.go === 0 && /Ctrl\+K/.test(c.txt),
       'E13 钢琴弹唱谱新外壳：悬浮条主按钮「标和弦」可见；点了在 voxes[0]（右手）打开构建器；写入 C 后进到「选织体」；旧外壳谱型条仍只有提示、没有新按钮', J({ g: [g.t, g.act, g.hit.ok], p: [p.popCe, p.vi, p.ck], s2, c }));
   } catch (e) { T('E13', false, 'E13 组异常（没跑完）', String(e && e.message || e).slice(0, 300)); }
 

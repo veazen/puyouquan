@@ -146,15 +146,19 @@ const F = F0 + '?shell=classic';
   });
   T(r.ctx === 'st' && r.ped && r.fing && r.ott && r.clef && r.back === 'jp', 'F3 flow 旋律轨·五线谱：踏板 / 指法 / 八度线 / 谱号格齐现，切回简谱即撤', JSON.stringify(r));
 
-  // F4 钢琴轨：五线谱格在位；右栏「智能」页「伴奏织体」只在钢琴伴奏歌谱出（钢琴独奏不出）——与委托钮 #b-acctex 的谱类显隐同一规则
-  const smartItems = () => pf.evaluate(() => { FLOW.rd.show('smart'); const items = [...document.querySelectorAll('#flw-rx-ai [data-fa="rdp:ai"]')].map(x => x.dataset.v);
-    const tb = document.getElementById('b-acctex'); return { items, tex: items.includes('tex'), del: !!tb && tb.style.display !== 'none', vis: __vis('#flw-rx-ai') }; });
+  // F4 钢琴轨：五线谱格在位；「伴奏织体」入口——v69.0 S2 迁移（D4）：右栏「智能」页撤掉，同一工具在悬浮条「智能 ▾」画廊的「织体」卡：
+  //    钢琴伴奏歌谱可用（＝#b-acctex 显示）；钢琴独奏谱也可用（大谱表 accTexRows，同悬浮条工具「织体」，收尾 SBAR-6 一功能一名）——#b-acctex 照旧不显示。
+  //    修前红修后绿：改前没有画廊（#popmenu[data-m=smart]）
+  const smartItems = () => pf.evaluate(() => { try { FLOW.menu.close(); } catch (_) {} FLOW.gal.open(document.getElementById('flw-sb-smart'), null, {});
+    const cs = [...document.querySelectorAll('#popmenu[data-m="smart"] .flw-gc')], items = cs.filter(x => x.getAttribute('aria-disabled') !== 'true').map(x => x.dataset.v);
+    const tb = document.getElementById('b-acctex'); const r = { items, tex: items.includes('tex'), del: !!tb && tb.style.display !== 'none', rows: !!((song.voxVoices || []).length >= 2 && accTexRows(song)), vis: __vis('#popmenu[data-m="smart"]') };
+    try { FLOW.menu.close(); } catch (_) {} return r; });
   await pf.evaluate((base2) => { loadSong(createSong('piano', Object.assign({ lyr: 0 }, base2))); sel.row = 'vox'; sel.vi = 0; __sync(); }, base);
   const pSolo = Object.assign(await pf.evaluate(() => ({ ctx: FLOW.ctx(), ped: __cell('ped'), clef: __cell('clef') })), await smartItems());
   await pf.evaluate((base2) => { loadSong(createSong('pianoacc', Object.assign({ lyr: 1 }, base2))); sel.row = 'vox'; sel.vi = 0; __sync(); }, base);
   const pAcc = await smartItems();
-  T(pSolo.ctx === 'st' && pSolo.ped && pSolo.clef && pSolo.vis && !pSolo.tex && !pSolo.del && pAcc.vis && pAcc.tex && pAcc.del,
-    'F4 flow 钢琴轨：踏板 / 谱号格在位；「智能」页伴奏织体——钢琴独奏无、钢琴伴奏歌谱有（＝#b-acctex 显隐）', JSON.stringify({ solo: pSolo, acc: pAcc }));
+  T(pSolo.ctx === 'st' && pSolo.ped && pSolo.clef && pSolo.vis && pSolo.tex === pSolo.rows && !pSolo.del && pAcc.vis && pAcc.tex && pAcc.del,
+    'F4 flow 钢琴轨：踏板 / 谱号格在位；「智能 ▾」画廊「织体」——钢琴伴奏歌谱可用（＝#b-acctex 显示）、钢琴独奏谱按大谱表可用（同悬浮条「织体」，#b-acctex 仍不显示）', JSON.stringify({ solo: pSolo, acc: pAcc }));
 
   // F5 功能谱：音轨区表头「⋯」菜单出「和弦 / 级数…」，点它弹出级数和弦菜单（与旧左栏 #vf-edit 同一 showVoxChordMenu）
   await pf.evaluate((base2) => { loadSong(createSong('func', Object.assign({ ftype: 'func', nVox: 1, lyr: 1 }, base2))); sel.row = 'vox'; sel.vi = 0; sel.mi = 0; sel.ci = 0; __sync(); }, base);

@@ -1148,7 +1148,9 @@ function T0SCN() {
       const go = w && w.querySelector('[data-fa="sbar:go"]');
       return { lb: !!document.getElementById('lb-wrap'), start: !!document.getElementById('flw-start') || !!document.getElementById('flw-next'), vis: __vis(w), sb: w ? w.dataset.sb : null,
         ui: steps.map(s => ['done', 'now', 'todo'].find(x => s.classList.contains(x)) + (s.getAttribute('aria-current') === 'step' ? '*' : '')).join(','),
-        want: f && f.steps ? f.steps.map(x => x.st + (x.st === 'now' ? '*' : '')).join(',') : '', go: go ? { t: go.textContent.trim(), act: go.dataset.act } : null, nxt: c && c.nxt ? { t: c.nxt.btn, act: c.nxt.act } : null,
+        want: f && f.steps ? f.steps.map(x => x.st + (x.st === 'now' ? '*' : '')).join(',') : '', go: go ? { t: go.textContent.trim(), act: go.dataset.act } : null,
+        /* v69.0 迁移（规格 §8.4 T24）：新外壳主按钮字＝FLOW.nx.resolve 的短名（「配伴奏」），不再是 lbSteps 的「一键配伴奏…」；?next=0 / 旧外壳仍是 lbCur 原字 */
+        nxt: (window.FLOW && FLOW.nx && FLOW.nx.ok() && FLOW.sbar.model().nx) ? { t: FLOW.sbar.model().nx.btn, act: FLOW.sbar.model().nx.act } : (c && c.nxt ? { t: c.nxt.btn, act: c.nxt.act } : null),
         key: localStorage.getItem('musetab-sbar'), h: w ? Math.round(w.getBoundingClientRect().height) : 0 }; };
     await SAFE('T24', 'T24', async () => {
       await scn(pg, 'newpacc'); await wait(pg, 200);
@@ -1156,24 +1158,34 @@ function T0SCN() {
       await EV(pg, () => mutate(() => { for (let mi = 0; mi < 4; mi++) song.measures[mi].voxes[0].forEach((c, k) => { c.deg = 1 + ((mi * 4 + k) % 7); }); })); await wait(pg, 200);
       const b2 = await EV(pg, ST);
       await shot(pg, 'T24-start-1280x800');
-      await pg.click('#flw-sbar [data-fa="sbar:go"]'); await wait(pg, 300);
-      const m1 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; closeModal(); return t; });
+      /* v69.0 迁移（规格 §8.4 T24「主按钮＝弹窗、song 不变 → 主按钮直接写入」）：主按钮不开弹窗、一次点击写入伴奏；旧入口 #b-arrange 在新外壳走同一条 FLOW.nx.run('arrange') → 两次写入逐字节相同；
+         撤销回到写入前（之后 T24c 照旧在「配和弦与伴奏」这一步测收起 / 展开）。600ms 防误点：主按钮字刚变，等够再点 */
+      const jb = await EV(pg, () => JSON.stringify(song)); await wait(pg, 700);
+      await pg.click('#flw-sbar [data-fa="sbar:go"]'); await wait(pg, 300); await away(pg);
+      const m1 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; try { closeModal(); } catch (_) {} return { modal: t, j: JSON.stringify(song), acc: (() => { const R = accTexRows(song) || {}; return !!R.acc && song.measures.slice(0, 4).some(m => [R.rhVi, R.lhVi].some(v => (m.voxes[v] || []).some(c => c.deg || (c.notes && c.notes.length)))); })() }; });
+      await EV(pg, () => { undo(); render(); });
+      const ju = await EV(pg, () => JSON.stringify(song));
       await EV(pg, () => document.getElementById('b-arrange').click()); await wait(pg, 300);
-      const m2 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; closeModal(); return t; });
+      const m2 = await EV(pg, () => { const h = document.querySelector('#modal-mask h3'); const t = h ? h.textContent : null; try { closeModal(); } catch (_) {} return { modal: t, j: JSON.stringify(song) }; });
+      await EV(pg, () => { undo(); render(); }); await wait(pg, 200);
       const j0 = await EV(pg, () => { __toasts.length = 0; return JSON.stringify(song); });
       await pg.click('#flw-sb-tg'); await wait(pg, 200);
       const c = await EV(pg, ST);
-      await away(pg); await pg.keyboard.press('Alt+b'); await wait(pg, 250);
+      /* v69.0 迁移（规格 §1.4.5 D3 / Q6）：焦点不在条内时 Alt+B 只聚焦主按钮、不切换（收起态没有紧凑主按钮时落展开钮，同 v68.3 target()）；焦点已在条内再按才切换展开 / 收起 */
+      await away(pg); await EV(pg, () => { const a = document.activeElement; if (a && a.closest && a.closest('#flw-sbar')) a.blur(); }); await pg.keyboard.press('Alt+b'); await wait(pg, 250);
+      const d1 = await EV(pg, () => { const w = document.getElementById('flw-sbar'), a = document.activeElement; return { sb: w ? w.dataset.sb : null, key: localStorage.getItem('musetab-sbar'), inBar: !!(a && a.closest && a.closest('#flw-sbar')), fa: a && a.dataset ? a.dataset.fa : null }; });
+      await pg.keyboard.press('Alt+b'); await wait(pg, 250);
       const d = await EV(pg, ST);
       const fo = await EV(pg, () => { const a = document.activeElement; return { inBar: !!(a && a.closest && a.closest('#flw-sbar')), fa: a && a.dataset ? a.dataset.fa : null }; });
       const j1 = await EV(pg, () => JSON.stringify(song));
       T('T24', !a.lb && !a.start && a.vis && a.ui === a.want && /now\*/.test(a.ui) && !b2.lb && b2.ui === b2.want && b2.ui === 'done,now*,todo' && !!b2.go && b2.go.act === 'arrange' && b2.go.t === b2.nxt.t,
         'T24a 新建钢琴伴奏歌谱：没有 #lb-wrap / 行 2 起步组 / 「下一步」卡；谱面上方悬浮条的步骤状态＝lbCur(lbInfo(song, LBAR.meta()))（当前步 aria-current=step）；写完旋律推进到「配和弦与伴奏」，主按钮「' + (b2.go && b2.go.t) + '」',
         J({ a: [a.ui, a.want], b: [b2.ui, b2.want, b2.go] }));
-      T('T24', !!m1 && m1 === m2, 'T24b 悬浮条主按钮打开的弹窗与 #b-arrange 相同（同一个 lbGo → #b-arrange.click）', J({ m1, m2 }));
-      T('T24', c.sb === 'col' && c.h === 34 && c.key === '0' && c.vis && d.sb === 'exp' && d.key === null && d.ui === 'done,now*,todo' && fo.inBar && fo.fa === 'sbar:go' && j1 === j0 && !d.lb && !d.start,
-        'T24c 收起钮：收成 34 高细条（data-sb=col、musetab-sbar=\'0\'，不再整条消失）；Alt+B → 展开（删键）、焦点落在主按钮；收起 / 展开不改谱、全程不建 #lb-wrap / #flw-start',
-        J({ c: [c.sb, c.h, c.key, c.vis], d: [d.sb, d.key, d.ui], fo, same: j1 === j0 }));
+      T('T24', m1.modal === null && m2.modal === null && m1.j !== jb && m1.acc && ju === jb && m2.j === m1.j && j0 === jb,
+        'T24b 悬浮条主按钮「配伴奏」不开弹窗、一次点击写入伴奏；旧入口 #b-arrange 在新外壳走同一条直接执行，结果与主按钮逐字节相同；撤销一步回到写入前', J({ m1: [m1.modal, m1.acc, m1.j === jb], m2: [m2.modal, m2.j === m1.j], undo: ju === jb, back: j0 === jb }));
+      T('T24', c.sb === 'col' && c.h === 34 && c.key === '0' && c.vis && d1.sb === 'col' && d1.key === '0' && d1.inBar && ['sbar:tg', 'sbar:go'].includes(d1.fa) && d.sb === 'exp' && d.key === null && d.ui === 'done,now*,todo' && fo.inBar && fo.fa === 'sbar:go' && j1 === j0 && !d.lb && !d.start,
+        'T24c 收起钮：收成 34 高细条（data-sb=col、musetab-sbar=\'0\'，不再整条消失）；焦点不在条内时 Alt+B 只聚焦（收起态落展开钮 / 紧凑主按钮、不展开）；条内再按 Alt+B → 展开（删键）、焦点落在主按钮；收起 / 展开不改谱、全程不建 #lb-wrap / #flw-start',
+        J({ c: [c.sb, c.h, c.key, c.vis], d1, d: [d.sb, d.key, d.ui], fo, same: j1 === j0 }));
     });
     /* v68.7 S1 迁移（D4 / 规格 B3）：原「点音轨区谱类芯片 #flw-kchip 开 / 关 #lb-menu」→ 开菜单者改为悬浮条谱类 ▾ #flw-sb-kind（同一个 lbMenuOpen、同一张菜单，定位 / 再点即关 / 点谱面也关照旧断言）；
        另断言芯片只读：不是按钮、不挂 data-fa / aria-haspopup / aria-expanded，点它不开菜单。修前红修后绿：改前芯片是 button[data-fa=tree:kind]，ro.ro 为假、点芯片开出菜单（ro.m 为真） */
@@ -1614,14 +1626,17 @@ function T0SCN() {
       /* v68.3 迁移：<1440（右栏竖条）落地提示——悬浮条展开着＝不再写「下一步见…」（guide 返回 ''），收起时说「谱面上方的悬浮条」；
          Alt+B 切换悬浮条（展开 ⇄ 收起）并聚焦，右栏不浮出 */
       const a = await EV(pg, () => ({ rs: document.body.classList.contains('flw-rs'), exp: FLOW.sbar.expanded(), txt: FLOW.sbar.guide('；下一步见谱面上方的谱型条') }));
+      /* v69.0 迁移（规格 §1.4.5 D3 / Q6）：焦点不在条内时 Alt+B 首按只聚焦主按钮（屏上有焦点环＝SH-3「必有变化」）、不收起；条内再按才切换（收起 → 焦点在展开钮；再按展开 → 焦点在条里） */
+      await pg.keyboard.press('Alt+b'); await wait(pg, 250);
+      const b0 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), exp: FLOW.sbar.expanded(), sb: document.getElementById('flw-sbar').dataset.sb, ae: (document.activeElement || {}).id || '', key: localStorage.getItem('musetab-sbar') }));
       await pg.keyboard.press('Alt+b'); await wait(pg, 250);
       const b2 = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), exp: FLOW.sbar.expanded(), sb: document.getElementById('flw-sbar').dataset.sb, ae: (document.activeElement || {}).id || '',
         txt: FLOW.sbar.guide('；下一步见谱面上方的谱型条') }));
       await pg.keyboard.press('Alt+b'); await wait(pg, 250);
       const c = await EV(pg, () => ({ ro: document.body.classList.contains('flw-ro'), exp: FLOW.sbar.expanded(), inBar: !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('#flw-sbar')) }));
       await pg.keyboard.press('Escape'); await wait(pg, 150);
-      T('T30', a.rs && a.exp && a.txt === '' && !b2.ro && !b2.exp && b2.sb === 'col' && b2.ae === 'flw-sb-tg' && /谱面上方的悬浮条/.test(b2.txt) && !c.ro && c.exp && c.inBar,
-        'T30f <1440（右栏竖条）：悬浮条展开时落地提示不再写「下一步见…」，收起时说「谱面上方的悬浮条」；Alt+B 切换悬浮条（收起 → 焦点在展开钮；再按展开 → 焦点在条里），右栏不浮出（验收 SH-3 意图：Alt+B 屏上必有变化）', J({ a, b2, c }));
+      T('T30', a.rs && a.exp && a.txt === '' && !b0.ro && b0.exp && b0.sb === 'exp' && b0.ae === 'flw-sb-go' && b0.key === null && !b2.ro && !b2.exp && b2.sb === 'col' && b2.ae === 'flw-sb-tg' && /谱面上方的悬浮条/.test(b2.txt) && !c.ro && c.exp && c.inBar,
+        'T30f <1440（右栏竖条）：悬浮条展开时落地提示不再写「下一步见…」，收起时说「谱面上方的悬浮条」；Alt+B 首按聚焦主按钮（不收起、不写键），条内再按切换悬浮条（收起 → 焦点在展开钮；再按展开 → 焦点在条里），右栏不浮出（验收 SH-3 意图：Alt+B 屏上必有变化）', J({ a, b0, b2, c }));
     });
     await close(pg);
   });

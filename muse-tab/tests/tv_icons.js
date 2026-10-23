@@ -246,8 +246,12 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
         subs: [...new Set([...document.querySelectorAll('#flw-tlist .flw-tsico svg.pqi')].map(x => x.dataset.pq))].sort().join(','),
         add: pq(document.querySelector('#flw-trk [data-fa="tree:add"] svg.pqi')), chip: pq(document.querySelector('#flw-kchip svg.pqi')), doc: (docIcon(song).match(/data-pq="([^"]+)"/) || [])[1],
         scope: (document.querySelector('#flw-scope .flw-sic svg.pqi') || { dataset: {} }).dataset.pq, cur: (trkIcon(sel.row === 'tab' ? 'tv' : 'vv', sel.vi | 0, 18).match(/data-pq="([^"]+)"/) || [])[1],
-        rxk: pq(document.querySelector('#flw-rx-song .flw-rx-kic svg.pqi')), ai: Object.fromEntries([...document.querySelectorAll('#flw-rx-ai [data-fa="rdp:ai"]')].map(x => [x.dataset.v, (x.querySelector('svg.pqi') || { dataset: {} }).dataset.pq])),
-        txt: document.querySelectorAll('#flw-trk svg text, #flw-rx-ai svg text, #flw-rx-song svg text').length }; });
+        rxk: pq(document.querySelector('#flw-rx-song .flw-rx-kic svg.pqi')),
+        /* v69.0 S2 迁移（D4）：右栏「智能」页撤掉，同一组工具图标在悬浮条「智能 ▾」画廊卡上（占位图标＝data-ic，同 6 个 pqIcon 键；缩略图是刻版小样 svg，不算图标、不数 <text>）；
+           导入 MIDI 的家是文件 ▾「从已有音乐…」（act-import + MID 徽章，tv_smart SM4） */
+        ai: (() => { try { FLOW.menu.close(); } catch (_) {} FLOW.gal.open(document.getElementById('flw-sb-smart'), null, {});
+          const o = Object.fromEntries([...document.querySelectorAll('#popmenu[data-m="smart"] .flw-gc')].map(x => [x.dataset.v, x.dataset.ic])); try { FLOW.menu.close(); } catch (_) {} return o; })(),
+        txt: document.querySelectorAll('#flw-trk svg text, #flw-rx-song svg text').length }; });
     const S = {
       instr: () => loadSong(PRESETS.find(p => /小步舞曲/.test(p.name)).make()),
       jg: () => loadSong(NWB.build('JG', { title: 'x', key: 'C', beats: 4, unit: 4, tempo: 90, nMea: 4, lyr: 1 })),
@@ -262,8 +266,8 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
     const ok1 = x => x && x.add === 'act-add@16' && x.chip === x.doc + '@16' && /^type16-/.test(x.doc) && x.rxk === x.chip && x.scope === x.cur && x.txt === 0 && x.subs.split(',').every(v => /^(nota-|ai-gentab$)/.test(v));
     T(ok1(R.instr) && ok1(R.jg) && ok1(R.choir) && ok1(R.gtr) && R.instr.rows === 'inst-other@18' && R.jg.rows === 'inst-voice@18,inst-piano@18,inst-piano@18'
       && R.choir.rows === 'inst-voice@18,inst-voice@18,inst-voice@18,inst-voice@18' && /^inst-guitar@18,inst-voice@18$/.test(R.gtr.rows) && R.gtr.subs.includes('nota-tab6') && R.jg.subs.includes('nota-jianpu')
-      && R.jg.ai.arr === 'src-arrange' && R.jg.ai.midi === 'src-midi' && R.jg.ai.tex === 'nota-texture' && /^inst-voice,inst-guitar,inst-ukulele,act-new,ai-gentab$/.test(R.addMenu),
-      'T8f（flow）左栏音轨树：行图标按乐器（器乐五线谱 inst-other、钢琴伴奏歌谱 人声＋钢琴 ×2、四部合唱 人声 ×4、吉他弹唱 吉他＋人声）18、音轨区 ＋＝act-add、谱类芯片＝页签 docIcon 16、行 2「作用于」＝当前轨乐器、记谱法层＝nota-*；加轨菜单 人声 / 吉他 / 尤克里里（置灰）/ 另建 / 由旋律生成；右栏「整谱」谱类图标＝docIcon、「智能」一键配伴奏 src-arrange · 导入 MIDI src-midi · 伴奏织体 nota-texture；均无 <text>',
+      && R.jg.ai.arr === 'src-arrange' && R.jg.ai.tex === 'nota-texture' && R.jg.ai.lab === 'ai-workbench' && R.jg.ai.rhy === 'nota-slash' && R.jg.ai.gen === 'ai-gentab' && R.jg.ai.fill === 'tx-lyricfill' && /^inst-voice,inst-guitar,inst-ukulele,act-new,ai-gentab$/.test(R.addMenu),
+      'T8f（flow）左栏音轨树：行图标按乐器（器乐五线谱 inst-other、钢琴伴奏歌谱 人声＋钢琴 ×2、四部合唱 人声 ×4、吉他弹唱 吉他＋人声）18、音轨区 ＋＝act-add、谱类芯片＝页签 docIcon 16、行 2「作用于」＝当前轨乐器、记谱法层＝nota-*；加轨菜单 人声 / 吉他 / 尤克里里（置灰）/ 另建 / 由旋律生成；右栏「整谱」谱类图标＝docIcon、「智能 ▾」画廊卡 配伴奏 src-arrange · 织体 nota-texture · 配和弦 ai-workbench · 节奏型 nota-slash · 六线谱 ai-gentab · 智能填词 tx-lyricfill（v69.0 起，原右栏智能页同一组键）；均无 <text>',
       JSON.stringify(R));
   } catch (e) { T(false, 'T8f（flow）', 'EXC: ' + String(e.message || e).split('\n')[0]); }
 

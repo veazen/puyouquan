@@ -61,7 +61,7 @@ const readSite = f => fs.readFileSync(path.join(SITE, f), 'utf8');
 
   /* ---------- T2 / T3 编辑器 ---------- */
   {
-    const pg = await mk('https://zhipu.puyouquan.com/?utm_source=bd&utm_medium=cpc&utm_campaign=kb');
+    const pg = await mk('https://zhipu.puyouquan.com/?utm_source=bd&utm_medium=cpc&utm_campaign=kb&next=0');   /* v69.0 S2 有意迁移：T3 走两个配谱弹窗（新外壳改成主按钮直接执行），改跑 ?next=0 */
     const v = find(pg, 'visit')[0] || {};
     T(v.src === 'utm:bd/cpc/kb' && /^zhipu\//.test(v.landing || ''), 'T2 编辑器 visit 带首触来源与落地页', JSON.stringify(v));
     await pg.evaluate(`(()=>{ window.SF_PLAYWAIT=false; guardReplace=(p)=>p(); hideStartPad();

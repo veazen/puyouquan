@@ -609,7 +609,9 @@ function BLOCK_HARD() {
 
   /* ================= X7 v68.5（§9.0 P1）「伴奏织体」弹窗与失败提示里标和弦的入口按外壳指 ================= */
   /* 新外壳没有右栏「创作」页（和弦在「文字」页「输入和弦…」/ Ctrl+K）；旧外壳原文不变。两种谱：钢琴伴奏歌谱（旋律行标和弦）与钢琴谱（右手标和弦） */
-  if (want('X7')) SHELLS.forEach(([sh, u]) => jobs.push(() => SAFE('X7', 'X7 ' + sh, async () => {
+  /* v69.0 迁移（规格 §8.4）：新外壳默认下 #b-acctex 改开织体条（不再开弹窗，新路径等价在 tv_next N3）→ flow 分支改跑 ?next=0，弹窗文字断言原样覆盖回退路径 */
+  const SHELLS7 = [['flow', withQ(URL0, 'next=0')], SHELLS[1]];
+  if (want('X7')) SHELLS7.forEach(([sh, u]) => jobs.push(() => SAFE('X7', 'X7 ' + sh, async () => {
     const pg = await open(u); await prep(pg);
     const r = {};
     for (const [k, kind] of [['acc', 'JG'], ['pn', 'piano']]) {

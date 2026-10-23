@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
-const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'../index.html');
+/* v69.0 S2 有意迁移（规格 f90 §8.4）：新外壳下两个配谱弹窗改成主按钮直接执行——本套件测的是弹窗路径，改跑 ?next=0（只对本次访问回到 v68.9 形态，弹窗一字不动）；新路径的等价在 tv_next N2 */
+const F0=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'../index.html');
+const F=(()=>{ const i=F0.indexOf('#'), b=i>=0? F0.slice(0,i) : F0, h=i>=0? F0.slice(i) : ''; return b+(b.includes('?')? '&' : '?')+'next=0'+h; })();
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1280, height: 950 } });

@@ -34,7 +34,9 @@
    F1b F2 F6b F6c F7～F15 报红（即上面各条验收补的断言）。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v69.0 S2 有意迁移（规格 f90 §8.4）：新外壳下两个配谱弹窗改成主按钮直接执行——本套件测的是弹窗路径，改跑 ?next=0（只对本次访问回到 v68.9 形态，弹窗一字不动）；新路径的等价在 tv_next N2 */
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F = (() => { const i = F0.indexOf('#'), b = i >= 0 ? F0.slice(0, i) : F0, h = i >= 0 ? F0.slice(i) : ''; return b + (b.includes('?') ? '&' : '?') + 'next=0' + h; })();
 /* v68.2 默认外壳 flow（计划 §5.4「tv_fillacc M」）：1280 宽右栏是竖条、旧左栏面板隐藏——真实点击的入口换成新外壳的：
    「一键配伴奏…」#rt-arr → 右栏「智能」页（竖条「智能」浮出）同名项；「伴奏织体…」#b-acctex → 「智能」页「伴奏织体…」；
    旋律轨「六」灯 #nl-voxtab → 左栏音轨树当前旋律轨下的「由此生成六线谱轨…」（tree:gentab，同一 showVoxTabMenu）。断言不变 */

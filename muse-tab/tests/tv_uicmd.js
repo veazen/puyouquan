@@ -266,7 +266,8 @@ const J = x => JSON.stringify(x);
        out:chk / out:chkall / out:brk（勾选 / 全选 / 沿用总谱换行）——只记命令名、不带分谱名（修前 v68.5：这 6 个字面量不存在 → 本条红；修后绿；真实点击见 tv_parts_ui PU14） */
     const NEED = ['r1:file:new', 'r1:publish', 'r1:tabovf', 'r2:more', 'pal:search', 'trk:mute', 'trk:solo', 'trk:add', 'cmd:open', 'rd:pin', 'st:more', 'st:help', 'st:beat',
       'out:parts', 'out:view', 'out:score', 'out:chk', 'out:chkall', 'out:brk'];
-    const NEEDP = ['mode:', 'pal:', 'cmd:go:', 'rd:'];
+    /* v69.0 S2 B 轨（规格 f90 §5.2）：「智能 ▾」画廊卡记 gal:<卡>（F.track('gal:'+v)，前缀接入）；打开沿用 sbar:more。修前 v68.9 没有这个前缀 → 本条红 */
+    const NEEDP = ['mode:', 'pal:', 'cmd:go:', 'rd:', 'gal:'];
     const missL = NEED.filter(x => lits.indexOf(x) < 0), missP = NEEDP.filter(x => pres.indexOf(x) < 0);
     const stLine = /\/\^st:\(hum\|snd\|loop\|em\)\$\/\.test\(a\)\) F\.track\(a\)/.test(src);
     const hasTour = /musetab-tour-shell/.test(src), hasOld = /k:'oldshell'/.test(src);

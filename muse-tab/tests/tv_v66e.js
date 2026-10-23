@@ -221,7 +221,7 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
       ['手机观看页·变调', M, `hideStartPad(); toast=()=>{}; enterShareViewer({ song: PRESETS[0].make() }); setTimeout(()=>document.getElementById('vh-key')?.click(),50);`],
       ['页签条', W, LOAD + `addDoc(PRESETS[10].make()); render(); renderDocTabs();`],
       ['编辑器+坞展开（旧外壳）', W, LOAD + `document.getElementById('mx-expand')?.click();`, CLASSIC],
-      ['flow 右栏智能页', W, LOAD + `FLOW.rd.show('smart');`],
+      ['flow「智能 ▾」画廊', W, LOAD + `FLOW.gal.open(document.getElementById('flw-sb-smart'), null, {});`],   /* v69.0 S2 迁移（D4）：右栏「智能」页撤掉，对比度屏改为画廊打开 */
       ['flow 右栏文字页', W, LOAD + `FLOW.rd.show('text');`],
     ];
     const fails = []; let n = 0;

@@ -38,6 +38,10 @@ const CORE = [
   /* v68.3 谱面上方的悬浮条 #flw-sbar（负责人 2026-10-18：保留吸顶悬浮条、默认展开、可收起、放常用功能、少字）：几何 · 收纳 · 每谱类内容对拍规格 · 起步推进 · 委托同效 ·
      记谱法 · 收起 / 本机键 musetab-sbar · Alt+B 与键盘 · 读屏 · 去重 · 模式与场景 · 层级 · 跟滚让位 · 谱面零变化 · 旧外壳零差异 · 数据红线 · 性能 · 命令面板 · 落地提示（SB1–SB21）：单跑约 90 秒（两路并行） */
   'tv_sbar',
+  /* v69.0 简约化 S2 主按钮（规格 docs spec §8.2）：?next=0 / 旧外壳对拍 · 14 谱型主按钮表 · run 语义（与弹窗同参数逐字节）· ③ 完成判据（戳 + 撤销 / 重做）· 600ms 防误点 · 不绑 Ctrl+Enter · Alt+B 首按聚焦 · 读屏 · 跳转 · 偏好（N0–N12） */
+  'tv_next',
+  /* v69.0 停留预览 + 织体条 / 节奏型条：零副作用（song / 撤销栈 / 存储 / 快照）· 预览＝写入后谱面 · 层不进 #score · 角标不挡墨迹 · 预算与退化 · 缓存 · 打印收起（PV1–PV13） */
+  'tv_preview',
   /* v68.3 缺陷修复（PROJECT.md §9.0 P0 / P1，两外壳）：存储被禁用不白屏 · 打开文件认 MIDI / MusicXML / GP · 填词框整句按字分配 · MusicXML 往返轨名 · ?pub+?shell 不写键：单跑约 60 秒（两路并行） */
   'tv_fix683',
   /* v68.4 性能（§9.0 P2）：开机段 PA1–PA6（开机首画延后 · 离台一帧内就位 · 直达谱面 · 与旧外壳的相对计时 · 音色预解码 / 小节格宽度缓存 · 数据红线）；
@@ -63,6 +67,9 @@ const CORE = [
   /* v68.7 S0 文字预算（界面简约化 S0 / S1，规格 v68.7 §6.C2 / §9）：方案阶段 37 屏文字量审计复跑（工具入库 tests/lib/textaudit/）对照基线 tests/textbudget_ref.json（v68.6 · 5cddfb8）——
      TB1 跑通 · TB2 每屏 8 项只降不升 · TB3 ≥3 处入口（K 口径）不增 · 验收线 TBA1–TBA5 与护栏 TBG1–TBG2（env TB_PHASE=track 时只打印）；单跑约 240 秒（一个浏览器、37 个上下文顺序跑） */
   'tv_textbudget',
+  /* v69.0 S2 B 轨（规格 f90 §8.3）：悬浮条「智能 ▾」画廊（14 谱型卡片 / 顺序 / 锁 / 缩略图 / 委托同效 / 键盘）· 撤右栏「智能」页与功能保全 9 行 · 收起态主按钮位 ·
+     「更多」去重（记号格「表情」）· 命令面板 · ?next=0 对拍基线 v68.9 · 数据红线 · 旧外壳 / 手机不变（SM1–SM14）；单跑约 3 分钟 */
+  'tv_smart',
   /* v68.7 收尾（三镜头验收 budget / function / teacher 的发现）：命令面板联排谱号与旧名 · 状态栏读数单位与读屏 · ⋯ 时值检查 · 菜单名称 · 记号格混合档弹窗格 ·
      整体缩放细调 · 撤销不转存 · Esc 焦点 · 帮助 · 配伴奏提示范围 · 悬停 / 原因收短 · 快速新建首项 · allow 上限（V1–V15，修前 13cf7cb 红）；单跑约 30 秒 */
   'tv_v687fix',
@@ -82,7 +89,7 @@ const CORE = [
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 let fail = 0, ran = 0;

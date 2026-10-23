@@ -54,6 +54,8 @@ const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../in
    放到 classic 页（open(…, {classic:true})），flow 下的对应断言写在同一用例的 flow 段（T4 / T16 / T19 / T22 / T28 / T37 两段） */
 const F = F0;
 const FC = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
+/* v69.0：?next=0＝新外壳回退到 v68.9 主按钮 / 两个配谱弹窗（弹窗版式类断言在此覆盖；新外壳默认路径没有这两个弹窗） */
+const FN0 = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 const COMBOS = [   /* 方案 43 组合（data/verify.json → mapping.rows）：[用途, 变体, 旋律用, 谱行, 谱名, docType] */
   ['gtr', { inst: 'guitar', pen: 'T' }, 'J', 'JT', '吉他弹唱谱', 'guitar'], ['gtr', { inst: 'guitar', pen: 'J' }, 'J', 'JT', '吉他弹唱谱', 'guitar'],
   ['gtr', { inst: 'uku', pen: 'T' }, 'J', 'JT', '尤克里里弹唱谱', 'uku'], ['gtr', { inst: 'uku', pen: 'J' }, 'J', 'JT', '尤克里里弹唱谱', 'uku'],
@@ -92,7 +94,7 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     if (opt.init) await pg.addInitScript(opt.init);
     pg._classic = !!opt.classic;
-    await pg.goto(opt.classic ? FC : F); await pg.waitForTimeout(900);
+    await pg.goto(opt.classic ? FC : opt.next0 ? FN0 : F); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
     pg._ctx = ctx; return pg;
   };
@@ -114,8 +116,18 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await pg.click('#popmenu [data-fa="r1:newdd"]');
     await pg.waitForSelector('.nf-qm', { timeout: 2500 }); return 2; };
   /* 右栏智能工具：flow＝「智能」页 #flw-rx-ai（<1440 右栏是竖条，先点竖条「智能」浮出；停靠时点页签）；旧外壳＝创作页 #rt-arr / #b-acctex */
+  /* v69.0（规格 §8.4 tv_newpanel）：新外壳默认（FLOW.nx 开）配伴奏不开弹窗——「一键配伴奏」改走悬浮条主按钮（600ms 防误点：等够再点；主按钮不是配伴奏时走 FLOW.nx.run，同一条执行）；
+     伴奏织体（#b-acctex / 节奏型库在钢琴两行上）开织体条，写入＝点织体条卡片。?next=0 / 旧外壳仍是两个弹窗 */
+  const nxOn = pg => pg.evaluate(() => !!(typeof flowOn === 'function' && flowOn() && window.FLOW && FLOW.nx && FLOW.nx.ok && FLOW.nx.ok()));
+  const nxArrange = async pg => { await pg.waitForTimeout(700);
+    const isGo = await pg.evaluate(() => { const b = document.getElementById('flw-sb-go'); const r = b && b.getBoundingClientRect(); return !!b && /^arrange/.test(b.dataset.nx || '') && !!r && r.width > 0 && r.height > 0; }).catch(() => false);
+    if (isGo) { await pg.click('#flw-sb-go'); await pg.mouse.move(700, 520); return 'go'; }
+    await pg.evaluate(() => FLOW.nx.run('arrange', { src: 'test' })); return 'run'; };
+  const nxTexPick = async (pg, id) => { const sel0 = '#flw-nx-tbar [role="option"]' + (id ? '[data-v="' + id + '"]' : '[aria-selected="true"]');
+    const s1 = (await pg.$(sel0)) ? sel0 : '#flw-nx-tbar [role="option"]'; await pg.click(s1); await pg.mouse.move(700, 520); await pg.waitForTimeout(150); };
   const smartAct = async (pg, v) => {
     if (pg._classic) return pg.click(v === 'arr' ? '#rt-arr' : '#b-acctex');
+    if (await nxOn(pg)) { if (v === 'arr') return nxArrange(pg); return pg.evaluate(() => document.getElementById('b-acctex').click()); }
     const btn = '#flw-rx-ai [data-fa="rdp:ai"][data-v="' + v + '"]';
     if (!(await pg.isVisible(btn).catch(() => false))) {
       for (const t of ['#flw-rp-tabs [data-fa="rd:page"][data-p="smart"]', '#flw-rstrip [data-fa="rd:tab"][data-p="smart"]']) if (await pg.isVisible(t).catch(() => false)) { await pg.click(t); break; }
@@ -612,10 +624,13 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     /* v68.3 flow：下一步在谱面上方的悬浮条——写完旋律，② 的主按钮「一键配伴奏」（说明「伴奏直接填进下面两行」在它的 title）；落地提示不再写「下一步见…」 */
     const go = await pg.evaluate(() => { const b = document.querySelector('#flw-sbar [data-fa="sbar:go"]'); return b ? { t: b.textContent.trim(), act: b.dataset.act, title: b.title } : null; });
     const d0 = await pg.evaluate(() => docs.length), m0 = await mel(), u0 = await pg.evaluate(() => undoStack.length);
-    await smartAct(pg, 'arr'); await pg.waitForTimeout(100);
-    /* v67.4 合并：一键配伴奏走智能配谱弹窗「填进当前谱」（钢琴伴奏歌谱默认选中；tv_fillacc 另测细节） */
-    const modal = await pg.evaluate(() => ({ fill: (document.getElementById('arr-out') || {}).value === 'fill', h: (document.querySelector('.modal h3') || {}).textContent || '' }));
-    await pg.click('#arr-go'); await pg.waitForTimeout(150);
+    const NX = await nxOn(pg);
+    if (NX) { await pg.waitForTimeout(700); await pg.click('#flw-sbar [data-fa="sbar:go"]'); await pg.mouse.move(700, 520); await pg.waitForTimeout(150); }
+    else { await smartAct(pg, 'arr'); await pg.waitForTimeout(100); }
+    /* v67.4 合并：一键配伴奏走智能配谱弹窗「填进当前谱」（钢琴伴奏歌谱默认选中；tv_fillacc 另测细节）。v69.0 新外壳：主按钮一次点击直接填进（无弹窗；参数＝arrP 缺省 out＝fill） */
+    const modal = NX ? await pg.evaluate(() => ({ fill: !document.querySelector('#modal-mask .modal') && FLOW.nx.arrP('arrange').out === 'fill', h: '', direct: true }))
+      : await pg.evaluate(() => ({ fill: (document.getElementById('arr-out') || {}).value === 'fill', h: (document.querySelector('.modal h3') || {}).textContent || '' }));
+    if (!NX) { await pg.click('#arr-go'); await pg.waitForTimeout(150); }
     const a = { docs: await pg.evaluate(() => docs.length) - d0, mel: await mel(), rows: await rowsOf(), chords: await pg.evaluate(() => song.measures[0].voxes[0].filter(c => c.chord).length),
       toast: await pg.evaluate(() => document.getElementById('toast').textContent), k: await pg.evaluate(() => NWB.stackOf(song)) };
     await pg.keyboard.press('Control+KeyZ'); await pg.waitForTimeout(100);
@@ -623,14 +638,17 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     /* 节奏型库 → 伴奏织体：光标在右手伴奏行（验收：此前把旋律行改写成右手音型） */
     await pg.evaluate(() => { mutate(() => { song.measures[0].voxes[0][0].chord = 'C'; song.measures[1].voxes[0][0].chord = 'F'; }); sel = { mi: 0, row: 'vox', vi: 1, ci: 0, si: 1 }; render(); });
     await rhyLib(pg); await pg.waitForTimeout(100);
-    const libModal = await pg.evaluate(() => !!document.getElementById('tex-go'));
-    await pg.click('#tex-go'); await pg.waitForTimeout(150);
+    /* v69.0 新外壳：节奏型库在钢琴两行上＝开织体条（规格 §4.2），点卡片写入；?next=0 / 旧外壳仍是「伴奏织体」弹窗 #tex-go */
+    const libModal = NX ? await pg.evaluate(() => FLOW.nx.tbar.isOpen() && !document.getElementById('tex-go')) : await pg.evaluate(() => !!document.getElementById('tex-go'));
+    if (NX) await nxTexPick(pg); else { await pg.click('#tex-go'); await pg.waitForTimeout(150); }
     const b2 = { mel: await mel(), rows: await rowsOf(), docs: await pg.evaluate(() => docs.length) - d0 };
     await pg._ctx.close();
     /* v68.7 S1 迁移（B2：悬浮条主按钮 title 只写名称 m.go.btn，GO_TIP 停用）：flow 段原断言 title 含「直接填进」——说明句已撤，
        「直接填进本谱两行」改由智能配谱弹窗默认选中「填进当前谱」（modal.fill）与落地结果（a.docs===0、rows 11,11,00）证明；
        修前（未迁移）红：go.title＝「一键配伴奏」不含「直接填进」；修后绿 */
-    const gOk = shell === 'classic' ? (/一键配伴奏/.test(guide) && /直接填进/.test(guide)) : (!/谱型条|下一步见/.test(guide) && !!go && go.t === '一键配伴奏' && go.act === 'arrange' && go.title === '一键配伴奏');
+    /* v69.0 迁移：新外壳主按钮字＝FLOW.nx.resolve 短名「配伴奏」（title 同名）；?next=0 才是 v68.9「一键配伴奏」 */
+    const gName = NX ? '配伴奏' : '一键配伴奏';
+    const gOk = shell === 'classic' ? (/一键配伴奏/.test(guide) && /直接填进/.test(guide)) : (!/谱型条|下一步见/.test(guide) && !!go && go.t === gName && go.act === 'arrange' && go.title === gName);
     /* v68.7 S1 迁移（规格 §6.C3 #7）：新外壳填进当前谱的提示条只出短文「已配伴奏 N 小节」（+「撤销」），原 /填进/ 只在旧外壳段判；修前红：5cddfb8 flow 段提示为整句「已填进当前谱：…」 */
     /* v68.7 收尾 TCH-8 迁移：短文全配上时写范围「已配伴奏 · 第 1–N 小节」（有跳过的照旧「已配伴奏 N 小节」）——两种都认；修前红：13cf7cb 只有后一种，本用例全配上，新正则只多认前一种、不放宽意图 */
     const aT = shell === 'classic' ? /填进/.test(a.toast) : /^已配伴奏( · 第 \d+(–\d+)?| \d+) 小节/.test(a.toast);
@@ -711,8 +729,9 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       /* v68.7 S1 迁移（B2：主按钮 title 只写名称，GO_TIP「写进建谱时的空吉他轨（轨数不变）」停用）：
          「照实说写进空吉他轨」改在点主按钮后的「生成六线谱」弹窗正文（vtReuseInfo：写进当前的空吉他轨「…」）断言，
          「轨数不变」改为实测——弹窗里点「低把位」前后 song.tabVoices 条数相同。修前（未迁移）红：why 取 title＝「生成六线谱」无「空吉他轨」；修后绿 */
+      /* v69.0：主按钮刚换字（写完旋律 → 「生成六线谱」）600ms 内点击无效（规格 D9 防误点，tv_next N5）——等够再点；把位菜单 / 弹窗与 v68.9 同一个 lbGo('tabgen') */
       if (go) { const n0 = await pg.evaluate(() => (song.tabVoices || []).length);
-        await pg.click('#flw-sbar [data-fa="sbar:go"]'); await pg.waitForTimeout(150);
+        await pg.waitForTimeout(700); await pg.click('#flw-sbar [data-fa="sbar:go"]'); await pg.waitForTimeout(150);
         go.modal = await pg.evaluate(() => ((document.querySelector('.modal') || {}).textContent || '').replace(/\s+/g, ' ').slice(0, 200));
         if (await pg.$('#vt-low')) { await pg.click('#vt-low'); await pg.waitForTimeout(150); }
         go.tabs = [n0, await pg.evaluate(() => (song.tabVoices || []).length)]; } }
@@ -952,8 +971,13 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       for (const k of ['old', 'new']) {
         const t = arrangeAccompaniment(mel, { texId: 'block' }).song; if (k === 'old') delete t.voxGroups;
         t.voxVoices = ['旋律', '右手', '左手']; addDoc(t); render();
-        document.getElementById('b-arrange').click(); const fill = !!document.querySelector('#arr-out option[value="fill"]'); closeModal();
-        document.getElementById('b-acctex').click(); const tex = !!document.getElementById('tex-go'), auto = !!document.getElementById('tex-auto'); closeModal();
+        /* v69.0 迁移（规格 §8.4）：新外壳 #b-arrange 直接执行、#b-acctex 开织体条——判定改读同一份参数解析：「填进当前谱」可用＝FLOW.nx.arrP().canFill；
+           织体写伴奏两行＝织体条打开；「空小节配和弦」＝texP().accSt（与弹窗 #tex-auto 同一判据 accTexRowsOf）。?next=0 / 旧外壳仍读弹窗 */
+        const NX = !!(typeof flowOn === 'function' && flowOn() && FLOW.nx && FLOW.nx.ok());
+        let fill, tex, auto;
+        if (NX) { fill = !!FLOW.nx.arrP('arrange', song).canFill; document.getElementById('b-acctex').click(); tex = FLOW.nx.tbar.isOpen() && !document.getElementById('tex-go'); auto = !!FLOW.nx.texP(song).accSt; FLOW.nx.tbar.close(false); try { closeModal(); } catch (_) {} }
+        else { document.getElementById('b-arrange').click(); fill = !!document.querySelector('#arr-out option[value="fill"]'); closeModal();
+          document.getElementById('b-acctex').click(); tex = !!document.getElementById('tex-go'); auto = !!document.getElementById('tex-auto'); closeModal(); }
         out[k] = { nwb: NWB.isAccStack(song), pas: isPianoAccStack(song), label: docTypeLabel(song), fill, tex, auto };
       }
       return out;
@@ -982,8 +1006,10 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     await pg.click(pg._classic ? '#rail-tracks .rtrk[data-trk="vv:2"]' : '#flw-tr-vox-2'); await pg.waitForTimeout(150); await pg.keyboard.press('Escape');
     r.selVi = await pg.evaluate(() => sel.row + ':' + sel.vi);
     await rhyLib(pg); await pg.waitForTimeout(150);
-    r.modal = await pg.evaluate(() => ({ auto: !!document.getElementById('tex-auto') }));
-    await pg.click('#tex-go'); await pg.waitForTimeout(200);
+    /* v69.0 迁移：新外壳节奏型库在钢琴两行上开织体条（「空小节配和弦」＝texP().accSt，同弹窗 #tex-auto 判据），点卡片写入；?next=0 / 旧外壳仍是弹窗 */
+    const NX28 = await nxOn(pg);
+    r.modal = NX28 ? await pg.evaluate(() => ({ auto: FLOW.nx.tbar.isOpen() && !!FLOW.nx.texP(song).accSt })) : await pg.evaluate(() => ({ auto: !!document.getElementById('tex-auto') }));
+    if (NX28) { await nxTexPick(pg); await pg.waitForTimeout(50); } else { await pg.click('#tex-go'); await pg.waitForTimeout(200); }
     r.gen = await pg.evaluate(() => ({ m0: song.measures[0].voxes[0].map(c => c.deg).join(''), m1: song.measures[0].voxes[1].map(c => c.deg).join(''), rh: song.measures[0].voxes[2].some(c => c.deg), lh: song.measures[0].voxes[3].some(c => c.deg) }));
     r.del = await pg.evaluate(() => { const st = () => ({ vn: JSON.stringify(song.voxNotations), g: JSON.stringify(song.voxGroups || null), mix: Object.keys(song.mixer || {}).filter(k => (song.mixer[k] || {}).inst === 'piano').sort().join(), label: docTypeLabel(song) });
       delVoiceAt('vox', 1); const a = st();   /* 删掉加的旋律4 → 回到三行钢琴伴奏歌谱 */
@@ -1073,9 +1099,14 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
     r.long = await pg.evaluate(() => document.querySelector('.nf-modal').textContent.includes('六线谱与和弦图在上'));
     await pg.keyboard.press('Escape');
     await pg.evaluate(() => { const s = createSong('vocal', { title: 't', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 1, lyr: 1 }); s.measures.forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i]; })); addDoc(s); if (!(typeof flowOn === 'function' && flowOn())) setRTab('make'); });
-    await pg.waitForTimeout(150); await smartAct(pg, 'arr'); await pg.waitForTimeout(150);
-    r.arr = await pg.evaluate(() => { const md = document.querySelector('.modal').getBoundingClientRect(), g = document.getElementById('arr-go').getBoundingClientRect(), o = document.getElementById('arr-out').getBoundingClientRect();
+    /* v69.0 迁移：新外壳默认配伴奏不开弹窗（主按钮直接执行）——「智能配谱弹窗 1366×768 生成钮可见」只在仍有弹窗的 ?next=0（同一个 openArrange 版式）上测 */
+    let pgA = pg;
+    if (await nxOn(pg)) { pgA = await open(1366, 768, { next0: true });
+      await pgA.evaluate(() => { hideStartPad(); const s = createSong('vocal', { title: 't', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 1, lyr: 1 }); s.measures.forEach(m => m.voxes[0].forEach((c, i) => { c.deg = [1, 3, 5, 1][i]; })); addDoc(s); }); }
+    await pgA.waitForTimeout(150); await smartAct(pgA, 'arr'); await pgA.waitForTimeout(150);
+    r.arr = await pgA.evaluate(() => { const md = document.querySelector('.modal').getBoundingClientRect(), g = document.getElementById('arr-go').getBoundingClientRect(), o = document.getElementById('arr-out').getBoundingClientRect();
       return { go: g.top >= md.top && g.bottom <= md.bottom + 0.5 && g.bottom <= innerHeight, out: o.top >= md.top && o.bottom <= md.bottom, hit: document.elementFromPoint(g.left + g.width / 2, g.top + g.height / 2) === document.getElementById('arr-go') }; });
+    if (pgA !== pg) await pgA._ctx.close();
     await pg._ctx.close();
     const ph = await open(390, 844, { mob: true });
     await ph.evaluate(() => showNewWizard()); await ph.waitForTimeout(100);

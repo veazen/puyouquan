@@ -64,7 +64,7 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '2675b9c';
 const IN_CI = !!process.env.CI && process.env.MUSETAB_REF !== 'none';
 /* 本版之前 flow 预览已有的本机键（v67.9 / v68.0）；本版只许新增 musetab-cmd-recent（计划 §1.2 / §4.7） */
 const PREV_FLOW_KEYS = ['musetab-flow', 'musetab-rdock', 'musetab-pal', 'musetab-signdensity'];
-const NEW_KEYS = ['musetab-cmd-recent', 'musetab-sbar', 'musetab-chordhear'];   /* v68.3 musetab-sbar：谱面上方悬浮条收起（'0'），展开＝删键；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，规格 f89 §0.5） */
+const NEW_KEYS = ['musetab-cmd-recent', 'musetab-sbar', 'musetab-chordhear', 'musetab-preview'];   /* v69.0 有意迁移 + musetab-preview（停留预览开关，'0'＝关，规格 f90 §2.9 / 方案 P11） */   /* v68.3 musetab-sbar：谱面上方悬浮条收起（'0'），展开＝删键；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，规格 f89 §0.5） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
@@ -570,17 +570,22 @@ async function M23SCN() {
       'M10c 文字页（真实点页签）：「＋」加一段 lyricLines 1→2，点 ② → activeLyr=1（aria-pressed），点 ① → 0', J({ t0, t1, t2 }));
     await pg.keyboard.press('Control+z'); await wait(pg, 200);
     await redEnd('M10', pg, base, ['C.ferm']);   /* 下面换窗口（钢琴伴奏 / 吉他弹唱），各自重取基线 */
-    /* 智能页：每项显隐＝委托按钮（钢琴伴奏歌谱有「伴奏织体」，吉他弹唱没有） */
-    const DEL = { arr: 'rt-arr', lab: 'rt-lab', tex: 'b-acctex', fill: 'rt-fill', midi: 'rt-midi' };
-    const smart = async k => { await scn(pg, k); const b0 = await redBase(pg); await EV(pg, () => FLOW.rd.show('smart')); await wait(pg, 200);
-      const r = await EV(pg, DEL => { const items = [...document.querySelectorAll('#flw-rx-ai [data-fa="rdp:ai"]')].map(x => x.dataset.v);
-        const mism = Object.keys(DEL).filter(k => { const b2 = document.getElementById(DEL[k]); const on = !!b2 && b2.style.display !== 'none'; return on !== items.includes(k); });
-        return { items, mism, vis: __vis('#flw-rx-ai') }; }, DEL);
+    /* v69.0 S2 迁移（D4 / P4）：右栏「智能」页撤掉，同一组工具在悬浮条「智能 ▾」画廊——原「智能页每项显隐＝委托按钮」→「画廊每卡可用＝委托按钮」（同一判据；
+       不能用的置灰加锁、不隐藏）；导入 MIDI 不进画廊（文件 ▾「从已有音乐…」，tv_smart SM4）。钢琴伴奏歌谱「织体」可用、吉他弹唱「织体」锁住但在。
+       修前红修后绿：改前没有 #flw-sb-smart / 画廊 */
+    const DEL = { arr: 'rt-arr', lab: 'rt-lab', tex: 'b-acctex', fill: 'rt-fill' };
+    const smart = async k => { await scn(pg, k); const b0 = await redBase(pg); await pg.click('#flw-sb-smart'); await wait(pg, 300);
+      const r = await EV(pg, DEL => { const cs = [...document.querySelectorAll('#popmenu[data-m="smart"] .flw-gc')];
+        const items = cs.filter(x => x.getAttribute('aria-disabled') !== 'true').map(x => x.dataset.v), all = cs.map(x => x.dataset.v);
+        const mism = Object.keys(DEL).filter(k => { const b2 = document.getElementById(DEL[k]); let on = !!b2 && b2.style.display !== 'none';
+          if (k === 'tex' && !on) on = (song.voxVoices || []).length >= 2 && !!accTexRows(song); return on !== items.includes(k); });
+        return { items, all, mism, vis: __vis('#popmenu[data-m="smart"]'), page: !!document.getElementById('flw-rp-smart') }; }, DEL);
+      await EV(pg, () => { try { FLOW.menu.close(); } catch (_) {} });
       await redEnd('M10', pg, b0, []); return r; };
     const sp = await smart('pacc'), sg = await smart('gtr');
     await shot(pg, 'M10-smart-gtr-1440');
-    T('M10', sp.vis && sp.items.includes('tex') && !sg.items.includes('tex') && !sp.mism.length && !sg.mism.length,
-      'M10d 智能页：钢琴伴奏歌谱有「伴奏织体」、吉他弹唱没有；一键配伴奏 / 配和弦工作台 / 伴奏织体 / 智能填词 / 导入 MIDI 的显隐逐项＝委托按钮（rt-arr / rt-lab / b-acctex / rt-fill / rt-midi）', J({ pacc: sp, gtr: sg }));
+    T('M10', sp.vis && sp.items.includes('tex') && !sg.items.includes('tex') && sg.all.includes('tex') && !sp.mism.length && !sg.mism.length && !sp.page && !sg.page,
+      'M10d「智能 ▾」画廊（v69.0 起替代右栏智能页）：钢琴伴奏歌谱「织体」可用、吉他弹唱「织体」锁住不藏；一键配伴奏 / 配和弦 / 织体 / 智能填词 每卡可用＝委托按钮（rt-arr / rt-lab / b-acctex|大谱表 / rt-fill）；没有 #flw-rp-smart', J({ pacc: sp, gtr: sg }));
     await close(pg);
   }));
 

@@ -41,7 +41,8 @@ const STATES = [
   { id: 'output', name: '输出模式（含发布卡）', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-mode-output'); await W(1800); }, focus: null },
   { id: 'rp-prop', name: '右栏 · 属性', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-rpt-prop'); await W(500); }, focus: /right/ },
   { id: 'rp-text', name: '右栏 · 文字', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-rpt-text'); await W(500); }, focus: /right/ },
-  { id: 'rp-smart', name: '右栏 · 智能', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-rpt-smart'); await W(500); }, focus: /right/ },
+  /* v69.0 S2（D4）：右栏「智能」页撤掉，同一屏改为打开悬浮条「智能 ▾」画廊（屏 id 不变，焦点层＝菜单；右栏停在属性页，metrics rpage 同步） */
+  { id: 'rp-smart', name: '悬浮条 · 智能 ▾ 画廊', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); await pg.click('#flw-sbar [data-fa="sbar:more"]'); await W(1200); }, focus: /menu:/ },
   { id: 'left-sign', name: '左栏 · 记号面板（带字档）', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800); }, focus: /left/ },
   { id: 'trk-more', name: '音轨行「⋯」菜单', go: async pg => { await pg.evaluate(() => __scn('songbie')); await W(800);
       await pg.evaluate(() => { const b = [...document.querySelectorAll('[data-fa="tree:more"]')].find(x => x.offsetParent); b.click(); }); await W(500); }, focus: /menu:/ },
