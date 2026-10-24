@@ -244,7 +244,9 @@ function BLOCK_HARD() {
       'a.mtab.json': ['application/json', MTAB], 'notes.txt': ['text/plain', Buffer.from('hello')], 'bad.json': ['application/json', Buffer.from('{"x":1}')] };
     const reset = () => EV(pg, () => { try { NWP.close(); } catch (_) {} try { closeModal(); } catch (_) {} __toasts = []; });
     const state = () => EV(pg, () => { const st = NWP.state, live = !!(NWP.modal && NWP.modal.isConnected);
-      const tabSel = live ? ((NWP.modal.querySelector('[role=tab][aria-selected="true"]') || {}).textContent || '') : '';
+      /* v69.1 C 迁移：新形态页签字面缩成「导入」（字数预算），无障碍名仍是「从已有音乐」——读无障碍名，旧外壳 / ?next=0 无 aria-label 照读字面 */
+      const tsel = live ? NWP.modal.querySelector('[role=tab][aria-selected="true"]') : null;
+      const tabSel = tsel ? (tsel.getAttribute('aria-label') || tsel.textContent || '') : '';
       return { live, tab: live && st ? st.tab : null, a: !!(live && st && st.imp && st.imp.a), basis: live && st && st.imp && st.imp.a ? JSON.stringify(st.imp.a.basis) : null, kinds: live && st && st.imp && st.imp.a ? JSON.stringify(st.imp.a.kinds) : null,
         err: live && st && st.imp ? st.imp.err : '', tabSel, h3: (document.querySelector('#modal-mask .modal h3') || {}).textContent || null, docs: docs.length, title: song.title, toasts: __toasts.slice(),
         ta: (document.querySelector('#toast .flw-ta') || {}).textContent || '', tk: (document.getElementById('toast') || { dataset: {} }).dataset.k || '' }; });

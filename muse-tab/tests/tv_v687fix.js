@@ -192,11 +192,14 @@ async function cmdFirst(pg, q) {
       }
       if (want('V11')) {
         await EV(pg, () => { const b = document.getElementById('b-help'); if (b) b.click(); }); await W(400);
+        const nx = await EV(pg, () => !!(typeof FLOW !== 'undefined' && FLOW.nxOn && FLOW.nxOn()));
         const h = await EV(pg, () => { const rows = {}; document.querySelectorAll('.helpdoc .hd-row').forEach(r => { rows[r.querySelector('.rk').textContent.trim()] = r.querySelector('.rv').textContent; }); return rows; });
         await EV(pg, () => { try { closeModal(); } catch (_) {} });
         const trk = h['左栏 · 音轨'] || '', sg = h['左栏 · 记号'] || '', rd = h['右栏'] || '', st = h['底部 · 播放与状态栏'] || '';
         T(!!trk && !/「由此生成六线谱轨」/.test(trk) && !/谱类芯片＝换谱类/.test(trk) && /谱类 ▾/.test(trk) && !/带字记号面板/.test(sg) && /混合/.test(sg)
-          && !/时值检查方式/.test(rd) && /⋯ 更多（[^）]*时值检查/.test(st),
+          && !/时值检查方式/.test(rd)
+          /* v69.1 A2 迁移（D8）：新形态撤掉时值检查两档——⋯ 更多不再列它，时值检查写「⚠N 就地修」；?next=0 照旧写在 ⋯ 更多里 */
+          && (nx ? (/时值检查（⚠N[^）]*就地修/.test(st) && /⋯ 更多（[^）]*）/.test(st) && !/⋯ 更多（[^）]*时值检查/.test(st)) : /⋯ 更多（[^）]*时值检查/.test(st)),
           'V11 FN-6 帮助「界面一览」：音轨行不再写「由此生成六线谱轨」子行与「谱类芯片＝换谱类」（写悬浮条谱类 ▾ / 文件 ▾）、记号写缺省混合档、属性页不再列时值检查方式、⋯ 更多写明时值检查〔修前：三处旧描述〕',
           J({ trk: trk.slice(-120), sg: sg.slice(0, 80), rd: rd.slice(0, 60), st: st.slice(-80) }));
       }
