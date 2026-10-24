@@ -154,10 +154,31 @@ const T = (ok, name, detail) => {
     shell: document.body.classList.contains('shell') }));
   T(r.veilGone && r.shell, 'T9 启动遮罩初始化后移除', JSON.stringify(r));
 
-  /* ===================== flow 段（默认外壳，不带参数）===================== */
+  /* ===================== flow 段 ===================== */
+  /* v69.1 A2 迁移（D8，规格 f91 §6.2）：新形态撤掉「自由编辑 / 修复建议」两档（红点就地修，新等价在 tv_inplace R1–R9）——
+     E1 / E3–E6 的 v69.0 两档原断言改跑 ?next=0（只对本次访问回到 v69.0 形态，保住两档的覆盖）；新形态另起 E1n：「⋯」无两档、#em-toggle 节点照留不可见、⚠N 可见 */
+  const pn = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  pn.on('pageerror', e => errs.push('flow-nx:' + String(e.message)));
+  await pn.goto(FILE0); await pn.waitForTimeout(900);
+  r = await pn.evaluate(() => { window.guardReplace = p => p();
+    const vis = e => { if (typeof e === 'string') e = document.getElementById(e); if (!e || !e.isConnected) return false; const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) return false;
+      for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+    const s = createSong('tanchang', { beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 });
+    s.measures[0].voxes[0] = [ { dur: 4, dotted: false, deg: 1, acc: '', oct: 0, lyrics: [], tie: false } ];
+    loadSong(s); hideStartPad(); render(); syncInputs();
+    const et = document.getElementById('em-toggle'), bs = document.getElementById('beat-status');
+    return { nx: FLOW.nxOn(), emIn: !!et, emVis: vis(et), bsVis: vis(bs), bsTxt: bs.textContent.trim(), bsAl: bs.getAttribute('aria-label'), dots: document.querySelectorAll('#flw-errdots .flw-errdot').length }; });
+  await pn.click('#flw-st-more'); await pn.waitForTimeout(150);
+  r.menu = await pn.evaluate(() => document.querySelectorAll('#popmenu [data-fa="st:em"]').length);
+  await pn.keyboard.press('Escape'); await pn.waitForTimeout(120);
+  await pn.click('#beat-status'); await pn.waitForTimeout(200);
+  r.click = await pn.evaluate(() => ({ eo: document.body.classList.contains('flw-eo'), fixp: !!document.getElementById('flw-fixp') && !document.getElementById('flw-fixp').hidden }));
+  T(r.nx && r.emIn && !r.emVis && r.bsVis && r.bsTxt === '1' && r.bsAl === '时值不符 1 处' && r.dots === 1 && r.menu === 0 && !r.click.eo && r.click.fixp,
+    'E1n 新形态（v69.1 D8）：「⋯」没有两档、#em-toggle 节点照留不可见；状态栏 ⚠N 读数 1（读屏「时值不符 1 处」）、谱面红点 1 枚；点 ⚠N 出就地修面板、不上弹 #err-drop', JSON.stringify(r));
+  await pn.close();
   const pf = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   pf.on('pageerror', e => errs.push('flow:' + String(e.message)));
-  await pf.goto(FILE0); await pf.waitForTimeout(900);
+  await pf.goto(FILE0 + '?next=0'); await pf.waitForTimeout(900);
   await pf.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false;
     window.__vis = e => { if (typeof e === 'string') e = document.getElementById(e); if (!e || !e.isConnected) return false; const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false;
       for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
@@ -178,7 +199,7 @@ const T = (ok, name, detail) => {
   r.menu = await pf.evaluate(() => [...document.querySelectorAll('#popmenu [data-fa="st:em"]')].filter(x => __vis(x)).map(x => x.dataset.v + ':' + x.getAttribute('aria-checked')));
   await pf.keyboard.press('Escape'); await pf.waitForTimeout(120);
   T(r.flow && r.page === 'prop' && r.emIn && !r.emVis && r.bbIn && r.bsVis && !r.oldCards && JSON.stringify(r.menu) === JSON.stringify(['free:false', 'smart:true']),
-    'E1 flow：编辑模式两档在状态栏「⋯」›「时值检查」（属性页的卡片隐藏、#em-toggle 节点照留）、时值检查在状态栏（旧创作页卡片不出现）', JSON.stringify(r));
+    'E1 flow（?next=0）：编辑模式两档在状态栏「⋯」›「时值检查」（属性页的卡片隐藏、#em-toggle 节点照留）、时值检查在状态栏（旧创作页卡片不出现）', JSON.stringify(r));
   /* ⋯ 菜单里点一档（与 #em-toggle 同一开关：st:em → #em-toggle button.click()） */
   const emPick = async v => { await pf.click('#flw-st-more'); await pf.waitForTimeout(150); await pf.click('#popmenu [data-fa="st:em"][data-v="' + v + '"]'); await pf.waitForTimeout(150); };
 
@@ -192,7 +213,7 @@ const T = (ok, name, detail) => {
   // E3 智能编辑（默认）：真实点状态栏时值项 → 上弹 #err-drop：修复建议 + 单条 / 全部一键采纳
   await pf.click('#beat-status'); await pf.waitForTimeout(150);
   const e3 = await eo();
-  T(e3.bad && e3.open && e3.smartOn && e3.sug >= 1 && e3.fix >= 1 && e3.all && /修复建议/.test(e3.hd), 'E3 flow 智能编辑：点状态栏时值项上弹建议 + 一键采纳', JSON.stringify(e3));
+  T(e3.bad && e3.open && e3.smartOn && e3.sug >= 1 && e3.fix >= 1 && e3.all && /修复建议/.test(e3.hd), 'E3 flow（?next=0）智能编辑：点状态栏时值项上弹建议 + 一键采纳', JSON.stringify(e3));
 
   // E4 真实点「自由编辑」：只列正确与否，无建议 / 无采纳按钮；本机键持久化
   /* v68.7 S1 迁移（D8）：原真实点属性页 #em-toggle「自由编辑」→ 真实点状态栏「⋯」›「自由编辑」（musetab-editmode 写值断言不变）。修前红修后绿：改前 ⋯ 菜单同样能点（本条在改前也绿，迁移只换入口） */
@@ -200,19 +221,19 @@ const T = (ok, name, detail) => {
   if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
   const e4 = await eo();
   T(e4.mode === 'free' && e4.freeOn && e4.bad && e4.open && e4.rows >= 1 && e4.sug === 0 && e4.fix === 0 && !e4.all && /时值检查/.test(e4.hd),
-    'E4 flow 自由编辑（状态栏「⋯」真实点击）：只报正确与否，无修复建议', JSON.stringify(e4));
+    'E4 flow（?next=0）自由编辑（状态栏「⋯」真实点击）：只报正确与否，无修复建议', JSON.stringify(e4));
 
   // E5 自由模式点条目定位：sel 跳到该小节、上弹层收起
   await pf.click('#err-drop .err .err-desc'); await pf.waitForTimeout(150);
   const e5 = await pf.evaluate(() => ({ mi: sel.mi, row: sel.row, open: document.body.classList.contains('flw-eo') }));
-  T(e5.mi === 0 && e5.row === 'vox' && !e5.open, 'E5 flow 自由模式点条目定位（并收起上弹层）', JSON.stringify(e5));
+  T(e5.mi === 0 && e5.row === 'vox' && !e5.open, 'E5 flow（?next=0）自由模式点条目定位（并收起上弹层）', JSON.stringify(e5));
 
   // E6 切回智能 + 全部采纳 → 时值恢复正确（v68.7：从状态栏「⋯」切回）
   await emPick('smart');
   if (!(await eo()).open) { await pf.click('#beat-status'); await pf.waitForTimeout(150); }
   await pf.click('#err-fixall'); await pf.waitForTimeout(200);
   const e6 = await eo();
-  T(e6.mode === 'smart' && e6.smartOn && e6.good && !e6.open, 'E6 flow 智能全部采纳 → 时值恢复', JSON.stringify(e6));
+  T(e6.mode === 'smart' && e6.smartOn && e6.good && !e6.open, 'E6 flow（?next=0）智能全部采纳 → 时值恢复', JSON.stringify(e6));
   await pf.close();
 
   await browser.close();

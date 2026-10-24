@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 const CLASSIC = URL0 + (URL0.includes('?') ? '&' : '?') + 'shell=classic';
+const NX0 = URL0 + (URL0.includes('?') ? '&' : '?') + 'next=0';   /* v69.1 A2：#err-drop 只在 ?next=0 / 旧外壳出现 */
 const FILE = URL0.startsWith('file://') ? URL0.slice(7) : path.resolve(__dirname, '../index.html');
 const HTML = fs.readFileSync(FILE, 'utf8');
 const PYQ = fs.readFileSync(path.resolve(__dirname, '../site/pyq.js'), 'utf8');
@@ -145,7 +146,7 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
     }
     /* flow 段（默认外壳） */
     for (const [nm, scheme, theme] of STATES) {
-      const pg = await open(scheme, theme);
+      let pg = await open(scheme, theme);
       await pg.evaluate(LOAD + `addDoc(PRESETS[10].make()); render(); renderDocTabs();`); await pg.waitForTimeout(300);
       const r = { flow: await pg.evaluate(() => document.body.classList.contains('flow')) };
       await pg.hover('#doc-tabs .dtab:not(.on)'); await pg.waitForTimeout(60);
@@ -157,9 +158,12 @@ const LOAD = `hideStartPad(); loadSong(PRESETS[0].make()); render(); sel.mi=1; s
       await pg.mouse.move(700, 500); await pg.waitForTimeout(60);
       r.mute = await pg.evaluate(() => { const e = document.querySelector('#flw-tlist .flw-tmute[aria-pressed="true"]'); if (!e) return null; const cs = getComputedStyle(e);
         return { cr: __cr(__col(cs.color), __bgOf(e)), isDanger: __col(cs.color).slice(0, 3).join() === __tok('--danger').slice(0, 3).join(), icon: !e.textContent.trim() && !!e.querySelector('svg') }; });
+      /* v69.1 A2 迁移（规格 §6.2）：新外壳新形态点 ⚠N 出就地修面板 #flw-fixp（不再上弹 #err-drop）——#err-drop / 全部采纳 / 修复钮的对比度这一段改跑 ?next=0
+         （v69.0 形态原样）；新形态 #flw-fixp 按钮对比度在 tv_inplace R11。页签 × 与音轨树静音钮仍在默认外壳量（上面） */
+      await close(pg); pg = await open(scheme, theme, null, NX0); await pg.evaluate(LOAD);
       await pg.evaluate(() => { loadSong(PRESETS[10].make()); const m = song.measures[0]; m.voxes[0].push(JSON.parse(JSON.stringify(m.voxes[0][0]))); render(); syncInputs(); });
       await pg.waitForTimeout(200);
-      await pg.click('#beat-status'); await pg.waitForTimeout(150);   /* flow：点状态栏时值项＝上弹 #err-drop */
+      await pg.click('#beat-status'); await pg.waitForTimeout(150);   /* flow（?next=0）：点状态栏时值项＝上弹 #err-drop */
       /* flow 的时值上弹层（#err-drop）随主题取底（浅色主题实测 rgb(255,255,255)、深色为深底；v68.2 收尾 ENG-10 更正此前「深色框架」的说法）：
          修复钮悬停是半透明底叠在弹层底上——底色按祖先逐层合成（__bgOf），不能只取自身半透明底；计算结果见探针 f82v/engineering/probes/errdrop.js（浅 5.39 / 深 9.49 · 8.42） */
       r.fixall = await pg.evaluate(() => { const e = document.getElementById('err-fixall'); if (!e || !e.getClientRects().length) return null; const cs = getComputedStyle(e); return { cr: __cr(__col(cs.color), __bgOf(e)) }; });

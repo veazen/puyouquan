@@ -86,7 +86,8 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
   /* ---------- D2 参数解析 ＋ 回车才建 ---------- */
   await guard('D2 参数解析', async () => {
     const r = {};
-    const pg = await open('new=kids&key=Fm&meter=3/4&tempo=96&acc=pure&title=' + encodeURIComponent('小猫钓鱼') + '&bars=12&lyr=3');
+    /* v69.1 C：本条逐字读「依据」框的值（《小猫钓鱼》/ f 小调…）——新形态删了依据框（来源改参数圆点，tv_newpanel2 N10 / N11），这条改跑 ?next=0（v69.0 形态） */
+    const pg = await open('next=0&new=kids&key=Fm&meter=3/4&tempo=96&acc=pure&title=' + encodeURIComponent('小猫钓鱼') + '&bars=12&lyr=3');
     r.p = await panelInfo(pg);
     r.st = await EV(pg, () => ({ v: NWP.state.v, src: NWP.state.src, mel: NWP.state.mel, stack: NWP.stackOfState(NWP.state), title: document.getElementById('nw-title').value }));
     /* 真按回车建（焦点在左栏选中的用途上） */
@@ -342,7 +343,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
   await guard('D10 认不出不读上次', async () => {
     const r = {};
     for (const q of ['new=xyz&tempo=100', 'new=', 'new']) {
-      const pg = await open(q, 1280, 800, { init: seedInit });
+      const pg = await open('next=0&' + q, 1280, 800, { init: seedInit });   /* v69.1 C：读依据框 → ?next=0（新形态圆点在 tv_newpanel2 N10 / N11） */
       const p = await panelInfo(pg);
       r[q] = { open: p.open, scene: p.scene, last: /沿用上次/.test(p.basis), lastChips: await EV(pg, () => document.querySelectorAll('#nf-basis i.c-last').length),
         tempo: await EV(pg, () => NWP.state && NWP.state.v.tempo), link: p.linkChips.join(','), keyNow: await EV(pg, () => NWP.state && NWP.state.v.key) };

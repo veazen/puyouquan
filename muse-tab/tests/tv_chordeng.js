@@ -107,7 +107,7 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
     await jtStd(pg);
     const ENT = {
       sbar: async () => { const h = await EV(pg, () => __hit('#flw-sbar [data-fa="sbar:tool"][data-v="chord"]')); if (h.ok) await pg.mouse.click(h.x, h.y); return h; },
-      rp: async () => { await EV(pg, () => FLOW.rd.show('text')); await wait(pg, 120); const h = await EV(pg, () => __hit('#flw-rp-text [data-v="chordq"]')); if (h.ok) await pg.mouse.click(h.x, h.y); return h; },
+      rp: async () => { await EV(pg, () => FLOW.rd.open('text')); await wait(pg, 120);   /* v69.1 D5：新形态右栏默认竖条，show() 只切页不展开 → open() 浮出「文字」页 */ const h = await EV(pg, () => __hit('#flw-rp-text [data-v="chordq"]')); if (h.ok) await pg.mouse.click(h.x, h.y); return h; },
       key: async () => { await blur(pg); await pg.keyboard.press('Control+k'); return { ok: true }; },
       cmd: async () => { await blur(pg); await pg.keyboard.press('Control+Slash'); await wait(pg, 200); await typeKeys(pg, '输入和弦'); await wait(pg, 250); await pg.keyboard.press('Enter'); return { ok: true }; },
       score: async row => { const q = row === 'vox' ? '#score g[data-vchord="0:0:0"]' : '#score g[data-tchord="1:0:0"]';
@@ -124,7 +124,7 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
       res[row][k] = await EV(pg, () => __pane());
       if (k === 'key' && row === 'vox') await shot(pg, 'E1b-vox-ctrlk');
       if (k === 'key' && row === 'tab') await shot(pg, 'E1c-tab-ctrlk');
-      await EV(pg, () => __shut()); await wait(pg, 80);
+      await EV(pg, () => { __shut(); try { FLOW.rd.close(false); } catch (_) {} }); await wait(pg, 80);
     }
     T('E1', vis.every(x => /=ok$/.test(x)), 'E1a 每个入口点击前可见（getClientRects + elementFromPoint 中心是它自己）', vis.join(' '));
     const vOk = p => p.popCe === 'vox' && p.ck && p.focus && p.vcOk && p.vd === 8 && p.vs === 22 && p.vb === 13;
@@ -171,7 +171,7 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
     await EV(pd, () => { __shut(); __jt({ inst: 'uku', degs: [[1, 3, 5, 1]] }); __sel('tab', 0, 0); });
     cov.uku = await kOpen(); await EV(pd, () => __shut());
     const vx = p => p && p.popCe === 'vox' && p.ck && p.vd === 8;
-    T('E1', vx(cov.J) && vx(cov.S) && vx(cov.C) && vx(cov.JG) && cov.JG.tools[1] === 'chord' && vx(cov.CJ) && cov.uku.modalCe === 'tab' && cov.uku.ck && cov.uku.shapes.length >= 3 && cov.uku.shapes.every(x => x.length === 4),
+    T('E1', vx(cov.J) && vx(cov.S) && vx(cov.C) && vx(cov.JG) && cov.JG.tools.includes('chord') &&   /* v69.1 C：新形态钢琴伴奏歌谱常用工具＝和弦 · 填词 · 级数 · 键盘（S12，和弦排第 1） */ vx(cov.CJ) && cov.uku.modalCe === 'tab' && cov.uku.ck && cov.uku.shapes.length >= 3 && cov.uku.shapes.every(x => x.length === 4),
       'E1d 谱类覆盖：简谱 J / 五线谱 S / 和弦谱 C / 钢琴伴奏歌谱 JG（悬浮条第 2 个工具＝和弦）/ 功能谱 CJ（⋯ →「和弦 / 级数…」）进构建器；尤克里里六线谱行进 GP、卡片 4 弦',
       J(Object.fromEntries(Object.entries(cov).map(([k, p]) => [k, [p.popCe || p.modalCe, p.ck, p.vd, p.tools ? p.tools.join('') : '', (p.shapes || []).slice(0, 3).join('/')]]))));
     await close(pd);

@@ -30,6 +30,9 @@
         SATB＋钢琴（女低音份）、旧外壳弹窗、手机抽屉、打印切片（引擎）各一张
    PU16 收尾（验收 UX）：窄档看分谱时视口里有分谱名（竖条键 / 状态栏 / 页脚）；「分谱」键悬停时勾上的行描边；当前项灰字对比度 ≥4.5；深色勾选框 color-scheme；
         看分谱时导出提示加「（总谱）」；「沿用总谱换行」悬停范围；命令面板「预览总谱」后焦点在预览区
+   v69.1 B（规格 f91 §4 B2.1 / B2.2 / §6.2）有意迁移：新形态「分谱」是输出悬浮条「总谱 | 分谱」分段（同 id #flw-out-parts，徽标同；选中＝主按钮「存 PDF」打勾选的分谱，
+        没勾时主按钮 #flw-sb-go 灰显「先勾选分谱」）、纸张 #flw-out-psize / 页数 #flw-out-pages 在条上、7 个导出键是左栏格式卡（同 id）、「沿用总谱换行」在左栏分谱表头下；
+        PU1 / PU2 / PU3 / PU7 / PU10 / PU14 两种形态各跑（?next=0＝原断言），PU13 / PU15 按形态取读数与容器
    RL   数据红线：song 字段集合不变、不新增 musetab-* 本机键（对基线提交源码里出现过的键名）
    env：MUSETAB_URL 被测页（缺省 ../index.html）· ONLY=PU1,PU3 · SHOTS=目录· PARTS_REF 基线页（缺省按 parts_ref.json 的提交 git show；PARTS_REF=none 跳过，CI 里拿不到判红） */
 const { chromium } = require('playwright');
@@ -38,6 +41,7 @@ const { execFileSync } = require('child_process');
 const toUrl = u => /^file:/.test(u) ? u : 'file://' + path.resolve(u);
 const URL0 = process.env.MUSETAB_URL ? toUrl(process.env.MUSETAB_URL) : 'file://' + path.resolve(__dirname, '../index.html');
 const withQ = (u, q) => { const i = u.indexOf('#'), base = i >= 0 ? u.slice(0, i) : u, h = i >= 0 ? u.slice(i) : ''; return base + (base.includes('?') ? '&' : '?') + q + h; };
+const NX0U = withQ(URL0, 'next=0');   /* v69.1 B：?next=0＝v69.0 形态（原断言在这里跑） */
 const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
 const want = k => !ONLY.length || ONLY.includes(k);
 const SHOTS = process.env.SHOTS || '';
@@ -62,7 +66,8 @@ const KNOWN = (() => { const lit = t => new Set((String(t || '').match(/musetab-
 function INIT() {
   window.__vis = e => { if (typeof e === 'string') e = document.querySelector(e); if (!e || !e.isConnected) return false;
     const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) return false;
-    for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false; }
+    if (getComputedStyle(e).visibility !== 'visible') return false;   /* v69.1 B：visibility 可被子孙覆盖（输出模式 #score-wrap 隐藏、悬浮条显式 visible）——只看自身计算值 */
+    for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.opacity === '0') return false; }
     return true; };
   window.__keys = () => Object.keys(localStorage).filter(k => /^musetab-/.test(k)).sort();
   window.__kv = () => { const o = {}; __keys().forEach(k => { o[k] = localStorage.getItem(k); }); return o; };
@@ -131,7 +136,11 @@ function INIT() {
     const hd = a && a.closest('.flw-lrh'), af = hd && hd.firstElementChild, lf = box.querySelector('label[for="flw-out-chkall"]');
     return { rows, txt: box.innerText, html: box.innerHTML, all: a ? { ck: a.checked, ind: a.indeterminate, al: a.getAttribute('aria-label'), type: a.type, first: !!af && af.contains(a), lab: lf ? lf.textContent : '' } : null,
       cnt: (box.querySelector('.flw-lrh .flw-lrc') || {}).textContent || '', solo: (box.querySelector('.flw-osolo') || {}).textContent || '',
-      btn: b ? { dis: b.getAttribute('aria-disabled'), why: b.dataset.why || '', al: b.getAttribute('aria-label'), title: b.title, lab: (b.querySelector('.flw-glb') || {}).textContent, badge: g && !g.hidden ? g.textContent : '' } : null }; };
+      btn: b ? { dis: b.getAttribute('aria-disabled'), why: b.dataset.why || '', al: b.getAttribute('aria-label'), title: b.title, lab: (b.querySelector('.flw-glb') || {}).textContent
+        || [...b.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(),   /* v69.1 B：新形态分段键的字是直接文本 */
+        badge: g && !g.hidden ? g.textContent : '', pr: b.getAttribute('aria-pressed'), home: b.closest('#flw-sbar') ? 'sbar' : b.closest('#editbar') ? 'row2' : '?' } : null,
+      go: (() => { const q = document.getElementById('flw-sb-go'); return q ? { t: q.textContent.trim(), dis: q.getAttribute('aria-disabled'), why: q.dataset.why || '' } : null; })() }; };
+  window.__nx = () => !!(typeof FLOW !== 'undefined' && FLOW.nxOn && FLOW.nxOn());
 }
 
 (async () => {
@@ -173,11 +182,18 @@ function INIT() {
     const nf = now.f.filter(x => !base.f.includes(x)), nk = now.k.filter(x => !base.k.includes(x) && !KNOWN.has(x));
     RL.push({ id, ok: !nf.length && !nk.length, d: id + (nf.length ? ' 新字段 ' + nf.join(',') : '') + (nk.length ? ' 新键 ' + nk.join(',') : '') }); };
   const sigOf = pg => EV(pg, () => FLOW.mode.snapSig());
+  /* v69.1 B：「打印勾选的分谱」——?next=0 点行 2「分谱」键；新形态先点悬浮条「分谱」分段（选打哪一份），过了主按钮 600ms 防误点再点「存 PDF」#flw-sb-go */
+  const partsGo = async (pg, ms) => { if (await EV(pg, () => __nx())) {
+      if (await EV(pg, () => (document.getElementById('flw-out-parts') || {}).getAttribute('aria-pressed') !== 'true')) { await pg.click('#flw-out-parts', { force: true }); await wait(pg, 750); }
+      await pg.click('#flw-sb-go', { force: true }); } else await pg.click('#flw-out-parts', { force: true });
+    await wait(pg, ms || 300); };
   const jobs = [];
 
   /* ================= PU1 单演奏者 ================= */
-  if (want('PU1')) jobs.push(() => SAFE('PU1', 'PU1', async () => {
-    const pg = await open(1440, 900, { tag: 'PU1' });
+  /* v69.1 B：新形态「分谱」是悬浮条分段键（字「分谱」、悬停 / 读屏名「分谱（只有一位演奏者）」）、左栏读数「〈谱名〉 · 一人」（≤8 字）；?next=0 原断言 */
+  if (want('PU1')) for (const nx0 of [true, false]) jobs.push(() => SAFE('PU1', 'PU1' + (nx0 ? ' ?next=0' : ''), async () => {
+    const pg = await open(1440, 900, { tag: 'PU1' + (nx0 ? '-nx0' : ''), url: nx0 ? NX0U : URL0 });
+    const NM = nx0 ? '打印分谱' : '分谱', SOLO = nx0 ? ' · 一位演奏者' : ' · 一人';
     for (const k of ['钢琴独奏', '送别', '和弦谱']) {
       await ld(pg, k); const base = await redBase(pg);
       await mode(pg, 'output');
@@ -189,18 +205,23 @@ function INIT() {
         ok: (() => { const c = FLOW.cmd.list().find(x => x.id === 'out:parts'); try { return c && c.ok ? c.ok() : null; } catch (e) { return 'ERR'; } })(), plan: partsPlan(song).solo }));
       T('PU1', r.plan && L.btn && L.btn.dis === 'true' && L.btn.why === '只有一位演奏者' && L.btn.lab === '分谱' && !L.btn.badge
         && r.t[r.t.length - 1] === '只有一位演奏者' && r.role === 'status' && r.ev === '' && r.ok === '只有一位演奏者'
-        && L.solo === kn + ' · 一位演奏者' && L.rows.length === 0 && !/即将推出|下一批/.test(L.txt + L.btn.why + L.btn.title)
-        && L.btn.title === '打印分谱（只有一位演奏者）' /* v68.7 收尾 BUD-2 迁移：灰显悬停「名称（原因）」同 setD 口径（原「打印勾选的分谱——现在用不了：只有一位演奏者」）；13cf7cb 红 */ && L.btn.al === '打印分谱（只有一位演奏者）' && L.html.indexOf('flw-obx') < 0,
-        'PU1 ' + k + '（一位演奏者）：「分谱」灰显、原因与点击 toast 都是「只有一位演奏者」（role=status）、不导出不打印；命令面板 ok() 同一句；灰显原因并进悬停与读屏名（收尾 UX-5，同 setD 口径）；左栏「' + kn + ' · 一位演奏者」、无勾选框、总谱行不画像勾选框的 ✓ 方框（收尾 UX-12）',
+        && L.solo === kn + SOLO && L.rows.length === 0 && !/即将推出|下一批/.test(L.txt + L.btn.why + L.btn.title) && L.btn.home === (nx0 ? 'row2' : 'sbar')
+        && L.btn.title === NM + '（只有一位演奏者）' /* v68.7 收尾 BUD-2 迁移：灰显悬停「名称（原因）」同 setD 口径（原「打印勾选的分谱——现在用不了：只有一位演奏者」）；13cf7cb 红 */ && L.btn.al === NM + '（只有一位演奏者）' && L.html.indexOf('flw-obx') < 0,
+        'PU1 ' + (nx0 ? '（?next=0）' : '（新形态：悬浮条分段）') + k + '（一位演奏者）：「分谱」灰显、原因与点击 toast 都是「只有一位演奏者」（role=status）、不导出不打印；命令面板 ok() 同一句；灰显原因并进悬停与读屏名（收尾 UX-5，同 setD 口径）；左栏「' + kn + SOLO + '」、无勾选框、总谱行不画像勾选框的 ✓ 方框（收尾 UX-12）',
         J({ btn: L.btn, solo: L.solo, rows: L.rows.length, r }));
-      await mode(pg, 'write'); await redEnd('PU1', pg, base);
+      await mode(pg, 'write'); await redEnd('PU1' + (nx0 ? '-nx0' : ''), pg, base);
     }
     await close(pg);
   }));
 
   /* ================= PU2 多演奏者：列表结构 · 缺省勾选 · 三态 · 徽标 ================= */
-  if (want('PU2')) jobs.push(() => SAFE('PU2', 'PU2', async () => {
-    const pg = await open(1440, 900, { tag: 'PU2' });
+  /* v69.1 B：新形态分段键字「分谱」、悬停「分谱」、读屏名「分谱（N 份）」，徽标同；全不勾时分段不灰（只是选打哪一份），选了分谱后主按钮「存 PDF」灰显「先勾选分谱」；?next=0 原断言 */
+  if (want('PU2')) for (const nx0 of [true, false]) jobs.push(() => SAFE('PU2', 'PU2' + (nx0 ? ' ?next=0' : ''), async () => {
+    const pg = await open(1440, 900, { tag: 'PU2' + (nx0 ? '-nx0' : ''), url: nx0 ? NX0U : URL0 });
+    const X = nx0 ? '（?next=0）' : '（新形态）', NM = nx0 ? '打印分谱' : '分谱', TT = nx0 ? '打印勾选的分谱' : '分谱';
+    /* 「灰显、原因先勾选分谱」：?next=0 在「分谱」键上；新形态在主按钮上（分段只选打哪一份） */
+    const noneOk = (L, gb) => nx0 ? (L.btn.dis === 'true' && L.btn.why === '先勾选分谱' && L.btn.title === '打印分谱（先勾选分谱）' && L.btn.al === '打印分谱（先勾选分谱）')
+      : (L.btn.dis === null && L.btn.title === '分谱' && L.btn.al === '分谱' && !!gb && gb.dis === 'true' && gb.why === '先勾选分谱' && gb.t === '存 PDF');
     for (const k of ['两只老虎', 'SATB+钢琴']) {
       await ld(pg, k); const base = await redBase(pg);
       await mode(pg, 'output');
@@ -215,10 +236,10 @@ function INIT() {
         && L.rows.filter(r => r.cur === 'true').map(r => r.id).join() === 'score' && L.all && L.all.type === 'checkbox' && L.all.al === '全选分谱' && L.cnt === String(req.length)
         && !/即将推出|按演奏者，不按谱行|下一批/.test(L.txt);
       const defOk = L.rows[0].ck === false && L.rows.slice(1).every((r, i) => r.ck === !P.parts[i].opt) && L.all.ck === true && L.all.ind === false
-        && L.btn.dis === null && L.btn.badge === String(req.length) && L.btn.lab === '分谱' && L.btn.al === '打印分谱（' + req.length + ' 份）' && L.btn.title === '打印勾选的分谱';
-      T('PU2', structOk, 'PU2a ' + k + '：列表＝总谱行＋' + P.parts.length + ' 份（原生勾选框在名称键之前、读屏名与悬停都是「打印时包含〈名称〉」、名称键 title「预览〈名称〉」' + (k === 'SATB+钢琴' ? '、钢琴份「· 总谱」、合并份缩进' : '') + '）；全选框「全选分谱」在标题行最前、「分谱」两字是它的 label（收尾 UX-3）；aria-current 在总谱；不再有「即将推出」',
+        && L.btn.dis === null && L.btn.badge === String(req.length) && L.btn.lab === '分谱' && L.btn.al === NM + '（' + req.length + ' 份）' && L.btn.title === TT && L.btn.home === (nx0 ? 'row2' : 'sbar');
+      T('PU2', structOk, 'PU2a ' + X + k + '：列表＝总谱行＋' + P.parts.length + ' 份（原生勾选框在名称键之前、读屏名与悬停都是「打印时包含〈名称〉」、名称键 title「预览〈名称〉」' + (k === 'SATB+钢琴' ? '、钢琴份「· 总谱」、合并份缩进' : '') + '）；全选框「全选分谱」在标题行最前、「分谱」两字是它的 label（收尾 UX-3）；aria-current 在总谱；不再有「即将推出」',
         J({ ids, got: L.rows.map(r => [r.id, r.t, r.cbFirst, r.opt]), all: L.all, cnt: L.cnt }));
-      T('PU2', defOk, 'PU2b ' + k + '：缺省勾选＝全部非可选份（可选份、总谱不勾）、全选框勾上不半选、徽标「' + req.length + '」、键「分谱」读屏名「打印分谱（' + req.length + ' 份）」title「打印勾选的分谱」',
+      T('PU2', defOk, 'PU2b ' + X + k + '：缺省勾选＝全部非可选份（可选份、总谱不勾）、全选框勾上不半选、徽标「' + req.length + '」、键「分谱」读屏名「' + NM + '（' + req.length + ' 份）」title「' + TT + '」',
         J({ ck: L.rows.map(r => r.ck), all: L.all, btn: L.btn }));
       /* 真实点击：去掉一份 → 全选半选、徽标 −1；点全选 → 全勾；再点 → 全不勾 → 键灰显「先勾选分谱」、不出徽标、点了 toast 同一句不导出 */
       const firstPart = P.parts[0].id;
@@ -227,29 +248,30 @@ function INIT() {
       await pg.click('#flw-out-chkall'); await wait(pg, 150); const L2 = await lst(pg);
       await pg.click('#flw-out-chkall'); await wait(pg, 150); const L3 = await lst(pg);
       await EV(pg, () => { __spy(); __toasts.length = 0; });
-      await pg.click('#flw-out-parts', { force: true }); await wait(pg, 250);
-      const r3 = await EV(pg, () => ({ ev: __take(), t: __toasts.slice(-1)[0], ok: (() => { const c = FLOW.cmd.list().find(x => x.id === 'out:parts'); return c.ok(); })() }));
+      await partsGo(pg, 250);
+      const r3 = await EV(pg, () => ({ ev: __take(), t: __toasts.slice(-1)[0], ok: (() => { const c = FLOW.cmd.list().find(x => x.id === 'out:parts'); return c.ok(); })(), go: __lst().go }));
       T('PU2', L1.all.ind === true && L1.all.ck === false && L1.btn.badge === String(req.length - 1) && L1.rows[1].ck === false
         && L2.all.ck === true && L2.all.ind === false && L2.btn.badge === String(req.length) && L2.rows.filter(r => r.opt).every(r => r.ck === false)
-        && L3.all.ck === false && L3.all.ind === false && L3.rows.every(r => r.id === 'score' || r.ck === false) && L3.btn.dis === 'true' && L3.btn.why === '先勾选分谱' && L3.btn.badge === ''
-        && L3.btn.title === '打印分谱（先勾选分谱）' /* v68.7 收尾 BUD-2 迁移：同上；13cf7cb 红 */ && L3.btn.al === '打印分谱（先勾选分谱）'
+        && L3.all.ck === false && L3.all.ind === false && L3.rows.every(r => r.id === 'score' || r.ck === false) && L3.btn.badge === ''
+        && noneOk(L3, r3.go) /* v68.7 收尾 BUD-2 迁移：灰显悬停「名称（原因）」；13cf7cb 红 */
         && r3.ev === '' && r3.t === '先勾选分谱' && r3.ok === '先勾选分谱',
-        'PU2c ' + k + '：去掉一份 → 全选框半选、徽标 ' + (req.length - 1) + '；点全选 → 非可选份全勾（可选份不动）；再点 → 全不勾：键灰显「先勾选分谱」、徽标不出、点了 toast 同一句不导出（命令面板 ok() 同）',
+        'PU2c ' + X + k + '：去掉一份 → 全选框半选、徽标 ' + (req.length - 1) + '；点全选 → 非可选份全勾（可选份不动）；再点 → 全不勾：键灰显「先勾选分谱」、徽标不出、点了 toast 同一句不导出（命令面板 ok() 同）',
         J({ L1: [L1.all, L1.btn.badge], L2: [L2.all, L2.btn.badge], L3: [L3.all, L3.btn], r3 }));
       if (k === 'SATB+钢琴') {   /* v68.6 收尾 UX-4：徽标＝实际打出几段（总谱与等于总谱的钢琴份并成一段）；只勾总谱＝灰显「先勾选分谱」 */
         await EV(pg, () => document.querySelectorAll('#flw-out-list input.flw-ock[data-fa="out:chk"]').forEach(c => { if (!c.checked) c.click(); })); await wait(pg, 150);
         const La = await lst(pg), segN = await EV(pg, () => partSegN(partsPlan(song), FLOW.out.checked()));
         await EV(pg, () => document.querySelectorAll('#flw-out-list input.flw-ock[data-fa="out:chk"]').forEach(c => { if (c.checked && c.dataset.id !== 'score') c.click(); })); await wait(pg, 150);
         const Lb = await lst(pg);
-        await EV(pg, () => { __spy(); __toasts.length = 0; }); await pg.click('#flw-out-parts', { force: true }); await wait(pg, 250);
-        const rb = await EV(pg, () => ({ ev: __take(), t: __toasts.slice(-1)[0] }));
-        T('PU2', La.rows.every(r => r.ck) && La.btn.badge === '7' && segN === 7 && La.btn.al === '打印分谱（7 份）' && Lb.rows.filter(r => r.ck).map(r => r.id).join() === 'score'
-          && Lb.btn.dis === 'true' && Lb.btn.why === '先勾选分谱' && Lb.btn.badge === '' && rb.ev === '' && rb.t === '先勾选分谱',
-          'PU2e SATB＋钢琴全勾（总谱＋4 声部＋钢琴＋2 项合并＝8 项）：徽标「7」＝实际打出 7 段（等于总谱的钢琴份并进总谱），读屏名「打印分谱（7 份）」；只勾总谱：键灰显「先勾选分谱」、不出徽标、点了不打印（收尾 UX-4）',
+        await EV(pg, () => { __spy(); __toasts.length = 0; }); await partsGo(pg, 250);
+        const rb = await EV(pg, () => ({ ev: __take(), t: __toasts.slice(-1)[0], go: __lst().go }));
+        T('PU2', La.rows.every(r => r.ck) && La.btn.badge === '7' && segN === 7 && La.btn.al === NM + '（7 份）' && Lb.rows.filter(r => r.ck).map(r => r.id).join() === 'score'
+          && noneOk(Lb, rb.go) && Lb.btn.badge === '' && rb.ev === '' && rb.t === '先勾选分谱',
+          'PU2e ' + X + 'SATB＋钢琴全勾（总谱＋4 声部＋钢琴＋2 项合并＝8 项）：徽标「7」＝实际打出 7 段（等于总谱的钢琴份并进总谱），读屏名「打印分谱（7 份）」；只勾总谱：键灰显「先勾选分谱」、不出徽标、点了不打印（收尾 UX-4）',
           J({ a: [La.btn.badge, La.btn.al, segN], b: Lb.btn, rb })); }
-      if (k === '两只老虎') await shot(pg, 'PU2-list-1440');
-      await mode(pg, 'write'); await redEnd('PU2', pg, base);
+      if (k === '两只老虎') await shot(pg, 'PU2-list-1440' + (nx0 ? '-nx0' : ''));
+      await mode(pg, 'write'); await redEnd('PU2' + (nx0 ? '-nx0' : ''), pg, base);
     }
+    if (!nx0) { await close(pg); return; }   /* PU2d / PU2f（⚠ 和弦放不下）与形态无关，只在 ?next=0 那一遍跑 */
     /* PU2d ⚠「k 个和弦名放不下」（§3.4：只在 carry.dropped>0 时出；引擎）：小星星原样无 ⚠；同拍旋律与 TAB 各写不同和弦 → 有 ⚠，k＝partSong 的 dropped */
     const warnOf = async k => { await ld(pg, k); await mode(pg, 'output'); await wait(pg, 500);
       const r = await EV(pg, () => [...document.querySelectorAll('#flw-out-list .flw-orow')].map(row => { const w = row.querySelector('.flw-owarn'), id = row.querySelector('.flw-onm').dataset.id;
@@ -272,8 +294,10 @@ function INIT() {
   }));
 
   /* ================= PU3 切预览 · PU5 回总谱 ================= */
-  if (want('PU3') || want('PU5')) jobs.push(() => SAFE('PU3', 'PU3/PU5', async () => {
-    const pg = await open(1440, 900, { tag: 'PU3' });
+  /* v69.1 B：两种形态各跑——新形态格式卡同 id、看分谱时悬停同原（作用于当前视图），看总谱时「图片」卡悬停「图片 PNG」（≤12 字）；页数读数在悬浮条（同 id） */
+  if (want('PU3') || want('PU5')) for (const nx0 of [true, false]) jobs.push(() => SAFE('PU3', 'PU3/PU5' + (nx0 ? ' ?next=0' : ''), async () => {
+    const pg = await open(1440, 900, { tag: 'PU3' + (nx0 ? '-nx0' : ''), url: nx0 ? NX0U : URL0 });
+    const X = nx0 ? '（?next=0）' : '（新形态）';
     await ld(pg, '两只老虎'); const base = await redBase(pg);
     await mode(pg, 'output');
     const s0 = await EV(pg, () => ({ c: PV.content, g: JSON.stringify(PV.geo), sig: FLOW.mode.snapSig(), pages: document.getElementById('flw-out-pages').textContent,
@@ -290,16 +314,16 @@ function INIT() {
         st: document.getElementById('flw-st-trk').textContent, stT: document.getElementById('flw-st-trk').title, nb: (document.getElementById('flw-nbtn') || {}).textContent }; });
     T('PU3', r.cur === 't1' && J(r.ac) === '["t1"]' && r.cks === null && r.n === r.ln && r.caps.length === r.n && r.caps.every((c, i) => c === '吉他 · 扫弦 · 第 ' + (i + 1) + ' / ' + r.n + ' 页')
       && r.pages === '共 ' + r.n + ' 页' && r.sig === s0.sig + '|part:t1|0' && r.act === 't1' && s0.caps.every((c, i) => c === '第 ' + (i + 1) + ' / ' + s0.caps.length + ' 页'),
-      'PU3a 点「吉他 · 扫弦」：FLOW.out.cur＝t1、aria-current 只在它；PV.cks＝null、PV.geo.n＝这一份页数 ' + r.n + '、页脚「吉他 · 扫弦 · 第 x / n 页」（收尾 UX-1：每页都写正在看哪一份；看总谱时照旧「第 x / n 页」）、右栏「共 n 页」、snapSig＝总谱签名＋「|part:t1|0」、焦点留在名称键',
+      'PU3a ' + X + '点「吉他 · 扫弦」：FLOW.out.cur＝t1、aria-current 只在它；PV.cks＝null、PV.geo.n＝这一份页数 ' + r.n + '、页脚「吉他 · 扫弦 · 第 x / n 页」（收尾 UX-1：每页都写正在看哪一份；看总谱时照旧「第 x / n 页」）、右栏「共 n 页」、snapSig＝总谱签名＋「|part:t1|0」、焦点留在名称键',
       J({ cur: r.cur, ac: r.ac, n: r.n, ln: r.ln, caps: r.caps, caps0: s0.caps, pages: r.pages, sigTail: r.sig.slice(-24), act: r.act }));
     T('PU3', r.tt[0] === '打印吉他 · 扫弦' && r.tt[1] === '图片 · 吉他 · 扫弦' && J(r.tt.slice(2)) === J(['分享卡·总谱', '互动谱·总谱', 'MusicXML·总谱', 'MIDI·总谱', '曲谱文件·总谱'])
-      && s0.tt[0] !== r.tt[0] && s0.tt[1] === '导出高清 PNG 图片（整页谱面）',
-      'PU3b 看分谱时悬停说明：「打印 / 存 PDF」＝「打印吉他 · 扫弦」、图片 PNG＝「图片 · 吉他 · 扫弦」（作用于当前视图，收尾 UX-9）、分享卡 / 互动谱 / MusicXML / MIDI / 曲谱文件＝「〈键名〉·总谱」（≤12 字）', J(r.tt));
+      && s0.tt[0] !== r.tt[0] && s0.tt[1] === (nx0 ? '导出高清 PNG 图片（整页谱面）' : '图片 PNG'),
+      'PU3b ' + X + '看分谱时悬停说明：「打印 / 存 PDF」＝「打印吉他 · 扫弦」、图片 PNG＝「图片 · 吉他 · 扫弦」（作用于当前视图，收尾 UX-9）、分享卡 / 互动谱 / MusicXML / MIDI / 曲谱文件＝「〈键名〉·总谱」（≤12 字）', J(r.tt));
     /* v68.7 S1 迁移（README P2，规格 B7）：状态栏轨名段平时的悬停「当前编辑的音轨 · 记谱法」→「当前轨」（看分谱时「正在看的分谱」不变）。修前红修后绿：改前 s0.stT 是长句 */
     T('PU3', r.st === '吉他 · 扫弦 · 分谱' && r.stT === '正在看的分谱' && s0.st !== r.st && s0.stT === '当前轨',
       'PU3f 看分谱时状态栏轨名段写正在看的这一份「吉他 · 扫弦 · 分谱」（悬停「正在看的分谱」；此前写光标所在的轨，与画面矛盾——收尾 UX-1）', J({ st: r.st, stT: r.stT, s0: [s0.st, s0.stT] }));
     T('PU3', r.pgpart >= 1 && r.pgpartTxt === '吉他 · 扫弦' && r.lsIn, 'PU3c（引擎）预览页里有分谱名 .pgpart「吉他 · 扫弦」；「页面」区＝pagesHTML(partReport(last))', J({ pgpart: r.pgpart, t: r.pgpartTxt, lsIn: r.lsIn }));
-    await shot(pg, 'PU3-view-t1-1440');
+    await shot(pg, 'PU3-view-t1-1440' + (nx0 ? '-nx0' : ''));
     /* PU5 回总谱：内容 / 几何 / 签名与切换前逐字节相同 */
     await view(pg, 'score');
     const s1 = await EV(pg, () => ({ c: PV.content, g: JSON.stringify(PV.geo), sig: FLOW.mode.snapSig(), cur: FLOW.out.cur, pages: document.getElementById('flw-out-pages').textContent,
@@ -308,7 +332,7 @@ function INIT() {
     T('PU5', s1.cur === 'score' && s1.c === s0.c && s1.g === s0.g && s1.sig === s0.sig && s1.sig.indexOf('|part:') < 0 && s1.pages === s0.pages && J(s1.tt) === J(s0.tt) && s1.last === null
       && J(s1b.caps) === J(s0.caps) && s1b.st === s0.st && s1b.stT === s0.stT,
       'PU5 点「总谱」回来：PV.content、PV.geo、snapSig、右栏页数、工具组悬停说明、页脚、状态栏轨名段与切换前逐字节相同，snapSig 无「|part:」', J({ cur: s1.cur, c: s1.c === s0.c, g: s1.g === s0.g, sig: s1.sig === s0.sig, caps: s1b.caps, st: s1b.st }));
-    await mode(pg, 'write'); await redEnd('PU3', pg, base);
+    await mode(pg, 'write'); await redEnd('PU3' + (nx0 ? '-nx0' : ''), pg, base);
     /* SATB＋钢琴：女低音份（引擎：.pgpart）；钢琴份等于总谱：直接用总谱快照、「共 n 页」 */
     await ld(pg, 'SATB+钢琴'); await mode(pg, 'output');
     const sc = await EV(pg, () => ({ c: PV.content, n: PV.geo.n }));
@@ -374,8 +398,10 @@ function INIT() {
   }));
 
   /* ================= PU7 打印对象 · PNG ================= */
-  if (want('PU7')) jobs.push(() => SAFE('PU7', 'PU7', async () => {
-    const pg = await open(1440, 900, { tag: 'PU7' });
+  /* v69.1 B：两种形态各跑——新形态「打印」「图片」是左栏格式卡（同 id 同调用）；「分谱」＝悬浮条分段选分谱 → 主按钮「存 PDF」＝EXPORT_ACT.parts(纸张, 勾选集)；纸张 select 在悬浮条（同 id 同 change） */
+  if (want('PU7')) for (const nx0 of [true, false]) jobs.push(() => SAFE('PU7', 'PU7' + (nx0 ? ' ?next=0' : ''), async () => {
+    const pg = await open(1440, 900, { tag: 'PU7' + (nx0 ? '-nx0' : ''), url: nx0 ? NX0U : URL0 });
+    const X = nx0 ? '（?next=0）' : '（新形态）';
     await ld(pg, '两只老虎'); const base = await redBase(pg);
     await mode(pg, 'output'); await EV(pg, () => __spy());
     await view(pg, 't1'); await EV(pg, () => __take());
@@ -385,21 +411,21 @@ function INIT() {
     await pg.click('#flw-out-print'); await wait(pg, 500); const ps = await EV(pg, () => __take());
     await pg.click('#flw-out-png'); await wait(pg, 400); const sp = await EV(pg, () => __take());
     T('PU7', /^xprint\("A4"\) setPrintPage\(A4\) print/.test(pv) && /^xprint\("A4"\) setPrintPage\(A4\) print$/.test(ps) && /^partPng\("t1"\)/.test(pp) && pp.indexOf('png()') < 0 && /^png\(\) /.test(sp) && /fn:exportPNG\(2\)/.test(sp),
-      'PU7a 看分谱时「打印 / 存 PDF」＝EXPORT_ACT.print(纸张) → setPrintPage 后 print；看总谱同 M8a（无分谱任务）；看分谱时「图片 PNG」＝EXPORT_ACT.partPng(id)，看总谱＝EXPORT_ACT.png()', J({ pv, ps, pp, sp }));
+      'PU7a ' + X + '看分谱时「打印 / 存 PDF」＝EXPORT_ACT.print(纸张) → setPrintPage 后 print；看总谱同 M8a（无分谱任务）；看分谱时「图片 PNG」＝EXPORT_ACT.partPng(id)，看总谱＝EXPORT_ACT.png()', J({ pv, ps, pp, sp }));
     T('PU7', /print:\["t1"\]:view/.test(pv) && /ev:export_png:part/.test(pp) && /svgpng:两只老虎（双声部）-吉他 · 扫弦/.test(pp), 'PU7b（引擎）看分谱打印时 partJobNow()＝{ids:["t1"], view}；分谱 PNG 记 export_png（meta part）、文件名「曲名-吉他 · 扫弦」', J({ pv, pp }));
     /* 「分谱」键：勾选集（总谱在最前），纸张跟右栏 */
     await pg.click('#flw-out-list input.flw-ock[data-id="score"]'); await wait(pg, 120);
     await pg.click('#flw-out-list input.flw-ock[data-id="t0"]'); await wait(pg, 120);
     await EV(pg, () => { const s = document.getElementById('flw-out-psize'); s.value = 'A4L'; s.dispatchEvent(new Event('change', { bubbles: true })); });
     await EV(pg, () => __take());
-    await pg.click('#flw-out-parts'); await wait(pg, 600);
+    await partsGo(pg, 600);
     const k = await EV(pg, () => ({ ev: __take(), job: typeof PART_JOB !== 'undefined' && PART_JOB ? PART_JOB.ids : null, ck: FLOW.out.checked() }));
     T('PU7', /^parts\("A4L",\["score","t1","v0"\]\)/.test(k.ev) && J(k.ck) === '["score","t1","v0"]',
-      'PU7c「分谱」键＝EXPORT_ACT.parts(纸张 A4L, 勾选集 [score, t1, v0]（总谱在最前）)', J(k));
+      'PU7c ' + X + (nx0 ? '「分谱」键' : '悬浮条「分谱」→「存 PDF」') + '＝EXPORT_ACT.parts(纸张 A4L, 勾选集 [score, t1, v0]（总谱在最前）)', J(k));
     T('PU7', /^parts\("A4L",\["score","t1","v0"\]\) setPrintPage\(A4L\)/.test(k.ev) && J(k.job) === '["score","t1","v0"]' && /print:\["score","t1","v0"\]$/.test(k.ev.replace(/ ev:[^ ]+/g, '')),
-      'PU7d（引擎）随后 setPrintPage(A4L)、分谱任务 PART_JOB.ids＝勾选集，打印时 partJobNow() 读到它', J(k));
+      'PU7d ' + X + '（引擎）随后 setPrintPage(A4L)、分谱任务 PART_JOB.ids＝勾选集，打印时 partJobNow() 读到它', J(k));
     await EV(pg, () => window.dispatchEvent(new Event('afterprint'))); await wait(pg, 300);
-    await mode(pg, 'write'); await redEnd('PU7', pg, base);
+    await mode(pg, 'write'); await redEnd('PU7' + (nx0 ? '-nx0' : ''), pg, base);
     await close(pg);
   }));
 
@@ -448,8 +474,10 @@ function INIT() {
   }));
 
   /* ================= PU10 无持久化 · PU14 埋点 ================= */
-  if (want('PU10') || want('PU14')) jobs.push(() => SAFE('PU10', 'PU10/PU14', async () => {
-    const pg = await open(1440, 900, { tag: 'PU10' });
+  /* v69.1 B：两种形态各跑——新形态「分谱」键＝分段 + 主按钮（partsGo），埋点多一个 out:job（分段：只有命令名） */
+  if (want('PU10') || want('PU14')) for (const nx0 of [true, false]) jobs.push(() => SAFE('PU10', 'PU10/PU14' + (nx0 ? ' ?next=0' : ''), async () => {
+    const pg = await open(1440, 900, { tag: 'PU10' + (nx0 ? '-nx0' : ''), url: nx0 ? NX0U : URL0 });
+    const X = nx0 ? '（?next=0）' : '（新形态）';
     await ld(pg, '小星星+换行'); const base = await redBase(pg);
     await wait(pg, 600);   /* 落盘去抖（350ms）走完再取基线 */
     const r0 = await EV(pg, () => Object.assign(__red(), { sc: document.getElementById('score').innerHTML }));
@@ -461,7 +489,7 @@ function INIT() {
     await pg.click('#flw-out-print'); await wait(pg, 400);
     await pg.click('#flw-out-png'); await wait(pg, 400);
     await view(pg, 't0'); await view(pg, 'score');
-    await pg.click('#flw-out-parts'); await wait(pg, 500);
+    await partsGo(pg, 500);
     await EV(pg, () => window.dispatchEvent(new Event('afterprint'))); await wait(pg, 300);
     await pg.click('#flw-out-brkr'); await wait(pg, 400);
     await EV(pg, () => FLOW.cmd.run('out:score')); await wait(pg, 300);
@@ -472,14 +500,14 @@ function INIT() {
     const kvOf = r => { const o = JSON.parse(r.kv); delete o['musetab-cmd-recent']; return o; };
     const k0 = kvOf(r0), k1 = kvOf(r1), kd = [...new Set(Object.keys(k0).concat(Object.keys(k1)))].filter(k => k0[k] !== k1[k]);
     const diff = Object.keys(r0).filter(k => k !== 'kv' && r0[k] !== r1[k]).concat(kd.map(k => 'kv:' + k));
-    T('PU10', !diff.length, 'PU10 整套分谱操作（勾选 / 全选 / 切视图 / 沿用换行 / 打印 / PNG / 「分谱」键 / 命令面板）前后：song JSON、撤销 / 重做栈长度、保存状态、全部 musetab-* 键值、书写态 #score.innerHTML 逐字节相同',
+    T('PU10', !diff.length, 'PU10 ' + X + '整套分谱操作（勾选 / 全选 / 切视图 / 沿用换行 / 打印 / PNG / 「分谱」键 / 命令面板）前后：song JSON、撤销 / 重做栈长度、保存状态、全部 musetab-* 键值、书写态 #score.innerHTML 逐字节相同',
       diff.length ? '不同：' + diff.join(',') : J({ u: r1.u, r: r1.r, keys: Object.keys(k1).length }));
     const outs = trk.filter(x => /^out:|^cmd:go:out:/.test(x));
-    const need = ['out:chk', 'out:chkall', 'out:view', 'out:brk', 'out:score', 'out:parts', 'cmd:go:out:score'];
+    const need = ['out:chk', 'out:chkall', 'out:view', 'out:brk', 'out:score', 'out:parts', 'cmd:go:out:score'].concat(nx0 ? [] : ['out:job']);
     const norm = await EV(pg, ids => ids.map(x => FLOW.track.norm(x) === x), outs);
     T('PU14', need.every(x => outs.includes(x)) && norm.every(Boolean) && outs.every(x => /^[a-z0-9:-]+$/.test(x)),
-      'PU14 埋点：out:chk · out:chkall · out:view · out:brk · out:score · out:parts · cmd:go:out:score 都过 FLOW.track 格式过滤（norm(id)＝id），只有命令名、不带分谱名', J(outs));
-    await redEnd('PU10', pg, base);
+      'PU14 ' + X + '埋点：out:chk · out:chkall · out:view · out:brk · out:score · out:parts · cmd:go:out:score' + (nx0 ? '' : ' · out:job') + ' 都过 FLOW.track 格式过滤（norm(id)＝id），只有命令名、不带分谱名', J(outs));
+    await redEnd('PU10' + (nx0 ? '-nx0' : ''), pg, base);
     await close(pg);
   }));
 
@@ -600,10 +628,11 @@ function INIT() {
             hit.push(!!e && (e.matches('input.flw-ock') || !!e.closest('label.flw-ocl'))); } });
         const cb0 = document.querySelector('#flw-out-list .flw-orow:not(.flw-oopt) .flw-ock').getBoundingClientRect();
         return { rows: out, badgeIn: g.width > 0 && g.left >= b.left - 0.5 && g.right <= b.right + 0.5 && g.top >= b.top - 0.5 && g.bottom <= b.bottom + 0.5,
-          brkIn: br.width > 0 && br.left >= rd.left - 1 && br.right <= rd.right + 1, allIn: al.width > 0 && al.right <= lf.right + 1,
+          brkIn: br.width > 0 && (__nx() ? br.left >= lf.left - 1 && br.right <= lf.right + 1 && !!document.getElementById('flw-out-brkr').closest('#flw-out-lbody')   /* v69.1 B：新形态在左栏分谱表头下 */
+            : br.left >= rd.left - 1 && br.right <= rd.right + 1), allIn: al.width > 0 && al.right <= lf.right + 1,
           hitN: hit.length, hitOk: hit.every(Boolean), allX: Math.abs(al.left - cb0.left) }; });
       T('PU15', geo.rows.length >= 3 && geo.rows.every(r => r.inL && r.sep && r.h >= 30 && r.cbIn) && geo.badgeIn && geo.brkIn && geo.allIn,
-        'PU15a ' + sch + '：分谱列表每行在左栏内、勾选框与名称键不相交、名称键 ≥30 高；徽标在「分谱」键内；全选框在左栏内；「沿用总谱换行」在右栏内', J(geo));
+        'PU15a ' + sch + '：分谱列表每行在左栏内、勾选框与名称键不相交、名称键 ≥30 高；徽标在「分谱」键内；全选框在左栏内；「沿用总谱换行」在左栏分谱表头下（v69.1 B 新形态；?next=0 在右栏）', J(geo));
       T('PU15', geo.hitN >= 30 && geo.hitOk && geo.allX <= 1,
         'PU15b ' + sch + '：行左缘到名称键之前（约 30px × 行高）' + geo.hitN + ' 个采样点全部落在勾选框或它的 label 上（此前只有 14×14 的框点得中——收尾 UX-2）；全选框与逐行勾选框同一列（Δx＝' + (geo.allX || 0).toFixed(1) + '，收尾 UX-3）', J({ hitN: geo.hitN, hitOk: geo.hitOk, allX: geo.allX }));
       await shot(pg, 'PU15-JT-capo3-voice-' + sch);
@@ -612,7 +641,7 @@ function INIT() {
       if (sch === 'light' && SHOTS) {
         /* 打印切片（真引擎）：勾 2 份 →「分谱」键 → 手动派发 beforeprint，按打印媒体截全页 */
         await EV(pg, () => { window.print = () => {}; });
-        await pg.click('#flw-out-parts'); await wait(pg, 400);
+        await partsGo(pg, 400);
         await EV(pg, () => window.dispatchEvent(new Event('beforeprint'))); await wait(pg, 300);
         const n = await EV(pg, () => document.querySelectorAll('#print-pages .pp').length);
         await pg.emulateMedia({ media: 'print' }); await wait(pg, 200);

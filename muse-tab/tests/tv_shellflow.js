@@ -10,7 +10,7 @@
    S2  外壳总高：行 1 44 · 行 2 40 · #top 底 84（方案值；#top 的 1px 底线改为行 2 的 inset 阴影，不占高）· 状态栏 32 贴底 · 顶 + 底 116（1280×800 / 1366×768 / 1440×900 × 浅 / 深）
    S3  谱面可见高（#score-wrap 可视区减谱型条与谱面上方的悬浮条，吸住状态 scrollTop≥50 量）：v68.3 悬浮条展开 1280×800 ≥638 · 1366×768 ≥606 · 1440×900 ≥738，
        收起 ≥650 / 618 / 750（v68.2 方案值 684 / 652 / 784 是去掉旧谱型条换来的；负责人 2026-10-18 要求保留吸顶悬浮条，代价 46 / 34）
-   S4  右栏：1440 停靠 264、无竖条；1280 / 1366 竖条 40、右栏不占位。竖条「信息」→ 浮出 288 贴竖条、不改谱纸宽；Esc / 点外部 / 再点同页收起；
+   S4  右栏（v69.1 D5）：新形态 1280 / 1366 / 1440 都是竖条 52、钉住才停靠；?next=0 仍 1440 停靠 264 / 1280 竖条 40（S4a0）。竖条「信息」→ 浮出 288 贴竖条、不改谱纸宽；Esc / 点外部 / 再点同页收起；
        钉住 → 1280 也停靠且 musetab-rdock='1'，刷新保持，取消钉住删键
    S5  paperClear：#score 左缘 ≥ 左栏右缘−1、右缘 ≤ 右栏 / 竖条左缘+1；3 视口 × 浅深 × {预设谱, 新建 pacc} × 旧左栏面板开 / 关 共 24 态；
        v68.0 起左栏是 #flw-left 248 常驻、旧 #left-dock 在 flow 下整体隐藏：面板开 / 关两态谱纸都不变（预设谱 #score 870±2、新建谱 ≥870）；
@@ -47,6 +47,8 @@ const fs = require('fs'), path = require('path'), os = require('os'), cp = requi
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 const withQ = (u, q) => { const i = u.indexOf('#'), base = i >= 0 ? u.slice(0, i) : u, h = i >= 0 ? u.slice(i) : ''; return base + (base.includes('?') ? '&' : '?') + q + h; };
 const FLOWU = withQ(URL0, 'shell=flow'), CLASSICU = withQ(URL0, 'shell=classic');
+const NX0U = withQ(URL0, 'shell=flow&next=0');   /* v69.1 D5：?next=0 回到 v69.0 右栏（≥1440 停靠 264、竖条 40），右栏几何的原断言在这一形态上保留 */
+const RSW = 52;   /* v69.1 D5：新形态竖条宽（?next=0 仍 40） */
 const ONLY = (process.env.ONLY || '').split(',').map(s => s.trim()).filter(Boolean);
 const want = k => !ONLY.length || ONLY.includes(k);
 const SHOTS = process.env.SHOTS || '';
@@ -406,8 +408,9 @@ const M = {
   if (want('S5')) jobs.push(async () => {
     try {
       const rows = [];
-      for (const w of [1439, 1440, 1536]) {
-        const pg = await open(w, 900, { tag: 'S5d-' + w });
+      /* v69.1 D5：新形态任何宽度默认竖条，钉住才停靠——1440 / 1536 停靠态改为钉住（musetab-rdock='1'）后量，另加 1440 未钉住（竖条 52）一行 */
+      for (const [w, pin] of [[1439, false], [1440, true], [1536, true], [1440, false]]) {
+        const pg = await open(w, 900, { tag: 'S5d-' + w, init: pin ? () => { try { localStorage.setItem('musetab-rdock', '1'); } catch (_) {} } : null });
         await EV(pg, () => __scn('songbie')); await wait(pg, 350);
         await EV(pg, () => { openFlyout('lyr'); render(); }); await wait(pg, 400);
         const dock = await EV(pg, () => document.body.classList.contains('flw-rd')), a = await EV(pg, M.clear);
@@ -416,8 +419,8 @@ const M = {
         rows.push({ w, dock, pre: a.w, preOk: a.ok, L: a.L, neu: b2.w, neuOk: b2.ok, fixed: b2.fixed });
         await close(pg);
       }
-      T('S5', rows.every(r => r.preOk && r.neuOk && Math.abs(r.pre - 870) <= 2 && r.neu >= 869.5) && rows.map(r => r.dock).join() === 'false,true,true',
-        'S5d v67.9 遗留 L3 消解：1439（竖条）/ 1440 / 1536（右栏停靠）旧面板「打开」时预设谱 #score 同为 870±2、新建谱 ≥870，paperClear 全真（此前 1440 停靠只剩 785）',
+      T('S5', rows.every(r => r.preOk && r.neuOk && Math.abs(r.pre - 870) <= 2 && r.neu >= 869.5) && rows.map(r => r.dock).join() === 'false,true,true,false',
+        'S5d v67.9 遗留 L3 消解：1439（竖条）/ 1440 / 1536（钉住 → 右栏停靠；v69.1 D5 起停靠要钉住）/ 1440 未钉住（竖条 52）旧面板「打开」时预设谱 #score 同为 870±2、新建谱 ≥870，paperClear 全真（此前 1440 停靠只剩 785）',
         J(rows));
     } catch (e) { T('S5', false, 'S5d 执行异常', e.message.split('\n')[0]); }
   });
@@ -455,8 +458,8 @@ const M = {
       await wait(pg, 400);
       const p3 = await EV(pg, () => ({ rd: __vis('#right-dock'), rs: __R('#flw-rstrip'), key: localStorage.getItem('musetab-rdock') }));
       T('S4', hasPin && p1.rd.vis && Math.abs(p1.rd.w - 264) <= 0.5 && !p1.rs && J(p1.cls) === '["flw-rd"]' && p1.key === '1' && c1.ok && p2.rd.vis && Math.abs(p2.rd.w - 264) <= 0.5 && !p2.rs && p2.key === '1'
-        && unpin && !p3.rd && p3.rs.vis && Math.abs(p3.rs.w - 40) <= 0.5 && p3.key === null,
-        'S4d 钉住 → 1280 也停靠 264（竖条消失、paperClear 仍真）、写 musetab-rdock=\'1\'，刷新保持；取消钉住 → 删键、回竖条 40', J({ p1: [p1.rd && p1.rd.w, p1.rs, p1.cls, p1.key], clear: c1.ok, reload: [p2.rd && p2.rd.w, p2.key], unpin, p3: [p3.rd, p3.rs && p3.rs.w, p3.key] }));
+        && unpin && !p3.rd && p3.rs.vis && Math.abs(p3.rs.w - RSW) <= 0.5 && p3.key === null,
+        'S4d 钉住 → 1280 也停靠 264（竖条消失、paperClear 仍真）、写 musetab-rdock=\'1\'，刷新保持；取消钉住 → 删键、回竖条 52（v69.1 D5；?next=0 仍 40，见 S4a0）', J({ p1: [p1.rd && p1.rd.w, p1.rs, p1.cls, p1.key], clear: c1.ok, reload: [p2.rd && p2.rd.w, p2.key], unpin, p3: [p3.rd, p3.rs && p3.rs.w, p3.key] }));
       /* 验收 SC-4（§0-4 点外部名单）：选中音符后在竖条空白处按下指针——不算「点谱面外」：blurSel 不变、拍区选择保留、不重排 */
       await EV(pg, () => { sel = { mi: 2, row: 'vox', vi: 0, ci: 1, si: 1 }; blurSel = false; selRange = { row: 'vox', vi: 0, m1: 2, c1: 0, m2: 3, c2: 0 }; render(); }); await wait(pg, 250);
       const gp = await EV(pg, () => { const g = __R('#flw-rstrip .flw-rs-grow'); return g && g.h > 20 ? [g.x + g.w / 2, g.y + g.h / 2] : null; });
@@ -715,10 +718,13 @@ const M = {
       await pg.click('#flw-pub'); await wait(pg, 300);
       /* v68.1 迁移（计划 §4.3「发布卡」）：行 1「发布」＝切到「输出」并打开右栏「发布与导出」页、焦点落到卡上的「存入并提交发布」（这一下不存）；
          再点卡上的按钮才先存入、再出原发布卡——共 2 次点击，不离开编辑器 */
-      const pb0 = await EV(pg, () => ({ mode: FLOW.mode.cur, page: FLOW.rd.page(), ae: (document.activeElement || {}).id || '', id: song.id || null }));
-      await pg.click('#flw-pub-go'); await wait(pg, 300);
-      const pb = await EV(pg, () => ({ id: song.id || null, lib: __lib().length, t: ((document.querySelector('#popmenu .t') || {}).textContent || '') }));
-      await EV(pg, () => { __shut(); setMode('write'); }); await wait(pg, 200);
+      /* v69.1 有意迁移（规格 f91 B2.3 / D2 / README ④#16）：新形态「发布」不切模式，就地弹出 #flw-pubp（「存入 › 审核 › 上架」三点进度），焦点落在主动作 #flw-pubp-go；
+         再点它＝先存入、再走发布弹窗 #pub-go 同一段提交（pubSubmit；本机演示＝记录发布并打开创作者中心）——仍是 2 次点击、不离开编辑器。?next=0 是 v69.0 原路径（tv_output2 O0 对拍） */
+      const NXF = await EV(pg, () => FLOW.nxOn());
+      const pb0 = await EV(pg, () => ({ mode: FLOW.mode.cur, page: FLOW.rd.page(), ae: (document.activeElement || {}).id || '', id: song.id || null, pop: __vis('#flw-pubp') }));
+      await pg.click(NXF ? '#flw-pubp-go' : '#flw-pub-go'); await wait(pg, 300);
+      const pb = await EV(pg, () => ({ id: song.id || null, lib: __lib().length, t: ((document.querySelector('#popmenu .t') || {}).textContent || ''), pubs: circlePubs().filter(x => x.libId === song.id).length, pc: !!document.getElementById('pcenter') }));
+      await EV(pg, () => { __shut(); try { if (document.getElementById('pcenter')) pcxBack(); } catch (_) {} setMode('write'); }); await wait(pg, 200);
       const s2 = await st();
       /* v68.7 S1 迁移：「已入库点保存状态 → 保存 ▾ → 另存为文件」→「已入库点胶囊＝立即同步这一版（不出菜单、库条数不变、这一条的 mtime / updatedAt 更新、胶囊仍「已存」）；
          另存文件改由文件 ▾ [data-old="b-save"]（同一 EXPORT 路径）触发 .mtab.json」；理由：规格 A1（README ③行 1：保存 ▾ 撤掉，点了直接存）；
@@ -749,9 +755,9 @@ const M = {
         && /仅本机/.test(s3.t) && s4.id && s4.lib === s3.lib + 1 && /已存/.test(s4.t),
         'S11a 保存胶囊三态（v68.7 S1）：未入库 ≥1440「○ 仅本机 │ 存入」/ 1280–1439「○ 仅本机」，点一下＝saveToLibrary（库多一条、song.id 有值）；已入库「☁ 已存 HH:MM」',
         J({ s1: s1.t, s2: s2.t, s3: s3.t, s4: s4.t, s5: s5.t, s6: s6.t }));
-      T('S11', !s1.id && pb0.mode === 'output' && pb0.page === 'pub' && pb0.ae === 'flw-pub-go' && !pb0.id && pb.id && pb.lib === s1.lib + 1 && /发布《/.test(pb.t)
+      T('S11', !s1.id && (NXF ? (pb0.mode === 'write' && pb0.pop && pb0.ae === 'flw-pubp-go' && pb.pubs === 1 && pb.pc) : (pb0.mode === 'output' && pb0.page === 'pub' && pb0.ae === 'flw-pub-go' && /发布《/.test(pb.t))) && !pb0.id && pb.id && pb.lib === s1.lib + 1
         && !sm && up.n === lib0 && up.mtime > 1 && up.upd !== '2000/1/1 00:00:00' && /已存/.test(up.t) && r0.ok && f1 && f1.ok,
-        'S11b 未入库窗口点「发布」→ 切到「输出」、右栏发布页、焦点在「存入并提交发布」（还没存）；再点它 → 先存入（song.id 有值、库多一条）再出发布卡（#popmenu .t 含「发布《」）；'
+        'S11b 未入库窗口点「发布」→ 新形态：不切模式、就地出发布进度弹层、焦点在主动作（还没存）；再点它 → 先存入（song.id 有值、库多一条）再提交（本机演示记录一条发布、打开创作者中心）〔?next=0：切到「输出」右栏发布页 → 发布卡〕；'
         + 'v68.7 S1：已入库点胶囊＝立即同步这一版（不出菜单、库条数不变、mtime / updatedAt 更新、仍「已存」）；文件 ▾「存为文件」[data-old=b-save] 触发下载 .mtab.json',
         J({ pub0: pb0, pub: pb, menu: sm, up, lib0, r0, file: f1 }));
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 500);
@@ -984,17 +990,20 @@ const M = {
       T('S12', /^第 1\/\d+ 小节 · [\d.]+ 拍$/.test(q0.pos) && /^第 1 小节，共 \d+ · 第 [\d.]+ 拍$/.test(q0.al) && q0.trk.includes(q0.name) && /简谱/.test(q0.trk) && q1.mi === 1
         && /^第 2\/\d+ 小节 · [\d.]+ 拍$/.test(q1.pos) && /^第 2 小节，共 \d+ · 第 [\d.]+ 拍$/.test(q1.al) && q1.t === q1.al,
         'S12d 当前轨「旋律名 · 简谱」；方向键移到第 2 小节后位置读数变为「第 2/N 小节 · c 拍」，读屏名 / 悬停为「第 2 小节，共 N · 第 c 拍」', J({ q0, q1 }));
-      /* 时值检查 */
+      /* 时值检查 —— v69.1 A2 迁移（规格 §6.2）：新外壳新形态的 ⚠N 是「图标 + 数字」，全称「时值不符 1 处」进 aria-label / title；
+         点它 → 就地修面板 #flw-fixp（不再上弹 #err-drop）、Esc 收起；撤销后读屏名「时值正确」。原断言（#err-drop 上弹）在 ?next=0 的 S12e0 原样保留。
+         修前红修后绿：658d425 上没有 #flw-fixp（e2.fp=null），可见字也不是只剩数字 */
       await EV(pg, () => { mutate(() => { const v = song.measures[0].voxes[0]; v.push(JSON.parse(JSON.stringify(v[v.length - 1]))); }); render(); }); await wait(pg, 250);
-      const e1 = await EV(pg, () => ({ t: document.getElementById('beat-status').textContent.trim(), drop: __vis('#err-drop'), n: beatErrors().length }));
-      await pg.click('#beat-status'); await wait(pg, 200);
-      const e2 = await EV(pg, () => ({ drop: __R('#err-drop'), md: __R('#mixer-dock') }));
+      const e1 = await EV(pg, () => { const b = document.getElementById('beat-status'); return { t: b.textContent.trim(), al: b.getAttribute('aria-label') || '', ti: b.getAttribute('title') || '', drop: __vis('#err-drop'), fp: __vis('#flw-fixp'), n: beatErrors().length }; });
+      await pg.click('#beat-status'); await wait(pg, 250);
+      const e2 = await EV(pg, () => ({ fp: __R('#flw-fixp'), drop: __vis('#err-drop'), ex: document.getElementById('beat-status').getAttribute('aria-expanded') }));
       await pg.keyboard.press('Escape'); await wait(pg, 150);
-      const e3 = await EV(pg, () => __vis('#err-drop'));
+      const e3 = await EV(pg, () => __vis('#flw-fixp') || __vis('#err-drop'));
       await EV(pg, () => { undo(); render(); }); await wait(pg, 200);
-      const e4 = await EV(pg, () => document.getElementById('beat-status').textContent.trim());
-      T('S12', e1.n === 1 && /时值不符\s*1\s*处/.test(e1.t) && !e1.drop && e2.drop && e2.drop.vis && e2.drop.b <= e2.md.y + 0.5 && e2.drop.y >= 0 && !e3 && /时值正确/.test(e4),
-        'S12e 时值检查：制造一处错误 → 「时值不符 1 处」且不自动弹出；点它 → #err-drop 向上弹出（底 ≤ 状态栏顶、不出屏）；Esc 收起；撤销后「时值正确」', J({ e1, drop: e2.drop && [e2.drop.y, e2.drop.b], mdTop: e2.md.y, e3, e4 }));
+      const e4 = await EV(pg, () => { const b = document.getElementById('beat-status'); return { al: b.getAttribute('aria-label') || '', t: b.textContent.trim() }; });
+      T('S12', e1.n === 1 && /^时值不符\s*1\s*处$/.test(e1.al) && e1.ti === e1.al && e1.t === '1' && !e1.drop && !e1.fp && e2.fp && e2.fp.vis && e2.fp.y >= 0 && e2.fp.b <= 800 && !e2.drop && e2.ex === 'true' && !e3 && /时值正确/.test(e4.al) && !e4.t,
+        'S12e 时值检查（v69.1 新形态）：制造一处错误 → ⚠1（读屏名 / 悬停「时值不符 1 处」）且不自动弹出；点它 → 就地修面板 #flw-fixp 打开（在视口内、aria-expanded=true、不弹 #err-drop）；Esc 收起；撤销后读屏名「时值正确」、可见只剩 ✓',
+        J({ e1, fp: e2.fp && [e2.fp.x, e2.fp.y, e2.fp.b], ex: e2.ex, e3, e4 }));
       /* ⋯ 更多：演奏感 · 音色库 · 谱架 */
       const h0 = await EV(pg, () => ({ hum: humOn(), ls: localStorage.getItem('musetab-humanize') }));
       const m1 = await menuItem(pg, '#flw-st-more', '演奏感');
@@ -1046,15 +1055,18 @@ const M = {
         await pg.setViewportSize({ width: w, height: 800 }); await wait(pg, 450);
         nar.push(await EV(pg, () => { const b = document.querySelector('#mixer-dock .mx-bar'), h = __R('#flw-st-help'), z = __R('#z-in'), md = __R('#mixer-dock');
           return { w: innerWidth, flow: document.body.classList.contains('flow'), ov: b.scrollWidth - b.clientWidth, help: h.r - innerWidth, zoom: z.r - innerWidth, h: md.h, hv: h.vis,
-            f: [...b.classList].filter(c => /^flw-f\d$/.test(c)).length, bad: /时值不符/.test(document.getElementById('beat-status').textContent) }; }));
+            f: [...b.classList].filter(c => /^flw-f\d$/.test(c)).length, bad: /时值不符/.test(document.getElementById('beat-status').textContent + ' ' + (document.getElementById('beat-status').getAttribute('aria-label') || '')) }; }));   /* v69.1 A2：新形态可见只剩「⚠N」，全称在 aria-label */
       }
       T('S12', real.f === 0 && real.ov <= 1 && nar.every(x => x.flow && x.ov <= 1 && x.help <= 0.5 && x.zoom <= 0.5 && Math.abs(x.h - 32) <= 0.5 && x.hv && x.bad),
         'S12h 窄档单行（验收 L1）：长轨名 + 多选第 10–16 小节 + 时值不符，821 / 900 / 1000 / 1100 / 1180 宽 .mx-bar 不溢出、缩放与「?」都在视口内、状态栏仍 32（FLOW.st.fit 按档收）；1280 真实内容一档都不收',
         J({ real, nar: nar.map(x => x.w + ':ov' + x.ov + ' ?' + Math.round(x.help) + ' 档' + x.f) }));
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 400);
       await EV(pg, () => __scn('songbie')); await wait(pg, 300);
-      /* B1：鼠标点过时值状态项后焦点不留在它身上，空格＝播放、Enter＝写歌词（与默认外壳点不可聚焦的状态项相同）；键盘打开的 Esc 收起后焦点才回到它 */
-      const ST = () => EV(pg, () => ({ playing: !!audio.playing, ae: document.activeElement.id || document.activeElement.tagName, eo: document.body.classList.contains('flw-eo') }));
+      /* B1：鼠标点过时值状态项后焦点不留在它身上，空格＝播放、Enter＝写歌词（与默认外壳点不可聚焦的状态项相同）；键盘打开的 Esc 收起后焦点才回到它。
+         v69.1 A2 迁移（规格 §6.2）：新形态里点 ⚠N 打开的是就地修面板 #flw-fixp（焦点落第一个修复钮、Esc 收起），不再是 #err-drop / body.flw-eo；
+         焦点语义不变——鼠标打开的 Esc 后焦点不回 ⚠N（空格是播放不是重新展开），键盘打开的 Esc 后回 ⚠N。原 flw-eo 断言在 ?next=0 的 S12i0 原样保留 */
+      const ST = () => EV(pg, () => ({ playing: !!audio.playing, ae: document.activeElement.id || document.activeElement.tagName, eo: !!(FLOW.fix && FLOW.fix.isOpen()) && __vis('#flw-fixp'),
+        inP: !!document.activeElement.closest('#flw-fixp'), drop: document.body.classList.contains('flw-eo') }));
       await EV(pg, () => { sel = { mi: 3, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); });
       await pg.click('#beat-status'); await wait(pg, 150); const f1 = await ST();
       await pg.keyboard.press(' '); await wait(pg, 400); const f2 = await ST();
@@ -1062,14 +1074,14 @@ const M = {
       await pg.click('#beat-status'); await wait(pg, 150);
       await pg.keyboard.press('Enter'); await wait(pg, 300); const f3 = await ST();
       await EV(pg, () => { const a = document.activeElement; if (a && a.blur) a.blur(); try { closeFlyout(); } catch (_) {} mutate(() => { song.measures[1].voxes[0].splice(0, 1); }); sel = { mi: 5, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); }); await wait(pg, 250);
-      await pg.click('#beat-status'); await wait(pg, 150); const f4 = await ST();
+      await pg.click('#beat-status'); await wait(pg, 200); const f4 = await ST();
       await pg.keyboard.press('Escape'); await wait(pg, 150); const f5 = await ST();
       await pg.keyboard.press(' '); await wait(pg, 400); const f6 = await ST();
       await EV(pg, () => { stopPlay(); setPlayBtn(); });
-      await pg.focus('#beat-status'); await pg.keyboard.press('Enter'); await wait(pg, 150); const f7 = await ST();
+      await pg.focus('#beat-status'); await pg.keyboard.press('Enter'); await wait(pg, 200); const f7 = await ST();
       await pg.keyboard.press('Escape'); await wait(pg, 150); const f8 = await ST();
-      T('S12', f1.ae === 'BODY' && f2.playing && f3.ae === 'i-lyric' && f4.eo && f4.ae === 'BODY' && !f5.eo && f5.ae !== 'beat-status' && f6.playing && !f6.eo && f7.eo && !f8.eo && f8.ae === 'beat-status',
-        'S12i 焦点（验收 B1）：鼠标点「时值正确」后焦点在 body，空格开始播放、Enter 进歌词框；点「时值不符」展开后 Esc 收起，焦点不回状态项，空格是播放不是重新展开；键盘 Enter 打开的，Esc 收起后焦点回到状态项',
+      T('S12', f1.ae === 'BODY' && f2.playing && f3.ae === 'i-lyric' && f4.eo && f4.inP && !f4.drop && !f5.eo && f5.ae !== 'beat-status' && f6.playing && !f6.eo && f7.eo && f7.inP && !f8.eo && f8.ae === 'beat-status',
+        'S12i 焦点（验收 B1；v69.1 新形态）：鼠标点「✓」后焦点在 body，空格开始播放、Enter 进歌词框；点「⚠N」打开就地修面板（焦点在面板修复钮、不弹 #err-drop）后 Esc 收起，焦点不回状态项，空格是播放不是重新打开；键盘 Enter 打开的，Esc 收起后焦点回到状态项',
         J({ f1, f2, f3, f4, f5, f6, f7, f8 }));
       await EV(pg, () => { stopPlay(); setPlayBtn(); undo(); render(); });
       /* B2：拖小节号的整小节多选（measureRange）也算「所选小节」：位置文案「已选第 2–4 小节」，循环 2–4 */
@@ -1089,6 +1101,44 @@ const M = {
         'S12j 循环选区与位置认整小节多选（验收 B2）：measureRange 第 2–4 小节 → 位置读数「第 2–4/N 小节」（读屏名「已选第 2–4 小节，共 N」）、点循环＝循环 2–4；单选整小节 measureSel=6 → 循环第 7 小节', J({ g0, g0a, g1, g2 }));
       await close(pg);
     } catch (e) { T('S12', false, 'S12h–j 执行异常', e.message.split('\n')[0]); }
+  });
+
+  /* ================= S12 续：v69.1 A2 —— ?next=0 时值检查与焦点原样（S12e0 / S12i0，同 v69.0 断言）================= */
+  if (want('S12')) jobs.push(async () => {
+    try {
+      const pg = await open(1280, 800, { tag: 'S12n0', url: NX0U });
+      await EV(pg, () => __scn('songbie')); await wait(pg, 400);
+      await EV(pg, () => { mutate(() => { const v = song.measures[0].voxes[0]; v.push(JSON.parse(JSON.stringify(v[v.length - 1]))); }); render(); }); await wait(pg, 250);
+      const e1 = await EV(pg, () => ({ t: document.getElementById('beat-status').textContent.trim(), drop: __vis('#err-drop'), n: beatErrors().length }));
+      await pg.click('#beat-status'); await wait(pg, 200);
+      const e2 = await EV(pg, () => ({ drop: __R('#err-drop'), md: __R('#mixer-dock') }));
+      await pg.keyboard.press('Escape'); await wait(pg, 150);
+      const e3 = await EV(pg, () => __vis('#err-drop'));
+      await EV(pg, () => { undo(); render(); }); await wait(pg, 200);
+      const e4 = await EV(pg, () => document.getElementById('beat-status').textContent.trim());
+      T('S12', e1.n === 1 && /时值不符\s*1\s*处/.test(e1.t) && !e1.drop && e2.drop && e2.drop.vis && e2.drop.b <= e2.md.y + 0.5 && e2.drop.y >= 0 && !e3 && /时值正确/.test(e4),
+        'S12e0（?next=0）时值检查：制造一处错误 → 「时值不符 1 处」且不自动弹出；点它 → #err-drop 向上弹出（底 ≤ 状态栏顶、不出屏）；Esc 收起；撤销后「时值正确」', J({ e1, drop: e2.drop && [e2.drop.y, e2.drop.b], mdTop: e2.md.y, e3, e4 }));
+      /* B1：鼠标点过时值状态项后焦点不留在它身上，空格＝播放、Enter＝写歌词（与默认外壳点不可聚焦的状态项相同）；键盘打开的 Esc 收起后焦点才回到它 */
+      const ST = () => EV(pg, () => ({ playing: !!audio.playing, ae: document.activeElement.id || document.activeElement.tagName, eo: document.body.classList.contains('flw-eo') }));
+      await EV(pg, () => { sel = { mi: 3, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); });
+      await pg.click('#beat-status'); await wait(pg, 150); const f1 = await ST();
+      await pg.keyboard.press(' '); await wait(pg, 400); const f2 = await ST();
+      await EV(pg, () => { stopPlay(); setPlayBtn(); });
+      await pg.click('#beat-status'); await wait(pg, 150);
+      await pg.keyboard.press('Enter'); await wait(pg, 300); const f3 = await ST();
+      await EV(pg, () => { const a = document.activeElement; if (a && a.blur) a.blur(); try { closeFlyout(); } catch (_) {} mutate(() => { song.measures[1].voxes[0].splice(0, 1); }); sel = { mi: 5, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); }); await wait(pg, 250);
+      await pg.click('#beat-status'); await wait(pg, 150); const f4 = await ST();
+      await pg.keyboard.press('Escape'); await wait(pg, 150); const f5 = await ST();
+      await pg.keyboard.press(' '); await wait(pg, 400); const f6 = await ST();
+      await EV(pg, () => { stopPlay(); setPlayBtn(); });
+      await pg.focus('#beat-status'); await pg.keyboard.press('Enter'); await wait(pg, 150); const f7 = await ST();
+      await pg.keyboard.press('Escape'); await wait(pg, 150); const f8 = await ST();
+      T('S12', f1.ae === 'BODY' && f2.playing && f3.ae === 'i-lyric' && f4.eo && f4.ae === 'BODY' && !f5.eo && f5.ae !== 'beat-status' && f6.playing && !f6.eo && f7.eo && !f8.eo && f8.ae === 'beat-status',
+        'S12i0（?next=0）焦点（验收 B1）：鼠标点「时值正确」后焦点在 body，空格开始播放、Enter 进歌词框；点「时值不符」展开后 Esc 收起，焦点不回状态项，空格是播放不是重新展开；键盘 Enter 打开的，Esc 收起后焦点回到状态项',
+        J({ f1, f2, f3, f4, f5, f6, f7, f8 }));
+      await EV(pg, () => { stopPlay(); setPlayBtn(); undo(); render(); });
+      await close(pg);
+    } catch (e) { T('S12', false, 'S12e0 / S12i0 执行异常', e.message.split('\n')[0]); }
   });
 
   /* ================= S13 打印 / 观看页 / 谱架 / 手机 ================= */
@@ -1284,8 +1334,8 @@ const M = {
       await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 700); const n2 = await EV(pg, () => ({ n: RENDER_STAT.n, cls: ['flw-rd', 'flw-rs'].filter(c => document.body.classList.contains(c)).join() }));
       await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 700); const n3 = await EV(pg, () => ({ n: RENDER_STAT.n, cls: ['flw-rd', 'flw-rs'].filter(c => document.body.classList.contains(c)).join() }));
       await wait(pg, 1000); const n4 = await EV(pg, () => RENDER_STAT.n);
-      T('S14', n1 - n0 <= 1 && n2.n - n1 <= 3 && n3.n - n2.n <= 3 && n4 - n3.n <= 1 && n2.cls === 'flw-rd' && n3.cls === 'flw-rs',
-        'S14 无抖动：静置 1.5s render 增量 ≤1；1280→1440（停靠）→1280（竖条）每步 render ≤3，之后静置不再重排', J({ idle: n1 - n0, to1440: n2.n - n1, to1280: n3.n - n2.n, idle2: n4 - n3.n, cls: [n2.cls, n3.cls] }));
+      T('S14', n1 - n0 <= 1 && n2.n - n1 <= 3 && n3.n - n2.n <= 3 && n4 - n3.n <= 1 && n2.cls === 'flw-rs' && n3.cls === 'flw-rs',
+        'S14 无抖动：静置 1.5s render 增量 ≤1；1280→1440→1280 每步 render ≤3，之后静置不再重排（v69.1 D5：新形态两宽都是竖条 52；停靠↔竖条切换的抖动见 S14b ?next=0）', J({ idle: n1 - n0, to1440: n2.n - n1, to1280: n3.n - n2.n, idle2: n4 - n3.n, cls: [n2.cls, n3.cls] }));
       /* S15：开关全部菜单、切右栏、resize 前后 song 不变 */
       const s0 = await EV(pg, () => ({ s: JSON.stringify(song), k: __keys() }));
       const menus = [];
@@ -1310,6 +1360,26 @@ const M = {
     } catch (e) { T('S14', false, 'S14 / S15 执行异常', e.message.split('\n')[0]); }
   });
 
+  /* ================= S4a0 / S14b（v69.1 D5）：?next=0 保留 v69.0 右栏几何——1440 停靠 264、1280 竖条 40；1280→1440（停靠）→1280（竖条）每步 render ≤3 ================= */
+  if (want('S4') || want('S14')) jobs.push(async () => {
+    try {
+      const pg = await open(1280, 800, { tag: 'S14b', url: NX0U });
+      await EV(pg, () => __scn('songbie')); await wait(pg, 600);
+      const g1 = await EV(pg, () => ({ nx: FLOW.nxOn(), rd: __R('#right-dock'), rs: __R('#flw-rstrip'), cls: ['flw-rd', 'flw-rs'].filter(c => document.body.classList.contains(c)).join() }));
+      const n0 = await EV(pg, () => RENDER_STAT.n); await wait(pg, 1500); const n1 = await EV(pg, () => RENDER_STAT.n);
+      await pg.setViewportSize({ width: 1440, height: 900 }); await wait(pg, 700);
+      const n2 = await EV(pg, () => ({ n: RENDER_STAT.n, cls: ['flw-rd', 'flw-rs'].filter(c => document.body.classList.contains(c)).join(), rd: __R('#right-dock'), rs: __vis('#flw-rstrip') }));
+      await pg.setViewportSize({ width: 1280, height: 800 }); await wait(pg, 700);
+      const n3 = await EV(pg, () => ({ n: RENDER_STAT.n, cls: ['flw-rd', 'flw-rs'].filter(c => document.body.classList.contains(c)).join() }));
+      await wait(pg, 1000); const n4 = await EV(pg, () => RENDER_STAT.n);
+      T('S4', !g1.nx && g1.cls === 'flw-rs' && g1.rs.vis && Math.abs(g1.rs.w - 40) <= 0.5 && !g1.rd.vis && n2.cls === 'flw-rd' && n2.rd.vis && Math.abs(n2.rd.w - 264) <= 0.5 && !n2.rs,
+        'S4a0 ?next=0（v69.0 原样）：1280 竖条 40、右栏不占位；1440 停靠 264、无竖条', J({ g1: [g1.nx, g1.cls, g1.rs && g1.rs.w, g1.rd && g1.rd.vis], n2: [n2.cls, n2.rd && n2.rd.w, n2.rs] }));
+      T('S14', n1 - n0 <= 1 && n2.n - n1 <= 3 && n3.n - n2.n <= 3 && n4 - n3.n <= 1 && n2.cls === 'flw-rd' && n3.cls === 'flw-rs',
+        'S14b ?next=0 无抖动：静置 1.5s render 增量 ≤1；1280→1440（停靠）→1280（竖条）每步 render ≤3，之后静置不再重排', J({ idle: n1 - n0, to1440: n2.n - n1, to1280: n3.n - n2.n, idle2: n4 - n3.n, cls: [n2.cls, n3.cls] }));
+      await close(pg);
+    } catch (e) { T('S14', false, 'S4a0 / S14b 执行异常', e.message.split('\n')[0]); }
+  });
+
   await pool(jobs, 2);
 
   /* —— 汇总 S2 S3 S4（静态）S5 S16 S17 —— */
@@ -1326,9 +1396,10 @@ const M = {
     if (want('S3')) SAFE('S3', 'S3', () => { const bad = ok.filter(([k, g]) => { const w = k.split('×')[0]; return !(g.vh.vh >= MINVH[w] && g.vh.st >= 50 && g.vh.sb === 46 && g.vhc && g.vhc.vh >= MINVHC[w] && g.vhc.sb === 34); });
       T('S3', !bad.length && ok.length === 6, 'S3 谱面可见高（#score-wrap 可视区减谱型条与悬浮条，吸住时量）：悬浮条展开 1280×800 ≥638 · 1366×768 ≥606 · 1440×900 ≥738；收起 ≥650 / 618 / 750',
         ok.map(([k, g]) => k + ' 展开 ' + g.vh.vh + '（条 ' + g.vh.sb + '，scrollTop ' + g.vh.st + '）收起 ' + (g.vhc && g.vhc.vh) + '（条 ' + (g.vhc && g.vhc.sb) + '）' + (g.vh.lb ? '（谱型条 ' + g.vh.lb + '）' : '')).join('；')); });
-    if (want('S4')) SAFE('S4', 'S4a', () => { const bad = ok.filter(([k, g]) => { const w = +k.split('×')[0], s = g.sh; if (!s.rd || !s.rs) return true; return w >= 1440 ? !(s.rd.vis && Math.abs(s.rd.w - 264) <= 0.5 && !s.rs.vis && J(s.cls) === '["flw-rd"]')
-        : !(s.rs.vis && Math.abs(s.rs.w - 40) <= 0.5 && !s.rd.vis && J(s.cls) === '["flw-rs"]'); });
-      T('S4', !bad.length && ok.length === 6, 'S4a 右栏让位：1440 停靠 264（无竖条，body.flw-rd）；1280 / 1366 竖条 40（右栏不占位，body.flw-rs）', ok.map(([k, g]) => k + ' rd=' + (g.sh.rd && g.sh.rd.vis ? g.sh.rd.w : '隐') + ' rs=' + (g.sh.rs && g.sh.rs.vis ? g.sh.rs.w : '隐')).join('；')); });
+    /* v69.1 D5（README ⑦）：新形态任何宽度默认收成 52px 带字竖条（钉住才停靠）；?next=0 的 v69.0 口径（1440 停靠 264 / 1280 竖条 40）见 S4a0 */
+    if (want('S4')) SAFE('S4', 'S4a', () => { const bad = ok.filter(([k, g]) => { const s = g.sh; if (!s.rd || !s.rs) return true;
+        return !(s.rs.vis && Math.abs(s.rs.w - RSW) <= 0.5 && !s.rd.vis && J(s.cls) === '["flw-rs"]'); });
+      T('S4', !bad.length && ok.length === 6, 'S4a 右栏让位（v69.1 D5）：1280 / 1366 / 1440 都是竖条 52（右栏不占位，body.flw-rs）、未钉住不停靠', ok.map(([k, g]) => k + ' rd=' + (g.sh.rd && g.sh.rd.vis ? g.sh.rd.w : '隐') + ' rs=' + (g.sh.rs && g.sh.rs.vis ? g.sh.rs.w : '隐')).join('；')); });
     if (want('S5')) SAFE('S5', 'S5', () => { const all = [], bad = [], wbad = [];
       ok.forEach(([k, g]) => g.clear.forEach(c => { all.push(c); if (!c.ok) bad.push(k + ' ' + c.k + (c.want ? ' 面板开' : ' 面板关') + ' score ' + c.x + '–' + c.r + ' 左栏右缘 ' + c.L + ' 右侧左缘 ' + c.R + (c.tight ? ' tight' : ''));
         if (c.k === 'songbie' ? Math.abs(c.w - 870) > 2 : c.w < 868) wbad.push(k + ' ' + c.k + (c.want ? ' 面板开' : ' 面板关') + ' w=' + c.w);

@@ -16,7 +16,9 @@
    独奏（指弹 · 吉他独奏）按方案是六线谱＋五线谱联排（五线谱随 TAB 同步），不再补旋律轨——T3 改为联排口径；其余断言不变。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v69.1 C：「从哪写起 / 旋律用」在新形态进了 ⋯ 弹层 / 预览左上（tv_newpanel2 N4 / N8 覆盖）；本套件按 v69.0 面板版式断言，改跑 ?next=0 */
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;

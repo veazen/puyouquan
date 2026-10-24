@@ -12,6 +12,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
   await pg.goto(F); await pg.waitForTimeout(900);
   await pg.evaluate(() => { window.guardReplace = (p) => p(); });
+  /* v69.1 A1 迁移（规格 §6.2「新形态走 data-hd 的点击用例改断言 #flw-hdp / .flw-hdm」）：拍号 / 速度 / 标题区在新外壳新形态是就地小面板 / 页头面板——
+     T3 / T4 / T6 原断言（popmenu [data-m] · #tp-ok · #mm-title）改跑 ?next=0（v69.0 原样）；新形态等价断言 T3n / T4n / T6n 跑默认页 */
+  const pg0 = await b.newPage({ viewport: { width: 1400, height: 950 } });
+  pg0.on('pageerror', e => errs.push('PAGEERR(next=0):' + e.message));
+  await pg0.goto(F + (F.includes('?') ? '&' : '?') + 'next=0'); await pg0.waitForTimeout(900);
+  await pg0.evaluate(() => { window.guardReplace = (p) => p(); });
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
 
@@ -58,7 +64,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   /* T3 页头菜单：变调夹 5 品 / 拍号 3/4 / 调号 C→D（和弦自动移调）
      v60.55 起「调号」不再是平铺 12 个调名的 popmenu，而是就地弹出变调弹窗（#ekey-pop）——
      断言跟随：改经弹窗的唱调 ♯ 连点两次升 2 个半音到 D，顺带核对弹窗确实开了、popmenu 不再产生 */
-  r = await pg.evaluate(`(()=>{
+  r = await pg0.evaluate(`(()=>{
     const s=${mkGuitar}; s.capo=3; loadSong(s);
     showHeadMenu('capo', 200, 200);
     document.querySelector('#popmenu [data-c="5"]').click();
@@ -75,10 +81,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const keyD=song.key, chD=song.measures[0].tabs[0][0].chord;
     return { capo5, m34, keyD, chD, popOn, noMenu }; })()`);
   T(r.capo5 === 5 && r.m34 === '3/4' && r.keyD === 'D' && r.chD === 'D' && r.popOn && r.noMenu,
-    'T3 页头菜单设置 + 调号改走变调弹窗换调移调', JSON.stringify(r));
+    'T3（?next=0）页头菜单设置 + 调号改走变调弹窗换调移调', JSON.stringify(r));
 
   // T4 速度：askText 输入 120；热区点击路由（pointerdown 到 data-hd="tempo" 弹输入框）
-  r = await pg.evaluate(`(()=>{
+  r = await pg0.evaluate(`(()=>{
     const s=${mkGuitar}; loadSong(s); blurSel=true; render();
     const z=document.querySelector('[data-hd="tempo"]');
     z.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:200}));
@@ -86,7 +92,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     if(!inp) return {noPopup:true};
     inp.value='120'; document.getElementById('tp-ok').click();
     return { tempo:song.tempo }; })()`);
-  T(r.tempo === 120, 'T4 速度热区+输入', JSON.stringify(r));
+  T(r.tempo === 120, 'T4（?next=0）速度热区+输入', JSON.stringify(r));
 
   // T5 曲谱信息实时预览：输入即上谱；取消恢复；确定后一次撤销回原值
   r = await pg.evaluate(`(()=>{
@@ -109,7 +115,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.live && r.canceled && r.applied && r.undone, 'T5 曲谱信息实时预览+撤销', JSON.stringify(r));
 
   // T6 heta 区点击 → 曲谱信息弹窗（data-hd="meta" 路由）
-  r = await pg.evaluate(`(()=>{
+  r = await pg0.evaluate(`(()=>{
     closeModal&&closeModal();
     const s=${mkGuitar}; loadSong(s); blurSel=true; render();
     const z=document.querySelector('[data-hd="meta"]');
@@ -117,7 +123,48 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const open=!!document.getElementById('mm-title');
     if(open) document.getElementById('mm-cancel').click();
     return { open }; })()`);
-  T(r.open, 'T6 标题区点击开曲谱信息', JSON.stringify(r));
+  T(r.open, 'T6（?next=0）标题区点击开曲谱信息', JSON.stringify(r));
+
+  // T3n / T4n / T6n 新外壳新形态：拍号小面板 · 速度小面板 · 标题区＝页头就地改面板（变调夹 popmenu、调号变调弹窗不变）
+  r = await pg.evaluate(`(()=>{
+    closeModal&&closeModal();
+    const s=${mkGuitar}; s.capo=3; loadSong(s);
+    showHeadMenu('capo', 200, 200);
+    document.querySelector('#popmenu [data-c="5"]').click();
+    const capo5=song.capo;
+    showHeadMenu('meter', 200, 200);
+    const pane=!!document.querySelector('#popmenu.flw-hdm-meter'), old=!!document.querySelector('#popmenu [data-m="3:4"]');
+    document.querySelector('#popmenu [data-fa="hd:meter"][data-b="3"][data-u="4"]').click();
+    const m34=song.beats+'/'+song.unit;
+    song.capo=0;
+    showHeadMenu('key', 200, 200);
+    const popOn=document.getElementById('ekey-pop').classList.contains('on');
+    const noMenu=!document.getElementById('popmenu');
+    document.getElementById('ek-up').click();
+    document.getElementById('ek-up').click();
+    const keyD=song.key, chD=song.measures[0].tabs[0][0].chord;
+    return { capo5, pane, old, m34, keyD, chD, popOn, noMenu }; })()`);
+  T(r.capo5 === 5 && r.pane && !r.old && r.m34 === '3/4' && r.keyD === 'D' && r.chD === 'D' && r.popOn && r.noMenu,
+    'T3n（新形态）变调夹 popmenu 5 品 · 拍号就地小面板 3/4 · 调号变调弹窗换调移调', JSON.stringify(r));
+  r = await pg.evaluate(`(()=>{
+    try{ closeEdKeyPop(); }catch(_){} document.querySelectorAll('.vh-pop.on').forEach(p=>p.classList.remove('on'));
+    const s=${mkGuitar}; loadSong(s); blurSel=true; render();
+    const z=document.querySelector('[data-hd="tempo"]');
+    z.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:300,clientY:200}));
+    const pane=!!document.querySelector('#popmenu.flw-hdm-tempo'), inp=document.getElementById('tp-val');
+    if(!inp) return {noPopup:true, pane};
+    inp.value='120'; document.querySelector('#popmenu [data-fa="hd:tempo"]').click();
+    return { pane, tempo:song.tempo }; })()`);
+  T(r.pane && r.tempo === 120, 'T4n（新形态）速度热区＝就地小面板 + 输入 120', JSON.stringify(r));
+  r = await pg.evaluate(`(()=>{
+    closeModal&&closeModal();
+    const s=${mkGuitar}; loadSong(s); blurSel=true; render();
+    const z=document.querySelector('[data-hd="meta"]');
+    z.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:400,clientY:120}));
+    const p=document.getElementById('flw-hdp'), open=!!p && !p.hidden, ae=document.activeElement && document.activeElement.id, modal=!!document.getElementById('mm-title');
+    try{ FLOW.hd.cancel(); }catch(_){}
+    return { open, ae, modal }; })()`);
+  T(r.open && /^flw-hdp-/.test(r.ae || '') && !r.modal, 'T6n（新形态）标题区点击＝页头就地改面板（不弹曲谱信息弹窗）', JSON.stringify(r));
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

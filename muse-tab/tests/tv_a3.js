@@ -74,7 +74,8 @@ const withQ = (u, q) => q ? u + (u.includes('?') ? '&' : '?') + q : u;
       /* v67.4「继续上次编辑」只给自己的谱（原样示例谱不算，修 P2-24）：先把示例谱存成自己的（改曲名落盘）再刷新，谱面内容不变 */
       await pg.evaluate(() => { song.title = '我的练习'; persistNow(); });
       await pg.reload(); await pg.waitForTimeout(1100);
-      await pg.click('[data-sp="cont"]'); await pg.waitForTimeout(150);
+      /* v69.1 C：新形态「继续上次编辑」＝启动台「接着写」第 1 张（[data-sp=rc:0]，#spd-cont 节点保留、隐藏）；旧外壳照旧 */
+      await pg.click(await pg.evaluate(() => document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') ? '#spd-nx [data-sp="rc:0"]' : '[data-sp="cont"]')); await pg.waitForTimeout(150);
       const g0 = await pg.evaluate(GEO);
       await pg.evaluate(`(()=>{ const t=[...document.querySelectorAll('.ltab')].find(x=>!x.classList.contains('on')); t&&t.click(); })()`); await pg.waitForTimeout(150);
       const g1 = await pg.evaluate(GEO);

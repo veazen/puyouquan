@@ -52,20 +52,37 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.delta === 50, 'T2 词曲块让位增量=50、无词曲不变', JSON.stringify(r));
 
   // T3 词曲列 meta 热区可点开曲谱信息弹窗；弹窗「弱起小节」提示横排不压缩（fnote 类）
-  r = await pg.evaluate(() => { try {
+  // v69.1 A1 迁移（规格 §3 A1 / §6.2「新形态走 data-hd 的点击用例改断言 #flw-hdp」）：新外壳新形态点词曲列＝页头就地改面板 #flw-hdp（聚焦被点那一项）；
+  // 曲谱信息弹窗仍在（文件 ▾「曲谱信息…」＝#b-meta 同一 onclick），弱起提示横排照测；?next=0 点词曲列仍开弹窗（T3′，v69.0 原样）
+  const T3 = async (page, nx) => page.evaluate((nx) => { try {
     const s = createSong('tanchang', { title: 't3', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 1, lyr: 0 });
     s.lyricist = '词'; s.composer = '曲';
     loadSong(s); blurSel = true; render();
     const zs = [...document.querySelectorAll('#score [data-hd="meta"]')];
     const credZone = zs.length >= 2;
-    zs[zs.length - 1].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const z = zs[zs.length - 1], zr = z.getBoundingClientRect();
+    z.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: zr.left + zr.width / 2, clientY: zr.top + zr.height / 2 }));
+    let hdp = null;
+    if (nx) { const p = document.getElementById('flw-hdp'); hdp = { vis: !!p && !p.hidden, ae: document.activeElement && document.activeElement.id, modal: !!document.querySelector('.modal #mm-pickup') };
+      try { FLOW.hd.cancel(); } catch (_) {} document.getElementById('b-meta').onclick(); }
     const note = document.querySelector('.modal label.f .fnote');
     const wOk = note && note.getBoundingClientRect().width > 150;   // 旧样式被压到 56px 竖排
     const pickup = !!document.getElementById('mm-pickup');
     closeModal();
-    return { credZone, pickup, wOk, w: note ? Math.round(note.getBoundingClientRect().width) : -1 };
-  } catch (e) { try { closeModal(); } catch (_) {} return { err: String(e && e.message || e) }; } });
-  T(r.credZone && r.pickup && r.wOk, 'T3 词曲热区开弹窗+弱起提示横排', JSON.stringify(r));
+    return { credZone, pickup, wOk, w: note ? Math.round(note.getBoundingClientRect().width) : -1, hdp };
+  } catch (e) { try { closeModal(); } catch (_) {} return { err: String(e && e.message || e) }; } }, nx);
+  r = await T3(pg, true);
+  T(r.credZone && r.pickup && r.wOk && r.hdp && r.hdp.vis && /^flw-hdp-(composer|lyricist)$/.test(r.hdp.ae || '') && !r.hdp.modal,
+    'T3 词曲热区（新形态）开页头就地改面板并聚焦署名项、不弹窗；曲谱信息弹窗（#b-meta）弱起提示横排', JSON.stringify(r));
+  {
+    const pg0 = await b.newPage({ viewport: { width: 1400, height: 950 } });
+    pg0.on('pageerror', e => errs.push('PAGEERR(next=0):' + e.message));
+    await pg0.goto(F + (F.includes('?') ? '&' : '?') + 'next=0'); await pg0.waitForTimeout(900);
+    await pg0.evaluate(() => { window.guardReplace = (p) => p(); });
+    const r0 = await T3(pg0, false);
+    T(r0.credZone && r0.pickup && r0.wOk, 'T3′（?next=0）词曲热区开弹窗+弱起提示横排（v69.0 原样）', JSON.stringify(r0));
+    await pg0.close();
+  }
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

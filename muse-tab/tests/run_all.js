@@ -85,11 +85,20 @@ const CORE = [
      提交边界 · 避开锚点列（T1–T14；A 轨合入后 T1 计数）；单跑约 45 秒 */
   'tv_chordtab',
   'tv_chordfix',   // v68.9 收尾：三路验收（和声 / 指法 / 界面）发现的回归与存量缺陷逐条断言
+  /* v69.1 S3 A 轨「书写就地」（规格 f91 §3 / §6.4）：页头就地改（#flw-hdp · 调网格 · 拍号 / 速度小面板）· 红点就地修（ERR_MARKS · #flw-errdots · #flw-fixp · 撤两档）·
+     配伴奏后下一次播放从第 1 小节起（PLAY_ONCE）· 右栏默认 52 带字竖条（D5）· ?shell=classic / ?next=0 与 v69.0 658d425 逐字节 · #score 逐字节（Z / H / R / P / D / KS）；单跑约 4 分钟 */
+  'tv_inplace',
+  /* v69.1 S3 B 轨（规格 f91 §6.4）：排版模式悬浮条（纸张 · 疏密 · 每行 · 修 N 处 / 输出）· 修 N 处不越过锁定行与手动换行 · 行工具条 · 纸面角标「⚠ 末行短」· 同名去重 · ?next=0 原样；单跑约 2 分钟 */
+  'tv_layout2',
+  /* v69.1 S3 B 轨：输出模式悬浮条（总谱 / 分谱 · 纸张 · 存 PDF 记住上次格式）· 左栏常显格式卡 · 撤右栏发布卡 · 行 1 发布三点进度弹层 · 快照 / 打印不混入；单跑约 2 分钟 */
+  'tv_output2',
+  /* v69.1 C 轨：新建面板合稿 + 启动台三动作 + 快速新建（tv_newpanel2）· 命令面板值语法（tv_cmdval） */
+  'tv_newpanel2', 'tv_cmdval',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 let fail = 0, ran = 0;

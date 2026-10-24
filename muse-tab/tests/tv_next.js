@@ -192,10 +192,10 @@ function HELP() {
     };
     const newK = (k, o) => '__new("' + k + '"' + (o ? ',' + o : '') + ');';
     const MEL = '__mel();';
-    await row('N01 简谱歌谱空谱：无主按钮、提示「按 1–7 写音」、工具 填词·和弦·配和弦·配伴奏', newK('J'), { id: 'none', btn: null, hint: '按 1–7 写音', tools: ['lyr', 'chord', 'lab', 'arr'] });
+    await row('N01 简谱歌谱空谱：无主按钮、提示「按 1–7 写音」、工具 填词·和弦·配和弦·配伴奏', newK('J'), { id: 'none', btn: null, hint: '按 1–7 写音', tools: ['lyr', 'chord', 'board'] });   /* v69.1 C（S12）：生成工具只在「智能 ▾」画廊，常用工具补「键盘」 */
     await row('N02 简谱歌谱有音：主按钮「排版」（无 ▾）', newK('J') + MEL, { id: 'engrave', btn: '排版', dd: false, hint: null });
-    await row('N03 简谱三声部合唱有音：排版、工具里没有「配伴奏」', newK('J') + 'mutate(()=>{ song.voxVoices=["女高","女低","男低"]; song.measures.forEach(m=>{ m.voxes=[m.voxes[0], blankVoxCols(4,4), blankVoxCols(4,4)]; }); });' + MEL, { id: 'engrave', btn: '排版', tools: ['lyr', 'chord', 'lab'] });
-    await row('N04 五线谱旋律空：无主按钮、和弦·配和弦·配伴奏', newK('S'), { id: 'none', btn: null, tools: ['chord', 'lab', 'arr'] });
+    await row('N03 简谱三声部合唱有音：排版、工具里没有「配伴奏」', newK('J') + 'mutate(()=>{ song.voxVoices=["女高","女低","男低"]; song.measures.forEach(m=>{ m.voxes=[m.voxes[0], blankVoxCols(4,4), blankVoxCols(4,4)]; }); });' + MEL, { id: 'engrave', btn: '排版', tools: ['lyr', 'chord', 'board'] });
+    await row('N04 五线谱旋律空：无主按钮、和弦·配和弦·配伴奏', newK('S'), { id: 'none', btn: null, tools: ['chord', 'board'] });
     await row('N05 五线谱旋律有音：排版', newK('S') + MEL, { id: 'engrave', btn: '排版' });
     await row('N06 教学对照谱空：提示「写一行 另一行同步」', newK('SJ'), { id: 'none', btn: null, hint: '写一行 另一行同步' });
     await row('N07 教学对照谱有音：排版', newK('SJ') + MEL, { id: 'engrave', btn: '排版' });
@@ -206,7 +206,7 @@ function HELP() {
     /* N11 把产出改成了对照谱（参数按窗口记、新窗口取会话最近一次，N3d）→ 本行先回「填进本谱」 */
     await row('N12 伴奏已配后续写 3 小节旋律（缺口）：「补配 3 小节」、预览 fill-gap', newK('JG', '{nMea:8}') + 'FLOW.nx.act("nx:out",{dataset:{v:"fill"}},{detail:1}); __mel([0,1,2,3,4]); fillAccompaniment("block", true); __mel([5,6,7]);', { id: 'arrange-gap', btn: '补配 3 小节', pv: 'fill-gap', steps: ['done:旋律', 'now:伴奏', 'todo:织体'] });
     await row('N13 ② 完成（新建流程）：「换织体」+ ▾、主按钮无预览', newK('JG') + MEL + 'fillAccompaniment("block", true);', { id: 'tex', btn: '换织体', dd: true, pv: null, steps: ['done:旋律', 'done:伴奏', 'now:织体'] });
-    await row('N14 ② 完成、非新建流程（无 LB_META）：③ 自动完成、主按钮「排版」、工具 织体·和弦·填词·配和弦', newK('JG', '{meta:false}') + MEL + 'fillAccompaniment("block", true);', { id: 'engrave', btn: '排版', tools: ['tex', 'chord', 'lyr', 'lab'] });
+    await row('N14 ② 完成、非新建流程（无 LB_META）：③ 自动完成、主按钮「排版」、工具 织体·和弦·填词·配和弦', newK('JG', '{meta:false}') + MEL + 'fillAccompaniment("block", true);', { id: 'engrave', btn: '排版', tools: ['chord', 'lyr', 'deg', 'board'] });
     await row('N21 导入人声＋钢琴（伴奏来自文件）：③ 显示当前、主按钮「排版」、提示「伴奏来自文件」', newK('JG', '{meta:{from:"import",target:"orig"}}') + 'mutate(()=>{ __melIn(song,0,[0,1,2,3,4,5,6,7]); __accIn(song,1,[0,1,2,3,4,5,6,7]); __accIn(song,2,[0,1,2,3,4,5,6,7]); });',
       { id: 'engrave', btn: '排版', steps: ['done:旋律', 'done:伴奏', 'now:织体'], hint: '伴奏来自文件' });
     await row('N22 5/4 拍钢琴伴奏歌谱 ②：「配伴奏」锁住（5/4 暂无织体）、无预览', newK('JG', '{b:{beats:5,unit:4}}') + MEL, { id: 'arrange', btn: '配伴奏', why: '5/4 暂无织体', pv: null });
@@ -220,10 +220,10 @@ function HELP() {
     await row('N33 吉他弹唱 ② 完成后手加扫弦：③ 完成、排版', newK('JT', '{meta:{pen:"J"}}') + MEL + 'mutate(()=>{ song.measures.forEach(m=>{ m.tabs[0][0].notes=[{s:2,f:1}]; }); song.measures[0].tabs[0][0].strum="d"; });', { id: 'engrave', btn: '排版' });
     await row('N34 打开的弹唱谱（无 LB_META、已有六线谱）：排版', newK('JT', '{meta:false}') + MEL + 'mutate(()=>{ song.measures.forEach(m=>{ m.tabs[0][0].notes=[{s:2,f:1}]; }); });', { id: 'engrave', btn: '排版' });
     await row('N35 吉他弹唱（从六线谱写起）空谱：无起步、提示「↑↓ 选弦 数字写品位」', newK('JT'), { id: 'none', btn: null, hint: '↑↓ 选弦 数字写品位' });
-    await row('N37 吉他谱空：提示、工具 和弦·节奏型·和弦图·指板', newK('T'), { id: 'none', btn: null, tools: ['chord', 'rhy', 'diag', 'board'] });
+    await row('N37 吉他谱空：提示、工具 和弦·节奏型·和弦图·指板', newK('T'), { id: 'none', btn: null, tools: ['chord', 'diag', 'board'] });
     await row('N38 吉他谱有音：排版', newK('T') + 'mutate(()=>{ song.measures[0].tabs[0][0].notes=[{s:1,f:3}]; });', { id: 'engrave', btn: '排版' });
     await row('N39 吉他独奏谱空：提示「写六线谱 五线谱同步」', newK('ST'), { id: 'none', btn: null, hint: '写六线谱 五线谱同步' });
-    await row('N41 钢琴独奏谱空：工具 键盘·指法·和弦·织体', newK('G'), { id: 'none', btn: null, tools: ['board', 'fing', 'chord', 'tex'] });
+    await row('N41 钢琴独奏谱空：工具 键盘·指法·和弦·织体', newK('G'), { id: 'none', btn: null, tools: ['board', 'fing', 'chord'] });
     await row('N42 钢琴独奏谱有音：排版', newK('G') + 'mutate(()=>__melIn(song,0,[0,1]));', { id: 'engrave', btn: '排版' });
     await row('N43 钢琴弹唱谱无和弦：「标和弦」、无 ▾', newK('CG'), { id: 'chord', btn: '标和弦', dd: false, steps: ['now:和弦', 'todo:织体'] });
     await row('N44 钢琴弹唱谱已标和弦、两手无音：「生成伴奏」+ ▾、预览 texgen', newK('CG') + 'mutate(()=>{ song.measures.forEach(m=>{ m.voxes[0][0].chord="C"; }); });', { id: 'texgen', btn: '生成伴奏', dd: true, pv: 'texgen', steps: ['done:和弦', 'now:织体'] });
@@ -234,10 +234,11 @@ function HELP() {
     await row('N49 五线谱和弦谱有音：排版', newK('CS') + MEL, { id: 'engrave', btn: '排版' });
     await row('N50 和弦谱空：提示「选一拍 Ctrl+K 写和弦」、工具 和弦·级数·段落', newK('C'), { id: 'none', btn: null, hint: '选一拍 Ctrl+K 写和弦', tools: ['chord', 'deg', 'mea'] });
     await row('N51 和弦谱有和弦：排版', newK('C') + 'mutate(()=>{ song.measures[0].voxes[0][0].chord="C"; });', { id: 'engrave', btn: '排版' });
-    /* N55 / N56：排版 / 输出模式 resolve＝none（条 hidden） */
+    /* N55 / N56：v69.1 S3 B 轨起排版 / 输出模式悬浮条按模式换内容（D12，规格 f91 B1.1 / B2.1）——新形态：排版 resolve＝fix（修 N 处）或 output（N＝0，TCH-7），输出 resolve＝export（存 PDF），条可见；
+       ?next=0 的「resolve none、条 hidden」由 tv_layout2 L0 / tv_output2 O0 守 */
     const md = await EV(pg, async () => { __new('J'); __mel(); await __raf2(); const R = FLOW.nx.resolve('engrave', 'J', song, lbMeta()), R2 = FLOW.nx.resolve('output', 'J', song, lbMeta());
       setMode('engrave'); await __raf2(); const vis = getComputedStyle($i('flw-sbar')).visibility; setMode('write'); await __raf2(); return { a: R.id, b: R2.id, vis }; });
-    T('N1', md.a === 'none' && md.b === 'none' && md.vis === 'hidden', 'N55 / N56 排版 / 输出模式 resolve 一律 none、悬浮条 visibility:hidden（模式内容是 S3）', J(md));
+    T('N1', (md.a === 'fix' || md.a === 'output') && md.b === 'export' && md.vis === 'visible', 'N55 / N56 排版 / 输出模式（新形态，v69.1 S3）：排版 resolve＝修 N 处 / 输出、输出 resolve＝存 PDF，悬浮条可见（?next=0 的 none / hidden 见 tv_layout2 L0 / tv_output2 O0）', J(md));
     /* 14 种谱：resolve 与 DOM 一致（btn＝条上字、id＝data-nx） */
     const all = await EV(pg, async (KINDS) => { const bad = [];
       for (const k of KINDS) for (const st of [0, 1]) {
@@ -549,8 +550,12 @@ function HELP() {
         /* 新外壳：悬浮条工具「配伴奏」（先断言可见）→ 织体条配伴奏模式 */
         await EV(A, async (k) => { __shut(); __new(k); __mel(); await __raf2(); return 1; }, k);
         await wait(A, 650);
-        const tool = await EV(A, () => { const b = document.querySelector('#flw-sbar .flw-sb-tool[data-v="arr"]'); return !!(b && __vis(b)); });
-        if (tool) await clickSel(A, '#flw-sbar .flw-sb-tool[data-v="arr"]'); await raf(A);
+        /* v69.1 C 迁移（规格 S12）：新形态常用工具不再放「配伴奏」（家＝「智能 ▾」画廊同名卡 + 起步主按钮）——条上没有时先开画廊、断言卡可见再点，到达同一织体条配伴奏模式 */
+        let tool = await EV(A, () => { const b = document.querySelector('#flw-sbar .flw-sb-tool[data-v="arr"]'); return !!(b && __vis(b)); });
+        if (tool) await clickSel(A, '#flw-sbar .flw-sb-tool[data-v="arr"]');
+        else { await clickSel(A, '#flw-sb-smart'); await raf(A); tool = await EV(A, () => { const c = document.querySelector('#popmenu .flw-gc[data-v="arr"]'); return !!(c && __vis(c) && c.getAttribute('aria-disabled') !== 'true'); });
+          if (tool) await clickSel(A, '#popmenu .flw-gc[data-v="arr"]'); }
+        await raf(A);
         const bar = await EV(A, () => { const t = $i('flw-nx-tbar'); if (!t || !__vis(t)) return null;
           return { mode: FLOW.nx.state() && FLOW.nx.tbar.isOpen(), outs: [...t.querySelectorAll('[data-fa="nx:out"]')].filter(__vis).map(b => b.dataset.v + ':' + b.getAttribute('aria-pressed')),
             sug: (t.querySelector('[data-fa="nx:sug"]') || {}).getAttribute ? t.querySelector('[data-fa="nx:sug"]').getAttribute('aria-pressed') : null, sugVis: __vis(t.querySelector('[data-fa="nx:sug"]')),

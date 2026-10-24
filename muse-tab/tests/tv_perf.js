@@ -111,7 +111,7 @@ const frame = pg => pg.evaluate(() => new Promise(r => requestAnimationFrame(() 
           /* 收尾 C4：这一下点击之后第一帧的 rAF（排在补排的量宽 rAF 之后、绘制之前）量悬浮条 / 页签几何——应已是终值 */
           requestAnimationFrame(() => { const r = document.getElementById('flw-sbar').getBoundingClientRect();
             window.__F0 = { sb: [Math.round(r.left), Math.round(r.width)], tabs: [...document.querySelectorAll('#doc-tabs .dtab')].map(t => Math.round(t.getBoundingClientRect().width)).join(',') }; }); }, { once: true }); });
-      const rc = await pg.evaluate(() => { const r = document.getElementById('spd-cont').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+      const rc = await pg.evaluate(() => { const r = (document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') || document.getElementById('spd-cont')).getBoundingClientRect();   /* v69.1 C：新形态「继续」＝启动台「接着写」第 1 张（#spd-cont 节点保留、隐藏） */ return [r.left + r.width / 2, r.top + r.height / 2]; });
       await pg.mouse.click(rc[0], rc[1]);
       await frame(pg);
       const SNAP = () => { const R = e => { const r = document.getElementById(e).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
@@ -187,11 +187,11 @@ const frame = pg => pg.evaluate(() => new Promise(r => requestAnimationFrame(() 
       await pg.evaluate(SEED);
       await pg.reload({ waitUntil: 'load' }); await waitPad(pg); await pg.waitForTimeout(1500);
       R[k].revisit.push(await pg.evaluate(() => window.__B.pad));
-      R[k].cont.push(await pg.evaluate(() => new Promise(res => { const b = document.getElementById('spd-cont'); if (!b || !b.textContent) return res(null);
+      R[k].cont.push(await pg.evaluate(() => new Promise(res => { const b = (document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') || document.getElementById('spd-cont')); if (!b || !b.textContent) return res(null);
         const t0 = performance.now(); b.click(); requestAnimationFrame(() => setTimeout(() => res(performance.now() - t0), 0)); })));
       /* 收尾 PERF-1：启动台一出现就真实鼠标点「继续」——按下的 timeStamp → click 之后那一帧（rAF → setTimeout0）；按下里同步跑掉的工作也算在内 */
       await pg.reload({ waitUntil: 'domcontentloaded' }); await waitPad(pg);
-      { const rc = await pg.evaluate(() => { const e = document.getElementById('spd-cont'); if (!e || !e.textContent) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+      { const rc = await pg.evaluate(() => { const e = (document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') || document.getElementById('spd-cont')); if (!e || !e.textContent) return null; const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
         if (rc) { await pg.evaluate(() => { window.__Q = null; window.addEventListener('pointerdown', e => { window.__Q = { pd: e.timeStamp }; }, { capture: true, once: true });
             window.addEventListener('click', () => { const q = window.__Q; if (q) requestAnimationFrame(() => setTimeout(() => { q.t = performance.now() - q.pd; }, 0)); }, { capture: true, once: true }); });
           await pg.mouse.click(rc[0], rc[1]);

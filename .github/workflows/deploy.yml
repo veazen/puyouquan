@@ -47,7 +47,7 @@ jobs:
           npx playwright install --with-deps chromium
       # v67.9：tv_shellflow 的 S0 要 git show 默认外壳基线提交来对拍「不带开关零差异」；checkout 默认浅克隆（fetch-depth 1）没有历史，
       # 按 shellflow_ref.json 的完整 SHA 只补取这一个提交（拿不到时 S0 在 CI 判红，不再静默跳过）
-      - name: 取对拍基线（tv_shellflow S0 · tv_pgbrk Z / K · tv_parts PAZ · tv_next N0 · tv_preview PV12 · tv_smart SM9）
+      - name: 取对拍基线（tv_shellflow S0 · tv_pgbrk Z / K · tv_parts PAZ · tv_next N0 · tv_preview PV12 · tv_smart SM9 · tv_inplace Z）
         run: |
           REF=$(node -p "require('./muse-tab/tests/shellflow_ref.json').commit")
           git fetch --no-tags --depth=1 origin "$REF"
@@ -64,6 +64,10 @@ jobs:
           REF4=$(node -p "require('./muse-tab/tests/next_ref.json').commit")
           git fetch --no-tags --depth=1 origin "$REF4"
           git cat-file -e "$REF4^{commit}"
+          # v69.1：tv_inplace Z（?shell=classic / ?next=0 与 v69.0 逐字节相同、#score 逐字节不变）按 inplace_ref.json 的完整 SHA 补取基线（拿不到时在 CI 判红）
+          REF5=$(node -p "require('./muse-tab/tests/inplace_ref.json').commit")
+          git fetch --no-tags --depth=1 origin "$REF5"
+          git cat-file -e "$REF5^{commit}"
       - name: 浏览器回归套件（run_all.js 关键集）
         working-directory: muse-tab/tests
         run: |

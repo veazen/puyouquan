@@ -760,8 +760,12 @@ function gp5() {
     const pg = await open(1366, 900);
     await pg.evaluate(() => { hideStartPad(); profileSave({ maker: '张老师' }); });
     await pg.click(NEWB(pg)); await pg.waitForSelector('.nf-modal [data-scene]');
-    await pg.click('[data-scene="pacc"]'); await pg.click('[data-act="var"][data-k="acc"][data-v="pure"]');
-    await pg.click('[data-act="more"]'); await pg.selectOption('#nf-lyr', '3'); await pvDone(pg);
+    await pg.click('[data-scene="pacc"]');
+    /* v69.1 C 迁移：新形态「要哪几行」与歌词段数在 ⋯ 弹层（先开 ⋯ 再点；?next=0 / 旧外壳照旧） */
+    if (await pg.evaluate(() => !!document.querySelector('.nf-modal.nf-nx'))) {
+      await pg.click('.nf-modal #nf-more'); await pg.click('#nf-moreb [data-act="var"][data-k="acc"][data-v="pure"]'); await pg.selectOption('#nf-moreb #nf-lyr', '3');
+    } else { await pg.click('[data-act="var"][data-k="acc"][data-v="pure"]'); await pg.click('[data-act="more"]'); await pg.selectOption('#nf-lyr', '3'); }
+    await pvDone(pg);
     const pv = await pg.evaluate(() => { const i = NWP.pvInfo(); const svg = document.querySelector('#nf-pvbox svg');
       return { k: NWP.stackOfState(NWP.state), h: Object.entries(i.boxes).sort((a, b) => a[1].y - b[1].y).map(([k, b]) => k.split(':')[0] + '@' + Math.round(b.h)).join(), maker: [...svg.querySelectorAll('text')].some(t => /张老师/.test(t.textContent)) }; });
     await pg.click('#nw-create'); await pg.waitForFunction(() => !document.querySelector('.nf-modal')); await pg.waitForTimeout(150);

@@ -79,12 +79,26 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '';
       'H1b 三步卡恰好 3 张：书写 / 排版 / 输出（不设「播放」步）', J(r && r.steps));
     /* H11（v68.5 收尾 UX-11）：「排版」步讲到本行换页与页码（此前只写「此处换行 / 并入上一行 / 锁定此行」与「页头」） */
     { const st2 = await pg.evaluate(() => { const x = [...document.querySelectorAll('#modal-mask .hd-step')].find(e => /排版/.test((e.querySelector('b') || {}).textContent || '')); return x ? x.textContent : ''; });
-      T(/本行换页/.test(st2) && /另起一页/.test(st2) && /页码（印 \/ 位置 \/ 首页 \/ 起始页码）/.test(st2), 'H11a 新布局帮助「排版」步讲到「本行换页」（从这一行起另起一页，再点取消）与右栏「版式」的页码设置', st2.slice(0, 160)); }
+      T(/本行换页/.test(st2) && /另起一页/.test(st2) && /页码（印 \/ 位置 \/ 首页 \/ 起始页码）/.test(st2) && !/页头与页码/.test(st2), 'H11a 新布局帮助「排版」步讲到「本行换页」（从这一行起另起一页，再点取消）与右栏「版式」的页码设置', st2.slice(0, 160)); }
     /* H12（v68.6 有意迁移，规格 docs/spec-2026-10-parts.md §6.5 / §6.8 ③）：「输出」步讲到分谱——点一份预览这一份、勾选几份一次打印（修前 v68.5 无「分谱」→ 红；修后绿） */
     { const st3 = await pg.evaluate(() => { const x = [...document.querySelectorAll('#modal-mask .hd-step')].find(e => /输出/.test((e.querySelector('b') || {}).textContent || '')); return x ? x.textContent : ''; });
       const pe = await pg.evaluate(() => { const r = [...document.querySelectorAll('#modal-mask .hd-row')].find(x => (x.querySelector('.rk') || {}).textContent === '打印与导出'); return r ? r.querySelector('.rv').textContent : ''; });
-      T(/分谱/.test(st3) && /输出内容/.test(st3) && /预览这一份/.test(st3) && /勾选几份/.test(st3) && /一个 PDF/.test(st3) && !/即将推出|下一批/.test(st3 + pe) && /分谱在「输出内容」/.test(pe),
-        'H12a 新布局帮助「输出」步讲到分谱：「输出内容」里点一份就预览这一份，勾选几份点「分谱」一次打印成一个 PDF；对照表「打印与导出」一行补上分谱', st3.slice(0, 120) + ' ｜ ' + pe.slice(-40)); }
+      /* v69.1 收尾 V3 有意迁移：新形态（默认）分谱＝悬浮条选「分谱」点「存 PDF」（不再是行 2「分谱」键一次打印）；?next=0 原文见 H13 */
+      T(/分谱/.test(st3) && /输出内容/.test(st3) && /预览这一份/.test(st3) && /勾选几份/.test(st3) && /悬浮条选「分谱」点「存 PDF」/.test(st3) && !/即将推出|下一批/.test(st3 + pe) && /分谱在「输出内容」/.test(pe),
+        'H12a 新布局帮助「输出」步讲到分谱：「输出内容」里点一份就预览这一份，勾选几份、悬浮条选「分谱」点「存 PDF」；对照表「打印与导出」一行补上分谱', st3.slice(0, 120) + ' ｜ ' + pe.slice(-40)); }
+    /* H13（v69.1 收尾 V3）：新形态帮助与实际界面一致——「排版」步不写「页头与页码」（版式页只剩页码，页头在谱面页头就地改）；
+       搜功能对照表「排版」一行写悬浮条与「修 N 处」、「打印与导出」一行写悬浮条「存 PDF」与左栏格式卡（不再说「都在这一行」）；?next=0 三处仍是 v69.0 原文 */
+    { const rw = k => { const x = [...document.querySelectorAll('#modal-mask .hd-row')].find(e => (e.querySelector('.rk') || {}).textContent === k); return x ? x.querySelector('.rv').textContent : ''; };
+      const h = await pg.evaluate(rw0 => { const rw = new Function('k', 'return (' + rw0 + ')(k)'); return { lay: rw('排版'), out: rw('打印与导出') }; }, rw.toString());
+      T(/悬浮条调纸张/.test(h.lay) && /修 N 处/.test(h.lay) && /悬浮条「存 PDF」/.test(h.out) && /左栏格式卡/.test(h.out) && !/都在这一行|勾选后点「分谱」一次打印/.test(h.out),
+        'H13a 新形态对照表：「排版」写悬浮条纸张 · 疏密 · 每行与「修 N 处」；「打印与导出」写悬浮条「存 PDF」、左栏格式卡、悬浮条选「分谱」（无「都在这一行」）', J(h));
+      const p0 = await open(withQ(URL0, 'next=0'), 1440, 900);
+      await p0.evaluate(() => document.getElementById('b-help').click()); await p0.waitForTimeout(250);
+      const h0 = await p0.evaluate(rw0 => { const rw = new Function('k', 'return (' + rw0 + ')(k)'); const st = [...document.querySelectorAll('#modal-mask .hd-step')].map(e => e.textContent);
+        return { lay: rw('排版'), out: rw('打印与导出'), s2: st[1] || '', s3: st[2] || '' }; }, rw.toString());
+      await close(p0);
+      T(/页头与页码/.test(h0.s2) && /勾选几份点「分谱」，一次打印成一个 PDF/.test(h0.s3) && /纸张 · 疏密 · 断行 · 内容大小 · 版面检查/.test(h0.lay) && /都在这一行/.test(h0.out),
+        'H13b ?next=0：「排版」步「页头与页码」、「输出」步「勾选几份点「分谱」，一次打印成一个 PDF」、对照表两行仍是 v69.0 原文', J({ s2: h0.s2.slice(-60), s3: h0.s3.slice(-60), lay: h0.lay, out: h0.out.slice(0, 50) })); }
     const need = {
       '行 1 · 文档': ['文件 ▾', '窗口页签', '保存状态', '发布', '账号 ▾', '示例曲谱', '偏好设置'],
       '行 2 · 工作': ['书写 › 排版 › 输出', '更多 ▾', '搜功能', 'Ctrl+/'],

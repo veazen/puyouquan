@@ -7,7 +7,7 @@
         每卡可见、中心命中自己、名 ≤4 字、1 秒内缩略图是 svg.pq-offscore；锁卡 aria-disabled + 锁图标 + 原因 ≤16 字，点了网格下出原因、不执行、菜单不关
    SM3  可用卡执行＝委托目标：与同一页直接点旧入口（#rt-arr / #b-acctex / #rt-lab / #rt-fill / openRhyLib / showVoxTabMenu）比弹窗 / 菜单签名、song、撤销栈；ui_cmd gal:<v>
    SM4  功能保全（原右栏智能页 8 项 + 一键配和弦）：每项先断言新家可见（菜单类先打开菜单再看项），再点，再与 ?next=0 下原智能页入口比到达（弹窗签名 / 结果）
-   SM5  右栏：书写页签 2（属性 · 文字）、竖条 2 + 钉住、无 #flw-rp-smart / #flw-rx-ai、show('smart')===false、open('make')→属性；≥1440 停靠、1280 竖条；钉住读写 musetab-rdock 与 ?next=0 相同
+   SM5  右栏：书写页签 2（属性 · 文字）、竖条 2 + 钉住、无 #flw-rp-smart / #flw-rx-ai、show('smart')===false、open('make')→属性；新形态任何宽度竖条（v69.1 D5；?next=0 ≥1440 停靠）；钉住读写 musetab-rdock 与 ?next=0 相同
    SM6  去重：书写 5 屏「更多」不跨区（只剩行 2「更多 ▾」）；记号格 dyn-more 混合档 2 字「表情」（?next=0「更多」）；悬停 / 读屏名仍是全名
    SM7  命令面板：搜「智能」首条 rd:smart，回车打开画廊、焦点在首卡；↑↓ 选中 sm:arrange 描边「智能 ▾」、sm:midi 描边文件 ▾；Esc 撤描边、不留画廊
    SM8  收起态：有主按钮（A 轨 FLOW.nx.goHTML；未合入时测试桩）＝摘要 + 紧凑主按钮 + 留白 + ⌄，条高 28 / 外框 34；点摘要 / 空白 / ⌄ 展开，点主按钮执行且不展开；
@@ -241,7 +241,7 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         let n0 = null; if (!nxRun) { await smartN('J', 'arr', true); n0 = await EV(pgN, () => __sig()); await shutBoth(); }
         /* v69.0 收尾 F1-func 有意迁移：简谱歌谱（主按钮不是带 ▾ 的「配伴奏」）里两个入口都打开织体条配伴奏模式——产出 / 补和弦 / 全部织体都可见，点卡才执行；
            参数与结果对拍 ?next=0 弹窗在 tv_next N13（此前这一行只比新外壳两个入口彼此一致，参数不可达也全绿） */
-        ROWS.push({ f: '一键配伴奏', entry: !!(go && go.vis && go.hit && go.act === 'arrange') && tool && gv, arrive: J(a.sig) === J(d.sig) && a.st.j === d.st.j && (nxRun ? (a.sig.tbar && /teach/.test(a.outs) && /pure/.test(a.outs)) : (J(a.sig.modal) === J(n0 && n0.modal) && !!(a.sig.modal || a.st.j !== s0.j))), d: { go, tool, gv, a: a.sig, outs: a.outs, d: d.sig, n0 } });
+        ROWS.push({ f: '一键配伴奏', entry: !!(go && go.vis && go.hit && go.act === 'arrange') && !tool && gv, arrive: J(a.sig) === J(d.sig) && a.st.j === d.st.j && (nxRun ? (a.sig.tbar && /teach/.test(a.outs) && /pure/.test(a.outs)) : (J(a.sig.modal) === J(n0 && n0.modal) && !!(a.sig.modal || a.st.j !== s0.j))), d: { go, tool, gv, a: a.sig, outs: a.outs, d: d.sig, n0 } });
       }
       /* 2 配和弦工作台：悬浮条工具「配和弦」· 智能 ▾「配和弦」→ chordLabOpen；9 一键配和弦：工作台「应用到谱面」写入与 ?next=0 相同 */
       {
@@ -254,7 +254,7 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         const sn = await smartN('J', 'lab', true); const n0 = await EV(pgN, () => __sig());
         await pgN.click('#cl-ok'); await W(300); const jn = await EV(pgN, () => JSON.stringify(song.measures));
         await shutBoth();
-        ROWS.push({ f: '配和弦工作台', entry: tool && gv && sn.vis, arrive: !!a.modal && a.modal === n0.modal, d: { tool, gv, a, n0 } });
+        ROWS.push({ f: '配和弦工作台', entry: !tool && gv && sn.vis, arrive: !!a.modal && a.modal === n0.modal, d: { tool, gv, a, n0 } });
         ROWS.push({ f: '（隐含）一键配和弦', entry: okv, arrive: ja.ch > 0 && ja.j === jn, d: { okv, ch: ja.ch, same: ja.j === jn } });
       }
       /* 3 伴奏织体：悬浮条工具「织体」（钢琴伴奏歌谱工具阶段 / 钢琴独奏谱）· 智能 ▾「织体」→ #b-acctex（A 轨：织体条） */
@@ -271,14 +271,15 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         const hasT = await EV(pg, () => !!(FLOW.nx && FLOW.nx.tbar));
         let n0 = null; if (!hasT) { await EV(pgN, () => { const s = NWB.build('JG', { title: '测JG', nMea: 8 }); __melIn(s, 0, [0, 1, 2, 3, 4, 5, 6, 7]); __one(s); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); FLOW.rd.show('smart'); FLOW.rdp.paint(); }); await raf(pgN);
           await pgN.click('#flw-rx-ai [data-v="tex"]').catch(() => {}); await W(350); n0 = await EV(pgN, () => __sig()); await shutBoth(); }
-        ROWS.push({ f: '伴奏织体', entry: tool && gv, arrive: J(a) === J(d) && !!(a.modal || a.tbar) && (hasT || J(a.modal) === J(n0 && n0.modal)), d: { tool, gv, a, d, n0 } });
+        ROWS.push({ f: '伴奏织体', entry: !tool && gv, arrive: J(a) === J(d) && !!(a.modal || a.tbar) && (hasT || J(a.modal) === J(n0 && n0.modal)), d: { tool, gv, a, d, n0 } });
       }
       /* 4 智能填词：右栏「文字」页「智能填词…」· 智能 ▾「智能填词」→ #b-fill */
       {
         await EV(pg, () => __new('J', { mel: true })); await raf(pg);
-        await pg.click('#flw-rpt-text'); await W(200);
+        /* v69.1 D5：新形态右栏默认竖条——点竖条「文字」浮出（停靠时点页签），看完收起 */
+        await pg.click((await EV(pg, () => FLOW.rd.dockOn())) ? '#flw-rpt-text' : '#flw-rstrip [data-fa="rd:tab"][data-p="text"]'); await W(200);
         const tv = await EV(pg, () => __vis('#flw-rp-text [data-fa="rdp:old"][data-v="b-fill"]'));
-        await EV(pg, () => FLOW.rd.show('prop'));
+        await EV(pg, () => { FLOW.rd.close(false); FLOW.rd.show('prop'); });
         await galOpen(pg); const gv = await EV(pg, () => __vis('#popmenu .flw-gc[data-v="fill"]'));
         await pg.click('#popmenu .flw-gc[data-v="fill"]'); await W(400); const a = await EV(pg, () => __sig());
         await smartN('J', 'fill', true); const n0 = await EV(pgN, () => __sig()); await shutBoth();
@@ -293,7 +294,7 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         await galOpen(pg); const gv = await EV(pg, () => __vis('#popmenu .flw-gc[data-v="rhy"]'));
         await pg.click('#popmenu .flw-gc[data-v="rhy"]'); await W(400); const a = await EV(pg, () => __sig());
         await smartN('J', 'rhy', true); const n0 = await EV(pgN, () => __sig()); await shutBoth();
-        ROWS.push({ f: '节奏型库', entry: tool && mv && gv, arrive: !!a.modal && a.modal === n0.modal, d: { tool, mv, gv, a, n0 } });
+        ROWS.push({ f: '节奏型库', entry: !tool && mv && gv, arrive: !!a.modal && a.modal === n0.modal, d: { tool, mv, gv, a, n0 } });
       }
       /* 6 由旋律生成六线谱轨：音轨区「＋」加轨菜单「生成六线谱…」· 智能 ▾「六线谱」→ showVoxTabMenu */
       {
@@ -320,20 +321,27 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         await shutBoth();
         ROWS.push({ f: '导入 MIDI', entry: fv && nv, arrive: !!(a && a.modal) && a.modal === (n0 && n0.modal), d: { fv, a, n0 } });
       }
-      /* 8 时值检查：状态栏 ⚠（常驻）→ #err-drop 清单（条数同 ?next=0 智能页「时值检查」） */
+      /* 8 时值检查：状态栏 ⚠（常驻）→ 清单条数同 ?next=0 智能页「时值检查」。
+         v69.1 A2 迁移（规格 §6.2）：新形态点 ⚠N 出就地修面板 #flw-fixp（「i/n」数＝错处数），⚠N 可见数字 / 读屏名「时值不符 N 处」＝?next=0 #err-drop 条数；
+         ⋯ 菜单不再有「时值检查」组（撤两档，st:em 只在 ?next=0）。修前红修后绿：658d425 点 ⚠ 出 #err-drop、⋯ 里有「时值检查」 */
       {
         const mk = () => { const s = __P('送别'); s.measures[1].voxes[0] = s.measures[1].voxes[0].slice(0, 1); s.measures[3].voxes[0] = s.measures[3].voxes[0].slice(0, 1); __one(s); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); };
         await EV(pg, '(' + mk.toString() + ')()'); await raf(pg);
-        const bv = await EV(pg, () => { const b = document.getElementById('beat-status'); return { vis: __vis(b), hit: __hit(b), bad: b.classList.contains('bad') }; });
+        const bv = await EV(pg, () => { const b = document.getElementById('beat-status'); return { vis: __vis(b), hit: __hit(b), bad: b.classList.contains('bad'), t: b.textContent.trim(), al: b.getAttribute('aria-label') || '' }; });
         await pg.click('#beat-status'); await W(300);
-        const a = await EV(pg, () => { const d = document.getElementById('err-drop'); return { vis: __vis(d), n: d ? d.querySelectorAll('.err').length : -1 }; });
+        const a = await EV(pg, () => { const d = document.getElementById('flw-fixp'), c = d && d.querySelector('.flw-fx-n'), m = c && /^(\d+)\/(\d+)$/.exec(c.textContent.trim());
+          return { vis: __vis(d), n: m ? +m[2] : (d && __vis(d) ? 1 : -1), drop: __vis('#err-drop') }; });
         await EV(pgN, '(' + mk.toString() + ')()'); await EV(pgN, () => { FLOW.rd.show('smart'); FLOW.rdp.paint(); }); await raf(pgN);
         await pgN.click('#flw-rx-ai [data-v="chk"]'); await W(300);
         const n0 = await EV(pgN, () => { const d = document.getElementById('err-drop'); return { vis: __vis(d), n: d ? d.querySelectorAll('.err').length : -1 }; });
+        await EV(pg, () => { try { FLOW.fix.close(false); } catch (_) {} });
         await pg.click('[data-m="stmore"]').catch(() => {}); await W(200);
-        const sm = await EV(pg, () => { const p = document.getElementById('popmenu'); return !!p && /时值检查/.test(p.textContent || ''); }); await shutBoth();
-        ROWS.push({ f: '时值检查', entry: bv.vis && bv.hit && bv.bad && sm, arrive: a.vis && a.n > 0 && a.n === n0.n && n0.vis, d: { bv, sm, a, n0 } });
+        const sm = await EV(pg, () => { const p = document.getElementById('popmenu'); return !!p && __vis(p) && /时值检查/.test(p.textContent || ''); }); await shutBoth();
+        ROWS.push({ f: '时值检查', entry: bv.vis && bv.hit && bv.bad && !sm && bv.t === String(n0.n) && bv.al === '时值不符 ' + n0.n + ' 处',
+          arrive: a.vis && !a.drop && a.n > 0 && a.n === n0.n && n0.vis, d: { bv, sm, a, n0 } });
       }
+      /* v69.1 C 迁移（规格 S12 · §9.0 同名清零）：悬浮条常用工具不再放「智能 ▾」画廊已有的生成工具（配伴奏 / 配和弦 / 织体 / 节奏型 / 六线谱）——
+         这几行的新家＝画廊卡（+ 起步阶段主按钮），并断言常用工具里不再有同名项（!tool） */
       const bad = ROWS.filter(r => !r.entry || !r.arrive);
       T('SM4', ROWS.length === 9 && !bad.length, '功能保全 9 行：原右栏智能页 8 项（一键配伴奏 · 配和弦工作台 · 伴奏织体 · 智能填词 · 节奏型库 · 由旋律生成六线谱轨 · 导入 MIDI · 时值检查）+ 一键配和弦，每项新家先断言可见再点，到达与 ?next=0 原入口相同',
         J(bad.length ? bad : ROWS.map(r => r.f)));
@@ -359,10 +367,11 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         await close(pg);
       }
       const x = out.nx1440, y = out.nx1280;
-      T('SM5', J(x.tabs) === J(['prop', 'text']) && J(x.strip) === J(['prop', 'text']) && !x.sec && !x.ai && x.show === false && x.make === 'prop' && x.dock && J(x.pages) === J(['prop', 'text'])
+      /* v69.1 D5：新形态任何宽度默认竖条（1440 也不停靠，钉住才停靠）；?next=0 仍 1440 停靠（下一条断言 n01440） */
+      T('SM5', J(x.tabs) === J(['prop', 'text']) && J(x.strip) === J(['prop', 'text']) && !x.sec && !x.ai && x.show === false && x.make === 'prop' && !x.dock && x.rs && J(x.pages) === J(['prop', 'text'])
         && J(y.strip) === J(['prop', 'text']) && y.pin && y.rs && !y.dock && !y.sec,
-        '新形态右栏书写两页（属性 · 文字）：页签 2、竖条 2 + 钉住、无 #flw-rp-smart / #flw-rx-ai、show(smart)===false、open(make)→属性；1440 停靠、1280 竖条', J({ nx1440: x, nx1280: y }));
-      T('SM5', J(out.n01440.tabs) === J(['prop', 'text', 'smart']) && out.n01440.sec && out.n01440.make === 'smart' && J(y.pin) === J(out.n01280.pin) && y.pin && y.pin.a.k === '1' && y.pin.a.dock && y.pin.c.k === null && !y.pin.c.dock,
+        '新形态右栏书写两页（属性 · 文字）：页签 2、竖条 2 + 钉住、无 #flw-rp-smart / #flw-rx-ai、show(smart)===false、open(make)→属性；1440 / 1280 都是竖条（v69.1 D5）', J({ nx1440: x, nx1280: y }));
+      T('SM5', J(out.n01440.tabs) === J(['prop', 'text', 'smart']) && out.n01440.sec && out.n01440.make === 'smart' && out.n01440.dock && J(y.pin) === J(out.n01280.pin) && y.pin && y.pin.a.k === '1' && y.pin.a.dock && y.pin.c.k === null && !y.pin.c.dock,
         '?next=0 仍是三页（open(make)→智能）；钉住读写 musetab-rdock 新旧相同（钉住＝\'1\' 并停靠，取消＝删键）', J({ n0: out.n01440, pin: [y.pin, out.n01280.pin] }));
     });
 
@@ -408,10 +417,10 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
         await pg.keyboard.press('Escape'); await W(150);
         const after = await EV(pg, () => ({ hl: !!document.querySelector('.flw-cmd-hl'), gal: !!__gal(), pop: !!document.getElementById('popmenu') }));
         return { r, after }; };
-      const h1 = await hl('配伴奏', 'sm:arrange'), h2 = await hl('导入 MIDI', 'sm:midi'), h3 = await hl('织体', 'sm:tex');
+      const h1 = await hl('配伴奏', 'sm:arrange'), h2 = await hl('导入 MIDI', 'r1:import')   /* v69.1 C TCH-6：新形态 sm:midi 隐藏，「导入 MIDI」首条＝从已有音乐…（描边文件 ▾） */, h3 = await hl('织体', 'sm:tex');
       T('SM7', f1 === 'rd:smart' && g1.g && g1.ae && !g1b.g, '搜「智能」首条 rd:smart：回车打开「智能 ▾」画廊、焦点在首卡；Esc 收起', J({ f1, g1, g1b }));
       const okH = (h, id, el) => h.r.sel === id && h.r.hl === el && !h.r.gal && !h.after.hl && !h.after.gal && !h.after.pop;
-      T('SM7', okH(h1, 'sm:arrange', 'flw-sb-smart') && okH(h2, 'sm:midi', 'flw-file') && okH(h3, 'sm:tex', 'flw-sb-smart'),
+      T('SM7', okH(h1, 'sm:arrange', 'flw-sb-smart') && okH(h2, 'r1:import', 'flw-file') && okH(h3, 'sm:tex', 'flw-sb-smart'),
         '↑↓ 选中原智能页命令描边它的新家：一键配伴奏 / 伴奏织体 → 「智能 ▾」，导入 MIDI → 文件 ▾；Esc 撤描边、不留画廊（命令面板本身是菜单，不叠开第二个）', J({ h1, h2, h3 }));
       await close(pg);
     });

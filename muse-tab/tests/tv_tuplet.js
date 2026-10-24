@@ -216,14 +216,17 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     let moreTupN = null;
     if (flow) { const mb = document.getElementById('flw-more'); if (mb) { mb.click();
       const it = [...document.querySelectorAll('#popmenu [data-fa="r2:tupn"]')];
-      moreTupN = it.length === 1 && /N 连音/.test(it[0].textContent) && it[0].getAttribute('aria-disabled') !== 'true';
-      try { closePop(); } catch (_) {} } }
+      /* v69.1 C（§9.0 同名清零）：新形态「更多 ▾」撤「N 连音…」——家在记号格「N连音」（tupletN，同一 @m:tupn）与命令面板 r2:tupn；?next=0 照旧在更多 ▾ */
+      const nx = !!(window.FLOW && FLOW.nxOn && FLOW.nxOn());
+      moreTupN = nx ? (it.length === 0 && !!document.querySelector('#flw-pgrid .flw-sg[data-v="tupletN"]') && FLOW.cmd.list().some(c => c.id === 'sign:tupletN' && !(c.hide && c.hide())))
+        : (it.length === 1 && /N 连音/.test(it[0].textContent) && it[0].getAttribute('aria-disabled') !== 'true');
+      try { closePop(); } catch (_) {} try { FLOW.menu.close(); } catch (_) {} } }
     return { tups, hosts, other, flow, moreTupN,
       only3: tups.every(t => t === '3') && hosts.mark === 1 && hosts.vmark === 1 && other === 0 && hosts.r2 === (flow ? 1 : 0),
       nBtn: document.querySelectorAll('[data-tupcustom]').length === 2 && inHost('mark-body', '[data-tupcustom]') === 1 && inHost('vmark-body', '[data-tupcustom]') === 1,
       label: [...document.querySelectorAll('[data-tupcustom] span')].every(s => s.textContent === 'N连音') };
   });
-  T(r.only3 && r.nBtn && r.label && (!r.flow || r.moreTupN === true), 'T12 预设仅3连音+N连音按钮（新外壳：行 2 的 3 连音 + 更多 ▾「N 连音…」）', JSON.stringify(r));
+  T(r.only3 && r.nBtn && r.label && (!r.flow || r.moreTupN === true), 'T12 预设仅3连音+N连音按钮（新外壳：行 2 的 3 连音；N 连音在记号格 + 命令面板，更多 ▾ 不再重复；?next=0 仍在更多 ▾）', JSON.stringify(r));
 
   // ---- v56.8 三连音深修（用户反馈：4/4 简谱 Ctrl 选中三个四分音符点三连音无效） ----
   // T13 用户场景：简谱 0556(八分×4)+高1·7·6(四分×3)，Ctrl 红圈多选（noteSel）→ applyTuplet(3)

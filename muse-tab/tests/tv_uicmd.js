@@ -110,7 +110,8 @@ const J = x => JSON.stringify(x);
     await pg.click('#flw-file'); await sleep(120);
     steps.new = await ec('#popmenu.flw-mn [data-fa="r1:new"]'); await sleep(250); await shut(pg); await sleep(80);
     await pg.click('#flw-pub'); await sleep(450);
-    steps.pubMode = await pg.evaluate(() => document.body.dataset.mode); await shut(pg);
+    /* v69.1 S3 B 轨（规格 f91 B2.3）：新形态行 1「发布」不切模式，就地开 #flw-pubp 三点进度弹层（埋点 r1:publish 不变） */
+    steps.pubMode = await pg.evaluate(() => document.body.dataset.mode); steps.pubp = await pg.evaluate(() => !!document.getElementById('flw-pubp')); await shut(pg);
     await mode(pg, 'write');
     steps.ovf = await pg.evaluate(() => { FLOW.act('r1:ovf', document.getElementById('flw-file'), { detail: 0 }); return !!document.querySelector('#popmenu.flw-mn'); }); await shut(pg);
     /* 行 2「更多 ▾」 */
@@ -128,11 +129,13 @@ const J = x => JSON.stringify(x);
     await pg.click('#flw-cmdb'); await sleep(150);
     await pg.fill('#flw-cmdq', 'ych'); await sleep(120); await pg.press('#flw-cmdq', 'Enter'); await sleep(200);
     steps.cmdFerm = await pg.evaluate(() => { const m = song.measures[0].voxes[0][0]; return !!(m && m.ferm); });
-    /* 右栏（1440 停靠）：切到「文字」页 · 钉住（点两次＝复原） */
-    await pg.click('#flw-rpt-text'); await sleep(100);
+    /* 右栏：切到「文字」页 · 钉住（点两次＝复原）——v69.1 D5 新形态 1440 也是竖条：点竖条「文字」浮出（停靠时点页签），回「属性」后收起 */
+    const dk = await pg.evaluate(() => FLOW.rd.dockOn());
+    await pg.click(dk ? '#flw-rpt-text' : '#flw-rstrip [data-fa="rd:tab"][data-p="text"]'); await sleep(100);
     steps.rdText = await pg.evaluate(() => FLOW.rd.page());
     await pg.evaluate(() => { FLOW.act('rd:pin', { dataset: {} }, null); FLOW.act('rd:pin', { dataset: {} }, null); }); await sleep(100);
-    await pg.click('#flw-rpt-prop'); await sleep(80);
+    await pg.click(dk ? '#flw-rpt-prop' : '#flw-rstrip [data-fa="rd:tab"][data-p="prop"]'); await sleep(80);
+    await pg.evaluate(() => FLOW.rd.close(false)); await sleep(60);
     /* 状态栏：⋯ 更多 · ? · 循环选区（点两次＝复原）· 时值检查 */
     await pg.click('#flw-st-more'); await sleep(120); await shut(pg);
     await pg.click('#flw-st-help'); await sleep(120); await shut(pg);
@@ -144,7 +147,7 @@ const J = x => JSON.stringify(x);
       'cmd:open', 'cmd:go:sign:fermata', 'rd:text', 'rd:pin', 'st:more', 'st:help', 'st:loop', 'st:beat'];
     const miss = WANT.filter(k => set.indexOf(k) < 0);
     const dup = set.filter(k => all.filter(x => x === k).length > 1);
-    T(miss.length === 0 && dup.length === 0 && steps.new && steps.pubMode === 'output' && steps.ovf && steps.more && !steps.ferm0 && steps.ferm && steps.mute && steps.solo && steps.add
+    T(miss.length === 0 && dup.length === 0 && steps.new && steps.pubMode === 'write' && steps.pubp && steps.ovf && steps.more && !steps.ferm0 && steps.ferm && steps.mute && steps.solo && steps.add
       && !steps.cmdFerm && steps.rdText === 'text' && steps.beat,
       'U3 各接入点真实操作都发出计划 §5.3 的 id（行 1 / 行 2 / 记号 / 音轨 / 命令面板 / 右栏 / 状态栏），同一 id 10 分钟内只一条', J({ miss, dup, steps, set }));
     const bad = all.filter(m => typeof m !== 'string' || !RE.test(m) || m.length > 64 || /[^\x20-\x7e]/.test(m) || m.indexOf(TITLE) >= 0 || /UICMD/i.test(m));

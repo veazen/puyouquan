@@ -2,7 +2,7 @@
 /* v68.3 谱面上方的悬浮条 #flw-sbar（FLOW.sbar；负责人 2026-10-18「以后保留这个吸顶的悬浮条，默认展开，可以收起，使用常用功能」+「界面要少字」）。
    规格 docs/spec-2026-10-sbar.md §7 断言表（收尾 ENG-7：此前只在 scratchpad 里）；几何断言优先、真实点击，file:// 直载。被测页＝默认外壳（flow），SB15 另开 ?shell=classic。
    对基线 b938819（v68.2）跑必须全红：每条都以「#flw-sbar 存在且可见」或 FLOW.sbar 接口为前提（SB15 的旧外壳不变量除外，它在基线上本来就成立——另列）。
-   SB1  几何：1180 / 1280 / 1440 / 1920 × 浅 / 深 × {新建钢琴伴奏歌谱、示例《送别》、新建吉他弹唱（从简谱写起）}——条高 40、外框 46；左右缘＝#score ∩ #paper；
+   SB1  几何：1180 / 1280 / 1440 / 1920 × 浅 / 深 × {新建钢琴伴奏歌谱、示例《送别》、新建吉他弹唱（从简谱写起）}——条高 40、外框 46；左右缘＝#score ∩ #paper（v69.1 D5 竖条 52 后条宽 1052 / 960 / 1088 / 1088）；
         scrollTop 0 条顶 92、#paper 顶 138；吸住（scrollTop 400）条顶＝谱面区顶 84、条底 124；按钮都在条框里、中心命中自己；不溢出、页面无横向滚动；新建钢琴伴奏歌谱条宽 1064 / 972 / 908 / 1088
    SB2  收纳：≥1180 十四种谱类（起步 / 工具阶段）都是全档；821×760 不超过 n2、先收提示；viewZoom 0.5 条宽 560、以谱纸中线居中、不超过 n3；
         fit({w:360}) 到 n5——「更多」变菜单、列出收起的工具、点其中一项与条上点同效；各档条高都是 40
@@ -183,7 +183,8 @@ function HELP() {
   /* ================= SB1 几何 ================= */
   if (want('SB1')) for (const [w, h] of [[1180, 800], [1280, 800], [1440, 900], [1920, 1080]]) for (const sc of ['light', 'dark']) jobs.push(() => SAFE('SB1', 'SB1 ' + w + ' ' + sc, async () => {
     const pg = await open(w, h, { scheme: sc, tag: 'SB1-' + w + sc });
-    const WANT = { 1180: 1064, 1280: 972, 1440: 908, 1920: 1088 };
+    /* v69.1 D5：新形态右栏默认收成 52 竖条（此前 1180 / 1280 竖条 40、≥1440 停靠 264）→ #paper 1180 / 1280 窄 12、1440 宽 212（1920 早已到新建谱上限 1088）；左右缘＝#score ∩ #paper 的实测断言不变 */
+    const WANT = { 1180: 1052, 1280: 960, 1440: 1088, 1920: 1088 };
     const rows = [];
     for (const scn of ['newpacc', 'songbie', 'gtrJ']) {
       if (scn === 'newpacc') await EV(pg, () => __qc('pacc'));
@@ -291,9 +292,10 @@ function HELP() {
         return { tier: m.tier, ovf: bar.scrollWidth - bar.clientWidth, h: Math.round(bar.getBoundingClientRect().height), hint: !!hi, hintVis: __vis(hi),
           seg: !!bar.querySelector('.flw-sb-seg'), segTxt: [...bar.querySelectorAll('.flw-sb-seg .flw-sb-l')].some(__vis), toolTxt: [...bar.querySelectorAll('.flw-sb-tool .flw-sb-l')].some(__vis) }; }))); }
     /* 先收提示（n1）再收标签：到 n2 的都已没有可见提示；n1 档记谱法字还在 */
-    const bad = rows.filter(r => !['full', 'n1', 'n2'].includes(r.tier) || r.ovf > 1 || r.h !== 40 || (r.tier !== 'full' && r.hint && r.hintVis) || (r.tier === 'n1' && r.seg && !r.segTxt));
+    /* v69.1 D5 重标定：新形态竖条 52（此前 40）→ 821 宽可用宽少 12，「简谱歌谱 · 旋律」一态由 n2 到 n3；档位上限放宽到 n3（只收字、不溢出），收纳顺序断言不变 */
+    const bad = rows.filter(r => !['full', 'n1', 'n2', 'n3'].includes(r.tier) || r.ovf > 1 || r.h !== 40 || (r.tier !== 'full' && r.hint && r.hintVis) || (r.tier === 'n1' && r.seg && !r.segTxt));
     await shot(pg, 'SB2-821-JG', { x: 0, y: 0, width: 821, height: 260 });
-    T('SB2', !bad.length && rows.some(r => r.tier !== 'full'), 'SB2b 821×760：各谱类不超过 n2、不溢出、条高 40；收纳先收提示（n1：提示隐藏、记谱法字仍在）再收记谱法字（n2）', J(rows.map(r => r.s + ':' + r.tier)));
+    T('SB2', !bad.length && rows.some(r => r.tier !== 'full') && rows.filter(r => r.tier === 'n3').length <= 2, 'SB2b 821×760：各谱类不超过 n3（v69.1 D5 竖条 52 后重标定；n3 至多 2 态）、不溢出、条高 40；收纳先收提示（n1：提示隐藏、记谱法字仍在）再收记谱法字（n2）', J(rows.map(r => r.s + ':' + r.tier)));
     await close(pg);
   }));
 
@@ -442,7 +444,9 @@ function HELP() {
       const nxSame = j0.nx && ((id === 'arr' && a.tb && r.tb && a.nd === j0.nd && r.nd === j0.nd && a.j === j0.j && !a.sig.modal && !r.sig.modal) || (id === 'tex' && a.tb && r.tb && !a.sig.modal && !r.sig.modal) || (id === 'rhy' && a.rb && r.rb && !a.sig.modal && !r.sig.modal));
       const sameUI = nxSame || (J(a.sig) === J(r.sig) && (a.sig.modal || a.sig.pop || a.sig.lb || (id === 'board' && a.board) || (id === 'fing' && a.fm && r.fm) || id === 'deg' || id === 'diag'));
       const sameData = nxSame || (id === 'deg' || id === 'diag' ? (a.j === r.j && a.u - j0.u === 1 && r.u - j1.u === 1) : (a.j === r.j));
-      res.push({ id, has, ok: has && sameUI && sameData && (nxSame || a.sel === r.sel) && a.board === r.board && a.fn === r.fn && a.fm === r.fm, a: a.sig, r: r.sig, du: [a.u - j0.u, r.u - j1.u], same: a.j === r.j, board: [a.board, r.board], fm: [a.fm, r.fm], tb: [a.tb, r.tb], nd: [j0.nd, a.nd, r.nd], j0: a.j === j0.j });
+      /* v69.1 C 迁移（规格 S12）：新形态常用工具不再放「智能 ▾」画廊已有的生成工具（配和弦 lab / 配伴奏 arr / 织体 tex / 节奏型 rhy）——条上没有＝对（家在画廊，tv_smart SM4 断言到达） */
+      const gone = j0.nx && ['lab', 'arr', 'tex', 'rhy'].includes(id);
+      res.push({ id, has, ok: gone ? !has : has && sameUI && sameData && (nxSame || a.sel === r.sel) && a.board === r.board && a.fn === r.fn && a.fm === r.fm, a: a.sig, r: r.sig, du: [a.u - j0.u, r.u - j1.u], same: a.j === r.j, board: [a.board, r.board], fm: [a.fm, r.fm], tb: [a.tb, r.tb], nd: [j0.nd, a.nd, r.nd], j0: a.j === j0.j });
     }
     T('SB5', res.every(x => x.ok), 'SB5a 工具委托同效（真实点击条上工具 vs 委托目标，同一份谱）：和弦 · 配和弦 · 配伴奏 · 织体 · 节奏型 · 和弦图 · 键盘 · 段落 · 级数 · 指法——弹窗 / 菜单签名、song、sel 逐字节相同；级数 / 和弦图各一步撤销',
       J(res.filter(x => !x.ok).length ? res.filter(x => !x.ok) : res.map(x => x.id + ':' + J(x.a))));
@@ -507,7 +511,7 @@ function HELP() {
     const mo2 = await EV(pg, () => ({ gal: !!document.querySelector('#popmenu[data-m="smart"]'), ro: document.body.classList.contains('flw-ro'), page: FLOW.rd.page() }));
     await EV(pg, () => { document.querySelector('#flw-sbar .flw-sb-more').focus(); return 1; }); await pg.keyboard.press('Enter'); await wait(pg, 200);
     const mo3 = await EV(pg, () => ({ gal: !!document.querySelector('#popmenu[data-m="smart"]') }));
-    T('SB5', mo1.gal && mo1.page === 'prop' && mo1.dock && mo2.gal && !mo2.ro && mo2.page === 'prop' && !mo3.gal, 'SB5e「智能 ▾」（v69.0 起替代「更多」）：1440（停靠）/ 1280（竖条）点它都打开画廊、右栏不切页不浮出；焦点在钮上再按 Enter 收起', J({ mo1, mo2, mo3 }));
+    T('SB5', mo1.gal && mo1.page === 'prop' && !mo1.dock && mo2.gal && !mo2.ro && mo2.page === 'prop' && !mo3.gal, 'SB5e「智能 ▾」（v69.0 起替代「更多」）：1440 / 1280（v69.1 D5 起都是竖条）点它都打开画廊、右栏不切页不浮出；焦点在钮上再按 Enter 收起', J({ mo1, mo2, mo3 }));
     await close(pg);
     /* ?next=0（v68.9 回退形态）：「更多」1440 切到右栏「智能」页；1280 浮出「智能」，已浮出在「智能」时再按（键盘 Enter）收起 */
     const pn = await open(1440, 900, { tag: 'SB5e-next0', url: withQ(URL0, 'next=0') });
@@ -748,15 +752,25 @@ function HELP() {
 
   /* ================= SB11 模式与场景 ================= */
   if (want('SB11')) jobs.push(() => SAFE('SB11', 'SB11', async () => {
-    const pg = await open(1280, 800, { tag: 'SB11' });
+    /* v69.1 有意迁移（规格 f91 B1.1 / D12）：新形态排版 / 输出时悬浮条按模式换内容、钉在预览区顶上（fixed，可见；条底 ≤ 预览顶，左右缘＝预览区）；
+       ?next=0 仍是 v69.0 的 visibility:hidden（留占位）。两种都要：回书写 scrollTop 与 #paper y 不变 */
+    for (const nx0 of [false, true]) {
+    const pg = await open(1280, 800, { tag: 'SB11' + (nx0 ? '-nx0' : ''), url: nx0 ? NEXT0U : undefined });
     await EV(pg, () => __songbie3()); await raf(pg);
     await EV(pg, () => { $i('score-wrap').scrollTop = 300; }); await raf(pg);
-    const g = () => EV(pg, () => ({ vis: getComputedStyle($i('flw-sbar')).visibility, disp: getComputedStyle($i('flw-sbar')).display, st: $i('score-wrap').scrollTop, py: Math.round($i('paper').getBoundingClientRect().top), mode: FLOW.mode.cur }));
+    const g = () => EV(pg, () => { const sb = $i('flw-sbar'), q = sb.getBoundingClientRect(), pv = $i('preview-ov'), r = pv && pv.classList.contains('on') ? pv.getBoundingClientRect() : null, ps = $i('pv-stage'), pr = ps && r ? ps.getBoundingClientRect() : null;
+      return { vis: getComputedStyle(sb).visibility, disp: getComputedStyle(sb).display, pos: getComputedStyle(sb).position, st: $i('score-wrap').scrollTop, py: Math.round($i('paper').getBoundingClientRect().top), mode: FLOW.mode.cur,
+        geo: r ? { b: Math.round(q.bottom), pt: Math.round(pr.top), l: Math.round(q.left), r: Math.round(q.right), pl: Math.round(r.left), pr: Math.round(r.right), t: Math.round(q.top), r2: Math.round($i('editbar').getBoundingClientRect().bottom) } : null }; });
     const w0 = await g();
     const ms = [];
     for (const m of ['engrave', 'output', 'write']) { await pg.click('#flw-mode-' + m).catch(() => EV(pg, m => setMode(m), m)); await wait(pg, 500); ms.push(await g()); }
-    T('SB11', w0.vis === 'visible' && ms[0].vis === 'hidden' && ms[1].vis === 'hidden' && ms[2].vis === 'visible' && ms[2].st === w0.st && ms[2].py === w0.py && ms[0].disp !== 'none',
-      'SB11a 书写 → 排版 → 输出 → 书写：排版 / 输出时条 visibility:hidden（留占位），回书写 scrollTop 与 #paper y 不变', J({ w0, ms }));
+    const back = ms[2].vis === 'visible' && ms[2].st === w0.st && ms[2].py === w0.py;
+    if (nx0) T('SB11', w0.vis === 'visible' && ms[0].vis === 'hidden' && ms[1].vis === 'hidden' && back && ms[0].disp !== 'none',
+      'SB11a ?next=0 书写 → 排版 → 输出 → 书写：排版 / 输出时条 visibility:hidden（留占位，v69.0 原样），回书写 scrollTop 与 #paper y 不变', J({ w0, ms }));
+    else { const geoOk = x => !!x.geo && x.vis === 'visible' && x.pos === 'fixed' && x.geo.b <= x.geo.pt + 1 && Math.abs(x.geo.l - x.geo.pl) <= 1 && Math.abs(x.geo.r - x.geo.pr) <= 1 && x.geo.t >= x.geo.r2 - 1;
+      T('SB11', w0.vis === 'visible' && geoOk(ms[0]) && geoOk(ms[1]) && back,
+        'SB11a 书写 → 排版 → 输出 → 书写：排版 / 输出时条按模式换内容、钉在预览区顶上（可见 · fixed · 条底 ≤ 预览顶 · 左右缘＝预览区 · 不压行 2），回书写 scrollTop 与 #paper y 不变', J({ w0, ms })); }
+    if (nx0) { await close(pg); continue; }
     const sp = await EV(pg, () => { initStartPad(); const d = getComputedStyle($i('flw-sbar')).display, inert = $i('flw-sbar').inert; hideStartPad(); return { d, inert, after: $i('flw-sbar').inert }; });
     await EV(pg, () => { circlePubsSave([{ pid: 'tsb-v', title: '观看测试', author: '测试', type: 'vocal', price: 0, views: 0, data: JSON.parse(JSON.stringify(song)) }]); openPubViewer('tsb-v'); }); await wait(pg, 300);
     const vw = await EV(pg, () => ({ viewer: document.body.classList.contains('viewer'), vis: __vis('#flw-sbar') }));
@@ -766,10 +780,11 @@ function HELP() {
     await EV(pg, () => { try { exitStand(); } catch (_) {} }); await wait(pg, 300);
     await pg.emulateMedia({ media: 'print' }); const pr = await EV(pg, () => getComputedStyle($i('flw-sbar')).display); await pg.emulateMedia({ media: 'screen' });
     const snap = await EV(pg, () => { const d = new DOMParser().parseFromString(FLOW.snapHTML(), 'text/html'); return !!d.querySelector('#flw-sbar, [class*="flw-sb-"], [data-fa^="sbar:"]'); });
-    const back = await EV(pg, () => __vis('#flw-sbar'));
-    T('SB11', sp.d === 'none' && sp.inert === true && sp.after === false && vw.viewer && !vw.vis && stand.stand && !stand.vis && pr === 'none' && !snap && back,
-      'SB11b 启动台 display:none（并 inert）· 观看页（openPubViewer）· 谱架 · 打印媒体都不出；互动谱快照 FLOW.snapHTML 不带；退出后回来', J({ sp, vw, stand, pr, snap, back }));
+    const back2 = await EV(pg, () => __vis('#flw-sbar'));
+    T('SB11', sp.d === 'none' && sp.inert === true && sp.after === false && vw.viewer && !vw.vis && stand.stand && !stand.vis && pr === 'none' && !snap && back2,
+      'SB11b 启动台 display:none（并 inert）· 观看页（openPubViewer）· 谱架 · 打印媒体都不出；互动谱快照 FLOW.snapHTML 不带；退出后回来', J({ sp, vw, stand, pr, snap, back: back2 }));
     await close(pg);
+    }
     const sm = [];
     for (const [w, h] of [[390, 844], [820, 900], [1180, 800]]) { const p2 = await open(w, h, { tag: 'SB11-' + w }); await EV(p2, () => __qc('pacc')); await raf(p2);
       sm.push(await EV(p2, w => ({ w, bar: __vis('#flw-sbar'), kind: __vis('#flw-sb-kind'), chip: __vis('#flw-kchip'), flow: flowOn() }), w)); await close(p2); }
@@ -833,8 +848,23 @@ function HELP() {
       sc.scrollTop = 0; const dd = $i('err-drop'); dd.classList.remove('hidden'); dd.insertAdjacentHTML('beforeend', '<div class="err" id="tsb-err" data-mi="32" data-row="vox" data-vi="0">第 33 小节</div>'); return { hits, worst: Math.round(worst) }; });
     await EV(pg, () => { $i('tsb-err').click(); return 1; }); await wait(pg, 250);   /* 报错清单的委托点击（同 tv_landbar L14；flow 下清单在状态栏上弹层里） */
     const ej = await EV(pg, () => { const svg = $i('score'), k = svg.getBoundingClientRect().height / svg.viewBox.baseVal.height, b = colBoxes['v0:32:0']; return { top: Math.round(svg.getBoundingClientRect().top + b.y * k), sb: Math.round($i('flw-sbar').getBoundingClientRect().bottom), mi: sel.mi }; });
-    T('SB13', Math.abs(r.lbsb - r.sb) <= 0.5 && f.top >= f.sb + 8 - 0.5 && h.hits === 0 && ej.mi === 32 && ej.top >= ej.sb,
-      'SB13 跟滚让位：吸住时 lbStickBottom()＝条外框底；光标在被条盖住的位置按 → 后跟滚，光标框顶 ≥ 条外框底 + 8；40 小节逐小节播放跟随（highlight）播放带都不在条下；报错跳转到第 33 小节，该小节顶在条之下', J({ r, f, h, ej }));
+    /* v69.1 A2 迁移（规格 §6.2）：新形态报错跳转走状态栏 ⚠N → 就地修面板（FLOW.fix.open go）——制造真错误（第 33 小节少一个音）、谱面滚回顶，
+       点 ⚠N（先断言可见、中心命中）→ 光标落第 33 小节、跟滚后光标框顶 ≥ 条底 + 8，就地修面板打开且不压光标所在小节第 1 列 */
+    const e0 = await EV(pg, () => { $i('err-drop').classList.add('hidden'); const x = $i('tsb-err'); if (x) x.remove();
+      mutate(() => { song.measures[32].voxes[0].pop(); }); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; render(); scoreScroller().scrollTop = 0;
+      const b = $i('beat-status'); return { n: beatErrors().length, mi: (beatErrors()[0] || {}).mi, vis: __vis(b), hit: (() => { const q = b.getBoundingClientRect(), t = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return !!t && (t === b || b.contains(t)); })() }; });
+    await wait(pg, 150);
+    if (e0.vis && e0.hit) await pg.click('#beat-status');
+    await wait(pg, 300);
+    const ej2 = await EV(pg, () => { const svg = $i('score'), R = svg.getBoundingClientRect(), k = R.height / svg.viewBox.baseVal.height, b = colBoxes['v0:' + sel.mi + ':' + sel.ci], c = colBoxes['v0:32:0'];
+      const top = R.top + b.y * k, fp = $i('flw-fixp'), q = fp && !fp.hidden ? fp.getBoundingClientRect() : null;
+      const cr = { l: R.left + c.x * k, t: R.top + c.y * k, r: R.left + (c.x + c.w) * k, b: R.top + (c.y + c.h) * k };
+      return { mi: sel.mi, top: Math.round(top), sb: Math.round($i('flw-sbar').getBoundingClientRect().bottom), fp: !!q, over: !!q && q.left < cr.r && q.right > cr.l && q.top < cr.b && q.bottom > cr.t }; });
+    await EV(pg, () => { try { FLOW.fix.close(false); } catch (_) {} undo(); render(); });
+    T('SB13', Math.abs(r.lbsb - r.sb) <= 0.5 && f.top >= f.sb + 8 - 0.5 && h.hits === 0 && ej.mi === 32 && ej.top >= ej.sb
+      && e0.n === 1 && e0.mi === 32 && e0.vis && e0.hit && ej2.mi === 32 && ej2.top >= ej2.sb + 8 - 0.5 && ej2.fp && !ej2.over,
+      'SB13 跟滚让位：吸住时 lbStickBottom()＝条外框底；光标在被条盖住的位置按 → 后跟滚，光标框顶 ≥ 条外框底 + 8；40 小节逐小节播放跟随（highlight）播放带都不在条下；报错跳转到第 33 小节，该小节顶在条之下；'
+      + 'v69.1 新形态点 ⚠N 跳到真错误第 33 小节，光标框顶 ≥ 条底 + 8、就地修面板打开不压该小节第 1 列', J({ r, f, h, ej, e0, ej2 }));
     await close(pg);
   }));
 
@@ -997,9 +1027,10 @@ function HELP() {
       await pg.click('#flw-sbar .flw-sb-more'); await wait(pg, 150); await EV(pg, () => __shut());
       await pg.click('#flw-sb-tg'); await wait(pg, 120); await pg.click('#flw-sb-tg'); await wait(pg, 120);
       await EV(pg, () => __new('J')); await raf(pg);
-      for (const id of ['lyr', 'chord', 'lab', 'arr']) { await pg.click('#flw-sbar .flw-sb-tool[data-v="' + id + '"]').catch(() => {}); await wait(pg, 150); await EV(pg, () => { __shut(); try { setRibbon('vox'); } catch (_) {} return 1; }); await pg.keyboard.press('Escape'); }
+      const nxT = await EV(pg, () => !!(FLOW.nx && FLOW.nx.ok()));   /* v69.1 C：新形态简谱歌谱常用工具＝填词 · 和弦 · 键盘（S12） */
+      for (const id of nxT ? ['lyr', 'chord', 'board'] : ['lyr', 'chord', 'lab', 'arr']) { await pg.click('#flw-sbar .flw-sb-tool[data-v="' + id + '"]').catch(() => {}); await wait(pg, 150); await EV(pg, () => { __shut(); try { setRibbon('vox'); } catch (_) {} return 1; }); await pg.keyboard.press('Escape'); }
       const tr = await EV(pg, () => __tr.filter(x => /^sbar:/.test(x)));
-      const need = ['sbar:kind', 'sbar:mel', 'sbar:go', 'sbar:more', 'sbar:col', 'sbar:exp', 'sbar:lyr', 'sbar:chord', 'sbar:lab', 'sbar:arr'];
+      const need = ['sbar:kind', 'sbar:mel', 'sbar:go', 'sbar:more', 'sbar:col', 'sbar:exp', 'sbar:lyr', 'sbar:chord'].concat(nxT ? ['sbar:board'] : ['sbar:lab', 'sbar:arr']);
       const norm = await EV(pg, need => need.map(x => FLOW.track.norm(x)), need);
       T('SB21', need.every(x => tr.includes(x)) && J(norm) === J(need), 'SB21b ui_cmd：悬浮条的谱类 ▾ / 记谱法 / 主按钮 / 更多 / 收起 / 展开 / 各工具分别记 sbar:kind · sbar:mel · sbar:go · sbar:more · sbar:col · sbar:exp · sbar:<工具 id>（合 FLOW.track 格式）', J({ tr, norm }));
     }
@@ -1041,10 +1072,14 @@ function HELP() {
     /* SBAR-6：钢琴独奏谱第 4 个工具＝「织体」，点开就是伴奏织体弹窗（同一功能一个名字） */
     await EV(pg, () => { try { closeBoard(); } catch (_) {} try { fingMode = false; } catch (_) {} __new('G'); return 1; }); await raf(pg);
     const tl = await EV(pg, () => ({ tools: [...document.querySelectorAll('#flw-sbar .flw-sb-tool')].map(b => b.dataset.v + ':' + b.textContent.trim()) }));
-    await pg.click('#flw-sbar .flw-sb-tool[data-v="tex"]').catch(() => {}); await wait(pg, 300);
+    /* v69.1 C 迁移（S12）：新形态「织体」只在「智能 ▾」画廊（条上不重复）——先断言画廊卡可见再点，到达同一织体条 */
+    const nxG = await EV(pg, () => !!(FLOW.nx && FLOW.nx.ok()));
+    if (nxG) { await pg.click('#flw-sb-smart').catch(() => {}); await wait(pg, 200); await pg.click('#popmenu .flw-gc[data-v="tex"]').catch(() => {}); }
+    else await pg.click('#flw-sbar .flw-sb-tool[data-v="tex"]').catch(() => {});
+    await wait(pg, 300);
     const h3 = await EV(pg, () => (document.querySelector('#modal-mask .modal h3') || {}).textContent || ((FLOW.nx && FLOW.nx.tbar.isOpen()) ? '伴奏织体（织体条）' : null));   /* v69.0 S2（D9）：新外壳「织体」打开织体条 */
     await EV(pg, () => __shut());
-    T('SB22', tl.tools.join(',') === 'board:键盘,fing:指法,chord:和弦,tex:织体' && /伴奏织体/.test(h3 || ''),
+    T('SB22', tl.tools.join(',') === (nxG ? 'board:键盘,fing:指法,chord:和弦' : 'board:键盘,fing:指法,chord:和弦,tex:织体') && /伴奏织体/.test(h3 || ''),
       'SB22d（SBAR-6）钢琴独奏谱的工具：键盘 · 指法 · 和弦 · 织体（此前第 4 个写「节奏型」、打开的却是伴奏织体弹窗）', J({ tl, h3 }));
     await close(pg);
   }));

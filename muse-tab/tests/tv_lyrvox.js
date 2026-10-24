@@ -80,7 +80,7 @@ const F = F0 + '?shell=classic';
 
   // T2f flow 零段空态：右栏「文字」页给「＋ 添加歌词行」（逐字填词 / 智能填词不出）；真实点一下建第 1 段 → 段号芯片 1 个 + 逐字填词出现；
   //     真实点「智能填词…」＝同一声部行弹窗（#sf-voices）；音轨树当前旋律轨的歌词行常驻（零段也在）
-  await pg.evaluate(HELP + `(()=>{ __mk(0); hideStartPad(); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); FLOW.rd.show('text'); })()`);
+  await pg.evaluate(HELP + `(()=>{ __mk(0); hideStartPad(); sel={mi:0,row:'vox',vi:0,ci:0,si:1}; render(); FLOW.rd.open('text'); })()`);   /* v69.1 D5：新形态右栏默认竖条，show() 只切页不展开 → open() 浮出「文字」页 */
   await pg.waitForTimeout(200);
   const vq = s2 => pg.evaluate(s2 => { const e = document.querySelector(s2); if (!e) return false; const q = e.getBoundingClientRect(); if (!(q.width > 0 && q.height > 0)) return false;
     for (let x = e; x && x.nodeType === 1; x = x.parentElement) { const cs = getComputedStyle(x); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; }, s2);

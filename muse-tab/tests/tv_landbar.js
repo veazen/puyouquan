@@ -1029,6 +1029,8 @@ const HELP = `(()=>{
       await FE(() => { try { closeModal(); } catch (_) {} try { localStorage.removeItem('musetab-nw-last'); } catch (_) {} });
       await FC2('#dt-add'); await fp.waitForTimeout(250);
       await FC2('[data-scene="gtr"]'); await fp.waitForTimeout(120);
+      /* v69.1 C 迁移：新形态「从哪写起」在 ⋯ 弹层（先开 ⋯） */
+      if (await FE(() => !!document.querySelector('.nf-modal.nf-nx #nf-more'))) { await FC2('#nf-more'); await fp.waitForTimeout(120); }
       await FC2('[data-act="var"][data-k="pen"][data-v="J"]'); await fp.waitForTimeout(120);
       await FC2('#nw-create'); await fp.waitForTimeout(300);
       const s0 = await fl(); s0.meta = await FE(() => LBAR.meta()); s0.nTab = await FE(() => song.tabVoices.length); s0.row = await FE(() => sel.row);

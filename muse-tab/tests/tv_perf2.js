@@ -264,8 +264,9 @@ function judge(tag, { res, errs }, needInc) {
           if (st === 'enter') await pg.evaluate(() => setMode('engrave'));
           else if (st === 'brk') await pg.click('#flw-eng-brk');
           else if (st === 'join') await pg.click('#flw-eng-join');
-          else if (st === 'A5') await pg.click('#flw-eng [data-fa="lay:page"][data-v="A5"]');
-          else if (st === 'scale') await pg.click('#flw-eng [data-fa="lay:scale"][data-d="1"]');
+          /* v69.1 S3 B 轨（规格 f91 B1.5）：新形态纸张在排版悬浮条「纸张 ▾」菜单、内容大小 ＋ 在「版式」页（同 data-fa 搬家）；?next=0 仍在行 2 #flw-eng */
+          else if (st === 'A5') { if (await pg.$('#flw-sb-page')) { await pg.click('#flw-sb-page'); await pg.click('#popmenu [data-fa="lay:page"][data-v="A5"]'); } else await pg.click('#flw-eng [data-fa="lay:page"][data-v="A5"]'); }
+          else if (st === 'scale') await pg.evaluate(() => document.querySelector('[data-fa="lay:scale"][data-d="1"]').click());
           else if (st === 'undo') await pg.evaluate(() => undo());
           else if (st === 'quiet') { await pg.evaluate(() => { PV.fit = null; PV.zoom = 0.8; mutate(() => { song.title = (song.title || '') + '·'; }); }); }   /* 预览尺寸悄悄变了（还没重建页壳）就来一笔只改内容、不改分页几何的编辑（改曲名）：页壳签名对不上要整份重建 */
           else if (st === 'output') await pg.evaluate(() => setMode('output'));

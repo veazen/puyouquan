@@ -52,7 +52,9 @@ const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../in
 /* v68.2 切默认外壳（flow，计划 §5.4）：默认页＝新外壳——新建面板本身的用例（M）入口换 页签「＋」#dt-add / 文件 ▾ 新建行尾 ▾（快速新建）/ Alt+N；
    右栏「一键配伴奏」＝「智能」页，节奏型库＝行 2「更多 ▾」，加轨＝音轨区 ＋。旧外壳（?shell=classic，兜底）专有的入口几何 / 谱型条 / 右栏信息卡用例
    放到 classic 页（open(…, {classic:true})），flow 下的对应断言写在同一用例的 flow 段（T4 / T16 / T19 / T22 / T28 / T37 两段） */
-const F = F0;
+/* v69.1 C（规格 §5 C1）：新形态新建面板合稿（预览即表单 · ⋯ 弹层 · 三步胶片），新形态由 tv_newpanel2 覆盖；本套件 v67.4–v69.0 的面板断言（右栏表单 / 依据框 /
+   要哪几种谱常显 / 键位说明…）整体改跑 ?next=0（v69.0 形态的回退口，逐项照旧），旧外壳段照旧 ?shell=classic */
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 const FC = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
 /* v69.0：?next=0＝新外壳回退到 v68.9 主按钮 / 两个配谱弹窗（弹窗版式类断言在此覆盖；新外壳默认路径没有这两个弹窗） */
 const FN0 = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';

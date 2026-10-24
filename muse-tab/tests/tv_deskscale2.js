@@ -104,7 +104,8 @@ const FLOW_SET = ['T3', 'T5', 'T6', 'T9'];
   const layStd = async pg => {   /* 顶栏「排版」→「标准」→「完成」；flow：模式条「排版」→ 右栏「版式」页「标准」→ Esc 回书写 */
     if (FLOWM) { await pg.click('#flw-mode-engrave'); await pg.waitForTimeout(300);
       /* v68.7 S1 迁移：flow 遍「标准」改点行 2「疏密 · 标准」[data-fa="lay:preset"][data-v="standard"]——右栏 #layout-pop 的「② 智能排版」行新外壳不出（与行 2 同名同效，规格 §6.C4），pg.click('#lp-preset …') 修后不可见超时（修前绿、修后红）；行 2 键修前修后都在、点它＝同一个 #lp-preset 按钮。已是「标准」时行 2 不重排（cfg 相同直接返回），先点「紧凑」再点「标准」，保证 layApply→fitViewWidth 真的走一遍（断言意图不变）；旧外壳遍不动 */
-      const flowStd = async pg => { if (await pg.evaluate(() => { const b = document.querySelector('#editbar [data-fa="lay:preset"][data-v="standard"]'); return !!b && b.getAttribute('aria-pressed') === 'true'; })) { await pg.click('#editbar [data-fa="lay:preset"][data-v="compact"]'); await pg.waitForTimeout(300); } await pg.click('#editbar [data-fa="lay:preset"][data-v="standard"]'); };
+      /* v69.1 S3 B 轨：新形态「疏密」在排版悬浮条（同 data-fa 搬家，规格 f91 B1.5），?next=0 仍在行 2 */
+      const flowStd = async pg => { if (await pg.evaluate(() => { const b = document.querySelector(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="standard"]'); return !!b && b.getAttribute('aria-pressed') === 'true'; })) { await pg.click(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="compact"]'); await pg.waitForTimeout(300); } await pg.click(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="standard"]'); };
       await flowStd(pg); await pg.waitForTimeout(300);
       await pg.keyboard.press('Escape'); await pg.waitForTimeout(300);
       const m = await pg.evaluate(() => document.body.dataset.mode); if (m !== 'write') errs.push('flow 排版后未回书写：' + m); return; }
@@ -274,7 +275,7 @@ const FLOW_SET = ['T3', 'T5', 'T6', 'T9'];
     await pg.setViewportSize({ width: 1536, height: 864 });
     await pg.reload(); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
-    if (await pg.evaluate(() => { const e = document.getElementById('start-pad'); return !!(e && !e.classList.contains('hidden')); })) { await pg.click('#spd-cont'); await pg.waitForTimeout(600); }
+    if (await pg.evaluate(() => { const e = document.getElementById('start-pad'); return !!(e && !e.classList.contains('hidden')); })) { await pg.click(await pg.evaluate(() => document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') ? '#spd-nx [data-sp="rc:0"]' : '#spd-cont'));   /* v69.1 C：新形态「继续」＝「接着写」第 1 张 */ await pg.waitForTimeout(600); }
     const h3 = await flyH(pg), k3 = await pg.evaluate(() => localStorage.getItem('musetab-flyclosed'));
     if (!h3) bad.push('刷新→继续上次编辑后左栏重开');
     await pg.click('.ltab[data-t="mea"]'); await pg.waitForTimeout(500);

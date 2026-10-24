@@ -9,7 +9,15 @@
    · 屏内同名组＝同名可点项（去 … ▾ › 空白 ·）出现在 ≥2 个区域（analyze.js dupInScreen）。
    · P3＝可见文字组（含输入框 placeholder）+ 悬停 title + 可见 data-why 里命中定稿正则的条数（不扫 aria-label）。
    · 入口表：只算桌面屏；命令面板不计；原口径＝按可见名正则（analyze.js FUN）；K 口径（规格 §1.5）＝
-     K1 模式条三模式同一控件（row2:modes）· K2 保存胶囊 #flw-save 不论写什么都算「存入我的曲谱」· K3 另按元素认（data-fa / data-old / data-v / id）。 */
+     K1 模式条三模式同一控件（row2:modes）· K2 保存胶囊 #flw-save 不论写什么都算「存入我的曲谱」· K3 另按元素认（data-fa / data-old / data-v / id）。
+   v69.1 REG-5（规格 v69.1 §6.3）：
+   · 「智能 ▾」画廊立屏 menu-smart（原 rp-smart），菜单焦点层 11 → 12 层（M12）。
+   · 屏内同名新口径：命令面板（menu:cmd）区不计（P4，与入口表同口径）；放行「主按钮 #flw-sb-go × 模式条 data-fa=mode:set」这一对
+     （排版：负责人 2026-10-24 放行；输出：同理由，规格 S12），放行的另记 _dupsExempt。
+   · 入口表 P4 口径（README P4）：启动台空状态卡（startpad）与新建面板（modal）不计；快速新建（quickmenu）算文件 ▾ 的子菜单；
+     「填词」拆成「逐字填词」与「智能填词」两个功能。
+   v69.1 收尾 V4（口径披露）：README P4 原文只写不计「命令面板、快捷键、启动台空状态卡」，「新建面板不计」是本版新增口径——另算 P4s（新建面板计入）只打印；
+     屏内同名放行拆两档：「排版」＝负责人 2026-10-24 已放行（_dupsExempt）；「输出」等其余主按钮 × 模式条＝规格 ③「修完是『输出』」带来、待负责人追认（_dupsPending，照旧不判红、单独打印）。 */
 const cnt = s => (String(s).match(/[\p{L}\p{N}]/gu) || []).length;
 const live = g => !g.occ && g.region !== 'toast';
 const P3 = /行 ?[12](?![\d.])|[左右底顶]栏|状态栏|标题行|右侧|左侧|谱面上方|行尾「|「[^」]{1,8}」页|原「|原(?:顶|底)栏|(?:文件|账号|更多) ?▾/;
@@ -17,7 +25,8 @@ const P3 = /行 ?[12](?![\d.])|[左右底顶]栏|状态栏|标题行|右侧|左�
 const P3SYN = /下面的|上面的|旁的按钮|下方的按钮|上方的按钮|右端|左端/;
 /* 右栏当前页（读屏标题 h2 视觉隐藏，不进可见文字；按场景定）。v68.3 撤「下一步」卡后，新建谱默认停在属性页 */
 /* v69.0 S2：rp-smart 屏改为「智能 ▾」画廊（右栏停在属性页），不再是右栏「智能」页 */
-const rpage = id => ({ engrave: '版式', output: '发布与导出', 'rp-text': '文字', startpad: '无', newpanel: '无', 'newpanel-pacc': '无' })[id] || '属性';
+/* v69.1：新形态输出模式没有右栏页（规格 S7），记「无」 */
+const rpage = id => ({ engrave: '版式', output: '无', 'rp-text': '文字', startpad: '无', newpanel: '无', 'newpanel-pacc': '无' })[id] || '属性';
 const regKey = (s, g, c) => { let r = g.region; if (r === 'row2') r = 'row2:' + ((s.meta && s.meta.mode) || 'm'); if (r === 'right') r = 'right:' + rpage(s.id);
   if (c && /data-fa=mode:set|#flw-mdd|data-fa=mode:menu/.test(c.el || '')) r = 'row2:modes'; return r; };
 /* 功能表：[名, 原口径（可见名）, K3 元素口径] */
@@ -30,7 +39,9 @@ const FUN = [
   ['存入我的曲谱', c => /存入我的曲谱|保存到我的曲谱|存入并提交/.test(c.label), c => /#flw-save|data-old=b-savemine/.test(c.el)],
   ['存为文件', c => /存为文件/.test(c.label), c => /data-old=b-save\]/.test(c.el)],
   ['发布', c => /发布/.test(c.label) && !/仅存/.test(c.label), c => /#flw-pub/.test(c.el)],
-  ['填词', c => /填词/.test(c.label), c => /data-fa=tree:lyr|data-fa=sbar:tool\]\[data-v=lyr|data-v=lyr\]/.test(c.el)],
+  /* v69.1 REG-5：「填词」拆两功能（逐字填词＝打字填；智能填词＝按旋律自动填） */
+  ['逐字填词', c => /^填词$|逐字填词/.test(c.label), c => /data-fa=tree:lyr|data-fa=sbar:tool\]\[data-v=lyr|data-fa=rdp:fn\]\[data-v=lyr/.test(c.el)],
+  ['智能填词', c => /智能填词/.test(c.label), c => /data-v=fill\]|data-v=b-fill\]/.test(c.el)],
   ['生成六线谱', c => /生成六线谱/.test(c.label), c => /tree:gentab|tree:gen\]|data-v=gen\]/.test(c.el)],
   ['换谱类', c => /换谱类/.test(c.label), c => /#flw-sb-kind|button#flw-kchip|data-fa=tree:kind|data-fa=r1:kind|tree:kindmenu/.test(c.el)],
   ['曲谱信息', c => /曲谱信息/.test(c.label), c => /data-v=b-meta|data-old=b-meta/.test(c.el)],
@@ -44,23 +55,27 @@ const FUN = [
   ['偏好设置', c => /偏好设置/.test(c.label), c => /data-fa=r1:prefs/.test(c.el)],
   ['示例曲谱', c => /示例/.test(c.label), c => /data-fa=r1:demo/.test(c.el)],
 ];
-function funcs(R, mode) {   /* mode: 'orig' | 'K' */
+function funcs(R, mode) {   /* mode: 'orig' | 'K' | 'P4'（P4＝K 的认法 + 启动台 / 新建面板不计、快速新建并入文件 ▾）| 'P4s'（同 P4，但新建面板计入——README P4 原文口径） */
   const fun = {};
   for (const [id, s] of Object.entries(R)) { if (!s.vp || s.vp[0] < 800) continue;
     const icon = (s.iconOnly || []).map(b => ({ label: String(b.aria || b.title || '').split(/[：（(]/)[0], aria: b.aria, el: b.el, region: b.region, icon: true }));
     (s.clicks || []).filter(c => !c.occ).concat(icon).forEach(c => {
       const g = c.icon ? { region: c.region } : ((s.groups || []).find(x => x.click === c.id) || { region: c.region });
-      const rk = regKey(s, g, mode === 'K' ? c : null);
+      const K = mode === 'K' || mode === 'P4' || mode === 'P4s';
+      let rk = regKey(s, g, K ? c : null);
       if (rk === 'menu:cmd') return;
-      FUN.forEach(([f, t, te]) => { if (t(c) || (mode === 'K' && te(c))) (fun[f] = fun[f] || new Set()).add(rk); });
+      if (mode === 'P4' || mode === 'P4s') { if (rk === 'startpad' || (mode === 'P4' && rk === 'modal')) return; if (rk === 'quickmenu') rk = 'menu:file'; }
+      FUN.forEach(([f, t, te]) => { if (t(c) || (K && te(c))) (fun[f] = fun[f] || new Set()).add(rk); });
     });
   }
   return Object.entries(fun).map(([f, set]) => ({ f, n: set.size, places: [...set].sort() })).sort((a, b) => b.n - a.n || (a.f < b.f ? -1 : 1));
 }
-const M11 = ['quickmenu', 'trk-more', 'trk-hdr', 'menu-save', 'trk-add', 'menu-file', 'menu-acct', 'menu-more', 'menu-stmore', 'menu-help', 'cmd'];
+/* v69.1 REG-5：菜单焦点层 12 层＝原 11 层 + 「智能 ▾」画廊（menu-smart） */
+const M12 = ['quickmenu', 'trk-more', 'trk-hdr', 'menu-save', 'trk-add', 'menu-file', 'menu-acct', 'menu-more', 'menu-stmore', 'menu-help', 'cmd', 'menu-smart'];
+const M11 = M12;
 const WRITE5 = ['write-pacc', 'write-gtr', 'write-inst', 'write-func', 'write-songbie'];
 /* S1 范围（带副标题按钮＝0 的 20 屏）与 P3＝0 的 25 屏（桌面 30 屏去掉帮助 / 导览 / 偏好） */
-const S1SUB = ['write-pacc', 'write-gtr', 'write-inst', 'write-func', 'write-songbie', 'rp-prop', 'rp-text', 'rp-smart', 'left-sign', 'trk-more', 'trk-hdr', 'menu-save', 'trk-add', 'menu-file', 'menu-acct', 'menu-more', 'menu-stmore', 'menu-help', 'cmd', 'quickmenu'];
+const S1SUB = ['write-pacc', 'write-gtr', 'write-inst', 'write-func', 'write-songbie', 'rp-prop', 'rp-text', 'menu-smart', 'left-sign', 'trk-more', 'trk-hdr', 'menu-save', 'trk-add', 'menu-file', 'menu-acct', 'menu-more', 'menu-stmore', 'menu-help', 'cmd', 'quickmenu'];
 const S4X = ['help', 'tour1', 'tour2', 'tour3', 'prefs'];
 function screen(s) {
   const gs = (s.groups || []).filter(live); const sum = k => gs.filter(g => g.k === k).reduce((a, g) => a + g.n, 0);
@@ -69,10 +84,14 @@ function screen(s) {
   const all = cl.map(c => c.el).concat((s.iconOnly || []).map(c => c.el)); const cells = all.filter(e => /pal:sign|flw-sg/.test(e)).length;
   const focus = s.focus ? new RegExp(s.focus.slice(1, -1)) : null;
   const fg = focus ? gs.filter(g => focus.test(g.region)) : null;
-  /* 屏内同名（analyze.js dupInScreen 口径） */
+  /* 屏内同名（analyze.js dupInScreen 口径；v69.1 REG-5：命令面板区不计，放行「主按钮 × 模式条」这一对） */
   const norm = t => String(t).replace(/[…▾›\s·]/g, '').replace(/^＋/, '');
-  const byLab = {}; cl.forEach(c => { const n = norm(c.label); if (!n || /^\d+$/.test(n) || n.length < 2) return; (byLab[n] = byLab[n] || new Set()).add(c.region); });
-  const dups = Object.entries(byLab).filter(([, v]) => v.size >= 2).map(([k, v]) => k + '×' + v.size).sort();
+  const byLab = {}; cl.forEach(c => { if (c.region === 'menu:cmd') return; const n = norm(c.label); if (!n || /^\d+$/.test(n) || n.length < 2) return; (byLab[n] = byLab[n] || []).push(c); });
+  const dupE = Object.entries(byLab).map(([k, v]) => [k, v, new Set(v.map(c => c.region)).size]).filter(x => x[2] >= 2);
+  const exempt = v => v.length === 2 && v.some(c => /#flw-sb-go/.test(c.el)) && v.some(c => /data-fa=mode:set/.test(c.el));
+  const dups = dupE.filter(x => !exempt(x[1])).map(([k, , n]) => k + '×' + n).sort();
+  const dupsExempt = dupE.filter(x => exempt(x[1]) && x[0] === '排版').map(([k, , n]) => k + '×' + n).sort();
+  const dupsPending = dupE.filter(x => exempt(x[1]) && x[0] !== '排版').map(([k, , n]) => k + '×' + n).sort();
   const titles = s.titles || [];
   const p3v = gs.filter(g => P3.test(g.text)).map(g => g.text), p3t = titles.filter(t => P3.test(t.text)).map(t => t.text), p3w = (s.whys || []).filter(t => P3.test(t.text)).map(t => t.text);
   const syn = [].concat(gs.map(g => g.text), titles.map(t => '〔悬停〕' + t.text), (s.whys || []).map(t => '〔why〕' + t.text)).filter(t => P3SYN.test(t));
@@ -84,21 +103,21 @@ function screen(s) {
     p3: p3v.length + p3t.length + p3w.length, dup: dups.length,
     focus: fg ? { total: ['label', 'phrase', 'desc', 'key'].reduce((a, k) => a + fg.filter(g => g.k === k).reduce((x, g) => x + g.n, 0), 0), desc: fg.filter(g => g.k === 'desc').reduce((a, g) => a + g.n, 0),
       items: cl.filter(c => focus.test(c.region) && c.label).length, withSub: cl.filter(c => focus.test(c.region) && c.label && c.sub && c.sub.length).length } : null,
-    _p3: { vis: p3v, title: p3t, why: p3w }, _p3syn: syn, _dups: dups,
+    _p3: { vis: p3v, title: p3t, why: p3w }, _p3syn: syn, _dups: dups, _dupsExempt: dupsExempt, _dupsPending: dupsPending,
     _subs: cl.filter(c => c.sub && c.sub.length).map(c => c.label + '｜' + c.sub.join(' / '))
   };
 }
 function summarize(R) {
   const scr = {}; for (const [id, s] of Object.entries(R)) scr[id] = screen(s);
-  const m11 = M11.filter(id => scr[id]).reduce((a, id) => { const f = scr[id].focus || { total: 0, desc: 0, items: 0, withSub: 0 }; return { total: a.total + f.total, desc: a.desc + f.desc, items: a.items + f.items, withSub: a.withSub + f.withSub }; }, { total: 0, desc: 0, items: 0, withSub: 0 });
+  const m11 = M12.filter(id => scr[id]).reduce((a, id) => { const f = scr[id].focus || { total: 0, desc: 0, items: 0, withSub: 0 }; return { total: a.total + f.total, desc: a.desc + f.desc, items: a.items + f.items, withSub: a.withSub + f.withSub }; }, { total: 0, desc: 0, items: 0, withSub: 0 });
   m11.share = m11.total ? +(m11.desc / m11.total * 100).toFixed(1) : 0;
-  const fK = funcs(R, 'K'), fO = funcs(R, 'orig');
+  const fK = funcs(R, 'K'), fO = funcs(R, 'orig'), fP = funcs(R, 'P4'), fPs = funcs(R, 'P4s');
   const w5 = WRITE5.filter(id => scr[id]);
-  return { screens: scr, menus11: m11,
+  return { screens: scr, menus12: m11, menus11: m11,
     write5: { desc: w5.map(id => scr[id].desc), avgDesc: w5.length ? +(w5.reduce((a, id) => a + scr[id].desc, 0) / w5.length).toFixed(1) : 0, hover: w5.map(id => scr[id].hoverChars), clickGrp: w5.map(id => scr[id].clickGrp) },
     s1sub: S1SUB.filter(id => scr[id]).reduce((a, id) => a + scr[id].btnWithSub, 0),
     p3x: Object.keys(scr).filter(id => R[id].vp[0] >= 800 && S4X.indexOf(id) < 0).reduce((a, id) => a + scr[id].p3, 0),
     p3syn: Object.keys(scr).filter(id => R[id].vp[0] >= 800 && S4X.indexOf(id) < 0 && scr[id]._p3syn.length).map(id => id + ' ' + JSON.stringify(scr[id]._p3syn.map(t => String(t).slice(0, 40)))),
-    fun3K: fK.filter(x => x.n >= 3), fun3orig: fO.filter(x => x.n >= 3), funK: fK };
+    fun3K: fK.filter(x => x.n >= 3), fun3orig: fO.filter(x => x.n >= 3), funK: fK, fun3P4: fP.filter(x => x.n >= 3), funP4: fP, fun3P4s: fPs.filter(x => x.n >= 3) };
 }
-module.exports = { cnt, P3, P3SYN, FUN, funcs, screen, summarize, M11, WRITE5, S1SUB, S4X, rpage, regKey };
+module.exports = { cnt, P3, P3SYN, FUN, funcs, screen, summarize, M11, M12, WRITE5, S1SUB, S4X, rpage, regKey };

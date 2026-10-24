@@ -14,7 +14,9 @@
    突变实证：MUSETAB_URL=file://…/v67.3 原版 → 无新建面板（.nf-modal / [data-scene]）→ T1–T6 当场红。file:// 直载。 */
 const { chromium } = require('playwright');
 const path = require('path');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v69.1 C：新形态新建面板合稿由 tv_newpanel2 覆盖；本套件面板版式断言改跑 ?next=0（v69.0 形态，逐项照旧） */
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;

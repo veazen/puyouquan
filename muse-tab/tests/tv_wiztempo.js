@@ -45,7 +45,10 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+/* v69.1 C：本套件的新建面板版式断言（字段带名、曲名框宽、紧凑档同一行）是 v67.3–v69.0 右栏表单口径——新形态参数行合稿由 tv_newpanel2 覆盖，本套件改跑 ?next=0；
+   速度口径（夹紧 / 取整 / 单位）两形态同一套 tempoInputVal 与 onChange，页头 / 曲谱信息 / 播放坞用例照旧 */
+const F0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
+const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
@@ -424,7 +427,7 @@ const F = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../ind
     const s0 = await sig1(), c0 = await EV(`sel.mi+':'+sel.ci`);
     const p = await hdCenter();
     await pg.mouse.click(p.x, p.y); await pg.waitForTimeout(120);
-    const tb = await EV(`(()=>{ const r=document.querySelector('#popmenu .t').getBoundingClientRect(); return {x:r.left+6, y:r.top+r.height/2}; })()`);
+    const tb = await EV(`(()=>{ const r=document.querySelector('#popmenu .t, #popmenu .flw-hdm-h').getBoundingClientRect(); return {x:r.left+6, y:r.top+r.height/2}; })()`);   /* v69.1 A1：新外壳新形态的速度浮层是就地小面板，标题行 .flw-hdm-h（旧外壳 / ?next=0 仍是 .t） */
     await pg.mouse.click(tb.x, tb.y); await pg.waitForTimeout(60);
     const ae = await EV(`document.activeElement.id||document.activeElement.tagName`);
     await pg.keyboard.press('ArrowRight'); await pg.keyboard.press('ArrowDown');

@@ -105,6 +105,8 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
   const menu = await EV(() => [...document.querySelectorAll('.nf-qm svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')));
   await pg.keyboard.press('Escape');
   await pg.click('#dt-add'); await pg.waitForSelector('.nf-modal [data-scene]');
+  /* v69.1 C：新形态五种谱开关在 ⋯ 弹层（先开 ⋯ 再数图标） */
+  if (await EV(() => !!document.querySelector('.nf-modal.nf-nx #nf-more'))) { await pg.click('.nf-modal #nf-more'); await pg.waitForTimeout(80); }
   const panel = await EV(() => ({ sc: [...document.querySelectorAll('.nf-modal [role=option] svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
     rows: [...document.querySelectorAll('.nf-modal .nf-row svg.pqi')].map(s => s.dataset.pq + '@' + s.getAttribute('width')),
     text: document.querySelectorAll('.nf-modal svg.pqi text').length,   /* v67.5 中栏预览是引擎刻版的真实谱面（有文字），只查图标 */ dd: null }));
@@ -114,7 +116,7 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
     add: (document.querySelector('#dt-add svg.pqi') || { dataset: {} }).dataset.pq, addTxt: document.getElementById('dt-add').textContent.trim(),
     toast: (document.querySelector('#toast svg.pqi') || { dataset: {} }).dataset.pq, txt: document.querySelectorAll('#doc-tabs svg text, #toast svg text, #spd-cards svg text').length }));
   T(!pad.err && pad.cards.includes('act-new@28') && pad.cards.includes('tpl-last@28') && pad.cards.includes('act-import@28') && pad.cards.includes('type-jg@18')
-    && menu.length >= 12 && menu.includes('tpl-last@20') && menu.includes('type-kids@20')
+    && menu.length >= 11 && (menu.includes('tpl-last@20') || menu[0] === 'type-guitar@20') && menu.includes('type-kids@20')   /* v69.1 C：新形态快速新建首项用上次用途的谱类图标（首访＝吉他弹唱）、撤「从已有音乐…」（12→11 枚） */
     && panel.sc.length === 11 && panel.sc.every(x => /^type-.*@24$/.test(x)) && panel.rows.join() === 'nota-jianpu@20,nota-staff@20,nota-tab6@20,nota-grand@20,nota-chord@20' && panel.text === 0 && panel.dd === 'act-chevron'
     && after.tabs.every(x => /^type16-.*@16$/.test(x)) && after.tabs.includes('type16-teach@16') && after.add === 'act-add' && after.addTxt === '' && after.toast === 'type-teach' && after.txt === 0,
     'T5 新建流程各位置用最终图标集：启动台 28/18、新建▾ 20、面板用途 24 / 谱开关 20、页签 16 微缩母版、页签条 ＋、新建 ▾（flow：文件 ▾ 新建行尾 ▾）、建成提示 20，均无 <text>', JSON.stringify({ pad, menu: menu.slice(0, 4), panel, after }));

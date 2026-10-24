@@ -440,7 +440,13 @@ async function mkPage(b, url, opt) {
       /* 面板悬停预告＝建成谱名：器乐独奏 · 小提琴（不要歌词）点亮「钢琴大谱表」 */
       await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); });
       await pg.click(NEWB); await pg.waitForSelector('.nf-modal [data-scene]');
-      await pg.click('[data-scene="inst"]'); await pg.click('[data-act="var"][data-k="instKey"][data-v="violin"]');
+      await pg.click('[data-scene="inst"]');
+      /* v69.1 C 迁移（新建面板合稿）：新形态乐器在参数行下拉 #nf-inst、五种谱开关在 ⋯ 弹层（先断言 ⋯ 可见再点）；?next=0 / 旧外壳照旧点乐器分段 */
+      if (await pg.evaluate(() => !!document.querySelector('.nf-modal.nf-nx'))) {
+        await pg.selectOption('.nf-modal #nf-inst', 'violin'); await pg.waitForTimeout(80);
+        if (!(await pg.evaluate(() => { const m = document.querySelector('.nf-modal #nf-more'); const r = m && m.getBoundingClientRect(); return !!(r && r.width > 0); }))) throw new Error('⋯ 不可见');
+        await pg.click('.nf-modal #nf-more'); await pg.waitForTimeout(80);
+      } else await pg.click('[data-act="var"][data-k="instKey"][data-v="violin"]');
       await pg.hover('[data-row="G"]'); await pg.waitForTimeout(80);
       const hint = await pg.evaluate(() => document.querySelector('.nf-rowhint').textContent);
       await pg.click('[data-row="G"]'); await pg.waitForTimeout(80);

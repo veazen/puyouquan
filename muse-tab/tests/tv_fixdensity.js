@@ -324,7 +324,7 @@ const FILL = ([sc, MEL]) => {
       await pg.reload(); await pg.waitForTimeout(1200);
       await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; });
       const boot = await pg.evaluate(() => ({ auto: FLY_AUTO_CLOSED, pad: startPadOn(), tight: document.body.classList.contains('paper-tight') }));
-      await pg.click('#spd-cont'); await pg.waitForTimeout(800);
+      await pg.click(await pg.evaluate(() => document.querySelector('#spd-nx:not([hidden]) [data-sp="rc:0"]') ? '#spd-nx [data-sp="rc:0"]' : '#spd-cont'));   /* v69.1 C：新形态「继续」＝「接着写」第 1 张 */ await pg.waitForTimeout(800);
       const g0 = await geo(pg);
       const pt = await pg.evaluate(() => { const sv = document.getElementById('score'), R = sv.getBoundingClientRect(), k = R.width / sv.viewBox.baseVal.width, b = colBoxes['v0:1:0'];
         return b ? { x: R.left + (b.x + b.w / 2) * k, y: R.top + (b.y + b.h / 2) * k } : null; });

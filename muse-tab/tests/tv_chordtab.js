@@ -279,7 +279,9 @@ const closePg = async pg => { errsAll.push(...pg.__errs); await pg.context().clo
       await EV(pg, () => { closeModal(); __ld(__mkG({ noChord: true })); return 1; });
       await openGP(pg, 0, 0);
       const snap = () => EV(pg, () => { const m = document.querySelector('.modal'), r = m ? m.getBoundingClientRect() : null, i = document.getElementById('ck-in');
-        return { mi: ceState && ceState.mi, ci: ceState && ceState.ci, val: i ? i.value : null, focus: document.activeElement === i, all: i ? (i.selectionStart === 0 && i.selectionEnd === i.value.length) : null, l: r && Math.round(r.left), t: r && Math.round(r.top), u: undoStack.length }; });
+        const c = ceState && typeof ckColRect === 'function' ? ckColRect({ row: 'tab', mi: ceState.mi, vi: ceState.vi || 0, ci: ceState.ci }) : null;
+        return { mi: ceState && ceState.mi, ci: ceState && ceState.ci, val: i ? i.value : null, focus: document.activeElement === i, all: i ? (i.selectionStart === 0 && i.selectionEnd === i.value.length) : null, l: r && Math.round(r.left), t: r && Math.round(r.top), u: undoStack.length,
+          w: r && Math.round(r.width), h: r && Math.round(r.height), col: c && [c.left, c.top, c.right, c.bottom].map(Math.round), hit: !!(r && c && ckHit(r, c, 2)), iw: innerWidth }; });
       const s0 = await snap(); const steps = [s0];
       await typeIn(pg, 'C'); await pg.keyboard.press('Space'); await pg.waitForTimeout(150); steps.push(await snap());
       await pg.keyboard.type('G'); await pg.keyboard.press('Space'); await pg.waitForTimeout(150); steps.push(await snap());
@@ -289,7 +291,13 @@ const closePg = async pg => { errsAll.push(...pg.__errs); await pg.context().clo
       T(fin.ch.join(',') === 'C,,G,,Am,' && fin.m1 === 'F' && fin.u === s0.u + 4 && !fin.open, 'T7a C␣G␣Am⇥F↵：col0 C、col2 G、col4 Am、下一小节 col0 F，撤销 +4，面板关闭', J(fin));
       const pos = steps.slice(1).map(x => [x.mi, x.ci]);
       T(J(pos) === J([[0, 2], [0, 4], [1, 0]]) && steps.slice(1).every(x => x.val === '' && x.focus), 'T7b 每跳一次 ceState 换到新列、#ck-in 预填本处（空，不继承）且有焦点', J(steps.map(x => [x.mi, x.ci, x.val, x.focus])));
-      T(steps.every(x => x.l != null && Math.abs(x.l - s0.l) <= 1 && Math.abs(x.t - s0.t) <= 1), 'T7c 连续标注期间弹窗位置不动（±1px）', J(steps.map(x => [x.l, x.t])));
+      /* v69.1 D5 迁移：新形态右栏默认竖条，1440 下谱纸宽 212，下一小节第 1 列落到弹窗原位置下面——ceAvoidCol 按设计换边（v68.9 cePlace：
+         一侧盖住换另一侧，两侧都盖住＝水平居中、位置钉住）。原「四步位置都不动」改为：每步弹窗不盖当前列（除非左右两侧都会盖住＝按设计居中）；
+         位置只在「留在原处就会盖住这一列」时才变（没盖住就不动 ±1px）。实测 1440：第 4 步列在 730–754、弹窗宽 720，左侧 16–736 与右侧 704–1424 都压到 → 居中 360 */
+      const hitAt = (p, c) => !!c && p.l < c[2] + 2 && p.l + p.w > c[0] - 2 && p.t < c[3] + 2 && p.t + p.h > c[1] - 2;
+      const both = x => !!x.col && x.col[0] < 16 + x.w && x.col[2] > 16 && x.col[0] < x.iw - 16 && x.col[2] > x.iw - x.w - 16;
+      const moveOk = steps.slice(1).every((x, i) => { const p = steps[i], same = Math.abs(x.l - p.l) <= 1 && Math.abs(x.t - p.t) <= 1; return same || hitAt(p, x.col); });
+      T(steps.every(x => x.l != null && (!x.hit || both(x))) && moveOk, 'T7c 连续标注期间弹窗不盖当前列（两侧都会盖住时按设计居中）；没盖住就不动（±1px），要盖住才换边', J(steps.map(x => [x.l, x.t, x.w, x.hit, x.col, x.mi, x.ci])));
     }
   }
 

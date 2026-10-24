@@ -140,7 +140,8 @@ const withQ = (u, q) => u + (u.includes('?') ? '&' : '?') + q;
       if (FLOWM) { await pg.click('#flw-mode-engrave'); await pg.waitForTimeout(300); }
       else { await pg.click('#b-layout'); await pg.waitForTimeout(200); }
       /* v68.7 S1 迁移：flow 遍「标准」改点行 2「疏密 · 标准」[data-fa="lay:preset"][data-v="standard"]——右栏 #layout-pop 的「② 智能排版」行新外壳不出（与行 2 同名同效，规格 §6.C4），pg.click('#lp-preset …') 修后不可见超时（修前绿、修后红）；行 2 键修前修后都在、点它＝同一个 #lp-preset 按钮。已是「标准」时行 2 不重排（cfg 相同直接返回），先点「紧凑」再点「标准」，保证 layApply→fitViewWidth 真的走一遍（断言意图不变）；旧外壳遍不动 */
-      const flowStd = async pg => { if (await pg.evaluate(() => { const b = document.querySelector('#editbar [data-fa="lay:preset"][data-v="standard"]'); return !!b && b.getAttribute('aria-pressed') === 'true'; })) { await pg.click('#editbar [data-fa="lay:preset"][data-v="compact"]'); await pg.waitForTimeout(300); } await pg.click('#editbar [data-fa="lay:preset"][data-v="standard"]'); };
+      /* v69.1 S3 B 轨：新形态「疏密」在排版悬浮条（同 data-fa 搬家，规格 f91 B1.5），?next=0 仍在行 2 */
+      const flowStd = async pg => { if (await pg.evaluate(() => { const b = document.querySelector(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="standard"]'); return !!b && b.getAttribute('aria-pressed') === 'true'; })) { await pg.click(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="compact"]'); await pg.waitForTimeout(300); } await pg.click(':is(#editbar, #flw-sbar) [data-fa="lay:preset"][data-v="standard"]'); };
       if (FLOWM) await flowStd(pg); else await pg.click('#lp-preset button[data-preset="standard"]'); await pg.waitForTimeout(300);
       if (FLOWM) { await pg.keyboard.press('Escape'); await pg.waitForTimeout(300); }
       else { await pg.click('#lp-done').catch(() => {}); await pg.waitForTimeout(200); }

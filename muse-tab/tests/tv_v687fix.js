@@ -50,7 +50,7 @@ async function open(b, o) {
   await ctx.addInitScript(INIT);
   const pg = await ctx.newPage(); pg._errs = [];
   pg.on('pageerror', e => pg._errs.push(String(e.message || e).slice(0, 200)));
-  await pg.goto(URL0); await pg.waitForFunction(() => typeof FLOW !== 'undefined' && FLOW.active && typeof PRESETS !== 'undefined', null, { timeout: 15000 }); await W(500);
+  await pg.goto(o.url || URL0); await pg.waitForFunction(() => typeof FLOW !== 'undefined' && FLOW.active && typeof PRESETS !== 'undefined', null, { timeout: 15000 }); await W(500);
   return pg;
 }
 const EV = (pg, f, a) => pg.evaluate(f, a);
@@ -118,9 +118,20 @@ async function cmdFirst(pg, q) {
           lock: !!e.querySelector('.flw-mlock'), dis: e.getAttribute('aria-disabled'), why: e.dataset.why || '' })));
         await pg.keyboard.press('Escape'); await W(150);
         if (want('V4')) {
-          const fr = items.find(x => x.fa === 'st:em' && x.v === 'free'), sm = items.find(x => x.fa === 'st:em' && x.v === 'smart');
-          T(!!nm && /时值检查/.test(nm[0]) && /时值检查/.test(nm[1]) && cnt(nm[0].split(/：| · /)[0]) <= 12 && fr && fr.ms === '只标错' && sm && sm.ms === '给建议',
-            'V4 TCH-2 状态栏 ⋯ 名称「' + (nm && nm[0]) + '」点到时值检查；「自由编辑 / 修复建议」灰值「只标错 / 给建议」〔修前：「更多播放设置」、两档无灰值〕', J({ nm, fr, sm }));
+          /* v69.1 A2 迁移（D8，规格 f91 §6.2）：新形态撤掉「时值检查」两档（红点就地修）→ ⋯ 名称「更多：播放」、菜单无 st:em；
+             v68.7 TCH-2 的原断言（名称点到时值检查、两档灰值「只标错 / 给建议」）改跑 ?next=0 */
+          const em = items.filter(x => x.fa === 'st:em');
+          T(!!nm && nm[0] === '更多：播放' && nm[1] === '更多：播放' && !em.length,
+            'V4 新形态（v69.1 D8）：状态栏 ⋯ 名称「' + (nm && nm[0]) + '」、菜单里没有「自由编辑 / 修复建议」两档', J({ nm, em }));
+          const p0 = await open(b, { url: URL0 + (URL0.indexOf('?') >= 0 ? '&' : '?') + 'next=0' });
+          await EV(p0, () => __one(__P('小星星（分解弹唱）')));
+          const nm0 = await EV(p0, () => { const e = document.getElementById('flw-st-more'); return e ? [e.title, e.getAttribute('aria-label')] : null; });
+          await p0.click('#flw-st-more'); await W(250);
+          const it0 = await EV(p0, () => [...document.querySelectorAll('#popmenu .flw-mi')].map(e => ({ fa: e.dataset.fa, v: e.dataset.v || '', ms: (e.querySelector('.flw-ms') || {}).textContent || '' })));
+          const fr = it0.find(x => x.fa === 'st:em' && x.v === 'free'), sm = it0.find(x => x.fa === 'st:em' && x.v === 'smart');
+          T(!!nm0 && /时值检查/.test(nm0[0]) && /时值检查/.test(nm0[1]) && cnt(nm0[0].split(/：| · /)[0]) <= 12 && fr && fr.ms === '只标错' && sm && sm.ms === '给建议',
+            'V4′ ?next=0 TCH-2 状态栏 ⋯ 名称「' + (nm0 && nm0[0]) + '」点到时值检查；「自由编辑 / 修复建议」灰值「只标错 / 给建议」〔修前：「更多播放设置」、两档无灰值〕', J({ nm0, fr, sm }));
+          await p0.context().close();
         }
         if (want('V5')) {
           const sb = await EV(pg, () => { const b = document.getElementById('rc-sndlib'); return !!(b && b.style.display !== 'none'); });
@@ -229,9 +240,11 @@ async function cmdFirst(pg, q) {
         /* 真实点：文件 ▾ → 行尾 ▾（r1:newdd）＝快速新建 */
         await pg.click('#flw-file'); await pg.waitForSelector('#popmenu [data-fa="r1:newdd"]', { timeout: 3000 }).catch(() => {});
         await EV(pg, () => { const b = document.querySelector('#popmenu [data-fa="r1:newdd"]'); if (b) b.click(); }); await W(300);
-        const q = await EV(pg, () => { const e = document.querySelector('.nf-qm .nf-qlast'); return e ? { b: e.querySelector('b').textContent, k: (e.querySelector('.nf-qk') || {}).textContent || null, al: e.getAttribute('aria-label') } : null; });
+        const q = await EV(pg, () => { const e = document.querySelector('.nf-qm .nf-qlast'); return e ? { b: e.querySelector('b').textContent, k: (e.querySelector('.nf-qk') || {}).textContent || null, al: e.getAttribute('aria-label'),
+          ic: (e.querySelector('svg.pqi') || { dataset: {} }).dataset.pq, nx: !!(FLOW.nxOn && FLOW.nxOn()) } : null; });
         await pg.keyboard.press('Escape'); await W(150);
-        T(!!q && /^按(上次|默认)$/.test(q.b) && cnt(q.b) <= 6 && !!q.k && /按(上次|默认)：/.test(q.al || ''),
+        /* v69.1 C（方案 ⑥）：新形态首项不再写谱类灰字（.nf-qk），图标换成上次用途的谱类图标（首访＝吉他弹唱），谱名只进读屏名 */
+        T(!!q && /^按(上次|默认)$/.test(q.b) && cnt(q.b) <= 6 && (q.nx ? (!q.k && q.ic === 'type-guitar') : !!q.k) && /按(上次|默认)：/.test(q.al || ''),
           'V14 BUD-6 快速新建 ▾ 首项名称「' + (q && q.b) + '」，谱类名「' + (q && q.k) + '」作灰色当前值；读屏名照旧「' + (q && q.al) + '」〔修前：名称「按默认 · 吉他弹唱」〕', J(q));
       }
       if (want('V8') || want('V13')) {
@@ -251,8 +264,14 @@ async function cmdFirst(pg, q) {
           const fx = await EV(pg, async () => { const b0 = document.querySelector('#lp-fix button[data-fix="0"]'), b1 = document.querySelector('#lp-fix button[data-fix="1"]'), was = !!(song.layout && song.layout.fixed);
             (was ? b0 : b1).click(); await new Promise(r => setTimeout(r, 120)); const t = __toastT(); (was ? b1 : b0).click(); await new Promise(r => setTimeout(r, 120)); return [t, __toastT()]; });
           await EV(pg, () => setMode('output', { page: 'pub', open: true })); await W(900);
-          const out = await EV(pg, () => ({ t: [...document.querySelectorAll('#flw-out-arr [data-fa="out:arr"], #flw-pub-go, #flw-out-parts')].map(e => e.getAttribute('title') || ''),
-            st: (document.getElementById('flw-pub-st') || {}).textContent || '' }));
+          /* v69.1 有意迁移（规格 f91 B2.3）：新形态右栏发布卡撤掉——发布进度在行 1「发布」弹层 #flw-pubp（主动作 #flw-pubp-go），「分谱」是悬浮条的「总谱 | 分谱」分段；
+             ?next=0 照旧读发布卡状态「仅存本机」 */
+          const nxf = await EV(pg, () => FLOW.nxOn());
+          if (nxf) { await pg.click('#flw-pub'); await W(300); }
+          const out = await EV(pg, () => ({ t: [...document.querySelectorAll('#flw-out-arr [data-fa="out:arr"], #flw-pub-go, #flw-pubp-go, #flw-out-parts')].map(e => e.getAttribute('title') || ''),
+            st: FLOW.nxOn() ? ((document.querySelector('#flw-pubp .flw-pbst') || { getAttribute: () => '' }).getAttribute('aria-label') === '第 1 步 存入' ? '仅存本机' : '')
+              : (document.getElementById('flw-pub-st') || {}).textContent || '' }));
+          if (nxf) await EV(pg, () => FLOW.menu.close());
           await EV(pg, () => setMode('write')); await W(300);
           const pref = await EV(pg, () => (PREF_ITEMS.find(x => x.k === 'signdensity') || {}).d || '');
           /* 命令面板「和弦写法」灰显原因（空的简谱歌谱：不是功能谱、也没有和弦） */
@@ -287,8 +306,9 @@ async function cmdFirst(pg, q) {
       let ref = null; try { ref = JSON.parse(fs.readFileSync(path.join(__dirname, 'textbudget_ref.json'), 'utf8')); } catch (_) {}
       const A = (ref && ref.allow) || {}, bad = [];
       Object.entries(A).forEach(([id, o]) => Object.entries(o).forEach(([k, a]) => { const r = ref.screens[id] && ref.screens[id][k];
-        if (!(a && typeof a === 'object' && Number.isInteger(a.max) && typeof r === 'number' && a.max >= r && a.max - r <= 5 && typeof a.why === 'string' && a.why.length > 8)) bad.push(id + '.' + k + '=' + J(a).slice(0, 40)); }));
-      T(!!ref && Object.keys(A).length >= 1 && !bad.length, 'V15 BUD-4 tests/textbudget_ref.json 的 allow 每项都是 {max, why}（max 为整数、≥ 基线且最多高 5，why 写明理由）——放行有上限〔修前：8 处整项豁免的字符串〕', bad.join('；'));
+        /* v69.1 C（REG-5 基线前移后 allow 清空、可以为空）：上限＝基线 +5，悬停字（数百字量级）按基线的 5% 与 5 取大 */
+        if (!(a && typeof a === 'object' && Number.isInteger(a.max) && typeof r === 'number' && a.max >= r && a.max - r <= (k === 'hoverChars' ? Math.max(5, Math.ceil(r * 0.05)) : 5) && typeof a.why === 'string' && a.why.length > 8)) bad.push(id + '.' + k + '=' + J(a).slice(0, 40)); }));
+      T(!!ref && !bad.length, 'V15 BUD-4 tests/textbudget_ref.json 的 allow 每项都是 {max, why}（max 为整数、≥ 基线且最多高 5，why 写明理由）——放行有上限〔修前：8 处整项豁免的字符串〕', bad.join('；'));
     }
   } finally { await b.close(); }
   console.log('（单跑 ' + Math.round((Date.now() - t0) / 1000) + ' 秒；被测 ' + URL0 + '）');

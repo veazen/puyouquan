@@ -667,7 +667,7 @@ function INIT() {
       mw.push(await EV(pg, () => ((document.querySelector('#popmenu .flw-mwhy') || {}).textContent || ''))); }
     await EV(pg, () => { try { FLOW.menu.close(); } catch (_) {} });
     await EV(pg, () => setMode('engrave')); await wait(pg, 900); texts.push(await grab());
-    await EV(pg, () => { const b = document.querySelector('#flw-eng [data-fa="lay:pbrk"]'); if (b) b.click(); }); await wait(pg, 120);
+    await EV(pg, () => { const b = document.getElementById('flw-eng-pbrk'); if (b) b.click(); }); await wait(pg, 120);   /* v69.1 迁移：新形态在行工具条 #flw-rowt（同 id 搬家），?next=0 在行 2 */
     await EV(pg, () => setMode('output')); await wait(pg, 900); texts.push(await grab());
     await EV(pg, () => { const b = document.getElementById('flw-out-parts'); if (b) b.click(); }); await wait(pg, 120);
     const cmd = await EV(pg, () => ['分谱', '换页', '页码', '锁定此轨'].map(q => (FLOW.cmd.search(q).hits || []).slice(0, 3).map(c => [c.t, typeof c.w === 'function' ? c.w() : c.w, c.ok ? (() => { try { return c.ok() || ''; } catch (_) { return ''; } })() : ''].join(' | ')).join('\n')).join('\n'));
@@ -707,8 +707,9 @@ function INIT() {
     /* ± 每行小节数 → 此处换行 → 锁定键（j2 路径） */
     await EV(pg, () => { while (undoStack.length) undo(); }); await wait(pg, 600);
     await pick(0); await wait(pg, 300);
-    await EV(pg, () => { const b = document.querySelector('#flw-eng [data-fa="lay:bars"][data-d="-1"]'); if (b) b.click(); }); await wait(pg, 800);
-    await EV(pg, () => { const b = document.querySelector('#flw-eng [data-fa="lay:bars"][data-d="1"]'); if (b) b.click(); }); await wait(pg, 800);
+    /* v69.1 迁移：「每行 ±」新形态在悬浮条（同 data-fa 搬家），?next=0 在行 2——不带容器前缀（两种形态都只有一处） */
+    await EV(pg, () => { const b = document.querySelector('[data-fa="lay:bars"][data-d="-1"]'); if (b) b.click(); }); await wait(pg, 800);
+    await EV(pg, () => { const b = document.querySelector('[data-fa="lay:bars"][data-d="1"]'); if (b) b.click(); }); await wait(pg, 800);
     await pick(2); await wait(pg, 300);
     await pg.click('#flw-eng-brk'); await wait(pg, 900);
     const t1 = await st();
@@ -829,7 +830,7 @@ function INIT() {
     const pg = await open(1280, 800, { tag: 'F8g' });
     await scn(pg, 'songbie');
     const Q = [['另存', 'r1:file'], ['页码', 'lay:meta'], ['曲谱反色', 'acct:invert'], ['界面风格', 'acct:light'], ['快速新建', 'r1:last'], ['升八度', 'r2:octup'], ['降八度', 'r2:octdn'], ['高8度', 'r2:octup'], ['低8度', 'r2:octdn'],
-      ['记谱风格', 'trk:notastyle'], ['编辑模式', 'st:emfree'], ['清除记号', 'pal:clear'], ['清空本段', 'tx:clearlyr'], ['添加歌词行', 'tx:verse'], ['添加音轨', 'trk:add'], ['删除音轨', 'trk:del'],
+      ['记谱风格', 'trk:notastyle'], ['编辑模式', 'st:beat'], ['清除记号', 'pal:clear'], ['清空本段', 'tx:clearlyr'], ['添加歌词行', 'tx:verse'], ['添加音轨', 'trk:add'], ['删除音轨', 'trk:del'],
       ['由此生成六线谱轨', 'sm:gentab'], ['分解', 'r2:mute'], ['品位选择器', 'r2:fret'], ['清音', 'r2:clear'], ['附点八分', 'r2:combo'], ['小切分', 'r2:combo'], ['前八后十六', 'r2:combo'], ['2分', 'r2:d2'], ['4分', 'r2:d4'], ['8分', 'r2:d8']];
     const got = await EV(pg, Q => Q.map(([q, id]) => { const h = (FLOW.cmd.search(q).hits || []); return { q, want: id, top: h[0] ? h[0].id : null, n: h.length }; }), Q);
     /* 原有搜法不受影响（F6 / tv_modes PN-9 的几组） */
@@ -952,7 +953,7 @@ function INIT() {
     });
     T('F8', r.t0.ctx === 'tab' && /^0 1 2 3 4 5 6 7 8 9/.test(r.t0.seq) && r.t1.ctx === 'jp' && /^1 2 3 4 5 6 7 0/.test(r.t1.seq) && /简谱/.test(r.t1.scope || ''),
       'F8l ENG-10 ③ 只改 sel 再 syncInputs（不 render）从六线谱轨切到简谱旋律轨：#editbar data-flw-ctx tab→jp、键序换成 1–7 / 0、作用于芯片换成简谱（此前停在六线谱语境）', J({ t0: r.t0, t1: r.t1 }));
-    T('F8', /调号·拍号（五线谱是 谱号·调号·拍号）/.test(r.help) && /小节线·反复/.test(r.help),
+    T('F8', /调号拍号（五线谱是 谱号调拍）/.test(r.help) && /小节线 \/ 跳转/.test(r.help),   /* v69.1 C BUD-6：新形态组名改短（谱号调拍 / 调号拍号 / 小节线），帮助同步 */
       'F8l2 ENG-12 帮助弹窗「左栏 · 记号」的分组清单写了「调号·拍号（五线谱是 谱号·调号·拍号）」（与 FLOW.pal.GROUPS 一致）', (r.help.match(/按当前轨的记谱法分组（[^）]*）[^。]*/) || [''])[0].slice(0, 160));
     await close(pg);
   }));

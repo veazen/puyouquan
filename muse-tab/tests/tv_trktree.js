@@ -1196,7 +1196,13 @@ function T0SCN() {
         const mr = m.getBoundingClientRect(), cr = c.getBoundingClientRect(); return { m: true, gap: Math.round(mr.top - cr.bottom), dx: Math.round(mr.left - cr.left), exp: c.getAttribute('aria-expanded'), vis: __vis(m) }; });
       await pg.click('#flw-sb-kind'); await wait(pg, 250);
       const b2 = await EV(pg, () => ({ m: !!document.getElementById('lb-menu'), exp: document.getElementById('flw-sb-kind').getAttribute('aria-expanded') }));
-      await pg.click('#flw-sb-kind'); await wait(pg, 200); await pg.mouse.click(700, 500); await wait(pg, 200);
+      await pg.click('#flw-sb-kind'); await wait(pg, 200);
+      /* v69.1 D5：竖条 52 后谱纸窄 12、菜单左移，原写死的 (700,500) 落进了菜单里——改点谱面里、菜单外的一点（谱面区右下，避开 #lb-menu） */
+      const pt = await EV(pg, () => { const w = document.getElementById('score-wrap').getBoundingClientRect(), m = document.getElementById('lb-menu'), mr = m ? m.getBoundingClientRect() : null;
+        const ins = (x, y) => mr && x >= mr.left && x <= mr.right && y >= mr.top && y <= mr.bottom;
+        for (const [fx, fy] of [[0.85, 0.8], [0.15, 0.8], [0.85, 0.5], [0.5, 0.92]]) { const x = w.left + w.width * fx, y = w.top + w.height * fy; const e = document.elementFromPoint(x, y); if (!ins(x, y) && e && e.closest('#score-wrap')) return [x, y]; }
+        return [700, 500]; });
+      await pg.mouse.click(pt[0], pt[1]); await wait(pg, 200);
       const c = await EV(pg, () => ({ m: !!document.getElementById('lb-menu') }));
       await pg.click('#flw-kchip'); await wait(pg, 200);
       const ro = await EV(pg, () => { const k = document.getElementById('flw-kchip'); return { ro: !!k && k.tagName === 'SPAN' && !['data-fa', 'aria-haspopup', 'aria-expanded'].some(x => k.hasAttribute(x)), m: !!document.getElementById('lb-menu'), name: ((k && k.querySelector('.flw-kn')) || {}).textContent }; });
