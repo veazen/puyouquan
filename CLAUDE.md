@@ -18,6 +18,8 @@
 6. 重发编辑器 artifact 预览 + 截图验证发给用户
 7. **涉及 `miniprogram/` 的版本**：递增 `deploy/mp-release.json` 的 `version`（小程序自己的 1.1.x 线，对照表见 `miniprogram/README.md`）→ 推送后工作流 `mp-upload.yml` 自动上传为开发版本，告诉用户去 mp 后台「版本管理」点「提交审核」→「发布」（v66.7 起，需仓库 secret `MP_UPLOAD_KEY`）。**未配置密钥或上传失败时**照旧：把整个目录打成 `puyouquan-miniprogram-vXX.zip` 用文件直接发给用户（产品指示：不自己去仓库下载），注明「导入→上传→提审→发布」，zip 文件名用仓库 vXX
 
+**省资源模式（负责人 2026-10-24：「速度太慢，消耗 Token 太多」→ 按此执行）**：多代理工作流里验收只派 1 人（功能保全 + 老师视角走一遍）；每个环节只跑本次改动直接影响的套件（grep 改动的 id / 文案 / 函数），红了只重跑红的；发版前本地不跑全量 run_all.js，全量回归交给推送后的 CI（CI 红了再修）；截图 2–3 张关键前后对照；代理报告 ≤1200 字。保留不变：功能保全（被挪 / 撤入口先断言新位置可见再点，v68.9 教训）、旧外壳与 ?next=0 零差异、快捷键不变、语法闸 + 措辞闸 + tv_matrix。
+
 ## 常用入口（grep）
 `createSong` `NWB`（谱行引擎/谱名表）`NWP`（新建面板）`PQ_KIND`（统一谱名表，与 `api/kindname.js` 逐字节同一份，改规则两边一起改）`pqIcon` `renderOffscreen` `docType` `render(` `measureLayout` `layoutSystems` `sysMetrics` `staffHeadGeom` `SMUFL` `smg(` `accCarry` `transposeEditor` `PIANO_TEX` `genAccompaniment` `chNotes` `setVoxNotation` `FLOW`（新外壳：`flowOn` `setMode` `FLOW.tree/pal/mode/rd/cmd/mob/tour`）`EXPORT_ACT` `sysAct` `pgnoCfg`（v68.5 页码）`partsPlan` `partSong` `partRender` `partJobNow`（v68.6 分谱＝只读派生副本） `toastSay`（v68.7 新外壳短提示条：结果 + 动作 + data-k，旧外壳原文）`F.mi`（菜单统一模板） `showVoxChordMenu`（级数构建器）`showChordEditor`（GP 指法编辑器）`chordShapeStd` `keySpell`（v68.9 和弦引擎：新外壳全部入口按行分流到这两个完整引擎，**不要再把入口接到只有文本框的 showChordQuick**）
 
