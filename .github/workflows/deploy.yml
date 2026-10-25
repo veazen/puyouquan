@@ -14,6 +14,10 @@ on:
         description: '输出服务器 nginx 配置诊断（不改动服务器）'
         type: boolean
         default: false
+      jobs:
+        description: '回归套件并行数（缺省 2；填 1＝逐个串行，排查并行误报时用）'
+        type: string
+        default: '2'
 
 concurrency: { group: deploy, cancel-in-progress: true }
 
@@ -72,7 +76,8 @@ jobs:
         working-directory: muse-tab/tests
         run: |
           export CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")"
-          node run_all.js
+          # v69.1：两个套件同时跑（计时套件仍单独跑，见 run_all.js SOLO），全量约 90 → 55–65 分钟，省 Actions 额度
+          JOBS="${{ inputs.jobs || '2' }}" node run_all.js
 
   deploy:
     needs: test

@@ -3,8 +3,11 @@
 //   子进程退出码 !=0  ||  输出含 ❌  ||  输出缺成功标记（PASS N / NO ERRORS）。
 // 后两条兼容尚未补 process.exit 的老套件（v43.8 前 15 个套件断言失败仍 exit 0）。
 // 用法：node run_all.js [套件名...]（缺省跑 CORE 集）。需 env CHROMIUM_PATH 指向可用 chromium。
-const { execFileSync } = require('node:child_process');
+// v69.1 起 env JOBS=N（CI 设 2）＝N 个套件同时跑，省 Actions 分钟数；缺省 1＝逐个串行，与之前完全相同。
+const { execFile } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const CORE = [
   'tv_matrix', 'tv_presets', 'tv_safety', 'tv_head', 'tv_sign',
@@ -101,25 +104,62 @@ const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
-let fail = 0, ran = 0;
-for (const s of suites) {
+/* v69.1 并行（负责人 2026-10-24：Actions 额度用完，压缩 CI 时长）：
+   · 每个并行槽一个独立 TMPDIR——各套件写 os.tmpdir() 的基线 / 临时文件（同名如 parts_ref_*.html）互不覆盖；
+   · SOLO＝带绝对计时断言的套件（开机 / 首播 / 打开构建器 / 排版耗时 / 导览定时），等并行段跑完后再逐个单独跑，计时口径与串行相同；
+   · 超时只防挂死：并行时两路分 CPU，上限 ×1.5，断言一条不放宽。 */
+const JOBS = Math.max(1, parseInt(process.env.JOBS, 10) || 1);
+const SOLO = new Set(['tv_perf', 'tv_perf2:P6', 'tv_playperf', 'tv_chordeng', 'tv_flowdef', 'tv_header', 'tv_parts']);
+const SLOW = JOBS > 1 ? 1.5 : 1;
+
+const runOne = (s, tmp) => new Promise(resolve => {
   /* v68.4 收尾 PERF-5：「套件名:段」＝只跑这几段（传 env ONLY 给套件，如 tv_perf2:P6） */
   const ci = s.indexOf(':'), nm = ci > 0 ? s.slice(0, ci) : s, only = ci > 0 ? s.slice(ci + 1) : '';
   const f = nm.endsWith('.js') ? nm : nm + '.js';
-  if (!fs.existsSync(f)) { console.log('⚠️  跳过（不存在）: ' + s); continue; }
-  ran++;
-  let out = '', code = 0;
+  if (!fs.existsSync(f)) { console.log('⚠️  跳过（不存在）: ' + s); return resolve(null); }
+  const env = Object.assign({}, process.env, only ? { ONLY: only } : {}, tmp ? { TMPDIR: tmp } : {});
   /* v67.3 单套件超时 180→300 秒：tv_deskscale2 多视口真实点击单跑 107–143 秒，CI 负载下离 180 秒上限太近（超时只防挂死，不放宽断言） */
-  try { out = execFileSync('node', [f], { encoding: 'utf8', env: only ? Object.assign({}, process.env, { ONLY: only }) : process.env, timeout: TIMEOUT[s] || TIMEOUT[f.replace(/\.js$/, '')] || 300000 }); }
-  catch (e) { code = e.status == null ? 1 : e.status; out = (e.stdout || '') + (e.stderr || ''); }
+  const timeout = Math.round((TIMEOUT[s] || TIMEOUT[f.replace(/\.js$/, '')] || 300000) * SLOW);
+  execFile('node', [f], { encoding: 'utf8', env, timeout, maxBuffer: 64 << 20 }, (e, stdout, stderr) => {
+    let out = stdout || '', code = 0;
+    if (e) { code = typeof e.code === 'number' ? e.code : 1; out = (stdout || '') + (stderr || ''); }
+    resolve({ s, out, code });
+  });
+});
+
+let fail = 0, ran = 0;
+const failed = [];
+const report = r => {
+  if (!r) return;
+  ran++;
+  const { s, out, code } = r;
   // 失败判定：子进程非零退出 || 输出含 ❌（各套件失败断言的统一标记）|| 无任何输出（崩溃）。
   // 不强制要求 PASS/NO ERRORS 标记——部分老套件仅逐行打 ✅（如 tv_brace）。
   const bad = code !== 0 || /❌/.test(out) || !out.trim();
   console.log((bad ? '❌ FAIL' : '✅ pass') + '  ' + s + (code ? '  exit=' + code : ''));
   if (bad) {
-    fail++;
+    fail++; failed.push(s);
     out.split('\n').filter(l => /❌|Error|error:|throw/.test(l)).slice(0, 6).forEach(l => console.log('    ' + l));
   }
-}
-console.log('\n' + (fail ? ('❌ ' + fail + '/' + ran + ' 套件失败') : ('✅ 全部 ' + ran + ' 套件通过')));
-process.exit(fail ? 1 : 0);
+};
+
+(async () => {
+  const t0 = Date.now();
+  if (JOBS === 1) { for (const s of suites) report(await runOne(s, '')); }
+  else {
+    const par = suites.filter(s => !SOLO.has(s)), solo = suites.filter(s => SOLO.has(s));
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pyq-runall-'));
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(JOBS, par.length) }, async (_, w) => {
+      const tmp = path.join(base, 'w' + w); fs.mkdirSync(tmp, { recursive: true });
+      while (next < par.length) report(await runOne(par[next++], tmp));
+    }));
+    if (solo.length) console.log('—— 计时套件单独跑（' + solo.join(' ') + '）');
+    for (const s of solo) report(await runOne(s, ''));
+    try { fs.rmSync(base, { recursive: true, force: true }); } catch (_) {}
+  }
+  const min = ((Date.now() - t0) / 60000).toFixed(1);
+  if (fail) console.log('\n失败套件：' + failed.join(' '));
+  console.log('\n' + (fail ? ('❌ ' + fail + '/' + ran + ' 套件失败') : ('✅ 全部 ' + ran + ' 套件通过')) + '（JOBS=' + JOBS + '，' + min + ' 分钟）');
+  process.exit(fail ? 1 : 0);
+})();
