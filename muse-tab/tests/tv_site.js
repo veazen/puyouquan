@@ -12,6 +12,7 @@ const read = f => {
   return fs.readFileSync(p, 'utf8');
 };
 /* v60.6：seedaaa111 有实例缩图（thumb:1）、seedbbb222 没有——两条路径同屏可验 */
+let EXTRA_PUB = [];   /* v69.3 T1d 临时追加到 /api/pub/scores 的条目 */
 const seed = [
   { id:'seedaaa111', title:'小星星', singer:'儿歌', author:'谱友圈官方', updated_at:100, type:'vocal', price:0, measures:4, thumb:1, key:'C', tempo:92, beats:4, unit:4, verses:2, views:12345, favs:67, likes:3, cover:[{deg:1,oct:0,ly:'一'},{deg:1,oct:0,ly:'闪'},{deg:5,oct:0,ly:'一'},{deg:5,oct:0,ly:'闪'}] },
   { id:'seedbbb222', title:'欢乐颂', singer:'贝多芬', author:'谱友圈官方', updated_at:99, type:'guitar', price:0, measures:4, thumb:0, key:'G', tempo:0, beats:3, unit:4, verses:0, cover:[{deg:3,oct:0,ly:'欢'},{deg:3,oct:0,ly:'乐'}] },
@@ -54,7 +55,7 @@ const BAD_COURSE = {
       const u = new URL(route.request().url());
       const p = u.pathname;
       const J = o => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
-      if (p === '/api/pub/scores') return J({ scores: seed });
+      if (p === '/api/pub/scores') return J({ scores: seed.concat(EXTRA_PUB) });
       if (/^\/api\/pub\/[A-Za-z0-9_-]+\/thumb$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/png', body: PNG1 });
       if (p === '/api/health') return J({ ok: true, wx_web: true, wx_mp: false });
       if (p === '/api/favorites') return loggedIn ? J({ favorites: [{ id:'seedaaa111' }] })
@@ -209,6 +210,20 @@ const BAD_COURSE = {
     return { hit, title, empty, urlQ, back };
   });
   T(r.hit === 1 && r.title === '搜索结果' && r.empty && r.urlQ && r.back === 2, 'T1b 即时搜索+空态+URL同步', JSON.stringify(r));
+
+  // T1d v69.3 曲库公版谱：接口给 singer 空 + composer → 卡片写「作曲 X」不写「演唱」、按作曲家本地即时搜得到（修前 0 首）
+  { EXTRA_PUB = [{ id: 'lib-os-lc6389103', title: '圣母颂（Ave Maria）', singer: '', composer: '舒伯特', author: '谱友圈官方', updated_at: 1700000300,
+      type: 'instr', typeLabel: '钢琴伴奏歌谱（五线谱）', price: 0, measures: 17, cover: [], thumb: 0, key: 'Bb', tempo: 44, beats: 4, unit: 4, verses: 3, views: 0, likes: 0, favs: 0 }];
+    const p3 = await mkPage(false);
+    const r3 = await p3.evaluate(async () => {
+      const q = document.getElementById('lib-q'), type = v => { q.value = v; q.dispatchEvent(new Event('input')); };
+      const all = [...document.querySelectorAll('#lib-grid .cc-card')].map(c => c.textContent).find(t => /圣母颂/.test(t)) || '';
+      type('舒伯特'); await new Promise(r => setTimeout(r, 30));
+      const hits = [...document.querySelectorAll('#lib-grid .cc-card')].map(c => /圣母颂/.test(c.textContent));
+      type(''); return { card: /作曲 舒伯特/.test(all), noSing: !/演唱 舒伯特/.test(all), hits };
+    });
+    EXTRA_PUB = []; await p3.close();
+    T(r3.card && r3.noSing && r3.hits.length === 1 && r3.hits[0], 'T1d 曲库公版谱卡片写「作曲」、按作曲家即时搜得到', JSON.stringify(r3)); }
 
   // T2 登录弹窗结构
   r = await pg.evaluate(() => {

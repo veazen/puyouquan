@@ -207,7 +207,7 @@ T('曲库公版谱：建库补种全部、官方账号发布带快照、再调�
   assert.strictEqual(seedLibrary([{ id: 'lib-os-new1', title: '新谱', singer: '某某', data: { v: 3, measures: [{}] } }]), 1, '新 id 没补种');
 });
 
-T('曲库公版谱：每首一个事务、id 被别人占用不种不记、没人改过的随仓库刷新（发布时间不变）', () => {
+T('曲库公版谱：每首一个事务、id 被别人占用则把占用的谱改到新 id 再种、没人改过的随仓库刷新（发布时间不变）、手工建的不动', () => {
   const { db, seedLibrary } = require('./db');
   const logged = id => !!db.prepare('SELECT 1 FROM seed_log WHERE id = ?').get(id);
   const row = id => db.prepare('SELECT user_id,status,data,pub_data,pub_at,created_at,updated_at FROM scores WHERE id = ?').get(id);
@@ -215,15 +215,24 @@ T('曲库公版谱：每首一个事务、id 被别人占用不种不记、没�
   assert.strictEqual(seedLibrary([{ id: 'lib-os-tx1', title: '坏' }]), 0, '坏条目被算成补种');
   assert.ok(!logged('lib-os-tx1') && !row('lib-os-tx1'), '出错后 seed_log / 谱留了半截');
   assert.strictEqual(seedLibrary([{ id: 'lib-os-tx1', title: '好', data: { v: 3, measures: [{}] } }]), 1, '修好后没补种');
-  /* 占用：别的账号先建了同 id → 不种、不记；占用的谱删掉后补种 */
+  /* 占用：别的账号先建了同 id（v69.3 前 PUT 不拦）→ 那份谱连同谱架 / 谱集引用改到新 id（数据不丢），官方谱照常补种 */
   db.prepare("INSERT INTO users(id, phone, nickname, created_at) VALUES('squat001', '13900000001', '抢注', 1)").run();
-  db.prepare("INSERT INTO scores(id,user_id,title,data,updated_at,created_at) VALUES('lib-os-sq1','squat001','占位','{}',1,1)").run();
+  db.prepare("INSERT INTO scores(id,user_id,title,data,updated_at,created_at) VALUES('lib-os-sq1','squat001','占位','{\"mine\":1}',1,1)").run();
+  db.prepare("INSERT INTO shelf(user_id,score_id,created_at) VALUES('squat001','lib-os-sq1',1)").run();
+  db.prepare("INSERT INTO collections(id,user_id,name,created_at) VALUES('csq00001','squat001','我的',1)").run();
+  db.prepare("INSERT INTO collection_items(collection_id,score_id,created_at) VALUES('csq00001','lib-os-sq1',1)").run();
   const sq = { id: 'lib-os-sq1', title: '官方', singer: '某某', data: { v: 3, measures: [{}, {}] } };
-  assert.strictEqual(seedLibrary([sq]), 0, '被占用的 id 也补种了');
-  assert.ok(!logged('lib-os-sq1') && row('lib-os-sq1').user_id === 'squat001', '占用时记了 seed_log 或改了别人的谱');
-  db.prepare("DELETE FROM scores WHERE id = 'lib-os-sq1'").run();
-  assert.strictEqual(seedLibrary([sq]), 1, '占用解除后没补种');
-  assert.strictEqual(row('lib-os-sq1').user_id, 'official0000');
+  assert.strictEqual(seedLibrary([sq]), 1, '被占用的 id 没补种');
+  assert.strictEqual(row('lib-os-sq1').user_id, 'official0000', '官方谱没种上');
+  const mv = db.prepare("SELECT id,data FROM scores WHERE user_id = 'squat001'").all();
+  assert.ok(mv.length === 1 && /^sq[0-9a-f]{12}$/.test(mv[0].id) && mv[0].data === '{"mine":1}', '占用的谱没改到新 id 或数据丢了：' + JSON.stringify(mv));
+  assert.ok(db.prepare('SELECT 1 FROM shelf WHERE score_id = ?').get(mv[0].id) && db.prepare('SELECT 1 FROM collection_items WHERE score_id = ?').get(mv[0].id), '谱架 / 谱集引用没跟着改');
+  assert.ok(!db.prepare("SELECT 1 FROM shelf WHERE score_id = 'lib-os-sq1'").get(), '谱架还指着官方 id');
+  /* 官方账号下手工建的同 id：记为种过、不覆盖，下次启动也不被「刷新」改掉 */
+  db.prepare("INSERT INTO scores(id,user_id,title,status,data,updated_at,created_at) VALUES('lib-os-hd1','official0000','手工版','published','{\"hand\":1}',500,500)").run();
+  const hd = { id: 'lib-os-hd1', title: '仓库版', singer: '', data: { v: 3, measures: [{}] } };
+  assert.strictEqual(seedLibrary([hd]), 0); seedLibrary([hd]);
+  assert.strictEqual(row('lib-os-hd1').data, '{"hand":1}', '手工建的同 id 谱被仓库覆盖');
   /* 刷新：没人改过 → 草稿与快照都换成仓库版本、发布时间不变、仍认得出「没被改过」 */
   const v1 = { id: 'lib-os-rf1', title: '刷新', singer: '某某', data: { v: 3, measures: [{}] } };
   seedLibrary([v1]);
