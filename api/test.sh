@@ -20,6 +20,8 @@ nchk(){ # nchk 说明 不应出现的片段 实际输出
 J(){ curl -s -b "$DIR/jar" -c "$DIR/jar" -H 'Content-Type: application/json' "$@"; }
 J2(){ curl -s -b "$DIR/jar2" -c "$DIR/jar2" -H 'Content-Type: application/json' "$@"; }   # v60.0 管理员会话（独立 cookie jar）
 J3(){ curl -s -b "$DIR/jar3" -c "$DIR/jar3" -H 'Content-Type: application/json' "$@"; }   # v60.5 第三方会话（绑手机号用例）
+# v69.3 公开谱库列表里只取一首的卡片（曲库公版谱补种后列表里有别的谱也带 verses 等字段，整表 grep 会误判）
+PUBONE(){ curl -s http://127.0.0.1:3199/api/pub/scores | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);console.log(JSON.stringify((j.scores||[]).find(x=>x.id===process.argv[1])||{}))})" "$1"; }
 
 chk 健康检查 '"ok":true' "$(curl -s http://127.0.0.1:3199/api/health)"
 
@@ -312,7 +314,7 @@ nchk 谱面详情不外发缩图二进制 '"thumb":{' "$(J http://127.0.0.1:3199
 # ① verses 读真实字段 lyricLines（此前读不存在的 d.verses 恒为 0——死代码）
 chk 更新谱面带歌词段数 '"saved":true' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星","singer":"测试","updated_at":2100,"data":{"v":3,"title":"小星星","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}')"
 # v62.5 A1b 审核 TOCTOU：过审后改谱/改标题/改昵称，公开端不变；更新审核驳回仍展示上一版；通过后才换新
-nchk 过审后改谱公开端仍是旧快照 '"verses":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 过审后改谱公开端仍是旧快照 '"id":"song_abc12345".*"verses":0' "$(PUBONE song_abc12345)"
 chk 草稿已有未发布修改 '"pub_dirty":1' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 改标题不立即上墙 '"title":"小星星"' "$(J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"违规标题","singer":"测试","updated_at":2101,"data":{"v":3,"title":"违规标题","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}' >/dev/null; curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 nchk SSR也不露草稿标题 '违规标题' "$(curl -s http://127.0.0.1:3199/pub/song_abc12345)"
@@ -327,7 +329,7 @@ chk 驳回原因谱主可见 '"rev_note":"标题不当"' "$(J http://127.0.0.1:3
 J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星","singer":"测试","updated_at":2102,"data":{"v":3,"title":"小星星","key":"G","beats":3,"unit":4,"tempo":72,"lyricLines":3,"measures":[{},{}]}}' >/dev/null
 J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish >/dev/null
 J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}' >/dev/null
-chk 列表段词取自lyricLines '"verses":3' "$(curl -s http://127.0.0.1:3199/api/pub/scores)"
+chk 列表段词取自lyricLines '"id":"song_abc12345".*"verses":3' "$(PUBONE song_abc12345)"
 chk 更新通过后署名取审核时昵称 '"author":"改过的昵称"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 更新通过后无未发布修改 '"pub_dirty":0' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 无改动再提交返回unchanged '"unchanged":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"
