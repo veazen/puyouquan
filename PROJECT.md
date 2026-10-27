@@ -1,7 +1,7 @@
 # 谱友圈（puyouquan.com）· 项目交接文档
 
 > **本文档是项目的唯一权威交接文档。** 任何团队/任何 Claude Code 账号接手时先读完本文；每次发版必须同步更新「进度」与相关章节（见文末维护规则）。
-> 最后更新：2026-10-27 · 当前版本 **v69.2**（编辑器 APP_VER=v69.2） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
+> 最后更新：2026-10-27 · 当前版本 **v69.3**（编辑器 APP_VER=v69.3） · 分支 `claude/guitar-tab-software-analysis-zqm0ua`
 > ✅ 2026-10-27：v69.1 已上线（87d2174，CI run 40148862999 第 2 次：201/201 套件全绿，JOBS=2 用时 56.1 分钟（串行时约 89 分钟）；部署冒烟「线上 v69.1 = 本次 v69.1」）。10-24 曾因私有仓库 Actions 免费额度用完被拦，10-27 仓库改公开后解除。
 > **2026-10-27 负责人拍板：仓库改为公开**（「直接开源了好了」→ 选「只公开、不加许可证」「商业文档原样公开」）：根目录 `LICENSE` 写明保留所有权利、仅供查看；公开前体检全部 412 个提交无密钥（密钥全走服务器环境变量）、工作流无 PR 触发、提交作者全为 noreply。公开后 Actions 免费且为 4 核。
 > 2026-10-25 负责人同意压缩 CI：`run_all.js` 支持 env `JOBS`（CI 缺省 2，手动触发可填 1 回到串行）；每个并行槽独立 TMPDIR，带绝对计时断言的 7 个套件（`SOLO`：tv_perf / tv_perf2:P6 / tv_playperf / tv_chordeng / tv_flowdef / tv_header / tv_parts）最后单独跑；超时上限 ×1.5（只防挂死），断言不放宽。本地缺省仍串行。
@@ -211,13 +211,14 @@ CLAUDE.md                  ← Claude Code 会话自动加载的约束入口
   measures:[{ tabs:[[tabCol]], voxes:[[voxCol]],
     repeatStart, repeatEnd, sectionBar, finalBar, segno, coda, dc, ds, fine, volta,
     label:'前奏'?,     // label=v41.2 排练/段落文字标记（小节头上方方框粗体，MusicXML rehearsal 出/入同步）
+    irr:1?,            // v69.3 不完整小节：MusicXML 导入时整小节各行都不满拍（首小节记 song.pickup，其余记 irr）；时值检查豁免
     keyTo:'G'?,        // v41.3 中途转调标记：小节头上方「转1=G」（一期标注式——五线谱调号/拼写保持谱首调；transposeSong 同步平移；MusicXML key 变更出/入同步）
     simile:1|2? }]     // v41.3 小节反复 𝄎：数据保留、渲染省写（simileSrc 解析源小节，连续同号组内轮转），播放展开、节拍校验豁免；MusicXML measure-style measure-repeat 出/入同步
 }
 ```
 
 - **voxCol**：`{dur:1|2|4|8|16|32, dotted, deg:0-7(0=休止), acc:'#'|'b'|'', oct, lyrics:[段], tie, chord, dyn, grace, graceA, tup, orn:'up'|'down'|'tr'|'turn', adds:[{deg,acc,oct}]≤3, ferm:true?, artic:'stacc'|'staccatissimo'|'tenuto'|'accent'?, breath:true?}`
-  - `adds` = 同列多音/和音（v37.6），主音字段不变保证向后兼容
+  - `adds` = 同列多音/和音（v37.6），主音字段不变保证向后兼容；`adds[i].tie:true?`（v69.3）＝该和音单独连到下一列同音高（五线谱画附加音连音弧、播放 / MIDI 合并长音、MusicXML 逐音 `<tie>`；导入时若连音的一端是主音、另一端是同音高的和音，交换该列主音与和音的角色，让连音尽量走主音 `col.tie`）
   - `ferm`（延长号 𝄐，休止上也可标）/ `artic`（演奏法四件套：跳音·/顿音▼/保持音−/重音>，互斥单值）/ `breath`（换气 v，语义=本音之后换气）= v41.1 新增可选字段，MusicXML 出/入已同步（fermata/articulations/breath-mark）
   - `dynTo:{mi,ci}`（v41.2 渐强渐弱范围括线终点列；与 `dyn:'<'|'>'|'cresc.'|'dim.'` 组合生效——起列至终列开口楔形/文字+虚线延长，跨行断线续画；入口=力度菜单+Ctrl 选首末两音，与揉弦/闷音 `tk` 扩选同构；MusicXML wedge crescendo/diminuendo 出/入已同步）
   - `ped:'on'|'off'`（v41.3 钢琴踏板，点式成对渲染为 Ped.____*：'on' 起文字+延续线、至下一 ped 列收（'off' 画 * / 'on' 换踏断线），跨行断线续画；入口=「记号」面板两枚按钮，仅五线谱记谱声部显示；MusicXML pedal start/stop 出/入已同步）
@@ -410,6 +411,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_newpanel2 | v69.1 S3 新建面板合稿（参数行 / 记谱法在预览左上 / ⋯ 弹层 / 三步胶片）与启动台三区、快速新建；老套件 tv_newpanel / tv_newwiz / tv_wiztempo / tv_guide 改跑 `?next=0` 保旧形态 |
 | tv_cmdval | v69.1 S3 命令面板值语法：1=D、3/4、=90、capo 2、>Am7（走完整和弦引擎同一写入函数） |
 | tv_xsd | v69.2 互操作 P0：导出 MusicXML 过 MusicXML 4.0 官方 XSD（`tests/fixtures/xsd/` 离线 + `xmllint --schema`）——X0 校验器真跑（坏样例必须不过）· X1 16 预设 · X2 8 谱类 · X3 导出→导入→再导出 · X4 32 份分谱 · X5 TAB `<clef>` 在 `<staff-details>` 前且往返定弦 / 变调夹逐字节不变（修前 72 份里 31 份不过） |
+| tv_library | v69.3 曲库官方公版谱：L1 `node deploy/build-library.js --check`（每首过质量门：源 vs 导入再导出逐小节音高多重集一致、beatErrors 0、skip.parts/voices/notes 0；且与已提交的 `api/seed-library.json` 逐字节相同——导入器改动让曲库结果变了就红，重新生成并复核）· L2 10 首逐首打开（新页面）画出谱面、谱类钢琴伴奏 / 合唱 / 歌谱、曲名作曲作词制谱署名齐 · L3 导出过 MusicXML 4.0 XSD · L4 `adds[].tie` 落地（4 首、附加音连音弧 22 条）· E |
 | tv_mxlcov | v65.7 B3a ⑨ 往返结构覆盖率：19 个 fixture（16 预设 + 结构导航 / 大谱表＋合唱 / 移调弱起 2/2 合成谱）× 36 项特性（notes 用 songCompare、tab、meter、key、tempo、lyrics、ties、chords、tabChords、dyn、wedge、ott、ped、repeats、volta、nav、bars、label、keyTo、clef(+dual)、grace、tup、dotted、artic、fing、anno、trem、gliss、tabTech、tabFing、piano、pickup、transp、mode、capo、tuning、voices）逐项 ✓/✗/·，矩阵打印；T1 覆盖率 ≥90%（实测 221/221=100%）、T2 各 fixture 零跳过、T3 无整列丢失、T4 MuseScore 风格文件（Bb 调 2/2 弱起 + transpose -2 + 二分口径节拍器 + 大谱表 + 房子）导入字段齐全、T5 tests/fixtures/mxl/ 有第三方文件时自动遍历（导入→导出→导入音符零丢失）——4项 |
 | tv_mobile | v44.3→v60.2 移动端（390×844 几何断言，不接受截图目测）：观看 fit-to-width、未登录发布拉起登录、**启动台清场（顶栏≤56px + 三条工具带不出现）、编辑态顶栏单行 + 时值条沉底 9 钮等分≥44px + 播放键 elementFromPoint 可达 + 三条底栏两两零重叠、时值/记号图标为 SVG 且可见文本无 U+1D1xx 缺字字符、智能抽屉（一键配和弦/一键配伴奏/节拍检查）可达**——7项 |
 | tv_thumb | v60.6 曲谱实例缩图 + 卡片瘦身 + 扁平化：buildThumbCanvas 出 2:1 栅格且**借完即还**（song/光标原样复原）、上传走 PUT `/scores/:id/thumb` 且载荷为 webp/jpeg（非 SVG）、有缩图出 `.cc-shot` 无缩图只剩刻版骨架、卡片信息条（1=调/拍号/♩=速度/小节数）、封面 2:1 定比 + 列宽≤200px、卡片/按钮/LOGO/谱纸零立体投影 + 样式表零投影声明——16项 |
@@ -425,7 +427,7 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | tv_gliss | v43.2 滑音：col.gliss 五线谱/简谱本音直线滑到下一音(diff +1 线)、跨小节续接、宽间距标 gliss.、toggleGliss 切换+休止豁免+末音无下一音不画——5项 |
 | tv_bend | v43.3 推弦回放/预推：note.bendType='rel'(∧)/'pre'(竖直上箭头) 三型渲染各异且干净、纯预推无 tk、bendFromBar 单音→pre/双音→常规、取消清 bendType——5项 |
 | tv_mxlfid | v43.4 MusicXML 保真：八度 octave-shift 导出(8va=down/8vb=up+stop)+往返(ott 落每列/ottTo 首列)、震音 <tremolo type=single>N 导出+往返、双变音 alter=±2 导入还原 ×/♭♭+音高一致——3项 |
-| api/wx.test + db.test | v43.6 微信登录：wx.js 纯逻辑(state 签名/防伪/过期、扫码 URL、code 换 openid/unionid+资料、userinfo 失败不阻断)8 项 + db 层迁移/upsert(unionid 优先匹配、openid 兜底、占位 phone、绑定 COALESCE、旧库 ALTER 迁移)6 项。`node api/wx.test.js` / `node --experimental-sqlite api/db.test.js` |
+| api/wx.test + db.test | v43.6 微信登录：wx.js 纯逻辑(state 签名/防伪/过期、扫码 URL、code 换 openid/unionid+资料、userinfo 失败不阻断)8 项 + db 层迁移/upsert(unionid 优先匹配、openid 兜底、占位 phone、绑定 COALESCE、旧库 ALTER 迁移)6 项；v69.3 加「曲库公版谱：建库补种全部、官方账号发布带快照、再调不重复、删掉不复活」（13 项）。`node api/wx.test.js` / `node --experimental-sqlite api/db.test.js` |
 | tv_meter | v43.5 变拍子：meaMeter(mi)/beatsOf(c,unit) 单位、beatErrors 按本小节拍号(3/4 满不报/超拍报)、beamGroups 按本小节 unit(6/8=3+3 vs 4/4=2+2+2)、简谱中途标 N/M、measureSeconds 按拍号(3/4=3拍)、MusicXML <time> 变更往返、设本小节拍号+autoFix——8项 |
 | tv_frame | 新版外壳：深色顶栏/通栏播放条、经典切换持久化、音符组前置、快速换调、谱架兼容、六图层轨、和弦层谱类感知、小节/段落层、右栏四页签（排版停靠/库智能感知）、工具行单行化（技法/记号入图层且生效）、窄屏浮层、通栏贴边框架（贴边/内滚/轨新建/还原）、经典版完整还原——16项 |
 | tv_chordlib | 和弦引擎：468个模板指法逐音高纯净/吉他12×22全覆盖/未知类型明确失败/尤克里里12×8/斜杠低音/音程表/弹窗升级/功能谱预览/动态候选/和弦图式创建器/升降号左上角——12项 |
@@ -511,6 +513,11 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 | P3 | 措辞闸 p3syn / title16 / 字数预算只报告 | 与其余规则一起 v69.0 改拦截时定基 | v69.0 |
 | 待办 | 第 1 轮可用性测试（S2 前；材料 `docs/design-2026-10g/usability/round1.md`、记录表、原型、测试用谱） | 判定线：主按钮 P1、预览 P2 各 ≥8/10 人完全理解，否则 S2 先改设计；T2「时值检查」只剩状态栏 ⋯ 一个入口，重点观察 | 负责人组织 |
 | ✅ P0 互操作（v69.2） | TAB part 的 `<staff-details>` 写在 `<clef>` 前，不合 MusicXML 4.0 XSD | 改为 clef → staff-details；tv_xsd 72 份全过官方 XSD；tv_pgbrk / tv_parts 的逐字节对拍只放行这一处顺序 | v69.2 |
+| ✅ P1 导入（v69.3） | MusicXML 导入丢作词 / 作曲署名、不满拍的中段小节被时值检查报错、和弦单音的连音线丢失（只认主音 tie）、左右手都用低音谱号的钢琴伴奏被认成合唱谱 | creator 署名 + movement-title / work-title；整小节各行都不满拍记 `irr`；`adds[].tie` 出入 / 渲染 / 播放 / MIDI；PQ_KIND 低音+低音且有花括线认钢琴伴奏 | v69.3 |
+| P1 导入 | 同谱表第二声部（voice 2）导入时丢弃（skip.voices 计数）——艺术歌曲钢琴声部大多有，曲库第一批只收没有的曲目 | 下一版「同谱表双声部」：导入 + 刻版（符干上下分、休止错位）+ 播放 | v69.4（负责人 2026-10-27 定） |
+| P2 导入 | 圆滑线导入后按连音线处理（v65.1 slur→tie），同音反复处会多画连音 | v65.1 起既有；曲库第一批未遇到质量门报错（音高 / 时值不受影响） | 待定 |
+| P3 刻版 | 五线谱歌词跨音节连字符「-」不画；《圣母颂》开头文字表情记号与符杠略重叠 | 曲库预览截图发现 | 待定 |
+| 暂缓 | Mutopia 吉他 / 钢琴练习曲入库 | 源是 LilyPond，python-ly 转出的 MusicXML 错漏多、本环境无 LilyPond；负责人 2026-10-27「先缓一缓」 | 待定 |
 | P2 互操作 | 「并入上一行」pull 与锁定标记不随 MusicXML 往返 | 旧外壳行尾 ○＋（只写 pull）的行往返后回到自动断行；新外壳钉了两端 brk 的行行界保留；候选：只认自家的 `<miscellaneous-field name="pyq-pull">`（会改导出字节） | 待定 |
 | P2 | 选区批量改时值仍逐格替换（框选整个空小节点 8 分，小节只剩 2 拍；改长也不吸收，v63.6 起） | 保住小节总时值需同时设计补列、吸收与选区更新，会改变批量操作含义；现由时值检查 ⚠ 一键修复兜底 | 待拍板 |
 | 待拍板 | 「自由编辑」模式下也会补空列、吸收休止 | v63.6 的吸收本来也不区分模式 | 待拍板 |
@@ -656,6 +663,8 @@ cd muse-tab/tests && node tv_matrix.js   # 逐个跑，输出 ✅/❌ + NO ERROR
 > **v47.7 音符录入缺陷修复（设计工作流复核 → 逐条实测复现后修）**：v47.6 上线后跑了一个 4-agent 设计工作流（五线谱刻版师 / 六线谱制谱师 / UI 约束 / 综合裁决）复核方案，它反查出 6 处缺陷，**每条都先写脚本实测复现、确认为真才动手**（另有若干建议未采纳，见文末）。① `toggleMute` 往返丢品位：原实现打 × 时 `n.f=0`，取消后 f 停在 0——「7品→×→×」静默变空弦；改为暂存 `n.xf` 并在取消时回填（**xf 纯增量字段，渲染/播放/MusicXML 均不读**）。v47.6 把 × 提到顶栏使该路径一键可达，故列为最高优先。② **五线谱变音语义错**：五线谱渲染走 `accCarry(accSt, Lt, keyAlt+accSemi(acc), keyAlt)`，而 `accSemi('n')===0` → `acc='n'` 与 `acc=''` 目标 alt 相同 → **♮ 在五线谱是空转按钮**（实测 innerHTML 完全一致）；且 `toggleAcc('#')` 的 `#→x` 循环在升号调造出目标 alt=3，`accCarry` 无 3 分支被兜底成 `'♭♭'`（**画重降却发声升号**）。新增 `stAltCtx/stAccWrite/accBump(dir)/accNat()`：五线谱按「目标 alt」记谱并反解 acc 符号、钳在 `[-2,2] ∩ keyAlt±2`；**简谱仍委托 toggleAcc，行为逐位不变**（测得 ''→#→x、n 循环原样）。顶栏 ♯♭♮、左栏 b-sharp/b-flat/b-natural、键盘 #/b **三处入口统一改走新路由**，避免同一记号两种行为。③ `ArrowUp/ArrowDown` 未清 `pending.digits`（moveCol/switchRow/pointerdown 三处都清了）→ 键盘「1→↓→2」在新弦写出 **12 品**；两个 case 补清并把硬编码 6 改 `strN()`。④ `clampSel` 弦号硬编码 6 → 尤克里里可把光标推到 5/6 弦写出四线谱外幽灵音符；改 `strN()`。⑤ 新增 `fretMaxOf()`（uku 15 / 其余 24，`song.fretMax` 可覆盖，纯增量）并给 `setFret` 加范围守卫（此前 `setFret(99)` 直接写脏）、两位合成上限与品位网格长度同源。⑥ 主 keydown 补 `Escape → closePop()`（此前弹窗开着时数字键仍直写音符，双通道并发）。⑦ 品位网格改 6 列栅格（12 品落行首＝八度位）。**未采纳**：就近八度落音（会改变「光标就地改写」既有模型，且简谱同款行为已沿用多版，属产品决策非缺陷）；0 钮改休止字形、8ᵛᵃ→8↑ relabel（纯观感，留待产品拍板）。tv_detail1 T42（八断言，含简谱零回归对照），43 项、27 套件全绿。
 
 > **门禁补全（不发版本号：只改测试）**：v60.26 记录的陈旧债扩大核查后是 **21 个套件不在 run_all CORE**（不止 tv_dock/tv_frame 两个）。全部跑通并纳入，CORE 56→**77**。6 个红套件逐一定性，**全部是「产品有意演进、测试没跟」，没有一条真缺陷**：tv_dock（v55.2 经典版退役后 musetab-shell=classic 不再被读取——改用保留的 #b-shell 程序化切换，T1–T6 原断言全部复活，经典路径覆盖恢复）；tv_tech（揉弦波形振幅 2.8→3.2 系 v59.2 有意调整）；tv_gtech（摇把弹窗为避 v37.2 重名事故改名 showWhammyMenu，套件没跟）；tv_glyphsz（弹唱分解 × 已于 v57.1 实音化、闷音 × v45.6 起 15 号——断言停在 v43.0，双重过时，改测现行两段语义）；tv_audit（连音线已升级为出版级填充双弧路径、左栏标签需读 .lb 子节点避开图标字形文本）；tv_mviews（#b-shell 自 v55.2 有意隐藏，断言语义反了）。run_all 注释新增守则：**新套件默认进 CORE，除非注明原因**。77 套件全绿。**续（CI 唯一红点）**：纳入后首跑 CI 只红 tv_frame T16「朱砂选中」——本地绿 CI 红。根因不是漂移而是**本地二进制过时**：lockfile 钉的 playwright 1.61.1 配套 chromium-1228=Chrome 149，开发容器预装的是旧 1194；`.ltab` 带 `transition:all .15s`，class/主题刚切换就读计算背景色，Chrome 149 返回**过渡起始值**（纸白）而非终值。已下载 CI 同款 Chrome 149 本地逐字复现（探针：raw=rgb(254,253,249)、禁过渡后=rgb(195,58,41)，且最小复现里 1194 同样读到起始值——完整套件里绿只是侥幸），修法＝读色前注入 `transition:none!important` 并强制回流；突变验证（accent 改蓝 → 当场转红）确认断言仍有牙齿。教训与本地复核步骤写入 tests/README.md：**计算样式断言先掐过渡**。Chrome 149 下 77 套件全绿后再推。
+
+> **v69.3 曲库第一批公版名曲 + MusicXML 导入保真（负责人 2026-10-27：「有开源或者免费的 musicXML 曲谱资源吗？直接导入一些世界名曲或者练习曲到曲库」→ 选 OpenScore CC0、插在 S4 前、「先修小问题上第一批，再做双声部」、Mutopia 先缓）**：① **曲库**：`deploy/library/`（`manifest.json` + 10 份由 OpenScore Lieder `.mscx` 转的 MusicXML，转换法见该目录 README：mscx 3.02→3.01 版本号补丁 + apt MuseScore 3.2.3 无头导出，逐首核对音符数一致）→ `deploy/build-library.js` 用编辑器自己的 `importMusicXML` 无头导入、过质量门（音高逐小节一致 / 时值 0 错 / 不丢声部）→ `api/seed-library.json`（10 首 690 KB）→ `api/db.js` `seedLibrary()` 启动时按 id 补种一次（`seed_log` 表；官方账号 `official0000` 发布带快照；同 id 不覆盖；删了不复活）。只收 CC0 / 公版，不收 BY-SA / NC。曲目：舒伯特《圣母颂》《阿特拉斯》《城市》《侏儒》、勃拉姆斯《摇篮曲》《铁匠》《去会情人》、贝多芬《土拨鼠》、范妮·亨泽尔《天鹅之歌》、利留卡拉尼女王《夏威夷骊歌》。② **导入保真**（新增两个可选字段，旧谱不受影响）：署名（creator lyricist/poet/composer）与曲名（movement-title 优先、work-title 兜底）；`measures[].irr`（整小节各行都不满拍：首小节记 pickup，其余记 irr，`beatErrors` / `meaUnderOk` 豁免）；`adds[].tie`（和音逐音连音线：导入、MusicXML 导出 `<tie>/<tied>`、五线谱附加音连音弧、`buildPlayEvents` / `exportMIDI` 合并长音；连音两端一主一和时交换角色）；`PQ_KIND`（与 `api/kindname.js` 同步）低音+低音且有 1–2 花括线认钢琴伴奏。③ 测试：新套件 `tv_library`（进 CORE）、`api/db.test.js` +1 项；受影响 61 套件全绿，tv_matrix 12/12。**上线前先给负责人看画廊确认曲目与效果**（「先出第一批，给你看效果和曲目，确认后再上线」），确认后再推部署分支。
 
 > **v69.2 互操作 P0：六线谱 MusicXML 过官方 XSD（负责人 2026-10-27 定顺序：v69.2 互操作 → v69.3 S4 → v69.4 S5）**：`exportMusicXML` 的 TAB part 首小节 `<attributes>` 原先先写 `staffDetailsXML(ti)` 再写 `<clef>TAB</clef>`，MusicXML 4.0 XSD 的序列是 `clef* → staff-details*`，严格校验的软件会拒收或丢掉定弦 / 变调夹；改成 `<clef>` 在前（导入按 querySelector 读、与顺序无关，往返不变）。**校验口径**：MusicXML 4.0 官方 XSD（w3c/musicxml v4.0，`tests/fixtures/xsd/`，FSA 许可，两处 schemaLocation 改相对路径以便离线）+ `xmllint --schema`；语料 72 份（16 预设 / 8 谱类空谱 / 16 往返 / 32 份分谱）修前 31 份不过 → 全过。**测试**：新套件 `tv_xsd`（7 项，进 CORE；修前 2/7）；`tv_pgbrk` PB1 / MX1 / MX1b 与 `tv_parts` PAZ 的 MusicXML 逐字节对拍改为先把旧顺序改写成新顺序再比（只放行这一处；顺序本身由 tv_xsd 守）。受影响 18 个套件本地 JOBS=2 全绿；全量交 CI。APP_VER→v69.2。
 

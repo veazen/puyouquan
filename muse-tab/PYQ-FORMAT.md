@@ -27,7 +27,8 @@
 { tabs: TabCol[][],  voxes: VoxCol[][],       // 按声部索引
   repeatStart, repeatEnd, sectionBar, finalBar, // 𝄆 𝄇 段落线 终止线
   dc, ds, fine, segno, coda,                    // D.C. D.S. Fine 𝄋 ⊕
-  volta }                                       // 0/1/2 = 无/第一段/第二段
+  volta,                                        // 0/1/2 = 无/第一段/第二段
+  irr }                                         // v69.3 可选：1=不完整小节（MusicXML 导入时整小节各行都不满拍；时值检查豁免，同首小节 pickup）
 ```
 
 ## TabCol（TAB 列）
@@ -53,6 +54,7 @@
 | `acc` | `'#'/'b'/'n'` 升降还原 |
 | `oct` | 八度 -3~+3 |
 | `tie` | 连音线（连到下一列；连续 tie 渲染为跨越弧线） |
+| `adds` | 同列和音（五线谱和弦 / 大谱表）：`[{deg,acc,oct,fing?,tie?}]`，最多 3 个；`tie`（v69.3 可选）=该和音单独连到下一列同音高（五线谱画附加音连音弧，播放 / MIDI 合并为长音，MusicXML 逐音 `<tie>`） |
 | `grace/graceA` | 前/后倚音 `{notes:[{deg,oct}×1..3], dur}` |
 | `orn` | `up/down/tr/turn` 波音/颤音/回音 |
 | `dyn` | 力度/速度：`ppp..ff/fp/sfp/cresc./dim./</>/rit./accel.` |

@@ -189,6 +189,24 @@ T('eventUiCmd7：7 日内用过排版 / 输出的人数（按人去重）＋ 编
   assert.ok(sc.length && !sc.some(r => r.name === 'ui_cmd'), 'eventScan 里出现了 ui_cmd');
 });
 
+/* v69.3 曲库官方公版谱补种（seedLibrary）：建库即种全 seed-library.json；官方账号、已发布、有发布快照；每首只种一次（重复调用不加、
+   删掉的不复活）；只认 lib- 前缀 id；仓库里的 seed-library.json 每首都是能解析的谱面数据且带 CC0 来源 */
+T('曲库公版谱：建库补种全部、官方账号发布带快照、再调不重复、删掉不复活', () => {
+  const { db, seedLibrary } = require('./db');
+  const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-library.json'), 'utf8'));
+  assert.ok(list.length >= 10, 'seed-library.json 少于 10 首');
+  list.forEach(it => { assert.ok(/^lib-os-lc\d+$/.test(it.id), 'id 不合口径：' + it.id); assert.ok(it.data && Array.isArray(it.data.measures) && it.data.measures.length, it.id + ' 没有小节');
+    assert.strictEqual((it.source || {}).license, 'CC0 1.0', it.id + ' 来源许可不是 CC0'); });
+  const rows = db.prepare("SELECT id,user_id,status,pub_data IS NOT NULL AS snap FROM scores WHERE id LIKE 'lib-%'").all();
+  assert.strictEqual(rows.length, list.length, '建库补种数不对：' + rows.length);
+  assert.ok(rows.every(r => r.user_id === 'official0000' && r.status === 'published' && r.snap), '补种的谱不全是官方已发布带快照');
+  assert.strictEqual(seedLibrary(list), 0, '再调一次又补种了');
+  db.prepare('DELETE FROM scores WHERE id = ?').run(list[0].id);
+  assert.strictEqual(seedLibrary(list), 0, '删掉的谱被重新补种');
+  assert.strictEqual(seedLibrary([{ id: 'evil-1', title: 'x', data: {} }]), 0, '非 lib- 前缀的 id 也被种了');
+  assert.strictEqual(seedLibrary([{ id: 'lib-os-new1', title: '新谱', singer: '某某', data: { v: 3, measures: [{}] } }]), 1, '新 id 没补种');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);

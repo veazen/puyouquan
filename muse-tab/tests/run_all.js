@@ -99,6 +99,8 @@ const CORE = [
   'tv_newpanel2', 'tv_cmdval',
   /* v69.2 互操作 P0：导出 MusicXML 全部过 MusicXML 4.0 官方 XSD（fixtures/xsd/ 离线 + xmllint --schema；预设 / 谱类 / 往返 / 分谱 72 份，修前 31 份不过）；单跑约 5 秒 */
   'tv_xsd',
+  /* v69.3 曲库官方公版谱（deploy/library → api/seed-library.json）：构建质量门 + 与提交逐字节 · 每首能打开画出 · 导出过 XSD · 和音逐音连音弧落地；单跑约 45 秒 */
+  'tv_library',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

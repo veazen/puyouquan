@@ -608,5 +608,30 @@ function seedCourses(){
 }
 try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 
+/* ---------- v69.3 种子：曲库官方公版谱（api/seed-library.json，由 deploy/build-library.js 从 deploy/library/ 的 CC0 MusicXML 构建并过质量门）----------
+   按固定 id（lib-os-<OpenScore 编号>）每首只种一次：seed_log 记下种过的 id——已有同 id 的谱不覆盖（后台改过的保留），
+   后台删掉的也不会在下次重启时复活。挂在官方账号 official0000 下、直接发布并拍发布快照（谱库只读快照）。 */
+db.exec('CREATE TABLE IF NOT EXISTS seed_log(id TEXT PRIMARY KEY, at INTEGER NOT NULL)');
+function seedLibrary(list){
+  if(!list){ const f=require('node:path').join(__dirname, 'seed-library.json'); if(!require('node:fs').existsSync(f)) return 0;
+    list = JSON.parse(require('node:fs').readFileSync(f, 'utf8')); }
+  let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
+  if(!sys){ const id='official0000'; q.userCreate.run(id, '00000000000', '谱友圈官方', now()); q.userSetRole.run('creator', id); sys={id}; }
+  const t = now(); let n = 0;
+  for(const it of list){
+    if(!it || !/^lib-[a-z0-9-]+$/.test(it.id)) continue;
+    if(db.prepare('SELECT 1 FROM seed_log WHERE id = ?').get(it.id)) continue;
+    db.prepare('INSERT INTO seed_log(id, at) VALUES(?, ?)').run(it.id, t);
+    if(q.scoreGet.get(it.id)) continue;
+    q.scoreUpsert.run(it.id, sys.id, String(it.title||'').slice(0,80), String(it.singer||'').slice(0,80), JSON.stringify(it.data), t, t);
+    q.scoreSetStatus.run('published', it.id, sys.id);
+    q.scoreSnap.run(t, it.id);
+    n++;
+  }
+  if(n) console.log('已补种曲库官方公版谱：' + n + ' 首');
+  return n;
+}
+try{ seedLibrary(); }catch(e){ console.error('曲库种子插入失败（不影响启动）:', e.message); }
+
 /* seedCourses 导出供 db.test.js 直接驱动（测真实函数而不是复刻一遍判定逻辑） */
-module.exports = { db, q, now, today, mergeUserInto, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast, seedCourses, seedDemoScores };
+module.exports = { db, q, now, today, mergeUserInto, deleteScoreCascade, redeemApply, fulfillOrder, retractBroadcast, seedCourses, seedDemoScores, seedLibrary };

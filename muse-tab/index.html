@@ -5536,10 +5536,12 @@ const PQ_KIND = (function(){
     return groupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
   }
   /* 钢琴伴奏歌谱（旋律 ＋ 右手伴奏五线 ＋ 左手伴奏低音谱表）：显式分组时只认「1–2 行花括号」，没写分组的老谱只认一键配伴奏产物的声部名 */
+  /* v69.3 显式花括号把 a、b 两行连成大谱表（钢琴右手开头是低音谱号的谱——如舒伯特《阿特拉斯》——靠它认作钢琴，而不是两行低音的合唱） */
+  function braceAt(s, a, b){ return Array.isArray(s.voxGroups) && s.voxGroups.length>0 && groupsExplicitOk(s) && s.voxGroups.some(g=>g && g.type==='brace' && g.from===a && g.to===b); }
   function isPianoAccStack(s){
     if(!s || (s.tabVoices||[]).length || s.pianoAcc || s.func || s.chordOnly) return false;
     const vv=s.voxVoices||[], vn=s.voxNotations||[];
-    if(vv.length!==3 || vn[1]!=='staff' || vn[2]!=='bass') return false;
+    if(vv.length!==3 || vn[2]!=='bass' || !(vn[1]==='staff' || (vn[1]==='bass' && braceAt(s, 1, 2)))) return false;
     if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return s.voxGroups.some(g=>g && g.type==='brace' && g.from===1 && g.to===2);
     return vv[1]==='右手伴奏' && vv[2]==='左手伴奏';
   }
@@ -5550,7 +5552,7 @@ const PQ_KIND = (function(){
     if(s.chordOnly) return 'C';
     if(s.func) return isStaffNota(vn[0])? 'CS' : 'CJ';
     if(s.pianoAcc) return 'CG';
-    const pair = nv>=2 && vn[nv-2]==='staff' && vn[nv-1]==='bass';
+    const pair = nv>=2 && vn[nv-1]==='bass' && (vn[nv-2]==='staff' || (vn[nv-2]==='bass' && braceAt(s, nv-2, nv-1)));
     if(pair && nv===2 && !isChoir(s)) return 'G';
     /* 三行且末两行是高 / 低音谱表：要有正面证据（isPianoAccStack）才是钢琴伴奏歌谱，否则按合唱 / 五线谱（导入的 SAB 三部合唱不写分组） */
     if(pair && nv===3 && isPianoAccStack(s)) return isStaffNota(vn[0])? (dual[0]? 'SJG' : 'SG') : 'JG';
@@ -9731,7 +9733,7 @@ function beatErrors(){
     if(m.simile) return;   // v41.3 小节反复省写小节：节拍校验豁免（演奏内容取自源小节）
     const {beats:target, unit} = meaMeter(mi);   // v43.5 变拍子：本小节有效拍号
     /* v42.7 弱起小节 Anacrusis：首小节允许不足拍（弱起），但仍不可超拍 */
-    const pk = (mi===0 && song.pickup);
+    const pk = (mi===0 && song.pickup) || m.irr===1;   /* v69.3 不完整小节（导入标记 irr）同弱起：允许不足拍、不可超拍 */
     const bad = pk ? (b=>b-target>1e-3) : (b=>Math.abs(b-target)>1e-3);
     m.tabs.forEach((cols,vi)=>{
       const b = cols.reduce((a,c)=>a+beatsOf(c,unit),0);
@@ -14651,6 +14653,29 @@ function renderCore(){
             }
             a3=b3+1;
           }
+          /* v69.3 和音逐音连音线（五线谱）：附加音 a.tie → 从本音符头连到下一列（或同行下一小节首列）同音高的符头；
+             在主音之上的弯向上方、之下的弯向下方（和弦连音线出版惯例：外声部向外）。没有 a.tie 的旧谱不进这里，谱面不变 */
+          if(isStaff) cols.forEach((cA2,ci5)=>{
+            if(!cA2.deg || !(cA2.adds||[]).some(a5=>a5&&a5.deg&&a5.tie)) return;
+            let x2, nb=null;
+            if(ci5+1<cols.length){ x2 = mx+lay.xs[ci5+1]-6; nb = cols[ci5+1]; }
+            else {
+              const nlm = (lmIdx+1<sys.measures.length)? sys.measures[lmIdx+1] : null;
+              const ncols = nlm? (song.measures[nlm.mi].voxes[vi]||[]) : null;
+              if(nlm && ncols && ncols.length && nlm.L.voxes[vi]){ x2 = ox+nlm.x+nlm.L.voxes[vi].xs[0]-6; nb = ncols[0]; }
+              else x2 = mx+lm.L.w-2;
+            }
+            setClefCtx(ci5);
+            const x1 = mx+lay.xs[ci5]+5, sMain = staffStep(cA2,K);
+            const same = (a5,b5)=> b5 && b5.deg===a5.deg && (b5.oct||0)===(a5.oct||0) && (b5.acc||'')===(a5.acc||'');
+            cA2.adds.forEach(a5=>{
+              if(!a5 || !a5.deg || !a5.tie) return;
+              if(nb && !(same(a5, nb) || (nb.adds||[]).some(b5=>same(a5,b5)))) return;   /* 下一列没有同音高：不画（数据里断链） */
+              const sA = K.step0+(a5.deg-1)+(a5.oct||0)*7+ottStep(cA2), yA = stepY(sA), up = sA >= sMain;
+              const ty = up? yA-5.2 : yA+5.2, bow = Math.max(2.5, Math.min(7, (x2-x1)*0.55));
+              p.push(tieSVG(x1, ty, x2, ty, up? ty-bow : ty+bow, 1.9));
+            });
+          });
         }
         /* v43.2 滑音 gliss（简谱/五线谱）：col.gliss=true → 从本音直线滑到下一音（含跨小节续接），
            跨度够宽时线上标斜体 gliss.；纯记谱，播放不变 */
@@ -18401,7 +18426,7 @@ function colRefShift(mi, row, vi, from, n){
 }
 /* v68.8 收尾 IN-1 / R2 / IN-4 允许欠拍的小节：弱起首小节（beatErrors 只查超拍）与散拍草稿（freeMeter，节拍检查整份豁免）。
    这里改短空列就是缩短实际拍数——不补空列、附点后也不吃空列，与 v68.7 相同 */
-function meaUnderOk(mi){ return !!(song && (song.freeMeter || (mi===0 && song.pickup))); }
+function meaUnderOk(mi){ return !!(song && (song.freeMeter || (mi===0 && song.pickup) || ((song.measures||[])[mi]||{}).irr===1)); }   /* v69.3 + 不完整小节 irr */
 /* v68.8 P2 补空列：第 ci 列（空列）时值改短后空出 freed 拍，紧接在它后面插入与它改后**同值**（dur 与附点都相同）的空列，
    余数按 fitDurTo 从大到小补（至多 8 格）；同值格至多 15 个（含本列 16 格，防全音符改 64 分出 63 列）。
    空列模板：简谱 / 五线谱 vcol()、TAB tcol()，只设 dur / dotted（不带和弦、歌词、标注、连音）。返回补出的格（数组，没补为空）。
@@ -25506,6 +25531,12 @@ function play(){
     /* v49.1 踏板模拟条件：钢琴谱左手声部（非持续音色）——和音延音到本声部下一发声列 */
     const pedal = (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
     const pedAdds=[], soundTimes=[];
+    /* v69.3 和音逐音连音线：带 a.tie 的附加音先挂起（不立即发声），下一列同音高的附加音只延长、不重拨；断链 / 休止 / 声部末尾才按总长发声。
+       没有 a.tie 的旧谱 addHold 恒为空，发声与此前逐字节相同 */
+    const addHold=new Map();
+    const addFlush=(h)=>{ if(pedal) pedAdds.push({am:h.am, at:h.at, base:(h.end-h.at)*0.9, gn:h.gn, vl:h.vl});
+      else playInst(cfg.inst, ctx, tbus, midiFreq(h.am), h.at, Math.max(0.08, (h.end-h.at)*0.9), h.gn, false, {damp:true, vel:h.vl}); };
+    const addFlushAll=()=>{ addHold.forEach(addFlush); addHold.clear(); };
     /* 1) 铺平列 → 合并连音线为音符事件；倚音/高亮/力度就地处理 */
     const notes=[]; let cur=null, dynG=1;
     order.forEach((mi,oi)=>{
@@ -25588,21 +25619,27 @@ function play(){
            也避免同起音相位叠加）；声部分层——最低附加音为外声部略保留，内声部相对旋律约 −9dB；
            时值门 ×0.9 让相邻和音间有呼吸。力度线与拍点重音同步作用（此前附加音不吃力度记号）。 */
         if(m!=null && col.adds){
-          const ams = col.adds.filter(a=>a&&a.deg)
-            .map(a=>keyRefAt(mi) + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12 + voxCapo())   /* v53.4 变调夹联动；v60.29 keyTo 跟随 */
-            .sort((x,y)=>x-y);
-          ams.forEach((am,k)=>{
+          const aL = col.adds.filter(a=>a&&a.deg)
+            .map(a=>({am:keyRefAt(mi) + DEG_SEMI[a.deg] + accSemi(a.acc) + (a.oct||0)*12 + voxCapo(), tie:!!a.tie}))   /* v53.4 变调夹联动；v60.29 keyTo 跟随 */
+            .sort((x,y)=>x.am-y.am);
+          const ams = aL.map(x=>x.am);
+          if(addHold.size) addHold.forEach((h,am0)=>{ if(!ams.includes(am0)){ addFlush(h); addHold.delete(am0); } });   /* v69.3 本列没有同音高 → 连音断链 */
+          aL.forEach(({am, tie},k)=>{
+            const h=addHold.get(am);
+            if(h){ h.end=t+off+durSec; if(!tie){ addFlush(h); addHold.delete(am); } return; }   /* v69.3 连音续音：只延长不重拨 */
             const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
             const at2=t+off+k*0.003, gn=vol*ag*dynG*acc2, vl=dynG*acc2*0.7;
+            if(tie){ addHold.set(am, {am, at:at2, end:t+off+durSec, gn, vl}); return; }
             if(pedal) pedAdds.push({am, at:at2, base:durSec*0.9, gn, vl});   /* 踏板：终点待后置解析 */
             else playInst(cfg.inst, ctx, tbus, midiFreq(am), at2, Math.max(0.08, durSec*0.9), gn, false, {damp:true, vel:vl});
           });
-        }
+        } else if(addHold.size) addFlushAll();
         bcum += beatsOf(col,mUv);
         off += durSec;
       });
     });
     if(cur) notes.push(cur);
+    addFlushAll();   /* v69.3 声部末尾还挂着的连音附加音 */
     /* 2) 调度延音：拨弦/钢琴延音到下一个音起点（damp）、末音自然衰减；持续音色按时值 */
     notes.forEach((n,i)=>{
       const rhythm = n.end - n.at;
@@ -40651,7 +40688,7 @@ function exportMusicXML(s){
     const stN = braceOf[vi]==='top'? 1 : braceOf[vi]==='bottom'? 2 : 0;   // v65.2 大谱表内的谱表号（0=单谱表 part）
     const staffTag = stN? `<staff>${stN}</staff>` : '';
     const clefN = x=> stN? x.replace('<clef>', `<clef number="${stN}">`) : x;
-    let glissPend=false; const bodies=[], durs=[];
+    let glissPend=false, addTieIn=new Set(); const bodies=[], durs=[];   /* v69.3 addTieIn：上一列带 tie 的附加音音高（附加音 tie stop 用） */
     /* v65.1 B3a ①（P1-20）连音线/圆滑线分流：应用内 tie 标记串成「链」（到链尾第一个不带 tie 的音），链内相邻同音高＝连音线
        <tie>/<tied>，有异音高对则从链首到链尾写一条 <slur>（此前异音也写 tie，MuseScore 打开后全成连音线、播放吞音）；
        链尾落到休止/谱末的那一环没有落点，不写 */
@@ -40739,7 +40776,7 @@ function exportMusicXML(s){
                       + (col.ferm? '<fermata/>' : '');
         if(col.chord && !col.deg) body += harmonyXML(col.chord);   /* v65.7 纯和弦谱/休止列上的和弦也导出 */
         if(!col.deg){
-          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${staffTag}${signXML?`<notations>${signXML}</notations>`:''}</note>`+wStopXML; durSum+=dur;
+          body += `<note><rest/><duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${staffTag}${signXML?`<notations>${signXML}</notations>`:''}</note>`+wStopXML; durSum+=dur; addTieIn=new Set();
           glissPend = false;
           return;
         }
@@ -40761,9 +40798,14 @@ function exportMusicXML(s){
           `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
         body += graceXML+`<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${staffTag}${notat}${lyr}</note>`; durSum+=dur;
         (col.adds||[]).forEach(a=>{ if(!a||!a.deg) return;
-          const af = a.fing? `<notations><technical><fingering>${xesc(a.fing)}</fingering></technical></notations>` : '';
-          body += `<note><chord/>${pitchXML(a.deg,a.acc,a.oct)}<duration>${dur}</duration><voice>1</voice>${typ}${dot}${tmod}${staffTag}${af}</note>`;
+          /* v69.3 和音逐音连音线：本音 a.tie → start；上一列同音高的附加音带 tie（或上一列主音 col.tie 且同音高）→ stop。没有 a.tie 的旧谱逐字节不变 */
+          const aK = (a.deg|0)+'|'+(a.acc||'')+'|'+(a.oct|0), aStop = addTieIn.has(aK), aStart = !!a.tie;
+          const aT = `${aStop?'<tie type="stop"/>':''}${aStart?'<tie type="start"/>':''}`;
+          const aN = `${aStop?'<tied type="stop"/>':''}${aStart?'<tied type="start"/>':''}`+(a.fing? `<technical><fingering>${xesc(a.fing)}</fingering></technical>` : '');
+          const af = aN? `<notations>${aN}</notations>` : '';
+          body += `<note><chord/>${pitchXML(a.deg,a.acc,a.oct)}<duration>${dur}</duration>${aT}<voice>1</voice>${typ}${dot}${tmod}${staffTag}${af}</note>`;
         });
+        addTieIn = new Set((col.adds||[]).filter(a=>a&&a.deg&&a.tie).map(a=>(a.deg|0)+'|'+(a.acc||'')+'|'+(a.oct|0)));
         body += wStopXML;
         glissPend = glStart;
       });
@@ -41965,8 +42007,11 @@ function importMusicXML(xmlStr){
   }
   const nV = parts.length;
   const tempoEl = doc.querySelector('sound[tempo]');
-  const out = {v:3, title: txt(root,'work > work-title')||'导入曲谱',
-    singer:'', lyricist:'', composer:'', maker:'',
+  /* v69.3 曲名：<movement-title> 是这一首的名字、<work-title> 常是所属套曲 / 作品号（MuseScore 导出两者都写：「Wiegenlied」与「Op.49」）——单曲名优先；
+     作曲 / 作词读 <identification><creator type="composer" / "lyricist" / "poet">（此前不读，导入后词曲作者是空的） */
+  const crOf = ty=>{ const el=[...root.querySelectorAll(':scope > identification > creator')].find(c=>(c.getAttribute('type')||'').toLowerCase()===ty); return el? el.textContent.replace(/\s+/g,' ').trim().slice(0,80) : ''; };
+  const out = {v:3, title: (txt(root,'movement-title')||'').trim() || txt(root,'work > work-title') || '导入曲谱',
+    singer:'', lyricist: crOf('lyricist') || crOf('poet'), composer: crOf('composer'), maker:'',
     key, beats, unit,
     /* v65.0 B2c 速度：优先 <metronome> 的 beat-unit + per-minute（单位随之），否则 <sound tempo>（四分口径 → 'q'）；<mode>minor 进 song.mode */
     ...(()=>{ const mt=doc.querySelector('metronome'), bu=mt&&mt.querySelector('beat-unit'), pm=mt&&mt.querySelector('per-minute');
@@ -42017,7 +42062,8 @@ function importMusicXML(xmlStr){
     let div = 24;   // divisions/四分音符（attributes 可更新）
     /* v41.2 渐强渐弱范围括线：wedge start→挂到下一个音符列；stop→终点=最近音符列（跨小节持续）
        v41.3 踏板：pedal start→挂到下一个音符列 ped:'on'；stop→最近音符列 ped:'off' */
-    let pendWedge=null, openWedge=null, lastPos=null, pendPed=false, lastColRef=null;
+    let pendWedge=null, openWedge=null, lastPos=null, pendPed=false, lastColRef=null, prevColRef=null;   /* v69.3 prevColRef：当前列的前一列（跨小节），连音线换角色用 */
+    const pSame=(a,b)=> !!a && !!b && a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0);
     let pendOtt=null, curOtt=null, ottStartCol=null;   // v43.4 八度记号 octave-shift 导入
     let pendDyn=null, pendGrace=[];   // v44.8 独立力度 / 前倚音（挂到下一个音符列）
     let pendAnno=null;   // v65.7 其余 words → 下一音 col.anno
@@ -42035,7 +42081,7 @@ function importMusicXML(xmlStr){
     const resP = meas.map((m,mi2)=>{
       const cols=[]; let firstVoice=null, pendChord='';
       const noteIn=col2=>{                       // 音符列入列 + wedge/pedal 起止登记
-        cols.push(col2); lastPos={mi:mi2, ci:cols.length-1}; lastColRef=col2;
+        cols.push(col2); lastPos={mi:mi2, ci:cols.length-1}; prevColRef=lastColRef; lastColRef=col2;
         if(pendWedge){ col2.dyn=pendWedge; openWedge=col2; pendWedge=null; }
         else if(pendDyn){ col2.dyn=pendDyn; pendDyn=null; }   // v44.8 独立力度记号
         if(pendAnno){ col2.anno=pendAnno; pendAnno=null; }   // v65.7
@@ -42198,6 +42244,19 @@ function importMusicXML(xmlStr){
         }
         if(isChord && cols.length){
           const last=cols[cols.length-1];
+          /* v69.3 和音逐音连音线：附加音自己的 <tie>/<tied> start → adds[k].tie（可选字段；此前只认主音 col.tie，和弦上声部的延音在谱面 / 播放 / 导出全丢） */
+          if([...el.querySelectorAll(':scope > tie, :scope > notations > tied')].some(t2=>t2.getAttribute('type')==='start')) noteObj.tie=true;
+          /* v69.3 连音线换角色：上一列主音（真连音线）连到本列和弦里的同音高附加音、而本列主音是别的音 → 本列主音与该附加音对调（音高 / 指法换，歌词留在列上），
+             让连音链落在主音上（谱面弧线、播放延音、导出 tie 都按主音链走）；本列原主音自己的连音起点随音走到附加音 */
+          if(prevColRef && prevColRef.deg && tieX.has(prevColRef) && pSame(prevColRef, noteObj) && !pSame(last, noteObj) && last===lastColRef
+             && [...el.querySelectorAll(':scope > tie, :scope > notations > tied')].some(t2=>t2.getAttribute('type')==='stop')){
+            const mainReal = tieX.has(last), mainSlur = !!last.tie && !mainReal, addStart = !!noteObj.tie;
+            const sw = {deg:last.deg, acc:last.acc, oct:last.oct, fing:last.fing};
+            last.deg=noteObj.deg; last.acc=noteObj.acc; last.oct=noteObj.oct; if(noteObj.fing) last.fing=noteObj.fing; else delete last.fing;
+            noteObj.deg=sw.deg; noteObj.acc=sw.acc; noteObj.oct=sw.oct; if(sw.fing) noteObj.fing=sw.fing; else delete noteObj.fing;
+            last.tie = addStart || mainSlur; if(addStart) tieX.add(last); else tieX.delete(last);
+            if(mainReal) noteObj.tie=true; else delete noteObj.tie;
+          }
           last.adds=last.adds||[];
           if(last.adds.length<3) last.adds.push(noteObj); else skip.notes++;
           return;
@@ -42216,6 +42275,17 @@ function importMusicXML(xmlStr){
           if(n2<=3){ col.lyrics[n2-1]=txt(ly,'text')||''; maxLyr=Math.max(maxLyr,n2); }
           else skip.lyrics++;   // v65.1 分项计数
         });
+        /* v69.3 连音线换角色（反向）：本列主音是连音续音、上一列连过来的是它的附加音（同音高、带 a.tie）、而上一列主音不同且自己没有真连音线 →
+           上一列主音与该附加音对调，连音链落回主音（上一列歌词留在列上） */
+        if(lastColRef && lastColRef.deg && !tieX.has(lastColRef) && !pSame(lastColRef, col)
+           && [...el.querySelectorAll(':scope > tie, :scope > notations > tied')].some(t2=>t2.getAttribute('type')==='stop')){
+          const pa=(lastColRef.adds||[]).find(a=>a && a.tie && pSame(a, col));
+          if(pa){ const sw={deg:lastColRef.deg, acc:lastColRef.acc, oct:lastColRef.oct, fing:lastColRef.fing}, prevSlur=!!lastColRef.tie;
+            lastColRef.deg=pa.deg; lastColRef.acc=pa.acc; lastColRef.oct=pa.oct; if(pa.fing) lastColRef.fing=pa.fing; else delete lastColRef.fing;
+            pa.deg=sw.deg; pa.acc=sw.acc; pa.oct=sw.oct; if(sw.fing) pa.fing=sw.fing; else delete pa.fing; delete pa.tie;
+            if(prevSlur) delete pa.tie;   /* 上一列原是圆滑线（非真连音）：列级 tie 仍在，换上来的主音即连音起点 */
+            lastColRef.tie=true; tieX.add(lastColRef); }
+        }
         noteIn(readSigns(col));
       });
       if(part===primaryPart && mrActive) simMap[mi2]=mrActive;   // v41.3 小节反复段内小节全部省写
@@ -42386,6 +42456,17 @@ function importMusicXML(xmlStr){
     if(!(g.length===1 && g[0].type==='brace' && g[0].from===0 && g[0].to===1)) out.voxGroups=[{type:'brace', from:0, to:1}]; }
   /* v67.5 新建面板「从已有音乐」的依据只读几项文件事实（不进 song）：<encoding><software> 导出软件名（AI 转谱工具识别）、
      速度是否文件里写了（<metronome> / <sound tempo> 都没有＝按默认 90）、拍号是否文件里写了 / 被改写（meterDefaulted / meterFrom，见上） */
+  /* v69.3 不完整小节（irregular measure）：反复记号 / 段落处被拆成两半的小节、与弱起互补的末小节——所有声部一致短于拍号（且都不为空）
+     → 首小节记作弱起（pickup），其余记 measures[mi].irr=1（可选字段，缺省＝普通小节）：时值检查与「补空列」不把它当作缺拍；导出不变（按实际时值写） */
+  (out.measures||[]).forEach((m,mi)=>{
+    const unit=m.unit||out.unit, target=m.beats||out.beats;
+    const rows=[...(m.voxes||[]), ...(m.tabs||[])].filter(r=>r && r.length);
+    if(!rows.length) return;
+    const sums=rows.map(r=>r.reduce((a,c)=>a+beatsOf(c,unit),0));
+    if(sums.some(b=>Math.abs(b-sums[0])>1e-3) || !(sums[0]>1e-3) || sums[0]>target-1e-3) return;
+    if(mi===0){ out.pickup=true; return; }
+    m.irr=1;
+  });
   const software = (txt(root,'identification > encoding > software')||'').trim().slice(0,80);
   const tempoDefaulted = !doc.querySelector('metronome per-minute') && !tempoEl;
   return {song: migrate(out), skip, keyDefaulted, software, tempoDefaulted, meterDefaulted, meterFrom};
@@ -42967,6 +43048,8 @@ function exportMIDI(s){
     const note=(m,at,len)=>{ evts.push({tick:at,pr:2,data:[0x90|ch,m&127,80]},
                                        {tick:at+len,pr:1,data:[0x80|ch,m&127,0]}); };
     let tick=0, cur=null;   // cur={m,at,len,tie}：tie 链合并
+    const aHold=new Map();   /* v69.3 和音逐音连音线：带 a.tie 的附加音按音高挂起、续音只加长（旧谱没有 a.tie → 恒空，字节不变） */
+    const aFlushAll=()=>{ aHold.forEach(h=>note(h.m,h.at,h.len)); aHold.clear(); };
     refCur=ref;
     s.measures.forEach(mea=>{
       if(mea.keyTo && KEY_PC[mea.keyTo]!=null) refCur=keyRefOf(mea.keyTo, s.refOct|0);
@@ -42976,11 +43059,16 @@ function exportMIDI(s){
         const m=colMidi(c);
         if(cur && cur.tie && cur.m===m){ cur.len+=len; cur.tie=!!c.tie; }
         else{ if(cur) note(cur.m,cur.at,cur.len); cur={m,at:tick,len,tie:!!c.tie}; }
-        (c.adds||[]).forEach(a=>{ if(a&&a.deg) note(colMidi(a),tick,len); });
-      }else if(cur){ note(cur.m,cur.at,cur.len); cur=null; }
+        const aL=(c.adds||[]).filter(a=>a&&a.deg).map(a=>({m:colMidi(a), tie:!!a.tie}));
+        if(aHold.size) aHold.forEach((h,m0)=>{ if(!aL.some(x=>x.m===m0)){ note(h.m,h.at,h.len); aHold.delete(m0); } });
+        aL.forEach(({m:am, tie})=>{ const h=aHold.get(am);
+          if(h){ h.len+=len; if(!tie){ note(h.m,h.at,h.len); aHold.delete(am); } return; }
+          if(tie) aHold.set(am, {m:am, at:tick, len}); else note(am,tick,len); });
+      }else{ if(cur){ note(cur.m,cur.at,cur.len); cur=null; } aFlushAll(); }
       tick+=len;
     });});
     if(cur) note(cur.m,cur.at,cur.len);
+    aFlushAll();
     chunks.push(track(evts));
   });
   const TUN = (s.tuning && s.tuning.length)? s.tuning : (s.inst==='uku'? UKU_TUNING : TUNING);   /* v65.4 B3a ⑧（P2-28）自定义定弦（Drop D 最低音 38） */
@@ -46626,6 +46714,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
+    <li><span class="v">v69.3</span><div><b>曲库上新：10 首公版名曲；导入 MusicXML 更准</b>（写谱操作没有变化）。<br>① <b>公版名曲</b>：曲库里「谱友圈官方」发布舒伯特《圣母颂》、勃拉姆斯《摇篮曲》等 10 首艺术歌曲（钢琴伴奏歌谱，来自 OpenScore 公版谱库，CC0），打开就能播放、移调、切换记谱法、导出；每首都逐小节核对过音高与时值。<br>② <b>导入更准</b>：MusicXML 的曲名、作词、作曲署名都能读出；不满拍的不完整小节不再误报时值错误；和弦里单独一个音的连音线（比如低音保持、上面换音）保留下来——五线谱画出这个音的连音弧，播放和导出 MIDI 连成长音，再导出 MusicXML 也逐音写回；左右手都用低音谱号的钢琴伴奏仍认作「钢琴伴奏歌谱」。<br><b>测试</b>：新套件 <code>tv_library</code>（10 首逐首打开、过 MusicXML 官方校验、附加音连音弧落地）；服务端补种曲库单测。</div></li>
     <li><span class="v">v69.2</span><div><b>六线谱导出的 MusicXML 符合官方标准</b>（谱面和操作没有任何变化）。<br>导出的 MusicXML 里，六线谱声部的「谱号」和「定弦 / 变调夹」两项写反了先后顺序，不合 MusicXML 4.0 官方格式校验——严格的软件可能拒收或丢掉定弦。现在改正：吉他弹唱、指弹独奏、尤克里里等含六线谱的谱子导出后都能通过官方校验，再导入回来定弦、变调夹完全不变。<br><b>测试</b>：新套件 <code>tv_xsd</code>，把预设谱、各谱类、导出再导入、分谱共 72 份导出逐份用官方 XSD 校验（修前 31 份不过，现在全部通过）。</div></li>
     <li><span class="v">v69.1</span><div><b>在谱面上直接改，排版和输出各有一个主按钮</b>（界面简约化第三期；旧版布局和 <code>?next=0</code> 不变）。<br>① <b>点页头直接改</b>：点曲名、作词、作曲就地修改；点 1=X 出 12 个调的网格，点拍号、速度出小面板。<br>② <b>红点就地修</b>：时值不对的小节角上出红点，状态栏显示「⚠ N」；点开直接选「补休止 / 补齐 / 顺延 / 删多余 / 全部修」。原来「⋯」里的「自由编辑 / 修复建议」两档不再需要，已撤掉。<br>③ <b>排版模式</b>：悬浮条是 纸张 · 疏密 · 每行小节数 · 主按钮「修 N 处」（跳过你锁定的行和手动换行，修完变「输出」）；点任意一行出这一行的工具条（此处换行 / 并入 / 锁定 / 本行换页 / 复原）；末行太短时纸面角上直接给「⚠ 末行短 · 并入」。<br>④ <b>输出模式</b>：悬浮条是 总谱 / 分谱 · 纸张 · 主按钮「存 PDF」；其余格式（打印、图片、分享卡、互动谱、MusicXML、MIDI、曲谱文件）是左边一排常显的小卡片；「发布」只在顶部，点开显示「存入 › 审核 › 上架」三步。<br>⑤ <b>新建面板与启动台</b>：新建面板参数一行（曲名 · 调 · 拍号 · 速度 · 小节数），记谱法在预览左上，说明句都删了；启动台只留三件事：新建、导入、接着写（最近 3 份）。<br>⑥ <b>其他</b>：右栏默认收成带字竖条（属性 / 文字），钉住后常开；命令面板可以直接输入 <code>1=D</code>、<code>3/4</code>、<code>=90</code>、<code>capo 2</code>、<code>&gt;Am7</code>；配完伴奏光标留在原处，下一次播放从第 1 小节开始。<br><b>测试</b>：新套件 <code>tv_inplace</code>、<code>tv_layout2</code>、<code>tv_output2</code>、<code>tv_newpanel2</code>、<code>tv_cmdval</code>；新建面板说明字 104 → 0、启动台 74 → 0；全量回归由 CI 跑。</div></li>
     <li><span class="v">v69.0</span><div><b>一个主按钮告诉你下一步，悬停先看结果再写入</b>（界面简约化第二期；旧版布局不变）。<br>① <b>主按钮</b>：悬浮条上只留一个实心按钮，写的就是下一步——「配伴奏」「换织体」「生成吉他轨」，起步做完是「排版」；旁边 ▾ 选范围（全曲 / 从当前小节 / 选区）和产出（填进本谱 / 对照谱 / 纯伴奏），默认用上次的设置；按 Alt+B 先聚焦它再按回车。<br>② <b>停留预览</b>：鼠标在主按钮、织体或节奏型上停一下，谱面用淡紫色先画出结果，点一下才写入；预览不改谱、不进撤销、不会出现在打印和导出里；平板 / 希沃白板上点一下先看预览，再点一下写入。偏好设置里可以关掉。<br>③ <b>织体条 / 节奏型条</b>：配伴奏、换织体不再弹长说明的窗口，改成一排真实谱面小样，点哪个用哪个，←→ 换、回车定、Esc 退；吉他弹唱的节奏型同样一排，第 ③ 步默认套到全曲。<br>④ <b>「智能 ▾」</b>：配和弦工作台、配伴奏、伴奏织体、智能填词、节奏型库、生成六线谱等工具都收进悬浮条右端的「智能 ▾」，带小样、按谱类排序，暂时不能用的置灰不隐藏；右栏只剩「属性 · 文字」两页。导入 MIDI 在「文件 ▾ › 从已有音乐」。<br>⑤ 撤销后起步步骤的打勾会跟着退回；地址后加 <code>?next=0</code> 可在本次访问回到上一版的样子。<br><b>测试</b>：新套件 <code>tv_next</code>（108 项）、<code>tv_preview</code>（67 项，零副作用逐字节、性能）、<code>tv_smart</code>（21 项，每个工具先断言入口可见再点）；四镜头验收 26 条处理 21 条；CORE 全绿。</div></li>
@@ -46677,7 +46766,7 @@ document.getElementById('b-feat').onclick = ()=>{
   document.getElementById('feat-ok').onclick = closeModal;
 };
 /* v48.2 当前版本号：发版时与更新日志首条 <li> 一起递增（见 PROJECT.md 发版流水线） */
-const APP_VER='v69.2';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
+const APP_VER='v69.3';   /* 须与更新日志首条版本一致——check-syntax.js 语法闸校验（v59.2 教训：忘递增→线上角标停在旧版+冒烟假绿） */
 { const rv=document.getElementById('rc-ver'); if(rv) rv.textContent=APP_VER; }
 /* v48.8 音色库灰度开关（信息页版本号下方）：点击在 MusyngKite ↔ FluidR3_GM 间切换并刷新。
    仅新增 localStorage 键 musetab-sndlib（红线安全）；服务器双库已并存，切换零风险可回退。

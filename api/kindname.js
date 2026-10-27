@@ -38,10 +38,12 @@ const PQ_KIND = (function(){
     return groupsOf(s).some(g=>g.type==='bracket' && voxHasLyrics(s, g.from, g.to));
   }
   /* 钢琴伴奏歌谱（旋律 ＋ 右手伴奏五线 ＋ 左手伴奏低音谱表）：显式分组时只认「1–2 行花括号」，没写分组的老谱只认一键配伴奏产物的声部名 */
+  /* v69.3 显式花括号把 a、b 两行连成大谱表（钢琴右手开头是低音谱号的谱——如舒伯特《阿特拉斯》——靠它认作钢琴，而不是两行低音的合唱） */
+  function braceAt(s, a, b){ return Array.isArray(s.voxGroups) && s.voxGroups.length>0 && groupsExplicitOk(s) && s.voxGroups.some(g=>g && g.type==='brace' && g.from===a && g.to===b); }
   function isPianoAccStack(s){
     if(!s || (s.tabVoices||[]).length || s.pianoAcc || s.func || s.chordOnly) return false;
     const vv=s.voxVoices||[], vn=s.voxNotations||[];
-    if(vv.length!==3 || vn[1]!=='staff' || vn[2]!=='bass') return false;
+    if(vv.length!==3 || vn[2]!=='bass' || !(vn[1]==='staff' || (vn[1]==='bass' && braceAt(s, 1, 2)))) return false;
     if(Array.isArray(s.voxGroups) && s.voxGroups.length && groupsExplicitOk(s)) return s.voxGroups.some(g=>g && g.type==='brace' && g.from===1 && g.to===2);
     return vv[1]==='右手伴奏' && vv[2]==='左手伴奏';
   }
@@ -52,7 +54,7 @@ const PQ_KIND = (function(){
     if(s.chordOnly) return 'C';
     if(s.func) return isStaffNota(vn[0])? 'CS' : 'CJ';
     if(s.pianoAcc) return 'CG';
-    const pair = nv>=2 && vn[nv-2]==='staff' && vn[nv-1]==='bass';
+    const pair = nv>=2 && vn[nv-1]==='bass' && (vn[nv-2]==='staff' || (vn[nv-2]==='bass' && braceAt(s, nv-2, nv-1)));
     if(pair && nv===2 && !isChoir(s)) return 'G';
     /* 三行且末两行是高 / 低音谱表：要有正面证据（isPianoAccStack）才是钢琴伴奏歌谱，否则按合唱 / 五线谱（导入的 SAB 三部合唱不写分组） */
     if(pair && nv===3 && isPianoAccStack(s)) return isStaffNota(vn[0])? (dual[0]? 'SJG' : 'SG') : 'JG';
