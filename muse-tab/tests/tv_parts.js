@@ -518,7 +518,10 @@ const HELP = () => {
     { const tg = document.createElementNS(NSv, 'svg'), out = renderOffscreen({ song: __cl(song), target: tg, paperW: 660 }); o.off660 = __h(tg.innerHTML) + '|' + Jx([out.w, out.h, out.systems, out.drawn, out.pages]); }
     { const OI = window.Image; let src = null; window.Image = function () { return { set src(v) { src = v; }, get src() { return src; } }; };
       try { exportPNG(2); } finally { window.Image = OI; } o.png = __h(src || ''); }
-    let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; } o.mxl = __h(x);
+    let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; }
+    /* v69.2 互操作 P0 放行口径（只此一处）：TAB part 首小节 <attributes> 里旧顺序「<staff-details>…</staff-details><clef>TAB</clef>」改写成新顺序再比——
+       基线页（旧顺序）被换成新顺序，被测页本来就是新顺序（无匹配，原样）；其余任何字节不同照旧判红。顺序本身由 tv_xsd X1 / X5 守 */
+    x = x.replace(/(<staff-details>(?:(?!<\/staff-details>)[\s\S])*<\/staff-details>)(<clef><sign>TAB<\/sign><line>5<\/line><\/clef>)/g, '$2$1'); o.mxl = __h(x);
     /* v68.8 ENG-6 放行口径（同 tv_pgbrk __rec）：剥掉 <print new-system="yes"/> 后的哈希、这一句的个数、part 数、有效换行数（内联算，基线 v68.5 也能跑） */
     o.nsN = (x.match(/<print new-system="yes"\/>/g) || []).length; o.mxlS = __h(x.replace(/<print new-system="yes"\/>/g, ''));
     o.nParts = (x.match(/<part id=/g) || []).length;

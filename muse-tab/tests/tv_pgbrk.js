@@ -92,7 +92,10 @@ const HELP = () => {
   /* 零差异记录：书写谱面 · 分页几何 · 成品快照 · MusicXML · JSON · 打印切片 */
   window.__rec = () => { const sc = __sc(), o = { score: __h(sc.innerHTML), vb: sc.getAttribute('viewBox'), geo: J(PV_GEO), sys: J(SYS_GEO) };
     o.snap = withCleanSnap(() => __h(scoreExportClone().innerHTML) + '|' + J(PV_GEO) + '|' + J(SYS_GEO), { paging: true });
-    let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; } o.mxl = __h(x);
+    let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; }
+    /* v69.2 互操作 P0 放行口径（只此一处）：TAB part 首小节 <attributes> 里旧顺序「<staff-details>…</staff-details><clef>TAB</clef>」改写成新顺序再比——
+       基线页（旧顺序）被换成新顺序，被测页本来就是新顺序（无匹配，原样）；其余任何字节不同照旧判红。顺序本身由 tv_xsd X1 / X5 守 */
+    x = x.replace(/(<staff-details>(?:(?!<\/staff-details>)[\s\S])*<\/staff-details>)(<clef><sign>TAB<\/sign><line>5<\/line><\/clef>)/g, '$2$1'); o.mxl = __h(x);
     /* v68.8 ENG-6 放行口径：剥掉 <print new-system="yes"/> 之后的哈希、这一句的个数、part 数、有效换行数
        （brkN 内联算：k≥1 且上一小节 brk===1、本小节没有 pull 并入也没有换页——基线 v68.4 没有 sysBrkBefore，不能调） */
     o.nsN = (x.match(/<print new-system="yes"\/>/g) || []).length; o.mxlS = __h(x.replace(/<print new-system="yes"\/>/g, ''));
