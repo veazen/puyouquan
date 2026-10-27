@@ -330,6 +330,15 @@ J -X PUT http://127.0.0.1:3199/api/scores/song_abc12345 -d '{"title":"小星星"
 J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish >/dev/null
 J2 -X POST http://127.0.0.1:3199/api/admin/scores/song_abc12345/review -d '{"action":"approve"}' >/dev/null
 chk 列表段词取自lyricLines '"id":"song_abc12345".*"verses":3' "$(PUBONE song_abc12345)"
+# v69.3 曲库公版谱：lib- 前缀留给官方（新建同 id 被拒）；作曲家不再写成「演唱」，按作曲家仍搜得到
+chk 曲库id前缀不许别人新建 '不合法' "$(J -X PUT http://127.0.0.1:3199/api/scores/lib-os-lc9999999 -d '{"title":"占位","updated_at":3000,"data":{"v":3,"measures":[{}]}}')"
+chk 曲库谱列表给作曲不给演唱 '"singer":"","composer":"舒伯特"' "$(PUBONE lib-os-lc6389103)"
+LIBSSR=$(curl -s http://127.0.0.1:3199/pub/lib-os-lc6389103)
+chk 曲库谱落地页写作曲 '舒伯特 作曲 · 谱友圈官方 制谱' "$LIBSSR"
+nchk 曲库谱落地页不把作曲家写成演唱 '舒伯特 演唱' "$LIBSSR"
+chk 曲库谱JSON-LD作曲者是作曲家 '"composer":{"@type":"Person","name":"舒伯特"}' "$LIBSSR"
+chk 西文歌词节选按音节隔开 'A ve Ma ri a' "$LIBSSR"
+chk 按作曲家搜得到曲库谱 '"id":"lib-os-lc6389103"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E8%88%92%E4%BC%AF%E7%89%B9')"
 chk 更新通过后署名取审核时昵称 '"author":"改过的昵称"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 更新通过后无未发布修改 '"pub_dirty":0' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 无改动再提交返回unchanged '"unchanged":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"

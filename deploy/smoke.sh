@@ -55,6 +55,12 @@ done
 chk zhipu.puyouquan.com /api/health '"ok":true'             "API 健康检查（zhipu）"
 chk www.puyouquan.com   /api/health '"ok":true'             "官网 API 健康（微信网站应用回调域 www）"
 chk zhipu.puyouquan.com /api/pub/scores '谱友圈官方'         "谱库公开接口（含种子谱）"
+# v69.3 曲库公版谱已补种：上面一条有示例种子谱也会过，这里另查 sitemap 里有 lib-os-*，再抓第一首的 SSR 落地页
+# （落地页只读；/api/pub/scores/:id 会计浏览数，不用它）。只要求 ≥1 首——后台下架 / 删掉个别曲目是正常操作，不该让冒烟永久变红。
+LIBID=$(curl -fsSL --max-time 20 --connect-to "puku.puyouquan.com:443:$H:443" "https://puku.puyouquan.com/pub/sitemap.xml" 2>/dev/null \
+        | grep -o '/pub/lib-os-[a-z0-9-]*<' | head -1 | sed 's#^/pub/##; s#<$##' || true)
+if [ -n "$LIBID" ]; then chk puku.puyouquan.com "/pub/$LIBID" '谱友圈官方 制谱' "曲库公版谱已上架（$LIBID 落地页）"
+else echo "❌ 曲库公版谱未上架（谱库 sitemap 里没有 lib-os-*）"; fail=1; fi
 # ── 版本落位校验（v48.4 新增）──
 # 此前冒烟只验「页面可达 + 含固定字样（谱友圈/备案号）」，落位旧文件也照样全绿——
 # 「部署成功但线上还是旧版」因此长期无法被发现。这里断言线上编辑器的 APP_VER

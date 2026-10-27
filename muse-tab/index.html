@@ -44434,7 +44434,7 @@ function ccCoverApi(item){
 }
 function circleAll(){
   /* v60.6 透传缩图标志与卡片信息（调号/拍号/速度/段词数），与官网 PYQ_LIB.card 同口径 */
-  if(ccRemote) return ccRemote.map(s=>({pid:s.id, title:s.title, author:s.author, singer:s.singer||'',
+  if(ccRemote) return ccRemote.map(s=>({pid:s.id, title:s.title, author:s.author, singer:s.singer||'', composer:s.composer||'',
     type:s.type, typeLabel:s.typeLabel||'', price:s.price||0, measures:s.measures||0, cover:s.cover||[], remote:true,
     thumb:s.thumb?1:0, key:s.key||'', tempo:s.tempo||0, beats:s.beats||0, unit:s.unit||0, verses:s.verses||0}));
   return circlePubs().filter(pb=>(pb.status||'approved')==='approved')
@@ -44467,7 +44467,7 @@ function circleCard(pb, own, fav){
   const shot = (pb.remote && pb.thumb)
     ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(pb.pid)}/thumb?v=${+pb.thumb||0}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : '';
   const sub = pb.remote
-    ? '制谱：'+esc(pb.author||'佚名')+(pb.singer?(' · 演唱：'+esc(pb.singer)):'')
+    ? '制谱：'+esc(pb.author||'佚名')+(pb.singer?(' · 演唱：'+esc(pb.singer)):(pb.composer?(' · 作曲：'+esc(pb.composer)):''))
     : '制谱：'+esc(pb.author||'佚名')+' · '+esc((pb.pubAt||'').split(' ')[0]||'');
   const meta = ccMetaBits(pb).map(x=>`<i>${esc(x)}</i>`).join('')+(pb.remote? '' :
     `<i>${svgi('eye',11)} ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}`);
@@ -44492,7 +44492,7 @@ function circleFiltered(){
     if(ccFilter.cat!=='all' && (TYPE_NORM[pb.type]||pb.type)!==ccFilter.cat) return false;   // 旧发布数据 vox/staff 自动归入 歌谱/器乐五线
     if(ccFilter.pay==='free' && pb.price>0) return false;
     if(ccFilter.pay==='paid' && !(pb.price>0)) return false;
-    if(q){ const hay=((pb.title||'')+' '+(pb.author||'')+' '+(pb.singer||'')).toLowerCase(); if(!hay.includes(q)) return false; }
+    if(q){ const hay=((pb.title||'')+' '+(pb.author||'')+' '+(pb.singer||'')+' '+(pb.composer||'')).toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
 }
@@ -46714,7 +46714,7 @@ document.getElementById('b-feat').onclick = ()=>{
       ${fx(svgi('loop',15),'完整反复体系','𝄆𝄇、第一/二段（开口括线）、D.C./D.S./𝄋/Fine/⊕ Coda、段落终止线——谱面标准绘制，播放全识别。')}
       ${fx(svgi('play',15),'练习级播放','物理建模音色（吉他双弦失谐＋琴体共鸣）、小节格选段循环、暂停/从头、力度记号实时生效、混音摆位。')}
       ${fx(svgi('save',15),'创作者工具','本机实时保存、我的曲谱、SHA-256 版权时间戳存证与谱友圈发布管理。')}
-    <li><span class="v">v69.3</span><div><b>曲库上新：10 首公版名曲；导入 MusicXML 更准</b>（写谱操作没有变化）。<br>① <b>公版名曲</b>：曲库里「谱友圈官方」发布舒伯特《圣母颂》、勃拉姆斯《摇篮曲》等 10 首艺术歌曲（钢琴伴奏歌谱，来自 OpenScore 公版谱库，CC0），打开就能播放、移调、切换记谱法、导出；每首都逐小节核对过音高与时值。<br>② <b>导入更准</b>：MusicXML 的曲名、作词、作曲署名都能读出；不满拍的不完整小节不再误报时值错误；和弦里单独一个音的连音线（比如低音保持、上面换音）保留下来——五线谱画出这个音的连音弧，播放和导出 MIDI 连成长音，再导出 MusicXML 也逐音写回；左右手都用低音谱号的钢琴伴奏仍认作「钢琴伴奏歌谱」。<br><b>测试</b>：新套件 <code>tv_library</code>（10 首逐首打开、过 MusicXML 官方校验、附加音连音弧落地）；服务端补种曲库单测。</div></li>
+    <li><span class="v">v69.3</span><div><b>曲库上新：10 首公版名曲；导入 MusicXML 更准</b>（写谱操作没有变化）。<br>① <b>公版名曲</b>：曲库里「谱友圈官方」发布舒伯特《圣母颂》、勃拉姆斯《摇篮曲》等 10 首艺术歌曲（钢琴伴奏歌谱，来自 OpenScore 公版谱库，CC0），卡片和曲谱页写明作曲者，打开就能播放、移调、切换记谱法、导出；每首都逐小节核对过音高与时值。<br>② <b>导入更准</b>：MusicXML 的曲名、作词、作曲署名都能读出；不满拍的不完整小节不再误报时值错误；和弦里单独一个音的连音线（比如低音保持、上面换音）保留下来——五线谱画出这个音的连音弧，播放和导出 MIDI 连成长音，再导出 MusicXML 也逐音写回；左右手都用低音谱号的钢琴伴奏仍认作「钢琴伴奏歌谱」。<br><b>测试</b>：新套件 <code>tv_library</code>（10 首逐首打开、过 MusicXML 官方校验、附加音连音弧落地）；服务端补种曲库单测。</div></li>
     <li><span class="v">v69.2</span><div><b>六线谱导出的 MusicXML 符合官方标准</b>（谱面和操作没有任何变化）。<br>导出的 MusicXML 里，六线谱声部的「谱号」和「定弦 / 变调夹」两项写反了先后顺序，不合 MusicXML 4.0 官方格式校验——严格的软件可能拒收或丢掉定弦。现在改正：吉他弹唱、指弹独奏、尤克里里等含六线谱的谱子导出后都能通过官方校验，再导入回来定弦、变调夹完全不变。<br><b>测试</b>：新套件 <code>tv_xsd</code>，把预设谱、各谱类、导出再导入、分谱共 72 份导出逐份用官方 XSD 校验（修前 31 份不过，现在全部通过）。</div></li>
     <li><span class="v">v69.1</span><div><b>在谱面上直接改，排版和输出各有一个主按钮</b>（界面简约化第三期；旧版布局和 <code>?next=0</code> 不变）。<br>① <b>点页头直接改</b>：点曲名、作词、作曲就地修改；点 1=X 出 12 个调的网格，点拍号、速度出小面板。<br>② <b>红点就地修</b>：时值不对的小节角上出红点，状态栏显示「⚠ N」；点开直接选「补休止 / 补齐 / 顺延 / 删多余 / 全部修」。原来「⋯」里的「自由编辑 / 修复建议」两档不再需要，已撤掉。<br>③ <b>排版模式</b>：悬浮条是 纸张 · 疏密 · 每行小节数 · 主按钮「修 N 处」（跳过你锁定的行和手动换行，修完变「输出」）；点任意一行出这一行的工具条（此处换行 / 并入 / 锁定 / 本行换页 / 复原）；末行太短时纸面角上直接给「⚠ 末行短 · 并入」。<br>④ <b>输出模式</b>：悬浮条是 总谱 / 分谱 · 纸张 · 主按钮「存 PDF」；其余格式（打印、图片、分享卡、互动谱、MusicXML、MIDI、曲谱文件）是左边一排常显的小卡片；「发布」只在顶部，点开显示「存入 › 审核 › 上架」三步。<br>⑤ <b>新建面板与启动台</b>：新建面板参数一行（曲名 · 调 · 拍号 · 速度 · 小节数），记谱法在预览左上，说明句都删了；启动台只留三件事：新建、导入、接着写（最近 3 份）。<br>⑥ <b>其他</b>：右栏默认收成带字竖条（属性 / 文字），钉住后常开；命令面板可以直接输入 <code>1=D</code>、<code>3/4</code>、<code>=90</code>、<code>capo 2</code>、<code>&gt;Am7</code>；配完伴奏光标留在原处，下一次播放从第 1 小节开始。<br><b>测试</b>：新套件 <code>tv_inplace</code>、<code>tv_layout2</code>、<code>tv_output2</code>、<code>tv_newpanel2</code>、<code>tv_cmdval</code>；新建面板说明字 104 → 0、启动台 74 → 0；全量回归由 CI 跑。</div></li>
     <li><span class="v">v69.0</span><div><b>一个主按钮告诉你下一步，悬停先看结果再写入</b>（界面简约化第二期；旧版布局不变）。<br>① <b>主按钮</b>：悬浮条上只留一个实心按钮，写的就是下一步——「配伴奏」「换织体」「生成吉他轨」，起步做完是「排版」；旁边 ▾ 选范围（全曲 / 从当前小节 / 选区）和产出（填进本谱 / 对照谱 / 纯伴奏），默认用上次的设置；按 Alt+B 先聚焦它再按回车。<br>② <b>停留预览</b>：鼠标在主按钮、织体或节奏型上停一下，谱面用淡紫色先画出结果，点一下才写入；预览不改谱、不进撤销、不会出现在打印和导出里；平板 / 希沃白板上点一下先看预览，再点一下写入。偏好设置里可以关掉。<br>③ <b>织体条 / 节奏型条</b>：配伴奏、换织体不再弹长说明的窗口，改成一排真实谱面小样，点哪个用哪个，←→ 换、回车定、Esc 退；吉他弹唱的节奏型同样一排，第 ③ 步默认套到全曲。<br>④ <b>「智能 ▾」</b>：配和弦工作台、配伴奏、伴奏织体、智能填词、节奏型库、生成六线谱等工具都收进悬浮条右端的「智能 ▾」，带小样、按谱类排序，暂时不能用的置灰不隐藏；右栏只剩「属性 · 文字」两页。导入 MIDI 在「文件 ▾ › 从已有音乐」。<br>⑤ 撤销后起步步骤的打勾会跟着退回；地址后加 <code>?next=0</code> 可在本次访问回到上一版的样子。<br><b>测试</b>：新套件 <code>tv_next</code>（108 项）、<code>tv_preview</code>（67 项，零副作用逐字节、性能）、<code>tv_smart</code>（21 项，每个工具先断言入口可见再点）；四镜头验收 26 条处理 21 条；CORE 全绿。</div></li>

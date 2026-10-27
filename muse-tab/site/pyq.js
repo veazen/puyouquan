@@ -315,7 +315,8 @@ window.PYQ_LIB = (function(){
     /* v60.81 谱类细分标签：优先用服务端算好的 typeLabel（吉他弹唱谱/简谱歌谱…），
        旧接口没有该字段时回退粗分类——站点先发、接口后发也不破 */
     const type = item.typeLabel || TYPE_CN[item.type] || '曲谱';
-    const who = [item.singer?('演唱 '+item.singer):'', item.author?('制谱 '+item.author):''].filter(Boolean).join(' · ') || '佚名';
+    /* v69.3 曲库公版谱没有演唱者，接口给 composer：卡片写「作曲 X」 */
+    const who = [item.singer?('演唱 '+item.singer):(item.composer?('作曲 '+item.composer):''), item.author?('制谱 '+item.author):''].filter(Boolean).join(' · ') || '佚名';
     const bits = metaBits(item);
     const tip = [item.title||'未命名曲谱', type, who].concat(bits).join(' · ');
     /* v60.7 ?v=thumb_at 缓存戳：重新发布换图后 URL 跟着变，不再吃 max-age=86400 的陈图 */

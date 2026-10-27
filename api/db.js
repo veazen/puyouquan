@@ -609,26 +609,52 @@ function seedCourses(){
 try{ seedCourses(); }catch(e){ console.error('课程种子插入失败（不影响启动）:', e.message); }
 
 /* ---------- v69.3 种子：曲库官方公版谱（api/seed-library.json，由 deploy/build-library.js 从 deploy/library/ 的 CC0 MusicXML 构建并过质量门）----------
-   按固定 id（lib-os-<OpenScore 编号>）每首只种一次：seed_log 记下种过的 id——已有同 id 的谱不覆盖（后台改过的保留），
-   后台删掉的也不会在下次重启时复活。挂在官方账号 official0000 下、直接发布并拍发布快照（谱库只读快照）。 */
+   按固定 id（lib-os-<OpenScore 编号>）补种：seed_log 记下种过的 id——后台删掉的不会在下次重启时复活。挂在官方账号 official0000 下、
+   直接发布并拍发布快照（谱库只读快照）。
+   · 每首一个事务（seed_log 与谱一起提交）：中途出错整首回滚，下次重启再补，不会留下「记了种过、谱却没有」的半截
+   · 同 id 已被别的账号占用（官方谱上线前有人先建）：不种、不记 seed_log、打日志——占用的谱处理掉后下次重启照常补种
+   · 内容随发版刷新（同 seedCourses）：种过、仍在架、从没被人改过（updated_at==created_at）而内容与仓库不一致 → 换成仓库版本，
+     发布时间不变；被下架 / 删掉的一律不动 */
 db.exec('CREATE TABLE IF NOT EXISTS seed_log(id TEXT PRIMARY KEY, at INTEGER NOT NULL)');
 function seedLibrary(list){
   if(!list){ const f=require('node:path').join(__dirname, 'seed-library.json'); if(!require('node:fs').existsSync(f)) return 0;
     list = JSON.parse(require('node:fs').readFileSync(f, 'utf8')); }
   let sys = db.prepare('SELECT id FROM users WHERE phone = ?').get('00000000000');
   if(!sys){ const id='official0000'; q.userCreate.run(id, '00000000000', '谱友圈官方', now()); q.userSetRole.run('creator', id); sys={id}; }
-  const t = now(); let n = 0;
+  const rowOf = db.prepare('SELECT user_id,status,title,singer,data,created_at,updated_at,pub_at FROM scores WHERE id = ?');
+  const logged = db.prepare('SELECT 1 FROM seed_log WHERE id = ?'), logIt = db.prepare('INSERT INTO seed_log(id, at) VALUES(?, ?)');
+  const tx = fn => { db.exec('BEGIN'); try { fn(); db.exec('COMMIT'); } catch (e) { try { db.exec('ROLLBACK'); } catch { /* ignore */ } throw e; } };
+  const t = now(); let n = 0; const fresh = [], squat = [];
   for(const it of list){
     if(!it || !/^lib-[a-z0-9-]+$/.test(it.id)) continue;
-    if(db.prepare('SELECT 1 FROM seed_log WHERE id = ?').get(it.id)) continue;
-    db.prepare('INSERT INTO seed_log(id, at) VALUES(?, ?)').run(it.id, t);
-    if(q.scoreGet.get(it.id)) continue;
-    q.scoreUpsert.run(it.id, sys.id, String(it.title||'').slice(0,80), String(it.singer||'').slice(0,80), JSON.stringify(it.data), t, t);
-    q.scoreSetStatus.run('published', it.id, sys.id);
-    q.scoreSnap.run(t, it.id);
-    n++;
+    try {
+      const title = String(it.title||'').slice(0,80), singer = String(it.singer||'').slice(0,80), data = JSON.stringify(it.data);
+      const row = rowOf.get(it.id);
+      if(logged.get(it.id)){
+        if(row && row.user_id === sys.id && row.status === 'published' && row.updated_at === row.created_at
+           && (row.data !== data || row.title !== title || row.singer !== singer)){
+          /* created_at / updated_at 都写回原 created_at——保持「没被人改过」，下次还认得出（同 seedCourses） */
+          tx(() => { q.scoreUpsert.run(it.id, sys.id, title, singer, data, row.created_at, row.created_at); q.scoreSnap.run(row.pub_at || t, it.id); });
+          fresh.push(it.id);
+        }
+        continue;
+      }
+      if(row){
+        if(row.user_id !== sys.id){ squat.push(it.id); continue; }
+        logIt.run(it.id, t); continue;        /* 官方账号下已有同 id（手工建的）：记为种过，不覆盖 */
+      }
+      tx(() => {
+        logIt.run(it.id, t);
+        q.scoreUpsert.run(it.id, sys.id, title, singer, data, t, t);
+        q.scoreSetStatus.run('published', it.id, sys.id);
+        q.scoreSnap.run(t, it.id);
+      });
+      n++;
+    } catch (e) { console.error('曲库公版谱补种失败（下次重启再试）：' + it.id + '：' + e.message); }
   }
   if(n) console.log('已补种曲库官方公版谱：' + n + ' 首');
+  if(fresh.length) console.log('已按仓库内容刷新曲库公版谱：' + fresh.join(', '));
+  if(squat.length) console.error('曲库公版谱 id 已被非官方账号占用，未补种：' + squat.join(', '));
   return n;
 }
 try{ seedLibrary(); }catch(e){ console.error('曲库种子插入失败（不影响启动）:', e.message); }

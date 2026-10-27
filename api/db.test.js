@@ -207,6 +207,43 @@ T('曲库公版谱：建库补种全部、官方账号发布带快照、再调�
   assert.strictEqual(seedLibrary([{ id: 'lib-os-new1', title: '新谱', singer: '某某', data: { v: 3, measures: [{}] } }]), 1, '新 id 没补种');
 });
 
+T('曲库公版谱：每首一个事务、id 被别人占用不种不记、没人改过的随仓库刷新（发布时间不变）', () => {
+  const { db, seedLibrary } = require('./db');
+  const logged = id => !!db.prepare('SELECT 1 FROM seed_log WHERE id = ?').get(id);
+  const row = id => db.prepare('SELECT user_id,status,data,pub_data,pub_at,created_at,updated_at FROM scores WHERE id = ?').get(id);
+  /* 事务：中途出错（data 缺失 → 绑定失败）整首回滚，seed_log 不留半截；修好后照常补种 */
+  assert.strictEqual(seedLibrary([{ id: 'lib-os-tx1', title: '坏' }]), 0, '坏条目被算成补种');
+  assert.ok(!logged('lib-os-tx1') && !row('lib-os-tx1'), '出错后 seed_log / 谱留了半截');
+  assert.strictEqual(seedLibrary([{ id: 'lib-os-tx1', title: '好', data: { v: 3, measures: [{}] } }]), 1, '修好后没补种');
+  /* 占用：别的账号先建了同 id → 不种、不记；占用的谱删掉后补种 */
+  db.prepare("INSERT INTO users(id, phone, nickname, created_at) VALUES('squat001', '13900000001', '抢注', 1)").run();
+  db.prepare("INSERT INTO scores(id,user_id,title,data,updated_at,created_at) VALUES('lib-os-sq1','squat001','占位','{}',1,1)").run();
+  const sq = { id: 'lib-os-sq1', title: '官方', singer: '某某', data: { v: 3, measures: [{}, {}] } };
+  assert.strictEqual(seedLibrary([sq]), 0, '被占用的 id 也补种了');
+  assert.ok(!logged('lib-os-sq1') && row('lib-os-sq1').user_id === 'squat001', '占用时记了 seed_log 或改了别人的谱');
+  db.prepare("DELETE FROM scores WHERE id = 'lib-os-sq1'").run();
+  assert.strictEqual(seedLibrary([sq]), 1, '占用解除后没补种');
+  assert.strictEqual(row('lib-os-sq1').user_id, 'official0000');
+  /* 刷新：没人改过 → 草稿与快照都换成仓库版本、发布时间不变、仍认得出「没被改过」 */
+  const v1 = { id: 'lib-os-rf1', title: '刷新', singer: '某某', data: { v: 3, measures: [{}] } };
+  seedLibrary([v1]);
+  db.prepare("UPDATE scores SET pub_at = 123 WHERE id = 'lib-os-rf1'").run();
+  const v2 = { ...v1, data: { v: 3, measures: [{}, {}, {}] } };
+  assert.strictEqual(seedLibrary([v2]), 0, '刷新被算成新补种');
+  let r = row('lib-os-rf1');
+  assert.strictEqual(r.data, JSON.stringify(v2.data), '草稿没刷新');
+  assert.strictEqual(r.pub_data, JSON.stringify(v2.data), '发布快照没刷新');
+  assert.strictEqual(r.pub_at, 123, '刷新改了发布时间');
+  assert.strictEqual(r.updated_at, r.created_at, '刷新后认不出「没被人改过」');
+  /* 被人改过（updated_at > created_at）或已下架 → 不动 */
+  db.prepare("UPDATE scores SET updated_at = created_at + 5 WHERE id = 'lib-os-rf1'").run();
+  seedLibrary([{ ...v1, data: { v: 3, measures: [] } }]);
+  assert.strictEqual(row('lib-os-rf1').data, JSON.stringify(v2.data), '改过的谱被仓库覆盖');
+  db.prepare("UPDATE scores SET updated_at = created_at, status = 'private' WHERE id = 'lib-os-rf1'").run();
+  seedLibrary([{ ...v1, data: { v: 3, measures: [] } }]);
+  assert.strictEqual(row('lib-os-rf1').data, JSON.stringify(v2.data), '下架的谱被仓库刷新');
+});
+
 setTimeout(() => {
   try { require('node:fs').unlinkSync(process.env.DB_PATH); } catch {}
   console.log('PASS ' + pass + '/' + total);

@@ -281,6 +281,13 @@ function coverOf(d) {
    已发布快照只在审核通过 / 重新发布时变，按「id＋发布时间＋快照内容摘要」缓存这一部分，JSON 解析也一起省掉——
    摘要（md5）而不是只看发布时间：admin.js scan-xss（另一个进程）刷新快照时保留原发布时间，内容变了缓存也得跟着换。
    缓存只放这几项小字段（不放整份谱），超过 5000 条整表清空（同 relCache） */
+/* v69.3 曲库公版谱（seedLibrary）：scores.singer 列放作曲者（谱库按「舒伯特」搜得到），谱面里 singer 空、composer 有值——
+   展示层认作「作曲」：列表 singer 置空并另给 composer，落地页 / 封面 / JSON-LD 写「X 作曲」，不再把作曲家写成「X 演唱」。
+   谱面自己写了 singer（真有演唱者）或两者不同时照旧。 */
+function creditOf(singer, composer, dsinger) {
+  const s = String(singer || '').trim(), c = String(composer || '').trim();
+  return { singer: c && s === c && !dsinger ? '' : s, composer: c };
+}
 const shapeCache = new Map();
 function pubShapeData(row) {
   const ck = row.id + '|' + (row.updated_at || 0) + '|' + (typeof row.data === 'string' ? crypto.createHash('md5').update(row.data).digest('base64') : String(row.data));
@@ -296,7 +303,8 @@ function pubShapeData(row) {
     key: sStr(d.key).slice(0, 6), tempo: sNum(d.tempo), beats: sNum(d.beats), unit: sNum(d.unit),
     /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
        「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
-    verses: Math.max(0, Math.min(9, sNum(d.lyricLines))) };
+    verses: Math.max(0, Math.min(9, sNum(d.lyricLines))),
+    composer: sStr(d.composer).trim().slice(0, 60), dsinger: !!sStr(d.singer).trim() };
   if (shapeCache.size > 5000) shapeCache.clear();
   shapeCache.set(ck, o);
   return o;
@@ -305,8 +313,9 @@ function pubShape(row) {
   /* v67.6 第二轮验收：整行兜底——任何一份谱算卡片出错只让它自己退回默认卡，列表 / 搜索 / 收藏 / 点赞照常 200（此前 String(d.key) 等抛错整页 500） */
   let o;
   try { o = pubShapeData(row); }
-  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0 }; }
-  return { id: row.id, title: row.title, singer: row.singer, author: row.author, updated_at: row.updated_at,
+  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false }; }
+  const cr = creditOf(row.singer, o.composer, o.dsinger);
+  return { id: row.id, title: row.title, singer: cr.singer, composer: cr.composer, author: row.author, updated_at: row.updated_at,
     type: o.type, typeLabel: o.typeLabel, price: 0, measures: o.measures, cover: o.cover,
     /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
@@ -437,7 +446,11 @@ function lyricExcerpt(d, cap) {
   let out = '';
   for (const m of arr(d.measures)) for (const cols of arr((m || {}).voxes)) for (const c of arr(cols)) {
     const w = sStr(arr((c || {}).lyrics)[0]).trim();   /* 第二轮验收：对象歌词不再露出「[object Object]」，也不抛错 */
-    if (w) { out += w; if (out.length >= cap) return out.slice(0, cap); }
+    if (w) {
+      /* v69.3 西文歌词按音节一格一个（曲库公版谱）：前后都是拉丁字母时补空格，不再连成「AveMaria!Jungfraumild!」；中文照旧直接相连 */
+      if (out && /[\p{Script=Latin}\d’'.,;:!?)]$/u.test(out) && /^[\p{Script=Latin}\d(¿¡"‘“]/u.test(w)) out += ' ';
+      out += w; if (out.length >= cap) return out.slice(0, cap);
+    }
   }
   return out;
 }
@@ -461,11 +474,11 @@ function pubMeta(row) {
   const title = (row.title || '').trim() || '未命名曲谱';
   let typeCn = '曲谱'; try { typeCn = typeLabelOf(d); } catch (_) {}   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
   const nMea = arr(d.measures).length;
-  const singer = (row.singer || '').trim();
+  const { singer, composer } = creditOf(row.singer, sStr(d.composer).slice(0, 60), !!sStr(d.singer).trim());
   const author = (row.author || '').trim() || '谱友圈';
-  const desc = `《${title}》${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
+  const desc = `《${title}》${composer ? composer + '作曲 · ' : ''}${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
   const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };   /* 第二轮验收：落地页 / 封面同卡片口径逐项兜底 */
-  return { id: row.id, title, typeCn, nMea, singer, author, desc, cover: safe(() => coverOf(d), []), thumb: row.thumb_at || 0,
+  return { id: row.id, title, typeCn, nMea, singer, composer, author, desc, who: (row.singer || '').trim(), cover: safe(() => coverOf(d), []), thumb: row.thumb_at || 0,
     key: sStr(d.key).slice(0, 6), beats: sNum(d.beats), unit: sNum(d.unit), tempo: sNum(d.tempo),
     lyric: safe(() => lyricExcerpt(d, 140), ''), chords: safe(() => chordSeq(d, 16), []) };
 }
@@ -479,11 +492,12 @@ function pubSsrHtml(row, related, from) {
      由编辑器单文件复制而来），不再跳 zhipu；免费制谱 CTA 仍指 zhipu 编辑器 */
   /* v63.4 A7 分享渠道 ?f= 原样带进观看页（观看页据此记 share_open）；canonical 不带，避免同谱多 URL 分散收录 */
   const viewUrl = `${PUB_CANON}/kanpu.html?pub=${encodeURIComponent(p.id)}${from ? '&f=' + from : ''}`;
-  const pageTitle = `${p.title}${p.singer ? ' · ' + p.singer : ''} ${p.typeCn} - 谱友圈谱库`;
+  const who = p.who;   /* 标题照旧带 singer 列原值（曲库公版谱这一列就是作曲者），其余谱的标题与 v69.2 逐字节相同 */
+  const pageTitle = `${p.title}${who ? ' · ' + who : ''} ${p.typeCn} - 谱友圈谱库`;
   const ld = {
     '@context': 'https://schema.org', '@type': 'MusicComposition',
     name: p.title, url: canon, image: img, description: p.desc,
-    composer: { '@type': 'Person', name: p.author }, inLanguage: 'zh-CN',
+    composer: { '@type': 'Person', name: p.composer || p.author }, inLanguage: 'zh-CN',
   };
   if (p.singer) ld.recordedAs = { '@type': 'MusicRecording', name: p.title, byArtist: { '@type': 'MusicGroup', name: p.singer } };
   const jsonLd = JSON.stringify(ld).replace(/</g, '\\u003c');
@@ -494,7 +508,7 @@ function pubSsrHtml(row, related, from) {
 <meta name="description" content="${escHtml(p.desc)}">
 <link rel="canonical" href="${escHtml(canon)}">
 <meta property="og:type" content="music.song">
-<meta property="og:title" content="${escHtml(p.title + (p.singer ? ' · ' + p.singer : ''))}">
+<meta property="og:title" content="${escHtml(p.title + (who ? ' · ' + who : ''))}">
 <meta property="og:description" content="${escHtml(p.desc)}">
 <meta property="og:url" content="${escHtml(canon)}">
 <meta property="og:image" content="${escHtml(img)}">
@@ -523,7 +537,7 @@ h1{font-size:28px;margin:.4em 0 .2em}.meta{color:var(--muted);margin-bottom:1.4e
 <div class="brand">谱友圈 · 谱库</div>
 <div class="crumbs"><a href="${escHtml(PUB_CANON)}/pub/">谱库目录</a> › ${escHtml(p.typeCn)}</div>
 <h1>${escHtml(p.title)}</h1>
-<div class="meta">${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}${p.key ? ' · 1=' + escHtml(p.key) : ''}${p.beats && p.unit ? ' · ' + p.beats + '/' + p.unit : ''}${p.tempo ? ' · ♩=' + p.tempo : ''}</div>
+<div class="meta">${p.composer ? escHtml(p.composer) + ' 作曲 · ' : ''}${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}${p.key ? ' · 1=' + escHtml(p.key) : ''}${p.beats && p.unit ? ' · ' + p.beats + '/' + p.unit : ''}${p.tempo ? ' · ♩=' + p.tempo : ''}</div>
 ${coverRow ? '<div class="cover">' + coverRow + '</div>' : ''}
 <a class="cta" href="${escHtml(viewUrl)}">▶ 在线观看 / 移调 / 跟谱</a>
 <a class="cta ghost" href="${escHtml(VIEW_HOST)}/">免费制谱</a>
@@ -667,7 +681,7 @@ function pubCoverSvg(row) {
 <rect x="0" y="0" width="${W}" height="10" fill="#5b4cf0"/>
 <text x="${W / 2}" y="120" font-size="30" fill="#5c5b73" text-anchor="middle" letter-spacing="6">谱友圈 · 谱库</text>
 <text x="${W / 2}" y="210" font-size="72" font-weight="700" fill="#141414" text-anchor="middle">${escHtml(p.title.slice(0, 16))}</text>
-<text x="${W / 2}" y="270" font-size="34" fill="#5c5b73" text-anchor="middle">${escHtml((p.singer ? p.singer + ' 演唱 · ' : '') + p.typeCn + (p.nMea ? ' · ' + p.nMea + ' 小节' : ''))}</text>
+<text x="${W / 2}" y="270" font-size="34" fill="#5c5b73" text-anchor="middle">${escHtml((p.singer ? p.singer + ' 演唱 · ' : p.composer ? p.composer + ' 作曲 · ' : '') + p.typeCn + (p.nMea ? ' · ' + p.nMea + ' 小节' : ''))}</text>
 ${noteSvg}
 <text x="${W / 2}" y="580" font-size="28" fill="#5b4cf0" text-anchor="middle">扫码或点击 · 在线观看 / 移调 / 跟谱 · puyouquan.com</text>
 </svg>`;
@@ -1081,6 +1095,8 @@ const routes = [
       if (exist.user_id !== u.id) throw new ApiError(403, '该 id 已被占用');
       if (t < exist.updated_at) return { ___status: 409, conflict: true, server_updated_at: exist.updated_at };
     } else {                                     // v45.3 配额按会员态：vip 2000 / 免费 500
+      /* v69.3 lib- 前缀留给曲库官方公版谱（seedLibrary）：id 在公开仓库里，不许别人先建同 id 把官方谱挤掉 */
+      if (/^lib-/i.test(id)) throw new ApiError(400, '谱面 id 不合法');
       const cap = q.entActive.get(u.id, 'vip', now()) ? MAX_SCORES_VIP : MAX_SCORES;
       if (q.scoreCount.get(u.id).n >= cap) throw new ApiError(403, `云端谱面数量已达上限（${cap}${cap === MAX_SCORES ? '，开通会员可扩容至 ' + MAX_SCORES_VIP : ''}）`);
     }

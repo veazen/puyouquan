@@ -10,7 +10,8 @@
          node deploy/build-library.js --check  只校验：重新构建的结果与已提交的 api/seed-library.json 逐字节相同（tv_library 用）
    env：CHROMIUM_PATH（同测试） */
 const fs = require('fs'), path = require('path');
-const { chromium } = require('playwright');
+/* playwright 装在 muse-tab/tests/node_modules（CI 只在那里 npm install）：从本目录解析不到时去那里找；本地设了 NODE_PATH 的照样走全局 */
+const { chromium } = require(require.resolve('playwright', { paths: [__dirname, path.join(__dirname, '..', 'muse-tab', 'tests')] }));
 const ROOT = path.resolve(__dirname, '..');
 const MAN = path.join(__dirname, 'library', 'manifest.json');
 const OUT = path.join(ROOT, 'api', 'seed-library.json');
