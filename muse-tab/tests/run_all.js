@@ -101,6 +101,10 @@ const CORE = [
   'tv_xsd',
   /* v69.3 曲库官方公版谱（deploy/library → api/seed-library.json）：构建质量门 + 与提交逐字节 · 每首能打开画出 · 导出过 XSD · 和音逐音连音弧落地；单跑约 45 秒 */
   'tv_library',
+  /* v69.4 纠错一 · 导出（复核 F4 / F5 / T3① / T8 / T9 / T13 / T15）：MIDI 按演奏顺序展开 / 力度 / 踏板 CC64 / 倚音 / 弱起拍号 / 取整不漂移 ·
+     MusicXML divisions 公倍数 / 踏板线 / 乐器 / 速度术语 / 署名 / 圆滑线编号 / 大谱表名 / part-group / 整小节休止 / 装饰音 · 长谱 PNG 按页切多张（M1–M8 · X1–X11 · P1–P3）；
+     mscore3 在场时另做外部读入核对（NO_MSCORE=1 跳过）；单跑约 60 秒 */
+  'tv_v694exp',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

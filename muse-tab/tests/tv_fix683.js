@@ -580,7 +580,7 @@ function BLOCK_HARD() {
       out.ab = rt2(mk(['A·B', 'C'], ['staff', 'bass'], [{ type: 'brace', from: 0, to: 1 }]));
       out.presets = ['欢乐颂（钢琴独奏）', '卡农进行（钢琴弹唱伴奏）'].map(n => { const p = PRESETS.find(y => y.name === n); const s = migrate(p.make()); const b = importMusicXML(exportMusicXML(s)).song;
         return [n, JSON.stringify(s.voxGroups || null), JSON.stringify(b.voxGroups || null), vv(s), vv(b)]; });
-      out.defaultBytes = !/miscellaneous/.test(exportMusicXML(migrate(PRESETS.find(y => y.name === '欢乐颂（钢琴独奏）').make())));
+      out.defaultBytes = !/pyq-staff-names/.test(exportMusicXML(migrate(PRESETS.find(y => y.name === '欢乐颂（钢琴独奏）').make())));   /* v69.4：有制谱署名的谱另写 pyq-maker（同在 <miscellaneous>），这里只看行名那一项 */
       return out; });
     const W = '旋律/右手伴奏/左手伴奏';
     T('X6', r.own === W && r.musescore === W && r.msNoMisc === W, 'X6p（DF-12）钢琴伴奏歌谱导出后在 MuseScore 另存（<software> 换名）、连 <miscellaneous> 一起丢掉，导回来仍是「旋律 / 右手伴奏 / 左手伴奏」（此前成「右手伴奏·左手伴奏·右手」）', J(r));
