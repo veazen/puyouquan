@@ -1,9 +1,10 @@
 'use strict';
 /* v69.6 纠错二 · 录入与新建组（复核 docs/review-2026-10-staff-audit.md N1 / N2 / N3 / N4 / N6 / N8 中标 v69.6 的项）。file:// 直载，真实浏览器；
    键盘 / 鼠标用 Playwright 真按键、真点击（谱面坐标由 data-staffb / data-sbot 算出线 / 间的屏幕 y），录入类在新外壳（默认）与 ?shell=classic 各跑一遍。
-   I1 五线谱录入八度：a 1=G / ♭A / A / ♭B / B 新建五线谱歌谱键入 1 2 3 落在高音谱表内（C 调 1＝C4 不变）· b 教学对照 1=G：refOct 1、简谱行不带点、1＝G4 ·
-      c 钢琴左手（C / G 调）键入 1–7 落在低音谱表内 · d 最近八度（1 5 1 3 → C4 G3 C4 E4；跨小节）与 1=G 音名键 C..B 单调上行 · e 纯简谱行（J / JG 旋律行）键入结果与 v69.4 逐字节相同（对照串写死，测于 a077b50）·
-      f 贝斯（低音谱号）1 5 1 5 落在低音谱表内 · g 「直接建 G」与「建 C 再换 G」键入 1 同音高（67）· h 新建面板预览样谱（NWPV.sampleOf）与真实建谱 refOct 相同
+   I1 五线谱录入八度（i 为验收 L1）：a 1=G / ♭A / A / ♭B / B 新建五线谱歌谱键入 1 2 3 落在高音谱表内（C 调 1＝C4 不变）· b 教学对照 1=G：refOct 1、简谱行不带点、1＝G4 ·
+      c 钢琴左手（C / G 调）键入 1–7 落在低音谱表内 · d 最近八度（跨小节按上一个音；验收 L1 起 1 5 1 3 | 2 7 1 5 → C4 G4 C5 E5 | D5 B4 C5 G4）与 1=G 音名键 C..B 单调上行 · e 纯简谱行（J / JG 旋律行）键入结果与 v69.4 逐字节相同（对照串写死，测于 a077b50）·
+      f 贝斯（低音谱号）1 5 1 5 落在低音谱表内 · i（验收 L1）四度 / 五度二选一且最近的出谱表（要加线）时取离中线近的：C 调「1 1 5 5 6 6 5」＝C4 C4 G4 G4 A4 A4 G4、
+      1=A「1 2 3 5 1」末音 A4；低音谱号 C 调「1 5」仍取最近（C3 G2）· g 「直接建 G」与「建 C 再换 G」键入 1 同音高（67）· h 新建面板预览样谱（NWPV.sampleOf）与真实建谱 refOct 相同
    I2 外文歌词分词：a Blüth' / più / così / mio‿ben / mio_ben / Aloha ʻOe / NFD ü / 「te_ _ lan」 · b 中文 / 日文 / 韩文分词与 v69.4 逐字节相同（一闪一闪亮晶晶 仍逐字一格）·
       c 填词框逐字键入外文（两外壳）· d 智能填词预载按同一规则拼回（外文加空格、多字连写），原样点「填入」不动、加一个空格再填也不动 · e 曲库 10 首原样「填入」歌词逐字节不变
    I3 鼠标 / 键盘录入细节：a Ctrl+点击已选中列的线 / 间＝加和音 · b 点在符头上 / 点别的列仍是多选 · c 再点已选中音的自己符头：不动（♯ 与和音保留）· d 新建谱第一次点击只选中、第二次才定音高 ·
@@ -106,7 +107,8 @@ async function clickStep(pg, mi, vi, ci, step, mod) {
           'I1c' + tag + ' 钢琴左手键入 1–7 落在低音谱表内（C 调 C3–B3、G 调 G2–♯F3；F 调首音 F3）', J(lh));
         await pg.evaluate(() => __mk('S', { key: 'C', lyr: 1 })); await keys(pg, '1 5 1 3 2 7 1 5');
         const d1 = await pg.evaluate(() => [0, 1].flatMap(mi => __cols(mi, 0).map((c, ci) => c.deg ? __step(mi, 0, ci) : null)).filter(x => x != null));
-        T(J(d1) === J([35, 32, 35, 37, 36, 34, 35, 32]), 'I1d' + tag + ' 最近八度：1 5 1 3 | 2 7 1 5 → C4 G3 C4 E4 | D4 B3 C4 G3（跨小节按上一个音）', J(d1));
+        /* 验收 L1 迁移：C4 后的 5 原取下四度 G3（要加线），现取离中线 B4 近的 G4，之后照旧按上一个音取最近（G4→C5 上四度在谱表内，取最近） */
+        T(J(d1) === J([35, 39, 42, 44, 43, 41, 42, 39]), 'I1d' + tag + ' 最近八度：1 5 1 3 | 2 7 1 5 → C4 G4 C5 E5 | D5 B4 C5 G4（跨小节按上一个音；四度 / 五度出谱表取中线近的）', J(d1));
         await pg.evaluate(() => { __mk('S', { key: 'G', lyr: 1 }); [4, 5, 6, 7, 1, 2, 3].forEach(k => inputDigit(k)); });
         const d2 = await pg.evaluate(() => [0, 1].flatMap(mi => __cols(mi, 0).map((c, ci) => c.deg ? __midi(mi, 0, ci) : null)).filter(x => x != null));
         T(d2.length === 7 && d2.every((x, i) => !i || x > d2[i - 1]), 'I1d′' + tag + ' 1=G 依次点音名键 C D E ♯F G A B（数据 4 5 6 7 1 2 3）单调上行', J(d2));
@@ -118,7 +120,16 @@ async function clickStep(pg, mi, vi, ci, step, mod) {
         T(REF.jpJ ? (jp.J === REF.jpJ.J && jp.JB === REF.jpJ.JB && jp.JG === REF.jpJ.JG) : false, 'I1e' + tag + ' 纯简谱行（简谱歌谱 1=G / 1=B、钢琴伴奏歌谱旋律行 1=A）键入结果与 v69.4 逐字节相同', J({ now: jp, ref: REF.jpJ }));
         await pg.evaluate(() => __mk('S', { key: 'C', lyr: 0, clef: 'bass', instKey: 'bass' })); await keys(pg, '1 5 1 5');
         const f1 = await pg.evaluate(() => ({ st: __cols(0, 0).map((c, ci) => __step(0, 0, ci)), m: __cols(0, 0).map((c, ci) => __midi(0, 0, ci)) }));
-        T(f1.st.every(x => x != null && x >= 24 && x <= 34) && f1.m[0] === 48, 'I1f' + tag + ' 贝斯（低音谱号）1 5 1 5 → C3 G2 C3 G2，落在低音谱表内', J(f1));
+        T(f1.st.every(x => x != null && x >= 24 && x <= 34) && J(f1.m) === J([48, 43, 48, 43]), 'I1f' + tag + ' 贝斯（低音谱号）1 5 1 5 → C3 G2 C3 G2，落在低音谱表内（G2 在第一线上，四度 / 五度仍取最近）', J(f1));
+        /* I1i 验收 L1：四度 / 五度二选一时最近的出谱表就取离中线近的 */
+        await pg.evaluate(() => __mk('S', { key: 'C', lyr: 1 })); await keys(pg, '1 1 5 5 6 6 5');
+        const i1 = await pg.evaluate(() => [0, 1].flatMap(mi => __cols(mi, 0).map((c, ci) => c.deg ? __midi(mi, 0, ci) : null)).filter(x => x != null));
+        await pg.evaluate(() => __mk('S', { key: 'A', lyr: 1 })); await keys(pg, '1 2 3 5 1');
+        const i2 = await pg.evaluate(() => [0, 1].flatMap(mi => __cols(mi, 0).map((c, ci) => c.deg ? __midi(mi, 0, ci) : null)).filter(x => x != null));
+        await pg.evaluate(() => { __mk('G', { key: 'C' }); sel.vi = 1; render(); }); await keys(pg, '1 5');
+        const i3 = await pg.evaluate(() => __cols(0, 1).filter(c => c.deg).map((c, ci) => __midi(0, 1, ci)));
+        T(J(i1) === J([60, 60, 67, 67, 69, 69, 67]) && J(i2) === J([69, 71, 73, 76, 69]) && J(i3) === J([48, 43]),
+          'I1i' + tag + ' 四度 / 五度二选一、最近的要加线时取离中线近的：C 调「1 1 5 5 6 6 5」＝C4 C4 G4 G4 A4 A4 G4；1=A「1 2 3 5 1」末音 A4；钢琴左手 C 调「1 5」仍最近（C3 G2）', J({ i1, i2, i3 }));
         const g1 = await pg.evaluate(() => { const s = NWB.build('S', { title: 'x', key: 'C', nMea: 2, lyr: 1 }); transposeSong(s, 7); __ld(s); inputDigit(1); const a = { key: song.key, ro: song.refOct, m: __midi(0, 0, 0) };
           __mk('S', { key: 'G', lyr: 1 }); inputDigit(1); return { viaC: a, direct: { key: song.key, ro: song.refOct, m: __midi(0, 0, 0) } }; });
         T(g1.viaC.key === 'G' && g1.viaC.m === 67 && g1.direct.m === 67 && g1.viaC.ro === g1.direct.ro, 'I1g' + tag + ' 「直接建 1=G」与「建 1=C 再换到 G」键入 1 同为 G4（refOct 同为 1）', J(g1));
@@ -159,6 +170,19 @@ async function clickStep(pg, mi, vi, ci, step, mod) {
           return { v0, same0, noUndo: u1 === u0, same1, after: song.measures.flatMap(m => m.voxes[0].map(c => (c.lyrics || [])[0] || '')).join('|') }; });
         T(d.v0 === 'Ave Ma ri a!花_儿晶， mio‿ben Jung - frau mild 一' && d.same0 && d.noUndo && d.same1,
           'I2d' + tag + ' 智能填词预载按分词规则拼回（外文加空格、一个音上的多字用「_」连写）；原样点「填入」不动（不进撤销栈），加一个空格再填结果也相同', J(d));
+        /* I2f 验收 L2：智能填词弹窗同填词框口径——字母后紧跟的「-」＝音节分界，前后有空格的「-」仍跳过一个音；中文「-」照旧跳过 */
+        const f = await pg.evaluate(() => { const fill = txt => { const s = NWB.build('S', { title: 'ly', key: 'C', nMea: 3, lyr: 1 }); s.measures.forEach(m => { m.voxes[0] = [1, 2, 3, 4].map(dg => __V(dg)); }); __ld(s); activeLyr = 0;
+            document.getElementById('b-fill').onclick(); const ta = document.getElementById('fill-text'); ta.value = txt; ta.dispatchEvent(new Event('input', { bubbles: true }));
+            const stat = (document.getElementById('sf-stat') || {}).textContent || ''; document.getElementById('fill-ok').click();
+            const cells = song.measures.flatMap(m => m.voxes[0].map(c => (c.lyrics || [])[0] || ''));
+            document.getElementById('b-fill').onclick(); const pre = document.getElementById('fill-text').value; document.getElementById('fill-ok').click();
+            const again = song.measures.flatMap(m => m.voxes[0].map(c => (c.lyrics || [])[0] || '')).join('|') === cells.join('|');
+            closeModal(); return { cells: cells.join('|'), stat, pre, again }; };
+          return { sn: fill('Stil-le Nacht, hei-li-ge Nacht! Al-les schläft'), am: fill('A-ve Ma-ri-a! Jung-frau mild!'), sp: fill('A - ve Ma-ri-a'), zh: fill('一闪-一闪 亮晶晶') }; });
+        T(f.sn.cells === 'Stil|le|Nacht,|hei|li|ge|Nacht!|Al|les|schläft||' && /正好对齐|还差/.test(f.sn.stat) && f.sn.again
+          && f.am.cells === 'A|ve|Ma|ri|a!|Jung|frau|mild!||||' && f.am.again
+          && f.sp.cells === 'A||ve|Ma|ri|a||||||' && f.zh.cells === '一|闪||一|闪|亮|晶|晶||||',
+          'I2f' + tag + ' 智能填词：「Stil-le Nacht」「A-ve Ma-ri-a」字母后紧跟的「-」分音节（同填词框），「A - ve」前后有空格仍跳过一个音、中文「-」照旧跳过；重新打开原样填入不变', J(f));
       }
       /* I2e 曲库 10 首：打开智能填词不改内容点「填入」→ 歌词逐字节不变；预载文本加一个空格再填 → 改动的音数（v69.4 实测 5–71 个） */
       if (want('I2') && sh === 'flow') {

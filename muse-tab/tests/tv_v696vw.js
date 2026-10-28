@@ -12,10 +12,13 @@
        KT4 观看页变调：唱调显示 Db 调、谱面 1=♭D · KT5 改记谱调速选写 ♭D，选它落 song.key＝Db、音高不变
    KP  保持音高（F9）：KP1 纯五线谱中途转调默认开：转 1=♭E 后音高逐音不变、一步撤销逐字节还原，清除转调同样不变 · KP2 简谱默认关（原语义：数字不变、音随新调），
        手动开后音高不变 · KP3 菜单文案（纯五线谱不写「简谱读」）· KP4 respellMeasures 抽出、respellSongKey 复用（含和音 / 倚音 / 装饰音邻音音高不变）·
-       KP5 新外壳调网格「保持音高」开关：纯五线谱默认开＝改记谱调、简谱默认关＝移调
+       KP5（验收 B1）新外壳调网格没有「保持音高」开关、一律移调：纯五线谱《摇篮曲》1=♭E 真点 ♭D＝整体降 2 个半音、1=♭D，与 ♭ 步进两次逐字节相同（菜单里开过保持音高也一样）·
+       KP6（验收 L6）保持音高不跨谱沿用：打开 / 新建 / 切页签 / 观看页进出后回到该谱的默认（keyKeepDef），同一份谱里撤销不复位
+   VE  （验收 L3）观看页 ⚙ 设置开着时 Esc 只关弹层、再按才退出观看页；谱架同理（两套外壳）·
+   VD  （验收 L5）观看页「对照」只给旋律 / 人声行加简谱，钢琴花括号左右手保持纯五线谱（骊歌 / 摇篮曲）；整份是钢琴（钢琴独奏）时照旧全加；亮灯同口径
    JL  简谱行首声部名（F11）：JL1 曲库 10 首切简谱后行名全部在左页边距内（bbox 不越出谱纸左缘、右端不过 oxH−4），以 oxH−6 右对齐 · JL2 短名（Voice / 右手）·
        JL3 中文短名照原名不缩（两套外壳）
-   env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_API 服务端（缺省 ../../api/server.js）· ONLY=VN,FL,TS,SC,KT,KP,JL 只跑部分段。 */
+   env：MUSETAB_URL 被测页（缺省 ../index.html）· MUSETAB_API 服务端（缺省 ../../api/server.js）· ONLY=VN,FL,TS,SC,KT,KP,VE,VD,JL 只跑部分段。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -41,6 +44,8 @@ const HELP = () => {
   window.__share = s => { enterShareViewer({ song: JSON.parse(JSON.stringify(s)) }); return song.measures.length; };
   /* 每个旋律音的 MIDI（含和音 adds），按小节分组 */
   window.__pitch = () => song.measures.map((m, mi) => (m.voxes || []).map(cols => (cols || []).map(c => c && c.deg >= 1 ? [voxMidi(c, mi)].concat((c.adds || []).filter(a => a && a.deg >= 1).map(a => voxMidi(Object.assign({}, c, a), mi))).join('+') : '-').join(' ')).join(' / ')).join(' | ');
+  /* 全部旋律音（含和音）的 MIDI，扁平 */
+  window.__midis = () => { const out = []; song.measures.forEach((m, mi) => (m.voxes || []).forEach(cols => (cols || []).forEach(c => { if (c && c.deg >= 1) { out.push(voxMidi(c, mi)); (c.adds || []).forEach(a => { if (a && a.deg >= 1) out.push(voxMidi(Object.assign({}, c, a), mi)); }); } }))); return out; };
   window.__toastT = () => { const t = document.getElementById('toast'); return t ? t.textContent : ''; };
   window.__wait = ms => new Promise(r => setTimeout(r, ms));
 };
@@ -86,8 +91,8 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
         if (okDu) await A.pg.click('#vs-nota [data-nt="dual"]'); await A.pg.waitForTimeout(200);
         const v3 = await EV(A.pg, () => ({ vn: JSON.stringify(song.voxNotations || null), vd: JSON.stringify(song.voxDual || null), on: [...document.querySelectorAll('#vs-nota button.on')].map(x => x.dataset.nt), same: JSON.stringify(viewerCtx.pb.data) === window.__d0, du: undoStack.length - window.__u0 }));
         T(okJp && !v2.any && v2.clefs === 0 && v2.digits > 50 && J(v2.on) === J(['jp']) && v2.same && v2.du === 0
-          && okDu && v3.vn === J(['staff', 'staff', 'bass', 'staff', 'bass']) && v3.vd === J([true, true, true, true, true]) && J(v3.on) === J(['dual']) && v3.same && v3.du === 0,
-          'VN2 点「简谱」全部 5 行（含低音谱表）成简谱；「对照」＝原谱号＋简谱行；原发布数据与撤销栈不动' + sx, J({ v2, v3 }));
+          && okDu && v3.vn === J(['staff', 'staff', 'bass', 'staff', 'bass']) && v3.vd === J([true, true, true, false, false]) && J(v3.on) === J(['dual']) && v3.same && v3.du === 0,
+          'VN2 点「简谱」全部 5 行（含低音谱表）成简谱；「对照」＝原谱号＋简谱行（验收 L5：只给 3 行人声，钢琴两手不加）；原发布数据与撤销栈不动' + sx, J({ v2, v3 }));
         await EV(A.pg, () => { closeModal(); return 1; });
         const v4 = await EV(A.pg, () => { vwSetNota('jp'); vwTranspose(-2); const r = { key: song.key, any: (song.voxNotations || []).some(isStaffNota) }; vwTranspose(2); return r; });
         T(v4.key === 'Gb' && v4.any === false, 'VN3 变调重建后仍是所选记谱法（简谱，♭A 降 2 → ♭G）' + sx, J(v4));
@@ -318,6 +323,21 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
           keyKeepPitch = null; return r; });
         T(p2.def === 'false' && p2.digits && p2.moved && p2.def2 === 'true' && p2.kept && /简谱读 1=X/.test(p2.t || ''),
           'KP2 简谱歌谱默认不保持（原语义：数字不变、音随新调）；手动开「保持音高」后音高逐音不变' + sx, J(p2));
+        /* KP6（验收 L6）保持音高不跨谱沿用：菜单里关掉（纯五线谱默认开）→ 撤销不复位；打开 / 新建 / 切页签 / 观看页进出后回到该谱默认 */
+        const p6 = await EV(A.pg, d => { const r = {};
+          const staff = t => createSong('staff', { title: t, beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 0 });
+          __ld(staff('五1')); keyKeepPitch = null; sel = { mi: 1, row: 'vox', vi: 0, ci: 0, si: 1 }; showKeyToMenu();
+          const kb = document.querySelector('#popmenu [data-ktk]'); r.def = kb && kb.getAttribute('aria-pressed'); if (kb) kb.click(); r.off = kb && kb.getAttribute('aria-pressed'); closePop();
+          mutate(() => { song.title = '改'; }); undo(); r.undoKeep = keyKeepPitch === false;
+          __ld(staff('五2')); r.open = keyKeepPitch === null && keyKeepOn() === true;
+          keyKeepPitch = false; addDoc(NWB.build('S', { title: '新', key: 'C', nMea: 2, lyr: 0 })); r.add = keyKeepPitch === null && keyKeepOn() === keyKeepDef(song);
+          keyKeepPitch = false; switchDocTo(0); r.tab = keyKeepPitch === null;
+          keyKeepPitch = false; const pid = 'kp6'; const l = circlePubs().filter(x => x.pid !== pid); l.push({ pid, libId: null, title: '摇', author: 't', price: 0, preview: 99, data: JSON.parse(JSON.stringify(d)), type: 'vocal' }); circlePubsSave(l);
+          openPubViewer(pid); r.vin = keyKeepPitch === null; keyKeepPitch = false; exitViewer(); r.vout = keyKeepPitch === null;
+          sel = { mi: 1, row: 'vox', vi: 0, ci: 0, si: 1 }; showKeyToMenu(); const kb2 = document.querySelector('#popmenu [data-ktk]'); r.def2 = kb2 && kb2.getAttribute('aria-pressed'); closePop();
+          keyKeepPitch = null; return r; }, LI('lc5701612'));
+        T(p6.def === 'true' && p6.off === 'false' && p6.undoKeep && p6.open && p6.add && p6.tab && p6.vin && p6.vout && p6.def2 === 'true',
+          'KP6 转调「保持音高」不跨谱沿用：同一份谱里撤销不复位；打开 / 新建 / 切页签 / 观看页进出后回到该谱默认（纯五线谱＝开）' + sx, J(p6));
         allErrs.push(...A.errs); await A.close();
       }
       { const A = await open(b, {});
@@ -329,22 +349,76 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
           __ld(s); const p0 = __pitch(); respellSongKey(song, 'A', {}); const same = __pitch() === p0;
           return { has, uses: /respellMeasures\(/.test(src), same, key: song.key }; });
         T(p4.has && p4.uses && p4.same && p4.key === 'A', 'KP4 respellMeasures 抽出、respellSongKey 复用（改记谱调含和音 / 倚音 / 回音邻音，音高逐音不变）', J(p4));
-        /* KP5 新外壳调网格「保持音高」：纯五线谱默认开（点 D＝改记谱调，音高不变），简谱默认关（点 D＝移调） */
-        const p5 = await EV(A.pg, () => { keyKeepPitch = null;
-          const s = createSong('staff', { title: '五', beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 0 });
-          s.measures.forEach(m => { m.voxes[0] = [1, 3, 5, 6].map(d => ({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [] })); });
-          __ld(s); ekBase = null; ekCalc = null; const p0 = __pitch(); openEdKeyPop();
-          const kb = document.querySelector('#ek-keep [data-fa="hd:keep"]'); const r = { has: !!kb, def: kb && kb.getAttribute('aria-pressed'), first: document.getElementById('ekey-pop').firstElementChild && document.getElementById('ekey-pop').firstElementChild.id, n: document.querySelectorAll('#ek-grid button').length };
-          document.querySelector('#ek-grid [data-v="D"]').click(); r.k1 = song.key; r.same = __pitch() === p0; document.getElementById('ekey-pop').classList.remove('on');
-          const v = createSong('vocal', { title: '简', beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 0 });
-          v.measures.forEach(m => { m.voxes[0] = [1, 3, 5, 6].map(d => ({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [] })); });
-          __ld(v); ekBase = null; ekCalc = null; const q0 = __pitch(), d0 = JSON.stringify(song.measures[0].voxes[0].map(c => c.deg)); openEdKeyPop();
-          r.def2 = document.querySelector('#ek-keep [data-fa="hd:keep"]').getAttribute('aria-pressed');
-          document.querySelector('#ek-grid [data-v="D"]').click(); r.k2 = song.key; r.moved = __pitch() !== q0 && JSON.stringify(song.measures[0].voxes[0].map(c => c.deg)) === d0;
+        /* KP5（验收 B1）新外壳调网格一律移调：没有「保持音高」开关；纯五线谱《摇篮曲》1=♭E 真点 ♭D＝整体降 2 个半音、1=♭D，与 ♭ 步进两次逐字节相同 */
+        const openGrid = async d => { await EV(A.pg, d => { closePop(); document.querySelectorAll('.vh-pop.on').forEach(p => p.classList.remove('on')); if (d) __ld(d); ekBase = null; ekCalc = null; blurSel = true; render();
+          const r = document.getElementById('score').getBoundingClientRect(); FLOW.hd.open('key', { clientX: r.left + 120, clientY: r.top + 80 }); return 1; }, d); await A.pg.waitForTimeout(150); };
+        const lull = LI('lc5701612');
+        await EV(A.pg, () => { keyKeepPitch = null; return 1; });
+        await openGrid(lull);
+        const g0 = await EV(A.pg, () => { const pop = document.getElementById('ekey-pop'); window.__m0 = __midis();
+          return { keep: !!document.getElementById('ek-keep'), hdk: !!document.querySelector('[data-fa="hd:keep"]'), first: pop.firstElementChild && pop.firstElementChild.id, n: document.querySelectorAll('#ek-grid button').length,
+            def: keyKeepDef(song), key: song.key, resp: !!document.getElementById('ek-resp-tg') }; });
+        const okDb = await vis(A.pg, '#ek-grid [data-v="Db"]');
+        if (okDb) await A.pg.click('#ek-grid [data-v="Db"]'); await A.pg.waitForTimeout(150);
+        const g1 = await EV(A.pg, () => { const m1 = __midis(); const r = { key: song.key, hk: headKeyOf(song), n: m1.length, d2: m1.length === __m0.length && m1.every((x, i) => x === __m0[i] - 2), t: __toastT() };
+          window.__gridJ = JSON.stringify(song.measures); document.getElementById('ekey-pop').classList.remove('on'); return r; });
+        await openGrid(lull);
+        const okDn = await vis(A.pg, '#ek-dn');
+        if (okDn) { await A.pg.click('#ek-dn'); await A.pg.waitForTimeout(80); await A.pg.click('#ek-dn'); await A.pg.waitForTimeout(150); }
+        const g2 = await EV(A.pg, () => { const r = { key: song.key, same: JSON.stringify(song.measures) === window.__gridJ }; document.getElementById('ekey-pop').classList.remove('on'); return r; });
+        /* 中途转调菜单里开过「保持音高」（keyKeepPitch＝true），调网格照样移调；简谱歌谱同样移调（数字不变） */
+        await EV(A.pg, () => { keyKeepPitch = true; return 1; });
+        const v = await EV(A.pg, () => { const s = createSong('vocal', { title: '简', beats: 4, unit: 4, key: 'C', nMea: 2, nVox: 1, lyr: 0 });
+          s.measures.forEach(m => { m.voxes[0] = [1, 3, 5, 6].map(d => ({ dur: 4, dotted: false, deg: d, acc: '', oct: 0, lyrics: [] })); }); return s; });
+        await openGrid(lull); await EV(A.pg, () => { keyKeepPitch = true; window.__m0 = __midis(); return 1; });
+        if (okDb) await A.pg.click('#ek-grid [data-v="Db"]'); await A.pg.waitForTimeout(150);
+        const g3 = await EV(A.pg, () => { const m1 = __midis(); const r = { key: song.key, d2: m1.every((x, i) => x === __m0[i] - 2) }; document.getElementById('ekey-pop').classList.remove('on'); return r; });
+        await openGrid(v); await EV(A.pg, () => { window.__m0 = __midis(); window.__dg = JSON.stringify(song.measures[0].voxes[0].map(c => c.deg)); return 1; });
+        if (await vis(A.pg, '#ek-grid [data-v="D"]')) await A.pg.click('#ek-grid [data-v="D"]'); await A.pg.waitForTimeout(150);
+        const g4 = await EV(A.pg, () => { const m1 = __midis(); const r = { key: song.key, up2: m1.every((x, i) => x === __m0[i] + 2), digits: JSON.stringify(song.measures[0].voxes[0].map(c => c.deg)) === window.__dg };
           document.getElementById('ekey-pop').classList.remove('on'); keyKeepPitch = null; return r; });
-        T(p5.has && p5.def === 'true' && p5.first === 'ek-grid' && p5.n === 12 && p5.k1 === 'D' && p5.same && p5.def2 === 'false' && p5.k2 === 'D' && p5.moved,
-          'KP5 新外壳调网格「保持音高」：纯五线谱默认开（点 D 只换调号、音高不变），简谱默认关（点 D 整体移调）；网格仍 12 键在弹窗最上', J(p5));
+        T(!g0.keep && !g0.hdk && g0.first === 'ek-grid' && g0.n === 12 && g0.def === true && g0.key === 'Eb' && g0.resp && okDb && g1.key === 'Db' && g1.hk === 'Db' && g1.n > 100 && g1.d2 && /♭D/.test(g1.t)
+          && okDn && g2.key === 'Db' && g2.same && g3.key === 'Db' && g3.d2 && g4.key === 'D' && g4.up2 && g4.digits,
+          'KP5 新外壳调网格没有「保持音高」开关（只换调号走「改记谱调」）：纯五线谱《摇篮曲》1=♭E 真点 ♭D＝整体降 2 个半音、1=♭D，与 ♭ 步进两次逐字节相同；菜单开过保持音高、简谱歌谱也照样移调', J({ g0, okDb, g1, okDn, g2, g3, g4 }));
         allErrs.push(...A.errs); await A.close(); }
+    }
+
+    /* ================= VE 观看页 Esc（验收 L3） ================= */
+    if (want('VE')) {
+      for (const shell of ['flow', 'classic']) {
+        const A = await open(b, { shell: shell === 'classic' ? 'classic' : null });
+        const sx = shell === 'classic' ? '（旧外壳）' : '';
+        const st = () => EV(A.pg, () => ({ m: !!document.getElementById('modal-mask'), vm: viewerMode, stand: document.body.classList.contains('stand') }));
+        const esc = async () => { await A.pg.keyboard.press('Escape'); await A.pg.waitForTimeout(150); return st(); };
+        await EV(A.pg, d => __share(d), LI('lc5701612'));
+        const okSet = await vis(A.pg, '#b-vwset'); if (okSet) await A.pg.click('#b-vwset'); await A.pg.waitForTimeout(200);
+        const e0 = await st(), e1 = await esc(), e2 = await esc();
+        T(okSet && e0.m && e0.vm && !e1.m && e1.vm && !e2.vm, 'VE1 观看页 ⚙ 设置开着按 Esc：只关弹层、仍在观看页；再按一次才退出观看页' + sx, J({ okSet, e0, e1, e2 }));
+        await EV(A.pg, d => { __share(d); enterStand(); showVwSettings(); return 1; }, LI('lc5701612')); await A.pg.waitForTimeout(150);
+        const s0 = await st(), s1 = await esc(), s2 = await esc(), s3 = await esc();
+        T(s0.m && s0.stand && !s1.m && s1.stand && s1.vm && !s2.stand && s2.vm && !s3.vm, 'VE2 谱架同理：弹层开着 Esc 只关弹层 → 再按退出谱架（仍在观看页）→ 再按退出观看页' + sx, J({ s0, s1, s2, s3 }));
+        allErrs.push(...A.errs); await A.close();
+      }
+    }
+
+    /* ================= VD 观看页「对照」只给旋律行（验收 L5） ================= */
+    if (want('VD')) {
+      const A = await open(b, {});
+      const d1 = await EV(A.pg, d => { __share(d); vwSetNota('dual'); const r = { vd: JSON.stringify(song.voxDual || null), of: vwNotaOf(song), jp: (song.voxVoices || []).map((_, i) => jpRowV(i)) };
+        showVwSettings(); r.on = [...document.querySelectorAll('#vs-nota button.on')].map(x => x.dataset.nt); closeModal();
+        const nDig = () => [...document.querySelectorAll('#score text')].filter(t => /^[1-7]$/.test(t.textContent)).length;
+        r.nDual = nDig(); vwSetNota('jp'); r.nJp = nDig(); vwSetNota('st'); r.st = vwNotaOf(song); r.nSt = nDig();
+        return r; }, LI('lc5701612'));
+      T(d1.vd === J([true, false, false]) && d1.of === 'dual' && J(d1.on) === J(['dual']) && J(d1.jp) === J([true, false, false]) && d1.nDual > 20 && d1.nDual < d1.nJp && d1.st === 'st',
+        'VD1《摇篮曲》观看页「对照」只给人声行加简谱，钢琴花括号两手保持纯五线谱；「对照」亮灯；简谱数字比全简谱少', J(d1));
+      const d2 = await EV(A.pg, d => { const g = NWB.build('G', { title: '钢', key: 'C', nMea: 2 }); g.measures.forEach(m => { m.voxes.forEach(cs => cs.forEach((c, i) => { c.deg = [1, 3, 5, 1][i] || 1; })); });
+        __share(g); vwSetNota('dual'); const r = { pvd: JSON.stringify(song.voxDual || null), pof: vwNotaOf(song) };
+        __share(Object.assign({}, d, { voxDual: [true, false, false] })); r.orig = vwNotaOf(song);
+        __share(Object.assign({}, d, { voxDual: [true, true, true] })); r.all = vwNotaOf(song);
+        return r; }, LI('lc5701612'));
+      T(d2.pvd === J([true, true]) && d2.pof === 'dual' && d2.orig === 'dual' && d2.all === null,
+        'VD2 整份是钢琴（钢琴独奏）时「对照」照旧两手都加；原谱只给人声加对照＝亮「对照」，三行全加＝混排不亮', J(d2));
+      allErrs.push(...A.errs); await A.close();
     }
 
     /* ================= JL 简谱行首声部名 ================= */
