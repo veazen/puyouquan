@@ -1076,9 +1076,11 @@ function T0SCN() {
   /* ================= T22 SMUFL 追加 · T23 谱面零回归 ================= */
   const ADD = (() => { try { return JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/design-2026-10f/icons/smufl-add.json'), 'utf8')); } catch (_) { return null; } })();
   /* 自足（基线页没有 INIT）：16 个预设逐个装进编辑器（单窗口、光标收起）取 #score，再 renderOffscreen(870) 取离屏输出 */
+  /* v69.6（复核 F11）有意变化放行：简谱行首声部名改为左页边距内右对齐（rowLabelFit，data-rowlbl）——同 tv_pgbrk / tv_parts 的 __v696，
+     被测页与基线页的哈希都先抹掉这一个 <text>（旧：font-size 10 / middle / opacity .6；新：text-anchor end + data-rowlbl），其余字节照旧逐字节比 */
   function SCORE16() {
     window.guardReplace = p => p();
-    const h = s => { s = String(s); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
+    const h = s => { s = String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '').replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, ''); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
     try { hideStartPad(); } catch (_) {}
     const out = { ed: [], off: [], names: [] };
     const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('style', 'position:fixed;left:-5000px;top:0'); document.body.appendChild(sv);
@@ -1121,7 +1123,7 @@ function T0SCN() {
       /* 去掉追加的 44 个字形再刻：逐字节相同＝谱面没有用到任何新字形 */
       const strip = await EV(pf, keys => { const bak = {}; keys.forEach(k => { bak[k] = SMUFL[k]; delete SMUFL[k]; });
         let r; try { r = SCORE16x(); } finally { Object.assign(SMUFL, bak); } return r;
-        function SCORE16x() { const h = s => { s = String(s); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
+        function SCORE16x() { const h = s => { s = String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '').replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, ''); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
           const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('style', 'position:fixed;left:-5000px;top:0'); document.body.appendChild(sv);
           const o = PRESETS.map(p => { sv.innerHTML = ''; renderOffscreen({ song: migrate(p.make()), target: sv, paperW: 870 }); return h(sv.innerHTML); }); sv.remove(); return { n: Object.keys(SMUFL).length, o }; } }, ADD ? Object.keys(ADD) : []);
       const sBad = strip.o.map((x, i) => x === F.off[i] ? null : F.names[i]).filter(Boolean);
