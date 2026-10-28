@@ -42625,8 +42625,9 @@ function importMusicXML(xmlStr){
             const isDynTxt = wt2 && (ownSw? (wd.getAttribute('font-style')||'')==='italic' : DYN_TEXT_RE.test(wt2));
             if(isDynTxt){ const dsS=el.querySelector('direction-type > dashes[type="start"]'), nv=dsS? dashNorm(wt2) : null;
               putDyn((nv||wt2).slice(0,12), true, nv? (dsS.getAttribute('number')||'1') : false); }
-            /* 自家导出的速度术语紧跟在谱首节拍器 direction 后面；首小节别的不带字体的 words 是标注（此前没有速度术语的谱，第 1 小节的标注往返变成速度术语） */
-            else if(wt2 && part===primaryPart && mi2===0 && !out.tempoTerm && (!ownSw || (()=>{ const pv=el.previousElementSibling; return !!(pv && pv.tagName==='direction' && pv.querySelector('direction-type > metronome')); })())) out.tempoTerm=wt2.slice(0,40);
+            /* 自家导出的速度术语和谱首节拍器写在同一个 direction 里（v69.4 起；v69.3 及以前是紧跟在节拍器 direction 后面，两种都认）；
+               首小节别的不带字体的 words 是标注（此前没有速度术语的谱，第 1 小节的标注往返变成速度术语） */
+            else if(wt2 && part===primaryPart && mi2===0 && !out.tempoTerm && (!ownSw || el.querySelector('direction-type > metronome') || (()=>{ const pv=el.previousElementSibling; return !!(pv && pv.tagName==='direction' && pv.querySelector('direction-type > metronome')); })())) out.tempoTerm=wt2.slice(0,40);
             else if(wt2){ if(tg && !tg.anno) tg.anno=wt2.slice(0,40); else addAnno(wt2.slice(0,40)); } }
           return;   // 其余 direction（metronome/rehearsal 等）另行处理
         }

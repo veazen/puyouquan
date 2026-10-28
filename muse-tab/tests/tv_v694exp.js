@@ -323,8 +323,9 @@ const HELP = () => {
       const r8 = await EV(pg, x => { const ms = t => t.replace(/<miscellaneous>[\s\S]*?<\/miscellaneous>/, '').replace(/谱友圈 puyouquan\.com/g, 'MuseScore 3.2.3');
         const a = importMusicXML(ms(x)).song; const x2 = exportMusicXML(a); const b2 = importMusicXML(ms(x2)).song;
         return { r1: a.voxVoices, r2: b2.voxVoices }; }, ave);
-      const want8 = J(['Singstimme\nVoice', 'Pianoforte·右手', 'Pianoforte·左手']);
-      T('X8', J(pn(ave)) === J(['Singstimme\nVoice', 'Pianoforte']) && pn(R.docs.piano)[0] === '钢琴' && pn(R.docs.sg)[1] === '右手伴奏·左手伴奏' && /pyq-staff-names/.test(ave)
+      /* v69.4 合并：导入组把 part-name 里的换行统一成空格（曲库种子随之变成「Singstimme Voice」），预期按新口径 */
+      const want8 = J(['Singstimme Voice', 'Pianoforte·右手', 'Pianoforte·左手']);
+      T('X8', J(pn(ave)) === J(['Singstimme Voice', 'Pianoforte']) && pn(R.docs.piano)[0] === '钢琴' && pn(R.docs.sg)[1] === '右手伴奏·左手伴奏' && /pyq-staff-names/.test(ave)
         && J(r8.r1) === want8 && J(r8.r2) === want8,
         '大谱表 part-name：《圣母颂》写「Pianoforte」、右手 / 左手写「钢琴」、右手伴奏 / 左手伴奏照原口径；MuseScore 式另存两轮往返行名不变', J({ ave: pn(ave), piano: pn(R.docs.piano), sg: pn(R.docs.sg), r8 }));
       /* X9 */
