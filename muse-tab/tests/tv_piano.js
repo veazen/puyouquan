@@ -37,6 +37,8 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const b2=colBoxes['v1:0:0']; const sb=+rect.dataset.staffb;
     return {cx:r.left+(b2.x+b2.w/2)*sc, top:r.top, sc, sb};
   });
+  /* v69.6 I3（有意迁移）：程序改 sel 后第一次点击只选中，隔一会儿再点才按线 / 间定音高 */
+  await pg.mouse.click(pt.cx, pt.top+(pt.sb-15)*pt.sc); await pg.waitForTimeout(520);
   await pg.mouse.click(pt.cx, pt.top+(pt.sb-15)*pt.sc); await pg.waitForTimeout(200);   // 中线 D3 = step29 → y=sb-15
   const t2=await pg.evaluate(()=>({deg:song.measures[0].voxes[1][0].deg, oct:song.measures[0].voxes[1][0].oct}));
   console.log('T2 低音谱点击中线:', JSON.stringify(t2), '(期望 deg2 oct-1 = D3)');

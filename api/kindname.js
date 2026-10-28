@@ -28,7 +28,9 @@ const PQ_KIND = (function(){
     if(a<0) return [];
     let b=a; while(b+1<n && isStaffNota(vn[b+1])) b++;
     if(b===a) return [];
-    const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && !voxHasLyrics(s,a,b));
+    /* v69.6 I6（复核 N8）没写分组的老钢琴独奏谱：乐器身份 instKey==='piano' 或声部名「右手 / 左手」也认花括号——此前右手一填词就判成合唱方括号、谱名变成合唱谱 */
+    const pno = b-a===1 && (s.instKey==='piano' || ((s.voxVoices||[])[a]==='右手' && (s.voxVoices||[])[b]==='左手'));
+    const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && (pno || !voxHasLyrics(s,a,b)));
     return [{type: piano? 'brace' : 'bracket', from:a, to:b}];
   }
   /* 合唱：显式方括号组，或推断出的五线谱组里确有歌词（三行以上的器乐重奏照样方括号，但不算合唱） */
