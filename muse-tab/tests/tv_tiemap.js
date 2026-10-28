@@ -220,7 +220,7 @@ const HELP = `(()=>{
       aBar: !!aBar, paren: D ? D.txt : null, out: !!out, inn: !!inn, sysDiff: tt2 > tt0 + 20 };
     /* 发声 */
     const ev = __play();
-    const f = (s2, f2) => +(440 * Math.pow(2, (([64, 59, 55, 50, 45, 40][s2 - 1] + f2 - 12) - 69) / 12)).toFixed(2);
+    const f = (s2, f2) => +(440 * Math.pow(2, (([64, 59, 55, 50, 45, 40][s2 - 1] + f2) - 69) / 12)).toFixed(2);   /* v69.4 TAB 播放按实音（调弦即实音，不再 −12；同 exportMIDI） */
     const spb = 60 / song.tempo;
     const at = (beat, fq) => ev.filter(e => Math.abs(e[1] - beat * spb) < 0.02 && Math.abs(e[0] - fq) < fq * 0.01);
     const play = { n: ev.length, s2at1: at(1, f(2, 3)).length, s3at1: at(1, f(3, 2)).length, s4at4: at(4, f(4, 2)).length, s5at8: at(8, f(5, 3)).length,

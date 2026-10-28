@@ -212,7 +212,7 @@ const group = async (id, fn) => { if (!want(id)) return; try { await fn(); } cat
   await group('TAB-5', async () => {
     const pg = await open(b, { tag: 'TAB-5' });
     const r = await EV(pg, () => { __jt({ nVox: 0, nTab: 2, tab: 'strum', mod: s => { s.capo = 3; s.tabCapos = [null, 5]; s.measures[0].tabs[0][0].chord = 'C'; s.measures[0].tabs[1][0].chord = 'C'; } });
-      window.__mid = []; window.ensureLiveCtx = () => ({ currentTime: 0 }); window.buildBus = () => ({}); window.playInst = (ins, ctx, bus, f) => { __mid.push(Math.round(12 * Math.log2(f / 440) + 69 + 12)); };
+      window.__mid = []; window.ensureLiveCtx = () => ({ currentTime: 0 }); window.buildBus = () => ({}); window.playInst = (ins, ctx, bus, f) => { __mid.push(Math.round(12 * Math.log2(f / 440) + 69)); };   /* v69.4 试听与主播放同为实音（此前低 12、这里补 +12） */
       const o = {};
       __sel('tab', 0, 0, 0); showChordEditor(0, 0, 0); document.getElementById('ce-play').click(); o.t1 = __mid.slice(); __mid.length = 0; closeModal();
       __sel('tab', 0, 0, 1); showChordEditor(0, 0, 1); document.getElementById('ce-play').click(); o.t2 = __mid.slice(); __mid.length = 0; closeModal();

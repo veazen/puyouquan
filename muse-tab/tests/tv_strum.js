@@ -159,7 +159,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     };
     return {up:run('arp'), down:run('arpd')};
   })()`);
-  T(r.up.order.join() === '33,40,45,48,52' && r.down.order.join() === '52,48,45,40,33'
+  /* v69.4 TAB 播放按实音（A2=45…E4=64，同 exportMIDI；此前低 12 为 33…52） */
+  T(r.up.order.join() === '45,52,57,60,64' && r.down.order.join() === '64,60,57,52,45'
     && Math.abs(r.up.span - 138) < 1 && Math.abs(r.down.span - 138) < 1,
     'T8 上琶音低→高、下琶音高→低（此前两者发声完全相同），展开都是 138ms', JSON.stringify(r));
 

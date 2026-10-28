@@ -85,7 +85,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.got.length === 1 && near(r.got[0], r.want) && r.inPlay === 1,
     'T4 简谱输入回响（正确音高；播放中不插响）', JSON.stringify(r));
 
-  /* 输入回响：TAB 弦品口径（调弦+品+capo−12）；×闷音不响 */
+  /* 输入回响：TAB 弦品口径（调弦+品+capo，v69.4 起与主播放 / 导出 MIDI 同为实音，不再 −12）；×闷音不响 */
   r = await pg.evaluate(() => {
     loadSong(createSong('guitar', { title: 'g', beats: 4, unit: 4, key: 'C', nMea: 2, nTab: 1, nVox: 1, lyr: 0 }));
     mutate(() => { song.capo = 2; });
@@ -94,7 +94,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     playInst = (k, c, b2, f) => { _rec.push(+f.toFixed(2)); };
     sel.row = 'tab'; sel.vi = 0; sel.mi = 0; sel.ci = 0; sel.si = 5;
     setFret(3);
-    const want = +(440 * Math.pow(2, ((tuningOf()[4] + 3 + 2 - 12) - 69) / 12)).toFixed(2);
+    const want = +(440 * Math.pow(2, ((tuningOf()[4] + 3 + 2) - 69) / 12)).toFixed(2);
     const got = _rec.slice();
     /* ×闷音：无确定音高 → 不响 */
     const col = song.measures[0].tabs[0][0];
@@ -105,7 +105,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { got, want, afterMute };
   });
   T(r.got.length === 1 && near(r.got[0], r.want) && r.afterMute === 1,
-    'T5 TAB 输入回响（调弦+品+capo−12；×闷音不响）', JSON.stringify(r));
+    'T5 TAB 输入回响（调弦+品+capo＝实音；×闷音不响）', JSON.stringify(r));
 
   /* keyTo 之后输入回响也按新调（回响与播放同一生效调） */
   r = await pg.evaluate(() => {

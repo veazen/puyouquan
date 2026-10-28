@@ -475,7 +475,7 @@ const CASES = `(()=>{
       window.playInst = (k, c, b2, f, w) => { rec.push([w, f]); };
       try { play(); const S = audio.schedQ; if (S) S.q.slice(S.i).forEach(ev => { if (ev.k === 'playInst') rec.push([ev.a[4], ev.a[3]]); }); } finally { stopPlay(); window.playInst = orig; }
       rec.sort((a, c) => a[0] - c[0]);
-      const plM = rec.slice(-5).map(r => Math.round(69 + 12 * Math.log2(r[1] / 440)) + 12);
+      const plM = rec.slice(-5).map(r => Math.round(69 + 12 * Math.log2(r[1] / 440)));   /* v69.4 TAB 播放按实音（此前播放低 12、这里补 +12） */
       return { heads: heads.map(t => t.textContent).join(''), nX: X.length, xOK, beams: beams.length, dashX, jpM, plM };
     });
     T(r7.heads.slice(0, 9) === 'XXX5X3X10' && r7.nX === 5 && r7.xOK && r7.beams >= 2 && r7.dashX >= 1,
