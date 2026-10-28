@@ -38,15 +38,15 @@ const F=(()=>{ const i=F0.indexOf('#'), b=i>=0? F0.slice(0,i) : F0, h=i>=0? F0.s
     const m0R=song.measures[0].voxes[0], m0L=song.measures[0].voxes[1];
     const m2L=song.measures[2].voxes[1];
     return { res,
-      // C大调 slow：左手 1(C3=oct-1 deg1) 5(G3)；右手8分 3 5 8 5...（deg 3,5,1̇...）
+      // C大调 slow：左手 1(C3=oct-1 deg1) 5(G2：v69.6 H1 有意迁移——低音型织体五音槽高于 E3 降到根音下方，此前 G3)；右手8分 3 5 8 5...（deg 3,5,1̇...；钢琴弹唱谱没有要让的旋律，右手照旧原位）
       LH0: m0L.map(c=>c.deg+''+(c.oct||0)).join(' '),
       RH0: m0R.slice(0,4).map(c=>c.deg+''+(c.oct||0)).join(' '),
       chordKept: m0R[0].chord==='C', lyrKept: (m0R[0].lyrics||[])[0]==='词',
       // Am 小三和弦：三音应为小三度 C（deg1）
       AmRH_third: m2L.length===2 && song.measures[2].voxes[0][0].deg!==undefined };
   });
-  const okT2 = t2.res.done===4 && t2.LH0==='1-1 5-1' && t2.RH0.startsWith('30 50 11 50') && t2.chordKept && t2.lyrKept;
-  console.log('T2 织体生成: done='+t2.res.done+'/4 左手='+t2.LH0+'(期望 1-1 5-1) 右手前4='+t2.RH0+'(期望 30 50 11 50) 和弦保留='+t2.chordKept+' 歌词保留='+t2.lyrKept, okT2?'✅':'❌');
+  const okT2 = t2.res.done===4 && t2.LH0==='1-1 5-2' && t2.RH0.startsWith('30 50 11 50') && t2.chordKept && t2.lyrKept;
+  console.log('T2 织体生成: done='+t2.res.done+'/4 左手='+t2.LH0+'(期望 1-1 5-2) 右手前4='+t2.RH0+'(期望 30 50 11 50) 和弦保留='+t2.chordKept+' 歌词保留='+t2.lyrKept, okT2?'✅':'❌');
   await pg.waitForTimeout(250);
   r=await pg.evaluate(()=>{ blurSel=true; render(); const r2=document.getElementById('score').getBoundingClientRect(); return {x:r2.x,y:r2.y,w:r2.width}; });
   await pg.screenshot({path:'v375-acc.png', clip:{x:Math.max(0,r.x), y:Math.max(0,r.y+95), width:Math.min(1100,r.w), height:330}});

@@ -152,8 +152,8 @@ const HELP = `(()=>{
     const r = await EV(`({v0:JSON.stringify(song.measures.map(m=>m.voxes[0]))===__v0, r0:JSON.stringify(song.measures[0].voxes.slice(1))===__r0,
       blk:[1,2,3].map(mi=>song.measures[mi].voxes[1].map(c=>c.dur+'/'+(c.adds||[]).length).join(' ')), m2L:song.measures[2].voxes[2].map(c=>c.dur+':'+c.deg).join(' '), tex:song.texId, toast:__tt()})`);
     T(m.out === 'teach' && /覆盖已有的 1 小节伴奏/.test(m.fillTxt) && m.warn0 === 'none' && m.warn1 === 'block' && m.tex === 'slow'
-      && r.v0 && r.r0 && r.blk.every(x => x === '4/2 4/2 4/2 4/2') && r.m2L === '2:6 2:1' && r.tex === 'block' && /3 小节伴奏，1 小节无和弦跳过/.test(r.toast) && !/覆盖了/.test(r.toast),
-      'F2 右手已有内容（非本工具生成）：默认改回新窗口产出、选项写明「覆盖已有的 1 小节伴奏」，改选填进当前谱时弹出覆盖提示；不勾自动配和弦：旋律声部逐字节不动（含原有 C / Am·F）；第 2–4 小节生成柱式（第 3 小节左手 Am 根音 6 → 半小节换 F 弹五音 1；第 4 小节沿用 F）、首个和弦之前的第 1 小节伴奏行原样保留并提示；4/4 默认织体＝库首套（slow）', J({ m, r }));
+      && r.v0 && r.r0 && r.blk.every(x => x === '4/2 4/2 4/2 4/2') && r.m2L === '2:6 2:4' && r.tex === 'block' && /3 小节伴奏，1 小节无和弦跳过/.test(r.toast) && !/覆盖了/.test(r.toast),
+      'F2 右手已有内容（非本工具生成）：默认改回新窗口产出、选项写明「覆盖已有的 1 小节伴奏」，改选填进当前谱时弹出覆盖提示；不勾自动配和弦：旋律声部逐字节不动（含原有 C / Am·F）；第 2–4 小节生成柱式（第 3 小节左手 Am 根音 6 → 半小节换 F 弹 F 的根音 4——v69.6 H1 有意迁移：换和弦弹根音对所有织体默认开，此前落五音 1；第 4 小节沿用 F）、首个和弦之前的第 1 小节伴奏行原样保留并提示；4/4 默认织体＝库首套（slow）', J({ m, r }));
   }
 
   /* ===== F3 变拍子小节保留 + 一小节都配不了时不动谱 ===== */
@@ -321,14 +321,15 @@ const HELP = `(()=>{
           const want0 = c.b!=null? c.b : c.r;
           const rset=new Set(r.map(pc)), wantR=new Set([pc(c.r+c.q[0]), pc(c.r+(c.s7!=null? c.s7 : c.q[1]))]);
           const ok = pc(l0)===want0 && pc(l1)===pc(c.r+c.q[1]) && r.length===2 && [...wantR].every(x=>rset.has(x)) && rset.size===wantR.size
-            && l0<l1 && r.every(x=>x>l1) && (c.b==null || (l0>=41 && l0<=52 && l1-l0>0 && l1-l0<19));
+            /* v69.6 H1 有意迁移：非斜线和弦的五音槽高于 E3 时降到根音下方（根音＋低五音交替，左手不越过中央 C）；斜线和弦路径不动（照旧低音在最低处） */
+            && (c.b!=null? l0<l1 : (l1>l0? l1<=52 : l0-l1<12) && l0<=55) && r.every(x=>x>Math.max(l0,l1)) && (c.b==null || (l0>=41 && l0<=52 && l1-l0>0 && l1-l0<19));
           minLow=Math.min(minLow,l0); maxLow=Math.max(maxLow,l1); minR=Math.min(minR,...r); maxR=Math.max(maxR,...r);
           if(!ok) bad.push(key+':'+CH[mi]+':'+[l0,l1,r.join('+')].join(' '));
         });
       });
       out.n=n; out.bad=bad.slice(0,6); out.nb=bad.length; out.range=[minLow,maxLow,minR,maxR]; return out; })()`);
     T(r.def && r.n === 12 * 22 && r.nb === 0 && r.range && r.range[0] >= 41 && r.range[1] <= 67 && r.range[2] >= 55 && r.range[3] <= 84,
-      'F7 2/4「儿歌伴奏」织体：库里有（入门，两手各 2 拍，2/4 可选 进行曲 / 波尔卡 / 儿歌 三套）；12 调 × 22 和弦（七 / 半减七 / 增 / 减 / 挂留 / 加九 / 7 种转位斜线）共 ' + r.n + ' 小节：右手 [休止, 三音·五音（七和弦 三音·七音）]、左手 [低音（斜线和弦＝斜线低音，落在 F2–E3）, 五音]，全四分、beatErrors 0、左手第一拍为全小节最低音；曲末小节收束（根音 + 1·3·5 二分）；音域 ' + J(r.range), J({ bad: r.bad, nb: r.nb }));
+      'F7 2/4「儿歌伴奏」织体：库里有（入门，两手各 2 拍，2/4 可选 进行曲 / 波尔卡 / 儿歌 三套）；12 调 × 22 和弦（七 / 半减七 / 增 / 减 / 挂留 / 加九 / 7 种转位斜线）共 ' + r.n + ' 小节：右手 [休止, 三音·五音（七和弦 三音·七音）]、左手 [低音（斜线和弦＝斜线低音，落在 F2–E3）, 五音]，全四分、beatErrors 0、斜线和弦左手第一拍为全小节最低音（其余和弦五音高于 E3 时落在根音下方，v69.6）；曲末小节收束（根音 + 1·3·5 二分）；音域 ' + J(r.range), J({ bad: r.bad, nb: r.nb }));
   }
 
   /* ===== F8 斜线低音（全部织体）+ 非斜线和弦生成与 v67.3 逐字节相同 ===== */
@@ -413,8 +414,9 @@ const HELP = `(()=>{
       const PCS={F:[5,9,0], C:[0,4,7], G:[7,11,2], D7:[2,6,9,0]}; let bad=[];
       song.measures.forEach((m,mi)=>[1,2].forEach(vi=>m.voxes[vi].forEach(c=>{ if(!c.deg) return; [voxMidi(c,mi)].concat((c.adds||[]).map(a=>voxMidi(Object.assign({acc:'',oct:0},a),mi))).forEach(x=>{ if(!PCS[CH[mi]].includes(((x%12)+12)%12)) bad.push(mi+':'+x); }); })));
       return {bad, g:song.measures[2].voxes[2].map(c=>voxMidi(c,2)).join(',')+'|'+[song.measures[2].voxes[1][1]].map(c=>[voxMidi(c,2)].concat(c.adds.map(a=>voxMidi(Object.assign({acc:'',oct:0},a),2))).join('+')).join('')}; })()`);
-    T(r.bad && r.bad.length === 0 && r.g === '55,62|71+74',
-      'F11 1=F 第 3 小节转 1=G：G / D7 小节的伴奏音全部是和弦内音（G 和弦左手 G3·D4、右手 B4+D5；此前按谱首调换算成 A 大三 / E7）', J(r));
+    /* v69.6 有意迁移：H1 五音降到根音下方（左手 G3·D3，此前 G3·D4）；H2 右手在旋律（第 2 拍 B4）下方取转位 D4+B4（此前 B4+D5） */
+    T(r.bad && r.bad.length === 0 && r.g === '55,50|62+71',
+      'F11 1=F 第 3 小节转 1=G：G / D7 小节的伴奏音全部是和弦内音（G 和弦左手 G3·D3、右手 D4+B4；此前按谱首调换算成 A 大三 / E7）', J(r));
   }
 
   /* ===== F12 变化音按和弦字母拼写（验收：1=G 的 F 和弦左手记成 E♯3） ===== */
@@ -479,8 +481,8 @@ const HELP = `(()=>{
       fillAccompaniment('kids2', false);
       const md=(c,mi)=>c.deg? [voxMidi(c,mi)].concat((c.adds||[]).map(a=>voxMidi(Object.assign({acc:'',oct:0},a),mi))).join('+') : 'r';
       return song.measures.map((m,mi)=>m.voxes[2].map(c=>md(c,mi)+'/'+c.dur).join(' ')+' | '+m.voxes[1].map(c=>md(c,mi)+'/'+c.dur).join(' ')); })()`);
-    T(Array.isArray(r) && r[0] === '53/4 48/4 | r/4 64+70/4' && r[1] === '46/4 48/4 | r/4 64+70/4' && r[2] === '53/2 | 65+69+72/2',
-      'F14 2/4 儿歌伴奏「F C7 | B♭ C7 | F」：第 2 拍换 C7 时左手弹 C3（不再落五音 G）、右手 E4·B♭4（七和弦 3·7）；曲末 F 小节左手 F3 + 右手 F4·A4·C5 二分收束', J(r));
+    T(Array.isArray(r) && r[0] === '53/4 48/4 | r/4 64+70/4' && r[1] === '46/4 48/4 | r/4 64+70/4' && r[2] === '53/2 | 60+65+69/2',
+      'F14 2/4 儿歌伴奏「F C7 | B♭ C7 | F」：第 2 拍换 C7 时左手弹 C3（不再落五音 G）、右手 E4·B♭4（七和弦 3·7）；曲末 F 小节左手 F3 + 右手 1·3·5 二分收束（v69.6 H2 有意迁移：旋律 F4，右手取最贴近旋律下方的转位 C4·F4·A4，此前 F4·A4·C5）', J(r));
   }
 
   /* ===== F15 尾部未写旋律的小节不配、funcNames 不动、混音音色 ===== */
@@ -522,7 +524,8 @@ const HELP = `(()=>{
       const one=(key, ch, tex)=>{ const s=__jg({key, beats:4, unit:4, nMea:2, lyr:0}); s.measures.forEach((m,mi)=>{ m.voxes[0]=[__V(1,1,{chord:mi? ch : null})]; }); addDoc(s); fillAccompaniment(tex, false);
         const f=c=>(c.acc||'')+c.deg; return {R:[song.measures[1].voxes[1][0]].map(c=>[f(c)].concat((c.adds||[]).map(f)).join('/')).join(), L:song.measures[1].voxes[2].filter(c=>c.deg).map(f).join(',')}; };
       return {n, nb:bad.length, bad:bad.slice(0,6), ab:one('Ab','C#','block'), e:one('E','Abm','block'), g:one('G','F','block')}; })()`);
-    T(r.n > 20000 && r.nb === 0 && r.ab.R === '4/6/1' && r.ab.L === '4,1' && r.e.R === '3/5/7' && !/[#b]/.test(r.e.L) && /^b7/.test(r.g.L),
+    /* v69.6 H2 有意迁移：右手按旋律选转位（柱式音的高低次序随转位变），「4/6/1」「3/5/7」改按音级集合比（本条测的是拼写：调内音写自然级） */
+    T(r.n > 20000 && r.nb === 0 && r.ab.R.split('/').sort().join('/') === '1/4/6' && r.ab.L === '4,1' && r.e.R.split('/').sort().join('/') === '3/5/7' && !/[#b]/.test(r.e.L) && /^b7/.test(r.g.L),
       'F16 调内保护：12 调 × 调内和弦候选（diatonicChords＋V7）× 全部 ' + 22 + ' 套织体共 ' + r.n + ' 个伴奏音全是自然级（和弦名按固定拼法表出时不再写成 ♯3/♯7、♭4/♭1）；1=♭A 的 IV 级「C#」柱式右手 4/6/1、左手 4,1；1=E 的 iii 级「Abm」右手 3/5/7；调外音仍按和弦字母（1=G 的 F 和弦左手 ♭7）', J(r));
   }
 
