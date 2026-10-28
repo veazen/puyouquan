@@ -466,11 +466,16 @@ const jtStd = (pg, extra) => EV(pg, (x) => __jt(Object.assign({}, { degs: x.degs
         const r = await EV(p, () => { const out = {};
           const min = createSong('vocal', { title: 'm', key: 'C', beats: 4, unit: 4, nMea: 4, nVox: 1, lyr: 0 }); [[6, 1, 3, 6], [3, 5, 7, 3], [4, 6, 1, 4], [3, 5, 7, 6]].forEach((ds, mi) => ds.forEach((d2, i) => { min.measures[mi].voxes[0][i].deg = d2; }));
           min.measures[1].voxes[0][1].acc = '#';
-          [['xx', migrate(PRESETS[0].make())], ['hl', migrate(PRESETS[1].make())], ['min', min]].forEach(([k, s]) => { const R = chordSolve(s, 0); out[k] = J({ out: R.out, emit: R.emit, minor: R.minor }); });
+          [['xx', migrate(PRESETS[0].make())], ['hl', migrate(PRESETS[1].make())], ['min', min]].forEach(([k, s]) => { const R = chordSolve(s, 0); out[k] = J({ out: R.out, emit: R.emit, minor: R.minor }); if (k === 'min') out.minIds = R.CAND.map(c => c.id); });
           return out; });
         await close(p); return r; };
       const A = await solve(URL0), B = await solve(BASEU);
-      T('E6', A.xx === B.xx && A.hl === B.hl && A.min === B.min && A.xx.length > 50, 'E6e chordSolve 零变化：小星星 / 欢乐颂 / 小调各一份，out 与 emit 与基线逐项相等', J({ xx: A.xx === B.xx, hl: A.hl === B.hl, min: A.min === B.min }));
+      /* v69.6 H3 ① 有意迁移：小调份第 2 小节旋律有 ♯5（导音），导音护栏把 v / ♭VII 的发射分扣 50（选不上）——只允许这两格差 −50、其余逐项相等；out 不得落在 v / ♭VII。
+         大调两份（无伴奏行、无导音）仍逐项相等 */
+      const minOk = (() => { try { const a = JSON.parse(A.min), b2 = JSON.parse(B.min), ids = A.minIds || [];
+        const em = a.emit.every((row, mi) => row.every((v, j) => { const d = v - b2.emit[mi][j]; return Math.abs(d) < 1e-9 || (mi === 1 && (ids[j] === 'v' || ids[j] === 'VII') && Math.abs(d + 50) < 1e-9); }));
+        return a.minor === b2.minor && em && a.out.every((o, mi) => mi === 1 ? !/^(Em|G)$/.test(o) : o === b2.out[mi]); } catch (_) { return false; } })();
+      T('E6', A.xx === B.xx && A.hl === B.hl && minOk && A.xx.length > 50, 'E6e chordSolve 零变化：小星星 / 欢乐颂逐项相等；小调份（第 2 小节有 ♯5）只有导音护栏的 v / ♭VII 两格差 −50、该小节不落 Em / G，其余与基线逐项相等', J({ xx: A.xx === B.xx, hl: A.hl === B.hl, min: minOk }));
     } else INFO('E6', 'E6e 基线文件取不到，跳过');
   } catch (e) { T('E6', false, 'E6 组异常（没跑完）', String(e && e.message || e).slice(0, 300)); }
 

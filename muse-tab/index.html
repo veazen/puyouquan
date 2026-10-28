@@ -5859,7 +5859,7 @@ const PIANO_TEX = [
  {id:'waltz2',  name:'圆舞曲柱式 蓬-嚓-嚓', level:'入门', beats:3,
   L:[{d:4,t:'1'},{d:4,t:null},{d:4,t:null}],
   R:[{d:4,t:null},{d:4,s:['3','5','8']},{d:4,s:['3','5','8']}]},
- {id:'alberti', name:'阿尔贝蒂低音（古典）', level:'中级', beats:4,
+ {id:'alberti', name:'阿尔贝蒂低音（古典）', level:'中级', beats:4, lhClose:true,   /* v69.6 H1：密集分解（低-高-中-高），越过中央 C 时整组降八度、不拆形状 */
   L:[{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'},{d:8,t:'1'},{d:8,t:'5'},{d:8,t:'3'},{d:8,t:'5'}],
   R:[{d:2,t:'8'},{d:2,t:'5'}]},
  {id:'basswalk', name:'低音行走+高音琶音', level:'中级', beats:4,
@@ -5881,7 +5881,7 @@ const PIANO_TEX = [
  /* v67.6 2/4 儿歌伴奏（新建流程方案「儿歌弹唱」默认 1=F 2/4 ♩=104：此前 2/4 只有进行曲 / 波尔卡两套，一键配伴奏落不到儿歌织体）。
     与 4/4「儿歌伴奏」同一写法逐拍对半：强拍低音（根音，斜线和弦取斜线低音）＋右手休止，弱拍五音＋右手 3·5 轻柱式（蓬-嚓，四分为单位，
     比波尔卡的八分后半拍稀疏，适合幼儿园 / 小学低段边弹边唱）。三个只此一套带的开关（新织体，不动其余 21 套的既有生成）：
-    chgRoot 第 2 拍换和弦时左手弹新和弦根音（不落五音）；sev 七和弦右手 3·7（不省七音）；endHold 曲末小节左手根音＋右手 1·3·5 延满收束 */
+    chgRoot 第 2 拍换和弦时左手弹新和弦根音（不落五音；v69.6 起所有织体默认开，这里的 true 只是写明）；sev 七和弦右手 3·7（不省七音）；endHold 曲末小节左手根音＋右手 1·3·5 延满收束 */
  {id:'kids2',   name:'儿歌伴奏 2/4（低音+弱拍轻柱式）', level:'入门', beats:2, chgRoot:true, sev:true, endHold:true,
   L:[{d:4,t:'1'},{d:4,t:'5'}],
   R:[{d:4,t:null},{d:4,s:['3','5']}]},
@@ -6016,10 +6016,45 @@ function midiToVoxCol(midi, ref){   /* v67.0 ref 可选（简谱联排行按小�
   const oct = Math.floor(rel/12), pc = ((rel%12)+12)%12;
   return {deg:SEMI_DEG[pc][0], acc:SEMI_DEG[pc][1], oct};
 }
+/* v69.6 H2（复核 N7 后半）：右手一段（同一和弦的若干事件）选转位——不整组降八度（会和左手撞），而是按声部进行换转位。
+   iv＝和弦音程表；slots＝本段用到的槽位（1/3/5/7/8）；evs＝[{a,b,slots}] 每个发声事件的拍位区间与槽位；mel＝[{a,b,m}] 本小节旋律音（写谱音高）；
+   fl＝下限（中央 C，且比这一段里同时响的左手最高音高 ≥ 小三度）；prev＝上一组右手音高集合；def＝缺省原位的根音音高（第一组、无旋律时就近于它）。
+   转位 k＝把本段用到的和弦音（8 并入 1）按音程排好后整体轮转 k 位：槽位的高低次序（分解型的轮廓）不变、音级集合不变（C 的 3-5-8＝E G C → G C E → C E G）。
+   选法（先满足的档胜，同档取离上一组最近、再取离原位最近）：① 每个事件都低于同时响的旋律音（[下限, 本拍旋律音 − 1]）且不高于本小节旋律最高音；
+   ② 窗口太窄放宽到不高于本小节旋律最高音；③ 仍放不下取超出最少的。返回 {map:{槽位:{m 音高, tn 实际和弦音}}, set 音高集合}；用到 9 / 11 / 13 等延伸槽返回 null（照旧原位） */
+function accRhVoice(iv, slots, evs, mel, fl, prev, def){
+  const D=[]; slots.forEach(tn=>{ const t=tn==='8'? '1' : tn; if(D.indexOf(t)<0) D.push(t); });
+  if(!D.length || D.some(t=>iv[t]==null || iv[t]>=12)) return null;
+  D.sort((x,y)=>iv[x]-iv[y] || ('1357'.indexOf(x)-'1357'.indexOf(y)));
+  const n=D.length, pos=tn=> tn==='8'? D.indexOf('1')+n : D.indexOf(tn);
+  const mk=(k,B)=>{ const map={}; slots.forEach(tn=>{ const p=pos(tn)+k, t=D[p%n]; map[tn]={m:B+iv[t]+12*Math.floor(p/n), tn:t}; }); return map; };
+  const setOf=map=>[...new Set(Object.keys(map).map(k=>map[k].m))].sort((a,b)=>a-b);
+  const dist=(A,B)=>A.reduce((s,x)=>s+Math.min(...B.map(y=>Math.abs(x-y))),0)+B.reduce((s,y)=>s+Math.min(...A.map(x=>Math.abs(x-y))),0);
+  const dset=setOf(mk(0, def)), ref=(prev && prev.length)? prev : dset;
+  const melMax = mel.length? Math.max(...mel.map(x=>x.m)) : null;
+  const ceil = evs.map(e=>{ const o=mel.filter(x=>x.a<e.b-1e-6 && x.b>e.a+1e-6); return o.length? Math.min(...o.map(x=>x.m))-1 : null; });
+  const pc = ((def%12)+12)%12;
+  let best=null, bc=null;
+  for(let k=0;k<n;k++) for(let j=3;j<=6;j++){
+    const map=mk(k, pc+12*j), set=setOf(map), lo=set[0], hi=set[set.length-1];
+    if(lo<fl || hi>84) continue;
+    const strict = evs.every((e,i)=>ceil[i]==null || e.slots.every(tn=>map[tn].m<=ceil[i]));
+    const relax = melMax==null || hi<=melMax;
+    const tier = strict && relax? 0 : relax? 1 : 2;
+    const over = tier===2? set.reduce((s,x)=>s+Math.max(0, x-melMax), 0) : 0;
+    const c=[tier, over, dist(set, ref), dist(set, dset)];
+    const lt=()=>{ for(let i=0;i<c.length;i++){ if(c[i]!==bc[i]) return c[i]<bc[i]; } return false; };
+    if(!bc || lt()){ best={map, set}; bc=c; }
+  }
+  return best;
+}
 function genAccompaniment(texId, m1, m2, opt){
   opt=opt||{};
   const cVi=opt.chordVi||0, rVi=opt.rhVi!=null? opt.rhVi:0, lVi=opt.lhVi!=null? opt.lhVi:1;
   const tex = PIANO_TEX.find(t=>t.id===texId); if(!tex) return {done:0, noChord:0};
+  /* v69.6 H2：旋律行＝和弦行（钢琴伴奏歌谱的第 0 行；opt.melVi 可另指）；和弦行就是右手行（钢琴弹唱谱）时没有要让的旋律 */
+  const melVi = rVi!==cVi? (opt.melVi!=null? opt.melVi : cVi) : null;
+  let rhPrev = null;   /* 上一组右手的音高集合（跨小节接着做声部进行） */
   const timeline=[];
   song.measures.forEach((m,mi)=>{ let cum=0; (m.voxes[cVi]||[]).forEach(c=>{ if(c.chord) timeline.push({mi, beat:cum, chord:c.chord}); cum+=beatsOf(c); }); });
   const chordAt=(mi,beat)=>{ let cur=null;
@@ -6055,12 +6090,24 @@ function genAccompaniment(texId, m1, m2, opt){
       const hd = mm.unit/mm.beats;
       if([1,2,4].includes(hd)){ L=[{d:hd, t:'1'}]; R=[{d:hd, s:['1','3','5']}]; }
     }
-    const build=(evts, octBase)=>{ const cols=[]; let at=0, prevCh=null;
-      evts.forEach(ev=>{
+    /* v69.6 H2（复核 N7 后半）：右手按旋律让位——本小节旋律音（写谱音高，与伴奏同一把尺子 keyRefAt）读出来给右手选转位用；
+       和弦声部＝右手声部（钢琴弹唱谱，右手整行被伴奏替换）时没有旋律行（melVi＝null）、右手照旧原位 */
+    const mel=[];
+    if(melVi!=null){ let a=0; (mea.voxes[melVi]||[]).forEach(c=>{ const b=beatsOf(c, mm.unit);
+      if(c.deg) mel.push({a, b:a+b, m:keyRefAt(mi)+DEG_SEMI[c.deg]+accSemi(c.acc)+12*(c.oct||0)}); a+=b; }); }
+    const sevOf=(ev, ct)=> (tex.sev && ct.iv['7']!=null)? ev.s.map(tn=>tn==='5'? '7' : tn) : ev.s;
+    /* v69.6 H1（复核 N7）：左手音区。L 里有高八度根音「8」的分解型（流行八分琶音 / 左手流动 / 反拍 / 低音走三拍 / 仅左手）与阿尔贝蒂（lhClose）＝密集排列：
+       整组最高音越过中央 C（60）就整组降八度，形状不变（G：G3 D4 G4 → G2 D3 G3）；其余（根音＋五音 / 三音交替）＝低音型：五音 / 三音槽高于 E3（52）就降到根音下方
+       （G：G3 D4 → G3 D3，F：F3 C4 → F3 C3）。此前 G 的五音落在 D4（低音谱表上加一线之上），4/4 默认织体「抒情分解」首当其冲 */
+    const lhClose = !!tex.lhClose || tex.L.some(e=>e.t==='8');
+    const lhSlots = L.map(e=>e.t).filter(Boolean);
+    const lhSp = [];   /* 左手每个音的拍位区间与音高（右手下限按同时响的左手最高音算） */
+    const build=(evts, octBase, rv)=>{ const cols=[]; let at=0, prevCh=null;
+      evts.forEach((ev, ei)=>{
         const col={dur:ev.d, dotted:false, deg:0, acc:'', oct:0, lyrics:[], tie:false};
         const chName = chordAt(mi, at), ct = chordTones(chName);
         if(ct && (ev.t || ev.s)){
-          const root = (ct.pc<8? 48+ct.pc : 36+ct.pc) + octBase*12;
+          let root = (ct.pc<8? 48+ct.pc : 36+ct.pc) + octBase*12;
           /* v67.6 斜线和弦（C/E、G/B、Am/G…）：左手根音位弹斜线低音，放在固定音区 F2–E3（41–52）——与根音位的 A♭2–G3 衔接，
              下行低音线 F–C/E–Dm–Am/C–B♭–F/A 走成 F3 E3 D3 C3 B♭2 A2 级进（验收：此前取「根音以下最近」，1=F 时跳成 F3 E2 D3 C2 B♭2 A2）；
              左手其余槽位若落到斜线低音之下 / 与它同音（三音槽除外）就升八度，保证转位低音在最低处 */
@@ -6070,22 +6117,31 @@ function genAccompaniment(texId, m1, m2, opt){
           /* 斜线低音是本和弦的三 / 五 / 七音时，字母跟规整后的根音走（1=A 的 A♭/C → G♯/B♯，低音与右手三音同字母）；否则按调规整斜线低音自己的字母 */
           let bL = ct.bass!=null? accKeyL(ct.bass, ct.bassL, mi) : null;
           if(ct.bass!=null) for(const tn of ['3','5','7']){ const iv=ct.iv[tn]; if(iv!=null && (ct.pc+iv)%12===ct.bass){ const lo=accSlotL(tn, iv); if(lo!=null) bL=(rL+lo)%7; break; } }
+          const lowL = octBase===0 && !slashL;
+          if(lowL && lhClose && root + Math.max(0, ...lhSlots.map(t=>ct.iv[t]||0)) > 60) root -= 12;
+          const rvE = octBase===1 && rv? rv[ei] : null;
           const tone = tn=>{
-            if(slashL && tn==='1') return accSpellCol(bassM, bL, mi);
+            if(slashL && tn==='1'){ lhSp.push({a:at, b:at+mm.unit/ev.d, m:bassM}); return accSpellCol(bassM, bL, mi); }
+            /* H2：右手本段选好的转位——槽位改弹该转位里的那个和弦音（音高 m、拼写按实际和弦音 tn） */
+            const v = rvE && rvE[tn];
+            if(v){ const lo=accSlotL(v.tn, ct.iv[v.tn]); return accSpellCol(v.m, lo==null? null : (rL + lo) % 7, mi); }
             let m = root + ct.iv[tn];
             if(slashL) while(m < bassM || (m===bassM && tn!=='3')) m += 12;
+            if(lowL && !lhClose && (tn==='5' || tn==='3') && m > 52) m -= 12;
+            if(octBase===0) lhSp.push({a:at, b:at+mm.unit/ev.d, m});
             const lo = accSlotL(tn, ct.iv[tn]);
             return accSpellCol(m, lo==null? null : (rL + lo) % 7, mi);
           };
           if(ev.s){   // 柱式：s[0]=主音，其余为和音（同列多音）
             /* v67.6 织体 sev（2/4 儿歌伴奏）：七和弦的轻柱式 3·5 → 3·7（属七省五音，C7 与 C 听得出差别） */
-            const ss = (tex.sev && ct.iv['7']!=null)? ev.s.map(tn=>tn==='5'? '7' : tn) : ev.s;
+            const ss = sevOf(ev, ct);
             Object.assign(col, tone(ss[0]));
             col.adds = ss.slice(1).map(tone);
           } else {
-            /* v67.6 织体 chgRoot（2/4 儿歌伴奏）：本拍刚换和弦时左手五音槽改弹根音（斜线和弦＝斜线低音）——
-               「B♭ C7」半小节换和弦时第 2 拍此前落 C7 的五音 G，全小节没有 C，终止式发虚 */
-            const t = (tex.chgRoot && ev.t==='5' && at>0 && prevCh!=null && chName!==prevCh)? '1' : ev.t;
+            /* v67.6 织体 chgRoot：本拍刚换和弦时左手改弹根音（斜线和弦＝斜线低音）——「B♭ C7」半小节换和弦时第 2 拍此前落 C7 的五音 G，全小节没有 C，终止式发虚。
+               v69.6 H1：所有织体默认开（v67.6 只给 2/4 儿歌伴奏开，「抒情分解」小节中途 Am→G 第 3 拍落 G 的五音 D4）；三音 / 五音 / 高八度槽都改根音；只管左手。
+               逐套核对 22 套：换和弦后第一个左手音弹根音对每套都成立，无需关掉的（织体写 chgRoot:false 可单独关） */
+            const t = (octBase===0 && tex.chgRoot!==false && ev.t!=='1' && at>0 && prevCh!=null && chName!==prevCh)? '1' : ev.t;
             Object.assign(col, tone(t));
           }
         }
@@ -6094,8 +6150,32 @@ function genAccompaniment(texId, m1, m2, opt){
         cols.push(col); prevCh = chName; at += mm.unit/ev.d;
       });
       return cols; };
-    mea.voxes[rVi] = build(R, 1);
+    /* 先左手：右手下限要看同时响的左手最高音（两手间隔 ≥ 小三度） */
     mea.voxes[lVi] = build(L, 0);
+    let rv = null;
+    if(melVi!=null){
+      /* H2：右手按和弦分段（相邻同和弦的事件一段），每段在 [下限, 本拍旋律音 − 1] 里选与上一组最近的转位（accRhVoice）；
+         本小节旋律全是休止（间奏）时没有上限，只接着上一组做声部进行 */
+      rv = new Array(R.length).fill(null);
+      let at=0, seg=null; const segs=[];
+      R.forEach((ev, ei)=>{
+        const chName = chordAt(mi, at), ct = chordTones(chName), b = at + mm.unit/ev.d;
+        if(!seg || seg.ch!==chName){ seg={ch:chName, ct, evs:[], idx:[]}; segs.push(seg); }
+        if(ct && (ev.t || ev.s)){ seg.evs.push({a:at, b, slots: ev.s? sevOf(ev, ct) : [ev.t]}); seg.idx.push(ei); }
+        at = b;
+      });
+      segs.forEach(sg=>{
+        if(!sg.ct || !sg.evs.length) return;
+        const slots=[...new Set([].concat(...sg.evs.map(e=>e.slots)))];
+        const sa = sg.evs[0].a, sb = sg.evs[sg.evs.length-1].b;
+        const fl = Math.max(60, ...lhSp.filter(x=>x.a<sb-1e-6 && x.b>sa+1e-6).map(x=>x.m+3));
+        const r = accRhVoice(sg.ct.iv, slots, sg.evs, mel, fl, rhPrev, (sg.ct.pc<8? 48+sg.ct.pc : 36+sg.ct.pc)+12);
+        if(!r) return;
+        sg.idx.forEach(ei=>{ rv[ei]=r.map; });
+        rhPrev = r.set;
+      });
+    }
+    mea.voxes[rVi] = build(R, 1, rv);
     done++;
   }
   return {done, noChord, skipMeter, pickup, mismatch: !done && skipMeter>0};
@@ -6394,7 +6474,7 @@ let PROG_LAST={segs:[], marks:[]};   // 上一次配和弦的乐句切分与命�
    在面板里另写一份排序早晚会与引擎漂移（v60.20 已按此原则拆过 chordSolve，v60.21 又拆过 chordRangeScore）。
    返回 {sc, ids, tpl, rot, cad}；套不上（调式不符 / 无可用格 / 未过截断护栏）返回 null。 */
 function progFitSpan(ctx, byId, a, b, tpl){
-  const {CAND, emit, trans, minor, N, endDeg}=ctx;
+  const {CAND, emit, trans, minor, N, endDeg, lt}=ctx;
   if(tpl.mode!==(minor?'m':'M')) return null;
   const L=b-a+1, n=tpl.slots.length, rots=tpl.rot? n : 1;
   let best=null;
@@ -6405,6 +6485,12 @@ function progFitSpan(ctx, byId, a, b, tpl){
       let bi=-1, bv=-1e9;
       slot.forEach(id=>{ const j=byId[id]; if(j==null) return; if(emit[a+t][j]>bv){ bv=emit[a+t][j]; bi=j; } });
       if(bi<0){ ok=false; break; }
+      /* v69.6 H3 ①（复核 F6）变化音护栏：本小节有小调导音（♯5，旋律或伴奏）时套路格不得落在 v / ♭VII——换成 V / V7（取发射分高的）。
+         此前《阿特拉斯》m6 旋律唱 F♯ F♯ D，套路「VI-i-v」照样写成 Dm，与旋律直接冲突 */
+      if(lt && lt[a+t] && (CAND[bi].id==='v' || CAND[bi].id==='VII')){
+        let ri=-1, rv=-1e9; ['V','V7'].forEach(id=>{ const j=byId[id]; if(j!=null && emit[a+t][j]>rv){ rv=emit[a+t][j]; ri=j; } });
+        if(ri>=0) bi=ri;
+      }
       ids.push(bi);
     }
     if(!ok) continue;
@@ -6529,6 +6615,42 @@ function chordTrans(CAND, k, j, minor){
   const pair=CAND[k].id+'>'+CAND[j].id, fp=CAND[k].fn+'>'+CAND[j].fn;
   return minor? (MIN_TW[pair] ?? MIN_FN[fp] ?? 0) : (CHORD_TW[fp] ?? 0);
 }
+/* v69.6 H3（复核 F6）：谱里已有的伴奏行——钢琴弹唱谱（pianoAcc）＝旋律行以外的行（左手）；其余＝不含旋律行的一对钢琴花括号（显式或推断，PQ_KIND.groupsOf）。
+   都没有＝[]（旋律谱、新建的空伴奏谱行为不变）。只读 */
+function chordAccRows(s2, vi){
+  const n=(s2.voxVoices||[]).length;
+  if(s2.pianoAcc) return Array.from({length:n}, (_, i)=>i).filter(i=>i!==vi);
+  const br=voxGroupsOf(s2).filter(g=>g.type==='brace' && g.to===g.from+1 && vi!==g.from && vi!==g.to);
+  return br.length? [br[0].from, br[0].to] : [];
+}
+/* 伴奏行在第 mi 小节 [lo, hi) 拍里的音级直方图（半音，相对写作调主音；主音与和音都算，按时值加权）→ {w[12], tot}；
+   调用前全局 song 须指向 s2（beatsOf 读它）——chordSolve / suggestChordPlan 都先借用 */
+function chordAccHist(s2, rows, mi, lo, hi){
+  const w=new Array(12).fill(0); let tot=0;
+  const mea=s2.measures[mi], u=meaMeter(mi).unit;
+  rows.forEach(r=>{ let cum=0; (((mea||{}).voxes||[])[r]||[]).forEach(c=>{ const b=beatsOf(c, u);
+    if(c && !c.grace && cum>=(lo||0)-1e-6 && (hi==null || cum<hi-1e-6))
+      [c].concat(c.adds||[]).forEach(n=>{ if(n && n.deg){ w[(((DEG_SEMI[n.deg]+accSemi(n.acc))%12)+12)%12]+=b; tot+=b; } });
+    cum+=b; }); });
+  return {w, tot};
+}
+/* 候选和弦的半音集合（相对写作调主音）：三和弦音级 + 和声小调导音（ld 升半音）+ 七音（sev）；首项＝根音 */
+function chordCandPcs(c){
+  const s=[DEG_SEMI[c.deg]]; c.tones.forEach(t=>{ const x=DEG_SEMI[t]; if(s.indexOf(x)<0) s.push(x); });
+  if(c.ld!=null){ const x=(DEG_SEMI[c.ld]+1)%12; if(s.indexOf(x)<0) s.push(x); }
+  if(c.sev!=null){ const x=DEG_SEMI[c.sev]; if(s.indexOf(x)<0) s.push(x); }
+  return s;
+}
+/* 伴奏证据分（与复核取证同一把尺子）：和弦音覆盖的时值占比 − 七和弦 0.08 + 根音占比 × 0.1；h.tot＝0 返回 0 */
+function chordAccScore(c, h){
+  if(!h || !h.tot) return 0;
+  const s=chordCandPcs(c);
+  return s.reduce((a,x)=>a+h.w[x],0)/h.tot - (s.length>=4? 0.08 : 0) + 0.1*h.w[s[0]]/h.tot;
+}
+/* 伴奏里有小调导音（相对写作调的半音 8＝♯5）：占伴奏时值 ≥ 8%，或比本位 5（半音 7）多 */
+function chordAccLt(h){ return !!(h && h.tot && h.w[8]>0 && (h.w[8]>=0.08*h.tot || h.w[8]>h.w[7])); }
+const CHORD_ACC_K=4;   /* 伴奏证据权重（× 本小节拍数）：明显压过旋律分，旋律只作辅助 */
+const CHORD_LT_PEN=50;  /* 导音护栏：小调导音在场时 v / ♭VII 的发射分扣到选不上（套路格里只有它们时由 progFitSpan 换成 V / V7） */
 function chordSolve(s2, vi){
   s2=s2||song; vi=vi||0;
   const minor=detectMinorMode(s2, vi);
@@ -6537,6 +6659,15 @@ function chordSolve(s2, vi){
   const cname=c=>chordCandName(c, s2.key);
   const o0=song; song=s2;
   const N=s2.measures.length;
+  const accRows=chordAccRows(s2, vi);
+  const accH=s2.measures.map((m,mi)=> accRows.length? chordAccHist(s2, accRows, mi) : null);
+  /* v69.6 H3 ①：小调导音（♯5）在旋律或伴奏里出现＝本小节属功能用和声小调的 V / V7——禁止落在 v（小属）/ VII（♭VII）上。
+     伴奏里的 ♯5 要占本小节伴奏时值的 ≥ 8%，或比本位 5 多才算（零星经过音不算；chordAccLt） */
+  const lt=s2.measures.map((mea,mi)=>{
+    if(!minor) return false;
+    const cols=mea.voxes[vi]||[], h=accH[mi];
+    return cols.some(x=>x.deg===5&&x.acc==='#')||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===5&&a.acc==='#')) || chordAccLt(h);
+  });
   /* v60.16 全曲末音（最后一个非变化音实音）：终止式的唯一判据。
      取末音而非小节序号——旋律收在 6 上时配 IV/vi 才对，一律要求收主和弦会毙掉正确答案。 */
   let endDeg=0;
@@ -6566,7 +6697,10 @@ function chordSolve(s2, vi){
          2(3拍) 1(1拍) 实测配成 G，整首歌停在属和弦。旋律不收主音时维持原偏置。 */
       if(mi===N-1) sc*= c.id===TONIC? (endsOnTonic?2.0:1.6) : (endsOnTonic?0.5:0.8);
       if(c.id==='V7'){ const has=cols.some(x=>x.deg===c.sev&&!x.acc)||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.sev&&!a.acc)); if(!has) sc-=0.4; }   // 无七音支撑则让位纯 V
-      if(c.ld){ const hl=cols.some(x=>x.deg===c.ld&&x.acc==='#')||cols.some(x=>(x.adds||[]).some(a=>a&&a.deg===c.ld&&a.acc==='#')); sc+= hl? 0.8 : -0.35; }   // 和声小调导音取证
+      if(c.ld){ const hl=lt[mi]; sc+= hl? 0.8 : -0.35; }   // 和声小调导音取证（v69.6：旋律或伴奏里有 ♯5，ld 只有小调候选带、恒为 5）
+      if(lt[mi] && (c.id==='v' || c.id==='VII')) sc-=CHORD_LT_PEN;   /* v69.6 H3 ①：有导音时禁落 v / ♭VII */
+      /* v69.6 H3 ②：有伴奏行的小节先按伴奏音级识别（权重 × 拍数，压过旋律分） */
+      const h=accH[mi]; if(h && h.tot) sc+=CHORD_ACC_K*meaMeter(mi).beats*chordAccScore(c, h);
       return sc;
     });
   });
@@ -6588,7 +6722,7 @@ function chordSolve(s2, vi){
   if(N){ let last=0; for(let j=1;j<CAND.length;j++) if(dp[j]>dp[last]) last=j; idx[N-1]=last;
     for(let mi=N-1; mi>0; mi--) idx[mi-1]=bk[mi][idx[mi]]; }
   /* 3.5) v60.15 A8 进行模板层：以乐句为单位试套固定级数走向，套不上就退回上面的自由解 */
-  const ctx={CAND, emit, trans, minor, N, endDeg};
+  const ctx={CAND, emit, trans, minor, N, endDeg, lt};
   const prog=applyProgTemplates(s2, vi, ctx, idx);
   idx=prog.idx;
   PROG_LAST={segs:phraseSegments(s2, vi), marks:prog.marks};
@@ -6603,6 +6737,9 @@ function chordSolve(s2, vi){
     if(!out[mi]) continue;
     const cols=s2.measures[mi].voxes[vi]||[], nextId=CAND[idx[mi+1]].id;
     for(const sd of SECDOM){
+      /* v69.6 H3 ②：有伴奏行时副属还要伴奏里也有这个导音（旋律里的经过性 ♯4 不再把《圣母颂》m5 的 B♭ 改成 C7） */
+      const h=accH[mi], ldPc=(((DEG_SEMI[sd.ld]+accSemi(sd.acc))%12)+12)%12;
+      if(h && h.tot && !(h.w[ldPc]>0)) continue;
       if(sd.tgt.includes(nextId) && cols.some(c=>c.deg===sd.ld && c.acc===sd.acc)){
         out[mi]=degSpell(s2.key, sd.root, 0)+'7';   /* v68.9 收尾（H4）副属根音按级数字母拼 */
         break;
@@ -6638,7 +6775,11 @@ function suggestChordPlan(s2, vi){
   const base=suggestChords(s2, vi);
   const CAND2=chordCandSet(s2, vi);              /* v60.14：半小节换和弦的候选集须与主和弦同调式 */
   const o0=song; song=s2;
-  const scoreRange=(c, cols, lo, hi)=>chordRangeScore(c, cols, lo, hi);
+  /* v69.6 H3 ②：有伴奏行时下半段也按伴奏音级判（同 chordSolve 的权重口径）；下半段有小调导音（♯5）时不拆到 v / ♭VII */
+  const accRows=chordAccRows(s2, vi), minor2=CAND2===CHORD_CANDS_MIN;
+  const scoreRange=(c, cols, lo, hi, mi)=>{ let sc=chordRangeScore(c, cols, lo, hi);
+    if(accRows.length){ const h=chordAccHist(s2, accRows, mi, lo, hi); if(h.tot) sc+=CHORD_ACC_K*(hi-lo)*chordAccScore(c, h); }
+    return sc; };
   const plan=s2.measures.map((mea,mi)=>{
     const cols=mea.voxes[vi]||[];
     if(!base[mi]) return [];                             // 空小节不配
@@ -6647,8 +6788,11 @@ function suggestChordPlan(s2, vi){
     if(bm.beats<4 || bm.beats%2!==0) return single;      // 仅 4/4 类偶数拍尝试二分
     const half=bm.beats/2;
     const baseC=CAND2.find(c=>chordCandName(c, s2.key)===base[mi]);
-    let best=null, bv=-1; CAND2.forEach(c=>{ const sc=scoreRange(c, cols, half, bm.beats); if(sc>bv){ bv=sc; best=c; } });
-    const baseHalf=baseC? scoreRange(baseC, cols, half, bm.beats) : 0;
+    let lt2=false;
+    if(minor2){ let cum=0; cols.forEach(col=>{ if(cum>=half-1e-6 && col.deg===5 && col.acc==='#') lt2=true; cum+=beatsOf(col); });
+      if(!lt2 && accRows.length){ const h=chordAccHist(s2, accRows, mi, half, bm.beats); lt2=chordAccLt(h); } }
+    let best=null, bv=-1; CAND2.forEach(c=>{ if(lt2 && (c.id==='v' || c.id==='VII')) return; const sc=scoreRange(c, cols, half, bm.beats, mi); if(sc>bv){ bv=sc; best=c; } });
+    const baseHalf=baseC? scoreRange(baseC, cols, half, bm.beats, mi) : 0;
     // 拆分条件：下半段另属和弦、分数明显更高、非 D→S 逆行、下半段确有音
     const hasNote2=cols.some((col,ci)=>{ let cum=0; for(let k=0;k<ci;k++) cum+=beatsOf(cols[k]); return cum>=half-1e-6 && col.deg && !col.acc; });
     if(best && baseC && chordCandName(best,s2.key)!==base[mi] && hasNote2 && bv>Math.max(1.2, baseHalf*1.35) && !(baseC.fn==='D' && best.fn==='S')){
@@ -15982,9 +16126,21 @@ function setFret(f){
   });
   if(f!=null) pingCol('tab', sel.vi, sel.mi, curCol(), sel.si);   /* v60.29 输入回响 */
 }
+/* v69.6 H4（复核 F6）重打数字：覆盖已有音（改前有音）时清掉变化音——此前保留 acc，♯5 上打 3 得 ♯3（♭B 调的 D♯）；
+   空列（休止）上先按的 ♯ / ♭ 是简谱的「前置升降号」录入（toggleAcc 允许写在休止列上），保留；五线谱行（升降号只能加在已有音上）一律清。
+   主音与某个和音同音高（soundMidi 同口径）时删掉那个和音并提示——此前《圣母颂》m1 右手 D+F 上打 5 成了 F+F 同度、D 丢失却没有任何提示 */
 function setDeg(d){
   if(sel.row!=='vox') return;
-  mutate(()=>{ const c=curCol(); c.deg=d; if(!d){ c.acc=''; c.oct=0; } });
+  let dup=0;
+  mutate(()=>{ const c=curCol(), was=c.deg;
+    c.deg=d;
+    if(!d){ c.acc=''; c.oct=0; return; }
+    if(was || isStaffNota((song.voxNotations||[])[sel.vi])) c.acc='';
+    if(c.adds && c.adds.length){ const m0=soundMidi(c, sel.mi), n0=c.adds.length;
+      c.adds=c.adds.filter(a=>!(a && a.deg && soundMidi(a, sel.mi)===m0));
+      dup=n0-c.adds.length; if(dup && !c.adds.length) delete c.adds; }
+  });
+  if(dup) toastSay('主音与和音同音高，已删去重复的和音（Ctrl+Z 可撤销）', {t:'已删重复和音', k:'res', act:'undo'});
   if(d) pingCol('vox', sel.vi, sel.mi, curCol());   /* v60.29 输入回响 */
 }
 function moveCol(dir, ext){
