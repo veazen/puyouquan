@@ -130,7 +130,8 @@ const F = 'file://' + path.resolve(__dirname, '../index.html');
     const capoRows=[...document.querySelectorAll('#ekey-pop .kp-capo')];
     const hidden=capoRows.every(x=>x.style.display==='none');
     const kt=document.getElementById('ek-v').textContent;
-    const want=KEY_LIST[((KEY_PC[song.key]||0)+1)%12];
+    /* v69.6 迁移（复核 F9 有意变化）：移调落成的调按「升降号少的写法」——音级 1 写 ♭D（不再是 KEY_LIST 的 ♯C），♯F / ♭G 随原调方向 */
+    const pc1=((KEY_PC[song.key]||0)+1)%12, want=pc1===1? 'Db' : pc1===6? ((KEYSIG[song.key]||0)<0? 'Gb' : 'F#') : KEY_LIST[pc1];
     edTranspose(1);
     const k2=song.key;
     document.body.click();

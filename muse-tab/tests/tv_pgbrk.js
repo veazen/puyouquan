@@ -55,7 +55,11 @@ const __rows = g => g.rows.map(r => r.pg + ':' + r.m1 + '-' + r.m2).join(' ');  
 
 /* ---------- 页内工具（addInitScript 注入）---------- */
 const HELP = () => {
-  window.__h = s => { s = String(s); let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  /* v69.6 放行口径（纠错二 · 复核 F11 有意改动，规则见 tests/tv_v696vw.js JL）：简谱行首声部名从 oxH−24 居中不限宽改成 oxH−6 右对齐、放不下换短名 / 缩字号、窄屏页边距不画——
+     被测页与基线页都先抹掉这一个 <text>（旧：font-size 10 / middle / opacity .6、无 transform；新：data-rowlbl），其余字节照旧逐字节比 */
+  window.__v696 = s => String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '')
+    .replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, '');
+  window.__h = s => { s = __v696(String(s)); let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16) + ':' + s.length; };
   window.__rep = (s, k) => { const base = JSON.parse(JSON.stringify(s.measures)); for (let i = 1; i < k; i++) s.measures.push(...JSON.parse(JSON.stringify(base))); return s; };

@@ -51,7 +51,7 @@ const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
   });
   T(r.sameRow && r.before && r.ctxRow2, 'T3 音符组前置', '同行=' + r.sameRow + ' 音符在前=' + r.before + ' 技法留二行=' + r.ctxRow2);
 
-  // T4 顶栏快速换调：C→C#（和弦联动）→ 还原
+  // T4 顶栏快速换调：C→♭D（和弦联动）→ 还原（v69.6 迁移，复核 F9 有意变化：升 1 半音落 1=♭D——5 个降号，不再是 KEY_LIST 的 ♯C 7 个升号；和弦名同规则）
   r = await pg.evaluate(() => {
     loadSong(PRESETS[0].make());
     const k0 = song.key, ch0 = song.measures[0].tabs[0][0].chord;
@@ -62,7 +62,7 @@ const F = F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic';
     const kval = document.getElementById('k-val').textContent;
     return { k0, k1, ch0, ch1, restored: k2 === k0 && ch2 === ch0, kval };
   });
-  T(r.k0 === 'C' && r.k1 === 'C#' && r.ch1 === 'C#' && r.restored && r.kval === '1=C',
+  T(r.k0 === 'C' && r.k1 === 'Db' && r.ch1 === 'Db' && r.restored && r.kval === '1=C',
     'T4 顶栏快速换调', r.k0 + '→' + r.k1 + ' 和弦=' + r.ch1 + ' 还原=' + r.restored);
 
   // T5 谱架/观看模式兼容：新版外壳下进出谱架正常，viewer 隐藏顶栏
