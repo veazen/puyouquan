@@ -90,12 +90,34 @@ const HELP = () => {
         PAGE_W, MARGIN, MM: PAGE_W / PAGE_MM[layoutCfg().page][0], topMargin: Math.round(12 * PAGE_W / PAGE_MM[layoutCfg().page][0]) }; }, { paging: true }); return o; };
   window.__rows = g => g.rows.map(r => r.pg + ':' + r.m1 + '-' + r.m2).join(' ');
   /* 零差异记录：书写谱面 · 分页几何 · 成品快照 · MusicXML · JSON · 打印切片 */
+  /* v69.4 放行口径（纠错一 · 导出：复核 F5 / T3① / T8 / T9 / T13 / T15 的有意改动，规则见 tests/tv_v694exp.js）——被测页与基线页跑同一个函数，只抹掉这几处、其余字节照旧逐字节比：
+     score-instrument / midi-instrument、part-group、pyq-maker / pyq-singer 与 encoder、踏板 line / sign、大谱表下行圆滑线 number=2、速度术语并进节拍器那个 direction、
+     装饰音 / strong-accent / 倚音 type；连续的无记号休止（含整小节休止 measure="yes"）合成「声部 + 谱表 + 时值和」一段再比 */
+  window.__v694 = x => String(x)
+    .replace(/<score-instrument id="[^"]*"><instrument-name>[^<]*<\/instrument-name><\/score-instrument><midi-instrument id="[^"]*"><midi-channel>\d+<\/midi-channel><midi-program>\d+<\/midi-program><\/midi-instrument>/g, '')
+    .replace(/<part-group type="start" number="\d+"><group-symbol>\w+<\/group-symbol><group-barline>\w+<\/group-barline><\/part-group>|<part-group type="stop" number="\d+"\/>/g, '')
+    .replace(/<miscellaneous-field name="pyq-(?:maker|singer)">[^<]*<\/miscellaneous-field>/g, '').replace(/<miscellaneous><\/miscellaneous>/g, '').replace(/<encoder>[^<]*<\/encoder>/g, '')
+    .replace(/(<pedal type="(?:start|stop)") line="yes" sign="yes"\/>/g, '$1/>')
+    .replace(/<slur type="(start|stop)" number="2"\/>/g, '<slur type="$1" number="1"/>')
+    .replace(/<direction placement="above"><direction-type><words>([^<]*)<\/words><\/direction-type>(<direction-type><metronome>(?:(?!<\/metronome>)[\s\S])*<\/metronome><\/direction-type><sound tempo="[^"]*"\/>)<\/direction>/g, '<direction placement="above">$2</direction><direction placement="above"><direction-type><words>$1</words></direction-type></direction>')
+    .replace(/<(?:inverted-mordent|mordent|trill-mark|turn)\/>|<accidental-mark[^>]*>[^<]*<\/accidental-mark>|<strong-accent\/>/g, '').replace(/<ornaments><\/ornaments>|<articulations><\/articulations>/g, '').replace(/<notations><\/notations>/g, '')
+    .replace(/(<grace slash="yes"\/>(?:(?!<\/note>)[\s\S])*?<type>)(?:16th|32nd)(<\/type>)/g, '$1eighth$2')
+    .replace(/(?:<note><rest(?: measure="yes")?\/><duration>\d+<\/duration><voice>\d+<\/voice>(?:<type>\w+<\/type>(?:<dot\/>)*)?(?:<time-modification>(?:(?!<\/time-modification>)[\s\S])*<\/time-modification>)?(?:<staff>\d+<\/staff>)?<\/note>)+/g,
+      run => { const ns = run.match(/<note>[\s\S]*?<\/note>/g) || []; const v = (run.match(/<voice>(\d+)/) || [])[1], st = (run.match(/<staff>(\d+)/) || [])[1] || '';
+        return '<RR v="' + v + '" s="' + st + '" d="' + ns.reduce((a, n) => a + +(n.match(/<duration>(\d+)/) || [0, 0])[1], 0) + '"/>'; });
+  /* v69.4 同上：MIDI 只在谱里没有本版有意改动的东西时（反复 / 房子 / D.C. / D.S. / Fine / ⊕ / 𝄎、力度、踏板、倚音、弱起、比标称短的小节、五 / 七 / 九连音）才逐字节比 */
+  window.__midPlain = s => { const M = (s && s.measures) || []; if (s.pickup) return false;
+    const nom = m => ((m.beats || s.beats || 4) * 4 / (m.unit || s.unit || 4));
+    return !M.some(m => m.repeatStart || m.repeatEnd || m.volta || m.dc || m.ds || m.fine || m.segno || m.coda || m.simile
+      || [...(m.voxes || []), ...(m.tabs || [])].some(v => (v || []).some(c => c && (c.dyn || c.ped || c.grace || c.graceA || (c.tup && [5, 7, 9].includes(+c.tup)) || c.tupM)))
+      || (() => { const v = ((m.tabs || [])[0] && m.tabs[0].length) ? m.tabs[0] : (((m.voxes || [])[0] && m.voxes[0].length) ? m.voxes[0] : null); if (!v) return false;
+        const q = v.reduce((a, c) => a + (4 / c.dur) * (c.dotted === 2 ? 1.75 : c.dotted ? 1.5 : 1) * (c.tup ? ((c.tupM || ((c.tup === 1 || c.tup === 3) ? 2 : 4)) / (c.tup === 1 ? 3 : c.tup)) : 1), 0); return q < nom(m) - 1e-6; })()); };
   window.__rec = () => { const sc = __sc(), o = { score: __h(sc.innerHTML), vb: sc.getAttribute('viewBox'), geo: J(PV_GEO), sys: J(SYS_GEO) };
     o.snap = withCleanSnap(() => __h(scoreExportClone().innerHTML) + '|' + J(PV_GEO) + '|' + J(SYS_GEO), { paging: true });
     let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; }
     /* v69.2 互操作 P0 放行口径（只此一处）：TAB part 首小节 <attributes> 里旧顺序「<staff-details>…</staff-details><clef>TAB</clef>」改写成新顺序再比——
        基线页（旧顺序）被换成新顺序，被测页本来就是新顺序（无匹配，原样）；其余任何字节不同照旧判红。顺序本身由 tv_xsd X1 / X5 守 */
-    x = x.replace(/(<staff-details>(?:(?!<\/staff-details>)[\s\S])*<\/staff-details>)(<clef><sign>TAB<\/sign><line>5<\/line><\/clef>)/g, '$2$1'); o.mxl = __h(x);
+    x = x.replace(/(<staff-details>(?:(?!<\/staff-details>)[\s\S])*<\/staff-details>)(<clef><sign>TAB<\/sign><line>5<\/line><\/clef>)/g, '$2$1'); x = __v694(x); o.mxl = __h(x);   /* v69.4 放行口径（__v694，见上） */
     /* v68.8 ENG-6 放行口径：剥掉 <print new-system="yes"/> 之后的哈希、这一句的个数、part 数、有效换行数
        （brkN 内联算：k≥1 且上一小节 brk===1、本小节没有 pull 并入也没有换页——基线 v68.4 没有 sysBrkBefore，不能调） */
     o.nsN = (x.match(/<print new-system="yes"\/>/g) || []).length; o.mxlS = __h(x.replace(/<print new-system="yes"\/>/g, ''));

@@ -298,7 +298,7 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     return { dataOk, hasPed: !!pedT, hasStar: !!starT,
       below: pedT && starT ? +pedT.getAttribute('y') > staffB + 8 && +starT.getAttribute('y') > staffB + 8 : false,
       spanOk: pedT && starT ? near(+pedT.getAttribute('x'), b0) && near(+starT.getAttribute('x'), b2) : false,
-      mxl: xml.includes('<pedal type="start"/>') && xml.includes('<pedal type="stop"/>'),
+      mxl: xml.includes('<pedal type="start" line="yes" sign="yes"/>') && xml.includes('<pedal type="stop" line="yes" sign="yes"/>'),   /* v69.4 踏板线 line / sign（复核 F5：此前不带属性，MuseScore 只当符号） */
       rt: !!(rc[0] && rc[0].ped === 'on' && rc[2] && rc[2].ped === 'off'),
       bad: /NaN|undefined/.test(svg) };
   });
