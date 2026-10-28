@@ -1116,7 +1116,10 @@ function HELP() {
       const names = [...document.querySelectorAll('#flw-sbar button')].flatMap(b => [b.textContent.trim(), b.getAttribute('aria-label') || '']);
       return { live, q, found: !!q && names.includes(q), n: p && p.dataset.n, before: p && getComputedStyle(p, '::before').content, after: p && getComputedStyle(p, '::after').content, priBg: p && getComputedStyle(p).backgroundColor }; });
     const nxOn = await EV(pg, () => !!(FLOW.nx && FLOW.nx.ok()));
-    if (nxOn) { await wait(pg, 650); await pg.click('#flw-sbar [data-fa="sbar:go"]').catch(() => {}); await wait(pg, 300); await pg.click('#flw-nx-tbar [role="option"][data-v="arp8"]').catch(() => {}); await wait(pg, 350); await pg.mouse.move(700, 700); await wait(pg, 100); }
+    if (nxOn) { await wait(pg, 650); await pg.click('#flw-sbar [data-fa="sbar:go"]').catch(() => {}); await wait(pg, 300); await pg.click('#flw-nx-tbar [role="option"][data-v="arp8"]').catch(() => {}); await wait(pg, 350);
+      /* v69.4 有意迁移（复核 F8）：__accIn 手写的伴奏没有 texId——点卡先出「覆盖原伴奏 N 小节」确认条，点「写入」才换（同触屏口径） */
+      if (await EV(pg, () => !!document.querySelector('#flw-nx-cf .flw-nx-cfm'))) { await pg.click('#flw-nx-cf [data-fa="nx:write"]').catch(() => {}); await wait(pg, 350); }
+      await pg.mouse.move(700, 700); await wait(pg, 100); }
     else { await pg.click('#flw-sbar .flw-sb-tool.pri').catch(() => {}); await wait(pg, 250);
       await pg.click('#tex-go').catch(() => {}); await wait(pg, 350); }
     const fin = await EV(pg, () => { const live = ($i('lb-live') || {}).textContent || '', q = (live.match(/「(.+?)」/) || [])[1] || '';

@@ -108,6 +108,9 @@ const CORE = [
      MusicXML divisions 公倍数 / 踏板线 / 乐器 / 速度术语 / 署名 / 圆滑线编号 / 大谱表名 / part-group / 整小节休止 / 装饰音 · 长谱 PNG 按页切多张（M1–M8 · X1–X11 · P1–P3）；
      mscore3 在场时另做外部读入核对（NO_MSCORE=1 跳过）；单跑约 60 秒 */
   'tv_v694exp',
+  /* v69.4 纠错一 · 播放 / 编辑 / 渲染小改：插删小节后跨小节引用平移 · 花括号组共用力度线 + 突强只作用于本音 · 六线谱播放音高 = MIDI · 和音 / 倚音补 transp ·
+     改短拍号不删音 · 弱起 / irr 各行不齐报错 · 删弱起清 pickup · 换织体覆盖确认 · 简谱长休止按拍补 0 · 弱起 / irr 不画全休止 · 拆半小节不编号；单跑约 1 分钟 */
+  'tv_v694play',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
