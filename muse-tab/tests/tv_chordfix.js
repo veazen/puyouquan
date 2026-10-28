@@ -332,7 +332,10 @@ const group = async (id, fn) => { if (!want(id)) return; try { await fn(); } cat
         const deg1 = [], nm = []; song.measures.forEach(m => m.voxes[0].forEach(c => { if (c.chord) { deg1.push(chordDegree(c.chord)); nm.push(c.chord); } }));
         const kp0 = 0, kp1 = __PC[song.key], pcOf = n => { const m = /^([A-G](?:#|b)?)[^/]*(?:\/([A-G](?:#|b)?))?$/.exec(n); return [__PC[m[1]], m[2] ? __PC[m[2]] : null]; };
         nm.forEach((x, i) => { const a = pcOf(CH[i]), c = pcOf(x); if ((a[0] + d) % 12 !== c[0] || (a[1] != null && (a[1] + d) % 12 !== c[1])) bad.push(song.key + ':音高 ' + x); });
-        if (J(deg0.slice(0, 19)) !== J(deg1.slice(0, 19))) bad.push(song.key + ':' + nm.filter((x, i) => i < 19 && deg0[i] !== deg1[i]).join(','));
+        /* v69.6 迁移（复核 F9 有意变化）：C 升 1 半音落 1=♭D（不再是 7 个升号的 ♯C）——♭VI 和弦（C 调的 A♭）在 ♭D 调里要写 B𝄫（重降），
+           拼写器只出单升降、退回等音 A（级数显示 ♯5），同上面 E7/G# 的口径：这一个只断言音高（下面音高检查照旧逐个查） */
+        const dd = nm.filter((x, i) => i < 19 && deg0[i] !== deg1[i] && !(song.key === 'Db' && CH[i] === 'Ab'));
+        if (dd.length) bad.push(song.key + ':' + dd.join(','));
         if (d === 9) window.__rec = (song.chordRecent || []).join(' ');
       }
       return { bad, rec: window.__rec }; });

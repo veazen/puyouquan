@@ -299,7 +299,7 @@ function pubShapeData(row) {
   const mea = arr(d.measures);
   /* v67.6 收尾：逐项兜底——坏谱只让自己这一张卡片退回默认（谱类 vocal / 谱名「曲谱」/ 无封面），不拖垮整页列表 */
   const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
-  const o = { type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), measures: mea.length, cover: safe(() => coverOf(d), []),
+  const o = { type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), measures: safe(() => meaCountOf(d), mea.length), cover: safe(() => coverOf(d), []),
     key: sStr(d.key).slice(0, 6), tempo: sNum(d.tempo), beats: sNum(d.beats), unit: sNum(d.unit),
     /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
        「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
@@ -468,12 +468,38 @@ function chordSeq(d, cap) {
   }
   return seq;
 }
+/* v69.6（复核 F7）落地页小节数＝编辑器 meaNoBuild 印出来的号数（谱面小节号、观看页「N 小节」同口径）：弱起首小节不计；
+   源谱被拆成两半的一个小节（相邻两个 irr 小节拍号相同、各行最长实际时值相加正好一整小节）后一半不计——骊歌 23 个小节对象印 20 个号。
+   时值口径同编辑器 beatsOf：(4/dur)×附点（1.5 / 双附点 1.75）×连音（tupM/tup；tup=1 旧数据＝3，缺省 M：3→2、其余→4）×(unit/4) */
+function meaCountOf(d) {
+  const ms = arr(d && d.measures), N = ms.length;
+  try {
+    const met = i => ({ b: sNum(ms[i] && ms[i].beats) || sNum(d.beats) || 4, u: sNum(ms[i] && ms[i].unit) || sNum(d.unit) || 4 });
+    const bOf = (c, u) => { if (!c || typeof c !== 'object') return 0; const t = c.tup === 1 ? 3 : sNum(c.tup), m = sNum(c.tupM) || (t === 3 ? 2 : 4);
+      return (4 / sNum(c.dur)) * (c.dotted === 2 ? 1.75 : c.dotted ? 1.5 : 1) * (t ? m / t : 1) * (u / 4); };
+    const act = i => { const u = met(i).u; let mx = 0;
+      [...arr(ms[i].tabs), ...arr(ms[i].voxes)].forEach(cols => { const b = arr(cols).reduce((a, c) => a + bOf(c, u), 0); if (b > mx) mx = b; });
+      return mx; };
+    const skip = new Array(N).fill(false);
+    for (let i = 1; i < N; i++) {
+      if (skip[i - 1] || (i - 1 === 0 && d.pickup)) continue;
+      if (!ms[i - 1] || !ms[i] || ms[i - 1].irr !== 1 || ms[i].irr !== 1) continue;
+      const A = met(i - 1), B = met(i); if (A.b !== B.b || A.u !== B.u) continue;
+      const a = act(i - 1), b = act(i);
+      if (a > 1e-4 && b > 1e-4 && Math.abs(a + b - A.b) < 1e-3) skip[i] = true;
+    }
+    let n = 0; for (let i = 0; i < N; i++) { if (i === 0 && d.pickup) continue; if (!skip[i]) n++; }
+    return n;
+  } catch (_) { return N; }
+}
+/* v69.6 落地页调号写法同编辑器页头 keyLabel：1=♭B / 1=♯F（GB 简谱惯例，此前写 1=Bb） */
+const keyLbl = k => { k = String(k || ''); return (k.length === 2 && (k[1] === 'b' || k[1] === '#')) ? (k[1] === 'b' ? '♭' : '♯') + k[0] : k; };
 function pubMeta(row) {
   let d = {}; try { d = JSON.parse(row.data); } catch (_) {}
   if (!d || typeof d !== 'object') d = {};   // v67.6 收尾：data 为 null / 数字等非对象时按空谱（此前 d.measures 直接抛错）
   const title = (row.title || '').trim() || '未命名曲谱';
   let typeCn = '曲谱'; try { typeCn = typeLabelOf(d); } catch (_) {}   /* v60.81 细分标签：吉他弹唱谱/简谱歌谱… */
-  const nMea = arr(d.measures).length;
+  const nMea = meaCountOf(d);
   const { singer, composer } = creditOf(row.singer, sStr(d.composer).slice(0, 60), !!sStr(d.singer).trim());
   const author = (row.author || '').trim() || '谱友圈';
   const desc = `《${title}》${composer ? composer + '作曲 · ' : ''}${singer ? singer + '演唱 · ' : ''}${author}制谱 · ${typeCn}${nMea ? ' · 共' + nMea + '小节' : ''}。在谱友圈在线观看、即时移调、播放跟谱，也可免费制谱下载。`;
@@ -537,7 +563,7 @@ h1{font-size:28px;margin:.4em 0 .2em}.meta{color:var(--muted);margin-bottom:1.4e
 <div class="brand">谱友圈 · 谱库</div>
 <div class="crumbs"><a href="${escHtml(PUB_CANON)}/pub/">谱库目录</a> › ${escHtml(p.typeCn)}</div>
 <h1>${escHtml(p.title)}</h1>
-<div class="meta">${p.composer ? escHtml(p.composer) + ' 作曲 · ' : ''}${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}${p.key ? ' · 1=' + escHtml(p.key) : ''}${p.beats && p.unit ? ' · ' + p.beats + '/' + p.unit : ''}${p.tempo ? ' · ♩=' + p.tempo : ''}</div>
+<div class="meta">${p.composer ? escHtml(p.composer) + ' 作曲 · ' : ''}${p.singer ? escHtml(p.singer) + ' 演唱 · ' : ''}${escHtml(p.author)} 制谱 · ${escHtml(p.typeCn)}${p.nMea ? ' · 共 ' + p.nMea + ' 小节' : ''}${p.key ? ' · 1=' + escHtml(keyLbl(p.key)) : ''}${p.beats && p.unit ? ' · ' + p.beats + '/' + p.unit : ''}${p.tempo ? ' · ♩=' + p.tempo : ''}</div>
 ${coverRow ? '<div class="cover">' + coverRow + '</div>' : ''}
 <a class="cta" href="${escHtml(viewUrl)}">▶ 在线观看 / 移调 / 跟谱</a>
 <a class="cta ghost" href="${escHtml(VIEW_HOST)}/">免费制谱</a>

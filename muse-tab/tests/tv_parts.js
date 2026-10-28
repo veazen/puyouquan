@@ -115,7 +115,11 @@ const HELP = () => {
     loadSong(s); sel = { mi: 0, row: (song.tabVoices || []).length ? 'tab' : 'vox', vi: 0, ci: 0, si: 1 }; clampSel(); blurSel = true; render(); return song.measures.length; };
   /* ---------- PA2 起的公共工具 ---------- */
   const NS = 'http://www.w3.org/2000/svg';
-  window.__h = x => { x = String(x); let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < x.length; i++) { const c = x.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  /* v69.6 放行口径（纠错二 · 复核 F11 有意改动，规则见 tests/tv_v696vw.js JL）：简谱行首声部名从 oxH−24 居中不限宽改成 oxH−6 右对齐、放不下换短名 / 缩字号、窄屏页边距不画——
+     被测页与基线页都先抹掉这一个 <text>（旧：font-size 10 / middle / opacity .6、无 transform；新：data-rowlbl），其余字节照旧逐字节比 */
+  window.__v696 = s => String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '')
+    .replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, '');
+  window.__h = x => { x = __v696(String(x)); let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < x.length; i++) { const c = x.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16) + ':' + x.length; };
   window.__rep = (s, k) => { const base = cl(s.measures); for (let i = 1; i < k; i++) s.measures.push(...cl(base)); return s; };
@@ -539,7 +543,9 @@ const HELP = () => {
     dispatchEvent(new Event('afterprint'));
     { const tg = document.createElementNS(NSv, 'svg'), out = renderOffscreen({ song: __cl(song), target: tg, paperW: 660 }); o.off660 = __h(tg.innerHTML) + '|' + Jx([out.w, out.h, out.systems, out.drawn, out.pages]); }
     { const OI = window.Image; let src = null; window.Image = function () { return { set src(v) { src = v; }, get src() { return src; } }; };
-      try { exportPNG(2); } finally { window.Image = OI; } o.png = __h(src || ''); }
+      try { exportPNG(2); } finally { window.Image = OI; }
+      /* v69.6 放行口径：PNG 是 encodeURIComponent 过的 SVG 串（CSS 变量已解析成色值）——解开再过 __v696，同一函数两页都跑 */
+      { const m = /^data:image\/svg\+xml;charset=utf-8,/.exec(src || ''); let x = src || ''; if (m) { try { x = m[0] + decodeURIComponent(x.slice(m[0].length)); } catch (_) {} } o.png = __h(x); } }
     let x = ''; try { x = exportMusicXML(song) || ''; } catch (e) { x = 'ERR ' + e.message; }
     /* v69.2 互操作 P0 放行口径（只此一处）：TAB part 首小节 <attributes> 里旧顺序「<staff-details>…</staff-details><clef>TAB</clef>」改写成新顺序再比——
        基线页（旧顺序）被换成新顺序，被测页本来就是新顺序（无匹配，原样）；其余任何字节不同照旧判红。顺序本身由 tv_xsd X1 / X5 守 */
