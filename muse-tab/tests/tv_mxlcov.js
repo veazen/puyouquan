@@ -111,9 +111,12 @@ const FIXDIR = path.resolve(__dirname, 'fixtures/mxl');
       `<measure number="1">${N('C', 5, { staff: 1, d: 16, t: 'whole' })}<backup><duration>16</duration></backup>${N('F', 2, { staff: 2, v: 5, d: 16, t: 'whole' })}</measure><measure number="2">${N('E', 5, { staff: 1, d: 16, t: 'whole' })}<backup><duration>16</duration></backup>${N('C', 3, { staff: 2, v: 5, d: 16, t: 'whole' })}</measure></part></score-partwise>`;
     const res = importMusicXML(xml); if (!res.song) return { err: res.error }; const s = res.song; const M = s.measures;
     return { key: s.key, meter: s.beats + '/' + s.unit, pickup: !!s.pickup, transp: s.transp, tempo: s.tempo + '/' + s.tempoUnit, nv: s.voxVoices.length, names: s.voxVoices.join('/'), groups: JSON.stringify(s.voxGroups || null),
-      rS: !!M[1].repeatStart, rE: !!M[2].repeatEnd, volta: M[2].volta, m0: M[0].voxes[0].length, sk: res.skip.other + res.skip.voices + res.skip.notes + res.skip.parts }; });
-  T(!r4.err && r4.key === 'Bb' && r4.meter === '2/2' && r4.pickup && r4.transp === -2 && r4.tempo === '120/q' && r4.nv === 3 && r4.names === 'Trumpet in Bb/Piano·右手/Piano·左手' && r4.rS && r4.rE && r4.volta === 1 && r4.m0 === 1 && r4.sk === 0,
-    'T4 MuseScore 风格第三方文件：移调 + 弱起 + 2/2 + 大谱表 + 房子', JSON.stringify(r4));
+      rS: !!M[1].repeatStart, rE: !!M[2].repeatEnd, volta: M[2].volta, m0: M[0].voxes[0].length, sk: res.skip.other + res.skip.voices + res.skip.notes + res.skip.parts,
+      warn: res.warn || '', tp0: M[0].voxes[0][0].deg + (M[0].voxes[0][0].acc || '') }; });
+  /* v69.4 A11 有意迁移：小号（移调 -2）＋钢琴（不移调）各 part 移调不一致 → 不再把 -2 写成全曲 song.transp（此前钢琴也被一起移低），
+     小号换实音（记谱 F4 → 实音 E♭4＝1=♭B 的 4 级）、调号取钢琴、导入提示「已按实音导入」 */
+  T(!r4.err && r4.key === 'Bb' && r4.meter === '2/2' && r4.pickup && r4.transp == null && r4.tp0 === '4' && /已按实音导入/.test(r4.warn) && r4.tempo === '120/q' && r4.nv === 3 && r4.names === 'Trumpet in Bb/Piano·右手/Piano·左手' && r4.rS && r4.rE && r4.volta === 1 && r4.m0 === 1 && r4.sk === 0,
+    'T4 MuseScore 风格第三方文件：移调（换实音）+ 弱起 + 2/2 + 大谱表 + 房子', JSON.stringify(r4));
 
   /* T5 负责人供件：tests/fixtures/mxl/*.musicxml|*.xml 自动遍历（没有文件时跳过并提示） */
   const files = fs.existsSync(FIXDIR) ? fs.readdirSync(FIXDIR).filter(f => /\.(musicxml|xml)$/i.test(f)) : [];

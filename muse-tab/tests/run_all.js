@@ -101,6 +101,9 @@ const CORE = [
   'tv_xsd',
   /* v69.3 曲库官方公版谱（deploy/library → api/seed-library.json）：构建质量门 + 与提交逐字节 · 每首能打开画出 · 导出过 XSD · 和音逐音连音弧落地；单跑约 45 秒 */
   'tv_library',
+  /* v69.4「纠错一」MusicXML 导入组（五线谱全面复核导入侧）：拼写按 step/alter（曲库 450 音不再改拼）· 起始速度按小节位置 · 装饰音 / 顿强 · 力度全表与同位置冲突 ·
+     倚音时值 · 歌词多 <text> / elision / 5 段 · 速度残片 / 自家文字往返 / cresc.＋dashes · 声部名 / part-group · backup 落列 / 9:8 标数 / Cb · 钢琴音色 · 移调换实音（S/T/O/D/G/L/W/P/X/M/R 45 项，修前 v69.3 abb0353 红 40 项）；单跑约 35 秒 */
+  'tv_v694imp',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

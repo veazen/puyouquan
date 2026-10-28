@@ -70,10 +70,10 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     pm.querySelector('#tup-ok').click();
     const nine = song.measures[0].tabs[0].slice(0, 9);
     return { has, durs: nine.map(c => c.dur), tups: nine.map(c => c.tup), ms: nine.map(c => c.tupM),
-      beat: nine.reduce((a, c) => a + beatsOf(c, 4), 0), svg97: document.getElementById('score').innerHTML.indexOf('>9:8</text>') >= 0 };
+      beat: nine.reduce((a, c) => a + beatsOf(c, 4), 0), svg97: (h => h.indexOf('>9</text>') >= 0 && h.indexOf('>9:8</text>') < 0)(document.getElementById('score').innerHTML) };   /* v69.4 A9 有意迁移：9:8 是惯例比例（M＝小于 N 的最大 2 的幂），括线只印「9」（tupLabel）；8:7 等自定比例照印 N:M（见 T2 / tv_v694imp X3） */
   });
   T(r.has && r.durs.every(d => d === 32) && r.tups.every(t => t === 9) && r.ms.every(m => m === 8)
-    && Math.abs(r.beat - 1) < 1e-9 && r.svg97, 'T4 弹窗拆分9:8', JSON.stringify({ beat: r.beat, svg: r.svg97 }));
+    && Math.abs(r.beat - 1) < 1e-9 && r.svg97, 'T4 弹窗拆分9:8（括线印 9）', JSON.stringify({ beat: r.beat, svg: r.svg97 }));
 
   // T5 弹窗改标：光标在 9:8 组上 → 确定 6:4 → 连续同标组整组改为 6（缺省M不写tupM）
   r = await pg.evaluate(() => {
