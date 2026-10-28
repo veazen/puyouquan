@@ -232,6 +232,8 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const svg = document.getElementById('score'), R = svg.getBoundingClientRect(), k = R.height / svg.viewBox.baseVal.height, bb = rect.getBoundingClientRect();
     return { x: bb.x + bb.width / 2, y: R.top + (+rect.dataset.staffb - 3.75 * 4) * k, d0: song.measures[5].voxes[0][0].deg };
   });
+  /* v69.6 I3（有意迁移）：「再点」＝上一次在谱面上按下选中的正是这一格——程序改 sel（等同键盘移过来）后的第一次点击只选中，隔一会儿再点才定音高 */
+  await pg.mouse.click(r.x, r.y); await pg.waitForTimeout(520);
   await pg.mouse.click(r.x, r.y); await pg.waitForTimeout(80);
   r = await pg.evaluate((d0) => ({ d0, d1: song.measures[5].voxes[0][0].deg }), r.d0);
   T(r.d0 === 0 && r.d1 > 0, 'T9c 五线谱再点已选中的空拍（点击不移动）仍按线/间定音高', JSON.stringify(r));

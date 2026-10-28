@@ -5527,7 +5527,9 @@ const PQ_KIND = (function(){
     if(a<0) return [];
     let b=a; while(b+1<n && isStaffNota(vn[b+1])) b++;
     if(b===a) return [];
-    const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && !voxHasLyrics(s,a,b));
+    /* v69.6 I6（复核 N8）没写分组的老钢琴独奏谱：乐器身份 instKey==='piano' 或声部名「右手 / 左手」也认花括号——此前右手一填词就判成合唱方括号、谱名变成合唱谱 */
+    const pno = b-a===1 && (s.instKey==='piano' || ((s.voxVoices||[])[a]==='右手' && (s.voxVoices||[])[b]==='左手'));
+    const piano = s.pianoAcc || (b-a===1 && vn[a]==='staff' && vn[b]==='bass' && (pno || !voxHasLyrics(s,a,b)));
     return [{type: piano? 'brace' : 'bracket', from:a, to:b}];
   }
   /* 合唱：显式方括号组，或推断出的五线谱组里确有歌词（三行以上的器乐重奏照样方括号，但不算合唱） */
@@ -15982,9 +15984,35 @@ function setFret(f){
   });
   if(f!=null) pingCol('tab', sel.vi, sel.mi, curCol(), sel.si);   /* v60.29 输入回响 */
 }
+/* v69.6 I1（复核 N1）五线谱行录入八度：在空列 / 休止列上用数字键（音名键同路）落音时，五线谱行（isStaffNota，含五线＋简谱对照）
+   取「离本行上一个音最近的八度」（按谱面音级算，跨小节、跨转调都按各自小节的调）；本行还没有音时按谱号取默认八度——
+   本调 do 落在 高音谱号 C4–B4 / 低音谱号 G2–♯F3 / 中音谱号 G3–♯F4（＝refOct 0 时 bass −1、alto / staff 0，refOct 与 1=G～B 的折叠一并换算，
+   「直接建 G」与「建 C 再换 G」落在同一个音）。只决定新音的八度，随后的 + / - 照旧。纯简谱行（数字＝本调中音区）与改已有音的级数不经过这里（返回 null） */
+const ENTRY_DO_LO = {staff:60, bass:43, alto:55};
+function staffEntryOct(d){
+  const vi=sel.vi, vn=(song.voxNotations||[])[vi];
+  if(sel.row!=='vox' || !isStaffNota(vn) || !(d>=1 && d<=7)) return null;
+  const K=staffKeyInfoAt(sel.mi), base=K.step0+(d-1);
+  let mi=sel.mi, ci=sel.ci-1;
+  while(mi>=0){
+    const cols=(((song.measures[mi]||{}).voxes)||[])[vi]||[];
+    if(ci>=cols.length) ci=cols.length-1;
+    for(; ci>=0; ci--){ const c=cols[ci]; if(c && c.deg){
+      const Kp=staffKeyInfoAt(mi), sp=Kp.step0+(c.deg-1)+(c.oct||0)*7;
+      return Math.max(-3, Math.min(3, Math.round((sp-base)/7))); } }
+    mi--; ci=Infinity;
+  }
+  /* 首音：本列生效的谱号（行谱号，小节内 col.clef 换谱号顺列延续） */
+  let clef=vn;
+  for(let m2=0; m2<=sel.mi; m2++){ const cols=(((song.measures[m2]||{}).voxes)||[])[vi]||[];
+    for(let c2=0; c2<cols.length && (m2<sel.mi || c2<=sel.ci); c2++){ const cc=cols[c2]; if(cc && cc.clef && CLEF_BOT[cc.clef]) clef=cc.clef; } }
+  const lo=ENTRY_DO_LO[clef]!=null? ENTRY_DO_LO[clef] : 60, r=keyRefAt(sel.mi);
+  return Math.max(-3, Math.min(3, Math.ceil((lo-r)/12)));
+}
 function setDeg(d){
   if(sel.row!=='vox') return;
-  mutate(()=>{ const c=curCol(); c.deg=d; if(!d){ c.acc=''; c.oct=0; } });
+  mutate(()=>{ const c=curCol(); const fresh=!c.deg && d; const o=fresh? staffEntryOct(d) : null;
+    c.deg=d; if(!d){ c.acc=''; c.oct=0; } else if(o!=null) c.oct=o; });
   if(d) pingCol('vox', sel.vi, sel.mi, curCol());   /* v60.29 输入回响 */
 }
 function moveCol(dir, ext){
@@ -16142,6 +16170,8 @@ function overflowCarry(mi, row, vi, apply){
   if(split){
     const src=cols[split.i], tail2=JSON.parse(JSON.stringify(src));
     src.dur=split.hk.dur; src.dotted=split.hk.dotted; if(src.deg) src.tie=true;
+    /* v69.6 I3（复核 N3）跨小节线拆和弦：后半截是同一个和弦（tail2 深拷贝），附加音也逐个连过去（adds[].tie，v69.3 既有字段）——此前只连主音，附加音在下一小节重新起音 */
+    if(src.deg) (src.adds||[]).forEach(a=>{ if(a && a.deg) a.tie=true; });
     tail2.dur=split.hr.dur; tail2.dotted=split.hr.dotted; tail2.lyrics=[];   // 连音线延续的后半个音不再挂字
     ['dyn','dynTo','chord','ferm','breath','artic','grace','graceA','orn'].forEach(k=>delete tail2[k]);
     head.push(tail2);
@@ -16203,6 +16233,7 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
   /* v41.5 改时值后附点档位按新时值可用性收敛（如带双附点改为16分→降为单附点、改32分→去附点） */
   const clampDot = col=>{ const mx=maxDotLevel(col.dur);
     if(dotLevel(col)>mx) col.dotted = mx>=1? true : false; };
+  DUR_PRE=null;
   if(selRange){
     mutate(()=>{
       rangeCols().forEach(({mi,col})=>{ col.dur=d; clampDot(col); });
@@ -16223,7 +16254,16 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
       if(b1<b0-1e-4 && !c2.tup && !meaUnderOk(sel.mi)){ const add=fillRestsAfter(cols, sel.ci, b0-b1, sel.row, unit, sel.mi, sel.vi);
         /* IN-2 老打法兼容的标记：紧接着的 Insert / Shift+Insert 用掉一格这次补出的空列（见 insertNote） */
         if(add.length) FILL_LAST={song, cols, cells:add, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]}; }
-      absorbRestsAfter(cols, sel.ci, sel.mi, sel.row, sel.vi); } } }); }
+      absorbRestsAfter(cols, sel.ci, sel.mi, sel.row, sel.vi); } } });
+    /* v69.6 I3：在空格上先选时值——随后的「.」作用于这一格（预选附点），不回落到上一个刚落的音 */
+    const c3=curCol(); if(c3 && (sel.row==='tab'? !((c3.notes||[]).length || c3.strum || c3.perc) : !c3.deg)) DUR_PRE={s:song, row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}; }
+}
+/* v69.6 I3（复核 N3）预选时值的格（只在内存）：按了时值键、尚未落音时按「.」＝给这一格加附点（此前 toggleDot 按落音态回落，附点加到上一个已落的音上，
+   dotLink 又把刚设成二分的这一格减半——「e 3 w . 2」得到 3/4. 2/8）。附点吃掉其后的空白列（restBlank / absorbRestsAfter 同口径），不去改下一格 */
+var DUR_PRE=null;
+function durPreHere(){
+  const P=DUR_PRE; if(!P || P.s!==song || P.row!==sel.row || P.vi!==sel.vi || P.mi!==sel.mi || P.ci!==sel.ci) return false;
+  const c=curCol(); return !!c && (sel.row==='tab'? !((c.notes||[]).length || c.strum || c.perc) : !c.deg);
 }
 /* 判断某列是否为"一拍中的最后一个音符"（其结束点恰落在整数拍上） */
 function isBeatLastCol(cols, ci, unit){
@@ -16305,7 +16345,7 @@ function extendBeat_(dir){
   }
 }
 function toggleDot(){
-  if(!selRange && atLanding() && modCol()!==curCol()){
+  if(!selRange && atLanding() && modCol()!==curCol() && !durPreHere()){
     const b=lastEnt.pos, keep={mi:sel.mi, ci:sel.ci};
     sel.mi=b.mi; sel.ci=b.ci;
     try{ toggleDotCore(); } finally { sel.mi=keep.mi; sel.ci=keep.ci; render(); }
@@ -16353,16 +16393,17 @@ function toggleDotCore(){ try{habit('dot');}catch(_){}
     if(nxt===1){
       /* 拍尾判断须用加附点前的时值 */
       const wasBeatLast = isBeatLastCol(cols, sel.ci, meaMeter(sel.mi).unit);
+      const pre = durPreHere();   /* v69.6 I3 预选时值的空格：不联动邻格，下面直接吸收其后的空白列 */
       cur.dotted=true;
       /* 设置附点时：相邻音符自动变为当前时值的一半——常规为下一个音符；
          拍尾且时值<8分（16/32分）时为前一个音符；取消附点不联动 */
-      dotLink(cols, sel.ci, wasBeatLast);
+      if(!pre) dotLink(cols, sel.ci, wasBeatLast);
       /* v68.8 P2（I-10）附点后小节超拍：从联动邻音之后（联动的是前一个音 / 没有联动时从本列之后）吃掉紧邻的连续空列——
-         补空列后「5 r .」（多按了一个 r）会多出一格；附点后不超拍时不动，扣不回照常报节拍错误（不碰真实音符） */
+         补空列后「5 . r」类打法会多出一格（v69.6 起「5 r .」的附点落在预选时值的这一格，见 DUR_PRE）；附点后不超拍时不动，扣不回照常报节拍错误（不碰真实音符） */
       /* v68.8 收尾 R1：只吃 restBlank 的空白列（带和弦名 / 延长号 / 歌词等的休止列、被渐强 / 8va / 连线终点引用的列不吃，停下照常报节拍错误）；
          允许欠拍的小节（弱起首小节 / 散拍草稿）不吃，与 v68.7 相同 */
       { const mm=meaMeter(sel.mi); if(!meaUnderOk(sel.mi) && cols.reduce((x,y)=>x+beatsOf(y,mm.unit),0) > mm.beats+1e-4){
-        const nextLinked = cur.dur*2<=64 && !(wasBeatLast && cur.dur>8 && cols[sel.ci-1]) && !!cols[sel.ci+1];
+        const nextLinked = !pre && cur.dur*2<=64 && !(wasBeatLast && cur.dur>8 && cols[sel.ci-1]) && !!cols[sel.ci+1];
         absorbRestsAfter(cols, nextLinked? sel.ci+1 : sel.ci, sel.mi, sel.row, sel.vi); } }
     }else if(nxt===2){
       cur.dotted=2;
@@ -18610,6 +18651,7 @@ window.addEventListener('keyup', ()=>{ KEY_REPEAT=false; });   /* v65.6 B6a ① 
 window.addEventListener('blur', ()=>{ KEY_REPEAT=false; });
 window.addEventListener('keydown', e=>{
   KEY_REPEAT=!!e.repeat;   /* v65.6 B6a ① 自动重复中的按键：mutate 合并到下一帧渲染 */
+  if(!/^(Control|Meta|Shift|Alt|AltGraph|CapsLock)$/.test(e.key)) PTR_SEL=null;   /* v69.6 I3 键盘操作后的第一次谱面点击只选中、不改音高 */
   if(viewerMode){   // 观看模式：仅保留播放/停止 / 移调 / 谱架
     if(document.body.classList.contains('stand')){
       if(e.key==='Escape'){ exitStand(); }
@@ -19614,11 +19656,28 @@ function sysLockRow(m1, m2, on){
   toast('已锁定此行：第 '+(m1+1)+(m2>m1? '–'+(m2+1) : '')+' 小节固定排在一行（Ctrl+Z 撤销）');
   return true;
 }
+/* v69.6 I3（复核 N3）谱面点击定音高的辅助（只在内存，不进 song）：PTR_SEL＝上一次在谱面上按下选中的格 {s:谱, row, vi, mi, ci, t}——
+   换谱、键盘操作（非修饰键）、按在别处都会让它失效；PTR_DBL_MS＝两次按下间隔小于它算双击（不改音高） */
+var PTR_SEL=null;
+const PTR_DBL_MS=450;
+/* 点击处的谱位：step＝谱面绝对音级（随列谱号），rel＝相对本小节调的音级（扣 8va 记谱移位），onHead＝正点在本列主音或和音的符头上。点在谱表热区之外返回 null */
+function staffClickPitch(t, e, mi, vi, ci){
+  const svg2=document.getElementById('score'), r2=svg2.getBoundingClientRect(), vb2=svg2.viewBox.baseVal;
+  const yS=(e.clientY-r2.top)/r2.height*vb2.height, sb=+t.dataset.staffb;
+  if(!(yS>sb-48 && yS<sb+14)) return null;
+  const bot=+t.dataset.sbot||37;
+  const step=Math.max(bot-14, Math.min(bot+15, bot+Math.round((sb-yS)/3.75)));
+  const cols=(((song.measures[mi]||{}).voxes)||[])[vi]||[], col=cols[ci], K=staffKeyInfoAt(mi), ot=ottStep(col);
+  const heads=[];
+  if(col && col.deg){ heads.push(staffStep(col, K)); (col.adds||[]).forEach(a=>{ if(a && a.deg) heads.push(K.step0+(a.deg-1)+(a.oct||0)*7+ot); }); }
+  return {step, rel:step-K.step0-ot, onHead:heads.includes(step)};
+}
 document.getElementById('score').addEventListener('pointerdown', e=>{
   if(viewerMode) return;   // 观看模式只读
   const t = e.target;
   if(!(t instanceof Element)) return;
   const blur0 = blurSel;   // v67.3 按下前光标是否可见（Shift+点区域复制的锚点只认可见光标）
+  const ptr0 = PTR_SEL; PTR_SEL = null;   /* v69.6 I3 上一次在谱面上按下选中的格（这一下没选中格就清空） */
   blurSel = false;   // 点击谱面 → 恢复光标
   lastEnt = null;    /* v48.0 手动点选即放弃回落锚点：改已有音符的变音/八度应就地生效 */
   /* v52.0 行尾布局按钮（GP 式 ○+−）：恢复本行默认 / 下一行首小节移入 / 行尾小节移出 */
@@ -19811,6 +19870,8 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     return;
   }
   const mi=+t.dataset.mi, ci=+t.dataset.ci, row=t.dataset.row, vi=+t.dataset.vi;
+  /* v69.6 I3 再次点击才改音高的前提：上一次按下选中的正是这一格、同一份谱，且不在双击间隔内 */
+  const ptrOk = !!(ptr0 && ptr0.s===song && ptr0.row===row && ptr0.vi===vi && ptr0.mi===mi && ptr0.ci===ci && Date.now()-ptr0.t>=PTR_DBL_MS);
   /* 点扫弦列 → 选择扫几根弦 */
   if(t.dataset.zone==='strum'){
     selRange=null; sel.mi=mi; sel.ci=ci; sel.row='tab'; sel.vi=vi;
@@ -19826,6 +19887,28 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   if(e.button!==2 && e.shiftKey && !e.ctrlKey && !e.metaKey && gpKeysOn() && sel.row===row && sel.vi===vi){
     setRange(row, vi, {mi:sel.mi, ci:sel.ci}, {mi, ci}); noteSel=[];
     render(); toast('已区域选择（GP 键位档）'); return;
+  }
+  /* v69.6 I3（复核 N3）Ctrl / ⌘+点击「已选中的这一列」的五线谱线 / 间、且没点在已有符头上＝在这个音上叠加和音（提示与和音弹窗写的那条路径；
+     此前被下面的多选分支先截走，永远走不到）。点在符头上、点其他列仍是多选，Shift 不变。与定音高同口径：松手且没移动才生效（Ctrl 拖选不误加音） */
+  if(e.button===0 && row==='vox' && t.dataset.staffb!==undefined && (e.ctrlKey || e.metaKey) && !e.shiftKey && !blur0 &&
+     sel.row==='vox' && sel.vi===vi && sel.mi===mi && sel.ci===ci){
+    const P=staffClickPitch(t, e, mi, vi, ci);
+    if(P && !P.onHead){
+      const sx=e.clientX, sy=e.clientY, deg2=((P.rel%7)+7)%7+1, oct2=Math.floor(P.rel/7);
+      dragSel = {row, vi, mi, ci}; PTR_SEL = {s:song, row, vi, mi, ci, t:Date.now()};
+      const up=ev=>{
+        window.removeEventListener('pointerup', up, true);
+        if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>=6) return;
+        const c1=((song.measures[mi]||{}).voxes||[])[vi]; const col1=c1 && c1[ci]; if(!col1) return;
+        if(col1.deg && (col1.adds||[]).filter(a=>a && a.deg).length>=3) return toast('和音最多 3 个叠加音');
+        mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
+          if(!c2.deg){ c2.deg=deg2; c2.oct=oct2; c2.acc=''; return; }
+          c2.adds=c2.adds||[]; c2.adds.push({deg:deg2, acc:'', oct:oct2}); });
+        toast('和音已更新（Ctrl+点击线/间可继续加）');
+      };
+      window.addEventListener('pointerup', up, true);
+      return;
+    }
   }
   if(e.button!==2 && (e.ctrlKey||e.metaKey||e.shiftKey) && ((row==='tab' && t.dataset.si && +t.dataset.si>0) || row==='vox')){
     const si = row==='tab'? +t.dataset.si : 0;
@@ -19845,41 +19928,29 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     if(noteSel.length>=2) toast('已多选 '+noteSel.length+' 个音符 · '+(row==='tab'?'可选"演奏技巧"、"连音线"，相邻等时值音可设"三连音/N连音"':'点"连音线"可跨音符相连；相邻等时值音可设"三连音/N连音"'));
     return;
   }
-  /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑；v51.3 仅左键） */
-  if(e.button===0 && row==='vox' && t.dataset.staffb!==undefined && !e.shiftKey &&
-     sel.row==='vox' && sel.vi===vi && sel.mi===mi && sel.ci===ci){
-    const svg2=document.getElementById('score'), r2=svg2.getBoundingClientRect(), vb2=svg2.viewBox.baseVal;
-    const yS=(e.clientY-r2.top)/r2.height*vb2.height;
-    const sb=+t.dataset.staffb;
-    if(yS>sb-48 && yS<sb+14){
-      const bot=+t.dataset.sbot||37;
-      const step=Math.max(bot-14, Math.min(bot+15, bot+Math.round((sb-yS)/3.75)));
-      const KK=staffKeyInfo(), rel=step-KK.step0;
-      if(e.ctrlKey || e.metaKey){
-        /* Ctrl+点击：在选中音上叠加/移除和音（同列多音，最多4音） */
-        const deg2=((rel%7)+7)%7+1, oct2=Math.floor(rel/7);
-        mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
-          if(!c2.deg){ c2.deg=deg2; c2.oct=oct2; c2.acc=''; return; }
-          if(c2.deg===deg2 && (c2.oct||0)===oct2) return;
-          c2.adds=c2.adds||[];
-          const ix=c2.adds.findIndex(a=>a&&a.deg===deg2&&(a.oct||0)===oct2);
-          if(ix>=0) c2.adds.splice(ix,1); else if(c2.adds.length<3) c2.adds.push({deg:deg2, acc:'', oct:oct2});
-          if(!c2.adds.length) delete c2.adds; });
-        toast('和音已更新（Ctrl+点击线/间可继续加减）');
-        return;
-      }
+  /* 五线谱：再次点击已选中的音列 → 按点击处的线/间直接定音高（谱面点击编辑；v51.3 仅左键）
+     v69.6 I3（复核 N3）三处收紧：① 只有「上一次在谱面上按下选中的正是这一格」（PTR_SEL，新建谱 / 换谱 / 键盘操作后清空）且不在双击间隔内才改音高——
+     新建谱光标默认停在第 1 格、键盘移过来的格，第一次点击只选中；双击不改音。② 点出来的音与现有音相同（点在自己的符头上）什么都不做，
+     升降号与和音都保留（此前清掉 ♯）。③ 音位按本小节生效的调（staffKeyInfoAt，与谱面同口径）并扣除 8va 记谱移位 */
+  if(e.button===0 && row==='vox' && t.dataset.staffb!==undefined && !e.shiftKey && !(e.ctrlKey || e.metaKey) &&
+     sel.row==='vox' && sel.vi===vi && sel.mi===mi && sel.ci===ci && ptrOk){
+    const P=staffClickPitch(t, e, mi, vi, ci);
+    if(P){
+      const {rel}=P;
       /* v67.3 改为松手且未移动（＝点击）时才定音高：此前按下即改音高并 return、不建立拖选——
          从光标所在的音按住拖选（钢琴/五线谱选几小节去复制）永远拖不出选区，反而把这个音改了音高 */
       /* 验收补：只有「这次按住拖出了新选区」才否决定音高——已存在的旧选区（拖选结束后光标停在选区起点）不算，
          否则有选区时单击光标音永远定不了音高；单击若因手抖经过起点格把旧选区清掉，按 v67.1 口径恢复它 */
       const sx=e.clientX, sy=e.clientY, sr0=selRange;
-      dragSel = {row, vi, mi, ci};
+      dragSel = {row, vi, mi, ci}; PTR_SEL = {s:song, row, vi, mi, ci, t:Date.now()};
       const up=ev=>{
         window.removeEventListener('pointerup', up, true);
         if(Math.hypot(ev.clientX-sx, ev.clientY-sy)>=6 || (selRange && selRange!==sr0)) return;
         if(!selRange && sr0) selRange=sr0;
+        const deg2=((rel%7)+7)%7+1, oct2=Math.floor(rel/7), c1=song.measures[mi].voxes[vi][ci];
+        if(c1 && c1.deg===deg2 && (c1.oct||0)===oct2) return;   /* ② 同一个音：不动（保留升降、和音） */
         mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
-          c2.deg=((rel%7)+7)%7+1; c2.oct=Math.floor(rel/7); c2.acc=''; });
+          c2.deg=deg2; c2.oct=oct2; c2.acc=''; });
         const c3=song.measures[mi].voxes[vi][ci];
         toast('音高 → '+c3.deg+(c3.oct>0?'（高'+c3.oct+'八度）':c3.oct<0?'（低'+(-c3.oct)+'八度）':''));
       };
@@ -19895,6 +19966,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
   selRange = null;
   dragSel = {row, vi, mi, ci};
   sel.mi=mi; sel.ci=ci; sel.row=row; sel.vi=vi;
+  PTR_SEL = {s:song, row, vi, mi, ci, t:Date.now()};   /* v69.6 I3 */
   sel.q = +(t.dataset.q||0);   /* v60.30 延长音拍位选中（增时线热区带 data-q；其余热区自动清零） */
   if(t.dataset.si && +t.dataset.si>0) sel.si=+t.dataset.si;
   if(t.dataset.line!==undefined) activeLyr=+t.dataset.line;
@@ -20873,7 +20945,7 @@ function showHeadMenu(kind, cx, cy){
   }
 }
 /* v53.3 简谱/五线谱和音编辑弹窗：逐音改唱名/八度/变音、加删音——
-   入口：记号层「和音」钮 / 谱面点和音纵列（data-vadds 热区）；五线谱 Ctrl+点击线/间加减仍可用 */
+   入口：记号层「和音」钮 / 谱面点和音纵列（data-vadds 热区）；五线谱 Ctrl+点击线/间加音（v69.6 起生效：点在已有符头上仍是多选，减音走本弹窗） */
 function showAddsMenu(mi, ci, vi, cx, cy){
   closePop();
   const col = song.measures[mi] && song.measures[mi].voxes[vi] && song.measures[mi].voxes[vi][ci];
@@ -20892,7 +20964,7 @@ function showAddsMenu(mi, ci, vi, cx, cy){
         <span style="font-size:12px;min-width:22px;text-align:center">${a2.oct>0?'+':''}${a2.oct||0}</span>
         <button data-ap="${ai}" title="八度+">8度+</button></div>
       <div class="row">${ACCL.map(([v,l])=>`<button data-aa="${ai}:${v}" class="${(a2.acc||'')===v?'on':''}">${l}</button>`).join('')}</div>`).join('');
-    div.innerHTML=`<div class="t">和音 · 主音 ${col.deg} 上的叠加音（最多3个，纵列显示；五线谱另可 Ctrl+点击线/间加减）</div>
+    div.innerHTML=`<div class="t">和音 · 主音 ${col.deg} 上的叠加音（最多3个，纵列显示；五线谱另可 Ctrl+点击线/间加音）</div>
       ${rows||'<div class="t" style="color:var(--faint)">尚无叠加音——点下方「＋加音符」开始</div>'}
       <div class="row" style="margin-top:6px">${(col.adds||[]).filter(a=>a&&a.deg).length<3?`<button data-aab="1">＋加音符（自动取上方三度）</button>`:''}
         ${(col.adds||[]).filter(a=>a&&a.deg).length?`<button data-ax="1" style="margin-left:10px">清空和音</button>`:''}</div>`;
@@ -21441,6 +21513,7 @@ document.getElementById('score').addEventListener('pointermove', e=>{
   }
   const old = JSON.stringify(selRange);
   setRange(dragSel.row, dragSel.vi, {mi:dragSel.mi, ci:dragSel.ci}, {mi, ci});
+  if(PTR_SEL) PTR_SEL.t=0;   /* v69.6 I3 这一下是拖选不是点击：随后单击起点格不算双击（v67.3 验收补「有选区时单击光标音仍定音高」） */
   if(JSON.stringify(selRange)!==old) render();
 });
 /* v54.4 撤 v53.8「松手转圈选」：列/拍拖选松手后保持区域高亮（GP 式区域选区，用户参考视频拍板），
@@ -21540,6 +21613,26 @@ function octShiftBatch(d, ok){
   toast((picks.length? '选中 ':'全曲（本声部）')+n+' 个音已'+(d>0?'升':'降')+'八度');
 }
 function toggleTie(){ return postMod(toggleTie_); }   // v63.6 B1 ① 落音后按 ~：连音线挂在刚落的音上
+/* v69.6 I3（复核 N3）和弦连音线（简谱 / 五线谱声部）：nextVoxCol＝同声部的下一列（本小节下一列，或下一小节首列）；
+   tieAddPairs＝本列附加音里在下一列有同音高（deg / acc / oct 都相同，主音或附加音——v69.3 导入 pSame 同口径，含角色互换）的那些；
+   tieGroupOn＝主音已连且这些附加音都已连；tieGroupSet＝整组连上（只给配得上的附加音写 tie）或整组取消（附加音的 tie 全清）。没有和音的列只翻 col.tie */
+function nextVoxCol(mi, ci, vi){
+  const cols=(((song.measures[mi]||{}).voxes)||[])[vi]||[];
+  if(ci+1<cols.length) return cols[ci+1];
+  const n=(((song.measures[mi+1]||{}).voxes)||[])[vi]||[]; return n[0]||null;
+}
+function tieAddPairs(c, nb){
+  if(!c || !c.deg || !nb || !nb.deg) return [];
+  const same=(a,b)=> !!a && !!b && a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0);
+  return (c.adds||[]).filter(a=>a && a.deg && (same(a, nb) || (nb.adds||[]).some(b=>same(a, b))));
+}
+function tieGroupOn(c, nb){ return !!(c && c.tie) && tieAddPairs(c, nb).every(a=>a.tie); }
+function tieGroupSet(c, nb, on){
+  if(!c) return;
+  const pr = on? tieAddPairs(c, nb) : [];
+  c.tie = !!on;
+  (c.adds||[]).forEach(a=>{ if(!a) return; if(on && pr.includes(a)) a.tie=true; else if(!on || a.tie) delete a.tie; });
+}
 function toggleTie_(){ try{habit('tie');}catch(_){}
   /* Ctrl 选中两个音符：跨过中间音符直接相连（中间音符自动包含在连线内），简谱/吉他谱通用；
      v54.4 区域选区同样可用（selNotes 展开，首尾音相连） */
@@ -21553,7 +21646,7 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
         let mi=q0.mi, ci=q0.ci;
         while(mi<q1.mi || (mi===q1.mi && ci<q1.ci)){
           const c=vcols(mi)[ci];
-          if(!c || !c.tie) return false;
+          if(!c || !tieGroupOn(c, nextVoxCol(mi, ci, q0.vi))) return false;
           if(++ci>=vcols(mi).length){ mi++; ci=0; }
         }
         return true;
@@ -21562,7 +21655,7 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
         let mi=q0.mi, ci=q0.ci;
         while(mi<q1.mi || (mi===q1.mi && ci<q1.ci)){
           const c=vcols(mi)[ci];
-          if(c) c.tie=!allOn;
+          if(c) tieGroupSet(c, nextVoxCol(mi, ci, q0.vi), !allOn);   /* v69.6 I3 和音同音高的附加音一起连 / 取消 */
           if(++ci>=vcols(mi).length){ mi++; ci=0; }
         }
       });
@@ -21639,8 +21732,8 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
   if(selRange && selRange.row==='vox'){
     mutate(()=>{
       const cs = rangeCols();
-      const allTied = cs.slice(0,-1).every(x=>x.col.tie);
-      cs.forEach((x,i)=>{ if(i<cs.length-1) x.col.tie=!allTied; });
+      const allTied = cs.slice(0,-1).every((x,i)=>tieGroupOn(x.col, cs[i+1].col));   /* v69.6 I3 含和音同音高附加音 */
+      cs.forEach((x,i)=>{ if(i<cs.length-1) tieGroupSet(x.col, cs[i+1].col, !allTied); });
     });
     toast('已为多选音符添加/取消连音线');
     return;
@@ -21650,7 +21743,9 @@ function toggleTie_(){ try{habit('tie');}catch(_){}
     /* v63.6 B1 ②：连音线不挂在空列（休止）上——此前挂上后谱面画出连向休止的线，播放也无从延长 */
     const c0=curCol();
     if(!c0 || (!c0.deg && !c0.tie)){ toast('连音线要挂在音符上：先输入音，再按 ~ 连到下一个音'); return; }
-    mutate(()=>{ const c=curCol(); c.tie=!c.tie; });
+    /* v69.6 I3（复核 N3）当前列有和音：下一列（同声部下一列或下一小节首列）有同音高（唱名 / 升降 / 八度都相同，主音或附加音）的附加音一起写 adds[].tie；
+       整组已连再按一次全部取消。没有和音的列与此前逐字节相同（只翻 col.tie） */
+    mutate(()=>{ const c=curCol(), nb=nextVoxCol(sel.mi, sel.ci, sel.vi); tieGroupSet(c, nb, !tieGroupOn(c, nb)); });
     return;
   }
   if(sel.row==='tab'){
@@ -21791,8 +21886,10 @@ function delColumn(){
       const removed = beatsOf(r[sel.ci],mU);
       r.splice(sel.ci,1);
       if(sel.ci>=r.length) sel.ci=r.length-1;
-      /* 把删掉的时值并回相邻音，保持小节总时值不变 */
-      const nb = r[sel.ci] || r[sel.ci-1];
+      /* 把删掉的时值并回相邻音，保持小节总时值不变
+         v69.6 I5（复核 N6）允许欠拍的小节（弱起首小节 / 不完整小节 irr / 散拍草稿，meaUnderOk）直接删、不并时值——此前在弱起里 Delete 删多余休止，
+         时值并进相邻音、弱起又被填成满小节且不报错（与「删除」按钮 deleteNote 同效）。其余小节的 Delete 不变 */
+      const nb = meaUnderOk(sel.mi)? null : (r[sel.ci] || r[sel.ci-1]);
       if(nb){
         const merged = durForBeats(beatsOf(nb,mU)+removed, mU);
         if(merged){ nb.dur=merged.dur; nb.dotted=merged.dotted; }
@@ -23480,7 +23577,7 @@ function lyrBoxFill(el){
   const B=lyrB(); B.key=lyrKeyNow(); B.edit=!!v; B.base=v; B.ime=null;
 }
 /* DF-11 连写：「_」（或全角「＿」）夹在两个字之间＝同一个音（花_儿 →「花儿」，衬字 / 儿化；同主流制谱软件的词内连写）；末尾的「_」等下一个字，先不写 */
-function lyrJoin(v){ return String(v).replace(/([^\s_＿])[_＿]+(?=[^\s_＿])/g, '$1').replace(/([^\s_＿])[_＿]+$/, '$1'); }
+function lyrJoin(v){ return String(v).replace(/([^\s_＿])([_＿]+)(?=([^\s_＿]))/gu, (m, a, u, b)=> a+(/^_+$/.test(u) && lyrWC(a) && lyrWS(b)? '\u203f' : '')).replace(/([^\s_＿])[_＿]+$/u, '$1'); }   /* v69.6 I2：字母之间的连写留成「‿」（同 smartTokenize） */
 function lyrBoxCommit(el){
   if(sel.row!=='vox') return;
   const col=curCol(); if(!col) return;
@@ -23490,7 +23587,7 @@ function lyrBoxCommit(el){
   const v = el.value;
   B.adv=false;
   const toks=smartTokenize(v, {hyph:true}).filter(t=>t.t!=='br');
-  const sep=/\s$/.test(v) || /[A-Za-z0-9'’]-$/.test(v);
+  const sep=/\s$/.test(v) || (/-$/.test(v) && lyrWC([...v.slice(0,-1)].pop()));   /* v69.6 I2 词后连字符＝音节分界（与 smartTokenize 同一套词字符） */
   const one = str=>{   /* 写回当前这一个音（原行为）：同一个音上的连续输入合为一步撤销 */
     if(B.edit){ B.base=v; if(!v) B.edit=false; }
     if(((col.lyrics||[])[activeLyr]||'')===str) return;   /* 输入法取消合成等：内容没变不入栈 */
@@ -23816,27 +23913,48 @@ const SF_PUNCT='，。！？、；：…—（）()!?,.\'"“”‘’·';
 function lyricSamePitch(a,b){ return a.deg===b.deg && (a.acc||'')===(b.acc||'') && (a.oct||0)===(b.oct||0); }
 /* 分词：中文字=1词；连续字母/数字=1词（英文整体）；标点跟随前词；- 手动跳过；换行=乐句边界 */
 /* v68.3 D3 o.hyph（填词框用）：紧跟在字母词后的连字符＝音节分界（hap-py → hap / py），不当「跳过一个音」；智能填词弹窗不传，行为不变 */
+/* v69.6 I2（复核 N2）外文歌词分词：词首＝拉丁 / 希腊 / 西里尔字母或数字（全角字母照旧逐字），词内再认组合附加符 \p{M} 与 ' ’ ʻ ‿——
+   此前只认 A–Z，Blüth' / più / così / Träume 在 ü ù ì ä 处断成好几个音；ʻ（U+02BB，《Aloha ʻOe》）后接字母时可作词首。每个词做 NFC 归一（NFD 的 u+¨ 合成 ü）；
+   归一只作用在这些词上，中文 / 日文 / 韩文逐字、逐字节与此前相同 */
+const LYR_WS=/^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}0-9]$/u, LYR_WC=/^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{M}0-9'’ʻ‿]$/u;
+function lyrWS(ch){ return !!ch && LYR_WS.test(ch) && !(ch>='\uFF00' && ch<='\uFFEF'); }
+function lyrWC(ch){ return !!ch && LYR_WC.test(ch) && !(ch>='\uFF00' && ch<='\uFFEF'); }
 function smartTokenize(text, o){
   const hy=!!(o && o.hyph), out=[];
   (text||'').split(/\n/).forEach((line,li)=>{
     if(li>0) out.push({t:'br'});
-    const cs=[...line]; let i=0, glue=false;
-    /* v68.3 收尾 DF-11 连写：「_」/「＿」夹在两个字之间＝同一个音（花_儿 →「花儿」）；行尾的连写符先不出字（等下一个字），单独的「_」照旧当一个字 */
-    const push=v=>{ const p=out[out.length-1]; if(glue && p && p.t==='syl') p.v+=v; else out.push({t:'syl',v}); glue=false; };
+    const cs=[...line]; let i=0, glue=false, glueL=false;
+    /* v68.3 收尾 DF-11 连写：「_」/「＿」夹在两个字之间＝同一个音（花_儿 →「花儿」）；行尾的连写符先不出字（等下一个字）
+       v69.6 I2：拉丁 / 希腊 / 西里尔字母之间的连写保留成「‿」（mio_ben →「mio‿ben」，此前吞成「mioben」）；单独的「_」（前面是空格或没有字、或后面接空格）
+       ＝跳过一个音（与「-」相同，不写成字面的「_」；真正的拖腔延长线随 T10 的新字段做） */
+    const push=v=>{ const p=out[out.length-1]; if(glue && p && p.t==='syl') p.v+=(glueL && lyrWC([...p.v].pop()) && lyrWS([...v][0])? '\u203f' : '')+v; else out.push({t:'syl',v}); glue=false; glueL=false; };
     while(i<cs.length){
       const c=cs[i];
       if((c==='_' || c==='＿') && out.length && out[out.length-1].t==='syl' && i>0 && !/\s/.test(cs[i-1])){
         let j=i; while(j<cs.length && (cs[j]==='_' || cs[j]==='＿')) j++;
-        if(j>=cs.length || !/\s/.test(cs[j])){ glue = j<cs.length; i=j; continue; }
+        if(j>=cs.length || !/\s/.test(cs[j])){ glue = j<cs.length; glueL = glue && cs.slice(i,j).every(x=>x==='_'); i=j; continue; }
       }
+      if(c==='_' || c==='＿'){ glue=false; out.push({t:'skip'}); i++; continue; }
       if(/\s/.test(c)){ glue=false; i++; continue; }
       if(c==='-'){ glue=false; out.push({t:'skip'}); i++; continue; }
       if(SF_PUNCT.includes(c)){ for(let k=out.length-1;k>=0;k--){ if(out[k].t==='syl'){ out[k].v+=c; break; } if(out[k].t==='br')break; } i++; continue; }
-      if(/[A-Za-z0-9]/.test(c)){ let w=c; i++; while(i<cs.length && /[A-Za-z0-9'’]/.test(cs[i])) w+=cs[i++]; push(w); if(hy && cs[i]==='-') i++; continue; }
+      if(lyrWS(c) || (c==='ʻ' && lyrWS(cs[i+1]))){ let w=c; i++; while(i<cs.length && lyrWC(cs[i])) w+=cs[i++]; push(w.normalize('NFC')); if(hy && cs[i]==='-') i++; continue; }
       push(c); i++;
     }
   });
   return out;
+}
+/* v69.6 I2 每个音的歌词拼回一段可再分词的文本（智能填词预载）：外文词前后加空格（再分词仍是一词一音），一个音上原本是多个字的（花儿、连写过的）用「_」连写；
+   纯中文 / 日文 / 韩文且每音一字时与此前 join('') 逐字节相同 */
+function lyrPartsJoin(parts){
+  let s='';
+  parts.forEach((p, i)=>{
+    let q=String(p);
+    if(q!=='-' && !/\s/.test(q)){ const tk=smartTokenize(q); if(tk.length>1 && tk.every(x=>x.t==='syl')) q=tk.map(x=>x.v).join('_'); }
+    if(i>0 && s && q){ const a=[...s].pop(), b=[...q][0]; if(lyrWC(a) || lyrWS(b) || b==='ʻ') s+=' '; }
+    s+=q;
+  });
+  return s;
 }
 /* 从起点收集音符槽：kind='fill'（可唱音）/'cont'（连音延续，恒清空）；休止不入槽、中断连音链 */
 function smartSlots(vi, startMi, startCi){
@@ -23912,12 +24030,16 @@ document.getElementById('b-fill').onclick = ()=>{
     <div class="sf-prev" id="sf-prev"></div>
     <div class="btns"><button id="fill-cancel">取消</button><button id="fill-ok" class="primary">填入</button></div>`);
   const ta=document.getElementById('fill-text');
-  /* 预载指定段已填歌词到输入框（空可填音用 - 占位，末尾留白省略） */
+  /* 预载指定段已填歌词到输入框（空可填音用 - 占位，末尾留白省略）
+     v69.6 I2（复核 N2）按同一套分词规则拼回（lyrPartsJoin）：外文词之间加空格、一个音上的多个字用「_」连写——此前 join('') 把西文词粘在一起，
+     打开智能填词不改内容点「填入」就改坏曲库歌词（「AveMaria!」）。preTA＝预载的原文：没改动、从头填、不按乐句对齐时「填入」什么都不做 */
+  let preTA=null;
   const reloadTA=()=>{
     const parts=smartSlots(vi,0,0).filter(s=>s.kind==='fill')
       .map(s=>((s.col.lyrics&&s.col.lyrics[activeLyr])||'-'));
     while(parts.length && parts[parts.length-1]==='-') parts.pop();
-    ta.value = parts.some(x=>x!=='-') ? parts.join('') : '';
+    ta.value = parts.some(x=>x!=='-') ? lyrPartsJoin(parts) : '';
+    preTA = ta.value;
   };
   reloadTA();
   const getOpts=()=>({
@@ -24013,6 +24135,7 @@ document.getElementById('b-fill').onclick = ()=>{
   document.getElementById('fill-ok').onclick = ()=>{
     const text=ta.value, phrase=getOpts().phrase, st={mi:startAt.mi, ci:startAt.ci};   // 关闭前读取选项
     if(!text.trim()){ closeModal(); return; }
+    if(text===preTA && !phrase && st.mi===0 && st.ci===0){ closeModal(); return; }   /* v69.6 I2 原文没改：不重写歌词 */
     closeModal();
     const slots=smartSlots(vi, st.mi, st.ci);
     const vals=smartCompute(slots, smartTokenize(text), phrase);
@@ -30014,7 +30137,7 @@ FLOW.cmd = (function(){
       C('r1:savemine', '存入我的曲谱', 'bc bcdwdqp cr crwdqp save 存入 保存 保存到我的曲谱 bcdwdqp', '行 1 · 保存状态 / 文件 ▾', click('#b-savemine'), {ic:'ui-save'}),
       C('r1:file', '存为文件', 'cwwj xz bcwj ctrl+s mtab download 下载 曲谱文件 导出曲谱文件 另存 另存为 lc lcw saveas 保存文件 .mtab.json mtab.json 另存为文件 存为文件.mtab.json', '文件 ▾ · Ctrl+S', click('#b-save'), {ic:'ui-download'}),
       C('r1:dup', '复制为新窗口', 'fzwxck fz 副本 duplicate copy', '文件 ▾', fa('r1:dup'), {ic:'act-swap'}),
-      C('r1:meta', '曲谱信息…', 'qpxx xx meta 标题 曲名 调 拍号 速度 词曲 作者 页头 作词 作曲 词作者 曲作者 作词作曲 zc zq zczq', NXC? '文件 ▾' : '文件 ▾ / 右栏 · 文字', click('#b-meta'), {ic:'act-info'}),   /* v69.1 C：新形态曲谱信息只在页头 + 文件 ▾（A1 去重） */
+      C('r1:meta', '曲谱信息…', 'qpxx xx meta 标题 曲名 调 拍号 速度 词曲 作者 页头 作词 作曲 词作者 曲作者 作词作曲 zc zq zczq 弱起 弱起小节 rq ruoqi pickup anacrusis', NXC? '文件 ▾' : '文件 ▾ / 右栏 · 文字', click('#b-meta'), {ic:'act-info'}),   /* v69.1 C：新形态曲谱信息只在页头 + 文件 ▾（A1 去重） */
       C('r1:kind', '换谱类…', 'hpl pl kind 谱类 谱型 谱型条 换谱型', '左栏音轨区标题 · 谱类 ▾ / 文件 ▾', fa('r1:kind'), {ic:'act-swap'}),
       C('r1:close', '关闭窗口', 'gbck gb close 关闭', '文件 ▾ / 页签 ×', fa('r1:close'), {ic:'act-close'}),
       C('r1:closeothers', '关闭其他窗口', 'gbqtck close others', '文件 ▾ / 页签右键', fa('r1:closeothers')),
@@ -37297,6 +37420,20 @@ var NWB = (function(){
     }
     if(o.mode==='minor') s.mode='minor';   /* 小调按关系大调记谱（同导入口径），只写 song.mode */
     if((id==='J'||id==='S'||id==='SJ') && (s.voxVoices||[]).length>1) s.voxGroups=[{type:'bracket', from:0, to:s.voxVoices.length-1}];   /* v64.4 B4e 合唱显式分组 */
+    /* v69.6 I4（复核 N4，只改新建）：有歌词的多声部（合唱）默认声部名与谱号——四部 女高 / 女低 / 男高 / 男低（staff / staff / staff / bass；
+       男高音的「高音谱号下加 8」要新字段，随 v69.5）、三部 SAB 女高 / 女低 / 男低（staff / staff / bass）；二部照旧两个高音谱号、「旋律1 / 2」（学校二部多是高低两个童声 / 女声声部）。
+       简谱合唱只改声部名（不写谱号）；无词的五线谱多行＝重奏谱，照旧「旋律N」。老谱不经过这里 */
+    if((id==='J'||id==='S'||id==='SJ') && (s.lyricLines|0)>0){
+      const nv=(s.voxVoices||[]).length, CH={4:['女高','女低','男高','男低'], 3:['女高','女低','男低']}[nv];
+      if(CH){ s.voxVoices=CH.slice();
+        if(id!=='J'){ const cl=(s.voxNotations||[])[0]||'staff';
+          if(cl==='staff') s.voxNotations={4:['staff','staff','staff','bass'], 3:['staff','staff','bass']}[nv]; } }
+    }
+    /* v69.6 I6（复核 N8）钢琴独奏显式写花括号（v64.4 voxGroups 既有字段）：此前靠推断，右手一填词就判成合唱方括号、谱名也变成合唱谱 */
+    if(id==='G') s.voxGroups=[{type:'brace', from:0, to:1}];
+    /* v69.6 I1（复核 N1）最上面的旋律行是高音谱号、本调 do 折到 G3–B3（1=G～B）时设 refOct=1（v65.0 既有字段）——与「建 C 再换 G」（transposeSong 抬 refOct）
+       同一个八度：五线谱键入 1 落在 G4，简谱对照行不带点。预览样谱（NWPV.buildSample）走同一个 build */
+    if((s.voxNotations||[])[0]==='staff' && keyRefOf(s.key||'C', 0)<60) s.refOct=1;
     s.layout = Object.assign({}, s.layout||{}, {fixed:true});   /* v64.5 B8 ①（D-09）新建谱默认固定版宽 */
     if(o.instKey && ['J','S','G'].includes(id)){
       /* v60.46 乐器身份落谱面：instKey 驱动左栏轨图标；按乐器预置混音台默认音色（NW_INSTS.tim） */
