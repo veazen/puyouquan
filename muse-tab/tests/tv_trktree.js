@@ -1082,7 +1082,7 @@ function T0SCN() {
     window.guardReplace = p => p();
     const h = s => { s = String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '').replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, ''); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
     try { hideStartPad(); } catch (_) {}
-    const out = { ed: [], off: [], names: [] };
+    const out = { ed: [], off: [], names: [], stf: [] };
     const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('style', 'position:fixed;left:-5000px;top:0'); document.body.appendChild(sv);
     /* v69.7 放行口径（刻版避让 A 组 · 复核 E8 有意改动，同 tv_pgbrk / tv_parts 的 __v697）：人声五线谱行（整曲有歌词）的力度类改画在谱表上方、谱表下不再为它留力度带——
        16 个预设里只有 #13（教学对照谱）有人声力度：两页都先去掉人声五线谱行上的 dyn / dynTo 再比，其余字节、其余 15 个照旧逐字节 */
@@ -1090,6 +1090,7 @@ function T0SCN() {
         && (s.measures || []).some(m => (((m.voxes || [])[k]) || []).some(c => c && (c.lyrics || []).some(x => x && String(x).trim()))));
       (s.measures || []).forEach(m => (m.voxes || []).forEach((cs, k) => { if (voc[k]) (cs || []).forEach(c => { if (c) { delete c.dyn; delete c.dynTo; } }); })); return s; };
     PRESETS.forEach((p, i) => {
+      { const s0 = p.make(); out.stf.push(!!s0.tabStaff || (s0.voxNotations || []).some(n => n === 'staff' || n === 'bass' || n === 'alto')); }   /* v69.7 带五线谱刻版（五线谱声部 / 联排五线谱）的预设 */
       const mk = () => { const s = p.make(); return i === 13 ? v697(s) : s; };
       addDoc(migrate(mk()), () => {}); closeDocAt(0);
       sel = { mi: 0, row: (song.tabVoices || []).length ? 'tab' : 'vox', vi: 0, ci: 0, si: 1 }; blurSel = true; noteSel = []; selRange = null; render();
@@ -1141,10 +1142,16 @@ function T0SCN() {
       if (refURL) {
         /* v68.2 切默认：被测页用 ?shell=classic 的旧外壳（不带参数已是 flow，编辑器谱纸宽不同、#score 不可比）；flow 与旧外壳的谱面引擎同一份由 T23a 覆盖 */
         const [A, B] = await Promise.all([runDefault(refURL, SCORE16), runDefault(CLASSICU, SCORE16)]);
-        const ed = A.r.ed.map((x, i) => x === B.r.ed[i] ? null : A.r.names[i]).filter(Boolean), off = A.r.off.map((x, i) => x === B.r.off[i] ? null : A.r.names[i]).filter(Boolean);
-        T('T23', A.r.ed.length === 16 && !ed.length && !off.length && !A.pe.length && !B.pe.length,
-          'T23c 与基线 ' + REF_COMMIT.slice(0, 7) + ' 对拍：16 个预设在旧外壳（?shell=classic）编辑器里的 #score 与 renderOffscreen 输出、与基线默认外壳逐字节相同（简谱 / 六线谱 / 五线谱零回归）',
-          (ed.length || off.length) ? J({ ed, off }) : '16 × 2');
+        /* v69.7 刻版质量有意改五线谱刻版（符干长度 / 二度错位 / 临时记号列宽与进位 / 连音只写数字 / 小节号 / 换谱号 / 歌词段号与标点，tv_v697col B 段）：
+           带五线谱刻版的预设（五线谱声部或联排五线谱，B.r.stf；当前为 5 个）窄范围放行——差异的元素级清单见 v69.7 B 组提交说明（只在五线谱声部的
+           符头 / 符干 / 符杠 / 加线 / 临时记号 / 连音 / 歌词与随列宽平移的热区、小节线；联排谱只有五线谱的符干与符尾 / 符杠）；
+           其余（纯简谱 / 六线谱）照旧与基线逐字节相同，且放行的恰好是带五线谱刻版的那几个（不多放一个） */
+        const stf = B.r.stf || [], allow = i => !!stf[i];
+        const ed = A.r.ed.map((x, i) => x === B.r.ed[i] || allow(i) ? null : A.r.names[i]).filter(Boolean), off = A.r.off.map((x, i) => x === B.r.off[i] || allow(i) ? null : A.r.names[i]).filter(Boolean);
+        const nAllow = stf.filter(Boolean).length;
+        T('T23', A.r.ed.length === 16 && !ed.length && !off.length && !A.pe.length && !B.pe.length && nAllow >= 1 && nAllow <= 6,
+          'T23c 与基线 ' + REF_COMMIT.slice(0, 7) + ' 对拍：16 个预设在旧外壳（?shell=classic）编辑器里的 #score 与 renderOffscreen 输出、与基线默认外壳逐字节相同（简谱 / 六线谱零回归；v69.7 带五线谱刻版的 ' + nAllow + ' 个预设有意变化、窄范围放行）',
+          (ed.length || off.length) ? J({ ed, off }) : (16 - nAllow) + ' × 2（放行 ' + stf.map((x, i) => x ? A.r.names[i] : null).filter(Boolean).join('、') + '）');
       }
     });
     await Promise.all([close(pf), close(pc)]);

@@ -20,7 +20,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const h=document.getElementById('score').innerHTML;
     const halves=cnt('noteheadHalf');
     const stems=(h.match(/stroke-width="1.1"><\\/line>/g)||[]).length;
-    // 二度翻转：第2列两个符头 x 相差约6.6
+    // 二度翻转：第2列两个符头 x 相差＝符头宽 − 0.25（v69.7 复核 E4：此前写死 6.6，比符头宽 8.85 少 2.25，两符头相嵌；见 staffColPlan）
     const key='d="'+SMUFL.noteheadHalf.d+'" transform="translate(';
     const xs=[]; let i=0;
     while((i=h.indexOf(key,i))>=0){ const m=h.slice(i+key.length-12).match(/translate\\(([\\d.-]+),/); xs.push(+m[1]); i+=key.length; }
@@ -28,8 +28,8 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
     const flipGap = +(xs[xs.length-1]-xs[xs.length-2]).toFixed(1);
     return {halves, stems, flipGap, nan:h.includes('NaN')};
   })()`);
-  console.log('T1 五线谱和音: 符头='+t1.halves+'(期望5) 符干='+t1.stems+'(期望2共用) 二度错位='+t1.flipGap+'(期望6.6)',
-    t1.halves===5&&t1.stems===2&&Math.abs(t1.flipGap-6.6)<0.2&&!t1.nan?'✅':'❌');
+  console.log('T1 五线谱和音: 符头='+t1.halves+'(期望5) 符干='+t1.stems+'(期望2共用) 二度错位='+t1.flipGap+'(期望8.6＝符头宽8.85−0.25)',
+    t1.halves===5&&t1.stems===2&&Math.abs(t1.flipGap-8.6)<0.2&&!t1.nan?'✅':'❌');
   await pg.waitForTimeout(200);
   let r=await pg.evaluate(()=>{ const r2=document.getElementById('score').getBoundingClientRect(); return {x:r2.x,y:r2.y,w:r2.width}; });
   await pg.screenshot({path:'v376-chords.png', clip:{x:Math.max(0,r.x), y:Math.max(0,r.y+120), width:Math.min(1100,r.w), height:200}});

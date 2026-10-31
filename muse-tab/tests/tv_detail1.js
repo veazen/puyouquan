@@ -164,11 +164,13 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
     loadSong(s);
     noteSel = [{ row: 'vox', mi: 1, ci: 0, vi: 0 }]; render();
     const cy = () => { const c = document.querySelector('#score circle[r="8.5"]'); return c ? +c.getAttribute('cy') : null; };
-    const w0 = measureLayout(song.measures[1]).w;
+    /* v69.7（复核 E8）首列换谱号按 Gould 画在小节线前（上一小节末尾）：让位宽度记在第 1 小节，口径改为两小节合计加宽 */
+    const wSum = () => measureLayout(song.measures[0]).w + measureLayout(song.measures[1]).w;
+    const w0 = wSum();
     const y0 = cy();
     song.measures[1].voxes[0][0].clef = 'bass'; render();
     const y1 = cy();
-    const w1 = measureLayout(song.measures[1]).w;
+    const w1 = wSum();
     /* 第二小节第 2 列不再重复画谱号但沿用 bass 音位：cy 应与第 1 列一致 */
     noteSel = [{ row: 'vox', mi: 1, ci: 1, vi: 0 }]; render();
     const y2 = cy();
