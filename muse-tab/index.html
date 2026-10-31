@@ -9095,6 +9095,7 @@ function smg(name, x, y, SG, opts){
   const s = SG * (opts && opts.scale || 1);
   const sx = opts && opts.sx!=null? opts.sx : s, sy = opts && opts.sy!=null? opts.sy : s;
   const tf = (sx===s && sy===s)? `scale(${s.toFixed(3)})` : `scale(${sx.toFixed(3)},${sy.toFixed(3)})`;
+  if(AV_SINK && g.bb){ const b=g.bb; AV_SINK.push([+x+b[0]*sx, +y+b[1]*sy, +x+b[2]*sx, +y+b[3]*sy]); }   /* v69.7 刻版避让：五线谱行的字形墨迹盒 */
   return `<path d="${g.d}" transform="translate(${(+x).toFixed(1)},${(+y).toFixed(1)}) ${tf}" fill="${opts && opts.fill || 'var(--ink)'}"/>`;
 }
 function smw(name){ const b=SMUFL[name]&&SMUFL[name].bb; return b? b[2]-b[0] : 1; }
@@ -11338,7 +11339,7 @@ function systemExtras(sys){
     if(c.orn || c.graceA || c.grace) maxUp=Math.max(maxUp, 1);   // 波音/倚音需上方空间
     if(c.chord) maxUp=Math.max(maxUp, 3);                        // 和弦框（放大版）需更多上方空间
     else if(song.func) maxUp=Math.max(maxUp, 2);                 // 空位编辑提示需上方空间
-    if(c.dyn) maxDown=Math.max(maxDown, 2);                      // 力度记号需下方空间
+    if(c.dyn && !AV_VOC[vv2]) maxDown=Math.max(maxDown, 2);      // 力度记号需下方空间（v69.7 人声五线谱行的力度画在谱表上方，不占下方）
     {
       const gg=normGrace(c.grace), ga=normGrace(c.graceA);
       const hiOct = g2=> g2? Math.max(0, ...g2.notes.map(n2=>n2.oct||0)) : 0;
@@ -11453,7 +11454,7 @@ function systemExtras(sys){
     jpEx: tabJpAny()? jpRowExtras(sys) : null   /* v67.1 简谱联排行逐声部真实墨迹（只在点亮时计算；v67.2 逐轨：未点亮的轨记 null） */
   };
 }
-function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn, ringEx, jpEx, sysMis){
+function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad, diagOn, ringEx, jpEx, sysMis, vp){   /* v69.7 vp：刻版避让补空 {a 谱表上方, b 谱表与歌词之间, z 系统底}（avPads；缺省不补） */
   const nT = song.tabVoices.length, nV = song.voxVoices.length, nL = song.lyricLines;
   topExtra = topExtra||0; botExtra = botExtra||0; tabExtra = tabExtra||0; tabGap2 = tabGap2||0; tabBotPad = tabBotPad||0;
   const vs = LAY_VS;                              // 纵向疏密系数：只缩放行间空白，不缩谱表/字号
@@ -11524,7 +11525,7 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
   }
   /* 五线谱声部：按整曲实际音域为谱表上/下加线区自动扩展行距（防止相邻行内容交叠） */
   const K3 = (song.voxNotations||[]).some(isStaffNota)? staffKeyInfo() : null;
-  const DG = [];   /* 本系统各声部的对照行间隙（dualGapOf(vi, M) 读它） */
+  const DG = [], VT = [];   /* VT：各声部行带的起点（v69.7 避让判断「上一行不是五线谱行」时用） */   /* 本系统各声部的对照行间隙（dualGapOf(vi, M) 读它） */
   for(let i=0;i<nV;i++){
     const nt2 = (song.voxNotations||[])[i];
     const st = isStaffNota(nt2);
@@ -11560,8 +11561,10 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     }
     /* v54.8 首个简谱声部紧邻 TAB 块时的上缘垫距：默认 15→20（数字顶到小节号带留 ≥8px，
        出版口径），并同样不随行距系数缩小——topExtra（连音线/倚音等预留）在此之上叠加 */
+    VT[i] = y;
     DUAL_GAP[i] = DG[i] = dual? (ledDn? 26 + ledDn + 8 : 26 + (relDd? relDd*3.75 + 4 : 0)) : 0;   // v64.9 B4c ④ 低音区加线落在谱表与简谱行之间（另留 8：最低符头下半 + 净距）；v67.5 第一、二条下加线之间的音同样让开（与更低的档连续）
     y += (st? 48*vv + topExtra*1.8 + ledUp + (dual? DUAL_GAP[i] : 0) : (nT && i===0? Math.max(15*vv, 20) : 15*vv) + topExtra);
+    if(vp && vp.a[i]) y += vp.a[i];   /* v69.7 避让补空：谱表上方 */
     /* v60.75 歌词基线 = 简谱行墨迹底 + 净空 + 歌词字的上伸高。
        旧写法是常数 25 + 分档 botExtra，既不认字号也不认真实墨迹深度。
        LYR_ASC 取 16 号中文字的上伸约 0.88em；LYR_CLEAR 取 7 —— 常见档
@@ -11570,14 +11573,16 @@ function sysMetrics(topExtra, botExtra, tabExtra, tabGap2, diagExtra, tabBotPad,
     /* v64.9 B4c ①（P2-03）本声部有力度/表情记号时歌词再下移一条记号带（此前力度写死在数字下方 14px，压到歌词）；
        对照谱的加线深度已放进谱表↔简谱行间隙，歌词不再重复让 */
     const kD='smD'+i, hD=RMEMO && RMEMO.get(kD);   /* v68.4 B3：整曲扫描，单次 render 内只做一遍 */
-    const dynBand = (hD && hD.s===song)? hD.v : (song.measures||[]).some(m=>((m.voxes||[])[i]||[]).some(c=>c && c.dyn))? 12 : 0;
+    /* v69.7（复核 E8）人声五线谱行的力度类画在谱表上方，谱表下不再留力度带 */
+    const dynBand = (hD && hD.s===song)? hD.v : (!AV_VOC[i] && (song.measures||[]).some(m=>((m.voxes||[])[i]||[]).some(c=>c && c.dyn)))? 12 : 0;
     if(RMEMO && !(hD && hD.s===song)) RMEMO.set(kD, {s:song, v:dynBand});
-    const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC + dynBand;
+    const lyrDrop = botExtra + LYR_CLEAR + LYR_ASC + dynBand + ((vp && vp.b[i]) || 0);   /* v69.7 避让补空：谱表与歌词之间（缺省加 0，值不变） */
     const ledL = dual? 0 : ledDn;
     voxYs.push(y); lyricY0.push(y + lyrDrop + ledL);
     y += lyrDrop + ledL + (lyrRowsOf(i)-1)*21*vl + 9*vv;   // v64.8 按本声部实际段数
   }
-  return {diagH, tabTops, voxYs, lyricY0, tabStaffB, tabJpB, tabJpT, h:y+2, gap:9*vs, tabExtra, dg:DG};
+  if(vp && vp.z) y += vp.z;   /* v69.7 避让补空：系统底 */
+  return {diagH, tabTops, voxYs, lyricY0, tabStaffB, tabJpB, tabJpT, h:y+2, gap:9*vs, tabExtra, dg:DG, vtop:VT};
 }
 
 /* ================= 渲染 ================= */
@@ -12326,6 +12331,277 @@ function geomTag(p, g0, k, key){
   const a = ' data-g="'+k+'" data-gq="'+key+'"';
   for(let i=g0; i<p.length; i++) p[i] = String(p[i]).replace(/<(path|line|rect|text|circle|ellipse|polygon|polyline)(?=[\s>\/])/g, '<$1'+a);
 }
+/* ===== v69.7 刻版避让 AV（复核 E3 / E8；负责人：「修复截图 PED 和音符重叠的问题，并检查同类型问题」）=====
+   五线谱声部每一行（系统 × 声部，AV.rows['si:vi']）记下实际画出的墨迹外接盒：SMuFL 字形在 smg 里顺带记（AV_SINK），
+   线 / 路径（符杠、连音线弧按 4px 竖条切片）/ 圆 / 文字在 GTv 同一批绘制点解析（avInk）；歌词另记（只做行距判断，记号不往歌词里让）。
+   踏板 Ped.____*、力度 / 表情 / 速度术语、发夹、cresc. / dim. 文字与虚线、文字标注、八度线：画到原位置时先占一个空串（avDefer），
+   整份谱画完再按「缺省位置与墨迹（含先放好的记号）的净空」定位（avPlace）——净空 ≥1.5 原样不动（占位串原位置原顺序填回，逐字节不变）；
+   不够时谱表下方的往下让到本段墨迹之下 3px、上方的往上让；踏板、力度类在同一行取同一高度（Gould：一行内力度 / 踏板同高，局部特别低时整行一起让）。
+   人声（有歌词）的五线谱行，力度类改画在谱表上方（Gould / 声乐出版惯例，复核 E8），谱表下方不再为它留力度带。
+   记号挪出原有行距（压到下一行 / 本行歌词 / 出了系统框）时 avPads 算出各行要补的空（a 谱表上方 · b 谱表与歌词之间 · z 系统底），
+   记在 AV_HINT（按曲谱对象、按行首末小节）后按补好的行距重排一遍；同一份谱下次排版直接用记下的值（编辑时仍只排一遍）。 */
+var AV_SINK = null;            /* 当前五线谱行的墨迹盒数组（smg 顺带写入）；null＝不记 */
+var AV_VOC = [];               /* 每个声部是否「人声五线谱行」（五线谱（含对照行）、整曲有歌词）——renderCore 开头算一次 */
+var AV_PASS = 0;               /* 补行距重排的层数（最多再排两遍） */
+var AV_HINT = null;            /* 曲谱对象 → Map('首小节-末小节' → {a:[], b:[], z})（WeakMap，首次排版时建） */
+var AV_TM = {}, AV_CV = null;
+var AV_TRIG = 1.5, AV_CLR = 3, AV_LCLR = 2; /* 净空不足 1.5 才挪；挪到离墨迹 3；人声行歌词与本行音符墨迹净空 2 */
+function avTxt(t, font){   /* 字墨框（按 100px 量，乘字号用）：{l 起笔左伸, r 起笔右伸, a 基线上, d 基线下, w 步进} */
+  const k = font+'|'+t, T = AV_TM || (AV_TM = {}); let m = T[k];
+  if(m) return m;
+  try{ const c = AV_CV || (AV_CV = document.createElement('canvas').getContext('2d'));
+    c.font = font.replace('#', '100px'); c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+    const q = c.measureText(t);
+    if(q && q.width>0 && isFinite(q.actualBoundingBoxAscent)) m = {l:q.actualBoundingBoxLeft/100, r:q.actualBoundingBoxRight/100, a:q.actualBoundingBoxAscent/100, d:q.actualBoundingBoxDescent/100, w:q.width/100};
+  }catch(_){}
+  if(!m){ const w = [...t].reduce((a,ch)=>a+(/[\u2e80-\u9fff\uff00-\uffef]/.test(ch)? 1 : 0.6), 0); m = {l:0, r:w, a:0.75, d:0.25, w}; }
+  return (T[k] = m);
+}
+function avTextBox(x, y, px, anchor, font, t){
+  const m = avTxt(t, font), x0 = anchor==='middle'? x-m.w*px/2 : anchor==='end'? x-m.w*px : x;
+  return [x0-m.l*px, y-m.a*px, x0+m.r*px, y+m.d*px];
+}
+function AV_FAM(fam){ return (!fam || /var\(/.test(fam))? (HD_FAM || 'sans-serif') : fam; }
+/* 折线 / 多边形 → 外接盒（宽于 5px 的按 ≤4px 竖条切片，斜符杠、连音弧按真实走向记） */
+function avSeg(pts, closed, hw, out){
+  if(!pts.length) return;
+  let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
+  for(const q of pts){ if(q[0]<x0) x0=q[0]; if(q[0]>x1) x1=q[0]; if(q[1]<y0) y0=q[1]; if(q[1]>y1) y1=q[1]; }
+  /* 竖线 / 横线（符干、加线、踏板线）：平头线端，只在垂直于线的方向加半线宽 */
+  if(pts.length===2 && !closed && hw){ if(x1-x0<0.01){ out.push([x0-hw, y0, x1+hw, y1]); return; } if(y1-y0<0.01){ out.push([x0, y0-hw, x1, y1+hw]); return; } }
+  if(!(x1-x0>5) || !(y1-y0>1)){ out.push([x0-hw, y0-hw, x1+hw, y1+hw]); return; }   /* 窄的、平的（横线 / 虚线 / 平符杠）一个盒 */
+  const n = Math.min(Math.ceil((x1-x0)/4), Math.ceil((y1-y0)/0.75)), w = (x1-x0)/n, E = pts.length-(closed? 0 : 1);
+  for(let k=0;k<n;k++){
+    const s0 = x0+k*w, s1 = s0+w; let lo=Infinity, hi=-Infinity;
+    for(let i=0;i<E;i++){
+      const a = pts[i], b = pts[(i+1)%pts.length];
+      const ea = Math.min(a[0],b[0]), eb = Math.max(a[0],b[0]);
+      if(eb<s0-1e-6 || ea>s1+1e-6) continue;
+      if(b[0]===a[0]){ lo=Math.min(lo, a[1], b[1]); hi=Math.max(hi, a[1], b[1]); continue; }
+      const c0 = Math.max(s0, ea), c1 = Math.min(s1, eb), ya = a[1]+(b[1]-a[1])*(c0-a[0])/(b[0]-a[0]), yb = a[1]+(b[1]-a[1])*(c1-a[0])/(b[0]-a[0]);
+      lo=Math.min(lo, ya, yb); hi=Math.max(hi, ya, yb);
+    }
+    if(lo<=hi) out.push([s0-hw, lo-hw, s1+hw, hi+hw]);
+  }
+}
+var AV_EL = null, AV_ATR = null;
+function avAttrs(a){ const re = AV_ATR || (AV_ATR = /([\w:-]+)="([^"]*)"/g); re.lastIndex = 0; const o = {}; let m; while((m = re.exec(a))) o[m[1]] = m[2]; return o; }
+/* 一段 SVG 串里的叶子元素 → 墨迹盒（smg 字形带 transform，已由 AV_SINK 记过，这里跳过；纸色 / 透明的不算墨迹） */
+var AV_LN = /^<line x1="(-?[\d.]+)" y1="(-?[\d.]+)" x2="(-?[\d.]+)" y2="(-?[\d.]+)" stroke="var\(--ink\)" stroke-width="([\d.]+)"\/>$/;
+function avParse(s, out){
+  s = String(s); if(!s) return;
+  const q = s.charCodeAt(1)===108 && AV_LN && AV_LN.exec(s);   /* 快路：单根符干 / 加线（最常见） */
+  if(q){ const w = +q[5]/2; avSeg([[+q[1], +q[2]], [+q[3], +q[4]]], false, w, out); return; }
+  const re = AV_EL || (AV_EL = /<(line|path|circle|rect|text)\b([^>]*)>/g); re.lastIndex = 0; let m;
+  while((m = re.exec(s))){
+    const tg = m[1], A = avAttrs(m[2]), fill = A['fill'];
+    if(tg==='text'){
+      const e = s.indexOf('</text>', re.lastIndex); if(e<0) break;
+      const t = s.slice(re.lastIndex, e).replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+      re.lastIndex = e+7;
+      if(!t.trim() || fill==='transparent' || A['opacity']==='0') continue;
+      const px = parseFloat(A['font-size']) || 10;
+      const font = (A['font-style']==='italic'? 'italic ' : '')+(A['font-weight'] || '400')+' # '+AV_FAM(A['font-family']);
+      const tb = avTextBox(parseFloat(A['x']) || 0, parseFloat(A['y']) || 0, px, A['text-anchor'] || 'start', font, t); tb.push('t');
+      out.push(tb);
+      continue;
+    }
+    if(fill==='transparent' || fill==='var(--paper)' || A['opacity']==='0' || A['fill-opacity']==='0') continue;
+    const stroke = A['stroke'], sOn = !!stroke && stroke!=='none' && stroke!=='transparent';
+    const hw = sOn? (parseFloat(A['stroke-width']) || 1)/2 : 0;
+    if(tg==='line'){ avSeg([[+A['x1'], +A['y1']], [+A['x2'], +A['y2']]], false, hw, out); continue; }
+    if(tg==='circle'){ const cx=+A['cx'], cy=+A['cy'], r=(+A['r']||0)+hw; out.push([cx-r, cy-r, cx+r, cy+r]); continue; }
+    if(tg==='rect'){ if(fill==='none' && !sOn) continue; const x=+A['x'], y=+A['y']; out.push([x-hw, y-hw, x+(+A['width']||0)+hw, y+(+A['height']||0)+hw]); continue; }
+    /* path：smg 字形跳过；其余按 M / L / H / V / Q / Z（绝对、相对）展开成折线，二次曲线取 8 段 */
+    if(A['transform']) continue;
+    if(fill==='none' && !sOn) continue;
+    const d = A['d']; if(!d) continue;
+    const tk = d.match(/[MLHVQZmlhvqz]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
+    const closed = fill!=='none';
+    let i=0, cmd='M', cx=0, cy=0, sub=[]; const subs=[];
+    const num = ()=> +tk[i++];
+    while(i<tk.length){
+      if(/[A-Za-z]/.test(tk[i])){ cmd = tk[i++]; if(cmd==='Z' || cmd==='z'){ if(sub.length) subs.push(sub); sub=[]; } continue; }
+      const rel = cmd===cmd.toLowerCase(), C = cmd.toUpperCase();
+      if(C==='M'){ if(sub.length) subs.push(sub); const x=num(), y=num(); cx = rel? cx+x : x; cy = rel? cy+y : y; sub=[[cx,cy]]; cmd = rel? 'l' : 'L'; }
+      else if(C==='L'){ const x=num(), y=num(); cx = rel? cx+x : x; cy = rel? cy+y : y; sub.push([cx,cy]); }
+      else if(C==='H'){ const x=num(); cx = rel? cx+x : x; sub.push([cx,cy]); }
+      else if(C==='V'){ const y=num(); cy = rel? cy+y : y; sub.push([cx,cy]); }
+      else if(C==='Q'){ const qx0=num(), qy0=num(), x0=num(), y0=num();
+        const qx = rel? cx+qx0 : qx0, qy = rel? cy+qy0 : qy0, ex = rel? cx+x0 : x0, ey = rel? cy+y0 : y0;
+        for(let k=1;k<=8;k++){ const t=k/8, u=1-t; sub.push([u*u*cx+2*u*t*qx+t*t*ex, u*u*cy+2*u*t*qy+t*t*ey]); }
+        cx = ex; cy = ey; }
+      else { i++; }
+    }
+    if(sub.length) subs.push(sub);
+    subs.forEach(S=>avSeg(S, closed, hw, out));
+  }
+}
+/* GTv 同一批绘制点：p[g0..] 记进本行（歌词 / 段号记到 lyr，不当墨迹）。只记下标与类别（懒解析：只有要放记号 / 查行距的行才解析，见 avRowGet）；纯 SMuFL 字形的类别 AV_SINK 已记过，跳过 */
+var AV_GLYPH = {head:1, acc:1, flag:1, rest:1, clef:1, clefm:1, keysig:1, tsig:1, brace:1, ferm:1};
+function avInk(R, p, g0, k){
+  if(R.pend && p.length>g0 && !AV_GLYPH[k]) R.pend.push(g0, p.length, (k==='lyr' || k==='lyrp' || k==='verse')? 1 : 0);
+}
+function avRowGet(R, p){
+  if(R && R.pend){ const P = R.pend; R.pend = null;
+    for(let q=0; q<P.length; q+=3){ const out = P[q+2]? R.lyr : R.ink; for(let i=P[q]; i<P[q+1]; i++) avParse(p[i], out); }
+    R.n0 = R.ink.length; }
+  return R;
+}
+/* 记号占位：draw(E) 用 E.put(si, 串) 出元素（si＝落在哪一行系统）、E.dy(si) 取本行的让位量；缺省 E.dy≡0 时与原写法逐字节相同 */
+function avDefer(AV, p, job){ job.slot = p.length; p.push(''); AV.jobs.push(job); }
+/* 行内墨迹按 x 分 16px 桶（查询只看记号横向范围内的桶；一个盒可落多个桶，求极值 / 判相交时重复无妨） */
+function avBk(R){
+  if(!R.bk){ R.bk = new Map(); for(const b of R.ink) avBkAdd(R.bk, b); }
+  return R.bk;
+}
+function avBkAdd(B, b){ for(let k=Math.floor(b[0]/16), e=Math.floor(b[2]/16); k<=e; k++){ let L=B.get(k); if(!L) B.set(k, L=[]); L.push(b); } }
+function avAdd(R, b){ R.ink.push(b); if(R.bk) avBkAdd(R.bk, b); }
+function avEach(R, x0, x1, f){ const B = avBk(R); for(let k=Math.floor(x0/16), e=Math.floor(x1/16); k<=e; k++){ const L=B.get(k); if(L) for(const i of L) f(i); } }
+function avHit(bx, R){
+  let h = false;
+  for(const b of bx){ if(h) break;
+    avEach(R, b[0]-AV_TRIG, b[2]+AV_TRIG, i=>{ if(!h && i[0] < b[2]+AV_TRIG && i[2] > b[0]-AV_TRIG && i[1] < b[3]+AV_TRIG && i[3] > b[1]-AV_TRIG) h = true; }); }
+  return h;
+}
+function avShift(bx, R, up){   /* 净空不足 → 让到本段（记号横向范围内）全部墨迹之外 AV_CLR；返回纵向位移（上负下正） */
+  if(!avHit(bx, R)) return 0;
+  let s = 0;
+  for(const b of bx) avEach(R, b[0]-1, b[2]+1, i=>{
+    if(!(i[0] < b[2]+1 && i[2] > b[0]-1)) return;
+    if(up){ const d = i[1]-AV_CLR-b[3]; if(d<s) s=d; }
+    else { const d = i[3]+AV_CLR-b[1]; if(d>s) s=d; }
+  });
+  return s;
+}
+function avKey(sys){ return sys.measures.length? sys.measures[0].mi+'-'+sys.measures[sys.measures.length-1].mi : ''; }
+/* 放记号：先 ottU（8va）→ dynU（人声力度，谱表上方）→ anno（标注）→ dyn（谱表下方力度类）→ ottD（8vb）→ ped（踏板，最外）；
+   同类在一行内：踏板 / 力度类整行同高（有一个要让就一起让到最低那个），标注 / 八度线各自让 */
+var AV_FAMS = ['ottU', 'dynU', 'anno', 'dyn', 'ottD', 'ped'];
+function avPlace(AV, p){
+  const R = AV.rows, OFFAV = !!window.__pyqAvOff;   /* 测试用：__pyqAvOff 为真时一律放缺省位置（tv_v697col A6「只在相撞时才挪」对拍） */
+  AV.jobs.forEach(j=>{
+    const tmp = new Map();
+    j.draw({put:(si, s)=>{ let L=tmp.get(si); if(!L) tmp.set(si, L=[]); L.push(s); }, dy:()=>0});
+    j.pc = new Map(); j.sh = new Map(); j.clip = new Map();
+    /* 记号自己的线条（踏板线、虚线、发夹）外扩 0.5（与普查 geom_census 的描边口径一致：线宽一半＋0.5） */
+    tmp.forEach((L, si)=>{ const bx=[]; L.forEach(s=>avParse(s, bx)); bx.forEach(b=>{ if(b[4]!=='t'){ b[0]-=0.5; b[1]-=0.5; b[2]+=0.5; b[3]+=0.5; } }); j.pc.set(si, {bx, anc: j.anc? j.anc(si) : 0}); });
+  });
+  for(const f of AV_FAMS){
+    const up = f==='ottU' || f==='dynU' || f==='anno', align = f==='ped' || f==='dyn' || f==='dynU';
+    const byRow = new Map();
+    AV.jobs.forEach(j=>{ if(j.fam!==f) return; j.pc.forEach((pc, si)=>{ const k=si+':'+j.vi; let L=byRow.get(k); if(!L) byRow.set(k, L=[]); L.push({j, si, pc}); }); });
+    byRow.forEach((L, k)=>{
+      const row = avRowGet(R[k], p) || {ink:[], mk:[]};
+      L.sort((a, b)=> (a.pc.bx.length? a.pc.bx[0][0] : 0)-(b.pc.bx.length? b.pc.bx[0][0] : 0));
+      const at = e=> e.pc.bx.map(b=>{ const q=[b[0], b[1]+e.s, b[2], b[3]+e.s]; if(b[4]) q.push(b[4]); return q; });
+      if(!align){   /* 标注 / 八度线：逐个让（后放的也让开先放的同类） */
+        L.forEach(e=>{ e.s = OFFAV? 0 : avShift(e.pc.bx, row, up); at(e).forEach(q=>avAdd(row, q)); });
+      }else{
+        L.forEach(e=>{ e.n = OFFAV? 0 : avShift(e.pc.bx, row, up); });
+        if(L.some(e=>e.n)){
+          const lv = up? Math.min(...L.map(e=>e.pc.anc+e.n)) : Math.max(...L.map(e=>e.pc.anc+e.n));
+          L.forEach(e=>{ e.s = lv-e.pc.anc; });
+        } else L.forEach(e=>{ e.s = 0; });
+        /* 力度类同一行：发夹 / cresc. 虚线横向碰到别的力度字（或后一条发夹 / 虚线的起点）→ 收在它前面 2.5（Gould：发夹止于下一个力度记号前）；
+           开头压着前一个力度字 → 从字后起；收短后不足 6（数据里两样叠在一起）→ 这一条挪到它们外侧一层 */
+        if((f==='dyn' || f==='dynU') && !OFFAV){
+          const vo = (q, y0, y1)=> !(q[1] > y1+1 || q[3] < y0-1);
+          const ents = L.map(e=>({e}));
+          const prep = A=>{ const B=at(A.e); A.tx = B.filter(q=>q[4]==='t'); const sp = B.filter(q=>q[4]!=='t');
+            A.sp = sp.length? [Math.min(...sp.map(q=>q[0])), Math.max(...sp.map(q=>q[2])), Math.min(...sp.map(q=>q[1])), Math.max(...sp.map(q=>q[3]))] : null; };
+          ents.forEach(prep);
+          ents.forEach(A=>{
+            if(!A.sp) return;
+            const [a, b, y0, y1] = A.sp; let ca = -Infinity, cb = Infinity;
+            ents.forEach(B=>{
+              if(B.e.j===A.e.j) return;
+              B.tx.forEach(t=>{ if(!vo(t, y0, y1)) return;
+                if(t[0] > a+2 && t[0] < b) cb = Math.min(cb, t[0]-2.5);
+                else if(t[0] <= a+2 && t[2] > a) ca = Math.max(ca, t[2]+2.5); });
+              if(B.sp && B.sp[0] > a+2 && B.sp[0] < b && vo(B.sp, y0, y1)) cb = Math.min(cb, B.sp[0]-2.5);
+            });
+            if(ca > -Infinity || cb < Infinity){
+              if(Math.min(b, cb)-Math.max(a, ca) >= 6){ A.e.j.clip.set(A.e.si, [ca, cb]); A.ca = ca; A.cb = cb; }
+              else A.stack = true;
+            }
+          });
+          const crop = A=> at(A.e).map(q=>{ if(q[4]==='t' || A.ca==null) return q; const r=[Math.max(q[0], A.ca), q[1], Math.min(q[2], A.cb), q[3]]; return r[2]>r[0]? r : null; }).filter(Boolean);
+          ents.forEach(A=>{
+            if(!A.stack) return;
+            let d = 0; const mine = crop(A);
+            ents.forEach(B=>{ if(B.e.j===A.e.j) return; crop(B).forEach(q=>mine.forEach(m=>{
+              if(q[0] < m[2] && q[2] > m[0] && q[1] < m[3]+1 && q[3] > m[1]-1) d = up? Math.min(d, q[1]-2-m[3]) : Math.max(d, q[3]+2-m[1]); })); });
+            if(d){ A.e.s += d; A.e.s += avShift(at(A.e), row, up); }
+          });
+        }
+        L.forEach(e=>at(e).forEach(q=>avAdd(row, q)));
+      }
+      L.forEach(e=>{ e.j.sh.set(e.si, e.s); row.mk.push({bx: at(e), mv: !!e.s, up}); });
+    });
+  }
+  AV.jobs.forEach(j=>{
+    let s = '';
+    j.draw({put:(si, x)=>{ s += x; }, dy: si=> j.sh.get(si) || 0, clip: si=> j.clip.get(si) || null});
+    if(GEOM_ON && j.tag){ const q=[s]; geomTag(q, 0, j.tag[0], j.vi+':'+j.tag[1]+':'+(j.tag[2]==null? -1 : j.tag[2])); s=q[0]; }
+    p[j.slot] = s;
+  });
+}
+/* 挪过的记号是否出了原有行距：a[vi] 谱表上方（与上一行 / 系统顶）、b[vi] 谱表与本行歌词之间、z 系统底；返回 Map(行键 → 需补) */
+function avPads(AV, p, systems, sysY, sysM, used){
+  const need = new Map(), nV = song.voxVoices.length;
+  const xo = (b, e)=> e[0] < b[2]+1 && e[2] > b[0]-1;
+  const up5 = v=> Math.ceil(v*2-1e-6)/2;
+  systems.forEach((sys, si)=>{
+    const key = avKey(sys), U = (used && used.get(key)) || null;
+    const P = {a:[], b:[], z:0};
+    const top = sysY[si], h = sysM[si].h, VT = sysM[si].vtop || [];
+    let any = false, dZ = -Infinity;
+    for(let vi=0; vi<nV; vi++){
+      const Rw = AV.rows[si+':'+vi]; if(!Rw) continue;
+      const mvU=[], mvD=[];
+      Rw.mk.forEach(m=>{ if(m.mv) (m.up? mvU : mvD).push(...m.bx); });
+      /* b：谱表下方挪过的记号压到本行歌词 */
+      let dB = -Infinity;
+      if(mvD.length || AV_VOC[vi]) avRowGet(Rw, p);
+      Rw.lyr.forEach(l=>{ mvD.forEach(b=>{ if(xo(b, l)) dB = Math.max(dB, b[3]+AV_CLR-l[1]); }); });
+      /* 人声行谱表下不再留力度带（复核 E8）：歌词与本行音符墨迹（下加线音、朝下的符干 / 符尾 / 符杠）净空不足 2 → 歌词整行下移让开 */
+      /* 不按「已够不够」筛：补过空的这一遍也要算出同一个差（＝已补 ＋ 实测差），否则下一遍会把补空撤掉 */
+      if(AV_VOC[vi] && Rw.lyr.length){ const n0 = Rw.n0==null? Rw.ink.length : Rw.n0;
+        for(let q=0; q<n0; q++){ const i=Rw.ink[q];
+          Rw.lyr.forEach(l=>{ if(i[1] < l[3] && xo(i, l)) dB = Math.max(dB, i[3]+AV_LCLR-l[1]); }); } }
+      /* a：谱表上方挪过的记号压到上一行（五线谱行按实际墨迹 / 歌词；首行按系统顶；上一行不是五线谱行按其行带底）；上一行谱表下方挪过的记号压到本行 */
+      let dA = -Infinity;
+      const Pv = vi>0? AV.rows[si+':'+(vi-1)] : null;
+      if(mvU.length){
+        if(Pv){ avRowGet(Pv, p); const els = Pv.ink.concat(Pv.lyr); mvU.forEach(b=>els.forEach(e=>{ if(xo(b, e)) dA = Math.max(dA, e[3]+AV_CLR-b[1]); })); }
+        else if(vi===0 && !song.tabVoices.length) mvU.forEach(b=>{ dA = Math.max(dA, top-2-b[1]); });
+        else if(VT[vi]!=null) mvU.forEach(b=>{ dA = Math.max(dA, top+VT[vi]-12-b[1]); });
+      }
+      if(Pv){ const pD=[]; Pv.mk.forEach(m=>{ if(m.mv && !m.up) pD.push(...m.bx); });
+        if(pD.length){ avRowGet(Rw, p); pD.forEach(b=>Rw.ink.forEach(e=>{ if(xo(b, e)) dA = Math.max(dA, b[3]+AV_CLR-e[1]); })); } }
+      /* z：谱表下方挪过的记号出了系统框（压到下一行系统） */
+      mvD.forEach(b=>{ dZ = Math.max(dZ, b[3]+2-(top+h)); });
+      const ua = U? (U.a[vi]||0) : 0, ub = U? (U.b[vi]||0) : 0;
+      P.a[vi] = dA>-Infinity? Math.max(0, up5(ua+dA)) : 0;
+      P.b[vi] = dB>-Infinity? Math.max(0, up5(ub+dB)) : 0;
+      if(P.a[vi] || P.b[vi]) any = true;
+    }
+    P.z = dZ>-Infinity? Math.max(0, up5((U? U.z||0 : 0)+dZ)) : 0;
+    if(P.z) any = true;
+    if(any) need.set(key, P);
+  });
+  return need;
+}
+function avPadSame(A, B){
+  const ks = new Set([...(A? A.keys() : []), ...(B? B.keys() : [])]);
+  for(const k of ks){ const a = A && A.get(k), b = B && B.get(k);
+    const z = (x, f, i)=> x? (i==null? x[f] : x[f][i]) || 0 : 0;
+    if(z(a, 'z')!==z(b, 'z')) return false;
+    const n = Math.max(a? a.a.length : 0, b? b.a.length : 0, a? a.b.length : 0, b? b.b.length : 0);
+    for(let i=0;i<n;i++) if(z(a, 'a', i)!==z(b, 'a', i) || z(a, 'b', i)!==z(b, 'b', i)) return false; }
+  return true;
+}
 function renderOffscreen(o){
   if(RENDER_OFF) throw new Error('renderOffscreen 不可重入');
   const tg = o && o.target;
@@ -12336,7 +12612,7 @@ function renderOffscreen(o){
     tg.classList.toggle('score-invert', o.invert!=null? !!o.invert : !!(P && P.classList.contains('score-invert'))); }
   const K = {song, sel, blurSel, noteSel, barSel, selRange, measureSel, measureRange, meaHandleOn, lyrSel, activeLyr,
     colBoxes, meaBands, meaBoxes, PV_GEO, SYS_GEO, PAGE_W, MARGIN, STAFF_HEAD_W, LAY_HS, LAY_VS, LAY_RG, LAY_BIGK, LAY_FIXED_NOW, LAST_PAPER_W,
-    HD_FAM, diagMode, JP_MEMO, RMEMO, LYR_USED, LYR_ANY, LYR_ALL, LYR_PNO, DUAL_GAP, dg:DUAL_GAP.slice(), rs:Object.assign({}, RENDER_STAT), MEA_NO};   /* v69.4 小节号表一并归还 */   /* v68.6 E1：补上 LYR_PNO（此前漏还；不改排出的谱面） */
+    HD_FAM, diagMode, JP_MEMO, RMEMO, LYR_USED, LYR_ANY, LYR_ALL, LYR_PNO, DUAL_GAP, dg:DUAL_GAP.slice(), rs:Object.assign({}, RENDER_STAT), MEA_NO, AVV:AV_VOC};   /* v69.7 人声五线谱行表一并归还 */   /* v69.4 小节号表一并归还 */   /* v68.6 E1：补上 LYR_PNO（此前漏还；不改排出的谱面） */
   let out = null;
   try{
     const s = Object.assign({}, o.song);
@@ -12345,7 +12621,7 @@ function renderOffscreen(o){
     sel = {mi:0, row:(s.tabVoices||[]).length? 'tab' : 'vox', vi:0, ci:0, si:1};
     blurSel = true; noteSel = []; barSel = null; selRange = null; measureSel = null; measureRange = null; meaHandleOn = false; lyrSel = null; activeLyr = 0;
     const ms = +o.maxSystems;
-    RENDER_OFF = {target:o.target, paperW: Math.max(200, +o.paperW || 660), maxSys: ms>0? Math.floor(ms) : Infinity, crop: o.crop!==false, fixed: !!o.fixed, out:null};
+    RENDER_OFF = {target:o.target, src:o.song, paperW: Math.max(200, +o.paperW || 660), maxSys: ms>0? Math.floor(ms) : Infinity, crop: o.crop!==false, fixed: !!o.fixed, out:null};
     /* v68.6 E1 分谱（o.part＝{name, run, keepSolo}；只有 partRender 传）：分谱名（trim、≤40 字）印在第 1 页左上角（E2）、续页眉（E3）、联排独奏语境随源谱（E4）。不传＝与 v68.5 逐字节相同 */
     /* v69.0 S2 停留预览（FLOW.nx.pv）：o.yWin＝[y0, y1] 版面单位——只画与这一段纵向窗口相交的谱行（长谱只预览可见行）；不传＝与 v68.9 逐字节相同 */
     if(Array.isArray(o.yWin) && o.yWin.length===2 && isFinite(o.yWin[0]) && isFinite(o.yWin[1])) RENDER_OFF.yWin = [+o.yWin[0], +o.yWin[1]];
@@ -12362,7 +12638,7 @@ function renderOffscreen(o){
     colBoxes = K.colBoxes; meaBands = K.meaBands; meaBoxes = K.meaBoxes; PV_GEO = K.PV_GEO; SYS_GEO = K.SYS_GEO;
     PAGE_W = K.PAGE_W; MARGIN = K.MARGIN; STAFF_HEAD_W = K.STAFF_HEAD_W; LAY_HS = K.LAY_HS; LAY_VS = K.LAY_VS; LAY_RG = K.LAY_RG;
     LAY_BIGK = K.LAY_BIGK; LAY_FIXED_NOW = K.LAY_FIXED_NOW; LAST_PAPER_W = K.LAST_PAPER_W; HD_FAM = K.HD_FAM; diagMode = K.diagMode; JP_MEMO = K.JP_MEMO; RMEMO = K.RMEMO;
-    LYR_USED = K.LYR_USED; LYR_ANY = K.LYR_ANY; LYR_ALL = K.LYR_ALL; LYR_PNO = K.LYR_PNO; MEA_NO = K.MEA_NO;
+    LYR_USED = K.LYR_USED; LYR_ANY = K.LYR_ANY; LYR_ALL = K.LYR_ALL; LYR_PNO = K.LYR_PNO; MEA_NO = K.MEA_NO; AV_VOC = K.AVV;
     DUAL_GAP = K.DUAL_GAP; DUAL_GAP.length = 0; K.dg.forEach((v,i)=>{ DUAL_GAP[i] = v; });
     Object.assign(RENDER_STAT, K.rs);
   }
@@ -12607,6 +12883,9 @@ function renderCore(){
   if(!OFF) renderDock();
   lyrScan();   // v64.8 B4c ③
   if(OFF) LYR_ALL = false;   /* 离屏＝成品口径：只留用到的歌词行（同打印），不看当前是否停在歌词页 */
+  /* v69.7 刻版避让：人声五线谱行（五线谱（含对照行）、整曲有歌词）——力度类画在谱表上方（复核 E8），systemExtras / sysMetrics 不再在谱表下为它留力度带 */
+  AV_VOC = (song.voxVoices||[]).map((_,i)=> isStaffNota((song.voxNotations||[])[i])
+    && (song.measures||[]).some(m=>(((m.voxes||[])[i])||[]).some(c=>c && (c.lyrics||[]).some(x=>x && String(x).trim()))));
   const svg = OFF? OFF.target : document.getElementById('score');
   /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
      圆圈（圆圈大小不变，同泛音菱形 v46.1 方案）——绘制数字时需先知道自己是否目标音 */
@@ -12665,13 +12944,16 @@ function renderCore(){
     ? Math.max(PAGE_W, Math.ceil(2*MARGIN + STAFF_HEAD_W + systems[0].w)) : PAGE_W;
   if(!OFF) try{ const nb=document.getElementById('eb-nowrap'); if(nb) nb.classList.toggle('on', noWrapOn()); }catch(_){}
   /* 各系统按自身简谱内容决定纵向留白（倍高/倍低音、16·32分减时线才加空间） */
-  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad, e.diagOn, e.ringEx, e.jpEx, new Set(sys.measures.map(lm=>lm.mi))); });
+  /* v69.7 刻版避让：上一次排同一份谱时记下的各行补空（AV_HINT；没有＝不补，与此前逐字节相同） */
+  const AVsrc = OFF? (OFF.src || null) : song, AVH = (AVsrc && AV_HINT)? (AV_HINT.get(AVsrc) || null) : null;
+  const sysM = systems.map(sys=>{ const e=systemExtras(sys); return sysMetrics(e.topExtra, e.botExtra, e.tabExtra, e.tabGap2, e.diagExtra, e.tabBotPad, e.diagOn, e.ringEx, e.jpEx, new Set(sys.measures.map(lm=>lm.mi)), AVH? AVH.get(avKey(sys)) || null : null); });
   const M = sysMetrics();   // 基准（无额外留白），用于常量 gap 等
   const errs = beatErrors();
   const errSet = new Set(errs.map(e=>e.row+e.vi+':'+e.mi));
   if(!OFF) ERR_MARKS.length = 0;   /* v69.1 A2：只清数组，不碰 p */
   colBoxes = {};
   const p=[];
+  const AV = {rows:{}, jobs:[]};   /* v69.7 刻版避让：五线谱行墨迹 + 待放记号（见 avPlace） */
   const CKB=[];   /* v68.4 B1：各段在 p 里的起点（每一行 · 播放头 · 热区），见 svgIncSet；只记下标，p 的内容与顺序不变 */
   const barZones=[];   // 小节线热区置顶层绘制，避免被音符格遮挡、加宽更易点中
   const clefZones=[];  // v51.1 行首谱号热区：最后冲刷、盖过行首小节线热区（谱号字形区域点击优先换谱号）
@@ -13028,6 +13310,7 @@ function renderCore(){
   const PB_MK = !OFF && !viewerMode && !PRINTING_NOW && !PRINT_PAGING && !CLEAN_SNAP_N && !SNAP_ON && !(document.body && document.body.classList.contains('stand'));
   systems.forEach((sys, sIdx)=>{
     CKB.push(p.length);
+    AV_SINK = null;
     if(OFF && sIdx>=OFF.maxSys) return;   /* v67.5 离屏只画前 N 行（排版、行距、跨行连线目标仍按全曲算） */
     if(OFF && OFF.yWin && (sysY[sIdx]+sysM[sIdx].h < OFF.yWin[0] || sysY[sIdx] > OFF.yWin[1])) return;   /* v69.0 停留预览只重画可见行（yWin＝版面纵向窗口；同 maxSys 口径，正常渲染不经过） */
     const oy = sysY[sIdx];
@@ -14165,7 +14448,10 @@ function renderCore(){
       const SG=7.5, staffB=voxY-6-(dual? dualGapOf(vi, M) : 0), staffT=staffB-4*SG;
       /* v69.7 普查标记：GQ＝本段起点（p 下标），GTv(类别, mi, ci) 给 p[GQ..] 打 data-g（只在 GEOM_ON 且五线谱声部时有函数；缺省为 null，各处 GTv&& 短路） */
       let GQ = 0;
-      const GTv = (GEOM_ON && isStaff)? (k, mi, ci)=>geomTag(p, GQ, k, vi+':'+mi+':'+(ci==null? -1 : ci)) : null;
+      /* v69.7 刻版避让：五线谱行记墨迹（RW.ink：smg 经 AV_SINK、其余经 GTv 同一批绘制点 avInk；RW.lyr：歌词 / 段号）；不改输出 */
+      const RW = isStaff? (AV.rows[sIdx+':'+vi] = {ink:[], lyr:[], mk:[], pend:[], sB:staffB, sT:staffT}) : null;
+      AV_SINK = RW? RW.ink : null;
+      const GTv = isStaff? (k, mi, ci)=>{ avInk(RW, p, GQ, k); if(GEOM_ON) geomTag(p, GQ, k, vi+':'+mi+':'+(ci==null? -1 : ci)); } : null;
       /* v45.6 小节内换谱号：clefCur=当前生效谱号（自曲首沿列顺序推进到本行行首），
          S_BOT/S_MID 改为可变、随列切换；行首谱号与调号音位按行首生效谱号绘制 */
       let clefCur = isStaff? nota : 'staff';
@@ -14656,8 +14942,13 @@ function renderCore(){
           GTv&&GTv('grace', lm.mi, ci);
           /* v58.0 标注（col.anno）：行上方居中斜体文字（固定/自由标注共用），纸底描边防压邻元素 */
           GQ=p.length;
-          if(col.anno)
-            p.push(`<text x="${nx}" y="${partAnnoY(col, vi, isStaff? staffT-16 : voxY-30, isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col)).toFixed(1)}" font-size="10.5" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${esc(col.anno)}</text>`);
+          if(col.anno){
+            const anY = partAnnoY(col, vi, isStaff? staffT-16 : voxY-30, isStaff? staffT-16 : voxY-25-(col.oct>0? Math.min(3,col.oct)*4.2 : 0)-jpAddsH(col));
+            const drawAnno = E=>E.put(sIdx, `<text x="${nx}" y="${(anY+E.dy(sIdx)).toFixed(1)}" font-size="10.5" font-style="italic" font-weight="600" text-anchor="middle" paint-order="stroke" stroke="var(--paper)" stroke-width="2.6" stroke-linejoin="round" fill="var(--ink)">${esc(col.anno)}</text>`);
+            /* v69.7 刻版避让（复核 E3：[sim.] 压符杠）：五线谱行先占位，整谱画完后与墨迹净空不足时往上让 */
+            if(RW) avDefer(AV, p, {fam:'anno', vi, tag:['anno', lm.mi, ci], draw:drawAnno});
+            else drawAnno({put:(_, s)=>p.push(s), dy:()=>0});
+          }
           GTv&&GTv('anno', lm.mi, ci);
           /* 标识符号：上/下波音、颤音 tr、回音 */
           GQ=p.length;
@@ -14743,44 +15034,56 @@ function renderCore(){
           /* 力度/速度记号：音符下方（避让减时线与低音点），渐强/渐弱画折线 */
           GQ=p.length;
           if(col.dyn){
+            /* v69.7（复核 E8）人声五线谱行（整曲有歌词）的力度类画在谱表上方：基线 staffT−6（发夹中线 −9），与墨迹净空不足时往上让 */
+            const voc = isStaff && !!AV_VOC[vi];
             /* v64.9 B4c ①（P2-03）五线谱力度不再写死在谱表下 16：低于谱表的音（含加线）再往下让 14 */
-            const dyY = (isStaff && !dual)? Math.max(staffB+16, col.deg? (()=>{ setClefCtx(ci); return stepY(chNotes(col)[0].st)+14; })() : 0)
+            const dyY = voc? staffT-6 : (isStaff && !dual)? Math.max(staffB+16, col.deg? (()=>{ setClefCtx(ci); return stepY(chNotes(col)[0].st)+14; })() : 0)
               : voxY+14+under*3.2+(col.oct<0? Math.min(3,-col.oct)*4.2:0);
             /* v41.2 渐强渐弱范围括线：dynTo 指向终点列 → 起列至终列开口楔形（cresc < / dim >），
                终点在下一行时画到行末断开、续行起继续，开口度沿总长线性过渡（仿 pm 断行思路）；
                cresc./dim. 文字形态则为 文字+虚线延长 */
             const ep = col.dynTo? voxPos[vi+':'+col.dynTo.mi+':'+col.dynTo.ci] : null;
             const ec = col.dynTo && song.measures[col.dynTo.mi] && (song.measures[col.dynTo.mi].voxes[vi]||[])[col.dynTo.ci];
-            if(ep && ec && (col.dyn==='<'||col.dyn==='>'||col.dyn==='cresc.'||col.dyn==='dim.')){
+            const span = !!(ep && ec && (col.dyn==='<'||col.dyn==='>'||col.dyn==='cresc.'||col.dyn==='dim.'));
+            const eyY = !span? null : ep.sys===sIdx? dyY : (()=>{           // 终点列所在系统的记号基线
               const under2 = ec.dur>=64?4 : ec.dur>=32?3 : ec.dur>=16?2 : ec.dur>=8?1 : 0;
-              const eyY = ep.sys===sIdx? dyY : (()=>{           // 终点列所在系统的记号基线
-                const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];
-                return (isStaff && !dual)? vy2+10 : vy2+14+under2*3.2+(ec.oct<0? Math.min(3,-ec.oct)*4.2:0);
-              })();
-              const cresc = (col.dyn==='<'||col.dyn==='cresc.');
-              const G=3.5, cy1=dyY-3, cy2=eyY-3, xe=ep.x+4;
-              const wedge=(xa,xb,yc,gA,gB)=>p.push(`<path d="M ${xa.toFixed(1)} ${(yc-gA).toFixed(1)} L ${xb.toFixed(1)} ${(yc-gB).toFixed(1)} M ${xa.toFixed(1)} ${(yc+gA).toFixed(1)} L ${xb.toFixed(1)} ${(yc+gB).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
-              const dash=(xa,xb,yc)=>{ if(xb>xa+2) p.push(`<line x1="${xa.toFixed(1)}" y1="${yc.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yc.toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="4 3"/>`); };
-              if(col.dyn==='cresc.' || col.dyn==='dim.'){
-                p.push(`<text x="${nx}" y="${dyY}" font-size="10.5" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
-                if(ep.sys===sIdx) dash(nx+20, xe, cy1);
-                else { dash(nx+20, ox+sys.w, cy1); dash(ox, xe, cy2); }
-              }else if(ep.sys===sIdx){
-                wedge(nx-2, Math.max(nx+6, xe), cy1, cresc?0:G, cresc?G:0);
+              const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];
+              return voc? vy2-6-(dual? dualGapOf(vi, sysM[ep.sys]) : 0)-4*SG-6 : (isStaff && !dual)? vy2+10 : vy2+14+under2*3.2+(ec.oct<0? Math.min(3,-ec.oct)*4.2:0);
+            })();
+            /* v69.7 刻版避让：E.dy(行)＝整谱画完后定的让位量（缺省 0：与原写法逐字节相同） */
+            const drawDyn = E=>{
+              const dyY1 = dyY+E.dy(sIdx);
+              if(span){
+                const eyY1 = ep.sys===sIdx? dyY1 : eyY+E.dy(ep.sys);
+                const cresc = (col.dyn==='<'||col.dyn==='cresc.');
+                const G=3.5, cy1=dyY1-3, cy2=eyY1-3, xe=ep.x+4;
+                const ck=(si2,xa,xb)=>{ const c=E.clip && E.clip(si2); return c? [Math.max(xa, c[0]), Math.min(xb, c[1])] : [xa, xb]; };   /* v69.7 收在下一个力度字前（见 avPlace） */
+                const wedge=(si2,xa0,xb0,yc,gA,gB)=>{ const [xa,xb]=ck(si2,xa0,xb0); E.put(si2, `<path d="M ${xa.toFixed(1)} ${(yc-gA).toFixed(1)} L ${xb.toFixed(1)} ${(yc-gB).toFixed(1)} M ${xa.toFixed(1)} ${(yc+gA).toFixed(1)} L ${xb.toFixed(1)} ${(yc+gB).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`); };
+                const dash=(si2,xa0,xb0,yc)=>{ const [xa,xb]=ck(si2,xa0,xb0); if(xb>xa+2) E.put(si2, `<line x1="${xa.toFixed(1)}" y1="${yc.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yc.toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="4 3"/>`); };
+                if(col.dyn==='cresc.' || col.dyn==='dim.'){
+                  E.put(sIdx, `<text x="${nx}" y="${dyY1}" font-size="10.5" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
+                  if(ep.sys===sIdx) dash(sIdx, nx+20, xe, cy1);
+                  else { dash(sIdx, nx+20, ox+sys.w, cy1); dash(ep.sys, ox, xe, cy2); }
+                }else if(ep.sys===sIdx){
+                  wedge(sIdx, nx-2, Math.max(nx+6, xe), cy1, cresc?0:G, cresc?G:0);
+                }else{
+                  const seg1=(ox+sys.w)-(nx-2), seg2=xe-ox, gm=G*seg1/Math.max(1,seg1+seg2);
+                  wedge(sIdx, nx-2, ox+sys.w, cy1, cresc?0:G, cresc?gm:G-gm);
+                  wedge(ep.sys, ox, xe, cy2, cresc?gm:G-gm, cresc?G:0);
+                }
+              }else if(col.dyn==='<' || col.dyn==='>'){
+                const w2=Math.min(16, cw*0.42), c1=E.clip && E.clip(sIdx), xL = c1? Math.max(nx-w2, c1[0]) : nx-w2, xR = c1? Math.min(nx+w2, c1[1]) : nx+w2;
+                if(col.dyn==='<')
+                  E.put(sIdx, `<path d="M ${xL} ${dyY1-3} L ${xR} ${dyY1-6} M ${xL} ${dyY1-3} L ${xR} ${dyY1}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
+                else
+                  E.put(sIdx, `<path d="M ${xL} ${dyY1-6} L ${xR} ${dyY1-3} M ${xL} ${dyY1} L ${xR} ${dyY1-3}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
               }else{
-                const seg1=(ox+sys.w)-(nx-2), seg2=xe-ox, gm=G*seg1/Math.max(1,seg1+seg2);
-                wedge(nx-2, ox+sys.w, cy1, cresc?0:G, cresc?gm:G-gm);
-                wedge(ox, xe, cy2, cresc?gm:G-gm, cresc?G:0);
+                E.put(sIdx, `<text x="${nx}" y="${dyY1}" font-size="10.5" font-style="italic" font-weight="${/^(rit|accel)/.test(col.dyn)?'400':'700'}" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
               }
-            }else if(col.dyn==='<' || col.dyn==='>'){
-              const w2=Math.min(16, cw*0.42);
-              if(col.dyn==='<')
-                p.push(`<path d="M ${nx-w2} ${dyY-3} L ${nx+w2} ${dyY-6} M ${nx-w2} ${dyY-3} L ${nx+w2} ${dyY}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
-              else
-                p.push(`<path d="M ${nx-w2} ${dyY-6} L ${nx+w2} ${dyY-3} M ${nx-w2} ${dyY} L ${nx+w2} ${dyY-3}" fill="none" stroke="var(--ink)" stroke-width="0.9"/>`);
-            }else{
-              p.push(`<text x="${nx}" y="${dyY}" font-size="10.5" font-style="italic" font-weight="${/^(rit|accel)/.test(col.dyn)?'400':'700'}" font-family="Georgia,serif" text-anchor="middle" fill="var(--ink)">${esc(col.dyn)}</text>`);
-            }
+            };
+            const dkT = (col.dyn==='<'||col.dyn==='>')? 'hairpin' : (col.dyn==='cresc.'||col.dyn==='dim.')? 'dtext' : /^(rit|accel|a tempo|rubato)/.test(col.dyn)? 'tempo' : DYN_GAIN[col.dyn]!=null? 'dyn' : 'expr';
+            if(RW && (voc || !dual)) avDefer(AV, p, {fam: voc? 'dynU' : 'dyn', vi, tag:[dkT, lm.mi, ci], draw:drawDyn, anc: si2=> si2===sIdx? dyY : eyY});
+            else drawDyn({put:(_, s2)=>p.push(s2), dy:()=>0});
           }
           GTv&&col.dyn&&GTv((col.dyn==='<'||col.dyn==='>')? 'hairpin' : (col.dyn==='cresc.'||col.dyn==='dim.')? 'dtext' : /^(rit|accel|a tempo|rubato)/.test(col.dyn)? 'tempo' : DYN_GAIN[col.dyn]!=null? 'dyn' : 'expr', lm.mi, ci);
           /* v42.8 八度记号括线（ottava）：在起列（含 ottTo）画 标签 + 虚线 + 端点竖钩；
@@ -14791,21 +15094,26 @@ function renderCore(){
             const above = (col.ott==='8va' || col.ott==='15ma');
             const ep = voxPos[vi+':'+col.ottTo.mi+':'+col.ottTo.ci];
             if(ep){
-              const oyO = above? staffT-13 : staffB+15;              // 本系统括线标签基线
-              const lw = col.ott.length*6.4 + 4, hook = above? 6 : -6;
-              const dash=(xa,xb,yy)=>{ if(xb>xa+2) p.push(`<line x1="${xa.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="5 3"/>`); };
-              const endHook=(x,yy)=>p.push(`<line x1="${x.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(yy+hook).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
-              p.push(`<text x="${(nx-6).toFixed(1)}" y="${oyO.toFixed(1)}" font-size="11.5" font-style="italic" font-weight="700" font-family="Georgia,serif" fill="var(--ink)">${esc(col.ott)}</text>`);
-              const lineY = above? oyO-3.5 : oyO-1, dstart = nx-6+lw;
-              if(ep.sys===sIdx){
-                dash(dstart, ep.x+3, lineY); endHook(ep.x+3, lineY);
-              }else{
-                dash(dstart, ox+sys.w, lineY);
-                const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];       // 终点系统 voxY
-                const sB2 = vy2-6-(dual? dualGapOf(vi, sysM[ep.sys]) : 0), sT2 = sB2-4*SG, oyO2 = above? sT2-13 : sB2+15;
-                const lineY2 = above? oyO2-3.5 : oyO2-1;
-                dash(ox, ep.x+3, lineY2); endHook(ep.x+3, lineY2);
-              }
+              /* v69.7 刻版避让（复核 E3：8va / 8vb 压加线音）：整谱画完后与墨迹净空不足时 8va 往上、8vb 往下让（括线、标签、端钩一起挪；续行各行各让） */
+              const drawOtt = E=>{
+                const oyO = (above? staffT-13 : staffB+15)+E.dy(sIdx);              // 本系统括线标签基线
+                const lw = col.ott.length*6.4 + 4, hook = above? 6 : -6;
+                const dash=(si2,xa,xb,yy)=>{ if(xb>xa+2) E.put(si2, `<line x1="${xa.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" stroke-dasharray="5 3"/>`); };
+                const endHook=(si2,x,yy)=>E.put(si2, `<line x1="${x.toFixed(1)}" y1="${yy.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(yy+hook).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+                E.put(sIdx, `<text x="${(nx-6).toFixed(1)}" y="${oyO.toFixed(1)}" font-size="11.5" font-style="italic" font-weight="700" font-family="Georgia,serif" fill="var(--ink)">${esc(col.ott)}</text>`);
+                const lineY = above? oyO-3.5 : oyO-1, dstart = nx-6+lw;
+                if(ep.sys===sIdx){
+                  dash(sIdx, dstart, ep.x+3, lineY); endHook(sIdx, ep.x+3, lineY);
+                }else{
+                  dash(sIdx, dstart, ox+sys.w, lineY);
+                  const vy2 = sysY[ep.sys]+sysM[ep.sys].voxYs[vi];       // 终点系统 voxY
+                  const sB2 = vy2-6-(dual? dualGapOf(vi, sysM[ep.sys]) : 0), sT2 = sB2-4*SG, oyO2 = (above? sT2-13 : sB2+15)+E.dy(ep.sys);
+                  const lineY2 = above? oyO2-3.5 : oyO2-1;
+                  dash(ep.sys, ox, ep.x+3, lineY2); endHook(ep.sys, ep.x+3, lineY2);
+                }
+              };
+              if(RW && (above || !dual)) avDefer(AV, p, {fam: above? 'ottU' : 'ottD', vi, tag:['ott', lm.mi, ci], draw:drawOtt});
+              else drawOtt({put:(_, s2)=>p.push(s2), dy:()=>0});
             }
           }
           GTv&&GTv('ott', lm.mi, ci);
@@ -14814,7 +15122,6 @@ function renderCore(){
              仅五线谱记谱声部显示（钢琴/大谱表惯例） */
           GQ=p.length;
           if(col.ped==='on' && isStaff && !song.chordOnly){
-            const pyB = staffB + 22;
             let end=null;
             outer: for(let mi2=lm.mi; mi2<song.measures.length; mi2++){
               const cs2=song.measures[mi2].voxes[vi]||[];
@@ -14822,22 +15129,30 @@ function renderCore(){
                 if(cs2[ci2].ped){ end={mi:mi2, ci:ci2, star:cs2[ci2].ped==='off'}; break outer; }
               }
             }
-            p.push(`<text x="${(nx-7).toFixed(1)}" y="${pyB.toFixed(1)}" font-size="11" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="start" fill="var(--ink)">Ped.</text>`);
             const ep2 = end? voxPos[vi+':'+end.mi+':'+end.ci] : null;
-            const star=(x2,y2)=>p.push(`<text x="${x2.toFixed(1)}" y="${(y2+3.5).toFixed(1)}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)">*</text>`);
-            const lineP=(xa,xb,y2)=>{ if(xb>xa+2) p.push(`<line x1="${xa.toFixed(1)}" y1="${y2.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`); };
-            if(ep2 && ep2.sys===sIdx){
-              lineP(nx+18, ep2.x-(end.star?7:5), pyB-3);
-              if(end.star) star(ep2.x, pyB-3);
-            }else if(ep2){
-              lineP(nx+18, ox+sys.w, pyB-3);
-              const vy2 = sysY[ep2.sys]+sysM[ep2.sys].voxYs[vi];
-              const pyB2 = vy2-6-(dual? dualGapOf(vi, sysM[ep2.sys]) : 0)+22;
-              lineP(ox, ep2.x-(end.star?7:5), pyB2-3);
-              if(end.star) star(ep2.x, pyB2-3);
-            }else{
-              lineP(nx+18, mx+lm.L.w-2, pyB-3);
-            }
+            /* v69.7 刻版避让（负责人截图：天鹅之歌 Ped. 压在下加线低音上）：整谱画完后与本行墨迹（下加线音、朝下符干 / 符杠、谱表下的力度等）净空不足时往下让；
+               同一行的踏板（文字、延续线、*）取同一高度（局部特别低时整行一起让）；续行在它所在的行按那一行定 */
+            const drawPed = E=>{
+              const pyB = staffB + 22 + E.dy(sIdx);
+              E.put(sIdx, `<text x="${(nx-7).toFixed(1)}" y="${pyB.toFixed(1)}" font-size="11" font-style="italic" font-weight="700" font-family="Georgia,serif" text-anchor="start" fill="var(--ink)">Ped.</text>`);
+              const star=(si2,x2,y2)=>E.put(si2, `<text x="${x2.toFixed(1)}" y="${(y2+3.5).toFixed(1)}" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)">*</text>`);
+              const lineP=(si2,xa,xb,y2)=>{ if(xb>xa+2) E.put(si2, `<line x1="${xa.toFixed(1)}" y1="${y2.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--ink)" stroke-width="1"/>`); };
+              if(ep2 && ep2.sys===sIdx){
+                lineP(sIdx, nx+18, ep2.x-(end.star?7:5), pyB-3);
+                if(end.star) star(sIdx, ep2.x, pyB-3);
+              }else if(ep2){
+                lineP(sIdx, nx+18, ox+sys.w, pyB-3);
+                const vy2 = sysY[ep2.sys]+sysM[ep2.sys].voxYs[vi];
+                const pyB2 = vy2-6-(dual? dualGapOf(vi, sysM[ep2.sys]) : 0)+22 + E.dy(ep2.sys);
+                lineP(ep2.sys, ox, ep2.x-(end.star?7:5), pyB2-3);
+                if(end.star) star(ep2.sys, ep2.x, pyB2-3);
+              }else{
+                lineP(sIdx, nx+18, mx+lm.L.w-2, pyB-3);
+              }
+            };
+            if(RW && !dual) avDefer(AV, p, {fam:'ped', vi, tag:['ped', lm.mi, ci], draw:drawPed,
+              anc: si2=> si2===sIdx? staffB+22 : (ep2? sysY[ep2.sys]+sysM[ep2.sys].voxYs[vi]-6+22 : staffB+22)});
+            else drawPed({put:(_, s2)=>p.push(s2), dy:()=>0});
           }
           GTv&&GTv('ped', lm.mi, ci);
           if((!isStaff || dual) && !song.chordOnly && col.dur<=2 && col.deg){
@@ -15126,6 +15441,14 @@ function renderCore(){
       });
     });
   });
+  AV_SINK = null;
+  /* v69.7 刻版避让：整份谱画完，按各行墨迹放占位的记号（avPlace）；挪出原有行距的按 avPads 补空后重排（同一份谱记下补空值，下次直接用） */
+  if(AV.jobs.length || AV_VOC.some(Boolean)){
+    avPlace(AV, p);
+    const need = window.__pyqAvOff? new Map() : avPads(AV, p, systems, sysY, sysM, AVH);
+    if(AVsrc){ if(!AV_HINT) AV_HINT = new WeakMap(); AV_HINT.set(AVsrc, need); }
+    if(!avPadSame(AVH, need) && AV_PASS<2){ AV_PASS++; try{ return renderCore(); } finally{ AV_PASS--; } }
+  }else if(AVH && AVsrc){ AV_HINT.delete(AVsrc); if(AVH.size && AV_PASS<2){ AV_PASS++; try{ return renderCore(); } finally{ AV_PASS--; } } }
   CKB.push(p.length);
   if(!OFF){
   p.push(`<rect id="playhead" x="0" y="0" width="0" height="0" rx="4" fill="var(--play-band)" opacity="0" pointer-events="none"/>`);

@@ -123,7 +123,8 @@ function GC_PAGE(CFG) {
     const [x, y] = oi(A) <= oi(B) ? [A, B] : [B, A];
     return x + '×' + y;
   }
-  function pairs(items) {
+  function pairs(items, nearPad) {   /* nearPad：贴近的外扩量（缺省 1.5；tv_v697col A6 用更宽的 2.5 判「谱面干净」） */
+    const NP = nearPad || 1.5;
     const CELL = 16, grid = new Map(), out = [], near = [];
     items.forEach((it, i) => {
       const [x0, y0, x1, y1] = it.box;
@@ -145,7 +146,7 @@ function GC_PAGE(CFG) {
         if (h.n >= 2 && h.area >= 0.2) { out.push({ cat, a: i, b: j, area: +h.area.toFixed(2) }); continue; }
         /* 贴近：记号 × 墨迹不相交，但记号框外扩 1.5px 碰到墨迹 */
         const mA = MARK.has(a.cls), mB = MARK.has(b.cls);
-        if (mA !== mB) { const [m, k2] = mA ? [a, b] : [b, a]; const h2 = hit(m, k2, 1.5); if (h2.n >= 1) near.push({ cat, a: i, b: j }); }
+        if (mA !== mB) { const [m, k2] = mA ? [a, b] : [b, a]; const h2 = hit(m, k2, NP); if (h2.n >= 1) near.push({ cat, a: i, b: j }); }
       }
     });
     return { out, near };
@@ -211,10 +212,14 @@ function GC_PAGE(CFG) {
     const lyrV = new Set(); song0.measures.forEach(m => (m.voxes || []).forEach((cs, vi) => (cs || []).forEach(c => { if (c && (c.lyrics || []).some(x => x && String(x).trim())) lyrV.add(vi); })));
     res.vocalDynBelow = [];
     const dynSeen = new Set();
+    /* 跨行的发夹 / cresc. 虚线续段画在终点那一行：按元素所在那一行（离它最近的谱表）比，不拿起点列那一行的谱表底线比 */
+    const sBs = {}; const sBof = vi => sBs[vi] || (sBs[vi] = [...new Set([...svg.querySelectorAll(`rect[data-row="vox"][data-vi="${vi}"][data-staffb]`)].map(r => +r.getAttribute('data-staffb')))]);
     items.filter(it => ['dyn', 'hairpin', 'dtext', 'tempo', 'expr'].includes(it.cls) && lyrV.has(it.vi)).forEach(it => {
       if (dynSeen.has(it.key + it.cls)) return;
       const hr = hitRect(it.vi, it.mi, it.ci); if (!hr) return;
-      if (it.box[1] > +hr.getAttribute('data-staffb')) { dynSeen.add(it.key + it.cls); res.vocalDynBelow.push({ a: it }); }
+      const cy = (it.box[1] + it.box[3]) / 2, L = sBof(it.vi);
+      const sB = L.length ? L.reduce((b, v) => Math.abs(v - 15 - cy) < Math.abs(b - 15 - cy) ? v : b, L[0]) : +hr.getAttribute('data-staffb');
+      if (it.box[1] > sB) { dynSeen.add(it.key + it.cls); res.vocalDynBelow.push({ a: it }); }
     });
     /* M6 整组在一条符杠下的连音仍画弧线（有符杠的连音应只写数字） */
     res.tupArcBeamed = [];
@@ -267,7 +272,7 @@ function GC_PAGE(CFG) {
       const vb = svg.viewBox.baseVal; svg.setAttribute('width', vb.width); svg.setAttribute('height', vb.height);
     } else { song0 = song; r = { sysMea: (window.__gcSysMea || []) }; }
     const items = collect(svg);
-    const P = pairs(items), Mx = metrics(svg, items, song0, r);
+    const P = pairs(items, opt.nearPad), Mx = metrics(svg, items, song0, r);
     let lbl = null; try { lbl = meaNoBuild(song0).lbl; } catch (_) {}
     const mno = mi => lbl && lbl[mi] ? String(lbl[mi]) : (mi + 1) + '（不编号）';
     const cnt = {}; items.forEach(it => { cnt[it.cls] = (cnt[it.cls] || 0) + 1; });
