@@ -11,7 +11,9 @@
        （later 组 C17 圆滑线穿符干与参考度量 M11 只打印、不断言；A / B 两组修完后本套件应全绿）。
    S   截图那一处：天鹅之歌第 3–4 小节 Ped. 与右手下加线低音的符头 / 加线不相交、净空 ≥1.5px（几何）。
    E   编辑器抽查（两套外壳）：载入天鹅之歌、开标记 render()，#score 普查踏板 × 墨迹 0 处；关标记重排后 #score 无 data-g。
-   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，只在跑 Z1 时用）· ONLY=Z,Z1,G,S,E 只跑部分。 */
+   B   B 组（横向与符号细节）专段：B1 本组类别逐类 0 处 · B2 符杠组符干 ≥2.75（M11 打开）· B3 连音 / 小节号 / 段号与墨迹净空 ≥1.5px ·
+       B4 纯简谱 / 六线谱样本离屏谱面与 v69.6 逐字节相同 · B5 几何口径（符干长度、二度错位量、段号「1.」右对齐，简谱段号不变）。
+   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，Z1 / B4 用）· ONLY=Z,Z1,G,S,B,E 只跑部分。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -111,7 +113,7 @@ const refUrl = () => {
 
     /* ================= G 普查（修前红） ================= */
     let R = null;
-    if (want('G') || want('S')) {
+    if (want('G') || want('S') || want('B')) {
       const A = await open(b);
       R = await GC.census(A.pg, SAMPLES, { paperW: 870 });
       allErrs.push(...A.errs); await A.close();
@@ -136,6 +138,63 @@ const refUrl = () => {
         sw ? hit.length + ' 处 ' + J(hit.slice(0, 3).map(p => p.cat + '@m' + p.m + ' ' + J(p.a.box) + '×' + J(p.b.box))) : '没有排出天鹅之歌');
       T(!!sw && near.length === 0, 'S2 天鹅之歌第 3–4 小节：Ped. 与音符墨迹净空 ≥1.5px（不贴着）',
         sw ? near.length + ' 处 ' + J(near.slice(0, 3).map(p => p.cat + '@m' + p.m)) : '');
+    }
+
+    /* ================= B 组（横向与符号细节）：本组类别逐类 0 处 + 收紧 + 简谱 / 六线谱逐字节不变 + 几何口径 =================
+       （A / B 两组各在自己的段里加断言，互不改对方的段；G 段仍是全类别总闸） */
+    if (want('B') && R) {
+      const G = GC.groupCounts(R);
+      const mine = Object.values(G).filter(g => g.grp === 'B' && !g.info);
+      const bad = mine.filter(g => g.n).map(g => g.id + ' ' + g.n);
+      T(mine.length >= 19 && !bad.length, 'B1 本组类别（' + mine.map(g => g.id).join(' ') + '）全部样本 0 处', bad.join('、') || mine.length + ' 类全 0');
+      /* 收紧①：参考度量 M11（符杠组最短符干 <2.75 线距）打开为断言 */
+      T(G.M11 && G.M11.n === 0, 'B2 符杠组符干不短于 2.75 线距（M11 打开为断言；stemLenSG 符杠组下限 3.0）', G.M11 ? G.M11.n + ' 处' : '无 M11');
+      /* 收紧②：本组的记号（连音数字 / 弧、小节号、歌词段号）与墨迹净空 ≥1.5px（普查「贴近」也 0 处） */
+      const nearB = Object.entries(R.near).filter(([k]) => /(^|×)(tup|mnum|verse)(×|$)/.test(k)).map(([k, v]) => k + ' ' + v.n);
+      T(!nearB.length, 'B3 连音数字 / 弧、行首小节号、歌词段号与墨迹净空 ≥1.5px（贴近 0 处）', nearB.join('、') || '0');
+      /* B4 简谱 / 六线谱谱面逐字节不变：不含五线谱声部、也不是联排五线谱的样本（曲库 / 压力 / 预设），离屏谱面与 v69.6 基线相同 */
+      const RU = refUrl();
+      if (!RU) console.log('⚠️ B4 跳过：拿不到基线页（git show ' + REF_COMMIT + ' 失败；可设 env V697_REF）');
+      else {
+        const A = await open(b), X = await open(b, { url: RU });
+        const P = await EV(A.pg, () => PRESETS.map((p, i) => ({ name: '预设' + i, song: p.make() })));
+        const ALL = SAMPLES.map(s => ({ name: s.name, song: s.song })).concat(Array.isArray(P) ? P : []);
+        const JP = ALL.filter(x => !(x.song.voxNotations || []).some(n => n === 'staff' || n === 'bass' || n === 'alto') && !x.song.tabStaff);
+        const ren = L => L.map(s => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+          renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s.song))), target: svg, paperW: 870, crop: true }); const h = svg.innerHTML; svg.remove(); return h; });
+        const now = await EV(A.pg, ren, JP), ref = await EV(X.pg, ren, JP);
+        const diff = Array.isArray(now) && Array.isArray(ref) ? JP.filter((x, i) => now[i] !== ref[i]).map(x => x.name) : ['运行失败'];
+        T(JP.length >= 8 && !diff.length, 'B4 纯简谱 / 六线谱谱面（' + JP.length + ' 份，含预设）离屏输出与基线 v69.6（' + REF_COMMIT + '）逐字节相同', diff.join('、') || JP.length + ' / ' + JP.length);
+        allErrs.push(...A.errs, ...X.errs); await A.close(); await X.close();
+      }
+      /* B5 几何口径（小样：五线谱人声两段词 + 同词简谱声部）：符干 3.5 / 朝下带符尾 3.75 线距、二度错位＝符头宽 − 0.25、
+         五线谱段号「1.」右对齐在首字左缘外 ≥3px、简谱声部段号仍是「1」（不带点，逐字节旧写法） */
+      { const A = await open(b);
+        const r = await EV(A.pg, () => {
+          const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+          const row = () => [V(6, 4, { lyrics: ['Schmer', 'Weckt'] }), V(2, 8, { oct: 1, lyrics: ['zen,', 'mich.'] }), V(0, 8), V(1, 2, { adds: [{ deg: 2, acc: '', oct: 0 }], lyrics: ['la', 'lo'] })];
+          const s = { v: 3, title: 'B5', key: 'C', beats: 4, unit: 4, tempo: 80, capo: 0, customChords: {}, tabVoices: [], voxVoices: ['人声', '简谱'], voxNotations: ['staff', 'jianpu'], lyricLines: 2,
+            measures: [{ tabs: [], voxes: [row(), row()] }, { tabs: [], voxes: [row(), row()] }] };
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+          window.__pyqGeom = true; try { renderOffscreen({ song: migrate(s), target: svg, paperW: 870, crop: true }); } finally { window.__pyqGeom = false; }
+          const q = (g, k) => [...svg.querySelectorAll('[data-g="' + g + '"][data-gq="' + k + '"]')];
+          const tr = el => { const m = /translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\)/.exec(el.getAttribute('transform') || ''); return m ? [+m[1], +m[2]] : null; };
+          const stemLen = k => { const st = q('stem', k)[0], hd = q('head', k).map(tr); if (!st || !hd.length) return null;
+            const y1 = +st.getAttribute('y1'), y2 = +st.getAttribute('y2'), up = y2 < y1, hy = hd.map(h => h[1]);
+            return +((up ? Math.min(...hy) - y2 : y2 - Math.max(...hy)) / 7.5).toFixed(2); };
+          const hx = q('head', '0:0:3').map(tr).map(h => h[0]).sort((a, b) => a - b);
+          const vs = [...svg.querySelectorAll('[data-g="verse"]')].map(el => ({ t: el.textContent, x: +el.getAttribute('x'), a: el.getAttribute('text-anchor'), y: +el.getAttribute('y') }));
+          const ly0 = [...svg.querySelectorAll('[data-g="lyr"][data-gq="0:0:0"]')].map(el => { const b = el.getBBox(); return { x0: b.x, y: +el.getAttribute('y') }; });
+          const jpV = [...svg.querySelectorAll('text[data-lyrsel]')].filter(el => !el.hasAttribute('data-g')).map(el => el.textContent);
+          svg.remove();
+          return { up4: stemLen('0:0:0'), dn8: stemLen('0:0:1'), dx: hx.length === 2 ? +(hx[1] - hx[0]).toFixed(2) : null, hw: +(smw('noteheadHalf') * 7.5).toFixed(2), vs, ly0, jpV };
+        });
+        const gapOk = !r.err && r.vs.length === 2 && r.vs.every(v => { const l = r.ly0.find(x => Math.abs(x.y - v.y) < 0.5); return v.a === 'end' && /^\d\.$/.test(v.t) && l && l.x0 - v.x >= 3; });
+        T(!r.err && Math.abs(r.up4 - 3.5) < 0.06 && Math.abs(r.dn8 - 3.75) < 0.06 && r.dx != null && Math.abs(r.dx - (r.hw - 0.25)) < 0.11 && gapOk && J(r.jpV) === J(['1', '2']),
+          'B5 几何：四分朝上符干 3.5、朝下带符尾八分 3.75 线距；二度错位＝符头宽 − 0.25；五线谱段号「1.」「2.」右对齐、首字左缘外 ≥3px；简谱声部段号仍为「1」「2」',
+          J(r.err ? r : { up4: r.up4, dn8: r.dn8, dx: r.dx, hw: r.hw, vs: r.vs.map(v => v.t + '@' + v.x.toFixed(1) + v.a), ly0: r.ly0.map(l => l.x0.toFixed(1)), jpV: r.jpV }));
+        allErrs.push(...A.errs); await A.close();
+      }
     }
 
     /* ================= E 编辑器抽查（两套外壳） ================= */

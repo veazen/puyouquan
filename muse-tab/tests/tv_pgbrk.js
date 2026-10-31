@@ -178,16 +178,22 @@ const pdfPages = buf => buf ? (buf.toString('latin1').match(/\/Type\s*\/Page[^s]
         if (REF) {
           const R = await open(b, { shell, url: REF });
           const diff = [], brkd = []; let nOK = 0;
-          const recOf = c => { __ld(__mk(c)); const r = __rec(); r.pgno = document.querySelectorAll('#score .pgfolio').length; r.pno = document.querySelectorAll('#score .pageno').length; return r; };
+          const recOf = c => { __ld(__mk(c)); const r = __rec(); r.pgno = document.querySelectorAll('#score .pgfolio').length; r.pno = document.querySelectorAll('#score .pageno').length;
+            r.st = !!song.tabStaff || (song.voxNotations || []).some(n => n === 'staff' || n === 'bass' || n === 'alto'); return r; };
+          /* v69.7 刻版质量（B 组）有意改五线谱刻版：带五线谱刻版（五线谱声部 / 联排五线谱）的谱，谱面类各项（#score、viewBox、PV_GEO / SYS_GEO——列宽变了换行也会变、
+             成品快照、打印切片）窄范围放行；MusicXML、song JSON、页码 / 页号仍逐字节。纯简谱 / 六线谱的谱一项不放 */
+          const V697 = ['score', 'vb', 'geo', 'sys', 'snap', 'print', 'after'], v697 = (x, ks) => ks.filter(k => !(x.st && V697.includes(k)));
+          let n697 = 0;
           for (const c of CASES) {
             const x = await EV(A.pg, recOf, c);
             const y = await EV(R.pg, recOf, c);
-            const ks = ['score', 'vb', 'geo', 'sys', 'snap', 'mxl', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]);
+            const ks0 = ['score', 'vb', 'geo', 'sys', 'snap', 'mxl', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]), ks = v697(x, ks0);
+            if (ks0.length > ks.length) n697++;
             if (x.err || y.err || ks.length) diff.push(nm(c) + ':' + (x.err || y.err || ks.join(','))); else nOK++;
             if (!x.err && (x.brkN !== 0 || x.nsN !== 0)) brkd.push(nm(c) + ' brkN=' + x.brkN + ' nsN=' + x.nsN);
           }
           T(!diff.length, `PB1 / PN1 / MX1 [${shell}] 缺省零差异：${CASES.length} 份谱（16 预设 + L60 + 4 种谱行组合）的 #score、PV_GEO / SYS_GEO、成品快照、打印切片、MusicXML、song JSON 与基线 v68.4 逐字节相同；无 .pgfolio、.pageno 照旧`,
-            diff.slice(0, 6).join(' | ') || nOK + ' 份全同');
+            diff.slice(0, 6).join(' | ') || nOK + ' 份全同（其中 ' + n697 + ' 份带五线谱刻版，谱面类各项按 v69.7 放行）');
           T(!brkd.length, `PB1g [${shell}] v68.8 守卫：上面 ${CASES.length} 份对拍谱都不带有效「此处换行」（brkN 0、导出 0 个 new-system）——它们的 MusicXML 仍逐字节对拍，没有借 ENG-6 放行`, brkd.join(' | ') || 'ok');
           /* v68.8 MX1b：带「此处换行」的谱——渲染 / 成品 / JSON 逐字节；MusicXML 只放行 <print new-system="yes"/> 这一句 */
           const CB = [{ l60: 1, brk: [11, 29], n: 2 }, { l60: 1, brk: [11], pull: [12], n: 0 }, { p: 8, rep: 3, brk: [5], n: 1 }, { p: 7, rep: 3, brk: [3], n: 1 }, { k: 'SJG', brk: [1], n: 1 }, { p: 11, brk: [3], n: 1 }];
@@ -197,7 +203,7 @@ const pdfPages = buf => buf ? (buf.toString('latin1').match(/\/Type\s*\/Page[^s]
             const x = await EV(A.pg, recOf, c);
             const y = await EV(R.pg, recOf, c);
             if (x.err || y.err) { bd.push(nmB(c) + ':' + (x.err || 'REF ' + y.err)); continue; }
-            const ks = ['score', 'vb', 'geo', 'sys', 'snap', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]);
+            const ks = v697(x, ['score', 'vb', 'geo', 'sys', 'snap', 'json', 'print', 'after', 'pgno', 'pno'].filter(k => x[k] !== y[k]));
             if (x.mxlS !== y.mxl) ks.push('mxl(剥掉 new-system 后仍不同)');
             if (x.brkN !== c.n || !(x.nParts >= 1)) ks.push('夹具 brkN ' + x.brkN + '（应 ' + c.n + '）· part ' + x.nParts);
             if (x.nsN !== x.brkN * x.nParts) ks.push('nsN ' + x.nsN + '≠' + x.brkN + '×' + x.nParts);

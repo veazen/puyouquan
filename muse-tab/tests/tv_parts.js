@@ -535,6 +535,7 @@ const HELP = () => {
       || (() => { const v = ((m.tabs || [])[0] && m.tabs[0].length) ? m.tabs[0] : (((m.voxes || [])[0] && m.voxes[0].length) ? m.voxes[0] : null); if (!v) return false;
         const q = v.reduce((a, c) => a + (4 / c.dur) * (c.dotted === 2 ? 1.75 : c.dotted ? 1.5 : 1) * (c.tup ? ((c.tupM || ((c.tup === 1 || c.tup === 3) ? 2 : 4)) / (c.tup === 1 ? 3 : c.tup)) : 1), 0); return q < nom(m) - 1e-6; })()); };
   window.__recZ = c => { __ld(__mkc(c)); const sc = document.getElementById('score'), o = {}, Jx = x => JSON.stringify(x), NSv = 'http://www.w3.org/2000/svg';
+    o.st = !!song.tabStaff || (song.voxNotations || []).some(n => n === 'staff' || n === 'bass' || n === 'alto');   /* v69.7 带五线谱刻版（PAZ 窄范围放行用） */
     o.score = __h(sc.innerHTML); o.vb = sc.getAttribute('viewBox'); o.geo = Jx(PV_GEO); o.sys = Jx(SYS_GEO);
     o.snap = withCleanSnap(() => __h(scoreExportClone().innerHTML) + '|' + Jx(PV_GEO) + '|' + Jx(SYS_GEO), { paging: true });
     dispatchEvent(new Event('beforeprint')); { const pp = document.getElementById('print-pages'); o.print = __h(pp ? pp.innerHTML : ''); }
@@ -1069,7 +1070,10 @@ const showPlan = r => r.err ? r.err : (r.solo ? 'solo · ' + r.kindName : r.rows
             const x = await EV(A.pg, c => __recZ(c), c), y = await EV(R.pg, c => __recZ(c), c);
             if (x.err || y.err) { diff.push(nm(c) + ':' + (x.err || 'REF ' + y.err)); continue; }
             /* v68.8 ENG-6：只对带有效「此处换行」的谱放行 new-system 这一句（剥掉再比 + 个数＝有效换行数×part 数），不带的照旧逐字节 */
-            const rel = x.brkN > 0, ks = KEYS.filter(k => k !== 'mxl' && k !== 'mid' && x[k] !== y[k]);
+            /* v69.7 刻版质量（B 组）有意改五线谱刻版：带五线谱刻版（五线谱声部 / 联排五线谱）的谱，谱面类各项（书写态 #score、viewBox、PV_GEO / SYS_GEO、成品快照、
+               打印切片、离屏 660 / 打印、PNG 串、PV、after）窄范围放行；MusicXML / MIDI / song JSON / 旧外壳弹窗仍逐字节。纯简谱 / 六线谱一项不放 */
+            const V697 = ['score', 'vb', 'geo', 'sys', 'snap', 'print', 'offPrint', 'off660', 'png', 'pv', 'after'];
+            const rel = x.brkN > 0, ks = KEYS.filter(k => k !== 'mxl' && k !== 'mid' && x[k] !== y[k] && !(x.st && V697.includes(k)));
             if (x.midPlain) { nMid++; if (x.mid !== y.mid) ks.push('mid'); }   /* v69.4：MIDI 只比没有本版有意改动内容的谱（__midPlain） */
             if (rel) { nRel++; if (x.mxlS !== y.mxl) ks.push('mxl(剥掉 new-system 后仍不同)'); if (x.nsN !== x.brkN * x.nParts || x.nsN !== c.nsWant || y.nsN !== 0 || x.mxl === y.mxl) ks.push('nsN ' + x.nsN + '（应 ' + x.brkN + '×' + x.nParts + '＝' + c.nsWant + '）'); }
             else if (x.mxl !== y.mxl) ks.push('mxl');
