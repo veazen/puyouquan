@@ -38,7 +38,7 @@ const INK_PAIRS = {
 /* ---------------- 页面侧（page.evaluate(GC_PAGE) 注入 window.__gcRun） ---------------- */
 function GC_PAGE(CFG) {
   const NS = 'http://www.w3.org/2000/svg';
-  const MARK = new Set(CFG.MARK), INK = new Set(CFG.INK), INK_PAIRS = CFG.INK_PAIRS;
+  const MARK = new Set(CFG.MARK), INK = new Set(CFG.INK), INK_PAIRS = CFG.INK_PAIRS, AVM = new Set(CFG.AVM);
   const ORDER = CFG.MARK.concat(CFG.INK);
   const oi = c => { const i = ORDER.indexOf(c); return i < 0 ? 999 : i; };
   let cv = null;
@@ -144,9 +144,12 @@ function GC_PAGE(CFG) {
         if (!ov) continue;
         const h = hit(a, b);
         if (h.n >= 2 && h.area >= 0.2) { out.push({ cat, a: i, b: j, area: +h.area.toFixed(2) }); continue; }
-        /* 贴近：记号 × 墨迹不相交，但记号框外扩 1.5px 碰到墨迹 */
+        /* 贴近：记号 × 墨迹不相交，但记号框外扩 1.5px 碰到墨迹；
+           v69.7 验收 B1：谱表上下的避让记号（AVM：踏板 / 力度类 / 发夹 / 标注 / 八度线）× 和弦名（框 + 字，避让把它当墨迹）同样量贴近 */
         const mA = MARK.has(a.cls), mB = MARK.has(b.cls);
         if (mA !== mB) { const [m, k2] = mA ? [a, b] : [b, a]; const h2 = hit(m, k2, NP); if (h2.n >= 1) near.push({ cat, a: i, b: j }); }
+        else if (mA && mB && (a.cls === 'chord') !== (b.cls === 'chord') && (AVM.has(a.cls) || AVM.has(b.cls))) {
+          const [m, k2] = a.cls === 'chord' ? [b, a] : [a, b]; const h2 = hit(m, k2, NP); if (h2.n >= 1) near.push({ cat, a: i, b: j }); }
       }
     });
     return { out, near };
@@ -369,6 +372,15 @@ function stressSamples() {
     const s = SONG('行首换谱号', ['旋律'], ['staff'], M);
     s.measures[2].brk = 1;   /* 第 4 小节（index 3）起新行，换谱号落在新行行首 */
     S.push({ name: '压力·行首换谱号', kind: 'stress', song: s }); }
+  /* S11（v69.7 验收 B1）人声五线谱行：高音区旋律 + 每小节和弦名（智能配和弦写入的 c.chord）+ 力度 / 发夹 / cresc. + 8va + [sim.]——
+     人声力度画在谱表上方后要让开和弦名框（框是纸色底 + 描边，此前不算墨迹，力度落进框里） */
+  { const M = [], ly = ['春', '风', '吹', '过', '大', '地', '花', '开'];
+    for (let k = 0; k < 8; k++) M.push([[
+      V(5, 4, { oct: 1, chord: ['C', 'Am', 'F', 'G7'][k % 4], dyn: ['mf', 'p', 'f', '<', 'sfz', 'pp', '>', 'ff'][k], dynTo: (k === 3 || k === 6) ? { mi: k, ci: 3 } : undefined, lyrics: [ly[k]],
+        ott: k === 2 ? '8va' : undefined, ottTo: k === 2 ? { mi: 2, ci: 1 } : undefined, anno: k === 4 ? '[sim.]' : undefined }),
+      V(3, 4, { oct: 2, lyrics: ['啊'] }), V(1, 4, { oct: 2, lyrics: ['呀'], acc: k % 2 ? '#' : '' }),
+      V(6, 4, { oct: 1, lyrics: ['哦'], dyn: k === 5 ? 'cresc.' : undefined, dynTo: k === 5 ? { mi: 6, ci: 2 } : undefined })]]);
+    S.push({ name: '压力·人声力度与和弦名', kind: 'stress', song: SONG('人声力度和弦名', ['旋律'], ['staff'], M) }); }
   return S;
 }
 const allSamples = (only) => {
@@ -377,7 +389,9 @@ const allSamples = (only) => {
 };
 
 /* ---------------- Node 侧：跑与汇总 ---------------- */
-const CFG = { MARK, INK, INK_PAIRS };
+/* 谱表上下方向避让的记号（index.html avPlace 放的那几类）：与和弦名框也量贴近（B1） */
+const AVM = ['ped', 'dyn', 'hairpin', 'dtext', 'tempo', 'expr', 'anno', 'ott'];
+const CFG = { MARK, INK, INK_PAIRS, AVM };
 async function inject(page) { return page.evaluate(GC_PAGE, CFG); }
 /* samples：[{name, song}]；presets=true 时追加页面里的 16 个预设 */
 async function census(page, samples, opt) {
@@ -413,6 +427,7 @@ const GROUPS = [
   { id: 'C04', what: '文字标注（[sim.]、段落 / 表情文字）与音符墨迹相撞', grp: 'A', test: (a, b) => a === 'anno' && INKSET.has(b) },
   { id: 'C05', what: '八度线 8va / 8vb 与音符墨迹相撞', grp: 'A', test: (a, b) => a === 'ott' && INKSET.has(b) },
   { id: 'C06', what: '歌词 / 段号与音符墨迹相撞（歌词基线没让开低音）', grp: 'A', test: (a, b) => (a === 'lyr' || a === 'lyrp' || a === 'verse') && INKSET.has(b) },
+  { id: 'C19', what: '谱表上方记号（人声力度 / 发夹 / cresc. / 8va / [sim.] 标注…）压到和弦名框（v69.7 验收 B1：框被当底色、没算墨迹）', grp: 'A', test: (a, b) => b === 'chord' && AVM.includes(a) },
   { id: 'C07', what: '记号与记号相撞（力度 × 歌词、发夹 × 力度、踏板 × 力度…）', grp: 'A', test: (a, b) => !INKSET.has(a) && !INKSET.has(b) && !['lyr', 'verse'].includes(a) && !(a === 'tup' || b === 'tup') && !(a === 'mnum' || b === 'mnum') },
   { id: 'C08', what: '连音数字 / 弧线与符杠、符干、符头或歌词相撞', grp: 'B', test: (a, b) => a === 'tup' || b === 'tup' },
   { id: 'C09', what: '小节号与方括号钩 / 谱号等相撞', grp: 'B', test: (a, b) => a === 'mnum' || b === 'mnum' },
@@ -489,7 +504,7 @@ async function shot(page, sample, o) {
   await page.evaluate(() => { const L = window.__gcLast; if (L && L.host) L.host.remove(); window.__gcLast = null; });
   return r;
 }
-module.exports = { MARK, INK, INK_PAIRS, GROUPS, METRICS, GC_PAGE, CFG, inject, census, summarize, groupCounts, printReport, libSamples, stressSamples, allSamples, shot };
+module.exports = { MARK, INK, INK_PAIRS, AVM, GROUPS, METRICS, GC_PAGE, CFG, inject, census, summarize, groupCounts, printReport, libSamples, stressSamples, allSamples, shot };
 
 /* ---------------- 命令行 ---------------- */
 if (require.main === module) {

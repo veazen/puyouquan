@@ -9381,12 +9381,15 @@ function staffColPlan(mi, vi){
     if(!col.deg){
       const nm = col.dur===1?'restWhole': col.dur===2?'restHalf': col.dur===4?'restQuarter': col.dur===8?'rest8th': col.dur===16?'rest16th': col.dur>=64?'rest64th':'rest32nd';
       const hw = smw(nm)*SG/2, nD = dotLevel(col);
-      return {L:hw, R: hw + (nD? 3.2+1.6+(nD-1)*4.6 : 0), accs:[], accL:0};
+      /* 验收 L1 补：休止列上的行内换谱号同样画在列左（nx−14−谱号宽，见 renderCore 小谱号）——此前休止分支漏记，版面压紧时上一列符干压进小谱号（圣母颂第 16 小节） */
+      const cL = (col.clef && CLEF_BOT[col.clef] && ci>0)? 14 + smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75 : 0;
+      return {L:Math.max(hw, cL), R: hw + (nD? 3.2+1.6+(nD-1)*4.6 : 0), accs:[], accL:0};
     }
     const ns = nsOf(col), stLo = ns[0].st, stHi = ns[ns.length-1].st, sMid = mids[ci];
+    let bm = false;   /* v69.7 验收 L1：本列在 ≥2 个音的符杠组里（画符杠、不画符尾；measureLayout 真墨迹底用） */
     const up = (()=>{ const g0 = vG.find(g2=>g2.idx.length>1 && g2.idx.includes(ci));
       const nts = g0? g0.idx.filter(i=>cols[i].deg>0) : [];
-      if(nts.length>=2) return (nts.reduce((a,i)=>a+staffStep(cols[i],K),0)/nts.length) < mids[nts[0]];
+      if(nts.length>=2){ bm = true; return (nts.reduce((a,i)=>a+staffStep(cols[i],K),0)/nts.length) < mids[nts[0]]; }
       return (stLo+stHi)/2 < sMid; })();
     const disp = ns.map(()=>0);   /* 同音级（增一度 / 重复音）与二度同样错开——此前两个符头完全叠在一起 */
     if(up){ let f=false; for(let k=1;k<ns.length;k++){ f=(ns[k].st-ns[k-1].st<=1)? !f : false; if(f) disp[k]=1; } }
@@ -9416,7 +9419,7 @@ function staffColPlan(mi, vi){
     let R = Math.max(hW/2 + (anyR? DX : 0), col.dur>=2 && up? 4.75 : 0, ledg? lw+(anyR? DX : 0) : 0);
     if(col.dotted) R = Math.max(R, 8 + (anyR? DX : 0) + 1.6 + (dotLevel(col)-1)*4.6);
     if(col.clef && CLEF_BOT[col.clef] && ci>0) L = Math.max(L, 14 + smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75);   /* 首列换谱号画在小节线前（上一小节末尾，见 measureLayout clefNx） */
-    return {ns, disp, DX, anyL, anyR, accs, accL, L, R, up};
+    return {ns, disp, DX, anyL, anyR, accs, accL, L, R, up, bm};
   });
 }
 /* 五线谱休止符（vox 与 TAB 联排谱共用，SMuFL/Bravura 字形）：nx=中心x，staffB=底线y。
@@ -10424,10 +10427,20 @@ function measureLayout(mea){
          左伸不是可加可减的余量、而是实打实的墨迹，故硬底档同样计入。 */
       { const tt=Math.max(0,Math.min(1,cum-bi));
         const pl = SP && SP[ci], kS = (c.clef && ci>0)? 18 : 0;   /* 行内换谱号列的音符右移 18（fit），墨迹换算回布局锚点 */
+        /* v69.7 验收 L1：五线谱声部（不带简谱行）每列的「真墨迹底」i2L / i2R——staffColPlan 的 L / R（符头、临时记号栈、加线、附点、错位符头、符干）
+           ＋ 不在符杠组的朝上符尾 ＋ 演奏法字形半宽 5.2。硬底 hf 沿用简谱数字半宽 5.4 ＋ 净距 2，比五线谱符头实际要的宽，多出的这截是「弹性空白」：
+           只在断行时刚杆之和超出行宽 ≤2% 才压它（MF2，见 layoutSystems），墨迹＋1.5 净距不压穿。带和弦名 / 装饰音 / 延长号 / 倚音 / 滑音 / 换气 / 震音 / 行内换谱号的列
+           记 0（＝不给弹性，仍按原硬底），平时版面不变 */
+        let i2L = 0, i2R = 0;
+        if(pl && !jpRowV(+band.slice(1)) && !(c.chord || (c.chords&&c.chords.length) || c.orn || c.ferm || c.grace || c.graceA || c.gliss || c.breath || c.trem || (c.clef && ci>0))){
+          const ar = c.artic? 5.2 : 0;
+          const fR = (c.deg && c.dur>=8 && pl.up && !pl.bm)? 4.2-0.55+smw('flag'+(c.dur>=64?'64th':c.dur>=32?'32nd':c.dur>=16?'16th':'8th')+'Up')*7.5 : 0;
+          i2L = Math.max(pl.L, ar); i2R = Math.max(pl.R, fR, ar);
+        }
         evts[bi].push({t:tt, band, hwL:Math.max(hw,leftW), hwR:hw+add,
           hfL:Math.max(hf,leftW), hfR:hf+add, left:leftW,
           gap:isVox?JP_GAP:TAB_GAP, flr:isVox?JP_FLR:TAB_FLR,
-          inkL: pl? Math.max(0, pl.L-kS) : 0, inkR: pl? pl.R+kS : 0});
+          inkL: pl? Math.max(0, pl.L-kS) : 0, inkR: pl? pl.R+kS : 0, i2L, i2R});
         /* 歌词是**另一条基线**上的一行字：与品位数字/别的声部永不相撞，单独立 band。
            它的「本词→下一词」间距常跨好几个吉他十六分列，摊到这几段上而不是压在头一段。 */
         if(isVox){ const lw = lyrW(c);
@@ -10519,29 +10532,32 @@ function measureLayout(mea){
       const q=last.b[e.band];
       if(q){ q.hwL=Math.max(q.hwL,e.hwL); q.hwR=Math.max(q.hwR,e.hwR);
              q.hfL=Math.max(q.hfL,e.hfL); q.hfR=Math.max(q.hfR,e.hfR);
-             q.inkL=Math.max(q.inkL||0,e.inkL||0); q.inkR=Math.max(q.inkR||0,e.inkR||0); }
-      else last.b[e.band]={hwL:e.hwL, hwR:e.hwR, hfL:e.hfL, hfR:e.hfR, gap:e.gap, flr:e.flr, inkL:e.inkL||0, inkR:e.inkR||0};
+             q.inkL=Math.max(q.inkL||0,e.inkL||0); q.inkR=Math.max(q.inkR||0,e.inkR||0);
+             q.i2L=(q.i2L>0 && e.i2L>0)? Math.max(q.i2L,e.i2L) : 0; q.i2R=(q.i2R>0 && e.i2R>0)? Math.max(q.i2R,e.i2R) : 0; }   /* 验收 L1：同一时刻有一个不给弹性就都不给 */
+      else last.b[e.band]={hwL:e.hwL, hwR:e.hwR, hfL:e.hfL, hfR:e.hfR, gap:e.gap, flr:e.flr, inkL:e.inkL||0, inkR:e.inkR||0, i2L:e.i2L||0, i2R:e.i2R||0};
     });
     nodesB.push(nodes);
     if(!nodes.length){ segsB.push(null); leadB.push(0); continue; }
     const segs=[];
     const lead = nodes[0].t>1e-4? 1 : 0;
     /* v60.52 拍首列的左伸（变化音/前倚音长在列左侧）吃的是前导空段的空间 */
-    if(lead) segs.push({p:nodes[0].t, min:nodes[0].left, flr:nodes[0].left});   // 拍首前导空段（长音延续等）
-    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t, min:0, flr:0}));
+    if(lead) segs.push({p:nodes[0].t, min:nodes[0].left, flr:nodes[0].left, flr2:nodes[0].left});   // 拍首前导空段（长音延续等）
+    nodes.forEach((n,k)=>segs.push({p:(k+1<nodes.length? nodes[k+1].t : 1)-n.t, min:0, flr:0, flr2:0}));
     segsB.push(segs); leadB.push(lead);
   }
   /* 阶段二：逐 band 摊派——本 band 相邻两列的中心距 ≥ 半宽+半宽+净距，
      这段距离跨几段就按时值份额摊到几段。**跨拍界的一对也要管**：
      只按「本拍末段 + 拍间隙」算过（旧口径），两个分处拍界两侧的中文音节就只有
      10+3=13px 中心距，16px 宽的字必然重叠（实测「是|怎」净距 −2.98）。 */
-  const spread = (i, s0, s1, needC, needF)=>{    // 把需求摊到第 i 拍的 [s0,s1) 段上
+  const spread = (i, s0, s1, needC, needF, needF2)=>{    // 把需求摊到第 i 拍的 [s0,s1) 段上（needF2：验收 L1 真墨迹底，缺省＝needF）
     const segs = segsB[i]; if(!segs || s1<=s0) return;
     let pSum=0; for(let s=s0;s<s1;s++) pSum+=segs[s].p;
+    const nF2 = needF2==null? needF : Math.min(needF, needF2);
     for(let s=s0;s<s1;s++){
       const sh = pSum>1e-9? segs[s].p/pSum : 1/(s1-s0);
       segs[s].min = Math.max(segs[s].min, needC*sh);
       segs[s].flr = Math.max(segs[s].flr, needF*sh);
+      segs[s].flr2 = Math.max(segs[s].flr2, nF2*sh);
     }
   };
   { const seq = {};                              // band → 全小节按序的 {i,k}
@@ -10561,7 +10577,9 @@ function measureLayout(mea){
         const inkN = (B1.inkR && B2.inkL)? B1.inkR+B2.inkL : 0;
         const needC = Math.max(B1.hwR+B2.hwL+Math.max(B1.gap,B2.gap), inkN? inkN+2.5 : 0);
         const needF = Math.max(B1.hfR+B2.hfL+Math.max(B1.flr,B2.flr), inkN? inkN+1.5 : 0);
-        if(Bn.i===A.i){ spread(A.i, leadB[A.i]+A.k, leadB[A.i]+Bn.k, needC, needF); continue; }
+        /* 验收 L1：两列都给了真墨迹底 → 这一对的最底线＝真墨迹 + 1.5（B 组净距不压穿）；否则同硬底 */
+        const needF2 = (B1.i2R>0 && B2.i2L>0)? Math.max(B1.i2R+B2.i2L+1.5, inkN? inkN+1.5 : 0) : needF;
+        if(Bn.i===A.i){ spread(A.i, leadB[A.i]+A.k, leadB[A.i]+Bn.k, needC, needF, needF2); continue; }
         if(Bn.i>A.i+1) continue;                 // 中间整整隔了一拍，间距必然够
         /* 跨一个拍界：本拍尾段 + 拍间隙 + 下一拍头段 共同承担。
            两档都只减 GAP_FLR（拍间隙的**地板**）而不是 BEAT_GAP：行内压缩会先把拍间隙
@@ -10573,8 +10591,8 @@ function measureLayout(mea){
         let pH=0; for(let s=0;s<h1;s++) pH+=head[s].p;
         const pAll = pT+pH;
         const shT = pAll>1e-9? pT/pAll : (h1>0? 0.5 : 1);
-        spread(A.i, t0, t1, Math.max(0,needC-GAP_FLR)*shT, Math.max(0,needF-GAP_FLR)*shT);
-        if(h1>0) spread(Bn.i, 0, h1, Math.max(0,needC-GAP_FLR)*(1-shT), Math.max(0,needF-GAP_FLR)*(1-shT));
+        spread(A.i, t0, t1, Math.max(0,needC-GAP_FLR)*shT, Math.max(0,needF-GAP_FLR)*shT, Math.max(0,needF2-GAP_FLR)*shT);
+        if(h1>0) spread(Bn.i, 0, h1, Math.max(0,needC-GAP_FLR)*(1-shT), Math.max(0,needF-GAP_FLR)*(1-shT), Math.max(0,needF2-GAP_FLR)*(1-shT));
       }
     }
   }
@@ -10582,7 +10600,7 @@ function measureLayout(mea){
   for(let i=0;i<beats;i++){
     const nodes=nodesB[i], segs=segsB[i];
     if(!segs){ warps.push(null); continue; }
-    segs.forEach(s=>{ if(s.flr>s.min) s.flr=s.min; });
+    segs.forEach(s=>{ if(s.flr>s.min) s.flr=s.min; if(s.flr2>s.flr) s.flr2=s.flr; });
     const minSum=segs.reduce((a,s)=>a+s.min,0);
     const total=Math.max(beatW[i], minSum);      // 刚杆撑破原拍宽 → 拍加宽（三连音带词即此情形）
     /* water-fill：有余量的段按时值比例分，份额不足刚杆的段被钉在刚杆宽 */
@@ -10604,7 +10622,7 @@ function measureLayout(mea){
     T[T.length-1]=1;
     beatW[i]=xA;
     /* v60.53 保留各段刚杆，供 rowMax 压缩区分弹簧；v60.76 再带一份 MF＝硬底（字形不相撞的极限） */
-    warps.push({T,X,M:segs.map(sg=>sg.min), MF:segs.map(sg=>sg.flr)});
+    warps.push({T,X,M:segs.map(sg=>sg.min), MF:segs.map(sg=>sg.flr), MF2:segs.map(sg=>sg.flr2)});   /* MF2：验收 L1 真墨迹底（≤MF；只在 resize 压到刚杆以下时才用） */
   }
   /* v60.52 跨拍界的左伸：拍首列的变化音/前倚音压的是上一拍末列，拍间隙 BEAT_GAP 不够则补宽上一拍 */
   for(let i=1;i<beats;i++){
@@ -10776,7 +10794,7 @@ function measureLayout(mea){
   /* v60.76 行内两端对齐用：把本小节重排到目标宽度。
      压缩＝三级台阶（段内余量 → 白边 → 舒适刚杆到硬底），到硬底为止；
      拉伸＝内容区等比放大（白边不跟着放大，避免小节两头空出一截）。 */
-  const resize = newW=>{
+  const resize = (newW, sq)=>{   /* sq：验收 L1 断行轻压（≤2%）——只有这时才压到真墨迹底 MF2 */
     let target = Math.max(1, newW-fixedOf(padL,padR,bGap));
     if(target > inner){
       const k = target/inner;
@@ -10808,6 +10826,7 @@ function measureLayout(mea){
         target = Math.max(1, newW-fixedOf(padL,padR,bGap));
       }
       if(D>1e-6) D = eat('MF', D);                   // 三级：舒适刚杆 → 硬底
+      if(D>1e-6 && sq) D = eat('MF2', D);            // 四级（v69.7 验收 L1）：硬底 → 真墨迹底（五线谱声部的弹性空白；只在 layoutSystems 刚杆超行宽 ≤2% 的行才传 sq）
       if(D>1e-6){                                    // 硬底也吃尽：等比压最后一档（不画出纸面）
         const cur = beatW.reduce((a,v)=>a+v,0);
         const k = Math.max(0.05, (cur-D)/Math.max(1,cur));
@@ -10821,8 +10840,11 @@ function measureLayout(mea){
     L.weight = inner;
     L.tabs = mea.tabs.map(c=>fit(c)); L.voxes = mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2])));
   };
+  /* v69.7 验收 L1：rigid2＝压到真墨迹底（MF2）时的宽——只有五线谱声部（无简谱行）的弹性空白比 rigid 少，其余谱面 rigid2≡rigid */
+  const flr2Inner = warps.reduce((a,w,i)=>a + (w&&w.MF2? w.MF2.reduce((x,v)=>x+v,0) : Math.min(beatW[i], beatFloor)), 0);
   const L = {w:inner+fixedOf(padL,padR,bGap), weight:inner, resize, tsLead,
              rigid:Math.min(inner, flrInner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
+             rigid2:Math.min(inner, flrInner, flr2Inner)+fixedOf(padLFlr,padRFlr,GAP_FLR),
              tabs:mea.tabs.map(c=>fit(c)), voxes:mea.voxes.map((c, vi2)=>fit(c, isStaffNota((song.voxNotations||[])[vi2])))};
   return L;
 }
@@ -10876,6 +10898,9 @@ function layoutSystems(){
        又拦不住真压不下的组合（pull 强行并行时照样压穿）。现在直接问刚杆：
        ① 刚杆之和 ≤ 行宽 → 一定能排下且不压穿，可行；② 否则不可行，宁可断行。 */
     const R = Ls.map(L=>L.rigid||L.w);
+    /* v69.7 验收 L1：刚杆之和略超行宽（≤2%）而真墨迹底之和（rigid2，五线谱声部压掉简谱数字口径多出的弹性空白）放得下 → 仍可行；
+       代价按压缩算（f>1，≥100），只在不这样就要一行一小节 / 大幅拉伸时才会被选上。纯简谱 / 六线谱 rigid2≡rigid，判据逐字节等同原来 */
+    const SQZ = 1.02, R2 = Ls.map((L,k)=>L.rigid2!=null? L.rigid2 : R[k]);
     /* 代价＝「用掉多少弹簧」：压缩按可压区间 w−rigid 归一，拉伸按自然宽的一半归一，
        三次方——轻微形变几乎不计，接近极限时代价陡增（Knuth 的 badness 思路）。
        v60.80 再加 **相邻行密度档惩罚**（TeX fitness class / adj_demerits 同思路）：
@@ -10901,13 +10926,13 @@ function layoutSystems(){
     const prev = Array.from({length:n+1},()=>new Array(NC).fill(null));
     cost[0][1] = 0;                          // 虚拟起点；i===0 时不计相邻惩罚，档位无所谓
     for(let j=1;j<=n;j++){
-      let w = KSE[j]||0, rg = KSE[j]||0;   // v64.9 行末提示调号的宽先记上
+      let w = KSE[j]||0, rg = KSE[j]||0, rg2 = KSE[j]||0;   // v64.9 行末提示调号的宽先记上
       const pPen = phrPen(j);
       let innerSec = false;                   // 本行（i..j-1）中间是否夹着段落起点
       for(let i=j-1;i>=0;i--){
         if(i < j-1 && secSt[i+1]) innerSec = true;
-        { const kb=(i<j-1 && KSW[i+1])||0; w += W[i]+kb; rg += R[i]+kb; }   // v64.9 行内换调号间隙
-        if(i < j-1 && rg > availW) break;    // 刚杆放不下＝排出来必然把字压重叠，再往左只会更挤
+        { const kb=(i<j-1 && KSW[i+1])||0; w += W[i]+kb; rg += R[i]+kb; rg2 += R2[i]+kb; }   // v64.9 行内换调号间隙
+        if(i < j-1 && rg > availW && (rg > availW*SQZ || rg2 > availW)) break;    // 刚杆放不下＝排出来必然把字压重叠，再往左只会更挤（验收 L1：超 ≤2% 且真墨迹底放得下的除外）
         if(P[j-1] - P[i] > 0) continue;      // 区间内部跨了强制断点
         const lastFree = (j===n && w <= availW);   // 末行不拉伸，不计代价、不计相邻惩罚
         let pen;
@@ -10972,17 +10997,23 @@ function layoutSystems(){
        行宽随之按实际内容声明——谱线与内容始终等宽（v60.74 钉的不变量不破），
        只是这一行会略微伸进页边距。宁可一行略宽，也不让字叠在一起。 */
     const springOK = free >= 0 || totalSlack >= -free - 1e-6;
+    /* v69.7 验收 L1：弹簧吃尽仍差 D2（刚杆之和超行宽）且 D2 ≤ 行宽 2%、各小节「刚杆 → 真墨迹底」的弹性空白够分 → 按弹性空白比例再压 D2（墨迹＋1.5 净距不压穿），
+       行宽不再伸进页边距；不满足就照旧压到刚杆为止 */
+    const slack2 = lm2=>Math.max(0, (lm2.L.rigid||0) - (lm2.L.rigid2!=null? lm2.L.rigid2 : (lm2.L.rigid||0)));
+    const D2 = springOK? 0 : -free - totalSlack;
+    const totalSlack2 = springOK? 0 : sys.measures.reduce((a,lm2)=>a+slack2(lm2), 0);
+    const sqzOK = !springOK && D2 <= avail*0.02 + 1e-6 && totalSlack2 > 1e-6 && totalSlack2 >= D2 - 1e-6;
     let xoff = 0;
     sys.measures.forEach(lm=>{
       const add = free >= 0
         ? free * (Math.max(1,lm.L.weight)/totalW)
-        : (springOK? free * (slack(lm)/totalSlack) : -slack(lm));
+        : (springOK? free * (slack(lm)/totalSlack) : -slack(lm) - (sqzOK? D2*(slack2(lm)/totalSlack2) : 0));
       const newW = Math.max(20, lm.L.w + add);
       lm.x = xoff + (lm.ksBefore||0);
       /* v60.76 交给小节自己重排（按段吃弹簧、到硬底为止），不再整体等比缩放。
          等比缩放的毛病：一个小节里最紧的一段（比如两个相邻的中文音节）会跟着整体
          被压到重叠，哪怕同小节的吉他段还空着一大截——「有歌词的挤、没歌词的空」正是这么来的。 */
-      if(lm.L.resize) lm.L.resize(newW);
+      if(lm.L.resize) lm.L.resize(newW, sqzOK);
       else { const s=newW/lm.L.w; lm.L.w = newW;
         [...lm.L.tabs, ...lm.L.voxes].forEach(r=>{
           r.xs=r.xs.map(v=>v*s); r.ws=r.ws.map(v=>v*s);
@@ -12538,8 +12569,11 @@ function avParse(s, out){
       out.push(tb);
       continue;
     }
-    if(fill==='transparent' || fill==='var(--paper)' || A['opacity']==='0' || A['fill-opacity']==='0') continue;
     const stroke = A['stroke'], sOn = !!stroke && stroke!=='none' && stroke!=='transparent';
+    /* v69.7 验收 B1：纸色底块（连音数字的断口底等）不算墨迹；带可见描边的纸色框（和弦名框 rect fill=paper stroke=ink）算——取外框（含半线宽），
+       谱表上方的人声力度 / 发夹 / 8va / [sim.] 按它让开（此前框被当底色跳过，只有框里的字参与避让，力度压在框底边上） */
+    if(fill==='transparent' || A['opacity']==='0' || A['fill-opacity']==='0') continue;
+    if(fill==='var(--paper)' && !(sOn && stroke!=='var(--paper)' && A['stroke-opacity']!=='0')) continue;
     const hw = sOn? (parseFloat(A['stroke-width']) || 1)/2 : 0;
     if(tg==='line'){ avSeg([[+A['x1'], +A['y1']], [+A['x2'], +A['y2']]], false, hw, out); continue; }
     if(tg==='circle'){ const cx=+A['cx'], cy=+A['cy'], r=(+A['r']||0)+hw; out.push([cx-r, cy-r, cx+r, cy+r]); continue; }
