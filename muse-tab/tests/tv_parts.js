@@ -160,6 +160,11 @@ const HELP = () => {
   window.__staffX = () => { const s = PRESETS[0].make(); s.tabStaff = true;
     s.measures.forEach(m => (m.tabs[0] || []).forEach((c, ci) => { if (ci % 2 === 0) (c.notes || []).forEach(n => { n.x = true; }); })); return migrate(s); };
   /* 夹具总入口：{p:预设号} · {f:PA1 夹具名} · {m:记号夹具选项} · {carry:'T'|'V'} · {staffX:1}；rep＝整谱复制份数，capo＝改变调夹，key＝改调，pgno，fixed */
+  /* v69.7 放行口径（刻版避让 A 组 · 复核 E8 有意改动，同 tv_pgbrk __v697）：人声五线谱行（整曲有歌词）的力度类改画在谱表上方、谱表下不再为它留力度带——
+     PAZ 的 29 份里只有预设#13（教学对照谱）有人声力度：两页都先去掉人声五线谱行上的 dyn / dynTo 再比，其余照旧逐字节；新画法由 tv_v697col A4 / M5 钉住 */
+  window.__v697 = s => { const voc = (s.voxVoices || []).map((_, i) => ['staff', 'bass', 'alto'].includes((s.voxNotations || [])[i])
+      && (s.measures || []).some(m => (((m.voxes || [])[i]) || []).some(c => c && (c.lyrics || []).some(x => x && String(x).trim()))));
+    (s.measures || []).forEach(m => (m.voxes || []).forEach((cs, i) => { if (voc[i]) (cs || []).forEach(c => { if (c) { delete c.dyn; delete c.dynTo; } }); })); return s; };
   window.__mkc = c => { let s;
     if (c.p != null) s = migrate(PRESETS[c.p].make()); else if (c.f) s = __fx(c.f); else if (c.m) s = __marksFx(c.m); else if (c.carry) s = __carryFx(c.carry); else if (c.staffX) s = __staffX();
     if (c.rep) __rep(s, c.rep);
@@ -168,6 +173,7 @@ const HELP = () => {
     if (c.fixed != null) s.layout = Object.assign({}, s.layout || {}, { fixed: !!c.fixed });
     if (c.pgbrk) c.pgbrk.forEach(i => { if (s.measures[i]) s.measures[i].pgbrk = 1; });
     if (c.title) s.title = c.title;
+    if (c.v697) __v697(s);
     if (c.keyTo) s.measures[c.keyTo[0]].keyTo = c.keyTo[1];
     if (c.vname) s.voxVoices[0] = c.vname;
     return s; };
@@ -1056,7 +1062,7 @@ const showPlan = r => r.err ? r.err : (r.solo ? 'solo · ' + r.kindName : r.rows
       else {
         /* v68.8：末尾加记号齐全夹具 {m:{}}（brk[1]、pull[6]、pgbrk[4]，两只老虎×3、3 个 part）——ENG-6 有意改动的放行路径：
            它的 MusicXML 剥掉 <print new-system="yes"/> 再与基线比、且这一句恰 3 个（1 处有效换行 × 3 part）；其余 28 份不带有效换行，MusicXML 仍逐字节 */
-        const CASES = [...Array(16).keys()].map(i => ({ p: i })).concat([{ p: 0, rep: 14 }],
+        const CASES = [...Array(16).keys()].map(i => i === 13 ? { p: i, v697: 1 } : { p: i }).concat([{ p: 0, rep: 14 }],   /* v69.7 放行：预设#13 去掉人声力度后比（见 __v697） */
           ['JT带夹3品', '双TAB_tabCapos1=3', 'JG', 'SG', 'SJG', 'SATB+钢琴', '小提琴+钢琴', '二重唱', '吉他+钢琴+人声', '无词指弹JT', '无分组SATB'].map(f => ({ f })), [{ m: {}, nsWant: 3 }]);
         const nm = c => c.f ? c.f : c.m ? '记号夹具' : c.rep ? '长谱' + c.rep : '预设#' + c.p;
         /* 单演奏者（旧外壳弹窗 / 手机抽屉只对拍这些；多演奏者的弹窗与抽屉是有意改动，§6.4 例外） */

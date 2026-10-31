@@ -1084,11 +1084,17 @@ function T0SCN() {
     try { hideStartPad(); } catch (_) {}
     const out = { ed: [], off: [], names: [] };
     const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('style', 'position:fixed;left:-5000px;top:0'); document.body.appendChild(sv);
+    /* v69.7 放行口径（刻版避让 A 组 · 复核 E8 有意改动，同 tv_pgbrk / tv_parts 的 __v697）：人声五线谱行（整曲有歌词）的力度类改画在谱表上方、谱表下不再为它留力度带——
+       16 个预设里只有 #13（教学对照谱）有人声力度：两页都先去掉人声五线谱行上的 dyn / dynTo 再比，其余字节、其余 15 个照旧逐字节 */
+    const v697 = s => { const voc = (s.voxVoices || []).map((_, k) => ['staff', 'bass', 'alto'].includes((s.voxNotations || [])[k])
+        && (s.measures || []).some(m => (((m.voxes || [])[k]) || []).some(c => c && (c.lyrics || []).some(x => x && String(x).trim()))));
+      (s.measures || []).forEach(m => (m.voxes || []).forEach((cs, k) => { if (voc[k]) (cs || []).forEach(c => { if (c) { delete c.dyn; delete c.dynTo; } }); })); return s; };
     PRESETS.forEach((p, i) => {
-      addDoc(migrate(p.make()), () => {}); closeDocAt(0);
+      const mk = () => { const s = p.make(); return i === 13 ? v697(s) : s; };
+      addDoc(migrate(mk()), () => {}); closeDocAt(0);
       sel = { mi: 0, row: (song.tabVoices || []).length ? 'tab' : 'vox', vi: 0, ci: 0, si: 1 }; blurSel = true; noteSel = []; selRange = null; render();
       out.ed.push(h(document.getElementById('score').innerHTML)); out.names.push(p.name);
-      sv.innerHTML = ''; const r = renderOffscreen({ song: migrate(p.make()), target: sv, paperW: 870 }); out.off.push(r ? h(sv.innerHTML) : 'null');
+      sv.innerHTML = ''; const r = renderOffscreen({ song: migrate(mk()), target: sv, paperW: 870 }); out.off.push(r ? h(sv.innerHTML) : 'null');
     });
     sv.remove();
     out.smufl = JSON.stringify(Object.keys(SMUFL).sort().map(k => [k, SMUFL[k]]));
@@ -1125,7 +1131,10 @@ function T0SCN() {
         let r; try { r = SCORE16x(); } finally { Object.assign(SMUFL, bak); } return r;
         function SCORE16x() { const h = s => { s = String(s).replace(/<text x="-?[\d.]+" y="[^"]*" font-size="10" text-anchor="middle" fill="[^"]*" opacity="0\.6">[^<]*<\/text>/g, '').replace(/<text x="-?[\d.]+" y="[^"]*" font-size="[\d.]+" text-anchor="end" fill="[^"]*" opacity="0\.6" data-rowlbl="\d+">[^<]*<\/text>/g, ''); let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(16) + ':' + s.length; };
           const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sv.setAttribute('style', 'position:fixed;left:-5000px;top:0'); document.body.appendChild(sv);
-          const o = PRESETS.map(p => { sv.innerHTML = ''; renderOffscreen({ song: migrate(p.make()), target: sv, paperW: 870 }); return h(sv.innerHTML); }); sv.remove(); return { n: Object.keys(SMUFL).length, o }; } }, ADD ? Object.keys(ADD) : []);
+          const v697 = s => { const voc = (s.voxVoices || []).map((_, k) => ['staff', 'bass', 'alto'].includes((s.voxNotations || [])[k])
+              && (s.measures || []).some(m => (((m.voxes || [])[k]) || []).some(c => c && (c.lyrics || []).some(x => x && String(x).trim()))));
+            (s.measures || []).forEach(m => (m.voxes || []).forEach((cs, k) => { if (voc[k]) (cs || []).forEach(c => { if (c) { delete c.dyn; delete c.dynTo; } }); })); return s; };   /* 与 SCORE16 同一口径（#13 去人声力度） */
+          const o = PRESETS.map((p, i) => { sv.innerHTML = ''; renderOffscreen({ song: migrate(i === 13 ? v697(p.make()) : p.make()), target: sv, paperW: 870 }); return h(sv.innerHTML); }); sv.remove(); return { n: Object.keys(SMUFL).length, o }; } }, ADD ? Object.keys(ADD) : []);
       const sBad = strip.o.map((x, i) => x === F.off[i] ? null : F.names[i]).filter(Boolean);
       T('T23', strip.n === 50 && !sBad.length, 'T23b 把追加的 44 个字形从 SMUFL 临时删掉重刻 16 个预设：与追加后逐字节相同（谱面渲染不调用新字形）', sBad.join('、') || '16 / 16（删后 SMUFL=' + strip.n + '）');
       refNote('T23');

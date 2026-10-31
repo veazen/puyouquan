@@ -366,12 +366,15 @@ const HELP = () => {
         const tb = HTMLCanvasElement.prototype.toBlob;
         HTMLCanvasElement.prototype.toBlob = function (cb, ty) { window.__cv.push([this.width, this.height]); if (a.fail) return cb(null); return tb.call(this, bb => { window.__cv[window.__cv.length - 1].push(bb ? bb.size : -1); cb(bb); }, ty); };
         const ot = window.toast; window.toast = function (m) { window.__toasts.push(String(m)); return ot.apply(this, arguments); };
-        loadSong(a.d); render(); EXPORT_ACT.png(); return true; }, { d: libOf(id), fail: !!fail });
+        loadSong(a.d); render(); EXPORT_ACT.png(); return true; }, { d: o.long ? longOf(libOf(id)) : libOf(id), fail: !!fail });
       for (let i = 0; i < 120; i++) { await p2.waitForTimeout(500); const done = await p2.evaluate(() => window.__toasts.some(t => /PNG|图片|张图/.test(t))).catch(() => false); if (done) break; }
       await p2.waitForTimeout(400);
       const out = await EV(p2, () => ({ dl: window.__dl, cv: window.__cv, toasts: window.__toasts, title: song.title }));
       await c2.close(); return Object.assign({ r }, out); };
-    { const a = await pngRun({ tag: 'P1-flow' }, 'lib-os-lc6838113'), c = await pngRun({ classic: true, vp: { width: 1280, height: 900 }, tag: 'P1-classic' }, 'lib-os-lc6838113');
+    /* v69.7 迁移：人声行的力度改到谱表上方、歌词不再被推远（复核 E8）后，《侏儒》新外壳整张画布高 65272，刚好落进单张上限 65535——
+       本条要测的是「放不下就切」，改用《侏儒》接上自己前 40 小节（约 1.3 倍长）当长谱，切图口径不变 */
+    const longOf = d => { const x = JSON.parse(JSON.stringify(d)); x.measures = x.measures.concat(JSON.parse(JSON.stringify(x.measures.slice(0, 40)))); return x; };
+    { const a = await pngRun({ tag: 'P1-flow', long: true }, 'lib-os-lc6838113'), c = await pngRun({ classic: true, vp: { width: 1280, height: 900 }, tag: 'P1-classic', long: true }, 'lib-os-lc6838113');
       const ok = x => x.dl && x.dl.length >= 2 && x.dl.every((n, i) => n === x.title + '-' + (i + 1) + '.png') && x.cv.length >= x.dl.length
         && x.cv.slice(-x.dl.length).every(v => v[1] <= 32767 && v[2] > 0) && x.toasts.some(t => new RegExp('已导出 ' + x.dl.length + ' 张图|分成 ' + x.dl.length + ' 张').test(t));
       T('P1', ok(a) && ok(c), '《侏儒》PNG：新外壳 ' + (a.dl || []).length + ' 张、旧外壳（1280 宽）' + (c.dl || []).length + ' 张，每张画布高 ≤32767、都下载、提示张数',

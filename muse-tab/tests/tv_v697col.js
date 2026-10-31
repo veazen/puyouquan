@@ -10,8 +10,10 @@
    G   普查（修前红）：类别对 / 度量逐类「全部样本上 0 处」——C01 踏板 × 墨迹 … C18 连音线终点 × 临时记号、M1 符干长度 … M10 标点空隙
        （later 组 C17 圆滑线穿符干与参考度量 M11 只打印、不断言；A / B 两组修完后本套件应全绿）。
    S   截图那一处：天鹅之歌第 3–4 小节 Ped. 与右手下加线低音的符头 / 加线不相交、净空 ≥1.5px（几何）。
+   A   A 组（谱表上下方向的避让）细项：A1 A 组 0 处且净空 ≥1.5 · A2 天鹅之歌一行一个踏板高度（Ped. / 线 / * 同高）· A3 圣母颂 / 夏威夷骊歌第 1 页踏板 ·
+       A4 人声力度在谱表上方、歌词基线与去掉力度时相同 · A5 净空临时调大时补行距重排后仍 0 处 · A6 只在相撞时才挪（关避让 window.__pyqAvOff 对拍）。
    E   编辑器抽查（两套外壳）：载入天鹅之歌、开标记 render()，#score 普查踏板 × 墨迹 0 处；关标记重排后 #score 无 data-g。
-   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，只在跑 Z1 时用）· ONLY=Z,Z1,G,S,E 只跑部分。 */
+   env：MUSETAB_URL 被测页（缺省 ../index.html）· V697_REF 基线页（文件或 file:// URL；缺省 git show e8dc1c8，只在跑 Z1 时用）· ONLY=Z,Z1,G,S,A,E 只跑部分。 */
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
@@ -136,6 +138,117 @@ const refUrl = () => {
         sw ? hit.length + ' 处 ' + J(hit.slice(0, 3).map(p => p.cat + '@m' + p.m + ' ' + J(p.a.box) + '×' + J(p.b.box))) : '没有排出天鹅之歌');
       T(!!sw && near.length === 0, 'S2 天鹅之歌第 3–4 小节：Ped. 与音符墨迹净空 ≥1.5px（不贴着）',
         sw ? near.length + ' 处 ' + J(near.slice(0, 3).map(p => p.cat + '@m' + p.m)) : '');
+    }
+
+    /* ================= A 谱表上下方向的避让（A 组：踏板 / 力度 / 发夹 / cresc.·dim. / 标注 / 八度线 / 人声力度在上方） =================
+       A1 普查里 A 组各类 0 处，且这几类文字 / 线条记号与音符墨迹的净空都 ≥1.5（贴近也算；发夹按外接框量贴近没有意义，不计）；
+       A2 天鹅之歌：同一行的 Ped. 文字、延续线、* 同高（线 = 文字基线 −3、* 基线 = 线 +3.5，一行只有一个踏板高度）；
+       A3 圣母颂 / 夏威夷骊歌第 1 页：踏板与音符墨迹 0 处、净空 ≥1.5；
+       A4 人声行的力度画在谱表上方，不再把歌词推远（同一份谱去掉全部力度，歌词基线逐个相同）；
+       A5 行距补空：把净空临时调到 18（记号挪得很远）、人声行歌词对音符净空调到 26，重排一遍补空后 A 组各类（含压到下一行 / 歌词 / 下一系统）与歌词 × 音符仍 0 处、确有补空；
+       A6 只在真的相撞时才挪：关掉避让（window.__pyqAvOff）排出的谱面若 A 组 0 处、净空足，开避让后逐字节相同（全部样本里逐份比）。 */
+    if (want('A')) {
+      const A = await open(b);
+      const AR = R || await GC.census(A.pg, SAMPLES, { paperW: 870 });
+      await GC.inject(A.pg);
+      const G = GC.groupCounts(AR);
+      const aIds = ['C01', 'C02', 'C03', 'C04', 'C05', 'C06', 'C07', 'M5'];
+      const aBad = aIds.filter(k => G[k].n).map(k => k + ' ' + G[k].n);
+      const AM = ['ped', 'dyn', 'dtext', 'tempo', 'expr', 'anno', 'ott'];
+      const nearA = []; AR.per.forEach(p => p.near.forEach(x => { if (AM.includes(x.a.cls) || AM.includes(x.b.cls)) nearA.push(p.name + ' 第' + x.m + '小节 ' + x.cat); }));
+      T(!aBad.length && !nearA.length, 'A1 A 组（踏板 / 力度 / 发夹 / cresc.·dim. / 标注 / 八度线 / 人声力度）全部样本 0 处，文字与线条记号对音符墨迹净空 ≥1.5',
+        J({ cats: aBad, near: nearA.slice(0, 4), nNear: nearA.length }));
+      /* A2 天鹅之歌踏板同高 */
+      const sw = LIB.find(s => s.id === SWAN).song;
+      const a2 = await EV(A.pg, s => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+        window.__pyqGeom = true;
+        try { renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s))), target: svg, paperW: 870, crop: true }); } finally { window.__pyqGeom = false; }
+        const sBs = {}; [...svg.querySelectorAll('rect[data-row="vox"][data-staffb]')].forEach(r => { const v = r.getAttribute('data-vi'); (sBs[v] = sBs[v] || new Set()).add(+r.getAttribute('data-staffb')); });
+        const rowOf = (vi, y) => [...(sBs[vi] || [])].reduce((b, v) => Math.abs(v + 20 - y) < Math.abs(b + 20 - y) ? v : b, -1e9);
+        const rows = new Map(); let bad = [];
+        svg.querySelectorAll('[data-g="ped"]').forEach(el => {
+          const vi = el.getAttribute('data-gq').split(':')[0], tag = el.tagName.toLowerCase();
+          const y = tag === 'line' ? +el.getAttribute('y1') : +el.getAttribute('y');
+          const k = vi + '@' + rowOf(vi, y); let o = rows.get(k); if (!o) rows.set(k, o = { line: new Set(), ped: [], star: [] });
+          if (tag === 'line') { o.line.add(+y.toFixed(1)); if (Math.abs(+el.getAttribute('y2') - y) > 0.01) bad.push('斜线 ' + k); }
+          else if ((el.textContent || '').trim() === 'Ped.') o.ped.push(y); else o.star.push(y);
+        });
+        const out = []; rows.forEach((o, k) => {
+          const L = [...o.line];
+          if (L.length > 1) bad.push(k + ' 一行 ' + L.length + ' 个高度 ' + J(L));
+          const ly = L[0];
+          if (ly != null) { o.ped.forEach(y => { if (Math.abs(y - 3 - ly) > 0.06) bad.push(k + ' Ped.基线 ' + y + ' 线 ' + ly); });
+            o.star.forEach(y => { if (Math.abs(y - 3.5 - ly) > 0.06) bad.push(k + ' * 基线 ' + y + ' 线 ' + ly); }); }
+          out.push(k + ':' + L.join('/'));
+        });
+        svg.remove(); return { rows: out.length, bad, sample: out.slice(0, 4) };
+        function J(x) { return JSON.stringify(x); }
+      }, sw);
+      T(!a2.err && a2.rows >= 6 && !a2.bad.length, 'A2 天鹅之歌：同一行的 Ped. 文字 / 延续线 / * 同高（线＝文字基线 −3、* 基线＝线 ＋3.5，一行一个踏板高度）', J(a2));
+      /* A3 圣母颂 / 夏威夷骊歌第 1 页踏板（页高取同一次离屏排版的分页几何 geo.pgH） */
+      const pgH = await EV(A.pg, s => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+        const o = renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s))), target: svg, paperW: 870, crop: true }); svg.remove(); return o.geo.pgH; }, LIB.find(s => /圣母颂/.test(s.name)).song);
+      const p1 = AR.per.filter(p => /圣母颂|夏威夷骊歌/.test(p.name)).map(p => {
+        const inP1 = x => x.a.box[1] < pgH;
+        return { name: p.name, pgH, hit: p.pairs.filter(x => (x.a.cls === 'ped' || x.b.cls === 'ped') && inP1(x)).length, near: p.near.filter(x => (x.a.cls === 'ped' || x.b.cls === 'ped') && inP1(x)).length,
+          peds: p.cnt.ped || 0 };
+      });
+      T(p1.length === 2 && p1.every(x => !x.hit && !x.near && x.peds > 0), 'A3 圣母颂 / 夏威夷骊歌第 1 页：踏板与音符墨迹 0 处、净空 ≥1.5', J(p1));
+      /* A4 人声力度画在谱表上方、不把歌词推远 */
+      const vs = SAMPLES.find(s => s.name === '压力·人声力度与歌词').song;
+      const a4 = await EV(A.pg, s => {
+        const one = so => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+          window.__pyqGeom = true; try { renderOffscreen({ song: migrate(so), target: svg, paperW: 870, crop: true }); } finally { window.__pyqGeom = false; }
+          const sb = [...svg.querySelectorAll('rect[data-row="vox"][data-staffb]')].map(r => +r.getAttribute('data-staffb'));
+          const lyr = [...svg.querySelectorAll('[data-g="lyr"]')].map(t => +(+t.getAttribute('y') - Math.max(...sb.filter(v => v <= +t.getAttribute('y')))).toFixed(2));
+          const dyn = [...svg.querySelectorAll('[data-g="dyn"],[data-g="hairpin"]')].map(el => { const b = el.getBBox(); return +(b.y + b.height).toFixed(1); });
+          const top = Math.min(...sb);
+          svg.remove(); return { lyr, dyn, sb: [...new Set(sb)], top };
+        };
+        const a = one(JSON.parse(JSON.stringify(s)));
+        const s2 = JSON.parse(JSON.stringify(s)); s2.measures.forEach(m => m.voxes.forEach(cs => cs.forEach(c => { delete c.dyn; delete c.dynTo; })));
+        const b2 = one(s2);
+        return { same: JSON.stringify(a.lyr) === JSON.stringify(b2.lyr), nL: a.lyr.length, dynAbove: a.dyn.length > 0 && a.dyn.every(y => a.sb.some(sb => y < sb - 30 && y > sb - 80)), dyn: a.dyn, sb: a.sb };
+      }, vs);
+      T(!a4.err && a4.same && a4.nL > 20 && a4.dynAbove, 'A4 人声行的力度 / 发夹画在谱表上方（底在谱表顶线之上），歌词基线与去掉全部力度时逐个相同（不再把歌词推远）', J(a4));
+      /* A5 补空重排：净空临时调到 18 */
+      const PADS = SAMPLES.filter(s => /天鹅|圣母|夏威夷|压力·文字|压力·低音/.test(s.name));
+      const a5 = await EV(A.pg, L => {
+        const keep = AV_CLR, keepL = AV_LCLR, rc = window.renderCore; let n = 0; window.renderCore = function () { n++; return rc.apply(this, arguments); };
+        const AMK = /^(ped|dyn|hairpin|dtext|tempo|expr|anno|ott)×|×(ped|dyn|hairpin|dtext|tempo|expr|anno|ott)$|^(lyr|lyrp|verse)×(acc|head|stem|flag|beam|ledger|rest|dot|tie)$/;
+        try {
+          AV_CLR = 18; AV_LCLR = 26;
+          return L.map(s => { n = 0;
+            const so = migrate(JSON.parse(JSON.stringify(s.song)));
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+            renderOffscreen({ song: so, target: svg, paperW: 870, crop: true }); svg.remove();
+            const H = AV_HINT && AV_HINT.get(so), passes = n;
+            const c = __gcRun({ name: s.name, song: s.song }, { paperW: 870 });
+            const bad = c.pairs.filter(p => AMK.test(p.cat)).map(p => p.cat + '@' + p.m);
+            const bPad = H ? [...H.values()].some(v => v.b.some(x => x > 0)) : false;
+            return { name: s.name, passes, pads: H ? H.size : 0, bPad, bad };
+          });
+        } finally { AV_CLR = keep; AV_LCLR = keepL; window.renderCore = rc; }
+      }, PADS.map(s => ({ name: s.name, song: s.song })));
+      T(Array.isArray(a5) && a5.every(x => !x.bad.length && x.passes <= 2) && a5.some(x => x.pads > 0 && x.passes === 2) && a5.some(x => x.bPad), 'A5 行距补空：净空临时调到 18（人声歌词对音符 26）时记号 / 歌词挪出原有行距 → 补空后重排一遍（第二遍收敛、歌词行确有补空），A 组各类（含压到下一行 / 歌词 / 下一系统）与歌词 × 音符仍 0 处',
+        J(a5));
+      /* A6 只在真的相撞时才挪 */
+      const ALL = SAMPLES.map(s => ({ name: s.name, song: s.song })).concat(await EV(A.pg, () => __gcPresets()));
+      const a6 = await EV(A.pg, L => L.map(s => {
+        const one = off => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+          window.__pyqAvOff = off; try { renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s.song))), target: svg, paperW: 870, crop: true }); return svg.innerHTML; } finally { window.__pyqAvOff = false; svg.remove(); } };
+        const off = one(true), on = one(false);
+        window.__pyqAvOff = true; let c; try { c = __gcRun({ name: s.name, song: s.song }, { paperW: 870, nearPad: 2.5 }); } finally { window.__pyqAvOff = false; }   /* 「干净」按 2.5 的贴近判（比避让的 1.5 宽一档：两套几何口径在 1.5 上下的临界样本不拿来比） */
+        const AMK = /^(ped|dyn|hairpin|dtext|tempo|expr|anno|ott)×|×(ped|dyn|hairpin|dtext|tempo|expr|anno|ott)$/;
+        const clean = !c.pairs.some(p => AMK.test(p.cat)) && !c.near.some(p => AMK.test(p.cat));   /* 这里贴近连发夹也算（按外接框，偏宽——宽了只会少比几份，不会放过挪动） */
+        return { name: s.name, clean, same: off === on };
+      }), ALL);
+      const a6bad = Array.isArray(a6) ? a6.filter(x => x.clean && !x.same).map(x => x.name) : ['异常'];
+      const a6clean = Array.isArray(a6) ? a6.filter(x => x.clean).length : 0, a6moved = Array.isArray(a6) ? a6.filter(x => !x.same).length : 0;
+      T(Array.isArray(a6) && !a6bad.length && a6clean >= 15 && a6moved >= 8, 'A6 只在真的相撞时才挪：关避让时 A 组 0 处、净空 ≥2.5 的样本（' + a6clean + ' 份），开避让后谱面逐字节相同；有挪动的 ' + a6moved + ' 份都是关避让时有碰撞 / 贴近的',
+        J({ bad: a6bad, clean: a6clean, moved: a6moved }));
+      allErrs.push(...A.errs); await A.close();
     }
 
     /* ================= E 编辑器抽查（两套外壳） ================= */

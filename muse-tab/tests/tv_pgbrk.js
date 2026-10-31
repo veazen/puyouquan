@@ -62,6 +62,12 @@ const HELP = () => {
   window.__h = s => { s = __v696(String(s)); let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16) + ':' + s.length; };
+  /* v69.7 放行口径（刻版避让 A 组 · 复核 E8 有意改动）：人声五线谱行（整曲有歌词）的力度类改画在谱表上方、谱表下不再为它留力度带——
+     21 份对拍谱里只有预设#13（教学对照谱）有人声力度。对它两页都先去掉人声五线谱行上的 dyn / dynTo 再比（其余字节、其余 20 份照旧逐字节）；
+     人声力度本身的新画法由 tv_v697col A4 / M5 钉住 */
+  window.__v697 = s => { const voc = (s.voxVoices || []).map((_, i) => ['staff', 'bass', 'alto'].includes((s.voxNotations || [])[i])
+      && (s.measures || []).some(m => (((m.voxes || [])[i]) || []).some(c => c && (c.lyrics || []).some(x => x && String(x).trim()))));
+    (s.measures || []).forEach(m => (m.voxes || []).forEach((cs, i) => { if (voc[i]) (cs || []).forEach(c => { if (c) { delete c.dyn; delete c.dynTo; } }); })); return s; };
   window.__rep = (s, k) => { const base = JSON.parse(JSON.stringify(s.measures)); for (let i = 1; i < k; i++) s.measures.push(...JSON.parse(JSON.stringify(base))); return s; };
   window.__L60 = () => { const s = __rep(PRESETS[0].make(), 4); s.layout = { fixed: true }; return s; };
   window.__fill = s => { (s.measures || []).forEach((m, mi) => {
@@ -77,6 +83,7 @@ const HELP = () => {
     /* v68.8 MX1b：brk / pull 是 v68.4 也认识的字段（不用 pgbrk——基线要能同样渲染） */
     (c.brk || []).forEach(i => { if (s.measures[i]) s.measures[i].brk = 1; });
     (c.pull || []).forEach(i => { if (s.measures[i]) s.measures[i].pull = 1; });
+    if (c.v697) __v697(s);
     return s; };
   window.__ld = s => { window.guardReplace = p => p(); try { hideStartPad(); } catch (_) {}
     if (typeof undoStack !== 'undefined') { undoStack.length = 0; redoStack.length = 0; }
@@ -170,7 +177,7 @@ const pdfPages = buf => buf ? (buf.toString('latin1').match(/\/Type\s*\/Page[^s]
   try {
     /* ================= Z 缺省零差异 ================= */
     if (want('Z')) {
-      const CASES = [...Array(16).keys()].map(i => ({ p: i })).concat([{ l60: 1 }, { k: 'SJ' }, { k: 'JT' }, { k: 'CG' }, { k: 'SJG' }]);
+      const CASES = [...Array(16).keys()].map(i => i === 13 ? { p: i, v697: 1 } : { p: i }).concat([{ l60: 1 }, { k: 'SJ' }, { k: 'JT' }, { k: 'CG' }, { k: 'SJG' }]);   /* v69.7 放行：预设#13 去掉人声力度后比（见 __v697） */
       const nm = c => c.l60 ? 'L60' : c.k ? '谱行' + c.k : '预设#' + c.p;
       for (const shell of ['flow', 'classic']) {
         const A = await open(b, { shell });
