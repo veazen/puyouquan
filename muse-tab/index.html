@@ -7950,6 +7950,7 @@ function shapeRetune(sh){
   return [...sh].map((ch,i)=>{ if(ch==='x') return ch; const k=n-1-i, f=parseInt(ch,36)-d[k]; return f<0? 'x' : FRET_36(f); }).join('');
 }
 const MIN_W = {1:52, 2:36, 4:26, 8:20, 16:15, 32:11, 64:9};   /* v52.4 最小时值扩至 64 分 */
+const LYR_HY = 6;   /* v69.8 A（复核 T10）带连字符的音节右侧多留的歌词空隙（连字符最小空隙，见 measureLayout 歌词带 / lyrConnSVG） */
 const STR_GAP = 9;                          // 线谱弦间距
 function staffH(){ return STR_GAP*(strN()-1); }   // 谱表高度：吉他6线 / 尤克里里4线
 let PAGE_W = 1060; let MARGIN = 56;   /* v64.6 B8 ② 手机窄屏重排时页边距收到 12（其余场景恒 56） */
@@ -9440,13 +9441,18 @@ function staffRestStr(nx, staffB, SG, dur, dotted){
    兼容旧格式：纯数字 / {deg,dur,oct} 单音对象 */
 /* v67.0 倚音音符可带 acc（新增可选字段，只有「改记谱调」把调内倚音拼成调外音时才写；老数据没有＝调内音，观感零变化）：
    播放 / MusicXML 导出加上它的半音，简谱 / 五线谱倚音画小号变音记号 */
+/* v69.8 A（复核 T9）倚音斜线 grace.slash（新增可选字段）：false＝不画斜线（长倚音）；无键＝画斜线（短倚音，老谱全部如此）。
+   normGrace 只在 slash===false 时带出 slash:false——经 normGrace 再写回的路径（showGraceMenu 的 col[key]=g 等）不丢，老数据输出不变 */
 function normGrace(g){
   if(g==null) return null;
   const A=n=>(n && n.acc && n.acc!=='n')? {acc:n.acc} : {};
+  const SL = (typeof g==='object' && g.slash===false)? {slash:false} : {};
   if(typeof g==='number') return {notes:[{deg:g, oct:0}], dur:8};
-  if(g.deg!=null) return {notes:[Object.assign({deg:g.deg, oct:g.oct||0}, A(g))], dur:g.dur||8};
-  return {notes:(g.notes||[]).map(n=>Object.assign({deg:n.deg, oct:n.oct||0}, A(n))).slice(0,3), dur:g.dur||8};
+  if(g.deg!=null) return Object.assign({notes:[Object.assign({deg:g.deg, oct:g.oct||0}, A(g))], dur:g.dur||8}, SL);
+  return Object.assign({notes:(g.notes||[]).map(n=>Object.assign({deg:n.deg, oct:n.oct||0}, A(n))).slice(0,3), dur:g.dur||8}, SL);
 }
+/* v69.8 A（复核 T9）五线谱倚音按时值画符尾：单个八分 / 十六分 / 三十二分倚音带符尾，占位多 2.5（前倚音整体左移 2.5，符尾不碰主音符头）——刻版与 measureLayout 共用 */
+function graceFlagW(g){ const n = normGrace(g); return (n && n.notes.length===1 && n.dur>=8)? 2.5 : 0; }
 /* v52.7 TAB 倚音数据：{notes:[{s,f}×1..3], dur}——与 vox 倚音同字段名（col.grace/graceA、纯增量），
    记弦位+品位而非唱名；倚音由此在所有谱类统一：TAB 行、联排五线谱、简谱/五线谱各自渲染同一份数据 */
 /* v60.58 倚音技巧 tk（产品指示：倚音支持时值技巧设置）：''=无 / 'h' 击弦 / 'p' 勾弦 / 'sl' 滑音——
@@ -10271,6 +10277,122 @@ function lyrSplit(ly){
   const pm = /^([\s\S]*?)([，。！？、；：、·…—""''）)\]】》.,!?;:]+)$/.exec(ly), base = (pm? pm[1] : String(ly)).replace(/\s+$/,''), punc = pm? pm[2] : '';
   return {base, punc, bw: lyrTextW(base, 16), pw: punc? lyrTextW(punc, 14) : 0};
 }
+/* ===== v69.8 A（复核 T10）西文歌词音节 col.syl =====
+   与 col.lyrics 按段下标对齐的位掩码：1 连字符（与本段下一个音节同属一个词）· 2 延长线（本音节后拖腔）· 3 两者。只在该段歌词非空时有效（旧页面改过歌词留下的失效位不读）。
+   写入一律经 lyrSet：长度不超过 lyrics、末尾的 0 截掉、全 0 删键——没用到的谱 JSON 逐字节不变。
+   「下一个音节」＝同声部、同段、往后第一个该段有词的列（可跨小节、跨行）；「拖腔终点」＝从本列往后、到下一个本段有词的列或休止之前的最后一个音（含连音线续音） */
+function lyrSylAt(col, li){
+  const s = col && col.syl, t = col && (col.lyrics||[])[li];
+  if(!Array.isArray(s) || !t || !String(t).trim()) return 0;
+  return (typeof s[li]==='number')? (s[li] & 3) : 0;
+}
+function lyrSylTidy(col){
+  if(!col || col.syl===undefined) return;
+  const L = col.lyrics||[], src = Array.isArray(col.syl)? col.syl : [], s = [];
+  for(let i=0; i<Math.min(L.length, src.length); i++) s.push((L[i] && String(L[i]).trim() && typeof src[i]==='number')? (src[i] & 3) : 0);
+  while(s.length && !s[s.length-1]) s.pop();
+  if(s.length) col.syl = s; else delete col.syl;
+}
+/* 写一个音的一段歌词（全部歌词写入点共用）：code 缺省＝保留该段原有的位（原来有词时），文本空＝该段清 0 */
+function lyrSet(col, li, text, code){
+  if(!col) return;
+  const had = lyrSylAt(col, li);
+  col.lyrics = col.lyrics||[];
+  col.lyrics[li] = text;
+  const c = (text && String(text).trim())? ((code===undefined || code===null? had : code)|0) & 3 : 0;
+  if(!c && col.syl===undefined) return;
+  const s = Array.isArray(col.syl)? col.syl.slice() : [];
+  for(let i=0; i<li; i++) if(typeof s[i]!=='number') s[i] = 0;
+  s[li] = c; col.syl = s; lyrSylTidy(col);
+}
+/* 本声部有没有生效的音节位（刻版 / 导出据此决定走不走新逻辑；没有＝与 v69.7 逐字节相同） */
+function lyrSylAny(s, vi){
+  return (s.measures||[]).some(m=>(((m.voxes||[])[vi])||[]).some(c=>c && Array.isArray(c.syl) && c.syl.some((_, li)=>lyrSylAt(c, li))));
+}
+function lyrSylNext(s, vi, li, mi, ci){
+  for(let m=mi; m<s.measures.length; m++){
+    const cs = s.measures[m].voxes[vi]||[];
+    for(let c=(m===mi? ci+1 : 0); c<cs.length; c++){ const t = cs[c] && (cs[c].lyrics||[])[li]; if(t && String(t).trim()) return {mi:m, ci:c}; }
+  }
+  return null;
+}
+function lyrSylEnd(s, vi, li, mi, ci){
+  let e = {mi, ci};
+  for(let m=mi; m<s.measures.length; m++){
+    const cs = s.measures[m].voxes[vi]||[];
+    for(let c=(m===mi? ci+1 : 0); c<cs.length; c++){
+      const x = cs[c], t = x && (x.lyrics||[])[li];
+      if(!x || !x.deg || (t && String(t).trim())) return e;
+      e = {mi:m, ci:c};
+    }
+  }
+  return e;
+}
+/* 「_」能给前一个音节加延长线：前一个音节（去掉末尾标点）以拉丁 / 希腊 / 西里尔字母或数字收尾（中文 / 日文 / 韩文歌本的拖腔不画延长线，「_」照旧只跳过） */
+function lyrExtOk(v){
+  const cs = [...String(v||'')]; while(cs.length && SF_PUNCT.includes(cs[cs.length-1])) cs.pop();
+  return lyrWC(cs[cs.length-1]) && cs[cs.length-1]!=='‿';
+}
+/* 连字符 / 延长线（Gould / GB 惯例；与 v69.7 歌词实测宽 / 避让共存）：每个（系统 × 声部）画完后调一次。
+   K＝本行登记 {syl:[{li, mi, ci, y 基线, L, R 墨迹左右缘}], hd:{'mi:ci'→ 符头右缘（五线谱）/ 数字右缘（简谱）}}；
+   o＝{s 曲谱, vi, mi0 / mi1 本行首末小节, x0 首小节起点, x1 行尾, y(li) 该段基线}。返回 [{k:'lyrhy'|'lyrext', mi, ci, s:SVG}]。
+   连字符：线宽 1.1、基线 −5.2、长 min(7, 空隙 −4)，居中于两音节墨迹之间；空隙 <6 不画、>40 每 30px 一个；下一个音节在后面的行：只在本行末音节后画一个（到行尾前 4px）。
+   延长线：线宽 0.9、基线 +1，自音节右缘 +1.5 到拖腔终点的符头 / 数字右缘；长度 <4 不画；跨行续到行尾，下一行自首小节起续到终点 */
+function lyrConnSVG(K, o){
+  const out = [], s = o.s, vi = o.vi;
+  const LN = (x1, y, x2, w)=>`<line x1="${x1.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--ink)" stroke-width="${w}"/>`;
+  const inRow = mi=> mi>=o.mi0 && mi<=o.mi1;
+  const ext = (x1, x2, y, e)=>{ if(x2-x1>=4) out.push({k:'lyrext', mi:e.mi, ci:e.ci, s:LN(x1, y+1, x2, 0.9)}); };
+  for(let li=0; li<(s.lyricLines||0); li++){
+    const S = K.syl.filter(e=>e.li===li);
+    /* 上一行连过来的拖腔：本行之前最后一个音节带位 2、终点落在本行或之后 */
+    { let pv = null;
+      for(let m=o.mi0-1; m>=0 && !pv; m--){ const cs = s.measures[m].voxes[vi]||[];
+        for(let c=cs.length-1; c>=0; c--){ const t = cs[c] && (cs[c].lyrics||[])[li]; if(t && String(t).trim()){ pv = {mi:m, ci:c}; break; } } }
+      if(pv && (lyrSylAt(s.measures[pv.mi].voxes[vi][pv.ci], li) & 2)){
+        const e = lyrSylEnd(s, vi, li, pv.mi, pv.ci);
+        if(e.mi>=o.mi0){ const x2 = inRow(e.mi)? K.hd[e.mi+':'+e.ci] : o.x1-2; if(x2!=null) ext(o.x0, x2, o.y(li), pv); }
+      } }
+    S.forEach((e, k)=>{
+      const b = lyrSylAt(s.measures[e.mi].voxes[vi][e.ci], li);
+      if(!b) return;
+      if(b & 1){
+        const nx = lyrSylNext(s, vi, li, e.mi, e.ci);
+        let L = e.R, R = null, one = false;
+        if(nx){ const ne = S.find(x=>x.mi===nx.mi && x.ci===nx.ci);
+          if(ne) R = ne.L; else if(nx.mi>o.mi1){ R = o.x1-4; one = true; } }
+        if(R!=null){ const gap = R-L;
+          if(gap>=6){ const n = (!one && gap>40)? Math.max(1, Math.floor(gap/30)) : 1, len = Math.min(7, gap-4);
+            for(let q=0; q<n; q++){ const c = L+gap*(q+0.5)/n; out.push({k:'lyrhy', mi:e.mi, ci:e.ci, s:LN(c-len/2, e.y-5.2, c+len/2, 1.1)}); } } }
+      }
+      if(b & 2){
+        const en = lyrSylEnd(s, vi, li, e.mi, e.ci);
+        const x2 = inRow(en.mi)? K.hd[en.mi+':'+en.ci] : (en.mi>o.mi1? o.x1-2 : null);
+        if(x2!=null) ext(e.R+1.5, x2, e.y, e);
+      }
+    });
+  }
+  return out;
+}
+/* v69.8 A MusicXML 导出的音节计划（每声部一次）：每段记「上一音节带位 1」→ syllabic＝prev ? (位 1 ? middle : end) : (位 1 ? begin : single)；
+   位 2 在 <text> 后写 <extend type="start"/>，拖腔终点那个音写只含 <extend type="stop"/> 的同号 <lyric>（MuseScore 同写法）。
+   本声部没有生效的音节位 → null（调用方走原写法，逐字节不变）。只数音符列（休止不写歌词） */
+function lyrXmlPlan(s, vi){
+  if(!lyrSylAny(s, vi)) return null;
+  const SY = {}, EX = {}, ST = {}, seq = [];
+  s.measures.forEach((m, mi)=>(m.voxes[vi]||[]).forEach((c, ci)=>{ if(c && c.deg) seq.push({c, mi, ci}); }));
+  for(let li=0; li<MAX_LYR; li++){
+    let prev = 0;
+    seq.forEach(e=>{
+      const t = (e.c.lyrics||[])[li]; if(!t || !String(t).trim()) return;
+      const b = lyrSylAt(e.c, li), k = e.mi+':'+e.ci+':'+li;
+      SY[k] = prev? ((b & 1)? 'middle' : 'end') : ((b & 1)? 'begin' : 'single');
+      prev = b & 1;
+      if(b & 2){ EX[k] = 1; const en = lyrSylEnd(s, vi, li, e.mi, e.ci); if(en.mi!==e.mi || en.ci!==e.ci) ST[en.mi+':'+en.ci+':'+li] = 1; }
+    });
+  }
+  return {sy:(mi, ci, li)=>SY[mi+':'+ci+':'+li] || 'single', ex:(mi, ci, li)=>!!EX[mi+':'+ci+':'+li], stop:(mi, ci, li)=>!!ST[mi+':'+ci+':'+li]};
+}
 function measureLayout(mea){
   RENDER_STAT.layoutCalls++;   /* v65.6 代理指标 */
   const hs = LAY_HS;                          // 横向疏密系数（紧凑<1 / 宽松>1）——只缩放空白，不缩音符字形
@@ -10375,8 +10497,8 @@ function measureLayout(mea){
     cols.forEach((c, ci)=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
       wB[bi]+=durW(c.dur)+dotLevel(c)*6
-             +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length : 0)
-             +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length : 0)
+             +(isVox&&c.grace? 5+6.5*normGrace(c.grace).notes.length+(SP? graceFlagW(c.grace) : 0) : 0)   /* v69.8 A（复核 T9）五线谱单个带符尾的倚音占位 +2.5 */
+             +(isVox&&c.graceA? 5+6.5*normGrace(c.graceA).notes.length+(SP? graceFlagW(c.graceA) : 0) : 0)
              +(!isVox&&c.grace? tabGraceW(normTabGrace(c.grace)) : 0)    /* v52.7 TAB 倚音占位；v60.69 与渲染共用 */
              +(!isVox&&c.graceA? tabGraceW(normTabGrace(c.graceA)) : 0)
              +(isVox&&c.chord? Math.max(0, vcDispW(c.chord)-durW(c.dur)+4) : 0)
@@ -10398,7 +10520,7 @@ function measureLayout(mea){
       }
       /* 右侧附加占位（后倚音、行内换谱号）——只长在列的右边，记成本段的加项 */
       let add = 0;
-      if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length;
+      if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length+(SP? graceFlagW(c.graceA) : 0);
       if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));    /* v52.7 TAB 倚音占位；v60.69 共用 */
       if(isVox&&c.clef&&!(SP&&ci===0))   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
       /* v60.52 左伸元素净空（用户报告：简谱音符不避开升降号与双倚音导致重叠）：
@@ -10408,7 +10530,7 @@ function measureLayout(mea){
       if(isVox){
         if(c.acc) leftW = c.acc.length>1? 20 : 14;                      // ♭♭ 双字符左移更多
         if(c.grace){ const gn=normGrace(c.grace).notes.length;
-          leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)); }     // 组宽+减时线左伸+让位变化音
+          leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)+(SP? graceFlagW(c.grace) : 0)); }     // 组宽+减时线左伸+让位变化音（v69.8 A 五线谱单个带符尾的倚音整体左移 2.5）
         if(SP && SP[ci]) leftW = Math.max(leftW, SP[ci].accL);          // v69.7 五线谱实际临时记号栈（见上）
       }else if(c.grace){
         /* v60.78 TAB **前**倚音也长在主音左侧（渲染 gx0 = nx−13−(n−1)×步距），
@@ -10449,6 +10571,8 @@ function measureLayout(mea){
           let hL = lw/2, hR = lw/2;
           if(SP) (c.lyrics||[]).forEach((ly, li)=>{ if(!ly || !String(ly).trim() || li>=song.lyricLines) return;
             const q = lyrSplit(ly); hL = Math.max(hL, q.bw/2+0.25); hR = Math.max(hR, q.bw/2+q.pw+0.25); });
+          /* v69.8 A（复核 T10）带连字符的音节右半宽 + LYR_HY：保证连字符的最小空隙（只对带位 1 的列加，老谱 0 差异） */
+          if(c.syl && (c.lyrics||[]).some((_, li)=> li<song.lyricLines && (lyrSylAt(c, li) & 1))) hR += LYR_HY;
           if(SP && bi===0 && tt<1e-4) lyrLead = Math.max(lyrLead, hL);
           if(lw>0 || hR>0) evts[bi].push({t:tt, band:bandL, hwL:hL, hwR:hR, hfL:hL, hfR:hR, left:0,
             gap:LYR_GAP, flr:LYR_FLR}); }
@@ -12606,7 +12730,7 @@ function avParse(s, out){
 /* GTv 同一批绘制点：p[g0..] 记进本行（歌词 / 段号记到 lyr，不当墨迹）。只记下标与类别（懒解析：只有要放记号 / 查行距的行才解析，见 avRowGet）；纯 SMuFL 字形的类别 AV_SINK 已记过，跳过 */
 var AV_GLYPH = {head:1, acc:1, flag:1, rest:1, clef:1, clefm:1, keysig:1, tsig:1, brace:1, ferm:1};
 function avInk(R, p, g0, k){
-  if(R.pend && p.length>g0 && !AV_GLYPH[k]) R.pend.push(g0, p.length, (k==='lyr' || k==='lyrp' || k==='verse')? 1 : 0);
+  if(R.pend && p.length>g0 && !AV_GLYPH[k]) R.pend.push(g0, p.length, (k==='lyr' || k==='lyrp' || k==='verse' || k==='lyrhy' || k==='lyrext')? 1 : 0);   /* v69.8 A 连字符 / 延长线记进歌词层，不当墨迹去推力度 */
 }
 function avRowGet(R, p){
   if(R && R.pend){ const P = R.pend; R.pend = null;
@@ -13052,6 +13176,7 @@ function renderCore(){
   /* v69.7 刻版避让：人声五线谱行（五线谱（含对照行）、整曲有歌词）——力度类画在谱表上方（复核 E8），systemExtras / sysMetrics 不再在谱表下为它留力度带 */
   AV_VOC = (song.voxVoices||[]).map((_,i)=> isStaffNota((song.voxNotations||[])[i])
     && (song.measures||[]).some(m=>(((m.voxes||[])[i])||[]).some(c=>c && (c.lyrics||[]).some(x=>x && String(x).trim()))));
+  const LYRSV = (song.voxVoices||[]).map((_,i)=> lyrSylAny(song, i));   /* v69.8 A 各声部有没有生效的歌词音节位（col.syl） */
   const svg = OFF? OFF.target : document.getElementById('score');
   /* v50.6 推弦目标音集合（vi:mi:ci:si）：目标音带圆圈（v53.1 r=5），品位数字缩号自适应
      圆圈（圆圈大小不变，同泛音菱形 v46.1 方案）——绘制数字时需先知道自己是否目标音 */
@@ -14618,6 +14743,7 @@ function renderCore(){
       const RW = isStaff? (AV.rows[sIdx+':'+vi] = {ink:[], lyr:[], mk:[], pend:[], sB:staffB, sT:staffT}) : null;
       AV_SINK = RW? RW.ink : null;
       const GTv = isStaff? (k, mi, ci)=>{ avInk(RW, p, GQ, k); if(GEOM_ON) geomTag(p, GQ, k, vi+':'+mi+':'+(ci==null? -1 : ci)); } : null;
+      const LYK = LYRSV[vi]? {syl:[], hd:{}} : null;   /* v69.8 A（复核 T10）本行音节墨迹 / 拖腔终点登记（只在本声部有生效的音节位时；没有＝不登记、不多画，谱面逐字节同 v69.7） */
       /* v45.6 小节内换谱号：clefCur=当前生效谱号（自曲首沿列顺序推进到本行行首），
          S_BOT/S_MID 改为可变、随列切换；行首谱号与调号音位按行首生效谱号绘制 */
       let clefCur = isStaff? nota : 'staff';
@@ -15110,20 +15236,25 @@ function renderCore(){
           const stGrace = (gRaw, kind)=>{
             const g=normGrace(gRaw); if(!g.notes.length) return;
             const pre = kind==='pre', STEP=5.5, gW=(g.notes.length-1)*STEP;
-            const gx0 = pre? nx-11-gW-(stAccDrawn?9:0) : nx+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
-            let topY=1e9;
+            /* v69.8 A（复核 T9）按时值画符尾 / 符杠：单个倚音 8 / 16 / 32 分画小号符尾（0.62 倍）；多个倚音符杠 1 / 2 / 3 道（杠距 0.75 线距 × 0.62），各符干都够到符杠
+               （此前单个倚音没有符尾、多音倚音只有一道符杠、低处的符干够不着）。单个带符尾的前倚音整体左移 graceFlagW（measureLayout 同一份占位） */
+            const fW = graceFlagW(g), nB = g.notes.length>1? (g.dur>=32? 3 : g.dur>=16? 2 : g.dur>=8? 1 : 0) : 0;
+            const gx0 = pre? nx-11-gW-(stAccDrawn?9:0)-fW : nx+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
+            const hys = g.notes.map(gn=>stepY(staffStep({deg:gn.deg||1, oct:gn.oct||0}, K)));
+            let topY=Math.min(...hys)-13;
             g.notes.forEach((gn,gi)=>{
-              const st2=staffStep({deg:gn.deg||1, oct:gn.oct||0}, K), hy2=stepY(st2);
+              const hy2=hys[gi];
               const x=gx0+gi*STEP;
               p.push(smg('noteheadBlack', x-smw('noteheadBlack')*SG*0.62/2, hy2, SG, {scale:0.62}));
               if(gn.acc){ const ln=((K.Li+(gn.deg||1)-1)%7+7)%7, ka=K.alt[ln]||0, ta=((K.tAlt||K.alt)[ln]||0)+accSemi(gn.acc);   /* v67.0 调外倚音：小号临时记号 */
                 if(ta!==ka) p.push(accG(ta===1?'♯':ta===-1?'♭':ta===0?'♮':ta===2?'×':'♭♭', x+0.23*SG, hy2, SG, 0.62)); }
-              p.push(`<line x1="${x+2.7}" y1="${(hy2-1).toFixed(1)}" x2="${x+2.7}" y2="${(hy2-13).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
-              topY=Math.min(topY, hy2-13);
+              p.push(`<line x1="${x+2.7}" y1="${(hy2-1).toFixed(1)}" x2="${x+2.7}" y2="${(g.notes.length>1? topY : hy2-13).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             });
-            if(g.notes.length>1)
-              p.push(`<line x1="${gx0+2.7}" y1="${topY.toFixed(1)}" x2="${gx0+gW+2.7}" y2="${topY.toFixed(1)}" stroke="var(--ink)" stroke-width="1.6"/>`);
-            p.push(`<line x1="${gx0-1.5}" y1="${(topY+8).toFixed(1)}" x2="${gx0+6.5}" y2="${(topY+2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
+            if(fW) p.push(smg('flag'+(g.dur>=32?'32nd':g.dur>=16?'16th':'8th')+'Up', gx0+2.7-0.45, hys[0]-13, SG, {scale:0.62}));
+            for(let b=0; b<nB; b++)
+              p.push(`<line x1="${gx0+2.7}" y1="${(topY+b*0.75*SG*0.62).toFixed(1)}" x2="${gx0+gW+2.7}" y2="${(topY+b*0.75*SG*0.62).toFixed(1)}" stroke="var(--ink)" stroke-width="1.6"/>`);
+            if(g.slash!==false)   /* v69.8 A grace.slash===false＝长倚音：不画斜线 */
+              p.push(`<line x1="${gx0-1.5}" y1="${(topY+8).toFixed(1)}" x2="${gx0+6.5}" y2="${(topY+2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9"/>`);
             graceZones.push(`<rect x="${gx0-6}" y="${(topY-4).toFixed(1)}" width="${gW+14}" height="28" fill="transparent" data-grace="${lm.mi}:${ci}:${vi}:${kind}" style="cursor:pointer"><title>点击编辑倚音（音高/时值/八度，最多3音）</title></rect>`);
           };
           GQ=p.length;
@@ -15379,12 +15510,18 @@ function renderCore(){
             const lw=Math.max(14, [...lv].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?7.75:15.5),0)+5);
             p.push(`<rect x="${(nx-lw/2).toFixed(1)}" y="${(lyr0+lyrSel.li*21-14).toFixed(1)}" width="${lw.toFixed(1)}" height="19" rx="4" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1"/>`);
           }
+          /* v69.8 A（复核 T10）本行音节登记：拖腔终点的符头右缘（五线谱）/ 数字右缘（简谱） */
+          if(LYK && col.deg){ const hn = col.dur===1?'noteheadWhole': col.dur===2?'noteheadHalf':'noteheadBlack', PLh = AP && AP[ci];
+            LYK.hd[lm.mi+':'+ci] = isStaff? nx+smw(hn)*SG/2+((PLh && PLh.anyR)? PLh.DX : 0) : nx+5.4; }
           (col.lyrics||[]).forEach((ly,li)=>{
             if(ly && li<song.lyricLines){
               const yy=lyr0+li*21;
               /* 标点旁挂：正文（字/词）对准音符居中，末尾标点挂在右侧不影响对齐 */
               const pm=/^([\s\S]*?)([，。！？、；：、·…—""''）)\]】》.,!?;:]+)$/.exec(ly);
               const base=pm?pm[1]:ly, punc=pm?pm[2]:'';
+              /* v69.8 A 只登记音节墨迹左右缘（lyrSplit 同一份量宽；五线谱正文 + 标点一块、简谱标点另起在估宽右侧），连接符在本行画完后统一画（lyrConnSVG） */
+              if(LYK){ const q = lyrSplit(ly), bwE = punc? [...base].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?8:16),0) : 0;
+                LYK.syl.push({li, mi:lm.mi, ci, y:yy, L:nx-q.bw/2, R: isStaff? nx+q.bw/2+q.pw : Math.max(nx+q.bw/2, punc? nx+bwE/2+1+q.pw : 0)}); }
               /* v69.7（复核 E7）五线谱声部：正文与末尾标点放同一个文字块（标点 14 号 tspan 紧接正文，「weckt .」那种空隙没了）；
                  正文仍对准音符居中——按实测正文宽左对齐起笔（lyrSplit，与列宽同一份）。简谱声部照旧两块（逐字节不变） */
               if(isStaff && punc){ const q = lyrSplit(ly);
@@ -15719,6 +15856,12 @@ function renderCore(){
           jpBeamSVG(p, cols, g, i=>mx+lay.xs[i], voxY);   /* v67.1 成组减时线 → 共享 */
         });
       });
+      /* v69.8 A（复核 T10）本行（系统 × 声部）的连字符 / 延长线：五线谱行记进避让的歌词层（avInk lyrhy / lyrext）、普查标记同其余歌词 */
+      if(LYK && sys.measures.length){
+        const lmA = sys.measures[0];
+        lyrConnSVG(LYK, {s:song, vi, mi0:lmA.mi, mi1:sys.measures[sys.measures.length-1].mi, x0:ox+lmA.x+((lmA.L && lmA.L.tsLead)||0)+2, x1:ox+sys.w, y:li=>lyr0+li*21})
+          .forEach(it=>{ GQ=p.length; p.push(it.s); GTv&&GTv(it.k, it.mi, it.ci); });
+      }
     });
   });
   AV_SINK = null;
@@ -17377,7 +17520,7 @@ function applyDurCombo(combo){ try{habit('combo');}catch(_){}
       const degs = oldSpan.filter(c=>c.deg>0);
       let oi=0;
       seg = combo.durs.map(([d,t])=>{ const c=vcol(); c.dur=d; c.dotted=!!t;
-        if(oi<degs.length){ const o=degs[oi++]; c.deg=o.deg;c.acc=o.acc;c.oct=o.oct;c.lyrics=(o.lyrics||[]).slice();c.tie=o.tie;if(o.chord)c.chord=o.chord;else delete c.chord; }
+        if(oi<degs.length){ const o=degs[oi++]; c.deg=o.deg;c.acc=o.acc;c.oct=o.oct;c.lyrics=(o.lyrics||[]).slice();if(o.syl)c.syl=o.syl.slice();c.tie=o.tie;if(o.chord)c.chord=o.chord;else delete c.chord; }
         return c; });
     }
     cols.splice(startCi, end-startCi, ...seg);
@@ -17515,7 +17658,7 @@ function applyVoxPattern(pat){
         const c = vcol(); c.dur=dur; c.dotted=!!dot;
         if(oi<old.length){
           const o = old[oi++];
-          c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); c.tie=o.tie; if(o.chord)c.chord=o.chord;else delete c.chord;
+          c.deg=o.deg; c.acc=o.acc; c.oct=o.oct; c.lyrics=(o.lyrics||[]).slice(); if(o.syl) c.syl=o.syl.slice(); c.tie=o.tie; if(o.chord)c.chord=o.chord;else delete c.chord;   /* v69.8 A 音节位随歌词 */
         }
         if(tie) c.tie=true;   /* v60.57 节奏型自带连音线（叠加，不抹掉旋律原有的 tie） */
         return c;
@@ -17904,6 +18047,7 @@ function ornFromBar(k){ try{ if(k&&k!=='clr') habit('orn:'+k); }catch(_){}
             const nearOct=d=>{ let bo=col.oct||0, bd=99; [0,-1,1].forEach(k=>{ const o=(col.oct||0)+k, df=Math.abs(DEG_SEMI[d]+12*o-mainS); if(df<bd){ bd=df; bo=o; } }); return Math.max(-3, Math.min(3, bo)); };
             const g={notes:[...tv].map((ch,i2)=>({deg:+ch, oct:prevG&&prevG.notes[i2]?prevG.notes[i2].oct:nearOct(+ch)})),
                      dur:prevG?prevG.dur:8};   // 默认8分
+            if(prevG && prevG.slash===false) g.slash=false;   /* v69.8 A 改唱名不丢长倚音 */
             if(k==='grace') col.grace=g; else col.graceA=g;
           }
         });
@@ -19086,6 +19230,7 @@ const chipHandler = e=>{
       const li = song.lyricLines-1;
       song.measures.forEach(m=>m.voxes.forEach(cols=>cols.forEach(c=>{
         if(c.lyrics) c.lyrics.length = Math.min(c.lyrics.length, li);
+        lyrSylTidy(c);   /* v69.8 A 音节位不超过歌词段数（没有 col.syl 的不动） */
       })));
       song.lyricLines--; activeLyr=Math.min(activeLyr, song.lyricLines-1);
     });
@@ -20890,7 +21035,8 @@ function showLyricMenu(cx, cy, vi, mi, ci, li){
   if(k<0) return;   // 休止/连音延续音不占字：不弹编辑条（仍可正常聚焦输入框）
   closePop();
   const L = s=>((s.col.lyrics||[])[li])||'';
-  const set = (s,v)=>{ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[li]=v; };
+  const C = s=>lyrSylAt(s.col, li);   /* v69.8 A 移位 / 删除时音节位跟着文字一起搬 */
+  const set = (s,v,c)=>lyrSet(s.col, li, v, c);
   const nextEmpty = from=>{ for(let i=from;i<slots.length;i++) if(!L(slots[i])) return i; return slots.length; };
   const cur = L(slots[k]);
   const div=document.createElement('div');
@@ -20911,20 +21057,20 @@ function showLyricMenu(cx, cy, vi, mi, ci, li){
   div.querySelector('#ly-left').onclick=()=>{
     if(k===0) return toast('已是第一个可唱音，无法前移');
     const e=nextEmpty(k+1), ov=L(slots[k-1]);
-    apply(()=>{ for(let i=k-1;i<e-1;i++) set(slots[i], L(slots[i+1])); set(slots[e-1],''); },
+    apply(()=>{ for(let i=k-1;i<e-1;i++) set(slots[i], L(slots[i+1]), C(slots[i+1])); set(slots[e-1],''); },
       '歌词已前移一音'+(ov?'（覆盖了前一音位「'+ov+'」，Ctrl+Z 可撤销）':''));
   };
   div.querySelector('#ly-right').onclick=()=>{
     const ne=nextEmpty(k+1);
     const e=Math.min(ne, slots.length-1);
     const dropped = ne>=slots.length? L(slots[slots.length-1]) : '';
-    apply(()=>{ for(let i=e;i>k;i--) set(slots[i], L(slots[i-1])); set(slots[k],''); },
+    apply(()=>{ for(let i=e;i>k;i--) set(slots[i], L(slots[i-1]), C(slots[i-1])); set(slots[k],''); },
       '歌词已后移一音'+(dropped?'（末尾「'+dropped+'」已被挤出，Ctrl+Z 可撤销）':''));
   };
   div.querySelector('#ly-blank').onclick=()=>apply(()=>set(slots[k],''), '已置空该音位（其余歌词未动）');
   div.querySelector('#ly-del').onclick=()=>{
     const e=nextEmpty(k+1);
-    apply(()=>{ for(let i=k;i<e-1;i++) set(slots[i], L(slots[i+1])); set(slots[e-1],''); }, '已删除，后续字前提补位');
+    apply(()=>{ for(let i=k;i<e-1;i++) set(slots[i], L(slots[i+1]), C(slots[i+1])); set(slots[e-1],''); }, '已删除，后续字前提补位');
   };
   div.querySelector('#ly-rep').onclick=()=>
     askText('替换歌词（此音位）', cur, v=>{ mutate(()=>set(slots[k], v)); toast('已替换'); });
@@ -21680,16 +21826,20 @@ function showGraceMenu(mi, ci, vi, kind, cx, cy){
       <div class="row" style="margin-top:5px">${g.notes.length<3?`<button data-ga="1">＋加音符</button>`:''}</div>
       <div class="t" style="margin-top:5px">时值（组内共用）</div>
       <div class="row">${[[4,'4分'],[8,'8分'],[16,'16分'],[32,'32分']].map(([d,l])=>`<button data-gt="${d}" class="${g.dur===d?'on':''}">${l}</button>`).join('')}
-        <button data-gx="1" style="margin-left:12px">删除倚音</button></div>`;
-  };
+        <button data-gx="1" style="margin-left:12px">删除倚音</button></div>${kind==='pre'? `
+      <div class="row" style="margin-top:5px"><button data-gsl="1" class="${g.slash!==false?'on':''}" title="带斜线，拍前短促">短倚音</button><button data-gsl="0" class="${g.slash===false?'on':''}" title="不带斜线，占拍上时值">长倚音</button></div>` : ''}`;
+  };   /* v69.8 A（复核 T9）短 / 长倚音（grace.slash：长倚音写 false、短倚音删键；两外壳同一弹窗） */
   rebuild();
   document.body.appendChild(div);
   div.addEventListener('click', ev=>{
     const gd=ev.target.closest('[data-gd]'), gt=ev.target.closest('[data-gt]'),
           gp=ev.target.closest('[data-gp]'), gm=ev.target.closest('[data-gm]'),
           ga=ev.target.closest('[data-ga]'), gr=ev.target.closest('[data-gr]'),
-          gx=ev.target.closest('[data-gx]');
+          gx=ev.target.closest('[data-gx]'), gsl=ev.target.closest('[data-gsl]');
     if(gx){ mutate(()=>{ delete col[key]; }); closePop(); return; }
+    if(gsl){ const lng=gsl.dataset.gsl==='0';
+      if(lng!==(normGrace(col[key]).slash===false)) mutate(()=>{ const g=normGrace(col[key]); if(lng) g.slash=false; else delete g.slash; col[key]=g; });
+      rebuild(); return; }
     if(!gd && !gt && !gp && !gm && !ga && !gr) return;
     mutate(()=>{
       const g=normGrace(col[key]);
@@ -24514,8 +24664,7 @@ function lyrBoxCommit(el){
     if(lyrUndoKey!==lk){ pushUndo(); lyrUndoKey=lk; }
     /* 输入了词但当前段不存在（如功能谱默认 0 段）→ 自动补足歌词段，否则内容存进去却不显示 */
     if(str.trim() && activeLyr>=song.lyricLines) song.lyricLines = activeLyr+1;
-    col.lyrics = col.lyrics||[];
-    col.lyrics[activeLyr] = str;
+    lyrSet(col, activeLyr, str);   /* v69.8 A 改词保留该音原有的音节位（原来空的＝无位） */
     persist(); render(); el.focus();
   };
   let use=null;
@@ -24526,8 +24675,10 @@ function lyrBoxCommit(el){
     while(q<b.length-p && q<v.length-p && b[b.length-1-q]===v[v.length-1-q]) q++;
     const ins=v.slice(p, v.length-q);
     const nSyl=smartTokenize(ins).filter(t=>t.t==='syl').length;
-    if(!/\s/.test(ins) && nSyl<=1){ one(lyrJoin(v)); return; }
-    if(q===0 && /^\s+$/.test(ins)) use=[{t:'syl', v:lyrJoin(b.trim())}];   /* 原词后加空格：原词不动（不重新拆字）、前进一个音 */
+    /* v69.8 A（复核 T10）西文原词后接「-」＝连字符（与新词「hap-」同口径）：原词不动、记位 1、前进一个音（此前把「hap-」原样写成词） */
+    if(q===0 && ins==='-' && lyrWC([...b.trim()].pop())){ const c0=lyrSylAt(col, activeLyr); use=[Object.assign({t:'syl', v:lyrJoin(b.trim()), hy:true}, (c0 & 2)? {ext:true} : {})]; }
+    else if(!/\s/.test(ins) && nSyl<=1){ one(lyrJoin(v)); return; }
+    if(q===0 && /^\s+$/.test(ins)){ const c0=lyrSylAt(col, activeLyr); use=[Object.assign({t:'syl', v:lyrJoin(b.trim())}, (c0 & 1)? {hy:true} : {}, (c0 & 2)? {ext:true} : {})]; }   /* 原词后加空格：原词不动（不重新拆字，v69.8 A 连同音节位）、前进一个音 */
   } else if(!sep && toks.length<=1 && (!toks.length || toks[0].t==='syl')){ one(toks.length===1 && /[_＿]/.test(v)? toks[0].v : v); return; }
   const slots=smartSlots(sel.vi, sel.mi, sel.ci);
   const here=slots.length && slots[0].mi===sel.mi && slots[0].ci===sel.ci && slots[0].kind==='fill';
@@ -24535,8 +24686,16 @@ function lyrBoxCommit(el){
   const vals=smartCompute(slots, use, false);
   let last=-1, filled=0;
   vals.forEach((x,i)=>{ if(x!=null && slots[i].kind==='fill'){ last=i; filled++; } });
+  /* v69.8 A（复核 T10）新词以单独的「_」开头（「love」写完前进后再键入「 _」）：前一个音节是西文词 → 给它加延长线（同一步撤销），「_」照旧跳过当前音 */
+  let extPrev=null;
+  if(!B.edit && use.length && use[0].t==='skip' && /^\s*[_＿]/.test(v)){
+    const all=smartSlots(sel.vi, 0, 0).filter(x=>x.kind==='fill'), k=all.findIndex(x=>x.mi===sel.mi && x.ci===sel.ci), pv=k>0? all[k-1] : null;
+    const pt=pv? ((pv.col.lyrics||[])[activeLyr]||'') : '';
+    if(pt.trim() && lyrExtOk(pt) && !(lyrSylAt(pv.col, activeLyr) & 2)) extPrev=pv;
+  }
   if(lyrUndoKey!==lk) pushUndo();
-  slots.forEach((sl,i)=>{ if(vals[i]==null) return; sl.col.lyrics=sl.col.lyrics||[]; sl.col.lyrics[activeLyr]=vals[i]; });
+  slots.forEach((sl,i)=>{ if(vals[i]==null) return; lyrSet(sl.col, activeLyr, vals[i], vals.syl[i]); });   /* v69.8 A 音节位随值写入（hap-py / love _） */
+  if(extPrev) lyrSet(extPrev.col, activeLyr, extPrev.col.lyrics[activeLyr], lyrSylAt(extPrev.col, activeLyr) | 2);
   if(vals.some(x=>x && String(x).trim()) && activeLyr>=song.lyricLines) song.lyricLines = activeLyr+1;
   lyrUndoKey=null;   /* 下一个音上的输入另起一步 */
   let nx=null; for(let i=last+1;i<slots.length;i++) if(slots[i].kind==='fill'){ nx=slots[i]; break; }
@@ -24604,7 +24763,7 @@ document.getElementById('i-lyric').addEventListener('keydown', e=>{
 document.getElementById('b-clearlyr').onclick = ()=>{
   mutate(()=>{
     song.measures.forEach(m=>m.voxes.forEach(cols=>cols.forEach(c=>{
-      if(c.lyrics) c.lyrics[activeLyr]='';
+      if(c.lyrics) lyrSet(c, activeLyr, '');   /* v69.8 A 同段音节位一并清 */
     })));
   });
   toast('已清空第'+(activeLyr+1)+'段歌词');
@@ -24852,11 +25011,12 @@ function smartTokenize(text, o){
         let j=i; while(j<cs.length && (cs[j]==='_' || cs[j]==='＿')) j++;
         if(j>=cs.length || !/\s/.test(cs[j])){ glue = j<cs.length; glueL = glue && cs.slice(i,j).every(x=>x==='_'); i=j; continue; }
       }
-      if(c==='_' || c==='＿'){ glue=false; out.push({t:'skip'}); i++; continue; }
+      /* v69.8 A（复核 T10）拉丁 / 希腊 / 西里尔词后单独的「_」（love _ / love_ me）：前一音节加延长线（token 加 ext），仍跳过一个音（v69.6 规则不变）；中文 / 日文 / 韩文后照旧只跳过 */
+      if(c==='_' || c==='＿'){ glue=false; const p0=out[out.length-1]; if(p0 && p0.t==='syl' && lyrExtOk(p0.v)) p0.ext=true; out.push({t:'skip'}); i++; continue; }
       if(/\s/.test(c)){ glue=false; i++; continue; }
       if(c==='-'){ glue=false; out.push({t:'skip'}); i++; continue; }
       if(SF_PUNCT.includes(c)){ for(let k=out.length-1;k>=0;k--){ if(out[k].t==='syl'){ out[k].v+=c; break; } if(out[k].t==='br')break; } i++; continue; }
-      if(lyrWS(c) || (c==='ʻ' && lyrWS(cs[i+1]))){ let w=c; i++; while(i<cs.length && lyrWC(cs[i])) w+=cs[i++]; push(w.normalize('NFC')); if(hy && cs[i]==='-') i++; continue; }
+      if(lyrWS(c) || (c==='ʻ' && lyrWS(cs[i+1]))){ let w=c; i++; while(i<cs.length && lyrWC(cs[i])) w+=cs[i++]; push(w.normalize('NFC')); if(hy && cs[i]==='-'){ i++; out[out.length-1].hy=true; } continue; }   /* v69.8 A 词内连字符记在 token 上（hy：与下一个音节同属一个词） */
       push(c); i++;
     }
   });
@@ -24864,13 +25024,18 @@ function smartTokenize(text, o){
 }
 /* v69.6 I2 每个音的歌词拼回一段可再分词的文本（智能填词预载）：外文词前后加空格（再分词仍是一词一音），一个音上原本是多个字的（花儿、连写过的）用「_」连写；
    纯中文 / 日文 / 韩文且每音一字时与此前 join('') 逐字节相同 */
-function lyrPartsJoin(parts){
-  let s='';
+/* v69.8 A codes（与 parts 对齐的音节位，可缺省）：位 1 拼回「Ma-ri-a」（连字符后不加空格）；位 2 把紧跟的第一个空音占位「-」写成「_」（「love _」＝延长线 + 跳过一个音）。
+   没有音节位时与 v69.6 逐字节相同 */
+function lyrPartsJoin(parts, codes){
+  let s='', hyP=false, extP=false;
   parts.forEach((p, i)=>{
     let q=String(p);
     if(q!=='-' && !/\s/.test(q)){ const tk=smartTokenize(q, {hyph:true}); if(tk.length>1 && tk.every(x=>x.t==='syl')) q=tk.map(x=>x.v).join('_'); }   /* 与填入同一口径（hyph） */
-    if(i>0 && s && q){ const a=[...s].pop(), b=[...q][0]; if(lyrWC(a) || lyrWS(b) || b==='ʻ') s+=' '; }
+    if(q==='-' && extP) q='_';
+    const c=(codes && q!=='-' && q!=='_')? (codes[i]|0) : 0;
+    if(i>0 && s && q){ const a=[...s].pop(), b=[...q][0]; if(hyP? (q==='-' || q==='_') : (lyrWC(a) || lyrWS(b) || b==='ʻ')) s+=' '; }
     s+=q;
+    if(q!=='-' && q!=='_'){ hyP=!!(c & 1) && lyrWC([...q].pop()); if(hyP) s+='-'; extP=!!(c & 2); } else { hyP=false; extP=false; }
   });
   return s;
 }
@@ -24893,8 +25058,10 @@ function smartSlots(vi, startMi, startCi){
   return slots;
 }
 /* 计算每个槽的赋值：null=不改动；''=清空；字符串=歌词。phraseAlign 时换行跳到下一小节 */
+/* v69.8 A 返回的数组另带 .syl：每个槽写入的音节位（token 的 hy → 1、ext → 2；跳过 / 清空为 0），歌词写入点交给 lyrSet */
 function smartCompute(slots, tokens, phraseAlign){
   const vals=new Array(slots.length).fill(null);
+  vals.syl=new Array(slots.length).fill(0);
   let si=0, lastMi=-1;
   const clearContAt=()=>{ while(si<slots.length && slots[si].kind==='cont'){ vals[si]=''; si++; } };
   for(const tk of tokens){
@@ -24907,6 +25074,7 @@ function smartCompute(slots, tokens, phraseAlign){
     clearContAt();
     if(si>=slots.length) break;
     vals[si] = tk.t==='skip' ? '' : tk.v;
+    if(tk.t!=='skip') vals.syl[si] = (tk.hy? 1 : 0) | (tk.ext? 2 : 0);
     lastMi = slots[si].mi;
     si++;
   }
@@ -24953,10 +25121,11 @@ document.getElementById('b-fill').onclick = ()=>{
      打开智能填词不改内容点「填入」就改坏曲库歌词（「AveMaria!」）。preTA＝预载的原文：没改动、从头填、不按乐句对齐时「填入」什么都不做 */
   let preTA=null;
   const reloadTA=()=>{
-    const parts=smartSlots(vi,0,0).filter(s=>s.kind==='fill')
-      .map(s=>((s.col.lyrics&&s.col.lyrics[activeLyr])||'-'));
-    while(parts.length && parts[parts.length-1]==='-') parts.pop();
-    ta.value = parts.some(x=>x!=='-') ? lyrPartsJoin(parts) : '';
+    const fills=smartSlots(vi,0,0).filter(s=>s.kind==='fill');
+    const parts=fills.map(s=>((s.col.lyrics&&s.col.lyrics[activeLyr])||'-'));
+    const codes=fills.map(s=>lyrSylAt(s.col, activeLyr));   /* v69.8 A 音节位：拼回「Ma-ri-a」「love _」 */
+    while(parts.length && parts[parts.length-1]==='-' && !(parts.length>1 && parts[parts.length-2]!=='-' && (codes[parts.length-2] & 2))) parts.pop();
+    ta.value = parts.some(x=>x!=='-') ? lyrPartsJoin(parts, codes) : '';
     preTA = ta.value;
   };
   reloadTA();
@@ -25059,8 +25228,8 @@ document.getElementById('b-fill').onclick = ()=>{
     const vals=smartCompute(slots, smartTokenize(text, {hyph:true}), phrase);
     mutate(()=>{
       slots.forEach((s,idx)=>{
-        if(s.kind==='cont'){ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[activeLyr]=''; return; }
-        if(vals[idx]!=null){ s.col.lyrics=s.col.lyrics||[]; s.col.lyrics[activeLyr]=vals[idx]; }
+        if(s.kind==='cont'){ lyrSet(s.col, activeLyr, ''); return; }
+        if(vals[idx]!=null) lyrSet(s.col, activeLyr, vals[idx], vals.syl[idx]);   /* v69.8 A 音节位随值写入（Stil-le / love _） */
       });
     });
     toast('第'+(activeLyr+1)+'段歌词已智能填入');
@@ -42054,6 +42223,7 @@ function exportMusicXML(s){
     const staffTag = stN? `<staff>${stN}</staff>` : '';
     const clefN = x=> stN? x.replace('<clef>', `<clef number="${stN}">`) : x;
     let glissPend=false, addTieIn=new Set(); const bodies=[], durs=[];   /* v69.3 addTieIn：上一列带 tie 的附加音音高（附加音 tie stop 用） */
+    const LXP = lyrXmlPlan(s, vi);   /* v69.8 A（复核 T10）歌词音节 / 延长线；本声部没有 col.syl＝null，歌词照旧全写 single */
     /* v65.1 B3a ①（P1-20）连音线/圆滑线分流：应用内 tie 标记串成「链」（到链尾第一个不带 tie 的音），链内相邻同音高＝连音线
        <tie>/<tied>，有异音高对则从链首到链尾写一条 <slur>（此前异音也写 tie，MuseScore 打开后全成连音线、播放吞音）；
        链尾落到休止/谱末的那一环没有落点，不写 */
@@ -42166,7 +42336,7 @@ function exportMusicXML(s){
         /* v44.8 倚音（前倚音 col.grace）→ 主音前的 grace 音符（无时值） */
         const gTyOf = g0=>{ const d=(normGrace(g0)||{}).dur||8; return d>=32? '32nd' : d>=16? '16th' : 'eighth'; };
         const graceXML = col.grace? (normGrace(col.grace).notes||[]).map(g=> g&&g.deg?
-          `<note><grace slash="yes"/>${pitchXML(g.deg,g.acc||'',g.oct||0)}<voice>1</voice><type>${gTyOf(col.grace)}</type>${staffTag}</note>`:'').join('') : '';   /* v69.4 type 按 grace.dur（8/16/32） */
+          `<note>${normGrace(col.grace).slash===false? '<grace/>' : '<grace slash="yes"/>'}${pitchXML(g.deg,g.acc||'',g.oct||0)}<voice>1</voice><type>${gTyOf(col.grace)}</type>${staffTag}</note>`:'').join('') : '';   /* v69.4 type 按 grace.dur（8/16/32）；v69.8 A 长倚音（slash:false）写 <grace/> */
         const kk=mi+':'+ci, tieStart=!!tieS[kk], tieStop=!!tieE[kk], slStart=!!slurS[kk], slStop=!!slurE[kk];   // v65.1 B3a ①
         const ties = `${tieStop?'<tie type="stop"/>':''}${tieStart?'<tie type="start"/>':''}`;
         /* v44.8 滑音 gliss → slide（本音起 start、下一音收 stop） */
@@ -42185,8 +42355,11 @@ function exportMusicXML(s){
         const slN = stN||1;
         const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}${slStop?`<slur type="stop" number="${slN}"/>`:''}${slStart?`<slur type="start" number="${slN}"/>`:''}${slideXML}`+signXML+ornXML+fingXML;
         const notat = notInner? `<notations>${notInner}</notations>` : '';
-        const lyr = (col.lyrics||[]).map((t2,li)=> t2&&t2.trim()?
+        let lyr = (LXP? [] : (col.lyrics||[])).map((t2,li)=> t2&&t2.trim()?
           `<lyric number="${li+1}"><syllabic>single</syllabic><text>${xesc(t2)}</text></lyric>`:'').join('');
+        if(LXP) for(let li=0; li<MAX_LYR; li++){ const t2=(col.lyrics||[])[li];   /* v69.8 A 音节 begin / middle / end、拖腔 extend start / stop */
+          if(t2 && String(t2).trim()) lyr += `<lyric number="${li+1}"><syllabic>${LXP.sy(mi, ci, li)}</syllabic><text>${xesc(t2)}</text>${LXP.ex(mi, ci, li)? '<extend type="start"/>' : ''}</lyric>`;
+          else if(LXP.stop(mi, ci, li)) lyr += `<lyric number="${li+1}"><extend type="stop"/></lyric>`; }
         body += graceXML+`<note>${pitchXML(col.deg,col.acc,col.oct)}<duration>${dur}</duration>${ties}<voice>1</voice>${typ}${dot}${tmod}${staffTag}${notat}${lyr}</note>`; durSum+=dur;
         (col.adds||[]).forEach(a=>{ if(!a||!a.deg) return;
           /* v69.3 和音逐音连音线：本音 a.tie → start；上一列同音高的附加音带 tie（或上一列主音 col.tie 且同音高）→ stop。没有 a.tie 的旧谱逐字节不变 */
@@ -43559,7 +43732,7 @@ function importMusicXML(xmlStr){
     /* v69.4 A7 文字渐变延续虚线：words 同 direction 带 <dashes type=start> → 接收这条文字的列（openDash），<dashes type=stop> → 写 dynTo（仿 openWedge）
        A4 wedgeHold：力度与渐强渐弱同列时力度留本列、渐强渐弱从下一列起——记下让位的那一列（没有下一列时按旧口径回退）
        A5 pendGraceDur：同组第一个倚音的 <type> → grace.dur */
-    let pendDash=false, openDash=null, openDashN='1', wedgeHold=null, pendGraceDur=0;   // pendDash＝待挂的虚线编号（dashes number，缺省 '1'）
+    let pendDash=false, openDash=null, openDashN='1', wedgeHold=null, pendGraceDur=0, pendGraceNoSl=false;   // pendDash＝待挂的虚线编号（dashes number，缺省 '1'）
     const csh = concertSh[pi];   // v69.4 A11 本 part 换实音的平移（null＝记谱音照收）
     const addAnno = t=>{ pendAnno = pendAnno? (pendAnno+' '+t).slice(0,40) : t; };
     const clefSign = txt(part.querySelector('measure attributes clef')||null,'sign');
@@ -43584,7 +43757,7 @@ function importMusicXML(xmlStr){
         if(pendAnno){ col2.anno=pendAnno; pendAnno=null; }   // v65.7
         if(pendPed){ col2.ped='on'; pendPed=false; }
         if(pendClef){ col2.clef=pendClef; pendClef=null; }   // v45.6 中途换谱号归属下一列（含休止列）
-        if(pendGrace.length && col2.deg){ col2.grace={notes:pendGrace.slice(0,3)}; if(pendGraceDur && pendGraceDur!==8) col2.grace.dur=Math.max(4, Math.min(32, pendGraceDur)); pendGrace=[]; pendGraceDur=0; }   // v44.8 前倚音归属下一个有音高音符；v69.4 A5 时值
+        if(pendGrace.length && col2.deg){ col2.grace={notes:pendGrace.slice(0,3)}; if(pendGraceDur && pendGraceDur!==8) col2.grace.dur=Math.max(4, Math.min(32, pendGraceDur)); if(pendGraceNoSl) col2.grace.slash=false; pendGrace=[]; pendGraceDur=0; pendGraceNoSl=false; }   // v44.8 前倚音归属下一个有音高音符；v69.4 A5 时值
         /* v43.4 八度记号：起点列存 ott，span 内每列传播 ott（渲染符头逐列移位需要） */
         if(pendOtt){ col2.ott=pendOtt; ottStartCol=col2; curOtt=pendOtt; pendOtt=null; }
         else if(curOtt){ col2.ott=curOtt; }
@@ -43715,7 +43888,7 @@ function importMusicXML(xmlStr){
         if(q(el,'grace')){                                            // v44.8 前倚音：累积到 pendGrace，挂给下一个主音（normGrace 仅存 deg/oct）
           const pe0=q(el,'pitch');
           /* v67.0 调外倚音带 acc；v69.4 A1 按 <step> 拼（同主音）；A5 同组第一个倚音的 <type> 记作组时值 */
-          if(pe0 && !q(el,'chord') && pendGrace.length<3){ if(!pendGrace.length) pendGraceDur=TYPE_INV[txt(el,'type')||'']||0;
+          if(pe0 && !q(el,'chord') && pendGrace.length<3){ if(!pendGrace.length){ pendGraceDur=TYPE_INV[txt(el,'type')||'']||0; pendGraceNoSl=q(el,'grace').getAttribute('slash')!=='yes'; }   /* v69.8 A 同组第一个倚音无 slash 属性或 slash="no"＝长倚音 */
             const g0=spellOf(pe0, keyEffAt(mi2), csh? csh.d : 0, csh? csh.c : 0); pendGrace.push(Object.assign({deg:g0.deg, oct:g0.oct}, g0.acc? {acc:g0.acc} : {})); }
           return;
         }
@@ -43833,13 +44006,21 @@ function importMusicXML(xmlStr){
           if(col.tie) tieX.add(col); else if(slurDepth>0) col.tie=true; }
         /* v69.4 A6 一个 <lyric> 里多个 <text>（换字体 / elision）按顺序拼起来：<elision> 用它自己的文本，空的补「‿」；整段拼完再 trim（此前只取第一个 <text>：
            摇篮曲 m11「Gott」整个丢了）。段数上限 3 → MAX_LYR（与编辑器同口径：自家 5 段词往返此前只剩 3 段） */
+        /* v69.8 A（复核 T10）音节：<syllabic> begin / middle → 位 1（取该 lyric 里最后一个 <syllabic>，多 <text> / elision 拼接不变）；<extend/>（无 type 或 type="start"）→ 位 2；
+           只有 <extend>、没有 <text> 的 <lyric>（拖腔终点 stop / 续 continue）不建空词、不计 skip。写 col.syl（与 lyrics 按段对齐，只在该段有词时写位） */
+        const sylB=[];
         [...el.querySelectorAll(':scope > lyric')].forEach(ly=>{
           const n2=Math.max(1, +(ly.getAttribute('number')||1));
-          if(n2<=MAX_LYR){ let lt='';
-            [...ly.children].forEach(ch=>{ if(ch.tagName==='text') lt+=ch.textContent; else if(ch.tagName==='elision') lt+= ch.textContent.trim()? ch.textContent : '\u203f'; });
-            col.lyrics[n2-1]=lt.trim(); maxLyr=Math.max(maxLyr,n2); }
+          const kids=[...ly.children];
+          if(!kids.some(ch=>ch.tagName==='text') && kids.some(ch=>ch.tagName==='extend')) return;
+          if(n2<=MAX_LYR){ let lt='', sb='';
+            kids.forEach(ch=>{ if(ch.tagName==='text') lt+=ch.textContent; else if(ch.tagName==='elision') lt+= ch.textContent.trim()? ch.textContent : '\u203f'; else if(ch.tagName==='syllabic') sb=ch.textContent.trim(); });
+            col.lyrics[n2-1]=lt.trim(); maxLyr=Math.max(maxLyr,n2);
+            if(lt.trim()){ const ex=kids.find(ch=>ch.tagName==='extend'), et=ex? (ex.getAttribute('type')||'start') : '';
+              const b=((sb==='begin' || sb==='middle')? 1 : 0) | (et==='start'? 2 : 0); if(b) sylB[n2-1]=b; } }
           else skip.lyrics++;   // v65.1 分项计数
         });
+        if(sylB.length){ col.syl=Array.from({length:sylB.length}, (_, i)=>sylB[i]||0); lyrSylTidy(col); }
         /* v69.3 连音线换角色（反向）：本列主音是连音续音、上一列连过来的是它的附加音（同音高、带 a.tie）、而上一列主音不同且自己没有真连音线 →
            上一列主音与该附加音对调，连音链落回主音（上一列歌词留在列上） */
         if(lastColRef && lastColRef.deg && !tieX.has(lastColRef) && !pSame(lastColRef, col)
