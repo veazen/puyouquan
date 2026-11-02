@@ -424,16 +424,20 @@ function baiduPush(ids) {
 }
 /* v61.7 收录加厚：落地页可爬正文的歌词节选与和弦进行（薄内容+秒跳转会被当「桥页」拒收） */
 function lyricExcerpt(d, cap) {
-  let out = '';
-  for (const m of arr(d.measures)) for (const cols of arr((m || {}).voxes)) for (const c of arr(cols)) {
+  let out = '', hy = -1;
+  arr(d.measures).forEach(m => arr((m || {}).voxes).forEach((cols, vi) => { for (const c of arr(cols)) {
+    if (out.length >= cap) return;
     const w = sStr(arr((c || {}).lyrics)[0]).trim();   /* 第二轮验收：对象歌词不再露出「[object Object]」，也不抛错 */
     if (w) {
-      /* v69.3 西文歌词按音节一格一个（曲库公版谱）：前后都是拉丁字母时补空格，不再连成「AveMaria!Jungfraumild!」；中文照旧直接相连 */
-      if (out && /[\p{Script=Latin}\d’'.,;:!?)]$/u.test(out) && /^[\p{Script=Latin}\d(¿¡"‘“]/u.test(w)) out += ' ';
-      out += w; if (out.length >= cap) return out.slice(0, cap);
+      /* v69.3 西文歌词按音节一格一个（曲库公版谱）：前后都是拉丁字母时补空格，不再连成「AveMaria!Jungfraumild!」；中文照旧直接相连
+         v69.8 A（复核 T10）上一个音节（同一声部）带连字符位（col.syl[0] & 1）：同一个词，不补空格（A-ve Ma-ri-a → Ave Maria）；没有 syl 的谱输出不变 */
+      if (out && hy !== vi && /[\p{Script=Latin}\d’'.,;:!?)]$/u.test(out) && /^[\p{Script=Latin}\d(¿¡"‘“]/u.test(w)) out += ' ';
+      out += w;
+      const sy = arr((c || {}).syl)[0];
+      hy = (typeof sy === 'number' && (sy & 1)) ? vi : -1;
     }
-  }
-  return out;
+  } }));
+  return out.length > cap ? out.slice(0, cap) : out;
 }
 function chordSeq(d, cap) {
   const seq = [];
