@@ -83,7 +83,9 @@ const PRESET_KIND = ['吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '�
   '简谱歌谱', '简谱合唱谱', '五线谱旋律', '教学对照谱', '和弦谱', '功能谱'];
 /* v67.3 既有 song 字段（createSong / 迁移 / 导入 / 编辑器各处已在写的键）——新建产物的键必须全部落在这里（新增字段 0） */
 const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'key', 'beats', 'unit', 'tempo', 'capo', 'customChords', 'inst', 'func', 'tabVoices', 'voxVoices',
-  'voxNotations', 'lyricLines', 'measures', 'tempoUnit', 'tabStaff', 'gtype', 'tuning', 'voxDual', 'pianoAcc', 'funcNames', 'chordOnly', 'layout', 'voxGroups', 'instKey', 'mixer', 'mode', 'id'];
+  'voxNotations', 'lyricLines', 'measures', 'tempoUnit', 'tabStaff', 'gtype', 'tuning', 'voxDual', 'pianoAcc', 'funcNames', 'chordOnly', 'layout', 'voxGroups', 'instKey', 'mixer', 'mode', 'id',
+  /* v69.8 C 组有意迁移：新建多声部谱默认印首行声部名（song.rowNames）、四部五线合唱男高八度谱号（song.voxClefOct）——规格 §3.6 / §3.8 的新建默认（只改新建） */
+  'rowNames', 'voxClefOct'];
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;

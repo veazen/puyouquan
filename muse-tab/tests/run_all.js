@@ -126,6 +126,11 @@ const CORE = [
      Z 标记零副作用（开 / 关抹属性后逐字节 · 关时无 data-g · 只标五线谱声部叶子元素）· G 曲库 10 + 预设 16 + 压力小样 10 逐类「0 处」（C01–C18 / M1–M10；later 组与参考度量只打印）·
      S 天鹅之歌第 3–4 小节 Ped. 几何 · E 编辑器 #score 两套外壳抽查（修前 v69.6 e8dc1c8 红 28/36）；单跑约 20 秒 */
   'tv_v697col',
+  /* v69.8 C 组「记谱与首行名」（规格 docs/spec-2026-11-v698.md §3.6–§3.8；复核 T4 / N4 / E5）：O 八度谱号 song.voxClefOct（男高音高音谱号下加 8：音位 / clef8 几何、导入导出 clef-octave-change、
+     新建四部合唱、两入口同结果、插删声部与 migrate、MIDI 不变）· X 按声部移调 song.voxTransp（单簧管＋钢琴 / 古典吉他＋人声导入导出、调号与符头几何、换调、分谱）·
+     R 首行声部名 song.rowNames / voxShort（首行全称续行简称、括号左缘几何、花括号组居中、缩进 ind0 / ind1、排版浮层两外壳、往返与第三方默认）·
+     Z 老谱零变化（16 预设 + 曲库 + 压力小样的离屏谱面 / MusicXML / MIDI 与 cd08ca0 逐字节同）；单跑约 2 分钟 */
+  'tv_v698nota',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

@@ -415,8 +415,8 @@ function T0SCN() {
       /* v68.7 S1 迁移（规格 §6.C3 #19 / #20，P2 结果 ≤12 字）：新外壳提示原 /至少保留一种记谱法/（整句 + 「点「五线谱」三个字」指路）→ 短文「至少留一种记谱法」；不改谱 / 不重刻仍由 j / sc 判。修前红：5cddfb8 提示为整句（不等于短文） */
       T('T6', a3.j === a2.j && a3.sc === a2.sc && t3.some(t => t === '至少留一种记谱法') && a4.j === a4p.j && t4.some(t => t === '至少留一种记谱法'),
         'T6b 只剩一层时再点它的眼睛（只有简谱时点简谱 / 只有五线谱时点五线谱）＝不改谱、不重刻 + 提示「至少留一种记谱法」', J({ t3, t4 }));
-      T('T6', !!menu && menu.m === 'treeClef' && menu.n === 3 && JSON.parse(a5.nt)[0] === 'bass' && a5.j === f[4].j && a5.sc === f[4].sc,
-        'T6c 谱号 ▾（菜单挂 body，三项）选「低音谱号」＝setVoxNotation(\'bass\')（#vn-bs），song 与 #score 逐字节相同', J({ menu, nt: a5.nt }));
+      T('T6', !!menu && menu.m === 'treeClef' && menu.n === 4 && JSON.parse(a5.nt)[0] === 'bass' && a5.j === f[4].j && a5.sc === f[4].sc,
+        /* v69.8 C 组迁移：谱号 ▾ 多「男高音谱号」一项（tree:clefset 共四项；「移调乐器…」是另一动作 tree:transp） */ 'T6c 谱号 ▾（菜单挂 body，四项）选「低音谱号」＝setVoxNotation(\'bass\')（#vn-bs），song 与 #score 逐字节相同', J({ menu, nt: a5.nt }));
     });
     await close(pg);
   });

@@ -64,7 +64,8 @@ const HELP = () => {
     s.measures.forEach(m => { const cols = cl(m.voxes[0] || []); cols.forEach(c => { if (c) { delete c.lyrics; delete c.chord; delete c.chords; } }); m.voxes.push(cols); }); return s; };
   window.__addTab = (s, name) => { s.tabVoices.push(name); s.measures.forEach(m => m.tabs.push(cl(m.tabs[0] || []))); return s; };
   /* PA1 夹具（§6.3 列名 + 命名 / 认领规则补充）。全部经 migrate，与载入编辑器后的形态一致 */
-  window.__fx = k => { const B = (id, o) => NWB.build(id, Object.assign({ title: '夹具' + id, nMea: 4 }, o || {}));
+  /* v69.8 C 组有意迁移：NWB.build 新建多声部谱多写 song.rowNames（四部五线合唱另写 voxClefOct）——v68.5 基线（PAZ）不认识，夹具去掉这两个新建默认，两边同一份数据（声部名 / 八度谱号随分谱见 tv_v698nota X6） */
+  window.__fx = k => { const B = (id, o) => { const s0 = NWB.build(id, Object.assign({ title: '夹具' + id, nMea: 4 }, o || {})); delete s0.rowNames; delete s0.voxClefOct; return s0; };
     let s;
     switch (k) {
       case 'JT带夹3品': s = PRESETS[0].make(); s.capo = 3; break;
