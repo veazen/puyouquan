@@ -146,6 +146,10 @@ const CORE = [
      R 首行声部名 song.rowNames / voxShort（首行全称续行简称、括号左缘几何、花括号组居中、缩进 ind0 / ind1、排版浮层两外壳、往返与第三方默认）·
      Z 老谱零变化（16 预设 + 曲库 + 压力小样的离屏谱面 / MusicXML / MIDI 与 cd08ca0 逐字节同）；单跑约 2 分钟 */
   'tv_v698nota',
+  /* v69.8 集成（四组接缝）：I1 导入的长倚音 → 播放 / MIDI 拍上奏出 · I2 首行名 + 曲中 / E8 速度 + 连字符 / 延长线同谱碰撞普查（含新类别 lyrhy / lyrext / rowname）·
+     I3 移调 / 八度谱号声部上的倚音与同音重奏弧几何 · I4 时值沿用落在男高八度谱号行（键盘 / 鼠标，两外壳）· I5 全部新字段同时导出过 XSD、再导入逐项同 ·
+     I6 首行名续行不变窄（曲库续行缩进 0、首行名不贡献页数）；单跑约 40 秒 */
+  'tv_v698int',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

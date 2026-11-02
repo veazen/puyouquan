@@ -31,6 +31,12 @@ const refUrl = () => {
     return 'file://' + t; } catch (_) { return null; }
 };
 
+/* v69.8 集成：去掉全部 v69.8 新字段（col.syl / grace.slash / mea.tempos / col.tieSlur / song.voxClefOct / voxTransp / rowNames / voxShort）＝老谱 */
+const STRIP698 = s0 => { const s = JSON.parse(JSON.stringify(s0)); ['voxClefOct', 'voxTransp', 'rowNames', 'voxShort'].forEach(k => delete s[k]);
+  (s.measures || []).forEach(m => { delete m.tempos; [m.voxes, m.tabs].forEach(R => (R || []).forEach(cs => (cs || []).forEach(c => { if (!c) return; delete c.syl; delete c.tieSlur;
+    ['grace', 'graceA'].forEach(k => { if (c[k] && typeof c[k] === 'object') delete c[k].slash; }); }))); });
+  return s; };
+
 const HELP = () => {
   window.SF_PLAYWAIT = false;
   try { localStorage.setItem('musetab-humanize', 'off'); } catch (_) {}
@@ -136,7 +142,8 @@ const FIX_S = XHEAD
       else {
         const A = await open(b), B = await open(b, { url: RU });
         const P = await EV(A.pg, () => PRESETS.map((p, i) => ({ name: '预设' + i + '·' + (p.name || ''), song: p.make() })));
-        const ALL = P.concat(LIB.map(x => ({ name: '曲库·' + (x.data.title || x.id), song: x.data })));
+        /* v69.8 集成迁移：曲库 seed 已重建（带 rowNames / syl / tempos / tieSlur / 长倚音），对拍前去掉全部 v69.8 新字段＝还原成「老谱」 */
+        const ALL = P.concat(LIB.map(x => ({ name: '曲库·' + (x.data.title || x.id), song: STRIP698(x.data) })));
         /* 每份谱有没有「播放会变」的记号（按规格 §7：跳音 / 延长号 / 渐强渐弱 / 踏板 / 重音类） */
         const cats = await EV(A.pg, L => L.map(x => { const c = { ferm: 0, stacc: 0, accent: 0, ped: 0, ramp: 0, longGrace: 0, tempos: 0, tieSlur: 0 };
           (x.song.measures || []).forEach(m => { if (m.tempos) c.tempos += m.tempos.length;
@@ -160,12 +167,15 @@ const FIX_S = XHEAD
           else s = s.replace(/<text x="[^"]*" y="[^"]*" font-size="12.5" font-weight="700" fill="var\(--ink\)">(<tspan[^>]*>[^<]*<\/tspan>　)?[♩♪][.]?=\d+<\/text>/, '')
             .replace(/(<rect x="[^"]*" y="[^"]*" width="[^"]*" height="18(\.0)?" fill="transparent" data-hd="tempo"[^>]*>(<title>[^<]*<\/title>)?<\/rect>)+/g, '');
           return s; };
-        const badS = [], e8 = [];
-        ALL.forEach((x, i) => { if (!pure[i]) { if (offA[i] !== offB[i]) badS.push(x.name); return; }
+        const badS = [], e8 = [], t9 = [];
+        /* v69.8 集成迁移：带五线谱倚音的谱另有 A 组 T9（按时值画符尾 / 符杠，规格 §7 已拍板）——放行并列出 */
+        const stGr = await EV(A.pg, L => L.map(x => (x.song.voxVoices || []).some((_, vi) => isStaffNota((x.song.voxNotations || [])[vi]) && (x.song.measures || []).some(m => ((m.voxes || [])[vi] || []).some(c => c && (c.grace || c.graceA))))), ALL);
+        ALL.forEach((x, i) => { if (offA[i] === offB[i]) return; if (stGr[i]) { t9.push(x.name); return; }
+          if (!pure[i]) { badS.push(x.name); return; }
           const a = E8strip(offA[i], true), bb = E8strip(offB[i], false);
           if (a === bb) e8.push(x.name); else badS.push(x.name + '（纯五线谱 · 去掉 E8 后仍不同）'); });
-        T(!badS.length, 'Z2 离屏谱面：非纯五线谱 ' + pure.filter(v => !v).length + ' 份与基线逐字节相同；纯五线谱 ' + pure.filter(Boolean).length + ' 份只差 E8（页头 ♩= → 首行谱表上方）',
-          badS.join('、') || ('E8 生效：' + e8.join('、')));
+        T(!badS.length, 'Z2 离屏谱面：非纯五线谱 ' + pure.filter(v => !v).length + ' 份与基线逐字节相同；纯五线谱 ' + pure.filter(Boolean).length + ' 份只差 E8（页头 ♩= → 首行谱表上方）；带五线谱倚音的按 T9 放行',
+          badS.join('、') || ('E8 生效：' + e8.join('、') + '｜T9 放行：' + t9.join('、')));
         /* 播放事件 / MIDI：没有「会变」记号的谱逐条 / 逐字节相同；有的列出类别与变化条数 */
         const KEYS = ['ferm', 'stacc', 'accent', 'ped', 'ramp', 'longGrace', 'tempos', 'tieSlur'];
         const plA = [], plB = [], mA = [], mB = [];

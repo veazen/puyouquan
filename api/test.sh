@@ -337,7 +337,9 @@ LIBSSR=$(curl -s http://127.0.0.1:3199/pub/lib-os-lc6389103)
 chk 曲库谱落地页写作曲 '舒伯特 作曲 · 谱友圈官方 制谱' "$LIBSSR"
 nchk 曲库谱落地页不把作曲家写成演唱 '舒伯特 演唱' "$LIBSSR"
 chk 曲库谱JSON-LD作曲者是作曲家 '"composer":{"@type":"Person","name":"舒伯特"}' "$LIBSSR"
-chk 西文歌词节选按音节隔开 'A ve Ma ri a' "$LIBSSR"
+# v69.8（复核 T10）曲库重建后带 col.syl：同词音节（连字符位）不补空格——「A-ve Ma-ri-a」节选成「Ave Maria」（此前按音节隔开「A ve Ma ri a」）
+chk 西文歌词节选按词连写 'Ave Maria' "$LIBSSR"
+nchk 西文歌词节选不再按音节隔开 'A ve Ma ri a' "$LIBSSR"
 chk 按作曲家搜得到曲库谱 '"id":"lib-os-lc6389103"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E8%88%92%E4%BC%AF%E7%89%B9')"
 chk 更新通过后署名取审核时昵称 '"author":"改过的昵称"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 更新通过后无未发布修改 '"pub_dirty":0' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"

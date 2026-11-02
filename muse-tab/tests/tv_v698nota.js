@@ -93,6 +93,32 @@ const FX_GTR = MX([{ name: 'Voice', notes: [['C', 5], ['D', 5], ['E', 5], ['C', 
   { name: 'Classical Guitar', tr: '<transpose><diatonic>0</diatonic><chromatic>0</chromatic><octave-change>-1</octave-change></transpose>', notes: [['E', 4], ['G', 4], ['B', 4], ['E', 4]] }]);
 const FX_HIDE = MX([{ name: 'Soprano', hide: true, notes: [['C', 5], ['D', 5], ['E', 5], ['C', 5]] }, { name: 'Alto', hide: true, notes: [['C', 4], ['D', 4], ['E', 4], ['C', 4]] }]);
 
+/* v69.8 集成：去掉全部 v69.8 新字段（col.syl / grace.slash / mea.tempos / col.tieSlur / song.voxClefOct / voxTransp / rowNames / voxShort）＝老谱 */
+const STRIP698 = s0 => { const s = JSON.parse(JSON.stringify(s0)); ['voxClefOct', 'voxTransp', 'rowNames', 'voxShort'].forEach(k => delete s[k]);
+  (s.measures || []).forEach(m => { delete m.tempos; [m.voxes, m.tabs].forEach(R => (R || []).forEach(cs => (cs || []).forEach(c => { if (!c) return; delete c.syl; delete c.tieSlur;
+    ['grace', 'graceA'].forEach(k => { if (c[k] && typeof c[k] === 'object') delete c[k].slash; }); }))); });
+  return s; };
+/* 样本特征：pure＝纯五线谱（E8 生效）· stGr＝五线谱行有倚音（T9）· f3＝带跳音 / 重音 / 延长号 / 踏板 / 渐强渐弱（F3 播放 / MIDI 变化）——同 tv_v698play 的分类 */
+const STAFFN = n => n === 'staff' || n === 'bass' || n === 'alto';   /* 同编辑器 isStaffNota */
+const FEAT698 = s => { const vv = s.voxVoices || [], vn = s.voxNotations || [], du = s.voxDual || [];
+  const pure = !(s.tabVoices || []).length && vv.length > 0 && vv.every((_, i) => STAFFN(vn[i]) && !du[i]);
+  let stGr = false, f3 = false;
+  (s.measures || []).forEach(m => { (m.voxes || []).forEach((cs, vi) => (cs || []).forEach(c => { if (!c) return;
+    if (STAFFN(vn[vi]) && (c.grace || c.graceA)) stGr = true;
+    if (c.ferm || c.ped || ['stacc', 'staccatissimo', 'accent', 'marcato'].includes(c.artic) || (c.dyn && /^(<|>|cresc|dim|decresc)/.test(String(c.dyn)))) f3 = true; }));
+    (m.tabs || []).forEach(cs => (cs || []).forEach(c => { if (c && c.ferm) f3 = true; })); });
+  return { pure, stGr, f3 }; };
+/* E8 剥离（与 tv_v698play Z2 同一套正则）：cur＝本页（首行谱表上方的速度记号 + 热区），否则＝基线页（页头 ♩= 文本 + 热区） */
+const E8STRIP = (h, cur) => { let s = String(h);
+  if (cur) s = s.replace(/<text x="[^"]*" y="[^"]*" font-size="12.5" font-style="italic" font-weight="700" font-family="Georgia,serif" fill="var\(--ink\)">[^<]*<\/text>/, '')
+    .replace(/<path d="[^"]*" transform="translate\([^)]*\) scale\(4\.300\)" fill="var\(--ink\)"><\/path>/g, '')
+    .replace(/<line x1="[^"]*" y1="[^"]*" x2="[^"]*" y2="[^"]*" stroke="var\(--ink\)" stroke-width="0\.95"><\/line>/g, '')
+    .replace(/<text x="[^"]*" y="[^"]*" font-size="12.5" font-weight="700" fill="var\(--ink\)">= \d+<\/text>/g, '')
+    .replace(/<rect x="[^"]*" y="[^"]*" width="[^"]*" height="19" fill="transparent" data-hd="tempo"[^>]*>(<title>[^<]*<\/title>)?<\/rect>/, '');
+  else s = s.replace(/<text x="[^"]*" y="[^"]*" font-size="12.5" font-weight="700" fill="var\(--ink\)">(<tspan[^>]*>[^<]*<\/tspan>　)?[♩♪][.]?=\d+<\/text>/, '')
+    .replace(/(<rect x="[^"]*" y="[^"]*" width="[^"]*" height="18(\.0)?" fill="transparent" data-hd="tempo"[^>]*>(<title>[^<]*<\/title>)?<\/rect>)+/g, '');
+  return s; };
+
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   const allErrs = [];
@@ -316,18 +342,27 @@ const FX_HIDE = MX([{ name: 'Soprano', hide: true, notes: [['C', 5], ['D', 5], [
       else {
         const N = await open(b), R = await open(b, { url: ru });
         const presets = await EV(N.pg, () => PRESETS.map((p, i) => ({ name: '预设' + i + '·' + p.name, song: p.make() })));
-        const samples = presets.concat(GC.libSamples(), GC.stressSamples());
+        /* v69.8 集成迁移：曲库 seed 已重建（带 rowNames / syl / tempos / tieSlur / 长倚音），对拍前去掉全部 v69.8 新字段＝还原成「老谱」 */
+        const samples = presets.concat(GC.libSamples().map(x => Object.assign({}, x, { song: STRIP698(x.song) })), GC.stressSamples());
         const run = async (pg, list) => EV(pg, L => L.map(x => { const h = __off(x.song); let xml = null, mid = null;
           try { xml = __xml(migrate(JSON.parse(JSON.stringify(x.song)))); } catch (e) { xml = 'ERR ' + e.message; }
           try { mid = __midiB(migrate(JSON.parse(JSON.stringify(x.song)))); } catch (e) { mid = 'ERR ' + e.message; }
           return { h, xml, mid }; }), list.map(x => ({ song: x.song })));
         if (want('Z')) {
           const a = await run(N.pg, samples), r = await run(R.pg, samples);
-          const bad = { h: [], xml: [], mid: [] };
-          samples.forEach((s, i) => { ['h', 'xml', 'mid'].forEach(k => { if (!a[i] || !r[i] || a[i][k] !== r[i][k]) bad[k].push(s.name); }); });
-          T(!bad.h.length, 'Z1 老谱离屏谱面与 ' + REF_COMMIT + ' 逐字节相同（16 预设 + 曲库 10 首 + 压力小样，共 ' + samples.length + ' 份）', J(bad.h.slice(0, 6)));
+          /* v69.8 集成迁移：四组合并后，别组已拍板的观感 / 听感变化（规格 §7）按类放行、逐项列出——
+             谱面：纯五线谱去掉 E8（B 组：页头 ♩= → 首行谱表上方，两边用 tv_v698play 同一套正则剥掉）后须相同；带五线谱倚音的放行（A 组 T9 按时值画符尾 / 符杠）；
+             MIDI：带跳音 / 重音 / 延长号 / 踏板 / 渐强渐弱的放行（B 组 F3）；MusicXML 一律逐字节相同。其余样本仍须与 cd08ca0 逐字节相同（C 组本身零差异） */
+          const bad = { h: [], xml: [], mid: [] }, allow = { e8: [], t9: [], f3: [] };
+          samples.forEach((s, i) => { if (!a[i] || !r[i]) { bad.h.push(s.name); return; }
+            const ft = FEAT698(s.song);
+            if (a[i].h !== r[i].h) { if (ft.stGr) allow.t9.push(s.name); else if (ft.pure && E8STRIP(a[i].h, true) === E8STRIP(r[i].h, false)) allow.e8.push(s.name); else bad.h.push(s.name); }
+            if (a[i].xml !== r[i].xml) bad.xml.push(s.name);
+            if (a[i].mid !== r[i].mid) { if (ft.f3) allow.f3.push(s.name); else bad.mid.push(s.name); } });
+          console.log('ℹ️ Z 放行（别组拍板的变化）：E8 ' + allow.e8.length + ' 份 ' + J(allow.e8) + '；T9 ' + allow.t9.length + ' 份 ' + J(allow.t9) + '；F3（MIDI）' + allow.f3.length + ' 份 ' + J(allow.f3));
+          T(!bad.h.length, 'Z1 老谱离屏谱面与 ' + REF_COMMIT + ' 逐字节相同（16 预设 + 曲库 10 首去掉新字段 + 压力小样，共 ' + samples.length + ' 份；E8 / T9 按类放行）', J(bad.h.slice(0, 6)));
           T(!bad.xml.length, 'Z2 老谱 MusicXML 导出与 ' + REF_COMMIT + ' 逐字节相同', J(bad.xml.slice(0, 6)));
-          T(!bad.mid.length, 'Z3 老谱 MIDI 与 ' + REF_COMMIT + ' 逐字节相同', J(bad.mid.slice(0, 6)));
+          T(!bad.mid.length, 'Z3 老谱 MIDI 与 ' + REF_COMMIT + ' 逐字节相同（F3 记号按类放行）', J(bad.mid.slice(0, 6)));
         }
         if (want('R')) {
           /* R4 新建谱去掉新字段（rowNames / voxClefOct）后离屏谱面与 cd08ca0 新建的同一首（去掉同样字段）逐字节相同；编辑器 #score 同 */
@@ -335,8 +370,10 @@ const FX_HIDE = MX([{ name: 'Soprano', hide: true, notes: [['C', 5], ['D', 5], [
           const mk = (pg) => EV(pg, K => K.map(([k, o]) => { const s = NWB.build(k, Object.assign({ title: '对拍', key: 'C', nMea: 12 }, o));
             delete s.rowNames; delete s.voxClefOct; delete s.voxShort; delete s.voxTransp; return { off: __off(s), j: JSON.stringify(s) }; }), kinds);
           const a = await mk(N.pg), r = await mk(R.pg);
-          T(a.length === r.length && a.every((x, i) => x.off === r[i].off && x.j === r[i].j), 'R4 新建谱关掉声部名 / 去掉八度谱号后与 ' + REF_COMMIT + ' 逐字节相同（四部合唱 / 旋律＋钢琴 / 对照四部 / 二部重奏）',
-            J(a.map((x, i) => x.off === r[i].off && x.j === r[i].j)));
+          /* v69.8 集成迁移：新建的纯五线谱（四部合唱 / 旋律＋钢琴 / 二部重奏）页头速度按 E8 挪到首行谱表上方（B 组）——两边剥掉 E8 再比；对照四部（含简谱行）不剥 */
+          const eqR = (x, i) => x.j === r[i].j && (x.off === r[i].off || (FEAT698(JSON.parse(x.j)).pure && E8STRIP(x.off, true) === E8STRIP(r[i].off, false)));
+          T(a.length === r.length && a.every(eqR), 'R4 新建谱关掉声部名 / 去掉八度谱号后与 ' + REF_COMMIT + ' 逐字节相同（四部合唱 / 旋律＋钢琴 / 对照四部 / 二部重奏；纯五线谱剥掉 E8 后比）',
+            J(a.map((x, i) => [x.off === r[i].off, x.j === r[i].j, eqR(x, i)])));
         }
         allErrs.push(...N.errs); await N.close(); await R.close();
       }

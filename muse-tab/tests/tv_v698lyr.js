@@ -9,7 +9,7 @@
    L5 智能填词（两外壳）：预载拼回「Ma-ri-a love _ me」，原样「填入」song 逐字节不变、不进撤销栈；加一个空格再填 syl 不变；新填「Stil-le」写位 1
    L6 歌词浮条（两外壳）：后移 / 前移 / 删除时 syl 跟字走，一步撤销
    L7 落地页节选（api/server.js lyricExcerpt，源码取函数求值）：「A-ve Ma-ri-a」→「Ave Maria」；无 syl 的老数据与此前相同；只认同一声部、坏 syl 不抛错
-   L8 老谱零变化：16 预设 + 曲库 10 首没有 syl / slash 键、刻版无连字符 / 延长线、导出全 single、倚音全 slash="yes"；
+   L8 老谱零变化：16 预设没有 syl / slash 键、刻版无连字符 / 延长线、导出全 single、倚音全 slash="yes"（v69.8 集成：曲库 seed 已重建，改由 L8c 核记数 461 / 19 / 11）；
       设 V698_BASE＝基线 index.html（如 git show cd08ca0）时另与基线逐字节对拍：谱面（带五线谱倚音的谱按 T9 放行，列名）与 MusicXML 导出
    G1 导入 <grace/> / slash="no" → slash:false，slash="yes" → 无键 · G2 导出往返 · G3 刻版：长倚音无斜线、短倚音 1 条；单个十六分倚音带 flag16thUp、
       两音十六分 2 道符杠且符干够到符杠（修前符尾 0 / 符杠 1）· G4 倚音弹窗「短倚音 / 长倚音」（两外壳，点谱面倚音热区打开）写入 / 删除 slash、一步撤销、改时值不丢
@@ -338,8 +338,15 @@ const FIX = '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="4.0"
         lib.forEach(({ t, d }) => one(t, migrate(JSON.parse(d))));
         return out; };
       const cur = await EV(pg, SNAP, lib);
-      const ok = Array.isArray(cur) && cur.length === 26 && cur.every(x => !x.key && !x.conn && !x.ext && !x.nsy && x.grOk);
-      T(ok, 'L8a 16 预设 + 曲库 10 首：没有 syl / slash 键、刻版无连字符 / 延长线、导出全写 single 无 <extend>、倚音全写 slash="yes"', Array.isArray(cur) ? J(cur.filter(x => x.key || x.conn || x.ext || x.nsy || !x.grOk).map(x => x.nm)) : J(cur));
+      /* v69.8 集成迁移：曲库 seed 已按本组导入重建（规格 §6 ②），曲库 10 首不再是「老谱」——L8a 只管 16 预设；曲库改由 L8c 核重建后的记数（复核 461 / 19 / 11） */
+      const pre = Array.isArray(cur) ? cur.slice(0, 16) : cur;
+      const ok = Array.isArray(cur) && cur.length === 26 && pre.every(x => !x.key && !x.conn && !x.ext && !x.nsy && x.grOk);
+      T(ok, 'L8a 16 预设：没有 syl / slash 键、刻版无连字符 / 延长线、导出全写 single 无 <extend>、倚音全写 slash="yes"', Array.isArray(cur) ? J(pre.filter(x => x.key || x.conn || x.ext || x.nsy || !x.grOk).map(x => x.nm)) : J(cur));
+      { let hy = 0, ex = 0, lg = 0; lib.forEach(({ d }) => JSON.parse(d).measures.forEach(m => (m.voxes || []).forEach(r => (r || []).forEach(c => { if (!c) return;
+          (c.syl || []).forEach(v => { if (v & 1) hy++; if (v & 2) ex++; }); if (c.grace && c.grace.slash === false) lg += (c.grace.notes || []).length || 1; }))));
+        const L = Array.isArray(cur) ? cur.slice(16) : [], conn = L.reduce((n, x) => n + x.conn, 0), nsy = L.reduce((n, x) => n + x.nsy, 0);
+        T(hy === 461 && ex === 19 && lg === 11 && conn > 400 && nsy > 400 && L.every(x => x.grOk || /<grace\/>/.test(x.xml)),
+          'L8c 曲库重建后（seed）：连字符位 461、延长线位 19、长倚音 11 个（复核记数），刻版画出连字符 / 延长线、导出写 begin / middle / end', J({ hy, ex, lg, conn, nsy })); }
       if (BASE && Array.isArray(cur)) {
         const R = await open(b, { url: BASE }); const ref = await EV(R.pg, SNAP, lib); await R.ctx.close();
         if (Array.isArray(ref) && ref.length === cur.length) {

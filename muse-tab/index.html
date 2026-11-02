@@ -5890,9 +5890,11 @@ function grpRowName(names){
   return p || ns[0] || '';
 }
 /* 名字放进限宽 maxW（11 号起，放不下缩字号到 8，仍放不下截断加省略号）：{t, fs, w} */
+/* 首行声部名量宽：按实际继承的 --font-ui 量（v69.8 集成；此前按 sans-serif 量再 ×1.04 估，装了别的无衬线体的机器上照样差 5%）——量的就是画的字体，不再另加余量 */
+function rowNameW(t, px){ return headTextW(t, px, 'uiF'); }
 function rowNameFit(t, maxW){
   t=String(t||''); if(!t) return null;
-  const W=(x, px)=>headTextW(x, px, 'ui')*1.04;
+  const W=rowNameW;
   let w=W(t, 11); if(w<=maxW) return {t, fs:11, w};
   const fs=Math.floor(110*maxW/w)/10; if(fs>=8) return {t, fs, w:W(t, fs)};
   let a=Array.from(t); while(a.length>1 && W(a.join('')+'…', 8)>maxW) a.pop();
@@ -5921,9 +5923,19 @@ function rowNamesPlan0(s){
      放不下才缩进（ind＝超出的部分）；续行按简称算——简称一般放得进页边距，续行不变窄。手机窄屏页边距 12：全部靠缩进 */
   const RN_PAD = 20;
   let ind0=0, ind1=0;
-  units.forEach(u=>{ const gap = u.type==='brace'? 17 : u.type==='bracket'? 13 : 6;
+  const gapOf = u=> u.type==='brace'? 17 : u.type==='bracket'? 13 : 6;
+  units.forEach(u=>{ const gap = gapOf(u);
     u.F=rowNameFit(u.f, maxW); u.S=rowNameFit(u.sh, maxW);
     if(u.F) ind0=Math.max(ind0, u.F.w+gap+RN_PAD-MARGIN); if(u.S) ind1=Math.max(ind1, u.S.w+gap+RN_PAD-MARGIN); });
+  /* v69.8 集成（续行不变窄）：简称在 20px 规则下放不进原页边距（「Pno.」带花括号、「Wom.」带方括号，随字体差 5–10px）时，
+     续行先改用 RN_PAD_S 16（≈3.9mm）并把本谱全部简称统一缩到同一个字号（≥9；DejaVu Sans 这类宽字体下「Wom.」约 9.3）放进页边距，仍放不下才照旧缩进。
+     原因：曲库每首的续行都缩进 5–10px，夏威夷骊歌因此断行多出只有 1 小节的末行（+1～2 页，tv_v698int I6）；
+     首系统全称照旧 20px。只在开着首行名、且简称放不下时生效，其余谱逐字节不变 */
+  if(ind1>0){ const RN_PAD_S = 16; let fsS = 11;
+    units.forEach(u=>{ if(!u.S) return; const room = MARGIN-gapOf(u)-RN_PAD_S-0.5; if(u.S.w>room) fsS=Math.min(fsS, room>0? Math.floor(10*u.S.fs*room/u.S.w)/10 : 0); });
+    if(fsS>=9){ let i2=0;
+      const S2 = units.map(u=>{ if(!u.S) return null; const s2 = u.S.fs>fsS? {t:u.S.t, fs:fsS, w:rowNameW(u.S.t, fsS)} : u.S; i2=Math.max(i2, s2.w+gapOf(u)+RN_PAD_S-MARGIN); return s2; });
+      if(i2<=0){ units.forEach((u, k)=>{ if(S2[k]) u.S=S2[k]; }); ind1=0; } } }
   return {units, jp, ind0:Math.max(0, Math.ceil(ind0)), ind1:Math.max(0, Math.ceil(ind1))};
 }
 /* 页头文字实测宽度（canvas measureText，字体取 CSS 令牌的实际字体栈）；无 canvas 时按字符类估算 */
@@ -5932,7 +5944,9 @@ function headTextW(t, px, kind){
   const k=kind+'|'+px+'|'+t; if(HEAD_TW[k]!=null) return HEAD_TW[k];
   let w=0;
   try{
-    const fam=(getComputedStyle(document.documentElement).getPropertyValue(kind==='num'?'--font-num':'--font')||'').trim()||'sans-serif';
+    /* v69.8 集成：'uiF'＝按谱面文字实际继承的界面字体（--font-ui）量——首行声部名（<text> 不带 font-family、继承 body 的 --font-ui）专用；
+       'ui' 照旧读未定义的 --font、落到 sans-serif（页头老口径不动）：两者在装了不同无衬线体的机器上差 5% 上下，首行名左缘离纸边的 20px 会被吃掉 */
+    const fam=(getComputedStyle(document.documentElement).getPropertyValue(kind==='num'?'--font-num':kind==='uiF'?'--font-ui':'--font')||'').trim()||'sans-serif';
     const c=headTextW.c||(headTextW.c=document.createElement('canvas').getContext('2d'));
     c.font=px+'px '+fam; w=c.measureText(t).width;
   }catch(_){}

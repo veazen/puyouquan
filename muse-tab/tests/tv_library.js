@@ -1,6 +1,7 @@
 'use strict';
 /* v69.3 曲库官方公版谱（deploy/library/ → api/seed-library.json，服务端 seedLibrary 补种）：
-   L1  node deploy/build-library.js --check：每首过质量门（音高逐小节一致、时值无误、不丢声部），且与已提交的 seed-library.json 逐字节相同
+   L1  node deploy/build-library.js --check：每首过质量门（音高逐小节一致、时值无误、不丢声部；v69.8 起另有 ⑥ 歌词音节 / 延长线、⑦ 曲中速度点、⑧ 移调 / 八度谱号往返），
+       且与已提交的 seed-library.json 逐字节相同
        （导入器改动让曲库结果变了 → 红，提示重新生成并复核）
    L2  每首在编辑器里打开：#score 画出、谱名与谱类合理（钢琴伴奏 / 合唱）、曲名 / 作曲 / 作词 / 制谱署名都在
    L3  每首导出的 MusicXML 过 MusicXML 4.0 官方 XSD（fixtures/xsd/）

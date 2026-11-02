@@ -390,7 +390,9 @@ const refUrl = () => {
             nearC: c.near.filter(p => p.a.cls !== 'hairpin' && p.b.cls !== 'hairpin').map(p => p.cat + '@m' + p.m).slice(0, 8) };
         }, ave);
         /* 旧外壳纸面窄（行宽 564，三个版本都是 17 行 9 页、没有要轻压的行）：只打印，几何两项照样断言 */
-        if (shell === 'flow') T(!r.err && r.pages <= 7 && r.rows === 13 && r.sq >= 1, 'L1a 编辑器' + sx + '圣母颂：刚杆超行宽 ≤2% 的行轻压弹性空白 → 13 行 7 页（合并版 15 行 8 页；v69.6 13 行 7 页）', J({ pages: r.pages, rows: r.rows, sq: r.sq, err: r.err }));
+        /* v69.8 迁移（C 组 E5 首行声部名）：曲库重建后 rowNames:1，首系统左缘按需加宽写全称「Singstimme / Pianoforte」，首行可用宽变窄 → 13→14 行；
+           页数仍 ≤7（L2 页数不多于基线照样断言） */
+        if (shell === 'flow') T(!r.err && r.pages <= 7 && r.rows === 14 && r.sq >= 1, 'L1a 编辑器' + sx + '圣母颂：刚杆超行宽 ≤2% 的行轻压弹性空白 → 14 行 ≤7 页（v69.8 首行声部名 13→14 行；合并版 15 行 8 页；v69.6 13 行 7 页）', J({ pages: r.pages, rows: r.rows, sq: r.sq, err: r.err }));
         else console.log('ℹ️ L1a 编辑器' + sx + '圣母颂（不断言）：' + J({ pages: r.pages, rows: r.rows, sq: r.sq }));
         T(!r.err && r.pairs > 500 && !r.nBad, 'L1b 编辑器' + sx + '圣母颂全部行：五线谱声部相邻两列墨迹（临时记号栈 / 错位符头 / 加线 / 附点 / 符干）净距仍 ≥1.5（B 组净距没被压穿）', J({ pairs: r.pairs, nBad: r.nBad, bad: r.bad }));
         T(!r.err && !r.pairsC.length && !r.nearC.length, 'L1c 编辑器' + sx + '圣母颂 #score 普查：记号 / 墨迹相交 0 处（圆滑线 C17 不计）、记号对墨迹净空 ≥1.5', J({ pairs: r.pairsC, near: r.nearC }));
@@ -404,9 +406,18 @@ const refUrl = () => {
           for (const s of LIB) out.push(await EV(X.pg, so => { __ld(so); return document.querySelectorAll('#score .pagebg').length; }, s.song));
           allErrs.push(...X.errs); await X.close(); return out; };
         const now = await cnt(URL0), ref = await cnt(RU);
-        const rows = LIB.map((s, i) => s.name.replace(/（.*/, '') + ' ' + ref[i] + '→' + now[i]);
-        const worse = LIB.filter((s, i) => !(now[i] <= ref[i])).map(s => s.name);
-        T(LIB.length === 10 && !worse.length, 'L2 曲库 10 首编辑器（默认新外壳）页数不多于 v69.6（' + REF_COMMIT + '）', rows.join('；') + (worse.length ? '｜多了：' + worse.join('、') : ''));
+        /* v69.8 集成迁移：曲库重建后带歌词音节 col.syl——A 组按规格 §3.1 给带连字符的音节右侧多留 LYR_HY（6px）保证连字符空隙。
+           夏威夷骊歌（23 小节、四个有词声部）在 DejaVu Sans 一类宽字体下（CI 的 ubuntu 字体）因此多出一个只有 1 小节的末行（7→8 页；断行 DP 末行不计代价的老规则），
+           本机 Inter 字体下仍 7 页。规格 §3.8 / §8 允许曲库页数 ±1、要求有意迁移写明：这里只给夏威夷骊歌 +1 页，且必须证明多出的页只来自连字符占位——
+           同一首去掉 col.syl 后页数不多于基线（首行声部名续行不再缩进，不贡献页数，见 tv_v698int I6）；其余 9 首照旧不多于基线 */
+        const SYL_OK = ['lib-os-lc6650166'];
+        const noSyl = await (async () => { const X = await open(b, { url: URL0 }); const out = [];
+          for (const s of LIB) out.push(SYL_OK.includes(s.id) ? await EV(X.pg, so => { so = JSON.parse(JSON.stringify(so)); so.measures.forEach(m => (m.voxes || []).forEach(r => (r || []).forEach(c => { if (c) delete c.syl; })));
+            __ld(so); return document.querySelectorAll('#score .pagebg').length; }, s.song) : null);
+          allErrs.push(...X.errs); await X.close(); return out; })();
+        const rows = LIB.map((s, i) => s.name.replace(/（.*/, '') + ' ' + ref[i] + '→' + now[i] + (noSyl[i] != null ? '（去掉 syl ' + noSyl[i] + '）' : ''));
+        const worse = LIB.filter((s, i) => !(now[i] <= ref[i] || (SYL_OK.includes(s.id) && now[i] <= ref[i] + 1 && noSyl[i] <= ref[i]))).map(s => s.name);
+        T(LIB.length === 10 && !worse.length, 'L2 曲库 10 首编辑器（默认新外壳）页数不多于 v69.6（' + REF_COMMIT + '）；夏威夷骊歌允许 +1 且去掉连字符音节后不多于基线（v69.8 有意迁移）', rows.join('；') + (worse.length ? '｜多了：' + worse.join('、') : ''));
         /* 旧外壳（兜底，纸面窄）只打印：合并版起城市 12→13 页（自然宽 +5% 后断行代价变了，不是刚杆放不下，轻压管不到） */
         const nowC = await cnt(URL0, 'classic'), refC = await cnt(RU, 'classic');
         console.log('ℹ️ L2 旧外壳页数（不断言）：' + LIB.map((s, i) => s.name.replace(/（.*/, '') + ' ' + refC[i] + '→' + nowC[i]).join('；'));

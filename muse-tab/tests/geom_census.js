@@ -21,7 +21,9 @@ const fs = require('fs');
 const path = require('path');
 
 /* ---------------- 类别 ---------------- */
-const MARK = ['ped', 'dyn', 'hairpin', 'dtext', 'tempo', 'expr', 'anno', 'ott', 'tup', 'mnum', 'fing', 'chord', 'lyr', 'lyrp', 'verse', 'ferm', 'artic', 'orn', 'breath', 'nav', 'gliss'];
+/* v69.8 集成：加 A 组歌词连字符 / 延长线（lyrhy / lyrext）与 C 组首行声部名（rowname）——此前这三类有 data-g 却不在表里、普查看不见它们；
+   B 组曲中速度沿用 tempo（avDefer 新族同类别）。加入后全部样本各类组仍 0 处（tv_v697col G / A / B 段） */
+const MARK = ['ped', 'dyn', 'hairpin', 'dtext', 'tempo', 'expr', 'anno', 'ott', 'tup', 'mnum', 'fing', 'chord', 'lyr', 'lyrp', 'verse', 'ferm', 'artic', 'orn', 'breath', 'nav', 'gliss', 'lyrhy', 'lyrext', 'rowname'];
 const INK = ['acc', 'head', 'stem', 'flag', 'beam', 'ledger', 'rest', 'dot', 'tie', 'grace', 'clef', 'clefm', 'keysig', 'tsig', 'brace', 'bracket', 'simile', 'trem'];
 /* 墨迹 × 墨迹：只算这些（any＝不论是否同一列；diff＝必须是不同列 / 不同声部，同列是设计上相接） */
 const INK_PAIRS = {
