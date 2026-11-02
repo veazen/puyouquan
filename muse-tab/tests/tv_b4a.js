@@ -37,8 +37,11 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
   T(r.dt === 'teach' && r.key === '1=G' && r.hz && r.mt && r.key2 === '1=A', 'T1 对照谱页头 1=X/拍号/调号热区，转调跟随', JSON.stringify(r));
 
   /* T2 */
+  /* v69.8 迁移：纯五线谱（关掉简谱行）首行上方多了整曲速度标记 ♩=N，它的符干也是一根短竖线——落在热区 rect[data-hd="tempo"] 里的不算小节线 */
   r = await EV(`(()=>{ const cnt=(dual)=>{ loadSong(mkTeach(dual)); render(); const svg=document.getElementById('score');
-      const vl=[...svg.querySelectorAll('line')].filter(l=>Math.abs(+l.getAttribute('x1')-+l.getAttribute('x2'))<0.01 && Math.abs(+l.getAttribute('y2')-+l.getAttribute('y1'))>8 && Math.abs(+l.getAttribute('y2')-+l.getAttribute('y1'))<40).length;
+      const tm=[...svg.querySelectorAll('rect[data-hd="tempo"]')].map(r=>[+r.getAttribute('x'), +r.getAttribute('y'), +r.getAttribute('width'), +r.getAttribute('height')]);
+      const inTm=l=>{ const x=+l.getAttribute('x1'), y=+l.getAttribute('y1'); return tm.some(([tx,ty,tw,th])=>x>=tx && x<=tx+tw && y>=ty && y<=ty+th); };
+      const vl=[...svg.querySelectorAll('line')].filter(l=>!inTm(l) && Math.abs(+l.getAttribute('x1')-+l.getAttribute('x2'))<0.01 && Math.abs(+l.getAttribute('y2')-+l.getAttribute('y1'))>8 && Math.abs(+l.getAttribute('y2')-+l.getAttribute('y1'))<40).length;
       const fills=[...svg.querySelectorAll('path')].filter(p=>{ const d=p.getAttribute('d')||''; return /Q/.test(d) && /Z\\s*$/.test(d.trim()); }).length;
       const tup=[...svg.querySelectorAll('text')].filter(t=>t.textContent==='3' && t.getAttribute('font-style')==='italic').length;
       return {vl, ties:fills, tup}; };

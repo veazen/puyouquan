@@ -301,7 +301,8 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
         T(d1.deg === 1 && J(d1.mid) === '[60,67]' && n6 === 0, 'HD6 ' + tag + '和弦列 E+G 上按 1：C+G，不同音的和音保留、不提示', J({ d1: d1.mid, n6 }));
         if (shell === 'flow') {
           /* RL：HD 各步不新增字段（列上的键都是既有字段） */
-          const OK = new Set(['dur', 'dotted', 'deg', 'acc', 'oct', 'lyrics', 'tie', 'adds', 'chord', 'dyn']);
+          /* v69.8 迁移：曲库重建后《圣母颂》歌词列自带 col.syl（歌词音节连字符，v69.8 可选字段）——HD1 那一列原本就有，不是重打数字新增的 */
+          const OK = new Set(['dur', 'dotted', 'deg', 'acc', 'oct', 'lyrics', 'tie', 'adds', 'chord', 'dyn', 'syl']);
           const ks = [c1, a1, j1, r1, s0, s1, d1].flatMap(c => c.keys.split(','));
           T(ks.every(k => OK.has(k) || /^(tup|tupM|grace|orn|art|ferm|slur|beam|stem|lyr|staffLine|chords|fing|tech|ottTo|dynTo|irr|keyTo)/.test(k)), 'RL1 重打数字后列上只有既有字段', J([...new Set(ks)]));
         }

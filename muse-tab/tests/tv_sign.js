@@ -323,9 +323,12 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
     const modeOff = fingMode === false;
     blurSel = true; render();
     const fEl = [...document.querySelectorAll('#score text')].filter(t2 => t2.getAttribute('font-size') === '8.5' && /^[1-5]$/.test(t2.textContent));
+    /* v69.8 迁移：纯五线谱首行上方的整曲速度标记（♩=N）也用 noteheadBlack——落在它的热区 rect[data-hd="tempo"] 里的不算谱面符头 */
+    const tmk = [...document.querySelectorAll('#score rect[data-hd="tempo"]')].map(r => ({x:+r.getAttribute('x'), y:+r.getAttribute('y'), w:+r.getAttribute('width'), h:+r.getAttribute('height')}));
     const heads = [...document.querySelectorAll('#score path')]
       .filter(p2 => p2.getAttribute('d') === SMUFL.noteheadBlack.d)
       .map(p2 => { const m = /translate\((-?[\d.]+),(-?[\d.]+)\)/.exec(p2.getAttribute('transform')); return {x:+m[1], y:+m[2]}; })
+      .filter(h => !tmk.some(t => h.x >= t.x && h.x <= t.x + t.w && h.y >= t.y && h.y <= t.y + t.h))
       .sort((a,b2)=>a.x-b2.x);
     const f1 = fEl.find(t2 => t2.textContent === '1');
     const aboveOk = f1 && heads[0] ? +f1.getAttribute('y') < heads[0].y - 4 : false;
