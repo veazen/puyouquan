@@ -442,7 +442,11 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
         T(okAll, 'JL1 曲库 10 首切简谱：行首声部名全部在左页边距内（不越出谱纸左缘、右端不过 oxH−4），以 oxH−6 右对齐' + sx, J(Array.isArray(r) ? r.filter(x => !(x.n > 0 && x.bad === 0 && x.anchor)).slice(0, 4) : r));
         if (shell === 'flow') {
           const av = Array.isArray(r) ? r[0].txt : [];
-          T(av.includes('Voice') && av.includes('右手') && av.includes('左手'), 'JL2 放不下时先用短名（Singstimme Voice → Voice、Pianoforte·右手 → 右手）', J(av));
+          /* v69.9 迁移（负责人 2026-11-02 拍板）：曲库构建把「Singstimme⏎Voice」只留原文名 → 圣母颂人声行写全称「Singstimme」（放得下、不再换短名）；
+             「放不下先用短名」这条改用同一可用宽（oxH−8＝MARGIN−8）直接喂原来的两行名验 */
+          const syn = await EV(A.pg, () => { const f = rowLabelFit('Singstimme\nVoice', MARGIN - 8), g = rowLabelFit('Singstimme Voice', MARGIN - 8); return [f && f.t, g && g.t]; });
+          T(av.includes('Singstimme') && av.includes('右手') && av.includes('左手') && J(syn) === J(['Voice', 'Voice']),
+            'JL2 放得下写全称（曲库圣母颂「Singstimme」）、放不下先用短名（Pianoforte·右手 → 右手；两行 / 多词名「Singstimme Voice」→ Voice）', J({ av, syn }));
         }
         const r3 = await EV(A.pg, () => { const s = createSong('piano', { title: '钢', beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }); s.voxNotations = []; s.voxVoices = ['钢琴·右手', '钢琴·左手']; __ld(s); blurSel = true; render();
           return [...document.querySelectorAll('#score text[data-rowlbl]')].map(t => t.textContent + '@' + t.getAttribute('font-size')); });
