@@ -563,6 +563,38 @@ chk 无词长笛＋钢琴落地页标题 '<title>长笛与钢琴 旋律＋钢琴
 # v67.6 埋点 create_stack（新建面板 / 新建 ▾ 建谱时与 create_song 同发）：白名单接受并入库
 J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"create_stack","meta":"pacc:JG:menu:pacc:0"}' >/dev/null
 chk 埋点create_stack入库 '"meta":"pacc:JG:menu:pacc:0"' "$(SQL "SELECT name,meta FROM events WHERE name='create_stack'")"
+# 分类升级 P0（方案 docs/design-2026-11-taxonomy §十四）：卡片带谱种字段（旧 type / typeLabel 照旧）· ?pz=&sub=&inst= 在全库筛（第 201 首起也筛得到）·
+# /api/pub/cats 计数（一级＝各二级之和、与列表同一个筛选函数）· 非法参数忽略 · 后台 create_stack 拆分 · ui_cmd 的 lib: 前缀只收白名单
+PL3=$(curl -s http://127.0.0.1:3199/api/pub/scores)
+chk 卡片带谱种·钢琴伴奏歌谱＝钢琴谱›弹唱也在简谱›歌曲 '"id":"kn_jg000001"[^}]*"type":"vocal","typeLabel":"钢琴伴奏歌谱","pz":"gangqin","sub":"tanchang","inst":"","also":\["jianpu.gequ"\],"price":0' "$PL3"
+chk 卡片带分面fx（放在末尾） '"id":"kn_jg000001"[^}]*"favs":0,"fx":{"inst":\["piano"\],"parts":1,"chord":false,"acc":true,' "$(sed 's/"cover":\[[^]]*\]//g' <<< "$PL3")"
+chk 卡片带谱种·纯伴奏＝钢琴谱›伴奏 '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴弹唱谱（纯伴奏）","pz":"gangqin","sub":"banzou"' "$PL3"
+chk 卡片带谱种·坏谱回落简谱›歌曲 '"id":"kn_bad00001"[^}]*"typeLabel":"曲谱","pz":"jianpu","sub":"gequ"' "$PL3"
+chk 按谱种筛全库（第201首起也筛得到、主谱种在前、各页不重不漏） 'ok' "$(node -e '
+(async()=>{ const g=async u=>(await fetch("http://127.0.0.1:3199"+u)).json(); const ids=[], segs=[]; let tot=0;
+  for(let p=0;p<20;p++){ const j=await g("/api/pub/scores?pz=jianpu&size=60&page="+p); tot=j.total; j.scores.forEach(s=>{ ids.push(s.id); segs.push(s.pz==="jianpu"?0:1); }); if(ids.length>=tot||!j.scores.length) break; }
+  const sorted=segs.every((v,i)=>!i||segs[i-1]<=v);
+  console.log(ids.includes("bulk00000xx") && tot>200 && ids.length===tot && new Set(ids).size===tot && sorted ? "ok" : JSON.stringify({tot,n:ids.length,u:new Set(ids).size,sorted,has:ids.includes("bulk00000xx")})); })();')"
+chk 谱种计数与列表一致（一级＝各二级之和） 'ok' "$(node -e '
+(async()=>{ const g=async u=>(await fetch("http://127.0.0.1:3199"+u)).json(); const c=await g("/api/pub/cats"), bad=[];
+  for(const [pz,o] of Object.entries(c.pz)){ const sum=Object.values(o.sub).reduce((a,b)=>a+b,0); if(sum!==o.n) bad.push(pz+" "+sum+"≠"+o.n);
+    const l=await g("/api/pub/scores?pz="+pz+"&size=1"); if(l.total!==o.n) bad.push(pz+" 列表 "+l.total+"≠计数 "+o.n);
+    for(const [sb,n] of Object.entries(o.sub)){ const l2=await g("/api/pub/scores?pz="+pz+"&sub="+sb+"&size=1"); if(l2.total!==n) bad.push(pz+"."+sb+" "+l2.total+"≠"+n); } }
+  console.log(!bad.length && c.total>200 && Object.keys(c.pz).join()==="jianpu,wuxian,gangqin,jita,uku,hechang,gongneng" ? "ok" : JSON.stringify(bad.slice(0,6))); })();')"
+chk 谱种计数带关键词 '"q":"钢琴伴奏歌","total":1' "$(curl -s 'http://127.0.0.1:3199/api/pub/cats?q=%E9%92%A2%E7%90%B4%E4%BC%B4%E5%A5%8F%E6%AD%8C')"
+nchk 非法谱种参数忽略（按无条件的最新列表） '"page"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?pz=constructor&sub=__proto__&inst=toString')"
+chk 乐器筛选只认乐器表 '"inst":"erhu","page":0' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?inst=erhu')"
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:pz:jianpu"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:sub:qiyue"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:inst:erhu"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:q2f:moli"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:pz:jianpu:x"}' >/dev/null
+J4 -X POST http://127.0.0.1:3199/api/events -d '{"name":"ui_cmd","meta":"lib:kw:moli"}' >/dev/null
+chk ui_cmd的lib前缀只收白名单 '^\[{"meta":"lib:pz:jianpu"},{"meta":"lib:sub:qiyue"},{"meta":"lib:inst:erhu"}\]$' "$(SQL "SELECT meta FROM events WHERE name='ui_cmd' AND meta LIKE 'lib:%' ORDER BY id")"
+OV2=$(J2 http://127.0.0.1:3199/api/admin/overview)
+chk 后台create_stack按用途谱行入口拆分 '"createStack":{"days":7,"n":1,"scene":{"pacc":{"n":1,"u":1}},"stack":{"JG":{"n":1,"u":1}},"entry":{"menu":{"n":1,"u":1}},"first":{"0":{"n":1,"u":1}}}' "$OV2"
+chk 后台谱库筛选点击 '"libCmd":\[{"k":"lib:' "$OV2"
+chk CLI统计带新建谱分布 '用途：pacc 1' "$(DB_PATH=$DIR/t.db node admin.js stats)"
 # v67.6 第二轮验收（修前红修后绿）：
 # S-1 顶层标量字段是对象（key / tempo / lyricLines 写成 {"toString":1}）：写侧拒收；库里已有的（旧数据 / 直接改库）读侧逐行兜底——
 #     谱库列表 / 搜索 / 收藏 / 落地页 / 封面都 200，坏谱自己那张卡回落默认（此前 String(d.key) 抛错整页 500）

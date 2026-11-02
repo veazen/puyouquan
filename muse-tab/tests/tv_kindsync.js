@@ -4,7 +4,8 @@
       编辑器 NWB.stackOf / kindOf / ctxOf、全局 isChoir / voxGroupsOf / voxHasLyrics / isPianoAccStack、docTypeLabel / docTypeLabelPub 都转调它
    K2 同一批谱（16 预设 + 14 种谱行组合 × 变体经 NWB.build + 11 个用途面板计划 + MusicXML 导入 7 份 × 6 种做法 + MIDI 导入 5 种模式
       + 换谱类产物 + 边界样本）：编辑器谱名 docTypeLabel＝服务端 nameOf(存储 JSON)、谱行一致；面板谱名＝建出来的谱名；预设原始 JSON（未 migrate）服务端名＝编辑器名
-   K3 真服务端（api/server.js + 临时库，语料全部上架）：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；type 字段（谱库分类）＝编辑器 docType（不改）
+   K3 真服务端（api/server.js + 临时库，语料全部上架）：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；type 字段（谱库分类）＝编辑器 docType（不改）；
+      分类升级 P0：两端的 docType 都读 PQ_KIND.docTypeOf（K1 探针），列表卡片的谱种 pz / sub / also＝编辑器同一份 pzOf
    K4 观看页（puku kanpu.html?pub=ID，真跳转）标题＝统一谱名；分享卡 PNG 右上角＝统一谱名；小程序分享 share＝「歌名 - 演唱者 · 统一谱名」，
       ≤44 字且长歌名截歌名不截谱名（小程序 score.js onMsg / onShareAppMessage 原样收下）
    K5 谱库卡片：官网首页卡片 .cc-type＝服务端 typeLabel（分类筛选仍按 docType）；编辑器谱友圈卡片线上＝typeLabel、本地演示谱＝按谱面现算
@@ -123,7 +124,7 @@ async function corpus(pg) {
   return pg.evaluate(({ XMLS, MID, MIDIS }) => {
     const out = [], J = s => JSON.parse(JSON.stringify(s));
     const add = (tag, s, extra) => {
-      try { const d = J(s); delete d.layout; delete d.id; out.push(Object.assign({ tag, d, name: docTypeLabel(s), stack: NWB.stackOf(s), dt: docType(s) }, extra || {})); }
+      try { const d = J(s); delete d.layout; delete d.id; const p = PQ_KIND.pzOf(s); out.push(Object.assign({ tag, d, name: docTypeLabel(s), stack: NWB.stackOf(s), dt: docType(s), pz: [p.pz + '.' + p.sub].concat(p.also).join() + '|' + p.inst }, extra || {})); }
       catch (e) { out.push({ tag, err: String(e && e.message || e) }); }
     };
     /* ① 16 预设（migrate 后）＋原始 JSON */
@@ -243,21 +244,22 @@ async function mkPage(b, url, opt) {
         if (typeof PQ_KIND === 'undefined') return { has: false };
         const src = f => String(f).replace(/\s+/g, ' ');
         /* 转调：用一份假谱打探各入口是否读 PQ_KIND（临时替换后恢复） */
-        const k0 = PQ_KIND.stackOf, n0 = PQ_KIND.nameOf, c0 = PQ_KIND.isChoir, g0 = PQ_KIND.groupsOf, a0 = PQ_KIND.isPianoAccStack, kn0 = PQ_KIND.kindName;
+        const k0 = PQ_KIND.stackOf, n0 = PQ_KIND.nameOf, c0 = PQ_KIND.isChoir, g0 = PQ_KIND.groupsOf, a0 = PQ_KIND.isPianoAccStack, kn0 = PQ_KIND.kindName, dt0 = PQ_KIND.docTypeOf;
         const hit = [];
         PQ_KIND.stackOf = () => (hit.push('stackOf'), 'C'); PQ_KIND.kindName = () => (hit.push('kindName'), '探针名'); PQ_KIND.nameOf = () => (hit.push('nameOf'), '探针名');
         PQ_KIND.isChoir = () => (hit.push('isChoir'), true); PQ_KIND.groupsOf = () => (hit.push('groupsOf'), []); PQ_KIND.isPianoAccStack = () => (hit.push('isPianoAccStack'), true);
+        PQ_KIND.docTypeOf = () => (hit.push('docTypeOf'), '探针类');   /* 分类升级 P0：编辑器 docType() 转调 PQ_KIND.docTypeOf */
         const s = { voxVoices: ['a'] };
-        const got = { st: NWB.stackOf(s), kn: NWB.kindOf('J', {}).name, lab: docTypeLabel(s), pub: docTypeLabelPub(s), ch: isChoir(s), gr: voxGroupsOf(s).length, acc: isPianoAccStack(s) };
-        Object.assign(PQ_KIND, { stackOf: k0, nameOf: n0, isChoir: c0, groupsOf: g0, isPianoAccStack: a0, kindName: kn0 });
+        const got = { st: NWB.stackOf(s), kn: NWB.kindOf('J', {}).name, lab: docTypeLabel(s), pub: docTypeLabelPub(s), ch: isChoir(s), gr: voxGroupsOf(s).length, acc: isPianoAccStack(s), dt: docType(s) };
+        Object.assign(PQ_KIND, { stackOf: k0, nameOf: n0, isChoir: c0, groupsOf: g0, isPianoAccStack: a0, kindName: kn0, docTypeOf: dt0 });
         return { has: true, keys: Object.keys(PQ_KIND).sort().join(), got, hit: [...new Set(hit)].sort().join(), fnSrc: src(docTypeLabelPub) };
       });
       await pg.close();
-      const SRV_ONLY = new Set(['viewOf', 'pubNameOf', 'sanitizeLike']);   /* 服务端专用（存储 JSON → 观看页看到的谱），不在共享段里 */
+      const SRV_ONLY = new Set(['viewOf', 'pubNameOf', 'sanitizeLike', 'pubKindOf']);   /* pubKindOf：分类升级 P0 卡片谱类字段一次算齐（服务端专用） */   /* 服务端专用（存储 JSON → 观看页看到的谱），不在共享段里 */
       const keysNode = Object.keys(KIND).filter(k => !SRV_ONLY.has(k)).sort().join();
       T(!!edBlock && edBlock === srvBlock && r.has && r.keys === keysNode
-        && r.got.st === 'C' && r.got.kn === '探针名' && r.got.lab === '探针名' && r.got.pub === '探针名' && r.got.ch === true && r.got.gr === 0 && r.got.acc === true,
-        'K1 统一谱名表只此一份：编辑器内联段＝api/kindname.js 逐字节、导出同一组函数；NWB.stackOf / kindOf、docTypeLabel / docTypeLabelPub、isChoir / voxGroupsOf / isPianoAccStack 都转调 PQ_KIND',
+        && r.got.st === 'C' && r.got.kn === '探针名' && r.got.lab === '探针名' && r.got.pub === '探针名' && r.got.ch === true && r.got.gr === 0 && r.got.acc === true && r.got.dt === '探针类',
+        'K1 统一谱名表只此一份：编辑器内联段＝api/kindname.js 逐字节、导出同一组函数；NWB.stackOf / kindOf、docTypeLabel / docTypeLabelPub、isChoir / voxGroupsOf / isPianoAccStack、docType（分类升级 P0）都转调 PQ_KIND',
         JSON.stringify({ same: !!edBlock && edBlock === srvBlock, has: r.has, keys: r.keys === keysNode, got: r.got, hit: r.hit }));
     });
 
@@ -305,6 +307,8 @@ async function mkPage(b, url, opt) {
         if (!s) { bad.push(x.id + ' 不在列表'); continue; }
         if (s.typeLabel !== x.name) bad.push(x.tag + ' 列表 typeLabel ' + s.typeLabel + ' ≠ ' + x.name);
         if (s.type !== x.dt) bad.push(x.tag + ' 列表 type ' + s.type + ' ≠ 编辑器 docType ' + x.dt);
+        const sp = [s.pz + '.' + s.sub].concat(s.also || []).join() + '|' + s.inst;   /* 分类升级 P0：卡片谱种＝编辑器 PQ_KIND.pzOf */
+        if (sp !== x.pz) bad.push(x.tag + ' 列表谱种 ' + sp + ' ≠ 编辑器 ' + x.pz);
       }
       /* SSR 落地页与 og 封面：抽 24 份（覆盖 14 种谱行） */
       const pick = []; const seen = new Set(); items.forEach(x => { if (!seen.has(x.stack) || pick.length < 24) { seen.add(x.stack); pick.push(x); } });
@@ -314,7 +318,7 @@ async function mkPage(b, url, opt) {
         if (t !== x.title + ' ' + x.name + ' - 谱友圈谱库') bad.push(x.tag + ' SSR 标题 ' + t);
         if (!cv.includes(x.name + ' · ')) bad.push(x.tag + ' 封面无谱名');
       }
-      T(sd.includes('seeded ' + (items.length + ADV.length + ADV2.length)) && bad.length === 0, 'K3 真服务端：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；谱类 type＝编辑器 docType（分类不改）',
+      T(sd.includes('seeded ' + (items.length + ADV.length + ADV2.length)) && bad.length === 0, 'K3 真服务端：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；谱类 type＝编辑器 docType（分类不改）；卡片谱种 pz / sub / also / inst＝编辑器 pzOf',
         JSON.stringify({ seeded: sd.trim().slice(0, 40), n: items.length, list: list.length, bad: bad.slice(0, 10) }));
     });
 

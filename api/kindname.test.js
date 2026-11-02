@@ -19,6 +19,11 @@ const CASES = [
   ['J 简谱歌谱', vox(['旋律'], [undefined], null, true), 'J', '简谱歌谱'],
   ['J 未填词也叫简谱歌谱', vox(['旋律'], [undefined]), 'J', '简谱歌谱'],
   ['J 二声部合唱（显式方括号）', vox(['女高', '女低'], [undefined, undefined], { voxGroups: [BR(0, 1)] }, true), 'J', '简谱合唱谱'],
+  /* 分类升级 P0（拍板 22 / 26，判法表 15a–15c）：简谱多行也看词与乐器——此前一律「简谱合唱谱」 */
+  ['J 二声部留了词位还没填词＝简谱合唱谱', vox(['女高', '女低'], [undefined, undefined], { voxGroups: [BR(0, 1)], lyricLines: 1 }), 'J', '简谱合唱谱'],
+  ['J 二声部无词、带乐器身份（古筝左右手）＝古筝谱（简谱）', vox(['右手', '左手'], [undefined, undefined], { instKey: 'guzheng' }), 'J', '古筝谱（简谱）'],
+  ['J 二声部无词无乐器＝简谱重奏谱', vox(['一', '二'], [undefined, undefined], { voxGroups: [BR(0, 1)] }), 'J', '简谱重奏谱'],
+  ['J 二声部有词又带乐器身份＝简谱合唱谱（有词先算合唱）', vox(['一', '二'], [undefined, undefined], { instKey: 'erhu' }, true), 'J', '简谱合唱谱'],
   ['J 二胡（instKey）', vox(['旋律'], [undefined], { instKey: 'erhu' }), 'J', '二胡谱（简谱）'],
   ['J instKey=piano 不算乐器谱', vox(['旋律'], [undefined], { instKey: 'piano' }, true), 'J', '简谱歌谱'],
   ['S 无词单行＝五线谱旋律（v67.6 前谱库叫器乐五线谱）', vox(['旋律'], ['staff']), 'S', '五线谱旋律'],
@@ -122,8 +127,9 @@ T('server.js 的 typeLabelOf 读统一谱名表（旧表 TYPE_FULL_SSR / TYPE_CN
   const m = /function typeLabelOf\(d\) \{([\s\S]*?)\n\}/.exec(src);
   assert.ok(m && /KIND\.pubNameOf\(/.test(m[1]), 'typeLabelOf 未读 KIND.pubNameOf（观看页口径的统一谱名）');
   assert.ok(!/const TYPE_(FULL|CN)_SSR\b/.test(src), '旧谱名表仍在');
-  /* 谱类（筛选维度）仍是 docTypeOf，拍板 4 不改 */
-  assert.ok(/type: safe\(\(\) => docTypeOf\(d\), 'vocal'\), typeLabel: typeLabelOf\(d\)/.test(src), '卡片 type 字段口径变了');
+  /* 分类升级 P0：谱类 type 改读统一谱名表 PQ_KIND.docTypeOf（服务端自己那份 isChoirOf / docTypeOf 删除）；卡片 type / typeLabel / 谱种 / 分面由 KIND.pubKindOf 一次算齐 */
+  assert.ok(!/function (isChoirOf|docTypeOf)\(/.test(src), '服务端仍有自己的谱类判定');
+  assert.ok(/const pk = safe\(\(\) => KIND\.pubKindOf\(d\), null\)/.test(src) && /const o = \{ type: pk\.type, typeLabel: pk\.typeLabel, pz: pk\.pz, sub: pk\.sub, inst: pk\.inst, also: pk\.also, fx: pk\.fx,/.test(src), '卡片谱类字段不是从 pubKindOf 来的');
   /* create_stack 进埋点白名单（客户端可报） */
   const ev = /const EVENT_CLIENT = \[([\s\S]*?)\];/.exec(src);
   assert.ok(ev && /'create_stack'/.test(ev[1]) && /'create_song'/.test(ev[1]), 'create_stack / create_song 不在白名单');
@@ -210,6 +216,93 @@ T('第二轮 seam-4 kindOf：五线谱重奏谱（S 多行无词）用器乐五�
   const m = /function kindOf\(k, ctx\)\{([\s\S]*?)\n  \}/.exec(html); assert.ok(m, '读不到 NWB.kindOf');
   assert.ok(/if\(k==='S' && nv>1 && !ctx\.lyr\) ic='type-instr';/.test(m[1]), '五线谱重奏谱仍是合唱谱图标');
   assert.ok(/\(k==='T'\|\|k==='JT'\|\|k==='ST'\) && uku\) ic='type-uku'/.test(m[1]), '尤克里里独奏谱仍是吉他独奏图标');
+});
+
+/* ---------- 分类升级 P0（方案 docs/design-2026-11-taxonomy §五 / §十四）：谱种规则单测（整张判法表、曲库、示例、不变式、真服务端见 muse-tab/tests/tv_taxonomy.js） ---------- */
+const PREV = require(path.join(ROOT, 'muse-tab/tests/fixtures/taxo_prev.js'));
+T('P0 谱种表 PZ：一级 7 个顺序固定、id / slug 唯一、按钮名 ≤4 字（文案预算）、二级 id 一级内唯一', () => {
+  assert.deepStrictEqual(K.PZ.map(p => p.id), ['jianpu', 'wuxian', 'gangqin', 'jita', 'uku', 'hechang', 'gongneng']);
+  assert.deepStrictEqual(K.PZ.map(p => p.name), ['简谱', '五线谱', '钢琴谱', '吉他谱', '尤克里里', '合唱谱', '功能谱']);
+  assert.strictEqual(new Set(K.PZ.map(p => p.slug)).size, 7);
+  K.PZ.forEach(p => { assert.ok([...p.name].length <= 4, p.name); assert.strictEqual(new Set(p.subs.map(x => x.id)).size, p.subs.length, p.id);
+    p.subs.forEach(x => { assert.ok([...x.name].length <= 4, x.name); assert.ok(/^[a-z]+$/.test(x.id), x.id); }); });
+  assert.ok(K.pzHas('jianpu') && K.pzHas('jianpu', 'qiyue') && K.pzHas('', 'duizhao') && K.pzHas('wuxian', 'chongzou'));
+  for (const [p, s] of [['jianpu', 'chongzou'], ['constructor'], ['__proto__'], ['', ''], ['', 'toString'], [null, null], ['gangqin', 'gequ']]) assert.ok(!K.pzHas(p, s), p + '/' + s);
+  assert.strictEqual(K.pzName('gangqin.tanchang'), '钢琴谱 › 弹唱'); assert.strictEqual(K.pzName('hechang.jianpu'), '合唱谱 › 简谱合唱'); assert.strictEqual(K.pzName('x.y'), '');
+});
+T('P0 乐器族 INST_FAM＝编辑器新建面板 NW_INSTS.fam（逐项），键与 INST 相同；INTENTS 11 个', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8');
+  const a = html.indexOf('const NW_INSTS=['), b = html.indexOf('];', a);
+  const ed = {}; for (const m of html.slice(a, b).matchAll(/\{k:'([a-z]+)',\s*name:'[^']+',\s*fam:'([a-z]+)'/g)) ed[m[1]] = m[2];
+  assert.deepStrictEqual(K.INST_FAM, ed); assert.deepStrictEqual(Object.keys(K.INST_FAM), Object.keys(K.INST));
+  assert.deepStrictEqual(K.INTENTS, ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord', 'blank', 'custom']);
+});
+T('P0 docTypeOf：与修前编辑器 docType 逐值相同（本文件全部规则样例）；坏谱不抛错', () => {
+  for (const [name, s] of CASES) { const d = JSON.parse(JSON.stringify(s)); if (!Array.isArray(d.tabVoices)) continue;
+    assert.strictEqual(K.docTypeOf(d), PREV.docTypeEd(d), name); }
+  for (const d of [null, 1, 'x', [], {}, { tabVoices: 'ab' }, { voxNotations: 'staff', voxVoices: 'ab' }, { tabVoices: [], voxNotations: ['staff', 'bass'], voxVoices: ['a', 'b'] }])
+    assert.ok(typeof K.docTypeOf(d) === 'string', JSON.stringify(d));
+  assert.strictEqual(K.docTypeOf(null), 'vocal'); assert.strictEqual(K.docTypeOf({ tabVoices: 'ab' }), 'vocal');
+});
+T('P0 ikOf：按首个旋律行音轨名推乐器（人声词、钢琴词、单独的 Bass 不算；「·」后不看）', () => {
+  const ik = n => K.ikOf({ voxVoices: [n] });
+  const want = { Violin: 'violin', 'Violin I': 'violin', Vn1: 'violin', 'Vl. 2': 'violin', 小提琴: 'violin', Flute: 'flute', 'Fl.': 'flute', 长笛: 'flute', 'Alto Sax': 'sax', 'Soprano Saxophone': 'sax',
+    萨克斯: 'sax', 'Trumpet in Bb': 'trumpet', 'Horn in F': 'horn', 'French Horn': 'horn', Trombone: 'trombone', 'Bass Guitar': 'bass', 贝斯: 'bass', 'Electric Piano': 'epiano', 电子琴: 'synth',
+    Accordion: 'accordion', Erhu: 'erhu', 二胡: 'erhu', 胡琴: 'erhu', 笛子: 'dizi', 竹笛: 'dizi', 葫芦丝: 'hulusi', 唢呐: 'suona', 'Guzheng·右手': 'guzheng', 古筝: 'guzheng', 琵琶: 'pipa', 扬琴: 'yangqin',
+    Harmonica: 'harmonica', 口琴: 'harmonica',
+    Voice: '', Soprano: '', 'Singstimme Voice': '', 女高音: '', 主唱: '', 旋律: '', 旋律1: '', Bass: '', Alto: '', Tenor: '', Piano: '', 'Piano·右手': '', 钢琴: '', 右手: '', Viola: '', Violoncello: '',
+    Flugelhorn: '', 'English Horn': '', 口风琴: '', '': '' };
+  for (const [n, k] of Object.entries(want)) assert.strictEqual(ik(n), k, n);
+  for (const d of [null, {}, { voxVoices: null }, { voxVoices: [null] }, { voxVoices: [{ toString: 1 }] }, { voxVoices: 'Violin' }]) assert.strictEqual(K.ikOf(d), '');
+});
+T('P0 pzOf：判法表抽样（完整金表见 tv_taxonomy）、坏谱退回 简谱 › 歌曲、只读', () => {
+  const pz = d => { const r = K.pzOf(JSON.parse(JSON.stringify(d))); return [r.row, r.pz + '.' + r.sub, r.inst, r.also.join(',')].join(' '); };
+  assert.strictEqual(pz(vox(['旋律'], [undefined], null, true)), '19 jianpu.gequ  ');
+  assert.strictEqual(pz(vox(['旋律'], ['staff'])), '24 wuxian.shichang  ');
+  assert.strictEqual(pz(vox(['Violin'], ['staff'])), '18 wuxian.qiyue violin ');
+  assert.strictEqual(pz(vox(['右手', '左手'], [undefined, undefined], { instKey: 'guzheng' })), '15a jianpu.qiyue guzheng ');
+  assert.strictEqual(pz(vox(['一', '二'], [undefined, undefined], { voxGroups: [BR(0, 1)] })), '15c jianpu.qiyue other ');
+  assert.strictEqual(pz(vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)] }, true)), '9 gangqin.tanchang  jianpu.gequ');
+  assert.strictEqual(pz(vox(['右手', '左手'], ['staff', 'bass'], { voxDual: [true, false], instKey: 'guzheng' })), '14b wuxian.qiyue guzheng jianpu.duizhao');   // 一级内唯一：五线谱已有器乐，不再加对照谱
+  const dflt = { pz: 'jianpu', sub: 'gequ', inst: '', also: [], row: '' };
+  for (const d of [null, [], 7, { measures: { a: 1 }, voxVoices: ['a'] }, { voxGroups: 5, voxVoices: ['a', 'b'], voxNotations: ['staff', 'bass'], measures: [{ voxes: 'x' }] }]) {
+    const r = K.pzOf(d); assert.ok(r && typeof r.pz === 'string' && K.pzHas(r.pz, r.sub), JSON.stringify(d)); }
+  assert.deepStrictEqual(K.pzOf(null), Object.assign({}, dflt, { row: '23' }));
+  for (const [, s] of CASES) { const a = JSON.stringify(s); K.pzOf(s); K.facetsOf(s); assert.strictEqual(JSON.stringify(s), a); }
+});
+T('P0 facetsOf：乐器 / 编制 / 和弦 / 伴奏 / 合奏 / 段数 / 原稿记谱 / 指法调；坏谱不抛错', () => {
+  const f = K.facetsOf({ v: 3, key: 'G', capo: 2, tabVoices: ['吉他1', '吉他2'], voxVoices: ['旋律'], measures: [{ tabs: [[{ chord: 'G', strum: 'd', notes: [] }]], voxes: [[{ deg: 1, lyrics: ['啊', '', '哦'] }]] }] });
+  assert.deepStrictEqual(f, { inst: ['guitar'], parts: 2, chord: true, acc: false, ens: true, verses: 2, nota0: '', fkey: 'F' });
+  const g = K.facetsOf(vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'erhu' }));
+  assert.deepStrictEqual(g, { inst: ['erhu', 'piano'], parts: 1, chord: false, acc: true, ens: false, verses: 0, nota0: 'jp', fkey: '' });
+  assert.strictEqual(K.facetsOf(vox(['右手', '左手'], ['staff', 'bass'])).acc, false, '钢琴独奏不算带伴奏');
+  assert.strictEqual(K.facetsOf(vox(['S', 'A', 'T', 'B'], ['staff', 'staff', 'staff', 'bass'], null, true)).ens, true);
+  assert.strictEqual(K.fingerKey('C', 3), 'A'); assert.strictEqual(K.fingerKey('Eb', 1), 'D'); assert.strictEqual(K.fingerKey({}, 1), ''); assert.strictEqual(K.fingerKey('G', '2'), 'F');
+  for (const d of [null, [], { measures: [null, 5, { tabs: 'x', voxes: [[null, { lyrics: 'x', chord: {} }]] }] }]) assert.ok(K.facetsOf(d) && Array.isArray(K.facetsOf(d).inst));
+});
+T('P0 pzMatch：主谱种 0 / 也出现在 1 / 不中 -1；简谱五线谱下乐器＝器乐身份（器乐 ∪ 重奏），其他一级看分面', () => {
+  const r = { pz: 'jianpu', sub: 'qiyue', inst: 'erhu', also: ['gangqin.banzou'], fx: { inst: ['erhu', 'piano'] } };
+  assert.strictEqual(K.pzMatch(r, {}), 0); assert.strictEqual(K.pzMatch(r, { pz: 'jianpu' }), 0); assert.strictEqual(K.pzMatch(r, { pz: 'gangqin' }), 1);
+  assert.strictEqual(K.pzMatch(r, { pz: 'wuxian' }), -1); assert.strictEqual(K.pzMatch(r, { sub: 'banzou' }), 1);
+  assert.strictEqual(K.pzMatch(r, { pz: 'jianpu', inst: 'erhu' }), 0); assert.strictEqual(K.pzMatch(r, { pz: 'jianpu', inst: 'piano' }), -1);
+  assert.strictEqual(K.pzMatch(r, { inst: 'piano' }), 1); assert.strictEqual(K.pzMatch(r, { inst: 'erhu' }), 0);
+  const q2 = { pz: 'wuxian', sub: 'chongzou', inst: 'violin', also: [], fx: { inst: ['violin'] } };
+  assert.strictEqual(K.pzMatch(q2, { pz: 'wuxian', inst: 'violin' }), 0, '五线谱选乐器含重奏（T20）');
+  const q3 = { pz: 'gangqin', sub: 'tanchang', inst: 'erhu', also: ['jianpu.gequ'], fx: { inst: ['erhu', 'piano'] } };
+  assert.strictEqual(K.pzMatch(q3, { pz: 'jianpu', inst: 'erhu' }), -1, '有词的二胡＋钢琴不进「简谱 › 器乐 › 二胡」');
+  for (const x of [null, {}, { pz: 5 }]) assert.strictEqual(K.pzMatch(x, {}), -1);
+});
+T('P0 pubKindOf：type / typeLabel / 谱种同一份清洗＋migrate 副本；观看页打不开的谱名回落曲谱、type 照修前；坏数据不抛错', () => {
+  const one = (o) => Object.assign({ v: 3, tabVoices: [], voxVoices: ['a'], lyricLines: 0, measures: [{ tabs: [], voxes: [[{ deg: 1, dur: 4 }]] }] }, o);
+  const ev = K.pubKindOf({ v: 3, tabVoices: ['尤克里里'], inst: 'uku`', voxVoices: ['旋律'], lyricLines: 1, measures: [{ tabs: [[{ dur: 4, notes: [] }]], voxes: [[{ dur: 4, deg: 1 }]] }] });
+  assert.deepStrictEqual([ev.type, ev.typeLabel, ev.pz, ev.sub], ['uku', '尤克里里弹唱谱', 'uku', 'tanchang'], '脏短码：type 也按清洗后（修前 guitar）');
+  assert.strictEqual(PREV.docTypeSrv({ tabVoices: ['尤克里里'], inst: 'uku`' }), 'guitar');
+  const v2 = K.pubKindOf({ v: 2, key: 'G', measures: [{ tab: [{ dur: 4, notes: [{ s: 6, f: 3 }] }], vox: [{ dur: 4, deg: 1, lyric: '啊' }] }] });
+  assert.deepStrictEqual([v2.type, v2.typeLabel, v2.pz], ['guitar', '吉他弹唱谱', 'jita'], 'v:2 老格式按 migrate 之后');
+  const bad = { v: 3, voxVoices: ['右手', '左手'], voxNotations: ['staff', 'bass'], measures: [{ voxes: [[{ deg: 1 }], [{ deg: 1 }]] }] };   // 缺 tabVoices：观看页打不开
+  const b = K.pubKindOf(bad); assert.deepStrictEqual([b.type, b.typeLabel], [PREV.docTypeSrv(bad), '曲谱']);
+  for (const d of [null, [], 5, 'x', { measures: { a: 1 } }, one({ voxGroups: 'x', measures: [null] }), one({ key: { toString: 1 } })]) {
+    const r = K.pubKindOf(d); assert.ok(typeof r.type === 'string' && typeof r.typeLabel === 'string' && K.pzHas(r.pz, r.sub) && Array.isArray(r.also) && r.fx && Array.isArray(r.fx.inst), JSON.stringify(d)); }
 });
 
 console.log('PASS ' + pass + '/' + total);

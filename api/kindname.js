@@ -6,7 +6,11 @@
    编辑器（谱名 / 页签 / 谱型条 / 观看页标题 / 分享卡 / 谱库卡片）与服务端（api/server.js typeLabelOf：谱库卡片、SSR 落地页、og 封面）共用这一段，
    两处逐字节相同（语法闸 deploy/check-syntax.js、api/kindname.test.js、tv_kindsync 核对）。只读推断：曲谱 JSON → 谱行组合 stackOf（14 种：
    J / S / SJ / T / JT / ST / G / CG / JG / SG / SJG / CJ / CS / C）＋上下文 ctxOf（声部数、乐器、instKey、歌词、对照）→ 谱名 kindName / nameOf；
-   不写任何字段，不读全局，脏数据（null 小节 / 缺数组）不抛错。 */
+   不写任何字段，不读全局，脏数据（null 小节 / 缺数组）不抛错。
+   分类升级 P0（方案 docs/design-2026-11-taxonomy §五 / §十四，2026-10-31 负责人「好的，按建议」＝§十五 30 项按推荐）同段新增：
+   谱种表 PZ（一级 7 个＋二级，id 只增不改）、乐器族 INST_FAM（＝编辑器 NW_INSTS.fam）、按音轨名推乐器 ikOf（instKey 缺省时用，只读不回写）、
+   主谱种 › 二级＋也出现在 pzOf（§5.2 判法表 24 行，自上而下首条命中）、分面 facetsOf（§5.5）、旧谱类 docTypeOf（原编辑器 docType 的判法改防脏写法，
+   编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。 */
 const PQ_KIND = (function(){
   const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
   function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
@@ -70,11 +74,13 @@ const PQ_KIND = (function(){
   const instName = k=> k==='other' || !own(INST, k)? '器乐' : INST[k];
   /* 谱名。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(有歌词或留了歌词行), dual(钢琴两行带简谱对照)}
      五线谱一族说「歌 / 合唱」要看 lyr（简谱一族按惯例本就是歌谱，不看）：单行 五线谱歌谱 / 五线谱旋律，多行 五线谱合唱谱 / 五线谱重奏谱，
-     旋律＋钢琴 钢琴伴奏歌谱（五线谱）/ 旋律＋钢琴伴奏谱（五线谱）——没词也没留词位的器乐谱不叫「歌谱」「合唱」（收尾验收 major：导入的小提琴独奏、长笛＋钢琴、弦乐四重奏） */
+     旋律＋钢琴 钢琴伴奏歌谱（五线谱）/ 旋律＋钢琴伴奏谱（五线谱）——没词也没留词位的器乐谱不叫「歌谱」「合唱」（收尾验收 major：导入的小提琴独奏、长笛＋钢琴、弦乐四重奏）。
+     分类升级 P0（拍板 22 / 26，判法表 15a–15c）：简谱多行也看词与乐器——有词或留了词位 简谱合唱谱；没词、带乐器身份（古筝左右手、二胡二重奏）X谱（简谱）；
+     没词也没乐器 简谱重奏谱（此前一律「简谱合唱谱」：古筝双手简谱、二胡二重奏被叫成合唱谱、进了合唱谱一级） */
   function kindName(k, ctx){
     ctx=ctx||{}; const ik=ctx.instKey && ctx.instKey!=='piano'? ctx.instKey : '', nv=ctx.nVox||1, uku=ctx.inst==='uku';
     switch(k){
-      case 'J':  return nv>1? '简谱合唱谱' : ik? instName(ik)+'谱（简谱）' : '简谱歌谱';
+      case 'J':  return nv>1? (ctx.lyr? '简谱合唱谱' : ik? instName(ik)+'谱（简谱）' : '简谱重奏谱') : ik? instName(ik)+'谱（简谱）' : '简谱歌谱';
       case 'S':  return nv>1? (ctx.lyr? '五线谱合唱谱' : '五线谱重奏谱') : ik? instName(ik)+'谱（五线谱）' : ctx.lyr? '五线谱歌谱' : '五线谱旋律';
       case 'SJ': return '教学对照谱';
       case 'SJG':return '教学对照谱（含伴奏）';
@@ -100,14 +106,207 @@ const PQ_KIND = (function(){
     return {nVox:Math.max(1, nSame), inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean)};
   }
   const nameOf = s=>kindName(stackOf(s), ctxOf(s));
-  return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf};
+
+  /* ===== 分类升级 P0：谱种（方案 docs/design-2026-11-taxonomy §五）。全部只读推断，不写字段；坏谱不抛错（pzOf / facetsOf 自带兜底） ===== */
+  /* 旧谱类（谱库 type 字段 / 旧外壳谱友圈 10 类按钮）：编辑器原 docType 的判法原样搬来，改防脏写法（缺数组 / 非数组不抛错）——
+     编辑器 docType() 与服务端 type 从此只此一份（此前服务端另有 isChoirOf / docTypeOf，v69.6 I6 只改了编辑器一边）。取值不变 */
+  function docTypeOf(s){
+    if(!s || typeof s!=='object') return 'vocal';
+    const len = v=> Array.isArray(v)? v.length : 0, vn = Array.isArray(s.voxNotations)? s.voxNotations : [];
+    if(len(s.tabVoices)){ if(s.tabStaff && !len(s.voxVoices)) return 'solo'; return s.inst==='uku'? 'uku' : 'guitar'; }
+    if(s.chordOnly) return 'chord';
+    if(s.func) return 'func';
+    if(vn[0]==='staff' && vn[1]==='bass') return s.pianoAcc? 'pianoacc' : (isChoir(s)? 'vocal' : 'piano');
+    if(isStaffNota(vn[0])) return (s.voxDual||[])[0]? 'teach' : (isChoir(s)? 'vocal' : 'instr');
+    return 'vocal';
+  }
+  /* 谱种表：一级 7 个（顺序固定）× 二级（单选）。id 只增不改（接口参数、URL、埋点 lib: 都用它）；slug 给 SSR 分类页 */
+  const PZ = [
+    {id:'jianpu',   name:'简谱',     slug:'jianpu',      subs:[{id:'gequ', name:'歌曲'}, {id:'erge', name:'儿歌'}, {id:'hechang', name:'合唱'}, {id:'qiyue', name:'器乐'}, {id:'shichang', name:'视唱'}, {id:'duizhao', name:'对照谱'}]},
+    {id:'wuxian',   name:'五线谱',   slug:'wuxianpu',    subs:[{id:'gequ', name:'歌曲'}, {id:'hechang', name:'合唱'}, {id:'qiyue', name:'器乐'}, {id:'chongzou', name:'重奏'}, {id:'shichang', name:'视唱'}, {id:'duizhao', name:'对照谱'}]},
+    {id:'gangqin',  name:'钢琴谱',   slug:'gangqinpu',   subs:[{id:'duzou', name:'独奏'}, {id:'tanchang', name:'弹唱'}, {id:'banzou', name:'伴奏'}]},
+    {id:'jita',     name:'吉他谱',   slug:'jitapu',      subs:[{id:'tanchang', name:'弹唱'}, {id:'zhitan', name:'指弹'}]},
+    {id:'uku',      name:'尤克里里', slug:'youkelilipu', subs:[{id:'tanchang', name:'弹唱'}, {id:'zhitan', name:'指弹'}]},
+    {id:'hechang',  name:'合唱谱',   slug:'hechangpu',   subs:[{id:'jianpu', name:'简谱合唱'}, {id:'wuxian', name:'五线合唱'}]},
+    {id:'gongneng', name:'功能谱',   slug:'gongnengpu',  subs:[{id:'jishu', name:'级数谱'}, {id:'hexian', name:'和弦格'}]}
+  ];
+  const pzDef = id=> typeof id==='string'? (PZ.find(p=>p.id===id) || null) : null;
+  /* 参数校验（接口 ?pz=&sub= 只认表里的 id）：pzHas('jianpu') / pzHas('jianpu','qiyue') / pzHas('','duizhao')（只给二级＝任一一级里有这个二级） */
+  function pzHas(pz, sub){
+    const sOk = p=> sub==null || sub==='' || p.subs.some(x=>x.id===sub);
+    if(pz==null || pz==='') return typeof sub==='string' && sub!=='' && PZ.some(sOk);
+    const p=pzDef(pz); return !!p && sOk(p);
+  }
+  /* 归属的显示名：'gangqin.tanchang' → 「钢琴谱 › 弹唱」（发布对话框「将归入」、面包屑用） */
+  function pzName(place){
+    const a=String(place||'').split('.'), p=pzDef(a[0]); if(!p) return '';
+    const sb=p.subs.find(x=>x.id===a[1]); return sb? p.name+' › '+sb.name : p.name;
+  }
+  /* 乐器族（＝编辑器新建面板 NW_INSTS.fam，tv_kindsync / kindname.test 逐项核对）：tab 六线谱一族 / kbd 键盘 / staff 西洋（五线谱）/ jianpu 民乐（简谱）/ other */
+  const INST_FAM = {guitar:'tab', uku:'tab', bass:'staff', piano:'kbd', epiano:'kbd', synth:'kbd', accordion:'kbd',
+    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff',
+    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu', other:'other'};
+  /* 建谱用途（P2a 起建谱时写 song.intent；只认这 11 个值，其余当没写）。intent 只在谱面推断有歧义时裁定（判法表第 11、20–22 行与儿歌） */
+  const INTENTS = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord', 'blank', 'custom'];
+  const intentOf = s=> typeof s.intent==='string' && INTENTS.indexOf(s.intent)>=0? s.intent : '';
+  /* 按音轨名推乐器（v2 复核 T4：直接打开的 MusicXML / MIDI 不写 instKey）：取首个旋律行的名字（voxVoices[0]，导入名「Piano·右手」只看「·」前），
+     查别名表；人声词（Soprano / Voice / 女高音 / 主唱）、钢琴词、单独的 Bass（合唱男低音）都不算。只读，不回写 instKey */
+  const IK_ALIAS = [
+    ['sax', /sax|萨克斯/], ['epiano', /electric ?piano|e-piano|rhodes|电钢琴/], ['synth', /^synth|电子琴/], ['accordion', /accordion|akkordeon|手风琴/],
+    ['violin', /^(violins?|violino|vln|vn|vl)(\d|\.|\s|$)|小提琴|geige/], ['flute', /^(flutes?|flauto|fl)(\d|\.|\s|$)|^flöte|^flûte|长笛/],
+    ['trumpet', /^(trumpets?|tromba|tpt|trp)(\d|\.|\s|$)|小号/], ['horn', /^(french horn|horns?|corno|hn)(\d|\.|\s|$)|圆号/],
+    ['trombone', /^(trombones?|tbn|trb)(\d|\.|\s|$)|长号/], ['bass', /bass guitar|electric bass|e-bass|贝斯/],
+    ['erhu', /erhu|二胡|胡琴/], ['dizi', /^dizi|笛子|竹笛/], ['hulusi', /hulusi|葫芦丝/], ['suona', /suona|唢呐/],
+    ['guzheng', /guzheng|^zheng(\d|\s|$)|古筝/], ['pipa', /^pipa|琵琶/], ['yangqin', /yangqin|扬琴/], ['harmonica', /harmonica|mouth ?organ|口琴/]
+  ];
+  function ikOf(s){
+    const v0 = s && Array.isArray(s.voxVoices)? s.voxVoices[0] : '';
+    const nm = (typeof v0==='string'? v0 : '').split('·')[0].trim().toLowerCase();
+    if(!nm) return '';
+    for(const [k, re] of IK_ALIAS) if(re.test(nm)) return k;
+    return '';
+  }
+  /* 判法用的乐器身份 ik：写了 instKey 就认它（piano 不算；不在表里的键按「其他」，与谱名 instName 的「器乐」同口径），没写才按音轨名推 */
+  function ikEff(s){
+    const k=s.instKey;
+    if(k && k!=='piano') return own(INST, k)? k : 'other';
+    if(k) return '';
+    return ikOf(s);
+  }
+  const txt = v=> typeof v==='string'? v.trim() : (typeof v==='number' && v)? String(v) : '';
+  const A = v=> Array.isArray(v)? v : [];
+  /* 谱面扫描（一次）：真歌词、各段是否有词、旋律行 / 六线谱行上的和弦、扫弦记号（d / u；arp 琶音不算） */
+  function scanOf(s){
+    const r={lyr:false, verses:0, vChord:false, tChord:false, strum:false}, vs=[];
+    A(s.measures).forEach(m=>{ if(!m || typeof m!=='object') return;
+      A(m.voxes).forEach(cols=>A(cols).forEach(c=>{ if(!c || typeof c!=='object') return;
+        A(c.lyrics).forEach((x, i)=>{ if(txt(x)){ r.lyr=true; vs[i]=1; } });
+        if(txt(c.chord) || A(c.chords).some(x=>x && txt(x.chord))) r.vChord=true; }));
+      A(m.tabs).forEach(cols=>A(cols).forEach(c=>{ if(!c || typeof c!=='object') return;
+        if(txt(c.chord)) r.tChord=true; if(c.strum==='d' || c.strum==='u') r.strum=true; }));
+    });
+    r.verses=vs.filter(Boolean).length;
+    return r;
+  }
+  /* 钢琴花括号组：正好盖住「高音或低音谱表＋低音谱表」两行 */
+  function pnoOf(s){ const vn=A(s.voxNotations); return groupsOf(s).some(g=>g.type==='brace' && g.to-g.from===1 && isStaffNota(vn[g.from]) && vn[g.to]==='bass'); }
+  /* 主谱种 › 二级＋也出现在（§5.2 判法表，自上而下首条命中）。返回 {pz, sub, inst, also:['jianpu.gequ'…], row}：
+     inst＝本谱的乐器身份（二级「器乐」下按乐器分组 / 筛选用；器乐谱没有乐器身份时记 other）；row＝命中的判法表行号（测试与排查用）。
+     一级内唯一（§5.4 第 4 条）：同一一级至多一个二级，先到先得（主谱种最先）。坏谱退回 简谱 › 歌曲（与 docTypeOf 退回 vocal 同口径） */
+  function pzOf(s){
+    try{
+      s = s && typeof s==='object' && !Array.isArray(s)? s : {};
+      const k=stackOf(s), c=ctxOf(s), it=intentOf(s), kids=it==='kids', sc=scanOf(s);
+      const tabPz = c.inst==='uku'? 'uku' : 'jita', mel = (k==='S'||k==='SG'||k==='CS')? 'wuxian' : 'jianpu';
+      const gq = p=> p==='jianpu' && kids? 'erge' : 'gequ';
+      const out=[]; let row='', ik='';
+      const put = (p, sb)=>{ if(!out.some(x=>x.split('.')[0]===p)) out.push(p+'.'+sb); };
+      if(k==='JT'){ row='1'; put(tabPz, 'tanchang'); }
+      else if(k==='T'){ if(c.lyr || (sc.tChord && sc.strum)){ row='2'; put(tabPz, 'tanchang'); } else { row='3'; put(tabPz, 'zhitan'); } }
+      else if(k==='ST'){ row='4'; put(tabPz, 'zhitan'); }
+      else if(k==='C'){ row='5'; put('gongneng', 'hexian'); }
+      else if(k==='CJ' || k==='CS'){ row='6'; put('gongneng', 'jishu'); if(c.lyr) put(mel, gq(mel)); }
+      else if(k==='CG'){ row='7'; put('gangqin', 'banzou'); if(c.dual){ put('wuxian', 'duizhao'); put('jianpu', 'duizhao'); } }
+      else if(k==='SJ' || k==='SJG'){ row='8'; put('wuxian', 'duizhao'); put('jianpu', 'duizhao'); if(k==='SJG') put('gangqin', c.lyr? 'tanchang' : 'banzou'); }
+      else if(k==='JG' || k==='SG'){
+        ik=ikEff(s);
+        if(c.lyr){ row='9'; put('gangqin', 'tanchang'); put(mel, gq(mel)); }
+        else if(ik){ row='10'; put(mel, 'qiyue'); put('gangqin', 'banzou'); }
+        else if(it==='pacc' || kids){ row='11'; put('gangqin', 'tanchang'); put(mel, gq(mel)); }
+        else if(k==='JG'){ row='12'; put('gangqin', 'tanchang'); put('jianpu', 'gequ'); }
+        else { row='13'; put('gangqin', 'banzou'); put('wuxian', 'qiyue'); }
+      }
+      else if(k==='G'){
+        ik=ikEff(s);
+        if(!ik || INST_FAM[ik]==='kbd'){ row='14a'; put('gangqin', 'duzou'); } else { row='14b'; put('wuxian', 'qiyue'); }
+        if(c.dual){ put('wuxian', 'duizhao'); put('jianpu', 'duizhao'); }
+      }
+      else if(c.nVox>1){   /* J / S 多声部（与首行同一记谱法的行数 ≥2） */
+        ik=ikEff(s);
+        if(k==='J'){ if(c.lyr){ row='15b'; put('hechang', 'jianpu'); put('jianpu', 'hechang'); } else if(ik){ row='15a'; put('jianpu', 'qiyue'); } else { row='15c'; put('jianpu', 'qiyue'); } }
+        else if(c.lyr){ row='16'; put('hechang', 'wuxian'); put('wuxian', 'hechang'); }
+        else { row='17'; put('wuxian', 'chongzou'); }
+        if(pnoOf(s)) put('gangqin', 'banzou');
+      }
+      else {   /* J / S 单声部。空白谱 / 自选建谱默认留一行词位，留位不代表是歌：这两种只认真有词（T19） */
+        ik=ikEff(s);
+        const lyr1 = (it==='blank' || it==='custom')? sc.lyr : c.lyr;
+        if(ik){ row='18'; put(mel, 'qiyue'); }
+        else if(lyr1){ row='19'; put(mel, gq(mel)); }
+        else if(it==='sight'){ row='20'; put(mel, 'shichang'); }
+        else if(it==='vocal' || kids){ row='21'; put(mel, gq(mel)); }
+        else if(it==='inst' || it==='blank' || it==='custom'){ row='22'; put(mel, 'qiyue'); }
+        else if(mel==='jianpu'){ row='23'; put('jianpu', 'gequ'); }
+        else { row='24'; put('wuxian', 'shichang'); }
+        /* 含有一致（§5.4 第 3 条）：单行简谱下面跟着推断出的钢琴两行（没写分组、没有一键配伴奏声部名的老谱）也算含钢琴伴奏——表外补 */
+        if(pnoOf(s)) put('gangqin', 'banzou');
+      }
+      const m0=out[0].split('.');
+      return {pz:m0[0], sub:m0[1], inst: ik || (out.some(p=>/\.qiyue$/.test(p))? 'other' : ''), also:out.slice(1), row};
+    }catch(_){ return {pz:'jianpu', sub:'gequ', inst:'', also:[], row:''}; }
+  }
+  /* 指法调（六线谱 / 四线谱）＝调号减变调夹：1=G 夹 2 → F（「C调指法 · 夹2」的 C） */
+  const PCN=['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'], PCV={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11,Fb:4,'E#':5,'B#':0};
+  function fingerKey(key, capo){
+    const m=/^([A-G][#b]?)(m?)$/.exec(typeof key==='string'? key.trim() : '');
+    if(!m || !own(PCV, m[1])) return '';
+    const cp = typeof capo==='number' && Number.isFinite(capo)? Math.round(capo) : (typeof capo==='string' && /^\d{1,2}$/.test(capo)? +capo : 0);
+    return PCN[((PCV[m[1]]-cp)%12+12)%12]+m[2];
+  }
+  /* 分面（§5.5，只读）：inst 乐器（器乐身份＋钢琴 / 键盘＋六线谱的吉他 / 尤克里里）、parts 编制（不在钢琴组里的旋律 / 人声行数；六线谱数条数）、
+     chord 已配和弦、acc 带伴奏（钢琴独奏不算）、ens 合奏（卡片「分谱」小标）、verses 真有词的段数（卡片外层的 verses 是 lyricLines 留的词行数，口径不同）、
+     nota0 原稿记谱（jp / st / dual / 空）、fkey 指法调 */
+  function facetsOf(s){
+    try{
+      s = s && typeof s==='object' && !Array.isArray(s)? s : {};
+      const k=stackOf(s), c=ctxOf(s), sc=scanOf(s), vv=A(s.voxVoices), tv=A(s.tabVoices), grp=groupsOf(s), pno=pnoOf(s);
+      const tab = k==='T' || k==='JT' || k==='ST', inBrace = i=> grp.some(g=>g.type==='brace' && i>=g.from && i<=g.to);
+      const inst=[], add = x=>{ if(x && inst.indexOf(x)<0) inst.push(x); };
+      if(tab) add(c.inst==='uku'? 'uku' : 'guitar');
+      else if(k!=='C'){ const ik=ikEff(s);
+        if(k==='G') add(ik || 'piano'); else { add(ik); if(k==='CG' || k==='JG' || k==='SG' || k==='SJG' || pno) add('piano'); } }
+      const free = vv.map((_, i)=>i).filter(i=>!inBrace(i));
+      const noLy = free.filter(i=>!voxHasLyrics(s, i, i)).length;
+      return {
+        inst,
+        parts: Math.max(1, tab? tv.length : free.length),
+        chord: k==='CJ' || k==='CS' || k==='C' || sc.vChord || sc.tChord,
+        acc: k==='CG' || k==='JG' || k==='SG' || k==='SJG' || (k!=='G' && (pno || !!txt(s.texId))),
+        ens: grp.some(g=>g.type==='bracket' && g.to>g.from) || (!tab && noLy>=2) || tv.length>=2,
+        verses: sc.verses,
+        nota0: (tab || k==='C')? '' : (k==='SJ' || k==='SJG' || c.dual)? 'dual' : (k==='J' || k==='JG' || k==='CJ')? 'jp' : 'st',
+        fkey: tab? fingerKey(s.key, s.capo) : ''
+      };
+    }catch(_){ return {inst:[], parts:1, chord:false, acc:false, ens:false, verses:0, nota0:'', fkey:''}; }
+  }
+  /* 筛选（谱库列表与 /api/pub/cats 计数共用；P1 编辑器新外壳谱友圈同样调它）：r＝卡片 {pz, sub, inst, also, fx}，f＝{pz, sub, inst}。
+     命中主谱种返回 0、只命中「也出现在」返回 1（一级列表主谱种在前），不命中 -1。乐器：简谱 / 五线谱下＝本谱的器乐身份 inst，
+     没选二级时只看「器乐」（五线谱另含「重奏」，T20）；其他一级与不限一级时＝分面 fx.inst 里有它（键盘族在钢琴谱、钢琴伴奏、吉他…） */
+  function pzMatch(r, f){
+    if(!r || typeof r.pz!=='string') return -1;
+    f = f || {};
+    const pl=[r.pz+'.'+r.sub].concat(A(r.also)), fi = r.fx && Array.isArray(r.fx.inst)? r.fx.inst : [r.inst];
+    for(let i=0; i<pl.length; i++){
+      const a=String(pl[i]).split('.'), p=a[0], sb=a[1];
+      if(f.pz && p!==f.pz) continue;
+      if(f.sub && sb!==f.sub) continue;
+      if(f.inst){
+        if(p==='jianpu' || p==='wuxian'){ if(r.inst!==f.inst || (!f.sub && sb!=='qiyue' && sb!=='chongzou')) continue; }
+        else if(fi.indexOf(f.inst)<0) continue;
+      }
+      return i===0? 0 : 1;
+    }
+    return -1;
+  }
+  return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf,
+    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch};
 })();
 /* @pq-kindname end */
 
 /* ---------- 服务端专用：存储 JSON → 观看页看到的谱（v67.6 收尾验收 minor：两端谱名在恶意 / 老格式数据上分家） ----------
    观看页（编辑器 openRemotePub）拿到他人发布的谱先 sanitizeUntrusted 清洗、再深拷 + migrate，服务端此前直接读原始 JSON：
    短码字段带引号（voxNotations "staff'"、inst 'uku`'、instKey 'erhu"'）、歌词 / 声部名只差尖括号、没有 v 字段或 v:2 的老格式时，
-   谱库卡片 / 落地页与观看页叫法不同。这里按同一口径先清洗再推断（只用于谱名，谱类 type 的 docTypeOf 不动——拍板 4）：
+   谱库卡片 / 落地页与观看页叫法不同。这里按同一口径先清洗再推断（v67.6 只用于谱名；分类升级 P0 起谱类 type、谱种、分面也从这份副本算，见文末 pubKindOf）：
    ① 清洗＝编辑器 sanitizeUntrusted：数值字段转数、非有限→0；dyn 的楔形 < > 原样；自由文本去 < >；其余字符串去 < > " ' `；键名同样去；
       键名 __proto__ 丢掉（观看页清洗时它变成原型、随后深拷丢失）。字段表＝api/scoredata.js（与编辑器 SAN_* 同一张，kindname.test 核对）。
    ② migrate：v:3 原样；v:2 → 吉他弹唱（其余字段保留）；其他 → 吉他弹唱谱骨架。没有小节（观看页报「曲谱数据异常」打不开）→ null（谱名回落「曲谱」）。
@@ -161,9 +360,10 @@ function openable3(s) {
   }
   return true;
 }
+const cleanOf = d => needsClean(d, '', 0) ? sanitizeLike(d) : d;
 function viewOf(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
-  const s = needsClean(d, '', 0) ? sanitizeLike(d) : d;
+  const s = cleanOf(d);
   if (!Array.isArray(s.measures) || !s.measures.length) return null;
   if (s.v === 3) return openable3(s) ? s : null;
   if (s.v === 2) return Object.assign({}, s, { v: 3, tabVoices: ['吉他1'], voxVoices: ['旋律1'], lyricLines: 1 });
@@ -173,4 +373,16 @@ function viewOf(d) {
 function pubNameOf(d) {
   try { const s = viewOf(d); return s ? PQ_KIND.nameOf(s) : '曲谱'; } catch (_) { return '曲谱'; }
 }
-module.exports = Object.assign({}, PQ_KIND, { viewOf, pubNameOf, sanitizeLike });
+/* 分类升级 P0（方案 §十四，v1 评审 R12）：谱库卡片的谱类字段一次算齐——旧谱类 type、统一谱名 typeLabel、主谱种 pz / sub、乐器身份 inst、也出现在 also、分面 fx，
+   都从同一份「清洗＋migrate」副本（观看页看到的谱）算，各自兜底（safe）：一份坏谱只让自己退回默认（vocal / 曲谱 / 简谱 › 歌曲），不拖垮整页列表。
+   观看页打不开的谱（viewOf 为 null）：谱名照旧回落「曲谱」；type / 谱种按清洗后的原始结构推断（与修前的 type 取值一致，不另造一类）。
+   此前 type 读原始 JSON、typeLabel 读清洗副本，两边口径不同：脏短码（inst 带反引号等）、v:2 / 无 v 老格式的谱 type 随之改正（§十二第 5 条点名的第三类边角） */
+function pubKindOf(d) {
+  const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
+  const v = safe(() => viewOf(d), null);
+  const base = v || safe(() => (d && typeof d === 'object' && !Array.isArray(d) ? cleanOf(d) : {}), {});
+  const p = PQ_KIND.pzOf(base);
+  return { type: safe(() => PQ_KIND.docTypeOf(base), 'vocal'), typeLabel: safe(() => (v ? PQ_KIND.nameOf(v) : '曲谱'), '曲谱'),
+    pz: p.pz, sub: p.sub, inst: p.inst, also: p.also, fx: PQ_KIND.facetsOf(base) };
+}
+module.exports = Object.assign({}, PQ_KIND, { viewOf, pubNameOf, sanitizeLike, pubKindOf });

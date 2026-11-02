@@ -189,6 +189,42 @@ T('eventUiCmd7：7 日内用过排版 / 输出的人数（按人去重）＋ 编
   assert.ok(sc.length && !sc.some(r => r.name === 'ui_cmd'), 'eventScan 里出现了 ui_cmd');
 });
 
+/* 分类升级 P0（方案 docs/design-2026-11-taxonomy §十四）：后台 create_stack 按 meta 分组（次数 / 人数）、谱库筛选点击 lib:；
+   全库筛选的 pubAll / pubSearchAll 不带 LIMIT、与 pubList 同列同序；pubStamp 随上架变 */
+T('eventCreateStack / eventUiLib：按 meta 分组计次数与人数，只取窗口内、只取对应事件', () => {
+  const t = now(), old = t - 8 * 86400, ADD = (u, a, name, meta, at) => q.eventAddX.run(u, name, meta, at, a, '', '');
+  ADD(null, 'csA', 'create_stack', 'gtr:JT:panel:gtr:1', t - 30);
+  ADD(null, 'csA', 'create_stack', 'gtr:JT:panel:gtr:0', t - 20);
+  ADD(null, 'csB', 'create_stack', 'gtr:JT:panel:gtr:1', t - 10);
+  ADD('userK', 'csC', 'create_stack', 'pacc:JG:menu:pacc:0', t - 5);
+  ADD(null, 'csD', 'create_stack', 'vocal:J:last:vocal:0', old);            // 7 日外
+  ADD(null, 'csA', 'create_song', 'guitar', t - 30);                         // 别的事件不进
+  ADD(null, 'csA', 'ui_cmd', 'lib:pz:jianpu', t - 9); ADD(null, 'csB', 'ui_cmd', 'lib:pz:jianpu', t - 8); ADD(null, 'csB', 'ui_cmd', 'lib:inst:erhu', t - 7);
+  ADD(null, 'csB', 'ui_cmd', 'mode:engrave', t - 6);                         // 非 lib: 不进
+  const by = {}; q.eventCreateStack.all(t - 7 * 86400).forEach(r => { by[r.k] = [r.n, r.u]; });
+  assert.deepStrictEqual(by, { 'gtr:JT:panel:gtr:1': [2, 2], 'gtr:JT:panel:gtr:0': [1, 1], 'pacc:JG:menu:pacc:0': [1, 1] }, JSON.stringify(by));
+  const lb = q.eventUiLib.all(t - 7 * 86400).map(r => [r.k, r.n, r.u]);
+  assert.deepStrictEqual(lb, [['lib:pz:jianpu', 2, 2], ['lib:inst:erhu', 1, 1]], JSON.stringify(lb));
+});
+T('pubAll / pubSearchAll：全部已发布谱（不受 200 首上限）、列与排序同 pubList；pubStamp 随上架变', () => {
+  const { db } = require('./db'), fs = require('node:fs');
+  const src = fs.readFileSync(path.join(__dirname, 'db.js'), 'utf8');
+  const cols = n => { const m = new RegExp(n + ':\\s*db\\.prepare\\(`SELECT ([\\s\\S]*?)FROM').exec(src); return m && m[1].replace(/\s+/g, ' ').trim(); };
+  assert.ok(cols('pubList') && cols('pubList') === cols('pubAll') && cols('pubAll') === cols('pubSearchAll'), '列不一致');
+  const st0 = q.pubStamp.get();
+  db.prepare("INSERT INTO users(id,phone,nickname,created_at) VALUES('pzall0001','13100009999','谱种',?)").run(now());
+  const t = now();
+  for (let i = 0; i < 205; i++) db.prepare("INSERT INTO scores(id,user_id,title,status,data,pub_data,pub_title,pub_at,updated_at,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+    .run('pzall' + String(i).padStart(4, '0') + 'x', 'pzall0001', '谱种' + i, 'published', '{}', '{"v":3}', '谱种' + i, t + i, t, t);
+  const all = q.pubAll.all(), lim = q.pubList.all();
+  assert.strictEqual(lim.length, 200); assert.ok(all.length >= 205 && all.length === q.pubTotal.get().n, String(all.length));
+  assert.deepStrictEqual(all.slice(0, 200).map(r => r.id), lim.map(r => r.id), '排序与 pubList 不同');
+  assert.ok(all.some(r => r.id === 'pzall0000x'), '最早一首不在全库结果里');
+  assert.strictEqual(q.pubSearchAll.all('%谱种1%').length, 1 + 10 + 100, '关键词全库命中数');
+  const st1 = q.pubStamp.get();
+  assert.ok(st1.n === st0.n + 205 && st1.t >= t + 204, JSON.stringify([st0, st1]));
+});
+
 /* v69.3 曲库官方公版谱补种（seedLibrary）：建库即种全 seed-library.json；官方账号、已发布、有发布快照；每首只种一次（重复调用不加、
    删掉的不复活）；只认 lib- 前缀 id；仓库里的 seed-library.json 每首都是能解析的谱面数据且带 CC0 来源 */
 T('曲库公版谱：建库补种全部、官方账号发布带快照、再调不重复、删掉不复活', () => {

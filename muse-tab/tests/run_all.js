@@ -126,6 +126,10 @@ const CORE = [
      Z 标记零副作用（开 / 关抹属性后逐字节 · 关时无 data-g · 只标五线谱声部叶子元素）· G 曲库 10 + 预设 16 + 压力小样 10 逐类「0 处」（C01–C18 / M1–M10；later 组与参考度量只打印）·
      S 天鹅之歌第 3–4 小节 Ped. 几何 · E 编辑器 #score 两套外壳抽查（修前 v69.6 e8dc1c8 红 28/36）；单跑约 20 秒 */
   'tv_v697col',
+  /* 分类升级 P0 引擎与数据（方案 docs/design-2026-11-taxonomy §十四，界面零变化）：统一谱名表新增谱种引擎 PZ / pzOf / facetsOf / ikOf / docTypeOf / pzMatch 的金表——
+     判法表 24 行每行至少一例 · 曲库 10 首 · 示例 16 份 · 真实导入 · 不变式（互切镜像 / 名实一致 / 含有一致 / 一级内唯一）· 旧 type / typeLabel 逐值不变（只点名边角）·
+     坏谱不抛错 · 真服务端全库按谱种 / 二级 / 乐器筛、/api/pub/cats 计数（X1–X7 18 项，修前 23b6b01 红 9/10）；单跑约 40 秒 */
+  'tv_taxonomy',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
