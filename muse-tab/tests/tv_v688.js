@@ -8,7 +8,8 @@
    IN  输入（每条在新外壳与 ?shell=classic 各跑一次，两外壳的结果串相同）：IN1 报障原样（点 #eb-dur 8 分钮 + 几何）· IN2 键盘 · IN3 补列规则表＋一步撤销 ·
        IN4 不补的边界与 v68.7 相同 · IN5 超拍小节 · IN6 TAB 空列 / 两位品位 / 五线谱行 · IN7 附点（含 I-10 超拍吸收）· IN8 撤销 · IN9 反例钉子（不沿用时值）·
        IN10 已有音符的列上 q w e r t y u . d D 与 v68.7 相同
-   KC  按键数：KC1 小星星 32 键 · KC2 四首贪心打法键数恰为 232 / 256 / 320 / 103，且少于 v68.7 同打法（263 / 299 / 343 / 116，结果是错的）与 v68.7 能打对的 Insert 补格打法（256 / 320 / 416 / 115，FX4c）· KC3 逐音按时值键 320 键结果正确
+   KC  按键数：KC1 小星星 32 键 · KC2 四首贪心打法（v69.8 起看时值钮补键）键数恰为 253 / 256 / 240 / 103，不多于 v68.7 同打法（263 / 299 / 343 / 116，结果是错的）与 v68.7 能打对的 Insert 补格打法（256 / 320 / 416 / 115，FX4c）· KC3 每音都按时值键 384 键结果正确
+   v69.8 D 组（录入时值沿用，规格 §3.9）有意迁移：IN1 / IN2 / IN7（附点＋补足之后的音）/ IN9（「不沿用」钉子反转）/ FX4c 送别·小步舞曲两条 / KC2 键数 / KC3 打法，各处注释写明理由
    FX  收尾（验收发现）：FX1 弱起首小节 / 散拍草稿改短不补、附点后不吃（IN-1 / R2 / IN-4，与 v68.7 逐字相同）· FX2 吸收只吃空白列（R1：带和弦名 / 延长号 / 被引用的列不吃）·
        FX3 补列 / 吸收后跨列引用平移（IN-3）与拍位和弦搬家 · FX4 Insert 老打法兼容（IN-2：紧接着的插入顶替刚补出的一格，优先同值 FX4d；32 小节原样重放与 v68.7 逐字节相同）
    v68.7 的对照数写死在本文件里（测于 27a74c1），不依赖 CI 基线。修前红：MUSETAB_URL 指向 git show 27a74c1:muse-tab/index.html 复跑 13/38——
@@ -283,7 +284,7 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
           await pg.click('#eb-dur [data-dur="8"]'); await pg.waitForTimeout(80);
           const s1 = await EV(pg, () => ({ m: __dump(1), sum: __sum(0), u: undoStack.length }));
           await keys(['5', '6']); await pg.click('#eb-dur [data-dur="8"]'); await pg.waitForTimeout(80); await keys(['5', '4', '3', '1']);
-          const s2 = await EV(pg, () => { render(); const mb = meaBoxes[0], bx = [0, 1, 2, 3, 4, 5].map(ci => colBoxes['v0:0:' + ci]);
+          const s2 = await EV(pg, () => { render(); const mb = meaBoxes[0], bx = [0, 1, 2, 3, 4, 5, 6].map(ci => colBoxes['v0:0:' + ci]);
             return Object.assign(__st(), { mb: mb && [mb.x, mb.w], bx: bx.map(x => x ? [+x.x.toFixed(2), +x.w.toFixed(2)] : null), m1: (__cols(1) || []).map(__f).join(' ') }); });
           R.in1 = { u0, s1, s2 }; }
         /* IN2 键盘 */
@@ -341,14 +342,17 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
       for (const shell of ['flow', 'classic']) {
         const R = res[shell], tag = ' [' + shell + ']';
         const i1 = R.in1, s2 = i1.s2 || {}, bx = s2.bx || [], mb = s2.mb || [0, 0];
-        const inside = bx.length === 6 && bx.every(x => x && x[0] >= mb[0] - 0.5 && x[0] + x[1] <= mb[0] + mb[1] + 0.5);
-        const narrow = bx.length === 6 && bx.every(Boolean) && Math.max(bx[0][1], bx[1][1], bx[2][1], bx[3][1]) < Math.min(bx[4][1], bx[5][1]);
-        T(i1.s1.m === '0/8 0/8 0/4 0/4 0/4' && i1.s1.sum === 4 && i1.s1.u === i1.u0 + 1 && s2.m === '5/8 6/8 5/8 4/8 3/4 1/4 | 0/4 0/4 0/4 0/4' && s2.be === 0 && s2.sel === '1:0' && s2.m1 === '0/4 0/4 0/4 0/4' && inside && narrow,
-          'IN1' + tag + ' 报障原样：4/4 空小节点 8 分时值钮 → 第 1 小节 [8,8,4,4,4]、总 4 拍、撤销栈 +1；键入 5 6、再点 8 分、键入 5 4 3 1 →「5/8 6/8 5/8 4/8 3/4 1/4」、无节拍错误、光标 1:0；几何：6 列 colBoxes 都在 meaBoxes[0] 内、八分列宽 < 四分列宽、第 2 小节 4 列全空',
+        /* v69.8 D（规格 §3.9 录入时值沿用，有意迁移）：点过 8 分钮后连续落的音都是八分——「3 1」不再落成四分（v68.8 IN9「不沿用」的口径被规格明确反转），
+           第 1 小节变成 6 个八分＋1 个四分空格（光标停在 0:6）；几何改为 7 列都在小节框内、6 个八分列宽 < 剩下的四分空格列宽 */
+        const inside = bx.length === 7 && bx.every(x => x && x[0] >= mb[0] - 0.5 && x[0] + x[1] <= mb[0] + mb[1] + 0.5);
+        const narrow = bx.length === 7 && bx.every(Boolean) && Math.max(bx[0][1], bx[1][1], bx[2][1], bx[3][1], bx[4][1], bx[5][1]) < bx[6][1];
+        T(i1.s1.m === '0/8 0/8 0/4 0/4 0/4' && i1.s1.sum === 4 && i1.s1.u === i1.u0 + 1 && s2.m === '5/8 6/8 5/8 4/8 3/8 1/8 0/4 | 0/4 0/4 0/4 0/4' && s2.be === 0 && s2.sel === '0:6' && s2.m1 === '0/4 0/4 0/4 0/4' && inside && narrow,
+          'IN1' + tag + ' 报障原样：4/4 空小节点 8 分时值钮 → 第 1 小节 [8,8,4,4,4]、总 4 拍、撤销栈 +1；键入 5 6、再点 8 分、键入 5 4 3 1 →「5/8 6/8 5/8 4/8 3/8 1/8 0/4」（v69.8 时值沿用）、无节拍错误、光标 0:6；几何：7 列 colBoxes 都在 meaBoxes[0] 内、八分列宽 < 四分空格列宽、第 2 小节 4 列全空',
           J({ s1: i1.s1, m: s2.m, be: s2.be, sel: s2.sel, mb, bx }));
-        const w2 = '5/8 6/8 5/8 4/8 3/4 1/4 | 0/4 0/4 0/4 0/4';
-        T(R.in2a.m === w2 && R.in2b.m === w2 && R.in2c.m === '1/16 2/16 3/16 4/16 5/4 6/4 7/4 | 0/4 0/4 0/4 0/4' && [R.in2a, R.in2b, R.in2c].every(x => x.be === 0),
-          'IN2' + tag + ' 键盘：「r5 r6 r5 r4 3 1」与「r 5 6 r 5 4 3 1」都得「5/8 6/8 5/8 4/8 3/4 1/4」；「t 1 2 3 4 5 6 7」→ 1/16 2/16 3/16 4/16 5/4 6/4 7/4；都无节拍错误',
+        /* v69.8 D（规格 §3.9，有意迁移）：最后一个时值键之后连续落的音沿用它——「… r 4 3 1」的 3 1 是八分、「t 1 2 3 4 5 6 7」七个都是十六分（v68.8 只有补出的格是该时值） */
+        const w2 = '5/8 6/8 5/8 4/8 3/8 1/8 0/4 | 0/4 0/4 0/4 0/4';
+        T(R.in2a.m === w2 && R.in2b.m === w2 && R.in2c.m === '1/16 2/16 3/16 4/16 5/16 6/16 7/16 0/16 0/4 0/4 | 0/4 0/4 0/4 0/4' && [R.in2a, R.in2b, R.in2c].every(x => x.be === 0),
+          'IN2' + tag + ' 键盘：「r5 r6 r5 r4 3 1」与「r 5 6 r 5 4 3 1」都得「5/8 6/8 5/8 4/8 3/8 1/8」；「t 1 2 3 4 5 6 7」→ 七个十六分（v69.8 时值沿用）；都无节拍错误',
           J({ a: R.in2a.m, b: R.in2b.m, c: R.in2c.m }));
         const q = R.rules || {};
         const W3 = { jp_4to16: '0/16 0/16 0/16 0/16 0/4 0/4 0/4', jp_2to8: '0/8 0/8 0/8 0/8 0/4 0/4', jp_1to64: Array(16).fill('0/64').join(' ') + ' 0/2.', jp_dot4to8: '0/8. 0/8. 0/8 0/2',
@@ -370,13 +374,16 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
         const w7 = '5/4. 6/8 3/4 1/4 | 0/4 0/4 0/4 0/4';
         /* v69.6 I3（复核 N3，有意迁移）：按了时值键、尚未落音时的「.」作用于这一格——「5 r .」是给预选的八分加附点（6 落成附点八分，余下 16 分给 3），
            不再回落到刚落的 5（v68.7 / v68.8 的口径）；「5 . 6」「5 . r 6」「r 5 . 6」后置附点不变 */
-        const w7a = '5/4 6/8. 3/16 1/4 0/4 | 0/4 0/4 0/4 0/4';
-        T(R.in7a.m === w7a && R.in7b.m === w7 && R.in7c.m === w7 && R.in7d.m === '5/8. 6/16 3/4 2/4 1/4 | 0/4 0/4 0/4 0/4' && R.in7e.m === '5/2. 0/4 | 0/4 0/4 0/4 0/4' && [R.in7a, R.in7b, R.in7c, R.in7d, R.in7e].every(x => x.be === 0),
-          'IN7' + tag + ' 附点：「5 . 6」「5 . r 6」都得 5/4. 6/8 3/4 1/4（与 v68.7 相同）；「5 r . 6」＝预选八分加附点 → 5/4 6/8. 3/16 1/4（v69.6）；「r 5 . 6」→ 5/8. 6/16 3/4 2/4 1/4；「w 5 .」附点后超拍 → 吃回 4 拍（5/2. 0/4）；都无节拍错误',
+        /* v69.8 D（规格 §3.9，有意迁移，只动「附点＋补足」之后的音）：附点规则不变——「5 r .」的附点仍落在预选的八分格上（6 → 6/8.），补足的十六分仍按原样落给 3；
+           按过 r 之后再往四分空格落的音沿用八分：a 的 1、c 的 3 1、d 的 3 2 1 由四分变八分（附点不沿用、补足格不被撑开见 tv_v698in V3b） */
+        const w7a = '5/4 6/8. 3/16 1/8 0/8 0/4 | 0/4 0/4 0/4 0/4';
+        T(R.in7a.m === w7a && R.in7b.m === w7 && R.in7c.m === '5/4. 6/8 3/8 1/8 0/4 | 0/4 0/4 0/4 0/4' && R.in7d.m === '5/8. 6/16 3/8 2/8 1/8 0/8 0/4 | 0/4 0/4 0/4 0/4' && R.in7e.m === '5/2. 0/4 | 0/4 0/4 0/4 0/4' && [R.in7a, R.in7b, R.in7c, R.in7d, R.in7e].every(x => x.be === 0),
+          'IN7' + tag + ' 附点：「5 . 6」得 5/4. 6/8 3/4 1/4（与 v68.7 相同）；「5 r . 6」＝预选八分加附点 → 5/4 6/8. 3/16（v69.6）、其后的 1 沿用八分；「5 . r 6 3 1」→ 5/4. 6/8 3/8 1/8；「r 5 . 6」→ 5/8. 6/16、其后沿用八分；「w 5 .」附点后超拍 → 吃回 4 拍（5/2. 0/4）；都无节拍错误',
           J({ a: R.in7a.m, b: R.in7b.m, c: R.in7c.m, d: R.in7d.m, e: R.in7e.m }));
         T(R.in8.a.m === '5/4 0/8 0/8 0/4 0/4 | 0/4 0/4 0/4 0/4' && R.in8.b.u === R.in8.a.u - 1 && R.in8.b.m === '5/4 0/4 0/4 0/4 | 0/4 0/4 0/4 0/4',
           'IN8' + tag + ' 撤销：「5 r」（5/4 0/8 0/8 0/4 0/4）后 Ctrl+Z，撤销栈只少 1、第 1 小节回到 5/4 0/4 0/4 0/4（补列与改时值是同一步）', J(R.in8));
-        T(R.in9.m === '5/8 6/8 5/4 4/4 3/4 | 1/4 0/4 0/4 0/4', 'IN9' + tag + ' 反例钉子（不沿用时值）：「r 5 6 5 4 3 1」→ 5/8 6/8 5/4 4/4 3/4 | 1/4——只有 r 那一格补出的八分是八分，第 3 个音起按原四分格落', R.in9.m);
+        /* v69.8 D（规格 §3.9「为什么改得动 v68.8 的『不做沿用』」，有意反转）：原「不沿用」反例钉子改为沿用——按一次 r 后六个音都是八分、仍在第 1 小节内，无节拍错误 */
+        T(R.in9.m === '5/8 6/8 5/8 4/8 3/8 1/8 0/4 | 0/4 0/4 0/4 0/4' && R.in9.be === 0, 'IN9' + tag + ' 时值沿用（v69.8 起反转 v68.8 的「不沿用」钉子）：「r 5 6 5 4 3 1」→ 六个八分 5/8 6/8 5/8 4/8 3/8 1/8 0/4（后面补成同值空格，小节总时值不变）', R.in9.m);
         /* v68.7 的数据（测于 27a74c1）：已有音符的列上时值键 / 附点 / 增时线的结果 */
         const W10 = { q: '5/4 6/1 5/4 4/4 | 0/4 0/4 0/4 0/4', w: '5/4 6/2 5/4 4/4 | 0/4 0/4 0/4 0/4', e: '5/4 6/4 5/4 4/4 | 0/4 0/4 0/4 0/4', r: '5/4 6/8 5/4 4/4 | 0/4 0/4 0/4 0/4',
           t: '5/4 6/16 5/4 4/4 | 0/4 0/4 0/4 0/4', y: '5/4 6/32 5/4 4/4 | 0/4 0/4 0/4 0/4', u: '5/4 6/64 5/4 4/4 | 0/4 0/4 0/4 0/4', '.': '5/4 6/4. 5/8 4/4 | 0/4 0/4 0/4 0/4',
@@ -532,14 +539,18 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
           pk8: [{ opt: { nMea: 33 }, pk: 1 }, 'Delete Delete Delete r 5 ' + rep('1 1 5 5', 32)] };
         /* v68.7 结果的指纹（全曲 voxes JSON 的 __h，测于 27a74c1） */
         const H687 = { xxx: 'eed3e5a92d185cd3:14337', jtrun: '6c94bf5969ec74ba:16705', songbie32: 'c81ec913300d136:9269', minuet: '96146a8bfbf4b041:3225', pk4: '440338d590037b5a:9679', pk8: '415964eab8d6d5e:9679' };
+        /* v69.8 D（规格 §3.9 录入时值沿用，有意迁移、窄范围）：送别 / 小步舞曲两条序列里有「w 某音」之后不按时值键的四分音——按规格沿用二分，整曲数据有意不同于 v68.7
+           （v69.8 打法在这些音前补按 e；按「看时值钮补键」的贪心打法见 KC2，结果等于目标）。这两条改钉 v69.8 的指纹（节拍错误数随之而来，不再要求 0）；
+           xxx / 八分为主（Insert 老打法：插入后时值沿用清空、按格落）与一拍 / 半拍弱起（弱起小节不记沿用）仍与 v68.7 逐字节相同 */
+        const H698 = { songbie32: '8aab1d846c5c596e:8905', minuet: '520086db5836f10c:3225' };
         const got = {};
         for (const [nm, [o, ks]] of Object.entries(SEQ)) {
           await EV(pg, o => __fresh({ opt: o.opt, setup: s => { if (o.pk) s.pickup = true; } }), o);
           const list = ks.split(' '); for (const k of list) await pg.keyboard.press(k);
           got[nm] = await EV(pg, n => ({ h: __h(JSON.stringify(song.measures.map(m => m.voxes))), be: beatErrors().length, keys: n, m0: __dump(2) }), list.length); }
-        const bad = Object.keys(SEQ).filter(nm => !got[nm] || got[nm].h !== H687[nm] || got[nm].be !== 0);
+        const bad = Object.keys(SEQ).filter(nm => !got[nm] || (H698[nm] ? got[nm].h !== H698[nm] : (got[nm].h !== H687[nm] || got[nm].be !== 0)));
         console.log('ℹ️ FX4c 指纹：' + J(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, v.h]))));
-        T(!bad.length, 'FX4c 32 小节老打法原样重放（xxx 320 键 / 八分为主 416 / 送别×2 256 / 小步舞曲 115 / 一拍弱起 133 / 半拍弱起 133，按键序列测于 27a74c1）：全曲数据与 v68.7 逐字节相同（指纹一致）、无节拍错误',
+        T(!bad.length, 'FX4c 32 小节老打法原样重放（xxx 320 键 / 八分为主 416 / 送别×2 256 / 小步舞曲 115 / 一拍弱起 133 / 半拍弱起 133，按键序列测于 27a74c1）：xxx / 八分为主 / 两条弱起全曲数据与 v68.7 逐字节相同（指纹一致）、无节拍错误；送别 / 小步舞曲按 v69.8 时值沿用有意不同（钉 v69.8 指纹）',
           bad.map(nm => nm + J(got[nm])).join(' | ') || Object.keys(SEQ).map(nm => nm + ' ' + got[nm].keys + ' 键').join(' · '));
         allErrs.push(...P.errs); await P.close(); }
     }
@@ -569,9 +580,10 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
         if (tgt.err) return { err: tgt.err };
         let keys = 0; const press = async k => { keys++; await pg.keyboard.press(k); };
         for (const cs of tgt) for (const t of cs) {
-          const ed = await pg.evaluate(() => { const c = curCol(); return c ? c.dur : null; });
+          /* v69.8 D：看时值钮（光标在空格上时按录入时值沿用值亮＝下一个音会是几分），不再读格子本身的时值 */
+          const ed = await pg.evaluate(() => { const c = curCol(), b = document.querySelector('#eb-dur .eb.on[data-dur]'); return b ? +b.dataset.dur : (c ? c.dur : null); });
           let post = [];
-          if (habit === 'old') { if (t.dur !== 4) await press(KEY[t.dur]); }   /* KC3：逐音先按时值键（v68.7 上同样按法 32 小节全错；v68.7 能打对的是「改短后 Shift+Insert 补一格」，见 FX4c） */
+          if (habit === 'old') await press(KEY[t.dur]);   /* KC3：每个音前都按时值键（v69.8 迁移：原「只在非四分音前按」靠空格默认四分，时值沿用后「r 4 3 1」的 3 1 沿用八分——规格 §3.9 有意改动；每音都按是规格 V2 保证不变的熟手打法） */
           else if (t.dotted && t.dur === 2) { if (ed !== 2) await press('w'); post = ['d']; }
           else if (t.dotted) { if (ed !== t.dur) await press(KEY[t.dur]); post = ['.']; }
           else if (ed !== t.dur) await press(KEY[t.dur]);
@@ -588,14 +600,16 @@ const EV = (pg, fn, arg) => pg.evaluate(fn, arg).catch(e => ({ err: String(e.mes
         return Object.assign({ keys }, res); };
       /* 期望键数（本版）与 v68.7 同打法的键数（测于 27a74c1，那时结果都是错的） */
       /* [名, 标签, 本版键数, v68.7 同打法键数（结果错）, v68.7 能打对的 Insert 补格打法键数（f88v kflow 实测，同 FX4c 的序列）] */
-      const KC = [['songbie32', '送别×2（32 小节）', 232, 263, 256], ['xxx', '「5̲6̲5̲4̲ 3 1」×32', 256, 299, 320], ['jtrun', '八分为主 32 小节', 320, 343, 416], ['minuet', '小步舞曲 11 小节（去掉三连音小节）', 103, 116, 115]];
+      /* v69.8 D（规格 §3.9 录入时值沿用，有意迁移）：驱动看时值钮补键，本版键数 送别 232→253（二分之后要按 e 回到四分）· xxx 256 不变 · 八分为主 320→240 · 小步舞曲 103 不变；
+         仍不多于 v68.7 的任一打法 */
+      const KC = [['songbie32', '送别×2（32 小节）', 253, 263, 256], ['xxx', '「5̲6̲5̲4̲ 3 1」×32', 256, 299, 320], ['jtrun', '八分为主 32 小节', 240, 343, 416], ['minuet', '小步舞曲 11 小节（去掉三连音小节）', 103, 116, 115]];
       const kr = [];
       for (const [nm, lab, k1, k0, kOk] of KC) { const x = await bench(nm); kr.push({ nm, lab, k1, k0, kOk, x }); }
       const bad = kr.filter(o => o.x.err || o.x.bad !== 0 || o.x.be !== 0 || o.x.keys !== o.k1 || o.x.keys > o.k0 || o.x.keys > o.kOk);
-      T(!bad.length, 'KC2 按键数（同一贪心打法、真键盘驱动）：' + kr.map(o => o.lab + ' ' + o.x.keys + ' 键（v68.7 同打法 ' + o.k0 + ' 键结果错 · v68.7 Insert 补格打法 ' + o.kOk + ' 键）').join(' · ') + '——每首结果等于目标、无节拍错误，键数恰为 232 / 256 / 320 / 103，不多于 v68.7 的任一打法',
+      T(!bad.length, 'KC2 按键数（同一贪心打法、真键盘驱动）：' + kr.map(o => o.lab + ' ' + o.x.keys + ' 键（v68.7 同打法 ' + o.k0 + ' 键结果错 · v68.7 Insert 补格打法 ' + o.kOk + ' 键）').join(' · ') + '——每首结果等于目标、无节拍错误，键数恰为 253 / 256 / 240 / 103（v69.8 时值沿用），不多于 v68.7 的任一打法',
         bad.map(o => o.nm + J(o.x)).join(' | ') || kr.map(o => o.nm + ' ' + o.x.n + ' 音 ' + o.x.keys + ' 键').join(' · '));
       { const x = await bench('xxx', 'old');
-        T(!x.err && x.keys === 320 && x.bad === 0 && x.be === 0, 'KC3 逐音按时值键的打法：「5̲6̲5̲4̲ 3 1」×32 共 320 键、结果正确（v68.7 同样按法 32 小节全错；v68.7 熟手的 Insert 补格打法另见 FX4c，结果与 v68.7 逐字节相同）', J(x)); }
+        T(!x.err && x.keys === 384 && x.bad === 0 && x.be === 0, 'KC3 每个音前都按时值键的打法：「5̲6̲5̲4̲ 3 1」×32 共 384 键、结果正确（v69.8 迁移：原「只在非四分音前按」320 键靠空格默认四分，时值沿用后不再成立，规格 §3.9；v68.7 熟手的 Insert 补格打法另见 FX4c，结果与 v68.7 逐字节相同）', J(x)); }
       allErrs.push(...P.errs); await P.close();
     }
   } catch (e) { T(false, '套件异常', String(e && e.stack || e).slice(0, 400)); }

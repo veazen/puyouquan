@@ -16839,9 +16839,11 @@ function syncInputs(){
     if(sv) sv.textContent=song.tempo;
     if(typeof updateVwHdr==='function') updateVwHdr(); }
   { const kv=document.getElementById('k-val'); if(kv) kv.textContent='1='+keyLabel(song.key); }   // v40.0 顶栏调号；v63.5 1=♭B 写法
-  /* 页头编辑栏时值按钮联动高亮 */
+  /* 页头编辑栏时值按钮联动高亮
+     v69.8 D：光标在空格上、录入时值沿用会改这一格时（entryDurPlan），按沿用值亮——看得出下一个音是几分（两外壳同一组 #eb-dur：旧外壳编辑栏、新外壳悬浮编辑行 / 手机抽屉） */
+  const durLit = col? ((!selRange && entryDurPlan(sel.row, sel.vi, sel.mi, sel.ci)) || col.dur) : 0;
   document.querySelectorAll('#eb-dur .eb').forEach(b=>{
-    if(b.dataset.dur) b.classList.toggle('on', !!col && +b.dataset.dur===col.dur);
+    if(b.dataset.dur) b.classList.toggle('on', !!col && +b.dataset.dur===durLit);
     if(b.id==='eb-dot'){
       b.classList.toggle('on', !!(col&&col.dotted));
       /* v41.5 附点档位联动显示：双附点时按钮显示两点 */
@@ -17037,6 +17039,7 @@ function setFret(f){
      带 lit 的音在教材式下仍显示数字。节奏型/和弦变换生成的音不带 lit，× 惯例不变。 */
   mutate(()=>{
     const col=curCol();
+    if(f!=null && !((col.notes||[]).length || col.strum || col.perc)) entryDurApply('tab', sel.vi, sel.mi, sel.ci);   /* v69.8 D 录入时值沿用：往空列写品位 */
     const i = col.notes.findIndex(n=>n.s===sel.si);
     if(f==null){ if(i>=0) col.notes.splice(i,1); }
     else if(i>=0){
@@ -17091,6 +17094,7 @@ function setDeg(d){
   if(sel.row!=='vox') return;
   let dup=0;
   mutate(()=>{ const c=curCol(), was=c.deg; const o=(!was && d)? staffEntryOct(d) : null;
+    if(!was && d) entryDurApply('vox', sel.vi, sel.mi, sel.ci);   /* v69.8 D 录入时值沿用：往空格落音 */
     c.deg=d;
     if(!d){ c.acc=''; c.oct=0; return; }
     if(o!=null) c.oct=o;
@@ -17322,6 +17326,7 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
     if(dotLevel(col)>mx) col.dotted = mx>=1? true : false; };
   DUR_PRE=null;
   if(selRange){
+    ENTRY_DUR=null;   /* v69.8 D：选区批量改时值不记沿用（并清掉之前记下的） */
     mutate(()=>{
       rangeCols().forEach(({mi,col})=>{ col.dur=d; clampDot(col); });
     });
@@ -17332,18 +17337,78 @@ function setDur(d){ try{habit('dur:'+d);}catch(_){}
      v68.8 P2 在空列上把时值改短（含 clampDot 降附点）：空出的时值紧接着补成同值空列（fillRestsAfter），小节总时值不变——
      此前只改这一格，4/4 空小节点 8 分后只剩 3.5 拍，接着键入的音溢到下一小节。只动空列、不在连音组内、单列路径；
      已有音符的列 / 选区批量 / 改长 / 同值与 v68.7 相同；光标不动（下一个数字落在这一格，自动前进走到补出的第一格）；补列与改时值同一步撤销。
-     不做「沿用刚选的时值」：后面没按时值键的音仍按原格时值落（熟手逐音按时值键的结果不变，时值键含义不变）
+     v68.8 不做「沿用刚选的时值」（后面没按时值键的音按原格时值落）——v69.8 D 起改为沿用（ENTRY_DUR，规格 §3.9；熟手逐音按时值键的结果仍不变，时值键含义不变）
      v68.8 收尾 IN-1 / R2 / IN-4：允许欠拍的小节（弱起首小节 / 散拍草稿 freeMeter，meaUnderOk）不补——那里「小节总时值不变」的前提不成立，
-     改短就是缩短弱起 / 散拍型的实际拍数（L18028「弱起首小节的容量＝它现有的时值」），与 v68.7 相同 */
-  const c=curCol(); if(c){ FILL_LAST=null; mutate(()=>{ const c2=curCol(); const unit=meaMeter(sel.mi).unit, b0=beatsOf(c2, unit); c2.dur=d; clampDot(c2);
+     改短就是缩短弱起 / 散拍型的实际拍数（L18028「弱起首小节的容量＝它现有的时值」），与 v68.7 相同
+     v69.8 D：空列这一支抽成 durOnBlank（录入时值沿用 entryDurApply 共用同一套规则），逐字节同效；单格按时值键记下沿用值 ENTRY_DUR（允许欠拍的小节里不记、并清掉之前的） */
+  const c=curCol(); if(c){ FILL_LAST=null;
+    ENTRY_DUR = meaUnderOk(sel.mi)? null : {s:song, d:entryDurDoc(), dur:d};   /* 先记下：mutate 里的重绘（时值钮亮哪个）按新值 */
+    mutate(()=>{ const c2=curCol();
     const emp = sel.row==='tab'? !((c2.notes||[]).length || c2.strum || c2.perc) : !c2.deg;
-    if(emp){ const cols=curRowCols(); if(cols){ const b1=beatsOf(c2, unit);
-      if(b1<b0-1e-4 && !c2.tup && !meaUnderOk(sel.mi)){ const add=fillRestsAfter(cols, sel.ci, b0-b1, sel.row, unit, sel.mi, sel.vi);
-        /* IN-2 老打法兼容的标记：紧接着的 Insert / Shift+Insert 用掉一格这次补出的空列（见 insertNote） */
-        if(add.length) FILL_LAST={song, cols, cells:add, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]}; }
-      absorbRestsAfter(cols, sel.ci, sel.mi, sel.row, sel.vi); } } });
+    const cols = emp? curRowCols() : null;
+    if(cols){ const add=durOnBlank(cols, sel.ci, d, sel.row, sel.mi, sel.vi);
+      /* IN-2 老打法兼容的标记：紧接着的 Insert / Shift+Insert 用掉一格这次补出的空列（见 insertNote） */
+      if(add.length) FILL_LAST={song, cols, cells:add, key:sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci, top:undoStack[undoStack.length-1]}; }
+    else { c2.dur=d; clampDot(c2); } });
     /* v69.6 I3：在空格上先选时值——随后的「.」作用于这一格（预选附点），不回落到上一个刚落的音 */
     const c3=curCol(); if(c3 && (sel.row==='tab'? !((c3.notes||[]).length || c3.strum || c3.perc) : !c3.deg)) DUR_PRE={s:song, row:sel.row, vi:sel.vi, mi:sel.mi, ci:sel.ci}; }
+}
+/* v69.8 D（复核 N8 前两项）空格改时值的同一套规则（setDur 的空列一支原样抽出；录入时值沿用 entryDurApply 共用）：第 ci 格（空格）时值改成 d、附点按新时值可用性收敛；
+   改短（v68.8 P2）紧接着补同值空列（连音组内 / 允许欠拍的小节不补）；改长（v63.6）吸收其后空白列。返回补出的格（数组，没补为空）。调用方在 mutate 里调 */
+function durOnBlank(cols, ci, d, row, mi, vi){
+  const c2=cols[ci]; if(!c2) return [];
+  const unit=meaMeter(mi).unit, b0=beatsOf(c2, unit);
+  c2.dur=d; { const mx=maxDotLevel(c2.dur); if(dotLevel(c2)>mx) c2.dotted = mx>=1? true : false; }
+  const b1=beatsOf(c2, unit); let add=[];
+  if(b1<b0-1e-4 && !c2.tup && !meaUnderOk(mi)) add=fillRestsAfter(cols, ci, b0-b1, row, unit, mi, vi);
+  absorbRestsAfter(cols, ci, mi, row, vi);
+  return add;
+}
+/* v69.8 D（复核 N8 ①）录入时值沿用：按一次时值键后，往空格落的音都用这个时值，直到再按别的时值键为止（只在内存：不进 song、不写本机存储、不进撤销）。
+   ENTRY_DUR＝{s:谱, d:窗口, dur}：单格 setDur 记下（选区批量 / 允许欠拍的小节里不记，并清掉之前的）；换谱（keyKeepReset：打开 / 新建 / 切页签 / 观看页进出）、
+   按格搭节奏的操作（插入 / 拆分 / 合并 / 组合时值——搭出来的格按原样落）清空。撤销 / 重做会换 song 对象，同一窗口照旧沿用（entryDurOn 认窗口）。
+   生效（entryDurPlan → entryDurApply）：往空格落音（setDeg 落 1–7、setFret 往空列写品位、谱面鼠标点音进空格）且这一格时值≠沿用值时，先按 durOnBlank 改这一格再落音（同一步撤销）。
+   不改：已有音的格（改音高不动时值）；连音组内；弱起 / 不完整小节 / 散拍草稿（meaUnderOk：那里的时值键定的是小节容量，v68.8 IN-1）；改长吸收不够（会超拍）；
+   附点的补足格——只沿用时值、不沿用附点：紧跟在附点音后、正好是它的一半（双附点：四分之一）的空格（「e 3 . 2」「5 r . 6 3」里的 2 / 3）按原样落，不被沿用值撑开 */
+var ENTRY_DUR=null;
+function entryDurDoc(){ try{ return (typeof docs!=='undefined' && docs[curDocI]) || null; }catch(_){ return null; } }
+function entryDurReset(){ ENTRY_DUR=null; }
+function entryDurOn(){
+  const E=ENTRY_DUR; if(!E || !E.dur) return null;
+  if(E.s===song) return E;
+  const dc=entryDurDoc(); if(E.d && dc && E.d===dc && dc.song===song){ E.s=song; return E; }   /* 撤销 / 重做：同一窗口换了 song 对象 */
+  return null;
+}
+/* 这一格（空格）落音前要改成的时值；不改返回 0（纯函数：时值钮显示也用它） */
+function entryDurPlan(row, vi, mi, ci){
+  const E=entryDurOn(); if(!E || meaUnderOk(mi)) return 0;
+  const m=(song.measures||[])[mi]; const cols=m && ((row==='tab'? m.tabs : m.voxes)||[])[vi]; const c=cols && cols[ci];
+  if(!c || c.tup || c.dur===E.dur) return 0;
+  if(row==='tab'? ((c.notes||[]).length || c.strum || c.perc) : c.deg) return 0;
+  const p=cols[ci-1], pl=p && !p.tup? dotLevel(p) : 0;
+  if(pl && !dotLevel(c) && c.dur===p.dur*(pl===2? 4 : 2)) return 0;   /* 附点的补足格 */
+  const {beats:cap, unit}=meaMeter(mi), b0=beatsOf(c, unit);
+  const t={dur:E.dur, dotted:c.dotted}; { const mx=maxDotLevel(t.dur); if(dotLevel(t)>mx) t.dotted = mx>=1? true : false; }
+  const b1=beatsOf(t, unit);
+  if(b1>b0+1e-4){   /* 改长：预演 absorbRestsAfter（同判据：其后连续的空白列、不在连音组、不是跨列引用终点；部分吸收须精确），吸收不够就不改 */
+    let over=cols.reduce((a,x)=>a+beatsOf(x,unit),0)-b0+b1-cap;
+    const tg=colRefTargets(mi, row, vi);
+    for(let i=ci+1; over>1e-4 && i<cols.length && restBlank(cols[i], row) && !cols[i].tup && !tg.has(i); i++){
+      const b=beatsOf(cols[i],unit);
+      if(b<=over+1e-4){ over-=b; continue; }
+      const h=fitDurTo(b-over, true, unit); if(h && Math.abs(beatsOf(h,unit)-(b-over))<1e-4) over=0;
+      break;
+    }
+    if(over>1e-4) return 0;
+  }
+  return E.dur;
+}
+/* 落音前调（在落音的那次 mutate 里）：按沿用值改这一格；返回是否改了 */
+function entryDurApply(row, vi, mi, ci){
+  const d=entryDurPlan(row, vi, mi, ci); if(!d) return false;
+  const m=song.measures[mi], cols=((row==='tab'? m.tabs : m.voxes)||[])[vi];
+  durOnBlank(cols, ci, d, row, mi, vi); FILL_LAST=null;
+  return true;
 }
 /* v69.6 I3（复核 N3）预选时值的格（只在内存）：按了时值键、尚未落音时按「.」＝给这一格加附点（此前 toggleDot 按落音态回落，附点加到上一个已落的音上，
    dotLink 又把刚设成二分的这一格减半——「e 3 w . 2」得到 3/4. 2/8）。附点吃掉其后的空白列（restBlank / absorbRestsAfter 同口径），不去改下一格 */
@@ -17532,6 +17597,7 @@ function genTabCol(dur, dot, style, shape, idx){
 function comboBeatsOf(combo, unit){ const u=unit||song.unit; return combo.durs.reduce((a,[d,t])=>a+(4/d)*(t?1.5:1)*(u/4),0); }
 /* 组合时值：替换选中的一拍（或当前音起 comboBeats 拍），按和弦与演奏方式自动补/删音符 */
 function applyDurCombo(combo){ try{habit('combo');}catch(_){}
+  entryDurReset();   /* v69.8 D：组合时值搭出的格按原样落（时值沿用清空） */
   const row=sel.row;
   let mi, vi, startCi;
   if(selRange && selRange.row===row){ mi=selRange.m1; vi=selRange.vi; startCi=selRange.c1||0; }
@@ -17824,7 +17890,7 @@ function applyVoxPattern(pat){
     if(e.target.closest('#eb-clear')){ clearPitch(); return; }
     if(e.target.closest('#eb-split')){ splitNote(); return; }
     if(e.target.closest('#eb-merge')){ mergeNote(); return; }
-    if(e.target.closest('#eb-delcol2')){ deleteNote(); return; }
+    if(e.target.closest('#eb-delcol2')){ deleteNote(); return; }   /* v69.8 D：deleteNote 改走 delColumn（＝键盘 Delete） */
     /* v41.5 八度并入「编辑」组：委托既有 bumpOct（仅简谱/五线谱声部生效） */
     if(e.target.closest('#eb-octup')){ if(sel.row!=='vox'){ toast('八度用于简谱/五线谱声部——请先选中旋律声部音符'); return; } bumpOct(1); return; }
     if(e.target.closest('#eb-octdn')){ if(sel.row!=='vox'){ toast('八度用于简谱/五线谱声部——请先选中旋律声部音符'); return; } bumpOct(-1); return; }
@@ -17982,7 +18048,7 @@ function insertNote(before){
      本版改短时已经补过同值空列（fillRestsAfter）——紧接着的这一下插入就用掉一格刚补出的空列（插入格顶替它），小节总时值不变，
      结果与 v68.7 逐字相同（不再超拍、后面的音不再错位）。只在 FILL_LAST 仍有效时：同一份谱同一声部、上一步就是那次补列（撤销栈顶未变）、
      光标没动、那一格还在且仍是空白列、不在连音组内（优先顶替同值的一格）；其余插入与 v68.7 相同。顶替时跨列引用随之平移（插入点及其后 +1、被顶掉的格之后 −1） */
-  const fl=FILL_LAST; FILL_LAST=null;
+  const fl=FILL_LAST; FILL_LAST=null; entryDurReset();   /* v69.8 D：插入＝按格搭节奏，之后按格落音（时值沿用清空） */
   const eat = (fl && fl.song===song && fl.cols===cols && fl.top===undoStack[undoStack.length-1]
     && fl.key===sel.mi+':'+sel.row+':'+sel.vi+':'+sel.ci)? fl.cells : null;
   let left=null;
@@ -18004,6 +18070,7 @@ function splitNote(){
   const cols=curRowCols(); const cur=curCol();
   if(!cols || !cur) return toast('请先选中要拆分的音符');
   if(cur.dur*2>64) return toast('64分音符不能再拆分');
+  entryDurReset();   /* v69.8 D：拆分＝按格搭节奏（时值沿用清空） */
   mutate(()=>{
     const half=JSON.parse(JSON.stringify(cur));
     cur.dur*=2; half.dur=cur.dur;      // 附点/连音随克隆保留，总时值不变
@@ -18018,6 +18085,7 @@ function mergeNote(){
   if(!nxt || nxt.dur!==cur.dur || dotLevel(nxt)!==dotLevel(cur) || (nxt.tup||0)!==(cur.tup||0))
     return toast('合并需要下一个音符与当前时值完全相同');
   if(cur.dur<=1) return toast('已是全音符，无法再合并');
+  entryDurReset();   /* v69.8 D：合并＝按格搭节奏（时值沿用清空） */
   mutate(()=>{ cur.dur=cur.dur/2; cols.splice(sel.ci+1, 1); });
   toast('已合并为时值加倍的音符');
 }
@@ -18044,11 +18112,14 @@ function clearPitch(){
   });
   toast('已清除当前弦位音符（Backspace 同效）');
 }
+/* v69.8 D（复核 N8 ②）「删除」按钮 #eb-delcol2 / 命令面板「删除音符」与键盘 Delete 统一成同一语义（delColumn）：删格，删掉的时值并进相邻音、小节总时值不变；
+   弱起 / 不完整小节 / 散拍草稿直接删（v69.6 I5）；只剩一格时改成整格休止。此前按钮直接删、小节变欠拍、时值检查变红，只剩一格时拒绝。
+   想留休止用 Backspace（清成休止、时值不动）。函数名保留（tv_perf2 直调）；提示：旧外壳原文，新外壳短句 + 撤销 */
 function deleteNote(){
   const cols=curRowCols();
-  if(!cols || cols.length<=1) return toast('小节至少保留一个音符');
-  mutate(()=>{ cols.splice(sel.ci, 1); });
-  toast('已删除音符');
+  if(!cols || !cols.length) return toast('小节至少保留一个音符');
+  delColumn();
+  toastSay('已删除音符', {t:'已删除', k:'res', act:'undo'});
 }
 /* v49.8/v49.9 推弦体系收敛（产品拍板）：只保留两个符号——推弦 b↑ 与回落 b↓。
    两音式（Ctrl/Shift 选起始+目标）：目标音圆圈=推到/落到的准确音高，播放按真实音高差执行，
@@ -20995,7 +21066,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
         const c1=((song.measures[mi]||{}).voxes||[])[vi]; const col1=c1 && c1[ci]; if(!col1) return;
         if(col1.deg && (col1.adds||[]).filter(a=>a && a.deg).length>=3) return toast('和音最多 3 个叠加音');
         mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
-          if(!c2.deg){ c2.deg=deg2; c2.oct=oct2; c2.acc=''; return; }
+          if(!c2.deg){ entryDurApply('vox', vi, mi, ci); c2.deg=deg2; c2.oct=oct2; c2.acc=''; return; }   /* v69.8 D 录入时值沿用：点进空格 */
           c2.adds=c2.adds||[]; c2.adds.push({deg:deg2, acc:'', oct:oct2}); });
         toast('和音已更新（Ctrl+点击线/间可继续加）');
       };
@@ -21043,6 +21114,7 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
         const deg2=((rel%7)+7)%7+1, oct2=Math.floor(rel/7), c1=song.measures[mi].voxes[vi][ci];
         if(c1 && c1.deg===deg2 && (c1.oct||0)===oct2) return;   /* ② 同一个音：不动（保留升降、和音） */
         mutate(()=>{ const c2=song.measures[mi].voxes[vi][ci];
+          if(!c2.deg) entryDurApply('vox', vi, mi, ci);   /* v69.8 D 录入时值沿用：鼠标点音进空格 */
           c2.deg=deg2; c2.oct=oct2; c2.acc=''; });
         const c3=song.measures[mi].voxes[vi][ci];
         toast('音高 → '+c3.deg+(c3.oct>0?'（高'+c3.oct+'八度）':c3.oct<0?'（低'+(-c3.oct)+'八度）':''));
@@ -24437,7 +24509,7 @@ document.getElementById('b-tie').onclick = toggleTie;
    手动开关只对当前这份谱有效（不写谱面数据）：换谱（打开 / 新建 / 切页签 / 导入 / 观看页进出）回到该谱的默认（v69.6 验收 L6，keyKeepReset）。
    只用于中途转调菜单——新外壳调网格一律移调（验收 B1），只换调号走「改记谱调（音不变）」。调名按 keyPick 拼（♭D 不写 ♯C；♯F / ♭G 随本小节之前的调） */
 let keyKeepPitch=null;
-function keyKeepReset(){ keyKeepPitch=null; }
+function keyKeepReset(){ keyKeepPitch=null; entryDurReset(); }   /* v69.8 D：录入时值沿用同样不跨谱 */
 function keyKeepDef(s){ s=s||song; return !!s && !(s.tabVoices||[]).length && (s.voxVoices||[]).length>0 && s.voxVoices.every((_,i)=>isStaffNota((s.voxNotations||[])[i]) && !(s.voxDual||[])[i]); }
 function keyKeepOn(){ return keyKeepPitch==null? keyKeepDef(song) : !!keyKeepPitch; }
 function keyChainOf(s){ const at=[]; let k=s.key; (s.measures||[]).forEach(m=>{ if(m && m.keyTo && KEY_PC[m.keyTo]!=null) k=m.keyTo; at.push(k); }); return at; }

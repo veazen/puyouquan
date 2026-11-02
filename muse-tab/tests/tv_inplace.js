@@ -588,7 +588,8 @@ function HELP() {
         const s2 = createSong('vocal', { beats: s.beats, unit: s.unit, key: 'C', nMea: M.length, nTab: 0, nVox: 1, lyr: 0 }); __one(s2); sel = { mi: 0, row: 'vox', vi: 0, ci: 0, si: 1 }; blurSel = false; render(); return M; });
       let keys = 0, pane = 0; const press = async k => { keys++; await pg.keyboard.press(k); };
       for (const cs of tgt) for (const t of cs) {
-        const ed = await pg.evaluate(() => { const c = curCol(); return c ? c.dur : null; });
+        /* v69.8 D（录入时值沿用，同 tv_v688 KC2 迁移）：看时值钮——光标在空格上时按沿用值亮＝下一个音会是几分 */
+        const ed = await pg.evaluate(() => { const c = curCol(), b = document.querySelector('#eb-dur .eb.on[data-dur]'); return b ? +b.dataset.dur : (c ? c.dur : null); });
         let post = [];
         if (t.dotted && t.dur === 2) { if (ed !== 2) await press('w'); post = ['d']; }
         else if (t.dotted) { if (ed !== t.dur) await press(KEY[t.dur]); post = ['.']; }
@@ -609,8 +610,8 @@ function HELP() {
       res[tag] = { keys, pane, bad: r.bad, be: r.be, j: r.j, hm };
       await close(pg);
     }
-    T('KS', res.nx.keys === 232 && res.n0.keys === 232 && res.nx.bad === 0 && res.nx.be === 0 && res.nx.pane === 0 && res.nx.j === res.n0.j,
-      'KS1 键盘写 32 小节旋律（送别×2，tv_v688 KC 同贪心打法）：新形态 232 键、与 ?next=0 键数与结果逐字节相同、无节拍错误；写的过程中就地修面板一次也没弹', J({ nx: [res.nx.keys, res.nx.bad, res.nx.be, res.nx.pane], n0: [res.n0.keys], same: res.nx.j === res.n0.j }));
+    T('KS', res.nx.keys === 253 && res.n0.keys === 253 && res.nx.bad === 0 && res.nx.be === 0 && res.nx.pane === 0 && res.nx.j === res.n0.j,
+      'KS1 键盘写 32 小节旋律（送别×2，tv_v688 KC 同贪心打法，v69.8 起看时值钮补键）：新形态 253 键（v69.8 时值沿用：二分之后按 e 回四分，原 232）、与 ?next=0 键数与结果逐字节相同、无节拍错误；写的过程中就地修面板一次也没弹', J({ nx: [res.nx.keys, res.nx.bad, res.nx.be, res.nx.pane], n0: [res.n0.keys], same: res.nx.j === res.n0.j }));
     T('KS', res.nx.hm === HELP_V690.replace(/\s+/g, '') && res.n0.hm === res.nx.hm, 'KS2 快捷键菜单（状态栏 ?）与 v69.0 逐字节相同（新形态 / ?next=0）', J({ nx: res.nx.hm.slice(0, 80) }));
   });
 
