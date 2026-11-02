@@ -280,13 +280,17 @@ function T0SCN() {
     refNote('T0');
     if (!refURL) return;
     const A = await runDefault(refURL, T0SCN);
+    /* v69.9 有意改动（分类方案 docs/design-2026-11-taxonomy 拍板 10，PQ_KIND 两外壳共用）：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」——
+       旧外壳谱型条菜单 F_menu 里这一个谱名两边统一成占位再对拍 */
+    const CGNAME = /钢琴(?:弹唱|伴奏)谱（纯伴奏/g;
     const norm = (r, isNew) => { if (!r) return r; const o = Object.assign({}, r); o.G_keys = noFlowKey(o.G_keys); delete o.G_flow;
+      if (typeof o.F_menu === 'string') o.F_menu = o.F_menu.replace(CGNAME, '钢琴□谱（纯伴奏');
       if (isNew && typeof o.D_prefs === 'string') o.D_prefs = o.D_prefs.replace(OLDROW, ''); return o; };
     const RA = norm(A.r, false), RB = norm(B.r, true);
     const ks = [...new Set([...Object.keys(RA || {}), ...Object.keys(RB || {})])].filter(k => k !== 'G_inv');
     const bad = ks.filter(k => (RA || {})[k] !== (RB || {})[k]).map(k => { const x = String((RA || {})[k]), y = String((RB || {})[k]); let i = 0; while (i < x.length && x[i] === y[i]) i++;
       return k + ' @' + i + ' ref=' + J(x.slice(Math.max(0, i - 20), i + 50)) + ' new=' + J(y.slice(Math.max(0, i - 20), i + 50)); });
-    T('T0', !bad.length && !A.pe.length, 'T0c 旧外壳（?shell=classic）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳逐项相同（例外仅「使用旧版布局」一行与 musetab-flow 键）：混音台行（静音 / 独奏 / 音量 / 声像 / 双击复位 / 音色 → song.mixer 与行 HTML）· ＋ 音轨弹窗与加轨结果 / 提示 · 整谱拒绝 · 力度弹窗 HTML 与写入（mf / < / TAB 拒绝）· 偏好设置 · Enter 填词焦点与 musetab-flyclosed · 「/」不拦 · 谱型条 HTML / 换谱类菜单 / 收起 / Alt+B · musetab-* 键 · 全部提示文案',
+    T('T0', !bad.length && !A.pe.length, 'T0c 旧外壳（?shell=classic）与基线 ' + (REF.version || '') + '（' + REF_COMMIT.slice(0, 7) + '）不带开关的默认外壳逐项相同（例外仅「使用旧版布局」一行、musetab-flow 键与 v69.9 拍板 10 纯伴奏谱名）：混音台行（静音 / 独奏 / 音量 / 声像 / 双击复位 / 音色 → song.mixer 与行 HTML）· ＋ 音轨弹窗与加轨结果 / 提示 · 整谱拒绝 · 力度弹窗 HTML 与写入（mf / < / TAB 拒绝）· 偏好设置 · Enter 填词焦点与 musetab-flyclosed · 「/」不拦 · 谱型条 HTML / 换谱类菜单 / 收起 / Alt+B · musetab-* 键 · 全部提示文案',
       bad.length ? bad.join('\n      ') : ks.length + ' 项');
   }));
 

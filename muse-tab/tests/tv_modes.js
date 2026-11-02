@@ -70,7 +70,7 @@ const REF_COMMIT = process.env.MUSETAB_REF_COMMIT || REF.commit || '2675b9c';
 const IN_CI = !!process.env.CI && process.env.MUSETAB_REF !== 'none';
 /* 本版之前 flow 预览已有的本机键（v67.9 / v68.0）；本版只许新增 musetab-cmd-recent（计划 §1.2 / §4.7） */
 const PREV_FLOW_KEYS = ['musetab-flow', 'musetab-rdock', 'musetab-pal', 'musetab-signdensity'];
-const NEW_KEYS = ['musetab-cmd-recent', 'musetab-sbar', 'musetab-chordhear', 'musetab-preview'];   /* v69.0 有意迁移 + musetab-preview（停留预览开关，'0'＝关，规格 f90 §2.9 / 方案 P11） */   /* v68.3 musetab-sbar：谱面上方悬浮条收起（'0'），展开＝删键；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，规格 f89 §0.5） */
+const NEW_KEYS = ['musetab-cmd-recent', 'musetab-sbar', 'musetab-chordhear', 'musetab-preview', 'musetab-libtip'];   /* v69.9 分类 P1：新外壳谱友圈一次性提示（「钢琴独奏 → 钢琴谱 › 独奏」，看过写 '1'；旧外壳不写） */   /* v69.0 有意迁移 + musetab-preview（停留预览开关，'0'＝关，规格 f90 §2.9 / 方案 P11） */   /* v68.3 musetab-sbar：谱面上方悬浮条收起（'0'），展开＝删键；v68.9 有意迁移 + musetab-chordhear（和弦面板悬停试听开关，规格 f89 §0.5） */
 const J = x => JSON.stringify(x);
 
 /* —— 页面内工具（每个上下文的 init 脚本；只定义 window.__*，不碰页面状态）—— */
