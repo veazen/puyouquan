@@ -482,7 +482,9 @@ const SAFE = async (id, name, fn) => { try { await fn(); } catch (e) { T(id, fal
           const a = await EV(pgN, x => { __new(x.k, { meta: x.meta, mel: x.mel }); return 1; }, { k, meta, mel }); await raf(pgN);
           await EV(pgB, x => { __new(x.k, { meta: x.meta, mel: x.mel }); return 1; }, { k, meta, mel }); await raf(pgB);
           const sN = await EV(pgN, '(' + snap.toString() + ')()'), sB = await EV(pgB, '(' + snap.toString() + ')()');
-          Object.keys(sB).forEach(f => { if (sN[f] !== sB[f]) diffs.push(k + (mel ? '+音' : '') + ':' + f); });
+          /* v69.9 有意改动（分类拍板 10）：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」——两边统一占位再对拍（同 tv_next N0 / tv_trktree T0c） */
+          const cg = v => typeof v === 'string' ? v.replace(/钢琴(?:弹唱|伴奏)谱（纯伴奏/g, '钢琴□谱（纯伴奏') : v;
+          Object.keys(sB).forEach(f => { if (cg(sN[f]) !== cg(sB[f])) diffs.push(k + (mel ? '+音' : '') + ':' + f); });
         }
         /* 收起态 · 偏好弹窗 · 帮助新外壳原文 */
         const extra = async pg => { await EV(pg, () => __new('JG', { mel: true })); await EV(pg, () => FLOW.sbar.toggle({ exp: false })); await raf(pg);

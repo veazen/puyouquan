@@ -444,9 +444,14 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
           const av = Array.isArray(r) ? r[0].txt : [];
           /* v69.9 迁移（负责人 2026-11-02 拍板）：曲库构建把「Singstimme⏎Voice」只留原文名 → 圣母颂人声行写全称「Singstimme」（放得下、不再换短名）；
              「放不下先用短名」这条改用同一可用宽（oxH−8＝MARGIN−8）直接喂原来的两行名验 */
-          const syn = await EV(A.pg, () => { const f = rowLabelFit('Singstimme\nVoice', MARGIN - 8), g = rowLabelFit('Singstimme Voice', MARGIN - 8); return [f && f.t, g && g.t]; });
-          T(av.includes('Singstimme') && av.includes('右手') && av.includes('左手') && J(syn) === J(['Voice', 'Voice']),
-            'JL2 放得下写全称（曲库圣母颂「Singstimme」）、放不下先用短名（Pianoforte·右手 → 右手；两行 / 多词名「Singstimme Voice」→ Voice）', J({ av, syn }));
+          /* v69.9 CI 教训：行首名按 --font-ui 量宽（rowLabelFit 'uiF'）——装了中文字体的机器（CI）上「Singstimme」8 号也放不下，改用自动简称「V.」（不截断）；
+             本机字体放得下就写全称。两种环境都成立：人声行是全称或 rowNameShort 简称、全部不带省略号 */
+          const syn = await EV(A.pg, () => { const f = rowLabelFit('Singstimme\nVoice', MARGIN - 8), g = rowLabelFit('Singstimme Voice', MARGIN - 8), h = rowLabelFit('Singstimme', 20);
+            return { two: [f && f.t, g && g.t], tight: h && h.t, ab: rowNameShort('Singstimme') }; });
+          const vox = av.filter(t => t !== '右手' && t !== '左手');
+          T(vox.length === 1 && (vox[0] === 'Singstimme' || vox[0] === syn.ab) && !av.some(t => /…/.test(t)) && av.includes('右手') && av.includes('左手')
+            && J(syn.two) === J(['Voice', 'Voice']) && syn.tight === syn.ab && syn.ab === 'V.',
+            'JL2 放得下写全称（曲库圣母颂「Singstimme」）、放不下先用短名（Pianoforte·右手 → 右手；两行 / 多词名「Singstimme Voice」→ Voice）；单词名 8 号仍放不下用自动简称（Singstimme → V.）而不截断', J({ av, syn }));
         }
         const r3 = await EV(A.pg, () => { const s = createSong('piano', { title: '钢', beats: 4, unit: 4, key: 'C', nMea: 2, lyr: 0 }); s.voxNotations = []; s.voxVoices = ['钢琴·右手', '钢琴·左手']; __ld(s); blurSel = true; render();
           return [...document.querySelectorAll('#score text[data-rowlbl]')].map(t => t.textContent + '@' + t.getAttribute('font-size')); });
