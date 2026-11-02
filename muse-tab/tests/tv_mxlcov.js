@@ -114,8 +114,9 @@ const FIXDIR = path.resolve(__dirname, 'fixtures/mxl');
       rS: !!M[1].repeatStart, rE: !!M[2].repeatEnd, volta: M[2].volta, m0: M[0].voxes[0].length, sk: res.skip.other + res.skip.voices + res.skip.notes + res.skip.parts,
       warn: res.warn || '', tp0: M[0].voxes[0][0].deg + (M[0].voxes[0][0].acc || '') }; });
   /* v69.4 A11 有意迁移：小号（移调 -2）＋钢琴（不移调）各 part 移调不一致 → 不再把 -2 写成全曲 song.transp（此前钢琴也被一起移低），
-     小号换实音（记谱 F4 → 实音 E♭4＝1=♭B 的 4 级）、调号取钢琴、导入提示「已按实音导入」 */
-  T(!r4.err && r4.key === 'Bb' && r4.meter === '2/2' && r4.pickup && r4.transp == null && r4.tp0 === '4' && /已按实音导入/.test(r4.warn) && r4.tempo === '120/q' && r4.nv === 3 && r4.names === 'Trumpet in Bb/Piano·右手/Piano·左手' && r4.rS && r4.rE && r4.volta === 1 && r4.m0 === 1 && r4.sk === 0,
+     小号换实音（记谱 F4 → 实音 E♭4＝1=♭B 的 4 级）、调号取钢琴、导入提示「已按实音导入」
+     v69.8 C 组有意迁移：移调声部另记 voxTransp、五线谱照记谱音显示，导入提示改为「移调乐器按记谱音显示」（规格 §3.7） */
+  T(!r4.err && r4.key === 'Bb' && r4.meter === '2/2' && r4.pickup && r4.transp == null && r4.tp0 === '4' && /移调乐器按记谱音显示/.test(r4.warn) && r4.tempo === '120/q' && r4.nv === 3 && r4.names === 'Trumpet in Bb/Piano·右手/Piano·左手' && r4.rS && r4.rE && r4.volta === 1 && r4.m0 === 1 && r4.sk === 0,
     'T4 MuseScore 风格第三方文件：移调（换实音）+ 弱起 + 2/2 + 大谱表 + 房子', JSON.stringify(r4));
 
   /* T5 负责人供件：tests/fixtures/mxl/*.musicxml|*.xml 自动遍历（没有文件时跳过并提示） */

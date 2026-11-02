@@ -69,7 +69,7 @@ const F=process.env.MUSETAB_URL || 'file://'+require('path').resolve(__dirname,'
       const b2=el.getBoundingClientRect(); return {x:b2.left+b2.width/2, y:b2.top+b2.height/2}; });
     r.行首热区存在 = !!hot;
     if(hot){ await pg.mouse.click(hot.x, hot.y); await pg.waitForTimeout(150); }
-    r.弹窗三谱号 = await pg.evaluate(()=> document.querySelectorAll('#popmenu [data-chd]').length===3);
+    r.弹窗三谱号 = await pg.evaluate(()=> [...document.querySelectorAll('#popmenu [data-chd]')].map(x=>x.dataset.chd).join()==='staff,tenor8,alto,bass');   // v69.8 C 组迁移：高音 / 男高音（高音谱号下加 8）/ 中音 / 低音 四项（原三项 + 男高音谱号）
     // 7b: 选低音谱号 → 声部级谱号改变 + 谱面出现 F 谱号字形
     await pg.evaluate(()=>{ const b2=document.querySelector('#popmenu [data-chd="bass"]'); if(b2) b2.click(); });
     await pg.waitForTimeout(150);

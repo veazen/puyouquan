@@ -77,6 +77,8 @@ const HELP = () => {
   /* 造谱：{p:预设号, rep:复制份数} · {l60:1} · {k:谱行组合}；mod＝中性字段（本版应与不带字段逐字节相同） */
   window.__mk = c => { let s;
     if (c.l60) s = __L60(); else if (c.k) s = __fill(NWB.build(c.k, { title: '谱行' + c.k, nMea: 6 })); else s = __rep(PRESETS[c.p].make(), c.rep || 1);
+    /* v69.8 C 组有意迁移：NWB.build 新建多声部谱多写 song.rowNames（四部五线合唱另写 voxClefOct）——v68.4 基线不认识这两个字段，跨版本对拍前去掉，两边同一份数据（声部名 / 八度谱号的刻版与导出由 tv_v698nota 覆盖） */
+    if (c.k) { delete s.rowNames; delete s.voxClefOct; }
     if (c.mod === 'neutral') { const M = s.measures, n = M.length; M[0].pgbrk = 1; if (n > 2) M[Math.min(2, n - 1)].pgbrk = '1'; if (n > 3) M[3].pgbrk = true; if (n > 1) M[n - 1].pgbrk = 2;
       s.layout = Object.assign({}, s.layout || {}, { pgno: { on: false, pos: 'to', start: 5, first: true } }); }
     if (c.mod === 'neutral2') { s.layout = Object.assign({}, s.layout || {}, { pgno: { on: 'yes', pos: 'bo' } }); if (s.measures[1]) s.measures[1].pgbrk = 0; }

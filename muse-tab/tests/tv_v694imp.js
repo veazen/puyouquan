@@ -300,17 +300,18 @@ const WORDS = (w, st) => DT(`<words${st ? ' font-style="italic"' : ''}>${w}</wor
       const keyRefOf = k => KREF[k];
       const r1 = await imp(PG, MX([cl, pn])); const s1 = r1.song, M1 = mid(s1);
       const cc = s1.measures[0].voxes[0][0], pc = s1.measures[0].voxes[1][0];
-      T(s1.transp == null && s1.key === 'C' && M1(cc) === 72 && cc.deg === 1 && !cc.acc && J([pc.deg, pc.acc, (pc.adds || []).map(a => a.deg + a.acc)]) === J([1, '', ['3', '5']]) && /已按实音导入/.test(r1.warn),
+      T(s1.transp == null && s1.key === 'C' && M1(cc) === 72 && cc.deg === 1 && !cc.acc && J([pc.deg, pc.acc, (pc.adds || []).map(a => a.deg + a.acc)]) === J([1, '', ['3', '5']]) && /移调乐器按记谱音显示/.test(r1.warn) && J(s1.voxTransp) === J([-2, null]),   /* v69.8 C 组有意迁移：提示改「移调乐器按记谱音显示」、另记 voxTransp（五线谱照记谱音画） */
         'R1 单簧管（记谱 D5）＋钢琴 C–E–G：不写全曲 transp、调号取钢琴（C）、单簧管换实音 C5、钢琴仍是 1 3 5（此前钢琴被移低、拼成 ♯7）、提示「已按实音导入」', J({ transp: s1.transp, key: s1.key, cc, pc, warn: r1.warn }));
       const r2 = await imp(PG, MX([Object.assign({}, pn, { id: 'P1' }), Object.assign({}, cl, { id: 'P2' })])); const s2 = r2.song, M2 = mid(s2);
-      T(s2.transp == null && s2.key === 'C' && M2(s2.measures[0].voxes[1][0]) === 72 && /已按实音导入/.test(r2.warn), 'R2 钢琴在前、单簧管在后：同样换实音（此前 transp 没读到、单簧管按记谱音高一个全音）', J({ transp: s2.transp, key: s2.key, c: s2.measures[0].voxes[1][0] }));
+      T(s2.transp == null && s2.key === 'C' && M2(s2.measures[0].voxes[1][0]) === 72 && /移调乐器按记谱音显示/.test(r2.warn) && J(s2.voxTransp) === J([null, -2]),   /* v69.8 迁移同 R1 */ 'R2 钢琴在前、单簧管在后：同样换实音（此前 transp 没读到、单簧管按记谱音高一个全音）', J({ transp: s2.transp, key: s2.key, c: s2.measures[0].voxes[1][0] }));
       const r3 = await imp(PG, MX([cl])); const s3 = r3.song;
       T(s3.transp === -2 && s3.key === 'D' && s3.measures[0].voxes[0][0].deg === 1 && !/实音/.test(r3.warn || ''), 'R3 单簧管独奏：照旧记谱音（1=D、记谱 D5＝1）＋ song.transp=-2', J({ transp: s3.transp, key: s3.key, c: s3.measures[0].voxes[0][0] }));
       const gt = { id: 'P1', name: 'Guitar', attr: { tr: TRS(0, 0, -1) }, ms: [N('E', 4, { d: 4, type: 'whole' })] };
       const r4 = (await imp(PG, MX([gt]))).song;
       T(r4.transp === -12, 'R4 吉他高音谱号 octave-change -1：transp = chromatic + 12×octave-change = -12（此前 0，导入后高八度）', r4.transp);
       const r5 = await imp(PG, MX([{ id: 'P1', name: 'Voice', ms: [N('E', 4, { d: 4, type: 'whole' })] }, Object.assign({}, gt, { id: 'P2' })])); const s5 = r5.song;
-      T(s5.transp == null && s5.measures[0].voxes[1][0].deg === 3 && (s5.measures[0].voxes[1][0].oct || 0) === 0 && !/实音/.test(r5.warn || ''), 'R5 人声＋八度吉他（只差八度）：不换实音、不写全曲 transp（八度谱号留 v69.5）', J({ transp: s5.transp, c: s5.measures[0].voxes[1][0], warn: r5.warn }));
+      /* v69.8 C 组有意迁移（规格 §3.7）：此前「纯八度移调在不一致时保持记谱音」是古典吉他高八度的根因——改为同样换实音（E4 → 实音 E3＝3 级低八度）＋ voxTransp −12，五线谱照记谱音显示 */
+      T(s5.transp == null && s5.measures[0].voxes[1][0].deg === 3 && (s5.measures[0].voxes[1][0].oct || 0) === -1 && J(s5.voxTransp) === J([null, -12]) && /移调乐器按记谱音显示/.test(r5.warn || ''), 'R5 人声＋八度吉他（只差八度）：换实音 E3、记 voxTransp −12、不写全曲 transp（v69.8 迁移）', J({ transp: s5.transp, c: s5.measures[0].voxes[1][0], warn: r5.warn, vt: s5.voxTransp }));
     }
   } catch (e) { T(false, 'X 执行异常', e && e.stack || e); }
   await b.close();

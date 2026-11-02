@@ -141,6 +141,11 @@ const CORE = [
      纯五线谱页头速度挪到首行谱表上方 · 同音重奏 col.tieSlur · 真踏板 / 渐强逐音插值 / 跳音重音 / 延长号 / 长倚音；Z 段与 cd08ca0 对拍（老谱谱面 / MusicXML 零差异、播放只按设计变化）；
      （Z / T / S / P / E 共 22 项，修前 cd08ca0 红 18 项）；单跑约 3 分钟 */
   'tv_v698play',
+  /* v69.8 C 组「记谱与首行名」（规格 docs/spec-2026-11-v698.md §3.6–§3.8；复核 T4 / N4 / E5）：O 八度谱号 song.voxClefOct（男高音高音谱号下加 8：音位 / clef8 几何、导入导出 clef-octave-change、
+     新建四部合唱、两入口同结果、插删声部与 migrate、MIDI 不变）· X 按声部移调 song.voxTransp（单簧管＋钢琴 / 古典吉他＋人声导入导出、调号与符头几何、换调、分谱）·
+     R 首行声部名 song.rowNames / voxShort（首行全称续行简称、括号左缘几何、花括号组居中、缩进 ind0 / ind1、排版浮层两外壳、往返与第三方默认）·
+     Z 老谱零变化（16 预设 + 曲库 + 压力小样的离屏谱面 / MusicXML / MIDI 与 cd08ca0 逐字节同）；单跑约 2 分钟 */
+  'tv_v698nota',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）

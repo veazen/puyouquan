@@ -225,6 +225,8 @@ const M = {
     await pg.evaluate(() => { const o = document.getElementById('b-open'), f = document.getElementById('file-in'); if (o) o.title = 'X'; if (f) f.setAttribute('accept', 'X'); });
     /* v68.5 有意改动 ⑥：#layout-pop 的「页码」行（#lp-pgno-row）两边都删掉再对拍 */
     await pg.evaluate(() => { const r = document.getElementById('lp-pgno-row'); if (!r) return; const w = r.previousSibling; if (w && w.nodeType === 3 && !w.textContent.trim()) w.remove(); r.remove(); });   /* 连同它前面的缩进空白一起删 */
+    /* v69.8 有意改动 ⑧：#layout-pop 的「声部名」行（#lp-rown-row）同 ⑥ 两边都删掉再对拍 */
+    await pg.evaluate(() => { const r = document.getElementById('lp-rown-row'); if (!r) return; const w = r.previousSibling; if (w && w.nodeType === 3 && !w.textContent.trim()) w.remove(); r.remove(); });
     const r = await pg.evaluate(IDS => {
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
@@ -256,6 +258,8 @@ const M = {
          同属 ⑥（收尾 REG-3）：浮层多了这一行约 +65px，旧外壳浮动浮层改为限高、内部滚动（body:not(.flow) #layout-pop.on{max-height:calc(100vh − 52px);overflow-y:auto}）——
          1280×800 下「恢复默认 / 完成」由直接可见变成要在浮层里滚到底才看得见（基线在 1366×768 / 1280×720 就已掉出视口、根本点不到）；S0 不打开浮层，对拍不受影响，滚得到由 tv_pgbrk_ui U12c 断言
           换页 / 页码的引擎行为是数据驱动的，这几份谱都没有 measures[].pgbrk / layout.pgno，仍要求零差异
+       ⑧ v69.8 C 组首行声部名：「排版」浮层 #layout-pop 多一行「声部名」（#lp-rown-row：不印 / 印出，song.rowNames 开关，两外壳共用）——同 ⑥ 快照前两边都删掉这一行（基线里没有，删了是空操作）；
+          旧外壳浮动浮层同 ⑥ 限高、内部滚动，多约 +40px；声部名 / 八度谱号 / 移调都是数据驱动，这几份谱没有 rowNames / voxClefOct / voxTransp，仍要求零差异
        ⑦ v68.7 界面简约化 S0+S1：对旧外壳没有有意改动，不加例外、不换基线（shellflow_ref.json 仍是 v68.1 a8c2089）。本版碰到的共享代码在旧外壳下都是同一调用或空操作，逐条登记备查：
           提示条 toastSay(msg, o, ic)（旧外壳 / 手机新外壳 flowOn() 为假：与改前同一个 toast(msg) / toastKind(msg, ic) 调用）· toast() 摘 data-k、toastHide() 摘 .flw-ta（旧外壳从不写，DOM 不变）·
           scheduleCloudPush 记 _cloudFly、推完 FLOW.r1.saveSync（只在 flowOn()）· #cursor-info「拍」行、音名 / 品位键与缩放标签悬停、小节格 title、setPlayBtn 的 .flw-on、chHint / lbWhere / 导入与同款提示的 barTxt、
