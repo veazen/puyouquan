@@ -341,6 +341,11 @@ chk 曲库谱JSON-LD作曲者是作曲家 '"composer":{"@type":"Person","name":"
 chk 西文歌词节选按词连写 'Ave Maria' "$LIBSSR"
 nchk 西文歌词节选不再按音节隔开 'A ve Ma ri a' "$LIBSSR"
 chk 按作曲家搜得到曲库谱 '"id":"lib-os-lc6389103"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E8%88%92%E4%BC%AF%E7%89%B9')"
+# v69.9 分类 P1 验收：0 结果退路「去条件留词」后仍是 0 首——不给 fb（否则界面写「没有 X 的合唱谱，下面是其他谱」而下面一首都没有）；能退出结果的照给（「舒伯特 合唱」→ 曲库舒伯特）
+ZR=$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E4%B8%80%E9%A6%96%E6%A0%B9%E6%9C%AC%E4%B8%8D%E5%AD%98%E5%9C%A8%E7%9A%84%E6%AD%8C%20%E5%90%88%E5%94%B1')
+chk 退路后仍0首照原条件返回 '"total":0' "$ZR"
+nchk 退路后仍0首不给fb '"fb"' "$ZR"
+chk 退路有结果时给fb '"fb":"没有「舒伯特」的合唱谱，下面是其他谱"' "$(curl -s 'http://127.0.0.1:3199/api/pub/scores?q=%E8%88%92%E4%BC%AF%E7%89%B9%20%E5%90%88%E5%94%B1')"
 chk 更新通过后署名取审核时昵称 '"author":"改过的昵称"' "$(curl -s http://127.0.0.1:3199/api/pub/scores/song_abc12345)"
 chk 更新通过后无未发布修改 '"pub_dirty":0' "$(J http://127.0.0.1:3199/api/scores/song_abc12345)"
 chk 无改动再提交返回unchanged '"unchanged":true' "$(J -X POST http://127.0.0.1:3199/api/scores/song_abc12345/publish)"

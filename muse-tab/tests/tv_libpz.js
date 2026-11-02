@@ -13,6 +13,10 @@
    Z9 观看页 ?nota=jp：五线谱原稿打开即简谱视图（vwNotaOf＝jp），只改观看副本；非法值忽略；open_pub 带 :jp
    Z10 编辑器新外壳谱友圈：谱种按钮 · 首访一次性提示「钢琴独奏 → 钢琴谱 › 独奏」· 可转卡点开即简谱 · 在线搜索条件块；旧外壳 ?shell=classic 与 ?next=0 仍是旧 11 类
    Z11 埋点（ui_cmd lib:pz:jianpu 等）· 小程序里「发到电脑做」· 后台概览显示新建谱分布与筛选点击 · 拍板 10 纯伴奏谱名
+   Z12 新外壳行 1「发布」弹层「将归入」主谱种 › 二级（「也出现在」在悬停）＝发布后 /api/pub/scores 卡片的 pz / sub / also（简谱旋律＋钢琴、纯简谱歌曲、合唱＋钢琴三种，
+       发布体＝编辑器提交时 PUT 的那份 data）；搜索「合唱 带伴奏」「合唱 伴奏」＝合唱谱 › 带伴奏、「无伴奏」＝合唱谱 › 无伴奏（官网搜索框不被清空）；
+       钢琴谱二级悬停（官网＋编辑器）与编辑器合唱谱「伴奏」行标
+   Z5g 退路之后仍 0 首：接口不给 fb、官网不写「下面是其他谱」，zero_result 照常记
    Z2d / Z2e 筛选抽屉（编制 / 能用来 / 风格 / 调拍速，吉他谱按「G调指法 · 夹2」）· 原稿不满 6 首自动展开可转
    修前红：LIBPZ_ROOT 指向 115bca4 的仓库副本（git archive 115bca4 api muse-tab/site muse-tab/index.html）复跑。env：LIBPZ_ROOT、CHROMIUM_PATH、SHOTS（截图目录） */
 'use strict';
@@ -88,14 +92,14 @@ async function allPages(q) {
   }
   return { status: st, cards: out, total: tot, j: last };
 }
-function seed(items) {
+function seed(items, uid, phone) {
   const f = path.join(os.tmpdir(), 'pyq_libpz_' + process.pid + '.json');
   fs.writeFileSync(f, J(items));
   const code = `const {q,now}=require('./db'); const L=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
-    const uid='libpz00001'; q.userCreate.run(uid,'13100006666','谱库样例',now()); const t=now()+5;
+    const uid=process.argv[2]; q.userCreate.run(uid,process.argv[3],'谱库样例',now()); const t=now()+5;
     L.forEach(x=>{ q.scoreUpsert.run(x.id,uid,x.title,x.singer||'',JSON.stringify(x.d),t,t); q.scoreSetStatus.run('published',x.id,uid); q.scoreSnap.run(t+x.at,x.id); });
     console.log('seeded '+L.length);`;
-  const r = spawnSync(process.execPath, [...SQLF, '-e', code, f], { cwd: API_DIR, env: Object.assign({}, process.env, { DB_PATH: DB, JWT_SECRET: 'libpz' }), encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [...SQLF, '-e', code, f, uid || 'libpz00001', phone || '13100006666'], { cwd: API_DIR, env: Object.assign({}, process.env, { DB_PATH: DB, JWT_SECRET: 'libpz' }), encoding: 'utf8' });
   try { fs.unlinkSync(f); } catch (_) {}
   return (r.stdout || '') + (r.status ? (r.stderr || '') : '');
 }
@@ -306,6 +310,17 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       /* e 0 结果退路：「晴天 功能谱」→ 去掉解析条件、只按「晴天」搜 */
       const e1 = await A('晴天 功能谱');
       T(e1.fb && /没有「晴天」的功能谱/.test(e1.fb) && (e1.scores || []).some(c => c.id === 'lpq01xxx'), 'Z5e 解析后 0 结果：去掉解析出的条件、只按剩下的词搜，并说明「没有「晴天」的功能谱，下面是其他谱」', J({ fb: e1.fb, n: (e1.scores || []).length }));
+      /* g 退路之后仍 0 首：不给 fb（否则界面写「下面是其他谱」而下面一首都没有）；官网照常记 zero_result（meta 带解析结果） */
+      const g1 = await A('一首根本不存在的歌 合唱');
+      const pgz = await mkPage(b, 'https://www.puyouquan.com/');
+      await typeQ(pgz, '一首根本不存在的歌 合唱'); await pgz.waitForTimeout(400);
+      const g2 = await pgz.evaluate(() => ({ note: [...document.querySelectorAll('#lib-conds .cond-note')].map(e => e.textContent).join('|'), n: document.querySelectorAll('#lib-grid .cc-card').length,
+        conds: [...document.querySelectorAll('#lib-conds .cond')].map(c => c.textContent.replace(/\s+/g, ' ').trim()) }));
+      const zr = pgz._ev.filter(e => e.name === 'zero_result').map(e => e.meta);
+      await pgz._ctx.close();
+      T(g1.parse && g1.parse.pz === 'hechang' && g1.parse.words === '一首根本不存在的歌' && g1.total === 0 && !(g1.scores || []).length && !('fb' in g1)
+        && !/下面是其他谱/.test(g2.note) && g2.n === 0 && g2.conds.length === 1 && zr.length === 1 && /^一首根本不存在的歌 合唱 \[pz:hechang\]/.test(zr[0]),
+        'Z5g 退路之后仍 0 首：接口不给 fb、官网不写「没有…，下面是其他谱」（条件块照留），zero_result 照常记一次（meta 带解析结果）', J({ fb: g1.fb, total: g1.total, g2, zr }));
       /* f 官网：条件块 / 删条件 / 可转分隔与 nota / 单独「简谱」＝点一级 / 器乐谱提示条 */
       const pg = await mkPage(b, 'https://www.puyouquan.com/');
       await typeQ(pg, '茉莉花 二胡谱');
@@ -501,6 +516,76 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       const cg = cards.find(c => c.id === 'lpq14xxx');
       T(cg && cg.typeLabel === '钢琴伴奏谱（纯伴奏）' && cg.type === 'pianoacc' && cg.pz === 'gangqin' && cg.sub === 'banzou',
         'Z11d 拍板 10：纯伴奏谱名「钢琴伴奏谱（纯伴奏）」（与归属 钢琴谱 › 伴奏 一致；旧 type 仍是 pianoacc）', J(cg && [cg.typeLabel, cg.type, cg.pz, cg.sub]));
+    });
+
+    /* ---------- Z12 发布弹层「将归入」＝发布后谱库卡片；合唱谱伴奏搜索词（放最后：这里会再发布 3 首，不影响前面的计数） ---------- */
+    await guard('Z12', async () => {
+      const SAMPLES = [
+        ['将归入弹唱样例', V(['旋律', '右手伴奏', '左手伴奏'], [null, 'staff', 'bass'], { voxGroups: [BC(1, 2)] }, [0]), 'gangqin.tanchang'],   /* 简谱旋律＋钢琴（有词） */
+        ['将归入歌曲样例', V(['旋律'], [null], null, true), 'jianpu.gequ'],                                                            /* 纯简谱歌曲 */
+        ['将归入合唱样例', V(['S', 'A', '右手', '左手'], [null, null, 'staff', 'bass'], { voxGroups: [BC(2, 3)] }, [0, 1]), 'hechang.jianpu'],   /* 合唱＋钢琴：也出现在两处 */
+      ];
+      const pg = await mkPage(b, 'https://zhipu.puyouquan.com/', { wait: 2000 });
+      /* 线上已登录的管理员（发布免自审直接上架）：云端接口在页内打桩，只记下提交时 PUT 的发布体 */
+      await pg.evaluate(() => { hideStartPad(); if (typeof guardReplace !== 'undefined') guardReplace = p => p();
+        window.__put = []; window.PYQ_CLOUD = true; ACCT = { id: 'u1', phone: '138****0000', role: 'admin', nickname: '测' };
+        apiCall = async (p, o) => { if (o && o.method === 'PUT' && /^\/scores\/[^/]+$/.test(p)) { window.__put.push({ id: p.split('/')[2], body: JSON.parse(JSON.stringify(o.body)) }); return {}; }
+          return /\/publish$/.test(p) ? { published: true } : {}; }; });
+      const ui = [];
+      for (const [title, d] of SAMPLES) {
+        await pg.evaluate(([t, d]) => { try { closeModal(); } catch (_) {} try { FLOW.menu.close(); } catch (_) {} loadSong(Object.assign(JSON.parse(JSON.stringify(d)), { title: t })); }, [title, d]);
+        await pg.waitForTimeout(600);
+        await pg.click('#flw-pub'); await pg.waitForTimeout(450);
+        ui.push(await pg.evaluate(() => { const e = document.getElementById('flw-pubp-pz'), b = e && e.querySelector('b'), r = e && e.getBoundingClientRect();
+          return e ? { pz: e.dataset.pz, sub: e.dataset.sub, lab: (e.querySelector('span') || {}).textContent, name: b && b.textContent, tip: e.getAttribute('title') || '', vis: !!r && r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden',
+            inPop: !!e.closest('#flw-pubp') } : null; }));
+        await pg.click('#flw-pubp-go'); await pg.waitForTimeout(900);
+      }
+      /* 存入时后台去抖同步也会 PUT 同一首：按 id 取最后一次（＝提交发布时那份） */
+      const put = Object.values((await pg.evaluate(() => window.__put)).reduce((o, x) => (o[x.id] = x, o), {}));
+      await pg._ctx.close();
+      /* 把编辑器提交的那份 data 原样写进库并上架（同 seed 口径），再从谱库列表接口取卡片 */
+      const sd2 = seed(put.map((x, i) => ({ id: x.id, title: x.body.title, singer: x.body.singer || '', d: x.body.data, at: 9000 + i })), 'libpz00002', '13100006667');
+      const all = await allPages('conv=1');
+      const rows = SAMPLES.map(([title, , want], i) => { const x = put.find(p => p.body && p.body.title === title), c = x && all.cards.find(k => k.id === x.id), u = ui[i] || {};
+        const tip = c && c.also.length ? '也出现在 ' + c.also.map(a => K.pzName(a)).join(' · ') : '';
+        return { title, want, ui: u.pz + '.' + u.sub, card: c ? c.pz + '.' + c.sub : '', name: u.name, nameWant: c ? K.pzName(c.pz + '.' + c.sub) : '', tip: u.tip, tipWant: tip, lab: u.lab, vis: u.vis && u.inPop,
+          ok: !!c && u.vis && u.inPop && u.lab === '将归入' && u.pz === c.pz && u.sub === c.sub && c.pz + '.' + c.sub === want && u.name === K.pzName(c.pz + '.' + c.sub) && u.tip === tip }; });
+      T(/seeded 3/.test(sd2) && put.length === 3 && rows.every(r => r.ok) && rows[1].tip === '' && rows[2].tip === '也出现在 简谱 › 合唱 · 钢琴谱 › 伴奏',
+        'Z12a 新外壳行 1「发布」弹层显示「将归入」主谱种 › 二级（悬停「也出现在」）＝发布后 /api/pub/scores 卡片的 pz / sub / also：简谱旋律＋钢琴 → 钢琴谱 › 弹唱；纯简谱歌曲 → 简谱 › 歌曲（无悬停）；合唱＋钢琴 → 合唱谱 › 简谱合唱',
+        J({ sd2: sd2.trim().slice(0, 20), n: put.length, rows: rows.filter(r => !r.ok).concat(rows.length ? [] : ['空']).slice(0, 3) }));
+      /* 合唱谱「伴奏」三选的搜索词：合唱 带伴奏 / 合唱 伴奏 / 合唱 钢琴伴奏 → 带伴奏；无伴奏 → 无伴奏（接口同 ?pz=hechang&hacc=） */
+      const A = async q => (await getJ('/api/pub/scores?q=' + encodeURIComponent(q) + '&size=60')).j || {};
+      const wantY = (await allPages('pz=hechang&hacc=yes')).cards.map(c => c.id).sort(), wantN = (await allPages('pz=hechang&hacc=no')).cards.map(c => c.id).sort();
+      const chId = (put.find(p => p.body && p.body.title === '将归入合唱样例') || {}).id;
+      const sq = {};
+      for (const q of ['合唱 带伴奏', '合唱 伴奏', '合唱 钢琴伴奏', '无伴奏']) { const r = await A(q); sq[q] = { hacc: r.parse && r.parse.hacc, only: r.parse && r.parse.only, conds: (r.parse && r.parse.conds || []).map(c => c.label), ids: (r.scores || []).map(c => c.id).sort(), fb: r.fb }; }
+      const okY = ['合唱 带伴奏', '合唱 伴奏', '合唱 钢琴伴奏'].every(q => sq[q].hacc === 'yes' && !sq[q].only && sq[q].conds.includes('带伴奏') && J(sq[q].ids) === J(wantY) && !sq[q].fb);
+      const pgs = await mkPage(b, 'https://www.puyouquan.com/');
+      await typeQ(pgs, '合唱 伴奏');
+      const site = await pgs.evaluate(() => ({ q: document.getElementById('lib-q').value, conds: [...document.querySelectorAll('#lib-conds .cond')].map(c => c.textContent.replace(/\s+/g, ' ').trim()),
+        ids: [...document.querySelectorAll('#lib-grid .cc-card')].map(c => ((c.getAttribute('href') || '').match(/pub=([^&]+)/) || [])[1]).sort() }));
+      await pgs._ctx.close();
+      T(okY && wantY.includes(chId) && sq['无伴奏'].hacc === 'no' && J(sq['无伴奏'].ids) === J(wantN) && !wantN.includes(chId) && wantN.length > 0
+        && site.q === '合唱 伴奏' && site.conds.some(c => /带伴奏/.test(c)) && J(site.ids) === J(wantY),
+        'Z12b 搜索「合唱 带伴奏」「合唱 伴奏」「合唱 钢琴伴奏」＝合唱谱 › 带伴奏（条件块「带伴奏」，不当成只有谱种词）、「无伴奏」＝合唱谱 › 无伴奏；官网搜「合唱 伴奏」搜索框不被清空',
+        J({ wantY, wantN: wantN.length, chId, sq: Object.fromEntries(Object.entries(sq).map(([k, v]) => [k, Object.assign({}, v, { ids: v.ids.length })])), site }));
+      /* 钢琴谱二级悬停（§4.2）与合唱谱「伴奏」行标：官网与编辑器新外壳谱友圈同文 */
+      const TIP = { tanchang: '旋律＋歌词＋钢琴', banzou: '纯伴奏 · 合唱器乐伴奏' };
+      const pw = await mkPage(b, 'https://www.puyouquan.com/');
+      await pw.click('#lib-cats [data-pz="gangqin"]'); await pw.waitForTimeout(600);
+      const wTip = await pw.evaluate(() => Object.fromEntries([...document.querySelectorAll('#lib-subs [data-sub]')].map(e => [e.dataset.sub, e.getAttribute('title') || ''])));
+      await pw._ctx.close();
+      const pe = await mkPage(b, 'https://zhipu.puyouquan.com/', { wait: 2000 });
+      await pe.evaluate(() => { hideStartPad(); openCircle(); }); await pe.waitForTimeout(1500);
+      await pe.click('#circle [data-pz="gangqin"]'); await pe.waitForTimeout(600);
+      const eTip = await pe.evaluate(() => Object.fromEntries([...document.querySelectorAll('#circle .cc-subrow [data-sub]')].map(e => [e.dataset.sub, e.getAttribute('title') || ''])));
+      await pe.click('#circle [data-pz="hechang"]'); await pe.waitForTimeout(600);
+      const eCh = await pe.evaluate(() => [...document.querySelectorAll('#circle .cc-subrow > *')].map(e => e.textContent.trim()).join(','));
+      await pe._ctx.close();
+      const tipOk = t => t.tanchang === TIP.tanchang && t.banzou === TIP.banzou && t.duzou === '';
+      T(tipOk(wTip) && tipOk(eTip) && /^简谱合唱,五线合唱,伴奏,全部,带伴奏,无伴奏(,|$)/.test(eCh),
+        'Z12c 钢琴谱二级悬停「弹唱＝旋律＋歌词＋钢琴」「伴奏＝纯伴奏 · 合唱器乐伴奏」（官网与编辑器新外壳谱友圈同文、独奏无悬停）；编辑器合唱谱三选前有「伴奏」行标（同官网）', J({ wTip, eTip, eCh }));
     });
   } finally {
     if (srv) { try { srv.p.kill(); } catch (_) {} }

@@ -349,6 +349,40 @@ T('P1 pzq：停用词 / 整词 / 末尾「X谱」/ 组合规则 / 乐器调只�
   t.inst.forEach(x => assert.ok(K.own(K.INST, x), 'pzq 乐器 ' + x));
   Object.keys(P.CAT_ALIAS).forEach(k => { const a = P.CAT_ALIAS[k]; assert.ok(!a.pz || K.pzHas(a.pz, a.sub || ''), k); });
 });
+T('P1 pzq 伴奏词：带伴奏 / 有伴奏 / 无伴奏 / 无伴奏合唱；合唱同现的 伴奏 / 钢琴伴奏＝合唱谱「伴奏」三选（不丢条件、不当成只有谱种词）；钢琴即兴伴奏 / 即兴伴奏谱＝考编专题；不误伤 §十三', () => {
+  const P = require('./pzq');
+  const g = q => { const r = P.parse(q); return [r.words, r.pz, r.sub, r.inst, r.zt, r.acc ? 'acc' : '', r.hacc, r.only ? 'only' : ''].join('|'); };
+  /* 合唱谱「伴奏」三选：带伴奏 */
+  for (const q of ['合唱 带伴奏', '带伴奏 合唱', '合唱 有伴奏', '合唱谱 带伴奏', '合唱 伴奏', '合唱 钢琴伴奏', '钢琴伴奏 合唱谱', '合唱 伴奏谱', '合唱 正谱伴奏'])
+    assert.strictEqual(g(q), '|hechang|||||yes|', q);
+  assert.strictEqual(g('合唱 简谱 伴奏'), '|hechang|jianpu||||yes|', '合唱＋简谱＋伴奏：简谱合唱＋带伴奏');
+  assert.strictEqual(g('送别 合唱 带伴奏'), '送别|hechang|||||yes|');
+  const ca = P.parse('合唱 伴奏');
+  assert.deepStrictEqual(ca.conds.map(c => c.k + ':' + c.v + ':' + c.label + ':' + c.rm), ['pz:hechang:谱种：合唱谱:伴奏', 'hacc:yes:带伴奏:合唱'], '两个条件块都在、各自可删');
+  /* 无伴奏 */
+  assert.strictEqual(g('无伴奏合唱'), '|hechang|||||no|');
+  assert.strictEqual(g('无伴奏'), '|hechang|||||no|', '单独「无伴奏」＝合唱谱 › 无伴奏');
+  assert.strictEqual(g('合唱 无伴奏'), '|hechang|||||no|');
+  assert.strictEqual(g('简谱 无伴奏合唱'), '|hechang|jianpu||||no|');
+  assert.strictEqual(g('无伴奏 小提琴'), '|||violin|||no|', '与乐器同现：只筛不带伴奏的，不改成合唱谱');
+  /* 不在合唱谱：带伴奏＝开关 acc */
+  assert.strictEqual(g('带伴奏'), '|||||acc||'); assert.strictEqual(g('有伴奏'), '|||||acc||');
+  assert.strictEqual(g('简谱 带伴奏'), '|jianpu||||acc||'); assert.strictEqual(g('五线谱 带伴奏'), '|wuxian||||acc||');
+  /* 原有钢琴伴奏口径不变 */
+  assert.strictEqual(g('钢琴伴奏'), '|gangqin||||acc||'); assert.strictEqual(g('伴奏谱'), '|gangqin||||acc||'); assert.strictEqual(g('合唱'), '|hechang||||||only');
+  /* 即兴伴奏一族＝考编专题（同「即兴伴奏」口径；不被「教资 / 考编 + 儿歌 → 师范」那条吃掉） */
+  for (const q of ['即兴伴奏', '钢琴即兴伴奏', '即兴伴奏谱']) assert.strictEqual(g(q), '||||kaobian|||', q);
+  assert.strictEqual(g('送别 即兴伴奏谱'), '送别||||kaobian|||');
+  assert.strictEqual(g('钢琴即兴伴奏 儿歌'), '||||kaobian|||', '即兴伴奏不改落师范（儿歌照常作风格）');
+  assert.strictEqual(P.parse('钢琴即兴伴奏 儿歌').style, 'erge');
+  assert.strictEqual(g('教资 儿歌弹唱'), '||||shifan|||');
+  /* §十三 搜索解析误伤：和弦谱 / C调葫芦丝 / 大全 / 单独简谱 / 黄河大合唱 都不变 */
+  assert.strictEqual(g('黄河大合唱'), '黄河大合唱|||||||'); assert.strictEqual(g('简谱'), '|jianpu||||||only');
+  assert.strictEqual(P.parse('C调葫芦丝').key, ''); assert.strictEqual(P.parse('晴天 和弦谱').tail, 'tab'); assert.strictEqual(g('二胡曲谱大全'), '|||erhu||||');
+  /* 0 结果退路说明带上伴奏条件 */
+  assert.strictEqual(P.fbNote(P.parse('送别 合唱 带伴奏')), '没有「送别」的带伴奏合唱谱，下面是其他谱');
+  assert.strictEqual(P.fbNote(P.parse('送别 无伴奏')), '没有「送别」的无伴奏合唱谱，下面是其他谱');
+});
 
 console.log('PASS ' + pass + '/' + total);
 process.exit(pass === total ? 0 : 1);

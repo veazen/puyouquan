@@ -1107,6 +1107,7 @@ svg text{user-select:none}
 #circle.cc-nx .cc-chip.tg{border-style:dashed}
 #circle.cc-nx .cc-chip.tg.on{border-style:solid}
 #circle.cc-nx .cc-rl,#circle.cc-nx .cc-note{font-size:11.5px;color:var(--muted)}
+#circle.cc-nx .cc-subrow .cc-rl{margin:0 2px 0 8px}
 #circle.cc-nx .cc-ztl{font-size:12.5px;color:var(--accent);font-weight:600;padding:4px 6px}
 #circle.cc-nx .cc-cond{background:var(--accent-soft);color:var(--text);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 #circle.cc-nx .cc-sort{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:980px;padding:5px 10px;font-size:12.5px}
@@ -4551,6 +4552,8 @@ body.flow #popmenu .flw-pbst li.now .flw-pbd{background:var(--accent);box-shadow
 body.flow #popmenu .flw-pbst li.done .flw-pbd{background:var(--ok);box-shadow:none}
 body.flow #popmenu .flw-pbd svg{display:block}
 body.flow #popmenu .flw-pbsep{color:var(--faint)}
+body.flow #popmenu .flw-pbpz{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--muted)}
+body.flow #popmenu .flw-pbpz b{color:var(--text);font-weight:600}
 body.flow #popmenu .flw-pbrow{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted)}
 body.flow #popmenu .flw-pbrow input{width:56px;height:26px;margin-left:4px;padding:0 4px;font:12px var(--font-ui)}
 body.flow #popmenu .flw-pbte{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text)}
@@ -29882,9 +29885,13 @@ FLOW.r1 = (function(){
     const go = st<=1? (cloud && !acct? ['登录后发布', 'login', ''] : local? ['本机发布', 'submit', '仅自己可见'] : ['提交', 'submit', '提交审核'])
       : st===2? ['查看进度', 'progress', canCloud? '个人中心' : '创作者中心'] : ['复制链接', 'copy', '公开链接'];
     let pr=null; try{ pr=creatorLoad().pricing; }catch(_){}
+    /* 分类升级 P1（方案 §十四 P1 末条 / §十三）：「将归入」主谱种 › 二级——PQ_KIND.pzOf 与服务端卡片 pz / sub 同一份判法；「也出现在」进悬停 */
+    let pzr=null; try{ pzr=PQ_KIND.pzOf(song); }catch(_){}
+    const pzNm=pzr? PQ_KIND.pzName(pzr.pz+'.'+pzr.sub) : '', pzAl=pzr? (pzr.also||[]).map(x=>PQ_KIND.pzName(x)).filter(Boolean).join(' · ') : '';
     return '<div id="flw-pubp" class="flw-pubp" role="group" aria-label="发布">'
       +'<div class="flw-pbh">'+F.ic('ui-publish', 16)+'<span class="flw-pbt">发布</span></div>'
       +'<ol class="flw-pbst" aria-label="'+E(PUB_SAY[st])+'">'+[0, 1, 2].map(dot).join('<span class="flw-pbsep" aria-hidden="true">›</span>')+'</ol>'
+      +(pzNm? '<div class="flw-pbpz" id="flw-pubp-pz" data-pz="'+E(pzr.pz)+'" data-sub="'+E(pzr.sub)+'"'+(pzAl? ' title="'+E('也出现在 '+pzAl)+'"' : '')+'><span>将归入</span><b>'+E(pzNm)+'</b></div>' : '')
       +((local && st<=1)? '<div class="flw-pbrow"><label>定价 ¥ <input id="flw-pubp-price" type="number" min="0" step="0.5" value="'+E(String((pr && pr.price)||0))+'"></label>'
         +'<label>试读 <input id="flw-pubp-prev" type="number" min="1" max="16" value="2"> 小节</label></div>' : '')
       +(teN? '<div class="flw-pbte">'+svgi('warn', 11)+' 末尾 '+teN+' 个空小节<button type="button" class="flw-pbtb" data-fa="r1:pubtrim" data-keep="" title="删除末尾空小节">删除</button></div>' : '')
@@ -47514,6 +47521,8 @@ const CC_PZ_IC={jianpu:'nota-jianpu', wuxian:'nota-staff', gangqin:'type-piano',
 const CC_TYPE_PZ={guitar:['jita','tanchang'], uku:['uku','tanchang'], solo:['jita','zhitan'], pianoacc:['gangqin','banzou'], piano:['gangqin','duzou'],
   vocal:['jianpu','gequ'], vox:['jianpu','gequ'], teach:['wuxian','duizhao',['jianpu.duizhao']], instr:['wuxian','qiyue'], staff:['wuxian','qiyue'], func:['gongneng','jishu'], chord:['gongneng','hexian']};
 const CC_FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
+/* 钢琴谱两个二级的悬停（方案 §4.2：「弹唱」取虫虫钢琴的叫法＝旋律＋歌词＋钢琴；「伴奏」只装纯伴奏与给合唱 / 器乐的伴奏）；≤12 字，与官网 site/index.html SUB_TIP 同文 */
+const CC_SUB_TIP={'gangqin.tanchang':'旋律＋歌词＋钢琴', 'gangqin.banzou':'纯伴奏 · 合唱器乐伴奏'};
 const CC_ZT={jianpu:['shifan','儿歌弹唱'], wuxian:['yikao','艺考视唱'], gangqin:['kaobian','即兴伴奏'], gongneng:['jixing','即兴伴奏']};
 /* 卡片 → 谱种字段：线上卡片接口 P0 起带 pz / sub / inst / also / fx；本地演示谱按谱面现算（同一个 PQ_KIND）；都没有（旧接口）按旧 type 粗归 */
 function ccPzOf(pb){
@@ -47567,10 +47576,11 @@ function renderCircleNx(){
   let h='';
   if(p){
     const cs=(C.pz[s.pz]||{sub:{}}).sub;
-    p.subs.forEach(x=>{ if((cs[x.id]||0)>0 || CC_FOCUS[s.pz+'.'+x.id] || s.sub===x.id || (x.id==='qiyue' && s.inst)) h+=ccNxChip(`data-sub="${x.id}"`, x.name, s.sub===x.id || (x.id==='qiyue' && !!s.inst)); });
+    p.subs.forEach(x=>{ const tip=CC_SUB_TIP[s.pz+'.'+x.id];
+      if((cs[x.id]||0)>0 || CC_FOCUS[s.pz+'.'+x.id] || s.sub===x.id || (x.id==='qiyue' && s.inst)) h+=ccNxChip(`data-sub="${x.id}"${tip? ` title="${tip}"` : ''}`, x.name, s.sub===x.id || (x.id==='qiyue' && !!s.inst)); });
     if(s.pz==='jianpu') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg')+ccNxChip('data-tg="chord"', '已配和弦', s.x.chord, 'tg');
     else if(s.pz==='wuxian') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg');
-    else if(s.pz==='hechang') h+=ccNxChip('data-hacc=""', '全部', !s.hacc, 'tg')+ccNxChip('data-hacc="yes"', '带伴奏', s.hacc==='yes', 'tg')+ccNxChip('data-hacc="no"', '无伴奏', s.hacc==='no', 'tg');
+    else if(s.pz==='hechang') h+='<span class="cc-rl">伴奏</span>'+ccNxChip('data-hacc=""', '全部', !s.hacc, 'tg')+ccNxChip('data-hacc="yes"', '带伴奏', s.hacc==='yes', 'tg')+ccNxChip('data-hacc="no"', '无伴奏', s.hacc==='no', 'tg');
     const z=CC_ZT[s.pz]; if(z) h+=`<a class="cc-ztl" href="https://www.puyouquan.com/${z[0]}.html" target="_blank" rel="noopener" data-zt="${z[0]==='jixing'? 'kaobian' : z[0]}">${z[1]} ›</a>`;
   }
   const r2=div.querySelector('.cc-subrow'); r2.innerHTML=h; r2.hidden=!h;

@@ -9,7 +9,9 @@
    ④ 调词：与吉他 / 尤克里里同现＝指法调；与葫芦丝 / 笛子 / 箫 / 巴乌 / 口琴 / 萨克斯同现＝乐器的调，不筛选、只把同调的排前；其余＝实际调；
    ⑤ 只有谱种词（「简谱」「钢琴谱」）＝点了这个一级（only，不含可转）；有曲名时简谱 / 五线谱默认含可转（conv）；
    ⑥ 「器乐谱 / 器乐」不加筛选，给提示条（hint）；作曲家等其余词按曲名 / 演唱 / 署名 / 作曲搜。
-   parse(q) → {words（剩下的词）, conds:[{k, v, label, rm（去掉这一条后的查询）}], pz, sub, inst, zt, acc, style, parts, key, fkey, keySort, nota, conv, only, tail, hint}
+   ⑦ 伴奏词：合唱谱下＝「伴奏」三选（hacc：带伴奏 / 有伴奏 → yes，无伴奏 / 无伴奏合唱 → no；与合唱同现的 伴奏 / 钢琴伴奏 / 伴奏谱 也按带伴奏，不落钢琴谱、不悄悄丢掉）；
+      不在合唱谱时 带伴奏＝「带伴奏」开关（acc）；单独的「无伴奏」（没有谱种 / 二级 / 乐器）＝合唱谱 › 无伴奏，与乐器同现（「无伴奏 小提琴」）只筛不带伴奏的。
+   parse(q) → {words（剩下的词）, conds:[{k, v, label, rm（去掉这一条后的查询）}], pz, sub, inst, zt, acc, hacc, style, parts, key, fkey, keySort, nota, conv, only, tail, hint}
    只读：不碰数据库；输入截 40 字（同接口） */
 const KIND = require('./kindname');
 
@@ -35,7 +37,11 @@ const WORDS = {
   '儿歌弹唱': { pz: 'gangqin', sub: 'tanchang', style: 'erge', cat: 'pno' },
   '钢琴伴奏': { pz: 'gangqin', acc: 1, cat: 'pno' }, '钢琴伴奏谱': { pz: 'gangqin', acc: 1, cat: 'pno' }, '伴奏谱': { pz: 'gangqin', acc: 1, cat: 'pno' },
   '正谱伴奏': { pz: 'gangqin', acc: 1, cat: 'pno' }, '伴奏': { pz: 'gangqin', acc: 1, cat: 'pno' },
-  '即兴伴奏': { zt: 'kaobian' },
+  /* 「即兴伴奏」一族＝考编专题（jx：老师常带的「教资 / 考编 + 儿歌」改落师范的那条规则不吃它们） */
+  '即兴伴奏': { zt: 'kaobian', jx: 1 }, '钢琴即兴伴奏': { zt: 'kaobian', jx: 1 }, '即兴伴奏谱': { zt: 'kaobian', jx: 1 },
+  /* 伴奏开关词（不带谱种）：落合唱谱时＝「伴奏」三选（hacc），否则 带伴奏＝简谱 / 五线谱的「带伴奏」开关（acc）；无伴奏 见 parse 末尾 */
+  '带伴奏': { hacc: 'yes', cat: 'acc' }, '有伴奏': { hacc: 'yes', cat: 'acc' }, '无伴奏': { hacc: 'no', cat: 'nacc' },
+  '无伴奏合唱': { pz: 'hechang', hacc: 'no', cat: 'ch' },
   '吉他谱': { pz: 'jita', cat: 'gtr' }, '吉他': { pz: 'jita', cat: 'gtr' }, '六线谱': { pz: 'jita', cat: 'gtr' },
   '吉他弹唱': { pz: 'jita', sub: 'tanchang', cat: 'gtr' }, '吉他弹唱谱': { pz: 'jita', sub: 'tanchang', cat: 'gtr' }, '吉他和弦谱': { pz: 'jita', sub: 'tanchang', cat: 'gtr' },
   '弹唱': { sub: 'tanchang', cat: 'tc' }, '弹唱谱': { sub: 'tanchang', cat: 'tc' },
@@ -112,6 +118,7 @@ function label(k, v) {
     case 'inst': return '乐器：' + (KIND.INST[v] || v);
     case 'zt': return '专题：' + ZT_NAME[v];
     case 'acc': return '带伴奏';
+    case 'hacc': return v === 'no' ? '无伴奏' : '带伴奏';
     case 'style': return '风格：儿歌';
     case 'parts': return '编制：' + ['', '独唱', '二部', '三部', '四部以上'][v];
     case 'key': return '调：' + v;
@@ -128,9 +135,11 @@ function parse(q0) {
   const T = toks.map((w, i) => { const w2 = stripStop(w); return w2 ? lexWord(w2, i === toks.length - 1) : []; });
   const segs = []; T.forEach((list, ti) => list.forEach(s => { s.ti = ti; segs.push(s); }));
   /* 老师常带「教资 / 考编 / 面试」＋「儿歌 / 儿歌弹唱」：落师范儿歌弹唱专题（T25 验收例「教资 儿歌弹唱」），儿歌那一段并进专题、不再另筛 */
-  const ztKb = segs.find(s => s.c && s.c.zt === 'kaobian' && s.c !== WORDS['即兴伴奏']), erg = segs.find(s => s.c && s.c.style === 'erge');
+  const ztKb = segs.find(s => s.c && s.c.zt === 'kaobian' && !s.c.jx), erg = segs.find(s => s.c && s.c.style === 'erge');
   if (ztKb && erg) { ztKb.c = { zt: 'shifan' }; erg.c = { absorbed: 1 }; }
-  const out = { words: '', conds: [], pz: '', sub: '', inst: '', zt: '', acc: 0, style: '', parts: 0, key: '', fkey: '', keySort: '', nota: '', conv: false, only: false, tail: '', hint: '' };
+  /* ⑦ 合唱＋伴奏 / 钢琴伴奏 / 伴奏谱：＝合唱谱「伴奏」三选的「带伴奏」（此前「伴奏」那一段作第二个类目词被跳过，条件丢了还成了「只有谱种词」、搜索框被清空） */
+  if (segs.some(s => s.c && s.c.cat === 'ch')) segs.forEach(s => { if (s.c && s.c.cat === 'pno' && s.c.acc) s.c = { hacc: 'yes', cat: 'acc' }; });
+  const out = { words: '', conds: [], pz: '', sub: '', inst: '', zt: '', acc: 0, hacc: '', style: '', parts: 0, key: '', fkey: '', keySort: '', nota: '', conv: false, only: false, tail: '', hint: '' };
   const cats = segs.filter(s => s.c && s.c.cat).map(s => s.c.cat);
   const has = c => cats.indexOf(c) >= 0;
   const insts = segs.filter(s => s.c && s.c.inst).map(s => s.c.inst);
@@ -177,6 +186,14 @@ function parse(q0) {
       continue;
     }
   }
+  /* ⑦ 伴奏词（先到的一个）：合唱谱下＝hacc；单独「无伴奏」＝合唱谱 › 无伴奏；其余 带伴奏＝acc 开关、无伴奏＝不带伴奏 */
+  const hs = segs.find(s => s.c && s.c.hacc);
+  if (hs) {
+    const v = hs.c.hacc;
+    if (v === 'no' && !pzSet && !subSet && !out.inst) { pzSet = 'hechang'; take.push([hs, 'pz', 'hechang']); }
+    if (pzSet === 'hechang' || v === 'no') { out.hacc = v; take.push([hs, 'hacc', v]); }
+    else if (!out.acc) { out.acc = 1; take.push([hs, 'acc', 1]); }
+  }
   out.pz = pzSet; out.sub = subSet; out.inst = out.inst || '';
   /* 只给了二级（视唱 / 对照谱）→ 不限一级；pz 与 sub 都有时 sub 记二级 id */
   if (out.sub && out.sub.indexOf('.') > 0) out.sub = out.sub.split('.')[1];
@@ -194,7 +211,7 @@ function parse(q0) {
   /* 和弦谱的尾节只在没跟吉他 / 尤克里里同现时要（同现已改成弹唱） */
   if (out.pz !== 'gongneng') out.tail = out.tail === 'tab' ? '' : out.tail;
   /* ⑤ only / conv / 「X 简谱」尾节 */
-  const realConds = take.filter(t => ['pz', 'sub', 'inst', 'zt', 'acc', 'style', 'parts', 'key', 'fkey'].indexOf(t[1]) >= 0);
+  const realConds = take.filter(t => ['pz', 'sub', 'inst', 'zt', 'acc', 'hacc', 'style', 'parts', 'key', 'fkey'].indexOf(t[1]) >= 0);
   out.only = !out.words && !out.nota && !out.hint && !out.tail && !!(out.pz || out.sub) && realConds.every(t => t[1] === 'pz' || t[1] === 'sub');
   out.conv = !!out.words && (out.pz === 'jianpu' || out.pz === 'wuxian' || (out.pz === 'hechang' && (out.sub === 'jianpu' || out.sub === 'wuxian')));
   if (out.words && out.pz === 'jianpu' && !out.sub && !out.inst) out.tail = out.tail || 'jp';
@@ -202,7 +219,7 @@ function parse(q0) {
   const qOf = drop => T.map((list, ti) => list.filter(s => !drop.has(s)).map(s => s.seg).join('')).filter(Boolean).join(' ');
   const seen = new Set();
   take.forEach(([s, k, v]) => {
-    if (['pz', 'sub', 'inst', 'zt', 'acc', 'style', 'parts', 'key', 'fkey', 'keySort', 'nota'].indexOf(k) < 0) return;
+    if (['pz', 'sub', 'inst', 'zt', 'acc', 'hacc', 'style', 'parts', 'key', 'fkey', 'keySort', 'nota'].indexOf(k) < 0) return;
     const lb = label(k, k === 'sub' && out.pz && String(v).indexOf('.') < 0 ? out.pz + '.' + v : v);
     if (!lb || seen.has(k)) return; seen.add(k);
     /* 删一条＝把产生它的那一段从查询里拿掉（同一段生成的其他条件随之去掉，如「钢琴独奏」的谱种与二级） */
@@ -217,7 +234,8 @@ function parse(q0) {
 /* 0 结果退路说明：「没有『晴天』的功能谱，下面是其他谱」 */
 function fbNote(p) {
   const nm = p.inst ? (KIND.INST[p.inst] || '') + '谱' : p.sub && p.pz ? KIND.pzName(p.pz + '.' + p.sub) : p.pz ? (KIND.PZ.find(x => x.id === p.pz) || {}).name : p.zt ? ZT_NAME[p.zt] : '谱';
-  return '没有「' + p.words + '」的' + nm + '，下面是其他谱';
+  const ac = p.hacc === 'yes' || (p.acc && !p.inst) ? '带伴奏' : p.hacc === 'no' ? '无伴奏' : '';
+  return '没有「' + p.words + '」的' + ac + nm + '，下面是其他谱';
 }
 /* 解析里每个目标 id（kindname.test 核对都在 PQ_KIND 表里） */
 function targets() {

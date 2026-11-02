@@ -1533,8 +1533,9 @@ const routes = [
       if (!f2.inst && p.inst) f2.inst = p.inst;
       if (!o.zt && p.zt) o.zt = p.zt;
       if (p.style) o.style = p.style;
-      if (p.acc || p.parts || p.key || p.fkey) { const x = o.x = Object.assign({ parts: [], keys: [], meters: [], speeds: [] }, o.x || {});
-        if (p.acc) x.acc = true; if (p.parts && !x.parts.length) x.parts = [p.parts]; if ((p.key || p.fkey) && !x.keys.length) x.keys = [p.key || p.fkey]; }
+      if (p.acc || p.hacc || p.parts || p.key || p.fkey) { const x = o.x = Object.assign({ parts: [], keys: [], meters: [], speeds: [] }, o.x || {});
+        if (p.acc) x.acc = true; if (p.hacc && !x.hacc) x.hacc = p.hacc;   /* 合唱谱「伴奏」三选（搜「合唱 带伴奏」「无伴奏」）；接口显式 ?hacc= 优先 */
+        if (p.parts && !x.parts.length) x.parts = [p.parts]; if ((p.key || p.fkey) && !x.keys.length) x.keys = [p.key || p.fkey]; }
       if (p.keySort) o.keySort = p.keySort;
       if (p.tail) o.tail = p.tail;
       o.shichang = f2.sub === 'shichang' && !f2.pz;
@@ -1543,16 +1544,17 @@ const routes = [
     o.conv = ox.conv === '1' || (ox.conv !== '0' && !!(p && o.words));
     const cards = q.pubAll.all().map(pubShape);
     let r = libQuery(cards, o), fb = '';
-    /* 0 结果退路（T3）：去掉解析出的条件、只按剩下的词搜（显式接口参数照留），并说明「没有 X 的功能谱，下面是其他谱」 */
-    const parsed = !!(p && (p.pz || p.sub || p.inst || p.zt || p.style || p.acc || p.parts || p.key || p.fkey));
+    /* 0 结果退路（T3）：去掉解析出的条件、只按剩下的词搜（显式接口参数照留），并说明「没有 X 的功能谱，下面是其他谱」。
+       退路之后仍是 0 首：不给 fb（否则界面写「下面是其他谱」而下面一首都没有），列表照原条件的 0 结果返回；zero_result 由页面在 0 结果时照常记 */
+    const parsed = !!(p && (p.pz || p.sub || p.inst || p.zt || p.style || p.acc || p.hacc || p.parts || p.key || p.fkey));
     if (!r.list.length && parsed && p.words) {
-      fb = PZQ.fbNote(p);
-      r = libQuery(cards, { f, words: p.words, x: ox.x, zt: ox.zt, sort: ox.sort, conv: false });
+      const r2 = libQuery(cards, { f, words: p.words, x: ox.x, zt: ox.zt, sort: ox.sort, conv: false });
+      if (r2.list.length) { fb = PZQ.fbNote(p); r = r2; }
     }
     const scores = r.list.slice(page * size, page * size + size).map(e => Object.assign(e.c, { sec: e.sec }, e.nota ? { nota: e.nota } : {}));
     const res = Object.assign(kw ? { q: kw } : {}, f2, { page, size, total: r.list.length, n0: r.n0, nConv: r.nConv, conv: o.conv ? 1 : 0, scores });
     if (r.tail) res.tail = r.tail;
-    if (p) res.parse = { words: p.words, conds: p.conds, pz: p.pz, sub: p.sub, inst: p.inst, zt: p.zt, nota: p.nota, only: p.only, hint: p.hint, tail: p.tail, keySort: p.keySort };
+    if (p) res.parse = { words: p.words, conds: p.conds, pz: p.pz, sub: p.sub, inst: p.inst, zt: p.zt, hacc: p.hacc, nota: p.nota, only: p.only, hint: p.hint, tail: p.tail, keySort: p.keySort };
     if (fb) res.fb = fb;
     return res;
   }],
