@@ -58,7 +58,8 @@ const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
   const errs = []; pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
   await pg.goto(F); await pg.waitForTimeout(1000);
   await pg.evaluate(`(()=>{ window.guardReplace=(p)=>p(); window.SF_PLAYWAIT=false;
-    window.hdr=()=>{ const t=[...document.getElementById('score').querySelectorAll('text')].map(x=>x.textContent).find(x=>/[♩♪]\\.?=\\d+/.test(x))||''; return (t.match(/[♩♪]\\.?=\\d+/)||[''])[0]; };
+    /* v69.8 E8：纯五线谱的整曲速度画在首行谱表上方（字形＋「= N」，热区 [data-hdsys] 的 aria-label 读得出 ♩=N），页头不再有 ♩= 文字 */
+    window.hdr=()=>{ const sc=document.getElementById('score'); const t=[...sc.querySelectorAll('text')].map(x=>x.textContent).find(x=>/[♩♪]\\.?=\\d+/.test(x)) || ((sc.querySelector('[data-hdsys]')||{getAttribute:()=>''}).getAttribute('aria-label')||''); return (t.match(/[♩♪]\\.?=\\d+/)||[''])[0]; };
     /* 新建谱是空小节，parseSMF 会以「没有音符事件」拒收——直接扫 FF 51 03 速度元事件（四分音符微秒数） */
     window.midiTempo=(s)=>{ const out=exportMIDI(s||song); const u=out&&out.bytes? out.bytes : out;
       for(let i=0;i+5<u.length;i++) if(u[i]===0xFF&&u[i+1]===0x51&&u[i+2]===0x03) return +(60000000/((u[i+3]<<16)|(u[i+4]<<8)|u[i+5])).toFixed(2);

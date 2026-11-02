@@ -31,7 +31,8 @@ const CMP_LONG = 'Ed Sheeran / Johnny McDaid / Steve Mac / Amy Wadge';
 const GEO = `function hdGeo(svg){
   const kids=[...svg.children];
   const i0=kids.findIndex(e=>e.tagName.toLowerCase()==='text' && e.getAttribute('font-weight')==='800');
-  let i1=-1; kids.forEach((e,i)=>{ if(e.hasAttribute('data-hd')) i1=i; });
+  /* v69.8 E8：纯五线谱的整曲速度画在首行谱表上方，热区仍是 data-hd="tempo"（带 data-hdsys）——它在谱行里，不算页头那一串热区 */
+  let i1=-1; kids.forEach((e,i)=>{ if(e.hasAttribute('data-hd') && !e.hasAttribute('data-hdsys')) i1=i; });
   /* 包围盒一律换算到谱面 SVG 用户坐标（getBBox 是元素自身坐标系，带 transform 的字形要乘 CTM） */
   const M0=svg.getScreenCTM().inverse();
   const bb=e=>{ const b=e.getBBox(), sc=e.getScreenCTM(); if(!sc) return null; const m=M0.multiply(sc);
@@ -56,7 +57,8 @@ const GEO = `function hdGeo(svg){
   kids.slice(i1+1).forEach(e=>{ if(e.id==='playhead'||e.id==='playline') return; let b=null; try{ b=bb(e); }catch(_){ return; }
     if(!b || !(b.w>0||b.h>0)) return;
     if(b.y < hb-0.5) after.push({tag:e.tagName, y:b.y, y2:b.y2, cls:e.getAttribute('class')||''}); });
-  return {texts, zones, after, hb, i0, i1};
+  const e8=[...svg.querySelectorAll('[data-hdsys]')].map(e=>e.getAttribute('aria-label')||'');
+  return {texts, zones, after, hb, i0, i1, e8};
 }`;
 
 /* 节点侧判定：越版心 / 左×右 / 标题演唱×其余 / 标题×演唱 / 页头之后的元素高过页头底边 */
@@ -110,10 +112,11 @@ const REF668 = `(()=>{ const p=[]; const wmm=PAGE_MM[layoutCfg().page][0];
   const capoBits=[];
   if(song.capo>0 && !pureStaff) capoBits.push({t:esc(\`变调夹 \${song.capo} 品（按 1=\${song.key} 指法）\`), act:'capo'});
   { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push({t:esc(tl), act:null}); }
-  if(song.tempoTerm) capoBits.push({t:\`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">\${esc(song.tempoTerm)}</tspan>\`, act:'tempo'});
-  capoBits.push({t:\`\${tempoGlyph(song)}=\${esc(song.tempo)}\`, act:'tempo'});
+  /* v69.8 E8（有意变化，负责人拍板）：纯五线谱的速度术语与 ♩= 挪到首行谱表上方，页头不再写（含简谱 / 六线谱的谱照旧）——参照写法同步这一处 */
+  if(song.tempoTerm && !pureStaff) capoBits.push({t:\`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">\${esc(song.tempoTerm)}</tspan>\`, act:'tempo'});
+  if(!pureStaff) capoBits.push({t:\`\${tempoGlyph(song)}=\${esc(song.tempo)}\`, act:'tempo'});
   const cbX0 = pureStaff? MARGIN : MARGIN+78;
-  p.push(\`<text x="\${cbX0}" y="\${headY+22}" font-size="12.5" font-weight="\${pureStaff?'700':'400'}" fill="var(--ink)">\${capoBits.map(b2=>b2.t).join('　')}</text>\`);
+  if(capoBits.length) p.push(\`<text x="\${cbX0}" y="\${headY+22}" font-size="12.5" font-weight="\${pureStaff?'700':'400'}" fill="var(--ink)">\${capoBits.map(b2=>b2.t).join('　')}</text>\`);
   {
     const hz=(x,y,w2,h2,act,tip)=>p.push(\`<rect x="\${x.toFixed(1)}" y="\${y.toFixed(1)}" width="\${w2.toFixed(1)}" height="\${h2.toFixed(1)}" fill="transparent" data-hd="\${act}" style="cursor:pointer"><title>\${tip}</title></rect>\`);
     hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', '点击编辑曲谱信息（标题/演唱/词曲/制谱等，实时预览）');
@@ -255,7 +258,8 @@ const REF668 = `(()=>{ const p=[]; const wmm=PAGE_MM[layoutCfg().page][0];
       const bad = sumBad(g);
       const L = (g.texts || []).filter(t => t.cls === 'left');
       if (o.type === 'instr' && L.some(t => /^1=/.test(t.t))) bad.push('纯五线谱不应写 1=X');
-      if (!L.some(t => /=\d+/.test(t.t))) bad.push('缺速度');
+      /* v69.8 E8：纯五线谱的速度在首行谱表上方（data-hdsys 热区的 aria-label），页头不再写 */
+      if (!L.some(t => /=\d+/.test(t.t)) && !(o.type === 'instr' && (g.e8 || []).some(t => /=\d+/.test(t)))) bad.push('缺速度');
       T(bad.length === 0, `T5 ${tag} @${vp.width}`, bad.join(' | ') || L.map(t => t.t).join('|'));
     }
   }

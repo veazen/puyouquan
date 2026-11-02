@@ -9046,6 +9046,115 @@ function tempoUnitOf(s){ s=s||song; const u=s&&s.tempoUnit; if(u==='q'||u==='e'|
 function tempoQPM(s){ s=s||song; const n=+s.tempo||90, u=tempoUnitOf(s); return u==='e'? n/2 : u==='dq'? n*1.5 : n; }
 function tempoGlyph(s){ const u=tempoUnitOf(s||song); return u==='e'? '♪' : u==='dq'? '♩.' : '♩'; }
 function unitSeconds(s, rate){ s=s||song; return 60/(tempoQPM(s)*(rate||1))/((s.unit||4)/4); }
+/* ===== v69.8 曲中速度（复核 T6）=====
+   mea.tempos＝[{q 自小节起点的四分音符数, bpm, tempoUnit?（'q' 缺省 / 'e' / 'dq'）, text?（♩= 前的速度文字）, hide?（只进播放不印）}]，按 q 升序；无键＝本小节没有速度变化。
+   生效规则：按谱面线性位置取「最后一个 ≤ (mi, q) 的点」，没有就是 song.tempo / tempoUnitOf(song)——D.C. 跳回开头自然回到初速；第 0 小节 q=0 的点不存（并进 song.tempo）。
+   tempoPtQPM(pt)＝该点每分钟四分音符数（同 tempoQPM 口径）；tempoPtsOf(s)＝线性化的全部点；tempoAt(s, mi, q)＝(mi, q) 处生效的 {bpm, tempoUnit, qpm, text}。
+   没有 tempos 的谱：tempoAt 恒＝整曲速度，播放 / MIDI / 谱面 / MusicXML 与 v69.7 逐字节相同 */
+function tempoPtQPM(pt){ const n=+(pt && pt.bpm)||0, u=pt && pt.tempoUnit; return u==='e'? n/2 : u==='dq'? n*1.5 : n; }
+function tempoPtsOf(s){
+  s=s||song; const out=[];
+  ((s && s.measures)||[]).forEach((m, mi)=>{ const T=m && m.tempos; if(!Array.isArray(T)) return;
+    T.forEach((pt, k)=>{ if(!pt || !(+pt.bpm>0)) return;
+      out.push({mi, k, q:Math.max(0, +pt.q||0), bpm:+pt.bpm, tempoUnit:(pt.tempoUnit==='e' || pt.tempoUnit==='dq')? pt.tempoUnit : 'q', qpm:tempoPtQPM(pt), text:pt.text? String(pt.text) : '', hide:!!pt.hide}); }); });
+  return out.sort((a, b)=>a.mi-b.mi || a.q-b.q || a.k-b.k);
+}
+function tempoAt(s, mi, q){
+  s=s||song; q=+q||0; const M=(s && s.measures)||[];
+  for(let m=Math.min(mi, M.length-1); m>=0; m--){
+    const T=(M[m]||{}).tempos; if(!Array.isArray(T)) continue;
+    let hit=null;
+    T.forEach(pt=>{ if(!pt || !(+pt.bpm>0)) return; const pq=Math.max(0, +pt.q||0); if(m===mi && pq>q+1e-9) return; if(!hit || pq>=hit.q-1e-9) hit={q:pq, pt}; });
+    if(hit){ const pt=hit.pt; return {bpm:+pt.bpm, tempoUnit:(pt.tempoUnit==='e' || pt.tempoUnit==='dq')? pt.tempoUnit : 'q', qpm:tempoPtQPM(pt), text:pt.text? String(pt.text) : '', mi:m, q:hit.q}; }
+  }
+  return {bpm:+s.tempo||90, tempoUnit:tempoUnitOf(s), qpm:tempoQPM(s), text:''};
+}
+/* 写一个速度点（在 mutate 里调）：pt＝null 删除；同一 q（±1e-3）已有点＝改它；第 0 小节 q=0 不存点（改整曲速度由调用方处理）。空数组删键 */
+function tempoPtPut(mi, q, pt){
+  const m=song.measures[mi]; if(!m) return;
+  const T=(Array.isArray(m.tempos)? m.tempos : []).filter(x=>x && Math.abs((+x.q||0)-q)>1e-3);
+  if(pt){ const o={q:+(+q).toFixed(4), bpm:Math.round(+pt.bpm)};
+    if(pt.tempoUnit==='e' || pt.tempoUnit==='dq') o.tempoUnit=pt.tempoUnit;
+    if(pt.text) o.text=String(pt.text).slice(0, 40);
+    if(pt.hide) o.hide=true;
+    T.push(o); T.sort((a, b)=>(+a.q||0)-(+b.q||0)); }
+  if(T.length) m.tempos=T; else delete m.tempos;
+}
+/* 光标所在列的拍位 {mi, q}（q＝本小节内该列之前的四分音符数）；光标在第 0 小节第 0 列（整曲速度的位置）＝null */
+function tempoQAtSel(){
+  if(!song || !sel || !song.measures) return null;
+  const mi=sel.mi||0, ci=sel.ci||0; if(mi===0 && ci===0) return null;
+  const m=song.measures[mi]; if(!m) return null;
+  const cols=(sel.row==='tab'? (m.tabs||[])[sel.vi] : (m.voxes||[])[sel.vi])||[];
+  let q=0; cols.slice(0, ci).forEach(c=>{ if(c) q+=beatsOf(c, 4); });
+  if(mi===0 && q<1e-3) return null;
+  return {mi, q:+q.toFixed(4)};
+}
+/* v69.8 速度记号（曲中速度点 / 纯五线谱首行速度共用）：o＝{x 左缘, y 基线, text 速度文字, bpm, tempoUnit, hz 热区属性串, tip}。
+   速度文字＝粗斜体 Georgia 12.5（同页头术语）＋ 节拍器音符（四分 / 八分，附点四分加附点）＋「= N」粗 12.5。
+   节拍器音符用谱面原有字形拼（noteheadBlack ＋ 符干 ＋ flag8thUp ＋ augmentationDot，与 SMuFL metNoteQuarterUp / metNote8thUp 同形）——
+   v68.0 追加的 44 个记号面板字形谱面不调用（tv_trktree T23b 口径）。
+   返回 {s 串, w 宽, box 字形墨迹框}（符头 / 符尾是 transform 路径、避让解析不读，box 交给 avDefer 的 job.box；符干是 line，照常解析） */
+function tempoMarkSVG(o){
+  const px=12.5, TF='Georgia,serif', SGm=4.3, u=o.tempoUnit==='e'? 'e' : o.tempoUnit==='dq'? 'dq' : 'q';
+  let x=o.x, s='';
+  if(o.text){ s+=`<text x="${x.toFixed(1)}" y="${o.y.toFixed(1)}" font-size="${px}" font-style="italic" font-weight="700" font-family="${TF}" fill="var(--ink)">${esc(o.text)}</text>`;
+    x+=hdTextW(o.text, px, {w:700, it:true, fam:TF})+5; }
+  const gy=o.y-2.2, hw=smw('noteheadBlack')*SGm, sx=x+hw-0.45, sy=gy-2.75*SGm;
+  s+=smg('noteheadBlack', x, gy, SGm);
+  s+=`<line x1="${sx.toFixed(2)}" y1="${(gy-0.15*SGm).toFixed(2)}" x2="${sx.toFixed(2)}" y2="${sy.toFixed(2)}" stroke="var(--ink)" stroke-width="0.95"/>`;
+  const box=[x, gy-0.5*SGm, x+hw, gy+0.5*SGm];
+  let xe=x+hw;
+  if(u==='e'){ s+=smg('flag8thUp', sx-0.45, sy, SGm); xe=Math.max(xe, sx-0.45+smw('flag8thUp')*SGm); box[1]=sy; box[2]=xe; }
+  x=xe;
+  if(u==='dq'){ s+=smg('augmentationDot', x+0.5*SGm, gy, SGm); x+=(0.5+smw('augmentationDot'))*SGm; box[2]=x; }
+  const nt='= '+(Math.round(+o.bpm)||0);
+  s+=`<text x="${(x+2.5).toFixed(1)}" y="${o.y.toFixed(1)}" font-size="${px}" font-weight="700" fill="var(--ink)">${esc(nt)}</text>`;
+  x+=2.5+hdTextW(nt, px, {w:700});
+  const w=x-o.x;
+  if(o.hz) s+=`<rect x="${(o.x-2).toFixed(1)}" y="${(o.y-15).toFixed(1)}" width="${(w+4).toFixed(1)}" height="19" fill="transparent" ${o.hz} aria-label="${esc((o.text? o.text+' ' : '')+(u==='e'? '♪' : u==='dq'? '♩.' : '♩')+'='+(Math.round(+o.bpm)||0))}" style="cursor:pointer"><title>${esc(o.tip||'')}</title></rect>`;   /* aria-label＝读得出的速度（读屏 / 测试） */
+  return {s, w, box};
+}
+/* v69.8 播放时间映射（复核 T6 曲中速度 + F3 延长号）：W(名义秒) → 实际秒，分段线性。名义时间＝按整曲速度 spb 铺的 order / starts（play 现有口径，一行不改），
+   W 的斜率＝整曲速度 ÷ 该处生效速度（tempoAt），各声部 / 六线谱轨的 ferm 列名义区间并集后各拉长到 2 倍、多出的部分封顶 2 秒。
+   没有速度点、也没有延长号（W 恒等）时返回 null——调用方据此不做任何映射，排程逐字节不变 */
+function playTimeMap(s, order, starts, spb){
+  s=s||song; const M=(s && s.measures)||[], n=(order||[]).length; if(!n) return null;
+  const q0=tempoQPM(s);
+  const ends=starts.map((a, i)=> i+1<n? starts[i+1] : a+measureSeconds(order[i], spb));
+  /* 1) 速度断点 [x, r]（r＝实际 / 名义） */
+  const bp=[]; let any=false;
+  const hasT=M.some(m=>m && Array.isArray(m.tempos) && m.tempos.length);
+  if(hasT) order.forEach((mi, oi)=>{
+    const a=starts[oi], L=ends[oi]-a, smi=simileSrc(mi), uq=(meaMeter(smi!=null? smi : mi).unit/4)*spb;
+    const t0=tempoAt(s, mi, 0); bp.push({x:a, r:q0/t0.qpm});
+    const T=((M[mi]||{}).tempos||[]).filter(pt=>pt && +pt.bpm>0 && +pt.q>0).sort((x, y)=>x.q-y.q);
+    T.forEach(pt=>{ bp.push({x:a+Math.min(L, (+pt.q)*uq), r:q0/tempoPtQPM(pt)}); });
+  });
+  if(!bp.length) bp.push({x:0, r:1});
+  bp.forEach(b=>{ if(Math.abs(b.r-1)>1e-9) any=true; });
+  /* 2) 延长号区间（名义秒，并集） */
+  const fr=[];
+  order.forEach((mi, oi)=>{ const smi=simileSrc(mi), cmi=smi!=null? smi : mi, mU=meaMeter(cmi).unit, m=M[cmi]||{};
+    [...(m.voxes||[]), ...(m.tabs||[])].forEach(cols=>{ let off=starts[oi];
+      (cols||[]).forEach(c=>{ if(!c) return; const d=beatsOf(c, mU)*spb; if(c.ferm && d>1e-6) fr.push([off, off+d]); off+=d; }); }); });
+  fr.sort((a, b)=>a[0]-b[0]);
+  const fu=[]; fr.forEach(iv=>{ const L=fu[fu.length-1]; if(L && iv[0] < L[1]-1e-6) L[1]=Math.max(L[1], iv[1]); else fu.push(iv.slice()); });
+  if(!any && !fu.length) return null;
+  /* 3) 拼分段：断点＝速度断点 ∪ 延长号两端；每段斜率＝速度比 ×（所在延长号区间的拉长系数） */
+  const rAt=x=>{ let r=bp[0].r; for(const b of bp){ if(b.x<=x+1e-9) r=b.r; else break; } return r; };
+  const cuts=new Set([0]); bp.forEach(b=>cuts.add(b.x)); fu.forEach(iv=>{ cuts.add(iv[0]); cuts.add(iv[1]); });
+  const X=[...cuts].filter(x=>x>=0).sort((a, b)=>a-b);
+  const realLen=(a, b)=>{ let s2=0; for(let i=0;i<X.length;i++){ const x0=X[i], x1=i+1<X.length? X[i+1] : Infinity; const lo=Math.max(a, x0), hi=Math.min(b, x1); if(hi>lo) s2+=(hi-lo)*rAt(x0); } return s2; };
+  const fk=fu.map(iv=>{ const R=realLen(iv[0], iv[1]); return R>1e-9? (R+Math.min(R, 2))/R : 1; });
+  const K=X.map(x=>{ let k=rAt(x); fu.forEach((iv, j)=>{ if(x>=iv[0]-1e-9 && x<iv[1]-1e-9) k*=fk[j]; }); return k; });
+  const Y=[0]; for(let i=1;i<X.length;i++) Y.push(Y[i-1]+(X[i]-X[i-1])*K[i-1]);
+  const W=x=>{ if(!(x>0)) return x; let lo=0, hi=X.length-1;
+    while(lo<hi){ const md=(lo+hi+1)>>1; if(X[md]<=x) lo=md; else hi=md-1; }
+    return Y[lo]+(x-X[lo])*K[lo]; };
+  W.segs={X, Y, K}; W.r0=bp[0].x<=1e-9? bp[0].r : 1; W.ferm=fu;
+  return W;
+}
 /* v67.3 速度输入框统一读数（新建向导 / 曲谱信息弹窗共用；口径同页头速度弹窗 30–240）：
    返回 {v 落谱值, why ''|'empty'|'bad'|'low'|'high'|'round'}——空/非数字回落 def，越界夹紧，小数取整 */
 function tempoInputVal(raw, def){
@@ -11517,7 +11626,7 @@ function systemExtras(sys){
     }
     maxUnder=Math.max(maxUnder, c.dur>=64?4 : c.dur>=32?3 : c.dur>=16?2 : c.dur>=8?1 : 0);
   })));   /* v54.7 上方 forEach 增加 (cols,vv2)/(c,ci2) 形参供连音线判定 */
-  sys.measures.forEach(lm=>{ if(song.measures[lm.mi].label || song.measures[lm.mi].keyTo) maxUp=Math.max(maxUp, 2); });   // v41.2/v41.3 排练标记/转调标记需上方空间
+  sys.measures.forEach(lm=>{ if(song.measures[lm.mi].label || song.measures[lm.mi].keyTo || (song.measures[lm.mi].tempos||[]).some(pt=>pt && !pt.hide && +pt.bpm>0)) maxUp=Math.max(maxUp, 2); });   // v41.2/v41.3 排练标记/转调标记需上方空间；v69.8 曲中速度点同一条上方带
   /* 六线谱含 32 分/连音括号时，符干区按需加高 */
   let tabTup=false, tabLow=0;
   const SN_low=strN();
@@ -11586,7 +11695,7 @@ function systemExtras(sys){
              c.chord || (c.chords||[]).some(x=>x && x.chord)));
     });
     const hasMark = sys.measures.some(lm=>{ const m=song.measures[lm.mi];
-      return m.volta || m.segno || m.coda || m.label || m.keyTo; });
+      return m.volta || m.segno || m.coda || m.label || m.keyTo || (m.tempos||[]).some(pt=>pt && !pt.hide && +pt.bpm>0); });   /* v69.8 曲中速度点同记号带 */
     if(hasDiag && hasMark) diagExtra=16;
     /* v60.12 扫弦连音线改画在六线谱**上方**（用户指示）：弧要走到箭头尖再往上约 6px，
        与行内和弦图带底缘只剩几 px，必撞（v60.11 就是因为这个才先放的下方）。
@@ -12643,7 +12752,7 @@ function avShift(bx, R, up){   /* 净空不足 → 让到本段（记号横向�
 function avKey(sys){ return sys.measures.length? sys.measures[0].mi+'-'+sys.measures[sys.measures.length-1].mi : ''; }
 /* 放记号：先 ottU（8va）→ dynU（人声力度，谱表上方）→ anno（标注）→ dyn（谱表下方力度类）→ ottD（8vb）→ ped（踏板，最外）；
    同类在一行内：踏板 / 力度类整行同高（有一个要让就一起让到最低那个），标注 / 八度线各自让 */
-var AV_FAMS = ['ottU', 'dynU', 'anno', 'dyn', 'ottD', 'ped'];
+var AV_FAMS = ['ottU', 'dynU', 'anno', 'tempo', 'dyn', 'ottD', 'ped'];   /* v69.8 tempo＝曲中速度点 / 纯五线谱首行速度（标注之后、离谱表最远；逐个让，同 anno） */
 function avPlace(AV, p){
   const R = AV.rows, OFFAV = !!window.__pyqAvOff;   /* 测试用：__pyqAvOff 为真时一律放缺省位置（tv_v697col A6「只在相撞时才挪」对拍） */
   AV.jobs.forEach(j=>{
@@ -12651,10 +12760,10 @@ function avPlace(AV, p){
     j.draw({put:(si, s)=>{ let L=tmp.get(si); if(!L) tmp.set(si, L=[]); L.push(s); }, dy:()=>0});
     j.pc = new Map(); j.sh = new Map(); j.clip = new Map();
     /* 记号自己的线条（踏板线、虚线、发夹）外扩 0.5（与普查 geom_census 的描边口径一致：线宽一半＋0.5） */
-    tmp.forEach((L, si)=>{ const bx=[]; L.forEach(s=>avParse(s, bx)); bx.forEach(b=>{ if(b[4]!=='t'){ b[0]-=0.5; b[1]-=0.5; b[2]+=0.5; b[3]+=0.5; } }); j.pc.set(si, {bx, anc: j.anc? j.anc(si) : 0}); });
+    tmp.forEach((L, si)=>{ const bx=[]; L.forEach(s=>avParse(s, bx)); if(j.box) (j.box(si)||[]).forEach(b=>bx.push(b.slice())); bx.forEach(b=>{ if(b[4]!=='t'){ b[0]-=0.5; b[1]-=0.5; b[2]+=0.5; b[3]+=0.5; } }); j.pc.set(si, {bx, anc: j.anc? j.anc(si) : 0}); });   /* v69.8 job.box：字形（transform 路径）墨迹框，缺省位置 */
   });
   for(const f of AV_FAMS){
-    const up = f==='ottU' || f==='dynU' || f==='anno', align = f==='ped' || f==='dyn' || f==='dynU';
+    const up = f==='ottU' || f==='dynU' || f==='anno' || f==='tempo', align = f==='ped' || f==='dyn' || f==='dynU';
     const byRow = new Map();
     AV.jobs.forEach(j=>{ if(j.fam!==f) return; j.pc.forEach((pc, si)=>{ const k=si+':'+j.vi; let L=byRow.get(k); if(!L) byRow.set(k, L=[]); L.push({j, si, pc}); }); });
     byRow.forEach((L, k)=>{
@@ -13201,8 +13310,9 @@ function renderCore(){
   /* 未设夹不占谱面（打印纯净）：capo 从曲谱信息弹窗（点标题区）或变调夹菜单（设过后可点）进入 */
   { const tl = (typeof tuningLabel==='function') && tuningLabel(); if(tl && !pureStaff) capoBits.push({t:esc(tl), act:null, p:tl}); }   // v42.3 特殊调弦谱首标注
   /* v42.7 意大利速度术语：与 ♩=X 并排，斜体加粗（出版惯例）；五线谱/器乐谱同样显示 */
-  if(song.tempoTerm) capoBits.push({t:`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`, act:'tempo', p:String(song.tempoTerm), it:true});
-  capoBits.push({t:`${tempoGlyph(song)}=${esc(song.tempo)}`, act:'tempo', p:`${tempoGlyph(song)}=${song.tempo}`});   /* v65.0 B2c 页头按速度单位写 ♩= / ♪= / ♩.= */
+  /* v69.8（复核 E8）纯五线谱：速度术语与 ♩= 不再写在页头，改由第 0 系统在首小节上方画（tempoMarkSVG，热区仍是 data-hd="tempo"）；含简谱 / 六线谱的谱页头不变 */
+  if(song.tempoTerm && !pureStaff) capoBits.push({t:`<tspan font-style="italic" font-weight="700" font-family="Georgia,serif">${esc(song.tempoTerm)}</tspan>`, act:'tempo', p:String(song.tempoTerm), it:true});
+  if(!pureStaff) capoBits.push({t:`${tempoGlyph(song)}=${esc(song.tempo)}`, act:'tempo', p:`${tempoGlyph(song)}=${song.tempo}`});   /* v65.0 B2c 页头按速度单位写 ♩= / ♪= / ♩.= */
   const cbX0 = pureStaff? MARGIN : MARGIN+78;
   const hdWt = pureStaff? 700 : 400;
   capoBits.forEach(b2=>{ b2.w = b2.it? hdTextW(b2.p, 12.5, {w:700, it:true, fam:'Georgia,serif'}) : hdTextW(b2.p, 12.5, {w:hdWt}); });
@@ -13224,7 +13334,7 @@ function renderCore(){
     credits.forEach(([k,v],i)=>
       p.push(`<text x="${PAGE_W-MARGIN}" y="${headY+22+i*18}" font-size="12.5" letter-spacing="0.4" text-anchor="end"><tspan fill="var(--muted)">${k}</tspan><tspan fill="var(--ink)">${esc(v)}</tspan></text>`));
     drawKey(headY+22);
-    p.push(`<text x="${cbX0}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.map(b2=>b2.t).join('　')}</text>`);
+    if(capoBits.length) p.push(`<text x="${cbX0}" y="${headY+22}" font-size="12.5" font-weight="${pureStaff?'700':'400'}" fill="var(--ink)">${capoBits.map(b2=>b2.t).join('　')}</text>`);
     /* v53.4 页头直改热区：标题/词曲区→曲谱信息弹窗；调号/拍号/变调夹/速度→就地菜单 */
     hz(MARGIN, topMargin-8, PAGE_W-2*MARGIN, headY-topMargin+10, 'meta', TIP_META);
     if(!pureStaff){
@@ -13497,6 +13607,34 @@ function renderCore(){
     });
     const ox = MARGIN + STAFF_HEAD_W, oxH = MARGIN;
     const M = sysM[sIdx];   // 本系统的纵向度量（含按需额外留白）
+    /* v69.8（复核 T6 / E8）速度记号：本系统最上一行（有六线谱＝首条六线谱行，否则首个简谱 / 五线谱声部）的每个小节调一次。
+       x＝起拍 = q 的列（没有就取 q 之前最近的列）的符头左缘；hide 不画。纯五线谱的第 0 系统另画整曲速度（song.tempoTerm ＋ ♩=，热区 data-hd="tempo"，页头不再写）。
+       最上一行是五线谱 → avDefer 族 'tempo'（谱表上方，与墨迹净空不足时往上让，同 v69.7）；是简谱 / 六线谱 → 排练标记 / 转调标记同一条上方带（压到它们时排在右侧） */
+    const tmpMarks = (mi, mx, xs, cols, yTop, staffT, vi, RW, lmIdx)=>{
+      const mea=song.measures[mi]||{}, list=[];
+      if(RW && sIdx===0 && pureStaff && mi===sys.measures[0].mi)
+        list.push({x:ox+2, text:song.tempoTerm? String(song.tempoTerm) : '', bpm:song.tempo, tempoUnit:tempoUnitOf(song), hz:'data-hd="tempo" data-hdsys="0"', tip:'点击设置速度 ♩=X', k:-1});   /* data-hdsys：画在谱行里的页头热区（与页头那一串热区区分） */
+      (Array.isArray(mea.tempos)? mea.tempos : []).forEach((pt, k)=>{ if(!pt || !(+pt.bpm>0) || pt.hide) return;
+        const q=Math.max(0, +pt.q||0); let qc=0, hit=-1, pre=-1;
+        (cols||[]).forEach((c, i)=>{ if(hit<0 && Math.abs(qc-q)<1e-3) hit=i; if(qc<q-1e-3) pre=i; qc+=beatsOf(c, 4); });
+        const c=hit>=0? hit : pre;
+        list.push({x: (c>=0 && xs && xs[c]!=null)? mx+xs[c]-4.4 : mx+2, text:pt.text? String(pt.text) : '', bpm:pt.bpm, tempoUnit:pt.tempoUnit, hz:'data-tmp="'+mi+':'+k+'"', tip:'点击修改此处速度（曲中变速）', k}); });
+      if(!list.length) return;
+      if(RW){ list.forEach(o=>{ const y0=staffT-9;
+          const draw=E=>E.put(sIdx, tempoMarkSVG(Object.assign({}, o, {y:y0+E.dy(sIdx)})).s);
+          avDefer(AV, p, {fam:'tempo', vi, tag:['tempo', mi, o.k], draw, box:()=>[tempoMarkSVG(Object.assign({}, o, {y:y0})).box]}); });
+        return; }
+      let xr=-Infinity;
+      if(mea.segno || mea.coda || mea.label || mea.keyTo){ xr = mx + ((mea.segno&&mea.coda)? 51 : (mea.segno||mea.coda)? 27 : 2);
+        if(mea.label) xr += [...String(mea.label)].reduce((a,ch)=>a+(/[\x00-\xff]/.test(ch)?6.2:10.5),0)+18;
+        if(mea.keyTo) xr += hdTextW('转1='+mea.keyTo, 11, {w:700})+8; }
+      /* 伸进下一小节时让开它的排练 / 转调 / 𝄋𝄌 标记：先往左收（不越过本小节已排的记号），仍放不下就抬一层 */
+      const nlm=sys.measures[lmIdx+1], nM=nlm && song.measures[nlm.mi];
+      const R=(nM && (nM.label || nM.keyTo || nM.segno || nM.coda))? ox+nlm.x-2 : Infinity;
+      list.forEach(o=>{ let x=Math.max(o.x, xr), y=yTop+1.5; const w=tempoMarkSVG(Object.assign({}, o, {x, y})).w;
+        if(x+w>R){ x=Math.max(xr, R-w); if(x+w>R) y-=14; }
+        const r=tempoMarkSVG(Object.assign({}, o, {x, y})); p.push(r.s); xr=x+r.w+8; });
+    };
     /* v45.8 系统左端连线（出版惯例）：行首把本行各谱行（联排五线谱/TAB/五线谱/简谱声部）
        用一条竖线相连，方便逐行对位读谱；单行谱不画（Gould：单谱表行首无需起始小节线）。
        v45.9 连线存在时各谱行自己的行首竖线不再重复绘制（同位双绘导致深浅色差），线宽统一 1 */
@@ -13936,6 +14074,7 @@ function renderCore(){
         if(vi===0){
           navMarkSVG(p, mea, mx, bx, tabTop-8, stemY+14);
           voltaSVG(p, mea, lm.mi, mx, bx, tabTop-15);
+          tmpMarks(lm.mi, mx, lay.xs, cols, tabTop-8, 0, vi, null, lmIdx);   /* v69.8 速度点（六线谱在最上一行） */
         }
         /* v41.3 小节反复 𝄎：数据保留、渲染省写为反复记号；播放展开为源小节内容 */
         const simN = simileSrc(lm.mi)!=null? mea.simile : 0;
@@ -14830,6 +14969,7 @@ function renderCore(){
           navMarkSVG(p, mea, mx, bx, yT2-8, yB2+13);
           voltaSVG(p, mea, lm.mi, mx, bx, yT2-15);
           GTv&&GTv('nav', lm.mi);
+          tmpMarks(lm.mi, mx, lay.xs, cols, yT2-8, staffT, vi, RW, lmIdx);   /* v69.8 速度点 / 纯五线谱首行速度 */
         }
         /* v41.3 小节反复 𝄎：数据保留、渲染省写（五线谱画在谱表中部，简谱/和弦格画在数字行） */
         const simV = simileSrc(lm.mi)!=null? mea.simile : 0;
@@ -15468,22 +15608,25 @@ function renderCore(){
               const sB = cB? staffStep(cB,K) : sA;
               const below = sA < S_MID;                 // 符干朝上 → 弧线在符头下方
               const yA=stepY(sA), yE=stepY(sB);
-              const ty = below? Math.max(yA,yE)+5.2 : Math.min(yA,yE)-5.2;
-              const dg = tieDodge(x1, x2, ty, below, tgtP, tgtX), x2s = dg.x2, y2s = dg.y2;   /* v69.7 弧端让开目标音的临时记号 */
+              /* v69.8（复核 T3②）链内有圆滑线来源的同音环（col.tieSlur）→ 按圆滑线几何：两端落在符头中心（目标在本行时）、离符头 6.5、弧高下限 4 */
+              let tsl=false; for(let k=a3; k<=b3; k++) if(cols[k].tieSlur) tsl=true;
+              const x1a = tsl? mx+lay.xs[a3] : x1, x2a = (tsl && tgtX)? tgtX : x2;
+              const ty = below? Math.max(yA,yE)+(tsl? 6.5 : 5.2) : Math.min(yA,yE)-(tsl? 6.5 : 5.2);
+              const dg = tsl? {x2:x2a, y2:ty} : tieDodge(x1, x2, ty, below, tgtP, tgtX), x2s = dg.x2, y2s = dg.y2;   /* v69.7 弧端让开目标音的临时记号 */
               /* v53.5 弧高随跨度比例钳制：窄跨度不再出「^ 尖拱」（用户反馈短连音线别扭） */
-              let bow = Math.max(2.5, Math.min(7+Math.min(6,(b3-a3)*2), (x2s-x1)*0.55));
+              let bow = Math.max(tsl? 4 : 2.5, Math.min(7+Math.min(6,(b3-a3)*2), (x2s-x1a)*0.55));
               /* v69.7 连成一条的长弧（a3…b3 连续 tie）跨过中间列：中间列画出的临时记号罩在弧下 / 弧上时把弧拱高到让开（弧内缘＝外缘控制点回收 2.28，见 tieSVG）——
                  只看临时记号（普查 acc×tie）；穿过中间音的符干 / 符头留给独立圆滑线字段（C17） */
-              if(AP && b3>a3 && x2s-x1>1) for(let k=a3+1; k<=b3; k++) (AP[k] && AP[k].accs || []).forEach(a=>{
+              if(AP && b3>a3 && x2s-x1a>1) for(let k=a3+1; k<=b3; k++) (AP[k] && AP[k].accs || []).forEach(a=>{
                 const g = ACC_G[a.sym], bb = SMUFL[g].bb, hy = stepY(a.st), xr = mx+lay.xs[k]+a.dx-0.83*SG, xl = xr-smw(g)*SG;
                 const gap = below? (hy+bb[3]*SG+1) - ty : ty - (hy+bb[1]*SG-1);
                 if(gap <= 0) return;
-                [xl, xr].forEach(x=>{ const t = (x-x1)/(x2s-x1); if(t<=0.02 || t>=0.98) return;
+                [xl, xr].forEach(x=>{ const t = (x-x1a)/(x2s-x1a); if(t<=0.02 || t>=0.98) return;
                   bow = Math.max(bow, Math.min(40, 2.28 + gap/(2*t*(1-t)))); });
               });
               const yp = below? Math.max(ty,y2s)+bow : Math.min(ty,y2s)-bow;
               GQ=p.length;
-              p.push(tieSVG(x1, ty, x2s, y2s, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
+              p.push(tieSVG(x1a, ty, x2s, y2s, yp, 1.9));   /* v50.0 出版级两端细尖弧 */
               GTv&&GTv('tie', lm.mi, a3);
             }
             if(!isStaff || dual){   /* v64.2 B4a ① 对照谱的简谱行同样画延音弧 */
@@ -15915,19 +16058,88 @@ const DYN_GAIN={ppp:.38,pp:.52,p:.68,mp:.85,mf:1,f:1.18,ff:1.35,fp:1.12,sfp:1.18
    fp / sfp / sfzp / sfpp 是强后弱——这一刻按强奏，之后持续力度落到 p（sfpp 落到 pp）。其余（ppp…ff）照旧是持续力度。此前一律当持续力度，土拨鼠 sf 之后整段按强奏播。
    dynSweep(evs)：evs＝[{tm, k}] 按时刻排好（同一时刻后到的胜出）→ [{tm, lvl 之后的持续力度, inst 这一刻起奏的增益}]；dynGainAt(tl, t)＝t 起奏的音的增益（无记号＝1） */
 const DYN_ACC={sf:1, sfz:1, fz:1, rfz:1, rf:1, sffz:1}, DYN_FPK={fp:'p', sfp:'p', sfzp:'p', sfpp:'pp'};
-function dynSweep(evs){
+/* v69.8（复核 F3）渐强渐弱插值：dynRampDir(记号)＝+1 渐强（< / cresc.）· −1 渐弱（> / dim. / decresc.）· 0 其他。
+   事件 {tm, k, rp, te?, cap?, bt?}：te＝dynTo 终点列列尾；没有 te → dynRamp 取「之后第一个力度记号（任意）」与 cap（起列所在小节 +2 小节）里较早的一个。
+   目标级别＝区间末 1 拍（bt）内的下一个力度记号（持续力度；fp / sfp 取起奏级）；没有就在 ppp…fff 上升 / 降一级（dynStep）。
+   dynSweep 在 ramp 起点出 {tm, lvl, inst:lvl, r:{te, g1}}、在 te 出 {tm:te, lvl:g1}（其间有别的记号则就此截止）；dynGainAt 在 [tm, te) 内按起奏时刻线性插值。
+   abs（MIDI 口径，同 v69.4 导出）：突强只给本音 DYN_GAIN 绝对值、只有 fp / sfp 是强后弱（落 p）——没有渐强渐弱的谱两条口径各自与此前逐字节相同 */
+function dynRampDir(k){ k=String(k||''); return (k==='<' || /^cresc/.test(k))? 1 : (k==='>' || /^(dim|decresc)/.test(k))? -1 : 0; }
+const DYN_STEPS=['ppp','pp','p','mp','mf','f','ff','fff'];
+function dynStep(lvl, dir){
+  let bi=0, bd=Infinity; DYN_STEPS.forEach((k, i)=>{ const d=Math.abs(DYN_GAIN[k]-lvl); if(d<bd-1e-9){ bd=d; bi=i; } });
+  return DYN_GAIN[DYN_STEPS[Math.max(0, Math.min(DYN_STEPS.length-1, bi+dir))]];
+}
+function dynRamp(evs, abs){
+  (evs||[]).forEach((e, i)=>{ if(!e.rp) return;
+    let te=e.te;
+    if(te==null){ te=e.cap!=null? e.cap : Infinity;
+      for(let j=i+1;j<evs.length;j++){ if(evs[j].tm>e.tm+1e-6){ te=Math.min(te, evs[j].tm); break; } }
+      if(!isFinite(te)) te=e.tm+4*(e.bt||1); }
+    const bt=e.bt||0; let tg=null;
+    for(let j=i+1;j<evs.length;j++){ const f=evs[j];
+      if(f.tm<=e.tm+1e-6 || f.rp) continue;
+      if(f.tm>te+bt+1e-6) break;
+      if(f.tm<te-bt-1e-6) continue;
+      const k=f.k, g=DYN_GAIN[k]; if(!g || DYN_ACC[k]) continue;
+      tg = (abs? (k==='fp' || k==='sfp') : DYN_FPK[k])? (k==='fp' && !abs? DYN_GAIN.f : g) : g; break; }
+    e.te2=Math.max(te, e.tm); e.tg=tg; });
+  return evs;
+}
+function dynSweep(evs, abs){
   const out=[]; let lvl=1;
-  (evs||[]).forEach(e=>{ const k=e.k, g=DYN_GAIN[k]; if(!g) return; let inst;
-    if(DYN_ACC[k]) inst=lvl*g; else if(DYN_FPK[k]){ inst=k==='fp'? DYN_GAIN.f : g; lvl=DYN_GAIN[DYN_FPK[k]]; } else { lvl=g; inst=g; }
+  const L=(evs||[]).some(e=>e && e.rp)? (()=>{ dynRamp(evs, abs); const a=[];
+      evs.forEach(e=>{ a.push(e); if(e.rp) a.push({tm:e.te2, end:e}); });
+      return a.map((e, i)=>({e, i})).sort((x, y)=>(Math.abs(x.e.tm-y.e.tm)<1e-6? (x.e.end? 0 : 1)-(y.e.end? 0 : 1) || x.i-y.i : x.e.tm-y.e.tm)).map(x=>x.e); })() : (evs||[]);
+  let open=null;
+  L.forEach(e=>{
+    if(e.end){ if(open!==e.end) return; open=null; const g1=e.end._g1; lvl=g1;
+      const last=out[out.length-1];
+      if(last && Math.abs(last.tm-e.tm)<1e-6){ last.lvl=g1; last.inst=g1; delete last.r; } else out.push({tm:e.tm, lvl:g1, inst:g1});
+      return; }
+    if(e.rp){ const g1=e.tg!=null? e.tg : dynStep(lvl, e.rp); e._g1=g1; open=e;
+      const last=out[out.length-1], r={te:e.te2, g1};
+      if(last && Math.abs(last.tm-e.tm)<1e-6){ last.lvl=lvl; last.inst=lvl; last.r=r; } else out.push({tm:e.tm, lvl, inst:lvl, r});
+      return; }
+    const k=e.k, g=DYN_GAIN[k]; if(!g) return; let inst; open=null;
+    if(DYN_ACC[k]) inst= abs? g : lvl*g;
+    else if(abs? (k==='fp' || k==='sfp') : DYN_FPK[k]){ inst= abs? g : (k==='fp'? DYN_GAIN.f : g); lvl=DYN_GAIN[abs? 'p' : DYN_FPK[k]]; }
+    else { lvl=g; inst=g; }
     const last=out[out.length-1];
-    if(last && Math.abs(last.tm-e.tm)<1e-6){ last.lvl=lvl; last.inst=inst; } else out.push({tm:e.tm, lvl, inst}); });
+    if(last && Math.abs(last.tm-e.tm)<1e-6){ last.lvl=lvl; last.inst=inst; if(last.r) delete last.r; } else out.push({tm:e.tm, lvl, inst}); });
   return out;
 }
 function dynGainAt(tl, t){
   let lo=0, hi=(tl||[]).length-1, at=-1;
   while(lo<=hi){ const md=(lo+hi)>>1; if(tl[md].tm<=t+1e-6){ at=md; lo=md+1; } else hi=md-1; }
   if(at<0) return 1;
-  return Math.abs(tl[at].tm-t)<1e-6? tl[at].inst : tl[at].lvl;
+  const e=tl[at];
+  if(Math.abs(e.tm-t)<1e-6) return e.inst;
+  if(e.r && t<e.r.te-1e-9 && e.r.te>e.tm+1e-9) return e.lvl+(e.r.g1-e.lvl)*(t-e.tm)/(e.r.te-e.tm);
+  return e.lvl;
+}
+/* v69.8 播放口径的列尾：从第 oi 个演奏小节起往后找第一个内容小节＝to.mi 的出现，返回该小节第 to.ci 列（第 vi 简谱声部）的列尾名义秒；找不到＝null */
+function playColEnd(order, starts, spb, oi, vi, to){
+  for(let o=oi; o<order.length; o++){ const smi=simileSrc(order[o]), cmi=smi!=null? smi : order[o];
+    if(cmi!==to.mi && order[o]!==to.mi) continue;
+    const cols=((song.measures[cmi]||{}).voxes||[])[vi]||[], mU=meaMeter(cmi).unit; let off=starts[o];
+    for(let ci=0; ci<cols.length && ci<=to.ci; ci++) off+=beatsOf(cols[ci], mU)*spb;
+    return off; }
+  return null;
+}
+/* v69.8（复核 F3）真踏板按下区间：声部组 vis 的 ped 列按演奏顺序铺平——'on' 列起点踩下（已踩着＝换踏板：先抬再踩）、'off' 列尾抬起、曲末（end）还踩着就到曲末。
+   返回 [[a, b], …]（名义秒）；组里没有 ped＝null */
+function pedSpans(s, order, starts, spb, vis, end){
+  s=s||song; const ev=[];
+  order.forEach((mi, oi)=>{ const smi=simileSrc(mi), cmi=smi!=null? smi : mi, mU=meaMeter(cmi).unit;
+    (vis||[]).forEach(vi=>{ let off=starts[oi];
+      ((((s.measures[cmi]||{}).voxes)||[])[vi]||[]).forEach(c=>{ const d=beatsOf(c, mU)*spb;
+        if(c.ped==='on') ev.push({t:off, on:1}); else if(c.ped==='off') ev.push({t:off+d, on:0}); off+=d; }); }); });
+  if(!ev.length) return null;
+  ev.sort((a, b)=>a.t-b.t || a.on-b.on);
+  const out=[]; let a=null;
+  ev.forEach(e=>{ if(e.on){ if(a!=null && e.t>a+1e-9) out.push([a, e.t]); a=e.t; } else if(a!=null){ if(e.t>a+1e-9) out.push([a, e.t]); a=null; } });
+  if(a!=null && end>a+1e-9) out.push([a, end]);
+  return out.length? out : null;
 }
 /* v42.7 意大利速度术语库（谱首速度记号，与 ♩=X 并排）：值=标准意语词，注=中文语境 */
 const TEMPO_TERMS=[['Grave','庄板·极慢'],['Largo','广板·宽广'],['Lento','慢板'],['Adagio','柔板'],['Larghetto','小广板'],
@@ -20725,6 +20937,14 @@ document.getElementById('score').addEventListener('pointerdown', e=>{
     showHeadMenu(t.dataset.hd, e.clientX, e.clientY);
     return;
   }
+  /* v69.8 点谱面上的曲中速度点 → 同一个速度菜单改数值 / 单位、删除（两外壳） */
+  if(t.dataset.tmp!==undefined){
+    e.preventDefault();
+    const sg=t.dataset.tmp.split(':').map(Number), ext={mi:sg[0], k:sg[1]};
+    if(flowNx() && FLOW.hd && FLOW.hd.open('tempo', e, blur0, ext)) return;
+    showHeadMenu('tempo', e.clientX, e.clientY, ext);
+    return;
+  }
   measureSel = null;
   /* 点击段序号 → 选中该段歌词进行编辑（不移动音符光标） */
   if(t.dataset.lyrsel!==undefined){
@@ -21779,10 +21999,10 @@ function showTabGraceMenu(mi, ci, vi, kind, cx, cy){
   });
 }
 /* v53.4 页头直改菜单：调号/拍号/速度/变调夹点击就地设置；标题区→曲谱信息弹窗 */
-function showHeadMenu(kind, cx, cy){
+function showHeadMenu(kind, cx, cy, ext){
   closePop();
   /* v69.1 A1：新外壳新形态的拍号 / 速度＝就地小面板（记号格「速度」等其他入口同一处）；旧外壳 / ?next=0 照旧 */
-  if((kind==='meter' || kind==='tempo') && flowNx() && FLOW.hd && FLOW.hd.open(kind, {clientX:cx, clientY:cy})) return;
+  if((kind==='meter' || kind==='tempo') && flowNx() && FLOW.hd && FLOW.hd.open(kind, {clientX:cx, clientY:cy}, undefined, ext)) return;
   if(kind==='meta'){ document.getElementById('b-meta').onclick(); return; }
   /* v60.55 产品指示：谱面上的 1=X 点击＝打开变调弹窗（唱调/变调夹/夹位选指法/恢复原调），
      取代此前那张只能平铺 12 个调名的 popmenu；顶栏变调组同时撤下，换调只此一个入口。 */
@@ -21791,20 +22011,35 @@ function showHeadMenu(kind, cx, cy){
     /* v65.0 B2c 速度弹窗：数值 ＋ 单位（♩= / ♪= / ♩.=），x/8 谱可按出版惯例写成 ♩.=N */
     const div=document.createElement('div'); div.className='popmenu'; div.id='popmenu';
     div.style.left=Math.max(12, Math.min(cx||200, innerWidth-320))+'px'; div.style.top=((cy||120)+8)+'px';
-    let unit=tempoUnitOf(song);
-    div.innerHTML=`<div class="t">速度：每分钟多少个单位音符（30–240）${song.unit===8? '，x/8 拍号常写成 ♩.=N（附点四分＝3 个八分）' : ''}</div>
-      <div class="row"><input id="tp-val" type="number" min="30" max="240" value="${+song.tempo||90}" style="width:72px">
+    /* v69.8（复核 T6）曲中速度：ext＝{mi, k}（点谱面上的速度点）→ 改这个点（数值 / 单位，另有「删除」）；光标不在第 0 小节第 0 列时多一项「此处变速」→ 在光标列的 q 加点（初值＝该处生效速度）。
+       整曲速度的改法一字未改 */
+    const P0 = ext && ext.mi!=null? ((song.measures[ext.mi]||{}).tempos||[])[ext.k] : null;
+    let PT = P0? {mi:ext.mi, q:+P0.q||0, text:P0.text, hide:P0.hide} : null;
+    const here = P0? null : tempoQAtSel();
+    let unit = P0? (P0.tempoUnit||'q') : tempoUnitOf(song);
+    const glyU = u=> u==='e'? '♪' : u==='dq'? '♩.' : '♩';
+    div.innerHTML=`<div class="t" id="tp-hd">${P0? '第 '+meaNo(ext.mi)+' 小节此处速度（曲中变速）' : `速度：每分钟多少个单位音符（30–240）${song.unit===8? '，x/8 拍号常写成 ♩.=N（附点四分＝3 个八分）' : ''}`}</div>
+      <div class="row"><input id="tp-val" type="number" min="30" max="240" value="${P0? +P0.bpm : (+song.tempo||90)}" style="width:72px">
       ${[['q','♩','四分音符'],['e','♪','八分音符'],['dq','♩.','附点四分音符']].map(([v,g,n])=>`<button data-tu="${v}" class="${unit===v?'on':''}" title="${n}＝N">${g}=N</button>`).join('')}
-      <button id="tp-ok" class="primary">确定</button></div>`;
+      <button id="tp-ok" class="primary">确定</button>${here? '<button id="tp-here" title="在光标处改变速度（曲中变速）">此处变速</button>' : ''}${P0? '<button id="tp-del" title="删除这个速度变化">删除</button>' : ''}</div>`;
     document.body.appendChild(div);
     const inp=document.getElementById('tp-val'); inp.focus(); inp.select();
     /* v67.3 读数与新建向导/曲谱信息同口径（tempoInputVal：四舍五入、越界夹紧并说明）——此前 parseInt 把 95.6 截成 95、0 回落原值 */
-    const ok=()=>{ const r=tempoInputVal(inp.validity&&inp.validity.badInput? 'x' : inp.value, song.tempo), t2=r.v;
+    const ok=()=>{ const r=tempoInputVal(inp.validity&&inp.validity.badInput? 'x' : inp.value, PT? tempoAt(song, PT.mi, PT.q).bpm : song.tempo), t2=r.v;
       const why = r.why==='high'? '速度最大 240，已调整' : r.why==='low'? '速度最小 30，已调整' : r.why==='bad'||r.why==='empty'? '未填有效数字' : '';
+      if(PT){ const P=PT; mutate(()=>{ tempoPtPut(P.mi, P.q, {bpm:t2, tempoUnit:unit, text:P.text, hide:P.hide}); });
+        closePop(); toast('已设第 '+meaNo(P.mi)+' 小节此处速度 '+glyU(unit)+'='+t2+(why? '（'+why+'）' : '')); return; }
       mutate(()=>{ song.tempo=t2; song.tempoUnit=unit; });
       closePop(); toast('已设速度 '+tempoGlyph(song)+'='+t2+'（'+(why||'速度术语在曲谱信息弹窗设置')+'）'); };
     div.addEventListener('click', ev=>{ const b2=ev.target.closest('[data-tu]');
       if(b2){ unit=b2.dataset.tu; div.querySelectorAll('[data-tu]').forEach(x=>x.classList.toggle('on', x===b2)); inp.focus(); return; }
+      if(ev.target.closest('#tp-here') && here){ const tc=tempoAt(song, here.mi, here.q);
+        PT={mi:here.mi, q:here.q}; unit=tc.tempoUnit; inp.value=tc.bpm;
+        div.querySelectorAll('[data-tu]').forEach(x=>x.classList.toggle('on', x.dataset.tu===unit));
+        const hd=document.getElementById('tp-hd'); if(hd) hd.textContent='第 '+meaNo(here.mi)+' 小节此处变速：填新速度后点确定';
+        const hb=document.getElementById('tp-here'); if(hb) hb.remove();
+        inp.focus(); inp.select(); return; }
+      if(ev.target.closest('#tp-del') && PT){ const P=PT; mutate(()=>{ tempoPtPut(P.mi, P.q, null); }); closePop(); toast('已删除第 '+meaNo(P.mi)+' 小节的速度变化'); return; }
       if(ev.target.closest('#tp-ok')) ok(); });
     inp.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); ev.stopPropagation(); ok(); } else if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); closePop(); } });
     return;
@@ -22525,6 +22760,7 @@ function tieGroupSet(c, nb, on){
   if(!c) return;
   const pr = on? tieAddPairs(c, nb) : [];
   c.tie = !!on;
+  if(!on && c.tieSlur) delete c.tieSlur;   /* v69.8 取消连音线时圆滑线来源标记一并删 */
   (c.adds||[]).forEach(a=>{ if(!a) return; if(on && pr.includes(a)) a.tie=true; else if(!on || a.tie) delete a.tie; });
 }
 function toggleTie_(){ try{habit('tie');}catch(_){}
@@ -26399,12 +26635,6 @@ function play(){
   /* v60.40 数拍 1/2 小节（弹窗设置）：ciBeats = 拍号拍数 × 小节数 */
   const ciMeaBeats = Math.max(1, Math.min(12, song.beats||4));
   const ciBeats = countInOn ? ciMeaBeats*(metroSet.ci===2? 2:1) : 0;
-  const t = t0 + ciBeats*spb;
-  /* v55.0 无声自诊断：起播 1.2s 后引擎仍没走（挂起/被系统压掉）→ 给出可操作提示 */
-  setTimeout(()=>{ try{
-    if(audio.playing && !audio.paused && audio.ctx===ctx && (ctx.state!=='running' || ctx.currentTime<=t-0.1))
-      toast('若听不到声音：请调大媒体音量；iPhone 请关闭侧边静音拨片后重新点播放');
-  }catch(_){} }, 1200);
   let startMi = audio.loop? audio.loop.a : (sel.mi||0);
   /* v69.1 TCH-9：音色等待（上面的 return）之后才消费——等待期的重入不算一次 */
   if(!audio.loop && PLAY_ONCE && PLAY_ONCE.s===song && PLAY_ONCE.d===((typeof docs!=='undefined' && docs[curDocI]) || null) && PLAY_ONCE.sig===playSelSig()
@@ -26413,10 +26643,20 @@ function play(){
   const order = buildPlayOrder(startMi);            // 识别反复记号 / 循环选区
   const starts=[]; let total=0;
   order.forEach(mi=>{ starts.push(total); total+=measureSeconds(mi,spb); });
+  /* v69.8 曲中速度 / 延长号：名义时间（上面的 order / starts，整曲速度）→ 实际时间的映射 TW；没有速度点也没有延长号时为 null（下游一律不映射，逐字节同 v69.7）。
+     数拍按起播小节的生效速度（TW.r0） */
+  const TW = playTimeMap(song, order, starts, spb);
+  const ciSpb = TW? spb*TW.r0 : spb;
+  const t = t0 + ciBeats*ciSpb;
+  /* v55.0 无声自诊断：起播 1.2s 后引擎仍没走（挂起/被系统压掉）→ 给出可操作提示 */
+  setTimeout(()=>{ try{
+    if(audio.playing && !audio.paused && audio.ctx===ctx && (ctx.state!=='running' || ctx.currentTime<=t-0.1))
+      toast('若听不到声音：请调大媒体音量；iPhone 请关闭侧边静音拨片后重新点播放');
+  }catch(_){} }, 1200);
   const norm = 0.85/Math.sqrt(activeTrackCount());
   /* v56.5 光标事件独立于排程构建（参考轨：单独 SOLO=该轨，否则整谱）；SOLO 切换播放中可重建 */
   audio.evIdx=0;
-  audio.evCtx={order, starts, spb};
+  audio.evCtx = TW? {order, starts, spb, W:TW} : {order, starts, spb};
   audio.events=buildPlayEvents();
   /* v60.62 板的时间线必须建在 evCtx 之后（buildBoardEvents 读 evCtx；停播会把它置 null） */
   try{ audio.bEvents = buildBoardEvents(); audio.bIdx = 0; }catch(_){ audio.bEvents=[]; audio.bIdx=0; }
@@ -26427,11 +26667,15 @@ function play(){
   /* v69.4（复核 F3 / T4）各简谱 / 五线谱声部的力度记号按演奏时刻铺平 dynEv[vi]＝[{tm,k}]；突强 / 强后弱按 dynSweep 口径（见 DYN_ACC）。
      同一花括号组（voxGroups 的 brace / 钢琴伴奏歌谱的右手 + 左手，PQ_KIND.isPianoAccStack）共用一条力度线：组里别的行的记号也作用于本行
      （同一时刻本行自己的记号胜出）——源谱写在两行之间的力度导入后只在右手行，左手此前全程按 mf 播。谱面不动（只是播放读组里的记号） */
+  /* v69.8（复核 F3）渐强渐弱 < / > / cresc. / dim.（含 decresc.）进力度事件：rp＝±1，te＝dynTo 终点列列尾（无 dynTo 时由 dynRamp 取组内下一个力度记号、最长 2 小节＝cap），bt＝一拍；
+     dynSweep 出 ramp 段、dynGainAt 按起奏时刻线性插值。没有这些记号的谱事件表与此前逐条相同 */
   const dynEv = song.voxVoices.map((_,vi)=>{ const out=[];
     order.forEach((mi,oi)=>{ let off=starts[oi];
       const smi=simileSrc(mi); const mUt=meaMeter(smi!=null?smi:mi).unit;
       (song.measures[smi!=null?smi:mi].voxes[vi]||[]).forEach(col=>{
         if(col.dyn&&DYN_GAIN[col.dyn]) out.push({tm:off, k:col.dyn});
+        else if(col.dyn && dynRampDir(col.dyn)) out.push({tm:off, k:col.dyn, rp:dynRampDir(col.dyn), bt:spb,
+          cap: oi+2<starts.length? starts[oi+2] : total, te: col.dynTo? playColEnd(order, starts, spb, oi, vi, col.dynTo) : null});
         off+=beatsOf(col,mUt)*spb; }); });
     return out; });
   const dynTL=[];
@@ -26444,8 +26688,8 @@ function play(){
     if(isPianoAccStack(song) && !gs.some(g=>g.from===1 && g.to===2)) gs.push({from:1, to:2});
     gs.forEach(g=>{ const mem=[]; for(let v=g.from; v<=g.to && v<dynGrp.length; v++) mem.push(v); if(mem.length>1) mem.forEach(v=>{ dynGrp[v]=mem; }); }); }catch(_){}
   const dynVTL = song.voxVoices.map((_,vi)=>{ const all=[];
-    dynGrp[vi].forEach(v2=>{ if(v2!==vi) dynEv[v2].forEach(e=>all.push({tm:e.tm, k:e.k, own:0})); });
-    dynEv[vi].forEach(e=>all.push({tm:e.tm, k:e.k, own:1}));
+    dynGrp[vi].forEach(v2=>{ if(v2!==vi) dynEv[v2].forEach(e=>all.push(e.rp? Object.assign({}, e, {own:0}) : {tm:e.tm, k:e.k, own:0})); });
+    dynEv[vi].forEach(e=>all.push(e.rp? Object.assign({}, e, {own:1}) : {tm:e.tm, k:e.k, own:1}));
     all.sort((a,b)=>Math.abs(a.tm-b.tm)<1e-6? a.own-b.own : a.tm-b.tm);
     return dynSweep(all); });
   const HJ = humOn()? humJit : ()=>({fc:1,gc:1});   /* v48.9 精确档：随机微扰动归零（确定性塑形保留） */
@@ -26461,10 +26705,16 @@ function play(){
      回归套件的同步断言（playInst 记录器/audio.sources 计数）不受影响。 */
   const _emit={playInst:window.playInst, chick:window.chick, percHit:window.percHit, metroClick:window.metroClick};
   const _q=[];
-  window.playInst  =(...a)=>{ _q.push({k:'playInst',  w:a[4], a}); };
-  window.chick     =(...a)=>{ _q.push({k:'chick',     w:a[2], a}); };
-  window.percHit   =(...a)=>{ _q.push({k:'percHit',   w:a[2], a}); };
-  window.metroClick=(...a)=>{ _q.push({k:'metroClick',w:a[2], a}); };
+  /* v69.8 时间映射：TW 存在时四个包装把起点映成 t+W(when−t)、时长映成 W(end)−W(start)，技法 opt 里的绝对时刻（fx.end / fx.glide.at）同映射；
+     起播原点之前（数拍空拍）原样。TW 为 null 时一行不进（排程逐字节同 v69.7） */
+  const Wm = TW? (x=> x<t? x : t+TW(x-t)) : null;
+  const fxW = o=>{ if(!o || !o.fx) return o; const f=Object.assign({}, o.fx);
+    if(f.end!=null) f.end=Wm(f.end); if(f.glide) f.glide=Object.assign({}, f.glide, {at:Wm(f.glide.at)});
+    return Object.assign({}, o, {fx:f}); };
+  window.playInst  =(...a)=>{ if(Wm){ const w0=a[4], w1=Wm(w0); a[5]=Wm(w0+a[5])-w1; a[4]=w1; if(a.length>8) a[8]=fxW(a[8]); } _q.push({k:'playInst',  w:a[4], a}); };
+  window.chick     =(...a)=>{ if(Wm) a[2]=Wm(a[2]); _q.push({k:'chick',     w:a[2], a}); };
+  window.percHit   =(...a)=>{ if(Wm) a[2]=Wm(a[2]); _q.push({k:'percHit',   w:a[2], a}); };
+  window.metroClick=(...a)=>{ if(Wm) a[2]=Wm(a[2]); _q.push({k:'metroClick',w:a[2], a}); };
   try{
   /* 吉他谱声部：逐声部一条音轨，按各自音色发声 */
   song.tabVoices.forEach((_,vi)=>{
@@ -26708,6 +26958,11 @@ function play(){
   });
   /* 简谱（旋律）声部：连音线合并同音；拨弦/钢琴音色延音到下一个音（休止不掐、末音自然衰减），
      持续音色（弦乐/长笛/人声）按时值保持——与吉他谱同一套「让音自然延续」模型 */
+  /* v69.8（复核 F3）真踏板：同一花括号组（dynGrp 同口径）里只要有一个 col.ped，整组按 pedSpans 的按下区间延音（踩着时松键的音延到抬起时刻再阻尼），
+     该组不再走 v49.1 自动模拟；组里没有 ped＝null（老口径逐字节不变） */
+  const pedSp = song.voxVoices.map(()=>null);
+  { const done=new Map(); song.voxVoices.forEach((_,vi)=>{ const g=dynGrp[vi], key=g.join(',');
+      if(!done.has(key)) done.set(key, pedSpans(song, order, starts, spb, g, total)); pedSp[vi]=done.get(key); }); }
   song.voxVoices.forEach((_,vi)=>{
     const cfg = trackCfg('vox',vi);
     /* v56.5 全轨常排程（同 TAB 轨口径）：S/M/音量收敛到轨道总线增益 */
@@ -26721,13 +26976,17 @@ function play(){
     const vol = norm*roleG;
     const sustained = ['saw','flute','voice'].includes((INSTRUMENTS[cfg.inst]||{}).type);
     /* v49.1 踏板模拟条件：钢琴谱左手声部（非持续音色）——和音延音到本声部下一发声列 */
-    const pedal = (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
+    /* v69.8 PS＝本组真踏板按下区间（名义秒）；持续音色不受踏板影响。pedHold(松键时刻)＝踩着 → 抬起时刻，否则 null */
+    const PS = sustained? null : pedSp[vi];
+    const pedal = !PS && (dtp0==='piano'||dtp0==='pianoacc') && vi===1 && !sustained;
+    const pedHold = rel=>{ for(const sp of PS){ if(t+sp[0]+1e-6 < rel && rel <= t+sp[1]+1e-6) return t+sp[1]; } return null; };
     const pedAdds=[], soundTimes=[];
     /* v69.3 和音逐音连音线：带 a.tie 的附加音先挂起（不立即发声），下一列同音高的附加音只延长、不重拨；断链 / 休止 / 声部末尾才按总长发声。
        没有 a.tie 的旧谱 addHold 恒为空，发声与此前逐字节相同 */
     const addHold=new Map();
     const addFlush=(h)=>{ if(pedal) pedAdds.push({am:h.am, at:h.at, base:(h.end-h.at)*0.9, gn:h.gn, vl:h.vl});
-      else playInst(cfg.inst, ctx, tbus, midiFreq(h.am), h.at, Math.max(0.08, (h.end-h.at)*0.9), h.gn, false, {damp:true, vel:h.vl}); };
+      else { const B = PS? pedHold(h.at+(h.end-h.at)*0.9) : null;
+        playInst(cfg.inst, ctx, tbus, midiFreq(h.am), h.at, B!=null? B-h.at : Math.max(0.08, (h.end-h.at)*0.9), h.gn, false, {damp:true, vel:h.vl}); } };
     const addFlushAll=()=>{ addHold.forEach(addFlush); addHold.clear(); };
     /* 1) 铺平列 → 合并连音线为音符事件；倚音/高亮/力度就地处理 */
     const notes=[]; let cur=null, dynG=1;
@@ -26740,8 +26999,18 @@ function play(){
         const durSec = beatsOf(col,mUv)*spb;
         const acc2 = beatAcc(bcum, meaMeter(smi!=null?smi:mi).beats);   /* v48.9 拍点重音 */
         const m = voxMidi(col, mi);   /* v60.29 keyTo 中途转调跟随（按播放到的小节取生效调） */
+        /* v69.8（复核 F3 / T9）演奏法：跳音 0.5 倍、断音 0.3 倍发声（阻尼，不延到下一音）；重音 ×1.2、顿强 ×1.3；保持音满时值。stF＝发声比例（0＝不截短）、acF＝力度系数 */
+        const stF = col.artic==='stacc'? 0.5 : col.artic==='staccatissimo'? 0.3 : 0;
+        const acF = col.artic==='accent'? 1.2 : col.artic==='marcato'? 1.3 : 1;
+        /* v69.8 长倚音（grace.slash===false 且只有 1 个；读 A 组字段，缺省＝短倚音）：拍上奏出、占倚音时值（≤ 主音一半），主音推后同样长（只走普通主音路径） */
+        const gRaw = col.grace, gL = (m!=null && gRaw && typeof gRaw==='object' && gRaw.slash===false && !col.trem && !col.orn && normGrace(gRaw).notes.length===1)
+          ? Math.min(durSec/2, (4/(normGrace(gRaw).dur||8))*(mUv/4)*spb) : 0;
         /* 前倚音：主音前的短促小音符序列 */
-        if(col.grace && m!=null){
+        if(col.grace && m!=null && gL){
+          const gn = normGrace(col.grace).notes[0];
+          dynG=dynGainAt(dynVTL[vi], off);
+          playInst(cfg.inst, ctx, tbus, midiFreq(soundMidi(gn, mi)), t+off, gL, vol*1.05*dynG*acc2, false, {damp:true, vel:dynG*acc2});
+        } else if(col.grace && m!=null){
           const g = normGrace(col.grace);
           const per = Math.min(0.12, durSec*0.35/g.notes.length) * (g.dur>=16? 0.6 : 1);
           g.notes.forEach((gn,gi)=>{
@@ -26798,13 +27067,17 @@ function play(){
             }
             const head=(seq.length-1)*per;
             cur={freq:midiFreq(seq[seq.length-1]), at:t+off+head, end:t+off+durSec,
-              g:dynG*acc2, tie:!!col.tie};
+              g:dynG*acc2*acF, tie:!!col.tie};
+            if(col.tieSlur) cur.ts=true;
+            if(stF) cur.stE=t+off+durSec*stF;
           }
         } else if(m!=null){
           const f=midiFreq(m);
           soundTimes.push(t+off);                          /* v49.1 本声部发声列时刻（踏板延音终点用） */
-          if(cur && cur.tie && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; }
-          else { if(cur) notes.push(cur); cur={freq:f, at:t+off, end:t+off+durSec, g:dynG*acc2, tie:!!col.tie}; }
+          /* v69.8（复核 T3②）上一列的连音来自圆滑线（cur.ts）时同音也重奏；长倚音后主音重奏 */
+          if(cur && cur.tie && !cur.ts && !gL && Math.abs(cur.freq-f)<0.01){ cur.end=t+off+durSec; cur.tie=!!col.tie; if(col.tieSlur) cur.ts=true; if(stF) cur.stE=t+off+durSec*stF; else if(cur.stE!=null) cur.stE=null; }
+          else { if(cur) notes.push(cur); cur={freq:f, at:t+off+gL, end:t+off+durSec, g:dynG*acc2*acF, tie:!!col.tie};
+            if(col.tieSlur) cur.ts=true; if(stF) cur.stE=t+off+durSec*stF; }
         } else { if(cur){ notes.push(cur); cur=null; } }   // 休止：结束当前音（自然延音，不硬掐）
         if(cur && col.breath) cur.br=true;                 /* v49.1 换气记号：本音提前收（乐句呼吸） */
         /* v48.9 和音塑形（MIDI 专家参数）：附加音按音高低→高各错 3ms 微滚奏（真人和弦非绝对齐击，
@@ -26820,9 +27093,12 @@ function play(){
             const h=addHold.get(am);
             if(h){ h.end=t+off+durSec; if(!tie){ addFlush(h); addHold.delete(am); } return; }   /* v69.3 连音续音：只延长不重拨 */
             const ag = (k===0 && ams.length>1)? 0.55 : 0.4;
-            const at2=t+off+k*0.003, gn=vol*ag*dynG*acc2, vl=dynG*acc2*0.7;
+            const at2=t+off+k*0.003, gn=vol*ag*dynG*acc2*acF, vl=dynG*acc2*0.7*acF;
             if(tie){ addHold.set(am, {am, at:at2, end:t+off+durSec, gn, vl}); return; }
             if(pedal) pedAdds.push({am, at:at2, base:durSec*0.9, gn, vl});   /* 踏板：终点待后置解析 */
+            else if(PS || stF){   /* v69.8 真踏板 / 跳音类：先按跳音截短，踩着踏板时再延到抬起 */
+              const g0 = stF? durSec*stF : durSec*0.9, B = PS? pedHold(at2+g0) : null;
+              playInst(cfg.inst, ctx, tbus, midiFreq(am), at2, B!=null? B-at2 : Math.max(stF? 0.05 : 0.08, g0), gn, false, {damp:true, vel:vl}); }
             else playInst(cfg.inst, ctx, tbus, midiFreq(am), at2, Math.max(0.08, durSec*0.9), gn, false, {damp:true, vel:vl});
           });
         } else if(addHold.size) addFlushAll();
@@ -26836,8 +27112,12 @@ function play(){
     notes.forEach((n,i)=>{
       const rhythm = n.end - n.at;
       let dur, opt;
+      /* v69.8 真踏板：松键时刻（跳音类＝截短后的终点）落在按下区间里 → 延到抬起时刻再阻尼 */
+      const B = (PS && !n.br)? pedHold(n.stE!=null? n.stE : n.end) : null;
       if(n.br){ dur=phraseGate(rhythm, true); opt={damp:true, vel:n.g}; }   /* v49.1 换气：提前收音 */
-      else if(sustained){ dur=rhythm; opt={vel:n.g}; }
+      else if(sustained){ dur= n.stE!=null? n.stE-n.at : rhythm; opt={vel:n.g}; }
+      else if(B!=null){ dur=B-n.at; opt={damp:true, vel:n.g}; }
+      else if(n.stE!=null){ dur=Math.max(0.05, n.stE-n.at); opt={damp:true, vel:n.g}; }   /* v69.8 跳音类：阻尼，不延到下一音 */
       else {
         const nx=notes[i+1];
         if(nx){ dur=Math.max(rhythm, nx.at-n.at); opt={damp:true, vel:n.g}; }
@@ -26859,7 +27139,7 @@ function play(){
   audio.events.sort((a,b)=>a.tm-b.tm);
   /* v60.8 数拍空拍：每小节首拍重音，其余轻拍（与节拍器同一发声函数，音色一致不割裂）。
      v60.40 支持 2 小节数拍（b 对小节拍数取模判重音）、重音随弹窗设置 */
-  for(let b=0; b<ciBeats; b++) metroClick(ctx, bus, t0+b*spb, b%ciMeaBeats===0 && metroSet.acc);
+  for(let b=0; b<ciBeats; b++) metroClick(ctx, bus, t0+b*ciSpb, b%ciMeaBeats===0 && metroSet.acc);
   /* 节拍器：按小节实际时长逐拍布点（与倍速同缩放），每小节第一拍重音。
      v60.40 重音开关 + 八分细分（后半拍轻一档、音高略抬——机械节拍器双音色惯例） */
   if(metroOn){
@@ -26893,7 +27173,7 @@ function play(){
     clearInterval(audio.schedTimer);
     audio.schedTimer=setInterval(()=>flushTo(ctx.currentTime+SCHED_AHEAD), SCHED_TICK);
   }
-  startProgress(t, total||1, order, starts);
+  startProgress(t, (TW? TW(total) : total)||1, order, TW? starts.map(TW) : starts);   /* v69.8 进度 / 小节格按映射后的实际时间 */
 }
 /* v56.5 播放光标参考轨：恰有一轨 SOLO=跟随该轨（单轨光标/滚动）；否则整谱模式——
    参考时间轴取首个 TAB 声部（无 TAB 时简谱声部 0），光标纵向贯穿本系统全部声部行 */
@@ -26908,7 +27188,7 @@ function playCursorRef(){
    整个光标消失）；SOLO 切换时可随时重建 */
 function buildPlayEvents(){
   if(!audio.evCtx) return [];
-  const {order, starts, spb} = audio.evCtx;
+  const {order, starts, spb, W} = audio.evCtx;   /* v69.8 W＝名义 → 实际时间映射（无速度点 / 延长号时没有） */
   const ref = playCursorRef();
   const pre = (ref.kind==='tab'?'t':'v')+ref.vi;
   const evs=[];
@@ -26917,7 +27197,7 @@ function buildPlayEvents(){
     const smi=simileSrc(mi); const cmi=smi!=null?smi:mi;
     const mUt=meaMeter(cmi).unit;
     const cols=(ref.kind==='tab'? (song.measures[cmi].tabs||[])[ref.vi] : (song.measures[cmi].voxes||[])[ref.vi])||[];
-    cols.forEach((col,ci)=>{ evs.push({tm:off, pre, mi, ci, whole:ref.whole}); off+=beatsOf(col,mUt)*spb; });
+    cols.forEach((col,ci)=>{ evs.push({tm:W? W(off) : off, pre, mi, ci, whole:ref.whole}); off+=beatsOf(col,mUt)*spb; });
   });
   return evs;
 }
@@ -31169,7 +31449,7 @@ FLOW.cmd = (function(){
       C('st:restart', '回到开头', 'hdkt hkt restart 从头', '状态栏', click('#b-restart'), {ic:'ui-tostart'}),
       C('st:loop', '循环选区', 'xh xhxq loop repeat 循环播放', '状态栏', fa('st:loop'), {ic:'play-loop'}),
       C('st:grid', '小节选择面板', 'xjxz xjmb measure panel 选小节', '状态栏 · 小节格右侧', click('#b-mxgrid')),
-      C('st:tempo', '速度 ♩=', 'sd bpm tempo 拍速 每分钟', '状态栏 · ♩=', tempo, {ic:'ui-metronome'}),
+      C('st:tempo', '速度 ♩=', 'sd bpm tempo 拍速 每分钟 变速 bs 此处变速 曲中变速', '状态栏 · ♩=', tempo, {ic:'ui-metronome'}),
       C('st:rate', '倍速', 'bs rate speed 慢速 放慢', '状态栏', rate, {ic:'play-speed'}),
       C('st:metro', '节拍器', 'jpq metronome click 打拍', '状态栏', click('#b-metro'), {ic:'ui-metronome'}),
       C('st:hum', '演奏感', 'yzg humanize 自然 精确 人性化 播放演奏感 演奏感（自然/精确）', '状态栏 · ⋯ 更多', fa('st:hum'), {ic:'play-human'}),
@@ -31909,7 +32189,7 @@ FLOW.pal = (function(){
     /* 收尾（验收 S1）：旧力度弹窗 DYN_LIST 里没平铺成格子的 14 项（ppp sf sfp cresc. dim. a tempo rubato dolce cantabile espressivo legato leggiero marcato tacet）——
        原样打开那个弹窗（showDynMenu，[data-orn="dyn"] 的同一调用），不复制 DYN_LIST */
     'dyn-more':      ['更多力度','更多力度 / 表情术语…（ppp · sf · sfp · cresc. · dim. · a tempo · dolce 等）','sg-dynamic','gdld ppp sf sfp cresc dim atempo rubato dolce cantabile espressivo legato leggiero tacet 表情 表情术语 力度 力度/速度 强弱 回原速 自由速度 柔美 如歌','','@m:dyn','@m:dyn',null],
-    'tempo-mark':    ['速度','速度 ♩=','sg-dur-4','sd tempo bpm 速度记号','','@m:tempo','@m:tempo','@m:tempo'],
+    'tempo-mark':    ['速度','速度 ♩=','sg-dur-4','sd tempo bpm 速度记号 变速 bs 此处变速 曲中变速','','@m:tempo','@m:tempo','@m:tempo'],
     'tempo-rit':     ['渐慢','渐慢 rit.','tempo-rit','jm rit ritardando rall','','@dyn:rit.','@dyn:rit.',null],
     'tempo-accel':   ['渐快','渐快 accel.','tempo-accel','jk accel accelerando','','@dyn:accel.','@dyn:accel.',null],
     'grace-pre':     ['前倚音','前倚音','sg-grace-pre','qyy grace acciaccatura','','@orn:grace','@orn:grace','[data-tabgr="pre"]'],
@@ -34432,16 +34712,22 @@ FLOW.hd = (function(){
     F.track('hd:meter');
   }
   function otherMeter(){ const b=+(($('flw-hdm-b')||{}).value), u=+(($('flw-hdm-u')||{}).value); if(!(b>=1 && b<=12)){ toastSay('拍数 1–12', {t:'拍数 1–12', k:'limit'}); return; } setMeter(b, u); }
-  function openTempo(cx, cy, blur0){
+  /* v69.8（复核 T6）ext＝{mi, k}：改谱面上的这个速度点（术语框＝该点的速度文字，另有「删除」）；光标不在第 0 小节第 0 列时多一项「此处变速」（在光标列加点，初值＝该处生效速度） */
+  function openTempo(cx, cy, blur0, ext){
     const d=popAt(cx, cy, 'flw-hdm-tempo'); d.setAttribute('aria-label', '速度');
-    let unit=tempoUnitOf(song);
-    const units=(song.unit===8 || unit!=='q')? [['q','♩','四分音符'],['e','♪','八分音符'],['dq','♩.','附点四分音符']] : [];
-    d.innerHTML='<div class="flw-hdm-h">速度</div><div class="flw-hdm-t">'
+    const P0 = ext && ext.mi!=null? ((song.measures[ext.mi]||{}).tempos||[])[ext.k] : null;
+    d._pt = P0? {mi:ext.mi, q:+P0.q||0, hide:P0.hide} : null;
+    d._here = P0? null : tempoQAtSel();
+    let unit = P0? (P0.tempoUnit||'q') : tempoUnitOf(song);
+    const units=(song.unit===8 || unit!=='q' || P0)? [['q','♩','四分音符'],['e','♪','八分音符'],['dq','♩.','附点四分音符']] : [];
+    d.innerHTML='<div class="flw-hdm-h" id="flw-hdm-tph">'+(P0? '此处速度' : '速度')+'</div><div class="flw-hdm-t">'
       +(units.length? '<span class="flw-hdm-u" role="group" aria-label="速度单位">'+units.map(([v, g, n])=>'<button type="button" data-fa="hd:tu" data-tu="'+v+'" aria-pressed="'+(unit===v)+'" title="'+n+'">'+g+'=</button>').join('')+'</span>' : '<span class="flw-hdm-g1" aria-hidden="true">'+F.esc(tempoGlyph(song))+'=</span>')
-      +'<input id="tp-val" type="number" min="30" max="240" value="'+(+song.tempo||90)+'" aria-label="每分钟拍数"></div>'
-      +'<label class="flw-hdm-tm"><span>术语</span><input id="flw-hdm-term" list="flw-hdm-terms" value="'+F.esc(song.tempoTerm||'')+'" autocomplete="off" placeholder="可留空"></label>'
+      +'<input id="tp-val" type="number" min="30" max="240" value="'+(P0? +P0.bpm : (+song.tempo||90))+'" aria-label="每分钟拍数"></div>'
+      +'<label class="flw-hdm-tm"><span>术语</span><input id="flw-hdm-term" list="flw-hdm-terms" value="'+F.esc(P0? (P0.text||'') : (song.tempoTerm||''))+'" autocomplete="off" placeholder="可留空"></label>'
       +'<datalist id="flw-hdm-terms">'+TEMPO_TERMS.map(([t, cn])=>'<option value="'+F.esc(t)+'">'+F.esc(cn)+'</option>').join('')+'</datalist>'
-      +'<div class="flw-hdm-f"><button type="button" class="primary" data-fa="hd:tempo">确定</button></div>';
+      +'<div class="flw-hdm-f">'+(d._here? '<button type="button" data-fa="hd:tphere" title="在光标处改变速度">此处变速</button>' : '')
+      +(P0? '<button type="button" data-fa="hd:tpdel" title="删除这个速度变化">删除</button>' : '')
+      +'<button type="button" class="primary" data-fa="hd:tempo">确定</button></div>';
     F.bind(d);
     d._unit=()=>unit; d._setUnit=v=>{ unit=v; d.querySelectorAll('[data-tu]').forEach(x=>x.setAttribute('aria-pressed', String(x.dataset.tu===v))); };
     d.addEventListener('keydown', e=>{ if(e.isComposing) return;
@@ -34452,8 +34738,34 @@ FLOW.hd = (function(){
     const inp=$('tp-val'); if(inp) try{ inp.focus({preventScroll:true}); inp.select(); }catch(_){}
     F.track('hd:tempo');
   }
+  /* v69.8 「此处变速」：面板改成新速度点（初值＝光标处生效速度，单位跟着），确定时写点；「删除」：删掉正在改的点 */
+  function hereTempo(){
+    const d=$('popmenu'), inp=$('tp-val'); if(!d || !d._here || !inp) return;
+    const h=d._here, tc=tempoAt(song, h.mi, h.q);
+    d._pt={mi:h.mi, q:h.q, add:true}; d._here=null;
+    inp.value=tc.bpm; if(d._setUnit) d._setUnit(tc.tempoUnit);
+    if(!d.querySelector('[data-tu]') && tc.tempoUnit!=='q'){ const g=d.querySelector('.flw-hdm-g1'); if(g) g.textContent=(tc.tempoUnit==='e'? '♪' : '♩.')+'='; }
+    const tm=$('flw-hdm-term'); if(tm) tm.value='';
+    const hh=$('flw-hdm-tph'); if(hh) hh.textContent='此处变速';
+    const hb=d.querySelector('[data-fa="hd:tphere"]'); if(hb) hb.remove();
+    try{ inp.focus({preventScroll:true}); inp.select(); }catch(_){}
+  }
+  function delTempo(){
+    const d=$('popmenu'); if(!d || !d._pt || d._pt.add) return;
+    const P=d._pt; closePop();
+    mutate(()=>{ tempoPtPut(P.mi, P.q, null); });
+    toastSay('已删除第 '+meaNo(P.mi)+' 小节的速度变化', {t:'已删除变速', k:'res', act:'undo'});
+  }
   function okTempo(){
     const d=$('popmenu'), inp=$('tp-val'), tm=$('flw-hdm-term'); if(!d || !inp) return;
+    if(d._pt){ const P=d._pt, unit=d._unit? d._unit() : 'q';
+      const r=tempoInputVal(inp.validity && inp.validity.badInput? 'x' : inp.value, tempoAt(song, P.mi, P.q).bpm), t2=r.v;
+      const text=tm? tm.value.trim() : '';
+      closePop();
+      mutate(()=>{ tempoPtPut(P.mi, P.q, {bpm:t2, tempoUnit:unit, text, hide:P.hide}); });
+      const g = unit==='e'? '♪' : unit==='dq'? '♩.' : '♩';
+      toastSay('已设第 '+meaNo(P.mi)+' 小节此处速度 '+g+'='+t2+(text? ' · '+text : ''), {t:'此处 '+g+'='+t2, k:'res', act:'undo'});
+      return; }
     const unit=d._unit? d._unit() : tempoUnitOf(song);
     const r=tempoInputVal(inp.validity && inp.validity.badInput? 'x' : inp.value, song.tempo), t2=r.v;
     const why = r.why==='high'? '速度最大 240，已调整' : r.why==='low'? '速度最小 30，已调整' : r.why==='bad'||r.why==='empty'? '未填有效数字' : '';
@@ -34495,12 +34807,12 @@ FLOW.hd = (function(){
     toastSay('已换调 1='+song.key+refingToast(st)+'——可 Ctrl+Z 撤销', {t:'已换到 1='+keyLabel(headKeyOf(song)), k:'res', act:'undo'});
   }
   /* 打开：kind＝[data-hd] 的值；e＝pointerdown 事件；blur0＝按下前光标是否已熄 */
-  function open(kind, e, blur0){
+  function open(kind, e, blur0, ext){
     if(!on()) return false;
     const cx=e && e.clientX, cy=e && e.clientY;
     if(kind==='meta') return openMeta(e, blur0);
     if(kind==='meter'){ openMeter(cx, cy, blur0); return true; }
-    if(kind==='tempo'){ openTempo(cx, cy, blur0); return true; }
+    if(kind==='tempo'){ openTempo(cx, cy, blur0, ext); return true; }
     if(kind==='key'){ closePop(); openEdKeyPop(cx, cy); F.track('hd:key'); return true; }
     if(kind==='capo'){ showHeadMenu('capo', cx, cy); return true; }
     return false;
@@ -34533,6 +34845,8 @@ FLOW.hd = (function(){
       if(a==='hd:meter'){ if(el.dataset.v==='other') return otherMeter(); return setMeter(+el.dataset.b, +el.dataset.u); }
       if(a==='hd:tu'){ const d=$('popmenu'); if(d && d._setUnit) d._setUnit(el.dataset.tu); const i=$('tp-val'); if(i) try{ i.focus({preventScroll:true}); }catch(_){} return; }
       if(a==='hd:tempo') return okTempo();
+      if(a==='hd:tphere') return hereTempo();
+      if(a==='hd:tpdel') return delTempo();
     }
   };
 })();
@@ -37375,7 +37689,7 @@ function boardInputMidi(m){
    光标只跟一条参考声部，板要跟的是**用户正在看的这条轨**） */
 function buildBoardEvents(){
   if(!audio.evCtx || !BOARD.on) return [];
-  const {order, starts, spb} = audio.evCtx;
+  const {order, starts, spb, W} = audio.evCtx;   /* v69.8 同 buildPlayEvents */
   const evs=[];
   order.forEach((mi,oi)=>{
     let off=starts[oi];
@@ -37383,7 +37697,7 @@ function buildBoardEvents(){
     const mUt=meaMeter(cmi).unit;
     const cols=(BOARD.row==='tab'? (song.measures[cmi].tabs||[])[BOARD.vi]
                                  : (song.measures[cmi].voxes||[])[BOARD.vi])||[];
-    cols.forEach((col,ci)=>{ evs.push({tm:off, mi:cmi, ci}); off+=beatsOf(col,mUt)*spb; });
+    cols.forEach((col,ci)=>{ evs.push({tm:W? W(off) : off, mi:cmi, ci}); off+=beatsOf(col,mUt)*spb; });
   });
   return evs;
 }
@@ -42021,6 +42335,15 @@ function exportMusicXML(s){
     const mt = `<direction-type><metronome><beat-unit>${tu==='e'?'eighth':'quarter'}</beat-unit>${tu==='dq'?'<beat-unit-dot/>':''}`+
       `<per-minute>${s.tempo||90}</per-minute></metronome></direction-type>`;
     return `<direction placement="above">${s.tempoTerm? `<direction-type><words>${xesc(s.tempoTerm)}</words></direction-type>` : ''}${mt}<sound tempo="${+tempoQPM(s).toFixed(2)}"/></direction>`; })();
+  /* v69.8（复核 T6）曲中速度点 → 主 part 的 direction（words＋metronome＋sound，同 tempoXML 写法）；hide＝只写裸 <sound tempo>（只进播放）；
+     off＝相对写入位置的 divisions（0 不写）。tpOfMea(mi)＝本小节要写的点（第 0 小节 q=0 不写——它并在 song.tempo 里） */
+  const tpXML = (pt, off)=>{ const o = off? `<offset>${off}</offset>` : '', qpm = +tempoPtQPM(pt).toFixed(2);
+    if(pt.hide) return o? `<sound tempo="${qpm}">${o}</sound>` : `<sound tempo="${qpm}"/>`;
+    const tu = pt.tempoUnit==='e'? 'e' : pt.tempoUnit==='dq'? 'dq' : 'q';
+    return `<direction placement="above">${pt.text? `<direction-type><words>${xesc(pt.text)}</words></direction-type>` : ''}<direction-type><metronome><beat-unit>${tu==='e'?'eighth':'quarter'}</beat-unit>${tu==='dq'?'<beat-unit-dot/>':''}`+
+      `<per-minute>${Math.round(+pt.bpm)}</per-minute></metronome></direction-type>${o}<sound tempo="${qpm}"/></direction>`; };
+  const tpOfMea = mi=>{ const T=(s.measures[mi]||{}).tempos; if(!Array.isArray(T)) return [];
+    return T.filter(pt=>pt && +pt.bpm>0 && !(mi===0 && !(+pt.q>1e-3))).slice().sort((a,b)=>(+a.q||0)-(+b.q||0)); };
   const DYN_XML={ppp:'<ppp/>',pp:'<pp/>',p:'<p/>',mp:'<mp/>',mf:'<mf/>',f:'<f/>',ff:'<ff/>',fff:'<fff/>',fp:'<fp/>',sfp:'<sfp/>',sf:'<sf/>',sfz:'<sfz/>'};   // v44.8 独立力度 → MusicXML dynamics（wedge 的 </>/cresc./dim. 不在表内，天然排除）
   /* v69.4 A4 只增：导入原样收下的其余 MusicXML 4.0 标准力度（fz / ffff / rfz / sffz / n …）原样写回 <dynamics>（此前导入即丢；表外的才写 words） */
   'pppp ppppp pppppp ffff fffff ffffff sfpp rf rfz sffz fz n pf sfzp'.split(' ').forEach(d=>{ DYN_XML[d]='<'+d+'/>'; });
@@ -42065,7 +42388,7 @@ function exportMusicXML(s){
         let j=i; while(j<seq.length && seq[j].c.tie && seq[j].c.deg) j++;
         const end = (j<seq.length && seq[j].c.deg)? j : j-1;
         let diff=false;
-        for(let a=i;a<end;a++){ if(pk(seq[a].c)===pk(seq[a+1].c)){ tieS[seq[a].k]=1; tieE[seq[a+1].k]=1; } else diff=true; }
+        for(let a=i;a<end;a++){ if(pk(seq[a].c)===pk(seq[a+1].c) && !seq[a].c.tieSlur){ tieS[seq[a].k]=1; tieE[seq[a+1].k]=1; } else diff=true; }   /* v69.8 同音高 + tieSlur 视同异音高（写 slur 不写 tie） */
         if(diff && end>i){ slurS[seq[i].k]=1; slurE[seq[end].k]=1; }
         i=j+1;
       } }
@@ -42112,11 +42435,17 @@ function exportMusicXML(s){
          此前逐列写普通休止：3/4 里外部软件显示附点二分休止、新建谱的空小节写成 3–4 个四分休止，与我们谱面上居中的全休止对不上。简谱行照旧逐列 */
       const mRest = isStaffNota(nt) && cols.length>0 && !mea.simile && !(mi===0 && s.pickup) && cols.every((c,ci)=> c && !c.deg && !c.ferm && !c.dyn && !c.dynTo && !c.anno && !c.chord
         && !(c.chords && c.chords.length) && !c.clef && !c.ped && !c.artic && !c.breath && !c.ott && !c.fing && !wStop[mi+':'+ci] && !oStop[mi+':'+ci]);
+      /* v69.8 曲中速度点：落在第一个起拍 ≥q 的列之前（不正好在列上写 offset）；本小节末尾还没写的点在小节末补（负 offset） */
+      const tps = primPart? tpOfMea(mi) : [];
+      let tpi = 0;
+      const tpFlush = (pos, all)=>{ let x=''; while(tpi<tps.length){ const qd=Math.round((+tps[tpi].q||0)*DIV); if(!all && qd>pos) break; x+=tpXML(tps[tpi], qd-pos); tpi++; } return x; };
       if(mRest){
+        body += tpFlush(0, true);
         const dR = cols.reduce((a,c)=>a+Math.max(1, Math.round(beatsOf(c)*beatDiv)), 0);
         body += `<note><rest measure="yes"/><duration>${dR}</duration><voice>1</voice>${staffTag}</note>`; durSum+=dR; addTieIn=new Set(); glissPend=false;
       }
       if(!mRest) cols.forEach((col,ci)=>{
+        if(tpi<tps.length) body += tpFlush(durSum, false);   /* v69.8 */
         /* v45.6 小节内换谱号 → 中途 <attributes><clef>（音符前插入，标准 MusicXML 语义） */
         if(col.clef && isStaffNota(col.clef)) body += `<attributes>${clefN(clefXML(col.clef))}</attributes>`;
         /* v41.2 渐强渐弱范围括线 → wedge（起点音前 start、终点音后 stop） */
@@ -42200,6 +42529,7 @@ function exportMusicXML(s){
         body += wStopXML;
         glissPend = glStart;
       });
+      if(tpi<tps.length) body += tpFlush(durSum, true);   /* v69.8 */
       body += (primPart? navTailXML(mi) : '') + barRightXML(mi);   // v65.1 B3a ② D.C./D.S./Fine + 右小节线（房子收口/段落线/终止线）
       bodies.push(body); durs.push(durSum);
     });
@@ -43470,6 +43800,38 @@ function importMusicXML(xmlStr){
   }
   const nV = parts.length;
   const tempoEl = doc.querySelector('sound[tempo]');
+  /* v69.8（复核 T6）mtOf / 起始速度事件 tBest 从下面的起始速度 IIFE 提到这里（曲中速度点导入共用；算法一字未改） */
+  const mtOf = mt=>{ const bu=mt&&mt.querySelector('beat-unit'), pm=mt&&mt.querySelector('per-minute');
+    if(!(bu && pm && +pm.textContent>0)) return null;
+    const b=bu.textContent.trim(), dot=!!mt.querySelector('beat-unit-dot'), v=+pm.textContent;
+    const mult = b==='half'? (dot?3:2) : b==='whole'? 4 : (b==='eighth'&&dot)? 0.75 : 1;   /* v65.7 二分/全音符/附点八分口径 → 四分 */
+    const qpm = v*(b==='half'? (dot?3:2) : b==='whole'? 4 : b==='eighth'? (dot?0.75:0.5) : (b==='quarter'&&dot)? 1.5 : 1);
+    if(mult!==1) return {tempo:Math.max(30,Math.min(240,Math.round(v*mult))), tempoUnit:'q', qpm};
+    return {tempo:Math.max(30,Math.min(240,Math.round(v))), tempoUnit: b==='eighth'? 'e' : (b==='quarter' && dot)? 'dq' : 'q', qpm}; };
+  const tBest = (()=>{ let best=null;
+    partsSrc.forEach(p=>{ const ms=p.querySelectorAll(':scope > measure');
+      for(let mi=0; mi<ms.length && (!best || mi<best.mi); mi++){
+        const ev=[...ms[mi].children].find(el=> el.tagName==='direction'? !!(el.querySelector(':scope > sound[tempo]') || el.querySelector(':scope > direction-type > metronome'))
+          : (el.tagName==='sound' && el.hasAttribute('tempo')));
+        if(ev){ best={mi, el:ev}; break; } } });
+    return best; })();
+  /* v69.8 曲中速度点：tpPts[mi]＝[{q, bpm, tempoUnit?, text?, hide?}]（各 part 收、同小节 |Δq|<1e-3 留第一个）；tpOf(el)＝该 direction / 裸 sound 的速度点数据（不含 q） */
+  const tpPts = {};
+  const tpOf = el=>{
+    const sd = el.tagName==='sound'? el : el.querySelector(':scope > sound[tempo]');
+    const mtE = el.tagName==='direction'? el.querySelector(':scope > direction-type > metronome') : null, m = mtE? mtOf(mtE) : null;
+    const clamp = v=>Math.max(20, Math.min(300, Math.round(v)));
+    if(m){ const o = m.tempoUnit==='e'? {bpm:clamp(m.qpm*2), tempoUnit:'e'} : m.tempoUnit==='dq'? {bpm:clamp(m.qpm/1.5), tempoUnit:'dq'} : {bpm:clamp(m.qpm)};
+      let w = [...el.querySelectorAll(':scope > direction-type > words')].map(x=>x.textContent.replace(/\s+/g,' ').trim()).filter(x=>x && !/^[\s.\d]+$/.test(x)).join(' ');
+      if(w) o.text = w.slice(0, 40);
+      if(mtE.getAttribute('print-object')==='no') o.hide = true;
+      return o; }
+    const sv = sd? +sd.getAttribute('tempo') : NaN;
+    return sv>0? {bpm:clamp(sv), hide:true} : null; };
+  const tpAdd = (mi, q, el)=>{ if(tBest && el===tBest.el) return; if(mi===0 && q<1e-3) return;
+    const o = tpOf(el); if(!o) return;
+    const L = tpPts[mi] || (tpPts[mi]=[]); if(L.some(x=>Math.abs(x.q-q)<1e-3)) return;
+    L.push(Object.assign({q:+q.toFixed(4)}, o)); };
   /* v69.3 曲名：<movement-title> 是这一首的名字、<work-title> 常是所属套曲 / 作品号（MuseScore 导出两者都写：「Wiegenlied」与「Op.49」）——单曲名优先；
      作曲 / 作词读 <identification><creator type="composer" / "lyricist" / "poet">（此前不读，导入后词曲作者是空的） */
   const crOf = ty=>{ const el=[...root.querySelectorAll(':scope > identification > creator')].find(c=>(c.getAttribute('type')||'').toLowerCase()===ty); return el? el.textContent.replace(/\s+/g,' ').trim().slice(0,80) : ''; };
@@ -43481,19 +43843,7 @@ function importMusicXML(xmlStr){
        各 part 都扫（取最早，同小节取靠前的 part），小节内按文档顺序取第一个带 <metronome> 或 <sound tempo> 的 <direction>（或裸 <sound tempo>）。
        此前取全文第一个 <metronome>、且压过首小节的 <sound tempo>：摇篮曲 75→70、城市 60→45（m6 的慢段速度印到了曲首）、去会情人 116→125…
        同一 direction 两者都有时以 sound 为准：metronome 换算成四分与 sound 一致（±1）才沿用它的单位（自家导出 e / dq 往返不变），否则按 sound 四分口径 */
-    ...(()=>{ const mtOf = mt=>{ const bu=mt&&mt.querySelector('beat-unit'), pm=mt&&mt.querySelector('per-minute');
-        if(!(bu && pm && +pm.textContent>0)) return null;
-        const b=bu.textContent.trim(), dot=!!mt.querySelector('beat-unit-dot'), v=+pm.textContent;
-        const mult = b==='half'? (dot?3:2) : b==='whole'? 4 : (b==='eighth'&&dot)? 0.75 : 1;   /* v65.7 二分/全音符/附点八分口径 → 四分 */
-        const qpm = v*(b==='half'? (dot?3:2) : b==='whole'? 4 : b==='eighth'? (dot?0.75:0.5) : (b==='quarter'&&dot)? 1.5 : 1);
-        if(mult!==1) return {tempo:Math.max(30,Math.min(240,Math.round(v*mult))), tempoUnit:'q', qpm};
-        return {tempo:Math.max(30,Math.min(240,Math.round(v))), tempoUnit: b==='eighth'? 'e' : (b==='quarter' && dot)? 'dq' : 'q', qpm}; };
-      let best=null;
-      partsSrc.forEach(p=>{ const ms=p.querySelectorAll(':scope > measure');
-        for(let mi=0; mi<ms.length && (!best || mi<best.mi); mi++){
-          const ev=[...ms[mi].children].find(el=> el.tagName==='direction'? !!(el.querySelector(':scope > sound[tempo]') || el.querySelector(':scope > direction-type > metronome'))
-            : (el.tagName==='sound' && el.hasAttribute('tempo')));
-          if(ev){ best={mi, el:ev}; break; } } });
+    ...(()=>{ const best=tBest;   /* v69.8 mtOf / 起始事件已提到上面（同一份算法） */
       if(best){ const sd = best.el.tagName==='sound'? best.el : q(best.el,'sound[tempo]'), m=best.el.tagName==='direction'? mtOf(best.el.querySelector(':scope > direction-type > metronome')) : null;
         const sv = sd? +sd.getAttribute('tempo') : NaN;
         if(m && (!(sv>0) || Math.abs(m.qpm-sv)<=1)) return {tempo:m.tempo, tempoUnit:m.tempoUnit};
@@ -43626,6 +43976,10 @@ function importMusicXML(xmlStr){
         }
         if(tag==='direction'){
           const navHit = part===primaryPart && navScan(el, mi2);   // v65.1 B3a ②
+          /* v69.8（复核 T6）起始速度事件以外带 <metronome> 或 <sound tempo> 的 direction → 曲中速度点 (mi2, (游标+offset)/divisions)；带 metronome 的同一 direction 的 words 进点的 text */
+          const tpM = !!el.querySelector(':scope > direction-type > metronome') && !(tBest && el===tBest.el);
+          if(tpM || (el.querySelector(':scope > sound[tempo]') && !(tBest && el===tBest.el)))
+            tpAdd(mi2, Math.max(0, tcur + ((+(txt(el,'offset')||0))||0))/div, el);
           /* v69.4 A9 落在已收列之内（backup 之后 / 负 offset）：力度 / 文字 / 渐强渐弱 / 踏板起点就地挂到「起点不早于该位置」的第一列（没有就挂覆盖该位置的那一列，
              不跨到下一小节）；这些记号的终点挂到该位置之前最近的一列。目标列上已有同类记号时退回旧口径（顺延到下一个音） */
           const tDir = tcur + ((+(txt(el,'offset')||0))||0);
@@ -43690,7 +44044,7 @@ function importMusicXML(xmlStr){
             else { if(tg && !tg.anno) tg.anno=ot; else addAnno(ot); lossy.odyn++; } }
           /* v44.8 意大利速度术语：首小节 words（主 part）→ song.tempoTerm */
           const wd=el.querySelector('direction-type > words');
-          if(wd && !navHit){ let wt2=wd.textContent.trim();
+          if(wd && !navHit && !tpM){ let wt2=wd.textContent.trim();
             /* v69.4 A7 同一 direction 带 <metronome> 时，只由数字 / 点 / 空白组成的 words 是节拍器数值的拆写残片（OpenScore「♩=88」＋「.6」），丢弃（阿特拉斯 9 处「.6 .3 …」） */
             if(wt2 && el.querySelector('direction-type > metronome') && /^[\s.\d]+$/.test(wt2)) wt2='';
             /* v65.7 文字力度/速度术语（rit./rall./accel./a tempo/cresc./dim.…）→ col.dyn；首小节其他文字→速度术语；其余 → col.anno。
@@ -43707,6 +44061,7 @@ function importMusicXML(xmlStr){
           return;   // 其余 direction（metronome/rehearsal 等）另行处理
         }
         if(tag==='harmony'){ const hn=harmonyName(el, csh); if(hn) pendChord=hn; return; }   // v65.1 kind+degree → 后缀（harmonySuffix）；v69.4 A11 换实音的 part 和弦名同移
+        if(tag==='sound'){ if(el.hasAttribute('tempo')) tpAdd(mi2, Math.max(0, tcur + ((+(txt(el,'offset')||0))||0))/div, el); return; }   /* v69.8 裸 <sound tempo>（只进播放的速度点） */
         /* v69.4 A9 backup / forward 推动时间游标；拆谱表时留下 / 补出的（data-pyq-cur）不计入跳过（与此前拆谱表时删掉它们同口径） */
         if(tag==='backup' || tag==='forward'){ const dd=(+(txt(el,'duration')||0))||0; tcur = tag==='backup'? Math.max(0, tcur-dd) : tcur+dd; if(!el.hasAttribute('data-pyq-cur')) skip.other++; return; }
         if(tag!=='note') return;
@@ -43857,6 +44212,10 @@ function importMusicXML(xmlStr){
       return cols;
     });
     if(slurDepth>0 && lastColRef && !tieX.has(lastColRef)){ lastColRef.tie=false; skip.slurs++; }   // v65.1 没收口的圆滑线
+    /* v69.8（复核 T3②）圆滑线打上的 tie（源文件没有 <tie>，不在 tieX）且下一列同音高 → col.tieSlur：播放 / MIDI 同音也重奏、导出写 slur、刻版按圆滑线画；
+       上面 v65.1 的打标一行不动 */
+    { const flat=[]; resP.forEach(cs=>(cs||[]).forEach(c=>flat.push(c)));
+      flat.forEach((c, i)=>{ if(c && c.tie && c.deg && !tieX.has(c) && pSame(c, flat[i+1]) && flat[i+1].deg) c.tieSlur=true; }); }
     return resP;
   });
   /* v44.7 TAB 声部列解析：每列 notes:[{s,f,x?}] 由 <technical><string>/<fret> 反解；tie/和音/休止/ferm/时值同 vox */
@@ -44025,6 +44384,7 @@ function importMusicXML(xmlStr){
     if(keyToMap[mi]) mea.keyTo=keyToMap[mi];
     if(simMap[mi]) mea.simile=simMap[mi];
     if(meterMap[mi]){ mea.beats=meterMap[mi].beats; mea.unit=meterMap[mi].unit; }
+    if(tpPts[mi] && tpPts[mi].length) mea.tempos = tpPts[mi].sort((a,b)=>a.q-b.q);   /* v69.8 曲中速度点 */
     out.measures.push(mea);
   }
   if(!out.measures.length) return {error:'未解析到任何小节'};
@@ -44682,27 +45042,44 @@ function exportMIDI0(s, expand){
       const k=keyLin[mi];
       if(k!==pk){ const f=KEYSIG[k]!=null? KEYSIG[k] : fifths; ev.push({tick:tk,pr:0,data:[0xFF,0x59,2,f&255,0]}); pk=k; }
     });
+    /* v69.8（复核 T6 / F3）曲中速度（mea.tempos，按演奏顺序：每个演奏小节起点取 tempoAt(mi, 0)、小节内的点按 q）与延长号（各声部 / 六线谱轨 ferm 列并集，
+       区间拉长到 2 倍、多出的封顶 2 秒 → 区间两端 FF 51 降速 / 回速）；tick 网格不变。都没有的谱一条不多写 */
+    { const q0=tempoQPM(s), pts=[];
+      if(M.some(m=>m && Array.isArray(m.tempos) && m.tempos.length)) order.forEach((mi,oi)=>{ const tk=starts[oi], len=meaLen(cOf(mi));
+        pts.push({tick:tk, qpm:tempoAt(s, mi, 0).qpm});
+        ((M[mi]||{}).tempos||[]).filter(pt=>pt && +pt.bpm>0 && +pt.q>0).sort((a,b2)=>a.q-b2.q).forEach(pt=>pts.push({tick:tk+Math.min(len, pt.q*TPQ), qpm:tempoPtQPM(pt)})); });
+      const fr=[]; order.forEach((mi,oi)=>{ const m=M[cOf(mi)]||{};
+        [...(m.voxes||[]), ...(m.tabs||[])].forEach(cols=>{ let tk=starts[oi]; (cols||[]).forEach(c=>{ if(!c) return; const L=colTk(c); if(c.ferm && L>0) fr.push([tk, tk+L]); tk+=L; }); }); });
+      fr.sort((a,b2)=>a[0]-b2[0]); const fu=[]; fr.forEach(iv=>{ const L=fu[fu.length-1]; if(L && iv[0]<L[1]-1e-6) L[1]=Math.max(L[1], iv[1]); else fu.push(iv.slice()); });
+      if(pts.some(p2=>Math.abs(p2.qpm-q0)>1e-9) || fu.length){
+        const qAt=tk=>{ let q=q0; for(const p2 of pts){ if(p2.tick<=tk+1e-6) q=p2.qpm; else break; } return q; };
+        const fk=fu.map(iv=>{ const R=(iv[1]-iv[0])/TPQ*60/qAt(iv[0]); return R>1e-9? (R+Math.min(R,2))/R : 1; });
+        let lastUs=us;
+        [...new Set(pts.map(p2=>p2.tick).concat(...fu))].sort((a,b2)=>a-b2).forEach(tk=>{
+          let q=qAt(tk); fu.forEach((iv,j)=>{ if(tk>=iv[0]-1e-6 && tk<iv[1]-1e-6) q/=fk[j]; });
+          const u2=Math.round(60000000/q); if(u2!==lastUs){ ev.push({tick:tk,pr:0,data:[0xFF,0x51,3,(u2>>16)&255,(u2>>8)&255,u2&255]}); lastUs=u2; } });
+      } }
     chunks.push(track(ev)); }
   const vCapo=(s.tabVoices&&s.tabVoices.length)? (s.capo||0) : 0;   /* v53.4 变调夹：vox 轨与 TAB 轨（既含 capo）同调 */
   /* v60.29 中途转调标记 keyTo 生效于 MIDI 导出（与播放同口径）。v69.4 按小节线性预先推好每小节的参考音（展开后跳回的小节取它自己的调） */
   const refLin=[]; { let r=ref; M.forEach(m=>{ if(m.keyTo && KEY_PC[m.keyTo]!=null) r=keyRefOf(m.keyTo, s.refOct|0); refLin.push(r); }); }
   const pitchOf=(c,rf)=> rf + DEG_SEMI[c.deg] + accSemi(c.acc) + (c.oct||0)*12 + vCapo + (s.transp|0);   /* v65.4 移调乐器；倚音的 oct 是绝对八度（v67.0），同式 */
   /* v69.4 力度时间线：[{t, g（此后的持续力度）, a（只给本列的力度，可无）}]，按演奏顺序扫一个简谱声部；没有任何力度记号＝null */
-  const DYN_ONE={sf:1, sfz:1, fz:1, rfz:1, sffz:1, rf:1}, DYN_FP={fp:1, sfp:1};
+  /* v69.8（复核 F3）力度时间线改调播放同一对函数 dynSweep / dynGainAt（按 tick；abs＝v69.4 导出口径：突强只给本音绝对值、fp / sfp 强后弱）；
+     渐强渐弱 < / > / cresc. / dim. 进事件（te＝dynTo 终点列列尾 tick，cap＝两小节后，bt＝一拍）→ 区间内逐音插值。没有渐强渐弱的谱力度与此前逐字节相同 */
   const dynTLof = vi=>{
-    if(!M.some(m=>((m.voxes||[])[vi]||[]).some(c=>c && c.dyn && DYN_GAIN[c.dyn]!=null))) return null;
-    const tl=[]; let g=1;
+    if(!M.some(m=>((m.voxes||[])[vi]||[]).some(c=>c && c.dyn && (DYN_GAIN[c.dyn]!=null || dynRampDir(c.dyn))))) return null;
+    const ev=[];
+    const colEndTk = (oi, to)=>{ for(let o=oi; o<order.length; o++){ const cm=cOf(order[o]); if(cm!==to.mi && order[o]!==to.mi) continue;
+        const cs=((M[cm]||{}).voxes||[])[vi]||[]; let t=starts[o]; for(let ci=0; ci<cs.length && ci<=to.ci; ci++) t+=colTk(cs[ci]); return t; } return null; };
     order.forEach((mi,oi)=>{ let t=starts[oi];
       ((M[cOf(mi)].voxes||[])[vi]||[]).forEach(c=>{
-        const d=c.dyn, G=d? DYN_GAIN[d] : null;
-        if(G!=null){
-          if(DYN_ONE[d]) tl.push({t, g, a:G});
-          else if(DYN_FP[d]){ g=DYN_GAIN.p!=null? DYN_GAIN.p : g; tl.push({t, g, a:G}); }
-          else { g=G; tl.push({t, g}); }
-        }
+        const d=c.dyn;
+        if(d && DYN_GAIN[d]!=null) ev.push({tm:t, k:d});
+        else if(d && dynRampDir(d)) ev.push({tm:t, k:d, rp:dynRampDir(d), bt:beatTicks, cap: oi+2<starts.length? starts[oi+2] : endTk, te: c.dynTo? colEndTk(oi, c.dynTo) : null});
         t+=colTk(c); }); });
-    return tl; };
-  const dynAtTL = (tl,t)=>{ let g=1; for(let i=0;i<tl.length;i++){ const e=tl[i]; if(e.t<=t+1e-6){ g=(e.a!=null && Math.abs(e.t-t)<1e-6)? e.a : e.g; } else break; } return g; };
+    return dynSweep(ev, true); };
+  const dynAtTL = (tl,t)=> dynGainAt(tl, t);
   const velOf = (base,g)=> Math.max(1, Math.min(127, Math.round(base*g)));
   const nV=(s.voxVoices||[]).length;
   const TLs=[]; for(let vi=0; vi<nV; vi++) TLs.push(dynTLof(vi));
@@ -44736,25 +45113,32 @@ function exportMIDI0(s, expand){
       ((M[cmi].voxes||[])[vi]||[]).forEach(c=>{
       const len=colTk(c);
       if(c.deg){
-        const m=pitchOf(c,rf), v=vAt(tick);
+        const m=pitchOf(c,rf);
+        /* v69.8（复核 F3）演奏法同播放：重音 ×1.2 / 顿强 ×1.3（夹 127）；跳音 0.5 / 断音 0.3 倍时值（stE＝本列截短后的终点） */
+        const acF = c.artic==='accent'? 1.2 : c.artic==='marcato'? 1.3 : 1, stF = c.artic==='stacc'? 0.5 : c.artic==='staccatissimo'? 0.3 : 0;
+        const v = acF!==1? Math.max(1, Math.min(127, Math.round(vAt(tick)*acF))) : vAt(tick);
         const gP=c.grace? normGrace(c.grace) : null, gA=c.graceA? normGrace(c.graceA) : null;
+        /* v69.8 长倚音（grace.slash===false 且 1 个）：拍上奏出、占倚音时值（≤ 主音一半），主音推后同样长（同播放） */
+        const gLong = gP && gP.notes.length===1 && c.grace && typeof c.grace==='object' && c.grace.slash===false;
         let at=tick, endC=tick+len;
-        if(cur && cur.tie && cur.m===m && !(gP && gP.notes.length)){ cur.end=endC; cur.tie=!!c.tie; }
+        if(cur && cur.tie && !cur.ts && cur.m===m && !(gP && gP.notes.length)){ cur.end=endC; cur.tie=!!c.tie; if(c.tieSlur) cur.ts=true; if(stF) cur.end=tick+len*stF; }
         else{ flush();
-          if(gP && gP.notes.length){   /* 前倚音：拍上奏出、从主音借时（播放 per 同式） */
+          if(gLong){ const per=Math.min(len/2, (4/(gP.dur||8))*TPQ); note(pitchOf(gP.notes[0],rf), tick, per, v); at=tick+per; }
+          else if(gP && gP.notes.length){   /* 前倚音：拍上奏出、从主音借时（播放 per 同式） */
             const n=gP.notes.length, per=Math.min(0.12*secTk, len*0.35/n)*(gP.dur>=16? 0.6 : 1), gv=Math.max(1, Math.round(v*0.7));
             gP.notes.forEach((gn,gi)=>note(pitchOf(gn,rf), tick+gi*per, per, gv));
             at=tick+n*per; }
-          cur={m, at, end:endC, tie:!!c.tie, v}; }
+          cur={m, at, end:endC, tie:!!c.tie, v}; if(c.tieSlur) cur.ts=true; if(stF) cur.end=Math.max(at+1, tick+len*stF); }
         if(gA && gA.notes.length){   /* 后倚音：主音尾部借时，本音到此收（不再续连音线） */
           const n=gA.notes.length, per=Math.min(0.1*secTk, len*0.3/n)*(gA.dur>=16? 0.6 : 1), gv=Math.max(1, Math.round(v*0.65));
           gA.notes.forEach((gn,gi)=>note(pitchOf(gn,rf), endC-per*(n-gi), per, gv));
-          endC-=n*per; cur.end=endC; flush(); }
+          endC-=n*per; cur.end=stF? Math.min(cur.end, endC) : endC; flush(); }
+        const endA = stF? Math.min(endC, Math.max(at+1, tick+len*stF)) : endC;   /* v69.8 和音同截短 */
         const aL=(c.adds||[]).filter(a=>a&&a.deg).map(a=>({m:pitchOf(a,rf), tie:!!a.tie}));
         if(aHold.size) aHold.forEach((h,m0)=>{ if(!aL.some(x=>x.m===m0)){ note(h.m,h.at,h.end-h.at,h.v); aHold.delete(m0); } });
         aL.forEach(({m:am, tie})=>{ const h=aHold.get(am);
           if(h){ h.end=endC; if(!tie){ note(h.m,h.at,h.end-h.at,h.v); aHold.delete(am); } return; }
-          if(tie) aHold.set(am, {m:am, at, end:endC, v}); else note(am,at,endC-at,v); });
+          if(tie) aHold.set(am, {m:am, at, end:endC, v}); else note(am,at,endA-at,v); });
       }else{ flush(); aFlushAll(); }
       tick+=len;
     });});

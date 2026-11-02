@@ -126,6 +126,11 @@ const HELP = () => {
           ['repeatStart', 'repeatEnd', 'volta', 'dc', 'ds', 'fine', 'segno', 'coda', 'simile', 'keyTo'].forEach(k => delete m[k]);
           const k = keyAt(mi); if (i > 0 && k !== pk) m.keyTo = k; pk = k; return m; });
         u.key = keyAt(order[0]);
+        /* v69.8 渐强渐弱进 MIDI 力度后：抄成线性谱时 dynTo 终点也要换成线性小节号（按演奏顺序往后找第一次出现，同 exportMIDI0 展开时的口径），否则线性谱里的范围指错小节 */
+        { const cm = j => { const c = simileSrc(order[j]); return c != null ? c : order[j]; };
+          u.measures.forEach((m, i) => (m.voxes || []).forEach(cs => (cs || []).forEach(c => { if (!c || !c.dynTo) return; let j = i;
+            while (j < order.length && cm(j) !== c.dynTo.mi && order[j] !== c.dynTo.mi) j++;
+            if (j < order.length) c.dynTo = Object.assign({}, c.dynTo, { mi: j }); else delete c.dynTo; }))); }
         const A = __mid(exportMIDI(s).bytes), B = __mid(exportMIDI(u).bytes), L = __mid(exportMIDI(s, { expand: false }).bytes);
         const sig = trs => trs.slice(1).map(tr => J(__notes(tr)) + '|' + J(__cc(tr)));
         function J(x) { return JSON.stringify(x); }
