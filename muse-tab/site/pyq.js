@@ -164,6 +164,171 @@ document.querySelectorAll('i[data-i]').forEach(el=>{ el.outerHTML = ICONS[el.dat
 const io = new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }),{threshold:.12});
 document.querySelectorAll('.rv').forEach(el=>io.observe(el));
 
+/* ---------- 分类升级 P1 谱库谱种（方案 docs/design-2026-11-taxonomy §四 / §七 / §九）----------
+   一级 7 个谱种 × 二级（＝PQ_KIND.PZ）、乐器名（＝PQ_KIND.INST，other 显示「其他」）；筛选 match＝PQ_KIND.pzMatch、可转池 conv＝PQ_KIND.pzConv、
+   列表引擎 query＝api/server.js libQuery、计数 cats＝pubCats——官网是静态页读不到 PQ_KIND，这里各抄一份，tv_libpz 在同一批卡片上逐项对拍三处结果。
+   只读卡片字段（pz / sub / inst / also / fx，接口 P0 起给）；没有这些字段的老卡片（站点先发、接口后发 / 旧缓存）按旧 type 粗归一级 */
+window.PYQ_PZ = (function(){
+  const PZ = [
+    {id:'jianpu', name:'简谱', subs:[['gequ','歌曲'],['erge','儿歌'],['hechang','合唱'],['qiyue','器乐'],['shichang','视唱'],['duizhao','对照谱']]},
+    {id:'wuxian', name:'五线谱', subs:[['gequ','歌曲'],['hechang','合唱'],['qiyue','器乐'],['chongzou','重奏'],['shichang','视唱'],['duizhao','对照谱']]},
+    {id:'gangqin', name:'钢琴谱', subs:[['duzou','独奏'],['tanchang','弹唱'],['banzou','伴奏']]},
+    {id:'jita', name:'吉他谱', subs:[['tanchang','弹唱'],['zhitan','指弹']]},
+    {id:'uku', name:'尤克里里', subs:[['tanchang','弹唱'],['zhitan','指弹']]},
+    {id:'hechang', name:'合唱谱', subs:[['jianpu','简谱合唱'],['wuxian','五线合唱']]},
+    {id:'gongneng', name:'功能谱', subs:[['jishu','级数谱'],['hexian','和弦格']]}
+  ].map(p=>({id:p.id, name:p.name, subs:p.subs.map(x=>({id:x[0], name:x[1]}))}));
+  const INST = {guitar:'吉他', uku:'尤克里里', bass:'贝斯', piano:'钢琴', epiano:'电钢琴', synth:'电子琴', accordion:'手风琴',
+    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号',
+    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴', other:'其他'};
+  const INST_FAM = {guitar:'tab', uku:'tab', bass:'staff', piano:'kbd', epiano:'kbd', synth:'kbd', accordion:'kbd',
+    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff',
+    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu', other:'other'};
+  const own=(o,k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o,k);
+  const A=v=> Array.isArray(v)? v : [];
+  const pzDef=id=> PZ.find(p=>p.id===id)||null;
+  const has=(pz,sub)=>{ if(!pz) return !!sub && PZ.some(p=>p.subs.some(x=>x.id===sub)); const p=pzDef(pz); return !!p && (!sub || p.subs.some(x=>x.id===sub)); };
+  const subName=(pz,sub)=>{ const p=pzDef(pz)||PZ.find(q=>q.subs.some(x=>x.id===sub)); const x=p&&p.subs.find(y=>y.id===sub); return x? x.name : ''; };
+  /* 旧谱库按钮 id 别名（§七「旧参数别名」，＝api/pzq.js CAT_ALIAS）：?cat=guitar 等 */
+  const CAT_ALIAS = {guitar:{pz:'jita',sub:'tanchang'}, uku:{pz:'uku'}, solo:{sub:'zhitan'}, pianoacc:{pz:'gangqin',sub:'banzou'}, piano:{pz:'gangqin',sub:'duzou'},
+    vocal:{pz:'jianpu'}, vox:{pz:'jianpu'}, teach:{sub:'duizhao'}, instr:{pz:'wuxian'}, staff:{pz:'wuxian'}, func:{pz:'gongneng',sub:'jishu'}, chord:{pz:'gongneng',sub:'hexian'}};
+  /* 老卡片（无 pz 字段）按旧 type 粗归：只为不让一级按钮在旧缓存 / 旧接口下变空，接口给了 pz 就以接口为准 */
+  const TYPE_PZ = {guitar:['jita','tanchang'], uku:['uku','tanchang'], solo:['jita','zhitan'], pianoacc:['gangqin','banzou'], piano:['gangqin','duzou'],
+    vocal:['jianpu','gequ'], vox:['jianpu','gequ'], teach:['wuxian','duizhao',['jianpu.duizhao']], instr:['wuxian','qiyue'], staff:['wuxian','qiyue'], func:['gongneng','jishu'], chord:['gongneng','hexian']};
+  function norm(c){
+    if(!c || typeof c!=='object') return c;
+    if(typeof c.pz==='string' && has(c.pz, c.sub)) { if(!Array.isArray(c.also)) c.also=[]; return c; }
+    const t=TYPE_PZ[c.type]||TYPE_PZ.vocal; c.pz=t[0]; c.sub=t[1]; c.also=(t[2]||[]).slice(); if(typeof c.inst!=='string') c.inst=t[1]==='qiyue'? 'other' : '';
+    return c;
+  }
+  function match(r, f){   /* ＝PQ_KIND.pzMatch */
+    if(!r || typeof r.pz!=='string') return -1;
+    f = f || {};
+    const pl=[r.pz+'.'+r.sub].concat(A(r.also)), fi = r.fx && Array.isArray(r.fx.inst)? r.fx.inst : [r.inst];
+    for(let i=0; i<pl.length; i++){
+      const a=String(pl[i]).split('.'), p=a[0], sb=a[1];
+      if(f.pz && p!==f.pz) continue;
+      if(f.sub && sb!==f.sub) continue;
+      if(f.inst){
+        if(p==='jianpu' || p==='wuxian'){ if(r.inst!==f.inst || (!f.sub && sb!=='qiyue' && sb!=='chongzou')) continue; }
+        else if(fi.indexOf(f.inst)<0) continue;
+      }
+      return i===0? 0 : 1;
+    }
+    return -1;
+  }
+  const CONV_SRC = {jianpu:{gequ:['gequ'], hechang:['hechang'], qiyue:['qiyue','chongzou'], shichang:['shichang']},
+    wuxian:{gequ:['gequ','erge'], hechang:['hechang'], qiyue:['qiyue'], shichang:['shichang']}};
+  function conv(r, f){   /* ＝PQ_KIND.pzConv */
+    if(!r || typeof r.pz!=='string' || !f || match(r, f)>=0) return '';
+    let opp='', subs=null, nota='';
+    if(f.pz==='hechang'){ if(f.sub!=='jianpu' && f.sub!=='wuxian') return ''; opp='hechang'; subs=[f.sub==='jianpu'? 'wuxian' : 'jianpu']; nota=f.sub==='jianpu'? 'jp' : 'st'; }
+    else if(f.pz==='jianpu' || f.pz==='wuxian'){
+      const m=CONV_SRC[f.pz]; opp=f.pz==='jianpu'? 'wuxian' : 'jianpu'; nota=f.pz==='jianpu'? 'jp' : 'st';
+      if(f.sub) subs=own(m, f.sub)? m[f.sub] : [];
+      if(f.inst) subs=(subs || ['qiyue','chongzou']).filter(x=>x==='qiyue' || (x==='chongzou' && f.pz==='jianpu'));
+    }
+    else return '';
+    if(subs && !subs.length) return '';
+    const pl=[r.pz+'.'+r.sub].concat(A(r.also));
+    for(let i=0; i<pl.length; i++){
+      const a=String(pl[i]).split('.');
+      if(a[0]!==opp || a[1]==='duizhao' || (subs && subs.indexOf(a[1])<0)) continue;
+      if(f.inst && r.inst!==f.inst) continue;
+      return nota;
+    }
+    return '';
+  }
+  /* ===== 以下＝api/server.js libQuery 一族（tv_libpz 对拍） ===== */
+  const MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1};
+  const places=c=>[c.pz+'.'+c.sub].concat(A(c.also));
+  const inPl=(c,re)=>places(c).some(p=>re.test(p));
+  function wordsOk(c, words){
+    if(!words) return true;
+    const hay=((c.title||'')+' '+(c.singer||'')+' '+(c.author||'')+' '+(c.composer||'')).toLowerCase();
+    return String(words).toLowerCase().split(/[\s　]+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
+  }
+  const erge=c=>inPl(c,/\.erge$/) || c.intent==='kids';
+  function fxOk(c, x){
+    if(!x) return true;
+    const fx=c.fx||{};
+    if(x.parts && x.parts.length && x.parts.indexOf(Math.min(4, Math.max(1, fx.parts|0)))<0) return false;
+    if(x.chord && !fx.chord) return false;
+    if((x.acc || x.hacc==='yes') && !fx.acc) return false;
+    if(x.hacc==='no' && fx.acc) return false;
+    if(x.verses && !((fx.verses|0)>=2)) return false;
+    if(x.erge && !erge(c)) return false;
+    if(x.keys && x.keys.length){ const k=(c.pz==='jita'||c.pz==='uku') && fx.fkey? fx.fkey : String(c.key||''); if(x.keys.indexOf(k)<0) return false; }
+    if(x.meters && x.meters.length && x.meters.indexOf(c.beats+'/'+c.unit)<0) return false;
+    if(x.speeds && x.speeds.length){ const t=+c.tempo||0, sp=!t? '' : t<72? 'slow' : t<=120? 'mid' : 'fast'; if(x.speeds.indexOf(sp)<0) return false; }
+    return true;
+  }
+  function ztOk(c, zt){
+    const fx=c.fx||{};
+    switch(zt){
+      case 'kaobian': return inPl(c,/^gangqin\.(tanchang|banzou)$|^gongneng\.jishu$/) || (inPl(c,/^(jianpu|wuxian)\.(gequ|erge|shichang|qiyue)$/) && (fx.parts|0)<=1 && !!fx.chord);
+      case 'yikao': return inPl(c,/^(jianpu|wuxian)\.shichang$/) && c.intent==='sight';
+      case 'shifan': return erge(c) || inPl(c,/\.duizhao$/);
+      case 'ketang': return inPl(c,/\.duizhao$/) || (inPl(c,/^jianpu\.gequ$/) && !!fx.acc);
+      default: return true;
+    }
+  }
+  function query(cards, o){
+    const f=o.f||{}, x=o.x||null, out=[], hasF=!!(f.pz||f.sub||f.inst);
+    cards.forEach((c,i)=>{
+      if(!wordsOk(c,o.words) || !fxOk(c,x) || (o.zt && !ztOk(c,o.zt)) || (o.style==='erge' && !erge(c))) return;
+      let sec=-1, nota='';
+      if(!hasF) sec=0;
+      else { const g=match(c,f); if(g>=0) sec=(o.shichang && !f.pz)? (inPl(c,/^wuxian\.shichang$/)? 0 : 1) : g; else { nota=conv(c,f); if(nota) sec=2; } }
+      if(sec>=0) out.push({c, sec, nota, i});
+    });
+    const n0=out.filter(e=>e.sec<2).length, nConv=out.filter(e=>e.sec===2).length;
+    const list=o.conv? out : out.filter(e=>e.sec<2);
+    let tail='';
+    const have=new Set(list.map(e=>e.c.id));
+    const addTail=pred=>{ let n=0; cards.forEach((c,i)=>{ if(have.has(c.id) || !wordsOk(c,o.words) || !fxOk(c,x) || !pred(c)) return; have.add(c.id); list.push({c, sec:3, nota:'', i}); n++; }); return n; };
+    if(o.tail==='tab'){ if(addTail(c=>inPl(c,/^(jita|uku)\.tanchang$/))) tail='tab'; }
+    else if(o.tail==='jp'){ if(addTail(c=>(c.pz==='jita'||c.pz==='uku') && /弹唱谱$/.test(c.typeLabel||''))) tail='jp'; }
+    if(o.more && f.inst && MEL[f.inst] && n0<6){
+      const lv=f.pz==='wuxian'? /^wuxian\.(gequ|erge)$/ : f.pz==='jianpu'? /^jianpu\.(gequ|erge)$/ : (INST_FAM[f.inst]==='jianpu'? /^jianpu\.(gequ|erge)$/ : /^(jianpu|wuxian)\.(gequ|erge)$/);
+      if(addTail(c=>inPl(c,lv) && ((c.fx||{}).parts|0)<=1)) tail=tail||'mel';
+    }
+    const sk=o.sort==='fav'? (e=>-(+e.c.favs||0)) : o.sort==='view'? (e=>-(+e.c.views||0)) : (()=>0);
+    const ks=o.keySort? (e=>String(e.c.key||'')===o.keySort? 0 : 1) : (()=>0);
+    list.sort((a,b)=>a.sec-b.sec || ks(a)-ks(b) || sk(a)-sk(b) || a.i-b.i);
+    return {list, n0, nConv, tail};
+  }
+  function cats(cards){   /* ＝api/server.js pubCats（含 conv） */
+    const out={total:cards.length, pz:{}}, cv={jianpu:{n:0,sub:{},inst:{}}, wuxian:{n:0,sub:{},inst:{}}, hechang:{sub:{jianpu:0,wuxian:0}}};
+    PZ.forEach(p=>{ out.pz[p.id]={n:0, sub:{}}; p.subs.forEach(x=>{ out.pz[p.id].sub[x.id]=0; }); if(p.id==='jianpu'||p.id==='wuxian'){ out.pz[p.id].inst={}; p.subs.forEach(x=>{ cv[p.id].sub[x.id]=0; }); } });
+    cards.forEach(c=>{
+      PZ.forEach(p=>{
+        if(match(c,{pz:p.id})<0) return;
+        const o=out.pz[p.id]; o.n++;
+        p.subs.forEach(x=>{ if(match(c,{pz:p.id, sub:x.id})>=0) o.sub[x.id]++; });
+        if(o.inst && c.inst && match(c,{pz:p.id, inst:c.inst})>=0) o.inst[c.inst]=(o.inst[c.inst]||0)+1;
+      });
+      ['jianpu','wuxian'].forEach(t=>{ const o=cv[t];
+        if(conv(c,{pz:t})) o.n++;
+        Object.keys(o.sub).forEach(sb=>{ if(conv(c,{pz:t, sub:sb})) o.sub[sb]++; });
+        if(c.inst && conv(c,{pz:t, inst:c.inst})) o.inst[c.inst]=(o.inst[c.inst]||0)+1; });
+      ['jianpu','wuxian'].forEach(sb=>{ if(conv(c,{pz:'hechang', sub:sb})) cv.hechang.sub[sb]++; });
+    });
+    out.conv=cv;
+    return out;
+  }
+  /* 卡片角标（§4.3）：有旋律或人声行、主谱种不是吉他谱 / 尤克里里 / 功能谱 › 和弦格——简谱原稿「可看五线」、五线谱原稿（含钢琴大谱表）「可看简谱」；对照谱不标 */
+  function badge(c){
+    const fx=c && c.fx; if(!fx || c.pz==='jita' || c.pz==='uku' || (c.pz==='gongneng' && c.sub==='hexian')) return '';
+    return fx.nota0==='jp'? '可看五线' : fx.nota0==='st'? '可看简谱' : '';
+  }
+  /* 能力小标：配和弦 / 伴奏 / 分谱（分谱＝合奏，可出分谱；只做小标不做筛选，v1 R6） */
+  function caps(c){ const fx=c && c.fx; if(!fx) return []; const o=[]; if(fx.chord && c.pz!=='gongneng') o.push('配和弦'); if(fx.acc && !(c.pz==='gangqin' && c.sub==='banzou')) o.push('伴奏'); if(fx.ens) o.push('分谱'); return o; }
+  /* 六线谱 / 四线谱的调按指法写（「C调指法 · 夹2」） */
+  function fkeyText(c){ const fx=c && c.fx; if(!fx || !fx.fkey || (c.pz!=='jita' && c.pz!=='uku')) return ''; return fx.fkey+'调指法'+((+c.capo||0)>0? ' · 夹'+(+c.capo) : ''); }
+  return {PZ, INST, INST_FAM, CAT_ALIAS, MEL, has, subName, pzDef, norm, match, conv, query, cats, fxOk, ztOk, wordsOk, badge, caps, fkeyText};
+})();
+
 /* ---------- 谱库卡片渲染（复刻编辑器曲谱库卡片：迷你旋律封面 + 类型 + 免费/价 + 标题 + 作者）---------- */
 const _esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 window.PYQ_LIB = (function(){
@@ -297,8 +462,9 @@ window.PYQ_LIB = (function(){
      一眼判断「这份谱能不能直接用」，不用点进去。纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」。 */
   const TYPE_STAFF = { instr: 1, piano: 1, pianoacc: 1, solo: 1 };   /* v60.7 补 pianoacc：同为大谱表，写「F 调」不写「1=F」 */
   function metaBits(item){
-    const b = [], k = String(item.key||'').slice(0,6);
-    if(k) b.push(TYPE_STAFF[item.type] ? k+' 调' : '1='+k);
+    const b = [], k = String(item.key||'').slice(0,6), fk = window.PYQ_PZ? PYQ_PZ.fkeyText(item) : '';
+    if(fk) b.push(fk);   /* 分类升级 P1：六线谱 / 四线谱按指法调写「C调指法 · 夹2」（接口带 fx.fkey 时；老卡片照旧） */
+    else if(k) b.push(TYPE_STAFF[item.type] ? k+' 调' : '1='+k);
     if(item.beats>0 && item.unit>0) b.push(item.beats+'/'+item.unit);
     if(item.tempo>0) b.push('♩='+item.tempo);
     if(item.measures>0) b.push(item.measures+' 小节');
@@ -323,14 +489,18 @@ window.PYQ_LIB = (function(){
     const shot = item.thumb
       ? `<img class="cc-shot" src="/api/pub/${encodeURIComponent(item.id)}/thumb?v=${+item.thumb||0}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`
       : '';
-    return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}" style="--d:${Math.min(+idx||0,8)*40}ms" title="${_esc(tip)}" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}">
+    /* 分类升级 P1：可转池里的卡（「以下是五线谱，打开时用简谱看」）链接带 &nota=jp / st，观看页直接用简谱 / 五线视图（只改观看副本）；
+       角标「可看简谱 / 可看五线」＋能力小标（配和弦 / 伴奏 / 分谱）——接口没给分面（老卡片）时都不出，卡片与修前逐字相同 */
+    const nota = /^(jp|st|dual)$/.test(item.nota||'') ? item.nota : '';
+    const nb = window.PYQ_PZ? PYQ_PZ.badge(item) : '', caps = window.PYQ_PZ? PYQ_PZ.caps(item) : [];
+    return `<a class="cc-card" data-fam="${FAM[item.type]||'g'}"${nota?` data-nota="${nota}"`:''} style="--d:${Math.min(+idx||0,8)*40}ms" title="${_esc(tip)}" href="//puku.puyouquan.com/kanpu.html?pub=${encodeURIComponent(item.id)}${nota?'&nota='+nota:''}">
       <div class="cc-cover">${cover(item)}${shot}
         <span class="cc-type" title="${_esc(type)}"><span class="cc-tname">${_esc(type)}</span></span>
-        ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}</div>
+        ${item.price>0?`<span class="cc-price">¥${item.price}</span>`:''}${nb?`<span class="cc-nota">${nb}</span>`:''}</div>
       <div class="cc-body">
         <div class="t">${_esc(item.title||'未命名曲谱')}</div>
         <div class="a">${_esc(who)}</div>
-        ${bits.length?`<div class="meta">${bits.map(x=>`<i>${_esc(x)}</i>`).join('')}</div>`:''}
+        ${bits.length||caps.length?`<div class="meta">${bits.map(x=>`<i>${_esc(x)}</i>`).join('')}${caps.map(x=>`<i class="cap">${x}</i>`).join('')}</div>`:''}
       </div></a>`;
   }
   /* 拉取公开谱库渲染到指定容器；limit 限制条数 */

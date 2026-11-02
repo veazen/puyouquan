@@ -86,7 +86,7 @@ const F = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
       ['gtr', ['var:pen=J'], { dt: 'guitar', tab: '吉他1', vox: '旋律1', row: 'vox', kind: '吉他弹唱谱' }],
       ['pacc', [], { dt: 'vocal', tab: '', vox: '旋律/右手伴奏/左手伴奏', nota: [N, 'staff', 'bass'], groups: '[{"type":"brace","from":1,"to":2}]', fnm: true, fn: false, mea: 16, tempo: 72, kind: '钢琴伴奏歌谱' }],
       ['pacc', ['mel:S'], { dt: 'instr', vox: '旋律/右手伴奏/左手伴奏', nota: ['staff', 'staff', 'bass'], dual: N, kind: '钢琴伴奏歌谱（五线谱）' }],
-      ['pacc', ['var:acc=pure'], { dt: 'pianoacc', vox: '右手/左手', nota: ['staff', 'bass'], pa: true, kind: '钢琴弹唱谱（纯伴奏）' }],
+      ['pacc', ['var:acc=pure'], { dt: 'pianoacc', vox: '右手/左手', nota: ['staff', 'bass'], pa: true, kind: '钢琴伴奏谱（纯伴奏）' }],
       ['kids', [], { dt: 'vocal', vox: '旋律/右手伴奏/左手伴奏', key: 'F', meter: '2/4', tempo: 104, mea: 8, lyr: 2, kind: '钢琴伴奏歌谱' }],
       ['vocal', [], { dt: 'vocal', tab: '', vox: '旋律1', nota: N, lyr: 1, mea: 16, tempo: 90, kind: '简谱歌谱' }],
       /* v69.6 I4（有意迁移）：新建四部合唱默认声部名 女高 / 女低 / 男高 / 男低（简谱合唱只改名、不写谱号；二部仍是旋律1 / 2） */

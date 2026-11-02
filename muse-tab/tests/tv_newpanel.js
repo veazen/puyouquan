@@ -61,8 +61,8 @@ const FN0 = F0 + (F0.includes('?') ? '&' : '?') + 'next=0';
 const COMBOS = [   /* 方案 43 组合（data/verify.json → mapping.rows）：[用途, 变体, 旋律用, 谱行, 谱名, docType] */
   ['gtr', { inst: 'guitar', pen: 'T' }, 'J', 'JT', '吉他弹唱谱', 'guitar'], ['gtr', { inst: 'guitar', pen: 'J' }, 'J', 'JT', '吉他弹唱谱', 'guitar'],
   ['gtr', { inst: 'uku', pen: 'T' }, 'J', 'JT', '尤克里里弹唱谱', 'uku'], ['gtr', { inst: 'uku', pen: 'J' }, 'J', 'JT', '尤克里里弹唱谱', 'uku'],
-  ['pacc', { acc: 'mel' }, 'J', 'JG', '钢琴伴奏歌谱', 'vocal'], ['pacc', { acc: 'mel' }, 'S', 'SG', '钢琴伴奏歌谱（五线谱）', 'instr'], ['pacc', { acc: 'pure' }, 'J', 'CG', '钢琴弹唱谱（纯伴奏）', 'pianoacc'],
-  ['kids', { acc: 'mel' }, 'J', 'JG', '钢琴伴奏歌谱', 'vocal'], ['kids', { acc: 'mel' }, 'S', 'SG', '钢琴伴奏歌谱（五线谱）', 'instr'], ['kids', { acc: 'pure' }, 'J', 'CG', '钢琴弹唱谱（纯伴奏）', 'pianoacc'],
+  ['pacc', { acc: 'mel' }, 'J', 'JG', '钢琴伴奏歌谱', 'vocal'], ['pacc', { acc: 'mel' }, 'S', 'SG', '钢琴伴奏歌谱（五线谱）', 'instr'], ['pacc', { acc: 'pure' }, 'J', 'CG', '钢琴伴奏谱（纯伴奏）', 'pianoacc'],
+  ['kids', { acc: 'mel' }, 'J', 'JG', '钢琴伴奏歌谱', 'vocal'], ['kids', { acc: 'mel' }, 'S', 'SG', '钢琴伴奏歌谱（五线谱）', 'instr'], ['kids', { acc: 'pure' }, 'J', 'CG', '钢琴伴奏谱（纯伴奏）', 'pianoacc'],
   ['vocal', { parts: 1 }, 'J', 'J', '简谱歌谱', 'vocal'], ['vocal', { parts: 1 }, 'S', 'S', '五线谱歌谱', 'instr'], ['vocal', { parts: 2 }, 'J', 'J', '简谱合唱谱', 'vocal'],
   ['vocal', { parts: 2 }, 'S', 'S', '五线谱合唱谱', 'vocal'], ['vocal', { parts: 3 }, 'J', 'J', '简谱合唱谱', 'vocal'], ['vocal', { parts: 3 }, 'S', 'S', '五线谱合唱谱', 'vocal'],
   ['vocal', { parts: 4 }, 'J', 'J', '简谱合唱谱', 'vocal'], ['vocal', { parts: 4 }, 'S', 'S', '五线谱合唱谱', 'vocal'],
@@ -79,7 +79,7 @@ const COMBOS = [   /* 方案 43 组合（data/verify.json → mapping.rows）：
   ['chord', { ftype: 'C' }, 'J', 'C', '和弦谱', 'chord'], ['chord', { ftype: 'CJ' }, 'J', 'CJ', '功能谱', 'func'], ['chord', { ftype: 'CJ' }, 'S', 'CS', '五线谱和弦谱', 'func'],
   ['blank', {}, 'J', 'J', '简谱歌谱', 'vocal'], ['blank', {}, 'S', 'S', '五线谱歌谱', 'instr'],
 ];
-const PRESET_KIND = ['吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '尤克里里弹唱谱', '功能谱', '简谱歌谱', '吉他独奏谱', '钢琴独奏谱', '钢琴弹唱谱（纯伴奏）',
+const PRESET_KIND = ['吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '尤克里里弹唱谱', '功能谱', '简谱歌谱', '吉他独奏谱', '钢琴独奏谱', '钢琴伴奏谱（纯伴奏）',
   '简谱歌谱', '简谱合唱谱', '五线谱旋律', '教学对照谱', '和弦谱', '功能谱'];
 /* v67.3 既有 song 字段（createSong / 迁移 / 导入 / 编辑器各处已在写的键）——新建产物的键必须全部落在这里（新增字段 0） */
 const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'key', 'beats', 'unit', 'tempo', 'capo', 'customChords', 'inst', 'func', 'tabVoices', 'voxVoices',
@@ -928,8 +928,8 @@ const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'ke
       return out;
     });
     await pg._ctx.close();
-    T(r.map(x => x.t).join() === '尤克里里弹唱谱,钢琴弹唱谱（纯伴奏）,简谱合唱谱,五线谱旋律' && r.every(x => x.t === x.pub && x.t === x.ed),
-      'T25 谱库观看页标题读谱库口径 docTypeLabelPub＝统一谱名表（尤克里里弹唱谱 / 钢琴弹唱谱（纯伴奏）/ 简谱合唱谱 / 五线谱旋律，与服务端 typeLabelOf 同一份规则、与编辑器显示层同名）', JSON.stringify(r));
+    T(r.map(x => x.t).join() === '尤克里里弹唱谱,钢琴伴奏谱（纯伴奏）,简谱合唱谱,五线谱旋律' && r.every(x => x.t === x.pub && x.t === x.ed),
+      'T25 谱库观看页标题读谱库口径 docTypeLabelPub＝统一谱名表（尤克里里弹唱谱 / 钢琴伴奏谱（纯伴奏）/ 简谱合唱谱 / 五线谱旋律，与服务端 typeLabelOf 同一份规则、与编辑器显示层同名）', JSON.stringify(r));
   });
 
   /* ---------- T26 四部合唱预览（v67.5 起是引擎实时刻版，原示意图断言迁移）：4 行五线谱互不重叠，行标「五线谱 · 4 声部」覆盖 4 行 ---------- */

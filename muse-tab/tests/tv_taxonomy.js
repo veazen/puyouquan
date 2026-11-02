@@ -8,7 +8,7 @@
    X4 不变式：互切镜像（不在钢琴组、不是对照行的旋律 / 人声行整体简谱⇄五线谱；只许 12/13、23/24 两对例外，15c/17 一对在 P0 消失）、名实一致、含有一致、一级内唯一
    X5 旧 type / typeLabel 逐值不变：编辑器语料（预设 / 14 谱行变体 / 11 用途 / 导入）＋金表——编辑器 docType 与修前副本（fixtures/taxo_prev.js）逐值相同；
       服务端 type 只在 §十二第 5 条点名的三类边角改变（老钢琴谱右手有词 / 显式分组全部失效 / 脏短码与 v:2·无 v 老格式），且等于编辑器口径；
-      typeLabel 只有 J 多声部无词改名（拍板 22 / 26：简谱重奏谱 / X谱（简谱））
+      typeLabel 只有 J 多声部无词改名（拍板 22 / 26：简谱重奏谱 / X谱（简谱））与纯伴奏 CG 改名（拍板 10，P1 同版：钢琴伴奏谱（纯伴奏））
    X6 坏谱：pzOf / facetsOf / docTypeOf / pubKindOf 不抛错、只读不改入参
    X7 真服务端（api/server.js + 临时库）：卡片带 pz / sub / inst / also / fx 且＝node 推断；?pz= / ?sub= / ?inst= 在全库筛（230 首旧谱垫底，第 201 首起也筛得到），
       主谱种在前、翻页不重不漏；/api/pub/cats＝按卡片本地重算（一级＝各二级之和）；坏谱在列表 / 筛选 / 计数里都不 500
@@ -160,12 +160,12 @@ function mirrorOk(a, b) {
   return b.sub === a.sub;
 }
 const MIRROR_EXC = [['12', '13'], ['23', '24']];   /* 方案 §5.4：跟现有谱名走造成的已知例外，只许减少；15c / 17 一对 P0 起消失 */
-/* 名实一致：卡片谱名与主谱种不打架（CG 改名属拍板 10，排在 P2a——P0 期间「钢琴弹唱谱（纯伴奏）」在 钢琴谱 › 伴奏） */
+/* 名实一致：卡片谱名与主谱种不打架（拍板 10 的 CG 改名随 P1 同版上：「钢琴伴奏谱（纯伴奏）」在 钢琴谱 › 伴奏） */
 function nameOk(nm, r) {
   const m = r.pz + '.' + r.sub;
   if (/合唱谱/.test(nm)) return r.pz === 'hechang';
   if (/^简谱重奏谱|谱（简谱）$/.test(nm)) return m === 'jianpu.qiyue';
-  if (/^钢琴弹唱谱（纯伴奏/.test(nm)) return m === 'gangqin.banzou';
+  if (/^钢琴(弹唱|伴奏)谱（纯伴奏/.test(nm)) return m === 'gangqin.banzou';
   if (/独奏谱/.test(nm)) return ['gangqin.duzou', 'wuxian.qiyue', 'jita.zhitan', 'uku.zhitan'].includes(m);
   if (/弹唱谱/.test(nm)) return ['jita.tanchang', 'uku.tanchang', 'gangqin.tanchang'].includes(m);
   if (/重奏谱/.test(nm)) return m === 'wuxian.chongzou';
@@ -229,7 +229,9 @@ function typeDrift(samples) {
     if (pk.type !== oldSrv) { const c = edgeCat(d); if (!c) bad.push(x.tag + '：type 变了 ' + oldSrv + '→' + pk.type + '（不在点名边角里）'); else cats[c] = (cats[c] || 0) + 1; }
     const oldName = v ? safe(() => PREV.PQ_KIND.nameOf(v), '曲谱') : '曲谱';
     if (pk.typeLabel !== oldName) {
-      const ok = v && PREV.PQ_KIND.stackOf(v) === 'J' && oldName === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(pk.typeLabel) && !K.ctxOf(v).lyr;
+      const ok = (v && PREV.PQ_KIND.stackOf(v) === 'J' && oldName === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(pk.typeLabel) && !K.ctxOf(v).lyr)
+        /* 分类升级 P1 有意迁移（拍板 10 与 P1 同版）：纯伴奏 CG「钢琴弹唱谱（纯伴奏…）」改名「钢琴伴奏谱（纯伴奏…）」，只换「弹唱」两字 */
+        || (v && PREV.PQ_KIND.stackOf(v) === 'CG' && /^钢琴弹唱谱（纯伴奏/.test(oldName) && pk.typeLabel === oldName.replace('钢琴弹唱谱', '钢琴伴奏谱'));
       if (ok) nameDiff.push(pk.typeLabel); else bad.push(x.tag + '：typeLabel 变了 ' + oldName + '→' + pk.typeLabel);
     }
   }
@@ -387,13 +389,14 @@ async function allPages(q) {
     await guard('X5', async () => {
       const edBad = corpus.filter(x => x.dt !== safe(() => PREV.docTypeEd(x.d), '?')).map(x => x.tag + '：' + safe(() => PREV.docTypeEd(x.d), '?') + '→' + x.dt);
       const edName = corpus.filter(x => x.name !== safe(() => PREV.PQ_KIND.nameOf(x.d), '?')).map(x => ({ tag: x.tag, was: safe(() => PREV.PQ_KIND.nameOf(x.d), '?'), now: x.name }));
-      const edNameBad = edName.filter(x => !(x.was === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(x.now)));
-      T(corpus.length >= 60 && !edBad.length && !edNameBad.length, 'X5a 编辑器：docType 与修前逐值相同（' + corpus.length + ' 份）；谱名只有 J 多声部无词改名（拍板 22 / 26：' + [...new Set(edName.map(x => x.was + '→' + x.now))].join('、') + '）',
+      const edNameBad = edName.filter(x => !(x.was === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(x.now))
+        && !(/^钢琴弹唱谱（纯伴奏/.test(x.was) && x.now === x.was.replace('钢琴弹唱谱', '钢琴伴奏谱')));   /* 分类升级 P1 有意迁移：拍板 10 纯伴奏 CG 改名同版上 */
+      T(corpus.length >= 60 && !edBad.length && !edNameBad.length, 'X5a 编辑器：docType 与修前逐值相同（' + corpus.length + ' 份）；谱名只有 J 多声部无词改名（拍板 22 / 26）与纯伴奏 CG 改名（拍板 10）：' + [...new Set(edName.map(x => x.was + '→' + x.now))].join('、') + '）',
         JSON.stringify({ edBad: edBad.slice(0, 5), edNameBad: edNameBad.slice(0, 5) }));
       const all = SAMPLES.concat(EDGE.map(x => ({ tag: x.tag, d: x.d })), corpus.filter(x => x.raw).map(x => ({ tag: x.tag + '（原始 JSON）', d: x.raw })), BAD);
       const r = typeDrift(all);
       const catOk = EDGE.every(x => edgeCat(x.d) === x.cat) && ['a', 'b', 'c'].every(c => r.cats[c] > 0);
-      T(has('pubKindOf') && !r.bad.length && catOk, 'X5b 服务端 type：' + all.length + ' 份里只有点名的三类边角改变（a 老钢琴谱右手有词 ' + (r.cats.a || 0) + ' · b 显式分组全部失效 ' + (r.cats.b || 0) + ' · c 脏短码 / v:2 / 无 v 老格式 ' + (r.cats.c || 0) + '），且都等于编辑器口径；typeLabel 只有 J 多声部无词改名',
+      T(has('pubKindOf') && !r.bad.length && catOk, 'X5b 服务端 type：' + all.length + ' 份里只有点名的三类边角改变（a 老钢琴谱右手有词 ' + (r.cats.a || 0) + ' · b 显式分组全部失效 ' + (r.cats.b || 0) + ' · c 脏短码 / v:2 / 无 v 老格式 ' + (r.cats.c || 0) + '），且都等于编辑器口径；typeLabel 只有 J 多声部无词改名与纯伴奏 CG 改名（拍板 10）',
         JSON.stringify({ bad: r.bad.slice(0, 6), cats: r.cats, names: [...new Set(r.nameDiff)] }));
     });
 
@@ -455,10 +458,12 @@ async function allPages(q) {
       const sums = cats.j && Object.entries(cats.j.pz || {}).every(([, o]) => Object.values(o.sub).reduce((a, x) => a + x, 0) === o.n);
       const cq = await getJ('/api/pub/cats?q=' + encodeURIComponent('垫底22'));   /* 标题 垫底22、垫底220–229（作者昵称也参与关键词，别用昵称里的字） */
       const ill = await getJ('/api/pub/scores?pz=constructor&sub=__proto__&inst=toString');
-      T(cats.status === 200 && JSON.stringify(cats.j) === JSON.stringify(loc) && sums && cq.status === 200 && cq.j && cq.j.q === '垫底22' && cq.j.total === FILL.filter(x => x.title.includes('垫底22')).length && Object.values(cq.j.pz).reduce((s, o) => s + o.n, 0) >= cq.j.total
+      /* 分类升级 P1 有意迁移：/api/pub/cats 另带可转数 conv（tv_libpz Z1 / Z6 核对），这里比 total / pz 两项 */
+      const cj = cats.j ? { total: cats.j.total, pz: cats.j.pz } : null;
+      T(cats.status === 200 && JSON.stringify(cj) === JSON.stringify(loc) && sums && cq.status === 200 && cq.j && cq.j.q === '垫底22' && cq.j.total === FILL.filter(x => x.title.includes('垫底22')).length && Object.values(cq.j.pz).reduce((s, o) => s + o.n, 0) >= cq.j.total
         && ill.status === 200 && ill.j && !('page' in ill.j) && ill.j.scores.length === 200,
         'X7d /api/pub/cats＝按卡片本地重算（一级 / 二级 / 器乐乐器），一级＝各二级之和；?q= 按关键词算；非法 pz / sub / inst 参数忽略（回到最新 200 首）',
-        JSON.stringify({ st: cats.status, same: JSON.stringify(cats.j) === JSON.stringify(loc), sums, cq: cq.j && cq.j.total, ill: ill.j && ill.j.scores && ill.j.scores.length }));
+        JSON.stringify({ st: cats.status, same: JSON.stringify(cj) === JSON.stringify(loc), sums, cq: cq.j && cq.j.total, ill: ill.j && ill.j.scores && ill.j.scores.length }));
       const badIds = TOP.filter(x => BAD.some(y => y.tag === x.tag)).map(x => x.id);
       const badIn = badIds.every(id => cardsAll.has(id));
       const st2 = [(await get('/api/pub/scores?pz=jianpu&q=' + encodeURIComponent('金表'))).status, (await get('/api/pub/scores?inst=erhu&size=60&page=3')).status, (await get('/api/pub/cats')).status];

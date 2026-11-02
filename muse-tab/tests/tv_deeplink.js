@@ -432,7 +432,7 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
     await p6._ctx.close();
     T(r.a.pv && r.a.title && r.a.pcH >= 52 && r.a.segs === 'mel=J,mel=S,acc=mel,acc=pure' && r.a.segH >= 44,
       'D13 手机详情页（M03）：实时刻版预览（role=img）、曲名、「旋律用」与「要哪几行」分段按钮（命中区 ≥44）、主按钮高 ≥52px', JSON.stringify(r.a));
-    T(r.b.kind === '钢琴弹唱谱（纯伴奏）' && !r.b.mel && r.b.link === 'https://zhipu.puyouquan.com/?new=kids&key=F&meter=2/4&tempo=104&acc=pure' && r.b.focus === 'pure' && /钢琴弹唱谱（纯伴奏）/.test(r.b.pv)
+    T(r.b.kind === '钢琴伴奏谱（纯伴奏）' && !r.b.mel && r.b.link === 'https://zhipu.puyouquan.com/?new=kids&key=F&meter=2/4&tempo=104&acc=pure' && r.b.focus === 'pure' && /钢琴伴奏谱（纯伴奏）/.test(r.b.pv)
       && r.c.kind === '钢琴伴奏歌谱（五线谱）' && r.c.link === 'https://zhipu.puyouquan.com/?new=kids&key=F&meter=2/4&tempo=104&acc=mel&mel=S&title=%E5%B0%8F%E7%8C%AB%E9%92%93%E9%B1%BC' && /《小猫钓鱼》你改的/.test(r.c.basis)
       && r.cp[0] === r.c.link && r.d.stack === 'SG' && r.d.title === '小猫钓鱼' && r.e.kind === '二胡谱（简谱）' && r.e.mel && /instKey=erhu&mel=J/.test(r.e.link) && r.e.focus === 'mpc-inst',
       'D13b 手机上真点「只要伴奏」→ 将建成 / 预览 / 链接跟着变、「旋律用」随之消失、焦点留在刚点的钮；旋律用五线谱＋曲名 → 链接带 mel=S&title、依据「你改的」；复制的链接在电脑上打开＝同一预选（SG、曲名）；器乐独奏换二胡 → 简谱、出现「旋律用」',

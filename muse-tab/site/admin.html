@@ -114,8 +114,21 @@
       document.getElementById('ad-funnel').textContent = (fn? ('近 7 日事件'+(fl.length&&fl[0].u!=null?'（人数/次数）':'')+'：'+fn) : '')
         + (mt? ('\n北极星（7 日做出成品谱）'+mt.north7+' 人 · 7 日访客 '+mt.visitors7+' · D1 留存 '+pct(mt.d1)+' · D7 留存 '+pct(mt.d7)) : '')
         /* v68.2 收尾 ENG-6：两个分母——新外壳有操作的人（窄口径，发过任何界面命令）与编辑访客（含手机、旧版布局、只开启动台，偏大） */
-        + (um? ('\n界面：7 日用过「排版」'+(um.engrave|0)+' 人 · 「输出」'+(um.output|0)+' 人 / '+(um.flow!=null? '新外壳有操作 '+(um.flow|0)+' 人（' : '')+'编辑访客 '+(um.editors|0)+' 人'+(um.flow!=null? '，含手机、旧版布局、只开启动台）' : '')) : '');
+        + (um? ('\n界面：7 日用过「排版」'+(um.engrave|0)+' 人 · 「输出」'+(um.output|0)+' 人 / '+(um.flow!=null? '新外壳有操作 '+(um.flow|0)+' 人（' : '')+'编辑访客 '+(um.editors|0)+' 人'+(um.flow!=null? '，含手机、旧版布局、只开启动台）' : '')) : '')
+        + stackLine(j.createStack) + libLine(j.libCmd);
     }).catch(function(e){ document.getElementById('ad-stats').innerHTML='<p class="pc-empty">概览暂时无法加载（'+esc(e.message||'')+'）</p>'; });
+  }
+  /* 分类升级 P0 接口、P1 上墙：新建谱分布（create_stack 按用途 / 谱行 / 入口 / 首次拆分，次数与人数；段内人数按值去重、段与段不可相加）与谱库筛选点击（ui_cmd lib:*） */
+  var STK_SEG={scene:'用途', stack:'谱行', entry:'入口', first:'首次'};
+  function stackLine(cs){
+    if(!cs || !cs.n) return cs? '\n新建谱（'+(cs.days|0)+' 日）：0 次' : '';
+    var seg=function(k){ var o=cs[k]||{}; return Object.keys(o).sort(function(a,b){ return (o[b].n|0)-(o[a].n|0); }).slice(0,6)
+      .map(function(v){ return v+' '+(o[v].u|0)+'/'+(o[v].n|0); }).join(' · '); };
+    return '\n新建谱（'+(cs.days|0)+' 日 '+(cs.n|0)+' 次，人数/次数）：'+Object.keys(STK_SEG).map(function(k){ var t=seg(k); return t? STK_SEG[k]+' '+t : ''; }).filter(Boolean).join('｜');
+  }
+  function libLine(lc){
+    if(!lc || !lc.length) return lc? '\n谱库筛选（7 日）：暂无' : '';
+    return '\n谱库筛选（7 日，人数/次数）：'+lc.slice(0,12).map(function(r){ return String(r.k||'').replace(/^lib:/,'')+' '+(r.u|0)+'/'+(r.n|0); }).join(' · ');
   }
   function boot(){
     loadOverview();

@@ -1796,7 +1796,8 @@ const BAD_COURSE = {
           ['index.html', null, 'light', '#menu a.on', 'tblr'], ['index.html', null, 'light', '#menu a:not(.on)', 'tblr'],
           ['index.html', null, 'dark', '#menu a.on', 'tblr'], ['make.html', null, 'dark', '#menu a:not(.on)', 'tblr'],
           ['index.html', M390, 'light', '#menu a.on', 'tblr'], ['index.html', M390, 'dark', '#menu a:last-child', 'tblr'],
-          ['index.html', M390, 'light', '#lib-cats .fchip.on', 'tblr'], ['index.html', M390, 'dark', '#lib-cats .fchip:nth-child(2)', 'tblr'],
+          /* 分类升级 P1 有意迁移：手机未选一级时谱种排 2×4 宫格、没有亮着的「全部」——浅色这格改测宫格里的「简谱」（焦点环规格不变） */
+          ['index.html', M390, 'light', '#lib-cats .fchip[data-pz="jianpu"]', 'tblr'], ['index.html', M390, 'dark', '#lib-cats .fchip:nth-child(2)', 'tblr'],
           ['kecheng.html?c=course-jianpu-renshi', null, 'light', '.kcs--now > .kcs-head', 'tbr'],   // 左缘是「当前」章色竖条（inset 阴影），不计
           ['kecheng.html?c=course-jianpu-renshi', null, 'dark', '.kcs--now > .kcs-head', 'tbr'],
           /* 目录当前项左缘是 2px 章色竖条（同亮度的琥珀→靛紫变化不足 3:1，但环在淡底上清楚），左边不计 */
@@ -2023,6 +2024,8 @@ const BAD_COURSE = {
         T(ok && out['light+dark'].meta === '#1c1a3d' && out['dark+light'].meta === '#161433',
           'D5a v66.6 手机地址栏色跟随站内明暗（当前命中的 meta theme-color ＝ 新主题 --chrome；系统浅切深 / 系统深切浅 / 点切换钮）', JSON.stringify(out));
         const p3 = await dPage('index.html', { vp: M390 }); await p3.waitForTimeout(300);
+        /* 分类升级 P1 有意迁移：手机未选一级时是 2×4 宫格（不横滑）；选了一级才收成横滑一行「‹ 简谱 · 二级…」——先点「简谱」，再验横滑条键盘聚焦（行为不变） */
+        await p3.click('#lib-cats [data-pz="jianpu"]').catch(() => {}); await p3.waitForTimeout(200);
         const r = await p3.evaluate(async () => {
           const row = document.getElementById('lib-cats'); if (!row) return { noRow: true };
           /* 桩数据谱种少，390 宽下不溢出：照最后一枚 chip 补克隆直到横向溢出（行为由 .chip-row 上的通用 focusin 处理，与 chip 来源无关） */

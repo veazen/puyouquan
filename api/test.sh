@@ -529,7 +529,7 @@ chk 谱库卡片谱名·尤克里里弹唱谱 '"id":"kn_ukujt001"[^}]*"type":"uk
 chk 谱库卡片谱名·钢琴伴奏歌谱（谱类仍是vocal） '"id":"kn_jg000001"[^}]*"type":"vocal","typeLabel":"钢琴伴奏歌谱"' "$PL"
 chk 谱库卡片谱名·教学对照谱（含伴奏）（谱类仍是teach） '"id":"kn_sjg00001"[^}]*"type":"teach","typeLabel":"教学对照谱（含伴奏）"' "$PL"
 chk 谱库卡片谱名·五线谱旋律（谱类仍是instr） '"id":"kn_smel0001"[^}]*"type":"instr","typeLabel":"五线谱旋律"' "$PL"
-chk 谱库卡片谱名·钢琴弹唱谱（纯伴奏） '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴弹唱谱（纯伴奏）"' "$PL"
+chk 谱库卡片谱名·钢琴伴奏谱（纯伴奏） '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴伴奏谱（纯伴奏）"' "$PL"
 chk 脏数据谱不拖垮列表·回落曲谱 '"id":"kn_bad00001"[^}]*"typeLabel":"曲谱"' "$PL"
 nchk 谱库不再出现旧叫法器乐五线谱 '"typeLabel":"器乐五线谱"' "$PL"
 chk SSR落地页标题用统一谱名 '<title>钢琴伴奏歌 钢琴伴奏歌谱 - 谱友圈谱库</title>' "$(curl -s http://127.0.0.1:3199/pub/kn_jg000001)"
@@ -570,7 +570,7 @@ chk 埋点create_stack入库 '"meta":"pacc:JG:menu:pacc:0"' "$(SQL "SELECT name,
 PL3=$(curl -s http://127.0.0.1:3199/api/pub/scores)
 chk 卡片带谱种·钢琴伴奏歌谱＝钢琴谱›弹唱也在简谱›歌曲 '"id":"kn_jg000001"[^}]*"type":"vocal","typeLabel":"钢琴伴奏歌谱","pz":"gangqin","sub":"tanchang","inst":"","also":\["jianpu.gequ"\],"price":0' "$PL3"
 chk 卡片带分面fx（放在末尾） '"id":"kn_jg000001"[^}]*"favs":0,"fx":{"inst":\["piano"\],"parts":1,"chord":false,"acc":true,' "$(sed 's/"cover":\[[^]]*\]//g' <<< "$PL3")"
-chk 卡片带谱种·纯伴奏＝钢琴谱›伴奏 '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴弹唱谱（纯伴奏）","pz":"gangqin","sub":"banzou"' "$PL3"
+chk 卡片带谱种·纯伴奏＝钢琴谱›伴奏 '"id":"kn_cg000001"[^}]*"type":"pianoacc","typeLabel":"钢琴伴奏谱（纯伴奏）","pz":"gangqin","sub":"banzou"' "$PL3"
 chk 卡片带谱种·坏谱回落简谱›歌曲 '"id":"kn_bad00001"[^}]*"typeLabel":"曲谱","pz":"jianpu","sub":"gequ"' "$PL3"
 chk 按谱种筛全库（第201首起也筛得到、主谱种在前、各页不重不漏） 'ok' "$(node -e '
 (async()=>{ const g=async u=>(await fetch("http://127.0.0.1:3199"+u)).json(); const ids=[], segs=[]; let tot=0;

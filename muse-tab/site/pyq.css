@@ -1813,3 +1813,53 @@ html.is-mp .mp-hide{display:none!important}
 html.is-mp a.mp-text{pointer-events:none;color:inherit;text-decoration:none}
 .mp-note{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:999;
   background:var(--ink,#222);color:var(--paper,#fff);padding:10px 16px;border-radius:12px;font-size:13px;max-width:86vw;text-align:center}
+
+/* ===== 分类升级 P1 谱库（方案 docs/design-2026-11-taxonomy §四 4.1）：一级 7 个谱种 · 二级 · 乐器行 · 条件块 · 筛选抽屉 · 可转提示 · 卡片角标 ===== */
+.lib-subs,.lib-insts{margin-top:10px}
+.lib-subs .fchip.lg,.lib-insts .fchip.lg{padding:7px 14px;font-size:13px}
+.fchip.inst:not(.on){color:var(--text)}
+.fchip.tg{border-style:dashed;border-color:var(--border)}
+.fchip.tg.on{border-style:solid}
+.lib-rl{font-size:12px;color:var(--muted);margin:0 2px 0 8px}
+.lib-ztl{font-size:13px;color:var(--accent);font-weight:600;padding:6px 6px;margin-left:4px;white-space:nowrap}
+.lib-ztl:hover{text-decoration:underline}
+.lib-zt{margin:12px 0 0;font-size:12.5px;color:var(--muted)}
+.lib-zt a{color:var(--muted);padding:4px 2px}
+.lib-zt a:hover{color:var(--accent)}
+.lib-conds{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;margin:12px auto 0;max-width:680px}
+.cond{display:inline-flex;align-items:center;gap:6px;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);background:var(--accent-soft);color:var(--text);
+  border-radius:980px;padding:5px 10px 5px 12px;font-size:12.5px;font-family:inherit;cursor:pointer}
+.cond b{font-weight:700;color:var(--muted)}
+.cond:hover b{color:var(--accent)}
+.cond-note{font-size:12.5px;color:var(--muted)}
+#lib-sec .lib-head{align-items:center;flex-wrap:wrap}
+.lib-fbtn{padding:5px 12px;font-size:12.5px}
+.lib-fbtn.on{background:var(--text);color:var(--panel)}
+.lib-sort{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:980px;padding:5px 10px;font-size:12.5px;font-family:inherit}
+.lib-drawer{border:1px solid var(--border-soft);border-radius:14px;background:var(--panel);padding:12px 16px;margin:0 0 16px}
+.ld-g{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft)}
+.ld-g>b{flex:0 0 76px;font-size:12.5px;color:var(--muted);font-weight:600}
+.ld-c{display:flex;flex-wrap:wrap;gap:6px}
+.ld-ft{display:flex;align-items:center;gap:10px;padding-top:10px;font-size:12.5px;color:var(--muted)}
+.ld-ft span{margin-right:auto}
+.ld-ft .btn{padding:7px 16px;font-size:13px}
+.lib-sep{grid-column:1/-1;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--border);padding-top:10px;margin-top:4px}
+.lib-conv{grid-column:1/-1;text-align:center;font-size:13px;color:var(--muted);padding:6px 0}
+.lib-empty .lib-conv{margin-top:10px}
+.lib-convgo{border:none;background:none;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;padding:6px 4px}
+.lib-convgo:hover{text-decoration:underline}
+.cc-nota{position:absolute;bottom:7px;right:9px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.3px;
+  background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border-soft);border-radius:980px;padding:1px 8px}
+.cc-body .meta i.cap{color:var(--accent)}
+@media(max-width:580px){
+  /* 手机未选一级：2×4 宫格（简谱 五线谱 钢琴谱 吉他谱 / 尤克里里 合唱谱 功能谱 ♥收藏，不放「全部」）——横滑一行在 375 宽只露 3 个半（T1） */
+  #lib-cats.pz-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;overflow:visible;margin:12px 0 0;padding:0}
+  #lib-cats.pz-grid .fchip{padding:8px 2px;font-size:13px;text-align:center;white-space:nowrap;min-width:0}
+  #lib-cats.pz-row .fchip.back{font-weight:700;padding-left:14px;padding-right:14px}
+  .lib-zt{margin-top:10px}
+  .lib-drawer{position:fixed;left:0;right:0;bottom:0;z-index:60;margin:0;border-radius:16px 16px 0 0;max-height:72vh;overflow:auto;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));border-bottom:none}
+  body.lib-dopen::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:59}
+  .ld-g{flex-direction:column;gap:6px}
+  .ld-g>b{flex:none}
+}

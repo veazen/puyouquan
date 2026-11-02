@@ -1069,7 +1069,7 @@ svg text{user-select:none}
 #ri-lbar{display:flex;align-items:center;justify-content:center;gap:6px}
 .trk-ic .pqi{margin:0}
 .aitem .aic .pqi{display:block}
-/* v67.6 谱库卡片改统一谱名后最长 18 字（钢琴弹唱谱（纯伴奏，五线＋简谱对照））：不压右上「免费 / ¥」角标；放不下折成两行（括号里的区分信息不丢——
+/* v67.6 谱库卡片改统一谱名后最长 18 字（钢琴伴奏谱（纯伴奏，五线＋简谱对照））：不压右上「免费 / ¥」角标；放不下折成两行（括号里的区分信息不丢——
    收尾验收：单行省略时桌面卡片「钢琴伴奏歌谱（五线…」看不出是哪种），两行仍放不下才省略，悬停 title 看全名。
    省略规则挂在内层 .cc-tname 上：外层改成 flex（前面插谱类图标）时照样生效 */
 .cc-type{max-width:calc(100% - 66px);box-sizing:border-box}
@@ -1098,6 +1098,30 @@ svg text{user-select:none}
 .cc-chip.on{background:var(--text);color:var(--panel);border-color:transparent;font-weight:600}   /* v50.8 回谱友圈原版实底选中 */
 .cc-chip.fav.on{background:#e0395a;color:#fff}
 .cc-count{font-size:11.5px;color:var(--muted);margin-left:auto}
+/* 分类升级 P1：新外壳谱友圈（#circle.cc-nx，openCircleNx）——一级谱种一行、二级 / 乐器 / 条件块各一行、筛选抽屉、可转分隔与「还有 N 首」、卡片角标；旧外壳的 #circle 不带 .cc-nx，不受影响 */
+#circle.cc-nx .cc-tools::before{content:none}
+#circle.cc-nx .cc-tools>*{order:0}
+#circle.cc-nx .cc-tools{margin-top:10px}
+#circle.cc-nx .cc-pzrow .cc-chip{padding:7px 14px;font-size:13px}
+#circle.cc-nx .cc-chip.inst:not(.on){color:var(--text)}
+#circle.cc-nx .cc-chip.tg{border-style:dashed}
+#circle.cc-nx .cc-chip.tg.on{border-style:solid}
+#circle.cc-nx .cc-rl,#circle.cc-nx .cc-note{font-size:11.5px;color:var(--muted)}
+#circle.cc-nx .cc-ztl{font-size:12.5px;color:var(--accent);font-weight:600;padding:4px 6px}
+#circle.cc-nx .cc-cond{background:var(--accent-soft);color:var(--text);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+#circle.cc-nx .cc-sort{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:980px;padding:5px 10px;font-size:12.5px}
+#circle.cc-nx .cc-drawer{max-width:1028px;margin:12px auto 0;background:var(--panel);border:1px solid var(--border-soft);border-radius:12px;padding:8px 16px}
+#circle.cc-nx .cc-dg{display:flex;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft)}
+#circle.cc-nx .cc-dg>b{flex:0 0 64px;font-size:12px;color:var(--muted);font-weight:600}
+#circle.cc-nx .cc-dg>div{display:flex;flex-wrap:wrap;gap:6px}
+#circle.cc-nx .cc-dft{display:flex;align-items:center;gap:8px;padding-top:8px;font-size:12px;color:var(--muted)}
+#circle.cc-nx .cc-dft span{margin-right:auto}
+#circle.cc-nx .cc-sep{grid-column:1/-1;font-size:12px;color:var(--muted);border-top:1px dashed var(--border);padding-top:9px}
+#circle.cc-nx .cc-conv{grid-column:1/-1;text-align:center;font-size:12.5px;color:var(--muted);padding:4px 0}
+#circle.cc-nx .cc-convgo{border:none;background:none;color:var(--accent);font-weight:700;cursor:pointer;padding:4px}
+#circle.cc-nx .cc-nota{position:absolute;bottom:7px;right:9px;font-size:10px;font-weight:700;color:var(--muted);background:color-mix(in srgb, var(--panel) 88%, transparent);
+  border:1px solid var(--border-soft);border-radius:980px;padding:1px 8px}
+#circle.cc-nx .cc-card .meta i.cap{color:var(--accent)}
 /* v66.6 智能填词声部钮的可填音位数：原内联 opacity .65（2.97 / 3.75）→ 不透明色；选中态（--text 实底）取 65% 底色混合，观感同原 */
 .cc-chip .sf-vn{color:var(--faint)}
 .cc-chip.on .sf-vn{color:color-mix(in srgb,var(--panel) 65%,var(--text))}
@@ -5515,7 +5539,9 @@ const TYPE_CN={guitar:'弹唱谱', uku:'尤克里里谱', solo:'独奏谱', pian
    分类升级 P0（方案 docs/design-2026-11-taxonomy §五 / §十四，2026-10-31 负责人「好的，按建议」＝§十五 30 项按推荐）同段新增：
    谱种表 PZ（一级 7 个＋二级，id 只增不改）、乐器族 INST_FAM（＝编辑器 NW_INSTS.fam）、按音轨名推乐器 ikOf（instKey 缺省时用，只读不回写）、
    主谱种 › 二级＋也出现在 pzOf（§5.2 判法表 24 行，自上而下首条命中）、分面 facetsOf（§5.5）、旧谱类 docTypeOf（原编辑器 docType 的判法改防脏写法，
-   编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。 */
+   编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。
+   分类升级 P1（§四 4.3 / §十四 P1）同段新增：可转池 pzConv（简谱 / 五线谱 / 合唱谱两个二级的「还有 N 首是五线谱 · 用简谱看」，按二级镜像、与原稿去重、对照谱永不进）；
+   拍板 10：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」（与归属 钢琴谱 › 伴奏 名实一致；type 仍是 pianoacc）。 */
 const PQ_KIND = (function(){
   const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
   function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
@@ -5593,7 +5619,7 @@ const PQ_KIND = (function(){
       case 'JT': return uku? '尤克里里弹唱谱' : '吉他弹唱谱';
       case 'ST': return uku? '尤克里里独奏谱' : '吉他独奏谱';
       case 'G':  return (ik? instName(ik)+'独奏谱' : '钢琴独奏谱')+(ctx.dual? '（五线＋简谱对照）' : '');
-      case 'CG': return ctx.dual? '钢琴弹唱谱（纯伴奏，五线＋简谱对照）' : '钢琴弹唱谱（纯伴奏）';
+      case 'CG': return ctx.dual? '钢琴伴奏谱（纯伴奏，五线＋简谱对照）' : '钢琴伴奏谱（纯伴奏）';
       case 'JG': return '钢琴伴奏歌谱';
       case 'SG': return ctx.lyr? '钢琴伴奏歌谱（五线谱）' : '旋律＋钢琴伴奏谱（五线谱）';
       case 'CJ': return '功能谱';
@@ -5803,8 +5829,124 @@ const PQ_KIND = (function(){
     }
     return -1;
   }
+  /* 分类升级 P1 可转池（§4.3，v2 复核 T9 / T15）：r＝卡片、f＝当前筛选 {pz, sub, inst}。这份谱不在当前筛选里、但在对面一级的镜像二级里（打开时换成本一级的记谱法看）
+     → 返回观看页记谱法 'jp'（简谱、合唱谱 › 简谱合唱）/ 'st'（五线谱、合唱谱 › 五线合唱），否则 ''。
+     镜像表：歌曲 ↔ 歌曲（简谱 › 儿歌 → 五线谱 › 歌曲）、合唱 ↔ 合唱、器乐 ↔ 器乐（同一乐器；五线谱 › 重奏 → 简谱 › 器乐）、视唱 ↔ 视唱；没选二级＝对面一级除对照谱外的全部。
+     去重：已在当前筛选里的（主谱种或也出现在）不进；对照谱两边都是原稿，永不进。只看卡片字段，谱库列表 / 计数 / 编辑器谱友圈共用 */
+  const CONV_SRC = {jianpu:{gequ:['gequ'], hechang:['hechang'], qiyue:['qiyue', 'chongzou'], shichang:['shichang']},
+    wuxian:{gequ:['gequ', 'erge'], hechang:['hechang'], qiyue:['qiyue'], shichang:['shichang']}};
+  function pzConv(r, f){
+    if(!r || typeof r.pz!=='string' || !f || pzMatch(r, f)>=0) return '';
+    let opp='', subs=null, nota='';
+    if(f.pz==='hechang'){ if(f.sub!=='jianpu' && f.sub!=='wuxian') return ''; opp='hechang'; subs=[f.sub==='jianpu'? 'wuxian' : 'jianpu']; nota=f.sub==='jianpu'? 'jp' : 'st'; }
+    else if(f.pz==='jianpu' || f.pz==='wuxian'){
+      const m=CONV_SRC[f.pz]; opp=f.pz==='jianpu'? 'wuxian' : 'jianpu'; nota=f.pz==='jianpu'? 'jp' : 'st';
+      if(f.sub) subs=own(m, f.sub)? m[f.sub] : [];
+      if(f.inst) subs=(subs || ['qiyue', 'chongzou']).filter(x=>x==='qiyue' || (x==='chongzou' && f.pz==='jianpu'));
+    }
+    else return '';
+    if(subs && !subs.length) return '';
+    const pl=[r.pz+'.'+r.sub].concat(A(r.also));
+    for(let i=0; i<pl.length; i++){
+      const a=String(pl[i]).split('.');
+      if(a[0]!==opp || a[1]==='duizhao' || (subs && subs.indexOf(a[1])<0)) continue;
+      if(f.inst && r.inst!==f.inst) continue;
+      return nota;
+    }
+    return '';
+  }
+  /* ===== 分类升级 P1 谱库列表引擎（§四 4.1–4.4 / §七 / §九）：服务端 /api/pub/scores、/api/pub/cats 与编辑器新外壳谱友圈共用这一份；
+     官网是静态页读不到，pyq.js PYQ_PZ 抄一份（tv_libpz 对拍）。c＝卡片 {id, title, singer, author, composer, pz, sub, inst, also, fx, key, beats, unit, tempo, favs, views, typeLabel, intent}。
+     pzQuery(cards, o)，o＝{f:{pz,sub,inst}, words, conv, more, x（抽屉分面）, zt, style, sort, keySort, tail, shichang}，返回 {list:[{c, sec, nota, i}], n0, nConv, tail}：
+     段 sec 0 主谱种在本筛选 · 1 只在「也出现在」· 2 可转（pzConv，nota＝jp / st）· 3 尾节（tail：tab＝和弦谱后接吉他 / 尤克里里弹唱谱；jp＝「X 简谱」后接吉他弹唱谱里的简谱旋律；
+     more 且乐器结果不满 6 首＝mel，接同一级的单旋律歌曲，T5）；段内按 sort（new 原顺序＝最新 / fav 最多收藏 / view 最多浏览），keySort（乐器的调）同调排前。
+     原稿数 n0＝段 0＋1；可转数 nConv 不论 conv 开没开都给（列表末尾「还有 N 首是五线谱」） */
+  const LIB_MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1};
+  const libInPl = (c, re)=> [c.pz+'.'+c.sub].concat(A(c.also)).some(p=>re.test(p));
+  function pzWordsOk(c, words){
+    if(!words) return true;
+    const hay=((c.title||'')+' '+(c.singer||'')+' '+(c.author||'')+' '+(c.composer||'')).toLowerCase();
+    return String(words).toLowerCase().split(/[\s　]+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
+  }
+  const libErge = c=> libInPl(c, /\.erge$/) || c.intent==='kids';
+  /* 抽屉分面 x：parts 编制（1 独唱独奏 · 2 · 3 · 4＝四部以上，多选取并）· chord 已配和弦 · acc 带伴奏 · verses 多段歌词 · erge 儿歌 ·
+     keys 调（六线谱 / 四线谱比指法调 fx.fkey）· meters 拍号 · speeds 速度（slow <72 · mid 72–120 · fast >120）· hacc 合唱谱伴奏三选（yes / no） */
+  function pzFxOk(c, x){
+    if(!x) return true;
+    const fx=c.fx||{};
+    if(x.parts && x.parts.length && x.parts.indexOf(Math.min(4, Math.max(1, fx.parts|0)))<0) return false;
+    if(x.chord && !fx.chord) return false;
+    if((x.acc || x.hacc==='yes') && !fx.acc) return false;
+    if(x.hacc==='no' && fx.acc) return false;
+    if(x.verses && !((fx.verses|0)>=2)) return false;
+    if(x.erge && !libErge(c)) return false;
+    if(x.keys && x.keys.length){ const k=(c.pz==='jita' || c.pz==='uku') && fx.fkey? fx.fkey : String(c.key||''); if(x.keys.indexOf(k)<0) return false; }
+    if(x.meters && x.meters.length && x.meters.indexOf(c.beats+'/'+c.unit)<0) return false;
+    if(x.speeds && x.speeds.length){ const t=+c.tempo||0, sp=!t? '' : t<72? 'slow' : t<=120? 'mid' : 'fast'; if(x.speeds.indexOf(sp)<0) return false; }
+    return true;
+  }
+  /* 专题（§4.4 并集口径）：考编即兴伴奏 · 艺考视唱（只收 intent＝sight，T4）· 师范儿歌弹唱 · 课堂对照谱 */
+  function pzZtOk(c, zt){
+    const fx=c.fx||{};
+    switch(zt){
+      case 'kaobian': return libInPl(c, /^gangqin\.(tanchang|banzou)$|^gongneng\.jishu$/) || (libInPl(c, /^(jianpu|wuxian)\.(gequ|erge|shichang|qiyue)$/) && (fx.parts|0)<=1 && !!fx.chord);
+      case 'yikao': return libInPl(c, /^(jianpu|wuxian)\.shichang$/) && c.intent==='sight';
+      case 'shifan': return libErge(c) || libInPl(c, /\.duizhao$/);
+      case 'ketang': return libInPl(c, /\.duizhao$/) || (libInPl(c, /^jianpu\.gequ$/) && !!fx.acc);
+      default: return true;
+    }
+  }
+  function pzQuery(cards, o){
+    o = o || {};
+    const f=o.f||{}, x=o.x||null, out=[], hasF=!!(f.pz || f.sub || f.inst);
+    A(cards).forEach((c, i)=>{
+      if(!c || !pzWordsOk(c, o.words) || !pzFxOk(c, x) || (o.zt && !pzZtOk(c, o.zt)) || (o.style==='erge' && !libErge(c))) return;
+      let sec=-1, nota='';
+      if(!hasF) sec=0;
+      else { const g=pzMatch(c, f); if(g>=0) sec=(o.shichang && !f.pz)? (libInPl(c, /^wuxian\.shichang$/)? 0 : 1) : g; else { nota=pzConv(c, f); if(nota) sec=2; } }
+      if(sec>=0) out.push({c, sec, nota, i});
+    });
+    const n0=out.filter(e=>e.sec<2).length, nConv=out.filter(e=>e.sec===2).length;
+    const list=o.conv? out : out.filter(e=>e.sec<2);
+    let tail='';
+    const have={}; list.forEach(e=>{ have[e.c.id]=1; });
+    const addTail = pred=>{ let n=0; A(cards).forEach((c, i)=>{ if(!c || have[c.id] || !pzWordsOk(c, o.words) || !pzFxOk(c, x) || !pred(c)) return; have[c.id]=1; list.push({c, sec:3, nota:'', i}); n++; }); return n; };
+    if(o.tail==='tab'){ if(addTail(c=>libInPl(c, /^(jita|uku)\.tanchang$/))) tail='tab'; }
+    else if(o.tail==='jp'){ if(addTail(c=>(c.pz==='jita' || c.pz==='uku') && /弹唱谱$/.test(c.typeLabel||''))) tail='jp'; }
+    if(o.more && f.inst && LIB_MEL[f.inst] && n0<6){
+      const lv = f.pz==='wuxian'? /^wuxian\.(gequ|erge)$/ : f.pz==='jianpu'? /^jianpu\.(gequ|erge)$/ : (INST_FAM[f.inst]==='jianpu'? /^jianpu\.(gequ|erge)$/ : /^(jianpu|wuxian)\.(gequ|erge)$/);
+      if(addTail(c=>libInPl(c, lv) && ((c.fx||{}).parts|0)<=1)) tail=tail || 'mel';
+    }
+    const sk = o.sort==='fav'? (e=>-(+e.c.favs||0)) : o.sort==='view'? (e=>-(+e.c.views||0)) : (()=>0);
+    const ks = o.keySort? (e=>String(e.c.key||'')===o.keySort? 0 : 1) : (()=>0);
+    list.sort((a, b)=>a.sec-b.sec || ks(a)-ks(b) || sk(a)-sk(b) || a.i-b.i);
+    return {list, n0, nConv, tail};
+  }
+  /* 计数（/api/pub/cats）：各一级（主谱种 ∪ 也出现在）、各二级、简谱 / 五线谱「器乐」按乐器（器乐 ∪ 重奏，与筛选同口径）；一级内唯一 → 一级＝各二级之和。
+     conv＝可转数（pzConv）：简谱 / 五线谱的一级、各二级、器乐乐器，合唱谱两个二级 */
+  function pzCats(cards){
+    const out={total:A(cards).length, pz:{}}, cv={jianpu:{n:0, sub:{}, inst:{}}, wuxian:{n:0, sub:{}, inst:{}}, hechang:{sub:{jianpu:0, wuxian:0}}};
+    PZ.forEach(p=>{ const o=out.pz[p.id]={n:0, sub:{}}; p.subs.forEach(x=>{ o.sub[x.id]=0; });
+      if(p.id==='jianpu' || p.id==='wuxian'){ o.inst={}; p.subs.forEach(x=>{ cv[p.id].sub[x.id]=0; }); } });
+    A(cards).forEach(c=>{
+      if(!c) return;
+      PZ.forEach(p=>{
+        if(pzMatch(c, {pz:p.id})<0) return;
+        const o=out.pz[p.id]; o.n++;
+        p.subs.forEach(x=>{ if(pzMatch(c, {pz:p.id, sub:x.id})>=0) o.sub[x.id]++; });
+        if(o.inst && c.inst && pzMatch(c, {pz:p.id, inst:c.inst})>=0) o.inst[c.inst]=(o.inst[c.inst]||0)+1;
+      });
+      ['jianpu', 'wuxian'].forEach(t=>{ const o=cv[t];
+        if(pzConv(c, {pz:t})) o.n++;
+        Object.keys(o.sub).forEach(sb=>{ if(pzConv(c, {pz:t, sub:sb})) o.sub[sb]++; });
+        if(c.inst && pzConv(c, {pz:t, inst:c.inst})) o.inst[c.inst]=(o.inst[c.inst]||0)+1; });
+      ['jianpu', 'wuxian'].forEach(sb=>{ if(pzConv(c, {pz:'hechang', sub:sb})) cv.hechang.sub[sb]++; });
+    });
+    out.conv=cv;
+    return out;
+  }
   return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf,
-    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch};
+    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats};
 })();
 /* @pq-kindname end */
 /* 编辑器显示层（右栏 ri-type / 页签 / 建成提示 / 换谱类…）与谱库口径（观看页标题、微信 / 小程序分享卡、分享卡 PNG、谱库卡片）v67.6 起同读上面的统一谱名表，
@@ -47298,6 +47440,7 @@ function renderCircleGrid(){
   const cnt=document.querySelector('#circle .cc-count'); if(cnt) cnt.textContent=list.length+' 首';
 }
 function openCircle(){
+  if(flowNx()) return openCircleNx();   /* 分类升级 P1：新外壳新形态走谱种谱友圈（openCircleNx）；旧外壳 / ?next=0 / 手机照旧 */
   seedCircle();
   closePop(); closeModal();
   ccFilter={q:'', cat:'all', pay:'all', favOnly:false};   // 每次进入重置筛选（收藏数据本身持久保存）
@@ -47357,6 +47500,275 @@ function openCircle(){
       /* v50.8 真实谱库项走 openRemotePub 观看模式（?pub= 同链路）；本地演示项保留原试读/购买流 */
       if(c.dataset.remote){ div.remove(); openRemotePub(c.dataset.pub); }
       else openPubViewer(c.dataset.pub);
+    }
+  });
+}
+/* ===== 分类升级 P1：新外壳谱友圈（方案 docs/design-2026-11-taxonomy §四 / §七；flowNx() 才走这里——旧外壳 ?shell=classic / ?next=0 / 手机走 openCircle 原分支，逐字节不动）=====
+   一级 7 个谱种（全部 · 简谱 · 五线谱 · 钢琴谱 · 吉他谱 · 尤克里里 · 合唱谱 · 功能谱 · ♥ 收藏）· 二级单选 · 乐器行（简谱 / 五线谱下按数量前 6 常显）· 行末开关与专题 · 筛选抽屉；
+   列表与计数＝统一谱名表 PQ_KIND.pzQuery / pzCats（与服务端 /api/pub/scores、/api/pub/cats 同一份）：主谱种在前、也出现在的在后，
+   简谱 / 五线谱 / 合唱谱两个二级的末尾「还有 N 首是五线谱 · 用简谱看 ›」（原稿 <6 首或搜索时自动展开），点开带 nota（观看页用简谱 / 五线视图，只改观看副本）。
+   在线时搜索交给接口解析（条件块可删、0 结果退路），并从接口补齐全库（第 201 首起）；离线只在本地示例里按子串搜。筛选每次进入重置、不落本机；
+   埋点只记 ui_cmd lib:<维度>:<id>。首访一次性提示「钢琴独奏 → 钢琴谱 › 独奏」（本机键 musetab-libtip，只记看过） */
+let ccNx=null;
+const CC_PZ_IC={jianpu:'nota-jianpu', wuxian:'nota-staff', gangqin:'type-piano', jita:'type-guitar', uku:'type-uku', hechang:'type-vocal', gongneng:'type-func'};
+const CC_TYPE_PZ={guitar:['jita','tanchang'], uku:['uku','tanchang'], solo:['jita','zhitan'], pianoacc:['gangqin','banzou'], piano:['gangqin','duzou'],
+  vocal:['jianpu','gequ'], vox:['jianpu','gequ'], teach:['wuxian','duizhao',['jianpu.duizhao']], instr:['wuxian','qiyue'], staff:['wuxian','qiyue'], func:['gongneng','jishu'], chord:['gongneng','hexian']};
+const CC_FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
+const CC_ZT={jianpu:['shifan','儿歌弹唱'], wuxian:['yikao','艺考视唱'], gangqin:['kaobian','即兴伴奏'], gongneng:['jixing','即兴伴奏']};
+/* 卡片 → 谱种字段：线上卡片接口 P0 起带 pz / sub / inst / also / fx；本地演示谱按谱面现算（同一个 PQ_KIND）；都没有（旧接口）按旧 type 粗归 */
+function ccPzOf(pb){
+  const o={id:pb.pid};
+  if(typeof pb.pz==='string' && PQ_KIND.pzHas(pb.pz, pb.sub)) return Object.assign(o, {pz:pb.pz, sub:pb.sub, inst:pb.inst||'', also:Array.isArray(pb.also)? pb.also : [], fx:pb.fx||null});
+  if(pb.data && typeof pb.data==='object'){ const r=PQ_KIND.pzOf(pb.data); return Object.assign(o, {pz:r.pz, sub:r.sub, inst:r.inst, also:r.also, fx:PQ_KIND.facetsOf(pb.data),
+    capo:+pb.data.capo||0, intent:typeof pb.data.intent==='string'? pb.data.intent : '', singer:pb.singer||pb.data.singer||'', composer:pb.composer||pb.data.composer||''}); }
+  const t=CC_TYPE_PZ[pb.type]||CC_TYPE_PZ.vocal; return Object.assign(o, {pz:t[0], sub:t[1], also:(t[2]||[]).slice(), inst:t[1]==='qiyue'? 'other' : '', fx:null});
+}
+function ccNxPool(){
+  const fav=circleFav(), have={};
+  /* 线上：直接用接口卡片（circleAll 的线上映射不带谱种字段，旧外壳照旧用它）；离线：本地演示谱按谱面现算 */
+  const L=(ccRemote? ccRemote.map(x=>ccNxCard(x)) : circleAll().map(pb=>Object.assign(pb, ccPzOf(pb)))).map(pb=>{ have[pb.pid]=1; return pb; });
+  Object.keys(ccNx.extra).forEach(k=>{ if(!have[k]) L.push(ccNx.extra[k]); });
+  return L.filter(pb=>(!ccNx.favOnly || fav[pb.pid]) && (ccNx.pay!=='free' || !(pb.price>0)) && (ccNx.pay!=='paid' || pb.price>0));
+}
+/* 接口卡片 → circleAll 同形（与 circleAll 的线上映射同口径，另带谱种字段） */
+function ccNxCard(s, keep){   /* keep：留下本次筛选的段号 sec / 可转 nota（接口列表原样展示用）；并进本地卡池的不留 */
+  const pb={pid:s.id, title:s.title, author:s.author, singer:s.singer||'', composer:s.composer||'', type:s.type, typeLabel:s.typeLabel||'', price:s.price||0, measures:s.measures||0,
+    cover:s.cover||[], remote:true, thumb:s.thumb?1:0, key:s.key||'', tempo:s.tempo||0, beats:s.beats||0, unit:s.unit||0, verses:s.verses||0,
+    pz:s.pz, sub:s.sub, inst:s.inst, also:s.also, fx:s.fx, capo:s.capo||0, intent:s.intent||'', favs:s.favs||0, views:s.views||0};
+  if(keep){ pb.sec=s.sec; pb.nota=s.nota||''; }
+  return Object.assign(pb, ccPzOf(pb));
+}
+const ccNxQ=()=>String(ccNx.q||'').trim().split(/[\s　]+/).filter(Boolean).join(' ');
+function ccNxF(){ const f={}; if(ccNx.pz) f.pz=ccNx.pz; if(ccNx.sub) f.sub=ccNx.sub; if(ccNx.inst) f.inst=ccNx.inst; return f; }
+function ccNxConvPz(){ const s=ccNx; return s.pz==='jianpu' || s.pz==='wuxian' || (s.pz==='hechang' && (s.sub==='jianpu' || s.sub==='wuxian')); }
+function ccNxX(){ const x=ccNx.x, any=x.parts.length || x.chord || x.acc || x.verses || x.erge || x.keys.length || x.meters.length || x.speeds.length || ccNx.hacc; return any? Object.assign({}, x, {hacc:ccNx.hacc}) : null; }
+function ccNxSrv(){ const q=ccNxQ(); return !!(q && ccNx.srv && ccNx.srv.q===q && ccNx.srv.parsed); }
+function ccNxCounts(){ return ccNx.cats || PQ_KIND.pzCats(ccNxPool()); }
+function ccNxTrack(dim, v){ try{ if(/^[a-z0-9]{1,16}$/.test(String(v)) && FLOW && FLOW.track) FLOW.track('lib:'+dim+':'+v); }catch(_){} }
+function ccNxQuery(){
+  if(ccNxSrv()){ const S=ccNx.srv, nota=S.parse && S.parse.nota;
+    return {list:S.list.map(pb=>({c:pb, sec:pb.sec|0, nota:pb.nota||nota||''})), n0:S.n0, nConv:S.nConv, tail:S.tail, convShown:!!S.conv, pz:S.pz, sub:S.sub, total:S.total}; }
+  const words=ccNxQ(), r=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words, conv:true, more:true, x:ccNxX(), sort:ccNx.sort});
+  const cp=ccNxConvPz(), shown=cp && (ccNx.conv || !!words || r.n0<6);
+  return {list:shown? r.list : r.list.filter(e=>e.sec!==2), n0:r.n0, nConv:cp? r.nConv : 0, tail:r.tail, convShown:shown, pz:ccNx.pz, sub:ccNx.sub, total:null};
+}
+function ccNxInsts(pz){ const C=ccNxCounts(), o=(C.pz[pz]||{}).inst||{};
+  return Object.keys(o).filter(k=>o[k]>0 && PQ_KIND.own(PQ_KIND.INST, k)).sort((a,b)=>o[b]-o[a] || (a<b?-1:1)); }
+const ccInstNm=k=> k==='other'? '其他' : (PQ_KIND.INST[k]||k);
+function ccNxChip(attr, label, on, cls){ return `<button type="button" class="cc-chip${cls? ' '+cls : ''}${on? ' on' : ''}" ${attr}>${label}</button>`; }
+function renderCircleNx(){
+  const div=document.getElementById('circle'); if(!div || !ccNx) return;
+  const s=ccNx, C=ccNxCounts(), p=PQ_KIND.PZ.find(x=>x.id===s.pz);
+  /* 一级 */
+  const r1=div.querySelector('.cc-pzrow');
+  r1.innerHTML=ccNxChip('data-pzall', '全部', !s.pz && !s.favOnly)+PQ_KIND.PZ.map(x=>ccNxChip(`data-pz="${x.id}"`, pqIcon(CC_PZ_IC[x.id], 16, 'cc-ic')+x.name, s.pz===x.id)).join('')
+    +ccNxChip('data-favonly', '♥ 收藏', s.favOnly, 'fav');
+  /* 二级＋行末开关＋专题 */
+  let h='';
+  if(p){
+    const cs=(C.pz[s.pz]||{sub:{}}).sub;
+    p.subs.forEach(x=>{ if((cs[x.id]||0)>0 || CC_FOCUS[s.pz+'.'+x.id] || s.sub===x.id || (x.id==='qiyue' && s.inst)) h+=ccNxChip(`data-sub="${x.id}"`, x.name, s.sub===x.id || (x.id==='qiyue' && !!s.inst)); });
+    if(s.pz==='jianpu') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg')+ccNxChip('data-tg="chord"', '已配和弦', s.x.chord, 'tg');
+    else if(s.pz==='wuxian') h+=ccNxChip('data-tg="acc"', '带伴奏', s.x.acc, 'tg');
+    else if(s.pz==='hechang') h+=ccNxChip('data-hacc=""', '全部', !s.hacc, 'tg')+ccNxChip('data-hacc="yes"', '带伴奏', s.hacc==='yes', 'tg')+ccNxChip('data-hacc="no"', '无伴奏', s.hacc==='no', 'tg');
+    const z=CC_ZT[s.pz]; if(z) h+=`<a class="cc-ztl" href="https://www.puyouquan.com/${z[0]}.html" target="_blank" rel="noopener" data-zt="${z[0]==='jixing'? 'kaobian' : z[0]}">${z[1]} ›</a>`;
+  }
+  const r2=div.querySelector('.cc-subrow'); r2.innerHTML=h; r2.hidden=!h;
+  /* 乐器行 */
+  let ih='';
+  if(s.pz==='jianpu' || s.pz==='wuxian'){
+    const L=ccNxInsts(s.pz); let show=s.instMore? L : L.slice(0,6); if(s.inst && show.indexOf(s.inst)<0) show=show.concat([s.inst]);
+    if(L.length) ih='<span class="cc-rl">乐器</span>'+show.map(k=>ccNxChip(`data-inst="${k}"`, esc(ccInstNm(k)), s.inst===k, 'inst')).join('')+(L.length>6? ccNxChip('data-imore', s.instMore? '收起' : '更多', false) : '');
+  }
+  const r3=div.querySelector('.cc-instrow'); r3.innerHTML=ih; r3.hidden=!ih;
+  /* 条件块（在线搜索解析出的，可删）· 只给二级 · 0 结果退路 */
+  let ch='';
+  const P=ccNxSrv()? s.srv.parse : null;
+  if(P) (P.conds||[]).forEach(c=>{ ch+=`<button type="button" class="cc-chip cc-cond" data-rm="${esc(c.rm)}" title="去掉这个条件">${esc(c.label)} ×</button>`; });
+  if(P && s.srv.fb) ch+=`<span class="cc-note">${esc(s.srv.fb)}</span>`;
+  if(P && P.hint==='inst') ch+='<span class="cc-note">按乐器找</span>'+['erhu','guzheng','dizi','hulusi','sax','violin'].map(k=>ccNxChip(`data-hinst="${k}"`, ccInstNm(k), false)).join('');
+  const r4=div.querySelector('.cc-condrow'); r4.innerHTML=ch; r4.hidden=!ch;
+  const fb=div.querySelector('[data-drawer]'); if(fb) fb.classList.toggle('on', !!ccNxX());
+  renderCircleNxGrid();
+  if(s.drawer) renderCircleNxDrawer();
+}
+const CC_TAIL={tab:'吉他 / 尤克里里弹唱谱（也标了和弦）', jp:'吉他弹唱谱里也有简谱旋律', mel:'歌曲旋律（也能直接拉 / 吹）'};
+function renderCircleNxGrid(){
+  const grid=document.querySelector('#circle .cc-grid'); if(!grid || !ccNx) return;
+  const own=circleOwned(), fav=circleFav(), R=ccNxQuery();
+  const cw = R.pz==='hechang'? (R.sub==='jianpu'? ['五线合唱','简谱'] : ['简谱合唱','五线谱']) : R.pz==='jianpu'? ['五线谱','简谱'] : ['简谱','五线谱'];
+  let h='', last=-1; const byId={};
+  R.list.forEach(e=>{
+    if(e.sec===2 && last!==2) h+=`<div class="cc-sep" data-sec="2">以下是${cw[0]}，打开时用${cw[1]}看</div>`;
+    if(e.sec===3 && last!==3 && CC_TAIL[R.tail]) h+=`<div class="cc-sep" data-sec="3">${CC_TAIL[R.tail]}</div>`;
+    last=e.sec; byId[e.c.pid]=e;
+    h+=circleCard(e.c, own, fav);
+  });
+  const convLine = (!R.convShown && R.nConv>0 && R.pz)? `<div class="cc-conv">还有 ${R.nConv} 首是${cw[0]} · <button type="button" class="cc-convgo" data-conv>用${cw[1]}看 ›</button></div>` : '';
+  if(convLine){ const k=h.indexOf('<div class="cc-sep" data-sec="3">'); h= k>=0? h.slice(0,k)+convLine+h.slice(k) : h+convLine; }
+  grid.innerHTML = R.list.length? h
+    : `<p style="grid-column:1/-1;color:var(--muted);text-align:center;padding:30px 0">没有符合条件的曲谱${ccNx.favOnly?'（收藏夹为空）':''}。</p>${convLine}`;
+  /* 卡片补：谱类图标（同旧外壳）· 角标「可看简谱 / 可看五线」· 能力小标 · 可转卡的 nota */
+  try{
+    grid.querySelectorAll('.cc-card[data-pub]').forEach(c=>{ const e=byId[c.dataset.pub]; if(!e) return; const pb=e.c, t=c.querySelector('.cc-type');
+      if(t && !t.querySelector('svg.pqi')) t.insertAdjacentHTML('afterbegin', pqIcon(ccKindIc(pb, t.textContent), 16, 'cc-ic'));
+      if(e.nota) c.dataset.nota=e.nota;
+      const fx=pb.fx; if(!fx) return;
+      const nb = (pb.pz==='jita' || pb.pz==='uku' || (pb.pz==='gongneng' && pb.sub==='hexian'))? '' : fx.nota0==='jp'? '可看五线' : fx.nota0==='st'? '可看简谱' : '';
+      if(nb){ const cv=c.querySelector('.cc-cover'); if(cv) cv.insertAdjacentHTML('beforeend', `<span class="cc-nota">${nb}</span>`); }
+      const caps=[]; if(fx.chord && pb.pz!=='gongneng') caps.push('配和弦'); if(fx.acc && !(pb.pz==='gangqin' && pb.sub==='banzou')) caps.push('伴奏'); if(fx.ens) caps.push('分谱');
+      const mt=c.querySelector('.meta'); if(mt && caps.length) mt.insertAdjacentHTML('beforeend', caps.map(x=>`<i class="cap">${x}</i>`).join(''));
+    });
+  }catch(_){}
+  const cnt=document.querySelector('#circle .cc-count'); if(cnt) cnt.textContent=(R.total!=null? R.total : R.list.length)+' 首';
+}
+function renderCircleNxDrawer(){
+  const dr=document.querySelector('#circle .cc-drawer'); if(!dr || !ccNx) return;
+  if(!ccNx.drawer){ dr.hidden=true; return; }
+  const x=ccNx.x, tab=ccNx.pz==='jita' || ccNx.pz==='uku';
+  const base=PQ_KIND.pzQuery(ccNxPool(), {f:ccNxF(), words:ccNxQ(), conv:false, x:Object.assign({}, x, {keys:[], meters:[], hacc:ccNx.hacc})}).list;
+  const kc={}, mc={};
+  base.forEach(e=>{ const c=e.c, k=tab && c.fx && c.fx.fkey? c.fx.fkey : String(c.key||''); if(k) kc[k]=(kc[k]||0)+1; if(c.beats>0 && c.unit>0){ const m=c.beats+'/'+c.unit; mc[m]=(mc[m]||0)+1; } });
+  const top=(o, sel)=>Object.keys(o).sort((a,b)=>o[b]-o[a] || (a<b?-1:1)).slice(0,10).concat(sel.filter(v=>!o[v]));
+  const dc=(attr, label, on)=>ccNxChip(attr+` aria-pressed="${on?'true':'false'}"`, label, on);
+  const g=(t, inner)=>inner? `<div class="cc-dg"><b>${t}</b><div>${inner}</div></div>` : '';
+  let h='';
+  h+=g('编制', [[1,'独唱独奏'],[2,'二部'],[3,'三部'],[4,'四部以上']].map(a=>dc(`data-dx="parts:${a[0]}"`, a[1], x.parts.indexOf(a[0])>=0)).join(''));
+  h+=g('能用来', dc('data-dx="chord"', '已配和弦', x.chord)+dc('data-dx="acc"', '带伴奏', x.acc)+dc('data-dx="verses"', '多段歌词', x.verses));
+  h+=g('风格', dc('data-dx="erge"', '儿歌', x.erge));
+  h+=g(tab? '指法调' : '调', top(kc, x.keys).map(k=>dc(`data-dx="key:${esc(k)}"`, esc(k)+'调', x.keys.indexOf(k)>=0)).join(''));
+  h+=g('拍号', top(mc, x.meters).map(m=>dc(`data-dx="meter:${esc(m)}"`, esc(m), x.meters.indexOf(m)>=0)).join(''));
+  h+=g('速度', [['slow','慢'],['mid','中速'],['fast','快']].map(a=>dc(`data-dx="speed:${a[0]}"`, a[1], x.speeds.indexOf(a[0])>=0)).join(''));
+  h+=g('价格', ccNxChip('data-pay="free"', '免费', ccNx.pay==='free')+ccNxChip('data-pay="paid"', '付费', ccNx.pay==='paid'));
+  h+=`<div class="cc-dft"><span>${ccNxQuery().list.length} 首 · 都能一键移调</span>${ccNxChip('data-dclr', '清空', false)}${ccNxChip('data-dok', '完成', false)}</div>`;
+  dr.innerHTML=h; dr.hidden=false;
+}
+/* 在线：搜索交接口解析（防抖 300ms）；库被截断（接口 total 大于首批）时按当前筛选补齐全库 */
+function ccNxQs(o){
+  const s=ccNx, x=s.x, p=[];
+  if(s.pz) p.push('pz='+s.pz); if(s.sub) p.push('sub='+s.sub); if(s.inst) p.push('inst='+s.inst);
+  if(x.parts.length) p.push('parts='+x.parts.join(',')); if(x.chord) p.push('chord=1'); if(x.acc) p.push('acc=1'); if(x.verses) p.push('verses=1'); if(x.erge) p.push('erge=1');
+  if(x.keys.length) p.push('key='+encodeURIComponent(x.keys.join(','))); if(x.meters.length) p.push('meter='+encodeURIComponent(x.meters.join(','))); if(x.speeds.length) p.push('speed='+x.speeds.join(','));
+  if(s.hacc) p.push('hacc='+s.hacc); if(s.sort!=='new') p.push('sort='+s.sort);
+  if(o && o.conv!=null) p.push('conv='+(o.conv? 1 : 0)); if(o && o.more) p.push('more=1'); if(o && o.q) p.push('q='+encodeURIComponent(o.q));
+  return p.join('&');
+}
+function ccNxRemote(now){
+  const s=ccNx; if(!s || ccRemote===null) return;
+  clearTimeout(s.timer);
+  const q=ccNxQ();
+  if(q){
+    s.timer=setTimeout(()=>{
+      const qs=ccNxQs({q, more:true, conv:ccNxConvPz()? (s.conv || null) : null})+'&size=60';
+      apiCall('/pub/scores?'+qs).then(j=>{
+        if(ccNx!==s || ccNxQ()!==q || !j) return;
+        const L=(j.scores||[]).map(x=>ccNxCard(x, true)), P=j.parse||null;
+        (j.scores||[]).forEach(x=>{ if(!s.extra[x.id]) s.extra[x.id]=ccNxCard(x); });
+        if(P && P.only && !P.words && (P.pz || P.sub)){   /* 只有谱种词＝点了这个一级（T8） */
+          s.pz=P.pz && PQ_KIND.pzHas(P.pz)? P.pz : ''; s.sub=P.sub && PQ_KIND.pzHas(s.pz, P.sub)? P.sub : ''; s.inst=''; s.q=''; s.srv=null;
+          const qi=document.getElementById('cc-q'); if(qi) qi.value=''; ccNxTrack(s.pz? 'pz' : 'sub', s.pz||s.sub); renderCircleNx(); return; }
+        const parsed=!!(P && ((P.conds||[]).length || P.hint || P.tail || j.fb || String(P.words||'').trim().split(/\s+/).filter(Boolean).join(' ')!==q));
+        s.srv={q, parsed, parse:P, fb:j.fb||'', list:L, total:j.total|0, n0:j.n0|0, nConv:j.nConv|0, conv:!!j.conv, tail:j.tail||'', pz:j.pz||'', sub:j.sub||''};
+        renderCircleNx();
+      }).catch(()=>{});
+    }, now? 0 : 300);
+    return;
+  }
+  s.srv=null;
+  if(!(s.total>(ccRemote||[]).length) || !(s.pz || s.sub || s.inst || ccNxX())) return;
+  const key=ccNxQs({conv:true, more:true}); if(s.fetched[key]) return; s.fetched[key]=1;
+  const page=n=>apiCall('/pub/scores?'+key+'&size=60&page='+n).then(j=>{ if(ccNx!==s || !j) return; (j.scores||[]).forEach(x=>{ if(!s.extra[x.id]) s.extra[x.id]=ccNxCard(x); }); renderCircleNx();
+    if((n+1)*60<(j.total|0) && n<4) page(n+1); }).catch(()=>{});
+  page(0);
+}
+function ccNxChanged(dim, v){ if(dim) ccNxTrack(dim, v); renderCircleNx(); ccNxRemote(true); }
+function openCircleNx(){
+  seedCircle();
+  closePop(); closeModal();
+  ccNx={q:'', pz:'', sub:'', inst:'', hacc:'', favOnly:false, pay:'all', x:{parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]},
+    sort:'new', instMore:false, conv:false, drawer:false, extra:{}, fetched:{}, srv:null, cats:null, total:0, timer:0};   // 每次进入重置筛选（不落本机）
+  let div=document.getElementById('circle');
+  if(div) div.remove();
+  div=document.createElement('div'); div.id='circle'; div.className='cc-nx';
+  const notice=(adminCfg().notice||'').trim();
+  div.innerHTML=`<div class="cc-top">
+      <span class="cc-logo"><span class="mark"></span>谱友圈</span>
+      <span class="cc-sub">发现好谱、支持创作者 &nbsp;|&nbsp; 创作者可在「发布」把曲谱上架到这里</span>
+      <span style="flex:1"></span>
+      <button id="cc-back" class="primary">返回制谱器</button>
+    </div>
+    ${notice? `<div style="max-width:1080px;margin:14px auto -6px;padding:0 26px"><div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:8px 14px;font-size:12.5px">${svgi('megaphone',12)} ${esc(notice)}</div></div>`:''}
+    <div class="cc-tools" style="margin-top:18px">
+      <span class="cc-search"><input id="cc-q" placeholder="搜曲名 / 歌手 / 作曲" value=""></span>
+      <button type="button" class="cc-chip" data-drawer aria-expanded="false">筛选</button>
+      <select class="cc-sort" aria-label="排序"><option value="new">最新</option><option value="fav">最多收藏</option><option value="view">最多浏览</option></select>
+      <span class="cc-count"></span>
+    </div>
+    <div class="cc-tools cc-condrow" hidden></div>
+    <div class="cc-tools cc-pzrow" role="group" aria-label="谱种"></div>
+    <div class="cc-tools cc-subrow" role="group" aria-label="二级分类" hidden></div>
+    <div class="cc-tools cc-instrow" role="group" aria-label="乐器" hidden></div>
+    <div class="cc-drawer" hidden></div>
+    <div class="cc-grid"></div>
+    <p id="cc-foot" style="text-align:center;color:var(--muted);font-size:11.5px;margin:10px 0 30px">正在同步在线谱库…</p>`;
+  document.body.appendChild(div);
+  const s=ccNx;
+  renderCircleNx();
+  /* 旧分类按钮换成谱种：首访一次性提示（本机键只记看过） */
+  try{ if(!localStorage.getItem('musetab-libtip')){ localStorage.setItem('musetab-libtip', '1');
+    toastSay('钢琴独奏 → 钢琴谱 › 独奏', {t:'钢琴独奏 → 钢琴谱 › 独奏', k:'state', ms:5000}); } }catch(_){}
+  apiCall('/pub/scores').then(r=>{
+    if(ccNx!==s) return;
+    ccRemote = r.scores||[]; s.total=r.total|0;
+    const ft=document.getElementById('cc-foot');
+    if(ft) ft.textContent='与官网谱库实时同步 · 点卡片即看即弹（观看模式可移调、跟谱播放）';
+    renderCircleNx(); ccNxRemote(true);
+    apiCall('/pub/cats').then(c=>{ if(ccNx===s && c && c.pz && c.conv){ s.cats=c; renderCircleNx(); } }).catch(()=>{});
+  }).catch(()=>{ ccRemote=null;
+    const ft=document.getElementById('cc-foot');
+    if(ft) ft.textContent='当前离线：显示本地示例曲谱，联网后自动与官网谱库同步';
+  });
+  document.getElementById('cc-back').onclick=()=>div.remove();
+  const q=document.getElementById('cc-q');
+  q.oninput=()=>{ s.q=q.value; renderCircleNx(); ccNxRemote(); };
+  div.querySelector('.cc-sort').onchange=e=>{ s.sort=e.target.value; ccNxChanged(); };
+  div.addEventListener('click', e=>{
+    const fv=e.target.closest('.cc-fav[data-fav]');
+    if(fv){ e.stopPropagation(); const on=toggleFav(fv.dataset.fav);
+      cloudFav(fv.dataset.fav, on);
+      fv.classList.toggle('on',on); fv.textContent=on?'♥':'♡'; fv.title=on?'取消收藏':'收藏';
+      if(s.favOnly) renderCircleNxGrid(); return; }
+    const b=e.target.closest('button,a'), d=b? b.dataset : {};
+    if(b && d.zt!==undefined){ ccNxTrack('zt', d.zt); return; }
+    if(b && d.pzall!==undefined){ s.pz=''; s.sub=''; s.inst=''; s.hacc=''; s.favOnly=false; ccNxChanged(); return; }
+    if(b && d.pz!==undefined){
+      if(s.pz===d.pz){ s.pz=''; s.sub=''; s.inst=''; }
+      else { s.pz=d.pz; s.sub=''; s.inst=''; s.hacc=''; s.x.acc=false; s.x.chord=false; s.instMore=false; }
+      s.favOnly=false; ccNxChanged('pz', d.pz); return; }
+    if(b && d.favonly!==undefined){ s.favOnly=!s.favOnly; ccNxChanged(); return; }
+    if(b && d.sub!==undefined){ if(s.sub===d.sub){ s.sub=''; s.inst=''; } else { s.sub=d.sub; s.inst=''; } ccNxChanged('sub', d.sub); return; }
+    if(b && d.inst!==undefined){ if(s.inst===d.inst) s.inst=''; else { s.inst=d.inst; s.sub=''; } ccNxChanged('inst', d.inst); return; }
+    if(b && d.imore!==undefined){ s.instMore=!s.instMore; renderCircleNx(); return; }
+    if(b && d.tg!==undefined){ s.x[d.tg]=!s.x[d.tg]; ccNxChanged(); return; }
+    if(b && d.hacc!==undefined){ s.hacc=d.hacc; ccNxChanged('acc', s.hacc==='yes'? 'yes' : s.hacc==='no'? 'no' : 'all'); return; }
+    if(b && d.conv!==undefined){ s.conv=true; ccNxChanged('conv', '1'); return; }
+    if(b && d.rm!==undefined){ s.q=d.rm; q.value=d.rm; s.srv=null; renderCircleNx(); ccNxRemote(true); return; }
+    if(b && d.hinst!==undefined){ const nm=ccInstNm(d.hinst); let q2=ccNxQ().split(' ').map(w=>/^器乐谱?$/.test(w)? nm : w).join(' '); if(q2===ccNxQ()) q2=(q2+' '+nm).trim();
+      s.q=q2; q.value=q2; ccNxTrack('q2f', d.hinst); renderCircleNx(); ccNxRemote(true); return; }
+    if(b && d.drawer!==undefined){ s.drawer=!s.drawer; b.setAttribute('aria-expanded', s.drawer? 'true' : 'false'); renderCircleNxDrawer(); return; }
+    if(b && d.dx!==undefined){ const v=d.dx.split(':'), k=v[0], val=v.slice(1).join(':'), x=s.x;
+      if(k==='parts'){ const n=+val, i=x.parts.indexOf(n); if(i>=0) x.parts.splice(i,1); else x.parts.push(n); }
+      else if(k==='key' || k==='meter' || k==='speed'){ const arr=x[k==='key'? 'keys' : k==='meter'? 'meters' : 'speeds'], j=arr.indexOf(val); if(j>=0) arr.splice(j,1); else arr.push(val); }
+      else x[k]=!x[k];
+      ccNxChanged(); return; }
+    if(b && d.pay!==undefined){ s.pay = s.pay===d.pay? 'all' : d.pay; ccNxChanged(); return; }
+    if(b && d.dclr!==undefined){ s.x={parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]}; s.hacc=''; s.pay='all'; ccNxChanged(); return; }
+    if(b && d.dok!==undefined){ s.drawer=false; renderCircleNxDrawer(); return; }
+    const c=e.target.closest('.cc-card[data-pub]');
+    if(c){
+      const nota=c.dataset.nota||'';
+      if(c.dataset.remote){ div.remove(); openRemotePub(c.dataset.pub, false, nota); }
+      else { openPubViewer(c.dataset.pub); if(nota) try{ vwSetNota(nota); }catch(_){} }
     }
   });
 }
@@ -48479,7 +48891,7 @@ function wxShareCard(){
   }catch(_){}
 }
 /* v67.6 小程序分享卡完整标题「歌名 - 演唱者 · 谱名」：小程序层只收前 44 字（miniprogram/pages/score/score.js onMsg），
-   统一谱名最长 18 字（钢琴弹唱谱（纯伴奏，五线＋简谱对照）），长歌名时先截歌名 / 演唱者、谱名整个保留，不让卡片标题停在半个谱名上。
+   统一谱名最长 18 字（钢琴伴奏谱（纯伴奏，五线＋简谱对照）），长歌名时先截歌名 / 演唱者、谱名整个保留，不让卡片标题停在半个谱名上。
    截歌名按整字（码点）截、总长按 UTF-16 码元计 ≤max（小程序 slice 的口径）——不留半个 emoji（收尾验收：此前按码元截，留下孤立代理项成乱码） */
 function pubShareTitle(s, max){
   const tail=' · '+docTypeLabelPub(s), head=(s.title||'未命名曲谱')+(s.singer? ' - '+s.singer : '');
@@ -48491,7 +48903,7 @@ function pubShareTitle(s, max){
 /* ===== 谱库观看：从公开接口按 id 拉取已发布谱进入观看模式（zhipu.puyouquan.com/?pub=ID） =====
    v60.0 第二形态「审核预览」：管理员从个人中心待审核队列点进来（?review=ID），走 /api/admin/scores/:id
    读取尚未上架的 pending 谱；除接口与提示外与谱库观看完全同路（同样过 sanitizeUntrusted 清洗）。*/
-async function openRemotePub(id, review){
+async function openRemotePub(id, review, nota){   /* 分类升级 P1：nota＝jp / st / dual 时观看页直接用该记谱法视图（只改观看副本，同 v69.6 vwNota；非法值忽略） */
   let sc, pubStats=null;
   try{ const r=await apiCall((review?'/admin/scores/':'/pub/scores/')+id); sc=r.score; pubStats=r.stats||null; }
   catch(e){ bootVeilDone(); toast(review?('审核预览打开失败：'+(e.message||'请确认已用管理员账号登录')):('曲谱加载失败：'+(e.message||'请稍后重试'))); return; }
@@ -48501,7 +48913,7 @@ async function openRemotePub(id, review){
      async 拒绝没人接：遮罩卡 8 秒后落到带默认谱的编辑器、没有任何提示。现在谱类按 migrate 之后的口径算（同 viewerBuildSong / 服务端 viewOf），
      仍打不开的坏谱退出观看态、揭幕并提示「曲谱数据异常」 */
   const song0=song, sel0=sel, title0=document.title;
-  try{ openRemotePubShow(id, review, sc, data, pubStats); }
+  try{ openRemotePubShow(id, review, sc, data, pubStats, nota); }
   catch(e){
     console.error('观看页打开失败', e);
     viewerMode=false; viewerCtx=null; window.VW_REFING=null; song=song0; sel=sel0; document.title=title0;   /* 坏谱不留在编辑器里当当前谱，标题不挂着它的谱名 */
@@ -48509,12 +48921,13 @@ async function openRemotePub(id, review){
     bootVeilDone(); toast('曲谱数据异常，暂时无法打开这份谱');
   }
 }
-function openRemotePubShow(id, review, sc, data, pubStats){
+function openRemotePubShow(id, review, sc, data, pubStats, nota){
   data.author = sc.author || data.maker || '谱友圈';
-  if(!review) pyqEvent('open_pub', id);   // 审核预览不计入谱库浏览埋点
+  const nt = !review && /^(jp|st|dual)$/.test(nota||'')? nota : '';
+  if(!review) pyqEvent('open_pub', id+(nt? ':'+nt : ''));   // 审核预览不计入谱库浏览埋点；分类升级 P1：从「用简谱看」等带 nota 进来的另记记谱法（§十三，拍板 7 校准用）
   /* v63.4 A7 传播：分享出去的链接带 ?f=渠道（card 分享卡二维码 / wx 微信卡片 / link 发布后复制 / mp 小程序），落地即记 share_open */
   if(!review){ try{ const f=new URLSearchParams(location.search).get('f')||''; if(/^[a-z]{2,8}$/.test(f)) pyqEvent('share_open', f+':'+id); }catch(_){} }
-  viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0; vwNota=null; keyKeepReset();
+  viewerMode=true; viewerPrev=null; vwTrans=0; vwCapo=null; vwCapoTrans=0; vwNota=nt||null; keyKeepReset();
   /* v60.84 thumbAt 随谱带上：小程序分享卡要引服务端缩略图，URL 里 thumb_at 兼做缓存指纹 */
   const dtype=(()=>{ try{ return docType(migrate(JSON.parse(JSON.stringify(data)))); }catch(_){ return 'vocal'; } })();   /* 第二轮验收：migrate 之后再判（旧格式没有 tabVoices） */
   viewerCtx={pb:{title:sc.title||data.title||'未命名曲谱', author:data.author, type:dtype, data, price:0, preview:9999, thumbAt:sc.thumb_at||0}, own:true, total:data.measures.length, pubId:id, stats:pubStats};
@@ -50078,7 +50491,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }
   try{
     const pub=new URLSearchParams(location.search).get('pub');
-    if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub); return; }
+    if(pub && /^[A-Za-z0-9_-]{1,40}$/.test(pub) && typeof openRemotePub==='function'){ openRemotePub(pub, false, new URLSearchParams(location.search).get('nota')||''); return; }   /* 分类升级 P1：?nota=jp|st|dual 观看页初始记谱法（谱库「用简谱看」的卡片带它） */
     /* v60.0 ?review=<id> 管理员审核预览：同一观看模式，改走 /api/admin/scores/:id（非管理员会被服务端 403 拒） */
     const rvw=new URLSearchParams(location.search).get('review');
     if(rvw && /^[A-Za-z0-9_-]{1,40}$/.test(rvw) && typeof openRemotePub==='function'){ openRemotePub(rvw, true); return; }
