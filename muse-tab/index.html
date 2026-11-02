@@ -22641,7 +22641,7 @@ function showHeadMenu(kind, cx, cy, ext){
     const here = P0? null : tempoQAtSel();
     let unit = P0? (P0.tempoUnit||'q') : tempoUnitOf(song);
     const glyU = u=> u==='e'? '♪' : u==='dq'? '♩.' : '♩';
-    div.innerHTML=`<div class="t" id="tp-hd">${P0? '第 '+meaNo(ext.mi)+' 小节此处速度（曲中变速）' : `速度：每分钟多少个单位音符（30–240）${song.unit===8? '，x/8 拍号常写成 ♩.=N（附点四分＝3 个八分）' : ''}`}</div>
+    div.innerHTML=`<div class="t">${P0? '第 '+meaNo(ext.mi)+' 小节此处速度（曲中变速）' : `速度：每分钟多少个单位音符（30–240）${song.unit===8? '，x/8 拍号常写成 ♩.=N（附点四分＝3 个八分）' : ''}`}</div>
       <div class="row"><input id="tp-val" type="number" min="30" max="240" value="${P0? +P0.bpm : (+song.tempo||90)}" style="width:72px">
       ${[['q','♩','四分音符'],['e','♪','八分音符'],['dq','♩.','附点四分音符']].map(([v,g,n])=>`<button data-tu="${v}" class="${unit===v?'on':''}" title="${n}＝N">${g}=N</button>`).join('')}
       <button id="tp-ok" class="primary">确定</button>${here? '<button id="tp-here" title="在光标处改变速度（曲中变速）">此处变速</button>' : ''}${P0? '<button id="tp-del" title="删除这个速度变化">删除</button>' : ''}</div>`;
@@ -22659,7 +22659,7 @@ function showHeadMenu(kind, cx, cy, ext){
       if(ev.target.closest('#tp-here') && here){ const tc=tempoAt(song, here.mi, here.q);
         PT={mi:here.mi, q:here.q}; unit=tc.tempoUnit; inp.value=tc.bpm;
         div.querySelectorAll('[data-tu]').forEach(x=>x.classList.toggle('on', x.dataset.tu===unit));
-        const hd=document.getElementById('tp-hd'); if(hd) hd.textContent='第 '+meaNo(here.mi)+' 小节此处变速：填新速度后点确定';
+        const hd=div.querySelector(':scope > .t'); if(hd) hd.textContent='第 '+meaNo(here.mi)+' 小节此处变速：填新速度后点确定';
         const hb=document.getElementById('tp-here'); if(hb) hb.remove();
         inp.focus(); inp.select(); return; }
       if(ev.target.closest('#tp-del') && PT){ const P=PT; mutate(()=>{ tempoPtPut(P.mi, P.q, null); }); closePop(); toast('已删除第 '+meaNo(P.mi)+' 小节的速度变化'); return; }

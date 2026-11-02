@@ -18,8 +18,11 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
       s.measures[0].voxes[0]=[col, V(0,4), V(0,4), V(0,4)].map((c,i)=>i===0? c : Object.assign(c,{dur:col.dotted? (i===1?8:4) : 4}));
       if(col.dotted) s.measures[0].voxes[0]=[col, V(0,8), V(0,4), V(0,4)];
       loadSong(s); render(); return document.getElementById('score'); };
+    /* v69.8 迁移：纯五线谱首行上方的整曲速度标记（♩=N，tempoMarkSVG）也用 noteheadBlack——落在它的热区 rect[data-hd="tempo"] 里的不算谱面符头 */
     window.heads=(svg)=>{ const ds=['noteheadBlack','noteheadHalf','noteheadWhole'].map(n=>SMUFL[n].d);
-      return [...svg.querySelectorAll('path')].filter(p=>ds.includes(p.getAttribute('d'))).map(p=>p.getBoundingClientRect()); };
+      const tm=[...svg.querySelectorAll('rect[data-hd="tempo"]')].map(r=>r.getBoundingClientRect());
+      return [...svg.querySelectorAll('path')].filter(p=>ds.includes(p.getAttribute('d'))).map(p=>p.getBoundingClientRect())
+        .filter(h=>!tm.some(t=>{ const x=(h.left+h.right)/2, y=(h.top+h.bottom)/2; return x>=t.left && x<=t.right && y>=t.top && y<=t.bottom; })); };
   })()`);
   let pass = 0, total = 0;
   const T = (ok, name, d) => { total++; if (ok) pass++; console.log((ok ? '✅' : '❌') + ' ' + name + (d ? ': ' + d : '')); };
