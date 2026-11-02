@@ -103,7 +103,13 @@ async function build() {
           return t + '|' + Object.keys(co).sort().map(n => co[n]).join(','); });
         const rS = trSig(dS), rE = trSig(dE), trBad = [];
         for (let i = 0; i < Math.max(rS.length, rE.length); i++) if (rS[i] !== rE[i]) trBad.push('P' + (i + 1) + ' ' + rS[i] + '→' + rE[i]);
-        return { song: im.song, pitchDiff: pd, spellDiff: sd, junk, beatErr: beatErrors().length, skip: im.skip, lyrBad, tpBad, trBad,
+        /* v69.9（负责人 2026-11-02 拍板「按建议」）曲库声部全称：OpenScore Lieder 的两行 part-name 是「原文名⏎英文对照」（「Singstimme⏎Voice」「Gesang⏎Voice」），
+           导入按 A8 空白归一成「Singstimme Voice」→ 首行全称太长（圣母颂前两系统各 1 小节）。曲库只留第一行原文名；导入器本身不改（用户自己导入照旧） */
+        const nameFix = {};
+        dS.querySelectorAll('part-list > score-part').forEach(sp => { const pn = sp.querySelector(':scope > part-name'); if (!pn) return;
+          const lines = pn.textContent.split(/\s*[\r\n]+\s*/).map(t => t.trim()).filter(Boolean);
+          if (lines.length > 1) nameFix[lines.join(' ')] = lines[0]; });
+        return { song: im.song, nameFix, pitchDiff: pd, spellDiff: sd, junk, beatErr: beatErrors().length, skip: im.skip, lyrBad, tpBad, trBad,
           cnt: { hy, ext, sylFix, tp: pts.length, tpShown: pts.filter(e => e.shown).length, trans: rS.filter(v => !/^0\|[0,]*$/.test(v)).length } };
       }, xml);
       await pg.close();
@@ -112,6 +118,7 @@ async function build() {
       if (r.pitchDiff || r.beatErr || lost || r.spellDiff || r.junk.length || r.lyrBad.length || r.tpBad.length || r.trBad.length) { bad.push(`${it.id}（${it.title}）未过质量门：音高不同小节 ${r.pitchDiff} · 时值不符 ${r.beatErr} · 丢弃 ${lost} · 拼写不同小节 ${r.spellDiff} · 数字残片标注 ${r.junk.length}${r.junk.length ? '（' + r.junk.slice(0, 5).join(' ') + '）' : ''}`
         + ` · 歌词音节 ${r.lyrBad.length}${r.lyrBad.length ? '（' + r.lyrBad.slice(0, 3).join('；') + '）' : ''} · 速度点 ${r.tpBad.length}${r.tpBad.length ? '（' + r.tpBad.join('；').slice(0, 300) + '）' : ''} · 移调 / 八度谱号 ${r.trBad.length}${r.trBad.length ? '（' + r.trBad.join('；') + '）' : ''}`); continue; }
       for (const k in r.cnt) tot[k] = (tot[k] || 0) + r.cnt[k];
+      if (Array.isArray(r.song.voxVoices)) r.song.voxVoices = r.song.voxVoices.map(n => (typeof n === 'string' && r.nameFix[n]) || n);
       const data = Object.assign(r.song, { title: it.title, composer: it.composer, lyricist: it.lyricist, maker: MAKER });
       out.push({ id: it.id, title: it.title, singer: it.composer, data, source: it.source });
     }

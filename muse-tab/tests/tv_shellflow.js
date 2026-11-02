@@ -227,6 +227,8 @@ const M = {
     await pg.evaluate(() => { const r = document.getElementById('lp-pgno-row'); if (!r) return; const w = r.previousSibling; if (w && w.nodeType === 3 && !w.textContent.trim()) w.remove(); r.remove(); });   /* 连同它前面的缩进空白一起删 */
     /* v69.8 有意改动 ⑧：#layout-pop 的「声部名」行（#lp-rown-row）同 ⑥ 两边都删掉再对拍 */
     await pg.evaluate(() => { const r = document.getElementById('lp-rown-row'); if (!r) return; const w = r.previousSibling; if (w && w.nodeType === 3 && !w.textContent.trim()) w.remove(); r.remove(); });
+    /* v69.9 有意改动 ⑨：#eb-delcol2 的悬停文字两边统一成同一占位再对拍 */
+    await pg.evaluate(() => { const d = document.getElementById('eb-delcol2'); if (d) d.title = 'X'; });
     const r = await pg.evaluate(IDS => {
       const R = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(v => Math.round(v * 100) / 100).join(','); };
       const o = {};
@@ -260,6 +262,8 @@ const M = {
           换页 / 页码的引擎行为是数据驱动的，这几份谱都没有 measures[].pgbrk / layout.pgno，仍要求零差异
        ⑧ v69.8 C 组首行声部名：「排版」浮层 #layout-pop 多一行「声部名」（#lp-rown-row：不印 / 印出，song.rowNames 开关，两外壳共用）——同 ⑥ 快照前两边都删掉这一行（基线里没有，删了是空操作）；
           旧外壳浮动浮层同 ⑥ 限高、内部滚动，多约 +40px；声部名 / 八度谱号 / 移调都是数据驱动，这几份谱没有 rowNames / voxClefOct / voxTransp，仍要求零差异
+       ⑨ v69.9（负责人 2026-11-02 拍板「按建议」）：「删除」按钮 #eb-delcol2 的悬停原文「删音符：删除当前音符列（时值一并移除）」与 v69.8 D 的新语义（删掉的时值并进相邻音）不符，
+          改为「删除音符（时值并入相邻音）」——快照前两边的这一个 title 统一成占位再对拍（读屏名 aria-label「删音符」不变；新外壳 on() 照旧写短名「删音符」）
        ⑦ v68.7 界面简约化 S0+S1：对旧外壳没有有意改动，不加例外、不换基线（shellflow_ref.json 仍是 v68.1 a8c2089）。本版碰到的共享代码在旧外壳下都是同一调用或空操作，逐条登记备查：
           提示条 toastSay(msg, o, ic)（旧外壳 / 手机新外壳 flowOn() 为假：与改前同一个 toast(msg) / toastKind(msg, ic) 调用）· toast() 摘 data-k、toastHide() 摘 .flw-ta（旧外壳从不写，DOM 不变）·
           scheduleCloudPush 记 _cloudFly、推完 FLOW.r1.saveSync（只在 flowOn()）· #cursor-info「拍」行、音名 / 品位键与缩放标签悬停、小节格 title、setPlayBtn 的 .flw-on、chHint / lbWhere / 导入与同款提示的 barTxt、
