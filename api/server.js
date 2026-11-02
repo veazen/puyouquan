@@ -236,32 +236,9 @@ async function wxCallbackFlow(req, res, appid, secret) {
 }
 // 谱库列表卡片元信息（类型/封面/小节数）——与编辑器 docType/ccCover 同源，供官网复刻同款卡片。
 // 注：pubList 目前含 data 逐条解析；库规模大后可改存发布时快照的 type/cover 列避免每次解析。
-/* v64.4 B4e 合唱判定（与编辑器 isChoir 同一口径）：显式 voxGroups 有方括号组即合唱；否则从第一个五线谱声部起的
-   连续五线谱声部 ≥2 行、组里确有歌词、且不是钢琴弹唱 → 合唱（谱类归 vocal） */
-function isChoirOf(d) {
-  const vn = d.voxNotations || [], n = (d.voxVoices || []).length, staff = x => x === 'staff' || x === 'bass' || x === 'alto';
-  if (Array.isArray(d.voxGroups) && d.voxGroups.length)
-    return d.voxGroups.some(g => g && g.type === 'bracket' && g.from >= 0 && g.to < n && g.to > g.from);
-  let a = -1; for (let i = 0; i < n; i++) if (staff(vn[i])) { a = i; break; }
-  if (a < 0) return false;
-  let b = a; while (b + 1 < n && staff(vn[b + 1])) b++;
-  if (b === a) return false;
-  /* v67.6 收尾：小节 / 声部 / 列 / 歌词不是数组的坏谱按没词算（与编辑器 isChoir 同口径：歌词不是数组＝没词）——此前一份「歌词写成字符串」的
-     已发布谱在这里抛错，谱库列表 /api/pub/scores 整页 500。自足写法（tv_b4e 把本段截出来单独跑，不能引用模块里的其他名字） */
-  const A = v => Array.isArray(v) ? v : [];
-  const lyr = A(d.measures).some(m => A(m && m.voxes).some((cols, vi) => vi >= a && vi <= b && A(cols).some(c =>
-    c && Array.isArray(c.lyrics) && c.lyrics.some(x => String(x || '').trim()))));
-  return !d.pianoAcc && lyr;   /* 推断时：确有歌词才算合唱（三行以上的器乐重奏仍是器乐谱） */
-}
-function docTypeOf(d) {
-  const vn = d.voxNotations || [], staff = n => n === 'staff' || n === 'bass' || n === 'alto';
-  if ((d.tabVoices || []).length) { if (d.tabStaff && !(d.voxVoices || []).length) return 'solo'; return d.inst === 'uku' ? 'uku' : 'guitar'; }
-  if (d.chordOnly) return 'chord';
-  if (d.func) return 'func';
-  if (vn[0] === 'staff' && vn[1] === 'bass') return d.pianoAcc ? 'pianoacc' : (isChoirOf(d) ? 'vocal' : 'piano');
-  if (staff(vn[0])) return (d.voxDual || [])[0] ? 'teach' : (isChoirOf(d) ? 'vocal' : 'instr');
-  return 'vocal';
-}
+/* 分类升级 P0（方案 docs/design-2026-11-taxonomy §十四）：服务端原有的谱类判定 isChoirOf / docTypeOf 删除，改读统一谱名表 PQ_KIND.docTypeOf
+   （api/kindname.js，与编辑器 docType() 逐字节同一份规则）——卡片的 type / typeLabel / 谱种 / 分面一起由 KIND.pubKindOf 从同一份清洗＋migrate 副本算。
+   此前两端各一份：v69.6 I6 只改了编辑器（没写分组、右手有词的老钢琴谱编辑器叫钢琴独奏谱、服务端 type 却是 vocal），显式分组全部失效的谱两端也不同 */
 const arr = v => Array.isArray(v) ? v : [];   /* v67.6 收尾：坏谱（小节 / 声部 / 列 / 歌词不是数组）按空处理，不让一份谱拖垮列表 / 落地页 / 封面 */
 /* v67.6 第二轮验收：类型安全取值——谱面 JSON 里的对象值（如 key:{"toString":1}、tempo:{"valueOf":1}）经 String() / + / > 转原始值会抛
    「Cannot convert object to primitive value」，此前一份这样的谱就让谱库列表 / 搜索 / 收藏 / 落地页 / 封面整页 500。只认字符串和有限数字，其余当空 */
@@ -299,7 +276,9 @@ function pubShapeData(row) {
   const mea = arr(d.measures);
   /* v67.6 收尾：逐项兜底——坏谱只让自己这一张卡片退回默认（谱类 vocal / 谱名「曲谱」/ 无封面），不拖垮整页列表 */
   const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
-  const o = { type: safe(() => docTypeOf(d), 'vocal'), typeLabel: typeLabelOf(d), measures: safe(() => meaCountOf(d), mea.length), cover: safe(() => coverOf(d), []),
+  /* 分类升级 P0：type / typeLabel / 谱种 pz·sub·inst·also / 分面 fx 由 KIND.pubKindOf 从同一份清洗＋migrate 副本一次算齐（各自兜底，见 api/kindname.js） */
+  const pk = safe(() => KIND.pubKindOf(d), null) || { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null };
+  const o = { type: pk.type, typeLabel: pk.typeLabel, pz: pk.pz, sub: pk.sub, inst: pk.inst, also: pk.also, fx: pk.fx, measures: safe(() => meaCountOf(d), mea.length), cover: safe(() => coverOf(d), []),
     key: sStr(d.key).slice(0, 6), tempo: sNum(d.tempo), beats: sNum(d.beats), unit: sNum(d.unit),
     /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
        「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
@@ -313,16 +292,18 @@ function pubShape(row) {
   /* v67.6 第二轮验收：整行兜底——任何一份谱算卡片出错只让它自己退回默认卡，列表 / 搜索 / 收藏 / 点赞照常 200（此前 String(d.key) 等抛错整页 500） */
   let o;
   try { o = pubShapeData(row); }
-  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false }; }
+  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null, measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false }; }
   const cr = creditOf(row.singer, o.composer, o.dsinger);
   return { id: row.id, title: row.title, singer: cr.singer, composer: cr.composer, author: row.author, updated_at: row.updated_at,
-    type: o.type, typeLabel: o.typeLabel, price: 0, measures: o.measures, cover: o.cover,
+    /* 分类升级 P0：新谱种字段（旧 type 照旧返回、取值不变；P1 起谱库筛选读这几项）——pz / sub 主谱种 › 二级、inst 乐器身份、also 也出现在（'jianpu.gequ'…）、fx 分面（在末尾） */
+    type: o.type, typeLabel: o.typeLabel, pz: o.pz, sub: o.sub, inst: o.inst, also: o.also, price: 0, measures: o.measures, cover: o.cover,
     /* v60.7 thumb 从 0/1 改传 thumb_at 时间戳：既当有无标志（truthy 判断不变），又给前端当
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
     thumb: row.thumb_at || 0,
     key: o.key, tempo: o.tempo, beats: o.beats, unit: o.unit, verses: o.verses,
     /* v60.98 卡片带浏览/收藏数（产品指示：计数在谱库曲谱卡上显示；likes 一并透传备用） */
-    views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0 };
+    views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0,
+    fx: o.fx };   /* 分类升级 P0：分面放最后（嵌套对象，排在既有字段之后） */
 }
 /* v60.6 曲谱实例缩图：只收栅格图（webp/jpeg/png），按魔数硬校验后落库。
    收栅格不收 SVG 是安全取舍——SVG 同源直开会执行内嵌脚本，栅格没有脚本面。 */
@@ -782,6 +763,76 @@ function uiModes7() {
   });
   return out;
 }
+/* 分类升级 P0（方案 §十二第 4 条、§十三「后台加 create_stack 按用途 / 入口拆分的查询」）：近 N 天新建谱的分布——
+   meta＝用途:谱行:入口:打开用途:首次（v67.6 口径，如 gtr:JT:panel:gtr:1），逐段合计次数 n 与人数 u（人数按段内各值分别去重，段与段之间不可相加）。
+   scene 用途 / stack 谱行 / entry 入口（panel / menu / last / link / link-bad）/ first 是否首次；每段最多列 40 个值，坏 meta 归「?」 */
+function createStack7(days) {
+  const t0 = now() - (days || 7) * 86400, seg = { scene: {}, stack: {}, entry: {}, first: {} }, keys = ['scene', 'stack', 'entry', null, 'first'];
+  let n = 0;
+  q.eventCreateStack.all(t0).forEach(r => {
+    n += r.n;
+    const a = String(r.k || '').split(':');
+    keys.forEach((kk, i) => { if (!kk) return; const v = /^[A-Za-z0-9_-]{1,16}$/.test(a[i] || '') ? a[i] : '?', o = seg[kk];
+      if (!o[v] && Object.keys(o).length >= 40) return; o[v] = o[v] || { n: 0, u: 0 }; o[v].n += r.n; o[v].u += r.u; });
+  });
+  return Object.assign({ days: days || 7, n }, seg);
+}
+/* 谱库筛选点击（ui_cmd 的 lib: 前缀，§十三「筛选埋点走 ui_cmd」）近 7 天前 60 条 */
+const libCmd7 = () => q.eventUiLib.all(now() - 7 * 86400);
+/* 谱库筛选埋点白名单：ui_cmd 的 meta 以 lib: 开头时只收「lib:<维度>:<表内 id>」——维度 pz 谱种 / sub 二级 / inst 乐器 / conv 可看开关 /
+   q2f 搜索词解析成的筛选 / zt 专题 / acc 伴奏三选；id 只认 PQ_KIND.PZ / INST 与下面的小表（格式正则 UI_CMD_RE 之外再收紧一层：
+   lib: 下不许出现搜索原词等任意内容，免得经界面命令通道记下用户输入）。其余 ui_cmd 照旧 */
+const LIB_ZT = new Set(['kaobian', 'yikao', 'shifan', 'ketang']);
+function libCmdOk(meta) {
+  const a = String(meta || '').split(':');
+  if (a[0] !== 'lib') return true;
+  if (a.length !== 3) return false;
+  const [, dim, v] = a, isPz = KIND.pzHas(v), isSub = KIND.pzHas('', v), isInst = KIND.own(KIND.INST, v);
+  switch (dim) {
+    case 'pz': return isPz;
+    case 'sub': return isSub;
+    case 'inst': return isInst;
+    case 'conv': return v === '0' || v === '1';
+    case 'acc': return v === 'all' || v === 'yes' || v === 'no';
+    case 'zt': return LIB_ZT.has(v);
+    case 'q2f': return isPz || isSub || isInst || LIB_ZT.has(v);
+    default: return false;
+  }
+}
+/* 分类升级 P0（方案 §十四 / §九）：谱库按谱种筛全库——接口参数 ?pz=&sub=&inst=（只认 PQ_KIND.PZ / INST 里的 id，其余忽略），
+   有任一条件时在**全部已发布谱**里筛（此前不带关键词只取最新 200 首，第 201 首起按分类筛不到），筛选函数＝PQ_KIND.pzMatch（与 /api/pub/cats 计数共用）；
+   排序：主谱种在本一级的在前、只在「也出现在」的在后，同段内按发布时间新→旧（P1 再加可转段与其他排序）；offset 分页（size ≤60、page ≤200） */
+function pubFilterOf(sp) {
+  const f = {}, pz = String(sp.get('pz') || ''), sub = String(sp.get('sub') || ''), inst = String(sp.get('inst') || '');
+  if (pz && KIND.pzHas(pz)) f.pz = pz;
+  if (sub && KIND.pzHas(f.pz || '', sub)) f.sub = sub;
+  if (inst && KIND.own(KIND.INST, inst)) f.inst = inst;
+  return f;
+}
+function pubFiltered(rows, f) {
+  const hit = [];
+  rows.forEach((r, i) => { const c = pubShape(r), g = KIND.pzMatch(c, f); if (g >= 0) hit.push({ c, g, i }); });
+  hit.sort((a, b) => a.g - b.g || a.i - b.i);
+  return hit.map(x => x.c);
+}
+/* /api/pub/cats 计数：各一级（属于该一级的谱数，主谱种 ∪ 也出现在）、各二级、简谱 / 五线谱的「器乐」按乐器（器乐 ∪ 重奏，与筛选同口径）。
+   一级内唯一（PQ_KIND.pzOf 保证）→ 一级数字＝各二级数字之和；各一级相加会大于 total（一份谱可在多个一级），属正常 */
+function pubCats(rows) {
+  const out = { total: rows.length, pz: {} };
+  KIND.PZ.forEach(p => { out.pz[p.id] = { n: 0, sub: Object.fromEntries(p.subs.map(x => [x.id, 0])) }; if (p.id === 'jianpu' || p.id === 'wuxian') out.pz[p.id].inst = {}; });
+  rows.forEach(r => {
+    const c = pubShape(r);
+    KIND.PZ.forEach(p => {
+      if (KIND.pzMatch(c, { pz: p.id }) < 0) return;
+      const o = out.pz[p.id]; o.n++;
+      p.subs.forEach(x => { if (KIND.pzMatch(c, { pz: p.id, sub: x.id }) >= 0) o.sub[x.id]++; });
+      if (o.inst && c.inst && KIND.pzMatch(c, { pz: p.id, inst: c.inst }) >= 0) o.inst[c.inst] = (o.inst[c.inst] || 0) + 1;
+    });
+  });
+  return out;
+}
+/* 不带关键词的计数缓存：作废戳＝已发布篇数＋最新发布时间（上架 / 下架 / 重新发布都会变），另设 60 秒上限（审核改快照内容、篇数与时间都不变时兜底，T22） */
+const catsCache = { k: '', t: 0, v: null };
 
 const routes = [
   ['GET', /^\/api\/health$/, false, () => ({ ok: true, ver: VER, ts: now(), wx_web: !!(WX_WEB_APPID && WX_WEB_SECRET), wx_mp: !!(WX_MP_OAUTH && WX_MP_APPID && WX_MP_SECRET), wx_mini: !!(WX_MINI_APPID && WX_MINI_SECRET), wxpay: wxpayOn() })],
@@ -1080,6 +1131,7 @@ const routes = [
     if (!EVENT_NAMES.has(name) || EVENT_SERVER_ONLY.has(name)) return { ok: true };   // 未知/服务端专属事件静默丢弃（不给探测面、不许伪造注册）
     const ui = name === 'ui_cmd';
     if (ui && !(typeof b.meta === 'string' && b.meta.length <= 64 && UI_CMD_RE.test(b.meta))) return { ok: true };   // v68.2 界面命令只收命令 id（不合格式＝可能带了内容，整条丢弃）
+    if (ui && !libCmdOk(b.meta)) return { ok: true };   // 分类升级 P0：谱库筛选 lib: 前缀只收白名单维度＋表内 id（libCmdOk）
     const anon = ensureAnon(req, res);
     const ip = ipOf(req);
     const h = Math.floor(Date.now() / 3600000);
@@ -1216,7 +1268,9 @@ const routes = [
       pending: sts.pending || 0, published: sts.published || 0, revisions: q.revPendingCount.get().n,
       reports: q.reportOpenCount.get().n, reserves: Object.fromEntries(q.reserveCount.all().map(r => [r.kind, r.n])),
       orders: { paid: paid.n, amount_fen: paid.fen },
-      funnel: q.eventStatsU.all(now() - 7 * 86400), metrics: eventMetrics(), uiModes: uiModes7() };
+      funnel: q.eventStatsU.all(now() - 7 * 86400), metrics: eventMetrics(), uiModes: uiModes7(),
+      /* 分类升级 P0：新建谱按用途 / 谱行 / 入口 / 首次拆分（近 7 天）＋谱库筛选点击（lib:） */
+      createStack: createStack7(7), libCmd: libCmd7() };
   }],
   ['GET', /^\/api\/admin\/users$/, true, (m, b, u, req) => {
     requireAdmin(u);
@@ -1455,14 +1509,27 @@ const routes = [
 
   /* -- 公开谱库（谱库 puku，无需登录）-- */
   /* v62.7 A6（P1-34）：不带参数＝首页最新 200 首（附 total 供前端判断是否被截断）；
-     ?q= 关键词（标题/演唱/署名）在**全库**里分页搜索——第 201 首起也搜得到 */
+     ?q= 关键词（标题/演唱/署名）在**全库**里分页搜索——第 201 首起也搜得到；
+     分类升级 P0：?pz= 谱种 / ?sub= 二级 / ?inst= 乐器（可与 ?q= 同用）同样在全库里筛、分页，卡片带 pz / sub / inst / also / fx（见 pubFilterOf） */
   ['GET', /^\/api\/pub\/scores$/, false, (m, b, u, req) => {
     const sp = new URL(req.url, 'http://x').searchParams;
     const kw = String(sp.get('q') || '').trim().slice(0, 40);
-    if (!kw) return { scores: q.pubList.all().map(pubShape), total: q.pubTotal.get().n };
+    const f = pubFilterOf(sp), fil = !!(f.pz || f.sub || f.inst);   /* 分类升级 P0：?pz=&sub=&inst= 在全库筛（不带条件＝原样） */
+    if (!kw && !fil) return { scores: q.pubList.all().map(pubShape), total: q.pubTotal.get().n };
     const size = Math.min(60, Math.max(1, +sp.get('size') || 40)), page = Math.max(0, Math.min(200, +sp.get('page') || 0));
     const like = '%' + kw.replace(/[\\%_]/g, c => '\\' + c) + '%';
+    if (fil) { const all = pubFiltered(kw ? q.pubSearchAll.all(like) : q.pubAll.all(), f);
+      return Object.assign(kw ? { q: kw } : {}, f, { page, size, total: all.length, scores: all.slice(page * size, page * size + size) }); }
     return { q: kw, page, size, total: q.pubSearchCount.get(like).n, scores: q.pubSearch.all(like, size, page * size).map(pubShape) };
+  }],
+  /* 分类升级 P0：谱种计数（一级 / 二级 / 简谱与五线谱「器乐」下的乐器），与列表共用 PQ_KIND.pzMatch；?q= 时按关键词命中的谱算（不缓存），否则走 catsCache */
+  ['GET', /^\/api\/pub\/cats$/, false, (m, b, u, req) => {
+    const kw = String(new URL(req.url, 'http://x').searchParams.get('q') || '').trim().slice(0, 40);
+    if (kw) return Object.assign({ q: kw }, pubCats(q.pubSearchAll.all('%' + kw.replace(/[\\%_]/g, c => '\\' + c) + '%')));
+    const st = q.pubStamp.get(), k = st.n + '|' + (st.t || 0), t = Date.now();
+    if (catsCache.v && catsCache.k === k && t - catsCache.t < 60000) return catsCache.v;
+    const v = pubCats(q.pubAll.all()); catsCache.k = k; catsCache.t = t; catsCache.v = v;
+    return v;
   }],
   ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {
     /* v60.97 浏览数：公开详情每次拉取 +1（先加后读，返回值即含本次）；

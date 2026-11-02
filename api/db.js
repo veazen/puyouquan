@@ -266,6 +266,20 @@ const q = {
   pubSearchCount: db.prepare(`SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL
                               AND (pub_title LIKE ?1 ESCAPE '\\' OR pub_singer LIKE ?1 ESCAPE '\\' OR pub_author LIKE ?1 ESCAPE '\\')`),
   pubTotal:     db.prepare("SELECT COUNT(*) AS n FROM scores WHERE status = 'published' AND pub_data IS NOT NULL"),
+  /* 分类升级 P0（方案 docs/design-2026-11-taxonomy §十四）：按谱种 / 二级 / 乐器筛**全库**（谱种由谱面推断，SQL 里没有列——P4 再加快照列 pub_pz…），
+     所以取全部已发布谱（同 pubList 的列、不带 LIMIT）交给 server.js 用 PQ_KIND.pzMatch 筛、分页；pubShapeData 的 shapeCache 免掉重复解析。
+     pubSearchAll＝带关键词时同一口径；pubStamp＝/api/pub/cats 计数缓存的作废戳（上架 / 下架 / 重新发布都会改变篇数或最新发布时间） */
+  pubAll:       db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
+                            FROM scores s WHERE s.status = 'published' AND s.pub_data IS NOT NULL ORDER BY s.pub_at DESC, s.rowid DESC`),
+  pubSearchAll: db.prepare(`SELECT s.id,s.pub_title AS title,s.pub_singer AS singer,s.pub_author AS author,s.pub_at AS updated_at,s.pub_thumb_at AS thumb_at,s.pub_data AS data,s.views,
+                            (SELECT COUNT(*) FROM likes l WHERE l.score_id=s.id) AS likes,
+                            (SELECT COUNT(*) FROM favorites f WHERE f.score_id=s.id) AS favs
+                            FROM scores s WHERE s.status = 'published' AND s.pub_data IS NOT NULL
+                              AND (s.pub_title LIKE ?1 ESCAPE '\\' OR s.pub_singer LIKE ?1 ESCAPE '\\' OR s.pub_author LIKE ?1 ESCAPE '\\')
+                            ORDER BY s.pub_at DESC, s.rowid DESC`),
+  pubStamp:     db.prepare("SELECT COUNT(*) AS n, MAX(pub_at) AS t FROM scores WHERE status = 'published' AND pub_data IS NOT NULL"),
   /* v62.9 A4 */
   reserveAdd:   db.prepare('INSERT OR IGNORE INTO reservations(user_id,kind,created_at) VALUES(?,?,?)'),
   reserveMine:  db.prepare('SELECT kind, created_at FROM reservations WHERE user_id = ?'),
@@ -360,6 +374,10 @@ const q = {
     + " UNION ALL SELECT 'editors' AS k, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'visit' AND created_at > ? AND landing LIKE 'zhipu/%'"
     /* v68.2 收尾 ENG-6：flow＝7 日内发过任何 ui_cmd 的人（新外壳用户；手机 / 旧版布局 / 只开启动台的不在内）——「模式使用率」的窄口径分母 */
     + " UNION ALL SELECT 'flow' AS k, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'ui_cmd' AND created_at > ?"),
+  /* 分类升级 P0（方案 §十二第 4 条 / 拍板 10「首访默认吉他弹唱，上线后用 create_stack 校准」）：create_stack 按 meta 原样分组（次数 / 按人去重），
+     server.js createStack7 再按「用途:谱行:入口:打开用途:首次」逐段拆分合计；libCmd7＝谱库筛选点击（ui_cmd 的 lib: 前缀，P1 起有数），按 meta 分组 */
+  eventCreateStack: db.prepare("SELECT meta AS k, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'create_stack' AND created_at > ? GROUP BY meta"),
+  eventUiLib:   db.prepare("SELECT meta AS k, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 'a:' || anon_id)) AS u FROM events WHERE name = 'ui_cmd' AND created_at > ? AND meta LIKE 'lib:%' GROUP BY meta ORDER BY n DESC LIMIT 60"),
   eventAddX:    db.prepare('INSERT INTO events(user_id,name,meta,created_at,anon_id,src,landing) VALUES(?,?,?,?,?,?,?)'),
   /* v60.87 站内信。广播可见窗口＝近 90 天（server.js 传 cutoff）：老公告对所有人自然过期、
      新注册用户也能看到近期公告（若按注册时间过滤，注册前一天发的公告会被冤枉地藏掉）。

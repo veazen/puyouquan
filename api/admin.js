@@ -207,6 +207,15 @@ const cmds = {
     q.eventUiCmd7.all(t7, t7, t7).forEach(r => { if (r.k === 'mode:engrave') ui.engrave = r.u; else if (r.k === 'mode:output') ui.output = r.u; else if (r.k === 'editors') ui.editors = r.u; else if (r.k === 'flow') ui.flow = r.u; });
     /* v68.2 收尾 ENG-6：两个分母都列——新外壳有操作的人（窄口径）与编辑访客（含手机、旧版布局、只开启动台） */
     console.log(`界面（近 7 天）：用过「排版」${ui.engrave} 人 · 「输出」${ui.output} 人 / 新外壳有操作 ${ui.flow} 人（编辑访客 ${ui.editors} 人，含手机、旧版布局、只开启动台）`);
+    /* 分类升级 P0（拍板 10 校准首访默认用途）：create_stack 按 meta「用途:谱行:入口:打开用途:首次」逐段拆分（口径同 server.js createStack7；次数，人数见 /api/admin/overview） */
+    const cs = q.eventCreateStack.all(now() - d * 86400), seg = [['用途', 0], ['谱行', 1], ['入口', 2], ['首次', 4]];
+    if (cs.length) {
+      console.log(`新建谱分布（近 ${d} 天，create_stack 共 ${cs.reduce((a, r) => a + r.n, 0)} 次）：`);
+      seg.forEach(([nm, i]) => { const m = {}; cs.forEach(r => { const v = String(r.k || '').split(':')[i] || '?'; m[v] = (m[v] || 0) + r.n; });
+        console.log(`  ${nm}：` + Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, n]) => `${k} ${n}`).join(' · ')); });
+    }
+    const lb = q.eventUiLib.all(now() - d * 86400);
+    if (lb.length) console.log(`谱库筛选（近 ${d} 天，ui_cmd lib:）：` + lb.slice(0, 20).map(r => `${r.k.slice(4)} ${r.n}`).join(' · '));
   },
 };
 

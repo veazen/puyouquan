@@ -41,9 +41,16 @@ const API = process.env.MUSETAB_API || path.resolve(__dirname, '../../api/server
     const src = fs.readFileSync(API, 'utf8');
     let srvOf = null;
     try {
-      const i0 = src.indexOf('function isChoirOf(d)') >= 0 ? src.indexOf('function isChoirOf(d)') : src.indexOf('function docTypeOf(d)');
-      const i1 = src.indexOf('function coverOf(d)');
-      srvOf = new Function(src.slice(i0, i1) + '; return docTypeOf;')();
+      /* 分类升级 P0：服务端自己那份 isChoirOf / docTypeOf 删除，谱库卡片 type 改由 api/kindname.js 的 pubKindOf（统一谱名表 PQ_KIND.docTypeOf，
+         与编辑器 docType 同一份）从清洗＋migrate 副本算——这里按服务端实际的取值路径对拍；指向修前副本时（仍有 isChoirOf）照旧截出来跑 */
+      if (src.indexOf('function isChoirOf(d)') < 0 && src.indexOf('function docTypeOf(d)') < 0) {
+        const K = require(path.join(path.dirname(API), 'kindname.js'));
+        srvOf = d => K.pubKindOf(d).type;
+      } else {
+        const i0 = src.indexOf('function isChoirOf(d)') >= 0 ? src.indexOf('function isChoirOf(d)') : src.indexOf('function docTypeOf(d)');
+        const i1 = src.indexOf('function coverOf(d)');
+        srvOf = new Function(src.slice(i0, i1) + '; return docTypeOf;')();
+      }
     } catch (e) { srvOf = null; }
     const songs = await EV(`[mk(['staff','bass'], true), mk(['staff','bass'], false), mk(['staff','staff','staff','bass'], true), mk(['staff','bass'], false, {voxGroups:[{type:'bracket',from:0,to:1}]}),
       mk(['staff','staff','alto','bass'], false), mk(['jp'], true), mk(['staff','bass'], true, {pianoAcc:true})].map(s=>({s:JSON.parse(JSON.stringify(s)), c:docType(s)}))`);
