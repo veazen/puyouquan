@@ -157,6 +157,7 @@ function authUser(req) {
 class ApiError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const { scoreDataDanger } = require('./scoredata');   // v62.5 A1a 谱面数据按字段校验（admin.js scan-xss 共用）
 const KIND = require('./kindname');   // v67.6 统一谱名表 api/kindname.js（与编辑器内联的 PQ_KIND 同一份规则）
+const PZQ = require('./pzq');   // 分类升级 P1 谱库搜索词解析（同义词 / 停用词 / 0 结果退路，方案 §七；不进 PQ_KIND 同步段）
 const ipOf = req => req.headers['x-real-ip'] || req.socket.remoteAddress || '';
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -283,7 +284,9 @@ function pubShapeData(row) {
     /* v60.7 修字段名：歌词段数在 song 模型里叫 lyricLines（verses 不存在，此前恒为 0——
        「N 段词」信息条上线即死代码，复核实测抓出）；MAX_LYR=5，钳 9 仅防御脏数据 */
     verses: Math.max(0, Math.min(9, sNum(d.lyricLines))),
-    composer: sStr(d.composer).trim().slice(0, 60), dsinger: !!sStr(d.singer).trim() };
+    composer: sStr(d.composer).trim().slice(0, 60), dsinger: !!sStr(d.singer).trim(),
+    /* 分类升级 P1：变调夹（卡片与筛选抽屉「C调指法 · 夹2」）、建谱用途 intent（只认 PQ_KIND.INTENTS 里的值；艺考 / 师范专题与「儿歌」读它，P2a 起新建谱才写） */
+    capo: Math.max(0, Math.min(12, Math.trunc(sNum(d.capo)))), intent: typeof d.intent === 'string' && KIND.INTENTS.indexOf(d.intent) >= 0 ? d.intent : '' };
   if (shapeCache.size > 5000) shapeCache.clear();
   shapeCache.set(ck, o);
   return o;
@@ -292,7 +295,7 @@ function pubShape(row) {
   /* v67.6 第二轮验收：整行兜底——任何一份谱算卡片出错只让它自己退回默认卡，列表 / 搜索 / 收藏 / 点赞照常 200（此前 String(d.key) 等抛错整页 500） */
   let o;
   try { o = pubShapeData(row); }
-  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null, measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false }; }
+  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null, measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false, capo: 0, intent: '' }; }
   const cr = creditOf(row.singer, o.composer, o.dsinger);
   return { id: row.id, title: row.title, singer: cr.singer, composer: cr.composer, author: row.author, updated_at: row.updated_at,
     /* 分类升级 P0：新谱种字段（旧 type 照旧返回、取值不变；P1 起谱库筛选读这几项）——pz / sub 主谱种 › 二级、inst 乐器身份、also 也出现在（'jianpu.gequ'…）、fx 分面（在末尾） */
@@ -301,6 +304,7 @@ function pubShape(row) {
        缓存戳拼 ?v=——此前 URL 恒定 + max-age=86400，重新发布后卡片最长一整天吃陈图 */
     thumb: row.thumb_at || 0,
     key: o.key, tempo: o.tempo, beats: o.beats, unit: o.unit, verses: o.verses,
+    capo: o.capo || 0, intent: o.intent || '',   /* 分类升级 P1：变调夹（「C调指法 · 夹2」）、建谱用途（专题 / 儿歌读它） */
     /* v60.98 卡片带浏览/收藏数（产品指示：计数在谱库曲谱卡上显示；likes 一并透传备用） */
     views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0,
     fx: o.fx };   /* 分类升级 P0：分面放最后（嵌套对象，排在既有字段之后） */
@@ -803,34 +807,32 @@ function libCmdOk(meta) {
    有任一条件时在**全部已发布谱**里筛（此前不带关键词只取最新 200 首，第 201 首起按分类筛不到），筛选函数＝PQ_KIND.pzMatch（与 /api/pub/cats 计数共用）；
    排序：主谱种在本一级的在前、只在「也出现在」的在后，同段内按发布时间新→旧（P1 再加可转段与其他排序）；offset 分页（size ≤60、page ≤200） */
 function pubFilterOf(sp) {
-  const f = {}, pz = String(sp.get('pz') || ''), sub = String(sp.get('sub') || ''), inst = String(sp.get('inst') || '');
+  /* 分类升级 P1：旧谱库按钮 id 别名 ?cat=guitar / piano / vocal …（§七「旧参数别名」）——只在没给 pz / sub 时生效 */
+  const cat = String(sp.get('cat') || ''), al = Object.prototype.hasOwnProperty.call(PZQ.CAT_ALIAS, cat) ? PZQ.CAT_ALIAS[cat] : null, noPS = !sp.get('pz') && !sp.get('sub');
+  const f = {}, pz = String(sp.get('pz') || (al && noPS ? al.pz || '' : '')), sub = String(sp.get('sub') || (al && noPS ? al.sub || '' : '')), inst = String(sp.get('inst') || '');
   if (pz && KIND.pzHas(pz)) f.pz = pz;
   if (sub && KIND.pzHas(f.pz || '', sub)) f.sub = sub;
   if (inst && KIND.own(KIND.INST, inst)) f.inst = inst;
   return f;
 }
-function pubFiltered(rows, f) {
-  const hit = [];
-  rows.forEach((r, i) => { const c = pubShape(r), g = KIND.pzMatch(c, f); if (g >= 0) hit.push({ c, g, i }); });
-  hit.sort((a, b) => a.g - b.g || a.i - b.i);
-  return hit.map(x => x.c);
+/* ===== 分类升级 P1 谱库列表 / 计数（方案 §四 4.1–4.4 / §七 / §九）：引擎在统一谱名表里（PQ_KIND.pzQuery / pzCats，与编辑器新外壳谱友圈同一份，
+   官网 pyq.js PYQ_PZ 抄一份、tv_libpz 对拍）——这里只把接口参数翻成筛选、在**全部已发布谱**的卡片上调它 ===== */
+const libQuery = (cards, o) => KIND.pzQuery(cards, o);
+const pubCats = cards => KIND.pzCats(cards);
+/* 接口参数 → 抽屉分面 / 专题 / 排序（只认白名单值，其余忽略） */
+const LIB_SPEED = ['slow', 'mid', 'fast'];
+function libOptsOf(sp) {
+  const csv = (k, ok) => String(sp.get(k) || '').split(',').map(v => v.trim()).filter(v => v && ok(v)).slice(0, 12);
+  const x = { parts: csv('parts', v => /^[1-4]$/.test(v)).map(Number), chord: sp.get('chord') === '1', acc: sp.get('acc') === '1', verses: sp.get('verses') === '1', erge: sp.get('erge') === '1',
+    keys: csv('key', v => /^[A-G][#b]?m?$/.test(v)), meters: csv('meter', v => /^\d{1,2}\/\d{1,2}$/.test(v)), speeds: csv('speed', v => LIB_SPEED.indexOf(v) >= 0),
+    hacc: ['yes', 'no'].indexOf(sp.get('hacc')) >= 0 ? sp.get('hacc') : '' };
+  const any = x.parts.length || x.chord || x.acc || x.verses || x.erge || x.keys.length || x.meters.length || x.speeds.length || x.hacc;
+  const z = String(sp.get('zt') || ''), zt = z === 'jixing' ? 'kaobian' : Object.prototype.hasOwnProperty.call(PZQ.ZT_NAME, z) ? z : '';
+  const sort = ['fav', 'view'].indexOf(sp.get('sort')) >= 0 ? sp.get('sort') : 'new';
+  return { x: any ? x : null, zt, sort, conv: sp.get('conv'), more: sp.get('more') === '1' };
 }
-/* /api/pub/cats 计数：各一级（属于该一级的谱数，主谱种 ∪ 也出现在）、各二级、简谱 / 五线谱的「器乐」按乐器（器乐 ∪ 重奏，与筛选同口径）。
-   一级内唯一（PQ_KIND.pzOf 保证）→ 一级数字＝各二级数字之和；各一级相加会大于 total（一份谱可在多个一级），属正常 */
-function pubCats(rows) {
-  const out = { total: rows.length, pz: {} };
-  KIND.PZ.forEach(p => { out.pz[p.id] = { n: 0, sub: Object.fromEntries(p.subs.map(x => [x.id, 0])) }; if (p.id === 'jianpu' || p.id === 'wuxian') out.pz[p.id].inst = {}; });
-  rows.forEach(r => {
-    const c = pubShape(r);
-    KIND.PZ.forEach(p => {
-      if (KIND.pzMatch(c, { pz: p.id }) < 0) return;
-      const o = out.pz[p.id]; o.n++;
-      p.subs.forEach(x => { if (KIND.pzMatch(c, { pz: p.id, sub: x.id }) >= 0) o.sub[x.id]++; });
-      if (o.inst && c.inst && KIND.pzMatch(c, { pz: p.id, inst: c.inst }) >= 0) o.inst[c.inst] = (o.inst[c.inst] || 0) + 1;
-    });
-  });
-  return out;
-}
+/* 关键词在全库里命中（标题 / 演唱 / 署名 / 作曲，大小写不敏感，空格隔开的词都要有）——分类升级 P1 服务端搜索补作曲（v1 R20） */
+const pubKwCards = kw => q.pubAll.all().map(pubShape).filter(c => KIND.pzWordsOk(c, kw));
 /* 不带关键词的计数缓存：作废戳＝已发布篇数＋最新发布时间（上架 / 下架 / 重新发布都会变），另设 60 秒上限（审核改快照内容、篇数与时间都不变时兜底，T22） */
 const catsCache = { k: '', t: 0, v: null };
 
@@ -1514,21 +1516,50 @@ const routes = [
   ['GET', /^\/api\/pub\/scores$/, false, (m, b, u, req) => {
     const sp = new URL(req.url, 'http://x').searchParams;
     const kw = String(sp.get('q') || '').trim().slice(0, 40);
-    const f = pubFilterOf(sp), fil = !!(f.pz || f.sub || f.inst);   /* 分类升级 P0：?pz=&sub=&inst= 在全库筛（不带条件＝原样） */
+    const f = pubFilterOf(sp), ox = libOptsOf(sp);   /* 分类升级 P0：?pz=&sub=&inst= 在全库筛（不带条件＝原样）；P1：抽屉分面 / 专题 / 排序 / 可转 / 尾节 */
+    const fil = !!(f.pz || f.sub || f.inst || ox.x || ox.zt || ox.sort !== 'new' || ox.conv === '1' || ox.more);
     if (!kw && !fil) return { scores: q.pubList.all().map(pubShape), total: q.pubTotal.get().n };
     const size = Math.min(60, Math.max(1, +sp.get('size') || 40)), page = Math.max(0, Math.min(200, +sp.get('page') || 0));
-    const like = '%' + kw.replace(/[\\%_]/g, c => '\\' + c) + '%';
-    if (fil) { const all = pubFiltered(kw ? q.pubSearchAll.all(like) : q.pubAll.all(), f);
-      return Object.assign(kw ? { q: kw } : {}, f, { page, size, total: all.length, scores: all.slice(page * size, page * size + size) }); }
-    return { q: kw, page, size, total: q.pubSearchCount.get(like).n, scores: q.pubSearch.all(like, size, page * size).map(pubShape) };
+    /* 分类升级 P1 搜索（§七）：关键词先解析——乐器 / 谱种 / 二级 / 专题 / 调 / 编制等条件（接口参数显式给了的优先），剩下的词按曲名 / 演唱 / 署名 / 作曲搜 */
+    const p = kw ? PZQ.parse(kw) : null;
+    const f2 = Object.assign({}, f), o = { f: f2, words: kw, x: ox.x, zt: ox.zt, sort: ox.sort, more: ox.more };
+    if (p) {
+      o.words = p.words;
+      if (!f2.pz && !f2.sub && (p.pz || p.sub)) { if (p.pz) f2.pz = p.pz; if (p.sub) f2.sub = p.sub; }
+      if (!f2.inst && p.inst) f2.inst = p.inst;
+      if (!o.zt && p.zt) o.zt = p.zt;
+      if (p.style) o.style = p.style;
+      if (p.acc || p.parts || p.key || p.fkey) { const x = o.x = Object.assign({ parts: [], keys: [], meters: [], speeds: [] }, o.x || {});
+        if (p.acc) x.acc = true; if (p.parts && !x.parts.length) x.parts = [p.parts]; if ((p.key || p.fkey) && !x.keys.length) x.keys = [p.key || p.fkey]; }
+      if (p.keySort) o.keySort = p.keySort;
+      if (p.tail) o.tail = p.tail;
+      o.shichang = f2.sub === 'shichang' && !f2.pz;
+    }
+    /* 可转：显式 conv=1 / 0；没给时搜索（有曲名）默认含、浏览默认不含（§4.3 推荐默认） */
+    o.conv = ox.conv === '1' || (ox.conv !== '0' && !!(p && o.words));
+    const cards = q.pubAll.all().map(pubShape);
+    let r = libQuery(cards, o), fb = '';
+    /* 0 结果退路（T3）：去掉解析出的条件、只按剩下的词搜（显式接口参数照留），并说明「没有 X 的功能谱，下面是其他谱」 */
+    const parsed = !!(p && (p.pz || p.sub || p.inst || p.zt || p.style || p.acc || p.parts || p.key || p.fkey));
+    if (!r.list.length && parsed && p.words) {
+      fb = PZQ.fbNote(p);
+      r = libQuery(cards, { f, words: p.words, x: ox.x, zt: ox.zt, sort: ox.sort, conv: false });
+    }
+    const scores = r.list.slice(page * size, page * size + size).map(e => Object.assign(e.c, { sec: e.sec }, e.nota ? { nota: e.nota } : {}));
+    const res = Object.assign(kw ? { q: kw } : {}, f2, { page, size, total: r.list.length, n0: r.n0, nConv: r.nConv, conv: o.conv ? 1 : 0, scores });
+    if (r.tail) res.tail = r.tail;
+    if (p) res.parse = { words: p.words, conds: p.conds, pz: p.pz, sub: p.sub, inst: p.inst, zt: p.zt, nota: p.nota, only: p.only, hint: p.hint, tail: p.tail, keySort: p.keySort };
+    if (fb) res.fb = fb;
+    return res;
   }],
-  /* 分类升级 P0：谱种计数（一级 / 二级 / 简谱与五线谱「器乐」下的乐器），与列表共用 PQ_KIND.pzMatch；?q= 时按关键词命中的谱算（不缓存），否则走 catsCache */
+  /* 分类升级 P0：谱种计数（一级 / 二级 / 简谱与五线谱「器乐」下的乐器），与列表共用 PQ_KIND.pzMatch；?q= 时按关键词命中的谱算（不缓存），否则走 catsCache。
+     P1：另给可转数 conv；关键词改在内存里比（含作曲） */
   ['GET', /^\/api\/pub\/cats$/, false, (m, b, u, req) => {
     const kw = String(new URL(req.url, 'http://x').searchParams.get('q') || '').trim().slice(0, 40);
-    if (kw) return Object.assign({ q: kw }, pubCats(q.pubSearchAll.all('%' + kw.replace(/[\\%_]/g, c => '\\' + c) + '%')));
+    if (kw) return Object.assign({ q: kw }, pubCats(pubKwCards(kw)));
     const st = q.pubStamp.get(), k = st.n + '|' + (st.t || 0), t = Date.now();
     if (catsCache.v && catsCache.k === k && t - catsCache.t < 60000) return catsCache.v;
-    const v = pubCats(q.pubAll.all()); catsCache.k = k; catsCache.t = t; catsCache.v = v;
+    const v = pubCats(q.pubAll.all().map(pubShape)); catsCache.k = k; catsCache.t = t; catsCache.v = v;
     return v;
   }],
   ['GET', /^\/api\/pub\/scores\/([A-Za-z0-9_-]+)$/, false, (m) => {

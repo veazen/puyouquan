@@ -48,8 +48,8 @@ const CASES = [
   ['G 钢琴独奏谱', vox(['右手', '左手'], ['staff', 'bass']), 'G', '钢琴独奏谱'],
   ['G 电钢琴独奏谱', vox(['右手', '左手'], ['staff', 'bass'], { instKey: 'epiano' }), 'G', '电钢琴独奏谱'],
   ['G 带简谱对照', vox(['右手', '左手'], ['staff', 'bass'], { voxDual: [true, false] }), 'G', '钢琴独奏谱（五线＋简谱对照）'],
-  ['CG 钢琴弹唱谱（纯伴奏）（v67.6 前谱库叫钢琴弹唱谱）', vox(['右手', '左手'], ['staff', 'bass'], { pianoAcc: true }, true), 'CG', '钢琴弹唱谱（纯伴奏）'],
-  ['CG 带简谱对照', vox(['右手', '左手'], ['staff', 'bass'], { pianoAcc: true, voxDual: [true, false] }), 'CG', '钢琴弹唱谱（纯伴奏，五线＋简谱对照）'],
+  ['CG 钢琴伴奏谱（纯伴奏）（拍板 10：分类升级 P1 由「钢琴弹唱谱（纯伴奏）」改名，与归属 钢琴谱 › 伴奏 一致）', vox(['右手', '左手'], ['staff', 'bass'], { pianoAcc: true }, true), 'CG', '钢琴伴奏谱（纯伴奏）'],
+  ['CG 带简谱对照', vox(['右手', '左手'], ['staff', 'bass'], { pianoAcc: true, voxDual: [true, false] }), 'CG', '钢琴伴奏谱（纯伴奏，五线＋简谱对照）'],
   ['JG 钢琴伴奏歌谱（显式 1–2 行花括号；v67.6 前谱库叫简谱歌谱）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], funcNames: true }, true), 'JG', '钢琴伴奏歌谱'],
   ['JG 老谱没写分组：认一键配伴奏声部名', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], null, true), 'JG', '钢琴伴奏歌谱'],
   ['SG 钢琴伴奏歌谱（五线谱）', vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], { voxGroups: [BC(1, 2)] }, true), 'SG', '钢琴伴奏歌谱（五线谱）'],
@@ -303,6 +303,51 @@ T('P0 pubKindOf：type / typeLabel / 谱种同一份清洗＋migrate 副本；�
   const b = K.pubKindOf(bad); assert.deepStrictEqual([b.type, b.typeLabel], [PREV.docTypeSrv(bad), '曲谱']);
   for (const d of [null, [], 5, 'x', { measures: { a: 1 } }, one({ voxGroups: 'x', measures: [null] }), one({ key: { toString: 1 } })]) {
     const r = K.pubKindOf(d); assert.ok(typeof r.type === 'string' && typeof r.typeLabel === 'string' && K.pzHas(r.pz, r.sub) && Array.isArray(r.also) && r.fx && Array.isArray(r.fx.inst), JSON.stringify(d)); }
+});
+
+/* ---------- 分类升级 P1：可转池 pzConv（§4.3）与搜索词解析 api/pzq.js（§七） ---------- */
+T('P1 pzConv：按二级镜像、与原稿去重、对照谱永不进；乐器＝同一乐器（五线谱重奏 → 简谱器乐）；合唱谱两个二级互转', () => {
+  const C = (pz, sub, also, inst) => ({ pz, sub, also: also || [], inst: inst || '', fx: { inst: [] } });
+  const art = C('gangqin', 'tanchang', ['wuxian.gequ']), jg = C('gangqin', 'tanchang', ['jianpu.gequ']), satb = C('hechang', 'wuxian', ['wuxian.hechang']);
+  const sj = C('wuxian', 'duizhao', ['jianpu.duizhao']), vn2 = C('wuxian', 'chongzou', [], 'violin'), vn = C('wuxian', 'qiyue', [], 'violin'), eh = C('jianpu', 'qiyue', [], 'erhu');
+  assert.strictEqual(K.pzConv(art, { pz: 'jianpu' }), 'jp'); assert.strictEqual(K.pzConv(art, { pz: 'jianpu', sub: 'gequ' }), 'jp'); assert.strictEqual(K.pzConv(art, { pz: 'jianpu', sub: 'hechang' }), '');
+  assert.strictEqual(K.pzConv(art, { pz: 'wuxian' }), '', '已是五线谱原稿');
+  assert.strictEqual(K.pzConv(jg, { pz: 'wuxian', sub: 'gequ' }), 'st');
+  assert.strictEqual(K.pzConv(sj, { pz: 'jianpu' }), '', '对照谱两边都是原稿'); assert.strictEqual(K.pzConv(sj, { pz: 'wuxian' }), '');
+  assert.strictEqual(K.pzConv(satb, { pz: 'hechang', sub: 'jianpu' }), 'jp'); assert.strictEqual(K.pzConv(satb, { pz: 'hechang', sub: 'wuxian' }), ''); assert.strictEqual(K.pzConv(satb, { pz: 'hechang' }), '');
+  assert.strictEqual(K.pzConv(satb, { pz: 'jianpu', sub: 'hechang' }), 'jp');
+  assert.strictEqual(K.pzConv(vn2, { pz: 'jianpu', sub: 'qiyue' }), 'jp', '五线谱重奏 → 简谱器乐'); assert.strictEqual(K.pzConv(vn2, { pz: 'jianpu', inst: 'violin' }), 'jp');
+  assert.strictEqual(K.pzConv(vn, { pz: 'jianpu', inst: 'erhu' }), '', '换了乐器不进'); assert.strictEqual(K.pzConv(eh, { pz: 'wuxian', inst: 'erhu' }), 'st');
+  assert.strictEqual(K.pzConv(eh, { pz: 'gangqin' }), ''); assert.strictEqual(K.pzConv(eh, { pz: 'jianpu', sub: 'duizhao' }), '');
+  for (const x of [null, {}, { pz: 5 }]) assert.strictEqual(K.pzConv(x, { pz: 'jianpu' }), '');
+  assert.strictEqual(K.pzConv(art, null), '');
+});
+T('P1 pzq：停用词 / 整词 / 末尾「X谱」/ 组合规则 / 乐器调只排序 / 单独谱种词＝点一级；每个目标 id 都在 PQ_KIND 表里', () => {
+  const P = require('./pzq');
+  const g = q => { const r = P.parse(q); return [r.words, r.pz, r.sub, r.inst, r.zt, r.key || r.fkey || r.keySort, r.only ? 'only' : '', r.conv ? 'conv' : '', r.tail, r.hint, r.nota].join('|'); };
+  assert.strictEqual(g('茉莉花 二胡谱'), '茉莉花|||erhu|||||||');
+  assert.strictEqual(g('茉莉花简谱'), '茉莉花|jianpu||||||conv|jp||');
+  assert.strictEqual(g('晴天 和弦谱'), '晴天|gongneng|||||||tab||');
+  assert.strictEqual(g('吉他 和弦谱'), '|jita|tanchang||||only||||');
+  assert.strictEqual(g('二胡曲谱大全'), '|||erhu|||||||');
+  assert.strictEqual(g('萨克斯简谱大全'), '|jianpu|qiyue|sax|||||||');
+  assert.strictEqual(g('黄河大合唱'), '黄河大合唱||||||||||');
+  assert.strictEqual(g('舒伯特'), '舒伯特||||||||||');
+  assert.strictEqual(g('简谱'), '|jianpu|||||only||||');
+  assert.strictEqual(g('乌克丽丽'), '|uku|||||only||||');
+  assert.strictEqual(g('教资 儿歌弹唱'), '||||shifan||||||');
+  assert.strictEqual(g('器乐谱'), '|||||||||inst|');
+  assert.strictEqual(P.parse('C调葫芦丝').keySort, 'C'); assert.strictEqual(P.parse('C调葫芦丝').key, '', '乐器的调不筛');
+  assert.strictEqual(P.parse('G调 吉他 晴天').fkey, 'G'); assert.strictEqual(P.parse('小星星 C调').key, 'C');
+  assert.strictEqual(g('钢琴 简谱'), '|gangqin|||||||||jp');
+  assert.strictEqual(g('合唱 简谱'), '|hechang|jianpu||||only||||');
+  const m = P.parse('茉莉花 二胡谱'); assert.ok(m.conds.length === 1 && m.conds[0].label === '乐器：二胡' && m.conds[0].rm === '茉莉花', JSON.stringify(m.conds));
+  assert.ok(/没有「晴天」的功能谱/.test(P.fbNote(P.parse('晴天 和弦谱'))));
+  const t = P.targets();
+  t.pz.forEach(x => assert.ok(K.pzHas(x), 'pzq 谱种 ' + x));
+  t.sub.forEach(x => { const [a, b] = x.split('.'); assert.ok(K.pzHas(a, b), 'pzq 二级 ' + x); });
+  t.inst.forEach(x => assert.ok(K.own(K.INST, x), 'pzq 乐器 ' + x));
+  Object.keys(P.CAT_ALIAS).forEach(k => { const a = P.CAT_ALIAS[k]; assert.ok(!a.pz || K.pzHas(a.pz, a.sub || ''), k); });
 });
 
 console.log('PASS ' + pass + '/' + total);

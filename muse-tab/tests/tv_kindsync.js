@@ -338,7 +338,7 @@ async function mkPage(b, url, opt) {
       await pg._ctx.close();
       const bad = res.filter(r => r.title !== r.t + ' · ' + r.name + ' · 谱友圈谱库' || r.card !== r.name || r.share !== r.t + ' · ' + r.name);
       /* 小程序：长歌名＋演唱者＋最长谱名——网页端发出的 share（真跳转、小程序 UA）≤44 且谱名完整，score.js 原样收下作卡片标题 */
-      const longX = items.find(x => x.name === '钢琴弹唱谱（纯伴奏，五线＋简谱对照）') || items.find(x => x.name.length >= 10);
+      const longX = items.find(x => x.name === '钢琴伴奏谱（纯伴奏，五线＋简谱对照）') || items.find(x => x.name.length >= 10);
       const pm = await mkPage(b, 'https://puku.puyouquan.com/kanpu.html?pub=' + longX.id, { wait: 400, ua: 'Mozilla/5.0 (Linux; Android 14) MicroMessenger/8.0.49 miniProgram',
         init: 'window.__wxjs_environment="miniprogram";' });
       /* CI 慢机实测：观看页载入完成前就改 song.title，载入后的自动 wxShareCard 会盖掉 __wxpm——先等观看页揭幕（v67.6 CI 抖动修） */
@@ -364,12 +364,13 @@ async function mkPage(b, url, opt) {
       const lab = Object.fromEntries(list.map(s => [s.id, s.typeLabel]));
       const pg = await mkPage(b, 'https://www.puyouquan.com/', { wait: 1500 });
       const site = await pg.evaluate(() => [...document.querySelectorAll('#lib-grid .cc-card')].map(c => ({ id: (c.getAttribute('href').match(/pub=([^&]+)/) || [])[1], t: c.querySelector('.cc-type').textContent })));
-      /* 分类筛选仍按 docType：点「歌谱」筛出的全部是 type=vocal */
-      const chip = await pg.$('#lib-cats [data-cat="vocal"]');
+      /* 分类升级 P1 有意迁移（方案 docs/design-2026-11-taxonomy §四，旧 10 类按钮换成 7 个谱种；新口径的全面断言在 tv_libpz）：
+         原「点『歌谱』筛出的全部是 type=vocal」→ 点一级「简谱」筛出的全部是简谱成员（PQ_KIND.pzMatch：主谱种或也出现在）；卡片谱名仍＝服务端 typeLabel（上面 siteBad） */
+      const chip = await pg.$('#lib-cats [data-pz="jianpu"]');
       let vocalOk = false;
-      if (chip) { await chip.click(); await pg.waitForTimeout(200);
+      if (chip) { await chip.click(); await pg.waitForTimeout(400);
         const ids2 = await pg.evaluate(() => [...document.querySelectorAll('#lib-grid .cc-card')].map(c => (c.getAttribute('href').match(/pub=([^&]+)/) || [])[1]));
-        const typ = Object.fromEntries(list.map(s => [s.id, s.type])); vocalOk = ids2.length > 0 && ids2.every(id => typ[id] === 'vocal'); }
+        const byId = Object.fromEntries(list.map(s => [s.id, s])); vocalOk = ids2.length > 0 && ids2.every(id => byId[id] && KIND.pzMatch(byId[id], { pz: 'jianpu' }) >= 0); }
       await pg._ctx.close();
       const siteBad = site.filter(c => c.t !== lab[c.id]);
       /* 编辑器谱友圈：线上卡片读服务端 typeLabel；本地演示谱（无网）按谱面现算 */
@@ -384,7 +385,7 @@ async function mkPage(b, url, opt) {
       await pl.close();
       const locBad = loc.filter(c => c.t !== c.want);
       T(site.length >= 12 && siteBad.length === 0 && vocalOk && ed.filter(c => c.remote).length >= 12 && edBad.length === 0 && loc.length > 0 && locBad.length === 0,
-        'K5 谱库卡片谱名：官网首页＝服务端 typeLabel（「歌谱」筛选仍按 docType）、编辑器谱友圈线上卡片＝typeLabel、本地演示谱＝按谱面现算',
+        'K5 谱库卡片谱名：官网首页＝服务端 typeLabel（P1 起点一级「简谱」＝全是简谱成员）、编辑器谱友圈线上卡片＝typeLabel、本地演示谱＝按谱面现算',
         JSON.stringify({ site: site.length, siteBad: siteBad.slice(0, 3), vocalOk, ed: ed.length, edBad: edBad.slice(0, 3), loc: loc.length, locBad: locBad.slice(0, 3) }));
     });
 
@@ -526,7 +527,7 @@ async function mkPage(b, url, opt) {
 
     /* ---------- K10 收尾验收 minor：小程序分享标题截歌名不留半个 emoji ---------- */
     await guard('K10', async () => {
-      const x = items.find(i => i.name === '钢琴弹唱谱（纯伴奏）') || items[0];
+      const x = items.find(i => i.name === '钢琴伴奏谱（纯伴奏）') || items[0];
       const pm = await mkPage(b, 'https://puku.puyouquan.com/kanpu.html?pub=' + x.id, { wait: 400, ua: 'Mozilla/5.0 (Linux; Android 14) MicroMessenger/8.0.49 miniProgram', init: 'window.__wxjs_environment="miniprogram";' });
       /* CI 慢机实测：观看页载入完成前就改 song.title，载入后的自动 wxShareCard 会盖掉 __wxpm——先等观看页揭幕（v67.6 CI 抖动修） */
       await pm.waitForFunction(() => typeof viewerMode !== 'undefined' && viewerMode && !!document.getElementById('vw-fav'), null, { timeout: 15000 }).catch(() => {});
@@ -543,7 +544,7 @@ async function mkPage(b, url, opt) {
 
     /* ---------- K11 收尾验收 minor：谱库卡片中长谱名不丢区分信息；外层 flex＋图标（p6a 合并后）仍不溢出 ---------- */
     await guard('K11', async () => {
-      const NAMES = ['钢琴伴奏歌谱（五线谱）', '钢琴弹唱谱（纯伴奏，五线＋简谱对照）', '旋律＋钢琴伴奏谱（五线谱）', '简谱歌谱'];
+      const NAMES = ['钢琴伴奏歌谱（五线谱）', '钢琴伴奏谱（纯伴奏，五线＋简谱对照）', '旋律＋钢琴伴奏谱（五线谱）', '简谱歌谱'];
       const geo = () => [...document.querySelectorAll('.cc-card')].slice(0, 4).map(c => {
         const t = c.querySelector('.cc-type'), n = t.querySelector('.cc-tname') || t, p = c.querySelector('.cc-price');
         const rt = t.getBoundingClientRect(), rn = n.getBoundingClientRect(), rp = p ? p.getBoundingClientRect() : null, lh = parseFloat(getComputedStyle(n).lineHeight) || 13.5;
@@ -631,7 +632,7 @@ async function mkPage(b, url, opt) {
         await ctx.close();
       }
       const bad = Object.entries(res).flatMap(([W, a]) => a.filter(x => !(x.ov <= 0 && x.page <= 0 && x.exitIn && x.vaH <= 20 && x.title.includes(' · ' + x.kind + ' · '))).map(x => W + ' ' + x.kind + ' ov=' + x.ov + ' exit=' + x.exitIn + ' h=' + x.vaH));
-      T(bad.length === 0, 'K13 本机演示谱观看栏（641 / 680 / 720 / 768 / 800 / 820 / 900 / 1024 宽 × 钢琴弹唱谱（纯伴奏，五线＋简谱对照）/ 旋律＋钢琴伴奏谱（五线谱）等长谱名）：#viewerbar 与整页不横向溢出、「退出观看」在屏内、作者 · 谱名 · 小节单行（省略）、全名在 title',
+      T(bad.length === 0, 'K13 本机演示谱观看栏（641 / 680 / 720 / 768 / 800 / 820 / 900 / 1024 宽 × 钢琴伴奏谱（纯伴奏，五线＋简谱对照）/ 旋律＋钢琴伴奏谱（五线谱）等长谱名）：#viewerbar 与整页不横向溢出、「退出观看」在屏内、作者 · 谱名 · 小节单行（省略）、全名在 title',
         JSON.stringify({ bad: bad.slice(0, 10), w800: res[800] }));
     });
 

@@ -10,7 +10,9 @@
    分类升级 P0（方案 docs/design-2026-11-taxonomy §五 / §十四，2026-10-31 负责人「好的，按建议」＝§十五 30 项按推荐）同段新增：
    谱种表 PZ（一级 7 个＋二级，id 只增不改）、乐器族 INST_FAM（＝编辑器 NW_INSTS.fam）、按音轨名推乐器 ikOf（instKey 缺省时用，只读不回写）、
    主谱种 › 二级＋也出现在 pzOf（§5.2 判法表 24 行，自上而下首条命中）、分面 facetsOf（§5.5）、旧谱类 docTypeOf（原编辑器 docType 的判法改防脏写法，
-   编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。 */
+   编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。
+   分类升级 P1（§四 4.3 / §十四 P1）同段新增：可转池 pzConv（简谱 / 五线谱 / 合唱谱两个二级的「还有 N 首是五线谱 · 用简谱看」，按二级镜像、与原稿去重、对照谱永不进）；
+   拍板 10：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」（与归属 钢琴谱 › 伴奏 名实一致；type 仍是 pianoacc）。 */
 const PQ_KIND = (function(){
   const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
   function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
@@ -88,7 +90,7 @@ const PQ_KIND = (function(){
       case 'JT': return uku? '尤克里里弹唱谱' : '吉他弹唱谱';
       case 'ST': return uku? '尤克里里独奏谱' : '吉他独奏谱';
       case 'G':  return (ik? instName(ik)+'独奏谱' : '钢琴独奏谱')+(ctx.dual? '（五线＋简谱对照）' : '');
-      case 'CG': return ctx.dual? '钢琴弹唱谱（纯伴奏，五线＋简谱对照）' : '钢琴弹唱谱（纯伴奏）';
+      case 'CG': return ctx.dual? '钢琴伴奏谱（纯伴奏，五线＋简谱对照）' : '钢琴伴奏谱（纯伴奏）';
       case 'JG': return '钢琴伴奏歌谱';
       case 'SG': return ctx.lyr? '钢琴伴奏歌谱（五线谱）' : '旋律＋钢琴伴奏谱（五线谱）';
       case 'CJ': return '功能谱';
@@ -298,8 +300,124 @@ const PQ_KIND = (function(){
     }
     return -1;
   }
+  /* 分类升级 P1 可转池（§4.3，v2 复核 T9 / T15）：r＝卡片、f＝当前筛选 {pz, sub, inst}。这份谱不在当前筛选里、但在对面一级的镜像二级里（打开时换成本一级的记谱法看）
+     → 返回观看页记谱法 'jp'（简谱、合唱谱 › 简谱合唱）/ 'st'（五线谱、合唱谱 › 五线合唱），否则 ''。
+     镜像表：歌曲 ↔ 歌曲（简谱 › 儿歌 → 五线谱 › 歌曲）、合唱 ↔ 合唱、器乐 ↔ 器乐（同一乐器；五线谱 › 重奏 → 简谱 › 器乐）、视唱 ↔ 视唱；没选二级＝对面一级除对照谱外的全部。
+     去重：已在当前筛选里的（主谱种或也出现在）不进；对照谱两边都是原稿，永不进。只看卡片字段，谱库列表 / 计数 / 编辑器谱友圈共用 */
+  const CONV_SRC = {jianpu:{gequ:['gequ'], hechang:['hechang'], qiyue:['qiyue', 'chongzou'], shichang:['shichang']},
+    wuxian:{gequ:['gequ', 'erge'], hechang:['hechang'], qiyue:['qiyue'], shichang:['shichang']}};
+  function pzConv(r, f){
+    if(!r || typeof r.pz!=='string' || !f || pzMatch(r, f)>=0) return '';
+    let opp='', subs=null, nota='';
+    if(f.pz==='hechang'){ if(f.sub!=='jianpu' && f.sub!=='wuxian') return ''; opp='hechang'; subs=[f.sub==='jianpu'? 'wuxian' : 'jianpu']; nota=f.sub==='jianpu'? 'jp' : 'st'; }
+    else if(f.pz==='jianpu' || f.pz==='wuxian'){
+      const m=CONV_SRC[f.pz]; opp=f.pz==='jianpu'? 'wuxian' : 'jianpu'; nota=f.pz==='jianpu'? 'jp' : 'st';
+      if(f.sub) subs=own(m, f.sub)? m[f.sub] : [];
+      if(f.inst) subs=(subs || ['qiyue', 'chongzou']).filter(x=>x==='qiyue' || (x==='chongzou' && f.pz==='jianpu'));
+    }
+    else return '';
+    if(subs && !subs.length) return '';
+    const pl=[r.pz+'.'+r.sub].concat(A(r.also));
+    for(let i=0; i<pl.length; i++){
+      const a=String(pl[i]).split('.');
+      if(a[0]!==opp || a[1]==='duizhao' || (subs && subs.indexOf(a[1])<0)) continue;
+      if(f.inst && r.inst!==f.inst) continue;
+      return nota;
+    }
+    return '';
+  }
+  /* ===== 分类升级 P1 谱库列表引擎（§四 4.1–4.4 / §七 / §九）：服务端 /api/pub/scores、/api/pub/cats 与编辑器新外壳谱友圈共用这一份；
+     官网是静态页读不到，pyq.js PYQ_PZ 抄一份（tv_libpz 对拍）。c＝卡片 {id, title, singer, author, composer, pz, sub, inst, also, fx, key, beats, unit, tempo, favs, views, typeLabel, intent}。
+     pzQuery(cards, o)，o＝{f:{pz,sub,inst}, words, conv, more, x（抽屉分面）, zt, style, sort, keySort, tail, shichang}，返回 {list:[{c, sec, nota, i}], n0, nConv, tail}：
+     段 sec 0 主谱种在本筛选 · 1 只在「也出现在」· 2 可转（pzConv，nota＝jp / st）· 3 尾节（tail：tab＝和弦谱后接吉他 / 尤克里里弹唱谱；jp＝「X 简谱」后接吉他弹唱谱里的简谱旋律；
+     more 且乐器结果不满 6 首＝mel，接同一级的单旋律歌曲，T5）；段内按 sort（new 原顺序＝最新 / fav 最多收藏 / view 最多浏览），keySort（乐器的调）同调排前。
+     原稿数 n0＝段 0＋1；可转数 nConv 不论 conv 开没开都给（列表末尾「还有 N 首是五线谱」） */
+  const LIB_MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1};
+  const libInPl = (c, re)=> [c.pz+'.'+c.sub].concat(A(c.also)).some(p=>re.test(p));
+  function pzWordsOk(c, words){
+    if(!words) return true;
+    const hay=((c.title||'')+' '+(c.singer||'')+' '+(c.author||'')+' '+(c.composer||'')).toLowerCase();
+    return String(words).toLowerCase().split(/[\s　]+/).filter(Boolean).every(w=>hay.indexOf(w)>=0);
+  }
+  const libErge = c=> libInPl(c, /\.erge$/) || c.intent==='kids';
+  /* 抽屉分面 x：parts 编制（1 独唱独奏 · 2 · 3 · 4＝四部以上，多选取并）· chord 已配和弦 · acc 带伴奏 · verses 多段歌词 · erge 儿歌 ·
+     keys 调（六线谱 / 四线谱比指法调 fx.fkey）· meters 拍号 · speeds 速度（slow <72 · mid 72–120 · fast >120）· hacc 合唱谱伴奏三选（yes / no） */
+  function pzFxOk(c, x){
+    if(!x) return true;
+    const fx=c.fx||{};
+    if(x.parts && x.parts.length && x.parts.indexOf(Math.min(4, Math.max(1, fx.parts|0)))<0) return false;
+    if(x.chord && !fx.chord) return false;
+    if((x.acc || x.hacc==='yes') && !fx.acc) return false;
+    if(x.hacc==='no' && fx.acc) return false;
+    if(x.verses && !((fx.verses|0)>=2)) return false;
+    if(x.erge && !libErge(c)) return false;
+    if(x.keys && x.keys.length){ const k=(c.pz==='jita' || c.pz==='uku') && fx.fkey? fx.fkey : String(c.key||''); if(x.keys.indexOf(k)<0) return false; }
+    if(x.meters && x.meters.length && x.meters.indexOf(c.beats+'/'+c.unit)<0) return false;
+    if(x.speeds && x.speeds.length){ const t=+c.tempo||0, sp=!t? '' : t<72? 'slow' : t<=120? 'mid' : 'fast'; if(x.speeds.indexOf(sp)<0) return false; }
+    return true;
+  }
+  /* 专题（§4.4 并集口径）：考编即兴伴奏 · 艺考视唱（只收 intent＝sight，T4）· 师范儿歌弹唱 · 课堂对照谱 */
+  function pzZtOk(c, zt){
+    const fx=c.fx||{};
+    switch(zt){
+      case 'kaobian': return libInPl(c, /^gangqin\.(tanchang|banzou)$|^gongneng\.jishu$/) || (libInPl(c, /^(jianpu|wuxian)\.(gequ|erge|shichang|qiyue)$/) && (fx.parts|0)<=1 && !!fx.chord);
+      case 'yikao': return libInPl(c, /^(jianpu|wuxian)\.shichang$/) && c.intent==='sight';
+      case 'shifan': return libErge(c) || libInPl(c, /\.duizhao$/);
+      case 'ketang': return libInPl(c, /\.duizhao$/) || (libInPl(c, /^jianpu\.gequ$/) && !!fx.acc);
+      default: return true;
+    }
+  }
+  function pzQuery(cards, o){
+    o = o || {};
+    const f=o.f||{}, x=o.x||null, out=[], hasF=!!(f.pz || f.sub || f.inst);
+    A(cards).forEach((c, i)=>{
+      if(!c || !pzWordsOk(c, o.words) || !pzFxOk(c, x) || (o.zt && !pzZtOk(c, o.zt)) || (o.style==='erge' && !libErge(c))) return;
+      let sec=-1, nota='';
+      if(!hasF) sec=0;
+      else { const g=pzMatch(c, f); if(g>=0) sec=(o.shichang && !f.pz)? (libInPl(c, /^wuxian\.shichang$/)? 0 : 1) : g; else { nota=pzConv(c, f); if(nota) sec=2; } }
+      if(sec>=0) out.push({c, sec, nota, i});
+    });
+    const n0=out.filter(e=>e.sec<2).length, nConv=out.filter(e=>e.sec===2).length;
+    const list=o.conv? out : out.filter(e=>e.sec<2);
+    let tail='';
+    const have={}; list.forEach(e=>{ have[e.c.id]=1; });
+    const addTail = pred=>{ let n=0; A(cards).forEach((c, i)=>{ if(!c || have[c.id] || !pzWordsOk(c, o.words) || !pzFxOk(c, x) || !pred(c)) return; have[c.id]=1; list.push({c, sec:3, nota:'', i}); n++; }); return n; };
+    if(o.tail==='tab'){ if(addTail(c=>libInPl(c, /^(jita|uku)\.tanchang$/))) tail='tab'; }
+    else if(o.tail==='jp'){ if(addTail(c=>(c.pz==='jita' || c.pz==='uku') && /弹唱谱$/.test(c.typeLabel||''))) tail='jp'; }
+    if(o.more && f.inst && LIB_MEL[f.inst] && n0<6){
+      const lv = f.pz==='wuxian'? /^wuxian\.(gequ|erge)$/ : f.pz==='jianpu'? /^jianpu\.(gequ|erge)$/ : (INST_FAM[f.inst]==='jianpu'? /^jianpu\.(gequ|erge)$/ : /^(jianpu|wuxian)\.(gequ|erge)$/);
+      if(addTail(c=>libInPl(c, lv) && ((c.fx||{}).parts|0)<=1)) tail=tail || 'mel';
+    }
+    const sk = o.sort==='fav'? (e=>-(+e.c.favs||0)) : o.sort==='view'? (e=>-(+e.c.views||0)) : (()=>0);
+    const ks = o.keySort? (e=>String(e.c.key||'')===o.keySort? 0 : 1) : (()=>0);
+    list.sort((a, b)=>a.sec-b.sec || ks(a)-ks(b) || sk(a)-sk(b) || a.i-b.i);
+    return {list, n0, nConv, tail};
+  }
+  /* 计数（/api/pub/cats）：各一级（主谱种 ∪ 也出现在）、各二级、简谱 / 五线谱「器乐」按乐器（器乐 ∪ 重奏，与筛选同口径）；一级内唯一 → 一级＝各二级之和。
+     conv＝可转数（pzConv）：简谱 / 五线谱的一级、各二级、器乐乐器，合唱谱两个二级 */
+  function pzCats(cards){
+    const out={total:A(cards).length, pz:{}}, cv={jianpu:{n:0, sub:{}, inst:{}}, wuxian:{n:0, sub:{}, inst:{}}, hechang:{sub:{jianpu:0, wuxian:0}}};
+    PZ.forEach(p=>{ const o=out.pz[p.id]={n:0, sub:{}}; p.subs.forEach(x=>{ o.sub[x.id]=0; });
+      if(p.id==='jianpu' || p.id==='wuxian'){ o.inst={}; p.subs.forEach(x=>{ cv[p.id].sub[x.id]=0; }); } });
+    A(cards).forEach(c=>{
+      if(!c) return;
+      PZ.forEach(p=>{
+        if(pzMatch(c, {pz:p.id})<0) return;
+        const o=out.pz[p.id]; o.n++;
+        p.subs.forEach(x=>{ if(pzMatch(c, {pz:p.id, sub:x.id})>=0) o.sub[x.id]++; });
+        if(o.inst && c.inst && pzMatch(c, {pz:p.id, inst:c.inst})>=0) o.inst[c.inst]=(o.inst[c.inst]||0)+1;
+      });
+      ['jianpu', 'wuxian'].forEach(t=>{ const o=cv[t];
+        if(pzConv(c, {pz:t})) o.n++;
+        Object.keys(o.sub).forEach(sb=>{ if(pzConv(c, {pz:t, sub:sb})) o.sub[sb]++; });
+        if(c.inst && pzConv(c, {pz:t, inst:c.inst})) o.inst[c.inst]=(o.inst[c.inst]||0)+1; });
+      ['jianpu', 'wuxian'].forEach(sb=>{ if(pzConv(c, {pz:'hechang', sub:sb})) cv.hechang.sub[sb]++; });
+    });
+    out.conv=cv;
+    return out;
+  }
   return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf,
-    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch};
+    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats};
 })();
 /* @pq-kindname end */
 

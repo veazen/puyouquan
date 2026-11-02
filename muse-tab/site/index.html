@@ -29,7 +29,12 @@
   <h1 class="home-brand"><span class="mark"></span>谱友圈 <span class="grad">专业曲谱平台</span></h1>
   <p class="home-sub">出版级 · 科教级在线制谱｜免费看谱 · 一键移调 · 跟谱播放</p>
   <div class="lib-search xl"><i data-i="scan"></i><input id="lib-q" type="search" placeholder="搜曲名 / 歌手，如：小星星" autocomplete="off"></div>
-  <div class="chip-row" id="lib-cats"></div>
+  <div class="lib-conds" id="lib-conds" hidden></div>
+  <!-- 分类升级 P1：一级 7 个谱种（手机未选时 2×4 宫格）· 二级（简谱 / 五线谱露前 3 个乐器）· 乐器行（只在简谱 / 五线谱下） -->
+  <div class="chip-row" id="lib-cats" role="group" aria-label="谱种"></div>
+  <div class="chip-row lib-subs" id="lib-subs" role="group" aria-label="二级分类" hidden></div>
+  <div class="chip-row lib-insts" id="lib-insts" role="group" aria-label="乐器" hidden></div>
+  <p class="lib-zt" id="lib-zt"><a href="kaobian.html" data-zt="kaobian">考编</a> · <a href="yikao.html" data-zt="yikao">艺考</a> · <a href="shifan.html" data-zt="shifan">师范</a> · <a href="?sub=duizhao" data-zt="ketang">课堂</a></p>
 </div></header>
 
 <section class="sec" id="lib-sec" style="padding-top:30px"><div class="wrap">
@@ -37,7 +42,10 @@
     <div class="lib-head"><b>最近看过</b></div>
     <div id="recent-grid" class="grid g3"></div>
   </div>
-  <div class="lib-head"><b id="lib-title">最新上架</b><span id="lib-newbadge" class="lib-new" hidden></span><span class="lib-count" id="lib-count"></span></div>
+  <div class="lib-head"><b id="lib-title">最新上架</b><span id="lib-newbadge" class="lib-new" hidden></span><span class="lib-count" id="lib-count"></span>
+    <button class="fchip lib-fbtn" id="lib-fbtn" type="button" aria-expanded="false" aria-controls="lib-drawer">筛选 ▾</button>
+    <select class="lib-sort" id="lib-sort" aria-label="排序"><option value="new">最新</option><option value="fav">最多收藏</option><option value="view">最多浏览</option></select></div>
+  <div class="lib-drawer" id="lib-drawer" hidden></div>
   <div id="lib-grid" class="grid g3">
     <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
     <div class="sk-card"></div><div class="sk-card"></div><div class="sk-card"></div>
@@ -54,70 +62,272 @@
 <div id="site-foot"><div style="text-align:center;padding:20px 0;font-size:13px;opacity:.75">© 2026 谱友圈 · <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">粤ICP备2026100396号-1</a></div></div>
 <script src="pyq.js"></script>
 <script>
-/* 搜索型首页：一次拉取 /api/pub/scores（sessionStorage 5 分钟缓存），本地即时过滤 +
-   谱种 chip（0 首的分类不显示）+ 收藏筛选 + 分页「加载更多」+ URL ?q= 同步（可转发搜索结果） */
+/* 搜索型首页：一次拉取 /api/pub/scores（sessionStorage 5 分钟缓存），本地即时过滤 + 收藏筛选 + 分页「加载更多」+ URL 同步（可转发）。
+   分类升级 P1（方案 docs/design-2026-11-taxonomy §四 / §七 / §九；负责人 2026-10-31「好的，按建议」）：
+   一级 7 个谱种（全部 · 简谱 · 五线谱 · 钢琴谱 · 吉他谱 · 尤克里里 · 合唱谱 · 功能谱 · ♥ 收藏；手机 ≤580 未选一级时 2×4 宫格，选了收成一行、行首「‹」回宫格）；
+   二级单选（简谱 / 五线谱的「器乐」后露前 3 个乐器）、乐器行（简谱 / 五线谱下按数量前 6 常显）、二级行末开关与专题入口、筛选抽屉（编制 / 能用来 / 风格 / 调拍速）；
+   列表：主谱种在前、也出现在的在后，简谱 / 五线谱 / 合唱谱两个二级的末尾「还有 N 首是五线谱 · 用简谱看 ›」（可转池去重，原稿 <6 首或搜索时自动展开，打开带 &nota=）；
+   搜索词交接口解析（同义词 / 停用词 / 条件块可删 / 0 结果退路），只有谱种词＝点了这个一级；库超过首批（第 201 首起）时筛选与搜索从接口补齐全库结果。
+   列表引擎 PYQ_PZ.query 与接口 libQuery 同口径（tv_libpz 对拍）；筛选只记 ui_cmd lib:<维度>:<id>（不发原词）。缓存键换 pyq-pub-cache2（旧缓存条目没有 pz） */
 (function(){
-  var CATS=[['all','全部'],['guitar','弹唱'],['solo','独奏'],['uku','尤克里里'],['pianoacc','钢琴弹唱'],['piano','钢琴独奏'],
-            ['vocal','歌谱'],['teach','教学对照'],['instr','器乐五线'],['func','功能谱'],['chord','和弦谱']];
-  var NORM={vox:'vocal', staff:'instr'};
-  var PAGE=12;
-  var all=[], favs={}, st={q:'', cat:'all', favOnly:false, shown:PAGE};
-  /* v62.7 A6（P1-34）：首页只拉最新一批（接口附 total）；被截断时，搜索与「♥ 收藏」从服务端补齐全库结果，
-     第 201 首起也搜得到、老收藏也在。extra＝不在首批里的补充卡片（按 id 去重） */
-  var total=0, extra={}, remoteQ='', rtimer=0;
-  var grid=document.getElementById('lib-grid'), cats=document.getElementById('lib-cats'),
-      qIn=document.getElementById('lib-q'), moreWrap=document.getElementById('lib-more'),
-      title=document.getElementById('lib-title');
+  var Z=window.PYQ_PZ, PAGE=12;
+  var X0=function(){ return {parts:[], chord:false, acc:false, verses:false, erge:false, keys:[], meters:[], speeds:[]}; };
+  var all=[], favs={}, st={q:'', pz:'', sub:'', inst:'', hacc:'', favOnly:false, shown:PAGE, x:X0(), sort:'new', instMore:false, mInst:false, conv:false, drawer:false};
+  /* v62.7 A6（P1-34）：首页只拉最新一批（接口附 total）；被截断时，搜索 / 筛选 / 「♥ 收藏」从服务端补齐全库结果。extra＝不在首批里的补充卡片（按 id 去重） */
+  var total=0, extra={}, cats=null, srv=null, srvFail={}, rtimer=0, fetched={}, zrLast='';
+  var $=function(id){ return document.getElementById(id); };
+  var grid=$('lib-grid'), catsEl=$('lib-cats'), subsEl=$('lib-subs'), instsEl=$('lib-insts'), condsEl=$('lib-conds'), qIn=$('lib-q'), moreWrap=$('lib-more'),
+      title=$('lib-title'), drawerEl=$('lib-drawer'), fbtn=$('lib-fbtn'), sortEl=$('lib-sort');
+  var own=function(o,k){ return typeof k==='string' && Object.prototype.hasOwnProperty.call(o,k); };
+  var esc=function(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var convPz=function(){ return st.pz==='jianpu' || st.pz==='wuxian' || (st.pz==='hechang' && (st.sub==='jianpu' || st.sub==='wuxian')); };
+  var isMp=function(){ try{ return !!(window.PYQ_MP && PYQ_MP.is()); }catch(_){ return false; } };
+  function isMobile(){ return matchMedia('(max-width:580px)').matches; }
 
-  try{ var q0=new URLSearchParams(location.search).get('q'); if(q0){ st.q=q0; qIn.value=q0; } }catch(_){}
+  /* ---- URL → 状态：?pz=&sub=&inst=&conv=（参数顺序固定）＋ ?q=；旧按钮 id 别名 ?cat=guitar / piano / vocal … ---- */
+  try{ var sp=new URLSearchParams(location.search), q0=sp.get('q'); if(q0){ st.q=q0; qIn.value=q0; }
+    var cat=sp.get('cat')||'', al=own(Z.CAT_ALIAS, cat)? Z.CAT_ALIAS[cat] : null, noPS=!sp.get('pz') && !sp.get('sub');
+    var pz0=sp.get('pz')||(al && noPS? al.pz||'' : ''), sub0=sp.get('sub')||(al && noPS? al.sub||'' : ''), in0=sp.get('inst')||'';
+    if(pz0 && Z.has(pz0)) st.pz=pz0;
+    if(sub0 && Z.has(st.pz, sub0)) st.sub=sub0;
+    if(in0 && own(Z.INST, in0) && (st.pz==='jianpu' || st.pz==='wuxian')) st.inst=in0;
+    if(sp.get('conv')==='1') st.conv=true;
+    if(al) setTimeout(function(){ syncURL(); }, 0);   /* 旧 ?cat= 别名：地址栏改写成新参数（可转发） */
+  }catch(_){}
+  try{ if(sessionStorage.getItem('pyq-lib-conv')==='1') st.conv=true; }catch(_){}   /* §4.3 本次会话记住「用简谱看」展开（非 musetab-* 键） */
   if(!('ontouchstart' in window) && !st.q) try{ qIn.focus({preventScroll:true}); }catch(_){}
 
-  function typeOf(s){ return NORM[s.type]||s.type; }
-  function chips(){
-    var counts={}; all.forEach(function(s){ var t=typeOf(s); counts[t]=(counts[t]||0)+1; });
-    cats.innerHTML = CATS.filter(function(c){ return c[0]==='all' || counts[c[0]]; }).map(function(c){
-      return '<button class="fchip lg'+(st.cat===c[0]&&!st.favOnly?' on':'')+'" data-cat="'+c[0]+'">'+c[1]+'</button>'; }).join('')
-      +'<button class="fchip lg fav'+(st.favOnly?' on':'')+'" data-fav>♥ 收藏</button>';
+  function syncURL(){
+    var p=[];
+    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst);
+    if(st.conv && convPz()) p.push('conv=1');
+    if(st.q.trim()) p.push('q='+encodeURIComponent(st.q.trim()));
+    try{ history.replaceState(null, '', p.length? '?'+p.join('&') : location.pathname); }catch(_){}
   }
-  var zrLast='';
-  function pool(){ var have={}; all.forEach(function(s){ have[s.id]=1; });
-    return all.concat(Object.keys(extra).map(function(k){ return extra[k]; }).filter(function(s){ return !have[s.id]; })); }
-  function remoteSearch(){
-    var q=st.q.trim(); if(!q || total<=all.length || q===remoteQ) return;
-    clearTimeout(rtimer);
-    rtimer=setTimeout(function(){ remoteQ=q;
-      fetch('/api/pub/scores?q='+encodeURIComponent(q),{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
-        .then(function(j){ if(!j || st.q.trim()!==q) return; (j.scores||[]).forEach(function(s){ extra[s.id]=s; }); draw(); })
-        .catch(function(){}); }, 300);
-  }
-  function filtered(){
-    var q=st.q.trim().toLowerCase();
-    return pool().filter(function(s){
-      if(st.favOnly && !favs[s.id]) return false;
-      if(st.cat!=='all' && typeOf(s)!==st.cat) return false;
-      if(q){ var hay=((s.title||'')+' '+(s.singer||'')+' '+(s.composer||'')+' '+(s.author||'')).toLowerCase();   /* v69.3 曲库公版谱接口给 composer、singer 空：按作曲家也搜得到 */
-        if(hay.indexOf(q)<0) return false; }
-      return true;
+  function track(dim, v){ if(window.PYQ_EV && /^[a-z0-9]{1,16}$/.test(String(v))) PYQ_EV.send('ui_cmd', 'lib:'+dim+':'+v); }
+  function xActive(){ var x=st.x; return !!(x.parts.length || x.chord || x.acc || x.verses || x.erge || x.keys.length || x.meters.length || x.speeds.length); }
+  function xEff(){ var x=st.x, any=xActive() || !!st.hacc; if(!any) return null; return Object.assign({}, x, {hacc:st.hacc}); }
+  function fNow(){ var f={}; if(st.pz) f.pz=st.pz; if(st.sub) f.sub=st.sub; if(st.inst) f.inst=st.inst; return f; }
+  function pool(){ var have={}, src=all.slice(); all.forEach(function(s){ have[s.id]=1; });
+    Object.keys(extra).forEach(function(k){ if(!have[k]) src.push(extra[k]); });
+    return st.favOnly? src.filter(function(s){ return favs[s.id]; }) : src; }
+  function truncated(){ return total>all.length; }
+  function normQ(q){ return String(q||'').trim().split(/[\s　]+/).filter(Boolean).join(' '); }
+  /* 接口解析出了东西（条件 / 提示 / 尾节 / 停用词被去掉 / 退路）＝按接口结果列；否则本地即时筛 */
+  function srvMode(){ var q=normQ(st.q); return !!(q && srv && srv.q===q && srv.parsed); }
+  function counts(){ return cats || Z.cats(pool()); }
+
+  /* ---- 一级 / 二级 / 乐器 ---- */
+  var FOCUS={'gangqin.tanchang':1, 'jianpu.erge':1, 'wuxian.shichang':1, 'jianpu.duizhao':1, 'wuxian.duizhao':1};
+  var ZT={jianpu:['shifan.html','shifan','儿歌弹唱 ›'], wuxian:['yikao.html','yikao','艺考视唱 ›'], gangqin:['kaobian.html','kaobian','即兴伴奏 ›'], gongneng:['jixing.html','kaobian','即兴伴奏 ›']};
+  function chip(attr, label, on, extraCls){ return '<button type="button" class="fchip lg'+(extraCls?' '+extraCls:'')+(on?' on':'')+'" '+attr+'>'+label+'</button>'; }
+  function instList(pz){ var C=counts(), o=(C.pz[pz]||{}).inst||{};
+    return Object.keys(o).filter(function(k){ return o[k]>0 && own(Z.INST,k); }).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }); }
+  function subChips(){
+    var p=Z.pzDef(st.pz); if(!p) return '';
+    var C=counts(), cs=(C.pz[st.pz]||{sub:{}}).sub, h='';
+    p.subs.forEach(function(x){
+      var n=cs[x.id]||0;
+      if(!(n>0 || FOCUS[st.pz+'.'+x.id] || st.sub===x.id || (x.id==='qiyue' && st.inst))) return;
+      h+=chip('data-sub="'+x.id+'"', x.name, st.sub===x.id || (x.id==='qiyue' && !!st.inst));
+      if(x.id==='qiyue' && (st.pz==='jianpu' || st.pz==='wuxian') && isMobile()){   /* 手机：「器乐」后直接露该一级数量前 3 的乐器（T5）；电脑有常显的乐器行 */
+        var top=instList(st.pz).filter(function(k){ return k!=='other'; }).slice(0,3);
+        if(st.inst && top.indexOf(st.inst)<0) top.push(st.inst);
+        top.forEach(function(k){ h+=chip('data-inst="'+k+'"', Z.INST[k], st.inst===k, 'inst'); });
+      }
     });
+    return h;
   }
-  function searching(){ return !!(st.q.trim() || st.cat!=='all' || st.favOnly); }
+  function tailBits(){   /* 二级行末：开关（手机进抽屉）＋专题入口 */
+    var h='';
+    if(st.pz==='jianpu') h+=chip('data-tg="acc"', '带伴奏', st.x.acc, 'tg')+chip('data-tg="chord"', '已配和弦', st.x.chord, 'tg');
+    else if(st.pz==='wuxian') h+=chip('data-tg="acc"', '带伴奏', st.x.acc, 'tg');
+    else if(st.pz==='hechang') h+='<span class="lib-rl">伴奏</span>'+chip('data-hacc=""', '全部', !st.hacc, 'tg')+chip('data-hacc="yes"', '带伴奏', st.hacc==='yes', 'tg')+chip('data-hacc="no"', '无伴奏', st.hacc==='no', 'tg');
+    var z=ZT[st.pz]; if(z) h+='<a class="lib-ztl" href="'+z[0]+'" data-zt="'+z[1]+'">'+z[2]+'</a>';
+    return h;
+  }
+  function chips(){
+    var mob=isMobile(), h='';
+    catsEl.classList.toggle('pz-grid', mob && !st.pz);
+    catsEl.classList.toggle('pz-row', mob && !!st.pz);
+    if(mob && !st.pz){
+      h=Z.PZ.map(function(p){ return chip('data-pz="'+p.id+'"', p.name, false); }).join('')+chip('data-fav', '♥ 收藏', st.favOnly, 'fav');
+    }else if(mob){
+      if(st.mInst && (st.pz==='jianpu' || st.pz==='wuxian')){
+        h=chip('data-iback aria-label="返回二级"', '‹ 器乐', false, 'back')+instList(st.pz).map(function(k){ return chip('data-inst="'+k+'"', Z.INST[k], st.inst===k, 'inst'); }).join('');
+      }else{
+        h=chip('data-back aria-label="返回全部谱种"', '‹', false, 'back')+chip('data-pz="'+st.pz+'"', Z.pzDef(st.pz).name, true)+subChips();
+      }
+    }else{
+      h=chip('data-cat="all"', '全部', !st.pz && !st.favOnly)+Z.PZ.map(function(p){ return chip('data-pz="'+p.id+'"', p.name, st.pz===p.id); }).join('')
+        +chip('data-fav', '♥ 收藏', st.favOnly, 'fav');
+    }
+    catsEl.innerHTML=h;
+    /* 电脑：二级一行（含行末开关与专题）＋乐器行 */
+    var sh=!mob && st.pz? subChips()+tailBits() : '';
+    subsEl.innerHTML=sh; subsEl.hidden=!sh;
+    var ih='';
+    if(!mob && (st.pz==='jianpu' || st.pz==='wuxian')){
+      var L=instList(st.pz), show=st.instMore? L : L.slice(0,6);
+      if(st.inst && show.indexOf(st.inst)<0) show=show.concat([st.inst]);
+      if(L.length) ih='<span class="lib-rl">乐器</span>'+show.map(function(k){ return chip('data-inst="'+k+'"', Z.INST[k], st.inst===k, 'inst'); }).join('')
+        +(L.length>6? '<button type="button" class="fchip lg more" data-imore aria-expanded="'+(st.instMore?'true':'false')+'">'+(st.instMore?'收起':'更多 ▾')+'</button>' : '');
+    }
+    instsEl.innerHTML=ih; instsEl.hidden=!ih;
+    fbtn.classList.toggle('on', xActive() || !!st.hacc); fbtn.setAttribute('aria-expanded', st.drawer? 'true' : 'false');
+    conds();
+  }
+  /* ---- 条件块（接口解析出的，可删）· 只给二级的筛选（旧 ?cat=teach / 搜「对照谱」）· 0 结果退路说明 · 「器乐谱」提示条 ---- */
+  var HINT=['erhu','guzheng','dizi','hulusi','sax','violin'];
+  function conds(){
+    var h='', p=srvMode()? srv.parse : null;
+    if(p) (p.conds||[]).forEach(function(c){ h+='<button type="button" class="cond" data-rm="'+esc(c.rm)+'" title="去掉这个条件">'+esc(c.label)+' <b aria-hidden="true">×</b></button>'; });
+    if(st.sub && !st.pz) h+='<button type="button" class="cond" data-rmsub title="去掉这个条件">'+esc(Z.subName('', st.sub))+' <b aria-hidden="true">×</b></button>';
+    if(p && srv.fb) h+='<span class="cond-note">'+esc(srv.fb)+'</span>';
+    if(p && p.hint==='inst') h+='<span class="cond-note">按乐器找：</span>'+HINT.concat(st.hintMore? Object.keys(Z.INST).filter(function(k){ return HINT.indexOf(k)<0 && ['other','piano','guitar','uku'].indexOf(k)<0; }) : [])
+      .map(function(k){ return '<button type="button" class="fchip" data-hinst="'+k+'">'+Z.INST[k]+'</button>'; }).join('')+(st.hintMore? '' : '<button type="button" class="fchip" data-hmore>更多</button>');
+    condsEl.innerHTML=h; condsEl.hidden=!h;
+  }
+
+  /* ---- 列表 ---- */
+  function localQuery(){
+    var words=normQ(st.q), r=Z.query(pool(), {f:fNow(), words:words, conv:true, more:true, x:xEff(), sort:st.sort});
+    var cp=convPz(), shown=cp && (st.conv || !!words || r.n0<6);
+    return {list: shown? r.list : r.list.filter(function(e){ return e.sec!==2; }), n0:r.n0, nConv: cp? r.nConv : 0, tail:r.tail, convShown:shown, totalN:null};
+  }
+  function srvQuery(){
+    var nota=srv.parse && srv.parse.nota;
+    return {list: srv.list.map(function(c){ return {c:c, sec:c.sec|0, nota:c.nota||nota||''}; }), n0:srv.n0, nConv:srv.nConv, tail:srv.tail, convShown:!!srv.conv, totalN:srv.total, pz:srv.pz, sub:srv.sub};
+  }
+  function convWords(pz, sub){   /* [对面记谱法, 本一级记谱法] */
+    if(pz==='hechang') return sub==='jianpu'? ['五线合唱','简谱'] : ['简谱合唱','五线谱'];
+    return pz==='jianpu'? ['五线谱','简谱'] : ['简谱','五线谱'];
+  }
+  var TAIL={tab:'吉他 / 尤克里里弹唱谱（也标了和弦）', jp:'吉他弹唱谱里也有简谱旋律', mel:'歌曲旋律（也能直接拉 / 吹）'};
+  function searching(){ return !!(st.q.trim() || st.pz || st.sub || st.favOnly || xActive() || st.hacc || st.sort!=='new'); }
+  function titleText(){
+    if(st.favOnly) return '我的收藏';
+    if(st.q.trim()) return '搜索结果';
+    if(st.pz){ var t=Z.pzDef(st.pz).name; if(st.sub) t+=' › '+Z.subName(st.pz, st.sub); if(st.inst) t+=' › '+Z.INST[st.inst]; return t; }
+    if(st.sub) return Z.subName('', st.sub);
+    return (xActive() || st.sort!=='new')? '筛选结果' : '最新上架';
+  }
   function draw(){
-    var list=filtered();
-    title.textContent = st.favOnly? '我的收藏' : (st.q.trim()? '搜索结果' : (st.cat!=='all'? '筛选结果' : '最新上架'));
-    var show = searching()? list : list.slice(0, st.shown);
-    grid.innerHTML = show.length? show.map(PYQ_LIB.card).join('')
-      : '<div class="lib-empty"><b>'+(st.favOnly?'收藏夹还是空的':'没有找到相关曲谱')+'</b>'
-        +(st.favOnly?'点 ♥ 收藏喜欢的谱，跨设备随时打开。':'换个关键词试试，或用智能配谱自己出一份。')
-        +'<br><a class="btn" id="empty-make" href="//zhipu.puyouquan.com/">自己配一份谱 →</a>'
+    var sm=srvMode(), R=sm? srvQuery() : localQuery(), list=R.list;
+    title.textContent=titleText();
+    var browse=!searching(), show=browse? list.slice(0, st.shown) : list;
+    var pzT=sm? (R.pz||'') : st.pz, subT=sm? (R.sub||'') : st.sub, cw=convWords(pzT, subT), h='', last=-1;
+    show.forEach(function(e, i){
+      if(e.sec===2 && last!==2) h+='<div class="lib-sep" data-sec="2">以下是'+cw[0]+'，打开时用'+cw[1]+'看</div>';
+      if(e.sec===3 && last!==3 && TAIL[R.tail]) h+='<div class="lib-sep" data-sec="3">'+TAIL[R.tail]+'</div>';
+      last=e.sec;
+      h+=PYQ_LIB.card(e.nota? Object.assign({}, e.c, {nota:e.nota}) : e.c, i);
+    });
+    /* 可转提示：原稿后面一行「还有 N 首是五线谱 · 用简谱看 ›」（没展开时） */
+    var convLine='';
+    if(!R.convShown && R.nConv>0 && (sm? !!pzT : convPz())) convLine='<div class="lib-conv" id="lib-conv">还有 '+R.nConv+' 首是'+cw[0]+' · <button type="button" class="lib-convgo" data-conv>用'+cw[1]+'看 ›</button></div>';
+    if(!show.length){
+      var mk=isMp()? '发到电脑做' : (st.pz||st.sub? '自己做一份 →' : '自己配一份谱 →');
+      h='<div class="lib-empty"><b>'+(st.favOnly?'收藏夹还是空的':(st.pz||st.sub) && !st.q.trim()? '这里还没有谱':'没有找到相关曲谱')+'</b>'
+        +(st.favOnly?'点 ♥ 收藏喜欢的谱，跨设备随时打开。':(st.pz||st.sub) && !st.q.trim()? '换个分类看看，或者自己做一份。':'换个关键词试试，或用智能配谱自己出一份。')
+        +convLine+'<br><a class="btn" id="empty-make" href="//zhipu.puyouquan.com/">'+mk+'</a>'
         +'<br><a href="mailto:support@puyouquan.com?subject=想要的谱" style="display:inline-block;margin-top:12px;font-size:12.5px;color:var(--muted)">告诉我们你想要的谱 →</a></div>';
-    var c=document.getElementById('lib-count'); if(c) c.textContent=list.length+' 首';
-    /* v63.4 A7 零结果搜索（带 query）：等全库补搜也落空才记，同一个词只记一次——这是「用户想要但谱库没有」的清单 */
-    var zq=st.q.trim();
-    if(!list.length && zq && !st.favOnly && (total<=all.length || remoteQ===zq) && zq!==zrLast && window.PYQ_EV){ zrLast=zq; PYQ_EV.send('zero_result', zq.slice(0,60)); }
-    moreWrap.hidden = searching() || list.length<=st.shown;
+      convLine='';
+    }else{
+      /* 「还有 N 首」放在原稿之后、尾节之前 */
+      if(convLine){ var k=h.indexOf('<div class="lib-sep" data-sec="3">'); h= k>=0? h.slice(0,k)+convLine+h.slice(k) : h+convLine; }
+    }
+    grid.innerHTML=h;
+    var c=$('lib-count'); if(c) c.textContent=(R.totalN!=null? R.totalN : list.length)+' 首';
+    /* v63.4 A7 零结果搜索：退路之后仍 0、接口应答过（或接口不通且没被截断）才记，同一个词只记一次 */
+    var zq=normQ(st.q);
+    if(!list.length && zq && !st.favOnly && zq!==zrLast && window.PYQ_EV){
+      var done=sm || (srv && srv.q===zq) || srvFail[zq];
+      if(done && (sm || !truncated() || srvFail[zq])){ zrLast=zq; PYQ_EV.send('zero_result', (zq+(sm && srv.parse && srv.parse.conds && srv.parse.conds.length? ' ['+srv.parse.conds.map(function(x){ return x.k+':'+x.v; }).join(',')+']' : '')).slice(0,60)); }
+    }
+    moreWrap.hidden = sm? !(srv.list.length<srv.total) : (!browse || list.length<=st.shown);
     mobileMakeLinks();
     if(show.length && !grid.dataset.ready) requestAnimationFrame(function(){ grid.dataset.ready='1'; });
+    if(st.drawer) drawer();
   }
+
+  /* ---- 筛选抽屉（多选，结果数随选项变化，「清空」一键；手机为底部弹层，二级行末开关也并进来） ---- */
+  function drawer(){
+    if(!st.drawer){ drawerEl.hidden=true; document.body.classList.remove('lib-dopen'); return; }
+    var x=st.x, tab=st.pz==='jita' || st.pz==='uku', mob=isMobile();
+    var base=Z.query(pool(), {f:fNow(), words:normQ(st.q), conv:false, x:Object.assign({}, x, {keys:[], meters:[], hacc:st.hacc})}).list;
+    var kc={}, mc={};
+    base.forEach(function(e){ var c=e.c, k=tab && c.fx && c.fx.fkey? c.fx.fkey : String(c.key||''); if(k) kc[k]=(kc[k]||0)+1; if(c.beats>0 && c.unit>0){ var m=c.beats+'/'+c.unit; mc[m]=(mc[m]||0)+1; } });
+    var top=function(o, sel){ return Object.keys(o).sort(function(a,b){ return o[b]-o[a] || (a<b?-1:1); }).slice(0,10).concat(sel.filter(function(v){ return !o[v]; })); };
+    var dc=function(attr, label, on){ return '<button type="button" class="fchip'+(on?' on':'')+'" '+attr+' aria-pressed="'+(on?'true':'false')+'">'+label+'</button>'; };
+    var g=function(t, inner){ return inner? '<div class="ld-g"><b>'+t+'</b><div class="ld-c">'+inner+'</div></div>' : ''; };
+    var h='';
+    if(mob && st.pz){ var tb=tailBits().replace(/<a class="lib-ztl"[^>]*>[^<]*<\/a>/, ''); if(tb) h+=g(st.pz==='hechang'? '伴奏' : '开关', tb.replace(/<span class="lib-rl">[^<]*<\/span>/, '')); }
+    h+=g('编制', [[1,'独唱 / 独奏'],[2,'二部'],[3,'三部'],[4,'四部以上']].map(function(a){ return dc('data-dx="parts:'+a[0]+'"', a[1], x.parts.indexOf(a[0])>=0); }).join(''));
+    h+=g('能用来', dc('data-dx="chord"', '已配和弦', x.chord)+dc('data-dx="acc"', '带伴奏', x.acc)+dc('data-dx="verses"', '多段歌词', x.verses));
+    h+=g('风格', dc('data-dx="erge"', '儿歌', x.erge));
+    h+=g(tab? '调（按指法）' : '调', top(kc, x.keys).map(function(k){ return dc('data-dx="key:'+esc(k)+'"', tab? esc(k)+'调指法' : esc(k)+' 调', x.keys.indexOf(k)>=0); }).join(''));
+    h+=g('拍号', top(mc, x.meters).map(function(m){ return dc('data-dx="meter:'+esc(m)+'"', esc(m), x.meters.indexOf(m)>=0); }).join(''));
+    h+=g('速度', [['slow','慢（♩<72）'],['mid','中速'],['fast','快（♩>120）']].map(function(a){ return dc('data-dx="speed:'+a[0]+'"', a[1], x.speeds.indexOf(a[0])>=0); }).join(''));
+    var n=srvMode()? srv.total : localQuery().list.length;
+    h+='<div class="ld-ft"><span>'+n+' 首 · 调拍速都能一键移调</span><button type="button" class="btn ghost" data-dclr>清空</button><button type="button" class="btn" data-dok>完成</button></div>';
+    drawerEl.innerHTML=h; drawerEl.hidden=false;
+    document.body.classList.toggle('lib-dopen', mob);
+  }
+
+  /* ---- 接口：搜索解析（防抖 300ms）· 库被截断时按当前筛选补齐全库 ---- */
+  function qsNow(o){
+    var p=[], x=st.x;
+    if(st.pz) p.push('pz='+st.pz); if(st.sub) p.push('sub='+st.sub); if(st.inst) p.push('inst='+st.inst);
+    if(x.parts.length) p.push('parts='+x.parts.join(',')); if(x.chord) p.push('chord=1'); if(x.acc) p.push('acc=1'); if(x.verses) p.push('verses=1'); if(x.erge) p.push('erge=1');
+    if(x.keys.length) p.push('key='+encodeURIComponent(x.keys.join(','))); if(x.meters.length) p.push('meter='+encodeURIComponent(x.meters.join(','))); if(x.speeds.length) p.push('speed='+x.speeds.join(','));
+    if(st.hacc) p.push('hacc='+st.hacc); if(st.sort!=='new') p.push('sort='+st.sort);
+    if(o && o.conv!=null) p.push('conv='+(o.conv?1:0)); if(o && o.more) p.push('more=1');
+    if(o && o.q) p.push('q='+encodeURIComponent(o.q));
+    return p.join('&');
+  }
+  /* 接口卡片带本次筛选的段号 sec 与可转 nota；并进本地卡池前去掉（换个筛选时它们不再成立） */
+  function plain(s){ var o={}, k; for(k in s) if(k!=='sec' && k!=='nota') o[k]=s[k]; return o; }
+  function remoteSearch(now){
+    var q=normQ(st.q); clearTimeout(rtimer);
+    if(!q){ srv=null; return; }
+    rtimer=setTimeout(function(){
+      var conv=convPz()? (st.conv || null) : null, qs=qsNow({q:q, more:true, conv:conv})+'&size=60';
+      fetch('/api/pub/scores?'+qs, {credentials:'include'}).then(function(r){ return r.ok? r.json() : null; })
+        .then(function(j){
+          if(normQ(st.q)!==q) return;
+          if(!j){ srvFail[q]=1; draw(); return; }
+          var sc=(j.scores||[]).map(Z.norm), p=j.parse||null;
+          sc.forEach(function(s){ if(!own(extra, s.id)) extra[s.id]=plain(s); });
+          /* 只有谱种词（「简谱」「钢琴谱」）＝点了这个一级（T8）：清掉搜索框，亮那一格 */
+          if(p && p.only && !p.words && (p.pz || p.sub)){
+            st.pz=p.pz && Z.has(p.pz)? p.pz : ''; st.sub=p.sub && Z.has(st.pz, p.sub)? p.sub : ''; st.inst=''; st.q=''; qIn.value=''; srv=null;
+            track(st.pz? 'pz' : 'sub', st.pz||st.sub); syncURL(); chips(); draw(); remoteFilter(); return;
+          }
+          var parsed=!!(p && ((p.conds||[]).length || p.hint || p.tail || j.fb || normQ(p.words)!==q));
+          srv={q:q, qs:qs, parsed:parsed, parse:p, fb:j.fb||'', list:sc, total:j.total|0, n0:j.n0|0, nConv:j.nConv|0, conv:!!j.conv, tail:j.tail||'', pz:j.pz||'', sub:j.sub||'', page:0};
+          if(parsed && p && p.conds) p.conds.forEach(function(c){ if(c.k==='pz'||c.k==='sub'||c.k==='inst'||c.k==='zt') track('q2f', String(c.v)); });
+          chips(); draw();
+        }).catch(function(){ if(normQ(st.q)===q){ srvFail[q]=1; draw(); } });
+    }, now? 0 : 300);
+  }
+  function srvMore(){
+    var page=srv.page+1, s0=srv;
+    fetch('/api/pub/scores?'+s0.qs+'&page='+page, {credentials:'include'}).then(function(r){ return r.ok? r.json() : null; }).then(function(j){
+      if(!j || srv!==s0) return; s0.page=page; var have={}; s0.list.forEach(function(c){ have[c.id]=1; });
+      (j.scores||[]).map(Z.norm).forEach(function(c){ if(!have[c.id]){ s0.list.push(c); have[c.id]=1; } }); draw(); }).catch(function(){});
+  }
+  function remoteFilter(){
+    if(!truncated() || st.q.trim() || !(st.pz || st.sub || st.inst || xActive() || st.hacc)) return;
+    var key=qsNow({conv:true, more:true}); if(fetched[key]) return; fetched[key]=1;
+    (function page(n){
+      fetch('/api/pub/scores?'+key+'&size=60&page='+n, {credentials:'include'}).then(function(r){ return r.ok? r.json() : null; }).then(function(j){
+        if(!j) return; (j.scores||[]).map(Z.norm).forEach(function(s){ if(!own(extra, s.id)) extra[s.id]=plain(s); });
+        draw(); if((n+1)*60<(j.total|0) && n<4) page(n+1); }).catch(function(){});
+    })(0);
+  }
+  function changed(dim, v){ if(dim) track(dim, v); syncURL(); chips(); draw(); if(srvMode() || normQ(st.q)) remoteSearch(true); else remoteFilter(); }
+
   /* 最近看过（智能可感知）：点击卡片瞬间在本域记录（观看页在 puku 子域，localStorage 不同源，
      必须点击时记）；回访时置顶一行，谱已下架静默过滤。新键 pyq-recent，不碰 musetab-* 红线 */
   var RK='pyq-recent';
@@ -125,63 +335,107 @@
   function recAdd(id){ try{ var l=recGet().filter(function(r){ return r.id!==id; });
     l.unshift({id:id, t:Date.now()}); localStorage.setItem(RK, JSON.stringify(l.slice(0,8))); }catch(_){} }
   document.getElementById('lib-sec').addEventListener('click', function(e){
-    var a=e.target.closest('.cc-card'); if(!a) return;
-    var m2=/[?&]pub=([A-Za-z0-9_-]+)/.exec(a.getAttribute('href')||''); if(m2) recAdd(m2[1]);
+    var a=e.target.closest('.cc-card'); if(a){ var m2=/[?&]pub=([A-Za-z0-9_-]+)/.exec(a.getAttribute('href')||''); if(m2) recAdd(m2[1]); return; }
+    if(e.target.closest('[data-conv]')){ st.conv=true; try{ sessionStorage.setItem('pyq-lib-conv','1'); }catch(_){} changed('conv', '1'); return; }
+    var d=e.target.closest('[data-dx]');
+    if(d){ var v=d.dataset.dx.split(':'), k=v[0], val=v.slice(1).join(':'), x=st.x;
+      if(k==='parts'){ var n=+val, i=x.parts.indexOf(n); if(i>=0) x.parts.splice(i,1); else x.parts.push(n); }
+      else if(k==='key' || k==='meter' || k==='speed'){ var arr=x[k==='key'?'keys':k==='meter'?'meters':'speeds'], j=arr.indexOf(val); if(j>=0) arr.splice(j,1); else arr.push(val); }
+      else x[k]=!x[k];
+      changed(); return; }
+    if(e.target.closest('[data-dclr]')){ st.x=X0(); st.hacc=''; changed(); return; }
+    if(e.target.closest('[data-dok]')){ st.drawer=false; drawer(); chips(); return; }
+    var tg=e.target.closest('[data-tg],[data-hacc]'); if(tg && drawerEl.contains(tg)){ hdlTg(tg); return; }
   });
+  function hdlTg(b){
+    if(b.dataset.tg!==undefined){ st.x[b.dataset.tg]=!st.x[b.dataset.tg]; changed(); return true; }
+    if(b.dataset.hacc!==undefined){ st.hacc=b.dataset.hacc; changed('acc', st.hacc==='yes'? 'yes' : st.hacc==='no'? 'no' : 'all'); return true; }
+    return false;
+  }
   function renderRecent(){
-    var sec=document.getElementById('recent-sec'), rg=document.getElementById('recent-grid');
+    var sec=$('recent-sec'), rg=$('recent-grid');
     if(!sec||!all.length) return;
     var byId={}; all.forEach(function(s){ byId[s.id]=s; });
     var cards=recGet().map(function(r){ return byId[r.id]; }).filter(Boolean).slice(0,3);
     if(cards.length){ rg.innerHTML=cards.map(PYQ_LIB.card).join(''); rg.dataset.ready='1'; sec.hidden=false; }
   }
-  cats.addEventListener('click', function(e){
-    var b=e.target.closest('.fchip'); if(!b) return;
-    if(b.dataset.cat!==undefined){ st.cat=b.dataset.cat; st.favOnly=false; }
-    else if(b.dataset.fav!==undefined){
+  /* ---- 头部点击：一级 / 二级 / 乐器 / 开关 / 专题 / 条件块 ---- */
+  document.querySelector('.home-hero').addEventListener('click', function(e){
+    var b=e.target.closest('button,a'); if(!b) return;
+    var ds=b.dataset;
+    if(ds.zt!==undefined){ track('zt', ds.zt); if(ds.zt==='ketang'){ e.preventDefault(); st.pz=''; st.sub='duizhao'; st.inst=''; st.mInst=false; changed(); } return; }
+    if(ds.pz!==undefined){
+      if(st.pz===ds.pz){ st.pz=''; st.sub=''; st.inst=''; }   /* 再点已选的＝回到全部 */
+      else if(st.pz!==ds.pz){ st.pz=ds.pz; st.sub=''; st.inst=''; st.hacc=''; st.x.acc=false; st.x.chord=false; st.instMore=false; }
+      st.favOnly=false; st.mInst=false; changed('pz', ds.pz); return; }
+    if(ds.cat==='all' || ds.back!==undefined){ st.pz=''; st.sub=''; st.inst=''; st.hacc=''; st.favOnly=false; st.mInst=false; changed(); return; }
+    if(ds.fav!==undefined){
       if(!Object.keys(favs).length && window.PYQ_ACCT && !PYQ_ACCT.user){ PYQ_ACCT.openLogin(); return; }
-      st.favOnly=!st.favOnly;
-    }
-    chips(); draw();
+      st.favOnly=!st.favOnly; changed(); return; }
+    if(ds.sub!==undefined){
+      if(st.sub===ds.sub && !(ds.sub==='qiyue' && isMobile() && !st.mInst)){ st.sub=''; st.inst=''; }
+      else { st.sub=ds.sub; st.inst=''; }
+      if(ds.sub==='qiyue' && isMobile() && st.sub) st.mInst=true;
+      changed('sub', ds.sub); return; }
+    if(ds.inst!==undefined){
+      if(st.inst===ds.inst){ st.inst=''; } else { st.inst=ds.inst; st.sub=''; }   /* 选乐器＝二级「器乐」（五线谱另含「重奏」里该乐器的，T20） */
+      changed('inst', ds.inst); return; }
+    if(ds.iback!==undefined){ st.mInst=false; chips(); return; }
+    if(ds.imore!==undefined){ st.instMore=!st.instMore; chips(); return; }
+    if(hdlTg(b)) return;
+    if(ds.rm!==undefined){ st.q=ds.rm; qIn.value=ds.rm; srv=null; changed(); return; }
+    if(ds.rmsub!==undefined){ st.sub=''; changed(); return; }
+    if(ds.hmore!==undefined){ st.hintMore=true; conds(); return; }
+    if(ds.hinst!==undefined){ var nm=Z.INST[ds.hinst], q2=normQ(st.q).split(' ').map(function(w){ return /^器乐谱?$/.test(w)? nm : w; }).join(' ');
+      if(q2===normQ(st.q)) q2=(q2+' '+nm).trim(); st.q=q2; qIn.value=q2; track('q2f', ds.hinst); changed(); return; }
   });
+  fbtn.addEventListener('click', function(){ st.drawer=!st.drawer; drawer(); chips(); if(st.drawer){ var f0=drawerEl.querySelector('button'); if(f0) try{ f0.focus({preventScroll:true}); }catch(_){} } });
+  sortEl.addEventListener('change', function(){ st.sort=sortEl.value; changed(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape' && st.drawer){ st.drawer=false; drawer(); chips(); fbtn.focus(); } });
+  document.addEventListener('click', function(e){ if(st.drawer && isMobile() && e.target===document.body){ st.drawer=false; drawer(); chips(); } });
   qIn.addEventListener('input', function(){
-    st.q=qIn.value; draw(); remoteSearch();
-    try{ history.replaceState(null,'', st.q.trim()? ('?q='+encodeURIComponent(st.q.trim())) : location.pathname); }catch(_){}
+    st.q=qIn.value; draw(); remoteSearch(); syncURL();
   });
-  document.getElementById('lib-more-btn').onclick=function(){ st.shown+=PAGE; draw(); };
+  $('lib-more-btn').onclick=function(){ if(srvMode()) srvMore(); else { st.shown+=PAGE; draw(); } };
 
-  /* 手机端制谱入口统一落 make.html（编辑器手机体验有限，先进承接页） */
-  function isMobile(){ return matchMedia('(max-width:580px)').matches; }
+  /* 手机端制谱入口统一落 make.html（编辑器手机体验有限，先进承接页）；小程序里改「发到电脑做」（点了复制制谱链接，PYQ_MP） */
   function mobileMakeLinks(){
-    if(!isMobile()) return;
-    ['strip-make','empty-make'].forEach(function(id){   /* v61.6 工具带撤除，tool-make 不复存在 */
-      var a=document.getElementById(id); if(a) a.href='make.html'; });
+    var a=$('empty-make'); if(!a) return;
+    if(isMp()){ a.href='//zhipu.puyouquan.com/'; a.textContent='发到电脑做'; return; }
+    if(isMobile()) a.href='make.html';
   }
   mobileMakeLinks();
+  try{ matchMedia('(max-width:580px)').addEventListener('change', function(){ st.mInst=false; if(!isMobile()){ st.drawer=st.drawer; } chips(); draw(); }); }catch(_){}
 
   chips();
   /* 搜索占位轮播（未聚焦未输入时 4s 一换） */
-  var PH=['搜曲名 / 歌手，如：小星星','试试：晴天','试试：考编 即兴伴奏','搜歌手名也可以'], phi=0;
+  var PH=['搜曲名 / 歌手，如：小星星','试试：茉莉花 二胡谱','试试：考编 即兴伴奏','搜歌手名也可以'], phi=0;
   setInterval(function(){ if(document.activeElement!==qIn && !qIn.value) qIn.placeholder=PH[++phi%PH.length]; },4000);
-  var CK='pyq-pub-cache';
-  function useData(list, fresh, tot){ all=list||[]; if(tot) total=tot; chips(); draw(); renderRecent(); remoteSearch();
+  /* 列表缓存：分类升级 P1 换键 pyq-pub-cache2；条目缺 pz（老接口）也当没命中——旧缓存不会让一级按钮被当成 0 首（v1 R19） */
+  var CK='pyq-pub-cache2';
+  function useData(list, fresh, tot){ all=(list||[]).map(Z.norm); if(tot) total=tot; chips(); draw(); renderRecent(); remoteFilter(); if(normQ(st.q)) remoteSearch(true);
     /* 上新徽章：对比上次见到的谱库总数（键 pyq-seen-n） */
     if(fresh){ try{ var prev=+localStorage.getItem('pyq-seen-n')||0, d=all.length-prev;
-      var bg=document.getElementById('lib-newbadge');
+      var bg=$('lib-newbadge');
       if(bg && prev>0 && d>0){ bg.textContent='上新 '+d+' 首'; bg.hidden=false; }
       localStorage.setItem('pyq-seen-n', String(all.length)); }catch(_){} }
   }
   var cached=null;
   try{ var raw=sessionStorage.getItem(CK); if(raw){ var o=JSON.parse(raw);
-    if(o && o.t && Date.now()-o.t<300000 && o.scores){ cached=o.scores; } } }catch(_){}
+    if(o && o.t && Date.now()-o.t<300000 && o.scores && o.scores.every(function(s){ return s && typeof s.pz==='string'; })){ cached=o.scores; if(o.total) total=o.total; if(o.cats) cats=o.cats; } } }catch(_){}
   if(cached) useData(cached);
   fetch('/api/pub/scores',{credentials:'include'}).then(function(r){ return r.ok? r.json():{scores:cached||[]}; })
     .then(function(j){ useData(j.scores||[], true, j.total||0);
-      try{ sessionStorage.setItem(CK, JSON.stringify({t:Date.now(), scores:j.scores||[]})); }catch(_){} })
+      try{ if((j.scores||[]).every(function(s){ return s && typeof s.pz==='string'; })) sessionStorage.setItem(CK, JSON.stringify({t:Date.now(), scores:j.scores||[], total:j.total||0, cats:cats})); }catch(_){} })
     .catch(function(){ if(!cached) grid.innerHTML='<p style="color:var(--muted)">刷新试试，谱库马上回来。</p>'; });
+  /* 计数（全库，含可转数）：接口没有 / 不通时按手里的卡片现算 */
+  fetch('/api/pub/cats',{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
+    .then(function(j){ if(j && j.pz && j.conv){ cats=j; chips(); draw();
+      try{ var raw2=sessionStorage.getItem(CK); if(raw2){ var o2=JSON.parse(raw2); o2.cats=j; sessionStorage.setItem(CK, JSON.stringify(o2)); } }catch(_){} } })
+    .catch(function(){});
   fetch('/api/favorites',{credentials:'include'}).then(function(r){ return r.ok? r.json():null; })
     .then(function(j){ if(!j) return; (j.favorites||[]).forEach(function(f){ favs[f.score_id||f.id||f]=1; });
-      (j.cards||[]).forEach(function(c){ extra[c.id]=c; }); if(st.favOnly) draw(); })
+      (j.cards||[]).forEach(function(c){ extra[c.id]=Z.norm(c); }); if(st.favOnly) draw(); })
     .catch(function(){});
 })();
 </script>
