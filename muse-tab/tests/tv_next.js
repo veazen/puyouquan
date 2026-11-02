@@ -130,11 +130,14 @@ function HELP() {
         }
         return o; }, KINDS);
       await close(pg); return out; };
+    /* v69.9 有意改动（分类方案 docs/design-2026-11-taxonomy 拍板 10，PQ_KIND 两外壳共用）：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」——
+       两边这一个谱名统一成占位再对拍（同 tv_trktree T0c）；其余逐字节照旧 */
+    const CGN = o => { for (const k in o) o[k] = String(o[k]).replace(/钢琴(?:弹唱|伴奏)谱（纯伴奏/g, '钢琴□谱（纯伴奏'); return o; };
     if (BASEU) {
-      const bF = await grab(BASEU, 'N0-base'), nF = await grab(withQ(URL0, 'next=0'), 'N0-next0');
+      const bF = CGN(await grab(BASEU, 'N0-base')), nF = CGN(await grab(withQ(URL0, 'next=0'), 'N0-next0'));
       const diff = Object.keys(bF).filter(k => bF[k] !== nF[k]);
       T('N0', !diff.length && Object.keys(bF).length === 28, 'N0a ?next=0：14 种谱 × 空 / 有内容的 #flw-sbar outerHTML 与基线（' + BASE_SHORT + '）逐字节相同', diff.join(',') + ' ' + (diff[0] ? J([bF[diff[0]].slice(0, 300), nF[diff[0]].slice(0, 300)]) : ''));
-      const bC = await grab(withQ(BASEU, 'shell=classic'), 'N0-baseC'), nC = await grab(withQ(URL0, 'shell=classic'), 'N0-classic');
+      const bC = CGN(await grab(withQ(BASEU, 'shell=classic'), 'N0-baseC')), nC = CGN(await grab(withQ(URL0, 'shell=classic'), 'N0-classic'));
       const dc = Object.keys(bC).filter(k => bC[k] !== nC[k]);
       T('N0', !dc.length && Object.keys(bC).length === 28, 'N0b ?shell=classic：14 种谱 × 2 的谱型条 #lb-wrap 与基线逐字节相同、没有 #flw-sbar', dc.join(','));
     }

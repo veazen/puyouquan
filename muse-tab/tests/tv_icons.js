@@ -402,15 +402,19 @@ try { MANI = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../docs/desi
     const out = {};
     for (const w of [1920, 1440, 1280, 1024, 390]) {
       const pc = await npg(w, 900, w < 500);
+      /* v69.9 迁移（分类 P1）：新外壳电脑宽谱友圈换成 7 个谱种（.cc-pzrow：全部 + 7 谱种 + 收藏同一行，按方案 §4.1 收藏就在一级行里）——
+         新形态数 .cc-pzrow 的 [data-pz]、不判混排；手机（及旧外壳）仍是旧 11 类 .cc-chip[data-cat]，照原口径 */
       out[w] = await qq(pc, () => { openCircle();
-        const cats = [...document.querySelectorAll('#circle .cc-chip[data-cat]')], other = [...document.querySelectorAll('#circle .cc-chip[data-pay],#circle .cc-chip[data-favonly]')];
+        const nx = document.querySelector('#circle .cc-pzrow');
+        const cats = nx ? [...nx.querySelectorAll('[data-pz]')] : [...document.querySelectorAll('#circle .cc-chip[data-cat]')],
+          other = nx ? [] : [...document.querySelectorAll('#circle .cc-chip[data-pay],#circle .cc-chip[data-favonly]')];
         const ct = [...new Set(cats.map(c => Math.round(c.getBoundingClientRect().top)))], ot = [...new Set(other.map(c => Math.round(c.getBoundingClientRect().top)))];
         const icVis = cats.some(c => { const s = c.querySelector('svg.pqi'); return s && s.getBoundingClientRect().width > 0; });
-        return { catRows: ct.length, mixed: ot.some(t => ct.includes(t)) && ct.length > 1, icVis, gridTop: Math.round(document.querySelector('#circle .cc-grid').getBoundingClientRect().top) }; });
+        return { nx: !!nx, nCat: cats.length, catRows: ct.length, mixed: ot.some(t => ct.includes(t)) && ct.length > 1, icVis, gridTop: Math.round(document.querySelector('#circle .cc-grid').getBoundingClientRect().top) }; });
       await pc._ctx.close();
     }
-    T(['1920', '1440', '1280'].every(w => out[w].catRows === 1 && !out[w].mixed && out[w].icVis) && out[1024].icVis && !out[390].icVis && out[390].gridTop <= 290,
-      'T11 广场筛选条：1280–1920 宽全部 10 类（带图标）在同一行、不和免费 / 付费 / 收藏混排（此前和弦谱 / 尤克里里掉到第二行）；手机 390 不显示筛选图标、第一张卡不下移（≤ v67.5 的 290）', JSON.stringify(out));
+    T(['1920', '1440', '1280'].every(w => out[w].catRows === 1 && !out[w].mixed && out[w].icVis && (!out[w].nx || out[w].nCat === 7)) && out[1024].icVis && !out[390].icVis && out[390].gridTop <= 290,
+      'T11 广场筛选条：1280–1920 宽一级分类（新外壳 7 个谱种 · 全部 · 收藏；旧形态 10 类）带图标在同一行、旧形态不和免费 / 付费 / 收藏混排（此前和弦谱 / 尤克里里掉到第二行）；手机 390 不显示筛选图标、第一张卡不下移（≤ v67.5 的 290）', JSON.stringify(out));
   } catch (e) { T(false, 'T11', 'EXC: ' + String(e.message || e).split('\n')[0]); }
 
   /* T12 遗漏位置：帮助 / 特色功能弹窗谱类图标、折叠符 / 行尾箭头 / 删除钮字符、常态颜色 */
