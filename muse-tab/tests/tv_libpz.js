@@ -16,7 +16,7 @@
    Z12 新外壳行 1「发布」弹层「将归入」主谱种 › 二级（「也出现在」在悬停）＝发布后 /api/pub/scores 卡片的 pz / sub / also（简谱旋律＋钢琴、纯简谱歌曲、合唱＋钢琴三种，
        发布体＝编辑器提交时 PUT 的那份 data）；搜索「合唱 带伴奏」「合唱 伴奏」＝合唱谱 › 带伴奏、「无伴奏」＝合唱谱 › 无伴奏（官网搜索框不被清空）；
        钢琴谱二级悬停（官网＋编辑器）与编辑器合唱谱「伴奏」行标
-   Z5g 退路之后仍 0 首：接口不给 fb、官网不写「下面是其他谱」，zero_result 照常记
+   Z5h 退路之后仍 0 首：接口不给 fb、官网不写「下面是其他谱」，zero_result 照常记
    Z2d / Z2e 筛选抽屉（编制 / 能用来 / 风格 / 调拍速，吉他谱按「G调指法 · 夹2」）· 原稿不满 6 首自动展开可转
    修前红：LIBPZ_ROOT 指向 115bca4 的仓库副本（git archive 115bca4 api muse-tab/site muse-tab/index.html）复跑。env：LIBPZ_ROOT、CHROMIUM_PATH、SHOTS（截图目录） */
 'use strict';
@@ -310,7 +310,7 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       /* e 0 结果退路：「晴天 功能谱」→ 去掉解析条件、只按「晴天」搜 */
       const e1 = await A('晴天 功能谱');
       T(e1.fb && /没有「晴天」的功能谱/.test(e1.fb) && (e1.scores || []).some(c => c.id === 'lpq01xxx'), 'Z5e 解析后 0 结果：去掉解析出的条件、只按剩下的词搜，并说明「没有「晴天」的功能谱，下面是其他谱」', J({ fb: e1.fb, n: (e1.scores || []).length }));
-      /* g 退路之后仍 0 首：不给 fb（否则界面写「下面是其他谱」而下面一首都没有）；官网照常记 zero_result（meta 带解析结果） */
+      /* h 退路之后仍 0 首：不给 fb（否则界面写「下面是其他谱」而下面一首都没有）；官网照常记 zero_result（meta 带解析结果） */
       const g1 = await A('一首根本不存在的歌 合唱');
       const pgz = await mkPage(b, 'https://www.puyouquan.com/');
       await typeQ(pgz, '一首根本不存在的歌 合唱'); await pgz.waitForTimeout(400);
@@ -320,7 +320,7 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       await pgz._ctx.close();
       T(g1.parse && g1.parse.pz === 'hechang' && g1.parse.words === '一首根本不存在的歌' && g1.total === 0 && !(g1.scores || []).length && !('fb' in g1)
         && !/下面是其他谱/.test(g2.note) && g2.n === 0 && g2.conds.length === 1 && zr.length === 1 && /^一首根本不存在的歌 合唱 \[pz:hechang\]/.test(zr[0]),
-        'Z5g 退路之后仍 0 首：接口不给 fb、官网不写「没有…，下面是其他谱」（条件块照留），zero_result 照常记一次（meta 带解析结果）', J({ fb: g1.fb, total: g1.total, g2, zr }));
+        'Z5h 退路之后仍 0 首：接口不给 fb、官网不写「没有…，下面是其他谱」（条件块照留），zero_result 照常记一次（meta 带解析结果）', J({ fb: g1.fb, total: g1.total, g2, zr }));
       /* f 官网：条件块 / 删条件 / 可转分隔与 nota / 单独「简谱」＝点一级 / 器乐谱提示条 */
       const pg = await mkPage(b, 'https://www.puyouquan.com/');
       await typeQ(pg, '茉莉花 二胡谱');
