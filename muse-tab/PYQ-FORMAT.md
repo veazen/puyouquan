@@ -19,6 +19,8 @@
 | `lyricLines` | number | 歌词行数 |
 | `customChords` | object | 随谱和弦指法表 `{名称: shape}` |
 | `mixer` | object? | 音轨配置 `{ "tab:0": {on,solo,inst,vol}, ... }` |
+| `instKey` | string? | 乐器身份（v60.46 起，新建器乐谱写入；见下「乐器表」）：决定谱名「X谱（简谱 / 五线谱）」「X＋钢琴伴奏谱」、谱库「器乐（X）」归属、左栏图标与导出 MIDI / MusicXML 的 GM program。无键＝按音轨名推断（只读不回写） |
+| `intent` | string? | v70.0 可选：建谱用途，取值只认 11 个 `gtr` 吉他弹唱 · `pacc` 钢琴伴奏 · `kids` 儿歌 · `vocal` 歌谱 / 合唱 · `teach` 教学对照 · `sight` 视唱 · `solo` 独奏 · `inst` 器乐 · `chord` 和弦 / 功能谱 · `blank` 空白 · `custom` 自选记谱法。新建时写一次（换谱类按规则改写），只在谱面推断有歧义时裁定归属（如「艺考视唱」专题只收 `sight`、`kids` 归儿歌），不进谱名；其他值读取端当没写（不剥除）。无键＝按谱面推断（老谱） |
 | `voxClefOct` | (number\|null)[]? | v69.8 可选，按旋律声部下标：八度谱号 `-1`＝谱号下加 8（男高音「高音谱号下加 8」）/ `1`＝上加 8 / `null`＝无。只改五线谱显示（音高仍存实音）；无键＝无八度谱号 |
 | `voxTransp` | (number\|null)[]? | v69.8 可选，按旋律声部下标：移调乐器的整数半音（实音 − 记谱，与 `transp` 同号向），−24…24 / `null`。**存实音**，只决定五线谱显示成记谱调与记谱音（♭B 单簧管 `-2`）；无键＝不移调显示。与整曲 `transp`（存记谱音）并存时 `transp` 照旧作用于发声、`voxTransp` 只叠加显示 |
 | `rowNames` | number? | v69.8 可选：`1`＝印首行声部 / 乐器名（首系统全称、续行简称；花括号组只在中部写一次；本谱 ≥2 条旋律行且至少一条五线谱行时生效）；无键＝不印（老谱） |
@@ -26,6 +28,19 @@
 | `measures` | Measure[] | 小节数组 |
 
 > 按旋律声部下标的数组（`voxClefOct` / `voxTransp` / `voxShort`，同 `voxNotations` / `voxDual`）长度须等于 `voxVoices`；不等长的数组由 `migrate()` 丢弃（旧版本增删声部后的兜底）。
+
+### 乐器表（`instKey` 取值，28 键；v70.0 新增 6 键标 ★）
+
+| 族 | 键 = 名称 |
+|---|---|
+| 弹拨（六线 / 四线谱，不写 `instKey`） | `guitar` 吉他 · `uku` 尤克里里 |
+| 键盘（钢琴大谱表） | `piano` 钢琴 · `epiano` 电钢琴 · `synth` 电子琴 · `accordion` 手风琴 |
+| 西洋管弦（默认五线谱） | `bass` 贝斯 · `violin` 小提琴 · `flute` 长笛 · `sax` 萨克斯 · `trumpet` 小号 · `horn` 圆号 · `trombone` 长号 · ★`cello` 大提琴（低音谱号）· ★`clarinet` 单簧管（按实音记，同萨克斯 / 小号） |
+| 民乐 / 课堂乐器（默认简谱） | `erhu` 二胡 · `dizi` 笛子 · `hulusi` 葫芦丝 · `suona` 唢呐 · `guzheng` 古筝 · `pipa` 琵琶 · `yangqin` 扬琴 · `harmonica` 口琴 · ★`recorder` 竖笛 · ★`melodica` 口风琴 · ★`ocarina` 陶笛 · ★`xiao` 箫 |
+| 其他 | `other` 其他器乐 |
+
+> GM program（MIDI / MusicXML，0 起）：6 种新乐器写乐器本身的音色——竖笛 74、口风琴 22、陶笛 79、箫 77、大提琴 42、单簧管 71（混音台改过音色时按混音台）。读取端遇到不认识的键按无乐器身份处理（谱名「器乐谱」），键原样保留。
+> MusicXML 往返（v70.0）：自家导出在 `<identification><miscellaneous>` 写 `pyq-intent`（有 `intent` 时）与 `pyq-instkey`（有 `intent` 且有 `instKey` 时；老谱输出不变），导入只认上表 / 11 个用途的合法值。
 
 ## Measure（小节）
 
@@ -95,6 +110,6 @@
 ## 兼容性约定
 
 - 读取端必须忽略未知字段；缺省字段按文档默认值处理（向前兼容）。
-- 可选字段只写非缺省值，回到缺省就删键（不写 `false` / `0` / 空数组）：没用到新字段的曲谱 JSON 与旧版逐字节相同。v69.8 新增 8 个：`col.syl`、`grace.slash`、`mea.tempos`、`col.tieSlur`、`voxClefOct`、`voxTransp`、`rowNames`、`voxShort`——旧版本打开新谱时忽略它们，退回不画连字符 / 斜线照画 / 整曲一个速度 / 同音按连音线 / 实音显示 / 不印声部名。
+- 可选字段只写非缺省值，回到缺省就删键（不写 `false` / `0` / 空数组）：没用到新字段的曲谱 JSON 与旧版逐字节相同。v69.8 新增 8 个：`col.syl`、`grace.slash`、`mea.tempos`、`col.tieSlur`、`voxClefOct`、`voxTransp`、`rowNames`、`voxShort`——旧版本打开新谱时忽略它们，退回不画连字符 / 斜线照画 / 整曲一个速度 / 同音按连音线 / 实音显示 / 不印声部名。v70.0 新增 1 个：`intent`（旧版本忽略、原样保留，按谱面推断归属）；`instKey` 只增 6 个取值（v69.9 打开时键原样保留，谱名退成「器乐谱（简谱 / 五线谱）」、图标退成其他器乐 / 人声，谱面与播放不受影响）。
 - `v` 提升时保证提供迁移函数（编辑器内置 `migrate()`）。
 - 时间戳存证：对整个曲谱 JSON 字符串计算 SHA-256（`sha256:` 前缀十六进制）。
