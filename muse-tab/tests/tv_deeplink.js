@@ -232,7 +232,9 @@ const SCENES = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst'
       const d = await EV(pd, l => { try { closeModal(); } catch (_) {} hideStartPad(); nwLinkBoot(l.replace(/^[^?]*/, '')); return JSON.stringify(NWP.planOf(NWP.state)); }, m.link);
       const want = await cleanPlan(pd, sc);
       got.push(m.link.replace('https://zhipu.puyouquan.com/', ''));
-      if (!(m.noScene && m.plan === d && d === want && m.link.startsWith('https://zhipu.puyouquan.com/?new=' + sc + '&key='))) bad.push(sc + ' ' + JSON.stringify({ m, d: (d || '').slice(0, 120) }));
+      /* v70.0 P2a 有意迁移（规格 §6.2）：电脑新形态的视唱可选简谱（melLive 真）→ 计划多带 mel:'S'（手机是 null）；谱行与建谱参数仍逐字相同——只对视唱去掉 mel 再比 */
+      const nm = j => { if (sc !== 'sight' || !j) return j; try { const o = JSON.parse(j); delete o.mel; return JSON.stringify(o); } catch (_) { return j; } };
+      if (!(m.noScene && nm(m.plan) === nm(d) && d === want && m.link.startsWith('https://zhipu.puyouquan.com/?new=' + sc + '&key='))) bad.push(sc + ' ' + JSON.stringify({ m, d: (d || '').slice(0, 120) }));
     }
     await pm._ctx.close(); await pd._ctx.close();
     T(bad.length === 0, 'D6c 手机「在电脑上开始一份谱」10 个用途逐个真点：链接带用途 / 调 / 拍号 / 速度 / 该用途变体，电脑上打开后预选的建谱计划＝手机所选＝该用途默认（逐字）', bad.length ? bad.join(' | ') : got.join(' · '));
