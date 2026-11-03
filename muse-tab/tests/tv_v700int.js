@@ -13,6 +13,7 @@
       /api/pub/cats 总数＝种子份数、7 个一级都 ≥1、钢琴谱 › 独奏 ≥3、艺考视唱专题＝种子里 intent＝sight 的那几份（逐 id）、每份卡片谱种＝node pubKindOf
    I6 ⑦（集成人补：C 的种子在 A 的导入导出器合并前生成）29 份种子在最终编辑器上导出 MusicXML 再导入：有 intent 的写 pyq-intent 且读回同值、没有的不写 pyq-intent / pyq-instkey；
       示例 seedId 对应的种子 intent＝编辑器 EXAMPLES make() 的 intent（种子逐字节重建由 tv_library L1 守）
+   I7 验收⑥：没填词的歌谱类（pyq-intent＝vocal / kids / pacc / gtr / teach）导出再导入留 1 行词位、谱名不变；器乐 / 视唱 / 指弹 / 功能谱与去掉 pyq-intent 的老文件口径仍 0 行
    ⑤ 在 tv_kindsync K2（新组合变体编辑器 ↔ node 谱名对拍）。
    修前红：MUSETAB_URL=file://<git show 4a99faa:muse-tab/index.html 的副本>（第 0 步：数据与谱名规则已在、面板 / 示例 / intent 存取都还没有）复跑，I1–I4、I6 红。
    env：MUSETAB_URL 编辑器、MUSETAB_API 服务端 server.js（默认仓库 api/server.js）、ONLY=I1,I3、CHROMIUM_PATH。 */
@@ -391,6 +392,39 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
         '⑦ 种子 ' + SEED.length + ' 份在最终编辑器上导出 MusicXML 再导入：有 intent 的（' + r.out.filter(x => x.it).length + ' 份）写 pyq-intent、读回同值、归属不变；没有的不写 pyq-intent / pyq-instkey；示例 seedId 对应种子 intent＝EXAMPLES make()（' + r.ex.length + ' 份）',
         J({ bad: bad.slice(0, 6), exBad }));
       if (nameDiff.length) NOTE('I6 只打印（存量：v69.9 起 MusicXML 不带 instKey / 六线谱上方五线谱，老谱往返谱名会变）：' + nameDiff.join(' · '));
+    });
+
+    /* ================= I7 验收⑥ 没填词的歌谱类往返留 1 行词位 ================= */
+    if (want('I7')) await guard('I7', async () => {
+      const pg = await openEd(b, '', { tag: 'I7' });
+      const QS = ['new=vocal&parts=4&tacc=with&mel=J', 'new=vocal&parts=2&tacc=with&mel=S', 'new=vocal&parts=3&mel=J', 'new=vocal&parts=1&mel=J', 'new=gtr', 'new=kids', 'new=pacc', 'new=pacc&mel=S', 'new=teach',
+        'new=inst&instKey=violin&tacc=with', 'new=sight&mel=J', 'new=solo&inst=uku', 'new=chord&ftype=CJ'];
+      const made = await CREATE(pg, QS);
+      const r = await pg.evaluate(made => made.map(m => {
+        const s = JSON.parse(m.json); s.measures.forEach(me => (me.voxes || []).forEach(cols => (cols || []).forEach(c => { c.lyrics = []; })));   /* 填了音、没填词 */
+        const x = exportMusicXML(JSON.parse(JSON.stringify(s))), x0 = x.replace(/<miscellaneous-field name="pyq-(intent|instkey)">[^<]*<\/miscellaneous-field>/g, '');
+        const im = importMusicXML(x), im0 = importMusicXML(x0), t = im && im.song ? migrate(im.song) : null, t0 = im0 && im0.song ? migrate(im0.song) : null;
+        const strip = o => { const c = JSON.parse(JSON.stringify(o)); delete c.intent; delete c.instKey; delete c.lyricLines; return JSON.stringify(c); };
+        return { q: m.q, a: __info(s), lyrA: s.lyricLines | 0, hasLyr: /<lyric\b/.test(x), pyq: (x.match(/name="pyq-intent">([^<]*)</) || [])[1] || '',
+          b: t ? __info(t) : null, lyrB: t ? t.lyricLines : null, lyr0: t0 ? t0.lyricLines : null, same: !!(t && t0) && strip(im.song) === strip(im0.song) };
+      }), made).catch(e => ({ err: String(e.message || e) }));
+      if (r.err) throw new Error(r.err);
+      const LYR = ['vocal', 'kids', 'pacc', 'gtr', 'teach'], bad = [];
+      r.forEach(x => {
+        if (!x.b) { bad.push(x.q + ' 导入失败'); return; }
+        if (x.hasLyr) bad.push(x.q + ' 导出不该有 <lyric>');
+        const keep = LYR.includes(x.pyq);
+        if (keep) {
+          if (x.lyrB !== 1) bad.push(x.q + '（' + x.pyq + '）读回词位 ' + x.lyrB + ' ≠ 1');
+          ['k', 'name', 'pz', 'intent'].forEach(f => { if (x.b[f] !== x.a[f]) bad.push(x.q + ' ' + f + ' ' + x.a[f] + ' → ' + x.b[f]); });
+        } else if (x.lyrB !== 0) bad.push(x.q + '（' + x.pyq + '）无歌词类用途却留了词位 ' + x.lyrB);
+        if (x.lyr0 !== 0) bad.push(x.q + ' 去掉 pyq-intent 的同一文件（老文件口径）词位 ' + x.lyr0 + ' ≠ 0');
+        if (!x.same) bad.push(x.q + ' 带 / 不带 pyq-intent 两份导入除 intent / instKey / 词位外不一致');
+      });
+      const nKeep = r.filter(x => LYR.includes(x.pyq)).length;
+      await pg._ctx.close();
+      T('I7', r.length === QS.length && nKeep >= 9 && !bad.length, '验收⑥ 没填词的歌谱类（合唱＋钢琴 / 合唱 / 独唱 / 吉他弹唱 / 儿歌 / 钢琴伴奏歌谱 / 对照谱，' + nKeep + ' 份）导出 MusicXML 再导入：留 1 行词位，谱名 / 谱行 / 归属 / intent 不变（此前合唱＋钢琴退成重奏谱）；'
+        + '器乐＋钢琴 / 视唱 / 指弹 / 功能谱照旧 0 行；同一文件去掉 pyq-intent（老文件口径）仍 0 行、其余逐字段相同', J({ bad: bad.slice(0, 8), rows: r.map(x => x.q + ':' + x.pyq + ':' + x.lyrA + '→' + x.lyrB + '/' + x.lyr0 + ':' + (x.b && x.b.name)) }));
     });
 
     T('E', !pageErrs.length, '页面脚本错误 0', pageErrs.slice(0, 5).join(' | '));

@@ -45490,6 +45490,9 @@ function importMusicXML(xmlStr){
         const hit=nn.find(x=>x.s===n2.s); if(hit){ n2.tk={mi:flat[j].mi, ci:flat[j].ci, si:n2.s}; break; } } }));
     flat.forEach(e=>(e.c.notes||[]).forEach(n2=>{ delete n2._stop; })); });
   out.lyricLines = Math.min(MAX_LYR, maxLyr);   /* v69.4 A6 段数上限与编辑器同口径（此前 3） */
+  /* v70.0 验收⑥：自家导出、建谱用途是带歌词的那几类（pyq-intent＝vocal / kids / pacc / gtr / teach）却一个 <lyric> 都没有（没填词的合唱＋钢琴、弹唱谱）——
+     按 NWP convert 的口径留 1 行词位：否则往返后 lyricLines 变 0，统一谱名表把合唱＋钢琴退成重奏谱（intent 还在）。只认 pyq-intent：老文件 / 第三方文件导入逐字节不变 */
+  if(!maxLyr && ['vocal','kids','pacc','gtr','teach'].indexOf(out.intent)>=0) out.lyricLines = 1;
   /* v65.2 B3a ③ 大谱表配对：只有一对且再无其他声部 → 名字按编辑器惯例「右手/左手」（docType 判成钢琴谱）；
      与其他五线谱声部同在 → 显式 voxGroups：配对写 brace、其余相邻五线谱声部 ≥2 行写 bracket（否则 voxGroupsOf 会把钢琴并进合唱括线） */
   /* v68.3 D4 自家导出已按原名拆好；收尾 ENG-3：只有一对大谱表、再无别的声部时不管名字从哪来都不写显式 voxGroups（同 v68.2，往返不多出字段）——
