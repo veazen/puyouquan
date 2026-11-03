@@ -98,7 +98,7 @@ function gp5() {
     const pg = await ctx.newPage(); pg.setDefaultTimeout(5000);
     pg.on('pageerror', e => errs.push('PAGEERR:' + e.message));
     pg._classic = !!opt.classic;
-    await pg.goto(opt.classic ? FC : F); await pg.waitForTimeout(900);
+    await pg.goto(opt.classic ? FC : opt.next0 ? F + (F.includes('?') ? '&' : '?') + 'next=0' : F); await pg.waitForTimeout(900);
     await pg.evaluate(() => { window.guardReplace = p => p(); window.SF_PLAYWAIT = false; window.__toasts = []; const t0 = window.toast; window.toast = function (m) { window.__toasts.push(String(m)); return t0.apply(this, arguments); };
       /* v68.7 S1：新外壳提示条走 toastSay（只出短文）——同一次调用的旧外壳原文另记在 __says（新旧外壳同一份计算、旧外壳照样显示），供后果文案断言用 */
       window.__says = []; if (typeof window.toastSay === 'function') { const s0 = window.toastSay; window.toastSay = function (m, o) { try { window.__says.push({ m: String(m), t: (o && o.t) || '' }); } catch (_) {} return s0.apply(this, arguments); }; }
@@ -276,7 +276,8 @@ function gp5() {
 
   /* ---------- I9 示例做同款 ---------- */
   await guard('I9 示例做同款', async () => {
-    const pg = await open(1280, 800);
+    /* v70.0 C 有意迁移（规格 §8.4）：新外壳新形态的示例按谱种分组、21 份（断言在 tv_v700ex E2）；本条原断言（16 份三列、← 一格 ↑ 一行）改钉 ?next=0（旧新建面板，零差异） */
+    const pg = await open(1280, 800, { next0: 1 });
     await pg.evaluate(() => hideStartPad());
     await toImport(pg); await pg.click('#nf-isrc-ex'); await pvDone(pg);
     const r = {};

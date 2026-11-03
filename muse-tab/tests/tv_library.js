@@ -4,6 +4,7 @@
        且与已提交的 seed-library.json 逐字节相同
        （导入器改动让曲库结果变了 → 红，提示重新生成并复核）
    L2  每首在编辑器里打开：#score 画出、谱名与谱类合理（钢琴伴奏 / 合唱）、曲名 / 作曲 / 作词 / 制谱署名都在
+       v70.0 C：示例 lib-ex-* / 手工录入 lib-pd-* 按 manifest 的 expect（PQ_KIND.pzOf 的 pz.sub）判谱类、制谱＝谱友圈官方；作曲除谱友圈自编外必填，作词不要求（器乐 / 视唱没有词）
    L3  每首导出的 MusicXML 过 MusicXML 4.0 官方 XSD（fixtures/xsd/）
    L4  和音逐音连音线有落地：至少一首带 adds[].tie，且五线谱画出了附加音的连音弧（附加音的弧数 > 0）
    E   页面脚本错误 0
@@ -25,6 +26,8 @@ const T = (id, ok, name, d) => { total++; if (ok) pass++; lines.push((ok ? '✅ 
     catch (e) { msg = (e.stdout || '') + (e.stderr || ''); }
     T('L1', ok, '曲库构建：质量门全过、与已提交的 api/seed-library.json 逐字节相同', msg.trim()); }
   const list = JSON.parse(fs.readFileSync(path.join(ROOT, 'api', 'seed-library.json'), 'utf8'));
+  const MANI = JSON.parse(fs.readFileSync(path.join(ROOT, 'deploy', 'library', 'manifest.json'), 'utf8'));
+  const EXP = {}; (MANI.examples || []).concat(MANI.manual || []).forEach(x => { EXP[x.id] = x; });
   const b = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tv_library_'));
   const bad2 = [], bad3 = []; let tieSongs = 0, addArcs = 0;
@@ -36,9 +39,12 @@ const T = (id, ok, name, d) => { total++; if (ok) pass++; lines.push((ok ? '✅ 
       const r = await pg.evaluate(d => { loadSong(d); render();
         const sc = document.getElementById('score'), kind = (typeof docTypeLabel === 'function') ? docTypeLabel(song) : '';
         const hasAddTie = song.measures.some(m => (m.voxes || []).some(row => (row || []).some(c => (c.adds || []).some(a => a && a.tie))));
-        return { svg: !!(sc && sc.innerHTML.length > 1000), kind, title: song.title, comp: song.composer, lyr: song.lyricist, maker: song.maker,
+        const pz = PQ_KIND.pzOf(song);
+        return { svg: !!(sc && sc.innerHTML.length > 1000), kind, pz: pz.pz + '.' + pz.sub, title: song.title, comp: song.composer, lyr: song.lyricist, maker: song.maker,
           paths: sc ? sc.querySelectorAll('path').length : 0, hasAddTie, xml: exportMusicXML(song) }; }, it.data);
-      if (!r.svg || !/钢琴|合唱|歌谱/.test(r.kind) || !r.title || !r.comp || !r.lyr || !/OpenScore/.test(r.maker || '')) bad2.push([it.id, r.kind, r.title, r.comp, r.lyr, r.maker]);
+      const ex = EXP[it.id];
+      if (ex) { if (!r.svg || r.pz !== ex.expect || !r.title || (!r.comp && (ex.source || {}).license !== '谱友圈自编') || !/^谱友圈官方/.test(r.maker || '')) bad2.push([it.id, r.pz, ex.expect, r.title, r.comp, r.maker]); }
+      else if (!r.svg || !/钢琴|合唱|歌谱/.test(r.kind) || !r.title || !r.comp || !r.lyr || !/OpenScore/.test(r.maker || '')) bad2.push([it.id, r.kind, r.title, r.comp, r.lyr, r.maker]);
       const f = path.join(tmp, it.id + '.musicxml'); fs.writeFileSync(f, r.xml);
       try { execFileSync('xmllint', ['--noout', '--schema', XSD, f], { stdio: ['ignore', 'pipe', 'pipe'] }); }
       catch (e) { bad3.push([it.id, String(e.stderr || '').split('\n').filter(l => /error/i.test(l)).slice(0, 2).join(' | ')]); }
@@ -54,7 +60,7 @@ const T = (id, ok, name, d) => { total++; if (ok) pass++; lines.push((ok ? '✅ 
   } catch (e) { T('X', false, '执行异常', e && e.stack || e); }
   await b.close();
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
-  T('L2', list.length >= 10 && !bad2.length, list.length + ' 首都能打开并画出谱面；谱类为钢琴伴奏 / 合唱 / 歌谱；曲名、作曲、作词、制谱（OpenScore）署名齐全', J(bad2));
+  T('L2', list.length >= 10 && !bad2.length, list.length + ' 首都能打开并画出谱面；曲库谱类为钢琴伴奏 / 合唱 / 歌谱、曲名 / 作曲 / 作词 / 制谱（OpenScore）署名齐全；示例 / 手工录入归属＝manifest expect、制谱＝谱友圈官方', J(bad2));
   T('L3', !bad3.length, list.length + ' 首导出的 MusicXML 都过 MusicXML 4.0 官方 XSD', J(bad3));
   T('L4', tieSongs >= 1 && addArcs > 0, '和音逐音连音线落地：' + tieSongs + ' 首带附加音连音线，五线谱画出附加音连音弧 ' + addArcs + ' 条', J({ tieSongs, addArcs }));
   T('E', !pageErrs.length, '页面脚本错误 0', J(pageErrs.slice(0, 5)));
