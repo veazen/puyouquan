@@ -186,7 +186,8 @@ async function clickStep(pg, mi, vi, ci, step, mod) {
       }
       /* I2e 曲库 10 首：打开智能填词不改内容点「填入」→ 歌词逐字节不变；预载文本加一个空格再填 → 改动的音数（v69.4 实测 5–71 个） */
       if (want('I2') && sh === 'flow') {
-        const lib = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../api/seed-library.json'), 'utf8')).map(x => ({ t: x.title, d: typeof x.data === 'string' ? x.data : JSON.stringify(x.data) }));
+        /* v70.0 集成迁移：种子从 OpenScore 10 首扩到 29 份（C 组示例 16＋手工 3，规格 docs/spec-2026-11-v700.md §7.3），本断言的对象是曲库 10 首艺术歌曲——只取 lib-os-*（同 tv_taxonomy X2 / tv_v700data 口径；基线 6d8d6f8 编辑器在 29 份种子上同样红）；示例 / 手工谱另由 tv_v700ex E3 / tv_v700int I6 守 */
+        const lib = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../api/seed-library.json'), 'utf8')).filter(x => /^lib-os-/.test(String(x.id || ''))).map(x => ({ t: x.title, d: typeof x.data === 'string' ? x.data : JSON.stringify(x.data) }));
         const e = await pg.evaluate(lib => lib.map(({ t, d }) => { const s = migrate(JSON.parse(d)); __ld(s); const out = { t, same0: true, diff1: 0, n: 0, skip: 0 };
           const lyrOf = () => song.measures.map(m => (m.voxes || []).map(cs => (cs || []).map(c => JSON.stringify(c.lyrics || [])).join(',')).join(';')).join('|');
           (song.voxVoices || []).forEach((_, vi) => { for (let li = 0; li < (song.lyricLines | 0); li++) {

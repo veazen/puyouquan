@@ -437,7 +437,7 @@ const vis = (pg, sel) => pg.evaluate(s => { const e = document.querySelector(s);
               if (l < vb.x - 0.5 || r2 > MARGIN - 4 + 0.5) { bad++; if (!worst || l < worst.l) worst = { t: t.textContent, l: +l.toFixed(1), r: +r2.toFixed(1) }; } });
             out.push({ t: d.title.slice(0, 6), n: lb.length, bad, worst, txt: [...txt], anchor: lb.every(t => t.getAttribute('text-anchor') === 'end' && +t.getAttribute('x') === MARGIN - 6) });
           }
-          return out; }, LIB.map(x => x.data));
+          return out; }, LIB.filter(x => /^lib-os-/.test(x.id)).map(x => x.data));   /* v70.0 集成迁移：种子从 OpenScore 10 首扩到 29 份（C 组示例 16＋手工 3，规格 §7.3），JL1 的对象是曲库 10 首艺术歌曲——只取 lib-os-*（基线 6d8d6f8 在 29 份种子上同样红：弹唱示例没有行首名 / 六线谱行名另一套锚点） */
         const okAll = Array.isArray(r) && r.length === 10 && r.every(x => x.n > 0 && x.bad === 0 && x.anchor);
         T(okAll, 'JL1 曲库 10 首切简谱：行首声部名全部在左页边距内（不越出谱纸左缘、右端不过 oxH−4），以 oxH−6 右对齐' + sx, J(Array.isArray(r) ? r.filter(x => !(x.n > 0 && x.bad === 0 && x.anchor)).slice(0, 4) : r));
         if (shell === 'flow') {

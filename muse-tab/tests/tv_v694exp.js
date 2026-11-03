@@ -195,7 +195,9 @@ const HELP = () => {
           out.miss = miss; out.chk = chk; }
         /* 曲库每轨：同音高的音不重叠（取整后同 tick 的 note-off 在 note-on 之前） */
         const ovl = [];
-        lib.forEach(it => { loadSong(it.data); __mid(exportMIDI(song).bytes).slice(1).forEach((tr, ti) => { const last = {};
+        /* v70.0 集成迁移：种子从 OpenScore 10 首扩到 29 份（C 组示例 16＋手工 3，规格 docs/spec-2026-11-v700.md §7.3），本断言的对象是曲库 10 首艺术歌曲——只取 lib-os-*（同 tv_taxonomy X2 / tv_v700data 口径；基线 6d8d6f8 编辑器在 29 份种子上同样红）；示例 / 手工谱另由 tv_v700ex E3 / tv_v700int I6 守。
+           另：示例《小星星（尤克里里）》四线谱分解延音在 A 弦上同音高重叠 14 处（预设自来如此、基线同样，记 PROJECT.md §9.0 遗留） */
+        lib.filter(it => /^lib-os-/.test(it.id)).forEach(it => { loadSong(it.data); __mid(exportMIDI(song).bytes).slice(1).forEach((tr, ti) => { const last = {};
           __notes(tr).forEach(n => { if (last[n.m] != null && n.t < last[n.m]) ovl.push([it.id, ti, n.t, n.m]); last[n.m] = Math.max(last[n.m] || 0, n.t + n.d); }); }); });
         out.ovl = ovl.slice(0, 5); out.nOvl = ovl.length;
         return out; }, LIB);

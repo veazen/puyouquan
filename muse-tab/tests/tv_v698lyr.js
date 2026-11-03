@@ -326,7 +326,8 @@ const FIX = '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="4.0"
     }
     /* ================= L8 老谱零变化 ================= */
     if (want('L8')) {
-      const lib = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../api/seed-library.json'), 'utf8')).map(x => ({ t: x.title, d: typeof x.data === 'string' ? x.data : JSON.stringify(x.data) }));
+      /* v70.0 集成迁移：种子从 OpenScore 10 首扩到 29 份（C 组示例 16＋手工 3，规格 docs/spec-2026-11-v700.md §7.3），本断言的对象是曲库 10 首艺术歌曲——只取 lib-os-*（同 tv_taxonomy X2 / tv_v700data 口径；基线 6d8d6f8 编辑器在 29 份种子上同样红）；示例 / 手工谱另由 tv_v700ex E3 / tv_v700int I6 守（L8c 记数 461 / 19 / 11 也是这 10 首的口径） */
+      const lib = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../api/seed-library.json'), 'utf8')).filter(x => /^lib-os-/.test(String(x.id || ''))).map(x => ({ t: x.title, d: typeof x.data === 'string' ? x.data : JSON.stringify(x.data) }));
       const SNAP = lib => { const out = [];
         const one = (nm, s) => { const js = JSON.stringify(s); const { sv } = __off(JSON.parse(js)); const svg = sv.innerHTML;
           const x = exportMusicXML(JSON.parse(js));
