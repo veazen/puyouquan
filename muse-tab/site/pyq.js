@@ -464,10 +464,12 @@ window.PYQ_LIB = (function(){
   /* v60.6 卡片信息补齐：调号/拍号/速度/小节数/段词数——挑谱时真正要看的几项，
      一眼判断「这份谱能不能直接用」，不用点进去。纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」。 */
   const TYPE_STAFF = { instr: 1, piano: 1, pianoacc: 1, solo: 1 };   /* v60.7 补 pianoacc：同为大谱表，写「F 调」不写「1=F」 */
+  /* v70.0 验收⑦：小调谱（接口 mode＝'minor'，按关系大调记谱）五线谱家族写关系小调「a 小调」（《致爱丽丝》此前写成「C 调」）；简谱家族照写「1=C」（简谱惯例）。与编辑器 CC_MINOR 同一张表 */
+  const MINOR_OF = { C: 'a', G: 'e', D: 'b', A: '♯f', E: '♯c', B: '♯g', 'F#': '♯d', 'C#': '♯a', F: 'd', Bb: 'g', Eb: 'c', Ab: 'f', Db: '♭b', Gb: '♭e', Cb: '♭a' };
   function metaBits(item){
     const b = [], k = String(item.key||'').slice(0,6), fk = window.PYQ_PZ? PYQ_PZ.fkeyText(item) : '';
     if(fk) b.push(fk);   /* 分类升级 P1：六线谱 / 四线谱按指法调写「C调指法 · 夹2」（接口带 fx.fkey 时；老卡片照旧） */
-    else if(k) b.push(TYPE_STAFF[item.type] ? k+' 调' : '1='+k);
+    else if(k) b.push(TYPE_STAFF[item.type] ? (item.mode==='minor' && MINOR_OF[k] ? MINOR_OF[k]+' 小调' : k+' 调') : '1='+k);
     if(item.beats>0 && item.unit>0) b.push(item.beats+'/'+item.unit);
     if(item.tempo>0) b.push('♩='+item.tempo);
     if(item.measures>0) b.push(item.measures+' 小节');

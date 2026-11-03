@@ -286,7 +286,9 @@ function pubShapeData(row) {
     verses: Math.max(0, Math.min(9, sNum(d.lyricLines))),
     composer: sStr(d.composer).trim().slice(0, 60), dsinger: !!sStr(d.singer).trim(),
     /* 分类升级 P1：变调夹（卡片与筛选抽屉「C调指法 · 夹2」）、建谱用途 intent（只认 PQ_KIND.INTENTS 里的值；艺考 / 师范专题与「儿歌」读它，P2a 起新建谱才写） */
-    capo: Math.max(0, Math.min(12, Math.trunc(sNum(d.capo)))), intent: typeof d.intent === 'string' && KIND.INTENTS.indexOf(d.intent) >= 0 ? d.intent : '' };
+    capo: Math.max(0, Math.min(12, Math.trunc(sNum(d.capo)))), intent: typeof d.intent === 'string' && KIND.INTENTS.indexOf(d.intent) >= 0 ? d.intent : '',
+    /* v70.0 验收⑦：小调（song.mode＝'minor'，按关系大调记谱）——卡片调名写关系小调（《致爱丽丝》a 小调，此前写成「C 调」）；只认 'minor'，其余＝'' */
+    mode: d.mode === 'minor' ? 'minor' : '' };
   if (shapeCache.size > 5000) shapeCache.clear();
   shapeCache.set(ck, o);
   return o;
@@ -295,7 +297,7 @@ function pubShape(row) {
   /* v67.6 第二轮验收：整行兜底——任何一份谱算卡片出错只让它自己退回默认卡，列表 / 搜索 / 收藏 / 点赞照常 200（此前 String(d.key) 等抛错整页 500） */
   let o;
   try { o = pubShapeData(row); }
-  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null, measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false, capo: 0, intent: '' }; }
+  catch (_) { o = { type: 'vocal', typeLabel: '曲谱', pz: 'jianpu', sub: 'gequ', inst: '', also: [], fx: null, measures: 0, cover: [], key: '', tempo: 0, beats: 0, unit: 0, verses: 0, composer: '', dsinger: false, capo: 0, intent: '', mode: '' }; }
   const cr = creditOf(row.singer, o.composer, o.dsinger);
   return { id: row.id, title: row.title, singer: cr.singer, composer: cr.composer, author: row.author, updated_at: row.updated_at,
     /* 分类升级 P0：新谱种字段（旧 type 照旧返回、取值不变；P1 起谱库筛选读这几项）——pz / sub 主谱种 › 二级、inst 乐器身份、also 也出现在（'jianpu.gequ'…）、fx 分面（在末尾） */
@@ -305,6 +307,7 @@ function pubShape(row) {
     thumb: row.thumb_at || 0,
     key: o.key, tempo: o.tempo, beats: o.beats, unit: o.unit, verses: o.verses,
     capo: o.capo || 0, intent: o.intent || '',   /* 分类升级 P1：变调夹（「C调指法 · 夹2」）、建谱用途（专题 / 儿歌读它） */
+    mode: o.mode || '',   /* v70.0 验收⑦：'minor'＝小调（卡片调名写关系小调），大调 / 未写＝''（只增字段） */
     /* v60.98 卡片带浏览/收藏数（产品指示：计数在谱库曲谱卡上显示；likes 一并透传备用） */
     views: +row.views || 0, likes: +row.likes || 0, favs: +row.favs || 0,
     fx: o.fx };   /* 分类升级 P0：分面放最后（嵌套对象，排在既有字段之后） */

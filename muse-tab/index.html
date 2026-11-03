@@ -47767,16 +47767,19 @@ function ccKindName(pb){
 }
 /* 与官网同口径的卡片信息条：挑谱真正要看的几项，一眼判断能不能直接用 */
 const CC_STAFF_TYPE={instr:1, piano:1, pianoacc:1, solo:1};   // 纯五线谱家族写「C 调」，简谱家族写惯用的「1=C」（v60.7 补 pianoacc）
-function ccMetaBits(pb){
-  const b=[], k=String(pb.key||'').slice(0,6);
-  if(k) b.push(CC_STAFF_TYPE[pb.type]? k+' 调' : '1='+k);
+/* v70.0 验收⑦：新外壳谱友圈卡片（nx）——小调谱（接口 mode / 本地 data.mode＝'minor'，按关系大调记谱）五线谱家族写关系小调「a 小调」（此前《致爱丽丝》写成「C 调」）；
+   简谱家族照写「1=C」（简谱惯例）；旧外壳卡片不动。与官网 pyq.js MINOR_OF 同一张表 */
+const CC_MINOR={C:'a', G:'e', D:'b', A:'♯f', E:'♯c', B:'♯g', 'F#':'♯d', 'C#':'♯a', F:'d', Bb:'g', Eb:'c', Ab:'f', Db:'♭b', Gb:'♭e', Cb:'♭a'};
+function ccMetaBits(pb, nx){
+  const b=[], k=String(pb.key||'').slice(0,6), mi=nx && (pb.mode || (pb.data && pb.data.mode))==='minor' && CC_MINOR[k];
+  if(k) b.push(CC_STAFF_TYPE[pb.type]? (mi? CC_MINOR[k]+' 小调' : k+' 调') : '1='+k);
   if(pb.beats>0 && pb.unit>0) b.push(pb.beats+'/'+pb.unit);
   if(pb.tempo>0) b.push('♩='+pb.tempo);
   if(pb.measures>0) b.push(pb.measures+' 小节');
   if(pb.verses>1) b.push(pb.verses+' 段词');
   return b;
 }
-function circleCard(pb, own, fav){
+function circleCard(pb, own, fav, nx){   /* nx：新外壳谱友圈（renderCircleNxGrid）——只影响卡片调名（验收⑦），旧外壳不传 */
   /* v60.6 封面换真实谱面缩图：刻版骨架留底层当占位（lazy 加载中 / 老谱无缩图 / 图挂了都由它兜住） */
   const cover = pb.remote? ccCoverApi(pb) : ccCover(pb);
   const shot = (pb.remote && pb.thumb)
@@ -47784,7 +47787,7 @@ function circleCard(pb, own, fav){
   const sub = pb.remote
     ? '制谱：'+esc(pb.author||'佚名')+(pb.singer?(' · 演唱：'+esc(pb.singer)):(pb.composer?(' · 作曲：'+esc(pb.composer)):''))
     : '制谱：'+esc(pb.author||'佚名')+' · '+esc((pb.pubAt||'').split(' ')[0]||'');
-  const meta = ccMetaBits(pb).map(x=>`<i>${esc(x)}</i>`).join('')+(pb.remote? '' :
+  const meta = ccMetaBits(pb, nx).map(x=>`<i>${esc(x)}</i>`).join('')+(pb.remote? '' :
     `<i>${svgi('eye',11)} ${pb.views||0}</i>${pb.price>0?`<i>已售 ${pb.sales||0}</i>`:''}`);
   return `<div class="cc-card" data-pub="${pb.pid}"${pb.remote?' data-remote="1"':''}>
       <div class="cc-cover">${cover}${shot}
@@ -47920,7 +47923,7 @@ function ccNxPool(){
 function ccNxCard(s, keep){   /* keep：留下本次筛选的段号 sec / 可转 nota（接口列表原样展示用）；并进本地卡池的不留 */
   const pb={pid:s.id, title:s.title, author:s.author, singer:s.singer||'', composer:s.composer||'', type:s.type, typeLabel:s.typeLabel||'', price:s.price||0, measures:s.measures||0,
     cover:s.cover||[], remote:true, thumb:s.thumb?1:0, key:s.key||'', tempo:s.tempo||0, beats:s.beats||0, unit:s.unit||0, verses:s.verses||0,
-    pz:s.pz, sub:s.sub, inst:s.inst, also:s.also, fx:s.fx, capo:s.capo||0, intent:s.intent||'', favs:s.favs||0, views:s.views||0};
+    pz:s.pz, sub:s.sub, inst:s.inst, also:s.also, fx:s.fx, capo:s.capo||0, intent:s.intent||'', favs:s.favs||0, views:s.views||0, mode:s.mode==='minor'? 'minor' : ''};
   if(keep){ pb.sec=s.sec; pb.nota=s.nota||''; }
   return Object.assign(pb, ccPzOf(pb));
 }
@@ -47989,7 +47992,7 @@ function renderCircleNxGrid(){
     if(e.sec===2 && last!==2) h+=`<div class="cc-sep" data-sec="2">以下是${cw[0]}，打开时用${cw[1]}看</div>`;
     if(e.sec===3 && last!==3 && CC_TAIL[R.tail]) h+=`<div class="cc-sep" data-sec="3">${CC_TAIL[R.tail]}</div>`;
     last=e.sec; byId[e.c.pid]=e;
-    h+=circleCard(e.c, own, fav);
+    h+=circleCard(e.c, own, fav, 1);
   });
   const convLine = (!R.convShown && R.nConv>0 && R.pz)? `<div class="cc-conv">还有 ${R.nConv} 首是${cw[0]} · <button type="button" class="cc-convgo" data-conv>用${cw[1]}看 ›</button></div>` : '';
   if(convLine){ const k=h.indexOf('<div class="cc-sep" data-sec="3">'); h= k>=0? h.slice(0,k)+convLine+h.slice(k) : h+convLine; }

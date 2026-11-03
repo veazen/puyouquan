@@ -16,6 +16,7 @@
    Z12 新外壳行 1「发布」弹层「将归入」主谱种 › 二级（「也出现在」在悬停）＝发布后 /api/pub/scores 卡片的 pz / sub / also（简谱旋律＋钢琴、纯简谱歌曲、合唱＋钢琴三种，
        发布体＝编辑器提交时 PUT 的那份 data）；搜索「合唱 带伴奏」「合唱 伴奏」＝合唱谱 › 带伴奏、「无伴奏」＝合唱谱 › 无伴奏（官网搜索框不被清空）；
        钢琴谱二级悬停（官网＋编辑器）与编辑器合唱谱「伴奏」行标
+   Z13 v70.0 验收⑦：接口卡片带 mode；官网 / 编辑器新外壳谱友圈卡片小调写关系小调（《致爱丽丝》a 小调）；旧外壳卡片照写「C 调」
    Z5h 退路之后仍 0 首：接口不给 fb、官网不写「下面是其他谱」，zero_result 照常记
    Z2d / Z2e 筛选抽屉（编制 / 能用来 / 风格 / 调拍速，吉他谱按「G调指法 · 夹2」）· 原稿不满 6 首自动展开可转
    修前红：LIBPZ_ROOT 指向 115bca4 的仓库副本（git archive 115bca4 api muse-tab/site muse-tab/index.html）复跑。env：LIBPZ_ROOT、CHROMIUM_PATH、SHOTS（截图目录） */
@@ -489,6 +490,40 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       }
       T(Object.values(res).every(r => r.cls === '' && r.cats === OLDC && r.pay === 2 && r.pz === 0 && r.ph === '搜索曲名 / 作者' && !/钢琴独奏 →/.test(r.toast)),
         'Z10b 旧外壳 ?shell=classic 与 ?next=0：谱友圈仍是旧 11 类＋免费 / 付费＋收藏、搜索框原文，没有谱种按钮与首访提示', J(res));
+    });
+
+    /* ---------- Z13 v70.0 验收⑦：小调卡片调名（《致爱丽丝》a 小调，此前写「C 调」） ---------- */
+    await guard('Z13', async () => {
+      const FE = 'lib-pd-fur-elise', fe = cards.find(c => c.id === FE) || {};
+      const modes = [...new Set(cards.map(c => c.mode))].sort();
+      /* 官网卡片 */
+      const pg = await mkPage(b, 'https://www.puyouquan.com/');
+      await typeQ(pg, '致爱丽丝');
+      const site = await pg.evaluate(id => { const a = [...document.querySelectorAll('#lib-grid .cc-card')].find(c => (c.getAttribute('href') || '').includes('pub=' + id)); const m = a && a.querySelector('.meta');
+        return m ? [...m.querySelectorAll('i')].map(i => i.textContent) : null; }, FE);
+      await pg._ctx.close();
+      /* 编辑器新外壳谱友圈 */
+      const ed = await mkPage(b, 'https://zhipu.puyouquan.com/', { wait: 2000 });
+      await ed.evaluate(() => { hideStartPad(); });
+      await ed.click('#flw-file'); await ed.waitForSelector('#popmenu [data-old="b-circle"]'); await ed.click('#popmenu [data-old="b-circle"]'); await ed.waitForTimeout(1500);
+      await ed.fill('#cc-q', '致爱丽丝'); await ed.waitForTimeout(1500);
+      const nx = await ed.evaluate(id => { const c = document.querySelector('#circle .cc-card[data-pub="' + id + '"] .meta'); return { cls: document.getElementById('circle').className, m: c ? [...c.querySelectorAll('i')].map(i => i.textContent) : null }; }, FE);
+      await ed._ctx.close();
+      /* 旧外壳：卡片调名不动（同一张接口卡片照写「C 调」） */
+      const old = {};
+      for (const u of ['https://zhipu.puyouquan.com/?shell=classic', 'https://zhipu.puyouquan.com/?next=0']) {
+        const p2 = await mkPage(b, u, { wait: 2000 });
+        await p2.evaluate(() => { hideStartPad(); openCircle(); }); await p2.waitForTimeout(1200);
+        old[u.split('?')[1]] = await p2.evaluate(id => { const card = document.querySelector('#circle .cc-card[data-pub="' + id + '"] .meta');
+          const h = circleCard({ pid: 'z13', remote: true, title: 't', type: 'piano', key: 'C', mode: 'minor', data: { mode: 'minor' }, measures: 4 }, {}, {});
+          return { cls: document.getElementById('circle').className, grid: card ? [...card.querySelectorAll('i')].map(i => i.textContent) : null, synth: /<i>C 调<\/i>/.test(h) && !/小调/.test(h), any: /小调/.test(document.getElementById('circle').innerHTML) }; }, FE);
+        await p2._ctx.close();
+      }
+      T(fe.mode === 'minor' && fe.key === 'C' && J(modes) === J(['', 'minor']) && !!site && site.includes('a 小调') && !site.includes('C 调')
+        && nx.cls === 'cc-nx' && !!nx.m && nx.m.includes('a 小调') && !nx.m.includes('C 调')
+        && Object.values(old).every(o => o.cls === '' && o.synth && !o.any && (!o.grid || o.grid.includes('C 调'))),
+        'Z13 验收⑦ 小调卡片调名：接口卡片带 mode（小调＝minor、其余＝空串，只增字段）；官网卡片与编辑器新外壳谱友圈卡片《致爱丽丝》写「a 小调」（此前「C 调」）；旧外壳 ?shell=classic / ?next=0 谱友圈卡片照写「C 调」',
+        J({ fe: { key: fe.key, mode: fe.mode, type: fe.type }, modes, site, nx, old }));
     });
 
     /* ---------- Z11 埋点 / 小程序 / 后台 / 谱名 ---------- */
