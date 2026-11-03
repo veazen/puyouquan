@@ -154,11 +154,18 @@ const CORE = [
      官网 PYQ_PZ＝PQ_KIND＝接口三处同口径 · 一级 / 二级 / 乐器行 · 第 201 首以后 · 旧 id 别名 · 搜索样例与条件块 · 计数与可转 · 375×667 宫格几何 · 旧缓存 ·
      观看页 ?nota= · 编辑器新外壳谱友圈与旧外壳 / ?next=0 零差异 · 筛选抽屉 · 埋点 / 小程序 / 后台（Z0–Z11 29 项，修前 115bca4 全红）；单跑约 2.5 分钟 */
   'tv_libpz',
+  /* v70.0 分类 P2a「新建：数据与组合」（规格 docs/spec-2026-11-v700.md §8.2–§8.4、§9）：
+     A 组 tv_v700data——乐器表 28 键 / 6 种新乐器的谱名 · pzOf · 图标 · GM program、按音轨名认乐器、谱名拍板 11 / 22 后半、song.intent 存取往返（MusicXML / 本机 / .mtab / 云同步 / 真服务端）、
+       换谱类 intent 改写、从已有音乐 6 种做法、搜索新词（D1–D7 20 项；零差异读 fixtures/v700data_base.json＝6d8d6f8）；单跑约 70 秒
+     B 组 tv_v700new——新建面板 4 个新组合金表、?next=0 / 旧外壳零差异（fixtures/v700_base.json）、旋律用默认值、深链、刻版几何 G1–G8（两宽 × 两字体）、全部建谱路径写 intent、
+       快捷键、点击数（N1–N10 85 项）；B 组报告单跑 4–5 分钟，给 300 秒上限（并行时 ×1.5）
+     C 组 tv_v700ex——示例 21 份按谱种分组 / 旧外壳 16 份零差异 / 5 份新示例数据 / build-library 门 ⑨–⑭ / 冷启动计数（E1–E5） */
+  'tv_v700data', 'tv_v700new', 'tv_v700ex',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
    本机 4 核单跑 389–428 秒、CI 约 224 秒（a8c2089 实测 CI/本机 ≈ 0.58）——本机跑全量 run_all 时 300 秒必超时误红；给 600 秒，其余照旧 300 秒 */
-const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000, tv_v698play: 600000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
+const TIMEOUT = { tv_newpanel: 600000, tv_fixdensity: 450000, tv_deskscale2: 450000, tv_shellflow: 450000, tv_perf2: 900000, tv_pgbrk: 600000, tv_pgbrk_ui: 450000, tv_parts: 600000, tv_parts_ui: 450000, tv_textbudget: 600000, tv_v688: 300000, tv_smart: 600000, tv_inplace: 600000, tv_v698play: 600000, tv_v700new: 300000 };   /* v68.6 tv_parts 本机单跑约 175 秒（PAZ：两套外壳 × 28 份谱 × 基线 / 被测两页 ＋ 手机；收尾加 PA4f 模糊测试与 PA13 两套外壳），留余量；tv_parts_ui 单跑约 80 秒（两页并行） */   /* v68.2：后三个两段（classic + flow）本机负载高时 220–270 秒，留余量防误红 */
 /* v68.4：tv_perf2 本机单跑 512 秒（含 P6 计时段；PERF=0 时 391 秒）——收尾 PERF-5 拆成三段（见 CORE），每段 900 秒上限（本机前两段合计 601 秒、单段不超过约 6 分钟，留 2.5 倍以上；只防挂死） */
 
 /* v69.1 并行（负责人 2026-10-24：Actions 额度用完，压缩 CI 时长）：

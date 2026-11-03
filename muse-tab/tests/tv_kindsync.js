@@ -5,6 +5,8 @@
       K1b（v70.0 P2a 第 0 步）乐器名 28 键：NW_INSTS（k → name、键序）＝页面 PQ_KIND.INST＝node 端；新建面板旧清单 NWP.INSTS 仍是基线 20 种
    K2 同一批谱（16 预设 + 14 种谱行组合 × 变体经 NWB.build + 11 个用途面板计划 + MusicXML 导入 7 份 × 6 种做法 + MIDI 导入 5 种模式
       + 换谱类产物 + 边界样本）：编辑器谱名 docTypeLabel＝服务端 nameOf(存储 JSON)、谱行一致；面板谱名＝建出来的谱名；预设原始 JSON（未 migrate）服务端名＝编辑器名
+      （v70.0 集成⑤：谱行变体加 P2a 新组合——合唱＋钢琴 JG / SG nVox 2–4、器乐＋钢琴 SG instKey、尤克里里指弹 ST uku、萨克斯简谱、6 种新乐器 J / S，换谱类加二胡简谱→JG；
+       并核新谱名确实出现；K5 改为分谱种取全卡片——已发布谱超过 200 首时不再误红）
    K3 真服务端（api/server.js + 临时库，语料全部上架）：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；type 字段（谱库分类）＝编辑器 docType（不改）；
       分类升级 P0：两端的 docType 都读 PQ_KIND.docTypeOf（K1 探针），列表卡片的谱种 pz / sub / also＝编辑器同一份 pzOf
    K4 观看页（puku kanpu.html?pub=ID，真跳转）标题＝统一谱名；分享卡 PNG 右上角＝统一谱名；小程序分享 share＝「歌名 - 演唱者 · 统一谱名」，
@@ -131,8 +133,15 @@ async function corpus(pg) {
     /* ① 16 预设（migrate 后）＋原始 JSON */
     PRESETS.forEach((p, i) => add('预设' + i + ' ' + p.name, migrate(p.make()), { raw: J(p.make()) }));
     /* ② 14 种谱行组合 × 变体（NWB.build ＝ 新建面板真实建谱） */
-    const V = { J: [{}, { nVox: 2 }, { nVox: 4 }, { instKey: 'erhu' }, { instKey: 'piano' }, { lyr: 0 }], S: [{}, { lyr: 0 }, { nVox: 3 }, { instKey: 'violin' }, { instKey: 'other', clef: 'alto' }, { clef: 'bass', lyr: 0 }],
-      SJ: [{}, { nVox: 2 }], T: [{}, { inst: 'uku' }], JT: [{}, { inst: 'uku' }, { capo: 3 }], ST: [{}], G: [{}, { instKey: 'epiano' }, { instKey: 'synth' }], CG: [{}], JG: [{}, { lyr: 0 }], SG: [{}], SJG: [{}], CJ: [{}], CS: [{}], C: [{}] };
+    /* v70.0 集成（规格 docs/spec-2026-11-v700.md §9 第 3 条⑤）：加 P2a 新组合的变体——合唱＋钢琴 JG / SG {nVox:2..4, lyr:1}（谱名「…合唱谱（含钢琴伴奏）」，拍板 11）、
+       器乐＋钢琴 SG {instKey, lyr:0}（「X＋钢琴伴奏谱（五线谱）」，拍板 22 后半；简谱那支 JG 不收 instKey，由换谱类 J 二胡→JG 直接换产出，见 ⑥）、尤克里里指弹 ST {inst:'uku'}、萨克斯简谱 J {instKey:'sax'}、
+       6 种新乐器 J / S 各几种（竖笛 / 箫 / 陶笛 / 口风琴 简谱，大提琴低音谱号 / 单簧管 五线谱） */
+    const V = { J: [{}, { nVox: 2 }, { nVox: 4 }, { instKey: 'erhu' }, { instKey: 'piano' }, { lyr: 0 }, { instKey: 'sax', lyr: 0 }, { instKey: 'recorder', lyr: 0 }, { instKey: 'xiao', lyr: 0 }, { instKey: 'ocarina' }, { instKey: 'melodica', lyr: 0 }, { instKey: 'cello', lyr: 0 }],
+      S: [{}, { lyr: 0 }, { nVox: 3 }, { instKey: 'violin' }, { instKey: 'other', clef: 'alto' }, { clef: 'bass', lyr: 0 }, { instKey: 'cello', clef: 'bass', lyr: 0 }, { instKey: 'clarinet', lyr: 0 }, { instKey: 'recorder', lyr: 0 }],
+      SJ: [{}, { nVox: 2 }], T: [{}, { inst: 'uku' }], JT: [{}, { inst: 'uku' }, { capo: 3 }], ST: [{}, { inst: 'uku' }], G: [{}, { instKey: 'epiano' }, { instKey: 'synth' }], CG: [{}],
+      JG: [{}, { lyr: 0 }, { nVox: 4, lyr: 1 }, { nVox: 2, lyr: 1 }, { nVox: 3, lyr: 1 }, { instKey: 'erhu', lyr: 0 }, { instKey: 'recorder', lyr: 0 }],
+      SG: [{}, { nVox: 4, lyr: 1 }, { nVox: 2, lyr: 1 }, { instKey: 'violin', lyr: 0 }, { instKey: 'cello', clef: 'bass', lyr: 0 }, { instKey: 'clarinet', lyr: 0 }, { instKey: 'other', lyr: 0 }],
+      SJG: [{}], CJ: [{}], CS: [{}], C: [{}] };
     NWB.VALID.forEach(k => (V[k] || [{}]).forEach(o => add('谱行 ' + k + ' ' + JSON.stringify(o), NWB.build(k, Object.assign({ title: 't' }, o)))));
     /* ③ 新建面板 11 个用途（默认值）：面板计划谱名＝建出来的谱名 */
     NWP.SCENE_IDS.forEach(id => { try { const P = NWP.planOf(NWP.fresh({ scene: id, clean: true })); const o = Object.assign({}, P.o); delete o.tuningKey; delete o.pen; add('用途 ' + id, NWB.build(P.stack, o), { panel: P.kind.name }); } catch (e) { out.push({ tag: '用途 ' + id, err: e.message }); } });
@@ -150,7 +159,9 @@ async function corpus(pg) {
     const keep = song;
     try {
       const jg = NWB.build('JG', { title: 'jg', nMea: 2 }); jg.measures[0].voxes[0][0].deg = 3; jg.measures[0].voxes[0][0].lyrics = ['啊'];
-      [['JT', NWB.build('JT', { title: 'jt', nMea: 2 })], ['JG', jg], ['S', NWB.build('S', { title: 's', nMea: 2, lyr: 0 })]].forEach(([from, s0]) => NWB.VALID.forEach(to => {
+      /* v70.0 集成⑤：二胡简谱（无词、有旋律）直接换成钢琴伴奏歌谱 → 留着 instKey＝「二胡＋钢琴伴奏谱（简谱）」（拍板 22 后半；NWB.build 的 JG 不收 instKey，只有换谱类走得到） */
+      const je = NWB.build('J', { title: 'je', nMea: 2, instKey: 'erhu', lyr: 0 }); je.measures[0].voxes[0][0].deg = 5;
+      [['JT', NWB.build('JT', { title: 'jt', nMea: 2 })], ['JG', jg], ['S', NWB.build('S', { title: 's', nMea: 2, lyr: 0 })], ['J', je]].forEach(([from, s0]) => NWB.VALID.forEach(to => {
         try {
           const s = J(s0), p = lbPlan(s, to);
           if (p.mode === 'no' || p.mode === 'same') return;
@@ -293,6 +304,12 @@ async function mkPage(b, url, opt) {
         /* 收尾验收 minor：尤克里里独奏（五线＋四线联排）此前一律叫「吉他独奏谱」 */
         if (x.tag === 'MIDI 尤克里里独奏' && x.name !== '尤克里里独奏谱') bad.push(x.tag + '：' + x.name + ' ≠ 尤克里里独奏谱');
       });
+      /* v70.0 集成⑤：新组合变体确实建出新谱名（两端相同之外，防止变体被忽略而退成旧组合也「对拍通过」） */
+      const NEWNM = { 'JG {"nVox":4,"lyr":1}': '简谱合唱谱（含钢琴伴奏）', 'JG {"nVox":2,"lyr":1}': '简谱合唱谱（含钢琴伴奏）', 'SG {"nVox":4,"lyr":1}': '五线谱合唱谱（含钢琴伴奏）',
+        'SG {"instKey":"violin","lyr":0}': '小提琴＋钢琴伴奏谱（五线谱）', 'SG {"instKey":"cello","clef":"bass","lyr":0}': '大提琴＋钢琴伴奏谱（五线谱）', '换谱类 J→JG（direct）': '二胡＋钢琴伴奏谱（简谱）',
+        'ST {"inst":"uku"}': '尤克里里独奏谱', 'J {"instKey":"sax","lyr":0}': '萨克斯谱（简谱）', 'J {"instKey":"recorder","lyr":0}': '竖笛谱（简谱）', 'J {"instKey":"xiao","lyr":0}': '箫谱（简谱）',
+        'S {"instKey":"cello","clef":"bass","lyr":0}': '大提琴谱（五线谱）', 'S {"instKey":"clarinet","lyr":0}': '单簧管谱（五线谱）' };
+      Object.entries(NEWNM).forEach(([k, w]) => { const x = out.find(y => y.tag === (/^换谱类/.test(k) ? k : '谱行 ' + k)); if (!x || x.err || x.name !== w) bad.push('新组合 ' + k + '：' + (x ? x.err || x.name : '缺') + ' ≠ ' + w); });
       /* 上架用：曲名＝库里标题＝谱面 title（观看页标题读谱面 title），去掉会被转义的引号 / 尖括号 */
       items = out.filter(x => !x.err).map((x, i) => { const title = 'KS' + String(i).padStart(3, '0') + ' ' + x.tag.replace(/[{}"'<>&:,]/g, '').slice(0, 24).trim(); x.d.title = title; return Object.assign(x, { id: 'ks' + String(i).padStart(4, '0') + 'xx', title }); });
       T(bad.length === 0 && out.length >= 140 && stacks.size === 14 && cnt['预设'] === 16 && cnt['用途'] === 11 && (cnt['导入'] || 0) >= 30 && cnt['MIDI'] === 5 && (cnt['换谱类'] || 0) >= 20,
@@ -380,7 +397,12 @@ async function mkPage(b, url, opt) {
       let vocalOk = false;
       if (chip) { await chip.click(); await pg.waitForTimeout(400);
         const ids2 = await pg.evaluate(() => [...document.querySelectorAll('#lib-grid .cc-card')].map(c => (c.getAttribute('href').match(/pub=([^&]+)/) || [])[1]));
-        const byId = Object.fromEntries(list.map(s => [s.id, s])); vocalOk = ids2.length > 0 && ids2.every(id => byId[id] && KIND.pzMatch(byId[id], { pz: 'jianpu' }) >= 0); }
+        /* v70.0 集成：K2 加新组合变体＋曲库 29 首后已发布谱超过 200——不带条件的列表只给最新 200 首，点「简谱」筛的是全库（第 201 首起也在）；
+           卡片按 7 个谱种分页取全（每张卡至少在主谱种里出现一次）再核，不再假设全库 ≤200 */
+        const byId = Object.fromEntries(list.map(s => [s.id, s]));
+        for (const z of KIND.PZ.map(x => x.id)) for (let p = 0; p < 40; p++) {
+          const r = JSON.parse((await get('/api/pub/scores?pz=' + z + '&size=60&page=' + p)).body).scores || []; r.forEach(s => { byId[s.id] = byId[s.id] || s; }); if (r.length < 60) break; }
+        vocalOk = ids2.length > 0 && ids2.every(id => byId[id] && KIND.pzMatch(byId[id], { pz: 'jianpu' }) >= 0); }
       await pg._ctx.close();
       const siteBad = site.filter(c => c.t !== lab[c.id]);
       /* 编辑器谱友圈：线上卡片读服务端 typeLabel；本地演示谱（无网）按谱面现算 */
