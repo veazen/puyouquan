@@ -16,16 +16,77 @@
         且每个点的 (小节, q) 与源文件逐个相同；再导出的同一统计（去掉起始 tempoXML）与点数一致
      ⑧ v69.8 移调 / 八度谱号（voxTransp / voxClefOct）：源文件与再导出逐 part 比首个 <transpose> 的 chromatic + 12×octave-change、
         逐谱表比首个 <clef> 的 <clef-octave-change>
+   v70.0 C（规格 docs/spec-2026-11-v700.md §7.3 / §7.4）manifest 新增两类输入，输出顺序 items → examples → manual（原 items 逐字节不变）：
+     examples：编辑器页面里的 EXAMPLES（示例曲谱，按 preset＝条目 name 对上；条目 seedId 与 manifest id 一一对应，多一条少一条都失败）
+     manual：  deploy/library/manual/<id>.json（制谱专家据公有领域版本手工录入 / 谱友圈自编，编辑器谱面格式＝.mtab.json 同结构）
+   这两类另过质量门（任一不过整个构建失败）：
+     ⑨ 时值：beatErrors() 为 0（弱起 / irr 豁免）
+     ⑩ MusicXML 往返：导出 → 导入 → 再导出，逐小节「音高＋拼写」多重集相同
+     ⑪ 归属金表：PQ_KIND.pzOf 的 pz.sub 与 intentOf 等于 manifest 的 expect / intent
+     ⑫ 逐小节核对：有 check 的条目，从往返导出的 MusicXML 逐 part 逐小节、逐谱表生成「科学音高:时值」清单与 check 逐字比（格式见规格 §7.4 第 2 条），
+        不一致报「第 N 段（小节号 X）第 k 行：期望 … 实际 …」
+     ⑬ 署名与来源：title / maker 非空，composer 非空（谱友圈自编除外），source.license ∈ {CC0 1.0, 公有领域, 谱友圈自编}
+     ⑭ manual 条目必须有 reviewed（by / date，制谱专家目视签字）——没有＝构建失败，不是跳过
    用法：node deploy/build-library.js          生成 api/seed-library.json
          node deploy/build-library.js --check  只校验：重新构建的结果与已提交的 api/seed-library.json 逐字节相同（tv_library 用）
+         --manifest=<文件>  换一份清单（manual 的 file 按该清单所在目录解析；tv_v700ex E4 造反例用）
+         --png              每首示例 / 手工谱的第一页导出 PNG 到临时目录（不提交、不进种子），给制谱专家与所据版本并排目视
    env：CHROMIUM_PATH（同测试） */
 const fs = require('fs'), path = require('path');
 /* playwright 装在 muse-tab/tests/node_modules（CI 只在那里 npm install）：从本目录解析不到时去那里找；本地设了 NODE_PATH 的照样走全局 */
 const { chromium } = require(require.resolve('playwright', { paths: [__dirname, path.join(__dirname, '..', 'muse-tab', 'tests')] }));
 const ROOT = path.resolve(__dirname, '..');
-const MAN = path.join(__dirname, 'library', 'manifest.json');
+const ARG = k => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : null; };
+const MAN = ARG('manifest') ? path.resolve(ARG('manifest')) : path.join(__dirname, 'library', 'manifest.json');
 const OUT = path.join(ROOT, 'api', 'seed-library.json');
 const MAKER = '谱友圈官方 · 据 OpenScore 公版录入（CC0）';
+const MAKER_EX = '谱友圈官方', MAKER_PD = '谱友圈官方 · 据公有领域版本录入';
+const LICENSES = ['CC0 1.0', '公有领域', '谱友圈自编'];
+const EDITOR = 'file://' + path.join(ROOT, 'muse-tab', 'index.html') + '?shell=classic';
+/* ⑫ check 串规整：段间「|」、谱表间「/」、音与音空白分隔 → [[行 token 串]] */
+const checkSegs = s => String(s || '').split('|').map(seg => seg.split('/').map(r => r.trim().split(/\s+/).filter(Boolean).join(' ')));
+/* 页面里跑的门 ⑨ ⑩ ⑪ 与 ⑫ 的清单生成（src＝谱面数据；返回 data＝migrate 后、去掉 id 的谱面，及各门结果）。toString 后在页面里 new Function 求值 */
+function pageGates(src) {
+  const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const per = xs => { const d = new DOMParser().parseFromString(xs, 'application/xml'), M = [];
+    d.querySelectorAll('part').forEach(p => [...p.querySelectorAll(':scope > measure')].forEach((m, i) => { M[i] = M[i] || [];
+      m.querySelectorAll('note').forEach(n => { if (n.querySelector('grace') || !n.querySelector('pitch')) return;
+        const st = n.querySelector('pitch step').textContent, al = +((n.querySelector('pitch alter') || {}).textContent || 0);
+        M[i].push(((+n.querySelector('pitch octave').textContent + 1) * 12 + PC[st] + al) + st + al); }); }));
+    return M.map(a => a.sort().join(',')); };
+  /* ⑫ 清单：每 part 每小节、每谱表一行；科学音高（升降照拼写 # b x bb）:时值（1 2 4 8 16 32，附点 .，三连音 /3，连音线起点 ~），柱式和弦低到高 + 连，休止 r，倚音不写；
+     没有 <type> 的音与整小节休止按 duration 折算（3/8 的整小节休止＝r:4.） */
+  const TY = { whole: '1', half: '2', quarter: '4', eighth: '8', '16th': '16', '32nd': '32' }, AL = { '1': '#', '-1': 'b', '2': 'x', '-2': 'bb' };
+  const QD = { 4: '1', 3: '2.', 2: '2', 1.5: '4.', 1: '4', 0.75: '8.', 0.5: '8', 0.375: '16.', 0.25: '16', 0.125: '32' };
+  const gen = xs => { const d = new DOMParser().parseFromString(xs, 'application/xml'), segs = [], nums = [];
+    [...d.querySelectorAll('part')].forEach(p => { let div = 1, nst = 1;
+      [...p.querySelectorAll(':scope > measure')].forEach((m, mi) => { const at = m.querySelector(':scope > attributes');
+        if (at) { const dv = at.querySelector('divisions'); if (dv) div = +dv.textContent || div; const sv = at.querySelector('staves'); if (sv) nst = +sv.textContent || nst; }
+        const rows = Array.from({ length: nst }, () => []);
+        [...m.querySelectorAll(':scope > note')].forEach(n => { if (n.querySelector(':scope > grace')) return;
+          const sf = Math.max(1, Math.min(nst, +((n.querySelector(':scope > staff') || {}).textContent || 1))), row = rows[sf - 1];
+          const pt = n.querySelector(':scope > pitch');
+          const ps = pt ? pt.querySelector('step').textContent + (AL[(pt.querySelector('alter') || {}).textContent || ''] || '') + pt.querySelector('octave').textContent : null;
+          const mid = pt ? (+pt.querySelector('octave').textContent + 1) * 12 + PC[pt.querySelector('step').textContent] + (+((pt.querySelector('alter') || {}).textContent || 0)) : 0;
+          const tie = !!n.querySelector(':scope > tie[type="start"]');
+          if (n.querySelector(':scope > chord') && row.length && row[row.length - 1].ps) { const pv = row[row.length - 1]; pv.ps.push([mid, ps]); pv.tie = pv.tie || tie; return; }
+          const ty = (n.querySelector(':scope > type') || {}).textContent, rs = n.querySelector(':scope > rest');
+          let du = (!ty || (rs && rs.getAttribute('measure') === 'yes')) ? (QD[(+((n.querySelector(':scope > duration') || {}).textContent || 0)) / div] || '?')
+            : (TY[ty] || '?') + '.'.repeat(n.querySelectorAll(':scope > dot').length);
+          const tm = n.querySelector(':scope > time-modification > actual-notes'); if (tm && tm.textContent !== '1') du += '/' + tm.textContent;
+          row.push({ ps: pt ? [[mid, ps]] : null, du, tie }); });
+        const txt = rows.map(r => r.map(t => (t.ps ? t.ps.sort((a, b) => a[0] - b[0]).map(x => x[1]).join('+') : 'r') + ':' + t.du + (t.tie ? '~' : '')).join(' '));
+        segs[mi] = (segs[mi] || []).concat(txt); nums[mi] = m.getAttribute('number'); }); });
+    return { segs, nums }; };
+  const cnt = (A, B) => { let n = 0; for (let i = 0; i < Math.max(A.length, B.length); i++) if ((A[i] || '') !== (B[i] || '')) n++; return n; };
+  const data = migrate(JSON.parse(JSON.stringify(src))); delete data.id;
+  loadSong(JSON.parse(JSON.stringify(data)));
+  const be = beatErrors().length, ex1 = exportMusicXML(song), im = importMusicXML(ex1);
+  if (!im || im.error) return { data, err: '往返导入失败：' + ((im && im.error) || '') };
+  loadSong(im.song);
+  const ex2 = exportMusicXML(song), pz = PQ_KIND.pzOf(data);
+  return { data, be, spell: cnt(per(ex1), per(ex2)), pz: pz.pz + '.' + pz.sub, intent: PQ_KIND.intentOf(data), chk: gen(ex2) };
+}
 
 async function build() {
   const man = JSON.parse(fs.readFileSync(MAN, 'utf8'));
@@ -122,6 +183,47 @@ async function build() {
       const data = Object.assign(r.song, { title: it.title, composer: it.composer, lyricist: it.lyricist, maker: MAKER });
       out.push({ id: it.id, title: it.title, singer: it.composer, data, source: it.source });
     }
+    /* ===== v70.0 C：示例（EXAMPLES）＋手工录入（manual/*.json） ===== */
+    const exs = man.examples || [], mans = man.manual || [];
+    const pg0 = await b.newPage(); await pg0.goto(EDITOR); await pg0.waitForFunction(() => typeof EXAMPLES === 'object' && typeof exportMusicXML === 'function');
+    const EX = await pg0.evaluate(() => EXAMPLES.map((p, i) => ({ i, name: p.name, seedId: p.seedId || '' }))); await pg0.close();
+    /* 一一对应：manifest 每个示例在 EXAMPLES 里恰好一条（按 name）且 seedId 相同；EXAMPLES 里带 seedId 的每条都在 manifest */
+    exs.forEach(it => { const hit = EX.filter(x => x.name === it.preset); if (hit.length !== 1) bad.push(it.id + ' 示例「' + it.preset + '」在 EXAMPLES 里有 ' + hit.length + ' 条');
+      else if (hit[0].seedId !== it.id) bad.push(it.id + ' 与 EXAMPLES[' + hit[0].i + '].seedId「' + hit[0].seedId + '」不符'); });
+    EX.filter(x => x.seedId && !exs.some(it => it.id === x.seedId)).forEach(x => bad.push('EXAMPLES[' + x.i + ']（' + x.name + '）seedId ' + x.seedId + ' 不在 manifest.examples'));
+    const png = process.argv.includes('--png') ? fs.mkdtempSync(path.join(require('os').tmpdir(), 'pyq-lib-png-')) : '';
+    for (const [kind, it] of exs.map(x => ['ex', x]).concat(mans.map(x => ['man', x]))) {
+      let src = null;
+      if (kind === 'man') { try { src = JSON.parse(fs.readFileSync(path.resolve(path.dirname(MAN), it.file), 'utf8')); } catch (e) { bad.push(it.id + ' 读不到手工录入文件 ' + it.file + '：' + e.message); continue; } }
+      const pg = await b.newPage({ viewport: { width: 1200, height: 900 } });   /* 每首一个新页面（同上，连续 loadSong 会串味） */
+      await pg.goto(EDITOR); await pg.waitForFunction(() => typeof EXAMPLES === 'object' && typeof exportMusicXML === 'function');
+      const r = await pg.evaluate(([fn, nm, sx]) => { const g = new Function('return ' + fn)();
+        const src2 = sx || (EXAMPLES.find(p => p.name === nm) || { make: () => null }).make(); if (!src2) return { err: '示例不存在' };
+        return g(src2); }, [pageGates.toString(), it.preset || '', src]);
+      if (png && !r.err) { try { await pg.setViewportSize({ width: 1200, height: 2400 });
+        await pg.evaluate(d => { window.guardReplace = p => p(); if (typeof closeModal === 'function') closeModal(); loadSong(JSON.parse(JSON.stringify(d))); render(); }, r.data); await pg.waitForTimeout(400);
+        await pg.locator('#score').screenshot({ path: path.join(png, it.id + '.png') }); } catch (e) { console.error('  PNG 未导出：' + it.id + '：' + e.message); } }
+      await pg.close();
+      const why = [];
+      if (r.err) why.push(r.err);
+      else {
+        if (r.be) why.push('⑨ 时值不符 ' + r.be + ' 处');
+        if (r.spell) why.push('⑩ 往返音高 / 拼写不同小节 ' + r.spell);
+        if (r.pz !== it.expect || r.intent !== (it.intent || '')) why.push('⑪ 归属 ' + r.pz + ' / intent「' + r.intent + '」≠ 金表 ' + it.expect + ' / 「' + (it.intent || '') + '」');
+        if (it.check) { const want = checkSegs(it.check), got = r.chk.segs, diff = [];
+          if (want.length !== got.length) diff.push('段数 期望 ' + want.length + ' 实际 ' + got.length);
+          for (let i = 0; i < Math.min(want.length, got.length); i++) for (let k = 0; k < Math.max(want[i].length, got[i].length); k++)
+            if ((want[i][k] || '') !== (got[i][k] || '')) diff.push('第 ' + (i + 1) + ' 段（小节号 ' + r.chk.nums[i] + '）第 ' + (k + 1) + ' 行：期望 ' + (want[i][k] || '（无）') + ' 实际 ' + (got[i][k] || '（无）'));
+          if (diff.length) why.push('⑫ 逐小节核对 ' + diff.length + ' 处：' + diff.slice(0, 4).join('；')); }
+      }
+      const lic = (it.source || {}).license, self = lic === '谱友圈自编';
+      if (!it.title || (!it.composer && !self) || LICENSES.indexOf(lic) < 0) why.push('⑬ 署名 / 来源：title「' + (it.title || '') + '」composer「' + (it.composer || '') + '」license「' + (lic || '') + '」');
+      if (kind === 'man' && !(it.reviewed && it.reviewed.by && it.reviewed.date)) why.push('⑭ 手工录入没有 reviewed（制谱专家目视签字）');
+      if (why.length) { bad.push(it.id + '（' + (it.title || '') + '）未过质量门：' + why.join(' · ')); continue; }
+      const data = Object.assign(r.data, { title: it.title, composer: it.composer || '', lyricist: it.lyricist || '', maker: (kind === 'ex' || self) ? MAKER_EX : MAKER_PD });
+      out.push({ id: it.id, title: it.title, singer: it.composer || '', data, source: it.source });
+    }
+    if (png) console.log('   第一页 PNG：' + png);
   } finally { await b.close(); }
   return { out, bad, tot };
 }

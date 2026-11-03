@@ -226,13 +226,14 @@ T('pubAll / pubSearchAll：全部已发布谱（不受 200 首上限）、列与
 });
 
 /* v69.3 曲库官方公版谱补种（seedLibrary）：建库即种全 seed-library.json；官方账号、已发布、有发布快照；每首只种一次（重复调用不加、
-   删掉的不复活）；只认 lib- 前缀 id；仓库里的 seed-library.json 每首都是能解析的谱面数据且带 CC0 来源 */
+   删掉的不复活）；只认 lib- 前缀 id；仓库里的 seed-library.json 每首都是能解析的谱面数据且带 CC0 / 公有领域 / 谱友圈自编来源 */
 T('曲库公版谱：建库补种全部、官方账号发布带快照、再调不重复、删掉不复活', () => {
   const { db, seedLibrary } = require('./db');
   const list = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, 'seed-library.json'), 'utf8'));
   assert.ok(list.length >= 10, 'seed-library.json 少于 10 首');
-  list.forEach(it => { assert.ok(/^lib-os-lc\d+$/.test(it.id), 'id 不合口径：' + it.id); assert.ok(it.data && Array.isArray(it.data.measures) && it.data.measures.length, it.id + ' 没有小节');
-    assert.strictEqual((it.source || {}).license, 'CC0 1.0', it.id + ' 来源许可不是 CC0'); });
+  /* v70.0 C（规格 §7.3）：曲库之外另有官方示例 lib-ex-* 与手工录入公版谱 lib-pd-*；许可只收 CC0 1.0 / 公有领域 / 谱友圈自编（同构建门 ⑬） */
+  list.forEach(it => { assert.ok(/^lib-(os-lc\d+|ex-[a-z0-9-]+|pd-[a-z0-9-]+)$/.test(it.id), 'id 不合口径：' + it.id); assert.ok(it.data && Array.isArray(it.data.measures) && it.data.measures.length, it.id + ' 没有小节');
+    assert.ok(['CC0 1.0', '公有领域', '谱友圈自编'].includes((it.source || {}).license), it.id + ' 来源许可不在 CC0 1.0 / 公有领域 / 谱友圈自编'); });
   const rows = db.prepare("SELECT id,user_id,status,pub_data IS NOT NULL AS snap FROM scores WHERE id LIKE 'lib-%'").all();
   assert.strictEqual(rows.length, list.length, '建库补种数不对：' + rows.length);
   assert.ok(rows.every(r => r.user_id === 'official0000' && r.status === 'published' && r.snap), '补种的谱不全是官方已发布带快照');
