@@ -80,10 +80,13 @@ function pageGates(src) {
     return { segs, nums }; };
   const cnt = (A, B) => { let n = 0; for (let i = 0; i < Math.max(A.length, B.length); i++) if ((A[i] || '') !== (B[i] || '')) n++; return n; };
   const data = migrate(JSON.parse(JSON.stringify(src))); delete data.id;
+  /* 第二次 loadSong 会被「有编辑未存」的替换确认拦下（谱面没换、再导出的还是第一份——⑩ / ⑫ 形同虚设）：无头构建里直接放行 */
+  window.guardReplace = p => p();
   loadSong(JSON.parse(JSON.stringify(data)));
   const be = beatErrors().length, ex1 = exportMusicXML(song), im = importMusicXML(ex1);
   if (!im || im.error) return { data, err: '往返导入失败：' + ((im && im.error) || '') };
-  loadSong(im.song);
+  const s1 = song; loadSong(im.song);
+  if (song === s1) return { data, err: '往返导入后没换上谱面（loadSong 被拦）' };
   const ex2 = exportMusicXML(song), pz = PQ_KIND.pzOf(data);
   return { data, be, spell: cnt(per(ex1), per(ex2)), pz: pz.pz + '.' + pz.sub, intent: PQ_KIND.intentOf(data), chk: gen(ex2) };
 }

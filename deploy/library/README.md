@@ -33,3 +33,16 @@
 5. 跑 `muse-tab/tests/tv_library.js`，提交
 
 导入器改动若让曲库结果变了，`tv_library` 的 L1（`build-library.js --check` 逐字节比对）会红——重新生成并复核后再提交。
+
+## 示例与手工录入（v70.0 起）
+
+`manifest.json` 除 `items`（OpenScore）外另有两类，构建输出顺序 `items → examples → manual`（原 `items` 逐字节不变）：
+
+- `examples`：编辑器里的示例曲谱（`EXAMPLES`＝`PRESETS`＋`PRESETS_X`）。`preset` 写条目的 `name`，条目上的 `seedId` 与 `id` 一一对应（多一条、少一条都构建失败）；`title`＝显示名（`name2 || name`），制谱署名「谱友圈官方」
+- `manual`：`manual/<id>.json`，编辑器谱面格式（与 `.mtab.json` 同结构），只收公有领域 / 谱友圈自编。`source.edition` 写所据版本（能核的写 IMSLP 编号与页码）；公版曲由录入人录入、**另一位核对人不看录入结果**按同一版本写 `check`；`reviewed`（`by` / `date` / `note`）是制谱专家看过 `--png` 导出的第一页并排目视后的签字
+
+两类另过质量门（任一不过整个构建失败）：⑨ 时值 · ⑩ MusicXML 往返音高＋拼写 · ⑪ 归属金表（`expect`＝`pzOf` 的 `pz.sub`，`intent`）· ⑫ 逐小节核对（`check`：段间 `|`、谱表间 `/`、音写「科学音高:时值」，`C4`＝中央 C、升降照谱面拼写、柱式和弦低到高用 `+`、附点 `.`、三连音 `/3`、连音线起点 `~`、休止 `r:时值`、倚音不写；例：致爱丽丝弱起＝`E5:16 D#5:16 / r:8`）· ⑬ 署名与许可（`CC0 1.0` / `公有领域` / `谱友圈自编`）· ⑭ manual 必须有 `reviewed`。
+
+加一首手工录入：写 `manual/<id>.json`（可在编辑器里录好「另存为文件」）→ manifest `manual` 加一项（`expect` / `intent` / `source`）→ 核对人写 `check` → `node deploy/build-library.js --png` 看第一页 → 写 `reviewed` → `node deploy/build-library.js` 生成种子 → 跑 `tv_library` / `tv_v700ex`。`--manifest=<文件>` 可换一份清单（造反例用）。
+
+收录规则同上：只收 CC0 / 公有领域 / 谱友圈自编；同谱表双声部的曲目暂不收（导入器只留每谱表第一声部），录入前先核每谱表单声部（或同节奏柱式和弦），不得删内声部凑数。

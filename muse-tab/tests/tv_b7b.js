@@ -118,7 +118,7 @@ const WL = `(()=>{ window.__wl={req:0,rel:0}; const mk=()=>({ request: async()=>
       const out={n:cards.length, thumbs:m.querySelectorAll('.song-card[data-preset] .sc-thumb').length, pri:m.querySelectorAll('.song-card[data-preset] button.primary').length};
       for(let k=0;k<60;k++){ await w(100); if(m.querySelectorAll('.sc-thumb img').length>=2) break; }
       const imgs=[...m.querySelectorAll('.sc-thumb img')]; out.img=imgs.length; out.loaded=imgs.slice(0,2).every(x=>x.complete && x.naturalWidth>0);
-      const name=PRESETS[1].make().title; cards[1].querySelector('.sc-desc').click(); await w(300);
+      const name=PRESETS[1].make().title; m.querySelector('.song-card[data-preset="1"] .sc-desc').click(); await w(300);   /* v70.0 C：新形态按谱种分组，第 2 张卡不一定是 PRESETS[1]——按 data-preset 取 */
       out.opened=song.title===name && !document.querySelector('.modal'); return out; })()`);
     T(!r.err && r.n > 4 && r.thumbs === r.n && r.pri === 0 && r.img >= 2 && r.loaded && r.opened, 'T4 预设库缩略卡（懒生成缩图、无渐变主按钮、整卡可点）', JSON.stringify(r));
   }

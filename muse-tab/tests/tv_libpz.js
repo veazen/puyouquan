@@ -205,7 +205,9 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       T(J(r0.cats) === J(['全部', '简谱', '五线谱', '钢琴谱', '吉他谱', '尤克里里', '合唱谱', '功能谱', '♥ 收藏']) && r0.subsHidden
         && J(r0.zt) === J(['考编>kaobian.html', '艺考>yikao.html', '师范>shifan.html', '课堂>?sub=duizhao']),
         'Z2a 官网一级＝全部 · 简谱 · 五线谱 · 钢琴谱 · 吉他谱 · 尤克里里 · 合唱谱 · 功能谱 · ♥ 收藏（旧 10 类按钮不在）；首页文字链 考编 · 艺考 · 师范 · 课堂', J(r0));
-      T(r1.url === '?pz=jianpu' && J(r1.lit) === J(['简谱']) && r1.title === '简谱' && r1.subs.join(',') === '歌曲,儿歌,合唱,器乐,对照谱,带伴奏,已配和弦,儿歌弹唱 ›'
+      /* v70.0 C 有意迁移：种子新增官方示例 / 视唱谱例（lib-ex-shichang-g＝简谱 › 视唱），视唱有谱就该露出——按全库实际有没有简谱 › 视唱算期望（规则「视唱 0 首不出」不变） */
+      const scN = cards.filter(c => K.pzMatch(c, { pz: 'jianpu', sub: 'shichang' }) >= 0).length;
+      T(r1.url === '?pz=jianpu' && J(r1.lit) === J(['简谱']) && r1.title === '简谱' && r1.subs.join(',') === '歌曲,儿歌,合唱,器乐,' + (scN ? '视唱,' : '') + '对照谱,带伴奏,已配和弦,儿歌弹唱 ›'
         && r1.insts[0] === '二胡' && r1.insts.length >= 3 && list.length > 0 && segs.every((v, i) => v >= 0 && (!i || segs[i - 1] <= v)),
         'Z2b 点「简谱」：URL ?pz=jianpu；二级只露有谱的＋主攻（儿歌 0 首也在、视唱 0 首不出）＋行末「带伴奏」「已配和弦」＋专题「儿歌弹唱 ›」；乐器行按数量排（二胡最多）；列表全是简谱成员、主谱种在前',
         J({ r1, n: list.length, segBad: segs.filter(v => v < 0).length }));
@@ -235,8 +237,10 @@ const typeQ = async (pg, q) => { await pg.fill('#lib-q', q); await pg.waitForTim
       T(/G调指法 · 夹2/.test(meta) && d0.open && d0.groups.join(',') === '编制,能用来,风格,调（按指法）,拍号,速度' && d0.keys.includes('G调指法') && /首 · 调拍速都能一键移调/.test(d0.foot)
         && J(d1.ids.slice().sort()) === J(want.slice().sort()) && d1.on && d1.foot.startsWith(want.length + ' 首') && d2 > want.length && d3,
         'Z2d 筛选抽屉（编制 / 能用来 / 风格 / 调 / 拍号 / 速度，结果数随选项变，「清空」一键，Esc 收起）；吉他谱的调按指法（卡片「G调指法 · 夹2」、抽屉「G调指法」）', J({ meta, d0, d1, d2, d3, want }));
-      T(a.sep[0] === '以下是五线合唱，打开时用简谱看' && !a.line && a.conv >= 1 && a.n === a.conv + 1,
-        'Z2e 原稿不满 6 首（合唱谱 › 简谱合唱只有 1 首）：可转的那部分自动展开（分隔线照旧），没有「还有 N 首」那一行', J(a));
+      /* v70.0 C 有意迁移：种子新增欢乐颂四部 / 送别三部两份简谱合唱示例，原稿从 1 首变成按全库实算（仍不满 6 首） */
+      const n0 = cards.filter(c => K.pzMatch(c, { pz: 'hechang', sub: 'jianpu' }) >= 0).length;
+      T(a.sep[0] === '以下是五线合唱，打开时用简谱看' && !a.line && a.conv >= 1 && n0 >= 1 && n0 < 6 && a.n === a.conv + n0,
+        'Z2e 原稿不满 6 首（合唱谱 › 简谱合唱 ' + n0 + ' 首）：可转的那部分自动展开（分隔线照旧），没有「还有 N 首」那一行', J(Object.assign({ n0 }, a)));
     });
 
     /* ---------- Z3 第 201 首以后 ---------- */

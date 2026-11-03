@@ -399,11 +399,13 @@ const refUrl = () => {
         allErrs.push(...A.errs); await A.close();
       }
       /* L2 曲库 10 首：编辑器（新外壳）页数不多于 v69.6 */
+      /* v70.0 C 有意迁移：种子里另有官方示例 lib-ex-* / 手工录入 lib-pd-*（共 29 份）——本条只比曲库 10 首（lib-os-*）；新条目的碰撞普查照样在上面 G / A / B 段 */
+      const LIBO = LIB.filter(s => /^lib-os-/.test(s.id));
       const RU = refUrl();
       if (!RU) console.log('⚠️ L2 跳过：拿不到基线页（可设 env V697_REF）');
       else {
         const cnt = async (u, shell) => { const X = await open(b, { url: u, shell }); const out = [];
-          for (const s of LIB) out.push(await EV(X.pg, so => { __ld(so); return document.querySelectorAll('#score .pagebg').length; }, s.song));
+          for (const s of LIBO) out.push(await EV(X.pg, so => { __ld(so); return document.querySelectorAll('#score .pagebg').length; }, s.song));
           allErrs.push(...X.errs); await X.close(); return out; };
         const now = await cnt(URL0), ref = await cnt(RU);
         /* v69.8 集成迁移：曲库重建后带歌词音节 col.syl——A 组按规格 §3.1 给带连字符的音节右侧多留 LYR_HY（6px）保证连字符空隙。
@@ -412,15 +414,15 @@ const refUrl = () => {
            同一首去掉 col.syl 后页数不多于基线（首行声部名续行不再缩进，不贡献页数，见 tv_v698int I6）；其余 9 首照旧不多于基线 */
         const SYL_OK = ['lib-os-lc6650166'];
         const noSyl = await (async () => { const X = await open(b, { url: URL0 }); const out = [];
-          for (const s of LIB) out.push(SYL_OK.includes(s.id) ? await EV(X.pg, so => { so = JSON.parse(JSON.stringify(so)); so.measures.forEach(m => (m.voxes || []).forEach(r => (r || []).forEach(c => { if (c) delete c.syl; })));
+          for (const s of LIBO) out.push(SYL_OK.includes(s.id) ? await EV(X.pg, so => { so = JSON.parse(JSON.stringify(so)); so.measures.forEach(m => (m.voxes || []).forEach(r => (r || []).forEach(c => { if (c) delete c.syl; })));
             __ld(so); return document.querySelectorAll('#score .pagebg').length; }, s.song) : null);
           allErrs.push(...X.errs); await X.close(); return out; })();
-        const rows = LIB.map((s, i) => s.name.replace(/（.*/, '') + ' ' + ref[i] + '→' + now[i] + (noSyl[i] != null ? '（去掉 syl ' + noSyl[i] + '）' : ''));
-        const worse = LIB.filter((s, i) => !(now[i] <= ref[i] || (SYL_OK.includes(s.id) && now[i] <= ref[i] + 1 && noSyl[i] <= ref[i]))).map(s => s.name);
-        T(LIB.length === 10 && !worse.length, 'L2 曲库 10 首编辑器（默认新外壳）页数不多于 v69.6（' + REF_COMMIT + '）；夏威夷骊歌允许 +1 且去掉连字符音节后不多于基线（v69.8 有意迁移）', rows.join('；') + (worse.length ? '｜多了：' + worse.join('、') : ''));
+        const rows = LIBO.map((s, i) => s.name.replace(/（.*/, '') + ' ' + ref[i] + '→' + now[i] + (noSyl[i] != null ? '（去掉 syl ' + noSyl[i] + '）' : ''));
+        const worse = LIBO.filter((s, i) => !(now[i] <= ref[i] || (SYL_OK.includes(s.id) && now[i] <= ref[i] + 1 && noSyl[i] <= ref[i]))).map(s => s.name);
+        T(LIBO.length === 10 && !worse.length, 'L2 曲库 10 首编辑器（默认新外壳）页数不多于 v69.6（' + REF_COMMIT + '）；夏威夷骊歌允许 +1 且去掉连字符音节后不多于基线（v69.8 有意迁移）', rows.join('；') + (worse.length ? '｜多了：' + worse.join('、') : ''));
         /* 旧外壳（兜底，纸面窄）只打印：合并版起城市 12→13 页（自然宽 +5% 后断行代价变了，不是刚杆放不下，轻压管不到） */
         const nowC = await cnt(URL0, 'classic'), refC = await cnt(RU, 'classic');
-        console.log('ℹ️ L2 旧外壳页数（不断言）：' + LIB.map((s, i) => s.name.replace(/（.*/, '') + ' ' + refC[i] + '→' + nowC[i]).join('；'));
+        console.log('ℹ️ L2 旧外壳页数（不断言）：' + LIBO.map((s, i) => s.name.replace(/（.*/, '') + ' ' + refC[i] + '→' + nowC[i]).join('；'));
       }
     }
   } catch (e) { T(false, 'ZZ 运行异常', String(e && e.stack || e).slice(0, 600)); }
