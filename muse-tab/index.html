@@ -41004,7 +41004,7 @@ var NWP = (function(){
     const p2a=nwP2A(), mel0=st.mel;
     if(st.scene!=='custom'){
       const tries=[{}, {mel:st.mel==='S'? 'J' : 'S'}];
-      (SC[st.scene].vars||[]).concat(p2a? (SC[st.scene].vars2||[]) : []).forEach(vk=>(VARS[vk].opts||[]).forEach(([val])=>tries.push({[vk]:val})));   /* v70.0 新形态连同 vars2（歌谱点亮大谱表＝合唱＋钢琴，留在本用途） */
+      (SC[st.scene].vars||[]).forEach(vk=>(VARS[vk].opts||[]).forEach(([val])=>tries.push({[vk]:val})));   /* v70.0：只试 vars（不试 vars2）——键 1–5 在基线能到的状态上与 v69.9 逐一相同（N9） */
       for(const t of tries){ const m2=t.mel||st.mel, v2=Object.assign({}, st.v, t); delete v2.mel;
         if(sceneStack(st.scene, v2, m2, p2a)===nk && (!t.mel || melLive(st.scene, v2, p2a))){ delete t.mel; Object.assign(st.v, t); st.mel=m2; stay=true; break; } }
     }

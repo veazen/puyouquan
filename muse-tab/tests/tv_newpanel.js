@@ -85,7 +85,10 @@ const PRESET_KIND = ['吉他弹唱谱', '吉他弹唱谱', '吉他弹唱谱', '�
 const OLD_FIELDS = ['v', 'title', 'singer', 'lyricist', 'composer', 'maker', 'key', 'beats', 'unit', 'tempo', 'capo', 'customChords', 'inst', 'func', 'tabVoices', 'voxVoices',
   'voxNotations', 'lyricLines', 'measures', 'tempoUnit', 'tabStaff', 'gtype', 'tuning', 'voxDual', 'pianoAcc', 'funcNames', 'chordOnly', 'layout', 'voxGroups', 'instKey', 'mixer', 'mode', 'id',
   /* v69.8 C 组有意迁移：新建多声部谱默认印首行声部名（song.rowNames）、四部五线合唱男高八度谱号（song.voxClefOct）——规格 §3.6 / §3.8 的新建默认（只改新建） */
-  'rowNames', 'voxClefOct'];
+  'rowNames', 'voxClefOct',
+  /* v70.0 P2a 有意迁移（规格 §3.2 / §8.3）：建谱写 song.intent（＝所在用途 id，realCreate 一处写入、两种外壳都写）——
+     分类升级判法表第 11、19–22 行与儿歌标记的裁定依据；只在新建产物上出现，老谱不写、谱面与导出逐字节不变 */
+  'intent'];
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
   let pass = 0, total = 0;
