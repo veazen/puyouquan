@@ -2,6 +2,7 @@
    拍板 4 谱库分类不改 docType、拍板 5 谱名统一扩到谱库卡片与服务端 typeLabelOf、拍板 10 用 create_stack 校准首访默认用途）
    K1 统一谱名表只此一份：编辑器内联 @pq-kindname 段＝api/kindname.js（逐字节），页面里 PQ_KIND 与 node require 的规则模块导出同一组函数；
       编辑器 NWB.stackOf / kindOf / ctxOf、全局 isChoir / voxGroupsOf / voxHasLyrics / isPianoAccStack、docTypeLabel / docTypeLabelPub 都转调它
+      K1b（v70.0 P2a 第 0 步）乐器名 28 键：NW_INSTS（k → name、键序）＝页面 PQ_KIND.INST＝node 端；新建面板旧清单 NWP.INSTS 仍是基线 20 种
    K2 同一批谱（16 预设 + 14 种谱行组合 × 变体经 NWB.build + 11 个用途面板计划 + MusicXML 导入 7 份 × 6 种做法 + MIDI 导入 5 种模式
       + 换谱类产物 + 边界样本）：编辑器谱名 docTypeLabel＝服务端 nameOf(存储 JSON)、谱行一致；面板谱名＝建出来的谱名；预设原始 JSON（未 migrate）服务端名＝编辑器名
    K3 真服务端（api/server.js + 临时库，语料全部上架）：谱库列表 typeLabel、SSR 落地页标题、og 封面＝编辑器谱名；type 字段（谱库分类）＝编辑器 docType（不改）；
@@ -252,7 +253,9 @@ async function mkPage(b, url, opt) {
         const s = { voxVoices: ['a'] };
         const got = { st: NWB.stackOf(s), kn: NWB.kindOf('J', {}).name, lab: docTypeLabel(s), pub: docTypeLabelPub(s), ch: isChoir(s), gr: voxGroupsOf(s).length, acc: isPianoAccStack(s), dt: docType(s) };
         Object.assign(PQ_KIND, { stackOf: k0, nameOf: n0, isChoir: c0, groupsOf: g0, isPianoAccStack: a0, kindName: kn0, docTypeOf: dt0 });
-        return { has: true, keys: Object.keys(PQ_KIND).sort().join(), got, hit: [...new Set(hit)].sort().join(), fnSrc: src(docTypeLabelPub) };
+        /* v70.0 P2a 第 0 步：乐器名 28 键（NW_INSTS 补 6 种、nx:1 只在新形态列出） */
+        const ins = { nw: NW_INSTS.map(x => [x.k, x.name]), pq: Object.entries(PQ_KIND.INST), nwp: NWP.INSTS.map(x => x.k).join() };
+        return { has: true, keys: Object.keys(PQ_KIND).sort().join(), got, hit: [...new Set(hit)].sort().join(), fnSrc: src(docTypeLabelPub), ins };
       });
       await pg.close();
       const SRV_ONLY = new Set(['viewOf', 'pubNameOf', 'sanitizeLike', 'pubKindOf']);   /* pubKindOf：分类升级 P0 卡片谱类字段一次算齐（服务端专用） */   /* 服务端专用（存储 JSON → 观看页看到的谱），不在共享段里 */
@@ -261,6 +264,13 @@ async function mkPage(b, url, opt) {
         && r.got.st === 'C' && r.got.kn === '探针名' && r.got.lab === '探针名' && r.got.pub === '探针名' && r.got.ch === true && r.got.gr === 0 && r.got.acc === true && r.got.dt === '探针类',
         'K1 统一谱名表只此一份：编辑器内联段＝api/kindname.js 逐字节、导出同一组函数；NWB.stackOf / kindOf、docTypeLabel / docTypeLabelPub、isChoir / voxGroupsOf / isPianoAccStack、docType（分类升级 P0）都转调 PQ_KIND',
         JSON.stringify({ same: !!edBlock && edBlock === srvBlock, has: r.has, keys: r.keys === keysNode, got: r.got, hit: r.hit }));
+      /* v70.0 P2a 第 0 步（规格 §2 / §4.1）：乐器名 28 键——编辑器 NW_INSTS（k → name，含键序）＝页面 PQ_KIND.INST＝node 端 INST；
+         新建面板旧清单 NWP.INSTS（旧外壳 / ?next=0 / 手机下拉与深链校验）仍是基线 20 种、不含 6 种新乐器 */
+      const ins = r.ins || {}, nodeInst = JSON.stringify(Object.entries(KIND.INST));
+      const OLD20 = 'bass,piano,epiano,synth,accordion,violin,flute,sax,trumpet,horn,trombone,erhu,dizi,hulusi,suona,guzheng,pipa,yangqin,harmonica,other';
+      T(r.has && (ins.nw || []).length === 28 && JSON.stringify(ins.nw) === nodeInst && JSON.stringify(ins.pq) === nodeInst && ins.nwp === OLD20,
+        'K1b 乐器名 28 键：编辑器 NW_INSTS（k → name，键序同）＝页面 PQ_KIND.INST＝node 端 INST；新建面板旧清单 NWP.INSTS 仍是基线 20 种（P2a 新 6 种 nx:1 不进）',
+        JSON.stringify({ n: (ins.nw || []).length, nw: JSON.stringify(ins.nw) === nodeInst, pq: JSON.stringify(ins.pq) === nodeInst, nwp: ins.nwp }));
     });
 
     /* ---------- K2 ---------- */

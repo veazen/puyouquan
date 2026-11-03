@@ -12,7 +12,11 @@
    主谱种 › 二级＋也出现在 pzOf（§5.2 判法表 24 行，自上而下首条命中）、分面 facetsOf（§5.5）、旧谱类 docTypeOf（原编辑器 docType 的判法改防脏写法，
    编辑器 docType() 与服务端 type 都读它；取值不变）、筛选 pzMatch（谱库列表与计数共用一个函数）；拍板 22 / 26：J 多声部谱名分三支。
    分类升级 P1（§四 4.3 / §十四 P1）同段新增：可转池 pzConv（简谱 / 五线谱 / 合唱谱两个二级的「还有 N 首是五线谱 · 用简谱看」，按二级镜像、与原稿去重、对照谱永不进）；
-   拍板 10：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」（与归属 钢琴谱 › 伴奏 名实一致；type 仍是 pianoacc）。 */
+   拍板 10：纯伴奏 CG 谱名「钢琴弹唱谱（纯伴奏）」改「钢琴伴奏谱（纯伴奏）」（与归属 钢琴谱 › 伴奏 名实一致；type 仍是 pianoacc）。
+   分类升级 P2a（规格 docs/spec-2026-11-v700.md §2 / §4 / §5，v70.0 第 0 步）同段：乐器表 INST / INST_FAM 只增 6 种、旧键名义不变（简谱族 竖笛 recorder · 口风琴 melodica ·
+   陶笛 ocarina · 箫 xiao；五线谱族 大提琴 cello · 单簧管 clarinet），IK_ALIAS 按音轨名认它们（竖笛排在长笛前，Flauto dolce 不被长笛吃掉）、LIB_MEL 同增；
+   拍板 11：合唱带钢琴的谱名加「（含钢琴伴奏）」（ctxOf 加 pno）；拍板 22 后半：无词旋律＋钢琴带乐器身份叫「X＋钢琴伴奏谱（简谱 / 五线谱）」；
+   判法表第 11 行 intent 加 vocal（歌谱＋钢琴伴奏还没填词时归 钢琴谱 › 弹唱）；导出 intentOf（song.intent 读一律经它：不是字符串或不在 11 个用途里＝没写）。 */
 const PQ_KIND = (function(){
   const own = (o, k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o, k);
   function isStaffNota(n){ return n==='staff' || n==='bass' || n==='alto'; }
@@ -71,19 +75,22 @@ const PQ_KIND = (function(){
   }
   /* 乐器身份 instKey → 名字（＝编辑器新建面板 NW_INSTS 的 name；tv_kindsync 逐项核对） */
   const INST = {guitar:'吉他', uku:'尤克里里', bass:'贝斯', piano:'钢琴', epiano:'电钢琴', synth:'电子琴', accordion:'手风琴',
-    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号',
-    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴', other:'其他器乐'};
+    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号', cello:'大提琴', clarinet:'单簧管',
+    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴',
+    recorder:'竖笛', melodica:'口风琴', ocarina:'陶笛', xiao:'箫', other:'其他器乐'};
   const instName = k=> k==='other' || !own(INST, k)? '器乐' : INST[k];
-  /* 谱名。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(有歌词或留了歌词行), dual(钢琴两行带简谱对照)}
+  /* 谱名。ctx：{nVox, inst:'guitar'|'uku', instKey, lyr(有歌词或留了歌词行), dual(钢琴两行带简谱对照), pno(J / S 多声部下面带钢琴花括号组)}
      五线谱一族说「歌 / 合唱」要看 lyr（简谱一族按惯例本就是歌谱，不看）：单行 五线谱歌谱 / 五线谱旋律，多行 五线谱合唱谱 / 五线谱重奏谱，
      旋律＋钢琴 钢琴伴奏歌谱（五线谱）/ 旋律＋钢琴伴奏谱（五线谱）——没词也没留词位的器乐谱不叫「歌谱」「合唱」（收尾验收 major：导入的小提琴独奏、长笛＋钢琴、弦乐四重奏）。
      分类升级 P0（拍板 22 / 26，判法表 15a–15c）：简谱多行也看词与乐器——有词或留了词位 简谱合唱谱；没词、带乐器身份（古筝左右手、二胡二重奏）X谱（简谱）；
-     没词也没乐器 简谱重奏谱（此前一律「简谱合唱谱」：古筝双手简谱、二胡二重奏被叫成合唱谱、进了合唱谱一级） */
+     没词也没乐器 简谱重奏谱（此前一律「简谱合唱谱」：古筝双手简谱、二胡二重奏被叫成合唱谱、进了合唱谱一级）。
+     分类升级 P2a：拍板 11 合唱带钢琴（ctx.pno）加「（含钢琴伴奏）」，无词的重奏谱 / X谱（简谱）不加；拍板 22 后半 旋律＋钢琴（JG / SG）没词、带乐器身份（不含钢琴）
+     叫「X＋钢琴伴奏谱（简谱）/（五线谱）」（instKey 是 other 或不在表里＝「器乐＋钢琴伴奏谱…」），有词或没乐器照旧 */
   function kindName(k, ctx){
     ctx=ctx||{}; const ik=ctx.instKey && ctx.instKey!=='piano'? ctx.instKey : '', nv=ctx.nVox||1, uku=ctx.inst==='uku';
     switch(k){
-      case 'J':  return nv>1? (ctx.lyr? '简谱合唱谱' : ik? instName(ik)+'谱（简谱）' : '简谱重奏谱') : ik? instName(ik)+'谱（简谱）' : '简谱歌谱';
-      case 'S':  return nv>1? (ctx.lyr? '五线谱合唱谱' : '五线谱重奏谱') : ik? instName(ik)+'谱（五线谱）' : ctx.lyr? '五线谱歌谱' : '五线谱旋律';
+      case 'J':  return nv>1? (ctx.lyr? '简谱合唱谱'+(ctx.pno? '（含钢琴伴奏）' : '') : ik? instName(ik)+'谱（简谱）' : '简谱重奏谱') : ik? instName(ik)+'谱（简谱）' : '简谱歌谱';
+      case 'S':  return nv>1? (ctx.lyr? '五线谱合唱谱'+(ctx.pno? '（含钢琴伴奏）' : '') : '五线谱重奏谱') : ik? instName(ik)+'谱（五线谱）' : ctx.lyr? '五线谱歌谱' : '五线谱旋律';
       case 'SJ': return '教学对照谱';
       case 'SJG':return '教学对照谱（含伴奏）';
       case 'T':  return uku? '尤克里里谱（四线谱）' : '吉他谱（六线谱）';
@@ -91,8 +98,8 @@ const PQ_KIND = (function(){
       case 'ST': return uku? '尤克里里独奏谱' : '吉他独奏谱';
       case 'G':  return (ik? instName(ik)+'独奏谱' : '钢琴独奏谱')+(ctx.dual? '（五线＋简谱对照）' : '');
       case 'CG': return ctx.dual? '钢琴伴奏谱（纯伴奏，五线＋简谱对照）' : '钢琴伴奏谱（纯伴奏）';
-      case 'JG': return '钢琴伴奏歌谱';
-      case 'SG': return ctx.lyr? '钢琴伴奏歌谱（五线谱）' : '旋律＋钢琴伴奏谱（五线谱）';
+      case 'JG': return !ctx.lyr && ik? instName(ik)+'＋钢琴伴奏谱（简谱）' : '钢琴伴奏歌谱';
+      case 'SG': return ctx.lyr? '钢琴伴奏歌谱（五线谱）' : (ik? instName(ik) : '旋律')+'＋钢琴伴奏谱（五线谱）';
       case 'CJ': return '功能谱';
       case 'CS': return '五线谱和弦谱';
       case 'C':  return '和弦谱';
@@ -100,12 +107,14 @@ const PQ_KIND = (function(){
     }
   }
   /* 谱名上下文（只读）：歌词＝有词或建谱时留了歌词行（先看 lyricLines，为 0 再扫词；五线谱一族的叫法要看它）；
-     几声部＝与首行同一记谱法的旋律行数（钢琴伴奏歌谱删掉左手行后剩「简谱旋律＋右手五线」不算合唱） */
+     几声部＝与首行同一记谱法的旋律行数（钢琴伴奏歌谱删掉左手行后剩「简谱旋律＋右手五线」不算合唱）；
+     pno（P2a 拍板 11）＝J / S 多声部且有钢琴花括号组（pnoOf 是本段函数声明，已提升），其余 false */
   function ctxOf(s){
     const vv=s.voxVoices||[], k=stackOf(s);
     const lyr = (s.lyricLines|0)>0 || (s.measures||[]).some(m=>((m&&m.voxes)||[]).some(cols=>(cols||[]).some(hasLy)));
     const vn=s.voxNotations||[], nSame = k==='J'? vv.filter((_,i)=>!isStaffNota(vn[i])).length : k==='S'? vv.filter((_,i)=>isStaffNota(vn[i])).length : 1;
-    return {nVox:Math.max(1, nSame), inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean)};
+    const nVox=Math.max(1, nSame);
+    return {nVox, inst:s.inst, instKey:s.instKey, lyr, dual:(k==='G'||k==='CG') && (s.voxDual||[]).some(Boolean), pno:(k==='J'||k==='S') && nVox>1 && pnoOf(s)};
   }
   const nameOf = s=>kindName(stackOf(s), ctxOf(s));
 
@@ -146,20 +155,26 @@ const PQ_KIND = (function(){
   }
   /* 乐器族（＝编辑器新建面板 NW_INSTS.fam，tv_kindsync / kindname.test 逐项核对）：tab 六线谱一族 / kbd 键盘 / staff 西洋（五线谱）/ jianpu 民乐（简谱）/ other */
   const INST_FAM = {guitar:'tab', uku:'tab', bass:'staff', piano:'kbd', epiano:'kbd', synth:'kbd', accordion:'kbd',
-    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff',
-    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu', other:'other'};
+    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff', cello:'staff', clarinet:'staff',
+    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu',
+    recorder:'jianpu', melodica:'jianpu', ocarina:'jianpu', xiao:'jianpu', other:'other'};
   /* 建谱用途（P2a 起建谱时写 song.intent；只认这 11 个值，其余当没写）。intent 只在谱面推断有歧义时裁定（判法表第 11、20–22 行与儿歌） */
   const INTENTS = ['gtr', 'pacc', 'kids', 'vocal', 'teach', 'sight', 'solo', 'inst', 'chord', 'blank', 'custom'];
-  const intentOf = s=> typeof s.intent==='string' && INTENTS.indexOf(s.intent)>=0? s.intent : '';
+  const intentOf = s=> !!s && typeof s.intent==='string' && INTENTS.indexOf(s.intent)>=0? s.intent : '';   /* P2a 起导出（坏谱 null 也不抛） */
   /* 按音轨名推乐器（v2 复核 T4：直接打开的 MusicXML / MIDI 不写 instKey）：取首个旋律行的名字（voxVoices[0]，导入名「Piano·右手」只看「·」前），
-     查别名表；人声词（Soprano / Voice / 女高音 / 主唱）、钢琴词、单独的 Bass（合唱男低音）都不算。只读，不回写 instKey */
+     查别名表；人声词（Soprano / Voice / 女高音 / 主唱）、钢琴词、单独的 Bass（合唱男低音）都不算。只读，不回写 instKey。
+     首条命中制：P2a 新增 6 种里竖笛必须排在长笛前（Flauto dolce 会被长笛的 ^flauto 吃掉）、箫放在笛子后（「笛箫」不归箫） */
   const IK_ALIAS = [
     ['sax', /sax|萨克斯/], ['epiano', /electric ?piano|e-piano|rhodes|电钢琴/], ['synth', /^synth|电子琴/], ['accordion', /accordion|akkordeon|手风琴/],
-    ['violin', /^(violins?|violino|vln|vn|vl)(\d|\.|\s|$)|小提琴|geige/], ['flute', /^(flutes?|flauto|fl)(\d|\.|\s|$)|^flöte|^flûte|长笛/],
+    ['violin', /^(violins?|violino|vln|vn|vl)(\d|\.|\s|$)|小提琴|geige/],
+    ['recorder', /^(recorders?|blockfl(ö|o)te|flauto dolce|rec)(\d|\.|\s|$)|竖笛|直笛/], ['flute', /^(flutes?|flauto|fl)(\d|\.|\s|$)|^flöte|^flûte|长笛/],
     ['trumpet', /^(trumpets?|tromba|tpt|trp)(\d|\.|\s|$)|小号/], ['horn', /^(french horn|horns?|corno|hn)(\d|\.|\s|$)|圆号/],
-    ['trombone', /^(trombones?|tbn|trb)(\d|\.|\s|$)|长号/], ['bass', /bass guitar|electric bass|e-bass|贝斯/],
-    ['erhu', /erhu|二胡|胡琴/], ['dizi', /^dizi|笛子|竹笛/], ['hulusi', /hulusi|葫芦丝/], ['suona', /suona|唢呐/],
-    ['guzheng', /guzheng|^zheng(\d|\s|$)|古筝/], ['pipa', /^pipa|琵琶/], ['yangqin', /yangqin|扬琴/], ['harmonica', /harmonica|mouth ?organ|口琴/]
+    ['trombone', /^(trombones?|tbn|trb)(\d|\.|\s|$)|长号/],
+    ['cello', /^(violoncellos?|cellos?|vc|vlc)(\d|\.|\s|$)|大提琴/], ['clarinet', /^(clarinets?|clarinetto|klarinette|cl|clar)(\d|\.|\s|$)|单簧管|黑管/],
+    ['bass', /bass guitar|electric bass|e-bass|贝斯/],
+    ['erhu', /erhu|二胡|胡琴/], ['dizi', /^dizi|笛子|竹笛/], ['xiao', /^xiao(\d|\s|$)|洞箫|^箫/], ['hulusi', /hulusi|葫芦丝/], ['suona', /suona|唢呐/],
+    ['guzheng', /guzheng|^zheng(\d|\s|$)|古筝/], ['pipa', /^pipa|琵琶/], ['yangqin', /yangqin|扬琴/], ['harmonica', /harmonica|mouth ?organ|口琴/],
+    ['melodica', /melodica|pianica|口风琴/], ['ocarina', /ocarina|陶笛/]
   ];
   function ikOf(s){
     const v0 = s && Array.isArray(s.voxVoices)? s.voxVoices[0] : '';
@@ -214,7 +229,7 @@ const PQ_KIND = (function(){
         ik=ikEff(s);
         if(c.lyr){ row='9'; put('gangqin', 'tanchang'); put(mel, gq(mel)); }
         else if(ik){ row='10'; put(mel, 'qiyue'); put('gangqin', 'banzou'); }
-        else if(it==='pacc' || kids){ row='11'; put('gangqin', 'tanchang'); put(mel, gq(mel)); }
+        else if(it==='pacc' || it==='vocal' || kids){ row='11'; put('gangqin', 'tanchang'); put(mel, gq(mel)); }   /* P2a：vocal＝歌谱＋钢琴伴奏还没填词 */
         else if(k==='JG'){ row='12'; put('gangqin', 'tanchang'); put('jianpu', 'gequ'); }
         else { row='13'; put('gangqin', 'banzou'); put('wuxian', 'qiyue'); }
       }
@@ -332,7 +347,8 @@ const PQ_KIND = (function(){
      段 sec 0 主谱种在本筛选 · 1 只在「也出现在」· 2 可转（pzConv，nota＝jp / st）· 3 尾节（tail：tab＝和弦谱后接吉他 / 尤克里里弹唱谱；jp＝「X 简谱」后接吉他弹唱谱里的简谱旋律；
      more 且乐器结果不满 6 首＝mel，接同一级的单旋律歌曲，T5）；段内按 sort（new 原顺序＝最新 / fav 最多收藏 / view 最多浏览），keySort（乐器的调）同调排前。
      原稿数 n0＝段 0＋1；可转数 nConv 不论 conv 开没开都给（列表末尾「还有 N 首是五线谱」） */
-  const LIB_MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1};
+  const LIB_MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1,
+    recorder:1, melodica:1, ocarina:1, xiao:1, cello:1, clarinet:1};
   const libInPl = (c, re)=> [c.pz+'.'+c.sub].concat(A(c.also)).some(p=>re.test(p));
   function pzWordsOk(c, words){
     if(!words) return true;
@@ -417,7 +433,7 @@ const PQ_KIND = (function(){
     return out;
   }
   return {own, isStaffNota, voxHasLyrics, groupsExplicitOk, groupsOf, isChoir, isPianoAccStack, stackOf, INST, instName, kindName, ctxOf, nameOf,
-    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats};
+    docTypeOf, PZ, pzHas, pzName, INST_FAM, INTENTS, intentOf, ikOf, pzOf, fingerKey, facetsOf, pzMatch, pzConv, pzWordsOk, pzFxOk, pzZtOk, pzQuery, pzCats};
 })();
 /* @pq-kindname end */
 

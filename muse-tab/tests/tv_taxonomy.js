@@ -2,13 +2,15 @@
    界面零变化：只验统一谱名表 PQ_KIND 新增的谱种引擎（PZ / pzOf / facetsOf / ikOf / docTypeOf / pzMatch，编辑器内联段＝api/kindname.js 逐字节）与服务端接口。
    X1 判法表 24 行（含 14a / 14b、15a–15c 分支、表外「单行简谱＋推断钢琴」）每行至少一例：行号、主谱种 › 二级、也出现在、乐器身份与方案逐条一致
       （含 GP 导入的弹唱 / 指弹、带和弦名无扫弦的 GP 指弹、古筝左右手两行简谱、二胡二重奏、古筝大谱表、音轨名 Violin 而无 instKey 的导入、空白谱建的单行五线谱器乐）
-   X2 曲库 10 首（api/seed-library.json）＝§6.3：9 首艺术歌曲 钢琴谱 › 弹唱（也在 五线谱 › 歌曲）、夏威夷骊歌 合唱谱 › 五线合唱（也在 五线谱 › 合唱、钢琴谱 › 伴奏）
+   X2 曲库 10 首（api/seed-library.json 的 lib-os-*；v70.0 起种子里另有示例 / 公版钢琴 lib-ex-* / lib-pd-*，由 tv_v700ex 核）＝§6.3：9 首艺术歌曲 钢琴谱 › 弹唱（也在 五线谱 › 歌曲）、夏威夷骊歌 合唱谱 › 五线合唱（也在 五线谱 › 合唱、钢琴谱 › 伴奏）
    X3 示例 16 份（编辑器 PRESETS，migrate 后）＝§6.4；真实导入 MusicXML 6 份（小提琴独奏按音轨名进器乐、长笛＋钢琴、弦乐四重奏、SAB、人声＋钢琴、钢琴）；
       编辑器页面里的 PQ_KIND（内联段）与 node 端对同一批谱给出相同的谱种 / 分面 / 谱类
    X4 不变式：互切镜像（不在钢琴组、不是对照行的旋律 / 人声行整体简谱⇄五线谱；只许 12/13、23/24 两对例外，15c/17 一对在 P0 消失）、名实一致、含有一致、一级内唯一
    X5 旧 type / typeLabel 逐值不变：编辑器语料（预设 / 14 谱行变体 / 11 用途 / 导入）＋金表——编辑器 docType 与修前副本（fixtures/taxo_prev.js）逐值相同；
       服务端 type 只在 §十二第 5 条点名的三类边角改变（老钢琴谱右手有词 / 显式分组全部失效 / 脏短码与 v:2·无 v 老格式），且等于编辑器口径；
-      typeLabel 只有 J 多声部无词改名（拍板 22 / 26：简谱重奏谱 / X谱（简谱））与纯伴奏 CG 改名（拍板 10，P1 同版：钢琴伴奏谱（纯伴奏））
+      typeLabel 只有 J 多声部无词改名（拍板 22 / 26：简谱重奏谱 / X谱（简谱））与纯伴奏 CG 改名（拍板 10，P1 同版：钢琴伴奏谱（纯伴奏））；
+      v70.0 P2a 第 0 步登记两条有意改名（规格 docs/spec-2026-11-v700.md §5）：拍板 11 合唱带钢琴「简谱 / 五线谱合唱谱（含钢琴伴奏）」、
+      拍板 22 后半 无词旋律＋钢琴带乐器身份「X＋钢琴伴奏谱（简谱 / 五线谱）」（原「钢琴伴奏歌谱」/「旋律＋钢琴伴奏谱（五线谱）」）
    X6 坏谱：pzOf / facetsOf / docTypeOf / pubKindOf 不抛错、只读不改入参
    X7 真服务端（api/server.js + 临时库）：卡片带 pz / sub / inst / also / fx 且＝node 推断；?pz= / ?sub= / ?inst= 在全库筛（230 首旧谱垫底，第 201 首起也筛得到），
       主谱种在前、翻页不重不漏；/api/pub/cats＝按卡片本地重算（一级＝各二级之和）；坏谱在列表 / 筛选 / 计数里都不 500
@@ -217,6 +219,18 @@ function edgeCat(d) {
   return '';
 }
 const safe = (fn, dflt) => { try { return fn(); } catch (_) { return dflt; } };
+/* v70.0 P2a 第 0 步有意改名（规格 §5.1 / §5.2；PREV 副本是 P0 修前规则，两条改名都要按谱面结构核：不许别的谱顺带改名）：
+   拍板 11 J / S 多声部有词且带钢琴花括号组 → 「简谱 / 五线谱合唱谱（含钢琴伴奏）」；
+   拍板 22 后半 JG / SG 无词、带乐器身份（不含钢琴）→ 「X＋钢琴伴奏谱（简谱）/（五线谱）」 */
+function p2aRenameOk(was, now, d) {
+  if (!d || typeof d !== 'object') return false;
+  const k = safe(() => K.stackOf(d), ''), c = safe(() => K.ctxOf(d), null) || {};
+  const ik = c.instKey && c.instKey !== 'piano' ? c.instKey : '';
+  if ((k === 'J' || k === 'S') && c.nVox > 1 && c.lyr && c.pno === true && /^(简谱|五线谱)合唱谱$/.test(was) && now === was + '（含钢琴伴奏）') return true;
+  if (k === 'JG' && !c.lyr && ik && was === '钢琴伴奏歌谱' && now === K.instName(ik) + '＋钢琴伴奏谱（简谱）') return true;
+  if (k === 'SG' && !c.lyr && ik && was === '旋律＋钢琴伴奏谱（五线谱）' && now === K.instName(ik) + '＋钢琴伴奏谱（五线谱）') return true;
+  return false;
+}
 function typeDrift(samples) {
   const bad = [], cats = {}, nameDiff = [];
   for (const x of samples) {
@@ -231,7 +245,9 @@ function typeDrift(samples) {
     if (pk.typeLabel !== oldName) {
       const ok = (v && PREV.PQ_KIND.stackOf(v) === 'J' && oldName === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(pk.typeLabel) && !K.ctxOf(v).lyr)
         /* 分类升级 P1 有意迁移（拍板 10 与 P1 同版）：纯伴奏 CG「钢琴弹唱谱（纯伴奏…）」改名「钢琴伴奏谱（纯伴奏…）」，只换「弹唱」两字 */
-        || (v && PREV.PQ_KIND.stackOf(v) === 'CG' && /^钢琴弹唱谱（纯伴奏/.test(oldName) && pk.typeLabel === oldName.replace('钢琴弹唱谱', '钢琴伴奏谱'));
+        || (v && PREV.PQ_KIND.stackOf(v) === 'CG' && /^钢琴弹唱谱（纯伴奏/.test(oldName) && pk.typeLabel === oldName.replace('钢琴弹唱谱', '钢琴伴奏谱'))
+        /* v70.0 P2a 第 0 步有意迁移：拍板 11 / 22 后半（规格 §5.1 / §5.2） */
+        || (v && p2aRenameOk(oldName, pk.typeLabel, v));
       if (ok) nameDiff.push(pk.typeLabel); else bad.push(x.tag + '：typeLabel 变了 ' + oldName + '→' + pk.typeLabel);
     }
   }
@@ -325,14 +341,14 @@ async function allPages(q) {
 
     /* ---------- X2 曲库 10 首 ---------- */
     await guard('X2', async () => {
-      const bad = [];
-      LIB.forEach(x => { const r = K.pzOf(x.data), f = K.facetsOf(x.data), hw = /夏威夷/.test(x.title);
+      const bad = [], OS = LIB.filter(x => /^lib-os-/.test(String(x.id || '')));   /* v70.0：只核 OpenScore 公版 10 首（C 组往种子里加 lib-ex-* / lib-pd-*，由 tv_v700ex 核） */
+      OS.forEach(x => { const r = K.pzOf(x.data), f = K.facetsOf(x.data), hw = /夏威夷/.test(x.title);
         const w = hw ? '16 hechang.wuxian+wuxian.hechang+gangqin.banzou' : '9 gangqin.tanchang+wuxian.gequ';
         if (pzShow(r) !== w) bad.push(x.title + '：' + pzShow(r));
         if (!f.acc || (hw && !f.ens) || f.nota0 !== 'st') bad.push(x.title + ' 分面 ' + JSON.stringify(f));
         if (K.docTypeOf(x.data) !== PREV.docTypeEd(x.data)) bad.push(x.title + ' type 变了'); });
-      T(LIB.length === 10 && !bad.length, 'X2 曲库 10 首＝§6.3：9 首艺术歌曲 钢琴谱 › 弹唱（也在 五线谱 › 歌曲）、夏威夷骊歌 合唱谱 › 五线合唱（也在 五线谱 › 合唱、钢琴谱 › 伴奏），都带伴奏、旧 type 不变',
-        JSON.stringify({ n: LIB.length, bad: bad.slice(0, 6) }));
+      T(OS.length === 10 && !bad.length, 'X2 曲库 10 首（lib-os-*）＝§6.3：9 首艺术歌曲 钢琴谱 › 弹唱（也在 五线谱 › 歌曲）、夏威夷骊歌 合唱谱 › 五线合唱（也在 五线谱 › 合唱、钢琴谱 › 伴奏），都带伴奏、旧 type 不变',
+        JSON.stringify({ n: OS.length, all: LIB.length, bad: bad.slice(0, 6) }));
     });
 
     /* ---------- X3 编辑器：示例 16 份 / 导入 / 语料（X5 用） ---------- */
@@ -390,13 +406,14 @@ async function allPages(q) {
       const edBad = corpus.filter(x => x.dt !== safe(() => PREV.docTypeEd(x.d), '?')).map(x => x.tag + '：' + safe(() => PREV.docTypeEd(x.d), '?') + '→' + x.dt);
       const edName = corpus.filter(x => x.name !== safe(() => PREV.PQ_KIND.nameOf(x.d), '?')).map(x => ({ tag: x.tag, was: safe(() => PREV.PQ_KIND.nameOf(x.d), '?'), now: x.name }));
       const edNameBad = edName.filter(x => !(x.was === '简谱合唱谱' && /^(简谱重奏谱|.+谱（简谱）)$/.test(x.now))
-        && !(/^钢琴弹唱谱（纯伴奏/.test(x.was) && x.now === x.was.replace('钢琴弹唱谱', '钢琴伴奏谱')));   /* 分类升级 P1 有意迁移：拍板 10 纯伴奏 CG 改名同版上 */
-      T(corpus.length >= 60 && !edBad.length && !edNameBad.length, 'X5a 编辑器：docType 与修前逐值相同（' + corpus.length + ' 份）；谱名只有 J 多声部无词改名（拍板 22 / 26）与纯伴奏 CG 改名（拍板 10）：' + [...new Set(edName.map(x => x.was + '→' + x.now))].join('、') + '）',
+        && !(/^钢琴弹唱谱（纯伴奏/.test(x.was) && x.now === x.was.replace('钢琴弹唱谱', '钢琴伴奏谱'))   /* 分类升级 P1 有意迁移：拍板 10 纯伴奏 CG 改名同版上 */
+        && !p2aRenameOk(x.was, x.now, x.d));   /* v70.0 P2a 第 0 步有意迁移：拍板 11 合唱带钢琴 / 拍板 22 后半 X＋钢琴伴奏谱 */
+      T(corpus.length >= 60 && !edBad.length && !edNameBad.length, 'X5a 编辑器：docType 与修前逐值相同（' + corpus.length + ' 份）；谱名只有 J 多声部无词改名（拍板 22 / 26）、纯伴奏 CG 改名（拍板 10）与 P2a 拍板 11 / 22 后半：' + [...new Set(edName.map(x => x.was + '→' + x.now))].join('、') + '）',
         JSON.stringify({ edBad: edBad.slice(0, 5), edNameBad: edNameBad.slice(0, 5) }));
       const all = SAMPLES.concat(EDGE.map(x => ({ tag: x.tag, d: x.d })), corpus.filter(x => x.raw).map(x => ({ tag: x.tag + '（原始 JSON）', d: x.raw })), BAD);
       const r = typeDrift(all);
       const catOk = EDGE.every(x => edgeCat(x.d) === x.cat) && ['a', 'b', 'c'].every(c => r.cats[c] > 0);
-      T(has('pubKindOf') && !r.bad.length && catOk, 'X5b 服务端 type：' + all.length + ' 份里只有点名的三类边角改变（a 老钢琴谱右手有词 ' + (r.cats.a || 0) + ' · b 显式分组全部失效 ' + (r.cats.b || 0) + ' · c 脏短码 / v:2 / 无 v 老格式 ' + (r.cats.c || 0) + '），且都等于编辑器口径；typeLabel 只有 J 多声部无词改名与纯伴奏 CG 改名（拍板 10）',
+      T(has('pubKindOf') && !r.bad.length && catOk, 'X5b 服务端 type：' + all.length + ' 份里只有点名的三类边角改变（a 老钢琴谱右手有词 ' + (r.cats.a || 0) + ' · b 显式分组全部失效 ' + (r.cats.b || 0) + ' · c 脏短码 / v:2 / 无 v 老格式 ' + (r.cats.c || 0) + '），且都等于编辑器口径；typeLabel 只有 J 多声部无词改名、纯伴奏 CG 改名（拍板 10）与 P2a 拍板 11 / 22 后半',
         JSON.stringify({ bad: r.bad.slice(0, 6), cats: r.cats, names: [...new Set(r.nameDiff)] }));
     });
 

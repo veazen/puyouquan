@@ -62,6 +62,30 @@ const CASES = [
   ['CJ 功能谱', vox(['旋律'], [undefined], { func: true }), 'CJ', '功能谱'],
   ['CS 五线谱和弦谱', vox(['旋律'], ['staff'], { func: true }), 'CS', '五线谱和弦谱'],
   ['C 和弦谱', vox(['和弦'], [undefined], { func: true, chordOnly: true }), 'C', '和弦谱'],
+  /* v70.0 P2a（规格 docs/spec-2026-11-v700.md §5）：拍板 11 合唱带钢琴加「（含钢琴伴奏）」；拍板 22 后半 无词旋律＋钢琴带乐器身份「X＋钢琴伴奏谱（简谱 / 五线谱）」；乐器表补 6 种 */
+  ['J 二部合唱＋钢琴（显式方括号＋花括号）＝简谱合唱谱（含钢琴伴奏）（拍板 11）', vox(['女高', '女低', '右手', '左手'], [undefined, undefined, 'staff', 'bass'], { voxGroups: [BR(0, 1), BC(2, 3)], lyricLines: 1 }), 'J', '简谱合唱谱（含钢琴伴奏）'],
+  ['J 老合唱谱＋推断出的钢琴两行（没写分组、留了词位）＝简谱合唱谱（含钢琴伴奏）（拍板 11 有意改名）', vox(['女高', '女低', '钢琴右', '钢琴左'], [undefined, undefined, 'staff', 'bass'], { lyricLines: 1 }), 'J', '简谱合唱谱（含钢琴伴奏）'],
+  ['J 二部无词＋钢琴＝简谱重奏谱（无词不加）', vox(['一', '二', '右手', '左手'], [undefined, undefined, 'staff', 'bass'], { voxGroups: [BR(0, 1), BC(2, 3)] }), 'J', '简谱重奏谱'],
+  ['J 二部无词带乐器＋钢琴＝古筝谱（简谱）（无词不加）', vox(['一', '二', '右手', '左手'], [undefined, undefined, 'staff', 'bass'], { voxGroups: [BC(2, 3)], instKey: 'guzheng' }), 'J', '古筝谱（简谱）'],
+  ['S SATB＋钢琴（导入的 SATB＋钢琴 MusicXML）＝五线谱合唱谱（含钢琴伴奏）（拍板 11）', vox(['S', 'A', 'T', 'B', 'Piano·右手', 'Piano·左手'], ['staff', 'staff', 'staff', 'bass', 'staff', 'bass'], { voxGroups: [BR(0, 3), BC(4, 5)], lyricLines: 1 }), 'S', '五线谱合唱谱（含钢琴伴奏）'],
+  ['S 弦乐四重奏＋钢琴（无词）＝五线谱重奏谱（无词不加）', vox(['Vn1', 'Vn2', 'Va', 'Vc', '右手', '左手'], ['staff', 'staff', 'alto', 'bass', 'staff', 'bass'], { voxGroups: [BR(0, 3), BC(4, 5)] }), 'S', '五线谱重奏谱'],
+  ['S SATB 没有钢琴：五线谱合唱谱（不加）', vox(['S', 'A', 'T', 'B'], ['staff', 'staff', 'staff', 'bass'], { voxGroups: [BR(0, 3)] }, true), 'S', '五线谱合唱谱'],
+  ['JG 无词带乐器身份（二胡）＝二胡＋钢琴伴奏谱（简谱）（拍板 22 后半）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'erhu' }), 'JG', '二胡＋钢琴伴奏谱（简谱）'],
+  ['JG 无词带新乐器（竖笛）＝竖笛＋钢琴伴奏谱（简谱）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'recorder' }), 'JG', '竖笛＋钢琴伴奏谱（简谱）'],
+  ['JG 有词带乐器身份＝钢琴伴奏歌谱（有词照旧）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'erhu' }, true), 'JG', '钢琴伴奏歌谱'],
+  ['JG 无词 instKey=piano＝钢琴伴奏歌谱（钢琴不算乐器身份）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'piano' }), 'JG', '钢琴伴奏歌谱'],
+  ['JG 无词无乐器（钢琴即兴伴奏）＝钢琴伴奏歌谱（照旧）', vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], intent: 'pacc' }), 'JG', '钢琴伴奏歌谱'],
+  ['SG 无词小提琴＝小提琴＋钢琴伴奏谱（五线谱）（拍板 22 后半）', vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'violin' }), 'SG', '小提琴＋钢琴伴奏谱（五线谱）'],
+  ['SG 无词大提琴（低音谱号旋律）＝大提琴＋钢琴伴奏谱（五线谱）', vox(['大提琴', '右手伴奏', '左手伴奏'], ['bass', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'cello' }), 'SG', '大提琴＋钢琴伴奏谱（五线谱）'],
+  ['SG 无词其他器乐＝器乐＋钢琴伴奏谱（五线谱）', vox(['旋律', '右手伴奏', '左手伴奏'], ['alto', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'other' }), 'SG', '器乐＋钢琴伴奏谱（五线谱）'],
+  ['SG 无词未知 instKey 按器乐', vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'constructor' }), 'SG', '器乐＋钢琴伴奏谱（五线谱）'],
+  ['SG 有词带乐器＝钢琴伴奏歌谱（五线谱）（有词照旧）', vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'violin' }, true), 'SG', '钢琴伴奏歌谱（五线谱）'],
+  ['J 竖笛＝竖笛谱（简谱）', vox(['竖笛'], [undefined], { instKey: 'recorder' }), 'J', '竖笛谱（简谱）'],
+  ['J 口风琴＝口风琴谱（简谱）', vox(['口风琴'], [undefined], { instKey: 'melodica' }), 'J', '口风琴谱（简谱）'],
+  ['J 陶笛＝陶笛谱（简谱）', vox(['陶笛'], [undefined], { instKey: 'ocarina' }), 'J', '陶笛谱（简谱）'],
+  ['J 箫＝箫谱（简谱）', vox(['箫'], [undefined], { instKey: 'xiao' }), 'J', '箫谱（简谱）'],
+  ['S 大提琴（低音谱号）＝大提琴谱（五线谱）', vox(['大提琴'], ['bass'], { instKey: 'cello' }), 'S', '大提琴谱（五线谱）'],
+  ['S 单簧管＝单簧管谱（五线谱）', vox(['单簧管'], ['staff'], { instKey: 'clarinet' }), 'S', '单簧管谱（五线谱）'],
   ['空谱 {}', {}, 'J', '简谱歌谱'],
 ];
 
@@ -250,8 +274,10 @@ T('P0 ikOf：按首个旋律行音轨名推乐器（人声词、钢琴词、单�
     萨克斯: 'sax', 'Trumpet in Bb': 'trumpet', 'Horn in F': 'horn', 'French Horn': 'horn', Trombone: 'trombone', 'Bass Guitar': 'bass', 贝斯: 'bass', 'Electric Piano': 'epiano', 电子琴: 'synth',
     Accordion: 'accordion', Erhu: 'erhu', 二胡: 'erhu', 胡琴: 'erhu', 笛子: 'dizi', 竹笛: 'dizi', 葫芦丝: 'hulusi', 唢呐: 'suona', 'Guzheng·右手': 'guzheng', 古筝: 'guzheng', 琵琶: 'pipa', 扬琴: 'yangqin',
     Harmonica: 'harmonica', 口琴: 'harmonica',
-    Voice: '', Soprano: '', 'Singstimme Voice': '', 女高音: '', 主唱: '', 旋律: '', 旋律1: '', Bass: '', Alto: '', Tenor: '', Piano: '', 'Piano·右手': '', 钢琴: '', 右手: '', Viola: '', Violoncello: '',
-    Flugelhorn: '', 'English Horn': '', 口风琴: '', '': '' };
+    Voice: '', Soprano: '', 'Singstimme Voice': '', 女高音: '', 主唱: '', 旋律: '', 旋律1: '', Bass: '', Alto: '', Tenor: '', Piano: '', 'Piano·右手': '', 钢琴: '', 右手: '', Viola: '',
+    Flugelhorn: '', 'English Horn': '', '': '',
+    /* v70.0 P2a 有意迁移：乐器表补 6 种后 Violoncello / 口风琴 认得出（此前断言为空）；其余反例照旧，全套正反例见下方 P2a IK_ALIAS */
+    Violoncello: 'cello', 口风琴: 'melodica' };
   for (const [n, k] of Object.entries(want)) assert.strictEqual(ik(n), k, n);
   for (const d of [null, {}, { voxVoices: null }, { voxVoices: [null] }, { voxVoices: [{ toString: 1 }] }, { voxVoices: 'Violin' }]) assert.strictEqual(K.ikOf(d), '');
 });
@@ -382,6 +408,135 @@ T('P1 pzq 伴奏词：带伴奏 / 有伴奏 / 无伴奏 / 无伴奏合唱；合�
   /* 0 结果退路说明带上伴奏条件 */
   assert.strictEqual(P.fbNote(P.parse('送别 合唱 带伴奏')), '没有「送别」的带伴奏合唱谱，下面是其他谱');
   assert.strictEqual(P.fbNote(P.parse('送别 无伴奏')), '没有「送别」的无伴奏合唱谱，下面是其他谱');
+});
+
+/* ---------- v70.0 P2a 第 0 步（规格 docs/spec-2026-11-v700.md §2 / §4 / §5 / §3.5）：乐器表补 6 种、谱名两条新规则、判法表第 11 行、intentOf 导出、清洗白名单 ---------- */
+const HTML = () => fs.readFileSync(path.join(ROOT, 'muse-tab/index.html'), 'utf8');
+const litOf = (src, head, tail) => { const a = src.indexOf(head); assert.ok(a >= 0, '读不到 ' + head); const b = src.indexOf(tail, a + head.length); return new Function('return ' + src.slice(a + head.length - 1, b + 1))(); };
+const NWI = () => litOf(HTML(), 'const NW_INSTS=[', '];');
+const OLD22 = { guitar: ['吉他', 'tab'], uku: ['尤克里里', 'tab'], bass: ['贝斯', 'staff'], piano: ['钢琴', 'kbd'], epiano: ['电钢琴', 'kbd'], synth: ['电子琴', 'kbd'], accordion: ['手风琴', 'kbd'],
+  violin: ['小提琴', 'staff'], flute: ['长笛', 'staff'], sax: ['萨克斯', 'staff'], trumpet: ['小号', 'staff'], horn: ['圆号', 'staff'], trombone: ['长号', 'staff'],
+  erhu: ['二胡', 'jianpu'], dizi: ['笛子', 'jianpu'], hulusi: ['葫芦丝', 'jianpu'], suona: ['唢呐', 'jianpu'], guzheng: ['古筝', 'jianpu'], pipa: ['琵琶', 'jianpu'], yangqin: ['扬琴', 'jianpu'], harmonica: ['口琴', 'jianpu'], other: ['其他器乐', 'other'] };
+/* §4.1 表：instKey → [名字, fam, clef, tim, grp, INST_PQ, INST_ICON] */
+const NEW6 = { recorder: ['竖笛', 'jianpu', undefined, 'flute', '课堂乐器 · 简谱', 'inst-flute', 'flute'], melodica: ['口风琴', 'jianpu', undefined, 'strings', '课堂乐器 · 简谱', 'inst-harmonica', 'harmonica'],
+  ocarina: ['陶笛', 'jianpu', undefined, 'flute', '课堂乐器 · 简谱', 'inst-hulusi', 'hulusi'], xiao: ['箫', 'jianpu', undefined, 'flute', '民乐 · 简谱', 'inst-dizi', 'dizi'],
+  cello: ['大提琴', 'staff', 'bass', 'strings', '西洋管弦 · 五线谱', 'inst-violin', 'violin'], clarinet: ['单簧管', 'staff', 'staff', 'flute', '西洋管弦 · 五线谱', 'inst-sax', 'sax'] };
+const KEYS28 = ['guitar', 'uku', 'bass', 'piano', 'epiano', 'synth', 'accordion', 'violin', 'flute', 'sax', 'trumpet', 'horn', 'trombone', 'cello', 'clarinet',
+  'erhu', 'dizi', 'hulusi', 'suona', 'guzheng', 'pipa', 'yangqin', 'harmonica', 'recorder', 'melodica', 'ocarina', 'xiao', 'other'];
+T('P2a 乐器表补 6 种：INST / INST_FAM / NW_INSTS 28 键同序（管弦两种接长号后、简谱族四种接口琴后、other 最后）；旧 22 键名义逐项不变；新 6 行 fam / clef / tim / grp / nx:1 照 §4.1', () => {
+  assert.deepStrictEqual(Object.keys(K.INST), KEYS28); assert.deepStrictEqual(Object.keys(K.INST_FAM), KEYS28);
+  const nw = NWI(); assert.deepStrictEqual(nw.map(x => x.k), KEYS28);
+  for (const [k, [nm, fam]] of Object.entries(OLD22)) { assert.strictEqual(K.INST[k], nm, k); assert.strictEqual(K.INST_FAM[k], fam, k); const r = nw.find(x => x.k === k); assert.ok(r && r.name === nm && r.fam === fam && !r.nx, k + ' 旧行变了'); }
+  for (const [k, [nm, fam, clef, tim, grp]] of Object.entries(NEW6)) {
+    assert.strictEqual(K.INST[k], nm, k); assert.strictEqual(K.INST_FAM[k], fam, k); assert.strictEqual(K.instName(k), nm, k);
+    const r = nw.find(x => x.k === k); assert.deepStrictEqual([r.name, r.fam, r.clef, r.tim, r.grp, r.nx], [nm, fam, clef, tim, grp, 1], k);
+  }
+  assert.strictEqual(nw.filter(x => x.nx).length, 6); assert.strictEqual(nw.filter(x => x.fam !== 'tab' && !x.nx).length, 20, '旧外壳 / ?next=0 / 手机的旧清单仍是 20 种');
+  /* 新建面板的旧清单 NWP.INSTS 滤掉 nx（界面零变化；新形态列出它们由 nwP2A() 接线） */
+  assert.ok(/const INSTS = NW_INSTS\.filter\(x=>x\.fam!=='tab' && !x\.nx\);/.test(HTML()), 'NWP.INSTS 没滤掉 nx:1 的新乐器');
+});
+T('P2a 图标表：INST_PQ / INST_ICON 覆盖 28 键（＋人声），6 种新乐器映射到同族已有图标（§4.1，不新增图标）', () => {
+  const h = HTML(), pq = litOf(h, 'var INST_PQ = {', '};'), ic = litOf(h, 'const INST_ICON={', '};');
+  for (const k of KEYS28) { assert.ok(typeof pq[k] === 'string', 'INST_PQ 缺 ' + k); assert.ok(typeof ic[k] === 'string', 'INST_ICON 缺 ' + k); }
+  const oldPq = new Set(Object.keys(OLD22).map(k => pq[k]).concat(pq.vocal)), oldIc = new Set(Object.keys(OLD22).map(k => ic[k]).concat(ic.vocal));
+  for (const [k, v] of Object.entries(NEW6)) { assert.strictEqual(pq[k], v[5], k); assert.strictEqual(ic[k], v[6], k); assert.ok(oldPq.has(pq[k]) && oldIc.has(ic[k]), k + ' 用了新图标'); }
+});
+T('P2a 官网 site/pyq.js 抄本：INST / INST_FAM 键序＝PQ_KIND（名字除 other 官网写「其他」外相同）；MEL＝共享段 LIB_MEL', () => {
+  const py = fs.readFileSync(path.join(ROOT, 'muse-tab/site/pyq.js'), 'utf8'), seg = fs.readFileSync(path.join(__dirname, 'kindname.js'), 'utf8');
+  const I = litOf(py, 'const INST = {', '};'), F = litOf(py, 'const INST_FAM = {', '};'), M = litOf(py, 'const MEL = {', '};'), LM = litOf(seg, 'const LIB_MEL = {', '};');
+  assert.deepStrictEqual(Object.keys(I), KEYS28); assert.deepStrictEqual(F, K.INST_FAM); assert.deepStrictEqual(Object.keys(F), KEYS28);
+  for (const k of KEYS28) assert.strictEqual(I[k], k === 'other' ? '其他' : K.INST[k], k);
+  assert.deepStrictEqual(M, LM); for (const k of Object.keys(NEW6)) assert.strictEqual(LM[k], 1, 'LIB_MEL 缺 ' + k);
+});
+T('P2a IK_ALIAS：6 种新乐器按音轨名认（竖笛排在长笛前、箫在笛子后）；旧乐器与人声 / 钢琴反例不误判', () => {
+  const ik = n => K.ikOf({ voxVoices: [n] });
+  const want = { Recorder: 'recorder', Recorders: 'recorder', 'Recorder 1': 'recorder', Blockflöte: 'recorder', Blockflote: 'recorder', 'Flauto dolce': 'recorder', 'Rec.': 'recorder', 竖笛: 'recorder', 直笛: 'recorder', '高音竖笛': 'recorder',
+    Melodica: 'melodica', Pianica: 'melodica', 口风琴: 'melodica', Ocarina: 'ocarina', 'Ocarina 1': 'ocarina', 陶笛: 'ocarina',
+    Xiao: 'xiao', 'Xiao 2': 'xiao', 洞箫: 'xiao', 箫: 'xiao', Violoncello: 'cello', Violoncellos: 'cello', Cello: 'cello', 'Cello 1': 'cello', 'Vc.': 'cello', Vlc: 'cello', 大提琴: 'cello',
+    Clarinet: 'clarinet', 'Clarinet in Bb': 'clarinet', Clarinets: 'clarinet', Clarinetto: 'clarinet', Klarinette: 'clarinet', 'Cl.': 'clarinet', 'Clar. 2': 'clarinet', 单簧管: 'clarinet', 黑管: 'clarinet',
+    /* 反例：旧乐器照旧、人声 / 钢琴 / 单独 Bass 不认、形近词不误判 */
+    Violin: 'violin', 'Vln.': 'violin', Flute: 'flute', 'Fl.': 'flute', Flauto: 'flute', 笛子: 'dizi', 口琴: 'harmonica', Viola: '', 'English Horn': '', Voice: '', Bass: '', 'Piano·右手': '', Recitative: '', Clavier: '', Xiaoming: '', Celesta: '' };
+  for (const [n, k] of Object.entries(want)) assert.strictEqual(ik(n), k, n);
+  assert.notStrictEqual(ik('笛箫'), 'xiao', '「笛箫」不归箫');
+  const seg = fs.readFileSync(path.join(__dirname, 'kindname.js'), 'utf8');
+  assert.ok(seg.indexOf("['recorder',") < seg.indexOf("['flute',") && seg.indexOf("['dizi',") < seg.indexOf("['xiao',"), '别名表顺序：竖笛须在长笛前、箫在笛子后');
+});
+T('P2a 谱名：拍板 11 ctxOf.pno 只在 J / S 多声部且有钢琴花括号组时为真、有词合唱才加「（含钢琴伴奏）」；拍板 22 后半 JG / SG 无词带乐器身份「X＋钢琴伴奏谱（简谱 / 五线谱）」', () => {
+  assert.strictEqual(K.kindName('J', { nVox: 2, lyr: true, pno: true }), '简谱合唱谱（含钢琴伴奏）');
+  assert.strictEqual(K.kindName('S', { nVox: 4, lyr: true, pno: true }), '五线谱合唱谱（含钢琴伴奏）');
+  assert.strictEqual(K.kindName('J', { nVox: 2, pno: true }), '简谱重奏谱'); assert.strictEqual(K.kindName('S', { nVox: 2, pno: true }), '五线谱重奏谱');
+  assert.strictEqual(K.kindName('J', { nVox: 2, pno: true, instKey: 'erhu' }), '二胡谱（简谱）');
+  assert.strictEqual(K.kindName('J', { lyr: true, pno: true }), '简谱歌谱', '单声部不看 pno');
+  assert.strictEqual(K.kindName('JG', { instKey: 'violin' }), '小提琴＋钢琴伴奏谱（简谱）'); assert.strictEqual(K.kindName('JG', { instKey: 'violin', lyr: true }), '钢琴伴奏歌谱');
+  assert.strictEqual(K.kindName('JG', {}), '钢琴伴奏歌谱'); assert.strictEqual(K.kindName('JG', { instKey: 'piano' }), '钢琴伴奏歌谱');
+  assert.strictEqual(K.kindName('SG', { instKey: 'clarinet' }), '单簧管＋钢琴伴奏谱（五线谱）'); assert.strictEqual(K.kindName('SG', { instKey: 'other' }), '器乐＋钢琴伴奏谱（五线谱）');
+  assert.strictEqual(K.kindName('SG', {}), '旋律＋钢琴伴奏谱（五线谱）'); assert.strictEqual(K.kindName('SG', { instKey: 'cello', lyr: true }), '钢琴伴奏歌谱（五线谱）');
+  assert.strictEqual(K.kindName('SJG', { instKey: 'erhu' }), '教学对照谱（含伴奏）', '对照谱不受影响');
+  const pno = d => K.ctxOf(JSON.parse(JSON.stringify(d))).pno;
+  assert.strictEqual(pno(vox(['女高', '女低', '右手', '左手'], [undefined, undefined, 'staff', 'bass'], { voxGroups: [BR(0, 1), BC(2, 3)] }, true)), true);
+  assert.strictEqual(pno(vox(['S', 'A', 'T', 'B'], ['staff', 'staff', 'staff', 'bass'], null, true)), false, 'SATB 无钢琴');
+  assert.strictEqual(pno(vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)] }, true)), false, 'JG 不算');
+  assert.strictEqual(pno(vox(['右手', '左手'], ['staff', 'bass'])), false, 'G 不算');
+  assert.strictEqual(pno(vox(['旋律', '钢琴右', '钢琴左'], [undefined, 'staff', 'bass'])), false, '单行简谱＋推断钢琴（单声部）不算');
+  for (const d of [{}, { voxVoices: ['a', 'b'] }, { voxVoices: ['a', 'b'], voxNotations: ['staff', 'bass'], voxGroups: 5 }]) assert.strictEqual(typeof K.ctxOf(d).pno, 'boolean', JSON.stringify(d));
+  /* 名实一致：合唱谱＋钢琴 → 主谱种合唱谱、也在 钢琴谱 › 伴奏；X＋钢琴伴奏谱（简谱）→ 简谱 › 器乐（X）、也在 钢琴谱 › 伴奏（第 10 行，归属不变） */
+  const pz = d => { const r = K.pzOf(JSON.parse(JSON.stringify(d))); return [r.row, r.pz + '.' + r.sub, r.inst, r.also.join(',')].join(' '); };
+  assert.strictEqual(pz(vox(['女高', '女低', '右手', '左手'], [undefined, undefined, 'staff', 'bass'], { voxGroups: [BR(0, 1), BC(2, 3)], lyricLines: 1 })), '15b hechang.jianpu  jianpu.hechang,gangqin.banzou');
+  assert.strictEqual(pz(vox(['S', 'A', 'T', 'B', '右手', '左手'], ['staff', 'staff', 'staff', 'bass', 'staff', 'bass'], { voxGroups: [BR(0, 3), BC(4, 5)], lyricLines: 1 })), '16 hechang.wuxian  wuxian.hechang,gangqin.banzou');
+  assert.strictEqual(pz(vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'erhu' })), '10 jianpu.qiyue erhu gangqin.banzou');
+  assert.strictEqual(pz(vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], { voxGroups: [BC(1, 2)], instKey: 'cello' })), '10 wuxian.qiyue cello gangqin.banzou');
+});
+T('P2a 判法表第 11 行加 vocal：歌谱＋钢琴伴奏还没填词（JG / SG）归 钢琴谱 › 弹唱、也在 简谱 / 五线谱 › 歌曲；没写 intent 的老谱照旧 12 / 13', () => {
+  const pz = d => { const r = K.pzOf(JSON.parse(JSON.stringify(d))); return [r.row, r.pz + '.' + r.sub, r.inst, r.also.join(',')].join(' '); };
+  const jg = o => vox(['旋律', '右手伴奏', '左手伴奏'], [undefined, 'staff', 'bass'], Object.assign({ voxGroups: [BC(1, 2)] }, o)), sg = o => vox(['旋律', '右手伴奏', '左手伴奏'], ['staff', 'staff', 'bass'], Object.assign({ voxGroups: [BC(1, 2)] }, o));
+  assert.strictEqual(pz(jg({ intent: 'vocal' })), '11 gangqin.tanchang  jianpu.gequ'); assert.strictEqual(pz(sg({ intent: 'vocal' })), '11 gangqin.tanchang  wuxian.gequ');
+  assert.strictEqual(pz(jg({ intent: 'pacc' })), '11 gangqin.tanchang  jianpu.gequ'); assert.strictEqual(pz(jg({ intent: 'kids' })), '11 gangqin.tanchang  jianpu.erge');
+  assert.strictEqual(pz(jg({})), '12 gangqin.tanchang  jianpu.gequ'); assert.strictEqual(pz(sg({})), '13 gangqin.banzou other wuxian.qiyue');
+  assert.strictEqual(pz(sg({ intent: 'inst' })), '13 gangqin.banzou other wuxian.qiyue', 'inst 不进第 11 行');
+  assert.strictEqual(pz(jg({ intent: 'vocal', instKey: 'erhu' })), '10 jianpu.qiyue erhu gangqin.banzou', '带乐器身份先命中第 10 行');
+});
+T('P2a 按音轨名认出新乐器（§4.3 有意的派生变化）：没有 instKey 的老导入谱 大提琴 / 单簧管 / 竖笛 改落 器乐（第 18 行），谱名不变（谱名只读 instKey）', () => {
+  const pz = d => { const r = K.pzOf(JSON.parse(JSON.stringify(d))); return [r.row, r.pz + '.' + r.sub, r.inst].join(' '); };
+  assert.strictEqual(pz(vox(['Violoncello'], ['bass'])), '18 wuxian.qiyue cello'); assert.strictEqual(K.nameOf(vox(['Violoncello'], ['bass'])), '五线谱旋律');
+  assert.strictEqual(pz(vox(['Clarinet in Bb'], ['staff'])), '18 wuxian.qiyue clarinet');
+  assert.strictEqual(pz(vox(['竖笛'], [undefined])), '18 jianpu.qiyue recorder'); assert.strictEqual(K.nameOf(vox(['竖笛'], [undefined])), '简谱歌谱');
+  /* 基线（PREV 副本＝分类升级前的规则；ikOf 起于 P0，这里只核「改落」不是落到别处） */
+  assert.strictEqual(pz(vox(['Voice'], ['staff'])), '24 wuxian.shichang ');
+});
+T('P2a intentOf 导出：只认 11 个用途 id，其余（不是字符串 / 不在表里 / 原型链键 / 坏谱）＝没写', () => {
+  assert.strictEqual(typeof K.intentOf, 'function');
+  for (const id of K.INTENTS) assert.strictEqual(K.intentOf({ intent: id }), id);
+  for (const v of ['', 'zzz', 'Sight', ' sight', 'constructor', '__proto__', 'toString', 5, null, {}, ['kids'], true]) assert.strictEqual(K.intentOf({ intent: v }), '', JSON.stringify(v));
+  for (const d of [null, undefined, 0, 'kids', [], {}]) assert.strictEqual(K.intentOf(d), '', String(d));
+});
+T('P2a 清洗白名单（§3.5）：服务端 SD_CODE / SD_TOP_SCALAR 含 intent；11 个合法值经编辑器 normalizeSongFields / sanitizeUntrusted 与服务端 sanitizeLike 逐字节不变；<b> 被剥 / 被拒收；顶层 intent 是对象 / 数组拒收', () => {
+  const SD = require('./scoredata'), vm = require('node:vm'), h = HTML();
+  assert.ok(SD.SD_CODE.has('intent') && SD.SD_TOP_SCALAR.has('intent'));
+  /* 编辑器 SAN_* 按规格不加 intent（短码默认分支） */
+  for (const n of ['SAN_NUM', 'SAN_FREE']) assert.ok(!new RegExp('const ' + n + " = new Set\\(\\[[^\\]]*'intent'").test(h), n + ' 不该登记 intent');
+  const grab = re => { const m = re.exec(h); assert.ok(m, '读不到 ' + re); return m[0]; };
+  const ctx = vm.createContext({});
+  vm.runInContext([grab(/const SAN_NUM = new Set\(\[[^\]]*\]\);/), grab(/const SAN_ENUM_KEEP = \{dyn:new Set\(\['<','>'\]\)\};/), grab(/const SAN_FREE = new Set\(\[[^\]]*\]\);/),
+    grab(/function normalizeSongFields\(v, key\)\{[\s\S]*?\n\}/), grab(/function sanitizeUntrusted\(v, key\)\{[\s\S]*?\n\}/), 'this.N=normalizeSongFields; this.S=sanitizeUntrusted;'].join('\n'), ctx);
+  const base = () => ({ v: 3, title: 't', tabVoices: [], voxVoices: ['旋律'], lyricLines: 0, measures: [{ tabs: [], voxes: [[{ dur: 4, deg: 1 }]] }] });
+  for (const id of K.INTENTS) {
+    const d = Object.assign(base(), { intent: id }), j = JSON.stringify(d);
+    assert.strictEqual(JSON.stringify(ctx.N(JSON.parse(j))), j, 'normalizeSongFields ' + id);
+    assert.strictEqual(JSON.stringify(ctx.S(JSON.parse(j))), j, 'sanitizeUntrusted ' + id);
+    assert.strictEqual(JSON.stringify(K.sanitizeLike(JSON.parse(j))), j, 'sanitizeLike ' + id);
+    assert.strictEqual(SD.scoreDataDanger(JSON.parse(j), '', 'data', 0), null, 'scoreDataDanger ' + id);
+  }
+  const bad = Object.assign(base(), { intent: '<b>' });
+  assert.strictEqual(ctx.N(JSON.parse(JSON.stringify(bad))).intent, 'b'); assert.strictEqual(ctx.S(JSON.parse(JSON.stringify(bad))).intent, 'b'); assert.strictEqual(K.sanitizeLike(JSON.parse(JSON.stringify(bad))).intent, 'b');
+  assert.ok(/data\.intent/.test(SD.scoreDataDanger(JSON.parse(JSON.stringify(bad)), '', 'data', 0) || ''), '<b> 未拒收');
+  for (const v of [{}, { toString: 1 }, ['kids']]) { const r = SD.scoreDataDanger(Object.assign(base(), { intent: v }), '', 'data', 0); assert.ok(r && r.includes('data.intent'), JSON.stringify(v) + ' 未拒收：' + r); }
+  /* 不认识的值不剥、不拒（「拒绝危险，不拒绝陌生」）：留在数据里、intentOf 当没写 */
+  const z = Object.assign(base(), { intent: 'zzz' }); assert.strictEqual(SD.scoreDataDanger(z, '', 'data', 0), null); assert.strictEqual(K.sanitizeLike(z).intent, 'zzz'); assert.strictEqual(K.intentOf(z), '');
+});
+T('P2a 新全局 nwP2A()：函数声明、只此一处、在 var NWP 之前（免 TDZ），与面板 NXP() 同口径但不读面板状态 st', () => {
+  const h = HTML(), m = h.match(/\nfunction nwP2A\(\)\{\n([\s\S]*?)\n\}/g) || [];
+  assert.strictEqual(m.length, 1, 'nwP2A 声明 ' + m.length + ' 处'); assert.ok(h.indexOf('\nfunction nwP2A(){') < h.indexOf('\nvar NWP = (function(){'));
+  assert.ok(/!isMobileNew\(\) && typeof flowOn==='function' && flowOn\(\) && FLOW\.nxOn\(\) && !document\.body\.classList\.contains\('flw-m'\)/.test(m[0]) && !/\bst\b/.test(m[0].replace(/\/\*[\s\S]*?\*\//g, '')), m[0]);
 });
 
 console.log('PASS ' + pass + '/' + total);

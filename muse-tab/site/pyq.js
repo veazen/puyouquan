@@ -179,11 +179,13 @@ window.PYQ_PZ = (function(){
     {id:'gongneng', name:'功能谱', subs:[['jishu','级数谱'],['hexian','和弦格']]}
   ].map(p=>({id:p.id, name:p.name, subs:p.subs.map(x=>({id:x[0], name:x[1]}))}));
   const INST = {guitar:'吉他', uku:'尤克里里', bass:'贝斯', piano:'钢琴', epiano:'电钢琴', synth:'电子琴', accordion:'手风琴',
-    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号',
-    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴', other:'其他'};
+    violin:'小提琴', flute:'长笛', sax:'萨克斯', trumpet:'小号', horn:'圆号', trombone:'长号', cello:'大提琴', clarinet:'单簧管',
+    erhu:'二胡', dizi:'笛子', hulusi:'葫芦丝', suona:'唢呐', guzheng:'古筝', pipa:'琵琶', yangqin:'扬琴', harmonica:'口琴',
+    recorder:'竖笛', melodica:'口风琴', ocarina:'陶笛', xiao:'箫', other:'其他'};
   const INST_FAM = {guitar:'tab', uku:'tab', bass:'staff', piano:'kbd', epiano:'kbd', synth:'kbd', accordion:'kbd',
-    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff',
-    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu', other:'other'};
+    violin:'staff', flute:'staff', sax:'staff', trumpet:'staff', horn:'staff', trombone:'staff', cello:'staff', clarinet:'staff',
+    erhu:'jianpu', dizi:'jianpu', hulusi:'jianpu', suona:'jianpu', guzheng:'jianpu', pipa:'jianpu', yangqin:'jianpu', harmonica:'jianpu',
+    recorder:'jianpu', melodica:'jianpu', ocarina:'jianpu', xiao:'jianpu', other:'other'};
   const own=(o,k)=> typeof k==='string' && Object.prototype.hasOwnProperty.call(o,k);
   const A=v=> Array.isArray(v)? v : [];
   const pzDef=id=> PZ.find(p=>p.id===id)||null;
@@ -240,7 +242,8 @@ window.PYQ_PZ = (function(){
     return '';
   }
   /* ===== 以下＝api/server.js libQuery 一族（tv_libpz 对拍） ===== */
-  const MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1};
+  const MEL = {erhu:1, dizi:1, hulusi:1, suona:1, harmonica:1, sax:1, flute:1, violin:1, trumpet:1, horn:1, trombone:1,
+    recorder:1, melodica:1, ocarina:1, xiao:1, cello:1, clarinet:1};
   const places=c=>[c.pz+'.'+c.sub].concat(A(c.also));
   const inPl=(c,re)=>places(c).some(p=>re.test(p));
   function wordsOk(c, words){
