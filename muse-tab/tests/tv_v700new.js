@@ -165,6 +165,21 @@ async function keySeq(b, url) {
 
 /* ---- N5 几何（页面侧）：把一份谱装进编辑器（A4 固定版宽）排版，返回 G1–G8 实测 ---- */
 function GEO_PAGE() {
+  /* v70.0 验收①：五线谱（stroke 0.8、线距 7.5 的 5 线组，高音谱号）上的符头 → 音名（行内按 x 排、行间自上而下）；联排五线谱默认高音谱号（底线＝谱级 37＝E4） */
+  window.__staffHeads = function (sv) {
+    const hl = [...sv.querySelectorAll('line')].filter(l => l.getAttribute('stroke-width') === '0.8' && l.getAttribute('y1') === l.getAttribute('y2') && +l.getAttribute('x2') - +l.getAttribute('x1') > 100).map(l => +l.getAttribute('y1'));
+    const ys = [...new Set(hl)].sort((a, b) => a - b), bots = [];
+    for (let i = 0; i + 4 < ys.length; i++) if (Math.abs(ys[i + 4] - ys[i] - 30) < 0.5) { bots.push(ys[i + 4]); i += 4; }
+    const HD = ['noteheadBlack', 'noteheadHalf', 'noteheadWhole'].map(n => SMUFL[n].d);
+    const heads = [...sv.querySelectorAll('path')].filter(p => HD.includes(p.getAttribute('d'))).map(p => { const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(p.getAttribute('transform') || ''); return m ? { x: +m[1], y: +m[2] } : null; }).filter(Boolean);
+    const NM = 'CDEFGAB', out = [];
+    bots.forEach((b0, i) => { const top = i ? Math.max(b0 - 75, bots[i - 1] + 20) : b0 - 75; heads.filter(h => h.y > top && h.y < b0 + 40).sort((a, c) => a.x - c.x).forEach(h => { const st = Math.round(37 + (b0 - h.y) / 3.75); out.push(NM[st % 7] + (Math.floor(st / 7) - 1)); }); });
+    return out;
+  };
+  window.__xmlPitches = function (s) {
+    const d = new DOMParser().parseFromString(exportMusicXML(s), 'application/xml');
+    return [...d.querySelectorAll('note')].filter(n => n.querySelector('pitch') && !n.querySelector('grace')).map(n => n.querySelector('step').textContent + (n.querySelector('alter') ? (+n.querySelector('alter').textContent > 0 ? '#' : 'b') : '') + n.querySelector('octave').textContent);
+  };
   window.__g700 = function (s0) {
     window.__pyqGeom = 1;
     const s = JSON.parse(JSON.stringify(s0)); s.layout = Object.assign({}, s.layout || {}, { fixed: true });
@@ -516,6 +531,22 @@ function GEO_PAGE() {
         T('N5', uOk, tag + ' 尤克里里指弹：每系统五线谱（5 线）在上、四线谱（4 线）在下', J(X3.u));
         T('N5', X3.c.names.includes('大提琴') && X3.c.names.includes('钢琴') && X3.c.ledger0 <= 2, tag + ' 大提琴＋钢琴：行首名「大提琴」＋「钢琴」、旋律低音谱号不出现满屏加线（旋律行加线 ' + X3.c.ledger0 + '）', J(X3.c));
         T('N5', X3.s.clefs === 0 && X3.s.lyr === 0 && X3.s.ll === 0, tag + ' 简谱视唱：无谱号、无歌词行', J(X3.s));
+        /* v70.0 验收①：尤克里里指弹联排五线谱的符头音高＝MusicXML 导出音高（此前按吉他定弦 +12：3 弦空弦画成 G4、4 弦空弦画成 D4）；
+           新建面板预览《小星星》五线谱前 11 音＝C C G G | A A G | F F E E（C4 起） */
+        const UP = await pg.evaluate(async () => {
+          const w = ms => new Promise(r => setTimeout(r, ms));
+          const L = NWP.linkParse('?new=solo&inst=uku'), st = NWP.fresh({ clean: true, scene: L.scene, link: L });
+          __g700(NWPV.sampleOf('ST', Object.assign({}, NWP.optsOf(st), { scene: st.scene, maker: '' })));
+          const r = { inst: song.inst, heads: __staffHeads(document.getElementById('score')), xml: __xmlPitches(song) };
+          try { closeModal(); } catch (_) {}
+          nwLinkBoot('?new=solo&inst=uku'); await w(600);
+          const sv = document.querySelector('#nf-pvbox svg'); r.pv = sv ? __staffHeads(sv) : null;
+          try { closeModal(); } catch (_) {}
+          return r;
+        });
+        T('N5', UP.inst === 'uku' && UP.heads.length >= 11 && J(UP.heads) === J(UP.xml), tag + ' 尤克里里指弹：联排五线谱符头音高＝MusicXML 导出音高（' + UP.heads.slice(0, 7).join(' ') + ' …，共 ' + UP.heads.length + ' 音）', J(UP));
+        const TW = ['C4', 'C4', 'G4', 'G4', 'A4', 'A4', 'G4', 'F4', 'F4', 'E4', 'E4'];
+        T('N5', !!UP.pv && J(UP.pv.slice(0, 11)) === J(TW), tag + ' 尤克里里指弹：新建面板预览《小星星》五线谱＝C C G G | A A G | F F E E', J(UP.pv));
         NOTE('N5 ' + tag + ' --font-ui=' + fu);
         await ctx.close();
       }
