@@ -40432,6 +40432,9 @@ var NWP = (function(){
   const SRCN2 = {scene:'按惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认'};
   /* 主变体（参数行 chip）：器乐独奏＝乐器下拉、吉他弹唱＝吉他 / 尤克里里、歌谱合唱＝声部、和弦谱＝谱式；其余变体在 ⋯ */
   const MAINV = {gtr:'inst', vocal:'parts', chord:'ftype', inst:'#inst', solo:'inst'};   /* v70.0 P2a 指弹「吉他 / 尤克里里」同吉他弹唱 */
+  /* v70.0 验收⑤：参数行第二个 chip——歌谱 · 合唱选了二部及以上时，「钢琴伴奏 不要 / 加伴奏」从 ⋯ 提到参数行（合唱＋钢琴：歌谱 → 四部 → 加伴奏 → 创建）；
+     独唱不出（独唱＋钢琴是「钢琴即兴伴奏」的事，⋯ 里照旧有）。只在新形态（deskNewNx）用；旧外壳 / ?next=0 走 deskNew()，不经这里 */
+  const MAINV2 = st=> (st.scene==='vocal' && (+st.v.parts|0)>=2 && varsShown(st).includes('tacc'))? 'tacc' : '';
   /* 三步胶片：取建好后悬浮条同一份步骤（lbSteps → FLOW.sbar.step2），空谱口径 */
   function filmSteps(k, o){
     k=NWB.effStack(k, o);   /* v70.0 合唱＋钢琴＝合唱谱的步骤（「一键配伴奏」只认旋律＋钢琴三行） */
@@ -40456,6 +40459,8 @@ var NWP = (function(){
       const IG=nwP2A()? IGRP2 : IGRP, IL=instsShown();   /* v70.0 P2a：新形态 5 组（含 6 种新乐器）；空组不出 */
       mv='<span class="nf-pc nf-pcv">'+ic(((VARS.instKey.opts.find(x=>x[0]===v.instKey)||[])[2])||'inst-other',18)+'<select id="nf-inst" aria-label="乐器">'+IG.map(([g,f])=>{ const xs=IL.filter(f); return xs.length? '<optgroup label="'+g+'">'+xs.sort((a,b)=>(a.k==='bass')-(b.k==='bass')).map(x=>'<option value="'+x.k+'"'+(v.instKey===x.k? ' selected' : '')+'>'+x.name+'</option>').join('')+'</optgroup>' : ''; }).join('')+'</select></span>'; }
     else if(mk && varsShown(st).includes(mk)){ const d=VARS[mk]; mv='<span class="nf-pc nf-pcv">'+seg(d.lab, mk, d.opts, v[mk])+'</span>'; }
+    const mk2=MAINV2(st);
+    if(mk2){ const d=VARS[mk2]; mv+='<span class="nf-pc nf-pcv nf-pcacc"><i aria-hidden="true">钢琴</i>'+seg(d.lab, mk2, d.opts, v[mk2])+'</span>'; }
     const params='<div class="nf-params" id="nf-params" role="group" aria-label="参数">'
       +'<span class="nf-pc nf-pct">'+(st.src.title==='link'? dot('title') : '')+'<input id="nw-title" type="text" value="'+esc2(v.title)+'" placeholder="曲名" aria-label="曲名" autocomplete="off" maxlength="80"></span>'
       +'<span class="nf-pc">'+dot('key')+'<select id="nw-key" aria-label="调">'+['major','minor'].map(m=>'<optgroup label="'+(m==='major'? '大调' : '小调（按关系大调记谱）')+'">'+KEY_LIST.map(kk=>'<option value="'+(m==='major'? kk : kk+'|minor')+'"'+(v.key===kk && v.mode===m? ' selected' : '')+'>'+keyName(kk, m)+'</option>').join('')+'</optgroup>').join('')+'</select></span>'
@@ -40488,7 +40493,7 @@ var NWP = (function(){
       if(lyrShown(st,k)) more+='<div class="nf-f"><label class="nw-lab" for="nf-lyr">歌词</label><select id="nf-lyr">'+[0,1,2,3,4].map(n=>'<option value="'+n+'"'+((+v.lyr|0)===n? ' selected' : '')+'>'+(n? n+' 段' : '不要')+'</option>').join('')+'</select></div>';
       if(['T','JT','ST'].includes(k) && o.inst!=='uku') more+='<div class="nf-f"><label class="nw-lab" for="nf-tuning">定弦</label><select id="nf-tuning">'+Object.keys(TUNINGS).map(t=>'<option value="'+t+'"'+(v.tuning===t? ' selected' : '')+'>'+TUNINGS[t].label+'</option>').join('')+'</select></div>';
       if(['T','JT'].includes(k)) more+='<div class="nf-f"><label class="nw-lab" for="nf-capo">变调夹</label><select id="nf-capo">'+[0,1,2,3,4,5,6,7].map(n=>'<option value="'+n+'"'+((+v.capo|0)===n? ' selected' : '')+'>'+(n? n+' 品' : '不夹')+'</option>').join('')+'</select></div>';
-      varsShown(st).filter(vk=>vk!==mk && vk!=='instKey').forEach(vk=>{ const d=VARS[vk]; more+='<div class="nf-f"><span class="nw-lab">'+d.lab+'</span>'+seg(d.lab, vk, d.opts, v[vk])+'</div>'; });
+      varsShown(st).filter(vk=>vk!==mk && vk!==mk2 && vk!=='instKey').forEach(vk=>{ const d=VARS[vk]; more+='<div class="nf-f"><span class="nw-lab">'+d.lab+'</span>'+seg(d.lab, vk, d.opts, v[vk])+'</div>'; });
       if(id!=='custom') more+='<div class="nf-f"><span class="nw-lab" id="nf-rbl">谱</span><div class="nf-rows" role="group" aria-labelledby="nf-rbl">'
         + ROWBTN.map(([r,n,i],x)=>'<button type="button" class="nf-row" data-row="'+r+'" aria-pressed="'+rows.includes(r)+'" aria-keyshortcuts="'+(x+1)+'" title="'+n+'（'+(x+1)+'）">'+ic(i,20)+'<span>'+n+'</span></button>').join('')+'</div></div>';
       more+='<p class="nf-rowhint">'+esc2(st.hint||'')+'</p></div>';

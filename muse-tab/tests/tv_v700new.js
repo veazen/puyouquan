@@ -13,7 +13,7 @@
    N7  胶片步骤 / 建成提示：合唱＋钢琴不出现「一键配伴奏」「填进下面两行」（悬浮条同）；钢琴伴奏歌谱照旧有
    N8  全部建谱路径写 intent：面板点击 / 双击用途 / 回车、▾ 用途、Alt+Shift+N、命令面板 r1:new / r1:last、启动台 sc:*、深链＋回车；旧外壳同样写
    N9  快捷键（Alt+N、↑↓ / Home / End、1–5、←→ 组内、Enter、Esc、Alt+Shift+N）行为序列与基线新形态相同（fixtures panel.keys）
-   N10 点击数（P2a 形态，只记录）：尤克里里指弹 3、简谱视唱 3、萨克斯简谱 4
+   N10 点击数（P2a 形态，只记录）：尤克里里指弹 3、简谱视唱 3、萨克斯简谱 4；验收⑤ 合唱＋钢琴＝4（歌谱 → 四部 → 参数行「加伴奏」→ 创建）
    E   页面脚本错误 0
    用法：node tv_v700new.js [--write-base]（--write-base＝用 git show 6d8d6f8:muse-tab/index.html 生成 fixtures/v700_base.json 的 panel 键，其余键原样保留）
    env：MUSETAB_URL 被测页 · ONLY=N1,N5 · FONTS=0（N5 只跑默认字体） */
@@ -363,8 +363,9 @@ function GEO_PAGE() {
       /* 真实点击代表组合 */
       const clickBad = [];
       const CL = [
-        { n: '四部简谱合唱＋钢琴', sc: 'vocal', main: [['parts', 4]], more: [['tacc', 'with']], mel: 'J', k: 'J', name: '简谱合唱谱（含钢琴伴奏）', intent: 'vocal' },
-        { n: '三部五线合唱＋钢琴', sc: 'vocal', main: [['parts', 3]], more: [['tacc', 'with']], mel: 'S', k: 'S', name: '五线谱合唱谱（含钢琴伴奏）', intent: 'vocal' },
+        /* v70.0 验收⑤：合唱（二部及以上）的「钢琴伴奏」在参数行（此前在 ⋯ 弹层）——先断言参数行可见再点 */
+        { n: '四部简谱合唱＋钢琴', sc: 'vocal', main: [['parts', 4], ['tacc', 'with']], mel: 'J', k: 'J', name: '简谱合唱谱（含钢琴伴奏）', intent: 'vocal' },
+        { n: '三部五线合唱＋钢琴', sc: 'vocal', main: [['parts', 3], ['tacc', 'with']], mel: 'S', k: 'S', name: '五线谱合唱谱（含钢琴伴奏）', intent: 'vocal' },
         { n: '尤克里里指弹', sc: 'solo', main: [['inst', 'uku']], k: 'ST', name: '尤克里里独奏谱', intent: 'solo' },
         { n: '小提琴＋钢琴', sc: 'inst', inst: 'violin', more: [['tacc', 'with']], k: 'SG', name: '小提琴＋钢琴伴奏谱（五线谱）', intent: 'inst' },
         { n: '大提琴（五线谱）', sc: 'inst', inst: 'cello', k: 'S', name: '大提琴谱（五线谱）', intent: 'inst' },
@@ -665,8 +666,16 @@ function GEO_PAGE() {
       const u = await run([['c', '.nf-modal [data-scene="solo"]'], ['c', '#nf-params [data-act="var"][data-k="inst"][data-v="uku"]']], '尤克里里独奏谱');
       const s = await run([['c', '.nf-modal [data-scene="sight"]'], ['c', '#nf-pvmel [data-act="mel"][data-v="J"]']], '简谱歌谱');
       const x = await run([['c', '.nf-modal [data-scene="inst"]'], ['sel', 'sax'], ['c', '#nf-pvmel [data-act="mel"][data-v="J"]']], '萨克斯谱（简谱）');
+      /* v70.0 验收⑤：合唱＋钢琴＝歌谱 → 四部 → 参数行「加伴奏」→ 创建（3 次点选＋创建；此前 ⋯ → 加伴奏 → 收起 ⋯ 多 2 步）；参数行「钢琴」chip 只在二部及以上出现，⋯ 里不再重复；独唱不出 */
+      const chip = async () => pg.evaluate(() => ({ main: !!document.querySelector('#nf-params [data-act="var"][data-k="tacc"]'), more: (() => { const m = document.querySelector('#nf-more'); m.click(); const r = !!document.querySelector('#nf-moreb [data-act="var"][data-k="tacc"]'); m.click(); return r; })() }));
+      await pg.evaluate(() => { try { closeModal(); } catch (_) {} localStorage.removeItem('musetab-nw-last'); __panel(); }); await W(250);
+      await pg.click('.nf-modal [data-scene="vocal"]'); await W(80); const c1 = await chip();
+      await pg.click('#nf-params [data-act="var"][data-k="parts"][data-v="2"]'); await W(80); const c2 = await chip();
+      const vis4 = await pg.isVisible('#nf-params [data-act="var"][data-k="tacc"][data-v="with"]');
+      const ch = await run([['c', '.nf-modal [data-scene="vocal"]'], ['c', '#nf-params [data-act="var"][data-k="parts"][data-v="4"]'], ['c', '#nf-params [data-act="var"][data-k="tacc"][data-v="with"]']], '简谱合唱谱（含钢琴伴奏）');
       await ctx.close();
       T('N10', u.ok && s.ok && x.ok, '点击数（面板打开起，含「创建」）：尤克里里指弹 ' + u.n + '、简谱视唱 ' + s.n + '、萨克斯简谱 ' + x.n + '（P2a 形态，只记录不设上限）', J({ u, s, x }));
+      T('N10', ch.ok && ch.n === 4 && vis4 && !c1.main && c1.more && c2.main && !c2.more, '合唱＋钢琴：歌谱 → 四部 → 参数行「加伴奏」→ 创建＝' + ch.n + ' 次（3 次点选＋创建，建成简谱合唱谱（含钢琴伴奏））；「钢琴」chip 独唱不出（⋯ 里照旧）、二部起在参数行（⋯ 里不重复）', J({ ch, c1, c2, vis4 }));
     });
 
     T('E', !pageErrs.length, '页面脚本错误 0', pageErrs.slice(0, 5).join(' | '));
