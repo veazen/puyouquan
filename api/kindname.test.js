@@ -362,6 +362,11 @@ T('P1 pzq：停用词 / 整词 / 末尾「X谱」/ 组合规则 / 乐器调只�
   assert.strictEqual(g('简谱'), '|jianpu|||||only||||');
   assert.strictEqual(g('乌克丽丽'), '|uku|||||only||||');
   assert.strictEqual(g('教资 儿歌弹唱'), '||||shifan||||||');
+  /* v70.0 验收④：「艺考视唱」「艺考视唱练耳」连写＝艺考专题（同「艺考」口径；此前整词当曲名 0 条）；带曲名 / 分写照旧 */
+  for (const q of ['艺考', '艺考视唱', '艺考视唱练耳']) assert.strictEqual(g(q), '||||yikao||||||', q);
+  assert.strictEqual(g('艺考 视唱'), '||shichang||yikao||||||');
+  assert.strictEqual(g('小星星 艺考视唱'), '小星星||||yikao||||||');
+  { const r = P.parse('艺考视唱'); assert.ok(r.conds.length === 1 && r.conds[0].label === '专题：艺考视唱练耳' && r.conds[0].rm === '', JSON.stringify(r.conds)); }
   assert.strictEqual(g('器乐谱'), '|||||||||inst|');
   assert.strictEqual(P.parse('C调葫芦丝').keySort, 'C'); assert.strictEqual(P.parse('C调葫芦丝').key, '', '乐器的调不筛');
   assert.strictEqual(P.parse('G调 吉他 晴天').fkey, 'G'); assert.strictEqual(P.parse('小星星 C调').key, 'C');

@@ -61,7 +61,7 @@ const WORDS = {
   '线简混排': { sub: 'duizhao', cat: 'dz' }, '五线谱简谱对照': { sub: 'duizhao', cat: 'dz' }, '简谱转五线谱': { sub: 'duizhao', cat: 'dz' }, '教学对照谱': { sub: 'duizhao', cat: 'dz' },
   '儿歌': { style: 'erge' }, '少儿': { style: 'erge' }, '儿童歌曲': { style: 'erge' },
   '二部': { parts: 2 }, '三部': { parts: 3 }, '四部': { parts: 4 },
-  '考编': { zt: 'kaobian' }, '教资': { zt: 'kaobian' }, '面试': { zt: 'kaobian' }, '艺考': { zt: 'yikao' }, '师范': { zt: 'shifan' }, '幼师': { zt: 'shifan' },
+  '考编': { zt: 'kaobian' }, '教资': { zt: 'kaobian' }, '面试': { zt: 'kaobian' }, '艺考': { zt: 'yikao' }, '艺考视唱': { zt: 'yikao' }, '艺考视唱练耳': { zt: 'yikao' }, '师范': { zt: 'shifan' }, '幼师': { zt: 'shifan' },
   '课堂': { zt: 'ketang' }, '音乐课': { zt: 'ketang' }
 };
 const ZT_NAME = { kaobian: '考编即兴伴奏', yikao: '艺考视唱练耳', shifan: '师范儿歌弹唱', ketang: '课堂对照谱' };
