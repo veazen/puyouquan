@@ -41254,7 +41254,10 @@ var NWP = (function(){
   }
   function onClick(e){
     const t=e.target.closest('[data-act],[data-scene],[data-row],[data-isrc],[data-ex],[data-rc],button[id]'); if(!t || t.disabled || !st) return;
-    if(t.dataset.isrc!=null || t.dataset.ex!=null || t.dataset.rc!=null){ pickOpt(t); return; }
+    if(t.dataset.isrc!=null || t.dataset.ex!=null || t.dataset.rc!=null){ pickOpt(t);
+      /* v70.0 复验：鼠标点到被吸底预览压住一角的示例卡片，同方向键一样把网格往上滚开（exAbovePv 只在分组 nf-stick 时生效，旧形态不动） */
+      if(t.dataset.ex!=null){ const f=modal && modal.querySelector('#nf-exl [data-ex="'+t.dataset.ex+'"]'); if(f) try{ exAbovePv(f); }catch(_){} }
+      return; }
     if(t.dataset.scene){
       const id=t.dataset.scene;
       if(e.detail>=2 && id===st.scene){ create(); return; }   /* 双击用途直接建 */

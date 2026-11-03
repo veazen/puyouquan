@@ -149,6 +149,16 @@ async function snapEx(b, url) {
         const steps = [];
         const opts = await pg.evaluate(() => [...document.querySelectorAll('#nf-exl [role=option]')].map(o => +o.dataset.ex));
         for (const i of [opts[0], opts[10], opts[opts.length - 1]]) { await pg.click('#nf-ex-' + i); await pg.waitForTimeout(250); steps.push(['点' + i, await vis()]); }
+        /* v70.0 复验补：鼠标点一张上沿露着、下半被吸底预览压住的卡片（点上沿）→ 网格滚开，整张卡露出（不只中心点） */
+        await pg.evaluate(() => { const m = document.querySelector('#nf-pvbox').closest('.nf-mid'); if (m) m.scrollTop = 0; const g = document.querySelector('#nf-exl'); let s = g; while (s && !(s.scrollHeight > s.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(s).overflowY))) s = s.parentElement; if (s) s.scrollTop = 0; });
+        await pg.waitForTimeout(150);
+        const part = await pg.evaluate(() => { const P = document.querySelector('#nf-pv').getBoundingClientRect();
+          const o = [...document.querySelectorAll('#nf-exl [role=option]')].find(x => { const r = x.getBoundingClientRect(); return r.top < P.top - 4 && r.bottom > P.top + 4; });
+          if (!o) return null; const r = o.getBoundingClientRect(); return { ex: +o.dataset.ex, x: r.left + r.width / 2, y: r.top + 3 }; });
+        if (part) { await pg.mouse.click(part.x, part.y); await pg.waitForTimeout(250);
+          const cov = await pg.evaluate(ex => { const o = document.querySelector('#nf-exl [data-ex="' + ex + '"]'), P = document.querySelector('#nf-pv').getBoundingClientRect(), r = o.getBoundingClientRect();
+            return { ex, bottom: Math.round(r.bottom), pvTop: Math.round(P.top), sel: o.getAttribute('aria-selected') === 'true' }; }, part.ex);
+          if (!(cov.sel && cov.bottom <= cov.pvTop + 1)) { ok = false; steps.push(['点上沿' + part.ex, { pvIn: false, selVis: false, cap: '', nm: 'x', cov }]); } else out[w + 'x' + h + ':点上沿'] = cov; }
         for (const k of ['Home', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'End', 'ArrowUp', 'Home']) { await pg.keyboard.press(k); await pg.waitForTimeout(120); steps.push([k.replace('Arrow', ''), await vis()]); }
         const bad = steps.filter(([, v]) => !(v.pvIn && v.selVis && v.cap.includes(v.nm.replace(/（.*$/, ''))));
         if (bad.length) ok = false;
