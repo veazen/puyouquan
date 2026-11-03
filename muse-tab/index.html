@@ -39461,6 +39461,24 @@ var NWB = (function(){
     s.measures.forEach(m=>m.voxes.push(blankVoxCols(s.beats, s.unit)));
   }
   const pianoMix = (s, idx)=>{ s.mixer = s.mixer||{}; idx.forEach(i=>{ s.mixer['vox:'+i]={on:true, solo:false, inst:'piano', vol:1, pan:null}; }); };
+  /* v69.6 I4（复核 N4，只改新建）：有歌词的多声部（合唱）默认声部名与谱号——四部 女高 / 女低 / 男高 / 男低（staff / staff / staff / bass；
+     男高音的「高音谱号下加 8」要新字段，随 v69.5）、三部 SAB 女高 / 女低 / 男低（staff / staff / bass）；二部照旧两个高音谱号、「旋律1 / 2」（学校二部多是高低两个童声 / 女声声部）。
+     简谱合唱只改声部名（不写谱号）；无词的五线谱多行＝重奏谱，照旧「旋律N」。老谱不经过这里。
+     v70.0 P2a（规格 §6.5 ②）抽成函数：只改第 0..n-1 行（合唱＋钢琴的钢琴两行不动），staff＝五线谱合唱（J＝简谱合唱只改名）；
+     voxClefOct 长度＝voxVoices 长度（migrate 丢弃长度不符的数组）——J / S / SJ 原调用输出逐字节不变（tv_v696in I4、tv_v698nota 守） */
+  function choirDefaults(s, n, staff){
+    if(!((s.lyricLines|0)>0)) return;
+    const CH={4:['女高','女低','男高','男低'], 3:['女高','女低','男低']}[n];
+    if(!CH) return;
+    s.voxVoices=CH.concat((s.voxVoices||[]).slice(n));
+    if(!staff) return;
+    const cl=(s.voxNotations||[])[0]||'staff';
+    if(cl!=='staff') return;
+    s.voxNotations={4:['staff','staff','staff','bass'], 3:['staff','staff','bass']}[n].concat((s.voxNotations||[]).slice(n));
+    if(n===4){ const a=s.voxVoices.map(()=>null); a[2]=-1; s.voxClefOct=a; }   /* v69.8 C 组（复核 N4）四部五线合唱男高用「高音谱号下加 8」（只改新建） */
+  }
+  /* v70.0 P2a（规格 §6.5 ⑤）面板计划的谱行 → 建成谱的谱行：合唱＋钢琴（JG / SG 且 nVox>1）建成「多行旋律＋钢琴」，stackOf 推断为 J / S——唯一不同的情形 */
+  const effStack = (k, o)=> (k==='JG'||k==='SG') && o && (+o.nVox||1)>1? (k==='JG'? 'J' : 'S') : k;
   /* 真实建谱：一律走 createSong（新谱 8 小节起的老口径改为按用途给小节数），后处理只写既有字段 */
   function build(id, o){
     o = Object.assign({title:'未命名曲谱', key:'C', beats:4, unit:4, tempo:90, nMea:8, nVox:1, inst:'guitar'}, o||{});
@@ -39474,16 +39492,31 @@ var NWB = (function(){
       case 'SJ': s=createSong('teach',    Object.assign(base,{nVox:o.nVox, lyr:ly(1)})); break;
       case 'T':  s=createSong('tanchang', Object.assign(base,{inst:o.inst, nTab:1, nVox:0, lyr:0})); break;
       case 'JT': s=createSong('tanchang', Object.assign(base,{inst:o.inst, nTab:1, nVox:1, lyr:ly(1)})); break;
-      case 'ST': s=createSong('solo',     Object.assign(base,{nTab:1, nVox:0, lyr:0})); break;
+      case 'ST':
+        /* v70.0 P2a（规格 §6.5 ④）尤克里里指弹＝尤克里里独奏谱（四线谱＋五线谱联排）；吉他照旧 */
+        if(o.inst==='uku'){ s=createSong('uku', Object.assign(base,{nTab:1, nVox:0, lyr:0})); s.tabStaff=true; break; }
+        s=createSong('solo',     Object.assign(base,{nTab:1, nVox:0, lyr:0})); break;
       case 'G':  s=createSong('piano',    Object.assign(base,{lyr:0})); if(!o.instKey) o.instKey='piano'; break;   /* 大谱表默认钢琴身份与音色（同 v60.46 键盘·独奏） */
       case 'CG': s=createSong('pianoacc', Object.assign(base,{lyr:ly(1)})); s.instKey='piano'; pianoMix(s,[0,1]); break;   /* 同 v60.46 键盘·伴奏：instKey＋混音台钢琴音色 */
       case 'CJ': s=createSong('func',     Object.assign(base,{ftype:'func', nVox:1, lyr:ly(1)})); break;
       case 'CS': s=createSong('func',     Object.assign(base,{ftype:'func', nVox:1, lyr:ly(1)})); s.voxNotations=['staff']; break;
       case 'C':  s=createSong('func',     Object.assign(base,{ftype:'chord', nVox:1, lyr:0})); break;
       case 'JG': case 'SG': case 'SJG': {
+        const n=(id==='JG'||id==='SG')? Math.max(1, Math.min(4, Math.round(+o.nVox)||1)) : 1;
+        if(n>1){
+          /* v70.0 P2a（规格 §6.5 ①）合唱＋钢琴：n 行合唱（声部名 / 谱号同 J / S 合唱）＋右手 / 左手伴奏；合唱方括号、钢琴花括号（v64.4 voxGroups 既有字段） */
+          s=createSong(id==='JG'? 'vocal' : 'instr', Object.assign(base,{nVox:n, clef:'staff', lyr:ly(1)}));
+          addVoxRow(s,'右手伴奏','staff'); addVoxRow(s,'左手伴奏','bass');
+          choirDefaults(s, n, id==='SG');
+          s.funcNames=true;
+          s.voxGroups=[{type:'bracket', from:0, to:n-1}, {type:'brace', from:n, to:n+1}];
+          pianoMix(s,[n, n+1]);
+          break;
+        }
         /* 旋律＋钢琴伴奏＝「一键配伴奏」（arrangeAccompaniment）产物的同一结构：旋律 / 右手伴奏 / 左手伴奏 */
         s=createSong(id==='JG'? 'vocal' : 'instr', Object.assign(base,{nVox:1, clef:'staff', lyr:ly(1)}));
-        s.voxVoices=['旋律']; s.voxNotations=[id==='JG'? undefined : 'staff'];
+        /* v70.0 P2a（规格 §6.5 ③）器乐＋钢琴（SG 带乐器身份）：旋律行用乐器谱号（大提琴 / 长号 / 贝斯＝低音，其他器乐按所选）；不带 instKey 的 SG（钢琴伴奏 / 换谱类）照旧高音谱号 */
+        s.voxVoices=['旋律']; s.voxNotations=[id==='JG'? undefined : (id==='SG' && o.instKey && o.clef)? o.clef : 'staff'];
         addVoxRow(s,'右手伴奏','staff'); addVoxRow(s,'左手伴奏','bass');
         if(id==='SJG') s.voxDual=[true,false,false];
         s.funcNames=true;
@@ -39494,16 +39527,8 @@ var NWB = (function(){
     }
     if(o.mode==='minor') s.mode='minor';   /* 小调按关系大调记谱（同导入口径），只写 song.mode */
     if((id==='J'||id==='S'||id==='SJ') && (s.voxVoices||[]).length>1) s.voxGroups=[{type:'bracket', from:0, to:s.voxVoices.length-1}];   /* v64.4 B4e 合唱显式分组 */
-    /* v69.6 I4（复核 N4，只改新建）：有歌词的多声部（合唱）默认声部名与谱号——四部 女高 / 女低 / 男高 / 男低（staff / staff / staff / bass；
-       男高音的「高音谱号下加 8」要新字段，随 v69.5）、三部 SAB 女高 / 女低 / 男低（staff / staff / bass）；二部照旧两个高音谱号、「旋律1 / 2」（学校二部多是高低两个童声 / 女声声部）。
-       简谱合唱只改声部名（不写谱号）；无词的五线谱多行＝重奏谱，照旧「旋律N」。老谱不经过这里 */
-    if((id==='J'||id==='S'||id==='SJ') && (s.lyricLines|0)>0){
-      const nv=(s.voxVoices||[]).length, CH={4:['女高','女低','男高','男低'], 3:['女高','女低','男低']}[nv];
-      if(CH){ s.voxVoices=CH.slice();
-        if(id!=='J'){ const cl=(s.voxNotations||[])[0]||'staff';
-          if(cl==='staff'){ s.voxNotations={4:['staff','staff','staff','bass'], 3:['staff','staff','bass']}[nv];
-            if(nv===4) s.voxClefOct=[null, null, -1, null]; } } }   /* v69.8 C 组（复核 N4）四部五线合唱男高用「高音谱号下加 8」（只改新建） */
-    }
+    /* v69.6 I4 合唱默认声部名与谱号（v70.0 抽成 choirDefaults，合唱＋钢琴在上面 JG / SG 分支里另调） */
+    if(id==='J'||id==='S'||id==='SJ') choirDefaults(s, (s.voxVoices||[]).length, id!=='J');
     /* v69.6 I6（复核 N8）钢琴独奏显式写花括号（v64.4 voxGroups 既有字段）：此前靠推断，右手一填词就判成合唱方括号、谱名也变成合唱谱 */
     if(id==='G') s.voxGroups=[{type:'brace', from:0, to:1}];
     /* v69.6 I1（复核 N1）最上面的旋律行是高音谱号、本调 do 折到 G3–B3（1=G～B）时设 refOct=1（v65.0 既有字段）——与「建 C 再换 G」（transposeSong 抬 refOct）
@@ -39515,6 +39540,14 @@ var NWB = (function(){
       s.instKey=o.instKey;
       const it=NW_INSTS.find(x=>x.k===o.instKey);
       if(it && it.tim){ s.mixer={}; s.voxVoices.forEach((_,i)=>{ s.mixer['vox:'+i]={on:true, solo:false, inst:it.tim, vol:1, pan:null}; }); }
+    }
+    else if(o.instKey && id==='SG' && (s.voxVoices||[]).length===3){
+      /* v70.0 P2a（规格 §6.5 ③）器乐＋钢琴：instKey 写入；混音台只把旋律行（第 0 行）设成乐器音色，钢琴两行保留 pianoMix；
+         旋律行声部名＝乐器名（首行声部名印「小提琴」＋「钢琴」，规格 §6.11；其他器乐照旧「旋律」） */
+      s.instKey=o.instKey;
+      const it=NW_INSTS.find(x=>x.k===o.instKey);
+      if(it && it.tim) s.mixer=Object.assign({'vox:0':{on:true, solo:false, inst:it.tim, vol:1, pan:null}}, s.mixer||{});
+      if(it && it.k!=='other') s.voxVoices[0]=it.name;
     }
     /* v69.8 C 组（复核 E5）新建多声部谱默认印首行声部名（≥2 条旋律行、至少 1 条五线谱行；钢琴大谱表一组算一份——钢琴独奏不印） */
     if(rowNamesOn(Object.assign({}, s, {rowNames:1}))) s.rowNames=1;
@@ -39547,7 +39580,7 @@ var NWB = (function(){
     return !(s.measures||[]).some(m=>(m.voxes||[]).some(cs=>(cs||[]).some(c=>c&&((c.deg>0)||(c.chord)||(c.lyrics||[]).some(x=>String(x||'').trim()))))
       || (m.tabs||[]).some(cs=>(cs||[]).some(c=>c&&((c.notes||[]).length||c.chord||c.strum||c.perc))));
   }
-  return {ROWS, ORDER, STACKS, VALID, own, keyOf, why, resolve, build, stackOf, kindOf, ctxOf, kindOfSong, isAccStack, isEmptySong};
+  return {ROWS, ORDER, STACKS, VALID, own, keyOf, why, resolve, build, stackOf, kindOf, ctxOf, kindOfSong, isAccStack, isEmptySong, effStack, choirDefaults};
 })();
 
 /* ---- v67.5 新建面板实时刻版预览 NWPV（README §1「中栏看见成品」与「实时预览的正式实现」，拍板 7）----
@@ -39657,9 +39690,23 @@ var NWPV = (function(){
     const ly = bo.lyr;
     const lowOct = (o.clef==='bass')? -1 : 0;   /* 低音谱号：旋律下移八度落在低音谱表里 */
     let s;
+    if((k==='JG'||k==='SG') && (bo.nVox|0)>1){
+      /* v70.0 P2a（规格 §6.7）合唱＋钢琴：J / S 合唱分支（PARTS44）与 JG / SG 伴奏分支各建一份，伴奏谱的第 1、2 行逐小节拼到合唱谱后面；
+         结构字段（声部名 / 记谱法 / 分组 / 混音台 / 谱号八度 / 首行名 / 和弦名显示）取 NWB.build 同一份，与建成一致 */
+      const n=Math.max(1, Math.min(4, bo.nVox|0));
+      const ch = buildSample(k==='JG'? 'J' : 'S', Object.assign({}, o, {nVox:n}));
+      const acc = buildSample(k, Object.assign({}, o, {nVox:1}));
+      const sk = NWB.build(k, Object.assign({}, bo, {nVox:n}));
+      s = ch;
+      s.measures.forEach((m, mi)=>{ const am=acc.measures[mi]; m.voxes = m.voxes.slice(0, n).concat([1, 2].map(i=>JSON.parse(JSON.stringify((am && am.voxes[i]) || blankVoxCols(beats, unit))))); });
+      ['voxVoices','voxNotations','voxGroups','mixer','voxClefOct','rowNames','funcNames'].forEach(f=>{ if(sk[f]!==undefined) s[f]=JSON.parse(JSON.stringify(sk[f])); else delete s[f]; });
+      return s;
+    }
     if(k==='JG'||k==='SG'||k==='SJG'||k==='CG'){
       const mel = NWB.build(k==='JG'? 'J' : 'S', Object.assign({}, bo, {nVox:1, lyr:ly||1}));
-      mel.measures.forEach((m, mi)=>{ m.voxes[0] = rows[mi].map(e=>vc(e, {ly:ly||1, ch:1, minor})); });
+      /* v70.0 P2a 器乐＋钢琴（SG 带乐器身份、低音谱号乐器）：旋律下移八度落在低音谱表里（同 S 分支 lowOct；钢琴伴奏 SG 没有 clef，照旧） */
+      const mo = (k==='SG' && bo.instKey)? lowOct : 0;
+      mel.measures.forEach((m, mi)=>{ m.voxes[0] = rows[mi].map(e=>vc(e, {ly:ly||1, ch:1, minor, oct:mo})); });
       if(minor) mel.mode='minor';
       const avail = texAvail(beats, unit);
       const texId = avail.length? accTexDefault(mel, avail, false, o.scene==='kids') : undefined;
@@ -39667,6 +39714,7 @@ var NWPV = (function(){
       s = r.song; s.title = bo.title;
       if(k==='JG'){ s.voxNotations=[undefined,'staff','bass']; delete s.voxDual; }
       if(k==='SG') delete s.voxDual;
+      if(k==='SG' && bo.instKey && bo.clef && Array.isArray(s.voxNotations)) s.voxNotations[0]=bo.clef;   /* v70.0 器乐＋钢琴：旋律行乐器谱号（同 NWB.build） */
       if(k!=='CG') s.voxGroups=[{type:'brace', from:1, to:2}];
       /* 歌词段数同真实建谱（CG 也按面板的「歌词段数」留词位——验收：此前写死 0，预览比建成的谱矮一截） */
       s.lyricLines = ly;
@@ -39675,6 +39723,10 @@ var NWPV = (function(){
       if(!ly && k!=='CG') s.measures.forEach(m=>{ (m.voxes[0]||[]).forEach(c=>{ c.lyrics=[]; }); });
       if(minor) s.mode='minor';
       if(bo.instKey) s.instKey=bo.instKey;
+      if(k==='SG' && bo.instKey){   /* v70.0 器乐＋钢琴：旋律行声部名 / 首行声部名同 NWB.build */
+        const sk=NWB.build('SG', Object.assign({}, bo, {nVox:1}));
+        s.voxVoices[0]=sk.voxVoices[0]; if(sk.rowNames===1) s.rowNames=1;
+      }
     }else{
       s = NWB.build(k, bo);
       const nv = (s.voxVoices||[]).length;
@@ -39705,11 +39757,13 @@ var NWPV = (function(){
         /* 独奏：旋律（含和弦）先放进临时旋律行，按 mapVoxToTab 同一套取位（vtPlanItems，跟随和弦图）转成把位，再加和弦根音低音 */
         const tmp = NWB.build('J', Object.assign({}, bo, {lyr:0}));
         if(bo.tuning) tmp.tuning = bo.tuning.slice();
+        const uku = s.inst==='uku';
+        if(uku) tmp.inst = 'uku';   /* v70.0 尤克里里指弹：临时旋律谱带乐器，vtPlanItems 才按 GCEA 四弦取把位；不加和弦根音低音 */
         tmp.measures.forEach((m, mi)=>{ m.voxes[0] = rows[mi].map(e=>vc(e, {ch:1, minor})); });
         const P = borrow(tmp, ()=>vtPlanItems(0, 'follow'));
         s.measures.forEach((m, mi)=>{ m.tabs[0] = []; });
         P.items.forEach(it=>{ const col=vtCol(it); const e=rows[it.mi][it.ci];
-          if(e && e.chN){ col.chord=e.chN; const sh=borrow(s, ()=>chordShape(e.chN)); if(sh){ for(let q=6;q>=4;q--){ const f=shapeString(sh,q); if(f!=null){ if(!col.notes.some(n=>n.s>=q-1)) col.notes.unshift({s:q, f}); break; } } } }
+          if(e && e.chN){ col.chord=e.chN; const sh=!uku && borrow(s, ()=>chordShape(e.chN)); if(sh){ for(let q=6;q>=4;q--){ const f=shapeString(sh,q); if(f!=null){ if(!col.notes.some(n=>n.s>=q-1)) col.notes.unshift({s:q, f}); break; } } } }
           s.measures[it.mi].tabs[0].push(col); });
       }
       if(k==='C') s.lyricLines=0;
@@ -39765,11 +39819,11 @@ var NWP = (function(){
     gtr:   {n:'吉他弹唱', ic:'type-guitar', long:'六线谱与和弦图在上，简谱旋律与歌词在下。', def:{key:'C', beats:4, unit:4, tempo:80, nMea:16, lyr:1}, vars:['inst','pen'], fixedMel:'简谱（弹唱谱惯例）'},
     pacc:  {n:'钢琴即兴伴奏', tag:'考编', ic:'type-jg', long:'先写旋律，再一键配和弦、选织体，生成双手伴奏。', def:{key:'C', beats:4, unit:4, tempo:72, nMea:16, lyr:1}, vars:['acc']},
     kids:  {n:'儿歌弹唱', tag:'师范', ic:'type-kids', long:'短小的 2/4 儿歌，配可以自弹自唱的钢琴伴奏。', def:{key:'F', beats:2, unit:4, tempo:104, nMea:8, lyr:2}, vars:['acc']},
-    vocal: {n:'歌谱 · 合唱', ic:'type-vocal', long:'每个声部一行，歌词逐字对位，合唱自动加括号。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:16, lyr:1}, vars:['parts']},
+    vocal: {n:'歌谱 · 合唱', ic:'type-vocal', long:'每个声部一行，歌词逐字对位，合唱自动加括号。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:16, lyr:1}, vars:['parts'], vars2:['tacc']},
     teach: {n:'教学对照谱', tag:'课堂', ic:'type-teach', long:'五线谱与简谱逐音对齐、歌词在下：音乐课与考级的标配。', def:{key:'C', beats:4, unit:4, tempo:88, nMea:16, lyr:1}, vars:['tacc'], fixedMel:'五线谱＋简谱（对照）'},
     sight: {n:'视唱练耳谱例', tag:'艺考', ic:'type-sight', long:'规范的五线谱单旋律，不带歌词，大调小调直接建。', def:{key:'C', beats:4, unit:4, tempo:72, nMea:8, lyr:0}, vars:['clef'], fixedMel:'五线谱（视唱惯例）'},
-    solo:  {n:'指弹 · 吉他独奏', ic:'type-solo', long:'六线谱与五线谱联排同步，推弦、击勾、泛音等技法齐全。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:0}, vars:[], fixedMel:'六线谱＋五线谱联排'},
-    inst:  {n:'器乐独奏', ic:'type-instr', long:'键盘用大谱表，管弦用五线谱，民乐用简谱（可选五线谱）。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:0}, vars:['instKey']},
+    solo:  {n:'指弹 · 吉他独奏', ic:'type-solo', long:'六线谱与五线谱联排同步，推弦、击勾、泛音等技法齐全。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:0}, vars:[], vars2:['inst'], fixedMel:'六线谱＋五线谱联排'},
+    inst:  {n:'器乐独奏', ic:'type-instr', long:'键盘用大谱表，管弦用五线谱，民乐用简谱（可选五线谱）。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:0}, vars:['instKey'], vars2:['tacc']},
     chord: {n:'和弦谱 · 功能谱', tag:'乐队', ic:'type-chord', long:'小节格和弦进行，或在旋律上标级数和弦，移调即时生效。', def:{key:'C', beats:4, unit:4, tempo:84, nMea:16, lyr:0}, vars:['ftype']},
     blank: {n:'空白谱', ic:'type-blank', long:'一条旋律行，其余音轨建好后在左栏「＋音轨」加。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:1}, vars:[]},
     custom:{n:'自选记谱法', ic:'type-custom', long:'简谱、五线谱、六线谱、大谱表、和弦自由组合，最多 3 种。', def:{key:'C', beats:4, unit:4, tempo:90, nMea:8, lyr:1}, vars:[]},
@@ -39778,9 +39832,16 @@ var NWP = (function(){
   /* 器乐独奏的乐器表直接读 NW_INSTS（后期加乐器只在那里增一行）：kbd＝大谱表，staff＝五线谱（谱号预置），jianpu＝民乐简谱（可选五线谱），other＝五线谱（谱号可选）。
      v70.0 第 0 步：nx:1 的 6 种（P2a 新乐器）不进这张旧表——旧外壳 / ?next=0 / 手机 MPC 的下拉、读回上次、深链校验界面零变化（新形态列出它们是 nwP2A() 下的事） */
   const INSTS = NW_INSTS.filter(x=>x.fam!=='tab' && !x.nx);
-  const famOf = k=>{ const it=INSTS.find(x=>x.k===k)||INSTS.find(x=>x.k==='piano'); return it.fam; };
+  /* v70.0 P2a（规格 §6.1）：INSTS_ALL＝含 6 种新乐器的全表；instsShown()＝当前形态该列的那张（新形态全表，旧外壳 / ?next=0 / 手机旧 20 种）。
+     famOf 查全表（否则大提琴被当成钢琴族）——旧形态里 instKey 先经 instsShown() 校验，到不了新乐器 */
+  const INSTS_ALL = NW_INSTS.filter(x=>x.fam!=='tab');
+  const instsShown = ()=> nwP2A()? INSTS_ALL : INSTS;
+  const famOf = k=>{ const it=INSTS_ALL.find(x=>x.k===k)||INSTS_ALL.find(x=>x.k==='piano'); return it.fam; };
   /* 「更多乐器」下拉按记谱分 4 组（方案口径：贝斯归「西洋管弦 · 五线谱」、排在组末；NW_INSTS 的 grp 是音色分组，不动） */
   const IGRP = [['键盘', x=>x.fam==='kbd'], ['西洋管弦 · 五线谱', x=>x.fam==='staff'], ['民乐 · 简谱', x=>x.fam==='jianpu'], ['其他', x=>x.fam==='other']];
+  /* v70.0 P2a（规格 §6.4）新形态下拉 5 组：简谱族按 NW_INSTS.grp 分「民乐」与「课堂乐器」（竖笛 / 口风琴 / 陶笛）；旧形态仍用 IGRP */
+  const IGRP2 = [['键盘', x=>x.fam==='kbd'], ['西洋管弦 · 五线谱', x=>x.fam==='staff'], ['民乐 · 简谱', x=>x.fam==='jianpu' && /^民乐/.test(x.grp||'')],
+    ['课堂乐器 · 简谱', x=>x.fam==='jianpu' && /^课堂乐器/.test(x.grp||'')], ['其他', x=>x.fam==='other']];
   const VARS = {
     inst:   {lab:'乐器', opts:[['guitar','吉他','inst-guitar'],['uku','尤克里里','inst-ukulele']], d:'guitar'},
     pen:    {lab:'从哪写起', opts:[['T','直接写六线谱','nota-tab6'],['J','先写旋律','nota-jianpu']], d:'T'},
@@ -39796,27 +39857,45 @@ var NWP = (function(){
   const ROWN = {J:'简谱', S:'五线谱', T:'六线谱', G:'钢琴大谱表', C:'和弦'};
   const SRCN = {scene:'场景惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认值'};   /* v67.6 link＝深链 ?new= 带来的值 */
 
-  function sceneStack(id, v, mel){
+  /* p2a（v70.0 P2a，规格 §6.1 / §6.2）：真＝新外壳新形态的新组合（面板内部一律传 nwP2A()）；缺省假＝v69.9 行为（手机 MPC 调用不传） */
+  function sceneStack(id, v, mel, p2a){
     switch(id){
       case 'gtr': return 'JT';
       case 'pacc': case 'kids': return v.acc==='pure'? 'CG' : (mel==='S'? 'SG' : 'JG');
-      case 'vocal': case 'blank': return mel==='S'? 'S' : 'J';
+      case 'vocal': return (p2a && v.tacc==='with')? (mel==='S'? 'SG' : 'JG') : (mel==='S'? 'S' : 'J');   /* 合唱＋钢琴（声部数在 optsOf 的 nVox） */
+      case 'blank': return mel==='S'? 'S' : 'J';
       case 'teach': return v.tacc==='with'? 'SJG' : 'SJ';
-      case 'sight': return 'S';
+      case 'sight': return p2a? (mel==='J'? 'J' : 'S') : 'S';   /* 简谱视唱 */
       case 'solo': return 'ST';
-      case 'inst': { const f=famOf(v.instKey); return f==='kbd'? 'G' : f==='jianpu'? (mel==='S'? 'S' : 'J') : 'S'; }
+      case 'inst': { const f=famOf(v.instKey);
+        if(p2a){ if(f==='kbd') return 'G'; if(v.tacc==='with') return 'SG'; return (f==='jianpu'||f==='staff')? (mel==='S'? 'S' : 'J') : 'S'; }   /* 器乐＋钢琴 / 西洋管弦可选简谱 */
+        return f==='kbd'? 'G' : f==='jianpu'? (mel==='S'? 'S' : 'J') : 'S'; }
       case 'chord': return v.ftype==='CJ'? (mel==='S'? 'CS' : 'CJ') : 'C';
     }
     return null;
   }
   /* 「旋律用 简谱 | 五线谱」只在能互换的用途出现；其余写明固定用什么 */
-  function melLive(id, v){
+  function melLive(id, v, p2a){
+    if(p2a && id==='sight') return true;
     if(['gtr','teach','sight','solo','custom'].includes(id)) return false;
     if((id==='pacc'||id==='kids') && v.acc==='pure') return false;
-    if(id==='inst') return famOf(v.instKey)==='jianpu';
+    if(id==='inst'){ const f=famOf(v.instKey); return p2a? (f==='jianpu'||f==='staff') && v.tacc!=='with' : f==='jianpu'; }
     if(id==='chord') return v.ftype==='CJ';
     return true;
   }
+  /* v70.0 P2a（规格 §6.3）「旋律用」默认值：处境键 sight（视唱）/ inst-staff（器乐且乐器是 staff 族）——进入时默认五线谱、离开回到原值；
+     用户在某处境里亲手选过（melBy）或深链带了 mel（src.mel==='link'）就不自动改。melK＝上次同步时所在处境（toggleRow 换到自选、撤销都不丢）。只在 nwP2A() 时生效 */
+  const melSitu = st=> st.scene==='sight'? 'sight' : (st.scene==='inst' && famOf(st.v.instKey)==='staff')? 'inst-staff' : '';
+  function melSync(st){
+    if(!nwP2A()) return;
+    const K=melSitu(st), K0=st.melK||'';
+    if(K===K0) return;
+    st.melK=K;
+    if(st.melAuto){ st.mel=st.melPrev==='S'? 'S' : 'J'; st.melAuto=false; }
+    if(K && st.melBy!==K && !(st.src && st.src.mel==='link')){ st.melPrev=st.mel; st.mel='S'; st.melAuto=true; }
+  }
+  /* 用户亲手选「旋律用」（点简谱 / 五线 / 键 1–5 留在本用途换了记谱法）：记下在哪个处境选的 */
+  function melUser(st){ if(!nwP2A()) return; st.src.mel='user'; st.melBy=melSitu(st); st.melAuto=false; st.melK=melSitu(st); }
   function melFixedText(st){
     const id=st.scene, v=st.v;
     if(SC[id].fixedMel) return SC[id].fixedMel;
@@ -39826,14 +39905,19 @@ var NWP = (function(){
     return '';
   }
   const stackRows = k=> NWB.STACKS[k]? NWB.STACKS[k].rows.slice() : [];
-  const stackOfState = st=> st.scene==='custom'? NWB.keyOf(st.rows) : sceneStack(st.scene, st.v, st.mel);
+  const stackOfState = st=> st.scene==='custom'? NWB.keyOf(st.rows) : sceneStack(st.scene, st.v, st.mel, nwP2A());
   function customVars(k){ const a=[]; if(k==='T'||k==='JT') a.push('inst'); if(k==='JT') a.push('pen'); if(['J','S','SJ'].includes(k)) a.push('parts'); if(k==='S') a.push('clef'); return a; }
-  /* 当前可见的变体（右栏真正画出来的那几个）——计划只读它们 */
+  /* 当前可见的变体（右栏真正画出来的那几个）——计划只读它们。
+     v70.0 P2a（规格 §6.2）新形态追加 SC.vars2（歌谱 · 合唱「钢琴伴奏」、指弹「吉他 / 尤克里里」、器乐「钢琴伴奏」——键盘族不显示）；视唱选简谱时不显示谱号 */
   function varsShown(st){
     const k=stackOfState(st);
     if(st.scene==='custom') return customVars(k);
     const a=SC[st.scene].vars.slice();
     if(st.scene==='inst' && st.v.instKey==='other') a.push('oclef');
+    if(nwP2A()){
+      (SC[st.scene].vars2||[]).forEach(vk=>{ if(!(st.scene==='inst' && vk==='tacc' && famOf(st.v.instKey)==='kbd')) a.push(vk); });
+      if(st.scene==='sight' && st.mel==='J') return a.filter(vk=>vk!=='clef');
+    }
     return a;
   }
   const lyrShown = (st,k)=> ['J','S','SJ','JT','JG','SG','SJG','CJ','CS','CG'].includes(k) && st.scene!=='sight' && st.scene!=='inst';
@@ -39919,17 +40003,18 @@ var NWP = (function(){
       const raw=String(R[vk]).trim();
       if(!varsShown(st).includes(vk)){ no(vk, raw); return; }
       let val=null;
-      if(vk==='instKey'){ const it=INSTS.find(x=>x.k.toLowerCase()===raw.toLowerCase()); val=it? it.k : null; }
+      if(vk==='instKey'){ const it=instsShown().find(x=>x.k.toLowerCase()===raw.toLowerCase()); val=it? it.k : null; }   /* v70.0：旧形态只认旧 20 种 */
       else { const o=VARS[vk].opts.find(([x])=>String(x).toLowerCase()===raw.toLowerCase()); val=o? o[0] : null; }
       if(val==null){ no(vk, raw); return; }
       st.v[vk]=val; ok.push(vk);
-      if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel));
+      melSync(st);   /* v70.0 链接换到 staff 族乐器＝五线谱默认（随后的 mel= 仍可改） */
+      if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A()));
     });
     if(R.mel!=null){
       const m=String(R.mel).trim().toUpperCase();
-      if(melLive(st.scene, st.v) && (m==='J'||m==='S')){ st.mel=m; ok.push('mel'); } else no('mel', R.mel);
+      if(melLive(st.scene, st.v, nwP2A()) && (m==='J'||m==='S')){ st.mel=m; ok.push('mel'); if(nwP2A()) st.src.mel='link'; } else no('mel', R.mel);
     }
-    if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel));
+    if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A()));
     if(R.key!=null){ const kk=linkKey(R.key); if(kk){ st.v.key=kk.key; st.v.mode=kk.mode; st.src.key='link'; ok.push('key'); } else no('key', R.key); }
     if(R.meter!=null){
       const m=/^\s*(\d{1,2})\s*[\/\-_]\s*(\d{1,2})\s*$/.exec(R.meter);
@@ -39951,7 +40036,7 @@ var NWP = (function(){
     if(st.scene==='custom') p.push(['rows', k]);
     p.push(['key', linkKeyStr(v)], ['meter', v.beats+'/'+v.unit], ['tempo', v.tempo]);
     varsShown(st).forEach(vk=>p.push([vk, v[vk]]));
-    if(melLive(st.scene, v)) p.push(['mel', st.mel]);
+    if(melLive(st.scene, v, nwP2A())) p.push(['mel', st.mel]);
     if(st.src.nMea==='user'||st.src.nMea==='link') p.push(['bars', v.nMea]);
     if((st.src.lyr==='user'||st.src.lyr==='link') && lyrShown(st, k)) p.push(['lyr', v.lyr]);
     const t=(v.title||'').trim(); if(t) p.push(['title', t]);
@@ -39969,11 +40054,14 @@ var NWP = (function(){
     });
     if(init || st.src.key!=='user'){ st.v.mode='major'; }
     s.vars.forEach(k=>{ st.v[k]=VARS[k].d; });
+    (s.vars2||[]).forEach(k=>{ st.v[k]=VARS[k].d; });   /* v70.0 P2a 只在新形态出现的变体：两种外壳都回默认（不从别的用途漏进来） */
     if(id==='inst') st.v.oclef=VARS.oclef.d;
     /* 变调夹 / 定弦：换用途时回默认，只有本次面板里亲手改过的才保留（验收：上次的 Drop D / 夹 3 品藏在收起的「更多设置」里被带进新谱） */
     if(init || st.src.capo!=='user'){ st.v.capo=0; delete st.src.capo; }
     if(init || st.src.tuning!=='user'){ st.v.tuning='std'; delete st.src.tuning; }
-    if(id!=='custom') st.rows=stackRows(sceneStack(id, st.v, st.mel));
+    if(!init && st.src.mel==='link') delete st.src.mel;   /* v70.0 深链 mel 只管打开时那个用途（同 st.link） */
+    melSync(st);   /* v70.0 P2a「旋律用」默认值（规格 §6.3；旧外壳 / ?next=0 不生效） */
+    if(id!=='custom') st.rows=stackRows(sceneStack(id, st.v, st.mel, nwP2A()));
     st.tpRaw=null; st.tpMsg=''; st.tpBad=false;
     if(!init) st.link=null;   /* 深链预选只管打开时那个用途：换了用途，调拍等回到新用途惯例，「链接里没认出」也不再挂着（收尾验收） */
   }
@@ -39987,7 +40075,7 @@ var NWP = (function(){
       st.v.title='';
       if(!KEY_LIST.includes(st.v.key)) st.v.key='C';
       if(st.v.mode!=='minor') st.v.mode='major';
-      if(!INSTS.some(x=>x.k===st.v.instKey)) st.v.instKey='piano';
+      if(!instsShown().some(x=>x.k===st.v.instKey)) st.v.instKey='piano';   /* v70.0：旧形态只认旧 20 种（新外壳选的大提琴回到旧外壳＝钢琴，同坏值口径） */
       const cl=(x,a,b,d)=>{ x=Math.round(+x); return isFinite(x) && x>=a && x<=b? x : d; };
       if(!NW_BEATS.includes(+st.v.beats)) st.v.beats=4; if(![2,4,8].includes(+st.v.unit)) st.v.unit=4;
       st.v.tempo=cl(st.v.tempo,30,240,90); st.v.nMea=cl(st.v.nMea,1,200,8); st.v.lyr=cl(st.v.lyr,0,4,1); st.v.capo=cl(st.v.capo,0,7,0); st.v.parts=cl(st.v.parts,1,4,1);
@@ -39996,8 +40084,10 @@ var NWP = (function(){
       Object.keys(VARS).forEach(k=>{ if(k!=='instKey' && !VARS[k].opts.some(([x])=>String(x)===String(st.v[k]))) st.v[k]=VARS[k].d; });
       ['key','meter','tempo','nMea','lyr'].forEach(f=>st.src[f]='last');
       if(st.v.tuning!=='std') st.src.tuning='last';
+      /* v70.0 P2a：上次的 mel 只是沿用（不记 src.mel / melBy）；落在视唱 / staff 族器乐里且是五线谱＝当作自动默认，离开时回到简谱（不把五线谱带进别的用途） */
+      if(nwP2A()){ st.melK=melSitu(st); if(st.melK && st.mel==='S'){ st.melAuto=true; st.melPrev='J'; } }
       if(last.scene==='custom') st.rows=stackRows(last.stack);
-      else st.rows=stackRows(sceneStack(st.scene, st.v, st.mel));
+      else st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A()));
       if(!own(NWB.STACKS, stackOfState(st))) return fresh(Object.assign({}, opt, {clean:true}));   /* 读出来拼不成合法组合：当没有上次 */
     } else applyScene(st, 'gtr', true);
     if(opt.scene && own(SC, opt.scene)) applyScene(st, opt.scene, true);
@@ -40014,11 +40104,12 @@ var NWP = (function(){
     const o={title:(v.title||'').trim()||'未命名曲谱', key:v.key, beats:+v.beats||4, unit:+v.unit||4, tempo:+v.tempo||90,
       nMea:Math.max(1, Math.min(200, Math.round(+v.nMea)||8)), lyr:lyrShown(st,k)? Math.max(0, Math.min(4, +v.lyr|0)) : 0, mode:v.mode==='minor'? 'minor' : 'major'};
     if(o.unit===8 && v.tunit==='dq') o.tempoUnit='dq';   /* v67.3 速度单位：只在与老口径默认不同时落字段 */
-    if(k==='T'||k==='JT') o.inst = shown.includes('inst')? v.inst : 'guitar';
+    if(k==='T'||k==='JT'||k==='ST') o.inst = shown.includes('inst')? v.inst : 'guitar';   /* v70.0 ST：尤克里里指弹（新形态「吉他 / 尤克里里」） */
     if(k==='T'||k==='JT') o.capo = Math.max(0, Math.min(7, +v.capo|0)); else o.capo=0;
     if(['J','S','SJ'].includes(k)) o.nVox = shown.includes('parts')? Math.max(1, Math.min(4, +v.parts||1)) : 1;
-    if(k==='S'){
-      if(st.scene==='inst'){ const it=INSTS.find(x=>x.k===v.instKey)||{}; o.clef = v.instKey==='other'? v.oclef : (it.clef==='bass'? 'bass' : 'staff'); }
+    if((k==='JG'||k==='SG') && st.scene==='vocal') o.nVox = shown.includes('parts')? Math.max(1, Math.min(4, +v.parts||1)) : 1;   /* v70.0 合唱＋钢琴 */
+    if(k==='S' || (k==='SG' && st.scene==='inst')){   /* v70.0 器乐＋钢琴：旋律行乐器谱号 */
+      if(st.scene==='inst'){ const it=INSTS_ALL.find(x=>x.k===v.instKey)||{}; o.clef = v.instKey==='other'? v.oclef : (it.clef==='bass'? 'bass' : 'staff'); }
       else o.clef = shown.includes('clef')? v.clef : 'staff';
     }
     if(st.scene==='inst') o.instKey=v.instKey;
@@ -40026,9 +40117,12 @@ var NWP = (function(){
     o.pen = k==='JT'? (shown.includes('pen')? v.pen : 'T') : '';
     return o;
   }
-  function kindOfState(st){ const k=stackOfState(st), o=optsOf(st); return NWB.kindOf(k, {nVox:o.nVox, inst:o.inst, instKey:o.instKey, lyr:o.lyr>0}); }
+  /* v70.0 P2a（规格 §6.6）合唱＋钢琴：面板谱行 JG / SG、建成谱行 J / S（NWB.effStack）——谱名按建成的叫（简谱合唱谱（含钢琴伴奏）），与页签 / docTypeLabel 同名 */
+  function kindOfState(st){ const k=stackOfState(st), o=optsOf(st), ek=NWB.effStack(k, o);
+    if(ek!==k) return NWB.kindOf(ek, {nVox:o.nVox, lyr:o.lyr>0, pno:true});
+    return NWB.kindOf(k, {nVox:o.nVox, inst:o.inst, instKey:o.instKey, lyr:o.lyr>0}); }
   /* 建谱计划：「创建」与回归测试都读它（用途 → 谱行组合 → createSong 参数） */
-  function planOf(st){ const k=stackOfState(st), o=optsOf(st); return {scene:st.scene, stack:k, o, kind:kindOfState(st), pen:o.pen, mel:melLive(st.scene, st.v)? st.mel : null}; }
+  function planOf(st){ const k=stackOfState(st), o=optsOf(st); return {scene:st.scene, stack:k, o, kind:kindOfState(st), pen:o.pen, mel:melLive(st.scene, st.v, nwP2A())? st.mel : null}; }
 
   /* ---- 挂载与重画 ---- */
   let st=null, modal=null, noteTimer=0, opener=null;
@@ -40176,9 +40270,10 @@ var NWP = (function(){
   const NXP = ()=>{ try{ return !!(st && !st.mob && typeof flowOn==='function' && flowOn() && FLOW.nxOn() && !document.body.classList.contains('flw-m')); }catch(_){ return false; } };
   const SRCN2 = {scene:'按惯例', last:'沿用上次', user:'你改的', link:'按链接', default:'默认'};
   /* 主变体（参数行 chip）：器乐独奏＝乐器下拉、吉他弹唱＝吉他 / 尤克里里、歌谱合唱＝声部、和弦谱＝谱式；其余变体在 ⋯ */
-  const MAINV = {gtr:'inst', vocal:'parts', chord:'ftype', inst:'#inst'};
+  const MAINV = {gtr:'inst', vocal:'parts', chord:'ftype', inst:'#inst', solo:'inst'};   /* v70.0 P2a 指弹「吉他 / 尤克里里」同吉他弹唱 */
   /* 三步胶片：取建好后悬浮条同一份步骤（lbSteps → FLOW.sbar.step2），空谱口径 */
   function filmSteps(k, o){
+    k=NWB.effStack(k, o);   /* v70.0 合唱＋钢琴＝合唱谱的步骤（「一键配伴奏」只认旋律＋钢琴三行） */
     let a=null; try{ a=lbSteps({measures:[], voxVoices:[], tabVoices:[], inst:o.inst}, k, {pen:o.pen}); }catch(_){ a=null; }
     if(!a || !a.length) return [];
     const s2=t=>(t==='生成六线谱' && o.inst==='uku')? '四线' : ((FLOW.sbar && FLOW.sbar.step2)? FLOW.sbar.step2(t) : t);
@@ -40197,7 +40292,8 @@ var NWP = (function(){
     let mv='';
     const mk=MAINV[id];
     if(mk==='#inst'){
-      mv='<span class="nf-pc nf-pcv">'+ic(((VARS.instKey.opts.find(x=>x[0]===v.instKey)||[])[2])||'inst-other',18)+'<select id="nf-inst" aria-label="乐器">'+IGRP.map(([g,f])=>'<optgroup label="'+g+'">'+INSTS.filter(f).sort((a,b)=>(a.k==='bass')-(b.k==='bass')).map(x=>'<option value="'+x.k+'"'+(v.instKey===x.k? ' selected' : '')+'>'+x.name+'</option>').join('')+'</optgroup>').join('')+'</select></span>'; }
+      const IG=nwP2A()? IGRP2 : IGRP, IL=instsShown();   /* v70.0 P2a：新形态 5 组（含 6 种新乐器）；空组不出 */
+      mv='<span class="nf-pc nf-pcv">'+ic(((VARS.instKey.opts.find(x=>x[0]===v.instKey)||[])[2])||'inst-other',18)+'<select id="nf-inst" aria-label="乐器">'+IG.map(([g,f])=>{ const xs=IL.filter(f); return xs.length? '<optgroup label="'+g+'">'+xs.sort((a,b)=>(a.k==='bass')-(b.k==='bass')).map(x=>'<option value="'+x.k+'"'+(v.instKey===x.k? ' selected' : '')+'>'+x.name+'</option>').join('')+'</optgroup>' : ''; }).join('')+'</select></span>'; }
     else if(mk && varsShown(st).includes(mk)){ const d=VARS[mk]; mv='<span class="nf-pc nf-pcv">'+seg(d.lab, mk, d.opts, v[mk])+'</span>'; }
     const params='<div class="nf-params" id="nf-params" role="group" aria-label="参数">'
       +'<span class="nf-pc nf-pct">'+(st.src.title==='link'? dot('title') : '')+'<input id="nw-title" type="text" value="'+esc2(v.title)+'" placeholder="曲名" aria-label="曲名" autocomplete="off" maxlength="80"></span>'
@@ -40216,7 +40312,7 @@ var NWP = (function(){
     /* 预览左上：记谱法唯一一处 */
     let pm;
     if(id==='custom') pm='<div class="nf-rows nf-pvrows" role="group" aria-label="要哪几种谱">'+ROWBTN.map(([r,n,i],x)=>'<button type="button" class="nf-row" data-row="'+r+'" aria-pressed="'+rows.includes(r)+'" aria-keyshortcuts="'+(x+1)+'" aria-label="'+n+'" title="'+n+'（'+(x+1)+'）">'+ic(i,18)+'</button>').join('')+'</div>';
-    else if(melLive(id, v)){ const D=rows.includes('J') && rows.includes('S');
+    else if(melLive(id, v, nwP2A())){ const D=rows.includes('J') && rows.includes('S');
       pm='<div class="nf-seg nf-pvmel" id="nf-pvmel" role="radiogroup" aria-label="旋律记谱法"><span class="nf-pvl" aria-hidden="true">旋律</span>'
         +[['J','简谱','旋律用简谱'],['S','五线','旋律用五线谱'],['D','对照','五线谱加简谱对照']].map(([m,t,al])=>{ const on= m==='D'? D : (!D && st.mel===m);
           return '<button type="button" role="radio" data-act="mel" data-v="'+m+'" aria-checked="'+on+'" tabindex="'+(on? 0 : -1)+'" aria-label="'+al+'">'+t+'</button>'; }).join('')+'</div>'; }
@@ -40254,13 +40350,15 @@ var NWP = (function(){
   /* 行标：谱面自上而下各行在引擎里的行号（v＝旋律 / 人声行，t＝六线谱行）；JT 的六线谱在上、简谱旋律在下（引擎 v67.3 起的约定） */
   function bandDefs(k, o){
     const n=o.nVox||1, last='v'+(n-1), tl=o.inst==='uku'? '四线谱' : '六线谱';
+    /* v70.0 P2a 合唱＋钢琴：合唱 n 行（从这行开始写）＋钢琴两行 */
+    if((k==='JG'||k==='SG') && n>1) return [{a:'v0', b:last, t:(k==='JG'? '简谱 · ' : '五线谱 · ')+n+' 声部', pen:1}, {a:'v'+n, b:'v'+(n+1), t:'钢琴伴奏'}];
     switch(k){
       case 'J':  return [{a:'v0', b:last, t:n>1? '简谱 · '+n+' 声部' : '简谱旋律', pen:1}];
       case 'S':  return [{a:'v0', b:last, t:n>1? '五线谱 · '+n+' 声部' : '五线谱旋律', pen:1}];
       case 'SJ': return [{a:'v0', b:last, t:'五线＋简谱', pen:1}];
       case 'T':  return [{a:'t0', t:tl, pen:1}];
       case 'JT': return [{a:'t0', t:tl, pen:o.pen!=='J'}, {a:'v0', t:'简谱旋律', pen:o.pen==='J'}];
-      case 'ST': return [{a:'t0', t:'五线＋六线', pen:1}];
+      case 'ST': return [{a:'t0', t:o.inst==='uku'? '五线＋四线' : '五线＋六线', pen:1}];
       case 'G':  return [{a:'v0', b:'v1', t:'钢琴大谱表', pen:1}];
       case 'CG': return [{a:'v0', b:'v1', t:'和弦名＋大谱表', pen:1}];
       case 'JG': return [{a:'v0', t:'简谱旋律', pen:1}, {a:'v1', b:'v2', t:'钢琴伴奏'}];
@@ -40395,7 +40493,7 @@ var NWP = (function(){
     const fx = f=>'<i class="nf-dot s-'+(st.src[f]||'default')+'" title="'+SRCN[st.src[f]||'default']+'" aria-hidden="true"></i>';
     let h='<div class="nf-f nb nb-ti"><label class="nw-lab" for="nw-title">曲名</label><input id="nw-title" type="text" value="'+esc2(v.title)+'" placeholder="未命名曲谱（可稍后再填）" autocomplete="off" maxlength="80"></div>';
     if(id!=='custom'){
-      h+='<div class="nf-f'+(melLive(id, v)? '' : ' nf-fx')+'"><span class="nw-lab" id="nf-mel-l">旋律用</span>'+(melLive(id, v)
+      h+='<div class="nf-f'+(melLive(id, v, nwP2A())? '' : ' nf-fx')+'"><span class="nw-lab" id="nf-mel-l">旋律用</span>'+(melLive(id, v, nwP2A())
         ? '<div class="nf-seg" role="radiogroup" aria-labelledby="nf-mel-l">'+[['J','简谱','nota-jianpu'],['S','五线谱','nota-staff']].map(([m,t,i])=>'<button type="button" role="radio" data-act="mel" data-v="'+m+'" aria-checked="'+(st.mel===m)+'" tabindex="'+(st.mel===m? 0 : -1)+'">'+ic(i,18)+t+'</button>').join('')+'</div>'
         : '<p class="nf-fixed">'+esc2(melFixedText(st))+'</p>')+'</div>';
     }
@@ -40903,15 +41001,17 @@ var NWP = (function(){
     const prev=snap(), cur=stackRows(stackOfState(st)), res=NWB.resolve(cur, r), nk=NWB.keyOf(res.rows);
     /* 改谱：若当前用途在某个变体下正好是这套谱，就留在该用途；否则切到「自选记谱法」 */
     let stay=false;
+    const p2a=nwP2A(), mel0=st.mel;
     if(st.scene!=='custom'){
       const tries=[{}, {mel:st.mel==='S'? 'J' : 'S'}];
-      (SC[st.scene].vars||[]).forEach(vk=>(VARS[vk].opts||[]).forEach(([val])=>tries.push({[vk]:val})));
+      (SC[st.scene].vars||[]).concat(p2a? (SC[st.scene].vars2||[]) : []).forEach(vk=>(VARS[vk].opts||[]).forEach(([val])=>tries.push({[vk]:val})));   /* v70.0 新形态连同 vars2（歌谱点亮大谱表＝合唱＋钢琴，留在本用途） */
       for(const t of tries){ const m2=t.mel||st.mel, v2=Object.assign({}, st.v, t); delete v2.mel;
-        if(sceneStack(st.scene, v2, m2)===nk && (!t.mel || melLive(st.scene, v2))){ delete t.mel; Object.assign(st.v, t); st.mel=m2; stay=true; break; } }
+        if(sceneStack(st.scene, v2, m2, p2a)===nk && (!t.mel || melLive(st.scene, v2, p2a))){ delete t.mel; Object.assign(st.v, t); st.mel=m2; stay=true; break; } }
     }
+    if(stay && st.mel!==mel0) melUser(st);   /* v70.0：键 1–5 留在本用途却换了记谱法＝亲手选了「旋律用」 */
     if(!stay) st.scene='custom';
     st.rows=res.rows.slice();
-    const changed = NWB.keyOf(prev.rows.length? stackRows(prev.scene==='custom'? NWB.keyOf(prev.rows) : sceneStack(prev.scene, Object.assign({}, st.v, prev.vars), prev.mel)) : [])!==nk || prev.scene!==st.scene;
+    const changed = NWB.keyOf(prev.rows.length? stackRows(prev.scene==='custom'? NWB.keyOf(prev.rows) : sceneStack(prev.scene, Object.assign({}, st.v, prev.vars), prev.mel, p2a)) : [])!==nk || prev.scene!==st.scene;
     /* 点下去之后说明原因，并给 6 秒「撤销」（换下了别的谱时） */
     setNote(res.note||'', (res.dropped && res.dropped.length && changed)? prev : null, r);
     if(NXP() && !st.more && st.scene!=='custom') st.moreDot=true;   /* v69.1 C：五开关在 ⋯ 里——键 1–5 改了谱，⋯ 上出角标 */
@@ -41009,9 +41109,9 @@ var NWP = (function(){
       case 'recent-go': recentGo(); break;
       case 'mel': syncFromDom();
         if(v==='D'){ const rr=stackRows(stackOfState(st)); if(!(rr.includes('J') && rr.includes('S'))) toggleRow(rr.includes('J')? 'S' : 'J'); break; }   /* v69.1 C「对照」＝同时点亮简谱 + 五线谱（同 toggleRow 冲突预告 / 6 秒撤销） */
-        if(NXP()){ const rr=stackRows(stackOfState(st)); if(rr.includes('J') && rr.includes('S') && !melLive(st.scene, st.v)){ toggleRow(v==='J'? 'S' : 'J'); break; } }
-        st.mel=v; st.rows=stackRows(sceneStack(st.scene, st.v, st.mel)); draw(); break;
-      case 'var': { syncFromDom(); const k=t.dataset.k; st.v[k]=/^\d+$/.test(v)? +v : v; if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel)); draw(); break; }
+        if(NXP()){ const rr=stackRows(stackOfState(st)); if(rr.includes('J') && rr.includes('S') && !melLive(st.scene, st.v, nwP2A())){ toggleRow(v==='J'? 'S' : 'J'); break; } }
+        st.mel=v; melUser(st); st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A())); draw(); break;   /* melUser：v70.0 记下亲手选的（新形态） */
+      case 'var': { syncFromDom(); const k=t.dataset.k; st.v[k]=/^\d+$/.test(v)? +v : v; melSync(st); if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, st.v, st.mel, nwP2A())); draw(); break; }
       case 'more': syncFromDom(); st.more=!st.more; if(st.more) st.moreDot=false; draw();
         if(st.more && NXP()){ const f=modal.querySelector('#nf-moreb select,#nf-moreb button'); if(f) f.focus({preventScroll:true}); } break;
       case 'undo': undoRow(); break;
@@ -41032,7 +41132,7 @@ var NWP = (function(){
     if(t.id==='nw-key'){ const [k,m]=t.value.split('|'); v.key=k; v.mode=m==='minor'? 'minor' : 'major'; st.src.key='user'; }
     else if(t.id==='nw-beats'||t.id==='nw-unit'){ const b=modal.querySelector('#nw-beats'), u=modal.querySelector('#nw-unit'); v.beats=+b.value; v.unit=+u.value; st.src.meter='user'; }
     else if(t.id==='nw-tunit'){ v.tunit=t.value; }
-    else if(t.id==='nf-inst'){ if(!t.value) return; v.instKey=t.value; if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, v, st.mel)); }
+    else if(t.id==='nf-inst'){ if(!t.value) return; v.instKey=t.value; melSync(st); if(st.scene!=='custom') st.rows=stackRows(sceneStack(st.scene, v, st.mel, nwP2A())); }   /* melSync：v70.0 换到 / 离开 staff 族乐器（新形态） */
     else if(t.id==='nf-lyr'){ v.lyr=+t.value; st.src.lyr='user'; }
     else if(t.id==='nf-tuning'){ v.tuning=t.value; st.src.tuning='user'; }
     else if(t.id==='nf-capo'){ v.capo=+t.value; st.src.capo='user'; }
@@ -41225,7 +41325,7 @@ var NWP = (function(){
     realCreate(P, '', ev);
   }
   return {open, close, draw, create, planOf, fresh, applyScene, sceneStack, optsOf, kindOfState, stackOfState, melLive, varsShown, toggleRow, rowHint, syncFromDom,
-    quickMenu, quickMenuClose:qmClose, quickCreate, lastLoad, lastDesc, SC, VARS, GROUPS, SCENE_IDS, INSTS, keyName,
+    quickMenu, quickMenuClose:qmClose, quickCreate, lastLoad, lastDesc, SC, VARS, GROUPS, SCENE_IDS, INSTS, INSTS_ALL, instsShown, keyName,
     readFile, dropFile, fileKind, sniffKind, analyze, convert, bandDefs, pvInfo:()=>pvLast, pvSync, pvStats, pvClear:()=>PVC.clear(), PV_WAIT, TARGETS, ISRC,
     linkParse, linkApply, linkOf, linkKey, LINK_P, lyrShown, recentList, recentOpen,
     get state(){ return st; }, get modal(){ return modal; }};
@@ -41238,6 +41338,7 @@ function realCreate(P, tpNote, ev){
   if(o.tuningKey && TUNINGS[o.tuningKey] && TUNINGS[o.tuningKey].t) o.tuning=TUNINGS[o.tuningKey].t.slice();
   delete o.tuningKey; delete o.pen;
   const ns=NWB.build(P.stack, o);
+  if(PQ_KIND.INTENTS.indexOf(P.scene)>=0) ns.intent=P.scene;   /* v70.0 P2a song.intent（规格 §3.2）：全部建谱路径都汇到这一处、两种外壳都写；NWB.build 本身保持纯结构 */
   try{ pyqEvent('create_song', NWB.STACKS[P.stack].type); }catch(_){}   /* 原 create_song 口径不变（createSong 类型） */
   if(ev) try{ pyqEvent('create_stack', [P.scene||'', P.stack, ev.via||'', ev.from||'', ev.first? 1 : 0].join(':')); }catch(_){}
   const d0=curDocI;   /* v68.7 S1：新窗口里出结果——提示条「撤销」关掉它回到这个窗口（toastSay act:'close'） */
@@ -41257,7 +41358,7 @@ function realCreate(P, tpNote, ev){
     const onBar = !!document.querySelector('#lb-wrap .lb-bar') || (flowOn() && FLOW.sbar.shown());   /* v68.3 flow：谱面上方的悬浮条 */
     let guide = P.stack==='JT' && P.pen==='J'? (onBar? '——下一步见谱面上方的谱型条：先在简谱行写旋律，再点「生成六线谱」，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）'
         : '——先在简谱行写旋律；写好后点左栏的旋律音轨，在「显示」里点六线谱图标，按把位写进建谱时的空'+iN+'轨（轨数不变，可一步撤销）')
-      : onBar && LB_GUIDE[P.stack]? LB_GUIDE[P.stack] : ACC_GUIDE[P.stack]||'';
+      : onBar && LB_GUIDE[NWB.effStack(P.stack, o)]? LB_GUIDE[NWB.effStack(P.stack, o)] : ACC_GUIDE[NWB.effStack(P.stack, o)]||'';   /* v70.0 合唱＋钢琴＝合唱谱的指引（「一键配伴奏…填进下面两行」只认旋律＋钢琴三行） */
     if(flowOn() && onBar) guide=FLOW.sbar.guide(guide);   /* v68.3 flow：悬浮条展开着＝去掉「——下一步见…」整段（条就在屏上，少字）；收起时「谱型条」说成「悬浮条」 */
     toastSay('已新建'+kind.name+' · '+NWP.keyName(o.key, o.mode)+' '+o.beats+'/'+o.unit+' '+tempoGlyph(song)+'='+o.tempo+' · '+o.nMea+' 小节 · 新窗口打开，原谱保留'+guide+(tpNote? '；'+tpNote : ''), {t: tpNote? '已新建 · 速度按 '+o.tempo : '已新建'+kind.name, k:'res', act:'close', prev:d0}, kind.ic);   /* 谱类名是专名（≤7 字），与页签 / 面板同一份统一谱名。v68.7 集成：速度被夹到 30 / 240 或按默认时短文照实点名（v67.3「建成提示点名」，不悄悄改），此时省掉谱类名（页签上有） */
     /* v68.7 S1：新外壳的建成提示不再拼「下一步…」——改为让悬浮条第 ① 步（没有起步的谱＝第一个工具）亮一次（CSS #flw-sbar[data-flash]；不移焦点 P8） */
@@ -42358,9 +42459,10 @@ function lbCopy(s, to){
 /* ---- 谱型条：信息、HTML、同步 ---- */
 function lbMelOk(s, k, meta){
   if(!['J','S','JG','SG','CJ','CS','JT'].includes(k)) return false;
-  if(meta && meta.scene==='sight') return false;   /* 视唱练耳谱例固定五线谱（同新建面板） */
+  const p2a=nwP2A();   /* v70.0 P2a（规格 §6.9）新外壳新形态：视唱、西洋管弦（staff 族）的 J / S 谱也给切（同新建面板） */
+  if(meta && meta.scene==='sight' && !p2a) return false;   /* 视唱练耳谱例固定五线谱（同新建面板） */
   const ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
-  if(it && (k==='J'||k==='S') && it.fam!=='jianpu') return false;   /* 管弦 / 键盘固定五线谱，民乐可选（同新建面板） */
+  if(it && (k==='J'||k==='S') && it.fam!=='jianpu' && !(p2a && it.fam==='staff')) return false;   /* 管弦 / 键盘固定五线谱，民乐可选（同新建面板） */
   return lbMelVoices(s).length>0;
 }
 /* 起步条（收尾验收 F3）：各步只按谱内容判「做完没有」（ok），再按顺序定状态——第一个没做完的那步＝当前，后面的一律「未到」，
