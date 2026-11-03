@@ -2,7 +2,7 @@
    T1 钢琴谱导出：一个 score-part、<staves>2、clef number 1/2（G/F）、右手音 <staff>1、左手音 <staff>2 + voice 2、每小节一个 <backup>（右手时值和 384）、右小节线只有一条且在左手之后
    T2 钢琴谱往返：导出只有 1 个 part；导入回 2 个声部（右手/左手、staff/bass）、docType piano、两手音级序列不变、skip.voices/other 为 0
    T3 MuseScore 式钢琴 part（voice 1/5 + backup + 踏板挂 staff 2）：左手 2 个二分音（1/-1、5/-2）、踏板落在左手首列、无跳过
-   T4 SATB＋钢琴：6 个声部全保留、钢琴虚拟 part 名「Piano·右手/左手」、voxGroups = bracket 0–3 + brace 4–5、谱类＝五线谱合唱谱
+   T4 SATB＋钢琴：6 个声部全保留、钢琴虚拟 part 名「Piano·右手/左手」、voxGroups = bracket 0–3 + brace 4–5、谱类＝五线谱合唱谱（v70.0 P2a 拍板 11 起谱名＝五线谱合唱谱（含钢琴伴奏））
    T5 上限：9 个旋律 part 取 8、第 9 个点名；8 旋律＋8 吉他取到总轨 15（吉他 7）、第 8 条吉他点名
    T6 编辑器同口径：MAX_VOICES=8、MAX_TRACKS=15；8 声部时「＋声部」被拦（文案含 8）、7＋8=15 轨时被拦（文案含 15）、7 声部可加
    突变实证：对 v65.2 之前的文件复跑，T1–T6 全部报红。 */
@@ -63,8 +63,8 @@ const FILE = (process.env.MUSETAB_URL || '').startsWith('file://') ? process.env
       { id: 'P4', name: 'Bass', attr: ATTR('<clef><sign>F</sign><line>4</line></clef>'), measures: [mel()] }, { id: 'P5', name: 'Piano', attr: attrP, measures: [pm] }]);
     const res = importMusicXML(xml); if (!res.song) return { err: res.error }; const s1 = res.song;
     return { nv: s1.voxVoices.length, names: s1.voxVoices.join('/'), nt: (s1.voxNotations || []).join('/'), groups: JSON.stringify(s1.voxGroups), gOf: JSON.stringify(voxGroupsOf(s1)), label: docTypeLabel(s1), parts: res.skip.parts, lh: seqOf(s1, 5), rh: seqOf(s1, 4) }; });
-  T(!r.err && r.nv === 6 && r.names === 'Soprano/Alto/Tenor/Bass/Piano·右手/Piano·左手' && r.nt === 'staff/staff/staff/bass/staff/bass' && r.groups === '[{"type":"bracket","from":0,"to":3},{"type":"brace","from":4,"to":5}]' && r.label === '五线谱合唱谱' && r.parts === 0 && r.lh === '1/-1' && r.rh === '3/1 5/1',
-    'T4 SATB＋钢琴：6 声部、括线分组、合唱谱类', JSON.stringify(r));
+  T(!r.err && r.nv === 6 && r.names === 'Soprano/Alto/Tenor/Bass/Piano·右手/Piano·左手' && r.nt === 'staff/staff/staff/bass/staff/bass' && r.groups === '[{"type":"bracket","from":0,"to":3},{"type":"brace","from":4,"to":5}]' && r.label === '五线谱合唱谱（含钢琴伴奏）' && r.parts === 0 && r.lh === '1/-1' && r.rh === '3/1 5/1',
+    'T4 SATB＋钢琴：6 声部、括线分组、合唱谱类（v70.0 拍板 11 有意改名：合唱带钢琴＝五线谱合唱谱（含钢琴伴奏））', JSON.stringify(r));
 
   /* T5 */
   r = await EV(() => { const mel = () => N('C', 4) + N('D', 4) + N('E', 4) + N('F', 4);
