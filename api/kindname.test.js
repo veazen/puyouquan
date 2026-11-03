@@ -539,5 +539,20 @@ T('P2a 新全局 nwP2A()：函数声明、只此一处、在 var NWP 之前（�
   assert.ok(/!isMobileNew\(\) && typeof flowOn==='function' && flowOn\(\) && FLOW\.nxOn\(\) && !document\.body\.classList\.contains\('flw-m'\)/.test(m[0]) && !/\bst\b/.test(m[0].replace(/\/\*[\s\S]*?\*\//g, '')), m[0]);
 });
 
+T('P2a pzq 新乐器词（§4.4）：竖笛 / 直笛 / 口风琴 / 陶笛 / 箫 / 洞箫 / 大提琴 / 单簧管 / 黑管 → 6 个新 instKey；箫 / 洞箫从「只认调」挪进乐器词（笛箫仍归笛子、巴乌照旧只认调）；箫 / 陶笛 / 竖笛 / 单簧管的调只排序不筛', () => {
+  const P = require('./pzq');
+  const g = q => { const r = P.parse(q); return [r.words, r.pz, r.sub, r.inst, r.key, r.keySort].join('|'); };
+  const W = { 竖笛: 'recorder', 直笛: 'recorder', 口风琴: 'melodica', 陶笛: 'ocarina', 箫: 'xiao', 洞箫: 'xiao', 大提琴: 'cello', 单簧管: 'clarinet', 黑管: 'clarinet' };
+  Object.keys(W).forEach(w => { assert.strictEqual(g(w), '|||' + W[w] + '||', w); assert.strictEqual(g('欢乐颂 ' + w + '谱'), '欢乐颂|||' + W[w] + '||', w + '谱'); });
+  assert.strictEqual(g('洞箫 春江花月夜'), '春江花月夜|||xiao||', '洞箫此前只认调、整词丢掉；现在是乐器条件');
+  assert.strictEqual(g('箫简谱'), '|jianpu|qiyue|xiao||'); assert.strictEqual(g('大提琴五线谱'), '|wuxian|qiyue|cello||');
+  assert.strictEqual(g('G调箫'), '|||xiao||G', '箫的调＝乐器的调：不筛只排序'); assert.strictEqual(g('C调陶笛'), '|||ocarina||C');
+  assert.strictEqual(g('降B调单簧管'), '|||clarinet||Bb'); assert.strictEqual(g('竖笛 C调'), '|||recorder||C');
+  assert.strictEqual(g('大提琴 C调'), '|||cello|C|', '大提琴是实音乐器：调照旧筛');
+  assert.strictEqual(g('笛箫'), '|||dizi||', '笛箫仍归笛子'); assert.strictEqual(g('F调巴乌'), '|||||F', '巴乌照旧只认调'); assert.strictEqual(g('巴乌'), '|||||');
+  const m = P.parse('欢乐颂 黑管'); assert.ok(m.conds.length === 1 && m.conds[0].label === '乐器：单簧管' && m.conds[0].rm === '欢乐颂', JSON.stringify(m.conds));
+  const t = P.targets().inst; ['recorder', 'melodica', 'ocarina', 'xiao', 'cello', 'clarinet'].forEach(k => { assert.ok(t.indexOf(k) >= 0, 'pzq 认 ' + k); assert.ok(K.own(K.INST, k), k); });
+});
+
 console.log('PASS ' + pass + '/' + total);
 process.exit(pass === total ? 0 : 1);

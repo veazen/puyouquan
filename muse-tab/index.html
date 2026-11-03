@@ -28620,8 +28620,11 @@ function ccKindIc(pb, shown){
   try{
     const nm=String(shown!=null? shown : (pb.typeLabel||'')).trim();
     if(nm && typeof NWB!=='undefined'){
-      if(!ccKindIc.byName){ const m={}; Object.keys(NWB.STACKS).forEach(k=>[{}, {nVox:2}, {inst:'uku'}, {lyr:true}, {nVox:2, lyr:true}, {inst:'uku', lyr:true}, {dual:true}, {dual:true, lyr:true}].forEach(c=>{ const r=NWB.kindOf(k, c); if(!m[r.name]) m[r.name]=r.ic; })); ccKindIc.byName=m; }
+      /* v70.0 P2a：补 {nVox:2, lyr:true, pno:true}——拍板 11「简谱 / 五线谱合唱谱（含钢琴伴奏）」→ type-choir */
+      if(!ccKindIc.byName){ const m={}; Object.keys(NWB.STACKS).forEach(k=>[{}, {nVox:2}, {inst:'uku'}, {lyr:true}, {nVox:2, lyr:true}, {inst:'uku', lyr:true}, {dual:true}, {dual:true, lyr:true}, {nVox:2, lyr:true, pno:true}].forEach(c=>{ const r=NWB.kindOf(k, c); if(!m[r.name]) m[r.name]=r.ic; })); ccKindIc.byName=m; }
       if(ccKindIc.byName[nm]) return ccKindIc.byName[nm];
+      /* 拍板 22 后半「X＋钢琴伴奏谱（简谱 / 五线谱）」（X＝乐器名，不逐个列）→ 旋律＋钢琴伴奏的 type-jg */
+      if(/＋钢琴伴奏谱（/.test(nm)) return 'type-jg';
     }
   }catch(_){}
   return DT_PQ[pb.type] || 'type-blank';
@@ -40762,6 +40765,8 @@ var NWP = (function(){
         break; }
       case 'CJ': suggestInto(s); s.func=true; s.voxNotations=[undefined]; delete s.voxDual; break;   /* 功能谱默认显示级数（funcNames 不置真） */
     }
+    /* v70.0 P2a（规格 §3.4）按做法写建谱用途 song.intent；orig（按原文件）/ J（转成简谱）不写——保留文件自己读进来的（自家导出的 MusicXML 带 pyq-intent） */
+    const IMP_INTENT={acc:'pacc', SJ:'teach', JT:'gtr', CJ:'chord'}; if(NWB.own(IMP_INTENT, t)) s.intent=IMP_INTENT[t];
     return s;
   }
   /* 预览＝整首按导入后的样子排、只画首行（断行是全曲 DP：截前几小节再排，首行可能和导入后不同——验收：8 小节文件截 6 小节后首行多一小节）。
@@ -42050,6 +42055,20 @@ document.getElementById('b-acctex').onclick = ()=>{
      有内容只给不动音符的换法（direct：只改记谱法 / 显示字段，或增删**空**行——各行音符、歌词、和弦逐字段不动）；
      其余「另建一份」（copy：旋律行连歌词、和弦带到新窗口，原谱保留）；不同源的写明「不可换」及原因（no）。直接换与重建都是一次 mutate＝一步撤销。 */
 const LB_FAM = {J:'mel', S:'mel', SJ:'mel', CJ:'mel', CS:'mel', C:'mel', JG:'acc', SG:'acc', SJG:'acc', JT:'jt', T:'tab', ST:'tab', G:'pno', CG:'pno'};
+/* v70.0 P2a（规格 §3.3）换谱类改写建谱用途 song.intent：LB_INTENT_OK＝这个用途能产出的谱行（换过去不改），LB_INTENT＝目标谱行的默认用途。
+   lbIntentFix 四条规则：① 谱上没有 intent（PQ_KIND.intentOf 为空）不写——老谱换谱类与 v69.9 相同；② kids（跨类风格标记）、custom（本就能拼出任何组合）不改；
+   ③ 旧用途能产出目标谱行不改；④ 否则改成目标谱行的默认用途。直接换 / 重建 / 另建一份末尾各调一次（直接换与重建在 mutate 里，一步撤销连 intent 一起退）；
+   旋律用切换（lbMelSet）、setVoxNotation、加删音轨不调（记谱法切换是镜像不变式，intent 不动） */
+const LB_INTENT_OK = {gtr:['JT','T'], pacc:['JG','SG','CG'], vocal:['J','S','JG','SG'], teach:['SJ','SJG'], sight:['S','J'],
+  solo:['ST','T'], inst:['G','J','S','SG'], chord:['C','CJ','CS'], blank:['J','S']};
+const LB_INTENT = {J:'vocal', S:'vocal', SJ:'teach', SJG:'teach', JG:'pacc', SG:'pacc', CG:'pacc', JT:'gtr', T:'gtr', ST:'solo', G:'inst', CJ:'chord', CS:'chord', C:'chord'};
+function lbIntentFix(s, to){
+  const old=PQ_KIND.intentOf(s);
+  if(!old || old==='kids' || old==='custom') return s;
+  if((LB_INTENT_OK[old]||[]).indexOf(to)>=0) return s;
+  if(NWB.own(LB_INTENT, to)) s.intent=LB_INTENT[to];
+  return s;
+}
 /* 建谱时由谱行决定的结构字段：重建 / 另建一份时取新谱的；其余（曲名、词曲、调、拍号、速度、调式、变调夹、定弦、版式、自定义和弦、谱 id…）沿用原谱 */
 const LB_STRUCT = new Set(['tabVoices','voxVoices','voxNotations','voxDual','voxGroups','func','chordOnly','pianoAcc','tabStaff','instKey','mixer','lyricLines','measures',
   'tabJp','tabJpVoices','tabCapos','texId','gtype','tabClef','funcNames']);
@@ -42195,7 +42214,10 @@ function lbPlan0(s, to){
    （lbOpts / lbCopy：NWB.build 的钢琴伴奏歌谱默认 1 行词），换完必有词位——v67.6 五线谱一族的叫法看词位，菜单要与换完同名 */
 function lbCtxFor(s, to, mode){
   const c=NWB.ctxOf(s), ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
-  const ikOk = it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false);
+  /* v70.0 P2a：「当前」项＝本谱的真实谱名（拍板 11 合唱带钢琴的「（含钢琴伴奏）」、拍板 22 后半带乐器身份的「X＋钢琴伴奏谱」都随谱面） */
+  if(mode==='same') return c;
+  /* 直接换（lbApplyDirect）不动 instKey：换成 JG / SG 时谱名带乐器身份（拍板 22 后半，如二胡简谱 → 「二胡＋钢琴伴奏谱（简谱）」），菜单与换完同名 */
+  const ikOk = (it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false)) || (mode==='direct' && (to==='JG'||to==='SG'));
   /* 钢琴两行的简谱对照在钢琴族内互换时保留（lbApplyDirect），菜单里的谱名同样带上 */
   const dual = (to==='G'||to==='CG') && LB_FAM[NWB.stackOf(s)]==='pno' && (s.voxDual||[]).some(Boolean);
   const lyr = c.lyr || ((mode==='rebuild' || mode==='copy') && LB_FAM[to]==='acc');
@@ -42300,6 +42322,7 @@ function lbApplyDirect(s, from, to){
   if(to==='CG') s.pianoAcc=true;
   else if(to==='G'){ delete s.pianoAcc; s.voxGroups=[{type:'brace', from:0, to:1}]; }
   if(Array.isArray(s.voxNotations) && s.voxNotations.every(v=>v==null)) delete s.voxNotations;
+  lbIntentFix(s, to);   /* v70.0 P2a：在 mutate 里——撤销连 intent 一起退 */
 }
 /* 重建 / 另建一份的建谱参数：沿用曲名、调、拍号、速度、小节数、调式、变调夹、定弦、乐器；歌词行数沿用（谱类不带词的按谱类）；
    乐器身份 instKey 只在新谱类用得上时带（键盘→钢琴独奏谱，民乐 / 管弦→简谱 / 五线谱） */
@@ -42332,7 +42355,7 @@ function lbRebuild(s, to){
   s=lbSrc(s, to);
   const b=NWB.build(to, lbOpts(s, to)), ns=lbMerge(s, b, true);
   ns.measures=b.measures.map((m,mi)=>lbMeaCarry(s.measures[mi], m, mi, ns));
-  return ns;
+  return lbIntentFix(ns, to);   /* v70.0 P2a：lbMerge 已把原谱 intent 带过来，按换谱类规则改写 */
 }
 /* 六线谱列上的和弦按拍位挪到旋律列上（弹唱谱的和弦多标在 TAB 上；只补旋律本小节一个和弦都没有的） */
 function lbTabChords(old, melCols, unit){
@@ -42353,7 +42376,7 @@ function lbCopy(s, to){
   });
   if(to!=='C') ns.lyricLines=Math.max(ns.lyricLines|0, s.lyricLines|0);
   if(s.funcNames!=null) ns.funcNames=s.funcNames;   /* 和弦级数 / 音名显示照原谱 */
-  return ns;
+  return lbIntentFix(ns, to);   /* v70.0 P2a：改的是新窗口的谱，原谱不动 */
 }
 /* ---- 谱型条：信息、HTML、同步 ---- */
 function lbMelOk(s, k, meta){
