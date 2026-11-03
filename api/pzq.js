@@ -6,7 +6,7 @@
    ② 只认整词（空格隔开的词），另认查询**末尾**一个词的「X谱 / X简谱 / X五线谱」后缀（「茉莉花简谱」）；不在曲名中间截词（「黄河大合唱」不拆）；
    ③ 两个类目词同现：合唱＋简谱 → 合唱谱 › 简谱合唱；钢琴＋简谱 → 钢琴谱（打开看简谱）；吉他 / 尤克里里＋简谱 → 吉他谱 / 尤克里里；
       乐器＋简谱 / 五线谱 → 该一级 › 器乐（乐器）；和弦谱＋吉他 / 尤克里里 → 弹唱；其余先到的作筛选、后到的不筛；
-   ④ 调词：与吉他 / 尤克里里同现＝指法调；与葫芦丝 / 笛子 / 箫 / 巴乌 / 口琴 / 萨克斯同现＝乐器的调，不筛选、只把同调的排前；其余＝实际调；
+   ④ 调词：与吉他 / 尤克里里同现＝指法调；与葫芦丝 / 笛子 / 箫 / 巴乌 / 口琴 / 萨克斯 / 陶笛 / 竖笛 / 单簧管同现＝乐器的调，不筛选、只把同调的排前；其余＝实际调；
    ⑤ 只有谱种词（「简谱」「钢琴谱」）＝点了这个一级（only，不含可转）；有曲名时简谱 / 五线谱默认含可转（conv）；
    ⑥ 「器乐谱 / 器乐」不加筛选，给提示条（hint）；作曲家等其余词按曲名 / 演唱 / 署名 / 作曲搜。
    ⑦ 伴奏词：合唱谱下＝「伴奏」三选（hacc：带伴奏 / 有伴奏 → yes，无伴奏 / 无伴奏合唱 → no；与合唱同现的 伴奏 / 钢琴伴奏 / 伴奏谱 也按带伴奏，不落钢琴谱、不悄悄丢掉）；
@@ -20,13 +20,16 @@ const STOP = ['大全', '曲谱', '乐谱', '谱子', '完整版', '高清', '�
 const INSTW = {
   '二胡': 'erhu', '胡琴': 'erhu', '古筝': 'guzheng', '筝': 'guzheng', '笛子': 'dizi', '竹笛': 'dizi', '笛箫': 'dizi', '葫芦丝': 'hulusi', '唢呐': 'suona',
   '琵琶': 'pipa', '扬琴': 'yangqin', '口琴': 'harmonica', '萨克斯': 'sax', '萨克斯风': 'sax', '萨克斯管': 'sax', '小提琴': 'violin', '长笛': 'flute',
-  '小号': 'trumpet', '圆号': 'horn', '长号': 'trombone', '贝斯': 'bass', '电子琴': 'synth', '手风琴': 'accordion', '电钢琴': 'epiano'
+  '小号': 'trumpet', '圆号': 'horn', '长号': 'trombone', '贝斯': 'bass', '电子琴': 'synth', '手风琴': 'accordion', '电钢琴': 'epiano',
+  /* v70.0 P2a 乐器表补 6 种（规格 §4.4）：箫 / 洞箫 从「只认调」KEYSORT_W 挪来（「笛箫」仍归笛子） */
+  '竖笛': 'recorder', '直笛': 'recorder', '口风琴': 'melodica', '陶笛': 'ocarina', '箫': 'xiao', '洞箫': 'xiao', '大提琴': 'cello', '单簧管': 'clarinet', '黑管': 'clarinet'
 };
 /* 键盘族：一级＝钢琴谱 ＋ 乐器（键盘族在 钢琴谱 › 独奏） */
 const KBD = { synth: 1, accordion: 1, epiano: 1 };
-/* 与这几种乐器同现的「X调」是乐器的调，不筛选只排序（T6） */
-const KEYSORT_INST = { hulusi: 1, dizi: 1, harmonica: 1, sax: 1 };
-const KEYSORT_W = ['箫', '洞箫', '巴乌'];
+/* 与这几种乐器同现的「X调」是乐器的调，不筛选只排序（T6）；v70.0 P2a 加 箫 / 陶笛 / 竖笛 / 单簧管（「G调箫」「C调陶笛」「降B调单簧管」） */
+const KEYSORT_INST = { hulusi: 1, dizi: 1, harmonica: 1, sax: 1, xiao: 1, ocarina: 1, recorder: 1, clarinet: 1 };
+/* 乐器表里没有、只用来认调的乐器词（v70.0 起箫 / 洞箫进了 INSTW，这里只剩巴乌） */
+const KEYSORT_W = ['巴乌'];
 /* 整词 → 条件（顺序无关）。pz / sub / inst / zt / acc / style / parts / nota / tail / hint / gtr（吉他 / 尤克里里 族标记，给组合规则用） */
 const WORDS = {
   '简谱': { pz: 'jianpu', cat: 'jp' }, '五线谱': { pz: 'wuxian', cat: 'st' },
@@ -205,7 +208,7 @@ function parse(q0) {
     else if (out.pz === 'jita' || out.pz === 'uku') { out.fkey = kw[2]; kw[1] = 'fkey'; }
     else { out.key = kw[2]; kw[1] = 'key'; }
   }
-  /* 剩下的词（曲名 / 演唱 / 作曲）：没挂条件的段＋箫 / 巴乌（不解析的乐器词按曲名搜不合适：它们只用来认调，丢掉） */
+  /* 剩下的词（曲名 / 演唱 / 作曲）：没挂条件的段＋巴乌（不解析的乐器词按曲名搜不合适：它只用来认调，丢掉；箫 v70.0 起是乐器词） */
   const wordsSeg = segs.filter(s => !s.c);
   out.words = wordsSeg.map(s => s.seg).join(' ');
   /* 和弦谱的尾节只在没跟吉他 / 尤克里里同现时要（同现已改成弹唱） */

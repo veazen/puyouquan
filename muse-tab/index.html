@@ -28620,8 +28620,11 @@ function ccKindIc(pb, shown){
   try{
     const nm=String(shown!=null? shown : (pb.typeLabel||'')).trim();
     if(nm && typeof NWB!=='undefined'){
-      if(!ccKindIc.byName){ const m={}; Object.keys(NWB.STACKS).forEach(k=>[{}, {nVox:2}, {inst:'uku'}, {lyr:true}, {nVox:2, lyr:true}, {inst:'uku', lyr:true}, {dual:true}, {dual:true, lyr:true}].forEach(c=>{ const r=NWB.kindOf(k, c); if(!m[r.name]) m[r.name]=r.ic; })); ccKindIc.byName=m; }
+      /* v70.0 P2a：补 {nVox:2, lyr:true, pno:true}——拍板 11「简谱 / 五线谱合唱谱（含钢琴伴奏）」→ type-choir */
+      if(!ccKindIc.byName){ const m={}; Object.keys(NWB.STACKS).forEach(k=>[{}, {nVox:2}, {inst:'uku'}, {lyr:true}, {nVox:2, lyr:true}, {inst:'uku', lyr:true}, {dual:true}, {dual:true, lyr:true}, {nVox:2, lyr:true, pno:true}].forEach(c=>{ const r=NWB.kindOf(k, c); if(!m[r.name]) m[r.name]=r.ic; })); ccKindIc.byName=m; }
       if(ccKindIc.byName[nm]) return ccKindIc.byName[nm];
+      /* 拍板 22 后半「X＋钢琴伴奏谱（简谱 / 五线谱）」（X＝乐器名，不逐个列）→ 旋律＋钢琴伴奏的 type-jg */
+      if(/＋钢琴伴奏谱（/.test(nm)) return 'type-jg';
     }
   }catch(_){}
   return DT_PQ[pb.type] || 'type-blank';
@@ -40762,6 +40765,8 @@ var NWP = (function(){
         break; }
       case 'CJ': suggestInto(s); s.func=true; s.voxNotations=[undefined]; delete s.voxDual; break;   /* 功能谱默认显示级数（funcNames 不置真） */
     }
+    /* v70.0 P2a（规格 §3.4）按做法写建谱用途 song.intent；orig（按原文件）/ J（转成简谱）不写——保留文件自己读进来的（自家导出的 MusicXML 带 pyq-intent） */
+    const IMP_INTENT={acc:'pacc', SJ:'teach', JT:'gtr', CJ:'chord'}; if(NWB.own(IMP_INTENT, t)) s.intent=IMP_INTENT[t];
     return s;
   }
   /* 预览＝整首按导入后的样子排、只画首行（断行是全曲 DP：截前几小节再排，首行可能和导入后不同——验收：8 小节文件截 6 小节后首行多一小节）。
@@ -42050,6 +42055,20 @@ document.getElementById('b-acctex').onclick = ()=>{
      有内容只给不动音符的换法（direct：只改记谱法 / 显示字段，或增删**空**行——各行音符、歌词、和弦逐字段不动）；
      其余「另建一份」（copy：旋律行连歌词、和弦带到新窗口，原谱保留）；不同源的写明「不可换」及原因（no）。直接换与重建都是一次 mutate＝一步撤销。 */
 const LB_FAM = {J:'mel', S:'mel', SJ:'mel', CJ:'mel', CS:'mel', C:'mel', JG:'acc', SG:'acc', SJG:'acc', JT:'jt', T:'tab', ST:'tab', G:'pno', CG:'pno'};
+/* v70.0 P2a（规格 §3.3）换谱类改写建谱用途 song.intent：LB_INTENT_OK＝这个用途能产出的谱行（换过去不改），LB_INTENT＝目标谱行的默认用途。
+   lbIntentFix 四条规则：① 谱上没有 intent（PQ_KIND.intentOf 为空）不写——老谱换谱类与 v69.9 相同；② kids（跨类风格标记）、custom（本就能拼出任何组合）不改；
+   ③ 旧用途能产出目标谱行不改；④ 否则改成目标谱行的默认用途。直接换 / 重建 / 另建一份末尾各调一次（直接换与重建在 mutate 里，一步撤销连 intent 一起退）；
+   旋律用切换（lbMelSet）、setVoxNotation、加删音轨不调（记谱法切换是镜像不变式，intent 不动） */
+const LB_INTENT_OK = {gtr:['JT','T'], pacc:['JG','SG','CG'], vocal:['J','S','JG','SG'], teach:['SJ','SJG'], sight:['S','J'],
+  solo:['ST','T'], inst:['G','J','S','SG'], chord:['C','CJ','CS'], blank:['J','S']};
+const LB_INTENT = {J:'vocal', S:'vocal', SJ:'teach', SJG:'teach', JG:'pacc', SG:'pacc', CG:'pacc', JT:'gtr', T:'gtr', ST:'solo', G:'inst', CJ:'chord', CS:'chord', C:'chord'};
+function lbIntentFix(s, to){
+  const old=PQ_KIND.intentOf(s);
+  if(!old || old==='kids' || old==='custom') return s;
+  if((LB_INTENT_OK[old]||[]).indexOf(to)>=0) return s;
+  if(NWB.own(LB_INTENT, to)) s.intent=LB_INTENT[to];
+  return s;
+}
 /* 建谱时由谱行决定的结构字段：重建 / 另建一份时取新谱的；其余（曲名、词曲、调、拍号、速度、调式、变调夹、定弦、版式、自定义和弦、谱 id…）沿用原谱 */
 const LB_STRUCT = new Set(['tabVoices','voxVoices','voxNotations','voxDual','voxGroups','func','chordOnly','pianoAcc','tabStaff','instKey','mixer','lyricLines','measures',
   'tabJp','tabJpVoices','tabCapos','texId','gtype','tabClef','funcNames']);
@@ -42195,7 +42214,10 @@ function lbPlan0(s, to){
    （lbOpts / lbCopy：NWB.build 的钢琴伴奏歌谱默认 1 行词），换完必有词位——v67.6 五线谱一族的叫法看词位，菜单要与换完同名 */
 function lbCtxFor(s, to, mode){
   const c=NWB.ctxOf(s), ik=s.instKey && s.instKey!=='piano'? s.instKey : '', it=ik && NW_INSTS.find(x=>x.k===ik);
-  const ikOk = it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false);
+  /* v70.0 P2a：「当前」项＝本谱的真实谱名（拍板 11 合唱带钢琴的「（含钢琴伴奏）」、拍板 22 后半带乐器身份的「X＋钢琴伴奏谱」都随谱面） */
+  if(mode==='same') return c;
+  /* 直接换（lbApplyDirect）不动 instKey：换成 JG / SG 时谱名带乐器身份（拍板 22 后半，如二胡简谱 → 「二胡＋钢琴伴奏谱（简谱）」），菜单与换完同名 */
+  const ikOk = (it && (to==='G'? it.fam==='kbd' : (to==='J'||to==='S')? it.fam!=='kbd' : false)) || (mode==='direct' && (to==='JG'||to==='SG'));
   /* 钢琴两行的简谱对照在钢琴族内互换时保留（lbApplyDirect），菜单里的谱名同样带上 */
   const dual = (to==='G'||to==='CG') && LB_FAM[NWB.stackOf(s)]==='pno' && (s.voxDual||[]).some(Boolean);
   const lyr = c.lyr || ((mode==='rebuild' || mode==='copy') && LB_FAM[to]==='acc');
@@ -42300,6 +42322,7 @@ function lbApplyDirect(s, from, to){
   if(to==='CG') s.pianoAcc=true;
   else if(to==='G'){ delete s.pianoAcc; s.voxGroups=[{type:'brace', from:0, to:1}]; }
   if(Array.isArray(s.voxNotations) && s.voxNotations.every(v=>v==null)) delete s.voxNotations;
+  lbIntentFix(s, to);   /* v70.0 P2a：在 mutate 里——撤销连 intent 一起退 */
 }
 /* 重建 / 另建一份的建谱参数：沿用曲名、调、拍号、速度、小节数、调式、变调夹、定弦、乐器；歌词行数沿用（谱类不带词的按谱类）；
    乐器身份 instKey 只在新谱类用得上时带（键盘→钢琴独奏谱，民乐 / 管弦→简谱 / 五线谱） */
@@ -42332,7 +42355,7 @@ function lbRebuild(s, to){
   s=lbSrc(s, to);
   const b=NWB.build(to, lbOpts(s, to)), ns=lbMerge(s, b, true);
   ns.measures=b.measures.map((m,mi)=>lbMeaCarry(s.measures[mi], m, mi, ns));
-  return ns;
+  return lbIntentFix(ns, to);   /* v70.0 P2a：lbMerge 已把原谱 intent 带过来，按换谱类规则改写 */
 }
 /* 六线谱列上的和弦按拍位挪到旋律列上（弹唱谱的和弦多标在 TAB 上；只补旋律本小节一个和弦都没有的） */
 function lbTabChords(old, melCols, unit){
@@ -42353,7 +42376,7 @@ function lbCopy(s, to){
   });
   if(to!=='C') ns.lyricLines=Math.max(ns.lyricLines|0, s.lyricLines|0);
   if(s.funcNames!=null) ns.funcNames=s.funcNames;   /* 和弦级数 / 音名显示照原谱 */
-  return ns;
+  return lbIntentFix(ns, to);   /* v70.0 P2a：改的是新窗口的谱，原谱不动 */
 }
 /* ---- 谱型条：信息、HTML、同步 ---- */
 function lbMelOk(s, k, meta){
@@ -43130,7 +43153,7 @@ function exportMusicXML(s){
     return (m1 && m2 && m1[1]===m2[1])? m1[1] : a+'·'+b; };
   /* v69.4（复核 F5）每个 score-part 写 <score-instrument> + <midi-instrument>：program 取应用内实际播放的音色（trackInstOf，只读；无混音台条目＝人声「啊」/ 钢弦吉他）
      经 GM_PROG_MAP 映射，MusicXML 从 1 起；通道同 exportMIDI（跳过打击乐通道 10）。此前一个都不写，MuseScore 每个 part 报 no instrument found、一律钢琴音色 */
-  const midiInstXML = (id, nm, kind, i, chIdx)=>{ const pg=GM_PROG_MAP[trackInstOf(s, kind, i)];
+  const midiInstXML = (id, nm, kind, i, chIdx)=>{ const pk=gmProgFor(s, kind, i), pg=pk!=null? pk : GM_PROG_MAP[trackInstOf(s, kind, i)];   /* v70.0 P2a 新乐器写乐器本身的 program */
     return `<score-instrument id="${id}-I1"><instrument-name>${xesc(nm)}</instrument-name></score-instrument>`
       + `<midi-instrument id="${id}-I1"><midi-channel>${(chIdx>=9? chIdx+1 : chIdx)+1}</midi-channel><midi-program>${(pg!=null? pg : 0)+1}</midi-program></midi-instrument>`; };
   const nVoxP = (s.voxVoices||[]).length;
@@ -43161,7 +43184,9 @@ function exportMusicXML(s){
     + (s.maker? `<miscellaneous-field name="pyq-maker">${xesc(s.maker)}</miscellaneous-field>` : '')
     + (s.singer? `<miscellaneous-field name="pyq-singer">${xesc(s.singer)}</miscellaneous-field>` : '')
     /* v69.8 C 组：首行声部名开关（song.rowNames）只在开着时写；自家文件导入只认这个字段（第三方文件按谱面推断） */
-    + (s.rowNames===1? `<miscellaneous-field name="pyq-rownames">1</miscellaneous-field>` : '');
+    + (s.rowNames===1? `<miscellaneous-field name="pyq-rownames">1</miscellaneous-field>` : '')
+    /* v70.0 P2a 建谱用途 song.intent：只写 11 个合法值（PQ_KIND.intentOf；ASCII 短码不需 xesc），导入读回；没有 intent 的谱输出逐字节不变 */
+    + (PQ_KIND.intentOf(s)? '<miscellaneous-field name="pyq-intent">'+PQ_KIND.intentOf(s)+'</miscellaneous-field>' : '');
   const miscXML = miscF? `<miscellaneous>${miscF}</miscellaneous>` : '';
   /* v65.7 速度/术语方向抽出：纯 TAB 谱（独奏谱）此前没有 vox part 就不写速度，导入回 90 */
   /* v69.4（复核 F5）有速度术语时写成一个 direction：words（术语）+ metronome + sound tempo——此前术语单独一个 direction，外部软件里成了普通谱表文字、与 ♩=N 分开；
@@ -44717,6 +44742,10 @@ function importMusicXML(xmlStr){
   /* v69.4（复核 F5）自家导出的制谱署名 / 演唱（<miscellaneous-field name="pyq-maker" / "pyq-singer">）读回；第三方文件没有这两项，照旧空串 */
   [['pyq-maker','maker'],['pyq-singer','singer']].forEach(([nm,k])=>{ const e=root.querySelector('identification > miscellaneous > miscellaneous-field[name="'+nm+'"]');
     const v=e? (e.textContent||'').trim().slice(0,120) : ''; if(v) out[k]=v; });
+  /* v70.0 P2a 建谱用途（<miscellaneous-field name="pyq-intent">）读回：去空白后是 11 个用途之一才写 song.intent，别的值不读；不看 ownSw
+     （MuseScore 另存一般保留 miscellaneous；intent 只在谱面推断有歧义时起作用） */
+  { const e=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-intent"]'), v=e? (e.textContent||'').trim() : '';
+    if(PQ_KIND.INTENTS.indexOf(v)>=0) out.intent=v; }
   /* v67.6 歌词行数照文件实写：全谱一个 <lyric> 都没有＝0（此前写死至少 1 行——无词的器乐谱也留了词位，统一谱名表据此把小提琴独奏叫成「五线谱歌谱」、
      长笛＋钢琴叫成「钢琴伴奏歌谱（五线谱）」；收尾验收 major）。「做成哪种谱」里转成歌谱类的做法仍留 1 行词位（NWP convert） */
   let maxLyr=0, nMea=0;
@@ -45848,6 +45877,19 @@ function pvMidiApply(smf, ti){
    · 每个事件的绝对 tick 先取整再求差（此前逐段差值各自四舍五入，七连 / 九连音越到曲末越不齐：《城市》右手比左手早 51 tick）。
    opt.expand===false：按小节线性、不展开（新外壳悬浮条试听切片用，与此前同口径） */
 const GM_PROG_MAP={steel:25, nylon:24, uku:24, electric:27, elecod:29, elecdist:30, bass:33, piano:0, epiano:4, musicbox:10, strings:48, flute:73, ah:53};   /* v69.4 从 exportMIDI 提出（MusicXML <midi-program> 同一张表，MusicXML 从 1 起） */
+/* v70.0 P2a（规格 §4.2）6 种新乐器的 GM program（0 起）：播放音色照旧走混音台（NW_INSTS.tim 预置的近似档），导出给外部软件写乐器本身的 program。
+   gmProgFor：旋律轨、s.instKey 在表里、该轨乐器（trkInstOf 口径）就是这个 instKey、混音音色仍是 NW_INSTS 的默认 tim（用户没改过）→ 表里的 program；
+   否则 null＝调用处照原来的 GM_PROG_MAP 映射。旧 22 个乐器键不在表里，老谱 MIDI / MusicXML 逐字节不变 */
+const GM_IK_PROG={recorder:74, melodica:22, ocarina:79, xiao:77, cello:42, clarinet:71};
+function gmProgFor(s, kind, i){
+  try{
+    const ik=s && s.instKey;
+    if(kind!=='vox' || typeof ik!=='string' || !Object.prototype.hasOwnProperty.call(GM_IK_PROG, ik)) return null;
+    const it=NW_INSTS.find(x=>x.k===ik), mx=(s.mixer||{})['vox:'+i];
+    if(!it || !mx || mx.inst!==it.tim || trkInstOf('vox', i, s)!==ik) return null;
+    return GM_IK_PROG[ik];
+  }catch(_){ return null; }
+}
 /* v69.4 只读版 trackCfg：第 vi 条 kind 轨在应用内实际用的音色（同 trackCfg 的缺省与坏值回落），不写 song.mixer——导出用（MusicXML <midi-instrument>） */
 function trackInstOf(s, kind, vi){
   const c=(s && s.mixer || {})[kind+':'+vi];
@@ -45894,7 +45936,8 @@ function exportMIDI0(s, expand){
   const runStart=[]; order.forEach((mi,oi)=>{ runStart.push(oi>0 && mi===order[oi-1]+1? runStart[oi-1] : oi); });
   /* v65.4 B3a ⑧（P3-05）元事件轨：拍号/调号逐小节写（变拍子、中途转调 keyTo 各在其小节起点）；GM 音色按混音台音色映射 */
   const GM_PROG=GM_PROG_MAP;
-  const gmProg=(kind,i)=>{ const mx=(s.mixer||{})[kind+':'+i]; const p=mx&&GM_PROG[mx.inst]; return p!=null? p : (kind==='tab'? 24 : 0); };
+  const gmProg=(kind,i)=>{ const pk=gmProgFor(s, kind, i); if(pk!=null) return pk;   /* v70.0 P2a 新乐器（GM_IK_PROG）；其余照旧 */
+    const mx=(s.mixer||{})[kind+':'+i]; const p=mx&&GM_PROG[mx.inst]; return p!=null? p : (kind==='tab'? 24 : 0); };
   const nameEv=n=>{ const b2=str(n); return {tick:0,pr:0,data:[0xFF,0x03,...vlq(b2.length),...b2]}; };
   /* v69.4 实际长度 → 拍号：x/u（u 取标称单位起依次 8、16、32、64，x 为 1–255 的整数）；表示不了返回 null（照写标称拍号） */
   const tsOfLen=(len,u)=>{ const q=len/TPQ; for(const u2 of [u,8,16,32,64]){ if(u2<u) continue; const x=q*u2/4, xr=Math.round(x); if(Math.abs(x-xr)<1e-6 && xr>=1 && xr<=255) return [xr,u2]; } return null; };
