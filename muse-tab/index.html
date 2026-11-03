@@ -43451,7 +43451,11 @@ function exportMusicXML(s){
     /* v69.8 C 组：首行声部名开关（song.rowNames）只在开着时写；自家文件导入只认这个字段（第三方文件按谱面推断） */
     + (s.rowNames===1? `<miscellaneous-field name="pyq-rownames">1</miscellaneous-field>` : '')
     /* v70.0 P2a 建谱用途 song.intent：只写 11 个合法值（PQ_KIND.intentOf；ASCII 短码不需 xesc），导入读回；没有 intent 的谱输出逐字节不变 */
-    + (PQ_KIND.intentOf(s)? '<miscellaneous-field name="pyq-intent">'+PQ_KIND.intentOf(s)+'</miscellaneous-field>' : '');
+    + (PQ_KIND.intentOf(s)? '<miscellaneous-field name="pyq-intent">'+PQ_KIND.intentOf(s)+'</miscellaneous-field>' : '')
+    /* v70.0 集成（规格 §9 第 3 条②）：乐器身份 song.instKey 往返——器乐＋钢琴（SG＋instKey）的谱名「小提琴＋钢琴伴奏谱（五线谱）」（拍板 22 后半）与 X谱（简谱 / 五线谱）都读它，
+       此前 MusicXML 不带 instKey，自家文件往返后落回「旋律＋钢琴伴奏谱（五线谱）」。只在有 intent 的谱（v70.0 起新建）上写，老谱（无 intent）输出逐字节不变（§1 第 3 条）；
+       值只认 PQ_KIND.INST 的键（ASCII 短码，不需 xesc） */
+    + (PQ_KIND.intentOf(s) && typeof s.instKey==='string' && Object.prototype.hasOwnProperty.call(PQ_KIND.INST, s.instKey)? '<miscellaneous-field name="pyq-instkey">'+s.instKey+'</miscellaneous-field>' : '');
   const miscXML = miscF? `<miscellaneous>${miscF}</miscellaneous>` : '';
   /* v65.7 速度/术语方向抽出：纯 TAB 谱（独奏谱）此前没有 vox part 就不写速度，导入回 90 */
   /* v69.4（复核 F5）有速度术语时写成一个 direction：words（术语）+ metronome + sound tempo——此前术语单独一个 direction，外部软件里成了普通谱表文字、与 ♩=N 分开；
@@ -45011,6 +45015,10 @@ function importMusicXML(xmlStr){
      （MuseScore 另存一般保留 miscellaneous；intent 只在谱面推断有歧义时起作用） */
   { const e=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-intent"]'), v=e? (e.textContent||'').trim() : '';
     if(PQ_KIND.INTENTS.indexOf(v)>=0) out.intent=v; }
+  /* v70.0 集成：乐器身份（<miscellaneous-field name="pyq-instkey">，只有自家导出、有 intent 的谱才写）读回：去空白后是 PQ_KIND.INST 的键才写 song.instKey，别的值不读；
+     第三方文件没有这一项，照旧不写 instKey（按音轨名认乐器仍只读不回写，§4.3） */
+  { const e=root.querySelector('identification > miscellaneous > miscellaneous-field[name="pyq-instkey"]'), v=e? (e.textContent||'').trim() : '';
+    if(v && Object.prototype.hasOwnProperty.call(PQ_KIND.INST, v)) out.instKey=v; }
   /* v67.6 歌词行数照文件实写：全谱一个 <lyric> 都没有＝0（此前写死至少 1 行——无词的器乐谱也留了词位，统一谱名表据此把小提琴独奏叫成「五线谱歌谱」、
      长笛＋钢琴叫成「钢琴伴奏歌谱（五线谱）」；收尾验收 major）。「做成哪种谱」里转成歌谱类的做法仍留 1 行词位（NWP convert） */
   let maxLyr=0, nMea=0;
