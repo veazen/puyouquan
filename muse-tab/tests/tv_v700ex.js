@@ -136,6 +136,27 @@ async function snapEx(b, url) {
         && lg.opened.title === '二胡练习曲' && lg.opened.ik === 'erhu',
         '「示例曲谱」对话框（新形态）：同一分组 21 张卡、显示 name2、点卡打开对的示例', J(lg));
     }
+    /* v70.0 验收②：分组后 21 份示例比中栏高——点示例 / 方向键选中后，预览框（#nf-pvbox）整块在可视区内（中栏滚动区与视口都不越界），选中项本身也露着（不被预览盖住） */
+    { const out = {}; let ok = true;
+      for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080], [1024, 700]]) {
+        const pg = await openPg(b, URL0, { w, h }); await toEx(pg);
+        const vis = () => pg.evaluate(() => { const pv = document.querySelector('#nf-pvbox'), mid = pv.closest('.nf-mid'), sel = document.querySelector('#nf-exl [role=option][aria-selected="true"]');
+          const P = pv.getBoundingClientRect(), M = mid.getBoundingClientRect(), S = sel.getBoundingClientRect(), midScr = /auto|scroll/.test(getComputedStyle(mid).overflowY) && mid.scrollHeight > mid.clientHeight + 1;
+          const lo = Math.max(0, midScr ? M.top : 0), hi = Math.min(innerHeight, midScr ? M.bottom : innerHeight);
+          const hit = document.elementFromPoint(S.left + S.width / 2, S.top + S.height / 2);
+          return { ex: +sel.dataset.ex, pv: [Math.round(P.top), Math.round(P.bottom)], win: [Math.round(lo), Math.round(hi)], pvIn: P.height > 100 && P.top >= lo - 1 && P.bottom <= hi + 1, selVis: !!(hit && hit.closest('[role=option]') === sel),
+            cap: (document.querySelector('#nf-pv figcaption') || {}).textContent || '', nm: sel.textContent }; });
+        const steps = [];
+        const opts = await pg.evaluate(() => [...document.querySelectorAll('#nf-exl [role=option]')].map(o => +o.dataset.ex));
+        for (const i of [opts[0], opts[10], opts[opts.length - 1]]) { await pg.click('#nf-ex-' + i); await pg.waitForTimeout(250); steps.push(['点' + i, await vis()]); }
+        for (const k of ['Home', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'End', 'ArrowUp', 'Home']) { await pg.keyboard.press(k); await pg.waitForTimeout(120); steps.push([k.replace('Arrow', ''), await vis()]); }
+        const bad = steps.filter(([, v]) => !(v.pvIn && v.selVis && v.cap.includes(v.nm.replace(/（.*$/, ''))));
+        if (bad.length) ok = false;
+        out[w + 'x' + h] = bad.length ? bad.map(([k, v]) => k + ':' + JSON.stringify(v)).join(' ; ') : steps.length + ' 步全在视野内（预览 ' + steps[0][1].pv.join('–') + ' / 可视 ' + steps[0][1].win.join('–') + '）';
+        await pg._ctx.close();
+      }
+      T('E2e', ok, '分组示例网格：点示例（首 / 中 / 末）与方向键 / Home / End 选中后，预览框整块在可视区内、选中项不被预览遮住、预览说明跟着换（1280×800 / 1440×900 / 1920×1080 / 1024×700）', J(out));
+      console.log('ℹ️ E2e ' + J(out)); }
 
     /* ---------- E3 5 份新示例数据 ---------- */
     { const pg = await openPg(b, qs(URL0, 'shell=classic'), { w: 1440, h: 900 });

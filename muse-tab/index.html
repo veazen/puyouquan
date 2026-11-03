@@ -1462,6 +1462,9 @@ i.nf-dot.s-user,i.nf-dot.s-link{background:var(--accent)}i.nf-dot.s-scene{border
 .nf-ex[aria-selected=true] .pqi,.nf-rc[aria-selected=true] .pqi{color:var(--accent-ink)}
 .nf-exgrid.nf-exgs{display:block}.nf-exg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.nf-exg+.nf-exg{margin-top:6px}   /* v70.0 C 新形态示例按谱种分组 */
 .nf-exgh{grid-column:1/-1;padding:4px 10px 0;font-size:12px;font-weight:600;color:var(--muted)}
+/* v70.0 验收②：按谱种分组的 21 份示例比中栏高，预览被挤到视野外（1280×800 / 1440×900 / 1920×1080 都要先滚才看得到）——
+   新形态（分组网格才有 .nf-stick）预览贴在中栏可视区底边，网格在它上方滚动；底下的阴影盖住中栏底内边距里露出的网格。旧外壳 / ?next=0 的 16 份网格不受影响 */
+.nf-modal .nf-paper.nf-stick{position:sticky;bottom:0;z-index:2;flex:none;box-shadow:0 18px 0 0 var(--panel),0 -10px 16px -10px rgba(18,16,52,.22)}
 .nf-rcl{display:flex;flex-direction:column;gap:4px}
 .nf-rc{min-height:56px}.nf-rc>span{display:flex;flex-direction:column;min-width:0}.nf-rc b{font-size:14px}.nf-rc small{font-size:12px;color:var(--muted)}
 .nf-modal .nf-imperr{display:flex;gap:8px;align-items:flex-start;width:100%;max-width:560px;box-sizing:border-box;padding:8px 12px;border-radius:10px;background:var(--toolbar);border:1px solid var(--border);border-left:3px solid var(--danger);color:var(--text);font-size:13px;line-height:1.55}
@@ -40772,7 +40775,7 @@ var NWP = (function(){
       mid='<section class="nf-mid" data-scroll="mid">'+(grp
           ? '<div class="nf-exgrid nf-exgs" role="listbox" aria-label="示例" id="nf-exl" data-grid="1" data-grp="1">'+exGroups().map(g=>'<div class="nf-exg" role="group" aria-labelledby="nf-exg-'+g.id+'"><div class="nf-exgh" id="nf-exg-'+g.id+'">'+esc2(g.name)+'</div>'+g.idx.map(opt).join('')+'</div>').join('')+'</div>'
           : '<div class="nf-exgrid" role="listbox" aria-label="示例" id="nf-exl" data-grid="1">'+PRESETS.map((x,i)=>opt(i)).join('')+'</div>')
-        +'<figure class="nf-paper nf-live sm" id="nf-pv" aria-busy="false"><div class="nf-pgrid nb" id="nf-pvbox" data-keep="1"></div><figcaption><span>示例《'+esc2(pn)+'》首行</span></figcaption></figure></section>';
+        +'<figure class="nf-paper nf-live sm'+(grp? ' nf-stick' : '')+'" id="nf-pv" aria-busy="false"><div class="nf-pgrid nb" id="nf-pvbox" data-keep="1"></div><figcaption><span>示例《'+esc2(pn)+'》首行</span></figcaption></figure></section>';
       right='<aside class="nf-right" data-scroll="right"><div class="nf-f"><span class="nw-lab">做同款</span><p class="nf-fixed nf-ftall">沿用《'+esc2(pn)+'》的谱类、各行谱、调、拍号、反复与版式；音符、歌词、和弦与词曲署名留空。</p></div>'
         +'<div class="nf-f"><label class="nw-lab" for="nf-extitle">曲名</label><input id="nf-extitle" type="text" autocomplete="off" maxlength="80" placeholder="'+esc2(String(pn).replace(/（.*$/,''))+'（同款）"></div>'
         +'<button type="button" class="nf-link" data-act="ex-open" id="nf-exopen">只看示例：在新窗口打开《'+esc2(pn)+'》</button></aside>';
@@ -41339,6 +41342,13 @@ var NWP = (function(){
   function focusSel(){ const f=modal && modal.querySelector('[role=option][aria-selected="true"]'); if(f){ f.focus({preventScroll:true}); try{ f.scrollIntoView({block:'nearest'}); }catch(_){} } return f; }
   /* 焦点是不是键盘移过来的：Tab / 方向键置真，鼠标按下置假。Chromium 里鼠标点过的按钮一按键就匹配 :focus-visible，靠它分不出来 */
   let kbNav=false;
+  /* v70.0 验收②：分组示例网格下预览贴在中栏底边（.nf-stick）——方向键移到的项落在预览后面时，把网格再往上滚到它露出来（中栏或窄档的整体滚动容器） */
+  function exAbovePv(f){
+    const pv=modal && modal.querySelector('#nf-pv.nf-stick'); if(!pv) return;
+    const a=f.getBoundingClientRect(), b=pv.getBoundingClientRect(), d=a.bottom-(b.top-6); if(d<=0) return;
+    let sc=pv.parentElement; while(sc && sc!==modal && !(sc.scrollHeight>sc.clientHeight+1 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc=sc.parentElement;
+    if(sc && sc!==modal) sc.scrollTop+=d;
+  }
   function onKey(e){
     if(!st) return;
     const tg=e.target, inField=/^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName);
@@ -41351,7 +41361,7 @@ var NWP = (function(){
     if(lb && lb.dataset.grp && ['ArrowDown','ArrowUp','ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
       e.preventDefault(); e.stopPropagation();
       const opts=[...lb.querySelectorAll('[role=option]')], cur=lb.querySelector('[role=option][aria-selected="true"]')||tg.closest('[role=option]'), i=Math.max(0, opts.indexOf(cur));
-      const n=opts[exGridStep(opts, i, e.key)]; if(n){ pickOpt(n); const f=document.activeElement; if(f && f.closest && f.closest('#nf-exl')) try{ f.scrollIntoView({block:'nearest'}); }catch(_){} }
+      const n=opts[exGridStep(opts, i, e.key)]; if(n){ pickOpt(n); const f=document.activeElement; if(f && f.closest && f.closest('#nf-exl')) try{ f.scrollIntoView({block:'nearest'}); exAbovePv(f); }catch(_){} }
       return;
     }
     /* 示例做同款是网格（列数按实际排版读）：← → 一格、↑ ↓ 一行 */
