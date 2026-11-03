@@ -158,9 +158,11 @@ const CORE = [
      A 组 tv_v700data——乐器表 28 键 / 6 种新乐器的谱名 · pzOf · 图标 · GM program、按音轨名认乐器、谱名拍板 11 / 22 后半、song.intent 存取往返（MusicXML / 本机 / .mtab / 云同步 / 真服务端）、
        换谱类 intent 改写、从已有音乐 6 种做法、搜索新词（D1–D7 20 项；零差异读 fixtures/v700data_base.json＝6d8d6f8）；单跑约 70 秒
      B 组 tv_v700new——新建面板 4 个新组合金表、?next=0 / 旧外壳零差异（fixtures/v700_base.json）、旋律用默认值、深链、刻版几何 G1–G8（两宽 × 两字体）、全部建谱路径写 intent、
-       快捷键、点击数（N1–N10 85 项）；B 组报告单跑 4–5 分钟，给 300 秒上限（并行时 ×1.5）
-     C 组 tv_v700ex——示例 21 份按谱种分组 / 旧外壳 16 份零差异 / 5 份新示例数据 / build-library 门 ⑨–⑭ / 冷启动计数（E1–E5） */
-  'tv_v700data', 'tv_v700new', 'tv_v700ex',
+       快捷键、点击数（N1–N10 85 项）；B 组建议 300 秒上限（并行时 ×1.5）
+     C 组 tv_v700ex——示例 21 份按谱种分组 / 旧外壳 16 份零差异 / 5 份新示例数据 / build-library 门 ⑨–⑭ / 冷启动计数（E1–E5）
+     集成 tv_v700int——跨组接缝（§9 ①–④ ⑥ ＋⑦）：6 种新乐器真实点击建谱 × GM program / 图标、合唱＋钢琴 / 器乐＋钢琴 MusicXML 往返（pyq-intent / pyq-instkey）、新组合换谱类 intent、
+       示例做同款 → 云同步 → 真服务端发布 → 专题、官方谱口径、种子 × 最终导入导出器（I1–I6，修前 4a99faa 红 I1–I4 / I6）；单跑约 55 秒 */
+  'tv_v700data', 'tv_v700new', 'tv_v700ex', 'tv_v700int',
 ];
 const suites = process.argv.slice(2).length ? process.argv.slice(2) : CORE;
 /* v68.2 收尾 ENG-7：个别套件单独放宽超时（只防挂死，不放宽断言）。tv_newpanel 44 项（v68.2 迁移后新外壳 + 旧外壳两段：T4 / T16 / T19 / T22 / T28 / T37 各跑两遍）
