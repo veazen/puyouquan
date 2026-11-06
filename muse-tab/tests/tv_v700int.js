@@ -16,10 +16,14 @@
    I7 验收⑥：没填词的歌谱类（pyq-intent＝vocal / kids / pacc / gtr / teach）导出再导入留 1 行词位、谱名不变；器乐 / 视唱 / 指弹 / 功能谱与去掉 pyq-intent 的老文件口径仍 0 行
    ⑤ 在 tv_kindsync K2（新组合变体编辑器 ↔ node 谱名对拍）。
    修前红：MUSETAB_URL=file://<git show 4a99faa:muse-tab/index.html 的副本>（第 0 步：数据与谱名规则已在、面板 / 示例 / intent 存取都还没有）复跑，I1–I4、I6 红。
-   env：MUSETAB_URL 编辑器、MUSETAB_API 服务端 server.js（默认仓库 api/server.js）、ONLY=I1,I3、CHROMIUM_PATH。 */
+   env：MUSETAB_URL 编辑器、MUSETAB_API 服务端 server.js（默认仓库 api/server.js）、ONLY=I1,I3、CHROMIUM_PATH。
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「器乐独奏」卡不在了——I1 改 nfpick.nfPick(pg, 'inst', {instKey, tacc}, 旋律用)
+   （卡可见点卡；否则「简谱 / 五线谱」行 → 「器乐」形态，各自先断言可见）；乐器下拉照旧选；形态已定旋律用（返回 fixed 含 mel）时不再点预览左上「旋律」，
+   「默认旋律用」期望＝形态定的（简谱 › 器乐＝J、五线谱 › 器乐＝S），卡路径照旧＝乐器族；加伴奏照旧开 ⋯ 点「加伴奏」 */
 'use strict';
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs'), os = require('os');
+const NFP = require('./lib/nfpick');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 
@@ -161,7 +165,8 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
         for (const mode of ['J', 'S', 'acc']) {
           const tag = k + ' ' + mode, vis = [];
           await pg.evaluate(() => __panel()); await W(250);
-          await pg.click('.nf-modal [data-scene="inst"]'); await W(80);
+          const pk0 = await NFP.nfPick(pg, 'inst', { instKey: k, tacc: mode === 'acc' ? 'with' : 'no' }, mode === 'J' ? 'J' : 'S'); await W(80);
+          const melFix = pk0.fixed.includes('mel'), melWant = melFix ? (pk0.pz === 'jianpu' ? 'J' : 'S') : (fam === 'staff' ? 'S' : 'J');
           vis.push(await pg.isVisible('#nf-inst'));
           const hasOpt = await pg.evaluate(k => !!document.querySelector('#nf-inst option[value="' + k + '"]'), k);
           if (!hasOpt) { bad.push(tag + '：乐器下拉没有 ' + k); continue; }
@@ -171,7 +176,7 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
             vis.push(await pg.isVisible('#nf-more')); await pg.click('#nf-more'); await W(100);
             const sv = '#nf-moreb [data-act="var"][data-k="tacc"][data-v="with"]'; vis.push(await pg.isVisible(sv)); await pg.click(sv); await W(80);
             if (await pg.isVisible('#nf-moreb')) { await pg.click('#nf-more'); await W(60); }
-          } else { const sm = '#nf-pvmel [data-act="mel"][data-v="' + mode + '"]'; vis.push(await pg.isVisible(sm)); await pg.click(sm); await W(80); }
+          } else if (!melFix) { const sm = '#nf-pvmel [data-act="mel"][data-v="' + mode + '"]'; vis.push(await pg.isVisible(sm)); await pg.click(sm); await W(80); }
           const pk = await pg.evaluate(() => (document.getElementById('nf-kind') || {}).textContent || '');
           vis.push(await pg.isVisible('#nw-create'));
           await pg.click('#nw-create'); await W(250);
@@ -190,7 +195,7 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
           const ch0 = (progs.find(p => p.ch === 0) || {}).prog, other = progs.filter(p => p.ch !== 0 && p.ch !== 9).map(p => p.prog);
           const why = [];
           if (!vis.every(Boolean)) why.push('不可见 ' + J(vis));
-          if (mel0 !== (fam === 'staff' ? 'S' : 'J')) why.push('默认旋律用 ' + mel0);
+          if (mel0 !== melWant) why.push('默认旋律用 ' + mel0 + '（期望 ' + melWant + (melFix ? '，形态 ' + pk0.pz + '.' + pk0.form : '') + '）');
           if (r.k !== wk) why.push('谱行 ' + r.k);
           if (pk !== wname || r.name !== wname || K.nameOf(d) !== wname) why.push('谱名 面板 ' + pk + ' / 建成 ' + r.name + ' / node ' + K.nameOf(d));
           if (r.pz !== wpz || J(r.also) !== J(walso) || r.inst !== k || (np.pz + '.' + np.sub) !== wpz || J((np.also || []).slice().sort()) !== J(walso) || np.inst !== k) why.push('pzOf ' + r.pz + '+' + r.also + '〔' + r.inst + '〕 node ' + np.pz + '.' + np.sub + '〔' + np.inst + '〕');
@@ -202,7 +207,7 @@ const CREATE = (pg, qs) => pg.evaluate(async qs => {
         }
       }
       await pg._ctx.close();
-      T('I1', p2a && rows.length === 18 && !bad.length, '① 新外壳真实点击「器乐」× 6 种新乐器 × 旋律用简谱 / 五线谱 / 加钢琴伴奏（18 份）：默认旋律用＝乐器族；面板「将建成」＝建成＝node 谱名；pzOf 主二级 / 也在 / 乐器编辑器＝node；intent＝inst；'
+      T('I1', p2a && rows.length === 18 && !bad.length, '① 新外壳真实点击「器乐」× 6 种新乐器 × 旋律用简谱 / 五线谱 / 加钢琴伴奏（18 份）：默认旋律用＝乐器族（P2b 按谱种：＝形态定的）；面板「将建成」＝建成＝node 谱名；pzOf 主二级 / 也在 / 乐器编辑器＝node；intent＝inst；'
         + 'MIDI 通道 0 / MusicXML 首 part＝该乐器 GM program（钢琴行仍钢琴）；左栏第一行图标＝同族已有图标', (p2a ? '' : 'nwP2A() 为假！ ') + J({ n: rows.length, bad: bad.slice(0, 6) }));
     });
 
