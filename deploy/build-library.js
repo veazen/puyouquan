@@ -7,8 +7,8 @@
      ② 时值：beatErrors() 为 0（不完整小节由导入标记 irr 豁免）
      ③ 不丢：skip.parts / voices / notes 都为 0（同谱表第二声部、超过 4 音的和弦、超出的声部都会计数）
         v70.3 B4 扩口径（基石方案 docs/plan-2026-11-foundation.md §3.1）：skip 各项——parts / voices / notes / lyrics / slurs，other 按 skip.otherBy 逐名
-        （导入台账 MXL_LED：双音震音、半断奏、括号符头…）——必须与 manifest 条目的 skipAllow 逐项相等：没写 skipAllow 的全 0；
-        写了的必须有 signed（by / date）与 why（逐曲签字的例外）；计数变了（多了或少了）都不过门，白名单跟着改、重新签（双音震音 v70.4 撤）
+        （导入台账 MXL_LED：半断奏、括号符头、跨休止圆滑线…；双音震音 v70.4 起收进 col.trem2、不再计数）——必须与 manifest 条目的 skipAllow 逐项相等：没写 skipAllow 的全 0；
+        写了的必须有 signed（by / date）与 why（逐曲签字的例外）；计数变了（多了或少了）都不过门，白名单跟着改、重新签（双音震音的白名单 v70.4 已撤）
      ④ v69.4 拼写：源文件与「导入 → 再导出」逐小节比 音高＋step＋alter 多重集（不含倚音）——此前只比音高，450 个音被改拼（B♭→A♯）也能过门
      ⑤ v69.4 文字：导入后的标注 anno 不得只由数字 / 点 / 空白组成（OpenScore 节拍器拆写的「.6」残片）
      ⑥ v69.8 歌词音节（col.syl）：源文件与「导入 → 再导出」逐（有词 part × 段）比 syllabic 序列（缺省＝single，只算有 <text> 的 lyric；

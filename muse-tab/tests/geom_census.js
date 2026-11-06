@@ -24,7 +24,7 @@ const path = require('path');
 /* v69.8 集成：加 A 组歌词连字符 / 延长线（lyrhy / lyrext）与 C 组首行声部名（rowname）——此前这三类有 data-g 却不在表里、普查看不见它们；
    B 组曲中速度沿用 tempo（avDefer 新族同类别）。加入后全部样本各类组仍 0 处（tv_v697col G / A / B 段） */
 const MARK = ['ped', 'dyn', 'hairpin', 'dtext', 'tempo', 'expr', 'anno', 'ott', 'tup', 'mnum', 'fing', 'chord', 'lyr', 'lyrp', 'verse', 'ferm', 'artic', 'orn', 'breath', 'nav', 'gliss', 'lyrhy', 'lyrext', 'rowname'];
-const INK = ['acc', 'head', 'stem', 'flag', 'beam', 'ledger', 'rest', 'dot', 'tie', 'grace', 'clef', 'clefm', 'keysig', 'tsig', 'brace', 'bracket', 'simile', 'trem'];
+const INK = ['acc', 'head', 'stem', 'flag', 'beam', 'ledger', 'rest', 'dot', 'tie', 'grace', 'clef', 'clefm', 'keysig', 'tsig', 'brace', 'bracket', 'simile', 'trem', 'trem2'];   /* v70.4 trem2＝双音震音杠（index.html t2Geo） */
 /* 墨迹 × 墨迹：只算这些（any＝不论是否同一列；diff＝必须是不同列 / 不同声部，同列是设计上相接） */
 const INK_PAIRS = {
   'acc|head': 'any', 'acc|rest': 'any', 'acc|stem': 'diff', 'acc|flag': 'any', 'acc|dot': 'any', 'acc|beam': 'any', 'acc|acc': 'any',
@@ -35,6 +35,9 @@ const INK_PAIRS = {
   'grace|head': 'any', 'grace|stem': 'diff', 'grace|ledger': 'any', 'grace|rest': 'any', 'grace|dot': 'any',
   'clefm|head': 'any', 'clefm|stem': 'any', 'clefm|rest': 'any', 'clefm|beam': 'any', 'clefm|dot': 'any', 'clefm|ledger': 'any', 'clefm|flag': 'any',
   'flag|flag': 'diff', 'head|keysig': 'any', 'head|tsig': 'any', 'keysig|stem': 'any', 'stem|tsig': 'any',
+  /* v70.4 双音震音杠：与任何墨迹（含本对两根符干——四分 / 二分的杠不接符干，两端各离 0.65 线距）都不该相交 */
+  'head|trem2': 'any', 'stem|trem2': 'any', 'flag|trem2': 'any', 'beam|trem2': 'any', 'ledger|trem2': 'any', 'rest|trem2': 'any', 'dot|trem2': 'any',
+  'acc|trem2': 'any', 'tie|trem2': 'any', 'grace|trem2': 'any', 'clefm|trem2': 'any', 'trem|trem2': 'any',
 };
 
 /* ---------------- 页面侧（page.evaluate(GC_PAGE) 注入 window.__gcRun） ---------------- */
@@ -435,6 +438,7 @@ const GROUPS = [
   { id: 'C09', what: '小节号与方括号钩 / 谱号等相撞', grp: 'B', test: (a, b) => a === 'mnum' || b === 'mnum' },
   { id: 'C10', what: '临时记号与前一列（或同列错位）符头 / 休止 / 加线 / 附点 / 符干 / 拍号相撞（列宽没算临时记号栈）', grp: 'B', test: (a, b) => a === 'acc' && b !== 'acc' && b !== 'tie' && INKSET.has(b) },
   { id: 'C18', what: '连音线 / 圆滑线终点压到下一音的临时记号', grp: 'B', test: (a, b) => a === 'acc' && b === 'tie' },
+  { id: 'C20', what: '双音震音杠与音符墨迹相撞（符头 / 符干 / 加线 / 临时记号 / 附点 / 连音线…；v70.4 基石方案 §3.2「震音 × 墨迹」）', grp: 'B', test: (a, b) => (a === 'trem2' || b === 'trem2') && INKSET.has(a) && INKSET.has(b) },
   { id: 'C17', what: '圆滑线（按连音线导入的长弧）穿过中间音的符干 / 符头 / 符尾', grp: 'later', test: (a, b) => (a === 'tie' || b === 'tie') && INKSET.has(a) && INKSET.has(b) },
   { id: 'C11', what: '和弦内临时记号互相重叠（重升号 / 密集升降号错列不够）', grp: 'B', test: (a, b) => a === 'acc' && b === 'acc' },
   { id: 'C12', what: '符头与符头相嵌（二度和音错位量不足 / 列太挤）', grp: 'B', test: (a, b) => a === 'head' && b === 'head' },

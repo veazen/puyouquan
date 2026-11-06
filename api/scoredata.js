@@ -3,7 +3,7 @@
    ① 已知数值字段：数字须有限；字符串须能转成有限数字（旧版本偶有 "90" 这类数字串，放行，编辑器载入时再规范化）；
    ② 已知短码字段（SD_CODE：技法/升降/和弦名…）不得含尖括号（dyn 的楔形 '<'/'>' 例外）；③ 自由文本（曲名/歌词…）不限字符——输出点转义；
    ④ 未知字段与新可选字段一律透传，服务端不因编辑器新增字段而拒收或剥离数据。返回首个违规位置供提示。 */
-const SD_NUM = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'dur', 'deg', 'oct', 's', 'f', 'volta', 'simile', 'tup', 'mi', 'ci', 'vi', 'li', 'si', 'q', 'bpm', 'syl', 'voxTransp', 'voxClefOct', 'rowNames']);
+const SD_NUM = new Set(['v', 'beats', 'unit', 'tempo', 'capo', 'lyricLines', 'dur', 'deg', 'oct', 's', 'f', 'volta', 'simile', 'tup', 'mi', 'ci', 'vi', 'li', 'si', 'q', 'bpm', 'syl', 'voxTransp', 'voxClefOct', 'rowNames', 'trem2']);   /* v70.4 双音震音杠数 col.trem2（与编辑器 SAN_NUM 同一张表） */
 const SD_FREE = new Set(['title', 'singer', 'lyricist', 'composer', 'maker', 'lyrics', 'label', 'anno', 'text', 'name', 'tabVoices', 'voxVoices', 'intro', 'desc', 'note', 'tempoTerm', 'author', 'voxShort']);
 const SD_KEEP = { dyn: new Set(['<', '>']) };
 /* 已知短码字段（数据模型 §3.1 + 渲染裸拼点审计）：合法取值不含尖括号。只在这些字段里拒收 <>，

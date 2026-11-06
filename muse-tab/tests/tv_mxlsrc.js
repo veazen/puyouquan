@@ -8,12 +8,12 @@
      · 保留：能落到谱面数据上的逐类数数（延长号 / 演奏法分类型 / 换气 / 装饰音分类型 / 单音震音 / 倚音 / 歌词 / 指法 / 和音指法 / 滑音 / 延续虚线），少了＝静默丢
      · 引擎重算（stem / beam / 普通 accidental / notehead normal / tuplet / staff / voice / duration）单列，不算丢
    S1 每份输入「静默丢」0、「多报」0（打印全体输入的分类汇总表）
-   S2 《侏儒》双音震音 188 对、《阿特拉斯》51 对：skip.otherBy['震音']；导入报告（skipText）点名「震音 188 对」「震音 51 对」（此前 skip 全 0）
+   S2 《侏儒》双音震音 188 对、《阿特拉斯》51 对：v70.3 起点名计数（skip.otherBy['震音']）；v70.4 收进 col.trem2——保留数 188 / 51、报告不再有「震音」
    S3 探针：① 5 个倚音一组 → skip.notes=2、前 3 个挂到主音 ② 六线谱 4 个四分音符＋backup＋voice 2 全音符 → 4 列、skip.voices=1、小节不超拍
           ③ number="1, 2" 与 "3" 的房子各计 1（房子编号 2），单个 1 / 2 不计 ④ 和弦每音带 <arpeggiate> → 琶音按列计 1 ⑤ 和弦倚音计 skip.notes
           ⑥ 杂项（caesura / cue / 菱形符头 / 颤音线 / 持续音踏板 / 跟 rit. 的延续虚线 / 休止上的歌词…）全部按名进报告
    S4 白名单 MXL_LED 在、skipText 按名点出前 5 类（多于 5 类写「等」）
-   S5 B4 曲库质量门 ③ 扩口径（deploy/build-library.js skipAllow 逐曲签字白名单）：反例清单（侏儒去掉白名单、阿特拉斯白名单少 1 对且没签字）不过门、逐曲点名
+   S5 B4 曲库质量门 ③ 扩口径（deploy/build-library.js skipAllow 逐曲签字白名单）：反例清单（侏儒去掉白名单、阿特拉斯白名单与实际不符且没签字）不过门、逐曲点名
    C  §3.1 编辑纠错（同版互通组一并验收）：C1 普通插入 / 前插（不顶替时）平移跨列引用 dynTo / ottTo / tk，数据断言插入前后指向同一个列对象、撤销回原 JSON；
       C2 measures 含 null 时 exportMusicXML 不抛错、按空小节导出、存储不改、导出提示点名小节号
    E  页面脚本错误 0
@@ -89,7 +89,7 @@ function censusFn(x) {
   const KIND = ['major', 'minor', 'dominant', 'major-seventh', 'minor-seventh', 'dominant-ninth', 'suspended-fourth', 'suspended-second', 'diminished', 'diminished-seventh', 'half-diminished', 'augmented', 'augmented-seventh',
     'major-sixth', 'minor-sixth', 'major-ninth', 'minor-ninth', 'dominant-11th', 'minor-11th', 'dominant-13th', 'major-13th', 'minor-13th', 'power', 'major-minor', 'none', 'other'];
   const TYI = { whole: 1, half: 2, quarter: 4, eighth: 8, '16th': 16, '32nd': 32, '64th': 64 };
-  const P = { ferm: 0, breath: 0, trem: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
+  const P = { ferm: 0, breath: 0, trem: 0, trem2: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
   let expNotes = 0, expVoices = 0, expLyr = 0;
   /* 拆谱表后的「虚拟声部」：每个 part × staff；六线谱＝该谱表首个谱号 TAB 或带 staff-tuning */
   const vparts = [];
@@ -153,7 +153,10 @@ function censusFn(x) {
           if (pick) P.orn[ORN_V[pick]] = (P.orn[ORN_V[pick]] || 0) + 1;
           [...c.children].forEach(g => { const t = g.tagName, cl = 'ornaments>' + t; if (half(g)) return;
             if (t === 'tremolo') { const ty = g.getAttribute('type') || 'single', n = +g.textContent.trim();
-              if (!rest && ty === 'single' && n >= 1 && n <= 3) { k(cl + '[单音]', 'keep'); if (g === nt.querySelector('ornaments > tremolo')) P.trem++; } else k(cl + '[' + ty + ']', 'rep', '震音'); return; }
+              if (!rest && ty === 'single' && n >= 1 && n <= 3) { k(cl + '[单音]', 'keep'); if (g === nt.querySelector('ornaments > tremolo')) P.trem++; }
+              /* v70.4 有意迁移：双音震音 start（1–4 杠）收进 col.trem2（stop 是半个，上面 half 已跳过）——由「进报告」改「保留」 */
+              else if (!rest && ty === 'start' && n >= 1 && n <= 4 && n === Math.round(n)) { k(cl + '[双音]', 'keep'); if (g === nt.querySelector('ornaments > tremolo')) P.trem2++; }
+              else k(cl + '[' + ty + ']', 'rep', '震音'); return; }
             if (t === 'accidental-mark') { if (pick && AMV.indexOf((g.textContent || '').trim()) >= 0) k(cl, 'keep'); else k(cl, 'rep', t); return; }
             if (VORN.indexOf(t) >= 0 && t === pick) { k(cl, 'keep'); return; }
             k(cl, 'rep', t); }); return; }
@@ -247,9 +250,9 @@ function censusFn(x) {
         gap(); nCols++; gN = 0; mainEl = el; noteCensus(el, 'main', true); });
       if (nCols && tcur - fill >= div / 16 - 1e-6) k('（时间）forward 留下的空拍', 'rep', '空拍'); }); });
   /* 谱面数据上的保留数 */
-  const S = im.song, got = { ferm: 0, breath: 0, trem: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
+  const S = im.song, got = { ferm: 0, breath: 0, trem: 0, trem2: 0, grace: 0, lyr: 0, fing: 0, afing: 0, gliss: 0, artic: {}, orn: {}, dash: 0 };
   S.measures.forEach(m => { (m.voxes || []).forEach(r => (r || []).forEach(c => { if (!c) return;
-      if (c.ferm) got.ferm++; if (c.breath) got.breath++; if (c.trem) got.trem++; if (c.grace && c.grace.notes) got.grace += c.grace.notes.length;
+      if (c.ferm) got.ferm++; if (c.breath) got.breath++; if (c.trem) got.trem++; if (c.trem2) got.trem2++; if (c.grace && c.grace.notes) got.grace += c.grace.notes.length;
       (c.lyrics || []).forEach(t => { if (t && String(t).trim()) got.lyr++; }); if (c.fing) got.fing++; (c.adds || []).forEach(a => { if (a && a.fing) got.afing++; });
       if (c.gliss) got.gliss++; if (c.artic) got.artic[c.artic] = (got.artic[c.artic] || 0) + 1; if (c.orn) got.orn[c.orn] = (got.orn[c.orn] || 0) + 1;
       if (c.dynTo && (c.dyn === 'cresc.' || c.dyn === 'dim.')) got.dash++; }));
@@ -262,7 +265,7 @@ function censusFn(x) {
   [...new Set([...Object.keys(EXP), ...Object.keys(OB)])].forEach(nm => cmp('报告「' + nm + '」', EXP[nm] || 0, OB[nm] || 0));
   cmp('skip.notes', expNotes, im.skip.notes | 0); cmp('skip.voices', expVoices, im.skip.voices | 0); cmp('skip.lyrics', expLyr, im.skip.lyrics | 0);
   cmp('skip.other 合计', Object.values(EXP).reduce((a, b) => a + b, 0), im.skip.other | 0);
-  ['ferm', 'breath', 'trem', 'grace', 'lyr', 'fing', 'afing', 'gliss'].forEach(kk => cmp('保留·' + kk, P[kk], got[kk]));
+  ['ferm', 'breath', 'trem', 'trem2', 'grace', 'lyr', 'fing', 'afing', 'gliss'].forEach(kk => cmp('保留·' + kk, P[kk], got[kk]));
   [...new Set([...Object.keys(P.artic), ...Object.keys(got.artic)])].forEach(kk => cmp('保留·artic ' + kk, P.artic[kk] || 0, got.artic[kk] || 0));
   [...new Set([...Object.keys(P.orn), ...Object.keys(got.orn)])].forEach(kk => cmp('保留·orn ' + kk, P.orn[kk] || 0, got.orn[kk] || 0));
   if (P.dash < got.dash) cmp('保留·dashes', P.dash, got.dash);
@@ -298,8 +301,9 @@ function censusFn(x) {
 
   /* S2 震音点名 */
   const zw = R[SRC.find(s => /lc6838113/.test(s.name)).name], at = R[SRC.find(s => /lc4985985/.test(s.name)).name];
-  T(zw.OB && zw.OB['震音'] === 188 && /震音 188 对/.test(zw.txt) && at.OB && at.OB['震音'] === 51 && /震音 51 对/.test(at.txt),
-    'S2《侏儒》双音震音 188 对、《阿特拉斯》51 对点名（skip.otherBy 与导入报告文案）', J({ zw: [zw.OB, zw.txt], at: [at.OB, at.txt] }));
+  /* v70.4 有意迁移（基石方案 §3.2 A）：双音震音收进 col.trem2——由「进报告」改「保留」：skip.otherBy 不再有「震音」、导入报告不再点名，保留数 188 / 51 对（独立统计 P 与谱面数据 got 相等） */
+  T(zw.OB && !zw.OB['震音'] && !/震音/.test(zw.txt) && at.OB && !at.OB['震音'] && !/震音/.test(at.txt) && zw.P.trem2 === 188 && zw.got.trem2 === 188 && at.P.trem2 === 51 && at.got.trem2 === 51,
+    'S2《侏儒》双音震音 188 对、《阿特拉斯》51 对收进 col.trem2（保留；skip.otherBy 与导入报告不再有「震音」）', J({ zw: [zw.OB, zw.txt, zw.P.trem2, zw.got.trem2], at: [at.OB, at.txt, at.P.trem2, at.got.trem2] }));
 
   /* S3 探针 */
   const pr = k => R['probe ' + k];
@@ -327,8 +331,10 @@ function censusFn(x) {
     try { msg = require('child_process').execFileSync('node', [path.join(ROOT, 'deploy', 'build-library.js'), '--check', '--manifest=' + tmp], { encoding: 'utf8', env: Object.assign({}, process.env, { MUSETAB_URL: '' }), timeout: 300000, stdio: ['ignore', 'pipe', 'pipe'] }); }
     catch (e) { code = e.status; msg = (e.stdout || '') + (e.stderr || ''); }
     try { fs.unlinkSync(tmp); } catch (_) {}
-    T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「震音」188（白名单 0）/.test(msg) && /lc4985985[^\n]*白名单缺签字[^\n]*其他「震音」51（白名单 50）/.test(msg),
-      'S5 质量门③：没写白名单的震音 188 对、白名单少 1 对且没签字的阿特拉斯都不过门，逐曲点名', msg.trim().slice(0, 900)); }
+    /* v70.4 有意迁移：震音不再计数——侏儒去掉白名单后剩下的延续虚线 3 / 括号符头 9 不过门；阿特拉斯白名单写了已经不计的「震音」50 对（实际 0）且没签字也不过门 */
+    T(code === 1 && /未过质量门/.test(msg) && /lc6838113[^\n]*其他「dashes」3（白名单 0）/.test(msg) && /lc6838113[^\n]*其他「notehead」9（白名单 0）/.test(msg) && !/lc6838113[^\n]*震音/.test(msg)
+      && /lc4985985[^\n]*白名单缺签字[^\n]*其他「震音」0（白名单 50）/.test(msg),
+      'S5 质量门③：去掉白名单的侏儒（虚线 3 / 符头 9，不再有震音）、白名单与实际不符且没签字的阿特拉斯都不过门，逐曲点名', msg.trim().slice(0, 900)); }
 
   /* ===== C 编辑纠错（§3.1 C） ===== */
   const c1 = await pg.evaluate(() => { const R = {};

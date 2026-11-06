@@ -9586,7 +9586,7 @@ function exGridStep(opts, i, key){
       音级/品位/技法/房子号四个字段能产出可执行属性，均由 ①② 覆盖）；④ 对象键名剥 <>（customChords 以和弦名为键）。
    与 sanitizeUntrusted 的分工：那是**不可信来源**的严格版（另剥引号、自由文本也剥 <>），这里是自有数据的无损版。
    常量放在 migrate 之前：顶层 const 有暂时性死区，不能让 migrate 引用到声明在它后面的常量。 */
-const SAN_NUM = new Set(['v','beats','unit','tempo','capo','lyricLines','dur','deg','oct','s','f','volta','simile','tup','mi','ci','vi','li','si','q','bpm','syl','voxTransp','voxClefOct','rowNames']);
+const SAN_NUM = new Set(['v','beats','unit','tempo','capo','lyricLines','dur','deg','oct','s','f','volta','simile','tup','mi','ci','vi','li','si','q','bpm','syl','voxTransp','voxClefOct','rowNames','trem2']);   /* v70.4 双音震音杠数 col.trem2 */
 const SAN_ENUM_KEEP = {dyn:new Set(['<','>'])};
 const SAN_FREE = new Set(['title','singer','lyricist','composer','maker','lyrics','label','anno','text','name','tabVoices','voxVoices','intro','desc','note','tempoTerm','author','voxShort']);
 function normalizeSongFields(v, key){
@@ -10150,6 +10150,7 @@ function staffColPlan(mi, vi){
     (col.adds||[]).forEach(a=>{ if(a&&a.deg) arr.push({deg:a.deg, acc:a.acc||'', oct:a.oct||0, st:K.step0+(a.deg-1)+(a.oct||0)*7+ottStep(col), fing:a.fing}); });
     return arr.sort((x,y)=>x.st-y.st); };
   const vG = beamGroups(cols, null, meaMeter(mi).unit);
+  const T2 = trem2Roles(cols);   /* v70.4 双音震音一对：符干方向按两列一起定（同符杠组），列距给震音杠留位（见下方 L / R） */
   const prev = mi>0? (()=>{ const pc=song.measures[mi-1].voxes[vi]||[]; return pc[pc.length-1]; })() : null;
   const tinSrc = (prev && prev.deg)? [prev].concat((prev.adds||[]).filter(a=>a && a.deg)) : [];
   const accSt = {};
@@ -10166,6 +10167,8 @@ function staffColPlan(mi, vi){
     const up = (()=>{ const g0 = vG.find(g2=>g2.idx.length>1 && g2.idx.includes(ci));
       const nts = g0? g0.idx.filter(i=>cols[i].deg>0) : [];
       if(nts.length>=2){ bm = true; return (nts.reduce((a,i)=>a+staffStep(cols[i],K),0)/nts.length) < mids[nts[0]]; }
+      if(T2 && T2[ci]){ const a = T2[ci]===1? ci : ci-1, ext = i=>{ const n2=nsOf(cols[i]); return (n2[0].st+n2[n2.length-1].st)/2; };
+        return (ext(a)+ext(a+1))/2 < mids[a]; }
       return (stLo+stHi)/2 < sMid; })();
     const disp = ns.map(()=>0);   /* 同音级（增一度 / 重复音）与二度同样错开——此前两个符头完全叠在一起 */
     if(up){ let f=false; for(let k=1;k<ns.length;k++){ f=(ns[k].st-ns[k-1].st<=1)? !f : false; if(f) disp[k]=1; } }
@@ -10195,6 +10198,10 @@ function staffColPlan(mi, vi){
     let R = Math.max(hW/2 + (anyR? DX : 0), col.dur>=2 && up? 4.75 : 0, ledg? lw+(anyR? DX : 0) : 0);
     if(col.dotted) R = Math.max(R, 8 + (anyR? DX : 0) + 1.6 + (dotLevel(col)-1)*4.6);
     if(col.clef && CLEF_BOT[col.clef] && ci>0) L = Math.max(L, 14 + smw(col.clef==='bass'?'fClef': col.clef==='alto'?'cClef':'gClef')*SG*0.75);   /* 首列换谱号画在小节线前（上一小节末尾，见 measureLayout clefNx） */
+    /* v70.4 双音震音一对：两列之间给震音杠留位——有符干时两符干之间去掉两侧各 0.65 线距空隙后杠长 ≥1.3 线距；全音符按两符头之间（各留 0.5 线距）算。
+       只给一对里朝里的那一侧加（第一列 R、第二列 L），只增不减 */
+    if(T2 && T2[ci]){ const half = col.dur===1? (hW + SG*(2*0.5+1.3))/2 : SG*(2*0.65+1.3)/2;
+      if(T2[ci]===1) R = Math.max(R, half); else L = Math.max(L, half); }
     return {ns, disp, DX, anyL, anyR, accs, accL, L, R, up, bm};
   });
 }
@@ -10663,6 +10670,22 @@ function tupMOf(c){ const t=c.tup===1?3:c.tup; return c.tupM || (t===3?2:4); }
 /* v69.4 A9 连音括线标数（只管显示）：M 恰为「小于 N 的最大 2 的幂」（3:2 · 5–7:4 · 9–15:8）＝惯例比例，只印 N（出版 / MuseScore 惯例；
    《城市》导入的 9:8 此前印成「9:8」）；其余照旧印 N:M（v51.4 自定比例如 8:7、2:3）。tupMOf 缺省值不动（老数据 tup=9 无 tupM 的含义不变） */
 function tupLabel(n, m){ if(!m) return ''+n; let p=1; while(p*2<n) p*=2; return m===p? ''+n : n+':'+m; }
+/* v70.4 双音震音（基石方案 docs/plan-2026-11-foundation.md §3.2 A；staff-audit T2）：可选字段 col.trem2＝杠数 1–4（八分 / 十六分 / 三十二分 / 六十四分交替），
+   只写在一对的第一个音上。两个音各写全长（符头字形按源谱 type），2:1 连音（tup:2, tupM:1）保留作时值载体——合起来占一个音的时值。
+   成对条件：本列与下一列都是有音高的音、都是 2:1；不成对（缺第二个音、被删改过）的 trem2 当没写，退回 v70.3 的连音「2」显示（旧版本打开新谱也是这个样子）。
+   trem2Roles(cols)：每列 0（不在对里）/ 1（一对的第一个）/ 2（第二个）；本小节没有任何 trem2 时返回 null（调用方据此走老路径，老谱逐字节不变） */
+function trem2N(c){ const n = c? +c.trem2 : 0; return (n>=1 && n<=4 && n===Math.round(n))? n : 0; }
+function trem2Ok(a, b){ const t21 = c=> !!(c && c.deg>0 && c.tup===2 && c.tupM===1); return !!(trem2N(a) && t21(a) && t21(b)); }
+function trem2Roles(cols){
+  if(!cols || !cols.some(c=> c && c.trem2)) return null;
+  const R = new Array(cols.length).fill(0);
+  for(let i=0; i+1<cols.length; i++) if(trem2Ok(cols[i], cols[i+1])){ R[i]=1; R[i+1]=2; i++; }
+  return R;
+}
+/* 交替一步的秒数：杠数 n → 四分音符的 1/2^n（n=1 八分 … n=4 六十四分）；spb＝每拍秒数、unit＝拍号单位 */
+function trem2Step(spb, n, unit){ return spb*((unit||4)/4)/Math.pow(2, Math.max(1, Math.min(4, n||1))); }
+/* 简谱画法：一对里每个音按实际时值画（各占一半，不印 2:1）——二分 2:1 → 四分、四分 2:1 → 八分 */
+function trem2JpCol(c){ const o = Object.assign({}, c, {dur: Math.min(64, (c.dur||4)*2)}); delete o.tup; delete o.tupM; return o; }
 function beatsOf(c, unit){
   const u = unit || song.unit;
   const t = c.tup===1? 3 : c.tup;
@@ -11268,6 +11291,7 @@ function measureLayout(mea){
        与刻版同一份 staffColPlan。临时记号栈宽并进左伸 leftW（只增不减：此前只按数据里主音的 c.acc 留 14 / 20）；左右墨迹另记 inkL / inkR，
        相邻两列「墨迹 + 净距」超过原刚杆时才撑开（其余列距逐字节不变）。简谱 / 六线谱带 SP 为 null，不进这里 */
     const SP = (isVox && myIdx>=0)? staffColPlan(myIdx, +band.slice(1)) : null;
+    const T2s = isVox? trem2Roles(cols) : null;   /* v70.4 双音震音一对（没有 trem2 为 null） */
     const bandL = band+'L';                    // 该声部的歌词行：与音符行不同基线，永不相撞
     cols.forEach((c, ci)=>{
       const bi=Math.min(beats-1, Math.floor(cum+1e-4));
@@ -11295,6 +11319,9 @@ function measureLayout(mea){
       }
       /* 右侧附加占位（后倚音、行内换谱号）——只长在列的右边，记成本段的加项 */
       let add = 0;
+      /* v70.4 双音震音（简谱行）：一对两个数字之间画震音斜杠——第一个数字右侧、第二个数字左侧各留 8（斜杠宽 7.4＋线宽 1.9，与两侧数字各留约 3 的净空） */
+      const t2J = (T2s && jpRowV(+band.slice(1)))? T2s[ci] : 0;
+      if(t2J===1) add += 8;
       if(isVox&&c.graceA) add += 5+6.5*normGrace(c.graceA).notes.length+(SP? graceFlagW(c.graceA) : 0);
       if(!isVox&&c.graceA) add += tabGraceW(normTabGrace(c.graceA));    /* v52.7 TAB 倚音占位；v60.69 共用 */
       if(isVox&&c.clef&&!(SP&&ci===0))   add += 20;   // v45.6 小节内换谱号：音符右移后仍与下一列保持净距
@@ -11307,6 +11334,7 @@ function measureLayout(mea){
         if(c.grace){ const gn=normGrace(c.grace).notes.length;
           leftW = Math.max(leftW, 10+(gn-1)*6.5+3.6+(c.acc?9:0)+(SP? graceFlagW(c.grace) : 0)); }     // 组宽+减时线左伸+让位变化音（v69.8 A 五线谱单个带符尾的倚音整体左移 2.5）
         if(SP && SP[ci]) leftW = Math.max(leftW, SP[ci].accL);          // v69.7 五线谱实际临时记号栈（见上）
+        if(t2J===2) leftW = Math.max(leftW, JP_HALF+8);               // v70.4 双音震音（简谱行）第二个数字左侧给斜杠留位（见上 add）
       }else if(c.grace){
         /* v60.78 TAB **前**倚音也长在主音左侧（渲染 gx0 = nx−13−(n−1)×步距），
            此前却和后倚音一样加进 add＝保护列的**右**侧——方向反了，于是双倚音
@@ -11329,7 +11357,7 @@ function measureLayout(mea){
            只在断行时刚杆之和超出行宽 ≤2% 才压它（MF2，见 layoutSystems），墨迹＋1.5 净距不压穿。带和弦名 / 装饰音 / 延长号 / 倚音 / 滑音 / 换气 / 震音 / 行内换谱号的列
            记 0（＝不给弹性，仍按原硬底），平时版面不变 */
         let i2L = 0, i2R = 0;
-        if(pl && !jpRowV(+band.slice(1)) && !(c.chord || (c.chords&&c.chords.length) || c.orn || c.ferm || c.grace || c.graceA || c.gliss || c.breath || c.trem || (c.clef && ci>0))){
+        if(pl && !jpRowV(+band.slice(1)) && !(c.chord || (c.chords&&c.chords.length) || c.orn || c.ferm || c.grace || c.graceA || c.gliss || c.breath || c.trem || c.trem2 || (ci>0 && cols[ci-1] && cols[ci-1].trem2) || (c.clef && ci>0))){   /* v70.4 双音震音一对的两列同震音：不给弹性 */
           const ar = c.artic? 5.2 : 0;
           const fR = (c.deg && c.dur>=8 && pl.up && !pl.bm)? 4.2-0.55+smw('flag'+(c.dur>=64?'64th':c.dur>=32?'32nd':c.dur>=16?'16th':'8th')+'Up')*7.5 : 0;
           i2L = Math.max(pl.L, ar); i2R = Math.max(pl.R, fR, ar);
@@ -13393,7 +13421,7 @@ function render(opt){
    返回 {ms, w, h, systems, drawn, pages, boxes(预览自己的 colBoxes), sysGeo}。正常 render() 的 #score 输出逐字节不变（tv_offscreen） */
 var RENDER_OFF = null;   /* var：noWrapOn 等可能早于此行求值被调用（同 SEL_FOLLOW） */
 /* v69.7 刻版碰撞普查的调试标记（tests/geom_census.js · tv_v697col）：window.__pyqGeom 为真时，五线谱声部的各类绘制元素带 data-g="类别" data-gq="vi:mi:ci"
-   （类别：head stem flag beam ledger rest dot acc tie grace clef clefm keysig tsig brace bracket mnum chord anno dyn hairpin dtext tempo expr ped ott tup fing ferm artic orn breath trem gliss lyr lyrp verse nav simile；
+   （类别：head stem flag beam ledger rest dot acc tie grace clef clefm keysig tsig brace bracket mnum chord anno dyn hairpin dtext tempo expr ped ott tup fing ferm artic orn breath trem trem2（v70.4 双音震音杠） gliss lyr lyrp verse nav simile；
    ci=−1 为整行 / 整小节记号）。只给测试 / 调试用：缺省 GEOM_ON 恒假，各绘制点只多一次 GQ 赋值、geomTag 不调用，谱面输出逐字节不变（tv_v697col Z 段与 v69.6 e8dc1c8 对拍）。
    只标叶子元素（path / line / rect / text / circle…），不标 <g> / <title>；热区透明 rect 不在标记范围里 */
 var GEOM_ON = false;
@@ -15809,6 +15837,7 @@ function renderCore(){
         const vGroups = beamGroups(cols, null, meaMeter(lm.mi).unit);
         const inGroup = new Set(); vGroups.forEach(g=>{ if(g.idx.length>1) g.idx.forEach(i=>inGroup.add(i)); });
         const AP = isStaff? staffColPlan(lm.mi, vi) : null;   // v69.7 本小节符头 / 二度错位 / 临时记号（进位、延音、分列）排版计划——与列宽同一份
+        const T2 = simV? null : trem2Roles(cols);   /* v70.4 双音震音一对（没有 trem2 的小节为 null：以下各处走老路径，谱面逐字节不变） */
         const pM0 = p.length;   /* v69.7 本小节绘制段起点（连音标记让开已画出的文字标注，见 annoBoxes） */
         /* v69.7（复核 E3）连音线 / 圆滑线终点让开目标音的临时记号：目标列（本小节下一列 / 同行下一小节首列 / 行首续接的首列）实际画出的临时记号里，
            竖向罩住弧端的那几个——弧端收到它们左缘外 1.5px；收进去弧会短于 8px 时改把弧端竖向挪到记号外侧。
@@ -15844,10 +15873,59 @@ function renderCore(){
           (col2.adds||[]).forEach(a=>{ if(a&&a.deg) arr.push({deg:a.deg, acc:a.acc||'', oct:a.oct||0, st:K.step0+(a.deg-1)+(a.oct||0)*7+ottStep(col2), fing:a.fing}); });
           return arr.sort((x,y)=>x.st-y.st);
         };
+        /* v70.4 双音震音一对（a, a+1）的几何（Gould 两音震音）：符干方向两列一起定（staffColPlan up）；
+           有符干时：杠线同符杠口径——坡度＝两列朝杠侧极值符头连线之半、限幅 ±0.8 线距（斜度跟音程走），符干不短于 stemLenSG(本列) 与
+           「按杠数折算的符杠组下限」（1–2 杠 3、3 杠 3.75、4 杠 4.5 线距）、远离谱表的音延到中线；杠从杠线起逐层向符头叠（同符杠 2.8 厚、4.4 间距）。
+           四分 / 二分本身不带符杠：杠不接符干，两端各离符干 0.65 线距（≥0.5，MuseScore stemGap 同值）；八分及更短且两列在同一符杠组里时，
+           本身的符杠照画，震音杠从下一层起、同样不接符干。全音符没有符干：杠悬在两个符头之间（离符头 / 附点 / 临时记号各 0.5 线距），
+           以两列符头中心连线为中线上下居中。返回 {up, stem, x0, x1, at(x)＝第 0 层杠线, lv0, n, own（符干由这里画）} */
+        const T2G = {};
+        const t2Geo = a=>{
+          if(T2G[a]) return T2G[a];
+          const b=a+1, n=trem2N(cols[a]), ST=4.4, BT=2.8;
+          const ext = i=>{ setClefCtx(i); const ns2=chNotes(cols[i]); return {lo:stepY(ns2[0].st), hi:stepY(ns2[ns2.length-1].st), mid:stepY(S_MID)}; };
+          const eA=ext(a), eB=ext(b); setClefCtx(a);
+          const stem = cols[a].dur>=2 && cols[b].dur>=2;
+          let g;
+          if(!stem){
+            const PA=AP[a], PB=AP[b], hw=smw('noteheadWhole')*SG/2, xa0=mx+lay.xs[a], xb0=mx+lay.xs[b];
+            let rA = hw+(PA.anyR? PA.DX : 0); if(cols[a].dotted) rA = Math.max(rA, 8+(PA.anyR? PA.DX : 0)+1.6+(dotLevel(cols[a])-1)*4.6);
+            const lB = Math.max(hw+(PB.anyL? PB.DX : 0), PB.accL||0);
+            const x0 = xa0+rA+SG*0.5, x1 = xb0-lB-SG*0.5;
+            const cA=(eA.lo+eA.hi)/2, cB=(eB.lo+eB.hi)/2;
+            const slant = Math.max(-SG*0.8, Math.min(SG*0.8, (cB-cA)*0.5)), slope = xb0>xa0? slant/(xb0-xa0) : 0, xm=(x0+x1)/2, ym=(cA+cB)/2;
+            const Ht = BT+(n-1)*ST;
+            g = {up:false, stem:false, n, x0, x1, at:x=> ym-Ht/2+slope*(x-xm), lv0:0, own:false, dn:true};
+          }else{
+            const bg0 = vGroups.find(g2=>g2.idx.length>1 && g2.idx.includes(a) && g2.idx.includes(b)), BG = bg0? beamGeo(bg0) : null;
+            if(BG && BG.notes.includes(a) && BG.notes.includes(b)){
+              const fl = cols[a].dur>=64? 4 : cols[a].dur>=32? 3 : cols[a].dur>=16? 2 : 1;
+              const xA=BG.sxOf(a), xB=BG.sxOf(b);
+              g = {up:BG.up, stem:true, n, x0:xA+SG*0.65, x1:xB-SG*0.65, at:BG.beamAt, lv0:fl, own:false};
+            }else{
+              const up=!!(AP && AP[a] && AP[a].up), sx = i=> mx+lay.xs[i]+(up? 4.2 : -4.2), xA=sx(a), xB=sx(b);
+              const hy = e=> up? e.hi : e.lo;
+              const slant = Math.max(-SG*0.8, Math.min(SG*0.8, (hy(eB)-hy(eA))*0.5)), slope = xB>xA? slant/(xB-xA) : 0;
+              const len = Math.max(stemLenSG(cols[a].dur), stemLenSG(Math.min(64, 8*Math.pow(2, n-1)), {beam:true}));
+              let aInt = up? Infinity : -Infinity;
+              [[eA,xA],[eB,xB]].forEach(([e,x])=>{ const y0 = up? Math.min(hy(e)-SG*len, e.mid) : Math.max(hy(e)+SG*len, e.mid), t0=y0-slope*(x-xA); aInt = up? Math.min(aInt,t0) : Math.max(aInt,t0); });
+              g = {up, stem:true, n, x0:xA+SG*0.65, x1:xB-SG*0.65, at:x=> aInt+slope*(x-xA), lv0:0, own:true, sx};
+            }
+          }
+          return (T2G[a] = g);
+        };
         /* 五线谱：单音 符干+符尾（散音、以及无法成杠的组退化使用） */
         const stStemFlags = (ci2)=>{
           setClefCtx(ci2);   // v45.6 符干方向/中线延伸按该列生效谱号
           const col2=cols[ci2]; if(!col2.deg || col2.dur<2) return;
+          if(T2 && T2[ci2]){ const G=t2Geo(T2[ci2]===1? ci2 : ci2-1);   /* v70.4 双音震音一对：符干到杠线（两列同向、同一条杠线） */
+            if(G.own){ setClefCtx(ci2); const ns2=chNotes(col2), sx2=G.sx(ci2), from2 = G.up? stepY(ns2[0].st)-1.2 : stepY(ns2[ns2.length-1].st)+1.2;
+              GQ=p.length;
+              p.push(`<line x1="${sx2}" y1="${from2.toFixed(1)}" x2="${sx2}" y2="${G.at(sx2).toFixed(1)}" stroke="var(--ink)" stroke-width="1.1"/>`);
+              GTv&&GTv('stem', lm.mi, ci2); GQ=p.length;
+              if(col2.dur>=8) p.push(smg('flag'+(col2.dur>=64?'64th':col2.dur>=32?'32nd':col2.dur>=16?'16th':'8th')+(G.up?'Up':'Down'), sx2-0.55, G.at(sx2), SG));
+              GTv&&GTv('flag', lm.mi, ci2);
+              return; } }
           const nx2=mx+lay.xs[ci2], ns2=chNotes(col2);
           const yLo=stepY(ns2[0].st), yHi=stepY(ns2[ns2.length-1].st);   // yLo=最低音(最大y)
           const up2 = (ns2[0].st+ns2[ns2.length-1].st)/2 < S_MID;
@@ -15884,7 +15962,9 @@ function renderCore(){
           /* v54.5 选区改整块色块（rangeSpan），不再逐列画 0.09 条带 */
           if(noteSel.some(q=>q.row==='vox'&&q.mi===lm.mi&&q.ci===ci&&q.vi===vi))
             p.push(`<circle cx="${nx}" cy="${isStaff&&col.deg? stepY(staffStep(col,K)) : voxY-5}" r="8.5" fill="none" stroke="var(--accent)" stroke-width="1.4"/>`);
-          const under = col.dur>=64?4 : col.dur>=32?3 : col.dur>=16?2 : col.dur>=8?1 : 0;
+          /* v70.4 双音震音一对：简谱按实际时值画（各占一半、不印 2:1）——jcol＝简谱行用的列（减时线 / 增时线 / 附点）；不在对里＝col 本身 */
+          const jcol = (T2 && T2[ci] && (!isStaff || dual))? trem2JpCol(col) : col;
+          const under = jcol.dur>=64?4 : jcol.dur>=32?3 : jcol.dur>=16?2 : jcol.dur>=8?1 : 0;
           /* 功能谱：和弦标注在音符上方——级数/音名一键切换；整名圆角框、常规字号；
              空位（八分音符网格上）悬停出现「＋和弦」编辑提示 */
           /* v60.28 「＋和弦」空位悬停区撤销（产品负责人指示：谱面不留点击位，
@@ -16195,7 +16275,13 @@ function renderCore(){
             p.push(`<path d="M ${(bxr-2.6).toFixed(1)} ${(byr-5.2).toFixed(1)} L ${bxr.toFixed(1)} ${byr.toFixed(1)} L ${(bxr+2.6).toFixed(1)} ${(byr-5.2).toFixed(1)}" fill="none" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>`);
           }
           GTv&&GTv('breath', lm.mi, ci);
-          if((!isStaff || dual) && !song.chordOnly) jpMarksSVG(p, nx, voxY, col, under, !inGroup.has(ci));   /* v67.1 八度点/单音减时线/附点 → 共享 */
+          if((!isStaff || dual) && !song.chordOnly) jpMarksSVG(p, nx, voxY, jcol, under, !inGroup.has(ci) && !(jcol!==col && under));   /* v67.1 八度点/单音减时线/附点 → 共享 */
+          /* v70.4 双音震音（简谱）：一对两个数字之间画震音斜杠（杠数＝trem2，竖向以数字中部居中）；两音都带减时线时连成一组 */
+          if((!isStaff || dual) && !song.chordOnly && T2 && T2[ci]===1){
+            const nB = mx+lay.xs[ci+1], n2 = trem2N(col);
+            if(under) jpBeamSVG(p, [jcol, trem2JpCol(cols[ci+1])], {idx:[0,1]}, i=>mx+lay.xs[ci+i], voxY);
+            p.push(tremSlashesSVG((nx+nB)/2, voxY-6-(n2-1)*4.3/2, n2, 1).replace(/<line /g, '<line class="jptrem2" '));
+          }
           /* 力度/速度记号：音符下方（避让减时线与低音点），渐强/渐弱画折线 */
           GQ=p.length;
           if(col.dyn){
@@ -16320,7 +16406,7 @@ function renderCore(){
             else drawPed({put:(_, s2)=>p.push(s2), dy:()=>0});
           }
           GTv&&GTv('ped', lm.mi, ci);
-          if((!isStaff || dual) && !song.chordOnly && col.dur<=2 && col.deg){
+          if((!isStaff || dual) && !song.chordOnly && jcol.dur<=2 && col.deg){
             /* v42.2 增时线仅延长有音高的音（col.deg≠0）；休止(deg=0)不接增时线——
                GB 惯例休止按拍记「0」（半/整小节休止用重复 0 或单 0），不与增时线混用 */
             /* v41.5 简谱增时线按实际时值出条数（GB 惯例：整拍数−1 条）：
@@ -16330,7 +16416,7 @@ function renderCore(){
                每条横线画在它代表的四分拍位上——x 取 measureLayout 预计算的 qxs（全声部共用
                同一张 时值→x 弹簧-刚杆映射），与上方 TAB/五线谱同拍音符列严格纵向对齐；
                缺拍点数据时退回列内均分（防御，正常不可达） */
-            jpDashesSVG(p, col, nx, cw, mx, (lay.qxs&&lay.qxs[ci])||[], voxY, (d, dashX)=>{   /* v67.1 增时线 → 共享；拍位热区/选中圈留在声部侧 */
+            jpDashesSVG(p, jcol, nx, cw, mx, (lay.qxs&&lay.qxs[ci])||[], voxY, (d, dashX)=>{   /* v67.1 增时线 → 共享；拍位热区/选中圈留在声部侧 */
               dashZone += `<rect x="${(dashX(d)-9).toFixed(1)}" y="${voxY-16}" width="18" height="21" fill="transparent" data-mi="${lm.mi}" data-ci="${ci}" data-row="vox" data-vi="${vi}" data-q="${d}" style="cursor:pointer"><title>延长音第 ${d} 拍位（点击选中，可在此拍设和弦）</title></rect>`;
               if(isSel && (sel.q||0)===d)
                 p.push(`<circle cx="${dashX(d).toFixed(1)}" cy="${voxY-5}" r="8" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>`);
@@ -16572,10 +16658,11 @@ function renderCore(){
           /* v51.4 N:M 自定连音：按 tup+tupM 双键分组；标数默认 N、自定比例标 N:M，断口随标宽自适应 */
           const tN=c2=>c2.tup===1?3:c2.tup;
           const tKey=c2=>tN(c2)+':'+(c2.tupM||0);
+          const tupOn = k=> cols[k].tup && !(T2 && T2[k]);   /* v70.4 双音震音一对的 2:1 只是时值载体：不印连音数字、不画括弧（五线谱、简谱都不印） */
           let a2=0;
           while(a2<cols.length){
-            if(cols[a2].tup){
-              let b3=a2; while(b3<cols.length-1 && cols[b3+1].tup && tKey(cols[b3+1])===tKey(cols[a2])) b3++;
+            if(tupOn(a2)){
+              let b3=a2; while(b3<cols.length-1 && tupOn(b3+1) && tKey(cols[b3+1])===tKey(cols[a2])) b3++;
               const n=tN(cols[a2]);
               const lbl=tupLabel(n, cols[a2].tupM);   /* v69.4 A9 惯例比例只印 N */
               for(let s=a2; s<=b3; s+=n){
@@ -16694,6 +16781,19 @@ function renderCore(){
             if(!dual) return;
           }
           jpBeamSVG(p, cols, g, i=>mx+lay.xs[i], voxY);   /* v67.1 成组减时线 → 共享 */
+        });
+        /* v70.4 双音震音杠（五线谱）：几何见 t2Geo；普查类别 trem2（「震音 × 墨迹」） */
+        if(isStaff && T2) T2.forEach((r2, a)=>{
+          if(r2!==1) return;
+          const G = t2Geo(a), ST=4.4, BT=2.8;
+          if(!(G.x1 > G.x0+0.5)) return;
+          GQ=p.length;
+          for(let l=0; l<G.n; l++){
+            const off = !G.stem? l*ST : G.up? (G.lv0+l)*ST : -BT-(G.lv0+l)*ST;
+            const ya=G.at(G.x0)+off, yb=G.at(G.x1)+off;
+            p.push(`<path d="M ${G.x0.toFixed(1)} ${ya.toFixed(1)} L ${G.x1.toFixed(1)} ${yb.toFixed(1)} L ${G.x1.toFixed(1)} ${(yb+BT).toFixed(1)} L ${G.x0.toFixed(1)} ${(ya+BT).toFixed(1)} Z" fill="var(--ink)" class="trem2"/>`);
+          }
+          GTv&&GTv('trem2', lm.mi, a);
         });
       });
       /* v69.8 A（复核 T10）本行（系统 × 声部）的连字符 / 延长线：五线谱行记进避让的歌词层（avInk lyrhy / lyrext）、普查标记同其余歌词 */
@@ -27978,10 +28078,12 @@ function play(){
       const smi=simileSrc(mi);   // v41.3 小节反复：播放展开为源小节内容
       const mUv=meaMeter(smi!=null?smi:mi).unit;   // v43.5 变拍子
       let bcum=0;                                  /* v48.9 小节内拍位（拍点重音用） */
-      (song.measures[smi!=null?smi:mi].voxes[vi]||[]).forEach((col,ci)=>{
+      const pCols = song.measures[smi!=null?smi:mi].voxes[vi]||[], T2p = trem2Roles(pCols);   /* v70.4 双音震音一对（没有 trem2 的小节为 null） */
+      pCols.forEach((col,ci)=>{
         const durSec = beatsOf(col,mUv)*spb;
         const acc2 = beatAcc(bcum, meaMeter(smi!=null?smi:mi).beats);   /* v48.9 拍点重音 */
         const m = voxMidi(col, mi);   /* v60.29 keyTo 中途转调跟随（按播放到的小节取生效调） */
+        const t2r = T2p? T2p[ci] : 0;
         /* v69.8（复核 F3 / T9）演奏法：跳音 0.5 倍、断音 0.3 倍发声（阻尼，不延到下一音）；重音 ×1.2、顿强 ×1.3；保持音满时值。stF＝发声比例（0＝不截短）、acF＝力度系数 */
         const stF = col.artic==='stacc'? 0.5 : col.artic==='staccatissimo'? 0.3 : 0;
         const acF = col.artic==='accent'? 1.2 : col.artic==='marcato'? 1.3 : 1;
@@ -28011,7 +28113,23 @@ function play(){
           });
         }
         dynG=dynGainAt(dynVTL[vi], off);   /* v69.4 本列起奏的力度：组内共用力度线 + 突强只作用于这一刻（见 dynSweep） */
-        if(m!=null && col.trem){
+        if(m!=null && t2r===2){
+          /* v70.4 双音震音的第二个音：已在第一个音那里交替奏出，这里不再发声 */
+        } else if(m!=null && t2r===1){
+          /* v70.4 双音震音：两音（各带和音）交替发声，铺满一对的总时值；速率按杠数（1–4 杠＝八分 / 十六分 / 三十二分 / 六十四分，按四分音符折算），
+             逐次发音、第二个音略轻（同单音震音口径）；不入延音链 */
+          soundTimes.push(t+off);
+          if(cur){ notes.push(cur); cur=null; }
+          if(addHold.size) addFlushAll();
+          const cB = pCols[ci+1], mB = voxMidi(cB, mi), rep = trem2Step(spb, trem2N(col), mUv);
+          const tot = durSec + beatsOf(cB,mUv)*spb, nrep = Math.max(2, Math.round(tot/rep));
+          const chOf = (c2, m0)=> [m0].concat((c2.adds||[]).filter(a=>a&&a.deg).map(a=>soundMidi(a, mi)));
+          const chA = chOf(col, m), chB = mB!=null? chOf(cB, mB) : chA;
+          for(let r2=0;r2<nrep;r2++){
+            const vv=(r2%2? 0.86:1)*dynG*(r2===0?acc2:1);
+            (r2%2? chB : chA).forEach((mm,k)=> playInst(cfg.inst, ctx, tbus, midiFreq(mm), t+off+r2*rep, rep*0.95, vol*(k? 0.5 : 1.05)*vv, false, {damp:true, vel:vv}));
+          }
+        } else if(m!=null && col.trem){
           /* v49.4 轮奏细分（震音 1-3 杠=八分/十六分/三十二分重复演奏）：不入延音链，
              逐次发音、下拍略轻（交替拨奏的自然强弱），门限 0.95 留换音气口 */
           soundTimes.push(t+off);
@@ -28066,7 +28184,7 @@ function play(){
         /* v48.9 和音塑形（MIDI 专家参数）：附加音按音高低→高各错 3ms 微滚奏（真人和弦非绝对齐击，
            也避免同起音相位叠加）；声部分层——最低附加音为外声部略保留，内声部相对旋律约 −9dB；
            时值门 ×0.9 让相邻和音间有呼吸。力度线与拍点重音同步作用（此前附加音不吃力度记号）。 */
-        if(m!=null && col.adds){
+        if(m!=null && col.adds && !t2r){   /* v70.4 双音震音一对的和音已随交替奏出 */
           const aL = col.adds.filter(a=>a&&a.deg)
             .map(a=>({am:soundMidi(a, mi), tie:!!a.tie}))   /* v69.4 同 voxMidi 一份公式（补 transp）；v53.4 变调夹联动；v60.29 keyTo 跟随 */
             .sort((x,y)=>x.am-y.am);
@@ -43894,6 +44012,7 @@ function exportMusicXML(s){
         const dR = cols.reduce((a,c)=>a+Math.max(1, Math.round(beatsOf(c)*beatDiv)), 0);
         body += `<note><rest measure="yes"/><duration>${dR}</duration><voice>1</voice>${staffTag}</note>`; durSum+=dR; addTieIn=new Set(); glissPend=false;
       }
+      const T2x = mRest? null : trem2Roles(cols);   /* v70.4 双音震音：一对写 <tremolo type="start|stop">，time-modification 2:1 照写（没有 trem2 的小节为 null，输出逐字节不变） */
       if(!mRest) cols.forEach((col,ci)=>{
         if(tpi<tps.length) body += tpFlush(durSum, false);   /* v69.8 */
         /* v45.6 小节内换谱号 → 中途 <attributes><clef>（音符前插入，标准 MusicXML 语义） */
@@ -43959,7 +44078,9 @@ function exportMusicXML(s){
         const ornEl = {up:'<inverted-mordent/>', down:'<mordent/>', tr:'<trill-mark/>', turn:'<turn/>'}[col.orn]||'';
         const ornAccX = ornEl? ((ACC_MK[col.ornAcc]? `<accidental-mark placement="above">${ACC_MK[col.ornAcc]}</accidental-mark>` : '')
           + (ACC_MK[col.ornAccLo]? `<accidental-mark placement="below">${ACC_MK[col.ornAccLo]}</accidental-mark>` : '')) : '';
-        const ornXML = (ornEl || col.trem)? `<ornaments>${ornEl}${ornAccX}${col.trem? `<tremolo type="single">${col.trem}</tremolo>` : ''}</ornaments>` : '';
+        const t2r = T2x? T2x[ci] : 0, t2X = t2r? `<tremolo type="${t2r===1? 'start' : 'stop'}">${trem2N(t2r===1? col : cols[ci-1])}</tremolo>` : '';   /* v70.4 双音震音（对里不另写单音震音） */
+        const trem1 = col.trem && !t2r;
+        const ornXML = (ornEl || trem1 || t2X)? `<ornaments>${ornEl}${ornAccX}${trem1? `<tremolo type="single">${col.trem}</tremolo>` : ''}${t2X}</ornaments>` : '';
         /* v69.4（复核 T3①）圆滑线 number 按谱表号写（大谱表上行 1、下行 2）：此前一律 1，两手圆滑线时间上重叠时外部软件编号撞车、丢掉一条 */
         const slN = stN||1;
         const notInner = `${tieStop?'<tied type="stop"/>':''}${tieStart?'<tied type="start"/>':''}${slStop?`<slur type="stop" number="${slN}"/>`:''}${slStart?`<slur type="start" number="${slN}"/>`:''}${slideXML}`+signXML+ornXML+fingXML;
@@ -45133,7 +45254,9 @@ function importMusicXML(xmlStr){
           if(MXL_LED.vox.articulations.indexOf(t)<0 || t!==pick) skO(t); }); return; }   /* 一列只记一个演奏法（col.artic）：第二个起计数 */
       if(tg==='ornaments'){ const pick = (rest || c!==q(nt,'ornaments'))? null : ORN_PRI.find(t=>c.querySelector(':scope > '+t));   /* 导入只读第一个 <ornaments> */
         [...c.children].forEach(g=>{ const t=g.tagName; if(ledHalf(g)) return;
-          if(t==='tremolo'){ const ty=g.getAttribute('type')||'single', n=+g.textContent.trim(); if(rest || ty!=='single' || !(n>=1 && n<=3)) skO('震音'); return; }   /* B2 双音震音 start/stop 一对计 1 */
+          if(t==='tremolo'){ const ty=g.getAttribute('type')||'single', n=+g.textContent.trim();
+            /* v70.4 双音震音 start（1–4 杠）收进 col.trem2（stop 由 ledHalf 跳过）——不再计「震音」；v70.3 B2 起一对计 1 的口径只剩认不了的（杠数越界 / 休止上的） */
+            if(rest || !((ty==='single' && n>=1 && n<=3) || (ty==='start' && n>=1 && n<=4 && n===Math.round(n)))) skO('震音'); return; }
           if(t==='accidental-mark'){ if(!pick || !['sharp','natural','flat','double-sharp','sharp-sharp','flat-flat','double-flat'].includes((g.textContent||'').trim())) skO(t); return; }
           if(MXL_LED.vox.ornaments.indexOf(t)<0 || t!==pick) skO(t); }); return; }
       if(tg==='technical'){ let fg=0; [...c.children].forEach(g=>{ if(ledHalf(g)) return;
@@ -45687,6 +45810,10 @@ function importMusicXML(xmlStr){
         { const aN=+txt(el,'time-modification > actual-notes')||0, nN=+txt(el,'time-modification > normal-notes')||0;
           if(aN===3 && nN===2) tup=1;
           else if(aN>=2 && aN<=16 && nN>=1 && nN<=16){ tup=aN; if(nN!==(aN===3?2:4)) tupM2=nN; } }
+        /* v70.4 双音震音没写 time-modification（有的软件只写 duration）：duration 恰为 type 名义时值的一半 → 按 2:1 记（时值载体，同 MuseScore 导出的写法） */
+        if(!tup && dur){ const trE=el.querySelector(':scope > notations > ornaments > tremolo'), trT=trE && trE.getAttribute('type');
+          if(trT==='start' || trT==='stop'){ const qn=(+(txt(el,'duration')||0))/div, nom=(4/dur)*(dotted===2? 1.75 : dotted? 1.5 : 1);
+            if(qn>0 && Math.abs(qn*2-nom)<1e-3){ tup=2; tupM2=1; } } }
         if(!dur){
           const quarters=(+(txt(el,'duration')||0))/div;
           const cand=[[1,4],[2,2],[4,1],[8,0.5],[16,0.25],[32,0.125],[64,0.0625]];
@@ -45732,6 +45859,8 @@ function importMusicXML(xmlStr){
             /* v43.4 震音：ornaments>tremolo（single 单音震音 1-3 杠）→ col.trem */
             const tr=nt3.querySelector('ornaments > tremolo');
             if(tr && (tr.getAttribute('type')||'single')==='single'){ const tn=+tr.textContent.trim(); if(tn>=1&&tn<=3) col2.trem=tn; }
+            /* v70.4 双音震音：type="start"（1–4 杠）→ col.trem2，只记在一对的第一个音上；type="stop" 的第二个音不另记（成对由 trem2Roles 按相邻两列判） */
+            if(tr && tr.getAttribute('type')==='start'){ const tn=+tr.textContent.trim(); if(tn>=1 && tn<=4 && tn===Math.round(tn)) col2.trem2=tn; }
             /* v44.8 滑音：slide/glissando type=start（本音滑到下一音）→ col.gliss（连续滑音同列可含 stop+start） */
             if([...nt3.querySelectorAll('slide, glissando')].some(x=>x.getAttribute('type')==='start')) col2.gliss=true;
           }
@@ -46755,9 +46884,19 @@ function exportMIDI0(s, expand){
     order.forEach((mi,oi)=>{
       const cmi=cOf(mi), rf=refLin[mi];
       let tick=starts[oi];
-      ((M[cmi].voxes||[])[vi]||[]).forEach(c=>{
+      const mCols=(M[cmi].voxes||[])[vi]||[], T2m=trem2Roles(mCols);   /* v70.4 双音震音一对（没有 trem2 的小节为 null，导出逐字节不变） */
+      mCols.forEach((c,ci)=>{
       const len=colTk(c);
-      if(c.deg){
+      const t2r = T2m? T2m[ci] : 0;
+      if(c.deg && t2r){
+        /* v70.4 双音震音：两音（各带和音）交替，每步＝四分音符 ÷ 2^杠数，铺满一对的总时值（同播放）；第二个音这一列不再另发 */
+        if(t2r===1){ flush(); aFlushAll();
+          const cB=mCols[ci+1], v=vAt(tick), step=TPQ/Math.pow(2, trem2N(c)), tot=len+colTk(cB), nrep=Math.max(2, Math.round(tot/step));
+          const chOf=c2=>[pitchOf(c2,rf)].concat((c2.adds||[]).filter(a=>a&&a.deg).map(a=>pitchOf(a,rf)));
+          const chA=chOf(c), chB=chOf(cB);
+          for(let r2=0;r2<nrep;r2++){ const at=tick+r2*tot/nrep, ln=tot/nrep; (r2%2? chB : chA).forEach(mm=>note(mm, at, ln, r2%2? Math.max(1, Math.round(v*0.86)) : v)); }
+        }
+      }else if(c.deg){
         const m=pitchOf(c,rf);
         /* v69.8（复核 F3）演奏法同播放：重音 ×1.2 / 顿强 ×1.3（夹 127）；跳音 0.5 / 断音 0.3 倍时值（stE＝本列截短后的终点） */
         const acF = c.artic==='accent'? 1.2 : c.artic==='marcato'? 1.3 : 1, stF = c.artic==='stacc'? 0.5 : c.artic==='staccatissimo'? 0.3 : 0;
