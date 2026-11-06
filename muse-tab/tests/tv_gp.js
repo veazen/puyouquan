@@ -391,6 +391,17 @@ const MXML = `<?xml version="1.0" encoding="UTF-8"?>
   }, gpxBuf.toString('base64'));
   T(!t12.error && t12.kind === 'gpif' && t12.title === 'GP导入测试' && t12.nMea === 3, 'T12 GPX(BCFZ) 导入', JSON.stringify(t12));
 
+  // T13 v70.3 B3（基石方案 §3.1）GP 第二声部：第 1 小节吉他轨加第二声部（借夹具 Voice 2：倚音＋3 个四分音符共 4 音）→ 只取声部 1、
+  //     第二声部按音计 skip.voices=4，不再记成 skip.other（此前每个非空声部计 1 处「其他」）；声部 1 的列不变
+  const gp2Buf = makeZip([{ name: 'VERSION', data: '7.0' }, { name: 'Content/score.gpif', data: GPIF.replace('<Bar id="0"><Voices>0 -1</Voices>', '<Bar id="0"><Voices>0 2</Voices>') }]);
+  const t13 = await pg.evaluate(([s, s0]) => {
+    const rd = x => parseGP(Uint8Array.from(atob(x), c => c.charCodeAt(0)).buffer);
+    const r = rd(s), r0 = rd(s0); if (r.error || r0.error) return { error: r.error || r0.error };
+    const a = buildSongFromGP(r.gp, [0]), b0 = buildSongFromGP(r0.gp, [0]);
+    return { voices: a.skip.voices, other: a.skip.other, other0: b0.skip.other, voices0: b0.skip.voices, same: JSON.stringify(a.song.measures[0].tabs) === JSON.stringify(b0.song.measures[0].tabs) };
+  }, [gp2Buf.toString('base64'), gpBuf.toString('base64')]);
+  T(!t13.error && t13.voices === 4 && t13.voices0 === 0 && t13.other === t13.other0 && t13.same, 'T13 GP 第二声部计 skip.voices（按音）、不再计 skip.other；声部 1 不变', JSON.stringify(t13));
+
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');
   await b.close();

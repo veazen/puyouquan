@@ -44088,7 +44088,7 @@ const MXL_LED = {
 /* 导入报告里的显示名（没有的照 MusicXML 名显示） */
 const SKIP_LBL = {accent:'重音', staccato:'跳音', staccatissimo:'断音', tenuto:'保持音', 'strong-accent':'顿强', 'detached-legato':'半断奏', notehead:'符头样式', accidental:'提醒变音',
   'trill-mark':'颤音', mordent:'波音', 'inverted-mordent':'波音', turn:'回音', 'accidental-mark':'装饰音变音', 'wavy-line':'颤音线', dashes:'延续虚线', fingering:'指法',
-  fermata:'延长号', slur:'圆滑线', slide:'滑音', glissando:'滑音', pedal:'踏板', 'other-dynamics':'空力度', 'octave-shift':'八度记号', 'bar-style':'小节线', words:'文字', dynamics:'力度', wedge:'渐强渐弱', metronome:'速度'};
+  fermata:'延长号', slur:'圆滑线', slide:'滑音', glissando:'滑音', pedal:'踏板', 'other-dynamics':'空力度', lyric:'歌词', 'octave-shift':'八度记号', 'bar-style':'小节线', words:'文字', dynamics:'力度', wedge:'渐强渐弱', metronome:'速度'};
 function downloadMusicXML(){
   const xml = exportMusicXML(song);
   if(!xml){ toast('曲谱为空，无可导出的声部'); return; }
@@ -45060,6 +45060,8 @@ function importMusicXML(xmlStr){
   /* 旋律行的音：kind＝'main'（有音高的主音）/ 'rest' / 'chord'（和音附加音，mainEl＝本列主音）/ 'grace'；col＝落到的列（琶音按列计） */
   const ledVox = (el, kind, mainEl, col)=>{
     ledKids(el, MXL_LED.vox.note); ledHead(el, false); ledAcc(el);
+    /* 歌词只从有音高的主音读：休止、和音附加音、倚音上带字的 <lyric> 计数 */
+    if(kind!=='main') [...el.querySelectorAll(':scope > lyric')].forEach(ly=>{ if([...ly.querySelectorAll(':scope > text')].some(t=>t.textContent.trim())) skO('lyric'); });
     const nt=q(el,'notations'); if(!nt) return;
     if(nt.querySelector(':scope > arpeggiate, :scope > non-arpeggiate') && col && ledArpCol!==col){ ledArpCol=col; skO('琶音'); }
     [...nt.children].forEach(c=>{ const tg=c.tagName;

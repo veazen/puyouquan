@@ -275,7 +275,11 @@ const WORDS = (w, st) => DT(`<words${st ? ' font-style="italic"' : ''}>${w}</wor
         T(r.n98 === 0 && r.n9 >= 17 && r.n87 >= 1 && J(r.lbl) === J(['9', '3', '5', '8:7', '2:3', '7']), 'X3 城市 9:8 连音只印「9」（' + r.n9 + ' 处）、自定 8:7 照印比值（' + (q || '新外壳') + '）', J(r));
       }
       const r4 = (await imp(PG, SRC[ID.atlas])).skip; const r4b = (await imp(PG, SRC[ID.stadt])).skip;
-      T(r4.other === 2 && r4b.other === 0, 'X4 拆谱表时保留的 backup / forward 不计入「其他记号」跳过（阿特拉斯 2 · 城市 0，与修前同）', J([r4, r4b]));
+      /* v70.3 有意迁移（基石方案 §3.1 B1 / B2）：backup / forward 本身不再计入「其他记号」（时间游标已处理，只计 forward 留下的空拍）——阿特拉斯此前的 2
+         是 m51「backup→方向→forward」给方向记号定位的一对，什么也没丢；改为按名点出真丢的：阿特拉斯双音震音 51 对（B2，v70.4 前计「震音」）、
+         城市 m35 / m38 跟在 f / pp 后面的 dim. 延续虚线 2 条（文字转标注、虚线丢，B1 台账 dashes） */
+      T(r4.other === 51 && J(r4.otherBy) === J({ '震音': 51 }) && r4b.other === 2 && J(r4b.otherBy) === J({ dashes: 2 }),
+        'X4 拆谱表时保留的 backup / forward 不计入跳过；只按名点出真丢的（阿特拉斯 震音 51 · 城市 延续虚线 2）', J([r4, r4b]));
     }
 
     /* ================= M 钢琴音色 ================= */
