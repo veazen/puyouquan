@@ -40399,6 +40399,9 @@ var NWP = (function(){
     { const a=document.activeElement; opener = (a && a!==document.body)? a : null; }
     kbNav=false;
     st=fresh(opt);
+    /* v70.1 P2b（规格 §8.2 / §8.4）上次那份计划的归属形态（只有形态；归属是常用卡则为空）——点谱种行时只对它所在的那一个谱种优先。
+       fresh({}) 是纯函数（同 lastDesc）；opt.form 已由 fresh 置好 st.pick，否则 st.pick=''、首画时 fmSync 落归属 */
+    st.lastPick = p2b()? (()=>{ if(!lastLoad()) return ''; const h=fmHome(fresh({})); return h.slice(0,3)==='fm:'? h.slice(3) : ''; })() : '';
     openScene=st.scene;
     openVia = opt.link? (opt.link.scene? 'link' : 'link-bad') : '';
     showModal('<div class="nf-shell"></div><p class="nf-sr" id="nf-live" aria-live="polite"></p>'
@@ -41542,8 +41545,9 @@ var NWP = (function(){
       return;
     }
     if(e.key==='Enter' && !e.isComposing && e.keyCode!==229 && st.tab==='new'){
-      /* 回车＝创建：用途列表 / 曲名 / 速度输入里都算；键盘移到按钮上时回车交还按钮本身；鼠标点过的按钮（谱开关 / 单选 / 更多设置）回车照样创建 */
-      if((tg.tagName==='BUTTON' && kbNav) || tg.tagName==='SELECT' || tg.tagName==='TEXTAREA') { e.stopPropagation(); return; }
+      /* 回车＝创建：用途列表 / 曲名 / 速度输入里都算；键盘移到按钮上时回车交还按钮本身；鼠标点过的按钮（谱开关 / 单选 / 更多设置）回车照样创建。
+         v70.1 P2b（§7.1）：形态 chip 上回车＝创建（chip 选中＝焦点所在；表单里 radio 回车＝提交的原生语义） */
+      if((tg.tagName==='BUTTON' && kbNav && tg.dataset.act!=='form') || tg.tagName==='SELECT' || tg.tagName==='TEXTAREA') { e.stopPropagation(); return; }
       e.preventDefault(); e.stopPropagation(); create(); return;
     }
     if(!inField && st.tab==='new' && /^[1-5]$/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey){
