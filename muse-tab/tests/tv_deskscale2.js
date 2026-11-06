@@ -29,9 +29,12 @@
    先跑旧外壳（?shell=classic）全部 T1–T13（断言逐字不变）；再在默认外壳（flow，标 [flow]）跑 T3 / T5 / T6 / T9（计划 §5.4：键盘跟滚、吸底横滚条、
    Ctrl+滚轮锚点在 flow 下各补一条；T3「排版」预设走 flow 新入口：模式条「排版」→ 右栏「版式」页预设 → Esc 回书写），断言不变。
    flow 不跑的：T7 / T8 / T12 / T13 是旧左栏「收起」钮与左轨音轨钮（flow 左栏常驻、无收起；逐轨「简谱」见 tv_trktree T7）；T1 / T2 / T4 / T10 / T11 外壳无关
-   （T2 的 flow「排版」入口同 T3，另见 tv_deskscale [flow] T6），旧外壳遍已覆盖——为把本套件留在 run_all 单套件 300 秒上限内不重复。 */
+   （T2 的 flow「排版」入口同 T3，另见 tv_deskscale [flow] T6），旧外壳遍已覆盖——为把本套件留在 run_all 单套件 300 秒上限内不重复。
+   v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「歌谱 · 合唱」卡不在了——wizard() 改 nfpick.nfPick(pg, 'vocal')
+   （卡可见点卡：旧外壳遍照旧；否则「简谱」行 → 「歌曲」形态，各自先断言可见），断言不变；wizardInst（只旧外壳 T8 / T12 / T13）不动 */
 const { chromium } = require('playwright');
 const path = require('path');
+const NFP = require('./lib/nfpick');
 const URL0 = process.env.MUSETAB_URL || 'file://' + path.resolve(__dirname, '../index.html');
 
 const NOTES = `(()=>{ const V=(deg,dur,o)=>Object.assign({dur, dotted:false, deg, acc:'', oct:0, lyrics:[], tie:false}, o||{});
@@ -82,7 +85,7 @@ const FLOW_SET = ['T3', 'T5', 'T6', 'T9'];
   /* 真实 UI 走新建向导 */
   const wizard = async (pg) => {
     await pg.evaluate(() => showNewWizard()); await pg.waitForTimeout(150);
-    await pg.click('.nf-modal [data-scene="vocal"]');   // v67.4 新建面板「歌谱 · 合唱」（原声乐意图卡）
+    await NFP.nfPick(pg, 'vocal');   // v67.4 新建面板「歌谱 · 合唱」；v70.1 卡或「简谱 › 歌曲」（nfpick，先断言可见再点）
     await pg.fill('#nw-title', '快乐的小星星');
     await pg.selectOption('#nw-key', 'B');
     await pg.fill('#nw-tempo', '90');

@@ -54,8 +54,11 @@
      T40 音符输入组九项照旧；撤销段位置：flow 在行 2 #editbar 行首（tv_modes M21），不判旧外壳的「节奏组之后 / 经典版进主栏」
      T41 三语境音符组照旧；排序：六线谱语境 0–9 → 10–24▾ → ×；五线谱语境 flow 按音名 C→B 排、带级数角标（v68.1 方案，tv_modes M11）。
          v68.2 收尾 ENG-10 ③：此前 flow 的行 2 键标签只在 render 钩子（FLOW.sync）里刷新，flow 遍在读排序前补了一次 render() 绕过；
-         现在 syncInputs 末尾跟着刷新行 2 语境与换键（FLOW.r2 / FLOW.r2k.sync），去掉这两处 render()，与旧外壳同样只调 syncInputs */
+         现在 syncInputs 末尾跟着刷新行 2 语境与换键（FLOW.r2 / FLOW.r2k.sync），去掉这两处 render()，与旧外壳同样只调 syncInputs
+     T35 v70.1 迁移（规格 docs/spec-2026-11-v701.md §15.2）：新外壳新形态第一步按谱种，「歌谱 · 合唱」卡不在了——pg2 注入 nfpick 的 PAGE_INIT，
+         改用页内 __nfPick('vocal')（旧外壳遍照旧点卡；flow 遍卡不可见时「简谱」行 → 「歌曲」形态，各自先断言可见），点不到就抛错 */
 const { chromium } = require('playwright');
+const NFP = require('./lib/nfpick');
 const F0 = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic', false], ['flow', F0, true]];
 (async () => {
@@ -958,6 +961,7 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
   const pg2 = await b.newPage({ viewport: { width: 1400, height: 950 } });
   pg2.on('pageerror', e => errs.push('PAGEERR2:' + e.message));
   await pg2.goto(F); await pg2.waitForTimeout(900);
+  await pg2.evaluate(NFP.PAGE_INIT);
   const t27 = await pg2.evaluate(() => {
     const sp = document.getElementById('start-pad');
     const vis = sp && !sp.classList.contains('hidden');
@@ -995,8 +999,8 @@ const RUNS = [['旧外壳', F0 + (F0.includes('?') ? '&' : '?') + 'shell=classic
   });
   const t35 = await pg2.evaluate(() => {
     document.querySelector('#spd-cards [data-sp="new"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    /* v67.4 新建面板：点「歌谱 · 合唱」用途（默认独唱，16 小节）→ 创建 */
-    document.querySelector('.nf-modal [data-scene="vocal"]').click();
+    /* v67.4 新建面板：点「歌谱 · 合唱」用途（默认独唱，16 小节）→ 创建；v70.1 卡或「简谱 › 歌曲」（nfpick） */
+    if (!__nfPick('vocal')) throw new Error('新建面板点不到「歌谱 · 合唱」：' + JSON.stringify(window.__nfPicked));
     document.getElementById('nw-create').click();
     return { padGone: document.getElementById('start-pad').classList.contains('hidden'),
       fresh: song.title === '未命名曲谱' && song.key === 'C' && song.measures.length === 16,
