@@ -9,7 +9,8 @@
    T17 弹窗结构：时值补 4 分档（与简谱侧一致）+ 新增技巧行（无/击弦 h/勾弦 p/滑音 sl）
    T18 技巧落地：点选后写进 col.grace.tk、谱面在小连音弧的弧顶画出斜体字母；换时值不丢技巧
    T19 兼容护栏：旧数据（无 tk）normTabGrace 归一为 ''、谱面不画字母，且不影响既有弧线
-   对 v60.57 旧文件跑 T17/T18 当场红。 */
+   对 v60.57 旧文件跑 T17/T18 当场红。
+   —— v70.4 追加 GL 段（谱表外的倚音画短加线，见文件末说明；修前页 16de944 GL1–GL6 红）。 */
 const { chromium } = require('playwright');
 const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirname, '../index.html');
 (async () => {
@@ -456,6 +457,53 @@ const F = process.env.MUSETAB_URL || 'file://' + require('path').resolve(__dirna
   T(r.grace.length === 2 && r.grace.every(x=>x === 'S') && r.plain.indexOf('S') >= 0
     && r.grace.indexOf('sl') < 0,
     'T21 倚音滑音字母改 S（与普通音符同一张 TAB_TECH_SYM 表）', JSON.stringify(r));
+
+  /* ===== v70.4（基石方案 §3.2 C；v69.8 遗留「倚音不画加线」）谱表外的倚音画短加线 =====
+     合成小样（高音谱表 C 大调 4/4）：① 主音 C6（两条上加线）带前倚音 D6 ② 主音 E4 带前倚音 C4、B3（同一条下加线连成一段）
+     ③ 主音 G4 带后倚音 G6（四条上加线）④ 主音 F4 带谱表内前倚音 E5（不画）——共 7 段。
+     GL1 段数＝7、谱表内的倚音不画；GL2 加线 y 落在线距的整数倍上（以主音 C6 的加线定谱表上线）；GL3 每个谱表外的倚音符头都有一条过它 / 贴它的加线、x 盖住符头；
+     GL4 朝主音一侧、与主音同高的加线不与主音加线连成一条（净距 ≥1）；GL5 碰撞普查（geom_census）各类 0 处（C17 只打印）；GL6 六线谱联排五线谱的倚音同样画（低音弦倚音下加线） */
+  {
+    const GC = require('./geom_census');
+    const smp = await pg.evaluate(() => {
+      const V = (deg, dur, o) => Object.assign({ dur, dotted: false, deg, acc: '', oct: 0, lyrics: [], tie: false }, o || {});
+      const s = createSong('instr', { title: 'gl', key: 'C', beats: 4, unit: 4, nMea: 1, nVox: 1, lyr: 0, clef: 'staff' });
+      s.measures[0].voxes[0] = [V(1, 4, { oct: 2, grace: { notes: [{ deg: 2, oct: 2 }], dur: 8 } }), V(3, 4, { grace: { notes: [{ deg: 1, oct: 0 }, { deg: 7, oct: -1 }], dur: 16 } }),
+        V(5, 4, { graceA: { notes: [{ deg: 5, oct: 2 }], dur: 16 } }), V(4, 4, { grace: { notes: [{ deg: 3, oct: 1 }], dur: 8 } })];
+      return s; });
+    r = await pg.evaluate(s => { const SG = 7.5, svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+      window.__pyqGeom = true; try { renderOffscreen({ song: migrate(JSON.parse(JSON.stringify(s))), target: svg, paperW: 870, crop: true }); } finally { window.__pyqGeom = false; }
+      const L = [...svg.querySelectorAll('line.gled')].map(l => ({ x1: +l.getAttribute('x1'), x2: +l.getAttribute('x2'), y: +l.getAttribute('y1'), ci: +(l.getAttribute('data-gq') || '').split(':')[2], g: l.getAttribute('data-g') }));
+      const ML = [...svg.querySelectorAll('[data-g="ledger"]')].map(l => ({ x1: +l.getAttribute('x1'), x2: +l.getAttribute('x2'), y: +l.getAttribute('y1'), ci: +l.getAttribute('data-gq').split(':')[2] }));
+      const m0 = ML.filter(l => l.ci === 0).map(l => l.y).sort((a, b) => a - b), top = m0[1] + SG, bot = top + 4 * SG;   /* C6、A5 两条 → 谱表上线 */
+      const sc = (SG * 0.62).toFixed(3);
+      const GH = [...svg.querySelectorAll('path')].filter(e => e.getAttribute('d') === SMUFL.noteheadBlack.d && (e.getAttribute('transform') || '').indexOf('scale(' + sc + ')') >= 0)
+        .map(e => { const m = /translate\(([\d.-]+),([\d.-]+)\)/.exec(e.getAttribute('transform')); const x = +m[1], y = +m[2]; return { l: x + SMUFL.noteheadBlack.bb[0] * SG * 0.62, r: x + SMUFL.noteheadBlack.bb[2] * SG * 0.62, y }; });
+      const out = GH.filter(h => h.y < top - SG / 2 - 0.1 || h.y > bot + SG / 2 + 0.1 || h.y <= top - SG + 0.1 || h.y >= bot + SG - 0.1);
+      const cover = out.map(h => L.some(l => Math.abs(l.y - h.y) <= SG / 2 + 0.1 && l.x1 <= h.l + 0.05 && l.x2 >= h.r - 0.05));
+      const grid = L.every(l => Math.abs(((l.y - top) / SG) - Math.round((l.y - top) / SG)) < 0.02 && (l.y < top - 1 || l.y > bot + 1));
+      /* 与主音同高的加线：倚音段与主音段的横向净距 */
+      let gapMin = 99; L.forEach(l => ML.filter(m => m.ci === l.ci && Math.abs(m.y - l.y) < 0.05).forEach(m => { gapMin = Math.min(gapMin, l.x2 <= m.x1 ? m.x1 - l.x2 : l.x1 >= m.x2 ? l.x1 - m.x2 : -1); }));
+      svg.remove();
+      return { n: L.length, byCol: [0, 1, 2, 3].map(c => L.filter(l => l.ci === c).length), tag: [...new Set(L.map(l => l.g))], grid, nOut: out.length, cover, gapMin: +gapMin.toFixed(2), top, ys: L.map(l => +l.y.toFixed(1)) };
+    }, smp);
+    T(r.n === 7 && JSON.stringify(r.byCol) === '[2,1,4,0]' && JSON.stringify(r.tag) === '["grace"]', 'GL1 谱表外的倚音画加线：D6 两条、C4+B3 同一条连成一段、后倚音 G6 四条，谱表内的 E5 不画（共 7 段，普查标记归倚音）', JSON.stringify(r));
+    T(r.n === 7 && r.grid, 'GL2 倚音加线的 y 落在线距的整数倍上（谱表外）', JSON.stringify(r.ys));
+    const nGL = r.n;
+    T(r.nOut === 4 && r.cover.length === 4 && r.cover.every(Boolean), 'GL3 每个谱表外的倚音符头都有一条过它 / 贴它的加线，x 盖住符头', JSON.stringify({ nOut: r.nOut, cover: r.cover }));
+    T(r.gapMin >= 1 && r.gapMin < 99, 'GL4 与主音同高的倚音加线收在主音加线外、不连成一条（净距 ≥1）', 'gapMin ' + r.gapMin);
+    const G = GC.groupCounts(await GC.census(pg, [{ name: '倚音加线小样', song: smp }], { presets: false, paperW: 870 }));
+    const bad = Object.values(G).filter(g => g.n && g.grp !== 'later' && !g.info).map(g => g.id + ' ' + g.n + ' ' + JSON.stringify(g.cats));
+    T(nGL === 7 && !bad.length, 'GL5 碰撞普查：倚音加线小样（7 段加线）各类 0 处', bad.join(' | ') || 'n=' + nGL);
+    /* GL6 六线谱联排五线谱：低音弦倚音（6 弦 0 品＝E2，记谱 E3）画下加线 */
+    r = await pg.evaluate(() => { const s = createSong('guitar', { title: 'g', beats: 4, unit: 4, key: 'C', nMea: 1, nTab: 1, nVox: 0, lyr: 0 });
+      const mk = o => Object.assign({ dur: 4, dotted: false, chord: '', strum: '', tech: '', notes: [] }, o);
+      s.measures[0].tabs[0] = [mk({ notes: [{ s: 5, f: 3 }], grace: { notes: [{ s: 6, f: 0 }], dur: 16 } }), mk({ notes: [{ s: 1, f: 0 }] }), mk({ notes: [{ s: 1, f: 1 }] }), mk({ notes: [{ s: 1, f: 3 }] })];
+      s.tabStaff = true;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); document.body.appendChild(svg);
+      renderOffscreen({ song: migrate(s), target: svg, paperW: 870, crop: true }); const n = svg.querySelectorAll('line.gled').length, h = svg.innerHTML.length; svg.remove(); return { n, h }; });
+    T(r.n >= 1, 'GL6 六线谱联排五线谱：谱表外的倚音同样画短加线', JSON.stringify(r));
+  }
 
   console.log('PASS ' + pass + '/' + total);
   console.log(errs.length ? 'ERRORS:\n' + errs.join('\n') : 'NO ERRORS');

@@ -14692,6 +14692,18 @@ function renderCore(){
               const STEPG=5.5, gWG=(g2.notes.length-1)*STEPG;
               const gx0 = preG? nxG-11-gWG-(accCols2.has(ciG)?9:0) : nxG+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
               let topYG=1e9;
+              /* v70.4（基石方案 §3.2 C）谱表外的倚音画短加线：同主音规则（SBt+10 / SBt−2 起每隔一个音级），长度按倚音比例 0.62（主音半长 6.4 → 4.0）；
+                 同高相邻倚音的加线连成一段；朝主音一侧、主音同高也有加线时收到主音加线外 1.2 */
+              { const lwG=6.4*0.62, segs={};
+                const mSt=((colG.notes)||[]).filter(n=>n && !n.x && n.s>=1 && n.s<=SN).map(n=>midiToStaff(tabStaffMidi(n.s, n.f), K2).step);
+                const mLo=mSt.length? Math.min(...mSt) : 0, mHi=mSt.length? Math.max(...mSt) : 0, mainHas=L2=> mSt.length>0 && ((L2>=SBt+10 && L2<=mHi) || (L2<=SBt-2 && L2>=mLo));
+                g2.notes.forEach((gn,gi)=>{ const st=midiToStaff(tabStaffMidi(gn.s, gn.f), K2).step, x=gx0+gi*STEPG, add=L2=>{ (segs[L2]=segs[L2]||[]).push([x-lwG, x+lwG]); };
+                  for(let L2=SBt+10; L2<=st; L2+=2) add(L2);
+                  for(let L2=SBt-2; L2>=st; L2-=2) add(L2); });
+                Object.keys(segs).forEach(k=>{ const L2=+k, iv=segs[k].sort((a,b)=>a[0]-b[0]), out=[];
+                  iv.forEach(s=>{ const t=out[out.length-1]; if(t && s[0]<=t[1]+0.5) t[1]=Math.max(t[1], s[1]); else out.push(s.slice()); });
+                  out.forEach(([xa, xb])=>{ if(mainHas(L2)){ if(preG) xb=Math.min(xb, nxG-6.4-1.2); else xa=Math.max(xa, nxG+6.4+1.2); }
+                    if(xb>xa) p.push(`<line x1="${xa.toFixed(1)}" y1="${stepYt(L2).toFixed(1)}" x2="${xb.toFixed(1)}" y2="${stepYt(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" class="gled"/>`); }); }); }
               g2.notes.forEach((gn,gi)=>{
                 const stG = midiToStaff(tabStaffMidi(gn.s, gn.f), K2);
                 const hyG = stepYt(stG.step), xG=gx0+gi*STEPG;
@@ -16157,8 +16169,22 @@ function renderCore(){
                （此前单个倚音没有符尾、多音倚音只有一道符杠、低处的符干够不着）。单个带符尾的前倚音整体左移 graceFlagW（measureLayout 同一份占位） */
             const fW = graceFlagW(g), nB = g.notes.length>1? (g.dur>=32? 3 : g.dur>=16? 2 : g.dur>=8? 1 : 0) : 0;
             const gx0 = pre? nx-11-gW-(stAccDrawn?9:0)-fW : nx+11;   /* v53.2 主音带临时记号时前倚音再左移让位 */
-            const hys = g.notes.map(gn=>stepY(staffStep({deg:gn.deg||1, oct:gn.oct||0}, K)));
+            const sts = g.notes.map(gn=>staffStep({deg:gn.deg||1, oct:gn.oct||0}, K)), hys = sts.map(st=>stepY(st));
             let topY=Math.min(...hys)-13;
+            /* v70.4（基石方案 §3.2 C；v69.8 遗留「倚音不画加线」）谱表外的倚音画短加线：同主音规则——上加线从 S_BOT+10、下加线从 S_BOT−2 起每隔一个音级一条，
+               长度按倚音比例 0.62 缩放（主音半长 6.6 → 4.1，比小符头两侧各多出约 0.2 线距）；同一高度相邻倚音的加线连成一段；
+               朝主音一侧、与主音同高也有加线时收到主音加线外 1.2（不连成一条） */
+            { const lwG = 6.6*0.62, PLg = (col.deg && AP && AP[ci])? AP[ci] : null, mLw = col.dur===1? 9.2 : 6.6;
+              const mLo = PLg? PLg.ns[0].st : 0, mHi = PLg? PLg.ns[PLg.ns.length-1].st : 0, mL = nx-mLw-(PLg && PLg.anyL? PLg.DX : 0), mR = nx+mLw+(PLg && PLg.anyR? PLg.DX : 0);
+              const mainHas = L2=> !!PLg && ((L2>=S_BOT+10 && L2<=mHi) || (L2<=S_BOT-2 && L2>=mLo));
+              const segs = {};
+              sts.forEach((st, gi)=>{ const x=gx0+gi*STEP, add = L2=>{ (segs[L2] = segs[L2]||[]).push([x-lwG, x+lwG]); };
+                for(let L2=S_BOT+10; L2<=st; L2+=2) add(L2);
+                for(let L2=S_BOT-2; L2>=st; L2-=2) add(L2); });
+              Object.keys(segs).forEach(k=>{ const L2=+k, iv=segs[k].sort((a,b)=>a[0]-b[0]), out=[];
+                iv.forEach(s=>{ const t=out[out.length-1]; if(t && s[0]<=t[1]+0.5) t[1]=Math.max(t[1], s[1]); else out.push(s.slice()); });
+                out.forEach(([xa, xb])=>{ if(mainHas(L2)){ if(pre) xb=Math.min(xb, mL-1.2); else xa=Math.max(xa, mR+1.2); }
+                  if(xb>xa) p.push(`<line x1="${xa.toFixed(1)}" y1="${stepY(L2).toFixed(1)}" x2="${xb.toFixed(1)}" y2="${stepY(L2).toFixed(1)}" stroke="var(--ink)" stroke-width="0.9" class="gled"/>`); }); }); }
             g.notes.forEach((gn,gi)=>{
               const hy2=hys[gi];
               const x=gx0+gi*STEP;
